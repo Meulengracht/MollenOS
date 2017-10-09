@@ -550,35 +550,18 @@ typedef struct _PePdbInformation
  * The Export Directory, contains a list
  * of exported functions, their ordinals and
  * function names. */
-typedef struct _PeExportDirectory
-{
-	/* Flags */
+typedef struct _PeExportDirectory {
 	uint32_t Flags;
-
-	/* DateTime Stamp */
 	uint32_t TimeStamp;
-
-	/* Major / Minor */
 	uint16_t VersionMajor;
 	uint16_t VersionMinor;
-
-	/* Name of Dll */
 	uint32_t DllName;
-
-	/* Ordinal Start Nr */
 	uint32_t OrdinalBase;
-
-	/* Number of Entries */
 	uint32_t NumberOfFunctions;
-
-	/* Number of name pointers & ordinals */
 	uint32_t NumberOfOrdinals;
-
-	/* Address of the Export Table (RVA) */
 	uint32_t AddressOfFunctions;
 	uint32_t AddressOfNames;
 	uint32_t AddressOfOrdinals;
-
 } PeExportDirectory_t;
 
 /* PE-Directory
@@ -651,23 +634,25 @@ typedef struct _PeImportDescriptor
  * a function we cache them here, an exported function consists
  * of a name, ordinal and where they reside in memory */
 typedef struct _MCorePeExportFunction {
-	char *Name;
-	int Ordinal;
-	uintptr_t Address; /* Absolute Address */
+	char                    *Name;
+	int                      Ordinal;
+	uintptr_t                Address; // Absolute Address
 } MCorePeExportFunction_t;
 
 /* The Pe-Image file structure, this contains the
  * loaded binaries and libraries, the functions an 
  * image exports and base-information */
 typedef struct _MCorePeFile {
-	MString_t *Name;
-	uint32_t Architecture;
-	uintptr_t VirtualAddress;
-	uintptr_t EntryAddress;
-	int References;
-	int UsingInitRD;
-	List_t *ExportedFunctions;
-	List_t *LoadedLibraries;
+	MString_t               *Name;
+	uint32_t                 Architecture;
+	uintptr_t                VirtualAddress;
+	uintptr_t                EntryAddress;
+	int                      References;
+    int                      UsingInitRD;
+    
+    int                      NumberOfExportedFunctions;
+	MCorePeExportFunction_t *ExportedFunctions;
+	List_t                  *LoadedLibraries;
 } MCorePeFile_t;
 
 /* PeValidate

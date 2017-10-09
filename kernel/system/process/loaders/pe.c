@@ -194,10 +194,6 @@ PeHandleSections(
         memcpy(&SectionName[0], &Section->Name[0], 8);
         SectionName[8] = 0;
 
-        // Debug
-        TRACE("%s: Section(%s), MapTo(0x%x), Pages(%i)", MStringRaw(PhoenixGetCurrentAsh()->Name),
-            &SectionName[0], Destination, PageCount);
-
         /* Iterate pages and map them in our memory space */
         for (j = 0; j < PageCount; j++) {
             uintptr_t Calculated = (uintptr_t)Destination + (j * PAGE_SIZE);
@@ -352,11 +348,10 @@ PeHandleExports(
 {
     // Variables
     PeExportDirectory_t *ExportTable = NULL;
-    uint32_t *FunctionNamesPtr = NULL;
-    uint16_t *FunctionOrdinalsPtr = NULL;
-    uint32_t *FunctionAddrPtr = NULL;
-    DataKey_t Key;
-    int i;
+    uint32_t *FunctionNamesTable = NULL;
+    uint16_t *FunctionOrdinalsTable = NULL;
+    uint32_t *FunctionAddressTable = NULL;
+    int i, OrdinalBase;
 
     // Debug
     TRACE("PeHandleExports(%s, AddressRVA 0x%x, Size 0x%x)",
@@ -373,34 +368,35 @@ PeHandleExports(
     ExportTable = (PeExportDirectory_t*)(PeFile->VirtualAddress + ExportDirectory->AddressRVA);
 
     // Calculate the names
-    FunctionNamesPtr = (uint32_t*)(PeFile->VirtualAddress + ExportTable->AddressOfNames);
-    FunctionOrdinalsPtr = (uint16_t*)(PeFile->VirtualAddress + ExportTable->AddressOfOrdinals);
-    FunctionAddrPtr = (uint32_t*)(PeFile->VirtualAddress + ExportTable->AddressOfFunctions);
-    
-    // Debug
-    TRACE("FunctionNameTable(0x%x), FunctionOrdinalTable(0x%x), FunctionAddressTable(0x%x)", 
-        FunctionNamesPtr, FunctionOrdinalsPtr, FunctionAddrPtr);
+    FunctionNamesTable = (uint32_t*)(PeFile->VirtualAddress + ExportTable->AddressOfNames);
+    FunctionOrdinalsTable = (uint16_t*)(PeFile->VirtualAddress + ExportTable->AddressOfOrdinals);
+    FunctionAddressTable = (uint32_t*)(PeFile->VirtualAddress + ExportTable->AddressOfFunctions);
+
+    // Allocate statis array for exports
+    PeFile->ExportedFunctions = (MCorePeExportFunction_t*)
+        kmalloc(sizeof(MCorePeExportFunction_t) * ExportTable->NumberOfOrdinals);
+    PeFile->NumberOfExportedFunctions = (int)ExportTable->NumberOfOrdinals;
+    OrdinalBase = ExportTable->OrdinalBase;
 
     // Instantiate the list for exported functions
-    PeFile->ExportedFunctions = ListCreate(KeyInteger, LIST_NORMAL);
-    TRACE("Number of functions to iterate: %u", ExportTable->NumberOfFunctions);
-    for (i = 0; i < (int)ExportTable->NumberOfFunctions; i++) {
-        MCorePeExportFunction_t *ExFunc = 
-            (MCorePeExportFunction_t*)kmalloc(sizeof(MCorePeExportFunction_t));
+    TRACE("Number of functions to iterate: %u", ExportTable->NumberOfOrdinals);
+    for (i = 0; i < PeFile->NumberOfExportedFunctions; i++) {
+        // Setup the correct entry
+        MCorePeExportFunction_t *ExFunc = &PeFile->ExportedFunctions[i];
 
-        // Initiate members
-        ExFunc->Name = (char*)(PeFile->VirtualAddress + FunctionNamesPtr[i]);
-        ExFunc->Ordinal = FunctionOrdinalsPtr[i];
-        ExFunc->Address = AddressSpaceTranslate(AddressSpaceGetCurrent(), 
-            (uintptr_t)(PeFile->VirtualAddress + FunctionAddrPtr[ExFunc->Ordinal]));
-
-        // Add to list
-        Key.Value = (int)ExFunc->Ordinal;
-        ListAppend(PeFile->ExportedFunctions, ListCreateNode(Key, Key, ExFunc));
+        // Extract the function information
+        ExFunc->Ordinal = (int)FunctionOrdinalsTable[i];
+        ExFunc->Name = (char*)(PeFile->VirtualAddress + FunctionNamesTable[i]);
+        if ((ExFunc->Ordinal - OrdinalBase) > ExportTable->NumberOfOrdinals) {
+            ERROR("(%s) Found invalid ordinal index: %u (Ordinal %u, Base %u)", 
+                MStringRaw(PeFile->Name), (ExFunc->Ordinal - OrdinalBase), ExFunc->Ordinal, OrdinalBase);
+            ExFunc->Address = 0;
+        }
+        else {
+            ExFunc->Address = AddressSpaceTranslate(AddressSpaceGetCurrent(), 
+                (uintptr_t)(PeFile->VirtualAddress + FunctionAddressTable[ExFunc->Ordinal - OrdinalBase]));
+        }
     }
-
-    // Debug
-    TRACE("Functions exported: %u", ListLength(PeFile->ExportedFunctions));
 }
 
 /* PeHandleImports
@@ -427,9 +423,10 @@ void PeHandleImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile,
     {
         /* Variables for resolving the library */
         MCorePeFile_t *ResolvedLibrary = NULL;
-        List_t *Exports = NULL;
+        MCorePeExportFunction_t *Exports = NULL;
         MString_t *Name = NULL;
         char *NamePtr = NULL;
+        int NumberOfExports;
 
         /* Initialize the string pointer 
          * and create a new mstring instance from it */
@@ -438,13 +435,13 @@ void PeHandleImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile,
 
         /* Try to resolve the library we import from */
         ResolvedLibrary = PeResolveLibrary(Parent, PeFile, Name, NextImageBase);
-
         if (ResolvedLibrary == NULL
             || ResolvedLibrary->ExportedFunctions == NULL) {
             return;
         }
         else {
             Exports = ResolvedLibrary->ExportedFunctions;
+            NumberOfExports = ResolvedLibrary->NumberOfExportedFunctions;
         }
 
         /* Calculate address to IAT
@@ -462,24 +459,22 @@ void PeHandleImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile,
 
                 /* Is it an ordinal or a function name? */
                 if (Value & PE_IMPORT_ORDINAL_32) {
-                    DataKey_t oKey;
-                    oKey.Value = (int)(Value & 0xFFFF);
-                    Function = (MCorePeExportFunction_t*)
-                        ListGetDataByKey(Exports, oKey, 0);
+                    int Ordinal = (int)(Value & 0xFFFF);
+                    for (int i = 0; i < NumberOfExports; i++) {
+                        if (Exports[i].Ordinal == Ordinal) {
+                            Function = &Exports[i];
+                            break;
+                        }
+                    }
                 }
                 else {
                     /* Nah, pointer to function name, 
                      * where two first bytes are hint? */
                     FunctionName = (char*)
                         (PeFile->VirtualAddress + (Value & PE_IMPORT_NAMEMASK) + 2);
-
-                    /* A little bit more tricky, we now have to
-                     * locate the function by name in exported functions */
-                    foreach(FuncNode, Exports) {
-                        MCorePeExportFunction_t *pFunc =
-                            (MCorePeExportFunction_t*)FuncNode->Data;
-                        if (!strcmp(pFunc->Name, FunctionName)) {
-                            Function = pFunc;
+                    for (int i = 0; i < NumberOfExports; i++) {
+                        if (!strcmp(Exports[i].Name, FunctionName)) {
+                            Function = &Exports[i];
                             break;
                         }
                     }
@@ -511,24 +506,22 @@ void PeHandleImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile,
 
                 /* Is it an ordinal or a function name? */
                 if (Value & PE_IMPORT_ORDINAL_64) {
-                    DataKey_t oKey;
-                    oKey.Value = (int)(Value & 0xFFFF);
-                    Function = (MCorePeExportFunction_t*)
-                        ListGetDataByKey(Exports, oKey, 0);
+                    int Ordinal = (int)(Value & 0xFFFF);
+                    for (int i = 0; i < NumberOfExports; i++) {
+                        if (Exports[i].Ordinal == Ordinal) {
+                            Function = &Exports[i];
+                            break;
+                        }
+                    }
                 }
                 else {
                     /* Nah, pointer to function name, 
                      * where two first bytes are hint? */
-                    char *FuncName = (char*)
+                    char *FunctionName = (char*)
                         (PeFile->VirtualAddress + (uint32_t)(Value & PE_IMPORT_NAMEMASK) + 2);
-
-                    /* A little bit more tricky, we now have to
-                     * locate the function by name in exported functions */
-                    foreach(FuncNode, Exports) {
-                        MCorePeExportFunction_t *pFunc =
-                            (MCorePeExportFunction_t*)FuncNode->Data;
-                        if (!strcmp(pFunc->Name, FuncName)) {
-                            Function = pFunc;
+                    for (int i = 0; i < NumberOfExports; i++) {
+                        if (!strcmp(Exports[i].Name, FunctionName)) {
+                            Function = &Exports[i];
                             break;
                         }
                     }
@@ -675,22 +668,18 @@ PeResolveLibrary(
 /* PeResolveFunction
  * Resolves a function by name in the given pe image, the return
  * value is the address of the function. 0 If not found */
-uintptr_t PeResolveFunction(MCorePeFile_t *Library, const char *Function)
+uintptr_t
+PeResolveFunction(
+    _In_ MCorePeFile_t *Library, 
+    _In_ __CONST char *Function)
 {
-    /* Variables for finding the function */
-    List_t *Exports = Library->ExportedFunctions;
-
-    /* Ok, so we iterate exported function and try to
-     * locate the function by its name */
-    foreach(lNode, Exports) {
-        MCorePeExportFunction_t *ExFunc = 
-            (MCorePeExportFunction_t*)lNode->Data;
-        if (!strcmp(ExFunc->Name, Function)) {
-            return ExFunc->Address;
+    // Variables
+    MCorePeExportFunction_t *Exports = Library->ExportedFunctions;
+    for (int i = 0; i < Library->NumberOfExportedFunctions; i++) {
+        if (!strcmp(Exports[i].Name, Function)) {
+            return Exports[i].Address;
         }
     }
-
-    /* Damn.. */
     return 0;
 }
 
@@ -852,14 +841,7 @@ void PeUnloadImage(MCorePeFile_t *Executable)
 
     /* Cleanup exported functions */
     if (Executable->ExportedFunctions != NULL) {
-        _foreach(Node, Executable->ExportedFunctions) {
-            MCorePeExportFunction_t *ExFunc = 
-                (MCorePeExportFunction_t*)Node->Data;
-            kfree(ExFunc);
-        }
-
-        /* Destroy list */
-        ListDestroy(Executable->ExportedFunctions);
+        kfree(Executable->ExportedFunctions);
     }
 
     /* Cleanup libraries */

@@ -37,4 +37,5 @@ jobs:
         - export PATH=/usr/local/bin:${PATH}
         - chmod +x ./get_toolchain.sh
         - bash ./get_toolchain.sh
+        - chmod -R 755 $CROSS
         - make

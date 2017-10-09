@@ -945,14 +945,14 @@ void ExceptionEntry(Context_t *Registers)
 			}
 			else {
 				LogDebug(__MODULE, "Faulty Address: 0x%x", Registers->Eip);
-				LogDebug(__MODULE, "Stack ptr: 0x%x", Registers->Esp);
 			}
 		}
 
 		// Enter panic handler
+        DebugContext(Registers);
 		DebugPanic(FATAL_SCOPE_KERNEL, __MODULE,
 			"Unhandled or fatal interrupt %u, Error Code: %u, Faulty Address: 0x%x",
-			Registers->Irq, Registers->ErrorCode, Registers->Eip);
+            Registers->Irq, Registers->ErrorCode, Registers->Eip);
 	}
 }
 
