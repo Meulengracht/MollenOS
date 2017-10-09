@@ -22,7 +22,7 @@ addons:
       - subversion
       - make
       - nasm
-      - monodevelop
+      - mono-complete
       - unzip
 notifications:
   email:

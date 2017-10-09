@@ -26,6 +26,7 @@
 #include <system/addresspace.h>
 #include <modules/modules.h>
 #include <os/driver/file.h>
+#include <process/ash.h>
 #include <process/pe.h>
 #include <debug.h>
 #include <heap.h>
@@ -194,7 +195,7 @@ PeHandleSections(
         SectionName[8] = 0;
 
         // Debug
-        TRACE("Section(%s), MapTo(0x%x), Pages(%i)",
+        TRACE("%s: Section(%s), MapTo(0x%x), Pages(%i)", MStringRaw(PhoenixGetCurrentAsh()->Name),
             &SectionName[0], Destination, PageCount);
 
         /* Iterate pages and map them in our memory space */
@@ -358,7 +359,8 @@ PeHandleExports(
     int i;
 
     // Debug
-    TRACE("PeHandleExports(AddressRVA 0x%x, Size 0x%x)",
+    TRACE("PeHandleExports(%s, AddressRVA 0x%x, Size 0x%x)",
+        MStringRaw(PhoenixGetCurrentAsh()->Name), 
         ExportDirectory->AddressRVA, ExportDirectory->Size);
 
     // Sanitize the directory first
