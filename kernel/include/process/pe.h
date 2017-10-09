@@ -659,26 +659,46 @@ typedef struct _MCorePeFile {
  * Validates a file-buffer of the given length,
  * does initial header checks and performs a checksum
  * validation. Returns either PE_INVALID or PE_VALID */
-__EXTERN int PeValidate(uint8_t *Buffer, size_t Length);
+__EXTERN 
+int
+PeValidate(
+    _In_ uint8_t *Buffer, 
+    _In_ size_t Length);
 
 /* PeResolveLibrary
  * Resolves a dependancy or a given module path, a load address must be provided
  * together with a pe-file header to fill out and the parent that wants to resolve
  * the library */
-__EXTERN MCorePeFile_t *PeResolveLibrary(MCorePeFile_t *Parent,
-	MCorePeFile_t *PeFile, MString_t *LibraryName, uintptr_t *LoadAddress);
+__EXTERN
+MCorePeFile_t*
+PeResolveLibrary(
+    _In_ MCorePeFile_t *Parent,
+    _In_ MCorePeFile_t *PeFile,
+    _In_ MString_t *LibraryName,
+    _InOut_ uintptr_t *LoadAddress);
 
 /* PeResolveFunction
  * Resolves a function by name in the given pe image, the return
- * value is the address of the function */
-__EXTERN uintptr_t PeResolveFunction(MCorePeFile_t *Library, const char *Function);
+ * value is the address of the function. 0 If not found */
+__EXTERN
+uintptr_t
+PeResolveFunction(
+    _In_ MCorePeFile_t *Library, 
+    _In_ __CONST char *Function);
 
 /* PeLoadImage
  * Loads the given file-buffer as a pe image into the current address space 
  * at the given Base-Address, which is updated after load to reflect where
  * the next address is available for load */
-__EXTERN MCorePeFile_t *PeLoadImage(MCorePeFile_t *Parent, MString_t *Name,
-	uint8_t *Buffer, size_t Length, uintptr_t *BaseAddress, int UsingInitRD);
+__EXTERN
+MCorePeFile_t*
+PeLoadImage(
+    _In_ MCorePeFile_t *Parent, 
+    _In_ MString_t *Name, 
+    _In_ uint8_t *Buffer, 
+    _In_ size_t Length, 
+    _InOut_ uintptr_t *BaseAddress, 
+    _In_ int UsingInitRD);
 
 /* PeUnloadLibrary
  * Unload dynamically loaded library 
