@@ -35,14 +35,63 @@
 #include <stddef.h>
 #include <ds/list.h>
 
-/* Private definitions that
- * are local to this file */
-#define LIST_MODULE            1
-#define LIST_SERVER            2
+/* Private definitions that are local to this file */
+#define LIST_MODULE             1
+#define LIST_SERVER             2
+#define POLYNOMIAL              0x04c11db7L      // Standard CRC-32 ppolynomial
 
 /* Globals */
 List_t *GlbModules = NULL;
 int GlbModulesInitialized = 0;
+
+/* Static Storage
+ * Used for keeping the crc-32 table */
+static uint32_t CrcTable[256] = { 0 };
+
+/* Crc32GenerateTable
+ * Generates a dynamic crc-32 table. */
+void
+Crc32GenerateTable(void)
+{
+    // Variables
+    register uint32_t CrcAccumulator;
+    register int i, j;
+
+    // Iterate and fill the table
+    for (i=0;  i < 256; i++) {
+        CrcAccumulator = ((uint32_t) i << 24);
+        for (j = 0;  j < 8;  j++) {
+            if (CrcAccumulator & 0x80000000L) {
+                CrcAccumulator = (CrcAccumulator << 1) ^ POLYNOMIAL;
+            }
+            else {
+                CrcAccumulator = (CrcAccumulator << 1);
+            }
+        }
+        CrcTable[i] = CrcAccumulator;
+    }
+}
+
+/* Crc32Generate
+ * Generates an crc-32 checksum from the given accumulator and
+ * the given data. */
+uint32_t
+Crc32Generate(
+    _In_ uint32_t CrcAccumulator, 
+    _In_ uint8_t *DataPointer, 
+    _In_ size_t DataSize)
+{
+    // Variables
+    register size_t i, j;
+
+    // Iterate each byte and accumulate crc
+    for (j = 0; j < DataSize; j++) {
+        i = ((int) (CrcAccumulator >> 24) ^ *DataPointer++) & 0xFF;
+        CrcAccumulator = (CrcAccumulator << 8) ^ CrcTable[i];
+    }
+    CrcAccumulator = ~CrcAccumulator;
+    return CrcAccumulator;
+}
 
 /* ModulesInitialize
  * Loads the ramdisk, iterates all headers and 
@@ -70,6 +119,10 @@ ModulesInitialize(
         TRACE("No ramdisk supplied by the boot-descriptor");
         return OsSuccess;
     }
+
+    // Generate CRC-32 table
+    TRACE("Generating CRC-Table");
+    Crc32GenerateTable();
     
     // Initialize the pointer and read the signature value, must match
     Ramdisk = (MCoreRamDiskHeader_t*)BootDescriptor->RamDiskAddress;
@@ -96,14 +149,27 @@ ModulesInitialize(
     while (Counter != 0) {
         if (Entry->Type == RAMDISK_MODULE || Entry->Type == RAMDISK_FILE) {
             MCoreRamDiskModuleHeader_t *Header =
-                (MCoreRamDiskModuleHeader_t*)(BootDescriptor->RamDiskAddress + Entry->DataOffset); 
+                (MCoreRamDiskModuleHeader_t*)(BootDescriptor->RamDiskAddress + Entry->DataHeaderOffset);
             MCoreModule_t *Module = NULL;
+            uint8_t *ModuleData = NULL;
+            uint32_t CrcOfData = 0;
             DataKey_t Key;
+
+            // Perform CRC validation
+            ModuleData = (uint8_t*)(BootDescriptor->RamDiskAddress 
+                + Entry->DataHeaderOffset + sizeof(MCoreRamDiskModuleHeader_t));
+            CrcOfData = Crc32Generate(-1, ModuleData, Header->LengthOfData);
+            if (CrcOfData != Header->Crc32OfData) {
+                ERROR("CRC-Validation(%s): Failed (Calculated 0x%x != Stored 0x%x)",
+                    &Entry->Name[0], CrcOfData, Header->Crc32OfData);
+            }
 
             // Allocate a new module header and copy some values 
             Module = (MCoreModule_t*)kmalloc(sizeof(MCoreModule_t));
-            Module->Name = MStringCreate(Header->ModuleName, StrUTF8);
-            Module->Header = Header;
+            Module->Name = MStringCreate(Entry->Name, StrUTF8);
+            memcpy(&Module->Header, Header, sizeof(MCoreRamDiskModuleHeader_t));
+            Module->Data = (__CONST void*)kmalloc(Header->LengthOfData);
+            memcpy((void*)Module->Data, ModuleData, Header->LengthOfData);
 
             // Update key based on the type of module
             // either its a server or a driver
@@ -206,9 +272,8 @@ ModulesQueryPath(
         MCoreModule_t *Mod = (MCoreModule_t*)sNode->Data;
         TRACE("Comparing(%s)To(%s)", MStringRaw(Token), MStringRaw(Mod->Name));
         if (MStringCompare(Token, Mod->Name, 1) != MSTRING_NO_MATCH) {
-            *Buffer = (void*)(
-                (uintptr_t)Mod->Header + sizeof(MCoreRamDiskModuleHeader_t));
-            *Length = Mod->Header->Length;
+            *Buffer = (void*)Mod->Data;
+            *Length = Mod->Header.LengthOfData;
             Result = OsSuccess;
             break;
         }
@@ -239,8 +304,8 @@ ModulesFindGeneric(
     // Locate the module
     foreach(sNode, GlbModules) {
         MCoreModule_t *Mod = (MCoreModule_t*)sNode->Data;
-        if (Mod->Header->DeviceType == DeviceType
-            && Mod->Header->DeviceSubType == DeviceSubType) {
+        if (Mod->Header.DeviceType == DeviceType
+            && Mod->Header.DeviceSubType == DeviceSubType) {
             return Mod;
         }
     }
@@ -264,8 +329,8 @@ ModulesFindSpecific(
     // Locate the module
     foreach(sNode, GlbModules) {
         MCoreModule_t *Mod = (MCoreModule_t*)sNode->Data;
-        if (Mod->Header->VendorId == VendorId
-            && Mod->Header->DeviceId == DeviceId) {
+        if (Mod->Header.VendorId == VendorId
+            && Mod->Header.DeviceId == DeviceId) {
             return Mod;
         }
     }

@@ -42,8 +42,9 @@
  * consists of the a ramdisk entry header and
  * a name/path */
 typedef struct _MCoreModule {
-	MString_t *Name;
-	MCoreRamDiskModuleHeader_t *Header;
+	MString_t                   *Name;
+    MCoreRamDiskModuleHeader_t   Header;
+    __CONST void                *Data;
 } MCoreModule_t;
 
 /* ModulesInitialize

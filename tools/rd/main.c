@@ -12,6 +12,8 @@
 #include <sys/stat.h>
 
 #define PACKED_TYPESTRUCT(name, body) typedef struct __attribute__((packed)) _##name body name##_t
+#define POLYNOMIAL 0x04c11db7L      // Standard CRC-32 ppolynomial
+
 /* MCoreRamDiskHeader
  * The ramdisk header, this is present in the 
  * first few bytes of the ramdisk image, members
@@ -30,23 +32,25 @@ PACKED_TYPESTRUCT(MCoreRamDiskHeader, {
 PACKED_TYPESTRUCT(MCoreRamDiskEntry, {
     uint8_t     Name[64]; // UTF-8 Encoded filename
     uint32_t    Type; // Check the ramdisk entry definitions
-    uint32_t    DataOffset; // offset in the ramdisk
+    uint32_t    DataHeaderOffset; // offset in the ramdisk
 });
 
 /* MCoreRamDiskModuleHeader
  * This is the module header, and contains basic information
  * about the module data that follow this header. */
 PACKED_TYPESTRUCT(MCoreRamDiskModuleHeader, {
-    uint8_t     ModuleName[64]; // UTF-8 Encoded name
+    uint32_t    Flags;
+    uint32_t    LengthOfData; // Excluding this header
+    uint32_t    Crc32OfData;
+    
     uint32_t    VendorId;
     uint32_t    DeviceId;
     uint32_t    DeviceType;
     uint32_t    DeviceSubType;
-    uint32_t    Flags;
-    uint32_t    Length; // Excluding this header
 });
 
 // Statics
+uint32_t CrcTable[256] = { 0 };
 MCoreRamDiskHeader_t RdHeaderStatic = {
 	0x3144524D,
 	0x00000001,
@@ -58,6 +62,51 @@ static void ShowSyntax(void)
 {
 	printf("  Syntax:\n\n"
            "    Build    :  rd <arch> <output>\n\n");
+}
+
+/* Crc32GenerateTable
+ * Generates a dynamic crc-32 table. */
+void
+Crc32GenerateTable(void)
+{
+    // Variables
+    register uint32_t CrcAccumulator;
+    register int i, j;
+
+    // Iterate and fill the table
+    for (i=0;  i < 256; i++) {
+        CrcAccumulator = ((uint32_t) i << 24);
+        for (j = 0;  j < 8;  j++) {
+            if (CrcAccumulator & 0x80000000L) {
+                CrcAccumulator = (CrcAccumulator << 1) ^ POLYNOMIAL;
+            }
+            else {
+                CrcAccumulator = (CrcAccumulator << 1);
+            }
+        }
+        CrcTable[i] = CrcAccumulator;
+    }
+}
+
+/* Crc32Generate
+ * Generates an crc-32 checksum from the given accumulator and
+ * the given data. */
+uint32_t
+Crc32Generate(
+    uint32_t CrcAccumulator, 
+    uint8_t *DataPointer, 
+    size_t DataSize)
+{
+    // Variables
+    register size_t i, j;
+
+    // Iterate each byte and accumulate crc
+    for (j = 0; j < DataSize; j++) {
+        i = ((int) (CrcAccumulator >> 24) ^ *DataPointer++) & 0xFF;
+        CrcAccumulator = (CrcAccumulator << 8) ^ CrcTable[i];
+    }
+    CrcAccumulator = ~CrcAccumulator;
+    return CrcAccumulator;
 }
 
 // Determines if a file has a corresponding driver descriptor
@@ -198,14 +247,19 @@ int main(int argc, char *argv[])
 	if (out == NULL) {
 		printf("%s was an invalid output file\n", argv[2]);
 		return 1;
-	}
+    }
+    
+    // Initialize CRC
+    printf("Generating crc-table\n");
+    Crc32GenerateTable();
 
 	// Fill in architecture
 	// Arch - x86_32 = 0x08, x86_64 = 0x10
 	RdHeaderStatic.Architecture = 0x08;
 	RdHeaderStatic.FileCount = 0;
 
-	// Open directory
+    // Open directory
+    printf("Counting available files for rd\n");
 	if ((dfd = opendir("initrd")) == NULL) {
 		fprintf(stderr, "Can't open initrd folder\n");
 		return 1;
@@ -222,17 +276,18 @@ int main(int argc, char *argv[])
 	// Rewind
 	rewinddir(dfd);
 
-	// Write header
-	fwrite(&RdHeaderStatic, 1, sizeof(RdHeaderStatic), out);
+    // Write header
+    printf("Generating ramdisk header\n");
+	fwrite(&RdHeaderStatic, 1, sizeof(MCoreRamDiskHeader_t), out);
 	fflush(out);
 
 	// Store current position
 	fentrypos = ftell(out);
 
 	// Fill rest of entry space with 0
-	dataptr = malloc(0x1000 - sizeof(RdHeaderStatic));
-	memset(dataptr, 0, 0x1000 - sizeof(RdHeaderStatic));
-	fwrite(dataptr, 1, 0x1000 - sizeof(RdHeaderStatic), out);
+	dataptr = malloc(0x1000 - sizeof(MCoreRamDiskHeader_t));
+	memset(dataptr, 0, 0x1000 - sizeof(MCoreRamDiskHeader_t));
+	fwrite(dataptr, 1, 0x1000 - sizeof(MCoreRamDiskHeader_t), out);
 	free(dataptr);
 	fflush(out);
 	fdatapos = ftell(out);
@@ -242,14 +297,14 @@ int main(int argc, char *argv[])
 	for (int i = 0; i < 24; i++)
 		tokens[i] = (char*)malloc(64);
 
-	// Iterate entries
+    // Iterate entries
+    printf("Generating ramdisk entries\n");
 	while ((dp = readdir(dfd)) != NULL) {
 		struct stat stbuf;
 
 		// Build path string
 		sprintf(filename_qfd, "initrd/%s", dp->d_name);
-		if (stat(filename_qfd, &stbuf) == -1)
-		{
+		if (stat(filename_qfd, &stbuf) == -1) {
 			printf("Unable to stat file: %s\n", filename_qfd);
 			continue;
 		}
@@ -261,9 +316,10 @@ int main(int argc, char *argv[])
 		else {
             // Variables
             MCoreRamDiskEntry_t rdentry = { { 0 }, 0 };
-            MCoreRamDiskModuleHeader_t rddataheader = { { 0 }, 0 };
-            char *dot = strrchr(dp->d_name, '.');
+            MCoreRamDiskModuleHeader_t rddataheader = { 0 };
             
+            // Skip everything that is not dll's
+            char *dot = strrchr(dp->d_name, '.');
 			if (!dot || strcmp(dot, ".dll")) {
 				continue;
 			}
@@ -292,11 +348,9 @@ int main(int argc, char *argv[])
             fseek(out, fentrypos, SEEK_SET);
             
             // fill entry
-            name = RemoveExtension(dp->d_name, '.', '/');
-            memcpy(&rdentry.Name[0], name, strlen(name));
+            memcpy(&rdentry.Name[0], dp->d_name, strlen(dp->d_name));
             rdentry.Type = type;
-            rdentry.DataOffset = fdatapos;
-			free(name);
+            rdentry.DataHeaderOffset = fdatapos;
 
 			// Write header data
 			fwrite(&rdentry, sizeof(MCoreRamDiskEntry_t), 1, out);
@@ -306,11 +360,8 @@ int main(int argc, char *argv[])
 			fentrypos = ftell(out);
 
 			// Seek to data
-			fseek(out, fdatapos, SEEK_SET);
-
-			// Write header, then file data
-            memcpy(&rddataheader.ModuleName[0], dp->d_name, strlen(dp->d_name));
-
+            fseek(out, fdatapos, SEEK_SET);
+            
 			// Load driver data?
 			if (drvdata != NULL) {
 				while (1) {
@@ -360,10 +411,11 @@ int main(int argc, char *argv[])
 			dataptr = malloc(fsize);
 			rewind(entry);
 			fread(dataptr, 1, fsize, entry);
-			fclose(entry);
-
+            fclose(entry);
+            
 			// Write data header
-            rddataheader.Length = fsize;
+            rddataheader.LengthOfData = fsize;
+            rddataheader.Crc32OfData = Crc32Generate(-1, (uint8_t*)dataptr, fsize);
 			fwrite(&rddataheader, sizeof(MCoreRamDiskModuleHeader_t), 1, out);
 
 			// Write file data

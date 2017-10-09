@@ -8,6 +8,10 @@ os:
 env:
   global:
   - CROSS=$HOME/cross-compiler
+  - CURRENT_DIST=trusty
+cache:
+  directories:
+    - $HOME/cross-compiler # Cache the bin directory
 addons:
   apt:
     packages:
@@ -19,6 +23,7 @@ addons:
       - make
       - nasm
       - monodevelop
+      - unzip
 notifications:
   email:
     recipients:
@@ -29,6 +34,6 @@ jobs:
   include:
     - stage: build
       script:
-        - mkdir -p $HOME/cross-compiler
-        - wget 
+        - chmod +x ./get_toolchain.sh
+        - bash ./get_toolchain.sh
         - make
