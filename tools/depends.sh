@@ -37,7 +37,7 @@ fi
 
 # mono is required
 if ! [ -x "$(command -v mono)" ]; then
-  apt-get -qq install monodevelop
+  apt-get -qq install mono-complete
 fi
 
 # cmake version 3 is required
