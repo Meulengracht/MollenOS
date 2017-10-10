@@ -109,8 +109,8 @@ AddressSpaceCreate(
 		int KernelRegionEnd = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_KERNEL_END);
 
 		// Lookup which table-region is the stack region
-		int StackRegion = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_STACK_END);
-		int StackRegionEnd = PAGE_DIRECTORY_INDEX(MEMORY_SEGMENT_STACK_BASE);
+		int ThreadRegion = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_START);
+		int ThreadRegionEnd = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_END);
 
 		// Allocate a new address space
 		AddressSpace = (AddressSpace_t*)kmalloc(sizeof(AddressSpace_t));
@@ -129,7 +129,7 @@ AddressSpaceCreate(
 			}
 
 			// Sanitize stack region, never copy
-			if (Itr >= StackRegion && Itr < StackRegionEnd) {
+			if (Itr >= ThreadRegion && Itr < ThreadRegionEnd) {
 				continue;
 			}
 

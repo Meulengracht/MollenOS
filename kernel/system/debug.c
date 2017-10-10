@@ -126,8 +126,9 @@ DebugPageFault(
 		}
 	}
 
-	// Case 4 - User Stack
-	else if (Address >= MEMORY_LOCATION_STACK_END) {
+	// Case 4 - User Per-Thread Storage (Stack + TLS)
+    else if (Address >= MEMORY_LOCATION_RING3_THREAD_START
+        && Address <= MEMORY_LOCATION_RING3_THREAD_END) {
 		// Try to map it in and return the result
 		return AddressSpaceMap(AddressSpaceGetCurrent(),
 			(Address & PAGE_MASK), PAGE_SIZE, __MASK,

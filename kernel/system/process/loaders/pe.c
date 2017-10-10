@@ -117,7 +117,7 @@ PeValidate(
     }
 
     // Initiate pointer to optional header
-    OptHeader = (PeOptionalHeader_t*)(Buffer + DosHeader->PeAddr + sizeof(PeHeader_t));
+    OptHeader = (PeOptionalHeader_t*)(Buffer + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
 
     // Validate the current architecture,
     // again we don't load 32 bit modules for 64 bit
@@ -133,13 +133,13 @@ PeValidate(
     // We need to re-cast based on architecture
     if (OptHeader->Architecture == PE_ARCHITECTURE_32) {
         PeOptionalHeader32_t *OptHeader32 = 
-            (PeOptionalHeader32_t*)(Buffer + DosHeader->PeAddr + sizeof(PeHeader_t));
+            (PeOptionalHeader32_t*)(Buffer + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
         CheckSumAddress = (size_t)&(OptHeader32->ImageChecksum);
         HeaderCheckSum = OptHeader32->ImageChecksum;
     }
     else if (OptHeader->Architecture == PE_ARCHITECTURE_64) {
         PeOptionalHeader64_t *OptHeader64 = 
-            (PeOptionalHeader64_t*)(Buffer + DosHeader->PeAddr + sizeof(PeHeader_t));
+            (PeOptionalHeader64_t*)(Buffer + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
         CheckSumAddress = (size_t)&(OptHeader64->ImageChecksum);
         HeaderCheckSum = OptHeader64->ImageChecksum;
     }
@@ -186,8 +186,8 @@ PeHandleSections(
         // Calculate pointers, we need two of them, one that
         // points to data in file, and one that points to where
         // in memory we want to copy data to
-        uint8_t *FileBuffer = (uint8_t*)(Data + Section->RawAddr);
-        uint8_t *Destination = (uint8_t*)(PeFile->VirtualAddress + Section->VirtualAddr);
+        uint8_t *FileBuffer = (uint8_t*)(Data + Section->RawAddress);
+        uint8_t *Destination = (uint8_t*)(PeFile->VirtualAddress + Section->VirtualAddress);
         int PageCount = DIVUP(MAX(Section->RawSize, Section->VirtualSize), PAGE_SIZE);
 
         // Make a local copy of the name, just in case
@@ -195,7 +195,7 @@ PeHandleSections(
         memcpy(&SectionName[0], &Section->Name[0], 8);
         SectionName[8] = 0;
 
-        /* Iterate pages and map them in our memory space */
+        // Iterate pages and map them in our memory space
         for (j = 0; j < PageCount; j++) {
             uintptr_t Calculated = (uintptr_t)Destination + (j * PAGE_SIZE);
             if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), Calculated)) {
@@ -204,10 +204,10 @@ PeHandleSections(
             }
         }
 
-        /* Handle sections specifics, we want to:
-         * BSS: Zero out the memory 
-         * Code: Copy memory 
-         * Data: Copy memory */
+        // Handle sections specifics, we want to:
+        // BSS: Zero out the memory 
+        // Code: Copy memory 
+        // Data: Copy memory */
         if (Section->RawSize == 0
             || (Section->Flags & PE_SECTION_BSS)) {
             memset(Destination, 0, Section->VirtualSize);
@@ -216,30 +216,26 @@ PeHandleSections(
                 || (Section->Flags & PE_SECTION_DATA)) {
             memcpy(Destination, FileBuffer, Section->RawSize);
 
-            /* Sanitize this special case, if the virtual size
-             * is large, this means there needs to be zeroed space
-             * afterwards */
+            // Sanitize this special case, if the virtual size
+            // is large, this means there needs to be zeroed space
+            // afterwards
             if (Section->VirtualSize > Section->RawSize) {
                 memset((Destination + Section->RawSize), 0,
                     (Section->VirtualSize - Section->RawSize));
             }
         }
 
-        /* Increase Pointers */
-        CurrentAddress = (PeFile->VirtualAddress + Section->VirtualAddr
+        // Update address and seciton
+        CurrentAddress = (PeFile->VirtualAddress + Section->VirtualAddress
             + MAX(Section->RawSize, Section->VirtualSize));
-
-        /* Go to next */
         Section++;
     }
 
-    /* Return a page-aligned address that points to the
-     * next free relocation address*/
+    // Return a page-aligned address that points to the
+    // next free relocation address
     if (CurrentAddress % PAGE_SIZE) {
         CurrentAddress += (PAGE_SIZE - (CurrentAddress % PAGE_SIZE));
     }
-
-    /* Done! */
     return CurrentAddress;
 }
 
@@ -725,25 +721,25 @@ PeLoadImage(
     
     // Start out by initializing our header pointers
     DosHeader = (MzHeader_t*)Buffer;
-    BaseHeader = (PeHeader_t*)(Buffer + DosHeader->PeAddr);
+    BaseHeader = (PeHeader_t*)(Buffer + DosHeader->PeHeaderAddress);
     OptHeader = (PeOptionalHeader_t*)
-        (Buffer + DosHeader->PeAddr + sizeof(PeHeader_t));
+        (Buffer + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
 
     // We need to re-cast based on architecture 
     // and handle them differnetly
     if (OptHeader->Architecture == PE_ARCHITECTURE_32) {
         OptHeader32 = (PeOptionalHeader32_t*)(Buffer 
-            + DosHeader->PeAddr + sizeof(PeHeader_t));
+            + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
         ImageBase = OptHeader32->BaseAddress;
-        SectionAddress = (uintptr_t)(Buffer + DosHeader->PeAddr 
+        SectionAddress = (uintptr_t)(Buffer + DosHeader->PeHeaderAddress 
             + sizeof(PeHeader_t) + sizeof(PeOptionalHeader32_t));
         DirectoryPtr = (PeDataDirectory_t*)&OptHeader32->Directories[0];
     }
     else if (OptHeader->Architecture == PE_ARCHITECTURE_64) {
         OptHeader64 = (PeOptionalHeader64_t*)(Buffer 
-            + DosHeader->PeAddr + sizeof(PeHeader_t));
+            + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
         ImageBase = (uintptr_t)OptHeader64->BaseAddress;
-        SectionAddress = (uintptr_t)(Buffer + DosHeader->PeAddr 
+        SectionAddress = (uintptr_t)(Buffer + DosHeader->PeHeaderAddress 
             + sizeof(PeHeader_t) + sizeof(PeOptionalHeader64_t));
         DirectoryPtr = (PeDataDirectory_t*)&OptHeader64->Directories[0];
     }

@@ -88,11 +88,11 @@ PACKED_TYPESTRUCT(GdtObject, {
     uint32_t                Base;
 });
 
-/* GdtEntry
+/* GdtDescriptor
  * The GDT descriptor structure, this is the actual entry
  * in the gdt table, and keeps information about the ring
  * segment structure. */
-PACKED_TYPESTRUCT(GdtEntry, {
+PACKED_TYPESTRUCT(GdtDescriptor, {
     uint16_t                LimitLow;    /* Bits  0-15 */
     uint16_t                BaseLow;    /* Bits  0-15 */
     uint8_t                 BaseMid;    /* bits 16-23 */
@@ -130,9 +130,16 @@ PACKED_TYPESTRUCT(TssDescriptor, {
     uint32_t            Esp2;
     uint32_t            Ss2;
     uint32_t            Cr3;
-    uint32_t            Eip, EFlags;
-    uint32_t            Eax, Ecx, Edx, Ebx;
-    uint32_t            Esp, Ebp, Esi, Edi;
+    uint32_t            Eip;
+    uint32_t            EFlags;
+    uint32_t            Eax; 
+    uint32_t            Ecx;
+    uint32_t            Edx;
+    uint32_t            Ebx;
+    uint32_t            Esp;
+    uint32_t            Ebp;
+    uint32_t            Esi;
+    uint32_t            Edi;
     uint32_t            Es;
     uint32_t            Cs;
     uint32_t            Ss;

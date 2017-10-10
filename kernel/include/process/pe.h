@@ -339,7 +339,7 @@ PACKED_TYPESTRUCT(PePdbInformation, {
  * The Export Directory, contains a list
  * of exported functions, their ordinals and
  * function names. */
-PACKED_TYPESTRUCT(PeExportDirectory {
+PACKED_TYPESTRUCT(PeExportDirectory, {
     uint32_t            Flags;
     uint32_t            TimeStamp;
     uint16_t            VersionMajor;
@@ -369,7 +369,7 @@ PACKED_TYPESTRUCT(PeImportDirectory, {
      * Bits 0:1 - Import Type 
      * Bits 2:4 - Import Name Type */
     uint16_t            Flags;
-} PeImportDirectory_t;
+});
 
 /* PE-Import-Header 
  * The Import Descriptor, describes a new

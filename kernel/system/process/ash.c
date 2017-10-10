@@ -45,7 +45,9 @@ __EXTERN List_t *GlbAshes;
 /* This is the finalizor function for starting
  * up a new base Ash, it finishes setting up the environment
  * and memory mappings, must be called on it's own thread */
-void PhoenixFinishAsh(MCoreAsh_t *Ash)
+void
+PhoenixFinishAsh(
+    _In_ MCoreAsh_t *Ash)
 {
 	// Variables
 	UUId_t CurrentCpu = CpuGetCurrentId();
@@ -87,9 +89,10 @@ void PhoenixFinishAsh(MCoreAsh_t *Ash)
 		AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_IOSPACE), PAGE_SIZE);
 
 	// Create the stack mapping
-	AddressSpaceMap(AddressSpaceGetCurrent(), (MEMORY_SEGMENT_STACK_BASE & PAGE_MASK),
+    AddressSpaceMap(AddressSpaceGetCurrent(), 
+    ((MEMORY_LOCATION_RING3_STACK_START - ASH_STACK_INIT) & PAGE_MASK),
 		ASH_STACK_INIT, __MASK, AS_FLAG_APPLICATION, NULL);
-	Ash->StackStart = MEMORY_SEGMENT_STACK_BASE;
+	Ash->StackStart = MEMORY_LOCATION_RING3_STACK_START;
 
 	// Initialize signal queue
 	Ash->SignalQueue = ListCreate(KeyInteger, LIST_NORMAL);
@@ -97,15 +100,15 @@ void PhoenixFinishAsh(MCoreAsh_t *Ash)
 
 /* This is the standard ash-boot function
  * which simply sets up the ash and jumps to userland */
-void PhoenixBootAsh(void *Args)
+void
+PhoenixBootAsh(
+    _In_Opt_ void *Args)
 {
-	/* Cast the argument */
-	MCoreAsh_t *Ash = (MCoreAsh_t*)Args;
-
-	/* Finish boot */
+	// Variables
+    MCoreAsh_t *Ash = (MCoreAsh_t*)Args;
+    
+    // Finish boot-process and go to usermode
 	PhoenixFinishAsh(Ash);
-
-	/* Go to user-land */
 	ThreadingEnterUserMode(Ash);
 }
 

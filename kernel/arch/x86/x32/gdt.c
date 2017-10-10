@@ -40,11 +40,11 @@ TssInstall(
 
 /* Globals
  * Static storage as we have no memory allocator here */
-static GdtObject_t __GdtTableObject;
-static GdtEntry_t GdtDescriptors[GDT_MAX_DESCRIPTORS];
+GdtObject_t __GdtTableObject; // Don't make static, used in asm
+static GdtDescriptor_t __GdtDescriptors[GDT_MAX_DESCRIPTORS];
 static TssDescriptor_t *__TssDescriptors[GDT_MAX_TSS];
 static TssDescriptor_t __BootTss;
-static int GblGdtIndex = 0;
+static int __GblGdtIndex = 0;
 
 /* GdtInstallDescriptor
  * Helper for installing a new gdt descriptor into
@@ -59,19 +59,19 @@ GdtInstallDescriptor(
     _In_ uint8_t Grandularity)
 {
 	// Prepare the entry by zeroing it
-	memset(&GdtDescriptors[GblGdtIndex], 0, sizeof(GdtEntry_t));
+	memset(&__GdtDescriptors[__GblGdtIndex], 0, sizeof(GdtDescriptor_t));
 
 	// Fill descriptor
-	GdtDescriptors[GblGdtIndex].BaseLow = (uint16_t)(Base & 0xFFFF);
-	GdtDescriptors[GblGdtIndex].BaseMid = (uint8_t)((Base >> 16) & 0xFF);
-	GdtDescriptors[GblGdtIndex].BaseHigh = (uint8_t)((Base >> 24) & 0xFF);
-	GdtDescriptors[GblGdtIndex].LimitLow = (uint16_t)(Limit & 0xFFFF);
-	GdtDescriptors[GblGdtIndex].Flags = (uint8_t)((Limit >> 16) & 0x0F);
-	GdtDescriptors[GblGdtIndex].Flags |= (Grandularity & 0xF0);
-	GdtDescriptors[GblGdtIndex].Access = Access;
+	__GdtDescriptors[__GblGdtIndex].BaseLow = (uint16_t)(Base & 0xFFFF);
+	__GdtDescriptors[__GblGdtIndex].BaseMid = (uint8_t)((Base >> 16) & 0xFF);
+	__GdtDescriptors[__GblGdtIndex].BaseHigh = (uint8_t)((Base >> 24) & 0xFF);
+	__GdtDescriptors[__GblGdtIndex].LimitLow = (uint16_t)(Limit & 0xFFFF);
+	__GdtDescriptors[__GblGdtIndex].Flags = (uint8_t)((Limit >> 16) & 0x0F);
+	__GdtDescriptors[__GblGdtIndex].Flags |= (Grandularity & 0xF0);
+	__GdtDescriptors[__GblGdtIndex].Access = Access;
 
 	// Increase index so we know where to write next
-	GblGdtIndex++;
+	__GblGdtIndex++;
 }
 
 /* GdtInitialize
@@ -81,9 +81,9 @@ void
 GdtInitialize(void)
 {
 	// Setup gdt-table object
-	__GdtTableObject.Limit = (sizeof(GdtEntry_t) * GDT_MAX_DESCRIPTORS) - 1;
-	__GdtTableObject.Base = (uint32_t)&GdtDescriptors[0];
-	GblGdtIndex = 0;
+	__GdtTableObject.Limit = (sizeof(GdtDescriptor_t) * GDT_MAX_DESCRIPTORS) - 1;
+	__GdtTableObject.Base = (uint32_t)&__GdtDescriptors[0];
+	__GblGdtIndex = 0;
 
 	// Install NULL descriptor
 	GdtInstallDescriptor(0, 0, 0, 0);
@@ -140,34 +140,35 @@ GdtInstallTss(
 	// Variables
 	uint32_t tBase = 0;
 	uint32_t tLimit = 0;
-	int TssIndex = GblGdtIndex;
+	int TssIndex = __GblGdtIndex;
 
 	// If we use the static allocator, it must be the boot cpu
 	if (Static) {
-		TssDescriptors[Cpu] = &BootTss;
+		__TssDescriptors[Cpu] = &__BootTss;
 	}
 	else {
-		TssDescriptors[Cpu] = (TssDescriptor_t*)kmalloc(sizeof(TssDescriptor_t));
+		__TssDescriptors[Cpu] = (TssDescriptor_t*)kmalloc(sizeof(TssDescriptor_t));
 	}
 
 	// Initialize descriptor by zeroing and set default members
-	memset(TssDescriptors[Cpu], 0, sizeof(TssDescriptor_t));
-	tBase = (uint32_t)TssDescriptors[Cpu];
+	memset(__TssDescriptors[Cpu], 0, sizeof(TssDescriptor_t));
+	tBase = (uint32_t)__TssDescriptors[Cpu];
 	tLimit = tBase + sizeof(TssDescriptor_t);
 
 	// Setup TSS initial ring0 stack information
 	// this will be filled out properly later by scheduler
-	TssDescriptors[Cpu]->Ss0 = GDT_KDATA_SEGMENT;
-	TssDescriptors[Cpu]->Ss2 = GDT_RING3_DATA + 0x03;
+	__TssDescriptors[Cpu]->Ss0 = GDT_KDATA_SEGMENT;
+	__TssDescriptors[Cpu]->Ss2 = GDT_RING3_DATA + 0x03;
 	
 	// Set initial segment information (Ring0)
-	TssDescriptors[Cpu]->Cs = GDT_KCODE_SEGMENT + 0x03;
-	TssDescriptors[Cpu]->Ss = GDT_KDATA_SEGMENT + 0x03;
-	TssDescriptors[Cpu]->Ds = GDT_KDATA_SEGMENT + 0x03;
-	TssDescriptors[Cpu]->Es = GDT_KDATA_SEGMENT + 0x03;
-	TssDescriptors[Cpu]->Fs = GDT_KDATA_SEGMENT + 0x03;
-	TssDescriptors[Cpu]->Gs = GDT_KDATA_SEGMENT + 0x03;
-	TssDescriptors[Cpu]->IoMapBase = (uint16_t)offsetof(TssDescriptor_t, IoMap[0]);
+	__TssDescriptors[Cpu]->Cs = GDT_KCODE_SEGMENT + 0x03;
+	__TssDescriptors[Cpu]->Ss = GDT_KDATA_SEGMENT + 0x03;
+	__TssDescriptors[Cpu]->Ds = GDT_KDATA_SEGMENT + 0x03;
+	__TssDescriptors[Cpu]->Es = GDT_KDATA_SEGMENT + 0x03;
+	__TssDescriptors[Cpu]->Fs = GDT_KDATA_SEGMENT + 0x03;
+	__TssDescriptors[Cpu]->Gs = GDT_KDATA_SEGMENT + 0x03;
+    __TssDescriptors[Cpu]->IoMapBase = 
+        (uint16_t)offsetof(TssDescriptor_t, IoMap[0]);
 
 	// Install TSS into table and hardware
 	GdtInstallDescriptor(tBase, tLimit, GDT_TSS_ENTRY, 0x00);
@@ -183,7 +184,7 @@ TssUpdateStack(
     _In_ uintptr_t Stack)
 {
     // Update stack pointer for ring0
-	TssDescriptors[Cpu]->Esp0 = Stack;
+	__TssDescriptors[Cpu]->Esp0 = Stack;
 }
 
 /* TssUpdateIo
@@ -195,7 +196,7 @@ TssUpdateIo(
     _In_ UUId_t Cpu,
     _In_ uint8_t *IoMap)
 {
-	memcpy(&TssDescriptors[Cpu]->IoMap[0], IoMap, GDT_IOMAP_SIZE);
+	memcpy(&__TssDescriptors[Cpu]->IoMap[0], IoMap, GDT_IOMAP_SIZE);
 }
 
 /* TssEnableIo
@@ -208,7 +209,7 @@ TssEnableIo(
     _In_ uint8_t *IoMap,
     _In_ uint16_t Port)
 {
-	TssDescriptors[Cpu]->IoMap[Port / 8] &= ~(1 << (Port % 8));
+	__TssDescriptors[Cpu]->IoMap[Port / 8] &= ~(1 << (Port % 8));
 	IoMap[Port / 8] &= ~(1 << (Port % 8));
 }
 
@@ -222,6 +223,6 @@ TssDisableIo(
     _In_ uint8_t *IoMap,
     _In_ uint16_t Port)
 {    
-	TssDescriptors[Cpu]->IoMap[Port / 8] |= (1 << (Port % 8));
+	__TssDescriptors[Cpu]->IoMap[Port / 8] |= (1 << (Port % 8));
 	IoMap[Port / 8] |= (1 << (Port % 8));
 }

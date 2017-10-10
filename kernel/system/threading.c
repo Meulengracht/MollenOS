@@ -100,7 +100,8 @@ void ThreadingEntryPoint(void)
  * This is the userspace version of the entry point
  * and is used for initializing userspace threads 
  * Threads started like this MUST use ThreadingExitThread */
-void ThreadingEntryPointUserMode(void)
+void 
+ThreadingEntryPointUserMode(void)
 {
 	// Variables
 	MCoreThread_t *Thread = NULL;
@@ -113,12 +114,13 @@ void ThreadingEntryPointUserMode(void)
 
 	// It's important to create 
 	// and map the stack before setting up
-	AddressSpaceMap(AddressSpaceGetCurrent(), (MEMORY_SEGMENT_STACK_BASE & PAGE_MASK),
+    AddressSpaceMap(AddressSpaceGetCurrent(), 
+        ((MEMORY_LOCATION_RING3_STACK_START - ASH_STACK_INIT) & PAGE_MASK),
 		ASH_STACK_INIT, __MASK, AS_FLAG_APPLICATION, NULL);
 
 	// Let the architecture know we want to enter
 	// user-mode
-	IThreadSetupUserMode(Thread, MEMORY_SEGMENT_STACK_BASE);
+	IThreadSetupUserMode(Thread, MEMORY_LOCATION_RING3_STACK_START);
 
 	// Nothing actually happens before this flag is set
 	Thread->Flags |= THREADING_TRANSITION;

@@ -154,9 +154,9 @@ size_t
 SERVICEABI
 __get_reserved(size_t index) {
 	size_t result = 0;
-	size_t offset = (index * sizeof(size_t));
+	size_t gs_offset = (index * sizeof(size_t));
 	__asm {
-		mov ebx, [offset];
+		mov ebx, [gs_offset];
 		mov eax, gs:[ebx];
 		mov [result], eax;
 	}
@@ -170,9 +170,9 @@ SERVICEAPI
 void
 SERVICEABI
 __set_reserved(size_t index, size_t value) {
-	size_t offset = (index * sizeof(size_t));
+	size_t gs_offset = (index * sizeof(size_t));
 	__asm {
-		mov ebx, [offset];
+		mov ebx, [gs_offset];
 		mov eax, [value];
 		mov gs:[ebx], eax;
 	}

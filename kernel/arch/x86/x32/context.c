@@ -44,7 +44,7 @@ Context_t *ContextCreate(Flags_t ThreadFlags, uintptr_t Eip, uintptr_t *Argument
 	// Variables
 	Context_t *Context       = NULL;
     uint32_t DataSegment     = 0,
-             ExtraSegment    = 0; 
+             ExtraSegment    = 0,
              CodeSegment     = 0, 
              StackSegment    = 0;
     uintptr_t ContextAddress = 0, 
