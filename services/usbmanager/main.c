@@ -24,6 +24,7 @@
 /* Includes
  * - System */
 #include <os/driver/usb.h>
+#include <os/utils.h>
 #include "manager.h"
 
 /* OnLoad
@@ -32,8 +33,14 @@
 OsStatus_t
 OnLoad(void)
 {
-	// Initialize core-systems
-	return UsbCoreInitialize();
+    // Initialize core-systems
+    if (UsbCoreInitialize() != OsSuccess) {
+        ERROR("Failed to initialize usb-core systems.");
+        return OsError;
+    }
+
+    // Register us with server manager
+	return RegisterService(__USBMANAGER_TARGET);
 }
 
 /* OnUnload

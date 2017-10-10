@@ -18,6 +18,8 @@
  *
  * MollenOS MCore - System Calls
  */
+#define __MODULE "SCIF"
+#define __TRACE
 
 /* Includes 
  * - System */
@@ -30,6 +32,7 @@
 #include <scheduler.h>
 #include <interrupts.h>
 #include <heap.h>
+#include <debug.h>
 #include <timers.h>
 #include <log.h>
 
@@ -196,7 +199,7 @@ OsStatus_t ScProcessExit(int ExitCode)
 	}
 
 	/* Log it and save return code */
-	LogDebug("SYSC", "Process %s terminated with code %i", 
+	TRACE("Process %s terminated with code %i", 
 		MStringRaw(Process->Name), ExitCode);
 	Process->Code = ExitCode;
 
@@ -469,7 +472,7 @@ ScThreadSignal(
 	}
 
 	// Error
-	LogFatal("SYSC", "ThreadSignal invoked, not implemented");
+	ERROR("ThreadSignal invoked, not implemented");
 	return OsSuccess;
 }
 
@@ -1062,7 +1065,7 @@ OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, UUId_t Target, int Async)
 
 	// Sanitize the lookups
 	if (Ash == NULL || Pipe == NULL) {
-		LogFatal("SYSC", "Either target 0x%x or port %u did not exist in target",
+		ERROR("Either target 0x%x or port %u did not exist in target",
 			Target, Rpc->Port);
 		return OsError;
 	}
@@ -1254,8 +1257,14 @@ OsStatus_t ScIoSpaceDestroy(UUId_t IoSpace)
 /* Allows a server to register an alias for its 
  * process id, as applications can't possibly know
  * its id if it changes */
-OsStatus_t ScRegisterAliasId(UUId_t Alias)
+OsStatus_t
+ScRegisterAliasId(
+    _In_ UUId_t Alias)
 {
+    // Debug
+    TRACE("ScRegisterAliasId(Server %s, Alias 0x%X)",
+        MStringRaw(PhoenixGetCurrentAsh()->Name), Alias);
+
 	// Redirect call to phoenix
 	return PhoenixRegisterAlias(
 		PhoenixGetCurrentAsh(), Alias);
@@ -1405,13 +1414,8 @@ OsStatus_t ScRegisterSystemTimer(UUId_t Interrupt, size_t NsPerTick)
  * rather than the stdout */
 int ScEndBootSequence(void)
 {
-	/* Log it */
-	LogDebug("SYST", "Ending console session");
-
-	/* Redirect */
+	TRACE("Ending console session");
 	LogRedirect(LogFile);
-
-	/* Done */
 	return 0;
 }
 

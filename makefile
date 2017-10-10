@@ -14,7 +14,7 @@ config_flags =
 config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE
 
 # Don't load drivers, run it without for debug
-#config_flags += -D__OSCONFIG_NODRIVERS
+config_flags += -D__OSCONFIG_NODRIVERS
 
 # Disable usb 2.0 support, run only in usb 1.1
 #config_flags += -D__OSCONFIG_DISABLE_EHCI

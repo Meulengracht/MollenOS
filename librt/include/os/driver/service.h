@@ -31,13 +31,13 @@
 
 /* Service base definitions, includes things
  * like the base server-target */
-#define __SERVICE_TARGET(Index)				((UUId_t)0x8000 + Index)
+#define __SERVICE_TARGET(Index)             ((UUId_t)0x8000 + Index)
 
 /* MollenOS possible Service targets */
-#define __DEVICEMANAGER_TARGET				__SERVICE_TARGET(0)
-#define __FILEMANAGER_TARGET				__SERVICE_TARGET(1)
-#define __WINDOWMANAGER_TARGET				__SERVICE_TARGET(2)
-#define __USBMANAGER_TARGET				__SERVICE_TARGET(3)
+#define __DEVICEMANAGER_TARGET              __SERVICE_TARGET(0)
+#define __FILEMANAGER_TARGET                __SERVICE_TARGET(1)
+#define __WINDOWMANAGER_TARGET              __SERVICE_TARGET(2)
+#define __USBMANAGER_TARGET                 __SERVICE_TARGET(3)
 
 /* RegisterService 
  * Registers a service on the current alias, allowing
@@ -47,7 +47,7 @@ MOSAPI
 OsStatus_t
 MOSABI
 RegisterService(
-	_In_ UUId_t Alias);
+    _In_ UUId_t Alias);
 
 /* OnLoad
  * The entry-point of a service, this is called
@@ -74,7 +74,7 @@ OnUnload(void);
 __EXTERN 
 OsStatus_t 
 OnEvent(
-	_In_ MRemoteCall_t *Message);
+    _In_ MRemoteCall_t *Message);
 #endif
 
 #endif //!_SERVICE_H_
