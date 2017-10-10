@@ -19,7 +19,7 @@
  * MollenOS MCore - PE Format Loader
  */
 #define __MODULE        "PELD"
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -43,21 +43,24 @@
  * Perform a checksum calculation of the 
  * given PE file. Use this to validate contents
  * of a PE executable */
-uint32_t PeCalculateChecksum(uint8_t *Data, size_t DataLength, size_t PeChkSumOffset)
+uint32_t
+PeCalculateChecksum(
+    _In_ uint8_t *Data, 
+    _In_ size_t DataLength, 
+    _In_ size_t PeChkSumOffset)
 {
-    /* Variables for calculating the 
-     * pe-checksum */
+    // Variables
     uint32_t *DataPtr = (uint32_t*)Data;
     uint64_t Limit = 4294967296;
     uint64_t CheckSum = 0;
 
     for (size_t i = 0; i < (DataLength / 4); i++, DataPtr++) {
+        uint32_t Val = *DataPtr;
+
+        // Skip the checksum index
         if (i == (PeChkSumOffset / 4)) {
             continue;
         }
-
-        /* Add value to checksum */
-        uint32_t Val = *DataPtr;
         CheckSum = (CheckSum & UINT32_MAX) + Val + (CheckSum >> 32);
         if (CheckSum > Limit) {
             CheckSum = (CheckSum & UINT32_MAX) + (CheckSum >> 32);
@@ -67,8 +70,6 @@ uint32_t PeCalculateChecksum(uint8_t *Data, size_t DataLength, size_t PeChkSumOf
     CheckSum = (CheckSum & UINT16_MAX) + (CheckSum >> 16);
     CheckSum = (CheckSum) + (CheckSum >> 16);
     CheckSum = CheckSum & UINT16_MAX;
-
-    /* Add length of data and return */
     CheckSum += (uint32_t)DataLength;
     return (uint32_t)(CheckSum & UINT32_MAX);
 }
@@ -99,7 +100,7 @@ PeValidate(
     }
 
     // Get pointer to PE header
-    BaseHeader = (PeHeader_t*)(Buffer + DosHeader->PeAddr);
+    BaseHeader = (PeHeader_t*)(Buffer + DosHeader->PeHeaderAddress);
 
     // Check magic for PE
     if (BaseHeader->Magic != PE_MAGIC) {
@@ -799,17 +800,18 @@ PeLoadImage(
 /* PeUnloadLibrary
  * Unload dynamically loaded library 
  * This only cleans up in the case there are no more references */
-void PeUnloadLibrary(MCorePeFile_t *Parent, MCorePeFile_t *Library)
+OsStatus_t
+PeUnloadLibrary(
+    _In_ MCorePeFile_t *Parent, 
+    _In_ MCorePeFile_t *Library)
 {
-    /* Decrease reference count */
+    // Decrease the ref count
     Library->References--;
 
-    /* Sanitize the ref count
-     * we might have to unload it if there are
-     * no more references */
-    if (Library->References <= 0) 
-    {
-        /* Remove it from list */
+    // Sanitize the ref count
+    // we might have to unload it if there are
+    // no more references
+    if (Library->References <= 0)  {
         foreach(lNode, Parent->LoadedLibraries) {
             MCorePeFile_t *lLib = (MCorePeFile_t*)lNode->Data;
             if (lLib == Library) {
@@ -819,42 +821,44 @@ void PeUnloadLibrary(MCorePeFile_t *Parent, MCorePeFile_t *Library)
             }
         }
 
-        /* Unload it */
-        PeUnloadImage(Library);
+        // Actually unload image
+        return PeUnloadImage(Library);
     }
+    return OsSuccess;
 }
 
 /* PeUnloadImage
  * Unload executables, all it's dependancies and free it's resources */
-void PeUnloadImage(MCorePeFile_t *Executable)
+OsStatus_t
+PeUnloadImage(
+    _In_ MCorePeFile_t *Executable)
 {
-    /* Variables */
-    ListNode_t *Node;
+    // Variables
+    ListNode_t *Node = NULL;
 
-    /* Sanitize the parameter */
+    // Sanitize parameter
     if (Executable == NULL) {
-        return;
+        return OsError;
     }
 
-    /* Free Strings */
+    // Cleanup resources
     kfree(Executable->Name);
 
-    /* Cleanup exported functions */
+    // Cleanup exports
     if (Executable->ExportedFunctions != NULL) {
         kfree(Executable->ExportedFunctions);
     }
 
-    /* Cleanup libraries */
+    // Unload libraries
     if (Executable->LoadedLibraries != NULL) {
         _foreach(Node, Executable->LoadedLibraries) {
             MCorePeFile_t *Library = (MCorePeFile_t*)Node->Data;
             PeUnloadImage(Library);
         }
-
-        /* Destroy list */
         ListDestroy(Executable->LoadedLibraries);
     }
 
-    /* Free structure */
+    // Last step, free base
     kfree(Executable);
+    return OsSuccess;
 }

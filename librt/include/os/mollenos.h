@@ -147,16 +147,17 @@ PathQueryApplication(
 /* __get_reserved
  * Read and write the magic tls thread-specific
  * pointer, we need to take into account the compiler here */
-#ifdef _MSC_VER
+#if defined(i386)
+#if defined(_MSC_VER) || defined(__clang__)
 SERVICEAPI
 size_t
 SERVICEABI
 __get_reserved(size_t index) {
 	size_t result = 0;
-	size_t base = (0 - ((index * sizeof(size_t)) + sizeof(size_t)));
+	size_t offset = (index * sizeof(size_t));
 	__asm {
-		mov ebx, [base];
-		mov eax, ss:[ebx];
+		mov ebx, [offset];
+		mov eax, gs:[ebx];
 		mov [result], eax;
 	}
 	return result;
@@ -169,15 +170,18 @@ SERVICEAPI
 void
 SERVICEABI
 __set_reserved(size_t index, size_t value) {
-	size_t base = (0 - ((index * sizeof(size_t)) + sizeof(size_t)));
+	size_t offset = (index * sizeof(size_t));
 	__asm {
-		mov ebx, [base];
+		mov ebx, [offset];
 		mov eax, [value];
-		mov ss:[ebx], eax;
+		mov gs:[ebx], eax;
 	}
 }
 #else
-#error "Implement rw for tls"
+#error "Implement rw for tls for this compiler"
+#endif
+#else
+#error "Implement rw for tls for this architecture"
 #endif
 
 /***********************

@@ -42,9 +42,13 @@
 Context_t *ContextCreate(Flags_t ThreadFlags, uintptr_t Eip, uintptr_t *Arguments)
 {
 	// Variables
-	Context_t *Context = NULL;
-	uint32_t DataSegment = 0, CodeSegment = 0, StackSegment = 0;
-	uintptr_t ContextAddress = 0, EbpInitial = 0;
+	Context_t *Context       = NULL;
+    uint32_t DataSegment     = 0,
+             ExtraSegment    = 0; 
+             CodeSegment     = 0, 
+             StackSegment    = 0;
+    uintptr_t ContextAddress = 0, 
+              EbpInitial     = 0;
 
 	// Trace
 	TRACE("ContextCreate(Flags 0x%x, Eip 0x%x, Args 0x%x)",
@@ -54,22 +58,22 @@ Context_t *ContextCreate(Flags_t ThreadFlags, uintptr_t Eip, uintptr_t *Argument
 	if (THREADING_RUNMODE(ThreadFlags) == THREADING_KERNELMODE) {
 		ContextAddress = ((uintptr_t)kmalloc_a(0x1000)) + 0x1000 - sizeof(Context_t);
 		CodeSegment = GDT_KCODE_SEGMENT;
-		StackSegment = DataSegment = GDT_KDATA_SEGMENT;
+		ExtraSegment = StackSegment = DataSegment = GDT_KDATA_SEGMENT;
 		EbpInitial = (ContextAddress + sizeof(Context_t));
 	}
 	else if (THREADING_RUNMODE(ThreadFlags) == THREADING_DRIVERMODE) {
-		ContextAddress = ((MEMORY_SEGMENT_STACK_BASE - 0x3) - sizeof(Context_t));
+		ContextAddress = (MEMORY_LOCATION_RING3_STACK_START - sizeof(Context_t));
 		CodeSegment = GDT_PCODE_SEGMENT + 0x03;
-		DataSegment = GDT_PDATA_SEGMENT + 0x03;
-		StackSegment = GDT_STACK_SEGMENT + 0x03;
-		EbpInitial = 0;
+		StackSegment = DataSegment = GDT_PDATA_SEGMENT + 0x03;
+        ExtraSegment = GDT_EXTRA_SEGMENT + 0x03;
+		EbpInitial = MEMORY_LOCATION_RING3_STACK_START;
 	}
 	else if (THREADING_RUNMODE(ThreadFlags) == THREADING_USERMODE) {
-		ContextAddress = ((MEMORY_SEGMENT_STACK_BASE - 0x3) - sizeof(Context_t));
+		ContextAddress = (MEMORY_LOCATION_RING3_STACK_START - sizeof(Context_t));
 		CodeSegment = GDT_UCODE_SEGMENT + 0x03;
-		DataSegment = GDT_UDATA_SEGMENT + 0x03;
-		StackSegment = GDT_STACK_SEGMENT + 0x03;
-		EbpInitial = 0;
+		StackSegment = DataSegment = GDT_UDATA_SEGMENT + 0x03;
+        ExtraSegment = GDT_EXTRA_SEGMENT + 0x03;
+		EbpInitial = MEMORY_LOCATION_RING3_STACK_START;
 	}
 	else {
 		FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID THREADFLAGS(%u)", ThreadFlags);
@@ -82,7 +86,7 @@ Context_t *ContextCreate(Flags_t ThreadFlags, uintptr_t Eip, uintptr_t *Argument
 	Context->Ds = DataSegment;
 	Context->Fs = DataSegment;
 	Context->Es = DataSegment;
-	Context->Gs = DataSegment;
+	Context->Gs = ExtraSegment;
 
 	// Initialize registers to zero value
 	Context->Eax = 0;
@@ -112,7 +116,7 @@ Context_t *ContextCreate(Flags_t ThreadFlags, uintptr_t Eip, uintptr_t *Argument
 		Context->UserArg = 0;
 	}
 	else {
-		Context->UserEsp = 0xFFFFFFF0;
+		Context->UserEsp = EbpInitial;
 		Context->UserSs = StackSegment;
 		Context->UserArg = (uintptr_t)Arguments;
 	}

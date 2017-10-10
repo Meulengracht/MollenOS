@@ -26,7 +26,7 @@ global _GdtInstall
 global _TssInstall
 global _IdtInstall
 
-extern _Gdtptr
+extern ___GdtTableObject
 extern _Idtptr
 
 ; void GdtInstall()
@@ -36,7 +36,7 @@ _GdtInstall:
 	push eax
 
 	; Install GDT
-	lgdt [_Gdtptr]
+	lgdt [___GdtTableObject]
 
 	; Jump into correct descriptor
 	xor eax, eax
