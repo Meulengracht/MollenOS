@@ -34,191 +34,184 @@
 /* PipeIncreaseWrite
  * Helper for properly doing a wrap-around
  * when buffer boundary is reached */
-void PipeIncreaseWrite(MCorePipe_t *Pipe)
+void
+PipeIncreaseWrite(
+    _In_ MCorePipe_t *Pipe)
 {
-	/* Increase */
-	Pipe->IndexWrite++;
-
-	/* Do we have to wrap around? */
-	if (Pipe->IndexWrite == Pipe->Length)
-		Pipe->IndexWrite = 0;
+    // Increase with wrap-around
+    Pipe->IndexWrite++;
+    if (Pipe->IndexWrite == Pipe->Length) {
+        Pipe->IndexWrite = 0;
+    }
 }
 
 /* PipeIncreaseRead
  * Helper for properly doing a wrap-around
  * when buffer boundary is reached */
-void PipeIncreaseRead(MCorePipe_t *Pipe)
+void
+PipeIncreaseRead(
+    _In_ MCorePipe_t *Pipe)
 {
-	/* Increament */
-	Pipe->IndexRead++;
-
-	/* Do we have to wrap around? */
-	if (Pipe->IndexRead == Pipe->Length)
-		Pipe->IndexRead = 0;
+    // Increase with wrap-around
+    Pipe->IndexRead++;
+    if (Pipe->IndexRead == Pipe->Length) {
+        Pipe->IndexRead = 0;
+    }
 }
 
 /* PipeCreate
  * Initialise a new pipe of the given size 
  * and with the given flags */
-MCorePipe_t *PipeCreate(size_t Size, Flags_t Flags)
+MCorePipe_t*
+PipeCreate(
+    _In_ size_t Size,
+    _In_ Flags_t Flags)
 {
-	/* Allocate both a pipe and a 
-	 * buffer in kernel memory for the pipe data */
-	MCorePipe_t *Pipe = (MCorePipe_t*)kmalloc(sizeof(MCorePipe_t));
-	Pipe->Buffer = (uint8_t*)kmalloc(Size);
-
-	/* Initialize the pipe */
-	PipeConstruct(Pipe, Pipe->Buffer, Size, Flags);
-	return Pipe;
+    // Allocate both a pipe and a 
+    // buffer in kernel memory for the pipe data
+    MCorePipe_t *Pipe = (MCorePipe_t*)kmalloc(sizeof(MCorePipe_t));
+    Pipe->Buffer = (uint8_t*)kmalloc(Size);
+    PipeConstruct(Pipe, Pipe->Buffer, Size, Flags);
+    return Pipe;
 }
 
 /* PipeConstruct
  * Construct an already existing pipe by resetting the
  * pipe with the given parameters */
-void PipeConstruct(MCorePipe_t *Pipe, uint8_t *Buffer, size_t BufferLength, Flags_t Flags)
+void
+PipeConstruct(
+    _InOut_ MCorePipe_t *Pipe,
+    _In_ uint8_t *Buffer,
+    _In_ size_t BufferLength,
+    _In_ Flags_t Flags)
 {
-	/* Set buffer */
-	Pipe->Buffer = Buffer;
+    // Update members
+    Pipe->Buffer = Buffer;
+    Pipe->ReadQueueCount = 0;
+    Pipe->WriteQueueCount = 0;
+    Pipe->IndexWrite = 0;
+    Pipe->IndexRead = 0;
+    Pipe->Length = BufferLength;
+    Pipe->Flags = Flags;
 
-	/* Setup rest */
-	Pipe->ReadQueueCount = 0;
-	Pipe->WriteQueueCount = 0;
-	Pipe->IndexWrite = 0;
-	Pipe->IndexRead = 0;
-	Pipe->Length = BufferLength;
-	Pipe->Flags = Flags;
-
-	/* Reset Lock */
-	SpinlockReset(&Pipe->Lock);
-
-	/* Setup Semaphores */
-	SemaphoreConstruct(&Pipe->ReadQueue, 0);
-	SemaphoreConstruct(&Pipe->WriteQueue, 0);
+    // Construct synchronizations
+    CriticalSectionConstruct(&Pipe->Lock, CRITICALSECTION_PLAIN);
+    SemaphoreConstruct(&Pipe->ReadQueue, 0);
+    SemaphoreConstruct(&Pipe->WriteQueue, 0);
 }
 
 /* PipeDestroy
  * Destroys a pipe and wakes up all sleeping threads, then
  * frees all resources allocated */
-void PipeDestroy(MCorePipe_t *Pipe)
+void
+PipeDestroy(
+    _In_ MCorePipe_t *Pipe)
 {
-	/* Awake all */
-	SchedulerWakeupAllThreads((uintptr_t*)&Pipe->ReadQueue);
-	SchedulerWakeupAllThreads((uintptr_t*)&Pipe->WriteQueue);
-
-	/* Free stuff */
-	kfree(Pipe->Buffer);
-	kfree(Pipe);
+    // Wake all up so no-one is left behind
+    SchedulerWakeupAllThreads((uintptr_t*)&Pipe->ReadQueue);
+    SchedulerWakeupAllThreads((uintptr_t*)&Pipe->WriteQueue);
+    kfree(Pipe->Buffer);
+    kfree(Pipe);
 }
 
 /* PipeWrite
  * Writes the given data to the pipe-buffer, unless PIPE_NOBLOCK_WRITE
  * has been specified, it will block untill there is room in the pipe */
-int PipeWrite(MCorePipe_t *Pipe, uint8_t *Data, size_t Length)
+int
+PipeWrite(
+    _In_ MCorePipe_t *Pipe,
+    _In_ uint8_t *Data,
+    _In_ size_t Length)
 {
-	/* Variables */
-	size_t BytesWritten = 0;
+    // Variables
+    size_t BytesWritten = 0;
 
-	/* Sanity */
-	if (Pipe == NULL || Length == 0
-		|| Data == NULL) {
-		return -1;
-	}
+    // Sanitize parameters
+    if (Pipe == NULL || Length == 0 || Data == NULL) {
+        return -1;
+    }
 
-	/* Write the data */
-	while (BytesWritten < Length)
-	{
-		/* Lock */
-		SpinlockAcquire(&Pipe->Lock);
+    // Write in loop
+    while (BytesWritten < Length) {
+        // Write while there are bytes left, and space in pipe
+        // Locked operation
+        CriticalSectionEnter(&Pipe->Lock);
+        while (PipeBytesLeft(Pipe) > 0 && BytesWritten < Length) {
+            Pipe->Buffer[Pipe->IndexWrite] = Data[BytesWritten++];
+            PipeIncreaseWrite(Pipe);
+        }
+        CriticalSectionLeave(&Pipe->Lock);
 
-		/* Write while there are bytes left, and space in pipe */
-		while (PipeBytesLeft(Pipe) > 0 && BytesWritten < Length) {
-			Pipe->Buffer[Pipe->IndexWrite] = Data[BytesWritten++];
-			PipeIncreaseWrite(Pipe);
-		}
+        // Wakeup one of the readers 
+        // Always do this nvm what
+        if (Pipe->ReadQueueCount > 0) {
+            SemaphoreV(&Pipe->ReadQueue, 1);
+            Pipe->ReadQueueCount--;
+        }
 
-		/* Unlock */
-		SpinlockRelease(&Pipe->Lock);
-
-		/* Wakeup one of the readers 
-		 * Always do this nvm what */
-		if (Pipe->ReadQueueCount > 0) {
-			SemaphoreV(&Pipe->ReadQueue, 1);
-			Pipe->ReadQueueCount--;
-		}
-
-		/* Do we stil need to write more? 
-		 * Only do this if NOBLOCK is not specified */
-		if (BytesWritten < Length
-			&& !(Pipe->Flags & PIPE_NOBLOCK_WRITE)) {
-			Pipe->WriteQueueCount++;
-			SemaphoreP(&Pipe->WriteQueue, 0);
-		}
-	}
-
-	/* Done! */
-	return (int)BytesWritten;
+        // Do we stil need to write more? 
+        // Only do this if NOBLOCK is not specified
+        if (BytesWritten < Length
+            && !(Pipe->Flags & PIPE_NOBLOCK_WRITE)) {
+            Pipe->WriteQueueCount++;
+            SemaphoreP(&Pipe->WriteQueue, 0);
+        }
+    }
+    return (int)BytesWritten;
 }
 
 /* PipeRead
  * Reads the requested data-length from the pipe buffer, unless PIPE_NOBLOCK_READ
  * has been specified, it will block untill data becomes available. If NULL is
  * given as the buffer it will just consume data instead */
-int PipeRead(MCorePipe_t *Pipe, uint8_t *Buffer, size_t Length, int Peek)
+int
+PipeRead(
+    _In_ MCorePipe_t *Pipe,
+    _In_ uint8_t *Buffer,
+    _In_ size_t Length,
+    _In_ int Peek)
 {
-	/* Variables */
-	ssize_t SavedIndex = 0;
-	size_t BytesRead = 0;
+    // Variables
+    ssize_t SavedIndex = 0;
+    size_t BytesRead = 0;
 
-	/* Sanity */
-	if (Pipe == NULL || Length == 0) {
-		return -1;
-	}
+    // Sanitize the parameters
+    if (Pipe == NULL || Length == 0) {
+        return -1;
+    }
 
-	/* Read the data */
-	SavedIndex = Pipe->IndexRead;
-	while (BytesRead == 0)
-	{
-		/* Lock */
-		SpinlockAcquire(&Pipe->Lock);
+    // Read data in loop to get all
+    SavedIndex = Pipe->IndexRead;
+    while (BytesRead == 0) {
+        // Only read while there is data available
+        CriticalSectionEnter(&Pipe->Lock);
+        while (PipeBytesAvailable(Pipe) > 0 && BytesRead < Length) {
+            if (Buffer != NULL) {
+                Buffer[BytesRead++] = Pipe->Buffer[Pipe->IndexRead];
+            }
+            else BytesRead++;
+            PipeIncreaseRead(Pipe);
+        }
+        if (Peek) {
+            // Restore index if we peaked
+            Pipe->IndexRead = SavedIndex;
+        }
+        CriticalSectionLeave(&Pipe->Lock);
 
-		/* Only read while there is data available */
-		while (PipeBytesAvailable(Pipe) > 0 && BytesRead < Length) {
-			if (Buffer != NULL) {
-				Buffer[BytesRead++] = Pipe->Buffer[Pipe->IndexRead];
-			}
-			else BytesRead++;
-			PipeIncreaseRead(Pipe);
-		}
-
-		/* Restore index if we peeked */
-		if (Peek) {
-			Pipe->IndexRead = SavedIndex;
-		}
-
-		/* Unlock */
-		SpinlockRelease(&Pipe->Lock);
-
-		/* Only do this part if we are not peeking */
-		if (!Peek)
-		{
-			/* Wakeup one of the writers 
-			 * We also do this no matter what */
-			if (Pipe->WriteQueueCount > 0) {
-				SemaphoreP(&Pipe->WriteQueue, 0);
-				Pipe->WriteQueueCount--;
-			}
-
-			/* Was there no data to read? */
-			if (BytesRead == 0
-				&& !(Pipe->Flags & PIPE_NOBLOCK_READ)) {
-				Pipe->ReadQueueCount++;
-				SemaphoreV(&Pipe->ReadQueue, 1);
-			}
-		}
-	}
-
-	/* Done! */
-	return (int)BytesRead;
+        // Only go to queue if not a peek
+        if (!Peek) {
+            if (Pipe->WriteQueueCount > 0) {
+                SemaphoreP(&Pipe->WriteQueue, 0);
+                Pipe->WriteQueueCount--;
+            }
+            if (BytesRead == 0
+                && !(Pipe->Flags & PIPE_NOBLOCK_READ)) {
+                Pipe->ReadQueueCount++;
+                SemaphoreV(&Pipe->ReadQueue, 1);
+            }
+        }
+    }
+    return (int)BytesRead;
 }
 
 /* PipeWait
@@ -226,47 +219,55 @@ int PipeRead(MCorePipe_t *Pipe, uint8_t *Buffer, size_t Length, int Peek)
  * this sleeps/blocks the calling thread */
 OsStatus_t
 PipeWait(
-	_In_ MCorePipe_t *Pipe,
-	_In_ size_t Timeout)
+    _In_ MCorePipe_t *Pipe,
+    _In_ size_t Timeout)
 {
-	/* Sanitize parameters */
-	if (Pipe == NULL) {
-		return OsError;
-	}
+    // Sanitize parameters
+    if (Pipe == NULL) {
+        return OsError;
+    }
 
-	/* Increase wait count */
-	Pipe->ReadQueueCount++;
-	SemaphoreP(&Pipe->ReadQueue, Timeout);
-	return OsSuccess;
+    // Increase wait count
+    Pipe->ReadQueueCount++;
+    SemaphoreP(&Pipe->ReadQueue, Timeout);
+    return OsSuccess;
 }
 
 /* PipeBytesAvailable
  * Returns how many bytes are available in buffer to be read */
-int PipeBytesAvailable(MCorePipe_t *Pipe)
+int
+PipeBytesAvailable(
+    _In_ MCorePipe_t *Pipe)
 {
-	/* If they are in matching positions, no data */
-	if (Pipe->IndexRead == Pipe->IndexWrite)
-		return 0;
+    // If they are in matching positions, no data 
+    if (Pipe->IndexRead == Pipe->IndexWrite) {
+        return 0;
+    }
 
-	/* If the read index is larger than write, */
-	if (Pipe->IndexRead > Pipe->IndexWrite)
-		return (int)(Pipe->Length - Pipe->IndexRead) + Pipe->IndexWrite;
-	else
-		return (int)(Pipe->IndexWrite - Pipe->IndexRead);
+    // If the read index is larger than add write
+    if (Pipe->IndexRead > Pipe->IndexWrite) {
+        return (int)(Pipe->Length - Pipe->IndexRead) + Pipe->IndexWrite;
+    }
+    else {
+        return (int)(Pipe->IndexWrite - Pipe->IndexRead);
+    }
 }
 
 /* PipeBytesLeft
  * Returns how many bytes are ready for usage/able to be written */
-int PipeBytesLeft(MCorePipe_t *Pipe)
+int
+PipeBytesLeft(
+    _In_ MCorePipe_t *Pipe)
 {
-	/* If read_index == write_index then we have no of data ready */
-	if (Pipe->IndexRead == Pipe->IndexWrite)
-		return (int)(Pipe->Length - 1);
+    // If read_index == write_index then we have no of data ready
+    if (Pipe->IndexRead == Pipe->IndexWrite) {
+        return (int)(Pipe->Length - 1);
+    }
 
-	/* If read index is higher than write, we have wrapped around */
-	if (Pipe->IndexRead > Pipe->IndexWrite)
-		return (int)(Pipe->IndexRead - Pipe->IndexWrite - 1);
-
-	/* Otherwise we haven't wrapped, just return difference */
-	return (int)((Pipe->Length - Pipe->IndexWrite) + Pipe->IndexRead - 1);
+    // If read index is higher than write, we have wrapped around
+    // Otherwise we haven't wrapped, just return difference
+    if (Pipe->IndexRead > Pipe->IndexWrite) {
+        return (int)(Pipe->IndexRead - Pipe->IndexWrite - 1);
+    }    
+    return (int)((Pipe->Length - Pipe->IndexWrite) + Pipe->IndexRead - 1);
 }

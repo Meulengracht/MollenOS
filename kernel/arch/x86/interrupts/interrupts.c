@@ -23,7 +23,7 @@
  * - ISA Interrupts should be routed to boot-processor without lowest-prio?
  */
 #define __MODULE		"IRQS"
-//#define __TRACE
+#define __TRACE
 
 /* Includes 
  * - System */
@@ -739,7 +739,7 @@ void InterruptEntry(Context_t *Registers)
 			MCoreThread_t *Thread = ThreadingGetThread(Entry->Thread);
 			MCoreThread_t *Source = ThreadingGetCurrentThread(ApicGetCpu());
 
-			/* Impersonate the target thread*/
+			/* Impersonate the target thread */
 			if (Source->AddressSpace != Thread->AddressSpace) {
 				IThreadImpersonate(Thread);
 			}

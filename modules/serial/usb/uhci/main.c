@@ -146,15 +146,15 @@ OnFastInterrupt(
 	Controller = (UhciController_t*)InterruptData;
 
 	// Read interrupt status from i/o
-	InterruptStatus = UhciRead16(Controller, UHCI_REGISTER_STATUS);
+    InterruptStatus = UhciRead16(Controller, UHCI_REGISTER_STATUS);
+    
+	// Trace
+	TRACE("UHCI Interrupt - Status 0x%x", InterruptStatus);
 	
 	// Was the interrupt even from this controller?
 	if (!(InterruptStatus & 0x1F)) {
 		return InterruptNotHandled;
 	}
-
-	// Trace
-	TRACE("UHCI Interrupt - Status 0x%x", InterruptStatus);
 
 	// Clear interrupt bits
 	UhciWrite16(Controller, UHCI_REGISTER_STATUS, InterruptStatus);
@@ -218,6 +218,9 @@ OnLoad(void)
     // Variables
     OsStatus_t Result = OsError;
 
+    // Debug
+    TRACE("OnLoad()");
+
 	// Create event semaphore
 	__GlbFinalizerEvent = ConditionCreate();
 
@@ -228,18 +231,19 @@ OnLoad(void)
     Result = UsbManagerInitialize();
     
     // Turn on timeouts
-    __GlbTimerEvent = TimersStart(1000, 1, NULL);
+    __GlbTimerEvent = TimerStart(1000, 1, NULL);
     return Result;
 }
 
 /* OnUnload
  * This is called when the driver is being unloaded
  * and should free all resources allocated by the system */
-OsStatus_t OnUnload(void)
+OsStatus_t
+OnUnload(void)
 {
     // Stop timer
     if (__GlbTimerEvent != UUID_INVALID) {
-        TimersStop(__GlbTimerEvent);
+        TimerStop(__GlbTimerEvent);
     }
 
     // Stop thread
@@ -259,10 +263,15 @@ OsStatus_t OnUnload(void)
 /* OnRegister
  * Is called when the device-manager registers a new
  * instance of this driver for the given device */
-OsStatus_t OnRegister(MCoreDevice_t *Device)
+OsStatus_t
+OnRegister(
+    _In_ MCoreDevice_t *Device)
 {
 	// Variables
 	UhciController_t *Controller = NULL;
+    
+    // Debug
+    TRACE("OnRegister()");
 	
 	// Register the new controller
 	Controller = UhciControllerCreate(Device);

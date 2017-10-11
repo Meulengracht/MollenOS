@@ -26,13 +26,13 @@
 #include <os/driver/timers.h>
 #include <os/syscall.h>
 
-/* TimersStart 
+/* TimerStart 
  * Creates a new standard timer for the requesting process. 
  * When interval elapses a __TIMEOUT event is generated for
  * the owner of the timer. 
  * <Interval> is in MilliSeconds */
 UUId_t
-TimersStart(
+TimerStart(
     _In_ size_t Interval,
     _In_ int Periodic,
     _In_ __CONST void *Data)
@@ -42,11 +42,11 @@ TimersStart(
         SYSCALL_PARAM(Periodic), SYSCALL_PARAM(Data));
 }
 
-/* TimersStop
+/* TimerStop
  * Destroys a existing standard timer, owner must be the requesting
  * process. Otherwise access fault. */
 OsStatus_t
-TimersStop(
+TimerStop(
     _In_ UUId_t TimerId)
 {
     return (OsStatus_t)Syscall1(SYSCALL_TIMERSTART, SYSCALL_PARAM(TimerId));

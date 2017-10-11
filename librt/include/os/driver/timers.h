@@ -36,7 +36,7 @@
 MOSAPI
 UUId_t
 MOSABI
-TimersStart(
+TimerStart(
     _In_ size_t Interval,
     _In_ int Periodic,
     _In_ __CONST void *Data);
@@ -47,7 +47,7 @@ TimersStart(
 MOSAPI
 OsStatus_t
 MOSABI
-TimersStop(
+TimerStop(
     _In_ UUId_t TimerId);
 
 #endif //!_TIMERS_INTERFACE_H_

@@ -246,7 +246,10 @@ UhciStart(
 	_In_ int Wait)
 {
 	// Variables
-	uint16_t OldCmd = 0;
+    uint16_t OldCmd = 0;
+    
+    // Debug
+    TRACE("UhciStart()");
 
 	// Read current command register
 	// to preserve information, then assert some flags
