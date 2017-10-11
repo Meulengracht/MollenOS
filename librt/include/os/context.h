@@ -56,8 +56,6 @@ PACKED_TYPESTRUCT(Context, {
 	uint32_t                UserEsp;
 	uint32_t                UserSs;
 	uint32_t                UserArg;
-			                
-	uint32_t                Reserved[4];
 });
 #else
 #error "os/context.h: Invalid architecture"

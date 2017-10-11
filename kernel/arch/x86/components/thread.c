@@ -145,18 +145,21 @@ void *IThreadCreate(Flags_t ThreadFlags, uintptr_t EntryPoint)
  * Initializes user-mode data for the given thread, and
  * allocates all neccessary resources (x86 specific) for
  * usermode operations */
-void IThreadSetupUserMode(MCoreThread_t *Thread, uintptr_t StackAddress)
+void
+IThreadSetupUserMode(
+    _In_ MCoreThread_t *Thread, 
+    _In_ uintptr_t StackAddress)
 {
-	/* Initialize a pointer to x86 specific data */
+	// Variables
 	x86Thread_t *tData = (x86Thread_t*)Thread->ThreadData;
 	_CRT_UNUSED(StackAddress);
 
-	/* Initialize a user/driver-context based on
-	 * the requested runmode */
+	// Initialize a user/driver-context based on
+	// the requested runmode
 	tData->UserContext = ContextCreate(Thread->Flags,
 		(uintptr_t)Thread->Function, (uintptr_t*)Thread->Args);
 
-	/* Disable all port-access */
+	// Disable all port-access
 	memset(&tData->IoMap[0], 0xFF, GDT_IOMAP_SIZE);
 }
 

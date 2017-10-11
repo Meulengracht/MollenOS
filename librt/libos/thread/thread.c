@@ -54,11 +54,11 @@ void _ThreadCRT(void *Data)
 	ThreadPackage_t *Tp;
 	int RetVal = 0;
 
-	// Initialize TLS and package pointer
+    // Initialize TLS and package pointer
 	TLSInitInstance(&Tls);
 	Tp = (ThreadPackage_t*)Data;
 
-	// Call the thread entry
+    // Call the thread entry
 	RetVal = Tp->Entry(Tp->Data);
 
 	// Cleanup and call threadexit

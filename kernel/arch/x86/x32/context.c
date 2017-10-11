@@ -39,7 +39,11 @@
 /* Stack manipulation / setup of stacks for given
  * threading. We need functions that create a new kernel
  * stack and user/driver stack. Pass threading flags */
-Context_t *ContextCreate(Flags_t ThreadFlags, uintptr_t Eip, uintptr_t *Arguments)
+Context_t*
+ContextCreate(
+    _In_ Flags_t ThreadFlags,
+    _In_ uintptr_t Eip,
+    _In_ uintptr_t *Arguments)
 {
 	// Variables
 	Context_t *Context       = NULL;
@@ -116,7 +120,7 @@ Context_t *ContextCreate(Flags_t ThreadFlags, uintptr_t Eip, uintptr_t *Argument
 		Context->UserArg = 0;
 	}
 	else {
-		Context->UserEsp = EbpInitial;
+		Context->UserEsp = (uintptr_t)&Context->UserSs;
 		Context->UserSs = StackSegment;
 		Context->UserArg = (uintptr_t)Arguments;
 	}

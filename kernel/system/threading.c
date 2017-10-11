@@ -20,6 +20,8 @@
  * - Common routines that are platform independant to provide
  *   a flexible and generic threading platfrom
  */
+#define __MODULE "MTIF"
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -33,6 +35,7 @@
 #include <threading.h>
 #include <scheduler.h>
 #include <ds/list.h>
+#include <debug.h>
 #include <heap.h>
 #include <log.h>
 
@@ -85,7 +88,7 @@ void ThreadingEntryPoint(void)
 	Cpu = CpuGetCurrentId();
 	Thread = ThreadingGetCurrentThread(Cpu);
 
-	/* We don't need futther init, run the thread */
+	/* We don't need further init, run the thread */
 	Thread->Function(Thread->Args);
 
 	/* IF WE REACH THIS POINT THREAD IS DONE! */
@@ -105,12 +108,15 @@ ThreadingEntryPointUserMode(void)
 {
 	// Variables
 	MCoreThread_t *Thread = NULL;
-	UUId_t Cpu = 0;
-
+    UUId_t Cpu = 0;
+    
 	// Retrieve the current cpu and
 	// get the current thread
 	Cpu = CpuGetCurrentId();
 	Thread = ThreadingGetCurrentThread(Cpu);
+    
+    // Debug
+    TRACE("ThreadingEntryPointUserMode(%s)", Thread->Name);
 
 	// It's important to create 
 	// and map the stack before setting up
@@ -207,14 +213,21 @@ void ThreadingInitialize(UUId_t Cpu)
  * entry point, arguments and flags, if name 
  * is NULL, a generic name will be generated 
  * Thread is started as soon as possible */
-UUId_t ThreadingCreateThread(const char *Name,
-	ThreadEntry_t Function, void *Arguments, Flags_t Flags)
+UUId_t
+ThreadingCreateThread(
+    _In_ __CONST char *Name,
+    _In_ ThreadEntry_t Function,
+    _In_ void *Arguments,
+    _In_ Flags_t Flags)
 {
 	// Variables
 	MCoreThread_t *Thread = NULL, *Parent = NULL;
 	char NameBuffer[16];
 	DataKey_t Key;
-	UUId_t Cpu = 0;
+    UUId_t Cpu = 0;
+    
+    // Debug
+    TRACE("ThreadingCreateThread(%s)", Name);
 
 	// Acquire the thread lock
 	SpinlockAcquire(&GlbThreadLock);
@@ -254,7 +267,7 @@ UUId_t ThreadingCreateThread(const char *Name,
 	Thread->Function = Function;
 	Thread->Args = Arguments;
 
-	/* Setup initial scheduler information */
+	// Setup initial scheduler information
 	Thread->Queue = -1;
 	Thread->TimeSlice = MCORE_INITIAL_TIMESLICE;
 	Thread->Priority = PriorityNormal;
@@ -262,26 +275,26 @@ UUId_t ThreadingCreateThread(const char *Name,
 	/* Create the pipe for communiciation */
 	Thread->Pipe = PipeCreate(PIPE_RPCOUT_SIZE, 0);
 
-	/* Flag-Special-Case:
-	 * If we are CPU bound */
+	// Flag-Special-Case:
+	// If we are CPU bound
 	if (Flags & THREADING_CPUBOUND) {
 		Thread->CpuId = Cpu;
 		Thread->Flags |= THREADING_CPUBOUND;
 	}
 	else {
-		Thread->CpuId = 0xFF;	/* Select the low bearing CPU */
+		Thread->CpuId = 0xFF;	// Select the low bearing CPU
 	}
 
-	/* Flag-Special-Case
-	 * If it's NOT a kernel thread
-	 * we specify transition-mode */
+	// Flag-Special-Case
+	// If it's NOT a kernel thread
+	// we specify transition-mode */
 	if (THREADING_RUNMODE(Flags) != THREADING_KERNELMODE) {
 		Thread->Flags |= THREADING_SWITCHMODE;
 	}
 
-	/* Flag-Special-Case
-	 * Determine the address space we want
-	 * to initialize for this thread */
+	// Flag-Special-Case
+	// Determine the address space we want
+	// to initialize for this thread
 	if (THREADING_RUNMODE(Flags) == THREADING_KERNELMODE) {
 		Thread->AddressSpace = AddressSpaceCreate(AS_TYPE_INHERIT);
 	}
@@ -294,18 +307,16 @@ UUId_t ThreadingCreateThread(const char *Name,
 		else {
 			ASFlags |= AS_TYPE_APPLICATION;
 		}
-
 		if (Flags & THREADING_INHERIT) {
 			ASFlags |= AS_TYPE_INHERIT;
-		}
-
-		/* Create the address space */
+        }
+        
 		Thread->AddressSpace = AddressSpaceCreate(ASFlags);
 	}
 
-	/* Create thread-data 
-	 * But use different entry point
-	 * based upon usermode thread or kernel mode thread */
+	// Create thread-data 
+	// But use different entry point
+	// based upon usermode thread or kernel mode thread
 	if (THREADING_RUNMODE(Flags) == THREADING_KERNELMODE
 		|| !(Flags & THREADING_INHERIT)) {
 		Thread->ThreadData = IThreadCreate(THREADING_KERNELMODE, (uintptr_t)&ThreadingEntryPoint);
@@ -314,12 +325,10 @@ UUId_t ThreadingCreateThread(const char *Name,
 		Thread->ThreadData = IThreadCreate(THREADING_KERNELMODE, (uintptr_t)&ThreadingEntryPointUserMode);
 	}
 
-	/* Append it to list & scheduler */
+	// Append it to list & scheduler
 	Key.Value = (int)Thread->Id;
 	ListAppend(GlbThreads, ListCreateNode(Key, Key, Thread));
 	SchedulerReadyThread(Thread);
-
-	/* Done */
 	return Thread->Id;
 }
 

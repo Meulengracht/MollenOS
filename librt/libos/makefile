@@ -14,7 +14,7 @@ INCLUDES = -I../include
 OBJECTS = $(ASM_SRCS:.s=.o) $(SOURCES:.c=.o)
 
 CFLAGS = $(GCFLAGS) -D_DLL -D_LIBOS_DLL $(INCLUDES)
-LFLAGS = /nodefaultlib /subsystem:native /noentry /dll /def:libos.def ../build/libds.lib ../build/libc.lib ../build/libcrt.lib
+LFLAGS = /nodefaultlib /subsystem:native /noentry /dll /lldmap /def:libos.def ../build/libds.lib ../build/libc.lib ../build/libcrt.lib
 
 .PHONY: all
 all: ../build/libos.dll

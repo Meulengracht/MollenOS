@@ -25,6 +25,7 @@
 #include <arch.h>
 #include <memory.h>
 #include <multiboot.h>
+#include <criticalsection.h>
 #include <log.h>
 
 /* Includes 
@@ -44,9 +45,9 @@ size_t MemoryBlocks = 0;
 size_t MemoryBlocksUsed = 0;
 size_t MemorySize = 0;
 
-/* The spinlock that protects
+/* The section that protects
  * the physical memory manager */
-Spinlock_t MemoryLock;
+CriticalSection_t MemoryLock;
 
 /* Reserved Regions 
  * This primarily comes from the region-descriptor */
@@ -291,8 +292,8 @@ MmPhyiscalInit(
 	memset((void*)MemoryBitmap, 0xFFFFFFFF, MemoryBitmapSize);
 	memset((void*)SysMappings, 0, sizeof(SysMappings));
 
-	/* Reset Spinlock */
-	SpinlockReset(&MemoryLock);
+	// Create critical section
+	CriticalSectionConstruct(&MemoryLock, CRITICALSECTION_PLAIN);
 
 	/* Let us make it possible to access 
 	 * the first page of memory, but not through normal means */
@@ -375,18 +376,16 @@ MmPhysicalFreeBlock(
 	 * parameter for ranges */
 	assert(Address < MemorySize);
 
-	/* Get Spinlock */
-	SpinlockAcquire(&MemoryLock);
+    // Enter critical section
+	CriticalSectionEnter(&MemoryLock);
 
 	/* Sanitize that the page is 
 	 * actually allocated */
 	assert(MmMemoryMapTestBit(Frame) != 0);
 
-	/* Free it */
+	// Free the bit and leave section
 	MmMemoryMapUnsetBit(Frame);
-
-	/* Release Spinlock */
-	SpinlockRelease(&MemoryLock);
+	CriticalSectionLeave(&MemoryLock);
 
 	/* Statistics */
 	if (MemoryBlocksUsed != 0)
@@ -412,8 +411,8 @@ MmPhysicalAllocateBlock(
 	/* Sanitize params */
 	assert(Count > 0);
 
-	/* Get Spinlock */
-	SpinlockAcquire(&MemoryLock);
+    // Enter critical section
+	CriticalSectionEnter(&MemoryLock);
 
 	/* Calculate which allocation function
 	 * to use with the given mask */
@@ -433,10 +432,8 @@ MmPhysicalAllocateBlock(
 		}
 	}
 
-	/* Release lock */
-	SpinlockRelease(&MemoryLock);
-
-	/* Sanity */
+    // Leave critical and sanitize frame
+    CriticalSectionLeave(&MemoryLock);
 	assert(Frame != -1);
 
 	/* Statistics */

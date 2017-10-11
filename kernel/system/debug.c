@@ -377,7 +377,10 @@ DebugContext(
 
 	// Dump stack registers
 	LogDebug(__MODULE, "ESP 0x%x (UserESP 0x%x), EBP 0x%x, Flags 0x%x",
-		Context->Esp, Context->UserEsp, Context->Ebp, Context->Eflags);
+        Context->Esp, Context->UserEsp, Context->Ebp, Context->Eflags);
+        
+    // Dump copy registers
+	LogDebug(__MODULE, "ESI 0x%x, EDI 0x%x", Context->Esi, Context->Edi);
 
 	// Dump segments
 	LogDebug(__MODULE, "CS 0x%x, DS 0x%x, GS 0x%x, ES 0x%x, FS 0x%x",

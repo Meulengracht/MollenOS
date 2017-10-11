@@ -150,6 +150,9 @@ TLSInitInstance(
 	// Clean out the tls
 	memset(Tls, 0, sizeof(ThreadLocalStorage_t));
 
+	// Store it at reserved pointer place first
+    __set_reserved(0, (size_t)Tls);
+    
 	// Initialize members to default values
 	Tls->Id = UUID_INVALID;
 	Tls->Errno = EOK;
@@ -158,9 +161,6 @@ TLSInitInstance(
 
 	// Setup a local transfer buffer for stdio operations
 	Tls->Transfer = CreateBuffer(BUFSIZ);
-
-	// Store it at reserved pointer place
-	__set_reserved(0, (size_t)Tls);
 	return OsSuccess;
 }
 

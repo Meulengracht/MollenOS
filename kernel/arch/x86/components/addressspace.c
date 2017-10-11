@@ -129,7 +129,7 @@ AddressSpaceCreate(
 			}
 
 			// Sanitize stack region, never copy
-			if (Itr >= ThreadRegion && Itr < ThreadRegionEnd) {
+			if (Itr >= ThreadRegion && Itr <= ThreadRegionEnd) {
 				continue;
 			}
 
@@ -153,8 +153,6 @@ AddressSpaceCreate(
 	else {
 		LogFatal("VMEM", "Invalid flags parsed in AddressSpaceCreate 0x%x", Flags);
 	}
-
-	/* Done */
 	return AddressSpace;
 }
 
