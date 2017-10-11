@@ -21,33 +21,33 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _TIMERS_INTERFACE_H_
-#define _TIMERS_INTERFACE_H_
-
-/* Includes 
+/* Includes
  * - System */
-#include <os/osdefs.h>
+#include <os/driver/timers.h>
+#include <os/syscall.h>
 
 /* TimersStart 
  * Creates a new standard timer for the requesting process. 
  * When interval elapses a __TIMEOUT event is generated for
  * the owner of the timer. 
  * <Interval> is in MilliSeconds */
-MOSAPI
 UUId_t
-MOSABI
 TimersStart(
     _In_ size_t Interval,
     _In_ int Periodic,
-    _In_ __CONST void *Data);
+    _In_ __CONST void *Data)
+{
+    // Translate to Ns
+    return (UUId_t)Syscall3(SYSCALL_TIMERSTART, SYSCALL_PARAM(Interval * 1000),
+        SYSCALL_PARAM(Periodic), SYSCALL_PARAM(Data));
+}
 
 /* TimersStop
  * Destroys a existing standard timer, owner must be the requesting
  * process. Otherwise access fault. */
-MOSAPI
 OsStatus_t
-MOSABI
 TimersStop(
-    _In_ UUId_t TimerId);
-
-#endif //!_TIMERS_INTERFACE_H_
+    _In_ UUId_t TimerId)
+{
+    return (OsStatus_t)Syscall1(SYSCALL_TIMERSTART, SYSCALL_PARAM(TimerId));
+}

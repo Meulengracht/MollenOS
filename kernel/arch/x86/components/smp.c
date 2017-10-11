@@ -37,6 +37,16 @@
 #include <stdio.h>
 #include <ds/list.h>
 
+#define WaitForConditionWithFault(fault, condition, runs, wait)\
+fault = 0; \
+for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
+    if (timeout_ >= runs) {\
+         fault = 1; \
+         break;\
+                                            }\
+    DelayMs(wait);\
+                    }
+
 /* Externs */
 extern List_t *GlbAcpiNodes;
 extern UUId_t GlbBootstrapCpuId;

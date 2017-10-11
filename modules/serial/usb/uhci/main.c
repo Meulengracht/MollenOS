@@ -20,10 +20,11 @@
  * TODO:
  *	- Power Management
  */
-//#define __TRACE
+#define __TRACE
 
 /* Includes 
  * - System */
+#include <os/driver/timers.h>
 #include <os/mollenos.h>
 #include <os/condition.h>
 #include <os/thread.h>
@@ -43,18 +44,24 @@
  * Use these for state-keeping the thread */
 static UUId_t __GlbFinalizerThreadId = UUID_INVALID;
 static Condition_t *__GlbFinalizerEvent = NULL;
+static UUId_t __GlbTimerEvent = UUID_INVALID;
 
 /* FinalizerEntry 
  * Entry of the finalizer thread, this thread handles
  * all completed transactions to notify users */
-int FinalizerEntry(void *Argument)
+int
+FinalizerEntry(
+    _In_Opt_ void *Argument)
 {
 	// Variables
 	ListNode_t *cNode = NULL;
 	Mutex_t EventLock;
 
 	// Unused
-	_CRT_UNUSED(Argument);
+    _CRT_UNUSED(Argument);
+    
+    // Debug
+    TRACE("FinalizerEntry()");
 
 	// Create the mutex
 	MutexConstruct(&EventLock, MUTEX_PLAIN);
@@ -190,22 +197,39 @@ OnTimeout(
 	_In_ UUId_t Timer,
 	_In_ void *Data)
 {
+    // Unused variables
+    _CRT_UNUSED(Timer);
+    _CRT_UNUSED(Data);
+
+    // Do a port-check and optionally make finalizer
+    // thread perform a data-check to make sure we don't miss anything
+    foreach(cNode, UsbManagerGetControllers()) {
+        UhciPortsCheck((UhciController_t*)cNode->Data);
+    }
 	return OsSuccess;
 }
 
 /* OnLoad
  * The entry-point of a driver, this is called
  * as soon as the driver is loaded in the system */
-OsStatus_t OnLoad(void)
+OsStatus_t
+OnLoad(void)
 {
+    // Variables
+    OsStatus_t Result = OsError;
+
 	// Create event semaphore
 	__GlbFinalizerEvent = ConditionCreate();
 
 	// Start finalizer thread
-	__GlbFinalizerThreadId = ThreadCreate(FinalizerEntry, NULL);
+    __GlbFinalizerThreadId = ThreadCreate(FinalizerEntry, NULL);
 
 	// Initialize the device manager here
-	return UsbManagerInitialize();
+    Result = UsbManagerInitialize();
+    
+    // Turn on timeouts
+    __GlbTimerEvent = TimersStart(1000, 1, NULL);
+    return Result;
 }
 
 /* OnUnload
@@ -213,11 +237,20 @@ OsStatus_t OnLoad(void)
  * and should free all resources allocated by the system */
 OsStatus_t OnUnload(void)
 {
-	// Stop thread
-	ThreadKill(__GlbFinalizerThreadId);
+    // Stop timer
+    if (__GlbTimerEvent != UUID_INVALID) {
+        TimersStop(__GlbTimerEvent);
+    }
 
-	// Cleanup semaphore
-	ConditionDestroy(__GlbFinalizerEvent);
+    // Stop thread
+    if (__GlbFinalizerThreadId != UUID_INVALID) {
+        ThreadKill(__GlbFinalizerThreadId);
+    }
+
+    // Cleanup semaphore
+    if (__GlbFinalizerEvent != NULL) {
+        ConditionDestroy(__GlbFinalizerEvent);
+    }
 
 	// Cleanup the internal device manager
 	return UsbManagerDestroy();
@@ -369,7 +402,8 @@ OnQuery(_In_ MContractType_t QueryType,
 			// Call reset procedure, then let it fall through
 			// to QueryPort
 			UhciPortPrepare(Controller, (int)Pipe);
-		};
+        };
+        
 		// Query port
 		case __USBHOST_QUERYPORT: {
 			// Variables
@@ -381,7 +415,13 @@ OnQuery(_In_ MContractType_t QueryType,
 			// Send descriptor back
 			return PipeSend(Queryee, ResponsePort, 
 				(void*)&Descriptor, sizeof(UsbHcPortDescriptor_t));
-		} break;
+        } break;
+        
+        // Reset endpoint toggles
+        // @todo
+        case __USBHOST_RESETENDPOINT: {
+
+        } break;
 
 		// Fall-through, error
 		default:

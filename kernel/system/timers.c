@@ -20,11 +20,12 @@
  * - Contains the timer interface system and its implementation
  *   keeps track of system timers
  */
-#define __MODULE		"TIMR"
+#define __MODULE		"TMIF"
 //#define __TRACE
 
 /* Includes 
  * - System */
+#include <process/ash.h>
 #include <interrupts.h>
 #include <scheduler.h>
 #include <ds/list.h>
@@ -59,72 +60,64 @@ TimersInitialize(void)
 	GlbTimerIds = 0;
 }
 
+/* TimersStart 
+ * Creates a new standard timer for the requesting process. */
+KERNELAPI
 UUId_t
-TimersCreateTimer(
-	TimerHandler_t Callback,
-	void *Args, 
-	MCoreTimerType_t Type, 
-	size_t Timeout)
+KERNELABI
+TimersStart(
+    _In_ size_t IntervalNs,
+    _In_ int Periodic,
+    _In_ __CONST void *Data)
 {
-	/* Variables */
-	MCoreTimer_t *TimerInfo;
-	DataKey_t Key;
-	UUId_t Id;
+    // Variables
+    MCoreTimer_t *Timer = NULL;
+    DataKey_t Key;
 
-	/* Allocate */
-	TimerInfo = (MCoreTimer_t*)kmalloc(sizeof(MCoreTimer_t));
-	TimerInfo->Callback = Callback;
-	TimerInfo->Args = Args;
-	TimerInfo->Type = Type;
-	TimerInfo->PeriodicMs = Timeout;
-	TimerInfo->MsLeft = (ssize_t)Timeout;
+    // Sanity
+    if (PhoenixGetCurrentAsh() == NULL) {
+        return UUID_INVALID;
+    }
 
-	/* Append to list */
-	Key.Value = (int)GlbTimerIds;
-	ListAppend(GlbTimers, ListCreateNode(Key, Key, TimerInfo));
+    // Allocate a new instance and initialize
+    Timer = (MCoreTimer_t*)kmalloc(sizeof(MCoreTimer_t));
+    Timer->Id = GlbTimerIds++;
+    Timer->AshId = PhoenixGetCurrentAsh()->Id;
+    Timer->Data = Data;
+    Timer->Interval = IntervalNs;
+    Timer->Current = 0;
+    Timer->Periodic = Periodic;
+    Key.Value = (int)Timer->Id;
 
-	/* Increase */
-	Id = GlbTimerIds;
-	GlbTimerIds++;
-
-	/* Done */
-	return Id;
+    // Add to list of timers
+    ListAppend(GlbTimers, ListCreateNode(Key, Key, Timer));
+    return Timer->Id;
 }
 
-/* Destroys and removes a timer */
-void TimersDestroyTimer(UUId_t TimerId)
+/* TimersStop
+ * Destroys a existing standard timer, owner must be the requesting
+ * process. Otherwise access fault. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+TimersStop(
+    _In_ UUId_t TimerId)
 {
-	/* Variables */
-	MCoreTimer_t *Timer = NULL;
-	DataKey_t Key;
-
-	/* Get Node */
-	Key.Value = (int)TimerId;
-	Timer = (MCoreTimer_t*)ListGetDataByKey(GlbTimers, Key, 0);
-
-	/* Sanity */
-	if (Timer == NULL)
-		return;
-
-	/* Remove By Id */
-	ListRemoveByKey(GlbTimers, Key);
-
-	/* Free */
-	kfree(Timer);
-}
-
-/* Sleep function */
-void SleepMs(size_t MilliSeconds)
-{
-	/* Redirect to the scheduler functionality
-	 * it allows us to sleep with time-out */
-	SchedulerSleepThread(NULL, MilliSeconds);
-}
-
-/* Stall functions */
-void StallMs(size_t MilliSeconds)
-{
-	DelayMs(MilliSeconds);
+    // Now loop through timers registered
+	foreach(tNode, GlbTimers) {
+        // Initiate pointer
+        MCoreTimer_t *Timer = (MCoreTimer_t*)tNode->Data;
+        
+        // Does it match the id? + Owner must match
+        if (Timer->Id == TimerId
+            && Timer->AshId == PhoenixGetCurrentAsh()->Id) {
+			ListRemoveByNode(GlbTimers, tNode);
+            kfree(Timer);
+            kfree(tNode);
+            return OsSuccess;
+		}
+    }
+    return OsError;
 }
 
 /* TimersTick
@@ -146,12 +139,15 @@ TimersTick(
 
 	// Now loop through timers registered
 	_foreach(i, GlbTimers) {
-		MCoreTimer_t *Timer = (MCoreTimer_t*)i->Data;
-		Timer->MsLeft -= MilliTicks;
-		if (Timer->MsLeft <= 0) {
-			ThreadingCreateThread("Timer Callback", Timer->Callback, Timer->Args, 0);
-			if (Timer->Type == TimerPeriodic) {
-				Timer->MsLeft = (ssize_t)Timer->PeriodicMs;
+        // Initiate pointer
+        MCoreTimer_t *Timer = (MCoreTimer_t*)i->Data;
+        
+        // Reduce
+		Timer->Current -= MIN(Timer->Current, Tick);
+		if (Timer->Current == 0) {
+			__KernelTimeoutDriver(Timer->AshId, Timer->Id, (void*)Timer->Data);
+			if (Timer->Periodic) {
+				Timer->Current = Timer->Interval;
 			}
 			else {
 				ListRemoveByNode(GlbTimers, i);
@@ -238,4 +234,14 @@ TimersInterrupt(
 
 	// Return error
 	return OsError;
+}
+
+/* Sleep function */
+void
+SleepMs(
+    _In_ size_t MilliSeconds)
+{
+	// Redirect to the scheduler functionality
+	// it allows us to sleep with time-out
+	SchedulerSleepThread(NULL, MilliSeconds);
 }

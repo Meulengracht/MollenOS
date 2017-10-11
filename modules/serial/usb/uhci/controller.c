@@ -22,7 +22,7 @@
  * Finish the FSBR implementation, right now there is no guarantee of order ls/fs/bul
  * The isochronous unlink/link needs improvements, it does not support multiple isocs in same frame 
  */
-//#define __TRACE
+#define __TRACE
 
 /* Includes
  * - System */
@@ -116,7 +116,10 @@ UhciControllerCreate(
 	// Variables
 	UhciController_t *Controller = NULL;
 	DeviceIoSpace_t *IoBase = NULL;
-	int i;
+    int i;
+    
+    // Debug
+    TRACE("UhciControllerCreate(%s)", &Device->Name[0]);
 
 	// Allocate a new instance of the controller
 	Controller = (UhciController_t*)malloc(sizeof(UhciController_t));
@@ -337,7 +340,10 @@ UhciSetup(
 {
 	// Variables
 	Flags_t IoctlValue = 0;
-	uint16_t Temp = 0, i = 0;
+    uint16_t Temp = 0, i = 0;
+    
+    // Debug
+    TRACE("UhciSetup()");
 
 	// Disable interrupts while configuring (and stop controller)
 	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, 0x0000);

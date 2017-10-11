@@ -29,67 +29,22 @@
 #include <os/osdefs.h>
 #include <os/driver/timers.h>
 
-/* Timer Type */
-typedef enum _MCoreTimerType
-{
-	TimerSingleShot,
-	TimerPeriodic
-} MCoreTimerType_t;
-
-/* Structures */
+/* MCoreTimer
+ * The timer structure, contains information about
+ * the owner, the timeout and the type of timer. */
 typedef struct _MCoreTimer {
-	TimerHandler_t		Callback;
-	void				*Args;
-	MCoreTimerType_t	Type;
-	size_t				PeriodicMs;
-	volatile ssize_t	MsLeft;
+    UUId_t               Id;
+    UUId_t               AshId;
+    __CONST void        *Data;
+
+    size_t               Interval;
+    volatile size_t      Current;
+    int                  Periodic;
 } MCoreTimer_t;
 
-/* Prototypes */
-KERNELAPI UUId_t TimersCreateTimer(TimerHandler_t Callback,
-	void *Args, MCoreTimerType_t Type, size_t Timeout);
-KERNELAPI void TimersDestroyTimer(UUId_t TimerId);
-
-/* Sleep, Stall, etc */
-KERNELAPI void SleepMs(size_t MilliSeconds);
-KERNELAPI void StallMs(size_t MilliSeconds);
-
-/* Stall-No-Int */
-KERNELAPI void DelayMs(size_t MilliSeconds);
-
-/* Tools */
-#define WaitForCondition(condition, runs, wait, message, ...)\
-    for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
-        if (timeout_ >= runs) {\
-             Log(message, __VA_ARGS__);\
-             break;\
-												        }\
-        StallMs(wait);\
-						    }
-
-#define WaitForConditionWithFault(fault, condition, runs, wait)\
-	fault = 0; \
-    for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
-        if (timeout_ >= runs) {\
-			 fault = 1; \
-             break;\
-										        }\
-        StallMs(wait);\
-					    }
-
-#define DelayForConditionWithFault(fault, condition, runs, wait)\
-	fault = 0; \
-    for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
-        if (timeout_ >= runs) {\
-			 fault = 1; \
-             break;\
-												        }\
-        DelayMs(wait);\
-						    }
-
-/* The system timer structure
- * Contains information related to the
- * registered system timers */
+/* MCoreSystemTimer
+ * The system timer structure
+ * Contains information related to the registered system timers */
 typedef struct _MCoreSystemTimer {
 	UUId_t					Source;
 	size_t					Tick;
@@ -113,7 +68,26 @@ OsStatus_t
 KERNELABI
 TimersRegister(
 	_In_ UUId_t Source,
-	_In_ size_t TickNs);
+    _In_ size_t TickNs);
+    
+/* TimersStart 
+ * Creates a new standard timer for the requesting process. */
+KERNELAPI
+UUId_t
+KERNELABI
+TimersStart(
+    _In_ size_t IntervalNs,
+    _In_ int Periodic,
+    _In_ __CONST void *Data);
+
+/* TimersStop
+ * Destroys a existing standard timer, owner must be the requesting
+ * process. Otherwise access fault. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+TimersStop(
+    _In_ UUId_t TimerId);
 
 /* TimersInterrupt
  * Called by the interrupt-code to tell the timer-management system
@@ -124,8 +98,19 @@ KERNELAPI
 OsStatus_t
 KERNELABI
 TimersInterrupt(
-	_In_ UUId_t Source);
+    _In_ UUId_t Source);
+    
+/* Sleep/Stall 
+ * Utilities for delaying execution. */
+KERNELAPI
+void
+KERNELABI
+SleepMs(
+    size_t MilliSeconds);
+KERNELAPI
+void
+KERNELABI
+DelayMs(
+    size_t MilliSeconds);
 
 #endif // !_MCORE_TIMERS_H_
-
-

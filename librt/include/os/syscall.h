@@ -111,6 +111,8 @@
 #define SYSCALL_UNREGISTERIRQ		0x52
 #define SYSCALL_ACKNOWLEDGEIRQ		0x53
 #define SYSCALL_REGISTERSYSTMR		0x54
+#define SYSCALL_TIMERSTART          0x55
+#define SYSCALL_TIMERSTOP           0x56
 
  /* Start one of these before function prototypes */
 _CODE_BEGIN

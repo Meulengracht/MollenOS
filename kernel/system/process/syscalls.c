@@ -1399,9 +1399,35 @@ OsStatus_t ScAcknowledgeInterrupt(UUId_t Source)
  * Registers the given interrupt source as a system
  * timer source, with the given tick. This way the system
  * can always keep track of timers */
-OsStatus_t ScRegisterSystemTimer(UUId_t Interrupt, size_t NsPerTick)
+OsStatus_t
+ScRegisterSystemTimer(
+    _In_ UUId_t Interrupt,
+    _In_ size_t NsPerTick)
 {
 	return TimersRegister(Interrupt, NsPerTick);
+}
+
+/* ScTimersStart
+ * Creates a new standard timer for the requesting process. 
+ * When interval elapses a __TIMEOUT event is generated for
+ * the owner of the timer. */
+UUId_t
+ScTimersStart(
+    _In_ size_t Interval,
+    _In_ int Periodic,
+    _In_ __CONST void *Data)
+{
+    return TimersStart(Interval, Periodic, Data);
+}
+
+/* ScTimersStop
+ * Destroys a existing standard timer, owner must be the requesting
+ * process. Otherwise access fault. */
+OsStatus_t
+ScTimersStop(
+    _In_ UUId_t TimerId)
+{
+    return TimersStop(TimerId);
 }
 
 /***********************
@@ -1550,8 +1576,8 @@ uintptr_t GlbSyscallTable[91] =
 	DefineSyscall(ScUnregisterInterrupt),
 	DefineSyscall(ScAcknowledgeInterrupt),
 	DefineSyscall(ScRegisterSystemTimer),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
+	DefineSyscall(ScTimersStart),
+	DefineSyscall(ScTimersStop),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),
 	DefineSyscall(NoOperation),

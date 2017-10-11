@@ -117,7 +117,7 @@ __EXTERN Flags_t InterruptGetTrigger(uint16_t IntiFlags, int IrqSource);
 __EXTERN int AcpiDeriveInterrupt(DevInfo_t Bus,
 	DevInfo_t Device, int Pin, Flags_t *AcpiConform);
 
-/* InterruptDriver
+/* __KernelInterruptDriver
  * Call this to send an interrupt into user-space
  * the driver must acknowledge the interrupt once its handled
  * to unmask the interrupt-line again */
@@ -144,6 +144,33 @@ __KernelInterruptDriver(
 	RPCInitialize(&Request, 1, PIPE_RPCOUT, __DRIVER_INTERRUPT);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Id, sizeof(UUId_t));
     RPCSetArgument(&Request, 1, (__CONST void*)&Data, sizeof(void*));
+    RPCSetArgument(&Request, 2, (__CONST void*)&Zero, sizeof(size_t));
+    RPCSetArgument(&Request, 3, (__CONST void*)&Zero, sizeof(size_t));
+    RPCSetArgument(&Request, 4, (__CONST void*)&Zero, sizeof(size_t));
+
+	// Send
+	return ScRpcExecute(&Request, Ash, 1);
+}
+
+/* __KernelTimeoutDriver
+ * Call this to send an timeout into userspace. The driver is
+ * then informed about a timer-interval that elapsed. */
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+__KernelTimeoutDriver(
+	_In_ UUId_t Ash, 
+	_In_ UUId_t TimerId,
+	_In_ void *TimerData)
+{
+	// Variables
+    MRemoteCall_t Request;
+    size_t Zero = 0;
+
+	// Initialze RPC
+	RPCInitialize(&Request, 1, PIPE_RPCOUT, __DRIVER_TIMEOUT);
+	RPCSetArgument(&Request, 0, (__CONST void*)&TimerId, sizeof(UUId_t));
+    RPCSetArgument(&Request, 1, (__CONST void*)&TimerData, sizeof(void*));
     RPCSetArgument(&Request, 2, (__CONST void*)&Zero, sizeof(size_t));
     RPCSetArgument(&Request, 3, (__CONST void*)&Zero, sizeof(size_t));
     RPCSetArgument(&Request, 4, (__CONST void*)&Zero, sizeof(size_t));

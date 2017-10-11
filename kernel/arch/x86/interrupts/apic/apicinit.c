@@ -155,7 +155,7 @@ void AcpiSetupIoApic(void *Data, int Nr, void *UserData)
 	IoListEntry->Id = IoApic->Id;
 	IoListEntry->BaseAddress = RemapTo + (IoApic->Address & 0xFFF);
 
-	/* Maximum Redirection Entry—RO. This field contains the entry number (0 being the lowest
+	/* Maximum Redirection Entryï¿½RO. This field contains the entry number (0 being the lowest
 	 * entry) of the highest entry in the I/O Redirection Table. The value is equal to the number of
 	 * interrupt input pins for the IOAPIC minus one. The range of values is 0 through 239. */
 	IoEntries = ApicIoRead(IoListEntry, 1);
@@ -583,7 +583,7 @@ void ApicTimerRecalibrate(void)
 	ApicWriteLocal(APIC_INITIAL_COUNT, 0xFFFFFFFF); /* Set counter to -1 */
 
 	/* Stall, we have no other threads running! */
-	StallMs(100);
+	DelayMs(100);
 
 	/* Stop counter! */
 	ApicWriteLocal(APIC_TIMER_VECTOR, APIC_MASKED);
