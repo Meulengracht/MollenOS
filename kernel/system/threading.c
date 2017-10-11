@@ -37,7 +37,6 @@
 #include <ds/list.h>
 #include <debug.h>
 #include <heap.h>
-#include <log.h>
 
 /* Includes
  * - Library */
@@ -129,7 +128,7 @@ ThreadingEntryPointUserMode(void)
 	IThreadSetupUserMode(Thread, MEMORY_LOCATION_RING3_STACK_START);
 
 	// Nothing actually happens before this flag is set
-	Thread->Flags |= THREADING_TRANSITION;
+	Thread->Flags |= THREADING_TRANSITION_USERMODE;
 
 	// Yield control, with safety-catch
 	IThreadYield();
@@ -449,7 +448,7 @@ void ThreadingEnterUserMode(void *AshInfo)
 
 	/* This initiates the transition 
 	 * nothing happpens before this */
-	Thread->Flags |= THREADING_TRANSITION;
+	Thread->Flags |= THREADING_TRANSITION_USERMODE;
 
 	/* Done! */
 	InterruptRestoreState(IntrState);
@@ -521,36 +520,36 @@ UUId_t ThreadingGetCurrentThreadId(void)
 /* ThreadingGetThread
  * Lookup thread by the given thread-id, 
  * returns NULL if invalid */
-MCoreThread_t *ThreadingGetThread(UUId_t ThreadId)
+MCoreThread_t*
+ThreadingGetThread(
+    _In_ UUId_t ThreadId)
 {
-	/* Iterate thread nodes and find the correct */
+	// Iterate thread nodes and find the correct
 	foreach(tNode, GlbThreads) {
 		MCoreThread_t *Thread = 
 			(MCoreThread_t*)tNode->Data;
-
-		/* Does id match? */
 		if (Thread->Id == ThreadId) {
 			return Thread;
 		}
 	}
-
-	/* Damn, no match */
 	return NULL;
 }
 
 /* ThreadingIsEnabled
  * Returns 1 if the threading system has been
  * initialized, otherwise it returns 0 */
-int ThreadingIsEnabled(void)
+int 
+ThreadingIsEnabled(void)
 {
 	return GlbThreadingEnabled;
 }
 
 /* ThreadingIsCurrentTaskIdle
  * Is the given cpu running it's idle task? */
-int ThreadingIsCurrentTaskIdle(UUId_t Cpu)
+int
+ThreadingIsCurrentTaskIdle(
+    _In_ UUId_t Cpu)
 {
-	/* Check the current threads flag */
 	if (ThreadingIsEnabled() == 1
 		&& ThreadingGetCurrentThread(Cpu)->Flags & THREADING_IDLE) {
 		return 1;
@@ -563,9 +562,9 @@ int ThreadingIsCurrentTaskIdle(UUId_t Cpu)
 /* ThreadingGetCurrentMode
  * Returns the current run-mode for the current
  * thread on the current cpu */
-Flags_t ThreadingGetCurrentMode(void)
+Flags_t
+ThreadingGetCurrentMode(void)
 {
-	/* Sanitizie status first! */
 	if (ThreadingIsEnabled() == 1) {
 		return ThreadingGetCurrentThread(CpuGetCurrentId())->Flags & THREADING_MODEMASK;
 	}
@@ -577,16 +576,19 @@ Flags_t ThreadingGetCurrentMode(void)
 /* ThreadingWakeCpu
  * Wake's the target cpu from an idle thread
  * by sending it an yield IPI */
-void ThreadingWakeCpu(UUId_t Cpu)
+void
+ThreadingWakeCpu(
+    _In_ UUId_t Cpu)
 {
-	/* This is unfortunately arch-specific */
 	IThreadWakeCpu(Cpu);
 }
 
 /* ThreadingReapZombies
  * Garbage-Collector function, it reaps and
  * cleans up all threads */
-OsStatus_t ThreadingReap(void *UserData)
+OsStatus_t
+ThreadingReap(
+    _In_ void *UserData)
 {
 	// Instantiate the thread pointer
 	MCoreThread_t *Thread = (MCoreThread_t*)UserData;
@@ -601,13 +603,16 @@ OsStatus_t ThreadingReap(void *UserData)
 /* ThreadingDebugPrint
  * Prints out debugging information about each thread
  * in the system, only active threads */
-void ThreadingDebugPrint(void)
+void
+ThreadingDebugPrint(void)
 {
-	foreach(i, GlbThreads)
-	{
-		MCoreThread_t *t = (MCoreThread_t*)i->Data;
-		LogDebug("THRD", "Thread %u (%s) - Flags %i, Queue %i, Timeslice %u, Cpu: %u",
-			t->Id, t->Name, t->Flags, t->Queue, t->TimeSlice, t->CpuId);
+	foreach(i, GlbThreads) {
+        MCoreThread_t *Thread = (MCoreThread_t*)i->Data;
+        if (THREADING_STATE(Thread->Flags) == THREADING_ACTIVE) {
+            WRITELINE("Thread %u (%s) - Flags %i, Queue %i, Timeslice %u, Cpu: %u",
+                Thread->Id, Thread->Name, Thread->Flags, Thread->Queue, 
+                Thread->TimeSlice, Thread->CpuId);
+        }
 	}
 }
 
@@ -615,7 +620,11 @@ void ThreadingDebugPrint(void)
  * This is the thread-switch function and must be 
  * be called from the below architecture to get the
  * next thread to run */
-MCoreThread_t *ThreadingSwitch(UUId_t Cpu, MCoreThread_t *Current, int PreEmptive)
+MCoreThread_t*
+ThreadingSwitch(
+    _In_ UUId_t Cpu, 
+    _In_ MCoreThread_t *Current, 
+    _In_ int PreEmptive)
 {
 	// Variables
 	MCoreThread_t *NextThread = NULL;
@@ -625,10 +634,10 @@ MCoreThread_t *ThreadingSwitch(UUId_t Cpu, MCoreThread_t *Current, int PreEmptiv
 	// Get the node for the current thread
 	Node = ThreadingGetCurrentNode(Cpu);
 
-	/* Unless this one is done.. */
+	// Unless this one is done..
 GetNextThread:
 	if ((Current->Flags & THREADING_FINISHED) || (Current->Flags & THREADING_IDLE)
-		|| (Current->Flags & THREADING_ENTER_SLEEP))
+		|| (Current->Flags & THREADING_TRANSITION_SLEEP))
 	{
 		// If the thread is finished then add it to 
 		// garbagecollector
@@ -640,38 +649,35 @@ GetNextThread:
 		}
 
 		// Handle the sleep flag
-		if (Current->Flags & THREADING_ENTER_SLEEP) {
-			Current->Flags &= ~(THREADING_ENTER_SLEEP);
-		}
-		
-		/* Get next thread without scheduling the current */
+		if (Current->Flags & THREADING_TRANSITION_SLEEP) {
+			Current->Flags &= ~(THREADING_TRANSITION_SLEEP);
+        }
+        
+        // Don't schedule the current
 		NextThread = SchedulerGetNextTask(Cpu, NULL, PreEmptive);
 	}
-	else
-	{
-		/* Yea we dont schedule idle tasks :-) */
+	else {
 		NextThread = SchedulerGetNextTask(Cpu, Current, PreEmptive);
 	}
 
-	/* Sanity */
-	if (NextThread == NULL)
+	// Sanitize if we need to active our idle thread
+	if (NextThread == NULL) {
 		NextThread = (MCoreThread_t*)GlbIdleThreads[Cpu]->Data;
+    }
 
-	/* More sanity 
-	 * If we have caught a finished thread that
-	 * has been killed while scheduled, get a new */
+	// More sanity 
+	// If we have caught a finished thread that
+	// has been killed while scheduled, get a new
 	if (NextThread->Flags & THREADING_FINISHED) {
 		Current = NextThread;
 		goto GetNextThread;
 	}
 
-	/* Get node by thread */
+	// Get node by thread
 	Key.Value = (int)NextThread->Id;
 	Node = ListGetNodeByKey(GlbThreads, Key, 0);
 
-	/* Update current */
+	// Update current thread and return it
 	ThreadingUpdateCurrent(Cpu, Node);
-
-	/* Done */
 	return ThreadingGetCurrentThread(Cpu);
 }

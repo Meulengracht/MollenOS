@@ -200,7 +200,10 @@ void SchedulerReadyThread(MCoreThread_t *Thread)
 		SchedulerGetNode(iKey, sKey, Thread));
 
 	/* Release lock */
-	CriticalSectionLeave(&GlbSchedulers[CpuIndex]->Lock);
+    CriticalSectionLeave(&GlbSchedulers[CpuIndex]->Lock);
+    
+    // Set thread active
+    THREADING_SETSTATE(Thread->Flags, THREADING_ACTIVE);
 
 	/* Wakeup CPU if sleeping */
 	if (ThreadingIsCurrentTaskIdle(Thread->CpuId) != 0)
@@ -233,7 +236,10 @@ void SchedulerDisarmThread(MCoreThread_t *Thread)
 	}
 
 	/* Release lock */
-	CriticalSectionLeave(&GlbSchedulers[Thread->CpuId]->Lock);
+    CriticalSectionLeave(&GlbSchedulers[Thread->CpuId]->Lock);
+    
+    // Set inactive
+    THREADING_CLEARSTATE(Thread->Flags);
 }
 
 /* This function is primarily used to remove a thread from
@@ -355,7 +361,7 @@ void SchedulerSleepThread(uintptr_t *Resource, size_t Timeout)
 	CurrentThread = ThreadingGetCurrentThread(Cpu);
 
 	/* Mark for sleep */
-	CurrentThread->Flags |= THREADING_ENTER_SLEEP;
+    CurrentThread->Flags |= THREADING_TRANSITION_SLEEP;
 
 	/* Disarm the thread */
 	SchedulerDisarmThread(CurrentThread);
@@ -467,7 +473,7 @@ MCoreThread_t *SchedulerGetNextTask(UUId_t Cpu, MCoreThread_t *Thread, int PreEm
 			Thread->TimeSlice = (Thread->Queue * 2) + MCORE_INITIAL_TIMESLICE;
 		}
 
-		/* Schedúle */
+		/* Schedï¿½le */
 		SchedulerReadyThread(Thread);
 	}
 	else

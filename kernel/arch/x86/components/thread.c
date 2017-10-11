@@ -328,8 +328,8 @@ Context_t *_ThreadingSwitch(Context_t *Regs,
 
 	/* Handle the transition, we have to remove
 	 * the bit as we now have transitioned */
-	if (Thread->Flags & THREADING_TRANSITION) {
-		Thread->Flags &= ~(THREADING_SWITCHMODE | THREADING_TRANSITION);
+	if (Thread->Flags & THREADING_TRANSITION_USERMODE) {
+		Thread->Flags &= ~(THREADING_SWITCHMODE | THREADING_TRANSITION_USERMODE);
 	}
 
 	/* Set TS bit in CR0 */

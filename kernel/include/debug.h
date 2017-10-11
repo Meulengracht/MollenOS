@@ -63,6 +63,7 @@
 #define FATAL_SCOPE_PROCESS			0x00000002
 #define FATAL_SCOPE_THREAD			0x00000003
 
+#define WRITELINE(...)              LogDebug(__MODULE, __VA_ARGS__)
 #define NOTIMPLEMENTED(...)
 #define FATAL(Scope, ...)			DebugPanic(Scope, __MODULE, __VA_ARGS__)
 

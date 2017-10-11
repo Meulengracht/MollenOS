@@ -42,7 +42,7 @@
 typedef void(*ThreadEntry_t)(void*);
 #endif
 
-/* Threading flags
+/* MCoreThread::Flags Bit Definitions 
  * The first two bits denode the thread
  * runtime mode, which is either:
  * 0 => Kernel
@@ -50,31 +50,45 @@ typedef void(*ThreadEntry_t)(void*);
  * 2 => Driver
  * 3 => Reserved 
  * Bit 3: If it's currently in switch-mode */
-#define THREADING_KERNELMODE		0x0
-#define THREADING_USERMODE			0x1
-#define THREADING_DRIVERMODE		0x2
-#define THREADING_SWITCHMODE		0x4
-#define THREADING_MODEMASK			0x3
-#define THREADING_RUNMODE(Flags)	(Flags & THREADING_MODEMASK)
+#define THREADING_KERNELMODE            0x0
+#define THREADING_USERMODE              0x1
+#define THREADING_DRIVERMODE            0x2
+#define THREADING_SWITCHMODE            0x4
+#define THREADING_MODEMASK              0x3
+#define THREADING_RUNMODE(Flags)        (Flags & THREADING_MODEMASK)
 
-/* The rest of the bits denode special
- * other run-modes */
-#define THREADING_CPUBOUND			0x8
-#define THREADING_SYSTEMTHREAD		0x10
-#define THREADING_IDLE				0x20
-#define THREADING_ENTER_SLEEP		0x40
-#define THREADING_FINISHED			0x80
-#define THREADING_INHERIT			0x100
-#define THREADING_TRANSITION		0x200
+/* MCoreThread::Flags Bit Definitions 
+ * The next two bits determine the current state of the thread
+ * 0 = Inactive
+ * 1 = Active
+ * 2 = Reserved
+ * 3 = Reserved */
+#define THREADING_INACTIVE              0x0
+#define THREADING_ACTIVE                0x1
+#define THREADING_STATEMASK             0x18
+#define THREADING_STATE(Flags)          ((Flags & THREADING_STATEMASK) >> 3)
+#define THREADING_SETSTATE(Flags, State) (Flags |= (State << 3))
+#define THREADING_CLEARSTATE(Flags)     (Flags &= ~(THREADING_STATEMASK))
+
+/* MCoreThread::Flags Bit Definitions 
+ * The rest of the bits denode special other run-modes */
+#define THREADING_CPUBOUND              0x20
+#define THREADING_SYSTEMTHREAD          0x40
+#define THREADING_IDLE                  0x80
+#define THREADING_INHERIT               0x100
+#define THREADING_FINISHED              0x200
+
+#define THREADING_TRANSITION_USERMODE   0x10000000
+#define THREADING_TRANSITION_SLEEP      0x20000000
 
 /* The different possible threading priorities 
  * Normal is the default thread-priority, and Critical
  * should only be used by the system */
 typedef enum _MCoreThreadPriority {
-	PriorityLow,
-	PriorityNormal,
-	PriorityHigh,
-	PriorityCritical
+    PriorityLow,
+    PriorityNormal,
+    PriorityHigh,
+    PriorityCritical
 } MCoreThreadPriority_t;
 
 /* The shared Thread structure used in MCore
@@ -82,28 +96,28 @@ typedef enum _MCoreThreadPriority {
  * architecture specific thread data, but rest
  * of the information here is shared in MCore */
 typedef struct _MCoreThread {
-	UUId_t						 Id;
-	UUId_t						 ParentId;
-	UUId_t						 AshId;
-	UUId_t						 CpuId;
-	
-	MCorePipe_t					*Pipe;
-	AddressSpace_t				*AddressSpace;
-	__CONST char				*Name;
-	Flags_t						 Flags;
-	int							 RetCode;
+    UUId_t                           Id;
+    UUId_t                           ParentId;
+    UUId_t                           AshId;
+    UUId_t                           CpuId;
+    
+    MCorePipe_t                     *Pipe;
+    AddressSpace_t                  *AddressSpace;
+    __CONST char                    *Name;
+    Flags_t                          Flags;
+    int                              RetCode;
 
-	MCoreThreadPriority_t		 Priority;
-	size_t						 TimeSlice;
-	int							 Queue;
+    MCoreThreadPriority_t            Priority;
+    size_t                           TimeSlice;
+    int                              Queue;
 
-	uintptr_t						*SleepResource;
-	size_t						 Sleep;
+    uintptr_t                       *SleepResource;
+    size_t                           Sleep;
 
-	void						*ThreadData;
+    void                            *ThreadData;
 
-	ThreadEntry_t				 Function;
-	void						*Args;
+    ThreadEntry_t                    Function;
+    void                            *Args;
 } MCoreThread_t;
 
 /* ThreadingInitialize
@@ -118,7 +132,7 @@ __EXTERN void ThreadingInitialize(UUId_t Cpu);
  * is NULL, a generic name will be generated 
  * Thread is started as soon as possible */
 __EXTERN UUId_t ThreadingCreateThread(const char *Name,
-	ThreadEntry_t Function, void *Arguments, Flags_t Flags);
+    ThreadEntry_t Function, void *Arguments, Flags_t Flags);
 
 /* ThreadingExitThread
  * Exits the current thread by marking it finished
@@ -184,7 +198,7 @@ __EXTERN void ThreadingWakeCpu(UUId_t Cpu);
  * be called from the below architecture to get the
  * next thread to run */
 __EXTERN MCoreThread_t *ThreadingSwitch(UUId_t Cpu, 
-	MCoreThread_t *Current, int PreEmptive);
+    MCoreThread_t *Current, int PreEmptive);
 
 /* ThreadingDebugPrint
  * Prints out debugging information about each thread
