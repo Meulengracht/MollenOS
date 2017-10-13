@@ -254,6 +254,7 @@
         "__config": "c",
         "usbdevice.h": "c",
         "virtualkeycodes.h": "c",
-        "*.in": "c"
+        "*.in": "c",
+        "pic.h": "c"
     }
 }

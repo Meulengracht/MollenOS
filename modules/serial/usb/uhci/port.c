@@ -148,7 +148,10 @@ UhciPortCheck(
 	// Sanitize the port-activity
 	if (!(pStatus & UHCI_PORT_CONNECT_EVENT)) {
 		return OsSuccess;
-	}
+    }
+
+    // Debug
+    TRACE("Uhci-Port(%i): 0x%x", Index, pStatus);
 
 	// Clear connection event so we don't redetect
 	UhciWrite16(Controller, 

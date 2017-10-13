@@ -38,7 +38,9 @@
 #define INTERRUPT_KERNEL				0x10000000
 #define INTERRUPT_SOFTWARE				0x20000000
 
-/* Structures */
+/* MCoreInterruptDescriptor
+ * The kernel interrupt descriptor structure. Contains
+ * all information neccessary to store registered interrupts. */
 typedef struct _MCoreInterruptDescriptor {
 	MCoreInterrupt_t					Interrupt;
 	UUId_t								Id;
@@ -114,8 +116,14 @@ __EXTERN Flags_t InterruptGetTrigger(uint16_t IntiFlags, int IrqSource);
  * Derives an interrupt by consulting
  * the bus of the device, and spits out flags in
  * AcpiConform and returns irq */
-__EXTERN int AcpiDeriveInterrupt(DevInfo_t Bus,
-	DevInfo_t Device, int Pin, Flags_t *AcpiConform);
+KERNELAPI
+int
+KERNELABI
+AcpiDeriveInterrupt(
+    _In_ DevInfo_t Bus, 
+    _In_ DevInfo_t Device,
+    _In_ int Pin,
+    _Out_ Flags_t *AcpiConform);
 
 /* __KernelInterruptDriver
  * Call this to send an interrupt into user-space

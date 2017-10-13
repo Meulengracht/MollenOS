@@ -20,7 +20,7 @@
  * - Contains the implementation of the usb-manager which keeps track
  *   of all usb-controllers and their devices
  */
-//#define __TRACE
+#define __TRACE
 
 /* Includes 
  * - System */
@@ -425,6 +425,9 @@ UsbDeviceSetup(
     int ReservedAddress = 0;
     int i;
 
+    // Debug
+    TRACE("UsbDeviceSetup()");
+
     // Make sure that there isn't already one device
     // setup on the port
     if (Port->Connected
@@ -513,7 +516,7 @@ UsbDeviceSetup(
     TRACE("USB Length 0x%x - Device Vendor Id & Product Id: 0x%x - 0x%x", 
     DeviceDescriptor.Length, DeviceDescriptor.VendorId, DeviceDescriptor.ProductId);
     TRACE("Device Configurations 0x%x, Max Packet Size: 0x%x",
-        Descriptor.NumConfigurations, DDescriptor.MaxPacketSize);
+        DeviceDescriptor.ConfigurationCount, DeviceDescriptor.MaxPacketSize);
 
     // Update information
     Device->Base.Class = DeviceDescriptor.Class;
@@ -688,10 +691,14 @@ UsbEventPort(
     UsbHcPortDescriptor_t Descriptor;
     OsStatus_t Result = OsSuccess;
 
+    // Debug
+    TRACE("UsbEventPort(Device %u, Index %i)", Device, Index);
+
     // Lookup controller first to only handle events
     // from registered controllers
     Controller = UsbGetController(Device);
     if (Controller == NULL) {
+        ERROR("No such controller");
         return OsError;
     }
 

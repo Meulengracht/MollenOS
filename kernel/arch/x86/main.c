@@ -94,7 +94,7 @@ HALInit(
 	 * which needs to happen on both 32/64 bit */
 	GdtInitialize();
 	IdtInitialize();
-	PicInit();
+	PicInitialize();
 
 	/* Memory setup! */
 	LogInformation("HAL0", "Initializing physical and virtual memory");

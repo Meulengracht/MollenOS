@@ -22,10 +22,47 @@
 #ifndef _X86_PIC_H_
 #define _X86_PIC_H_
 
-/* Includes */
-#include <crtdefs.h>
+/* Includes 
+ * - Library */
+#include <os/osdefs.h>
 
-/* Prototypes */
-__EXTERN void PicInit(void);
+/* PIC/EISA Bit Definitons 
+ * Specified defines and constants for the PIC/EISA Systems */
+#define PIC_PORT_PRIMARY        0x21
+#define PIC_PORT_SECONDARY      0xA1
+#define PIC_PORT_ELCR           0x4D0
+
+#define PIC_ELCR_MASK(Irq)      (1 << (Irq))
+
+/* PicInitialize
+ * Initializes the legacy PIC and disables it. This is the preffered
+ * behaviour at the moment as we only support APIC systems for now. */
+KERNELAPI
+void
+KERNELABI
+PicInitialize(void);
+
+/* PicConfigureLine
+ * Configures an interrupt line by enabling it and specifying
+ * an interrupt mode for the pin. The interrupt mode can only be
+ * specified on ELCR systems. */
+KERNELAPI
+void
+KERNELABI
+PicConfigureLine(
+    _In_ int Irq,
+    _In_ int Enable,
+    _In_ int LevelTriggered);
+
+/* PicGetConfiguration
+ * Retrieves the current configuration for the given Irq and
+ * its current status. */
+KERNELAPI
+void
+KERNELABI
+PicGetConfiguration(
+    _In_ int Irq,
+    _Out_ int *Enabled,
+    _Out_ int *LevelTriggered);
 
 #endif //!_X86_PIC_H_

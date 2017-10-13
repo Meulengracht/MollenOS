@@ -427,8 +427,6 @@ PciCreateDeviceFromPci(
 
 	// Zero out structure
 	memset(&Device, 0, sizeof(MCoreDevice_t));
-
-	/* Setup information */
 	Device.VendorId = PciDevice->Header->VendorId;
 	Device.DeviceId = PciDevice->Header->DeviceId;
 	Device.Class = PciToDevClass(PciDevice->Header->Class, PciDevice->Header->Subclass);
@@ -480,7 +478,11 @@ PciCreateDeviceFromPci(
 /* PciInstallDriverCallback
  * Enumerates all found pci-devices in our list
  * and loads drivers for the them */
-void PciInstallDriverCallback(void *Data, int No, void *Context)
+void
+PciInstallDriverCallback(
+    _In_ void *Data, 
+    _In_ int No, 
+    _In_Opt_ void *Context)
 {
 	// Variables
 	PciDevice_t *PciDev = (PciDevice_t*)Data;
