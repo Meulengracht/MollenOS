@@ -255,6 +255,7 @@
         "usbdevice.h": "c",
         "virtualkeycodes.h": "c",
         "*.in": "c",
-        "pic.h": "c"
+        "pic.h": "c",
+        "cpuid.h": "c"
     }
 }

@@ -52,28 +52,28 @@
  * Debug/trace printing for userspace application and drivers */
 OsStatus_t
 ScSystemDebug(
-	_In_ int Type,
-	_In_ __CONST char *Module,
-	_In_ __CONST char *Message)
+    _In_ int Type,
+    _In_ __CONST char *Module,
+    _In_ __CONST char *Message)
 {
-	// Validate params
-	if (Module == NULL || Message == NULL) {
-		return OsError;
-	}
+    // Validate params
+    if (Module == NULL || Message == NULL) {
+        return OsError;
+    }
 
-	// Switch based on type
-	if (Type == 0) {
-		LogInformation(Module, Message);
-	}
-	else if (Type == 1) {
-		LogDebug(Module, Message);
-	}
-	else {
-		LogFatal(Module, Message);
-	}
+    // Switch based on type
+    if (Type == 0) {
+        LogInformation(Module, Message);
+    }
+    else if (Type == 1) {
+        LogDebug(Module, Message);
+    }
+    else {
+        LogFatal(Module, Message);
+    }
 
-	// No more to be done
-	return OsSuccess;
+    // No more to be done
+    return OsSuccess;
 }
 
 /***********************
@@ -86,56 +86,56 @@ ScSystemDebug(
  * on failure */
 UUId_t ScProcessSpawn(char *Path, char *Arguments, int Async)
 {
-	// Variables
-	MCorePhoenixRequest_t *Request = NULL;
-	MString_t *mPath = NULL;
-	MString_t *mArguments = NULL;
-	UUId_t Result;
+    // Variables
+    MCorePhoenixRequest_t *Request = NULL;
+    MString_t *mPath = NULL;
+    MString_t *mArguments = NULL;
+    UUId_t Result;
 
-	// Only the path cannot be null
-	// Arguments are allowed to be null
-	if (Path == NULL) {
-		return UUID_INVALID;
-	}
+    // Only the path cannot be null
+    // Arguments are allowed to be null
+    if (Path == NULL) {
+        return UUID_INVALID;
+    }
 
-	// Allocate resources for the spawn
-	Request = (MCorePhoenixRequest_t*)kmalloc(sizeof(MCorePhoenixRequest_t));
-	mPath = MStringCreate(Path, StrUTF8);
-	mArguments = (Arguments == NULL) ? NULL : MStringCreate(Arguments, StrUTF8);
+    // Allocate resources for the spawn
+    Request = (MCorePhoenixRequest_t*)kmalloc(sizeof(MCorePhoenixRequest_t));
+    mPath = MStringCreate(Path, StrUTF8);
+    mArguments = (Arguments == NULL) ? NULL : MStringCreate(Arguments, StrUTF8);
 
-	// Reset structure and set it up
-	memset(Request, 0, sizeof(MCorePhoenixRequest_t));
-	Request->Base.Type = AshSpawnProcess;
-	Request->Path = mPath;
-	Request->Arguments.String = mArguments;
-	Request->Base.Cleanup = Async;
-	
-	// Set the request in water
-	PhoenixCreateRequest(Request);
+    // Reset structure and set it up
+    memset(Request, 0, sizeof(MCorePhoenixRequest_t));
+    Request->Base.Type = AshSpawnProcess;
+    Request->Path = mPath;
+    Request->Arguments.String = mArguments;
+    Request->Base.Cleanup = Async;
+    
+    // Set the request in water
+    PhoenixCreateRequest(Request);
 
-	// If it's an async request we return immediately
-	// We return an invalid UUID as it cannot be used
-	// for queries
-	if (Async != 0) {
-		return UUID_INVALID;
-	}
+    // If it's an async request we return immediately
+    // We return an invalid UUID as it cannot be used
+    // for queries
+    if (Async != 0) {
+        return UUID_INVALID;
+    }
 
-	// Otherwise wait for request to complete
-	// and then cleanup and return the process id
-	PhoenixWaitRequest(Request, 0);
+    // Otherwise wait for request to complete
+    // and then cleanup and return the process id
+    PhoenixWaitRequest(Request, 0);
 
-	// Cleanup 
-	MStringDestroy(mPath);
-	if (mArguments != NULL) {
-		MStringDestroy(mArguments);
-	}
+    // Cleanup 
+    MStringDestroy(mPath);
+    if (mArguments != NULL) {
+        MStringDestroy(mArguments);
+    }
 
-	// Store result and cleanup
-	Result = Request->AshId;
-	kfree(Request);
+    // Store result and cleanup
+    Result = Request->AshId;
+    kfree(Request);
 
-	// Return the result
-	return Result;
+    // Return the result
+    return Result;
 }
 
 /* ScProcessJoin
@@ -143,44 +143,44 @@ UUId_t ScProcessSpawn(char *Path, char *Arguments, int Async)
  * finish executing and returns it's exit-code */
 int ScProcessJoin(UUId_t ProcessId)
 {
-	/* Wait for process */
-	MCoreAsh_t *Process = PhoenixGetAsh(ProcessId);
+    /* Wait for process */
+    MCoreAsh_t *Process = PhoenixGetAsh(ProcessId);
 
-	/* Sanity */
-	if (Process == NULL)
-		return -1;
+    /* Sanity */
+    if (Process == NULL)
+        return -1;
 
-	/* Sleep */
-	SchedulerSleepThread((uintptr_t*)Process, 0);
-	IThreadYield();
+    /* Sleep */
+    SchedulerSleepThread((uintptr_t*)Process, 0);
+    IThreadYield();
 
-	/* Return the exit code */
-	return Process->Code;
+    /* Return the exit code */
+    return Process->Code;
 }
 
 /* Attempts to kill the process 
  * with the given process-id */
 OsStatus_t ScProcessKill(UUId_t ProcessId)
 {
-	/* Alloc on stack */
-	MCorePhoenixRequest_t Request;
+    /* Alloc on stack */
+    MCorePhoenixRequest_t Request;
 
-	/* Clean out structure */
-	memset(&Request, 0, sizeof(MCorePhoenixRequest_t));
+    /* Clean out structure */
+    memset(&Request, 0, sizeof(MCorePhoenixRequest_t));
 
-	/* Setup */
-	Request.Base.Type = AshKill;
-	Request.AshId = ProcessId;
+    /* Setup */
+    Request.Base.Type = AshKill;
+    Request.AshId = ProcessId;
 
-	/* Fire! */
-	PhoenixCreateRequest(&Request);
-	PhoenixWaitRequest(&Request, 1000);
+    /* Fire! */
+    PhoenixCreateRequest(&Request);
+    PhoenixWaitRequest(&Request, 1000);
 
-	/* Return the exit code */
-	if (Request.Base.State == EventOk)
-		return OsSuccess;
-	else
-		return OsError;
+    /* Return the exit code */
+    if (Request.Base.State == EventOk)
+        return OsSuccess;
+    else
+        return OsError;
 }
 
 /* ScProcessExit
@@ -188,41 +188,41 @@ OsStatus_t ScProcessKill(UUId_t ProcessId)
  * error code given as argument */
 OsStatus_t ScProcessExit(int ExitCode)
 {
-	/* Retrieve crrent process */
-	MCoreAsh_t *Process = PhoenixGetCurrentAsh();
-	IntStatus_t IntrState;
+    /* Retrieve crrent process */
+    MCoreAsh_t *Process = PhoenixGetCurrentAsh();
+    IntStatus_t IntrState;
 
-	/* Sanity 
-	 * We don't proceed in case it's not a process */
-	if (Process == NULL) {
-		return OsError;
-	}
+    /* Sanity 
+     * We don't proceed in case it's not a process */
+    if (Process == NULL) {
+        return OsError;
+    }
 
-	/* Log it and save return code */
-	TRACE("Process %s terminated with code %i", 
-		MStringRaw(Process->Name), ExitCode);
-	Process->Code = ExitCode;
+    /* Log it and save return code */
+    TRACE("Process %s terminated with code %i", 
+        MStringRaw(Process->Name), ExitCode);
+    Process->Code = ExitCode;
 
-	/* Disable interrupts before proceeding */
-	IntrState = InterruptDisable();
+    /* Disable interrupts before proceeding */
+    IntrState = InterruptDisable();
 
-	/* Terminate all threads used by process */
-	ThreadingTerminateAshThreads(Process->Id);
+    /* Terminate all threads used by process */
+    ThreadingTerminateAshThreads(Process->Id);
 
-	/* Mark process for reaping */
-	PhoenixTerminateAsh(Process);
+    /* Mark process for reaping */
+    PhoenixTerminateAsh(Process);
 
-	/* Enable Interrupts */
-	InterruptRestoreState(IntrState);
+    /* Enable Interrupts */
+    InterruptRestoreState(IntrState);
 
-	/* Kill this thread */
-	ThreadingKillThread(ThreadingGetCurrentThreadId());
+    /* Kill this thread */
+    ThreadingKillThread(ThreadingGetCurrentThreadId());
 
-	/* Yield */
-	IThreadYield();
+    /* Yield */
+    IThreadYield();
 
-	/* Done */
-	return OsSuccess;
+    /* Done */
+    return OsSuccess;
 }
 
 /* ScProcessQuery
@@ -232,25 +232,25 @@ OsStatus_t ScProcessExit(int ExitCode)
  * about itself */
 OsStatus_t ScProcessQuery(UUId_t ProcessId, AshQueryFunction_t Function, void *Buffer, size_t Length)
 {
-	/* Variables */
-	MCoreProcess_t *Process = NULL;
+    /* Variables */
+    MCoreProcess_t *Process = NULL;
 
-	/* Sanity arguments */
-	if (Buffer == NULL
-		|| Length == 0) {
-		return OsError;
-	}
+    /* Sanity arguments */
+    if (Buffer == NULL
+        || Length == 0) {
+        return OsError;
+    }
 
-	/* Lookup process */
-	Process = PhoenixGetProcess(ProcessId);
+    /* Lookup process */
+    Process = PhoenixGetProcess(ProcessId);
 
-	/* Sanity, found? */
-	if (Process == NULL) {
-		return OsError;
-	}
+    /* Sanity, found? */
+    if (Process == NULL) {
+        return OsError;
+    }
 
-	/* Deep Call */
-	return (OsStatus_t)PhoenixQueryAsh(&Process->Base, Function, Buffer, Length);
+    /* Deep Call */
+    return (OsStatus_t)PhoenixQueryAsh(&Process->Base, Function, Buffer, Length);
 }
 
 /* Installs a signal handler for 
@@ -258,29 +258,29 @@ OsStatus_t ScProcessQuery(UUId_t ProcessId, AshQueryFunction_t Function, void *B
  * by other threads/processes etc */
 int ScProcessSignal(int Signal, uintptr_t Handler) 
 {
-	// Process
-	MCoreProcess_t *Process = NULL;
+    // Process
+    MCoreProcess_t *Process = NULL;
 
-	// Sanitize the signal
-	if (Signal > NUMSIGNALS) {
-		return -1;
-	}
+    // Sanitize the signal
+    if (Signal > NUMSIGNALS) {
+        return -1;
+    }
 
-	// Get current process
-	Process = PhoenixGetCurrentProcess();
+    // Get current process
+    Process = PhoenixGetCurrentProcess();
 
-	// Sanity... 
-	// This should never happen though
-	// Only I write code that has no process
-	if (Process == NULL) {
-		return -1;
-	}
+    // Sanity... 
+    // This should never happen though
+    // Only I write code that has no process
+    if (Process == NULL) {
+        return -1;
+    }
 
-	// Always retrieve the old handler 
-	// and return it, so temp store it before updating
-	uintptr_t OldHandler = Process->Base.Signals.Handlers[Signal];
-	Process->Base.Signals.Handlers[Signal] = Handler;
-	return (int)OldHandler;
+    // Always retrieve the old handler 
+    // and return it, so temp store it before updating
+    uintptr_t OldHandler = Process->Base.Signals.Handlers[Signal];
+    Process->Base.Signals.Handlers[Signal] = Handler;
+    return (int)OldHandler;
 }
 
 /* Dispatches a signal to the target process id 
@@ -288,32 +288,32 @@ int ScProcessSignal(int Signal, uintptr_t Handler)
  * so we yield instantly as well. If processid is -1, we select self */
 OsStatus_t ScProcessRaise(UUId_t ProcessId, int Signal)
 {
-	/* Variables */
-	MCoreProcess_t *Process = NULL;
+    /* Variables */
+    MCoreProcess_t *Process = NULL;
 
-	/* Sanitize our params */
-	if (Signal > NUMSIGNALS) {
-		return OsError;
-	}
+    /* Sanitize our params */
+    if (Signal > NUMSIGNALS) {
+        return OsError;
+    }
 
-	/* Lookup process */
-	Process = PhoenixGetProcess(ProcessId);
+    /* Lookup process */
+    Process = PhoenixGetProcess(ProcessId);
 
-	/* Sanity...
-	 * This should never happen though
-	 * Only I write code that has no process */
-	if (Process == NULL) {
-		return OsError;
-	}
+    /* Sanity...
+     * This should never happen though
+     * Only I write code that has no process */
+    if (Process == NULL) {
+        return OsError;
+    }
 
-	/* Simply create a new signal 
-	 * and return it's value */
-	if (SignalCreate(ProcessId, Signal))
-		return OsError;
-	else {
-		IThreadYield();
-		return OsSuccess;
-	}
+    /* Simply create a new signal 
+     * and return it's value */
+    if (SignalCreate(ProcessId, Signal))
+        return OsError;
+    else {
+        IThreadYield();
+        return OsSuccess;
+    }
 }
 
 /**************************
@@ -325,30 +325,30 @@ OsStatus_t ScProcessRaise(UUId_t ProcessId, int Signal)
  * path must exists otherwise NULL is returned */
 Handle_t
 ScSharedObjectLoad(
-	_In_ __CONST char *SharedObject)
+    _In_ __CONST char *SharedObject)
 {
-	// Variables
-	MCoreAsh_t *Process = PhoenixGetCurrentAsh();
-	MString_t *Path = NULL;
-	Handle_t Handle = NULL;
-	uintptr_t BaseAddress = 0;
-	
-	// Sanitize the process
-	if (Process == NULL) {
-		return Handle;
-	}
+    // Variables
+    MCoreAsh_t *Process = PhoenixGetCurrentAsh();
+    MString_t *Path = NULL;
+    Handle_t Handle = NULL;
+    uintptr_t BaseAddress = 0;
+    
+    // Sanitize the process
+    if (Process == NULL) {
+        return Handle;
+    }
 
-	// Create a mstring object from the string
-	Path = MStringCreate((void*)SharedObject, StrUTF8);
+    // Create a mstring object from the string
+    Path = MStringCreate((void*)SharedObject, StrUTF8);
 
-	// Try to resolve the library
-	BaseAddress = Process->NextLoadingAddress;
-	Handle = (Handle_t)PeResolveLibrary(Process->Executable, NULL, Path, &BaseAddress);
-	Process->NextLoadingAddress = BaseAddress;
+    // Try to resolve the library
+    BaseAddress = Process->NextLoadingAddress;
+    Handle = (Handle_t)PeResolveLibrary(Process->Executable, NULL, Path, &BaseAddress);
+    Process->NextLoadingAddress = BaseAddress;
 
-	// Cleanup the mstring object
-	MStringDestroy(Path);
-	return Handle;
+    // Cleanup the mstring object
+    MStringDestroy(Path);
+    return Handle;
 }
 
 /* ScSharedObjectGetFunction
@@ -357,36 +357,36 @@ ScSharedObjectLoad(
  * otherwise null is returned */
 uintptr_t
 ScSharedObjectGetFunction(
-	_In_ Handle_t Handle, 
-	_In_ __CONST char *Function)
+    _In_ Handle_t Handle, 
+    _In_ __CONST char *Function)
 {
-	// Validate parameters
-	if (Handle == HANDLE_INVALID
-		|| Function == NULL) {
-		return 0;
-	}
+    // Validate parameters
+    if (Handle == HANDLE_INVALID
+        || Function == NULL) {
+        return 0;
+    }
 
-	// Simply redirect to resolver
-	return PeResolveFunction((MCorePeFile_t*)Handle, Function);
+    // Simply redirect to resolver
+    return PeResolveFunction((MCorePeFile_t*)Handle, Function);
 }
 
 /* Unloads a valid shared object handle
  * returns 0 on success */
 OsStatus_t
 ScSharedObjectUnload(
-	_In_ Handle_t Handle)
+    _In_ Handle_t Handle)
 {
-	// Variables
-	MCoreAsh_t *Process = PhoenixGetCurrentAsh();
+    // Variables
+    MCoreAsh_t *Process = PhoenixGetCurrentAsh();
 
-	// Sanitize the parameters and lookup
-	if (Process == NULL || Handle == HANDLE_INVALID) {
-		return OsError;
-	}
+    // Sanitize the parameters and lookup
+    if (Process == NULL || Handle == HANDLE_INVALID) {
+        return OsError;
+    }
 
-	// Unload library
-	PeUnloadLibrary(Process->Executable, (MCorePeFile_t*)Handle);
-	return OsSuccess;
+    // Unload library
+    PeUnloadLibrary(Process->Executable, (MCorePeFile_t*)Handle);
+    return OsSuccess;
 }
 
 /***********************
@@ -398,19 +398,19 @@ ScSharedObjectUnload(
  * the calling process, with the given entry point and arguments */
 UUId_t
 ScThreadCreate(
-	_In_ ThreadEntry_t Entry, 
-	_In_ void *Data, 
-	_In_ Flags_t Flags)
+    _In_ ThreadEntry_t Entry, 
+    _In_ void *Data, 
+    _In_ Flags_t Flags)
 {
-	// Sanitize parameters
-	if (Entry == NULL) {
-		return UUID_INVALID;
-	}
+    // Sanitize parameters
+    if (Entry == NULL) {
+        return UUID_INVALID;
+    }
 
-	// Redirect call with flags inheritted from
-	// the current thread, we don't spawn threads in other priv-modes
-	return ThreadingCreateThread(NULL, Entry, Data, 
-		ThreadingGetCurrentMode() | THREADING_INHERIT | Flags);
+    // Redirect call with flags inheritted from
+    // the current thread, we don't spawn threads in other priv-modes
+    return ThreadingCreateThread(NULL, Entry, Data, 
+        ThreadingGetCurrentMode() | THREADING_INHERIT | Flags);
 }
 
 /* ScThreadExit
@@ -418,11 +418,11 @@ ScThreadCreate(
  * instantly yields control to scheduler */
 OsStatus_t
 ScThreadExit(
-	_In_ int ExitCode)
+    _In_ int ExitCode)
 {
-	// Redirect to this function, there is no return
-	ThreadingExitThread(ExitCode);
-	return OsSuccess;
+    // Redirect to this function, there is no return
+    ThreadingExitThread(ExitCode);
+    return OsSuccess;
 }
 
 /* ScThreadJoin
@@ -430,22 +430,22 @@ ScThreadExit(
  * thread to finish executing, and returns it's exit code */
 int
 ScThreadJoin(
-	_In_ UUId_t ThreadId)
+    _In_ UUId_t ThreadId)
 {
-	// Variables
-	UUId_t PId;
+    // Variables
+    UUId_t PId;
 
-	// Lookup process id
-	PId = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+    // Lookup process id
+    PId = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
 
-	// Perform security checks
-	if (ThreadingGetThread(ThreadId) == NULL
-		|| ThreadingGetThread(ThreadId)->AshId != PId) {
-		return -1;
-	}
+    // Perform security checks
+    if (ThreadingGetThread(ThreadId) == NULL
+        || ThreadingGetThread(ThreadId)->AshId != PId) {
+        return -1;
+    }
 
-	// Redirect to thread function
-	return ThreadingJoinThread(ThreadId);
+    // Redirect to thread function
+    return ThreadingJoinThread(ThreadId);
 }
 
 /* ScThreadSignal
@@ -453,37 +453,37 @@ ScThreadJoin(
  * must be same process */
 OsStatus_t
 ScThreadSignal(
-	_In_ UUId_t ThreadId,
-	_In_ int SignalCode)
+    _In_ UUId_t ThreadId,
+    _In_ int SignalCode)
 {
-	// Variables
-	UUId_t PId;
+    // Variables
+    UUId_t PId;
 
-	// Unused
-	_CRT_UNUSED(SignalCode);
+    // Unused
+    _CRT_UNUSED(SignalCode);
 
-	// Lookup process id
-	PId = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+    // Lookup process id
+    PId = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
 
-	// Perform security checks
-	if (ThreadingGetThread(ThreadId) == NULL
-		|| ThreadingGetThread(ThreadId)->AshId != PId) {
-		return -1;
-	}
+    // Perform security checks
+    if (ThreadingGetThread(ThreadId) == NULL
+        || ThreadingGetThread(ThreadId)->AshId != PId) {
+        return -1;
+    }
 
-	// Error
-	ERROR("ThreadSignal invoked, not implemented");
-	return OsSuccess;
+    // Error
+    ERROR("ThreadSignal invoked, not implemented");
+    return OsSuccess;
 }
 
 /* ScThreadSleep
  * Sleeps the current thread for the given milliseconds. */
 OsStatus_t
 ScThreadSleep(
-	_In_ size_t MilliSeconds)
+    _In_ size_t MilliSeconds)
 {
-	SleepMs(MilliSeconds);
-	return OsSuccess;
+    SleepMs(MilliSeconds);
+    return OsSuccess;
 }
 
 /* ScThreadGetCurrentId
@@ -491,8 +491,8 @@ ScThreadSleep(
 UUId_t
 ScThreadGetCurrentId(void)
 {
-	// Simple
-	return ThreadingGetCurrentThreadId();
+    // Simple
+    return ThreadingGetCurrentThreadId();
 }
 
 /* ScThreadYield
@@ -501,9 +501,9 @@ ScThreadGetCurrentId(void)
 OsStatus_t
 ScThreadYield(void)
 {
-	// Invoke yield and return
-	IThreadYield();
-	return OsSuccess;
+    // Invoke yield and return
+    IThreadYield();
+    return OsSuccess;
 }
 
 /***********************
@@ -515,8 +515,8 @@ ScThreadYield(void)
  * that is unique for a condition variable */
 uintptr_t ScConditionCreate(void)
 {
-	/* Allocate a new unique address */
-	return (uintptr_t)kmalloc(sizeof(int));
+    /* Allocate a new unique address */
+    return (uintptr_t)kmalloc(sizeof(int));
 }
 
 /* ScConditionDestroy
@@ -524,8 +524,8 @@ uintptr_t ScConditionCreate(void)
  * for a condition variable */
 OsStatus_t ScConditionDestroy(uintptr_t *Handle)
 {
-	kfree(Handle);
-	return OsSuccess;
+    kfree(Handle);
+    return OsSuccess;
 }
 
 /* ScSyncWakeUp
@@ -534,7 +534,7 @@ OsStatus_t ScConditionDestroy(uintptr_t *Handle)
  * variables and semaphores */
 OsStatus_t ScSyncWakeUp(uintptr_t *Handle)
 {
-	return SchedulerWakeupOneThread(Handle) == 1 ? OsSuccess : OsError;
+    return SchedulerWakeupOneThread(Handle) == 1 ? OsSuccess : OsError;
 }
 
 /* Signals a handle for wakeup all
@@ -542,8 +542,8 @@ OsStatus_t ScSyncWakeUp(uintptr_t *Handle)
  * variables and semaphores */
 OsStatus_t ScSyncWakeUpAll(uintptr_t *Handle)
 {
-	SchedulerWakeupAllThreads(Handle);
-	return OsSuccess;
+    SchedulerWakeupAllThreads(Handle);
+    return OsSuccess;
 }
 
 /* ScSyncSleep
@@ -551,20 +551,20 @@ OsStatus_t ScSyncWakeUpAll(uintptr_t *Handle)
  * function uses a timeout. Returns OsError on timed-out */
 OsStatus_t ScSyncSleep(uintptr_t *Handle, size_t Timeout)
 {
-	/* Get current thread */
-	MCoreThread_t *Current = ThreadingGetCurrentThread(CpuGetCurrentId());
+    /* Get current thread */
+    MCoreThread_t *Current = ThreadingGetCurrentThread(CpuGetCurrentId());
 
-	/* Sleep */
-	SchedulerSleepThread(Handle, Timeout);
-	IThreadYield();
+    /* Sleep */
+    SchedulerSleepThread(Handle, Timeout);
+    IThreadYield();
 
-	/* Sanity */
-	if (Timeout != 0 && Current->Sleep == 0) {
-		return OsError;
-	}
-	else {
-		return OsSuccess;
-	}
+    /* Sanity */
+    if (Timeout != 0 && Current->Sleep == 0) {
+        return OsError;
+    }
+    else {
+        return OsSuccess;
+    }
 }
 
 /***********************
@@ -577,102 +577,102 @@ OsStatus_t ScSyncSleep(uintptr_t *Handle, size_t Timeout)
  * from the userheap, it takes a size and allocation flags */
 OsStatus_t
 ScMemoryAllocate(
-	_In_ size_t Size, 
-	_In_ Flags_t Flags, 
-	_Out_ uintptr_t *VirtualAddress,
-	_Out_ uintptr_t *PhysicalAddress)
+    _In_ size_t Size, 
+    _In_ Flags_t Flags, 
+    _Out_ uintptr_t *VirtualAddress,
+    _Out_ uintptr_t *PhysicalAddress)
 {
-	// Variables
-	MCoreAsh_t *Ash = NULL;
-	uintptr_t AllocatedAddress = 0;
+    // Variables
+    MCoreAsh_t *Ash = NULL;
+    uintptr_t AllocatedAddress = 0;
 
-	// Locate the current running process
-	Ash = PhoenixGetCurrentAsh();
+    // Locate the current running process
+    Ash = PhoenixGetCurrentAsh();
 
-	// Sanitize the process we looked up
-	// we want it to exist of course
-	if (Ash == NULL || Size == 0) {
-		return OsError;
-	}
-	
-	// Now do the allocation in the user-bitmap 
-	// since memory is managed in userspace for speed
-	AllocatedAddress = BitmapAllocateAddress(Ash->Heap, Size);
+    // Sanitize the process we looked up
+    // we want it to exist of course
+    if (Ash == NULL || Size == 0) {
+        return OsError;
+    }
+    
+    // Now do the allocation in the user-bitmap 
+    // since memory is managed in userspace for speed
+    AllocatedAddress = BitmapAllocateAddress(Ash->Heap, Size);
 
-	// Sanitize the returned address
-	if (AllocatedAddress == 0) {
-		return OsError;
-	}
+    // Sanitize the returned address
+    if (AllocatedAddress == 0) {
+        return OsError;
+    }
 
-	// Force a commit of memory if any flags
-	// is given, because we can't apply flags later
-	if (Flags != 0) {
-		Flags |= MEMORY_COMMIT;
-	}
+    // Force a commit of memory if any flags
+    // is given, because we can't apply flags later
+    if (Flags != 0) {
+        Flags |= MEMORY_COMMIT;
+    }
 
-	// Handle flags
-	// If the commit flag is not given the flags won't be applied
-	if (Flags & MEMORY_COMMIT) {
-		int ExtendedFlags = AS_FLAG_APPLICATION;
+    // Handle flags
+    // If the commit flag is not given the flags won't be applied
+    if (Flags & MEMORY_COMMIT) {
+        int ExtendedFlags = AS_FLAG_APPLICATION;
 
-		// Build extensions
-		if (Flags & MEMORY_CONTIGIOUS) {
-			ExtendedFlags |= AS_FLAG_CONTIGIOUS;
-		}
-		if (Flags & MEMORY_UNCHACHEABLE) {
-			ExtendedFlags |= AS_FLAG_NOCACHE;
-		}
-		if (Flags & MEMORY_LOWFIRST) {
-			// Handle mask
-		}
+        // Build extensions
+        if (Flags & MEMORY_CONTIGIOUS) {
+            ExtendedFlags |= AS_FLAG_CONTIGIOUS;
+        }
+        if (Flags & MEMORY_UNCHACHEABLE) {
+            ExtendedFlags |= AS_FLAG_NOCACHE;
+        }
+        if (Flags & MEMORY_LOWFIRST) {
+            // Handle mask
+        }
 
-		// Do the actual mapping
-		if (AddressSpaceMap(AddressSpaceGetCurrent(),
-			AllocatedAddress, Size, __MASK, ExtendedFlags, PhysicalAddress) != OsSuccess) {
-			BitmapFreeAddress(Ash->Heap, AllocatedAddress, Size);
-			*VirtualAddress = 0;
-			return OsError;
-		}
+        // Do the actual mapping
+        if (AddressSpaceMap(AddressSpaceGetCurrent(),
+            AllocatedAddress, Size, __MASK, ExtendedFlags, PhysicalAddress) != OsSuccess) {
+            BitmapFreeAddress(Ash->Heap, AllocatedAddress, Size);
+            *VirtualAddress = 0;
+            return OsError;
+        }
 
-		// Handle post allocation flags
-		if (Flags & MEMORY_CLEAN) {
-			memset((void*)AllocatedAddress, 0, Size);
-		}
-	}
-	else {
-		*PhysicalAddress = 0;
-	}
+        // Handle post allocation flags
+        if (Flags & MEMORY_CLEAN) {
+            memset((void*)AllocatedAddress, 0, Size);
+        }
+    }
+    else {
+        *PhysicalAddress = 0;
+    }
 
-	// Update out and return
-	*VirtualAddress = (uintptr_t)AllocatedAddress;
-	return OsSuccess;
+    // Update out and return
+    *VirtualAddress = (uintptr_t)AllocatedAddress;
+    return OsSuccess;
 }
 
 /* Free's previous allocated memory, given an address
  * and a size (though not needed for now!) */
 OsStatus_t 
 ScMemoryFree(
-	_In_ uintptr_t Address, 
-	_In_ size_t Size)
+    _In_ uintptr_t Address, 
+    _In_ size_t Size)
 {
-	// Variables
-	MCoreAsh_t *Ash = NULL;
+    // Variables
+    MCoreAsh_t *Ash = NULL;
 
-	// Locate the current running process
-	Ash = PhoenixGetCurrentAsh();
+    // Locate the current running process
+    Ash = PhoenixGetCurrentAsh();
 
-	// Sanitize the process we looked up
-	// we want it to exist of course
-	if (Ash == NULL || Size == 0) {
-		return OsError;
-	}
+    // Sanitize the process we looked up
+    // we want it to exist of course
+    if (Ash == NULL || Size == 0) {
+        return OsError;
+    }
 
-	// Now do the deallocation in the user-bitmap 
-	// since memory is managed in userspace for speed
-	BitmapFreeAddress(Ash->Heap, Address, Size);
+    // Now do the deallocation in the user-bitmap 
+    // since memory is managed in userspace for speed
+    BitmapFreeAddress(Ash->Heap, Address, Size);
 
-	// Return the result from unmap
-	return AddressSpaceUnmap(AddressSpaceGetCurrent(), Address, Size);
+    // Return the result from unmap
+    return AddressSpaceUnmap(AddressSpaceGetCurrent(), Address, Size);
 }
 
 /* Queries information about a chunk of memory 
@@ -680,23 +680,23 @@ ScMemoryFree(
  * depending on query function */
 OsStatus_t
 ScMemoryQuery(
-	_Out_ MemoryDescriptor_t *Descriptor)
+    _Out_ MemoryDescriptor_t *Descriptor)
 {
-	// Variables
-	SystemInformation_t SystemInfo;
+    // Variables
+    SystemInformation_t SystemInfo;
 
-	// Query information
-	if (SystemInformationQuery(&SystemInfo) != OsSuccess) {
-		return OsError;
-	}
+    // Query information
+    if (SystemInformationQuery(&SystemInfo) != OsSuccess) {
+        return OsError;
+    }
 
-	// Copy relevant data over
-	Descriptor->PageSizeBytes = PAGE_SIZE;
-	Descriptor->PagesTotal = SystemInfo.PagesTotal;
-	Descriptor->PagesUsed = SystemInfo.PagesAllocated;
+    // Copy relevant data over
+    Descriptor->PageSizeBytes = PAGE_SIZE;
+    Descriptor->PagesTotal = SystemInfo.PagesTotal;
+    Descriptor->PagesUsed = SystemInfo.PagesAllocated;
 
-	// Return no error, should never fail
-	return OsSuccess;
+    // Return no error, should never fail
+    return OsSuccess;
 }
 
 /* ScMemoryAcquire
@@ -705,55 +705,55 @@ ScMemoryQuery(
  * is then accessible. The virtual address pointer is returned. */
 OsStatus_t
 ScMemoryAcquire(
-	_In_ uintptr_t PhysicalAddress,
-	_In_ size_t Size,
-	_Out_ uintptr_t *VirtualAddress)
+    _In_ uintptr_t PhysicalAddress,
+    _In_ size_t Size,
+    _Out_ uintptr_t *VirtualAddress)
 {
-	// Variables
-	MCoreAsh_t *Ash = NULL;
-	size_t NumBlocks = 0, i = 0;
+    // Variables
+    MCoreAsh_t *Ash = NULL;
+    size_t NumBlocks = 0, i = 0;
 
-	// Assumptions:
-	// PhysicalAddress is page aligned
-	// Size is page-aligned
+    // Assumptions:
+    // PhysicalAddress is page aligned
+    // Size is page-aligned
 
-	// Locate the current running process
-	Ash = PhoenixGetCurrentAsh();
+    // Locate the current running process
+    Ash = PhoenixGetCurrentAsh();
 
-	// Sanity
-	if (Ash == NULL || PhysicalAddress == 0 || Size == 0) {
-		return OsError;
-	}
+    // Sanity
+    if (Ash == NULL || PhysicalAddress == 0 || Size == 0) {
+        return OsError;
+    }
 
-	// Start out by allocating memory 
-	// in target process's shared memory space
-	uintptr_t Shm = BitmapAllocateAddress(Ash->Shm, Size);
-	NumBlocks = DIVUP(Size, PAGE_SIZE);
+    // Start out by allocating memory 
+    // in target process's shared memory space
+    uintptr_t Shm = BitmapAllocateAddress(Ash->Shm, Size);
+    NumBlocks = DIVUP(Size, PAGE_SIZE);
 
-	// Sanity -> If we cross a page boundary
-	if (((PhysicalAddress + Size) & PAGE_MASK)
-		!= (PhysicalAddress & PAGE_MASK)) {
-		NumBlocks++;
-	}
+    // Sanity -> If we cross a page boundary
+    if (((PhysicalAddress + Size) & PAGE_MASK)
+        != (PhysicalAddress & PAGE_MASK)) {
+        NumBlocks++;
+    }
 
-	// Sanitize the memory allocation
-	assert(Shm != 0);
+    // Sanitize the memory allocation
+    assert(Shm != 0);
 
-	// Update out
-	*VirtualAddress = Shm + (PhysicalAddress & ATTRIBUTE_MASK);
+    // Update out
+    *VirtualAddress = Shm + (PhysicalAddress & ATTRIBUTE_MASK);
 
-	// Now we have to transfer our physical mappings 
-	// to their new virtual
-	for (i = 0; i < NumBlocks; i++) {
-		// Map it directly into target process
-		AddressSpaceMapFixed(Ash->AddressSpace, 
-			PhysicalAddress + (i * PAGE_SIZE),
-			Shm + (i * PAGE_SIZE),
-			PAGE_SIZE, AS_FLAG_APPLICATION | AS_FLAG_VIRTUAL);
-	}
+    // Now we have to transfer our physical mappings 
+    // to their new virtual
+    for (i = 0; i < NumBlocks; i++) {
+        // Map it directly into target process
+        AddressSpaceMapFixed(Ash->AddressSpace, 
+            PhysicalAddress + (i * PAGE_SIZE),
+            Shm + (i * PAGE_SIZE),
+            PAGE_SIZE, AS_FLAG_APPLICATION | AS_FLAG_VIRTUAL);
+    }
 
-	// Done
-	return OsSuccess;
+    // Done
+    return OsSuccess;
 }
 
 /* ScMemoryRelease
@@ -761,40 +761,40 @@ ScMemoryAcquire(
  * address space. The virtual address pointer will no longer be accessible. */
 OsStatus_t
 ScMemoryRelease(
-	_In_ uintptr_t VirtualAddress, 
-	_In_ size_t Size)
+    _In_ uintptr_t VirtualAddress, 
+    _In_ size_t Size)
 {
-	// Variables
-	MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
-	size_t NumBlocks, i;
+    // Variables
+    MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
+    size_t NumBlocks, i;
 
-	// Assumptions:
-	// VirtualAddress is page aligned
-	// Size is page-aligned
+    // Assumptions:
+    // VirtualAddress is page aligned
+    // Size is page-aligned
 
-	// Sanitize the running process
-	if (Ash == NULL || VirtualAddress == 0 || Size == 0) {
-		return OsError;
-	}
+    // Sanitize the running process
+    if (Ash == NULL || VirtualAddress == 0 || Size == 0) {
+        return OsError;
+    }
 
-	// Calculate the number of blocks
-	NumBlocks = DIVUP(Size, PAGE_SIZE);
+    // Calculate the number of blocks
+    NumBlocks = DIVUP(Size, PAGE_SIZE);
 
-	// Sanity -> If we cross a page boundary
-	if (((VirtualAddress + Size) & PAGE_MASK)
-		!= (VirtualAddress & PAGE_MASK)) {
-		NumBlocks++;
-	}
+    // Sanity -> If we cross a page boundary
+    if (((VirtualAddress + Size) & PAGE_MASK)
+        != (VirtualAddress & PAGE_MASK)) {
+        NumBlocks++;
+    }
 
-	// Iterate through allocated pages and free them
-	for (i = 0; i < NumBlocks; i++) {
-		AddressSpaceUnmap(Ash->AddressSpace, 
-			VirtualAddress + (i * PAGE_SIZE), PAGE_SIZE);
-	}
+    // Iterate through allocated pages and free them
+    for (i = 0; i < NumBlocks; i++) {
+        AddressSpaceUnmap(Ash->AddressSpace, 
+            VirtualAddress + (i * PAGE_SIZE), PAGE_SIZE);
+    }
 
-	// Free it in bitmap
-	BitmapFreeAddress(Ash->Shm, VirtualAddress, Size);
-	return OsSuccess;
+    // Free it in bitmap
+    BitmapFreeAddress(Ash->Shm, VirtualAddress, Size);
+    return OsSuccess;
 }
 
 /***********************
@@ -805,25 +805,25 @@ ScMemoryRelease(
  * Queries the current working directory path
  * for the current process (See _MAXPATH) */
 OsStatus_t ScPathQueryWorkingDirectory(
-	char *Buffer, size_t MaxLength)
+    char *Buffer, size_t MaxLength)
 {
-	// Variables
-	MCoreProcess_t *Process = PhoenixGetCurrentProcess();
-	size_t BytesToCopy = MaxLength;
+    // Variables
+    MCoreProcess_t *Process = PhoenixGetCurrentProcess();
+    size_t BytesToCopy = MaxLength;
 
-	// Sanitize parameters
-	if (Process == NULL || Buffer == NULL) {
-		return OsError;
-	}
+    // Sanitize parameters
+    if (Process == NULL || Buffer == NULL) {
+        return OsError;
+    }
 
-	// Make sure we copy optimal num of bytes
-	if (strlen(MStringRaw(Process->WorkingDirectory)) < MaxLength) {
-		BytesToCopy = strlen(MStringRaw(Process->WorkingDirectory));
-	}
+    // Make sure we copy optimal num of bytes
+    if (strlen(MStringRaw(Process->WorkingDirectory)) < MaxLength) {
+        BytesToCopy = strlen(MStringRaw(Process->WorkingDirectory));
+    }
 
-	// Copy data over into buffer
-	memcpy(Buffer, MStringRaw(Process->WorkingDirectory), BytesToCopy);
-	return OsSuccess;
+    // Copy data over into buffer
+    memcpy(Buffer, MStringRaw(Process->WorkingDirectory), BytesToCopy);
+    return OsSuccess;
 }
 
 /* ScPathChangeWorkingDirectory
@@ -832,45 +832,45 @@ OsStatus_t ScPathQueryWorkingDirectory(
  * path */
 OsStatus_t ScPathChangeWorkingDirectory(__CONST char *Path)
 {
-	// Variables
-	MCoreProcess_t *Process = PhoenixGetCurrentProcess();
-	MString_t *Translated = NULL;
+    // Variables
+    MCoreProcess_t *Process = PhoenixGetCurrentProcess();
+    MString_t *Translated = NULL;
 
-	// Sanitize parameters
-	if (Process == NULL || Path == NULL) {
-		return OsError;
-	}
+    // Sanitize parameters
+    if (Process == NULL || Path == NULL) {
+        return OsError;
+    }
 
-	// Create a new string instead of modification
-	Translated = MStringCreate((void*)Path, StrUTF8);
-	MStringDestroy(Process->WorkingDirectory);
-	Process->WorkingDirectory = Translated;
-	return OsSuccess;
+    // Create a new string instead of modification
+    Translated = MStringCreate((void*)Path, StrUTF8);
+    MStringDestroy(Process->WorkingDirectory);
+    Process->WorkingDirectory = Translated;
+    return OsSuccess;
 }
 
 /* ScPathQueryApplication
  * Queries the application path for
  * the current process (See _MAXPATH) */
 OsStatus_t ScPathQueryApplication(
-	char *Buffer, size_t MaxLength)
+    char *Buffer, size_t MaxLength)
 {
-	// Variables
-	MCoreProcess_t *Process = PhoenixGetCurrentProcess();
-	size_t BytesToCopy = MaxLength;
+    // Variables
+    MCoreProcess_t *Process = PhoenixGetCurrentProcess();
+    size_t BytesToCopy = MaxLength;
 
-	// Sanitize parameters
-	if (Process == NULL || Buffer == NULL) {
-		return OsError;
-	}
+    // Sanitize parameters
+    if (Process == NULL || Buffer == NULL) {
+        return OsError;
+    }
 
-	// Make sure we copy optimal num of bytes
-	if (strlen(MStringRaw(Process->BaseDirectory)) < MaxLength) {
-		BytesToCopy = strlen(MStringRaw(Process->BaseDirectory));
-	}
+    // Make sure we copy optimal num of bytes
+    if (strlen(MStringRaw(Process->BaseDirectory)) < MaxLength) {
+        BytesToCopy = strlen(MStringRaw(Process->BaseDirectory));
+    }
 
-	// Copy data over into buffer
-	memcpy(Buffer, MStringRaw(Process->BaseDirectory), BytesToCopy);
-	return OsSuccess;
+    // Copy data over into buffer
+    memcpy(Buffer, MStringRaw(Process->BaseDirectory), BytesToCopy);
+    return OsSuccess;
 }
 
 /***********************
@@ -881,21 +881,26 @@ OsStatus_t ScPathQueryApplication(
  * Opens a new pipe for the calling Ash process
  * and allows communication to this port from other
  * processes */
-OsStatus_t ScPipeOpen(int Port, Flags_t Flags)
+OsStatus_t
+ScPipeOpen(
+    _In_ int Port, 
+    _In_ Flags_t Flags)
 {
-	// No need for any preperation on this call, the
-	// underlying call takes care of validation as well
-	return PhoenixOpenAshPipe(PhoenixGetCurrentAsh(), Port, Flags);
+    // No need for any preperation on this call, the
+    // underlying call takes care of validation as well
+    return PhoenixOpenAshPipe(PhoenixGetCurrentAsh(), Port, Flags);
 }
 
 /* ScPipeClose
  * Closes an existing pipe on a given port and
  * shutdowns any communication on that port */
-OsStatus_t ScPipeClose(int Port)
+OsStatus_t
+ScPipeClose(
+    _In_ int Port)
 {
-	// No need for any preperation on this call, the
-	// underlying call takes care of validation as well
-	return PhoenixCloseAshPipe(PhoenixGetCurrentAsh(), Port);
+    // No need for any preperation on this call, the
+    // underlying call takes care of validation as well
+    return PhoenixCloseAshPipe(PhoenixGetCurrentAsh(), Port);
 }
 
 /* ScPipeRead
@@ -903,26 +908,39 @@ OsStatus_t ScPipeClose(int Port)
  * and consume the message, if no message 
  * is available, this function will block untill 
  * a message is available */
-OsStatus_t ScPipeRead(int Port, uint8_t *Container, size_t Length, int Peek)
+OsStatus_t
+ScPipeRead(
+    _In_ int Port,
+    _In_ uint8_t *Container,
+    _In_ size_t Length,
+    _In_ int Peek)
 {
-	/* Variables */
-	MCorePipe_t *Pipe = NULL;
+    // Variables
+    MCorePipe_t *Pipe = NULL;
+    int BytesRead = 0;
 
-	/* Lookup the pipe for the given port */
-	if (Port == -1) {
-		Pipe = ThreadingGetCurrentThread(CpuGetCurrentId())->Pipe;
-	}
-	else {
-		Pipe = PhoenixGetAshPipe(PhoenixGetCurrentAsh(), Port);
-	}
+    // Lookup the pipe for the given port
+    if (Port == -1) {
+        Pipe = ThreadingGetCurrentThread(CpuGetCurrentId())->Pipe;
+    }
+    else {
+        Pipe = PhoenixGetAshPipe(PhoenixGetCurrentAsh(), Port);
+    }
 
-	/* Sanitize the pipe */
-	if (Pipe == NULL) {
-		return OsError;
-	}
+    // Sanitize the pipe
+    if (Pipe == NULL) {
+        ERROR("Trying to read from non-existing pipe %i", Port);
+        return OsError;
+    }
 
-	/* Read */
-	return (PipeRead(Pipe, Container, Length, Peek) > 0) ? OsSuccess : OsError;
+    // Sanitize parameters
+    if (Length == 0) {
+        return OsSuccess;
+    }
+
+    // Debug
+    BytesRead = PipeRead(Pipe, Container, Length, Peek);
+    return (BytesRead > 0) ? OsSuccess : OsError;
 }
 
 /* ScPipeWrite
@@ -930,33 +948,38 @@ OsStatus_t ScPipeRead(int Port, uint8_t *Container, size_t Length, int Peek)
  * so far this system call is made in the fashion
  * that the recieving process must have room in their
  * message queue... dunno */
-OsStatus_t ScPipeWrite(UUId_t AshId, int Port, uint8_t *Message, size_t Length)
+OsStatus_t
+ScPipeWrite(
+    _In_ UUId_t AshId,
+    _In_ int Port,
+    _InOut_ uint8_t *Message,
+    _In_ size_t Length)
 {
-	/* Variables */
-	MCorePipe_t *Pipe = NULL;
+    // Variables
+    MCorePipe_t *Pipe = NULL;
+    int BytesWritten = 0;
 
-	/* Santizie the parameters */
-	if (Message == NULL
-		|| Length == 0) {
-		return OsError;
-	}
+    // Sanitize parameters
+    if (Message == NULL || Length == 0) {
+        return OsError;
+    }
 
-	/* Lookup the pipe for the given port */
-	if (Port == -1
-		&& ThreadingGetThread(AshId) != NULL) {
-		Pipe = ThreadingGetThread(AshId)->Pipe;
-	}
-	else {
-		Pipe = PhoenixGetAshPipe(PhoenixGetAsh(AshId), Port);
-	}
+    // Lookup the pipe for the given port
+    if (Port == -1 && ThreadingGetThread(AshId) != NULL) {
+        Pipe = ThreadingGetThread(AshId)->Pipe;
+    }
+    else {
+        Pipe = PhoenixGetAshPipe(PhoenixGetAsh(AshId), Port);
+    }
 
-	/* Sanitize the pipe */
-	if (Pipe == NULL) {
-		return OsError;
-	}
-
-	/* Write */
-	return (PipeWrite(Pipe, Message, Length) > 0) ? OsSuccess : OsError;
+    // Sanitize the pipe
+    if (Pipe == NULL) {
+        return OsError;
+    }
+    
+    // Debug
+    BytesWritten = PipeWrite(Pipe, Message, Length);
+    return (BytesWritten > 0) ? OsSuccess : OsError;
 }
 
 /* ScIpcSleep
@@ -965,23 +988,23 @@ OsStatus_t ScPipeWrite(UUId_t AshId, int Port, uint8_t *Message, size_t Length)
  * since it could hang a process */
 OsStatus_t ScIpcSleep(size_t Timeout)
 {
-	/* Locate Process */
-	MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
+    /* Locate Process */
+    MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
 
-	/* Should never happen this 
-	 * Only threads associated with processes
-	 * can call this */
-	if (Ash == NULL) {
-		return OsError;
-	}
+    /* Should never happen this 
+     * Only threads associated with processes
+     * can call this */
+    if (Ash == NULL) {
+        return OsError;
+    }
 
-	/* Sleep on process handle */
-	SchedulerSleepThread((uintptr_t*)Ash, Timeout);
-	IThreadYield();
+    /* Sleep on process handle */
+    SchedulerSleepThread((uintptr_t*)Ash, Timeout);
+    IThreadYield();
 
-	/* Now we reach this when the timeout is 
-	 * is triggered or another process wakes us */
-	return OsSuccess;
+    /* Now we reach this when the timeout is 
+     * is triggered or another process wakes us */
+    return OsSuccess;
 }
 
 /* ScIpcWake
@@ -990,107 +1013,116 @@ OsStatus_t ScIpcSleep(size_t Timeout)
  * very limited IPC synchronization */
 OsStatus_t ScIpcWake(UUId_t Target)
 {
-	/* Locate Process */
-	MCoreAsh_t *Ash = PhoenixGetAsh(Target);
+    /* Locate Process */
+    MCoreAsh_t *Ash = PhoenixGetAsh(Target);
 
-	/* Sanity */
-	if (Ash == NULL) {
-		return OsError;
-	}
+    /* Sanity */
+    if (Ash == NULL) {
+        return OsError;
+    }
 
-	/* Send a wakeup signal */
-	SchedulerWakeupOneThread((uintptr_t*)Ash);
+    /* Send a wakeup signal */
+    SchedulerWakeupOneThread((uintptr_t*)Ash);
 
-	/* Now we should have waked up the waiting process */
-	return OsSuccess;
+    /* Now we should have waked up the waiting process */
+    return OsSuccess;
 }
 
 /* ScRpcResponse
  * Waits for IPC RPC request to finish 
  * by polling the default pipe for a rpc-response */
-OsStatus_t ScRpcResponse(MRemoteCall_t *Rpc)
+OsStatus_t
+ScRpcResponse(
+    _In_ MRemoteCall_t *Rpc)
 {
-	/* Variables */
-	MCoreAsh_t *Ash = NULL;
-	MCorePipe_t *Pipe = NULL;
-	size_t ToRead = Rpc->Result.Length;
+    // Variables
+    MCoreAsh_t *Ash = NULL;
+    MCorePipe_t *Pipe = NULL;
+    size_t ToRead = Rpc->Result.Length;
+    
+    // There can be a special case where 
+    // Sender == PHOENIX_NO_ASH 
+    // Use the builtin thread pipe
+    if (Rpc->Sender == UUID_INVALID) {
+        Pipe = ThreadingGetCurrentThread(CpuGetCurrentId())->Pipe;
+    }
+    else {
+        // Resolve the current running process
+        // and the default pipe in the rpc
+        Ash = PhoenixGetAsh(ThreadingGetCurrentThread(CpuGetCurrentId())->AshId);
+        Pipe = PhoenixGetAshPipe(Ash, Rpc->ResponsePort);
 
-	/* There can be a special case where 
-	 * Sender == PHOENIX_NO_ASH 
-	 * Use the builtin thread pipe */
-	if (Rpc->Sender == UUID_INVALID) {
-		Pipe = ThreadingGetCurrentThread(CpuGetCurrentId())->Pipe;
-	}
-	else {
-		/* Resolve the current running process
-		 * and the default pipe in the rpc */
-		Ash = PhoenixGetAsh(ThreadingGetCurrentThread(CpuGetCurrentId())->AshId);
-		Pipe = PhoenixGetAshPipe(Ash, Rpc->ResponsePort);
+        // Sanitize the lookups
+        if (Ash == NULL || Pipe == NULL) {
+            ERROR("Process lookup failed for process 0x%x:%i", 
+                ThreadingGetCurrentThread(CpuGetCurrentId())->AshId, Rpc->ResponsePort);
+            return OsError;
+        }
+        else if (Rpc->Result.Type == ARGUMENT_NOTUSED) {
+            ERROR("No result expected but used result-executer.");
+            return OsError;
+        }
+    }
 
-		/* Sanitize the lookups */
-		if (Ash == NULL || Pipe == NULL
-			|| Rpc->Result.Type == ARGUMENT_NOTUSED) {
-			return OsError;
-		}
-	}
+    // Wait for data to enter the pipe
+    PipeWait(Pipe, 0);
+    if ((size_t)PipeBytesAvailable(Pipe) < ToRead) {
+        ToRead = PipeBytesAvailable(Pipe);
+    }
 
-	/* Wait for data to enter the pipe */
-	PipeWait(Pipe, 0);
-	if ((size_t)PipeBytesAvailable(Pipe) < ToRead) {
-		ToRead = PipeBytesAvailable(Pipe);
-	}
-
-	/* Read the data into the response-buffer */
-	PipeRead(Pipe, (uint8_t*)Rpc->Result.Data.Buffer, ToRead, 0);
-
-	/* Done, it finally ran! */
-	return OsSuccess;
+    // Read the data into the response-buffer
+    PipeRead(Pipe, (uint8_t*)Rpc->Result.Data.Buffer, ToRead, 0);
+    return OsSuccess;
 }
 
 /* ScRpcExecute
  * Executes an IPC RPC request to the
  * given process and optionally waits for
  * a reply/response */
-OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, UUId_t Target, int Async)
+OsStatus_t
+ScRpcExecute(
+    _In_ MRemoteCall_t *Rpc,
+    _In_ UUId_t Target,
+    _In_ int Async)
 {
-	// Variables
-	MCorePipe_t *Pipe = NULL;
-	MCoreAsh_t *Ash = NULL;
-	int i = 0;
+    // Variables
+    MCorePipe_t *Pipe = NULL;
+    MCoreAsh_t *Ash = NULL;
+    int i = 0;
+    
+    // Start out by resolving both the
+    // process and pipe
+    Ash = PhoenixGetAsh(Target);
+    Pipe = PhoenixGetAshPipe(Ash, Rpc->Port);
 
-	// Start out by resolving both the
-	// process and pipe
-	Ash = PhoenixGetAsh(Target);
-	Pipe = PhoenixGetAshPipe(Ash, Rpc->Port);
+    // Sanitize the lookups
+    if (Ash == NULL || Pipe == NULL) {
+        ERROR("Either target 0x%x or port %u did not exist in target",
+            Target, Rpc->Port);
+        return OsError;
+    }
 
-	// Sanitize the lookups
-	if (Ash == NULL || Pipe == NULL) {
-		ERROR("Either target 0x%x or port %u did not exist in target",
-			Target, Rpc->Port);
-		return OsError;
-	}
+    // Install Sender
+    Rpc->Sender = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
 
-	// Install Sender
-	Rpc->Sender = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+    // Write the base request 
+    // and then iterate arguments and write them
+    PipeWrite(Pipe, (uint8_t*)Rpc, sizeof(MRemoteCall_t));
+    for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
+        if (Rpc->Arguments[i].Type == ARGUMENT_BUFFER) {
+            PipeWrite(Pipe, (uint8_t*)Rpc->Arguments[i].Data.Buffer, 
+                Rpc->Arguments[i].Length);
+        }
+    }
 
-	// Write the base request 
-	// and then iterate arguments and write them
-	PipeWrite(Pipe, (uint8_t*)Rpc, sizeof(MRemoteCall_t));
-	for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
-		if (Rpc->Arguments[i].Type == ARGUMENT_BUFFER) {
-			PipeWrite(Pipe, (uint8_t*)Rpc->Arguments[i].Data.Buffer, 
-				Rpc->Arguments[i].Length);
-		}
-	}
+    // Async request? Because if yes, don't
+    // wait for response
+    if (Async) {
+        return OsSuccess;
+    }
 
-	// Async request? Because if yes, don't
-	// wait for response
-	if (Async) {
-		return OsSuccess;
-	}
-
-	// Ok, wait for response
-	return ScRpcResponse(Rpc);
+    // Ok, wait for response
+    return ScRpcResponse(Rpc);
 }
 
 /***********************
@@ -1108,25 +1140,25 @@ OsStatus_t ScRpcExecute(MRemoteCall_t *Rpc, UUId_t Target, int Async)
  * or OsError if Acpi is not supported on the running platform */
 OsStatus_t ScAcpiQueryStatus(AcpiDescriptor_t *AcpiDescriptor)
 {
-	/* Sanitize the parameters */
-	if (AcpiDescriptor == NULL) {
-		return OsError;
-	}
+    /* Sanitize the parameters */
+    if (AcpiDescriptor == NULL) {
+        return OsError;
+    }
 
-	/* Sanitize the acpi-status in this system */
-	if (AcpiAvailable() == ACPI_NOT_AVAILABLE) {
-		return OsError;
-	}
-	else {
-		/* Copy information over to descriptor */
-		AcpiDescriptor->Century = AcpiGbl_FADT.Century;
-		AcpiDescriptor->BootFlags = AcpiGbl_FADT.BootFlags;
-		AcpiDescriptor->ArmBootFlags = AcpiGbl_FADT.ArmBootFlags;
-		AcpiDescriptor->Version = ACPI_VERSION_6_0;
+    /* Sanitize the acpi-status in this system */
+    if (AcpiAvailable() == ACPI_NOT_AVAILABLE) {
+        return OsError;
+    }
+    else {
+        /* Copy information over to descriptor */
+        AcpiDescriptor->Century = AcpiGbl_FADT.Century;
+        AcpiDescriptor->BootFlags = AcpiGbl_FADT.BootFlags;
+        AcpiDescriptor->ArmBootFlags = AcpiGbl_FADT.ArmBootFlags;
+        AcpiDescriptor->Version = ACPI_VERSION_6_0;
 
-		/* Wuhu! */
-		return OsSuccess;
-	}
+        /* Wuhu! */
+        return OsSuccess;
+    }
 }
 
 /* ScAcpiQueryTableHeader
@@ -1134,25 +1166,25 @@ OsStatus_t ScAcpiQueryStatus(AcpiDescriptor_t *AcpiDescriptor)
  * the given signature, if none is found OsError is returned */
 OsStatus_t ScAcpiQueryTableHeader(const char *Signature, ACPI_TABLE_HEADER *Header)
 {
-	/* Use a temporary buffer as we don't
-	 * really know the length */
-	ACPI_TABLE_HEADER *PointerToHeader = NULL;
+    /* Use a temporary buffer as we don't
+     * really know the length */
+    ACPI_TABLE_HEADER *PointerToHeader = NULL;
 
-	/* Sanitize that ACPI is enabled on this
-	 * system before we query */
-	if (AcpiAvailable() == ACPI_NOT_AVAILABLE) {
-		return OsError;
-	}
+    /* Sanitize that ACPI is enabled on this
+     * system before we query */
+    if (AcpiAvailable() == ACPI_NOT_AVAILABLE) {
+        return OsError;
+    }
 
-	/* Now query for the header */
-	if (ACPI_FAILURE(AcpiGetTable((ACPI_STRING)Signature, 0, &PointerToHeader))) {
-		return OsError;
-	}
+    /* Now query for the header */
+    if (ACPI_FAILURE(AcpiGetTable((ACPI_STRING)Signature, 0, &PointerToHeader))) {
+        return OsError;
+    }
 
-	/* Wuhuu, the requested table exists, copy the
-	 * header information over */
-	memcpy(Header, PointerToHeader, sizeof(ACPI_TABLE_HEADER));
-	return OsSuccess;
+    /* Wuhuu, the requested table exists, copy the
+     * header information over */
+    memcpy(Header, PointerToHeader, sizeof(ACPI_TABLE_HEADER));
+    return OsSuccess;
 }
 
 /* ScAcpiQueryTable
@@ -1160,25 +1192,25 @@ OsStatus_t ScAcpiQueryTableHeader(const char *Signature, ACPI_TABLE_HEADER *Head
  * the given signature, if none is found OsError is returned */
 OsStatus_t ScAcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER *Table)
 {
-	/* Use a temporary buffer as we don't
-	 * really know the length */
-	ACPI_TABLE_HEADER *Header = NULL;
+    /* Use a temporary buffer as we don't
+     * really know the length */
+    ACPI_TABLE_HEADER *Header = NULL;
 
-	/* Sanitize that ACPI is enabled on this
-	 * system before we query */
-	if (AcpiAvailable() == ACPI_NOT_AVAILABLE) {
-		return OsError;
-	}
+    /* Sanitize that ACPI is enabled on this
+     * system before we query */
+    if (AcpiAvailable() == ACPI_NOT_AVAILABLE) {
+        return OsError;
+    }
 
-	/* Now query for the full table */
-	if (ACPI_FAILURE(AcpiGetTable((ACPI_STRING)Signature, 0, &Header))) {
-		return OsError;
-	}
+    /* Now query for the full table */
+    if (ACPI_FAILURE(AcpiGetTable((ACPI_STRING)Signature, 0, &Header))) {
+        return OsError;
+    }
 
-	/* Wuhuu, the requested table exists, copy the
-	 * table information over */
-	memcpy(Header, Table, Header->Length);
-	return OsSuccess;
+    /* Wuhuu, the requested table exists, copy the
+     * table information over */
+    memcpy(Header, Table, Header->Length);
+    return OsSuccess;
 }
 
 /* ScAcpiQueryInterrupt 
@@ -1186,11 +1218,11 @@ OsStatus_t ScAcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER *Table)
  * pin combination. The pin must be zero indexed. Conform flags
  * are returned in the <AcpiConform> */
 OsStatus_t ScAcpiQueryInterrupt(DevInfo_t Bus, DevInfo_t Device, int Pin, 
-	int *Interrupt, Flags_t *AcpiConform)
+    int *Interrupt, Flags_t *AcpiConform)
 {
-	// Redirect the call to the interrupt system
-	*Interrupt = AcpiDeriveInterrupt(Bus, Device, Pin, AcpiConform);
-	return (*Interrupt == INTERRUPT_NONE) ? OsError : OsSuccess;
+    // Redirect the call to the interrupt system
+    *Interrupt = AcpiDeriveInterrupt(Bus, Device, Pin, AcpiConform);
+    return (*Interrupt == INTERRUPT_NONE) ? OsError : OsSuccess;
 }
  
 /* ScIoSpaceRegister
@@ -1199,16 +1231,16 @@ OsStatus_t ScAcpiQueryInterrupt(DevInfo_t Bus, DevInfo_t Device, int Pin,
  * or atleast dummy-implementation */
 OsStatus_t ScIoSpaceRegister(DeviceIoSpace_t *IoSpace)
 {
-	/* Sanitize params */
-	if (IoSpace == NULL) {
-		return OsError;
-	}
+    /* Sanitize params */
+    if (IoSpace == NULL) {
+        return OsError;
+    }
 
-	/* Validate process permissions */
+    /* Validate process permissions */
 
-	/* Now we can try to actually register the
-	 * io-space, if it fails it exists already */
-	return IoSpaceRegister(IoSpace);
+    /* Now we can try to actually register the
+     * io-space, if it fails it exists already */
+    return IoSpaceRegister(IoSpace);
 }
 
 /* ScIoSpaceAcquire
@@ -1217,15 +1249,15 @@ OsStatus_t ScIoSpaceRegister(DeviceIoSpace_t *IoSpace)
  * two drivers using the same device */
 OsStatus_t ScIoSpaceAcquire(DeviceIoSpace_t *IoSpace)
 {
-	/* Sanitize params */
-	if (IoSpace == NULL) {
-		return OsError;
-	}
+    /* Sanitize params */
+    if (IoSpace == NULL) {
+        return OsError;
+    }
 
-	/* Validate process permissions */
+    /* Validate process permissions */
 
-	/* Now lets try to acquire the IoSpace */
-	return IoSpaceAcquire(IoSpace);
+    /* Now lets try to acquire the IoSpace */
+    return IoSpaceAcquire(IoSpace);
 }
 
 /* ScIoSpaceRelease
@@ -1234,9 +1266,9 @@ OsStatus_t ScIoSpaceAcquire(DeviceIoSpace_t *IoSpace)
  * two drivers using the same device */
 OsStatus_t ScIoSpaceRelease(DeviceIoSpace_t *IoSpace)
 {
-	/* Now lets try to release the IoSpace 
-	 * Don't bother with validation */
-	return IoSpaceRelease(IoSpace);
+    /* Now lets try to release the IoSpace 
+     * Don't bother with validation */
+    return IoSpaceRelease(IoSpace);
 }
 
 /* ScIoSpaceDestroy
@@ -1245,13 +1277,13 @@ OsStatus_t ScIoSpaceRelease(DeviceIoSpace_t *IoSpace)
  * can only be removed if its not already acquired */
 OsStatus_t ScIoSpaceDestroy(UUId_t IoSpace)
 {
-	/* Sanitize params */
+    /* Sanitize params */
 
-	/* Validate process permissions */
+    /* Validate process permissions */
 
-	/* Destroy the io-space, it might
-	 * not be possible, if we don't own it */
-	return IoSpaceDestroy(IoSpace);
+    /* Destroy the io-space, it might
+     * not be possible, if we don't own it */
+    return IoSpaceDestroy(IoSpace);
 }
 
 /* Allows a server to register an alias for its 
@@ -1265,9 +1297,9 @@ ScRegisterAliasId(
     TRACE("ScRegisterAliasId(Server %s, Alias 0x%X)",
         MStringRaw(PhoenixGetCurrentAsh()->Name), Alias);
 
-	// Redirect call to phoenix
-	return PhoenixRegisterAlias(
-		PhoenixGetCurrentAsh(), Alias);
+    // Redirect call to phoenix
+    return PhoenixRegisterAlias(
+        PhoenixGetCurrentAsh(), Alias);
 }
 
 /* ScLoadDriver
@@ -1275,90 +1307,90 @@ ScRegisterAliasId(
  * the given device information */
 OsStatus_t ScLoadDriver(MCoreDevice_t *Device, size_t Length)
 {
-	/* Variables */
-	MCorePhoenixRequest_t *Request = NULL;
-	MCoreServer_t *Server = NULL;
-	MCoreModule_t *Module = NULL;
-	MRemoteCall_t Message;
-	MString_t *Path = NULL;
+    /* Variables */
+    MCorePhoenixRequest_t *Request = NULL;
+    MCoreServer_t *Server = NULL;
+    MCoreModule_t *Module = NULL;
+    MRemoteCall_t Message;
+    MString_t *Path = NULL;
 
-	/* Sanitize information */
-	if (Device == NULL || Length < sizeof(MCoreDevice_t)) {
-		return OsError;
-	}
+    /* Sanitize information */
+    if (Device == NULL || Length < sizeof(MCoreDevice_t)) {
+        return OsError;
+    }
 
-	/* First of all, if a server has already been spawned
-	 * for the specific driver, then call it's RegisterInstance */
-	Server = PhoenixGetServerByDriver(Device->VendorId, Device->DeviceId,
-		Device->Class, Device->Subclass);
+    /* First of all, if a server has already been spawned
+     * for the specific driver, then call it's RegisterInstance */
+    Server = PhoenixGetServerByDriver(Device->VendorId, Device->DeviceId,
+        Device->Class, Device->Subclass);
 
-	/* Sanitize the lookup 
-	 * If it's not found, spawn server */
-	if (Server == NULL)
-	{
-		/* Lookup specific driver */
-		Module = ModulesFindSpecific(Device->VendorId, Device->DeviceId);
+    /* Sanitize the lookup 
+     * If it's not found, spawn server */
+    if (Server == NULL)
+    {
+        /* Lookup specific driver */
+        Module = ModulesFindSpecific(Device->VendorId, Device->DeviceId);
 
-		/* Lookup generic driver if it failed */
-		if (Module == NULL) {
-			Module = ModulesFindGeneric(Device->Class, Device->Subclass);
-		}
+        /* Lookup generic driver if it failed */
+        if (Module == NULL) {
+            Module = ModulesFindGeneric(Device->Class, Device->Subclass);
+        }
 
-		/* Return error if that failed */
-		if (Module == NULL) {
-			return OsError;
-		}
+        /* Return error if that failed */
+        if (Module == NULL) {
+            return OsError;
+        }
 
-		/* Build Path */
-		Path = MStringCreate("rd:/", StrUTF8);
-		MStringAppendString(Path, Module->Name);
+        /* Build Path */
+        Path = MStringCreate("rd:/", StrUTF8);
+        MStringAppendString(Path, Module->Name);
 
-		/* Create a phoenix request */
-		Request = (MCorePhoenixRequest_t*)kmalloc(sizeof(MCorePhoenixRequest_t));
-		memset(Request, 0, sizeof(MCorePhoenixRequest_t));
-		Request->Base.Type = AshSpawnServer;
+        /* Create a phoenix request */
+        Request = (MCorePhoenixRequest_t*)kmalloc(sizeof(MCorePhoenixRequest_t));
+        memset(Request, 0, sizeof(MCorePhoenixRequest_t));
+        Request->Base.Type = AshSpawnServer;
 
-		/* Set our parameters as well */
-		Request->Path = Path;
-		Request->Arguments.Raw.Data = kmalloc(sizeof(MCoreDevice_t));
-		Request->Arguments.Raw.Length = sizeof(MCoreDevice_t);
+        /* Set our parameters as well */
+        Request->Path = Path;
+        Request->Arguments.Raw.Data = kmalloc(sizeof(MCoreDevice_t));
+        Request->Arguments.Raw.Length = sizeof(MCoreDevice_t);
 
-		/* Copy data */
-		memcpy(Request->Arguments.Raw.Data, Device, sizeof(MCoreDevice_t));
+        /* Copy data */
+        memcpy(Request->Arguments.Raw.Data, Device, sizeof(MCoreDevice_t));
 
-		/* Send off the request */
-		PhoenixCreateRequest(Request);
-		PhoenixWaitRequest(Request, 0);
+        /* Send off the request */
+        PhoenixCreateRequest(Request);
+        PhoenixWaitRequest(Request, 0);
 
-		/* Lookup server */
-		Server = PhoenixGetServer(Request->AshId);
+        /* Lookup server */
+        Server = PhoenixGetServer(Request->AshId);
 
-		/* Sanity */
-		assert(Server != NULL);
+        /* Sanity */
+        assert(Server != NULL);
 
-		/* Cleanup resources */
-		MStringDestroy(Request->Path);
-		kfree(Request->Arguments.Raw.Data);
-		kfree(Request);
+        /* Cleanup resources */
+        MStringDestroy(Request->Path);
+        kfree(Request->Arguments.Raw.Data);
+        kfree(Request);
 
-		/* Update server params */
-		Server->VendorId = Device->VendorId;
-		Server->DeviceId = Device->DeviceId;
-		Server->DeviceClass = Device->Class;
-		Server->DeviceSubClass = Device->Subclass;
-	}
+        /* Update server params */
+        Server->VendorId = Device->VendorId;
+        Server->DeviceId = Device->DeviceId;
+        Server->DeviceClass = Device->Class;
+        Server->DeviceSubClass = Device->Subclass;
+    }
 
-	/* Prepare the message */
-	RPCInitialize(&Message, 1, PIPE_RPCOUT, __DRIVER_REGISTERINSTANCE);
-	RPCSetArgument(&Message, 0, Device, Length);
-	Message.Sender = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+    /* Prepare the message */
+    RPCInitialize(&Message, 1, PIPE_RPCOUT, __DRIVER_REGISTERINSTANCE);
+    RPCSetArgument(&Message, 0, Device, Length);
+    Message.Sender = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
 
-	/* Wait for the driver to open it's
-	 * communication pipe */
-	PhoenixWaitAshPipe(&Server->Base, PIPE_RPCOUT);
+    /* Wait for the driver to open it's
+     * communication pipe */
+    PhoenixWaitAshPipe(&Server->Base, PIPE_RPCOUT);
 
-	/* Done! */
-	return ScRpcExecute(&Message, Server->Base.Id, 1);
+    /* Done! */
+    return ScRpcExecute(&Message, Server->Base.Id, 1);
 }
 
 /* ScRegisterInterrupt 
@@ -1368,14 +1400,14 @@ OsStatus_t ScLoadDriver(MCoreDevice_t *Device, size_t Length)
  * can be called by the event-system */
 UUId_t ScRegisterInterrupt(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 {
-	/* Sanitize parameters */
-	if (Interrupt == NULL
-		|| (Flags & (INTERRUPT_KERNEL | INTERRUPT_SOFTWARE))) {
-		return UUID_INVALID;
-	}
+    /* Sanitize parameters */
+    if (Interrupt == NULL
+        || (Flags & (INTERRUPT_KERNEL | INTERRUPT_SOFTWARE))) {
+        return UUID_INVALID;
+    }
 
-	/* Just redirect the call */
-	return InterruptRegister(Interrupt, Flags);
+    /* Just redirect the call */
+    return InterruptRegister(Interrupt, Flags);
 }
 
 /* ScUnregisterInterrupt 
@@ -1383,7 +1415,7 @@ UUId_t ScRegisterInterrupt(MCoreInterrupt_t *Interrupt, Flags_t Flags)
  * all events of OnInterrupt */
 OsStatus_t ScUnregisterInterrupt(UUId_t Source)
 {
-	return InterruptUnregister(Source);
+    return InterruptUnregister(Source);
 }
 
 /* ScAcknowledgeInterrupt 
@@ -1392,7 +1424,7 @@ OsStatus_t ScUnregisterInterrupt(UUId_t Source)
  * to occur for the given driver */
 OsStatus_t ScAcknowledgeInterrupt(UUId_t Source)
 {
-	return InterruptAcknowledge(Source);
+    return InterruptAcknowledge(Source);
 }
 
 /* ScRegisterSystemTimer
@@ -1404,7 +1436,7 @@ ScRegisterSystemTimer(
     _In_ UUId_t Interrupt,
     _In_ size_t NsPerTick)
 {
-	return TimersRegister(Interrupt, NsPerTick);
+    return TimersRegister(Interrupt, NsPerTick);
 }
 
 /* ScTimersStart
@@ -1440,9 +1472,9 @@ ScTimersStop(
  * rather than the stdout */
 int ScEndBootSequence(void)
 {
-	TRACE("Ending console session");
-	LogRedirect(LogFile);
-	return 0;
+    TRACE("Ending console session");
+    LogRedirect(LogFile);
+    return 0;
 }
 
 /* System (Environment) Query 
@@ -1450,7 +1482,7 @@ int ScEndBootSequence(void)
  * information about cpu, memory, stats etc */
 int ScEnvironmentQuery(void)
 {
-	return 0;
+    return 0;
 }
 
 /* NoOperation
@@ -1458,128 +1490,128 @@ int ScEnvironmentQuery(void)
  * because the operation is reserved */
 int NoOperation(void)
 {
-	return 0;
+    return 0;
 }
 
 /* Syscall Table */
 uintptr_t GlbSyscallTable[91] =
 {
-	/* Kernel Log */
-	DefineSyscall(ScSystemDebug),
+    /* Kernel Log */
+    DefineSyscall(ScSystemDebug),
 
-	/* Process Functions - 1 */
-	DefineSyscall(ScProcessExit),
-	DefineSyscall(ScProcessQuery),
-	DefineSyscall(ScProcessSpawn),
-	DefineSyscall(ScProcessJoin),
-	DefineSyscall(ScProcessKill),
-	DefineSyscall(ScProcessSignal),
-	DefineSyscall(ScProcessRaise),
-	DefineSyscall(ScSharedObjectLoad),
-	DefineSyscall(ScSharedObjectGetFunction),
-	DefineSyscall(ScSharedObjectUnload),
+    /* Process Functions - 1 */
+    DefineSyscall(ScProcessExit),
+    DefineSyscall(ScProcessQuery),
+    DefineSyscall(ScProcessSpawn),
+    DefineSyscall(ScProcessJoin),
+    DefineSyscall(ScProcessKill),
+    DefineSyscall(ScProcessSignal),
+    DefineSyscall(ScProcessRaise),
+    DefineSyscall(ScSharedObjectLoad),
+    DefineSyscall(ScSharedObjectGetFunction),
+    DefineSyscall(ScSharedObjectUnload),
 
-	/* Threading Functions - 11 */
-	DefineSyscall(ScThreadCreate),
-	DefineSyscall(ScThreadExit),
-	DefineSyscall(ScThreadSignal),
-	DefineSyscall(ScThreadJoin),
-	DefineSyscall(ScThreadSleep),
-	DefineSyscall(ScThreadYield),
-	DefineSyscall(ScThreadGetCurrentId),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
+    /* Threading Functions - 11 */
+    DefineSyscall(ScThreadCreate),
+    DefineSyscall(ScThreadExit),
+    DefineSyscall(ScThreadSignal),
+    DefineSyscall(ScThreadJoin),
+    DefineSyscall(ScThreadSleep),
+    DefineSyscall(ScThreadYield),
+    DefineSyscall(ScThreadGetCurrentId),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
 
-	/* Synchronization Functions - 21 */
-	DefineSyscall(ScConditionCreate),
-	DefineSyscall(ScConditionDestroy),
-	DefineSyscall(ScSyncSleep),
-	DefineSyscall(ScSyncWakeUp),
-	DefineSyscall(ScSyncWakeUpAll),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
+    /* Synchronization Functions - 21 */
+    DefineSyscall(ScConditionCreate),
+    DefineSyscall(ScConditionDestroy),
+    DefineSyscall(ScSyncSleep),
+    DefineSyscall(ScSyncWakeUp),
+    DefineSyscall(ScSyncWakeUpAll),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
 
-	/* Memory Functions - 31 */
-	DefineSyscall(ScMemoryAllocate),
-	DefineSyscall(ScMemoryFree),
-	DefineSyscall(ScMemoryQuery),
-	DefineSyscall(ScMemoryAcquire),
-	DefineSyscall(ScMemoryRelease),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
+    /* Memory Functions - 31 */
+    DefineSyscall(ScMemoryAllocate),
+    DefineSyscall(ScMemoryFree),
+    DefineSyscall(ScMemoryQuery),
+    DefineSyscall(ScMemoryAcquire),
+    DefineSyscall(ScMemoryRelease),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
 
-	/* Path Functions - 38 */
-	DefineSyscall(ScPathQueryWorkingDirectory),
-	DefineSyscall(ScPathChangeWorkingDirectory),
-	DefineSyscall(ScPathQueryApplication),
+    /* Path Functions - 38 */
+    DefineSyscall(ScPathQueryWorkingDirectory),
+    DefineSyscall(ScPathChangeWorkingDirectory),
+    DefineSyscall(ScPathQueryApplication),
 
-	/* IPC Functions - 41 */
-	DefineSyscall(ScPipeOpen),
-	DefineSyscall(ScPipeClose),
-	DefineSyscall(ScPipeRead),
-	DefineSyscall(ScPipeWrite),
-	DefineSyscall(ScIpcSleep),
-	DefineSyscall(ScIpcWake),
-	DefineSyscall(ScRpcExecute),
-	DefineSyscall(ScRpcResponse),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
+    /* IPC Functions - 41 */
+    DefineSyscall(ScPipeOpen),
+    DefineSyscall(ScPipeClose),
+    DefineSyscall(ScPipeRead),
+    DefineSyscall(ScPipeWrite),
+    DefineSyscall(ScIpcSleep),
+    DefineSyscall(ScIpcWake),
+    DefineSyscall(ScRpcExecute),
+    DefineSyscall(ScRpcResponse),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
 
-	/* System Functions - 51 */
-	DefineSyscall(ScEndBootSequence),
-	DefineSyscall(NoOperation),
-	DefineSyscall(ScEnvironmentQuery),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
+    /* System Functions - 51 */
+    DefineSyscall(ScEndBootSequence),
+    DefineSyscall(NoOperation),
+    DefineSyscall(ScEnvironmentQuery),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
 
-	/* Driver Functions - 61 
-	 * - ACPI Support */
-	DefineSyscall(ScAcpiQueryStatus),
-	DefineSyscall(ScAcpiQueryTableHeader),
-	DefineSyscall(ScAcpiQueryTable),
-	DefineSyscall(ScAcpiQueryInterrupt),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
+    /* Driver Functions - 61 
+     * - ACPI Support */
+    DefineSyscall(ScAcpiQueryStatus),
+    DefineSyscall(ScAcpiQueryTableHeader),
+    DefineSyscall(ScAcpiQueryTable),
+    DefineSyscall(ScAcpiQueryInterrupt),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
 
-	/* Driver Functions - 71 
-	 * - I/O Support */
-	DefineSyscall(ScIoSpaceRegister),
-	DefineSyscall(ScIoSpaceAcquire),
-	DefineSyscall(ScIoSpaceRelease),
-	DefineSyscall(ScIoSpaceDestroy),
+    /* Driver Functions - 71 
+     * - I/O Support */
+    DefineSyscall(ScIoSpaceRegister),
+    DefineSyscall(ScIoSpaceAcquire),
+    DefineSyscall(ScIoSpaceRelease),
+    DefineSyscall(ScIoSpaceDestroy),
 
-	/* Driver Functions - 75
-	 * - Support */
-	DefineSyscall(ScRegisterAliasId),
-	DefineSyscall(ScLoadDriver),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
+    /* Driver Functions - 75
+     * - Support */
+    DefineSyscall(ScRegisterAliasId),
+    DefineSyscall(ScLoadDriver),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
 
-	/* Driver Functions - 81
-	 * - Interrupt Support */
-	DefineSyscall(ScRegisterInterrupt),
-	DefineSyscall(ScUnregisterInterrupt),
-	DefineSyscall(ScAcknowledgeInterrupt),
-	DefineSyscall(ScRegisterSystemTimer),
-	DefineSyscall(ScTimersStart),
-	DefineSyscall(ScTimersStop),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation),
-	DefineSyscall(NoOperation)
+    /* Driver Functions - 81
+     * - Interrupt Support */
+    DefineSyscall(ScRegisterInterrupt),
+    DefineSyscall(ScUnregisterInterrupt),
+    DefineSyscall(ScAcknowledgeInterrupt),
+    DefineSyscall(ScRegisterSystemTimer),
+    DefineSyscall(ScTimersStart),
+    DefineSyscall(ScTimersStop),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation)
 };

@@ -22,7 +22,7 @@
  * Finish the FSBR implementation, right now there is no guarantee of order ls/fs/bul
  * The isochronous unlink/link needs improvements, it does not support multiple isocs in same frame 
  */
-//#define __TRACE
+#define __TRACE
 
 /* Includes
  * - System */
@@ -103,11 +103,15 @@ UhciPortGetStatus(
 	_Out_ UsbHcPortDescriptor_t *Port)
 {
 	// Variables
-	uint16_t pStatus = 0;
-
+    uint16_t pStatus = 0;
+    
 	// Now we can get current port status
 	pStatus = UhciRead16(Controller, (UHCI_REGISTER_PORT_BASE + (Index * 2)));
 
+    // Debug
+    TRACE("UhciPortGetStatus(Port %i, Status 0x%x)", 
+        Index, pStatus);
+    
 	// Is port connected?
 	if (pStatus & UHCI_PORT_CONNECT_STATUS) {
 		Port->Connected = 1;

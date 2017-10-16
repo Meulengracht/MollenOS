@@ -19,6 +19,7 @@
  * MollenOS x86 Common Threading Interface
  * - Contains shared x86 threading routines
  */
+#define __MODULE "XTIF"
 
 /* Includes 
  * - System */
@@ -27,6 +28,7 @@
 #include <interrupts.h>
 #include <thread.h>
 #include <memory.h>
+#include <debug.h>
 #include <heap.h>
 #include <apic.h>
 #include <gdt.h>
@@ -115,9 +117,6 @@ void *IThreadCreate(Flags_t ThreadFlags, uintptr_t EntryPoint)
 	// and zero out the buffer space
 	Thread->FpuBuffer = kmalloc_a(0x1000);
 	memset(Thread->FpuBuffer, 0, 0x1000);
-
-	// Initialize rest of params
-	Thread->Flags = X86_THREAD_FPU_INITIALISED | X86_THREAD_USEDFPU;
 
 	// Don't create contexts for idle threads 
 	// Otherwise setup a kernel stack 
@@ -319,8 +318,8 @@ Context_t *_ThreadingSwitch(Context_t *Regs,
 	TssUpdateStack(Cpu, (uintptr_t)Tx->Context);
 	TssUpdateIo(Cpu, &Tx->IoMap[0]);
 
-	/* Clear FPU/MMX/SSE flags */
-	Tx->Flags &= ~X86_THREAD_USEDFPU;
+    /* Clear FPU/MMX/SSE flags */
+    Tx->Flags &= ~X86_THREAD_USEDFPU;
 
 	/* We want to handle any signals if neccessary
 	 * before we handle the transition */

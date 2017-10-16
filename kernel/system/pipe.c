@@ -174,15 +174,22 @@ PipeRead(
     // Variables
     ssize_t SavedIndex = 0;
     size_t BytesRead = 0;
+    int WaitForFullBuffer = 0;
 
     // Sanitize the parameters
     if (Pipe == NULL || Length == 0) {
         return -1;
     }
 
+    // Should we block?
+    if (!(Pipe->Flags & PIPE_NOBLOCK_READ)) {
+        WaitForFullBuffer = 1;
+    }
+
     // Read data in loop to get all
     SavedIndex = Pipe->IndexRead;
-    while (BytesRead == 0) {
+    while ((WaitForFullBuffer == 0)
+        || (BytesRead < Length && WaitForFullBuffer == 1)) {
         // Only read while there is data available
         CriticalSectionEnter(&Pipe->Lock);
         while (PipeBytesAvailable(Pipe) > 0 && BytesRead < Length) {
@@ -192,10 +199,6 @@ PipeRead(
             else BytesRead++;
             PipeIncreaseRead(Pipe);
         }
-        if (Peek) {
-            // Restore index if we peaked
-            Pipe->IndexRead = SavedIndex;
-        }
         CriticalSectionLeave(&Pipe->Lock);
 
         // Only go to queue if not a peek
@@ -204,11 +207,18 @@ PipeRead(
                 SemaphoreP(&Pipe->WriteQueue, 0);
                 Pipe->WriteQueueCount--;
             }
-            if (BytesRead == 0
-                && !(Pipe->Flags & PIPE_NOBLOCK_READ)) {
+            if (WaitForFullBuffer == 0) {
+                break;
+            }
+            if (BytesRead < Length) {
                 Pipe->ReadQueueCount++;
                 SemaphoreV(&Pipe->ReadQueue, 1);
             }
+        }
+        else {
+            // Restore index if we peaked
+            Pipe->IndexRead = SavedIndex;
+            break;
         }
     }
     return (int)BytesRead;
@@ -225,6 +235,11 @@ PipeWait(
     // Sanitize parameters
     if (Pipe == NULL) {
         return OsError;
+    }
+
+    // Is there already bytes available?
+    if (PipeBytesAvailable(Pipe) != 0) {
+        return OsSuccess;
     }
 
     // Increase wait count

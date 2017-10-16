@@ -383,7 +383,12 @@ OnQuery(_In_ MContractType_t QueryType,
 			// Send descriptor back
 			return PipeSend(Queryee, ResponsePort, 
 				(void*)&Descriptor, sizeof(UsbHcPortDescriptor_t));
-		} break;
+        } break;
+        
+        // Reset endpoint toggles
+        case __USBHOST_RESETENDPOINT: {
+            Result = UsbManagerSetToggle(Device, Pipe, 0);
+        } break;
 
 		// Fall-through, error
 		default:

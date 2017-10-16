@@ -906,7 +906,7 @@ void ExceptionEntry(Context_t *Registers)
 
 		// Either of two cases;
 		// 1 - We need to initialize the FPU
-		// 2 - We need to load the FPU
+        // 2 - We need to load the FPU
 		if (!(cT86->Flags & X86_THREAD_FPU_INITIALISED)) {
 			init_fpu();
 			cT86->Flags |= X86_THREAD_FPU_INITIALISED;

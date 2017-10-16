@@ -20,7 +20,7 @@
  * - Contains the implementation of the usb-manager which keeps track
  *   of all usb-controllers and their devices
  */
-//#define __TRACE
+#define __TRACE
 
 /* Includes 
  * - System */
@@ -84,8 +84,11 @@ UsbTransferInitialize(
     _In_ UsbHcEndpointDescriptor_t *Endpoint,
     _In_ UsbTransferType_t Type)
 {
+    // Debug
+    TRACE("UsbTransferInitialize()");
+
     // Initialize structure
-    memset(&Transfer, 0, sizeof(UsbTransfer_t));
+    memset(Transfer, 0, sizeof(UsbTransfer_t));
     memcpy(&Transfer->Endpoint, Endpoint, sizeof(UsbHcEndpointDescriptor_t));
 
     // Initialize
@@ -111,6 +114,9 @@ UsbTransferSetup(
     // Variables
     UsbTransactionType_t AckType = InTransaction;
     int AckIndex = 1;
+
+    // Debug
+    TRACE("UsbTransferSetup()");
 
     // Initialize the setup stage
     Transfer->Transactions[0].Type = SetupTransaction;
@@ -253,6 +259,9 @@ UsbTransferQueue(
 {
     // Variables
     MContract_t Contract;
+
+    // Debug
+    TRACE("UsbTransferQueue()");
 
     // Setup contract stuff for request
     Contract.DriverId = Driver;
@@ -419,12 +428,16 @@ UsbSetAddress(
     UsbTransferResult_t Result = { 0 };
     UsbTransfer_t Transfer = { 0 };
 
+    // Debug
+    TRACE("UsbSetAddress()");
+
     // Sanitize current address
     if (UsbDevice->Address != 0) {
         return TransferNotProcessed;
     }
 
     // Allocate buffers
+    TRACE("Allocating buffer");
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
         return TransferInvalidData;

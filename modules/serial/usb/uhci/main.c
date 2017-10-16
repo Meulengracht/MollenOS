@@ -20,7 +20,7 @@
  * TODO:
  *	- Power Management
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -325,7 +325,10 @@ OnQuery(_In_ MContractType_t QueryType,
 	UsbManagerTransfer_t *Transfer = NULL;
 	UhciController_t *Controller = NULL;
 	UUId_t Device = UUID_INVALID, Pipe = UUID_INVALID;
-	OsStatus_t Result = OsError;
+    OsStatus_t Result = OsError;
+    
+    // Debug
+    TRACE("OnQuery(Function %i)", QueryFunction);
 
 	// Instantiate some variables
 	Device = (UUId_t)Arg0->Data.Value;
@@ -427,9 +430,8 @@ OnQuery(_In_ MContractType_t QueryType,
         } break;
         
         // Reset endpoint toggles
-        // @todo
         case __USBHOST_RESETENDPOINT: {
-
+            Result = UsbManagerSetToggle(Device, Pipe, 0);
         } break;
 
 		// Fall-through, error

@@ -359,7 +359,15 @@ void
 UhciPortGetStatus(
 	_In_ UhciController_t *Controller,
 	_In_ int Index,
-	_Out_ UsbHcPortDescriptor_t *Port);
+    _Out_ UsbHcPortDescriptor_t *Port);
+
+/* UhciPortsCheck
+ * Enumerates ports and checks for any pending events. This also
+ * notifies the usb-service if any connection changes appear */
+__EXTERN
+OsStatus_t
+UhciPortsCheck(
+	_In_ UhciController_t *Controller);
 
 /* UhciUpdateCurrentFrame
  * Updates the current frame and stores it in the controller given.

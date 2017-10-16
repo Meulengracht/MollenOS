@@ -424,17 +424,13 @@ UhciQhInitialize(
 	_In_ UhciQueueHead_t *Qh, 
 	_In_ int HeadIndex)
 {
-	// Variables
-	UhciTransferDescriptor_t *FirstTd = NULL;
-
 	// Initialize link
 	Qh->Link = UHCI_LINK_END;
 	Qh->LinkIndex = UHCI_NO_INDEX;
 
 	// Initialize children
 	if (HeadIndex != -1) {
-		FirstTd = &Controller->QueueControl.TDPool[HeadIndex];
-		Qh->Child = (reg32_t)FirstTd;
+		Qh->Child = (reg32_t)UHCI_POOL_TDINDEX(Controller, HeadIndex);
 		Qh->ChildIndex = (int16_t)HeadIndex;
 	}
 	else {

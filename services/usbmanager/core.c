@@ -430,8 +430,7 @@ UsbDeviceSetup(
 
     // Make sure that there isn't already one device
     // setup on the port
-    if (Port->Connected
-        && Port->Device != NULL) {
+    if (Port->Connected && Port->Device != NULL) {
         return OsError;
     }
 
@@ -450,7 +449,7 @@ UsbDeviceSetup(
 
     // Initialize the port by resetting it
     if (UsbHostResetPort(Controller->Driver, Controller->Device,
-        Port->Index, &PortDescriptor) != OsSuccess) {
+            Port->Index, &PortDescriptor) != OsSuccess) {
         ERROR("(UsbHostResetPort %u) Failed to reset port %i",
             Controller->Device, Port->Index);
         goto DevError;
@@ -461,6 +460,11 @@ UsbDeviceSetup(
         && PortDescriptor.Enabled != 1) {
         goto DevError;
     }
+
+    // Update port
+    Port->Connected = 1;
+    Port->Enabled = 1;
+    Port->Speed = PortDescriptor.Speed;
 
     // Determine the MPS of the control endpoint
     if (Port->Speed == FullSpeed
@@ -476,6 +480,7 @@ UsbDeviceSetup(
     Device->Base.Speed = Port->Speed;
 
     // Allocate a device-address
+    TRACE("Allocating usb-address");
     if (UsbReserveAddress(Controller, &ReservedAddress) != OsSuccess) {
         ERROR("(UsbReserveAddress %u) Failed to setup port %i",
             Controller->Device, Port->Index);
@@ -483,6 +488,7 @@ UsbDeviceSetup(
     }
 
     // Set device address for the new device
+    TRACE("Updating usb-address");
     tStatus = UsbSetAddress(Controller->Driver, Controller->Device,
         &Device->Base, &Device->ControlEndpoint, ReservedAddress);
     if (tStatus != TransferFinished) {
@@ -705,6 +711,7 @@ UsbEventPort(
     // Query port status so we know the status of the port
     // Also compare to the current state to see if the change was valid
     if (UsbHostQueryPort(Driver, Device, Index, &Descriptor) != OsSuccess) {
+        ERROR("Query port failed");
         return OsError;
     }
 
@@ -717,26 +724,24 @@ UsbEventPort(
     Port = Controller->Ports[Index];
 
     // Now handle connection events
-    if (Descriptor.Enabled == 1) {
-        if (Descriptor.Connected == 1
-        && Port->Connected == 0) {
-            // Connected event
-            Result = UsbDeviceSetup(Controller, Port);
-        }
-        else if (Descriptor.Connected == 0
-            && Port->Connected == 1) {
-            // Disconnected event
-            Result = UsbDeviceDestroy(Controller, Port);
-        }
-        else {
-            // Ignore
-        }
+    if (Descriptor.Connected == 1 && Port->Connected == 0) {
+        // Connected event
+        // This function updates port-status after reset
+        Result = UsbDeviceSetup(Controller, Port);
     }
-    
-    // Update members
-    Port->Speed = Descriptor.Speed;
-    Port->Enabled = Descriptor.Enabled;
-    Port->Connected = Descriptor.Connected;
+    else if (Descriptor.Connected == 0 && Port->Connected == 1) {
+        // Disconnected event
+        Result = UsbDeviceDestroy(Controller, Port);
+        Port->Speed = Descriptor.Speed;
+        Port->Enabled = Descriptor.Enabled;
+        Port->Connected = Descriptor.Connected;
+    }
+    else {
+        // Ignore
+        Port->Speed = Descriptor.Speed;
+        Port->Enabled = Descriptor.Enabled;
+        Port->Connected = Descriptor.Connected;
+    }
 
     // Event handled
     return Result;

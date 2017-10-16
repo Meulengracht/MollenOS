@@ -64,7 +64,8 @@ RPCExecute(
 	_In_ MRemoteCall_t *Rpc, 
 	_In_ UUId_t Target)
 {
-	return Syscall3(SYSCALL_RPCEVAL, SYSCALL_PARAM(Rpc), SYSCALL_PARAM(Target), 0);
+    return (OsStatus_t)Syscall3(SYSCALL_RPCEVAL, 
+        SYSCALL_PARAM(Rpc), SYSCALL_PARAM(Target), 0);
 }
 
 /* RPCExecute/RPCEvent
@@ -77,7 +78,8 @@ RPCEvent(
 	_In_ MRemoteCall_t *Rpc, 
 	_In_ UUId_t Target)
 {
-	return Syscall3(SYSCALL_RPCEVAL, SYSCALL_PARAM(Rpc), SYSCALL_PARAM(Target), 1);
+    return (OsStatus_t)Syscall3(SYSCALL_RPCEVAL, 
+        SYSCALL_PARAM(Rpc), SYSCALL_PARAM(Target), 1);
 }
 
 /* RPCListen 

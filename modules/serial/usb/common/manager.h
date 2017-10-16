@@ -144,6 +144,6 @@ OsStatus_t
 UsbManagerSetToggle(
 	_In_ UUId_t Device,
 	_In_ UUId_t Pipe,
-	_In_ int Toggle);
+    _In_ int Toggle);
 
 #endif //!_USB_MANAGER_H_

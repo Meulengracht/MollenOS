@@ -20,7 +20,7 @@
  * TODO:
  *	- Power Management
  */
-//#define __TRACE
+#define __TRACE
 
 /* Includes 
  * - System */
@@ -461,6 +461,37 @@ UhciTransactionFinalize(
 	return OsSuccess;
 }
 
+/* UsbQueueDebug
+ * Dumps the QH-settings and all the attached td's */
+void
+UsbQueueDebug(
+    UhciController_t *Controller,
+    UhciQueueHead_t *Qh)
+{
+    // Variables
+    UhciTransferDescriptor_t *Td = NULL;
+    uintptr_t PhysicalAddress = 0;
+
+    PhysicalAddress = UHCI_POOL_QHINDEX(Controller, UHCI_QH_GET_INDEX(Qh->Flags));
+    TRACE("QH(0x%x): Flags 0x%x, NextQh 0x%x, FirstChild 0x%x", 
+        PhysicalAddress, Qh->Flags, Qh->Link, Qh->Child);
+
+    // Get first td
+    Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
+    while (Td != NULL) {
+        PhysicalAddress = UHCI_POOL_TDINDEX(Controller, UHCI_TD_GET_INDEX(Td->HcdFlags));
+        TRACE("TD(0x%x): Link 0x%x, Flags 0x%x, Header 0x%x, Buffer 0x%x", 
+            PhysicalAddress, Td->Link, Td->Flags, Td->Header, Td->Buffer);
+        // Go to next td
+        if (Td->LinkIndex != UHCI_NO_INDEX) {
+            Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
+        }
+        else {
+            Td = NULL;
+        }
+    }
+}
+
 /* UsbQueueTransferGeneric 
  * Queues a new transfer for the given driver
  * and pipe. They must exist. The function does not block*/
@@ -473,7 +504,10 @@ UsbQueueTransferGeneric(
 	UhciTransferDescriptor_t *FirstTd = NULL, *ItrTd = NULL;
 	UhciController_t *Controller = NULL;
 	size_t Address, Endpoint;
-	int i;
+    int i;
+    
+    // Debug
+    TRACE("UsbQueueTransferGeneric()");
 
 	// Get Controller
 	Controller = (UhciController_t*)UsbManagerGetController(Transfer->Device);
@@ -591,7 +625,8 @@ UsbQueueTransferGeneric(
 	// Finalize the endpoint-descriptor
 	UhciQhInitialize(Controller, Qh, UHCI_TD_GET_INDEX(FirstTd->HcdFlags));
 
-	// Send the transaction and wait for completion
+    // Send the transaction and wait for completion
+    UsbQueueDebug(Controller, Qh);
 	return UhciTransactionDispatch(Controller, Transfer);
 }
 
