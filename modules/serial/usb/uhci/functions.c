@@ -220,7 +220,9 @@ UhciTransactionDispatch(
 		int PrevQueue = UHCI_QH_GET_QUEUE(PrevQh->Flags);
 
         // Iterate and find a spot, based on the queue priority
-        TRACE("Linking asynchronous queue-head (async-next: %i)", PrevQh->LinkIndex);
+        TRACE("(%u) Linking asynchronous queue-head (async-next: %i)", 
+            Controller->QueueControl.Frame, PrevQh->LinkIndex);
+        TRACE("Controller status: 0x%x", UhciRead16(Controller, UHCI_REGISTER_COMMAND));
 		while (PrevQh->LinkIndex != UHCI_NO_INDEX) {	
 			PrevQueue = UHCI_QH_GET_QUEUE(PrevQh->Flags);
 			if (PrevQueue <= Queue) {
@@ -242,7 +244,11 @@ UhciTransactionDispatch(
 #ifdef __DEBUG
         TRACE("Dumping post-operation");
         ThreadSleep(5000);
+        UhciUpdateCurrentFrame(Controller);
         UsbQueueDebug(Controller, Qh);
+        TRACE("Current frame %i, Status 0x%x", 
+            Controller->QueueControl.Frame,
+            UhciRead16(Controller, UHCI_REGISTER_COMMAND));
 #endif
 
 #ifdef UHCI_FSBR
