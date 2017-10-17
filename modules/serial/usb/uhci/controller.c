@@ -189,7 +189,7 @@ UhciControllerCreate(
 	if (IoctlDevice(Controller->Base.Device.Id, __DEVICEMANAGER_IOCTL_BUS,
 		(__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_IO_ENABLE
 			| __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OsSuccess) {
-		ERROR("Failed to enable the ohci-controller");
+		ERROR("Failed to enable the uhci-controller");
 		UnregisterInterruptSource(Controller->Base.Interrupt);
 		ReleaseIoSpace(Controller->Base.IoBase);
 		DestroyIoSpace(Controller->Base.IoBase->Id);

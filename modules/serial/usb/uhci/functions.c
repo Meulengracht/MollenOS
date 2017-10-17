@@ -37,6 +37,38 @@
 #include <string.h>
 #include <stdlib.h>
 
+
+/* UsbQueueDebug
+ * Dumps the QH-settings and all the attached td's */
+void
+UsbQueueDebug(
+    UhciController_t *Controller,
+    UhciQueueHead_t *Qh)
+{
+    // Variables
+    UhciTransferDescriptor_t *Td = NULL;
+    uintptr_t PhysicalAddress = 0;
+
+    PhysicalAddress = UHCI_POOL_QHINDEX(Controller, UHCI_QH_GET_INDEX(Qh->Flags));
+    TRACE("QH(0x%x): Flags 0x%x, NextQh 0x%x, FirstChild 0x%x", 
+        PhysicalAddress, Qh->Flags, Qh->Link, Qh->Child);
+
+    // Get first td
+    Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
+    while (Td != NULL) {
+        PhysicalAddress = UHCI_POOL_TDINDEX(Controller, UHCI_TD_GET_INDEX(Td->HcdFlags));
+        TRACE("TD(0x%x): Link 0x%x, Flags 0x%x, Header 0x%x, Buffer 0x%x", 
+            PhysicalAddress, Td->Link, Td->Flags, Td->Header, Td->Buffer);
+        // Go to next td
+        if (Td->LinkIndex != UHCI_NO_INDEX) {
+            Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
+        }
+        else {
+            Td = NULL;
+        }
+    }
+}
+
 /* UhciTransactionInitialize
  * Initializes a transaction by allocating a new endpoint-descriptor
  * and preparing it for usage */
@@ -172,8 +204,8 @@ UhciTransactionDispatch(
 	// Trace
 	TRACE("UHCI: QH at 0x%x, FirstTd 0x%x, NextQh 0x%x", 
 		QhAddress, Qh->Child, Qh->Link);
-	TRACE("UHCI: Bandwidth %u, StartFrame %u, Flags 0x%x", 
-		Qh->Bandwidth, Qh->StartFrame, Qh->Flags);
+	TRACE("UHCI: Queue %u, StartFrame %u, Flags 0x%x", 
+        Queue, Qh->StartFrame, Qh->Flags);
 
 	/*************************
 	 **** LINKING PHASE ******
@@ -187,7 +219,8 @@ UhciTransactionDispatch(
 		UhciQueueHead_t *PrevQh = &Controller->QueueControl.QHPool[UHCI_QH_ASYNC];
 		int PrevQueue = UHCI_QH_GET_QUEUE(PrevQh->Flags);
 
-		// Iterate and find a spot, based on the queue priority
+        // Iterate and find a spot, based on the queue priority
+        TRACE("Linking asynchronous queue-head (async-next: %i)", PrevQh->LinkIndex);
 		while (PrevQh->LinkIndex != UHCI_NO_INDEX) {	
 			PrevQueue = UHCI_QH_GET_QUEUE(PrevQh->Flags);
 			if (PrevQueue <= Queue) {
@@ -204,7 +237,13 @@ UhciTransactionDispatch(
 		Qh->LinkIndex = PrevQh->LinkIndex;
 		MemoryBarrier();
 		PrevQh->Link = (QhAddress | UHCI_LINK_QH);
-		PrevQh->LinkIndex = QhIndex;
+        PrevQh->LinkIndex = QhIndex;
+#define __DEBUG
+#ifdef __DEBUG
+        TRACE("Dumping post-operation");
+        ThreadSleep(5000);
+        UsbQueueDebug(Controller, Qh);
+#endif
 
 #ifdef UHCI_FSBR
 		/* FSBR? */
@@ -258,12 +297,6 @@ UhciTransactionDispatch(
 	else {
 		UhciLinkIsochronous(Controller, Qh);
 	}
-
-	// Manually inspect
-#ifdef __DEBUG
-	ThreadSleep(5000);
-	TRACE("UHCI: Qh Next 0x%x, Qh Head 0x%x", Qh->Link, Qh->Child);
-#endif
 
 	// Done
 	return OsSuccess;
@@ -459,37 +492,6 @@ UhciTransactionFinalize(
 
 	// Done
 	return OsSuccess;
-}
-
-/* UsbQueueDebug
- * Dumps the QH-settings and all the attached td's */
-void
-UsbQueueDebug(
-    UhciController_t *Controller,
-    UhciQueueHead_t *Qh)
-{
-    // Variables
-    UhciTransferDescriptor_t *Td = NULL;
-    uintptr_t PhysicalAddress = 0;
-
-    PhysicalAddress = UHCI_POOL_QHINDEX(Controller, UHCI_QH_GET_INDEX(Qh->Flags));
-    TRACE("QH(0x%x): Flags 0x%x, NextQh 0x%x, FirstChild 0x%x", 
-        PhysicalAddress, Qh->Flags, Qh->Link, Qh->Child);
-
-    // Get first td
-    Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
-    while (Td != NULL) {
-        PhysicalAddress = UHCI_POOL_TDINDEX(Controller, UHCI_TD_GET_INDEX(Td->HcdFlags));
-        TRACE("TD(0x%x): Link 0x%x, Flags 0x%x, Header 0x%x, Buffer 0x%x", 
-            PhysicalAddress, Td->Link, Td->Flags, Td->Header, Td->Buffer);
-        // Go to next td
-        if (Td->LinkIndex != UHCI_NO_INDEX) {
-            Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
-        }
-        else {
-            Td = NULL;
-        }
-    }
 }
 
 /* UsbQueueTransferGeneric 

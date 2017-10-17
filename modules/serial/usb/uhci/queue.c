@@ -215,14 +215,6 @@ UhciQueueInitialize(
 	Queue->QHPool[UHCI_QH_ASYNC].ChildIndex = UHCI_POOL_TDNULL;
 	Queue->QHPool[UHCI_QH_ASYNC].Flags |= UHCI_QH_ACTIVE;
 
-	// Set all queues to end in the async QH 
-	// This way we handle iso & ints before bulk/control
-	for (i = UHCI_QH_ISOCHRONOUS + 1; i < UHCI_QH_ASYNC; i++) {
-		Queue->QHPool[i].Link = 
-			UHCI_POOL_QHINDEX(Controller, UHCI_QH_ASYNC) | UHCI_LINK_QH;
-		Queue->QHPool[i].LinkIndex = UHCI_QH_ASYNC;
-	}
-
 	// 1024 Entries
 	// Set all entries to the 8 interrupt queues, and we
 	// want them interleaved such that some queues get visited more than others
