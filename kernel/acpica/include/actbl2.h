@@ -8,7 +8,7 @@
  *
  * 1. Copyright Notice
  *
- * Some or all of this work - Copyright (c) 1999 - 2015, Intel Corp.
+ * Some or all of this work - Copyright (c) 1999 - 2017, Intel Corp.
  * All rights reserved.
  *
  * 2. License
@@ -111,6 +111,42 @@
  * other governmental approval, or letter of assurance, without first obtaining
  * such license, approval or letter.
  *
+ *****************************************************************************
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * following license:
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions, and the following disclaimer,
+ *    without modification.
+ * 2. Redistributions in binary form must reproduce at minimum a disclaimer
+ *    substantially similar to the "NO WARRANTY" disclaimer below
+ *    ("Disclaimer") and any redistribution must be conditioned upon
+ *    including a substantially similar Disclaimer requirement for further
+ *    binary redistribution.
+ * 3. Neither the names of the above-listed copyright holders nor the names
+ *    of any contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * GNU General Public License ("GPL") version 2 as published by the Free
+ * Software Foundation.
+ *
  *****************************************************************************/
 
 #ifndef __ACTBL2_H__
@@ -150,6 +186,7 @@
 #define ACPI_SIG_MCHI           "MCHI"      /* Management Controller Host Interface table */
 #define ACPI_SIG_MSDM           "MSDM"      /* Microsoft Data Management Table */
 #define ACPI_SIG_MTMR           "MTMR"      /* MID Timer table */
+#define ACPI_SIG_SDEI           "SDEI"      /* Software Delegated Exception Interface Table */
 #define ACPI_SIG_SLIC           "SLIC"      /* Software Licensing Description Table */
 #define ACPI_SIG_SPCR           "SPCR"      /* Serial Port Console Redirection table */
 #define ACPI_SIG_SPMI           "SPMI"      /* Server Platform Management Interface table */
@@ -161,6 +198,8 @@
 #define ACPI_SIG_WDAT           "WDAT"      /* Watchdog Action Table */
 #define ACPI_SIG_WDDT           "WDDT"      /* Watchdog Timer Description Table */
 #define ACPI_SIG_WDRT           "WDRT"      /* Watchdog Resource Table */
+#define ACPI_SIG_WSMT           "WSMT"      /* Windows SMM Security Migrations Table */
+#define ACPI_SIG_XXXX           "XXXX"      /* Intermediate AML header for ASL/ASL+ converter */
 
 #ifdef ACPI_UNDEFINED_TABLES
 /*
@@ -436,7 +475,7 @@ typedef struct acpi_csrt_descriptor
  * DBG2 - Debug Port Table 2
  *        Version 0 (Both main table and subtables)
  *
- * Conforms to "Microsoft Debug Port Table 2 (DBG2)", May 22 2012.
+ * Conforms to "Microsoft Debug Port Table 2 (DBG2)", December 10, 2015
  *
  ******************************************************************************/
 
@@ -493,6 +532,11 @@ typedef struct acpi_dbg2_device
 
 #define ACPI_DBG2_16550_COMPATIBLE  0x0000
 #define ACPI_DBG2_16550_SUBSET      0x0001
+#define ACPI_DBG2_ARM_PL011         0x0003
+#define ACPI_DBG2_ARM_SBSA_32BIT    0x000D
+#define ACPI_DBG2_ARM_SBSA_GENERIC  0x000E
+#define ACPI_DBG2_ARM_DCC           0x000F
+#define ACPI_DBG2_BCM2835           0x0010
 
 #define ACPI_DBG2_1394_STANDARD     0x0000
 
@@ -525,7 +569,7 @@ typedef struct acpi_table_dbgp
  *        Version 1
  *
  * Conforms to "Intel Virtualization Technology for Directed I/O",
- * Version 2.2, Sept. 2013
+ * Version 2.3, October 2014
  *
  ******************************************************************************/
 
@@ -541,6 +585,8 @@ typedef struct acpi_table_dmar
 /* Masks for Flags field above */
 
 #define ACPI_DMAR_INTR_REMAP        (1)
+#define ACPI_DMAR_X2APIC_OPT_OUT    (1<<1)
+#define ACPI_DMAR_X2APIC_MODE       (1<<2)
 
 
 /* DMAR subtable header */
@@ -829,7 +875,7 @@ typedef struct acpi_ibft_target
  * IORT - IO Remapping Table
  *
  * Conforms to "IO Remapping Table System Software on ARM Platforms",
- * Document number: ARM DEN 0049A, 2015
+ * Document number: ARM DEN 0049C, May 2017
  *
  ******************************************************************************/
 
@@ -865,7 +911,8 @@ enum AcpiIortNodeType
     ACPI_IORT_NODE_ITS_GROUP            = 0x00,
     ACPI_IORT_NODE_NAMED_COMPONENT      = 0x01,
     ACPI_IORT_NODE_PCI_ROOT_COMPLEX     = 0x02,
-    ACPI_IORT_NODE_SMMU                 = 0x03
+    ACPI_IORT_NODE_SMMU                 = 0x03,
+    ACPI_IORT_NODE_SMMU_V3              = 0x04
 };
 
 
@@ -967,11 +1014,54 @@ typedef struct acpi_iort_smmu
 #define ACPI_IORT_SMMU_V2               0x00000001  /* Generic SMMUv2 */
 #define ACPI_IORT_SMMU_CORELINK_MMU400  0x00000002  /* ARM Corelink MMU-400 */
 #define ACPI_IORT_SMMU_CORELINK_MMU500  0x00000003  /* ARM Corelink MMU-500 */
+#define ACPI_IORT_SMMU_CORELINK_MMU401  0x00000004  /* ARM Corelink MMU-401 */
+#define ACPI_IORT_SMMU_CAVIUM_THUNDERX  0x00000005  /* Cavium ThunderX SMMUv2 */
 
 /* Masks for Flags field above */
 
 #define ACPI_IORT_SMMU_DVM_SUPPORTED    (1)
 #define ACPI_IORT_SMMU_COHERENT_WALK    (1<<1)
+
+/* Global interrupt format */
+
+typedef struct acpi_iort_smmu_gsi
+{
+    UINT32                  NSgIrpt;
+    UINT32                  NSgIrptFlags;
+    UINT32                  NSgCfgIrpt;
+    UINT32                  NSgCfgIrptFlags;
+
+} ACPI_IORT_SMMU_GSI;
+
+
+typedef struct acpi_iort_smmu_v3
+{
+    UINT64                  BaseAddress;            /* SMMUv3 base address */
+    UINT32                  Flags;
+    UINT32                  Reserved;
+    UINT64                  VatosAddress;
+    UINT32                  Model;
+    UINT32                  EventGsiv;
+    UINT32                  PriGsiv;
+    UINT32                  GerrGsiv;
+    UINT32                  SyncGsiv;
+    UINT8                   Pxm;
+    UINT8                   Reserved1;
+    UINT16                  Reserved2;
+
+} ACPI_IORT_SMMU_V3;
+
+/* Values for Model field above */
+
+#define ACPI_IORT_SMMU_V3_GENERIC           0x00000000  /* Generic SMMUv3 */
+#define ACPI_IORT_SMMU_V3_HISILICON_HI161X  0x00000001  /* HiSilicon Hi161x SMMUv3 */
+#define ACPI_IORT_SMMU_V3_CAVIUM_CN99XX     0x00000002  /* Cavium CN99xx SMMUv3 */
+
+/* Masks for Flags field above */
+
+#define ACPI_IORT_SMMU_V3_COHACC_OVERRIDE   (1)
+#define ACPI_IORT_SMMU_V3_HTTU_OVERRIDE     (1<<1)
+#define ACPI_IORT_SMMU_V3_PXM_VALID         (1<<3)
 
 
 /*******************************************************************************
@@ -1334,6 +1424,21 @@ typedef struct acpi_mtmr_entry
 
 } ACPI_MTMR_ENTRY;
 
+/*******************************************************************************
+ *
+ * SDEI - Software Delegated Exception Interface Descriptor Table
+ *
+ * Conforms to "Software Delegated Exception Interface (SDEI)" ARM DEN0054A,
+ * May 8th, 2017. Copyright 2017 ARM Ltd.
+ *
+ ******************************************************************************/
+
+typedef struct acpi_table_sdei
+{
+    ACPI_TABLE_HEADER       Header;             /* Common ACPI table header */
+
+} ACPI_TABLE_SDEI;
+
 
 /*******************************************************************************
  *
@@ -1356,10 +1461,10 @@ typedef struct acpi_table_slic
 /*******************************************************************************
  *
  * SPCR - Serial Port Console Redirection table
- *        Version 1
+ *        Version 2
  *
  * Conforms to "Serial Port Console Redirection Table",
- * Version 1.00, January 11, 2002
+ * Version 1.03, August 10, 2015
  *
  ******************************************************************************/
 
@@ -1392,6 +1497,8 @@ typedef struct acpi_table_spcr
 /* Masks for PciFlags field above */
 
 #define ACPI_SPCR_DO_NOT_DISABLE    (1)
+
+/* Values for Interface Type: See the definition of the DBG2 table */
 
 
 /*******************************************************************************
@@ -1443,8 +1550,11 @@ enum AcpiSpmiInterfaceTypes
  * TCPA - Trusted Computing Platform Alliance table
  *        Version 2
  *
+ * TCG Hardware Interface Table for TPM 1.2 Clients and Servers
+ *
  * Conforms to "TCG ACPI Specification, Family 1.2 and 2.0",
- * December 19, 2014
+ * Version 1.2, Revision 8
+ * February 27, 2017
  *
  * NOTE: There are two versions of the table with the same signature --
  * the client version and the server version. The common PlatformClass
@@ -1514,8 +1624,11 @@ typedef struct acpi_table_tcpa_server
  * TPM2 - Trusted Platform Module (TPM) 2.0 Hardware Interface Table
  *        Version 4
  *
+ * TCG Hardware Interface Table for TPM 2.0 Clients and Servers
+ *
  * Conforms to "TCG ACPI Specification, Family 1.2 and 2.0",
- * December 19, 2014
+ * Version 1.2, Revision 8
+ * February 27, 2017
  *
  ******************************************************************************/
 
@@ -1534,10 +1647,54 @@ typedef struct acpi_table_tpm2
 /* Values for StartMethod above */
 
 #define ACPI_TPM2_NOT_ALLOWED                       0
+#define ACPI_TPM2_RESERVED1                         1
 #define ACPI_TPM2_START_METHOD                      2
+#define ACPI_TPM2_RESERVED3                         3
+#define ACPI_TPM2_RESERVED4                         4
+#define ACPI_TPM2_RESERVED5                         5
 #define ACPI_TPM2_MEMORY_MAPPED                     6
 #define ACPI_TPM2_COMMAND_BUFFER                    7
 #define ACPI_TPM2_COMMAND_BUFFER_WITH_START_METHOD  8
+#define ACPI_TPM2_RESERVED9                         9
+#define ACPI_TPM2_RESERVED10                        10
+#define ACPI_TPM2_COMMAND_BUFFER_WITH_ARM_SMC       11  /* V1.2 Rev 8 */
+#define ACPI_TPM2_RESERVED                          12
+
+
+/* Optional trailer appears after any StartMethod subtables */
+
+typedef struct acpi_tpm2_trailer
+{
+    UINT8                   MethodParameters[12];
+    UINT32                  MinimumLogLength;   /* Minimum length for the event log area */
+    UINT64                  LogAddress;         /* Address of the event log area */
+
+} ACPI_TPM2_TRAILER;
+
+
+/*
+ * Subtables (StartMethod-specific)
+ */
+
+/* 11: Start Method for ARM SMC (V1.2 Rev 8) */
+
+typedef struct acpi_tpm2_arm_smc
+{
+    UINT32                  GlobalInterrupt;
+    UINT8                   InterruptFlags;
+    UINT8                   OperationFlags;
+    UINT16                  Reserved;
+    UINT32                  FunctionId;
+
+} ACPI_TPM2_ARM_SMC;
+
+/* Values for InterruptFlags above */
+
+#define ACPI_TPM2_INTERRUPT_SUPPORT     (1)
+
+/* Values for OperationFlags above */
+
+#define ACPI_TPM2_IDLE_SUPPORT          (1)
 
 
 /*******************************************************************************
@@ -1755,6 +1912,30 @@ typedef struct acpi_table_wdrt
     UINT8                   Units;
 
 } ACPI_TABLE_WDRT;
+
+
+/*******************************************************************************
+ *
+ * WSMT - Windows SMM Security Migrations Table
+ *        Version 1
+ *
+ * Conforms to "Windows SMM Security Migrations Table",
+ * Version 1.0, April 18, 2016
+ *
+ ******************************************************************************/
+
+typedef struct acpi_table_wsmt
+{
+    ACPI_TABLE_HEADER       Header;             /* Common ACPI table header */
+    UINT32                  ProtectionFlags;
+
+} ACPI_TABLE_WSMT;
+
+/* Flags for ProtectionFlags field above */
+
+#define ACPI_WSMT_FIXED_COMM_BUFFERS                (1)
+#define ACPI_WSMT_COMM_BUFFER_NESTED_PTR_PROTECTION (2)
+#define ACPI_WSMT_SYSTEM_RESOURCE_PROTECTION        (4)
 
 
 /* Reset to default packing */

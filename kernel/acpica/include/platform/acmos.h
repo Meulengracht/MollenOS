@@ -133,6 +133,15 @@
 
 #define ACPI_MACHINE_WIDTH      32
 
+/* acpi_os_semaphore_info
+ * State-keeping for semaphores */
+typedef struct acpi_os_semaphore_info {
+    UINT16                  MaxUnits;
+    UINT16                  CurrentUnits;
+    void                   *OsHandle;
+} ACPI_OS_SEMAPHORE_INFO;
+#define ACPI_OS_MAX_SEMAPHORES  256
+
 #define ACPI_USE_STANDARD_HEADERS
 #define ACPI_USE_SYSTEM_CLIBRARY
 

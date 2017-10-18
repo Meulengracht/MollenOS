@@ -262,13 +262,11 @@ ACPI_STATUS AcpiOsTableOverride(
 			ACPI_TABLE_HEADER       **NewTable)
 {
 
-	if (!ExistingTable || !NewTable)
-	{
+	if (!ExistingTable || !NewTable) {
 		return (AE_BAD_PARAMETER);
 	}
 
 	*NewTable = NULL;
-
 	return (AE_OK);
 }
 
@@ -294,224 +292,6 @@ ACPI_STATUS AcpiOsPhysicalTableOverride(
 			UINT32                  *NewTableLength)
 {
 	return (AE_NOT_IMPLEMENTED);
-}
-
-/******************************************************************************
-*
-* FUNCTION:    AcpiOsMapMemory
-*
-* PARAMETERS:  Where               - Physical address of memory to be mapped
-*              Length              - How much memory to map
-*
-* RETURN:      Pointer to mapped memory. Null on error.
-*
-* DESCRIPTION: Map physical memory into caller's address space
-*
-*****************************************************************************/
-
-void *AcpiOsMapMemory(
-	ACPI_PHYSICAL_ADDRESS   Where,
-	ACPI_SIZE               Length)
-{ 
-	/* Vars */
-	uintptr_t Acpi_Mapping = MmPhyiscalGetSysMappingVirtual((PhysicalAddress_t)Where);
-	int Acpi_Pages = (Length / PAGE_SIZE) + ((Length % PAGE_SIZE) != 0 ? 1 : 0);
-
-	/* We should handle the case where it crosses a page boundary :o */
-	if (Acpi_Pages == 1)
-	{
-		uint32_t current_page = Where & PAGE_MASK;
-		uint32_t end_page = (Where + Length) & PAGE_MASK;
-
-		if (current_page != end_page)
-			Acpi_Pages++;
-	}
-
-	/* We have a few special cases if it returns back to us 0 */
-	if (Acpi_Mapping == 0)
-	{
-		/* This is the last special case, we already IMAP some space */
-		if (Where >= 0x1000 && Where < TABLE_SPACE_SIZE)
-			Acpi_Mapping = (uintptr_t)Where;
-		else
-		{
-			/* Sigh... Imap it and hope stuff do not break :(((( */
-			uintptr_t ReservedMem = (uintptr_t)MmReserveMemory(Acpi_Pages);
-			int i = 0;
-
-			/* Map it in */
-			for (; i < Acpi_Pages; i++) {
-				if (!MmVirtualGetMapping(NULL, ReservedMem + (i * PAGE_SIZE)))
-					MmVirtualMap(NULL, (Where & PAGE_MASK) + (i * PAGE_SIZE), ReservedMem + (i * PAGE_SIZE), 0);
-			}
-
-			return (void*)(ReservedMem + ((uintptr_t)Where & ATTRIBUTE_MASK));
-		}
-	}
-
-	return (void*)Acpi_Mapping;
-}
-
-
-/******************************************************************************
-*
-* FUNCTION:    AcpiOsUnmapMemory
-*
-* PARAMETERS:  Where               - Logical address of memory to be unmapped
-*              Length              - How much memory to unmap
-*
-* RETURN:      None.
-*
-* DESCRIPTION: Delete a previously created mapping. Where and Length must
-*              correspond to a previous mapping exactly.
-*
-*****************************************************************************/
-
-void AcpiOsUnmapMemory(void *Where, ACPI_SIZE Length)
-{
-	/* NO, NO, NO */
-	return;
-}
-
-/******************************************************************************
-*
-* FUNCTION:    AcpiOsAllocate
-*
-* PARAMETERS:  Size                - Amount to allocate, in bytes
-*
-* RETURN:      Pointer to the new allocation. Null on error.
-*
-* DESCRIPTION: Allocate memory. Algorithm is dependent on the OS.
-*
-*****************************************************************************/
-
-void * AcpiOsAllocate(ACPI_SIZE Size)
-{
-	void *ret;
-
-	/* Allocate */
-	ret = kmalloc(Size);
-
-	/* Zero it */
-	memset(ret, 0, Size);
-
-	return ret;
-}
-
-
-/******************************************************************************
-*
-* FUNCTION:    AcpiOsFree
-*
-* PARAMETERS:  Mem                 - Pointer to previously allocated memory
-*
-* RETURN:      None.
-*
-* DESCRIPTION: Free memory allocated via AcpiOsAllocate
-*
-*****************************************************************************/
-
-void AcpiOsFree(void *Mem) {
-	kfree(Mem);
-}
-
-
-/******************************************************************************
-*
-* FUNCTION:    AcpiOsInstallInterruptHandler
-*
-* PARAMETERS:  InterruptNumber     - Level handler should respond to.
-*              ServiceRoutine      - Address of the ACPI interrupt handler
-*              Context             - User context
-*
-* RETURN:      Handle to the newly installed handler.
-*
-* DESCRIPTION: Install an interrupt handler. Used to install the ACPI
-*              OS-independent handler.
-*
-*****************************************************************************/
-
-UINT32 AcpiOsInstallInterruptHandler(
-		UINT32                  InterruptNumber,
-		ACPI_OSD_HANDLER        ServiceRoutine,
-		void                    *Context)
-{
-	/* Variables */
-	MCoreInterrupt_t ACPIInterrupt;
-
-	/* Build the config */
-	ACPIInterrupt.AcpiConform = 0;
-	ACPIInterrupt.Data = Context;
-	ACPIInterrupt.Line = InterruptNumber;
-	ACPIInterrupt.Pin = INTERRUPT_NONE;
-	ACPIInterrupt.Vectors[0] = INTERRUPT_ACPIBASE + InterruptNumber;
-	ACPIInterrupt.Vectors[1] = INTERRUPT_NONE;
-	ACPIInterrupt.FastHandler = (InterruptHandler_t)ServiceRoutine;
-
-	/* Install it */
-	GlbAcpiInterruptId = InterruptRegister(&ACPIInterrupt, INTERRUPT_KERNEL);
-
-	/* Done */
-	return (AE_OK);
-}
-
-/******************************************************************************
-*
-* FUNCTION:    AcpiOsRemoveInterruptHandler
-*
-* PARAMETERS:  Handle              - Returned when handler was installed
-*
-* RETURN:      Status
-*
-* DESCRIPTION: Uninstalls an interrupt handler.
-*
-*****************************************************************************/
-
-ACPI_STATUS AcpiOsRemoveInterruptHandler(
-			UINT32                  InterruptNumber,
-			ACPI_OSD_HANDLER        ServiceRoutine)
-{
-	/* Unregister the interrupt */
-	InterruptUnregister(GlbAcpiInterruptId);
-	return (AE_OK);
-}
-
-/******************************************************************************
-*
-* FUNCTION:    AcpiOsStall
-*
-* PARAMETERS:  Microseconds        - Time to stall
-*
-* RETURN:      None. Blocks until stall is completed.
-*
-* DESCRIPTION: Sleep at microsecond granularity (1 Milli = 1000 Micro)
-*
-*****************************************************************************/
-
-void AcpiOsStall(UINT32 Microseconds)
-{
-	/* Stall OS */
-	DelayMs((Microseconds / 1000) + 1);
-}
-
-/******************************************************************************
-*
-* FUNCTION:    AcpiOsSleep
-*
-* PARAMETERS:  Milliseconds        - Time to sleep
-*
-* RETURN:      None. Blocks until sleep is completed.
-*
-* DESCRIPTION: Sleep at millisecond granularity
-*
-*****************************************************************************/
-
-void AcpiOsSleep(UINT64 Milliseconds)
-{
-	/* Sleep this thread */
-	DelayMs((size_t)Milliseconds);
-	//Sleep(((unsigned long)Milliseconds) + 10);
-	return;
 }
 
 /******************************************************************************
@@ -767,86 +547,6 @@ UINT32                  Width)
 }
 
 
-/******************************************************************************
-*
-* FUNCTION:    AcpiOsSignal
-*
-* PARAMETERS:  Function            - ACPICA signal function code
-*              Info                - Pointer to function-dependent structure
-*
-* RETURN:      Status
-*
-* DESCRIPTION: Miscellaneous functions. Example implementation only.
-*
-*****************************************************************************/
-
-ACPI_STATUS AcpiOsSignal(
-UINT32                  Function,
-void                    *Info)
-{
-
-	switch (Function)
-	{
-	case ACPI_SIGNAL_FATAL:
-
-		break;
-
-	case ACPI_SIGNAL_BREAKPOINT:
-
-		break;
-
-	default:
-
-		break;
-	}
-
-	return (AE_OK);
-}
-
-/******************************************************************************
-*
-* FUNCTION:    AcpiOsGetThreadId
-*
-* PARAMETERS:  None
-*
-* RETURN:      Id of the running thread
-*
-* DESCRIPTION: Get the Id of the current (running) thread
-*
-*****************************************************************************/
-
-ACPI_THREAD_ID AcpiOsGetThreadId(void)
-{
-	return ThreadingGetCurrentThreadId() + 1;
-}
-
-
-/******************************************************************************
-*
-* FUNCTION:    AcpiOsExecute
-*
-* PARAMETERS:  Type                - Type of execution
-*              Function            - Address of the function to execute
-*              Context             - Passed as a parameter to the function
-*
-* RETURN:      Status
-*
-* DESCRIPTION: Execute a new thread
-*
-*****************************************************************************/
-
-ACPI_STATUS
-AcpiOsExecute(
-ACPI_EXECUTE_TYPE       Type,
-ACPI_OSD_EXEC_CALLBACK  Function,
-void                    *Context)
-{
-	/* Spawn Thread */
-	ThreadingCreateThread("Acpica Function", Function, Context, 0);
-
-	/* Done */
-	return (AE_OK);
-}
 
 /******************************************************************************
 *
@@ -882,20 +582,18 @@ void ACPI_INTERNAL_VAR_XFACE AcpiOsPrintf(const char *Fmt, ...)
 * DESCRIPTION: Formatted output with argument list pointer
 *
 *****************************************************************************/
-
+#define __MODULE "ACPI"
+#define __TRACE
+#include <debug.h>
 void AcpiOsVprintf(const char *Fmt, va_list Args)
 {
+    // Temporary buffer
 	char Buffer[512];
-
-	/* Clear Buffer */
-	memset(Buffer, 0, 512);
-
-	/* Format To Buffer */
+    memset(Buffer, 0, 512);
+    
+    // Format and trace it
 	vsprintf(Buffer, Fmt, Args);
-
-#ifdef X86_ACPICA_DIAGNOSE
-	printf(Buffer);
-#endif
+	TRACE(Buffer);
 }
 
 /******************************************************************************
@@ -958,149 +656,6 @@ UINT32                  *BytesRead)
 
 /******************************************************************************
 *
-* FUNCTION:    Spinlock interfaces
-*
-* DESCRIPTION: Map these interfaces to semaphore interfaces
-*
-*****************************************************************************/
-
-ACPI_STATUS AcpiOsCreateLock(ACPI_SPINLOCK *OutHandle)
-{
-	/* Cast */
-	Spinlock_t *pLock = (Spinlock_t*)kmalloc(sizeof(Spinlock_t));
-
-	/* Create lock */
-	SpinlockReset(pLock);
-
-	/* Set it */
-	*OutHandle = (void*)pLock;
-
-	/* Done */
-	return (AE_OK);
-}
-
-void AcpiOsDeleteLock(ACPI_SPINLOCK Handle)
-{
-	kfree(Handle);
-}
-
-ACPI_CPU_FLAGS AcpiOsAcquireLock(ACPI_SPINLOCK Handle)
-{
-	/* Acquire lock */
-	SpinlockAcquire((Spinlock_t*)Handle);
-	return AE_OK;
-}
-
-void AcpiOsReleaseLock(ACPI_SPINLOCK Handle, ACPI_CPU_FLAGS Flags)
-{
-	/* Release Lock */
-	SpinlockRelease((Spinlock_t*)Handle);
-}
-
-/******************************************************************************
-*
-* FUNCTION:    Semaphore functions
-*
-* DESCRIPTION: Stub functions used for single-thread applications that do
-*              not require semaphore synchronization. Full implementations
-*              of these functions appear after the stubs.
-*
-*****************************************************************************/
-
-ACPI_STATUS
-AcpiOsCreateSemaphore(
-UINT32              MaxUnits,
-UINT32              InitialUnits,
-ACPI_HANDLE         *OutHandle)
-{
-	*OutHandle = (void*)SemaphoreCreate(InitialUnits);
-	return (AE_OK);
-}
-
-ACPI_STATUS
-AcpiOsDeleteSemaphore(
-ACPI_HANDLE         Handle)
-{
-	SemaphoreDestroy(Handle);
-	return (AE_OK);
-}
-
-ACPI_STATUS
-AcpiOsWaitSemaphore(
-ACPI_HANDLE         Handle,
-UINT32              Units,
-UINT16              Timeout)
-{
-	return (AE_OK);
-}
-
-ACPI_STATUS
-AcpiOsSignalSemaphore(
-ACPI_HANDLE         Handle,
-UINT32              Units)
-{
-	return (AE_OK);
-}
-
-
-/******************************************************************************
-*
-* FUNCTION:    AcpiOsGetTimer
-*
-* PARAMETERS:  None
-*
-* RETURN:      Current ticks in 100-nanosecond units
-*
-* DESCRIPTION: Get the value of a system timer
-*
-******************************************************************************/
-
-UINT64 AcpiOsGetTimer(void)
-{
-	return 0;
-}
-
-
-/******************************************************************************
-*
-* FUNCTION:    AcpiOsReadable
-*
-* PARAMETERS:  Pointer             - Area to be verified
-*              Length              - Size of area
-*
-* RETURN:      TRUE if readable for entire length
-*
-* DESCRIPTION: Verify that a pointer is valid for reading
-*
-*****************************************************************************/
-
-BOOLEAN AcpiOsReadable(void *Pointer, ACPI_SIZE Length)
-{
-	return TRUE;//((BOOLEAN)!IsBadReadPtr(Pointer, Length));
-}
-
-
-/******************************************************************************
-*
-* FUNCTION:    AcpiOsWritable
-*
-* PARAMETERS:  Pointer             - Area to be verified
-*              Length              - Size of area
-*
-* RETURN:      TRUE if writable for entire length
-*
-* DESCRIPTION: Verify that a pointer is valid for writing
-*
-*****************************************************************************/
-
-BOOLEAN AcpiOsWritable(void *Pointer, ACPI_SIZE Length)
-{
-	return TRUE;//((BOOLEAN)!IsBadWritePtr(Pointer, Length));
-}
-
-
-/******************************************************************************
-*
 * FUNCTION:    AcpiOsRedirectOutput
 *
 * PARAMETERS:  Destination         - An open file handle/pointer
@@ -1117,24 +672,6 @@ void AcpiOsRedirectOutput(void *Destination)
 	Acpi_RedirectionTarget = Destination;
 }
 
-
-/******************************************************************************
-*
-* FUNCTION:    AcpiOsWaitEventsComplete
-*
-* PARAMETERS:  None
-*
-* RETURN:      None
-*
-* DESCRIPTION: Wait for all asynchronous events to complete. This
-*              implementation does nothing.
-*
-*****************************************************************************/
-
-void AcpiOsWaitEventsComplete(void)
-{
-	return;
-}
 
 /* Stubs for the disassembler */
 #include "include\acdisasm.h"

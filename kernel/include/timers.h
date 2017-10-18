@@ -99,18 +99,5 @@ OsStatus_t
 KERNELABI
 TimersInterrupt(
     _In_ UUId_t Source);
-    
-/* Sleep/Stall 
- * Utilities for delaying execution. */
-KERNELAPI
-void
-KERNELABI
-SleepMs(
-    size_t MilliSeconds);
-KERNELAPI
-void
-KERNELABI
-DelayMs(
-    size_t MilliSeconds);
 
 #endif // !_MCORE_TIMERS_H_

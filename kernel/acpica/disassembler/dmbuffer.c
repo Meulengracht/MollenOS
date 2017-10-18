@@ -8,7 +8,7 @@
  *
  * 1. Copyright Notice
  *
- * Some or all of this work - Copyright (c) 1999 - 2015, Intel Corp.
+ * Some or all of this work - Copyright (c) 1999 - 2017, Intel Corp.
  * All rights reserved.
  *
  * 2. License
@@ -111,6 +111,42 @@
  * other governmental approval, or letter of assurance, without first obtaining
  * such license, approval or letter.
  *
+ *****************************************************************************
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * following license:
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions, and the following disclaimer,
+ *    without modification.
+ * 2. Redistributions in binary form must reproduce at minimum a disclaimer
+ *    substantially similar to the "NO WARRANTY" disclaimer below
+ *    ("Disclaimer") and any redistribution must be conditioned upon
+ *    including a substantially similar Disclaimer requirement for further
+ *    binary redistribution.
+ * 3. Neither the names of the above-listed copyright holders nor the names
+ *    of any contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * GNU General Public License ("GPL") version 2 as published by the Free
+ * Software Foundation.
+ *
  *****************************************************************************/
 
 #include "acpi.h"
@@ -121,7 +157,6 @@
 #include "amlcode.h"
 #include "acinterp.h"
 
-#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
 
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dmbuffer")
@@ -146,53 +181,13 @@ AcpiDmPldBuffer (
     UINT8                   *ByteData,
     UINT32                  ByteCount);
 
+static const char *
+AcpiDmFindNameByIndex (
+    UINT64                  Index,
+    const char              **List);
+
 
 #define ACPI_BUFFER_BYTES_PER_LINE      8
-
-
-/* Strings for ToPld */
-
-static char *DmPanelList[] =
-{
-    "TOP",
-    "BOTTOM",
-    "LEFT",
-    "RIGHT",
-    "FRONT",
-    "BACK",
-    "UNKNOWN",
-    NULL
-};
-
-static char *DmVerticalPositionList[] =
-{
-    "UPPER",
-    "CENTER",
-    "LOWER",
-    NULL
-};
-
-static char *DmHorizontalPositionList[] =
-{
-    "LEFT",
-    "CENTER",
-    "RIGHT",
-    NULL
-};
-
-static char *DmShapeList[] =
-{
-    "ROUND",
-    "OVAL",
-    "SQUARE",
-    "VERTICALRECTANGLE",
-    "HORIZONTALRECTANGLE",
-    "VERTICALTRAPEZOID",
-    "HORIZONTALTRAPEZOID",
-    "UNKNOWN",
-    "CHAMFERED",
-    NULL
-};
 
 
 /*******************************************************************************
@@ -266,7 +261,7 @@ AcpiDmDisasmByteList (
 
         /* Dump the ASCII equivalents within a comment */
 
-        AcpiOsPrintf ("  /* ");
+        AcpiOsPrintf ("  // ");
         for (j = 0; j < ACPI_BUFFER_BYTES_PER_LINE; j++)
         {
             CurrentIndex = i + j;
@@ -288,7 +283,7 @@ AcpiDmDisasmByteList (
 
         /* Finished with this line */
 
-        AcpiOsPrintf (" */\n");
+        AcpiOsPrintf ("\n");
     }
 }
 
@@ -552,12 +547,16 @@ AcpiDmIsUnicodeBuffer (
         return (FALSE);
     }
 
-    /* For each word, 1st byte must be ascii (1-0x7F), 2nd byte must be zero */
-
+    /*
+     * For each word, 1st byte must be printable ascii, and the
+     * 2nd byte must be zero. This does not allow for escape
+     * sequences, but it is the most secure way to detect a
+     * unicode string.
+     */
     for (i = 0; i < (ByteCount - 2); i += 2)
     {
         if ((ByteData[i] == 0) ||
-            (ByteData[i] > 0x7F) ||
+            !(isprint (ByteData[i])) ||
             (ByteData[(ACPI_SIZE) i + 1] != 0))
         {
             return (FALSE);
@@ -620,11 +619,26 @@ AcpiDmIsStringBuffer (
         return (FALSE);
     }
 
+    /*
+     * Check for a possible standalone resource EndTag, ignore it
+     * here. However, this sequence is also the string "Y", but
+     * this seems rare enough to be acceptable.
+     */
+    if ((ByteCount == 2) && (ByteData[0] == 0x79))
+    {
+        return (FALSE);
+    }
+
+    /* Check all bytes for ASCII */
+
     for (i = 0; i < (ByteCount - 1); i++)
     {
-        /* TBD: allow some escapes (non-ascii chars).
+        /*
+         * TBD: allow some escapes (non-ascii chars).
          * they will be handled in the string output routine
          */
+
+        /* Not a string if not printable ascii */
 
         if (!isprint (ByteData[i]))
         {
@@ -642,7 +656,8 @@ AcpiDmIsStringBuffer (
  *
  * PARAMETERS:  Op                  - Buffer Object to be examined
  *
- * RETURN:      TRUE if buffer contains a ASCII string, FALSE otherwise
+ * RETURN:      TRUE if buffer appears to contain data produced via the
+ *              ToPLD macro, FALSE otherwise
  *
  * DESCRIPTION: Determine if a buffer Op contains a _PLD structure
  *
@@ -654,12 +669,60 @@ AcpiDmIsPldBuffer (
 {
     ACPI_NAMESPACE_NODE     *Node;
     ACPI_PARSE_OBJECT       *SizeOp;
+    ACPI_PARSE_OBJECT       *ByteListOp;
     ACPI_PARSE_OBJECT       *ParentOp;
+    UINT64                  BufferSize;
+    UINT64                  InitializerSize;
 
 
-    /* Buffer size is the buffer argument */
-
+    /*
+     * Get the BufferSize argument - Buffer(BufferSize)
+     * If the buffer was generated by the ToPld macro, it must
+     * be a BYTE constant.
+     */
     SizeOp = Op->Common.Value.Arg;
+    if (SizeOp->Common.AmlOpcode != AML_BYTE_OP)
+    {
+        return (FALSE);
+    }
+
+    /* Check the declared BufferSize, two possibilities */
+
+    BufferSize = SizeOp->Common.Value.Integer;
+    if ((BufferSize != ACPI_PLD_REV1_BUFFER_SIZE) &&
+        (BufferSize != ACPI_PLD_REV2_BUFFER_SIZE))
+    {
+        return (FALSE);
+    }
+
+    /*
+     * Check the initializer list length. This is the actual
+     * number of bytes in the buffer as counted by the AML parser.
+     * The declared BufferSize can be larger than the actual length.
+     * However, for the ToPLD macro, the BufferSize will be the same
+     * as the initializer list length.
+     */
+    ByteListOp = SizeOp->Common.Next;
+    if (!ByteListOp)
+    {
+        return (FALSE); /* Zero-length buffer case */
+    }
+
+    InitializerSize = ByteListOp->Common.Value.Integer;
+    if ((InitializerSize != ACPI_PLD_REV1_BUFFER_SIZE) &&
+        (InitializerSize != ACPI_PLD_REV2_BUFFER_SIZE))
+    {
+        return (FALSE);
+    }
+
+    /* Final size check */
+
+    if (BufferSize != InitializerSize)
+    {
+        return (FALSE);
+    }
+
+    /* Now examine the buffer parent */
 
     ParentOp = Op->Common.Parent;
     if (!ParentOp)
@@ -684,8 +747,17 @@ AcpiDmIsPldBuffer (
         return (FALSE);
     }
 
-    /* Check for proper form: Name(_PLD, Package() {Buffer() {}}) */
-
+    /*
+     * Check for proper form: Name(_PLD, Package() {ToPLD()})
+     *
+     * Note: All other forms such as
+     *      Return (Package() {ToPLD()})
+     *      Local0 = ToPLD()
+     * etc. are not converted back to the ToPLD macro, because
+     * there is really no deterministic way to disassemble the buffer
+     * back to the ToPLD macro, other than trying to find the "_PLD"
+     * name
+     */
     if (ParentOp->Common.AmlOpcode == AML_PACKAGE_OP)
     {
         ParentOp = ParentOp->Common.Parent;
@@ -726,24 +798,24 @@ AcpiDmIsPldBuffer (
  *
  ******************************************************************************/
 
-static char *
+static const char *
 AcpiDmFindNameByIndex (
     UINT64                  Index,
-    char                    **List)
+    const char              **List)
 {
-    char                     *Str;
-    UINT32                   i;
+    const char              *NameString;
+    UINT32                  i;
 
 
     /* Bounds check */
 
-    Str = List[0];
+    NameString = List[0];
     i = 0;
 
-    while(Str)
+    while (NameString)
     {
         i++;
-        Str = List[i];
+        NameString = List[i];
     }
 
     if (Index >= i)
@@ -771,12 +843,12 @@ AcpiDmFindNameByIndex (
  *
  ******************************************************************************/
 
-#define ACPI_PLD_OUTPUT08   "%*.s%-18s = 0x%X,\n", ACPI_MUL_4 (Level), " "
-#define ACPI_PLD_OUTPUT08P  "%*.s%-18s = 0x%X)\n", ACPI_MUL_4 (Level), " "
-#define ACPI_PLD_OUTPUT16   "%*.s%-18s = 0x%X,\n", ACPI_MUL_4 (Level), " "
-#define ACPI_PLD_OUTPUT16P  "%*.s%-18s = 0x%X)\n", ACPI_MUL_4 (Level), " "
-#define ACPI_PLD_OUTPUT24   "%*.s%-18s = 0x%X,\n", ACPI_MUL_4 (Level), " "
-#define ACPI_PLD_OUTPUTSTR  "%*.s%-18s = \"%s\",\n", ACPI_MUL_4 (Level), " "
+#define ACPI_PLD_OUTPUT08   "%*.s%-22s = 0x%X,\n", ACPI_MUL_4 (Level), " "
+#define ACPI_PLD_OUTPUT08P  "%*.s%-22s = 0x%X)\n", ACPI_MUL_4 (Level), " "
+#define ACPI_PLD_OUTPUT16   "%*.s%-22s = 0x%X,\n", ACPI_MUL_4 (Level), " "
+#define ACPI_PLD_OUTPUT16P  "%*.s%-22s = 0x%X)\n", ACPI_MUL_4 (Level), " "
+#define ACPI_PLD_OUTPUT24   "%*.s%-22s = 0x%X,\n", ACPI_MUL_4 (Level), " "
+#define ACPI_PLD_OUTPUTSTR  "%*.s%-22s = \"%s\",\n", ACPI_MUL_4 (Level), " "
 
 static void
 AcpiDmPldBuffer (
@@ -824,16 +896,16 @@ AcpiDmPldBuffer (
     AcpiOsPrintf (ACPI_PLD_OUTPUT08,  "PLD_Dock", PldInfo->Dock);
     AcpiOsPrintf (ACPI_PLD_OUTPUT08,  "PLD_Lid", PldInfo->Lid);
     AcpiOsPrintf (ACPI_PLD_OUTPUTSTR, "PLD_Panel",
-        AcpiDmFindNameByIndex(PldInfo->Panel, DmPanelList));
+        AcpiDmFindNameByIndex(PldInfo->Panel, AcpiGbl_PldPanelList));
 
     AcpiOsPrintf (ACPI_PLD_OUTPUTSTR, "PLD_VerticalPosition",
-        AcpiDmFindNameByIndex(PldInfo->VerticalPosition, DmVerticalPositionList));
+        AcpiDmFindNameByIndex(PldInfo->VerticalPosition, AcpiGbl_PldVerticalPositionList));
 
     AcpiOsPrintf (ACPI_PLD_OUTPUTSTR, "PLD_HorizontalPosition",
-        AcpiDmFindNameByIndex(PldInfo->HorizontalPosition, DmHorizontalPositionList));
+        AcpiDmFindNameByIndex(PldInfo->HorizontalPosition, AcpiGbl_PldHorizontalPositionList));
 
     AcpiOsPrintf (ACPI_PLD_OUTPUTSTR, "PLD_Shape",
-        AcpiDmFindNameByIndex(PldInfo->Shape, DmShapeList));
+        AcpiDmFindNameByIndex(PldInfo->Shape, AcpiGbl_PldShapeList));
     AcpiOsPrintf (ACPI_PLD_OUTPUT08,  "PLD_GroupOrientation", PldInfo->GroupOrientation);
 
     AcpiOsPrintf (ACPI_PLD_OUTPUT08,  "PLD_GroupToken", PldInfo->GroupToken);
@@ -1103,5 +1175,3 @@ AcpiDmDecompressEisaId (
         AcpiOsPrintf (" /* %s */", Info->Description);
     }
 }
-
-#endif

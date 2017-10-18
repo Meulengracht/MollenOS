@@ -15,7 +15,7 @@ SOURCES = $(wildcard common/*.c) \
 		  $(wildcard resources/*.c) \
 		  $(wildcard tables/*.c) \
 		  $(wildcard utilities/*.c) \
-		  oslmos.c
+		  $(wildcard oslayer/*.c)
 OBJECTS = $(SOURCES:.c=.o)
 
 CFLAGS = $(GCFLAGS) -Wno-unused-const-variable -mno-sse -D_KAPI -DACPI_LIBRARY -DLIBC_KERNEL $(INCLUDES)

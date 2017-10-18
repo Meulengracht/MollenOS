@@ -9,7 +9,7 @@
  *
  * 1. Copyright Notice
  *
- * Some or all of this work - Copyright (c) 1999 - 2015, Intel Corp.
+ * Some or all of this work - Copyright (c) 1999 - 2017, Intel Corp.
  * All rights reserved.
  *
  * 2. License
@@ -112,6 +112,42 @@
  * other governmental approval, or letter of assurance, without first obtaining
  * such license, approval or letter.
  *
+ *****************************************************************************
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * following license:
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions, and the following disclaimer,
+ *    without modification.
+ * 2. Redistributions in binary form must reproduce at minimum a disclaimer
+ *    substantially similar to the "NO WARRANTY" disclaimer below
+ *    ("Disclaimer") and any redistribution must be conditioned upon
+ *    including a substantially similar Disclaimer requirement for further
+ *    binary redistribution.
+ * 3. Neither the names of the above-listed copyright holders nor the names
+ *    of any contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * GNU General Public License ("GPL") version 2 as published by the Free
+ * Software Foundation.
+ *
  *****************************************************************************/
 
 #include "acpi.h"
@@ -155,8 +191,7 @@ AcpiNsConvertToInteger (
 
         /* String-to-Integer conversion */
 
-        Status = AcpiUtStrtoul64 (OriginalObject->String.Pointer,
-            ACPI_ANY_BASE, &Value);
+        Status = AcpiUtStrtoul64 (OriginalObject->String.Pointer, &Value);
         if (ACPI_FAILURE (Status))
         {
             return (Status);
@@ -404,7 +439,8 @@ AcpiNsConvertToBuffer (
  *
  * FUNCTION:    AcpiNsConvertToUnicode
  *
- * PARAMETERS:  OriginalObject      - ASCII String Object to be converted
+ * PARAMETERS:  Scope               - Namespace node for the method/object
+ *              OriginalObject      - ASCII String Object to be converted
  *              ReturnObject        - Where the new converted object is returned
  *
  * RETURN:      Status. AE_OK if conversion was successful.
@@ -415,6 +451,7 @@ AcpiNsConvertToBuffer (
 
 ACPI_STATUS
 AcpiNsConvertToUnicode (
+    ACPI_NAMESPACE_NODE     *Scope,
     ACPI_OPERAND_OBJECT     *OriginalObject,
     ACPI_OPERAND_OBJECT     **ReturnObject)
 {
@@ -476,7 +513,8 @@ AcpiNsConvertToUnicode (
  *
  * FUNCTION:    AcpiNsConvertToResource
  *
- * PARAMETERS:  OriginalObject      - Object to be converted
+ * PARAMETERS:  Scope               - Namespace node for the method/object
+ *              OriginalObject      - Object to be converted
  *              ReturnObject        - Where the new converted object is returned
  *
  * RETURN:      Status. AE_OK if conversion was successful
@@ -488,6 +526,7 @@ AcpiNsConvertToUnicode (
 
 ACPI_STATUS
 AcpiNsConvertToResource (
+    ACPI_NAMESPACE_NODE     *Scope,
     ACPI_OPERAND_OBJECT     *OriginalObject,
     ACPI_OPERAND_OBJECT     **ReturnObject)
 {
@@ -551,6 +590,84 @@ AcpiNsConvertToResource (
     Buffer[0] = (ACPI_RESOURCE_NAME_END_TAG | ASL_RDESC_END_TAG_SIZE);
     Buffer[1] = 0x00;
 
+    *ReturnObject = NewObject;
+    return (AE_OK);
+}
+
+
+/*******************************************************************************
+ *
+ * FUNCTION:    AcpiNsConvertToReference
+ *
+ * PARAMETERS:  Scope               - Namespace node for the method/object
+ *              OriginalObject      - Object to be converted
+ *              ReturnObject        - Where the new converted object is returned
+ *
+ * RETURN:      Status. AE_OK if conversion was successful
+ *
+ * DESCRIPTION: Attempt to convert a Integer object to a ObjectReference.
+ *              Buffer.
+ *
+ ******************************************************************************/
+
+ACPI_STATUS
+AcpiNsConvertToReference (
+    ACPI_NAMESPACE_NODE     *Scope,
+    ACPI_OPERAND_OBJECT     *OriginalObject,
+    ACPI_OPERAND_OBJECT     **ReturnObject)
+{
+    ACPI_OPERAND_OBJECT     *NewObject = NULL;
+    ACPI_STATUS             Status;
+    ACPI_NAMESPACE_NODE     *Node;
+    ACPI_GENERIC_STATE      ScopeInfo;
+    char                    *Name;
+
+
+    ACPI_FUNCTION_NAME (NsConvertToReference);
+
+
+    /* Convert path into internal presentation */
+
+    Status = AcpiNsInternalizeName (OriginalObject->String.Pointer, &Name);
+    if (ACPI_FAILURE (Status))
+    {
+        return_ACPI_STATUS (Status);
+    }
+
+    /* Find the namespace node */
+
+    ScopeInfo.Scope.Node = ACPI_CAST_PTR (ACPI_NAMESPACE_NODE, Scope);
+    Status = AcpiNsLookup (&ScopeInfo, Name,
+        ACPI_TYPE_ANY, ACPI_IMODE_EXECUTE,
+        ACPI_NS_SEARCH_PARENT | ACPI_NS_DONT_OPEN_SCOPE, NULL, &Node);
+    if (ACPI_FAILURE (Status))
+    {
+        /* Check if we are resolving a named reference within a package */
+
+        ACPI_ERROR_NAMESPACE (OriginalObject->String.Pointer, Status);
+        goto ErrorExit;
+    }
+
+    /* Create and init a new internal ACPI object */
+
+    NewObject = AcpiUtCreateInternalObject (ACPI_TYPE_LOCAL_REFERENCE);
+    if (!NewObject)
+    {
+        Status = AE_NO_MEMORY;
+        goto ErrorExit;
+    }
+    NewObject->Reference.Node = Node;
+    NewObject->Reference.Object = Node->Object;
+    NewObject->Reference.Class = ACPI_REFCLASS_NAME;
+
+    /*
+     * Increase reference of the object if needed (the object is likely a
+     * null for device nodes).
+     */
+    AcpiUtAddReference (Node->Object);
+
+ErrorExit:
+    ACPI_FREE (Name);
     *ReturnObject = NewObject;
     return (AE_OK);
 }

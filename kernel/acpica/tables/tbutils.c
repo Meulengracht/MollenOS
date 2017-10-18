@@ -8,7 +8,7 @@
  *
  * 1. Copyright Notice
  *
- * Some or all of this work - Copyright (c) 1999 - 2015, Intel Corp.
+ * Some or all of this work - Copyright (c) 1999 - 2017, Intel Corp.
  * All rights reserved.
  *
  * 2. License
@@ -110,6 +110,42 @@
  * United States government or any agency thereof requires an export license,
  * other governmental approval, or letter of assurance, without first obtaining
  * such license, approval or letter.
+ *
+ *****************************************************************************
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * following license:
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions, and the following disclaimer,
+ *    without modification.
+ * 2. Redistributions in binary form must reproduce at minimum a disclaimer
+ *    substantially similar to the "NO WARRANTY" disclaimer below
+ *    ("Disclaimer") and any redistribution must be conditioned upon
+ *    including a substantially similar Disclaimer requirement for further
+ *    binary redistribution.
+ * 3. Neither the names of the above-listed copyright holders nor the names
+ *    of any contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * GNU General Public License ("GPL") version 2 as published by the Free
+ * Software Foundation.
  *
  *****************************************************************************/
 
@@ -221,9 +257,9 @@ AcpiTbCheckDsdtHeader (
  *
  * FUNCTION:    AcpiTbCopyDsdt
  *
- * PARAMETERS:  TableDesc           - Installed table to copy
+ * PARAMETERS:  TableIndex          - Index of installed table to copy
  *
- * RETURN:      None
+ * RETURN:      The copied DSDT
  *
  * DESCRIPTION: Implements a subsystem option to copy the DSDT to local memory.
  *              Some very bad BIOSs are known to either corrupt the DSDT or
@@ -257,7 +293,7 @@ AcpiTbCopyDsdt (
         ACPI_PTR_TO_PHYSADDR (NewTable),
         ACPI_TABLE_ORIGIN_INTERNAL_VIRTUAL, NewTable);
 
-    ACPI_INFO ((AE_INFO,
+    ACPI_INFO ((
         "Forced DSDT copy: length 0x%05X copied locally, original unmapped",
         NewTable->Length));
 
@@ -332,7 +368,7 @@ AcpiTbGetRootTableEntry (
  *
  * FUNCTION:    AcpiTbParseRootTable
  *
- * PARAMETERS:  Rsdp                    - Pointer to the RSDP
+ * PARAMETERS:  RsdpAddress         - Pointer to the RSDP
  *
  * RETURN:      Status
  *
@@ -345,7 +381,7 @@ AcpiTbGetRootTableEntry (
  *
  ******************************************************************************/
 
-ACPI_STATUS
+ACPI_STATUS ACPI_INIT_FUNCTION
 AcpiTbParseRootTable (
     ACPI_PHYSICAL_ADDRESS   RsdpAddress)
 {
@@ -487,39 +523,107 @@ NextTable:
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiIsValidSignature
+ * FUNCTION:    AcpiTbGetTable
  *
- * PARAMETERS:  Signature           - Sig string to be validated
+ * PARAMETERS:  TableDesc           - Table descriptor
+ *              OutTable            - Where the pointer to the table is returned
  *
- * RETURN:      TRUE if signature is correct length and has valid characters
+ * RETURN:      Status and pointer to the requested table
  *
- * DESCRIPTION: Validate an ACPI table signature.
+ * DESCRIPTION: Increase a reference to a table descriptor and return the
+ *              validated table pointer.
+ *              If the table descriptor is an entry of the root table list,
+ *              this API must be invoked with ACPI_MTX_TABLES acquired.
  *
  ******************************************************************************/
 
-BOOLEAN
-AcpiIsValidSignature (
-    char                    *Signature)
+ACPI_STATUS
+AcpiTbGetTable (
+    ACPI_TABLE_DESC        *TableDesc,
+    ACPI_TABLE_HEADER      **OutTable)
 {
-    UINT32                  i;
+    ACPI_STATUS            Status;
 
 
-    /* Validate the signature length */
+    ACPI_FUNCTION_TRACE (AcpiTbGetTable);
 
-    if (strlen (Signature) != ACPI_NAME_SIZE)
+
+    if (TableDesc->ValidationCount == 0)
     {
-        return (FALSE);
-    }
+        /* Table need to be "VALIDATED" */
 
-    /* Validate each character in the signature */
-
-    for (i = 0; i < ACPI_NAME_SIZE; i++)
-    {
-        if (!AcpiUtValidAcpiChar (Signature[i], i))
+        Status = AcpiTbValidateTable (TableDesc);
+        if (ACPI_FAILURE (Status))
         {
-            return (FALSE);
+            return_ACPI_STATUS (Status);
         }
     }
 
-    return (TRUE);
+    if (TableDesc->ValidationCount < ACPI_MAX_TABLE_VALIDATIONS)
+    {
+        TableDesc->ValidationCount++;
+
+        /*
+         * Detect ValidationCount overflows to ensure that the warning
+         * message will only be printed once.
+         */
+        if (TableDesc->ValidationCount >= ACPI_MAX_TABLE_VALIDATIONS)
+        {
+            ACPI_WARNING((AE_INFO,
+                "Table %p, Validation count overflows\n", TableDesc));
+        }
+    }
+
+    *OutTable = TableDesc->Pointer;
+    return_ACPI_STATUS (AE_OK);
+}
+
+
+/*******************************************************************************
+ *
+ * FUNCTION:    AcpiTbPutTable
+ *
+ * PARAMETERS:  TableDesc           - Table descriptor
+ *
+ * RETURN:      None
+ *
+ * DESCRIPTION: Decrease a reference to a table descriptor and release the
+ *              validated table pointer if no references.
+ *              If the table descriptor is an entry of the root table list,
+ *              this API must be invoked with ACPI_MTX_TABLES acquired.
+ *
+ ******************************************************************************/
+
+void
+AcpiTbPutTable (
+    ACPI_TABLE_DESC        *TableDesc)
+{
+
+    ACPI_FUNCTION_TRACE (AcpiTbPutTable);
+
+
+    if (TableDesc->ValidationCount < ACPI_MAX_TABLE_VALIDATIONS)
+    {
+        TableDesc->ValidationCount--;
+
+        /*
+         * Detect ValidationCount underflows to ensure that the warning
+         * message will only be printed once.
+         */
+        if (TableDesc->ValidationCount >= ACPI_MAX_TABLE_VALIDATIONS)
+        {
+            ACPI_WARNING ((AE_INFO,
+                "Table %p, Validation count underflows\n", TableDesc));
+            return_VOID;
+        }
+    }
+
+    if (TableDesc->ValidationCount == 0)
+    {
+        /* Table need to be "INVALIDATED" */
+
+        AcpiTbInvalidateTable (TableDesc);
+    }
+
+    return_VOID;
 }

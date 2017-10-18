@@ -8,7 +8,7 @@
  *
  * 1. Copyright Notice
  *
- * Some or all of this work - Copyright (c) 1999 - 2015, Intel Corp.
+ * Some or all of this work - Copyright (c) 1999 - 2017, Intel Corp.
  * All rights reserved.
  *
  * 2. License
@@ -111,6 +111,42 @@
  * other governmental approval, or letter of assurance, without first obtaining
  * such license, approval or letter.
  *
+ *****************************************************************************
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * following license:
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions, and the following disclaimer,
+ *    without modification.
+ * 2. Redistributions in binary form must reproduce at minimum a disclaimer
+ *    substantially similar to the "NO WARRANTY" disclaimer below
+ *    ("Disclaimer") and any redistribution must be conditioned upon
+ *    including a substantially similar Disclaimer requirement for further
+ *    binary redistribution.
+ * 3. Neither the names of the above-listed copyright holders nor the names
+ *    of any contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * GNU General Public License ("GPL") version 2 as published by the Free
+ * Software Foundation.
+ *
  *****************************************************************************/
 
 #include "acpi.h"
@@ -132,13 +168,13 @@
 
 static void
 AcpiExOutString (
-    char                    *Title,
-    char                    *Value);
+    const char              *Title,
+    const char              *Value);
 
 static void
 AcpiExOutPointer (
-    char                    *Title,
-    void                    *Value);
+    const char              *Title,
+    const void              *Value);
 
 static void
 AcpiExDumpObject (
@@ -193,7 +229,7 @@ static ACPI_EXDUMP_INFO     AcpiExDumpPackage[6] =
     {ACPI_EXD_INIT,     ACPI_EXD_TABLE_SIZE (AcpiExDumpPackage),        NULL},
     {ACPI_EXD_NODE,     ACPI_EXD_OFFSET (Package.Node),                 "Parent Node"},
     {ACPI_EXD_UINT8,    ACPI_EXD_OFFSET (Package.Flags),                "Flags"},
-    {ACPI_EXD_UINT32,   ACPI_EXD_OFFSET (Package.Count),                "Elements"},
+    {ACPI_EXD_UINT32,   ACPI_EXD_OFFSET (Package.Count),                "Element Count"},
     {ACPI_EXD_POINTER,  ACPI_EXD_OFFSET (Package.Elements),             "Element List"},
     {ACPI_EXD_PACKAGE,  0,                                              NULL}
 };
@@ -452,8 +488,7 @@ AcpiExDumpObject (
     ACPI_EXDUMP_INFO        *Info)
 {
     UINT8                   *Target;
-    char                    *Name;
-    const char              *ReferenceName;
+    const char              *Name;
     UINT8                   Count;
     ACPI_OPERAND_OBJECT     *Start;
     ACPI_OPERAND_OBJECT     *Data = NULL;
@@ -475,6 +510,11 @@ AcpiExDumpObject (
 
     while (Count)
     {
+        if (!ObjDesc)
+        {
+            return;
+        }
+
         Target = ACPI_ADD_PTR (UINT8, ObjDesc, Info->Offset);
         Name = Info->Name;
 
@@ -487,7 +527,8 @@ AcpiExDumpObject (
         case ACPI_EXD_TYPE:
 
             AcpiOsPrintf ("%20s : %2.2X [%s]\n", "Type",
-                ObjDesc->Common.Type, AcpiUtGetObjectTypeName (ObjDesc));
+                ObjDesc->Common.Type,
+                AcpiUtGetObjectTypeName (ObjDesc));
             break;
 
         case ACPI_EXD_UINT8:
@@ -544,9 +585,7 @@ AcpiExDumpObject (
 
         case ACPI_EXD_REFERENCE:
 
-            ReferenceName = AcpiUtGetReferenceName (ObjDesc);
-            AcpiExOutString (
-                "Class Name", ACPI_CAST_PTR (char, ReferenceName));
+            AcpiExOutString ("Class Name", AcpiUtGetReferenceName (ObjDesc));
             AcpiExDumpReferenceObj (ObjDesc);
             break;
 
@@ -555,10 +594,10 @@ AcpiExDumpObject (
             Start = *ACPI_CAST_PTR (void *, Target);
             Next = Start;
 
-            AcpiOsPrintf ("%20s : %p", Name, Next);
+            AcpiOsPrintf ("%20s : %p ", Name, Next);
             if (Next)
             {
-                AcpiOsPrintf ("(%s %2.2X)",
+                AcpiOsPrintf ("%s (Type %2.2X)",
                     AcpiUtGetObjectTypeName (Next), Next->Common.Type);
 
                 while (Next->Common.NextObject)
@@ -581,6 +620,10 @@ AcpiExDumpObject (
                     }
                 }
             }
+            else
+            {
+                AcpiOsPrintf ("- No attached objects");
+            }
 
             AcpiOsPrintf ("\n");
             break;
@@ -594,7 +637,8 @@ AcpiExDumpObject (
             if (Next)
             {
                 AcpiOsPrintf ("(%s %2.2X)",
-                    AcpiUtGetObjectTypeName (Next), Next->Common.Type);
+                    AcpiUtGetObjectTypeName (Next),
+                    Next->AddressSpace.SpaceId);
 
                 while (Next->AddressSpace.Next)
                 {
@@ -606,7 +650,8 @@ AcpiExDumpObject (
 
                     Next = Next->AddressSpace.Next;
                     AcpiOsPrintf ("->%p(%s %2.2X)", Next,
-                        AcpiUtGetObjectTypeName (Next), Next->Common.Type);
+                        AcpiUtGetObjectTypeName (Next),
+                        Next->AddressSpace.SpaceId);
 
                     if ((Next == Start) || (Next == Data))
                     {
@@ -740,12 +785,13 @@ AcpiExDumpOperand (
 
     if (Depth > 0)
     {
-        ACPI_DEBUG_PRINT ((ACPI_DB_EXEC, "%*s[%u] %p ",
-            Depth, " ", Depth, ObjDesc));
+        ACPI_DEBUG_PRINT ((ACPI_DB_EXEC, "%*s[%u] %p Refs=%u ",
+            Depth, " ", Depth, ObjDesc, ObjDesc->Common.ReferenceCount));
     }
     else
     {
-        ACPI_DEBUG_PRINT ((ACPI_DB_EXEC, "%p ", ObjDesc));
+        ACPI_DEBUG_PRINT ((ACPI_DB_EXEC, "%p Refs=%u ",
+            ObjDesc, ObjDesc->Common.ReferenceCount));
     }
 
     /* Decode object type */
@@ -783,8 +829,10 @@ AcpiExDumpOperand (
 
         case ACPI_REFCLASS_NAME:
 
-            AcpiOsPrintf ("- [%4.4s]\n",
-                ObjDesc->Reference.Node->Name.Ascii);
+            AcpiUtRepairName (ObjDesc->Reference.Node->Name.Ascii);
+            AcpiOsPrintf ("- [%4.4s] (Node %p)\n",
+                ObjDesc->Reference.Node->Name.Ascii,
+                ObjDesc->Reference.Node);
             break;
 
         case ACPI_REFCLASS_ARG:
@@ -1041,16 +1089,16 @@ AcpiExDumpOperands (
 
 static void
 AcpiExOutString (
-    char                    *Title,
-    char                    *Value)
+    const char              *Title,
+    const char              *Value)
 {
     AcpiOsPrintf ("%20s : %s\n", Title, Value);
 }
 
 static void
 AcpiExOutPointer (
-    char                    *Title,
-    void                    *Value)
+    const char              *Title,
+    const void              *Value)
 {
     AcpiOsPrintf ("%20s : %p\n", Title, Value);
 }
@@ -1123,12 +1171,15 @@ AcpiExDumpReferenceObj (
             &RetBuf, TRUE);
         if (ACPI_FAILURE (Status))
         {
-            AcpiOsPrintf (" Could not convert name to pathname\n");
+            AcpiOsPrintf (" Could not convert name to pathname: %s\n",
+                AcpiFormatException (Status));
         }
         else
         {
-           AcpiOsPrintf ("%s\n", (char *) RetBuf.Pointer);
-           ACPI_FREE (RetBuf.Pointer);
+            AcpiOsPrintf ("%s: %s\n",
+                AcpiUtGetTypeName (ObjDesc->Reference.Node->Type),
+                (char *) RetBuf.Pointer);
+            ACPI_FREE (RetBuf.Pointer);
         }
     }
     else if (ObjDesc->Reference.Object)
@@ -1246,15 +1297,15 @@ AcpiExDumpPackageObj (
 
     case ACPI_TYPE_LOCAL_REFERENCE:
 
-        AcpiOsPrintf ("[Object Reference] Type [%s] %2.2X",
-            AcpiUtGetReferenceName (ObjDesc),
-            ObjDesc->Reference.Class);
+        AcpiOsPrintf ("[Object Reference] Class [%s]",
+            AcpiUtGetReferenceName (ObjDesc));
         AcpiExDumpReferenceObj (ObjDesc);
         break;
 
     default:
 
-        AcpiOsPrintf ("[Unknown Type] %X\n", ObjDesc->Common.Type);
+        AcpiOsPrintf ("[%s] Type: %2.2X\n",
+            AcpiUtGetTypeName (ObjDesc->Common.Type), ObjDesc->Common.Type);
         break;
     }
 }
@@ -1298,10 +1349,19 @@ AcpiExDumpObjectDescriptor (
     {
         AcpiExDumpNamespaceNode ((ACPI_NAMESPACE_NODE *) ObjDesc, Flags);
 
-        AcpiOsPrintf ("\nAttached Object (%p):\n",
-            ((ACPI_NAMESPACE_NODE *) ObjDesc)->Object);
-
         ObjDesc = ((ACPI_NAMESPACE_NODE *) ObjDesc)->Object;
+        if (!ObjDesc)
+        {
+            return_VOID;
+        }
+
+        AcpiOsPrintf ("\nAttached Object %p", ObjDesc);
+        if (ACPI_GET_DESCRIPTOR_TYPE (ObjDesc) == ACPI_DESC_TYPE_NAMED)
+        {
+            AcpiOsPrintf (" - Namespace Node");
+        }
+
+        AcpiOsPrintf (":\n");
         goto DumpObject;
     }
 
@@ -1324,6 +1384,11 @@ AcpiExDumpObjectDescriptor (
 
 
 DumpObject:
+
+    if (!ObjDesc)
+    {
+        return_VOID;
+    }
 
     /* Common Fields */
 

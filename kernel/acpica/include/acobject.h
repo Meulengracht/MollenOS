@@ -8,7 +8,7 @@
  *
  * 1. Copyright Notice
  *
- * Some or all of this work - Copyright (c) 1999 - 2015, Intel Corp.
+ * Some or all of this work - Copyright (c) 1999 - 2017, Intel Corp.
  * All rights reserved.
  *
  * 2. License
@@ -111,6 +111,42 @@
  * other governmental approval, or letter of assurance, without first obtaining
  * such license, approval or letter.
  *
+ *****************************************************************************
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * following license:
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions, and the following disclaimer,
+ *    without modification.
+ * 2. Redistributions in binary form must reproduce at minimum a disclaimer
+ *    substantially similar to the "NO WARRANTY" disclaimer below
+ *    ("Disclaimer") and any redistribution must be conditioned upon
+ *    including a substantially similar Disclaimer requirement for further
+ *    binary redistribution.
+ * 3. Neither the names of the above-listed copyright holders nor the names
+ *    of any contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * GNU General Public License ("GPL") version 2 as published by the Free
+ * Software Foundation.
+ *
  *****************************************************************************/
 
 #ifndef _ACOBJECT_H
@@ -166,9 +202,10 @@
 #define AOPOBJ_AML_CONSTANT         0x01    /* Integer is an AML constant */
 #define AOPOBJ_STATIC_POINTER       0x02    /* Data is part of an ACPI table, don't delete */
 #define AOPOBJ_DATA_VALID           0x04    /* Object is initialized and data is valid */
-#define AOPOBJ_OBJECT_INITIALIZED   0x08    /* Region is initialized, _REG was run */
-#define AOPOBJ_SETUP_COMPLETE       0x10    /* Region setup is complete */
-#define AOPOBJ_INVALID              0x20    /* Host OS won't allow a Region address */
+#define AOPOBJ_OBJECT_INITIALIZED   0x08    /* Region is initialized */
+#define AOPOBJ_REG_CONNECTED        0x10    /* _REG was run */
+#define AOPOBJ_SETUP_COMPLETE       0x20    /* Region setup is complete */
+#define AOPOBJ_INVALID              0x40    /* Host OS won't allow a Region address */
 
 
 /******************************************************************************
@@ -204,7 +241,9 @@ typedef struct acpi_object_integer
     UINT32                          Length;
 
 
-typedef struct acpi_object_string   /* Null terminated, ASCII characters only */
+/* Null terminated, ASCII characters only */
+
+typedef struct acpi_object_string
 {
     ACPI_OBJECT_COMMON_HEADER
     ACPI_COMMON_BUFFER_INFO         (char)              /* String in AML stream or allocated string */
@@ -322,8 +361,9 @@ typedef struct acpi_object_method
     union acpi_operand_object       *NotifyList[2];     /* Handlers for system/device notifies */\
     union acpi_operand_object       *Handler;           /* Handler for Address space */
 
+/* COMMON NOTIFY for POWER, PROCESSOR, DEVICE, and THERMAL */
 
-typedef struct acpi_object_notify_common    /* COMMON NOTIFY for POWER, PROCESSOR, DEVICE, and THERMAL */
+typedef struct acpi_object_notify_common
 {
     ACPI_OBJECT_COMMON_HEADER
     ACPI_COMMON_NOTIFY_INFO
@@ -394,8 +434,9 @@ typedef struct acpi_object_thermal_zone
     UINT8                           StartFieldBitOffset;/* Bit offset within first field datum (0-63) */\
     UINT8                           AccessLength;       /* For serial regions/fields */
 
+/* COMMON FIELD (for BUFFER, REGION, BANK, and INDEX fields) */
 
-typedef struct acpi_object_field_common                 /* COMMON FIELD (for BUFFER, REGION, BANK, and INDEX fields) */
+typedef struct acpi_object_field_common
 {
     ACPI_OBJECT_COMMON_HEADER
     ACPI_COMMON_FIELD_INFO
@@ -505,11 +546,12 @@ typedef struct acpi_object_reference
     ACPI_OBJECT_COMMON_HEADER
     UINT8                           Class;              /* Reference Class */
     UINT8                           TargetType;         /* Used for Index Op */
-    UINT8                           Reserved;
+    UINT8                           Resolved;           /* Reference has been resolved to a value */
     void                            *Object;            /* NameOp=>HANDLE to obj, IndexOp=>ACPI_OPERAND_OBJECT */
     ACPI_NAMESPACE_NODE             *Node;              /* RefOf or Namepath */
     union acpi_operand_object       **Where;            /* Target of Index */
     UINT8                           *IndexPointer;      /* Used for Buffers and Strings */
+    UINT8                           *Aml;               /* Used for deferred resolution of the ref */
     UINT32                          Value;              /* Used for Local/Arg/Index/DdbHandle */
 
 } ACPI_OBJECT_REFERENCE;
@@ -529,7 +571,6 @@ typedef enum
     ACPI_REFCLASS_MAX               = 6
 
 } ACPI_REFERENCE_CLASSES;
-
 
 /*
  * Extra object is used as additional storage for types that

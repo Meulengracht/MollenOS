@@ -8,7 +8,7 @@
  *
  * 1. Copyright Notice
  *
- * Some or all of this work - Copyright (c) 1999 - 2015, Intel Corp.
+ * Some or all of this work - Copyright (c) 1999 - 2017, Intel Corp.
  * All rights reserved.
  *
  * 2. License
@@ -110,6 +110,42 @@
  * United States government or any agency thereof requires an export license,
  * other governmental approval, or letter of assurance, without first obtaining
  * such license, approval or letter.
+ *
+ *****************************************************************************
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * following license:
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions, and the following disclaimer,
+ *    without modification.
+ * 2. Redistributions in binary form must reproduce at minimum a disclaimer
+ *    substantially similar to the "NO WARRANTY" disclaimer below
+ *    ("Disclaimer") and any redistribution must be conditioned upon
+ *    including a substantially similar Disclaimer requirement for further
+ *    binary redistribution.
+ * 3. Neither the names of the above-listed copyright holders nor the names
+ *    of any contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * GNU General Public License ("GPL") version 2 as published by the Free
+ * Software Foundation.
  *
  *****************************************************************************/
 
@@ -231,86 +267,6 @@ AcpiUtPrintString (
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtValidAcpiChar
- *
- * PARAMETERS:  Char            - The character to be examined
- *              Position        - Byte position (0-3)
- *
- * RETURN:      TRUE if the character is valid, FALSE otherwise
- *
- * DESCRIPTION: Check for a valid ACPI character. Must be one of:
- *              1) Upper case alpha
- *              2) numeric
- *              3) underscore
- *
- *              We allow a '!' as the last character because of the ASF! table
- *
- ******************************************************************************/
-
-BOOLEAN
-AcpiUtValidAcpiChar (
-    char                    Character,
-    UINT32                  Position)
-{
-
-    if (!((Character >= 'A' && Character <= 'Z') ||
-          (Character >= '0' && Character <= '9') ||
-          (Character == '_')))
-    {
-        /* Allow a '!' in the last position */
-
-        if (Character == '!' && Position == 3)
-        {
-            return (TRUE);
-        }
-
-        return (FALSE);
-    }
-
-    return (TRUE);
-}
-
-
-/*******************************************************************************
- *
- * FUNCTION:    AcpiUtValidAcpiName
- *
- * PARAMETERS:  Name            - The name to be examined. Does not have to
- *                                be NULL terminated string.
- *
- * RETURN:      TRUE if the name is valid, FALSE otherwise
- *
- * DESCRIPTION: Check for a valid ACPI name. Each character must be one of:
- *              1) Upper case alpha
- *              2) numeric
- *              3) underscore
- *
- ******************************************************************************/
-
-BOOLEAN
-AcpiUtValidAcpiName (
-    char                    *Name)
-{
-    UINT32                  i;
-
-
-    ACPI_FUNCTION_ENTRY ();
-
-
-    for (i = 0; i < ACPI_NAME_SIZE; i++)
-    {
-        if (!AcpiUtValidAcpiChar (Name[i], i))
-        {
-            return (FALSE);
-        }
-    }
-
-    return (TRUE);
-}
-
-
-/*******************************************************************************
- *
  * FUNCTION:    AcpiUtRepairName
  *
  * PARAMETERS:  Name            - The ACPI name to be repaired
@@ -343,13 +299,22 @@ AcpiUtRepairName (
     ACPI_FUNCTION_NAME (UtRepairName);
 
 
+    /*
+     * Special case for the root node. This can happen if we get an
+     * error during the execution of module-level code.
+     */
+    if (ACPI_COMPARE_NAME (Name, "\\___"))
+    {
+        return;
+    }
+
     ACPI_MOVE_NAME (&OriginalName, Name);
 
     /* Check each character in the name */
 
     for (i = 0; i < ACPI_NAME_SIZE; i++)
     {
-        if (AcpiUtValidAcpiChar (Name[i], i))
+        if (AcpiUtValidNameChar (Name[i], i))
         {
             continue;
         }

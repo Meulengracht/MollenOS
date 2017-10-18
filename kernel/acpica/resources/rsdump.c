@@ -8,7 +8,7 @@
  *
  * 1. Copyright Notice
  *
- * Some or all of this work - Copyright (c) 1999 - 2015, Intel Corp.
+ * Some or all of this work - Copyright (c) 1999 - 2017, Intel Corp.
  * All rights reserved.
  *
  * 2. License
@@ -111,6 +111,42 @@
  * other governmental approval, or letter of assurance, without first obtaining
  * such license, approval or letter.
  *
+ *****************************************************************************
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * following license:
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions, and the following disclaimer,
+ *    without modification.
+ * 2. Redistributions in binary form must reproduce at minimum a disclaimer
+ *    substantially similar to the "NO WARRANTY" disclaimer below
+ *    ("Disclaimer") and any redistribution must be conditioned upon
+ *    including a substantially similar Disclaimer requirement for further
+ *    binary redistribution.
+ * 3. Neither the names of the above-listed copyright holders nor the names
+ *    of any contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * GNU General Public License ("GPL") version 2 as published by the Free
+ * Software Foundation.
+ *
  *****************************************************************************/
 
 #include "acpi.h"
@@ -128,32 +164,32 @@
 
 static void
 AcpiRsOutString (
-    char                    *Title,
-    char                    *Value);
+    const char              *Title,
+    const char              *Value);
 
 static void
 AcpiRsOutInteger8 (
-    char                    *Title,
+    const char              *Title,
     UINT8                   Value);
 
 static void
 AcpiRsOutInteger16 (
-    char                    *Title,
+    const char              *Title,
     UINT16                  Value);
 
 static void
 AcpiRsOutInteger32 (
-    char                    *Title,
+    const char              *Title,
     UINT32                  Value);
 
 static void
 AcpiRsOutInteger64 (
-    char                    *Title,
+    const char              *Title,
     UINT64                  Value);
 
 static void
 AcpiRsOutTitle (
-    char                    *Title);
+    const char              *Title);
 
 static void
 AcpiRsDumpByteList (
@@ -178,6 +214,11 @@ AcpiRsDumpShortByteList (
 static void
 AcpiRsDumpResourceSource (
     ACPI_RESOURCE_SOURCE    *ResourceSource);
+
+static void
+AcpiRsDumpResourceLabel (
+    char                   *Title,
+    ACPI_RESOURCE_LABEL    *ResourceLabel);
 
 static void
 AcpiRsDumpAddressCommon (
@@ -247,7 +288,7 @@ AcpiRsDumpResourceList (
         }
 
         /* Dump the resource descriptor */
-#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
+
         if (Type == ACPI_RESOURCE_TYPE_SERIAL_BUS)
         {
             AcpiRsDumpDescriptor (&ResourceList->Data,
@@ -259,7 +300,7 @@ AcpiRsDumpResourceList (
             AcpiRsDumpDescriptor (&ResourceList->Data,
                 AcpiGbl_DumpResourceDispatch[Type]);
         }
-#endif
+
         /* Point to the next resource structure */
 
         ResourceList = ACPI_NEXT_RESOURCE (ResourceList);
@@ -287,10 +328,8 @@ AcpiRsDumpIrqList (
     UINT8                   *RouteTable)
 {
     ACPI_PCI_ROUTING_TABLE  *PrtElement;
-
-#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
     UINT8                   Count;
-#endif
+
 
     ACPI_FUNCTION_ENTRY ();
 
@@ -305,7 +344,7 @@ AcpiRsDumpIrqList (
     PrtElement = ACPI_CAST_PTR (ACPI_PCI_ROUTING_TABLE, RouteTable);
 
     /* Dump all table elements, Exit on zero length element */
-#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
+
     for (Count = 0; PrtElement->Length; Count++)
     {
         AcpiOsPrintf ("\n[%02X] PCI IRQ Routing Table Package\n", Count);
@@ -314,7 +353,6 @@ AcpiRsDumpIrqList (
         PrtElement = ACPI_ADD_PTR (ACPI_PCI_ROUTING_TABLE,
             PrtElement, PrtElement->Length);
     }
-#endif
 }
 
 
@@ -338,8 +376,8 @@ AcpiRsDumpDescriptor (
 {
     UINT8                   *Target = NULL;
     UINT8                   *PreviousTarget;
-    char                    *Name;
-    UINT8                    Count;
+    const char              *Name;
+    UINT8                   Count;
 
 
     /* First table entry must contain the table length (# of table entries) */
@@ -382,8 +420,7 @@ AcpiRsDumpDescriptor (
 
             if (Table->Pointer)
             {
-                AcpiRsOutString (Name, ACPI_CAST_PTR (char,
-                    Table->Pointer [*Target]));
+                AcpiRsOutString (Name, Table->Pointer [*Target]);
             }
             else
             {
@@ -410,20 +447,17 @@ AcpiRsDumpDescriptor (
 
         case ACPI_RSD_1BITFLAG:
 
-            AcpiRsOutString (Name, ACPI_CAST_PTR (char,
-                Table->Pointer [*Target & 0x01]));
+            AcpiRsOutString (Name, Table->Pointer [*Target & 0x01]);
             break;
 
         case ACPI_RSD_2BITFLAG:
 
-            AcpiRsOutString (Name, ACPI_CAST_PTR (char,
-                Table->Pointer [*Target & 0x03]));
+            AcpiRsOutString (Name, Table->Pointer [*Target & 0x03]);
             break;
 
         case ACPI_RSD_3BITFLAG:
 
-            AcpiRsOutString (Name, ACPI_CAST_PTR (char,
-                Table->Pointer [*Target & 0x07]));
+            AcpiRsOutString (Name, Table->Pointer [*Target & 0x07]);
             break;
 
         case ACPI_RSD_SHORTLIST:
@@ -502,6 +536,22 @@ AcpiRsDumpDescriptor (
                 ACPI_RESOURCE_SOURCE, Target));
             break;
 
+        case ACPI_RSD_LABEL:
+            /*
+             * ResourceLabel
+             */
+            AcpiRsDumpResourceLabel ("Resource Label", ACPI_CAST_PTR (
+                ACPI_RESOURCE_LABEL, Target));
+            break;
+
+        case ACPI_RSD_SOURCE_LABEL:
+            /*
+             * ResourceSourceLabel
+             */
+            AcpiRsDumpResourceLabel ("Resource Source Label", ACPI_CAST_PTR (
+                ACPI_RESOURCE_LABEL, Target));
+            break;
+
         default:
 
             AcpiOsPrintf ("**** Invalid table opcode [%X] ****\n",
@@ -551,6 +601,32 @@ AcpiRsDumpResourceSource (
 
 /*******************************************************************************
  *
+ * FUNCTION:    AcpiRsDumpResourceLabel
+ *
+ * PARAMETERS:  Title              - Title of the dumped resource field
+ *              ResourceLabel      - Pointer to a Resource Label struct
+ *
+ * RETURN:      None
+ *
+ * DESCRIPTION: Common routine for dumping the ResourceLabel
+ *
+ ******************************************************************************/
+
+static void
+AcpiRsDumpResourceLabel (
+    char                   *Title,
+    ACPI_RESOURCE_LABEL    *ResourceLabel)
+{
+    ACPI_FUNCTION_ENTRY ();
+
+    AcpiRsOutString (Title,
+        ResourceLabel->StringPtr ?
+            ResourceLabel->StringPtr : "[Not Specified]");
+}
+
+
+/*******************************************************************************
+ *
  * FUNCTION:    AcpiRsDumpAddressCommon
  *
  * PARAMETERS:  Resource        - Pointer to an internal resource descriptor
@@ -574,15 +650,13 @@ AcpiRsDumpAddressCommon (
     switch (Resource->Address.ResourceType)
     {
     case ACPI_MEMORY_RANGE:
-#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
+
         AcpiRsDumpDescriptor (Resource, AcpiRsDumpMemoryFlags);
-#endif
         break;
 
     case ACPI_IO_RANGE:
-#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
+
         AcpiRsDumpDescriptor (Resource, AcpiRsDumpIoFlags);
-#endif
         break;
 
     case ACPI_BUS_NUMBER_RANGE:
@@ -598,9 +672,8 @@ AcpiRsDumpAddressCommon (
     }
 
     /* Decode the general flags */
-#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
+
     AcpiRsDumpDescriptor (Resource, AcpiRsDumpGeneralFlags);
-#endif
 }
 
 
@@ -620,8 +693,8 @@ AcpiRsDumpAddressCommon (
 
 static void
 AcpiRsOutString (
-    char                    *Title,
-    char                    *Value)
+    const char              *Title,
+    const char              *Value)
 {
 
     AcpiOsPrintf ("%27s : %s", Title, Value);
@@ -634,7 +707,7 @@ AcpiRsOutString (
 
 static void
 AcpiRsOutInteger8 (
-    char                    *Title,
+    const char              *Title,
     UINT8                   Value)
 {
     AcpiOsPrintf ("%27s : %2.2X\n", Title, Value);
@@ -642,7 +715,7 @@ AcpiRsOutInteger8 (
 
 static void
 AcpiRsOutInteger16 (
-    char                    *Title,
+    const char              *Title,
     UINT16                  Value)
 {
 
@@ -651,7 +724,7 @@ AcpiRsOutInteger16 (
 
 static void
 AcpiRsOutInteger32 (
-    char                    *Title,
+    const char              *Title,
     UINT32                  Value)
 {
 
@@ -660,7 +733,7 @@ AcpiRsOutInteger32 (
 
 static void
 AcpiRsOutInteger64 (
-    char                    *Title,
+    const char              *Title,
     UINT64                  Value)
 {
 
@@ -670,7 +743,7 @@ AcpiRsOutInteger64 (
 
 static void
 AcpiRsOutTitle (
-    char                    *Title)
+    const char              *Title)
 {
 
     AcpiOsPrintf ("%27s : ", Title);

@@ -9,7 +9,7 @@
  *
  * 1. Copyright Notice
  *
- * Some or all of this work - Copyright (c) 1999 - 2015, Intel Corp.
+ * Some or all of this work - Copyright (c) 1999 - 2017, Intel Corp.
  * All rights reserved.
  *
  * 2. License
@@ -112,6 +112,42 @@
  * other governmental approval, or letter of assurance, without first obtaining
  * such license, approval or letter.
  *
+ *****************************************************************************
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * following license:
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions, and the following disclaimer,
+ *    without modification.
+ * 2. Redistributions in binary form must reproduce at minimum a disclaimer
+ *    substantially similar to the "NO WARRANTY" disclaimer below
+ *    ("Disclaimer") and any redistribution must be conditioned upon
+ *    including a substantially similar Disclaimer requirement for further
+ *    binary redistribution.
+ * 3. Neither the names of the above-listed copyright holders nor the names
+ *    of any contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * GNU General Public License ("GPL") version 2 as published by the Free
+ * Software Foundation.
+ *
  *****************************************************************************/
 
 #define EXPORT_ACPI_INTERFACES
@@ -193,43 +229,9 @@ AcpiInstallAddressSpaceHandler (
         goto UnlockAndExit;
     }
 
-    /*
-     * For the default SpaceIDs, (the IDs for which there are default region handlers
-     * installed) Only execute the _REG methods if the global initialization _REG
-     * methods have already been run (via AcpiInitializeObjects). In other words,
-     * we will defer the execution of the _REG methods for these SpaceIDs until
-     * execution of AcpiInitializeObjects. This is done because we need the handlers
-     * for the default spaces (mem/io/pci/table) to be installed before we can run
-     * any control methods (or _REG methods). There is known BIOS code that depends
-     * on this.
-     *
-     * For all other SpaceIDs, we can safely execute the _REG methods immediately.
-     * This means that for IDs like EmbeddedController, this function should be called
-     * only after AcpiEnableSubsystem has been called.
-     */
-    switch (SpaceId)
-    {
-    case ACPI_ADR_SPACE_SYSTEM_MEMORY:
-    case ACPI_ADR_SPACE_SYSTEM_IO:
-    case ACPI_ADR_SPACE_PCI_CONFIG:
-    case ACPI_ADR_SPACE_DATA_TABLE:
-
-        if (!AcpiGbl_RegMethodsExecuted)
-        {
-            /* We will defer execution of the _REG methods for this space */
-
-            goto UnlockAndExit;
-        }
-        break;
-
-    default:
-
-        break;
-    }
-
     /* Run all _REG methods for this address space */
 
-    Status = AcpiEvExecuteRegMethods (Node, SpaceId);
+    AcpiEvExecuteRegMethods (Node, SpaceId, ACPI_REG_CONNECT);
 
 
 UnlockAndExit:
@@ -308,8 +310,8 @@ AcpiRemoveAddressSpaceHandler (
 
     /* Find the address handler the user requested */
 
-    HandlerObj = ObjDesc->Device.Handler;
-    LastObjPtr = &ObjDesc->Device.Handler;
+    HandlerObj = ObjDesc->CommonNotify.Handler;
+    LastObjPtr = &ObjDesc->CommonNotify.Handler;
     while (HandlerObj)
     {
         /* We have a handler, see if user requested this one */

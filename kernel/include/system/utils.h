@@ -84,4 +84,19 @@ void
 KERNELABI
 CpuHalt(void);
 
+/* CpuGetTicks
+ * Get the ticks for the current cpu. */
+KERNELAPI
+size_t
+KERNELABI
+CpuGetTicks(void);
+
+/* CpuStall
+ * Stalls the cpu for the given milliseconds, blocking call. */
+KERNELAPI
+void
+KERNELABI
+CpuStall(
+    size_t MilliSeconds);
+
 #endif //!_MCORE_UTILS_H_

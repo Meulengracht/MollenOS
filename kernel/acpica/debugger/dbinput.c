@@ -8,7 +8,7 @@
  *
  * 1. Copyright Notice
  *
- * Some or all of this work - Copyright (c) 1999 - 2015, Intel Corp.
+ * Some or all of this work - Copyright (c) 1999 - 2017, Intel Corp.
  * All rights reserved.
  *
  * 2. License
@@ -111,6 +111,42 @@
  * other governmental approval, or letter of assurance, without first obtaining
  * such license, approval or letter.
  *
+ *****************************************************************************
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * following license:
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions, and the following disclaimer,
+ *    without modification.
+ * 2. Redistributions in binary form must reproduce at minimum a disclaimer
+ *    substantially similar to the "NO WARRANTY" disclaimer below
+ *    ("Disclaimer") and any redistribution must be conditioned upon
+ *    including a substantially similar Disclaimer requirement for further
+ *    binary redistribution.
+ * 3. Neither the names of the above-listed copyright holders nor the names
+ *    of any contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * GNU General Public License ("GPL") version 2 as published by the Free
+ * Software Foundation.
+ *
  *****************************************************************************/
 
 #include "acpi.h"
@@ -120,8 +156,6 @@
 #ifdef ACPI_APPLICATION
 #include "acapps.h"
 #endif
-
-#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
 
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dbinput")
@@ -138,12 +172,8 @@ AcpiDbMatchCommand (
     char                    *UserCommand);
 
 static void
-AcpiDbSingleThread (
-    void);
-
-static void
 AcpiDbDisplayCommandInfo (
-    char                    *Command,
+    const char              *Command,
     BOOLEAN                 DisplayAll);
 
 static void
@@ -152,7 +182,7 @@ AcpiDbDisplayHelp (
 
 static BOOLEAN
 AcpiDbMatchCommandHelp (
-    char                        *Command,
+    const char                  *Command,
     const ACPI_DB_COMMAND_HELP  *Help);
 
 
@@ -372,6 +402,7 @@ static const ACPI_DB_COMMAND_HELP   AcpiGbl_DbCommandHelp[] =
     {1, "     \"Ascii String\"",               "String method argument\n"},
     {1, "     (Hex Byte List)",                "Buffer method argument\n"},
     {1, "     [Package Element List]",         "Package method argument\n"},
+    {5, "  Execute predefined",                "Execute all predefined (public) methods\n"},
     {1, "  Go",                                "Allow method to run to completion\n"},
     {1, "  Information",                       "Display info about the current method\n"},
     {1, "  Into",                              "Step into (not over) a method call\n"},
@@ -432,7 +463,7 @@ static const ACPI_DB_COMMAND_HELP   AcpiGbl_DbCommandHelp[] =
 
 static BOOLEAN
 AcpiDbMatchCommandHelp (
-    char                        *Command,
+    const char                  *Command,
     const ACPI_DB_COMMAND_HELP  *Help)
 {
     char                    *Invocation = Help->Invocation;
@@ -494,7 +525,7 @@ AcpiDbMatchCommandHelp (
 
 static void
 AcpiDbDisplayCommandInfo (
-    char                    *Command,
+    const char              *Command,
     BOOLEAN                 DisplayAll)
 {
     const ACPI_DB_COMMAND_HELP  *Next;
@@ -794,7 +825,8 @@ AcpiDbMatchCommand (
 
     for (i = CMD_FIRST_VALID; AcpiGbl_DbCommands[i].Name; i++)
     {
-        if (strstr (AcpiGbl_DbCommands[i].Name, UserCommand) ==
+        if (strstr (
+            ACPI_CAST_PTR (char, AcpiGbl_DbCommands[i].Name), UserCommand) ==
             AcpiGbl_DbCommands[i].Name)
         {
             return (i);
@@ -1196,7 +1228,7 @@ AcpiDbCommandDispatch (
         {
             ACPI_NEW_TABLE_DESC     *ListHead = NULL;
 
-            Status = AcpiAcGetAllTablesFromFile (AcpiGbl_DbArgs[1],
+            Status = AcGetAllTablesFromFile (AcpiGbl_DbArgs[1],
                 ACPI_GET_ALL_TABLES, &ListHead);
             if (ACPI_SUCCESS (Status))
             {
@@ -1303,52 +1335,9 @@ void ACPI_SYSTEM_XFACE
 AcpiDbExecuteThread (
     void                    *Context)
 {
-    ACPI_STATUS             Status = AE_OK;
-    ACPI_STATUS             MStatus;
 
-
-    while (Status != AE_CTRL_TERMINATE && !AcpiGbl_DbTerminateLoop)
-    {
-        AcpiGbl_MethodExecuting = FALSE;
-        AcpiGbl_StepToNextCall = FALSE;
-
-        MStatus = AcpiOsAcquireMutex (AcpiGbl_DbCommandReady,
-            ACPI_WAIT_FOREVER);
-        if (ACPI_FAILURE (MStatus))
-        {
-            return;
-        }
-
-        Status = AcpiDbCommandDispatch (AcpiGbl_DbLineBuf, NULL, NULL);
-
-        AcpiOsReleaseMutex (AcpiGbl_DbCommandComplete);
-    }
+    (void) AcpiDbUserCommands ();
     AcpiGbl_DbThreadsTerminated = TRUE;
-}
-
-
-/*******************************************************************************
- *
- * FUNCTION:    AcpiDbSingleThread
- *
- * PARAMETERS:  None
- *
- * RETURN:      None
- *
- * DESCRIPTION: Debugger execute thread. Waits for a command line, then
- *              simply dispatches it.
- *
- ******************************************************************************/
-
-static void
-AcpiDbSingleThread (
-    void)
-{
-
-    AcpiGbl_MethodExecuting = FALSE;
-    AcpiGbl_StepToNextCall = FALSE;
-
-    (void) AcpiDbCommandDispatch (AcpiGbl_DbLineBuf, NULL, NULL);
 }
 
 
@@ -1356,8 +1345,7 @@ AcpiDbSingleThread (
  *
  * FUNCTION:    AcpiDbUserCommands
  *
- * PARAMETERS:  Prompt              - User prompt (depends on mode)
- *              Op                  - Current executing parse op
+ * PARAMETERS:  None
  *
  * RETURN:      None
  *
@@ -1368,8 +1356,7 @@ AcpiDbSingleThread (
 
 ACPI_STATUS
 AcpiDbUserCommands (
-    char                    Prompt,
-    ACPI_PARSE_OBJECT       *Op)
+    void)
 {
     ACPI_STATUS             Status = AE_OK;
 
@@ -1380,57 +1367,33 @@ AcpiDbUserCommands (
 
     while (!AcpiGbl_DbTerminateLoop)
     {
-        /* Force output to console until a command is entered */
+        /* Wait the readiness of the command */
 
-        AcpiDbSetOutputDestination (ACPI_DB_CONSOLE_OUTPUT);
-
-        /* Different prompt if method is executing */
-
-        if (!AcpiGbl_MethodExecuting)
-        {
-            AcpiOsPrintf ("%1c ", ACPI_DEBUGGER_COMMAND_PROMPT);
-        }
-        else
-        {
-            AcpiOsPrintf ("%1c ", ACPI_DEBUGGER_EXECUTE_PROMPT);
-        }
-
-        /* Get the user input line */
-
-        Status = AcpiOsGetLine (AcpiGbl_DbLineBuf,
-            ACPI_DB_LINE_BUFFER_SIZE, NULL);
+        Status = AcpiOsWaitCommandReady ();
         if (ACPI_FAILURE (Status))
         {
-            ACPI_EXCEPTION ((AE_INFO, Status, "While parsing command line"));
-            return (Status);
+            break;
         }
 
-        /* Check for single or multithreaded debug */
+        /* Just call to the command line interpreter */
 
-        if (AcpiGbl_DebuggerConfiguration & DEBUGGER_MULTI_THREADED)
+        AcpiGbl_MethodExecuting = FALSE;
+        AcpiGbl_StepToNextCall = FALSE;
+
+        (void) AcpiDbCommandDispatch (AcpiGbl_DbLineBuf, NULL, NULL);
+
+        /* Notify the completion of the command */
+
+        Status = AcpiOsNotifyCommandComplete ();
+        if (ACPI_FAILURE (Status))
         {
-            /*
-             * Signal the debug thread that we have a command to execute,
-             * and wait for the command to complete.
-             */
-            AcpiOsReleaseMutex (AcpiGbl_DbCommandReady);
-
-            Status = AcpiOsAcquireMutex (AcpiGbl_DbCommandComplete,
-                ACPI_WAIT_FOREVER);
-            if (ACPI_FAILURE (Status))
-            {
-                return (Status);
-            }
-        }
-        else
-        {
-            /* Just call to the command line interpreter */
-
-            AcpiDbSingleThread ();
+            break;
         }
     }
 
+    if (ACPI_FAILURE (Status) && Status != AE_CTRL_TERMINATE)
+    {
+        ACPI_EXCEPTION ((AE_INFO, Status, "While parsing command line"));
+    }
     return (Status);
 }
-
-#endif

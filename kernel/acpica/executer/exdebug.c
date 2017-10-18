@@ -8,7 +8,7 @@
  *
  * 1. Copyright Notice
  *
- * Some or all of this work - Copyright (c) 1999 - 2015, Intel Corp.
+ * Some or all of this work - Copyright (c) 1999 - 2017, Intel Corp.
  * All rights reserved.
  *
  * 2. License
@@ -111,6 +111,42 @@
  * other governmental approval, or letter of assurance, without first obtaining
  * such license, approval or letter.
  *
+ *****************************************************************************
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * following license:
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions, and the following disclaimer,
+ *    without modification.
+ * 2. Redistributions in binary form must reproduce at minimum a disclaimer
+ *    substantially similar to the "NO WARRANTY" disclaimer below
+ *    ("Disclaimer") and any redistribution must be conditioned upon
+ *    including a substantially similar Disclaimer requirement for further
+ *    binary redistribution.
+ * 3. Neither the names of the above-listed copyright holders nor the names
+ *    of any contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * GNU General Public License ("GPL") version 2 as published by the Free
+ * Software Foundation.
+ *
  *****************************************************************************/
 
 #include "acpi.h"
@@ -168,13 +204,20 @@ AcpiExDoDebugObject (
         return_VOID;
     }
 
-    /*
-     * We will emit the current timer value (in microseconds) with each
-     * debug output. Only need the lower 26 bits. This allows for 67
-     * million microseconds or 67 seconds before rollover.
-     */
-    Timer = ((UINT32) AcpiOsGetTimer () / 10); /* (100 nanoseconds to microseconds) */
-    Timer &= 0x03FFFFFF;
+    /* Null string or newline -- don't emit the line header */
+
+    if (SourceDesc &&
+        (ACPI_GET_DESCRIPTOR_TYPE (SourceDesc) == ACPI_DESC_TYPE_OPERAND) &&
+        (SourceDesc->Common.Type == ACPI_TYPE_STRING))
+    {
+        if ((SourceDesc->String.Length == 0) ||
+                ((SourceDesc->String.Length == 1) &&
+                (*SourceDesc->String.Pointer == '\n')))
+        {
+            AcpiOsPrintf ("\n");
+            return_VOID;
+        }
+    }
 
     /*
      * Print line header as long as we are not in the middle of an
@@ -182,14 +225,31 @@ AcpiExDoDebugObject (
      */
     if (!((Level > 0) && Index == 0))
     {
-        AcpiOsPrintf ("[ACPI Debug %.8u] %*s", Timer, Level, " ");
+        if (AcpiGbl_DisplayDebugTimer)
+        {
+            /*
+             * We will emit the current timer value (in microseconds) with each
+             * debug output. Only need the lower 26 bits. This allows for 67
+             * million microseconds or 67 seconds before rollover.
+             *
+             * Convert 100 nanosecond units to microseconds
+             */
+            Timer = ((UINT32) AcpiOsGetTimer () / 10);
+            Timer &= 0x03FFFFFF;
+
+            AcpiOsPrintf ("ACPI Debug: T=0x%8.8X %*s", Timer, Level, " ");
+        }
+        else
+        {
+            AcpiOsPrintf ("ACPI Debug: %*s", Level, " ");
+        }
     }
 
     /* Display the index for package output only */
 
     if (Index > 0)
     {
-       AcpiOsPrintf ("(%.2u) ", Index-1);
+       AcpiOsPrintf ("(%.2u) ", Index - 1);
     }
 
     if (!SourceDesc)
@@ -200,7 +260,13 @@ AcpiExDoDebugObject (
 
     if (ACPI_GET_DESCRIPTOR_TYPE (SourceDesc) == ACPI_DESC_TYPE_OPERAND)
     {
-        AcpiOsPrintf ("%s ", AcpiUtGetObjectTypeName (SourceDesc));
+        /* No object type prefix needed for integers and strings */
+
+        if ((SourceDesc->Common.Type != ACPI_TYPE_INTEGER) &&
+            (SourceDesc->Common.Type != ACPI_TYPE_STRING))
+        {
+            AcpiOsPrintf ("%s  ", AcpiUtGetObjectTypeName (SourceDesc));
+        }
 
         if (!AcpiUtValidInternalObject (SourceDesc))
         {
@@ -210,7 +276,7 @@ AcpiExDoDebugObject (
     }
     else if (ACPI_GET_DESCRIPTOR_TYPE (SourceDesc) == ACPI_DESC_TYPE_NAMED)
     {
-        AcpiOsPrintf ("%s: %p\n",
+        AcpiOsPrintf ("%s  (Node %p)\n",
             AcpiUtGetTypeName (((ACPI_NAMESPACE_NODE *) SourceDesc)->Type),
                 SourceDesc);
         return_VOID;
@@ -250,13 +316,12 @@ AcpiExDoDebugObject (
 
     case ACPI_TYPE_STRING:
 
-        AcpiOsPrintf ("[0x%.2X] \"%s\"\n",
-            SourceDesc->String.Length, SourceDesc->String.Pointer);
+        AcpiOsPrintf ("\"%s\"\n", SourceDesc->String.Pointer);
         break;
 
     case ACPI_TYPE_PACKAGE:
 
-        AcpiOsPrintf ("[Contains 0x%.2X Elements]\n",
+        AcpiOsPrintf ("(Contains 0x%.2X Elements):\n",
             SourceDesc->Package.Count);
 
         /* Output the entire contents of the package */
@@ -335,8 +400,10 @@ AcpiExDoDebugObject (
             if (ACPI_GET_DESCRIPTOR_TYPE (SourceDesc->Reference.Object) ==
                 ACPI_DESC_TYPE_NAMED)
             {
-                AcpiExDoDebugObject (((ACPI_NAMESPACE_NODE *)
-                    SourceDesc->Reference.Object)->Object,
+                /* Reference object is a namespace node */
+
+                AcpiExDoDebugObject (ACPI_CAST_PTR (ACPI_OPERAND_OBJECT,
+                    SourceDesc->Reference.Object),
                     Level + 4, 0);
             }
             else
@@ -362,8 +429,15 @@ AcpiExDoDebugObject (
                 case ACPI_TYPE_PACKAGE:
 
                     AcpiOsPrintf ("Package[%u] = ", Value);
-                    AcpiExDoDebugObject (*SourceDesc->Reference.Where,
-                        Level+4, 0);
+                    if (!(*SourceDesc->Reference.Where))
+                    {
+                        AcpiOsPrintf ("[Uninitialized Package Element]\n");
+                    }
+                    else
+                    {
+                        AcpiExDoDebugObject (*SourceDesc->Reference.Where,
+                            Level+4, 0);
+                    }
                     break;
 
                 default:
@@ -378,7 +452,7 @@ AcpiExDoDebugObject (
 
     default:
 
-        AcpiOsPrintf ("%p\n", SourceDesc);
+        AcpiOsPrintf ("(Descriptor %p)\n", SourceDesc);
         break;
     }
 

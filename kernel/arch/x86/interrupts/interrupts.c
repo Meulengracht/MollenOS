@@ -23,7 +23,7 @@
  * - ISA Interrupts should be routed to boot-processor without lowest-prio?
  */
 #define __MODULE		"IRQS"
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */

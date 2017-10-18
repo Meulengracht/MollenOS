@@ -235,13 +235,3 @@ TimersInterrupt(
 	// Return error
 	return OsError;
 }
-
-/* Sleep function */
-void
-SleepMs(
-    _In_ size_t MilliSeconds)
-{
-	// Redirect to the scheduler functionality
-	// it allows us to sleep with time-out
-	SchedulerSleepThread(NULL, MilliSeconds);
-}

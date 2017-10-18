@@ -8,7 +8,7 @@
  *
  * 1. Copyright Notice
  *
- * Some or all of this work - Copyright (c) 1999 - 2015, Intel Corp.
+ * Some or all of this work - Copyright (c) 1999 - 2017, Intel Corp.
  * All rights reserved.
  *
  * 2. License
@@ -111,6 +111,42 @@
  * other governmental approval, or letter of assurance, without first obtaining
  * such license, approval or letter.
  *
+ *****************************************************************************
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * following license:
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions, and the following disclaimer,
+ *    without modification.
+ * 2. Redistributions in binary form must reproduce at minimum a disclaimer
+ *    substantially similar to the "NO WARRANTY" disclaimer below
+ *    ("Disclaimer") and any redistribution must be conditioned upon
+ *    including a substantially similar Disclaimer requirement for further
+ *    binary redistribution.
+ * 3. Neither the names of the above-listed copyright holders nor the names
+ *    of any contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * GNU General Public License ("GPL") version 2 as published by the Free
+ * Software Foundation.
+ *
  *****************************************************************************/
 
 #define EXPORT_ACPI_INTERFACES
@@ -144,7 +180,7 @@ AeDoObjectOverrides (
  *
  ******************************************************************************/
 
-ACPI_STATUS
+ACPI_STATUS ACPI_INIT_FUNCTION
 AcpiInitializeSubsystem (
     void)
 {
@@ -223,7 +259,7 @@ ACPI_EXPORT_SYMBOL_INIT (AcpiInitializeSubsystem)
  *
  ******************************************************************************/
 
-ACPI_STATUS
+ACPI_STATUS ACPI_INIT_FUNCTION
 AcpiEnableSubsystem (
     UINT32                  Flags)
 {
@@ -232,6 +268,13 @@ AcpiEnableSubsystem (
 
     ACPI_FUNCTION_TRACE (AcpiEnableSubsystem);
 
+
+    /*
+     * The early initialization phase is complete. The namespace is loaded,
+     * and we can now support address spaces other than Memory, I/O, and
+     * PCI_Config.
+     */
+    AcpiGbl_EarlyInitialization = FALSE;
 
 #if (!ACPI_REDUCED_HARDWARE)
 
@@ -265,26 +308,6 @@ AcpiEnableSubsystem (
         }
     }
 
-#endif /* !ACPI_REDUCED_HARDWARE */
-
-    /*
-     * Install the default OpRegion handlers. These are installed unless
-     * other handlers have already been installed via the
-     * InstallAddressSpaceHandler interface.
-     */
-    if (!(Flags & ACPI_NO_ADDRESS_SPACE_INIT))
-    {
-        ACPI_DEBUG_PRINT ((ACPI_DB_EXEC,
-            "[Init] Installing default address space handlers\n"));
-
-        Status = AcpiEvInstallRegionHandlers ();
-        if (ACPI_FAILURE (Status))
-        {
-            return_ACPI_STATUS (Status);
-        }
-    }
-
-#if (!ACPI_REDUCED_HARDWARE)
     /*
      * Initialize ACPI Event handling (Fixed and General Purpose)
      *
@@ -348,7 +371,7 @@ ACPI_EXPORT_SYMBOL_INIT (AcpiEnableSubsystem)
  *
  ******************************************************************************/
 
-ACPI_STATUS
+ACPI_STATUS ACPI_INIT_FUNCTION
 AcpiInitializeObjects (
     UINT32                  Flags)
 {
@@ -357,25 +380,6 @@ AcpiInitializeObjects (
 
     ACPI_FUNCTION_TRACE (AcpiInitializeObjects);
 
-
-    /*
-     * Run all _REG methods
-     *
-     * Note: Any objects accessed by the _REG methods will be automatically
-     * initialized, even if they contain executable AML (see the call to
-     * AcpiNsInitializeObjects below).
-     */
-    if (!(Flags & ACPI_NO_ADDRESS_SPACE_INIT))
-    {
-        ACPI_DEBUG_PRINT ((ACPI_DB_EXEC,
-            "[Init] Executing _REG OpRegion methods\n"));
-
-        Status = AcpiEvInitializeOpRegions ();
-        if (ACPI_FAILURE (Status))
-        {
-            return_ACPI_STATUS (Status);
-        }
-    }
 
 #ifdef ACPI_EXEC_APP
     /*
@@ -392,36 +396,38 @@ AcpiInitializeObjects (
      * outside of any control method is wrapped with a temporary control
      * method object and placed on a global list. The methods on this list
      * are executed below.
+     *
+     * This case executes the module-level code for all tables only after
+     * all of the tables have been loaded. It is a legacy option and is
+     * not compatible with other ACPI implementations. See AcpiNsLoadTable.
      */
-    AcpiNsExecModuleCodeList ();
-
-    /*
-     * Initialize the objects that remain uninitialized. This runs the
-     * executable AML that may be part of the declaration of these objects:
-     * OperationRegions, BufferFields, Buffers, and Packages.
-     */
-    if (!(Flags & ACPI_NO_OBJECT_INIT))
+    if (!AcpiGbl_ParseTableAsTermList && AcpiGbl_GroupModuleLevelCode)
     {
-        ACPI_DEBUG_PRINT ((ACPI_DB_EXEC,
-            "[Init] Completing Initialization of ACPI Objects\n"));
+        AcpiNsExecModuleCodeList ();
 
-        Status = AcpiNsInitializeObjects ();
-        if (ACPI_FAILURE (Status))
+        /*
+         * Initialize the objects that remain uninitialized. This
+         * runs the executable AML that may be part of the
+         * declaration of these objects:
+         * OperationRegions, BufferFields, Buffers, and Packages.
+         */
+        if (!(Flags & ACPI_NO_OBJECT_INIT))
         {
-            return_ACPI_STATUS (Status);
+            Status = AcpiNsInitializeObjects ();
+            if (ACPI_FAILURE (Status))
+            {
+                return_ACPI_STATUS (Status);
+            }
         }
     }
 
     /*
-     * Initialize all device objects in the namespace. This runs the device
-     * _STA and _INI methods.
+     * Initialize all device/region objects in the namespace. This runs
+     * the device _STA and _INI methods and region _REG methods.
      */
-    if (!(Flags & ACPI_NO_DEVICE_INIT))
+    if (!(Flags & (ACPI_NO_DEVICE_INIT | ACPI_NO_ADDRESS_SPACE_INIT)))
     {
-        ACPI_DEBUG_PRINT ((ACPI_DB_EXEC,
-            "[Init] Initializing ACPI Devices\n"));
-
-        Status = AcpiNsInitializeDevices ();
+        Status = AcpiNsInitializeDevices (Flags);
         if (ACPI_FAILURE (Status))
         {
             return_ACPI_STATUS (Status);

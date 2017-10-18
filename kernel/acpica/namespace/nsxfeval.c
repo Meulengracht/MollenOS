@@ -9,7 +9,7 @@
  *
  * 1. Copyright Notice
  *
- * Some or all of this work - Copyright (c) 1999 - 2015, Intel Corp.
+ * Some or all of this work - Copyright (c) 1999 - 2017, Intel Corp.
  * All rights reserved.
  *
  * 2. License
@@ -112,6 +112,42 @@
  * other governmental approval, or letter of assurance, without first obtaining
  * such license, approval or letter.
  *
+ *****************************************************************************
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * following license:
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions, and the following disclaimer,
+ *    without modification.
+ * 2. Redistributions in binary form must reproduce at minimum a disclaimer
+ *    substantially similar to the "NO WARRANTY" disclaimer below
+ *    ("Disclaimer") and any redistribution must be conditioned upon
+ *    including a substantially similar Disclaimer requirement for further
+ *    binary redistribution.
+ * 3. Neither the names of the above-listed copyright holders nor the names
+ *    of any contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * GNU General Public License ("GPL") version 2 as published by the Free
+ * Software Foundation.
+ *
  *****************************************************************************/
 
 #define EXPORT_ACPI_INTERFACES
@@ -163,6 +199,8 @@ AcpiEvaluateObjectTyped (
 {
     ACPI_STATUS             Status;
     BOOLEAN                 FreeBufferOnError = FALSE;
+    ACPI_HANDLE             TargetHandle;
+    char                    *FullPathname;
 
 
     ACPI_FUNCTION_TRACE (AcpiEvaluateObjectTyped);
@@ -180,41 +218,56 @@ AcpiEvaluateObjectTyped (
         FreeBufferOnError = TRUE;
     }
 
-    /* Evaluate the object */
-
-    Status = AcpiEvaluateObject (Handle, Pathname,
-        ExternalParams, ReturnBuffer);
+    Status = AcpiGetHandle (Handle, Pathname, &TargetHandle);
     if (ACPI_FAILURE (Status))
     {
         return_ACPI_STATUS (Status);
     }
 
-    /* Type ANY means "don't care" */
+    FullPathname = AcpiNsGetExternalPathname (TargetHandle);
+    if (!FullPathname)
+    {
+        return_ACPI_STATUS (AE_NO_MEMORY);
+    }
+
+    /* Evaluate the object */
+
+    Status = AcpiEvaluateObject (TargetHandle, NULL, ExternalParams,
+        ReturnBuffer);
+    if (ACPI_FAILURE (Status))
+    {
+        goto Exit;
+    }
+
+    /* Type ANY means "don't care about return value type" */
 
     if (ReturnType == ACPI_TYPE_ANY)
     {
-        return_ACPI_STATUS (AE_OK);
+        goto Exit;
     }
 
     if (ReturnBuffer->Length == 0)
     {
         /* Error because caller specifically asked for a return value */
 
-        ACPI_ERROR ((AE_INFO, "No return value"));
-        return_ACPI_STATUS (AE_NULL_OBJECT);
+        ACPI_ERROR ((AE_INFO, "%s did not return any object",
+            FullPathname));
+        Status = AE_NULL_OBJECT;
+        goto Exit;
     }
 
     /* Examine the object type returned from EvaluateObject */
 
     if (((ACPI_OBJECT *) ReturnBuffer->Pointer)->Type == ReturnType)
     {
-        return_ACPI_STATUS (AE_OK);
+        goto Exit;
     }
 
     /* Return object type does not match requested type */
 
     ACPI_ERROR ((AE_INFO,
-        "Incorrect return type [%s] requested [%s]",
+        "Incorrect return type from %s - received [%s], requested [%s]",
+        FullPathname,
         AcpiUtGetTypeName (((ACPI_OBJECT *) ReturnBuffer->Pointer)->Type),
         AcpiUtGetTypeName (ReturnType)));
 
@@ -232,7 +285,11 @@ AcpiEvaluateObjectTyped (
     }
 
     ReturnBuffer->Length = 0;
-    return_ACPI_STATUS (AE_TYPE);
+    Status = AE_TYPE;
+
+Exit:
+    ACPI_FREE (FullPathname);
+    return_ACPI_STATUS (Status);
 }
 
 ACPI_EXPORT_SYMBOL (AcpiEvaluateObjectTyped)
@@ -377,13 +434,12 @@ AcpiEvaluateObject (
     }
 
 
-#if 0
+#ifdef _FUTURE_FEATURE
 
     /*
      * Begin incoming argument count analysis. Check for too few args
      * and too many args.
      */
-
     switch (AcpiNsGetType (Info->Node))
     {
     case ACPI_TYPE_METHOD:
@@ -471,68 +527,73 @@ AcpiEvaluateObject (
      * If we are expecting a return value, and all went well above,
      * copy the return value to an external object.
      */
-    if (ReturnBuffer)
+    if (!ReturnBuffer)
     {
-        if (!Info->ReturnObject)
+        goto CleanupReturnObject;
+    }
+
+    if (!Info->ReturnObject)
+    {
+        ReturnBuffer->Length = 0;
+        goto Cleanup;
+    }
+
+    if (ACPI_GET_DESCRIPTOR_TYPE (Info->ReturnObject) ==
+        ACPI_DESC_TYPE_NAMED)
+    {
+        /*
+         * If we received a NS Node as a return object, this means that
+         * the object we are evaluating has nothing interesting to
+         * return (such as a mutex, etc.)  We return an error because
+         * these types are essentially unsupported by this interface.
+         * We don't check up front because this makes it easier to add
+         * support for various types at a later date if necessary.
+         */
+        Status = AE_TYPE;
+        Info->ReturnObject = NULL;   /* No need to delete a NS Node */
+        ReturnBuffer->Length = 0;
+    }
+
+    if (ACPI_FAILURE (Status))
+    {
+        goto CleanupReturnObject;
+    }
+
+    /* Dereference Index and RefOf references */
+
+    AcpiNsResolveReferences (Info);
+
+    /* Get the size of the returned object */
+
+    Status = AcpiUtGetObjectSize (Info->ReturnObject,
+        &BufferSpaceNeeded);
+    if (ACPI_SUCCESS (Status))
+    {
+        /* Validate/Allocate/Clear caller buffer */
+
+        Status = AcpiUtInitializeBuffer (ReturnBuffer,
+            BufferSpaceNeeded);
+        if (ACPI_FAILURE (Status))
         {
-            ReturnBuffer->Length = 0;
+            /*
+             * Caller's buffer is too small or a new one can't
+             * be allocated
+             */
+            ACPI_DEBUG_PRINT ((ACPI_DB_INFO,
+                "Needed buffer size %X, %s\n",
+                (UINT32) BufferSpaceNeeded,
+                AcpiFormatException (Status)));
         }
         else
         {
-            if (ACPI_GET_DESCRIPTOR_TYPE (Info->ReturnObject) ==
-                ACPI_DESC_TYPE_NAMED)
-            {
-                /*
-                 * If we received a NS Node as a return object, this means that
-                 * the object we are evaluating has nothing interesting to
-                 * return (such as a mutex, etc.)  We return an error because
-                 * these types are essentially unsupported by this interface.
-                 * We don't check up front because this makes it easier to add
-                 * support for various types at a later date if necessary.
-                 */
-                Status = AE_TYPE;
-                Info->ReturnObject = NULL;   /* No need to delete a NS Node */
-                ReturnBuffer->Length = 0;
-            }
+            /* We have enough space for the object, build it */
 
-            if (ACPI_SUCCESS (Status))
-            {
-                /* Dereference Index and RefOf references */
-
-                AcpiNsResolveReferences (Info);
-
-                /* Get the size of the returned object */
-
-                Status = AcpiUtGetObjectSize (Info->ReturnObject,
-                    &BufferSpaceNeeded);
-                if (ACPI_SUCCESS (Status))
-                {
-                    /* Validate/Allocate/Clear caller buffer */
-
-                    Status = AcpiUtInitializeBuffer (ReturnBuffer,
-                        BufferSpaceNeeded);
-                    if (ACPI_FAILURE (Status))
-                    {
-                        /*
-                         * Caller's buffer is too small or a new one can't
-                         * be allocated
-                         */
-                        ACPI_DEBUG_PRINT ((ACPI_DB_INFO,
-                            "Needed buffer size %X, %s\n",
-                            (UINT32) BufferSpaceNeeded,
-                            AcpiFormatException (Status)));
-                    }
-                    else
-                    {
-                        /* We have enough space for the object, build it */
-
-                        Status = AcpiUtCopyIobjectToEobject (
-                            Info->ReturnObject, ReturnBuffer);
-                    }
-                }
-            }
+            Status = AcpiUtCopyIobjectToEobject (
+                Info->ReturnObject, ReturnBuffer);
         }
     }
+
+CleanupReturnObject:
 
     if (Info->ReturnObject)
     {

@@ -8,7 +8,7 @@
  *
  * 1. Copyright Notice
  *
- * Some or all of this work - Copyright (c) 1999 - 2015, Intel Corp.
+ * Some or all of this work - Copyright (c) 1999 - 2017, Intel Corp.
  * All rights reserved.
  *
  * 2. License
@@ -111,6 +111,42 @@
  * other governmental approval, or letter of assurance, without first obtaining
  * such license, approval or letter.
  *
+ *****************************************************************************
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * following license:
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions, and the following disclaimer,
+ *    without modification.
+ * 2. Redistributions in binary form must reproduce at minimum a disclaimer
+ *    substantially similar to the "NO WARRANTY" disclaimer below
+ *    ("Disclaimer") and any redistribution must be conditioned upon
+ *    including a substantially similar Disclaimer requirement for further
+ *    binary redistribution.
+ * 3. Neither the names of the above-listed copyright holders nor the names
+ *    of any contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * GNU General Public License ("GPL") version 2 as published by the Free
+ * Software Foundation.
+ *
  *****************************************************************************/
 
 #ifndef _ACUTILS_H
@@ -158,6 +194,7 @@ extern const char                       *AcpiGbl_BpbDecode[];
 extern const char                       *AcpiGbl_SbDecode[];
 extern const char                       *AcpiGbl_FcDecode[];
 extern const char                       *AcpiGbl_PtDecode[];
+extern const char                       *AcpiGbl_PtypDecode[];
 #endif
 
 /*
@@ -187,13 +224,25 @@ extern const char                       *AcpiGbl_PtDecode[];
 /*
  * Common error message prefixes
  */
+#ifndef ACPI_MSG_ERROR
 #define ACPI_MSG_ERROR          "ACPI Error: "
+#endif
+#ifndef ACPI_MSG_EXCEPTION
 #define ACPI_MSG_EXCEPTION      "ACPI Exception: "
+#endif
+#ifndef ACPI_MSG_WARNING
 #define ACPI_MSG_WARNING        "ACPI Warning: "
+#endif
+#ifndef ACPI_MSG_INFO
 #define ACPI_MSG_INFO           "ACPI: "
+#endif
 
+#ifndef ACPI_MSG_BIOS_ERROR
 #define ACPI_MSG_BIOS_ERROR     "ACPI BIOS Error (bug): "
+#endif
+#ifndef ACPI_MSG_BIOS_WARNING
 #define ACPI_MSG_BIOS_WARNING   "ACPI BIOS Warning (bug): "
+#endif
 
 /*
  * Common message suffix
@@ -201,6 +250,10 @@ extern const char                       *AcpiGbl_PtDecode[];
 #define ACPI_MSG_SUFFIX \
     AcpiOsPrintf (" (%8.8X/%s-%u)\n", ACPI_CA_VERSION, ModuleName, LineNumber)
 
+/* Flags to indicate implicit or explicit string-to-integer conversion */
+
+#define ACPI_IMPLICIT_CONVERSION        TRUE
+#define ACPI_NO_IMPLICIT_CONVERSION     FALSE
 
 /* Types for Resource descriptor entries */
 
@@ -247,6 +300,25 @@ typedef struct acpi_pkg_info
 
 
 /*
+ * utascii - ASCII utilities
+ */
+BOOLEAN
+AcpiUtValidNameseg (
+    char                    *Signature);
+
+BOOLEAN
+AcpiUtValidNameChar (
+    char                    Character,
+    UINT32                  Position);
+
+void
+AcpiUtCheckAndRepairAscii (
+    UINT8                   *Name,
+    char                    *RepairedName,
+    UINT32                  Count);
+
+
+/*
  * utnonansi - Non-ANSI C library functions
  */
 void
@@ -262,11 +334,57 @@ AcpiUtStricmp (
     char                    *String1,
     char                    *String2);
 
+
+/*
+ * utstrsuppt - string-to-integer conversion support functions
+ */
+ACPI_STATUS
+AcpiUtConvertOctalString (
+    char                    *String,
+    UINT64                  *ReturnValue);
+
+ACPI_STATUS
+AcpiUtConvertDecimalString (
+    char                    *String,
+    UINT64                  *ReturnValuePtr);
+
+ACPI_STATUS
+AcpiUtConvertHexString (
+    char                    *String,
+    UINT64                  *ReturnValuePtr);
+
+char
+AcpiUtRemoveWhitespace (
+    char                    **String);
+
+char
+AcpiUtRemoveLeadingZeros (
+    char                    **String);
+
+BOOLEAN
+AcpiUtDetectHexPrefix (
+    char                    **String);
+
+BOOLEAN
+AcpiUtDetectOctalPrefix (
+    char                    **String);
+
+
+/*
+ * utstrtoul64 - string-to-integer conversion functions
+ */
 ACPI_STATUS
 AcpiUtStrtoul64 (
     char                    *String,
-    UINT32                  Base,
     UINT64                  *RetInteger);
+
+UINT64
+AcpiUtExplicitStrtoul64 (
+    char                    *String);
+
+UINT64
+AcpiUtImplicitStrtoul64 (
+    char                    *String);
 
 
 /*
@@ -316,10 +434,19 @@ const char *
 AcpiUtGetEventName (
     UINT32                  EventId);
 
+const char *
+AcpiUtGetArgumentTypeName (
+    UINT32                  ArgType);
+
 char
 AcpiUtHexToAsciiChar (
     UINT64                  Integer,
     UINT32                  Position);
+
+ACPI_STATUS
+AcpiUtAsciiToHexByte (
+    char                    *TwoAsciiChars,
+    UINT8                   *ReturnByte);
 
 UINT8
 AcpiUtAsciiCharToHex (
@@ -413,7 +540,7 @@ AcpiUtTracePtr (
     const char              *FunctionName,
     const char              *ModuleName,
     UINT32                  ComponentId,
-    void                    *Pointer);
+    const void              *Pointer);
 
 void
 AcpiUtTraceU32 (
@@ -429,7 +556,7 @@ AcpiUtTraceStr (
     const char              *FunctionName,
     const char              *ModuleName,
     UINT32                  ComponentId,
-    char                    *String);
+    const char              *String);
 
 void
 AcpiUtExit (
@@ -461,6 +588,14 @@ AcpiUtPtrExit (
     const char              *ModuleName,
     UINT32                  ComponentId,
     UINT8                   *Ptr);
+
+void
+AcpiUtStrExit (
+    UINT32                  LineNumber,
+    const char              *FunctionName,
+    const char              *ModuleName,
+    UINT32                  ComponentId,
+    const char              *String);
 
 void
 AcpiUtDebugDumpBuffer (
@@ -532,13 +667,13 @@ AcpiUtDeleteInternalObjectList (
 ACPI_STATUS
 AcpiUtEvaluateObject (
     ACPI_NAMESPACE_NODE     *PrefixNode,
-    char                    *Path,
+    const char              *Path,
     UINT32                  ExpectedReturnBtypes,
     ACPI_OPERAND_OBJECT     **ReturnDesc);
 
 ACPI_STATUS
 AcpiUtEvaluateNumericObject (
-    char                    *ObjectName,
+    const char              *ObjectName,
     ACPI_NAMESPACE_NODE     *DeviceNode,
     UINT64                  *Value);
 
@@ -752,7 +887,7 @@ ACPI_GENERIC_STATE *
 AcpiUtCreatePkgState (
     void                    *InternalObject,
     void                    *ExternalObject,
-    UINT16                  Index);
+    UINT32                  Index);
 
 ACPI_STATUS
 AcpiUtCreateUpdateStateAndPush (
@@ -785,6 +920,24 @@ AcpiUtShortDivide (
     UINT32                  Divisor,
     UINT64                  *OutQuotient,
     UINT32                  *OutRemainder);
+
+ACPI_STATUS
+AcpiUtShortMultiply (
+    UINT64                  InMultiplicand,
+    UINT32                  Multiplier,
+    UINT64                  *Outproduct);
+
+ACPI_STATUS
+AcpiUtShortShiftLeft (
+    UINT64                  Operand,
+    UINT32                  Count,
+    UINT64                  *OutResult);
+
+ACPI_STATUS
+AcpiUtShortShiftRight (
+    UINT64                  Operand,
+    UINT32                  Count,
+    UINT64                  *OutResult);
 
 
 /*
@@ -829,7 +982,7 @@ void
 AcpiUtDisplayInitPathname (
     UINT8                   Type,
     ACPI_NAMESPACE_NODE     *ObjHandle,
-    char                    *Path);
+    const char              *Path);
 #endif
 
 
@@ -897,15 +1050,6 @@ void
 UtConvertBackslashes (
     char                    *Pathname);
 #endif
-
-BOOLEAN
-AcpiUtValidAcpiName (
-    char                    *Name);
-
-BOOLEAN
-AcpiUtValidAcpiChar (
-    char                    Character,
-    UINT32                  Position);
 
 void
 AcpiUtRepairName (
@@ -1006,7 +1150,7 @@ AcpiUtDumpAllocations (
 
 ACPI_STATUS
 AcpiUtCreateList (
-    char                    *ListName,
+    const char              *ListName,
     UINT16                  ObjectSize,
     ACPI_MEMORY_LIST        **ReturnCache);
 
@@ -1104,51 +1248,9 @@ AcpiAhMatchUuid (
 
 
 /*
- * utprint - printf/vprintf output functions
- */
-const char *
-AcpiUtScanNumber (
-    const char              *String,
-    UINT64                  *NumberPtr);
-
-const char *
-AcpiUtPrintNumber (
-    char                    *String,
-    UINT64                  Number);
-
-int
-AcpiUtVsnprintf (
-    char                    *String,
-    ACPI_SIZE               Size,
-    const char              *Format,
-    va_list                 Args);
-
-int
-AcpiUtSnprintf (
-    char                    *String,
-    ACPI_SIZE               Size,
-    const char              *Format,
-    ...);
-
-#ifdef ACPI_APPLICATION
-int
-AcpiUtFileVprintf (
-    ACPI_FILE               File,
-    const char              *Format,
-    va_list                 Args);
-
-int
-AcpiUtFilePrintf (
-    ACPI_FILE               File,
-    const char              *Format,
-    ...);
-#endif
-
-
-/*
  * utuuid -- UUID support functions
  */
-#if (defined ACPI_ASL_COMPILER || defined ACPI_EXEC_APP || defined ACPI_HELP_APP || defined ACPI_DISASSEMBLER)
+#if (defined ACPI_ASL_COMPILER || defined ACPI_EXEC_APP || defined ACPI_HELP_APP)
 void
 AcpiUtConvertStringToUuid (
     char                    *InString,

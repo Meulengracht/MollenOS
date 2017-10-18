@@ -8,7 +8,7 @@
  *
  * 1. Copyright Notice
  *
- * Some or all of this work - Copyright (c) 1999 - 2015, Intel Corp.
+ * Some or all of this work - Copyright (c) 1999 - 2017, Intel Corp.
  * All rights reserved.
  *
  * 2. License
@@ -111,6 +111,42 @@
  * other governmental approval, or letter of assurance, without first obtaining
  * such license, approval or letter.
  *
+ *****************************************************************************
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * following license:
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions, and the following disclaimer,
+ *    without modification.
+ * 2. Redistributions in binary form must reproduce at minimum a disclaimer
+ *    substantially similar to the "NO WARRANTY" disclaimer below
+ *    ("Disclaimer") and any redistribution must be conditioned upon
+ *    including a substantially similar Disclaimer requirement for further
+ *    binary redistribution.
+ * 3. Neither the names of the above-listed copyright holders nor the names
+ *    of any contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * GNU General Public License ("GPL") version 2 as published by the Free
+ * Software Foundation.
+ *
  *****************************************************************************/
 
 #ifndef __ACTBL3_H__
@@ -192,6 +228,11 @@ typedef struct acpi_table_bgrt
     UINT32                  ImageOffsetY;
 
 } ACPI_TABLE_BGRT;
+
+/* Flags for Status field above */
+
+#define ACPI_BGRT_DISPLAYED                 (1)
+#define ACPI_BGRT_ORIENTATION_OFFSET        (3 << 1)
 
 
 /*******************************************************************************
@@ -277,7 +318,7 @@ typedef struct acpi_table_fpdt
 } ACPI_TABLE_FPDT;
 
 
-/* FPDT subtable header */
+/* FPDT subtable header (Performance Record Structure) */
 
 typedef struct acpi_fpdt_header
 {
@@ -302,6 +343,72 @@ enum AcpiFpdtType
 
 /* 0: Firmware Basic Boot Performance Record */
 
+typedef struct acpi_fpdt_boot_pointer
+{
+    ACPI_FPDT_HEADER        Header;
+    UINT8                   Reserved[4];
+    UINT64                  Address;
+
+} ACPI_FPDT_BOOT_POINTER;
+
+
+/* 1: S3 Performance Table Pointer Record */
+
+typedef struct acpi_fpdt_s3pt_pointer
+{
+    ACPI_FPDT_HEADER        Header;
+    UINT8                   Reserved[4];
+    UINT64                  Address;
+
+} ACPI_FPDT_S3PT_POINTER;
+
+
+/*
+ * S3PT - S3 Performance Table. This table is pointed to by the
+ * S3 Pointer Record above.
+ */
+typedef struct acpi_table_s3pt
+{
+    UINT8                   Signature[4]; /* "S3PT" */
+    UINT32                  Length;
+
+} ACPI_TABLE_S3PT;
+
+
+/*
+ * S3PT Subtables (Not part of the actual FPDT)
+ */
+
+/* Values for Type field in S3PT header */
+
+enum AcpiS3ptType
+{
+    ACPI_S3PT_TYPE_RESUME               = 0,
+    ACPI_S3PT_TYPE_SUSPEND              = 1,
+    ACPI_FPDT_BOOT_PERFORMANCE          = 2
+};
+
+typedef struct acpi_s3pt_resume
+{
+    ACPI_FPDT_HEADER        Header;
+    UINT32                  ResumeCount;
+    UINT64                  FullResume;
+    UINT64                  AverageResume;
+
+} ACPI_S3PT_RESUME;
+
+typedef struct acpi_s3pt_suspend
+{
+    ACPI_FPDT_HEADER        Header;
+    UINT64                  SuspendStart;
+    UINT64                  SuspendEnd;
+
+} ACPI_S3PT_SUSPEND;
+
+
+/*
+ * FPDT Boot Performance Record (Not part of the actual FPDT)
+ */
 typedef struct acpi_fpdt_boot
 {
     ACPI_FPDT_HEADER        Header;
@@ -313,66 +420,6 @@ typedef struct acpi_fpdt_boot
     UINT64                  ExitServicesExit;
 
 } ACPI_FPDT_BOOT;
-
-
-/* 1: S3 Performance Table Pointer Record */
-
-typedef struct acpi_fpdt_s3pt_ptr
-{
-    ACPI_FPDT_HEADER        Header;
-    UINT8                   Reserved[4];
-    UINT64                  Address;
-
-} ACPI_FPDT_S3PT_PTR;
-
-
-/*
- * S3PT - S3 Performance Table. This table is pointed to by the
- * FPDT S3 Pointer Record above.
- */
-typedef struct acpi_table_s3pt
-{
-    UINT8                   Signature[4]; /* "S3PT" */
-    UINT32                  Length;
-
-} ACPI_TABLE_S3PT;
-
-
-/*
- * S3PT Subtables
- */
-typedef struct acpi_s3pt_header
-{
-    UINT16                  Type;
-    UINT8                   Length;
-    UINT8                   Revision;
-
-} ACPI_S3PT_HEADER;
-
-/* Values for Type field above */
-
-enum AcpiS3ptType
-{
-    ACPI_S3PT_TYPE_RESUME               = 0,
-    ACPI_S3PT_TYPE_SUSPEND              = 1
-};
-
-typedef struct acpi_s3pt_resume
-{
-    ACPI_S3PT_HEADER        Header;
-    UINT32                  ResumeCount;
-    UINT64                  FullResume;
-    UINT64                  AverageResume;
-
-} ACPI_S3PT_RESUME;
-
-typedef struct acpi_s3pt_suspend
-{
-    ACPI_S3PT_HEADER        Header;
-    UINT64                  SuspendStart;
-    UINT64                  SuspendEnd;
-
-} ACPI_S3PT_SUSPEND;
 
 
 /*******************************************************************************
@@ -609,7 +656,7 @@ typedef struct acpi_mpst_shared
 /*******************************************************************************
  *
  * PCCT - Platform Communications Channel Table (ACPI 5.0)
- *        Version 1
+ *        Version 2 (ACPI 6.2)
  *
  ******************************************************************************/
 
@@ -629,9 +676,12 @@ typedef struct acpi_table_pcct
 
 enum AcpiPcctType
 {
-    ACPI_PCCT_TYPE_GENERIC_SUBSPACE     = 0,
-    ACPI_PCCT_TYPE_HW_REDUCED_SUBSPACE  = 1,
-    ACPI_PCCT_TYPE_RESERVED             = 2     /* 2 and greater are reserved */
+    ACPI_PCCT_TYPE_GENERIC_SUBSPACE             = 0,
+    ACPI_PCCT_TYPE_HW_REDUCED_SUBSPACE          = 1,
+    ACPI_PCCT_TYPE_HW_REDUCED_SUBSPACE_TYPE2    = 2,    /* ACPI 6.1 */
+    ACPI_PCCT_TYPE_EXT_PCC_MASTER_SUBSPACE      = 3,    /* ACPI 6.2 */
+    ACPI_PCCT_TYPE_EXT_PCC_SLAVE_SUBSPACE       = 4,    /* ACPI 6.2 */
+    ACPI_PCCT_TYPE_RESERVED                     = 5     /* 5 and greater are reserved */
 };
 
 /*
@@ -661,7 +711,7 @@ typedef struct acpi_pcct_subspace
 typedef struct acpi_pcct_hw_reduced
 {
     ACPI_SUBTABLE_HEADER    Header;
-    UINT32                  DoorbellInterrupt;
+    UINT32                  PlatformInterrupt;
     UINT8                   Flags;
     UINT8                   Reserved;
     UINT64                  BaseAddress;
@@ -674,6 +724,92 @@ typedef struct acpi_pcct_hw_reduced
     UINT16                  MinTurnaroundTime;
 
 } ACPI_PCCT_HW_REDUCED;
+
+
+/* 2: HW-reduced Communications Subspace Type 2 (ACPI 6.1) */
+
+typedef struct acpi_pcct_hw_reduced_type2
+{
+    ACPI_SUBTABLE_HEADER    Header;
+    UINT32                  PlatformInterrupt;
+    UINT8                   Flags;
+    UINT8                   Reserved;
+    UINT64                  BaseAddress;
+    UINT64                  Length;
+    ACPI_GENERIC_ADDRESS    DoorbellRegister;
+    UINT64                  PreserveMask;
+    UINT64                  WriteMask;
+    UINT32                  Latency;
+    UINT32                  MaxAccessRate;
+    UINT16                  MinTurnaroundTime;
+    ACPI_GENERIC_ADDRESS    PlatformAckRegister;
+    UINT64                  AckPreserveMask;
+    UINT64                  AckWriteMask;
+
+} ACPI_PCCT_HW_REDUCED_TYPE2;
+
+
+/* 3: Extended PCC Master Subspace Type 3 (ACPI 6.2) */
+
+typedef struct acpi_pcct_ext_pcc_master
+{
+    ACPI_SUBTABLE_HEADER    Header;
+    UINT32                  PlatformInterrupt;
+    UINT8                   Flags;
+    UINT8                   Reserved1;
+    UINT64                  BaseAddress;
+    UINT32                  Length;
+    ACPI_GENERIC_ADDRESS    DoorbellRegister;
+    UINT64                  PreserveMask;
+    UINT64                  WriteMask;
+    UINT32                  Latency;
+    UINT32                  MaxAccessRate;
+    UINT32                  MinTurnaroundTime;
+    ACPI_GENERIC_ADDRESS    PlatformAckRegister;
+    UINT64                  AckPreserveMask;
+    UINT64                  AckSetMask;
+    UINT64                  Reserved2;
+    ACPI_GENERIC_ADDRESS    CmdCompleteRegister;
+    UINT64                  CmdCompleteMask;
+    ACPI_GENERIC_ADDRESS    CmdUpdateRegister;
+    UINT64                  CmdUpdatePreserveMask;
+    UINT64                  CmdUpdateSetMask;
+    ACPI_GENERIC_ADDRESS    ErrorStatusRegister;
+    UINT64                  ErrorStatusMask;
+
+} ACPI_PCCT_EXT_PCC_MASTER;
+
+
+/* 4: Extended PCC Slave Subspace Type 4 (ACPI 6.2) */
+
+typedef struct acpi_pcct_ext_pcc_slave
+{
+    ACPI_SUBTABLE_HEADER    Header;
+    UINT32                  PlatformInterrupt;
+    UINT8                   Flags;
+    UINT8                   Reserved1;
+    UINT64                  BaseAddress;
+    UINT32                  Length;
+    ACPI_GENERIC_ADDRESS    DoorbellRegister;
+    UINT64                  PreserveMask;
+    UINT64                  WriteMask;
+    UINT32                  Latency;
+    UINT32                  MaxAccessRate;
+    UINT32                  MinTurnaroundTime;
+    ACPI_GENERIC_ADDRESS    PlatformAckRegister;
+    UINT64                  AckPreserveMask;
+    UINT64                  AckSetMask;
+    UINT64                  Reserved2;
+    ACPI_GENERIC_ADDRESS    CmdCompleteRegister;
+    UINT64                  CmdCompleteMask;
+    ACPI_GENERIC_ADDRESS    CmdUpdateRegister;
+    UINT64                  CmdUpdatePreserveMask;
+    UINT64                  CmdUpdateSetMask;
+    ACPI_GENERIC_ADDRESS    ErrorStatusRegister;
+    UINT64                  ErrorStatusMask;
+
+} ACPI_PCCT_EXT_PCC_SLAVE;
+
 
 /* Values for doorbell flags above */
 
@@ -694,6 +830,18 @@ typedef struct acpi_pcct_shared_memory
     UINT16                  Status;
 
 } ACPI_PCCT_SHARED_MEMORY;
+
+
+/* Extended PCC Subspace Shared Memory Region (ACPI 6.2) */
+
+typedef struct acpi_pcct_ext_pcc_shared_memory
+{
+    UINT32                  Signature;
+    UINT32                  Flags;
+    UINT32                  Length;
+    UINT32                  Command;
+
+} ACPI_PCCT_EXT_PCC_SHARED_MEMORY;
 
 
 /*******************************************************************************

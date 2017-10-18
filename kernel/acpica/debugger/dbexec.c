@@ -8,7 +8,7 @@
  *
  * 1. Copyright Notice
  *
- * Some or all of this work - Copyright (c) 1999 - 2015, Intel Corp.
+ * Some or all of this work - Copyright (c) 1999 - 2017, Intel Corp.
  * All rights reserved.
  *
  * 2. License
@@ -111,6 +111,42 @@
  * other governmental approval, or letter of assurance, without first obtaining
  * such license, approval or letter.
  *
+ *****************************************************************************
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * following license:
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions, and the following disclaimer,
+ *    without modification.
+ * 2. Redistributions in binary form must reproduce at minimum a disclaimer
+ *    substantially similar to the "NO WARRANTY" disclaimer below
+ *    ("Disclaimer") and any redistribution must be conditioned upon
+ *    including a substantially similar Disclaimer requirement for further
+ *    binary redistribution.
+ * 3. Neither the names of the above-listed copyright holders nor the names
+ *    of any contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * GNU General Public License ("GPL") version 2 as published by the Free
+ * Software Foundation.
+ *
  *****************************************************************************/
 
 #include "acpi.h"
@@ -118,7 +154,6 @@
 #include "acdebug.h"
 #include "acnamesp.h"
 
-#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
 
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dbexec")
@@ -279,6 +314,18 @@ AcpiDbExecuteMethod (
 
     if (ACPI_FAILURE (Status))
     {
+        if ((Status == AE_ABORT_METHOD) || AcpiGbl_AbortMethod)
+        {
+            /* Clear the abort and fall back to the debugger prompt */
+
+            ACPI_EXCEPTION ((AE_INFO, Status,
+                "Aborting top-level method"));
+
+            AcpiGbl_AbortMethod = FALSE;
+            Status = AE_OK;
+            goto Cleanup;
+        }
+
         ACPI_EXCEPTION ((AE_INFO, Status,
             "while executing %s from debugger", Info->Pathname));
 
@@ -517,44 +564,51 @@ AcpiDbExecute (
             ACPI_UINT32_MAX, AcpiDbExecutionWalk, NULL, NULL, NULL);
         return;
     }
-    else
+
+    NameString = ACPI_ALLOCATE (strlen (Name) + 1);
+    if (!NameString)
     {
-        NameString = ACPI_ALLOCATE (strlen (Name) + 1);
-        if (!NameString)
-        {
-            return;
-        }
-
-        memset (&AcpiGbl_DbMethodInfo, 0, sizeof (ACPI_DB_METHOD_INFO));
-
-        strcpy (NameString, Name);
-        AcpiUtStrupr (NameString);
-        AcpiGbl_DbMethodInfo.Name = NameString;
-        AcpiGbl_DbMethodInfo.Args = Args;
-        AcpiGbl_DbMethodInfo.Types = Types;
-        AcpiGbl_DbMethodInfo.Flags = Flags;
-
-        ReturnObj.Pointer = NULL;
-        ReturnObj.Length = ACPI_ALLOCATE_BUFFER;
-
-        Status = AcpiDbExecuteSetup (&AcpiGbl_DbMethodInfo);
-        if (ACPI_FAILURE (Status))
-        {
-            ACPI_FREE (NameString);
-            return;
-        }
-
-        /* Get the NS node, determines existence also */
-
-        Status = AcpiGetHandle (NULL, AcpiGbl_DbMethodInfo.Pathname,
-            &AcpiGbl_DbMethodInfo.Method);
-        if (ACPI_SUCCESS (Status))
-        {
-            Status = AcpiDbExecuteMethod (&AcpiGbl_DbMethodInfo,
-                &ReturnObj);
-        }
-        ACPI_FREE (NameString);
+        return;
     }
+
+    memset (&AcpiGbl_DbMethodInfo, 0, sizeof (ACPI_DB_METHOD_INFO));
+    strcpy (NameString, Name);
+    AcpiUtStrupr (NameString);
+
+    /* Subcommand to Execute all predefined names in the namespace */
+
+    if (!strncmp (NameString, "PREDEF", 6))
+    {
+        AcpiDbEvaluatePredefinedNames ();
+        ACPI_FREE (NameString);
+        return;
+    }
+
+    AcpiGbl_DbMethodInfo.Name = NameString;
+    AcpiGbl_DbMethodInfo.Args = Args;
+    AcpiGbl_DbMethodInfo.Types = Types;
+    AcpiGbl_DbMethodInfo.Flags = Flags;
+
+    ReturnObj.Pointer = NULL;
+    ReturnObj.Length = ACPI_ALLOCATE_BUFFER;
+
+    Status = AcpiDbExecuteSetup (&AcpiGbl_DbMethodInfo);
+    if (ACPI_FAILURE (Status))
+    {
+        ACPI_FREE (NameString);
+        return;
+    }
+
+    /* Get the NS node, determines existence also */
+
+    Status = AcpiGetHandle (NULL, AcpiGbl_DbMethodInfo.Pathname,
+        &AcpiGbl_DbMethodInfo.Method);
+    if (ACPI_SUCCESS (Status))
+    {
+        Status = AcpiDbExecuteMethod (&AcpiGbl_DbMethodInfo,
+            &ReturnObj);
+    }
+    ACPI_FREE (NameString);
 
     /*
      * Allow any handlers in separate threads to complete.
@@ -911,5 +965,3 @@ CleanupAndExit:
     AcpiOsFree (AcpiGbl_DbMethodInfo.Threads);
     AcpiGbl_DbMethodInfo.Threads = NULL;
 }
-
-#endif

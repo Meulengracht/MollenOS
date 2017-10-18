@@ -8,7 +8,7 @@
  *
  * 1. Copyright Notice
  *
- * Some or all of this work - Copyright (c) 1999 - 2015, Intel Corp.
+ * Some or all of this work - Copyright (c) 1999 - 2017, Intel Corp.
  * All rights reserved.
  *
  * 2. License
@@ -111,6 +111,42 @@
  * other governmental approval, or letter of assurance, without first obtaining
  * such license, approval or letter.
  *
+ *****************************************************************************
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * following license:
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions, and the following disclaimer,
+ *    without modification.
+ * 2. Redistributions in binary form must reproduce at minimum a disclaimer
+ *    substantially similar to the "NO WARRANTY" disclaimer below
+ *    ("Disclaimer") and any redistribution must be conditioned upon
+ *    including a substantially similar Disclaimer requirement for further
+ *    binary redistribution.
+ * 3. Neither the names of the above-listed copyright holders nor the names
+ *    of any contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * GNU General Public License ("GPL") version 2 as published by the Free
+ * Software Foundation.
+ *
  *****************************************************************************/
 
 #include "acpi.h"
@@ -120,9 +156,9 @@
 #include "acnamesp.h"
 #include "acparser.h"
 #include "acinterp.h"
+#include "acevents.h"
 #include "acdebug.h"
 
-#if (defined ACPI_DEBUGGER || defined ACPI_DISASSEMBLER)
 
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dbdisply")
@@ -415,7 +451,7 @@ DumpNode:
 
     else
     {
-        AcpiOsPrintf ("Object (%p) Pathname:  %s\n",
+        AcpiOsPrintf ("Object %p: Namespace Node - Pathname: %s\n",
             Node, (char *) RetBuf.Pointer);
     }
 
@@ -432,7 +468,7 @@ DumpNode:
     ObjDesc = AcpiNsGetAttachedObject (Node);
     if (ObjDesc)
     {
-        AcpiOsPrintf ("\nAttached Object (%p):\n", ObjDesc);
+        AcpiOsPrintf ("\nAttached Object %p:", ObjDesc);
         if (!AcpiOsReadable (ObjDesc, sizeof (ACPI_OPERAND_OBJECT)))
         {
             AcpiOsPrintf ("Invalid internal ACPI Object at address %p\n",
@@ -440,8 +476,33 @@ DumpNode:
             return;
         }
 
-        AcpiUtDebugDumpBuffer ((void *) ObjDesc,
-            sizeof (ACPI_OPERAND_OBJECT), Display, ACPI_UINT32_MAX);
+        if (ACPI_GET_DESCRIPTOR_TYPE (
+            ((ACPI_NAMESPACE_NODE *) ObjDesc)) == ACPI_DESC_TYPE_NAMED)
+        {
+            AcpiOsPrintf (" Namespace Node - ");
+            Status = AcpiGetName ((ACPI_NAMESPACE_NODE *) ObjDesc,
+                ACPI_FULL_PATHNAME_NO_TRAILING, &RetBuf);
+            if (ACPI_FAILURE (Status))
+            {
+                AcpiOsPrintf ("Could not convert name to pathname\n");
+            }
+            else
+            {
+                AcpiOsPrintf ("Pathname: %s",
+                    (char *) RetBuf.Pointer);
+            }
+
+            AcpiOsPrintf ("\n");
+            AcpiUtDebugDumpBuffer ((void *) ObjDesc,
+                sizeof (ACPI_NAMESPACE_NODE), Display, ACPI_UINT32_MAX);
+        }
+        else
+        {
+            AcpiOsPrintf ("\n");
+            AcpiUtDebugDumpBuffer ((void *) ObjDesc,
+                sizeof (ACPI_OPERAND_OBJECT), Display, ACPI_UINT32_MAX);
+        }
+
         AcpiExDumpObjectDescriptor (ObjDesc, 1);
     }
 }
@@ -741,13 +802,15 @@ void
 AcpiDbDisplayObjectType (
     char                    *ObjectArg)
 {
+    ACPI_SIZE               Arg;
     ACPI_HANDLE             Handle;
     ACPI_DEVICE_INFO        *Info;
     ACPI_STATUS             Status;
     UINT32                  i;
 
 
-    Handle = ACPI_TO_POINTER (strtoul (ObjectArg, NULL, 16));
+    Arg = strtoul (ObjectArg, NULL, 16);
+    Handle = ACPI_TO_POINTER (Arg);
 
     Status = AcpiGetObjectInfo (Handle, &Info);
     if (ACPI_FAILURE (Status))
@@ -1107,26 +1170,21 @@ AcpiDbDisplayHandlers (
         for (i = 0; i < ACPI_ARRAY_LENGTH (AcpiGbl_SpaceIdList); i++)
         {
             SpaceId = AcpiGbl_SpaceIdList[i];
-            HandlerObj = ObjDesc->Device.Handler;
 
             AcpiOsPrintf (ACPI_PREDEFINED_PREFIX,
                 AcpiUtGetRegionName ((UINT8) SpaceId), SpaceId);
 
-            while (HandlerObj)
+            HandlerObj = AcpiEvFindRegionHandler (
+                SpaceId, ObjDesc->CommonNotify.Handler);
+            if (HandlerObj)
             {
-                if (AcpiGbl_SpaceIdList[i] ==
-                    HandlerObj->AddressSpace.SpaceId)
-                {
-                    AcpiOsPrintf (ACPI_HANDLER_PRESENT_STRING,
-                        (HandlerObj->AddressSpace.HandlerFlags &
-                            ACPI_ADDR_HANDLER_DEFAULT_INSTALLED) ?
-                            "Default" : "User",
-                        HandlerObj->AddressSpace.Handler);
+                AcpiOsPrintf (ACPI_HANDLER_PRESENT_STRING,
+                    (HandlerObj->AddressSpace.HandlerFlags &
+                        ACPI_ADDR_HANDLER_DEFAULT_INSTALLED) ?
+                        "Default" : "User",
+                    HandlerObj->AddressSpace.Handler);
 
-                    goto FoundHandler;
-                }
-
-                HandlerObj = HandlerObj->AddressSpace.Next;
+                goto FoundHandler;
             }
 
             /* There is no handler for this SpaceId */
@@ -1138,7 +1196,7 @@ AcpiDbDisplayHandlers (
 
         /* Find all handlers for user-defined SpaceIDs */
 
-        HandlerObj = ObjDesc->Device.Handler;
+        HandlerObj = ObjDesc->CommonNotify.Handler;
         while (HandlerObj)
         {
             if (HandlerObj->AddressSpace.SpaceId >= ACPI_USER_REGION_BEGIN)
@@ -1249,7 +1307,7 @@ AcpiDbDisplayNonRootHandlers (
 
     /* Display all handlers associated with this device */
 
-    HandlerObj = ObjDesc->Device.Handler;
+    HandlerObj = ObjDesc->CommonNotify.Handler;
     while (HandlerObj)
     {
         AcpiOsPrintf (ACPI_PREDEFINED_PREFIX,
@@ -1269,5 +1327,3 @@ AcpiDbDisplayNonRootHandlers (
     ACPI_FREE (Pathname);
     return (AE_OK);
 }
-
-#endif

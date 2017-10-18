@@ -141,26 +141,30 @@ void SemaphoreConstruct(Semaphore_t *Semaphore, int InitialValue)
 
 /* SemaphoreP (Wait) 
  * Waits for the semaphore signal with the optional time-out */
-void SemaphoreP(Semaphore_t *Semaphore, size_t Timeout)
+OsStatus_t
+SemaphoreP(
+    Semaphore_t *Semaphore,
+    size_t Timeout)
 {
-	/* Enter the safe-passage, we do not wish
-	 * to be interrupted while doing this */
-	CriticalSectionEnter(&Semaphore->Lock);
+    // Variables
+    MCoreThread_t *Current = ThreadingGetCurrentThread(CpuGetCurrentId());
 
-	/* Decrease the value, and do the sanity check 
-	 * if we should sleep for events */
+	// Decrease the value, and do the sanity check 
+	// if we should sleep for events
+	CriticalSectionEnter(&Semaphore->Lock);
 	Semaphore->Value--;
 	if (Semaphore->Value < 0) {
-		/* It's important we leave safe-mode before
-		 * waking up others, otherwise lock is kept */
 		CriticalSectionLeave(&Semaphore->Lock);
 		SchedulerSleepThread((uintptr_t*)Semaphore, Timeout);
-		IThreadYield();
+        IThreadYield();
+        if (Timeout != 0 && Current->Sleep == 0) {
+            return OsError;
+        }
 	}
 	else {
-		/* Make sure to leave safe passage again! */
 		CriticalSectionLeave(&Semaphore->Lock);
-	}
+    }
+    return OsSuccess;
 }
 
 /* SemaphoreV (Signal) 
