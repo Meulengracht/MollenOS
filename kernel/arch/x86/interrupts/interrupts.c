@@ -23,7 +23,7 @@
  * - ISA Interrupts should be routed to boot-processor without lowest-prio?
  */
 #define __MODULE		"IRQS"
-//#define __TRACE
+#define __TRACE
 
 /* Includes 
  * - System */
@@ -308,8 +308,9 @@ InterruptFinalize(
 {
 	// Variables
 	int Source = Interrupt->Source;
-	uint16_t TableIndex = LOWORD(Interrupt->Id);
-	uint64_t ApicFlags = APIC_FLAGS_DEFAULT;
+    uint16_t TableIndex = LOWORD(Interrupt->Id);
+    uint16_t FinalTableIndex = 0;
+    uint64_t ApicFlags = APIC_FLAGS_DEFAULT;
 	union {
 		struct {
 			uint32_t Lo;
@@ -330,16 +331,18 @@ InterruptFinalize(
 		Interrupt->Id, Interrupt->Source);
 
 	// Determine the kind of flags we want to set
-	ApicFlags = InterruptDetermine(&Interrupt->Interrupt);
+    ApicFlags = InterruptDetermine(&Interrupt->Interrupt);
+    FinalTableIndex = LOBYTE(LOWORD(LODWORD(ApicFlags)));
 
 	// Trace
 	TRACE("Calculated flags for interrupt: 0x%x (TableIndex %u)", 
 		LODWORD(ApicFlags), TableIndex);
 
 	// Update table index in case
-	if (TableIndex == 0) {
-		Interrupt->Id |= LOBYTE(LOWORD(LODWORD(ApicFlags)));
-		TableIndex = LOBYTE(LOWORD(LODWORD(ApicFlags)));
+	if (TableIndex != FinalTableIndex) {
+        Interrupt->Id &= 0xFFFF0000;
+		Interrupt->Id |= FinalTableIndex;
+		TableIndex = FinalTableIndex;
 	}
 
 	// Trace
@@ -403,9 +406,9 @@ InterruptFinalize(
 	}
 	else {
 		ERROR("Failed to derive io-apic for source %u", Source);
-	}
+    }
 
-	// Done
+    // Done
 	return OsSuccess;
 }
 

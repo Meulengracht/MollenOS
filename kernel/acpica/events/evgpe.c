@@ -437,7 +437,9 @@ AcpiEvGetGpeEventInfo (
  *              executed at interrupt level.
  *
  ******************************************************************************/
-
+#define __MODULE "ACPI"
+#define __TRACE
+#include <debug.h>
 UINT32
 AcpiEvGpeDetect (
     ACPI_GPE_XRUPT_INFO     *GpeXruptList)
@@ -459,6 +461,7 @@ AcpiEvGpeDetect (
 
 
     ACPI_FUNCTION_NAME (EvGpeDetect);
+    TRACE("EvGpeDetect(GpeXruptList 0x%x)", GpeXruptList);
 
     /* Check for the case where there are no GPEs */
 
@@ -472,19 +475,23 @@ AcpiEvGpeDetect (
      * Note: Not necessary to obtain the hardware lock, since the GPE
      * registers are owned by the GpeLock.
      */
+    TRACE("1");
     Flags = AcpiOsAcquireLock (AcpiGbl_GpeLock);
+    TRACE("2");
 
     /* Examine all GPE blocks attached to this interrupt level */
 
     GpeBlock = GpeXruptList->GpeBlockListHead;
     while (GpeBlock)
     {
+        TRACE("3");
         GpeDevice = GpeBlock->Node;
 
         /*
          * Read all of the 8-bit GPE status and enable registers in this GPE
          * block, saving all of them. Find all currently active GP events.
          */
+        TRACE("4");
         for (i = 0; i < GpeBlock->RegisterCount; i++)
         {
             /* Get the next status/enable pair */

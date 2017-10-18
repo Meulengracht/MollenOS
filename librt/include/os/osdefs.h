@@ -82,8 +82,8 @@ typedef enum {
 } OsStatus_t;
 
 typedef enum {
-    InterruptHandled,
-    InterruptNotHandled
+    InterruptNotHandled,
+    InterruptHandled
 } InterruptStatus_t;
 
 /* Define the standard os
