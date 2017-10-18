@@ -224,9 +224,9 @@ void ApicUnmaskGsi(int Gsi)
  * on that irq line to occur */
 void ApicSendEoi(int Gsi, uint32_t Vector)
 {
-	/* Some, older (external) chips
-	 * require more code for sending a proper
-	 * EOI, but if its new enough then no need */
+	// Some, older (external) chips
+	// require more code for sending a proper
+	// EOI, but if its new enough then no need
 	if (ApicGetVersion() >= 0x10 || Gsi == APIC_NO_GSI) {
 		ApicWriteLocal(APIC_INTERRUPT_ACK, Vector);
 	}

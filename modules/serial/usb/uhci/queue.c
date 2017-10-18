@@ -713,8 +713,7 @@ UhciProcessRequest(
 		}
 
 		// Notice finalizer-thread to finish us
-        // @todo
-        WARNING("Wake-up finalizer here");
+        FinalizerWake();
 	}
 	else if (Transfer->Transfer.Type == InterruptTransfer) {
 

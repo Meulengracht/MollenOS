@@ -171,7 +171,7 @@ PACKED_TYPESTRUCT(UhciQueueHead, {
 	uint16_t					Period;
 	reg32_t 					Bandwidth;
 	reg32_t						StartFrame;
-	reg32_t 					Unused[2];
+	reg32_t 					Unused;
 });
 
 /* UhciQueueHead::Flags
@@ -465,7 +465,13 @@ OsStatus_t
 UhciTransactionFinalize(
 	_In_ UhciController_t *Controller,
 	_In_ UsbManagerTransfer_t *Transfer,
-	_In_ int Validate);
+    _In_ int Validate);
+
+/* FinalizerWake
+ * Informs the finalizer-thread that there is new events */
+__EXTERN
+OsStatus_t
+FinalizerWake(void);
 
 /* UsbQueueTransferGeneric 
  * Queues a new transfer for the given driver

@@ -223,7 +223,7 @@ UhciTransactionDispatch(
         TRACE("(%u) Linking asynchronous queue-head (async-next: %i)", 
             Controller->QueueControl.Frame, PrevQh->LinkIndex);
         TRACE("Controller status: 0x%x", UhciRead16(Controller, UHCI_REGISTER_COMMAND));
-		while (PrevQh->LinkIndex != UHCI_NO_INDEX) {	
+		while (PrevQh->LinkIndex != UHCI_NO_INDEX) {
 			PrevQueue = UHCI_QH_GET_QUEUE(PrevQh->Flags);
 			if (PrevQueue <= Queue) {
 				break;
@@ -240,8 +240,14 @@ UhciTransactionDispatch(
 		MemoryBarrier();
 		PrevQh->Link = (QhAddress | UHCI_LINK_QH);
         PrevQh->LinkIndex = QhIndex;
-#define __DEBUG
 #ifdef __DEBUG
+        int fb = Controller->QueueControl.Frame;
+        TRACE("(%u): 0x%x, (%u): 0x%x, (%u): 0x%x, (%u): 0x%x, (%u): 0x%x",
+            fb, Controller->QueueControl.FrameList[fb], 
+            fb + 1, Controller->QueueControl.FrameList[fb + 1], 
+            fb + 2, Controller->QueueControl.FrameList[fb + 2], 
+            fb + 3, Controller->QueueControl.FrameList[fb + 3], 
+            fb + 4, Controller->QueueControl.FrameList[fb + 4]);
         TRACE("Dumping post-operation");
         ThreadSleep(5000);
         UhciUpdateCurrentFrame(Controller);

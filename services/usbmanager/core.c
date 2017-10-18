@@ -508,6 +508,7 @@ UsbDeviceSetup(
     ThreadSleep(2);
 
     // Query Device Descriptor
+    TRACE("Reading descriptors");
     if (UsbGetDeviceDescriptor(Controller->Driver, Controller->Device,
         &Device->Base, &Device->ControlEndpoint, &DeviceDescriptor) != TransferFinished) {
         if (UsbGetDeviceDescriptor(Controller->Driver, Controller->Device,

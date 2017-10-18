@@ -46,6 +46,18 @@ static UUId_t __GlbFinalizerThreadId = UUID_INVALID;
 static Condition_t *__GlbFinalizerEvent = NULL;
 static UUId_t __GlbTimerEvent = UUID_INVALID;
 
+/* FinalizerWake
+ * Informs the finalizer-thread that there is new events */
+OsStatus_t
+FinalizerWake(void)
+{
+    TRACE("FinalizerWake()");
+    if (__GlbFinalizerEvent != NULL) {
+        return ConditionSignal(__GlbFinalizerEvent);
+    }
+    return OsSuccess;
+}
+
 /* FinalizerEntry 
  * Entry of the finalizer thread, this thread handles
  * all completed transactions to notify users */
@@ -179,7 +191,8 @@ OnFastInterrupt(
 	// Processing error, queue stopped
 	if (InterruptStatus & UHCI_STATUS_PROCESS_ERR) {
 		ERROR("UHCI: Processing Error :/");
-		//Clear queue and all waiting
+        // Clear queue and all waiting
+        // @todo
 		//UhciReset(Controller);
 		//UhciStart(Controller, 0);
 	}

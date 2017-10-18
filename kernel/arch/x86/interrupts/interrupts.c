@@ -779,15 +779,12 @@ void InterruptEntry(Context_t *Registers)
 			MCoreThread_t *Thread = ThreadingGetThread(Entry->Thread);
 			MCoreThread_t *Source = ThreadingGetCurrentThread(ApicGetCpu());
 
-			/* Impersonate the target thread */
+			// Impersonate the target thread
+			// and call the fast handler
 			if (Source->AddressSpace != Thread->AddressSpace) {
 				IThreadImpersonate(Thread);
 			}
-
-			/* Call the fast handler */
 			Result = Entry->Interrupt.FastHandler(Entry->Interrupt.Data);
-
-			/* Restore to our own context */
 			if (Source->AddressSpace != Thread->AddressSpace) {
 				IThreadImpersonate(Source);
 			}
@@ -822,9 +819,8 @@ void InterruptEntry(Context_t *Registers)
 				Entry->Ash, Entry->Id);
 
 			// Send a interrupt-event to this
+			// and mark as handled, so we don't spit out errors
 			__KernelInterruptDriver(Entry->Ash, Entry->Id, Entry->Interrupt.Data);
-			
-			// Mark as handled, so we don't spit out errors
 			Result = InterruptHandled;
 
 			// Mask the GSI and store it
