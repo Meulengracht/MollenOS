@@ -52,7 +52,7 @@ OsStatus_t ThreadingReap(void *UserData);
  * keep track of running threads, idle threads
  * and a thread resources lock */
 UUId_t GlbThreadGcId = 0;
-UUId_t GlbThreadId = 0;
+UUId_t GlbThreadId = 1;
 List_t *GlbThreads = NULL;
 ListNode_t *GlbCurrentThreads[MAX_SUPPORTED_CPUS];
 ListNode_t *GlbIdleThreads[MAX_SUPPORTED_CPUS];
@@ -158,7 +158,7 @@ void ThreadingInitialize(UUId_t Cpu)
 		/* Create threading list */
 		GlbThreads = ListCreate(KeyInteger, LIST_SAFE);
 		GlbThreadGcId = GcRegister(ThreadingReap);
-		GlbThreadId = 0;
+		GlbThreadId = 1;
 
 		/* Zero all current threads out, together with idle */
 		for (Itr = 0; Itr < MAX_SUPPORTED_CPUS; Itr++) {

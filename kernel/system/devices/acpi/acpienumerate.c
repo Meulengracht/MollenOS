@@ -153,83 +153,80 @@ void AcpiEnumerateSRAT(void *SratStart, void *SratEnd)
 	_CRT_UNUSED(SratEnd);
 }
 
-/* Initializes Early Access
-* and enumerates the APIC */
-int AcpiEnumerate(void)
+/* AcpiEnumerate
+ * Initializes Early Access and enumerates the APIC */
+int
+AcpiEnumerate(void)
 {
-	/* Variables needed for initial
-	 * ACPI access */
+	// Variables
 	ACPI_TABLE_HEADER *Header = NULL;
-	ACPI_STATUS Status = 0;
+    ACPI_STATUS Status = 0;
+    
+    // Call
+	LogInformation("ACPI", "Initializing ACPICA");
+    Status = AcpiInitializeSubsystem();
+    
+	// Sanity 
+	// If this fails there is no ACPI on the system
+	if (ACPI_FAILURE(Status)) {
+		LogFatal("ACPI", "Failed to initialize early ACPI access,"
+            "probable no ACPI available (%u)", Status);
+		GlbAcpiAvailable = ACPI_NOT_AVAILABLE;
+		return -1;
+	}
 
-	/* Early Table Access */
+	// Do the early table enumeration
 	Status = AcpiInitializeTables((ACPI_TABLE_DESC*)&TableArray, ACPI_MAX_INIT_TABLES, TRUE);
-
-	/* Sanity 
-	 * If this fails there is no ACPI on the system */
 	if (ACPI_FAILURE(Status)) {
 		LogFatal("ACPI", "Failed to initialize early ACPI access,"
 			"probable no ACPI available (%u)", Status);
 		GlbAcpiAvailable = ACPI_NOT_AVAILABLE;
 		return -1;
 	}
-	else
+	else {
 		GlbAcpiAvailable = ACPI_AVAILABLE;
+    }
 
-	/* Create the acpi lists */
+	// Allocate ACPI node list
 	GlbAcpiNodes = ListCreate(KeyInteger, LIST_NORMAL);
 
-	/* Get the table */
-	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 0, &Header)))
-	{
-		/* Variables */
+	// Check for MADT presence and enumerate
+	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 0, &Header))) {
 		ACPI_TABLE_MADT *MadtTable = NULL;
-
-		/* Yay! */
 		LogInformation("ACPI", "Enumerating the MADT Table");
-
-		/* Cast */
 		MadtTable = (ACPI_TABLE_MADT*)Header;
-
-		/* Enumerate MADT */
 		AcpiEnumarateMADT((void*)((uintptr_t)MadtTable + sizeof(ACPI_TABLE_MADT)),
-			(void*)((uintptr_t)MadtTable + MadtTable->Header.Length));
+            (void*)((uintptr_t)MadtTable + MadtTable->Header.Length));
+
+        // Cleanup table when we are done with it as we are using
+        // static pointers and reallocating later
+        AcpiPutTable(Header);
 	}
 
-	/* Enumerate SRAT */
-	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SRAT, 0, &Header)))
-	{
-		/* Variables */
+	// Check for SRAT presence and enumerate
+	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SRAT, 0, &Header))) {
 		ACPI_TABLE_SRAT *SratTable = NULL;
-
-		/* Info */
 		LogInformation("ACPI", "Enumerating the SRAT Table");
-
-		/* Cast */
 		SratTable = (ACPI_TABLE_SRAT*)Header;
-
-		/* Gogo */
 		AcpiEnumerateSRAT((void*)((uintptr_t)SratTable + sizeof(ACPI_TABLE_MADT)),
-			(void*)((uintptr_t)SratTable + SratTable->Header.Length));
+            (void*)((uintptr_t)SratTable + SratTable->Header.Length));
+        
+        // Cleanup table when we are done with it as we are using
+        // static pointers and reaollcating later
+        AcpiPutTable(Header);
 	}
 
-	/* Enumerate SRAT */
-	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SBST, 0, &Header)))
-	{
-		/* Variables */
+    // Check for SBST presence and enumerate
+    // @todo
+	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SBST, 0, &Header))) {
 		ACPI_TABLE_SBST *BattTable = NULL;
-
-		/* Info */
 		LogInformation("ACPI", "Parsing the SBST Table");
-
-		/* Cast */
-		BattTable = (ACPI_TABLE_SBST*)Header;
-
-		/* Gogo */
-
+        BattTable = (ACPI_TABLE_SBST*)Header;
+        
+        // Cleanup table when we are done with it as we are using
+        // static pointers and reaollcating later
+        AcpiPutTable(Header);
 	}
-
-	/* Done! */
 	return 0;
 }
 

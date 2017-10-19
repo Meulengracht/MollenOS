@@ -24,7 +24,7 @@
 
 /* Includes
  * - (OS) System */
-#include <system/addressspace.h>
+#include <system/addresspace.h>
 #include <system/utils.h>
 #include <interrupts.h>
 #include <threading.h>
@@ -35,76 +35,148 @@
  * - (ACPI) System */
 #include <acpi.h>
 #include <accommon.h>
+#include <acdisasm.h>
 
 /* Definitions
  * - Component Setup */
 #define _COMPONENT ACPI_OS_SERVICES
 ACPI_MODULE_NAME("oslayer_debug")
 
-/*
- * Debug print routines
- */
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsPrintf
+/* Definitions
+ * - Global state variables */
+char AcpiGbl_OutputBuffer[512];
+void *AcpiGbl_RedirectionTarget = NULL;
+
+/******************************************************************************
+ *
+ * FUNCTION:    AcpiOsPrintf
+ *
+ * PARAMETERS:  Fmt, ...            - Standard printf format
+ *
+ * RETURN:      None
+ *
+ * DESCRIPTION: Formatted output
+ *
+ *****************************************************************************/
 void ACPI_INTERNAL_VAR_XFACE
 AcpiOsPrintf (
     const char              *Format,
-    ...);
-#endif
+    ...)
+{
+    va_list	Args;
+	va_start(Args, Format);
+	AcpiOsVprintf(Format, Args);
+	va_end(Args);
+}
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsVprintf
+/******************************************************************************
+ *
+ * FUNCTION:    AcpiOsVprintf
+ *
+ * PARAMETERS:  Fmt                 - Standard printf format
+ *              Args                - Argument list
+ *
+ * RETURN:      None
+ *
+ * DESCRIPTION: Formatted output with argument list pointer
+ *
+ *****************************************************************************/
 void
 AcpiOsVprintf (
     const char              *Format,
-    va_list                 Args);
-#endif
+    va_list                 Args)
+{
+    // Temporary buffer
+	char Buffer[256] = { 0 };
+    vsprintf(Buffer, Format, Args);
+    if (Buffer[0] == '\n') {
+        TRACE(&AcpiGbl_OutputBuffer[0]);
+        memset(&AcpiGbl_OutputBuffer[0], 0, sizeof(AcpiGbl_OutputBuffer));
+    }
+    else {
+        strcat(&AcpiGbl_OutputBuffer[0], &Buffer[0]);
+    }
+}
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsRedirectOutput
+/******************************************************************************
+ *
+ * FUNCTION:    AcpiOsRedirectOutput
+ *
+ * PARAMETERS:  Destination         - An open file handle/pointer
+ *
+ * RETURN:      None
+ *
+ * DESCRIPTION: Causes redirect of AcpiOsPrintf and AcpiOsVprintf
+ *
+ *****************************************************************************/
 void
 AcpiOsRedirectOutput (
-    void                    *Destination);
-#endif
+    void                    *Destination)
+{
+    AcpiGbl_RedirectionTarget = Destination;
+}
 
 
 /*
  * Debug IO
  */
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsGetLine
-ACPI_STATUS
-AcpiOsGetLine (
-    char                    *Buffer,
-    UINT32                  BufferLength,
-    UINT32                  *BytesRead);
-#endif
-
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsInitializeDebugger
 ACPI_STATUS
 AcpiOsInitializeDebugger (
-    void);
-#endif
+    void)
+{
+    return AE_NOT_IMPLEMENTED;
+}
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsTerminateDebugger
 void
 AcpiOsTerminateDebugger (
-    void);
-#endif
+    void)
+{
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsWaitCommandReady
+}
+
 ACPI_STATUS
 AcpiOsWaitCommandReady (
-    void);
-#endif
+    void)
+{
+    return AE_NOT_IMPLEMENTED;
+}
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsNotifyCommandComplete
 ACPI_STATUS
 AcpiOsNotifyCommandComplete (
-    void);
-#endif
+    void)
+{
+    return AE_NOT_IMPLEMENTED;
+}
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsTracePoint
 void
 AcpiOsTracePoint (
     ACPI_TRACE_EVENT_TYPE   Type,
     BOOLEAN                 Begin,
     UINT8                   *Aml,
-    char                    *Pathname);
-#endif
+    char                    *Pathname)
+{
+
+}
+
+/*
+ * Assembler IO
+ */
+void
+MpSaveGpioInfo(
+ACPI_PARSE_OBJECT       *Op,
+AML_RESOURCE            *Resource,
+UINT32                  PinCount,
+UINT16                  *PinList,
+char                    *DeviceName)
+{
+    
+}
+
+void
+MpSaveSerialInfo(
+ACPI_PARSE_OBJECT       *Op,
+AML_RESOURCE            *Resource,
+char                    *DeviceName)
+{
+
+}

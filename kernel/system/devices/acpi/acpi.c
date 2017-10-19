@@ -387,26 +387,10 @@ void AcpiInitialize(void)
 	ACPI_OBJECT_LIST args;
 
 	/* Debug */
-	LogInformation("ACPI", "Initializing");
 	LogInformation("ACPI", "Installing OSI Interface");
-	
-	/* Install OSL Handler */
 	Status = AcpiInstallInterfaceHandler(AcpiOsi);
-
-	/* We fake Windows 7 */
 	AcpiOsiSetup("Windows 2009");
-
-	/* Install */
 	AcpiOsiInstall();
-
-	/* Initialize the ACPICA subsystem */
-	LogInformation("ACPI", "Installing Subsystems");
-	Status = AcpiInitializeSubsystem();
-	if (ACPI_FAILURE(Status))
-	{
-		LogFatal("ACPI", "Failed to initialize subsystems, %u!", Status);
-		for (;;);
-	}
 
 	/* Copy the root table list to dynamic memory */
 	LogInformation("ACPI", "Reallocating Tables");
@@ -442,8 +426,7 @@ void AcpiInitialize(void)
 	/* Create the ACPI namespace from ACPI tables */
 	LogInformation("ACPI", "Loading Tables");
 	Status = AcpiLoadTables();
-	if (ACPI_FAILURE(Status))
-	{
+	if (ACPI_FAILURE(Status)) {
 		LogFatal("ACPI", "Failed LoadTables, %u!", Status);
 		for (;;);
 	}
@@ -451,8 +434,7 @@ void AcpiInitialize(void)
 	/* Initialize the ACPI hardware */
 	LogInformation("ACPI", "Enabling Subsystems");
 	Status = AcpiEnableSubsystem(ACPI_FULL_INITIALIZATION);
-	if (ACPI_FAILURE(Status))
-	{
+	if (ACPI_FAILURE(Status)) {
 		LogFatal("ACPI", "Failed AcpiEnableSubsystem, %u!", Status);
 		for (;;);
 	}
@@ -476,16 +458,11 @@ void AcpiInitialize(void)
 	arg1.Integer.Value = 1;				/* 0 - PIC, 1 - IOAPIC, 2 - IOSAPIC */
 	args.Count = 1;
 	args.Pointer = &arg1;
-
 	AcpiEvaluateObject(ACPI_ROOT_OBJECT, "_PIC", &args, NULL);
 
 	/* Info */
 	LogInformation("ACPI", "Installing Event Handlers");
-
-	/* Install a notify handler */
 	AcpiInstallNotifyHandler(ACPI_ROOT_OBJECT, ACPI_SYSTEM_NOTIFY, AcpiBusNotifyHandler, NULL);
-
-	/* Install a global event handler */
 	AcpiInstallGlobalEventHandler(AcpiEventHandler, NULL);
 	//AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, acpi_shutdown, NULL);
 	//AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON, acpi_sleep, NULL);

@@ -21,7 +21,6 @@
 
 /* Includes */
 #include <system/utils.h>
-#include <timers.h>
 #include <acpi.h>
 #include <apic.h>
 #include <gdt.h>
@@ -44,7 +43,7 @@ for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
          fault = 1; \
          break;\
                                             }\
-    DelayMs(wait);\
+    CpuStall(wait);\
                     }
 
 /* Externs */

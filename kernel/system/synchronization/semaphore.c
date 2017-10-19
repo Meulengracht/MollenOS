@@ -24,6 +24,7 @@
 /* Includes 
  * - System */
 #include <system/thread.h>
+#include <system/utils.h>
 #include <scheduler.h>
 #include <semaphore.h>
 #include <heap.h>

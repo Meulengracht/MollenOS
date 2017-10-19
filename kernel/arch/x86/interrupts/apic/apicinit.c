@@ -155,7 +155,7 @@ void AcpiSetupIoApic(void *Data, int Nr, void *UserData)
 	IoListEntry->Id = IoApic->Id;
 	IoListEntry->BaseAddress = RemapTo + (IoApic->Address & 0xFFF);
 
-	/* Maximum Redirection Entry�RO. This field contains the entry number (0 being the lowest
+	/* Maximum Redirection Entry - RO. This field contains the entry number (0 being the lowest
 	 * entry) of the highest entry in the I/O Redirection Table. The value is equal to the number of
 	 * interrupt input pins for the IOAPIC minus one. The range of values is 0 through 239. */
 	IoEntries = ApicIoRead(IoListEntry, 1);
@@ -461,7 +461,11 @@ void ApicInitBoot(void)
 		MmVirtualMap(NULL, MadtTable->Address, RemapTo, PAGE_CACHE_DISABLE);
 		
 		// Now we can set it
-		GlbLocalApicBase = RemapTo + (MadtTable->Address & 0xFFF);
+        GlbLocalApicBase = RemapTo + (MadtTable->Address & 0xFFF);
+        
+        // Cleanup table when we are done with it as we are using
+        // static pointers and reaollcating later
+        AcpiPutTable(Header);
 	}
 	else {
 		LogFatal("APIC", "Failed to get LAPIC base address, ABORT!!!");
@@ -583,7 +587,7 @@ void ApicTimerRecalibrate(void)
 	ApicWriteLocal(APIC_INITIAL_COUNT, 0xFFFFFFFF); /* Set counter to -1 */
 
 	/* Stall, we have no other threads running! */
-	DelayMs(100);
+	CpuStall(100);
 
 	/* Stop counter! */
 	ApicWriteLocal(APIC_TIMER_VECTOR, APIC_MASKED);

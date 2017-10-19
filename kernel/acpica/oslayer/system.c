@@ -24,7 +24,8 @@
 
 /* Includes
  * - (OS) System */
-#include <system/addressspace.h>
+#include <system/addresspace.h>
+#include <system/thread.h>
 #include <system/utils.h>
 #include <interrupts.h>
 #include <threading.h>
@@ -44,6 +45,9 @@ ACPI_MODULE_NAME("oslayer_system")
 /* Definitions 
  * Global state variables */
 extern ACPI_OS_SEMAPHORE_INFO AcpiGbl_Semaphores[ACPI_OS_MAX_SEMAPHORES];
+extern void *AcpiGbl_RedirectionTarget;
+extern char AcpiGbl_OutputBuffer[512];
+extern int AcpiGbl_DebugTimeout;
 static UUId_t AcpiGbl_InterruptId = UUID_INVALID;
 
 /******************************************************************************
@@ -63,6 +67,10 @@ AcpiOsInitialize (
 {
     // Initialize globals
     memset(&AcpiGbl_Semaphores[0], 0, sizeof(AcpiGbl_Semaphores));
+    memset(&AcpiGbl_OutputBuffer[0], 0, sizeof(AcpiGbl_OutputBuffer));
+    AcpiGbl_InterruptId = UUID_INVALID;
+    AcpiGbl_RedirectionTarget = NULL;
+    AcpiGbl_DebugTimeout = 0;
     return AE_OK;
 }
 
@@ -118,7 +126,7 @@ AcpiOsInstallInterruptHandler (
 	// Install it
     AcpiGbl_InterruptId = InterruptRegister(&ACPIInterrupt, INTERRUPT_KERNEL);
     if (AcpiGbl_InterruptId != UUID_INVALID) {
-        return AE_OK
+        return AE_OK;
     }
 	return AE_ERROR;
 }
@@ -228,11 +236,11 @@ AcpiOsSleep (
     UINT64                  Milliseconds)
 {
     if (ThreadingIsEnabled() != 0) {
-        SchedulerSleepThread(NULL, (size_t)MilliSeconds);
+        SchedulerSleepThread(NULL, (size_t)Milliseconds);
         IThreadYield();
     }
     else {
-        AcpiOsStall(MilliSeconds * 1000);
+        AcpiOsStall(Milliseconds * 1000);
     }
 }
 

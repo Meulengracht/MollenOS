@@ -66,7 +66,7 @@ __EXTERN void SemaphoreDestroy(Semaphore_t *Semaphore);
 
 /* SemaphoreP (Wait) 
  * Waits for the semaphore signal with the optional time-out */
-__EXTERN void SemaphoreP(Semaphore_t *Semaphore, size_t Timeout);
+__EXTERN OsStatus_t SemaphoreP(Semaphore_t *Semaphore, size_t Timeout);
 
 /* SemaphoreV (Signal) 
  * Signals the semaphore with the given value, default is 1 */

@@ -482,7 +482,8 @@ OsStatus_t
 ScThreadSleep(
     _In_ size_t MilliSeconds)
 {
-    SleepMs(MilliSeconds);
+    SchedulerSleepThread(NULL, MilliSeconds);
+    IThreadYield();
     return OsSuccess;
 }
 

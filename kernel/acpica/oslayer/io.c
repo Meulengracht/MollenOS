@@ -24,12 +24,13 @@
 
 /* Includes
  * - (OS) System */
-#include <system/addressspace.h>
+#include <system/addresspace.h>
 #include <system/utils.h>
 #include <interrupts.h>
 #include <threading.h>
 #include <scheduler.h>
 #include <debug.h>
+#include <arch.h>
 
 /* Includes
  * - (ACPI) System */
@@ -41,65 +42,236 @@
 #define _COMPONENT ACPI_OS_SERVICES
 ACPI_MODULE_NAME("oslayer_io")
 
-/*
- * Platform and hardware-independent I/O interfaces
- */
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsReadPort
+/******************************************************************************
+ *
+ * FUNCTION:    AcpiOsReadPort
+ *
+ * PARAMETERS:  Address             - Address of I/O port/register to read
+ *              Value               - Where value is placed
+ *              Width               - Number of bits
+ *
+ * RETURN:      Value read from port
+ *
+ * DESCRIPTION: Read data from an I/O port or register
+ *
+ *****************************************************************************/
 ACPI_STATUS
 AcpiOsReadPort (
     ACPI_IO_ADDRESS         Address,
     UINT32                  *Value,
-    UINT32                  Width);
-#endif
+    UINT32                  Width)
+{
+    ACPI_FUNCTION_NAME(OsReadPort);
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsWritePort
+	switch (Width) {
+        case 8:
+            *Value = inb((uint16_t)Address);
+            break;
+
+        case 16:
+            *Value = inw((uint16_t)Address);
+            break;
+
+        case 32:
+            *Value = inl((uint16_t)Address);
+            break;
+
+        default:
+            ACPI_ERROR((AE_INFO, "Bad width parameter: %X", Width));
+            return (AE_BAD_PARAMETER);
+	}
+
+	return (AE_OK);
+}
+
+/******************************************************************************
+ *
+ * FUNCTION:    AcpiOsWritePort
+ *
+ * PARAMETERS:  Address             - Address of I/O port/register to write
+ *              Value               - Value to write
+ *              Width               - Number of bits
+ *
+ * RETURN:      None
+ *
+ * DESCRIPTION: Write data to an I/O port or register
+ *
+ *****************************************************************************/
 ACPI_STATUS
 AcpiOsWritePort (
     ACPI_IO_ADDRESS         Address,
     UINT32                  Value,
-    UINT32                  Width);
-#endif
+    UINT32                  Width)
+{
+    ACPI_FUNCTION_NAME(OsWritePort);
+    
+    if ((Width == 8) || (Width == 16) || (Width == 32)) {
+		switch (Width) {
+            case 8:
+                outb((uint16_t)Address, (uint8_t)Value);
+                break;
+            case 16:
+                outw((uint16_t)Address, (uint16_t)Value);
+                break;
+            case 32:
+                outl((uint16_t)Address, (uint32_t)Value);
+                break;
+		}
+		return (AE_OK);
+	}
+
+	ACPI_ERROR((AE_INFO, "Bad width parameter: %X", Width));
+	return (AE_BAD_PARAMETER);
+}
 
 
-/*
- * Platform and hardware-independent physical memory interfaces
- */
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsReadMemory
+/******************************************************************************
+ *
+ * FUNCTION:    AcpiOsReadMemory
+ *
+ * PARAMETERS:  Address             - Physical Memory Address to read
+ *              Value               - Where value is placed
+ *              Width               - Number of bits (8,16,32, or 64)
+ *
+ * RETURN:      Value read from physical memory address. Always returned
+ *              as a 64-bit integer, regardless of the read width.
+ *
+ * DESCRIPTION: Read data from a physical memory address
+ *
+ *****************************************************************************/
 ACPI_STATUS
 AcpiOsReadMemory (
     ACPI_PHYSICAL_ADDRESS   Address,
     UINT64                  *Value,
-    UINT32                  Width);
-#endif
+    UINT32                  Width)
+{
+    ACPI_FUNCTION_NAME(AcpiOsReadMemory);
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsWriteMemory
+    switch (Width) {
+        case 8: {
+            *Value = 0;
+        } break;
+        case 16: {
+            *Value = 0;
+        } break;
+        case 32: {
+            *Value = 0;
+        } break;
+        case 64: {
+            *Value = 0;
+        } break;
+        default: {
+            return (AE_BAD_PARAMETER);
+            break;
+        }
+    }
+    
+    FATAL(FATAL_SCOPE_KERNEL, "AcpiOsReadMemory()");
+    return AE_NOT_IMPLEMENTED;
+}
+
+/******************************************************************************
+ *
+ * FUNCTION:    AcpiOsWriteMemory
+ *
+ * PARAMETERS:  Address             - Physical Memory Address to write
+ *              Value               - Value to write
+ *              Width               - Number of bits (8,16,32, or 64)
+ *
+ * RETURN:      None
+ *
+ * DESCRIPTION: Write data to a physical memory address
+ *
+ *****************************************************************************/
 ACPI_STATUS
 AcpiOsWriteMemory (
     ACPI_PHYSICAL_ADDRESS   Address,
     UINT64                  Value,
-    UINT32                  Width);
-#endif
+    UINT32                  Width)
+{
+    ACPI_FUNCTION_NAME(AcpiOsWriteMemory);
+    FATAL(FATAL_SCOPE_KERNEL, "AcpiOsWriteMemory()");
+    return AE_NOT_IMPLEMENTED;
+}
 
-
-/*
- * Platform and hardware-independent PCI configuration space access
- * Note: Can't use "Register" as a parameter, changed to "Reg" --
- * certain compilers complain.
- */
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsReadPciConfiguration
+/******************************************************************************
+ *
+ * FUNCTION:    AcpiOsReadPciConfiguration
+ *
+ * PARAMETERS:  PciId               - Seg/Bus/Dev
+ *              Register            - Device Register
+ *              Value               - Buffer where value is placed
+ *              Width               - Number of bits
+ *
+ * RETURN:      Status
+ *
+ * DESCRIPTION: Read data from PCI configuration space
+ *
+ *****************************************************************************/
 ACPI_STATUS
 AcpiOsReadPciConfiguration (
     ACPI_PCI_ID             *PciId,
     UINT32                  Reg,
     UINT64                  *Value,
-    UINT32                  Width);
-#endif
+    UINT32                  Width)
+{
+    ACPI_FUNCTION_NAME(AcpiOsReadPciConfiguration);
+    switch (Width) {
+		case 8: {
+			*Value = (UINT64)PciRead8(PciId->Bus, PciId->Device, PciId->Function, Reg);
+		} break;
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsWritePciConfiguration
+		case 16: {
+			*Value = (UINT64)PciRead16(PciId->Bus, PciId->Device, PciId->Function, Reg);
+		} break;
+
+		case 32: {
+			*Value = (UINT64)PciRead32(PciId->Bus, PciId->Device, PciId->Function, Reg);
+		} break;
+
+		default:
+			return (AE_ERROR);
+	}
+	return (AE_OK);
+}
+
+/******************************************************************************
+ *
+ * FUNCTION:    AcpiOsWritePciConfiguration
+ *
+ * PARAMETERS:  PciId               - Seg/Bus/Dev
+ *              Register            - Device Register
+ *              Value               - Value to be written
+ *              Width               - Number of bits
+ *
+ * RETURN:      Status
+ *
+ * DESCRIPTION: Write data to PCI configuration space
+ *
+ *****************************************************************************/
 ACPI_STATUS
 AcpiOsWritePciConfiguration (
     ACPI_PCI_ID             *PciId,
     UINT32                  Reg,
     UINT64                  Value,
-    UINT32                  Width);
-#endif
+    UINT32                  Width)
+{
+    ACPI_FUNCTION_NAME(AcpiOsWritePciConfiguration);
+    switch (Width) {
+		case 8: {
+			PciWrite8(PciId->Bus, PciId->Device, PciId->Function, Reg, (UINT8)Value);
+		} break;
+
+		case 16: {
+			PciWrite16(PciId->Bus, PciId->Device, PciId->Function, Reg, (UINT16)Value);
+		} break;
+
+		case 32: {
+			PciWrite32(PciId->Bus, PciId->Device, PciId->Function, Reg, (UINT32)Value);
+		} break;
+
+		default:
+			return (AE_ERROR);
+	}
+	return (AE_OK);
+}

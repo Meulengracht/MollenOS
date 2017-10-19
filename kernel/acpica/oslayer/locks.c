@@ -20,7 +20,7 @@
  *  - Missing implementations are todo
  */
 #define __MODULE "ACPI"
-#define __TRACE
+//#define __TRACE
 
 /* Includes
  * - (OS) System */
@@ -40,6 +40,7 @@ ACPI_MODULE_NAME("oslayer_locks")
 /* Definitions 
  * - Global state variables */
 ACPI_OS_SEMAPHORE_INFO AcpiGbl_Semaphores[ACPI_OS_MAX_SEMAPHORES];
+int AcpiGbl_DebugTimeout = 0;
 
 /******************************************************************************
  *
@@ -172,21 +173,20 @@ AcpiOsCreateSemaphore(
         return (AE_LIMIT);
     }
 
-    /* Create an OS semaphore */
+    // Allocate the semaphore
     Semaphore = SemaphoreCreate(InitialUnits);
     if (!Semaphore) {
         ACPI_ERROR ((AE_INFO, "Could not create semaphore"));
         return (AE_NO_MEMORY);
     }
 
-    AcpiGbl_Semaphores[i].MaxUnits = (UINT16) MaxUnits;
-    AcpiGbl_Semaphores[i].CurrentUnits = (UINT16) InitialUnits;
+    AcpiGbl_Semaphores[i].MaxUnits = (uint16_t) MaxUnits;
+    AcpiGbl_Semaphores[i].CurrentUnits = (uint16_t) InitialUnits;
     AcpiGbl_Semaphores[i].OsHandle = Semaphore;
 
-    ACPI_DEBUG_PRINT((ACPI_DB_MUTEX,
-        "Handle=%u, Max=%u, Current=%u, OsHandle=%p\n",
-        i, MaxUnits, InitialUnits, Semaphore));
-    *OutHandle = (void *)i;
+    TRACE("Handle=%u, Max=%u, Current=%u, OsHandle=%p\n",
+        i, MaxUnits, InitialUnits, Semaphore);
+    *OutHandle = (ACPI_SEMAPHORE)i;
     return (AE_OK);
 }
 
@@ -254,7 +254,7 @@ AcpiOsWaitSemaphore(
     }
 
     if (Timeout == ACPI_WAIT_FOREVER) {
-        OsTimeout = INFINITE;
+        OsTimeout = 0;
         if (AcpiGbl_DebugTimeout) {
             // The debug timeout will prevent hang conditions
             OsTimeout = ACPI_OS_DEBUG_TIMEOUT;
@@ -348,7 +348,7 @@ ACPI_STATUS
 AcpiOsCreateMutex (
     ACPI_MUTEX              *OutHandle)
 {
-
+    
 }
 
 void

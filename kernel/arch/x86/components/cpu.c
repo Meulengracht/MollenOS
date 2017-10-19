@@ -36,6 +36,7 @@ static int __CpuInitialized = 0;
 /* Extern functions
  * We need access to these in order to implement
  * the interface */
+__EXTERN volatile size_t GlbTimerTicks[64];
 __EXTERN UUId_t ApicGetCpu(void);
 
 /* Extern assembly functions
@@ -140,25 +141,34 @@ CpuHalt(void)
 	__hlt();
 }
 
+/* CpuGetTicks
+ * Get the ticks for the current cpu. */
+size_t
+CpuGetTicks(void)
+{
+    return GlbTimerTicks[CpuGetCurrentId()];
+}
+
 /* Backup Timer, Should always be provided */
 extern void rdtsc(uint64_t *Value);
 
-void DelayMs(uint32_t MilliSeconds)
+/* CpuStall
+ * Stalls the cpu for the given milliseconds, blocking call. */
+void
+CpuStall(
+    size_t MilliSeconds)
 {
-	/* Keep value in this */
-	uint64_t Counter = 0;
+	// Variables
 	volatile uint64_t TimeOut = 0;
+	uint64_t Counter = 0;
 
-	/* Sanity */
-	if (!(__CpuInformation.EdxFeatures & CPUID_FEAT_EDX_TSC))
-	{
+	if (!(__CpuInformation.EdxFeatures & CPUID_FEAT_EDX_TSC)) {
 		LogFatal("TIMR", "DelayMs() was called, but no TSC support in CPU.");
 		CpuIdle();
 	}
 
-	/* Use rdtsc for this */
+	// Use the read timestamp counter
 	rdtsc(&Counter);
 	TimeOut = Counter + (uint64_t)(MilliSeconds * 100000);
-
 	while (Counter < TimeOut) { rdtsc(&Counter); }
 }

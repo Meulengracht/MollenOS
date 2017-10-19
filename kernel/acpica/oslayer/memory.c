@@ -24,12 +24,10 @@
 
 /* Includes
  * - (OS) System */
-#include <system/addressspace.h>
+#include <system/addresspace.h>
 #include <system/utils.h>
-#include <interrupts.h>
-#include <threading.h>
-#include <scheduler.h>
 #include <debug.h>
+#include <heap.h>
 
 /* Includes
  * - (ACPI) System */
@@ -57,32 +55,6 @@ AcpiOsAllocate(
     ACPI_SIZE               Size)
 {
     return kmalloc((size_t)Size);
-}
-
-/******************************************************************************
- *
- * FUNCTION:    AcpiOsAllocateZeroed
- *
- * PARAMETERS:  Size                - Amount to allocate, in bytes
- *
- * RETURN:      Pointer to the new allocation. Null on error.
- *
- * DESCRIPTION: Allocate and zero memory. Algorithm is dependent on the OS.
- *
- *****************************************************************************/
-void *
-AcpiOsAllocateZeroed(
-    ACPI_SIZE               Size)
-{
-    // Variables
-    void *Memory = NULL;
-
-    // Allocate and zero
-    Memory = kmalloc((size_t)Size);
-    if (Memory != NULL) {
-        memset(Memory, 0, (size_t)Size);
-    }
-    return Memory;
 }
 
 /******************************************************************************
@@ -115,48 +87,45 @@ AcpiOsFree(
  * DESCRIPTION: Map physical memory into caller's address space
  *
  *****************************************************************************/
+#if defined(i386)
+#include "../../arch/x86/memory.h"
+#endif
 void *
 AcpiOsMapMemory(
     ACPI_PHYSICAL_ADDRESS   Where,
     ACPI_SIZE               Length)
 {
     // Variables
-	uintptr_t Acpi_Mapping = MmPhyiscalGetSysMappingVirtual((PhysicalAddress_t)Where);
-	int Acpi_Pages = (Length / PAGE_SIZE) + ((Length % PAGE_SIZE) != 0 ? 1 : 0);
+	uintptr_t Lookup = MmPhyiscalGetSysMappingVirtual((PhysicalAddress_t)Where);
 
-	/* We should handle the case where it crosses a page boundary :o */
-	if (Acpi_Pages == 1)
-	{
-		uint32_t current_page = Where & PAGE_MASK;
-		uint32_t end_page = (Where + Length) & PAGE_MASK;
+	// There is a few special cases where the mapping doesn't exist, so we must create it 
+	if (Lookup == 0) {
+        int PageCount = DIVUP(Length, PAGE_SIZE);
+        if (PageCount == 1) {
+            ACPI_PHYSICAL_ADDRESS PageStart = Where & PAGE_MASK;
+            ACPI_PHYSICAL_ADDRESS PageEnd = (Where + Length) & PAGE_MASK;
+            if (PageStart != PageEnd) {
+                PageCount++;
+            }
+        }
 
-		if (current_page != end_page)
-			Acpi_Pages++;
-	}
-
-	/* We have a few special cases if it returns back to us 0 */
-	if (Acpi_Mapping == 0)
-	{
-		/* This is the last special case, we already IMAP some space */
-		if (Where >= 0x1000 && Where < TABLE_SPACE_SIZE)
-			Acpi_Mapping = (uintptr_t)Where;
-		else
-		{
-			/* Sigh... Imap it and hope stuff do not break :(((( */
-			uintptr_t ReservedMem = (uintptr_t)MmReserveMemory(Acpi_Pages);
-			int i = 0;
-
-			/* Map it in */
-			for (; i < Acpi_Pages; i++) {
+        // If we are looking for something below the first 4 mb
+        // It's already identity mapped
+		if (Where >= 0x1000 && Where < TABLE_SPACE_SIZE) {
+            Lookup = (uintptr_t)Where;
+        }
+		else {
+			uintptr_t ReservedMem = (uintptr_t)MmReserveMemory(PageCount);
+            int i = 0;
+            
+			for (; i < PageCount; i++) {
 				if (!MmVirtualGetMapping(NULL, ReservedMem + (i * PAGE_SIZE)))
 					MmVirtualMap(NULL, (Where & PAGE_MASK) + (i * PAGE_SIZE), ReservedMem + (i * PAGE_SIZE), 0);
 			}
-
 			return (void*)(ReservedMem + ((uintptr_t)Where & ATTRIBUTE_MASK));
 		}
 	}
-
-	return (void*)Acpi_Mapping;
+	return (void*)Lookup;
 }
 
 /******************************************************************************
@@ -196,10 +165,10 @@ AcpiOsUnmapMemory(
 ACPI_STATUS
 AcpiOsGetPhysicalAddress(
     void                    *LogicalAddress,
-    ACPI_PHYSICAL_ADDRESS   *PhysicalAddress);
+    ACPI_PHYSICAL_ADDRESS   *PhysicalAddress)
 {
     PhysicalAddress_t Result = AddressSpaceGetMap(
-        AddressSpaceGetCurrent(), (VirtualAddress_t)*LogicalAddress);
+        AddressSpaceGetCurrent(), (VirtualAddress_t)LogicalAddress);
     if (Result != 0) {
         *PhysicalAddress = (ACPI_PHYSICAL_ADDRESS)Result;
         return AE_OK;

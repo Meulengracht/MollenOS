@@ -117,33 +117,44 @@
 #define __ACMOS_H__
 
 /*! [Begin] no source code translation (Keep the include) */
-
-/* MollenOS uses VC */
+#include <os/osdefs.h>
 #if defined(_MSC_VER)
 #include "acmsvc.h"
 #endif
-
-/*! [End] no source code translation !*/
-
-/* Includes */
 #include <string.h>
 
-//#define ACPI_CACHE_T                ACPI_MEMORY_LIST
-//#define ACPI_USE_LOCAL_CACHE        1
+//#define ACPI_CACHE_T                  ACPI_MEMORY_LIST
+//#define ACPI_USE_LOCAL_CACHE          1
+#ifndef ACPI_MACHINE_WIDTH
+#define ACPI_MACHINE_WIDTH              __BITS
+#endif
+#define ACPI_USE_STANDARD_HEADERS
+#define ACPI_USE_SYSTEM_CLIBRARY
+#define ACPI_OS_DEBUG_TIMEOUT           10000
 
-#define ACPI_MACHINE_WIDTH      32
+#ifdef __OSCONFIG_REDUCEDHARDWARE
+#define ACPI_REDUCED_HARDWARE 1
+#endif
+
+#ifdef __OSCONFIG_ACPIDEBUGGER
+#define ACPI_DEBUGGER
+#endif
+
+#ifdef __OSCONFIG_ACPIDEBUG
+#define ACPI_MUTEX_DEBUG
+#else
+#define ACPI_NO_ERROR_MESSAGES
+#endif
 
 /* acpi_os_semaphore_info
  * State-keeping for semaphores */
 typedef struct acpi_os_semaphore_info {
-    UINT16                  MaxUnits;
-    UINT16                  CurrentUnits;
+    uint16_t                MaxUnits;
+    uint16_t                CurrentUnits;
     void                   *OsHandle;
 } ACPI_OS_SEMAPHORE_INFO;
 #define ACPI_OS_MAX_SEMAPHORES  256
 
-#define ACPI_USE_STANDARD_HEADERS
-#define ACPI_USE_SYSTEM_CLIBRARY
 
 #ifdef ACPI_DEFINE_ALTERNATE_TYPES
 /*
@@ -158,7 +169,6 @@ typedef unsigned int                    u32;
 typedef COMPILER_DEPENDENT_UINT64       u64;
 #endif
 
-
 /*
  * Handle platform- and compiler-specific assembly language differences.
  *
@@ -168,7 +178,6 @@ typedef COMPILER_DEPENDENT_UINT64       u64;
  */
 
 /*! [Begin] no source code translation  */
-
 #ifdef ACPI_APPLICATION
 #define ACPI_FLUSH_CPU_CACHE()
 #else
