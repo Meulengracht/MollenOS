@@ -115,7 +115,7 @@ MCoreInitialize(
 	 * ACPI is present on the system */
 	if (AcpiAvailable() == ACPI_AVAILABLE) {
 		AcpiInitialize();
-		AcpiScan();
+		AcpiDevicesScan();
 	}
 
 	/* Initialize the GC 

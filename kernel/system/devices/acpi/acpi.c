@@ -382,45 +382,23 @@ void AcpiOsiInstall(void)
  * ACPI devices */
 void AcpiInitialize(void)
 {
+    // Variables
 	ACPI_STATUS Status;
-	ACPI_OBJECT arg1;
-	ACPI_OBJECT_LIST args;
 
 	/* Debug */
 	LogInformation("ACPI", "Installing OSI Interface");
 	Status = AcpiInstallInterfaceHandler(AcpiOsi);
-	AcpiOsiSetup("Windows 2009");
+    AcpiOsiSetup("Windows 2009");
+    AcpiOsiSetup("Windows 2013");
+    AcpiOsiSetup("MollenOS");
 	AcpiOsiInstall();
 
 	/* Copy the root table list to dynamic memory */
-	LogInformation("ACPI", "Reallocating Tables");
+    LogInformation("ACPI", "Reallocating Tables");
 	Status = AcpiReallocateRootTable();
-	if (ACPI_FAILURE(Status))
-	{
+	if (ACPI_FAILURE(Status)) {
 		LogFatal("ACPI", "Failed AcpiReallocateRootTable, %u!", Status);
 		for (;;);
-	}
-
-	/* Install the default address space handlers. */
-	Status = AcpiInstallAddressSpaceHandler(ACPI_ROOT_OBJECT,
-		ACPI_ADR_SPACE_SYSTEM_MEMORY, ACPI_DEFAULT_HANDLER, NULL, NULL);
-	if (ACPI_FAILURE(Status)) {
-		LogDebug("ACPI", "Could not initialise SystemMemory handler, %s!", 
-			AcpiFormatException(Status));
-	}
-
-	Status = AcpiInstallAddressSpaceHandler(ACPI_ROOT_OBJECT,
-		ACPI_ADR_SPACE_SYSTEM_IO, ACPI_DEFAULT_HANDLER, NULL, NULL);
-	if (ACPI_FAILURE(Status)) {
-		LogDebug("ACPI", "Could not initialise SystemIO handler, %s!",
-			AcpiFormatException(Status));
-	}
-
-	Status = AcpiInstallAddressSpaceHandler(ACPI_ROOT_OBJECT,
-		ACPI_ADR_SPACE_PCI_CONFIG, ACPI_DEFAULT_HANDLER, NULL, NULL);
-	if (ACPI_FAILURE(Status)) {
-		LogDebug("ACPI", "Could not initialise PciConfig handler, %s!",
-			AcpiFormatException(Status));
 	}
 
 	/* Create the ACPI namespace from ACPI tables */
@@ -439,32 +417,25 @@ void AcpiInitialize(void)
 		for (;;);
 	}
 	
+    // Handles must be installed after enabling subsystems, but before
+    // initializing all acpi-objects 
+	LogInformation("ACPI", "Installing Event Handlers");
+	AcpiInstallNotifyHandler(ACPI_ROOT_OBJECT, ACPI_SYSTEM_NOTIFY, AcpiBusNotifyHandler, NULL);
+    AcpiInstallGlobalEventHandler(AcpiEventHandler, NULL);
+	//AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, acpi_shutdown, NULL);
+	//AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON, acpi_sleep, NULL);
+	//ACPI_BUTTON_TYPE_LID
+    
 	/* Probe for EC here */
 
 	/* Complete the ACPI namespace object initialization */
 	LogInformation("ACPI", "Initializing Objects");
 	Status = AcpiInitializeObjects(ACPI_FULL_INITIALIZATION);
-	if (ACPI_FAILURE(Status))
-	{
+	if (ACPI_FAILURE(Status)){
 		LogFatal("ACPI", "Failed AcpiInitializeObjects, %u!", Status);
 		for (;;);
 	}
 
 	/* Run _OSC on root, it should always be run after InitializeObjects */
 	AcpiCheckBusOscSupport();
-
-	/* Set APIC Mode */
-	arg1.Type = ACPI_TYPE_INTEGER;
-	arg1.Integer.Value = 1;				/* 0 - PIC, 1 - IOAPIC, 2 - IOSAPIC */
-	args.Count = 1;
-	args.Pointer = &arg1;
-	AcpiEvaluateObject(ACPI_ROOT_OBJECT, "_PIC", &args, NULL);
-
-	/* Info */
-	LogInformation("ACPI", "Installing Event Handlers");
-	AcpiInstallNotifyHandler(ACPI_ROOT_OBJECT, ACPI_SYSTEM_NOTIFY, AcpiBusNotifyHandler, NULL);
-	AcpiInstallGlobalEventHandler(AcpiEventHandler, NULL);
-	//AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, acpi_shutdown, NULL);
-	//AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON, acpi_sleep, NULL);
-	//ACPI_BUTTON_TYPE_LID
 }

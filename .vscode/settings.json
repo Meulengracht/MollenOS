@@ -256,6 +256,8 @@
         "virtualkeycodes.h": "c",
         "*.in": "c",
         "pic.h": "c",
-        "cpuid.h": "c"
+        "cpuid.h": "c",
+        "log.h": "c",
+        "achware.h": "c"
     }
 }

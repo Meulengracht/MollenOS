@@ -140,10 +140,13 @@
 #define ACPI_DEBUGGER
 #endif
 
-#ifdef __OSCONFIG_ACPIDEBUG
-#define ACPI_MUTEX_DEBUG
-#else
+#ifndef __OSCONFIG_ACPIDEBUG
+//#define ACPI_DEBUG_OUTPUT
 #define ACPI_NO_ERROR_MESSAGES
+#endif
+
+#ifdef __OSCONFIG_ACPIDEBUGMUTEXES
+#define ACPI_MUTEX_DEBUG
 #endif
 
 /* acpi_os_semaphore_info

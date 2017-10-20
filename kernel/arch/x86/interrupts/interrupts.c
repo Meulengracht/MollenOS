@@ -144,7 +144,7 @@ AcpiDeriveInterrupt(
 
 	// Start by checking if we can find the
 	// routings by checking the given device
-	Dev = AcpiLookupDevice(Bus);
+	Dev = AcpiDeviceLookupBusRoutings(Bus);
 
 	// Make sure there was a bus device for it
 	if (Dev != NULL) {
@@ -155,7 +155,7 @@ AcpiDeriveInterrupt(
 			*AcpiConform = __DEVICEMANAGER_ACPICONFORM_PRESENT;
 
 			// Either from list or raw
-			if (Dev->Routings->InterruptInformation[rIndex] == 0) {
+			if (Dev->Routings->IsList[rIndex] == 0) {
 				pEntry = Dev->Routings->Interrupts[rIndex].Entry;
 			}
 			else {
@@ -181,8 +181,8 @@ AcpiDeriveInterrupt(
 			}
 
 			// Return found interrupt
-			TRACE("Found interrupt %i", pEntry->Interrupts);
-			return pEntry->Interrupts;
+			TRACE("Found interrupt %i", pEntry->Irq);
+			return pEntry->Irq;
 		}
 	}
 

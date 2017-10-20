@@ -10,6 +10,12 @@
 # MollenOS Configuration, comment in or out for specific features
 config_flags = 
 
+# ACPI Configuration flags
+#config_flags += -D__OSCONFIG_REDUCEDHARDWARE
+#config_flags += -D__OSCONFIG_ACPIDEBUGGER
+config_flags += -D__OSCONFIG_ACPIDEBUG
+#config_flags += -D__OSCONFIG_ACPIDEBUGMUTEXES
+
 # Use a full debug console on height
 config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE
 
