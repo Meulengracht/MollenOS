@@ -95,23 +95,30 @@ PACKED_TYPESTRUCT(PciRoutingEntry, {
     uint8_t                 Fixed;
 });
 
+/* PciRoutingSource
+ * Contains an irq source, it's possible irq resources
+ * and the currently active irq */
+PACKED_TYPESTRUCT(PciRoutingSource, {
+    ACPI_HANDLE              Handle;
+    List_t                  *Entries;
+    PciRoutingEntry_t       *ActiveEntry;
+});
+
 /* PciRoutings
  * A table containing 128 interrupt entries 
  * which is the number of 'redirects' there can be */
 PACKED_TYPESTRUCT(PciRoutings, {
-    int                      IsList[128];
-    union {
-        PciRoutingEntry_t   *Entry;
-        List_t              *Entries;
-    } Interrupts[128];
+    List_t                  *Sources; // List of lists of irqs
+    List_t                  *InterruptEntries[128];
+    int                      ActiveIrqs[128];
 });
 
 /* AcpiDevice 
  * Generic ACPI device representation in MCore.
  * Contains all information neccessary to use the device. */
 PACKED_TYPESTRUCT(AcpiDevice, {
-    ACPI_HANDLE             *Handle;
-    ACPI_HANDLE             *Parent;
+    ACPI_HANDLE              Handle;
+    ACPI_HANDLE              Parent;
     char                     Name[128];
     int                      Type;
     
@@ -162,11 +169,22 @@ KERNELABI
 AcpiDeviceLookupBusRoutings(
     _In_ int Bus);
 
-/* Device Functions */
-__EXTERN ACPI_STATUS AcpiDeviceAttachData(AcpiDevice_t *Device, uint32_t Type);
+/* AcpiDeviceAttachData
+ * Stores custom context data for an individual acpi-device handle */
+KERNELAPI
+ACPI_STATUS
+KERNELABI
+AcpiDeviceAttachData(
+	_In_ AcpiDevice_t *Device,
+	_In_ int Type);
 
-/* Device Get's */
-__EXTERN ACPI_STATUS AcpiDeviceGetStatus(AcpiDevice_t* Device);
+/* AcpiDeviceGetStatus
+ * Retrieves the status of the device by querying the _STA method. */
+KERNELAPI
+ACPI_STATUS
+KERNELABI
+AcpiDeviceGetStatus(
+	_InOut_ AcpiDevice_t* Device);
 
 /* AcpiDeviceGetBusAndSegment
  * Retrieves the initial location on the bus for the device */

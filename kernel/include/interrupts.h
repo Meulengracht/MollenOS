@@ -55,31 +55,61 @@ typedef struct _MCoreInterruptDescriptor {
  * Initializes the interrupt-manager code
  * and initializes all the resources for
  * allocating and freeing interrupts */
-__EXTERN void InterruptInitialize(void);
+KERNELAPI
+void
+KERNELABI
+InterruptInitialize(void);
 
 /* InterruptRegister
  * Tries to allocate the given interrupt source
  * by the given descriptor and flags. On success
  * it returns the id of the irq, and on failure it
  * returns UUID_INVALID */
-__EXTERN UUId_t InterruptRegister(MCoreInterrupt_t *Interrupt, Flags_t Flags);
+KERNELAPI
+UUId_t
+KERNELABI
+InterruptRegister(
+    _In_ MCoreInterrupt_t *Interrupt,
+    _In_ Flags_t Flags);
 
 /* InterruptUnregister 
  * Unregisters the interrupt from the system and removes
  * any resources that was associated with that interrupt 
  * also masks the interrupt if it was the only user */
-__EXTERN OsStatus_t InterruptUnregister(UUId_t Source);
+KERNELAPI
+OsStatus_t
+KERNELABI
+InterruptUnregister(
+    _In_ UUId_t Source);
 
 /* InterruptAcknowledge 
  * Acknowledges the interrupt source and unmasks
  * the interrupt-line, allowing another interrupt
  * to occur for the given driver */
-__EXTERN OsStatus_t InterruptAcknowledge(UUId_t Source);
+KERNELAPI
+OsStatus_t
+KERNELABI
+InterruptAcknowledge(
+    _In_ UUId_t Source);
 
 /* InterruptGet
  * Retrieves the given interrupt source information
  * as a MCoreInterruptDescriptor_t */
-__EXTERN MCoreInterruptDescriptor_t *InterruptGet(UUId_t Source);
+KERNELAPI
+MCoreInterruptDescriptor_t*
+KERNELABI
+InterruptGet(
+   _In_ UUId_t Source);
+
+/* InterruptGetLeastLoaded
+ * Allocates the least used sharable irq
+ * most useful for MSI devices */
+KERNELAPI
+int
+KERNELABI
+InterruptGetLeastLoaded(
+	_In_ int Irqs[],
+	_In_ int Count);
 
 /* InterruptDisable
  * Disables interrupts and returns

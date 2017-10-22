@@ -150,39 +150,39 @@ AcpiDeriveInterrupt(
 	if (Dev != NULL) {
 		TRACE("Found bus-device <%s>, accessing index %u", 
 			&Dev->HID[0], rIndex);
-		if (Dev->Routings->Interrupts[rIndex].Entry != NULL) {
-			PciRoutingEntry_t *pEntry = NULL;
-			*AcpiConform = __DEVICEMANAGER_ACPICONFORM_PRESENT;
+		if (Dev->Routings->ActiveIrqs[rIndex] != INTERRUPT_NONE
+			&& Dev->Routings->InterruptEntries[rIndex] != NULL) {
+			PciRoutingEntry_t *RoutingEntry = NULL;
 
-			// Either from list or raw
-			if (Dev->Routings->IsList[rIndex] == 0) {
-				pEntry = Dev->Routings->Interrupts[rIndex].Entry;
-			}
-			else {
-				pEntry = (PciRoutingEntry_t*)
-					ListGetDataByKey(Dev->Routings->Interrupts[rIndex].Entries, iKey, 0);
+			// Lookup entry in list
+			foreach(iNode, Dev->Routings->InterruptEntries[rIndex]) {
+				RoutingEntry = (PciRoutingEntry_t*)iNode->Data;
+				if (RoutingEntry->Irq == Dev->Routings->ActiveIrqs[rIndex]) {
+					break;
+				}
 			}
 
 			// Update IRQ Information
-			if (pEntry->Trigger == ACPI_LEVEL_SENSITIVE) {
+			*AcpiConform = __DEVICEMANAGER_ACPICONFORM_PRESENT;
+			if (RoutingEntry->Trigger == ACPI_LEVEL_SENSITIVE) {
 				*AcpiConform |= __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE;
 			}
 
-			if (pEntry->Polarity == ACPI_ACTIVE_LOW) {
+			if (RoutingEntry->Polarity == ACPI_ACTIVE_LOW) {
 				*AcpiConform |= __DEVICEMANAGER_ACPICONFORM_POLARITY;
 			}
 
-			if (pEntry->Shareable != 0) {
+			if (RoutingEntry->Shareable != 0) {
 				*AcpiConform |= __DEVICEMANAGER_ACPICONFORM_SHAREABLE;
 			}
 
-			if (pEntry->Fixed != 0) {
+			if (RoutingEntry->Fixed != 0) {
 				*AcpiConform |= __DEVICEMANAGER_ACPICONFORM_FIXED;
 			}
 
 			// Return found interrupt
-			TRACE("Found interrupt %i", pEntry->Irq);
-			return pEntry->Irq;
+			TRACE("Found interrupt %i", RoutingEntry->Irq);
+			return RoutingEntry->Irq;
 		}
 	}
 
@@ -439,10 +439,13 @@ InterruptIrqCount(
 	return RetVal;
 }
 
-/* InterruptFindBest
+/* InterruptGetLeastLoaded
  * Allocates the least used sharable irq
  * most useful for MSI devices */
-int InterruptFindBest(int Irqs[], int Count)
+int
+InterruptGetLeastLoaded(
+	_In_ int Irqs[],
+	_In_ int Count)
 {
 	// Variables
 	int Best = INTERRUPT_NONE;
@@ -555,7 +558,7 @@ InterruptRegister(
 		for (i = 0; i < (INTERRUPT_BASE_DEVICE_END - INTERRUPT_BASE_DEVICE); i++) {
 			Vectors[i] = INTERRUPT_BASE_DEVICE + i;
 		}
-		TableIndex = InterruptFindBest(Vectors, 
+		TableIndex = InterruptGetLeastLoaded(Vectors, 
 			INTERRUPT_BASE_DEVICE_END - INTERRUPT_BASE_DEVICE);
 
 		// Update the id
@@ -586,7 +589,7 @@ InterruptRegister(
 		// if neither is set, choose one from the directs
 		if (Flags & INTERRUPT_VECTOR) {
 			Interrupt->Line = 
-				InterruptFindBest(Interrupt->Vectors, INTERRUPT_MAXVECTORS);
+				InterruptGetLeastLoaded(Interrupt->Vectors, INTERRUPT_MAXVECTORS);
 			if (Interrupt->Line < NUM_ISA_INTERRUPTS) {
 				Flags |= INTERRUPT_NOTSHARABLE;
 			}

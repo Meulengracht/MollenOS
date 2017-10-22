@@ -258,6 +258,7 @@
         "pic.h": "c",
         "cpuid.h": "c",
         "log.h": "c",
-        "achware.h": "c"
+        "achware.h": "c",
+        "list": "c"
     }
 }

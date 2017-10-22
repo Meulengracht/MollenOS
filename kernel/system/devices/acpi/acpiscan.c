@@ -175,8 +175,8 @@ AcpiDeviceCreate(
 	// EC Batt: PNP0C0A
 	// Smart Battery Ctrl HID: ACPI0001
     // Smart Battery HID: ACPI0002
-    // GPE Block Device: ACPI0006
-
+	// GPE Block Device: ACPI0006
+	
     // Check for the following HId's:
     // PNP0A03 (PCI Bridge)
     // PNP0A08 (PCI Express Bridge)

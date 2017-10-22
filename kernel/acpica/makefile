@@ -15,6 +15,7 @@ SOURCES = $(wildcard common/*.c) \
 		  $(wildcard resources/*.c) \
 		  $(wildcard tables/*.c) \
 		  $(wildcard utilities/*.c) \
+		  $(wildcard oslayer/$(arch)/*.c) \
 		  $(wildcard oslayer/*.c)
 OBJECTS = $(SOURCES:.c=.o)
 
