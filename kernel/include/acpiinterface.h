@@ -83,6 +83,18 @@
 #define ACPI_BATTERY_CHARGEINFO 0x8
 #define ACPI_BATTERY_CAPMEAS    0x10
 
+/* AcpiEcdt
+ * The most relevant values from the ECDT table to
+ * be stored for usage throughout the system */
+PACKED_TYPESTRUCT(AcpiEcdt, {
+    ACPI_HANDLE             Handle;
+    ACPI_GENERIC_ADDRESS    CommandAddress;
+    ACPI_GENERIC_ADDRESS    DataAddress;
+    UINT8                   Gpe;
+    UINT32                  UId;
+    char                    NsPath[32];
+});
+
 /* PciRoutingEntry
  * Structure containing information
  * about an interrupt in this system */

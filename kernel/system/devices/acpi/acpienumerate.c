@@ -28,7 +28,9 @@
 /* C-Library */
 #include <ds/list.h>
 
-/* Globals */
+/* Globals 
+ * - Global state keeping */
+AcpiEcdt_t __GlbECDT;
 List_t *GlbAcpiNodes = NULL;
 int GlbAcpiAvailable = ACPI_NOT_AVAILABLE;
 
@@ -153,6 +155,28 @@ void AcpiEnumerateSRAT(void *SratStart, void *SratEnd)
 	_CRT_UNUSED(SratEnd);
 }
 
+/* Enumerate the ECDT 
+ * We need this to fully initialize ACPI if it needs to be available. */
+void
+AcpiEnumerateECDT(
+	_In_ void *TableStart,
+	_In_ void *TableEnd)
+{
+	// Variables
+	ACPI_TABLE_ECDT *EcdtTable = NULL;
+
+	// Initialize pointers
+	EcdtTable = (ACPI_TABLE_ECDT*)TableStart;
+
+	// Store the most relevant data
+	__GlbECDT.Handle = ACPI_ROOT_OBJECT;
+	__GlbECDT.Gpe = EcdtTable->Gpe;
+	__GlbECDT.UId = EcdtTable->Uid;
+	memcpy(&__GlbECDT.CommandAddress, &EcdtTable->Control, sizeof(ACPI_GENERIC_ADDRESS));
+	memcpy(&__GlbECDT.DataAddress, &EcdtTable->Data, sizeof(ACPI_GENERIC_ADDRESS));
+	memcpy(&__GlbECDT.NsPath[0], &EcdtTable->Id[0], strlen((const char*	)&EcdtTable->Id[0]));
+}
+
 /* AcpiEnumerate
  * Initializes Early Access and enumerates the APIC */
 int
@@ -160,7 +184,10 @@ AcpiEnumerate(void)
 {
 	// Variables
 	ACPI_TABLE_HEADER *Header = NULL;
-    ACPI_STATUS Status = 0;
+	ACPI_STATUS Status = 0;
+	
+	// Initialize variables
+	memset(&__GlbECDT, 0, sizeof(AcpiEcdt_t));
     
     // Call
 	LogInformation("ACPI", "Initializing ACPICA");
@@ -208,8 +235,21 @@ AcpiEnumerate(void)
 		ACPI_TABLE_SRAT *SratTable = NULL;
 		LogInformation("ACPI", "Enumerating the SRAT Table");
 		SratTable = (ACPI_TABLE_SRAT*)Header;
-		AcpiEnumerateSRAT((void*)((uintptr_t)SratTable + sizeof(ACPI_TABLE_MADT)),
+		AcpiEnumerateSRAT((void*)((uintptr_t)SratTable + sizeof(ACPI_TABLE_SRAT)),
             (void*)((uintptr_t)SratTable + SratTable->Header.Length));
+        
+        // Cleanup table when we are done with it as we are using
+        // static pointers and reaollcating later
+        AcpiPutTable(Header);
+	}
+
+	// Check for SRAT presence and enumerate
+	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_ECDT, 0, &Header))) {
+		ACPI_TABLE_ECDT *EcdtTable = NULL;
+		LogInformation("ACPI", "Enumerating the ECDT Table");
+		EcdtTable = (ACPI_TABLE_ECDT*)Header;
+		//AcpiEnumerateECDT((void*)((uintptr_t)EcdtTable + sizeof(ACPI_TABLE_ECDT)),
+        //    (void*)((uintptr_t)EcdtTable + EcdtTable->Header.Length));
         
         // Cleanup table when we are done with it as we are using
         // static pointers and reaollcating later

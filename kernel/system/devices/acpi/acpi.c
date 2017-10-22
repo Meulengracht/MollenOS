@@ -1,31 +1,34 @@
 /* MollenOS
-*
-* Copyright 2011 - 2014, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS x86 ACPI Interface (Uses ACPICA)
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - ACPI(CA) Device Scan Interface
+ */
+#define __MODULE "ACPI"
+#define __TRACE
 
-/* Includes */
-#include <arch.h>
+/* Includes 
+ * - System */
 #include <acpiinterface.h>
-#include <log.h>
+#include <debug.h>
 #include <heap.h>
 
-/* C-Library */
+/* Includes
+ * - Library */
 #include <assert.h>
 
 /* OSC */
@@ -73,6 +76,7 @@ static OsiSetupEntry_t OsiSetupEntries[OSI_STRING_ENTRIES_MAX] =
 
 /* ACPICA Stuff */
 extern void AcpiUtConvertStringToUuid(char*, UINT8*);
+extern AcpiEcdt_t __GlbECDT;
 
 /* Global ACPI Information */
 char *sb_uuid_str = "0811B06E-4A27-44F9-8D60-3CBBC22E7B48";
@@ -123,13 +127,17 @@ UINT32 AcpiRebootHandler(void)
 	for (;;);
 }
 
-/* Notify Handler */
-void AcpiBusNotifyHandler(ACPI_HANDLE Device, UINT32 NotifyType, void *Context)
+/* AcpiBusNotifyHandler
+ * Global system notification handler for generic device events on the ACPI bus. */
+void
+AcpiBusNotifyHandler(
+	ACPI_HANDLE Device,
+	UINT32 NotifyType,
+	void *Context)
 {
 	_CRT_UNUSED(Device);
 	_CRT_UNUSED(Context);
-
-	Log("ACPI_Notify: Type 0x%x\n", NotifyType);
+	ERROR("Global Notification: Type 0x%x\n", NotifyType);
 }
 
 /* Global Event Handler */
@@ -377,65 +385,69 @@ void AcpiOsiInstall(void)
 	}
 }
 
-/* Initializes the full access and functionality
- * of ACPICA / ACPI and allows for scanning of
- * ACPI devices */
-void AcpiInitialize(void)
+/* AcpiInitialize
+ * Initializes the full access and functionality
+ * of ACPICA / ACPI and allows for scanning of ACPI devices */
+void
+AcpiInitialize(void)
 {
     // Variables
 	ACPI_STATUS Status;
 
-	/* Debug */
-	LogInformation("ACPI", "Installing OSI Interface");
+	// Install the OSI strings that we respond to
+	TRACE("Installing OSI Interface");
 	Status = AcpiInstallInterfaceHandler(AcpiOsi);
     AcpiOsiSetup("Windows 2009");
     AcpiOsiSetup("Windows 2013");
     AcpiOsiSetup("MollenOS");
 	AcpiOsiInstall();
 
-	/* Copy the root table list to dynamic memory */
-    LogInformation("ACPI", "Reallocating Tables");
+	// Copy the root table list to dynamic memory
+    TRACE("Reallocating Tables");
 	Status = AcpiReallocateRootTable();
 	if (ACPI_FAILURE(Status)) {
-		LogFatal("ACPI", "Failed AcpiReallocateRootTable, %u!", Status);
-		for (;;);
+		FATAL(FATAL_SCOPE_KERNEL, "Failed AcpiReallocateRootTable, %u!", Status);
 	}
 
-	/* Create the ACPI namespace from ACPI tables */
-	LogInformation("ACPI", "Loading Tables");
+	// Create the ACPI namespace from ACPI tables
+	TRACE("Loading Tables");
 	Status = AcpiLoadTables();
 	if (ACPI_FAILURE(Status)) {
-		LogFatal("ACPI", "Failed LoadTables, %u!", Status);
-		for (;;);
+		FATAL(FATAL_SCOPE_KERNEL, "Failed LoadTables, %u!", Status);
 	}
 
-	/* Initialize the ACPI hardware */
-	LogInformation("ACPI", "Enabling Subsystems");
+	// Initialize the ACPI hardware
+	TRACE("Enabling Subsystems");
 	Status = AcpiEnableSubsystem(ACPI_FULL_INITIALIZATION);
 	if (ACPI_FAILURE(Status)) {
-		LogFatal("ACPI", "Failed AcpiEnableSubsystem, %u!", Status);
-		for (;;);
+		FATAL(FATAL_SCOPE_KERNEL, "Failed AcpiEnableSubsystem, %u!", Status);
 	}
 	
     // Handles must be installed after enabling subsystems, but before
     // initializing all acpi-objects 
-	LogInformation("ACPI", "Installing Event Handlers");
+	TRACE("Installing Event Handlers");
 	AcpiInstallNotifyHandler(ACPI_ROOT_OBJECT, ACPI_SYSTEM_NOTIFY, AcpiBusNotifyHandler, NULL);
-    AcpiInstallGlobalEventHandler(AcpiEventHandler, NULL);
+    //AcpiInstallGlobalEventHandler(AcpiEventHandler, NULL);
 	//AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, acpi_shutdown, NULL);
 	//AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON, acpi_sleep, NULL);
 	//ACPI_BUTTON_TYPE_LID
     
-	/* Probe for EC here */
-
-	/* Complete the ACPI namespace object initialization */
-	LogInformation("ACPI", "Initializing Objects");
-	Status = AcpiInitializeObjects(ACPI_FULL_INITIALIZATION);
-	if (ACPI_FAILURE(Status)){
-		LogFatal("ACPI", "Failed AcpiInitializeObjects, %u!", Status);
-		for (;;);
+	// Probe for EC here
+	if (__GlbECDT.Handle != NULL) {
+		// Retrieve handle and initialize handlers
+		Status = AcpiGetHandle(ACPI_ROOT_OBJECT, &__GlbECDT.NsPath[0], &__GlbECDT.Handle);
+		if (ACPI_SUCCESS(Status)){
+			
+		}
 	}
 
-	/* Run _OSC on root, it should always be run after InitializeObjects */
+	// Complete the ACPI namespace object initialization
+	TRACE("Initializing Objects");
+	Status = AcpiInitializeObjects(ACPI_FULL_INITIALIZATION);
+	if (ACPI_FAILURE(Status)){
+		FATAL(FATAL_SCOPE_KERNEL, "Failed AcpiInitializeObjects, %u!", Status);
+	}
+
+	// Run _OSC on root, it should always be run after InitializeObjects
 	AcpiCheckBusOscSupport();
 }
