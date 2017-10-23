@@ -51,13 +51,14 @@ OsStatus_t ThreadingReap(void *UserData);
 /* Globals, we need a few variables to
  * keep track of running threads, idle threads
  * and a thread resources lock */
-UUId_t GlbThreadGcId = 0;
-UUId_t GlbThreadId = 1;
-List_t *GlbThreads = NULL;
-ListNode_t *GlbCurrentThreads[MAX_SUPPORTED_CPUS];
-ListNode_t *GlbIdleThreads[MAX_SUPPORTED_CPUS];
-Spinlock_t GlbThreadLock = SPINLOCK_INIT;
-int GlbThreadingEnabled = 0;
+static CriticalSection_t ThreadGlobalLock;
+static ListNode_t *GlbCurrentThreads[MAX_SUPPORTED_CPUS];
+static ListNode_t *GlbIdleThreads[MAX_SUPPORTED_CPUS];
+
+static UUId_t GlbThreadGcId         = 0;
+static UUId_t GlbThreadId           = 1;
+static List_t *GlbThreads           = NULL;
+static int GlbThreadingEnabled      = 0;
 
 /* ThreadingGetCurrentNode
  * Helper function, retrieves the current 
@@ -140,71 +141,64 @@ ThreadingEntryPointUserMode(void)
  * and initializes the current 'context' as the
  * idle-thread, first time it's called it also
  * does initialization of threading system */
-void ThreadingInitialize(UUId_t Cpu)
+void
+ThreadingInitialize(
+    _In_ UUId_t Cpu)
 {
-	/* Variables for initializing the system */
-	MCoreThread_t *Init = NULL;
-	ListNode_t *Node = NULL;
+	// Variables
+	MCoreThread_t *Init         = NULL;
+	ListNode_t *Node            = NULL;
+	int Itr                     = 0;
 	DataKey_t Key;
-	int Itr = 0;
 
-	/* Acquire the lock */
-	SpinlockAcquire(&GlbThreadLock);
-
-	/* Sanitize the global, do we need to
-	 * initialize the entire threading? */
-	if (GlbThreadingEnabled != 1) 
-	{
-		/* Create threading list */
+	// Sanitize the global, do we need to
+	// initialize the entire threading?
+	if (GlbThreadingEnabled != 1) {
 		GlbThreads = ListCreate(KeyInteger, LIST_SAFE);
 		GlbThreadGcId = GcRegister(ThreadingReap);
 		GlbThreadId = 1;
+        CriticalSectionConstruct(&ThreadGlobalLock, CRITICALSECTION_PLAIN);
 
-		/* Zero all current threads out, together with idle */
+		// Zero all current threads out, together with idle
 		for (Itr = 0; Itr < MAX_SUPPORTED_CPUS; Itr++) {
 			GlbCurrentThreads[Itr] = NULL;
 			GlbIdleThreads[Itr] = NULL;
 		}
-
-		/* Set enabled */
 		GlbThreadingEnabled = 1;
-	}
-
-	/* Allocate resoures for a new thread (the idle thread for
-	 * this cpu)! */
+    }
+    
+	// Allocate and initialize a new thread instance
 	Init = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
 	memset(Init, 0, sizeof(MCoreThread_t));
-
-	/* Initialize default values */
 	Init->Name = strdup("idle");
 	Init->Queue = MCORE_SCHEDULER_LEVELS - 1;
 	Init->Flags = THREADING_IDLE | THREADING_SYSTEMTHREAD | THREADING_CPUBOUND;
 	Init->TimeSlice = MCORE_IDLE_TIMESLICE;
 	Init->Priority = PriorityLow;
 	Init->ParentId = 0xDEADBEEF;
-	Init->Id = GlbThreadId++;
 	Init->AshId = UUID_INVALID;
 	Init->CpuId = Cpu;
 
-	/* Create the pipe for communiciation */
+	// Create a compipe
 	Init->Pipe = PipeCreate(PIPE_RPCOUT_SIZE, 0);
+    
+    // Acquire lock to generate id
+	CriticalSectionEnter(&ThreadGlobalLock);
+	Init->Id = GlbThreadId++;
+	CriticalSectionLeave(&ThreadGlobalLock);
 
-	/* Release the lock */
-	SpinlockRelease(&GlbThreadLock);
-
-	/* Create resource spaces for the
-	 * underlying platform */
+	// Initialize arch-dependant members
 	Init->AddressSpace = AddressSpaceCreate(AS_TYPE_KERNEL);
 	Init->ThreadData = IThreadCreate(Init->Flags, 0);
 
-	/* Create a list node */
+	// Acquire lock to modify the list
+	CriticalSectionEnter(&ThreadGlobalLock);
 	Key.Value = (int)Init->Id;
 	Node = ListCreateNode(Key, Key, Init);
 	GlbCurrentThreads[Cpu] = Node;
 	GlbIdleThreads[Cpu] = Node;
-
-	/* append to thread list */
 	ListAppend(GlbThreads, Node);
+	CriticalSectionLeave(&ThreadGlobalLock);
 }
 
 /* ThreadingCreateThread
@@ -229,7 +223,7 @@ ThreadingCreateThread(
     TRACE("ThreadingCreateThread(%s)", Name);
 
 	// Acquire the thread lock
-	SpinlockAcquire(&GlbThreadLock);
+	CriticalSectionEnter(&ThreadGlobalLock);
 
 	// Lookup current thread and cpu
 	Key.Value = (int)GlbThreadId++;
@@ -238,7 +232,7 @@ ThreadingCreateThread(
 
 	// Release the lock, we don't need it for
 	// anything else than id
-	SpinlockRelease(&GlbThreadLock);
+	CriticalSectionLeave(&ThreadGlobalLock);
 
 	// Allocate a new thread instance and 
 	// zero out the allocated instance
@@ -322,12 +316,18 @@ ThreadingCreateThread(
 	}
 	else {
 		Thread->ThreadData = IThreadCreate(THREADING_KERNELMODE, (uintptr_t)&ThreadingEntryPointUserMode);
-	}
+    }
+    
+    // Acquire the thread lock
+	CriticalSectionEnter(&ThreadGlobalLock);
 
 	// Append it to list & scheduler
 	Key.Value = (int)Thread->Id;
 	ListAppend(GlbThreads, ListCreateNode(Key, Key, Thread));
-	SchedulerReadyThread(Thread);
+    SchedulerReadyThread(Thread);
+    
+    // Release the lock
+	CriticalSectionLeave(&ThreadGlobalLock);
 	return Thread->Id;
 }
 

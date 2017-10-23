@@ -168,9 +168,6 @@ OnFastInterrupt(
 		return InterruptNotHandled;
 	}
 
-	// Clear interrupt bits
-	UhciWrite16(Controller, UHCI_REGISTER_STATUS, InterruptStatus);
-
 	// If either interrupt or error is present, it means a change happened
 	// in one of our transactions
 	if (InterruptStatus & (UHCI_STATUS_USBINT | UHCI_STATUS_INTR_ERROR)) {
@@ -195,7 +192,10 @@ OnFastInterrupt(
         // @todo
 		//UhciReset(Controller);
 		//UhciStart(Controller, 0);
-	}
+    }
+    
+	// Clear interrupt bits
+	UhciWrite16(Controller, UHCI_REGISTER_STATUS, InterruptStatus);    
 
 	// Done
 	return InterruptHandled;

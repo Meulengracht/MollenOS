@@ -703,6 +703,9 @@ UhciProcessRequest(
 	UhciTransferDescriptor_t *Td = NULL;
 	UhciQueueHead_t *Qh = NULL;
 
+    // Debug
+    TRACE("UhciProcessRequest()");
+
 	// Handle the transfer
 	if (Transfer->Transfer.Type == ControlTransfer
 		|| Transfer->Transfer.Type == BulkTransfer) {
@@ -835,7 +838,10 @@ UhciProcessTransfers(
 	// Variables
 	List_t *Transactions = Controller->QueueControl.TransactionList;
 	UhciTransferDescriptor_t *Td = NULL;
-	int ProcessQh = 0;
+    int ProcessQh = 0;
+    
+    // Debug
+    TRACE("UhciProcessTransfers()");
 
 	// Update current frame
 	UhciUpdateCurrentFrame(Controller);
