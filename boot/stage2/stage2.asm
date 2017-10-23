@@ -258,7 +258,7 @@ LeaveProtected:
 Finish16Bit:
 	; Save
 	mov		eax, MEMLOCATION_RAMDISK_UPPER
-	mov 	dword [BootDescriptor + MollenOsBootDescriptor.RamDiskAddr], eax
+	mov 	dword [BootHeader + MultiBoot.RamdiskAddress], eax
 
 	; Print
 	mov 	esi, szSuccess
@@ -360,12 +360,12 @@ Entry32:
 	call	LZLoad
 	cmp		eax, -1
 	je		EndOfStage
-	mov		dword [BootDescriptor + MollenOsBootDescriptor.RamDiskSize], eax
+	mov		dword [BootHeader + MultiBoot.RamdiskSize], eax
 
 	; RamDisk Relocation to 2mb
 	mov 	esi, MEMLOCATION_UNPACK_AREA
 	mov 	edi, MEMLOCATION_RAMDISK_UPPER
-	mov		ecx, dword [BootDescriptor + MollenOsBootDescriptor.RamDiskSize]
+	mov		ecx, dword [BootHeader + MultiBoot.RamdiskSize]
 	shr		ecx, 2
 	inc		ecx
 	rep		movsd
@@ -382,7 +382,6 @@ Entry32:
 	mov 	ecx, dword [dKernelEntry]
 	mov 	eax, MULTIBOOT_MAGIC
 	mov 	ebx, BootHeader
-	mov 	edx, BootDescriptor
 
 	; MultiBoot structure also needs to be on stack
 	push 	ebx

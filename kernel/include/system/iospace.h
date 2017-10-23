@@ -21,7 +21,6 @@
  *   that all sub-layers / architectures must conform to
  */
 
-
 #ifndef _MCORE_IOSPACE_H_
 #define _MCORE_IOSPACE_H_
 

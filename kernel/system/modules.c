@@ -99,7 +99,7 @@ Crc32Generate(
  * available drivers */
 OsStatus_t
 ModulesInitialize(
-    _In_ MCoreBootDescriptor *BootDescriptor)
+    _In_ Multiboot_t *BootInformation)
 {
     // Variables
     MCoreRamDiskHeader_t *Ramdisk = NULL;
@@ -108,14 +108,14 @@ ModulesInitialize(
     
     // Debug
     TRACE("ModulesInitialize(Address 0x%x, Size 0x%x)",
-        BootDescriptor->RamDiskAddress, BootDescriptor->RamDiskSize);
+        BootInformation->RamdiskAddress, BootInformation->RamdiskSize);
 
     // Sanitize the boot-parameters 
     // We will consider the possiblity of
     // 0 values to be there is no ramdisk
-    if (BootDescriptor == NULL
-        || BootDescriptor->RamDiskAddress == 0
-        || BootDescriptor->RamDiskSize == 0) {
+    if (BootInformation == NULL
+        || BootInformation->RamdiskAddress == 0
+        || BootInformation->RamdiskSize == 0) {
         TRACE("No ramdisk supplied by the boot-descriptor");
         return OsSuccess;
     }
@@ -125,7 +125,7 @@ ModulesInitialize(
     Crc32GenerateTable();
     
     // Initialize the pointer and read the signature value, must match
-    Ramdisk = (MCoreRamDiskHeader_t*)BootDescriptor->RamDiskAddress;
+    Ramdisk = (MCoreRamDiskHeader_t*)BootInformation->RamdiskAddress;
     if (Ramdisk->Magic != RAMDISK_MAGIC) {
         ERROR("Invalid magic in ramdisk - 0x%x", Ramdisk->Magic);
         return OsError;
@@ -141,7 +141,7 @@ ModulesInitialize(
 
     // Store filecount so we can iterate
     Entry = (MCoreRamDiskEntry_t*)
-        (BootDescriptor->RamDiskAddress + sizeof(MCoreRamDiskHeader_t));
+        (BootInformation->RamdiskAddress + sizeof(MCoreRamDiskHeader_t));
     Counter = Ramdisk->FileCount;
 
     // Keep iterating untill we reach the end of counter
@@ -149,14 +149,14 @@ ModulesInitialize(
     while (Counter != 0) {
         if (Entry->Type == RAMDISK_MODULE || Entry->Type == RAMDISK_FILE) {
             MCoreRamDiskModuleHeader_t *Header =
-                (MCoreRamDiskModuleHeader_t*)(BootDescriptor->RamDiskAddress + Entry->DataHeaderOffset);
+                (MCoreRamDiskModuleHeader_t*)(BootInformation->RamdiskAddress + Entry->DataHeaderOffset);
             MCoreModule_t *Module = NULL;
             uint8_t *ModuleData = NULL;
             uint32_t CrcOfData = 0;
             DataKey_t Key;
 
             // Perform CRC validation
-            ModuleData = (uint8_t*)(BootDescriptor->RamDiskAddress 
+            ModuleData = (uint8_t*)(BootInformation->RamdiskAddress 
                 + Entry->DataHeaderOffset + sizeof(MCoreRamDiskModuleHeader_t));
             CrcOfData = Crc32Generate(-1, ModuleData, Header->LengthOfData);
             if (CrcOfData != Header->Crc32OfData) {

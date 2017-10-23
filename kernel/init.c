@@ -26,6 +26,7 @@
 #include <revision.h>
 #include <mollenos.h>
 
+#include <system/setup.h>
 #include <system/iospace.h>
 #include <system/utils.h>
 
@@ -37,6 +38,7 @@
 #include <scheduler.h>
 #include <threading.h>
 #include <timers.h>
+#include <video.h>
 #include <debug.h>
 #include <heap.h>
 #include <log.h>
@@ -45,44 +47,76 @@
  * - Library */
 #include <stddef.h>
 
+/* Globals
+ * - Static state variables */
+static Multiboot_t GlobalBootInformation;
+
 /* PrintHeader
  * Print build information and os-versioning */
 void
 PrintHeader(
-    _In_ MCoreBootInfo_t *BootInfo)
+    _In_ Multiboot_t *BootInformation)
 {
 	Log("MollenOS - Platform: %s - Version %i.%i.%i",
 		ARCHITECTURE_NAME, REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD);
 	Log("Written by Philip Meulengracht, Copyright 2011-2016.");
-	Log("Bootloader - %s", BootInfo->BootloaderName);
+	Log("Bootloader - %s", (char*)BootInformation->BootLoaderName);
 	Log("%s build %s - %s\n", BUILD_SYSTEM, BUILD_DATE, BUILD_TIME);
 }
 
 /* MCoreInitialize
- * Main kernel initializor function. Set's up the entire system. */
+ * Callable by the architecture layer to initialize the kernel */
 void
 MCoreInitialize(
-    _In_ MCoreBootInfo_t *BootInfo)
+	_In_ Multiboot_t *BootInformation)
 {
-	// Initialize log and print the header
-	LogInit();
-	PrintHeader(BootInfo);
+    // Variables
+    Flags_t SystemsAvailable = 0;
+    
+    // Initialize all our static memory systems
+    // and global variables
+    memcpy(&GlobalBootInformation, BootInformation, sizeof(Multiboot_t));
+    InterruptInitialize();
+    LogInitialize();
+    // @todo
 
-	// Now call the underlying architecture setup.
-	BootInfo->InitHAL(BootInfo->ArchBootInfo, &BootInfo->Descriptor);
+    // Print build/info-header
+    PrintHeader(&GlobalBootInformation);
 
-	/* Init the heap */
-	HeapInit();
+    // Query available systems
+    SystemFeaturesQuery(&GlobalBootInformation, &SystemsAvailable);
+    TRACE("Supported features: 0x%x", SystemsAvailable);
 
-	/* The first memory operaiton we will
-	 * be performing is upgrading the log away
-	 * from the static buffer */
-	LogUpgrade(LOG_PREFFERED_SIZE);
+    // Initialize sublayer
+    if (SystemsAvailable & SYSTEM_FEATURE_INITIALIZE) {
+        TRACE("Running SYSTEM_FEATURE_INITIALIZE");
+        SystemFeaturesInitialize(&GlobalBootInformation, SYSTEM_FEATURE_INITIALIZE);
+    }
 
+    // Initialize output
+    if (SystemsAvailable & SYSTEM_FEATURE_OUTPUT) {
+        TRACE("Running SYSTEM_FEATURE_OUTPUT");
+        SystemFeaturesInitialize(&GlobalBootInformation, SYSTEM_FEATURE_OUTPUT);
+        VideoInitialize();
+    }
+
+    // Initialize memory systems
+    if (SystemsAvailable & SYSTEM_FEATURE_MEMORY) {
+        TRACE("Running SYSTEM_FEATURE_MEMORY");
+        SystemFeaturesInitialize(&GlobalBootInformation, SYSTEM_FEATURE_MEMORY);
+        
+        // If we support dynamic memory initialize our heap
+        HeapInit();
+
+        // The first memory operation we will
+	    // be performing is upgrading the log away
+	    // from the static buffer
+        LogUpgrade(LOG_PREFFERED_SIZE);
+    }
+    
 	/* Initialize the interrupt/timers sub-system
 	 * after we have a heap, so systems can
 	 * register interrupts */
-	InterruptInitialize();
 	TimersInitialize();
 
 	/* We want to initialize IoSpaces as soon
@@ -93,7 +127,7 @@ MCoreInitialize(
 	/* Parse the ramdisk early, but we don't run
 	 * servers yet, this is not needed, but since there
 	 * is no dependancies yet, just do it */
-	if (ModulesInitialize(&BootInfo->Descriptor) != OsSuccess) {
+	if (ModulesInitialize(&GlobalBootInformation) != OsSuccess) {
 		CpuIdle();
 	}
 
@@ -109,7 +143,10 @@ MCoreInitialize(
 	/* Now we initialize some systems that 
 	 * rely on the presence of ACPI tables
 	 * or the absence of them */
-	BootInfo->InitPostSystems();
+	if (SystemsAvailable & SYSTEM_FEATURE_INTERRUPTS) {
+        TRACE("Running SYSTEM_FEATURE_INTERRUPTS");
+        SystemFeaturesInitialize(&GlobalBootInformation, SYSTEM_FEATURE_INTERRUPTS);
+    }
 
 	/* Now we finish the ACPI setup IF 
 	 * ACPI is present on the system */
@@ -125,7 +162,13 @@ MCoreInitialize(
 
 	/* Initialize the process manager (Phoenix)
 	 * We must do this before starting up servers */
-	PhoenixInit();
+    PhoenixInit();
+    
+    // Run system finalization before we spawn processes
+	if (SystemsAvailable & SYSTEM_FEATURE_FINALIZE) {
+        TRACE("Running SYSTEM_FEATURE_FINALIZE");
+        SystemFeaturesInitialize(&GlobalBootInformation, SYSTEM_FEATURE_FINALIZE);
+    }
 
 	// Last step, boot up all available system servers
 	// like device-managers, vfs, etc

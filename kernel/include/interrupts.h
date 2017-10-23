@@ -52,9 +52,8 @@ typedef struct _MCoreInterruptDescriptor {
 } MCoreInterruptDescriptor_t;
 
 /* InterruptInitialize
- * Initializes the interrupt-manager code
- * and initializes all the resources for
- * allocating and freeing interrupts */
+ * Initializes interrupt data-structures and global variables
+ * by setting everything to sane value */
 KERNELAPI
 void
 KERNELABI
@@ -101,6 +100,31 @@ KERNELABI
 InterruptGet(
    _In_ UUId_t Source);
 
+/* InterruptIncreasePenalty 
+ * Increases the penalty for an interrupt source. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+InterruptIncreasePenalty(
+    _In_ int Source);
+
+/* InterruptDecreasePenalty 
+ * Decreases the penalty for an interrupt source. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+InterruptDecreasePenalty(
+    _In_ int Source);
+
+/* InterruptGetPenalty
+ * Retrieves the penalty for an interrupt source. 
+ * If INTERRUPT_NONE is returned the source is unavailable. */
+KERNELAPI
+int
+KERNELABI
+InterruptGetPenalty(
+    _In_ int Source);
+
 /* InterruptGetLeastLoaded
  * Allocates the least used sharable irq
  * most useful for MSI devices */
@@ -135,10 +159,6 @@ __EXTERN IntStatus_t InterruptSaveState(void);
  * disabled or 0 if interrupts are enabled */
 __EXTERN int InterruptIsDisabled(void);
 
-/* InterruptAllocateISA
- * Allocates the ISA interrupt source, if it's 
- * already allocated it returns OsError */
-__EXTERN OsStatus_t InterruptAllocateISA(int Source);
 __EXTERN Flags_t InterruptGetPolarity(uint16_t IntiFlags, int IrqSource);
 __EXTERN Flags_t InterruptGetTrigger(uint16_t IntiFlags, int IrqSource);
 

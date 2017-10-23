@@ -23,7 +23,6 @@
  * - System */
 #include <system/video.h>
 #include <multiboot.h>
-#include <video.h>
 #include <vbe.h>
 
 /* Includes
@@ -136,9 +135,6 @@ VbeInitialize(
 
 		} break;
 	}
-
-	// Initialize OS video
-	VideoInitialize();
 }
 
 /* VesaDrawPixel

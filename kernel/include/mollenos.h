@@ -27,35 +27,4 @@
 /* Definitions */
 #define MAX_SUPPORTED_CPUS			64
 
-/* This structure is passed by mBoot 
- * in order to properly setup */
-typedef struct _MCoreBootDescriptor {
-	uint32_t KernelAddress;
-	uint32_t KernelSize;
-	uint32_t RamDiskAddress;
-	uint32_t RamDiskSize;
-	uint32_t ExportsAddress;
-	uint32_t ExportsSize;
-	uint32_t SymbolsAddress;
-	uint32_t SymbolsSize;
-} MCoreBootDescriptor;
-
-/* This structure is needed in order to
-* setup MCore */
-typedef struct _MCoreBootInfo {
-	char					*BootloaderName;
-	MCoreBootDescriptor		 Descriptor;
-	void					*ArchBootInfo;
-
-	void(*InitHAL)(void *ArchBootInfo, MCoreBootDescriptor *Descriptor);
-	void(*InitPostSystems)(void);
-} MCoreBootInfo_t;
-
-/* Extern, this function is declared in the MCore project
- * and all platform libs should enter this function */
-__EXTERN
-void
-MCoreInitialize(
-	_In_ MCoreBootInfo_t*);
-
 #endif //!_MCORE_BOOT_INFO_H_

@@ -257,26 +257,24 @@ int MmSysMappingsContain(uintptr_t Base, int Type)
  * the bitmap and makes sure reserved regions are allocated */
 OsStatus_t
 MmPhyiscalInit(
-	_In_ void *BootInfo, 
-	_In_ MCoreBootDescriptor *Descriptor)
+	_In_ Multiboot_t *BootInformation)
 {
 	/* Variables, cast neccessary data */
-	Multiboot_t *BootDesc = (Multiboot_t*)BootInfo;
 	BIOSMemoryRegion_t *RegionItr = NULL;
 	int i, j;
 	
 	/* Sanitize the bootdescriptor */
-	assert(BootDesc != NULL);
+	assert(BootInformation != NULL);
 
 	/* Good, good ! 
 	 * Get a pointer to the region descriptors */
-	RegionItr = (BIOSMemoryRegion_t*)BootDesc->MemoryMapAddress;
+	RegionItr = (BIOSMemoryRegion_t*)BootInformation->MemoryMapAddress;
 
 	/* Get information from multiboot struct 
 	 * The memory-high part is 64kb blocks 
 	 * whereas the memory-low part is bytes of memory */
-	MemorySize = (BootDesc->MemoryHigh * 64 * 1024);
-	MemorySize += BootDesc->MemoryLow; /* This is in kilobytes ... */
+	MemorySize = (BootInformation->MemoryHigh * 64 * 1024);
+	MemorySize += BootInformation->MemoryLow; /* This is in kilobytes ... */
 
 	/* Sanity, we need AT LEAST 32 mb to run! */
 	assert((MemorySize / 1024 / 1024) >= 32);
@@ -303,7 +301,7 @@ MmPhyiscalInit(
 	SysMappings[0].Length = PAGE_SIZE;
 
 	/* Loop through memory regions from bootloader */
-	for (i = 0, j = 1; i < (int)BootDesc->MemoryMapLength; i++) {
+	for (i = 0, j = 1; i < (int)BootInformation->MemoryMapLength; i++) {
 		if (!MmSysMappingsContain((PhysicalAddress_t)RegionItr->Address, (int)RegionItr->Type))
 		{
 			/* Available Region? 
@@ -345,10 +343,10 @@ MmPhyiscalInit(
 	/* 0x100000 - 0x200000 
 	 * Untill we know how much the kernel itself actually takes up 
 	 * after PE relocation */
-	MmAllocateRegion(MEMORY_LOCATION_KERNEL, Descriptor->KernelSize + PAGE_SIZE);
+	MmAllocateRegion(MEMORY_LOCATION_KERNEL, BootInformation->KernelSize + PAGE_SIZE);
 
 	/* 0x200000 - RamDiskSize */
-	MmAllocateRegion(MEMORY_LOCATION_RAMDISK, Descriptor->RamDiskSize + PAGE_SIZE);
+	MmAllocateRegion(MEMORY_LOCATION_RAMDISK, BootInformation->RamdiskSize + PAGE_SIZE);
 
 	/* 0x300000 - ?? || Bitmap Space 
 	 * We allocate an extra guard-page */

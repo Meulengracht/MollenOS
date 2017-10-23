@@ -18,6 +18,7 @@
  *
  * MollenOS MCore - ACPI(CA) Device Scan Interface
  */
+
 #define __MODULE "DSIF"
 #define __TRACE
 
@@ -168,7 +169,6 @@ AcpiDeviceCreate(
 		if (ACPI_FAILURE(Status)) {
 			ERROR("Failed to retrieve pci irq routings from device %s (%u)", Device->BusId, Status);
         }
-        BOCHSBREAK
 	}
 
 	// EC: PNP0C09

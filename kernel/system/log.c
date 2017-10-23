@@ -42,25 +42,23 @@ CriticalSection_t GlbLogLock;
 char *GlbLog = NULL;
 int GlbLogIndex = 0;
 
-/* Instantiates the Log
- * with default params */
-void LogInit(void)
+/* LogInitialize
+ * Initializes loggin data-structures and global variables
+ * by setting everything to sane value */
+void
+LogInitialize(void)
 {
-	/* Save */
+	// Initialize global values
 	GlbLogTarget = LogMemory;
 	GlbLogLevel = LogLevel1;
-
-	/* Set log ptr to initial */
+	GlbLogIndex = 0;
 	GlbLogFileHandle = UUID_INVALID;
 	GlbLogBuffer = NULL;
 	GlbLog = &GlbLogStatic[0];
 	GlbLogSize = LOG_INITIAL_SIZE;
 
-	/* Clear out log */
+	// Construct and clear
 	memset(GlbLog, 0, GlbLogSize);
-	GlbLogIndex = 0;
-
-	/* Initialize Lock */
 	CriticalSectionConstruct(&GlbLogLock, CRITICALSECTION_PLAIN);
 }
 
@@ -70,18 +68,11 @@ void LogUpgrade(size_t Size)
 {
 	/* Allocate */
 	char *nBuffer = (char*)kmalloc(Size);
-
-	/* Zero it */
 	memset(nBuffer, 0, Size);
-
-	/* Copy current buffer */
-	memcpy(nBuffer, GlbLog, GlbLogIndex);
-
-	/* Free the old if not initial */
+    memcpy(nBuffer, GlbLog, GlbLogIndex);
+    
 	if (GlbLog != &GlbLogStatic[0])
 		kfree(GlbLog);
-
-	/* Update */
 	GlbLog = nBuffer;
 	GlbLogSize = Size;
 }

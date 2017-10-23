@@ -259,6 +259,7 @@
         "cpuid.h": "c",
         "log.h": "c",
         "achware.h": "c",
-        "list": "c"
+        "list": "c",
+        "__memory": "c"
     }
 }

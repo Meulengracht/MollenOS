@@ -26,6 +26,7 @@
  * - System */
 #include <os/osdefs.h>
 #include <mollenos.h>
+#include <multiboot.h>
 #include <mutex.h>
 
 /* Structural Sizes */
@@ -113,8 +114,7 @@ KERNELAPI
 OsStatus_t
 KERNELABI
 MmPhyiscalInit(
-	_In_ void *BootInfo, 
-	_In_ MCoreBootDescriptor *Descriptor);
+	_In_ Multiboot_t *BootInformation);
 
 /* MmPhysicalQuery
  * Queries information about current block status */

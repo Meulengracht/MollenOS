@@ -134,7 +134,7 @@ PELoad:
 	mov 	dword [dPEFileBase], esi
 
 	; Save target address
-	mov	dword [BootDescriptor + MollenOsBootDescriptor.KernelAddr], edi
+	mov	dword [BootHeader + MultiBoot.KernelAddress], edi
 
 	; Copy DOS header
 	pushad
@@ -180,9 +180,9 @@ PELoad:
 
 	; Get export section
 	mov	eax, dword [PEHeader + PEMainHeader.ExportAddrRva]
-	mov	dword [BootDescriptor + MollenOsBootDescriptor.ExportAddr], eax
+	;mov	dword [BootDescriptor + MollenOsBootDescriptor.ExportAddr], eax
 	mov	eax, dword [PEHeader + PEMainHeader.ExportSize]
-	mov	dword [BootDescriptor + MollenOsBootDescriptor.ExportSize], eax
+	;mov	dword [BootDescriptor + MollenOsBootDescriptor.ExportSize], eax
 
 	; Get sections
 	xor 	eax, eax
@@ -302,8 +302,8 @@ PELoad:
 		mov	eax, dword [dPELastPage]
 		and 	eax, 0xFFFFF000
 		add	eax, 0x1000
-		sub	eax, dword [BootDescriptor + MollenOsBootDescriptor.KernelAddr]
-		mov	dword [BootDescriptor + MollenOsBootDescriptor.KernelSize], eax
+		sub	eax, dword [BootHeader + MultiBoot.KernelAddress]
+		mov	dword [BootHeader + MultiBoot.KernelSize], eax
 
 		; Done
 		popad

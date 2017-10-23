@@ -73,16 +73,16 @@ struc MultiBoot
 	.MemoryHi			resd	1
 	.BootDevice			resd	1
 	.CmdLine			resd	1
-	.ModuleCount		resd	1
-	.ModuleAddr			resd	1
+	.RamdiskSize		resd	1
+	.RamdiskAddress		resd	1
 	.Symbols0			resd	1
 	.Symbols1			resd	1
 	.Symbols2			resd	1
 	.Symbols3			resd	1
 	.MemMapLength		resd	1
 	.MemMapAddr			resd	1
-	.DrivesLength		resd	1
-	.DrivesAddr			resd	1
+	.KernelSize 		resd	1
+	.KernelAddress		resd	1
 	.ROMConfigTable		resd	1
 	.BootLoaderName		resd	1
 	.ApmTable			resd	1
@@ -92,17 +92,6 @@ struc MultiBoot
 	.VBEInterfaceSeg	resd	1
 	.VBEInterfaceOff	resd	1
 	.VBEInterfaceLen	resd	1
-endstruc
-
-struc MollenOsBootDescriptor
-	.KernelAddr 		resd 	1
-	.KernelSize		resd 	1
-	.RamDiskAddr		resd 	1
-	.RamDiskSize 		resd 	1
-	.ExportAddr		resd 	1
-	.ExportSize		resd 	1
-	.SymbolsAddr		resd	1
-	.SymbolsSize		resd	1
 endstruc
 
 ; ********************************
@@ -259,16 +248,16 @@ istruc MultiBoot
 	at MultiBoot.MemoryHi,			dd 0
 	at MultiBoot.BootDevice,		dd 0
 	at MultiBoot.CmdLine,			dd 0
-	at MultiBoot.ModuleCount,		dd 0
-	at MultiBoot.ModuleAddr,		dd 0
+	at MultiBoot.RamdiskSize,		dd 0
+	at MultiBoot.RamdiskAddress,    dd 0
 	at MultiBoot.Symbols0,			dd 0
 	at MultiBoot.Symbols1,			dd 0
 	at MultiBoot.Symbols2,			dd 0
 	at MultiBoot.Symbols3, 			dd 0
 	at MultiBoot.MemMapLength,		dd 0
 	at MultiBoot.MemMapAddr,		dd 0
-	at MultiBoot.DrivesLength,		dd 0
-	at MultiBoot.DrivesAddr,		dd 0
+	at MultiBoot.KernelSize,		dd 0
+	at MultiBoot.KernelAddress,		dd 0
 	at MultiBoot.ROMConfigTable,	dd 0
 	at MultiBoot.BootLoaderName,	dd 0
 	at MultiBoot.ApmTable,			dd 0
@@ -278,22 +267,6 @@ istruc MultiBoot
 	at MultiBoot.VBEInterfaceSeg,	dd 0
 	at MultiBoot.VBEInterfaceOff,	dd 0
 	at MultiBoot.VBEInterfaceLen,	dd 0
-iend
-
-; ********************************
-; Os Boot Header
-; ********************************
-align 32
-BootDescriptor:
-istruc MollenOsBootDescriptor
-	at MollenOsBootDescriptor.KernelAddr, 		dd 	0
-	at MollenOsBootDescriptor.KernelSize,		dd 	0
-	at MollenOsBootDescriptor.RamDiskAddr,		dd 	0
-	at MollenOsBootDescriptor.RamDiskSize, 		dd 	0
-	at MollenOsBootDescriptor.ExportAddr,		dd 	0
-	at MollenOsBootDescriptor.ExportSize,		dd 	0
-	at MollenOsBootDescriptor.SymbolsAddr,		dd	0
-	at MollenOsBootDescriptor.SymbolsSize,		dd	0
 iend
 
 %endif

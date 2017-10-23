@@ -28,6 +28,7 @@
  * - Library */
 #include <os/osdefs.h>
 #include <os/spinlock.h>
+#include <os/driver/contracts/video.h>
 
 /* VideoInitialize
  * Initializes boot-video environment untill a more

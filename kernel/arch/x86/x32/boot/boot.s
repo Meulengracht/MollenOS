@@ -22,7 +22,7 @@ bits 32
 segment .text
 
 ; Extern main function in C-code
-extern _InitX86
+extern _MCoreInitialize
 
 ; Publics in this file
 global _kentry
@@ -35,7 +35,6 @@ global _CpuId
 ; EAX - Multiboot Magic
 ; EBX - Contains address of the multiboot structure, but
 ;		it should be located in stack aswell.
-; EDX - Contains address of the mollenos boot structure
 
 _kentry:
 	;We disable interrupts, we have no IDT installed
@@ -53,11 +52,10 @@ _kentry:
 
 	;Now, we place multiboot structure and kernel
 	;size information on the stack.
-	push edx
 	push ebx
 
 	;Now call the init function
-	call _InitX86
+	call _MCoreInitialize
 
 	;When we return from here, we just
 	;enter into an idle loop.

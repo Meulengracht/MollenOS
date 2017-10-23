@@ -70,8 +70,8 @@ __EXTERN List_t *GlbAcpiNodes;
 /* Interrupts tables needed for
  * the x86-architecture */
 static MCoreInterruptDescriptor_t *InterruptTable[IDT_DESCRIPTORS];
+static int PenaltyTable[IDT_DESCRIPTORS];
 static CriticalSection_t InterruptLock;
-int InterruptISATable[NUM_ISA_INTERRUPTS];
 int GlbInterruptInitialized = 0;
 UUId_t InterruptIdGen = 0;
 
@@ -149,7 +149,7 @@ AcpiDeriveInterrupt(
 	// Make sure there was a bus device for it
 	if (Dev != NULL) {
 		TRACE("Found bus-device <%s>, accessing index %u", 
-			&Dev->HID[0], rIndex);
+			&Dev->HId[0], rIndex);
 		if (Dev->Routings->ActiveIrqs[rIndex] != INTERRUPT_NONE
 			&& Dev->Routings->InterruptEntries[rIndex] != NULL) {
 			PciRoutingEntry_t *RoutingEntry = NULL;
@@ -189,26 +189,6 @@ AcpiDeriveInterrupt(
 	// None found
 	TRACE("No interrupt found");
 	return INTERRUPT_NONE;
-}
-
-/* InterruptAllocateISA
- * Allocates the ISA interrupt source, if it's 
- * already allocated it returns OsError */
-OsStatus_t InterruptAllocateISA(int Source)
-{
-	/* Sanitize the source */
-	if (Source >= NUM_ISA_INTERRUPTS) {
-		return OsError;
-	}
-
-	/* Allocate if free */
-	if (InterruptISATable[Source] != 1) {
-		InterruptISATable[Source] = 1;
-		return OsSuccess;
-	}
-	
-	/* Damn */
-	return OsError;
 }
 
 /* InterruptDetermine
@@ -371,15 +351,17 @@ InterruptFinalize(
 	// allocated, and if it's not, allocate it
 	if (Source < NUM_ISA_INTERRUPTS) {
         // ISA Interrupts can be level triggered
+        // so make sure we configure it for level triggering
         if (ApicFlags & APIC_LEVEL_TRIGGER) {
-            // Level triggered, don't allocate
+            PicConfigureLine(Source, 0, 1);
         }
-        else {
-            // Edge triggered, allocate ISA
-            if (InterruptAllocateISA(Source) != OsSuccess) {
-                ERROR("Failed to allocate ISA Interrupt");
-                return OsError;
-            }
+
+        // If it is not level triggered, then make sure there is 
+        // only one IRQ per ISA line
+        if (InterruptGetPenalty(Source) == INTERRUPT_NONE) {
+            // Try to reconfigure
+            ERROR("Failed to sanitize the penalty for isa-irq");
+            return OsError;
         }
 	}
 
@@ -412,31 +394,72 @@ InterruptFinalize(
 	return OsSuccess;
 }
 
-/* InterruptIrqCount
- * Returns a count of all the registered
- * devices on that irq */
-int
-InterruptIrqCount(
+/* InterruptIncreasePenalty 
+ * Increases the penalty for an interrupt source. */
+OsStatus_t
+InterruptIncreasePenalty(
     _In_ int Source)
 {
-	// Variables
-	MCoreInterruptDescriptor_t *Entry = NULL;
-	int RetVal = 0;
+    // Variables
+    int PenaltySource = 32 + Source;
 
 	// Sanitize the requested source
-	if (Source < 0 || Source > (IDT_DESCRIPTORS - 32)) {
-		return INTERRUPT_NONE;
-	}
+	if (PenaltySource < 32 || PenaltySource >= IDT_DESCRIPTORS) {
+		return OsError;
+    }
 
-	// Now iterate the linked list and find count
-	Entry = InterruptTable[32 + Source];
-	while (Entry != NULL) {
-		RetVal++;
-		Entry = Entry->Link;
-	}
+    // Done
+    PenaltyTable[PenaltySource]++;
+    return OsSuccess;
+}
+
+/* InterruptDecreasePenalty 
+ * Decreases the penalty for an interrupt source. */
+OsStatus_t
+InterruptDecreasePenalty(
+    _In_ int Source)
+{
+    // Variables
+    int PenaltySource = 32 + Source;
+
+	// Sanitize the requested source
+	if (PenaltySource < 32 || PenaltySource >= IDT_DESCRIPTORS) {
+		return OsError;
+    }
+
+    // Done
+    PenaltyTable[PenaltySource]--;
+    return OsSuccess;
+}
+
+/* InterruptGetPenalty
+ * Retrieves the penalty for an interrupt source. 
+ * If INTERRUPT_NONE is returned the source is unavailable. */
+int
+InterruptGetPenalty(
+    _In_ int Source)
+{
+    // Variables
+    int PenaltySource = 32 + Source;
+
+	// Sanitize the requested source
+	if (PenaltySource < 32 || PenaltySource >= IDT_DESCRIPTORS) {
+		return INTERRUPT_NONE;
+    }
+
+    // Sanitize ISA non-sharable
+    if (Source < NUM_ISA_INTERRUPTS) {
+        int Enabled = 0;
+        int Shareable = 0;
+        PicGetConfiguration(Source, &Enabled, &Shareable);
+        if (PenaltyTable[PenaltySource] != 0
+            && Shareable == 0) {
+            return INTERRUPT_NONE;
+        }
+    }
 
 	// Finished
-	return RetVal;
+	return PenaltyTable[PenaltySource];
 }
 
 /* InterruptGetLeastLoaded
@@ -448,8 +471,12 @@ InterruptGetLeastLoaded(
 	_In_ int Count)
 {
 	// Variables
-	int Best = INTERRUPT_NONE;
-	int i;
+    int SelectedPenality = INTERRUPT_NONE;
+    int SelectedIrq = INTERRUPT_NONE;
+    int i;
+    
+    // Debug
+    TRACE("InterruptGetLeastLoaded(Count %i)", Count);
 
 	// Iterate all the available irqs
 	// that the device-supports
@@ -459,34 +486,35 @@ InterruptGetLeastLoaded(
 		}
 
 		// Calculate count
-		int iCount = InterruptIrqCount(Irqs[i]);
+		int Penalty = InterruptGetPenalty(Irqs[i]);
 
 		// Sanitize status, if -1
-		// then its not usable
-		if (iCount == INTERRUPT_NONE) {
+        // then its not usable
+		if (Penalty == INTERRUPT_NONE) {
 			continue;
 		}
 
-		// Store best
-		if (iCount < Best) {
-			Best = iCount;
-		}
+        // Store the lowest penalty
+        if (SelectedIrq == INTERRUPT_NONE
+            || Penalty < SelectedPenality) {
+            SelectedIrq = Irqs[i];
+            SelectedPenality = Penalty;
+        }
 	}
 
 	// Done
-	return Best;
+	return SelectedIrq;
 }
 
 /* InterruptInitialize
- * Initializes the interrupt-manager code
- * and initializes all the resources for
- * allocating and freeing interrupts */
+ * Initializes interrupt data-structures and global variables
+ * by setting everything to sane value */
 void
 InterruptInitialize(void)
 {
 	// Initialize globals
 	memset((void*)InterruptTable, 0, sizeof(MCoreInterruptDescriptor_t*) * IDT_DESCRIPTORS);
-    memset((void*)&InterruptISATable, 0, sizeof(InterruptISATable));
+    memset((void*)&PenaltyTable, 0, sizeof(PenaltyTable));
     CriticalSectionConstruct(&InterruptLock, CRITICALSECTION_PLAIN);
 	GlbInterruptInitialized = 1;
 	InterruptIdGen = 0;
@@ -556,10 +584,10 @@ InterruptRegister(
 
 		// Find a suitable interrupt vector for this
 		for (i = 0; i < (INTERRUPT_BASE_DEVICE_END - INTERRUPT_BASE_DEVICE); i++) {
-			Vectors[i] = INTERRUPT_BASE_DEVICE + i;
+			Vectors[i] = (INTERRUPT_BASE_DEVICE + i) - 32;
 		}
-		TableIndex = InterruptGetLeastLoaded(Vectors, 
-			INTERRUPT_BASE_DEVICE_END - INTERRUPT_BASE_DEVICE);
+		TableIndex = (InterruptGetLeastLoaded(Vectors, 
+			INTERRUPT_BASE_DEVICE_END - INTERRUPT_BASE_DEVICE) + 32);
 
 		// Update the id
 		Entry->Id |= TableIndex;
@@ -642,7 +670,12 @@ InterruptRegister(
 			Iterator = Iterator->Link;
 		}
 		Previous->Link = Entry;
-	}
+    }
+    
+    // Increase penalty
+    if (Entry->Source != INTERRUPT_NONE) {
+        InterruptIncreasePenalty(Entry->Source);
+    }
 
 	// Done with sensitive setup, leave section
     CriticalSectionLeave(&InterruptLock);
@@ -702,7 +735,12 @@ InterruptUnregister(
 	// Sanitize if we were successfull
 	if (Found == 0) {
 		return OsError;
-	}
+    }
+    
+    // Decrease penalty
+    if (Entry->Source != INTERRUPT_NONE) {
+        InterruptDecreasePenalty(Entry->Source);
+    }
 
 	// Entry is now unlinked, clean it up 
 	// mask the interrupt again if neccessary

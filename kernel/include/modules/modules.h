@@ -23,7 +23,7 @@
 
 /* Includes 
  * - Systems */
-#include <mollenos.h>
+#include <multiboot.h>
 #include <modules/ramdisk.h>
 
 /* Includes
@@ -54,7 +54,7 @@ typedef struct _MCoreModule {
 __EXTERN
 OsStatus_t
 ModulesInitialize(
-    _In_ MCoreBootDescriptor *BootDescriptor);
+    _In_ Multiboot_t *BootInformation);
 
 /* ModulesRunServers
  * Loads all iterated servers in the supplied ramdisk

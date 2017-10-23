@@ -206,7 +206,7 @@ void AcpiSetupIoApic(void *Data, int Nr, void *UserData)
 		if ((Entry & (APIC_MASKED | APIC_EXTINT_ROUTE)) == APIC_EXTINT_ROUTE) {
 			GlbIoApicI8259Pin = i;
 			GlbIoApicI8259Apic = IoApicNum;
-			InterruptAllocateISA(i);
+			InterruptIncreasePenalty(i);
 			break;
 		}
 	}
@@ -221,7 +221,7 @@ void AcpiSetupIoApic(void *Data, int Nr, void *UserData)
 		 * it for allocation */
 		if (Entry & APIC_SMI_ROUTE) {
 			if (j < 16) {
-				InterruptAllocateISA(i);
+				InterruptIncreasePenalty(i);
 			}
 			continue;
 		}

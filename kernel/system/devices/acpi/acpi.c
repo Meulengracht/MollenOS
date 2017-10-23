@@ -16,8 +16,9 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - ACPI(CA) Device Scan Interface
+ * MollenOS MCore - ACPI(CA) System Interface
  */
+
 #define __MODULE "ACPI"
 #define __TRACE
 

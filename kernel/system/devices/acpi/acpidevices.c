@@ -18,8 +18,9 @@
  *
  * MollenOS MCore - ACPI(CA) Device Scan Interface
  */
+
 #define __MODULE "DSIF"
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -599,7 +600,10 @@ AcpiGetLeastLoaded(
 {
 	// Variables
 	int InterruptList[64];
-	int Count = 0;
+    int Count = 0;
+    
+    // Debug
+    TRACE("AcpiGetLeastLoaded()");
 
 	// Sum up and transfer to int array
 	foreach(iNode, RoutingEntries) {
@@ -611,6 +615,7 @@ AcpiGetLeastLoaded(
 	// Get least loaded
 	Count = InterruptGetLeastLoaded(InterruptList, Count);
 	if (Count == INTERRUPT_NONE) {
+        ERROR("No valid interrupt found");
 		return NULL;
 	}
 
@@ -622,7 +627,8 @@ AcpiGetLeastLoaded(
 		}
 	}
 
-	// The hell??
+    // The hell??
+    ERROR("Couldn't refind interrupt %i", Count);
 	return NULL;
 }
 
@@ -655,7 +661,13 @@ AcpiDeviceSelectIrq(
 				if (Entry != Source->ActiveEntry) {
 					kfree(Source->ActiveEntry);
 					Source->ActiveEntry = Entry;
-				}
+                }
+                
+                // Make sure interrupt-manager knows about our allocation
+                if (InterruptIncreasePenalty(SelectedEntry->Irq) != OsSuccess) {
+                    ERROR("Failed to increase penalty for irq");
+                }
+                
 				return AE_OK;
 			}
 		}
@@ -669,7 +681,8 @@ AcpiDeviceSelectIrq(
 
     // Sanitize
     if (SelectedEntry == NULL) {
-		TRACE("No possible irq for device");
+        TRACE("No possible irq for device out of %u entries", 
+            ListLength(Source->Entries));
 		return AE_ERROR;
     }
 
@@ -713,7 +726,12 @@ AcpiDeviceSelectIrq(
         ERROR("Failed to update the current irq resource, code %u", Status);
 		return Status;
 	}
-	Source->ActiveEntry = SelectedEntry;
+    Source->ActiveEntry = SelectedEntry;
+    
+    // Make sure interrupt-manager knows about our allocation
+    if (InterruptIncreasePenalty(SelectedEntry->Irq) != OsSuccess) {
+        ERROR("Failed to increase penalty for irq");
+    }
     
 	// Get current source-handle status _STA
 	Status = AcpiDeviceQueryStatus(Source->Handle, &DeviceStatus);
@@ -878,7 +896,6 @@ AcpiDeviceGetIrqRoutings(
 		if (Source->ActiveEntry != NULL) {
 			Table->ActiveIrqs[InterruptIndex] = Source->ActiveEntry->Irq;
 		}
-        BOCHSBREAK
 	}
 
 done:

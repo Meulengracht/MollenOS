@@ -22,8 +22,10 @@
 
 /* Includes 
  * - System */
+#include <system/setup.h>
 #include <system/utils.h>
 #include <multiboot.h>
+#include <interrupts.h>
 #include <mollenos.h>
 #include <memory.h>
 #include <arch.h>
@@ -34,10 +36,6 @@
 #include <pic.h>
 #include <log.h>
 #include <vbe.h>
-
-/* Variables that we can share with our project
- * primarily just boot information in case */
-MCoreBootInfo_t x86BootInfo;
 
 /* SystemInformationQuery 
  * Queries information about the running system
@@ -56,77 +54,107 @@ SystemInformationQuery(
 	return OsSuccess;
 }
 
-/* Initializes the local apic (if present, it faults
- * in case it's not, we don't support less for now)
- * and it boots all the dormant cores (if any) */
-void BootInitializeApic(void)
+/* SystemFeaturesQuery
+ * Called by the kernel to get which systems we support */
+OsStatus_t
+SystemFeaturesQuery(
+    _In_ Multiboot_t *BootInformation,
+    _Out_ Flags_t *SystemsSupported)
 {
-	/* Initialize the APIC (if present) */
-	if (CpuHasFeatures(0, CPUID_FEAT_EDX_APIC) != OsSuccess) {
-		LogFatal("APIC", "BootInitializeApic::NOT PRESENT!");
-		CpuIdle();
-	}
-	else {
-		LogInformation("APIC", "Initializing local interrupt chip");
-	}
+    // Variables
+    Flags_t Features = 0;
 
-	/* Init the apic on the boot 
-	 * processor, then try to boot cpus */
-	ApicInitBoot();
-	//CpuSmpInit(); -- Disable till further notice, we need a fix for stall
+    // Of course we support software features
+    Features |= SYSTEM_FEATURE_INITIALIZE;
+    Features |= SYSTEM_FEATURE_FINALIZE;
+
+    // Memory features
+    Features |= SYSTEM_FEATURE_MEMORY;
+    Features |= SYSTEM_FEATURE_ADDRESSPACES;
+
+    // Output features
+    Features |= (SYSTEM_FEATURE_OUTPUT | SYSTEM_FEATURE_OUTPUT_VIDEO);
+
+    // Hardware features
+    Features |= SYSTEM_FEATURE_INTERRUPTS;
+
+    // Done
+    *SystemsSupported = Features;
+    return OsSuccess;
 }
 
-/* This initializes all the basic parts of the HAL
- * and includes basic interrupt setup, memory setup and
- * basic serial/video output */
-void
-HALInit(
-	void *BootInfo, 
-	MCoreBootDescriptor *Descriptor)
+/* SystemFeaturesInitialize
+ * Called by the kernel to initialize a supported system */
+OsStatus_t
+SystemFeaturesInitialize(
+    _In_ Multiboot_t *BootInformation,
+    _In_ Flags_t Systems)
 {
-	/* Initialize output */
-	VbeInitialize((Multiboot_t*)BootInfo);
+    // Handle the system initialization, this should only
+    // handle things that have absoultely no dependences at all
+    if (Systems & SYSTEM_FEATURE_INITIALIZE) {
+        CpuInitialize();
+        GdtInitialize();
+        IdtInitialize();
+        PicInitialize();
+    }
 
-	/* Print */
-	LogInformation("HAL0", "Initializing hardware layer");
+    // Handle the output initialization
+    if (Systems & SYSTEM_FEATURE_OUTPUT) {
+        VbeInitialize(BootInformation);
+    }
 
-	/* Setup x86 descriptor-tables
-	 * which needs to happen on both 32/64 bit */
-	GdtInitialize();
-	IdtInitialize();
-	PicInitialize();
+    // Handle the memory initialization
+    if (Systems & SYSTEM_FEATURE_MEMORY) {
+        MmPhyiscalInit(BootInformation);
+        MmVirtualInit();
+    }
 
-	/* Memory setup! */
-	LogInformation("HAL0", "Initializing physical and virtual memory");
-	MmPhyiscalInit(BootInfo, Descriptor);
-	MmVirtualInit();
-}
+    // Handle interrupt initialization
+    if (Systems & SYSTEM_FEATURE_INTERRUPTS) {
+        if (CpuHasFeatures(0, CPUID_FEAT_EDX_APIC) != OsSuccess) {
+            return OsError;
+        }
 
-/* This entry point is valid for both 32 and 64 bit
- * so this is where we do any mutual setup before 
- * calling the mcore entry */
-void
-InitX86(
-	Multiboot_t *BootInfo, 
-	MCoreBootDescriptor *BootDescriptor)
-{
-	// Store boot info
-	x86BootInfo.ArchBootInfo = (void*)BootInfo;
-	x86BootInfo.BootloaderName = (char*)BootInfo->BootLoaderName;
-	
-	// Copy information from boot-descriptor to boot info
-	x86BootInfo.Descriptor.KernelAddress = BootDescriptor->KernelAddress;
-	x86BootInfo.Descriptor.KernelSize = BootDescriptor->KernelSize;
-	x86BootInfo.Descriptor.RamDiskAddress = BootDescriptor->RamDiskAddress;
-	x86BootInfo.Descriptor.RamDiskSize = BootDescriptor->RamDiskSize;
-	x86BootInfo.Descriptor.ExportsAddress = BootDescriptor->ExportsAddress;
-	x86BootInfo.Descriptor.ExportsSize = BootDescriptor->ExportsSize;
-	x86BootInfo.Descriptor.SymbolsAddress = BootDescriptor->SymbolsAddress;
-	x86BootInfo.Descriptor.SymbolsSize = BootDescriptor->SymbolsSize;
-	x86BootInfo.InitHAL = HALInit;
-	x86BootInfo.InitPostSystems = BootInitializeApic;
+        // Make sure we allocate all device interrupts
+        // so system can't take control of them
+        InterruptIncreasePenalty(0); // PIT
+        InterruptIncreasePenalty(1); // PS/2
+        InterruptIncreasePenalty(2); // PIT / Cascade
+        InterruptIncreasePenalty(3); // COM 2/4
+        InterruptIncreasePenalty(4); // COM 1/3
+        InterruptIncreasePenalty(5); // LPT2
+        InterruptIncreasePenalty(6); // Floppy
+        InterruptIncreasePenalty(7); // LPT1 / Spurious
+        InterruptIncreasePenalty(8); // CMOS
+        InterruptIncreasePenalty(12); // PS/2
+        InterruptIncreasePenalty(13); // FPU
+        InterruptIncreasePenalty(14); // IDE
+        InterruptIncreasePenalty(15); // IDE
 
-	// Initialize the cpu and call shared entry
-	CpuInitialize();
-	MCoreInitialize(&x86BootInfo);
+        ApicInitBoot();
+        //CpuSmpInit(); -- Disable till further notice, we need a fix for stall
+    }
+
+    // Handle final things before the system spawns
+    // all services and drivers
+    if (Systems & SYSTEM_FEATURE_FINALIZE) {
+        // Free all the allocated isa's now for drivers
+        InterruptDecreasePenalty(0); // PIT
+        InterruptDecreasePenalty(1); // PS/2
+        InterruptDecreasePenalty(2); // PIT / Cascade
+        InterruptDecreasePenalty(3); // COM 2/4
+        InterruptDecreasePenalty(4); // COM 1/3
+        InterruptDecreasePenalty(5); // LPT2
+        InterruptDecreasePenalty(6); // Floppy
+        InterruptDecreasePenalty(7); // LPT1 / Spurious
+        InterruptDecreasePenalty(8); // CMOS
+        InterruptDecreasePenalty(12); // PS/2
+        InterruptDecreasePenalty(13); // FPU
+        InterruptDecreasePenalty(14); // IDE
+        InterruptDecreasePenalty(15); // IDE
+    }
+
+    // Done
+    return OsSuccess;
 }
