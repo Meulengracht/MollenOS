@@ -473,7 +473,7 @@ MCoreThread_t *SchedulerGetNextTask(UUId_t Cpu, MCoreThread_t *Thread, int PreEm
 			Thread->TimeSlice = (Thread->Queue * 2) + MCORE_INITIAL_TIMESLICE;
 		}
 
-		/* Sched�le */
+		/* Schedule */
 		SchedulerReadyThread(Thread);
 	}
 	else

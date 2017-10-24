@@ -24,6 +24,7 @@
 
 /* Includes
  * - (OS) System */
+#include "../../../arch/x86/pci.h"
 #include <system/addresspace.h>
 #include <system/utils.h>
 #include <interrupts.h>

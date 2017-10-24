@@ -41,21 +41,31 @@ PicInitialize(void)
     // Init for safety
     GlbElcrInitialized = 0;
 
-	// Send INIT (0x10) and IC4 (0x1) Commands
-	outb(0x20, 0x11);
-	outb(0xA0, 0x11);
-	outb(PIC_PORT_PRIMARY,   0x20); // Remap primary PIC to 0x20 - 0x28
-	outb(PIC_PORT_SECONDARY, 0x28); // Remap Secondary PIC to 0x28 - 0x30
+    // Initialize controller 1
+    outb(PIC_PORT_PRIMARY + PIC_REGISTER_ICW1,  PIC_ICW1_SELECT | PIC_ICW1_ICW4); // Enable
+    outb(PIC_PORT_PRIMARY + PIC_REGISTER_ICW2,  0x20); // Remap primary PIC to 0x20 - 0x28
+    outb(PIC_PORT_PRIMARY + PIC_REGISTER_ICW3,  PIC_ICW3_CASCADE); // Cascade mode
+    outb(PIC_PORT_PRIMARY + PIC_REGISTER_ICW4,  PIC_ICW4_MICROPC); // Enable i86 mode
 
-	// Send initialization words, they define
-	// which PIC connects to where
-	outb(PIC_PORT_PRIMARY,   0x04);
-	outb(PIC_PORT_SECONDARY, 0x02);
-	outb(PIC_PORT_PRIMARY,   0x01); // Enable i86 mode (primary)
-    outb(PIC_PORT_SECONDARY, 0x01); // Enable i86 mode (secondary)
+    // Initialize controller 2
+    outb(PIC_PORT_SECONDARY + PIC_REGISTER_ICW1,  PIC_ICW1_SELECT | PIC_ICW1_ICW4); // Enable
+    outb(PIC_PORT_SECONDARY + PIC_REGISTER_ICW2,  0x28); // Remap Secondary PIC to 0x28 - 0x30
+    outb(PIC_PORT_SECONDARY + PIC_REGISTER_ICW3,  PIC_ICW3_SLAVE); // Slave mode
+    outb(PIC_PORT_SECONDARY + PIC_REGISTER_ICW4,  PIC_ICW4_MICROPC); // Enable i86 mode
+
+    // Mask out controllers IMR
+	outb(PIC_PORT_PRIMARY + PIC_REGISTER_IMR,     0xFF); // except for cascade? (0xFB)
+    outb(PIC_PORT_SECONDARY + PIC_REGISTER_IMR,   0xFF);
+
+    // Setup OCW's
+    outb(PIC_PORT_PRIMARY, 0x20);
+    outb(PIC_PORT_SECONDARY, 0x20);
     
-	outb(PIC_PORT_PRIMARY,   0xFF); // Mask all IRQ's (primary)
-    outb(PIC_PORT_SECONDARY, 0xFF); // Mask all IRQ's (secondary)
+    // Clear out any outstanding ISR's
+    inb(PIC_PORT_PRIMARY);
+    outb(PIC_PORT_PRIMARY, 0x08 | 0x03);
+    inb(PIC_PORT_SECONDARY);
+    outb(PIC_PORT_SECONDARY, 0x08 | 0x03);
     
     // Initialize the ELCR if present
     // We do this by verifying irq 0, 1, 2, 8 and 13 are edge triggered

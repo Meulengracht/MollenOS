@@ -19,12 +19,14 @@
  * MollenOS x86 Advanced Programmable Interrupt Controller Driver
  *  - Helper functions and utility functions
  */
+#define __MODULE "APIC"
+#define __TRACE
 
 /* Includes 
  * - System */
 #include <apic.h>
 #include <acpi.h>
-#include <log.h>
+#include <debug.h>
 
 /* Includes
  * - C-Library */
@@ -173,7 +175,7 @@ void ApicMaskGsi(int Gsi)
 
 	/* Sanitize the lookup */
 	if (IoApic == NULL || Pin == APIC_NO_GSI) {
-		LogFatal("APIC", "Invalid Gsi %u\n", Gsi);
+		FATAL(FATAL_SCOPE_KERNEL, "Invalid Gsi %u", Gsi);
 		return;
 	}
 
@@ -205,7 +207,7 @@ void ApicUnmaskGsi(int Gsi)
 
 	/* Sanitize the lookup */
 	if (IoApic == NULL || Pin == APIC_NO_GSI) {
-		LogFatal("APIC", "Invalid Gsi %u\n", Gsi);
+		FATAL(FATAL_SCOPE_KERNEL, "Invalid Gsi %u", Gsi);
 		return;
 	}
 
@@ -246,17 +248,17 @@ void ApicSendEoi(int Gsi, uint32_t Vector)
 
 		/* Sanitize the lookup */
 		if (IoApic == NULL || Pin == APIC_NO_GSI) {
-			LogFatal("APIC", "Invalid Gsi %u\n", Gsi);
+			FATAL(FATAL_SCOPE_KERNEL, "Invalid Gsi %u", Gsi);
 			return;
 		}
 
 		/* Read Entry */
-		Modified = Original = ApicReadIoEntry(IoApic, Pin);
+        Modified = Original = ApicReadIoEntry(IoApic, Pin);
 
 		/* We want to mask it and clear
 		 * the level trigger bit */
 		Modified |= APIC_MASKED;
-		Modified &= ~(APIC_LEVEL_TRIGGER);
+        Modified &= ~(APIC_LEVEL_TRIGGER);
 
 		/* First, we write the modified entry
 		 * then we restore it, then we ACK */
@@ -281,12 +283,11 @@ UUId_t ApicGetCpu(void)
 	}
 }
 
-/* Debug method
+/* ApicPrintCpuTicks
  * Print ticks for all available cpus */
 void ApicPrintCpuTicks(void)
 {
-	/* Iterate cpu cores and 
-	 * print stats */
-	for (int i = 0; i < GlbCpusBooted; i++)
-		LogDebug("APIC", "Cpu %i Ticks: %u\n", i, GlbTimerTicks[i]);
+	for (int i = 0; i < GlbCpusBooted; i++) {
+		WRITELINE("Cpu %i Ticks: %u\n", i, GlbTimerTicks[i]);
+    }
 }

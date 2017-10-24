@@ -161,20 +161,13 @@ AcpiDeviceCreate(
 		if (Device->PciLocation.Function > 8) {
 			Device->PciLocation.Function = 0;
         }
-	}
-
-	// Feature data checks like _PRT
-	if (Device->Features & ACPI_FEATURE_PRT) {
-		Status = AcpiDeviceGetIrqRoutings(Device);
-		if (ACPI_FAILURE(Status)) {
-			ERROR("Failed to retrieve pci irq routings from device %s (%u)", Device->BusId, Status);
-        }
-	}
-
+    }
+    
 	// EC: PNP0C09
 	// EC Batt: PNP0C0A
 	// Smart Battery Ctrl HID: ACPI0001
     // Smart Battery HID: ACPI0002
+    // Power Source (Has _PSR): ACPI0003
 	// GPE Block Device: ACPI0006
 	
     // Check for the following HId's:
@@ -207,6 +200,17 @@ AcpiDeviceCreate(
 	else {
 		Device->Type = Type;
     }
+    
+    // Feature data checks like _PRT
+    // This must be run after initalizing of the bridge if
+    // the device is a pci bridge
+    if (Device->Features & ACPI_FEATURE_PRT) {
+        Status = AcpiDeviceGetIrqRoutings(Device);
+        if (ACPI_FAILURE(Status)) {
+            ERROR("Failed to retrieve pci irq routings from device %s (%u)", 
+                Device->BusId, Status);
+        }
+    }    
 
 	// Add the device to device-list
 	Key.Value = Device->Type;

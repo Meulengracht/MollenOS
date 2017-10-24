@@ -23,7 +23,7 @@
  * - ISA Interrupts should be routed to boot-processor without lowest-prio?
  */
 #define __MODULE		"IRQS"
-//#define __TRACE
+#define __TRACE
 
 /* Includes 
  * - System */
@@ -382,7 +382,8 @@ InterruptFinalize(
 				TableIndex);
 		}
 		else {
-			// Unmask the irq in the io-apic
+            // Unmask the irq in the io-apic
+            TRACE("Installing source %i => 0x%x", Source, LODWORD(ApicFlags));
 			ApicWriteIoEntry(IoApic, (uint32_t)Source, ApicFlags);
 		}
 	}
@@ -391,6 +392,7 @@ InterruptFinalize(
     }
 
     // Done
+    BOCHSBREAK
 	return OsSuccess;
 }
 
@@ -405,6 +407,7 @@ InterruptIncreasePenalty(
 
 	// Sanitize the requested source
 	if (PenaltySource < 32 || PenaltySource >= IDT_DESCRIPTORS) {
+        ERROR("Source was out of bounds: %i", Source);
 		return OsError;
     }
 

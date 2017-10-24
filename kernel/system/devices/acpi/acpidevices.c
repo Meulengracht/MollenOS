@@ -524,7 +524,6 @@ AcpiDeviceIrqRoutingCallback(
 			RoutingEntry->Trigger = Irq->Triggering;
 			RoutingEntry->Shareable = Irq->Sharable;
 			RoutingEntry->Irq = Irq->Interrupts[i];
-			TRACE("Irq %u found, count: %u", RoutingEntry->Irq, Irq->InterruptCount);
 
 			// Are we just finding the active irq?
 			if (IrqResource->Gathering == 0) {
@@ -570,7 +569,6 @@ AcpiDeviceIrqRoutingCallback(
 			RoutingEntry->Trigger = Irq->Triggering;
 			RoutingEntry->Shareable = Irq->Sharable;
 			RoutingEntry->Irq = Irq->Interrupts[i];
-			TRACE("Irq %u found, count: %u", RoutingEntry->Irq, Irq->InterruptCount);
 
 			// Are we just finding the active irq?
 			if (IrqResource->Gathering == 0) {
@@ -664,7 +662,7 @@ AcpiDeviceSelectIrq(
                 }
                 
                 // Make sure interrupt-manager knows about our allocation
-                if (InterruptIncreasePenalty(SelectedEntry->Irq) != OsSuccess) {
+                if (InterruptIncreasePenalty(Entry->Irq) != OsSuccess) {
                     ERROR("Failed to increase penalty for irq");
                 }
                 
@@ -786,7 +784,6 @@ AcpiDeviceGetIrqRoutings(
 
     // Enumerate entries
     PciTable = (ACPI_PCI_ROUTING_TABLE *)aBuff.Pointer;
-    TRACE("Irq Table Length: %u", PciTable->Length);
 	for (;PciTable->Length;
 		 PciTable = (ACPI_PCI_ROUTING_TABLE *)((char *)PciTable + PciTable->Length)) {
 
@@ -797,11 +794,6 @@ AcpiDeviceGetIrqRoutings(
 		unsigned DeviceIndex 		= 0;
 		ListNode_t *Node 			= NULL;
 		DataKey_t Key;
-
-        // Debug
-        TRACE("0x%x:%u (Source[0]: %s, Irq %u)", 
-            (unsigned)((PciTable->Address >> 16) & 0xFFFF), PciTable->Pin,
-            (PciTable->Source[0] == '\0' ? "0" : &PciTable->Source[0]), PciTable->SourceIndex);
 
         // Convert the addresses 
         DeviceIndex = (unsigned)((PciTable->Address >> 16) & 0xFFFF);

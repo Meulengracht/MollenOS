@@ -28,9 +28,23 @@
 
 /* PIC/EISA Bit Definitons 
  * Specified defines and constants for the PIC/EISA Systems */
-#define PIC_PORT_PRIMARY        0x21
-#define PIC_PORT_SECONDARY      0xA1
+#define PIC_PORT_PRIMARY        0x20
+#define PIC_PORT_SECONDARY      0xA0
 #define PIC_PORT_ELCR           0x4D0
+
+#define PIC_REGISTER_ICW1       0x00
+#define PIC_REGISTER_ICW2       0x01
+#define PIC_REGISTER_ICW3       0x01
+#define PIC_REGISTER_ICW4       0x01
+#define PIC_REGISTER_IMR        0x01
+
+#define PIC_ICW1_ICW4           0x01
+#define PIC_ICW1_SELECT         0x10
+
+#define PIC_ICW3_SLAVE          0x02
+#define PIC_ICW3_CASCADE        0x04 // Enable Cascaded Mode
+
+#define PIC_ICW4_MICROPC        0x01
 
 #define PIC_ELCR_MASK(Irq)      (1 << (Irq))
 
