@@ -22,6 +22,7 @@
 
 /* Includes 
  * - System */
+#include <system/interrupts.h>
 #include <system/utils.h>
 #include <apic.h>
 #include <acpiinterface.h>
@@ -84,8 +85,8 @@ void ApicSetupLvt(UUId_t Cpu, int Lvt)
 				 * given by ACPI and use them! */
 				if (ApicNmi->Lint == Lvt) {
 					Temp = APIC_NMI_ROUTE;
-					Temp |= (InterruptGetPolarity(ApicNmi->IntiFlags, 0) << 13);
-					Temp |= (InterruptGetTrigger(ApicNmi->IntiFlags, 0) << 15);
+					Temp |= (AcpiGetPolarityMode(ApicNmi->IntiFlags, 0) << 13);
+					Temp |= (AcpiGetTriggerMode(ApicNmi->IntiFlags, 0) << 15);
 					break;
 				}
 			}
@@ -481,10 +482,12 @@ void ApicInitBoot(void)
 	// for this processor id
 	ApicInitialSetup(BspApicId);
 
-	// Prepare some irq information
+    // Prepare some irq information
+    IrqInformation.Handler = NULL;
 	IrqInformation.Data = NULL;
-	IrqInformation.Line = APIC_NO_GSI;
-	IrqInformation.Pin = APIC_NO_GSI;
+	IrqInformation.Line = INTERRUPT_NONE;
+    IrqInformation.Pin = INTERRUPT_NONE;
+    IrqInformation.Vectors[1] = INTERRUPT_NONE;
 
 	// Install Apic Handlers 
 	// - Spurious handlers
@@ -492,15 +495,15 @@ void ApicInitBoot(void)
 	// - Timer handler
 	IrqInformation.Vectors[0] = INTERRUPT_SPURIOUS7;
 	IrqInformation.FastHandler = ApicSpuriousHandler;
-	InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFTWARE);
+	InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFT | INTERRUPT_NOTSHARABLE);
 	IrqInformation.Vectors[0] = INTERRUPT_SPURIOUS;
-	InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFTWARE);
+	InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFT | INTERRUPT_NOTSHARABLE);
 	IrqInformation.Vectors[0] = INTERRUPT_LVTERROR;
 	IrqInformation.FastHandler = ApicErrorHandler;
-	InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFTWARE);
+	InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFT | INTERRUPT_NOTSHARABLE);
 	IrqInformation.Vectors[0] = INTERRUPT_LAPIC;
 	IrqInformation.FastHandler = ApicTimerHandler;
-	InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFTWARE);
+	InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFT | INTERRUPT_NOTSHARABLE);
 
 	// Actually enable APIC on the
 	// boot processor, afterwards

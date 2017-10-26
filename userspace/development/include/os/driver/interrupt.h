@@ -47,6 +47,7 @@ typedef InterruptStatus_t(*InterruptHandler_t)(void*);
 #define INTERRUPT_FAST					0x00000002
 #define INTERRUPT_MSI					0x00000004
 #define INTERRUPT_VECTOR				0x00000008
+#define INTERRUPT_USERSPACE             0x00000010 // Slowest
 
 /* The interrupt descriptor structure, this contains
  * information about the interrupt that needs to be registered
@@ -84,15 +85,6 @@ MOSABI
 RegisterInterruptSource(
 	_In_ MCoreInterrupt_t *Interrupt, 
 	_In_ Flags_t Flags);
-
-/* AcknowledgeInterrupt 
- * Acknowledges an interrupt and allows the interrupt
- * to occur from that device again */
-MOSAPI
-OsStatus_t
-MOSABI
-AcknowledgeInterrupt(
-	_In_ UUId_t Source);
 
 /* UnregisterInterruptSource 
  * Unallocates the given interrupt source and disables

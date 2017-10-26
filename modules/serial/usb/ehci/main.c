@@ -107,28 +107,52 @@ int FinalizerEntry(void *Argument)
 	return 0;
 }
 
-/* OnInterrupt
- * This driver uses fast-interrupts */
+/* ProcessInterrupt
+ * Is invoked if OnFastInterrupt returned Handled. This is to actually
+ * process the device interrupt */
 InterruptStatus_t
-OnInterrupt(
-	_In_Opt_ void *InterruptData,
-    _In_Opt_ size_t Arg0,
-    _In_Opt_ size_t Arg1,
-    _In_Opt_ size_t Arg2)
+ProcessInterrupt(
+    _In_Opt_ void *InterruptData)
 {
-    // No further processing is needed
-    _CRT_UNUSED(InterruptData);
-    _CRT_UNUSED(Arg0);
-    _CRT_UNUSED(Arg1);
-    _CRT_UNUSED(Arg2);
+    // Variables
+	EhciController_t *Controller = NULL;
+	reg32_t InterruptStatus;
+
+	// Instantiate the pointer
+    Controller = (EhciController_t*)InterruptData;
+    InterruptStatus = Controller->Base.InterruptStatus;
+    Controller->Base.InterruptStatus = 0;
+
+    // Transaction update, either error or completion
+	if (InterruptStatus & (EHCI_STATUS_PROCESS | EHCI_STATUS_PROCESSERROR)) {
+		EhciProcessTransfers(Controller);
+	}
+
+	// Hub change? We should enumerate ports and detect
+	// which events occured
+	if (InterruptStatus & EHCI_STATUS_PORTCHANGE) {
+		EhciPortScan(Controller);
+	}
+
+	// HC Fatal Error
+	// Clear all queued, reset controller
+	if (InterruptStatus & EHCI_STATUS_HOSTERROR) {
+		if (EhciRestart(Controller) != OsSuccess) {
+			ERROR("EHCI-Failure: Failed to reset controller after Fatal Error");
+		}
+	}
+
+	// Doorbell? Process transactions in progress
+	if (InterruptStatus & EHCI_STATUS_ASYNC_DOORBELL) {
+		EhciProcessDoorBell(Controller);
+    }
+    
     return InterruptHandled;
 }
 
 /* OnFastInterrupt
- * Is called when one of the registered devices
- * produces an interrupt. On successful handled
- * interrupt return OsSuccess, otherwise the interrupt
- * won't be acknowledged */
+ * Is called for the sole purpose to determine if this source
+ * has invoked an irq. If it has, silence and return (Handled) */
 InterruptStatus_t
 OnFastInterrupt(
     _In_Opt_ void *InterruptData)
@@ -152,34 +176,28 @@ OnFastInterrupt(
 		return InterruptNotHandled;
 	}
 
-	// Transaction update, either error or completion
-	if (InterruptStatus & (EHCI_STATUS_PROCESS | EHCI_STATUS_PROCESSERROR)) {
-		EhciProcessTransfers(Controller);
-	}
-
-	// Hub change? We should enumerate ports and detect
-	// which events occured
-	if (InterruptStatus & EHCI_STATUS_PORTCHANGE) {
-		EhciPortScan(Controller);
-	}
-
-	// HC Fatal Error
-	// Clear all queued, reset controller
-	if (InterruptStatus & EHCI_STATUS_HOSTERROR) {
-		if (EhciRestart(Controller) != OsSuccess) {
-			ERROR("EHCI-Failure: Failed to reset controller after Fatal Error");
-		}
-	}
-
-	// Doorbell? Process transactions in progress
-	if (InterruptStatus & EHCI_STATUS_ASYNC_DOORBELL) {
-		EhciProcessDoorBell(Controller);
-	}
-
 	// Acknowledge the interrupt by clearing
-	Controller->OpRegisters->UsbStatus = InterruptStatus;
+    Controller->OpRegisters->UsbStatus = InterruptStatus;
+    Controller->Base.InterruptStatus |= InterruptStatus;
 
 	// Done
+	return InterruptHandled;
+}
+
+/* OnInterrupt
+ * Is called by external services to indicate an external interrupt.
+ * Not used by physical interrupts, but instead user-defined ones. */
+InterruptStatus_t 
+OnInterrupt(
+    _In_Opt_ void *InterruptData,
+    _In_Opt_ size_t Arg0,
+    _In_Opt_ size_t Arg1,
+    _In_Opt_ size_t Arg2)
+{
+    _CRT_UNUSED(InterruptData);
+    _CRT_UNUSED(Arg0);
+    _CRT_UNUSED(Arg1);
+	_CRT_UNUSED(Arg2);
 	return InterruptHandled;
 }
 

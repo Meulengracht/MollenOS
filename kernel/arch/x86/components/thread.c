@@ -128,12 +128,14 @@ void *IThreadCreate(Flags_t ThreadFlags, uintptr_t EntryPoint)
 	// the yield interrupt
 	if (__GlbThreadX86Initialized == 0) {
 		__GlbThreadX86Initialized = 1;
+        Interrupt.Vectors[0] = INTERRUPT_YIELD;
+        Interrupt.Vectors[1] = INTERRUPT_NONE;
+		Interrupt.Line = INTERRUPT_NONE;
+		Interrupt.Pin = INTERRUPT_NONE;
+        Interrupt.FastHandler = ThreadingYield;
+        Interrupt.Handler = NULL;
 		Interrupt.Data = NULL;
-		Interrupt.Vectors[0] = INTERRUPT_YIELD;
-		Interrupt.Line = APIC_NO_GSI;
-		Interrupt.Pin = APIC_NO_GSI;
-		Interrupt.FastHandler = ThreadingYield;
-		InterruptRegister(&Interrupt, INTERRUPT_SOFTWARE | INTERRUPT_KERNEL);
+		InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL | INTERRUPT_NOTSHARABLE);
 	}
 
 	/* Done */

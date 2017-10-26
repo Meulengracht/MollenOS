@@ -139,12 +139,12 @@ __EXTERN void ApicIoWrite(IoApic_t *IoApic, uint32_t Register, uint32_t Data);
 /* Reads interrupt data from the io-apic
  * interrupt register. It reads the data from
  * the given Pin (io-apic entry) offset. */
-__EXTERN uint64_t ApicReadIoEntry(IoApic_t *IoApic, uint32_t Pin);
+__EXTERN uint64_t ApicReadIoEntry(IoApic_t *IoApic, int Pin);
 
 /* Writes interrupt data to the io-apic
  * interrupt register. It writes the data to
  * the given Pin (io-apic entry) offset. */
-__EXTERN void ApicWriteIoEntry(IoApic_t *IoApic, uint32_t Pin, uint64_t Data);
+__EXTERN void ApicWriteIoEntry(IoApic_t *IoApic, int Pin, uint64_t Data);
 
 /* Sends end of interrupt to the local
  * apic chip, and enables for a new interrupt

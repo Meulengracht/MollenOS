@@ -224,8 +224,7 @@ OsStatus_t PS2KeyboardInitialize(PS2Port_t *Port, int Translation)
 	}
 
 	/* Register the interrupt for this mouse */
-	Kybd->Irq = RegisterInterruptSource(&Port->Interrupt,
-		INTERRUPT_NOTSHARABLE | INTERRUPT_FAST);
+	Kybd->Irq = RegisterInterruptSource(&Port->Interrupt, INTERRUPT_NOTSHARABLE);
 
 	/* Reset keyboard LEDs status */
 	if (PS2KeyboardSetLEDs(Kybd, 0, 0, 0) != OsSuccess) {

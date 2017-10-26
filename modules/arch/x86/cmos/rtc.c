@@ -83,8 +83,7 @@ OsStatus_t RtcInitialize(Cmos_t *Chip)
 
 	// Install interrupt in system 
 	// Install a fast interrupt handler
-	Chip->Irq = RegisterInterruptSource(&Chip->Interrupt, 
-		INTERRUPT_NOTSHARABLE | INTERRUPT_FAST); 
+	Chip->Irq = RegisterInterruptSource(&Chip->Interrupt, INTERRUPT_NOTSHARABLE); 
 
 	// Register our irq as a system timer
 	if (Chip->Irq != UUID_INVALID) {

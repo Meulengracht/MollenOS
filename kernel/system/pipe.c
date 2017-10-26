@@ -204,7 +204,7 @@ PipeRead(
         // Only go to queue if not a peek
         if (!Peek) {
             if (Pipe->WriteQueueCount > 0) {
-                SemaphoreP(&Pipe->WriteQueue, 0);
+                SemaphoreV(&Pipe->WriteQueue, 1);
                 Pipe->WriteQueueCount--;
             }
             if (WaitForFullBuffer == 0) {
@@ -212,7 +212,7 @@ PipeRead(
             }
             if (BytesRead < Length) {
                 Pipe->ReadQueueCount++;
-                SemaphoreV(&Pipe->ReadQueue, 1);
+                SemaphoreP(&Pipe->ReadQueue, 0);
             }
         }
         else {

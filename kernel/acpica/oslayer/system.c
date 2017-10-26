@@ -119,9 +119,9 @@ AcpiOsInstallInterruptHandler (
 	ACPIInterrupt.Data = Context;
 	ACPIInterrupt.Line = InterruptNumber;
 	ACPIInterrupt.Pin = INTERRUPT_NONE;
-	ACPIInterrupt.Vectors[0] = INTERRUPT_ACPIBASE + InterruptNumber;
+	ACPIInterrupt.Vectors[0] = InterruptNumber;
 	ACPIInterrupt.Vectors[1] = INTERRUPT_NONE;
-	ACPIInterrupt.FastHandler = (InterruptHandler_t)ServiceRoutine;
+    ACPIInterrupt.FastHandler = (InterruptHandler_t)ServiceRoutine;
 
 	// Install it
     AcpiGbl_InterruptId = InterruptRegister(&ACPIInterrupt, INTERRUPT_KERNEL);

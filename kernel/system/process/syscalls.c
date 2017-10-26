@@ -23,6 +23,7 @@
 
 /* Includes 
  * - System */
+#include <system/interrupts.h>
 #include <system/iospace.h>
 #include <system/thread.h>
 #include <system/utils.h>
@@ -1403,7 +1404,7 @@ UUId_t ScRegisterInterrupt(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 {
     /* Sanitize parameters */
     if (Interrupt == NULL
-        || (Flags & (INTERRUPT_KERNEL | INTERRUPT_SOFTWARE))) {
+        || (Flags & (INTERRUPT_KERNEL | INTERRUPT_SOFT))) {
         return UUID_INVALID;
     }
 
@@ -1425,7 +1426,7 @@ OsStatus_t ScUnregisterInterrupt(UUId_t Source)
  * to occur for the given driver */
 OsStatus_t ScAcknowledgeInterrupt(UUId_t Source)
 {
-    return InterruptAcknowledge(Source);
+    return OsError; //InterruptAcknowledge(Source);
 }
 
 /* ScRegisterSystemTimer

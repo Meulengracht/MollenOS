@@ -26,6 +26,7 @@
 
 /* Includes
  * - Driver System */
+#include <os/driver/interrupt.h>
 #include <os/driver/driver.h>
 
 /* Includes 
@@ -36,7 +37,6 @@
 /* Special flags that are available only
  * in kernel context for special interrupts */
 #define INTERRUPT_KERNEL				0x10000000
-#define INTERRUPT_SOFTWARE				0x20000000
 
 /* MCoreInterruptDescriptor
  * The kernel interrupt descriptor structure. Contains
@@ -58,6 +58,23 @@ KERNELAPI
 void
 KERNELABI
 InterruptInitialize(void);
+
+/* InterruptStart
+ * Starts the interrupt-queue thread and allocates resources
+ * for the interrupt-queue pipes. */
+KERNELAPI
+void
+KERNELABI
+InterruptStart(void);
+
+/* InterruptQueue
+ * Queues a new interrupt for handling. If it was not
+ * able to queue the interrupt it returns OsError */
+KERNELAPI
+OsStatus_t
+KERNELABI
+InterruptQueue(
+    _In_ MCoreInterruptDescriptor_t *Interrupt);
 
 /* InterruptRegister
  * Tries to allocate the given interrupt source
@@ -81,16 +98,6 @@ KERNELABI
 InterruptUnregister(
     _In_ UUId_t Source);
 
-/* InterruptAcknowledge 
- * Acknowledges the interrupt source and unmasks
- * the interrupt-line, allowing another interrupt
- * to occur for the given driver */
-KERNELAPI
-OsStatus_t
-KERNELABI
-InterruptAcknowledge(
-    _In_ UUId_t Source);
-
 /* InterruptGet
  * Retrieves the given interrupt source information
  * as a MCoreInterruptDescriptor_t */
@@ -99,6 +106,15 @@ MCoreInterruptDescriptor_t*
 KERNELABI
 InterruptGet(
    _In_ UUId_t Source);
+
+/* InterruptGetIndex
+ * Retrieves the given interrupt source information
+ * as a MCoreInterruptDescriptor_t */
+KERNELAPI
+MCoreInterruptDescriptor_t*
+KERNELABI
+InterruptGetIndex(
+   _In_ UUId_t TableIndex);
 
 /* InterruptIncreasePenalty 
  * Increases the penalty for an interrupt source. */
@@ -135,32 +151,25 @@ InterruptGetLeastLoaded(
 	_In_ int Irqs[],
 	_In_ int Count);
 
-/* InterruptDisable
- * Disables interrupts and returns
- * the state before disabling */
-__EXTERN IntStatus_t InterruptDisable(void);
+/* AcpiGetPolarityMode
+ * Returns whether or not the polarity is Active Low or Active High.
+ * For Active Low = 1, Active High = 0 */
+KERNELAPI
+int
+KERNELABI
+AcpiGetPolarityMode(
+    _In_ uint16_t IntiFlags,
+    _In_ int Source);
 
-/* InterruptEnable
- * Enables interrupts and returns 
- * the state before enabling */
-__EXTERN IntStatus_t InterruptEnable(void);
-
-/* InterruptRestoreState
- * Restores the interrupt-status to the given
- * state, that must have been saved from SaveState */
-__EXTERN IntStatus_t InterruptRestoreState(IntStatus_t State);
-
-/* InterruptSaveState
- * Retrieves the current state of interrupts */
-__EXTERN IntStatus_t InterruptSaveState(void);
-
-/* InterruptIsDisabled
- * Returns 1 if interrupts are currently
- * disabled or 0 if interrupts are enabled */
-__EXTERN int InterruptIsDisabled(void);
-
-__EXTERN Flags_t InterruptGetPolarity(uint16_t IntiFlags, int IrqSource);
-__EXTERN Flags_t InterruptGetTrigger(uint16_t IntiFlags, int IrqSource);
+/* AcpiGetTriggerMode
+ * Returns whether or not the trigger mode of the interrup is level or edge.
+ * For Level = 1, Edge = 0 */
+KERNELAPI
+int
+KERNELABI
+AcpiGetTriggerMode(
+    _In_ uint16_t IntiFlags,
+    _In_ int Source);
 
 /* AcpiDeriveInterrupt
  * Derives an interrupt by consulting

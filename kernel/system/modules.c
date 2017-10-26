@@ -23,6 +23,7 @@
 
 /* Includes 
  * - System */
+#include <system/interrupts.h>
 #include <process/phoenix.h>
 #include <modules/modules.h>
 #include <interrupts.h>

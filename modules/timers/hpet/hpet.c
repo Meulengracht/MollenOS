@@ -196,7 +196,8 @@ HpComparatorStart(
 
 		// Set handler and data
 		Interrupt.Data = Controller;
-		Interrupt.FastHandler = OnFastInterrupt;
+        Interrupt.FastHandler = OnFastInterrupt;
+        Interrupt.Handler = NULL;
 
 		// From the interrupt map, calculate possible int's
 		for (i = 0, j = 0; i < 32; i++) {
@@ -216,13 +217,13 @@ HpComparatorStart(
 		// Handle MSI interrupts > normal
 		if (Timer->MsiSupport) {
 			Timer->Interrupt =
-				RegisterInterruptSource(&Interrupt, INTERRUPT_FAST | INTERRUPT_MSI);
+				RegisterInterruptSource(&Interrupt, INTERRUPT_MSI);
 			Timer->MsiAddress = (reg32_t)Interrupt.MsiAddress;
 			Timer->MsiValue = (reg32_t)Interrupt.MsiValue;
 		}
 		else {
 			Timer->Interrupt =
-				RegisterInterruptSource(&Interrupt, INTERRUPT_FAST | INTERRUPT_VECTOR);
+				RegisterInterruptSource(&Interrupt, INTERRUPT_VECTOR);
 			Timer->Irq = Interrupt.Line;
 		}
 	}

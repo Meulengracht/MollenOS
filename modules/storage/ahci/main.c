@@ -41,31 +41,54 @@
  * State-tracking variables */
 static List_t *GlbControllers = NULL;
 
-/* OnInterrupt
- * Is called when one of the registered devices
- * produces an interrupt. On successful handled
- * interrupt return OsSuccess, otherwise the interrupt
- * won't be acknowledged */
+/* ProcessInterrupt
+ * Is invoked if OnFastInterrupt returned Handled. This is to actually
+ * process the device interrupt */
 InterruptStatus_t
-OnInterrupt(
-    _In_Opt_ void *InterruptData,
-    _In_Opt_ size_t Arg0,
-    _In_Opt_ size_t Arg1,
-    _In_Opt_ size_t Arg2)
+ProcessInterrupt(
+    _In_Opt_ void *InterruptData)
 {
-	// Variables
+    // Variables
 	AhciController_t *Controller = NULL;
 	reg32_t InterruptStatus;
     int i;
 
 	// Instantiate the pointer
 	Controller = (AhciController_t*)InterruptData;
-    InterruptStatus = Controller->Registers->InterruptStatus;
+    InterruptStatus = Controller->InterruptStatus;
+    Controller->InterruptStatus = 0;
+
+HandleInterrupt:
+    // Iterate the port-map and check if the interrupt
+	// came from that port
+	for (i = 0; i < 32; i++) {
+		if (Controller->Ports[i] != NULL
+			&& ((InterruptStatus & (1 << i)) != 0)) {
+			AhciPortInterruptHandler(Controller, Controller->Ports[i]);
+		}
+    }
     
-    // Unused
-    _CRT_UNUSED(Arg0);
-    _CRT_UNUSED(Arg1);
-    _CRT_UNUSED(Arg2);
+    // Re-handle?
+    if (Controller->InterruptStatus != 0) {
+        goto HandleInterrupt;
+    }
+	return InterruptHandled;
+}
+
+/* OnFastInterrupt
+ * Is called for the sole purpose to determine if this source
+ * has invoked an irq. If it has, silence and return (Handled) */
+InterruptStatus_t
+OnFastInterrupt(
+    _In_Opt_ void *InterruptData)
+{
+	// Variables
+	AhciController_t *Controller = NULL;
+	reg32_t InterruptStatus;
+
+	// Instantiate the pointer
+	Controller = (AhciController_t*)InterruptData;
+    InterruptStatus = Controller->Registers->InterruptStatus;
 
 	// Trace
 	TRACE("Interrupt - Status 0x%x", InterruptStatus);
@@ -75,17 +98,26 @@ OnInterrupt(
 		return InterruptNotHandled;
 	}
 
-	// Iterate the port-map and check if the interrupt
-	// came from that port
-	for (i = 0; i < 32; i++) {
-		if (Controller->Ports[i] != NULL
-			&& ((InterruptStatus & (1 << i)) != 0)) {
-			AhciPortInterruptHandler(Controller, Controller->Ports[i]);
-		}
-	}
-
 	// Write clear interrupt register and return
-	Controller->Registers->InterruptStatus = InterruptStatus;
+    Controller->Registers->InterruptStatus = InterruptStatus;
+    Controller->InterruptStatus |= InterruptStatus;
+	return InterruptHandled;
+}
+
+/* OnInterrupt
+ * Is called by external services to indicate an external interrupt.
+ * Not used by physical interrupts, but instead user-defined ones. */
+InterruptStatus_t 
+OnInterrupt(
+    _In_Opt_ void *InterruptData,
+    _In_Opt_ size_t Arg0,
+    _In_Opt_ size_t Arg1,
+    _In_Opt_ size_t Arg2)
+{
+    _CRT_UNUSED(InterruptData);
+    _CRT_UNUSED(Arg0);
+    _CRT_UNUSED(Arg1);
+	_CRT_UNUSED(Arg2);
 	return InterruptHandled;
 }
 

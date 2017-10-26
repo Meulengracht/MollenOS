@@ -124,51 +124,24 @@ FinalizerEntry(
 	return 0;
 }
 
-/* OnInterrupt
- * This driver uses fast-interrupt */
+/* ProcessInterrupt
+ * Is invoked if OnFastInterrupt returned Handled. This is to actually
+ * process the device interrupt */
 InterruptStatus_t
-OnInterrupt(
-    _In_Opt_ void *InterruptData,
-    _In_Opt_ size_t Arg0,
-    _In_Opt_ size_t Arg1,
-    _In_Opt_ size_t Arg2)
-{
-    // Unused
-    _CRT_UNUSED(InterruptData);
-    _CRT_UNUSED(Arg0);
-    _CRT_UNUSED(Arg1);
-    _CRT_UNUSED(Arg2);
-	return InterruptHandled;
-}
-
-/* OnFastInterrupt
- * Is called when one of the registered devices
- * produces an interrupt. On successful handled
- * interrupt return OsSuccess, otherwise the interrupt
- * won't be acknowledged */
-InterruptStatus_t
-OnFastInterrupt(
+ProcessInterrupt(
     _In_Opt_ void *InterruptData)
 {
-	// Variables
+    // Variables
 	UhciController_t *Controller = NULL;
 	uint16_t InterruptStatus;
 
 	// Instantiate the pointer
-	Controller = (UhciController_t*)InterruptData;
+    Controller = (UhciController_t*)InterruptData;
+    InterruptStatus = Controller->Base.InterruptStatus;
+    Controller->Base.InterruptStatus = 0;
 
-	// Read interrupt status from i/o
-    InterruptStatus = UhciRead16(Controller, UHCI_REGISTER_STATUS);
-    
-	// Trace
-	TRACE("UHCI Interrupt - Status 0x%x", InterruptStatus);
-	
-	// Was the interrupt even from this controller?
-	if (!(InterruptStatus & 0x1F)) {
-		return InterruptNotHandled;
-	}
-
-	// If either interrupt or error is present, it means a change happened
+HandleInterrupt:
+    // If either interrupt or error is present, it means a change happened
 	// in one of our transactions
 	if (InterruptStatus & (UHCI_STATUS_USBINT | UHCI_STATUS_INTR_ERROR)) {
 		UhciProcessTransfers(Controller);
@@ -193,11 +166,61 @@ OnFastInterrupt(
 		//UhciReset(Controller);
 		//UhciStart(Controller, 0);
     }
-    
-	// Clear interrupt bits
-	UhciWrite16(Controller, UHCI_REGISTER_STATUS, InterruptStatus);    
 
-	// Done
+    // Make sure we re-handle interrupts meanwhile
+    if (Controller->Base.InterruptStatus != 0) {
+        goto HandleInterrupt;
+    }
+	return InterruptHandled;
+}
+
+/* OnFastInterrupt
+ * Is called for the sole purpose to determine if this source
+ * has invoked an irq. If it has, silence and return (Handled) */
+InterruptStatus_t
+OnFastInterrupt(
+    _In_Opt_ void *InterruptData)
+{
+	// Variables
+	UhciController_t *Controller = NULL;
+	uint16_t InterruptStatus;
+
+	// Instantiate the pointer
+	Controller = (UhciController_t*)InterruptData;
+
+	// Read interrupt status from i/o
+    InterruptStatus = UhciRead16(Controller, UHCI_REGISTER_STATUS);
+    
+	// Trace
+	TRACE("UHCI Interrupt - Status 0x%x", InterruptStatus);
+	
+	// Was the interrupt even from this controller?
+	if (!(InterruptStatus & 0x1F)) {
+		return InterruptNotHandled;
+    }
+    
+    // Save interrupt bits
+    Controller->Base.InterruptStatus |= InterruptStatus;
+
+	// Clear interrupt bits
+	UhciWrite16(Controller, UHCI_REGISTER_STATUS, InterruptStatus);
+	return InterruptHandled;
+}
+
+/* OnInterrupt
+ * Is called by external services to indicate an external interrupt.
+ * Not used by physical interrupts, but instead user-defined ones. */
+InterruptStatus_t 
+OnInterrupt(
+    _In_Opt_ void *InterruptData,
+    _In_Opt_ size_t Arg0,
+    _In_Opt_ size_t Arg1,
+    _In_Opt_ size_t Arg2)
+{
+    _CRT_UNUSED(InterruptData);
+    _CRT_UNUSED(Arg0);
+    _CRT_UNUSED(Arg1);
+	_CRT_UNUSED(Arg2);
 	return InterruptHandled;
 }
 

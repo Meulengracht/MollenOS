@@ -26,7 +26,6 @@
 #include <system/utils.h>
 #include <multiboot.h>
 #include <interrupts.h>
-#include <mollenos.h>
 #include <memory.h>
 #include <arch.h>
 #include <apic.h>

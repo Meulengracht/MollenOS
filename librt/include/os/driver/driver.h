@@ -79,10 +79,8 @@ OnUnregister(
 	_In_ MCoreDevice_t *Device);
 
 /* OnInterrupt
- * Is called when one of the registered devices
- * produces an interrupt. On successful handled
- * interrupt return OsSuccess, otherwise the interrupt
- * won't be acknowledged */
+ * Is called by external services to indicate an external interrupt.
+ * Not used by physical interrupts, but instead user-defined ones. */
 __EXTERN 
 InterruptStatus_t 
 OnInterrupt(

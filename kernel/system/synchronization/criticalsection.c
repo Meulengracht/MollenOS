@@ -23,6 +23,7 @@
 
 /* Includes 
  * - System */
+#include <system/interrupts.h>
 #include <criticalsection.h>
 #include <interrupts.h>
 #include <threading.h>

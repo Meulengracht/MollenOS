@@ -27,6 +27,7 @@
 
 /* Includes 
  * - System */
+#include <system/interrupts.h>
 #include <system/thread.h>
 #include <system/utils.h>
 #include <process/phoenix.h>
@@ -67,135 +68,11 @@ __EXTERN void enter_thread(Context_t *Regs);
  * These are for external access to some of the ACPI information */
 __EXTERN List_t *GlbAcpiNodes;
 
-/* Interrupts tables needed for
- * the x86-architecture */
-static MCoreInterruptDescriptor_t *InterruptTable[IDT_DESCRIPTORS];
-static int PenaltyTable[IDT_DESCRIPTORS];
-static CriticalSection_t InterruptLock;
-int GlbInterruptInitialized = 0;
-UUId_t InterruptIdGen = 0;
-
-/* Parses Intiflags for Polarity */
-Flags_t InterruptGetPolarity(uint16_t IntiFlags, int IrqSource)
-{
-	/* Returning 1 means LOW, returning 0 means HIGH */
-	switch (IntiFlags & ACPI_MADT_POLARITY_MASK) {
-		case ACPI_MADT_POLARITY_CONFORMS: {
-			if (IrqSource == (int)AcpiGbl_FADT.SciInterrupt)
-				return 1;
-			else
-				return 0;
-		} break;
-
-		/* Active High */
-		case ACPI_MADT_POLARITY_ACTIVE_HIGH:
-			return 0;
-		case ACPI_MADT_POLARITY_ACTIVE_LOW:
-			return 1;
-	}
-
-	return 0;
-}
-
-/* Parses Intiflags for Trigger Mode */
-Flags_t InterruptGetTrigger(uint16_t IntiFlags, int IrqSource)
-{
-	/* Returning 1 means LEVEL, returning 0 means EDGE */
-	switch (IntiFlags & ACPI_MADT_TRIGGER_MASK) {
-		case ACPI_MADT_TRIGGER_CONFORMS: {
-			if (IrqSource == (int)AcpiGbl_FADT.SciInterrupt)
-				return 1;
-			else
-				return 0;
-		} break;
-
-		/* Active High */
-		case ACPI_MADT_TRIGGER_EDGE:
-			return 0;
-		case ACPI_MADT_TRIGGER_LEVEL:
-			return 1;
-	}
-
-	return 0;
-}
-
-/* AcpiDeriveInterrupt
- * Derives an interrupt by consulting
- * the bus of the device, and spits out flags in
- * AcpiConform and returns irq */
-int
-AcpiDeriveInterrupt(
-    _In_ DevInfo_t Bus, 
-    _In_ DevInfo_t Device,
-    _In_ int Pin,
-    _Out_ Flags_t *AcpiConform)
-{
-	// Variables
-	AcpiDevice_t *Dev = NULL;
-	DataKey_t iKey;
-
-	// Calculate routing index
-	unsigned rIndex = (Device * 4) + (Pin - 1);
-	iKey.Value = 0;
-
-	// Trace
-	TRACE("AcpiDeriveInterrupt(Bus %u, Device %u, Pin %i)",
-		Bus, Device, Pin);
-
-	// Start by checking if we can find the
-	// routings by checking the given device
-	Dev = AcpiDeviceLookupBusRoutings(Bus);
-
-	// Make sure there was a bus device for it
-	if (Dev != NULL) {
-		TRACE("Found bus-device <%s>, accessing index %u", 
-			&Dev->HId[0], rIndex);
-		if (Dev->Routings->ActiveIrqs[rIndex] != INTERRUPT_NONE
-			&& Dev->Routings->InterruptEntries[rIndex] != NULL) {
-			PciRoutingEntry_t *RoutingEntry = NULL;
-
-			// Lookup entry in list
-			foreach(iNode, Dev->Routings->InterruptEntries[rIndex]) {
-				RoutingEntry = (PciRoutingEntry_t*)iNode->Data;
-				if (RoutingEntry->Irq == Dev->Routings->ActiveIrqs[rIndex]) {
-					break;
-				}
-			}
-
-			// Update IRQ Information
-			*AcpiConform = __DEVICEMANAGER_ACPICONFORM_PRESENT;
-			if (RoutingEntry->Trigger == ACPI_LEVEL_SENSITIVE) {
-				*AcpiConform |= __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE;
-			}
-
-			if (RoutingEntry->Polarity == ACPI_ACTIVE_LOW) {
-				*AcpiConform |= __DEVICEMANAGER_ACPICONFORM_POLARITY;
-			}
-
-			if (RoutingEntry->Shareable != 0) {
-				*AcpiConform |= __DEVICEMANAGER_ACPICONFORM_SHAREABLE;
-			}
-
-			if (RoutingEntry->Fixed != 0) {
-				*AcpiConform |= __DEVICEMANAGER_ACPICONFORM_FIXED;
-			}
-
-			// Return found interrupt
-			TRACE("Found interrupt %i", RoutingEntry->Irq);
-			return RoutingEntry->Irq;
-		}
-	}
-
-	// None found
-	TRACE("No interrupt found");
-	return INTERRUPT_NONE;
-}
-
-/* InterruptDetermine
+/* InterruptGetApicConfiguration
  * Determines the correct APIC flags for the io-apic entry
  * from the interrupt structure */
 uint64_t
-InterruptDetermine(
+InterruptGetApicConfiguration(
     _In_ MCoreInterrupt_t *Interrupt)
 {
 	// Variables
@@ -212,7 +89,6 @@ InterruptDetermine(
         PicGetConfiguration(Interrupt->Line, &Enabled, &LevelTriggered);
 		ApicFlags |= 0x100;					// Lowest Priority
 		ApicFlags |= 0x800;					// Logical Destination Mode
-        ApicFlags |= (INTERRUPT_BASE_DEVICE + Interrupt->Line);
         if (LevelTriggered == 1) {
             TRACE(" - ISA Peripheral Interrupt (Active-Low, Level-Triggered)");
             ApicFlags |= APIC_ACTIVE_LOW;			// Set Polarity
@@ -226,24 +102,20 @@ InterruptDetermine(
 	// Case 2 - PCI Interrupts (No-Pin) 
 	// - Must be Level Triggered Low-Active
 	else if (Interrupt->Line >= NUM_ISA_INTERRUPTS
-		&& Interrupt->Pin == INTERRUPT_NONE) {
+		    && Interrupt->Pin == INTERRUPT_NONE) {
 		TRACE(" - PCI Interrupt (Active-Low, Level-Triggered)");
 		ApicFlags |= 0x100;						// Lowest Priority
 		ApicFlags |= 0x800;						// Logical Destination Mode
 		ApicFlags |= APIC_ACTIVE_LOW;			// Set Polarity
 		ApicFlags |= APIC_LEVEL_TRIGGER;		// Set Trigger Mode
-		ApicFlags |= (INTERRUPT_BASE_DEVICE + Interrupt->Line);
 	}
 
 	// Case 3 - PCI Interrupts (Pin) 
 	// - Usually Level Triggered Low-Active
 	else if (Interrupt->Pin != INTERRUPT_NONE) {
-		int IdtEntry = INTERRUPT_BASE_DEVICE;
-
 		// If no routing exists use the pci interrupt line
 		if (!(Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_PRESENT)) {
 			TRACE(" - PCI Interrupt (Active-Low, Level-Triggered)");
-			IdtEntry += Interrupt->Line;
 			ApicFlags |= 0x100;					// Lowest Priority
 			ApicFlags |= 0x800;					// Logical Destination Mode
 		}
@@ -266,334 +138,70 @@ InterruptDetermine(
 					ApicFlags |= APIC_ACTIVE_LOW;
 				}
 			}
-
-			// Add to idt-entry
-			IdtEntry += Interrupt->Line;
 		}
-
-		// Set vector
-		ApicFlags |= IdtEntry;
 	}
 
 	// Done
 	return ApicFlags;
 }
 
-/* InterruptFinalize
- * Performs all the remaining actions, initializes the io-apic
- * entry, looks up for redirections and determines ISA stuff */
+/* InterruptResolve 
+ * Resolves the table index from the given interrupt settings. */
 OsStatus_t
-InterruptFinalize(
-    _In_ MCoreInterruptDescriptor_t *Interrupt)
+InterruptResolve(
+    _InOut_ MCoreInterrupt_t *Interrupt,
+    _In_ Flags_t Flags,
+    _Out_ UUId_t *TableIndex)
 {
-	// Variables
-	int Source = Interrupt->Source;
-    uint16_t TableIndex = LOWORD(Interrupt->Id);
-    uint16_t FinalTableIndex = 0;
-    uint64_t ApicFlags = APIC_FLAGS_DEFAULT;
-	union {
-		struct {
-			uint32_t Lo;
-			uint32_t Hi;
-		} Parts;
-		uint64_t Full;
-	} ApicExisting;
+    // 1 Resolve the physical interrupt line
+    if (!(Flags & INTERRUPT_SOFT)) {
+        if (Flags & (INTERRUPT_VECTOR | INTERRUPT_MSI)) {
+            int Vectors[INTERRUPT_PHYSICAL_END - INTERRUPT_PHYSICAL_BASE];
+            int i;
+            if (Flags & INTERRUPT_MSI) {
+                for (i = 0; i < (INTERRUPT_PHYSICAL_END - INTERRUPT_PHYSICAL_BASE); i++) {
+                    Vectors[i] = (INTERRUPT_PHYSICAL_BASE + i);
+                }
+            }
+            else {
+                Vectors[INTERRUPT_MAXVECTORS] = INTERRUPT_NONE;
+                for (i = 0; i < INTERRUPT_MAXVECTORS; i++) {
+                    if (Interrupt->Vectors[i] == INTERRUPT_NONE
+                        || i == INTERRUPT_MAXVECTORS) {
+                        Vectors[i] = INTERRUPT_NONE;
+                        break;
+                    }
+                    Vectors[i] = (INTERRUPT_PHYSICAL_BASE + Interrupt->Vectors[i]);
+                }
+            }
+            Interrupt->Line = InterruptGetLeastLoaded(Vectors, i);
 
-	// Lookup
-	ListNode_t *iNode = NULL;
-	IoApic_t *IoApic = NULL;
-
-	// Sanitize operation critical variables
-	assert(TableIndex < IDT_DESCRIPTORS);
-
-	// Trace
-	TRACE("InterruptFinalize(Id 0x%x, Source %i)", 
-		Interrupt->Id, Interrupt->Source);
-
-	// Determine the kind of flags we want to set
-    ApicFlags = InterruptDetermine(&Interrupt->Interrupt);
-    FinalTableIndex = LOBYTE(LOWORD(LODWORD(ApicFlags)));
-
-	// Trace
-	TRACE("Calculated flags for interrupt: 0x%x (TableIndex %u)", 
-		LODWORD(ApicFlags), TableIndex);
-
-	// Update table index in case
-	if (TableIndex != FinalTableIndex) {
-        Interrupt->Id &= 0xFFFF0000;
-		Interrupt->Id |= FinalTableIndex;
-		TableIndex = FinalTableIndex;
-	}
-
-	// Trace
-	TRACE("Updated TableIndex: %u", TableIndex);
-
-	// Now lookup in ACPI overrides if we should
-	// change the global source
-	_foreach(iNode, GlbAcpiNodes) {
-		if (iNode->Key.Value == ACPI_MADT_TYPE_INTERRUPT_OVERRIDE) {
-			ACPI_MADT_INTERRUPT_OVERRIDE *IoEntry =
-				(ACPI_MADT_INTERRUPT_OVERRIDE*)iNode->Data;
-			if ((int)IoEntry->SourceIrq == Source) {
-				Interrupt->Source = Source = IoEntry->GlobalIrq;
-				ApicFlags &= ~(APIC_LEVEL_TRIGGER | APIC_ACTIVE_LOW);
-				ApicFlags |= (InterruptGetPolarity(IoEntry->IntiFlags, Source) << 13);
-                ApicFlags |= (InterruptGetTrigger(IoEntry->IntiFlags, Source) << 15);
-				break;
-			}
-		}
-    }
-    
-    // Trace
-    TRACE("Updated Flags: 0x%x", LODWORD(ApicFlags));
-
-	// If it's an ISA interrupt, make sure it's not
-	// allocated, and if it's not, allocate it
-	if (Source < NUM_ISA_INTERRUPTS) {
-        // ISA Interrupts can be level triggered
-        // so make sure we configure it for level triggering
-        if (ApicFlags & APIC_LEVEL_TRIGGER) {
-            PicConfigureLine(Source, 0, 1);
-        }
-
-        // If it is not level triggered, then make sure there is 
-        // only one IRQ per ISA line
-        if (InterruptGetPenalty(Source) == INTERRUPT_NONE) {
-            // Try to reconfigure
-            ERROR("Failed to sanitize the penalty for isa-irq");
-            return OsError;
-        }
-	}
-
-	// Get correct Io Apic
-	IoApic = ApicGetIoFromGsi(Source);
-
-	// If Apic Entry is located, we need to adjust
-	if (IoApic != NULL) {
-		ApicExisting.Full = ApicReadIoEntry(IoApic, (uint32_t)Source);
-
-		// Sanity, we can't just override the existing interrupt vector
-		// so if it's already installed, we modify the table-index
-		if (!(ApicExisting.Parts.Lo & APIC_MASKED)) {
-			TableIndex = LOBYTE(LOWORD(ApicExisting.Parts.Lo));
-            Interrupt->Id &= 0xFFFF0000;
-			Interrupt->Id |= TableIndex;
-			TRACE("Updated table index for already installed interrupt: %u", 
-				TableIndex);
-		}
-		else {
-            // Unmask the irq in the io-apic
-            TRACE("Installing source %i => 0x%x", Source, LODWORD(ApicFlags));
-			ApicWriteIoEntry(IoApic, (uint32_t)Source, ApicFlags);
-		}
-	}
-	else {
-		ERROR("Failed to derive io-apic for source %u", Source);
-    }
-
-    // Done
-    BOCHSBREAK
-	return OsSuccess;
-}
-
-/* InterruptIncreasePenalty 
- * Increases the penalty for an interrupt source. */
-OsStatus_t
-InterruptIncreasePenalty(
-    _In_ int Source)
-{
-    // Variables
-    int PenaltySource = 32 + Source;
-
-	// Sanitize the requested source
-	if (PenaltySource < 32 || PenaltySource >= IDT_DESCRIPTORS) {
-        ERROR("Source was out of bounds: %i", Source);
-		return OsError;
-    }
-
-    // Done
-    PenaltyTable[PenaltySource]++;
-    return OsSuccess;
-}
-
-/* InterruptDecreasePenalty 
- * Decreases the penalty for an interrupt source. */
-OsStatus_t
-InterruptDecreasePenalty(
-    _In_ int Source)
-{
-    // Variables
-    int PenaltySource = 32 + Source;
-
-	// Sanitize the requested source
-	if (PenaltySource < 32 || PenaltySource >= IDT_DESCRIPTORS) {
-		return OsError;
-    }
-
-    // Done
-    PenaltyTable[PenaltySource]--;
-    return OsSuccess;
-}
-
-/* InterruptGetPenalty
- * Retrieves the penalty for an interrupt source. 
- * If INTERRUPT_NONE is returned the source is unavailable. */
-int
-InterruptGetPenalty(
-    _In_ int Source)
-{
-    // Variables
-    int PenaltySource = 32 + Source;
-
-	// Sanitize the requested source
-	if (PenaltySource < 32 || PenaltySource >= IDT_DESCRIPTORS) {
-		return INTERRUPT_NONE;
-    }
-
-    // Sanitize ISA non-sharable
-    if (Source < NUM_ISA_INTERRUPTS) {
-        int Enabled = 0;
-        int Shareable = 0;
-        PicGetConfiguration(Source, &Enabled, &Shareable);
-        if (PenaltyTable[PenaltySource] != 0
-            && Shareable == 0) {
-            return INTERRUPT_NONE;
+            // Adjust to physical
+            if (Interrupt->Line != INTERRUPT_NONE) {
+                Interrupt->Line -= INTERRUPT_PHYSICAL_BASE;
+            }
         }
     }
 
-	// Finished
-	return PenaltyTable[PenaltySource];
-}
-
-/* InterruptGetLeastLoaded
- * Allocates the least used sharable irq
- * most useful for MSI devices */
-int
-InterruptGetLeastLoaded(
-	_In_ int Irqs[],
-	_In_ int Count)
-{
-	// Variables
-    int SelectedPenality = INTERRUPT_NONE;
-    int SelectedIrq = INTERRUPT_NONE;
-    int i;
-    
-    // Debug
-    TRACE("InterruptGetLeastLoaded(Count %i)", Count);
-
-	// Iterate all the available irqs
-	// that the device-supports
-	for (i = 0; i < Count; i++) {
-		if (Irqs[i] == INTERRUPT_NONE) {
-			break;
-		}
-
-		// Calculate count
-		int Penalty = InterruptGetPenalty(Irqs[i]);
-
-		// Sanitize status, if -1
-        // then its not usable
-		if (Penalty == INTERRUPT_NONE) {
-			continue;
-		}
-
-        // Store the lowest penalty
-        if (SelectedIrq == INTERRUPT_NONE
-            || Penalty < SelectedPenality) {
-            SelectedIrq = Irqs[i];
-            SelectedPenality = Penalty;
+    // Do we need to override the source?
+    if (Interrupt->Line != INTERRUPT_NONE) {
+        // Now lookup in ACPI overrides if we should
+        // change the global source
+        foreach(iNode, GlbAcpiNodes) {
+            if (iNode->Key.Value == ACPI_MADT_TYPE_INTERRUPT_OVERRIDE) {
+                ACPI_MADT_INTERRUPT_OVERRIDE *IoEntry =
+                    (ACPI_MADT_INTERRUPT_OVERRIDE*)iNode->Data;
+                if ((int)IoEntry->SourceIrq == Interrupt->Line) {
+                    Interrupt->Line = IoEntry->GlobalIrq;
+                    break;
+                }
+            }
         }
-	}
+    }
 
-	// Done
-	return SelectedIrq;
-}
-
-/* InterruptInitialize
- * Initializes interrupt data-structures and global variables
- * by setting everything to sane value */
-void
-InterruptInitialize(void)
-{
-	// Initialize globals
-	memset((void*)InterruptTable, 0, sizeof(MCoreInterruptDescriptor_t*) * IDT_DESCRIPTORS);
-    memset((void*)&PenaltyTable, 0, sizeof(PenaltyTable));
-    CriticalSectionConstruct(&InterruptLock, CRITICALSECTION_PLAIN);
-	GlbInterruptInitialized = 1;
-	InterruptIdGen = 0;
-}
-
-/* InterruptRegister
- * Tries to allocate the given interrupt source
- * by the given descriptor and flags. On success
- * it returns the id of the irq, and on failure it
- * returns UUID_INVALID */
-UUId_t
-InterruptRegister(
-    _In_ MCoreInterrupt_t *Interrupt,
-    _In_ Flags_t Flags)
-{
-	// Variables
-	MCoreInterruptDescriptor_t *Entry = NULL, 
-		*Iterator = NULL, *Previous = NULL;
-	UUId_t TableIndex = 0;
-	UUId_t Id = 0;
-
-	// Sanitize initialization status
-	assert(GlbInterruptInitialized == 1);
-
-	// Trace
-	TRACE("InterruptRegister(Line %i, Pin %i, Flags 0x%x)",
-		Interrupt->Line, Interrupt->Pin, Flags);
-
-	// Allocate a new entry for the table
-	Entry = (MCoreInterruptDescriptor_t*)kmalloc(sizeof(MCoreInterruptDescriptor_t));
-
-    // This is a locked procedure
-    CriticalSectionEnter(&InterruptLock);
-    Id = InterruptIdGen++;
-    CriticalSectionLeave(&InterruptLock);
-
-	// Setup some initial information
-    Entry->Id = (Id << 16);    
-	Entry->Ash = UUID_INVALID;
-	Entry->Thread = ThreadingGetCurrentThreadId();
-	Entry->Flags = Flags;
-    Entry->Link = NULL;
-
-	// Ok -> So we have a bunch of different cases of interrupt 
-	// Software (Kernel) interrupts
-	// Software (User) interrupts
-	// User (fast) interrupts
-	// User (slow) interrupts */
-	if (Flags & INTERRUPT_KERNEL) {
-		TableIndex = (UUId_t)Interrupt->Vectors[0];
-		Entry->Id |= TableIndex;
-		if (Flags & INTERRUPT_SOFTWARE) {
-			Entry->Source = INTERRUPT_NONE;
-		}
-		else {
-			Entry->Source = Interrupt->Line;
-		}
-	}
-	else if (Flags & INTERRUPT_MSI) {
-		// MSI interrupts are treated like software
-		// interrupts
-		int Vectors[INTERRUPT_BASE_DEVICE_END - INTERRUPT_BASE_DEVICE];
-		int i;
-
-		Entry->Ash = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
-		Entry->Source = INTERRUPT_NONE;
-
-		// Find a suitable interrupt vector for this
-		for (i = 0; i < (INTERRUPT_BASE_DEVICE_END - INTERRUPT_BASE_DEVICE); i++) {
-			Vectors[i] = (INTERRUPT_BASE_DEVICE + i) - 32;
-		}
-		TableIndex = (InterruptGetLeastLoaded(Vectors, 
-			INTERRUPT_BASE_DEVICE_END - INTERRUPT_BASE_DEVICE) + 32);
-
-		// Update the id
-		Entry->Id |= TableIndex;
+    // 2 Resolve the table index
+	if (Flags & INTERRUPT_MSI) {
+		*TableIndex = (INTERRUPT_PHYSICAL_BASE + (UUId_t)Interrupt->Line);
 
 		// Fill in MSI data
 		// MSI Message Address Register (0xFEE00000 LAPIC)
@@ -613,205 +221,112 @@ InterruptRegister(
 		// Bits 13-11: Reserved
 		// Bits 10-08: Delivery Mode, standard
 		// Bits 07-00: Vector
-		Interrupt->MsiValue = (0x100 | (TableIndex & 0xFF));
+		Interrupt->MsiValue = (0x100 | (*TableIndex & 0xFF));
 	}
 	else {
-		// Sanitize the line and pin first, because
-		// if neither is set, choose one from the directs
-		if (Flags & INTERRUPT_VECTOR) {
-			Interrupt->Line = 
-				InterruptGetLeastLoaded(Interrupt->Vectors, INTERRUPT_MAXVECTORS);
-			if (Interrupt->Line < NUM_ISA_INTERRUPTS) {
-				Flags |= INTERRUPT_NOTSHARABLE;
-			}
-		}
-
-		// Lookup stuff
-		Entry->Ash = ThreadingGetCurrentThread(ApicGetCpu())->AshId;
-
-		// Update the final source for this
-		Entry->Source = Interrupt->Line;
-	}
-
-	// Trace
-	TRACE("Updated line %i and pin %i", Interrupt->Line, Interrupt->Pin);
-
-	// Copy interrupt information over
-	memcpy(&Entry->Interrupt, Interrupt, sizeof(MCoreInterrupt_t));
-	
-	// Sanitize the sharable status first
-	if (Flags & INTERRUPT_NOTSHARABLE) {
-		if (InterruptTable[TableIndex] != NULL) {
-			ERROR("Failed to install interrupt as it was not sharable");
-			kfree(Entry);
-			return UUID_INVALID;
-		}
-    }
-    
-    // From here on out we must lock
-    CriticalSectionEnter(&InterruptLock);
-
-	// Finalize the install 
-	if (Entry->Source != INTERRUPT_NONE) {
-		if (InterruptFinalize(Entry) != OsSuccess) {
-            CriticalSectionLeave(&InterruptLock);
-			ERROR("Failed to install interrupt source %i", Entry->Source);
-			kfree(Entry);
-			return UUID_INVALID;
-		}
-		TableIndex = LOWORD(Entry->Id);
-	}
-
-	// First entry?
-	if (InterruptTable[TableIndex] == NULL) {
-		InterruptTable[TableIndex] = Entry;
-	}
-	else {
-		Iterator = InterruptTable[TableIndex];
-		while (Iterator != NULL) {
-			Previous = Iterator;
-			Iterator = Iterator->Link;
-		}
-		Previous->Link = Entry;
-    }
-    
-    // Increase penalty
-    if (Entry->Source != INTERRUPT_NONE) {
-        InterruptIncreasePenalty(Entry->Source);
-    }
-
-	// Done with sensitive setup, leave section
-    CriticalSectionLeave(&InterruptLock);
-
-	// Trace
-	TRACE("Interrupt Id 0x%x", Entry->Id);
-
-	// Return the newly generated id
-	return Entry->Id;
-}
-
-/* InterruptUnregister 
- * Unregisters the interrupt from the system and removes
- * any resources that was associated with that interrupt 
- * also masks the interrupt if it was the only user */
-OsStatus_t
-InterruptUnregister(
-    _In_ UUId_t Source)
-{
-	// Variables
-	MCoreInterruptDescriptor_t *Entry = NULL, *Previous = NULL;
-	OsStatus_t Result = OsError;
-	uint16_t TableIndex = LOWORD(Source);
-	int Found = 0;
-
-	// Sanitize parameter
-	if (TableIndex >= IDT_DESCRIPTORS) {
-		return OsError;
-    }
-    
-    // Unlinking is locked
-    CriticalSectionEnter(&InterruptLock);
-
-	// Iterate handlers in that table index 
-	// and unlink the given entry
-	Entry = InterruptTable[TableIndex];
-	while (Entry != NULL) {
-		if (Entry->Id == Source) {
-			Found = 1;
-			if (Previous == NULL) {
-				InterruptTable[TableIndex] = Entry->Link;
-			}
-			else {
-				Previous->Link = Entry->Link;
-			}
-			break;
-		}
-
-		/* Move on to next entry */
-		Previous = Entry;
-		Entry = Entry->Link;
-    }
-    
-    // Done with sensitive op
-    CriticalSectionLeave(&InterruptLock);
-
-	// Sanitize if we were successfull
-	if (Found == 0) {
-		return OsError;
-    }
-    
-    // Decrease penalty
-    if (Entry->Source != INTERRUPT_NONE) {
-        InterruptDecreasePenalty(Entry->Source);
-    }
-
-	// Entry is now unlinked, clean it up 
-	// mask the interrupt again if neccessary
-	if (Found == 1) {
-		FATAL(FATAL_SCOPE_KERNEL, "Finish the code for unlinking interrupts!!");
-	}
-	return Result;
-}
-
-/* InterruptAcknowledge 
- * Acknowledges the interrupt source and unmasks
- * the interrupt-line, allowing another interrupt
- * to occur for the given driver */
-OsStatus_t
-InterruptAcknowledge(
-    _In_ UUId_t Source)
-{
-	// Variables
-	MCoreInterruptDescriptor_t *Entry = NULL;
-	OsStatus_t Result = OsError;
-	uint16_t TableIndex = LOWORD(Source);
-
-	// Sanitize the source
-	if (TableIndex >= IDT_DESCRIPTORS) {
-		return OsError;
-    }
-    
-	// Iterate handlers in that table index
-	Entry = InterruptTable[TableIndex];
-	while (Entry != NULL) {
-		if (Entry->Id == Source) {
-			ApicUnmaskGsi(Entry->Source);
-			Result = OsSuccess;
-			break;
+        // Driver/kernel interrupt
+        if (Flags & INTERRUPT_SOFT) {
+            if (Flags & INTERRUPT_VECTOR) {
+                *TableIndex = InterruptGetLeastLoaded(
+                    Interrupt->Vectors, INTERRUPT_MAXVECTORS);
+            }
+            else {
+                *TableIndex = Interrupt->Vectors[0];
+            }
         }
-		Entry = Entry->Link;
+        else {
+            *TableIndex = (INTERRUPT_PHYSICAL_BASE + (UUId_t)Interrupt->Line);
+        }
     }
-	return Result;
+    return OsSuccess;
 }
 
-/* InterruptGet
- * Retrieves the given interrupt source information
- * as a MCoreInterruptDescriptor_t */
-MCoreInterruptDescriptor_t*
-InterruptGet(
-    _In_ UUId_t Source)
+/* InterruptConfigure
+ * Configures the given interrupt in the system */
+OsStatus_t
+InterruptConfigure(
+    _In_ MCoreInterruptDescriptor_t *Descriptor,
+    _In_ int Enable)
 {
-	// Variables
-	MCoreInterruptDescriptor_t *Iterator = NULL;
-	uint16_t TableIndex = LOWORD(Source);
+    // Variables
+    uint64_t ApicFlags      = APIC_FLAGS_DEFAULT;
+	IoApic_t *IoApic        = NULL;
+    UUId_t TableIndex       = 0;
+    union {
+		struct {
+			uint32_t Lo;
+			uint32_t Hi;
+		} Parts;
+		uint64_t Full;
+    } ApicExisting;
+    
+    // Debug
+    TRACE("InterruptConfigure(Id 0x%x, Enable %i)", 
+        Descriptor->Id, Enable);
 
-	// Iterate at the correct entry
-	Iterator = InterruptTable[TableIndex];
-	while (Iterator != NULL) {
-		if (Iterator->Id == Source) {
-			return Iterator;
-		}
+    // Is this a software interrupt? Don't install
+    if (Descriptor->Flags & INTERRUPT_SOFT
+        || Descriptor->Interrupt.Line == INTERRUPT_NONE) {
+        return OsSuccess;
+    }
+
+    // Determine the kind of apic configuration
+    TableIndex = (Descriptor->Id & 0xFF);
+    ApicFlags = InterruptGetApicConfiguration(&Descriptor->Interrupt);
+    ApicFlags |= TableIndex;
+
+    // Trace
+    TRACE("Calculated flags for interrupt: 0x%x (TableIndex %u)", 
+        LODWORD(ApicFlags), TableIndex);
+
+    // If this is an (E)ISA interrupt make sure it's configured
+    // properly in the PIC/ELCR
+	if (Descriptor->Source < NUM_ISA_INTERRUPTS) {
+        // ISA Interrupts can be level triggered
+        // so make sure we configure it for level triggering
+        if (ApicFlags & APIC_LEVEL_TRIGGER) {
+            PicConfigureLine(Descriptor->Source, 0, 1);
+        }
 	}
 
-	// We didn't find it
-	return NULL;
+	// Get correct Io Apic
+	IoApic = ApicGetIoFromGsi(Descriptor->Source);
+
+	// If Apic Entry is located, we need to adjust
+	if (IoApic != NULL) {
+		ApicExisting.Full = ApicReadIoEntry(IoApic, Descriptor->Source);
+
+		// Sanity, we can't just override the existing interrupt vector
+		// so if it's already installed, we modify the table-index
+		if (!(ApicExisting.Parts.Lo & APIC_MASKED)) {
+            UUId_t ExistingIndex = LOBYTE(LOWORD(ApicExisting.Parts.Lo));
+            if (ExistingIndex != TableIndex) {
+                FATAL(FATAL_SCOPE_KERNEL, 
+                    "Table index for already installed interrupt: %u", 
+				    TableIndex);
+            }
+		}
+		else {
+            // Unmask the irq in the io-apic
+            TRACE("Installing source %i => 0x%x", Descriptor->Source, LODWORD(ApicFlags));
+			ApicWriteIoEntry(IoApic, Descriptor->Source, ApicFlags);
+		}
+	}
+	else {
+		ERROR("Failed to derive io-apic for source %i", Descriptor->Source);
+    }
+
+    // Done
+	return OsSuccess;
 }
 
 /* InterruptEntry
  * The common entry point for interrupts, all
  * non-exceptions will enter here, lookup a handler
  * and execute the code */
-void InterruptEntry(Context_t *Registers)
+void
+InterruptEntry(
+    _In_ Context_t *Registers)
 {
 	// Interrupts
 	MCoreInterruptDescriptor_t *Entry = NULL;
@@ -820,9 +335,23 @@ void InterruptEntry(Context_t *Registers)
 	int Gsi = APIC_NO_GSI;
 
 	// Iterate handlers in that table index
-	Entry = InterruptTable[TableIndex];
+    Entry = InterruptGetIndex(TableIndex);
 	while (Entry != NULL) {
-		if (Entry->Flags & INTERRUPT_FAST) {
+        if (Entry->Flags & INTERRUPT_KERNEL) {
+			if (Entry->Interrupt.Data == NULL) {
+				Result = Entry->Interrupt.FastHandler((void*)Registers);
+			}
+			else {
+				Result = Entry->Interrupt.FastHandler(Entry->Interrupt.Data);
+			}
+
+			// If it was handled we can break
+			// early as there is no need to check rest
+			if (Result == InterruptHandled) {
+				break;
+			}
+        }
+        else {
 			MCoreThread_t *Thread = ThreadingGetThread(Entry->Thread);
 			MCoreThread_t *Source = ThreadingGetCurrentThread(ApicGetCpu());
 
@@ -840,39 +369,16 @@ void InterruptEntry(Context_t *Registers)
 			// - Register it with system stuff
 			// - System timers must be registered as fast-handlers
 			if (Result == InterruptHandled) {
-				TimersInterrupt(Entry->Id);
-				Gsi = Entry->Source;
+                TimersInterrupt(Entry->Id);
+                
+                // Add to interrupt queue if there is a handler
+                if (Entry->Interrupt.Handler != NULL) {
+                    if (InterruptQueue(Entry) != OsSuccess) {
+                        FATAL(FATAL_SCOPE_KERNEL, "Failed to queue up interrupt for handling");
+                    }
+                }
 				break;
 			}
-		}
-		else if (Entry->Flags & INTERRUPT_KERNEL) {
-			if (Entry->Interrupt.Data == NULL) {
-				Result = Entry->Interrupt.FastHandler((void*)Registers);
-			}
-			else {
-				Result = Entry->Interrupt.FastHandler(Entry->Interrupt.Data);
-			}
-
-			// If it was handled we can break
-			// early as there is no need to check rest
-			if (Result == InterruptHandled) {
-				Gsi = Entry->Source;
-				break;
-			}
-		}
-		else {
-			// Trace
-			TRACE("Interrupt 0x%x for process %u is being dispatched",
-				Entry->Ash, Entry->Id);
-
-			// Send a interrupt-event to this
-			// and mark as handled, so we don't spit out errors
-			__KernelInterruptDriver(Entry->Ash, Entry->Id, Entry->Interrupt.Data);
-			Result = InterruptHandled;
-
-			// Mask the GSI and store it
-			ApicMaskGsi(Entry->Source);
-			Gsi = Entry->Source;
 		}
 
 		// Move on to next entry

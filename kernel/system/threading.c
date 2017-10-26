@@ -25,7 +25,7 @@
 
 /* Includes 
  * - System */
-#include <mollenos.h>
+#include <system/interrupts.h>
 #include <system/thread.h>
 #include <system/utils.h>
 
@@ -172,7 +172,7 @@ ThreadingInitialize(
 	memset(Init, 0, sizeof(MCoreThread_t));
 	Init->Name = strdup("idle");
 	Init->Queue = MCORE_SCHEDULER_LEVELS - 1;
-	Init->Flags = THREADING_IDLE | THREADING_SYSTEMTHREAD | THREADING_CPUBOUND;
+	Init->Flags = THREADING_IDLE | THREADING_CPUBOUND;
 	Init->TimeSlice = MCORE_IDLE_TIMESLICE;
 	Init->Priority = PriorityLow;
 	Init->ParentId = 0xDEADBEEF;
@@ -312,10 +312,12 @@ ThreadingCreateThread(
 	// based upon usermode thread or kernel mode thread
 	if (THREADING_RUNMODE(Flags) == THREADING_KERNELMODE
 		|| !(Flags & THREADING_INHERIT)) {
-		Thread->ThreadData = IThreadCreate(THREADING_KERNELMODE, (uintptr_t)&ThreadingEntryPoint);
+        Thread->ThreadData = IThreadCreate(THREADING_KERNELMODE, 
+            (uintptr_t)&ThreadingEntryPoint);
 	}
 	else {
-		Thread->ThreadData = IThreadCreate(THREADING_KERNELMODE, (uintptr_t)&ThreadingEntryPointUserMode);
+        Thread->ThreadData = IThreadCreate(THREADING_KERNELMODE, 
+            (uintptr_t)&ThreadingEntryPointUserMode);
     }
     
     // Acquire the thread lock

@@ -250,8 +250,7 @@ OsStatus_t PS2MouseInitialize(PS2Port_t *Port)
 	}
 
 	/* Register the interrupt for this mouse */
-	Mouse->Irq = RegisterInterruptSource(&Port->Interrupt,
-		INTERRUPT_NOTSHARABLE | INTERRUPT_FAST);
+	Mouse->Irq = RegisterInterruptSource(&Port->Interrupt, INTERRUPT_NOTSHARABLE);
 
 	/* The mouse is in default state at this point
 	 * since all ports suffer a reset - We want to test

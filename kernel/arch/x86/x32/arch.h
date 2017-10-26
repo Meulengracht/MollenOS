@@ -28,7 +28,9 @@
 #include <os/spinlock.h>
 
 /* Architecture Definitions */
-#define ARCHITECTURE_NAME		"x86-32"
+#define ARCHITECTURE_NAME		    "x86-32"
+#define MAX_SUPPORTED_CPUS			64
+#define MAX_SUPPORTED_INTERRUPTS    256
 
 /* X86-32 Address Space */
 #define ADDRESSSPACE_MEMBERS		uintptr_t Cr3; void *PageDirectory;
@@ -118,14 +120,13 @@ __EXTERN void ApicSendIpi(UUId_t CpuTarget, uint32_t Vector);
 /* Architecture Locked Interrupts */
 #define INTERRUPT_LAPIC					0xF0
 
-#define INTERRUPT_BASE_DEVICE			0xA0
-#define INTERRUPT_BASE_DEVICE_END		0xF0
+#define INTERRUPT_PHYSICAL_BASE			0x90
+#define INTERRUPT_PHYSICAL_END  		0xF0
 
 #define INTERRUPT_SPURIOUS7				0x27
 #define INTERRUPT_SPURIOUS				0x7F
 #define INTERRUPT_SYSCALL				0x80
 #define INTERRUPT_YIELD					0x81
 #define INTERRUPT_LVTERROR				0x82
-#define INTERRUPT_ACPIBASE				0x90
 
 #endif // !_MCORE_X86_ARCH_

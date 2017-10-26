@@ -20,6 +20,7 @@
 */
 
 /* Includes */
+#include <system/interrupts.h>
 #include <system/utils.h>
 #include <acpi.h>
 #include <apic.h>

@@ -105,7 +105,7 @@ void ApicIoWrite(IoApic_t *IoApic, uint32_t Register, uint32_t Data)
 /* Writes interrupt data to the io-apic
  * interrupt register. It writes the data to
  * the given Pin (io-apic entry) offset. */
-void ApicWriteIoEntry(IoApic_t *IoApic, uint32_t Pin, uint64_t Data)
+void ApicWriteIoEntry(IoApic_t *IoApic, int Pin, uint64_t Data)
 {
 	/* Union this for easier 
 	 * memory access becuase we do 32 bit accesses */
@@ -130,7 +130,7 @@ void ApicWriteIoEntry(IoApic_t *IoApic, uint32_t Pin, uint64_t Data)
 /* Reads interrupt data from the io-apic
  * interrupt register. It reads the data from
  * the given Pin (io-apic entry) offset. */
-uint64_t ApicReadIoEntry(IoApic_t *IoApic, uint32_t Pin)
+uint64_t ApicReadIoEntry(IoApic_t *IoApic, int Pin)
 {
 	/* Union this for easier 
 	 * memory access becuase we do 32 bit accesses */

@@ -23,6 +23,7 @@
 
 /* Includes
  * - System */
+#include <system/interrupts.h>
 #include <system/utils.h>
 #include <interrupts.h>
 #include <log.h>

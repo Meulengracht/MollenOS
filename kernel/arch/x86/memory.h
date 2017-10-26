@@ -25,7 +25,6 @@
 /* Includes 
  * - System */
 #include <os/osdefs.h>
-#include <mollenos.h>
 #include <multiboot.h>
 #include <mutex.h>
 

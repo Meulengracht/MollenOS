@@ -132,8 +132,7 @@ OsStatus_t OnLoad(void)
 
 	// Install interrupt in system
 	// Install a fast interrupt handler
-	GlbPit->Irq = RegisterInterruptSource(&GlbPit->Interrupt,
-		INTERRUPT_NOTSHARABLE | INTERRUPT_FAST);
+	GlbPit->Irq = RegisterInterruptSource(&GlbPit->Interrupt, INTERRUPT_NOTSHARABLE);
 
 	// Register our irq as a system timer
 	if (GlbPit->Irq != UUID_INVALID) {

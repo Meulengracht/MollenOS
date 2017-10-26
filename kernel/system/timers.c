@@ -180,7 +180,7 @@ TimersRegister(
 	// the only system timers we want are fast_interrupts
 	Interrupt = InterruptGet(Source);
 	if (Interrupt == NULL
-		|| (Interrupt->Flags & (INTERRUPT_FAST | INTERRUPT_KERNEL)) == 0) {
+		|| Interrupt->Interrupt.Handler != NULL) {
 		TRACE("Interrupt was not found for source %u", Source);
 		return OsError;
 	}

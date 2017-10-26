@@ -28,6 +28,7 @@
 */
 
 /* Includes */
+#include <system/interrupts.h>
 #include <system/utils.h>
 #include <scheduler.h>
 #include <threading.h>

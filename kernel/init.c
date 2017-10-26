@@ -24,7 +24,6 @@
 /* Includes 
  * - System */
 #include <revision.h>
-#include <mollenos.h>
 
 #include <system/setup.h>
 #include <system/iospace.h>
@@ -146,6 +145,7 @@ MCoreInitialize(
 	if (SystemsAvailable & SYSTEM_FEATURE_INTERRUPTS) {
         TRACE("Running SYSTEM_FEATURE_INTERRUPTS");
         SystemFeaturesInitialize(&GlobalBootInformation, SYSTEM_FEATURE_INTERRUPTS);
+        InterruptStart();
     }
 
 	/* Now we finish the ACPI setup IF 
@@ -173,8 +173,10 @@ MCoreInitialize(
 	// Last step, boot up all available system servers
 	// like device-managers, vfs, etc
 	ModulesRunServers();
+    
+    // Enter idle loop.
+    TRACE("End of initialization");
 	while (1) {
-        TRACE("End of initialization");
 		CpuIdle();
     }
 }

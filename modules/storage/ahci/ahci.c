@@ -35,6 +35,16 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+__EXTERN
+InterruptStatus_t
+ProcessInterrupt(
+    _In_Opt_ void *InterruptData);
+
+__EXTERN
+InterruptStatus_t
+OnFastInterrupt(
+    _In_Opt_ void *InterruptData);
+
 /* Prototypes */
 OsStatus_t
 AhciSetup(
@@ -104,7 +114,9 @@ AhciControllerCreate(
 	Controller->Registers = 
 		(AHCIGenericRegisters_t*)IoBase->VirtualBase;
 
-	// Initialize the interrupt settings
+    // Initialize the interrupt settings
+    Controller->Device.Interrupt.FastHandler = OnFastInterrupt;
+    Controller->Device.Interrupt.Handler = ProcessInterrupt;
 	Controller->Device.Interrupt.Data = Controller;
 
 	// Register contract before interrupt
@@ -202,13 +214,13 @@ AhciReset(
 	int Hung = 0;
 	int i;
 
-	// Software may reset the entire HBA by setting GHC.HR to ‘1’.
+	// Software may reset the entire HBA by setting GHC.HR to ï¿½1ï¿½.
 	Controller->Registers->GlobalHostControl |= AHCI_HOSTCONTROL_HR;
 	MemoryBarrier();
 
-	// The bit shall be cleared to ‘0’ by the HBA when the reset is complete. 
-	// If the HBA has not cleared GHC.HR to ‘0’ within 1 second of 
-	// software setting GHC.HR to ‘1’, the HBA is in a hung or locked state.
+	// The bit shall be cleared to ï¿½0ï¿½ by the HBA when the reset is complete. 
+	// If the HBA has not cleared GHC.HR to ï¿½0ï¿½ within 1 second of 
+	// software setting GHC.HR to ï¿½1ï¿½, the HBA is in a hung or locked state.
 	WaitForConditionWithFault(Hung, 
 		((Controller->Registers->GlobalHostControl & AHCI_HOSTCONTROL_HR) == 0), 10, 200);
 
@@ -218,18 +230,18 @@ AhciReset(
 		return OsError;
 	}
 
-	// If the HBA supports staggered spin-up, the PxCMD.SUD bit will be reset to ‘0’; 
+	// If the HBA supports staggered spin-up, the PxCMD.SUD bit will be reset to ï¿½0ï¿½; 
 	// software is responsible for setting the PxCMD.SUD and PxSCTL.DET fields 
 	// appropriately such that communication can be established on the Serial ATA link. 
 	// If the HBA does not support staggered spin-up, the HBA reset shall cause 
 	// a COMRESET to be sent on the port.
 
 	// Indicate that system software is AHCI aware
-	// by setting GHC.AE to ‘1’.
+	// by setting GHC.AE to ï¿½1ï¿½.
 	Controller->Registers->GlobalHostControl |= AHCI_HOSTCONTROL_AE;
 
 	// Ensure that the controller is not in the running state by reading and
-	// examining each implemented port’s PxCMD register
+	// examining each implemented portï¿½s PxCMD register
 	for (i = 0; i < AHCI_MAX_PORTS; i++) {
 		if (!(Controller->ValidPorts & AHCI_IMPLEMENTED_PORT(i))) {
 			continue;
@@ -243,7 +255,7 @@ AhciReset(
 		}
 
 		// System software places a port into the idle state by clearing PxCMD.ST and
-		// waiting for PxCMD.CR to return ‘0’ when read 
+		// waiting for PxCMD.CR to return ï¿½0ï¿½ when read 
 		Controller->Ports[i]->Registers->CommandAndStatus = 0;
 	}
 
@@ -280,21 +292,21 @@ AhciTakeOwnership(
 	// Variables
 	int Hung = 0;
 
-	// Step 1. Sets the OS Ownership (BOHC.OOS) bit to ’1’.
+	// Step 1. Sets the OS Ownership (BOHC.OOS) bit to ï¿½1ï¿½.
 	Controller->Registers->OSControlAndStatus |= AHCI_CONTROLSTATUS_OOS;
 	MemoryBarrier();
 
 	// Wait 25 ms, to determine how long time BIOS needs to release
 	ThreadSleep(25);
 
-	// If the BIOS Busy (BOHC.BB) has been set to ‘1’ within 25 milliseconds, 
+	// If the BIOS Busy (BOHC.BB) has been set to ï¿½1ï¿½ within 25 milliseconds, 
 	// then the OS driver shall provide the BIOS a minimum of two seconds 
 	// for finishing outstanding commands on the HBA.
 	if (Controller->Registers->OSControlAndStatus & AHCI_CONTROLSTATUS_BB) {
 		ThreadSleep(2000);
 	}
 
-	// Step 2. Spin on the BIOS Ownership (BOHC.BOS) bit, waiting for it to be cleared to ‘0’.
+	// Step 2. Spin on the BIOS Ownership (BOHC.BOS) bit, waiting for it to be cleared to ï¿½0ï¿½.
 	WaitForConditionWithFault(Hung, 
 		((Controller->Registers->OSControlAndStatus & AHCI_CONTROLSTATUS_BOS) == 0), 10, 25);
 
@@ -326,7 +338,7 @@ AhciSetup(
 	}
 
 	// Indicate that system software is AHCI aware 
-	// by setting GHC.AE to ‘1’.
+	// by setting GHC.AE to ï¿½1ï¿½.
 	Controller->Registers->GlobalHostControl |= AHCI_HOSTCONTROL_AE;
 
 	// Determine which ports are implemented by the HBA, by reading the PI register. 
@@ -340,7 +352,7 @@ AhciSetup(
 		Controller->Registers->PortsImplemented, Controller->Registers->Capabilities);
 
 	// Ensure that the controller is not in the running state by reading and 
-	// examining each implemented port’s PxCMD register
+	// examining each implemented portï¿½s PxCMD register
 	for (i = 0; i < AHCI_MAX_PORTS; i++) {
 		if (!(Controller->ValidPorts & AHCI_IMPLEMENTED_PORT(i))) {
 			continue;
@@ -357,7 +369,7 @@ AhciSetup(
 		}
 
 		// System software places a port into the idle state by clearing PxCMD.ST and 
-		// waiting for PxCMD.CR to return ‘0’ when read
+		// waiting for PxCMD.CR to return ï¿½0ï¿½ when read
 		Controller->Ports[i]->Registers->CommandAndStatus = 0;
 
 		// Next port
@@ -458,7 +470,7 @@ AhciSetup(
 	}
 
 	// To enable the HBA to generate interrupts, 
-	// system software must also set GHC.IE to a ‘1’
+	// system software must also set GHC.IE to a ï¿½1ï¿½
 	Controller->Registers->InterruptStatus = 0xFFFFFFFF;
 	Controller->Registers->GlobalHostControl |= AHCI_HOSTCONTROL_IE;
 

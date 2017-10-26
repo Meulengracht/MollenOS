@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <time.h>
 
 // Prints usage format of this program
@@ -158,6 +159,7 @@ int main(int argc, char *argv[])
 	printf("opening existing file for parsing...\n");
 	out = fopen("revision.h", "r");
 	if (out == NULL) {
+        printf("revision.h was an invalid input file\n");
 		goto SkipParse;
 	}
 
@@ -174,7 +176,7 @@ SkipParse:
 	printf("truncating file...\n");
 	out = fopen("revision.h", "w");
 	if (out == NULL) {
-		printf("%s was an invalid output file\n", argv[2]);
+		printf("revision.h was an invalid output file: %i\n", errno);
 		return 1;
     }
 
@@ -206,8 +208,8 @@ SkipParse:
 	strftime(&buffer[0], 64, "%d %B %Y", DateTimeInfo);
 	fprintf(out, "#define BUILD_DATE \"%s\"\n", &buffer[0]);
 	strftime(&buffer[0], 64, "%H:%M:%S", DateTimeInfo);
-	fprintf(out, "#define BUILD_TIME \"%s\"\n\n", &buffer[0]);
-	fprintf(out, "#define BUILD_SYSTEM \"%s\"\n", argv[2]);
+	fprintf(out, "#define BUILD_TIME \"%s\"\n", &buffer[0]);
+	fprintf(out, "#define BUILD_SYSTEM \"%s\"\n\n", argv[2]);
 
 	// Print out revision
 	fprintf(out, "#define REVISION_MAJOR %i\n", major);

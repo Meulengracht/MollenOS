@@ -48,11 +48,13 @@ typedef struct _UsbManagerController {
 	MCoreDevice_t			 Device;
 	MContract_t				 Contract;
 	UUId_t					 Interrupt;
-	Spinlock_t				 Lock;
-	DeviceIoSpace_t			*IoBase;
+    Spinlock_t				 Lock;
 	UsbControllerType_t		 Type;
+    
+	DeviceIoSpace_t			*IoBase;
 	size_t					 PortCount;
-	List_t					*Endpoints;
+    List_t					*Endpoints;
+    reg32_t                  InterruptStatus;
 } UsbManagerController_t;
 
 /* UsbManagerTransfer

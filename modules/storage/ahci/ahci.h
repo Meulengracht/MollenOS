@@ -360,7 +360,8 @@ typedef struct _AhciController {
 	MCoreDevice_t			 Device;
 	MContract_t				 Contract;
 	UUId_t					 Interrupt;
-	Spinlock_t				 Lock;
+    Spinlock_t				 Lock;
+    reg32_t                  InterruptStatus;
 
 	DeviceIoSpace_t			*IoBase;
 	AHCIGenericRegisters_t  *Registers;

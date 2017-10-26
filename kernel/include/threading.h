@@ -27,7 +27,6 @@
 /* Includes 
  * - System */
 #include <system/addresspace.h>
-#include <mollenos.h>
 #include <mutex.h>
 #include <pipe.h>
 
