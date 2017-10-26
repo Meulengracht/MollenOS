@@ -168,7 +168,7 @@ AcpiDeviceCreate(
 	// Smart Battery Ctrl HID: ACPI0001
     // Smart Battery HID: ACPI0002
     // Power Source (Has _PSR): ACPI0003
-	// GPE Block Device: ACPI0006
+    // GPE Block Device: ACPI0006
 	
     // Check for the following HId's:
     // PNP0A03 (PCI Bridge)
@@ -187,7 +187,8 @@ AcpiDeviceCreate(
             Status = AE_NOT_IMPLEMENTED;
         }
         else {
-            Status = AcpiInstallAddressSpaceHandler(Device->Handle, ACPI_ADR_SPACE_PCI_CONFIG, 
+            Status = AcpiInstallAddressSpaceHandler(
+                Device->Handle, ACPI_ADR_SPACE_PCI_CONFIG, 
                 ACPI_DEFAULT_HANDLER, NULL, NULL);
         }
         Status = AcpiHwDerivePciId(&Device->PciLocation, Device->Handle, NULL);
@@ -210,7 +211,20 @@ AcpiDeviceCreate(
             ERROR("Failed to retrieve pci irq routings from device %s (%u)", 
                 Device->BusId, Status);
         }
-    }    
+    }
+    
+    // Setup GPE
+    if (Device->Features & ACPI_FEATURE_PRW) {
+        Status = AcpiDeviceParsePower(Device);
+        if (ACPI_FAILURE(Status)) {
+            ERROR("Failed to parse power resources from device %s (%u)", 
+                Device->BusId, Status);
+        }
+        else {
+            AcpiSetupGpeForWake(Device->Handle, 
+                Device->PowerSettings.GpeHandle, Device->PowerSettings.GpeBit);
+        }
+    }
 
 	// Add the device to device-list
 	Key.Value = Device->Type;
@@ -289,5 +303,12 @@ AcpiDevicesScan(void)
             ERROR("Failed to initialize sleep-button");
         }
     }
-    return AcpiGetDevices(NULL, AcpiDeviceScanCallback, NULL, NULL);
+
+    // Run device scan and update Gpes
+    if (AcpiGetDevices(NULL, AcpiDeviceScanCallback, NULL, NULL) == AE_OK) {
+        return AcpiUpdateAllGpes();
+    }
+    else {
+        return AE_ERROR;
+    }
 }

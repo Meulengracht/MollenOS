@@ -141,13 +141,30 @@ AcpiBusNotifyHandler(
 	ERROR("Global Notification: Type 0x%x\n", NotifyType);
 }
 
-/* Global Event Handler */
-void AcpiEventHandler(UINT32 EventType, ACPI_HANDLE Device, UINT32 EventNumber, void *Context)
+/* AcpiEventHandler
+ * Global event handler for ACPI devices and the 
+ * generic events they produce. */
+void
+AcpiEventHandler(
+    UINT32                          EventType,
+    ACPI_HANDLE                     Device,
+    UINT32                          EventNumber,
+    void                            *Context)
 {
+    // We don't support the global events yet..
 	_CRT_UNUSED(Device);
-	_CRT_UNUSED(Context);
-
-	Log("ACPI_Event: Type 0x%x, Number 0x%x\n", EventType, EventNumber);
+    _CRT_UNUSED(Context);
+    
+    // Trace
+    if (EventType == ACPI_EVENT_TYPE_GPE) {
+        WRITELINE("ACPI Gpe Event - 0x%x", EventNumber);
+    }
+    else if (EventType == ACPI_EVENT_TYPE_FIXED) {
+        WRITELINE("ACPI Fixed Event - 0x%x", EventNumber);
+    }
+    else {
+        FATAL(FATAL_SCOPE_KERNEL, "Invalid ACPI Global Event %u", EventType);
+    }
 }
 
 /* Interface Handlers */
@@ -428,7 +445,7 @@ AcpiInitialize(void)
     // initializing all acpi-objects 
 	TRACE("Installing Event Handlers");
 	AcpiInstallNotifyHandler(ACPI_ROOT_OBJECT, ACPI_SYSTEM_NOTIFY, AcpiBusNotifyHandler, NULL);
-    //AcpiInstallGlobalEventHandler(AcpiEventHandler, NULL);
+    AcpiInstallGlobalEventHandler(AcpiEventHandler, NULL);
 	//AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, acpi_shutdown, NULL);
 	//AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON, acpi_sleep, NULL);
 	//ACPI_BUTTON_TYPE_LID

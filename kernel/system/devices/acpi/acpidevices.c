@@ -1042,6 +1042,174 @@ AcpiDeviceGetHWInfo(
 	return AE_OK;
 }
 
+/* AcpiPackageUInt64
+ * Extracts an 64 bit integer from an acpi package */
+ACPI_STATUS
+AcpiPackageUInt64(
+    _In_ ACPI_OBJECT *Package,
+    _In_ int Index,
+    _Out_ UINT64 *Out)
+{
+    // Variables
+    ACPI_OBJECT *Element;
+    
+    // Access and validate element
+    Element = &Package->Package.Elements[Index];
+    if (Element->Type != ACPI_TYPE_INTEGER) {
+        return AE_BAD_PARAMETER;
+    }
+
+    // Update out and return
+    *Out = Element->Integer.Value;
+    return AE_OK;
+}
+
+/* AcpiPackageUInt32
+ * Extracts an 32 bit integer from an acpi package */
+ACPI_STATUS
+AcpiPackageUInt32(
+    _In_ ACPI_OBJECT *Package,
+    _In_ int Index,
+    _Out_ UINT32 *Out)
+{
+    // Variables
+    ACPI_STATUS Status;
+    UINT64 Temporary;
+
+    // Parse 64 bit
+    Status = AcpiPackageUInt64(Package, Index, &Temporary);
+    if (ACPI_SUCCESS(Status)) {
+        *Out = LODWORD(Temporary);
+    }
+    return Status;
+}
+
+/* AcpiPackageReference
+ * Extracts an device reference from an acpi package */
+ACPI_STATUS
+AcpiPackageReference(
+    _In_ ACPI_HANDLE Scope,
+    _In_ ACPI_OBJECT *Object,
+    _Out_ ACPI_HANDLE *Reference)
+{
+    // Variables
+    ACPI_HANDLE Temporary = NULL;
+    ACPI_STATUS Status;
+
+    // Sanitize parameters
+    if (Object == NULL) {
+        return AE_BAD_PARAMETER;
+    }
+
+    // Handle reference type
+    switch (Object->Type) {
+        case ACPI_TYPE_LOCAL_REFERENCE:
+        case ACPI_TYPE_ANY: {
+            Temporary = Object->Reference.Handle;
+        } break;
+        case ACPI_TYPE_STRING: {
+            Status = AcpiGetHandle(Scope, Object->String.Pointer, &Temporary);
+            if (ACPI_FAILURE(Status)) {
+                return Status;
+            }
+        } break;
+        
+        default: {
+            return AE_BAD_PARAMETER;
+        } break;
+    }
+
+    // Update out and return
+    *Reference = Temporary;
+    return AE_OK;
+}
+
+/* AcpiDeviceParsePower
+ * Parses and validates the _PRW feature of a GPE device. */
+ACPI_STATUS
+AcpiDeviceParsePower(
+    _InOut_ AcpiDevice_t *Device)
+{
+    // Variables
+    AcpiDevicePower_t *Power = &Device->PowerSettings;
+    ACPI_STATUS Status;
+    ACPI_BUFFER Buffer;
+    ACPI_OBJECT	*Object, *Object2;
+    int i;
+
+    // Setup the buffer object
+    Buffer.Pointer = NULL;
+    Buffer.Length = ACPI_ALLOCATE_BUFFER;
+
+    // Run the _PRW
+    Status = AcpiEvaluateObject(Device->Handle, "_PRW", NULL, &Buffer);
+    if (ACPI_FAILURE(Status)) {
+        return Status;
+    }
+
+    // Initiate pointer to inital resource
+    Object = (ACPI_OBJECT*)Buffer.Pointer;
+    if (Object == NULL) {
+        return AE_NOT_FOUND;
+    }
+    if (!ACPI_PKG_VALID(Object, 2)) {
+        goto Cleanup;
+    }
+
+    // Parse the lowest capable wake power state
+    // It is contained in element 1 of the power package
+    Status = AcpiPackageUInt32(Object, 1, &Power->LowestWakeState);
+    if (ACPI_FAILURE(Status)) {
+        goto Cleanup;
+    }
+
+    // Parse the first element (0) of the power package
+    switch (Object->Package.Elements[0].Type) {
+        case ACPI_TYPE_INTEGER: {
+            // The value is the bit index in GPEx_EN
+            Power->GpeBit = LODWORD(Object->Package.Elements[0].Integer.Value);
+        } break;
+        case ACPI_TYPE_PACKAGE: {
+            // First element is the gpe handle, second element
+            // is the bit index in GPEx_EN in the gpe block referenced
+            // by the gpe handle
+            Object2 = &Object->Package.Elements[0];
+            if (!ACPI_PKG_VALID(Object2, 2)) {
+                goto Cleanup;
+            }
+
+            // Extract gpe handle and bit
+            Status = AcpiPackageReference(NULL, &Object2->Package.Elements[0],
+                &Power->GpeHandle);
+            if (ACPI_FAILURE(Status)) {
+                goto Cleanup;
+            }
+            Status = AcpiPackageUInt32(Object2, 1, &Power->GpeBit);
+            if (ACPI_FAILURE(Status)) {
+                goto Cleanup;
+            }
+        } break;
+
+        // Don't handle other types
+        default: {
+            goto Cleanup;
+        }
+    }
+
+    // Parse element 2 to N
+    Power->PowerResourceCount = MIN(APCI_MAX_PRW_RESOURCES, Object->Package.Count);
+    for (i = 0; i < Power->PowerResourceCount; i++) {
+        Power->PowerResources[i] = &Object->Package.Elements[i];
+    }
+
+Cleanup:
+    // Cleanup
+    if (Buffer.Pointer != NULL) {
+        AcpiOsFree(Buffer.Pointer);
+    }
+    return AE_ERROR;
+}
+
 // AcpiDeviceInitialize
 // Derive correct IRQ
 // if HID == ACPI0006 then AcpiInstallGpeBlock

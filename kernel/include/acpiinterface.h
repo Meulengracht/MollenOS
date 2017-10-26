@@ -34,6 +34,7 @@
 /* ACPICA Definitions 
  * Contains generic magic constants and definitions */
 #define ACPI_MAX_INIT_TABLES    16
+#define APCI_MAX_PRW_RESOURCES  8
 
 #define ACPI_NOT_AVAILABLE      0
 #define ACPI_AVAILABLE          1
@@ -83,6 +84,12 @@
 #define ACPI_BATTERY_CHARGEINFO 0x8
 #define ACPI_BATTERY_CAPMEAS    0x10
 
+/* ACPICA Package Definitions 
+ * Package manipulation convenience functions. */
+#define ACPI_PKG_VALID(pkg, size)				        \
+((pkg) != NULL && (pkg)->Type == ACPI_TYPE_PACKAGE &&	\
+ (pkg)->Package.Count >= (size))
+
 /* AcpiEcdt
  * The most relevant values from the ECDT table to
  * be stored for usage throughout the system */
@@ -125,6 +132,18 @@ PACKED_TYPESTRUCT(PciRoutings, {
     int                      ActiveIrqs[128];
 });
 
+/* AcpiDevicePower
+ * ACPI Device Power information. This is needed in
+ * order to control the power levels and states. */
+PACKED_TYPESTRUCT(AcpiDevicePower, {
+    ACPI_HANDLE              GpeHandle;
+    UINT32                   GpeBit;
+    UINT32                   LowestWakeState; // Lowest state capable of wake
+    
+    UINT32                   PowerResourceCount;
+    ACPI_OBJECT             *PowerResources[APCI_MAX_PRW_RESOURCES];
+});
+
 /* AcpiDevice 
  * Generic ACPI device representation in MCore.
  * Contains all information neccessary to use the device. */
@@ -149,6 +168,7 @@ PACKED_TYPESTRUCT(AcpiDevice, {
 
     // Feature data
     PciRoutings_t           *Routings;
+    AcpiDevicePower_t        PowerSettings;
 });
 
 /* Initializes Early access and enumerates 
@@ -228,6 +248,14 @@ AcpiDeviceGetHWInfo(
     _InOut_ AcpiDevice_t *Device,
     _In_ ACPI_HANDLE ParentHandle,
     _In_ int Type);
+
+/* AcpiDeviceParsePower
+ * Parses and validates the _PRW feature of a GPE device. */
+KERNELAPI
+ACPI_STATUS
+KERNELABI
+AcpiDeviceParsePower(
+    _InOut_ AcpiDevice_t *Device);
 
 /* Device Type Helpers */
 __EXTERN ACPI_STATUS AcpiDeviceIsVideo(AcpiDevice_t *Device);
