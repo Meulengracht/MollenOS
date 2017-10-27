@@ -55,6 +55,7 @@ typedef struct _InterruptTableEntry {
 /* Globals
  * - State keeping variables */
 static InterruptTableEntry_t    InterruptTable[MAX_SUPPORTED_INTERRUPTS];
+static int                      InterruptActiveStatus[MAX_SUPPORTED_CPUS];
 static CriticalSection_t        TableLock;
 static int                      InterruptsInitialized = 0;
 static UUId_t                   InterruptIdGenerator = 0;
@@ -287,6 +288,7 @@ InterruptInitialize(void)
 	// Initialize globals
     memset((void*)&InterruptTable[0], 0, 
         sizeof(InterruptTableEntry_t*) * MAX_SUPPORTED_INTERRUPTS);
+    memset((void*)&InterruptActiveStatus[0], 0, sizeof(InterruptActiveStatus));
     CriticalSectionConstruct(&TableLock, CRITICALSECTION_PLAIN);
 	InterruptsInitialized = 1;
     InterruptIdGenerator = 0;
@@ -382,8 +384,7 @@ InterruptRegister(
     _In_ Flags_t Flags)
 {
 	// Variables
-	MCoreInterruptDescriptor_t *Entry = NULL, 
-		*Iterator = NULL, *Previous   = NULL;
+	MCoreInterruptDescriptor_t *Entry = NULL;
 	UUId_t TableIndex                 = 0;
 	UUId_t Id                         = 0;
 
@@ -452,21 +453,16 @@ InterruptRegister(
         goto Error;
     }
     
-	// Initialize the table entry?
+    // Initialize the table entry?
 	if (InterruptTable[TableIndex].Descriptor == NULL) {
         InterruptTable[TableIndex].Descriptor = Entry;
         InterruptTable[TableIndex].Penalty = 1;
         InterruptTable[TableIndex].Sharable = (Flags & INTERRUPT_NOTSHARABLE) ? 0 : 1;
 	}
 	else {
-		Iterator = InterruptTable[TableIndex].Descriptor;
-		while (Iterator != NULL) {
-			Previous = Iterator;
-			Iterator = Iterator->Link;
-		}
-		Previous->Link = Entry;
-        
-        // Increase penalty
+        // Insert and increase penalty
+        Entry->Link = InterruptTable[TableIndex].Descriptor;
+        InterruptTable[TableIndex].Descriptor = Entry;
         if (InterruptIncreasePenalty(TableIndex) != OsSuccess) {
             ERROR("Failed to increase penalty for source %i", Entry->Source);
         }
@@ -484,7 +480,6 @@ InterruptRegister(
 	TRACE("Interrupt Id 0x%x", Entry->Id);
 
     // Return the newly generated id
-    BOCHSBREAK
     return Entry->Id;
 Error:
     // Cleanup
@@ -493,7 +488,6 @@ Error:
     }
 
     // Return error
-    BOCHSBREAK
     return UUID_INVALID;
 }
 
@@ -592,4 +586,24 @@ InterruptGetIndex(
    _In_ UUId_t TableIndex)
 {
     return InterruptTable[TableIndex].Descriptor;
+}
+
+/* InterruptSetActiveStatus
+ * Set's the current status for the calling cpu to
+ * interrupt-active state */
+void
+InterruptSetActiveStatus(
+    _In_ int Active)
+{
+    // Update current cpu status
+    InterruptActiveStatus[CpuGetCurrentId()] = Active;
+}
+
+/* InterruptGetActiveStatus
+ * Get's the current status for the calling cpu to
+ * interrupt-active state */
+int
+InterruptGetActiveStatus(void)
+{
+    return InterruptActiveStatus[CpuGetCurrentId()];
 }

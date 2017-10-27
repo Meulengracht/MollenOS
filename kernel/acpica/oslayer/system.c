@@ -44,11 +44,11 @@ ACPI_MODULE_NAME("oslayer_system")
 
 /* Definitions 
  * Global state variables */
+static UUId_t AcpiGbl_InterruptId[32] = { UUID_INVALID };
 extern ACPI_OS_SEMAPHORE_INFO AcpiGbl_Semaphores[ACPI_OS_MAX_SEMAPHORES];
 extern void *AcpiGbl_RedirectionTarget;
 extern char AcpiGbl_OutputBuffer[512];
 extern int AcpiGbl_DebugTimeout;
-static UUId_t AcpiGbl_InterruptId = UUID_INVALID;
 
 /******************************************************************************
  *
@@ -68,7 +68,7 @@ AcpiOsInitialize (
     // Initialize globals
     memset(&AcpiGbl_Semaphores[0], 0, sizeof(AcpiGbl_Semaphores));
     memset(&AcpiGbl_OutputBuffer[0], 0, sizeof(AcpiGbl_OutputBuffer));
-    AcpiGbl_InterruptId = UUID_INVALID;
+    memset(&AcpiGbl_InterruptId[0], UUID_INVALID, sizeof(AcpiGbl_InterruptId));
     AcpiGbl_RedirectionTarget = NULL;
     AcpiGbl_DebugTimeout = 0;
     return AE_OK;
@@ -115,7 +115,16 @@ AcpiOsInstallInterruptHandler (
     void                    *Context)
 {
     // Variables
-	MCoreInterrupt_t ACPIInterrupt = { 0 };
+    MCoreInterrupt_t ACPIInterrupt;
+    int InterruptIndex = 0;
+
+    // Sanitize param
+    if (InterruptNumber >= 32) {
+        return AE_ERROR;
+    }
+    
+    // Setup interrupt
+    memset(&ACPIInterrupt, 0, sizeof(MCoreInterrupt_t));
 	ACPIInterrupt.Data = Context;
 	ACPIInterrupt.Line = InterruptNumber;
 	ACPIInterrupt.Pin = INTERRUPT_NONE;
@@ -124,8 +133,9 @@ AcpiOsInstallInterruptHandler (
     ACPIInterrupt.FastHandler = (InterruptHandler_t)ServiceRoutine;
 
 	// Install it
-    AcpiGbl_InterruptId = InterruptRegister(&ACPIInterrupt, INTERRUPT_KERNEL);
-    if (AcpiGbl_InterruptId != UUID_INVALID) {
+    AcpiGbl_InterruptId[InterruptNumber] = 
+        InterruptRegister(&ACPIInterrupt, INTERRUPT_KERNEL);
+    if (AcpiGbl_InterruptId[InterruptNumber] != UUID_INVALID) {
         return AE_OK;
     }
 	return AE_ERROR;
@@ -147,10 +157,18 @@ AcpiOsRemoveInterruptHandler (
     UINT32                  InterruptNumber,
     ACPI_OSD_HANDLER        ServiceRoutine)
 {
-    if (InterruptUnregister(AcpiGbl_InterruptId) != OsSuccess) {
+    // Sanitize stored id
+    if (AcpiGbl_InterruptId[InterruptNumber] == UUID_INVALID) {
         return AE_ERROR;
     }
-    AcpiGbl_InterruptId = UUID_INVALID;
+
+    // Uninstall
+    if (InterruptUnregister(AcpiGbl_InterruptId[InterruptNumber]) != OsSuccess) {
+        return AE_ERROR;
+    }
+
+    // Reset the id
+    AcpiGbl_InterruptId[InterruptNumber] = UUID_INVALID;
 	return AE_OK;
 }
 

@@ -135,7 +135,8 @@ void *IThreadCreate(Flags_t ThreadFlags, uintptr_t EntryPoint)
         Interrupt.FastHandler = ThreadingYield;
         Interrupt.Handler = NULL;
 		Interrupt.Data = NULL;
-		InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL | INTERRUPT_NOTSHARABLE);
+        InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
+            | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
 	}
 
 	/* Done */

@@ -490,20 +490,16 @@ void ApicInitBoot(void)
     IrqInformation.Vectors[1] = INTERRUPT_NONE;
 
 	// Install Apic Handlers 
-	// - Spurious handlers
 	// - LVT Error handler
 	// - Timer handler
-	IrqInformation.Vectors[0] = INTERRUPT_SPURIOUS7;
-	IrqInformation.FastHandler = ApicSpuriousHandler;
-	InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFT | INTERRUPT_NOTSHARABLE);
-	IrqInformation.Vectors[0] = INTERRUPT_SPURIOUS;
-	InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFT | INTERRUPT_NOTSHARABLE);
 	IrqInformation.Vectors[0] = INTERRUPT_LVTERROR;
 	IrqInformation.FastHandler = ApicErrorHandler;
-	InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFT | INTERRUPT_NOTSHARABLE);
+    InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFT 
+        | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
 	IrqInformation.Vectors[0] = INTERRUPT_LAPIC;
 	IrqInformation.FastHandler = ApicTimerHandler;
-	InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFT | INTERRUPT_NOTSHARABLE);
+    InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFT 
+        | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
 
 	// Actually enable APIC on the
 	// boot processor, afterwards

@@ -123,7 +123,6 @@ __EXTERN void ApicSendIpi(UUId_t CpuTarget, uint32_t Vector);
 #define INTERRUPT_PHYSICAL_BASE			0x90
 #define INTERRUPT_PHYSICAL_END  		0xF0
 
-#define INTERRUPT_SPURIOUS7				0x27
 #define INTERRUPT_SPURIOUS				0x7F
 #define INTERRUPT_SYSCALL				0x80
 #define INTERRUPT_YIELD					0x81

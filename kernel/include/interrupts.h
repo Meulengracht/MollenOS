@@ -37,6 +37,7 @@
 /* Special flags that are available only
  * in kernel context for special interrupts */
 #define INTERRUPT_KERNEL				0x10000000
+#define INTERRUPT_CONTEXT               0x20000000
 
 /* MCoreInterruptDescriptor
  * The kernel interrupt descriptor structure. Contains
@@ -115,6 +116,23 @@ MCoreInterruptDescriptor_t*
 KERNELABI
 InterruptGetIndex(
    _In_ UUId_t TableIndex);
+
+/* InterruptSetActiveStatus
+ * Set's the current status for the calling cpu to
+ * interrupt-active state */
+KERNELAPI
+void
+KERNELABI
+InterruptSetActiveStatus(
+    _In_ int Active);
+
+/* InterruptGetActiveStatus
+ * Get's the current status for the calling cpu to
+ * interrupt-active state */
+KERNELAPI
+int
+KERNELABI
+InterruptGetActiveStatus(void);
 
 /* InterruptIncreasePenalty 
  * Increases the penalty for an interrupt source. */

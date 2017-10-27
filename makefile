@@ -127,3 +127,4 @@ clean:
 	rm -rf initrd
 	rm -f *.vmdk
 	rm -f *.img
+	rm -f *.lock

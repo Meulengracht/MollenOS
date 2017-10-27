@@ -87,14 +87,6 @@ InterruptStatus_t ApicTimerHandler(void *Args)
 	return InterruptHandled;
 }
 
-/* Spurious handler, occurs on spurious
- * interrupts, don't acknowledge the interrupt */
-InterruptStatus_t ApicSpuriousHandler(void *Args)
-{
-	_CRT_UNUSED(Args);
-	return InterruptHandled;
-}
-
 /* The apic error handler interrupt
  * this occurs on errors, but i'm not really
  * sure yet what that entails, we leave it NA for now*/

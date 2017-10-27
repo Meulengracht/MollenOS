@@ -328,17 +328,28 @@ void
 InterruptEntry(
     _In_ Context_t *Registers)
 {
-	// Interrupts
+    // Variables
+    MCoreThread_t *Current = NULL, *Target = NULL, *Source = NULL;
 	MCoreInterruptDescriptor_t *Entry = NULL;
 	InterruptStatus_t Result = InterruptNotHandled;
 	int TableIndex = (int)Registers->Irq + 32;
-	int Gsi = APIC_NO_GSI;
+    int Gsi = APIC_NO_GSI;
+
+    // Update current status
+    InterruptSetActiveStatus(1);
+    
+    // Initiate values
+    Source = Current = ThreadingGetCurrentThread(ApicGetCpu());
 
 	// Iterate handlers in that table index
     Entry = InterruptGetIndex(TableIndex);
+    if (Entry != NULL) {
+        Gsi = Entry->Source;
+    }
+
 	while (Entry != NULL) {
         if (Entry->Flags & INTERRUPT_KERNEL) {
-			if (Entry->Interrupt.Data == NULL) {
+			if (Entry->Flags & INTERRUPT_CONTEXT) {
 				Result = Entry->Interrupt.FastHandler((void*)Registers);
 			}
 			else {
@@ -352,23 +363,24 @@ InterruptEntry(
 			}
         }
         else {
-			MCoreThread_t *Thread = ThreadingGetThread(Entry->Thread);
-			MCoreThread_t *Source = ThreadingGetCurrentThread(ApicGetCpu());
+			Target = ThreadingGetThread(Entry->Thread);
 
 			// Impersonate the target thread
 			// and call the fast handler
-			if (Source->AddressSpace != Thread->AddressSpace) {
-				IThreadImpersonate(Thread);
-			}
-			Result = Entry->Interrupt.FastHandler(Entry->Interrupt.Data);
-			if (Source->AddressSpace != Thread->AddressSpace) {
-				IThreadImpersonate(Source);
-			}
+			if (Current->AddressSpace != Target->AddressSpace) {
+                Current = Target;
+                IThreadImpersonate(Target);
+            }
+            Result = Entry->Interrupt.FastHandler(Entry->Interrupt.Data);
 
 			// If it was handled
-			// - Register it with system stuff
-			// - System timers must be registered as fast-handlers
+            // - Restore original context
+            // - Register interrupt, might be a system timer
+            // - Queue the processing handler if any
 			if (Result == InterruptHandled) {
+                if (Source->AddressSpace != Current->AddressSpace) {
+                    IThreadImpersonate(Source);
+                }
                 TimersInterrupt(Entry->Id);
                 
                 // Add to interrupt queue if there is a handler
@@ -385,20 +397,30 @@ InterruptEntry(
 		Entry = Entry->Link;
 	}
 
+    // Update current status
+    InterruptSetActiveStatus(0);
+
 	// Sanitize the result of the
 	// irq-handling - all irqs must be handled
 	if (Result != InterruptHandled) {
-		FATAL(FATAL_SCOPE_KERNEL, "Unhandled interrupt %u", TableIndex);
-	}
-	else if (Gsi > 0 && Gsi < 16 && Gsi != 8 && Gsi != 2) {
-		//TRACE("Interrupt %u (Gsi %i) was handled", TableIndex, Gsi);
-	}
-
-	// Send EOI (if not spurious)
-	if (TableIndex != INTERRUPT_SPURIOUS7
-		&& TableIndex != INTERRUPT_SPURIOUS) {
-		ApicSendEoi(Gsi, TableIndex);
-	}
+        // Unhandled interrupts are only ok if spurious
+        // LAPIC, Interrupt 7 and 15
+        if (TableIndex == INTERRUPT_SPURIOUS
+            || Gsi == 7 || Gsi == 15) {
+            if (Source->AddressSpace != Current->AddressSpace) {
+                IThreadImpersonate(Source);
+            }
+        }
+        else {
+            // Fault
+            FATAL(FATAL_SCOPE_KERNEL, "Unhandled interrupt %u (Source %i)", 
+                TableIndex, Gsi);
+        }
+    }
+    else {
+        // Last action is send eoi
+        ApicSendEoi(Gsi, TableIndex);
+    }
 }
 
 /* ExceptionEntry

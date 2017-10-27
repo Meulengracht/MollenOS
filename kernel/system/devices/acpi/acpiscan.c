@@ -309,6 +309,7 @@ AcpiDevicesScan(void)
         return AcpiUpdateAllGpes();
     }
     else {
+        FATAL(FATAL_SCOPE_KERNEL, "Failed to scan the ACPI namespace.");
         return AE_ERROR;
     }
 }

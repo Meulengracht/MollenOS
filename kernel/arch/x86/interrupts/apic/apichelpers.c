@@ -230,7 +230,8 @@ void ApicSendEoi(int Gsi, uint32_t Vector)
 	// require more code for sending a proper
 	// EOI, but if its new enough then no need
 	if (ApicGetVersion() >= 0x10 || Gsi == APIC_NO_GSI) {
-		ApicWriteLocal(APIC_INTERRUPT_ACK, Vector);
+        // @todo, x2APIC requires a write of 0
+		ApicWriteLocal(APIC_INTERRUPT_ACK, 0);
 	}
 	else
 	{
@@ -258,13 +259,16 @@ void ApicSendEoi(int Gsi, uint32_t Vector)
 		/* We want to mask it and clear
 		 * the level trigger bit */
 		Modified |= APIC_MASKED;
-        Modified &= ~(APIC_LEVEL_TRIGGER);
+        Modified &= ~(APIC_LEVEL_TRIGGER | APIC_ICR_BUSY);
+        Original &= ~(APIC_ICR_BUSY);
 
 		/* First, we write the modified entry
 		 * then we restore it, then we ACK */
 		ApicWriteIoEntry(IoApic, Pin, Modified);
-		ApicWriteIoEntry(IoApic, Pin, Original);
-		ApicWriteLocal(APIC_INTERRUPT_ACK, Vector);
+        ApicWriteIoEntry(IoApic, Pin, Original);
+        
+        // @todo, x2APIC requires a write of 0
+		ApicWriteLocal(APIC_INTERRUPT_ACK, 0);
 	}
 }
 

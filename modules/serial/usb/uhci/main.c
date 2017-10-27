@@ -191,9 +191,6 @@ OnFastInterrupt(
 	// Read interrupt status from i/o
     InterruptStatus = UhciRead16(Controller, UHCI_REGISTER_STATUS);
     
-	// Trace
-	TRACE("UHCI Interrupt - Status 0x%x", InterruptStatus);
-	
 	// Was the interrupt even from this controller?
 	if (!(InterruptStatus & 0x1F)) {
 		return InterruptNotHandled;

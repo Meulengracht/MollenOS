@@ -129,7 +129,7 @@ SystemFeaturesInitialize(
         InterruptIncreasePenalty(12); // PS/2
         InterruptIncreasePenalty(13); // FPU
         InterruptIncreasePenalty(14); // IDE
-        InterruptIncreasePenalty(15); // IDE
+        InterruptIncreasePenalty(15); // IDE / Spurious
 
         ApicInitBoot();
         //CpuSmpInit(); -- Disable till further notice, we need a fix for stall
