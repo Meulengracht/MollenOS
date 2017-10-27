@@ -327,11 +327,11 @@ InterruptQueueHandler(
 			// Impersonate the target thread
 			// and call the fast handler
 			if (Source->AddressSpace != Thread->AddressSpace) {
-				IThreadImpersonate(Thread);
+				ThreadingImpersonate(Thread);
 			}
 			Interrupt.Interrupt.Handler(Interrupt.Interrupt.Data);
 			if (Source->AddressSpace != Thread->AddressSpace) {
-				IThreadImpersonate(Source);
+				ThreadingImpersonate(Source);
 			}
         }
     }

@@ -35,17 +35,26 @@
 
 typedef struct _MCoreThread MCoreThread_t;
 
-/* IThreadCreate
- * Initializes a new x86-specific thread context
+/* ThreadingCreateArch
+ * Initializes a new arch-specific thread context
  * for the given threading flags, also initializes
  * the yield interrupt handler first time its called */
-__EXTERN void *IThreadCreate(Flags_t ThreadFlags, uintptr_t EntryPoint);
+KERNELAPI
+void*
+KERNELABI
+ThreadingCreateArch(
+    _In_ Flags_t ThreadFlags,
+    _In_ uintptr_t EntryPoint);
 
-/* This function switches the current runtime-context
+/* ThreadingImpersonate
+ * This function switches the current runtime-context
  * out with the given thread context, this should only
- * be used as a temporary way of impersonating another
- * thread */
-__EXTERN void IThreadImpersonate(MCoreThread_t *Thread);
+ * be used as a temporary way of impersonating another thread */
+KERNELAPI
+void
+KERNELABI
+ThreadingImpersonate(
+    _In_ MCoreThread_t *Thread);
 
 /* IThreadSetupUserMode
  * Initializes user-mode data for the given thread, and

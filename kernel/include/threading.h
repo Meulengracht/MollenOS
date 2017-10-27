@@ -49,11 +49,11 @@ typedef void(*ThreadEntry_t)(void*);
  * 2 => Driver
  * 3 => Reserved 
  * Bit 3: If it's currently in switch-mode */
-#define THREADING_KERNELMODE            0x0
-#define THREADING_USERMODE              0x1
-#define THREADING_DRIVERMODE            0x2
-#define THREADING_SWITCHMODE            0x4
-#define THREADING_MODEMASK              0x3
+#define THREADING_KERNELMODE            0x00000000
+#define THREADING_USERMODE              0x00000001
+#define THREADING_DRIVERMODE            0x00000002
+#define THREADING_SWITCHMODE            0x00000004
+#define THREADING_MODEMASK              0x00000003
 #define THREADING_RUNMODE(Flags)        (Flags & THREADING_MODEMASK)
 
 /* MCoreThread::Flags Bit Definitions 
@@ -62,20 +62,21 @@ typedef void(*ThreadEntry_t)(void*);
  * 1 = Active
  * 2 = Reserved
  * 3 = Reserved */
-#define THREADING_INACTIVE              0x0
-#define THREADING_ACTIVE                0x1
-#define THREADING_STATEMASK             0x18
+#define THREADING_INACTIVE              0x00000000
+#define THREADING_ACTIVE                0x00000001
+#define THREADING_STATEMASK             0x00000018
 #define THREADING_STATE(Flags)          ((Flags & THREADING_STATEMASK) >> 3)
 #define THREADING_SETSTATE(Flags, State) (Flags |= (State << 3))
 #define THREADING_CLEARSTATE(Flags)     (Flags &= ~(THREADING_STATEMASK))
 
 /* MCoreThread::Flags Bit Definitions 
  * The rest of the bits denode special other run-modes */
-#define THREADING_CPUBOUND              0x20
-#define THREADING_SYSTEMTHREAD          0x40
-#define THREADING_IDLE                  0x80
-#define THREADING_INHERIT               0x100
-#define THREADING_FINISHED              0x200
+#define THREADING_CPUBOUND              0x00000020
+#define THREADING_SYSTEMTHREAD          0x00000040
+#define THREADING_IDLE                  0x00000080
+#define THREADING_INHERIT               0x00000100
+#define THREADING_FINISHED              0x00000200
+#define THREADING_IMPERSONATION         0x00000400
 
 #define THREADING_TRANSITION_USERMODE   0x10000000
 #define THREADING_TRANSITION_SLEEP      0x20000000

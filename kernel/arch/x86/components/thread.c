@@ -98,13 +98,16 @@ InterruptStatus_t ThreadingYield(void *Args)
 	return InterruptHandled;
 }
 
-/* IThreadCreate
- * Initializes a new x86-specific thread context
+/* ThreadingCreateArch
+ * Initializes a new arch-specific thread context
  * for the given threading flags, also initializes
  * the yield interrupt handler first time its called */
-void *IThreadCreate(Flags_t ThreadFlags, uintptr_t EntryPoint)
+void*
+ThreadingCreateArch(
+    _In_ Flags_t ThreadFlags,
+    _In_ uintptr_t EntryPoint)
 {
-	/* Variables for initialization */
+	// Variables
 	MCoreInterrupt_t Interrupt;
 	x86Thread_t *Thread = NULL;
 
@@ -138,8 +141,6 @@ void *IThreadCreate(Flags_t ThreadFlags, uintptr_t EntryPoint)
         InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
             | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
 	}
-
-	/* Done */
 	return Thread;
 }
 
@@ -226,33 +227,41 @@ SignalDispatch(
 
 	// Now we can enter the signal context 
 	// handler, we cannot return from this function 
-	enter_signal(Regs, Signal->Handler, Signal->Signal, MEMORY_LOCATION_SIGNAL_RET);
+    enter_signal(Regs, Signal->Handler, 
+        Signal->Signal, MEMORY_LOCATION_SIGNAL_RET);
 
 	// We don't reach this
 	return OsSuccess;
 }
 
-/* This function switches the current runtime-context
+/* ThreadingImpersonate
+ * This function switches the current runtime-context
  * out with the given thread context, this should only
- * be used as a temporary way of impersonating another
- * thread */
-void IThreadImpersonate(MCoreThread_t *Thread)
+ * be used as a temporary way of impersonating another thread */
+void
+ThreadingImpersonate(
+    _In_ MCoreThread_t *Thread)
 {
-	/* Variables we will need for the
-	* context switch */
-	x86Thread_t *Tx = NULL;
-	UUId_t Cpu = 0;
+    // Variables
+    MCoreThread_t *Current  = NULL;
+	x86Thread_t *SubContext = NULL;
+	UUId_t Cpu              = 0;
 
-	/* Load cpu info */
-	Cpu = ApicGetCpu();
+	// Instantiate values
+	SubContext = (x86Thread_t*)Thread->ThreadData;
+    Cpu = ApicGetCpu();
+    Current = ThreadingGetCurrentThread(Cpu);
+    
+    // If we impersonate ourself, leave
+    if (Current == Thread) {
+        Current->Flags &= ~(THREADING_IMPERSONATION);
+    }
+    else {
+        Current->Flags |= THREADING_IMPERSONATION;
+    }
 
-	/* Initiate the x86 specific thread data pointer */
-	Tx = (x86Thread_t*)Thread->ThreadData;
-
-	/* Load io-map */
-	TssUpdateIo(Cpu, &Tx->IoMap[0]);
-
-	/* Load the address space */
+    // Load resources
+	TssUpdateIo(Cpu, &SubContext->IoMap[0]);
 	MmVirtualSwitchPageDirectory(Cpu,
 		(PageDirectory_t*)Thread->AddressSpace->PageDirectory,
 		Thread->AddressSpace->Cr3);
@@ -261,30 +270,38 @@ void IThreadImpersonate(MCoreThread_t *Thread)
 /* This function loads a new task from the scheduler, it
  * implements the task-switching functionality, which MCore leaves
  * up to the underlying architecture */
-Context_t *_ThreadingSwitch(Context_t *Regs,
-	int PreEmptive, size_t *TimeSlice, int *TaskQueue)
+Context_t*
+_ThreadingSwitch(
+    Context_t *Regs,
+    int PreEmptive,
+    size_t *TimeSlice,
+    int *TaskQueue)
 {
-	/* Variables we will need for the
-	 * context switch */
+	// Variables
 	MCoreThread_t *Thread = NULL;
 	x86Thread_t *Tx = NULL;
 	UUId_t Cpu = 0;
 
-	/* Start out by sanitizing the state
-	 * of threading, don't schedule */
+    // Sanitize the status of threading
+    // return default values
 	if (ThreadingIsEnabled() != 1) {
+        *TimeSlice = 20;
+        *TaskQueue = 0;
 		return Regs;
-	}
+    }
 
-	/* Lookup cpu and threading info */
+	// Instantiate variables
 	Cpu = ApicGetCpu();
 	Thread = ThreadingGetCurrentThread(Cpu);
-
-	/* ASsert some sanity in this function! */
-	assert(Thread != NULL && Regs != NULL);
-
-	/* Initiate the x86 specific thread data pointer */
+    assert(Thread != NULL && Regs != NULL);
 	Tx = (x86Thread_t*)Thread->ThreadData;
+    
+    // Sanitize impersonation status, don't schedule
+    if (Thread->Flags & THREADING_IMPERSONATION) {
+        *TimeSlice = Thread->TimeSlice;
+        *TaskQueue = Thread->Queue;
+        return Regs;
+    }
 
 	/* Save FPU/MMX/SSE information if it's
 	 * been used, otherwise skip this and save time */
@@ -312,12 +329,10 @@ Context_t *_ThreadingSwitch(Context_t *Regs,
 	*TimeSlice = Thread->TimeSlice;
 	*TaskQueue = Thread->Queue;
 
-	/* Update addressing space */
+	// Load thread-specific resources
 	MmVirtualSwitchPageDirectory(Cpu, 
 		(PageDirectory_t*)Thread->AddressSpace->PageDirectory, 
 		Thread->AddressSpace->Cr3);
-
-	/* Update TSS information (stack/iomap) */
 	TssUpdateStack(Cpu, (uintptr_t)Tx->Context);
 	TssUpdateIo(Cpu, &Tx->IoMap[0]);
 

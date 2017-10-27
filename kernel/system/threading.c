@@ -189,7 +189,7 @@ ThreadingInitialize(
 
 	// Initialize arch-dependant members
 	Init->AddressSpace = AddressSpaceCreate(AS_TYPE_KERNEL);
-	Init->ThreadData = IThreadCreate(Init->Flags, 0);
+	Init->ThreadData = ThreadingCreateArch(Init->Flags, 0);
 
 	// Acquire lock to modify the list
 	CriticalSectionEnter(&ThreadGlobalLock);
@@ -312,11 +312,11 @@ ThreadingCreateThread(
 	// based upon usermode thread or kernel mode thread
 	if (THREADING_RUNMODE(Flags) == THREADING_KERNELMODE
 		|| !(Flags & THREADING_INHERIT)) {
-        Thread->ThreadData = IThreadCreate(THREADING_KERNELMODE, 
+        Thread->ThreadData = ThreadingCreateArch(THREADING_KERNELMODE, 
             (uintptr_t)&ThreadingEntryPoint);
 	}
 	else {
-        Thread->ThreadData = IThreadCreate(THREADING_KERNELMODE, 
+        Thread->ThreadData = ThreadingCreateArch(THREADING_KERNELMODE, 
             (uintptr_t)&ThreadingEntryPointUserMode);
     }
     

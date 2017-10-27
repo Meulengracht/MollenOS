@@ -369,7 +369,7 @@ InterruptEntry(
 			// and call the fast handler
 			if (Current->AddressSpace != Target->AddressSpace) {
                 Current = Target;
-                IThreadImpersonate(Target);
+                ThreadingImpersonate(Target);
             }
             Result = Entry->Interrupt.FastHandler(Entry->Interrupt.Data);
 
@@ -379,7 +379,7 @@ InterruptEntry(
             // - Queue the processing handler if any
 			if (Result == InterruptHandled) {
                 if (Source->AddressSpace != Current->AddressSpace) {
-                    IThreadImpersonate(Source);
+                    ThreadingImpersonate(Source);
                 }
                 TimersInterrupt(Entry->Id);
                 
@@ -409,7 +409,7 @@ InterruptEntry(
             || TableIndex == (INTERRUPT_PHYSICAL_BASE + 7) 
             || TableIndex == (INTERRUPT_PHYSICAL_BASE + 15)) {
             if (Source->AddressSpace != Current->AddressSpace) {
-                IThreadImpersonate(Source);
+                ThreadingImpersonate(Source);
             }
         }
         else {
