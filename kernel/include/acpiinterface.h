@@ -171,10 +171,12 @@ PACKED_TYPESTRUCT(AcpiDevice, {
     AcpiDevicePower_t        PowerSettings;
 });
 
-/* Initializes Early access and enumerates 
- * ACPI Tables, returns -1 if ACPI is not
- * present on this system */
-__EXTERN int AcpiEnumerate(void);
+/* AcpiInitializeEarly
+ * Initializes Early Access and enumerates the APIC Table */
+KERNELAPI
+OsStatus_t
+KERNELABI
+AcpiInitializeEarly(void);
 
 /* Initializes the full access and functionality
  * of ACPICA / ACPI and allows for scanning of 

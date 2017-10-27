@@ -177,10 +177,10 @@ AcpiEnumerateECDT(
 	memcpy(&__GlbECDT.NsPath[0], &EcdtTable->Id[0], strlen((const char*	)&EcdtTable->Id[0]));
 }
 
-/* AcpiEnumerate
- * Initializes Early Access and enumerates the APIC */
-int
-AcpiEnumerate(void)
+/* AcpiInitializeEarly
+ * Initializes Early Access and enumerates the APIC Table */
+OsStatus_t
+AcpiInitializeEarly(void)
 {
 	// Variables
 	ACPI_TABLE_HEADER *Header = NULL;
@@ -199,7 +199,7 @@ AcpiEnumerate(void)
 		LogFatal("ACPI", "Failed to initialize early ACPI access,"
             "probable no ACPI available (%u)", Status);
 		GlbAcpiAvailable = ACPI_NOT_AVAILABLE;
-		return -1;
+		return OsError;
 	}
 
 	// Do the early table enumeration
@@ -208,7 +208,7 @@ AcpiEnumerate(void)
 		LogFatal("ACPI", "Failed to initialize early ACPI access,"
 			"probable no ACPI available (%u)", Status);
 		GlbAcpiAvailable = ACPI_NOT_AVAILABLE;
-		return -1;
+		return OsError;
 	}
 	else {
 		GlbAcpiAvailable = ACPI_AVAILABLE;
@@ -267,7 +267,7 @@ AcpiEnumerate(void)
         // static pointers and reaollcating later
         AcpiPutTable(Header);
 	}
-	return 0;
+    return OsSuccess;
 }
 
 /* This returns 0 if ACPI is not available

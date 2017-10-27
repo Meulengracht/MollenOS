@@ -72,7 +72,7 @@ SystemFeaturesQuery(
     Features |= SYSTEM_FEATURE_ADDRESSPACES;
 
     // Output features
-    Features |= (SYSTEM_FEATURE_OUTPUT | SYSTEM_FEATURE_OUTPUT_VIDEO);
+    Features |= SYSTEM_FEATURE_OUTPUT;
 
     // Hardware features
     Features |= SYSTEM_FEATURE_INTERRUPTS;

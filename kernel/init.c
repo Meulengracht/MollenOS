@@ -70,6 +70,7 @@ MCoreInitialize(
 	_In_ Multiboot_t *BootInformation)
 {
     // Variables
+    Flags_t SystemsInitialized = 0;
     Flags_t SystemsAvailable = 0;
     
     // Initialize all our static memory systems
@@ -103,65 +104,55 @@ MCoreInitialize(
     if (SystemsAvailable & SYSTEM_FEATURE_MEMORY) {
         TRACE("Running SYSTEM_FEATURE_MEMORY");
         SystemFeaturesInitialize(&GlobalBootInformation, SYSTEM_FEATURE_MEMORY);
-        
-        // If we support dynamic memory initialize our heap
-        HeapInit();
-
-        // The first memory operation we will
-	    // be performing is upgrading the log away
-	    // from the static buffer
-        LogUpgrade(LOG_PREFFERED_SIZE);
-    }
+    }        
     
-	/* Initialize the interrupt/timers sub-system
-	 * after we have a heap, so systems can
-	 * register interrupts */
-	TimersInitialize();
+    // Initialize our kernel heap
+    HeapInit();
 
-	/* We want to initialize IoSpaces as soon
-	 * as possible so devices and systems 
-	 * can register/claim their io-spaces */
-	IoSpaceInitialize();
+    // The first memory operation we will
+    // be performing is upgrading the log away
+    // from the static buffer
+    LogUpgrade(LOG_PREFFERED_SIZE);
 
-	/* Parse the ramdisk early, but we don't run
-	 * servers yet, this is not needed, but since there
-	 * is no dependancies yet, just do it */
+    // Parse the ramdisk as early as possible, so right
+    // after upgrading log and having heap
 	if (ModulesInitialize(&GlobalBootInformation) != OsSuccess) {
+        ERROR("Failed to read the ramdisk supplied with the OS.");
 		CpuIdle();
 	}
+    
+    // Now that we have an allocation system add all initializors
+    // that need dynamic memory here
+	TimersInitialize();
+    IoSpaceInitialize();
+    SchedulerInit(0);
+    ThreadingInitialize(0);
 
-	/* Init Threading & Scheduler for boot cpu */
-	SchedulerInit(0);
-	ThreadingInitialize(0);
+    // Run early ACPI initialization if available
+    // we will need table access maybe
+	if (AcpiInitializeEarly() == OsSuccess) {
+        SystemsInitialized |= SYSTEM_FEATURE_ACPI;
+    }
 
-	/* Now we can do some early ACPI
-	 * initialization if ACPI is present
-	 * on this system */
-	AcpiEnumerate();
-
-	/* Now we initialize some systems that 
-	 * rely on the presence of ACPI tables
-	 * or the absence of them */
+    // Initiate interrupt support now that systems are up and running
 	if (SystemsAvailable & SYSTEM_FEATURE_INTERRUPTS) {
         TRACE("Running SYSTEM_FEATURE_INTERRUPTS");
         SystemFeaturesInitialize(&GlobalBootInformation, SYSTEM_FEATURE_INTERRUPTS);
         InterruptStart();
     }
 
-	/* Now we finish the ACPI setup IF 
-	 * ACPI is present on the system */
+    // Perform the full acpi initialization sequence
 	if (AcpiAvailable() == ACPI_AVAILABLE) {
 		AcpiInitialize();
-		AcpiDevicesScan();
+		if (AcpiDevicesScan() != AE_OK) {
+            ERROR("Failed to finalize the ACPI setup.");
+            CpuIdle();
+        }
 	}
 
-	/* Initialize the GC 
-	 * It recycles threads, ashes and 
-	 * keeps the heap clean ! */
+    // Initialize all subsystems that spawn threads
+    // as almost everything is up and running at this point
 	GcInitialize();
-
-	/* Initialize the process manager (Phoenix)
-	 * We must do this before starting up servers */
     PhoenixInit();
     
     // Run system finalization before we spawn processes
