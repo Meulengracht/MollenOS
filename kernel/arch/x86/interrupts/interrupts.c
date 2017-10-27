@@ -406,7 +406,8 @@ InterruptEntry(
         // Unhandled interrupts are only ok if spurious
         // LAPIC, Interrupt 7 and 15
         if (TableIndex == INTERRUPT_SPURIOUS
-            || Gsi == 7 || Gsi == 15) {
+            || TableIndex == (INTERRUPT_PHYSICAL_BASE + 7) 
+            || TableIndex == (INTERRUPT_PHYSICAL_BASE + 15)) {
             if (Source->AddressSpace != Current->AddressSpace) {
                 IThreadImpersonate(Source);
             }
