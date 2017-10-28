@@ -93,7 +93,7 @@ void EventDestruct(MCoreEventHandler_t *EventHandler)
 		Event->State = EventCancelled;
 
 		/* Wakeup sleepers */
-		SchedulerWakeupAllThreads((uintptr_t*)Event);
+		SchedulerThreadWakeAll((uintptr_t*)Event);
 	}
 
 	/* Lastly, destroy list 

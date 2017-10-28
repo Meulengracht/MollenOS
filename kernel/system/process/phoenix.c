@@ -185,7 +185,7 @@ void PhoenixTerminateAsh(MCoreAsh_t *Ash)
 		return;
 
 	/* Wake all that waits for this to finish */
-	SchedulerWakeupAllThreads((uintptr_t*)pNode->Data);
+	SchedulerThreadWakeAll((uintptr_t*)pNode->Data);
 
 	// Alert GC and destroy node
 	GcSignal(GlbPhoenixGcId, pNode->Data);

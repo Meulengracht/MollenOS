@@ -21,7 +21,7 @@
  *   a flexible and generic threading platfrom
  */
 #define __MODULE "MTIF"
-//#define __TRACE
+#define __TRACE
 
 /* Includes 
  * - System */
@@ -89,7 +89,7 @@ void ThreadingEntryPoint(void)
 	Thread = ThreadingGetCurrentThread(Cpu);
 
 	/* We don't need further init, run the thread */
-	Thread->Function(Thread->Args);
+	Thread->Function(Thread->Arguments);
 
 	/* IF WE REACH THIS POINT THREAD IS DONE! */
 	Thread->Flags |= THREADING_FINISHED;
@@ -169,14 +169,14 @@ ThreadingInitialize(
     
 	// Allocate and initialize a new thread instance
 	Init = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
-	memset(Init, 0, sizeof(MCoreThread_t));
+    memset(Init, 0, sizeof(MCoreThread_t));
+    
+    // Initialize members
 	Init->Name = strdup("idle");
-	Init->Queue = MCORE_SCHEDULER_LEVELS - 1;
-	Init->Flags = THREADING_IDLE | THREADING_CPUBOUND;
-	Init->TimeSlice = MCORE_IDLE_TIMESLICE;
-	Init->Priority = PriorityLow;
-	Init->ParentId = 0xDEADBEEF;
+	Init->ParentId = UUID_INVALID;
 	Init->AshId = UUID_INVALID;
+    Init->Flags = THREADING_IDLE | THREADING_CPUBOUND;
+    SchedulerThreadInitialize(Init, Init->Flags);
 	Init->CpuId = Cpu;
 
 	// Create a compipe
@@ -258,7 +258,7 @@ ThreadingCreateThread(
 	Thread->AshId = Parent->AshId;
 	Thread->Flags = (Flags & THREADING_MODEMASK);
 	Thread->Function = Function;
-	Thread->Args = Arguments;
+	Thread->Arguments = Arguments;
 
     // Setup initial scheduler information
     SchedulerThreadInitialize(Thread, Flags);
@@ -314,7 +314,7 @@ ThreadingCreateThread(
 	// Append it to list & scheduler
 	Key.Value = (int)Thread->Id;
 	ListAppend(GlbThreads, ListCreateNode(Key, Key, Thread));
-    SchedulerReadyThread(Thread);
+    SchedulerThreadQueue(Thread);
     
     // Release the lock
 	CriticalSectionLeave(&ThreadGlobalLock);
@@ -360,7 +360,7 @@ void ThreadingExitThread(int ExitCode)
 
 	/* Wakeup people that were 
 	 * waiting for the thread to finish */
-	SchedulerWakeupAllThreads((uintptr_t*)Thread);
+	SchedulerThreadWakeAll((uintptr_t*)Thread);
 
 	/* Yield control */
 	ThreadingYield();
@@ -387,7 +387,7 @@ void ThreadingKillThread(UUId_t ThreadId)
 
 	/* Wakeup people that were
 	* waiting for the thread to finish */
-	SchedulerWakeupAllThreads((uintptr_t*)Target);
+	SchedulerThreadWakeAll((uintptr_t*)Target);
 
 	/* This means that it will be 
 	 * cleaned up at next schedule */
@@ -428,7 +428,7 @@ void ThreadingEnterUserMode(void *AshInfo)
 	/* Only translate the argument address, since the pe
 	 * loader already translates any image address */
 	Thread->Function = (ThreadEntry_t)Ash->Executable->EntryAddress;
-	Thread->Args = (void*)AddressSpaceTranslate(AddressSpaceGetCurrent(), MEMORY_LOCATION_RING3_ARGS);
+	Thread->Arguments = (void*)AddressSpaceTranslate(AddressSpaceGetCurrent(), MEMORY_LOCATION_RING3_ARGS);
 
 	/* Underlying Call  */
 	IThreadSetupUserMode(Thread, Ash->StackStart);
@@ -619,7 +619,7 @@ GetNextThread:
 		// If the thread is finished then add it to 
 		// garbagecollector
 		if (Current->Flags & THREADING_FINISHED) {
-			SchedulerRemoveThread(Current);
+			SchedulerThreadDequeue(Current);
 			GcSignal(GlbThreadGcId, Current);
 			ListRemoveByNode(GlbThreads, Node);
 			ListDestroyNode(GlbThreads, Node);
@@ -627,20 +627,29 @@ GetNextThread:
 
 		// Handle the sleep flag
 		if (Current->Flags & THREADING_TRANSITION_SLEEP) {
-			Current->Flags &= ~(THREADING_TRANSITION_SLEEP);
+            Current->Flags &= ~(THREADING_TRANSITION_SLEEP);
+            TRACE("Not scheduling thread %u", Current->Id);
         }
         
         // Don't schedule the current
-		NextThread = SchedulerGetNextTask(Cpu, NULL, PreEmptive);
+        NextThread = SchedulerThreadSchedule(Cpu, NULL, PreEmptive);
+        TRACE("NextThread (from idle) is %u (Queue %i, Timeslice %u)", 
+            (NextThread != NULL) ? NextThread->Id : 0,
+            NextThread->Queue, NextThread->TimeSlice);
 	}
 	else {
-		NextThread = SchedulerGetNextTask(Cpu, Current, PreEmptive);
+        NextThread = SchedulerThreadSchedule(Cpu, Current, PreEmptive);
+        TRACE("NextThread is %u (Queue %i, Timeslice %u)", 
+            (NextThread != NULL) ? NextThread->Id : 0,
+            NextThread->Queue, NextThread->TimeSlice);
 	}
 
 	// Sanitize if we need to active our idle thread
 	if (NextThread == NULL) {
-		NextThread = (MCoreThread_t*)GlbIdleThreads[Cpu]->Data;
+        NextThread = (MCoreThread_t*)GlbIdleThreads[Cpu]->Data;
+        TRACE("Selecting idle");
     }
+    BOCHSBREAK
 
 	// More sanity 
 	// If we have caught a finished thread that

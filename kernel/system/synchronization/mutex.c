@@ -52,9 +52,7 @@ void MutexConstruct(Mutex_t *Mutex)
 void MutexDestruct(Mutex_t *Mutex)
 {
 	/* Wake all remaining tasks waiting for this mutex */
-	SchedulerWakeupAllThreads((uintptr_t*)Mutex);
-
-	/* Free resources */
+	SchedulerThreadWakeAll((uintptr_t*)Mutex);
 	kfree(Mutex);
 }
 
@@ -77,8 +75,6 @@ int MutexLock(Mutex_t *Mutex)
 	/* Initialize */
 	Mutex->Blocks = 1;
 	Mutex->Blocker = ThreadingGetCurrentThreadId();
-
-	/* Success! */
 	return 0;
 }
 
@@ -93,5 +89,5 @@ void MutexUnlock(Mutex_t *Mutex)
 
 	/* Are we done? */
 	if (Mutex->Blocks == 0)
-		SchedulerWakeupOneThread((uintptr_t*)Mutex);
+		SchedulerThreadWake((uintptr_t*)Mutex);
 }

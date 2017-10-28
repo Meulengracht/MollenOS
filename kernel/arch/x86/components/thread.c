@@ -160,7 +160,7 @@ IThreadSetupUserMode(
 	// Initialize a user/driver-context based on
 	// the requested runmode
 	tData->UserContext = ContextCreate(Thread->Flags,
-		(uintptr_t)Thread->Function, (uintptr_t*)Thread->Args);
+		(uintptr_t)Thread->Function, (uintptr_t*)Thread->Arguments);
 
 	// Disable all port-access
 	memset(&tData->IoMap[0], 0xFF, GDT_IOMAP_SIZE);

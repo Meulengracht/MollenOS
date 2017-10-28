@@ -27,15 +27,17 @@
  * A thread can only stay a maximum in each priority.
  */
 #define __MODULE "SCHE"
-//#define __TRACE
+#define __TRACE
 
 /* Includes
  * - System */
+#include <system/thread.h>
 #include <system/interrupts.h>
 #include <system/utils.h>
 #include <scheduler.h>
 #include <debug.h>
 #include <heap.h>
+#include <assert.h>
 
 /* Globals
  * - State keeping variables */
@@ -63,7 +65,6 @@ SchedulerCreate(
 {
 	// Variables
 	Scheduler_t *Scheduler  = NULL;
-	int i                   = 0;
 
 	// Allocate a new instance of the scheduler
     Scheduler = (Scheduler_t*)kmalloc(sizeof(Scheduler_t));
@@ -113,6 +114,7 @@ SchedulerQueueRemove(
 
     // Find the remove-target and unlink
     while (Current) {
+        TRACE("Thread %u found in queue", Current->Id);
         if (Current == Thread) {
             // Two cases, previous is NULL, or not
             if (Previous == NULL) {
@@ -132,8 +134,10 @@ SchedulerQueueRemove(
                 }
             }
 
-            // Break out
-            break;
+            // Done
+            TRACE("Thread %u removed from queue", Thread->Id);
+            Current->Link = NULL;
+            return;
         }
         else {
             Previous = Current;
@@ -174,17 +178,25 @@ SchedulerThreadInitialize(
     _In_ Flags_t Flags)
 {
     // Initialize members
-    Thread->Queue = 0;
-	Thread->TimeSlice = MCORE_INITIAL_TIMESLICE;
     Thread->Link = NULL;
 
     // Flag-Special-CasE:
     // System thread?
     if (Flags & THREADING_SYSTEMTHREAD) {
-        Thread->Priority = PriorityNormal;
+        Thread->Priority = PriorityCritical;
+        Thread->Queue = SCHEDULER_LEVEL_CRITICAL;
+        Thread->TimeSlice = SCHEDULER_TIMESLICE_INITIAL;
+    }
+    else if (Flags & THREADING_IDLE) {
+        Thread->Priority = PriorityLow;
+        Thread->Queue = SCHEDULER_LEVEL_LOW;
+        Thread->TimeSlice = SCHEDULER_TIMESLICE_INITIAL
+            + (SCHEDULER_LEVEL_LOW * 2);
     }
     else {
-        Thread->Priority = PriorityCritical;
+        Thread->Priority = PriorityNormal;
+        Thread->Queue = 0;
+        Thread->TimeSlice = SCHEDULER_TIMESLICE_INITIAL;
     }
 
     // Flag-Special-Case:
@@ -204,9 +216,10 @@ OsStatus_t
 SchedulerThreadQueue(
     _In_ MCoreThread_t *Thread)
 {
-	// Variables
-	UUId_t CpuIndex     = 0;
-    int i               = 0;
+    // Variables
+    Scheduler_t *Scheduler  = NULL;
+	UUId_t CpuIndex         = 0;
+    int i                   = 0;
     
 	// Sanitize the cpu that thread needs to be bound to
 	if (Thread->CpuId == SCHEDULER_CPU_SELECT) {
@@ -222,12 +235,18 @@ SchedulerThreadQueue(
 		CpuIndex = Thread->CpuId;
     }
 
+    // Shorthand access
+    Scheduler = Schedulers[CpuIndex];
+
+    // Debug
+    TRACE("Appending thread %u to queue %i", Thread->Id, Thread->Queue);
+
 	// The modification of a queue is a locked operation
-    CriticalSectionEnter(&Schedulers[CpuIndex]->Lock);
-    SchedulerQueueAppend(&Schedulers[CpuIndex]->Queues[Thread->Queue],
+    CriticalSectionEnter(&Scheduler->QueueLock);
+    SchedulerQueueAppend(&Scheduler->Queues[Thread->Queue],
         Thread, Thread);
-    Schedulers[CpuIndex]->ThreadCount++;
-    CriticalSectionLeave(&Schedulers[CpuIndex]->Lock);
+        Scheduler->ThreadCount++;
+    CriticalSectionLeave(&Scheduler->QueueLock);
     
     // Set thread active
     THREADING_SETSTATE(Thread->Flags, THREADING_ACTIVE);
@@ -236,6 +255,7 @@ SchedulerThreadQueue(
 	if (ThreadingIsCurrentTaskIdle(Thread->CpuId) != 0) {
         ThreadingWakeCpu(Thread->CpuId);
     }
+    return OsSuccess;
 }
 
 /* SchedulerThreadDequeue
@@ -252,14 +272,18 @@ SchedulerThreadDequeue(
         return OsError;
     }
 
+    // Debug
+    TRACE("SchedulerThreadDequeue(Thread %u, Queue %u)",
+        Thread->Id, Thread->Queue);
+
     // Instantiate variables
     Scheduler = Schedulers[Thread->CpuId];
 
 	// Locked operation
-    CriticalSectionEnter(&Scheduler->Lock);
+    CriticalSectionEnter(&Scheduler->QueueLock);
     SchedulerQueueRemove(&Scheduler->Queues[Thread->Queue], Thread);
     Scheduler->ThreadCount--;
-    CriticalSectionLeave(&Scheduler->Lock);
+    CriticalSectionLeave(&Scheduler->QueueLock);
     
     // Set inactive
     THREADING_CLEARSTATE(Thread->Flags);
@@ -284,10 +308,13 @@ SchedulerThreadSleep(
     CurrentThread = ThreadingGetCurrentThread(CurrentCpu);
     assert(CurrentThread != NULL);
     
+    // Debug
+    TRACE("Adding thread %u to sleep queue", CurrentThread->Id);
+    
     // Disable interrupts while doing this
     InterruptStatus = InterruptDisable();
-    CurrentThread->Flags |= THREADING_TRANSITION_SLEEP;
     SchedulerThreadDequeue(CurrentThread);
+    CurrentThread->Flags |= THREADING_TRANSITION_SLEEP;
 
     // Update sleep-information
     CurrentThread->Sleep.TimeLeft = Timeout;
@@ -322,6 +349,9 @@ SchedulerThreadWake(
         return OsError;
     }
 
+    // Debug
+    TRACE("SchedulerThreadWake()");
+
     // Iterate the queue
     Current = IoQueue.Head;
     while (Current) {
@@ -338,6 +368,7 @@ SchedulerThreadWake(
         Current->Sleep.Timeout = 0;
         Current->Sleep.Handle = NULL;
         Current->Sleep.TimeLeft = 0;
+        SchedulerQueueRemove(&IoQueue, Current);
         SchedulerThreadQueue(Current);
 		return OsSuccess;
 	}
@@ -374,11 +405,14 @@ SchedulerTick(
         return;
     }
 
+    // Debug
+    TRACE("SchedulerTick()");
+
     // Iterate the queue
     Current = IoQueue.Head;
     while (Current) {
         if (Current->Sleep.TimeLeft != 0) {
-            Current->Sleep.TimeLeft -= MIN(Milliseconds, mThread->Sleep);
+            Current->Sleep.TimeLeft -= MIN(Milliseconds, Current->Sleep.TimeLeft);
             if (Current->Sleep.TimeLeft == 0) {
                 MCoreThread_t *Next = Current->Link;
                 if (Current->Sleep.Handle != NULL) {
@@ -437,7 +471,7 @@ SchedulerThreadSchedule(
 		SchedulerThreadQueue(Thread);
 	}
 	else {
-		TimeSlice = MCORE_INITIAL_TIMESLICE;
+		TimeSlice = SCHEDULER_TIMESLICE_INITIAL;
     }
 
 	// This is a locked operation
@@ -451,13 +485,15 @@ SchedulerThreadSchedule(
     // Get next thread
 	for (i = 0; i < SCHEDULER_LEVEL_COUNT; i++) {
 		if (Scheduler->Queues[i].Head != NULL) {
+            TRACE("Next thread %u found in queue %i", 
+                Scheduler->Queues[i].Head->Id, i);
             NextThread = Scheduler->Queues[i].Head;
-            Scheduler->Queues[i].Head = NextThread->Link;
-            if (Scheduler->Queues[i].Tail == NextThread) {
-                Scheduler->Queues[i].Tail = NULL;
-            }
+            NextThread->Queue = i;
+            NextThread->TimeSlice = (i * 2) + SCHEDULER_TIMESLICE_INITIAL;
+            SchedulerQueueRemove(&Scheduler->Queues[i], NextThread);
+            break;
 		}
-	}
-    CriticalSectionLeave(&GlbSchedulers[Cpu]->Lock);
+    }
+    CriticalSectionLeave(&Schedulers[Cpu]->QueueLock);
     return NextThread;
 }

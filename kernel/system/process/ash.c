@@ -265,7 +265,7 @@ int PhoenixOpenAshPipe(MCoreAsh_t *Ash, int Port, Flags_t Flags)
 
 	/* Add it to the list */
 	ListAppend(Ash->Pipes, ListCreateNode(Key, Key, Pipe));
-	SchedulerWakeupAllThreads((uintptr_t*)Ash->Pipes);
+    SchedulerThreadWakeAll((uintptr_t*)Ash->Pipes);
 
 	/* The pipe is now created and ready
 	 * for use by the process */

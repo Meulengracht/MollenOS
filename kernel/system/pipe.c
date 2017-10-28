@@ -108,8 +108,8 @@ PipeDestroy(
     _In_ MCorePipe_t *Pipe)
 {
     // Wake all up so no-one is left behind
-    SchedulerWakeupAllThreads((uintptr_t*)&Pipe->ReadQueue);
-    SchedulerWakeupAllThreads((uintptr_t*)&Pipe->WriteQueue);
+    SchedulerThreadWakeAll((uintptr_t*)&Pipe->ReadQueue);
+    SchedulerThreadWakeAll((uintptr_t*)&Pipe->WriteQueue);
     kfree(Pipe->Buffer);
     kfree(Pipe);
 }

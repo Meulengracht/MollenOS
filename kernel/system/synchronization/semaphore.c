@@ -116,7 +116,7 @@ void SemaphoreDestroy(Semaphore_t *Semaphore)
 	}
 
 	/* Wake up all */
-	SchedulerWakeupAllThreads((uintptr_t*)Semaphore);
+	SchedulerThreadWakeAll((uintptr_t*)Semaphore);
 
 	/* Free it */
 	kfree(Semaphore);
@@ -176,7 +176,7 @@ void SemaphoreV(Semaphore_t *Semaphore, int Value)
 	 * and check if we should wake up others */
 	Semaphore->Value += Value;
 	if (Semaphore->Value <= 0) {
-		SchedulerWakeupOneThread((uintptr_t*)Semaphore);
+		SchedulerThreadWake((uintptr_t*)Semaphore);
 	}
 
 	/* Make sure to leave safe passage again! */

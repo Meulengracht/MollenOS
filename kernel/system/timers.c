@@ -135,7 +135,7 @@ TimersTick(
 	MilliTicks = DIVUP(Tick, NSEC_PER_MSEC);
 
 	// Update scheduler with the milliticks
-	SchedulerApplyMs(MilliTicks);
+	SchedulerTick(MilliTicks);
 
 	// Now loop through timers registered
 	_foreach(i, GlbTimers) {

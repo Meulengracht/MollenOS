@@ -526,44 +526,43 @@ OsStatus_t ScConditionDestroy(uintptr_t *Handle)
     return OsSuccess;
 }
 
-/* ScSyncWakeUp
+/* ScSignalHandle
  * Signals a handle for wakeup 
  * This is primarily used for condition
  * variables and semaphores */
-OsStatus_t ScSyncWakeUp(uintptr_t *Handle)
+OsStatus_t
+ScSignalHandle(
+    _In_ uintptr_t *Handle)
 {
-    return SchedulerWakeupOneThread(Handle) == 1 ? OsSuccess : OsError;
+    return SchedulerThreadWake(Handle);
 }
 
 /* Signals a handle for wakeup all
  * This is primarily used for condition
  * variables and semaphores */
-OsStatus_t ScSyncWakeUpAll(uintptr_t *Handle)
+OsStatus_t
+ScSignalHandleAll(
+    _In_ uintptr_t *Handle)
 {
-    SchedulerWakeupAllThreads(Handle);
+    SchedulerThreadWakeAll(Handle);
     return OsSuccess;
 }
 
-/* ScSyncSleep
+/* ScWaitForObject
  * Waits for a signal relating to the above function, this
  * function uses a timeout. Returns OsError on timed-out */
 OsStatus_t
-ScSyncSleep(
-    uintptr_t *Handle,
-    size_t Timeout)
+ScWaitForObject(
+    _In_ uintptr_t *Handle,
+    _In_ size_t Timeout)
 {
-    /* Get current thread */
-    MCoreThread_t *Current = ThreadingGetCurrentThread(CpuGetCurrentId());
-
-    /* Sleep */
-    SchedulerThreadSleep(Handle, Timeout);
-
-    /* Sanity */
-    if (Timeout != 0 && Current->Sleep == 0) {
-        return OsError;
+    // Store reason for waking up
+    int WakeReason = SchedulerThreadSleep(Handle, Timeout);
+    if (WakeReason == SCHEDULER_SLEEP_OK) {
+        return OsSuccess;
     }
     else {
-        return OsSuccess;
+        return OsError;
     }
 }
 
@@ -1010,20 +1009,18 @@ OsStatus_t ScIpcSleep(size_t Timeout)
  * This must be used in conjuction with the above function
  * otherwise this function has no effect, this is used for
  * very limited IPC synchronization */
-OsStatus_t ScIpcWake(UUId_t Target)
+OsStatus_t
+ScIpcWake(
+    _In_ UUId_t Target)
 {
-    /* Locate Process */
+    // Variables
     MCoreAsh_t *Ash = PhoenixGetAsh(Target);
-
-    /* Sanity */
     if (Ash == NULL) {
         return OsError;
     }
 
-    /* Send a wakeup signal */
-    SchedulerWakeupOneThread((uintptr_t*)Ash);
-
-    /* Now we should have waked up the waiting process */
+    // Signal wake-up
+    SchedulerThreadWake((uintptr_t*)Ash);
     return OsSuccess;
 }
 
@@ -1525,9 +1522,9 @@ uintptr_t GlbSyscallTable[91] =
     /* Synchronization Functions - 21 */
     DefineSyscall(ScConditionCreate),
     DefineSyscall(ScConditionDestroy),
-    DefineSyscall(ScSyncSleep),
-    DefineSyscall(ScSyncWakeUp),
-    DefineSyscall(ScSyncWakeUpAll),
+    DefineSyscall(ScWaitForObject),
+    DefineSyscall(ScSignalHandle),
+    DefineSyscall(ScSignalHandleAll),
     DefineSyscall(NoOperation),
     DefineSyscall(NoOperation),
     DefineSyscall(NoOperation),

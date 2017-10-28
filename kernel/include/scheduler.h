@@ -41,6 +41,7 @@
 
 /* Scheduler Definitions
  * Contains magic constants, bit definitions and settings. */
+#define SCHEDULER_LEVEL_LOW             59
 #define SCHEDULER_LEVEL_CRITICAL        60
 #define SCHEDULER_LEVEL_COUNT           61
 #define SCHEDULER_TIMESLICE_INITIAL     10

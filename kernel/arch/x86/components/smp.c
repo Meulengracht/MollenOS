@@ -116,7 +116,7 @@ void SmpApEntry(void)
 	GdtInstallTss(Cpu, 0);
 
 	/* Setup Threading */
-	SchedulerInit(Cpu);
+	SchedulerCreate(Cpu);
 	ThreadingInitialize(Cpu);
 
 	/* Increament Boot Count - Signal that we are ok */
