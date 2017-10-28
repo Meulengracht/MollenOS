@@ -294,8 +294,7 @@ int PhoenixWaitAshPipe(MCoreAsh_t *Ash, int Port)
 		if (ListGetDataByKey(Ash->Pipes, Key, 0) != NULL) {
 			break;
 		}
-		SchedulerSleepThread((uintptr_t*)Ash->Pipes, 0);
-		IThreadYield();
+		SchedulerThreadSleep((uintptr_t*)Ash->Pipes, 0);
  	}
 
 	/* Done! */

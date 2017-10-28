@@ -152,8 +152,7 @@ int ScProcessJoin(UUId_t ProcessId)
         return -1;
 
     /* Sleep */
-    SchedulerSleepThread((uintptr_t*)Process, 0);
-    IThreadYield();
+    SchedulerThreadSleep((uintptr_t*)Process, 0);
 
     /* Return the exit code */
     return Process->Code;
@@ -218,9 +217,7 @@ OsStatus_t ScProcessExit(int ExitCode)
 
     /* Kill this thread */
     ThreadingKillThread(ThreadingGetCurrentThreadId());
-
-    /* Yield */
-    IThreadYield();
+    ThreadingYield();
 
     /* Done */
     return OsSuccess;
@@ -312,7 +309,7 @@ OsStatus_t ScProcessRaise(UUId_t ProcessId, int Signal)
     if (SignalCreate(ProcessId, Signal))
         return OsError;
     else {
-        IThreadYield();
+        ThreadingYield();
         return OsSuccess;
     }
 }
@@ -483,8 +480,7 @@ OsStatus_t
 ScThreadSleep(
     _In_ size_t MilliSeconds)
 {
-    SchedulerSleepThread(NULL, MilliSeconds);
-    IThreadYield();
+    SchedulerThreadSleep(NULL, MilliSeconds);
     return OsSuccess;
 }
 
@@ -504,7 +500,7 @@ OsStatus_t
 ScThreadYield(void)
 {
     // Invoke yield and return
-    IThreadYield();
+    ThreadingYield();
     return OsSuccess;
 }
 
@@ -551,14 +547,16 @@ OsStatus_t ScSyncWakeUpAll(uintptr_t *Handle)
 /* ScSyncSleep
  * Waits for a signal relating to the above function, this
  * function uses a timeout. Returns OsError on timed-out */
-OsStatus_t ScSyncSleep(uintptr_t *Handle, size_t Timeout)
+OsStatus_t
+ScSyncSleep(
+    uintptr_t *Handle,
+    size_t Timeout)
 {
     /* Get current thread */
     MCoreThread_t *Current = ThreadingGetCurrentThread(CpuGetCurrentId());
 
     /* Sleep */
-    SchedulerSleepThread(Handle, Timeout);
-    IThreadYield();
+    SchedulerThreadSleep(Handle, Timeout);
 
     /* Sanity */
     if (Timeout != 0 && Current->Sleep == 0) {
@@ -1001,8 +999,7 @@ OsStatus_t ScIpcSleep(size_t Timeout)
     }
 
     /* Sleep on process handle */
-    SchedulerSleepThread((uintptr_t*)Ash, Timeout);
-    IThreadYield();
+    SchedulerThreadSleep((uintptr_t*)Ash, Timeout);
 
     /* Now we reach this when the timeout is 
      * is triggered or another process wakes us */

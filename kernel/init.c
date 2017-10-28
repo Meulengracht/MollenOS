@@ -77,6 +77,7 @@ MCoreInitialize(
     // and global variables
     memcpy(&GlobalBootInformation, BootInformation, sizeof(Multiboot_t));
     InterruptInitialize();
+    SchedulerInitialize();
     LogInitialize();
     // @todo
 
@@ -123,9 +124,9 @@ MCoreInitialize(
     
     // Now that we have an allocation system add all initializors
     // that need dynamic memory here
+    SchedulerCreate(0);
 	TimersInitialize();
     IoSpaceInitialize();
-    SchedulerInit(0);
     ThreadingInitialize(0);
 
     // Run early ACPI initialization if available

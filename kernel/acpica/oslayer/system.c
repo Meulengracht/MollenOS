@@ -254,8 +254,7 @@ AcpiOsSleep (
     UINT64                  Milliseconds)
 {
     if (ThreadingIsEnabled() != 0) {
-        SchedulerSleepThread(NULL, (size_t)Milliseconds);
-        IThreadYield();
+        SchedulerThreadSleep(NULL, (size_t)Milliseconds);
     }
     else {
         AcpiOsStall(Milliseconds * 1000);

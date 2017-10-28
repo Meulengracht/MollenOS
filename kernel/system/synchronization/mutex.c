@@ -71,8 +71,7 @@ int MutexLock(Mutex_t *Mutex)
 
 	/* Wait for mutex to become free */
 	while (Mutex->Blocks != 0) {
-		SchedulerSleepThread((uintptr_t*)Mutex, MUTEX_DEFAULT_TIMEOUT);
-		IThreadYield();
+		SchedulerThreadSleep((uintptr_t*)Mutex, MUTEX_DEFAULT_TIMEOUT);
 	}
 
 	/* Initialize */

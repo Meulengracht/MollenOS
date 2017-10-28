@@ -1,174 +1,217 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS Threading Scheduler
-* Implements scheduling with priority
-* Priority 61 is System Priority.
-* Priority 60 - 0 are Normal Priorties
-* Priorities 60 - 0 start at 10 ms, slowly increases to 130 ms.
-* Priority boosts every 1000 ms? 
-* On yields, keep priority.
-* On task-switchs, decrease priority.
-* A thread can only stay a maximum in each priority.
-*/
+ *
+ * Copyright 2011 - 2018, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS Threading Scheduler
+ * Implements scheduling with priority
+ * Priority 61 is System Priority.
+ * Priority 60 - 0 are Normal Priorties
+ * Priorities 60 - 0 start at 10 ms, slowly increases to 300 ms.
+ * Priority boosts every 1000 ms?
+ * On yields, keep priority.
+ * On task-switchs, decrease priority.
+ * A thread can only stay a maximum in each priority.
+ */
+#define __MODULE "SCHE"
+//#define __TRACE
 
-/* Includes */
+/* Includes
+ * - System */
 #include <system/interrupts.h>
 #include <system/utils.h>
 #include <scheduler.h>
-#include <threading.h>
-#include <interrupts.h>
+#include <debug.h>
 #include <heap.h>
-#include <log.h>
 
-/* CLib */
-#include <stddef.h>
-#include <ds/list.h>
-#include <assert.h>
-#include <stdio.h>
+/* Globals
+ * - State keeping variables */
+static Scheduler_t *Schedulers[MAX_SUPPORTED_CPUS];
+static SchedulerQueue_t IoQueue = { 0 };
+static int SchedulerInitialized = 0;
 
-/* Globals */
-Scheduler_t *GlbSchedulers[MAX_SUPPORTED_CPUS];
-List_t *IoQueue = NULL;
-List_t *GlbSchedulerNodeRecycler = NULL;
-int GlbSchedulerEnabled = 0;
-
-/* This initializes the scheduler for the
- * given cpu_id, the first call to this
- * will also initialize the scheduler enviornment */
-void SchedulerInit(UUId_t Cpu)
+/* SchedulerInitialize
+ * Initializes state variables and global static resources. */
+void
+SchedulerInitialize(void)
 {
-	/* Variables needed */
-	Scheduler_t *Scheduler;
-	int i;
-
-	/* Is this BSP setting up? */
-	if (Cpu == 0)
-	{
-		/* Null out stuff */
-		for (i = 0; i < MAX_SUPPORTED_CPUS; i++)
-			GlbSchedulers[i] = NULL;
-
-		/* Allocate IoQueue */
-		IoQueue = ListCreate(KeyInteger, LIST_SAFE);
-
-		/* Allocate Node Recycler */
-		GlbSchedulerNodeRecycler = ListCreate(KeyInteger, LIST_SAFE);
-	}
-
-	/* Allocate a scheduler */
-	Scheduler = (Scheduler_t*)kmalloc(sizeof(Scheduler_t));
-
-	/* Init thread queue */
-	Scheduler->Threads = ListCreate(KeyInteger, LIST_NORMAL);
-
-	/* Initialize all queues (Lock-Less) */
-	for (i = 0; i < MCORE_SCHEDULER_LEVELS; i++)
-		Scheduler->Queues[i] = ListCreate(KeyInteger, LIST_NORMAL);
-
-	/* Reset boost timer */
-	Scheduler->BoostTimer = 0;
-	Scheduler->NumThreads = 0;
-
-	/* Reset section */
-	CriticalSectionConstruct(&Scheduler->Lock, CRITICALSECTION_PLAIN);
-
-	/* Enable */
-	GlbSchedulers[Cpu] = Scheduler;
-	GlbSchedulerEnabled = 1;
+    // Initialize Globals
+    memset(&Schedulers[0], 0, sizeof(Schedulers));
+    IoQueue.Head = NULL;
+    IoQueue.Tail = NULL;
+    SchedulerInitialized = 1;
 }
 
-/* Boost ALL threads to priority queue 0 */
-void SchedulerBoost(Scheduler_t *Scheduler)
+/* SchedulerCreate
+ * Creates and initializes a scheduler for the given cpu-id. */
+void
+SchedulerCreate(
+    _In_ UUId_t Cpu)
 {
-	/* Variables */
-	MCoreThread_t *mThread;
-	ListNode_t *mNode;
-	int i = 0;
+	// Variables
+	Scheduler_t *Scheduler  = NULL;
+	int i                   = 0;
+
+	// Allocate a new instance of the scheduler
+    Scheduler = (Scheduler_t*)kmalloc(sizeof(Scheduler_t));
+    memset(Scheduler, 0, sizeof(Scheduler_t));
+    
+    // Initialize members
+	CriticalSectionConstruct(&Scheduler->QueueLock, CRITICALSECTION_PLAIN);
+	Schedulers[Cpu] = Scheduler;
+}
+
+/* SchedulerQueueAppend 
+ * Appends a single thread or a list of threads to the given queue. */
+void
+SchedulerQueueAppend(
+    _In_ SchedulerQueue_t *Queue,
+    _In_ MCoreThread_t *ThreadStart,
+    _In_ MCoreThread_t *ThreadEnd)
+{
+    // Variables
+    MCoreThread_t *AppendTo = NULL;
+    
+    // Get the tail pointer of the queue to append
+    AppendTo = Queue->Tail;
+    if (AppendTo == NULL) {
+        Queue->Head = ThreadStart;
+        Queue->Tail = ThreadEnd;
+    }
+    else {
+        AppendTo->Link = ThreadStart;
+        Queue->Tail = ThreadEnd;
+    }
+
+    // Null end
+    ThreadEnd->Link = NULL;
+}
+
+/* SchedulerQueueRemove
+ * Removes a single thread from the given queue. */
+void
+SchedulerQueueRemove(
+    _In_ SchedulerQueue_t *Queue,
+    _In_ MCoreThread_t *Thread)
+{
+    // Variables
+    MCoreThread_t   *Current = Queue->Head,
+                    *Previous = Queue->Head;
+
+    // Find the remove-target and unlink
+    while (Current) {
+        if (Current == Thread) {
+            // Two cases, previous is NULL, or not
+            if (Previous == NULL) {
+                Queue->Head = Current->Link;
+            }
+            else {
+                Previous->Link = Current->Link;
+            }
+
+            // Update tail pointer as-well
+            if (Queue->Tail == Current) {
+                if (Previous == NULL) {
+                    Queue->Tail = Current->Link;
+                }
+                else {
+                    Queue->Tail = Previous;
+                }
+            }
+
+            // Break out
+            break;
+        }
+        else {
+            Previous = Current;
+            Current = Current->Link;
+        }
+    }
+}
+
+/* SchedulerBoostThreads
+ * Boosts all threads in the given scheduler to queue 0.
+ * This is a method of avoiding intentional starvation by malicous
+ * programs. */
+void
+SchedulerBoostThreads(
+    _In_ Scheduler_t *Scheduler)
+{
+	// Variables
+	int i                   = 0;
 	
-	/* Step 1. Loop through all queues, pop their elements and append them to queue 0
-	 * Reset time-slices */
-	for (i = 1; i < MCORE_SCHEDULER_LEVELS; i++)
-	{
-		if (ListLength(Scheduler->Queues[i]) > 0)
-		{
-			mNode = ListPopFront(Scheduler->Queues[i]);
-
-			while (mNode != NULL)
-			{
-				/* Reset timeslice */
-				mThread = (MCoreThread_t*)mNode->Data;
-				mThread->TimeSlice = MCORE_INITIAL_TIMESLICE;
-				mThread->Queue = 0;
-
-				ListAppend(Scheduler->Queues[0], mNode);
-				mNode = ListPopFront(Scheduler->Queues[i]);
-			}
+    // Move all threads up into queue 0
+    // but skip queue CRITICAL
+	for (i = 1; i < SCHEDULER_LEVEL_CRITICAL; i++) {
+		if (Scheduler->Queues[i].Head != NULL) {
+            SchedulerQueueAppend(&Scheduler->Queues[0], 
+                Scheduler->Queues[i].Head, Scheduler->Queues[i].Tail);
+            Scheduler->Queues[i].Head = NULL;
+            Scheduler->Queues[i].Tail = NULL;
 		}
 	}
 }
 
-/* Allocate a Queue Node */
-ListNode_t *SchedulerGetNode(DataKey_t Key, DataKey_t SortKey, void *Data)
+/* SchedulerThreadInitialize
+ * Can be called by the creation of a new thread to initalize
+ * all the scheduler data for that thread. */
+void
+SchedulerThreadInitialize(
+    _In_ MCoreThread_t *Thread,
+    _In_ Flags_t Flags)
 {
-	/* Sanity */
-	if (GlbSchedulerNodeRecycler != NULL) 
-	{
-		/* Pop first */
-		ListNode_t *RetNode = ListPopFront(GlbSchedulerNodeRecycler);
+    // Initialize members
+    Thread->Queue = 0;
+	Thread->TimeSlice = MCORE_INITIAL_TIMESLICE;
+    Thread->Link = NULL;
 
-		/* Sanity */
-		if (RetNode == NULL)
-			return ListCreateNode(Key, SortKey, Data);
-		
-		/* Set data */
-		RetNode->Key = Key;
-		RetNode->SortKey = SortKey;
-		RetNode->Data = Data;
-		return RetNode;
+    // Flag-Special-CasE:
+    // System thread?
+    if (Flags & THREADING_SYSTEMTHREAD) {
+        Thread->Priority = PriorityNormal;
+    }
+    else {
+        Thread->Priority = PriorityCritical;
+    }
+
+    // Flag-Special-Case:
+	// If we are CPU bound
+	if (Flags & THREADING_CPUBOUND) {
+		Thread->CpuId = CpuGetCurrentId();
+		Thread->Flags |= THREADING_CPUBOUND;
 	}
-	else
-		return ListCreateNode(Key, SortKey, Data);
+	else {
+		Thread->CpuId = SCHEDULER_CPU_SELECT;
+	}
 }
 
-/* This function arms a thread for scheduling
- * in most cases this is called with a prefilled
- * priority of -1 to make it run almost immediately */
-void SchedulerReadyThread(MCoreThread_t *Thread)
+/* SchedulerThreadQueue
+ * Queues up a thread for execution. */
+OsStatus_t
+SchedulerThreadQueue(
+    _In_ MCoreThread_t *Thread)
 {
-	/* Add task to a queue based on its priority */
-	ListNode_t *ThreadNode;
-	UUId_t CpuIndex = 0;
-	DataKey_t iKey;
-	DataKey_t sKey;
-	int i = 0;
-	
-	/* Step 1. New thread? :) */
-	if (Thread->Queue == -1) {
-		Thread->Queue = 0;
-		Thread->TimeSlice = MCORE_INITIAL_TIMESLICE;
-	}
-
-	/* Step 2. Find the least used CPU 
-	 * Todo - new algorithm here */
-	if (Thread->CpuId == 0xFF) {
-		while (GlbSchedulers[i] != NULL) {
-			if (GlbSchedulers[i]->NumThreads < GlbSchedulers[CpuIndex]->NumThreads) {
+	// Variables
+	UUId_t CpuIndex     = 0;
+    int i               = 0;
+    
+	// Sanitize the cpu that thread needs to be bound to
+	if (Thread->CpuId == SCHEDULER_CPU_SELECT) {
+		while (Schedulers[i] != NULL) {
+			if (Schedulers[i]->ThreadCount < Schedulers[CpuIndex]->ThreadCount) {
 				CpuIndex = i;
 			}
 			i++;
@@ -177,351 +220,244 @@ void SchedulerReadyThread(MCoreThread_t *Thread)
 	}
 	else {
 		CpuIndex = Thread->CpuId;
-	}
+    }
 
-	/* Setup keys */
-	iKey.Value = (int)Thread->Id;
-	sKey.Value = (int)Thread->Priority;
-
-	/* Get lock */
-	CriticalSectionEnter(&GlbSchedulers[CpuIndex]->Lock);
-
-	/* Get thread node if exists */
-	ThreadNode = ListGetNodeByKey(GlbSchedulers[CpuIndex]->Threads, iKey, 0);
-
-	/* Sanity */
-	if (ThreadNode == NULL) {
-		ThreadNode = ListCreateNode(iKey, sKey, Thread);
-		ListAppend(GlbSchedulers[CpuIndex]->Threads, ThreadNode);
-		GlbSchedulers[CpuIndex]->NumThreads++;
-	}
-
-	/* Append */
-	ListAppend(GlbSchedulers[CpuIndex]->Queues[Thread->Queue],
-		SchedulerGetNode(iKey, sKey, Thread));
-
-	/* Release lock */
-    CriticalSectionLeave(&GlbSchedulers[CpuIndex]->Lock);
+	// The modification of a queue is a locked operation
+    CriticalSectionEnter(&Schedulers[CpuIndex]->Lock);
+    SchedulerQueueAppend(&Schedulers[CpuIndex]->Queues[Thread->Queue],
+        Thread, Thread);
+    Schedulers[CpuIndex]->ThreadCount++;
+    CriticalSectionLeave(&Schedulers[CpuIndex]->Lock);
     
     // Set thread active
     THREADING_SETSTATE(Thread->Flags, THREADING_ACTIVE);
 
-	/* Wakeup CPU if sleeping */
-	if (ThreadingIsCurrentTaskIdle(Thread->CpuId) != 0)
-		ThreadingWakeCpu(Thread->CpuId);
+	// If the current cpu is idling, wake us up
+	if (ThreadingIsCurrentTaskIdle(Thread->CpuId) != 0) {
+        ThreadingWakeCpu(Thread->CpuId);
+    }
 }
 
-/* Disarms a thread from queues */
-void SchedulerDisarmThread(MCoreThread_t *Thread)
+/* SchedulerThreadDequeue
+ * Disarms a thread from all queues and mark the thread inactive. */
+OsStatus_t
+SchedulerThreadDequeue(
+    _In_ MCoreThread_t *Thread)
 {
-	/* Vars */
-	ListNode_t *ThreadNode;
-	DataKey_t iKey;
+    // Variables
+    Scheduler_t *Scheduler = NULL;
 
-	/* Sanity */
-	if (Thread->Queue < 0)
-		return;
+	// Sanitize queue
+	if (Thread->Queue < 0) {
+        return OsError;
+    }
 
-	/* Get lock */
-	CriticalSectionEnter(&GlbSchedulers[Thread->CpuId]->Lock);
+    // Instantiate variables
+    Scheduler = Schedulers[Thread->CpuId];
 
-	/* Find */
-	iKey.Value = (int)Thread->Id;
-	ThreadNode = ListGetNodeByKey(
-		GlbSchedulers[Thread->CpuId]->Queues[Thread->Queue], iKey, 0);
-
-	/* Remove it */
-	if (ThreadNode != NULL) {
-		ListRemoveByNode(GlbSchedulers[Thread->CpuId]->Queues[Thread->Queue], ThreadNode);
-		ListAppend(GlbSchedulerNodeRecycler, ThreadNode);
-	}
-
-	/* Release lock */
-    CriticalSectionLeave(&GlbSchedulers[Thread->CpuId]->Lock);
+	// Locked operation
+    CriticalSectionEnter(&Scheduler->Lock);
+    SchedulerQueueRemove(&Scheduler->Queues[Thread->Queue], Thread);
+    Scheduler->ThreadCount--;
+    CriticalSectionLeave(&Scheduler->Lock);
     
     // Set inactive
     THREADING_CLEARSTATE(Thread->Flags);
+    return OsSuccess;
 }
 
-/* This function is primarily used to remove a thread from
- * scheduling totally, but it can always be scheduld again
- * by calling SchedulerReadyThread */
-void SchedulerRemoveThread(MCoreThread_t *Thread)
+/* SchedulerThreadSleep
+ * Enters the current thread into sleep-queue. Can return different
+ * sleep-state results. SCHEDULER_SLEEP_OK or SCHEDULER_SLEEP_TIMEOUT. */
+int
+SchedulerThreadSleep(
+    _In_ uintptr_t *Handle,
+    _In_ size_t Timeout)
 {
-	/* Variables */
-	ListNode_t *ThreadNode = NULL;
-	DataKey_t iKey;
-
-	/* Get lock */
-	CriticalSectionEnter(&GlbSchedulers[Thread->CpuId]->Lock);
-
-	/* Get thread node if exists */
-	iKey.Value = (int)Thread->Id;
-	ThreadNode = ListGetNodeByKey(GlbSchedulers[Thread->CpuId]->Threads, iKey, 0);
-
-	/* Release lock */
-	CriticalSectionLeave(&GlbSchedulers[Thread->CpuId]->Lock);
-
-	/* Sanity */
-	assert(ThreadNode != NULL);
-
-	/* Disarm the thread */
-	SchedulerDisarmThread(Thread);
-
-	/* Get lock */
-	CriticalSectionEnter(&GlbSchedulers[Thread->CpuId]->Lock);
-
-	/* Remove the node */
-	ListRemoveByNode(GlbSchedulers[Thread->CpuId]->Threads, ThreadNode);
-	GlbSchedulers[Thread->CpuId]->NumThreads--;
-
-	/* Release lock */
-	CriticalSectionLeave(&GlbSchedulers[Thread->CpuId]->Lock);
-
-	/* Free */
-	kfree(ThreadNode);
-}
-
-/* This is used by timer code to reduce threads's timeout
- * if this function wasn't called then sleeping threads and 
- * waiting threads would never be armed again. */
-void SchedulerApplyMs(size_t Ms)
-{
-	/* Find first thread matching resource */
-	ListNode_t *sNode = NULL;
-
-	/* Sanity */
-	if (IoQueue == NULL
-		|| GlbSchedulerEnabled != 1)
-		return;
-
-	/* Loop */
-	_foreach_nolink(sNode, IoQueue)
-	{
-		/* Cast */
-		MCoreThread_t *mThread = (MCoreThread_t*)sNode->Data;
-
-		/* Fucking what */
-		assert(mThread != NULL);
-
-		/* Sanity */
-		if (mThread->Sleep != 0) 
-		{
-			/* Reduce */
-			mThread->Sleep -= MIN(Ms, mThread->Sleep);
-
-			/* Time to wakeup? */
-			if (mThread->Sleep == 0)
-			{
-				/* Temporary pointer */
-				ListNode_t *WakeNode = sNode;
-
-				/* Skip to next node */
-				sNode = sNode->Link;
-
-				/* Remove this node */
-				ListRemoveByNode(IoQueue, WakeNode);
-
-				/* Store node */
-				ListAppend(GlbSchedulerNodeRecycler, WakeNode);
-
-				/* Grant it top priority */
-				mThread->Queue = -1;
-				mThread->SleepResource = NULL;
-
-				/* Rearm thread */
-				SchedulerReadyThread(mThread);
-			}
-			else {
-				/* Go to next */
-				sNode = sNode->Link;
-			}
-		}
-		else {
-			/* Go to next */
-			sNode = sNode->Link;
-		}
-	}
-}
-
-/* This function sleeps the current thread either by resource,
- * by time, or both. If resource is NULL then it will wake the
- * thread after <timeout> ms. If infinite wait is required set
- * timeout to 0 */
-void SchedulerSleepThread(uintptr_t *Resource, size_t Timeout)
-{
-	/* Disable Interrupts 
-	 * This is a fragile operation */
-	MCoreThread_t *CurrentThread = NULL;
-	IntStatus_t IntrState = InterruptDisable();
-	UUId_t Cpu = CpuGetCurrentId();
-	DataKey_t iKey;
-	DataKey_t sKey;
-
-	/* Mark current thread for sleep */
-	CurrentThread = ThreadingGetCurrentThread(Cpu);
-
-	/* Mark for sleep */
+    // Variables
+	MCoreThread_t *CurrentThread    = NULL;
+	IntStatus_t InterruptStatus     = 0;
+    UUId_t CurrentCpu               = 0;
+    
+    // Instantiate values
+    CurrentCpu = CpuGetCurrentId();
+    CurrentThread = ThreadingGetCurrentThread(CurrentCpu);
+    assert(CurrentThread != NULL);
+    
+    // Disable interrupts while doing this
+    InterruptStatus = InterruptDisable();
     CurrentThread->Flags |= THREADING_TRANSITION_SLEEP;
+    SchedulerThreadDequeue(CurrentThread);
 
-	/* Disarm the thread */
-	SchedulerDisarmThread(CurrentThread);
+    // Update sleep-information
+    CurrentThread->Sleep.TimeLeft = Timeout;
+    CurrentThread->Sleep.Timeout = 0;
+    CurrentThread->Sleep.Handle = Handle;
 
-	/* Setup Keys */
-	iKey.Value = (int)CurrentThread->Id;
-	sKey.Value = (int)CurrentThread->Priority;
+    // Add to io-queue
+    SchedulerQueueAppend(&IoQueue, CurrentThread, CurrentThread);
+    InterruptRestoreState(InterruptStatus);
+    ThreadingYield();
 
-	/* Add to list */
-	CurrentThread->SleepResource = Resource;
-	CurrentThread->Sleep = Timeout;
-	ListAppend(IoQueue, SchedulerGetNode(iKey, sKey, CurrentThread));
-
-	/* Restore interrupts */
-	InterruptRestoreState(IntrState);
+    // Resolve sleep-state
+    if (CurrentThread->Sleep.Timeout == 1) {
+        return SCHEDULER_SLEEP_TIMEOUT;
+    }
+    else {
+        return SCHEDULER_SLEEP_OK;
+    }
 }
 
-/* These two functions either wakes one or all threads
- * waiting for a resource. */
-int SchedulerWakeupOneThread(uintptr_t *Resource)
+/* SchedulerThreadWake
+ * Finds a sleeping thread with the given sleep-handle and wakes it. */
+OsStatus_t
+SchedulerThreadWake(
+    _In_ uintptr_t *Handle)
 {
-	/* Find first thread matching resource */
-	ListNode_t *SleepMatch = NULL;
+	// Variables
+	MCoreThread_t *Current = NULL;
 
-	/* Sanity */
-	if (IoQueue == NULL
-		|| GlbSchedulerEnabled != 1)
-		return 0;
+	// Sanitize the io-queue
+	if (IoQueue.Head == NULL) {
+        return OsError;
+    }
 
-	/* Loop */
-	foreach(i, IoQueue)
-	{
-		/* Cast */
-		MCoreThread_t *mThread = (MCoreThread_t*)i->Data;
+    // Iterate the queue
+    Current = IoQueue.Head;
+    while (Current) {
+        if (Current->Sleep.Handle == Handle) {
+            break;
+        }
+        else {
+            Current = Current->Link;
+        }
+    }
 
-		/* Did we find it? */
-		if (mThread->SleepResource == Resource)
-		{
-			SleepMatch = i;
-			break;
-		}
+	// If found, remove from queue and queue
+	if (Current != NULL) {
+        Current->Sleep.Timeout = 0;
+        Current->Sleep.Handle = NULL;
+        Current->Sleep.TimeLeft = 0;
+        SchedulerThreadQueue(Current);
+		return OsSuccess;
 	}
-
-	/* Sanity */
-	if (SleepMatch != NULL)
-	{
-		/* Cast data */
-		MCoreThread_t *mThread = (MCoreThread_t*)SleepMatch->Data;
-		
-		/* Cleanup */
-		ListRemoveByNode(IoQueue, SleepMatch);
-		ListAppend(GlbSchedulerNodeRecycler, SleepMatch);
-
-		/* Grant it top priority */
-		mThread->Queue = -1;
-		mThread->SleepResource = NULL;
-
-		/* Rearm thread */
-		SchedulerReadyThread(mThread);
-
-		/* Done! */
-		return 1;
-	}
-	else
-		return 0;
+	else {
+        return OsError;
+    }
 }
 
-/* These two functions either wakes one or all threads
- * waiting for a resource. */
-void SchedulerWakeupAllThreads(uintptr_t *Resource)
+/* SchedulerThreadWakeAll
+ * Finds any sleeping threads on the given handle and wakes them. */
+void
+SchedulerThreadWakeAll(
+    _In_ uintptr_t *Resource)
 {
-	/* Just keep iterating till no more sleep-matches */
-	while (1)
-	{
-		/* Break out on a zero */
-		if (!SchedulerWakeupOneThread(Resource))
-			break;
+	while (1) {
+		if (SchedulerThreadWake(Resource) == OsError) {
+            break;
+        }
 	}
 }
 
-/* Schedule 
+/* SchedulerTick
+ * Iterates the io-queue and handle any threads that will timeout
+ * on the tick. */
+void
+SchedulerTick(
+    _In_ size_t Milliseconds)
+{
+	// Variables
+	MCoreThread_t *Current = NULL;
+
+	// Sanitize the io-queue
+	if (IoQueue.Head == NULL) {
+        return;
+    }
+
+    // Iterate the queue
+    Current = IoQueue.Head;
+    while (Current) {
+        if (Current->Sleep.TimeLeft != 0) {
+            Current->Sleep.TimeLeft -= MIN(Milliseconds, mThread->Sleep);
+            if (Current->Sleep.TimeLeft == 0) {
+                MCoreThread_t *Next = Current->Link;
+                if (Current->Sleep.Handle != NULL) {
+                    Current->Sleep.Timeout = 1;
+                }
+                SchedulerQueueRemove(&IoQueue, Current);
+                SchedulerThreadQueue(Current);
+                Current = Next;
+            }
+            else {
+                Current = Current->Link;
+            }
+        }
+        else {
+            Current = Current->Link;
+        }
+    }
+}
+
+/* SchedulerThreadSchedule 
  * This should be called by the underlying archteicture code
  * to get the next thread that is to be run. */
-MCoreThread_t *SchedulerGetNextTask(UUId_t Cpu, MCoreThread_t *Thread, int PreEmptive)
+MCoreThread_t*
+SchedulerThreadSchedule(
+    _In_ UUId_t Cpu,
+    _In_ MCoreThread_t *Thread,
+    _In_ int Preemptive)
 {
-	/* Variables */
-	ListNode_t *NextThreadNode = NULL;
-	size_t TimeSlice;
-	int i;
+    // Variables
+    Scheduler_t *Scheduler      = NULL;
+	MCoreThread_t *NextThread   = NULL;
+	size_t TimeSlice            = 0;
+	int i                       = 0;
 
-	/* Sanity */
-	if (GlbSchedulerEnabled != 1 || GlbSchedulers[Cpu] == NULL)
-		return Thread;
+	// Sanitize the scheduler status
+    if (SchedulerInitialized != 1 
+        || Schedulers[Cpu] == NULL) {
+        return Thread;
+    }
 
-	/* Get the time delta */
-	if (Thread != NULL)
-	{
-		/* Get time-slice */
+    // Instantiate pointers
+    Scheduler = Schedulers[Cpu];
+
+	// Handle the scheduled thread first
+	if (Thread != NULL) {
 		TimeSlice = Thread->TimeSlice;
 
-		/* Increase its priority */
-		if (PreEmptive != 0
-			&& Thread->Queue < MCORE_SYSTEM_QUEUE) /* Must be below 60, 60 is highest normal queue */
-		{
-			/* Reduce priority */
-			Thread->Queue++;
-
-			/* Recalculate time-slice */
-			Thread->TimeSlice = (Thread->Queue * 2) + MCORE_INITIAL_TIMESLICE;
+		// Did it yield itself?
+		if (Preemptive != 0) {
+            if (Thread->Queue < (SCHEDULER_LEVEL_CRITICAL - 1)) {
+                Thread->Queue++;
+                Thread->TimeSlice = (Thread->Queue * 2) 
+                    + SCHEDULER_TIMESLICE_INITIAL;
+            }
 		}
-
-		/* Schedule */
-		SchedulerReadyThread(Thread);
+		SchedulerThreadQueue(Thread);
 	}
-	else
-		TimeSlice = MCORE_INITIAL_TIMESLICE;
-
-	/* Acquire Lock */
-	CriticalSectionEnter(&GlbSchedulers[Cpu]->Lock);
-
-	/* Append time-slice to current boost-watch */
-	GlbSchedulers[Cpu]->BoostTimer += TimeSlice;
-
-	/* Time for a turbo boost? :O */
-	if (GlbSchedulers[Cpu]->BoostTimer >= MCORE_SCHEDULER_BOOST_MS)
-	{
-		/* Boost! */
-		SchedulerBoost(GlbSchedulers[Cpu]);
-
-		/* Reset to 0 */
-		GlbSchedulers[Cpu]->BoostTimer = 0;
-	}
-
-	/* Step 4. Get next node */
-	for (i = 0; i < MCORE_SCHEDULER_LEVELS; i++)
-	{
-		/* Do we even have any nodes in here ? */
-		if (ListLength(GlbSchedulers[Cpu]->Queues[i]) > 0)
-		{
-			/* FIFO algorithm in queues */
-			NextThreadNode = ListPopFront(GlbSchedulers[Cpu]->Queues[i]);
-
-			/* Sanity */
-			if (NextThreadNode != NULL)
-				break;
-		}
-	}
-
-	/* Release Lock */
-	CriticalSectionLeave(&GlbSchedulers[Cpu]->Lock);
-
-	/* Return */
-	if (NextThreadNode == NULL)
-		return NULL;
 	else {
-		/* Save node */
-		ListAppend(GlbSchedulerNodeRecycler, NextThreadNode);
+		TimeSlice = MCORE_INITIAL_TIMESLICE;
+    }
 
-		/* Return */
-		return (MCoreThread_t*)NextThreadNode->Data;
+	// This is a locked operation
+	CriticalSectionEnter(&Scheduler->QueueLock);
+	Scheduler->BoostTimer += TimeSlice;
+	if (Scheduler->BoostTimer >= SCHEDULER_BOOST) {
+		SchedulerBoostThreads(Scheduler);
+		Scheduler->BoostTimer = 0;
+    }
+    
+    // Get next thread
+	for (i = 0; i < SCHEDULER_LEVEL_COUNT; i++) {
+		if (Scheduler->Queues[i].Head != NULL) {
+            NextThread = Scheduler->Queues[i].Head;
+            Scheduler->Queues[i].Head = NextThread->Link;
+            if (Scheduler->Queues[i].Tail == NextThread) {
+                Scheduler->Queues[i].Tail = NULL;
+            }
+		}
 	}
+    CriticalSectionLeave(&GlbSchedulers[Cpu]->Lock);
+    return NextThread;
 }

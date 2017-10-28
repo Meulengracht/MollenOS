@@ -95,7 +95,7 @@ void ThreadingEntryPoint(void)
 	Thread->Flags |= THREADING_FINISHED;
 
 	/* Yield control, with safety-catch */
-	IThreadYield();
+	ThreadingYield();
 	for (;;);
 }
 
@@ -132,7 +132,7 @@ ThreadingEntryPointUserMode(void)
 	Thread->Flags |= THREADING_TRANSITION_USERMODE;
 
 	// Yield control, with safety-catch
-	IThreadYield();
+	ThreadingYield();
 	for (;;);
 }
 
@@ -260,23 +260,11 @@ ThreadingCreateThread(
 	Thread->Function = Function;
 	Thread->Args = Arguments;
 
-	// Setup initial scheduler information
-	Thread->Queue = -1;
-	Thread->TimeSlice = MCORE_INITIAL_TIMESLICE;
-	Thread->Priority = PriorityNormal;
+    // Setup initial scheduler information
+    SchedulerThreadInitialize(Thread, Flags);
 
 	/* Create the pipe for communiciation */
 	Thread->Pipe = PipeCreate(PIPE_RPCOUT_SIZE, 0);
-
-	// Flag-Special-Case:
-	// If we are CPU bound
-	if (Flags & THREADING_CPUBOUND) {
-		Thread->CpuId = Cpu;
-		Thread->Flags |= THREADING_CPUBOUND;
-	}
-	else {
-		Thread->CpuId = 0xFF;	// Select the low bearing CPU
-	}
 
 	// Flag-Special-Case
 	// If it's NOT a kernel thread
@@ -375,7 +363,7 @@ void ThreadingExitThread(int ExitCode)
 	SchedulerWakeupAllThreads((uintptr_t*)Thread);
 
 	/* Yield control */
-	IThreadYield();
+	ThreadingYield();
 }
 
 /* ThreadingKillThread
@@ -416,10 +404,7 @@ int ThreadingJoinThread(UUId_t ThreadId)
 	/* Sanity */
 	if (Target == NULL)
 		return -1;
-
-	/* Wait... */
-	SchedulerSleepThread((uintptr_t*)Target, 0);
-	IThreadYield();
+	SchedulerThreadSleep((uintptr_t*)Target, 0);
 
 	/* When we reach this point 
 	 * the thread is scheduled for
@@ -456,7 +441,7 @@ void ThreadingEnterUserMode(void *AshInfo)
 	InterruptRestoreState(IntrState);
 
 	/* Yield control and a safe-ty catch */
-	IThreadYield();
+	ThreadingYield();
 	for (;;);
 }
 
@@ -573,16 +558,6 @@ ThreadingGetCurrentMode(void)
 	else {
 		return 0;
 	}
-}
-
-/* ThreadingWakeCpu
- * Wake's the target cpu from an idle thread
- * by sending it an yield IPI */
-void
-ThreadingWakeCpu(
-    _In_ UUId_t Cpu)
-{
-	IThreadWakeCpu(Cpu);
 }
 
 /* ThreadingReapZombies

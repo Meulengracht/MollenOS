@@ -74,7 +74,7 @@ PhoenixBootServer(
 	ThreadingEnterUserMode(Server);
 
 	// Yield and safety catch
-	IThreadYield();
+	ThreadingYield();
 	for (;;);
 }
 

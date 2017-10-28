@@ -67,13 +67,20 @@ __EXTERN void IThreadSetupUserMode(MCoreThread_t *Thread, uintptr_t StackAddress
  * specific threading operations */
 __EXTERN void IThreadDestroy(MCoreThread_t *Thread);
 
-/* IThreadWakeCpu
+/* ThreadingWakeCpu
  * Wake's the target cpu from an idle thread
  * by sending it an yield IPI */
-__EXTERN void IThreadWakeCpu(UUId_t Cpu);
+KERNELAPI
+void
+KERNELABI
+ThreadingWakeCpu(
+    _In_ UUId_t Cpu);
 
-/* IThreadYield
+/* ThreadingYield
  * Yields the current thread control to the scheduler */
-__EXTERN void IThreadYield(void);
+KERNELAPI
+void
+KERNELABI
+ThreadingYield(void);
 
 #endif //!_MCORE_SYSTHREADS_H_

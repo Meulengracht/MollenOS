@@ -59,7 +59,7 @@ static int __GlbThreadX86Initialized = 0;
  * and is controlled by software interrupts, the yield interrupt
  * also like the apic switch need to reload the apic timer as it
  * controlls the primary switch */
-InterruptStatus_t ThreadingYield(void *Args)
+InterruptStatus_t ThreadingYieldHandler(void *Args)
 {
 	/* Variables we will need for loading
 	 * a new task */
@@ -135,7 +135,7 @@ ThreadingCreateArch(
         Interrupt.Vectors[1] = INTERRUPT_NONE;
 		Interrupt.Line = INTERRUPT_NONE;
 		Interrupt.Pin = INTERRUPT_NONE;
-        Interrupt.FastHandler = ThreadingYield;
+        Interrupt.FastHandler = ThreadingYieldHandler;
         Interrupt.Handler = NULL;
 		Interrupt.Data = NULL;
         InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
@@ -186,18 +186,20 @@ void IThreadDestroy(MCoreThread_t *Thread)
 	kfree(tData);
 }
 
-/* IThreadWakeCpu
+/* ThreadingWakeCpu
  * Wake's the target cpu from an idle thread
  * by sending it an yield IPI */
-void IThreadWakeCpu(UUId_t Cpu)
+void
+ThreadingWakeCpu(
+    _In_ UUId_t Cpu)
 {
-	/* Send an IPI to the cpu */
 	ApicSendIpi(Cpu, INTERRUPT_YIELD);
 }
 
-/* IThreadYield
+/* ThreadingYield
  * Yields the current thread control to the scheduler */
-void IThreadYield(void)
+void
+ThreadingYield(void)
 {
 	_yield();
 }

@@ -87,7 +87,6 @@ typedef void(*ThreadEntry_t)(void*);
 typedef enum _MCoreThreadPriority {
     PriorityLow,
     PriorityNormal,
-    PriorityHigh,
     PriorityCritical
 } MCoreThreadPriority_t;
 
@@ -97,27 +96,30 @@ typedef enum _MCoreThreadPriority {
  * of the information here is shared in MCore */
 typedef struct _MCoreThread {
     UUId_t                           Id;
+    __CONST char                    *Name;
     UUId_t                           ParentId;
     UUId_t                           AshId;
-    UUId_t                           CpuId;
+    Flags_t                          Flags;
     
     MCorePipe_t                     *Pipe;
     AddressSpace_t                  *AddressSpace;
-    __CONST char                    *Name;
-    Flags_t                          Flags;
-    int                              RetCode;
+    void                            *ThreadData;
 
+    // Scheduler Information
+    UUId_t                           CpuId;
     MCoreThreadPriority_t            Priority;
     size_t                           TimeSlice;
     int                              Queue;
-
-    uintptr_t                       *SleepResource;
-    size_t                           Sleep;
-
-    void                            *ThreadData;
+    struct {
+        uintptr_t                   *Handle;
+        int                          Timeout;
+        size_t                       TimeLeft;
+    }                                Sleep;
+    struct _MCoreThread             *Link;
 
     ThreadEntry_t                    Function;
-    void                            *Args;
+    void                            *Arguments;
+    int                              RetCode;
 } MCoreThread_t;
 
 /* ThreadingInitialize

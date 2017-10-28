@@ -147,18 +147,14 @@ SemaphoreP(
     Semaphore_t *Semaphore,
     size_t Timeout)
 {
-    // Variables
-    MCoreThread_t *Current = ThreadingGetCurrentThread(CpuGetCurrentId());
-
 	// Decrease the value, and do the sanity check 
 	// if we should sleep for events
 	CriticalSectionEnter(&Semaphore->Lock);
 	Semaphore->Value--;
 	if (Semaphore->Value < 0) {
 		CriticalSectionLeave(&Semaphore->Lock);
-		SchedulerSleepThread((uintptr_t*)Semaphore, Timeout);
-        IThreadYield();
-        if (Timeout != 0 && Current->Sleep == 0) {
+        if (SchedulerThreadSleep((uintptr_t*)Semaphore, Timeout) 
+                == SCHEDULER_SLEEP_TIMEOUT) {
             return OsError;
         }
 	}
