@@ -134,7 +134,7 @@ KERNELAPI
 void
 KERNELABI
 SchedulerThreadWakeAll(
-    _In_ uintptr_t *Resource);
+    _In_ uintptr_t *Handle);
 
 /* SchedulerTick
  * Iterates the io-queue and handle any threads that will timeout

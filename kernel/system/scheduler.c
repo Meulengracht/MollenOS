@@ -343,12 +343,13 @@ SchedulerThreadWake(
 	MCoreThread_t *Current = NULL;
 
 	// Sanitize the io-queue
-	if (IoQueue.Head == NULL) {
+	if (IoQueue.Head == NULL || Handle == NULL) {
         return OsError;
     }
 
     // Debug
-    TRACE("SchedulerThreadWake()");
+    TRACE("SchedulerThreadWake(Handle 0x%x, IoQueue Head 0x%x)", 
+        Handle, IoQueue.Head);
 
     // Iterate the queue
     Current = IoQueue.Head;
@@ -379,10 +380,11 @@ SchedulerThreadWake(
  * Finds any sleeping threads on the given handle and wakes them. */
 void
 SchedulerThreadWakeAll(
-    _In_ uintptr_t *Resource)
+    _In_ uintptr_t *Handle)
 {
+    TRACE("SchedulerThreadWakeAll(Handle 0x%x)", Handle);    
 	while (1) {
-		if (SchedulerThreadWake(Resource) == OsError) {
+		if (SchedulerThreadWake(Handle) == OsError) {
             break;
         }
 	}
@@ -487,8 +489,6 @@ SchedulerThreadSchedule(
     // Get next thread
 	for (i = 0; i < SCHEDULER_LEVEL_COUNT; i++) {
 		if (Scheduler->Queues[i].Head != NULL) {
-            TRACE("Next thread %u found in queue %i", 
-                Scheduler->Queues[i].Head->Id, i);
             NextThread = Scheduler->Queues[i].Head;
             NextThread->Queue = i;
             NextThread->TimeSlice = (i * 2) + SCHEDULER_TIMESLICE_INITIAL;
