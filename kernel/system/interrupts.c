@@ -303,7 +303,9 @@ InterruptQueueHandler(
     _In_Opt_ void *Argument)
 {
     // Variables
-    MCoreInterruptDescriptor_t Interrupt;
+	MCoreInterruptDescriptor_t Interrupt;
+	
+	TRACE("InterruptQueueHandler()");
 
     // Continous handling
     while (1) {

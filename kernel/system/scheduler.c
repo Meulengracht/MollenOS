@@ -110,11 +110,10 @@ SchedulerQueueRemove(
 {
     // Variables
     MCoreThread_t   *Current = Queue->Head,
-                    *Previous = Queue->Head;
+                    *Previous = NULL;
 
     // Find the remove-target and unlink
     while (Current) {
-        TRACE("Thread %u found in queue", Current->Id);
         if (Current == Thread) {
             // Two cases, previous is NULL, or not
             if (Previous == NULL) {
@@ -135,7 +134,6 @@ SchedulerQueueRemove(
             }
 
             // Done
-            TRACE("Thread %u removed from queue", Thread->Id);
             Current->Link = NULL;
             return;
         }
@@ -273,8 +271,8 @@ SchedulerThreadDequeue(
     }
 
     // Debug
-    TRACE("SchedulerThreadDequeue(Thread %u, Queue %u)",
-        Thread->Id, Thread->Queue);
+    TRACE("SchedulerThreadDequeue(Cpu %u, Thread %u, Queue %u)",
+        Thread->CpuId, Thread->Id, Thread->Queue);
 
     // Instantiate variables
     Scheduler = Schedulers[Thread->CpuId];
@@ -452,6 +450,10 @@ SchedulerThreadSchedule(
         || Schedulers[Cpu] == NULL) {
         return Thread;
     }
+
+    // Debug
+    TRACE("SchedulerThreadSchedule(Cpu %u, Thread 0x%x, Preemptive %i)", 
+        Cpu, Thread, Preemptive);
 
     // Instantiate pointers
     Scheduler = Schedulers[Cpu];

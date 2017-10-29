@@ -77,24 +77,25 @@ void ThreadingUpdateCurrent(UUId_t Cpu, ListNode_t *Node) {
 /* ThreadingEntryPoint
  * Initializes and handles finish of the thread
  * all threads should use this entry point. No Return */
-void ThreadingEntryPoint(void)
+void
+ThreadingEntryPoint(void)
 {
-	/* Variables for setup */
-	MCoreThread_t *Thread = NULL;
-	UUId_t Cpu = 0;
+	// Variables
+	MCoreThread_t *Thread 	= NULL;
+	UUId_t Cpu 				= 0;
 
-	/* Retrieve the current cpu and
-	 * get the current thread */
+	// Debug
+	TRACE("ThreadingEntryPoint()");
+
+	// Initiate values
 	Cpu = CpuGetCurrentId();
 	Thread = ThreadingGetCurrentThread(Cpu);
 
-	/* We don't need further init, run the thread */
+	// Call the threads entry point
 	Thread->Function(Thread->Arguments);
 
-	/* IF WE REACH THIS POINT THREAD IS DONE! */
+	// When we reach here thread is dones
 	Thread->Flags |= THREADING_FINISHED;
-
-	/* Yield control, with safety-catch */
 	ThreadingYield();
 	for (;;);
 }
