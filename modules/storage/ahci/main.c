@@ -41,40 +41,6 @@
  * State-tracking variables */
 static List_t *GlbControllers = NULL;
 
-/* ProcessInterrupt
- * Is invoked if OnFastInterrupt returned Handled. This is to actually
- * process the device interrupt */
-InterruptStatus_t
-ProcessInterrupt(
-    _In_Opt_ void *InterruptData)
-{
-    // Variables
-	AhciController_t *Controller = NULL;
-	reg32_t InterruptStatus;
-    int i;
-
-	// Instantiate the pointer
-	Controller = (AhciController_t*)InterruptData;
-    InterruptStatus = Controller->InterruptStatus;
-    Controller->InterruptStatus = 0;
-
-HandleInterrupt:
-    // Iterate the port-map and check if the interrupt
-	// came from that port
-	for (i = 0; i < 32; i++) {
-		if (Controller->Ports[i] != NULL
-			&& ((InterruptStatus & (1 << i)) != 0)) {
-			AhciPortInterruptHandler(Controller, Controller->Ports[i]);
-		}
-    }
-    
-    // Re-handle?
-    if (Controller->InterruptStatus != 0) {
-        goto HandleInterrupt;
-    }
-	return InterruptHandled;
-}
-
 /* OnFastInterrupt
  * Is called for the sole purpose to determine if this source
  * has invoked an irq. If it has, silence and return (Handled) */
@@ -106,7 +72,7 @@ OnFastInterrupt(
 
 /* OnInterrupt
  * Is called by external services to indicate an external interrupt.
- * Not used by physical interrupts, but instead user-defined ones. */
+ * This is to actually process the device interrupt */
 InterruptStatus_t 
 OnInterrupt(
     _In_Opt_ void *InterruptData,
@@ -114,10 +80,35 @@ OnInterrupt(
     _In_Opt_ size_t Arg1,
     _In_Opt_ size_t Arg2)
 {
-    _CRT_UNUSED(InterruptData);
+    // Variables
+	AhciController_t *Controller = NULL;
+	reg32_t InterruptStatus;
+    int i;
+
+    // Unused
     _CRT_UNUSED(Arg0);
     _CRT_UNUSED(Arg1);
-	_CRT_UNUSED(Arg2);
+    _CRT_UNUSED(Arg2);
+
+	// Instantiate the pointer
+	Controller = (AhciController_t*)InterruptData;
+    InterruptStatus = Controller->InterruptStatus;
+    Controller->InterruptStatus = 0;
+
+HandleInterrupt:
+    // Iterate the port-map and check if the interrupt
+	// came from that port
+	for (i = 0; i < 32; i++) {
+		if (Controller->Ports[i] != NULL
+			&& ((InterruptStatus & (1 << i)) != 0)) {
+			AhciPortInterruptHandler(Controller, Controller->Ports[i]);
+		}
+    }
+    
+    // Re-handle?
+    if (Controller->InterruptStatus != 0) {
+        goto HandleInterrupt;
+    }
 	return InterruptHandled;
 }
 

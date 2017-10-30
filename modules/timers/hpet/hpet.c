@@ -197,7 +197,6 @@ HpComparatorStart(
 		// Set handler and data
 		Interrupt.Data = Controller;
         Interrupt.FastHandler = OnFastInterrupt;
-        Interrupt.Handler = NULL;
 
 		// From the interrupt map, calculate possible int's
 		for (i = 0, j = 0; i < 32; i++) {

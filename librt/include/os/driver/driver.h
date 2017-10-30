@@ -80,7 +80,7 @@ OnUnregister(
 
 /* OnInterrupt
  * Is called by external services to indicate an external interrupt.
- * Not used by physical interrupts, but instead user-defined ones. */
+ * This is to actually process the device interrupt */
 __EXTERN 
 InterruptStatus_t 
 OnInterrupt(
@@ -117,9 +117,7 @@ OnQuery(
 #endif
 
 /* InterruptDriver
- * Call this to send an interrupt into user-space
- * the driver must acknowledge the interrupt once its handled
- * to unmask the interrupt-line again */
+ * Call this to send an interrupt into user-space */
 SERVICEAPI
 OsStatus_t
 SERVICEABI

@@ -99,12 +99,10 @@ void _mDrvCrt(void)
 					OnUnregister((MCoreDevice_t*)Message.Arguments[0].Data.Buffer);
 				} break;
 				case __DRIVER_INTERRUPT: {
-                    if (OnInterrupt((void*)Message.Arguments[1].Data.Value,
-                                    Message.Arguments[2].Data.Value,
-                                    Message.Arguments[3].Data.Value,
-                                    Message.Arguments[4].Data.Value) == InterruptHandled) {
-						AcknowledgeInterrupt((UUId_t)Message.Arguments[0].Data.Value);
-					}
+                    OnInterrupt((void*)Message.Arguments[1].Data.Value,
+                        Message.Arguments[2].Data.Value,
+                        Message.Arguments[3].Data.Value,
+                        Message.Arguments[4].Data.Value);
 				} break;
 				case __DRIVER_TIMEOUT: {
 					OnTimeout((UUId_t)Message.Arguments[0].Data.Value,

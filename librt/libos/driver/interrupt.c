@@ -47,20 +47,6 @@ UUId_t RegisterInterruptSource(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 		SYSCALL_PARAM(Flags));
 }
 
-/* AcknowledgeInterrupt 
- * Acknowledges an interrupt and allows the interrupt
- * to occur from that device again */
-OsStatus_t AcknowledgeInterrupt(UUId_t Source)
-{
-	/* Validate parameters */
-	if (Source == UUID_INVALID) {
-		return OsError;
-	}
-
-	/* Redirect to system call */
-	return (OsStatus_t)Syscall1(SYSCALL_ACKNOWLEDGEIRQ, SYSCALL_PARAM(Source));
-}
-
 /* UnregisterInterruptSource 
  * Unallocates the given interrupt source and disables
  * all events of OnInterrupt */

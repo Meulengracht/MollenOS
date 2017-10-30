@@ -1,93 +1,125 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS Synchronization
-* Mutexes
-*/
+ *
+ * Copyright 2011 - 2018, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - Mutex Synchronization Primitve
+ */
 
-/* Includes */
+/* Includes 
+ * - System */
 #include <system/thread.h>
-#include <mutex.h>
 #include <scheduler.h>
+#include <mutex.h>
 #include <heap.h>
+
+/* Includes
+ * - Library */
+#include <stddef.h>
 #include <assert.h>
 
-/* Allocates and initializes a mutex */
-Mutex_t *MutexCreate(void)
+/* MutexCreate
+ * Allocates a new mutex and initializes it to default values. */
+Mutex_t*
+MutexCreate(void)
 {
-	/* Allocate */
-	Mutex_t* Mutex = kmalloc(sizeof(Mutex_t));
-	
-	/* Init */
-	MutexConstruct(Mutex);
+    // Allocate a new instance
+    Mutex_t* Mutex = (Mutex_t*)kmalloc(sizeof(Mutex_t));
+    if (Mutex == NULL) {
+        return NULL;
+    }
 
-	/* Done */
+    // Initialize it and return
+	MutexConstruct(Mutex);
 	return Mutex;
 }
 
-/* Resets a mutex */
-void MutexConstruct(Mutex_t *Mutex)
+/* MutexConstruct
+ * Initializes an already allocated mutex-resource. */
+void
+MutexConstruct(
+    _In_ Mutex_t *Mutex)
 {
-	/* Reset */
+    // Initialize members
 	Mutex->Blocker = 0;
 	Mutex->Blocks = 0;
 }
 
-/* Destroys a mutex */
-void MutexDestruct(Mutex_t *Mutex)
+/* MutexDestroy
+ * Wakes up all sleepers on the mutex and frees resources. */
+void
+MutexDestroy(
+    _In_ Mutex_t *Mutex)
 {
-	/* Wake all remaining tasks waiting for this mutex */
 	SchedulerThreadWakeAll((uintptr_t*)Mutex);
 	kfree(Mutex);
 }
 
-/* Get lock of mutex */
-int MutexLock(Mutex_t *Mutex)
+/* MutexTryLock
+ * Tries to acquire the mutex-lock within the time-out value. */
+OsStatus_t
+MutexTryLock(
+    _In_ Mutex_t *Mutex,
+    _In_ size_t Timeout)
 {
-	/* If this thread already holds the mutex, increase ref count */
+	// Mutexes are inherintly re-entrant, so check.
 	if (Mutex->Blocks != 0 
-		&& Mutex->Blocker == ThreadingGetCurrentThreadId())
-	{
+		&& Mutex->Blocker == ThreadingGetCurrentThreadId()) {
 		Mutex->Blocks++;
-		return 0;
+		return OsSuccess;
 	}
 
-	/* Wait for mutex to become free */
+	// Try to acquire the mutex.
 	while (Mutex->Blocks != 0) {
-		SchedulerThreadSleep((uintptr_t*)Mutex, MUTEX_DEFAULT_TIMEOUT);
+        if (SchedulerThreadSleep((uintptr_t*)Mutex, Timeout)
+            == SCHEDULER_SLEEP_TIMEOUT) {
+            return OsError;
+        }
 	}
 
-	/* Initialize */
+	// We own the mutex now!
 	Mutex->Blocks = 1;
 	Mutex->Blocker = ThreadingGetCurrentThreadId();
-	return 0;
+	return OsSuccess;
 }
 
-/* Release lock of mutex */
-void MutexUnlock(Mutex_t *Mutex)
+/* MutexLock
+ * Waits indefinitely for the mutex lock. */
+OsStatus_t
+MutexLock(
+    _In_ Mutex_t *Mutex)
 {
-	/* Sanity */
-	assert(Mutex->Blocks > 0);
+    // Run with infinite timouet
+    return MutexTryLock(Mutex, 0);
+}
 
-	/* Release one lock */
+/* MutexUnlock
+ * Unlocks the mutex, by reducing lock-count by one. */
+void
+MutexUnlock(
+    _In_ Mutex_t *Mutex)
+{
+    // Sanitize the state first.
+    assert(Mutex != NULL);
+    assert(Mutex->Blocks > 0);
+    assert(Mutex->Blocker == ThreadingGetCurrentThreadId());
+
+    // Reduce and wake people up
 	Mutex->Blocks--;
-
-	/* Are we done? */
-	if (Mutex->Blocks == 0)
+	if (Mutex->Blocks == 0) {
 		SchedulerThreadWake((uintptr_t*)Mutex);
+    }
 }

@@ -136,7 +136,6 @@ ThreadingCreateArch(
 		Interrupt.Line = INTERRUPT_NONE;
 		Interrupt.Pin = INTERRUPT_NONE;
         Interrupt.FastHandler = ThreadingYieldHandler;
-        Interrupt.Handler = NULL;
 		Interrupt.Data = NULL;
         InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
             | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);

@@ -155,6 +155,7 @@ SemaphoreP(
 		CriticalSectionLeave(&Semaphore->Lock);
         if (SchedulerThreadSleep((uintptr_t*)Semaphore, Timeout) 
                 == SCHEDULER_SLEEP_TIMEOUT) {
+            Semaphore->Value++;
             return OsError;
         }
 	}

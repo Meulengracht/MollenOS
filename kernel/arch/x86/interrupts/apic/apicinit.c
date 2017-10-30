@@ -483,7 +483,6 @@ void ApicInitBoot(void)
 	ApicInitialSetup(BspApicId);
 
     // Prepare some irq information
-    IrqInformation.Handler = NULL;
 	IrqInformation.Data = NULL;
 	IrqInformation.Line = INTERRUPT_NONE;
     IrqInformation.Pin = INTERRUPT_NONE;

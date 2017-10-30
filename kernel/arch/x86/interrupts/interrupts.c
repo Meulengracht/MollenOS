@@ -22,7 +22,7 @@
  *
  * - ISA Interrupts should be routed to boot-processor without lowest-prio?
  */
-#define __MODULE		"IRQS"
+#define __MODULE        "IRQS"
 #define __TRACE
 
 /* Includes 
@@ -35,7 +35,6 @@
 #include <interrupts.h>
 #include <threading.h>
 #include <memory.h>
-#include <timers.h>
 #include <thread.h>
 #include <debug.h>
 #include <heap.h>
@@ -50,8 +49,8 @@
 #include <stdio.h>
 
 /* Internal definitons and helper contants */
-#define EFLAGS_INTERRUPT_FLAG		(1 << 9)
-#define APIC_FLAGS_DEFAULT			0x7F00000000000000
+#define EFLAGS_INTERRUPT_FLAG        (1 << 9)
+#define APIC_FLAGS_DEFAULT            0x7F00000000000000
 
 /* Externs 
  * Extern assembly functions */
@@ -75,74 +74,74 @@ uint64_t
 InterruptGetApicConfiguration(
     _In_ MCoreInterrupt_t *Interrupt)
 {
-	// Variables
-	uint64_t ApicFlags = APIC_FLAGS_DEFAULT;
-	
-	// Trace
-	TRACE("InterruptDetermine()");
+    // Variables
+    uint64_t ApicFlags = APIC_FLAGS_DEFAULT;
+    
+    // Trace
+    TRACE("InterruptDetermine()");
 
-	// Case 1 - ISA Interrupts 
-	// - In most cases are Edge-Triggered, Active-High
-	if (Interrupt->Line < NUM_ISA_INTERRUPTS
-		&& Interrupt->Pin == INTERRUPT_NONE) {
+    // Case 1 - ISA Interrupts 
+    // - In most cases are Edge-Triggered, Active-High
+    if (Interrupt->Line < NUM_ISA_INTERRUPTS
+        && Interrupt->Pin == INTERRUPT_NONE) {
         int Enabled, LevelTriggered;
         PicGetConfiguration(Interrupt->Line, &Enabled, &LevelTriggered);
-		ApicFlags |= 0x100;					// Lowest Priority
-		ApicFlags |= 0x800;					// Logical Destination Mode
+        ApicFlags |= 0x100;                    // Lowest Priority
+        ApicFlags |= 0x800;                    // Logical Destination Mode
         if (LevelTriggered == 1) {
             TRACE(" - ISA Peripheral Interrupt (Active-Low, Level-Triggered)");
-            ApicFlags |= APIC_ACTIVE_LOW;			// Set Polarity
-            ApicFlags |= APIC_LEVEL_TRIGGER;		// Set Trigger Mode
+            ApicFlags |= APIC_ACTIVE_LOW;            // Set Polarity
+            ApicFlags |= APIC_LEVEL_TRIGGER;        // Set Trigger Mode
         }
         else {
             TRACE(" - ISA Interrupt (Active-High, Edge-Triggered)");
         }
-	}
-	
-	// Case 2 - PCI Interrupts (No-Pin) 
-	// - Must be Level Triggered Low-Active
-	else if (Interrupt->Line >= NUM_ISA_INTERRUPTS
-		    && Interrupt->Pin == INTERRUPT_NONE) {
-		TRACE(" - PCI Interrupt (Active-Low, Level-Triggered)");
-		ApicFlags |= 0x100;						// Lowest Priority
-		ApicFlags |= 0x800;						// Logical Destination Mode
-		ApicFlags |= APIC_ACTIVE_LOW;			// Set Polarity
-		ApicFlags |= APIC_LEVEL_TRIGGER;		// Set Trigger Mode
-	}
+    }
+    
+    // Case 2 - PCI Interrupts (No-Pin) 
+    // - Must be Level Triggered Low-Active
+    else if (Interrupt->Line >= NUM_ISA_INTERRUPTS
+            && Interrupt->Pin == INTERRUPT_NONE) {
+        TRACE(" - PCI Interrupt (Active-Low, Level-Triggered)");
+        ApicFlags |= 0x100;                        // Lowest Priority
+        ApicFlags |= 0x800;                        // Logical Destination Mode
+        ApicFlags |= APIC_ACTIVE_LOW;            // Set Polarity
+        ApicFlags |= APIC_LEVEL_TRIGGER;        // Set Trigger Mode
+    }
 
-	// Case 3 - PCI Interrupts (Pin) 
-	// - Usually Level Triggered Low-Active
-	else if (Interrupt->Pin != INTERRUPT_NONE) {
-		// If no routing exists use the pci interrupt line
-		if (!(Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_PRESENT)) {
-			TRACE(" - PCI Interrupt (Active-Low, Level-Triggered)");
-			ApicFlags |= 0x100;					// Lowest Priority
-			ApicFlags |= 0x800;					// Logical Destination Mode
-		}
-		else {
-			TRACE(" - PCI Interrupt (Pin-Configured - 0x%x)", Interrupt->AcpiConform);
-			ApicFlags |= 0x100;					// Lowest Priority
-			ApicFlags |= 0x800;					// Logical Destination Mode
+    // Case 3 - PCI Interrupts (Pin) 
+    // - Usually Level Triggered Low-Active
+    else if (Interrupt->Pin != INTERRUPT_NONE) {
+        // If no routing exists use the pci interrupt line
+        if (!(Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_PRESENT)) {
+            TRACE(" - PCI Interrupt (Active-Low, Level-Triggered)");
+            ApicFlags |= 0x100;                    // Lowest Priority
+            ApicFlags |= 0x800;                    // Logical Destination Mode
+        }
+        else {
+            TRACE(" - PCI Interrupt (Pin-Configured - 0x%x)", Interrupt->AcpiConform);
+            ApicFlags |= 0x100;                    // Lowest Priority
+            ApicFlags |= 0x800;                    // Logical Destination Mode
 
-			// Both trigger and polarity is either fixed or set by the
-			// information we extracted earlier
-			if (Interrupt->Line >= NUM_ISA_INTERRUPTS) {
-				ApicFlags |= APIC_ACTIVE_LOW;
-				ApicFlags |= APIC_LEVEL_TRIGGER;
-			}
-			else {
-				if (Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE) {
-					ApicFlags |= APIC_LEVEL_TRIGGER;
-				}
-				if (Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_POLARITY) {
-					ApicFlags |= APIC_ACTIVE_LOW;
-				}
-			}
-		}
-	}
+            // Both trigger and polarity is either fixed or set by the
+            // information we extracted earlier
+            if (Interrupt->Line >= NUM_ISA_INTERRUPTS) {
+                ApicFlags |= APIC_ACTIVE_LOW;
+                ApicFlags |= APIC_LEVEL_TRIGGER;
+            }
+            else {
+                if (Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE) {
+                    ApicFlags |= APIC_LEVEL_TRIGGER;
+                }
+                if (Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_POLARITY) {
+                    ApicFlags |= APIC_ACTIVE_LOW;
+                }
+            }
+        }
+    }
 
-	// Done
-	return ApicFlags;
+    // Done
+    return ApicFlags;
 }
 
 /* InterruptResolve 
@@ -200,30 +199,30 @@ InterruptResolve(
     }
 
     // 2 Resolve the table index
-	if (Flags & INTERRUPT_MSI) {
-		*TableIndex = (INTERRUPT_PHYSICAL_BASE + (UUId_t)Interrupt->Line);
+    if (Flags & INTERRUPT_MSI) {
+        *TableIndex = (INTERRUPT_PHYSICAL_BASE + (UUId_t)Interrupt->Line);
 
-		// Fill in MSI data
-		// MSI Message Address Register (0xFEE00000 LAPIC)
-		// Bits 31-20: Must be 0xFEE
-		// Bits 19-11: Destination ID
-		// Bits 11-04: Reserved
-		// Bit      3: 0 = Destination is ONE CPU, 1 = Destination is Group
-		// Bit      2: Destination Mode (1 Logical, 0 Physical)
-		// Bits 00-01: X
-		Interrupt->MsiAddress = 0xFEE00000 | (0x0007F0000) 
-			| (0x8 | 0x4);
+        // Fill in MSI data
+        // MSI Message Address Register (0xFEE00000 LAPIC)
+        // Bits 31-20: Must be 0xFEE
+        // Bits 19-11: Destination ID
+        // Bits 11-04: Reserved
+        // Bit      3: 0 = Destination is ONE CPU, 1 = Destination is Group
+        // Bit      2: Destination Mode (1 Logical, 0 Physical)
+        // Bits 00-01: X
+        Interrupt->MsiAddress = 0xFEE00000 | (0x0007F0000) 
+            | (0x8 | 0x4);
 
-		// Message Data Register Format
-		// Bits 31-16: Reserved
-		// Bit     15: Trigger Mode (1 Level, 0 Edge)
-		// Bit     14: If edge, this is not used, if level, 1 = Assert, 0 = Deassert
-		// Bits 13-11: Reserved
-		// Bits 10-08: Delivery Mode, standard
-		// Bits 07-00: Vector
-		Interrupt->MsiValue = (0x100 | (*TableIndex & 0xFF));
-	}
-	else {
+        // Message Data Register Format
+        // Bits 31-16: Reserved
+        // Bit     15: Trigger Mode (1 Level, 0 Edge)
+        // Bit     14: If edge, this is not used, if level, 1 = Assert, 0 = Deassert
+        // Bits 13-11: Reserved
+        // Bits 10-08: Delivery Mode, standard
+        // Bits 07-00: Vector
+        Interrupt->MsiValue = (0x100 | (*TableIndex & 0xFF));
+    }
+    else {
         // Driver/kernel interrupt
         if (Flags & INTERRUPT_SOFT) {
             if (Flags & INTERRUPT_VECTOR) {
@@ -250,14 +249,14 @@ InterruptConfigure(
 {
     // Variables
     uint64_t ApicFlags      = APIC_FLAGS_DEFAULT;
-	IoApic_t *IoApic        = NULL;
+    IoApic_t *IoApic        = NULL;
     UUId_t TableIndex       = 0;
     union {
-		struct {
-			uint32_t Lo;
-			uint32_t Hi;
-		} Parts;
-		uint64_t Full;
+        struct {
+            uint32_t Lo;
+            uint32_t Hi;
+        } Parts;
+        uint64_t Full;
     } ApicExisting;
     
     // Debug
@@ -281,43 +280,43 @@ InterruptConfigure(
 
     // If this is an (E)ISA interrupt make sure it's configured
     // properly in the PIC/ELCR
-	if (Descriptor->Source < NUM_ISA_INTERRUPTS) {
+    if (Descriptor->Source < NUM_ISA_INTERRUPTS) {
         // ISA Interrupts can be level triggered
         // so make sure we configure it for level triggering
         if (ApicFlags & APIC_LEVEL_TRIGGER) {
             PicConfigureLine(Descriptor->Source, 0, 1);
         }
-	}
+    }
 
-	// Get correct Io Apic
-	IoApic = ApicGetIoFromGsi(Descriptor->Source);
+    // Get correct Io Apic
+    IoApic = ApicGetIoFromGsi(Descriptor->Source);
 
-	// If Apic Entry is located, we need to adjust
-	if (IoApic != NULL) {
-		ApicExisting.Full = ApicReadIoEntry(IoApic, Descriptor->Source);
+    // If Apic Entry is located, we need to adjust
+    if (IoApic != NULL) {
+        ApicExisting.Full = ApicReadIoEntry(IoApic, Descriptor->Source);
 
-		// Sanity, we can't just override the existing interrupt vector
-		// so if it's already installed, we modify the table-index
-		if (!(ApicExisting.Parts.Lo & APIC_MASKED)) {
+        // Sanity, we can't just override the existing interrupt vector
+        // so if it's already installed, we modify the table-index
+        if (!(ApicExisting.Parts.Lo & APIC_MASKED)) {
             UUId_t ExistingIndex = LOBYTE(LOWORD(ApicExisting.Parts.Lo));
             if (ExistingIndex != TableIndex) {
                 FATAL(FATAL_SCOPE_KERNEL, 
                     "Table index for already installed interrupt: %u", 
-				    TableIndex);
+                    TableIndex);
             }
-		}
-		else {
+        }
+        else {
             // Unmask the irq in the io-apic
             TRACE("Installing source %i => 0x%x", Descriptor->Source, LODWORD(ApicFlags));
-			ApicWriteIoEntry(IoApic, Descriptor->Source, ApicFlags);
-		}
-	}
-	else {
-		ERROR("Failed to derive io-apic for source %i", Descriptor->Source);
+            ApicWriteIoEntry(IoApic, Descriptor->Source, ApicFlags);
+        }
+    }
+    else {
+        ERROR("Failed to derive io-apic for source %i", Descriptor->Source);
     }
 
     // Done
-	return OsSuccess;
+    return OsSuccess;
 }
 
 /* InterruptEntry
@@ -329,90 +328,21 @@ InterruptEntry(
     _In_ Context_t *Registers)
 {
     // Variables
-    MCoreThread_t *Current = NULL, *Target = NULL, *Source = NULL;
-	MCoreInterruptDescriptor_t *Entry = NULL;
-	InterruptStatus_t Result = InterruptNotHandled;
-	int TableIndex = (int)Registers->Irq + 32;
+    InterruptStatus_t Result = InterruptNotHandled;
+    int TableIndex = (int)Registers->Irq + 32;
     int Gsi = APIC_NO_GSI;
 
-    // Update current status
-    InterruptSetActiveStatus(1);
-    
-    // Initiate values
-    Source = Current = ThreadingGetCurrentThread(ApicGetCpu());
+    // Call kernel method
+    Result = InterruptHandle(Registers, TableIndex, &Gsi);
 
-	// Iterate handlers in that table index
-    Entry = InterruptGetIndex(TableIndex);
-    if (Entry != NULL) {
-        Gsi = Entry->Source;
-    }
-
-	while (Entry != NULL) {
-        if (Entry->Flags & INTERRUPT_KERNEL) {
-			if (Entry->Flags & INTERRUPT_CONTEXT) {
-				Result = Entry->Interrupt.FastHandler((void*)Registers);
-			}
-			else {
-				Result = Entry->Interrupt.FastHandler(Entry->Interrupt.Data);
-			}
-
-			// If it was handled we can break
-			// early as there is no need to check rest
-			if (Result == InterruptHandled) {
-				break;
-			}
-        }
-        else {
-			Target = ThreadingGetThread(Entry->Thread);
-
-			// Impersonate the target thread
-			// and call the fast handler
-			if (Current->AddressSpace != Target->AddressSpace) {
-                Current = Target;
-                ThreadingImpersonate(Target);
-            }
-            Result = Entry->Interrupt.FastHandler(Entry->Interrupt.Data);
-
-			// If it was handled
-            // - Restore original context
-            // - Register interrupt, might be a system timer
-            // - Queue the processing handler if any
-			if (Result == InterruptHandled) {
-                if (Source->AddressSpace != Current->AddressSpace) {
-                    ThreadingImpersonate(Source);
-                }
-                TimersInterrupt(Entry->Id);
-                
-                // Add to interrupt queue if there is a handler
-                if (Entry->Interrupt.Handler != NULL) {
-                    if (InterruptQueue(Entry) != OsSuccess) {
-                        FATAL(FATAL_SCOPE_KERNEL, "Failed to queue up interrupt for handling");
-                    }
-                }
-				break;
-			}
-		}
-
-		// Move on to next entry
-		Entry = Entry->Link;
-	}
-
-    // Update current status
-    InterruptSetActiveStatus(0);
-
-	// Sanitize the result of the
-	// irq-handling - all irqs must be handled
-	if (Result != InterruptHandled) {
+    // Sanitize the result of the
+    // irq-handling - all irqs must be handled
+    if (Result != InterruptHandled) {
         // Unhandled interrupts are only ok if spurious
         // LAPIC, Interrupt 7 and 15
-        if (TableIndex == INTERRUPT_SPURIOUS
-            || TableIndex == (INTERRUPT_PHYSICAL_BASE + 7) 
-            || TableIndex == (INTERRUPT_PHYSICAL_BASE + 15)) {
-            if (Source->AddressSpace != Current->AddressSpace) {
-                ThreadingImpersonate(Source);
-            }
-        }
-        else {
+        if (TableIndex != INTERRUPT_SPURIOUS
+            && TableIndex != (INTERRUPT_PHYSICAL_BASE + 7) 
+            && TableIndex != (INTERRUPT_PHYSICAL_BASE + 15)) {
             // Fault
             FATAL(FATAL_SCOPE_KERNEL, "Unhandled interrupt %u (Source %i)", 
                 TableIndex, Gsi);
@@ -428,208 +358,214 @@ InterruptEntry(
  * Common entry for all exceptions */
 void ExceptionEntry(Context_t *Registers)
 {
-	// Variables
-	MCoreThread_t *cThread = NULL;
-	x86Thread_t *cT86 = NULL;
-	uintptr_t Address = __MASK;
-	int IssueFixed = 0;
-	UUId_t Cpu;
+    // Variables
+    MCoreThread_t *cThread = NULL;
+    x86Thread_t *cT86 = NULL;
+    uintptr_t Address = __MASK;
+    int IssueFixed = 0;
+    UUId_t Cpu;
 
-	// Handle IRQ
-	if (Registers->Irq == 0) {		// Divide By Zero
+    // Handle IRQ
+    if (Registers->Irq == 0) {        // Divide By Zero
 
-	}
-	else if (Registers->Irq == 1) { // Single Step
-		if (DebugSingleStep(Registers) == OsSuccess) {
-			// Re-enable single-step
-		}
-		IssueFixed = 1;
-	}
-	else if (Registers->Irq == 2) { // NMI
-		
-	}
-	else if (Registers->Irq == 3) { // Breakpoint
-		DebugBreakpoint(Registers);
-		IssueFixed = 1;
-	}
-	else if (Registers->Irq == 4) { // Overflow
+    }
+    else if (Registers->Irq == 1) { // Single Step
+        if (DebugSingleStep(Registers) == OsSuccess) {
+            // Re-enable single-step
+        }
+        IssueFixed = 1;
+    }
+    else if (Registers->Irq == 2) { // NMI
+        
+    }
+    else if (Registers->Irq == 3) { // Breakpoint
+        DebugBreakpoint(Registers);
+        IssueFixed = 1;
+    }
+    else if (Registers->Irq == 4) { // Overflow
 
-	}
-	else if (Registers->Irq == 5) { // Bound Range Exceeded
+    }
+    else if (Registers->Irq == 5) { // Bound Range Exceeded
 
-	}
-	else if (Registers->Irq == 6) { // Invalid Opcode
+    }
+    else if (Registers->Irq == 6) { // Invalid Opcode
 
-	}
-	else if (Registers->Irq == 7) { // DeviceNotAvailable 
+    }
+    else if (Registers->Irq == 7) { // DeviceNotAvailable 
 
-		// Lookup variables
-		Cpu = CpuGetCurrentId();
-		cThread = ThreadingGetCurrentThread(Cpu);
+        // Lookup variables
+        Cpu = CpuGetCurrentId();
+        cThread = ThreadingGetCurrentThread(Cpu);
 
-		// Important asserts
-		assert(cThread != NULL);
+        // Important asserts
+        assert(cThread != NULL);
 
-		// Get the x86 specific details
-		cT86 = (x86Thread_t*)cThread->ThreadData;
+        // Get the x86 specific details
+        cT86 = (x86Thread_t*)cThread->ThreadData;
 
-		// Clear the task-switch bit
-		clear_ts();
+        // Clear the task-switch bit
+        clear_ts();
 
-		// Either of two cases;
-		// 1 - We need to initialize the FPU
+        // Either of two cases;
+        // 1 - We need to initialize the FPU
         // 2 - We need to load the FPU
-		if (!(cT86->Flags & X86_THREAD_FPU_INITIALISED)) {
-			init_fpu();
-			cT86->Flags |= X86_THREAD_FPU_INITIALISED;
-			IssueFixed = 1;
-		}
-		else if (!(cT86->Flags & X86_THREAD_USEDFPU)) {
-			load_fpu(cT86->FpuBuffer);
-			cT86->Flags |= X86_THREAD_USEDFPU;
-			IssueFixed = 1;
-		}
-	}
-	else if (Registers->Irq == 8) { // Double Fault
+        if (!(cT86->Flags & X86_THREAD_FPU_INITIALISED)) {
+            init_fpu();
+            cT86->Flags |= X86_THREAD_FPU_INITIALISED;
+            IssueFixed = 1;
+        }
+        else if (!(cT86->Flags & X86_THREAD_USEDFPU)) {
+            load_fpu(cT86->FpuBuffer);
+            cT86->Flags |= X86_THREAD_USEDFPU;
+            IssueFixed = 1;
+        }
+    }
+    else if (Registers->Irq == 8) { // Double Fault
 
-	}
-	else if (Registers->Irq == 9) { // Coprocessor Segment Overrun (Obsolete)
+    }
+    else if (Registers->Irq == 9) { // Coprocessor Segment Overrun (Obsolete)
 
-	}
-	else if (Registers->Irq == 10) { // Invalid TSS
+    }
+    else if (Registers->Irq == 10) { // Invalid TSS
 
-	}
-	else if (Registers->Irq == 11) { // Segment Not Present
+    }
+    else if (Registers->Irq == 11) { // Segment Not Present
 
-	}
-	else if (Registers->Irq == 12) { // Stack Segment Fault
+    }
+    else if (Registers->Irq == 12) { // Stack Segment Fault
 
-	}
-	else if (Registers->Irq == 13) { // General Protection Fault
+    }
+    else if (Registers->Irq == 13) { // General Protection Fault
 
-	}
-	else if (Registers->Irq == 14) {	// Page Fault
-		Address = (uintptr_t)__getcr2();
+    }
+    else if (Registers->Irq == 14) {    // Page Fault
+        Address = (uintptr_t)__getcr2();
 
-		// The first thing we must check before propegating events
-		// is that we must check special locations
-		if (Address == MEMORY_LOCATION_SIGNAL_RET) {
-			SignalReturn();
+        // The first thing we must check before propegating events
+        // is that we must check special locations
+        if (Address == MEMORY_LOCATION_SIGNAL_RET) {
+            SignalReturn();
 
-			// If we reach here, no more signals, 
-			// and we should just enter the actual thread
-			if (cThread->Flags != THREADING_KERNELMODE) {
-				enter_thread(((x86Thread_t*)cThread->ThreadData)->UserContext);
-			}	
-			else {
-				enter_thread(((x86Thread_t*)cThread->ThreadData)->Context);
-			}
+            // If we reach here, no more signals, 
+            // and we should just enter the actual thread
+            if (cThread->Flags != THREADING_KERNELMODE) {
+                enter_thread(((x86Thread_t*)cThread->ThreadData)->UserContext);
+            }    
+            else {
+                enter_thread(((x86Thread_t*)cThread->ThreadData)->Context);
+            }
 
-			// Never reach beyond here
-			FATAL(FATAL_SCOPE_KERNEL, "REACHED BEYOND enter_thread AFTER SIGNAL");
-		}
+            // Never reach beyond here
+            FATAL(FATAL_SCOPE_KERNEL, "REACHED BEYOND enter_thread AFTER SIGNAL");
+        }
 
-		// Next step is to check whether or not the address is already
-		// mapped, because then it's due to accessibility
-		if (MmVirtualGetMapping(NULL, Address) != 0) {
-			FATAL(FATAL_SCOPE_KERNEL, "Page fault at address 0x%x, but page is already mapped, invalid access. (User tried to access kernel memory ex).");
-		}
+        // Next step is to check whether or not the address is already
+        // mapped, because then it's due to accessibility
+        if (MmVirtualGetMapping(NULL, Address) != 0) {
+            FATAL(FATAL_SCOPE_KERNEL, "Page fault at address 0x%x, but page is already mapped, invalid access. (User tried to access kernel memory ex).");
+        }
 
-		// Final step is to see if kernel can handle the 
-		// unallocated address
-		if (DebugPageFault(Registers, Address) == OsSuccess) {
-			IssueFixed = 1;
-		}
-	}
+        // Final step is to see if kernel can handle the 
+        // unallocated address
+        if (DebugPageFault(Registers, Address) == OsSuccess) {
+            IssueFixed = 1;
+        }
+    }
 
-	// Was the exception handled?
-	if (IssueFixed == 0) {
-		LogRedirect(LogConsole);
+    // Was the exception handled?
+    if (IssueFixed == 0) {
+        LogRedirect(LogConsole);
 
-		// Was it a page-fault?
-		if (Address != __MASK) {
-			LogDebug(__MODULE, "CR2 Address: 0x%x", Address);
-			char *Name = NULL;
-			uintptr_t Base = 0;
-			if (DebugGetModuleByAddress(Registers->Eip, &Base, &Name) == OsSuccess) {
-				uintptr_t Diff = Registers->Eip - Base;
-				LogDebug(__MODULE, "Fauly Address: 0x%x (%s)", Diff, Name);
-			}
-			else {
-				LogDebug(__MODULE, "Faulty Address: 0x%x", Registers->Eip);
-			}
-		}
+        // Was it a page-fault?
+        if (Address != __MASK) {
+            LogDebug(__MODULE, "CR2 Address: 0x%x", Address);
+            char *Name = NULL;
+            uintptr_t Base = 0;
+            if (DebugGetModuleByAddress(Registers->Eip, &Base, &Name) == OsSuccess) {
+                uintptr_t Diff = Registers->Eip - Base;
+                LogDebug(__MODULE, "Fauly Address: 0x%x (%s)", Diff, Name);
+            }
+            else {
+                LogDebug(__MODULE, "Faulty Address: 0x%x", Registers->Eip);
+            }
+        }
 
-		// Enter panic handler
+        // Enter panic handler
         DebugContext(Registers);
-		DebugPanic(FATAL_SCOPE_KERNEL, __MODULE,
-			"Unhandled or fatal interrupt %u, Error Code: %u, Faulty Address: 0x%x",
+        DebugPanic(FATAL_SCOPE_KERNEL, __MODULE,
+            "Unhandled or fatal interrupt %u, Error Code: %u, Faulty Address: 0x%x",
             Registers->Irq, Registers->ErrorCode, Registers->Eip);
-	}
+    }
 }
 
 /* InterruptDisable
  * Disables interrupts and returns
  * the state before disabling */
-IntStatus_t InterruptDisable(void)
+IntStatus_t
+InterruptDisable(void)
 {
-	// Variables
-	IntStatus_t CurrentState;
+    // Variables
+    IntStatus_t CurrentState;
 
-	// Save status
-	CurrentState = InterruptSaveState();
+    // Save status
+    CurrentState = InterruptSaveState();
 
-	// Disable interrupts and return
-	__cli();
-	return CurrentState;
+    // Disable interrupts and return
+    __cli();
+    return CurrentState;
 }
 
 /* InterruptEnable
  * Enables interrupts and returns 
  * the state before enabling */
-IntStatus_t InterruptEnable(void)
+IntStatus_t
+InterruptEnable(void)
 {
-	// Variables
-	IntStatus_t CurrentState;
+    // Variables
+    IntStatus_t CurrentState;
 
-	// Save current status
-	CurrentState = InterruptSaveState();
+    // Save current status
+    CurrentState = InterruptSaveState();
 
-	// Enable interrupts and return
-	__sti();
-	return CurrentState;
+    // Enable interrupts and return
+    __sti();
+    return CurrentState;
 }
 
 /* InterruptRestoreState
  * Restores the interrupt-status to the given
  * state, that must have been saved from SaveState */
-IntStatus_t InterruptRestoreState(IntStatus_t State)
+IntStatus_t
+InterruptRestoreState(
+    _In_ IntStatus_t State)
 {
-	if (State != 0) {
-		return InterruptEnable();
-	}
-	else {
-		return InterruptDisable();
-	}
+    if (State != 0) {
+        return InterruptEnable();
+    }
+    else {
+        return InterruptDisable();
+    }
 }
 
 /* InterruptSaveState
  * Retrieves the current state of interrupts */
-IntStatus_t InterruptSaveState(void)
+IntStatus_t
+InterruptSaveState(void)
 {
-	if (__getflags() & EFLAGS_INTERRUPT_FLAG) {
-		return 1;
-	}
-	else {
-		return 0;
-	}
+    if (__getflags() & EFLAGS_INTERRUPT_FLAG) {
+        return 1;
+    }
+    else {
+        return 0;
+    }
 }
 
 /* InterruptIsDisabled
  * Returns 1 if interrupts are currently
  * disabled or 0 if interrupts are enabled */
-int InterruptIsDisabled(void)
+int
+InterruptIsDisabled(void)
 {
-	/* Just negate this state */
-	return !InterruptSaveState();
+    /* Just negate this state */
+    return !InterruptSaveState();
 }

@@ -33,6 +33,7 @@
  * - System */
 #include <os/ipc/ipc.h>
 #include <os/osdefs.h>
+#include <os/context.h>
 
 /* Special flags that are available only
  * in kernel context for special interrupts */
@@ -59,23 +60,6 @@ KERNELAPI
 void
 KERNELABI
 InterruptInitialize(void);
-
-/* InterruptStart
- * Starts the interrupt-queue thread and allocates resources
- * for the interrupt-queue pipes. */
-KERNELAPI
-void
-KERNELABI
-InterruptStart(void);
-
-/* InterruptQueue
- * Queues a new interrupt for handling. If it was not
- * able to queue the interrupt it returns OsError */
-KERNELAPI
-OsStatus_t
-KERNELABI
-InterruptQueue(
-    _In_ MCoreInterruptDescriptor_t *Interrupt);
 
 /* InterruptRegister
  * Tries to allocate the given interrupt source
@@ -133,6 +117,17 @@ KERNELAPI
 int
 KERNELABI
 InterruptGetActiveStatus(void);
+
+/* InterruptHandle
+ * Handles an interrupt by invoking the registered handlers
+ * on the given table-index. */
+KERNELAPI
+InterruptStatus_t
+KERNELABI
+InterruptHandle(
+    _In_ Context_t *Context,
+    _In_ int TableIndex,
+    _Out_ int *Source);
 
 /* InterruptIncreasePenalty 
  * Increases the penalty for an interrupt source. */

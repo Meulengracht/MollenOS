@@ -35,17 +35,11 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-__EXTERN
-InterruptStatus_t
-ProcessInterrupt(
-    _In_Opt_ void *InterruptData);
-
+/* Prototypes */
 __EXTERN
 InterruptStatus_t
 OnFastInterrupt(
     _In_Opt_ void *InterruptData);
-
-/* Prototypes */
 OsStatus_t
 AhciSetup(
 	_In_ AhciController_t *Controller);
@@ -116,7 +110,6 @@ AhciControllerCreate(
 
     // Initialize the interrupt settings
     Controller->Device.Interrupt.FastHandler = OnFastInterrupt;
-    Controller->Device.Interrupt.Handler = ProcessInterrupt;
 	Controller->Device.Interrupt.Data = Controller;
 
 	// Register contract before interrupt
@@ -130,7 +123,7 @@ AhciControllerCreate(
 
 	// Register interrupt
 	Controller->Interrupt = 
-		RegisterInterruptSource(&Controller->Device.Interrupt, 0);
+		RegisterInterruptSource(&Controller->Device.Interrupt, INTERRUPT_USERSPACE);
 
 	// Enable device
 	if (IoctlDevice(Controller->Device.Id, __DEVICEMANAGER_IOCTL_BUS,

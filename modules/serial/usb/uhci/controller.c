@@ -45,11 +45,6 @@ UhciSetup(
  * We need access to the interrupt-handlers in main.c */
 __EXTERN
 InterruptStatus_t
-ProcessInterrupt(
-    _In_Opt_ void *InterruptData);
-    
-__EXTERN
-InterruptStatus_t
 OnFastInterrupt(
     _In_Opt_ void *InterruptData);
 
@@ -175,7 +170,6 @@ UhciControllerCreate(
 
 	// Initialize the interrupt settings
 	Controller->Base.Device.Interrupt.FastHandler = OnFastInterrupt;
-    Controller->Base.Device.Interrupt.Handler = ProcessInterrupt;
 	Controller->Base.Device.Interrupt.Data = Controller;
 
 	// Register contract before interrupt
@@ -188,8 +182,8 @@ UhciControllerCreate(
 	}
 
 	// Register interrupt
-	Controller->Base.Interrupt =
-		RegisterInterruptSource(&Controller->Base.Device.Interrupt, 0);
+	Controller->Base.Interrupt = RegisterInterruptSource(
+        &Controller->Base.Device.Interrupt, INTERRUPT_USERSPACE);
 
 	// Enable device
 	if (IoctlDevice(Controller->Base.Device.Id, __DEVICEMANAGER_IOCTL_BUS,

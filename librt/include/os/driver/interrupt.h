@@ -67,10 +67,8 @@ typedef struct _MCoreInterrupt {
 
     // Interrupt-handler(s) and context
     // FastHandler is called to determine whether or not this source
-    // has produced the interrupt. Handler (if not NULL) is then invoked
-    // to perform more requiring processing. 
+    // has produced the interrupt. 
     InterruptHandler_t		 FastHandler;
-    InterruptHandler_t       Handler;
 	void					*Data;
 
 	// Read-Only
@@ -89,15 +87,6 @@ MOSABI
 RegisterInterruptSource(
 	_In_ MCoreInterrupt_t *Interrupt, 
 	_In_ Flags_t Flags);
-
-/* AcknowledgeInterrupt 
- * Acknowledges an interrupt and allows the interrupt
- * to occur from that device again */
-MOSAPI
-OsStatus_t
-MOSABI
-AcknowledgeInterrupt(
-	_In_ UUId_t Source);
 
 /* UnregisterInterruptSource 
  * Unallocates the given interrupt source and disables

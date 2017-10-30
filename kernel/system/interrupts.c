@@ -33,14 +33,13 @@
 #include <acpiinterface.h>
 #include <interrupts.h>
 #include <threading.h>
+#include <timers.h>
 #include <debug.h>
 #include <heap.h>
 #include <arch.h>
-#include <pipe.h>
 
 /* Includes
  * - Library */
-#include <ds/list.h>
 #include <assert.h>
 #include <stdio.h>
 
@@ -59,8 +58,6 @@ static int                      InterruptActiveStatus[MAX_SUPPORTED_CPUS];
 static CriticalSection_t        TableLock;
 static int                      InterruptsInitialized = 0;
 static UUId_t                   InterruptIdGenerator = 0;
-static MCorePipe_t             *InterruptPipe = NULL;
-static UUId_t                   InterruptThreadId = UUID_INVALID;
 
 /* AcpiGetPolarityMode
  * Returns whether or not the polarity is Active Low or Active High.
@@ -292,87 +289,6 @@ InterruptInitialize(void)
     CriticalSectionConstruct(&TableLock, CRITICALSECTION_PLAIN);
 	InterruptsInitialized = 1;
     InterruptIdGenerator = 0;
-    InterruptThreadId = UUID_INVALID;
-    InterruptPipe = NULL;
-}
-
-/* InterruptQueueHandler
- * Handles all queued interrupts. Is signaled from the interrupt handler. */
-void
-InterruptQueueHandler(
-    _In_Opt_ void *Argument)
-{
-    // Variables
-	MCoreInterruptDescriptor_t Interrupt;
-	
-	TRACE("InterruptQueueHandler()");
-
-    // Continous handling
-    while (1) {
-        // Read next entry
-        PipeRead(InterruptPipe, (uint8_t*)&Interrupt, 
-            sizeof(MCoreInterruptDescriptor_t), 0);
-        if (Interrupt.Flags & INTERRUPT_USERSPACE) {
-            // Trace
-            TRACE("Interrupt 0x%x for process %u is being dispatched",
-                Interrupt.Ash, Interrupt.Id);
-    
-            // Send a interrupt-event to this
-            // and mark as handled, so we don't spit out errors
-            __KernelInterruptDriver(Interrupt.Ash, Interrupt.Id, 
-                Interrupt.Interrupt.Data);
-        }
-        else {
-            MCoreThread_t *Thread = ThreadingGetThread(Interrupt.Thread);
-			MCoreThread_t *Source = ThreadingGetCurrentThread(CpuGetCurrentId());
-
-			// Impersonate the target thread
-			// and call the fast handler
-			if (Source->AddressSpace != Thread->AddressSpace) {
-				ThreadingImpersonate(Thread);
-			}
-			Interrupt.Interrupt.Handler(Interrupt.Interrupt.Data);
-			if (Source->AddressSpace != Thread->AddressSpace) {
-				ThreadingImpersonate(Source);
-			}
-        }
-    }
-}
-
-/* InterruptStart
- * Starts the interrupt-queue thread and allocates resources
- * for the interrupt-queue pipes. */
-void
-InterruptStart(void)
-{
-    // Create the interrupt pipe
-    InterruptPipe = PipeCreate(0x2000, PIPE_NOBLOCK_WRITE);
-    
-    // Spawn the thread
-    InterruptThreadId = ThreadingCreateThread("interrupts", 
-        InterruptQueueHandler, NULL, THREADING_SYSTEMTHREAD);
-}
-
-/* InterruptQueue
- * Queues a new interrupt for handling. If it was not
- * able to queue the interrupt it returns OsError */
-KERNELAPI
-OsStatus_t
-KERNELABI
-InterruptQueue(
-    _In_ MCoreInterruptDescriptor_t *Interrupt)
-{
-    // Sanitize the current status
-    if (InterruptPipe == NULL) {
-        FATAL(FATAL_SCOPE_KERNEL, "Tried to queue interrupt, but pipe is not created");
-    }
-
-    // Queue up the interrupt
-    if (PipeWrite(InterruptPipe, (uint8_t*)Interrupt, 
-        sizeof(MCoreInterruptDescriptor_t)) != sizeof(MCoreInterruptDescriptor_t)) {
-        return OsError;
-    }
-    return OsSuccess;
 }
 
 /* InterruptRegister
@@ -608,4 +524,86 @@ int
 InterruptGetActiveStatus(void)
 {
     return InterruptActiveStatus[CpuGetCurrentId()];
+}
+
+/* InterruptHandle
+ * Handles an interrupt by invoking the registered handlers
+ * on the given table-index. */
+InterruptStatus_t
+InterruptHandle(
+    _In_ Context_t *Context,
+    _In_ int TableIndex,
+    _Out_ int *Source)
+{
+    // Variables
+    MCoreThread_t *Current = NULL, *Target = NULL, *Start = NULL;
+    MCoreInterruptDescriptor_t *Entry = NULL;
+    InterruptStatus_t Result = InterruptNotHandled;
+
+    // Update current status
+    InterruptSetActiveStatus(1);
+    
+    // Initiate values
+    Start = Current = ThreadingGetCurrentThread(CpuGetCurrentId());
+
+    // Iterate handlers in that table index
+    Entry = InterruptTable[TableIndex].Descriptor;
+    if (Entry != NULL) {
+        *Source = Entry->Source;
+    }
+    while (Entry != NULL) {
+        if (Entry->Flags & INTERRUPT_KERNEL) {
+            if (Entry->Flags & INTERRUPT_CONTEXT) {
+                Result = Entry->Interrupt.FastHandler((void*)Context);
+            }
+            else {
+                Result = Entry->Interrupt.FastHandler(Entry->Interrupt.Data);
+            }
+
+            // If it was handled we can break
+            // early as there is no need to check rest
+            if (Result == InterruptHandled) {
+                break;
+            }
+        }
+        else {
+            Target = ThreadingGetThread(Entry->Thread);
+
+            // Impersonate the target thread
+            // and call the fast handler
+            if (Current->AddressSpace != Target->AddressSpace) {
+                Current = Target;
+                ThreadingImpersonate(Target);
+            }
+            Result = Entry->Interrupt.FastHandler(Entry->Interrupt.Data);
+
+            // If it was handled
+            // - Restore original context
+            // - Register interrupt, might be a system timer
+            // - Queue the processing handler if any
+            if (Result == InterruptHandled) {
+                TimersInterrupt(Entry->Id);
+
+                // Send a interrupt-event to this
+                // and mark as handled, so we don't spit out errors
+                if (Entry->Flags & INTERRUPT_USERSPACE) {
+                    __KernelInterruptDriver(Entry->Ash, 
+                        Entry->Id, Entry->Interrupt.Data);
+                }
+                break;
+            }
+        }
+
+        // Move on to next entry
+        Entry = Entry->Link;
+    }
+
+    // We might have to restore context
+    if (Start->AddressSpace != Current->AddressSpace) {
+        ThreadingImpersonate(Start);
+    }
+
+    // Update current status
+    InterruptSetActiveStatus(0);
+    return Result;
 }

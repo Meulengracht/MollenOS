@@ -179,8 +179,7 @@ TimersRegister(
 	// Do some validation about the timer source 
 	// the only system timers we want are fast_interrupts
 	Interrupt = InterruptGet(Source);
-	if (Interrupt == NULL
-		|| Interrupt->Interrupt.Handler != NULL) {
+	if (Interrupt == NULL) {
 		TRACE("Interrupt was not found for source %u", Source);
 		return OsError;
 	}

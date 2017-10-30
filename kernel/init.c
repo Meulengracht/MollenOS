@@ -139,7 +139,6 @@ MCoreInitialize(
 	if (SystemsAvailable & SYSTEM_FEATURE_INTERRUPTS) {
         TRACE("Running SYSTEM_FEATURE_INTERRUPTS");
         SystemFeaturesInitialize(&GlobalBootInformation, SYSTEM_FEATURE_INTERRUPTS);
-        InterruptStart();
     }
 
     // Perform the full acpi initialization sequence

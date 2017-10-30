@@ -105,16 +105,70 @@ int FinalizerEntry(void *Argument)
 	return 0;
 }
 
-/* ProcessInterrupt
- * Is invoked if OnFastInterrupt returned Handled. This is to actually
- * process the device interrupt */
+/* OnFastInterrupt
+ * Is called for the sole purpose to determine if this source
+ * has invoked an irq. If it has, silence and return (Handled) */
 InterruptStatus_t
-ProcessInterrupt(
+OnFastInterrupt(
     _In_Opt_ void *InterruptData)
 {
-    // Variables
+	// Variables
 	OhciController_t *Controller = NULL;
 	reg32_t InterruptStatus;
+
+	// Instantiate the pointer
+	Controller = (OhciController_t*)InterruptData;
+
+	// There are two cases where it might be, just to be sure
+	// we don't miss an interrupt, if the HeadDone is set or the
+	// intr is set
+	if (Controller->Hcca->HeadDone != 0) {
+		InterruptStatus = OHCI_INTR_PROCESS_HEAD;
+		// If halted bit is set, get rest of interrupt
+		if (Controller->Hcca->HeadDone & 0x1) {
+			InterruptStatus |= (Controller->Registers->HcInterruptStatus
+				& Controller->Registers->HcInterruptEnable);
+		}
+	}
+	else {
+		// Was it this Controller that made the interrupt?
+		// We only want the interrupts we have set as enabled
+		InterruptStatus = (Controller->Registers->HcInterruptStatus
+			& Controller->Registers->HcInterruptEnable);
+	}
+
+	// Trace
+	TRACE("Interrupt - Status 0x%x", InterruptStatus);
+
+	// Was the interrupt even from this controller?
+	if (!InterruptStatus) {
+		return InterruptNotHandled;
+    }
+
+    // Acknowledge interrupts and clear
+    Controller->Registers->HcInterruptDisable = (reg32_t)OHCI_INTR_MASTER;
+    Controller->Base.InterruptStatus |= InterruptStatus;
+	return InterruptHandled;
+}
+
+/* OnInterrupt
+ * Is called by external services to indicate an external interrupt.
+ * This is to actually process the device interrupt */
+InterruptStatus_t 
+OnInterrupt(
+    _In_Opt_ void *InterruptData,
+    _In_Opt_ size_t Arg0,
+    _In_Opt_ size_t Arg1,
+    _In_Opt_ size_t Arg2)
+{
+	// Variables
+	OhciController_t *Controller = NULL;
+    reg32_t InterruptStatus;
+    
+    // Unusued
+    _CRT_UNUSED(Arg0);
+    _CRT_UNUSED(Arg1);
+	_CRT_UNUSED(Arg2);
 
 	// Instantiate the pointer
     Controller = (OhciController_t*)InterruptData;
@@ -204,69 +258,6 @@ ProcessInterrupt(
 
     // Enable interrupts again
     Controller->Registers->HcInterruptEnable = (reg32_t)OHCI_INTR_MASTER;
-	return InterruptHandled;
-}
-
-/* OnFastInterrupt
- * Is called for the sole purpose to determine if this source
- * has invoked an irq. If it has, silence and return (Handled) */
-InterruptStatus_t
-OnFastInterrupt(
-    _In_Opt_ void *InterruptData)
-{
-	// Variables
-	OhciController_t *Controller = NULL;
-	reg32_t InterruptStatus;
-
-	// Instantiate the pointer
-	Controller = (OhciController_t*)InterruptData;
-
-	// There are two cases where it might be, just to be sure
-	// we don't miss an interrupt, if the HeadDone is set or the
-	// intr is set
-	if (Controller->Hcca->HeadDone != 0) {
-		InterruptStatus = OHCI_INTR_PROCESS_HEAD;
-		// If halted bit is set, get rest of interrupt
-		if (Controller->Hcca->HeadDone & 0x1) {
-			InterruptStatus |= (Controller->Registers->HcInterruptStatus
-				& Controller->Registers->HcInterruptEnable);
-		}
-	}
-	else {
-		// Was it this Controller that made the interrupt?
-		// We only want the interrupts we have set as enabled
-		InterruptStatus = (Controller->Registers->HcInterruptStatus
-			& Controller->Registers->HcInterruptEnable);
-	}
-
-	// Trace
-	TRACE("Interrupt - Status 0x%x", InterruptStatus);
-
-	// Was the interrupt even from this controller?
-	if (!InterruptStatus) {
-		return InterruptNotHandled;
-    }
-
-    // Acknowledge interrupts and clear
-    Controller->Registers->HcInterruptDisable = (reg32_t)OHCI_INTR_MASTER;
-    Controller->Base.InterruptStatus |= InterruptStatus;
-	return InterruptHandled;
-}
-
-/* OnInterrupt
- * Is called by external services to indicate an external interrupt.
- * Not used by physical interrupts, but instead user-defined ones. */
-InterruptStatus_t 
-OnInterrupt(
-    _In_Opt_ void *InterruptData,
-    _In_Opt_ size_t Arg0,
-    _In_Opt_ size_t Arg1,
-    _In_Opt_ size_t Arg2)
-{
-    _CRT_UNUSED(InterruptData);
-    _CRT_UNUSED(Arg0);
-    _CRT_UNUSED(Arg1);
-	_CRT_UNUSED(Arg2);
 	return InterruptHandled;
 }
 

@@ -21,7 +21,7 @@
  *   a flexible and generic threading platfrom
  */
 #define __MODULE "MTIF"
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -327,13 +327,19 @@ ThreadingCreateThread(
  * address space is not cleaned up untill all threads
  * in the given space has been shut down. Must be
  * called from a seperate thread */
-void ThreadingCleanupThread(MCoreThread_t *Thread)
+void
+ThreadingCleanupThread(
+    _In_ MCoreThread_t *Thread)
 {
-	/* Cleanup arch resources */
+    // Make sure we are completely removed as reference
+    // from the entire system
+    SchedulerThreadDequeue(Thread);
+
+	// Cleanup resources allocated by sub-systems
 	AddressSpaceDestroy(Thread->AddressSpace);
 	IThreadDestroy(Thread);
 
-	/* Cleanup structure */
+	// Cleanup our allocated resources
 	PipeDestroy(Thread->Pipe);
 	kfree((void*)Thread->Name);
 	kfree(Thread);
@@ -342,28 +348,25 @@ void ThreadingCleanupThread(MCoreThread_t *Thread)
 /* ThreadingExitThread
  * Exits the current thread by marking it finished
  * and yielding control to scheduler */
-void ThreadingExitThread(int ExitCode)
+void
+ThreadingExitThread(
+    _In_ int ExitCode)
 {
-	/* Variables for setup */
-	MCoreThread_t *Thread = NULL;
-	UUId_t Cpu = 0;
+	// Variables
+	MCoreThread_t *Thread   = NULL;
+	UUId_t Cpu              = 0;
 
-	/* Retrieve the current cpu and
-	* get the current thread */
+	// Instantiate some values
 	Cpu = CpuGetCurrentId();
-	Thread = ThreadingGetCurrentThread(Cpu);
+    Thread = ThreadingGetCurrentThread(Cpu);
+    assert(Thread != NULL);
 
-	/* Store exit code */
+	// Update thread state
 	Thread->RetCode = ExitCode;
+    Thread->Flags |= THREADING_FINISHED;
 
-	/* Mark thread finished */
-	Thread->Flags |= THREADING_FINISHED;
-
-	/* Wakeup people that were 
-	 * waiting for the thread to finish */
+    // Wake people waiting for us
 	SchedulerThreadWakeAll((uintptr_t*)Thread);
-
-	/* Yield control */
 	ThreadingYield();
 }
 
@@ -467,18 +470,15 @@ void ThreadingTerminateAshThreads(UUId_t AshId)
 /* ThreadingGetCurrentThread
  * Retrieves the current thread on the given cpu
  * if there is any issues it returns NULL */
-MCoreThread_t *ThreadingGetCurrentThread(UUId_t Cpu)
+MCoreThread_t*
+ThreadingGetCurrentThread(
+    _In_ UUId_t Cpu)
 {
-	/* Sanitize the current threading status */
+	// Sanitize data first
 	if (GlbThreadingEnabled != 1
 		|| GlbCurrentThreads[Cpu] == NULL) {
 		return NULL;
 	}
-
-	/* This, this is important */
-	assert(GlbCurrentThreads[Cpu] != NULL);
-
-	/* Get thread */
 	return (MCoreThread_t*)GlbCurrentThreads[Cpu]->Data;
 }
 
@@ -569,12 +569,22 @@ ThreadingReap(
     _In_ void *UserData)
 {
 	// Instantiate the thread pointer
-	MCoreThread_t *Thread = (MCoreThread_t*)UserData;
+    MCoreThread_t *Thread   = (MCoreThread_t*)UserData;
+    DataKey_t Key;
+
+    // Sanity
+    if (Thread == NULL) {
+        return OsError;
+    }
+    
+    // Locate and remove it from list of threads
+    Key.Value = (int)Thread->Id;
+    if (ListRemoveByKey(GlbThreads, Key) != OsSuccess) {
+        // Failed to remove the node? it didn't exist?...
+    }
 
 	// Call the cleanup
 	ThreadingCleanupThread(Thread);
-
-	// Done - no errors
 	return OsSuccess;
 }
 
@@ -607,50 +617,38 @@ ThreadingSwitch(
 	// Variables
 	MCoreThread_t *NextThread = NULL;
 	ListNode_t *Node = NULL;
-	DataKey_t Key;
+    DataKey_t Key;
 
-	// Get the node for the current thread
-	Node = ThreadingGetCurrentNode(Cpu);
-
+    // Sanitize current thread
+    assert(Current != NULL);
+    
 	// Unless this one is done..
 GetNextThread:
 	if ((Current->Flags & THREADING_FINISHED) || (Current->Flags & THREADING_IDLE)
 		|| (Current->Flags & THREADING_TRANSITION_SLEEP))
 	{
+        // Handle the sleep flag
+        if (Current->Flags & THREADING_TRANSITION_SLEEP) {
+            Current->Flags &= ~(THREADING_TRANSITION_SLEEP);
+        }
+
 		// If the thread is finished then add it to 
 		// garbagecollector
 		if (Current->Flags & THREADING_FINISHED) {
-			SchedulerThreadDequeue(Current);
 			GcSignal(GlbThreadGcId, Current);
-			ListRemoveByNode(GlbThreads, Node);
-			ListDestroyNode(GlbThreads, Node);
 		}
-
-		// Handle the sleep flag
-		if (Current->Flags & THREADING_TRANSITION_SLEEP) {
-            Current->Flags &= ~(THREADING_TRANSITION_SLEEP);
-            TRACE("Not scheduling thread %u", Current->Id);
-        }
         
         // Don't schedule the current
         NextThread = SchedulerThreadSchedule(Cpu, NULL, PreEmptive);
-        TRACE("NextThread (from idle) is %u (Queue %i, Timeslice %u)", 
-            (NextThread != NULL) ? NextThread->Id : 0,
-            NextThread->Queue, NextThread->TimeSlice);
 	}
 	else {
         NextThread = SchedulerThreadSchedule(Cpu, Current, PreEmptive);
-        TRACE("NextThread is %u (Queue %i, Timeslice %u)", 
-            (NextThread != NULL) ? NextThread->Id : 0,
-            NextThread->Queue, NextThread->TimeSlice);
 	}
 
 	// Sanitize if we need to active our idle thread
 	if (NextThread == NULL) {
         NextThread = (MCoreThread_t*)GlbIdleThreads[Cpu]->Data;
-        TRACE("Selecting idle");
     }
-    BOCHSBREAK
 
 	// More sanity 
 	// If we have caught a finished thread that
@@ -662,9 +660,10 @@ GetNextThread:
 
 	// Get node by thread
 	Key.Value = (int)NextThread->Id;
-	Node = ListGetNodeByKey(GlbThreads, Key, 0);
+    Node = ListGetNodeByKey(GlbThreads, Key, 0);
+    assert(Node != NULL);
 
 	// Update current thread and return it
 	ThreadingUpdateCurrent(Cpu, Node);
-	return ThreadingGetCurrentThread(Cpu);
+	return NextThread;
 }

@@ -27,7 +27,7 @@
  * A thread can only stay a maximum in each priority.
  */
 #define __MODULE "SCHE"
-#define __TRACE
+//#define __TRACE
 
 /* Includes
  * - System */
@@ -347,10 +347,6 @@ SchedulerThreadWake(
         return OsError;
     }
 
-    // Debug
-    TRACE("SchedulerThreadWake(Handle 0x%x, IoQueue Head 0x%x)", 
-        Handle, IoQueue.Head);
-
     // Iterate the queue
     Current = IoQueue.Head;
     while (Current) {
@@ -382,8 +378,7 @@ void
 SchedulerThreadWakeAll(
     _In_ uintptr_t *Handle)
 {
-    TRACE("SchedulerThreadWakeAll(Handle 0x%x)", Handle);    
-	while (1) {
+    while (1) {
 		if (SchedulerThreadWake(Handle) == OsError) {
             break;
         }
