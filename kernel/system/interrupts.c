@@ -22,7 +22,7 @@
  */
 
 #define __MODULE		"INIF"
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */

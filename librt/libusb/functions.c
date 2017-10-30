@@ -20,7 +20,7 @@
  * - Contains the implementation of the usb-manager which keeps track
  *   of all usb-controllers and their devices
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */

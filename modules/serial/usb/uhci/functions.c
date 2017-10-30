@@ -16,11 +16,11 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Open Host Controller Interface Driver
+ * MollenOS MCore - Universal Host Controller Interface Driver
  * TODO:
  *	- Power Management
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -327,7 +327,10 @@ UhciTransactionFinalize(
 	UhciTransferDescriptor_t *Td = NULL;
 	UsbTransferResult_t Result;
 	int QhIndex = -1;
-	int ErrorCode = 0;
+    int ErrorCode = 0;
+    
+    // Debug
+    TRACE("UhciTransactionFinalize()");
 
 	/*************************
 	 *** VALIDATION PHASE ****

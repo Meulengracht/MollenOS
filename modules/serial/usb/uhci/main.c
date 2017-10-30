@@ -42,87 +42,7 @@
 
 /* Globals
  * Use these for state-keeping the thread */
-static UUId_t __GlbFinalizerThreadId = UUID_INVALID;
-static Condition_t *__GlbFinalizerEvent = NULL;
 static UUId_t __GlbTimerEvent = UUID_INVALID;
-
-/* FinalizerWake
- * Informs the finalizer-thread that there is new events */
-OsStatus_t
-FinalizerWake(void)
-{
-    TRACE("FinalizerWake()");
-    if (__GlbFinalizerEvent != NULL) {
-        return ConditionSignal(__GlbFinalizerEvent);
-    }
-    return OsSuccess;
-}
-
-/* FinalizerEntry 
- * Entry of the finalizer thread, this thread handles
- * all completed transactions to notify users */
-int
-FinalizerEntry(
-    _In_Opt_ void *Argument)
-{
-	// Variables
-	ListNode_t *cNode = NULL;
-	Mutex_t EventLock;
-
-	// Unused
-    _CRT_UNUSED(Argument);
-    
-    // Debug
-    TRACE("FinalizerEntry()");
-
-	// Create the mutex
-	MutexConstruct(&EventLock, MUTEX_PLAIN);
-
-	// Forever-loop
-	while (1) {
-		// Wait for events
-		ConditionWait(__GlbFinalizerEvent, &EventLock);
-
-		// Iterate through all transactions for all controllers
-		_foreach(cNode, UsbManagerGetControllers()) {
-			// Instantiate a controller pointer
-			UhciController_t *Controller = 
-				(UhciController_t*)cNode->Data;
-			
-			// Iterate transactions
-			foreach_nolink(tNode, Controller->QueueControl.TransactionList) {
-				// Instantiate a transaction pointer
-				UsbManagerTransfer_t *Transfer = 
-					(UsbManagerTransfer_t*)tNode->Data;
-
-				// Cleanup?
-				if (Transfer->Cleanup) {
-					// Temporary copy of pointer
-					ListNode_t *Temp = tNode;
-
-					// Notify requester and finalize
-					UhciTransactionFinalize(Controller, Transfer, 1);
-				
-					// Remove from list (in-place, tricky)
-					tNode = ListUnlinkNode(
-						Controller->QueueControl.TransactionList,
-						tNode);
-
-					// Cleanup
-					ListDestroyNode(
-						Controller->QueueControl.TransactionList, 
-						Temp);
-				}
-				else {
-					tNode = ListNext(tNode);
-				}
-			}
-		}
-	}
-
-	// Done
-	return 0;
-}
 
 /* OnFastInterrupt
  * Is called for the sole purpose to determine if this source
@@ -245,12 +165,6 @@ OnLoad(void)
     // Debug
     TRACE("OnLoad()");
 
-	// Create event semaphore
-	__GlbFinalizerEvent = ConditionCreate();
-
-	// Start finalizer thread
-    __GlbFinalizerThreadId = ThreadCreate(FinalizerEntry, NULL);
-
 	// Initialize the device manager here
     Result = UsbManagerInitialize();
     
@@ -268,16 +182,6 @@ OnUnload(void)
     // Stop timer
     if (__GlbTimerEvent != UUID_INVALID) {
         TimerStop(__GlbTimerEvent);
-    }
-
-    // Stop thread
-    if (__GlbFinalizerThreadId != UUID_INVALID) {
-        ThreadKill(__GlbFinalizerThreadId);
-    }
-
-    // Cleanup semaphore
-    if (__GlbFinalizerEvent != NULL) {
-        ConditionDestroy(__GlbFinalizerEvent);
     }
 
 	// Cleanup the internal device manager

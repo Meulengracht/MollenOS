@@ -480,7 +480,6 @@ UsbDeviceSetup(
     Device->Base.Speed = Port->Speed;
 
     // Allocate a device-address
-    TRACE("Allocating usb-address");
     if (UsbReserveAddress(Controller, &ReservedAddress) != OsSuccess) {
         ERROR("(UsbReserveAddress %u) Failed to setup port %i",
             Controller->Device, Port->Index);
@@ -488,7 +487,6 @@ UsbDeviceSetup(
     }
 
     // Set device address for the new device
-    TRACE("Updating usb-address");
     tStatus = UsbSetAddress(Controller->Driver, Controller->Device,
         &Device->Base, &Device->ControlEndpoint, ReservedAddress);
     if (tStatus != TransferFinished) {
@@ -508,7 +506,6 @@ UsbDeviceSetup(
     ThreadSleep(2);
 
     // Query Device Descriptor
-    TRACE("Reading descriptors");
     if (UsbGetDeviceDescriptor(Controller->Driver, Controller->Device,
         &Device->Base, &Device->ControlEndpoint, &DeviceDescriptor) != TransferFinished) {
         if (UsbGetDeviceDescriptor(Controller->Driver, Controller->Device,

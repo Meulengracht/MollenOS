@@ -68,7 +68,9 @@ Showcase of MollenOS to get an idea of how the userspace will be once it's finis
 
 ### Boot Screen
 
-ToDo
+![Custom bootloader loading mollenos](docs/images/bootloader.png)
+
+![The usb stack enumerating an usb-port](docs/images/usbstack.png)
 
 ### Usage
 

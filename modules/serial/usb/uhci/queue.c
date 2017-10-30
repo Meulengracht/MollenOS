@@ -22,7 +22,7 @@
  * Finish the FSBR implementation, right now there is no guarantee of order ls/fs/bul
  * The isochronous unlink/link needs improvements, it does not support multiple isocs in same frame 
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes
  * - System */
@@ -716,7 +716,7 @@ UhciProcessRequest(
 		}
 
 		// Notice finalizer-thread to finish us
-        FinalizerWake();
+        UhciTransactionFinalize(Controller, Transfer, 1);
 	}
 	else if (Transfer->Transfer.Type == InterruptTransfer) {
 
