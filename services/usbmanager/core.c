@@ -24,6 +24,8 @@
 
 /* Includes 
  * - System */
+#include <os/driver/contracts/usbdevice.h>
+#include <os/driver/device.h>
 #include <os/driver/usb.h>
 #include <os/thread.h>
 #include <os/utils.h>
@@ -410,6 +412,60 @@ UsbControllerUnregister(
     return OsSuccess;
 }
 
+/* UsbDeviceLoadDrivers
+ * Loads a driver/sends a current driver a new device notification */
+OsStatus_t
+UsbDeviceLoadDrivers(
+    _In_ UsbController_t *Controller,
+    _In_ UsbDevice_t *Device)
+{
+    // Variables
+    MCoreUsbDevice_t CoreDevice;
+    int i;
+
+    // Debug
+    TRACE("UsbDeviceLoadDrivers()");
+
+    // Initialize the base device
+    memset(&CoreDevice, 0, sizeof(MCoreUsbDevice_t));
+    memcpy(&CoreDevice.Base.Name[0], "Generic Usb Device", 18);
+    CoreDevice.Base.Id = UUID_INVALID;
+    CoreDevice.Base.VendorId = Device->Base.VendorId;
+    CoreDevice.Base.DeviceId = Device->Base.ProductId;
+    CoreDevice.Base.Class = USB_DEVICE_CLASS;
+
+    // Initialize the usb device
+    memcpy(&CoreDevice.Device, &Device->Base, sizeof(UsbHcDevice_t));
+
+    // Copy controller target-information
+    CoreDevice.DriverId = Controller->Driver;
+    CoreDevice.DeviceId = Controller->Device;
+
+    // Copy control endpoint
+    memcpy(&CoreDevice.Endpoints[0], &Device->ControlEndpoint, 
+        sizeof(UsbHcEndpointDescriptor_t));
+
+    // Iterate discovered interfaces
+    TRACE("Iterating %i possible drivers", Device->Base.InterfaceCount);
+    for (i = 0; i < Device->Base.InterfaceCount; i++) {
+        // Copy specific interface-information to structure
+        if (Device->Interfaces[i].Exists) {
+            memcpy(&CoreDevice.Interface, &Device->Interfaces[i].Base, 
+                sizeof(UsbHcInterface_t));
+            memcpy(&CoreDevice.Endpoints[1], &Device->Interfaces[i].Versions[0].Endpoints[0],
+                sizeof(UsbHcEndpointDescriptor_t) * Device->Interfaces[i].Versions[0].Base.EndpointCount);
+
+            // Let interface determine the subclass
+            CoreDevice.Base.Subclass = (Device->Interfaces[i].Base.Class << 16) | 0; // Subclass
+            TRACE("Installing driver for interface %i (0x%x)", i, CoreDevice.Base.Subclass);
+            InstallDriver(&CoreDevice.Base, sizeof(MCoreUsbDevice_t));
+        }
+    }
+
+    // Done
+    return OsSuccess;
+}
+
 /* UsbDeviceSetup 
  * Initializes and enumerates a device if present on the given port */
 OsStatus_t
@@ -423,7 +479,6 @@ UsbDeviceSetup(
     UsbTransferStatus_t tStatus;
     UsbDevice_t *Device = NULL;
     int ReservedAddress = 0;
-    int i;
 
     // Debug
     TRACE("UsbDeviceSetup()");
@@ -557,18 +612,8 @@ UsbDeviceSetup(
         }
     }
 
-    // Iterate discovered interfaces
-    for (i = 0; i < Device->Base.InterfaceCount; i++) {
-        if (Device->Interfaces[i].Base.Class == USB_CLASS_HID) {
-            //UsbHidInit(Device, i);
-        }
-        if (Device->Interfaces[i].Base.Class == USB_CLASS_MSD) {
-            //UsbMsdInit(Device, i);
-        }
-        if (Device->Interfaces[i].Base.Class == USB_CLASS_HUB) {
-            // Protocol specifies usb interface (high or low speed)
-        }
-    }
+    // Load drivers for device
+    UsbDeviceLoadDrivers(Controller, Device);
 
     // Setup succeeded
     TRACE("Setup of port %i done!", Port->Index);

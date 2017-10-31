@@ -33,6 +33,10 @@
 #include <os/driver/usb/definitions.h>
 #include <os/driver/bufferpool.h>
 
+/* USB Definitions
+ * Contains magic constants, settings and bit definitions */
+#define USB_DEVICE_CLASS            0x0000CABB
+
 /* UsbControllerType
  * Describes the possible types of usb controllers */
 typedef enum _UsbControllerType {

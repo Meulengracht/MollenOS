@@ -95,10 +95,10 @@ OnInterrupt(
 
 	// Instantiate the pointer
     Controller = (UhciController_t*)InterruptData;
-    InterruptStatus = Controller->Base.InterruptStatus;
-    Controller->Base.InterruptStatus = 0;
 
 HandleInterrupt:
+    InterruptStatus = Controller->Base.InterruptStatus;
+    Controller->Base.InterruptStatus = 0;
     // If either interrupt or error is present, it means a change happened
 	// in one of our transactions
 	if (InterruptStatus & (UHCI_STATUS_USBINT | UHCI_STATUS_INTR_ERROR)) {
@@ -256,7 +256,7 @@ OnQuery(_In_ MContractType_t QueryType,
     OsStatus_t Result = OsError;
     
     // Debug
-    TRACE("OnQuery(Function %i)", QueryFunction);
+    TRACE("Uhci.OnQuery(Function %i)", QueryFunction);
 
 	// Instantiate some variables
 	Device = (UUId_t)Arg0->Data.Value;

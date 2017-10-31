@@ -18,6 +18,7 @@
  *
  * MollenOS MCore - Human Input Device Driver (Generic)
  */
+//#define __TRACE
 
 /* Includes
  * - System */
@@ -50,7 +51,7 @@ HidDeviceCreate(
     Device->TransferId = UUID_INVALID;
 
     // Find neccessary endpoints
-    for (i = 1; i < UsbDevice->Interface.Versions[0].EndpointCount; i++) {
+    for (i = 1; i < UsbDevice->Interface.Versions[0].EndpointCount + 1; i++) {
         if (UsbDevice->Endpoints[i].Type == EndpointInterrupt) {
             Device->Interrupt = &UsbDevice->Endpoints[i];
             break;

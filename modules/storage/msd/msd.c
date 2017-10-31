@@ -57,7 +57,7 @@ MsdDeviceCreate(
     Device->Control = &UsbDevice->Endpoints[0];
 
     // Find neccessary endpoints
-    for (i = 1; i < UsbDevice->Interface.Versions[0].EndpointCount; i++) {
+    for (i = 1; i < UsbDevice->Interface.Versions[0].EndpointCount + 1; i++) {
         if (UsbDevice->Endpoints[i].Type == EndpointInterrupt) {
             Device->Interrupt = &UsbDevice->Endpoints[i];
         }

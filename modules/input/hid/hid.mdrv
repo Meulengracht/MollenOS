@@ -1,6 +1,6 @@
 #Driver Information
 VendorId = 00000000
 DeviceId = 00000000
-Class = 00010006
-SubClass = 00010000
+Class = 0000CABB
+SubClass = 00030000
 Flags = 00000000

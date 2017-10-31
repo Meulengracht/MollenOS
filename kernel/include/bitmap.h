@@ -1,85 +1,98 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS MCore - Specialized (Memory) Bitmap
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - Generic Block Bitmap Implementation
+ */
 
-#ifndef _MOLLENOS_BITMAP_H_
-#define _MOLLENOS_BITMAP_H_
+#ifndef _MOLLENOS_BLOCKBITMAP_H_
+#define _MOLLENOS_BLOCKBITMAP_H_
 
 /* Includes 
  * - C-Library */
 #include <os/osdefs.h>
-
-/* Includes
- * - System */
-#include <arch.h>
 #include <os/spinlock.h>
+#include <ds/ds.h>
+#include <ds/bitmap.h>
 
-/* Structures */
-typedef struct _Bitmap
-{
-	/* Base/End address */
-	uintptr_t Base;
-	uintptr_t End;
+/* BlockBitmap_t
+ *  */
+typedef struct _BlockBitmap {
+    Bitmap_t            Base;
+    Spinlock_t          Lock;
+   
+    // Block Information
+    uintptr_t           BlockStart;
+    uintptr_t           BlockEnd;
+    size_t              BlockSize;
+    size_t              BlockCount;
 
-	/* Memory Size */
-	size_t Size;
+    // Statistics
+    size_t              BlocksAllocated;
+    size_t              NumAllocations;
+    size_t              NumFrees;
+} BlockBitmap_t;
 
-	/* Block Information */
-	size_t BlockSize;
-	size_t BlockCount;
+/* BlockBitmapCreate
+ * Instantiate a new bitmap that keeps track of a
+ * block range between Start -> End with a given block size */
+MOSAPI
+BlockBitmap_t*
+MOSABI
+BlockBitmapCreate(
+    _In_ uintptr_t BlockStart, 
+    _In_ uintptr_t BlockEnd, 
+    _In_ size_t BlockSize);
 
-	/* Bitmap statistics
-	 * Blocks in use, etc */
-	size_t BlocksAllocated;
-	size_t NumAllocations;
-	size_t NumFrees;
-
-	/* Data */
-	uintptr_t *Bitmap;
-	size_t BitmapSize;
-
-	/* Lock */
-	Spinlock_t Lock;
-
-} Bitmap_t;
-
-/* Instantiate a new bitmap that keeps track of a
- * memory range between Start -> End with a 
- * given block size */
-__EXTERN Bitmap_t *BitmapCreate(uintptr_t Base, uintptr_t End, size_t BlockSize);
-
-/* Destroys a memory bitmap, and releases 
+/* BlockBitmapDestroy
+ * Destroys a block bitmap, and releases 
  * all resources associated with the bitmap */
-__EXTERN void BitmapDestroy(Bitmap_t *Bitmap);
+MOSAPI
+OsStatus_t
+MOSABI
+BlockBitmapDestroy(
+    _In_ BlockBitmap_t *Blockmap);
 
-/* Allocates a number of bytes in the bitmap (rounded up in blocks)
- * and returns the calculated address of 
- * the start of block allocated (continously) */
-__EXTERN uintptr_t BitmapAllocateAddress(Bitmap_t *Bitmap, size_t Size);
+/* BlockBitmapAllocate
+ * Allocates a number of bytes in the bitmap (rounded up in blocks)
+ * and returns the calculated block of the start of block allocated (continously) */
+MOSAPI
+uintptr_t
+MOSABI
+BlockBitmapAllocate(
+    _In_ BlockBitmap_t *Blockmap,
+    _In_ size_t Size);
 
-/* Deallocates a given address translated into offsets 
+/* Deallocates a given block translated into offsets 
  * into the given bitmap, and frees them in the bitmap */
-__EXTERN void BitmapFreeAddress(Bitmap_t *Bitmap, uintptr_t Address, size_t Size);
+MOSAPI
+OsStatus_t
+MOSABI
+BlockBitmapFree(
+    _In_ BlockBitmap_t *Blockmap,
+    _In_ uintptr_t Block,
+    _In_ size_t Size);
 
-/* Validates the given address that it's within
+/* Validates the given block that it's within
  * range of our bitmap and that it has in fact, been allocated */
-__EXTERN int BitmapValidateAddress(Bitmap_t *Bitmap, uintptr_t Address);
+__EXTERN
+int
+BlockBitmapValidate(
+    BlockBitmap_t *Blockmap,
+    uintptr_t Address);
 
-#endif //!_MOLLENOS_BITMAP_H_
+#endif //!_MOLLENOS_BLOCKBITMAP_H_

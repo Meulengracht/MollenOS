@@ -46,7 +46,6 @@ BitmapCreate(
     // Allocate a new bitmap and associated buffer
     Bitmap = (Bitmap_t*)dsalloc(sizeof(Bitmap_t));
     Data = (uintptr_t*)dsalloc(Size);
-    memset(Data, 0, Size);
 
     // Construct the bitmap
     if (BitmapConstruct(Bitmap, Data, Size) != OsSuccess) {
@@ -78,6 +77,7 @@ BitmapConstruct(
     }
 
     // Fill in data
+    memset(Data, 0, Size);
     Bitmap->Data = Data;
     Bitmap->SizeInBytes = Size;
     Bitmap->Cleanup = 0;

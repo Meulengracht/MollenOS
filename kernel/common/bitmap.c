@@ -1,104 +1,74 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS MCore - Specialized (Memory) Bitmap
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS MCore - Generic Block Bitmap Implementation
+ */
 
-/* Includes */
-#include <bitmap.h>
-#include <heap.h>
-#include <log.h>
-
-/* C-Library */
+/* Includes 
+ * - Library */
+#include <blbitmap.h>
 #include <stddef.h>
 #include <string.h>
 
-/* Helper - Set
- * Sets a specific bit in the bitmap, which is
- * then marked as allocated */
-void BitmapSet(Bitmap_t *Bitmap, int Bit) {
-	Bitmap->Bitmap[Bit / __BITS] |= (1 << (Bit % __BITS));
-}
-
-/* Helper - Unset
- * Unsets a specific bit in the bitmap, which is
- * then marked as free for allocation */
-void BitmapUnset(Bitmap_t *Bitmap, int Bit) {
-	Bitmap->Bitmap[Bit / __BITS] &= ~(1 << (Bit % __BITS));
-}
-
-/* Helper - Test
- * Tests a specific bit in the bitmap, returns
- * 0 if the bit is free, 1 if otherwise */
-int BitmapTest(Bitmap_t *Bitmap, int Bit)
+/* BlockBitmapCreate
+ * Instantiate a new bitmap that keeps track of a
+ * memory range between Start -> End with a given block size */
+BlockBitmap_t*
+BlockBitmapCreate(
+    _In_ uintptr_t BlockStart, 
+    _In_ uintptr_t BlockEnd, 
+    _In_ size_t BlockSize)
 {
-	/* Get block & index */
-	uintptr_t Block = Bitmap->Bitmap[Bit / __BITS];
-	uintptr_t Index = (1 << (Bit % __BITS));
+    // Variables
+    BlockBitmap_t *Blockmap = NULL;
+    size_t Bytes = 0;
 
-	/* Test */
-	return ((Block & Index) != 0);
+	// Allocate a new instance
+	Blockmap = (BlockBitmap_t*)dsmalloc(sizeof(BlockBitmap_t));
+    memset(Blockmap, 0, sizeof(BlockBitmap_t));
+
+    // Store initial members
+    Blockmap->BlockStart = BlockStart;
+    Blockmap->BlockEnd = BlockEnd;
+    Blockmap->BlockSize = BlockSize;
+	Blockmap->BlockCount = (BlockEnd - BlockSize) / BlockSize;
+	SpinlockReset(&Blockmap->Lock);
+
+	// Now calculate blocks 
+	// and divide by how many bytes are required
+	Bytes = DIVUP((Blockmap->BlockCount + 1), 8);
+    BitmapConstruct(&Blockmap->Base, (uintptr_t*)dsmalloc(Bytes), Bytes);
+    Blockmap->Base.Cleanup = 1;
+	return Blockmap;
 }
 
-/* Instantiate a new bitmap that keeps track of a
- * memory range between Start -> End with a
- * given block size */
-Bitmap_t *BitmapCreate(uintptr_t Base, uintptr_t End, size_t BlockSize)
-{
-	/* Allocate bitmap structure */
-	Bitmap_t *Bitmap = (Bitmap_t*)kmalloc(sizeof(Bitmap_t));
-	memset(Bitmap, 0, sizeof(Bitmap_t));
-
-	/* Set initial stuff */
-	Bitmap->Base = Base;
-	Bitmap->End = End;
-	Bitmap->Size = End - Base;
-	Bitmap->BlockSize = BlockSize;
-
-	/* Now calculate blocks 
-	 * and divide by how many bytes are required */
-	Bitmap->BlockCount = Bitmap->Size / BlockSize;
-	Bitmap->BitmapSize = DIVUP((Bitmap->BlockCount + 1), 8);
-
-	/* Now allocate bitmap */
-	Bitmap->Bitmap = (uintptr_t*)kmalloc(Bitmap->BitmapSize);
-
-	/* Reset bitmap */
-	memset(Bitmap->Bitmap, 0, Bitmap->BitmapSize);
-
-	/* Reset lock */
-	SpinlockReset(&Bitmap->Lock);
-
-	/* Done! */
-	return Bitmap;
-}
-
-/* Destroys a memory bitmap, and releases
+/* BlockBitmapDestroy
+ * Destroys a block bitmap, and releases 
  * all resources associated with the bitmap */
-void BitmapDestroy(Bitmap_t *Bitmap)
+OsStatus_t
+BlockBitmapDestroy(
+    _In_ BlockBitmap_t *Blockmap)
 {
-	/* Sanity */
-	if (Bitmap == NULL)
-		return;
-
-	/* Cleanup bitmap */
-	kfree(Bitmap->Bitmap);
-	kfree(Bitmap);
+	// Sanitize the input
+	if (Blockmap == NULL) {
+        return OsError;
+    }
+    return BitmapDestroy(&Blockmap->Base);
 }
 
 /* Allocates a number of bytes in the bitmap (rounded up in blocks)
