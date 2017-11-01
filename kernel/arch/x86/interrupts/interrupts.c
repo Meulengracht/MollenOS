@@ -337,11 +337,12 @@ InterruptEntry(
 
     // Sanitize the result of the
     // irq-handling - all irqs must be handled
-    if (Result != InterruptHandled) {
+    if (Result != InterruptHandled 
+        && InterruptGetIndex(TableIndex) == NULL) {
         // Unhandled interrupts are only ok if spurious
         // LAPIC, Interrupt 7 and 15
         if (TableIndex != INTERRUPT_SPURIOUS
-            && TableIndex != (INTERRUPT_PHYSICAL_BASE + 7) 
+            && TableIndex != (INTERRUPT_PHYSICAL_BASE + 7)
             && TableIndex != (INTERRUPT_PHYSICAL_BASE + 15)) {
             // Fault
             FATAL(FATAL_SCOPE_KERNEL, "Unhandled interrupt %u (Source %i)", 

@@ -154,6 +154,8 @@ HidInterrupt(
         return InterruptHandled;
     }
 
+    WARNING("HidInterrupt(Status %u, Index %u)", Status, DataIndex);
+
     // Perform the report parse
     if (!HidParseReport(Device, Device->Collection, DataIndex)) {
         return InterruptHandled;

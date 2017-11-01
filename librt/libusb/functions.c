@@ -1033,6 +1033,7 @@ UsbExecutePacket(
     _Out_ void *Buffer)
 {
     // Variables
+    UsbTransactionType_t DataStageType = OutTransaction;
     uintptr_t *DescriptorVirtual = NULL;
     uintptr_t DescriptorPhysical = 0;
     uintptr_t *PacketBuffer = NULL;
@@ -1060,18 +1061,26 @@ UsbExecutePacket(
 
     // Allocate a data-buffer
     if (Length != 0 && BufferPoolAllocate(__LibUsbBufferPool,
-        sizeof(UsbStringDescriptor_t), &DescriptorVirtual, 
-        &DescriptorPhysical) != OsSuccess) {
+        Length, &DescriptorVirtual, &DescriptorPhysical) != OsSuccess) {
+        ERROR("Failed to allocate an usb-buffer.");
         BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
         return TransferInvalidData;
     }
 
-    // Initialize transfer
-    // Setup, In (Data) and Out (ACK)
-    UsbTransferInitialize(&Transfer, UsbDevice, 
-        Endpoint, ControlTransfer);
-    UsbTransferSetup(&Transfer, PacketPhysical, DescriptorPhysical, 
-        Length, ((Direction & USBPACKET_DIRECTION_IN) || Length == 0) ? InTransaction : OutTransaction);
+    // Get direction
+    if (Direction & USBPACKET_DIRECTION_IN) {
+        DataStageType = InTransaction;
+    }
+
+    // Copy data if out
+    if (DataStageType == OutTransaction 
+        && Length != 0 && Buffer != NULL) {
+        memcpy(DescriptorVirtual, Buffer, Length);
+    }
+
+    // Initialize setup transfer
+    UsbTransferInitialize(&Transfer, UsbDevice, Endpoint, ControlTransfer);
+    UsbTransferSetup(&Transfer, PacketPhysical, DescriptorPhysical, Length, DataStageType);
 
     // Execute the transaction and cleanup the buffer
     if (UsbTransferQueue(Driver, Device, &Transfer, &Result) != OsSuccess) {
@@ -1080,12 +1089,15 @@ UsbExecutePacket(
     }
 
     // Update the device structure with the queried langauges
-    if (Result.Status == TransferFinished && Length != 0 && Buffer != NULL) {
+    if (Result.Status == TransferFinished && Length != 0 
+        && Buffer != NULL && DataStageType == InTransaction) {
         memcpy(Buffer, DescriptorVirtual, Length);
     }
 
     // Cleanup allocations
-    BufferPoolFree(__LibUsbBufferPool, DescriptorVirtual);
+    if (Length != 0) {
+        BufferPoolFree(__LibUsbBufferPool, DescriptorVirtual);
+    }
     BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
 
     // Done

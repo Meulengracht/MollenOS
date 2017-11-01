@@ -37,11 +37,16 @@ HidGetDescriptor(
     _In_ HidDevice_t *Device,
     _Out_ UsbHidDescriptor_t *Descriptor)
 {
-    if (UsbExecutePacket(Device->Base.DriverId, Device->Base.DeviceId,
-            &Device->Base.Device, Device->Control,
-            USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_IN,
-            DESCRIPTOR_TYPE_HID, 0, 0, (uint16_t)Device->Base.Interface.Id,
-            sizeof(UsbHidDescriptor_t), (void*)Descriptor) != TransferFinished) {
+    // Perform the descriptor retrieving
+    UsbTransferStatus_t Status = UsbExecutePacket(Device->Base.DriverId, 
+        Device->Base.DeviceId, &Device->Base.Device, Device->Control,
+        USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_IN,
+        USBPACKET_TYPE_GET_DESC, DESCRIPTOR_TYPE_HID, 0, 
+        (uint16_t)Device->Base.Interface.Id,
+        sizeof(UsbHidDescriptor_t), (void*)Descriptor);
+
+    if (Status != TransferFinished) {
+        ERROR("HidGetDescriptor failed with code %u", Status);
         return OsError;
     }
     else {
@@ -59,11 +64,16 @@ HidGetReportDescriptor(
     _In_ uint8_t ReportLength,
     _Out_ uint8_t *ReportBuffer)
 {
-    if (UsbExecutePacket(Device->Base.DriverId, Device->Base.DeviceId,
-            &Device->Base.Device, Device->Control,
-            USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_IN,
-            ReportType, 0, 0, (uint16_t)Device->Base.Interface.Id,
-            ReportLength, (void*)ReportBuffer) != TransferFinished) {
+    // Perform the descriptor retrieving
+    UsbTransferStatus_t Status = UsbExecutePacket(Device->Base.DriverId, 
+        Device->Base.DeviceId, &Device->Base.Device, Device->Control,
+        USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_IN,
+        USBPACKET_TYPE_GET_DESC, ReportType, 0, 
+        (uint16_t)Device->Base.Interface.Id,
+        ReportLength, (void*)ReportBuffer);
+
+    if (Status != TransferFinished) {
+        ERROR("HidGetReportDescriptor failed with code %u", Status);
         return OsError;
     }
     else {
