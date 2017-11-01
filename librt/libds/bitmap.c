@@ -91,7 +91,7 @@ BitmapConstruct(
  * Cleans up any resources allocated by the Create/Construct. */
 OsStatus_t
 BitmapDestroy(
-    Bitmap_t *Bitmap)
+    _In_ Bitmap_t *Bitmap)
 {
     // Sanitize parameters
     if (Bitmap == NULL) {
@@ -112,9 +112,9 @@ BitmapDestroy(
  * Flips all bits to 1 at the given index, and for <Count> bits. */
 OsStatus_t
 BitmapSetBits(
-    Bitmap_t *Bitmap,
-    int Index,
-    int Count)
+    _In_ Bitmap_t *Bitmap,
+    _In_ int Index,
+    _In_ int Count)
 {
     // Calculate the block index first
     int BlockIndex = Index / (sizeof(uintptr_t) * 8);
@@ -151,9 +151,9 @@ BitmapSetBits(
  * Clears all bits from the given index, and for <Count> bits. */
 OsStatus_t
 BitmapClearBits(
-    Bitmap_t *Bitmap,
-    int Index,
-    int Count)
+    _In_ Bitmap_t *Bitmap,
+    _In_ int Index,
+    _In_ int Count)
 {
     // Calculate the block index first
     int BlockIndex = Index / (sizeof(uintptr_t) * 8);
@@ -191,9 +191,9 @@ BitmapClearBits(
  * function returns 1. Otherwise 0. */
 int
 BitmapAreBitsSet(
-    Bitmap_t *Bitmap,
-    int Index,
-    int Count)
+    _In_ Bitmap_t *Bitmap,
+    _In_ int Index,
+    _In_ int Count)
 {
     // Calculate the block index first
     int BlockIndex = Index / (sizeof(uintptr_t) * 8);
@@ -233,9 +233,9 @@ BitmapAreBitsSet(
  * function returns 1. Otherwise 0. */
 int
 BitmapAreBitsClear(
-    Bitmap_t *Bitmap,
-    int Index,
-    int Count)
+    _In_ Bitmap_t *Bitmap,
+    _In_ int Index,
+    _In_ int Count)
 {
     // Calculate the block index first
     int BlockIndex = Index / (sizeof(uintptr_t) * 8);

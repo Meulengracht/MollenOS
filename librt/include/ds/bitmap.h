@@ -64,7 +64,7 @@ MOSAPI
 OsStatus_t
 MOSABI
 BitmapDestroy(
-    Bitmap_t *Bitmap);
+    _In_ Bitmap_t *Bitmap);
 
 /* BitmapSetBits
  * Flips all bits to 1 at the given index, and for <Count> bits. */
@@ -72,9 +72,9 @@ MOSAPI
 OsStatus_t
 MOSABI
 BitmapSetBits(
-    Bitmap_t *Bitmap,
-    int Index,
-    int Count);
+    _In_ Bitmap_t *Bitmap,
+    _In_ int Index,
+    _In_ int Count);
 
 /* BitmapClearBits
  * Clears all bits from the given index, and for <Count> bits. */
@@ -82,9 +82,9 @@ MOSAPI
 OsStatus_t
 MOSABI
 BitmapClearBits(
-    Bitmap_t *Bitmap,
-    int Index,
-    int Count);
+    _In_ Bitmap_t *Bitmap,
+    _In_ int Index,
+    _In_ int Count);
 
 /* BitmapAreBitsSet
  * If all bits are set from the given index, and for <Count> bits, then this
@@ -93,9 +93,9 @@ MOSAPI
 int
 MOSABI
 BitmapAreBitsSet(
-    Bitmap_t *Bitmap,
-    int Index,
-    int Count);
+    _In_ Bitmap_t *Bitmap,
+    _In_ int Index,
+    _In_ int Count);
 
 /* BitmapAreBitsClear
  * If all bits are cleared from the given index, and for <Count> bits, then this
@@ -104,9 +104,9 @@ MOSAPI
 int
 MOSABI
 BitmapAreBitsClear(
-    Bitmap_t *Bitmap,
-    int Index,
-    int Count);
+    _In_ Bitmap_t *Bitmap,
+    _In_ int Index,
+    _In_ int Count);
 
 /* BitmapFindBits
  * Locates the requested number of consequtive free bits.

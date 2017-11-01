@@ -52,7 +52,7 @@ BlockBitmapCreate(
 	// Now calculate blocks 
 	// and divide by how many bytes are required
 	Bytes = DIVUP((Blockmap->BlockCount + 1), 8);
-    BitmapConstruct(&Blockmap->Base, (uintptr_t*)dsmalloc(Bytes), Bytes);
+    BitmapConstruct(&Blockmap->Base, (uintptr_t*)dsalloc(Bytes), Bytes);
     Blockmap->Base.Cleanup = 1;
 	return Blockmap;
 }
