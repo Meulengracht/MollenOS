@@ -26,6 +26,7 @@
 /* Includes 
  * - C-Library */
 #include <os/osdefs.h>
+#include <ds/blbitmap.h>
 #include <ds/mstring.h>
 #include <ds/list.h>
 #include <signal.h>
@@ -34,7 +35,6 @@
  * - System */
 #include <system/addresspace.h>
 #include <process/pe.h>
-#include <bitmap.h>
 #include <mutex.h>
 #include <pipe.h>
 
@@ -106,8 +106,8 @@ typedef struct _MCoreAsh
 	// Ashes run in their own space, and have their
 	// own bitmap allocators
 	AddressSpace_t *AddressSpace;
-	Bitmap_t *Heap;
-	Bitmap_t *Shm;
+	BlockBitmap_t *Heap;
+	BlockBitmap_t *Shm;
 
 	// Signal support for Ashes
 	MCoreSignalTable_t Signals;

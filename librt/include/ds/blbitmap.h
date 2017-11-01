@@ -42,9 +42,9 @@ typedef struct _BlockBitmap {
     size_t              BlockCount;
 
     // Statistics
-    size_t              BlocksAllocated;
-    size_t              NumAllocations;
-    size_t              NumFrees;
+    int                 BlocksAllocated;
+    int                 NumAllocations;
+    int                 NumFrees;
 } BlockBitmap_t;
 
 /* BlockBitmapCreate
@@ -77,7 +77,8 @@ BlockBitmapAllocate(
     _In_ BlockBitmap_t *Blockmap,
     _In_ size_t Size);
 
-/* Deallocates a given block translated into offsets 
+/* BlockBitmapFree
+ * Deallocates a given block translated into offsets 
  * into the given bitmap, and frees them in the bitmap */
 MOSAPI
 OsStatus_t
@@ -87,12 +88,15 @@ BlockBitmapFree(
     _In_ uintptr_t Block,
     _In_ size_t Size);
 
-/* Validates the given block that it's within
- * range of our bitmap and that it has in fact, been allocated */
-__EXTERN
-int
-BlockBitmapValidate(
-    BlockBitmap_t *Blockmap,
-    uintptr_t Address);
+/* BlockBitmapValidate
+ * Validates the given block that it's within
+ * range of our bitmap and that it is either set or clear */
+MOSAPI
+OsStatus_t
+MOSABI
+BlockBitmapValidateState(
+    _In_ BlockBitmap_t *Blockmap,
+    _In_ uintptr_t Block,
+    _In_ int Set);
 
 #endif //!_MOLLENOS_BLOCKBITMAP_H_

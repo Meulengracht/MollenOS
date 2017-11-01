@@ -56,7 +56,7 @@ PhoenixBootServer(
 	PhoenixFinishAsh(&Server->Base);
 
 	// Initialize the server io-space memory
-	Server->DriverMemory = BitmapCreate(MEMORY_LOCATION_RING3_IOSPACE,
+	Server->DriverMemory = BlockBitmapCreate(MEMORY_LOCATION_RING3_IOSPACE,
 		MEMORY_LOCATION_RING3_IOSPACE_END, PAGE_SIZE);
 
 	// Map in arguments
@@ -136,7 +136,7 @@ void PhoenixCleanupServer(MCoreServer_t *Server)
 	}
 
 	/* Cleanup bitmap */
-	BitmapDestroy(Server->DriverMemory);
+	BlockBitmapDestroy(Server->DriverMemory);
 
 	/* Now that we have cleaned up all
 	* process-specifics, we want to just use the base

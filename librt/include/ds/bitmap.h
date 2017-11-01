@@ -108,4 +108,14 @@ BitmapAreBitsClear(
     int Index,
     int Count);
 
+/* BitmapFindBits
+ * Locates the requested number of consequtive free bits.
+ * Returns the index of the first free bit. Returns -1 on no free. */
+MOSAPI
+int
+MOSABI
+BitmapFindBits(
+    _In_ Bitmap_t *Bitmap,
+    _In_ int Count);
+
 #endif //!_GENERIC_BITMAP_H_

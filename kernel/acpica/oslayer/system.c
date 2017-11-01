@@ -116,7 +116,6 @@ AcpiOsInstallInterruptHandler (
 {
     // Variables
     MCoreInterrupt_t ACPIInterrupt;
-    int InterruptIndex = 0;
 
     // Sanitize param
     if (InterruptNumber >= 32) {

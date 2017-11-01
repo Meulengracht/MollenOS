@@ -269,3 +269,66 @@ BitmapAreBitsClear(
     // If we reach here, success
     return 1;
 }
+
+/* BitmapFindBits
+ * Locates the requested number of consequtive free bits.
+ * Returns the index of the first free bit. Returns -1 on no free. */
+int
+BitmapFindBits(
+    _In_ Bitmap_t *Bitmap,
+    _In_ int Count)
+{
+    // Variables
+    int StartBit = -1;
+	int i = 0, j = 0, k = 0;
+
+    // Iterate bits
+    for (i = 0; i < (Bitmap->SizeInBytes / (sizeof(uintptr_t) * 8)); i++) {
+		// Quick test, if all is allocated, damn
+		if (Bitmap->Data[i] == __MASK) {
+			continue;
+		}
+
+		// Test each bit in the value
+		for (j = 0; j < __BITS; j++) {
+			uintptr_t CurrentBit = 1 << j;
+			if (Bitmap->Data[i] & CurrentBit) {
+				continue;
+			}
+
+		    // Ok, now we have to incremently make sure
+			// enough consecutive bits are free
+			for (k = 0; k < Count; k++) {
+				// Make sure we are still in same block
+				if ((j + k) >= __BITS) {
+					int TempI = i + ((j + k) / __BITS);
+					int OffsetI = (j + k) % __BITS;
+					uintptr_t BlockBit = 1 << OffsetI;
+					if (Bitmap->Data[TempI] & BlockBit) {
+						break;
+					}
+				}
+				else {
+					uintptr_t BlockBit = 1 << (j + k);
+					if (Bitmap->Data[i] & BlockBit) {
+						break;
+					}
+				}
+			}
+
+			// If k == numblocks we've found free bits!
+			if (k == Count) {
+				StartBit = (int)(i * sizeof(uintptr_t) * 8 + j);
+				break;
+			}
+		}
+
+		// Break out if we found start-bit
+		if (StartBit != -1) {
+			break;
+        }
+    }
+    
+    // Done
+    return StartBit;
+}

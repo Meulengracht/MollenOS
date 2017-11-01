@@ -596,7 +596,7 @@ ScMemoryAllocate(
     
     // Now do the allocation in the user-bitmap 
     // since memory is managed in userspace for speed
-    AllocatedAddress = BitmapAllocateAddress(Ash->Heap, Size);
+    AllocatedAddress = BlockBitmapAllocate(Ash->Heap, Size);
 
     // Sanitize the returned address
     if (AllocatedAddress == 0) {
@@ -628,7 +628,7 @@ ScMemoryAllocate(
         // Do the actual mapping
         if (AddressSpaceMap(AddressSpaceGetCurrent(),
             AllocatedAddress, Size, __MASK, ExtendedFlags, PhysicalAddress) != OsSuccess) {
-            BitmapFreeAddress(Ash->Heap, AllocatedAddress, Size);
+            BlockBitmapFree(Ash->Heap, AllocatedAddress, Size);
             *VirtualAddress = 0;
             return OsError;
         }
@@ -668,7 +668,7 @@ ScMemoryFree(
 
     // Now do the deallocation in the user-bitmap 
     // since memory is managed in userspace for speed
-    BitmapFreeAddress(Ash->Heap, Address, Size);
+    BlockBitmapFree(Ash->Heap, Address, Size);
 
     // Return the result from unmap
     return AddressSpaceUnmap(AddressSpaceGetCurrent(), Address, Size);
@@ -726,7 +726,7 @@ ScMemoryAcquire(
 
     // Start out by allocating memory 
     // in target process's shared memory space
-    uintptr_t Shm = BitmapAllocateAddress(Ash->Shm, Size);
+    uintptr_t Shm = BlockBitmapAllocate(Ash->Shm, Size);
     NumBlocks = DIVUP(Size, PAGE_SIZE);
 
     // Sanity -> If we cross a page boundary
@@ -792,7 +792,7 @@ ScMemoryRelease(
     }
 
     // Free it in bitmap
-    BitmapFreeAddress(Ash->Shm, VirtualAddress, Size);
+    BlockBitmapFree(Ash->Shm, VirtualAddress, Size);
     return OsSuccess;
 }
 

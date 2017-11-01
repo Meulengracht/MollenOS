@@ -83,9 +83,9 @@ PhoenixFinishAsh(
 	Ash->FileBuffer = NULL;
 
 	// Initialize the memory bitmaps
-	Ash->Heap = BitmapCreate(AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_HEAP),
+	Ash->Heap = BlockBitmapCreate(AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_HEAP),
 		AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_SHM), PAGE_SIZE);
-	Ash->Shm = BitmapCreate(AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_SHM),
+	Ash->Shm = BlockBitmapCreate(AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_SHM),
 		AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_IOSPACE), PAGE_SIZE);
 
 	// Create the stack mapping
@@ -449,8 +449,8 @@ void PhoenixCleanupAsh(MCoreAsh_t *Ash)
 	ListDestroy(Ash->Pipes);
 
 	/* Cleanup memory allocators */
-	BitmapDestroy(Ash->Shm);
-	BitmapDestroy(Ash->Heap);
+	BlockBitmapDestroy(Ash->Shm);
+	BlockBitmapDestroy(Ash->Heap);
 
 	/* Cleanup executable data */
 	PeUnloadImage(Ash->Executable);

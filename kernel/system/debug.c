@@ -117,7 +117,7 @@ DebugPageFault(
 		&& Address < MEMORY_LOCATION_RING3_SHM) {
 		MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
 		if (Ash != NULL) {
-			if (!BitmapValidateAddress(Ash->Heap, Address)) {
+			if (BlockBitmapValidateState(Ash->Heap, Address, 1) == OsSuccess) {
 				// Try to map it in and return the result
 				return AddressSpaceMap(AddressSpaceGetCurrent(),
 					(Address & PAGE_MASK), PAGE_SIZE, __MASK,

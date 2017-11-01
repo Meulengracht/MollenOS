@@ -30,34 +30,22 @@
 /* Includes 
  * - System */
 #include <process/phoenix.h>
-#include <bitmap.h>
+#include <ds/blbitmap.h>
 
 /* The base of an server process, servers
  * are derived from Ashes, and merely extensions
  * to support userland stuff, and run in a larger
  * memory segment to allow for device memory */
-typedef struct _MCoreServer
-{
-	/* We derive from Ashes */
-	MCoreAsh_t	Base;
+typedef struct _MCoreServer {
+    MCoreAsh_t           Base;
+    BlockBitmap_t       *DriverMemory;
+    void                *ArgumentBuffer;
+    size_t               ArgumentLength;
 
-	/* We want to be able to keep track 
-	 * of some driver-features that we have
-	 * available, like io-space memory */
-	Bitmap_t	*DriverMemory;
-
-	/* Also we allow for data arguments to
-	 * to be copied into the userspace on startup */
-	void		*ArgumentBuffer;
-	size_t		ArgumentLength;
-
-	/* Since we only have one server per driver
-	 * but multiple instances, we keep track of devinfo */
-	DevInfo_t	VendorId;
-	DevInfo_t	DeviceId;
-	DevInfo_t	DeviceClass;
-	DevInfo_t	DeviceSubClass;
-
+    DevInfo_t            VendorId;
+    DevInfo_t            DeviceId;
+    DevInfo_t            DeviceClass;
+    DevInfo_t            DeviceSubClass;
 } MCoreServer_t;
 
 /* PhoenixCreateServer
@@ -77,7 +65,7 @@ KERNELAPI
 MCoreServer_t*
 KERNELABI
 PhoenixGetServer(
-	_In_ UUId_t ServerId);
+    _In_ UUId_t ServerId);
 
 /* PhoenixGetCurrentServer
  * If the current running process is a server then it
@@ -91,6 +79,6 @@ PhoenixGetCurrentServer(void);
  * Retrieves a running server by driver-information
  * to avoid spawning multiple servers */
 KERNELAPI MCoreServer_t *PhoenixGetServerByDriver(DevInfo_t VendorId,
-	DevInfo_t DeviceId, DevInfo_t DeviceClass, DevInfo_t DeviceSubClass);
+    DevInfo_t DeviceId, DevInfo_t DeviceClass, DevInfo_t DeviceSubClass);
 
 #endif //!_MCORE_SERVER_H_

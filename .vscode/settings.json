@@ -260,6 +260,7 @@
         "log.h": "c",
         "achware.h": "c",
         "list": "c",
-        "__memory": "c"
+        "__memory": "c",
+        "blbitmap.h": "c"
     }
 }
