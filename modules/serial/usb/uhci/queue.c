@@ -22,7 +22,7 @@
  * Finish the FSBR implementation, right now there is no guarantee of order ls/fs/bul
  * The isochronous unlink/link needs improvements, it does not support multiple isocs in same frame 
  */
-//#define __TRACE
+#define __TRACE
 
 /* Includes
  * - System */
@@ -343,7 +343,7 @@ UhciQhAllocate(
 		// but reset the QH first
 		memset(&Controller->QueueControl.QHPool[i], 0, sizeof(UhciQueueHead_t));
 		Controller->QueueControl.QHPool[i].Flags = UHCI_QH_ACTIVE | UHCI_QH_INDEX(i)
-				| UHCI_QH_TYPE((uint32_t)Type) | UHCI_QH_BANDWIDTH_ALLOC;
+				| UHCI_QH_TYPE((uint32_t)Type);
 		
 		// Determine which queue-priority
 		if (Speed == LowSpeed && Type == ControlTransfer) {
@@ -354,7 +354,10 @@ UhciQhAllocate(
 		}
 		else if (Type == BulkTransfer) {
 			Controller->QueueControl.QHPool[i].Flags |= UHCI_QH_SET_QUEUE(UHCI_QH_FBULK) | UHCI_QH_FSBR;
-		}
+        }
+        else {
+            Controller->QueueControl.QHPool[i].Flags |= UHCI_QH_BANDWIDTH_ALLOC;
+        }
 		
 		// Store pointer
 		Qh = &Controller->QueueControl.QHPool[i];
@@ -715,14 +718,17 @@ UhciProcessRequest(
 			UhciFixupToggles(Controller, Transfer);
 		}
 
-		// Notice finalizer-thread to finish us
+		// Finalize transaction and remove from list
         UhciTransactionFinalize(Controller, Transfer, 1);
+        ListRemoveByNode(Controller->QueueControl.TransactionList, Node);
+        ListDestroyNode(Controller->QueueControl.TransactionList, Node);
 	}
 	else if (Transfer->Transfer.Type == InterruptTransfer) {
 
         // Variables
         uintptr_t BufferBase, BufferStep, BufferBaseUpdated;
 		int SwitchToggles = 0;
+        WARNING("UhciProcessRequest(Interrupt)");
 		
 		// Setup some variables
 		Qh = (UhciQueueHead_t*)Transfer->EndpointDescriptor;

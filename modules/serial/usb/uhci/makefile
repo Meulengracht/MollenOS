@@ -7,7 +7,7 @@ INCLUDES = -I../../../../librt/include
 OBJECTS = $(SOURCES:.c=.o)
 
 CFLAGS = $(GCFLAGS) -Wno-address-of-packed-member -D_DLL -D__DRIVER_IMPL $(INCLUDES)
-LFLAGS = /nodefaultlib /subsystem:native /entry:_mDrvCrt /dll ../../../../librt/build/libc.lib ../../../../librt/build/libdrv.lib ../../../../librt/build/libos.lib
+LFLAGS = /nodefaultlib /subsystem:native /lldmap /entry:_mDrvCrt /dll ../../../../librt/build/libc.lib ../../../../librt/build/libdrv.lib ../../../../librt/build/libos.lib
 
 .PHONY: all
 all: ../../../build/uhci.dll ../../../build/uhci.mdrv

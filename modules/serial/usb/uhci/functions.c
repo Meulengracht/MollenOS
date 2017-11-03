@@ -88,9 +88,7 @@ UhciTransactionInitialize(
 	TransactionCount = DIVUP(Transfer->Length, Transfer->Endpoint.MaxPacketSize);
 
 	// Handle bandwidth allocation if neccessary
-	if (Qh != NULL && 
-		!(Qh->Flags & UHCI_QH_BANDWIDTH_ALLOC))
-	{
+	if (Qh != NULL && (Qh->Flags & UHCI_QH_BANDWIDTH_ALLOC)) {
 		// Variables
 		OsStatus_t Run = OsError;
 		int Exponent, Queue;
@@ -111,10 +109,9 @@ UhciTransactionInitialize(
 		Qh->Bandwidth = UsbCalculateBandwidth(Transfer->Speed, 
 			Transfer->Endpoint.Direction, Transfer->Type, Transfer->Length);
 
-		/* Make sure we have enough bandwidth for the transfer */
+		// Make sure we have enough bandwidth for the transfer
 		if (Exponent > 0) {
 			while (Run != OsSuccess && --Exponent >= 0) {
-				
 				// Select queue
 				Queue = 9 - Exponent;
 
@@ -135,7 +132,6 @@ UhciTransactionInitialize(
 			}
 		}
 		else {
-
 			// Select queue
 			Queue = 9 - Exponent;
 
@@ -240,23 +236,6 @@ UhciTransactionDispatch(
 		MemoryBarrier();
 		PrevQh->Link = (QhAddress | UHCI_LINK_QH);
         PrevQh->LinkIndex = QhIndex;
-#ifdef __DEBUG
-        int fb = Controller->QueueControl.Frame;
-        TRACE("(%u): 0x%x, (%u): 0x%x, (%u): 0x%x, (%u): 0x%x, (%u): 0x%x",
-            fb, Controller->QueueControl.FrameList[fb], 
-            fb + 1, Controller->QueueControl.FrameList[fb + 1], 
-            fb + 2, Controller->QueueControl.FrameList[fb + 2], 
-            fb + 3, Controller->QueueControl.FrameList[fb + 3], 
-            fb + 4, Controller->QueueControl.FrameList[fb + 4]);
-        TRACE("Dumping post-operation");
-        ThreadSleep(5000);
-        UhciUpdateCurrentFrame(Controller);
-        UsbQueueDebug(Controller, Qh);
-        TRACE("Current frame %i, Status 0x%x", 
-            Controller->QueueControl.Frame,
-            UhciRead16(Controller, UHCI_REGISTER_COMMAND));
-#endif
-
 #ifdef UHCI_FSBR
 		/* FSBR? */
 		if (PrevQueue < UHCI_POOL_FSBR
@@ -275,36 +254,19 @@ UhciTransactionDispatch(
 #endif
 	}
 	// Periodic requests
-	else if (Queue != UHCI_QH_ISOCHRONOUS && Queue < UHCI_QH_ASYNC) {
+	else if (Queue > UHCI_QH_ISOCHRONOUS && Queue < UHCI_QH_ASYNC) {
 		
 		// Variables
-		UhciQueueHead_t *ItrQh = NULL, *PrevQh = NULL;
-		int NextQueue = -1;
-
-		// Get initial qh of the queue
-		// and find the correct spot
-		ItrQh = &Controller->QueueControl.QHPool[Queue];
-		while (ItrQh) {
-			PrevQh = ItrQh;
-			if (ItrQh->LinkIndex == UHCI_NO_INDEX) {
-				break;
-			}
-
-			// Get next qh
-			ItrQh = &Controller->QueueControl.QHPool[ItrQh->LinkIndex];
-			NextQueue = UHCI_QH_GET_QUEUE(ItrQh->Flags);
-			if (Queue < NextQueue) {
-				break;
-			}
-		}
+        UhciQueueHead_t *ExistingQueueHead = 
+            &Controller->QueueControl.QHPool[Queue];
 
 		// Insert in-between the two by transfering link
 		// Make use of a memory-barrier to flush
-		Qh->Link = PrevQh->Link;
-		Qh->LinkIndex = PrevQh->LinkIndex;
+		Qh->Link = ExistingQueueHead->Link;
+		Qh->LinkIndex = ExistingQueueHead->LinkIndex;
 		MemoryBarrier();
-		PrevQh->Link = (QhAddress | UHCI_LINK_QH);
-		PrevQh->LinkIndex = QhIndex;
+		ExistingQueueHead->Link = (QhAddress | UHCI_LINK_QH);
+		ExistingQueueHead->LinkIndex = QhIndex;
 	}
 	else {
 		UhciLinkIsochronous(Controller, Qh);
