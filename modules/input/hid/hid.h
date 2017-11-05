@@ -314,6 +314,13 @@ HidParseReport(
     _In_ UsbHidReportCollection_t *Collection,
     _In_ size_t DataIndex);
 
+/* HidCollectionCleanup
+ * Cleans up any resources allocated by the collection parser. */
+__EXTERN
+OsStatus_t
+HidCollectionCleanup(
+    _In_ HidDevice_t *Device);
+
 /* HidInterrupt
  * Should be called from the primary driver OnInterrupt
  * Performs the report-parsing and post-interrupt stuff */

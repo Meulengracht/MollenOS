@@ -129,6 +129,7 @@ HidDeviceDestroy(
     }
 
     // Cleanup collections
+    HidCollectionCleanup(Device);
     
     // Cleanup the buffer
     if (Device->Buffer != NULL) {
@@ -153,8 +154,6 @@ HidInterrupt(
     if (Device->Collection == NULL || Status == TransferNAK) {
         return InterruptHandled;
     }
-
-    WARNING("HidInterrupt(Status %u, Index %u)", Status, DataIndex);
 
     // Perform the report parse
     if (!HidParseReport(Device, Device->Collection, DataIndex)) {

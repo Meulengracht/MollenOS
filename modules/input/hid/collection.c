@@ -520,6 +520,20 @@ HidParseReportDescriptor(
     return DIVUP(LongestReport, 8) + ((ReportIdsUsed == 1) ? 1 : 0);
 }
 
+/* HidCollectionCleanup
+ * Cleans up any resources allocated by the collection parser. */
+OsStatus_t
+HidCollectionCleanup(
+    _In_ HidDevice_t *Device)
+{
+    // Sanitize input
+    if (Device == NULL) {
+        return OsError;
+    }
+
+    // @todo
+}
+
 /* HidParseReportInput
  * Handles report data from a collection-item of the type input.
  * This means we have actual input data from the device */

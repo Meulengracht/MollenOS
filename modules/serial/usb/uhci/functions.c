@@ -260,8 +260,14 @@ UhciTransactionDispatch(
         UhciQueueHead_t *ExistingQueueHead = 
             &Controller->QueueControl.QHPool[Queue];
 
+        // Iterate to end of interrupt list
+        while (ExistingQueueHead->LinkIndex != UHCI_QH_ASYNC) {
+            ExistingQueueHead = &Controller->QueueControl.
+                QHPool[ExistingQueueHead->LinkIndex];
+        }
+
 		// Insert in-between the two by transfering link
-		// Make use of a memory-barrier to flush
+        // Make use of a memory-barrier to flush
 		Qh->Link = ExistingQueueHead->Link;
 		Qh->LinkIndex = ExistingQueueHead->LinkIndex;
 		MemoryBarrier();

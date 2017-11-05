@@ -22,7 +22,7 @@
  * Finish the FSBR implementation, right now there is no guarantee of order ls/fs/bul
  * The isochronous unlink/link needs improvements, it does not support multiple isocs in same frame 
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes
  * - System */
@@ -122,7 +122,7 @@ UhciGetStatusCode(
         return TransferBabble;
     }
     else if (ConditionCode == 3) {
-        return TransferNotResponding;
+        return TransferNAK;
     }
     else {
         TRACE("Error: 0x%x (%s)", ConditionCode, UhciErrorMessages[ConditionCode]);
@@ -500,8 +500,8 @@ UhciTdIo(
 	_In_ size_t Length)
 {
 	// Variables
-	UhciTransferDescriptor_t *Td = NULL;
-
+    UhciTransferDescriptor_t *Td = NULL;
+    
 	// Allocate a new Td
 	Td = UhciTdAllocate(Controller, Type);
 	if (Td == NULL) {
@@ -542,7 +542,7 @@ UhciTdIo(
 		Td->Header |= UHCI_TD_DATA_TOGGLE;
 	}
 
-	// Setup size
+    // Setup size
 	if (Length > 0) {
 		if (Length < MaxPacketSize && Type == InterruptTransfer) {
 			Td->Header |= UHCI_TD_MAX_LEN((MaxPacketSize - 1));
@@ -698,9 +698,10 @@ void
 UhciProcessRequest(
 	_In_ UhciController_t *Controller,
 	_In_ UsbManagerTransfer_t *Transfer,
-	_In_ ListNode_t *Node,
+    _In_ ListNode_t *Node,
 	_In_ int FixupToggles,
-	_In_ int ErrorTransfer)
+    _In_ int ErrorTransfer,
+    _In_ int RestartOnly)
 {
 	// Variables
 	UhciTransferDescriptor_t *Td = NULL;
@@ -728,11 +729,10 @@ UhciProcessRequest(
         // Variables
         uintptr_t BufferBase, BufferStep, BufferBaseUpdated;
 		int SwitchToggles = 0;
-        WARNING("UhciProcessRequest(Interrupt)");
 		
 		// Setup some variables
 		Qh = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
-		Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
+        Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
 		SwitchToggles = (DIVUP(Transfer->Transfer.Length, 
 			Transfer->Transfer.Endpoint.MaxPacketSize)) % 2;
 
@@ -743,7 +743,7 @@ UhciProcessRequest(
         
         // Do some extra processing for periodics
         BufferBase = Transfer->Transfer.Transactions[0].BufferAddress;
-        BufferStep = Transfer->Transfer.Transactions[0].Length;
+        BufferStep = Transfer->Transfer.Endpoint.MaxPacketSize;
 
 		// Restart transfer
 		while (Td) {
@@ -757,10 +757,12 @@ UhciProcessRequest(
 				UsbManagerSetToggle(Transfer->Device, Transfer->Pipe, Toggle ^ 1);
             }
             
-            // Adjust buffer 
-            BufferBaseUpdated = ADDLIMIT(BufferBase, Td->Buffer, 
-                BufferStep, BufferBase + Transfer->Transfer.PeriodicBufferSize);
-            Td->Buffer = LODWORD(BufferBaseUpdated);
+            // Adjust buffer
+            if (!RestartOnly) {
+                BufferBaseUpdated = ADDLIMIT(BufferBase, Td->Buffer, 
+                    BufferStep, BufferBase + Transfer->Transfer.PeriodicBufferSize);
+                Td->Buffer = LODWORD(BufferBaseUpdated);
+            }
 
 			// Restore
 			Td->Header = Td->OriginalHeader;
@@ -781,7 +783,8 @@ UhciProcessRequest(
         }
         
 		// Notify process of transfer of the status
-        if (Transfer->Transfer.Type == InterruptTransfer) {
+        if (Transfer->Transfer.Type == InterruptTransfer
+            && !RestartOnly) {
             if (Transfer->Transfer.UpdatesOn) {
                 InterruptDriver(Transfer->Requester, 
                     (size_t)Transfer->Transfer.PeriodicData, 
@@ -791,7 +794,7 @@ UhciProcessRequest(
 
             // Increase
             Transfer->PeriodicDataIndex = ADDLIMIT(0, Transfer->PeriodicDataIndex,
-                Transfer->Transfer.Transactions[0].Length, Transfer->Transfer.PeriodicBufferSize);
+                BufferStep, Transfer->Transfer.PeriodicBufferSize);
         }
 
 		// Reinitialize the queue-head
@@ -865,7 +868,8 @@ UhciProcessTransfers(
 		// Variables
 		int ShortTransfer = 0;
 		int ErrorTransfer = 0;
-		int FixupToggles = 0;
+        int FixupToggles = 0;
+        int RestartOnly = 0;
 		int Counter = 0;
 		ProcessQh = 0;
 
@@ -877,8 +881,8 @@ UhciProcessTransfers(
 			// Extract information from the td
 			int CondCode = UhciConditionCodeToIndex(UHCI_TD_STATUS(Td->Flags));
 			int BytesTransfered = UHCI_TD_ACTUALLENGTH(Td->Flags);
-			int BytesRequest = UHCI_TD_GET_LEN(Td->Header);
-			
+            int BytesRequest = UHCI_TD_GET_LEN(Td->Header);
+            
 			// Keep count
 			Counter++;
 
@@ -914,7 +918,15 @@ UhciProcessTransfers(
 			if (BytesTransfered != UHCI_TD_LENGTH_MASK
 				&& BytesTransfered < BytesRequest) {
 				ShortTransfer = 1;
-			}
+            }
+            
+            // Do we simply need to restart transfer?
+            if (BytesTransfered == UHCI_TD_LENGTH_MASK
+                && CondCode == 3) {
+                // NAK Transfer - No data, just restart
+                RestartOnly = 1;
+                break;
+            }
 
 			// Sanitize the condition-code
 			if (CondCode != 0 && CondCode != 3) {
@@ -934,7 +946,7 @@ UhciProcessTransfers(
 		// Process transfer?
 		if (ProcessQh) {
 			UhciProcessRequest(Controller, Transfer, 
-				Node, FixupToggles, ErrorTransfer);
+				Node, FixupToggles, ErrorTransfer, RestartOnly);
 			break;
 		}
 	}
