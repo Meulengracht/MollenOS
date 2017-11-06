@@ -97,7 +97,7 @@ HidDeviceCreate(
     UsbTransferPeriodic(&Device->Transfer, Device->BufferAddress, 0x400, 
         Device->ReportLength, InTransaction, 1, (__CONST void*)Device);
     if (UsbTransferQueuePeriodic(Device->Base.DriverId, Device->Base.DeviceId, 
-        &Device->Transfer, &Device->TransferId) != OsSuccess) {
+        &Device->Transfer, &Device->TransferId) != TransferQueued) {
         ERROR("Failed to install interrupt transfer");
         goto Error;
     }

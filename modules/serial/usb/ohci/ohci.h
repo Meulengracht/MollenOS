@@ -479,14 +479,14 @@ OhciProcessDoneQueue(
  * Queues a new transfer for the given driver
  * and pipe. They must exist. The function does not block*/
 __EXTERN
-OsStatus_t
+UsbTransferStatus_t
 UsbQueueTransferGeneric(
 	_InOut_ UsbManagerTransfer_t *Transfer);
 
 /* UsbDequeueTransferGeneric 
  * Removes a queued transfer from the controller's framelist */
 __EXTERN
-OsStatus_t
+UsbTransferStatus_t
 UsbDequeueTransferGeneric(
 	_In_ UsbManagerTransfer_t *Transfer);
 

@@ -156,12 +156,18 @@ typedef enum _UsbTransferType {
  * Describes a unified way of reporting how a transfer ended.
  * Where the initial state is NotProcessed */
 typedef enum _UsbTransferStatus {
-	TransferNotProcessed,
+    // HCD Error Codes
+    TransferNotProcessed,
+    TransferQueued,
 	TransferFinished,
+    TransferInvalid,
+
+    // Transaction Error Codes
+    TransferNoBandwidth,
 	TransferStalled,
 	TransferNotResponding,
 	TransferInvalidToggles,
-	TransferInvalidData,
+    TransferBufferError,
 	TransferNAK,
 	TransferBabble
 } UsbTransferStatus_t;
@@ -293,7 +299,8 @@ UsbTransferOut(
 
 /* UsbTransferQueue 
  * Queues a new Control or Bulk transfer for the given driver
- * and pipe. They must exist. The function blocks untill execution */
+ * and pipe. They must exist. The function blocks untill execution.
+ * Status-code must be TransferQueued on success. */
 __EXTERN
 OsStatus_t
 UsbTransferQueue(
@@ -304,9 +311,10 @@ UsbTransferQueue(
 
 /* UsbTransferQueuePeriodic 
  * Queues a new Interrupt or Isochronous transfer. This transfer is 
- * persistant untill device is disconnected or Dequeue is called. */
+ * persistant untill device is disconnected or Dequeue is called. 
+ * Returns TransferFinished on success. */
 __EXTERN
-OsStatus_t
+UsbTransferStatus_t
 UsbTransferQueuePeriodic(
 	_In_ UUId_t Driver,
 	_In_ UUId_t Device,
@@ -315,9 +323,9 @@ UsbTransferQueuePeriodic(
 
 /* UsbTransferDequeuePeriodic 
  * Dequeues an existing periodic transfer from the given controller. The transfer
- * and the controller must be valid. */
+ * and the controller must be valid. Returns TransferFinished on success. */
 __EXTERN
-OsStatus_t
+UsbTransferStatus_t
 UsbTransferDequeuePeriodic(
 	_In_ UUId_t Driver,
 	_In_ UUId_t Device,

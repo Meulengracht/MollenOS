@@ -278,7 +278,7 @@ UsbTransferQueue(
 /* UsbTransferQueuePeriodic 
  * Queues a new Interrupt or Isochronous transfer. This transfer is 
  * persistant untill device is disconnected or Dequeue is called. */
-OsStatus_t
+UsbTransferStatus_t
 UsbTransferQueuePeriodic(
     _In_ UUId_t Driver,
     _In_ UUId_t Device,
@@ -295,24 +295,31 @@ UsbTransferQueuePeriodic(
     Contract.Version = __USBMANAGER_INTERFACE_VERSION;
 
     // Query the driver directly
-    return QueryDriver(&Contract, __USBHOST_QUEUEPERIODIC,
+    if (QueryDriver(&Contract, __USBHOST_QUEUEPERIODIC,
         &Device, sizeof(UUId_t), &Transfer->Pipe, sizeof(UUId_t), 
         Transfer, sizeof(UsbTransfer_t), 
-        &Result, sizeof(UsbTransferResult_t));
+        &Result, sizeof(UsbTransferResult_t)) != OsSuccess) {
+        *TransferId = UUID_INVALID;
+        return TransferInvalid;
+    }
+    else {
+        *TransferId = Result.Id;
+        return Result.Status;
+    }
 }
 
 /* UsbTransferDequeuePeriodic 
  * Dequeues an existing periodic transfer from the given controller. The transfer
  * and the controller must be valid. */
-OsStatus_t
+UsbTransferStatus_t
 UsbTransferDequeuePeriodic(
     _In_ UUId_t Driver,
     _In_ UUId_t Device,
     _In_ UUId_t TransferId)
 {
     // Variables
+    UsbTransferStatus_t Result = TransferNotProcessed;
     MContract_t Contract;
-    OsStatus_t Result;
 
     // Setup contract stuff for request
     Contract.DriverId = Driver;
@@ -320,10 +327,15 @@ UsbTransferDequeuePeriodic(
     Contract.Version = __USBMANAGER_INTERFACE_VERSION;
 
     // Query the driver directly
-    return QueryDriver(&Contract, __USBHOST_QUEUETRANSFER,
+    if (QueryDriver(&Contract, __USBHOST_DEQUEUEPERIODIC,
         &Device, sizeof(UUId_t), 
         &TransferId, sizeof(UUId_t), 
-        NULL, 0, &Result, sizeof(OsStatus_t));
+        NULL, 0, &Result, sizeof(UsbTransferStatus_t)) != OsSuccess) {
+        return TransferInvalid;
+    }
+    else {
+        return Result;
+    }
 }
 
 /* UsbHostResetPort
@@ -440,7 +452,7 @@ UsbSetAddress(
     TRACE("Allocating buffer");
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
-        return TransferInvalidData;
+        return TransferInvalid;
     }
 
     // Setup packet
@@ -497,7 +509,7 @@ UsbGetDeviceDescriptor(
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
-        return TransferInvalidData;
+        return TransferInvalid;
     }
 
     // Initialize the packet
@@ -513,7 +525,7 @@ UsbGetDeviceDescriptor(
     if (BufferPoolAllocate(__LibUsbBufferPool, DESCRIPTOR_SIZE, 
             &DescriptorVirtual, &DescriptorPhysical) != OsSuccess) {
         BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
-        return TransferInvalidData;
+        return TransferInvalid;
     }
 
     // Initialize pointer
@@ -572,7 +584,7 @@ UsbGetInitialConfigDescriptor(
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
-        return TransferInvalidData;
+        return TransferInvalid;
     }
 
     // Initialize the packet
@@ -589,7 +601,7 @@ UsbGetInitialConfigDescriptor(
         sizeof(UsbConfigDescriptor_t), &DescriptorVirtual, 
         &DescriptorPhysical) != OsSuccess) {
         BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
-        return TransferInvalidData;
+        return TransferInvalid;
     }
 
     // Initialize pointer
@@ -648,7 +660,7 @@ UsbGetConfigDescriptor(
     // Sanitize parameters
     if (ConfigDescriptorBuffer == NULL 
         || ConfigDescriptorBufferLength < sizeof(UsbConfigDescriptor_t)) {
-        return TransferInvalidData;
+        return TransferInvalid;
     }
 
     // Are we requesting the initial descriptor?
@@ -660,7 +672,7 @@ UsbGetConfigDescriptor(
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
-        return TransferInvalidData;
+        return TransferInvalid;
     }
 
     // Initialize the packet
@@ -676,7 +688,7 @@ UsbGetConfigDescriptor(
     if (BufferPoolAllocate(__LibUsbBufferPool, ConfigDescriptorBufferLength, 
         &DescriptorVirtual, &DescriptorPhysical) != OsSuccess) {
         BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
-        return TransferInvalidData;
+        return TransferInvalid;
     }
     
     // Initialize transfer
@@ -727,7 +739,7 @@ UsbSetConfiguration(
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
-        return TransferInvalidData;
+        return TransferInvalid;
     }
 
     // Initialize the packet
@@ -782,7 +794,7 @@ UsbGetStringLanguages(
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
-        return TransferInvalidData;
+        return TransferInvalid;
     }
 
     // Initialize the packet
@@ -799,7 +811,7 @@ UsbGetStringLanguages(
         sizeof(UsbStringDescriptor_t), &DescriptorVirtual, 
         &DescriptorPhysical) != OsSuccess) {
         BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
-        return TransferInvalidData;
+        return TransferInvalid;
     }
 
     // Initialize pointer
@@ -859,7 +871,7 @@ UsbGetStringDescriptor(
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
-        return TransferInvalidData;
+        return TransferInvalid;
     }
 
     // Initialize the packet
@@ -875,7 +887,7 @@ UsbGetStringDescriptor(
     if (BufferPoolAllocate(__LibUsbBufferPool, 64, 
         &DescriptorVirtual, &DescriptorPhysical) != OsSuccess) {
         BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
-        return TransferInvalidData;
+        return TransferInvalid;
     }
 
     // Initialize pointer
@@ -933,7 +945,7 @@ UsbClearFeature(
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
-        return TransferInvalidData;
+        return TransferInvalid;
     }
 
     // Initialize the packet
@@ -986,7 +998,7 @@ UsbSetFeature(
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
-        return TransferInvalidData;
+        return TransferInvalid;
     }
 
     // Initialize the packet
@@ -1047,7 +1059,7 @@ UsbExecutePacket(
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
-        return TransferInvalidData;
+        return TransferInvalid;
     }
 
     // Initialize the packet
@@ -1064,7 +1076,7 @@ UsbExecutePacket(
         Length, &DescriptorVirtual, &DescriptorPhysical) != OsSuccess) {
         ERROR("Failed to allocate an usb-buffer.");
         BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
-        return TransferInvalidData;
+        return TransferInvalid;
     }
 
     // Get direction

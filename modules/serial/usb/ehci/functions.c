@@ -37,11 +37,12 @@
 /* EhciTransactionInitialize
  * Initializes a transaction by allocating a new endpoint-descriptor
  * and preparing it for usage */
-EhciQueueHead_t *
+OsStatus_t
 EhciTransactionInitialize(
     _In_ EhciController_t *Controller,
     _In_ UsbTransfer_t *Transfer,
-    _In_ size_t Pipe)
+    _In_ size_t Pipe,
+    _Out_ EhciQueueHead_t **QhOut)
 {
     // Variables
     EhciQueueHead_t *Qh = NULL;
@@ -57,13 +58,16 @@ EhciTransactionInitialize(
 
     // We handle Isochronous transfers a bit different
     if (Transfer->Type != IsochronousTransfer) {
-        Qh = EhciQhAllocate(Controller, Transfer->Type);
+        *QhOut = Qh = EhciQhAllocate(Controller, Transfer->Type);
 
         // Calculate the bus-time
         if (Transfer->Type == InterruptTransfer) {
-            EhciQhInitialize(Controller, Qh, Transfer->Speed, Transfer->Endpoint.Direction,
-                             Transfer->Type, Transfer->Endpoint.Interval,
-                             Transfer->Endpoint.MaxPacketSize, Transfer->Length);
+            if (EhciQhInitialize(Controller, Qh, Transfer->Speed, 
+                Transfer->Endpoint.Direction,
+                Transfer->Type, Transfer->Endpoint.Interval,
+                Transfer->Endpoint.MaxPacketSize, Transfer->Length) != OsSuccess) {
+                return OsError;
+            }
         }
 
         // Initialize the QH
@@ -124,13 +128,13 @@ EhciTransactionInitialize(
     }
 
     // Done
-    return Qh;
+    return OsSuccess;
 }
 
 /* EhciTransactionDispatch
  * Queues the transfer up in the controller hardware, after finalizing the
  * transactions and preparing them. */
-OsStatus_t
+UsbTransferStatus_t
 EhciTransactionDispatch(
     _In_ EhciController_t *Controller,
     _In_ UsbManagerTransfer_t *Transfer)
@@ -256,7 +260,7 @@ EhciTransactionDispatch(
 #endif
 
     // Done
-    return OsSuccess;
+    return TransferQueued;
 }
 
 /* EhciTransactionFinalize
@@ -371,7 +375,7 @@ EhciTransactionFinalize(
 /* UsbQueueTransferGeneric 
  * Queues a new transfer for the given driver
  * and pipe. They must exist. The function does not block*/
-OsStatus_t
+UsbTransferStatus_t
 UsbQueueTransferGeneric(
     _InOut_ UsbManagerTransfer_t *Transfer)
 {
@@ -386,7 +390,10 @@ UsbQueueTransferGeneric(
     Controller = (EhciController_t *)UsbManagerGetController(Transfer->Device);
 
     // Initialize
-    Qh = EhciTransactionInitialize(Controller, &Transfer->Transfer, Transfer->Pipe);
+    if (EhciTransactionInitialize(Controller, &Transfer->Transfer, 
+        Transfer->Pipe, &Qh) != OsSuccess) {
+        return TransferNoBandwidth;
+    }
 
     // Update the stored information
     Transfer->TransactionCount = 0;
@@ -492,7 +499,7 @@ UsbQueueTransferGeneric(
 
 /* UsbDequeueTransferGeneric 
   * Removes a queued transfer from the controller's framelist */
-OsStatus_t
+UsbTransferStatus_t
 UsbDequeueTransferGeneric(
     _In_ UsbManagerTransfer_t *Transfer)
 {
@@ -511,5 +518,5 @@ UsbDequeueTransferGeneric(
     // @todo
 
     // Done, rest of cleanup happens in Finalize
-    return OsSuccess;
+    return TransferFinished;
 }

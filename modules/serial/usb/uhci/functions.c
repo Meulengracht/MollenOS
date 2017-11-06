@@ -72,17 +72,18 @@ UsbQueueDebug(
 /* UhciTransactionInitialize
  * Initializes a transaction by allocating a new endpoint-descriptor
  * and preparing it for usage */
-UhciQueueHead_t*
+OsStatus_t
 UhciTransactionInitialize(
 	_In_ UhciController_t *Controller, 
-	_In_ UsbTransfer_t *Transfer)
+    _In_ UsbTransfer_t *Transfer,
+    _Out_ UhciQueueHead_t **QhResult)
 {
 	// Variables
 	UhciQueueHead_t *Qh = NULL;
 	size_t TransactionCount = 0;
 
 	// Allocate a new queue-head
-	Qh = UhciQhAllocate(Controller, Transfer->Type, Transfer->Speed);
+	*QhResult = Qh = UhciQhAllocate(Controller, Transfer->Type, Transfer->Speed);
 
 	// Calculate transaction count
 	TransactionCount = DIVUP(Transfer->Length, Transfer->Endpoint.MaxPacketSize);
@@ -153,8 +154,8 @@ UhciTransactionInitialize(
 
 		// Sanitize the validation
 		if (Run == OsError) {
-			ERROR("UHCI: Had no room for the transfer in queueus");
-			return Qh;
+            ERROR("UHCI: Had no room for the transfer in queueus");
+			return OsError;
 		}
 
 		// Reserve and done!
@@ -164,13 +165,13 @@ UhciTransactionInitialize(
 	}
 
 	// Done
-	return Qh;
+	return OsSuccess;
 }
 
 /* UhciTransactionDispatch
  * Queues the transfer up in the controller hardware, after finalizing the
  * transactions and preparing them. */
-OsStatus_t
+UsbTransferStatus_t
 UhciTransactionDispatch(
 	_In_ UhciController_t *Controller,
 	_In_ UsbManagerTransfer_t *Transfer)
@@ -279,7 +280,7 @@ UhciTransactionDispatch(
 	}
 
 	// Done
-	return OsSuccess;
+	return TransferQueued;
 }
 
 /* UhciTransactionFinalize
@@ -480,7 +481,7 @@ UhciTransactionFinalize(
 /* UsbQueueTransferGeneric 
  * Queues a new transfer for the given driver
  * and pipe. They must exist. The function does not block*/
-OsStatus_t
+UsbTransferStatus_t
 UsbQueueTransferGeneric(
 	_InOut_ UsbManagerTransfer_t *Transfer)
 {
@@ -498,7 +499,9 @@ UsbQueueTransferGeneric(
 	Controller = (UhciController_t*)UsbManagerGetController(Transfer->Device);
 
 	// Initialize
-	Qh = UhciTransactionInitialize(Controller, &Transfer->Transfer);
+	if (UhciTransactionInitialize(Controller, &Transfer->Transfer, &Qh) != OsSuccess) {
+        return TransferNoBandwidth;
+    }
 
 	// Update the stored information
 	Transfer->TransactionCount = 0;
@@ -617,7 +620,7 @@ UsbQueueTransferGeneric(
 
 /* UsbDequeueTransferGeneric 
  * Removes a queued transfer from the controller's framelist */
-OsStatus_t
+UsbTransferStatus_t
 UsbDequeueTransferGeneric(
 	_In_ UsbManagerTransfer_t *Transfer)
 {
@@ -629,12 +632,9 @@ UsbDequeueTransferGeneric(
 	// Get Controller
 	Controller = (UhciController_t*)UsbManagerGetController(Transfer->Device);
 
-	// Mark for unscheduling
+	// Mark for unscheduling on next interrupt/check
 	Qh->Flags |= UHCI_QH_UNSCHEDULE;
 
-	// Notice finalizer-thread? Or how to induce interrupt
-	// @todo
-
 	// Done, rest of cleanup happens in Finalize
-	return OsSuccess;
+	return TransferFinished;
 }

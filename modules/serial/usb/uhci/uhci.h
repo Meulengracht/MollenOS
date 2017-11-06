@@ -75,6 +75,7 @@
 #define UHCI_STATUS_HOST_SYSERR			0x8
 #define UHCI_STATUS_PROCESS_ERR			0x10
 #define UHCI_STATUS_HALTED				0x20
+#define UHCI_STATUS_INTMASK             0x1F
 
 /* UHCI Register Definitions
  * Bit definitions for the Interrupt register */
@@ -337,6 +338,13 @@ OsStatus_t
 UhciQueueInitialize(
     _In_ UhciController_t *Controller);
 
+/* UhciQueueReset
+ * Removes and cleans up any existing transfers, then reinitializes. */
+__EXTERN
+OsStatus_t
+UhciQueueReset(
+    _In_ UhciController_t *Controller);
+
 /* UhciQueueDestroy
  * Cleans up any resources allocated by QueueInitialize */
 __EXTERN
@@ -467,24 +475,18 @@ UhciTransactionFinalize(
 	_In_ UsbManagerTransfer_t *Transfer,
     _In_ int Validate);
 
-/* FinalizerWake
- * Informs the finalizer-thread that there is new events */
-__EXTERN
-OsStatus_t
-FinalizerWake(void);
-
 /* UsbQueueTransferGeneric 
  * Queues a new transfer for the given driver
  * and pipe. They must exist. The function does not block*/
 __EXTERN
-OsStatus_t
+UsbTransferStatus_t
 UsbQueueTransferGeneric(
 	_InOut_ UsbManagerTransfer_t *Transfer);
 
 /* UsbDequeueTransferGeneric 
  * Removes a queued transfer from the controller's framelist */
 __EXTERN
-OsStatus_t
+UsbTransferStatus_t
 UsbDequeueTransferGeneric(
 	_In_ UsbManagerTransfer_t *Transfer);
 

@@ -4,6 +4,7 @@ _ListCreateNode
 _ListAppend
 _ListCreate
 _ListDestroyNode
+_ListClear
 _ListDestroy
 _ListUnlinkNode
 _ListExecuteAll

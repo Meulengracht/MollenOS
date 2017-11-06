@@ -119,64 +119,36 @@ UhciGetStatusCode(
         return TransferInvalidToggles;
     }
     else if (ConditionCode == 2) {
-        return TransferBabble;
+        return TransferNotResponding;
     }
     else if (ConditionCode == 3) {
         return TransferNAK;
     }
+    else if (ConditionCode == 4) {
+        return TransferBabble;
+    }
+    else if (ConditionCode == 5) {
+        return TransferBufferError;
+    }
     else {
         TRACE("Error: 0x%x (%s)", ConditionCode, UhciErrorMessages[ConditionCode]);
-        return TransferInvalidData;
+        return TransferInvalid;
     }
 }
 
-/* UhciQueueInitialize
- * Initialize the controller's queue resources and resets counters */
+/* UhciQueueResetInternalData
+ * Removes and cleans up any existing transfers, then reinitializes. */
 OsStatus_t
-UhciQueueInitialize(
+UhciQueueResetInternalData(
     _In_ UhciController_t *Controller)
 {
 	// Variables
-	UhciTransferDescriptor_t *NullTd = NULL;
-	UhciControl_t *Queue = &Controller->QueueControl;
-	uintptr_t PoolPhysical = 0, NullTdPhysical = 0, NullQhPhysical = 0;
-	reg32_t *FrameList = NULL;
-	size_t PoolSize;
-	void *Pool = NULL;
-	int i;
-
-	// Trace
-	TRACE("UhciQueueInitialize()");
-
-	// Null out queue-control
-	memset(Queue, 0, sizeof(UhciControl_t));
-
-	// Calculate how many bytes of memory we will need
-	PoolSize = 0x1000;
-	PoolSize += UHCI_POOL_QHS * sizeof(UhciQueueHead_t);
-	PoolSize += UHCI_POOL_TDS * sizeof(UhciTransferDescriptor_t);
-
-	// Perform the allocation
-	if (MemoryAllocate(PoolSize, MEMORY_CLEAN | MEMORY_COMMIT
-		| MEMORY_LOWFIRST | MEMORY_CONTIGIOUS, &Pool, &PoolPhysical) != OsSuccess) {
-		ERROR("Failed to allocate memory for resource-pool");
-		return OsError;
-	}
-
-	// Initialize pointers
-	Queue->QHPool = (UhciQueueHead_t*)((uint8_t*)Pool + 0x1000);
-	Queue->QHPoolPhysical = PoolPhysical + 0x1000;
-	Queue->TDPool = (UhciTransferDescriptor_t*)((uint8_t*)Pool + 0x1000 +
-		(UHCI_POOL_QHS * sizeof(UhciTransferDescriptor_t)));
-	Queue->TDPoolPhysical = PoolPhysical + 0x1000 +
-		(UHCI_POOL_QHS * sizeof(UhciTransferDescriptor_t));
-	
-	// Update frame-list
-	FrameList = (reg32_t*)Pool;
-	Queue->FrameList = (uintptr_t*)Pool;
-	Queue->FrameListPhysical = PoolPhysical;
-
-	// Initialize null-td
+    UhciTransferDescriptor_t *NullTd = NULL;
+    uintptr_t NullTdPhysical = 0, NullQhPhysical = 0;
+    UhciControl_t *Queue = &Controller->QueueControl;
+    int i;
+    
+    // Initialize null-td
 	NullTd = &Queue->TDPool[UHCI_POOL_TDNULL];
 	NullTd->Header = (uint32_t)(UHCI_TD_PID_IN | UHCI_TD_DEVICE_ADDR(0x7F) | UHCI_TD_MAX_LEN(0x7FF));
 	NullTd->Link = UHCI_LINK_END;
@@ -219,8 +191,54 @@ UhciQueueInitialize(
 	// Set all entries to the 8 interrupt queues, and we
 	// want them interleaved such that some queues get visited more than others
 	for (i = 0; i < UHCI_NUM_FRAMES; i++) {
-		FrameList[i] = UhciDetermineInterruptQh(Controller, (size_t)i);
+		Queue->FrameList[i] = UhciDetermineInterruptQh(Controller, (size_t)i);
+    }
+    
+    // No errors
+    return OsSuccess;
+}
+
+/* UhciQueueInitialize
+ * Initialize the controller's queue resources and resets counters */
+OsStatus_t
+UhciQueueInitialize(
+    _In_ UhciController_t *Controller)
+{
+	// Variables
+	UhciControl_t *Queue    = &Controller->QueueControl;
+	uintptr_t PoolPhysical  = 0;
+	size_t PoolSize         = 0;
+	void *Pool              = NULL;
+
+	// Trace
+	TRACE("UhciQueueInitialize()");
+
+	// Null out queue-control
+	memset(Queue, 0, sizeof(UhciControl_t));
+
+	// Calculate how many bytes of memory we will need
+	PoolSize = 0x1000;
+	PoolSize += UHCI_POOL_QHS * sizeof(UhciQueueHead_t);
+	PoolSize += UHCI_POOL_TDS * sizeof(UhciTransferDescriptor_t);
+
+	// Perform the allocation
+	if (MemoryAllocate(PoolSize, MEMORY_CLEAN | MEMORY_COMMIT
+		| MEMORY_LOWFIRST | MEMORY_CONTIGIOUS, &Pool, &PoolPhysical) != OsSuccess) {
+		ERROR("Failed to allocate memory for resource-pool");
+		return OsError;
 	}
+
+	// Initialize pointers
+	Queue->QHPool = (UhciQueueHead_t*)((uint8_t*)Pool + 0x1000);
+	Queue->QHPoolPhysical = PoolPhysical + 0x1000;
+	Queue->TDPool = (UhciTransferDescriptor_t*)((uint8_t*)Pool + 0x1000 +
+		(UHCI_POOL_QHS * sizeof(UhciTransferDescriptor_t)));
+	Queue->TDPoolPhysical = PoolPhysical + 0x1000 +
+		(UHCI_POOL_QHS * sizeof(UhciTransferDescriptor_t));
+	
+	// Update frame-list
+	Queue->FrameList = (uintptr_t*)Pool;
+    Queue->FrameListPhysical = PoolPhysical;
 
 	// Initialize the transaction list
 	Queue->TransactionList = ListCreate(KeyInteger, LIST_SAFE);
@@ -228,8 +246,37 @@ UhciQueueInitialize(
 	// Initialize the usb scheduler
 	Controller->Scheduler = UsbSchedulerInitialize(UHCI_NUM_FRAMES, 900, 1);
 
-	// Done
-	return OsSuccess;
+	// Initialize internal data structures
+	return UhciQueueResetInternalData(Controller);
+}
+
+/* UhciQueueReset
+ * Removes and cleans up any existing transfers, then reinitializes. */
+OsStatus_t
+UhciQueueReset(
+    _In_ UhciController_t *Controller)
+{
+    // Variables
+    ListNode_t *tNode = NULL;
+
+    // Debug
+    TRACE("UhciQueueReset()");
+
+    // Stop Controller
+    if (UhciStop(Controller) != OsSuccess) {
+        ERROR("Failed to stop the controller");
+        return OsError;
+    }
+
+    // Iterate all queued transactions and dequeue
+    _foreach(tNode, Controller->QueueControl.TransactionList) {
+        UhciTransactionFinalize(Controller, 
+            (UsbManagerTransfer_t*)tNode->Data, 0);
+    }
+    ListClear(Controller->QueueControl.TransactionList);
+
+    // Reinitialize internal data
+    return UhciQueueResetInternalData(Controller);
 }
 
 /* UhciQueueDestroy
@@ -238,7 +285,25 @@ OsStatus_t
 UhciQueueDestroy(
 	_In_ UhciController_t *Controller)
 {
-	return OsError;
+    // Variables
+    size_t PoolSize = 0;
+
+    // Debug
+    TRACE("UhciQueueDestroy()");
+
+    // Reset first
+    UhciQueueReset(Controller);
+
+    // Calculate how many bytes of memory we will need to free
+	PoolSize = 0x1000;
+	PoolSize += UHCI_POOL_QHS * sizeof(UhciQueueHead_t);
+	PoolSize += UHCI_POOL_TDS * sizeof(UhciTransferDescriptor_t);
+
+    // Cleanup resources
+    UsbSchedulerDestroy(Controller->Scheduler);
+    ListDestroy(Controller->QueueControl.TransactionList);
+    MemoryFree(Controller->QueueControl.FrameList, PoolSize);
+	return OsSuccess;
 }
 
 /* UhciUpdateCurrentFrame
@@ -291,28 +356,11 @@ UhciGetTransferStatus(
 	_In_ UhciTransferDescriptor_t *Td)
 {
 	// Variables
-	UsbTransferStatus_t ReturnStatus = TransferFinished;
-	int ConditionIndex = 0;
-
-	// Get condition index from flags
+    int ConditionIndex = 0;
+    
+    // Convert to index, then status-code
 	ConditionIndex = UhciConditionCodeToIndex(UHCI_TD_STATUS(Td->Flags));
-
-	// We love if-else-if-else-if
-	if (ConditionIndex == 6)
-		ReturnStatus = TransferStalled;
-	else if (ConditionIndex == 1)
-		ReturnStatus = TransferInvalidToggles;
-	else if (ConditionIndex == 2)
-		ReturnStatus = TransferNotResponding;
-	else if (ConditionIndex == 3)
-		ReturnStatus = TransferNAK;
-	else if (ConditionIndex == 4)
-		ReturnStatus = TransferBabble;
-	else if (ConditionIndex == 5)
-		ReturnStatus = TransferInvalidData;
-
-	// Done
-	return ReturnStatus;
+	return UhciGetStatusCode(ConditionIndex);
 }
 
 /* UhciQhAllocate 

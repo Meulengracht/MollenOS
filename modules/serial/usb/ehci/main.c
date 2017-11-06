@@ -313,13 +313,27 @@ OnQuery(_In_ MContractType_t QueryType,
 	switch (QueryFunction) {
 		// Generic Queue
 		case __USBHOST_QUEUETRANSFER: {
+            // Variables
+			UsbTransferResult_t ResPackage;
+
 			// Create and setup new transfer
 			Transfer = UsbManagerCreateTransfer(
 				(UsbTransfer_t*)Arg2->Data.Buffer,
-				Queryee, ResponsePort, Device, Pipe);
+                Queryee, ResponsePort, Device, Pipe);
+                
+            // Queue the periodic transfer
+            ResPackage.Status = UsbQueueTransferGeneric(Transfer);
+			ResPackage.Id = Transfer->Id;
+			ResPackage.BytesTransferred = 0;
 
-			// Queue the generic transfer
-			return UsbQueueTransferGeneric(Transfer);
+            // Send back package?
+            if (ResPackage.Status != TransferQueued) {
+                return PipeSend(Queryee, ResponsePort, 
+                    (void*)&ResPackage, sizeof(UsbTransferResult_t));
+            }
+            else {
+                return OsSuccess;
+            }
 		} break;
 
 		// Periodic Queue
@@ -332,18 +346,10 @@ OnQuery(_In_ MContractType_t QueryType,
 				(UsbTransfer_t*)Arg2->Data.Buffer,
 				Queryee, ResponsePort, Device, Pipe);
 
-			// Queue the periodic transfer
-			Result = UsbQueueTransferGeneric(Transfer);
-
-			// Get id
+            // Queue the periodic transfer
+            ResPackage.Status = UsbQueueTransferGeneric(Transfer);
 			ResPackage.Id = Transfer->Id;
 			ResPackage.BytesTransferred = 0;
-			if (Result == OsSuccess) {
-				ResPackage.Status = TransferNotProcessed;
-			}
-			else {
-				ResPackage.Status = TransferInvalidData;
-			}
 
 			// Send back package
 			return PipeSend(Queryee, ResponsePort, 
@@ -352,10 +358,10 @@ OnQuery(_In_ MContractType_t QueryType,
 
 		// Dequeue Transfer
 		case __USBHOST_DEQUEUEPERIODIC: {
-			
-			// Extract transfer-id
+			// Variables
 			UsbManagerTransfer_t *Transfer = NULL;
 			UUId_t Id = (UUId_t)Arg1->Data.Value;
+			UsbTransferStatus_t Status = TransferInvalid;
 
 			// Lookup transfer by iterating through
 			// available transfers
@@ -371,8 +377,12 @@ OnQuery(_In_ MContractType_t QueryType,
 
 			// Dequeue and send result back
 			if (Transfer != NULL) {
-				Result = UsbDequeueTransferGeneric(Transfer);
-			}
+				Status = UsbDequeueTransferGeneric(Transfer);
+            }
+
+            // Send back package
+			return PipeSend(Queryee, ResponsePort, 
+				(void*)&Status, sizeof(UsbTransferStatus_t));
 		} break;
 
 		// Reset port

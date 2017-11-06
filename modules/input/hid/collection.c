@@ -18,6 +18,7 @@
  *
  * MollenOS MCore - Human Input Device Driver (Generic)
  */
+#define __TRACE
 
 /* Includes
  * - System */
@@ -532,6 +533,7 @@ HidCollectionCleanup(
     }
 
     // @todo
+    return OsSuccess;
 }
 
 /* HidParseReportInput

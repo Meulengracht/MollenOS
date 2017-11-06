@@ -74,7 +74,15 @@ List_t*
 MOSABI
 ListCreate(
 	_In_ KeyType_t KeyType, 
-	_In_ Flags_t Attributes);
+    _In_ Flags_t Attributes);
+    
+/* ListClear
+ * Clears the list of members, cleans up nodes. */
+MOSAPI
+OsStatus_t
+MOSABI
+ListClear(
+	_In_ List_t *List);
 
 /* ListDestroy
  * Destroys the list and frees all resources associated

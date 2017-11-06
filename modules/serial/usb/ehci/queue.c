@@ -442,7 +442,7 @@ EhciQhAllocate(
 /* EhciQhInitialize
  * This initiates any periodic scheduling information 
  * that might be needed */
-void
+OsStatus_t
 EhciQhInitialize(
     _In_ EhciController_t *Controller, 
     _In_ EhciQueueHead_t *Qh,
@@ -472,11 +472,8 @@ EhciQhInitialize(
     }
 
 	// Validate Bandwidth
-    if (UsbSchedulerValidate(Controller->Scheduler, 
-        Qh->Interval, Qh->Bandwidth, TransactionsPerFrame)) {
-		TRACE("EHCI::Couldn't allocate space in scheduler for params %u:%u", 
-			Qh->Interval, Qh->Bandwidth);
-    }
+    return UsbSchedulerValidate(Controller->Scheduler, 
+        Qh->Interval, Qh->Bandwidth, TransactionsPerFrame);
 }
 
 /* EhciTdAllocate
@@ -662,14 +659,14 @@ EhciGetStatusCode(
         return TransferBabble;
     }
     else if (ConditionCode == 6) {
-        return TransferInvalidData;
+        return TransferBufferError;
     }
     else if (ConditionCode == 7) {
         return TransferStalled;
     }
     else {
         WARNING("EHCI-Error: 0x%x (%s)", ConditionCode, EhciErrorMessages[ConditionCode]);
-        return TransferInvalidData;
+        return TransferInvalid;
     }
 }
 

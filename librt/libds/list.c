@@ -65,6 +65,33 @@ ListCreate(
 	return List;
 }
 
+/* ListClear
+ * Clears the list of members, cleans up nodes. */
+OsStatus_t
+ListClear(
+	_In_ List_t *List)
+{
+	// Variables
+	ListNode_t *Node = NULL;
+
+	// Sanitize parameters
+	if (List == NULL) {
+		return OsError;
+	}
+
+	// Get initial node and then
+	// just iterate while destroying nodes
+	Node = ListPopFront(List);
+	while (Node != NULL) {
+		ListDestroyNode(List, Node);
+		Node = ListPopFront(List);
+	}
+
+	// Free the list structure and we
+	// are done
+	return OsSuccess;
+}
+
 /* ListDestroy
  * Destroys the list and frees all resources associated
  * does also free all list elements and keys */

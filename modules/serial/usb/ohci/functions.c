@@ -71,7 +71,7 @@ OhciTransactionInitialize(
 /* OhciTransactionDispatch
  * Queues the transfer up in the controller hardware, after finalizing the
  * transactions and preparing them. */
-OsStatus_t
+UsbTransferStatus_t
 OhciTransactionDispatch(
 	_In_ OhciController_t *Controller,
 	_In_ UsbManagerTransfer_t *Transfer)
@@ -146,7 +146,7 @@ OhciTransactionDispatch(
 #endif
 
 	// Done
-	return OsSuccess;
+	return TransferQueued;
 }
 
 /* OhciTransactionFinalize
@@ -247,7 +247,7 @@ OhciTransactionFinalize(
 /* UsbQueueTransferGeneric 
  * Queues a new transfer for the given driver
  * and pipe. They must exist. The function does not block*/
-OsStatus_t
+UsbTransferStatus_t
 UsbQueueTransferGeneric(
 	_InOut_ UsbManagerTransfer_t *Transfer)
 {
@@ -394,7 +394,7 @@ UsbQueueTransferGeneric(
 
 /* UsbDequeueTransferGeneric 
  * Removes a queued transfer from the controller's framelist */
-OsStatus_t
+UsbTransferStatus_t
 UsbDequeueTransferGeneric(
 	_In_ UsbManagerTransfer_t *Transfer)
 {
@@ -414,5 +414,5 @@ UsbDequeueTransferGeneric(
 	Controller->Registers->HcInterruptEnable = OHCI_INTR_SOF;
 
 	// Done, rest of cleanup happens in Finalize
-	return OsSuccess;
+	return TransferFinished;
 }

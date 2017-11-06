@@ -500,7 +500,7 @@ OhciGetStatusCode(
     }
     else {
         TRACE("Error: 0x%x (%s)", ConditionCode, OhciErrorMessages[ConditionCode]);
-        return TransferInvalidData;
+        return TransferInvalid;
     }
 }
 

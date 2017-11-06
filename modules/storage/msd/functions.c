@@ -508,22 +508,22 @@ MsdSanitizeResponse(
     // Start out by checking if a phase error occured, in that case we are screwed
     if (Csw->Status == MSD_CSW_PHASE_ERROR) {
         MsdRecoveryReset(Device);
-        return TransferInvalidData;
+        return TransferInvalid;
     }
 
     // Sanitize status
     if (Csw->Status != MSD_CSW_OK) {
-        return TransferInvalidData;
+        return TransferInvalid;
     }
 
     // Sanitize signature/data integrity
     if (Csw->Signature != MSD_CSW_OK_SIGNATURE) {
-        return TransferInvalidData;
+        return TransferInvalid;
     }
     
     // Sanitize tag/data integrity
     if ((Csw->Tag & 0xFFFFFF00) != MSD_TAG_SIGNATURE) {
-        return TransferInvalidData;
+        return TransferInvalid;
     }
 
     // Everything should be fine
