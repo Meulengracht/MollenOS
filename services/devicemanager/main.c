@@ -19,7 +19,7 @@
  * MollenOS MCore - Device Manager
  * - Initialization + Event Mechanism
  */
-//#define __TRACE
+#define __TRACE
 
 /* Includes
  * - System */
@@ -76,22 +76,35 @@ OsStatus_t OnUnload(void)
 
 /* OnEvent
  * This is called when the server recieved an external evnet
- * and should handle the given event*/
-OsStatus_t OnEvent(MRemoteCall_t *Message)
+ * and should handle the given event */
+OsStatus_t
+OnEvent(
+    _In_ MRemoteCall_t *Message)
 {
+    // Debug
+    TRACE("DeviceManager.OnEvent(Function %i)", Message->Function);
+
 	// Which function is called?
 	switch (Message->Function) {
 		// Handles registration of a new device 
 		// and store it with a custom version of
 		// our own MCoreDevice
 		case __DEVICEMANAGER_REGISTERDEVICE: {
-			UUId_t Result;
+            // Variables
+            MCoreDevice_t *Device   = NULL;
+            Flags_t DeviceFlags     = 0;
+            UUId_t ParentDeviceId   = UUID_INVALID;
+            UUId_t Result           = UUID_INVALID;
+            
+            // Extract variables
+            ParentDeviceId = (UUId_t)Message->Arguments[0].Data.Value;
+            Device = (MCoreDevice_t*)Message->Arguments[1].Data.Buffer;
+            DeviceFlags = (Flags_t)Message->Arguments[2].Data.Value;
 
 			// Evaluate request, but don't free
 			// the allocated device storage, we need it
-			if (RegisterDevice((UUId_t)Message->Arguments[0].Data.Value,
-				(MCoreDevice_t*)Message->Arguments[1].Data.Buffer, NULL,
-				(Flags_t)Message->Arguments[2].Data.Value, &Result) != OsSuccess) {
+            if (RegisterDevice(ParentDeviceId, Device, 
+                    NULL, DeviceFlags, &Result) != OsSuccess) {
 				Result = UUID_INVALID;
 			}
 
@@ -175,7 +188,8 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		// the corresponding driver
 		case __DEVICEMANAGER_QUERYCONTRACT: {
 			// Hold a response buffer
-			void *ResponseBuffer = malloc(Message->Result.Length);
+            void *ResponseBuffer = malloc(Message->Result.Length);
+            void *NullPointer = NULL;
 
 			// Query contract
 			if (QueryContract((MContractType_t)Message->Arguments[0].Data.Value, 
@@ -194,7 +208,8 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 					ResponseBuffer, Message->Result.Length);
 			}
 			else {
-				PipeSend(Message->Sender, Message->ResponsePort, NULL, sizeof(void*));
+                PipeSend(Message->Sender, Message->ResponsePort, 
+                    NullPointer, sizeof(void*));
 			}
 
 			// Cleanup

@@ -893,7 +893,6 @@ UhciProcessTransfers(
 	_In_ UhciController_t *Controller)
 {
 	// Variables
-	List_t *Transactions = Controller->QueueControl.TransactionList;
 	UhciTransferDescriptor_t *Td = NULL;
     int ProcessQh = 0;
     
@@ -905,7 +904,7 @@ UhciProcessTransfers(
 
 	// Iterate all active transactions and see if any
 	// one of them needs unlinking or linking
-	foreach(Node, Transactions) {
+	foreach(Node, Controller->QueueControl.TransactionList) {
 		
 		// Instantiate the usb-transfer pointer, and then the EP
 		UsbManagerTransfer_t *Transfer = 
@@ -995,7 +994,6 @@ UhciProcessTransfers(
 		if (ProcessQh) {
 			UhciProcessRequest(Controller, Transfer, 
 				Node, FixupToggles, ErrorTransfer, RestartOnly);
-			break;
 		}
 	}
 }

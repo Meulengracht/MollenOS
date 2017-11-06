@@ -93,6 +93,7 @@ install_shared:
 .PHONY: install_img
 install_img: install_shared
 	mono diskutility -auto -target img -scheme mbr
+	$(FCOPY) mollenos.img mollenos_usb.img
 
 .PHONY: install_vmdk
 install_vmdk: install_shared
