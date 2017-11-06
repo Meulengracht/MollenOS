@@ -4,9 +4,9 @@
 # - arch sub-layer
 INCLUDES = -I../librt/include -Iacpica/include -Iinclude
 SOURCES = $(wildcard common/*.c) \
-		  $(wildcard system/devices/acpi/*.c) \
-		  $(wildcard system/devices/fonts/*.c) \
-		  $(wildcard system/devices/*.c) \
+		  $(wildcard system/acpi/*.c) \
+		  $(wildcard system/output/fonts/*.c) \
+		  $(wildcard system/output/*.c) \
 		  $(wildcard system/process/loaders/*.c) \
 		  $(wildcard system/process/*.c) \
 		  $(wildcard system/synchronization/*.c) \

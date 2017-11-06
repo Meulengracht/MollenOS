@@ -69,7 +69,6 @@ SystemFeaturesQuery(
 
     // Memory features
     Features |= SYSTEM_FEATURE_MEMORY;
-    Features |= SYSTEM_FEATURE_ADDRESSPACES;
 
     // Output features
     Features |= SYSTEM_FEATURE_OUTPUT;

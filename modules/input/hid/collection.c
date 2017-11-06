@@ -18,7 +18,7 @@
  *
  * MollenOS MCore - Human Input Device Driver (Generic)
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes
  * - System */
@@ -408,9 +408,14 @@ HidParseReportDescriptor(
                             }
                         }
 
+                        // Debug
+                        TRACE("Input type %u at bit-offset %u, with data-size in bits %u", 
+                            InputItem->Flags, BitOffset, (GlobalStats.ReportCount * GlobalStats.ReportSize));
+
                         // Create a new copy of the current local state that applies
                         // only to this input item. Override BitOffset member
-                        memcpy(&InputItem->LocalState, &ItemStats, sizeof(UsbHidReportItemStats_t));
+                        memcpy(&InputItem->LocalState, &ItemStats, 
+                            sizeof(UsbHidReportItemStats_t));
                         InputItem->LocalState.BitOffset = BitOffset;
 
                         // Append it as a child note now that we 
@@ -518,7 +523,50 @@ HidParseReportDescriptor(
     // Store the collection in the device
     // and return the calculated number of maximum bytes reports can use
     Device->Collection = (RootCollection == NULL) ? CurrentCollection : RootCollection;
-    return DIVUP(LongestReport, 8) + ((ReportIdsUsed == 1) ? 1 : 0);
+    if (ReportIdsUsed) {
+        return DIVUP(LongestReport, 8) + 1;
+    }
+    else {
+        return DIVUP(BitOffset, 8);
+    }
+}
+
+/* HidCollectionDestroy
+ * Iteratively cleans up a collection and it's subitems. This call
+ * is recursive. */
+OsStatus_t
+HidCollectionDestroy(
+    _In_ UsbHidReportCollection_t *Collection)
+{
+    // Variables
+    UsbHidReportCollectionItem_t *ChildIterator = NULL, *Temporary = NULL;
+
+    // Sanitize
+    if (Collection == NULL) {
+        return OsError;
+    }
+
+    // Iterate it's children
+    ChildIterator = Collection->Childs;
+    while (ChildIterator != NULL) {
+        switch (ChildIterator->CollectionType) {
+            case HID_TYPE_COLLECTION: {
+                HidCollectionDestroy((UsbHidReportCollection_t*)ChildIterator->ItemPointer);
+            } break;
+            default: {
+                free(ChildIterator->ItemPointer);
+            }
+        }
+
+        // Switch link, free iterator
+        Temporary = ChildIterator;
+        ChildIterator = ChildIterator->Link;
+        free(Temporary);
+    }
+
+    // Last step is to free the given collection
+    free(Collection);
+    return OsSuccess;
 }
 
 /* HidCollectionCleanup
@@ -532,8 +580,8 @@ HidCollectionCleanup(
         return OsError;
     }
 
-    // @todo
-    return OsSuccess;
+    // Recursively cleanup
+    return HidCollectionDestroy(Device->Collection);
 }
 
 /* HidParseReportInput
@@ -558,8 +606,8 @@ HidParseReportInput(
     InputItem = (UsbHidReportInputItem_t*)CollectionItem->ItemPointer;
 
     // Initiate pointers to new and previous data
-    DataPointer = (uint8_t*)&Device->Buffer[DataIndex];
-    PreviousDataPointer = (uint8_t*)&Device->Buffer[Device->PreviousDataIndex];
+    DataPointer = &((uint8_t*)Device->Buffer)[DataIndex];
+    PreviousDataPointer = &((uint8_t*)Device->Buffer)[Device->PreviousDataIndex];
 
     // Sanitize the type of input, if we are constant, it's padding
     if (InputItem->Flags == REPORT_INPUT_TYPE_CONSTANT) {
@@ -584,11 +632,11 @@ HidParseReportInput(
     Length = CollectionItem->Stats.ReportSize;
 
     // Iterate the data
-    for (i = 0; i < CollectionItem->Stats.ReportCount; i++) {
+    for (i = 0; i < CollectionItem->Stats.ReportCount; i++, Offset += Length) {
         Value = HidExtractValue(DataPointer, Offset, Length);
         OldValue = HidExtractValue(PreviousDataPointer, Offset, Length);
         
-        /* We cant expect this to be correct though, it might be 0 */
+        // We cant expect this to be correct though, it might be 0
         Usage = InputItem->LocalState.Usages[i];
 
         // Take action based on the type of input
@@ -607,8 +655,7 @@ HidParseReportInput(
                     // changed. 
                     case HID_REPORT_USAGE_X_AXIS:
                     case HID_REPORT_USAGE_Y_AXIS:
-                    case HID_REPORT_USAGE_Z_AXIS:
-                    {
+                    case HID_REPORT_USAGE_Z_AXIS: {
                         // Variables
                         int64_t Relative = (int64_t)Value;
 
@@ -655,7 +702,6 @@ HidParseReportInput(
 
                     } break;
                 }
-
             } break;
 
             // Describes keyboard or keypad events
@@ -717,9 +763,6 @@ HidParseReportInput(
                     CollectionItem->Stats.UsagePage, CollectionItem->InputType, Usage, (uint32_t)Value);
             } break;
         }
-
-        // Move on to next input
-        Offset += Length;
     }
     
     // Create a new input report
@@ -728,10 +771,6 @@ HidParseReportInput(
         InputData.zRelative != 0) {
         //InputManagerCreatePointerEvent(&PointerData);
     }
-
-    /* DebugPrint("Input Item (%u): Report Offset %u, Report Size %u, Report Count %u (Minimum %i, Maximmum %i)\n",
-        input->stats.usages[0], input->stats.bit_offset, input_item->stats.report_size, input_item->stats.report_count,
-        input_item->stats.log_min, input_item->stats.log_max); */
 }
 
 /* HidParseReport
@@ -763,7 +802,8 @@ HidParseReport(
                 }
                 
                 // Recursive parser for sub-collections
-                Calls += HidParseReport(Device, (UsbHidReportCollection_t*)Itr->ItemPointer, DataIndex);
+                Calls += HidParseReport(Device, 
+                    (UsbHidReportCollection_t*)Itr->ItemPointer, DataIndex);
             } break;
             
             // Input reports are interesting, that means we have an input event
