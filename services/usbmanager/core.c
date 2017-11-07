@@ -427,9 +427,11 @@ UsbDeviceLoadDrivers(
     TRACE("UsbDeviceLoadDrivers()");
 
     // Initialize the base device
+    // @todo better device strings based on class/subclass
     memset(&CoreDevice, 0, sizeof(MCoreUsbDevice_t));
     memcpy(&CoreDevice.Base.Name[0], "Generic Usb Device", 18);
     CoreDevice.Base.Id = UUID_INVALID;
+    CoreDevice.Base.Length = sizeof(MCoreUsbDevice_t);
     CoreDevice.Base.VendorId = Device->Base.VendorId;
     CoreDevice.Base.DeviceId = Device->Base.ProductId;
     CoreDevice.Base.Class = USB_DEVICE_CLASS;
@@ -458,7 +460,7 @@ UsbDeviceLoadDrivers(
             // Let interface determine the subclass
             CoreDevice.Base.Subclass = (Device->Interfaces[i].Base.Class << 16) | 0; // Subclass
             TRACE("Installing driver for interface %i (0x%x)", i, CoreDevice.Base.Subclass);
-            InstallDriver(&CoreDevice.Base, sizeof(MCoreUsbDevice_t));
+            RegisterDevice(CoreDevice.DeviceId, &CoreDevice.Base, __DEVICEMANAGER_REGISTER_LOADDRIVER);
         }
     }
 

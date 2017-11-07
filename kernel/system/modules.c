@@ -327,6 +327,11 @@ ModulesFindSpecific(
         return NULL;
     }
 
+    // Sanitize the id's
+    if (VendorId == 0) {
+        return NULL;
+    }
+
     // Locate the module
     foreach(sNode, GlbModules) {
         MCoreModule_t *Mod = (MCoreModule_t*)sNode->Data;

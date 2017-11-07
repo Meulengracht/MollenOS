@@ -153,7 +153,7 @@ MCoreInitialize(
     // Initialize all subsystems that spawn threads
     // as almost everything is up and running at this point
 	GcInitialize();
-    PhoenixInit();
+    PhoenixInitialize();
     
     // Run system finalization before we spawn processes
 	if (SystemsAvailable & SYSTEM_FEATURE_FINALIZE) {

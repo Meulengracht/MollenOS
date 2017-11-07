@@ -35,6 +35,7 @@
 #define IPC_DECL_FUNCTION(FunctionNo)			(int)FunctionNo
 #define IPC_DECL_EVENT(EventNo)					(int)(0x100 + EventNo)
 #define IPC_MAX_ARGUMENTS						5
+#define IPC_MAX_MESSAGELENGTH                   2048
 
 /* Predefined system pipe-ports that should not
  * be used by user pipes. Trying to open new pipes

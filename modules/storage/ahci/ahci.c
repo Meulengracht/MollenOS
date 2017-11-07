@@ -58,7 +58,7 @@ AhciControllerCreate(
 	// Allocate a new instance of the controller
 	Controller = (AhciController_t*)malloc(sizeof(AhciController_t));
 	memset(Controller, 0, sizeof(AhciController_t));
-	memcpy(&Controller->Device, Device, sizeof(MCoreDevice_t));
+	memcpy(&Controller->Device, Device, Device->Length);
 
 	// Fill in some basic stuff needed for init
 	Controller->Contract.DeviceId = Controller->Device.Id;

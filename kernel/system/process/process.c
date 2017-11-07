@@ -36,9 +36,6 @@
 #include <ds/mstring.h>
 #include <string.h>
 
-/* Externs */
-__EXTERN List_t *GlbAshes;
-
 /* This is the finalizor function for starting
  * up a new Ash Process, it finishes setting up the environment
  * and memory mappings, must be called on it's own thread */
@@ -70,7 +67,6 @@ UUId_t PhoenixCreateProcess(MString_t *Path, MString_t *Arguments)
 {
 	/* Vars */
 	MCoreProcess_t *Process = NULL;
-	DataKey_t Key;
 	int Index = 0;
 
 	/* Allocate the structure */
@@ -101,15 +97,12 @@ UUId_t PhoenixCreateProcess(MString_t *Path, MString_t *Arguments)
 	else
 		Process->Arguments = MStringCreate((void*)MStringRaw(Process->Base.Path), StrUTF8);
 
-	/* Add process to list */
-	Key.Value = (int)Process->Base.Id;
-	ListAppend(GlbAshes, ListCreateNode(Key, Key, Process));
+	// Register ash
+	PhoenixRegisterAsh(&Process->Base);
 
 	/* Create the loader thread */
 	ThreadingCreateThread((char*)MStringRaw(Process->Base.Name), 
 		PhoenixBootProcess, Process, THREADING_USERMODE);
-
-	/* Done */
 	return Process->Base.Id;
 }
 

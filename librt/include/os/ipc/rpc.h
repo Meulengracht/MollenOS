@@ -72,21 +72,19 @@ SERVICEAPI
 void
 SERVICEABI
 RPCInitialize(
-	_In_ MRemoteCall_t *Ipc, 
+	_InOut_ MRemoteCall_t *RemoteCall, 
 	_In_ int Version, 
 	_In_ int Port, 
 	_In_ int Function)
 {
-	/* Zero out structure */
-	memset((void*)Ipc, 0, sizeof(MRemoteCall_t));
+	// Initialize structure
+	memset((void*)RemoteCall, 0, sizeof(MRemoteCall_t));
+	RemoteCall->Version = Version;
+	RemoteCall->Function = Function;
+	RemoteCall->Port = Port;
 
-	/* Initialize some of the args */
-	Ipc->Version = Version;
-	Ipc->Function = Function;
-	Ipc->Port = Port;
-
-	/* Standard response pipe */
-	Ipc->ResponsePort = PIPE_RPCIN;
+	// Standard response port
+	RemoteCall->ResponsePort = PIPE_RPCIN;
 }
 
 /* RPCSetArgument
@@ -97,43 +95,46 @@ SERVICEAPI
 void
 SERVICEABI
 RPCSetArgument(
-	_In_ MRemoteCall_t *Rpc,
+	_InOut_ MRemoteCall_t *RemoteCall,
 	_In_ int Index, 
 	_In_ __CONST void *Data, 
 	_In_ size_t Length)
 {
-	/* Sanitize the index and the
-	 * current argument */
-	if (Index >= IPC_MAX_ARGUMENTS
-		|| Index < 0 || Rpc->Arguments[Index].Type != ARGUMENT_NOTUSED) {
+	// Sanitize the index and the current argument
+	if (Index >= IPC_MAX_ARGUMENTS || Index < 0 
+        || RemoteCall->Arguments[Index].Type != ARGUMENT_NOTUSED) {
 		return;
-	}
+    }
+    
+    // We must have room for the argument
+    if ((RemoteCall->Length + Length) > IPC_MAX_MESSAGELENGTH
+        || Length == 0) {
+        return;
+    }
 
-	/* Kind of argument? */
+	// Determine the type of argument
 	if (Length <= sizeof(size_t)) {
-		Rpc->Arguments[Index].Type = ARGUMENT_REGISTER;
+		RemoteCall->Arguments[Index].Type = ARGUMENT_REGISTER;
 
 		if (Length == 1) {
-			Rpc->Arguments[Index].Data.Value = *((uint8_t*)Data);
+			RemoteCall->Arguments[Index].Data.Value = *((uint8_t*)Data);
 		}
 		else if (Length == 2) {
-			Rpc->Arguments[Index].Data.Value = *((uint16_t*)Data);
+			RemoteCall->Arguments[Index].Data.Value = *((uint16_t*)Data);
 		}
 		else if (Length == 4) {
-			Rpc->Arguments[Index].Data.Value = *((uint32_t*)Data);
+			RemoteCall->Arguments[Index].Data.Value = *((uint32_t*)Data);
 		}
 		else if (Length == 8) {
-			Rpc->Arguments[Index].Data.Value = *((size_t*)Data);
+			RemoteCall->Arguments[Index].Data.Value = *((size_t*)Data);
 		}
 	}
 	else {
-		Rpc->Arguments[Index].Type = ARGUMENT_BUFFER;
-		Rpc->Arguments[Index].Data.Buffer = Data;
-		Rpc->Arguments[Index].Length = Length;
+		RemoteCall->Arguments[Index].Type = ARGUMENT_BUFFER;
+		RemoteCall->Arguments[Index].Data.Buffer = Data;
+		RemoteCall->Arguments[Index].Length = Length;
 	}
-
-	/* Increase total length of message */
-	Rpc->Length += Length;
+	RemoteCall->Length += Length;
 }
 
 /* RPCSetResult
@@ -143,15 +144,15 @@ SERVICEAPI
 void
 SERVICEABI
 RPCSetResult(
-	_In_ MRemoteCall_t *Rpc,
+	_InOut_ MRemoteCall_t *RemoteCall,
 	_In_ __CONST void *Data, 
 	_In_ size_t Length)
 {
-	/* Always a buffer element as we need
-	 * a target to copy the data into */
-	Rpc->Result.Type = ARGUMENT_BUFFER;
-	Rpc->Result.Data.Buffer = Data;
-	Rpc->Result.Length = Length;
+	// Always a buffer element as we need
+	// a target to copy the data into
+	RemoteCall->Result.Type = ARGUMENT_BUFFER;
+	RemoteCall->Result.Data.Buffer = Data;
+	RemoteCall->Result.Length = Length;
 }
 
 /* RPCListen 

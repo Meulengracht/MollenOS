@@ -296,7 +296,7 @@ HpControllerCreate(
 	// Allocate a new controller instance
 	Controller = (HpController_t*)malloc(sizeof(HpController_t));
 	memset(Controller, 0, sizeof(HpController_t));
-	memcpy(&Controller->Device, Device, sizeof(MCoreDevice_t));
+	memcpy(&Controller->Device, Device, Device->Length);
 
 	// Initialize io-space
 	Controller->IoSpace.PhysicalBase = 

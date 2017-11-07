@@ -30,9 +30,10 @@
  * Registers a service on the current alias, allowing
  * other applications and frameworks to send commands
  * and function requests */
-OsStatus_t RegisterService(UUId_t Alias)
+OsStatus_t
+RegisterService(
+    _In_ UUId_t Alias)
 {
-	/* Redirect a syscall, it does all */
 	return (OsStatus_t)Syscall1(
         SYSCALL_SERVICEREGISTER, SYSCALL_PARAM(Alias));
 }
@@ -42,9 +43,11 @@ OsStatus_t RegisterService(UUId_t Alias)
  * by searching storage-medias for the vendorid/deviceid 
  * combination or the class/subclass combination if specific
  * is not found */
-OsStatus_t InstallDriver(MCoreDevice_t *Device, size_t Length)
+OsStatus_t
+InstallDriver(
+    _In_ MCoreDevice_t *Device, 
+    _In_ size_t Length)
 {
-	/* Redirect a syscall, it does all */
 	return (OsStatus_t)Syscall2(SYSCALL_RESOLVEDRIVER, 
         SYSCALL_PARAM(Device), SYSCALL_PARAM(Length));
 }

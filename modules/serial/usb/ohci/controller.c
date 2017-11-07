@@ -64,7 +64,7 @@ OhciControllerCreate(
 	// Allocate a new instance of the controller
 	Controller = (OhciController_t*)malloc(sizeof(OhciController_t));
 	memset(Controller, 0, sizeof(OhciController_t));
-	memcpy(&Controller->Base.Device, Device, sizeof(MCoreDevice_t));
+	memcpy(&Controller->Base.Device, Device, Device->Length);
 
 	// Fill in some basic stuff needed for init
 	Controller->Base.Contract.DeviceId = Controller->Base.Device.Id;

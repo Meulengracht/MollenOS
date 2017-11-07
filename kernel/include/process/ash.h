@@ -158,19 +158,15 @@ KERNELAPI MCorePipe_t *PhoenixGetAshPipe(MCoreAsh_t *Ash, int Port);
 KERNELAPI int PhoenixQueryAsh(MCoreAsh_t *Ash,
 	AshQueryFunction_t Function, void *Buffer, size_t Length);
 KERNELAPI void PhoenixCleanupAsh(MCoreAsh_t *Ash);
-KERNELAPI void PhoenixTerminateAsh(MCoreAsh_t *Ash);
 
-
-/* PhoenixRegisterAlias
- * Allows a server to register an alias for its id
- * which means that id (must be above PHOENIX_ALIAS_BASE)
- * will always refer the calling process */
+/* PhoenixTerminateAsh
+ * This marks an ash for termination by taking it out
+ * of rotation and adding it to the cleanup list */
 KERNELAPI
-OsStatus_t
+void
 KERNELABI
-PhoenixRegisterAlias(
-	_In_ MCoreAsh_t *Ash, 
-	_In_ UUId_t Alias);
+PhoenixTerminateAsh(
+    _In_ MCoreAsh_t *Ash);
 
 /* PhoenixGetAsh
  * This function looks up a ash structure by the given id */

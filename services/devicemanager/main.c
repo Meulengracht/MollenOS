@@ -19,7 +19,7 @@
  * MollenOS MCore - Device Manager
  * - Initialization + Event Mechanism
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes
  * - System */
@@ -47,31 +47,33 @@ static int GlbRun = 0;
 /* OnLoad
  * The entry-point of a server, this is called
  * as soon as the server is loaded in the system */
-OsStatus_t OnLoad(void)
+OsStatus_t
+OnLoad(void)
 {
-	// Setup list
-	__GlbDevices = ListCreate(KeyInteger, LIST_NORMAL);
-	__GlbContracts = ListCreate(KeyInteger, LIST_NORMAL);
+    // Setup list
+    __GlbDevices = ListCreate(KeyInteger, LIST_NORMAL);
+    __GlbContracts = ListCreate(KeyInteger, LIST_NORMAL);
 
-	// Init variables
-	GlbDeviceIdGen = 0;
-	GlbDriverIdGen = 0;
-	GlbInitialized = 1;
-	GlbRun = 1;
+    // Init variables
+    GlbDeviceIdGen = 0;
+    GlbDriverIdGen = 0;
+    GlbInitialized = 1;
+    GlbRun = 1;
 
-	// Register us with server manager
-	RegisterService(__DEVICEMANAGER_TARGET);
+    // Register us with server manager
+    RegisterService(__DEVICEMANAGER_TARGET);
 
-	// Enumerate bus controllers/devices */
-	return BusEnumerate();
+    // Enumerate bus controllers/devices */
+    return BusEnumerate();
 }
 
 /* OnUnload
  * This is called when the server is being unloaded
  * and should free all resources allocated by the system */
-OsStatus_t OnUnload(void)
+OsStatus_t
+OnUnload(void)
 {
-	return OsSuccess;
+    return OsSuccess;
 }
 
 /* OnEvent
@@ -84,12 +86,12 @@ OnEvent(
     // Debug
     TRACE("DeviceManager.OnEvent(Function %i)", Message->Function);
 
-	// Which function is called?
-	switch (Message->Function) {
-		// Handles registration of a new device 
-		// and store it with a custom version of
-		// our own MCoreDevice
-		case __DEVICEMANAGER_REGISTERDEVICE: {
+    // Which function is called?
+    switch (Message->Function) {
+        // Handles registration of a new device 
+        // and store it with a custom version of
+        // our own MCoreDevice
+        case __DEVICEMANAGER_REGISTERDEVICE: {
             // Variables
             MCoreDevice_t *Device   = NULL;
             Flags_t DeviceFlags     = 0;
@@ -101,126 +103,127 @@ OnEvent(
             Device = (MCoreDevice_t*)Message->Arguments[1].Data.Buffer;
             DeviceFlags = (Flags_t)Message->Arguments[2].Data.Value;
 
-			// Evaluate request, but don't free
-			// the allocated device storage, we need it
-            if (RegisterDevice(ParentDeviceId, Device, 
-                    NULL, DeviceFlags, &Result) != OsSuccess) {
-				Result = UUID_INVALID;
-			}
+            // Sanitize buffer
+            if (Device != NULL) {
+                if (RegisterDevice(ParentDeviceId, Device, 
+                        NULL, DeviceFlags, &Result) != OsSuccess) {
+                    Result = UUID_INVALID;
+                }
+            }
+            
+            // Write the result back to the caller
+            PipeSend(Message->Sender, Message->ResponsePort,
+                &Result, sizeof(UUId_t));
+        } break;
 
-			// Write the result back to the caller
-			PipeSend(Message->Sender, Message->ResponsePort,
-				&Result, sizeof(UUId_t));
-		} break;
+        // Unregisters a device from the system, and 
+        // signals all drivers that are attached to 
+        // un-attach
+        case __DEVICEMANAGER_UNREGISTERDEVICE: {
 
-		// Unregisters a device from the system, and 
-		// signals all drivers that are attached to 
-		// un-attach
-		case __DEVICEMANAGER_UNREGISTERDEVICE: {
+        } break;
 
-		} break;
+        // Queries device information and returns
+        // information about the device and the drivers
+        // attached
+        case __DEVICEMANAGER_QUERYDEVICE: {
 
-		// Queries device information and returns
-		// information about the device and the drivers
-		// attached
-		case __DEVICEMANAGER_QUERYDEVICE: {
+        } break;
 
-		} break;
+        // What do?
+        case __DEVICEMANAGER_IOCTLDEVICE: {
+            // Extract argumenters
+            MCoreDevice_t *Device = NULL;
+            OsStatus_t Result = OsError;
+            DataKey_t Key;
 
-		// What do?
-		case __DEVICEMANAGER_IOCTLDEVICE: {
-			// Extract argumenters
-			MCoreDevice_t *Device = NULL;
-			OsStatus_t Result = OsError;
-			DataKey_t Key;
+            // Lookup device
+            Key.Value = (int)Message->Arguments[0].Data.Value;
+            Device = ListGetDataByKey(__GlbDevices, Key, 0);
 
-			// Lookup device
-			Key.Value = (int)Message->Arguments[0].Data.Value;
-			Device = ListGetDataByKey(__GlbDevices, Key, 0);
+            // Sanitizie
+            if (Device != NULL) {
+                if ((Message->Arguments[1].Data.Value & 0xFFFF) == __DEVICEMANAGER_IOCTL_BUS) {
+                    Result = IoctlDevice(Device, Message->Arguments[2].Data.Value);
+                }
+                else if ((Message->Arguments[1].Data.Value & 0xFFFF) == __DEVICEMANAGER_IOCTL_EXT) {
+                    Result = IoctlDeviceEx(Device, Message->Arguments[1].Data.Value,
+                        Message->Arguments[2].Data.Value, Message->Arguments[3].Data.Value,
+                        Message->Arguments[4].Data.Value);
+                }
+            }
 
-			// Sanitizie
-			if (Device != NULL) {
-				if ((Message->Arguments[1].Data.Value & 0xFFFF) == __DEVICEMANAGER_IOCTL_BUS) {
-					Result = IoctlDevice(Device, Message->Arguments[2].Data.Value);
-				}
-				else if ((Message->Arguments[1].Data.Value & 0xFFFF) == __DEVICEMANAGER_IOCTL_EXT) {
-					Result = IoctlDeviceEx(Device, Message->Arguments[1].Data.Value,
-						Message->Arguments[2].Data.Value, Message->Arguments[3].Data.Value,
-						Message->Arguments[4].Data.Value);
-				}
-			}
+            // Write back response
+            PipeSend(Message->Sender, Message->ResponsePort,
+                &Result, sizeof(OsStatus_t));
+        } break;
 
-			// Write back response
-			PipeSend(Message->Sender, Message->ResponsePort,
-				&Result, sizeof(OsStatus_t));
-		} break;
+        // Registers a driver for the given device 
+        // We then store what contracts are related to 
+        // which devices in order to keep track
+        case __DEVICEMANAGER_REGISTERCONTRACT: {
+            // Extract arguments
+            MContract_t *Contract = (MContract_t*)
+                Message->Arguments[0].Data.Buffer;
+            UUId_t Result = UUID_INVALID;
 
-		// Registers a driver for the given device 
-		// We then store what contracts are related to 
-		// which devices in order to keep track
-		case __DEVICEMANAGER_REGISTERCONTRACT: {
-			// Extract arguments
-			MContract_t *Contract = (MContract_t*)
-				Message->Arguments[0].Data.Buffer;
-			UUId_t Result = UUID_INVALID;
+            // Update sender in contract
+            Contract->DriverId = Message->Sender;
 
-			// Update sender in contract
-			Contract->DriverId = Message->Sender;
+            // Evaluate request, but don't free
+            // the allocated contract storage, we need it
+            if (RegisterContract(Contract, &Result) != OsSuccess) {
+                Result = UUID_INVALID;
+            }
 
-			// Evaluate request, but don't free
-			// the allocated contract storage, we need it
-			if (RegisterContract(Contract, &Result) != OsSuccess) {
-				Result = UUID_INVALID;
-			}
+            // Write the result back to the caller
+            PipeSend(Message->Sender, Message->ResponsePort,
+                &Result, sizeof(UUId_t));
+        } break;
 
-			// Write the result back to the caller
-			PipeSend(Message->Sender, Message->ResponsePort,
-				&Result, sizeof(UUId_t));
-		} break;
+        // For now this function is un-implemented
+        case __DEVICEMANAGER_UNREGISTERCONTRACT: {
+            // Not Implemented
+        } break;
 
-		// For now this function is un-implemented
-		case __DEVICEMANAGER_UNREGISTERCONTRACT: {
-			// Not Implemented
-		} break;
-
-		// Query a contract for information 
-		// This usually redirects a message to
-		// the corresponding driver
-		case __DEVICEMANAGER_QUERYCONTRACT: {
-			// Hold a response buffer
+        // Query a contract for information 
+        // This usually redirects a message to
+        // the corresponding driver
+        case __DEVICEMANAGER_QUERYCONTRACT: {
+            // Hold a response buffer
             void *ResponseBuffer = malloc(Message->Result.Length);
             void *NullPointer = NULL;
 
-			// Query contract
-			if (QueryContract((MContractType_t)Message->Arguments[0].Data.Value, 
-					(int)Message->Arguments[1].Data.Value,
-					(Message->Arguments[2].Type == ARGUMENT_REGISTER) ?
-					&Message->Arguments[2].Data.Value : Message->Arguments[2].Data.Buffer,
-					Message->Arguments[2].Length,
-					(Message->Arguments[3].Type == ARGUMENT_REGISTER) ?
-					&Message->Arguments[3].Data.Value : Message->Arguments[3].Data.Buffer,
-					Message->Arguments[3].Length,
-					(Message->Arguments[4].Type == ARGUMENT_REGISTER) ?
-					&Message->Arguments[4].Data.Value : Message->Arguments[4].Data.Buffer,
-					Message->Arguments[4].Length,
-					ResponseBuffer, Message->Result.Length) == OsSuccess) {
-				PipeSend(Message->Sender, Message->ResponsePort,
-					ResponseBuffer, Message->Result.Length);
-			}
-			else {
+            // Query contract
+            if (QueryContract((MContractType_t)Message->Arguments[0].Data.Value, 
+                    (int)Message->Arguments[1].Data.Value,
+                    (Message->Arguments[2].Type == ARGUMENT_REGISTER) ?
+                    &Message->Arguments[2].Data.Value : Message->Arguments[2].Data.Buffer,
+                    Message->Arguments[2].Length,
+                    (Message->Arguments[3].Type == ARGUMENT_REGISTER) ?
+                    &Message->Arguments[3].Data.Value : Message->Arguments[3].Data.Buffer,
+                    Message->Arguments[3].Length,
+                    (Message->Arguments[4].Type == ARGUMENT_REGISTER) ?
+                    &Message->Arguments[4].Data.Value : Message->Arguments[4].Data.Buffer,
+                    Message->Arguments[4].Length,
+                    ResponseBuffer, Message->Result.Length) == OsSuccess) {
+                PipeSend(Message->Sender, Message->ResponsePort,
+                    ResponseBuffer, Message->Result.Length);
+            }
+            else {
                 PipeSend(Message->Sender, Message->ResponsePort, 
                     NullPointer, sizeof(void*));
-			}
+            }
 
-			// Cleanup
-			free(ResponseBuffer);
-		} break;
+            // Cleanup
+            free(ResponseBuffer);
+        } break;
 
-		default: {
-		} break;
-	}
+        default: {
+        } break;
+    }
 
-	return OsSuccess;
+    return OsSuccess;
 }
 
 /* Device Registering
@@ -229,47 +232,49 @@ OnEvent(
  * for a driver for the new device */
 OsStatus_t
 RegisterDevice(
-	_In_ UUId_t Parent,
-	_In_ MCoreDevice_t *Device, 
-	_In_ __CONST char *Name,
-	_In_ Flags_t Flags,
-	_Out_ UUId_t *Id)
+    _In_ UUId_t Parent,
+    _In_ MCoreDevice_t *Device, 
+    _In_ __CONST char *Name,
+    _In_ Flags_t Flags,
+    _Out_ UUId_t *Id)
 {
-	// Variables
-	MCoreDevice_t *CopyDevice = NULL;
-	DataKey_t Key;
+    // Variables
+    MCoreDevice_t *CopyDevice = NULL;
+    DataKey_t Key;
 
-	// Not sure what to do with this rn
-	_CRT_UNUSED(Parent);
+    // Not sure what to do with this rn
+    _CRT_UNUSED(Parent);
 
-	// Update name and print debug information
-	if (Name != NULL) {
-		memcpy(&Device->Name[0], Name, strlen(Name));
-		TRACE("Registered device %s", Name);
-	}
+    // Update name 
+    if (Name != NULL) {
+        memcpy(&Device->Name[0], Name, strlen(Name));
+    }
 
-	// Generate id and update out
-	Device->Id = GlbDeviceIdGen++;
-	Key.Value = (int)Device->Id;
-	*Id = Device->Id;
+    // Debug
+    TRACE("Registered device %s", &Device->Name[0]);
 
-	// Allocate our own copy of the device
-	CopyDevice = (MCoreDevice_t*)malloc(sizeof(MCoreDevice_t));
-	memcpy(CopyDevice, Device, sizeof(MCoreDevice_t));
+    // Generate id and update out
+    Device->Id = GlbDeviceIdGen++;
+    Key.Value = (int)Device->Id;
+    *Id = Device->Id;
 
-	// Add to list
-	ListAppend(__GlbDevices, ListCreateNode(Key, Key, CopyDevice));
+    // Allocate our own copy of the device
+    CopyDevice = (MCoreDevice_t*)malloc(Device->Length);
+    memcpy(CopyDevice, Device, Device->Length);
 
-	// Now, we want to try to find a driver
-	// for the new device
+    // Add to list
+    ListAppend(__GlbDevices, ListCreateNode(Key, Key, CopyDevice));
+
+    // Now, we want to try to find a driver
+    // for the new device
 #ifndef __OSCONFIG_NODRIVERS
-	if (Flags & __DEVICEMANAGER_REGISTER_LOADDRIVER) {
-		return InstallDriver(CopyDevice, sizeof(MCoreDevice_t));
-	}
+    if (Flags & __DEVICEMANAGER_REGISTER_LOADDRIVER) {
+        return InstallDriver(CopyDevice, Device->Length);
+    }
 #endif
-	
-	// Done with task
-	return OsSuccess;
+    
+    // Done with task
+    return OsSuccess;
 }
 
 /* RegisterContract
@@ -278,69 +283,70 @@ RegisterDevice(
  * of functionality the device supports */
 OsStatus_t
 RegisterContract(
-	_In_ MContract_t *Contract,
-	_Out_ UUId_t *Id)
+    _In_ MContract_t *Contract,
+    _Out_ UUId_t *Id)
 {
-	// Variables
-	MContract_t *CopyContract = NULL;
-	DataKey_t Key;
+    // Variables
+    MContract_t *CopyContract = NULL;
+    DataKey_t Key;
 
-	// Trace
-	TRACE("Registered driver for device %u: %s", 
-		Contract->DeviceId, &Contract->Name[0]);
+    // Trace
+    TRACE("Registered driver for device %u: %s", 
+        Contract->DeviceId, &Contract->Name[0]);
 
-	// Lookup device
-	Key.Value = (int)Contract->DeviceId;
+    // Lookup device
+    Key.Value = (int)Contract->DeviceId;
 
-	// Sanitize device
-	if (ListGetDataByKey(__GlbDevices, Key, 0) == NULL) {
-		ERROR("Device id %u was not registered with the device manager",
-			Contract->DeviceId);
-		return OsError;
-	}
+    // Sanitize device
+    if (ListGetDataByKey(__GlbDevices, Key, 0) == NULL) {
+        ERROR("Device id %u was not registered with the device manager",
+            Contract->DeviceId);
+        return OsError;
+    }
 
-	// Generate a new id
-	*Id = GlbDriverIdGen++;
+    // Generate a new id
+    *Id = GlbDriverIdGen++;
 
-	// Update contract id
-	Contract->ContractId = *Id;
-	Key.Value = (int)*Id;
+    // Update contract id
+    Contract->ContractId = *Id;
+    Key.Value = (int)*Id;
 
-	// Allocate our own copy of the contract
-	CopyContract = (MContract_t*)malloc(sizeof(MContract_t));
-	memcpy(CopyContract, Contract, sizeof(MContract_t));
+    // Allocate our own copy of the contract
+    CopyContract = (MContract_t*)malloc(sizeof(MContract_t));
+    memcpy(CopyContract, Contract, sizeof(MContract_t));
 
-	// Add to list
-	ListAppend(__GlbContracts, ListCreateNode(Key, Key, CopyContract));
+    // Add to list
+    ListAppend(__GlbContracts, ListCreateNode(Key, Key, CopyContract));
 
-	// Done
-	return OsSuccess;
+    // Done
+    return OsSuccess;
 }
 
 /* HandleQuery
  * Handles the generic query function, by resolving
  * the correct driver and asking for data */
 OsStatus_t 
-QueryContract(_In_ MContractType_t Type, 
-			  _In_ int Function,
-			  _In_Opt_ __CONST void *Arg0,
-			  _In_Opt_ size_t Length0,
-			  _In_Opt_ __CONST void *Arg1,
-			  _In_Opt_ size_t Length1,
-			  _In_Opt_ __CONST void *Arg2,
-			  _In_Opt_ size_t Length2,
-			  _Out_Opt_ __CONST void *ResultBuffer,
-			  _In_Opt_ size_t ResultLength)
+QueryContract(
+    _In_ MContractType_t Type, 
+    _In_ int Function,
+    _In_Opt_ __CONST void *Arg0,
+    _In_Opt_ size_t Length0,
+    _In_Opt_ __CONST void *Arg1,
+    _In_Opt_ size_t Length1,
+    _In_Opt_ __CONST void *Arg2,
+    _In_Opt_ size_t Length2,
+    _Out_Opt_ __CONST void *ResultBuffer,
+    _In_Opt_ size_t ResultLength)
 {
-	// Iterate driver list and find a contract that
-	// matches the request
-	foreach(cNode, __GlbContracts) {
-		MContract_t *Contract = (MContract_t*)cNode->Data;
-		if (Contract->Type == Type) {
-			return QueryDriver(Contract, Function, 
-				Arg0, Length0, Arg1, Length1, Arg2, Length2,
-				ResultBuffer, ResultLength);
-		}
-	}
-	return OsError;
+    // Iterate driver list and find a contract that
+    // matches the request
+    foreach(cNode, __GlbContracts) {
+        MContract_t *Contract = (MContract_t*)cNode->Data;
+        if (Contract->Type == Type) {
+            return QueryDriver(Contract, Function, 
+                Arg0, Length0, Arg1, Length1, Arg2, Length2,
+                ResultBuffer, ResultLength);
+        }
+    }
+    return OsError;
 }

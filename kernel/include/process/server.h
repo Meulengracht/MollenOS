@@ -78,7 +78,13 @@ PhoenixGetCurrentServer(void);
 /* GetServerByDriver
  * Retrieves a running server by driver-information
  * to avoid spawning multiple servers */
-KERNELAPI MCoreServer_t *PhoenixGetServerByDriver(DevInfo_t VendorId,
-    DevInfo_t DeviceId, DevInfo_t DeviceClass, DevInfo_t DeviceSubClass);
+KERNELAPI
+MCoreServer_t*
+KERNELABI
+PhoenixGetServerByDriver(
+    _In_ DevInfo_t VendorId,
+    _In_ DevInfo_t DeviceId,
+    _In_ DevInfo_t DeviceClass,
+    _In_ DevInfo_t DeviceSubClass);
 
 #endif //!_MCORE_SERVER_H_

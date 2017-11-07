@@ -54,40 +54,91 @@ typedef enum _PhoenixRequestType {
  * on the event system we have created, using
  * it as an base, and then supports parameters
  * for requests in PhoneixRequestType */
-typedef struct _MCorePhoenixRequest
-{
-	/* Event Base 
-	 * All event-derived systems must
-	 * have this member */
-	MCoreEvent_t Base;
-
-	/* Event Parameters, the following
-	 * must be filled out for some of the
-	 * actions that phoenix support */
-	MString_t *Path;
+typedef struct _MCorePhoenixRequest {
+	MCoreEvent_t             Base;
+    MString_t               *Path;
+    
 	union {
-		MString_t *String;
+		MString_t           *String;
 		struct {
-			void *Data;
-			size_t Length;
+			void            *Data;
+			size_t           Length;
 		} Raw;
 	} Arguments;
 
-	/* This is a combined parameter, for some
-	 * actions it acts as a return, other times it
-	 * is the parameter for an action */
+	// This is a combined parameter, for some
+	// actions it acts as a return, other times it
+	// is the parameter for an action
 	UUId_t AshId;
-
 } MCorePhoenixRequest_t;
 
-/* These are maintience/initializor functions and 
- * should only be called by system processes */
-__EXTERN void PhoenixInit(void);
+/* PhoenixInitialize
+ * Initialize the Phoenix environment and 
+ * start the event-handler loop, it handles all requests 
+ * and nothing happens if it isn't started */
+KERNELAPI
+void
+KERNELABI
+PhoenixInitialize(void);
 
-/* Methods for supporting events, use these
- * to send requests to the phoenix system */
-__EXTERN void PhoenixCreateRequest(MCorePhoenixRequest_t *Request);
-__EXTERN void PhoenixWaitRequest(MCorePhoenixRequest_t *Request, size_t Timeout);
+/* PhoenixCreateRequest
+ * Creates and queues up a new request for the process-manager. */
+KERNELAPI
+void
+KERNELABI
+PhoenixCreateRequest(
+    _In_ MCorePhoenixRequest_t *Request);
+
+/* PhoenixWaitRequest
+ * Wait for a request to finish. A timeout can be specified. */
+KERNELAPI
+void
+KERNELABI
+PhoenixWaitRequest(
+    _In_ MCorePhoenixRequest_t *Request,
+    _In_ size_t Timeout);
+
+/* PhoenixRegisterAlias
+ * Allows a server to register an alias for its id
+ * which means that id (must be above SERVER_ALIAS_BASE)
+ * will always refer the calling process */
+KERNELAPI
+OsStatus_t
+KERNELABI
+PhoenixRegisterAlias(
+	_In_ MCoreAsh_t *Ash, 
+    _In_ UUId_t Alias);
+    
+/* PhoenixUpdateAlias
+ * Checks if the given process-id has an registered alias.
+ * If it has, the given process-id will be overwritten. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+PhoenixUpdateAlias(
+    _InOut_ UUId_t *AshId);
+
+/* PhoenixRegisterAsh
+ * Registers a new ash by adding it to the process-list */
+KERNELAPI
+OsStatus_t
+KERNELABI
+PhoenixRegisterAsh(
+    _In_ MCoreAsh_t *Ash);
+    
+/* PhoenixGetProcesses 
+ * Retrieves access to the list of processes. */
+KERNELAPI
+List_t*
+KERNELABI
+PhoenixGetProcesses(void);
+
+/* PhoenixGetNextId 
+ * Retrieves the next process-id. */
+KERNELAPI
+UUId_t
+KERNELABI
+PhoenixGetNextId(void);
 
 /* SignalReturn
  * Call upon returning from a signal, this will finish

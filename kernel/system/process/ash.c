@@ -37,11 +37,6 @@
  * - Library */
 #include <stddef.h>
 
-/* Externs */
-__EXTERN UUId_t *GlbAliasMap;
-__EXTERN UUId_t GlbAshIdGenerator;
-__EXTERN List_t *GlbAshes;
-
 /* This is the finalizor function for starting
  * up a new base Ash, it finishes setting up the environment
  * and memory mappings, must be called on it's own thread */
@@ -186,7 +181,7 @@ int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path)
 	}
 
 	/* Set initial */
-	Ash->Id = GlbAshIdGenerator++;
+	Ash->Id = PhoenixGetNextId();
 	Ash->Parent = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
 	Ash->Type = AshBase;
 
@@ -216,7 +211,6 @@ UUId_t PhoenixStartupAsh(MString_t *Path)
 {
 	/* Variables needed for this */
 	MCoreAsh_t *Ash = NULL;
-	DataKey_t Key;
 
 	/* Allocate the structure */
 	Ash = (MCoreAsh_t*)kmalloc(sizeof(MCoreAsh_t));
@@ -227,15 +221,12 @@ UUId_t PhoenixStartupAsh(MString_t *Path)
 		return UUID_INVALID;
 	}
 
-	/* Add process to list */
-	Key.Value = (int)Ash->Id;
-	ListAppend(GlbAshes, ListCreateNode(Key, Key, Ash));
+	// Register ash
+	PhoenixRegisterAsh(Ash);
 
 	/* Create the loader thread */
 	ThreadingCreateThread((char*)MStringRaw(Ash->Name),
 		PhoenixBootAsh, Ash, THREADING_USERMODE);
-
-	/* Done */
 	return Ash->Id;
 }
 
@@ -328,6 +319,47 @@ int PhoenixCloseAshPipe(MCoreAsh_t *Ash, int Port)
 
 	/* Remove entry from list */
 	return ListRemoveByKey(Ash->Pipes, Key) == 1 ? 0 : -1;
+}
+
+/* PhoenixGetAsh
+ * This function looks up a ash structure by the given id */
+MCoreAsh_t*
+PhoenixGetAsh(
+	_In_ UUId_t AshId)
+{
+	// Variables
+    ListNode_t *Node    = NULL;
+    UUId_t CurrentCpu   = UUID_INVALID;
+
+	// If we pass invalid get the current
+	if (AshId == UUID_INVALID) {
+		CurrentCpu = CpuGetCurrentId();
+		if (ThreadingGetCurrentThread(CurrentCpu) != NULL) {
+			AshId = ThreadingGetCurrentThread(CurrentCpu)->AshId;
+		}
+		else {
+			return NULL;
+		}
+	}
+
+	// Still none?
+	if (AshId == UUID_INVALID) {
+		return NULL;
+	}
+
+	// Now we can sanitize the extra stuff, like alias
+	PhoenixUpdateAlias(&AshId);
+
+	// Iterate the list for ash-id
+	_foreach(Node, PhoenixGetProcesses()) {
+		MCoreAsh_t *Ash = (MCoreAsh_t*)Node->Data;
+		if (Ash->Id == AshId) {
+			return Ash;
+		}
+	}
+
+	// We didn't find it
+	return NULL;
 }
 
 /* Retrieves a pipe for the given port, if it doesn't
@@ -460,29 +492,7 @@ void PhoenixCleanupAsh(MCoreAsh_t *Ash)
 	kfree(Ash);
 }
 
-/* PhoenixRegisterAlias
- * Allows a server to register an alias for its id
- * which means that id (must be above SERVER_ALIAS_BASE)
- * will always refer the calling process */
-OsStatus_t
-PhoenixRegisterAlias(
-	_In_ MCoreAsh_t *Ash, 
-	_In_ UUId_t Alias)
-{
-	// Sanitize both the server and alias 
-	if (Ash == NULL
-		|| (Alias < PHOENIX_ALIAS_BASE)
-		|| GlbAliasMap[Alias - PHOENIX_ALIAS_BASE] != UUID_INVALID) {
-		LogFatal("PHNX", "Failed to register alias 0x%x for ash %u (0x%x - %u)",
-			Alias, (Ash == NULL ? UUID_INVALID : Ash->Id),
-			GlbAliasMap[Alias - PHOENIX_ALIAS_BASE], Alias - PHOENIX_ALIAS_BASE);
-		return OsError;
-	}
 
-	// Register
-	GlbAliasMap[Alias - PHOENIX_ALIAS_BASE] = Ash->Id;
-	return OsSuccess;
-}
 
 /* PhoenixGetCurrentAsh
  * Retrives the current ash for the running thread */
@@ -505,56 +515,4 @@ PhoenixGetCurrentAsh(void)
 	else {
 		return NULL;
 	}
-}
-
-/* PhoenixGetAsh
- * This function looks up a ash structure by the given id */
-MCoreAsh_t*
-PhoenixGetAsh(
-	_In_ UUId_t AshId)
-{
-	// Variables
-	ListNode_t *pNode = NULL;
-	UUId_t CurrentCpu = UUID_INVALID;
-
-	// Sanity the list, no need to check in
-	// this case
-	if (ListLength(GlbAshes) == 0) {
-		return NULL;
-	}
-	
-	// If we pass invalid get the current
-	if (AshId == UUID_INVALID) {
-		CurrentCpu = CpuGetCurrentId();
-		if (ThreadingGetCurrentThread(CurrentCpu) != NULL) {
-			AshId = ThreadingGetCurrentThread(CurrentCpu)->AshId;
-		}
-		else {
-			return NULL;
-		}
-	}
-
-	// Still none?
-	if (AshId == UUID_INVALID) {
-		return NULL;
-	}
-
-	// Now we can sanitize the extra stuff,
-	// like alias
-	if (AshId >= PHOENIX_ALIAS_BASE
-		&& AshId < (PHOENIX_ALIAS_BASE + PHOENIX_MAX_ASHES)) {
-		AshId = GlbAliasMap[AshId - PHOENIX_ALIAS_BASE];
-	}
-
-	// Iterate the list and try
-	// to locate the ash we have
-	_foreach(pNode, GlbAshes) {
-		MCoreAsh_t *Ash = (MCoreAsh_t*)pNode->Data;
-		if (Ash->Id == AshId) {
-			return Ash;
-		}
-	}
-
-	// We didn't find it
-	return NULL;
 }

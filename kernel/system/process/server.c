@@ -38,10 +38,6 @@
 #include <ds/mstring.h>
 #include <string.h>
 
-/* Externs, we need access to the list of
- * servers and the list of alias's */
-__EXTERN List_t *GlbAshes;
-
 /* This is the finalizor function for starting
  * up a new Ash Server, it finishes setting up the environment
  * and memory mappings, must be called on it's own thread */
@@ -89,7 +85,6 @@ PhoenixCreateServer(
 {
 	// Variables
 	MCoreServer_t *Server = NULL;
-	DataKey_t Key;
 
 	/* Allocate the structure */
 	Server = (MCoreServer_t*)kmalloc(sizeof(MCoreServer_t));
@@ -114,15 +109,12 @@ PhoenixCreateServer(
 		Server->ArgumentLength = 0;
 	}
 	
-	/* Add process to list */
-	Key.Value = (int)Server->Base.Id;
-	ListAppend(GlbAshes, ListCreateNode(Key, Key, Server));
+	// Register ash
+	PhoenixRegisterAsh(&Server->Base);
 
 	/* Create the loader thread */
 	ThreadingCreateThread(MStringRaw(Server->Base.Name),
 		PhoenixBootServer, Server, THREADING_DRIVERMODE);
-
-	/* Done */
 	return Server->Base.Id;
 }
 
@@ -185,32 +177,34 @@ PhoenixGetCurrentServer(void)
 /* GetServerByDriver
  * Retrieves a running server by driver-information
  * to avoid spawning multiple servers */
-MCoreServer_t *PhoenixGetServerByDriver(DevInfo_t VendorId,
-	DevInfo_t DeviceId, DevInfo_t DeviceClass, DevInfo_t DeviceSubClass)
+MCoreServer_t*
+PhoenixGetServerByDriver(
+    _In_ DevInfo_t VendorId,
+    _In_ DevInfo_t DeviceId,
+    _In_ DevInfo_t DeviceClass,
+    _In_ DevInfo_t DeviceSubClass)
 {
-	/* Iterate the list and try
-	 * to locate the ash we have */
-	foreach(pNode, GlbAshes) {
+	foreach(pNode, PhoenixGetProcesses()) {
 		MCoreAsh_t *Ash = (MCoreAsh_t*)pNode->Data;
 		if (Ash->Type == AshServer) {
 			MCoreServer_t *Server = (MCoreServer_t*)Ash;
 
-			/* Check vendorid/deviceid first */
-			if (Server->VendorId == VendorId
-				&& Server->DeviceId == DeviceId) {
-				return Server;
-			}
+            // Should we check vendor-id && device-id?
+            if (VendorId != 0 && DeviceId != 0) {
+                if (Server->VendorId == VendorId
+                    && Server->DeviceId == DeviceId) {
+                    return Server;
+                }
+            }
 
-			/* Check class/subclass combination then 
-			 * However vendor can't be fixed */
-			if (Server->VendorId != 0xFFEF
-				&& Server->DeviceClass == DeviceClass
-				&& Server->DeviceSubClass == DeviceSubClass) {
-				return Server;
-			}
+            // Skip all fixed-vendor ids
+            if (Server->VendorId != 0xFFEF) {
+                if (Server->DeviceClass == DeviceClass
+                    && Server->DeviceSubClass == DeviceSubClass) {
+                    return Server;
+                }
+            }
 		}
 	}
-
-	/* Not found */
 	return NULL;
 }

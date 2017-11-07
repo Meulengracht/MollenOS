@@ -426,7 +426,8 @@ PciCreateDeviceFromPci(
 	MCoreDevice_t Device;
 
 	// Zero out structure
-	memset(&Device, 0, sizeof(MCoreDevice_t));
+    memset(&Device, 0, sizeof(MCoreDevice_t));
+    Device.Length = sizeof(MCoreDevice_t);
 	Device.VendorId = PciDevice->Header->VendorId;
 	Device.DeviceId = PciDevice->Header->DeviceId;
 	Device.Class = PciToDevClass(PciDevice->Header->Class, PciDevice->Header->Subclass);
@@ -511,7 +512,8 @@ BusInstallFixed(
 	// Zero out structure
 	memset(&Device, 0, sizeof(MCoreDevice_t));
 
-	// Set some magic constants
+    // Set some magic constants
+    Device.Length = sizeof(MCoreDevice_t);
 	Device.VendorId = PCI_FIXED_VENDORID;
 	Device.DeviceId = DeviceId;
 

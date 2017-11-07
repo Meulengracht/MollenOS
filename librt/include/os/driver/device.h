@@ -98,7 +98,8 @@
  * and functions to read/write directly to the device */
 PACKED_TYPESTRUCT(MCoreDevice, {
 	UUId_t						Id;
-	char						Name[__DEVICEMANAGER_NAMEBUFFER_LENGTH];
+    char						Name[__DEVICEMANAGER_NAMEBUFFER_LENGTH];
+    size_t                      Length;
 
 	// Device Information
 	// This is used both by the devicemanager
@@ -143,24 +144,38 @@ UUId_t
 SERVICEABI
 RegisterDevice(
 	_In_ UUId_t Parent,
-	_In_ MCoreDevice_t *Device, 
+	_InOut_ MCoreDevice_t *Device, 
 	_In_ Flags_t Flags)
 {
 	// Variables
 	MRemoteCall_t Request;
-	UUId_t Result = UUID_INVALID;
+    UUId_t Result = UUID_INVALID;
+    
+    // Sanitize
+    if (Device == NULL || (Device->Length < sizeof(MCoreDevice_t))) {
+        return UUID_INVALID;
+    }
 
 	// Initialize RPC
 	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION, 
-		PIPE_RPCOUT, __DEVICEMANAGER_REGISTERDEVICE);
+        PIPE_RPCOUT, __DEVICEMANAGER_REGISTERDEVICE);
+        
+    // Arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)&Parent, sizeof(UUId_t));
-	RPCSetArgument(&Request, 1, (__CONST void*)Device, sizeof(MCoreDevice_t));
-	RPCSetArgument(&Request, 2, (__CONST void*)&Flags, sizeof(Flags_t));
-	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(UUId_t));
+	RPCSetArgument(&Request, 1, (__CONST void*)Device, Device->Length);
+    RPCSetArgument(&Request, 2, (__CONST void*)&Flags, sizeof(Flags_t));
+    
+    // Result
+    RPCSetResult(&Request, (__CONST void*)&Result, sizeof(UUId_t));
 	
 	// Execute RPC
-	RPCExecute(&Request, __DEVICEMANAGER_TARGET);
-	return Result;
+	if (RPCExecute(&Request, __DEVICEMANAGER_TARGET) != OsSuccess) {
+        return UUID_INVALID;
+    }
+    else {
+        Device->Id = Result;
+        return Result;
+    }
 }
 #endif
 

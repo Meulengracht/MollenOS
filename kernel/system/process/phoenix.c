@@ -19,6 +19,8 @@
  * MollenOS MCore - Server & Process Management
  * - The process/server manager is known as Phoenix
  */
+#define __MODULE "PCIF"
+#define __TRACE
 
 /* Includes 
  * - System */
@@ -26,10 +28,10 @@
 #include <process/process.h>
 #include <process/server.h>
 #include <garbagecollector.h>
-#include <threading.h>
 #include <scheduler.h>
+#include <threading.h>
+#include <debug.h>
 #include <heap.h>
-#include <log.h>
 
 /* Includes
  * C-Library */
@@ -40,162 +42,171 @@
 
 /* Prototypes 
  * They are defined later down this file */
-int PhoenixEventHandler(void *UserData, MCoreEvent_t *Event);
-OsStatus_t PhoenixReap(void *UserData);
+int
+PhoenixEventHandler(
+    _In_Opt_ void *UserData,
+    _In_ MCoreEvent_t *Event);
+OsStatus_t
+PhoenixReapAsh(
+    _In_Opt_ void *UserData);
 
 /* Globals 
  * State-keeping and data-storage */
-static MCoreEventHandler_t *GlbPhoenixEventHandler = NULL;
-static UUId_t GlbPhoenixGcId = 0;
+static MCoreEventHandler_t *EventHandler = NULL;
+static CriticalSection_t AccessLock;
+static List_t *Processes = NULL;
+static UUId_t *AliasMap = NULL;
+static UUId_t GcHandlerId = 0;
+static UUId_t ProcessIdGenerator = 0;
 
-/* These are getting externed, not good */
-UUId_t GlbAshIdGenerator = 0;
-List_t *GlbAshes = NULL;
-UUId_t *GlbAliasMap = NULL;
-
-/* Initialize the Phoenix environment and 
+/* PhoenixInitialize
+ * Initialize the Phoenix environment and 
  * start the event-handler loop, it handles all requests 
  * and nothing happens if it isn't started */
-void PhoenixInit(void)
+void
+PhoenixInitialize(void)
 {
 	// Variables
 	int i;
 
-	// Trace
-	LogInformation("PHNX", "Initializing environment and event handler");
+	// Debug
+	TRACE("Initializing environment and event handler");
 
-	// Set initial ash-id to 1
-	GlbAshIdGenerator = 1;
-
-	// Initialize lists
-	GlbAshes = ListCreate(KeyInteger, LIST_SAFE);
-	GlbPhoenixGcId = GcRegister(PhoenixReap);
+	// Initialize Globals
+	ProcessIdGenerator = 1;
+	Processes = ListCreate(KeyInteger, LIST_SAFE);
+    GcHandlerId = GcRegister(PhoenixReapAsh);
+    CriticalSectionConstruct(&AccessLock, CRITICALSECTION_PLAIN);
 
 	// Initialize the global alias map
-	GlbAliasMap = (UUId_t*)kmalloc(sizeof(UUId_t) * PHOENIX_MAX_ASHES);
+	AliasMap = (UUId_t*)kmalloc(sizeof(UUId_t) * PHOENIX_MAX_ASHES);
 	for (i = 0; i < PHOENIX_MAX_ASHES; i++) {
-		GlbAliasMap[i] = UUID_INVALID;
+		AliasMap[i] = UUID_INVALID;
 	}
 
 	// Create event handler
-	GlbPhoenixEventHandler = EventInit("phoenix", PhoenixEventHandler, NULL);
+	EventHandler = EventInit("phoenix", PhoenixEventHandler, NULL);
 }
 
-/* Create Request
- * We simply move it on to the event handler */
-void PhoenixCreateRequest(MCorePhoenixRequest_t *Request) {
-	EventCreate(GlbPhoenixEventHandler, &Request->Base);
+/* PhoenixCreateRequest
+ * Creates and queues up a new request for the process-manager. */
+void
+PhoenixCreateRequest(
+    _In_ MCorePhoenixRequest_t *Request)
+{
+	EventCreate(EventHandler, &Request->Base);
 }
 
-/* Wait for request
- * just as above we just call further the event handler */
-void PhoenixWaitRequest(MCorePhoenixRequest_t *Request, size_t Timeout) {
+/* PhoenixWaitRequest
+ * Wait for a request to finish. A timeout can be specified. */
+void
+PhoenixWaitRequest(
+    _In_ MCorePhoenixRequest_t *Request,
+    _In_ size_t Timeout)
+{
 	EventWait(&Request->Base, Timeout);
 }
 
-/* The Phoenix event handler thread
- * this routine is invoked every-time there is any
- * request pending for us */
-int PhoenixEventHandler(void *UserData, MCoreEvent_t *Event)
+/* PhoenixRegisterAlias
+ * Allows a server to register an alias for its id
+ * which means that id (must be above SERVER_ALIAS_BASE)
+ * will always refer the calling process */
+OsStatus_t
+PhoenixRegisterAlias(
+	_In_ MCoreAsh_t *Ash, 
+	_In_ UUId_t Alias)
 {
-	/* Variables needed for this  */
-	MCorePhoenixRequest_t *Request = NULL;
-
-	/* Unused */
-	_CRT_UNUSED(UserData);
-
-	/* Cast */
-	Request = (MCorePhoenixRequest_t*)Event;
-
-	/* Depends on request */
-	switch (Request->Base.Type)
-	{
-		/* Spawn a new ash/process */
-		case AshSpawnProcess:
-		case AshSpawnServer:
-		{
-			/* Deep Call */
-			LogInformation("PHNX", "Spawning %s", MStringRaw(Request->Path));
-
-			if (Request->Base.Type == AshSpawnServer) {
-				Request->AshId = PhoenixCreateServer(Request->Path, 
-					Request->Arguments.Raw.Data, Request->Arguments.Raw.Length);
-			}
-			else {
-				Request->AshId = PhoenixCreateProcess(Request->Path, Request->Arguments.String);
-			}
-
-			/* Sanity */
-			if (Request->AshId != UUID_INVALID)
-				Request->Base.State = EventOk;
-			else
-				Request->Base.State = EventFailed;
-
-		} break;
-
-		/* Kill ash */
-		case AshKill:
-		{
-			/* Lookup ash in our list */
-			MCoreAsh_t *Ash = PhoenixGetAsh(Request->AshId);
-
-			/* Sanity */
-			if (Ash != NULL) {
-				ThreadingTerminateAshThreads(Ash->Id);
-				PhoenixTerminateAsh(Ash);
-			}
-			else {
-				Request->Base.State = EventFailed;
-			}
-				
-		} break;
-
-		/* Panic */
-		default: {
-			LogDebug("PHNX", "Unhandled Event %u", (size_t)Request->Base.Type);
-		} break;
+	// Sanitize both the server and alias 
+	if (Ash == NULL
+		|| (Alias < PHOENIX_ALIAS_BASE)
+		|| AliasMap[Alias - PHOENIX_ALIAS_BASE] != UUID_INVALID) {
+		LogFatal("PHNX", "Failed to register alias 0x%x for ash %u (0x%x - %u)",
+			Alias, (Ash == NULL ? UUID_INVALID : Ash->Id),
+			AliasMap[Alias - PHOENIX_ALIAS_BASE], Alias - PHOENIX_ALIAS_BASE);
+		return OsError;
 	}
 
-	/* Cleanup? */
-	if (Request->Base.Cleanup != 0) {
-		if (Request->Path != NULL)
-			MStringDestroy(Request->Path);
-		if (Request->Arguments.String != NULL)
-			MStringDestroy(Request->Arguments.String);
-	}
-
-	/* Return 0 */
-	return 0;
+	// Register
+	AliasMap[Alias - PHOENIX_ALIAS_BASE] = Ash->Id;
+	return OsSuccess;
 }
 
-/* This marks an ash for termination by taking it out
- * of rotation and adding it to the cleanup list */
-void PhoenixTerminateAsh(MCoreAsh_t *Ash)
+/* PhoenixUpdateAlias
+ * Checks if the given process-id has an registered alias.
+ * If it has, the given process-id will be overwritten. */
+OsStatus_t
+PhoenixUpdateAlias(
+    _InOut_ UUId_t *AshId)
 {
-	/* Variables needed */
-	ListNode_t *pNode = NULL;
-	DataKey_t Key;
+    if (*AshId >= PHOENIX_ALIAS_BASE
+		&& *AshId < (PHOENIX_ALIAS_BASE + PHOENIX_MAX_ASHES)) {
+        *AshId = AliasMap[*AshId - PHOENIX_ALIAS_BASE];
+        return OsSuccess;
+    }
+    return OsError;
+}
 
-	/* Lookup node */
+/* PhoenixGetNextId 
+ * Retrieves the next process-id. */
+UUId_t
+PhoenixGetNextId(void)
+{
+    return ProcessIdGenerator++;
+}
+
+/* PhoenixGetProcesses 
+ * Retrieves access to the list of processes. */
+List_t*
+PhoenixGetProcesses(void)
+{
+    return Processes;
+}
+
+/* PhoenixRegisterAsh
+ * Registers a new ash by adding it to the process-list */
+OsStatus_t
+PhoenixRegisterAsh(
+    _In_ MCoreAsh_t *Ash)
+{
+    // Variables
+    DataKey_t Key;
+    
+	// Modifications to process-list are locked
+    CriticalSectionEnter(&AccessLock);
 	Key.Value = (int)Ash->Id;
-	pNode = ListGetNodeByKey(GlbAshes, Key, 0);
-
-	/* Sanity */
-	if (pNode == NULL)
-		return;
-
-	/* Wake all that waits for this to finish */
-	SchedulerThreadWakeAll((uintptr_t*)pNode->Data);
-
-	// Alert GC and destroy node
-	GcSignal(GlbPhoenixGcId, pNode->Data);
-	ListRemoveByNode(GlbAshes, pNode);
+	ListAppend(Processes, ListCreateNode(Key, Key, Ash));
+    CriticalSectionLeave(&AccessLock);
+    return OsSuccess;
 }
 
-/* This function cleans up processes and
+/* PhoenixTerminateAsh
+ * This marks an ash for termination by taking it out
+ * of rotation and adding it to the cleanup list */
+void
+PhoenixTerminateAsh(
+    _In_ MCoreAsh_t *Ash)
+{
+    // Variables
+    DataKey_t Key;
+
+    // To modify list is locked operation
+    CriticalSectionEnter(&AccessLock);
+    Key.Value = (int)Ash->Id;
+	ListRemoveByKey(Processes, Key);
+    CriticalSectionLeave(&AccessLock);
+
+	// Alert GC
+	SchedulerThreadWakeAll((uintptr_t*)Ash);
+	GcSignal(GcHandlerId, Ash);
+}
+
+/* PhoenixReapAsh
+ * This function cleans up processes and
  * ashes and servers that might be queued up for
  * destruction, they can't handle all their cleanup themselves */
-OsStatus_t PhoenixReap(void *UserData)
+OsStatus_t
+PhoenixReapAsh(
+    _In_Opt_ void *UserData)
 {
 	// Instantiate the base-pointer
 	MCoreAsh_t *Ash = (MCoreAsh_t*)UserData;
@@ -211,6 +222,71 @@ OsStatus_t PhoenixReap(void *UserData)
 		//??
 		return OsError;
 	}
-
 	return OsSuccess;
+}
+
+/* PhoenixEventHandler
+ * This routine is invoked every-time there is any
+ * request pending for us */
+int
+PhoenixEventHandler(
+    _In_Opt_ void *UserData,
+    _In_ MCoreEvent_t *Event)
+{
+	// Variables
+	MCorePhoenixRequest_t *Request = NULL;
+
+	// Unused
+	_CRT_UNUSED(UserData);
+
+	// Instantiate pointers
+	Request = (MCorePhoenixRequest_t*)Event;
+	switch (Request->Base.Type) {
+		case AshSpawnProcess:
+		case AshSpawnServer: {
+			TRACE("Spawning %s", MStringRaw(Request->Path));
+
+			if (Request->Base.Type == AshSpawnServer) {
+				Request->AshId = PhoenixCreateServer(Request->Path, 
+					Request->Arguments.Raw.Data, Request->Arguments.Raw.Length);
+			}
+			else {
+				Request->AshId = PhoenixCreateProcess(Request->Path, Request->Arguments.String);
+			}
+
+			// Sanitize result
+			if (Request->AshId != UUID_INVALID) {
+                Request->Base.State = EventOk;      
+            }
+			else {
+				Request->Base.State = EventFailed;
+            }
+        } break;
+        
+		case AshKill: {
+			MCoreAsh_t *Ash = PhoenixGetAsh(Request->AshId);
+			if (Ash != NULL) {
+				ThreadingTerminateAshThreads(Ash->Id);
+				PhoenixTerminateAsh(Ash);
+			}
+			else {
+				Request->Base.State = EventFailed;
+			}
+		} break;
+
+		default: {
+			ERROR("Unhandled Event %u", (size_t)Request->Base.Type);
+		} break;
+	}
+
+	// Handle cleanup
+	if (Request->Base.Cleanup != 0) {
+		if (Request->Path != NULL) {
+			MStringDestroy(Request->Path);
+        }
+		if (Request->Arguments.String != NULL) {
+			MStringDestroy(Request->Arguments.String);
+        }
+	}
+	return 0;
 }

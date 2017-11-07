@@ -1301,92 +1301,82 @@ ScRegisterAliasId(
 /* ScLoadDriver
  * Attempts to resolve the best possible drive for
  * the given device information */
-OsStatus_t ScLoadDriver(MCoreDevice_t *Device, size_t Length)
+OsStatus_t
+ScLoadDriver(
+    _In_ MCoreDevice_t *Device,
+    _In_ size_t Length)
 {
-    /* Variables */
-    MCorePhoenixRequest_t *Request = NULL;
-    MCoreServer_t *Server = NULL;
-    MCoreModule_t *Module = NULL;
-    MRemoteCall_t Message;
-    MString_t *Path = NULL;
+    // Variables
+    MCorePhoenixRequest_t *Request  = NULL;
+    MCoreServer_t *Server           = NULL;
+    MCoreModule_t *Module           = NULL;
+    MString_t *Path                 = NULL;
+    MRemoteCall_t RemoteCall        = { 0 };
 
-    /* Sanitize information */
+    // Sanitize parameters, length must not be less than base
     if (Device == NULL || Length < sizeof(MCoreDevice_t)) {
         return OsError;
     }
 
-    /* First of all, if a server has already been spawned
-     * for the specific driver, then call it's RegisterInstance */
-    Server = PhoenixGetServerByDriver(Device->VendorId, Device->DeviceId,
+    // First of all, if a server has already been spawned
+    // for the specific driver, then call it's RegisterInstance
+    Server = PhoenixGetServerByDriver(
+        Device->VendorId, Device->DeviceId,
         Device->Class, Device->Subclass);
 
-    /* Sanitize the lookup 
-     * If it's not found, spawn server */
-    if (Server == NULL)
-    {
-        /* Lookup specific driver */
+    // Sanitize the lookup 
+    // If it's not found, spawn server
+    if (Server == NULL) {
+        // Look for matching driver first, then generic
         Module = ModulesFindSpecific(Device->VendorId, Device->DeviceId);
-
-        /* Lookup generic driver if it failed */
         if (Module == NULL) {
             Module = ModulesFindGeneric(Device->Class, Device->Subclass);
         }
-
-        /* Return error if that failed */
         if (Module == NULL) {
             return OsError;
         }
 
-        /* Build Path */
+        // Build ramdisk path for module/server
         Path = MStringCreate("rd:/", StrUTF8);
         MStringAppendString(Path, Module->Name);
 
-        /* Create a phoenix request */
+        // Create the request 
         Request = (MCorePhoenixRequest_t*)kmalloc(sizeof(MCorePhoenixRequest_t));
         memset(Request, 0, sizeof(MCorePhoenixRequest_t));
+
+        // Initiate request
         Request->Base.Type = AshSpawnServer;
-
-        /* Set our parameters as well */
         Request->Path = Path;
-        Request->Arguments.Raw.Data = kmalloc(sizeof(MCoreDevice_t));
-        Request->Arguments.Raw.Length = sizeof(MCoreDevice_t);
+        Request->Arguments.Raw.Data = kmalloc(Device->Length);
+        Request->Arguments.Raw.Length = Device->Length;
 
-        /* Copy data */
-        memcpy(Request->Arguments.Raw.Data, Device, sizeof(MCoreDevice_t));
-
-        /* Send off the request */
+        memcpy(Request->Arguments.Raw.Data, Device, Device->Length);
         PhoenixCreateRequest(Request);
         PhoenixWaitRequest(Request, 0);
 
-        /* Lookup server */
+        // Sanitize startup
         Server = PhoenixGetServer(Request->AshId);
-
-        /* Sanity */
         assert(Server != NULL);
 
-        /* Cleanup resources */
+        // Cleanup
         MStringDestroy(Request->Path);
         kfree(Request->Arguments.Raw.Data);
         kfree(Request);
 
-        /* Update server params */
+        // Update the server params for next load
         Server->VendorId = Device->VendorId;
         Server->DeviceId = Device->DeviceId;
         Server->DeviceClass = Device->Class;
         Server->DeviceSubClass = Device->Subclass;
     }
 
-    /* Prepare the message */
-    RPCInitialize(&Message, 1, PIPE_RPCOUT, __DRIVER_REGISTERINSTANCE);
-    RPCSetArgument(&Message, 0, Device, Length);
-    Message.Sender = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+    // Initialize the base of a new message, always protocol version 1
+    RPCInitialize(&RemoteCall, 1, PIPE_RPCOUT, __DRIVER_REGISTERINSTANCE);
+    RPCSetArgument(&RemoteCall, 0, Device, Length);
 
-    /* Wait for the driver to open it's
-     * communication pipe */
+    // Make sure the server has opened it's comm-pipe
     PhoenixWaitAshPipe(&Server->Base, PIPE_RPCOUT);
-
-    /* Done! */
-    return ScRpcExecute(&Message, Server->Base.Id, 1);
+    return ScRpcExecute(&RemoteCall, Server->Base.Id, 1);
 }
 
 /* ScRegisterInterrupt 
