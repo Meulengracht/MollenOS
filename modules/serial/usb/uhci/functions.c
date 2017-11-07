@@ -83,9 +83,9 @@ UhciTransactionInitialize(
 	size_t TransactionCount = 0;
 
 	// Allocate a new queue-head
-	*QhResult = Qh = UhciQhAllocate(Controller, Transfer->Type, Transfer->Speed);
-
-	// Calculate transaction count
+    *QhResult = Qh = UhciQhAllocate(Controller, Transfer->Type, Transfer->Speed);
+    
+    // Calculate transaction count
 	TransactionCount = DIVUP(Transfer->Length, Transfer->Endpoint.MaxPacketSize);
 
 	// Handle bandwidth allocation if neccessary

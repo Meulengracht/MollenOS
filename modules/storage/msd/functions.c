@@ -85,6 +85,7 @@ MsdReset(
     // The value of the data toggle bits shall be preserved 
     // it says in the usbmassbulk spec
     if (Status != TransferFinished) {
+        ERROR("Reset interface returned error %u", Status);
         return OsError;
     }
     else {
@@ -507,22 +508,26 @@ MsdSanitizeResponse(
 {
     // Start out by checking if a phase error occured, in that case we are screwed
     if (Csw->Status == MSD_CSW_PHASE_ERROR) {
+        ERROR("CSW: Phase Error");
         MsdRecoveryReset(Device);
         return TransferInvalid;
     }
 
     // Sanitize status
     if (Csw->Status != MSD_CSW_OK) {
+        ERROR("CSW: Status is invalid: 0x%x", Csw->Status);
         return TransferInvalid;
     }
 
     // Sanitize signature/data integrity
     if (Csw->Signature != MSD_CSW_OK_SIGNATURE) {
+        ERROR("CSW: Signature is invalid: 0x%x", Csw->Signature);
         return TransferInvalid;
     }
     
     // Sanitize tag/data integrity
     if ((Csw->Tag & 0xFFFFFF00) != MSD_TAG_SIGNATURE) {
+        ERROR("CSW: Tag is invalid: 0x%x", Csw->Tag);
         return TransferInvalid;
     }
 
@@ -582,14 +587,17 @@ MsdSCSICommandIn(
 
     // The next step is construct and execute the data transfer
     // now that we have prepaired the device for control
-    UsbTransferInitialize(&DataTransfer, &Device->Base.Device, Device->In, BulkTransfer);
+    UsbTransferInitialize(&DataTransfer, &Device->Base.Device, 
+        Device->In, BulkTransfer);
     if (DataLength != 0) {
         UsbTransferIn(&DataTransfer, DataAddress, DataLength, 0);
     }
     if (Device->Type == HardDrive) {
-        UsbTransferIn(&DataTransfer, Device->StatusBlockAddress, sizeof(MsdCommandStatus_t), 0);
+        UsbTransferIn(&DataTransfer, Device->StatusBlockAddress, 
+            sizeof(MsdCommandStatus_t), 0);
     }
-    UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, &ControlTransfer, &Result);
+    UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
+        &DataTransfer, &Result);
 
     // Sanitize transfer response
     if (Result.Status != TransferFinished) {
@@ -810,8 +818,9 @@ MsdSetup(
     _In_ MsdDevice_t *Device)
 {
     // Variables
-    ScsiInquiry_t *InquiryData = NULL;
-    uintptr_t InquiryAddress = 0;
+    UsbTransferStatus_t Status  = TransferNotProcessed;
+    ScsiInquiry_t *InquiryData  = NULL;
+    uintptr_t InquiryAddress    = 0;
     int i;
 
     // Allocate space for inquiry
@@ -822,9 +831,10 @@ MsdSetup(
     }
 
     // Perform inquiry
-    if (MsdSCSICommandIn(Device, SCSI_INQUIRY, 0, 
-        InquiryAddress, sizeof(ScsiInquiry_t)) != TransferFinished) {
-        ERROR("Failed to perform the inquiry command on device");
+    Status = MsdSCSICommandIn(Device, SCSI_INQUIRY, 0, 
+        InquiryAddress, sizeof(ScsiInquiry_t));
+    if (Status != TransferFinished) {
+        ERROR("Failed to perform the inquiry command on device: %u", Status);
         BufferPoolFree(UsbRetrievePool(), (uintptr_t*)InquiryData);
         return OsError;
     }

@@ -82,8 +82,6 @@ InterruptStatus_t ApicTimerHandler(void *Args)
 	
 	/* Enter new thread */
 	enter_thread(Regs);
-
-	/* Never reached */
 	return InterruptHandled;
 }
 

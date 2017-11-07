@@ -449,9 +449,9 @@ UsbSetAddress(
     }
 
     // Allocate buffers
-    TRACE("Allocating buffer");
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
+        ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
     }
 
@@ -509,6 +509,7 @@ UsbGetDeviceDescriptor(
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
+        ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
     }
 
@@ -524,6 +525,7 @@ UsbGetDeviceDescriptor(
     // Allocate a data-buffer
     if (BufferPoolAllocate(__LibUsbBufferPool, DESCRIPTOR_SIZE, 
             &DescriptorVirtual, &DescriptorPhysical) != OsSuccess) {
+        ERROR("Failed to allocate a transfer data buffer");
         BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
         return TransferInvalid;
     }
@@ -584,6 +586,7 @@ UsbGetInitialConfigDescriptor(
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
+        ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
     }
 
@@ -600,6 +603,7 @@ UsbGetInitialConfigDescriptor(
     if (BufferPoolAllocate(__LibUsbBufferPool,
         sizeof(UsbConfigDescriptor_t), &DescriptorVirtual, 
         &DescriptorPhysical) != OsSuccess) {
+        ERROR("Failed to allocate a transfer data buffer");
         BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
         return TransferInvalid;
     }
@@ -672,6 +676,7 @@ UsbGetConfigDescriptor(
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
+        ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
     }
 
@@ -687,6 +692,7 @@ UsbGetConfigDescriptor(
     // Allocate a data-buffer
     if (BufferPoolAllocate(__LibUsbBufferPool, ConfigDescriptorBufferLength, 
         &DescriptorVirtual, &DescriptorPhysical) != OsSuccess) {
+        ERROR("Failed to allocate a transfer data buffer");
         BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
         return TransferInvalid;
     }
@@ -739,6 +745,7 @@ UsbSetConfiguration(
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
+        ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
     }
 
@@ -794,6 +801,7 @@ UsbGetStringLanguages(
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
+        ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
     }
 
@@ -810,6 +818,7 @@ UsbGetStringLanguages(
     if (BufferPoolAllocate(__LibUsbBufferPool,
         sizeof(UsbStringDescriptor_t), &DescriptorVirtual, 
         &DescriptorPhysical) != OsSuccess) {
+        ERROR("Failed to allocate a transfer data buffer");
         BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
         return TransferInvalid;
     }
@@ -871,6 +880,7 @@ UsbGetStringDescriptor(
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
+        ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
     }
 
@@ -886,6 +896,7 @@ UsbGetStringDescriptor(
     // Allocate a data-buffer
     if (BufferPoolAllocate(__LibUsbBufferPool, 64, 
         &DescriptorVirtual, &DescriptorPhysical) != OsSuccess) {
+        ERROR("Failed to allocate a transfer data buffer");
         BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
         return TransferInvalid;
     }
@@ -945,6 +956,7 @@ UsbClearFeature(
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
+        ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
     }
 
@@ -998,6 +1010,7 @@ UsbSetFeature(
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
+        ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
     }
 
@@ -1059,6 +1072,7 @@ UsbExecutePacket(
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
+        ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
     }
 
@@ -1074,7 +1088,7 @@ UsbExecutePacket(
     // Allocate a data-buffer
     if (Length != 0 && BufferPoolAllocate(__LibUsbBufferPool,
         Length, &DescriptorVirtual, &DescriptorPhysical) != OsSuccess) {
-        ERROR("Failed to allocate an usb-buffer.");
+        ERROR("Failed to allocate a transfer data buffer");
         BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
         return TransferInvalid;
     }

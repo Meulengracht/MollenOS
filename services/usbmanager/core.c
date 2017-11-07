@@ -535,6 +535,7 @@ UsbDeviceSetup(
     // Initialize the underlying device class
     Device->Base.Address = 0;
     Device->Base.Speed = Port->Speed;
+    TRACE("Control EP mps => %u", Device->ControlEndpoint.MaxPacketSize);
 
     // Allocate a device-address
     if (UsbReserveAddress(Controller, &ReservedAddress) != OsSuccess) {
@@ -544,6 +545,7 @@ UsbDeviceSetup(
     }
 
     // Set device address for the new device
+    TRACE("Setting new address for device => %i", ReservedAddress);
     tStatus = UsbSetAddress(Controller->Driver, Controller->Device,
         &Device->Base, &Device->ControlEndpoint, ReservedAddress);
     if (tStatus != TransferFinished) {
@@ -589,9 +591,9 @@ UsbDeviceSetup(
     Device->Base.StringIndexProduct = DeviceDescriptor.StringIndexProduct;
     Device->Base.StringIndexSerialNumber = DeviceDescriptor.StringIndexSerialNumber;
     Device->Base.ConfigurationCount = DeviceDescriptor.ConfigurationCount;
-    Device->Base.MaxPacketSize = DeviceDescriptor.MaxPacketSize;
-
+    
     // Update MPS
+    Device->Base.MaxPacketSize = DeviceDescriptor.MaxPacketSize;
     Device->ControlEndpoint.MaxPacketSize = DeviceDescriptor.MaxPacketSize;
 
     // Query Config Descriptor
