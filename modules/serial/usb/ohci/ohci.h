@@ -39,7 +39,6 @@
 #define OHCI_MAXPORTS                   15
 
 #define OHCI_LINK_HALTED                0x1
-#define OHCI_LINK_END                   0x1
 #define OHCI_NO_INDEX                   (int16_t)-1
 
 /* OhciQueueHead
@@ -119,7 +118,7 @@ PACKED_TYPESTRUCT(OhciTransferDescriptor, {
     int16_t                     LinkIndex;
     reg32_t                     OriginalFlags;  // Copy of flags
     reg32_t                     OriginalCbp;    // Copy of buffer
-    uint8_t                     Padding[20]; // Padding to 64 bytes
+    uint8_t                     Padding[20];    // Padding to 64 bytes
 });
 
 /* OhciTransferDescriptor::Flags
@@ -131,35 +130,43 @@ PACKED_TYPESTRUCT(OhciTransferDescriptor, {
  * Bits 24-25: Data Toggle. It is updated after each successful transmission.
  * Bits 26-27: Error Count. Updated each transmission that fails. It is 0 on success.
  * Bits 28-31: Condition Code, if error count is 2 and it fails a third time, this contains error code. */
-#define OHCI_TD_ALLOCATED                    (1 << 16)
-#define OHCI_TD_ISOCHRONOUS                    (1 << 17)
-#define OHCI_TD_SHORTPACKET                    (1 << 18)
-#define OHCI_TD_PID_SETUP                    0
-#define OHCI_TD_PID_OUT                        (1 << 19)
-#define OHCI_TD_PID_IN                        (1 << 20)
-#define OHCI_TD_NO_IOC                        ((1 << 21) | (1 << 22) | (1 << 23))
-#define OHCI_TD_FRAMECOUNT(n)                ((n & 0x7) << 24)
-#define OHCI_TD_TOGGLE                        (1 << 24)
-#define OHCI_TD_TOGGLE_LOCAL                (1 << 25)
-#define OHCI_TD_ACTIVE                        ((1 << 28) | (1 << 29) | (1 << 30) | (1 << 31))
-#define OHCI_TD_GET_CC(n)                    ((n & 0xF0000000) >> 28)
+#define OHCI_TD_ALLOCATED               (1 << 16)
+#define OHCI_TD_ISOCHRONOUS             (1 << 17)
+#define OHCI_TD_SHORTPACKET_OK          (1 << 18)
+#define OHCI_TD_SETUP                   0
+#define OHCI_TD_OUT                     (1 << 19)
+#define OHCI_TD_IN                      (1 << 20)
+#define OHCI_TD_IOC_NONE                ((1 << 21) | (1 << 22) | (1 << 23))
+
+// Generic
+#define OHCI_TD_TOGGLE                  (1 << 24)
+#define OHCI_TD_TOGGLE_LOCAL            (1 << 25)
+#define OHCI_TD_ERRORCOUNT(Flags)       ((Flags >> 26) & 0x3)
+#define OHCI_TD_ERRORCODE(Flags)        ((Flags >> 28) & 0xF)
+#define OHCI_TD_ACTIVE                  ((1 << 28) | (1 << 29) | (1 << 30) | (1 << 31))
+
+// Isochronous
+#define OHCI_TD_FRAMECOUNT(n)           ((n & 0x7) << 24)
 
 /* OhciTransferDescriptor::Offsets
  * Contains definitions and bitfield definitions for OhciTransferDescriptor::Offsets
  * Bits 0-11:    Packet Size on IN-transmissions
  * Bits 12:        CrossPage Field
  * Bits 12-15:    Condition Code (Error Code) */
+#define OHCI_TD_OFFSETLENGTH(Length)    (Length & 0xFFF)
+#define OHCI_TD_CROSSPAGE               (1 << 12)
+#define OHCI_TD_OFFSETCODE(Flags)       ((Flags >> 12) & 0xF)
 
 /* OhciHCCA
  * Host Controller Communcations Area.
  * This is a transfer area, where we can setup the interrupt-table
  * and where the HC will update us. The structure must be on a 256 byte boundary */
 PACKED_ATYPESTRUCT(volatile, OhciHCCA, {
-    uint32_t                InterruptTable[32];    // Points to the 32 root nodes
-    uint16_t                CurrentFrame;        // Current Frame Number
-    uint16_t                Pad1;
-    uint32_t                HeadDone;            // Indicates which head is done
-    uint8_t                    Reserved[116];        // Work area of OHCI
+    uint32_t                    InterruptTable[32]; // Points to the 32 root nodes
+    uint16_t                    CurrentFrame;       // Current Frame Number
+    uint16_t                    Padding;
+    uint32_t                    HeadDone;           // Indicates which head is done
+    uint8_t                     Reserved[116];      // Work area of OHCI
 });
 
 /* OhciRegisters
@@ -195,75 +202,73 @@ PACKED_ATYPESTRUCT(volatile, OhciRegisters, {
 
 /* OhciRegisters::HcRevision
  * Contains definitions and bitfield definitions for OhciRegisters::HcRevision */
-#define OHCI_REVISION1                    0x10
-#define OHCI_REVISION11                    0x11
+#define OHCI_REVISION1                  0x10
+#define OHCI_REVISION11                 0x11
 
 /* OhciRegisters::HcCommandStatus
  * Contains definitions and bitfield definitions for OhciRegisters::HcCommandStatus */
-#define OHCI_COMMAND_RESET                (1 << 0)
-#define OHCI_COMMAND_CONTROL_ACTIVE        (1 << 1)
+#define OHCI_COMMAND_RESET              (1 << 0)
+#define OHCI_COMMAND_CONTROL_ACTIVE     (1 << 1)
 #define OHCI_COMMAND_BULK_ACTIVE        (1 << 2)
-#define OHCI_COMMAND_OWNERSHIP            (1 << 3)
+#define OHCI_COMMAND_OWNERSHIP          (1 << 3)
 
 /* OhciRegisters::HcControl
  * Contains definitions and bitfield definitions for OhciRegisters::HcControl */
-#define OHCI_CONTROL_ALL_QUEUES            0x3C
-#define OHCI_CONTROL_RESET                0x0
-#define OHCI_CONTROL_RESUME                0x40
-#define OHCI_CONTROL_ACTIVE                0x80
-#define OHCI_CONTROL_SUSPEND            0xC0
-
-#define OHCI_CONTROL_RATIO_MASK            (1 << 0) | (1 << 1)
+#define OHCI_CONTROL_RESET              0
+#define OHCI_CONTROL_RATIO_MASK         (1 << 0) | (1 << 1)
 #define OHCI_CONTROL_PERIODIC_ACTIVE    (1 << 2)
 #define OHCI_CONTROL_ISOC_ACTIVE        (1 << 3)
-#define OHCI_CONTROL_CONTROL_ACTIVE        (1 << 4)
+#define OHCI_CONTROL_CONTROL_ACTIVE     (1 << 4)
 #define OHCI_CONTROL_BULK_ACTIVE        (1 << 5)
-#define OHCI_CONTROL_ENABLE_ALL            (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5)
-#define OHCI_CONTROL_FSTATE_BITS        (1 << 6) | (1 << 7) 
-#define OHCI_CONTROL_IR                    (1 << 8)
-#define OHCI_CONTROL_REMOTEWAKE            (1 << 10)
+#define OHCI_CONTROL_ALL_ACTIVE         ((1 << 2) | (1 << 3) | (1 << 4) | (1 << 5))
+#define OHCI_CONTROL_RESUME             (1 << 6)
+#define OHCI_CONTROL_ACTIVE             (1 << 7)
+#define OHCI_CONTROL_SUSPEND            ((1 << 6) | (1 << 7))
+#define OHCI_CONTROL_STATE_MASK         (1 << 6) | (1 << 7)
+#define OHCI_CONTROL_IR                 (1 << 8)
+#define OHCI_CONTROL_REMOTEWAKE         (1 << 10)
 
 /* OhciRegisters::HcFmInterval
  * Contains definitions and bitfield definitions for OhciRegisters::HcFmInterval */
-#define OHCI_FMINTERVAL_FI                0x2EDF
-#define OHCI_FMINTERVAL_FIMASK            0x3FFF
-#define OHCI_FMINTERVAL_GETFSMP(fi)        ((fi >> 16) & 0x7FFF)
+#define OHCI_FMINTERVAL_FI              0x2EDF
+#define OHCI_FMINTERVAL_FIMASK          0x3FFF
+#define OHCI_FMINTERVAL_GETFSMP(fi)     ((fi >> 16) & 0x7FFF)
 #define OHCI_FMINTERVAL_FSMP(fi)        (0x7FFF & ((6 * ((fi) - 210)) / 7))
 
-#define OHCI_INTR_SCHEDULING_OVERRUN    0x1
-#define OHCI_INTR_PROCESS_HEAD            0x2
-#define OHCI_INTR_SOF                    0x4
-#define OHCI_INTR_RESUMEDETECT            0x8
-#define OHCI_INTR_FATAL_ERROR            0x10
-#define OHCI_INTR_FRAME_OVERFLOW        0x20
-#define OHCI_INTR_ROOTHUB_EVENT            0x40
-#define OHCI_INTR_OWNERSHIP_EVENT        0x40000000
-#define OHCI_INTR_MASTER                0x80000000
+#define OHCI_OVERRUN_EVENT              (1 << 0)
+#define OHCI_PROCESS_EVENT              (1 << 1)
+#define OHCI_SOF_EVENT                  (1 << 2)
+#define OHCI_RESUMEDETECT_EVENT         (1 << 3)
+#define OHCI_FATAL_EVENT                (1 << 4)
+#define OHCI_OVERFLOW_EVENT             (1 << 5)
+#define OHCI_ROOTHUB_EVENT              (1 << 6)
+#define OHCI_OWNERSHIP_EVENT            (1 << 30)
+#define OHCI_MASTER_INTERRUPT           (1 << 31)
 
-#define OHCI_DESCRIPTORA_DEVICETYPE        (1 << 10)
+#define OHCI_DESCRIPTORA_DEVICETYPE     (1 << 10)
 
-#define OHCI_STATUS_POWER_ENABLED        (1 << 16)
+#define OHCI_STATUS_POWER_ENABLED       (1 << 16)
 
-#define OHCI_PORT_CONNECTED                (1 << 0)
-#define OHCI_PORT_ENABLED                (1 << 1)
-#define OHCI_PORT_SUSPENDED                (1 << 2)
-#define OHCI_PORT_OVERCURRENT            (1 << 3)
-#define OHCI_PORT_RESET                    0x10
-#define OHCI_PORT_POWER                    0x100
-#define OHCI_PORT_LOW_SPEED                (1 << 9)
-#define OHCI_PORT_CONNECT_EVENT            0x10000
-#define OHCI_PORT_ENABLE_EVENT            (1 << 17)
-#define OHCI_PORT_SUSPEND_EVENT            (1 << 18)
-#define OHCI_PORT_OVR_CURRENT_EVENT        (1 << 19)
-#define OHCI_PORT_RESET_EVENT            (1 << 20)
+#define OHCI_PORT_CONNECTED             (1 << 0)
+#define OHCI_PORT_ENABLED               (1 << 1)
+#define OHCI_PORT_SUSPENDED             (1 << 2)
+#define OHCI_PORT_OVERCURRENT           (1 << 3)
+#define OHCI_PORT_RESET                 (1 << 4)
+#define OHCI_PORT_POWER                 (1 << 8)
+#define OHCI_PORT_LOW_SPEED             (1 << 9)
+#define OHCI_PORT_CONNECT_EVENT         (1 << 16)
+#define OHCI_PORT_ENABLE_EVENT          (1 << 17)
+#define OHCI_PORT_SUSPEND_EVENT         (1 << 18)
+#define OHCI_PORT_OVERCURRENT_EVENT     (1 << 19)
+#define OHCI_PORT_RESET_EVENT           (1 << 20)
 
 /* Ohci Pool Definitions 
  * Contains settings, magic constants and bit defitions. */
-#define OHCI_POOL_EDS                   50
+#define OHCI_POOL_QHS                   50
 #define OHCI_POOL_TDS                   200
 #define OHCI_POOL_TDNULL                (OHCI_POOL_TDS - 1)
-#define OHCI_POOL_EDINDEX(Base, Index)  (Base + (Index * sizeof(OhciEndpointDescriptor_t)))
-#define OHCI_POOL_TDINDEX(Base, Index)  (Base + (Index * sizeof(OhciTransferDescriptor_t)))
+#define OHCI_POOL_QHINDEX(Ctrl, Index)  (Ctrl->QueueControl.QHPoolPhysical + (Index * sizeof(OhciQueueHead_t)))
+#define OHCI_POOL_TDINDEX(Ctrl, Index)  (Ctrl->QueueControl.TDPoolPhysical + (Index * sizeof(OhciTransferDescriptor_t)))
 #define OHCI_BANDWIDTH_PHASES           32
 
 /* OhciControl
@@ -271,44 +276,47 @@ PACKED_ATYPESTRUCT(volatile, OhciRegisters, {
  * and information needed to schedule */
 typedef struct _OhciControl {
     // Resources
-    OhciQueueHead_t                 *EDPool;
-    OhciTransferDescriptor_t        *TDPool;
-    uintptr_t                        EDPoolPhysical;
-    uintptr_t                        TDPoolPhysical;
+    OhciQueueHead_t             *QHPool;
+    OhciTransferDescriptor_t    *TDPool;
+    uintptr_t                    QHPoolPhysical;
+    uintptr_t                    TDPoolPhysical;
 
     // Bandwidth
-    int                              Bandwidth[OHCI_BANDWIDTH_PHASES];
-    int                              TotalBandwidth;
+    int                          Bandwidth[OHCI_BANDWIDTH_PHASES];
+    int                          TotalBandwidth;
 
     // Transactions
-    int                              TransactionsWaitingControl;
-    int                              TransactionsWaitingBulk;
-    int                              TransactionQueueControlIndex;
-    int                              TransactionQueueBulkIndex;
-    List_t                          *TransactionList;
+    int                          TransactionsWaitingControl;
+    int                          TransactionsWaitingBulk;
+    int                          TransactionQueueControlIndex;
+    int                          TransactionQueueBulkIndex;
+    List_t                      *TransactionList;
 } OhciControl_t;
+
+/* OhciPowerMode
+ * The available power-modes that an ohci controller can have. */
+typedef enum _OhciPowerMode {
+    AlwaysOn,
+    PortControl,
+    GlobalControl
+} OhciPowerMode_t;
 
 /* OhciController 
  * Contains all per-controller information that is
  * needed to control, queue and handle devices on an ohci-controller. */
 typedef struct _OhciController {
-    UsbManagerController_t     Base;
-    OhciControl_t             QueueControl;
+    UsbManagerController_t       Base;
+    OhciControl_t                QueueControl;
 
     // Registers and resources
-    OhciRegisters_t            *Registers;
-    OhciHCCA_t                *Hcca;
-    uintptr_t                 HccaPhysical;
+    OhciRegisters_t             *Registers;
+    OhciHCCA_t                  *Hcca;
+    uintptr_t                    HccaPhysical;
 
     // State information
-    size_t                     PowerOnDelayMs;
-    int                         PowerMode;
+    size_t                       PowerOnDelayMs;
+    OhciPowerMode_t              PowerMode;
 } OhciController_t;
-
-/* Power Mode Flags */
-#define OHCI_PWN_ALWAYS_ON                0
-#define OHCI_PWM_PORT_CONTROLLED        1
-#define OHCI_PWN_GLOBAL                    2
 
 /* OhciControllerCreate 
  * Initializes and creates a new Ohci Controller instance
@@ -396,23 +404,22 @@ OhciSetMode(
     _In_ OhciController_t *Controller, 
     _In_ reg32_t Mode);
 
-/* OhciEdAllocate
+/* OhciQhAllocate
  * Allocates a new ED for usage with the transaction. If this returns
  * NULL we are out of ED's and we should wait till next transfer. */
 __EXTERN
 OhciQueueHead_t*
-OhciEdAllocate(
-    _In_ OhciController_t *Controller, 
-    _In_ UsbTransferType_t Type);
+OhciQhAllocate(
+    _In_ OhciController_t *Controller);
 
-/* OhciEdInitialize
+/* OhciQhInitialize
  * Initializes and sets up the endpoint descriptor with 
  * the given values */
 __EXTERN
 void
-OhciEdInitialize(
+OhciQhInitialize(
     _In_ OhciController_t *Controller,
-    _Out_ OhciQueueHead_t *Ed, 
+    _Out_ OhciQueueHead_t *Qh, 
     _In_ int HeadIndex, 
     _In_ UsbTransferType_t Type,
     _In_ size_t Address, 
@@ -426,8 +433,7 @@ OhciEdInitialize(
 __EXTERN
 OhciTransferDescriptor_t*
 OhciTdAllocate(
-    _In_ OhciController_t *Controller,
-    _In_ UsbTransferType_t Type);
+    _In_ OhciController_t *Controller);
 
 /* OhciTdSetup 
  * Creates a new setup token td and initializes all the members.
@@ -436,8 +442,7 @@ __EXTERN
 OhciTransferDescriptor_t*
 OhciTdSetup(
     _In_ OhciController_t *Controller, 
-    _In_ UsbTransaction_t *Transaction, 
-    _In_ UsbTransferType_t Type);
+    _In_ UsbTransaction_t *Transaction);
 
 /* OhciTdIo 
  * Creates a new io token td and initializes all the members.

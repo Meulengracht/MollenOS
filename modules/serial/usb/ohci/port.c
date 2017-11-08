@@ -52,7 +52,7 @@ OhciPortReset(
 
     // Don't matter if timeout, try to enable it
     // If power-mode is port-power, also power it
-    if (Controller->PowerMode == OHCI_PWM_PORT_CONTROLLED) {
+    if (Controller->PowerMode == PortControl) {
         Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_ENABLED | OHCI_PORT_POWER;
     }
     else {
@@ -90,8 +90,8 @@ OhciPortPrepare(
     }
 
     // Clear over-current event
-    if (Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_OVR_CURRENT_EVENT) {
-        Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_OVR_CURRENT_EVENT;
+    if (Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_OVERCURRENT_EVENT) {
+        Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_OVERCURRENT_EVENT;
     }
 
     // Clear reset event
@@ -200,8 +200,8 @@ OhciPortCheck(
     }
 
     // Clear over-current event
-    if (Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_OVR_CURRENT_EVENT) {
-        Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_OVR_CURRENT_EVENT;
+    if (Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_OVERCURRENT_EVENT) {
+        Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_OVERCURRENT_EVENT;
     }
 
     // Clear reset event

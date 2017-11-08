@@ -241,9 +241,9 @@ OhciTakeControl(
 	}
 
 	// Did BIOS play tricks on us?
-	else if (Controller->Registers->HcControl & OHCI_CONTROL_FSTATE_BITS) {
+	else if ((Controller->Registers->HcControl & OHCI_CONTROL_STATE_MASK) != 0) {
 		// If it's suspended, resume and wait 10 ms
-		if ((Controller->Registers->HcControl & OHCI_CONTROL_FSTATE_BITS) != OHCI_CONTROL_ACTIVE) {
+		if ((Controller->Registers->HcControl & OHCI_CONTROL_STATE_MASK) != OHCI_CONTROL_ACTIVE) {
 			OhciSetMode(Controller, OHCI_CONTROL_ACTIVE);
 			ThreadSleep(10);
 		}
@@ -289,7 +289,8 @@ OhciReset(
 	// We should check here if HcControl has RemoteWakeup Connected 
 	// and then set device to remote wake capable
 	// Disable interrupts during this reset
-	Controller->Registers->HcInterruptDisable = (reg32_t)OHCI_INTR_MASTER;
+    Controller->Registers->HcInterruptDisable = 
+        (reg32_t)OHCI_MASTER_INTERRUPT;
 
 	// Suspend the controller just in case it's running
 	// and wait for it to suspend
@@ -333,13 +334,14 @@ OhciReset(
 		Controller->Registers->HcBulkCurrentED = 0;
 
 	// Set HcEnableInterrupt to all except SOF and OC
-	Controller->Registers->HcInterruptDisable = 
-		(OHCI_INTR_SOF | OHCI_INTR_ROOTHUB_EVENT | OHCI_INTR_OWNERSHIP_EVENT);
+    Controller->Registers->HcInterruptDisable = OHCI_SOF_EVENT 
+        | OHCI_ROOTHUB_EVENT | OHCI_OWNERSHIP_EVENT;
 
 	// Clear out INTR state and initialize the interrupt enable
 	Controller->Registers->HcInterruptStatus = ~(reg32_t)0;
-	Controller->Registers->HcInterruptEnable = (OHCI_INTR_SCHEDULING_OVERRUN | OHCI_INTR_PROCESS_HEAD |
-		OHCI_INTR_RESUMEDETECT | OHCI_INTR_FATAL_ERROR | OHCI_INTR_FRAME_OVERFLOW | OHCI_INTR_MASTER);
+    Controller->Registers->HcInterruptEnable = OHCI_OVERRUN_EVENT 
+        | OHCI_PROCESS_EVENT | OHCI_RESUMEDETECT_EVENT | OHCI_FATAL_EVENT
+		| OHCI_OVERFLOW_EVENT | OHCI_MASTER_INTERRUPT;
 
 	// Set HcPeriodicStart to a value that is 90% of 
 	// FrameInterval in HcFmInterval
@@ -353,7 +355,7 @@ OhciReset(
 	// Set Ratio (4:1) and Mode (Operational)
 	Temporary |= (0x3 | OHCI_CONTROL_ACTIVE);
 	Controller->Registers->HcControl = Temporary |
-		OHCI_CONTROL_ENABLE_ALL | OHCI_CONTROL_REMOTEWAKE;
+		OHCI_CONTROL_ALL_ACTIVE | OHCI_CONTROL_REMOTEWAKE;
 
 	// Success
 	return OsSuccess;
@@ -414,7 +416,7 @@ OhciSetup(
 	// power-mode of the controller, and we need the port-count
 	if (Controller->Registers->HcRhDescriptorA & (1 << 9)) {
 		// Power is always on
-		Controller->PowerMode = OHCI_PWN_ALWAYS_ON;
+		Controller->PowerMode = AlwaysOn;
 		Controller->Registers->HcRhStatus = OHCI_STATUS_POWER_ENABLED;
 		Controller->Registers->HcRhDescriptorB = 0;
 	}
@@ -422,14 +424,14 @@ OhciSetup(
 		// Ports have individual power
 		if (Controller->Registers->HcRhDescriptorA & (1 << 8)) {
 			// We prefer this, we can control each port's power
-			Controller->PowerMode = OHCI_PWM_PORT_CONTROLLED;
+			Controller->PowerMode = PortControl;
 			Controller->Registers->HcRhDescriptorB = 0xFFFF0000;
 		}
 		else {
 			// Oh well, it's either all on or all off
 			Controller->Registers->HcRhDescriptorB = 0;
 			Controller->Registers->HcRhStatus = OHCI_STATUS_POWER_ENABLED;
-			Controller->PowerMode = OHCI_PWN_GLOBAL;
+			Controller->PowerMode = GlobalControl;
 		}
 	}
 
@@ -465,7 +467,7 @@ OhciSetup(
 		
 	// Now we can enable hub events (and clear interrupts)
 	Controller->Registers->HcInterruptStatus &= ~(reg32_t)0;
-	Controller->Registers->HcInterruptEnable = OHCI_INTR_ROOTHUB_EVENT;
+	Controller->Registers->HcInterruptEnable = OHCI_ROOTHUB_EVENT;
 
 	// Enumerate the ports
 	for (i = 0; i < (int)Controller->Base.PortCount; i++) {
