@@ -76,13 +76,14 @@ CreateBuffer(
 #ifdef LIBC_KERNEL
 	Buffer = (BufferObject_t*)kmalloc(sizeof(BufferObject_t));
 	Buffer->Virtual = (__CONST char*)kmalloc_ap(
-		DIVUP(Length, PAGE_SIZE) * PAGE_SIZE, (uintptr_t*)&Buffer->Physical);
+        DIVUP(Length, PAGE_SIZE) * PAGE_SIZE, (uintptr_t*)&Buffer->Physical);
 	Buffer->Capacity = DIVUP(Length, PAGE_SIZE) * PAGE_SIZE;
+    memset(Buffer->Virtual, 0, Buffer->Capacity);
 	Result = OsSuccess;
 #else
 	Buffer = (BufferObject_t*)malloc(sizeof(BufferObject_t));
-	Result = MemoryAllocate(Length,
-		MEMORY_COMMIT | MEMORY_CONTIGIOUS | MEMORY_LOWFIRST,
+    Result = MemoryAllocate(Length, MEMORY_COMMIT 
+        | MEMORY_CONTIGIOUS | MEMORY_LOWFIRST | MEMORY_CLEAN,
 		(void**)&Buffer->Virtual, &Buffer->Physical);
 	Buffer->Capacity = DIVUP(Length, 0x1000) * 0x1000;
 

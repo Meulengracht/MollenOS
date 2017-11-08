@@ -66,79 +66,35 @@ uint64_t rev64(uint64_t qword)
     return y;
 }
 
-/* MsdReset
- * Performs an interface reset, only neccessary for bulk endpoints. */
+/* MsdResetBulk
+ * Performs an Bulk-Only Mass Storage Reset
+ * Bulk endpoint data toggles and STALL conditions are preserved. */
 OsStatus_t
-MsdReset(
+MsdResetBulk(
     _In_ MsdDevice_t *Device)
 {
     // Variables
-    UsbTransferStatus_t Status;
+    UsbTransferStatus_t Status  = TransferNAK;
+    int Iterations              = 0;
 
     // Reset is 
     // 0x21 | 0xFF | wIndex - Interface
-    Status = UsbExecutePacket(Device->Base.DriverId, Device->Base.DeviceId, 
-        &Device->Base.Device, Device->Control,
-        USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_INTERFACE,
-        MSD_REQUEST_RESET, 0, 0, (uint16_t)Device->Base.Interface.Id, 0, NULL);
+    while (Status == TransferNAK) {
+        Status = UsbExecutePacket(Device->Base.DriverId, Device->Base.DeviceId, 
+            &Device->Base.Device, Device->Control,
+            USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_INTERFACE,
+            MSD_REQUEST_RESET, 0, 0, (uint16_t)Device->Base.Interface.Id, 0, NULL);
+        Iterations++;
+    }
 
-    // The value of the data toggle bits shall be preserved 
-    // it says in the usbmassbulk spec
+    TRACE("Reset done after %i iterations", Iterations);
     if (Status != TransferFinished) {
-        ERROR("Reset interface returned error %u", Status);
+        ERROR("Reset bulk returned error %u", Status);
         return OsError;
     }
     else {
         return OsSuccess;
     }
-}
-
-/* MsdRecoveryReset
- * Performs a full interface and endpoint reset, should only be used
- * for fatal interface errors. */
-OsStatus_t
-MsdRecoveryReset(
-    _In_ MsdDevice_t *Device)
-{
-    // Debug
-    TRACE("MsdRecoveryReset()");
-
-    // Perform an initial reset
-    if (MsdReset(Device) != OsSuccess) {
-        ERROR("Failed to reset interface");
-        return OsError;
-    }
-
-    // Clear HALT features on both in and out endpoints
-    if (UsbClearFeature(Device->Base.DriverId, Device->Base.DeviceId, 
-        &Device->Base.Device, Device->Control, USBPACKET_DIRECTION_ENDPOINT,
-        Device->In->Address, USB_FEATURE_HALT) != TransferFinished
-        || UsbClearFeature(Device->Base.DriverId, Device->Base.DeviceId, 
-        &Device->Base.Device, Device->Control, USBPACKET_DIRECTION_ENDPOINT,
-        Device->Out->Address, USB_FEATURE_HALT) != TransferFinished) {
-        ERROR("Failed to reset endpoints");
-        return OsError;
-    }
-
-    // Restore to initial configuration
-    if (UsbSetConfiguration(Device->Base.DriverId, Device->Base.DeviceId, 
-        &Device->Base.Device, Device->Control, 1) != TransferFinished) {
-        ERROR("Failed to restore device configuration to 1");
-        return OsError;
-    }
-
-    // Reset data toggles for bulk-endpoints
-    if (UsbEndpointReset(Device->Base.DriverId, Device->Base.DeviceId, 
-        &Device->Base.Device, Device->In) != OsSuccess) {
-        ERROR("Failed to reset endpoint (in)");
-    }
-    if (UsbEndpointReset(Device->Base.DriverId, Device->Base.DeviceId, 
-        &Device->Base.Device, Device->Out) != OsSuccess) {
-        ERROR("Failed to reset endpoint (out)");
-    }
-
-    // Reset interface again
-    return MsdReset(Device);
 }
 
 /* MsdGetMaximumLunCount
@@ -161,7 +117,7 @@ MsdGetMaximumLunCount(
 
     // If no multiple LUNS are supported, device may STALL
     // it says in the usbmassbulk spec 
-    // but thats ok, it's not a functional stall
+    // but thats ok, it's not a functional stall, only command stall
     if (Status == TransferFinished) {
         Device->Descriptor.LUNCount = (size_t)(MaxLuns & 0xF);
     }
@@ -170,6 +126,47 @@ MsdGetMaximumLunCount(
     }
 
     // Done
+    return OsSuccess;
+}
+
+/* MsdRecoveryReset
+ * Performs a full interface and endpoint reset, should only be used
+ * for fatal interface errors. */
+OsStatus_t
+MsdRecoveryReset(
+    _In_ MsdDevice_t *Device)
+{
+    // Debug
+    TRACE("MsdRecoveryReset()");
+
+    // Perform an initial reset
+    if (MsdResetBulk(Device) != OsSuccess) {
+        ERROR("Failed to reset bulk interface");
+        return OsError;
+    }
+
+    // Clear HALT/STALL features on both in and out endpoints
+    if (UsbClearFeature(Device->Base.DriverId, Device->Base.DeviceId, 
+        &Device->Base.Device, Device->Control, USBPACKET_DIRECTION_ENDPOINT,
+        Device->In->Address, USB_FEATURE_HALT) != TransferFinished
+        || UsbClearFeature(Device->Base.DriverId, Device->Base.DeviceId, 
+        &Device->Base.Device, Device->Control, USBPACKET_DIRECTION_ENDPOINT,
+        Device->Out->Address, USB_FEATURE_HALT) != TransferFinished) {
+        ERROR("Failed to reset endpoints");
+        return OsError;
+    }
+
+    // Reset data toggles for bulk-endpoints
+    if (UsbEndpointReset(Device->Base.DriverId, Device->Base.DeviceId, 
+        &Device->Base.Device, Device->In) != OsSuccess) {
+        ERROR("Failed to reset endpoint (in)");
+    }
+    if (UsbEndpointReset(Device->Base.DriverId, Device->Base.DeviceId, 
+        &Device->Base.Device, Device->Out) != OsSuccess) {
+        ERROR("Failed to reset endpoint (out)");
+    }
+
+    // Reset interface again
     return OsSuccess;
 }
 
@@ -513,12 +510,6 @@ MsdSanitizeResponse(
         return TransferInvalid;
     }
 
-    // Sanitize status
-    if (Csw->Status != MSD_CSW_OK) {
-        ERROR("CSW: Status is invalid: 0x%x", Csw->Status);
-        return TransferInvalid;
-    }
-
     // Sanitize signature/data integrity
     if (Csw->Signature != MSD_CSW_OK_SIGNATURE) {
         ERROR("CSW: Signature is invalid: 0x%x", Csw->Signature);
@@ -528,6 +519,12 @@ MsdSanitizeResponse(
     // Sanitize tag/data integrity
     if ((Csw->Tag & 0xFFFFFF00) != MSD_TAG_SIGNATURE) {
         ERROR("CSW: Tag is invalid: 0x%x", Csw->Tag);
+        return TransferInvalid;
+    }
+
+    // Sanitize status
+    if (Csw->Status != MSD_CSW_OK) {
+        ERROR("CSW: Status is invalid: 0x%x", Csw->Status);
         return TransferInvalid;
     }
 
@@ -552,7 +549,7 @@ MsdSCSICommandIn(
 
     // First step is to execute the control transfer, but we must handle
     // the default and UFI interface differently
-    if (Device->Type == HardDrive) {
+    if (Device->Type != ProtocolUFI) {
         // Construct our command build the usb transfer
         MsdSCSICommmandConstruct(Device->CommandBlock, ScsiCommand, SectorStart, 
             DataLength, (uint16_t)Device->Descriptor.SectorSize);
@@ -592,7 +589,7 @@ MsdSCSICommandIn(
     if (DataLength != 0) {
         UsbTransferIn(&DataTransfer, DataAddress, DataLength, 0);
     }
-    if (Device->Type == HardDrive) {
+    if (Device->Type == ProtocolBulk) {
         UsbTransferIn(&DataTransfer, Device->StatusBlockAddress, 
             sizeof(MsdCommandStatus_t), 0);
     }
@@ -605,7 +602,7 @@ MsdSCSICommandIn(
     }
 
     // If the transfer was not UFI sanitize the CSW
-    if (Device->Type == HardDrive) {
+    if (Device->Type == ProtocolBulk) {
         return MsdSanitizeResponse(Device, Device->StatusBlock);
     }
     else {
@@ -630,7 +627,7 @@ MsdSCSICommandOut(
 
     // First step is to execute the data transfer, but we must handle
     // the default and UFI interface differently
-    if (Device->Type == HardDrive) {
+    if (Device->Type != ProtocolUFI) {
         // Construct our command build the usb transfer
         MsdSCSICommmandConstruct(Device->CommandBlock, ScsiCommand, SectorStart, 
             DataLength, (uint16_t)Device->Descriptor.SectorSize);
@@ -686,7 +683,7 @@ MsdSCSICommandOut(
     UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, &StatusTransfer, &Result);
 
     // If the transfer was not UFI sanitize the CSW
-    if (Device->Type == HardDrive) {
+    if (Device->Type == ProtocolBulk) {
         return MsdSanitizeResponse(Device, Device->StatusBlock);
     }
     else {
@@ -716,7 +713,7 @@ MsdPrepareDevice(
     }
 
     // Don't use test-unit-ready for UFI
-    if (Device->Type == HardDrive) {
+    if (Device->Type != ProtocolUFI) {
         if (MsdSCSICommandIn(Device, SCSI_TEST_UNIT_READY, 0, 0, 0)
                 != TransferFinished) {
             ERROR("Failed to perform test-unit-ready command");
@@ -841,7 +838,7 @@ MsdSetup(
 
     // Perform the Test-Unit Ready command
     i = 3;
-    if (Device->Type != HardDrive) {
+    if (Device->Type == ProtocolUFI) {
         i = 30;
     }
     while (Device->IsReady == 0 && i != 0) {

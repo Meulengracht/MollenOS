@@ -37,6 +37,7 @@
 #include <scheduler.h>
 #include <threading.h>
 #include <timers.h>
+#include <crc32.h>
 #include <video.h>
 #include <debug.h>
 #include <heap.h>
@@ -76,6 +77,7 @@ MCoreInitialize(
     // Initialize all our static memory systems
     // and global variables
     memcpy(&GlobalBootInformation, BootInformation, sizeof(Multiboot_t));
+    Crc32GenerateTable();
     InterruptInitialize();
     SchedulerInitialize();
     LogInitialize();

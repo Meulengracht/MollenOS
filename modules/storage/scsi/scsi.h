@@ -88,15 +88,15 @@
  * Inquiry command response structure. Contains information
  * about device usage and setup. This is returned upon the INQUIRY command. */
 PACKED_TYPESTRUCT(ScsiInquiry, {
-    uint8_t PeripheralInfo;
-    uint8_t Removable;
-    uint8_t Version;
+    uint8_t             PeripheralInfo;
+    uint8_t             Removable;
+    uint8_t             Version;
 
     /* Bits 0:3 - Response Data Format 
      * Bits 4 - Hearical Support 
      * Bits 5 - Normal ACA support */
-    uint8_t RespDataFormat;
-    uint8_t AdditionalLength; // Additional Length N-4
+    uint8_t             RespDataFormat;
+    uint8_t             AdditionalLength; // Additional Length N-4
 
     /* Bit 0 - Protection Support
      * Bit 3 - Third Party Support (Third Party Commands) 
@@ -109,10 +109,11 @@ PACKED_TYPESTRUCT(ScsiInquiry, {
      * Bit 13 - VS
      * Bit 14 - Enclosure Services
      * Bit 15 - Basic Queue Support */
-    uint16_t Flags;
-    uint8_t VendorIdentification[8]; // Data is Left Aligned (Reversed)
-    uint8_t ProductIdentification[16]; // Data is Left Aligned (Reversed)
-    uint8_t ProductRevisionLevel[4]; // Data is Left Aligned (Reversed)
+    uint16_t            Flags;
+    uint8_t             FlagsEx;
+    uint8_t             VendorIdentification[8]; // Data is Left Aligned (Reversed)
+    uint8_t             ProductIdentification[16]; // Data is Left Aligned (Reversed)
+    uint8_t             ProductRevisionLevel[4]; // Data is Left Aligned (Reversed)
 });
 
 /* ScsiInquiry::PeripheralInfo

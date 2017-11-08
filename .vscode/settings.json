@@ -261,6 +261,7 @@
         "achware.h": "c",
         "list": "c",
         "__memory": "c",
-        "blbitmap.h": "c"
+        "blbitmap.h": "c",
+        "numeric": "c"
     }
 }

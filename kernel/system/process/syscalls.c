@@ -1106,6 +1106,8 @@ ScRpcExecute(
     PipeWrite(Pipe, (uint8_t*)Rpc, sizeof(MRemoteCall_t));
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
         if (Rpc->Arguments[i].Type == ARGUMENT_BUFFER) {
+            assert(Rpc->Arguments[i].Data.Buffer != NULL);
+            assert(Rpc->Arguments[i].Length != 0);
             PipeWrite(Pipe, (uint8_t*)Rpc->Arguments[i].Data.Buffer, 
                 Rpc->Arguments[i].Length);
         }

@@ -18,6 +18,7 @@
  *
  * MollenOS MCore - Mass Storage Device Driver (Generic)
  */
+#define __TRACE
 
 /* Includes
  * - System */
@@ -77,29 +78,33 @@ MsdDeviceCreate(
         goto Error;
     }
 
-    // Determine type of flash drive
+    // Determine type of flash drive @todo
     if (UsbDevice->Interface.Subclass == MSD_SUBCLASS_FLOPPY) {
-        Device->Type = FloppyDrive;
+        Device->Type = ProtocolUFI;
         Device->AlignedAccess = 1;
         Device->Descriptor.SectorsPerCylinder = 18;
     }
-    else if (UsbDevice->Interface.Subclass == MSD_SUBCLASS_ATAPI) {
-        Device->Type = DiskDrive;
+    else if (UsbDevice->Interface.Protocol == MSD_PROTOCOL_CBI
+            || UsbDevice->Interface.Protocol == MSD_PROTOCOL_CBI_NOINT) {
+        Device->Type = ProtocolCBI;
         Device->AlignedAccess = 0;
         Device->Descriptor.SectorsPerCylinder = 64;
     }
     else {
-        Device->Type = HardDrive;
+        Device->Type = ProtocolBulk;
         Device->AlignedAccess = 0;
         Device->Descriptor.SectorsPerCylinder = 64;
     }
+
+    // Debug
+    TRACE("MSD Device of Type <> and Protocol %u", Device->Type);
 
     // Initialize the storage descriptor to default
     Device->Descriptor.SectorSize = 512;
 
     // If the type is of harddrive, reset bulk
-    if (Device->Type == HardDrive) {
-        if (MsdReset(Device) != OsSuccess) {
+    if (Device->Type == ProtocolBulk) {
+        if (MsdResetBulk(Device) != OsSuccess) {
             ERROR("Failed to reset the interface");
             goto Error;
         }
@@ -144,6 +149,9 @@ MsdDeviceCreate(
         ERROR("Failed to register storage contract for device");
     }
 
+    // Notify diskmanager
+    // @todo
+
     // Done
     return Device;
 
@@ -164,7 +172,11 @@ OsStatus_t
 MsdDeviceDestroy(
     _In_ MsdDevice_t *Device)
 {
+    // Notify diskmanager
+    // @todo
+
     // Flush existing requests?
+    // @todo
 
     // Free reusable buffers
     if (Device->CommandBlock != NULL) {

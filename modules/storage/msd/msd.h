@@ -119,9 +119,9 @@ PACKED_TYPESTRUCT(MsdCommandStatus, {
  * The different types of usb msd devices. Generic flash drives
  * are represented as hard-drives. */
 typedef enum _MsdDeviceType {
-	FloppyDrive,
-	DiskDrive,
-	HardDrive
+	ProtocolUFI,
+	ProtocolCBI,
+	ProtocolBulk
 } MsdDeviceType_t;
 
 /* MsdDevice
@@ -163,11 +163,12 @@ OsStatus_t
 MsdDeviceDestroy(
     _In_ MsdDevice_t *Device);
 
-/* MsdReset
- * Performs an interface reset, only neccessary for bulk endpoints. */
+/* MsdResetBulk
+ * Performs an Bulk-Only Mass Storage Reset
+ * Bulk endpoint data toggles and STALL conditions are preserved. */
 __EXTERN
 OsStatus_t
-MsdReset(
+MsdResetBulk(
     _In_ MsdDevice_t *Device);
 
 /* MsdRecoveryReset
