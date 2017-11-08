@@ -61,6 +61,43 @@ static const int _Balance[] = {
     0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15 
 };
 
+/* OhciQueueResetInternalData
+ * Removes and cleans up any existing transfers, then reinitializes. */
+OsStatus_t
+OhciQueueResetInternalData(
+    _In_ OhciController_t *Controller)
+{
+    // Variables
+    OhciTransferDescriptor_t *NullTd    = NULL;
+    OhciControl_t *Queue                = &Controller->QueueControl;
+    uintptr_t NullPhysical              = 0;
+    int i;
+    
+    // Reset indexes
+    Queue->TransactionQueueBulkIndex = -1;
+    Queue->TransactionQueueControlIndex = -1;
+
+    // Initialize the null-td
+    NullTd = &Queue->TDPool[OHCI_POOL_TDNULL];
+    NullTd->BufferEnd = 0;
+    NullTd->Cbp = 0;
+    NullTd->Link = 0x0;
+    NullTd->Flags = OHCI_TD_ALLOCATED;
+    NullPhysical = OHCI_POOL_TDINDEX(Queue->TDPoolPhysical, OHCI_POOL_TDNULL);
+
+    // Enumerate the ED pool and set their links
+    // to the NULL descriptor
+    for (i = 0; i < (OHCI_POOL_EDS + 32); i++) {
+        // Mark it skippable and set a NULL td
+        Queue->EDPool[i].Flags = OHCI_EP_SKIP;
+        Queue->EDPool[i].Current =
+            (Queue->EDPool[i].TailPointer = NullPhysical) | 0x1;
+    }
+
+    // Done
+    return OsSuccess;
+}
+
 /* OhciQueueInitialize
  * Initialize the controller's queue resources and resets counters */
 OsStatus_t
@@ -68,22 +105,16 @@ OhciQueueInitialize(
     _In_ OhciController_t *Controller)
 {
     // Variables
-    OhciTransferDescriptor_t *NullTd = NULL;
-    OhciControl_t *Queue = &Controller->QueueControl;
-    uintptr_t PoolPhysical = 0, NullPhysical = 0;
-    size_t PoolSize;
-    void *Pool = NULL;
-    int i;
+    OhciControl_t *Queue    = &Controller->QueueControl;
+    uintptr_t PoolPhysical  = 0;
+    size_t PoolSize         = 0;
+    void *Pool              = NULL;
 
     // Trace
     TRACE("OhciQueueInitialize()");
 
     // Null out queue-control
     memset(Queue, 0, sizeof(OhciControl_t));
-
-    // Reset indexes
-    Queue->TransactionQueueBulkIndex = -1;
-    Queue->TransactionQueueControlIndex = -1;
 
     // Calculate how many bytes of memory we will need
     PoolSize = (OHCI_POOL_EDS + 32) * sizeof(OhciEndpointDescriptor_t);
@@ -104,27 +135,38 @@ OhciQueueInitialize(
     Queue->TDPoolPhysical = PoolPhysical + 
         ((OHCI_POOL_EDS + 32) * sizeof(OhciEndpointDescriptor_t));
 
-    // Initialize the null-td
-    NullTd = &Queue->TDPool[OHCI_POOL_TDNULL];
-    NullTd->BufferEnd = 0;
-    NullTd->Cbp = 0;
-    NullTd->Link = 0x0;
-    NullTd->Flags = OHCI_TD_ALLOCATED;
-    NullPhysical = OHCI_POOL_TDINDEX(Queue->TDPoolPhysical, OHCI_POOL_TDNULL);
-
-    // Enumerate the ED pool and set their links
-    // to the NULL descriptor
-    for (i = 0; i < (OHCI_POOL_EDS + 32); i++) {
-        // Mark it skippable and set a NULL td
-        Queue->EDPool[i].Flags = OHCI_EP_SKIP;
-        Queue->EDPool[i].Current =
-            (Queue->EDPool[i].TailPointer = NullPhysical) | 0x1;
-    }
-
     // Initialize transaction counters
     // and the transaction list
     Queue->TransactionList = ListCreate(KeyInteger, LIST_SAFE);
-    return OsSuccess;
+
+    // Initialize the internal data structures
+    return OhciQueueResetInternalData(Controller);
+}
+
+/* OhciQueueReset
+ * Removes and cleans up any existing transfers, then reinitializes. */
+OsStatus_t
+OhciQueueReset(
+    _In_ OhciController_t *Controller)
+{
+    // Variables
+    ListNode_t *tNode = NULL;
+
+    // Debug
+    TRACE("OhciQueueReset()");
+
+    // Stop Controller
+    OhciSetMode(Controller, OHCI_CONTROL_SUSPEND);
+
+    // Iterate all queued transactions and dequeue
+    _foreach(tNode, Controller->QueueControl.TransactionList) {
+        OhciTransactionFinalize(Controller, 
+            (UsbManagerTransfer_t*)tNode->Data, 0);
+    }
+    ListClear(Controller->QueueControl.TransactionList);
+
+    // Reinitialize internal data
+    return OhciQueueResetInternalData(Controller);
 }
 
 /* OhciQueueDestroy
@@ -134,7 +176,23 @@ OsStatus_t
 OhciQueueDestroy(
     _In_ OhciController_t *Controller)
 {
-    return OsError;
+    // Variables
+    size_t PoolSize = 0;
+
+    // Debug
+    TRACE("OhciQueueDestroy()");
+
+    // Reset first
+    OhciQueueReset(Controller);
+
+    // Calculate how many bytes of memory we will need to free
+    PoolSize = (OHCI_POOL_EDS + 32) * sizeof(OhciEndpointDescriptor_t);
+    PoolSize += OHCI_POOL_TDS * sizeof(OhciTransferDescriptor_t);
+
+    // Cleanup resources
+    ListDestroy(Controller->QueueControl.TransactionList);
+    MemoryFree(Controller->QueueControl.EDPool, PoolSize);
+	return OsSuccess;
 }
 
 /* OhciVisualizeQueue

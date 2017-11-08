@@ -212,7 +212,8 @@ OhciTakeControl(
 	_In_ OhciController_t *Controller)
 {
 	// Variables
-	uint32_t Temp, i;
+    uint32_t Temp   = 0;
+    int i           = 0;
 
 	// Trace
 	TRACE("OhciTakeControl()");
@@ -263,8 +264,9 @@ OhciReset(
 	_In_ OhciController_t *Controller)
 {
 	// Variables
-	reg32_t Temporary, FmInt;
-	int i;
+    reg32_t Temporary   = 0;
+    reg32_t FmInt       = 0;
+	int i               = 0;
 
 	// Trace
 	TRACE("OhciReset()");
