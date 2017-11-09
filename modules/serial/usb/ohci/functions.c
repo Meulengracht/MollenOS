@@ -171,8 +171,8 @@ OhciTransactionFinalize(
 		// Get first td
 		Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
 		while (Td->LinkIndex != OHCI_NO_INDEX) {
-			// Extract the error code
-			ErrorCode = OHCI_TD_GET_CC(Td->Flags);
+            // Extract the error code
+			ErrorCode = OHCI_TD_ERRORCODE(Td->Flags);
 
 			// Calculate length transferred 
 			// Take into consideration the N-1 
@@ -208,7 +208,7 @@ OhciTransactionFinalize(
 		memset((void*)Td, 0, sizeof(OhciTransferDescriptor_t));
 
 		// Go to next td or terminate
-		if (LinkIndex != -1) {
+		if (LinkIndex != OHCI_NO_INDEX) {
 			Td = &Controller->QueueControl.TDPool[LinkIndex];
 		}
 		else {
@@ -221,7 +221,9 @@ OhciTransactionFinalize(
 	Transfer->EndpointDescriptor = NULL;
 
 	// Should we notify the user here?...
-	if (Transfer->Requester != UUID_INVALID) {
+	if (Transfer->Requester != UUID_INVALID
+        && (Transfer->Transfer.Type == ControlTransfer
+            || Transfer->Transfer.Type == BulkTransfer)) {
 		Result.Id = Transfer->Id;
 		Result.BytesTransferred = Transfer->BytesTransferred;
 		Result.Status = Transfer->Status;
@@ -299,13 +301,7 @@ UsbQueueTransferGeneric(
 			else {
 				// Depending on how much we are able to take in
 				// 1 page per non-isoc, Isochronous can handle 2 pages
-				if (Transfer->Transfer.Type != IsochronousTransfer) {
-					BytesStep = MIN(BytesToTransfer, 
-						Transfer->Transfer.Endpoint.MaxPacketSize);
-				}
-				else {
-					BytesStep = MIN(BytesToTransfer, 0x1000);
-				}
+                BytesStep = MIN(BytesToTransfer, Transfer->Transfer.Endpoint.MaxPacketSize);
 
 				Td = OhciTdIo(Controller, Transfer->Transfer.Type, 
 					(Transfer->Transfer.Transactions[i].Type == InTransaction ? OHCI_TD_IN : OHCI_TD_OUT), 
@@ -319,7 +315,7 @@ UsbQueueTransferGeneric(
 			}
 			else {
 				// Update physical link
-				ItrTd->Link = OHCI_POOL_TDINDEX(Controller->QueueControl.TDPoolPhysical, Td->Index);
+				ItrTd->Link = OHCI_POOL_TDINDEX(Controller, Td->Index);
 
 				// Not first, update links
 				ItrTd->LinkIndex = Td->Index;
@@ -362,7 +358,7 @@ UsbQueueTransferGeneric(
 		UsbManagerGetToggle(Transfer->Device, Transfer->Pipe), 0, 0);
 
 		// Update physical link
-		ItrTd->Link = OHCI_POOL_TDINDEX(Controller->QueueControl.TDPoolPhysical, ZeroTd->Index);
+		ItrTd->Link = OHCI_POOL_TDINDEX(Controller, ZeroTd->Index);
 
 		// Not first, update links
 		ItrTd->LinkIndex = ZeroTd->Index;
@@ -373,7 +369,7 @@ UsbQueueTransferGeneric(
 	Endpoint = LOWORD(Transfer->Pipe);
 
 	// Finalize the endpoint-descriptor
-	OhciEdInitialize(Controller, EndpointDescriptor,
+	OhciQhInitialize(Controller, EndpointDescriptor,
 		(int)FirstTd->Index, Transfer->Transfer.Type, Address, Endpoint, 
 		Transfer->Transfer.Endpoint.MaxPacketSize, Transfer->Transfer.Speed);
 

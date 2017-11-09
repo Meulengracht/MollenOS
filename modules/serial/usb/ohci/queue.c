@@ -76,7 +76,7 @@ OhciQueueResetInternalData(
     // Reset indexes
     Queue->TransactionQueueBulkIndex = OHCI_NO_INDEX;
     Queue->TransactionQueueControlIndex = OHCI_NO_INDEX;
-    for (i = 0; i < OHCI_BANDWIDTH_PHASES; i++) {
+    for (i = 0; i < OHCI_FRAMELIST_SIZE; i++) {
         Queue->RootTable[i] = NULL;
     }
 
@@ -602,7 +602,6 @@ OhciLinkGeneric(
 {
     // Variables
     OhciControl_t *Queue    = &Controller->QueueControl;
-    OhciQueueHead_t *Qh     = &Queue->QHPool[QueueHeadIndex];
     uintptr_t QhAddress     = 0;
 
     // Lookup physical
@@ -727,7 +726,7 @@ OhciLinkPeriodic(
             // Two cases, sort us or insert us
             if (Qh->Interval > ExistingQh->Interval) {
                 // Insertion Case
-                Qh->Link = Controller->Hcca->InterruptTable[i];
+                Qh->LinkPointer = Controller->Hcca->InterruptTable[i];
                 Qh->LinkIndex = ExistingQh->Index;
                 MemoryBarrier();
                 Controller->QueueControl.RootTable[i] = Qh;
@@ -745,11 +744,11 @@ OhciLinkPeriodic(
 
                 // Only insert if we aren't already present in queue
                 if (ExistingQh->LinkIndex != Qh->Index) {
-                    Qh->Link = ExistingQh->Link;
+                    Qh->LinkPointer = ExistingQh->LinkPointer;
                     Qh->LinkIndex = ExistingQh->LinkIndex;
                     MemoryBarrier();
                     ExistingQh->LinkIndex = Qh->Index;
-                    ExistingQh->Link = QhAddress;
+                    ExistingQh->LinkPointer = QhAddress;
                 }
             }
         }
@@ -803,7 +802,7 @@ OhciUnlinkPeriodic(
             // Unlink if found
             if (ExistingQh->LinkIndex == Qh->Index) {
                 ExistingQh->LinkIndex = Qh->LinkIndex;
-                ExistingQh->Link = Qh->Link;
+                ExistingQh->LinkPointer = Qh->LinkPointer;
             }
         }
 
@@ -868,10 +867,10 @@ OhciReloadPeriodic(
     _In_ UsbManagerTransfer_t *Transfer)
 {
     // Variables
-    OhciTransferDescriptor_t *Td    = NULL
+    OhciTransferDescriptor_t *Td    = NULL;
     OhciQueueHead_t *Qh             = NULL;
     uintptr_t BufferBase            = 0;
-    uintptr_t BufferStep            = 0
+    uintptr_t BufferStep            = 0;
     int SwitchToggles               = 0;
     int ErrorTransfer               = 0;
 

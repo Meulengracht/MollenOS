@@ -463,7 +463,9 @@ UhciTransactionFinalize(
 	Transfer->EndpointDescriptor = NULL;
 
 	// Should we notify the user here?...
-	if (Transfer->Requester != UUID_INVALID) {
+    if (Transfer->Requester != UUID_INVALID
+        && (Transfer->Transfer.Type == ControlTransfer
+            || Transfer->Transfer.Type == BulkTransfer)) {
 		Result.Id = Transfer->Id;
 		Result.BytesTransferred = Transfer->BytesTransferred;
 		Result.Status = Transfer->Status;
@@ -554,13 +556,7 @@ UsbQueueTransferGeneric(
 			else {
 				// Depending on how much we are able to take in
 				// 1 page per non-isoc, Isochronous can handle 2 pages
-				if (Transfer->Transfer.Type != IsochronousTransfer) {
-					BytesStep = MIN(BytesToTransfer, 
-						Transfer->Transfer.Endpoint.MaxPacketSize);
-				}
-				else {
-					BytesStep = MIN(BytesToTransfer, 0x1000);
-				}
+                BytesStep = MIN(BytesToTransfer, Transfer->Transfer.Endpoint.MaxPacketSize);
 
 				Td = UhciTdIo(Controller, Transfer->Transfer.Type, 
 					(Transfer->Transfer.Transactions[i].Type == InTransaction ? UHCI_TD_PID_IN : UHCI_TD_PID_OUT), 
