@@ -831,8 +831,7 @@ UhciProcessRequest(
         }
         
 		// Notify process of transfer of the status
-        if (Transfer->Transfer.Type == InterruptTransfer
-            && !RestartOnly) {
+        if (Transfer->Transfer.Type == InterruptTransfer && !RestartOnly) {
             if (Transfer->Transfer.UpdatesOn) {
                 InterruptDriver(Transfer->Requester, 
                     (size_t)Transfer->Transfer.PeriodicData, 

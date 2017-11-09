@@ -37,6 +37,7 @@
 /* OHCI Controller Definitions 
  * Contains generic magic constants and definitions */
 #define OHCI_MAXPORTS                   15
+#define OHCI_FRAMELIST_SIZE             32
 
 #define OHCI_LINK_HALTED                0x1
 #define OHCI_NO_INDEX                   (int16_t)-1
@@ -162,7 +163,7 @@ PACKED_TYPESTRUCT(OhciTransferDescriptor, {
  * This is a transfer area, where we can setup the interrupt-table
  * and where the HC will update us. The structure must be on a 256 byte boundary */
 PACKED_ATYPESTRUCT(volatile, OhciHCCA, {
-    uint32_t                    InterruptTable[32]; // Points to the 32 root nodes
+    uint32_t                    InterruptTable[OHCI_FRAMELIST_SIZE]; // Points to the 32 root nodes
     uint16_t                    CurrentFrame;       // Current Frame Number
     uint16_t                    Padding;
     uint32_t                    HeadDone;           // Indicates which head is done
@@ -269,7 +270,6 @@ PACKED_ATYPESTRUCT(volatile, OhciRegisters, {
 #define OHCI_POOL_TDNULL                (OHCI_POOL_TDS - 1)
 #define OHCI_POOL_QHINDEX(Ctrl, Index)  (Ctrl->QueueControl.QHPoolPhysical + (Index * sizeof(OhciQueueHead_t)))
 #define OHCI_POOL_TDINDEX(Ctrl, Index)  (Ctrl->QueueControl.TDPoolPhysical + (Index * sizeof(OhciTransferDescriptor_t)))
-#define OHCI_BANDWIDTH_PHASES           32
 
 /* OhciControl
  * Contains all necessary Queue related information
@@ -282,7 +282,8 @@ typedef struct _OhciControl {
     uintptr_t                    TDPoolPhysical;
 
     // Bandwidth
-    int                          Bandwidth[OHCI_BANDWIDTH_PHASES];
+    OhciQueueHead_t             *RootTable[OHCI_FRAMELIST_SIZE];
+    int                          Bandwidth[OHCI_FRAMELIST_SIZE];
     int                          TotalBandwidth;
 
     // Transactions

@@ -4,7 +4,8 @@
             "name": "MollenOS",
             "includePath": [
                 "${workspaceRoot}",
-                "${workspaceRoot}/librt/include"
+                "${workspaceRoot}/librt/include",
+                "${workspaceRoot}/kernel/include"
             ],
             "defines": [
                 "MOLLENOS",
