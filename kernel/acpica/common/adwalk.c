@@ -412,7 +412,7 @@ AcpiDmCrossReferenceNamespace (
  *              operations.
  *
  ******************************************************************************/
-
+#ifdef ACPI_DISASSEMBLER
 void
 AcpiDmConvertParseObjects (
     ACPI_PARSE_OBJECT       *ParseTreeRoot,
@@ -458,7 +458,7 @@ AcpiDmConvertParseObjects (
 
     return;
 }
-
+#endif
 
 /*******************************************************************************
  *

@@ -163,7 +163,7 @@
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dmutils")
 
-
+#if defined (ACPI_DISASSEMBLER) || defined (ACPI_ASL_COMPILER)
 /* Data used in keeping track of fields */
 #if 0
 const char                      *AcpiGbl_FENames[] =
@@ -444,3 +444,5 @@ AcpiDmCommaIfFieldMember (
         AcpiOsPrintf (", ");
     }
 }
+
+#endif

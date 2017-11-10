@@ -22,12 +22,8 @@
 #ifndef __MCORE_PELOADER__
 #define __MCORE_PELOADER__
 
-/* Includes 
- * - System */
-#include <arch.h>
-
 /* Includes
- * - C-Library */
+ * - Library */
 #include <ds/list.h>
 #include <ds/mstring.h>
 #include <os/osdefs.h>

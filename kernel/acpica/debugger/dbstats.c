@@ -159,6 +159,7 @@
         ACPI_MODULE_NAME    ("dbstats")
 
 
+#if defined(ACPI_DEBUG_OUTPUT) || defined(ACPI_DEBUGGER)
 /* Local prototypes */
 
 static void
@@ -664,3 +665,5 @@ AcpiDbDisplayStatistics (
     AcpiOsPrintf ("\n");
     return (AE_OK);
 }
+
+#endif

@@ -279,7 +279,7 @@ AcpiOsWaitSemaphore(
     if (AcpiGbl_Semaphores[Index].CurrentUnits == 0) {
         ACPI_ERROR ((AE_INFO,
             "%s - No unit received. Timeout 0x%X, OS_Status 0x%X",
-            AcpiUtGetMutexName (Index), Timeout, WaitStatus));
+            "mutex" /* AcpiUtGetMutexName (Index) */, Timeout, WaitStatus));
         return (AE_OK);
     }
 

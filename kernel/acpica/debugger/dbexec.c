@@ -158,7 +158,7 @@
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dbexec")
 
-
+#if defined(ACPI_DEBUG_OUTPUT) || defined(ACPI_DEBUGGER)
 static ACPI_DB_METHOD_INFO          AcpiGbl_DbMethodInfo;
 
 /* Local prototypes */
@@ -965,3 +965,5 @@ CleanupAndExit:
     AcpiOsFree (AcpiGbl_DbMethodInfo.Threads);
     AcpiGbl_DbMethodInfo.Threads = NULL;
 }
+
+#endif

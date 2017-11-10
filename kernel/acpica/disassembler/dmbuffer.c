@@ -161,6 +161,7 @@
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dmbuffer")
 
+#if defined (ACPI_DISASSEMBLER) || defined (ACPI_ASL_COMPILER)
 /* Local prototypes */
 
 static void
@@ -1175,3 +1176,5 @@ AcpiDmDecompressEisaId (
         AcpiOsPrintf (" /* %s */", Info->Description);
     }
 }
+
+#endif

@@ -562,6 +562,9 @@ OhciCalculateQueue(
     size_t i;
 
     // iso periods can be huge; iso tds specify frame numbers
+    if (Interval == 0) {
+        Interval = 1;
+    }
     if (Interval > OHCI_FRAMELIST_SIZE) {
         Interval = OHCI_FRAMELIST_SIZE;
     }

@@ -11,10 +11,10 @@
 config_flags = 
 
 # ACPI Configuration flags
-#config_flags += -D__OSCONFIG_REDUCEDHARDWARE
+#config_flags += -D__OSCONFIG_ACPIDEBUG
 #config_flags += -D__OSCONFIG_ACPIDEBUGGER
-config_flags += -D__OSCONFIG_ACPIDEBUG
 #config_flags += -D__OSCONFIG_ACPIDEBUGMUTEXES
+#config_flags += -D__OSCONFIG_REDUCEDHARDWARE
 
 # Use a full debug console on height
 config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE
@@ -23,7 +23,7 @@ config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE
 #config_flags += -D__OSCONFIG_NODRIVERS
 
 # Disable usb 2.0 support, run only in usb 1.1
-#config_flags += -D__OSCONFIG_DISABLE_EHCI
+config_flags += -D__OSCONFIG_DISABLE_EHCI
 
 export arch = i386
 export CC = $(CROSS)/bin/clang

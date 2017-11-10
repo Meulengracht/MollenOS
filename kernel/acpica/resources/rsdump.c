@@ -156,6 +156,7 @@
 #define _COMPONENT          ACPI_RESOURCES
         ACPI_MODULE_NAME    ("rsdump")
 
+#if defined(ACPI_DEBUG_OUTPUT) || defined(ACPI_DEBUGGER)
 /*
  * All functions in this module are used by the AML Debugger only
  */
@@ -820,3 +821,5 @@ AcpiRsDumpWordList (
         AcpiOsPrintf ("%25s%2.2X : %4.4X\n", "Word", i, Data[i]);
     }
 }
+
+#endif

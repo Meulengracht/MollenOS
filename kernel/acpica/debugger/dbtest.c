@@ -160,6 +160,7 @@
         ACPI_MODULE_NAME    ("dbtest")
 
 
+#if defined(ACPI_DEBUG_OUTPUT) || defined(ACPI_DEBUGGER)
 /* Local prototypes */
 
 static void
@@ -1248,3 +1249,5 @@ AcpiDbEvaluateOnePredefinedName (
 
     return (Status);
 }
+
+#endif

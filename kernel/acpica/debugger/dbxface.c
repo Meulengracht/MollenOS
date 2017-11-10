@@ -159,7 +159,7 @@
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dbxface")
 
-
+#if defined(ACPI_DEBUG_OUTPUT) || defined(ACPI_DEBUGGER)
 /* Local prototypes */
 
 static ACPI_STATUS
@@ -681,3 +681,5 @@ AcpiSetDebuggerThreadId (
 }
 
 ACPI_EXPORT_SYMBOL (AcpiSetDebuggerThreadId)
+
+#endif

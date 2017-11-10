@@ -29,10 +29,6 @@
 #include <os/osdefs.h>
 #include <os/spinlock.h>
 
-/* Includes
- * - System */
-#include <arch.h>
-
 /* System Information structure
  * Contains information related to the OS and the system
  * like Cpu, Memory, Architecture etc */

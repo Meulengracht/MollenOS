@@ -150,7 +150,9 @@ MsdDeviceCreate(
     }
 
     // Notify diskmanager
-    // @todo
+    if (RegisterDisk(Device->Base.Base.DeviceId, __DISK_REMOVABLE) != OsSuccess) {
+        ERROR("Failed to register storage with storagemanager");
+    }
 
     // Done
     return Device;
@@ -173,7 +175,9 @@ MsdDeviceDestroy(
     _In_ MsdDevice_t *Device)
 {
     // Notify diskmanager
-    // @todo
+    if (UnregisterDisk(Device->Base.Base.DeviceId, __DISK_FORCED_REMOVE) != OsSuccess) {
+        ERROR("Failed to unregister storage with storagemanager");
+    }
 
     // Flush existing requests?
     // @todo

@@ -452,14 +452,16 @@ EhciSetup(
 	_In_ EhciController_t *Controller)
 {
 	// Variables
-	reg32_t TemporaryValue = 0;
-	size_t i = 0;
+	reg32_t TemporaryValue  = 0;
+	size_t i                = 0;
 
 	// Disable legacy support in controller
 	EhciDisableLegacySupport(Controller);
 
 	// Are we configured to disable ehci?
 #ifdef __OSCONFIG_DISABLE_EHCI
+    _CRT_UNUSED(TemporaryValue);
+    _CRT_UNUSED(i);
 	EhciSilence(Controller);
 #else
 	// Save some read-only but often accessed information
@@ -469,44 +471,9 @@ EhciSetup(
 
 	// We then stop the controller, reset it and 
 	// initialize data-structures
-	EhciHalt(Controller);
-	if (EhciReset(Controller) != OsSuccess
-		|| EhciQueueInitialize(Controller) != OsSuccess) {
-		ERROR("EHCI-Failure: failed to reset controller and create queues.");
-		return OsError;
-	}
-
-	// Reset certain indexes
-	Controller->OpRegisters->SegmentSelector = 0;
-	Controller->OpRegisters->FrameIndex = 0;
-
-	// Enable desired interrupts and clear status
-	Controller->OpRegisters->UsbIntr = (EHCI_INTR_PROCESS | EHCI_INTR_PROCESSERROR
-		| EHCI_INTR_PORTCHANGE | EHCI_INTR_HOSTERROR | EHCI_INTR_ASYNC_DOORBELL);
-	Controller->OpRegisters->UsbStatus = Controller->OpRegisters->UsbIntr;
-
-	// Next step is to build the command configuring the controller
-	// Set irq latency to 0, enable per-port changes, async park
-	// and if variable frame-list, set it to 256.
-	TemporaryValue = EHCI_COMMAND_INTR_THRESHOLD(0);
-	if (Controller->CParameters & EHCI_CPARAM_PERPORT_CHANGE) {
-		TemporaryValue |= EHCI_COMMAND_PERPORT_ENABLE;
-	}
-	if (Controller->CParameters & EHCI_CPARAM_ASYNCPARK) {
-		TemporaryValue |= EHCI_COMMAND_ASYNC_PARKMODE;
-		TemporaryValue |= EHCI_COMMAND_PARK_COUNT(3);
-	}
-	if (Controller->CParameters & EHCI_CPARAM_VARIABLEFRAMELIST) {
-		TemporaryValue |= EHCI_COMMAND_LISTSIZE(EHCI_LISTSIZE_256);
-	}
-
-	// Start the controller by enabling it
-	TemporaryValue |= EHCI_COMMAND_RUN;
-	Controller->OpRegisters->UsbCommand = TemporaryValue;
-
-	// Mark as configured, this will enable the controller
-	Controller->OpRegisters->ConfigFlag = 1;
-
+    EhciQueueInitialize(Controller);
+    EhciRestart(Controller);
+	
 	// Now, controller is up and running
 	// and we should start doing port setups
 	// by first powering on

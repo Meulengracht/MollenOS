@@ -157,7 +157,7 @@
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dbresrcs")
 
-
+#if defined (ACPI_DISASSEMBLER) || defined (ACPI_ASL_COMPILER)
 /*******************************************************************************
  *
  * FUNCTION:    AcpiDmIrqDescriptor
@@ -475,3 +475,5 @@ AcpiDmVendorSmallDescriptor (
         ACPI_ADD_PTR (UINT8, Resource, sizeof (AML_RESOURCE_SMALL_HEADER)),
         Length, Level);
 }
+
+#endif

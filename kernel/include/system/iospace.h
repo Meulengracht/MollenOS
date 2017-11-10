@@ -28,10 +28,6 @@
  * - Library */
 #include <os/osdefs.h>
 #include <os/spinlock.h>
-
-/* Includes
- * - System */
-#include <arch.h>
 #include <os/driver/io.h>
 
 /* IoSpaceInitialize

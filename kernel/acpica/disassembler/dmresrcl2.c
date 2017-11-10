@@ -157,6 +157,7 @@
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dbresrcl2")
 
+#if defined (ACPI_DISASSEMBLER) || defined (ACPI_ASL_COMPILER)
 /* Local prototypes */
 
 static void
@@ -1314,3 +1315,5 @@ AcpiDmPinGroupConfigDescriptor (
 
     AcpiOsPrintf (")\n");
 }
+
+#endif

@@ -5,9 +5,11 @@
             "includePath": [
                 "${workspaceRoot}",
                 "${workspaceRoot}/librt/include",
+                "${workspaceRoot}/kernel/acpica/include",
                 "${workspaceRoot}/kernel/include"
             ],
             "defines": [
+                "__IDE",
                 "MOLLENOS",
                 "i386",
                 "UNICODE",

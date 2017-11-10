@@ -34,12 +34,11 @@
 #define _MCORE_HEAP_H_
 
 /* Includes
- * - C-Library */
+ * - Library */
 #include <os/osdefs.h>
 
 /* Includes 
  * - System */
-#include <arch.h>
 #include <criticalsection.h>
 
 /***************************

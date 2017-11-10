@@ -199,7 +199,8 @@ PACKED_ATYPESTRUCT(volatile, EchiOperationalRegisters, {
 #define EHCI_NO_INDEX                   -1
 
 /* EhciIsochronousDescriptor
- * Isochronous Transfer Descripter. Must be 32 byte aligned */
+ * Isochronous Transfer Descripter. 
+ * Must be 32 byte aligned */
 PACKED_TYPESTRUCT(EhciIsochronousDescriptor, {
 	reg32_t 					Link;
 	uint16_t 					Transaction0[2];
@@ -272,7 +273,8 @@ PACKED_TYPESTRUCT(EhciIsochronousDescriptor, {
 #define EHCI_iTD_EXTBUFFER(n)			((n >> 32) & 0xFFFFFFFF)
 
 /* EhciSplitIsochronousDescriptor
- * Split Isochronous Transfer Descriptor. 
+ * All Full-speed isochronous transfers through Transaction Translators 
+ * are managed using the siTD data structure. 
  * Must be 32 byte aligned */
 PACKED_TYPESTRUCT(EhciSplitIsochronousDescriptor, {
 	reg32_t                     Link;
@@ -470,12 +472,13 @@ PACKED_TYPESTRUCT(EhciQueueHead, {
     reg32_t                 CurrentTD;
 	EhciQueueHeadOverlay_t  Overlay; // Current working area, contains td
 
-	/* 68 bytes 
-	 * Add 28 bytes for allocation easieness */
+	// 68 bytes 
+	// Add 28 bytes for allocation easieness
     reg32_t                 HcdFlags;
-    reg32_t                 Index;
+    int16_t                 Index;
     int16_t                 LinkIndex;
     int16_t                 ChildIndex;
+    uint16_t                Unused;
 	reg32_t                 Interval;
 	reg32_t                 Bandwidth;
 	reg32_t                 sFrame;
@@ -520,10 +523,14 @@ PACKED_TYPESTRUCT(EhciQueueHead, {
 #define EHCI_QH_UNSCHEDULE			(1 << 1)
 
 /* EhciFSTN
- * Periodic Frame Span Traversal Node. Must be 32 byte aligned. 
- * This is a hardware link node */
+ * This data structure is to be used only for managing Full- and Low-speed transactions that span a Host-frame
+ * boundary. Software must not use an FSTN in the
+ * Asynchronous Schedule. An FSTN in the Asynchronous schedule results in undefined behavior. Software
+ * must not use the FSTN feature with a host controller whose HCIVERSION register indicates a revision
+ * implementation below 0096h. FSTNs are not defined for implementations before 0.96 and their use will
+ * yield undefined results. */
 PACKED_TYPESTRUCT(EhciFSTN, {
-	reg32_t					PathPointer;     // HW Link
+	reg32_t					PathPointer;     // HW Link (Next Periodic Element)
 	reg32_t					BackPathPointer; // HW Link
 });
 
@@ -561,6 +568,7 @@ typedef struct _EhciControl {
     uintptr_t                    TDPoolPhysical;
     
 	// Frame-list resources
+    size_t                       PoolBytes;
 	size_t                       FrameLength;
 	reg32_t                     *FrameList;
 	uintptr_t                    FrameListPhysical;
@@ -621,6 +629,20 @@ OsStatus_t
 EhciQueueDestroy(
 	_In_ EhciController_t *Controller);
 
+/* EhciQueueReset
+ * Removes and cleans up any existing transfers, then reinitializes. */
+__EXTERN
+OsStatus_t
+EhciQueueReset(
+    _In_ EhciController_t *Controller);
+
+/* EhciHalt
+ * Halt's the controller and clears any pending events. */
+__EXTERN
+OsStatus_t
+EhciHalt(
+	_In_ EhciController_t *Controller);
+
 /* EhciRestart
  * Resets and restarts the entire controller and schedule, this can be used in
  * case of serious failures. */
@@ -660,8 +682,7 @@ EhciPortGetStatus(
 __EXTERN
 EhciQueueHead_t*
 EhciQhAllocate(
-    _In_ EhciController_t *Controller, 
-    _In_ UsbTransferType_t Type);
+    _In_ EhciController_t *Controller);
 
 /* EhciQhInitialize
  * This initiates any periodic scheduling information 

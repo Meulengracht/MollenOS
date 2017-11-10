@@ -41,72 +41,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* Globals
- * Use these for state-keeping the thread */
-static UUId_t __GlbFinalizerThreadId = UUID_INVALID;
-static Condition_t *__GlbFinalizerEvent = NULL;
-
-/* FinalizerEntry 
- * Entry of the finalizer thread, this thread handles
- * all completed transactions to notify users */
-int FinalizerEntry(void *Argument)
-{
-	// Variables
-	ListNode_t *cNode = NULL;
-	Mutex_t EventLock;
-
-	// Unused
-	_CRT_UNUSED(Argument);
-
-	// Create the mutex
-	MutexConstruct(&EventLock, MUTEX_PLAIN);
-
-	// Forever-loop
-	while (1) {
-		// Wait for events
-		ConditionWait(__GlbFinalizerEvent, &EventLock);
-
-		// Iterate through all transactions for all controllers
-		_foreach(cNode, UsbManagerGetControllers()) {
-			// Instantiate a controller pointer
-			EhciController_t *Controller = 
-				(EhciController_t*)cNode->Data;
-			
-			// Iterate transactions
-			foreach_nolink(tNode, Controller->QueueControl.TransactionList) {
-				// Instantiate a transaction pointer
-				UsbManagerTransfer_t *Transfer = 
-					(UsbManagerTransfer_t*)tNode->Data;
-
-				// Cleanup?
-				if (Transfer->Cleanup) {
-					// Temporary copy of pointer
-					ListNode_t *Temp = tNode;
-
-					// Notify requester and finalize
-					EhciTransactionFinalize(Controller, Transfer, 1);
-				
-					// Remove from list (in-place, tricky)
-					tNode = ListUnlinkNode(
-						Controller->QueueControl.TransactionList,
-						tNode);
-
-					// Cleanup
-					ListDestroyNode(
-						Controller->QueueControl.TransactionList, 
-						Temp);
-				}
-				else {
-					tNode = ListNext(tNode);
-				}
-			}
-		}
-	}
-
-	// Done
-	return 0;
-}
-
 /* OnFastInterrupt
  * Is called for the sole purpose to determine if this source
  * has invoked an irq. If it has, silence and return (Handled) */
@@ -179,8 +113,11 @@ OnInterrupt(
 	// HC Fatal Error
 	// Clear all queued, reset controller
 	if (InterruptStatus & EHCI_STATUS_HOSTERROR) {
+        if (EhciQueueReset(Controller) != OsSuccess) {
+			ERROR("EHCI-Failure: Failed to reset queue after fatal error");
+        }
 		if (EhciRestart(Controller) != OsSuccess) {
-			ERROR("EHCI-Failure: Failed to reset controller after Fatal Error");
+			ERROR("EHCI-Failure: Failed to reset controller after fatal error");
 		}
 	}
 
@@ -207,14 +144,9 @@ OnTimeout(
 /* OnLoad
  * The entry-point of a driver, this is called
  * as soon as the driver is loaded in the system */
-OsStatus_t OnLoad(void)
+OsStatus_t
+OnLoad(void)
 {
-	// Create event semaphore
-	__GlbFinalizerEvent = ConditionCreate();
-
-	// Start finalizer thread
-	__GlbFinalizerThreadId = ThreadCreate(FinalizerEntry, NULL);
-
 	// Initialize the device manager here
 	return UsbManagerInitialize();
 }
@@ -222,14 +154,9 @@ OsStatus_t OnLoad(void)
 /* OnUnload
  * This is called when the driver is being unloaded
  * and should free all resources allocated by the system */
-OsStatus_t OnUnload(void)
+OsStatus_t
+OnUnload(void)
 {
-	// Stop thread
-	ThreadKill(__GlbFinalizerThreadId);
-
-	// Cleanup semaphore
-	ConditionDestroy(__GlbFinalizerEvent);
-
 	// Cleanup the internal device manager
 	return UsbManagerDestroy();
 }
@@ -237,7 +164,9 @@ OsStatus_t OnUnload(void)
 /* OnRegister
  * Is called when the device-manager registers a new
  * instance of this driver for the given device */
-OsStatus_t OnRegister(MCoreDevice_t *Device)
+OsStatus_t
+OnRegister(
+    _In_ MCoreDevice_t *Device)
 {
 	// Variables
 	EhciController_t *Controller = NULL;
@@ -257,7 +186,9 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 /* OnUnregister
  * Is called when the device-manager wants to unload
  * an instance of this driver from the system */
-OsStatus_t OnUnregister(MCoreDevice_t *Device)
+OsStatus_t
+OnUnregister(
+    _In_ MCoreDevice_t *Device)
 {
 	// Variables
 	EhciController_t *Controller = NULL;
@@ -282,13 +213,14 @@ OsStatus_t OnUnregister(MCoreDevice_t *Device)
  * this driver for data, this will correspond to the query
  * function that is defined in the contract */
 OsStatus_t 
-OnQuery(_In_ MContractType_t QueryType, 
-		_In_ int QueryFunction, 
-		_In_Opt_ RPCArgument_t *Arg0,
-		_In_Opt_ RPCArgument_t *Arg1,
-		_In_Opt_ RPCArgument_t *Arg2, 
-		_In_ UUId_t Queryee, 
-		_In_ int ResponsePort)
+OnQuery(
+    _In_ MContractType_t QueryType, 
+    _In_ int QueryFunction, 
+    _In_Opt_ RPCArgument_t *Arg0,
+    _In_Opt_ RPCArgument_t *Arg1,
+    _In_Opt_ RPCArgument_t *Arg2, 
+    _In_ UUId_t Queryee, 
+    _In_ int ResponsePort)
 {
 	// Variables
 	UsbManagerTransfer_t *Transfer = NULL;

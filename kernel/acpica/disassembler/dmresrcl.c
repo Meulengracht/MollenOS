@@ -157,7 +157,7 @@
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dbresrcl")
 
-
+#if defined (ACPI_DISASSEMBLER) || defined (ACPI_ASL_COMPILER)
 /* Common names for address and memory descriptors */
 
 static const char           *AcpiDmAddressNames[] =
@@ -1192,3 +1192,5 @@ AcpiDmVendorLargeDescriptor (
         ACPI_ADD_PTR (UINT8, Resource, sizeof (AML_RESOURCE_LARGE_HEADER)),
         Length, Level);
 }
+
+#endif

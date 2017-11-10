@@ -160,7 +160,7 @@
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dmwalk")
 
-
+#if defined (ACPI_DISASSEMBLER) || defined (ACPI_ASL_COMPILER)
 /* Stub for non-compiler code */
 
 #ifndef ACPI_ASL_COMPILER
@@ -1289,3 +1289,5 @@ AcpiDmAscendingOp (
 
     return (AE_OK);
 }
+
+#endif

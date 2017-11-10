@@ -58,7 +58,7 @@ EhciTransactionInitialize(
 
     // We handle Isochronous transfers a bit different
     if (Transfer->Type != IsochronousTransfer) {
-        *QhOut = Qh = EhciQhAllocate(Controller, Transfer->Type);
+        *QhOut = Qh = EhciQhAllocate(Controller);
 
         // Calculate the bus-time
         if (Transfer->Type == InterruptTransfer) {

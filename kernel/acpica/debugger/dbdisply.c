@@ -163,6 +163,8 @@
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dbdisply")
 
+#if defined(ACPI_DEBUG_OUTPUT) || defined(ACPI_DEBUGGER)
+
 /* Local prototypes */
 
 static void
@@ -1327,3 +1329,5 @@ AcpiDbDisplayNonRootHandlers (
     ACPI_FREE (Pathname);
     return (AE_OK);
 }
+
+#endif

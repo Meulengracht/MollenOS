@@ -159,7 +159,7 @@
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dbnames")
 
-
+#if defined(ACPI_DEBUG_OUTPUT) || defined(ACPI_DEBUGGER)
 /* Local prototypes */
 
 static ACPI_STATUS
@@ -1178,3 +1178,5 @@ AcpiDbGetBusInfo (
     (void) AcpiWalkNamespace (ACPI_TYPE_ANY, ACPI_ROOT_OBJECT,
         ACPI_UINT32_MAX, AcpiDbBusWalk, NULL, NULL, NULL);
 }
+
+#endif

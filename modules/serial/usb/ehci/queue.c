@@ -19,7 +19,9 @@
  * MollenOS MCore - Enhanced Host Controller Interface Driver
  * TODO:
  * - Power Management
+ * - FSTN Transport
  * - Isochronous Transport
+ * - Split-Isochronous Transport
  * - Transaction Translator Support
  */
 
@@ -55,67 +57,20 @@ const char *EhciErrorMessages[] = {
     "Active"
 };
 
-/* EhciQueueInitialize
- * Initialize the controller's queue resources and resets counters */
+/* EhciQueueResetInternalData
+ * Removes and cleans up any existing transfers, then reinitializes. */
 OsStatus_t
-EhciQueueInitialize(
-	_In_ EhciController_t *Controller)
+EhciQueueResetInternalData(
+    _In_ EhciController_t *Controller)
 {
-	// Variables
+    // Variables
 	EhciControl_t *Queue = NULL;
-	uintptr_t RequiredSpace = 0, PoolPhysical = 0;
-	void *Pool = NULL;
 	int i;
-
-	// Trace
-	TRACE("EhciQueueInitialize()");
 
 	// Shorthand the queue controller
 	Queue = &Controller->QueueControl;
 
-	// Null out queue-control
-	memset(Queue, 0, sizeof(EhciControl_t));
-
-	// The first thing we want to do is 
-	// to determine the size of the frame list, if we can control it ourself
-	// we set it to the shortest available (not 32 tho)
-	if (Controller->CParameters & EHCI_CPARAM_VARIABLEFRAMELIST) {
-		Queue->FrameLength = 256;
-	}
- 	else {
-		Queue->FrameLength = 1024;
-	}
-
-	// Allocate a virtual list for keeping track of added
-	// queue-heads in virtual space first.
-	Queue->VirtualList = (reg32_t*)malloc(Queue->FrameLength * sizeof(reg32_t));
-
-	// Add up all the size we are going to need for pools and
-	// the actual frame list
-	RequiredSpace += Queue->FrameLength * sizeof(reg32_t);        // Framelist
-	RequiredSpace += sizeof(EhciQueueHead_t) * EHCI_POOL_NUM_QH;  // Qh-pool
-	RequiredSpace += sizeof(EhciTransferDescriptor_t) * EHCI_POOL_NUM_TD; // Td-pool
-
-	// Perform the allocation
-	if (MemoryAllocate(RequiredSpace, MEMORY_CLEAN | MEMORY_COMMIT
-		| MEMORY_LOWFIRST | MEMORY_CONTIGIOUS, &Pool, &PoolPhysical) != OsSuccess) {
-		ERROR("Failed to allocate memory for resource-pool");
-		return OsError;
-	}
-
-	// Store the physical address for the frame
-	Queue->FrameList = (reg32_t*)Pool;
-	Queue->FrameListPhysical = PoolPhysical;
-
-	// Initialize addresses for pools
-	Queue->QHPool = (EhciQueueHead_t*)
-		((uint8_t*)Pool + (Queue->FrameLength * sizeof(reg32_t)));
-	Queue->QHPoolPhysical = PoolPhysical + (Queue->FrameLength * sizeof(reg32_t));
-	Queue->TDPool = (EhciTransferDescriptor_t*)
-		((uint8_t*)Queue->QHPool + (sizeof(EhciQueueHead_t) * EHCI_POOL_NUM_QH));
-	Queue->TDPoolPhysical = Queue->QHPoolPhysical + (sizeof(EhciQueueHead_t) * EHCI_POOL_NUM_QH);
-
-	// Initialize frame lists
+    // Initialize frame lists
 	for (i = 0; i < Queue->FrameLength; i++) {
 		Queue->VirtualList[i] = Queue->FrameList[i] = EHCI_LINK_END;
 	}
@@ -124,6 +79,7 @@ EhciQueueInitialize(
 	for (i = 0; i < EHCI_POOL_NUM_QH; i++) {
 		Queue->QHPool[i].Index = i;
 		Queue->QHPool[i].LinkIndex = EHCI_NO_INDEX;
+        Queue->QHPool[i].ChildIndex = EHCI_NO_INDEX;
 	}
 
 	// Initialize the TD pool
@@ -157,12 +113,79 @@ EhciQueueInitialize(
 		EHCI_POOL_TDINDEX(Controller, EHCI_POOL_TD_ASYNC);
 	Queue->QHPool[EHCI_POOL_QH_ASYNC].HcdFlags = EHCI_QH_ALLOCATED;
 
+    // Done
+    return OsSuccess;
+}
+
+/* EhciQueueInitialize
+ * Initialize the controller's queue resources and resets counters */
+OsStatus_t
+EhciQueueInitialize(
+	_In_ EhciController_t *Controller)
+{
+	// Variables
+	EhciControl_t *Queue = NULL;
+	uintptr_t RequiredSpace = 0, PoolPhysical = 0;
+	void *Pool = NULL;
+
+	// Trace
+	TRACE("EhciQueueInitialize()");
+
+	// Shorthand the queue controller
+	Queue = &Controller->QueueControl;
+
+	// Null out queue-control
+	memset(Queue, 0, sizeof(EhciControl_t));
+
+	// The first thing we want to do is 
+	// to determine the size of the frame list, if we can control it ourself
+	// we set it to the shortest available (not 32 tho)
+	if (Controller->CParameters & EHCI_CPARAM_VARIABLEFRAMELIST) {
+		Queue->FrameLength = 256;
+	}
+ 	else {
+		Queue->FrameLength = 1024;
+	}
+
+	// Allocate a virtual list for keeping track of added
+	// queue-heads in virtual space first.
+	Queue->VirtualList = (reg32_t*)malloc(Queue->FrameLength * sizeof(reg32_t));
+
+	// Add up all the size we are going to need for pools and
+	// the actual frame list
+	RequiredSpace += Queue->FrameLength * sizeof(reg32_t);        // Framelist
+	RequiredSpace += sizeof(EhciQueueHead_t) * EHCI_POOL_NUM_QH;  // Qh-pool
+	RequiredSpace += sizeof(EhciTransferDescriptor_t) * EHCI_POOL_NUM_TD; // Td-pool
+    Queue->PoolBytes = RequiredSpace;
+
+	// Perform the allocation
+	if (MemoryAllocate(RequiredSpace, MEMORY_CLEAN | MEMORY_COMMIT
+		| MEMORY_LOWFIRST | MEMORY_CONTIGIOUS, &Pool, &PoolPhysical) != OsSuccess) {
+		ERROR("Failed to allocate memory for resource-pool");
+		return OsError;
+	}
+
+	// Store the physical address for the frame
+	Queue->FrameList = (reg32_t*)Pool;
+	Queue->FrameListPhysical = PoolPhysical;
+
+	// Initialize addresses for pools
+	Queue->QHPool = (EhciQueueHead_t*)
+		((uint8_t*)Pool + (Queue->FrameLength * sizeof(reg32_t)));
+	Queue->QHPoolPhysical = PoolPhysical + (Queue->FrameLength * sizeof(reg32_t));
+	Queue->TDPool = (EhciTransferDescriptor_t*)
+		((uint8_t*)Queue->QHPool + (sizeof(EhciQueueHead_t) * EHCI_POOL_NUM_QH));
+	Queue->TDPoolPhysical = Queue->QHPoolPhysical + (sizeof(EhciQueueHead_t) * EHCI_POOL_NUM_QH);
+
 	// Allocate the transaction list
 	Queue->TransactionList = ListCreate(KeyInteger, LIST_SAFE);
 
 	// Initialize a bandwidth scheduler
 	Controller->Scheduler = UsbSchedulerInitialize(
 		Queue->FrameLength, EHCI_MAX_BANDWIDTH, 8);
+
+    // Reset data structures before updating HW lists
+    EhciQueueResetInternalData(Controller);
 
 	// Update the hardware registers to point to the newly allocated
 	// addresses
@@ -174,6 +197,32 @@ EhciQueueInitialize(
     return OsSuccess;
 }
 
+/* EhciQueueReset
+ * Removes and cleans up any existing transfers, then reinitializes. */
+OsStatus_t
+EhciQueueReset(
+    EhciController_t *Controller)
+{
+    // Variables
+    ListNode_t *tNode = NULL;
+
+    // Debug
+    TRACE("EhciQueueReset()");
+
+    // Stop Controller
+    EhciHalt(Controller);
+
+    // Iterate all queued transactions and dequeue
+    _foreach(tNode, Controller->QueueControl.TransactionList) {
+        EhciTransactionFinalize(Controller, 
+            (UsbManagerTransfer_t*)tNode->Data, 0);
+    }
+    ListClear(Controller->QueueControl.TransactionList);
+
+    // Reinitialize internal data
+    return EhciQueueResetInternalData(Controller);
+}
+
 /* EhciQueueDestroy
  * Unschedules any scheduled ed's and frees all resources allocated
  * by the initialize function */
@@ -181,7 +230,17 @@ OsStatus_t
 EhciQueueDestroy(
 	_In_ EhciController_t *Controller)
 {
-    return OsError;
+    // Debug
+    TRACE("EhciQueueDestroy()");
+
+    // Reset first
+    EhciQueueReset(Controller);
+
+    // Cleanup resources
+    ListDestroy(Controller->QueueControl.TransactionList);
+    MemoryFree(Controller->QueueControl.QHPool, 
+        Controller->QueueControl.PoolBytes);
+	return OsSuccess;
 }
 
 /* EhciConditionCodeToIndex
@@ -265,17 +324,21 @@ EhciGenericLink_t*
 EhciNextGenericLink(
     EhciController_t *Controller,
     EhciGenericLink_t *Link, 
-    uintptr_t Type)
+    int Type)
 {
 	switch (Type) {
         case EHCI_LINK_QH:
             return (EhciGenericLink_t*)&Controller->QueueControl.QHPool[Link->Qh->LinkIndex];
-        case EHCI_LINK_FSTN:
-            return (EhciGenericLink_t*)&Link->FSTN->PathPointer;
-        case EHCI_LINK_iTD:
-            return (EhciGenericLink_t*)&Link->iTd->Link;
-        default:
-            return (EhciGenericLink_t*)&Link->siTd->Link;
+        //case EHCI_LINK_FSTN:
+        //    return (EhciGenericLink_t*)&Link->FSTN->PathPointer;
+        //case EHCI_LINK_iTD:
+        //    return (EhciGenericLink_t*)&Link->iTd->Link;
+        //case EHCI_LINK_siTD:
+        //    return (EhciGenericLink_t*)&Link->siTd->Link;
+        default: {
+            ERROR("Unsupported link of type %i requested", Type);
+            return NULL;
+        }
 	}
 }
 
@@ -288,16 +351,16 @@ EhciLinkPeriodicQh(
     _In_ EhciQueueHead_t *Qh)
 {
     // Variables
-	size_t Period = Qh->Interval;
-	size_t i;
+	int Interval    = (int)Qh->Interval;
+	int i;
 
-	// Sanity the period, it must be _atleast_ 1
-    if (Period == 0) {
-		Period = 1;
+	// Sanity the interval, it must be _atleast_ 1
+    if (Interval == 0) {
+		Interval = 1;
     }
 
 	// Iterate the entire framelist and install the periodic qh
-	for (i = Qh->sFrame; i < Controller->QueueControl.FrameLength; i += Period) {
+	for (i = (int)Qh->sFrame; i < (int)Controller->QueueControl.FrameLength; i += Interval) {
 		// Retrieve a virtual pointer and a physical
         EhciGenericLink_t *VirtualLink =
             (EhciGenericLink_t*)&Controller->QueueControl.VirtualList[i];
@@ -404,8 +467,7 @@ EhciUnlinkPeriodic(
  * transaction and should not be used for isoc */
 EhciQueueHead_t*
 EhciQhAllocate(
-    _In_ EhciController_t *Controller, 
-    _In_ UsbTransferType_t Type)
+    _In_ EhciController_t *Controller)
 {
 	// Variables
     EhciQueueHead_t *Qh = NULL;
@@ -421,17 +483,14 @@ EhciQhAllocate(
         }
 
         // Set initial state
+        memset(&Controller->QueueControl.QHPool[i], 0, sizeof(EhciQueueHead_t));
+        Controller->QueueControl.QHPool[i].Index = i;
         Controller->QueueControl.QHPool[i].Overlay.Status = EHCI_TD_HALTED;
         Controller->QueueControl.QHPool[i].HcdFlags = EHCI_QH_ALLOCATED;
         Controller->QueueControl.QHPool[i].LinkIndex = EHCI_NO_INDEX;
         Controller->QueueControl.QHPool[i].ChildIndex = EHCI_NO_INDEX;
         Qh = &Controller->QueueControl.QHPool[i];
         break;
-    }
-
-    // Did we find anything? 
-    if (Qh == NULL) {
-        ERROR("EhciQhAllocate::(RAN OUT OF QH's)");
     }
 
 	// Release controller lock

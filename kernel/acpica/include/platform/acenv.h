@@ -248,12 +248,6 @@
 
 #ifdef ACPI_LIBRARY
 #define ACPI_USE_LOCAL_CACHE
-#define ACPI_DEBUGGER 1
-#define ACPI_DISASSEMBLER 1
-
-#ifdef _DEBUG
-#define ACPI_DEBUG_OUTPUT
-#endif
 #endif
 
 /* Common for all ACPICA applications */
@@ -264,7 +258,7 @@
 
 /* Common debug/disassembler support */
 
-#ifdef ACPI_FULL_DEBUG
+#ifdef __OSCONFIG_ACPIDEBUG
 #define ACPI_DEBUG_OUTPUT
 #define ACPI_DEBUGGER 1
 #define ACPI_DISASSEMBLER 1

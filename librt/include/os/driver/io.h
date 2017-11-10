@@ -31,19 +31,19 @@
 /* The two different kinds of io-spaces that are
  * currently supported in MollenOS, to get which
  * kind of io-space check with IoSpace->Type */
-#define IO_SPACE_INVALID		0x00
-#define IO_SPACE_IO				0x01
-#define IO_SPACE_MMIO			0x02
+#define IO_SPACE_INVALID        0x00
+#define IO_SPACE_IO                0x01
+#define IO_SPACE_MMIO            0x02
 
 /* Represents an io-space in MollenOS, they represent
  * some kind of communication between hardware and software
  * by either port or mmio */
 typedef struct _DeviceIoSpace {
-	UUId_t						Id;
-	int							Type;
-	uintptr_t						PhysicalBase;
-	uintptr_t						VirtualBase;
-	size_t						Size;
+    UUId_t                        Id;
+    int                            Type;
+    uintptr_t                        PhysicalBase;
+    uintptr_t                        VirtualBase;
+    size_t                        Size;
 } DeviceIoSpace_t;
 
 /* Creates a new io-space and registers it with
@@ -75,6 +75,6 @@ MOSAPI size_t ReadIoSpace(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length
  * the given <length>, the offset and length must be below 
  * the size of the io-space */
 MOSAPI void WriteIoSpace(DeviceIoSpace_t *IoSpace, 
-	size_t Offset, size_t Value, size_t Length);
+    size_t Offset, size_t Value, size_t Length);
 
 #endif //!_IO_INTEFACE_H_

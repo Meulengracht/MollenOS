@@ -159,6 +159,7 @@
         ACPI_MODULE_NAME    ("dbutils")
 
 
+#if defined(ACPI_DEBUG_OUTPUT) || defined(ACPI_DEBUGGER)
 /* Local prototypes */
 
 #ifdef ACPI_OBSOLETE_FUNCTIONS
@@ -618,4 +619,6 @@ AcpiDbDumpBuffer (
     AcpiUtDebugDumpBuffer (ACPI_TO_POINTER (Address), 64, DB_BYTE_DISPLAY,
         ACPI_UINT32_MAX);
 }
+#endif
+
 #endif
