@@ -246,9 +246,7 @@ OsStatus_t ScProcessQuery(UUId_t ProcessId, AshQueryFunction_t Function, void *B
     if (Process == NULL) {
         return OsError;
     }
-
-    /* Deep Call */
-    return (OsStatus_t)PhoenixQueryAsh(&Process->Base, Function, Buffer, Length);
+    return PhoenixQueryAsh(&Process->Base, Function, Buffer, Length);
 }
 
 /* Installs a signal handler for 

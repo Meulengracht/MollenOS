@@ -90,7 +90,7 @@ PhoenixCreateServer(
 	Server = (MCoreServer_t*)kmalloc(sizeof(MCoreServer_t));
 
 	/* Sanitize the created Ash */
-	if (PhoenixInitializeAsh(&Server->Base, Path)) {
+	if (PhoenixInitializeAsh(&Server->Base, Path) != OsSuccess) {
 		LogFatal("SERV", "Failed to spawn server %s", MStringRaw(Path));
 		kfree(Server);
 		return UUID_INVALID;

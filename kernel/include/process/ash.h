@@ -24,7 +24,7 @@
 #define _MCORE_ASH_H_
 
 /* Includes 
- * - C-Library */
+ * - Library */
 #include <os/osdefs.h>
 #include <ds/blbitmap.h>
 #include <ds/mstring.h>
@@ -41,123 +41,177 @@
 /* Settings for ashes in the system, they
  * should not really be tinkered with, these are
  * just some arbitrary sizes that are good enough */
-#define ASH_STACK_INIT			0x1000
-#define ASH_STACK_MAX			(4 << 20)
-#define ASH_PIPE_SIZE			0x2000
+#define ASH_STACK_INIT          0x1000
+#define ASH_STACK_MAX           (4 << 20)
+#define ASH_PIPE_SIZE           0x2000
 
 /* Ash Queries
  * List of the different options
  * for querying of ashes */
 typedef enum _AshQueryFunction {
-	AshQueryName,
-	AshQueryMemory,
-	AshQueryParent,
-	AshQueryTopMostParent
+    AshQueryName,
+    AshQueryMemory,
+    AshQueryParent,
+    AshQueryTopMostParent
 } AshQueryFunction_t;
 
 /* Signal Table 
  * This is used for interrupt-signals
  * across threads and processes */
 typedef struct _MCoreSignalTable {
-	uintptr_t Handlers[NUMSIGNALS + 1];
+    uintptr_t           Handlers[NUMSIGNALS + 1];
 } MCoreSignalTable_t;
 
 /* A Signal Entry 
  * This is used to describe a signal 
  * that is waiting for execution */
 typedef struct _MCoreSignal {
-	int Signal;
-	uintptr_t Handler;
-	Context_t Context;
+    int                 Signal;
+    uintptr_t           Handler;
+    Context_t           Context;
 } MCoreSignal_t;
 
 /* This is the different types of ashes
  * that exists in MollenOS */
-typedef enum _MCoreAshType
-{
-	AshBase,
-	AshServer,
-	AshProcess
+typedef enum _MCoreAshType {
+    AshBase,
+    AshServer,
+    AshProcess
 } MCoreAshType_t;
 
 /* The phoenix base structure, this contains
 * basic information shared across all ashes
 * Whether it's a process or a server */
-typedef struct _MCoreAsh
-{
-	// Ids related to this Ash,
-	// both it's own id, it's main thread
-	// and it's parent ash
-	UUId_t MainThread;
-	UUId_t Id;
-	UUId_t Parent;
-	MCoreAshType_t Type;
+typedef struct _MCoreAsh {
+    // Ids related to this Ash,
+    // both it's own id, it's main thread
+    // and it's parent ash
+    UUId_t               MainThread;
+    UUId_t               Id;
+    UUId_t               Parent;
+    MCoreAshType_t       Type;
 
-	// The name of the Ash, this is usually
-	// derived from the file that spawned it
-	MString_t *Name;
-	MString_t *Path;
+    // The name of the Ash, this is usually
+    // derived from the file that spawned it
+    MString_t           *Name;
+    MString_t           *Path;
+    List_t              *Pipes;
 
-	// The communication line for this Ash
-	// all types of ash need some form of com
-	List_t *Pipes;
+    // Memory management and information,
+    // Ashes run in their own space, and have their
+    // own bitmap allocators
+    AddressSpace_t      *AddressSpace;
+    BlockBitmap_t       *Heap;
+    BlockBitmap_t       *Shm;
 
-	// Memory management and information,
-	// Ashes run in their own space, and have their
-	// own bitmap allocators
-	AddressSpace_t *AddressSpace;
-	BlockBitmap_t *Heap;
-	BlockBitmap_t *Shm;
+    // Signal support for Ashes
+    MCoreSignalTable_t   Signals;
+    MCoreSignal_t       *ActiveSignal;
+    List_t              *SignalQueue;
 
-	// Signal support for Ashes
-	MCoreSignalTable_t Signals;
-	MCoreSignal_t *ActiveSignal;
-	List_t *SignalQueue;
+    // Below is everything related to
+    // the startup and the executable information
+    // that the Ash has
+    MCorePeFile_t       *Executable;
+    uintptr_t            NextLoadingAddress;
+    uint8_t             *FileBuffer;
+    size_t               FileBufferLength;
+    uintptr_t            StackStart;
 
-	// Below is everything related to
-	// the startup and the executable information
-	// that the Ash has
-	MCorePeFile_t *Executable;
-	uintptr_t NextLoadingAddress;
-	uint8_t *FileBuffer;
-	size_t FileBufferLength;
-	uintptr_t StackStart;
-
-	// This is the return/code
-	// that gets set upon ash-exit
-	int Code;
-
+    // This is the return/code
+    // that gets set upon ash-exit
+    int                  Code;
 } MCoreAsh_t;
 
-/* This function loads the executable and
+/* PhoenixInitializeAsh
+ * This function loads the executable and
  * prepares the ash-environment, at this point
  * it won't be completely running yet, it needs
  * its own thread for that. Returns 0 on success */
-KERNELAPI int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path);
+KERNELAPI
+OsStatus_t
+KERNELABI
+PhoenixInitializeAsh(
+    _InOut_ MCoreAsh_t  *Ash, 
+    _In_ MString_t      *Path);
 
-/* This is a wrapper for starting up a base Ash
+/* PhoenixStartupAsh
+ * This is a wrapper for starting up a base Ash
  * and uses <PhoenixInitializeAsh> to setup the env
  * and do validation before starting */
-KERNELAPI UUId_t PhoenixStartupAsh(MString_t *Path);
+KERNELAPI
+UUId_t
+KERNELABI
+PhoenixStartupAsh(
+    _In_ MString_t *Path);
 
 /* This is the finalizor function for starting
  * up a new base Ash, it finishes setting up the environment
  * and memory mappings, must be called on it's own thread */
 KERNELAPI void PhoenixFinishAsh(MCoreAsh_t *Ash);
 
-/* These function manipulate pipes on the given port
- * there are some pre-defined ports on which pipes
- * can be opened, window manager etc */
-KERNELAPI OsStatus_t PhoenixOpenAshPipe(MCoreAsh_t *Ash, int Port, Flags_t Flags);
-KERNELAPI OsStatus_t PhoenixWaitAshPipe(MCoreAsh_t *Ash, int Port);
-KERNELAPI OsStatus_t PhoenixCloseAshPipe(MCoreAsh_t *Ash, int Port);
-KERNELAPI MCorePipe_t *PhoenixGetAshPipe(MCoreAsh_t *Ash, int Port);
+/* PhoenixOpenAshPipe
+ * Creates a new communication pipe available for use. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+PhoenixOpenAshPipe(
+    _In_ MCoreAsh_t  *Ash, 
+    _In_ int          Port, 
+    _In_ Flags_t      Flags);
 
-/* Ash Function Prototypes
- * these are the interesting ones */
-KERNELAPI int PhoenixQueryAsh(MCoreAsh_t *Ash,
-	AshQueryFunction_t Function, void *Buffer, size_t Length);
-KERNELAPI void PhoenixCleanupAsh(MCoreAsh_t *Ash);
+/* PhoenixWaitAshPipe
+ * Waits for a pipe to be opened on the given
+ * ash instance. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+PhoenixWaitAshPipe(
+    _In_ MCoreAsh_t *Ash, 
+    _In_ int         Port);
+
+/* PhoenixCloseAshPipe
+ * Closes the pipe for the given Ash, and cleansup
+ * resources allocated by the pipe. This shutsdown
+ * any communication on the port */
+KERNELAPI
+OsStatus_t
+KERNELABI
+PhoenixCloseAshPipe(
+    _In_ MCoreAsh_t *Ash, 
+    _In_ int         Port);
+
+/* PhoenixGetAshPipe
+ * Retrieves an existing pipe instance for the given ash
+ * and port-id. If it doesn't exist, returns NULL. */
+KERNELAPI
+MCorePipe_t*
+KERNELABI
+PhoenixGetAshPipe(
+    _In_ MCoreAsh_t     *Ash, 
+    _In_ int             Port);
+
+/* PhoenixQueryAsh
+ * Queries the given ash for information
+ * which kind of information is determined by <Function> */
+KERNELAPI
+OsStatus_t
+KERNELABI
+PhoenixQueryAsh(
+    _In_ MCoreAsh_t         *Ash,
+	_In_ AshQueryFunction_t  Function,
+    _In_ void               *Buffer,
+    _In_ size_t              Length);
+
+/* PhoenixCleanupAsh
+ * Cleans up a given Ash, freeing all it's allocated resources
+ * and unloads it's executables, memory space is not cleaned up
+ * must be done by external thread */
+KERNELAPI
+void
+KERNELABI
+PhoenixCleanupAsh(
+    _In_ MCoreAsh_t *Ash);
 
 /* PhoenixTerminateAsh
  * This marks an ash for termination by taking it out
@@ -174,7 +228,7 @@ KERNELAPI
 MCoreAsh_t*
 KERNELABI
 PhoenixGetAsh(
-	_In_ UUId_t AshId);
+    _In_ UUId_t AshId);
 
 /* PhoenixGetCurrentAsh
  * Retrives the current ash for the running thread */
@@ -189,6 +243,35 @@ KERNELAPI
 MCoreAsh_t*
 KERNELABI
 PhoenixGetAshByName(
-	_In_ __CONST char *Name);
+    _In_ __CONST char *Name);
+
+/* SignalReturn
+ * Call upon returning from a signal, this will finish
+ * the signal-call and enter a new signal if any is queued up */
+KERNELAPI
+OsStatus_t
+KERNELABI
+SignalReturn(void);
+
+/* Handle Signal 
+ * This checks if the process has any waiting signals
+ * and if it has, it executes the first in list */
+KERNELAPI
+OsStatus_t
+KERNELABI
+SignalHandle(
+	_In_ UUId_t ThreadId);
+
+__EXTERN int SignalCreate(UUId_t AshId, int Signal);
+__EXTERN void SignalExecute(MCoreAsh_t *Ash, MCoreSignal_t *Signal);
+
+/* Architecture Specific  
+ * Must be implemented in the arch-layer */
+KERNELAPI
+OsStatus_t
+KERNELABI
+SignalDispatch(
+	_In_ MCoreAsh_t *Ash, 
+	_In_ MCoreSignal_t *Signal);
 
 #endif //!_MCORE_ASH_H_

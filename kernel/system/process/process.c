@@ -73,7 +73,7 @@ UUId_t PhoenixCreateProcess(MString_t *Path, MString_t *Arguments)
 	Process = (MCoreProcess_t*)kmalloc(sizeof(MCoreProcess_t));
 
 	/* Sanitize the created Ash */
-	if (PhoenixInitializeAsh(&Process->Base, Path)) {
+	if (PhoenixInitializeAsh(&Process->Base, Path) != OsSuccess) {
 		kfree(Process);
 		return UUID_INVALID;
 	}

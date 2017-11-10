@@ -20,6 +20,8 @@
  * - The process/server manager is known as Phoenix
  * - In this file we implement Ash functions
  */
+#define __MODULE "ASH1"
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -30,8 +32,8 @@
 #include <modules/modules.h>
 #include <scheduler.h>
 #include <threading.h>
+#include <debug.h>
 #include <heap.h>
-#include <log.h>
 
 /* Includes
  * - Library */
@@ -44,53 +46,53 @@ void
 PhoenixFinishAsh(
     _In_ MCoreAsh_t *Ash)
 {
-	// Variables
-	UUId_t CurrentCpu = CpuGetCurrentId();
-	MCoreThread_t *Thread = ThreadingGetCurrentThread(CurrentCpu);
-	uintptr_t BaseAddress = 0;
-	int LoadedFromInitRD = 0;
+    // Variables
+    UUId_t CurrentCpu       = CpuGetCurrentId();
+    MCoreThread_t *Thread   = ThreadingGetCurrentThread(CurrentCpu);
+    uintptr_t BaseAddress   = 0;
+    int LoadedFromInitRD    = 0;
 
-	// Sanitize the loaded path, if we were
-	// using the initrd set flags accordingly
-	if (MStringFindChars(Ash->Path, "rd:/") != MSTRING_NOT_FOUND) {
-		LoadedFromInitRD = 1;
-	}
+    // Sanitize the loaded path, if we were
+    // using the initrd set flags accordingly
+    if (MStringFindChars(Ash->Path, "rd:/") != MSTRING_NOT_FOUND) {
+        LoadedFromInitRD = 1;
+    }
 
-	// Update currently running thread
-	Ash->MainThread = Thread->Id;
-	Thread->AshId = Ash->Id;
+    // Update currently running thread
+    Ash->MainThread = Thread->Id;
+    Thread->AshId = Ash->Id;
 
-	// Store current address space
-	Ash->AddressSpace = AddressSpaceGetCurrent();
+    // Store current address space
+    Ash->AddressSpace = AddressSpaceGetCurrent();
 
-	// Setup base address for code data
-	BaseAddress = MEMORY_LOCATION_RING3_CODE;
+    // Setup base address for code data
+    BaseAddress = MEMORY_LOCATION_RING3_CODE;
 
-	// Load Executable
-	Ash->Executable = PeLoadImage(NULL, Ash->Name, Ash->FileBuffer, 
-		Ash->FileBufferLength, &BaseAddress, LoadedFromInitRD);
-	Ash->NextLoadingAddress = BaseAddress;
+    // Load Executable
+    Ash->Executable = PeLoadImage(NULL, Ash->Name, Ash->FileBuffer, 
+        Ash->FileBufferLength, &BaseAddress, LoadedFromInitRD);
+    Ash->NextLoadingAddress = BaseAddress;
 
-	// Cleanup file buffer
-	if (!LoadedFromInitRD) {
-		kfree(Ash->FileBuffer);
-	}
-	Ash->FileBuffer = NULL;
+    // Cleanup file buffer
+    if (!LoadedFromInitRD) {
+        kfree(Ash->FileBuffer);
+    }
+    Ash->FileBuffer = NULL;
 
-	// Initialize the memory bitmaps
-	Ash->Heap = BlockBitmapCreate(AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_HEAP),
-		AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_SHM), PAGE_SIZE);
-	Ash->Shm = BlockBitmapCreate(AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_SHM),
-		AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_IOSPACE), PAGE_SIZE);
+    // Initialize the memory bitmaps
+    Ash->Heap = BlockBitmapCreate(AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_HEAP),
+        AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_SHM), PAGE_SIZE);
+    Ash->Shm = BlockBitmapCreate(AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_SHM),
+        AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_IOSPACE), PAGE_SIZE);
 
-	// Create the stack mapping
+    // Create the stack mapping
     AddressSpaceMap(AddressSpaceGetCurrent(), 
     ((MEMORY_LOCATION_RING3_STACK_START - ASH_STACK_INIT) & PAGE_MASK),
-		ASH_STACK_INIT, __MASK, AS_FLAG_APPLICATION, NULL);
-	Ash->StackStart = MEMORY_LOCATION_RING3_STACK_START;
+        ASH_STACK_INIT, __MASK, AS_FLAG_APPLICATION, NULL);
+    Ash->StackStart = MEMORY_LOCATION_RING3_STACK_START;
 
-	// Initialize signal queue
-	Ash->SignalQueue = ListCreate(KeyInteger, LIST_NORMAL);
+    // Initialize signal queue
+    Ash->SignalQueue = ListCreate(KeyInteger, LIST_NORMAL);
 }
 
 /* This is the standard ash-boot function
@@ -99,420 +101,406 @@ void
 PhoenixBootAsh(
     _In_Opt_ void *Args)
 {
-	// Variables
+    // Variables
     MCoreAsh_t *Ash = (MCoreAsh_t*)Args;
     
     // Finish boot-process and go to usermode
-	PhoenixFinishAsh(Ash);
-	ThreadingEnterUserMode(Ash);
+    PhoenixFinishAsh(Ash);
+    ThreadingEnterUserMode(Ash);
 }
 
-/* This function loads the executable and
+/* PhoenixInitializeAsh
+ * This function loads the executable and
  * prepares the ash-environment, at this point
  * it won't be completely running yet, it needs
  * its own thread for that. Returns 0 on success */
-int PhoenixInitializeAsh(MCoreAsh_t *Ash, MString_t *Path)
+KERNELAPI
+OsStatus_t
+KERNELABI
+PhoenixInitializeAsh(
+    _InOut_ MCoreAsh_t  *Ash, 
+    _In_ MString_t      *Path)
 { 
-	/* Variables needed for init */
-	BufferObject_t *BufferObject = NULL;
-	UUId_t fHandle = UUID_INVALID;
-	uint8_t *fBuffer = NULL;
-	char *fPath = NULL;
-	size_t fSize = 0, fRead = 0, fIndex = 0;
-	int Index = 0, ShouldFree = 0;
+    // Variables
+    BufferObject_t *BufferObject    = NULL;
+    UUId_t fHandle                  = UUID_INVALID;
+    uint8_t *fBuffer                = NULL;
+    char *fPath                     = NULL;
+    size_t fSize = 0, fRead = 0, fIndex = 0;
+    int Index = 0, ShouldFree = 0;
 
-	/* Sanity */
-	if (Path == NULL) {
-		return -1;
-	}
+    // Sanitize inputs
+    if (Path == NULL) {
+        ERROR("Invalid parameters for PhoenixInitializeAsh");
+        return OsError;
+    }
 
-	/* Reset the Ash structure to be safe
-	 * we don't want random data there */
-	memset(Ash, 0, sizeof(MCoreAsh_t));
+    // Debug
+    TRACE("PhoenixInitializeAsh(%s)", MStringRaw(Path));
 
-	/* Open File 
-	 * We have a special case here
-	 * in case we are loading from RD */
-	if (MStringFindChars(Path, "rd:/") != MSTRING_NOT_FOUND) { 
-		Ash->Path = MStringCreate((void*)MStringRaw(Path), StrUTF8);
-		if (ModulesQueryPath(Path, (void**)&fBuffer, &fSize) != OsSuccess) {
-			return -2;
-		}
-	}
-	else {
-		if (OpenFile(MStringRaw(Path), 
-			__FILE_MUSTEXIST, __FILE_READ_ACCESS, 
-			&fHandle) != FsOk) {
-			return -2;
-		}
+    // Zero out structure
+    memset(Ash, 0, sizeof(MCoreAsh_t));
 
-		/* Allocate a buffer */
-		GetFileSize(fHandle, &fSize, NULL);
-		BufferObject = CreateBuffer(fSize);
-		fBuffer = (uint8_t*)kmalloc(fSize);
-		fPath = (char*)kmalloc(_MAXPATH);
+    // Open File 
+    // We have a special case here
+    // in case we are loading from RD
+    if (MStringFindChars(Path, "rd:/") != MSTRING_NOT_FOUND) { 
+        Ash->Path = MStringCreate((void*)MStringRaw(Path), StrUTF8);
+        if (ModulesQueryPath(Path, (void**)&fBuffer, &fSize) != OsSuccess) {
+            ERROR("Failed to locate module/file in ramdisk.");
+            return OsError;
+        }
+    }
+    else {
+        if (OpenFile(MStringRaw(Path), 
+            __FILE_MUSTEXIST, __FILE_READ_ACCESS, &fHandle) != FsOk) {
+            ERROR("Invalid path given.");
+            return OsError;
+        }
 
-		// Set that we should free the buffer again
-		ShouldFree = 1;
+        // Allocate buffer large enough to read entire file
+        GetFileSize(fHandle, &fSize, NULL);
+        BufferObject = CreateBuffer(fSize);
+        fBuffer = (uint8_t*)kmalloc(fSize);
+        fPath = (char*)kmalloc(_MAXPATH);
 
-		/* Reset path buffer */
-		memset(fPath, 0, _MAXPATH);
+        // Set that we should free the buffer again
+        ShouldFree = 1;
 
-		/* Read */
-		ReadFile(fHandle, BufferObject, &fIndex, &fRead);
-		ReadBuffer(BufferObject, (__CONST void*)fBuffer, fRead, NULL);
+        // Read file and copy path
+        memset(fPath, 0, _MAXPATH);
+        ReadFile(fHandle, BufferObject, &fIndex, &fRead);
+        ReadBuffer(BufferObject, (__CONST void*)fBuffer, fRead, NULL);
+        GetFilePath(fHandle, fPath, _MAXPATH);
+        Ash->Path = MStringCreate(fPath, StrUTF8);
 
-		/* Save a copy of the path */
-		GetFilePath(fHandle, fPath, _MAXPATH);
-		Ash->Path = MStringCreate(fPath, StrUTF8);
+        // Cleanup
+        DestroyBuffer(BufferObject);
+        CloseFile(fHandle);
+        kfree(fPath);
+    }
 
-		/* Close */
-		DestroyBuffer(BufferObject);
-		CloseFile(fHandle);
-		kfree(fPath);
-	}
+    // Validate the pe-file buffer
+    if (!PeValidate(fBuffer, fSize)) {
+        ERROR("Failed to validate the file as a PE-file.");
+        if (ShouldFree == 1) {
+            kfree(fBuffer);
+        }
+        return OsError;
+    }
 
-	/* Validate File */
-	if (!PeValidate(fBuffer, fSize)) {
-		if (ShouldFree == 1) {
-			kfree(fBuffer);
-		}
-		return -3;
-	}
+    // Update initial members
+    Ash->Id = PhoenixGetNextId();
+    Ash->Parent = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+    Ash->Type = AshBase;
 
-	/* Set initial */
-	Ash->Id = PhoenixGetNextId();
-	Ash->Parent = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
-	Ash->Type = AshBase;
+    // Split path, even if a / is not found
+    // it won't fail, since -1 + 1 = 0, so we just copy
+    // the entire string
+    Index = MStringFindReverse(Ash->Path, '/');
+    Ash->Name = MStringSubString(Ash->Path, Index + 1, -1);
 
-	/* Split path, even if a / is not found
-	 * it won't fail, since -1 + 1 = 0, so we just copy
-	 * the entire string */
-	Index = MStringFindReverse(Ash->Path, '/');
-	Ash->Name = MStringSubString(Ash->Path, Index + 1, -1);
-
-	/* Save file buffer */
-	Ash->FileBuffer = fBuffer;
-	Ash->FileBufferLength = fSize;
-
-	/* Create the pipe list, there are as a default
-	 * no pipes open for a process, the process must
-	 * open the pipes it need */
-	Ash->Pipes = ListCreate(KeyInteger, LIST_SAFE);
-
-	/* Return success! */
-	return 0;
+    // Store members and initialize members
+    Ash->FileBuffer = fBuffer;
+    Ash->FileBufferLength = fSize;
+    Ash->Pipes = ListCreate(KeyInteger, LIST_SAFE);
+    return OsSuccess;
 }
 
-/* This is a wrapper for starting up a base Ash
+/* PhoenixStartupAsh
+ * This is a wrapper for starting up a base Ash
  * and uses <PhoenixInitializeAsh> to setup the env
  * and do validation before starting */
-UUId_t PhoenixStartupAsh(MString_t *Path)
+UUId_t
+PhoenixStartupAsh(
+    _In_ MString_t *Path)
 {
-	/* Variables needed for this */
-	MCoreAsh_t *Ash = NULL;
+    // Variables
+    MCoreAsh_t *Ash = NULL;
 
-	/* Allocate the structure */
-	Ash = (MCoreAsh_t*)kmalloc(sizeof(MCoreAsh_t));
+    // Allocate and initialize instance
+    Ash = (MCoreAsh_t*)kmalloc(sizeof(MCoreAsh_t));
+    if (PhoenixInitializeAsh(Ash, Path) != OsSuccess) {
+        kfree(Ash);
+        return UUID_INVALID;
+    }
 
-	/* Sanitize the created Ash */
-	if (PhoenixInitializeAsh(Ash, Path)) {
-		kfree(Ash);
-		return UUID_INVALID;
-	}
-
-	// Register ash
-	PhoenixRegisterAsh(Ash);
-
-	/* Create the loader thread */
-	ThreadingCreateThread((char*)MStringRaw(Ash->Name),
-		PhoenixBootAsh, Ash, THREADING_USERMODE);
-	return Ash->Id;
+    // Register ash
+    PhoenixRegisterAsh(Ash);
+    ThreadingCreateThread(MStringRaw(Ash->Name),
+        PhoenixBootAsh, Ash, THREADING_USERMODE);
+    return Ash->Id;
 }
 
-/* These function manipulate pipes on the given port
- * there are some pre-defined ports on which pipes
- * can be opened, window manager etc */
-int PhoenixOpenAshPipe(MCoreAsh_t *Ash, int Port, Flags_t Flags)
+/* PhoenixOpenAshPipe
+ * Creates a new communication pipe available for use. */
+OsStatus_t
+PhoenixOpenAshPipe(
+    _In_ MCoreAsh_t  *Ash, 
+    _In_ int          Port, 
+    _In_ Flags_t      Flags)
 {
-	/* Variables */
-	MCorePipe_t *Pipe = NULL;
-	DataKey_t Key;
-	Key.Value = Port;
+    // Variables
+    MCorePipe_t *Pipe = NULL;
+    DataKey_t Key;
 
-	/* Sanitize the parameters */
-	if (Ash == NULL || Port < 0) {
-		return -1;
-	}
+    // Debug
+    TRACE("PhoenixOpenAshPipe(Port %i)", Port);
 
-	/* Make sure that a pipe on the given Port 
-	 * doesn't already exist! */
-	if (ListGetDataByKey(Ash->Pipes, Key, 0) != NULL) {
-		return -2;
-	}
+    // Sanitize
+    if (Ash == NULL || Port < 0) {
+        ERROR("Invalid ash-instance or port id");
+        return OsError;
+    }
 
-	/* Open a new pipe */
-	Pipe = PipeCreate(ASH_PIPE_SIZE, Flags);
+    // Make sure that a pipe on the given Port 
+    // doesn't already exist!
+    Key.Value = Port;
+    if (ListGetDataByKey(Ash->Pipes, Key, 0) != NULL) {
+        ERROR("The requested pipe already exists");
+        return OsError;
+    }
 
-	/* Add it to the list */
-	ListAppend(Ash->Pipes, ListCreateNode(Key, Key, Pipe));
+    // Create a new pipe and add it to list
+    Pipe = PipeCreate(ASH_PIPE_SIZE, Flags);
+    ListAppend(Ash->Pipes, ListCreateNode(Key, Key, Pipe));
+
+    // Wake sleepers waiting for pipe creations
     SchedulerThreadWakeAll((uintptr_t*)Ash->Pipes);
-
-	/* The pipe is now created and ready
-	 * for use by the process */
-	return 0;
+    return OsSuccess;
 }
 
-/* Waits for a pipe to be opened on the given
- * ash instance, be careful as you can wait forever
- * if you don't know what you're doing */
-int PhoenixWaitAshPipe(MCoreAsh_t *Ash, int Port)
+/* PhoenixWaitAshPipe
+ * Waits for a pipe to be opened on the given
+ * ash instance. */
+OsStatus_t
+PhoenixWaitAshPipe(
+    _In_ MCoreAsh_t *Ash, 
+    _In_ int         Port)
 {
-	/* Variables */
-	DataKey_t Key;
-	int Run = 1;
+    // Variables
+    DataKey_t Key;
+    int Run = 1;
 
-	/* Sanitize parameters */
-	if (Ash == NULL) {
-		return -1;
-	}
+    // Sanitize input
+    if (Ash == NULL) {
+        return OsError;
+    }
 
-	/* Set key */
-	Key.Value = Port;
-
-	/* Sleep on the given pipes */
-	while (Run) {
-		if (ListGetDataByKey(Ash->Pipes, Key, 0) != NULL) {
-			break;
-		}
-		SchedulerThreadSleep((uintptr_t*)Ash->Pipes, 0);
- 	}
-
-	/* Done! */
-	return 0;
+    // Wait for wake-event on pipe
+    Key.Value = Port;
+    while (Run) {
+        if (ListGetDataByKey(Ash->Pipes, Key, 0) != NULL) {
+            break;
+        }
+        SchedulerThreadSleep((uintptr_t*)Ash->Pipes, 0);
+     }
+    return OsSuccess;
 }
 
-/* Closes the pipe for the given Ash, and cleansup
+/* PhoenixCloseAshPipe
+ * Closes the pipe for the given Ash, and cleansup
  * resources allocated by the pipe. This shutsdown
  * any communication on the port */
-int PhoenixCloseAshPipe(MCoreAsh_t *Ash, int Port)
+OsStatus_t
+PhoenixCloseAshPipe(
+    _In_ MCoreAsh_t *Ash, 
+    _In_ int         Port)
 {
-	/* Variables */
-	MCorePipe_t *Pipe = NULL;
-	DataKey_t Key;
-	Key.Value = Port;
+    // Variables
+    MCorePipe_t *Pipe = NULL;
+    DataKey_t Key;
 
-	/* Sanitize the parameters */
-	if (Ash == NULL || Port < 0) {
-		return -1;
-	}
+    // Sanitize input
+    if (Ash == NULL || Port < 0) {
+        return OsSuccess;
+    }
 
-	/* There must exist a pipe on the port, otherwise
-	 * we'll throw an error! */
-	Pipe = (MCorePipe_t*)ListGetDataByKey(Ash->Pipes, Key, 0);
-	if (Pipe == NULL) {
-		return -2;
-	}
+    // Lookup pipe
+    Key.Value = Port;
+    Pipe = (MCorePipe_t*)ListGetDataByKey(Ash->Pipes, Key, 0);
+    if (Pipe == NULL) {
+        return OsError;
+    }
 
-	/* Cleanup the pipe */
-	PipeDestroy(Pipe);
+    // Cleanup pipe and remove node
+    PipeDestroy(Pipe);
+    return ListRemoveByKey(Ash->Pipes, Key);
+}
 
-	/* Remove entry from list */
-	return ListRemoveByKey(Ash->Pipes, Key) == 1 ? 0 : -1;
+/* PhoenixGetAshPipe
+ * Retrieves an existing pipe instance for the given ash
+ * and port-id. If it doesn't exist, returns NULL. */
+MCorePipe_t*
+PhoenixGetAshPipe(
+    _In_ MCoreAsh_t     *Ash, 
+    _In_ int             Port)
+{
+    // Variables
+    DataKey_t Key;
+
+    // Sanitize input
+    if (Ash == NULL || Port < 0) {
+        return NULL;
+    }
+
+    // Perform the lookup
+    Key.Value = Port;
+    return (MCorePipe_t*)ListGetDataByKey(Ash->Pipes, Key, 0);
 }
 
 /* PhoenixGetAsh
  * This function looks up a ash structure by the given id */
 MCoreAsh_t*
 PhoenixGetAsh(
-	_In_ UUId_t AshId)
+    _In_ UUId_t AshId)
 {
-	// Variables
+    // Variables
     ListNode_t *Node    = NULL;
     UUId_t CurrentCpu   = UUID_INVALID;
 
-	// If we pass invalid get the current
-	if (AshId == UUID_INVALID) {
-		CurrentCpu = CpuGetCurrentId();
-		if (ThreadingGetCurrentThread(CurrentCpu) != NULL) {
-			AshId = ThreadingGetCurrentThread(CurrentCpu)->AshId;
-		}
-		else {
-			return NULL;
-		}
-	}
+    // If we pass invalid get the current
+    if (AshId == UUID_INVALID) {
+        CurrentCpu = CpuGetCurrentId();
+        if (ThreadingGetCurrentThread(CurrentCpu) != NULL) {
+            AshId = ThreadingGetCurrentThread(CurrentCpu)->AshId;
+        }
+        else {
+            return NULL;
+        }
+    }
 
-	// Still none?
-	if (AshId == UUID_INVALID) {
-		return NULL;
-	}
+    // Still none?
+    if (AshId == UUID_INVALID) {
+        return NULL;
+    }
 
-	// Now we can sanitize the extra stuff, like alias
-	PhoenixUpdateAlias(&AshId);
+    // Now we can sanitize the extra stuff, like alias
+    PhoenixUpdateAlias(&AshId);
 
-	// Iterate the list for ash-id
-	_foreach(Node, PhoenixGetProcesses()) {
-		MCoreAsh_t *Ash = (MCoreAsh_t*)Node->Data;
-		if (Ash->Id == AshId) {
-			return Ash;
-		}
-	}
+    // Iterate the list for ash-id
+    _foreach(Node, PhoenixGetProcesses()) {
+        MCoreAsh_t *Ash = (MCoreAsh_t*)Node->Data;
+        if (Ash->Id == AshId) {
+            return Ash;
+        }
+    }
 
-	// We didn't find it
-	return NULL;
+    // We didn't find it
+    return NULL;
 }
-
-/* Retrieves a pipe for the given port, if it doesn't
- * exist, it returns NULL, otherwise a pointer to the
- * given pipe is returned */
-MCorePipe_t *PhoenixGetAshPipe(MCoreAsh_t *Ash, int Port)
-{
-	/* Variables */
-	DataKey_t Key;
-	Key.Value = Port;
-
-	/* Sanitize the parameters */
-	if (Ash == NULL || Port < 0) {
-		return NULL;
-	}
-
-	/* Return the data by the given key */
-	return (MCorePipe_t*)ListGetDataByKey(Ash->Pipes, Key, 0);
-}
-
-/* Queries the given ash for information
- * which kind of information is determined by <Function> */
-int PhoenixQueryAsh(MCoreAsh_t *Ash,
-	AshQueryFunction_t Function, void *Buffer, size_t Length)
-{
-	/* Sanitize the parameters */
-	if (Ash == NULL
-		|| Buffer == NULL
-		|| Length == 0)
-		return -1;
-
-	/* Now.. What do you want to know? */
-	switch (Function)
-	{
-		/* Query name? */
-		case AshQueryName:
-		{
-			/* Never copy more data than user can contain */
-			size_t BytesToCopy = MIN(MStringSize(Ash->Name), Length);
-
-			/* Cooopy */
-			memcpy(Buffer, MStringRaw(Ash->Name), BytesToCopy);
-
-		} break;
-
-		/* Query memory? in bytes of course */
-		case AshQueryMemory:
-		{
-			/* For now, we only support querying of
-			 * how much memory has been allocated for the heap */
-			*((size_t*)Buffer) = (Ash->Heap->BlocksAllocated * PAGE_SIZE);
-
-		} break;
-
-		/* Query immediate parent? */
-		case AshQueryParent:
-		{
-			/* Get a pointer */
-			UUId_t *bPtr = (UUId_t*)Buffer;
-
-			/* There we go */
-			*bPtr = Ash->Parent;
-
-		} break;
-
-		/* Query topmost parent? */
-		case AshQueryTopMostParent:
-		{
-			/* Get a pointer */
-			UUId_t *bPtr = (UUId_t*)Buffer;
-
-			/* Set initial value */
-			*bPtr = UUID_INVALID;
-
-			/* While parent has a valid parent */
-			MCoreAsh_t *Parent = Ash;
-			while (Parent->Parent != UUID_INVALID) {
-				*bPtr = Parent->Parent;
-				Parent = PhoenixGetAsh(Parent->Parent);
-			}
-
-		} break;
-
-		default:
-			break;
-	}
-
-	/* Done! */
-	return 0;
-}
-
-/* Cleans up a given Ash, freeing all it's allocated resources
- * and unloads it's executables, memory space is not cleaned up
- * must be done by external thread */
-void PhoenixCleanupAsh(MCoreAsh_t *Ash)
-{
-	/* Vars */
-	ListNode_t *fNode = NULL;
-
-	/* Cleanup Strings */
-	MStringDestroy(Ash->Name);
-	MStringDestroy(Ash->Path);
-
-	/* Destroy signal stuff */
-	_foreach(fNode, Ash->SignalQueue) {
-		/* Free the signal */
-		kfree(fNode->Data);
-	}
-
-	/* Destroy the signal list */
-	ListDestroy(Ash->SignalQueue);
-
-	/* Destroy all open pipies */
-	_foreach(fNode, Ash->Pipes) {
-		PipeDestroy((MCorePipe_t*)fNode->Data);
-	}
-
-	/* Now destroy the pipe-list */
-	ListDestroy(Ash->Pipes);
-
-	/* Cleanup memory allocators */
-	BlockBitmapDestroy(Ash->Shm);
-	BlockBitmapDestroy(Ash->Heap);
-
-	/* Cleanup executable data */
-	PeUnloadImage(Ash->Executable);
-
-	/* Rest of memory is cleaned during
-	* address space cleanup */
-	kfree(Ash);
-}
-
-
 
 /* PhoenixGetCurrentAsh
  * Retrives the current ash for the running thread */
 MCoreAsh_t*
 PhoenixGetCurrentAsh(void)
 {
-	// Variables
-	UUId_t CurrentCpu = UUID_INVALID;
+    // Variables
+    UUId_t CurrentCpu = UUID_INVALID;
 
-	// Get the ID
-	CurrentCpu = CpuGetCurrentId();
-	if (ThreadingGetCurrentThread(CurrentCpu) != NULL) {
-		if (ThreadingGetCurrentThread(CurrentCpu)->AshId != UUID_INVALID) {
-			return PhoenixGetAsh(ThreadingGetCurrentThread(CurrentCpu)->AshId);
-		}
-		else {
-			return NULL;
-		}
-	}
-	else {
-		return NULL;
-	}
+    // Get the ID
+    CurrentCpu = CpuGetCurrentId();
+    if (ThreadingGetCurrentThread(CurrentCpu) != NULL) {
+        if (ThreadingGetCurrentThread(CurrentCpu)->AshId != UUID_INVALID) {
+            return PhoenixGetAsh(ThreadingGetCurrentThread(CurrentCpu)->AshId);
+        }
+        else {
+            return NULL;
+        }
+    }
+    else {
+        return NULL;
+    }
 }
+
+/* PhoenixQueryAsh
+ * Queries the given ash for information
+ * which kind of information is determined by <Function> */
+OsStatus_t
+PhoenixQueryAsh(
+    _In_ MCoreAsh_t         *Ash,
+    _In_ AshQueryFunction_t  Function,
+    _In_ void               *Buffer,
+    _In_ size_t              Length)
+{
+    // Variables
+    OsStatus_t Result   = OsError;
+    
+    // Sanitize input
+    if (Ash == NULL || Buffer == NULL || Length == 0) {
+        return OsError;
+    }
+
+    // Handle function
+    switch (Function) {
+        case AshQueryName: {
+            size_t BytesToCopy = MIN(MStringSize(Ash->Name), Length);
+            memcpy(Buffer, MStringRaw(Ash->Name), BytesToCopy);
+            Result = OsSuccess;
+        } break;
+
+        // For now, we only support querying of
+        // how much memory has been allocated for the heap 
+        case AshQueryMemory: {
+            *((size_t*)Buffer) = (Ash->Heap->BlocksAllocated * PAGE_SIZE);
+            Result = OsSuccess;
+        } break;
+
+        case AshQueryParent: {
+            UUId_t *bPtr = (UUId_t*)Buffer;
+            *bPtr = Ash->Parent;
+            Result = OsSuccess;
+        } break;
+        case AshQueryTopMostParent: {
+            UUId_t *bPtr = (UUId_t*)Buffer;
+            *bPtr = UUID_INVALID;
+
+            // Iterate up till top parent
+            MCoreAsh_t *Parent = Ash;
+            while (Parent->Parent != UUID_INVALID) {
+                *bPtr = Parent->Parent;
+                Parent = PhoenixGetAsh(Parent->Parent);
+            }
+            Result = OsSuccess;
+        } break;
+
+        default:
+            break;
+    }
+    return Result;
+}
+
+/* PhoenixCleanupAsh
+ * Cleans up a given Ash, freeing all it's allocated resources
+ * and unloads it's executables, memory space is not cleaned up
+ * must be done by external thread */
+void
+PhoenixCleanupAsh(
+    _In_ MCoreAsh_t *Ash)
+{
+    // Variables
+    ListNode_t *fNode = NULL;
+
+    // Strings first
+    MStringDestroy(Ash->Name);
+    MStringDestroy(Ash->Path);
+
+    // Cleanup signals
+    _foreach(fNode, Ash->SignalQueue) {
+        kfree(fNode->Data);
+    }
+    ListDestroy(Ash->SignalQueue);
+
+    // Cleanup pipes
+    _foreach(fNode, Ash->Pipes) {
+        PipeDestroy((MCorePipe_t*)fNode->Data);
+    }
+    ListDestroy(Ash->Pipes);
+
+    // Cleanup memory
+    BlockBitmapDestroy(Ash->Shm);
+    BlockBitmapDestroy(Ash->Heap);
+    PeUnloadImage(Ash->Executable);
+    kfree(Ash);
+}
+

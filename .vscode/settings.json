@@ -262,6 +262,7 @@
         "list": "c",
         "__memory": "c",
         "blbitmap.h": "c",
-        "numeric": "c"
+        "numeric": "c",
+        "signal.h": "c"
     }
 }
