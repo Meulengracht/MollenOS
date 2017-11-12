@@ -32,107 +32,54 @@
 #include <log.h>
 
 /* Includes
-* - C-Library */
-#include <stddef.h>
+* - Library */
 #include <ds/list.h>
 #include <ds/mstring.h>
+#include <stddef.h>
 #include <string.h>
 
-/* This is the finalizor function for starting
- * up a new Ash Server, it finishes setting up the environment
- * and memory mappings, must be called on it's own thread */
-void
-PhoenixBootServer(
-	_In_ void *Args)
-{
-	// Initiate pointer
-	MCoreServer_t *Server = (MCoreServer_t*)Args;
-
-	// Finish the standard setup of the ash
-	PhoenixFinishAsh(&Server->Base);
-
-	// Initialize the server io-space memory
-	Server->DriverMemory = BlockBitmapCreate(MEMORY_LOCATION_RING3_IOSPACE,
-		MEMORY_LOCATION_RING3_IOSPACE_END, PAGE_SIZE);
-
-	// Map in arguments
-	if (Server->ArgumentLength != 0) {
-		AddressSpaceMap(AddressSpaceGetCurrent(),
-			MEMORY_LOCATION_RING3_ARGS, MAX(PAGE_SIZE, Server->ArgumentLength),
-			__MASK, AS_FLAG_APPLICATION, NULL);
-
-		// Copy arguments
-		memcpy((void*)MEMORY_LOCATION_RING3_ARGS,
-			Server->ArgumentBuffer, Server->ArgumentLength);
-	}
-
-	// Enter userland - should never return
-	ThreadingEnterUserMode(Server);
-
-	// Yield and safety catch
-	ThreadingYield();
-	for (;;);
-}
-
-/* This function loads the executable and
+/* PhoenixCreateServer
+ * This function loads the executable and
  * prepares the ash-server-environment, at this point
  * it won't be completely running yet, it needs its own thread for that */
 UUId_t
 PhoenixCreateServer(
-	_In_ MString_t *Path,
-	_In_ void *Arguments, 
-	_In_ size_t Length)
+	_In_ MString_t *Path)
 {
 	// Variables
 	MCoreServer_t *Server = NULL;
 
-	/* Allocate the structure */
+	// Allocate and initiate new instance
 	Server = (MCoreServer_t*)kmalloc(sizeof(MCoreServer_t));
-
-	/* Sanitize the created Ash */
 	if (PhoenixInitializeAsh(&Server->Base, Path) != OsSuccess) {
 		LogFatal("SERV", "Failed to spawn server %s", MStringRaw(Path));
 		kfree(Server);
 		return UUID_INVALID;
 	}
 
-	/* Set type of base to process */
-	Server->Base.Type = AshServer;
+	// Initialize the server io-space memory
+	Server->DriverMemory = BlockBitmapCreate(MEMORY_LOCATION_RING3_IOSPACE,
+		MEMORY_LOCATION_RING3_IOSPACE_END, PAGE_SIZE);
 
-	/* Save arguments */
-	if (Arguments != NULL && Length != 0) {
-		Server->ArgumentBuffer = kmalloc(Length);
-		memcpy(Server->ArgumentBuffer, Arguments, Length);
-	}
-	else {
-		Server->ArgumentBuffer = NULL;
-		Server->ArgumentLength = 0;
-	}
-	
 	// Register ash
+	Server->Base.Type = AshServer;
 	PhoenixRegisterAsh(&Server->Base);
 
-	/* Create the loader thread */
+    // Create the loader
 	ThreadingCreateThread(MStringRaw(Server->Base.Name),
-		PhoenixBootServer, Server, THREADING_DRIVERMODE);
+		PhoenixStartupEntry, Server, THREADING_DRIVERMODE);
 	return Server->Base.Id;
 }
 
-/* Cleans up all the server-specific resources allocated
+/* PhoenixCleanupServer
+ * Cleans up all the server-specific resources allocated
  * this this AshServer, and afterwards call the base-cleanup */
-void PhoenixCleanupServer(MCoreServer_t *Server)
+void
+PhoenixCleanupServer(
+    _In_ MCoreServer_t *Server)
 {
-	/* Cleanup Strings */
-	if (Server->ArgumentBuffer != NULL) {
-		MStringDestroy(Server->ArgumentBuffer);
-	}
-
-	/* Cleanup bitmap */
+    // Destroy memory bitmap and do base cleanup
 	BlockBitmapDestroy(Server->DriverMemory);
-
-	/* Now that we have cleaned up all
-	* process-specifics, we want to just use the base
-	* cleanup */
 	PhoenixCleanupAsh((MCoreAsh_t*)Server);
 }
 

@@ -241,7 +241,7 @@ UhciQueueInitialize(
     Queue->FrameListPhysical = PoolPhysical;
 
 	// Initialize the transaction list
-	Queue->TransactionList = ListCreate(KeyInteger, LIST_SAFE);
+	Queue->TransactionList = ListCreate(KeyInteger);
 
 	// Initialize the usb scheduler
 	Controller->Scheduler = UsbSchedulerInitialize(UHCI_NUM_FRAMES, 900, 1);

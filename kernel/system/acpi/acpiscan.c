@@ -290,7 +290,7 @@ AcpiDevicesScan(void)
     TRACE("AcpiDevicesScan()");
     
     // Initialize list and fixed objects
-	GlbPciAcpiDevices = ListCreate(KeyInteger, LIST_NORMAL);
+	GlbPciAcpiDevices = ListCreate(KeyInteger);
 	if (AcpiGbl_FADT.Flags & ACPI_FADT_POWER_BUTTON) {
         TRACE("Initializing power button");
 		if (AcpiDeviceCreate(NULL, ACPI_ROOT_OBJECT, ACPI_BUS_TYPE_POWER) != OsSuccess) {

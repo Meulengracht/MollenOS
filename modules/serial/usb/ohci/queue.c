@@ -151,7 +151,7 @@ OhciQueueInitialize(
 
     // Initialize transaction counters
     // and the transaction list
-    Queue->TransactionList = ListCreate(KeyInteger, LIST_SAFE);
+    Queue->TransactionList = ListCreate(KeyInteger);
 
     // Initialize the internal data structures
     return OhciQueueResetInternalData(Controller);

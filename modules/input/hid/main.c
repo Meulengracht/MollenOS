@@ -77,7 +77,7 @@ OsStatus_t
 OnLoad(void)
 {
 	// Initialize state for this driver
-    GlbHidDevices = ListCreate(KeyInteger, LIST_NORMAL);
+    GlbHidDevices = ListCreate(KeyInteger);
     return UsbInitialize();
 }
 

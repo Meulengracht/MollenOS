@@ -50,8 +50,8 @@ _CRTXX_ABI void __CppInitVectoredEH(void)
 {
 	/* Initialize our two lists and the common lock */
 	SpinlockReset(&__VectorEhLock);
-	__VectorEhExceptions = ListCreate(KeyInteger, LIST_NORMAL);
-	__VectorEhContinuations = ListCreate(KeyInteger, LIST_NORMAL);
+	__VectorEhExceptions = ListCreate(KeyInteger);
+	__VectorEhContinuations = ListCreate(KeyInteger);
 }
 
 /* Call a list of vectored EH handlers */

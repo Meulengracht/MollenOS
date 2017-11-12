@@ -96,7 +96,6 @@ __EXTERN void ApicSendIpi(UUId_t CpuTarget, uint32_t Vector);
 #define MEMORY_SEGMENT_KERNEL_CODE_LIMIT	MEMORY_LOCATION_RAMDISK
 #define MEMORY_SEGMENT_KERNEL_DATA_LIMIT	0xFFFFFFFF
 
-#define MEMORY_LOCATION_RING3_ARGS			0x1F000000	/* Base for ring3 arguments */
 #define MEMORY_LOCATION_RING3_CODE			0x20000000	/* Base for ring3 code */
 #define MEMORY_LOCATION_RING3_HEAP			0x30000000	/* Base for ring3 heap */
 #define MEMORY_LOCATION_RING3_SHM			0xA0000000	/* Base for ring3 shm */

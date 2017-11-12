@@ -72,7 +72,7 @@ AhciManagerInitialize(void)
 	TRACE("AhciManagerInitialize()");
 
 	// Create list and reset id
-	GlbDisks = ListCreate(KeyInteger, LIST_SAFE);
+	GlbDisks = ListCreate(KeyInteger);
 	GlbDiskId = 0;
 
 	// No errors

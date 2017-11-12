@@ -757,7 +757,7 @@ PeLoadImage(
     PeInfo->Name = Name;
     PeInfo->Architecture = OptHeader->Architecture;
     PeInfo->VirtualAddress = *BaseAddress;
-    PeInfo->LoadedLibraries = ListCreate(KeyInteger, LIST_NORMAL);
+    PeInfo->LoadedLibraries = ListCreate(KeyInteger);
     PeInfo->References = 1;
     PeInfo->UsingInitRD = UsingInitRD;
 

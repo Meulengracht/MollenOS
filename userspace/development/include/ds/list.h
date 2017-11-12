@@ -47,16 +47,6 @@ typedef struct _ListNode {
 typedef struct _ListNode ListIterator_t;
 typedef struct _List List_t;
 
-/* List Definitions 
- * Used to implement list with basic locking mechanisms */
-#define LIST_NORMAL				0x0
-#define LIST_SAFE				0x1
-
-/* Sorted list? Normally 
- * the list is unsorted but supports different sorts */
-#define LIST_SORT_ONINSERT		0x2
-#define LIST_SORT_ONCALL		(0x4 | LIST_SORT_ONINSERT)
-
 /* Foreach Macro(s)
  * They help keeping the code clean and readable when coding loops */
 #define foreach(i, List) ListNode_t *i; for (i = ListBegin(List); i != NULL; i = ListNext(i))
@@ -72,8 +62,7 @@ MOSAPI
 List_t*
 MOSABI
 ListCreate(
-	_In_ KeyType_t KeyType, 
-	_In_ Flags_t Attributes);
+	_In_ KeyType_t KeyType);
 
 /* ListDestroy
  * Destroys the list and frees all resources associated

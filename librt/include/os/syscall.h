@@ -53,6 +53,7 @@
 #define SYSCALL_THREADSLEEP			0xF
 #define SYSCALL_THREADYIELD			0x10
 #define SYSCALL_THREADID			0x11
+#define SYSCALL_GETSTARTINFO        0x12
 
 /* Synchronization System Calls */
 #define SYSCALL_CONDCREATE			0x15

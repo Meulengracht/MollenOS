@@ -74,7 +74,7 @@ PhoenixInitialize(void)
 
 	// Initialize Globals
 	ProcessIdGenerator = 1;
-	Processes = ListCreate(KeyInteger, LIST_SAFE);
+	Processes = ListCreate(KeyInteger);
     GcHandlerId = GcRegister(PhoenixReapAsh);
     CriticalSectionConstruct(&AccessLock, CRITICALSECTION_PLAIN);
 
@@ -247,11 +247,11 @@ PhoenixEventHandler(
 			TRACE("Spawning %s", MStringRaw(Request->Path));
 
 			if (Request->Base.Type == AshSpawnServer) {
-				Request->AshId = PhoenixCreateServer(Request->Path, 
-					Request->Arguments.Raw.Data, Request->Arguments.Raw.Length);
+				Request->AshId = PhoenixCreateServer(Request->Path);
 			}
 			else {
-				Request->AshId = PhoenixCreateProcess(Request->Path, Request->Arguments.String);
+				Request->AshId = PhoenixCreateProcess(
+                    Request->Path, &Request->StartupInformation);
 			}
 
 			// Sanitize result
@@ -283,9 +283,6 @@ PhoenixEventHandler(
 	if (Request->Base.Cleanup != 0) {
 		if (Request->Path != NULL) {
 			MStringDestroy(Request->Path);
-        }
-		if (Request->Arguments.String != NULL) {
-			MStringDestroy(Request->Arguments.String);
         }
 	}
 	return 0;

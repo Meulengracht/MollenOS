@@ -153,12 +153,12 @@ OsStatus_t VfsIdentifierFree(FileSystemDisk_t *Disk, UUId_t Id)
 OsStatus_t OnLoad(void)
 {
 	// Initialize lists
-	GlbResolveQueue = ListCreate(KeyInteger, LIST_NORMAL);
-	GlbFileSystems = ListCreate(KeyInteger, LIST_NORMAL);
-	GlbOpenHandles = ListCreate(KeyInteger, LIST_NORMAL);
-	GlbOpenFiles = ListCreate(KeyInteger, LIST_NORMAL);
-	GlbModules = ListCreate(KeyInteger, LIST_NORMAL);
-	GlbDisks = ListCreate(KeyInteger, LIST_NORMAL);
+	GlbResolveQueue = ListCreate(KeyInteger);
+	GlbFileSystems = ListCreate(KeyInteger);
+	GlbOpenHandles = ListCreate(KeyInteger);
+	GlbOpenFiles = ListCreate(KeyInteger);
+	GlbModules = ListCreate(KeyInteger);
+	GlbDisks = ListCreate(KeyInteger);
 
 	// Initialize variables
 	memset(&GlbDiskIds[0], 0, sizeof(int) * __FILEMANAGER_MAXDISKS);

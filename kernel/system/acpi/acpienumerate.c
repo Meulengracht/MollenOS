@@ -215,7 +215,7 @@ AcpiInitializeEarly(void)
     }
 
 	// Allocate ACPI node list
-	GlbAcpiNodes = ListCreate(KeyInteger, LIST_NORMAL);
+	GlbAcpiNodes = ListCreate(KeyInteger);
 
 	// Check for MADT presence and enumerate
 	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 0, &Header))) {

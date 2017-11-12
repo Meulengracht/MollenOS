@@ -53,8 +53,8 @@ GcConstruct(void)
 {
 	// Create data-structures
 	GlbGcEventLock = SemaphoreCreate(0);
-	GlbGcHandlers = ListCreate(KeyInteger, LIST_SAFE);
-	GlbGcEvents = ListCreate(KeyInteger, LIST_SAFE);
+	GlbGcHandlers = ListCreate(KeyInteger);
+	GlbGcEvents = ListCreate(KeyInteger);
 	GlbGcId = 0;
 
 	// Set initialized

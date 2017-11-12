@@ -41,7 +41,7 @@ MsdDeviceCreate(
     int i;
 
     // Debug
-    TRACE("MsdDeviceCreate()");
+    TRACE("MsdDeviceCreate(DeviceId %u)", UsbDevice->Base.DeviceId);
 
     // Validate the kind of msd device, we don't support all kinds
     if (UsbDevice->Interface.Subclass != MSD_SUBCLASS_SCSI

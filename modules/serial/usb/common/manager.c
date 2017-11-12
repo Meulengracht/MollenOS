@@ -46,7 +46,7 @@ OsStatus_t
 UsbManagerInitialize(void)
 {
 	// Instantiate and reset variables
-	__GlbControllers = ListCreate(KeyInteger, LIST_SAFE);
+	__GlbControllers = ListCreate(KeyInteger);
 	__GlbTransferId = 0;
 
 	// Done

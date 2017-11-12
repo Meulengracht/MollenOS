@@ -86,7 +86,7 @@ ModulesInitialize(
 
     // Initialize the list of modules 
     // and servers so we can add later :-)
-    GlbModules = ListCreate(KeyInteger, LIST_NORMAL);
+    GlbModules = ListCreate(KeyInteger);
 
     // Store filecount so we can iterate
     Entry = (MCoreRamDiskEntry_t*)
@@ -179,8 +179,6 @@ ModulesRunServers(void)
 
             // Set parameters
             Request->Path = Path;
-            Request->Arguments.Raw.Data = NULL;
-            Request->Arguments.Raw.Length = 0;
 
             // Send off async requests
             PhoenixCreateRequest(Request);

@@ -23,10 +23,11 @@
  * - System */
 #include <os/driver/window.h>
 #include <os/syscall.h>
+#include <os/process.h>
 #include <os/thread.h>
 
 /* Includes 
- * - C-Library */
+ * - Library */
 #include <stddef.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -36,13 +37,6 @@ void __EntryLibCEmpty(void)
 {
 }
 #else
-
-/* Private Definitions */
-#if defined(_X86_32) || defined(i386)
-#define MOLLENOS_ARGUMENT_ADDR	0x1F000000
-#elif defined(X86_64)
-#define MOLLENOS_ARGUMENT_ADDR	0x1F000000
-#endif
 
 /* Extern
  * - C/C++ Initialization
@@ -54,6 +48,11 @@ __EXTERN void __CppFinit(void);
 MOSAPI void __CppInitVectoredEH(void);
 #endif
 
+/* Globals
+ * Static buffer to avoid allocations for process startup information. */
+static char StartupArgumentBuffer[512];
+static char StartupInheritanceBuffer[512];
+
 /* StdioInitialize
  * Initializes default handles and resources */
 _CRTIMP
@@ -61,7 +60,9 @@ void
 StdioInitialize(void);
 
 /* Unescape Quotes in arguments */
-void UnEscapeQuotes(char *Arg)
+void
+UnEscapeQuotes(
+    _InOut_ char *Arg)
 {
 	/* Placeholder */
 	char *LastChar = NULL;
@@ -85,7 +86,10 @@ void UnEscapeQuotes(char *Arg)
 
 /* Parse a command line buffer into arguments 
  * If called with NULL in argv, it simply counts */
-int ParseCommandLine(char *CmdLine, char **ArgBuffer)
+int
+ParseCommandLine(
+    _In_ char *CmdLine,
+    _In_ char **ArgBuffer)
 {
 	/* Variables */
 	char *BufPtr;
@@ -149,93 +153,79 @@ int ParseCommandLine(char *CmdLine, char **ArgBuffer)
 
 /* CRT Initialization sequence
  * for a shared C/C++ environment call this in all entry points */
-void _mCrtInit(ThreadLocalStorage_t *Tls)
+char **
+__CrtInitialize(
+    _InOut_ ThreadLocalStorage_t    *Tls,
+    _Out_ int                       *ArgumentCount)
 {
+    // Variables
+    ProcessStartupInformation_t StartupInformation;
+	char **Arguments            = NULL;
+
 	// Initialize C/CPP
 	__CppInit();
  
 	// Initialize the TLS System
 	TLSInitInstance(Tls);
 	TLSInit();
- 
+
+    // Get startup information
+    memset(&StartupArgumentBuffer[0], 0, sizeof(StartupArgumentBuffer));
+    memset(&StartupInheritanceBuffer[0], 0, sizeof(StartupInheritanceBuffer));
+    StartupInformation.ArgumentPointer = &StartupArgumentBuffer[0];
+    StartupInformation.ArgumentLength = sizeof(StartupArgumentBuffer);
+    StartupInformation.InheritanceBlockPointer = &StartupInheritanceBuffer[0];
+    StartupInformation.InheritanceBlockLength = sizeof(StartupInheritanceBuffer);
+    GetStartupInformation(&StartupInformation);
+
 	// Initialize STD-C
-	StdioInitialize();
+	StdioInitialize( /* StartupInformation.InheritanceBlockPointer */ );
  
 	// If msc, initialize the vectored-eh
  #ifndef __clang__
 	__CppInitVectoredEH();
  #endif
+
+    // Handle process arguments
+    *ArgumentCount = ParseCommandLine(&StartupArgumentBuffer[0], NULL);
+    Arguments = (char**)calloc(sizeof(char*), (*ArgumentCount) + 1);
+    ParseCommandLine(&StartupArgumentBuffer[0], Arguments);
+    return Arguments;
 }
 
-/* Service Entry Point 
- * Use this entry point for programs
- * that don't require a window/console */
-void _mSrvCrt(void)
+/* __CrtConsoleEntry
+ * Console crt initialization routine. This spawns a new console
+ * if no inheritance is given. */
+void
+__CrtConsoleEntry(void)
 {
-	/* Variables */
-	ThreadLocalStorage_t Tls;
-	char **Args = NULL;
-	int ArgCount = 0;
-	int RetValue = 0;
+	// Variables
+	ThreadLocalStorage_t    Tls;
+	char **Arguments        = NULL;
+	int ArgumentCount       = 0;
+	int ExitCode            = 0;
 
-	/* Initialize environment */
-	_mCrtInit(&Tls);
+	// Initialize run-time
+	Arguments = __CrtInitialize(&Tls, &ArgumentCount);
 
-	/* Init Cmd */
-	ArgCount = ParseCommandLine((char*)MOLLENOS_ARGUMENT_ADDR, NULL);
-	Args = (char**)calloc(sizeof(char*), ArgCount + 1);
-	ParseCommandLine((char*)MOLLENOS_ARGUMENT_ADDR, Args);
+    // Call user-process entry routine
+	ExitCode = main(ArgumentCount, Arguments);
 
-	/* Call main */
-	RetValue = main(ArgCount, Args);
-
-	/* Cleanup */
-	free(Args);
-
-	/* Exit cleanly, calling atexit() functions */
-	exit(RetValue);
+	// Exit cleanly, calling atexit() functions
+	free(Arguments);
+	exit(ExitCode);
 }
 
 /* Dll Entry Point 
  * Use this entry point for dll extensions */
 void _mDllCrt(int Action)
 {
-	/* Init Crt */
 	if (Action == 0) {
 		__CppInit();
 	}
 	else {
 		__CppFinit();
 	}
-}
-
-/* Console Entry Point 
- * Use this entry point for 
- * programs that require a console */
-void _mConCrt(void)
-{
-	/* Variables */
-	ThreadLocalStorage_t Tls;
-	char **Args = NULL;
-	int ArgCount = 0;
-	int RetValue = 0;
-
-	/* Initialize environment */
-	_mCrtInit(&Tls);
-
-	/* Init Cmd */
-	ArgCount = ParseCommandLine((char*)MOLLENOS_ARGUMENT_ADDR, NULL);
-	Args = (char**)calloc(sizeof(char*), ArgCount + 1);
-	ParseCommandLine((char*)MOLLENOS_ARGUMENT_ADDR, Args);
-
-	/* Call main */
-	RetValue = main(ArgCount, Args);
-
-	/* Cleanup */
-	free(Args);
-
-	/* Exit cleanly, calling atexit() functions */
-	exit(RetValue);
 }
 
 #endif

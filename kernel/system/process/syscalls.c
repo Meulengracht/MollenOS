@@ -83,59 +83,72 @@ ScSystemDebug(
 
 /* ScProcessSpawn
  * Spawns a new process with the given path
- * and the given arguments, returns UUID_INVALID 
- * on failure */
-UUId_t ScProcessSpawn(char *Path, char *Arguments, int Async)
+ * and the given arguments, returns UUID_INVALID on failure */
+UUId_t
+ScProcessSpawn(
+    _In_ __CONST char *Path,
+    _In_ __CONST ProcessStartupInformation_t *StartupInformation,
+    _In_ int Asynchronous)
 {
     // Variables
-    MCorePhoenixRequest_t *Request = NULL;
-    MString_t *mPath = NULL;
-    MString_t *mArguments = NULL;
-    UUId_t Result;
+    MCorePhoenixRequest_t *Request  = NULL;
+    MString_t *mPath                = NULL;
+    UUId_t Result                   = UUID_INVALID;
 
     // Only the path cannot be null
     // Arguments are allowed to be null
-    if (Path == NULL) {
+    if (Path == NULL || StartupInformation == NULL) {
         return UUID_INVALID;
     }
 
     // Allocate resources for the spawn
     Request = (MCorePhoenixRequest_t*)kmalloc(sizeof(MCorePhoenixRequest_t));
-    mPath = MStringCreate(Path, StrUTF8);
-    mArguments = (Arguments == NULL) ? NULL : MStringCreate(Arguments, StrUTF8);
+    mPath = MStringCreate((void*)Path, StrUTF8);
 
     // Reset structure and set it up
     memset(Request, 0, sizeof(MCorePhoenixRequest_t));
     Request->Base.Type = AshSpawnProcess;
     Request->Path = mPath;
-    Request->Arguments.String = mArguments;
-    Request->Base.Cleanup = Async;
+    Request->Base.Cleanup = Asynchronous;
     
-    // Set the request in water
-    PhoenixCreateRequest(Request);
+    // Copy startup-information
+    if (StartupInformation->ArgumentPointer != NULL
+        && StartupInformation->ArgumentLength != 0) {
+        Request->StartupInformation.ArgumentLength = 
+            StartupInformation->ArgumentLength;
+        Request->StartupInformation.ArgumentPointer = 
+            (__CONST char*)kmalloc(StartupInformation->ArgumentLength);
+        memcpy((void*)Request->StartupInformation.ArgumentPointer,
+            StartupInformation->ArgumentPointer, 
+            StartupInformation->ArgumentLength);
+    }
+    if (StartupInformation->InheritanceBlockPointer != NULL
+        && StartupInformation->InheritanceBlockLength != 0) {
+        Request->StartupInformation.InheritanceBlockLength = 
+            StartupInformation->InheritanceBlockLength;
+        Request->StartupInformation.InheritanceBlockPointer = 
+            (__CONST char*)kmalloc(StartupInformation->InheritanceBlockLength);
+        memcpy((void*)Request->StartupInformation.InheritanceBlockPointer,
+            StartupInformation->InheritanceBlockPointer, 
+            StartupInformation->InheritanceBlockLength);
+    }
 
     // If it's an async request we return immediately
     // We return an invalid UUID as it cannot be used
     // for queries
-    if (Async != 0) {
+    PhoenixCreateRequest(Request);
+    if (Asynchronous != 0) {
         return UUID_INVALID;
     }
 
     // Otherwise wait for request to complete
     // and then cleanup and return the process id
     PhoenixWaitRequest(Request, 0);
-
-    // Cleanup 
     MStringDestroy(mPath);
-    if (mArguments != NULL) {
-        MStringDestroy(mArguments);
-    }
 
     // Store result and cleanup
     Result = Request->AshId;
     kfree(Request);
-
-    // Return the result
     return Result;
 }
 
@@ -310,6 +323,56 @@ OsStatus_t ScProcessRaise(UUId_t ProcessId, int Signal)
         ThreadingYield();
         return OsSuccess;
     }
+}
+
+/* ScGetStartupInformation
+ * Retrieves information passed about process startup. */
+OsStatus_t
+ScGetStartupInformation(
+    _InOut_ ProcessStartupInformation_t *StartupInformation)
+{
+    // Variables
+    MCoreProcess_t *Process = NULL;
+
+    // Sanitize parameters
+    if (StartupInformation == NULL) {
+        return OsError;
+    }
+
+    // Find process
+    Process = PhoenixGetCurrentProcess();
+    if (Process == NULL) {
+        return OsError;
+    }
+
+    // Update outs
+    if (Process->StartupInformation.ArgumentPointer != NULL) {
+        if (StartupInformation->ArgumentPointer != NULL) {
+            memcpy((void*)StartupInformation->ArgumentPointer, 
+                Process->StartupInformation.ArgumentPointer,
+                MIN(StartupInformation->ArgumentLength, 
+                    Process->StartupInformation.ArgumentLength));
+        }
+        else {
+            StartupInformation->ArgumentLength = 
+                Process->StartupInformation.ArgumentLength;
+        }
+    }
+    if (Process->StartupInformation.InheritanceBlockPointer != NULL) {
+        if (StartupInformation->InheritanceBlockPointer != NULL) {
+            memcpy((void*)StartupInformation->InheritanceBlockPointer, 
+                Process->StartupInformation.InheritanceBlockPointer,
+                MIN(StartupInformation->InheritanceBlockLength, 
+                    Process->StartupInformation.InheritanceBlockLength));
+        }
+        else {
+            StartupInformation->InheritanceBlockLength = 
+                Process->StartupInformation.InheritanceBlockLength;
+        }
+    }
+
+    // Done
+    return OsSuccess;
 }
 
 /**************************
@@ -1343,14 +1406,10 @@ ScLoadDriver(
         // Create the request 
         Request = (MCorePhoenixRequest_t*)kmalloc(sizeof(MCorePhoenixRequest_t));
         memset(Request, 0, sizeof(MCorePhoenixRequest_t));
-
-        // Initiate request
         Request->Base.Type = AshSpawnServer;
         Request->Path = Path;
-        Request->Arguments.Raw.Data = kmalloc(Device->Length);
-        Request->Arguments.Raw.Length = Device->Length;
 
-        memcpy(Request->Arguments.Raw.Data, Device, Device->Length);
+        // Initiate request
         PhoenixCreateRequest(Request);
         PhoenixWaitRequest(Request, 0);
 
@@ -1360,7 +1419,6 @@ ScLoadDriver(
 
         // Cleanup
         MStringDestroy(Request->Path);
-        kfree(Request->Arguments.Raw.Data);
         kfree(Request);
 
         // Update the server params for next load
@@ -1480,12 +1538,11 @@ int NoOperation(void)
 }
 
 /* Syscall Table */
-uintptr_t GlbSyscallTable[91] =
-{
-    /* Kernel Log */
+uintptr_t GlbSyscallTable[91] = {
     DefineSyscall(ScSystemDebug),
 
-    /* Process Functions - 1 */
+    /* Process & Threading
+     * - Starting index is 1 */
     DefineSyscall(ScProcessExit),
     DefineSyscall(ScProcessQuery),
     DefineSyscall(ScProcessSpawn),
@@ -1496,8 +1553,6 @@ uintptr_t GlbSyscallTable[91] =
     DefineSyscall(ScSharedObjectLoad),
     DefineSyscall(ScSharedObjectGetFunction),
     DefineSyscall(ScSharedObjectUnload),
-
-    /* Threading Functions - 11 */
     DefineSyscall(ScThreadCreate),
     DefineSyscall(ScThreadExit),
     DefineSyscall(ScThreadSignal),
@@ -1505,7 +1560,7 @@ uintptr_t GlbSyscallTable[91] =
     DefineSyscall(ScThreadSleep),
     DefineSyscall(ScThreadYield),
     DefineSyscall(ScThreadGetCurrentId),
-    DefineSyscall(NoOperation),
+    DefineSyscall(ScGetStartupInformation),
     DefineSyscall(NoOperation),
     DefineSyscall(NoOperation),
 

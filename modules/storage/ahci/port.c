@@ -71,7 +71,7 @@ AhciPortCreate(
 		((uint8_t*)Controller->Registers + AHCI_REGISTER_PORTBASE(Port));
 
 	// Create the transaction list and we're done!
-	AhciPort->Transactions = ListCreate(KeyInteger, LIST_SAFE);
+	AhciPort->Transactions = ListCreate(KeyInteger);
 	return AhciPort;
 }
 
@@ -148,17 +148,17 @@ AhciPortInitialize(
 	MemoryBarrier();
 
 	// After setting PxFB and PxFBU to the physical address of the FIS receive area,
-	// system software shall set PxCMD.FRE to ‘1’.
+	// system software shall set PxCMD.FRE to ï¿½1ï¿½.
 	Port->Registers->CommandAndStatus |= AHCI_PORT_FRE;
 	MemoryBarrier();
 
 	// For each implemented port, clear the PxSERR register, 
-	// by writing ‘1s’ to each implemented bit location.
+	// by writing ï¿½1sï¿½ to each implemented bit location.
 	Port->Registers->AtaError = AHCI_PORT_SERR_CLEARALL;
 	Port->Registers->InterruptStatus = 0xFFFFFFFF;
 	
 	// Determine which events should cause an interrupt, 
-	// and set each implemented port’s PxIE register with the appropriate enables.
+	// and set each implemented portï¿½s PxIE register with the appropriate enables.
 	Port->Registers->InterruptEnable = (uint32_t)AHCI_PORT_IE_CPDE | AHCI_PORT_IE_TFEE
 		| AHCI_PORT_IE_PCE | AHCI_PORT_IE_DSE | AHCI_PORT_IE_PSE | AHCI_PORT_IE_DHRE;
 }
@@ -235,7 +235,7 @@ AhciPortReset(
 
 	// When PxSCTL.DET is set to 1h, the HBA shall reset PxTFD.STS to 7Fh and 
 	// shall reset PxSSTS.DET to 0h. When PxSCTL.DET is set to 0h, upon receiving a 
-	// COMINIT from the attached device, PxTFD.STS.BSY shall be set to ’1’ by the HBA.
+	// COMINIT from the attached device, PxTFD.STS.BSY shall be set to ï¿½1ï¿½ by the HBA.
 	return OsSuccess;
 }
 

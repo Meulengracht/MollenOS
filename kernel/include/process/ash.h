@@ -145,6 +145,15 @@ KERNELABI
 PhoenixStartupAsh(
     _In_ MString_t *Path);
 
+/* PhoenixStartupEntry
+ * This is the standard ash-boot function
+ * which simply sets up the ash and jumps to userland */
+KERNELAPI
+void
+KERNELABI
+PhoenixStartupEntry(
+    _In_ void *BasePointer);
+
 /* This is the finalizor function for starting
  * up a new base Ash, it finishes setting up the environment
  * and memory mappings, must be called on it's own thread */

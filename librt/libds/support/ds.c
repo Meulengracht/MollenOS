@@ -30,10 +30,11 @@
 #include <stdlib.h>
 #endif
 
-/* This is used by data-structures
- * to allocate memory, since it will
- * be different for kernel/clib */
-void *dsalloc(size_t size)
+/* dsalloc
+ * Seperate portable memory allocator for data-structures */
+void*
+dsalloc(
+    _In_ size_t size)
 {
 #ifdef LIBC_KERNEL
 	return kmalloc(size);
@@ -42,10 +43,11 @@ void *dsalloc(size_t size)
 #endif
 }
 
-/* This is used by data-structures
- * to allocate memory, since it will
- * be different for kernel/clib */
-void dsfree(void *p)
+/* dsfree
+ * Seperate portable memory freeing for data-structures */
+void
+dsfree(
+    _In_ void *p)
 {
 #ifdef LIBC_KERNEL
 	kfree(p);
@@ -54,32 +56,98 @@ void dsfree(void *p)
 #endif
 }
 
+/* dslockinit 
+ * Initializes the data collection lock. */
+OsStatus_t
+dslockinit(
+    _In_ DsLock_t *Lock)
+{
+#ifdef LIBC_KERNEL
+	CriticalSectionConstruct(Lock, CRITICALSECTION_REENTRANCY);
+    return OsSuccess;
+#else
+	return SpinlockReset(Lock);
+#endif
+}
+
+/* dslockdelete
+ * Cleans up and destroys the data collection lock. */
+OsStatus_t
+dslockdelete(
+    _In_ DsLock_t *Lock)
+{
+#ifdef LIBC_KERNEL
+	CriticalSectionDestroy(Lock);
+    return OsSuccess;
+#else
+	return OsSuccess;
+#endif
+}
+
+/* dsreadlock 
+ * Acquires a read-lock of the data collection. */
+OsStatus_t
+dsreadlock(
+    _In_ DsLock_t *Lock)
+{
+#ifdef LIBC_KERNEL
+	CriticalSectionEnter(Lock);
+    return OsSuccess;
+#else
+	return SpinlockAcquire(Lock);
+#endif
+}
+
+/* dswritelock 
+ * Acquires a write-lock of the data collection. */
+OsStatus_t
+dswritelock(
+    _In_ DsLock_t *Lock)
+{
+#ifdef LIBC_KERNEL
+	CriticalSectionEnter(Lock);
+    return OsSuccess;
+#else
+	return SpinlockAcquire(Lock);
+#endif
+}
+
+/* dsunlock 
+ * Release a previously lock of a data-collection. */
+OsStatus_t
+dsunlock(
+    _In_ DsLock_t *Lock)
+{
+#ifdef LIBC_KERNEL
+	CriticalSectionLeave(Lock);
+    return OsSuccess;
+#else
+	return SpinlockRelease(Lock);
+#endif
+}
+
 /* Helper Function
  * Matches two keys based on the key type
  * returns 0 if they are equal, or -1 if not */
-int dsmatchkey(KeyType_t KeyType, DataKey_t Key1, DataKey_t Key2)
+int
+dsmatchkey(
+    _In_ KeyType_t KeyType,
+    _In_ DataKey_t Key1,
+    _In_ DataKey_t Key2)
 {
-	switch (KeyType)
-	{
-		/* Check if ints match */
+	switch (KeyType) {
 		case KeyInteger: {
 			if (Key1.Value == Key2.Value)
 				return 0;
 		} break;
-
-		/* Check if pointers match */
 		case KeyPointer: {
 			if (Key1.Pointer == Key2.Pointer)
 				return 0;
 		} break;
-
-		/* Check if strings match */
 		case KeyString: {
 			return strcmp(Key1.String, Key2.String);
 		} break;
 	}
-
-	/* Damn, no match */
 	return -1;
 }
 
@@ -87,11 +155,13 @@ int dsmatchkey(KeyType_t KeyType, DataKey_t Key1, DataKey_t Key2)
  * Used by sorting, it compares to values
  * and returns 1 if 1 > 2, 0 if 1 == 2 and
  * -1 if 2 > 1 */
-int dssortkey(KeyType_t KeyType, DataKey_t Key1, DataKey_t Key2)
+int
+dssortkey(
+    _In_ KeyType_t KeyType,
+    _In_ DataKey_t Key1,
+    _In_ DataKey_t Key2)
 {
-	switch (KeyType)
-	{
-		/* Check if ints match */
+	switch (KeyType) {
 		case KeyInteger: {
 			if (Key1.Value == Key2.Value)
 				return 0;
@@ -100,21 +170,12 @@ int dssortkey(KeyType_t KeyType, DataKey_t Key1, DataKey_t Key2)
 			else
 				return -1;
 		} break;
-
-		/* Sort on pointers? Wtf?
-		 * this is impossible */
 		case KeyPointer: {
 			return 0;
 		} break;
-
-		/* Check if strings match 
-		 * by using strcmp, it follows
-		 * our return policy */
 		case KeyString: {
 			return strcmp(Key1.String, Key2.String);
 		} break;
 	}
-
-	/* Damn, no match */
 	return 0;
 }

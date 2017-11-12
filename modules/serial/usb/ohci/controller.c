@@ -145,7 +145,7 @@ OhciControllerCreate(
 	}
 
 	// Allocate a list of endpoints
-	Controller->Base.Endpoints = ListCreate(KeyInteger, LIST_SAFE);
+	Controller->Base.Endpoints = ListCreate(KeyInteger);
 
 	// Now that all formalities has been taken care
 	// off we can actually setup controller

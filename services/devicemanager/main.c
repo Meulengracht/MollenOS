@@ -51,8 +51,8 @@ OsStatus_t
 OnLoad(void)
 {
     // Setup list
-    __GlbDevices = ListCreate(KeyInteger, LIST_NORMAL);
-    __GlbContracts = ListCreate(KeyInteger, LIST_NORMAL);
+    __GlbDevices = ListCreate(KeyInteger);
+    __GlbContracts = ListCreate(KeyInteger);
 
     // Init variables
     GlbDeviceIdGen = 0;

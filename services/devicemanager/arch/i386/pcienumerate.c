@@ -285,7 +285,7 @@ PciCheckFunction(
 		Device->IsBridge = 1;
 		lKey.Value = 1;
 		ListAppend((List_t*)Parent->Children, ListCreateNode(lKey, lKey, Device));
-		Device->Children = ListCreate(KeyInteger, LIST_NORMAL);
+		Device->Children = ListCreate(KeyInteger);
 
 		// Extract secondary bus
 		SecondBus = PciReadSecondaryBusNumber(Device->BusIo, Bus, Slot, Function);
@@ -549,10 +549,10 @@ BusEnumerate(void)
 	memset(__GlbRoot, 0, sizeof(PciDevice_t));
 
 	// Initialize a flat list of devices
-	__GlbPciDevices = ListCreate(KeyInteger, LIST_NORMAL);
+	__GlbPciDevices = ListCreate(KeyInteger);
 
 	// Initiate root-bridge
-	__GlbRoot->Children = ListCreate(KeyInteger, LIST_NORMAL);
+	__GlbRoot->Children = ListCreate(KeyInteger);
 	__GlbRoot->IsBridge = 1;
 
 	/* Query acpi information */

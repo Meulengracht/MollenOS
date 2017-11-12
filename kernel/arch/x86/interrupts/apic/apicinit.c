@@ -522,7 +522,7 @@ void ApicInitBoot(void)
 	// Setup IO apics 
 	// this is done by the AcpiSetupIoApic code
 	// that is called for all present io-apics 
-	GlbIoApics = ListCreate(KeyInteger, LIST_NORMAL);
+	GlbIoApics = ListCreate(KeyInteger);
 	Key.Value = ACPI_MADT_TYPE_IO_APIC;
 	ListExecuteOnKey(GlbAcpiNodes, AcpiSetupIoApic, Key, NULL);
 

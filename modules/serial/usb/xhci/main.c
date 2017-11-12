@@ -67,7 +67,7 @@ OnInterrupt(
 OsStatus_t OnLoad(void)
 {
 	// Initialize state for this driver
-	GlbControllers = ListCreate(KeyInteger, LIST_NORMAL);
+	GlbControllers = ListCreate(KeyInteger);
 
 	// Initialize the device manager here
 	return AhciManagerInitialize();

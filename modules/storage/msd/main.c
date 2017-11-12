@@ -79,7 +79,7 @@ OsStatus_t
 OnLoad(void)
 {
 	// Initialize state for this driver
-    GlbMsdDevices = ListCreate(KeyInteger, LIST_NORMAL);
+    GlbMsdDevices = ListCreate(KeyInteger);
     return UsbInitialize();
 }
 

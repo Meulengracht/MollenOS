@@ -39,8 +39,6 @@
 typedef struct _MCoreServer {
     MCoreAsh_t           Base;
     BlockBitmap_t       *DriverMemory;
-    void                *ArgumentBuffer;
-    size_t               ArgumentLength;
 
     DevInfo_t            VendorId;
     DevInfo_t            DeviceId;
@@ -52,12 +50,20 @@ typedef struct _MCoreServer {
  * This function loads the executable and
  * prepares the ash-server-environment, at this point
  * it won't be completely running yet, it needs its own thread for that */
-KERNELAPI UUId_t PhoenixCreateServer(MString_t *Path, void *Arguments, size_t Length);
+KERNELAPI
+UUId_t
+KERNELABI
+PhoenixCreateServer(
+	_In_ MString_t *Path);
 
 /* PhoenixCleanupServer
  * Cleans up all the server-specific resources allocated
  * this this AshServer, and afterwards call the base-cleanup */
-KERNELAPI void PhoenixCleanupServer(MCoreServer_t *Server);
+KERNELAPI
+void
+KERNELABI
+PhoenixCleanupServer(
+    _In_ MCoreServer_t *Server);
 
 /* PhoenixGetServer
  * This function looks up a server structure by id */

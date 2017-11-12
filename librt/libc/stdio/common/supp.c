@@ -117,7 +117,7 @@ void
 StdioInitialize(void)
 {
     // Initialize the list of io-objects
-    __GlbIoObjects = ListCreate(KeyInteger, LIST_SAFE);
+    __GlbIoObjects = ListCreate(KeyInteger);
 
     // Initialize the bitmap of fds
     __GlbFdBitmap = (int *)malloc(DIVUP(INTERNAL_MAXFILES, 8));

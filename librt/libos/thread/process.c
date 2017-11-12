@@ -41,14 +41,35 @@ ProcessSpawn(
 	_In_Opt_ __CONST char *Arguments,
 	_In_ int Asynchronous)
 {
+    // Variables
+    ProcessStartupInformation_t StartupInformation;
+
 	// Sanitize parameters
 	if (Path == NULL) {
 		return UUID_INVALID;
 	}
 
-	// Redirect the call to the OS
+    // Setup information block
+    memset(&StartupInformation, 0, sizeof(ProcessStartupInformation_t));
+    if (Arguments != NULL) {
+        StartupInformation.ArgumentPointer = Arguments;
+        StartupInformation.ArgumentLength = strlen(Arguments);
+    }
+    return ProcessSpawnEx(Path, &StartupInformation, Asynchronous);
+}
+
+/* ProcessSpawnEx
+ * Spawns a new process by the given path and the given startup information block. 
+ * Returns UUID_INVALID in case of failure unless Asynchronous is set
+ * then this call will always result in UUID_INVALID. */
+UUId_t
+ProcessSpawnEx(
+	_In_ __CONST char *Path,
+	_In_ __CONST ProcessStartupInformation_t *StartupInformation,
+	_In_ int Asynchronous)
+{
 	return (UUId_t)Syscall3(SYSCALL_PROCSPAWN,
-		SYSCALL_PARAM(Path), SYSCALL_PARAM(Arguments),
+		SYSCALL_PARAM(Path), SYSCALL_PARAM(StartupInformation),
 		SYSCALL_PARAM(Asynchronous));
 }
 
@@ -93,8 +114,17 @@ ProcessQuery(
 	_In_ void *Buffer, 
 	_In_ size_t Length)
 {
-	/* Prep for syscall */
 	return Syscall4(SYSCALL_PROCQUERY, SYSCALL_PARAM(Process),
 		SYSCALL_PARAM(Function), SYSCALL_PARAM(Buffer),
 		SYSCALL_PARAM(Length));
+}
+
+/* GetStartupInformation
+ * Retrieves startup information about the process. 
+ * Data buffers must be supplied with a max length. */
+OsStatus_t
+GetStartupInformation(
+    _InOut_ ProcessStartupInformation_t *StartupInformation)
+{
+    return Syscall1(SYSCALL_GETSTARTINFO, SYSCALL_PARAM(StartupInformation));
 }

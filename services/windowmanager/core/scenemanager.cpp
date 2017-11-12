@@ -35,7 +35,7 @@ bool CSceneManager::Initialize(
 	// Reset some variables
 	m_iSceneId = 0;
 	m_iWindowId = 0;
-	m_pScenes = ListCreate(KeyInteger, LIST_SAFE);
+	m_pScenes = ListCreate(KeyInteger);
 
 	// Create initial scene
 

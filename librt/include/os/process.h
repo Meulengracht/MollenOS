@@ -28,15 +28,24 @@
  * - Library */
 #include <os/osdefs.h>
 
-/* Process Queries
- * List of the different options
- * for process queries */
+/* ProcessQueryFunction
+ * List of the different options for process queries */
 typedef enum _ProcessQueryFunction {
 	ProcessQueryName,
 	ProcessQueryMemory,
 	ProcessQueryParent,
 	ProcessQueryTopMostParent
 } ProcessQueryFunction_t;
+
+/* ProcessStartupInformation
+ * Contains information about the process startup. Can be queried
+ * from the operating system during process startup. */
+typedef struct _ProcessStartupInformation {
+    __CONST char                *ArgumentPointer;
+    size_t                       ArgumentLength;
+    __CONST char                *InheritanceBlockPointer;
+    size_t                       InheritanceBlockLength;
+} ProcessStartupInformation_t;
 
 /* Start one of these before function prototypes */
 _CODE_BEGIN
@@ -52,6 +61,18 @@ MOSABI
 ProcessSpawn(
 	_In_ __CONST char *Path,
 	_In_Opt_ __CONST char *Arguments,
+	_In_ int Asynchronous);
+
+/* ProcessSpawnEx
+ * Spawns a new process by the given path and the given startup information block. 
+ * Returns UUID_INVALID in case of failure unless Asynchronous is set
+ * then this call will always result in UUID_INVALID. */
+MOSAPI
+UUId_t
+MOSABI
+ProcessSpawnEx(
+	_In_ __CONST char *Path,
+	_In_ __CONST ProcessStartupInformation_t *StartupInformation,
 	_In_ int Asynchronous);
 
 /* ProcessJoin
@@ -82,6 +103,15 @@ ProcessQuery(
 	_In_ ProcessQueryFunction_t Function, 
 	_In_ void *Buffer, 
 	_In_ size_t Length);
+
+/* GetStartupInformation
+ * Retrieves startup information about the process. 
+ * Data buffers must be supplied with a max length. */
+MOSAPI
+OsStatus_t
+MOSABI
+GetStartupInformation(
+    _InOut_ ProcessStartupInformation_t *StartupInformation);
 
 _CODE_END
 

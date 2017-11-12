@@ -43,7 +43,7 @@ Scene_t *SceneCreate(int Id, Rect_t *Dimensions, SDL_Renderer *Renderer)
 	
 	/* Setup */
 	Scene->Id = Id;
-	Scene->Windows = ListCreate(KeyInteger, LIST_NORMAL);
+	Scene->Windows = ListCreate(KeyInteger);
 	memcpy(&Scene->Dimensions, Dimensions, sizeof(Rect_t));
 
 	/* Load default background for this scene */

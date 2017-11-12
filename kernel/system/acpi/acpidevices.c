@@ -773,7 +773,7 @@ AcpiDeviceGetIrqRoutings(
 	
 	// Allocate a new table for the device
 	Table = (PciRoutings_t*)kmalloc(sizeof(PciRoutings_t));
-	Table->Sources = ListCreate(KeyString, LIST_NORMAL);
+	Table->Sources = ListCreate(KeyString);
 	for (i = 0; i < 128; i++) {
 		Table->InterruptEntries[i] = NULL;
 		Table->ActiveIrqs[i] = INTERRUPT_NONE;
@@ -806,7 +806,7 @@ AcpiDeviceGetIrqRoutings(
 
 			if (Table->InterruptEntries[InterruptIndex] == NULL) {
 				Table->InterruptEntries[InterruptIndex] = 
-					ListCreate(KeyInteger, LIST_NORMAL);
+					ListCreate(KeyInteger);
 			}
 
 			// Allocate a new entry and store information
@@ -847,7 +847,7 @@ AcpiDeviceGetIrqRoutings(
 		TRACE("Enumerating possible resources for a new source");
 		Source = (PciRoutingSource_t*)kmalloc(sizeof(PciRoutingSource_t));
 		Source->Handle = SourceHandle;
-		Source->Entries = ListCreate(KeyInteger, LIST_NORMAL);
+		Source->Entries = ListCreate(KeyInteger);
 		Source->ActiveEntry = NULL;
 		
 		// Create the list for this new source

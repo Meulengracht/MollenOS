@@ -69,7 +69,7 @@ IoSpaceInitialize(void)
     TRACE("IoSpaceInitialize()");
 
     // Initialize globals
-    __GlbIoSpaces = ListCreate(KeyInteger, LIST_NORMAL);
+    __GlbIoSpaces = ListCreate(KeyInteger);
     __GlbIoSpaceInitialized = 1;
     __GlbIoSpaceId = 1;
 }

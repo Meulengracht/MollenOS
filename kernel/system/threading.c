@@ -155,7 +155,7 @@ ThreadingInitialize(
 	// Sanitize the global, do we need to
 	// initialize the entire threading?
 	if (GlbThreadingEnabled != 1) {
-		GlbThreads = ListCreate(KeyInteger, LIST_SAFE);
+		GlbThreads = ListCreate(KeyInteger);
 		GlbThreadGcId = GcRegister(ThreadingReap);
 		GlbThreadId = 1;
         CriticalSectionConstruct(&ThreadGlobalLock, CRITICALSECTION_PLAIN);
@@ -429,19 +429,14 @@ void ThreadingEnterUserMode(void *AshInfo)
 	/* Update this thread */
 	Thread->AshId = Ash->Id;
 
-	/* Only translate the argument address, since the pe
-	 * loader already translates any image address */
+    // Setup entry, this is directly to libc-entry
 	Thread->Function = (ThreadEntry_t)Ash->Executable->EntryAddress;
-	Thread->Arguments = (void*)AddressSpaceTranslate(AddressSpaceGetCurrent(), MEMORY_LOCATION_RING3_ARGS);
-
-	/* Underlying Call  */
+    Thread->Arguments = NULL;
 	IThreadSetupUserMode(Thread, Ash->StackStart);
 
 	/* This initiates the transition 
 	 * nothing happpens before this */
 	Thread->Flags |= THREADING_TRANSITION_USERMODE;
-
-	/* Done! */
 	InterruptRestoreState(IntrState);
 
 	/* Yield control and a safe-ty catch */

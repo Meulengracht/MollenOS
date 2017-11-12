@@ -69,7 +69,7 @@ Semaphore_t *SemaphoreCreateGlobal(MString_t *Identifier, int InitialValue)
 	 * conflicting semaphores in system */
 	if (Identifier != NULL) {
 		if (GlbSemaphoreInit != 1) {
-			GlbSemaphores = ListCreate(KeyInteger, LIST_SAFE);
+			GlbSemaphores = ListCreate(KeyInteger);
 			GlbSemaphoreInit = 1;
 		}
 

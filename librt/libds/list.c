@@ -33,8 +33,7 @@
  * functions to do stuff than using them directly */
 typedef struct _List {
 	KeyType_t				 KeyType;
-	Spinlock_t				 Lock;
-	Flags_t					 Attributes;
+	DsLock_t				 Lock;
 	size_t					 Length;
 
 	ListNode_t				*Headp;
@@ -45,23 +44,15 @@ typedef struct _List {
  * Instantiates a new list with the given attribs and keytype */
 List_t*
 ListCreate(
-	_In_ KeyType_t KeyType, 
-	_In_ Flags_t Attributes)
+	_In_ KeyType_t KeyType)
 {
 	// Allocate a new list structure
 	List_t *List = (List_t*)dsalloc(sizeof(List_t));
 	memset(List, 0, sizeof(List_t));
 
 	// Set initial information
-	List->Attributes = Attributes;
 	List->KeyType = KeyType;
-
-	// Take care of attributes
-	if (Attributes & LIST_SAFE) {
-		SpinlockReset(&List->Lock);
-	}
-	
-	// Done - no errors
+	dslockinit(&List->Lock);
 	return List;
 }
 
@@ -117,6 +108,7 @@ ListDestroy(
 
 	// Free the list structure and we
 	// are done
+    dslockdelete(&List->Lock);
 	dsfree(List);
 	return OsSuccess;
 }
@@ -135,20 +127,10 @@ ListLength(
 		return 0;
 	}
 
-	// Acquire lock
-	if (List->Attributes & LIST_SAFE) {
-		SpinlockAcquire(&List->Lock);
-	}
-
 	// Store in temporary var while we have lock
+	dsreadlock(&List->Lock);
 	Size = List->Length;
-
-	// Release the lock
-	if (List->Attributes & LIST_SAFE) {
-		SpinlockRelease(&List->Lock);
-	}
-
-	// Done
+    dsunlock(&List->Lock);
 	return Size;
 }
 
@@ -253,12 +235,6 @@ ListInsertAt(
 		return OsError;
 	}
 
-	// Redirect if we are using a insert-sorted
-	// list, as we cannot insert at specific pos
-	if (List->Attributes & LIST_SORT_ONINSERT) {
-		return ListInsert(List, Node);
-	}
-
 	// We need to make this implementation
 	_CRT_UNUSED(Position);
 
@@ -280,12 +256,10 @@ ListInsert(
 	}
 
 	// Acquire lock
-	if (List->Attributes & LIST_SAFE) {
-		SpinlockAcquire(&List->Lock);
-	}
+	dswritelock(&List->Lock);
 
 	// So, do we need to do an insertion sort?
-	if (List->Attributes & LIST_SORT_ONINSERT) {
+	if (Node == NULL) {
 		// Not if the list is empty of course
 		if (List->Headp == NULL || List->Tailp == NULL) {
 			List->Tailp = List->Headp = Node;
@@ -353,13 +327,7 @@ ListInsert(
 
 	// List just got larger!
 	List->Length++;
-
-	// Release the lock
-	if (List->Attributes & LIST_SAFE) {
-		SpinlockRelease(&List->Lock);
-	}
-
-	// Done - no errors
+    dsunlock(&List->Lock);
 	return OsSuccess;
 }
 
@@ -376,18 +344,8 @@ ListAppend(
 		return OsError;
 	}
 
-	// Redirect if we are using a insert-sorted
-	// list, as we cannot insert at specific position
-	if (List->Attributes & LIST_SORT_ONINSERT) {
-		return ListInsert(List, Node);
-	}
-
-	// Acquire lock
-	if (List->Attributes & LIST_SAFE) {
-		SpinlockAcquire(&List->Lock);
-	}
-
 	// In case of empty list just update head/tail
+    dswritelock(&List->Lock);
 	if (List->Headp == NULL || List->Tailp == NULL) {
 		Node->Prev = NULL;
 		List->Tailp = List->Headp = Node;
@@ -402,13 +360,7 @@ ListAppend(
 	// Always keep last link NULL
 	Node->Link = NULL;
 	List->Length++;
-
-	// Release the lock
-	if (List->Attributes & LIST_SAFE) {
-		SpinlockRelease(&List->Lock);
-	}
-
-	// Done - no errors
+    dsunlock(&List->Lock);
 	return OsSuccess;
 }
 
@@ -428,13 +380,9 @@ ListPopFront(
 		return NULL;
 	}
 
-	// Acquire lock
-	if (List->Attributes & LIST_SAFE) {
-		SpinlockAcquire(&List->Lock);
-	}
-
 	// Manipulate the list to find the next pointer of the
 	// node that comes before the one to be removed.
+    dswritelock(&List->Lock);
 	Current = List->Headp;
 
 	// Update head pointer
@@ -456,13 +404,7 @@ ListPopFront(
 
 	// Update length
 	List->Length--;
-
-	// Release the lock
-	if (List->Attributes & LIST_SAFE) {
-		SpinlockRelease(&List->Lock);
-	}
-
-	// Done
+    dsunlock(&List->Lock);
 	return Current;
 }
 
@@ -496,13 +438,9 @@ ListGetNodeByKey(
 		return NULL;
 	}
 
-	// Acquire lock
-	if (List->Attributes & LIST_SAFE) {
-		SpinlockAcquire(&List->Lock);
-	}
-
 	// Iterate each member in the given list and
 	// match on the key
+    dsreadlock(&List->Lock);
 	_foreach(It, List) {
 		if (!dsmatchkey(List->KeyType, It->Key, Key)) {
 			if (Counter == 0) {
@@ -514,13 +452,7 @@ ListGetNodeByKey(
 			}
 		}
 	}
-
-	// Release lock
-	if (List->Attributes & LIST_SAFE) {
-		SpinlockRelease(&List->Lock);
-	}
-
-	// Return whatever found
+    dsunlock(&List->Lock);
 	return Found;
 }
 
@@ -564,11 +496,13 @@ ListExecuteOnKey(
 	}
 
 	// Iterate the list and match key
+    dsreadlock(&List->Lock);
 	_foreach(Node, List) {
 		if (!dsmatchkey(List->KeyType, Node->Key, Key)) {
 			Function(Node->Data, Itr++, UserData);
 		}
 	}
+    dsunlock(&List->Lock);
 }
 
 /* These functions execute a given function
@@ -589,9 +523,11 @@ ListExecuteAll(
 	}
 
 	// Iteate and execute function given
+    dsreadlock(&List->Lock);
 	_foreach(Node, List) {
 		Function(Node->Data, Itr++, UserData);
 	}
+    dsunlock(&List->Lock);
 }
 
 /* ListUnlinkNode
@@ -607,13 +543,9 @@ ListUnlinkNode(
 		return NULL;
 	}
 
-	// Acquire lock
-	if (List->Attributes & LIST_SAFE) {
-		SpinlockAcquire(&List->Lock);
-	}
-
 	// There are a few cases we need to handle
 	// in order for this to be O(1)
+    dswritelock(&List->Lock);
 	if (Node->Prev == NULL) {
 		// Ok, so this means we are the
 		// first node in the list. Do we have a link?
@@ -658,9 +590,8 @@ ListUnlinkNode(
 		}
 	}
 
-	// Release the lock
-	if (List->Attributes & LIST_SAFE)
-		SpinlockRelease(&List->Lock);
+    // Done 
+    dsunlock(&List->Lock);
 
 	// Return the next node
 	if (Node->Prev == NULL) {

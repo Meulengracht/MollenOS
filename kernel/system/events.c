@@ -43,7 +43,7 @@ MCoreEventHandler_t *EventInit(const char *Name, EventCallback Callback, void *D
 
 	/* Allocate lock etc */
 	EventHandler->Name = MStringCreate((void*)Name, StrUTF8);
-	EventHandler->Events = ListCreate(KeyInteger, LIST_SAFE);
+	EventHandler->Events = ListCreate(KeyInteger);
 	EventHandler->Lock = SemaphoreCreate(0);
 	
 	/* Save stuff */

@@ -92,17 +92,18 @@ PhoenixFinishAsh(
     Ash->StackStart = MEMORY_LOCATION_RING3_STACK_START;
 
     // Initialize signal queue
-    Ash->SignalQueue = ListCreate(KeyInteger, LIST_NORMAL);
+    Ash->SignalQueue = ListCreate(KeyInteger);
 }
 
-/* This is the standard ash-boot function
+/* PhoenixStartupEntry
+ * This is the standard ash-boot function
  * which simply sets up the ash and jumps to userland */
 void
-PhoenixBootAsh(
-    _In_Opt_ void *Args)
+PhoenixStartupEntry(
+    _In_ void *BasePointer)
 {
     // Variables
-    MCoreAsh_t *Ash = (MCoreAsh_t*)Args;
+    MCoreAsh_t *Ash = (MCoreAsh_t*)BasePointer;
     
     // Finish boot-process and go to usermode
     PhoenixFinishAsh(Ash);
@@ -203,7 +204,7 @@ PhoenixInitializeAsh(
     // Store members and initialize members
     Ash->FileBuffer = fBuffer;
     Ash->FileBufferLength = fSize;
-    Ash->Pipes = ListCreate(KeyInteger, LIST_SAFE);
+    Ash->Pipes = ListCreate(KeyInteger);
     return OsSuccess;
 }
 
@@ -228,7 +229,7 @@ PhoenixStartupAsh(
     // Register ash
     PhoenixRegisterAsh(Ash);
     ThreadingCreateThread(MStringRaw(Ash->Name),
-        PhoenixBootAsh, Ash, THREADING_USERMODE);
+        PhoenixStartupEntry, Ash, THREADING_USERMODE);
     return Ash->Id;
 }
 

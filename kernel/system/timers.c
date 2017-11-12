@@ -54,8 +54,8 @@ TimersInitialize(void)
 	// Initialize all the globals 
 	// including lists etc
 	GlbActiveSystemTimer = NULL;
-	GlbSystemTimers = ListCreate(KeyInteger, LIST_SAFE);
-	GlbTimers = ListCreate(KeyInteger, LIST_SAFE);
+	GlbSystemTimers = ListCreate(KeyInteger);
+	GlbTimers = ListCreate(KeyInteger);
 	GlbTimersInitialized = 1;
 	GlbTimerIds = 0;
 }

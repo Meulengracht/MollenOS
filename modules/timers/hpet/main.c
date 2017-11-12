@@ -127,7 +127,7 @@ OsStatus_t OnLoad(void)
 	ACPI_TABLE_HEADER *Header = NULL;
 
 	// Initialize state for this driver
-	GlbControllers = ListCreate(KeyInteger, LIST_NORMAL);
+	GlbControllers = ListCreate(KeyInteger);
 
 	// Load ACPI
 	// If it's not present we should abort driver

@@ -57,7 +57,7 @@ void CriticalSectionConstruct(CriticalSection_t *Section, int Flags)
 	Section->Flags = Flags;
 	Section->IntrState = 0;
 	Section->References = 0;
-	Section->Owner = 0xFFFFFFFF;
+	Section->Owner = UUID_INVALID;
 
 	/* Reset the spinlock */
 	SpinlockReset(&Section->Lock);
@@ -116,7 +116,7 @@ void CriticalSectionLeave(CriticalSection_t *Section)
 	if (Section->References == 0)
 	{
 		/* Set no owner */
-		Section->Owner = 0xFFFFFFFF;
+		Section->Owner = UUID_INVALID;
 		
 		/* Release */
 		SpinlockRelease(&Section->Lock);

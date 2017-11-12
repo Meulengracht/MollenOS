@@ -24,8 +24,9 @@
 #define _MCORE_PROCESS_H_
 
 /* Includes
-* - C-Library */
+* - Library */
 #include <os/osdefs.h>
+#include <os/process.h>
 
 /* Includes 
  * - System */
@@ -34,27 +35,33 @@
 /* The base of an process, processes
  * are derived from Ashes, and merely extensions
  * to support userland stuff */
-typedef struct _MCoreProcess
-{
-	/* We derive from Ashes */
-	MCoreAsh_t Base;
-
-	/* Directories and arguments */
-	MString_t *WorkingDirectory;
-	MString_t *BaseDirectory;
-	MString_t *Arguments;
-
+typedef struct _MCoreProcess {
+	MCoreAsh_t                   Base;
+	ProcessStartupInformation_t  StartupInformation;
+	MString_t                   *WorkingDirectory;
+	MString_t                   *BaseDirectory;
 } MCoreProcess_t;
 
-/* This function loads the executable and
+/* PhoenixCreateProcess
+ * This function loads the executable and
  * prepares the ash-process-environment, at this point
  * it won't be completely running yet, it needs
  * its own thread for that */
-KERNELAPI UUId_t PhoenixCreateProcess(MString_t *Path, MString_t *Arguments);
+KERNELAPI
+UUId_t
+KERNELABI
+PhoenixCreateProcess(
+    _In_ MString_t                   *Path,
+    _In_ ProcessStartupInformation_t *StartupInformation);
 
-/* Cleans up all the process-specific resources allocated
+/* PhoenixCleanupProcess
+ * Cleans up all the process-specific resources allocated
  * this this AshProcess, and afterwards call the base-cleanup */
-KERNELAPI void PhoenixCleanupProcess(MCoreProcess_t *Process);
+KERNELAPI
+void
+KERNELABI
+PhoenixCleanupProcess(
+    _In_ MCoreProcess_t *Process);
 
 /* PhoenixGetProcess
  * This function looks up a server structure by id */
@@ -72,16 +79,22 @@ MCoreProcess_t*
 KERNELABI
 PhoenixGetCurrentProcess(void);
 
- /* Get the working directory 
+/* PhoenixGetWorkingDirectory
  * This function looks up the working directory for a process 
  * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
  * is passed, it retrieves the current process's working directory */
-KERNELAPI MString_t *PhoenixGetWorkingDirectory(UUId_t ProcessId);
+KERNELAPI
+MString_t*
+KERNELABI
+PhoenixGetWorkingDirectory(
+    _In_ UUId_t ProcessId);
 
-/* Get the base directory 
+/* PhoenixGetBaseDirectory
  * This function looks up the base directory for a process 
  * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
  * is passed, it retrieves the current process's base directory */
-KERNELAPI MString_t *PhoenixGetBaseDirectory(UUId_t ProcessId);
+MString_t*
+PhoenixGetBaseDirectory(
+    _In_ UUId_t ProcessId);
 
 #endif //!_MCORE_PROCESS_H_

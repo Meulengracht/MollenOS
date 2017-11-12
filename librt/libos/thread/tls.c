@@ -76,7 +76,7 @@ TLSInit(void)
 	}
 
 	// Initialize the list of thread-instances
-	__TLSGlobal.Tls = ListCreate(KeyInteger, LIST_NORMAL);
+	__TLSGlobal.Tls = ListCreate(KeyInteger);
 	return OsSuccess;
 }
 

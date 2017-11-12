@@ -314,8 +314,8 @@ OsStatus_t
 UsbCoreInitialize(void)
 {
     // Initialize globals to a known state
-    GlbUsbControllers = ListCreate(KeyInteger, LIST_SAFE);
-    GlbUsbDevices = ListCreate(KeyInteger, LIST_SAFE);
+    GlbUsbControllers = ListCreate(KeyInteger);
+    GlbUsbDevices = ListCreate(KeyInteger);
 
     // Allocate buffers
     return UsbInitialize();

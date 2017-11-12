@@ -178,7 +178,7 @@ EhciQueueInitialize(
 	Queue->TDPoolPhysical = Queue->QHPoolPhysical + (sizeof(EhciQueueHead_t) * EHCI_POOL_NUM_QH);
 
 	// Allocate the transaction list
-	Queue->TransactionList = ListCreate(KeyInteger, LIST_SAFE);
+	Queue->TransactionList = ListCreate(KeyInteger);
 
 	// Initialize a bandwidth scheduler
 	Controller->Scheduler = UsbSchedulerInitialize(

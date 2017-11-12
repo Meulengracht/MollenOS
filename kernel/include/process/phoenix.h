@@ -24,8 +24,9 @@
 #define _MCORE_PHOENIX_H_
 
 /* Includes
- * - C-Library */
+ * - Library */
 #include <os/osdefs.h>
+#include <os/process.h>
 
 /* Includes
  * - System */
@@ -55,21 +56,15 @@ typedef enum _PhoenixRequestType {
  * it as an base, and then supports parameters
  * for requests in PhoneixRequestType */
 typedef struct _MCorePhoenixRequest {
-	MCoreEvent_t             Base;
-    MString_t               *Path;
+	MCoreEvent_t                 Base;
+    ProcessStartupInformation_t  StartupInformation;
+    MString_t                   *Path;
     
-	union {
-		MString_t           *String;
-		struct {
-			void            *Data;
-			size_t           Length;
-		} Raw;
-	} Arguments;
 
 	// This is a combined parameter, for some
 	// actions it acts as a return, other times it
 	// is the parameter for an action
-	UUId_t AshId;
+	UUId_t                       AshId;
 } MCorePhoenixRequest_t;
 
 /* PhoenixInitialize
