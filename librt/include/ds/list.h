@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011 - 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,14 +16,12 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - Generic List
- * Insertion, Deletion runs at O(1) 
- * Lookup by key, or search runs at O(n)
- * Pop, push runs at O(1)
+ * MollenOS - Generic Collection Implementation
+ *  - Implements list and queue functionality
  */
 
-#ifndef _GENERIC_LIST_H_
-#define _GENERIC_LIST_H_
+#ifndef _GENERIC_COLLECTION_H_
+#define _GENERIC_COLLECTION_H_
 
 /* Includes 
  * - Library */
@@ -256,4 +254,4 @@ ListRemoveByKey(
 	_In_ List_t *List, 
 	_In_ DataKey_t Key);
 
-#endif //!_GENERIC_LIST_H_
+#endif //!_GENERIC_COLLECTION_H_

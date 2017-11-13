@@ -26,16 +26,6 @@
  * - Library */
 #include <os/osdefs.h>
 
-/* Lock selection 
- * Based upon library selection */
-#ifdef LIBC_KERNEL
-#include <criticalsection.h>
-typedef CriticalSection_t DsLock_t;
-#else
-#include <os/spinlock.h>
-typedef Spinlock_t DsLock_t;
-#endif
-
 /* The definition of a key
  * in generic data-structures this can be values or data */
 typedef union _DataKey {
@@ -68,46 +58,6 @@ void
 MOSABI
 dsfree(
     _In_ void *p);
-
-/* dslockinit 
- * Initializes the data collection lock. */
-MOSAPI
-OsStatus_t
-MOSABI
-dslockinit(
-    _In_ DsLock_t *Lock);
-
-/* dslockdelete
- * Cleans up and destroys the data collection lock. */
-MOSAPI
-OsStatus_t
-MOSABI
-dslockdelete(
-    _In_ DsLock_t *Lock);
-
-/* dsreadlock 
- * Acquires a read-lock of the data collection. */
-MOSAPI
-OsStatus_t
-MOSABI
-dsreadlock(
-    _In_ DsLock_t *Lock);
-
-/* dswritelock 
- * Acquires a write-lock of the data collection. */
-MOSAPI
-OsStatus_t
-MOSABI
-dswritelock(
-    _In_ DsLock_t *Lock);
-
-/* dsunlock 
- * Release a previously lock of a data-collection. */
-MOSAPI
-OsStatus_t
-MOSABI
-dsunlock(
-    _In_ DsLock_t *Lock);
 
 /* Helper Function 
  * Matches two keys based on the key type 
