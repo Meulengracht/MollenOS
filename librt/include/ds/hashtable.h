@@ -30,15 +30,15 @@
  * - Library */
 #include <os/osdefs.h>
 #include <ds/ds.h>
-#include <ds/list.h>
+#include <ds/collection.h>
 
 /* The hashtable data 
  * structure, this keeps track
  * of keys, size, etc */
 typedef struct _HashTable {
-	size_t 		  Capacity;
-	size_t 		  Size;
-	List_t 		**Array;
+    size_t                Capacity;
+    size_t                Size;
+    Collection_t        **Array;
 } HashTable_t;
 
 /* HashTableCreate
@@ -48,8 +48,8 @@ MOSAPI
 HashTable_t*
 MOSABI
 HashTableCreate(
-	_In_ KeyType_t KeyType, 
-	_In_ size_t Capacity);
+    _In_ KeyType_t KeyType, 
+    _In_ size_t Capacity);
 
 /* HashTableDestroy
  * Releases all resources 
@@ -58,7 +58,7 @@ MOSAPI
 void
 MOSABI
 HashTableDestroy(
-	_In_ HashTable_t *HashTable);
+    _In_ HashTable_t *HashTable);
 
 /* HashTableInsert
  * Inserts an object with the given
@@ -67,9 +67,9 @@ MOSAPI
 void
 MOSABI
 HashTableInsert(
-	_In_ HashTable_t *HashTable, 
-	_In_ DataKey_t Key, 
-	_In_ void *Data);
+    _In_ HashTable_t *HashTable, 
+    _In_ DataKey_t Key, 
+    _In_ void *Data);
 
 /* HashTableRemove 
  * Removes an object with the given 
@@ -78,8 +78,8 @@ MOSAPI
 void
 MOSABI
 HashTableRemove(
-	_In_ HashTable_t *HashTable, 
-	_In_ DataKey_t Key);
+    _In_ HashTable_t *HashTable, 
+    _In_ DataKey_t Key);
 
 /* HashTableGetValue
  * Retrieves the data associated with
@@ -88,7 +88,7 @@ MOSAPI
 void*
 MOSABI
 HashTableGetValue(
-	_In_ HashTable_t *HashTable, 
-	_In_ DataKey_t Key);
+    _In_ HashTable_t *HashTable, 
+    _In_ DataKey_t Key);
 
 #endif //!_HASHTABLE_H_

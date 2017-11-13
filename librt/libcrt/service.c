@@ -29,8 +29,7 @@
 #include <os/driver/service.h>
 
 /* Includes
- * - C-Library */
-#include <ds/list.h>
+ * - Library */
 #include <stdlib.h>
 
 /* Extern

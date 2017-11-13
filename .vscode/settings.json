@@ -263,6 +263,8 @@
         "__memory": "c",
         "blbitmap.h": "c",
         "numeric": "c",
-        "signal.h": "c"
+        "signal.h": "c",
+        "hashtable.h": "c",
+        "collection.h": "c"
     }
 }

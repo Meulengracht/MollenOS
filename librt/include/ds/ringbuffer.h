@@ -22,14 +22,11 @@
 #ifndef _MCORE_RINGBUFFER_H_
 #define _MCORE_RINGBUFFER_H_
 
-/* Includes */
-#include <crtdefs.h>
-#include <stdint.h>
-
-/* The overall datastructure
-* header for shared implementations
-* between c-lib and kern */
+/* Includes 
+ * - Library */
 #include <ds/ds.h>
+#include <os/osdefs.h>
+#include <os/spinlock.h>
 
 typedef struct _RingBuffer
 {

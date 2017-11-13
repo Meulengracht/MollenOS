@@ -87,7 +87,7 @@ int wctomb(char *mbchar, wchar_t wchar)
 #include <os/driver/file.h>
 #include <os/ipc/ipc.h>
 #include <os/thread.h>
-#include <ds/list.h>
+#include <ds/collection.h>
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -100,9 +100,10 @@ int wctomb(char *mbchar, wchar_t wchar)
 
 /* Globals
  * Used to keep state of all io-objects */
-Spinlock_t __GlbFdBitmapLock;
-List_t *__GlbIoObjects = NULL;
-int *__GlbFdBitmap = NULL;
+static Collection_t *IoObjects  = NULL;
+static int *FdBitmap            = NULL;
+static Spinlock_t BitmapLock;
+static Spinlock_t IoLock;
 FILE __GlbStdout, __GlbStdin, __GlbStderr;
 
 /* Prototypes
@@ -117,12 +118,13 @@ void
 StdioInitialize(void)
 {
     // Initialize the list of io-objects
-    __GlbIoObjects = ListCreate(KeyInteger);
+    IoObjects = ListCreate(KeyInteger);
+    SpinlockReset(&IoLock);
 
     // Initialize the bitmap of fds
-    __GlbFdBitmap = (int *)malloc(DIVUP(INTERNAL_MAXFILES, 8));
-    memset(__GlbFdBitmap, 0, DIVUP(INTERNAL_MAXFILES, 8));
-    SpinlockReset(&__GlbFdBitmapLock);
+    FdBitmap = (int *)malloc(DIVUP(INTERNAL_MAXFILES, 8));
+    memset(FdBitmap, 0, DIVUP(INTERNAL_MAXFILES, 8));
+    SpinlockReset(&BitmapLock);
 
     // Initialize the STDOUT handle
     memset(&__GlbStdout, 0, sizeof(FILE));
@@ -176,30 +178,26 @@ StdioFdAllocate(
     int i, j, result = -1;
 
     // Acquire the bitmap lock
-    SpinlockAcquire(&__GlbFdBitmapLock);
+    SpinlockAcquire(&BitmapLock);
 
     // Iterate the bitmap and find a free fd
-    for (i = 0; i < DIVUP(INTERNAL_MAXFILES, (8 * sizeof(int))); i++)
-    {
-        for (j = 0; i < (8 * sizeof(int)); j++)
-        {
-            if (!(__GlbFdBitmap[i] & (1 << j)))
-            {
-                __GlbFdBitmap[i] |= (1 << j);
+    for (i = 0; i < DIVUP(INTERNAL_MAXFILES, (8 * sizeof(int))); i++) {
+        for (j = 0; i < (8 * sizeof(int)); j++) {
+            if (!(FdBitmap[i] & (1 << j))) {
+                FdBitmap[i] |= (1 << j);
                 result = (i * (8 * sizeof(int))) + j;
                 break;
             }
         }
 
         // Early breakout?
-        if (j != (8 * sizeof(int)))
-        {
+        if (j != (8 * sizeof(int))) {
             break;
         }
     }
 
     // Release lock before returning
-    SpinlockRelease(&__GlbFdBitmapLock);
+    SpinlockRelease(&BitmapLock);
 
     // Create a new io-object
     if (result != -1) {
@@ -213,7 +211,9 @@ StdioFdAllocate(
     
         // Add to list
         Key.Value = result;
-        ListAppend(__GlbIoObjects, ListCreateNode(Key, Key, io));
+        SpinlockAcquire(&IoLock);
+        ListAppend(IoObjects, ListCreateNode(Key, Key, io));
+        SpinlockRelease(&IoLock);
     }
 
     // Done
@@ -227,27 +227,25 @@ StdioFdFree(
     _In_ int fd)
 {
     // Variables
-    ListNode_t *fNode;
+    CollectionItem_t *fNode = NULL;
     DataKey_t Key;
 
     // Free any resources allocated by the fd
     Key.Value = fd;
-    fNode = ListGetNodeByKey(__GlbIoObjects, Key, 0);
+    SpinlockAcquire(&IoLock);
+    fNode = ListGetNodeByKey(IoObjects, Key, 0);
     if (fNode != NULL) {
         free(fNode->Data);
-        ListRemoveByNode(__GlbIoObjects, fNode);
-        ListDestroyNode(__GlbIoObjects, fNode);
+        ListRemoveByNode(IoObjects, fNode);
+        ListDestroyNode(IoObjects, fNode);
     }
-
-    // Acquire the bitmap lock
-    SpinlockAcquire(&__GlbFdBitmapLock);
+    SpinlockRelease(&IoLock);
 
     // Set the given fd index to free
-    __GlbFdBitmap[fd / (8 * sizeof(int))] &=
+    SpinlockAcquire(&BitmapLock);
+    FdBitmap[fd / (8 * sizeof(int))] &=
         ~(1 << (fd % (8 * sizeof(int))));
-
-    // Release lock before returning
-    SpinlockRelease(&__GlbFdBitmapLock);
+    SpinlockRelease(&BitmapLock);
 }
 
 /* StdioFdToHandle
@@ -257,12 +255,14 @@ StdioFdToHandle(
     _In_ int fd)
 {
     // Variables
-    ListNode_t *fNode;
+    CollectionItem_t *fNode = NULL;
     DataKey_t Key;
 
     // Free any resources allocated by the fd
     Key.Value = fd;
-    fNode = ListGetNodeByKey(__GlbIoObjects, Key, 0);
+    SpinlockAcquire(&IoLock);
+    fNode = ListGetNodeByKey(IoObjects, Key, 0);
+    SpinlockRelease(&IoLock);
     if (fNode != NULL) {
         return ((ioobject*)fNode->Data)->handle;
     }
@@ -280,12 +280,14 @@ StdioFdInitialize(
     _In_ unsigned stream_flags)
 {
     // Variables
-    ListNode_t *fNode;
+    CollectionItem_t *fNode = NULL;
     DataKey_t Key;
 
     // Lookup node of the file descriptor
     Key.Value = fd;
-    fNode = ListGetNodeByKey(__GlbIoObjects, Key, 0);
+    SpinlockAcquire(&IoLock);
+    fNode = ListGetNodeByKey(IoObjects, Key, 0);
+    SpinlockRelease(&IoLock);
     
     // Node must exist
     if (fNode != NULL) {
@@ -575,15 +577,13 @@ os_flush_buffer(
         int cnt = file->_ptr - file->_base;
 
         // Flush them
-        if (cnt > 0 && _write(file->_fd, file->_base, cnt) != cnt)
-        {
+        if (cnt > 0 && _write(file->_fd, file->_base, cnt) != cnt) {
             file->_flag |= _IOERR;
             return OsError;
         }
 
         // If it's rw, clear the write flag
-        if (file->_flag & _IORW)
-        {
+        if (file->_flag & _IORW) {
             file->_flag &= ~_IOWRT;
         }
 
@@ -606,7 +606,7 @@ os_flush_all_buffers(
 
     // Iterate list of open files
     LOCK_FILES();
-    foreach(fNode, __GlbIoObjects) {
+    foreach(fNode, IoObjects) {
         file = (FILE*)(((ioobject*)fNode->Data)->file);
 
         // Does file match the given mask?
@@ -630,7 +630,7 @@ get_ioinfo(int fd)
     Key.Value = fd;
 
     // Lookup io-object
-    return (ioobject*)ListGetDataByKey(__GlbIoObjects, Key, 0);
+    return (ioobject*)ListGetDataByKey(IoObjects, Key, 0);
 }
 
 /* _fcloseall
@@ -642,7 +642,7 @@ _fcloseall(void)
     FILE *file;
 
     LOCK_FILES();
-    foreach(fNode, __GlbIoObjects) {
+    foreach(fNode, IoObjects) {
         file = (FILE*)(((ioobject*)fNode->Data)->file);
 
         // Close found file
@@ -679,20 +679,17 @@ os_alloc_buffer(
     _In_ FILE *file)
 {
     // Sanitize that it's not an std tty stream
-    if ((file->_fd == STDOUT_FD || file->_fd == STDERR_FD) && _isatty(file->_fd))
-    {
+    if ((file->_fd == STDOUT_FD || file->_fd == STDERR_FD) && _isatty(file->_fd)) {
         return OsError;
     }
 
     // Allocate a transfer buffer
     file->_base = calloc(1, INTERNAL_BUFSIZ);
-    if (file->_base)
-    {
+    if (file->_base) {
         file->_bufsiz = INTERNAL_BUFSIZ;
         file->_flag |= _IOMYBUF;
     }
-    else
-    {
+    else {
         file->_base = (char *)(&file->_charbuf);
         file->_bufsiz = 2;
         file->_flag |= _IONBF;
@@ -714,8 +711,9 @@ add_std_buffer(
     static char buffers[2][BUFSIZ];
 
     // Sanitize the file stream
-    if ((file->_fd != STDOUT_FD && file->_fd != STDERR_FD) || (file->_flag & (_IONBF | _IOMYBUF | _USERBUF)) || !_isatty(file->_fd))
-    {
+    if ((file->_fd != STDOUT_FD && file->_fd != STDERR_FD) 
+        || (file->_flag & (_IONBF | _IOMYBUF | _USERBUF)) 
+        || !_isatty(file->_fd)) {
         return OsError;
     }
 
