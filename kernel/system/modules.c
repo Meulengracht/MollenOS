@@ -232,7 +232,9 @@ ModulesQueryPath(
 Exit:
     // Cleanup the token we created
     // and return the status
-    MStringDestroy(Token);
+    if (Index != MSTRING_NOT_FOUND) {
+        MStringDestroy(Token);
+    }
     return Result;
 }
 

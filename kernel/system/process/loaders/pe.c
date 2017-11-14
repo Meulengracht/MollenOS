@@ -38,6 +38,11 @@
 #include <stddef.h>
 #include <string.h>
 
+//#define __OSCONFIG_PROCESS_SINGLELOAD
+#ifdef __OSCONFIG_PROCESS_SINGLELOAD
+__EXTERN CriticalSection_t LoaderLock;
+#endif
+
 /* PeCalculateChecksum
  * Perform a checksum calculation of the 
  * given PE file. Use this to validate contents
@@ -397,52 +402,55 @@ PeHandleExports(
 
 /* PeHandleImports
  * Parses and resolves all image imports by parsing the import address table */
-void PeHandleImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile, 
-    PeDataDirectory_t *ImportDirectory, uintptr_t *NextImageBase)
+OsStatus_t
+PeHandleImports(
+    _In_ MCorePeFile_t *Parent,
+    _In_ MCorePeFile_t *PeFile, 
+    _In_ PeDataDirectory_t *ImportDirectory,
+    _InOut_ uintptr_t *NextImageBase)
 {
-    /* Variables for import */
+    // Variables
     PeImportDescriptor_t *ImportDescriptor = NULL;
 
-    /* Sanitize the directory */
+    // Sanitize input
     if (ImportDirectory->AddressRVA == 0
         || ImportDirectory->Size == 0) {
-        return;
+        return OsSuccess;
     }
 
-    /* Cast */
+    // Initiate import
     ImportDescriptor = (PeImportDescriptor_t*)
         (PeFile->VirtualAddress + ImportDirectory->AddressRVA);
+    while (ImportDescriptor->ImportAddressTable != 0) {
+        // Local variables
+        MCorePeFile_t *ResolvedLibrary      = NULL;
+        MCorePeExportFunction_t *Exports    = NULL;
+        MString_t *Name                     = NULL;
+        char *NamePtr                       = NULL;
+        int NumberOfExports                 = 0;
 
-    /* Iterate untill we hit the null-descriptor 
-     * which marks the end of import-table */
-    while (ImportDescriptor->ImportAddressTable != 0)
-    {
-        /* Variables for resolving the library */
-        MCorePeFile_t *ResolvedLibrary = NULL;
-        MCorePeExportFunction_t *Exports = NULL;
-        MString_t *Name = NULL;
-        char *NamePtr = NULL;
-        int NumberOfExports;
-
-        /* Initialize the string pointer 
-         * and create a new mstring instance from it */
+        // Initialize the string pointer 
+        // and create a new mstring instance from it
         NamePtr = (char*)(PeFile->VirtualAddress + ImportDescriptor->ModuleName);
         Name = MStringCreate(NamePtr, StrUTF8);
 
-        /* Try to resolve the library we import from */
+        // Resolve the library from the import chunk
         ResolvedLibrary = PeResolveLibrary(Parent, PeFile, Name, NextImageBase);
-        if (ResolvedLibrary == NULL
-            || ResolvedLibrary->ExportedFunctions == NULL) {
-            return;
+        if (ResolvedLibrary == NULL || ResolvedLibrary->ExportedFunctions == NULL) {
+            ERROR("(%s): Failed to resolve library %s", 
+                MStringRaw(PeFile->Name), MStringRaw(Name));
+            return OsError;
         }
         else {
+            TRACE("(%s): Library %s resolved, %i functions available", 
+                MStringRaw(PeFile->Name), MStringRaw(Name), 
+                ResolvedLibrary->NumberOfExportedFunctions);
             Exports = ResolvedLibrary->ExportedFunctions;
             NumberOfExports = ResolvedLibrary->NumberOfExportedFunctions;
         }
 
-        /* Calculate address to IAT
-         * These entries are 64 bit in PE32+
-         * and 32 bit in PE32 */
+        // Calculate address to IAT
+        // These entries are 64 bit in PE32+ and 32 bit in PE32 
         if (PeFile->Architecture == PE_ARCHITECTURE_32) {
             uint32_t *Iat = (uint32_t*)
                 (PeFile->VirtualAddress + ImportDescriptor->ImportAddressTable);
@@ -475,19 +483,13 @@ void PeHandleImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile,
                         }
                     }
                 }
-
-                /* Sanitize whether or not we were able to
-                 * locate the function */
                 if (Function == NULL) {
-                    LogFatal("PELD", "Failed to locate function (%s)", 
-                        FunctionName);
-                    return;
+                    ERROR("Failed to locate function (%s)", Function->Name);
+                    return OsError;
                 }
 
-                /* Now, overwrite the IAT Entry with the actual address */
+                // Update import address and go to next
                 *Iat = Function->Address;
-
-                /* Go to next */
                 Iat++;
             }
         }
@@ -522,26 +524,19 @@ void PeHandleImports(MCorePeFile_t *Parent, MCorePeFile_t *PeFile,
                         }
                     }
                 }
-
-                /* Sanitize whether or not we were able to
-                 * locate the function */
                 if (Function == NULL) {
-                    LogFatal("PELD", "Failed to locate function");
-                    return;
+                    ERROR("Failed to locate function (%s)", Function->Name);
+                    return OsError;
                 }
 
-
-                /* Now, overwrite the IAT Entry with the actual address */
+                // Update import address and go to next
                 *Iat = (uint64_t)Function->Address;
-
-                /* Go to next */
                 Iat++;
             }
         }
-
-        /* Next ! */
         ImportDescriptor++;
     }
+    return OsSuccess;
 }
 
 /* PeResolveLibrary
@@ -598,7 +593,7 @@ PeResolveLibrary(
         // We have a special case here that it might
         // be from the ramdisk we are loading
         if (ExportParent->UsingInitRD) {
-            TRACE("Loading from ramdisk (s)", MStringRaw(LibraryName));
+            TRACE("Loading from ramdisk (%s)", MStringRaw(LibraryName));
             if (ModulesQueryPath(LibraryName, (void**)&fBuffer, &fSize) != OsSuccess) {
                 ERROR("Failed to load library %s", MStringRaw(LibraryName));
                 for (;;);
@@ -689,11 +684,11 @@ PeResolveFunction(
  * the next address is available for load */
 MCorePeFile_t*
 PeLoadImage(
-    _In_ MCorePeFile_t *Parent, 
-    _In_ MString_t *Name, 
-    _In_ uint8_t *Buffer, 
-    _In_ size_t Length, 
-    _InOut_ uintptr_t *BaseAddress, 
+    _In_ MCorePeFile_t *Parent,
+    _In_ MString_t *Name,
+    _In_ uint8_t *Buffer,
+    _In_ size_t Length,
+    _InOut_ uintptr_t *BaseAddress,
     _In_ int UsingInitRD)
 {
     // Variables
@@ -710,6 +705,10 @@ PeLoadImage(
     uintptr_t ImageBase = 0;
     PeDataDirectory_t *DirectoryPtr = NULL;
     MCorePeFile_t *PeInfo = NULL;
+
+#ifdef __OSCONFIG_PROCESS_SINGLELOAD
+    CriticalSectionEnter(&LoaderLock);
+#endif
 
     // Debug
     TRACE("PeLoadImage(Path %s, Parent %s, Address 0x%x)",
@@ -794,8 +793,14 @@ PeLoadImage(
     }
 
     // Handle imports
-    PeHandleImports(Parent, PeInfo, &DirectoryPtr[PE_SECTION_IMPORT], BaseAddress);
+    if (PeHandleImports(Parent, PeInfo, &DirectoryPtr[PE_SECTION_IMPORT], BaseAddress) != OsSuccess) {
+        FATAL(FATAL_SCOPE_KERNEL, "Failed to load library");
+    }
     TRACE("Library(%s) has been loaded", MStringRaw(Name));
+
+#ifdef __OSCONFIG_PROCESS_SINGLELOAD
+    CriticalSectionLeave(&LoaderLock);
+#endif
     return PeInfo;
 }
 
@@ -846,7 +851,7 @@ PeUnloadImage(
     }
 
     // Cleanup resources
-    kfree(Executable->Name);
+    MStringDestroy(Executable->Name);
 
     // Cleanup exports
     if (Executable->ExportedFunctions != NULL) {

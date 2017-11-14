@@ -59,6 +59,7 @@ static CriticalSection_t ProcessLock;
 static UUId_t *AliasMap                     = NULL;
 static UUId_t GcHandlerId                   = 0;
 static UUId_t ProcessIdGenerator            = 0;
+CriticalSection_t LoaderLock;
 
 /* PhoenixInitialize
  * Initialize the Phoenix environment and 
@@ -78,6 +79,7 @@ PhoenixInitialize(void)
 	Processes = CollectionCreate(KeyInteger);
     GcHandlerId = GcRegister(PhoenixReapAsh);
     CriticalSectionConstruct(&ProcessLock, CRITICALSECTION_PLAIN);
+    CriticalSectionConstruct(&LoaderLock, CRITICALSECTION_REENTRANCY);
 
 	// Initialize the global alias map
 	AliasMap = (UUId_t*)kmalloc(sizeof(UUId_t) * PHOENIX_MAX_ASHES);

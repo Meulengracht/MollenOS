@@ -96,7 +96,7 @@ VbeInitialize(
 		{
 			__GlbVideoTerminal.Type = VIDEO_GRAPHICS;
 
-			__GlbVideoTerminal.CursorLimitX = __GlbVideoTerminal.Info.Width / (MCoreFontWidth + 2);
+			__GlbVideoTerminal.CursorLimitX = __GlbVideoTerminal.Info.Width / (MCoreFontWidth + 1);
 			__GlbVideoTerminal.CursorLimitY = __GlbVideoTerminal.Info.Height / MCoreFontHeight;
 			__GlbVideoTerminal.FgColor = (0 << 4) | (15 & 0x0F);
 			__GlbVideoTerminal.BgColor = 0;
@@ -306,7 +306,7 @@ VesaPutCharacter(
 		// and use the current colors
 		VesaDrawCharacter(__GlbVideoTerminal.CursorX, __GlbVideoTerminal.CursorY,
 			Character, __GlbVideoTerminal.FgColor, __GlbVideoTerminal.BgColor);
-		__GlbVideoTerminal.CursorX += (MCoreFontWidth + 2);
+		__GlbVideoTerminal.CursorX += (MCoreFontWidth + 1);
 	} break;
 	}
 
@@ -314,7 +314,7 @@ VesaPutCharacter(
 	// checks, including new-line and scroll-checks
 
 	// Are we at last X position? - New-line
-	if ((__GlbVideoTerminal.CursorX + (MCoreFontWidth + 2)) >= __GlbVideoTerminal.CursorLimitX) {
+	if ((__GlbVideoTerminal.CursorX + (MCoreFontWidth + 1)) >= __GlbVideoTerminal.CursorLimitX) {
 		__GlbVideoTerminal.CursorX = __GlbVideoTerminal.CursorStartX;
 		__GlbVideoTerminal.CursorY += MCoreFontHeight;
 	}

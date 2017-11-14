@@ -16,6 +16,9 @@ config_flags =
 #config_flags += -D__OSCONFIG_ACPIDEBUGMUTEXES
 #config_flags += -D__OSCONFIG_REDUCEDHARDWARE
 
+# Use to debug process loading
+#config_flags += -D__OSCONFIG_PROCESS_SINGLELOAD
+
 # Use a full debug console on height
 config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE
 
