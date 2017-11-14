@@ -24,7 +24,6 @@
  * - System */
 #include "include/vfs.h"
 #include <os/mollenos.h>
-#include <ds/list.h>
 
 /* Includes
  * - C-Library */
@@ -72,7 +71,7 @@ MString_t *PathResolveEnvironment(EnvironmentPath_t Base)
 	/* Variables */
 	char PathBuffer[_MAXPATH];
 	MString_t *ResolvedPath = NULL;
-	ListNode_t *fNode = NULL;
+	CollectionItem_t *fNode = NULL;
 	int pIndex = (int)Base;
 	int pFound = 0;
 
@@ -133,7 +132,7 @@ MString_t *PathCanonicalize(EnvironmentPath_t Base, __CONST char *Path)
 {
 	/* Store result */
 	MString_t *AbsPath = MStringCreate(NULL, StrUTF8);
-	ListNode_t *fNode = NULL;
+	CollectionItem_t *fNode = NULL;
 	int i = 0;
 
 	/* There must be either a FS indicator in a path

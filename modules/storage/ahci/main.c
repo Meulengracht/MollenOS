@@ -32,14 +32,13 @@
 
 /* Includes
  * - Library */
-#include <ds/list.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 
 /* Globals
  * State-tracking variables */
-static List_t *GlbControllers = NULL;
+static Collection_t *GlbControllers = NULL;
 
 /* OnFastInterrupt
  * Is called for the sole purpose to determine if this source
@@ -132,7 +131,7 @@ OnTimeout(
 OsStatus_t OnLoad(void)
 {
 	// Initialize state for this driver
-	GlbControllers = ListCreate(KeyInteger);
+	GlbControllers = CollectionCreate(KeyInteger);
 
 	// Initialize the device manager here
 	return AhciManagerInitialize();
@@ -149,7 +148,7 @@ OsStatus_t OnUnload(void)
 	}
 
 	// Data is now cleaned up, destroy list
-	ListDestroy(GlbControllers);
+	CollectionDestroy(GlbControllers);
 
 	// Cleanup the internal device manager
 	return AhciManagerDestroy();
@@ -176,7 +175,7 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 	Key.Value = (int)Device->Id;
 
 	// Append the controller to our list
-	ListAppend(GlbControllers, ListCreateNode(Key, Key, Controller));
+	CollectionAppend(GlbControllers, CollectionCreateNode(Key, Controller));
 
 	// Done - no error
 	return OsSuccess;
@@ -197,7 +196,7 @@ OsStatus_t OnUnregister(MCoreDevice_t *Device)
 
 	// Lookup controller
 	Controller = (AhciController_t*)
-		ListGetDataByKey(GlbControllers, Key, 0);
+		CollectionGetDataByKey(GlbControllers, Key, 0);
 
 	// Sanitize lookup
 	if (Controller == NULL) {
@@ -205,7 +204,7 @@ OsStatus_t OnUnregister(MCoreDevice_t *Device)
 	}
 
 	// Remove node from list
-	ListRemoveByKey(GlbControllers, Key);
+	CollectionRemoveByKey(GlbControllers, Key);
 
 	// Destroy it
 	return AhciControllerDestroy(Controller);

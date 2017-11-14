@@ -39,7 +39,7 @@
 /* Globals
  * Keep track of the active disks and ids that relate
  * to this driver. */
-static List_t *GlbDisks = NULL;
+static Collection_t *GlbDisks = NULL;
 static UUId_t GlbDiskId = 0;
 
 /* AHCIStringFlip 
@@ -72,7 +72,7 @@ AhciManagerInitialize(void)
 	TRACE("AhciManagerInitialize()");
 
 	// Create list and reset id
-	GlbDisks = ListCreate(KeyInteger);
+	GlbDisks = CollectionCreate(KeyInteger);
 	GlbDiskId = 0;
 
 	// No errors
@@ -97,7 +97,7 @@ AhciManagerDestroy(void)
 	}
 
 	// Cleanup list
-	return ListDestroy(GlbDisks);
+	return CollectionDestroy(GlbDisks);
 }
 
 /* AhciManagerCreateDevice
@@ -237,7 +237,7 @@ AhciManagerCreateDeviceCallback(
 
 	// Add disk to list
 	Key.Value = (int)Device->Descriptor.Device;
-	ListAppend(GlbDisks, ListCreateNode(Key, Key, Device));
+	CollectionAppend(GlbDisks, CollectionCreateNode(Key, Device));
 
 	// Lastly register disk
 	return RegisterDisk(Device->Descriptor.Device, 
@@ -253,7 +253,7 @@ AhciManagerRemoveDevice(
 {
 	// Variables
 	AhciDevice_t *Device = NULL;
-	ListNode_t *dNode = NULL;
+	CollectionItem_t *dNode = NULL;
 	DataKey_t Key;
 
 	// Trace
@@ -280,7 +280,7 @@ AhciManagerRemoveDevice(
 	}
 
 	// Step one is clean up from list
-	ListRemoveByKey(GlbDisks, Key);
+	CollectionRemoveByKey(GlbDisks, Key);
 
 	// Cleanup resources
 	DestroyBuffer(Device->Buffer);
@@ -299,5 +299,5 @@ AhciManagerGetDevice(
 	// Variables
 	DataKey_t Key;
 	Key.Value = (int)Disk;
-	return ListGetDataByKey(GlbDisks, Key, 0);
+	return CollectionGetDataByKey(GlbDisks, Key, 0);
 }

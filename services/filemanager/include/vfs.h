@@ -33,7 +33,7 @@
 /* Includes 
  * - Library */
 #include <os/osdefs.h>
-#include <ds/list.h>
+#include <ds/collection.h>
 #include <stddef.h>
 
 /* VFS Definitions 
@@ -133,22 +133,22 @@ __EXTERN OsStatus_t VfsResolveQueueEvent(void);
 /* VfsGetResolverQueue
  * Retrieves a list of all the current filesystems
  * that needs to be resolved, and is scheduled */
-__EXTERN List_t *VfsGetResolverQueue(void);
+__EXTERN Collection_t *VfsGetResolverQueue(void);
 
 /* VfsGetFileSystems
  * Retrieves a list of all the current filesystems
  * and provides access for manipulation */
-__EXTERN List_t *VfsGetFileSystems(void);
+__EXTERN Collection_t *VfsGetFileSystems(void);
 
 /* VfsGetModules
  * Retrieves a list of all the currently loaded
  * modules, provides access for manipulation */
-__EXTERN List_t *VfsGetModules(void);
+__EXTERN Collection_t *VfsGetModules(void);
 
 /* VfsGetDisks
  * Retrieves a list of all the currently registered
  * disks, provides access for manipulation */
-__EXTERN List_t *VfsGetDisks(void);
+__EXTERN Collection_t *VfsGetDisks(void);
 
 /* VfsIdentifierFileGet
  * Retrieves a new identifier for a file-handle that
@@ -158,8 +158,8 @@ __EXTERN UUId_t VfsIdentifierFileGet(void);
 /* VfsGetOpenFiles / VfsGetOpenHandles
  * Retrieves the list of open files /handles and allows
  * access and manipulation of the list */
-__EXTERN List_t *VfsGetOpenFiles(void);
-__EXTERN List_t *VfsGetOpenHandles(void);
+__EXTERN Collection_t *VfsGetOpenFiles(void);
+__EXTERN Collection_t *VfsGetOpenHandles(void);
 
 /* VfsIdentifierAllocate 
  * Allocates a free identifier index for the

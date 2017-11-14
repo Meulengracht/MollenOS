@@ -29,6 +29,7 @@
 /* Includes
  * - Library */
 #include <stddef.h>
+#include <string.h>
 
 /* ProcessSpawn
  * Spawns a new process by the given path and

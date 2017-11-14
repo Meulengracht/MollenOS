@@ -30,7 +30,7 @@
 
 /* Includes
  * - Library */
-#include <ds/list.h>
+#include <ds/collection.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
@@ -39,7 +39,7 @@
  * State-tracking variables */
 static ACPI_TABLE_HPET *__GlbHPET = NULL;
 static AcpiDescriptor_t __GlbACPI;
-static List_t *GlbControllers = NULL;
+static Collection_t *GlbControllers = NULL;
 
 /* OnInterrupt
  * This driver uses fast-interrupt */
@@ -127,7 +127,7 @@ OsStatus_t OnLoad(void)
 	ACPI_TABLE_HEADER *Header = NULL;
 
 	// Initialize state for this driver
-	GlbControllers = ListCreate(KeyInteger);
+	GlbControllers = CollectionCreate(KeyInteger);
 
 	// Load ACPI
 	// If it's not present we should abort driver
@@ -161,7 +161,7 @@ OsStatus_t OnUnload(void)
 	}
 
 	// Data is now cleaned up, destroy list
-	ListDestroy(GlbControllers);
+	CollectionDestroy(GlbControllers);
 	return OsSuccess;
 }
 
@@ -191,7 +191,7 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 	Key.Value = (int)Device->Id;
 
 	// Append the controller to our list
-	ListAppend(GlbControllers, ListCreateNode(Key, Key, Controller));
+	CollectionAppend(GlbControllers, CollectionCreateNode(Key, Controller));
 
 	// Done - no error
 	return OsSuccess;
@@ -217,7 +217,7 @@ OsStatus_t OnUnregister(MCoreDevice_t *Device)
 
 	// Lookup controller
 	Controller = (HpController_t*)
-		ListGetDataByKey(GlbControllers, Key, 0);
+		CollectionGetDataByKey(GlbControllers, Key, 0);
 
 	// Sanitize lookup
 	if (Controller == NULL) {
@@ -225,7 +225,7 @@ OsStatus_t OnUnregister(MCoreDevice_t *Device)
 	}
 
 	// Remove node from list
-	ListRemoveByKey(GlbControllers, Key);
+	CollectionRemoveByKey(GlbControllers, Key);
 
 	// Destroy it
 	return HpControllerDestroy(Controller);
@@ -259,12 +259,12 @@ OnQuery(_In_ MContractType_t QueryType,
 	}
 
 	// Sanitize controller count
-	if (ListLength(GlbControllers) == 0) {
+	if (CollectionLength(GlbControllers) == 0) {
 		return OsError;
 	}
 
 	// Lookup first controller
-	Controller = (HpController_t*)ListBegin(GlbControllers)->Data;
+	Controller = (HpController_t*)CollectionBegin(GlbControllers)->Data;
 
 	// Which kind of function has been invoked?
 	switch (QueryFunction) {

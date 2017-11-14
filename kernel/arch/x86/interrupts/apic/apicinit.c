@@ -24,17 +24,17 @@
  * - System */
 #include <system/interrupts.h>
 #include <system/utils.h>
-#include <apic.h>
 #include <acpiinterface.h>
-#include <memory.h>
 #include <interrupts.h>
+#include <memory.h>
 #include <timers.h>
+#include <apic.h>
 #include <heap.h>
 #include <log.h>
 
 /* Includes
- * - C-Library */
-#include <ds/list.h>
+ * - Library */
+#include <ds/collection.h>
 #include <string.h>
 
 /* Globals 
@@ -42,7 +42,7 @@
  * as it changes frequently */
 size_t GlbTimerQuantum = APIC_DEFAULT_QUANTUM;
 volatile size_t GlbTimerTicks[64];
-List_t *GlbIoApics = NULL;
+Collection_t *GlbIoApics = NULL;
 uintptr_t GlbLocalApicBase = 0;
 UUId_t GlbBootstrapCpuId = 0;
 int GlbIoApicI8259Pin = 0;
@@ -50,7 +50,7 @@ int GlbIoApicI8259Apic = 0;
 
 /* Externs, we need access to some cpu information
  * and the ACPI nodes to get LVT information */
-__EXTERN List_t *GlbAcpiNodes;
+__EXTERN Collection_t *GlbAcpiNodes;
 
 /* Handlers, they are defined in ApicHandlers.c
  * but are installed by the boot setup apic func */
@@ -65,7 +65,7 @@ __EXTERN InterruptStatus_t ApicTimerHandler(void *Args);
 void ApicSetupLvt(UUId_t Cpu, int Lvt)
 {
 	/* Variables for iteration */
-	ListNode_t *Node;
+	CollectionItem_t *Node;
 	uint32_t Temp = 0;
 
 	/* Iterate */
@@ -172,7 +172,7 @@ void AcpiSetupIoApic(void *Data, int Nr, void *UserData)
 
 	/* Add to list */
 	Key.Value = (int)IoApic->Id;
-	ListAppend(GlbIoApics, ListCreateNode(Key, Key, IoListEntry));
+	CollectionAppend(GlbIoApics, CollectionCreateNode(Key, IoListEntry));
 
 	/* Structure of IO Entry Register:
 	 * Bits 0 - 7: Interrupt Vector that will be raised (Valid ranges are from 0x10 - 0xFE) - Read/Write
@@ -522,9 +522,9 @@ void ApicInitBoot(void)
 	// Setup IO apics 
 	// this is done by the AcpiSetupIoApic code
 	// that is called for all present io-apics 
-	GlbIoApics = ListCreate(KeyInteger);
+	GlbIoApics = CollectionCreate(KeyInteger);
 	Key.Value = ACPI_MADT_TYPE_IO_APIC;
-	ListExecuteOnKey(GlbAcpiNodes, AcpiSetupIoApic, Key, NULL);
+	CollectionExecuteOnKey(GlbAcpiNodes, AcpiSetupIoApic, Key, NULL);
 
 	// We can now enable the interrupts, as 
 	// the IVT table is in place and the local apic

@@ -24,9 +24,9 @@
 
 /* Includes
  * - Library */
-#include <ds/list.h>
-#include <ds/mstring.h>
 #include <os/osdefs.h>
+#include <ds/collection.h>
+#include <ds/mstring.h>
 
 /* Magic Constants used for data integrity */
 #define MZ_MAGIC                            0x5A4D
@@ -404,7 +404,8 @@ typedef struct _MCorePeFile {
     
     int                      NumberOfExportedFunctions;
     MCorePeExportFunction_t *ExportedFunctions;
-    List_t                  *LoadedLibraries;
+    Collection_t            *LoadedLibraries;
+    Spinlock_t               LibraryLock;
 } MCorePeFile_t;
 
 /* PeValidate

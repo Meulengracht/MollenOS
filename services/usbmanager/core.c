@@ -52,8 +52,8 @@ UsbGetController(
 
 /* Globals 
  * To keep track of all data since system startup */
-static List_t *GlbUsbControllers = NULL;
-static List_t *GlbUsbDevices = NULL;
+static Collection_t *GlbUsbControllers = NULL;
+static Collection_t *GlbUsbDevices = NULL;
 
 /* UsbReserveAddress 
  * Iterate all 128 addresses in an controller and find one not allocated */
@@ -314,8 +314,8 @@ OsStatus_t
 UsbCoreInitialize(void)
 {
     // Initialize globals to a known state
-    GlbUsbControllers = ListCreate(KeyInteger);
-    GlbUsbDevices = ListCreate(KeyInteger);
+    GlbUsbControllers = CollectionCreate(KeyInteger);
+    GlbUsbDevices = CollectionCreate(KeyInteger);
 
     // Allocate buffers
     return UsbInitialize();
@@ -336,8 +336,8 @@ UsbCoreDestroy(void)
     }
 
     // Destroy lists
-    ListDestroy(GlbUsbControllers);
-    ListDestroy(GlbUsbDevices);
+    CollectionDestroy(GlbUsbControllers);
+    CollectionDestroy(GlbUsbDevices);
 
     // Cleanup resources
     return UsbCleanup();
@@ -373,8 +373,8 @@ UsbControllerRegister(
     Key.Value = 0;
 
     // Add to list of controllers
-    return ListAppend(GlbUsbControllers, 
-        ListCreateNode(Key, Key, Controller));
+    return CollectionAppend(GlbUsbControllers, 
+        CollectionCreateNode(Key, Controller));
 }
 
 /* UsbControllerUnregister

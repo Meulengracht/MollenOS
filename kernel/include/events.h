@@ -23,9 +23,9 @@
 #define _MCORE_EVENTS_H_
 
 /* Includes 
- * - C Library */
+ * - Library */
 #include <os/osdefs.h>
-#include <ds/list.h>
+#include <ds/collection.h>
 
 /* Includes
  * - System */
@@ -35,52 +35,27 @@
  * of an event, this means the sender
  * can check the status all the sender
  * wants*/
-typedef enum _EventState
-{
-	EventPending,
-	EventInProgress,
-	EventOk,
-	EventFailed,
-	EventCancelled
-
+typedef enum _EventState {
+    EventPending,
+    EventInProgress,
+    EventOk,
+    EventFailed,
+    EventCancelled
 } EventState_t;
 
 /* Generic format used for the
- * different enums.. they are 
- * all ints anyway */
+ * different enums.. they are all ints anyway */
 typedef int Enum_t;
 
 /* Generic Event/Request 
- * Describes the BASE of an 
- * event that might occur, 
+ * Describes the BASE of an event that might occur, 
  * it's important to 'inherit' this */
-typedef struct _MCoreEvent
-{
-	/* Owner 
-	 * The thread that owns this 
-	 * event */
-	UUId_t Owner;
-
-	/* Type 
-	 * This the type of event 
-	 * that can happen */
-	Enum_t Type;
-
-	/* State 
-	 * This is the current state
-	 * of the event */
-	EventState_t State;
-
-	/* Queue
-	 * This keeps track of people
-	 * waiting on this request to finish */
-	Semaphore_t Queue;
-
-	/* Auto Cleanup 
-	 * This means the event-handler
-	 * must cleanup this request */
-	int Cleanup;
-
+typedef struct _MCoreEvent {
+    UUId_t              Owner;
+    Enum_t              Type;
+    EventState_t        State;
+    Semaphore_t         Queue;
+    int                 Cleanup;
 } MCoreEvent_t;
 
 /* Define the default event callback
@@ -92,26 +67,15 @@ typedef int (*EventCallback)(void*, MCoreEvent_t*);
  * This describes an event handler 
  * The event handler keeps track of 
  * events and locks */
-typedef struct _MCoreEventHandler
-{
-	/* Name of event handler */
-	MString_t *Name;
-	UUId_t ThreadId;
-
-	/* Status of event-handler */
-	int Running;
-
-	/* Event Stuff */
-	List_t *Events;
-	Semaphore_t *Lock;
-
-	/* Callback */
-	EventCallback Callback;
-	void *UserData;
-
+typedef struct _MCoreEventHandler {
+    MString_t           *Name;
+    UUId_t               ThreadId;
+    int                  Running;
+    Collection_t        *Events;
+    Semaphore_t         *Lock;
+    EventCallback        Callback;
+    void                *UserData;
 } MCoreEventHandler_t;
-
-/* Prototypes */
 
 /* Event Init/Destruct 
  * Starts or stops handling events 

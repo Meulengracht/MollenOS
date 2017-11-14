@@ -26,7 +26,6 @@
 #include <os/driver/file.h>
 #include <os/utils.h>
 #include "include/vfs.h"
-#include <ds/list.h>
 
 /* Includes
  * - C-Library */
@@ -36,15 +35,15 @@
 #include <ctype.h>
 
 /* Globals */
-static List_t *GlbResolveQueue = NULL;
-static List_t *GlbFileSystems = NULL;
-static List_t *GlbOpenHandles = NULL;
-static List_t *GlbOpenFiles = NULL;
-static List_t *GlbModules = NULL;
-static List_t *GlbDisks = NULL;
-UUId_t GlbFileSystemId = 0;
-UUId_t GlbFileId = 0;
-int GlbInitialized = 0;
+static Collection_t *GlbResolveQueue    = NULL;
+static Collection_t *GlbFileSystems     = NULL;
+static Collection_t *GlbOpenHandles     = NULL;
+static Collection_t *GlbOpenFiles       = NULL;
+static Collection_t *GlbModules         = NULL;
+static Collection_t *GlbDisks           = NULL;
+UUId_t GlbFileSystemId                  = 0;
+UUId_t GlbFileId                        = 0;
+int GlbInitialized                      = 0;
 
 /* The disk id array, contains id's in the
  * range of __FILEMANAGER_MAXDISKS/2 as half
@@ -54,7 +53,7 @@ int GlbDiskIds[__FILEMANAGER_MAXDISKS];
 /* VfsGetOpenFiles / VfsGetOpenHandles
  * Retrieves the list of open files /handles and allows
  * access and manipulation of the list */
-List_t *VfsGetOpenFiles(void)
+Collection_t *VfsGetOpenFiles(void)
 {
 	return GlbOpenFiles;
 }
@@ -62,7 +61,7 @@ List_t *VfsGetOpenFiles(void)
 /* VfsGetOpenFiles / VfsGetOpenHandles
  * Retrieves the list of open files /handles and allows
  * access and manipulation of the list */
-List_t *VfsGetOpenHandles(void)
+Collection_t *VfsGetOpenHandles(void)
 {
 	return GlbOpenHandles;
 }
@@ -70,7 +69,7 @@ List_t *VfsGetOpenHandles(void)
 /* VfsGetModules
  * Retrieves a list of all the currently loaded
  * modules, provides access for manipulation */
-List_t *VfsGetModules(void)
+Collection_t *VfsGetModules(void)
 {
 	return GlbModules;
 }
@@ -78,7 +77,7 @@ List_t *VfsGetModules(void)
 /* VfsGetDisks
  * Retrieves a list of all the currently registered
  * disks, provides access for manipulation */
-List_t *VfsGetDisks(void)
+Collection_t *VfsGetDisks(void)
 {
 	return GlbDisks;
 }
@@ -86,7 +85,7 @@ List_t *VfsGetDisks(void)
 /* VfsGetFileSystems
  * Retrieves a list of all the current filesystems
  * and provides access for manipulation */
-List_t *VfsGetFileSystems(void)
+Collection_t *VfsGetFileSystems(void)
 {
 	return GlbFileSystems;
 }
@@ -94,7 +93,7 @@ List_t *VfsGetFileSystems(void)
 /* VfsGetResolverQueue
  * Retrieves a list of all the current filesystems
  * that needs to be resolved, and is scheduled */
-List_t *VfsGetResolverQueue(void)
+Collection_t *VfsGetResolverQueue(void)
 {
 	return GlbResolveQueue;
 }
@@ -153,12 +152,12 @@ OsStatus_t VfsIdentifierFree(FileSystemDisk_t *Disk, UUId_t Id)
 OsStatus_t OnLoad(void)
 {
 	// Initialize lists
-	GlbResolveQueue = ListCreate(KeyInteger);
-	GlbFileSystems = ListCreate(KeyInteger);
-	GlbOpenHandles = ListCreate(KeyInteger);
-	GlbOpenFiles = ListCreate(KeyInteger);
-	GlbModules = ListCreate(KeyInteger);
-	GlbDisks = ListCreate(KeyInteger);
+	GlbResolveQueue = CollectionCreate(KeyInteger);
+	GlbFileSystems = CollectionCreate(KeyInteger);
+	GlbOpenHandles = CollectionCreate(KeyInteger);
+	GlbOpenFiles = CollectionCreate(KeyInteger);
+	GlbModules = CollectionCreate(KeyInteger);
+	GlbDisks = CollectionCreate(KeyInteger);
 
 	// Initialize variables
 	memset(&GlbDiskIds[0], 0, sizeof(int) * __FILEMANAGER_MAXDISKS);

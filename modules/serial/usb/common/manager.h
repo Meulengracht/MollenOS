@@ -31,7 +31,8 @@
 #include <os/driver/driver.h>
 #include <os/driver/usb.h>
 #include <os/osdefs.h>
-#include <ds/list.h>
+#include <os/spinlock.h>
+#include <ds/collection.h>
 
 /* UsbManagerEndpoint 
  * Keeps track of the active endpoints for a controller. */
@@ -53,7 +54,7 @@ typedef struct _UsbManagerController {
     
 	DeviceIoSpace_t			*IoBase;
 	size_t					 PortCount;
-    List_t					*Endpoints;
+    Collection_t	    	*Endpoints;
     reg32_t                  InterruptStatus;
 } UsbManagerController_t;
 
@@ -93,7 +94,7 @@ UsbManagerDestroy(void);
 /* UsbManagerGetControllers
  * Retrieve a list of all attached controllers to the system. */
 __EXTERN
-List_t*
+Collection_t*
 UsbManagerGetControllers(void);
 
 /* UsbManagerCreateTransfer

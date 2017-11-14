@@ -35,8 +35,8 @@
 
 /* Includes
  * - Library */
+#include <ds/collection.h>
 #include <stddef.h>
-#include <ds/list.h>
 
 /* Represents an io-space in MollenOS, they represent
  * some kind of communication between hardware and software
@@ -53,10 +53,10 @@ PACKED_TYPESTRUCT(MCoreIoSpace, {
 /* Globals 
  * We need to keep track of a few things
  * and keep a list of io-spaces in the system */
-static Spinlock_t __GlbIoSpaceLock = SPINLOCK_INIT;
-static UUId_t __GlbIoSpaceId = 1;
-static List_t *__GlbIoSpaces = NULL;
-static int __GlbIoSpaceInitialized = 0;
+static Spinlock_t __GlbIoSpaceLock  = SPINLOCK_INIT;
+static UUId_t __GlbIoSpaceId        = 1;
+static Collection_t *__GlbIoSpaces  = NULL;
+static int __GlbIoSpaceInitialized  = 0;
 
 /* IoSpaceInitialize
  * Initialize the Io Space manager so we 
@@ -69,7 +69,7 @@ IoSpaceInitialize(void)
     TRACE("IoSpaceInitialize()");
 
     // Initialize globals
-    __GlbIoSpaces = ListCreate(KeyInteger);
+    __GlbIoSpaces = CollectionCreate(KeyInteger);
     __GlbIoSpaceInitialized = 1;
     __GlbIoSpaceId = 1;
 }
@@ -97,25 +97,19 @@ IoSpaceRegister(
     // as we don't want anyone to edit our copy
     SysCopy = (MCoreIoSpace_t*)kmalloc(sizeof(MCoreIoSpace_t));
 
-    // Acquire a lock on this as 
-    // we assign it an id
-    SpinlockAcquire(&__GlbIoSpaceLock);
-
     // Initialize the system copy
-    IoSpace->Id = SysCopy->Id = __GlbIoSpaceId++;
     SysCopy->Owner = UUID_INVALID;
     SysCopy->Type = IoSpace->Type;
     SysCopy->PhysicalBase = IoSpace->PhysicalBase;
     SysCopy->VirtualBase = 0;
     SysCopy->Size = IoSpace->Size;
 
-    // Release the lock again, its ok from here
-    // to allow other code to run 
-    SpinlockRelease(&__GlbIoSpaceLock);
-
     // Add to list
+    SpinlockAcquire(&__GlbIoSpaceLock);
+    IoSpace->Id = SysCopy->Id = __GlbIoSpaceId++;
     Key.Value = (int)SysCopy->Id;
-    ListAppend(__GlbIoSpaces, ListCreateNode(Key, Key, (void*)SysCopy));
+    CollectionAppend(__GlbIoSpaces, CollectionCreateNode(Key, (void*)SysCopy));
+    SpinlockRelease(&__GlbIoSpaceLock);
 
     // Debugging
     TRACE("Allocated Id %u", IoSpace->Id);
@@ -134,7 +128,7 @@ IoSpaceAcquire(
 {
     // Variables
     MCoreIoSpace_t *SysCopy = NULL;
-    MCoreServer_t *Server = NULL;
+    MCoreServer_t *Server   = NULL;
     DataKey_t Key;
     UUId_t Cpu;
 
@@ -146,7 +140,10 @@ IoSpaceAcquire(
     Server = PhoenixGetCurrentServer();
     Cpu = CpuGetCurrentId();
     Key.Value = (int)IoSpace->Id;
-    SysCopy = (MCoreIoSpace_t*)ListGetDataByKey(__GlbIoSpaces, Key, 0);
+
+    SpinlockAcquire(&__GlbIoSpaceLock);
+    SysCopy = (MCoreIoSpace_t*)CollectionGetDataByKey(__GlbIoSpaces, Key, 0);
+    SpinlockRelease(&__GlbIoSpaceLock);
 
     // Sanitize the system copy
     if (Server == NULL || SysCopy == NULL
@@ -221,7 +218,10 @@ IoSpaceRelease(
     Server = PhoenixGetCurrentServer();
     Cpu = CpuGetCurrentId();
     Key.Value = (int)IoSpace->Id;
-    SysCopy = (MCoreIoSpace_t*)ListGetDataByKey(__GlbIoSpaces, Key, 0);
+    
+    SpinlockAcquire(&__GlbIoSpaceLock);
+    SysCopy = (MCoreIoSpace_t*)CollectionGetDataByKey(__GlbIoSpaces, Key, 0);
+    SpinlockRelease(&__GlbIoSpaceLock);
 
     // Sanitize the system copy and do
     // some security checks
@@ -285,7 +285,9 @@ IoSpaceDestroy(
     // Lookup the system copy to validate this
     // requested operation
     Key.Value = (int)IoSpace;
-    SysCopy = (MCoreIoSpace_t*)ListGetDataByKey(__GlbIoSpaces, Key, 0);
+    SpinlockAcquire(&__GlbIoSpaceLock);
+    SysCopy = (MCoreIoSpace_t*)CollectionGetDataByKey(__GlbIoSpaces, Key, 0);
+    SpinlockRelease(&__GlbIoSpaceLock);
 
     // Sanitize the system copy
     if (SysCopy == NULL
@@ -295,14 +297,16 @@ IoSpaceDestroy(
 
     // Remove from list and cleanup 
     // the allocated resources
-    ListRemoveByKey(__GlbIoSpaces, Key);
+    SpinlockAcquire(&__GlbIoSpaceLock);
+    CollectionRemoveByKey(__GlbIoSpaces, Key);
+    SpinlockRelease(&__GlbIoSpaceLock);
     kfree(SysCopy);
 
     // Done - no errors
     return OsSuccess;
 }
 
-/* IoSpaceValidate
+/* IoSpaceValidate (@interrupt_context)
  * Tries to validate the given virtual address by 
  * checking if any process has an active io-space
  * that involves that virtual address */
@@ -322,7 +326,7 @@ IoSpaceValidate(
     if (ProcessId == UUID_INVALID) {
         return 0;
     }
-
+    
     // Iterate and check each io-space
     // if anyone has this mapped in
     foreach(ioNode, __GlbIoSpaces) {

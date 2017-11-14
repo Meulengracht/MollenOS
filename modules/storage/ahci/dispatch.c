@@ -81,8 +81,8 @@ AhciCommandDispatch(
 	AHCICommandTable_t *CommandTable = NULL;
 	size_t BytesLeft = Transaction->SectorCount * Transaction->Device->SectorSize;
 	uintptr_t BufferPointer = 0;
-	ListNode_t *tNode = NULL;
-	DataKey_t Key, SubKey;
+	CollectionItem_t *tNode = NULL;
+	DataKey_t Key;
 	int PrdtIndex = 0;
 
 	// Trace
@@ -179,11 +179,10 @@ AhciCommandDispatch(
 
 	// Setup key and sort key
 	Key.Value = Transaction->Slot;
-	SubKey.Value = (int)DISPATCH_MULTIPLIER(Flags);
 
 	// Add transaction to list
-	tNode = ListCreateNode(Key, SubKey, Transaction);
-	ListAppend(Transaction->Device->Port->Transactions, tNode);
+	tNode = CollectionCreateNode(Key, Transaction);
+	CollectionAppend(Transaction->Device->Port->Transactions, tNode);
 
 	// Trace
 	TRACE("Enabling command on slot %u", Transaction->Slot);

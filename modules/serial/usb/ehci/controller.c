@@ -145,7 +145,7 @@ EhciControllerCreate(
 	}
 
 	// Allocate a list of endpoints
-	Controller->Base.Endpoints = ListCreate(KeyInteger);
+	Controller->Base.Endpoints = CollectionCreate(KeyInteger);
 
 	// Now that all formalities has been taken care
 	// off we can actually setup controller
@@ -176,7 +176,7 @@ EhciControllerDestroy(
 	DestroyIoSpace(Controller->Base.IoBase->Id);
 
 	// Free the list of endpoints
-	ListDestroy(Controller->Base.Endpoints);
+	CollectionDestroy(Controller->Base.Endpoints);
 
 	// Free the controller structure
 	free(Controller);

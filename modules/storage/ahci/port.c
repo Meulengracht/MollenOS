@@ -71,7 +71,7 @@ AhciPortCreate(
 		((uint8_t*)Controller->Registers + AHCI_REGISTER_PORTBASE(Port));
 
 	// Create the transaction list and we're done!
-	AhciPort->Transactions = ListCreate(KeyInteger);
+	AhciPort->Transactions = CollectionCreate(KeyInteger);
 	return AhciPort;
 }
 
@@ -171,7 +171,7 @@ AhciPortCleanup(
 	_Out_ AhciPort_t *Port)
 {
 	// Variables
-	ListNode_t *pNode;
+	CollectionItem_t *pNode;
 
 	// Null out the port-entry in the controller
 	Controller->Ports[Port->Index] = NULL;
@@ -187,7 +187,7 @@ AhciPortCleanup(
 	}
 
 	// Destroy the list, it cleans up nodes too
-	ListDestroy(Port->Transactions);
+	CollectionDestroy(Port->Transactions);
 
 	// Free the port structure
 	free(Port);
@@ -349,7 +349,7 @@ AhciPortInterruptHandler(
 {
 	// Variables
 	reg32_t DoneCommands, InterruptStatus;
-	ListNode_t *tNode;
+	CollectionItem_t *tNode;
 	DataKey_t Key;
 	int i;
 	
@@ -395,7 +395,7 @@ AhciPortInterruptHandler(
 		for (i = 0; i < AHCI_MAX_PORTS; i++) {
 			if (DoneCommands & (1 << i)) {
 				Key.Value = i;
-				tNode = ListGetNodeByKey(Port->Transactions, Key, 0);
+				tNode = CollectionGetNodeByKey(Port->Transactions, Key, 0);
 				if (tNode != NULL) {
 					size_t Offset = i * AHCI_RECIEVED_FIS_SIZE;
 
@@ -408,8 +408,8 @@ AhciPortInterruptHandler(
 					AhciCommandFinish((AhciTransaction_t*)tNode->Data);
 
 					// Unlink and cleanup node
-					ListRemoveByNode(Port->Transactions, tNode);
-					ListDestroyNode(Port->Transactions, tNode);
+					CollectionRemoveByNode(Port->Transactions, tNode);
+					CollectionDestroyNode(Port->Transactions, tNode);
 				}
 			}
 		}

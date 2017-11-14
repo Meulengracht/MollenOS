@@ -30,7 +30,7 @@
  * - Library */
 #include <os/driver/contracts/usbhost.h>
 #include <os/osdefs.h>
-#include <ds/list.h>
+#include <ds/collection.h>
 
 #include "../common/manager.h"
 #include "../common/scheduler.h"
@@ -231,7 +231,7 @@ typedef struct _UhciControl {
 	int 					 	 Frame;
 
 	// Transactions
-	List_t						*TransactionList;
+	Collection_t				*TransactionList;
 } UhciControl_t;
 
 /* UhciController 

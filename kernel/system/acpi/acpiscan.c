@@ -31,11 +31,10 @@
 /* Includes
  * - Library */
 #include <stddef.h>
-#include <ds/list.h>
 
 /* Globals */
-List_t *GlbPciAcpiDevices = NULL;
-int GlbBusCounter = 0;
+Collection_t *GlbPciAcpiDevices = NULL;
+int GlbBusCounter               = 0;
 
 /* AcpiDeviceLookupBusRoutings
  * lookup a bridge device for the given bus that contains pci routings */
@@ -51,7 +50,7 @@ AcpiDeviceLookupBusRoutings(
 	// Loop through buses
 	while (1) {
 		Key.Value = ACPI_BUS_ROOT_BRIDGE;
-		Dev = (AcpiDevice_t*)ListGetDataByKey(GlbPciAcpiDevices, Key, Index);
+		Dev = (AcpiDevice_t*)CollectionGetDataByKey(GlbPciAcpiDevices, Key, Index);
 
 		// Sanity, if this returns
 		// null we are out of data
@@ -228,7 +227,7 @@ AcpiDeviceCreate(
 
 	// Add the device to device-list
 	Key.Value = Device->Type;
-	return ListAppend(GlbPciAcpiDevices, ListCreateNode(Key, Key, Device));
+	return CollectionAppend(GlbPciAcpiDevices, CollectionCreateNode(Key, Device));
 }
 
 /* AcpiDeviceScanCallback
@@ -290,7 +289,7 @@ AcpiDevicesScan(void)
     TRACE("AcpiDevicesScan()");
     
     // Initialize list and fixed objects
-	GlbPciAcpiDevices = ListCreate(KeyInteger);
+	GlbPciAcpiDevices = CollectionCreate(KeyInteger);
 	if (AcpiGbl_FADT.Flags & ACPI_FADT_POWER_BUTTON) {
         TRACE("Initializing power button");
 		if (AcpiDeviceCreate(NULL, ACPI_ROOT_OBJECT, ACPI_BUS_TYPE_POWER) != OsSuccess) {

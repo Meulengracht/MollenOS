@@ -30,7 +30,7 @@
 #include <os/driver/bufferpool.h>
 #include <os/driver/usb.h>
 #include <os/osdefs.h>
-#include <ds/list.h>
+#include <ds/collection.h>
 
 /* UsbInterfaceVersion_t 
  * */

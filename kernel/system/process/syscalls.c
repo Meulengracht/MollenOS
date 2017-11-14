@@ -42,7 +42,6 @@
 #include <assert.h>
 #include <stddef.h>
 #include <os/ipc/ipc.h>
-#include <ds/list.h>
 #include <ds/mstring.h>
 #include <string.h>
 

@@ -364,8 +364,7 @@ SchedulerThreadWake(
         Current->Sleep.Handle = NULL;
         Current->Sleep.TimeLeft = 0;
         SchedulerQueueRemove(&IoQueue, Current);
-        SchedulerThreadQueue(Current);
-		return OsSuccess;
+		return SchedulerThreadQueue(Current);
 	}
 	else {
         return OsError;
@@ -474,7 +473,6 @@ SchedulerThreadSchedule(
     }
 
 	// This is a locked operation
-	CriticalSectionEnter(&Scheduler->QueueLock);
 	Scheduler->BoostTimer += TimeSlice;
 	if (Scheduler->BoostTimer >= SCHEDULER_BOOST) {
 		SchedulerBoostThreads(Scheduler);
@@ -491,6 +489,5 @@ SchedulerThreadSchedule(
             break;
 		}
     }
-    CriticalSectionLeave(&Schedulers[Cpu]->QueueLock);
     return NextThread;
 }

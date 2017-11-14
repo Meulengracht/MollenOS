@@ -19,19 +19,17 @@
  * MollenOS MCore - ACPI(CA) Table Enumeration Interface
  */
 
-/* Includes */
-#include <arch.h>
+/* Includes 
+ * - System */
 #include <acpiinterface.h>
+#include <arch.h>
 #include <heap.h>
 #include <log.h>
-
-/* C-Library */
-#include <ds/list.h>
 
 /* Globals 
  * - Global state keeping */
 AcpiEcdt_t __GlbECDT;
-List_t *GlbAcpiNodes = NULL;
+Collection_t *GlbAcpiNodes = NULL;
 int GlbAcpiAvailable = ACPI_NOT_AVAILABLE;
 
 /* Static Acpica */
@@ -68,7 +66,7 @@ void AcpiEnumarateMADT(void *MadtStart, void *MadtEnd)
 
 				/* Insert it into list */
 				Key.Value = ACPI_MADT_TYPE_LOCAL_APIC;
-				ListAppend(GlbAcpiNodes, ListCreateNode(Key, Key, CpuNode));
+				CollectionAppend(GlbAcpiNodes, CollectionCreateNode(Key, CpuNode));
 
 				/* Debug */
 				LogInformation("MADT", "Found CPU: %u (%s)", 
@@ -91,7 +89,7 @@ void AcpiEnumarateMADT(void *MadtStart, void *MadtEnd)
 
 			/* Insert it into list */
 			Key.Value = ACPI_MADT_TYPE_IO_APIC;
-			ListAppend(GlbAcpiNodes, ListCreateNode(Key, Key, IoNode));
+			CollectionAppend(GlbAcpiNodes, CollectionCreateNode(Key, IoNode));
 
 			/* Debug */
 			LogInformation("MADT", "Found IO-APIC: %u", AcpiIoApic->Id);
@@ -114,7 +112,7 @@ void AcpiEnumarateMADT(void *MadtStart, void *MadtEnd)
 
 			/* Insert it into list */
 			Key.Value = ACPI_MADT_TYPE_INTERRUPT_OVERRIDE;
-			ListAppend(GlbAcpiNodes, ListCreateNode(Key, Key, OverrideNode));
+			CollectionAppend(GlbAcpiNodes, CollectionCreateNode(Key, OverrideNode));
 
 		} break;
 
@@ -133,7 +131,7 @@ void AcpiEnumarateMADT(void *MadtStart, void *MadtEnd)
 
 			/* Insert it into list */
 			Key.Value = ACPI_MADT_TYPE_LOCAL_APIC_NMI;
-			ListAppend(GlbAcpiNodes, ListCreateNode(Key, Key, NmiNode));
+			CollectionAppend(GlbAcpiNodes, CollectionCreateNode(Key, NmiNode));
 
 		} break;
 
@@ -215,7 +213,7 @@ AcpiInitializeEarly(void)
     }
 
 	// Allocate ACPI node list
-	GlbAcpiNodes = ListCreate(KeyInteger);
+	GlbAcpiNodes = CollectionCreate(KeyInteger);
 
 	// Check for MADT presence and enumerate
 	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 0, &Header))) {

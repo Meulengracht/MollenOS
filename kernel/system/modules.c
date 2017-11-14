@@ -33,17 +33,16 @@
 #include <log.h>
 
 /* Includes
- * - C-Library */
+ * - Library */
+#include <ds/collection.h>
 #include <stddef.h>
-#include <ds/list.h>
 
 /* Private definitions that are local to this file */
 #define LIST_MODULE             1
 #define LIST_SERVER             2
-#define POLYNOMIAL              0x04c11db7L      // Standard CRC-32 ppolynomial
 
 /* Globals */
-List_t *GlbModules = NULL;
+Collection_t *GlbModules = NULL;
 int GlbModulesInitialized = 0;
 
 /* ModulesInitialize
@@ -86,7 +85,7 @@ ModulesInitialize(
 
     // Initialize the list of modules 
     // and servers so we can add later :-)
-    GlbModules = ListCreate(KeyInteger);
+    GlbModules = CollectionCreate(KeyInteger);
 
     // Store filecount so we can iterate
     Entry = (MCoreRamDiskEntry_t*)
@@ -128,7 +127,7 @@ ModulesInitialize(
             else {
                 Key.Value = LIST_MODULE;
             }
-            ListAppend(GlbModules, ListCreateNode(Key, Key, Module));
+            CollectionAppend(GlbModules, CollectionCreateNode(Key, Module));
         }
         else {
             WARNING("Unknown entry type: %u", Entry->Type);
@@ -138,11 +137,11 @@ ModulesInitialize(
     }
 
     // Debug
-    TRACE("Found %i Modules and Servers", ListLength(GlbModules));
+    TRACE("Found %i Modules and Servers", CollectionLength(GlbModules));
 
     // All is fine
     GlbModulesInitialized = 1;
-    return ListLength(GlbModules) == 0 ? OsError : OsSuccess;
+    return CollectionLength(GlbModules) == 0 ? OsError : OsSuccess;
 }
 
 /* ModulesRunServers
@@ -199,8 +198,9 @@ ModulesQueryPath(
     _Out_ size_t *Length)
 {
     // Variables
-    MString_t *Token = NULL;
-    OsStatus_t Result = OsError;
+    MString_t *Token    = Path;
+    OsStatus_t Result   = OsError;
+    int Index           = -1;
 
     // Debug
     TRACE("ModulesQueryPath(%s)", MStringRaw(Path));
@@ -211,7 +211,10 @@ ModulesQueryPath(
     }
 
     // Build the token we are looking for
-    Token = MStringSubString(Path, MStringFindReverse(Path, '/') + 1, -1);
+    Index = MStringFindReverse(Path, '/');
+    if (Index != MSTRING_NOT_FOUND) {
+        Token = MStringSubString(Path, Index + 1, -1);
+    }
     TRACE("TokenToSearchFor(%s)", MStringRaw(Token));
 
     // Locate the module

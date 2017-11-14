@@ -118,7 +118,7 @@ void
 StdioInitialize(void)
 {
     // Initialize the list of io-objects
-    IoObjects = ListCreate(KeyInteger);
+    IoObjects = CollectionCreate(KeyInteger);
     SpinlockReset(&IoLock);
 
     // Initialize the bitmap of fds
@@ -212,7 +212,7 @@ StdioFdAllocate(
         // Add to list
         Key.Value = result;
         SpinlockAcquire(&IoLock);
-        ListAppend(IoObjects, ListCreateNode(Key, Key, io));
+        CollectionAppend(IoObjects, CollectionCreateNode(Key, io));
         SpinlockRelease(&IoLock);
     }
 
@@ -233,11 +233,11 @@ StdioFdFree(
     // Free any resources allocated by the fd
     Key.Value = fd;
     SpinlockAcquire(&IoLock);
-    fNode = ListGetNodeByKey(IoObjects, Key, 0);
+    fNode = CollectionGetNodeByKey(IoObjects, Key, 0);
     if (fNode != NULL) {
         free(fNode->Data);
-        ListRemoveByNode(IoObjects, fNode);
-        ListDestroyNode(IoObjects, fNode);
+        CollectionRemoveByNode(IoObjects, fNode);
+        CollectionDestroyNode(IoObjects, fNode);
     }
     SpinlockRelease(&IoLock);
 
@@ -261,7 +261,7 @@ StdioFdToHandle(
     // Free any resources allocated by the fd
     Key.Value = fd;
     SpinlockAcquire(&IoLock);
-    fNode = ListGetNodeByKey(IoObjects, Key, 0);
+    fNode = CollectionGetNodeByKey(IoObjects, Key, 0);
     SpinlockRelease(&IoLock);
     if (fNode != NULL) {
         return ((ioobject*)fNode->Data)->handle;
@@ -286,7 +286,7 @@ StdioFdInitialize(
     // Lookup node of the file descriptor
     Key.Value = fd;
     SpinlockAcquire(&IoLock);
-    fNode = ListGetNodeByKey(IoObjects, Key, 0);
+    fNode = CollectionGetNodeByKey(IoObjects, Key, 0);
     SpinlockRelease(&IoLock);
     
     // Node must exist
@@ -630,7 +630,7 @@ get_ioinfo(int fd)
     Key.Value = fd;
 
     // Lookup io-object
-    return (ioobject*)ListGetDataByKey(IoObjects, Key, 0);
+    return (ioobject*)CollectionGetDataByKey(IoObjects, Key, 0);
 }
 
 /* _fcloseall

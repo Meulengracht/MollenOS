@@ -30,7 +30,7 @@
  * - Library */
 #include <os/osdefs.h>
 #include <os/driver/contracts/usbhost.h>
-#include <ds/list.h>
+#include <ds/collection.h>
 
 #include "../common/manager.h"
 #include "../common/scheduler.h"
@@ -578,7 +578,7 @@ typedef struct _EhciControl {
 	int                          AsyncTransactions;
 	int                          BellIsRinging;
 	int                          BellReScan;
-	List_t                      *TransactionList;
+	Collection_t                *TransactionList;
 } EhciControl_t;
 
 /* EhciController 

@@ -26,7 +26,6 @@
 #include <os/driver/file.h>
 #include "include/vfs.h"
 #include <os/mollenos.h>
-#include <ds/list.h>
 
 /* Includes
  * - C-Library */
@@ -95,7 +94,7 @@ VfsOpenInternal(
 	_In_ MString_t *Path)
 {
 	// Variables
-	ListNode_t *fNode = NULL, *pNode = NULL;
+	CollectionItem_t *fNode = NULL, *pNode = NULL;
 	FileSystemFile_t *File = NULL;
 	FileSystemCode_t Code = FsOk;
 	MString_t *Identifier = NULL;
@@ -109,7 +108,7 @@ VfsOpenInternal(
 	// and check cache 
 	PathHash = MStringHash(Path);
 	Key.Value = (int)PathHash;
-	pNode = ListGetNodeByKey(VfsGetOpenFiles(), Key, 0);
+	pNode = CollectionGetNodeByKey(VfsGetOpenFiles(), Key, 0);
 	
 	if (pNode != NULL) {
 		FileSystemFile_t *NodeFile = (FileSystemFile_t*)pNode->Data;
@@ -188,7 +187,7 @@ VfsOpenInternal(
 					}
 
 					// Append file handle
-					ListAppend(VfsGetOpenFiles(), ListCreateNode(Key, Key, File));
+					CollectionAppend(VfsGetOpenFiles(), CollectionCreateNode(Key, File));
 					File->References = 1;
 				}
 				else {
@@ -325,8 +324,8 @@ OpenFile(
 		*Handle = hFile->Id 
 			= VfsIdentifierFileGet();
 		Key.Value = (int)hFile->Id;
-		ListAppend(VfsGetOpenHandles(),
-			ListCreateNode(Key, Key, hFile));
+		CollectionAppend(VfsGetOpenHandles(),
+			CollectionCreateNode(Key, hFile));
 	}
 
 	/* Done - return code */
@@ -344,14 +343,14 @@ CloseFile(
 	/* Variables */
 	FileSystemFileHandle_t *fHandle = NULL;
 	FileSystemCode_t Code = FsOk;
-	ListNode_t *hNode = NULL;
+	CollectionItem_t *hNode = NULL;
 	FileSystem_t *Fs = NULL;
 	DataKey_t Key;
 
 	/* Sanitize request parameters first
 	 * Is handle valid? */
 	Key.Value = (int)Handle;
-	hNode = ListGetNodeByKey(VfsGetOpenHandles(), Key, 0);
+	hNode = CollectionGetNodeByKey(VfsGetOpenHandles(), Key, 0);
 
 	/* Case 1 - Not found */
 	if (hNode == NULL) {
@@ -390,7 +389,7 @@ CloseFile(
 	/* Last reference?
 	 * Cleanup the file in case of no refs */
 	if (fHandle->File->References <= 0) {
-		ListNode_t *pNode = ListGetNodeByKey(VfsGetOpenFiles(), Key, 0);
+		CollectionItem_t *pNode = CollectionGetNodeByKey(VfsGetOpenFiles(), Key, 0);
 
 		/* Cleanup the file */
 		Code = Fs->Module->CloseFile(&Fs->Descriptor, fHandle->File);
@@ -399,13 +398,13 @@ CloseFile(
 
 		/* Remove from list */
 		if (pNode != NULL) {
-			ListRemoveByNode(VfsGetOpenFiles(), pNode);
+			CollectionRemoveByNode(VfsGetOpenFiles(), pNode);
 			free(pNode);
 		}
 	}
 
 	/* Remove the handle from list */
-	ListRemoveByNode(VfsGetOpenHandles(), hNode);
+	CollectionRemoveByNode(VfsGetOpenHandles(), hNode);
 	free(hNode);
 
 	/* Cleanup the handle - return code */
@@ -426,7 +425,7 @@ DeleteFile(
 	FileSystemFileHandle_t *Handle = NULL;
 	FileSystemCode_t Code = FsOk;
 	UUId_t HandleId = UUID_INVALID;
-	ListNode_t *hNode = NULL;
+	CollectionItem_t *hNode = NULL;
 	FileSystem_t *Fs = NULL;
 	DataKey_t Key;
 
@@ -441,7 +440,7 @@ DeleteFile(
 
 	/* Convert the handle id into a handle */
 	Key.Value = (int)HandleId;
-	hNode = ListGetNodeByKey(VfsGetOpenHandles(), Key, 0);
+	hNode = CollectionGetNodeByKey(VfsGetOpenHandles(), Key, 0);
 	Handle = (FileSystemFileHandle_t*)hNode->Data;
 
 	/* Make sure there is only one reference to
@@ -476,14 +475,14 @@ ReadFile(
 	/* Variables */
 	FileSystemFileHandle_t *fHandle = NULL;
 	FileSystemCode_t Code = FsOk;
-	ListNode_t *hNode = NULL;
+	CollectionItem_t *hNode = NULL;
 	FileSystem_t *Fs = NULL;
 	DataKey_t Key;
 
 	/* Sanitize request parameters first
 	* Is handle valid? */
 	Key.Value = (int)Handle;
-	hNode = ListGetNodeByKey(VfsGetOpenHandles(), Key, 0);
+	hNode = CollectionGetNodeByKey(VfsGetOpenHandles(), Key, 0);
 
 	/* Case 1 - Not found / Invalid parameters */
 	if (hNode == NULL
@@ -538,7 +537,7 @@ WriteFile(
 	/* Variables */
 	FileSystemFileHandle_t *fHandle = NULL;
 	FileSystemCode_t Code = FsOk;
-	ListNode_t *hNode = NULL;
+	CollectionItem_t *hNode = NULL;
 	FileSystem_t *Fs = NULL;
 	int WriteToDisk = 0;
 	DataKey_t Key;
@@ -546,7 +545,7 @@ WriteFile(
 	/* Sanitize request parameters first
 	 * Is handle valid? */
 	Key.Value = (int)Handle;
-	hNode = ListGetNodeByKey(VfsGetOpenHandles(), Key, 0);
+	hNode = CollectionGetNodeByKey(VfsGetOpenHandles(), Key, 0);
 
 	/* Case 1 - Not found / Invalid parameters */
 	if (hNode == NULL
@@ -652,7 +651,7 @@ SeekFile(
 	/* Variables */
 	FileSystemFileHandle_t *fHandle = NULL;
 	FileSystemCode_t Code = FsOk;
-	ListNode_t *hNode = NULL;
+	CollectionItem_t *hNode = NULL;
 	FileSystem_t *Fs = NULL;
 	DataKey_t Key;
 
@@ -673,7 +672,7 @@ SeekFile(
 	/* Sanitize request parameters first
 	 * Is handle valid? */
 	Key.Value = (int)Handle;
-	hNode = ListGetNodeByKey(VfsGetOpenHandles(), Key, 0);
+	hNode = CollectionGetNodeByKey(VfsGetOpenHandles(), Key, 0);
 
 	/* Case 1 - Not found */
 	if (hNode == NULL) {
@@ -717,14 +716,14 @@ FlushFile(
 	/* Variables */
 	FileSystemFileHandle_t *fHandle = NULL;
 	FileSystemCode_t Code = FsOk;
-	ListNode_t *hNode = NULL;
+	CollectionItem_t *hNode = NULL;
 	FileSystem_t *Fs = NULL;
 	DataKey_t Key;
 
 	/* Sanitize request parameters first
 	 * Is handle valid? */
 	Key.Value = (int)Handle;
-	hNode = ListGetNodeByKey(VfsGetOpenHandles(), Key, 0);
+	hNode = CollectionGetNodeByKey(VfsGetOpenHandles(), Key, 0);
 
 	/* Case 1 - Not found */
 	if (hNode == NULL) {
@@ -793,13 +792,13 @@ GetFilePosition(
 {
 	/* Variables */
 	FileSystemFileHandle_t *fHandle = NULL;
-	ListNode_t *hNode = NULL;
+	CollectionItem_t *hNode = NULL;
 	DataKey_t Key;
 
 	/* Sanitize request parameters first
 	 * Is handle valid? */
 	Key.Value = (int)Handle;
-	hNode = ListGetNodeByKey(VfsGetOpenHandles(), Key, 0);
+	hNode = CollectionGetNodeByKey(VfsGetOpenHandles(), Key, 0);
 
 	/* Case 1 - Not found */
 	if (hNode == NULL) {
@@ -833,13 +832,13 @@ GetFileOptions(
 {
 	/* Variables */
 	FileSystemFileHandle_t *fHandle = NULL;
-	ListNode_t *hNode = NULL;
+	CollectionItem_t *hNode = NULL;
 	DataKey_t Key;
 
 	/* Sanitize request parameters first
 	 * Is handle valid? */
 	Key.Value = (int)Handle;
-	hNode = ListGetNodeByKey(VfsGetOpenHandles(), Key, 0);
+	hNode = CollectionGetNodeByKey(VfsGetOpenHandles(), Key, 0);
 
 	/* Case 1 - Not found */
 	if (hNode == NULL) {
@@ -875,13 +874,13 @@ SetFileOptions(
 {
 	/* Variables */
 	FileSystemFileHandle_t *fHandle = NULL;
-	ListNode_t *hNode = NULL;
+	CollectionItem_t *hNode = NULL;
 	DataKey_t Key;
 
 	/* Sanitize request parameters first
 	 * Is handle valid? */
 	Key.Value = (int)Handle;
-	hNode = ListGetNodeByKey(VfsGetOpenHandles(), Key, 0);
+	hNode = CollectionGetNodeByKey(VfsGetOpenHandles(), Key, 0);
 
 	/* Case 1 - Not found */
 	if (hNode == NULL) {
@@ -914,13 +913,13 @@ GetFileSize(
 {
 	/* Variables */
 	FileSystemFileHandle_t *fHandle = NULL;
-	ListNode_t *hNode = NULL;
+	CollectionItem_t *hNode = NULL;
 	DataKey_t Key;
 
 	/* Sanitize request parameters first
 	 * Is handle valid? */
 	Key.Value = (int)Handle;
-	hNode = ListGetNodeByKey(VfsGetOpenHandles(), Key, 0);
+	hNode = CollectionGetNodeByKey(VfsGetOpenHandles(), Key, 0);
 
 	/* Case 1 - Not found */
 	if (hNode == NULL) {

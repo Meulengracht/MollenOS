@@ -30,7 +30,6 @@
 
 /* Includes
  * - Library */
-#include <ds/list.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -174,8 +173,8 @@ EhciTransactionDispatch(
 
     // Store transaction in queue
     Key.Value = 0;
-    ListAppend(Controller->QueueControl.TransactionList,
-               ListCreateNode(Key, Key, Transfer));
+    CollectionAppend(Controller->QueueControl.TransactionList,
+               CollectionCreateNode(Key, Transfer));
 
     // Trace
     TRACE("UHCI: QH at 0x%x, FirstTd 0x%x, NextQh 0x%x",

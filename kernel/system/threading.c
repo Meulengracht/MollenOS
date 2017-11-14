@@ -34,12 +34,12 @@
 #include <interrupts.h>
 #include <threading.h>
 #include <scheduler.h>
-#include <ds/list.h>
 #include <debug.h>
 #include <heap.h>
 
 /* Includes
  * - Library */
+#include <ds/collection.h>
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
@@ -52,25 +52,25 @@ OsStatus_t ThreadingReap(void *UserData);
  * keep track of running threads, idle threads
  * and a thread resources lock */
 static CriticalSection_t ThreadGlobalLock;
-static ListNode_t *GlbCurrentThreads[MAX_SUPPORTED_CPUS];
-static ListNode_t *GlbIdleThreads[MAX_SUPPORTED_CPUS];
+static CollectionItem_t *GlbCurrentThreads[MAX_SUPPORTED_CPUS];
+static CollectionItem_t *GlbIdleThreads[MAX_SUPPORTED_CPUS];
 
 static UUId_t GlbThreadGcId         = 0;
 static UUId_t GlbThreadId           = 1;
-static List_t *GlbThreads           = NULL;
+static Collection_t *GlbThreads     = NULL;
 static int GlbThreadingEnabled      = 0;
 
 /* ThreadingGetCurrentNode
  * Helper function, retrieves the current 
  * list-node in our list of threads */
-ListNode_t *ThreadingGetCurrentNode(UUId_t Cpu) {
+CollectionItem_t *ThreadingGetCurrentNode(UUId_t Cpu) {
 	return GlbCurrentThreads[Cpu];
 }
 
 /* ThreadingUpdateCurrent
  * Helper function, updates the current
  * list-node in our list of current threads */
-void ThreadingUpdateCurrent(UUId_t Cpu, ListNode_t *Node) {
+void ThreadingUpdateCurrent(UUId_t Cpu, CollectionItem_t *Node) {
 	GlbCurrentThreads[Cpu] = Node;
 }
 
@@ -148,14 +148,14 @@ ThreadingInitialize(
 {
 	// Variables
 	MCoreThread_t *Init         = NULL;
-	ListNode_t *Node            = NULL;
+	CollectionItem_t *Node      = NULL;
 	int Itr                     = 0;
 	DataKey_t Key;
 
 	// Sanitize the global, do we need to
 	// initialize the entire threading?
 	if (GlbThreadingEnabled != 1) {
-		GlbThreads = ListCreate(KeyInteger);
+		GlbThreads = CollectionCreate(KeyInteger);
 		GlbThreadGcId = GcRegister(ThreadingReap);
 		GlbThreadId = 1;
         CriticalSectionConstruct(&ThreadGlobalLock, CRITICALSECTION_PLAIN);
@@ -193,12 +193,13 @@ ThreadingInitialize(
 	Init->ThreadData = ThreadingCreateArch(Init->Flags, 0);
 
 	// Acquire lock to modify the list
-	CriticalSectionEnter(&ThreadGlobalLock);
 	Key.Value = (int)Init->Id;
-	Node = ListCreateNode(Key, Key, Init);
+	Node = CollectionCreateNode(Key, Init);
+
+	CriticalSectionEnter(&ThreadGlobalLock);
 	GlbCurrentThreads[Cpu] = Node;
 	GlbIdleThreads[Cpu] = Node;
-	ListAppend(GlbThreads, Node);
+	CollectionAppend(GlbThreads, Node);
 	CriticalSectionLeave(&ThreadGlobalLock);
 }
 
@@ -309,16 +310,13 @@ ThreadingCreateThread(
             (uintptr_t)&ThreadingEntryPointUserMode);
     }
     
-    // Acquire the thread lock
-	CriticalSectionEnter(&ThreadGlobalLock);
-
 	// Append it to list & scheduler
 	Key.Value = (int)Thread->Id;
-	ListAppend(GlbThreads, ListCreateNode(Key, Key, Thread));
-    SchedulerThreadQueue(Thread);
-    
-    // Release the lock
+	CriticalSectionEnter(&ThreadGlobalLock);
+	CollectionAppend(GlbThreads, CollectionCreateNode(Key, Thread));
 	CriticalSectionLeave(&ThreadGlobalLock);
+
+    SchedulerThreadQueue(Thread);
 	return Thread->Id;
 }
 
@@ -449,7 +447,6 @@ void ThreadingEnterUserMode(void *AshInfo)
  * as finished and they will be cleaned up on next switch */
 void ThreadingTerminateAshThreads(UUId_t AshId)
 {
-	/* Iterate thread list */
 	foreach(tNode, GlbThreads) {
 		MCoreThread_t *Thread = 
 			(MCoreThread_t*)tNode->Data;
@@ -574,9 +571,11 @@ ThreadingReap(
     
     // Locate and remove it from list of threads
     Key.Value = (int)Thread->Id;
-    if (ListRemoveByKey(GlbThreads, Key) != OsSuccess) {
+    CriticalSectionEnter(&ThreadGlobalLock);
+    if (CollectionRemoveByKey(GlbThreads, Key) != OsSuccess) {
         // Failed to remove the node? it didn't exist?...
     }
+    CriticalSectionLeave(&ThreadGlobalLock);
 
 	// Call the cleanup
 	ThreadingCleanupThread(Thread);
@@ -610,8 +609,8 @@ ThreadingSwitch(
     _In_ int PreEmptive)
 {
 	// Variables
-	MCoreThread_t *NextThread = NULL;
-	ListNode_t *Node = NULL;
+	MCoreThread_t *NextThread   = NULL;
+	CollectionItem_t *Node      = NULL;
     DataKey_t Key;
 
     // Sanitize current thread
@@ -655,7 +654,7 @@ GetNextThread:
 
 	// Get node by thread
 	Key.Value = (int)NextThread->Id;
-    Node = ListGetNodeByKey(GlbThreads, Key, 0);
+    Node = CollectionGetNodeByKey(GlbThreads, Key, 0);
     assert(Node != NULL);
 
 	// Update current thread and return it

@@ -30,7 +30,7 @@
 
 /* Includes
  * - Library */
-#include <ds/list.h>
+#include <ds/collection.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
@@ -151,7 +151,7 @@ OhciQueueInitialize(
 
     // Initialize transaction counters
     // and the transaction list
-    Queue->TransactionList = ListCreate(KeyInteger);
+    Queue->TransactionList = CollectionCreate(KeyInteger);
 
     // Initialize the internal data structures
     return OhciQueueResetInternalData(Controller);
@@ -164,7 +164,7 @@ OhciQueueReset(
     _In_ OhciController_t *Controller)
 {
     // Variables
-    ListNode_t *tNode = NULL;
+    CollectionItem_t *tNode = NULL;
 
     // Debug
     TRACE("OhciQueueReset()");
@@ -177,7 +177,7 @@ OhciQueueReset(
         OhciTransactionFinalize(Controller, 
             (UsbManagerTransfer_t*)tNode->Data, 0);
     }
-    ListClear(Controller->QueueControl.TransactionList);
+    CollectionClear(Controller->QueueControl.TransactionList);
 
     // Reinitialize internal data
     return OhciQueueResetInternalData(Controller);
@@ -204,7 +204,7 @@ OhciQueueDestroy(
     PoolSize += OHCI_POOL_TDS * sizeof(OhciTransferDescriptor_t);
 
     // Cleanup resources
-    ListDestroy(Controller->QueueControl.TransactionList);
+    CollectionDestroy(Controller->QueueControl.TransactionList);
     MemoryFree(Controller->QueueControl.QHPool, PoolSize);
 	return OsSuccess;
 }
@@ -980,8 +980,8 @@ OhciProcessDoneQueue(
                     
                     // Handle completion of transfer
                     OhciTransactionFinalize(Controller, Transfer, 1);
-                    ListRemoveByNode(Controller->QueueControl.TransactionList, Node);
-                    ListDestroyNode(Controller->QueueControl.TransactionList, Node);
+                    CollectionRemoveByNode(Controller->QueueControl.TransactionList, Node);
+                    CollectionDestroyNode(Controller->QueueControl.TransactionList, Node);
                 }
                 else {
                     OhciReloadPeriodic(Controller, Transfer);
@@ -1043,8 +1043,8 @@ OhciProcessTransactions(
            
             // Handle completion of transfer
             OhciTransactionFinalize(Controller, Transfer, 0);
-            ListRemoveByNode(Controller->QueueControl.TransactionList, Node);
-            ListDestroyNode(Controller->QueueControl.TransactionList, Node);
+            CollectionRemoveByNode(Controller->QueueControl.TransactionList, Node);
+            CollectionDestroyNode(Controller->QueueControl.TransactionList, Node);
             break;
         }
     }

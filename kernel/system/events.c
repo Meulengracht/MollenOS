@@ -25,9 +25,9 @@
 #include <heap.h>
 #include <log.h>
 
-/* C-Library */
+/* Library */
 #include <stddef.h>
-#include <ds/list.h>
+#include <ds/collection.h>
 
 /* Prototypes */
 void EventHandlerInternal(void *Args);
@@ -43,7 +43,7 @@ MCoreEventHandler_t *EventInit(const char *Name, EventCallback Callback, void *D
 
 	/* Allocate lock etc */
 	EventHandler->Name = MStringCreate((void*)Name, StrUTF8);
-	EventHandler->Events = ListCreate(KeyInteger);
+	EventHandler->Events = CollectionCreate(KeyInteger);
 	EventHandler->Lock = SemaphoreCreate(0);
 	
 	/* Save stuff */
@@ -68,7 +68,7 @@ MCoreEventHandler_t *EventInit(const char *Name, EventCallback Callback, void *D
 void EventDestruct(MCoreEventHandler_t *EventHandler)
 {
 	/* Variables */
-	ListNode_t *eNode = NULL;
+	CollectionItem_t *eNode = NULL;
 
 	/* Step 1. Stop thread 
 	 * We do this by setting it's running
@@ -98,7 +98,7 @@ void EventDestruct(MCoreEventHandler_t *EventHandler)
 
 	/* Lastly, destroy list 
 	 * and cleanup the event handler */
-	ListDestroy(EventHandler->Events);
+	CollectionDestroy(EventHandler->Events);
 	kfree(EventHandler);
 }
 
@@ -111,7 +111,7 @@ void EventHandlerInternal(void *Args)
 	/* Get the event-handler for this thread */
 	MCoreEventHandler_t *EventHandler = (MCoreEventHandler_t*)Args;
 	MCoreEvent_t *Event = NULL;
-	ListNode_t *eNode = NULL;
+	CollectionItem_t *eNode = NULL;
 
 	/* Start the while loop */
 	while (EventHandler->Running) {
@@ -124,7 +124,7 @@ void EventHandlerInternal(void *Args)
 			break;
 
 		/* Pop from event queue */
-		eNode = ListPopFront(EventHandler->Events);
+		eNode = CollectionPopFront(EventHandler->Events);
 
 		/* Sanity */
 		if (eNode == NULL)
@@ -178,7 +178,7 @@ void EventCreate(MCoreEventHandler_t *EventHandler, MCoreEvent_t *Event)
 	SemaphoreConstruct(&Event->Queue, 0);
 
 	/* Add to list */
-	ListAppend(EventHandler->Events, ListCreateNode(Key, Key, Event));
+	CollectionAppend(EventHandler->Events, CollectionCreateNode(Key, Event));
 
 	/* Signal */
 	SemaphoreV(EventHandler->Lock, 1);

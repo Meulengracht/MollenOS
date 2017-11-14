@@ -20,12 +20,13 @@
  * - General APIC header for local apic functionality
  */
 
-#ifndef _X86_APIC_H_
-#define _X86_APIC_H_
+#ifndef __APIC_H__
+#define __APIC_H__
 
-/* Includes */
-#include <arch.h>
+/* Includes 
+ * - System */
 #include <os/osdefs.h>
+#include <arch.h>
 
 /* Local apic timer definitions */
 #define APIC_TIMER_DIVIDER_1	0xB
@@ -75,7 +76,7 @@
 /* This only is something we need to check on 
  * 32-bit processors, all 64 bit cpus must use
  * the integrated APIC */
-#ifdef _X86_32
+#if defined(_X86_32) || defined(i386)
 #define APIC_INTEGRATED(x)      ((x) & 0xF0)
 #else
 #define APIC_INTEGRATED(x)      (1)
@@ -86,6 +87,16 @@
  * for the cpu to more accurately calculate a quantum */
 #define APIC_DEFAULT_QUANTUM	8000
 
+/* Interrupt Target Types
+ * The supported kinds of interrupt targets we support
+ * when we invoke interrupts ourself */
+typedef enum _InterruptTarget {
+    InterruptSpecific,
+    InterruptSelf,
+    InterruptAll,
+    InterruptAllButSelf
+} InterruptTarget_t;
+
 /* The struture of an io-apic entry in
  * the apic code, we keep track of id,
  * version and gsi information */
@@ -94,7 +105,7 @@ typedef struct _IoApic {
 	int					Version;
 	int					GsiStart;
 	int					PinCount;
-	volatile uintptr_t		BaseAddress;
+	volatile uintptr_t	BaseAddress;
 } IoApic_t;
 
 /* Initialize the local APIC controller
@@ -163,11 +174,15 @@ __EXTERN void ApicUnmaskGsi(int Gsi);
  * the io-apic delivers no interrupts */
 __EXTERN void ApicMaskGsi(int Gsi);
 
-/* Invoke an IPI request on either target
- * cpu, or on all cpu cores if a broadcast
- * has been requested. The supplied vector will
- * be the invoked interrupt */
-__EXTERN void ApicSendIpi(UUId_t CpuTarget, uint32_t Vector);
+/* ApicSendInterrupt
+ * Sends an interrupt vector-request to a given cpu-id. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+ApicSendInterrupt(
+    _In_ InterruptTarget_t Type,
+    _In_ UUId_t Specific,
+    _In_ int Vector);
 
 /* This function derives an io-apic from
  * the given gsi index, by locating which
@@ -211,4 +226,4 @@ __EXTERN void ApicSetTaskPriority(uint32_t Priority);
  * for the current cpu */
 __EXTERN uint32_t ApicGetTaskPriority(void);
 
-#endif //!_X86_APIC_H_
+#endif //!__APIC_H__

@@ -28,7 +28,7 @@
 #include <os/osdefs.h>
 #include <ds/blbitmap.h>
 #include <ds/mstring.h>
-#include <ds/list.h>
+#include <ds/collection.h>
 #include <signal.h>
 
 /* Includes
@@ -90,12 +90,14 @@ typedef struct _MCoreAsh {
     UUId_t               Id;
     UUId_t               Parent;
     MCoreAshType_t       Type;
+    CriticalSection_t    Lock;
 
     // The name of the Ash, this is usually
     // derived from the file that spawned it
     MString_t           *Name;
     MString_t           *Path;
-    List_t              *Pipes;
+    Collection_t        *Pipes;
+    Spinlock_t           PipeLock;
 
     // Memory management and information,
     // Ashes run in their own space, and have their
@@ -107,7 +109,7 @@ typedef struct _MCoreAsh {
     // Signal support for Ashes
     MCoreSignalTable_t   Signals;
     MCoreSignal_t       *ActiveSignal;
-    List_t              *SignalQueue;
+    Collection_t        *SignalQueue;
 
     // Below is everything related to
     // the startup and the executable information

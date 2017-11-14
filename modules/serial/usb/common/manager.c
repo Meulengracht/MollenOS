@@ -36,7 +36,7 @@
 
 /* Globals
  * Keeps track of the usb-manager state and its data */
-static List_t *__GlbControllers = NULL;
+static Collection_t *__GlbControllers = NULL;
 static UUId_t __GlbTransferId = 0;
 
 /* UsbManagerInitialize
@@ -46,7 +46,7 @@ OsStatus_t
 UsbManagerInitialize(void)
 {
 	// Instantiate and reset variables
-	__GlbControllers = ListCreate(KeyInteger);
+	__GlbControllers = CollectionCreate(KeyInteger);
 	__GlbTransferId = 0;
 
 	// Done
@@ -65,12 +65,12 @@ UsbManagerDestroy(void)
 	}
 
 	// Destroy list
-	return ListDestroy(__GlbControllers);
+	return CollectionDestroy(__GlbControllers);
 }
 
 /* UsbManagerGetControllers
  * Retrieve a list of all attached controllers to the system. */
-List_t*
+Collection_t*
 UsbManagerGetControllers(void)
 {
 	// Retrieve a list pointer
@@ -129,8 +129,8 @@ UsbManagerCreateController(
 	}
 
 	// Add to list
-	return ListAppend(__GlbControllers, 
-		ListCreateNode(Key, Key, Controller));
+	return CollectionAppend(__GlbControllers, 
+		CollectionCreateNode(Key, Controller));
 }
 
 /* UsbManagerDestroyController
@@ -141,7 +141,7 @@ UsbManagerDestroyController(
 	_In_ UsbManagerController_t *Controller)
 {
 	// Variables
-	ListNode_t *cNode = NULL;
+	CollectionItem_t *cNode = NULL;
 	DataKey_t Key;
 
 	// Update key with deviceid
@@ -153,10 +153,10 @@ UsbManagerDestroyController(
 	}
 
 	// Remove from list
-	cNode = ListGetNodeByKey(__GlbControllers, Key, 0);
+	cNode = CollectionGetNodeByKey(__GlbControllers, Key, 0);
 	if (cNode != NULL) {
-		ListUnlinkNode(__GlbControllers, cNode);
-		return ListDestroyNode(__GlbControllers, cNode);
+		CollectionUnlinkNode(__GlbControllers, cNode);
+		return CollectionDestroyNode(__GlbControllers, cNode);
 	}
 
 	// Didn't exist
@@ -228,8 +228,8 @@ UsbManagerGetToggle(
 			Endpoint->Toggle = 0;
 
 			// Add it to the list
-			ListAppend(Controller->Endpoints, 
-				ListCreateNode(Key, Key, Endpoint));
+			CollectionAppend(Controller->Endpoints, 
+				CollectionCreateNode(Key, Endpoint));
 		}
 	}
 
@@ -284,8 +284,8 @@ UsbManagerSetToggle(
 			Endpoint->Toggle = Toggle;
 
 			// Add it to the list
-			return ListAppend(Controller->Endpoints, 
-				ListCreateNode(Key, Key, Endpoint));
+			return CollectionAppend(Controller->Endpoints, 
+				CollectionCreateNode(Key, Endpoint));
 		}
 	}
 

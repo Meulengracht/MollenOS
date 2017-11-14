@@ -178,7 +178,7 @@ EhciQueueInitialize(
 	Queue->TDPoolPhysical = Queue->QHPoolPhysical + (sizeof(EhciQueueHead_t) * EHCI_POOL_NUM_QH);
 
 	// Allocate the transaction list
-	Queue->TransactionList = ListCreate(KeyInteger);
+	Queue->TransactionList = CollectionCreate(KeyInteger);
 
 	// Initialize a bandwidth scheduler
 	Controller->Scheduler = UsbSchedulerInitialize(
@@ -204,7 +204,7 @@ EhciQueueReset(
     EhciController_t *Controller)
 {
     // Variables
-    ListNode_t *tNode = NULL;
+    CollectionItem_t *tNode = NULL;
 
     // Debug
     TRACE("EhciQueueReset()");
@@ -217,7 +217,7 @@ EhciQueueReset(
         EhciTransactionFinalize(Controller, 
             (UsbManagerTransfer_t*)tNode->Data, 0);
     }
-    ListClear(Controller->QueueControl.TransactionList);
+    CollectionClear(Controller->QueueControl.TransactionList);
 
     // Reinitialize internal data
     return EhciQueueResetInternalData(Controller);
@@ -237,7 +237,7 @@ EhciQueueDestroy(
     EhciQueueReset(Controller);
 
     // Cleanup resources
-    ListDestroy(Controller->QueueControl.TransactionList);
+    CollectionDestroy(Controller->QueueControl.TransactionList);
     MemoryFree(Controller->QueueControl.QHPool, 
         Controller->QueueControl.PoolBytes);
 	return OsSuccess;
@@ -915,7 +915,7 @@ EhciProcessDoorBell(
 	_In_ EhciController_t *Controller)
 {
     // Variables
-	ListNode_t *Node = NULL;
+	CollectionItem_t *Node = NULL;
 
 Scan:
     // As soon as we enter the scan area we reset the re-scan

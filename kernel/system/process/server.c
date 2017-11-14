@@ -33,7 +33,6 @@
 
 /* Includes
 * - Library */
-#include <ds/list.h>
 #include <ds/mstring.h>
 #include <stddef.h>
 #include <string.h>
@@ -119,39 +118,4 @@ PhoenixGetCurrentServer(void)
 	// Return the result, but cast it to
 	// the process structure
 	return (MCoreServer_t*)Ash;
-}
-
-/* GetServerByDriver
- * Retrieves a running server by driver-information
- * to avoid spawning multiple servers */
-MCoreServer_t*
-PhoenixGetServerByDriver(
-    _In_ DevInfo_t VendorId,
-    _In_ DevInfo_t DeviceId,
-    _In_ DevInfo_t DeviceClass,
-    _In_ DevInfo_t DeviceSubClass)
-{
-	foreach(pNode, PhoenixGetProcesses()) {
-		MCoreAsh_t *Ash = (MCoreAsh_t*)pNode->Data;
-		if (Ash->Type == AshServer) {
-			MCoreServer_t *Server = (MCoreServer_t*)Ash;
-
-            // Should we check vendor-id && device-id?
-            if (VendorId != 0 && DeviceId != 0) {
-                if (Server->VendorId == VendorId
-                    && Server->DeviceId == DeviceId) {
-                    return Server;
-                }
-            }
-
-            // Skip all fixed-vendor ids
-            if (Server->VendorId != 0xFFEF) {
-                if (Server->DeviceClass == DeviceClass
-                    && Server->DeviceSubClass == DeviceSubClass) {
-                    return Server;
-                }
-            }
-		}
-	}
-	return NULL;
 }

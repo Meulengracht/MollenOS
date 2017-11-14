@@ -26,7 +26,8 @@
 #include <os/mollenos.h>
 #include <os/syscall.h>
 #include <os/thread.h>
-#include <ds/list.h>
+#include <os/spinlock.h>
+#include <ds/collection.h>
 
 /* Includes
  * - Library */
@@ -43,9 +44,9 @@
  * Contains a thread-specific storage for a given
  * process-key and a thread-specific destructor. */
 typedef struct _TlsThreadInstance {
-	TlsKey_t			 Key;
-	void				*Value;
-	TlsKeyDss_t			 Destructor;
+    TlsKey_t             Key;
+    void                *Value;
+    TlsKeyDss_t          Destructor;
 } TlsThreadInstance_t;
 
 /* TlsProcessInstance (Private
@@ -53,91 +54,91 @@ typedef struct _TlsThreadInstance {
  * allocated keys and their desctructors. 
  * Also keeps a list of tls-entries for threads */
 typedef struct _TlsProcessInstance {
-	int					 Keys[TLS_MAX_KEYS];
-	TlsKeyDss_t			 Dss[TLS_MAX_KEYS];
-	List_t				*Tls;
+    int                  Keys[TLS_MAX_KEYS];
+    TlsKeyDss_t          Dss[TLS_MAX_KEYS];
+    Collection_t        *Tls;
 } TlsProcessInstance_t;
 
 /* Globals 
  * Keeps track of the TLS data */
-static TlsProcessInstance_t __TLSGlobal;
+static TlsProcessInstance_t TlsGlobal;
+static Spinlock_t           TlsLock;
 
 /* TLSInit
- * Initialises the TLS
- * and allocates resources needed. 
+ * Initialises the TLS and allocates resources needed. 
  * Not callable manually */
 OsStatus_t
 TLSInit(void)
 {
-	// Reset the keys and destructors
-	for (int i = 0; i < TLS_MAX_KEYS; i++) {
-		__TLSGlobal.Keys[i] = 0;
-		__TLSGlobal.Dss[i] = NULL;
-	}
+    // Reset the keys and destructors
+    for (int i = 0; i < TLS_MAX_KEYS; i++) {
+        TlsGlobal.Keys[i] = 0;
+        TlsGlobal.Dss[i] = NULL;
+    }
 
-	// Initialize the list of thread-instances
-	__TLSGlobal.Tls = ListCreate(KeyInteger);
-	return OsSuccess;
+    // Initialize the list of thread-instances
+    TlsGlobal.Tls = CollectionCreate(KeyInteger);
+    return SpinlockReset(&TlsLock);
 }
 
 /* Helper Callback
- * Runs all destructors for
- * a given thread */
+ * Runs all destructors for a given thread */
 void
 TLSCallback(
-	_In_ void *Data, 
-	_In_ int Index, 
-	_In_ void *Userdata)
+    _In_ void *Data, 
+    _In_ int Index, 
+    _In_ void *Userdata)
 {
-	// Variables
-	TlsThreadInstance_t *Tls = (TlsThreadInstance_t*)Data;
-	int *ValuesLeft = (int*)Userdata;
+    // Variables
+    TlsThreadInstance_t *Tls = (TlsThreadInstance_t*)Data;
+    int *ValuesLeft = (int*)Userdata;
 
-	// We don't need the index value
-	_CRT_UNUSED(Index);
+    // We don't need the index value
+    _CRT_UNUSED(Index);
 
-	// Determine whether or not we should run the destructor
-	// for this tls-key
-	if (Tls->Value != NULL && Tls->Destructor != NULL) {
-		void *ArgValue = Tls->Value;
-		Tls->Value = NULL;
-		Tls->Destructor(ArgValue);
+    // Determine whether or not we should run the destructor
+    // for this tls-key
+    if (Tls->Value != NULL && Tls->Destructor != NULL) {
+        void *ArgValue = Tls->Value;
+        Tls->Value = NULL;
+        Tls->Destructor(ArgValue);
 
-		// If the value has been updated, we need another pass
-		if (Tls->Value != NULL)
-			*ValuesLeft++;
-	}
+        // If the value has been updated, we need another pass
+        if (Tls->Value != NULL) {
+            (*ValuesLeft)++;
+        }
+    }
 }
 
 /* TLSCleanup
  * Destroys the TLS for the specific thread
- * by freeing resources and
- * calling c11 destructors 
+ * by freeing resources and calling c11 destructors 
  * Not callable manually */
 OsStatus_t
 TLSCleanup(
-	_In_ UUId_t ThreadId)
+    _In_ UUId_t ThreadId)
 {
-	// Variables
-	int NumberOfValsLeft = 0;
-	int NumberOfPassesLeft = TLS_MAX_PASSES;
-	DataKey_t Key;
+    // Variables
+    int NumberOfPassesLeft  = TLS_MAX_PASSES;
+    int NumberOfValsLeft    = 0;
+    DataKey_t Key;
 
-	// Init key
-	Key.Value = ThreadId;
+    // Init key
+    Key.Value = ThreadId;
 
-	// Execute all stored destructors untill there is no
-	// more values left or we reach the maximum number of passes
-	ListExecuteOnKey(__TLSGlobal.Tls, TLSCallback, Key, &NumberOfValsLeft);
-	while (NumberOfValsLeft != 0 && NumberOfPassesLeft) {
-		NumberOfValsLeft = 0;
-		ListExecuteOnKey(__TLSGlobal.Tls, TLSCallback, Key, &NumberOfValsLeft);
-		NumberOfPassesLeft--;
-	}
+    // Execute all stored destructors untill there is no
+    // more values left or we reach the maximum number of passes
+    CollectionExecuteOnKey(TlsGlobal.Tls, TLSCallback, Key, &NumberOfValsLeft);
+    while (NumberOfValsLeft != 0 && NumberOfPassesLeft) {
+        NumberOfValsLeft = 0;
+        CollectionExecuteOnKey(TlsGlobal.Tls, TLSCallback, Key, &NumberOfValsLeft);
+        NumberOfPassesLeft--;
+    }
 
-	// Cleanup all stored tls-keys by this thread
-	while (ListRemoveByKey(__TLSGlobal.Tls, Key));
-	return OsSuccess;
+    // Cleanup all stored tls-keys by this thread
+    SpinlockAcquire(&TlsLock);
+    while (CollectionRemoveByKey(TlsGlobal.Tls, Key));
+    return SpinlockRelease(&TlsLock);
 }
 
 /* TLSInitInstance
@@ -145,23 +146,23 @@ TLSCleanup(
  * should be called by thread crt */
 OsStatus_t 
 TLSInitInstance(
-	_In_ ThreadLocalStorage_t *Tls)
+    _In_ ThreadLocalStorage_t *Tls)
 {
-	// Clean out the tls
-	memset(Tls, 0, sizeof(ThreadLocalStorage_t));
+    // Clean out the tls
+    memset(Tls, 0, sizeof(ThreadLocalStorage_t));
 
-	// Store it at reserved pointer place first
+    // Store it at reserved pointer place first
     __set_reserved(0, (size_t)Tls);
     
-	// Initialize members to default values
-	Tls->Id = UUID_INVALID;
-	Tls->Errno = EOK;
-	Tls->Locale = __get_global_locale();
-	Tls->Seed = 1;
+    // Initialize members to default values
+    Tls->Id = UUID_INVALID;
+    Tls->Errno = EOK;
+    Tls->Locale = __get_global_locale();
+    Tls->Seed = 1;
 
-	// Setup a local transfer buffer for stdio operations
-	Tls->Transfer = CreateBuffer(BUFSIZ);
-	return OsSuccess;
+    // Setup a local transfer buffer for stdio operations
+    Tls->Transfer = CreateBuffer(BUFSIZ);
+    return OsSuccess;
 }
 
 /* TLSDestroyInstance
@@ -169,15 +170,15 @@ TLSInitInstance(
  * should be called by thread crt */
 OsStatus_t 
 TLSDestroyInstance(
-	_In_ ThreadLocalStorage_t *Tls)
+    _In_ ThreadLocalStorage_t *Tls)
 {
-	// Cleanup the transfer buffer if allocated
-	if (Tls->Transfer != NULL) {
-		DestroyBuffer(Tls->Transfer);
-	}
+    // Cleanup the transfer buffer if allocated
+    if (Tls->Transfer != NULL) {
+        DestroyBuffer(Tls->Transfer);
+    }
 
-	// Otherwise nothing to do here yet
-	return OsSuccess;
+    // Otherwise nothing to do here yet
+    return OsSuccess;
 }
 
 /* TLSGetCurrent 
@@ -186,8 +187,8 @@ TLSDestroyInstance(
 ThreadLocalStorage_t *
 TLSGetCurrent(void)
 {
-	// Return reserved pointer 0
-	return (ThreadLocalStorage_t*)__get_reserved(0);
+    // Return reserved pointer 0
+    return (ThreadLocalStorage_t*)__get_reserved(0);
 }
 
 /* TLSCreateKey
@@ -195,64 +196,68 @@ TLSGetCurrent(void)
  * thread-specific data */
 TlsKey_t 
 TLSCreateKey(
-	_In_ TlsKeyDss_t Destructor)
+    _In_ TlsKeyDss_t Destructor)
 {
-	// Variables
-	int i;
+    // Variables
+    TlsKey_t Result = TLS_KEY_INVALID;
+    int i;
 
-	// Iterate and find an unallocated key
-	for (i = 0; i < TLS_MAX_KEYS; i++) {
-		if (__TLSGlobal.Keys[i] == 0) {
-			__TLSGlobal.Keys[i] = 1;
-			__TLSGlobal.Dss[i] = Destructor;
-			_set_errno(EOK);
-			return (TlsKey_t)i;
-		}
-	}
+    // Iterate and find an unallocated key
+    SpinlockAcquire(&TlsLock);
+    for (i = 0; i < TLS_MAX_KEYS; i++) {
+        if (TlsGlobal.Keys[i] == 0) {
+            TlsGlobal.Keys[i] = 1;
+            TlsGlobal.Dss[i] = Destructor;
+            Result = (TlsKey_t)i;
+            break;
+        }
+    }
+    SpinlockRelease(&TlsLock);
 
-	// If we reach here all keys are allocated
-	_set_errno(EAGAIN);
-	return TLS_KEY_INVALID;
+    // If we reach here all keys are allocated
+    if (Result != TLS_KEY_INVALID)  _set_errno(EOK);
+    else                            _set_errno(EAGAIN);
+    return Result;
 }
 
 /* TLSDestroyKey
  * Deletes the global but thread-specific key */ 
 OsStatus_t 
 TLSDestroyKey(
-	_In_ TlsKey_t Key)
+    _In_ TlsKey_t Key)
 {
-	// Variables
-	ListNode_t *tNode = NULL;
+    // Variables
+    CollectionItem_t *tNode = NULL;
 
-	// Sanitize the key given
-	if (Key >= TLS_MAX_KEYS) {
-		return OsError;
-	}
+    // Sanitize the key given
+    if (Key >= TLS_MAX_KEYS) {
+        return OsError;
+    }
 
-	// Iterate nodes without auto-linking, we do that
-	// manually
-	_foreach_nolink(tNode, __TLSGlobal.Tls) {
-		TlsThreadInstance_t *Tls = 
-			(TlsThreadInstance_t*)tNode->Data;
+    // Iterate nodes without auto-linking, we do that
+    // manually
+    SpinlockAcquire(&TlsLock);
+    _foreach_nolink(tNode, TlsGlobal.Tls) {
+        TlsThreadInstance_t *Tls = 
+            (TlsThreadInstance_t*)tNode->Data;
 
-		// Make sure we delete all instances of the key
-		// If we find one, we need to unlink it and get it's
-		// successor before destroying the node
-		if (Tls->Key == Key) {
-			ListNode_t *Old = tNode;
-			free(Tls);
-			tNode = ListUnlinkNode(__TLSGlobal.Tls, tNode);
-			ListDestroyNode(__TLSGlobal.Tls, Old);
-		}
-		else {
-			tNode = tNode->Link;
-		}
-	}
-
-	// Free the key-entry
-	__TLSGlobal.Keys[Key] = 0;
-	__TLSGlobal.Dss[Key] = NULL;
-	return OsSuccess;
+        // Make sure we delete all instances of the key
+        // If we find one, we need to unlink it and get it's
+        // successor before destroying the node
+        if (Tls->Key == Key) {
+            CollectionItem_t *Old = tNode;
+            tNode = CollectionUnlinkNode(TlsGlobal.Tls, tNode);
+            CollectionDestroyNode(TlsGlobal.Tls, Old);
+            free(Tls);
+        }
+        else {
+            tNode = tNode->Link;
+        }
+    }
+    // Free the key-entry
+    TlsGlobal.Keys[Key] = 0;
+    TlsGlobal.Dss[Key] = NULL;
+    return SpinlockRelease(&TlsLock);
 }
 
 /* TLSGetKey
@@ -260,33 +265,35 @@ TLSDestroyKey(
  * will return NULL if not exists and set errno */
 void *
 TLSGetKey(
-	_In_ TlsKey_t Key)
+    _In_ TlsKey_t Key)
 {
-	// Variables
-	ListNode_t *tNode = NULL;
-	UUId_t ThreadId;
-	DataKey_t tKey;
+    // Variables
+    CollectionItem_t *tNode = NULL;
+    void *Result            = NULL;
+    UUId_t ThreadId;
+    DataKey_t tKey;
 
-	// Sanitize parameter
-	if (Key >= TLS_MAX_KEYS) {
-		return NULL;
-	}
+    // Sanitize parameter
+    if (Key >= TLS_MAX_KEYS) {
+        return NULL;
+    }
 
-	// Initialize variables
-	ThreadId = ThreadGetId();
-	tKey.Value = ThreadId;
+    // Initialize variables
+    ThreadId = ThreadGetId();
+    tKey.Value = ThreadId;
 
-	// Iterate the list of TLS instances and 
-	// find the one that contains the tls-key
-	_foreach(tNode, __TLSGlobal.Tls) {
-		TlsThreadInstance_t *Tls = (TlsThreadInstance_t*)tNode->Data;
-		if (!dsmatchkey(KeyInteger, tKey, tNode->Key) && Tls->Key == Key) {
-			return Tls->Value;
-		}
-	}
-
-	// We didn't find it, return NULL
-	return NULL;
+    // Iterate the list of TLS instances and 
+    // find the one that contains the tls-key
+    SpinlockAcquire(&TlsLock);
+    _foreach(tNode, TlsGlobal.Tls) {
+        TlsThreadInstance_t *Tls = (TlsThreadInstance_t*)tNode->Data;
+        if (!dsmatchkey(KeyInteger, tKey, tNode->Key) && Tls->Key == Key) {
+            Result = Tls->Value;
+            break;
+        }
+    }
+    SpinlockRelease(&TlsLock);
+    return Result;
 }
 
 /* TLSSetKey
@@ -294,43 +301,47 @@ TLSGetKey(
  * and associates the given data with the key */
 OsStatus_t 
 TLSSetKey(
-	_In_ TlsKey_t Key, 
-	_In_Opt_ void *Data)
+    _In_ TlsKey_t Key, 
+    _In_Opt_ void *Data)
 {
-	// Variables
-	TlsThreadInstance_t *NewTls = NULL;
-	ListNode_t *tNode = NULL;
-	UUId_t ThreadId;
-	DataKey_t tKey;
+    // Variables
+    TlsThreadInstance_t *NewTls = NULL;
+    CollectionItem_t *tNode     = NULL;
+    UUId_t ThreadId;
+    DataKey_t tKey;
 
-	// Sanitize key value
-	if (Key >= TLS_MAX_KEYS) {
-		return OsError;
-	}
+    // Sanitize key value
+    if (Key >= TLS_MAX_KEYS) {
+        return OsError;
+    }
 
-	// Initialize variables
-	ThreadId = ThreadGetId();
-	tKey.Value = ThreadId;
+    // Initialize variables
+    ThreadId = ThreadGetId();
+    tKey.Value = ThreadId;
 
-	// Iterate and find if it
-	// exists, if exists we override
-	_foreach(tNode, __TLSGlobal.Tls) {
-		TlsThreadInstance_t *Tls = (TlsThreadInstance_t*)tNode->Data;
-		if (!dsmatchkey(KeyInteger, tKey, tNode->Key) && Tls->Key == Key) {
-			Tls->Value = Data;
-			return OsSuccess;
-		}
-	}
+    // Iterate and find if it
+    // exists, if exists we override
+    SpinlockAcquire(&TlsLock);
+    _foreach(tNode, TlsGlobal.Tls) {
+        TlsThreadInstance_t *Tls = (TlsThreadInstance_t*)tNode->Data;
+        if (!dsmatchkey(KeyInteger, tKey, tNode->Key) && Tls->Key == Key) {
+            Tls->Value = Data;
+            return SpinlockRelease(&TlsLock);
+        }
+    }
+    SpinlockRelease(&TlsLock);
 
-	// Allocate a new instance of a thread-instance tls
-	NewTls = (TlsThreadInstance_t*)malloc(sizeof(TlsThreadInstance_t));
+    // Allocate a new instance of a thread-instance tls
+    NewTls = (TlsThreadInstance_t*)malloc(sizeof(TlsThreadInstance_t));
 
-	// Store the data into them
-	// and get a handle for the destructor
-	NewTls->Key = Key;
-	NewTls->Value = Data;
-	NewTls->Destructor = __TLSGlobal.Dss[Key];
+    // Store the data into them
+    // and get a handle for the destructor
+    NewTls->Key = Key;
+    NewTls->Value = Data;
+    NewTls->Destructor = TlsGlobal.Dss[Key];
 
-	// Last thing is to append it to the tls-list
-	return ListAppend(__TLSGlobal.Tls, ListCreateNode(tKey, tKey, Data));
+    // Last thing is to append it to the tls-list
+    SpinlockAcquire(&TlsLock);
+    CollectionAppend(TlsGlobal.Tls, CollectionCreateNode(tKey, Data));
+    return SpinlockRelease(&TlsLock);
 }

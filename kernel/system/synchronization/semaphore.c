@@ -31,12 +31,13 @@
 
 /* Includes
  * - Library */
-#include <ds/list.h>
+#include <ds/collection.h>
 #include <stddef.h>
 #include <assert.h>
 
 /* Globals */
-List_t *GlbSemaphores = NULL;
+static Collection_t *GlbSemaphores = NULL;
+static Spinlock_t SemaphoreLock;
 int GlbSemaphoreInit = 0;
 
 /* SemaphoreCreate
@@ -69,15 +70,18 @@ Semaphore_t *SemaphoreCreateGlobal(MString_t *Identifier, int InitialValue)
 	 * conflicting semaphores in system */
 	if (Identifier != NULL) {
 		if (GlbSemaphoreInit != 1) {
-			GlbSemaphores = ListCreate(KeyInteger);
+			GlbSemaphores = CollectionCreate(KeyInteger);
 			GlbSemaphoreInit = 1;
+            SpinlockReset(&SemaphoreLock);
 		}
 
 		/* Hash the string */
 		hKey.Value = (int)MStringHash(Identifier);
 
 		/* Check list if exists */
-		void *Exists = ListGetDataByKey(GlbSemaphores, hKey, 0);
+        SpinlockAcquire(&SemaphoreLock);
+		void *Exists = CollectionGetDataByKey(GlbSemaphores, hKey, 0);
+        SpinlockRelease(&SemaphoreLock);
 
 		/* Sanitize the lookup */
 		if (Exists != NULL) {
@@ -92,10 +96,10 @@ Semaphore_t *SemaphoreCreateGlobal(MString_t *Identifier, int InitialValue)
 
 	/* Add to system list of semaphores if global */
 	if (Identifier != NULL)  {
-		ListAppend(GlbSemaphores, ListCreateNode(hKey, hKey, Semaphore));
+        SpinlockAcquire(&SemaphoreLock);
+		CollectionAppend(GlbSemaphores, CollectionCreateNode(hKey, Semaphore));
+        SpinlockRelease(&SemaphoreLock);
 	}
-
-	/* Done! */
 	return Semaphore;
 }
 
@@ -112,7 +116,7 @@ void SemaphoreDestroy(Semaphore_t *Semaphore)
 	 * we want to remove it from list */
 	if (Semaphore->Hash != 0) {
 		Key.Value = (int)Semaphore->Hash;
-		ListRemoveByKey(GlbSemaphores, Key);
+		CollectionRemoveByKey(GlbSemaphores, Key);
 	}
 
 	/* Wake up all */

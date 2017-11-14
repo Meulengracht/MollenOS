@@ -24,6 +24,7 @@
 
 /* Includes 
  * - System */
+#include <system/utils.h>
 #include <process/phoenix.h>
 #include <process/process.h>
 #include <process/server.h>
@@ -35,9 +36,9 @@
 
 /* Includes
  * C-Library */
-#include <stddef.h>
-#include <ds/list.h>
+#include <ds/collection.h>
 #include <ds/mstring.h>
+#include <stddef.h>
 #include <string.h>
 
 /* Prototypes 
@@ -52,12 +53,12 @@ PhoenixReapAsh(
 
 /* Globals 
  * State-keeping and data-storage */
-static MCoreEventHandler_t *EventHandler = NULL;
-static CriticalSection_t AccessLock;
-static List_t *Processes = NULL;
-static UUId_t *AliasMap = NULL;
-static UUId_t GcHandlerId = 0;
-static UUId_t ProcessIdGenerator = 0;
+static MCoreEventHandler_t *EventHandler    = NULL;
+static Collection_t *Processes              = NULL;
+static CriticalSection_t ProcessLock;
+static UUId_t *AliasMap                     = NULL;
+static UUId_t GcHandlerId                   = 0;
+static UUId_t ProcessIdGenerator            = 0;
 
 /* PhoenixInitialize
  * Initialize the Phoenix environment and 
@@ -74,9 +75,9 @@ PhoenixInitialize(void)
 
 	// Initialize Globals
 	ProcessIdGenerator = 1;
-	Processes = ListCreate(KeyInteger);
+	Processes = CollectionCreate(KeyInteger);
     GcHandlerId = GcRegister(PhoenixReapAsh);
-    CriticalSectionConstruct(&AccessLock, CRITICALSECTION_PLAIN);
+    CriticalSectionConstruct(&ProcessLock, CRITICALSECTION_PLAIN);
 
 	// Initialize the global alias map
 	AliasMap = (UUId_t*)kmalloc(sizeof(UUId_t) * PHOENIX_MAX_ASHES);
@@ -154,12 +155,88 @@ PhoenixGetNextId(void)
     return ProcessIdGenerator++;
 }
 
-/* PhoenixGetProcesses 
- * Retrieves access to the list of processes. */
-List_t*
-PhoenixGetProcesses(void)
+/* PhoenixGetAsh (@interrupt_context)
+ * This function looks up a ash structure by the given id */
+MCoreAsh_t*
+PhoenixGetAsh(
+    _In_ UUId_t AshId)
 {
-    return Processes;
+    // Variables
+    CollectionItem_t *Node  = NULL;
+    MCoreAsh_t *Result      = NULL;
+    UUId_t CurrentCpu       = UUID_INVALID;
+
+    // If we pass invalid get the current
+    if (AshId == UUID_INVALID) {
+        CurrentCpu = CpuGetCurrentId();
+        if (ThreadingGetCurrentThread(CurrentCpu) != NULL) {
+            AshId = ThreadingGetCurrentThread(CurrentCpu)->AshId;
+        }
+        else {
+            return NULL;
+        }
+    }
+
+    // Still none?
+    if (AshId == UUID_INVALID) {
+        return NULL;
+    }
+
+    // Now we can sanitize the extra stuff, like alias
+    PhoenixUpdateAlias(&AshId);
+
+    // Iterate the list for ash-id
+    CriticalSectionEnter(&ProcessLock);
+    _foreach(Node, Processes) {
+        MCoreAsh_t *Ash = (MCoreAsh_t*)Node->Data;
+        if (Ash->Id == AshId) {
+            Result = Ash;
+            break;
+        }
+    }
+    CriticalSectionLeave(&ProcessLock);
+
+    // We didn't find it
+    return Result;
+}
+
+/* GetServerByDriver
+ * Retrieves a running server by driver-information
+ * to avoid spawning multiple servers */
+MCoreServer_t*
+PhoenixGetServerByDriver(
+    _In_ DevInfo_t VendorId,
+    _In_ DevInfo_t DeviceId,
+    _In_ DevInfo_t DeviceClass,
+    _In_ DevInfo_t DeviceSubClass)
+{
+    CriticalSectionEnter(&ProcessLock);
+	foreach(pNode, Processes) {
+		MCoreAsh_t *Ash = (MCoreAsh_t*)pNode->Data;
+		if (Ash->Type == AshServer) {
+			MCoreServer_t *Server = (MCoreServer_t*)Ash;
+
+            // Should we check vendor-id && device-id?
+            if (VendorId != 0 && DeviceId != 0) {
+                if (Server->VendorId == VendorId
+                    && Server->DeviceId == DeviceId) {
+                    CriticalSectionLeave(&ProcessLock);
+                    return Server;
+                }
+            }
+
+            // Skip all fixed-vendor ids
+            if (Server->VendorId != 0xFFEF) {
+                if (Server->DeviceClass == DeviceClass
+                    && Server->DeviceSubClass == DeviceSubClass) {
+                    CriticalSectionLeave(&ProcessLock);
+                    return Server;
+                }
+            }
+		}
+	}
+    CriticalSectionLeave(&ProcessLock);
+	return NULL;
 }
 
 /* PhoenixRegisterAsh
@@ -172,10 +249,10 @@ PhoenixRegisterAsh(
     DataKey_t Key;
     
 	// Modifications to process-list are locked
-    CriticalSectionEnter(&AccessLock);
 	Key.Value = (int)Ash->Id;
-	ListAppend(Processes, ListCreateNode(Key, Key, Ash));
-    CriticalSectionLeave(&AccessLock);
+    CriticalSectionEnter(&ProcessLock);
+	CollectionAppend(Processes, CollectionCreateNode(Key, Ash));
+    CriticalSectionLeave(&ProcessLock);
     return OsSuccess;
 }
 
@@ -190,10 +267,10 @@ PhoenixTerminateAsh(
     DataKey_t Key;
 
     // To modify list is locked operation
-    CriticalSectionEnter(&AccessLock);
     Key.Value = (int)Ash->Id;
-	ListRemoveByKey(Processes, Key);
-    CriticalSectionLeave(&AccessLock);
+    CriticalSectionEnter(&ProcessLock);
+	CollectionRemoveByKey(Processes, Key);
+    CriticalSectionLeave(&ProcessLock);
 
 	// Alert GC
 	SchedulerThreadWakeAll((uintptr_t*)Ash);

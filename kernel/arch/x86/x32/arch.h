@@ -73,8 +73,6 @@ __EXTERN void __CRTDECL outl(uint16_t port, uint32_t data);
 #define ATTRIBUTE_MASK 0x00000FFF
 #endif
 
-__EXTERN void ApicSendIpi(UUId_t CpuTarget, uint32_t Vector);
-
 /* Architecture Memory Layout, this
  * gives you an idea how memory layout
  * is on the x86-32 platform in MollenOS 

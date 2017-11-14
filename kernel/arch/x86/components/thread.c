@@ -192,7 +192,7 @@ void
 ThreadingWakeCpu(
     _In_ UUId_t Cpu)
 {
-	ApicSendIpi(Cpu, INTERRUPT_YIELD);
+	ApicSendInterrupt(InterruptSpecific, Cpu, INTERRUPT_YIELD);
 }
 
 /* ThreadingYield

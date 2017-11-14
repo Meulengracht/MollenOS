@@ -92,7 +92,7 @@ PhoenixFinishAsh(
     Ash->StackStart = MEMORY_LOCATION_RING3_STACK_START;
 
     // Initialize signal queue
-    Ash->SignalQueue = ListCreate(KeyInteger);
+    Ash->SignalQueue = CollectionCreate(KeyInteger);
 }
 
 /* PhoenixStartupEntry
@@ -194,6 +194,7 @@ PhoenixInitializeAsh(
     Ash->Id = PhoenixGetNextId();
     Ash->Parent = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
     Ash->Type = AshBase;
+    CriticalSectionConstruct(&Ash->Lock, CRITICALSECTION_PLAIN);
 
     // Split path, even if a / is not found
     // it won't fail, since -1 + 1 = 0, so we just copy
@@ -204,8 +205,8 @@ PhoenixInitializeAsh(
     // Store members and initialize members
     Ash->FileBuffer = fBuffer;
     Ash->FileBufferLength = fSize;
-    Ash->Pipes = ListCreate(KeyInteger);
-    return OsSuccess;
+    Ash->Pipes = CollectionCreate(KeyInteger);
+    return SpinlockReset(&Ash->PipeLock);
 }
 
 /* PhoenixStartupAsh
@@ -257,14 +258,20 @@ PhoenixOpenAshPipe(
     // Make sure that a pipe on the given Port 
     // doesn't already exist!
     Key.Value = Port;
-    if (ListGetDataByKey(Ash->Pipes, Key, 0) != NULL) {
+    SpinlockAcquire(&Ash->PipeLock);
+    if (CollectionGetDataByKey(Ash->Pipes, Key, 0) != NULL) {
+        SpinlockRelease(&Ash->PipeLock);
         ERROR("The requested pipe already exists");
         return OsError;
     }
+    SpinlockRelease(&Ash->PipeLock);
 
     // Create a new pipe and add it to list
     Pipe = PipeCreate(ASH_PIPE_SIZE, Flags);
-    ListAppend(Ash->Pipes, ListCreateNode(Key, Key, Pipe));
+    
+    SpinlockAcquire(&Ash->PipeLock);
+    CollectionAppend(Ash->Pipes, CollectionCreateNode(Key, Pipe));
+    SpinlockRelease(&Ash->PipeLock);
 
     // Wake sleepers waiting for pipe creations
     SchedulerThreadWakeAll((uintptr_t*)Ash->Pipes);
@@ -291,10 +298,16 @@ PhoenixWaitAshPipe(
     // Wait for wake-event on pipe
     Key.Value = Port;
     while (Run) {
-        if (ListGetDataByKey(Ash->Pipes, Key, 0) != NULL) {
+        SpinlockAcquire(&Ash->PipeLock);
+        if (CollectionGetDataByKey(Ash->Pipes, Key, 0) != NULL) {
+            SpinlockRelease(&Ash->PipeLock);
             break;
         }
-        SchedulerThreadSleep((uintptr_t*)Ash->Pipes, 0);
+        SpinlockRelease(&Ash->PipeLock);
+        if (SchedulerThreadSleep((uintptr_t*)Ash->Pipes, 5000) == SCHEDULER_SLEEP_TIMEOUT) {
+            ERROR("Failed to wait for open pipe, timeout after 5 seconds.");
+            return OsError;
+        }
      }
     return OsSuccess;
 }
@@ -319,14 +332,18 @@ PhoenixCloseAshPipe(
 
     // Lookup pipe
     Key.Value = Port;
-    Pipe = (MCorePipe_t*)ListGetDataByKey(Ash->Pipes, Key, 0);
+    SpinlockAcquire(&Ash->PipeLock);
+    Pipe = (MCorePipe_t*)CollectionGetDataByKey(Ash->Pipes, Key, 0);
+    SpinlockRelease(&Ash->PipeLock);
     if (Pipe == NULL) {
         return OsError;
     }
 
     // Cleanup pipe and remove node
     PipeDestroy(Pipe);
-    return ListRemoveByKey(Ash->Pipes, Key);
+    SpinlockAcquire(&Ash->PipeLock);
+    CollectionRemoveByKey(Ash->Pipes, Key);
+    return SpinlockRelease(&Ash->PipeLock);
 }
 
 /* PhoenixGetAshPipe
@@ -338,6 +355,7 @@ PhoenixGetAshPipe(
     _In_ int             Port)
 {
     // Variables
+    MCorePipe_t *Pipe = NULL;
     DataKey_t Key;
 
     // Sanitize input
@@ -347,48 +365,10 @@ PhoenixGetAshPipe(
 
     // Perform the lookup
     Key.Value = Port;
-    return (MCorePipe_t*)ListGetDataByKey(Ash->Pipes, Key, 0);
-}
-
-/* PhoenixGetAsh
- * This function looks up a ash structure by the given id */
-MCoreAsh_t*
-PhoenixGetAsh(
-    _In_ UUId_t AshId)
-{
-    // Variables
-    ListNode_t *Node    = NULL;
-    UUId_t CurrentCpu   = UUID_INVALID;
-
-    // If we pass invalid get the current
-    if (AshId == UUID_INVALID) {
-        CurrentCpu = CpuGetCurrentId();
-        if (ThreadingGetCurrentThread(CurrentCpu) != NULL) {
-            AshId = ThreadingGetCurrentThread(CurrentCpu)->AshId;
-        }
-        else {
-            return NULL;
-        }
-    }
-
-    // Still none?
-    if (AshId == UUID_INVALID) {
-        return NULL;
-    }
-
-    // Now we can sanitize the extra stuff, like alias
-    PhoenixUpdateAlias(&AshId);
-
-    // Iterate the list for ash-id
-    _foreach(Node, PhoenixGetProcesses()) {
-        MCoreAsh_t *Ash = (MCoreAsh_t*)Node->Data;
-        if (Ash->Id == AshId) {
-            return Ash;
-        }
-    }
-
-    // We didn't find it
-    return NULL;
+    SpinlockAcquire(&Ash->PipeLock);
+    Pipe = (MCorePipe_t*)CollectionGetDataByKey(Ash->Pipes, Key, 0);
+    SpinlockRelease(&Ash->PipeLock);
+    return Pipe;
 }
 
 /* PhoenixGetCurrentAsh
@@ -480,7 +460,7 @@ PhoenixCleanupAsh(
     _In_ MCoreAsh_t *Ash)
 {
     // Variables
-    ListNode_t *fNode = NULL;
+    CollectionItem_t *fNode = NULL;
 
     // Strings first
     MStringDestroy(Ash->Name);
@@ -490,13 +470,13 @@ PhoenixCleanupAsh(
     _foreach(fNode, Ash->SignalQueue) {
         kfree(fNode->Data);
     }
-    ListDestroy(Ash->SignalQueue);
+    CollectionDestroy(Ash->SignalQueue);
 
     // Cleanup pipes
     _foreach(fNode, Ash->Pipes) {
         PipeDestroy((MCorePipe_t*)fNode->Data);
     }
-    ListDestroy(Ash->Pipes);
+    CollectionDestroy(Ash->Pipes);
 
     // Cleanup memory
     BlockBitmapDestroy(Ash->Shm);

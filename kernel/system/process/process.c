@@ -34,7 +34,6 @@
 
 /* Includes
  * - Library */
-#include <ds/list.h>
 #include <ds/mstring.h>
 #include <stddef.h>
 #include <string.h>

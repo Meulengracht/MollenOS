@@ -29,14 +29,14 @@
 
 /* Includes
  * - Library */
-#include <ds/list.h>
+#include <ds/collection.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 
 /* Globals
  * State-tracking variables */
-static List_t *GlbHidDevices = NULL;
+static Collection_t *GlbHidDevices = NULL;
 
 /* OnInterrupt
  * Is called when one of the registered devices
@@ -77,7 +77,7 @@ OsStatus_t
 OnLoad(void)
 {
 	// Initialize state for this driver
-    GlbHidDevices = ListCreate(KeyInteger);
+    GlbHidDevices = CollectionCreate(KeyInteger);
     return UsbInitialize();
 }
 
@@ -93,7 +93,7 @@ OnUnload(void)
 	}
 
 	// Data is now cleaned up, destroy list
-    ListDestroy(GlbHidDevices);
+    CollectionDestroy(GlbHidDevices);
     return UsbCleanup();
 }
 
@@ -120,7 +120,7 @@ OnRegister(
 	Key.Value = (int)Device->Id;
 
 	// Append the controller to our list
-	ListAppend(GlbHidDevices, ListCreateNode(Key, Key, HidDevice));
+	CollectionAppend(GlbHidDevices, CollectionCreateNode(Key, HidDevice));
 
 	// Done - no error
 	return OsSuccess;
@@ -143,7 +143,7 @@ OnUnregister(
 
 	// Lookup controller
 	HidDevice = (HidDevice_t*)
-		ListGetDataByKey(GlbHidDevices, Key, 0);
+		CollectionGetDataByKey(GlbHidDevices, Key, 0);
 
 	// Sanitize lookup
 	if (HidDevice == NULL) {
@@ -151,7 +151,7 @@ OnUnregister(
 	}
 
 	// Remove node from list
-	ListRemoveByKey(GlbHidDevices, Key);
+	CollectionRemoveByKey(GlbHidDevices, Key);
 
 	// Destroy it
 	return HidDeviceDestroy(HidDevice);

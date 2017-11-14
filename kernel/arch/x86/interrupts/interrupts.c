@@ -44,7 +44,7 @@
 
 /* Includes
  * - Library */
-#include <ds/list.h>
+#include <ds/collection.h>
 #include <assert.h>
 #include <stdio.h>
 
@@ -65,7 +65,7 @@ __EXTERN void enter_thread(Context_t *Regs);
 
 /* Externs 
  * These are for external access to some of the ACPI information */
-__EXTERN List_t *GlbAcpiNodes;
+__EXTERN Collection_t *GlbAcpiNodes;
 
 /* InterruptGetApicConfiguration
  * Determines the correct APIC flags for the io-apic entry

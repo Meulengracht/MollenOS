@@ -29,14 +29,14 @@
 
 /* Includes
  * - Library */
-#include <ds/list.h>
+#include <ds/collection.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 
 /* Globals
  * State-tracking variables */
-static List_t *GlbMsdDevices = NULL;
+static Collection_t *GlbMsdDevices = NULL;
 
 /* OnInterrupt
  * Is called when one of the registered devices
@@ -79,7 +79,7 @@ OsStatus_t
 OnLoad(void)
 {
 	// Initialize state for this driver
-    GlbMsdDevices = ListCreate(KeyInteger);
+    GlbMsdDevices = CollectionCreate(KeyInteger);
     return UsbInitialize();
 }
 
@@ -95,7 +95,7 @@ OnUnload(void)
 	}
 
 	// Data is now cleaned up, destroy list
-    ListDestroy(GlbMsdDevices);
+    CollectionDestroy(GlbMsdDevices);
     return UsbCleanup();
 }
 
@@ -122,7 +122,7 @@ OnRegister(
 	Key.Value = (int)Device->Id;
 
 	// Append the controller to our list
-	ListAppend(GlbMsdDevices, ListCreateNode(Key, Key, MsdDevice));
+	CollectionAppend(GlbMsdDevices, CollectionCreateNode(Key, MsdDevice));
 
 	// Done - no error
 	return OsSuccess;
@@ -145,7 +145,7 @@ OnUnregister(
 
 	// Lookup controller
 	MsdDevice = (MsdDevice_t*)
-		ListGetDataByKey(GlbMsdDevices, Key, 0);
+		CollectionGetDataByKey(GlbMsdDevices, Key, 0);
 
 	// Sanitize lookup
 	if (MsdDevice == NULL) {
@@ -153,7 +153,7 @@ OnUnregister(
 	}
 
 	// Remove node from list
-	ListRemoveByKey(GlbMsdDevices, Key);
+	CollectionRemoveByKey(GlbMsdDevices, Key);
 
 	// Destroy it
 	return MsdDeviceDestroy(MsdDevice);
@@ -191,7 +191,7 @@ OnQuery(_In_ MContractType_t QueryType,
 
         // Lookup device
         Key.Value = (int)Arg0->Data.Value;
-		Device = (MsdDevice_t*)ListGetDataByKey(GlbMsdDevices, Key, 0);
+		Device = (MsdDevice_t*)CollectionGetDataByKey(GlbMsdDevices, Key, 0);
 
 		// Write the descriptor back
 		if (Device != NULL) {
@@ -217,7 +217,7 @@ OnQuery(_In_ MContractType_t QueryType,
         
         // Lookup device
         Key.Value = (int)Arg0->Data.Value;
-		Device = (MsdDevice_t*)ListGetDataByKey(GlbMsdDevices, Key, 0);
+		Device = (MsdDevice_t*)CollectionGetDataByKey(GlbMsdDevices, Key, 0);
 
 		// Determine the kind of operation
 		if (Device != NULL

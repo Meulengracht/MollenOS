@@ -121,13 +121,6 @@ KERNELABI
 PhoenixRegisterAsh(
     _In_ MCoreAsh_t *Ash);
     
-/* PhoenixGetProcesses 
- * Retrieves access to the list of processes. */
-KERNELAPI
-List_t*
-KERNELABI
-PhoenixGetProcesses(void);
-
 /* PhoenixGetNextId 
  * Retrieves the next process-id. */
 KERNELAPI

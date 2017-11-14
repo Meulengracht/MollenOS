@@ -105,7 +105,9 @@ int SignalCreate(UUId_t AshId, int Signal)
 
 	/* Append it */
 	sKey.Value = Signal;
-	ListAppend(Target->SignalQueue, ListCreateNode(sKey, sKey, Sig));
+    CriticalSectionEnter(&Target->Lock);
+	CollectionAppend(Target->SignalQueue, CollectionCreateNode(sKey, Sig));
+    CriticalSectionLeave(&Target->Lock);
 
 	/* Done! */
 	return 0;
@@ -152,7 +154,7 @@ SignalHandle(
 	// Variables
 	MCoreThread_t *Thread = NULL;
 	MCoreSignal_t *Signal = NULL;
-	ListNode_t *sNode = NULL;
+	CollectionItem_t *sNode = NULL;
 	MCoreAsh_t *Ash = NULL;
 	
 	// Lookup variables
@@ -172,14 +174,19 @@ SignalHandle(
 	}
 
 	// Ok.. pop off first signal
-	sNode = ListPopFront(Ash->SignalQueue);
+    CriticalSectionEnter(&Ash->Lock);
+	sNode = CollectionPopFront(Ash->SignalQueue);
 
 	// Sanitize the node, no more signals?
 	if (sNode != NULL) {
 		Signal = (MCoreSignal_t*)sNode->Data;
-		ListDestroyNode(Ash->SignalQueue, sNode);
+		CollectionDestroyNode(Ash->SignalQueue, sNode);
+        CriticalSectionLeave(&Ash->Lock);
 		SignalExecute(Ash, Signal);
 	}
+    else {
+        CriticalSectionLeave(&Ash->Lock);
+    }
 
 	// No more signals
 	return OsSuccess;

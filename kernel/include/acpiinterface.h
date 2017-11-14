@@ -25,7 +25,7 @@
 /* Includes 
  * - Library */
 #include <os/osdefs.h>
-#include <ds/list.h>
+#include <ds/collection.h>
 
 /* Includes 
  * - System */
@@ -119,7 +119,7 @@ PACKED_TYPESTRUCT(PciRoutingEntry, {
  * and the currently active irq */
 PACKED_TYPESTRUCT(PciRoutingSource, {
     ACPI_HANDLE              Handle;
-    List_t                  *Entries;
+    Collection_t            *Entries;
     PciRoutingEntry_t       *ActiveEntry;
 });
 
@@ -127,8 +127,8 @@ PACKED_TYPESTRUCT(PciRoutingSource, {
  * A table containing 128 interrupt entries 
  * which is the number of 'redirects' there can be */
 PACKED_TYPESTRUCT(PciRoutings, {
-    List_t                  *Sources; // List of lists of irqs
-    List_t                  *InterruptEntries[128];
+    Collection_t            *Sources; // List of lists of irqs
+    Collection_t            *InterruptEntries[128];
     int                      ActiveIrqs[128];
 });
 

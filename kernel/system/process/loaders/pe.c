@@ -33,8 +33,7 @@
 #include <log.h>
 
 /* Includes
- * - C-Library */
-#include <ds/list.h>
+ * - Library */
 #include <stdio.h>
 #include <stddef.h>
 #include <string.h>
@@ -572,6 +571,7 @@ PeResolveLibrary(
 
     // Before actually loading the file, we want to
     // try to locate the library in the parent first.
+    SpinlockAcquire(&ExportParent->LibraryLock);
     foreach(lNode, ExportParent->LoadedLibraries) {
         MCorePeFile_t *Library = (MCorePeFile_t*)lNode->Data;
 
@@ -584,6 +584,7 @@ PeResolveLibrary(
             break;
         }
     }
+    SpinlockRelease(&ExportParent->LibraryLock);
 
     // Sanitize the exports, if its null we have to resolve the library
     if (Exports == NULL) {
@@ -597,7 +598,7 @@ PeResolveLibrary(
         // We have a special case here that it might
         // be from the ramdisk we are loading
         if (ExportParent->UsingInitRD) {
-            TRACE("Loading from ramdisk");
+            TRACE("Loading from ramdisk (s)", MStringRaw(LibraryName));
             if (ModulesQueryPath(LibraryName, (void**)&fBuffer, &fSize) != OsSuccess) {
                 ERROR("Failed to load library %s", MStringRaw(LibraryName));
                 for (;;);
@@ -646,8 +647,10 @@ PeResolveLibrary(
         if (Exports != NULL) {
             DataKey_t Key;
             Key.Value = 0;
-            ListAppend(ExportParent->LoadedLibraries, 
-                ListCreateNode(Key, Key, Library));
+            SpinlockAcquire(&ExportParent->LibraryLock);
+            CollectionAppend(ExportParent->LoadedLibraries, 
+                CollectionCreateNode(Key, Library));
+            SpinlockRelease(&ExportParent->LibraryLock);
         }
     }
 
@@ -757,9 +760,10 @@ PeLoadImage(
     PeInfo->Name = Name;
     PeInfo->Architecture = OptHeader->Architecture;
     PeInfo->VirtualAddress = *BaseAddress;
-    PeInfo->LoadedLibraries = ListCreate(KeyInteger);
+    PeInfo->LoadedLibraries = CollectionCreate(KeyInteger);
     PeInfo->References = 1;
     PeInfo->UsingInitRD = UsingInitRD;
+    SpinlockReset(&PeInfo->LibraryLock);
 
     // Set the entry point if there is any
     if (OptHeader->EntryPoint != 0) {
@@ -784,7 +788,9 @@ PeLoadImage(
     if (Parent != NULL) {
         DataKey_t Key;
         Key.Value = 0;
-        ListAppend(Parent->LoadedLibraries, ListCreateNode(Key, Key, PeInfo));
+        SpinlockAcquire(&Parent->LibraryLock);
+        CollectionAppend(Parent->LoadedLibraries, CollectionCreateNode(Key, PeInfo));
+        SpinlockRelease(&Parent->LibraryLock);
     }
 
     // Handle imports
@@ -808,14 +814,16 @@ PeUnloadLibrary(
     // we might have to unload it if there are
     // no more references
     if (Library->References <= 0)  {
+        SpinlockAcquire(&Library->LibraryLock);
         foreach(lNode, Parent->LoadedLibraries) {
             MCorePeFile_t *lLib = (MCorePeFile_t*)lNode->Data;
             if (lLib == Library) {
-                ListRemoveByNode(Parent->LoadedLibraries, lNode);
+                CollectionRemoveByNode(Parent->LoadedLibraries, lNode);
                 kfree(lNode);
                 break;
             }
         }
+        SpinlockRelease(&Library->LibraryLock);
 
         // Actually unload image
         return PeUnloadImage(Library);
@@ -830,7 +838,7 @@ PeUnloadImage(
     _In_ MCorePeFile_t *Executable)
 {
     // Variables
-    ListNode_t *Node = NULL;
+    CollectionItem_t *Node = NULL;
 
     // Sanitize parameter
     if (Executable == NULL) {
@@ -851,7 +859,6 @@ PeUnloadImage(
             MCorePeFile_t *Library = (MCorePeFile_t*)Node->Data;
             PeUnloadImage(Library);
         }
-        ListDestroy(Executable->LoadedLibraries);
     }
 
     // Last step, free base

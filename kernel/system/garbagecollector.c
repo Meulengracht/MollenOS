@@ -30,7 +30,7 @@
 
 /* Includes
  * - Library */
-#include <ds/list.h>
+#include <ds/collection.h>
 #include <stddef.h>
 
 /* Prototypes 
@@ -39,11 +39,12 @@ void GcWorker(void *Args);
 
 /* Globals 
  * Needed for state-keeping */
-static Semaphore_t *GlbGcEventLock = NULL;
-static List_t *GlbGcHandlers = NULL;
-static List_t *GlbGcEvents = NULL;
-static int GlbGcInitialized = 0;
-static UUId_t GlbGcId = 0;
+static Semaphore_t *GlbGcEventLock  = NULL;
+static Collection_t *GlbGcHandlers  = NULL;
+static Collection_t *GlbGcEvents    = NULL;
+static CriticalSection_t GcSignalLock;
+static int GlbGcInitialized         = 0;
+static UUId_t GlbGcId               = 0;
 
 /* GcConstruct
  * Constructs the gc data-systems, but does
@@ -53,8 +54,9 @@ GcConstruct(void)
 {
 	// Create data-structures
 	GlbGcEventLock = SemaphoreCreate(0);
-	GlbGcHandlers = ListCreate(KeyInteger);
-	GlbGcEvents = ListCreate(KeyInteger);
+	GlbGcHandlers = CollectionCreate(KeyInteger);
+	GlbGcEvents = CollectionCreate(KeyInteger);
+    CriticalSectionConstruct(&GcSignalLock, CRITICALSECTION_PLAIN);
 	GlbGcId = 0;
 
 	// Set initialized
@@ -98,7 +100,7 @@ GcRegister(
 	Key.Value = (int)GlbGcId++;
 
 	// Cool thing - add the handler
-	ListAppend(GlbGcHandlers, ListCreateNode(Key, Key, (void*)Handler));
+	CollectionAppend(GlbGcHandlers, CollectionCreateNode(Key, (void*)Handler));
 
 	// Done - no errors
 	return (UUId_t)Key.Value;
@@ -118,12 +120,12 @@ GcUnregister(
 
 	// Sanitize the status of the gc
 	if (GlbGcInitialized != 1
-		|| ListGetDataByKey(GlbGcHandlers, Key, 0) == NULL) {
+		|| CollectionGetDataByKey(GlbGcHandlers, Key, 0) == NULL) {
 		return OsError;
 	}
 
 	// Remove the entry
-	ListRemoveByKey(GlbGcHandlers, Key);
+	CollectionRemoveByKey(GlbGcHandlers, Key);
 
 	// Done - no further cleanup needed
 	return OsSuccess;
@@ -144,12 +146,14 @@ GcSignal(
 
 	// Sanitize the status of the gc
 	if (GlbGcInitialized != 1
-		|| ListGetDataByKey(GlbGcHandlers, Key, 0) == NULL) {
+		|| CollectionGetDataByKey(GlbGcHandlers, Key, 0) == NULL) {
 		return OsError;
 	}
 
 	// Create a new event
-	ListAppend(GlbGcEvents, ListCreateNode(Key, Key, Data));
+    CriticalSectionEnter(&GcSignalLock);
+	CollectionAppend(GlbGcEvents, CollectionCreateNode(Key, Data));
+    CriticalSectionLeave(&GcSignalLock);
 	SemaphoreV(GlbGcEventLock, 1);
 
 	// Done - no errors
@@ -161,7 +165,7 @@ GcSignal(
 void GcWorker(void *Args)
 {
 	// Variables
-	ListNode_t *eNode = NULL;
+	CollectionItem_t *eNode = NULL;
 	GcHandler_t Handler;
 	int Run = 1;
 
@@ -175,7 +179,9 @@ void GcWorker(void *Args)
 		SemaphoreP(GlbGcEventLock, 0);
 
 		// Pop event
-		eNode = ListPopFront(GlbGcEvents);
+        CriticalSectionEnter(&GcSignalLock);
+		eNode = CollectionPopFront(GlbGcEvents);
+        CriticalSectionLeave(&GcSignalLock);
 
 		// Sanitize the node
 		if (eNode == NULL) {
@@ -183,8 +189,8 @@ void GcWorker(void *Args)
 		}
 
 		// Sanitize the handler
-		if ((Handler = (GcHandler_t)ListGetDataByKey(GlbGcHandlers, eNode->Key, 0)) == NULL) {
-			ListDestroyNode(GlbGcEvents, eNode);
+		if ((Handler = (GcHandler_t)CollectionGetDataByKey(GlbGcHandlers, eNode->Key, 0)) == NULL) {
+			CollectionDestroyNode(GlbGcEvents, eNode);
 			continue;
 		}
 
@@ -192,6 +198,6 @@ void GcWorker(void *Args)
 		Handler(eNode->Data);
 
 		// Free the node
-		ListDestroyNode(GlbGcEvents, eNode);
+		CollectionDestroyNode(GlbGcEvents, eNode);
 	}
 }

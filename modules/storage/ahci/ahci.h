@@ -28,7 +28,8 @@
 /* Includes 
  * - Library */
 #include <os/osdefs.h>
-#include <ds/list.h>
+#include <os/spinlock.h>
+#include <ds/collection.h>
 
 /* Includes
  * - System */
@@ -350,7 +351,7 @@ typedef struct _AhciPort {
 	// Transactions for this port 
 	// Keeps track of active transfers. 
 	// Key -> Slot, SubKey -> Multiplier
-	List_t					*Transactions;
+	Collection_t		    *Transactions;
 } AhciPort_t;
 
 /* The AHCI Controller 

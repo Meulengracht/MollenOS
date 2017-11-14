@@ -241,7 +241,7 @@ UhciQueueInitialize(
     Queue->FrameListPhysical = PoolPhysical;
 
 	// Initialize the transaction list
-	Queue->TransactionList = ListCreate(KeyInteger);
+	Queue->TransactionList = CollectionCreate(KeyInteger);
 
 	// Initialize the usb scheduler
 	Controller->Scheduler = UsbSchedulerInitialize(UHCI_NUM_FRAMES, 900, 1);
@@ -257,7 +257,7 @@ UhciQueueReset(
     _In_ UhciController_t *Controller)
 {
     // Variables
-    ListNode_t *tNode = NULL;
+    CollectionItem_t *tNode = NULL;
 
     // Debug
     TRACE("UhciQueueReset()");
@@ -273,7 +273,7 @@ UhciQueueReset(
         UhciTransactionFinalize(Controller, 
             (UsbManagerTransfer_t*)tNode->Data, 0);
     }
-    ListClear(Controller->QueueControl.TransactionList);
+    CollectionClear(Controller->QueueControl.TransactionList);
 
     // Reinitialize internal data
     return UhciQueueResetInternalData(Controller);
@@ -301,7 +301,7 @@ UhciQueueDestroy(
 
     // Cleanup resources
     UsbSchedulerDestroy(Controller->Scheduler);
-    ListDestroy(Controller->QueueControl.TransactionList);
+    CollectionDestroy(Controller->QueueControl.TransactionList);
     MemoryFree(Controller->QueueControl.FrameList, PoolSize);
 	return OsSuccess;
 }
@@ -746,7 +746,7 @@ void
 UhciProcessRequest(
 	_In_ UhciController_t *Controller,
 	_In_ UsbManagerTransfer_t *Transfer,
-    _In_ ListNode_t *Node,
+    _In_ CollectionItem_t *Node,
 	_In_ int FixupToggles,
     _In_ int ErrorTransfer,
     _In_ int RestartOnly)
@@ -769,8 +769,8 @@ UhciProcessRequest(
 
 		// Finalize transaction and remove from list
         UhciTransactionFinalize(Controller, Transfer, 1);
-        ListRemoveByNode(Controller->QueueControl.TransactionList, Node);
-        ListDestroyNode(Controller->QueueControl.TransactionList, Node);
+        CollectionRemoveByNode(Controller->QueueControl.TransactionList, Node);
+        CollectionDestroyNode(Controller->QueueControl.TransactionList, Node);
 	}
 	else if (Transfer->Transfer.Type == InterruptTransfer) {
 

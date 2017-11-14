@@ -84,7 +84,7 @@ OsStatus_t VfsResolveQueueExecute(void)
 		}
 
 		/* Add to list, by using the disk id as identifier */
-		ListAppend(VfsGetFileSystems(), ListCreateNode(Key, Key, Fs));
+		CollectionAppend(VfsGetFileSystems(), CollectionCreateNode(Key, Fs));
 	}
 
 	/* Done! */
@@ -137,7 +137,7 @@ OsStatus_t DiskRegisterFileSystem(FileSystemDisk_t *Disk,
 	//   registered and init hasn't run, and it's not MFS
 	//   then we add to a resolve-wait queue
 	if (!GlbInitHasRun && Fs->Type != FSMFS) {
-		ListAppend(VfsGetResolverQueue(), ListCreateNode(Key, Key, Fs));
+		CollectionAppend(VfsGetResolverQueue(), CollectionCreateNode(Key, Fs));
 	}
 	else {
 		TRACE("Resolving filesystem");
@@ -162,7 +162,7 @@ OsStatus_t DiskRegisterFileSystem(FileSystemDisk_t *Disk,
 		}
 
 		// Add to list, by using the disk id as identifier
-		ListAppend(VfsGetFileSystems(), ListCreateNode(Key, Key, Fs));
+		CollectionAppend(VfsGetFileSystems(), CollectionCreateNode(Key, Fs));
 
 		// Start init?
 		if (!GlbInitHasRun) {
@@ -234,7 +234,7 @@ OsStatus_t RegisterDisk(UUId_t Driver, UUId_t Device, Flags_t Flags)
 	}
 
 	// Add the registered disk to the list of disks
-	ListAppend(VfsGetDisks(), ListCreateNode(Key, Key, Disk));
+	CollectionAppend(VfsGetDisks(), CollectionCreateNode(Key, Disk));
 
 	// Detect the disk layout, and if it fails
 	// try to detect which kind of filesystem is present
@@ -248,12 +248,12 @@ OsStatus_t UnregisterDisk(UUId_t Device, Flags_t Flags)
 {
 	/* Variables for iteration */
 	FileSystemDisk_t *Disk = NULL;
-	ListNode_t *lNode = NULL;
+	CollectionItem_t *lNode = NULL;
 	DataKey_t Key;
 
 	/* Setup pre-stuff */
 	Key.Value = (int)Device;
-	lNode = ListGetNodeByKey(VfsGetFileSystems(), Key, 0);
+	lNode = CollectionGetNodeByKey(VfsGetFileSystems(), Key, 0);
 
 	/* Keep iterating untill no more FS's are present on disk */
 	while (lNode != NULL) {
@@ -282,15 +282,15 @@ OsStatus_t UnregisterDisk(UUId_t Device, Flags_t Flags)
 		free(Fs);
 
 		/* Remove it from list */
-		ListRemoveByNode(VfsGetFileSystems(), lNode);
+		CollectionRemoveByNode(VfsGetFileSystems(), lNode);
 
 		/* Get next */
-		lNode = ListGetNodeByKey(VfsGetFileSystems(), Key, 0);
+		lNode = CollectionGetNodeByKey(VfsGetFileSystems(), Key, 0);
 	}
 
 	/* Remove the disk from the list of disks */
-	Disk = ListGetDataByKey(VfsGetDisks(), Key, 0);
-	ListRemoveByKey(VfsGetDisks(), Key);
+	Disk = CollectionGetDataByKey(VfsGetDisks(), Key, 0);
+	CollectionRemoveByKey(VfsGetDisks(), Key);
 	free(Disk);
 
 	/* Done! */

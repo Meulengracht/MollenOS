@@ -49,9 +49,9 @@ typedef struct _McfgEntry {
 
 /* Globals, we want to
  * keep track of all pci-devices by having this root device */
-static List_t *__GlbPciDevices = NULL;
-static PciDevice_t *__GlbRoot = NULL;
-static int __GlbAcpiAvailable = 0;
+static Collection_t *__GlbPciDevices    = NULL;
+static PciDevice_t *__GlbRoot           = NULL;
+static int __GlbAcpiAvailable           = 0;
 
 /* Prototypes
  * we need access to this function again.. */
@@ -277,15 +277,15 @@ PciCheckFunction(
 
 	// Add to the flat list
 	lKey.Value = 0;
-	ListAppend(__GlbPciDevices, ListCreateNode(lKey, lKey, Device));
+	CollectionAppend(__GlbPciDevices, CollectionCreateNode(lKey, Device));
 
 	// Add to list
 	if (Pcs->Class == PCI_CLASS_BRIDGE
 		&& Pcs->Subclass == PCI_BRIDGE_SUBCLASS_PCI) {
 		Device->IsBridge = 1;
 		lKey.Value = 1;
-		ListAppend((List_t*)Parent->Children, ListCreateNode(lKey, lKey, Device));
-		Device->Children = ListCreate(KeyInteger);
+		CollectionAppend(Parent->Children, CollectionCreateNode(lKey, Device));
+		Device->Children = CollectionCreate(KeyInteger);
 
 		// Extract secondary bus
 		SecondBus = PciReadSecondaryBusNumber(Device->BusIo, Bus, Slot, Function);
@@ -352,7 +352,7 @@ PciCheckFunction(
 		lKey.Value = 0;
 
 		// Add to list
-		ListAppend((List_t*)Parent->Children, ListCreateNode(lKey, lKey, Device));
+		CollectionAppend(Parent->Children, CollectionCreateNode(lKey, Device));
 	}
 }
 
@@ -492,7 +492,7 @@ PciInstallDriverCallback(
 	// Bridge or device? 
 	// If a bridge, we keep iterating, device, load driver
 	if (PciDev->IsBridge) {
-		ListExecuteAll((List_t*)PciDev->Children, PciInstallDriverCallback, Context);
+		CollectionExecuteAll(PciDev->Children, PciInstallDriverCallback, Context);
 	}
 	else {
 		PciCreateDeviceFromPci(PciDev);
@@ -549,10 +549,10 @@ BusEnumerate(void)
 	memset(__GlbRoot, 0, sizeof(PciDevice_t));
 
 	// Initialize a flat list of devices
-	__GlbPciDevices = ListCreate(KeyInteger);
+	__GlbPciDevices = CollectionCreate(KeyInteger);
 
 	// Initiate root-bridge
-	__GlbRoot->Children = ListCreate(KeyInteger);
+	__GlbRoot->Children = CollectionCreate(KeyInteger);
 	__GlbRoot->IsBridge = 1;
 
 	/* Query acpi information */
@@ -684,7 +684,7 @@ BusEnumerate(void)
 
 	/* Now, that the bus is enumerated, we can
 	 * iterate the found devices and load drivers */
-	ListExecuteAll(__GlbRoot->Children, PciInstallDriverCallback, NULL);
+	CollectionExecuteAll(__GlbRoot->Children, PciInstallDriverCallback, NULL);
 
 	// No errors
 	return OsSuccess;

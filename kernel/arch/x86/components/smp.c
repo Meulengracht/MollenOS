@@ -35,7 +35,7 @@
 /* C-Library */
 #include <string.h>
 #include <stdio.h>
-#include <ds/list.h>
+#include <ds/collection.h>
 
 #define WaitForConditionWithFault(fault, condition, runs, wait)\
 fault = 0; \
@@ -48,7 +48,7 @@ for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
                     }
 
 /* Externs */
-extern List_t *GlbAcpiNodes;
+extern Collection_t *GlbAcpiNodes;
 extern UUId_t GlbBootstrapCpuId;
 
 /* Globals */
@@ -222,5 +222,5 @@ CpuSmpInitialize(void)
 
 	/* Start each CPU */
 	Key.Value = ACPI_MADT_TYPE_LOCAL_APIC;
-	ListExecuteOnKey(GlbAcpiNodes, SmpBootCore, Key, NULL);
+	CollectionExecuteOnKey(GlbAcpiNodes, SmpBootCore, Key, NULL);
 }

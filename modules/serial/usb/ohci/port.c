@@ -31,7 +31,6 @@
 
 /* Includes
  * - Library */
-#include <ds/list.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>

@@ -26,14 +26,10 @@
 
 /* Includes 
  * - System */
+#include <os/osdefs.h>
 #include <system/addresspace.h>
 #include <mutex.h>
 #include <pipe.h>
-
-/* Includes 
- * - C-Library */
-#include <os/osdefs.h>
-#include <ds/list.h>
 
 /* Define the thread entry point signature */
 #ifndef __THREADING_ENTRY

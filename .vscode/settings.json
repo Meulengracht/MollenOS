@@ -265,6 +265,7 @@
         "numeric": "c",
         "signal.h": "c",
         "hashtable.h": "c",
-        "collection.h": "c"
+        "collection.h": "c",
+        "crc32.h": "c"
     }
 }

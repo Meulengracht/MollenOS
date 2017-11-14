@@ -24,23 +24,22 @@
 
 /* Includes 
  * - System */
+#include <debug.h>
 #include <apic.h>
 #include <acpi.h>
-#include <debug.h>
 
 /* Includes
- * - C-Library */
+ * - Library */
+#include <ds/collection.h>
 #include <string.h>
 #include <stdio.h>
-#include <ds/list.h>
 
 /* Externs, we need access to a lot of different
  * things for these helper functions */
 __EXTERN volatile size_t GlbTimerTicks[64];
 __EXTERN volatile int GlbCpusBooted;
 __EXTERN uintptr_t GlbLocalApicBase;
-__EXTERN List_t *GlbIoApics;
-__EXTERN List_t *GlbAcpiNodes;
+__EXTERN Collection_t *GlbIoApics;
 
 /* Retrieves the version of the 
  * onboard local apic chip, this is 

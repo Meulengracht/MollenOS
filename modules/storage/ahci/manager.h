@@ -28,7 +28,7 @@
 /* Includes 
  * - Library */
 #include <os/osdefs.h>
-#include <ds/list.h>
+#include <ds/collection.h>
 
 /* Includes
  * - System */

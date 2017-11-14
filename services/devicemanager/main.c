@@ -26,7 +26,7 @@
 #include <os/driver/contracts/base.h>
 #include <os/driver/driver.h>
 #include <os/utils.h>
-#include <ds/list.h>
+#include <ds/collection.h>
 #include <bus.h>
 
 /* Includes
@@ -38,11 +38,11 @@
 
 /* Globals 
  * Keep track of all devices and contracts */
-static List_t *__GlbContracts = NULL;
-static List_t *__GlbDevices = NULL;
-static UUId_t GlbDeviceIdGen = 0, GlbDriverIdGen = 0;
-static int GlbInitialized = 0;
-static int GlbRun = 0;
+static Collection_t *__GlbContracts = NULL;
+static Collection_t *__GlbDevices   = NULL;
+static UUId_t GlbDeviceIdGen        = 0, GlbDriverIdGen = 0;
+static int GlbInitialized           = 0;
+static int GlbRun                   = 0;
 
 /* OnLoad
  * The entry-point of a server, this is called
@@ -51,8 +51,8 @@ OsStatus_t
 OnLoad(void)
 {
     // Setup list
-    __GlbDevices = ListCreate(KeyInteger);
-    __GlbContracts = ListCreate(KeyInteger);
+    __GlbDevices = CollectionCreate(KeyInteger);
+    __GlbContracts = CollectionCreate(KeyInteger);
 
     // Init variables
     GlbDeviceIdGen = 0;
@@ -139,7 +139,7 @@ OnEvent(
 
             // Lookup device
             Key.Value = (int)Message->Arguments[0].Data.Value;
-            Device = ListGetDataByKey(__GlbDevices, Key, 0);
+            Device = CollectionGetDataByKey(__GlbDevices, Key, 0);
 
             // Sanitizie
             if (Device != NULL) {
@@ -263,7 +263,7 @@ RegisterDevice(
     memcpy(CopyDevice, Device, Device->Length);
 
     // Add to list
-    ListAppend(__GlbDevices, ListCreateNode(Key, Key, CopyDevice));
+    CollectionAppend(__GlbDevices, CollectionCreateNode(Key, CopyDevice));
 
     // Now, we want to try to find a driver
     // for the new device
@@ -298,7 +298,7 @@ RegisterContract(
     Key.Value = (int)Contract->DeviceId;
 
     // Sanitize device
-    if (ListGetDataByKey(__GlbDevices, Key, 0) == NULL) {
+    if (CollectionGetDataByKey(__GlbDevices, Key, 0) == NULL) {
         ERROR("Device id %u was not registered with the device manager",
             Contract->DeviceId);
         return OsError;
@@ -316,7 +316,7 @@ RegisterContract(
     memcpy(CopyContract, Contract, sizeof(MContract_t));
 
     // Add to list
-    ListAppend(__GlbContracts, ListCreateNode(Key, Key, CopyContract));
+    CollectionAppend(__GlbContracts, CollectionCreateNode(Key, CopyContract));
 
     // Done
     return OsSuccess;

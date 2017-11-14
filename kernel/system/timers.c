@@ -28,22 +28,23 @@
 #include <process/ash.h>
 #include <interrupts.h>
 #include <scheduler.h>
-#include <ds/list.h>
 #include <timers.h>
 #include <debug.h>
 #include <heap.h>
 
 /* Includes
  * - Library */
+#include <ds/collection.h>
 #include <stdlib.h>
 #include <stddef.h>
 
 /* Globals */
 static MCoreSystemTimer_t *GlbActiveSystemTimer = NULL;
-static List_t *GlbSystemTimers = NULL;
-static List_t *GlbTimers = NULL;
-static UUId_t GlbTimerIds = 0;
-static int GlbTimersInitialized = 0;
+static Collection_t *GlbSystemTimers            = NULL;
+static Collection_t *GlbTimers                  = NULL;
+static CriticalSection_t TimerLock;
+static UUId_t GlbTimerIds                       = 0;
+static int GlbTimersInitialized                 = 0;
 
 /* TimersInitialize
  * Initializes the timer sub-system that supports
@@ -54,8 +55,9 @@ TimersInitialize(void)
 	// Initialize all the globals 
 	// including lists etc
 	GlbActiveSystemTimer = NULL;
-	GlbSystemTimers = ListCreate(KeyInteger);
-	GlbTimers = ListCreate(KeyInteger);
+	GlbSystemTimers = CollectionCreate(KeyInteger);
+	GlbTimers = CollectionCreate(KeyInteger);
+    CriticalSectionConstruct(&TimerLock, CRITICALSECTION_PLAIN);
 	GlbTimersInitialized = 1;
 	GlbTimerIds = 0;
 }
@@ -90,7 +92,9 @@ TimersStart(
     Key.Value = (int)Timer->Id;
 
     // Add to list of timers
-    ListAppend(GlbTimers, ListCreateNode(Key, Key, Timer));
+    CriticalSectionEnter(&TimerLock);
+    CollectionAppend(GlbTimers, CollectionCreateNode(Key, Timer));
+    CriticalSectionLeave(&TimerLock);
     return Timer->Id;
 }
 
@@ -103,7 +107,11 @@ KERNELABI
 TimersStop(
     _In_ UUId_t TimerId)
 {
+    // Variables
+    OsStatus_t Result = OsError;
+
     // Now loop through timers registered
+    CriticalSectionEnter(&TimerLock);
 	foreach(tNode, GlbTimers) {
         // Initiate pointer
         MCoreTimer_t *Timer = (MCoreTimer_t*)tNode->Data;
@@ -111,13 +119,15 @@ TimersStop(
         // Does it match the id? + Owner must match
         if (Timer->Id == TimerId
             && Timer->AshId == PhoenixGetCurrentAsh()->Id) {
-			ListRemoveByNode(GlbTimers, tNode);
+			CollectionRemoveByNode(GlbTimers, tNode);
             kfree(Timer);
             kfree(tNode);
-            return OsSuccess;
+            Result = OsSuccess;
+            break;
 		}
     }
-    return OsError;
+    CriticalSectionLeave(&TimerLock);
+    return Result;
 }
 
 /* TimersTick
@@ -128,7 +138,7 @@ TimersTick(
 	_In_ size_t Tick)
 {
 	// Variables
-	ListNode_t *i = NULL;
+	CollectionItem_t *i = NULL;
 	size_t MilliTicks = 0;
 
 	// Calculate how many milliseconds
@@ -150,7 +160,7 @@ TimersTick(
 				Timer->Current = Timer->Interval;
 			}
 			else {
-				ListRemoveByNode(GlbTimers, i);
+				CollectionRemoveByNode(GlbTimers, i);
 				kfree(Timer);
 				kfree(i);
 			}
@@ -192,8 +202,8 @@ TimersRegister(
 
 	// Add the new timer to the list
 	tKey.Value = 0;
-	ListAppend(GlbSystemTimers, ListCreateNode(
-		tKey, tKey, SystemTimer));
+	CollectionAppend(GlbSystemTimers, 
+        CollectionCreateNode(tKey, SystemTimer));
 
 	// Ok, for a system timer we want something optimum
 	// of 1 ms per interrupt

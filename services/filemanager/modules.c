@@ -51,7 +51,7 @@ FileSystemModule_t *VfsResolveFileSystem(FileSystem_t *FileSystem)
 {
 	// Variables
 	FileSystemModule_t *Module = NULL;
-	ListNode_t *fNode = NULL;
+	CollectionItem_t *fNode = NULL;
 	DataKey_t Key;
 
 	// Trace
@@ -155,7 +155,7 @@ FileSystemModule_t *VfsResolveFileSystem(FileSystem_t *FileSystem)
 
 	// Last thing is to add it to the list
 	Key.Value = 0;
-	ListAppend(VfsGetModules(), ListCreateNode(Key, Key, Module));
+	CollectionAppend(VfsGetModules(), CollectionCreateNode(Key, Module));
 
 	// Return the newly created module
 	return Module;

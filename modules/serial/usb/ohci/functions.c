@@ -32,7 +32,7 @@
 
 /* Includes
  * - Library */
-#include <ds/list.h>
+#include <ds/collection.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
@@ -91,8 +91,8 @@ OhciTransactionDispatch(
 
 	// Store transaction in queue
 	Key.Value = 0;
-	ListAppend(Controller->QueueControl.TransactionList, 
-		ListCreateNode(Key, Key, Transfer));
+	CollectionAppend(Controller->QueueControl.TransactionList, 
+		CollectionCreateNode(Key, Transfer));
 
 	// Clear pauses
 	Qh->Flags &= ~OHCI_QH_SKIP;
