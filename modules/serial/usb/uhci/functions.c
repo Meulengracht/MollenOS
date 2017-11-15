@@ -537,8 +537,8 @@ UsbQueueTransferGeneric(
 			|| Transfer->Transfer.Transactions[i].ZeroLength == 1
 			|| AddZeroLength == 1) {
 			// Variables
-			UhciTransferDescriptor_t *Td = NULL;
-			size_t BytesStep = 0;
+			UhciTransferDescriptor_t *Td    = NULL;
+			size_t BytesStep                = 0;
 			int Toggle;
 
 			// Get toggle status

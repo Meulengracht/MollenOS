@@ -18,7 +18,7 @@
  *
  * MollenOS MCore - Mass Storage Device Driver (Generic)
  */
-//#define __TRACE
+#define __TRACE
 
 /* Includes
  * - System */
@@ -547,6 +547,10 @@ MsdSCSICommandIn(
     UsbTransfer_t DataTransfer;
     UsbTransferResult_t Result;
 
+    // Debug
+    TRACE("MsdSCSICommandIn(Command %u, Start %u, Length %u)",
+        ScsiCommand, LODWORD(SectorStart), DataLength);
+
     // First step is to execute the control transfer, but we must handle
     // the default and UFI interface differently
     if (Device->Type != ProtocolUFI) {
@@ -876,6 +880,10 @@ MsdReadSectors(
 {
     // Variables
     UsbTransferStatus_t Result;
+
+    // Debug
+    TRACE("MsdReadSectors(Sector %u, Length %u, Address 0x%x)",
+        LODWORD(SectorStart), BufferLength, BufferAddress);
 
     // Perform the read command
     Result = MsdSCSICommandIn(Device, 

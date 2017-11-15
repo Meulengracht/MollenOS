@@ -100,7 +100,8 @@ OsStatus_t DiskDetectLayout(FileSystemDisk_t *Disk)
 	OsStatus_t Result;
 
 	// Trace
-	TRACE("DiskDetectLayout()");
+	TRACE("DiskDetectLayout(SectorSize %u)",
+        Disk->Descriptor.SectorSize);
 
 	// Allocate a generic transfer buffer for disk operations
 	// on the given disk, we need it to parse the disk

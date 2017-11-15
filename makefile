@@ -16,6 +16,9 @@ config_flags =
 #config_flags += -D__OSCONFIG_ACPIDEBUGMUTEXES
 #config_flags += -D__OSCONFIG_REDUCEDHARDWARE
 
+# OS Configuration
+#config_flags += -D__OSCONFIG_ENABLE_MULTIPROCESSORS
+
 # Use to debug process loading
 #config_flags += -D__OSCONFIG_PROCESS_SINGLELOAD
 

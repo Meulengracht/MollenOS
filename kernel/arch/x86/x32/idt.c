@@ -83,7 +83,7 @@ void IdtInitialize(void)
 	InterruptInstallDefaultGates();
 
 	/* Override default gate with syscall */
-	IdtInstallDescriptor(INTERRUPT_SYSCALL, (uint32_t)syscall_entry, 
+	IdtInstallDescriptor(INTERRUPT_SYSCALL, (uintptr_t)syscall_entry, 
 		GDT_KCODE_SEGMENT, IDT_RING3 | IDT_PRESENT | IDT_TRAP_GATE32);
 
 	/* Reload GDT */

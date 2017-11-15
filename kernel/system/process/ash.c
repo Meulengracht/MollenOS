@@ -206,7 +206,7 @@ PhoenixInitializeAsh(
     Ash->FileBuffer = fBuffer;
     Ash->FileBufferLength = fSize;
     Ash->Pipes = CollectionCreate(KeyInteger);
-    return SpinlockReset(&Ash->PipeLock);
+    return OsSuccess;
 }
 
 /* PhoenixStartupAsh
@@ -258,20 +258,20 @@ PhoenixOpenAshPipe(
     // Make sure that a pipe on the given Port 
     // doesn't already exist!
     Key.Value = Port;
-    SpinlockAcquire(&Ash->PipeLock);
+    CriticalSectionEnter(&Ash->Lock);
     if (CollectionGetDataByKey(Ash->Pipes, Key, 0) != NULL) {
-        SpinlockRelease(&Ash->PipeLock);
-        ERROR("The requested pipe already exists");
-        return OsError;
+        CriticalSectionLeave(&Ash->Lock);
+        WARNING("The requested pipe already exists");
+        return OsSuccess;
     }
-    SpinlockRelease(&Ash->PipeLock);
+    CriticalSectionLeave(&Ash->Lock);
 
     // Create a new pipe and add it to list
     Pipe = PipeCreate(ASH_PIPE_SIZE, Flags);
     
-    SpinlockAcquire(&Ash->PipeLock);
+    CriticalSectionEnter(&Ash->Lock);
     CollectionAppend(Ash->Pipes, CollectionCreateNode(Key, Pipe));
-    SpinlockRelease(&Ash->PipeLock);
+    CriticalSectionLeave(&Ash->Lock);
 
     // Wake sleepers waiting for pipe creations
     SchedulerThreadWakeAll((uintptr_t*)Ash->Pipes);
@@ -298,12 +298,12 @@ PhoenixWaitAshPipe(
     // Wait for wake-event on pipe
     Key.Value = Port;
     while (Run) {
-        SpinlockAcquire(&Ash->PipeLock);
+        CriticalSectionEnter(&Ash->Lock);
         if (CollectionGetDataByKey(Ash->Pipes, Key, 0) != NULL) {
-            SpinlockRelease(&Ash->PipeLock);
+            CriticalSectionLeave(&Ash->Lock);
             break;
         }
-        SpinlockRelease(&Ash->PipeLock);
+        CriticalSectionLeave(&Ash->Lock);
         if (SchedulerThreadSleep((uintptr_t*)Ash->Pipes, 5000) == SCHEDULER_SLEEP_TIMEOUT) {
             ERROR("Failed to wait for open pipe, timeout after 5 seconds.");
             return OsError;
@@ -332,18 +332,18 @@ PhoenixCloseAshPipe(
 
     // Lookup pipe
     Key.Value = Port;
-    SpinlockAcquire(&Ash->PipeLock);
+    CriticalSectionEnter(&Ash->Lock);
     Pipe = (MCorePipe_t*)CollectionGetDataByKey(Ash->Pipes, Key, 0);
-    SpinlockRelease(&Ash->PipeLock);
+    CriticalSectionLeave(&Ash->Lock);
     if (Pipe == NULL) {
         return OsError;
     }
 
     // Cleanup pipe and remove node
     PipeDestroy(Pipe);
-    SpinlockAcquire(&Ash->PipeLock);
+    CriticalSectionEnter(&Ash->Lock);
     CollectionRemoveByKey(Ash->Pipes, Key);
-    return SpinlockRelease(&Ash->PipeLock);
+    return CriticalSectionLeave(&Ash->Lock);
 }
 
 /* PhoenixGetAshPipe
@@ -365,9 +365,9 @@ PhoenixGetAshPipe(
 
     // Perform the lookup
     Key.Value = Port;
-    SpinlockAcquire(&Ash->PipeLock);
+    CriticalSectionEnter(&Ash->Lock);
     Pipe = (MCorePipe_t*)CollectionGetDataByKey(Ash->Pipes, Key, 0);
-    SpinlockRelease(&Ash->PipeLock);
+    CriticalSectionLeave(&Ash->Lock);
     return Pipe;
 }
 

@@ -25,43 +25,62 @@
 #define _MCORE_CRITICAL_SECTION_
 
 /* Includes 
- * - System */
+ * - Library */
+#include <os/osdefs.h>
 #include <os/spinlock.h>
 
-/* Definitions */
-#define CRITICALSECTION_PLAIN			0x0
-#define CRITICALSECTION_REENTRANCY		0x1
-
-/* Structures */
+/* Critical Section Definitions
+ * Magic constants, bit definitions and types. */
+#define CRITICALSECTION_PLAIN           0x0
+#define CRITICALSECTION_REENTRANCY      0x1
 typedef struct _CriticalSection {
-	int Flags;
-	UUId_t Owner;
-	size_t References;
-	IntStatus_t IntrState;
-	Spinlock_t Lock;
+    int                 Flags;
+    UUId_t              Owner;
+    int                 References;
+    IntStatus_t         State;
+    Spinlock_t          Lock;
 } CriticalSection_t;
 
-/* Instantiate a new critical section
- * with allocation and resets it */
-KERNELAPI CriticalSection_t *CriticalSectionCreate(int Flags);
+/* CriticalSectionCreate
+ * Instantiate a new critical section with allocation and resets it */
+KERNELAPI
+CriticalSection_t*
+KERNELABI
+CriticalSectionCreate(
+    _In_ int Flags);
 
-/* Constructs an already allocated section 
- * by resetting it's datamembers and initializing
- * the lock */
-KERNELAPI void CriticalSectionConstruct(CriticalSection_t *Section, int Flags);
+/* CriticalSectionConstruct
+ * Constructs an already allocated section by resetting it to default state. */
+KERNELAPI
+void
+KERNELABI
+CriticalSectionConstruct(
+    _In_ CriticalSection_t *Section,
+    _In_ int Flags);
 
-/* Destroy and release resources,
- * the lock MUST NOT be held when this
- * is called, so make sure its not used */
-KERNELAPI void CriticalSectionDestroy(CriticalSection_t *Section);
+/* CriticalSectionDestroy
+ * Cleans up the lock by freeing resources allocated. */
+KERNELAPI
+void
+KERNELABI
+CriticalSectionDestroy(
+    _In_ CriticalSection_t *Section);
 
-/* Enter a critical section, the critical
- * section supports reentrancy if set at creation */
-KERNELAPI void CriticalSectionEnter(CriticalSection_t *Section);
+/* CriticalSectionEnter
+ * Enters the critical state, the call will block untill lock is granted. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+CriticalSectionEnter(
+    _In_ CriticalSection_t *Section);
 
-/* Leave a critical section, the lock is 
- * not neccesarily released if held by multiple 
- * entrances */
-KERNELAPI void CriticalSectionLeave(CriticalSection_t *Section);
+/* CriticalSectionLeave
+ * Leave a critical section. The lock is only released on reaching
+ * 0 references. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+CriticalSectionLeave(
+    _In_ CriticalSection_t *Section);
 
 #endif

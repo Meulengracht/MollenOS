@@ -33,95 +33,88 @@
  * - Library */
 #include <assert.h>
 
-/* Instantiate a new critical section
- * with allocation and resets it */
-CriticalSection_t *CriticalSectionCreate(int Flags)
+/* CriticalSectionCreate
+ * Instantiate a new critical section with allocation and resets it */
+CriticalSection_t*
+CriticalSectionCreate(
+    _In_ int Flags)
 {
-	/* Allocate */
-	CriticalSection_t *CSection = 
-		(CriticalSection_t*)kmalloc(sizeof(CriticalSection_t));
+    // Variables
+    CriticalSection_t *CSection = NULL;
 
-	/* Reset */
+	// Initialize a new instance
+	CSection = (CriticalSection_t*)kmalloc(sizeof(CriticalSection_t));
 	CriticalSectionConstruct(CSection, Flags);
-
-	/* Done! */
 	return CSection;
 }
 
-/* Constructs an already allocated section 
- * by resetting it's datamembers and initializing
- * the lock */
-void CriticalSectionConstruct(CriticalSection_t *Section, int Flags)
+/* CriticalSectionConstruct
+ * Constructs an already allocated section by resetting it to default state. */
+void
+CriticalSectionConstruct(
+    _In_ CriticalSection_t *Section,
+    _In_ int Flags)
 {
-	/* Set initial stats */
+    // Initiate all members to default state
 	Section->Flags = Flags;
-	Section->IntrState = 0;
+	Section->State = 0;
 	Section->References = 0;
 	Section->Owner = UUID_INVALID;
-
-	/* Reset the spinlock */
 	SpinlockReset(&Section->Lock);
 }
 
-/* Destroy and release resources,
- * the lock MUST NOT be held when this
- * is called, so make sure its not used */
-void CriticalSectionDestroy(CriticalSection_t *Section)
+/* CriticalSectionDestroy
+ * Cleans up the lock by freeing resources allocated. */
+void
+CriticalSectionDestroy(
+    _In_ CriticalSection_t *Section)
 {
-	/* Uh, not yet I guess */
 	_CRT_UNUSED(Section);
 }
 
-/* Enter a critical section, the critical
- * section supports reentrancy if set at creation */
-void CriticalSectionEnter(CriticalSection_t *Section)
+/* CriticalSectionEnter
+ * Enters the critical state, the call will block untill lock is granted. */
+OsStatus_t
+CriticalSectionEnter(
+    _In_ CriticalSection_t *Section)
 {
-	/* Variables */
+	// Variables
 	IntStatus_t IrqState = 0;
 
-	/* If thread already has lock */
-	if (Section->References != 0
-		&& Section->Owner == ThreadingGetCurrentThreadId()
-		&& (Section->Flags & CRITICALSECTION_REENTRANCY))
-	{
-		Section->References++;
-		return;
-	}
+	// If the section is reentrancy supported, check
+    if (Section->References > 0
+        && Section->Flags & CRITICALSECTION_REENTRANCY) {
+        if (Section->Owner == ThreadingGetCurrentThreadId()) {
+            Section->References++;
+		    return OsSuccess;
+        }
+    }
 
-	/* Disable interrupts while
-	 * we wait for the lock as well */
+    // Don't disable interrupts before we acquired the lock
+	SpinlockAcquire(&Section->Lock);
 	IrqState = InterruptDisable();
 
-	/* Otherwise wait for the section to clear */
-	SpinlockAcquire(&Section->Lock);
-
-	/* Set our stats */
+	// Update lock
 	Section->Owner = ThreadingGetCurrentThreadId();
 	Section->References = 1;
-	Section->IntrState = IrqState;
+	Section->State = IrqState;
+	return OsSuccess;
 }
 
-/* Leave a critical section, the lock is 
- * not neccesarily released if held by multiple 
- * entrances */
-void CriticalSectionLeave(CriticalSection_t *Section)
+/* CriticalSectionLeave
+ * Leave a critical section. The lock is only released on reaching
+ * 0 references. */
+OsStatus_t
+CriticalSectionLeave(
+    _In_ CriticalSection_t *Section)
 {
-	/* Sanity */
+	// Sanitize references
 	assert(Section->References > 0);
-
-	/* Reduce */
+    
 	Section->References--;
-
-	/* Set stats */
-	if (Section->References == 0)
-	{
-		/* Set no owner */
+	if (Section->References == 0) {
 		Section->Owner = UUID_INVALID;
-		
-		/* Release */
 		SpinlockRelease(&Section->Lock);
-
-		/* Restore interrupt state */
-		InterruptRestoreState(Section->IntrState);
+		InterruptRestoreState(Section->State);
 	}
 }

@@ -1366,7 +1366,7 @@ ScRegisterAliasId(
 OsStatus_t
 ScLoadDriver(
     _In_ MCoreDevice_t *Device,
-    _In_ size_t Length)
+    _In_ size_t         Length)
 {
     // Variables
     MCorePhoenixRequest_t *Request  = NULL;

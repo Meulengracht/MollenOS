@@ -97,7 +97,6 @@ typedef struct _MCoreAsh {
     MString_t           *Name;
     MString_t           *Path;
     Collection_t        *Pipes;
-    Spinlock_t           PipeLock;
 
     // Memory management and information,
     // Ashes run in their own space, and have their

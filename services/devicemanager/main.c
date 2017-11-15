@@ -30,7 +30,7 @@
 #include <bus.h>
 
 /* Includes
- * - C-Library */
+ * - Library */
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
@@ -251,12 +251,12 @@ RegisterDevice(
     }
 
     // Debug
-    TRACE("Registered device %s", &Device->Name[0]);
+    TRACE("%u, Registered device %s, struct length %u", 
+        GlbDeviceIdGen, &Device->Name[0], Device->Length);
 
     // Generate id and update out
-    Device->Id = GlbDeviceIdGen++;
+    *Id = Device->Id = GlbDeviceIdGen++;
     Key.Value = (int)Device->Id;
-    *Id = Device->Id;
 
     // Allocate our own copy of the device
     CopyDevice = (MCoreDevice_t*)malloc(Device->Length);

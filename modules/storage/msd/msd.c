@@ -41,7 +41,7 @@ MsdDeviceCreate(
     int i;
 
     // Debug
-    TRACE("MsdDeviceCreate(DeviceId %u)", UsbDevice->Base.DeviceId);
+    TRACE("MsdDeviceCreate(DeviceId %u)", UsbDevice->Base.Id);
 
     // Validate the kind of msd device, we don't support all kinds
     if (UsbDevice->Interface.Subclass != MSD_SUBCLASS_SCSI
@@ -141,7 +141,7 @@ MsdDeviceCreate(
     }
 
     // Start out by initializing the contract
-    InitializeContract(&Device->Contract, Device->Base.Base.DeviceId, 1,
+    InitializeContract(&Device->Contract, Device->Base.Base.Id, 1,
         ContractStorage, "MSD Storage Interface");
 
     // Register contract before interrupt
@@ -150,7 +150,7 @@ MsdDeviceCreate(
     }
 
     // Notify diskmanager
-    if (RegisterDisk(Device->Base.Base.DeviceId, __DISK_REMOVABLE) != OsSuccess) {
+    if (RegisterDisk(Device->Base.Base.Id, __DISK_REMOVABLE) != OsSuccess) {
         ERROR("Failed to register storage with storagemanager");
     }
 
@@ -175,7 +175,7 @@ MsdDeviceDestroy(
     _In_ MsdDevice_t *Device)
 {
     // Notify diskmanager
-    if (UnregisterDisk(Device->Base.Base.DeviceId, __DISK_FORCED_REMOVE) != OsSuccess) {
+    if (UnregisterDisk(Device->Base.Base.Id, __DISK_FORCED_REMOVE) != OsSuccess) {
         ERROR("Failed to unregister storage with storagemanager");
     }
 
