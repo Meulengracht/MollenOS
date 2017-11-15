@@ -888,11 +888,13 @@ UhciProcessRequest(
  * any handling. */
 void
 UhciProcessTransfers(
-	_In_ UhciController_t *Controller)
+	_In_ UhciController_t  *Controller,
+    _In_ int                Checkup)
 {
 	// Variables
-	UhciTransferDescriptor_t *Td = NULL;
-    int ProcessQh = 0;
+	UhciTransferDescriptor_t *Td    = NULL;
+    int ProcessesDone               = 0;
+    int ProcessQh                   = 0;
     
     // Debug
     TRACE("UhciProcessTransfers()");
@@ -931,10 +933,25 @@ UhciProcessTransfers(
 			// Keep count
 			Counter++;
 
+            if (Transfer->Transfer.Transactions[0].Length == 512 
+                && Transfer->Transfer.Type == BulkTransfer) {
+                UhciTransferDescriptor_t *LastTd = Td;
+                int __Counter = Counter;
+                while (LastTd->LinkIndex != UHCI_NO_INDEX) {
+                    WARNING("Data TD (%i): Flags 0x%x, Header 0x%x", 
+                        __Counter++, LastTd->Flags, LastTd->Header);
+                    LastTd = &Controller->QueueControl.TDPool[LastTd->LinkIndex];
+                }
+                WARNING("Last Data TD: Flags 0x%x, Header 0x%x", LastTd->Flags, LastTd->Header);
+            }
+
 			// Is the TD still active? That means it's not executed yet
 			// That means we should only skip this transaction if its the first td
 			if (Td->Flags & UHCI_TD_ACTIVE) {
-				if (Counter == 1) {
+                // The reasons we want to skip this transfer are:
+                // First is still active.
+                // Encounter an active one on checkup (not executed yet)
+				if (Counter == 1 || Checkup == 1) {
 					ProcessQh = 0;
 					break;
 				}
@@ -990,8 +1007,14 @@ UhciProcessTransfers(
 
 		// Process transfer?
 		if (ProcessQh) {
+            ProcessesDone++;
 			UhciProcessRequest(Controller, Transfer, 
 				Node, FixupToggles, ErrorTransfer, RestartOnly);
 		}
 	}
+
+    // Sanity
+    if (ProcessesDone == 0 && Checkup == 0) {
+        WARNING("Got interrupted, but nothing to process");
+    }
 }

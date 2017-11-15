@@ -102,7 +102,7 @@ HandleInterrupt:
     // If either interrupt or error is present, it means a change happened
     // in one of our transactions
     if (InterruptStatus & (UHCI_STATUS_USBINT | UHCI_STATUS_INTR_ERROR)) {
-        UhciProcessTransfers(Controller);
+        UhciProcessTransfers(Controller, 0);
     }
 
     // The controller is telling us to perform resume
@@ -144,10 +144,10 @@ OnTimeout(
     _CRT_UNUSED(Timer);
     _CRT_UNUSED(Data);
 
-    // Do a port-check and optionally make finalizer
-    // thread perform a data-check to make sure we don't miss anything
+    // Do a port-check and perform transaction checks
     foreach(cNode, UsbManagerGetControllers()) {
         UhciPortsCheck((UhciController_t*)cNode->Data);
+        UhciProcessTransfers((UhciController_t*)cNode->Data, 1);
     }
     return OsSuccess;
 }

@@ -240,11 +240,11 @@ MsdSCSICommmandConstruct(
             CmdBlock->CommandBytes[9] = (SectorLBA & 0xFF);
 
             // Sector Count
-            CmdBlock->CommandBytes[10] = ((DataLen << 24) & 0xFF);
-            CmdBlock->CommandBytes[11] = ((DataLen << 16) & 0xFF);
-            CmdBlock->CommandBytes[12] = ((DataLen << 8) & 0xFF);
+            CmdBlock->CommandBytes[10] = ((DataLen >> 24) & 0xFF);
+            CmdBlock->CommandBytes[11] = ((DataLen >> 16) & 0xFF);
+            CmdBlock->CommandBytes[12] = ((DataLen >> 8) & 0xFF);
             CmdBlock->CommandBytes[13] = (DataLen & 0xFF);
-        }
+        } break;
 
         // Read - 6 (IN)
         case SCSI_READ_6: {
@@ -261,7 +261,7 @@ MsdSCSICommmandConstruct(
             CmdBlock->CommandBytes[3] = (SectorLBA & 0xFF);
 
             // Sector Count
-            CmdBlock->CommandBytes[4] = NumSectors & 0xFF;
+            CmdBlock->CommandBytes[4] = NumSectors;
         } break;
 
         // Read - 10 (IN)
@@ -280,9 +280,8 @@ MsdSCSICommmandConstruct(
             CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
 
             // Sector Count
-            CmdBlock->CommandBytes[7] = ((NumSectors << 8) & 0xFF);
+            CmdBlock->CommandBytes[7] = ((NumSectors >> 8) & 0xFF);
             CmdBlock->CommandBytes[8] = (NumSectors & 0xFF);
-
         } break;
 
         // Read - 12 (IN)
@@ -301,9 +300,9 @@ MsdSCSICommmandConstruct(
             CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
 
             // Sector Count
-            CmdBlock->CommandBytes[6] = ((NumSectors << 24) & 0xFF);
-            CmdBlock->CommandBytes[7] = ((NumSectors << 16) & 0xFF);
-            CmdBlock->CommandBytes[8] = ((NumSectors << 8) & 0xFF);
+            CmdBlock->CommandBytes[6] = ((NumSectors >> 24) & 0xFF);
+            CmdBlock->CommandBytes[7] = ((NumSectors >> 16) & 0xFF);
+            CmdBlock->CommandBytes[8] = ((NumSectors >> 8) & 0xFF);
             CmdBlock->CommandBytes[9] = (NumSectors & 0xFF);
         } break;
 
@@ -327,9 +326,9 @@ MsdSCSICommmandConstruct(
             CmdBlock->CommandBytes[9] = (SectorLBA & 0xFF);
 
             // Sector Count
-            CmdBlock->CommandBytes[10] = ((NumSectors << 24) & 0xFF);
-            CmdBlock->CommandBytes[11] = ((NumSectors << 16) & 0xFF);
-            CmdBlock->CommandBytes[12] = ((NumSectors << 8) & 0xFF);
+            CmdBlock->CommandBytes[10] = ((NumSectors >> 24) & 0xFF);
+            CmdBlock->CommandBytes[11] = ((NumSectors >> 16) & 0xFF);
+            CmdBlock->CommandBytes[12] = ((NumSectors >> 8) & 0xFF);
             CmdBlock->CommandBytes[13] = (NumSectors & 0xFF);
         } break;
 
@@ -348,7 +347,7 @@ MsdSCSICommmandConstruct(
             CmdBlock->CommandBytes[3] = (SectorLBA & 0xFF);
 
             // Sector Count
-            CmdBlock->CommandBytes[4] = NumSectors & 0xFF;
+            CmdBlock->CommandBytes[4] = NumSectors;
         } break;
 
         // Write - 10 (OUT)
@@ -367,7 +366,7 @@ MsdSCSICommmandConstruct(
             CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
 
             // Sector Count
-            CmdBlock->CommandBytes[7] = ((NumSectors << 8) & 0xFF);
+            CmdBlock->CommandBytes[7] = ((NumSectors >> 8) & 0xFF);
             CmdBlock->CommandBytes[8] = (NumSectors & 0xFF);
         } break;
 
@@ -387,9 +386,9 @@ MsdSCSICommmandConstruct(
             CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
 
             // Sector Count
-            CmdBlock->CommandBytes[6] = ((NumSectors << 24) & 0xFF);
-            CmdBlock->CommandBytes[7] = ((NumSectors << 16) & 0xFF);
-            CmdBlock->CommandBytes[8] = ((NumSectors << 8) & 0xFF);
+            CmdBlock->CommandBytes[6] = ((NumSectors >> 24) & 0xFF);
+            CmdBlock->CommandBytes[7] = ((NumSectors >> 16) & 0xFF);
+            CmdBlock->CommandBytes[8] = ((NumSectors >> 8) & 0xFF);
             CmdBlock->CommandBytes[9] = (NumSectors & 0xFF);
         } break;
 
@@ -413,9 +412,9 @@ MsdSCSICommmandConstruct(
             CmdBlock->CommandBytes[9] = (SectorLBA & 0xFF);
 
             // Sector Count
-            CmdBlock->CommandBytes[10] = ((NumSectors << 24) & 0xFF);
-            CmdBlock->CommandBytes[11] = ((NumSectors << 16) & 0xFF);
-            CmdBlock->CommandBytes[12] = ((NumSectors << 8) & 0xFF);
+            CmdBlock->CommandBytes[10] = ((NumSectors >> 24) & 0xFF);
+            CmdBlock->CommandBytes[11] = ((NumSectors >> 16) & 0xFF);
+            CmdBlock->CommandBytes[12] = ((NumSectors >> 8) & 0xFF);
             CmdBlock->CommandBytes[13] = (NumSectors & 0xFF);
         } break;
     }
@@ -472,7 +471,7 @@ MsdSCSICommmandConstructUFI(
             CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
 
             // Sector Count
-            CmdBlock->CommandBytes[7] = ((NumSectors << 8) & 0xFF);
+            CmdBlock->CommandBytes[7] = ((NumSectors >> 8) & 0xFF);
             CmdBlock->CommandBytes[8] = (NumSectors & 0xFF);
         } break;
 
@@ -490,7 +489,7 @@ MsdSCSICommmandConstructUFI(
             CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
 
             // Sector Count
-            CmdBlock->CommandBytes[7] = ((NumSectors << 8) & 0xFF);
+            CmdBlock->CommandBytes[7] = ((NumSectors >> 8) & 0xFF);
             CmdBlock->CommandBytes[8] = (NumSectors & 0xFF);
         } break;
     }

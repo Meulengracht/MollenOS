@@ -463,7 +463,8 @@ UhciUnlinkIsochronous(
 __EXTERN
 void
 UhciProcessTransfers(
-	_In_ UhciController_t *Controller);
+	_In_ UhciController_t  *Controller,
+    _In_ int                Checkup);
 
 /* UhciTransactionFinalize
  * Cleans up the transfer, deallocates resources and validates the td's */

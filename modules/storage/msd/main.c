@@ -18,7 +18,7 @@
  *
  * MollenOS MCore - Mass Storage Device Driver (Generic)
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */
