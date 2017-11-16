@@ -30,11 +30,7 @@
 
 /* Includes
  * - System */
-#include <os/driver/contracts/base.h>
-#include <os/driver/interrupt.h>
-#include <os/driver/device.h>
-#include <os/driver/buffer.h>
-#include <os/driver/acpi.h>
+#include <acpiinterface.h>
 
 /* HPET Definitions
  * Magic constants and things like that which won't change */
@@ -125,10 +121,7 @@ typedef struct _HpTimer {
 } HpTimer_t;
 
 typedef struct _HpController {
-	MCoreDevice_t			 Device;
-	MContract_t				 ContractTimer;
-	MContract_t				 ContractPerformance;
-	DeviceIoSpace_t			 IoSpace;
+    uintptr_t                BaseAddress;
 	HpTimer_t				 Timers[HPET_MAXTIMERCOUNT];
 
 	int						 Is64Bit;
@@ -138,46 +131,11 @@ typedef struct _HpController {
 	clock_t					 Clock;
 } HpController_t;
 
-/* HpControllerCreate 
- * Creates a new controller from the given device descriptor */
+/* HpInitialize
+ * Initializes the ACPI hpet timer from the hpet table. */
 __EXTERN
-HpController_t*
-HpControllerCreate(
-	_In_ MCoreDevice_t *Device,
+ACPI_STATUS
+HpInitialize(
 	_In_ ACPI_TABLE_HPET *Table);
-
-/* HpControllerDestroy
- * Destroys an already registered controller and all its 
- * registers sub-timers */
-__EXTERN
-OsStatus_t
-HpControllerDestroy(
-	_In_ HpController_t *Controller);
-
-/* HpReadPerformanceCounter
- * Reads the main counter register into the given structure */
-__EXTERN
-OsStatus_t
-HpReadPerformanceCounter(
-	_In_ HpController_t *Controller,
-	_Out_ LargeInteger_t *Value);
-
-/* HpRead
- * Reads the 32-bit value from the given register offset */
-__EXTERN
-OsStatus_t
-HpRead(
-	_In_ HpController_t *Controller, 
-	_In_ size_t Offset,
-	_Out_ reg32_t *Value);
-
-/* HpWrite
- * Writes the given 32-bit value to the given register offset */
-__EXTERN
-OsStatus_t
-HpWrite(
-	_In_ HpController_t *Controller, 
-	_In_ size_t Offset,
-	_In_ reg32_t Value);
 
 #endif //!_HPET_H_

@@ -117,4 +117,5 @@ CriticalSectionLeave(
 		SpinlockRelease(&Section->Lock);
 		InterruptRestoreState(Section->State);
 	}
+    return OsSuccess;
 }

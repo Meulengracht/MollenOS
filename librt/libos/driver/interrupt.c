@@ -26,23 +26,20 @@
 #include <os/driver/driver.h>
 #include <os/syscall.h>
 
-/* Includes
- * - Contracts */
-#include <os/driver/contracts/timer.h>
-
 /* RegisterInterruptSource 
  * Allocates the given interrupt source for use by
  * the requesting driver, an id for the interrupt source
  * is returned. After a succesful register, OnInterrupt
  * can be called by the event-system */
-UUId_t RegisterInterruptSource(MCoreInterrupt_t *Interrupt, Flags_t Flags)
+UUId_t
+RegisterInterruptSource(
+    _In_ MCoreInterrupt_t *Interrupt,
+    _In_ Flags_t Flags)
 {
-	/* Validate parameters */
+	// Sanitize input
 	if (Interrupt == NULL) {
 		return UUID_INVALID;
 	}
-
-	/* Redirect to system call */
 	return (UUId_t)Syscall2(SYSCALL_REGISTERIRQ, SYSCALL_PARAM(Interrupt),
 		SYSCALL_PARAM(Flags));
 }
@@ -50,30 +47,13 @@ UUId_t RegisterInterruptSource(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 /* UnregisterInterruptSource 
  * Unallocates the given interrupt source and disables
  * all events of OnInterrupt */
-OsStatus_t UnregisterInterruptSource(UUId_t Source)
+OsStatus_t
+UnregisterInterruptSource(
+    _In_ UUId_t Source)
 {
-	/* Validate parameters */
+	// Sanitize input
 	if (Source == UUID_INVALID) {
 		return OsError;
 	}
-
-	/* Redirect to system call */
 	return (OsStatus_t)Syscall1(SYSCALL_UNREGISTERIRQ, SYSCALL_PARAM(Source));
-}
-
-/* RegisterSystemTimer
- * Registers the given interrupt source as a system
- * timer source, with the given tick. This way the system
- * can always keep track of timers */
-OsStatus_t RegisterSystemTimer(UUId_t Interrupt, size_t NsPerTick)
-{
-	/* Validate parameters */
-	if (Interrupt == UUID_INVALID
-		|| NsPerTick == 0) {
-		return OsError;
-	}
-
-	/* Redirect to system call */
-	return (OsStatus_t)Syscall2(SYSCALL_REGISTERSYSTMR, SYSCALL_PARAM(Interrupt),
-		SYSCALL_PARAM(NsPerTick));
 }

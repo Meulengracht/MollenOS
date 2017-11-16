@@ -19,12 +19,15 @@
  * MollenOS X86 CMOS & RTC (Clock) Driver
  * http://wiki.osdev.org/RTC
  */
+#define __MODULE "RTC0"
+#define __TRACE
 
 /* Includes 
  * - System */
-#include <os/driver/contracts/timer.h>
-#include <os/driver/interrupt.h>
-#include "cmos.h"
+#include <interrupts.h>
+#include <timers.h>
+#include <debug.h>
+#include "../cmos.h"
 
 /* Includes
  * - Library */
@@ -32,16 +35,25 @@
 #include <string.h>
 #include <stdlib.h>
 
+/* CmosGetTicks
+ * Retrieves the number of ticks done by the RTC. */
+clock_t
+CmosGetTicks(void);
+
 /* RtcInterrupt
  * Handles the rtc interrupt and acknowledges
  * the interrupt by reading cmos */
 InterruptStatus_t
 RtcInterrupt(
-    _In_ Cmos_t *Chip)
+    _In_Opt_ void *InterruptData)
 {
+    // Instantiate pointer
+    Cmos_t *Chip = (Cmos_t*)InterruptData;
+
 	// Update Peroidic Tick Counter
 	Chip->NsCounter += Chip->NsTick;
 	Chip->Ticks++;
+    TimersInterrupt(Chip->Irq);
 
 	// Acknowledge interrupt by reading register C
 	CmosRead(CMOS_REGISTER_STATUS_C);
@@ -51,21 +63,23 @@ RtcInterrupt(
 /* RtcInitialize
  * Initializes the rtc-part of the cmos chip
  * and installs the interrupt needed */
-OsStatus_t RtcInitialize(Cmos_t *Chip)
+OsStatus_t
+RtcInitialize(
+    _In_ Cmos_t *Chip)
 {
 	// Variables
+	MCoreInterrupt_t Interrupt = { 0 };
 	uint8_t StateB = 0;
 	uint8_t Rate = 0x06; // must be between 3 and 15
+
+    // Debug
+    TRACE("RtcInitialize()");
 
 	// Ms is .97, 1024 ints per sec
 	// Frequency = 32768 >> (rate-1), 15 = 2, 14 = 4, 13 = 8/s (125 ms)
 	Chip->NsTick = 976;
 	Chip->NsCounter = 0;
 	Chip->AlarmTicks = 0;
-
-	// Initialize the rtc-contract
-	InitializeContract(&Chip->Timer, UUID_INVALID, 1,
-		ContractTimer, "CMOS RTC Timer Interface");
 
 	// Disable RTC Irq
 	StateB = CmosRead(CMOS_REGISTER_STATUS_B);
@@ -81,14 +95,24 @@ OsStatus_t RtcInitialize(Cmos_t *Chip)
 	// Clear pending interrupt
 	CmosRead(CMOS_REGISTER_STATUS_C);
 
+    // Initialize the interrupt request
+	Interrupt.Line = CMOS_RTC_IRQ;
+	Interrupt.Pin = INTERRUPT_NONE;
+	Interrupt.Vectors[0] = INTERRUPT_NONE;
+	Interrupt.FastHandler = RtcInterrupt;
+    Interrupt.Data = Chip;
+
 	// Install interrupt in system 
 	// Install a fast interrupt handler
-	Chip->Irq = RegisterInterruptSource(&Chip->Interrupt, INTERRUPT_NOTSHARABLE); 
+	Chip->Irq = InterruptRegister(&Interrupt, INTERRUPT_NOTSHARABLE | INTERRUPT_KERNEL);
 
 	// Register our irq as a system timer
 	if (Chip->Irq != UUID_INVALID) {
-		RegisterSystemTimer(Chip->Irq, Chip->NsTick);
+		TimersRegisterSystemTimer(Chip->Irq, Chip->NsTick, CmosGetTicks);
 	}
+    else {
+        ERROR("Failed to register interrupt for rtc");
+    }
 
 	// Enable Periodic Interrupts
 	StateB = CmosRead(CMOS_REGISTER_STATUS_B);
@@ -98,20 +122,4 @@ OsStatus_t RtcInitialize(Cmos_t *Chip)
 	// Clear pending interrupt again
 	CmosRead(CMOS_REGISTER_STATUS_C);
 	return OsSuccess;
-}
-
-/* RtcCleanup
- * Disables the rtc and cleans up resources */
-OsStatus_t RtcCleanup(Cmos_t *Chip)
-{
-	// Variables
-	uint8_t StateB = 0;
-
-	// Disable RTC Irq
-	StateB = CmosRead(CMOS_REGISTER_STATUS_B);
-	StateB &= ~(0x70);
-	CmosWrite(CMOS_REGISTER_STATUS_B, StateB);
-
-	// Uninstall interrupt in system
-	return UnregisterInterruptSource(Chip->Irq);
 }

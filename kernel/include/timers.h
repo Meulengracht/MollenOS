@@ -27,7 +27,16 @@
 /* Includes
  * - System */
 #include <os/osdefs.h>
-#include <os/driver/timers.h>
+#include <time.h>
+
+/* MCoreTimePerformanceOps
+ * The two kinds of time-operations timers can
+ * support for high performance timers. */
+typedef struct _MCoreTimePerformanceOps {
+    void                (*ReadFrequency)(_Out_ LargeInteger_t *Value);
+    void                (*ReadTimer)(_Out_ LargeInteger_t *Value);
+    void                (*ReadSystemTime)(_Out_ struct tm *SystemTime);
+} MCoreTimePerformanceOps_t;
 
 /* MCoreTimer
  * The timer structure, contains information about
@@ -49,6 +58,7 @@ typedef struct _MCoreSystemTimer {
 	UUId_t					Source;
 	size_t					Tick;
 	size_t					Ticks;
+    clock_t                 (*SystemTick)(void);
 } MCoreSystemTimer_t;
 
 /* TimersInitialize
@@ -59,16 +69,35 @@ void
 KERNELABI
 TimersInitialize(void);
 
-/* TimersRegistrate 
+/* TimersRegisterSystemTimer 
  * Registrates a interrupt timer source with the
  * timer management, which keeps track of which interrupts
  * are available for time-keeping */
 KERNELAPI
 OsStatus_t
 KERNELABI
-TimersRegister(
+TimersRegisterSystemTimer(
 	_In_ UUId_t Source,
-    _In_ size_t TickNs);
+    _In_ size_t TickNs,
+    _In_ clock_t (*SystemTickHandler)(void));
+
+/* TimersRegisterPerformanceTimer
+ * Registers a high performance timer that can be seperate
+ * from the system timer. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+TimersRegisterPerformanceTimer(
+	_In_ MCoreTimePerformanceOps_t *Operations);
+
+/* TimersRegisterClock
+ * Registers a new time clock source. Must use the standard
+ * C library definitions of time. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+TimersRegisterClock(
+	_In_ void (*SystemTimeHandler)(struct tm *SystemTime));
     
 /* TimersStart 
  * Creates a new standard timer for the requesting process. */
@@ -99,5 +128,41 @@ OsStatus_t
 KERNELABI
 TimersInterrupt(
     _In_ UUId_t Source);
+
+/* TimersGetSystemTime
+ * Retrieves the system time. This is only ticking
+ * if a system clock has been initialized. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+TimersGetSystemTime(
+    _Out_ struct tm *SystemTime);
+
+/* TimersGetSystemTick 
+ * Retrieves the system tick counter. This is only ticking
+ * if a system timer has been initialized. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+TimersGetSystemTick(
+    _Out_ clock_t *SystemTick);
+
+/* TimersQueryPerformanceFrequency
+ * Returns how often the performance timer fires every
+ * second, the value will never be 0 */
+KERNELAPI
+OsStatus_t
+KERNELABI
+TimersQueryPerformanceFrequency(
+	_Out_ LargeInteger_t *Frequency);
+
+/* TimersQueryPerformanceTick 
+ * Retrieves the system performance tick counter. This is only ticking
+ * if a system performance timer has been initialized. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+TimersQueryPerformanceTick(
+    _Out_ LargeInteger_t *Value);
 
 #endif // !_MCORE_TIMERS_H_

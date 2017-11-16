@@ -49,21 +49,19 @@ ANSI C requires <<clock>> and <<CLOCKS_PER_SEC>>.
 Supporting OS subroutine required: <<times>>.
 */
 
-#include <time.h>
+/* Includes
+ * - Library */
+#include <os/mollenos.h>
 
-clock_t clock()
+clock_t
+clock(void)
 {
-#if 0
-  struct tms tim_s;
-  clock_t res;
-
-  if ((res = (clock_t) _times_r (_REENT, &tim_s)) != (clock_t) -1)
-    res = (clock_t) (tim_s.tms_utime + tim_s.tms_stime +
-		     tim_s.tms_cutime + tim_s.tms_cstime);
-
-  return res;
-#endif
-  return (clock_t)-1;
+    // Variables
+    clock_t systick = 0;
+    if (SystemTick(&systick) != OsSuccess) {
+        return (clock_t)-1;
+    }
+    return systick;
 }
 
 #endif /* CLOCK_PROVIDED */

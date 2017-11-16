@@ -19,40 +19,32 @@
  * MollenOS C Library - Get Time
  */
 
-/* Includes
- * - System */
-#include <os/driver/contracts/clock.h>
-
 /* Includes 
  * - Library */
+#include <os/mollenos.h>
 #include <time.h>
 #include <stddef.h>
 #include <string.h>
 
 /* Time
  * Gets the time from either a 
- * time seed or returns the current
- * time */
-time_t time(time_t *timer)
+ * time seed or returns the current time */
+time_t
+time(time_t *timer)
 {
-	/* Variables */
+	// Variables
 	struct tm TimeStruct;
 	time_t Converted = 0;
 
-	/* Query for clock support */
-	if (ClockQuery(&TimeStruct) != OsSuccess) {
+	// Check if a system clock is available
+	if (SystemTime(&TimeStruct) != OsSuccess) {
 		return 0;
 	}
 
-	/* Now convert the sys-time to time_t */
+	// Now convert the sys-time to time_t
 	Converted = mktime(&TimeStruct);
-
-	/* Update the user-variable
-	 * if he passed a pointer */
 	if (timer != NULL) {
 		*timer = Converted;
 	}
-
-	/* Done! */
 	return Converted;
 }

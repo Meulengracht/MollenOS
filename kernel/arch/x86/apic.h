@@ -85,7 +85,7 @@
 /* This is a configurable default quantum for the
  * local apic timer, this is used untill it's possible
  * for the cpu to more accurately calculate a quantum */
-#define APIC_DEFAULT_QUANTUM	8000
+#define APIC_DEFAULT_QUANTUM	15000
 
 /* Interrupt Target Types
  * The supported kinds of interrupt targets we support
@@ -108,24 +108,32 @@ typedef struct _IoApic {
 	volatile uintptr_t	BaseAddress;
 } IoApic_t;
 
-/* Initialize the local APIC controller
- * and install default interrupts. This
- * code also sets up the local APIC timer
- * with a default Quantum which is recalibrated
- * for accuracy once a timer is available */
-__EXTERN void ApicInitBoot(void);
+/* ApicInitialize
+ * Initialize the local APIC controller and install default interrupts. */
+KERNELAPI
+void
+KERNELABI
+ApicInitialize(void);
+
 __EXTERN void ApicInitAp(void);
 
-/* Recalibrates the the local apic 
- * timer, using an external timer source
- * this is to make the local apic timer more
- * accurate to make sure the quantum is 1 ms */
-__EXTERN void ApicTimerRecalibrate(void);
+/* ApicRecalibrateTimer
+ * Recalibrates the the local apic timer, using an external timer source
+ * to accurately have the local apic tick at 1ms */
+KERNELAPI
+void
+KERNELABI
+ApicRecalibrateTimer(void);
 
-/* Reloads the local apic timer with a default
+/* ApicStartTimer
+ * Reloads the local apic timer with a default
  * divisor and the timer set to the given quantum
  * the timer is immediately started */
-__EXTERN void ApicReloadTimer(size_t Quantum);
+KERNELAPI
+void
+KERNELABI
+ApicStartTimer(
+    _In_ size_t Quantum);
 
 /* Reads from the local apic registers 
  * Reads and writes from and to the local apic

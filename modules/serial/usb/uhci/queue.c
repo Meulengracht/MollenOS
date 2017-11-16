@@ -933,7 +933,7 @@ UhciProcessTransfers(
 			// Keep count
 			Counter++;
 
-            if (Transfer->Transfer.Transactions[0].Length == 512 
+            if (Counter == 1 && Transfer->Transfer.Transactions[0].Length == 512 
                 && Transfer->Transfer.Type == BulkTransfer) {
                 UhciTransferDescriptor_t *LastTd = Td;
                 int __Counter = Counter;

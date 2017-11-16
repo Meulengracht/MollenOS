@@ -37,7 +37,7 @@ extern "C" {
 /* According to the C-standard we must have
  * NULL, size_t and CLOCKS_PER_SEC defined 
  * in this header, we get two first from stddef */
-#define CLOCKS_PER_SEC	100
+#define CLOCKS_PER_SEC	1000
 
 /* clock_t must be defined in this header, and should
  * be as wide as possible in the given platform */

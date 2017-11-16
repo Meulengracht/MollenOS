@@ -39,6 +39,7 @@
 #include <stddef.h>
 
 /* Globals */
+static MCoreTimePerformanceOps_t PerformanceTimer;
 static MCoreSystemTimer_t *GlbActiveSystemTimer = NULL;
 static Collection_t *GlbSystemTimers            = NULL;
 static Collection_t *GlbTimers                  = NULL;
@@ -54,6 +55,7 @@ TimersInitialize(void)
 {
 	// Initialize all the globals 
 	// including lists etc
+    memset(&PerformanceTimer, 0, sizeof(MCoreTimePerformanceOps_t));
 	GlbActiveSystemTimer = NULL;
 	GlbSystemTimers = CollectionCreate(KeyInteger);
 	GlbTimers = CollectionCreate(KeyInteger);
@@ -173,9 +175,10 @@ TimersTick(
  * timer management, which keeps track of which interrupts
  * are available for time-keeping */
 OsStatus_t
-TimersRegister(
+TimersRegisterSystemTimer(
 	_In_ UUId_t Source, 
-	_In_ size_t TickNs)
+	_In_ size_t TickNs,
+    _In_ clock_t (*SystemTickHandler)(void))
 {
 	// Variables
 	MCoreInterruptDescriptor_t *Interrupt = NULL;
@@ -184,7 +187,7 @@ TimersRegister(
 	int Delta = abs(1000 - (int)TickNs);
 
 	// Trace
-	TRACE("TimersRegister()");
+	TRACE("TimersRegisterSystemTimer()");
 
 	// Do some validation about the timer source 
 	// the only system timers we want are fast_interrupts
@@ -199,6 +202,7 @@ TimersRegister(
 	SystemTimer->Source = Source;
 	SystemTimer->Tick = TickNs;
 	SystemTimer->Ticks = 0;
+    SystemTimer->SystemTick = SystemTickHandler;
 
 	// Add the new timer to the list
 	tKey.Value = 0;
@@ -224,6 +228,29 @@ TimersRegister(
 	return OsSuccess;
 }
 
+/* TimersRegisterPerformanceTimer
+ * Registers a high performance timer that can be seperate
+ * from the system timer. */
+OsStatus_t
+TimersRegisterPerformanceTimer(
+	_In_ MCoreTimePerformanceOps_t *Operations)
+{
+    PerformanceTimer.ReadFrequency = Operations->ReadFrequency;
+    PerformanceTimer.ReadTimer = Operations->ReadTimer;
+    return OsSuccess;
+}
+
+/* TimersRegisterClock
+ * Registers a new time clock source. Must use the standard
+ * C library definitions of time. */
+OsStatus_t
+TimersRegisterClock(
+	_In_ void (*SystemTimeHandler)(struct tm *SystemTime))
+{
+    PerformanceTimer.ReadSystemTime = SystemTimeHandler;
+    return OsSuccess;
+}
+
 /* TimersInterrupt
  * Called by the interrupt-code to tell the timer-management system
  * a new interrupt has occured from the given source. This allows
@@ -243,4 +270,62 @@ TimersInterrupt(
 
 	// Return error
 	return OsError;
+}
+
+/* TimersGetSystemTime
+ * Retrieves the system time. This is only ticking
+ * if a system clock has been initialized. */
+OsStatus_t
+TimersGetSystemTime(
+    _Out_ struct tm *SystemTime)
+{
+    if (PerformanceTimer.ReadSystemTime == NULL) {
+        return OsError;
+    }
+    PerformanceTimer.ReadSystemTime(SystemTime);
+    return OsSuccess;
+}
+
+/* TimersGetSystemTick 
+ * Retrieves the system tick counter. This is only ticking
+ * if a system timer has been initialized. */
+OsStatus_t
+TimersGetSystemTick(
+    _Out_ clock_t *SystemTick)
+{
+    // Sanitize
+    if (GlbActiveSystemTimer == NULL
+        || GlbActiveSystemTimer->SystemTick == NULL) {
+        return OsError;
+    }
+    *SystemTick = GlbActiveSystemTimer->SystemTick();
+    return OsSuccess;
+}
+
+/* TimersQueryPerformanceFrequency
+ * Returns how often the performance timer fires every
+ * second, the value will never be 0 */
+OsStatus_t
+TimersQueryPerformanceFrequency(
+	_Out_ LargeInteger_t *Frequency)
+{
+    if (PerformanceTimer.ReadFrequency == NULL) {
+        return OsError;
+    }
+    PerformanceTimer.ReadFrequency(Frequency);
+    return OsSuccess;
+}
+
+/* TimersQueryPerformanceTick 
+ * Retrieves the system performance tick counter. This is only ticking
+ * if a system performance timer has been initialized. */
+OsStatus_t
+TimersQueryPerformanceTick(
+    _Out_ LargeInteger_t *Value)
+{
+    if (PerformanceTimer.ReadTimer == NULL) {
+        return OsError;
+    }
+    PerformanceTimer.ReadTimer(Value);
+    return OsSuccess;
 }

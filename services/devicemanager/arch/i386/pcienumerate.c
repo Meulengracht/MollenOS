@@ -569,32 +569,14 @@ BusEnumerate(void)
 			free(Header);
 		}
 
-		/* HPET */
-		if (AcpiQueryTable(ACPI_SIG_HPET, &Header) == OsSuccess) {
-			free(Header);
-			BusInstallFixed(PCI_HPET_DEVICEID, "HPET Controller");
-		}
-		else {
-			/* Install PIT if no RTC */
-			if (!(Acpi.BootFlags & ACPI_IA_NO_CMOS_RTC)) {
-				BusInstallFixed(PCI_PIT_DEVICEID, "ISA-PIT");
-			}
-		}
-
-		/* Boot up cmos */
-		BusInstallFixed(PCI_CMOS_RTC_DEVICEID, "CMOS/RTC Controller");
-
 		/* Does the PS2 exist in our system? */
-		if (Acpi.BootFlags & ACPI_IA_8042
-			|| Acpi.BootFlags == 0) {
+		if (Acpi.BootFlags & ACPI_IA_8042 || Acpi.BootFlags == 0) {
 			BusInstallFixed(PCI_PS2_DEVICEID, "PS/2 Controller");
 		}
 	}
 	else {
 		/* We can pretty much assume all 8042 devices
-		 * are present in system, like RTC, PS2, etc */
-		BusInstallFixed(PCI_CMOS_RTC_DEVICEID, "CMOS/RTC Controller");
-		BusInstallFixed(PCI_PIT_DEVICEID, "ISA-PIT");
+		 * are present in system, like PS2, etc */
 		BusInstallFixed(PCI_PS2_DEVICEID, "PS/2 Controller");
 	}
 

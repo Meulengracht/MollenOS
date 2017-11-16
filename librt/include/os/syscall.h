@@ -86,6 +86,10 @@
 
 #define SYSCALL_ENDBOOT				0x33
 #define SYSCALL_SYSTEMQUERY			0x35
+#define SYSCALL_GETTICK             0x36
+#define SYSCALL_GETPERFFREQ         0x37
+#define SYSCALL_GETPERFTICK         0x38
+#define SYSCALL_GETTIME             0x39
 
 /* Driver System Calls 
  * - ACPI Support */
@@ -110,7 +114,6 @@
  * - Interrupt Support */
 #define SYSCALL_REGISTERIRQ			0x51
 #define SYSCALL_UNREGISTERIRQ		0x52
-#define SYSCALL_REGISTERSYSTMR		0x54
 #define SYSCALL_TIMERSTART          0x55
 #define SYSCALL_TIMERSTOP           0x56
 

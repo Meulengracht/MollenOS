@@ -23,13 +23,9 @@
 #define __DRIVER_CMOS_H__
 
 /* Includes 
- * - System */
-#include <os/osdefs.h>
-#include <os/driver/io.h>
-#include <os/driver/interrupt.h>
-
-/* Includes
  * - Library */
+#include <os/osdefs.h>
+#include <arch.h>
 #include <time.h>
 
 /* Definitions */
@@ -70,44 +66,52 @@
 /* The CMOS driver structure
  * Contains information about the driver, the
  * current chip status, the current RTC status etc */
-#pragma pack(push, 1)
 typedef struct _Cmos {
-	MContract_t			Clock;
-	MContract_t			Timer;
-	MCoreInterrupt_t	Interrupt;
-	DeviceIoSpace_t		IoSpace;
+    // Cmos stuff
+	size_t				AlarmTicks;
 	uint8_t				AcpiCentury;
-	int					UseRTC;
+	int					RtcAvailable;
+
+    // Rtc
 	uint64_t			NsCounter;
 	clock_t				Ticks;
-	size_t				AlarmTicks;
 	size_t				NsTick;
 	UUId_t				Irq;
 } Cmos_t;
-#pragma pack(pop)
+
+/* CmosInitialize
+ * Initializes the cmos, and if set, the RTC as-well. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+CmosInitialize(
+    _In_ int InitializeRtc);
 
 /* CmosRead
  * Read the byte at given register offset
  * from the CMOS-Chip */
-__EXTERN uint8_t CmosRead(uint8_t Register);
+KERNELAPI
+uint8_t
+KERNELABI
+CmosRead(
+    _In_ uint8_t Register);
 
-/* CmosRead
+/* CmosWrite
  * Writes a byte to the given register offset
  * from the CMOS-Chip */
-__EXTERN void CmosWrite(uint8_t Register, uint8_t Data);
+KERNELAPI
+void
+KERNELABI
+CmosWrite(
+    _In_ uint8_t Register,
+    _In_ uint8_t Data);
 
 /* RtcInitialize
  * Initializes the rtc-part of the cmos chip
  * and installs the interrupt needed */
-__EXTERN OsStatus_t RtcInitialize(Cmos_t *Chip);
-
-/* RtcCleanup
- * Disables the rtc and cleans up resources */
-__EXTERN OsStatus_t RtcCleanup(Cmos_t *Chip);
-
-/* RtcInterrupt
- * Handles the rtc interrupt and acknowledges
- * the interrupt by reading cmos */
-__EXTERN InterruptStatus_t RtcInterrupt(Cmos_t *Chip);
+KERNELAPI
+OsStatus_t
+KERNELABI
+RtcInitialize(Cmos_t *Chip);
 
 #endif // !__DRIVER_CMOS_H__

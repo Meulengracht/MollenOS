@@ -28,6 +28,7 @@
  * - Library */
 #include <os/osdefs.h>
 #include <os/spinlock.h>
+#include <time.h>
 
 /* System Information structure
  * Contains information related to the OS and the system
@@ -86,6 +87,14 @@ KERNELAPI
 size_t
 KERNELABI
 CpuGetTicks(void);
+
+/* CpuGetTime
+ * Retrieves the time for the system. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+CpuGetTime(
+    _Out_ struct tm *SystemTime);
 
 /* CpuStall
  * Stalls the cpu for the given milliseconds, blocking call. */

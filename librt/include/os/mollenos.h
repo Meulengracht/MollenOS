@@ -25,8 +25,9 @@
 #define _MOLLENOS_INTERFACE_H_
 
 /* Includes
- * System */
+ * - Library */
 #include <os/osdefs.h>
+#include <time.h>
 
 /* Structures */
 typedef struct _MollenOSVideoDescriptor
@@ -115,8 +116,7 @@ ScreenQueryGeometry(
 	_Out_ Rect_t *Rectangle);
 
 /* PathQueryWorkingDirectory
- * Queries the current working directory path
- * for the current process (See _MAXPATH) */
+ * Queries the current working directory path for the current process (See _MAXPATH) */
 MOSAPI
 OsStatus_t
 MOSABI
@@ -126,8 +126,7 @@ PathQueryWorkingDirectory(
 
 /* PathChangeWorkingDirectory
  * Performs changes to the current working directory
- * by canonicalizing the given path modifier or absolute
- * path */
+ * by canonicalizing the given path modifier or absolute path */
 MOSAPI
 OsStatus_t
 MOSABI
@@ -135,14 +134,49 @@ PathChangeWorkingDirectory(
 	_In_ __CONST char *Path);
 
 /* PathQueryApplication
- * Queries the application path for
- * the current process (See _MAXPATH) */
+ * Queries the application path for the current process (See _MAXPATH) */
 MOSAPI
 OsStatus_t
 MOSABI
 PathQueryApplication(
 	_Out_ char *Buffer,
 	_In_ size_t MaxLength);
+
+/* SystemTime
+ * Retrieves the system time. This is only ticking
+ * if a system clock has been initialized. */
+MOSAPI
+OsStatus_t
+MOSABI
+SystemTime(
+	_Out_ struct tm *time);
+
+/* SystemTick
+ * Retrieves the system tick counter. This is only ticking
+ * if a system timer has been initialized. */
+MOSAPI
+OsStatus_t
+MOSABI
+SystemTick(
+	_Out_ clock_t *clock);
+
+/* QueryPerformanceFrequency
+ * Returns how often the performance timer fires every
+ * second, the value will never be 0 */
+MOSAPI
+OsStatus_t
+MOSABI
+QueryPerformanceFrequency(
+	_Out_ LargeInteger_t *Frequency);
+
+/* QueryPerformanceTimer 
+ * Queries the created performance timer and returns the
+ * information in the given structure */
+MOSAPI
+OsStatus_t
+MOSABI
+QueryPerformanceTimer(
+	_Out_ LargeInteger_t *Value);
 
 /* __get_reserved
  * Read and write the magic tls thread-specific

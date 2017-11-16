@@ -136,4 +136,24 @@ SystemDebug(
 		SYSCALL_PARAM(&TmpBuffer[0]));
 }
 
+/* SystemTime
+ * Retrieves the system time. This is only ticking
+ * if a system clock has been initialized. */
+OsStatus_t
+SystemTime(
+	_Out_ struct tm *time)
+{
+    return (OsStatus_t)Syscall1(SYSCALL_GETTIME, SYSCALL_PARAM(time));
+}
+
+/* SystemTick
+ * Retrieves the system tick counter. This is only ticking
+ * if a system timer has been initialized. */
+OsStatus_t
+SystemTick(
+	_Out_ clock_t *clock)
+{
+    return (OsStatus_t)Syscall1(SYSCALL_GETTICK, SYSCALL_PARAM(clock));
+}
+
 #endif

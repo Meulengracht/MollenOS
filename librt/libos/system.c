@@ -87,3 +87,43 @@ ScreenQueryGeometry(
 
 	return OsSuccess;
 }
+
+/* SystemTime
+ * Retrieves the system time. This is only ticking
+ * if a system clock has been initialized. */
+OsStatus_t
+SystemTime(
+	_Out_ struct tm *time)
+{
+    return (OsStatus_t)Syscall1(SYSCALL_GETTIME, SYSCALL_PARAM(time));
+}
+
+/* SystemTick
+ * Retrieves the system tick counter. This is only ticking
+ * if a system timer has been initialized. */
+OsStatus_t
+SystemTick(
+	_Out_ clock_t *clock)
+{
+    return (OsStatus_t)Syscall1(SYSCALL_GETTICK, SYSCALL_PARAM(clock));
+}
+
+/* QueryPerformanceFrequency
+ * Returns how often the performance timer fires every
+ * second, the value will never be 0 */
+OsStatus_t
+QueryPerformanceFrequency(
+	_Out_ LargeInteger_t *Frequency)
+{
+    return (OsStatus_t)Syscall1(SYSCALL_GETPERFFREQ, SYSCALL_PARAM(Frequency));
+}
+
+/* QueryPerformanceTimer 
+ * Queries the created performance timer and returns the
+ * information in the given structure */
+OsStatus_t
+QueryPerformanceTimer(
+	_Out_ LargeInteger_t *Value)
+{
+    return (OsStatus_t)Syscall1(SYSCALL_GETPERFTICK, SYSCALL_PARAM(Value));
+}

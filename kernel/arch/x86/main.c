@@ -36,6 +36,11 @@
 #include <log.h>
 #include <vbe.h>
 
+/* TimersDiscover 
+ * Discover the available system timers for the x86 platform. */
+OsStatus_t
+TimersDiscover(void);
+
 /* SystemInformationQuery 
  * Queries information about the running system
  * and the underlying architecture */
@@ -110,10 +115,6 @@ SystemFeaturesInitialize(
 
     // Handle interrupt initialization
     if (Systems & SYSTEM_FEATURE_INTERRUPTS) {
-        if (CpuHasFeatures(0, CPUID_FEAT_EDX_APIC) != OsSuccess) {
-            return OsError;
-        }
-
         // Make sure we allocate all device interrupts
         // so system can't take control of them
         InterruptIncreasePenalty(0); // PIT
@@ -129,9 +130,11 @@ SystemFeaturesInitialize(
         InterruptIncreasePenalty(13); // FPU
         InterruptIncreasePenalty(14); // IDE
         InterruptIncreasePenalty(15); // IDE / Spurious
-
-        ApicInitBoot();
-        //CpuSmpInit(); -- Disable till further notice, we need a fix for stall
+        
+        // Initialize APIC?
+        if (CpuHasFeatures(0, CPUID_FEAT_EDX_APIC) == OsSuccess) {
+            ApicInitialize();
+        }
     }
 
     // Handle final things before the system spawns
@@ -151,6 +154,15 @@ SystemFeaturesInitialize(
         InterruptDecreasePenalty(13); // FPU
         InterruptDecreasePenalty(14); // IDE
         InterruptDecreasePenalty(15); // IDE
+
+        // Activate fixed system timers
+        TimersDiscover();
+        
+        // Recalibrate in case of apic
+        if (CpuHasFeatures(0, CPUID_FEAT_EDX_APIC) == OsSuccess) {
+            ApicRecalibrateTimer();
+        }
+        //CpuSmpInit(); -- Disable till further notice, we need a fix for stall
     }
 
     // Done

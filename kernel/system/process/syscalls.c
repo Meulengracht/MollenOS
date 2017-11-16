@@ -1461,27 +1461,6 @@ OsStatus_t ScUnregisterInterrupt(UUId_t Source)
     return InterruptUnregister(Source);
 }
 
-/* ScAcknowledgeInterrupt 
- * Acknowledges the interrupt source and unmasks
- * the interrupt-line, allowing another interrupt
- * to occur for the given driver */
-OsStatus_t ScAcknowledgeInterrupt(UUId_t Source)
-{
-    return OsError; //InterruptAcknowledge(Source);
-}
-
-/* ScRegisterSystemTimer
- * Registers the given interrupt source as a system
- * timer source, with the given tick. This way the system
- * can always keep track of timers */
-OsStatus_t
-ScRegisterSystemTimer(
-    _In_ UUId_t Interrupt,
-    _In_ size_t NsPerTick)
-{
-    return TimersRegister(Interrupt, NsPerTick);
-}
-
 /* ScTimersStart
  * Creates a new standard timer for the requesting process. 
  * When interval elapses a __TIMEOUT event is generated for
@@ -1528,12 +1507,67 @@ int ScEnvironmentQuery(void)
     return 0;
 }
 
-/* NoOperation
- * Empty Operation, mostly
- * because the operation is reserved */
-int NoOperation(void)
+/* ScSystemTime
+ * Retrieves the system time. This is only ticking
+ * if a system clock has been initialized. */
+OsStatus_t
+ScSystemTime(
+    _Out_ struct tm *SystemTime)
 {
-    return 0;
+    // Sanitize input
+    if (SystemTime == NULL) {
+        return OsError;
+    }
+    return TimersGetSystemTime(SystemTime);
+}
+
+/* ScSystemTick
+ * Retrieves the system tick counter. This is only ticking
+ * if a system timer has been initialized. */
+OsStatus_t
+ScSystemTick(
+    _Out_ clock_t *SystemTick)
+{
+    // Sanitize input
+    if (SystemTick == NULL) {
+        return OsError;
+    }
+    return TimersGetSystemTick(SystemTick);
+}
+
+/* ScPerformanceFrequency
+ * Returns how often the performance timer fires every
+ * second, the value will never be 0 */
+OsStatus_t
+ScPerformanceFrequency(
+    _Out_ LargeInteger_t *Frequency)
+{
+    // Sanitize input
+    if (Frequency == NULL) {
+        return OsError;
+    }
+    return TimersQueryPerformanceFrequency(Frequency);
+}
+
+/* ScPerformanceTick
+ * Retrieves the system performance tick counter. This is only ticking
+ * if a system performance timer has been initialized. */
+OsStatus_t
+ScPerformanceTick(
+    _Out_ LargeInteger_t *Frequency)
+{
+    // Sanitize input
+    if (Frequency == NULL) {
+        return OsError;
+    }
+    return TimersQueryPerformanceTick(Frequency);
+}
+
+/* NoOperation
+ * Empty operation, mostly because the operation is reserved */
+OsStatus_t
+NoOperation(void) {
+    return OsSuccess;
 }
 
 /* Syscall Table */
@@ -1605,10 +1639,10 @@ uintptr_t GlbSyscallTable[91] = {
     DefineSyscall(ScEndBootSequence),
     DefineSyscall(NoOperation),
     DefineSyscall(ScEnvironmentQuery),
-    DefineSyscall(NoOperation),
-    DefineSyscall(NoOperation),
-    DefineSyscall(NoOperation),
-    DefineSyscall(NoOperation),
+    DefineSyscall(ScSystemTick),
+    DefineSyscall(ScPerformanceFrequency),
+    DefineSyscall(ScPerformanceTick),
+    DefineSyscall(ScSystemTime),
     DefineSyscall(NoOperation),
     DefineSyscall(NoOperation),
     DefineSyscall(NoOperation),
@@ -1646,8 +1680,8 @@ uintptr_t GlbSyscallTable[91] = {
      * - Interrupt Support */
     DefineSyscall(ScRegisterInterrupt),
     DefineSyscall(ScUnregisterInterrupt),
-    DefineSyscall(ScAcknowledgeInterrupt),
-    DefineSyscall(ScRegisterSystemTimer),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
     DefineSyscall(ScTimersStart),
     DefineSyscall(ScTimersStop),
     DefineSyscall(NoOperation),

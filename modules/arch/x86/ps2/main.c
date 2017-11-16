@@ -283,7 +283,7 @@ OsStatus_t OnLoad(void)
 
 	// Initialize the ps2-contract
 	InitializeContract(&GlbController->Controller, UUID_INVALID, 1,
-		ContractTimer, "PS2 Controller Interface");
+		ContractController, "PS2 Controller Interface");
 
 	// Now initialize the controller
 	return PS2Initialize();

@@ -26,8 +26,8 @@
 /* Includes 
  * - System */
 #include <os/osdefs.h>
-#include <os/driver/io.h>
-#include <os/driver/interrupt.h>
+#include <arch.h>
+#include <time.h>
 
 /* Io-space for accessing the PIT
  * Spans over 4 bytes from 0x40-0x44 */
@@ -61,23 +61,24 @@
 #define	PIT_COMMAND_COUNTER_1		0x40
 #define	PIT_COMMAND_COUNTER_2		0x80
 
-/* The IRQ line the PIT uses, it's 
- * an ISA line so it's fixed */
+/* The IRQ line the PIT uses, it's an ISA line so it's fixed */
 #define PIT_IRQ						0x0
 
 /* The PIT driver structure
  * contains all driver information and chip
  * current status information */
-#pragma pack(push, 1)
 typedef struct _Pit {
-	MContract_t			Timer;
-	MCoreInterrupt_t	Interrupt;
-	DeviceIoSpace_t		IoSpace;
 	UUId_t				Irq;
 	size_t				NsTick;
 	size_t				NsCounter;
 	clock_t				Ticks;
 } Pit_t;
-#pragma pack(pop)
+
+/* PitInitialize
+ * Initializes the PIT unit on the system. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+PitInitialize(void);
 
 #endif //!__DRIVER_PIT_H___

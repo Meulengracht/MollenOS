@@ -22,7 +22,6 @@
 /* Includes 
  * - System */
 #include <acpiinterface.h>
-#include <arch.h>
 #include <heap.h>
 #include <log.h>
 

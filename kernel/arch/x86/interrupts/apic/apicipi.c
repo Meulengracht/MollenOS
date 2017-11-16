@@ -22,6 +22,7 @@
 
 /* Includes 
  * - System */
+#include <system/utils.h>
 #include <apic.h>
 
 /* ApicWaitForIcr
@@ -96,4 +97,5 @@ ApicSendInterrupt(
 	// Always write upper first, irq is sent when low is written
 	ApicWriteLocal(APIC_ICR_HIGH, IpiHigh);
 	ApicWriteLocal(APIC_ICR_LOW, IpiLow);
+    return OsSuccess;
 }

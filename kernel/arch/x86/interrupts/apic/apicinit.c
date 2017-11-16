@@ -19,6 +19,8 @@
  * MollenOS x86 Advanced Programmable Interrupt Controller Driver
  *  - Initialization code for boot/ap cpus
  */
+#define __MODULE "APIC"
+#define __TRACE
 
 /* Includes 
  * - System */
@@ -28,6 +30,7 @@
 #include <interrupts.h>
 #include <memory.h>
 #include <timers.h>
+#include <debug.h>
 #include <apic.h>
 #include <heap.h>
 #include <log.h>
@@ -316,7 +319,7 @@ void ApicInitialSetup(UUId_t Cpu)
 	ApicClear();
 
 	/* Disable ESR */
-#ifdef _X86_32
+#if defined(_X86_32) || defined(i386)
 	if (ApicIsIntegrated()) {
 		ApicWriteLocal(APIC_ESR, 0);
 		ApicWriteLocal(APIC_ESR, 0);
@@ -351,91 +354,81 @@ void ApicInitialSetup(UUId_t Cpu)
 /* Initialization code for the local apic
  * ESR. It clears out the error registers and
  * the ESR register */
-void ApicSetupESR(void)
+void
+ApicSetupESR(void)
 {
-	/* Variables for setup of ESR */
-	int MaxLvt = 0;
-	uint32_t Temp = 0;
+	// Variables
+	int MaxLvt      = 0;
+	uint32_t Temp   = 0;
 
-	/* Sanitize whether or not this
-	 * is an integrated chip, because
-	 * if not ESR is not needed */
+	// Sanitize whether or not this
+	// is an integrated chip, because if not ESR is not needed
 	if (!ApicIsIntegrated()) {
 		return;
 	}
 
-	/* Get the max level of LVT supported
-	 * on this local apic chip */
+	// Get the max level of LVT supported
+	// on this local apic chip
 	MaxLvt = ApicGetMaxLvt();
-
-	/* Sanitize - hammer down esr? */
 	if (MaxLvt > 3) {
 		ApicWriteLocal(APIC_ESR, 0);
 	}
 	Temp = ApicReadLocal(APIC_ESR);
 
-	/* Enable sending errors */
+	// Enable errors and clear register
 	ApicWriteLocal(APIC_ERROR_REGISTER, INTERRUPT_LVTERROR);
-
-	/* Clear errors after enabling */
 	if (MaxLvt > 3) {
 		ApicWriteLocal(APIC_ESR, 0);
 	}
 }
 
-/* This code enables the local APIC
- * on the current processor calling
- * this code, should never be called more
- * than once! */
-void ApicEnable(void)
+/* ApicEnable
+ * Sets the current cpu into apic mode by enabling the apic. */
+void
+ApicEnable(void)
 {
-	/* Variables */
+	// Variables
 	uint32_t Temp = 0;
 
-	/* Enable local apic */
+	// Enable local apic
 	Temp = ApicReadLocal(APIC_SPURIOUS_REG);
 	Temp &= ~(0x000FF);
 	Temp |= 0x100;
 
-#ifdef _X86_32
-	/* This reduces some problems with to fast
-	 * interrupt mask/unmask */
+#if defined(_X86_32) || defined(i386)
+	// This reduces some problems with to fast
+	// interrupt mask/unmask
 	Temp &= ~(0x200);
 #endif
 
-	/* Set spurious vector */
+	// Set spurious vector and enable
 	Temp |= INTERRUPT_SPURIOUS;
-
-	/* Enable! */
 	ApicWriteLocal(APIC_SPURIOUS_REG, Temp);
 }
 
-/* Reloads the local apic timer with a default
+/* ApicStartTimer
+ * Reloads the local apic timer with a default
  * divisor and the timer set to the given quantum
  * the timer is immediately started */
-void ApicReloadTimer(size_t Quantum)
+void
+ApicStartTimer(
+    _In_ size_t Quantum)
 {
-	/* Setup timer settings */
 	ApicWriteLocal(APIC_TIMER_VECTOR, APIC_TIMER_ONESHOT | INTERRUPT_LAPIC);
 	ApicWriteLocal(APIC_DIVIDE_REGISTER, APIC_TIMER_DIVIDER_1);
-
-	/* At-last, set the initial count, because
-	 * it starts the counter immediately */
 	ApicWriteLocal(APIC_INITIAL_COUNT, Quantum);
 }
 
-/* Initialize the local APIC controller
- * and install default interrupts. This
- * code also sets up the local APIC timer
- * with a default Quantum which is recalibrated
- * for accuracy once a timer is available */
-void ApicInitBoot(void)
+/* ApicInitialize
+ * Initialize the local APIC controller and install default interrupts. */
+void
+ApicInitialize(void)
 {
 	// Variables
-	ACPI_TABLE_HEADER *Header = NULL;
 	MCoreInterrupt_t IrqInformation;
-	UUId_t BspApicId = 0;
-	uint32_t Temp = 0;
+	ACPI_TABLE_HEADER *Header       = NULL;
+	UUId_t BspApicId                = 0;
+	uint32_t Temp                   = 0;
 	DataKey_t Key;
 
 	// Step 1. Disable IMCR if present (to-do..) 
@@ -458,10 +451,8 @@ void ApicInitBoot(void)
 		// We don't identity map it for several reasons, as we use
 		// higher space memory for stuff, so we allocate a new address
 		// for it!
-		LogInformation("APIC", "LAPIC address at 0x%x", MadtTable->Address);
+		TRACE("LAPIC address at 0x%x", MadtTable->Address);
 		MmVirtualMap(NULL, MadtTable->Address, RemapTo, PAGE_CACHE_DISABLE);
-		
-		// Now we can set it
         GlbLocalApicBase = RemapTo + (MadtTable->Address & 0xFFF);
         
         // Cleanup table when we are done with it as we are using
@@ -469,9 +460,8 @@ void ApicInitBoot(void)
         AcpiPutTable(Header);
 	}
 	else {
-		LogFatal("APIC", "Failed to get LAPIC base address, ABORT!!!");
-		LogFatal("APIC", "Philip now we need MP-table support!");
-		CpuIdle();
+		ERROR("Failed to get LAPIC base address, ABORT!!!");
+		FATAL(FATAL_SCOPE_KERNEL, "Philip now we need MP-table support!");
 	}
 
 	// Get the bootstrap processor id, and save it
@@ -529,12 +519,9 @@ void ApicInitBoot(void)
 	// We can now enable the interrupts, as 
 	// the IVT table is in place and the local apic
 	// has been configured!
-	LogInformation("APIC", "Enabling Interrupts");
+	TRACE("Enabling Interrupts");
 	InterruptEnable();
 	ApicSendEoi(0, 0);
-
-	// Start the timer to a defualt time-length
-	ApicReloadTimer(GlbTimerQuantum * 20);
 }
 
 /* Initialize the local APIC controller
@@ -565,43 +552,41 @@ void ApicInitAp(void)
 	ApicSetupESR();
 
 	/* Start the timer to a defualt time-length */
-	ApicReloadTimer(GlbTimerQuantum * 20);
+	ApicStartTimer(GlbTimerQuantum * 20);
 }
 
-/* Recalibrates the the local apic 
- * timer, using an external timer source
- * this is to make the local apic timer more
- * accurate to make sure the quantum is 1 ms */
-void ApicTimerRecalibrate(void)
+/* ApicRecalibrateTimer
+ * Recalibrates the the local apic timer, using an external timer source
+ * to accurately have the local apic tick at 1ms */
+void
+ApicRecalibrateTimer(void)
 {
-	/* Variables for calibration */
-	size_t TimerTicks = 0;
+	// Variables
+    volatile clock_t Tick       = 0;
+	size_t TimerTicks           = 0;
 
-	/* Setup initial local apic timer registers */
+    // Debug
+    TRACE("ApicRecalibrateTimer()");
+
+	// Setup initial local apic timer registers
 	ApicWriteLocal(APIC_TIMER_VECTOR, INTERRUPT_LAPIC);
 	ApicWriteLocal(APIC_DIVIDE_REGISTER, APIC_TIMER_DIVIDER_1);
+	ApicWriteLocal(APIC_INITIAL_COUNT, 0xFFFFFFFF); // Set counter to max, it counts down
 
-	/* Start counters! */
-	ApicWriteLocal(APIC_INITIAL_COUNT, 0xFFFFFFFF); /* Set counter to -1 */
-
-	/* Stall, we have no other threads running! */
-	CpuStall(100);
-
-	/* Stop counter! */
+    // Sleep for 100 ms
+    while (Tick < 100) {
+        if (TimersGetSystemTick((clock_t*)&Tick) != OsSuccess) {
+            FATAL(FATAL_SCOPE_KERNEL, "No system timers are present, can't calibrate APIC");
+        }
+    }
+	
+    // Stop counter and calibrate
 	ApicWriteLocal(APIC_TIMER_VECTOR, APIC_MASKED);
-
-	/* Calculate bus frequency */
 	TimerTicks = (0xFFFFFFFF - ApicReadLocal(APIC_CURRENT_COUNT));
-	LogInformation("APIC", "Bus Speed: %u Hz", TimerTicks);
+	WARNING("Bus Speed: %u Hz", TimerTicks);
 	GlbTimerQuantum = (TimerTicks / 100) + 1;
+	WARNING("Quantum: %u", GlbTimerQuantum);
 
-	/* We want a minimum of ca 400, this is to ensure on "slow"
-	* computers we atleast get a few ms of processing power */
-	if (GlbTimerQuantum < 400)
-		GlbTimerQuantum = 400;
-
-	LogInformation("APIC", "Quantum: %u", GlbTimerQuantum);
-
-	/* Reset divider to make sure */
-	ApicReloadTimer(GlbTimerQuantum * 20);
+	// Start timer for good
+	ApicStartTimer(GlbTimerQuantum * 20);
 }

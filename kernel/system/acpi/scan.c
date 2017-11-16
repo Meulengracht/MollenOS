@@ -26,6 +26,7 @@
  * - System */
 #include <acpiinterface.h>
 #include <debug.h>
+#include <hpet.h>
 #include <heap.h>
 
 /* Includes
@@ -230,6 +231,23 @@ AcpiDeviceCreate(
 	return CollectionAppend(GlbPciAcpiDevices, CollectionCreateNode(Key, Device));
 }
 
+/* AcpiDeviceInstallFixed 
+ * Scans for fixed devices and initializes them. */
+ACPI_STATUS
+AcpiDeviceInstallFixed(void)
+{
+    // Variables
+	ACPI_TABLE_HEADER *Header   = NULL;
+	ACPI_STATUS Status          = AE_OK;
+
+    // Check for HPET presence
+	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_HPET, 0, &Header))) {
+		TRACE("Initializing the hpet");
+		Status = HpInitialize((ACPI_TABLE_HPET*)Header);
+	}
+    return Status;
+}
+
 /* AcpiDeviceScanCallback
  * Scan callback from the AcpiGetDevices on new device detection */
 ACPI_STATUS
@@ -305,7 +323,10 @@ AcpiDevicesScan(void)
 
     // Run device scan and update Gpes
     if (AcpiGetDevices(NULL, AcpiDeviceScanCallback, NULL, NULL) == AE_OK) {
-        return AcpiUpdateAllGpes();
+        if (AcpiUpdateAllGpes() != AE_OK) {
+            FATAL(FATAL_SCOPE_KERNEL, "Failed to update Gpes");
+        }
+        return AcpiDeviceInstallFixed();
     }
     else {
         FATAL(FATAL_SCOPE_KERNEL, "Failed to scan the ACPI namespace.");
