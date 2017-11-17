@@ -30,6 +30,21 @@
  * - Library */
 #include <stdlib.h>
 
+/* Global
+ * - String data and static data */
+static const char *DeviceTypeStrings[TypeCount] = {
+    "Floppy Drive",
+    "Disk Drive",
+    "Hard Drive"
+};
+static const char *DeviceProtocolStrings[ProtocolCount] = {
+    "Unknown",
+    "UFI",
+    "CB",
+    "CBI",
+    "Bulk"
+};
+
 /* MsdDeviceCreate
  * Initializes a new msd-device from the given usb-device */
 MsdDevice_t*
@@ -71,54 +86,48 @@ MsdDeviceCreate(
             }
         }
     }
-    
-    // Sanitize found endpoints
-    if (Device->In == NULL || Device->Out == NULL) {
-        ERROR("Either in or out endpoint not available on device");
-        goto Error;
-    }
 
-    // Determine type of flash drive @todo
+    // Set initial shared stuff
+    Device->Protocol = ProtocolUnknown;
+    Device->AlignedAccess = 0;
+    Device->Descriptor.SectorsPerCylinder = 64;
+    Device->Descriptor.SectorSize = 512;
+    
+    // Determine type of msd
     if (UsbDevice->Interface.Subclass == MSD_SUBCLASS_FLOPPY) {
-        Device->Type = ProtocolUFI;
+        Device->Type = TypeFloppy;
+        Device->Protocol = ProtocolUFI;
         Device->AlignedAccess = 1;
         Device->Descriptor.SectorsPerCylinder = 18;
     }
-    else if (UsbDevice->Interface.Protocol == MSD_PROTOCOL_CBI
-            || UsbDevice->Interface.Protocol == MSD_PROTOCOL_CBI_NOINT) {
-        Device->Type = ProtocolCBI;
-        Device->AlignedAccess = 0;
-        Device->Descriptor.SectorsPerCylinder = 64;
+    else if (UsbDevice->Interface.Subclass != MSD_SUBCLASS_ATAPI) {
+        Device->Type = TypeDiskDrive;
     }
     else {
-        Device->Type = ProtocolBulk;
-        Device->AlignedAccess = 0;
-        Device->Descriptor.SectorsPerCylinder = 64;
+        Device->Type = TypeHardDrive;
     }
 
-    // Debug
-    TRACE("MSD Device of Type <> and Protocol %u", Device->Type);
-
-    // Initialize the storage descriptor to default
-    Device->Descriptor.SectorSize = 512;
-
-    // If the type is of harddrive, reset bulk
-    if (Device->Type == ProtocolBulk) {
-        if (MsdResetBulk(Device) != OsSuccess) {
-            ERROR("Failed to reset the interface");
-            goto Error;
+    // Determine type of protocol
+    if (Device->Protocol == ProtocolUnknown) {
+        if (UsbDevice->Interface.Protocol == MSD_PROTOCOL_CBI) {
+            Device->Protocol = ProtocolCBI;
+        }
+        else if (UsbDevice->Interface.Protocol == MSD_PROTOCOL_CB) {
+            Device->Protocol = ProtocolCB;
+        }
+        else if (UsbDevice->Interface.Protocol == MSD_PROTOCOL_BULK_ONLY) {
+            Device->Protocol = ProtocolBulk;
         }
     }
+    
+    // Debug
+    TRACE("MSD Device of Type %s and Protocol %s", 
+        DeviceTypeStrings[Device->Type],
+        DeviceProtocolStrings[Device->Protocol]);
 
-    // Reset data toggles for bulk-endpoints
-    if (UsbEndpointReset(Device->Base.DriverId, Device->Base.DeviceId, 
-        &Device->Base.Device, Device->In) != OsSuccess) {
-        ERROR("Failed to reset endpoint (in)");
-        goto Error;
-    }
-    if (UsbEndpointReset(Device->Base.DriverId, Device->Base.DeviceId, 
-        &Device->Base.Device, Device->Out) != OsSuccess) {
-        ERROR("Failed to reset endpoint (out)");
+    // Initialize the kind of profile we discovered
+    if (MsdDeviceInitialize(Device) != OsSuccess) {
+        ERROR("Failed to initialize the msd-device, missing support.");
         goto Error;
     }
 
@@ -135,7 +144,7 @@ MsdDeviceCreate(
     }
 
     // Perform setup
-    if (MsdSetup(Device) != OsSuccess) {
+    if (MsdDeviceStart(Device) != OsSuccess) {
         ERROR("Failed to initialize the device");
         goto Error;
     }

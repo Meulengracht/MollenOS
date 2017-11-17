@@ -292,11 +292,11 @@ UhciTransactionFinalize(
 	_In_ int Validate)
 {
 	// Variables
-	UhciQueueHead_t *Qh = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
-	UhciTransferDescriptor_t *Td = NULL;
+	UhciQueueHead_t *Qh             = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
+	UhciTransferDescriptor_t *Td    = NULL;
+	int QhIndex                     = -1;
+    int ErrorCode                   = 0;
 	UsbTransferResult_t Result;
-	int QhIndex = -1;
-    int ErrorCode = 0;
     
     // Debug
     TRACE("UhciTransactionFinalize()");
@@ -314,27 +314,30 @@ UhciTransactionFinalize(
 		// Get first td
 		Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
 		while (Td) {
-			// Extract the error code
-			ErrorCode = UhciConditionCodeToIndex(UHCI_TD_STATUS(Td->Flags));
+            // Skip unprocessed td's
+            if (!(Td->Flags & UHCI_TD_ACTIVE)) {
+                // Extract the error code
+                ErrorCode = UhciConditionCodeToIndex(UHCI_TD_STATUS(Td->Flags));
 
-			// Calculate length transferred 
-			// Take into consideration the N-1 
-			if (Td->Buffer != 0) {
-				Transfer->BytesTransferred += UHCI_TD_ACTUALLENGTH(Td->Flags + 1);
-			}
+                // Calculate length transferred 
+                // Take into consideration the N-1 
+                if (Td->Buffer != 0) {
+                    Transfer->BytesTransferred += UHCI_TD_ACTUALLENGTH(Td->Flags) + 1;
+                }
 
-			// Trace
-			TRACE("Flags 0x%x, Header 0x%x, Buffer 0x%x, Td Condition Code %u", 
-				Td->Flags, Td->Header, Td->Buffer, ErrorCode);
+                // Trace
+                TRACE("Flags 0x%x, Header 0x%x, Buffer 0x%x, Td Condition Code %u", 
+                    Td->Flags, Td->Header, Td->Buffer, ErrorCode);
 
-			// Now validate the code
-			if (ErrorCode == 0 && Transfer->Status == TransferFinished)
-				Transfer->Status = TransferFinished;
-			else {
-				Transfer->Status = UhciGetStatusCode(ErrorCode);
-				break;
-			}
-			
+                // Now validate the code
+                if (ErrorCode == 0 && Transfer->Status == TransferFinished)
+                    Transfer->Status = TransferFinished;
+                else {
+                    Transfer->Status = UhciGetStatusCode(ErrorCode);
+                    break;
+                }
+            }
+
 			// Go to next td
 			if (Td->LinkIndex != UHCI_NO_INDEX) {
 				Td = &Controller->QueueControl.TDPool[Td->LinkIndex];

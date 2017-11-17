@@ -701,9 +701,9 @@ UhciFixupToggles(
 	_In_ UsbManagerTransfer_t *Transfer)
 {
 	// Variables
-	UhciTransferDescriptor_t *Td = NULL;
-	UhciQueueHead_t *Qh = NULL;
-	int Toggle = 0;
+	UhciTransferDescriptor_t *Td    = NULL;
+	UhciQueueHead_t *Qh             = NULL;
+	int Toggle                      = 0;
 
 	// Get qh from transfer
 	Qh = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
@@ -713,16 +713,14 @@ UhciFixupToggles(
 	// we flip the toggle and set it to EP
 	Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
 	while (Td) {
-		if (Td->Header & UHCI_TD_DATA_TOGGLE) {
-			Toggle = 1;
-		}
-		else {
-			Toggle = 0;
-		}
-
-		// If the td is unprocessed we breakout
-		if (Td->Flags & UHCI_TD_ACTIVE) {
-			break;
+		// If the td is processed switch toggle
+		if (!(Td->Flags & UHCI_TD_ACTIVE)) {
+			if (Td->Header & UHCI_TD_DATA_TOGGLE) {
+                Toggle = 1;
+            }
+            else {
+                Toggle = 0;
+            }
 		}
 
 		// Go to next td or terminate
@@ -735,7 +733,7 @@ UhciFixupToggles(
 	}
 
 	// Update endpoint toggle
-	UsbManagerSetToggle(Transfer->Device, Transfer->Pipe, Toggle);
+	UsbManagerSetToggle(Transfer->Device, Transfer->Pipe, Toggle ^ 1);
 }
 
 /* UhciProcessRequest
@@ -893,7 +891,6 @@ UhciProcessTransfers(
 {
 	// Variables
 	UhciTransferDescriptor_t *Td    = NULL;
-    int ProcessesDone               = 0;
     int ProcessQh                   = 0;
     
     // Debug
@@ -917,86 +914,41 @@ UhciProcessTransfers(
 		int ErrorTransfer = 0;
         int FixupToggles = 0;
         int RestartOnly = 0;
-		int Counter = 0;
 		ProcessQh = 0;
 
 		// Iterate through all td's in this transaction
 		// and find the guilty
 		Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
 		while (Td) {
-		
 			// Extract information from the td
 			int CondCode = UhciConditionCodeToIndex(UHCI_TD_STATUS(Td->Flags));
 			int BytesTransfered = UHCI_TD_ACTUALLENGTH(Td->Flags);
             int BytesRequest = UHCI_TD_GET_LEN(Td->Header);
-            
-			// Keep count
-			Counter++;
-
-            if (Counter == 1 && Transfer->Transfer.Transactions[0].Length == 512 
-                && Transfer->Transfer.Type == BulkTransfer) {
-                UhciTransferDescriptor_t *LastTd = Td;
-                int __Counter = Counter;
-                while (LastTd->LinkIndex != UHCI_NO_INDEX) {
-                    WARNING("Data TD (%i): Flags 0x%x, Header 0x%x", 
-                        __Counter++, LastTd->Flags, LastTd->Header);
-                    LastTd = &Controller->QueueControl.TDPool[LastTd->LinkIndex];
+  
+            // Ignore active td's
+            if (!(Td->Flags & UHCI_TD_ACTIVE)) {
+                ProcessQh = 1;
+                if (BytesRequest != UHCI_TD_LENGTH_MASK
+                    && BytesTransfered < BytesRequest) {
+                    ShortTransfer = 1;
                 }
-                WARNING("Last Data TD: Flags 0x%x, Header 0x%x", LastTd->Flags, LastTd->Header);
+
+                // Do we simply need to restart transfer?
+                if (CondCode == 3) {
+                    // NAK Transfer - No data, just restart
+                    RestartOnly = 1;
+                    break;
+                }
+
+                // Sanitize the condition-code (!Done + !NAK)
+                if (CondCode != 0 && CondCode != 3) {
+                    Transfer->Status = UhciGetStatusCode(CondCode);
+                    ErrorTransfer = 1;
+                    break; // No need to continue
+                }
             }
 
-			// Is the TD still active? That means it's not executed yet
-			// That means we should only skip this transaction if its the first td
-			if (Td->Flags & UHCI_TD_ACTIVE) {
-                // The reasons we want to skip this transfer are:
-                // First is still active.
-                // Encounter an active one on checkup (not executed yet)
-				if (Counter == 1 || Checkup == 1) {
-					ProcessQh = 0;
-					break;
-				}
-
-				// Ok, wasn't the first, mark for processing
-				ProcessQh = 1;
-
-				// If bulk or interrupt, and error transfer, we might have
-				// to fix the endpoint toggle
-				if (Transfer->Transfer.Type == BulkTransfer
-					|| Transfer->Transfer.Type == InterruptTransfer) {
-					if (ShortTransfer == 1 || ErrorTransfer == 1) {
-						FixupToggles = 1;
-					}
-				}
-
-				// No need to check rest if we reach here, error transfer!
-				break;
-			}
-
-			// If we reach here we need to process no matter what
-			ProcessQh = 1;
-
-			// TD is not active 
-			// this means it's been processed
-			if (BytesTransfered != UHCI_TD_LENGTH_MASK
-				&& BytesTransfered < BytesRequest) {
-				ShortTransfer = 1;
-            }
-            
-            // Do we simply need to restart transfer?
-            if (BytesTransfered == UHCI_TD_LENGTH_MASK
-                && CondCode == 3) {
-                // NAK Transfer - No data, just restart
-                RestartOnly = 1;
-                break;
-            }
-
-			// Sanitize the condition-code
-			if (CondCode != 0 && CondCode != 3) {
-                ErrorTransfer = 1;
-                Transfer->Status = UhciGetStatusCode(CondCode);
-			}
-
-			// Go to next td or terminate
+            // Go to next td or terminate
 			if (Td->LinkIndex != UHCI_NO_INDEX) {
 				Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
 			}
@@ -1005,16 +957,19 @@ UhciProcessTransfers(
 			}
 		}
 
+        // If bulk or interrupt, and error transfer, we might have
+        // to fix the endpoint toggle
+        if (Transfer->Transfer.Type == BulkTransfer
+            || Transfer->Transfer.Type == InterruptTransfer) {
+            if (ShortTransfer == 1 || ErrorTransfer == 1) {
+                FixupToggles = 1;
+            }
+        }
+
 		// Process transfer?
 		if (ProcessQh) {
-            ProcessesDone++;
 			UhciProcessRequest(Controller, Transfer, 
 				Node, FixupToggles, ErrorTransfer, RestartOnly);
 		}
 	}
-
-    // Sanity
-    if (ProcessesDone == 0 && Checkup == 0) {
-        WARNING("Got interrupted, but nothing to process");
-    }
 }

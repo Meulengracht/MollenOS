@@ -1,6 +1,7 @@
 # Makefile for building a module dll that can be loaded by MollenOS
 # Valid for drivers
-SOURCES = $(wildcard ./*.c)
+SOURCES = $(wildcard ./protocols/*.c) \
+		  $(wildcard ./*.c)
 
 INCLUDES = -I../../../librt/include -I../sata
 OBJECTS = $(SOURCES:.c=.o)

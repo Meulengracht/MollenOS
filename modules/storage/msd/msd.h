@@ -37,7 +37,7 @@
 
 /* MSD Subclass Definitions 
  * Contains generic magic constants and definitions */
-#define MSD_SUBCLASS_RBC			    0x01
+#define MSD_SUBCLASS_RBC			    0x01    // Reduced Block Command Set
 #define MSD_SUBCLASS_ATAPI			    0x02
 #define MSD_SUBCLASS_FLOPPY			    0x04
 #define MSD_SUBCLASS_SCSI			    0x06
@@ -47,7 +47,7 @@
 /* MSD Protocol Definitions 
  * Contains generic magic constants and definitions */
 #define MSD_PROTOCOL_CBI			    0x00	// Control/Bulk/Interrupt Transport (With Command Completion Interrupt)
-#define MSD_PROTOCOL_CBI_NOINT		    0x01	// Control/Bulk/Interrupt Transport (With NO Command Completion Interrupt)
+#define MSD_PROTOCOL_CB		            0x01	// Control/Bulk/Interrupt Transport (With NO Command Completion Interrupt)
 #define MSD_PROTOCOL_BULK_ONLY		    0x50	// Bulk Only Transfers
 #define MSD_PROTOCOL_UAS			    0x62	// UAS
 
@@ -117,13 +117,38 @@ PACKED_TYPESTRUCT(MsdCommandStatus, {
 #define MSD_CSW_PHASE_ERROR		        0x2
 
 /* MsdDeviceType
- * The different types of usb msd devices. Generic flash drives
- * are represented as hard-drives. */
+ * The different types of usb msd devices. The most common
+ * one being hard-drives */
 typedef enum _MsdDeviceType {
-	ProtocolUFI,
-	ProtocolCBI,
-	ProtocolBulk
+    TypeFloppy,
+	TypeDiskDrive,
+	TypeHardDrive,
+    TypeCount
 } MsdDeviceType_t;
+
+/* MsdProtocolType
+ * The different types of usb msd protocols. The most common
+ * one being bulk */
+typedef enum _MsdProtocolType {
+    ProtocolUnknown,
+	ProtocolUFI,
+    ProtocolCB,
+	ProtocolCBI,
+	ProtocolBulk,
+    ProtocolCount
+} MsdProtocolType_t;
+
+/* MsdOperations
+ * The different kinds of protocols require different kind
+ * of ways to perform transfers */
+typedef struct _MsdDevice MsdDevice_t;
+typedef struct _MsdOperations {
+    OsStatus_t              (*Initialize)(_In_ MsdDevice_t *Device);
+    UsbTransferStatus_t     (*SendCommand)(_In_ MsdDevice_t *Device, _In_ uint8_t ScsiCommand, _In_ uint64_t SectorStart, _In_ uintptr_t DataAddress, _In_ size_t DataLength);
+    UsbTransferStatus_t     (*ReadData)(_In_ MsdDevice_t *Device, _In_ uintptr_t DataAddress, _In_ size_t DataLength);
+    UsbTransferStatus_t     (*WriteData)(_In_ MsdDevice_t *Device, _In_ uintptr_t DataAddress, _In_ size_t DataLength);
+    UsbTransferStatus_t     (*GetStatus)(_In_ MsdDevice_t *Device);
+} MsdOperations_t;
 
 /* MsdDevice
  * Represents a mass storage device. */
@@ -132,6 +157,9 @@ typedef struct _MsdDevice {
     MContract_t                  Contract;
     StorageDescriptor_t          Descriptor;
     MsdDeviceType_t              Type;
+    MsdProtocolType_t            Protocol;
+    MsdOperations_t             *Operations;
+
 	int                          IsReady;
 	int                          IsExtended;
     int                          AlignedAccess;
@@ -164,36 +192,32 @@ OsStatus_t
 MsdDeviceDestroy(
     _In_ MsdDevice_t *Device);
 
-/* MsdResetBulk
- * Performs an Bulk-Only Mass Storage Reset
- * Bulk endpoint data toggles and STALL conditions are preserved. */
+/* MsdDeviceInitialize 
+ * Initializes and validates that the protocol has all neccessary
+ * resources/endpoints/prerequisites for operation. */
 __EXTERN
 OsStatus_t
-MsdResetBulk(
+MsdDeviceInitialize(
     _In_ MsdDevice_t *Device);
 
-/* MsdRecoveryReset
- * Performs a full interface and endpoint reset, should only be used
- * for fatal interface errors. */
-__EXTERN
-OsStatus_t
-MsdRecoveryReset(
-    _In_ MsdDevice_t *Device);
-
-/* MsdGetMaximumLunCount
- * Retrieves the maximum logical unit count for the given msd-device. */
-__EXTERN
-OsStatus_t
-MsdGetMaximumLunCount(
-    _In_ MsdDevice_t *Device);
-
-/* MsdSetup
+/* MsdDeviceStart
  * Initializes the device by performing one-time setup and reading device
  * capabilities and features. */
 __EXTERN
 OsStatus_t
-MsdSetup(
+MsdDeviceStart(
     _In_ MsdDevice_t *Device);
+
+/* MsdSCSICommmandConstruct
+ * Constructs a new SCSI command structure from the information given. */
+__EXTERN
+void
+MsdSCSICommmandConstruct(
+    _InOut_ MsdCommandBlock_t *CmdBlock,
+    _In_ uint8_t ScsiCommand,
+    _In_ uint64_t SectorLBA,
+    _In_ uint32_t DataLen,
+    _In_ uint16_t SectorSize);
 
 /* MsdReadSectors
  * Read a given amount of sectors (bytes/sector-size) from the MSD. */
