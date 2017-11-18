@@ -28,7 +28,7 @@
 #include <os/driver/usb.h>
 #include "../msd.h"
 
-/* MsdSCSICommmandConstructUFI
+/* UfiConstructCommand
  * Constructs a new SCSI command structure from the information given. */
 void
 UfiConstructCommand(
@@ -115,6 +115,12 @@ UfiInitialize(
         return OsError;
     }
 
+    // If we are CBI and not CB, there must be interrupt
+    if (Device->Protocol == ProtocolCBI && Device->Interrupt == NULL) {
+        ERROR("Protocol is CBI, but interrupt endpoint does not exist");
+        return OsError;
+    }
+
     // Reset data toggles for bulk-endpoints
     if (UsbEndpointReset(Device->Base.DriverId, Device->Base.DeviceId, 
         &Device->Base.Device, Device->In) != OsSuccess) {
@@ -171,7 +177,8 @@ UsbTransferStatus_t
 UfiReadData(
     _In_ MsdDevice_t *Device,
     _In_ uintptr_t DataAddress,
-    _In_ size_t DataLength)
+    _In_ size_t DataLength,
+    _Out_ size_t *BytesRead)
 {
     // Variables
     UsbTransferResult_t Result  = { 0 };
@@ -190,7 +197,8 @@ UfiReadData(
         // @todo handle
     }
 
-    // Return state
+    // Return state and update out
+    *BytesRead = Result.BytesTransferred;
     return Result.Status;
 }
 
@@ -200,7 +208,8 @@ UsbTransferStatus_t
 UfiWriteData(
     _In_ MsdDevice_t *Device,
     _In_ uintptr_t DataAddress,
-    _In_ size_t DataLength)
+    _In_ size_t DataLength,
+    _Out_ size_t *BytesWritten)
 {
     // Variables
     UsbTransferResult_t Result  = { 0 };
@@ -219,7 +228,8 @@ UfiWriteData(
         // @todo handle
     }
 
-    // Return state
+    // Return state and update out
+    *BytesWritten = Result.BytesTransferred;
     return Result.Status;
 }
 

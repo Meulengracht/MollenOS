@@ -35,8 +35,7 @@ __EXTERN MsdOperations_t UfiOperations;
 static MsdOperations_t *ProtocolOperations[ProtocolCount] = {
     NULL,
     &UfiOperations,
-    NULL,
-    NULL,
+    &UfiOperations,
     &BulkOperations
 };
 
@@ -129,311 +128,27 @@ MsdGetMaximumLunCount(
     return OsSuccess;
 }
 
-/* MsdSCSICommmandConstruct
- * Constructs a new SCSI command structure from the information given. */
-void
-MsdSCSICommmandConstruct(
-    _InOut_ MsdCommandBlock_t *CmdBlock,
-    _In_ uint8_t ScsiCommand,
-    _In_ uint64_t SectorLBA,
-    _In_ uint32_t DataLen,
-    _In_ uint16_t SectorSize)
-{
-    // Reset structure
-    memset((void*)CmdBlock, 0, sizeof(MsdCommandBlock_t));
-
-    // Set initial members
-    CmdBlock->Signature = MSD_CBW_SIGNATURE;
-    CmdBlock->Tag = MSD_TAG_SIGNATURE | ScsiCommand;
-    CmdBlock->CommandBytes[0] = ScsiCommand;
-    CmdBlock->DataLength = DataLen;
-
-    // Switch between supported/implemented commands
-    switch (ScsiCommand) {
-        // Test Unit Ready - 6 (OUT)
-        case SCSI_TEST_UNIT_READY: {
-            CmdBlock->Flags = MSD_CBW_OUT;
-            CmdBlock->Length = 6;
-        } break;
-
-        // Request Sense - 6 (IN)
-        case SCSI_REQUEST_SENSE: {
-            CmdBlock->Flags = MSD_CBW_IN;
-            CmdBlock->Length = 6;
-            CmdBlock->CommandBytes[4] = 18; // Response length
-        } break;
-
-        // Inquiry - 6 (IN)
-        case SCSI_INQUIRY: {
-            CmdBlock->Flags = MSD_CBW_IN;
-            CmdBlock->Length = 6;
-            CmdBlock->CommandBytes[4] = 36; // Response length
-        } break;
-
-        // Read Capacities - 10 (IN)
-        case SCSI_READ_CAPACITY: {
-            CmdBlock->Flags = MSD_CBW_IN;
-            CmdBlock->Length = 10;
-
-            // LBA
-            CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
-            CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
-            CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
-            CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
-        } break;
-
-        // Read Capacities - 16 (IN)
-        case SCSI_READ_CAPACITY_16: {
-            CmdBlock->Flags = MSD_CBW_IN;
-            CmdBlock->Length = 16;
-            CmdBlock->CommandBytes[1] = 0x10; // Service Action
-
-            // LBA
-            CmdBlock->CommandBytes[2] = ((SectorLBA >> 56) & 0xFF);
-            CmdBlock->CommandBytes[3] = ((SectorLBA >> 48) & 0xFF);
-            CmdBlock->CommandBytes[4] = ((SectorLBA >> 40) & 0xFF);
-            CmdBlock->CommandBytes[5] = ((SectorLBA >> 32) & 0xFF);
-            CmdBlock->CommandBytes[6] = ((SectorLBA >> 24) & 0xFF);
-            CmdBlock->CommandBytes[7] = ((SectorLBA >> 16) & 0xFF);
-            CmdBlock->CommandBytes[8] = ((SectorLBA >> 8) & 0xFF);
-            CmdBlock->CommandBytes[9] = (SectorLBA & 0xFF);
-
-            // Sector Count
-            CmdBlock->CommandBytes[10] = ((DataLen >> 24) & 0xFF);
-            CmdBlock->CommandBytes[11] = ((DataLen >> 16) & 0xFF);
-            CmdBlock->CommandBytes[12] = ((DataLen >> 8) & 0xFF);
-            CmdBlock->CommandBytes[13] = (DataLen & 0xFF);
-        } break;
-
-        // Read - 6 (IN)
-        case SCSI_READ_6: {
-            uint8_t NumSectors = (uint8_t)(DataLen / SectorSize);
-            if (DataLen % SectorSize) {
-                NumSectors++;
-            }
-            CmdBlock->Flags = MSD_CBW_IN;
-            CmdBlock->Length = 6;
-
-            // LBA
-            CmdBlock->CommandBytes[1] = ((SectorLBA >> 16) & 0x1F);
-            CmdBlock->CommandBytes[2] = ((SectorLBA >> 8) & 0xFF);
-            CmdBlock->CommandBytes[3] = (SectorLBA & 0xFF);
-
-            // Sector Count
-            CmdBlock->CommandBytes[4] = NumSectors;
-        } break;
-
-        // Read - 10 (IN)
-        case SCSI_READ: {
-            uint16_t NumSectors = (uint16_t)(DataLen / SectorSize);
-            if (DataLen % SectorSize) {
-                NumSectors++;
-            }
-            CmdBlock->Flags = MSD_CBW_IN;
-            CmdBlock->Length = 10;
-
-            // LBA
-            CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
-            CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
-            CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
-            CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
-
-            // Sector Count
-            CmdBlock->CommandBytes[7] = ((NumSectors >> 8) & 0xFF);
-            CmdBlock->CommandBytes[8] = (NumSectors & 0xFF);
-        } break;
-
-        // Read - 12 (IN)
-        case SCSI_READ_12: {
-            uint32_t NumSectors = (uint32_t)(DataLen / SectorSize);
-            if (DataLen % SectorSize) {
-                NumSectors++;
-            }
-            CmdBlock->Flags = MSD_CBW_IN;
-            CmdBlock->Length = 12;
-
-            // LBA
-            CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
-            CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
-            CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
-            CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
-
-            // Sector Count
-            CmdBlock->CommandBytes[6] = ((NumSectors >> 24) & 0xFF);
-            CmdBlock->CommandBytes[7] = ((NumSectors >> 16) & 0xFF);
-            CmdBlock->CommandBytes[8] = ((NumSectors >> 8) & 0xFF);
-            CmdBlock->CommandBytes[9] = (NumSectors & 0xFF);
-        } break;
-
-        // Read - 16 (IN)
-        case SCSI_READ_16: {
-            uint32_t NumSectors = (uint32_t)(DataLen / SectorSize);
-            if (DataLen % SectorSize) {
-                NumSectors++;
-            }
-            CmdBlock->Flags = MSD_CBW_IN;
-            CmdBlock->Length = 16;
-
-            // LBA
-            CmdBlock->CommandBytes[2] = ((SectorLBA >> 56) & 0xFF);
-            CmdBlock->CommandBytes[3] = ((SectorLBA >> 48) & 0xFF);
-            CmdBlock->CommandBytes[4] = ((SectorLBA >> 40) & 0xFF);
-            CmdBlock->CommandBytes[5] = ((SectorLBA >> 32) & 0xFF);
-            CmdBlock->CommandBytes[6] = ((SectorLBA >> 24) & 0xFF);
-            CmdBlock->CommandBytes[7] = ((SectorLBA >> 16) & 0xFF);
-            CmdBlock->CommandBytes[8] = ((SectorLBA >> 8) & 0xFF);
-            CmdBlock->CommandBytes[9] = (SectorLBA & 0xFF);
-
-            // Sector Count
-            CmdBlock->CommandBytes[10] = ((NumSectors >> 24) & 0xFF);
-            CmdBlock->CommandBytes[11] = ((NumSectors >> 16) & 0xFF);
-            CmdBlock->CommandBytes[12] = ((NumSectors >> 8) & 0xFF);
-            CmdBlock->CommandBytes[13] = (NumSectors & 0xFF);
-        } break;
-
-        // Write - 6 (OUT)
-        case SCSI_WRITE_6: {
-            uint8_t NumSectors = (uint8_t)(DataLen / SectorSize);
-            if (DataLen % SectorSize) {
-                NumSectors++;
-            }
-            CmdBlock->Flags = MSD_CBW_OUT;
-            CmdBlock->Length = 6;
-
-            // LBA
-            CmdBlock->CommandBytes[1] = ((SectorLBA >> 16) & 0x1F);
-            CmdBlock->CommandBytes[2] = ((SectorLBA >> 8) & 0xFF);
-            CmdBlock->CommandBytes[3] = (SectorLBA & 0xFF);
-
-            // Sector Count
-            CmdBlock->CommandBytes[4] = NumSectors;
-        } break;
-
-        // Write - 10 (OUT)
-        case SCSI_WRITE: {
-            uint16_t NumSectors = (uint16_t)(DataLen / SectorSize);
-            if (DataLen % SectorSize) {
-                NumSectors++;
-            }
-            CmdBlock->Flags = MSD_CBW_OUT;
-            CmdBlock->Length = 10;
-
-            // LBA
-            CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
-            CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
-            CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
-            CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
-
-            // Sector Count
-            CmdBlock->CommandBytes[7] = ((NumSectors >> 8) & 0xFF);
-            CmdBlock->CommandBytes[8] = (NumSectors & 0xFF);
-        } break;
-
-        // Write - 12 (OUT)
-        case SCSI_WRITE_12: {
-            uint32_t NumSectors = (uint32_t)(DataLen / SectorSize);
-            if (DataLen % SectorSize) {
-                NumSectors++;
-            }
-            CmdBlock->Flags = MSD_CBW_OUT;
-            CmdBlock->Length = 12;
-
-            // LBA
-            CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
-            CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
-            CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
-            CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
-
-            // Sector Count
-            CmdBlock->CommandBytes[6] = ((NumSectors >> 24) & 0xFF);
-            CmdBlock->CommandBytes[7] = ((NumSectors >> 16) & 0xFF);
-            CmdBlock->CommandBytes[8] = ((NumSectors >> 8) & 0xFF);
-            CmdBlock->CommandBytes[9] = (NumSectors & 0xFF);
-        } break;
-
-        // Write - 16 (OUT)
-        case SCSI_WRITE_16: {
-            uint32_t NumSectors = (uint32_t)(DataLen / SectorSize);
-            if (DataLen % SectorSize) {
-                NumSectors++;
-            }
-            CmdBlock->Flags = MSD_CBW_OUT;
-            CmdBlock->Length = 16;
-
-            // LBA
-            CmdBlock->CommandBytes[2] = ((SectorLBA >> 56) & 0xFF);
-            CmdBlock->CommandBytes[3] = ((SectorLBA >> 48) & 0xFF);
-            CmdBlock->CommandBytes[4] = ((SectorLBA >> 40) & 0xFF);
-            CmdBlock->CommandBytes[5] = ((SectorLBA >> 32) & 0xFF);
-            CmdBlock->CommandBytes[6] = ((SectorLBA >> 24) & 0xFF);
-            CmdBlock->CommandBytes[7] = ((SectorLBA >> 16) & 0xFF);
-            CmdBlock->CommandBytes[8] = ((SectorLBA >> 8) & 0xFF);
-            CmdBlock->CommandBytes[9] = (SectorLBA & 0xFF);
-
-            // Sector Count
-            CmdBlock->CommandBytes[10] = ((NumSectors >> 24) & 0xFF);
-            CmdBlock->CommandBytes[11] = ((NumSectors >> 16) & 0xFF);
-            CmdBlock->CommandBytes[12] = ((NumSectors >> 8) & 0xFF);
-            CmdBlock->CommandBytes[13] = (NumSectors & 0xFF);
-        } break;
-    }
-}
-
-/* MsdSCSICommandIn
+/* MsdScsiCommand
  * Perform an SCSI command of the type in. */
 UsbTransferStatus_t 
-MsdSCSICommandIn(
-    _In_ MsdDevice_t *Device,
-    _In_ uint8_t ScsiCommand,
-    _In_ uint64_t SectorStart,
-    _In_ uintptr_t DataAddress,
-    _In_ size_t DataLength)
+MsdScsiCommand(
+    _In_ MsdDevice_t    *Device,
+    _In_ int             Direction,
+    _In_ uint8_t         ScsiCommand,
+    _In_ uint64_t        SectorStart,
+    _In_ uintptr_t       DataAddress,
+    _In_ size_t          DataLength)
 {
     // Variables
-    UsbTransferStatus_t Status;
+    UsbTransferStatus_t Status  = { 0 };
+    size_t DataToTransfer       = DataLength;
 
     // Debug
-    TRACE("MsdSCSICommandIn(Command %u, Start %u, Length %u)",
-        ScsiCommand, LODWORD(SectorStart), DataLength);
-
-    // Send the command
-    Status = Device->Operations->SendCommand(Device, ScsiCommand, 
-        SectorStart, DataAddress, DataLength);
-
-    // Sanitize for any transport errors
-    if (Status != TransferFinished) {
-        ERROR("Failed to send the CBW command (in), transfer-code %u", Status);
-        return Status;
-    }
-
-    // Do the data stage (shared for all protocol)
-    if (DataLength != 0) {
-        Status = Device->Operations->ReadData(Device, DataAddress, DataLength);
-        if (Status != TransferFinished && Status != TransferStalled) {
-            ERROR("Fatal error in ReadData, skipping status stage");
-            return Status;
-        }
-    }
-
-    // Perform the status stage
-    return Device->Operations->GetStatus(Device);
-}
-
-/* MsdSCSICommandOut
- * Perform an SCSI command of the type out. */
-UsbTransferStatus_t 
-MsdSCSICommandOut(
-    _In_ MsdDevice_t *Device,
-    _In_ uint8_t ScsiCommand,
-    _In_ uint64_t SectorStart,
-    _In_ uintptr_t DataAddress,
-    _In_ size_t DataLength)
-{
-    // Variables
-    UsbTransferStatus_t Status;
+    TRACE("MsdScsiCommand(Direction %i, Command %u, Start %u, Length %u)",
+        Direction, ScsiCommand, LODWORD(SectorStart), DataLength);
 
     // It is invalid to send zero length packets for bulk
-    if (DataLength == 0) {
+    if (Direction == 1 && DataLength == 0) {
         ERROR("Cannot write data of length 0 to MSD devices.");
         return TransferInvalid;
     }
@@ -444,14 +159,21 @@ MsdSCSICommandOut(
 
     // Sanitize for any transport errors
     if (Status != TransferFinished) {
-        ERROR("Failed to send the CBW command (out), transfer-code %u", Status);
+        ERROR("Failed to send the CBW command, transfer-code %u", Status);
         return Status;
     }
 
-    Status = Device->Operations->WriteData(Device, DataAddress, DataLength);
-    if (Status != TransferFinished && Status != TransferStalled) {
-        ERROR("Fatal error in ReadData, skipping status stage");
-        return Status;
+    // Do the data stage (shared for all protocol)
+    while (DataToTransfer != 0) {
+        size_t BytesTransferred = 0;
+        if (Direction == 0) Status = Device->Operations->ReadData(Device, DataAddress, DataToTransfer, &BytesTransferred);
+        else Status = Device->Operations->WriteData(Device, DataAddress, DataToTransfer, &BytesTransferred);
+        if (Status != TransferFinished && Status != TransferStalled) {
+            ERROR("Fatal error transfering data, skipping status stage");
+            return Status;
+        }
+        DataToTransfer -= BytesTransferred;
+        DataAddress += BytesTransferred;
     }
 
     // Perform the status stage
@@ -480,8 +202,8 @@ MsdDevicePrepare(
     }
 
     // Don't use test-unit-ready for UFI
-    if (Device->Protocol != ProtocolUFI) {
-        if (MsdSCSICommandIn(Device, SCSI_TEST_UNIT_READY, 0, 0, 0)
+    if (Device->Protocol != ProtocolCB && Device->Protocol != ProtocolCBI) {
+        if (MsdScsiCommand(Device, 0, SCSI_TEST_UNIT_READY, 0, 0, 0)
                 != TransferFinished) {
             ERROR("Failed to perform test-unit-ready command");
             BufferPoolFree(UsbRetrievePool(), (uintptr_t*)SenseBlock);
@@ -491,7 +213,7 @@ MsdDevicePrepare(
     }
 
     // Now request the sense-status
-    if (MsdSCSICommandIn(Device, SCSI_REQUEST_SENSE, 0, 
+    if (MsdScsiCommand(Device, 0, SCSI_REQUEST_SENSE, 0, 
         SenseBlockPhysical, sizeof(ScsiSense_t)) != TransferFinished) {
         ERROR("Failed to perform sense command");
         BufferPoolFree(UsbRetrievePool(), (uintptr_t*)SenseBlock);
@@ -540,7 +262,7 @@ MsdReadCapabilities(
     }
 
     // Perform caps-command
-    if (MsdSCSICommandIn(Device, SCSI_READ_CAPACITY, 0, 
+    if (MsdScsiCommand(Device, 0, SCSI_READ_CAPACITY, 0, 
         CapabilitiesAddress, 8) != TransferFinished) {
         BufferPoolFree(UsbRetrievePool(), (uintptr_t*)CapabilitesPointer);
         return OsError;
@@ -553,7 +275,7 @@ MsdReadCapabilities(
         ScsiExtendedCaps_t *ExtendedCaps = (ScsiExtendedCaps_t*)CapabilitesPointer;
 
         // Perform extended-caps read command
-        if (MsdSCSICommandIn(Device, SCSI_READ_CAPACITY_16, 0, 
+        if (MsdScsiCommand(Device, 0, SCSI_READ_CAPACITY_16, 0, 
             CapabilitiesAddress, sizeof(ScsiExtendedCaps_t)) != TransferFinished) {
             BufferPoolFree(UsbRetrievePool(), (uintptr_t*)CapabilitesPointer);
             return OsError;
@@ -589,7 +311,7 @@ MsdDeviceStart(
 
     // How many iterations of device-ready?
     // Floppys need a lot longer to spin up
-    i = (Device->Protocol == ProtocolUFI) ? 30 : 3;
+    i = (Device->Protocol != ProtocolCB && Device->Protocol != ProtocolCBI) ? 30 : 3;
 
     // Allocate space for inquiry
     if (BufferPoolAllocate(UsbRetrievePool(), sizeof(ScsiInquiry_t), 
@@ -599,7 +321,7 @@ MsdDeviceStart(
     }
 
     // Perform inquiry
-    Status = MsdSCSICommandIn(Device, SCSI_INQUIRY, 0, 
+    Status = MsdScsiCommand(Device, 0, SCSI_INQUIRY, 0, 
         InquiryAddress, sizeof(ScsiInquiry_t));
     if (Status != TransferFinished) {
         ERROR("Failed to perform the inquiry command on device: %u", Status);
@@ -650,11 +372,9 @@ MsdReadSectors(
         LODWORD(SectorStart), BufferLength, BufferAddress);
 
     // Perform the read command
-    Result = MsdSCSICommandIn(Device, 
+    Result = MsdScsiCommand(Device, 0, 
         Device->IsExtended == 0 ? SCSI_READ : SCSI_READ_16,
         SectorStart, BufferAddress, BufferLength);
-
-    TRACE("Read %u bytes", (BufferLength - Device->StatusBlock->DataResidue));
 
     // Sanitize result
     if (Result != TransferFinished) {
@@ -686,7 +406,7 @@ MsdWriteSectors(
     UsbTransferStatus_t Result;
 
     // Perform the read command
-    Result = MsdSCSICommandOut(Device, 
+    Result = MsdScsiCommand(Device, 1, 
         Device->IsExtended == 0 ? SCSI_WRITE : SCSI_WRITE_16,
         SectorStart, BufferAddress, BufferLength);
 

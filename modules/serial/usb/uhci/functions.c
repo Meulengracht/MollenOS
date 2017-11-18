@@ -84,15 +84,15 @@ UhciTransactionInitialize(
 
 	// Allocate a new queue-head
     *QhResult = Qh = UhciQhAllocate(Controller, Transfer->Type, Transfer->Speed);
-    
-    // Calculate transaction count
-	TransactionCount = DIVUP(Transfer->Length, Transfer->Endpoint.MaxPacketSize);
 
 	// Handle bandwidth allocation if neccessary
 	if (Qh != NULL && (Qh->Flags & UHCI_QH_BANDWIDTH_ALLOC)) {
 		// Variables
 		OsStatus_t Run = OsError;
 		int Exponent, Queue;
+
+        // Calculate transaction count
+        TransactionCount = DIVUP(Transfer->Transactions[0].Length, Transfer->Endpoint.MaxPacketSize);
 
 		// Calculate the correct index
 		for (Exponent = 7; Exponent >= 0; --Exponent) {
@@ -108,7 +108,8 @@ UhciTransactionInitialize(
 
 		// Calculate the bandwidth
 		Qh->Bandwidth = UsbCalculateBandwidth(Transfer->Speed, 
-			Transfer->Endpoint.Direction, Transfer->Type, Transfer->Length);
+			Transfer->Endpoint.Direction, Transfer->Type, 
+            Transfer->Transactions[0].Length);
 
 		// Make sure we have enough bandwidth for the transfer
 		if (Exponent > 0) {
@@ -459,7 +460,7 @@ UhciTransactionFinalize(
 		}
 	}
 
-	// Now unallocate theQhED by zeroing that
+	// Now unallocate the Qh by zeroing that
 	memset((void*)Qh, 0, sizeof(UhciQueueHead_t));
 
 	// Update members

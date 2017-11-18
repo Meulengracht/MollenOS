@@ -879,7 +879,8 @@ OhciReloadPeriodic(
 
     // Initiate values
     Qh = (OhciQueueHead_t*)Transfer->EndpointDescriptor;
-    SwitchToggles = Transfer->TransactionCount % 2;
+    SwitchToggles = (DIVUP(Transfer->Transfer.Transactions[0].Length, 
+			Transfer->Transfer.Endpoint.MaxPacketSize)) % 2;
 
     // Do some extra processing for periodics
     if (Transfer->Transfer.Type == InterruptTransfer) {

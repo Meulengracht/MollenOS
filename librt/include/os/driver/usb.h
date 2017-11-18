@@ -193,7 +193,6 @@ PACKED_TYPESTRUCT(UsbTransfer, {
     UUId_t                              Pipe;
 	UsbTransferType_t                   Type;
 	UsbSpeed_t                          Speed;
-	size_t                              Length;
     UsbTransaction_t                    Transactions[3];
     int                                 TransactionCount;
 

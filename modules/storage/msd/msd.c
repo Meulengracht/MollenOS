@@ -39,7 +39,6 @@ static const char *DeviceTypeStrings[TypeCount] = {
 };
 static const char *DeviceProtocolStrings[ProtocolCount] = {
     "Unknown",
-    "UFI",
     "CB",
     "CBI",
     "Bulk"
@@ -96,7 +95,6 @@ MsdDeviceCreate(
     // Determine type of msd
     if (UsbDevice->Interface.Subclass == MSD_SUBCLASS_FLOPPY) {
         Device->Type = TypeFloppy;
-        Device->Protocol = ProtocolUFI;
         Device->AlignedAccess = 1;
         Device->Descriptor.SectorsPerCylinder = 18;
     }

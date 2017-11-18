@@ -98,8 +98,272 @@ BulkResetRecovery(
         return OsError;
     }
 
+    // Reset data toggles for bulk-endpoints
+     if ((ResetType & BULK_RESET_IN) 
+        && UsbEndpointReset(Device->Base.DriverId, Device->Base.DeviceId, 
+        &Device->Base.Device, Device->In) != OsSuccess) {
+        ERROR("Failed to reset endpoint (in)");
+        return OsError;
+    }
+    if ((ResetType & BULK_RESET_OUT) 
+        && UsbEndpointReset(Device->Base.DriverId, Device->Base.DeviceId, 
+        &Device->Base.Device, Device->Out) != OsSuccess) {
+        ERROR("Failed to reset endpoint (out)");
+        return OsError;
+    }
+
     // Reset interface again
     return OsSuccess;
+}
+
+/* BulkScsiCommandConstruct
+ * Constructs a new SCSI command structure from the information given. */
+void
+BulkScsiCommandConstruct(
+    _InOut_ MsdCommandBlock_t *CmdBlock,
+    _In_ uint8_t ScsiCommand,
+    _In_ uint64_t SectorLBA,
+    _In_ uint32_t DataLen,
+    _In_ uint16_t SectorSize)
+{
+    // Reset structure
+    memset((void*)CmdBlock, 0, sizeof(MsdCommandBlock_t));
+
+    // Set initial members
+    CmdBlock->Signature = MSD_CBW_SIGNATURE;
+    CmdBlock->Tag = MSD_TAG_SIGNATURE | ScsiCommand;
+    CmdBlock->CommandBytes[0] = ScsiCommand;
+    CmdBlock->DataLength = DataLen;
+
+    // Switch between supported/implemented commands
+    switch (ScsiCommand) {
+        // Test Unit Ready - 6 (OUT)
+        case SCSI_TEST_UNIT_READY: {
+            CmdBlock->Flags = MSD_CBW_OUT;
+            CmdBlock->Length = 6;
+        } break;
+
+        // Request Sense - 6 (IN)
+        case SCSI_REQUEST_SENSE: {
+            CmdBlock->Flags = MSD_CBW_IN;
+            CmdBlock->Length = 6;
+            CmdBlock->CommandBytes[4] = 18; // Response length
+        } break;
+
+        // Inquiry - 6 (IN)
+        case SCSI_INQUIRY: {
+            CmdBlock->Flags = MSD_CBW_IN;
+            CmdBlock->Length = 6;
+            CmdBlock->CommandBytes[4] = 36; // Response length
+        } break;
+
+        // Read Capacities - 10 (IN)
+        case SCSI_READ_CAPACITY: {
+            CmdBlock->Flags = MSD_CBW_IN;
+            CmdBlock->Length = 10;
+
+            // LBA
+            CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
+            CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
+            CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
+            CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
+        } break;
+
+        // Read Capacities - 16 (IN)
+        case SCSI_READ_CAPACITY_16: {
+            CmdBlock->Flags = MSD_CBW_IN;
+            CmdBlock->Length = 16;
+            CmdBlock->CommandBytes[1] = 0x10; // Service Action
+
+            // LBA
+            CmdBlock->CommandBytes[2] = ((SectorLBA >> 56) & 0xFF);
+            CmdBlock->CommandBytes[3] = ((SectorLBA >> 48) & 0xFF);
+            CmdBlock->CommandBytes[4] = ((SectorLBA >> 40) & 0xFF);
+            CmdBlock->CommandBytes[5] = ((SectorLBA >> 32) & 0xFF);
+            CmdBlock->CommandBytes[6] = ((SectorLBA >> 24) & 0xFF);
+            CmdBlock->CommandBytes[7] = ((SectorLBA >> 16) & 0xFF);
+            CmdBlock->CommandBytes[8] = ((SectorLBA >> 8) & 0xFF);
+            CmdBlock->CommandBytes[9] = (SectorLBA & 0xFF);
+
+            // Sector Count
+            CmdBlock->CommandBytes[10] = ((DataLen >> 24) & 0xFF);
+            CmdBlock->CommandBytes[11] = ((DataLen >> 16) & 0xFF);
+            CmdBlock->CommandBytes[12] = ((DataLen >> 8) & 0xFF);
+            CmdBlock->CommandBytes[13] = (DataLen & 0xFF);
+        } break;
+
+        // Read - 6 (IN)
+        case SCSI_READ_6: {
+            uint8_t NumSectors = (uint8_t)(DataLen / SectorSize);
+            if (DataLen % SectorSize) {
+                NumSectors++;
+            }
+            CmdBlock->Flags = MSD_CBW_IN;
+            CmdBlock->Length = 6;
+
+            // LBA
+            CmdBlock->CommandBytes[1] = ((SectorLBA >> 16) & 0x1F);
+            CmdBlock->CommandBytes[2] = ((SectorLBA >> 8) & 0xFF);
+            CmdBlock->CommandBytes[3] = (SectorLBA & 0xFF);
+
+            // Sector Count
+            CmdBlock->CommandBytes[4] = NumSectors;
+        } break;
+
+        // Read - 10 (IN)
+        case SCSI_READ: {
+            uint16_t NumSectors = (uint16_t)(DataLen / SectorSize);
+            if (DataLen % SectorSize) {
+                NumSectors++;
+            }
+            CmdBlock->Flags = MSD_CBW_IN;
+            CmdBlock->Length = 10;
+
+            // LBA
+            CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
+            CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
+            CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
+            CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
+
+            // Sector Count
+            CmdBlock->CommandBytes[7] = ((NumSectors >> 8) & 0xFF);
+            CmdBlock->CommandBytes[8] = (NumSectors & 0xFF);
+        } break;
+
+        // Read - 12 (IN)
+        case SCSI_READ_12: {
+            uint32_t NumSectors = (uint32_t)(DataLen / SectorSize);
+            if (DataLen % SectorSize) {
+                NumSectors++;
+            }
+            CmdBlock->Flags = MSD_CBW_IN;
+            CmdBlock->Length = 12;
+
+            // LBA
+            CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
+            CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
+            CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
+            CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
+
+            // Sector Count
+            CmdBlock->CommandBytes[6] = ((NumSectors >> 24) & 0xFF);
+            CmdBlock->CommandBytes[7] = ((NumSectors >> 16) & 0xFF);
+            CmdBlock->CommandBytes[8] = ((NumSectors >> 8) & 0xFF);
+            CmdBlock->CommandBytes[9] = (NumSectors & 0xFF);
+        } break;
+
+        // Read - 16 (IN)
+        case SCSI_READ_16: {
+            uint32_t NumSectors = (uint32_t)(DataLen / SectorSize);
+            if (DataLen % SectorSize) {
+                NumSectors++;
+            }
+            CmdBlock->Flags = MSD_CBW_IN;
+            CmdBlock->Length = 16;
+
+            // LBA
+            CmdBlock->CommandBytes[2] = ((SectorLBA >> 56) & 0xFF);
+            CmdBlock->CommandBytes[3] = ((SectorLBA >> 48) & 0xFF);
+            CmdBlock->CommandBytes[4] = ((SectorLBA >> 40) & 0xFF);
+            CmdBlock->CommandBytes[5] = ((SectorLBA >> 32) & 0xFF);
+            CmdBlock->CommandBytes[6] = ((SectorLBA >> 24) & 0xFF);
+            CmdBlock->CommandBytes[7] = ((SectorLBA >> 16) & 0xFF);
+            CmdBlock->CommandBytes[8] = ((SectorLBA >> 8) & 0xFF);
+            CmdBlock->CommandBytes[9] = (SectorLBA & 0xFF);
+
+            // Sector Count
+            CmdBlock->CommandBytes[10] = ((NumSectors >> 24) & 0xFF);
+            CmdBlock->CommandBytes[11] = ((NumSectors >> 16) & 0xFF);
+            CmdBlock->CommandBytes[12] = ((NumSectors >> 8) & 0xFF);
+            CmdBlock->CommandBytes[13] = (NumSectors & 0xFF);
+        } break;
+
+        // Write - 6 (OUT)
+        case SCSI_WRITE_6: {
+            uint8_t NumSectors = (uint8_t)(DataLen / SectorSize);
+            if (DataLen % SectorSize) {
+                NumSectors++;
+            }
+            CmdBlock->Flags = MSD_CBW_OUT;
+            CmdBlock->Length = 6;
+
+            // LBA
+            CmdBlock->CommandBytes[1] = ((SectorLBA >> 16) & 0x1F);
+            CmdBlock->CommandBytes[2] = ((SectorLBA >> 8) & 0xFF);
+            CmdBlock->CommandBytes[3] = (SectorLBA & 0xFF);
+
+            // Sector Count
+            CmdBlock->CommandBytes[4] = NumSectors;
+        } break;
+
+        // Write - 10 (OUT)
+        case SCSI_WRITE: {
+            uint16_t NumSectors = (uint16_t)(DataLen / SectorSize);
+            if (DataLen % SectorSize) {
+                NumSectors++;
+            }
+            CmdBlock->Flags = MSD_CBW_OUT;
+            CmdBlock->Length = 10;
+
+            // LBA
+            CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
+            CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
+            CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
+            CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
+
+            // Sector Count
+            CmdBlock->CommandBytes[7] = ((NumSectors >> 8) & 0xFF);
+            CmdBlock->CommandBytes[8] = (NumSectors & 0xFF);
+        } break;
+
+        // Write - 12 (OUT)
+        case SCSI_WRITE_12: {
+            uint32_t NumSectors = (uint32_t)(DataLen / SectorSize);
+            if (DataLen % SectorSize) {
+                NumSectors++;
+            }
+            CmdBlock->Flags = MSD_CBW_OUT;
+            CmdBlock->Length = 12;
+
+            // LBA
+            CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
+            CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
+            CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
+            CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
+
+            // Sector Count
+            CmdBlock->CommandBytes[6] = ((NumSectors >> 24) & 0xFF);
+            CmdBlock->CommandBytes[7] = ((NumSectors >> 16) & 0xFF);
+            CmdBlock->CommandBytes[8] = ((NumSectors >> 8) & 0xFF);
+            CmdBlock->CommandBytes[9] = (NumSectors & 0xFF);
+        } break;
+
+        // Write - 16 (OUT)
+        case SCSI_WRITE_16: {
+            uint32_t NumSectors = (uint32_t)(DataLen / SectorSize);
+            if (DataLen % SectorSize) {
+                NumSectors++;
+            }
+            CmdBlock->Flags = MSD_CBW_OUT;
+            CmdBlock->Length = 16;
+
+            // LBA
+            CmdBlock->CommandBytes[2] = ((SectorLBA >> 56) & 0xFF);
+            CmdBlock->CommandBytes[3] = ((SectorLBA >> 48) & 0xFF);
+            CmdBlock->CommandBytes[4] = ((SectorLBA >> 40) & 0xFF);
+            CmdBlock->CommandBytes[5] = ((SectorLBA >> 32) & 0xFF);
+            CmdBlock->CommandBytes[6] = ((SectorLBA >> 24) & 0xFF);
+            CmdBlock->CommandBytes[7] = ((SectorLBA >> 16) & 0xFF);
+            CmdBlock->CommandBytes[8] = ((SectorLBA >> 8) & 0xFF);
+            CmdBlock->CommandBytes[9] = (SectorLBA & 0xFF);
+
+            // Sector Count
+            CmdBlock->CommandBytes[10] = ((NumSectors >> 24) & 0xFF);
+            CmdBlock->CommandBytes[11] = ((NumSectors >> 16) & 0xFF);
+            CmdBlock->CommandBytes[12] = ((NumSectors >> 8) & 0xFF);
+            CmdBlock->CommandBytes[13] = (NumSectors & 0xFF);
+        } break;
+    }
 }
 
 /* BulkInitialize 
@@ -143,12 +407,9 @@ MsdSanitizeResponse(
     _In_ MsdDevice_t *Device, 
     _In_ MsdCommandStatus_t *Csw)
 {
-    // Start out by checking if a phase error occured, in that case we are screwed
+    // Check for phase errors
     if (Csw->Status == MSD_CSW_PHASE_ERROR) {
         ERROR("Phase error returned in CSW.");
-        if (BulkResetRecovery(Device, BULK_RESET_ALL) != OsSuccess) {
-            ERROR("Failed to perform a recovery reset.");
-        }
         return TransferInvalid;
     }
 
@@ -193,7 +454,7 @@ BulkSendCommand(
         ScsiCommand, LODWORD(SectorStart), DataLength);
 
     // Construct our command build the usb transfer
-    MsdSCSICommmandConstruct(Device->CommandBlock, ScsiCommand, SectorStart, 
+    BulkScsiCommandConstruct(Device->CommandBlock, ScsiCommand, SectorStart, 
         DataLength, (uint16_t)Device->Descriptor.SectorSize);
     UsbTransferInitialize(&CommandStage, &Device->Base.Device, 
         Device->Out, BulkTransfer);
@@ -221,7 +482,8 @@ UsbTransferStatus_t
 BulkReadData(
     _In_ MsdDevice_t *Device,
     _In_ uintptr_t DataAddress,
-    _In_ size_t DataLength)
+    _In_ size_t DataLength,
+    _Out_ size_t *BytesRead)
 {
     // Variables
     UsbTransferResult_t Result  = { 0 };
@@ -231,12 +493,14 @@ BulkReadData(
     UsbTransferInitialize(&DataStage, &Device->Base.Device, 
         Device->In, BulkTransfer);
     UsbTransferIn(&DataStage, DataAddress, DataLength, 0);
+    ThreadSleep(100);
     UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
         &DataStage, &Result);
     
     // Sanitize for any transport errors
     // The host shall accept the data received.
     // The host shall clear the Bulk-In pipe.
+    TRACE("Bytes transferred %u", Result.BytesTransferred);
     if (Result.Status != TransferFinished) {
         ERROR("Data-stage failed with status %u, cleaning up bulk-in", Result.Status);
         if (Result.Status == TransferStalled) {
@@ -248,7 +512,8 @@ BulkReadData(
         }
     }
 
-    // Return state
+    // Return state and update out
+    *BytesRead = Result.BytesTransferred;
     return Result.Status;
 }
 
@@ -258,7 +523,8 @@ UsbTransferStatus_t
 BulkWriteData(
     _In_ MsdDevice_t *Device,
     _In_ uintptr_t DataAddress,
-    _In_ size_t DataLength)
+    _In_ size_t DataLength,
+    _Out_ size_t *BytesWritten)
 {
     // Variables
     UsbTransferResult_t Result  = { 0 };
@@ -286,6 +552,7 @@ BulkWriteData(
     }
 
     // Return state
+    *BytesWritten = Result.BytesTransferred;
     return Result.Status;
 }
 
@@ -315,14 +582,19 @@ BulkGetStatus(
     // On a STALL condition receiving the CSW, then:
     // The host shall clear the Bulk-In pipe.
     // The host shall again attempt to receive the CSW.
-    // If the host receives a CSW which is not valid, 
-    // then the host shall perform a Reset Recovery. If the host receives
-    // a CSW which is not meaningful, then the host may perform a Reset Recovery.
-    // retries @todo
     if (Result.Status != TransferFinished) {
-        ERROR("Failed to retrieve the CSW block, transfer-code %u", Result.Status);
+        if (Result.Status == TransferStalled) {
+            BulkResetRecovery(Device, BULK_RESET_IN);
+            return BulkGetStatus(Device);
+        }
+        else {
+            ERROR("Failed to retrieve the CSW block, transfer-code %u", Result.Status);
+        }
     }
-    else {
+    else {        
+        // If the host receives a CSW which is not valid, 
+        // then the host shall perform a Reset Recovery. If the host receives
+        // a CSW which is not meaningful, then the host may perform a Reset Recovery.
         Result.Status = MsdSanitizeResponse(Device, Device->StatusBlock);
     }
     return Result.Status;

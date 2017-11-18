@@ -45,15 +45,11 @@ EhciTransactionInitialize(
 {
     // Variables
     EhciQueueHead_t *Qh = NULL;
-    size_t TransactionCount = 0;
     size_t Address, Endpoint;
 
     // Extract address and endpoint
     Address = HIWORD(Pipe);
     Endpoint = LOWORD(Pipe);
-
-    // Calculate transaction count
-    TransactionCount = DIVUP(Transfer->Length, Transfer->Endpoint.MaxPacketSize);
 
     // We handle Isochronous transfers a bit different
     if (Transfer->Type != IsochronousTransfer) {
@@ -64,7 +60,7 @@ EhciTransactionInitialize(
             if (EhciQhInitialize(Controller, Qh, Transfer->Speed, 
                 Transfer->Endpoint.Direction,
                 Transfer->Type, Transfer->Endpoint.Interval,
-                Transfer->Endpoint.MaxPacketSize, Transfer->Length) != OsSuccess) {
+                Transfer->Endpoint.MaxPacketSize, Transfer->Transactions[0].Length) != OsSuccess) {
                 return OsError;
             }
         }

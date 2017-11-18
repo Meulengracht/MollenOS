@@ -18,7 +18,7 @@ OBJECTS = $(SOURCES:.c=.o)
 
 # Setup flags and stuff each for individual build  $(subst ../,,$(ASM_SRCS))
 ifeq ($(MAKECMDGOALS), libdsk)
-	CFLAGS = $(GCFLAGS) -D_KRNL_DLL $(COMMON_INCLUDES) $(KERNEL_INCLUDES)
+	CFLAGS = $(GCFLAGS) -D_KRNL_DLL -mno-sse $(COMMON_INCLUDES) $(KERNEL_INCLUDES)
 else
 	CFLAGS = $(GCFLAGS) -D_KRNL_DLL $(COMMON_INCLUDES)
 endif

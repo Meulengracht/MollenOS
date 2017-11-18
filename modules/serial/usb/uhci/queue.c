@@ -389,8 +389,8 @@ UhciQhAllocate(
 		// We found a free qh - mark it allocated and end
 		// but reset the QH first
 		memset(&Controller->QueueControl.QHPool[i], 0, sizeof(UhciQueueHead_t));
-		Controller->QueueControl.QHPool[i].Flags = UHCI_QH_ACTIVE | UHCI_QH_INDEX(i)
-				| UHCI_QH_TYPE((uint32_t)Type);
+		Controller->QueueControl.QHPool[i].Flags = UHCI_QH_ACTIVE 
+            | UHCI_QH_INDEX(i) | UHCI_QH_TYPE((uint32_t)Type);
 		
 		// Determine which queue-priority
 		if (Speed == LowSpeed && Type == ControlTransfer) {
@@ -411,7 +411,6 @@ UhciQhAllocate(
 		break;
 	}
 	
-
 	// Release the lock, let others pass
 	SpinlockRelease(&Controller->Base.Lock);
 	return Qh;
@@ -765,9 +764,9 @@ UhciProcessRequest(
 		}
 
 		// Finalize transaction and remove from list
-        UhciTransactionFinalize(Controller, Transfer, 1);
         CollectionRemoveByNode(Controller->QueueControl.TransactionList, Node);
         CollectionDestroyNode(Controller->QueueControl.TransactionList, Node);
+        UhciTransactionFinalize(Controller, Transfer, 1);
 	}
 	else if (Transfer->Transfer.Type == InterruptTransfer) {
 
@@ -778,7 +777,7 @@ UhciProcessRequest(
 		// Setup some variables
 		Qh = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
         Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
-		SwitchToggles = (DIVUP(Transfer->Transfer.Length, 
+		SwitchToggles = (DIVUP(Transfer->Transfer.Transactions[0].Length, 
 			Transfer->Transfer.Endpoint.MaxPacketSize)) % 2;
 
 		// Do we need to fix toggles?
