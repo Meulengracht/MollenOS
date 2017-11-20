@@ -319,7 +319,7 @@ UhciUpdateCurrentFrame(
     // Read the current frame, and use the last read frame to calculate the delta
     // then add to current frame
     FrameNo = UhciRead16(Controller, UHCI_REGISTER_FRNUM);
-    Delta = (FrameNo - Controller->QueueControl.Frame) & (UHCI_FRAME_MASK - 1);
+    Delta = (FrameNo - Controller->QueueControl.Frame) & UHCI_FRAME_MASK;
     Controller->QueueControl.Frame += Delta;
 }
 
