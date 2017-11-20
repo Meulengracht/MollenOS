@@ -37,7 +37,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-
 /* UsbQueueDebug
  * Dumps the QH-settings and all the attached td's */
 void
@@ -240,8 +239,8 @@ UhciTransactionDispatch(
         PrevQh->LinkIndex = QhIndex;
 #ifdef UHCI_FSBR
         /* FSBR? */
-        if (PrevQueue < UHCI_POOL_FSBR
-            && Queue >= UHCI_POOL_FSBR) {
+        if (PrevQueue < UHCI_QH_FSBRQ
+            && Queue >= UHCI_QH_FSBRQ) {
             /* Link NULL to fsbr */
             Ctrl->QhPool[UHCI_POOL_NULL]->Link = (QhAddress | UHCI_TD_LINK_QH);
             Ctrl->QhPool[UHCI_POOL_NULL]->LinkVirtual = (uint32_t)Qh;
@@ -302,6 +301,9 @@ UhciTransactionFinalize(
     // Debug
     TRACE("UhciTransactionFinalize()");
 
+    // Set status to finished initially
+    Transfer->Status = TransferFinished;
+
     /*************************
      *** VALIDATION PHASE ****
      *************************/
@@ -331,11 +333,9 @@ UhciTransactionFinalize(
                     Td->Flags, Td->Header, Td->Buffer, ErrorCode);
 
                 // Now validate the code
-                if (ErrorCode == 0 && Transfer->Status == TransferFinished)
-                    Transfer->Status = TransferFinished;
-                else {
+                if (ErrorCode != 0) {
+                    WARNING("Transfer non-success: %i (Flags 0x%x)", ErrorCode, Td->Flags);
                     Transfer->Status = UhciGetStatusCode(ErrorCode);
-                    break;
                 }
             }
 

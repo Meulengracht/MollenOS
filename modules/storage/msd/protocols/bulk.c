@@ -500,7 +500,6 @@ BulkReadData(
     // Sanitize for any transport errors
     // The host shall accept the data received.
     // The host shall clear the Bulk-In pipe.
-    TRACE("Bytes transferred %u", Result.BytesTransferred);
     if (Result.Status != TransferFinished) {
         ERROR("Data-stage failed with status %u, cleaning up bulk-in", Result.Status);
         if (Result.Status == TransferStalled) {
