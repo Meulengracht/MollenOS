@@ -33,7 +33,6 @@
 #include <debug.h>
 #include <apic.h>
 #include <heap.h>
-#include <log.h>
 
 /* Includes
  * - Library */
@@ -148,7 +147,7 @@ void AcpiSetupIoApic(void *Data, int Nr, void *UserData)
 	uintptr_t RemapTo = (uintptr_t)MmReserveMemory(1);
 
 	/* Debug */
-	LogInformation("APIC", "Initializing I/O Apic %u", IoApic->Id);
+	TRACE("Initializing I/O Apic %u", IoApic->Id);
 
 	/* Relocate the IoApic */
 	MmVirtualMap(NULL, IoApic->Address, RemapTo, PAGE_CACHE_DISABLE);
@@ -167,7 +166,7 @@ void AcpiSetupIoApic(void *Data, int Nr, void *UserData)
 	IoEntries &= 0xFF;
 
 	/* Debug */
-	LogInformation("APIC", "Io Entries: %u", IoEntries);
+	TRACE("Io Entries: %u", IoEntries);
 
 	/* Fill rest of info */
 	IoListEntry->PinCount = IoEntries + 1;

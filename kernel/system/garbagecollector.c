@@ -20,13 +20,15 @@
  * - Makes it possible for regular cleanup in the kernel
  *   or regular maintiance.
  */
+#define __MODULE "GCIF"
+#define __TRACE
 
 /* Includes
  * - System */
 #include <garbagecollector.h>
 #include <semaphore.h>
 #include <threading.h>
-#include <log.h>
+#include <debug.h>
 
 /* Includes
  * - Library */
@@ -69,7 +71,7 @@ void
 GcInitialize(void)
 {
 	// Debug information
-	LogInformation("GCLL", "Initializing Garbage Collector");
+	TRACE("GcInitialize()");
 
 	// Sanitize list status
 	if (GlbGcInitialized != 1) {

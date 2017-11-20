@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011 - 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,7 +19,9 @@
  * MollenOS Heap Manager (Dynamic Buddy Block System)
  * DBBS Heap Manager
  * Version History:
- * - Version 1.1: The heap allocator is being upgraded yet again
+ * - Version 2.0: Code refactoring, bug-fix with identifiers and
+ *                lock improvements, a deadlock was present before.
+ * - Version 1.1: The heap allocator has been upgraded 
  *                to involve better error checking, boundary checking
  *                and involve a buddy-allocator system
  *
@@ -34,183 +36,144 @@
 #define _MCORE_HEAP_H_
 
 /* Includes
- * - Library */
-#include <os/osdefs.h>
-
-/* Includes 
  * - System */
-#include <criticalsection.h>
+#include <os/osdefs.h>
+#include <mutex.h>
 
-/***************************
- * Heap Management
- ***************************/
-
-/* These are defined from trial and error 
+/* Heap Definitions 
+ * These are defined from trial and error 
  * and should probably never be any LESS than
  * these values, of course they could be higher */
-#define MEMORY_STATIC_OFFSET	0x400000 
-#define HEAP_NORMAL_BLOCK		0x2000
-#define HEAP_LARGE_BLOCK		0x20000
+#define HEAP_HEADER_MEMORYSIZE      1 // Percentage reserved for header usage. Can be increased, never lower
+#define HEAP_NORMAL_BLOCK           0x2000
+#define HEAP_LARGE_BLOCK            0x20000
+#define HEAP_IDENTIFICATION_SIZE    16
+#define HEAP_STANDARD_ALIGN         4
+//#define HEAP_USE_IDENTIFICATION
 
-#define HEAP_IDENT_SIZE			8
-#define HEAP_STANDARD_ALIGN		4
-
-/* The basic HeapNode, this describes a node in a block
- * of memory, and contains basic properties. 
- * The size of this is 12 bytes + HEAP_IDENT_SIZE */
-typedef struct _HeapNode
-{
-	/* Node Identifier 
-	 * A very short-text (optional)
-	 * describing the allocation */
-	char Identifier[HEAP_IDENT_SIZE];
-
-	/* Base Address of the allocation
-	 * made, used for finding the allocation */
-	uintptr_t Address;
-
-	/* Node Flags 
-	 * Used to set different status flags for
-	 * this node */
-	Flags_t Flags;
-
-	/* Node Length 
-	 * Describes the length of this allocation or
-	 * just the length of this unallocated block */
-	size_t Length;
-
-	/* Node Link */
-	struct _HeapNode *Link;
-
+/* HeapNode 
+ * Describes an allocation header. */
+typedef struct _HeapNode {
+#ifdef HEAP_USE_IDENTIFICATION
+    char                 Identifier[HEAP_IDENTIFICATION_SIZE];
+#endif
+    uintptr_t            Address;
+    size_t               Length;
+    Flags_t              Flags;
+    struct _HeapNode    *Link;
 } HeapNode_t;
 
-/* Heap node flags, used by <Flags> in 
- * the heap node structure */
-#define NODE_ALLOCATED				0x1
+/* HeapNode::Flags
+ * Contains definitions and bitfield definitions for HeapNode::Flags */
+#define NODE_ALLOCATED              0x1
 
-/* A block descriptor in the heap, 
- * contains a memory range, used like a bucket */
-typedef struct _HeapBlock
-{
-	/* Block Address Range 
-	 * Describes the Start - End Address */
-	uintptr_t AddressStart;
-	uintptr_t AddressEnd;
+/* HeapBlock
+ * Contains a number of heap-nodes to describe a region of memory. */
+typedef struct _HeapBlock {
+    Mutex_t              Lock;
+    uintptr_t            BaseAddress;
+    uintptr_t            EndAddress;
+    Flags_t              Flags;
+    uintptr_t            Mask;
+    size_t               BytesFree;
 
-	/* Block Flags 
-	 * Used to set different status flags for
-	 * this block */
-	Flags_t Flags;
-
-	/* Block Address Mask
-	 * This is for masked allocations 
-	 * The mask must match or be less than this */
-	uintptr_t Mask;
-
-	/* Shortcut stats for quickly checking
-	 * whether an allocation can be made */
-	size_t BytesFree;
-
-	/* The block link to the next
-	 * block in the heap */
-	struct _HeapBlock *Link;
-
-	/* The children nodes of this
-	 * memory block */
-	struct _HeapNode *Nodes;
-
+    struct _HeapBlock   *Link;
+    struct _HeapNode    *Nodes;
 } HeapBlock_t;
 
-/* Heap block flags, used by the <Flags> field
- * in a heap block to describe it */
-#define BLOCK_NORMAL				0x0
-#define BLOCK_ALIGNED				0x1
-#define BLOCK_VERY_LARGE			0x2
+/* HeapBlock::Flags
+ * Contains definitions and bitfield definitions for HeapBlock::Flags */
+#define BLOCK_NORMAL                0x0
+#define BLOCK_ALIGNED               0x1
+#define BLOCK_VERY_LARGE            0x2
 
-/* This is the MCore Heap Structure 
- * and describes a memory region that can
- * be allocated from */
-typedef struct _HeapRegion
-{
-	/* Heap Region 
-	 * Stat variables, keep track of current allocations
-	 * for headers and base memory */
-	uintptr_t HeapBase;
-	uintptr_t MemStartData;
-	uintptr_t MemHeaderCurrent;
-	uintptr_t MemHeaderMax;
-	uintptr_t HeapEnd;
+/* HeapRegion
+ * Describes a larger region of memory from where allocations
+ * are possible. Reuses header blocks and reserves area for headers. */
+typedef struct _HeapRegion {
+    Mutex_t              Lock;
+    uintptr_t            BaseHeaderAddress;
+    uintptr_t            BaseDataAddress;
+    uintptr_t            EndAddress;
+    uintptr_t            DataCurrent;
+    uintptr_t            HeaderCurrent;
+    int                  IsUser;
 
-	/* Whether or not this is a user heap
-	 * we need to know this when mapping in memory */
-	int IsUser;
+    size_t               BytesAllocated;
+    size_t               NumAllocs;
+    size_t               NumFrees;
+    size_t               NumPages;
+    HeapBlock_t         *BlockRecycler;
+    HeapNode_t          *NodeRecycler;
 
-	/* Heap Region 
-	 * Statistic variables, used to see interesting stuff */
-	size_t BytesAllocated;
-	size_t NumAllocs;
-	size_t NumFrees;
-	size_t NumPages;
-
-	/* Heap Region Lock
-	 * This is for critical stuff during allocation */
-	CriticalSection_t Lock;
-
-	/* Recyclers 
-	 * Used by the region to reuse headers, nodes and blocks */
-	HeapBlock_t *BlockRecycler;
-	HeapNode_t *NodeRecycler;
-
-	/* The children nodes of this
-	 * memory region */
-	struct _HeapBlock *Blocks;
-	struct _HeapBlock *PageBlocks;
-	struct _HeapBlock *CustomBlocks;
-
+    struct _HeapBlock   *Blocks;
+    struct _HeapBlock   *PageBlocks;
+    struct _HeapBlock   *CustomBlocks;
 } Heap_t;
 
-/* Allocation Flags */
-#define ALLOCATION_COMMIT			0x1
+// Options for allocations
+#define ALLOCATION_COMMIT           0x00000001
+#define ALLOCATION_ZERO             0x00000002
 
-/* HeapAllocate 
- * Finds a suitable block for allocation
- * and allocates in that block, this is primary
- * allocator of the heap */
-__EXTERN uintptr_t HeapAllocate(Heap_t *Heap, size_t Size,
-	Flags_t Flags, size_t Alignment, uintptr_t Mask, const char *Identifier);
+/* HeapConstruct
+ * Constructs a new heap, the structure must be pre-allocated
+ * or static. Use this for creating the system heap. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+HeapConstruct(
+    _In_ Heap_t     *Heap,
+    _In_ uintptr_t   BaseAddress,
+    _In_ uintptr_t   EndAddress,
+    _In_ int         UserHeap);
 
-/* HeapFree
- * Finds the appropriate block
- * that should contain our node */
-__EXTERN void HeapFree(Heap_t *Heap, uintptr_t Addr);
+/* HeapDestroy
+ * Destroys a heap, frees all memory allocated and pages. */
 
-/* HeapQueryMemoryInformation
- * Queries memory information about a heap
- * useful for processes and such */
-__EXTERN int HeapQueryMemoryInformation(Heap_t *Heap,
-	size_t *BytesInUse, size_t *BlocksAllocated);
+/* HeapMaintain
+ * Maintaining procedure cleaning up un-used pages to the system.
+ * Should be called once in a while. Returns number of bytes freed. */
+KERNELAPI
+size_t
+KERNELABI
+HeapMaintain(
+    _In_ Heap_t *Heap);
 
-/* HeapInit
- * This initializes the kernel heap and 
- * readies the first few blocks for allocation
- * this MUST be called before any calls to *mallocs */
-__EXTERN void HeapInit(void);
-
-/* HeapCreate
- * This function allocates a 'third party' heap that
- * can be used like a memory region for allocations, usefull
- * for servers, shared memory, processes etc */
-__EXTERN Heap_t *HeapCreate(uintptr_t HeapAddress, uintptr_t HeapEnd, int UserHeap);
-
-/* Helper function that enumerates the given heap 
+/* HeapStatisticsPrint
+ * Helper function that enumerates the given heap 
  * and prints out different allocation stats of heap */
-__EXTERN void HeapPrintStats(Heap_t *Heap);
-__EXTERN void HeapReap(void);
+KERNELAPI
+void
+KERNELABI
+HeapStatisticsPrint(
+    _In_ Heap_t *Heap);
 
 /* Used for validation that an address is allocated
  * within the given heap, this can be used for security
  * or validation purposes, use NULL for kernel heap */
-__EXTERN int HeapValidateAddress(Heap_t *Heap, uintptr_t Address);
+KERNELAPI
+OsStatus_t
+KERNELABI
+HeapValidateAddress(
+    Heap_t *Heap,
+    uintptr_t Address);
+
+/* HeapQueryMemoryInformation
+ * Queries memory information about the given heap. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+HeapQueryMemoryInformation(
+    _In_ Heap_t *Heap,
+    _Out_ size_t *BytesInUse, 
+    _Out_ size_t *BlocksAllocated);
+
+/* HeapGetKernel
+ * Retrieves a pointer to the static system heap. */
+KERNELAPI
+Heap_t*
+KERNELABI
+HeapGetKernel(void);
 
 /* Simply just a wrapper for HeapAllocate
  * with the kernel heap as argument 

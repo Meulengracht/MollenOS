@@ -493,7 +493,7 @@ MmVirtualInit(void)
 	int i;
 
 	// Trace information
-	LogInformation("VMEM", "Initializing");
+	TRACE("MmVirtualInit()");
 
 	// Initialize reserved pointer
 	GblReservedPtr = MEMORY_LOCATION_RESERVED;
@@ -519,19 +519,19 @@ MmVirtualInit(void)
 	SpinlockReset(&GlbVmLock);
 
 	// Pre-map heap region
-	LogInformation("VMEM", "Mapping heap region to 0x%x", MEMORY_LOCATION_HEAP);
+	TRACE("Mapping heap region to 0x%x", MEMORY_LOCATION_HEAP);
 	MmVirtualIdentityMapMemoryRange(GlbKernelPageDirectory, 0, MEMORY_LOCATION_HEAP,
 		(MEMORY_LOCATION_HEAP_END - MEMORY_LOCATION_HEAP), 0, 0);
 
 	// Pre-map video region
-	LogInformation("VMEM", "Mapping video memory to 0x%x", MEMORY_LOCATION_VIDEO);
+	TRACE("Mapping video memory to 0x%x", MEMORY_LOCATION_VIDEO);
 	MmVirtualIdentityMapMemoryRange(GlbKernelPageDirectory, VideoGetTerminal()->Info.FrameBufferAddress,
 		MEMORY_LOCATION_VIDEO, (VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height),
 		1, PAGE_USER);
 
 	// Install the page table at the reserved system
 	// memory, important! 
-	LogInformation("VMEM", "Mapping reserved memory to 0x%x", MEMORY_LOCATION_RESERVED);
+	TRACE("Mapping reserved memory to 0x%x", MEMORY_LOCATION_RESERVED);
 
 	// Iterate all saved physical system memory mappings
 	for (i = 0; i < 32; i++) {

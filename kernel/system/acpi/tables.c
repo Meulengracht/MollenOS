@@ -18,20 +18,20 @@
  *
  * MollenOS MCore - ACPI(CA) Table Enumeration Interface
  */
+#define __MODULE "TBIF"
+#define __TRACE
 
 /* Includes 
  * - System */
 #include <acpiinterface.h>
 #include <heap.h>
-#include <log.h>
+#include <debug.h>
 
 /* Globals 
  * - Global state keeping */
 AcpiEcdt_t __GlbECDT;
 Collection_t *GlbAcpiNodes = NULL;
 int GlbAcpiAvailable = ACPI_NOT_AVAILABLE;
-
-/* Static Acpica */
 static ACPI_TABLE_DESC TableArray[ACPI_MAX_INIT_TABLES];
 
 /* Enumerate MADT Entries */
@@ -48,11 +48,8 @@ void AcpiEnumarateMADT(void *MadtStart, void *MadtEnd)
 		if (MadtEntry->Length < sizeof(ACPI_SUBTABLE_HEADER))
 			return;
 
-		switch (MadtEntry->Type)
-		{
-			/* Processor Core */
-			case ACPI_MADT_TYPE_LOCAL_APIC:
-			{
+		switch (MadtEntry->Type) {
+			case ACPI_MADT_TYPE_LOCAL_APIC: {
 				/* Allocate a new structure */
 				ACPI_MADT_LOCAL_APIC *CpuNode = 
 					(ACPI_MADT_LOCAL_APIC*)kmalloc(sizeof(ACPI_MADT_LOCAL_APIC));
@@ -68,9 +65,7 @@ void AcpiEnumarateMADT(void *MadtStart, void *MadtEnd)
 				CollectionAppend(GlbAcpiNodes, CollectionCreateNode(Key, CpuNode));
 
 				/* Debug */
-				LogInformation("MADT", "Found CPU: %u (%s)", 
-					AcpiCpu->Id, (AcpiCpu->LapicFlags & 0x1) ? "Active" : "Inactive");
-
+				TRACE("Found CPU: %u (%s)", AcpiCpu->Id, (AcpiCpu->LapicFlags & 0x1) ? "Active" : "Inactive");
 			} break;
 
 		/* IO Apic */
@@ -91,8 +86,7 @@ void AcpiEnumarateMADT(void *MadtStart, void *MadtEnd)
 			CollectionAppend(GlbAcpiNodes, CollectionCreateNode(Key, IoNode));
 
 			/* Debug */
-			LogInformation("MADT", "Found IO-APIC: %u", AcpiIoApic->Id);
-
+			TRACE("Found IO-APIC: %u", AcpiIoApic->Id);
 		} break;
 
 		/* Interrupt Overrides */
@@ -135,11 +129,9 @@ void AcpiEnumarateMADT(void *MadtStart, void *MadtEnd)
 		} break;
 
 		default:
-			LogDebug("MADT", "Found Type %u", MadtEntry->Type);
+			WARNING("Found unhandled <madt> type %u", MadtEntry->Type);
 			break;
 		}
-
-		/* Next */
 		MadtEntry = (ACPI_SUBTABLE_HEADER*)
 			ACPI_ADD_PTR(ACPI_SUBTABLE_HEADER, MadtEntry, MadtEntry->Length);
 	}
@@ -187,14 +179,14 @@ AcpiInitializeEarly(void)
 	memset(&__GlbECDT, 0, sizeof(AcpiEcdt_t));
     
     // Call
-	LogInformation("ACPI", "Initializing ACPICA");
+	TRACE("AcpiInitializeEarly()");
     Status = AcpiInitializeSubsystem();
     
 	// Sanity 
 	// If this fails there is no ACPI on the system
 	if (ACPI_FAILURE(Status)) {
-		LogFatal("ACPI", "Failed to initialize early ACPI access,"
-            "probable no ACPI available (%u)", Status);
+		ERROR("Failed to initialize early ACPI access, "
+            "probably no ACPI available (%u)", Status);
 		GlbAcpiAvailable = ACPI_NOT_AVAILABLE;
 		return OsError;
 	}
@@ -202,8 +194,8 @@ AcpiInitializeEarly(void)
 	// Do the early table enumeration
 	Status = AcpiInitializeTables((ACPI_TABLE_DESC*)&TableArray, ACPI_MAX_INIT_TABLES, TRUE);
 	if (ACPI_FAILURE(Status)) {
-		LogFatal("ACPI", "Failed to initialize early ACPI access,"
-			"probable no ACPI available (%u)", Status);
+		ERROR("Failed to initialize early ACPI access,"
+			"probably no ACPI available (%u)", Status);
 		GlbAcpiAvailable = ACPI_NOT_AVAILABLE;
 		return OsError;
 	}
@@ -217,7 +209,7 @@ AcpiInitializeEarly(void)
 	// Check for MADT presence and enumerate
 	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 0, &Header))) {
 		ACPI_TABLE_MADT *MadtTable = NULL;
-		LogInformation("ACPI", "Enumerating the MADT Table");
+		TRACE("Enumerating the MADT Table");
 		MadtTable = (ACPI_TABLE_MADT*)Header;
 		AcpiEnumarateMADT((void*)((uintptr_t)MadtTable + sizeof(ACPI_TABLE_MADT)),
             (void*)((uintptr_t)MadtTable + MadtTable->Header.Length));
@@ -230,7 +222,7 @@ AcpiInitializeEarly(void)
 	// Check for SRAT presence and enumerate
 	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SRAT, 0, &Header))) {
 		ACPI_TABLE_SRAT *SratTable = NULL;
-		LogInformation("ACPI", "Enumerating the SRAT Table");
+		TRACE("Enumerating the SRAT Table");
 		SratTable = (ACPI_TABLE_SRAT*)Header;
 		AcpiEnumerateSRAT((void*)((uintptr_t)SratTable + sizeof(ACPI_TABLE_SRAT)),
             (void*)((uintptr_t)SratTable + SratTable->Header.Length));
@@ -243,7 +235,7 @@ AcpiInitializeEarly(void)
 	// Check for SRAT presence and enumerate
 	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_ECDT, 0, &Header))) {
 		ACPI_TABLE_ECDT *EcdtTable = NULL;
-		LogInformation("ACPI", "Enumerating the ECDT Table");
+		TRACE("Enumerating the ECDT Table");
 		EcdtTable = (ACPI_TABLE_ECDT*)Header;
 		//AcpiEnumerateECDT((void*)((uintptr_t)EcdtTable + sizeof(ACPI_TABLE_ECDT)),
         //    (void*)((uintptr_t)EcdtTable + EcdtTable->Header.Length));
@@ -257,7 +249,7 @@ AcpiInitializeEarly(void)
     // @todo
 	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SBST, 0, &Header))) {
 		ACPI_TABLE_SBST *BattTable = NULL;
-		LogInformation("ACPI", "Parsing the SBST Table");
+		TRACE("Parsing the SBST Table");
         BattTable = (ACPI_TABLE_SBST*)Header;
         
         // Cleanup table when we are done with it as we are using

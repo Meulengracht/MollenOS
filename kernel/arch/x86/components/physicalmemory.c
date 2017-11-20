@@ -19,6 +19,8 @@
  * MollenOS x86 Physical Memory Manager
  * Todo: Incorperate real support for Mask
  */
+#define __MODULE "PMEM"
+#define __TRACE
 
 /* Includes 
  * - System */
@@ -26,10 +28,10 @@
 #include <memory.h>
 #include <multiboot.h>
 #include <criticalsection.h>
-#include <log.h>
+#include <debug.h>
 
 /* Includes 
- * - C-Library */
+ * - Library */
 #include <assert.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -37,8 +39,7 @@
 
 /* Globals 
  * This is primarily stats and 
- * information about the memory
- * bitmap */
+ * information about the memory bitmap */
 uintptr_t *MemoryBitmap = NULL;
 size_t MemoryBitmapSize = 0;
 size_t MemoryBlocks = 0;
@@ -59,9 +60,9 @@ SystemMemoryMapping_t SysMappings[32];
 void
 MmMemoryDebugPrint(void)
 {
-	LogInformation("PMEM", "Bitmap size: %u Bytes", MemoryBitmapSize);
-	LogInformation("PMEM", "Memory in use %u Bytes", MemoryBlocksUsed * PAGE_SIZE);
-	LogInformation("PMEM", "Block status %u/%u", MemoryBlocksUsed, MemoryBlocks);
+	TRACE("Bitmap size: %u Bytes", MemoryBitmapSize);
+	TRACE("Memory in use %u Bytes", MemoryBlocksUsed * PAGE_SIZE);
+	TRACE("Block status %u/%u", MemoryBlocksUsed, MemoryBlocks);
 }
 
 /* MmPhysicalQuery

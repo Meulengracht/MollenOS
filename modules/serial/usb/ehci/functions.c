@@ -250,7 +250,7 @@ EhciTransactionDispatch(
 // Manually inspect
 #ifdef __DEBUG
     ThreadSleep(5000);
-    LogInformation("EHCI", "Qh Address 0x%x, Flags 0x%x, State 0x%x, Current 0x%x, Next 0x%x\n",
+    TRACE("Qh Address 0x%x, Flags 0x%x, State 0x%x, Current 0x%x, Next 0x%x\n",
                    QhAddress, Qh->Flags, Qh->State, Qh->CurrentTD, Qh->Overlay.NextTD);
 #endif
 

@@ -110,7 +110,7 @@ MCoreInitialize(
     }        
     
     // Initialize our kernel heap
-    HeapInit();
+    HeapConstruct(HeapGetKernel(), MEMORY_LOCATION_HEAP, MEMORY_LOCATION_HEAP_END, 0);
 
     // The first memory operation we will
     // be performing is upgrading the log away

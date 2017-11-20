@@ -269,11 +269,10 @@ DebugStackTrace(
 		// Lookup module if the address is within userspace
 		if (DebugGetModuleByAddress(Ip, &Base, &Name) == OsSuccess) {
 			uintptr_t Diff = Ip - Base;
-			LogInformation("CSTK", "%u - 0x%x (%s)",
-				MaxFrames - Itr, Diff, Name);
+			WRITELINE("%u - 0x%x (%s)", MaxFrames - Itr, Diff, Name);
 		}
 		else {
-			LogInformation("CSTK", "%u - 0x%x", MaxFrames - Itr, Ip);
+			WRITELINE("%u - 0x%x", MaxFrames - Itr, Ip);
 		}
 
 		// Again, sanitize the EBP frame as we may

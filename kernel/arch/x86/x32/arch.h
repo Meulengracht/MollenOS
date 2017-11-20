@@ -85,7 +85,7 @@ __EXTERN void __CRTDECL outl(uint16_t port, uint32_t data);
 #define MEMORY_LOCATION_KERNEL				0x100000 	/* Kernel Image Space: 1024 kB */
 #define MEMORY_LOCATION_RAMDISK				0x200000 	/* RamDisk Image Space: 1024 kB */
 #define MEMORY_LOCATION_BITMAP				0x300000 	/* Bitmap Space: 12 mB */
-#define MEMORY_LOCATION_HEAP				0x1000000	/* Heap Space: 64 mB */
+#define MEMORY_LOCATION_HEAP				0x1000000	/* Heap Space: 50 mB */
 #define MEMORY_LOCATION_HEAP_END			0x4000000
 #define MEMORY_LOCATION_VIDEO				0x4000000	/* Video Space: 16 mB */
 #define MEMORY_LOCATION_RESERVED			0x5000000	/* Driver Space: 190~ mB */

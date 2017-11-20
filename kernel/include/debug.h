@@ -47,12 +47,10 @@
 /* Global <toggable> definitions
  * These can be turned on per-source file by pre-defining
  * the __TRACE before inclusion */
-#ifdef __TRACE
+#if defined(__TRACE) && defined(__OSCONFIG_LOGGING_KTRACE)
 #define TRACE(...)					LogInformation(__MODULE, __VA_ARGS__)
-#define WARNING(...)				LogDebug(__MODULE, __VA_ARGS__)
 #else
 #define TRACE(...)
-#define WARNING(...)
 #endif
 
 /* Global <always-on> definitions
@@ -61,10 +59,11 @@
 #define FATAL_SCOPE_PROCESS			0x00000002
 #define FATAL_SCOPE_THREAD			0x00000003
 
-#define ERROR(...)					LogFatal(__MODULE, __VA_ARGS__)
 #define WRITELINE(...)              LogDebug(__MODULE, __VA_ARGS__)
-#define NOTIMPLEMENTED(...)
+#define WARNING(...)				LogDebug(__MODULE, __VA_ARGS__)
+#define ERROR(...)					LogFatal(__MODULE, __VA_ARGS__)
 #define FATAL(Scope, ...)			DebugPanic(Scope, __MODULE, __VA_ARGS__)
+#define NOTIMPLEMENTED(...)
 
 /* DebugSingleStep
  * Handles the SingleStep trap on a higher level 

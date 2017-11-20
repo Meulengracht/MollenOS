@@ -13,6 +13,7 @@
                 "MOLLENOS",
                 "i386",
                 "UNICODE",
+                "__need_size_t",
                 "__INT64_TYPE__=long long",
                 "__UINT64_TYPE__=unsigned long long",
                 "__INT32_TYPE__=int",
