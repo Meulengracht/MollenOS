@@ -45,6 +45,7 @@
  * and should probably never be any LESS than
  * these values, of course they could be higher */
 #define HEAP_HEADER_MEMORYSIZE      1 // Percentage reserved for header usage. Can be increased, never lower
+#define HEAP_HEADER_MEMORYDIVISOR   100 // The division factor for header-memory area
 #define HEAP_NORMAL_BLOCK           0x2000
 #define HEAP_LARGE_BLOCK            0x20000
 #define HEAP_IDENTIFICATION_SIZE    16
@@ -129,6 +130,11 @@ HeapConstruct(
 
 /* HeapDestroy
  * Destroys a heap, frees all memory allocated and pages. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+HeapDestroy(
+    _In_ Heap_t *Heap);
 
 /* HeapMaintain
  * Maintaining procedure cleaning up un-used pages to the system.
@@ -148,15 +154,15 @@ KERNELABI
 HeapStatisticsPrint(
     _In_ Heap_t *Heap);
 
-/* Used for validation that an address is allocated
- * within the given heap, this can be used for security
- * or validation purposes, use NULL for kernel heap */
+/* HeapValidateAddress
+ * Used for validation that an address is allocated within the given heap, 
+ * this can be used for security or validation purposes. */
 KERNELAPI
 OsStatus_t
 KERNELABI
 HeapValidateAddress(
-    Heap_t *Heap,
-    uintptr_t Address);
+    _In_ Heap_t     *Heap,
+    _In_ uintptr_t   Address);
 
 /* HeapQueryMemoryInformation
  * Queries memory information about the given heap. */
@@ -175,45 +181,48 @@ Heap_t*
 KERNELABI
 HeapGetKernel(void);
 
-/* Simply just a wrapper for HeapAllocate
- * with the kernel heap as argument 
- * but this does some basic validation and
- * makes sure pages are mapped in memory
- * this function also returns the physical address 
- * of the allocation and aligned to PAGE_ALIGN with memory <Mask> */
-__EXTERN void *kmalloc_apm(size_t Size, uintptr_t *Ptr, uintptr_t Mask);
-
-/* Simply just a wrapper for HeapAllocate
- * with the kernel heap as argument 
- * but this does some basic validation and
- * makes sure pages are mapped in memory
- * this function also returns the physical address 
- * of the allocation and aligned to PAGE_ALIGN */
-__EXTERN void *kmalloc_ap(size_t Size, uintptr_t *Ptr);
-
-/* Simply just a wrapper for HeapAllocate
- * with the kernel heap as argument 
- * but this does some basic validation and
- * makes sure pages are mapped in memory
- * this function also returns the physical address 
- * of the allocation */
-__EXTERN void *kmalloc_p(size_t Size, uintptr_t *Ptr);
-
-/* Simply just a wrapper for HeapAllocate
- * with the kernel heap as argument 
- * but this does some basic validation and
- * makes sure pages are mapped in memory 
- * the memory returned is PAGE_ALIGNED */
-__EXTERN void *kmalloc_a(size_t Size);
-
-/* Simply just a wrapper for HeapAllocate
- * but this does some basic validation and
- * makes sure pages are mapped in memory */
-__EXTERN void *kmalloc(size_t Size);
+/* k(ernel) memory allocator
+ * There are several variants of the allocator, the keywords are:
+ * <a> - (align) page-aligned allocation
+ * <p> - (physical) returns the physical address of the allocation
+ * <m> - (mask) a memory mask for allowing physical addresses that fit the mask. */
+KERNELAPI
+void*
+KERNELABI
+kmalloc_apm(
+    _In_ size_t      Length,
+    _In_ uintptr_t   Mask,
+    _Out_ uintptr_t *PhysicalAddress);
+KERNELAPI
+void*
+KERNELABI
+kmalloc_ap(
+    _In_ size_t      Length,
+    _Out_ uintptr_t *PhysicalAddress);
+KERNELAPI
+void*
+KERNELABI
+kmalloc_p(
+    _In_ size_t      Length,
+    _Out_ uintptr_t *PhysicalAddress);
+KERNELAPI
+void*
+KERNELABI
+kmalloc_a(
+    _In_ size_t      Length);
+KERNELAPI
+void*
+KERNELABI
+kmalloc(
+    _In_ size_t      Length);
 
 /* kfree 
  * Wrapper for the HeapFree that essentially 
  * just calls it with the kernel heap as argument */
-__EXTERN void kfree(void *p);
+KERNELAPI
+void
+KERNELABI
+kfree(
+    _In_ void *Pointer);
 
 #endif

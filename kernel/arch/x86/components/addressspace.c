@@ -363,6 +363,9 @@ AddressSpaceMapFixed(
 	if (Flags & AS_FLAG_VIRTUAL) {
 		AllocFlags |= PAGE_VIRTUAL;
 	}
+    if (Flags & AS_FLAG_RESOLVEVIRTUAL) {
+        vAddress = MmReserveMemory(PageCount);
+    }
 
 	// Now map it in by redirecting to virtual memory manager
 	for (Itr = 0; Itr < PageCount; Itr++) {

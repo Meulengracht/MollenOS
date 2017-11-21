@@ -1,5 +1,6 @@
 {
     "C_Cpp.intelliSenseEngine": "Default",
+    "explorer.autoReveal": false,
     "files.associations": {
         "random": "cpp",
         "__mutex_base": "cpp",

@@ -62,6 +62,7 @@ PACKED_TYPESTRUCT(AddressSpace, {
 #define AS_FLAG_NOCACHE					0x00000004
 #define AS_FLAG_VIRTUAL					0x00000008
 #define AS_FLAG_CONTIGIOUS				0x00000010
+#define AS_FLAG_RESOLVEVIRTUAL          0x00000020
 
 /* AddressSpaceInitKernel
  * Initializes the Kernel Address Space 

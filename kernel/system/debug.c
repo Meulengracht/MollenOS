@@ -105,7 +105,7 @@ DebugPageFault(
 	// Case 2 - Kernel Heap
 	else if (Address >= MEMORY_LOCATION_HEAP
 		&& Address < MEMORY_LOCATION_HEAP_END) {
-		if (!HeapValidateAddress(NULL, Address)) {
+		if (!HeapValidateAddress(HeapGetKernel(), Address)) {
 			// Try to map it in and return the result
 			return AddressSpaceMap(AddressSpaceGetCurrent(),
 				(Address & PAGE_MASK), PAGE_SIZE, __MASK, 0, NULL);
