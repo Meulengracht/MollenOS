@@ -44,6 +44,7 @@ MutexCreate(void)
 
     // Initialize it and return
 	MutexConstruct(Mutex);
+    Mutex->Cleanup = 1;
 	return Mutex;
 }
 
@@ -56,6 +57,7 @@ MutexConstruct(
     // Initialize members
 	Mutex->Blocker = 0;
 	Mutex->Blocks = 0;
+    Mutex->Cleanup = 0;
 }
 
 /* MutexDestroy
@@ -65,7 +67,9 @@ MutexDestroy(
     _In_ Mutex_t *Mutex)
 {
 	SchedulerThreadWakeAll((uintptr_t*)Mutex);
-	kfree(Mutex);
+    if (Mutex->Cleanup == 1) {
+        kfree(Mutex);
+    }
 }
 
 /* MutexTryLock

@@ -32,6 +32,7 @@
 typedef struct _Mutex {
 	UUId_t              Blocker;
 	size_t              Blocks;
+    int                 Cleanup;
 } Mutex_t;
 
 /* MutexCreate

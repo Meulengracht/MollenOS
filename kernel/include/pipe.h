@@ -30,8 +30,8 @@
 
 /* Includes 
  * - System */
-#include <criticalsection.h>
 #include <semaphore.h>
+#include <mutex.h>
 
 /* Customization of the pipe, these are some default
  * parameters for creation */
@@ -49,12 +49,12 @@
  * what equals to a ringbuffer, except it adds
  * read/write queues in order to block users */
 typedef struct _MCorePipe {
+    Mutex_t                     Lock;
     Flags_t                     Flags;
     uint8_t                    *Buffer;
     size_t                      Length;
     size_t                      IndexWrite;
     size_t                      IndexRead;
-    CriticalSection_t           Lock;
     Semaphore_t                 ReadQueue;
     Semaphore_t                 WriteQueue;
     size_t                      ReadQueueCount;

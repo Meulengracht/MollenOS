@@ -95,9 +95,9 @@ PipeConstruct(
     Pipe->Flags = Flags;
 
     // Construct synchronizations
-    CriticalSectionConstruct(&Pipe->Lock, CRITICALSECTION_PLAIN);
     SemaphoreConstruct(&Pipe->ReadQueue, 0);
     SemaphoreConstruct(&Pipe->WriteQueue, 0);
+    MutexConstruct(&Pipe->Lock);
 }
 
 /* PipeDestroy
@@ -110,6 +110,7 @@ PipeDestroy(
     // Wake all up so no-one is left behind
     SchedulerThreadWakeAll((uintptr_t*)&Pipe->ReadQueue);
     SchedulerThreadWakeAll((uintptr_t*)&Pipe->WriteQueue);
+    MutexDestroy(&Pipe->Lock);
     kfree(Pipe->Buffer);
     kfree(Pipe);
 }
@@ -135,12 +136,12 @@ PipeWrite(
     while (BytesWritten < Length) {
         // Write while there are bytes left, and space in pipe
         // Locked operation
-        CriticalSectionEnter(&Pipe->Lock);
+        MutexLock(&Pipe->Lock);
         while (PipeBytesLeft(Pipe) > 0 && BytesWritten < Length) {
             Pipe->Buffer[Pipe->IndexWrite] = Data[BytesWritten++];
             PipeIncreaseWrite(Pipe);
         }
-        CriticalSectionLeave(&Pipe->Lock);
+        MutexUnlock(&Pipe->Lock);
 
         // Wakeup one of the readers 
         // Always do this nvm what
@@ -191,7 +192,7 @@ PipeRead(
     while ((WaitForFullBuffer == 0)
         || (BytesRead < Length && WaitForFullBuffer == 1)) {
         // Only read while there is data available
-        CriticalSectionEnter(&Pipe->Lock);
+        MutexLock(&Pipe->Lock);
         while (PipeBytesAvailable(Pipe) > 0 && BytesRead < Length) {
             if (Buffer != NULL) {
                 Buffer[BytesRead++] = Pipe->Buffer[Pipe->IndexRead];
@@ -199,7 +200,7 @@ PipeRead(
             else BytesRead++;
             PipeIncreaseRead(Pipe);
         }
-        CriticalSectionLeave(&Pipe->Lock);
+        MutexUnlock(&Pipe->Lock);
 
         // Only go to queue if not a peek
         if (!Peek) {
