@@ -149,7 +149,8 @@ OhciControllerCreate(
 
 	// Now that all formalities has been taken care
 	// off we can actually setup controller
-	if (OhciSetup(Controller) == OsSuccess) {
+	if (UsbManagerCreateController(&Controller->Base) == OsSuccess
+        && OhciSetup(Controller) == OsSuccess) {
 		return Controller;
 	}
 	else {
@@ -165,6 +166,9 @@ OsStatus_t
 OhciControllerDestroy(
 	_In_ OhciController_t *Controller)
 {
+    // Unregister us with service
+    UsbManagerDestroyController(&Controller->Base);
+
 	// Cleanup scheduler
 	OhciQueueDestroy(Controller);
 
@@ -407,8 +411,8 @@ OhciSetup(
 	}
 	
 	// Controller should now be in a running state
-	TRACE("Controller %u Started, Control 0x%x, Ints 0x%x, FmInterval 0x%x\n",
-		Controller->Id, Controller->Registers->HcControl, 
+	TRACE("Controller %u Started, Control 0x%x, Ints 0x%x, FmInterval 0x%x",
+		Controller->Base.Id, Controller->Registers->HcControl, 
 		Controller->Registers->HcInterruptEnable, 
 		Controller->Registers->HcFmInterval);
 
@@ -462,8 +466,8 @@ OhciSetup(
 
 	Controller->PowerOnDelayMs = Temporary;
 
-	TRACE("Ports %u (power mode %u, power delay %u)\n",
-		Controller->Ports, Controller->PowerMode, Temporary);
+	TRACE("Ports %u (power mode %u, power delay %u)",
+		Controller->Base.PortCount, Controller->PowerMode, Temporary);
 		
 	// Now we can enable hub events (and clear interrupts)
 	Controller->Registers->HcInterruptStatus &= ~(reg32_t)0;

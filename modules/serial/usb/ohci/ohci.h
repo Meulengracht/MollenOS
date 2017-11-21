@@ -480,7 +480,8 @@ OhciGetStatusCode(
 __EXTERN
 void
 OhciProcessTransactions(
-    _In_ OhciController_t *Controller);
+    _In_ OhciController_t *Controller,
+    _In_ int               Finalize);
 
 /* OhciProcessDoneQueue
  * Iterates all active transfers and handles completion/error events */

@@ -20,7 +20,7 @@
  * TODO:
  *    - Power Management
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -426,6 +426,10 @@ OhciTdIo(
         return NULL;
     }
 
+    // Debug
+    TRACE("OhciTdIo(Type %u, Id %u, Toggle %i, Address 0x%x, Length 0x%x",
+        Type, PId, Toggle, Address, Length);
+
     // Handle Isochronous Transfers a little bit differently
     // Max packet size is 1023 for isoc
     if (Type == IsochronousTransfer) {
@@ -508,7 +512,7 @@ OhciTdIo(
     // Is there bytes to transfer or null packet?
     if (Length > 0) {
         Td->Cbp = Address;
-        Td->BufferEnd = Td->Cbp + Length - 1;
+        Td->BufferEnd = Td->Cbp + (Length - 1);
     }
 
     // Store copy of original content
@@ -923,6 +927,7 @@ OhciReloadPeriodic(
         // Restart Td
         Td->Flags = Td->OriginalFlags;
         Td->Cbp = Td->OriginalCbp;
+        Td->BufferEnd = Td->Cbp + (BufferStep - 1);
 
         // Go to next td
         Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
@@ -931,6 +936,7 @@ OhciReloadPeriodic(
     // Notify process of transfer of the status
     if (Transfer->Transfer.Type == InterruptTransfer) {
         if (Transfer->Transfer.UpdatesOn) {
+            WARNING("Interrupt, buffer index %u", Transfer->PeriodicDataIndex);
             InterruptDriver(Transfer->Requester, 
                 (size_t)Transfer->Transfer.PeriodicData, 
                 (size_t)((ErrorTransfer == 0) ? TransferFinished : Transfer->Status), 
@@ -980,15 +986,13 @@ OhciProcessDoneQueue(
                     OhciReloadControlBulk(Controller, Transfer->Transfer.Type);
                     
                     // Handle completion of transfer
-                    OhciTransactionFinalize(Controller, Transfer, 1);
                     CollectionRemoveByNode(Controller->QueueControl.TransactionList, Node);
                     CollectionDestroyNode(Controller->QueueControl.TransactionList, Node);
+                    OhciTransactionFinalize(Controller, Transfer, 1);
                 }
                 else {
                     OhciReloadPeriodic(Controller, Transfer);
                 }
-
-                // We are done, exit function
                 return;
             }
 
@@ -1008,7 +1012,8 @@ OhciProcessDoneQueue(
  * Should be called from interrupt-context */
 void
 OhciProcessTransactions(
-    _In_ OhciController_t *Controller)
+    _In_ OhciController_t *Controller,
+    _In_ int               Finalize)
 {
     // Iterate all active transactions and see if any
     // one of them needs unlinking or linking
@@ -1037,16 +1042,18 @@ OhciProcessTransactions(
             QueueHead->HcdInformation &= ~OHCI_QH_SCHEDULE;
         }
         else if (QueueHead->HcdInformation & OHCI_QH_UNSCHEDULE) {
-            // Only interrupt and isoc requests unscheduling
-            // And remove the unschedule flag
-            OhciUnlinkPeriodic(Controller, QueueHead->Index);
-            QueueHead->HcdInformation &= ~OHCI_QH_UNSCHEDULE;
-           
             // Handle completion of transfer
-            OhciTransactionFinalize(Controller, Transfer, 0);
-            CollectionRemoveByNode(Controller->QueueControl.TransactionList, Node);
-            CollectionDestroyNode(Controller->QueueControl.TransactionList, Node);
-            break;
+            if (Finalize == 1) {
+                QueueHead->HcdInformation &= ~OHCI_QH_UNSCHEDULE;
+                CollectionRemoveByNode(Controller->QueueControl.TransactionList, Node);
+                CollectionDestroyNode(Controller->QueueControl.TransactionList, Node);
+                OhciTransactionFinalize(Controller, Transfer, 0);
+            }
+            else {
+                // Only interrupt and isoc requests unscheduling
+                // And remove the unschedule flag
+                OhciUnlinkPeriodic(Controller, QueueHead->Index);
+            }
         }
     }
 }

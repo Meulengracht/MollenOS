@@ -20,7 +20,7 @@
  * TODO:
  *    - Power Management
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -78,9 +78,16 @@ OnFastInterrupt(
     if (!InterruptStatus) {
         return InterruptNotHandled;
     }
-    
-    // Disable interrupts
-    Controller->Registers->HcInterruptDisable = (reg32_t)OHCI_MASTER_INTERRUPT;
+
+    // Stage 1 of the linking/unlinking event
+    if (InterruptStatus & OHCI_SOF_EVENT) {
+        OhciProcessTransactions(Controller, 0);
+        Controller->Registers->HcInterruptDisable = OHCI_SOF_EVENT;
+    }
+
+    // Store interrupts, acknowledge and return
+    Controller->Base.InterruptStatus |= InterruptStatus;
+    Controller->Registers->HcInterruptStatus = InterruptStatus;
     return InterruptHandled;
 }
 
@@ -106,62 +113,33 @@ OnInterrupt(
     // Instantiate the pointer
     Controller = (OhciController_t*)InterruptData;
     
-    // There are two cases where it might be, just to be sure
-    // we don't miss an interrupt, if the HeadDone is set or the
-    // intr is set
-    if (Controller->Hcca->HeadDone != 0) {
-        InterruptStatus = OHCI_PROCESS_EVENT;
-        // If halted bit is set, get rest of interrupt
-        if (Controller->Hcca->HeadDone & 0x1) {
-            InterruptStatus |= (Controller->Registers->HcInterruptStatus
-                & Controller->Registers->HcInterruptEnable);
-        }
-    }
-    else {
-        // Was it this Controller that made the interrupt?
-        // We only want the interrupts we have set as enabled
-        InterruptStatus = (Controller->Registers->HcInterruptStatus
-            & Controller->Registers->HcInterruptEnable);
-    }
-    
+ProcessInterrupt:
+    InterruptStatus = Controller->Base.InterruptStatus;
+    Controller->Base.InterruptStatus = 0;
+
     // Process Checks first
     // This happens if a transaction has completed
     if (InterruptStatus & OHCI_PROCESS_EVENT) {
         reg32_t TdAddress = (Controller->Hcca->HeadDone & ~(0x00000001));
         OhciProcessDoneQueue(Controller, TdAddress);
         Controller->Hcca->HeadDone = 0;
-        Controller->Registers->HcInterruptStatus = OHCI_PROCESS_EVENT;
-        InterruptStatus &= ~(OHCI_PROCESS_EVENT);
     }
 
     // Root Hub Status Change
     // This occurs on disconnect/connect events
     if (InterruptStatus & OHCI_ROOTHUB_EVENT) {
         OhciPortsCheck(Controller);
-        Controller->Registers->HcInterruptStatus = OHCI_ROOTHUB_EVENT;
-        InterruptStatus &= ~(OHCI_ROOTHUB_EVENT);
-    }
-
-    // Start of frame only comes if we should link in or unlink
-    // an interrupt td, this is a safe way of doing it
-    if (InterruptStatus & OHCI_SOF_EVENT) {
-        OhciProcessTransactions(Controller);
-        Controller->Registers->HcInterruptStatus = OHCI_SOF_EVENT;
     }
 
     // Fatal errors, reset everything
     if (InterruptStatus & OHCI_FATAL_EVENT) {
         OhciReset(Controller);
         OhciSetMode(Controller, OHCI_CONTROL_ACTIVE);
-        Controller->Registers->HcInterruptStatus = OHCI_FATAL_EVENT;
-        InterruptStatus = InterruptStatus & ~(OHCI_FATAL_EVENT);
     }
     if (InterruptStatus & OHCI_OVERRUN_EVENT) {
         OhciQueueReset(Controller);
         OhciReset(Controller);
         OhciSetMode(Controller, OHCI_CONTROL_ACTIVE);
-        Controller->Registers->HcInterruptStatus = OHCI_OVERRUN_EVENT;
-        InterruptStatus = InterruptStatus & ~(OHCI_OVERRUN_EVENT);
     }
 
     // Resume Detection? 
@@ -169,24 +147,24 @@ OnInterrupt(
     if (InterruptStatus & OHCI_RESUMEDETECT_EVENT) {
         ThreadSleep(20);
         OhciSetMode(Controller, OHCI_CONTROL_ACTIVE);
-        Controller->Registers->HcInterruptStatus = OHCI_RESUMEDETECT_EVENT;
-        InterruptStatus = InterruptStatus & ~(OHCI_RESUMEDETECT_EVENT);
+    }
+
+    // Stage 2 of an linking/unlinking event
+    if (InterruptStatus & OHCI_SOF_EVENT) {
+        OhciProcessTransactions(Controller, 1);
+        Controller->Registers->HcInterruptDisable = OHCI_SOF_EVENT;
     }
 
     // Frame Overflow
     // Happens when it rolls over from 0xFFFF to 0
     if (InterruptStatus & OHCI_OVERFLOW_EVENT) {
-        Controller->Registers->HcInterruptStatus = OHCI_OVERFLOW_EVENT;
-        InterruptStatus = InterruptStatus & ~(OHCI_OVERFLOW_EVENT);
+        // Wut do?
     }
 
-    // Mask out remaining interrupts, we dont use them
-    if (InterruptStatus != 0) {
-        Controller->Registers->HcInterruptDisable = InterruptStatus;
+    // Did another one fire?
+    if (Controller->Base.InterruptStatus != 0) {
+        goto ProcessInterrupt;
     }
-
-    // Enable interrupts again
-    Controller->Registers->HcInterruptEnable = (reg32_t)OHCI_MASTER_INTERRUPT;
     return InterruptHandled;
 }
 
@@ -245,9 +223,9 @@ OnRegister(
     if (Controller == NULL) {
         return OsError;
     }
-
-    // Done - Register with service
-    return UsbManagerCreateController(&Controller->Base);
+    else {
+        return OsSuccess;
+    }
 }
 
 /* OnUnregister
@@ -267,10 +245,7 @@ OnUnregister(
     if (Controller == NULL) {
         return OsError;
     }
-
-    // Unregister, then destroy
-    UsbManagerDestroyController(&Controller->Base);
-
+    
     // Destroy it
     return OhciControllerDestroy(Controller);
 }

@@ -37,6 +37,37 @@
 #include <string.h>
 #include <stdlib.h>
 
+/* UsbQueueDebug
+ * Dumps the QH-settings and all the attached td's */
+void
+UsbQueueDebug(
+    OhciController_t *Controller,
+    OhciQueueHead_t *Qh)
+{
+    // Variables
+    OhciTransferDescriptor_t *Td = NULL;
+    uintptr_t PhysicalAddress = 0;
+
+    PhysicalAddress = OHCI_POOL_QHINDEX(Controller, Qh->Index);
+    TRACE("QH(0x%x): Flags 0x%x, NextQh 0x%x, FirstChild 0x%x", 
+        PhysicalAddress, Qh->Flags, Qh->LinkPointer, Qh->Current);
+
+    // Get first td
+    Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
+    while (Td != NULL) {
+        PhysicalAddress = OHCI_POOL_TDINDEX(Controller, Td->Index);
+        TRACE("TD(0x%x): Link 0x%x, Flags 0x%x, Cbp 0x%x, BufferEnd 0x%x", 
+            PhysicalAddress, Td->Link, Td->Flags, Td->Cbp, Td->BufferEnd);
+        // Go to next td
+        if (Td->LinkIndex != OHCI_NO_INDEX) {
+            Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
+        }
+        else {
+            Td = NULL;
+        }
+    }
+}
+
 /* OhciTransactionInitialize
  * Initializes a transaction by allocating a new endpoint-descriptor
  * and preparing it for usage */
@@ -62,9 +93,7 @@ OhciTransactionInitialize(
 		(UsbCalculateBandwidth(Transfer->Speed, 
 		Transfer->Endpoint.Direction, Transfer->Type, 
 		Transfer->Endpoint.MaxPacketSize) / 1000);
-        Qh->Interval = (uint16_t)Transfer->Endpoint.Interval;
-
-	// Done
+    Qh->Interval = (uint16_t)Transfer->Endpoint.Interval;
 	return Qh;
 }
 
@@ -81,12 +110,8 @@ OhciTransactionDispatch(
 	uintptr_t QhAddress     = 0;
 	DataKey_t Key;
 
-	/*************************
-	 ****** SETUP PHASE ******
-	 *************************/
+    // Initiate some variables
 	Qh = (OhciQueueHead_t*)Transfer->EndpointDescriptor;
-
-	// Lookup physical
 	QhAddress = OHCI_POOL_QHINDEX(Controller, Qh->Index);
 
 	// Store transaction in queue
@@ -100,46 +125,13 @@ OhciTransactionDispatch(
 
 	// Trace
 	TRACE("Qh Address 0x%x, Flags 0x%x, Tail 0x%x, Current 0x%x, Link 0x%x", 
-        QhAddress, Qh->Flags, Qh->TailPointer, Qh->Current, Qh->Link);
+        QhAddress, Qh->Flags, Qh->EndPointer, Qh->Current, Qh->LinkPointer);
 
-	/*************************
-	 **** LINKING PHASE ******
-	 *************************/
-	
 	// Set the schedule flag on ED and
 	// enable SOF, ED is not scheduled before this interrupt
 	Qh->HcdInformation |= OHCI_QH_SCHEDULE;
 	Controller->Registers->HcInterruptStatus = OHCI_SOF_EVENT;
 	Controller->Registers->HcInterruptEnable = OHCI_SOF_EVENT;
-
-	// Now the transaction is queued.
-#ifdef __DEBUG
-	TRACE("Current Frame 0x%x (HCCA), HcFrameNumber 0x%x, HcFrameInterval 0x%x, HcFrameRemaining 0x%x", Ctrl->HCCA->CurrentFrame,
-		Controller->Registers->HcFmNumber, Controller->Registers->HcFmInterval, 
-		Controller->Registers->HcFmRemaining);
-	TRACE("Transaction sent.. waiting for reply..");
-	ThreadSleep(5000);
-	TRACE("Current Frame 0x%x (HCCA), HcFrameNumber 0x%x, HcFrameInterval 0x%x, HcFrameRemaining 0x%x", Ctrl->HCCA->CurrentFrame,
-		Controller->Registers->HcFmNumber, Controller->Registers->HcFmInterval, 
-		Controller->Registers->HcFmRemaining);
-	TRACE("1. Current Control: 0x%x, Current Head: 0x%x",
-		Controller->Registers->HcControlCurrentED, Controller->Registers->HcControlHeadED);
-	ThreadSleep(5000);
-	TRACE("Current Frame 0x%x (HCCA), HcFrameNumber 0x%x, HcFrameInterval 0x%x, HcFrameRemaining 0x%x", Ctrl->HCCA->CurrentFrame,
-		Controller->Registers->HcFmNumber, Controller->Registers->HcFmInterval, 
-		Controller->Registers->HcFmRemaining);
-	TRACE("2. Current Control: 0x%x, Current Head: 0x%x",
-		Controller->Registers->HcControlCurrentED, Controller->Registers->HcControlHeadED);
-	TRACE("Current Control 0x%x, Current Cmd 0x%x",
-		Controller->Registers->HcControl, Controller->Registers->HcCommandStatus);
-
-	// Validate
-	Transfer->Requester = UUID_INVALID;
-	OhciTransactionFinalize(Controller, Transfer, 1);
-
-	// Don't go further
-	for (;;);
-#endif
 
 	// Done
 	return TransferQueued;
@@ -149,9 +141,9 @@ OhciTransactionDispatch(
  * Cleans up the transfer, deallocates resources and validates the td's */
 OsStatus_t
 OhciTransactionFinalize(
-	_In_ OhciController_t *Controller,
-	_In_ UsbManagerTransfer_t *Transfer,
-	_In_ int Validate)
+	_In_ OhciController_t       *Controller,
+	_In_ UsbManagerTransfer_t   *Transfer,
+	_In_ int                     Validate)
 {
 	// Variables
 	OhciQueueHead_t *Qh             = (OhciQueueHead_t*)Transfer->EndpointDescriptor;
@@ -162,13 +154,14 @@ OhciTransactionFinalize(
 	/*************************
 	 *** VALIDATION PHASE ****
 	 *************************/
+    Transfer->Status = TransferFinished;
 	if (Validate != 0) {
 		// Iterate through all td's and validate condition code
 		// We don't validate the last td
 		TRACE("Flags 0x%x, Tail 0x%x, Current 0x%x", 
-            Qh->Flags, Qh->TailPointer,  Qh->Current);
+            Qh->Flags, Qh->EndPointer,  Qh->Current);
 
-		// Get first td
+		// Get first td, iterate untill null-td
 		Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
 		while (Td->LinkIndex != OHCI_NO_INDEX) {
             // Extract the error code
@@ -177,7 +170,7 @@ OhciTransactionFinalize(
 			// Calculate length transferred 
 			// Take into consideration the N-1 
 			if (Td->BufferEnd != 0) {
-				Transfer->BytesTransferred += (Td->Cbp + 1) & 0xFFF;
+				Transfer->BytesTransferred += (Td->BufferEnd - Td->OriginalCbp) + 1;
 			}
 			
 			// Trace
@@ -185,14 +178,9 @@ OhciTransactionFinalize(
 				Td->Flags, Td->Cbp, Td->BufferEnd, ErrorCode);
 
 			// Now validate the code
-			if (ErrorCode == 0 && Transfer->Status == TransferFinished)
-				Transfer->Status = TransferFinished;
-			else {
+			if (ErrorCode != 0 && Transfer->Status == TransferFinished) {
 				Transfer->Status = OhciGetStatusCode(ErrorCode);
-				break;
 			}
-			
-			// Go to next td
 			Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
 		}
 	}
@@ -315,10 +303,8 @@ UsbQueueTransferGeneric(
 			}
 			else {
 				// Update physical link
-				ItrTd->Link = OHCI_POOL_TDINDEX(Controller, Td->Index);
-
-				// Not first, update links
 				ItrTd->LinkIndex = Td->Index;
+				ItrTd->Link = OHCI_POOL_TDINDEX(Controller, Td->Index);
 				ItrTd = Td;
 			}
 
@@ -350,6 +336,7 @@ UsbQueueTransferGeneric(
 
 	// Set last td to generate a interrupt (not null)
 	ItrTd->Flags &= ~OHCI_TD_IOC_NONE;
+    ItrTd->OriginalFlags = ItrTd->Flags;
 
 	// Add a null-transaction (Out, Zero)
 	// But do NOT update the endpoint toggle, and Isoc does not need this
@@ -374,6 +361,7 @@ UsbQueueTransferGeneric(
 		Transfer->Transfer.Endpoint.MaxPacketSize, Transfer->Transfer.Speed);
 
 	// Send the transaction and wait for completion
+    //UsbQueueDebug(Controller, EndpointDescriptor);
 	return OhciTransactionDispatch(Controller, Transfer);
 }
 

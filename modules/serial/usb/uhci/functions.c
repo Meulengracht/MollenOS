@@ -614,7 +614,7 @@ UsbQueueTransferGeneric(
     UhciQhInitialize(Controller, Qh, UHCI_TD_GET_INDEX(FirstTd->HcdFlags));
 
     // Send the transaction and wait for completion
-    UsbQueueDebug(Controller, Qh);
+    //UsbQueueDebug(Controller, Qh);
     return UhciTransactionDispatch(Controller, Transfer);
 }
 
