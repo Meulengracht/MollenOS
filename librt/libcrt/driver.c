@@ -121,9 +121,8 @@ void _mDrvCrt(void)
 					break;
 				}
 			}
-			RPCCleanup(&Message);
 		}
-		else { }
+		RPCCleanup(&Message);
 	}
 
 	// Call unload, so driver can cleanup

@@ -78,6 +78,7 @@ EhciQueueResetInternalData(
 
 	// Initialize the QH pool
 	for (i = 0; i < EHCI_POOL_NUM_QH; i++) {
+        Queue->QHPool[i].HcdFlags = 0;
 		Queue->QHPool[i].Index = i;
 		Queue->QHPool[i].LinkIndex = EHCI_NO_INDEX;
         Queue->QHPool[i].ChildIndex = EHCI_NO_INDEX;
@@ -85,34 +86,51 @@ EhciQueueResetInternalData(
 
 	// Initialize the TD pool
 	for (i = 0; i < EHCI_POOL_NUM_TD; i++) {
+        Queue->TDPool[i].HcdFlags = 0;
 		Queue->TDPool[i].Index = i;
 		Queue->TDPool[i].LinkIndex = EHCI_NO_INDEX;
 		Queue->TDPool[i].AlternativeLinkIndex = EHCI_NO_INDEX;
 	}
 
 	// Initialize the dummy (null) queue-head that we use for end-link
+    memset(&Queue->QHPool[EHCI_POOL_QH_NULL], 0, sizeof(EhciQueueHead_t));
 	Queue->QHPool[EHCI_POOL_QH_NULL].Overlay.NextTD = EHCI_LINK_END;
 	Queue->QHPool[EHCI_POOL_QH_NULL].Overlay.NextAlternativeTD = EHCI_LINK_END;
 	Queue->QHPool[EHCI_POOL_QH_NULL].LinkPointer = EHCI_LINK_END;
 	Queue->QHPool[EHCI_POOL_QH_NULL].HcdFlags = EHCI_QH_ALLOCATED;
+    Queue->QHPool[EHCI_POOL_QH_NULL].Index = EHCI_POOL_QH_NULL;
+    Queue->QHPool[EHCI_POOL_QH_NULL].LinkIndex = EHCI_NO_INDEX;
+    Queue->QHPool[EHCI_POOL_QH_NULL].ChildIndex = EHCI_NO_INDEX;
 
 	// Initialize the dummy (async) transfer-descriptor that we use for queuing
-	Queue->TDPool[EHCI_POOL_TD_ASYNC].Status = EHCI_TD_HALTED;
+    memset(&Queue->TDPool[EHCI_POOL_TD_ASYNC], 0, sizeof(EhciTransferDescriptor_t));
+    Queue->TDPool[EHCI_POOL_TD_ASYNC].Index = EHCI_POOL_TD_ASYNC;
 	Queue->TDPool[EHCI_POOL_TD_ASYNC].Link = EHCI_LINK_END;
+    Queue->TDPool[EHCI_POOL_TD_ASYNC].LinkIndex = EHCI_NO_INDEX;
     Queue->TDPool[EHCI_POOL_TD_ASYNC].AlternativeLink = EHCI_LINK_END;
     Queue->TDPool[EHCI_POOL_TD_ASYNC].AlternativeLinkIndex = EHCI_NO_INDEX;
+    Queue->TDPool[EHCI_POOL_TD_ASYNC].HcdFlags = EHCI_TD_ALLOCATED;
+    Queue->TDPool[EHCI_POOL_TD_ASYNC].Token = EHCI_TD_IN;
+    Queue->TDPool[EHCI_POOL_TD_ASYNC].Status = EHCI_TD_HALTED;
 
 	// Initialize the dummy (async) queue-head that we use for end-link
+    // It must be a circular queue, so must always point back to itself
+    memset(&Queue->QHPool[EHCI_POOL_QH_ASYNC], 0, sizeof(EhciQueueHead_t));
 	Queue->QHPool[EHCI_POOL_QH_ASYNC].LinkPointer = 
 		(EHCI_POOL_QHINDEX(Controller, EHCI_POOL_QH_ASYNC)) | EHCI_LINK_QH;
 	Queue->QHPool[EHCI_POOL_QH_ASYNC].LinkIndex = EHCI_POOL_QH_ASYNC;
-
-	Queue->QHPool[EHCI_POOL_QH_ASYNC].Flags = EHCI_QH_RECLAMATIONHEAD;
-	Queue->QHPool[EHCI_POOL_QH_ASYNC].Overlay.Status = EHCI_TD_HALTED;
-	Queue->QHPool[EHCI_POOL_QH_ASYNC].Overlay.NextTD = EHCI_LINK_END;
+    
+	Queue->QHPool[EHCI_POOL_QH_ASYNC].Overlay.NextTD = 
+		EHCI_POOL_TDINDEX(Controller, EHCI_POOL_TD_ASYNC) | EHCI_LINK_END;
+    Queue->TDPool[EHCI_POOL_TD_ASYNC].LinkIndex = EHCI_POOL_TD_ASYNC;
 	Queue->QHPool[EHCI_POOL_QH_ASYNC].Overlay.NextAlternativeTD =
 		EHCI_POOL_TDINDEX(Controller, EHCI_POOL_TD_ASYNC);
+    Queue->TDPool[EHCI_POOL_TD_ASYNC].AlternativeLinkIndex = EHCI_POOL_TD_ASYNC;
+
+	Queue->QHPool[EHCI_POOL_QH_ASYNC].Overlay.Status = EHCI_TD_HALTED;
+	Queue->QHPool[EHCI_POOL_QH_ASYNC].Flags = EHCI_QH_RECLAMATIONHEAD;
 	Queue->QHPool[EHCI_POOL_QH_ASYNC].HcdFlags = EHCI_QH_ALLOCATED;
+    Queue->QHPool[EHCI_POOL_QH_ASYNC].Index = EHCI_POOL_QH_ASYNC;
 
     // Done
     return OsSuccess;

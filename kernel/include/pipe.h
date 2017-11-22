@@ -37,24 +37,17 @@
  * parameters for creation */
 #define PIPE_RPCOUT_SIZE            0x1000
 
-/* Customization of the pipe, we allow sleeping
- * behaviour when waiting for data, or we can
- * return with incomplete data */
-#define PIPE_NOBLOCK_READ           0x1
-#define PIPE_NOBLOCK_WRITE          0x2
-#define PIPE_NOBLOCK                (PIPE_NOBLOCK_READ | PIPE_NOBLOCK_WRITE)
-
 /* MCorePipe
  * The pipe structure, it basically contains
  * what equals to a ringbuffer, except it adds
  * read/write queues in order to block users */
 typedef struct _MCorePipe {
-    Mutex_t                     Lock;
     Flags_t                     Flags;
     uint8_t                    *Buffer;
     size_t                      Length;
     size_t                      IndexWrite;
     size_t                      IndexRead;
+
     Semaphore_t                 ReadQueue;
     Semaphore_t                 WriteQueue;
     size_t                      ReadQueueCount;
@@ -62,76 +55,81 @@ typedef struct _MCorePipe {
 } MCorePipe_t;
 
 /* PipeCreate
- * Initialise a new pipe of the given size 
- * and with the given flags */
-__EXTERN
+ * Initialise a new pipe of the given size and with the given flags */
+KERNELAPI
 MCorePipe_t*
+KERNELABI
 PipeCreate(
-    _In_ size_t Size, 
-    _In_ Flags_t Flags);
+    _In_ size_t         Size, 
+    _In_ Flags_t        Flags);
 
 /* PipeConstruct
  * Construct an already existing pipe by resetting the
  * pipe with the given parameters */
-__EXTERN
+KERNELAPI
 void
+KERNELABI
 PipeConstruct(
-    _In_ MCorePipe_t *Pipe, 
-    _In_ uint8_t *Buffer,
-    _In_ size_t BufferLength,
-    _In_ Flags_t Flags);
+    _In_ MCorePipe_t    *Pipe, 
+    _In_ uint8_t        *Buffer,
+    _In_ size_t          Size,
+    _In_ Flags_t         Flags);
 
 /* PipeDestroy
  * Destroys a pipe and wakes up all sleeping threads, then
  * frees all resources allocated */
-__EXTERN
+KERNELAPI
 void
+KERNELABI
 PipeDestroy(
-    _In_ MCorePipe_t *Pipe);
+    _In_ MCorePipe_t    *Pipe);
 
-/* PipeWrite
- * Writes the given data to the pipe-buffer, unless PIPE_NOBLOCK_WRITE
- * has been specified, it will block untill there is room in the pipe */
-__EXTERN
-int
-PipeWrite(
-    _In_ MCorePipe_t *Pipe,
-    _In_ uint8_t *Data,
-    _In_ size_t Length);
-
-/* PipeRead
- * Reads the requested data-length from the pipe buffer, unless PIPE_NOBLOCK_READ
- * has been specified, it will block untill data becomes available. If NULL is
- * given as the buffer it will just consume data instead */
-__EXTERN
-int
-PipeRead(
-    _In_ MCorePipe_t *Pipe, 
-    _In_ uint8_t *Buffer,
-    _In_ size_t Length,
-    _In_ int Peek);
-
-/* PipeWait
- * Waits for next data to enter pipe before continuing
- * this sleeps/blocks the calling thread */
-__EXTERN
+/* PipeAcquire
+ * Acquires memory space in the pipe. The memory is not
+ * visible at this point, stage 1 in the write-process. */
+KERNELAPI
 OsStatus_t
-PipeWait(
-    _In_ MCorePipe_t *Pipe, 
-    _In_ size_t Timeout);
+KERNELABI
+PipeAcquire(
+    _In_ MCorePipe_t    *Pipe,
+    _In_ size_t          Length,
+    _Out_ void         **Buffer,
+    _Out_ int           *Id);
+
+/* PipeCommit
+ * Registers the data available and wakes up consumer. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+PipeCommit(
+    _In_ MCorePipe_t    *Pipe,
+    _In_ uint8_t        *Data,
+    _In_ int             Id);
+
+/* PipeConsume
+ * Consumes the requested amount of data from the queue. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+PipeConsume(
+    _In_ MCorePipe_t    *Pipe, 
+    _In_ uint8_t        *Buffer,
+    _In_ size_t          Length);
 
 /* PipeBytesAvailable
  * Returns how many bytes are available in buffer to be read */
-__EXTERN
+KERNELAPI
 int
+KERNELABI
 PipeBytesAvailable(
-    _In_ MCorePipe_t *Pipe);
+    _In_ MCorePipe_t    *Pipe);
 
 /* PipeBytesLeft
  * Returns how many bytes are ready for usage/able to be written */
-__EXTERN
+KERNELAPI
 int
+KERNELABI
 PipeBytesLeft(
-    _In_ MCorePipe_t *Pipe);
+    _In_ MCorePipe_t    *Pipe);
 
 #endif // !_MCORE_PIPE_H_

@@ -423,17 +423,17 @@ EhciRestart(
 
     // Stop controller, unschedule everything
     // and then reset it.
-    EhciHalt(Controller);
-    EhciReset(Controller);
+    if (EhciHalt(Controller) != OsSuccess
+        || EhciReset(Controller) != OsSuccess) {
+        ERROR("Failed to halt or reset controller");
+        return OsError;
+    }
 
     // Reset certain indexes
     Controller->OpRegisters->SegmentSelector        = 0;
     Controller->OpRegisters->FrameIndex             = 0;
-
-    // Enable desired interrupts and clear status
-    Controller->OpRegisters->UsbIntr                = (EHCI_INTR_PROCESS | EHCI_INTR_PROCESSERROR
-        | EHCI_INTR_PORTCHANGE | EHCI_INTR_HOSTERROR | EHCI_INTR_ASYNC_DOORBELL);
-    Controller->OpRegisters->UsbStatus              = Controller->OpRegisters->UsbIntr;
+    Controller->OpRegisters->UsbIntr                = 0;
+    Controller->OpRegisters->UsbStatus              = Controller->OpRegisters->UsbStatus;
 
     // Update the hardware registers to point to the newly allocated
 	// addresses
@@ -464,11 +464,13 @@ EhciRestart(
     }
 
     // Start the controller by enabling it
-    TemporaryValue |= EHCI_COMMAND_RUN;
-    Controller->OpRegisters->UsbCommand = TemporaryValue;
+    TemporaryValue                                 |= EHCI_COMMAND_RUN;
+    Controller->OpRegisters->UsbCommand             = TemporaryValue;
 
     // Mark as configured, this will enable the controller
-    Controller->OpRegisters->ConfigFlag = 1;
+    Controller->OpRegisters->UsbIntr                = (EHCI_INTR_PROCESS | EHCI_INTR_PROCESSERROR
+        | EHCI_INTR_PORTCHANGE | EHCI_INTR_HOSTERROR | EHCI_INTR_ASYNC_DOORBELL);
+    Controller->OpRegisters->ConfigFlag             = 1;
     return OsSuccess;
 }
 

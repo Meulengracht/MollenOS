@@ -139,9 +139,8 @@ void _mDrvCrt(void)
 	while (IsRunning) {
 		if (RPCListen(&Message) == OsSuccess) {
 			OnEvent(&Message);
-			RPCCleanup(&Message);
 		}
-		else {}
+		RPCCleanup(&Message);
 	}
 #endif
 

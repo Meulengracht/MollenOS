@@ -22,7 +22,7 @@
  * - Isochronous Transport
  * - Transaction Translator Support
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -69,8 +69,6 @@ OnFastInterrupt(
     // Acknowledge the interrupt by clearing
     Controller->OpRegisters->UsbStatus = InterruptStatus;
     Controller->Base.InterruptStatus |= InterruptStatus;
-
-    // Done
     return InterruptHandled;
 }
 
@@ -95,9 +93,10 @@ OnInterrupt(
 
     // Instantiate the pointer
     Controller = (EhciController_t*)InterruptData;
+
+ProcessInterrupt:
     InterruptStatus = Controller->Base.InterruptStatus;
     Controller->Base.InterruptStatus = 0;
-
     // Transaction update, either error or completion
     if (InterruptStatus & (EHCI_STATUS_PROCESS | EHCI_STATUS_PROCESSERROR)) {
         EhciProcessTransfers(Controller);
@@ -125,6 +124,10 @@ OnInterrupt(
         EhciProcessDoorBell(Controller);
     }
     
+    // In case an interrupt fired during processing
+    if (Controller->Base.InterruptStatus != 0) {
+        goto ProcessInterrupt;
+    }
     return InterruptHandled;
 }
 

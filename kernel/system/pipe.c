@@ -60,12 +60,11 @@ PipeIncreaseRead(
 }
 
 /* PipeCreate
- * Initialise a new pipe of the given size 
- * and with the given flags */
+ * Initialise a new pipe of the given size and with the given flags */
 MCorePipe_t*
 PipeCreate(
-    _In_ size_t Size,
-    _In_ Flags_t Flags)
+    _In_ size_t         Size, 
+    _In_ Flags_t        Flags)
 {
     // Allocate both a pipe and a 
     // buffer in kernel memory for the pipe data
@@ -80,24 +79,24 @@ PipeCreate(
  * pipe with the given parameters */
 void
 PipeConstruct(
-    _InOut_ MCorePipe_t *Pipe,
-    _In_ uint8_t *Buffer,
-    _In_ size_t BufferLength,
-    _In_ Flags_t Flags)
+    _In_ MCorePipe_t    *Pipe, 
+    _In_ uint8_t        *Buffer,
+    _In_ size_t          Size,
+    _In_ Flags_t         Flags)
 {
     // Update members
-    Pipe->Buffer = Buffer;
-    Pipe->ReadQueueCount = 0;
-    Pipe->WriteQueueCount = 0;
-    Pipe->IndexWrite = 0;
-    Pipe->IndexRead = 0;
-    Pipe->Length = BufferLength;
-    Pipe->Flags = Flags;
+    memset((void*)Buffer, 0, sizeof(Size));
+    Pipe->Buffer            = Buffer;
+    Pipe->ReadQueueCount    = 0;
+    Pipe->WriteQueueCount   = 0;
+    Pipe->IndexWrite        = 0;
+    Pipe->IndexRead         = 0;
+    Pipe->Length            = Size;
+    Pipe->Flags             = Flags;
 
     // Construct synchronizations
     SemaphoreConstruct(&Pipe->ReadQueue, 0);
     SemaphoreConstruct(&Pipe->WriteQueue, 0);
-    MutexConstruct(&Pipe->Lock);
 }
 
 /* PipeDestroy
@@ -105,14 +104,44 @@ PipeConstruct(
  * frees all resources allocated */
 void
 PipeDestroy(
-    _In_ MCorePipe_t *Pipe)
+    _In_ MCorePipe_t    *Pipe)
 {
     // Wake all up so no-one is left behind
     SchedulerThreadWakeAll((uintptr_t*)&Pipe->ReadQueue);
     SchedulerThreadWakeAll((uintptr_t*)&Pipe->WriteQueue);
-    MutexDestroy(&Pipe->Lock);
     kfree(Pipe->Buffer);
     kfree(Pipe);
+}
+
+/* PipeAcquire
+ * Acquires memory space in the pipe. The memory is not
+ * visible at this point, stage 1 in the write-process. */
+OsStatus_t
+PipeAcquire(
+    _In_ MCorePipe_t    *Pipe,
+    _In_ size_t          Length,
+    _Out_ void         **Buffer,
+    _Out_ int           *Id)
+{
+    // Sanitize input
+    if (Pipe == NULL || Length == 0) {
+        return OsError;
+    }
+
+    // Lock
+    
+    
+}
+
+/* PipeCommit
+ * Registers the data available and wakes up consumer. */
+OsStatus_t
+PipeCommit(
+    _In_ MCorePipe_t    *Pipe,
+    _In_ uint8_t        *Data,
+    _In_ int             Id)
+{
+    
 }
 
 /* PipeWrite
@@ -223,30 +252,6 @@ PipeRead(
         }
     }
     return (int)BytesRead;
-}
-
-/* PipeWait
- * Waits for next data to enter pipe before continuing
- * this sleeps/blocks the calling thread */
-OsStatus_t
-PipeWait(
-    _In_ MCorePipe_t *Pipe,
-    _In_ size_t Timeout)
-{
-    // Sanitize parameters
-    if (Pipe == NULL) {
-        return OsError;
-    }
-
-    // Is there already bytes available?
-    if (PipeBytesAvailable(Pipe) != 0) {
-        return OsSuccess;
-    }
-
-    // Increase wait count
-    Pipe->ReadQueueCount++;
-    SemaphoreP(&Pipe->ReadQueue, Timeout);
-    return OsSuccess;
 }
 
 /* PipeBytesAvailable

@@ -1024,6 +1024,7 @@ ScPipeWrite(
 
     // Sanitize parameters
     if (Message == NULL || Length == 0) {
+        ERROR("Invalid paramters for pipe-write");
         return OsError;
     }
 
@@ -1037,12 +1038,17 @@ ScPipeWrite(
 
     // Sanitize the pipe
     if (Pipe == NULL) {
+        ERROR("Invalid pipe %i", Port);
         return OsError;
     }
     
     // Debug
     BytesWritten = PipeWrite(Pipe, Message, Length);
-    return (BytesWritten > 0) ? OsSuccess : OsError;
+    if (BytesWritten != Length) {
+        WARNING("Wrote only %u/%u bytes to pipe", 
+            BytesWritten, Length);
+    }
+    return OsSuccess;
 }
 
 /* ScIpcSleep
@@ -1096,9 +1102,10 @@ ScRpcResponse(
     _In_ MRemoteCall_t *Rpc)
 {
     // Variables
-    MCoreAsh_t *Ash = NULL;
-    MCorePipe_t *Pipe = NULL;
-    size_t ToRead = Rpc->Result.Length;
+    MCoreAsh_t *Ash     = NULL;
+    MCorePipe_t *Pipe   = NULL;
+    size_t ToRead       = Rpc->Result.Length;
+    size_t BytesRead    = 0;
     
     // There can be a special case where 
     // Sender == PHOENIX_NO_ASH 
@@ -1124,14 +1131,12 @@ ScRpcResponse(
         }
     }
 
-    // Wait for data to enter the pipe
-    PipeWait(Pipe, 0);
-    if ((size_t)PipeBytesAvailable(Pipe) < ToRead) {
-        ToRead = PipeBytesAvailable(Pipe);
-    }
-
     // Read the data into the response-buffer
-    PipeRead(Pipe, (uint8_t*)Rpc->Result.Data.Buffer, ToRead, 0);
+    BytesRead = PipeRead(Pipe, (uint8_t*)Rpc->Result.Data.Buffer, ToRead, 0);
+    if (BytesRead != ToRead) {
+        WARNING("Only got %u/%u bytes from response", BytesRead, ToRead);
+        return OsError;
+    }
     return OsSuccess;
 }
 
@@ -1142,18 +1147,18 @@ ScRpcResponse(
 OsStatus_t
 ScRpcExecute(
     _In_ MRemoteCall_t *Rpc,
-    _In_ UUId_t Target,
-    _In_ int Async)
+    _In_ UUId_t         Target,
+    _In_ int            Async)
 {
     // Variables
-    MCorePipe_t *Pipe = NULL;
-    MCoreAsh_t *Ash = NULL;
-    int i = 0;
+    MCorePipe_t *Pipe   = NULL;
+    MCoreAsh_t *Ash     = NULL;
+    int i               = 0;
     
     // Start out by resolving both the
     // process and pipe
-    Ash = PhoenixGetAsh(Target);
-    Pipe = PhoenixGetAshPipe(Ash, Rpc->Port);
+    Ash                 = PhoenixGetAsh(Target);
+    Pipe                = PhoenixGetAshPipe(Ash, Rpc->Port);
 
     // Sanitize the lookups
     if (Ash == NULL || Pipe == NULL) {
@@ -1163,17 +1168,24 @@ ScRpcExecute(
     }
 
     // Install Sender
-    Rpc->Sender = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+    Rpc->Sender         = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
 
     // Write the base request 
     // and then iterate arguments and write them
-    PipeWrite(Pipe, (uint8_t*)Rpc, sizeof(MRemoteCall_t));
+    if (PipeWrite(Pipe, (uint8_t*)Rpc, 
+        sizeof(MRemoteCall_t)) != sizeof(MRemoteCall_t)) {
+        ERROR("failed to send message to target process");
+        return OsError;
+    }
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
         if (Rpc->Arguments[i].Type == ARGUMENT_BUFFER) {
             assert(Rpc->Arguments[i].Data.Buffer != NULL);
             assert(Rpc->Arguments[i].Length != 0);
-            PipeWrite(Pipe, (uint8_t*)Rpc->Arguments[i].Data.Buffer, 
-                Rpc->Arguments[i].Length);
+            if (PipeWrite(Pipe, (uint8_t*)Rpc->Arguments[i].Data.Buffer, 
+                Rpc->Arguments[i].Length) != Rpc->Arguments[i].Length) {
+                ERROR("failed to write remote call argument");
+                return OsError;
+            }
         }
     }
 

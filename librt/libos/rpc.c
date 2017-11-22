@@ -27,6 +27,7 @@
 /* Includes
  * - Library */
 #include <stdlib.h>
+#include <signal.h>
 
 /* This is for both a kernel solution and a userspace
  * solution of IPC can co-exist */
@@ -94,13 +95,17 @@ RPCListen(
 	int i = 0;
 
 	// Wait for a new rpc message
+    memset(Message, 0, sizeof(MRemoteCall_t));
 	if (PipeRead(PIPE_RPCOUT, Message, sizeof(MRemoteCall_t)) == OsSuccess) {
 		for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
 			if (Message->Arguments[i].Type == ARGUMENT_BUFFER) {
 				Message->Arguments[i].Data.Buffer = 
 					(__CONST void*)malloc(Message->Arguments[i].Length);
-				PipeRead(PIPE_RPCOUT, (void*)Message->Arguments[i].Data.Buffer, 
-					Message->Arguments[i].Length);
+				if (PipeRead(PIPE_RPCOUT, (void*)Message->Arguments[i].Data.Buffer, 
+					Message->Arguments[i].Length) != OsSuccess) {
+                    raise(SIGPIPE);
+		            return OsError;
+                }
 			}
 			else if (Message->Arguments[i].Type == ARGUMENT_NOTUSED) {
 				Message->Arguments[i].Data.Buffer = NULL;
@@ -112,6 +117,7 @@ RPCListen(
 		return OsSuccess;
 	}
 	else {
+        raise(SIGPIPE);
 		return OsError;
 	}
 }

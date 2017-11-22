@@ -168,7 +168,7 @@ MCoreInitialize(
     ModulesRunServers();
     
     // Enter idle loop.
-    TRACE("End of initialization");
+    WARNING("End of initialization");
     while (1) {
         CpuIdle();
     }
