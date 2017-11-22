@@ -416,7 +416,7 @@ EhciRestart(
     _In_ EhciController_t *Controller)
 {
     // Variables
-    reg32_t TemporaryValue = 0;
+    reg32_t TemporaryValue                          = 0;
 
     // Debug
     TRACE("EhciRestart()");
@@ -427,33 +427,40 @@ EhciRestart(
     EhciReset(Controller);
 
     // Reset certain indexes
-    Controller->OpRegisters->SegmentSelector = 0;
-    Controller->OpRegisters->FrameIndex = 0;
+    Controller->OpRegisters->SegmentSelector        = 0;
+    Controller->OpRegisters->FrameIndex             = 0;
 
     // Enable desired interrupts and clear status
-    Controller->OpRegisters->UsbIntr = (EHCI_INTR_PROCESS | EHCI_INTR_PROCESSERROR
+    Controller->OpRegisters->UsbIntr                = (EHCI_INTR_PROCESS | EHCI_INTR_PROCESSERROR
         | EHCI_INTR_PORTCHANGE | EHCI_INTR_HOSTERROR | EHCI_INTR_ASYNC_DOORBELL);
-    Controller->OpRegisters->UsbStatus = Controller->OpRegisters->UsbIntr;
+    Controller->OpRegisters->UsbStatus              = Controller->OpRegisters->UsbIntr;
 
-    // Update queues
-    Controller->OpRegisters->PeriodicListAddress = 
-        Controller->QueueControl.FrameListPhysical;
-    Controller->OpRegisters->AsyncListAddress = 
-        EHCI_POOL_QHINDEX(Controller, EHCI_POOL_QH_ASYNC);
+    // Update the hardware registers to point to the newly allocated
+	// addresses
+	Controller->OpRegisters->PeriodicListAddress    = (reg32_t)Controller->QueueControl.FrameListPhysical;
+	Controller->OpRegisters->AsyncListAddress       = (reg32_t)EHCI_POOL_QHINDEX(Controller, EHCI_POOL_QH_ASYNC) | EHCI_LINK_QH;
 
     // Next step is to build the command configuring the controller
     // Set irq latency to 0, enable per-port changes, async park
     // and if variable frame-list, set it to 256.
-    TemporaryValue = EHCI_COMMAND_INTR_THRESHOLD(0);
-    if (Controller->CParameters & EHCI_CPARAM_PERPORT_CHANGE) {
-        TemporaryValue |= EHCI_COMMAND_PERPORT_ENABLE;
+    TemporaryValue = EHCI_COMMAND_INTR_THRESHOLD(8);
+    if (Controller->CParameters & EHCI_CPARAM_VARIABLEFRAMELIST) {
+        TemporaryValue |= EHCI_COMMAND_LISTSIZE(EHCI_LISTSIZE_256);
     }
     if (Controller->CParameters & EHCI_CPARAM_ASYNCPARK) {
         TemporaryValue |= EHCI_COMMAND_ASYNC_PARKMODE;
         TemporaryValue |= EHCI_COMMAND_PARK_COUNT(3);
     }
-    if (Controller->CParameters & EHCI_CPARAM_VARIABLEFRAMELIST) {
-        TemporaryValue |= EHCI_COMMAND_LISTSIZE(EHCI_LISTSIZE_256);
+
+    if (Controller->CapRegisters->Version == EHCI_VERSION_11) {
+        if (Controller->CParameters & EHCI_CPARAM_PERPORT_CHANGE) {
+            TemporaryValue |= EHCI_COMMAND_PERPORT_ENABLE;
+        }
+        if (Controller->CParameters & EHCI_CPARAM_HWPREFECT) {
+            TemporaryValue |= EHCI_COMMAND_PERIOD_PREFECTCH;
+            TemporaryValue |= EHCI_COMMAND_ASYNC_PREFETCH;
+            TemporaryValue |= EHCI_COMMAND_FULL_PREFETCH;
+        }
     }
 
     // Start the controller by enabling it
@@ -536,6 +543,7 @@ EhciSetup(
     
     // Now, controller is up and running
     // and we should start doing port setups by first powering on
+    TRACE("Powering up ports");
     if (Controller->SParameters & EHCI_SPARAM_PPC) {
         for (i = 0; i < Controller->Base.PortCount; i++) {
             TemporaryValue = Controller->OpRegisters->Ports[i];
@@ -549,15 +557,22 @@ EhciSetup(
 
     // Last step is to enumerate all ports that are connected with low-speed
     // devices and release them to companion hc's for bandwidth.
+    TRACE("Initializing ports");
     for (i = 0; i < Controller->Base.PortCount; i++) {
         if (Controller->OpRegisters->Ports[i] & EHCI_PORT_CONNECTED) {
             // Is the port destined for other controllers?
-            // Port must be in K-State
-            if (EHCI_PORT_LINESTATUS(Controller->OpRegisters->Ports[i])
-                == EHCI_LINESTATUS_RELEASE) {
-                // Lowspeed device
+            // Port must be in K-State + low-speed
+            if (EHCI_PORT_LINESTATUS(Controller->OpRegisters->Ports[i]) == EHCI_LINESTATUS_RELEASE) {
                 if (CcToStart != 0) {
+                    if (Controller->CapRegisters->SParams & EHCI_SPARAM_PORTINDICATORS) {
+                        Controller->OpRegisters->Ports[i] |= EHCI_PORT_COLOR_GREEN;
+                    }
                     Controller->OpRegisters->Ports[i] |= EHCI_PORT_COMPANION_HC;
+                }
+            }
+            else {
+                if (Controller->CapRegisters->SParams & EHCI_SPARAM_PORTINDICATORS) {
+                    Controller->OpRegisters->Ports[i] |= EHCI_PORT_COLOR_AMBER;
                 }
             }
         }

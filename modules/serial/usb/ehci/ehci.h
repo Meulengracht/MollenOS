@@ -39,14 +39,13 @@
  * Contains generic magic constants and definitions */
 #define EHCI_MAX_PORTS				15
 #define EHCI_MAX_BANDWIDTH			800
+#define EHCI_VERSION_10             0x0100
+#define EHCI_VERSION_11             0x0110
 
 /* EchiCapabilityRegisters
  * Describes capabilities and gives information about which features the
  * EHCI controller supports. */
 PACKED_ATYPESTRUCT(volatile, EchiCapabilityRegisters, {
-	/* Capability Registers Length 
-	 * We add this offset to the Usb Base
-	 * to get operational registers */
 	uint8_t 					Length;
 	uint8_t 					Reserved;
 	uint16_t 					Version;
@@ -96,6 +95,7 @@ PACKED_ATYPESTRUCT(volatile, EchiCapabilityRegisters, {
 #define EHCI_CPARAM_HWPREFECT				(1 << 16)
 #define EHCI_CPARAM_LINK_PWR				(1 << 17)
 #define EHCI_CPARAM_PERPORT_CHANGE			(1 << 18)
+#define EHCI_CPARAM_32FRAME_SUPPORT         (1 << 19)
 
 /* EchiOperationalRegisters
  * Registers that are used to control and command the EHCI controller
@@ -129,7 +129,7 @@ PACKED_ATYPESTRUCT(volatile, EchiOperationalRegisters, {
 #define EHCI_COMMAND_FULL_PREFETCH		(1 << 14)
 #define EHCI_COMMAND_PERPORT_ENABLE		(1 << 15)
 #define EHCI_COMMAND_INTR_THRESHOLD(n)	((n & 0xFF) << 16)
-#define EHCI_COMMAND_HI_RESUME(n)		((n & 0xF) << 23)
+#define EHCI_COMMAND_HI_RESUME(n)		((n & 0xF) << 24)
 
 #define EHCI_LISTSIZE_1024				0
 #define EHCI_LISTSIZE_512				1
@@ -178,6 +178,8 @@ PACKED_ATYPESTRUCT(volatile, EchiOperationalRegisters, {
 
 #define EHCI_PORT_POWER					(1 << 12)
 #define EHCI_PORT_COMPANION_HC			(1 << 13)
+#define EHCI_PORT_COLOR_AMBER           (1 << 14)
+#define EHCI_PORT_COLOR_GREEN           (1 << 15)
 
 // Wake bits and RWC
 #define EHCI_PORT_CONNECT_WAKE			(1 << 20)

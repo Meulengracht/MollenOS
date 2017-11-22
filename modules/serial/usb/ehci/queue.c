@@ -24,6 +24,7 @@
  * - Split-Isochronous Transport
  * - Transaction Translator Support
  */
+#define __TRACE
 
 /* Includes
  * - System */
@@ -124,9 +125,10 @@ EhciQueueInitialize(
 	_In_ EhciController_t *Controller)
 {
 	// Variables
-	EhciControl_t *Queue = NULL;
-	uintptr_t RequiredSpace = 0, PoolPhysical = 0;
-	void *Pool = NULL;
+	EhciControl_t *Queue    = NULL;
+	uintptr_t RequiredSpace = 0, 
+              PoolPhysical  = 0;
+	void *Pool              = NULL;
 
 	// Trace
 	TRACE("EhciQueueInitialize()");
@@ -149,14 +151,14 @@ EhciQueueInitialize(
 
 	// Allocate a virtual list for keeping track of added
 	// queue-heads in virtual space first.
-	Queue->VirtualList = (reg32_t*)malloc(Queue->FrameLength * sizeof(reg32_t));
+	Queue->VirtualList  = (reg32_t*)malloc(Queue->FrameLength * sizeof(reg32_t));
 
 	// Add up all the size we are going to need for pools and
 	// the actual frame list
-	RequiredSpace += Queue->FrameLength * sizeof(reg32_t);        // Framelist
-	RequiredSpace += sizeof(EhciQueueHead_t) * EHCI_POOL_NUM_QH;  // Qh-pool
-	RequiredSpace += sizeof(EhciTransferDescriptor_t) * EHCI_POOL_NUM_TD; // Td-pool
-    Queue->PoolBytes = RequiredSpace;
+	RequiredSpace       += Queue->FrameLength * sizeof(reg32_t);        // Framelist
+	RequiredSpace       += sizeof(EhciQueueHead_t) * EHCI_POOL_NUM_QH;  // Qh-pool
+	RequiredSpace       += sizeof(EhciTransferDescriptor_t) * EHCI_POOL_NUM_TD; // Td-pool
+    Queue->PoolBytes    = RequiredSpace;
 
 	// Perform the allocation
 	if (MemoryAllocate(RequiredSpace, MEMORY_CLEAN | MEMORY_COMMIT
@@ -181,20 +183,10 @@ EhciQueueInitialize(
 	Queue->TransactionList = CollectionCreate(KeyInteger);
 
 	// Initialize a bandwidth scheduler
-	Controller->Scheduler = UsbSchedulerInitialize(
-		Queue->FrameLength, EHCI_MAX_BANDWIDTH, 8);
+	Controller->Scheduler = UsbSchedulerInitialize(Queue->FrameLength, EHCI_MAX_BANDWIDTH, 8);
 
     // Reset data structures before updating HW lists
-    EhciQueueResetInternalData(Controller);
-
-	// Update the hardware registers to point to the newly allocated
-	// addresses
-	Controller->OpRegisters->PeriodicListAddress = 
-		(reg32_t)Queue->FrameListPhysical;
-	Controller->OpRegisters->AsyncListAddress = 
-        (reg32_t)EHCI_POOL_QHINDEX(Controller, EHCI_POOL_QH_ASYNC) | EHCI_LINK_QH;
-    
-    return OsSuccess;
+    return EhciQueueResetInternalData(Controller);
 }
 
 /* EhciQueueReset
@@ -259,6 +251,45 @@ EhciConditionCodeToIndex(
 		Cc >>= 1;
 	}
 	return bCount;
+}
+
+/* EhciSetPrefetching
+ * Disables the prefetching related to the transfer-type. */
+OsStatus_t
+EhciSetPrefetching(
+    _In_ EhciController_t   *Controller,
+    _In_ UsbTransferType_t   Type,
+    _In_ int                 Set)
+{
+    // Variables
+	reg32_t Command         = Controller->OpRegisters->UsbCommand;
+    
+    // Detect type of prefetching
+    if (Type == ControlTransfer || Type == BulkTransfer) {
+        if (!Set) {
+            Command &= ~(EHCI_COMMAND_ASYNC_PREFETCH);
+            Controller->OpRegisters->UsbCommand = Command;
+            MemoryBarrier();
+            while (Controller->OpRegisters->UsbCommand & EHCI_COMMAND_ASYNC_PREFETCH);
+        }
+        else {
+            Command |= EHCI_COMMAND_ASYNC_PREFETCH;
+            Controller->OpRegisters->UsbCommand = Command;
+        }
+    }
+    else {
+        if (!Set) {
+            Command &= ~(EHCI_COMMAND_PERIOD_PREFECTCH);
+            Controller->OpRegisters->UsbCommand = Command;
+            MemoryBarrier();
+            while (Controller->OpRegisters->UsbCommand & EHCI_COMMAND_PERIOD_PREFECTCH);
+        }
+        else {
+            Command |= EHCI_COMMAND_PERIOD_PREFECTCH;
+            Controller->OpRegisters->UsbCommand = Command;
+        }
+    }
+    return OsSuccess;
 }
 
 /* EhciEnableAsyncScheduler
