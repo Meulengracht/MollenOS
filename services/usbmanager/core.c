@@ -36,6 +36,36 @@
 #include <stdlib.h>
 #include <stddef.h>
 
+/* String Table
+ * Usb class string table for basic device identification. */
+static const struct {
+    uint8_t      Class;
+    const char  *IdentificationString;
+} DeviceIdentifications[22] = {
+    { 0x00, "Generic (Usb)" },
+    { 0x01, "Audio (Usb)" },
+    { 0x02, "Communications and CDC Control Device" },
+    { 0x03, "Human Input Device" },
+    { 0x05, "Physical (Usb)" },
+    { 0x06, "Imaging (Usb)" },
+    { 0x07, "Printer (Usb)" },
+    { 0x08, "Mass Storage (Usb)" },
+    { 0x09, "Hub Controller (Usb)" },
+    { 0x0A, "CDC Data Device" },
+    { 0x0B, "Smart Card (Usb)" },
+    { 0x0D, "Content Security (Usb)" },
+    { 0x0E, "Video (Usb)" },
+    { 0x0F, "Personal Healthcare (Usb)" },
+    { 0x10, "Audio/Video (Usb)" },
+    { 0x11, "Billboard (Usb)" },
+    { 0x12, "Usb Type-C Bridge (Usb)" },
+    { 0xDC, "Diagnostics (Usb)" },
+    { 0xE0, "Wireless Controller (Usb)" },
+    { 0xEF, "Miscellaneous (Usb)" },
+    { 0xFE, "Application Specific (Usb)" },
+    { 0xFF, "Vendor Specific (Usb)" }
+};
+
 /* UsbDeviceDestroy 
  * Unregisters an usb device on a given port, and cleans up all resources
  * that has been allocated, and notifies the driver of unload. */
@@ -44,16 +74,24 @@ UsbDeviceDestroy(
     _In_ UsbController_t *Controller,
     _In_ UsbPort_t *Port);
 
-/* UsbGetController 
- * Looks up the controller that matches the device-identifier */
-UsbController_t*
-UsbGetController(
-    _In_ UUId_t Device);
-
 /* Globals 
  * To keep track of all data since system startup */
 static Collection_t *GlbUsbControllers = NULL;
 static Collection_t *GlbUsbDevices = NULL;
+
+/* UsbGetIdentificationString
+ * Retrieves the identification string for the usb class. */
+const char*
+UsbGetIdentificationString(
+    _In_ uint8_t ClassCode)
+{
+    for (int i = 0; i < 22; i++) {
+        if (DeviceIdentifications[i].Class == ClassCode) {
+            return DeviceIdentifications[i].IdentificationString;
+        }
+    }
+    return "Unrecognized (Usb)";
+}
 
 /* UsbReserveAddress 
  * Iterate all 128 addresses in an controller and find one not allocated */
@@ -142,7 +180,7 @@ UsbQueryConfigurationDescriptors(
     int BytesLeft = 0;
 
     // Query for the config-descriptor
-    if (UsbGetConfigDescriptor(Controller->Driver, Controller->Device,
+    if (UsbGetConfigDescriptor(Controller->DriverId, Controller->Device.Id,
         &Device->Base, &Device->ControlEndpoint, 
         &Descriptor, sizeof(UsbConfigDescriptor_t)) != TransferFinished) {
         return OsError;
@@ -156,7 +194,7 @@ UsbQueryConfigurationDescriptors(
 
     // Query for the full descriptor
     FullDescriptor = malloc(Descriptor.TotalLength);
-    if (UsbGetConfigDescriptor(Controller->Driver, Controller->Device,
+    if (UsbGetConfigDescriptor(Controller->DriverId, Controller->Device.Id,
         &Device->Base, &Device->ControlEndpoint, 
         FullDescriptor, Descriptor.TotalLength) != TransferFinished) {
         free(FullDescriptor);
@@ -274,7 +312,7 @@ UsbQueryConfigurationDescriptors(
             // Determine the direction of the EP
             if (Endpoint->Address & 0x80) {
                 HcEndpoint->Direction = USB_ENDPOINT_IN;
-            }	
+            }    
             else {
                 HcEndpoint->Direction = USB_ENDPOINT_OUT;
             }
@@ -332,7 +370,7 @@ UsbCoreDestroy(void)
         // Instantiate a pointer of correct type
         UsbController_t *Controller =
             (UsbController_t*)cNode->Data;
-        UsbControllerUnregister(Controller->Driver, Controller->Device);
+        UsbCoreControllerUnregister(Controller->DriverId, Controller->Device.Id);
     }
 
     // Destroy lists
@@ -343,12 +381,12 @@ UsbCoreDestroy(void)
     return UsbCleanup();
 }
 
-/* UsbControllerRegister
+/* UsbCoreControllerRegister
  * Registers a new controller with the given type and setup */
 OsStatus_t
-UsbControllerRegister(
-    _In_ UUId_t Driver,
-    _In_ UUId_t Device,
+UsbCoreControllerRegister(
+    _In_ UUId_t DriverId,
+    _In_ MCoreDevice_t *Device,
     _In_ UsbControllerType_t Type,
     _In_ size_t Ports)
 {
@@ -361,8 +399,8 @@ UsbControllerRegister(
     memset(Controller, 0, sizeof(UsbController_t));
 
     // Store initial data
-    Controller->Driver = Driver;
-    Controller->Device = Device;
+    memcpy(&Controller->Device, Device, sizeof(MCoreDevice_t));
+    Controller->DriverId = DriverId;
     Controller->Type = Type;
     Controller->PortCount = Ports;
 
@@ -373,24 +411,23 @@ UsbControllerRegister(
     Key.Value = 0;
 
     // Add to list of controllers
-    return CollectionAppend(GlbUsbControllers, 
-        CollectionCreateNode(Key, Controller));
+    return CollectionAppend(GlbUsbControllers, CollectionCreateNode(Key, Controller));
 }
 
-/* UsbControllerUnregister
+/* UsbCoreControllerUnregister
  * Unregisters the given usb-controller from the manager and
  * unregisters any devices registered by the controller */
 OsStatus_t
-UsbControllerUnregister(
-    _In_ UUId_t Driver,
-    _In_ UUId_t Device)
+UsbCoreControllerUnregister(
+    _In_ UUId_t DriverId,
+    _In_ UUId_t DeviceId)
 {
     // Variables
     UsbController_t *Controller = NULL;
     int i;
 
     // Lookup controller and verify existance
-    Controller = UsbGetController(Device);
+    Controller = UsbCoreGetController(DeviceId);
     if (Controller == NULL) {
         return OsError;
     }
@@ -427,7 +464,6 @@ UsbDeviceLoadDrivers(
     TRACE("UsbDeviceLoadDrivers()");
 
     // Initialize the base device
-    // @todo better device strings based on class/subclass
     memset(&CoreDevice, 0, sizeof(MCoreUsbDevice_t));
     memcpy(&CoreDevice.Base.Name[0], "Generic Usb Device", 18);
     CoreDevice.Base.Id = UUID_INVALID;
@@ -440,8 +476,8 @@ UsbDeviceLoadDrivers(
     memcpy(&CoreDevice.Device, &Device->Base, sizeof(UsbHcDevice_t));
 
     // Copy controller target-information
-    CoreDevice.DriverId = Controller->Driver;
-    CoreDevice.DeviceId = Controller->Device;
+    CoreDevice.DriverId = Controller->DriverId;
+    CoreDevice.DeviceId = Controller->Device.Id;
 
     // Copy control endpoint
     memcpy(&CoreDevice.Endpoints[0], &Device->ControlEndpoint, 
@@ -452,12 +488,14 @@ UsbDeviceLoadDrivers(
     for (i = 0; i < Device->Base.InterfaceCount; i++) {
         // Copy specific interface-information to structure
         if (Device->Interfaces[i].Exists) {
+            const char *Identification = UsbGetIdentificationString(Device->Interfaces[i].Base.Class);
             memcpy(&CoreDevice.Interface, &Device->Interfaces[i].Base, 
                 sizeof(UsbHcInterface_t));
             memcpy(&CoreDevice.Endpoints[1], &Device->Interfaces[i].Versions[0].Endpoints[0],
                 sizeof(UsbHcEndpointDescriptor_t) * Device->Interfaces[i].Versions[0].Base.EndpointCount);
 
-            // Let interface determine the subclass
+            // Let interface determine the class/subclass
+            memcpy(&CoreDevice.Base.Name[0], Identification, strlen(Identification));
             CoreDevice.Base.Subclass = (Device->Interfaces[i].Base.Class << 16) | 0; // Subclass
             TRACE("Installing driver for interface %i (0x%x)", i, CoreDevice.Base.Subclass);
             RegisterDevice(CoreDevice.DeviceId, &CoreDevice.Base, __DEVICEMANAGER_REGISTER_LOADDRIVER);
@@ -505,7 +543,7 @@ UsbDeviceSetup(
     Port->Device = Device;
 
     // Initialize the port by resetting it
-    if (UsbHostResetPort(Controller->Driver, Controller->Device,
+    if (UsbHostResetPort(Controller->DriverId, Controller->Device.Id,
             Port->Index, &PortDescriptor) != OsSuccess) {
         ERROR("(UsbHostResetPort %u) Failed to reset port %i",
             Controller->Device, Port->Index);
@@ -546,10 +584,10 @@ UsbDeviceSetup(
 
     // Set device address for the new device
     TRACE("Setting new address for device => %i", ReservedAddress);
-    tStatus = UsbSetAddress(Controller->Driver, Controller->Device,
+    tStatus = UsbSetAddress(Controller->DriverId, Controller->Device.Id,
         &Device->Base, &Device->ControlEndpoint, ReservedAddress);
     if (tStatus != TransferFinished) {
-        tStatus = UsbSetAddress(Controller->Driver, Controller->Device,
+        tStatus = UsbSetAddress(Controller->DriverId, Controller->Device.Id,
             &Device->Base, &Device->ControlEndpoint, ReservedAddress);
         if (tStatus != TransferFinished) {
             ERROR("(Set_Address) Failed to setup port %i: %u", 
@@ -565,9 +603,9 @@ UsbDeviceSetup(
     ThreadSleep(2);
 
     // Query Device Descriptor
-    if (UsbGetDeviceDescriptor(Controller->Driver, Controller->Device,
+    if (UsbGetDeviceDescriptor(Controller->DriverId, Controller->Device.Id,
         &Device->Base, &Device->ControlEndpoint, &DeviceDescriptor) != TransferFinished) {
-        if (UsbGetDeviceDescriptor(Controller->Driver, Controller->Device,
+        if (UsbGetDeviceDescriptor(Controller->DriverId, Controller->Device.Id,
             &Device->Base, &Device->ControlEndpoint, &DeviceDescriptor) != TransferFinished) {
             ERROR("(Get_Device_Desc) Failed to setup port %i", 
                 Port->Index);
@@ -606,9 +644,9 @@ UsbDeviceSetup(
     }
 
     // Update Configuration
-    if (UsbSetConfiguration(Controller->Driver, Controller->Device,
+    if (UsbSetConfiguration(Controller->DriverId, Controller->Device.Id,
         &Device->Base, &Device->ControlEndpoint, Device->Base.Configuration) != TransferFinished) {
-        if (UsbSetConfiguration(Controller->Driver, Controller->Device,
+        if (UsbSetConfiguration(Controller->DriverId, Controller->Device.Id,
             &Device->Base, &Device->ControlEndpoint, Device->Base.Configuration) != TransferFinished) {
             ERROR("(Set_Configuration) Failed to setup port %i", 
                 Port->Index);
@@ -668,6 +706,7 @@ UsbDeviceDestroy(
     // Iterate all interfaces and send unregister
     for (i = 0; i < Device->Base.InterfaceCount; i++) {
         // Send unregister
+        // @todo
     }
 
     // Release allocated address
@@ -703,23 +742,20 @@ UsbPortCreate(
 
     // Store index
     Port->Index = Index;
-
-    // All set
     return Port;
 }
 
-/* UsbGetController 
+/* UsbCoreGetController 
  * Looks up the controller that matches the device-identifier */
 UsbController_t*
-UsbGetController(
-    _In_ UUId_t Device)
+UsbCoreGetController(
+    _In_ UUId_t DeviceId)
 {
     // Iterate all registered controllers
     foreach(cNode, GlbUsbControllers) {
         // Cast data pointer to known type
-        UsbController_t *Controller = 
-            (UsbController_t*)cNode->Data;
-        if (Controller->Device == Device) {
+        UsbController_t *Controller = (UsbController_t*)cNode->Data;
+        if (Controller->Device.Id == DeviceId) {
             return Controller;
         }
     }
@@ -728,12 +764,12 @@ UsbGetController(
     return NULL;
 }
 
-/* UsbEventPort 
+/* UsbCoreEventPort 
  * Fired by a usbhost controller driver whenever there is a change
  * in port-status. The port-status is then queried automatically by
  * the usbmanager. */
 OsStatus_t
-UsbEventPort(
+UsbCoreEventPort(
     _In_ UUId_t Driver,
     _In_ UUId_t Device,
     _In_ int Index)
@@ -745,11 +781,11 @@ UsbEventPort(
     OsStatus_t Result = OsSuccess;
 
     // Debug
-    TRACE("UsbEventPort(Device %u, Index %i)", Device, Index);
+    TRACE("UsbCoreEventPort(Device %u, Index %i)", Device, Index);
 
     // Lookup controller first to only handle events
     // from registered controllers
-    Controller = UsbGetController(Device);
+    Controller = UsbCoreGetController(Device);
     if (Controller == NULL) {
         ERROR("No such controller");
         return OsError;
@@ -792,4 +828,31 @@ UsbEventPort(
 
     // Event handled
     return Result;
+}
+
+/* UsbCoreGetControllerCount
+ * Retrieves the number of registered controllers. */
+int
+UsbCoreGetControllerCount(void)
+{
+    return CollectionLength(GlbUsbControllers);
+}
+
+/* UsbCoreGetControllerIndex
+ * Looks up the controller that matches the list-index */
+UsbController_t*
+UsbCoreGetControllerIndex(
+    _In_ int Index)
+{
+    // Variables
+    CollectionItem_t *Item  = NULL;
+    int i                   = 0;
+
+    // Find node
+    _foreach(Item, GlbUsbControllers) {
+        if (i == Index) {
+            return (UsbController_t*)Item->Data;
+        } i++;
+    }
+    return NULL;
 }

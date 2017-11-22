@@ -969,10 +969,10 @@ ScPipeClose(
  * a message is available */
 OsStatus_t
 ScPipeRead(
-    _In_ int Port,
-    _In_ uint8_t *Container,
-    _In_ size_t Length,
-    _In_ int Peek)
+    _In_ int         Port,
+    _In_ uint8_t    *Container,
+    _In_ size_t      Length,
+    _In_ int         Peek)
 {
     // Variables
     MCorePipe_t *Pipe = NULL;
@@ -999,7 +999,11 @@ ScPipeRead(
 
     // Debug
     BytesRead = PipeRead(Pipe, Container, Length, Peek);
-    return (BytesRead > 0) ? OsSuccess : OsError;
+    if (BytesRead != Length && !Peek) {
+        WARNING("Read only %u/%u bytes from pipe", 
+            BytesRead, Length);
+    }
+    return OsSuccess;
 }
 
 /* ScPipeWrite

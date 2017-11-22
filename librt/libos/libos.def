@@ -15,3 +15,5 @@ _CollectionGetDataByKey
 _CollectionGetNodeByKey
 _CollectionRemoveByNode
 _CollectionRemoveByKey
+_UsbQueryControllerCount
+_UsbQueryController

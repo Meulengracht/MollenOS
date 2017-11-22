@@ -123,7 +123,7 @@ EhciPortGetStatus(
 		Port->Enabled = 0;
 	}
 
-	// EHCI Only deals in high-speed
+    // Ehci only has high-speed root ports
 	Port->Speed = HighSpeed;
 }
 
@@ -134,29 +134,15 @@ EhciPortSetup(
 	_In_ EhciController_t *Controller,
 	_In_ int Index)
 {
-	// Variables
-	OsStatus_t ReturnValue = 0;
-
 	// Wait for power-on delay
 	ThreadSleep(100);
-
-	// Trace
-	TRACE("EHCI-Port Pre-Reset: 0x%x", Controller->OpRegisters->Ports[Index]);
-
-	// Reset port
-	ReturnValue = EhciPortReset(Controller, Index);
-
-	// Trace
-	TRACE("EHCI-Port Pre-Reset: 0x%x", Controller->OpRegisters->Ports[Index]);
-
-	// Done
-	return ReturnValue;
+	return EhciPortReset(Controller, Index);;
 }
 
 /* EhciPortCheck
  * Performs a current status-check on the given port. This automatically
  * registers any events that happen. */
-void
+OsStatus_t
 EhciPortCheck(
 	_In_ EhciController_t *Controller,
 	_In_ int Index)
@@ -166,7 +152,7 @@ EhciPortCheck(
 
 	// Connection event? Otherwise ignore
 	if (!(Status & EHCI_PORT_CONNECT_EVENT)) {
-		return;
+		return OsSuccess;
 	}
 
 	// Clear all event bits
@@ -180,12 +166,12 @@ EhciPortCheck(
 			if (EHCI_SPARAM_CCCOUNT(Controller->SParameters) != 0) {
 				Controller->OpRegisters->Ports[Index] |= EHCI_PORT_COMPANION_HC;
 			}
-			return;
+			return OsSuccess;
 		}
 	}
 
 	// Fire off event
-	UsbEventPort(Controller->Base.Id, Index);
+	return UsbEventPort(Controller->Base.Id, Index);
 }
 
 /* EhciPortScan
@@ -197,8 +183,6 @@ EhciPortScan(
 {
 	// Variables
 	size_t i;
-
-	// Enumerate ports
 	for (i = 0; i < Controller->Base.PortCount; i++) {
 		EhciPortCheck(Controller, i);
 	}

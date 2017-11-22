@@ -22,7 +22,7 @@
  * - Isochronous Transport
  * - Transaction Translator Support
  */
-//#define __TRACE
+#define __TRACE
 
 /* Includes 
  * - System */
@@ -47,31 +47,31 @@ InterruptStatus_t
 OnFastInterrupt(
     _In_Opt_ void *InterruptData)
 {
-	// Variables
-	EhciController_t *Controller = NULL;
-	reg32_t InterruptStatus;
+    // Variables
+    EhciController_t *Controller = NULL;
+    reg32_t InterruptStatus;
 
-	// Instantiate the pointer
-	Controller = (EhciController_t*)InterruptData;
+    // Instantiate the pointer
+    Controller = (EhciController_t*)InterruptData;
 
-	// Calculate the kinds of interrupts this controller accepts
-	InterruptStatus = 
-		(Controller->OpRegisters->UsbStatus & Controller->OpRegisters->UsbIntr);
+    // Calculate the kinds of interrupts this controller accepts
+    InterruptStatus = 
+        (Controller->OpRegisters->UsbStatus & Controller->OpRegisters->UsbIntr);
 
-	// Trace
-	TRACE("EHCI-Interrupt - Status 0x%x", InterruptStatus);
+    // Trace
+    TRACE("EHCI-Interrupt - Status 0x%x", InterruptStatus);
 
-	// Was the interrupt even from this controller?
-	if (!InterruptStatus) {
-		return InterruptNotHandled;
-	}
+    // Was the interrupt even from this controller?
+    if (!InterruptStatus) {
+        return InterruptNotHandled;
+    }
 
-	// Acknowledge the interrupt by clearing
+    // Acknowledge the interrupt by clearing
     Controller->OpRegisters->UsbStatus = InterruptStatus;
     Controller->Base.InterruptStatus |= InterruptStatus;
 
-	// Done
-	return InterruptHandled;
+    // Done
+    return InterruptHandled;
 }
 
 /* OnInterrupt
@@ -84,45 +84,45 @@ OnInterrupt(
     _In_Opt_ size_t Arg1,
     _In_Opt_ size_t Arg2)
 {
-	// Variables
-	EhciController_t *Controller = NULL;
+    // Variables
+    EhciController_t *Controller = NULL;
     reg32_t InterruptStatus;
     
     // Unused
     _CRT_UNUSED(Arg0);
     _CRT_UNUSED(Arg1);
-	_CRT_UNUSED(Arg2);
+    _CRT_UNUSED(Arg2);
 
-	// Instantiate the pointer
+    // Instantiate the pointer
     Controller = (EhciController_t*)InterruptData;
     InterruptStatus = Controller->Base.InterruptStatus;
     Controller->Base.InterruptStatus = 0;
 
     // Transaction update, either error or completion
-	if (InterruptStatus & (EHCI_STATUS_PROCESS | EHCI_STATUS_PROCESSERROR)) {
-		EhciProcessTransfers(Controller);
-	}
+    if (InterruptStatus & (EHCI_STATUS_PROCESS | EHCI_STATUS_PROCESSERROR)) {
+        EhciProcessTransfers(Controller);
+    }
 
-	// Hub change? We should enumerate ports and detect
-	// which events occured
-	if (InterruptStatus & EHCI_STATUS_PORTCHANGE) {
-		EhciPortScan(Controller);
-	}
+    // Hub change? We should enumerate ports and detect
+    // which events occured
+    if (InterruptStatus & EHCI_STATUS_PORTCHANGE) {
+        EhciPortScan(Controller);
+    }
 
-	// HC Fatal Error
-	// Clear all queued, reset controller
-	if (InterruptStatus & EHCI_STATUS_HOSTERROR) {
+    // HC Fatal Error
+    // Clear all queued, reset controller
+    if (InterruptStatus & EHCI_STATUS_HOSTERROR) {
         if (EhciQueueReset(Controller) != OsSuccess) {
-			ERROR("EHCI-Failure: Failed to reset queue after fatal error");
+            ERROR("EHCI-Failure: Failed to reset queue after fatal error");
         }
-		if (EhciRestart(Controller) != OsSuccess) {
-			ERROR("EHCI-Failure: Failed to reset controller after fatal error");
-		}
-	}
+        if (EhciRestart(Controller) != OsSuccess) {
+            ERROR("EHCI-Failure: Failed to reset controller after fatal error");
+        }
+    }
 
-	// Doorbell? Process transactions in progress
-	if (InterruptStatus & EHCI_STATUS_ASYNC_DOORBELL) {
-		EhciProcessDoorBell(Controller);
+    // Doorbell? Process transactions in progress
+    if (InterruptStatus & EHCI_STATUS_ASYNC_DOORBELL) {
+        EhciProcessDoorBell(Controller);
     }
     
     return InterruptHandled;
@@ -134,10 +134,10 @@ OnInterrupt(
  * on to the below handler */
 OsStatus_t
 OnTimeout(
-	_In_ UUId_t Timer,
-	_In_ void *Data)
+    _In_ UUId_t Timer,
+    _In_ void *Data)
 {
-	return OsSuccess;
+    return OsSuccess;
 }
 
 /* OnLoad
@@ -146,8 +146,8 @@ OnTimeout(
 OsStatus_t
 OnLoad(void)
 {
-	// Initialize the device manager here
-	return UsbManagerInitialize();
+    // Initialize the device manager here
+    return UsbManagerInitialize();
 }
 
 /* OnUnload
@@ -156,8 +156,8 @@ OnLoad(void)
 OsStatus_t
 OnUnload(void)
 {
-	// Cleanup the internal device manager
-	return UsbManagerDestroy();
+    // Cleanup the internal device manager
+    return UsbManagerDestroy();
 }
 
 /* OnRegister
@@ -167,19 +167,19 @@ OsStatus_t
 OnRegister(
     _In_ MCoreDevice_t *Device)
 {
-	// Variables
-	EhciController_t *Controller = NULL;
-	
-	// Register the new controller
-	Controller = EhciControllerCreate(Device);
+    // Variables
+    EhciController_t *Controller = NULL;
+    
+    // Register the new controller
+    Controller = EhciControllerCreate(Device);
 
-	// Sanitize
-	if (Controller == NULL) {
-		return OsError;
-	}
-
-	// Done - Register with service
-	return UsbManagerCreateController(&Controller->Base);
+    // Sanitize
+    if (Controller == NULL) {
+        return OsError;
+    }
+    else {
+        return OsSuccess;
+    }
 }
 
 /* OnUnregister
@@ -189,22 +189,19 @@ OsStatus_t
 OnUnregister(
     _In_ MCoreDevice_t *Device)
 {
-	// Variables
-	EhciController_t *Controller = NULL;
-	
-	// Lookup controller
-	Controller = (EhciController_t*)UsbManagerGetController(Device->Id);
+    // Variables
+    EhciController_t *Controller = NULL;
+    
+    // Lookup controller
+    Controller = (EhciController_t*)UsbManagerGetController(Device->Id);
 
-	// Sanitize lookup
-	if (Controller == NULL) {
-		return OsError;
-	}
+    // Sanitize lookup
+    if (Controller == NULL) {
+        return OsError;
+    }
 
-	// Unregister, then destroy
-	UsbManagerDestroyController(&Controller->Base);
-
-	// Destroy it
-	return EhciControllerDestroy(Controller);
+    // Destroy it
+    return EhciControllerDestroy(Controller);
 }
 
 /* OnQuery
@@ -221,41 +218,41 @@ OnQuery(
     _In_ UUId_t Queryee, 
     _In_ int ResponsePort)
 {
-	// Variables
-	UsbManagerTransfer_t *Transfer = NULL;
-	EhciController_t *Controller = NULL;
-	UUId_t Device = UUID_INVALID, Pipe = UUID_INVALID;
-	OsStatus_t Result = OsError;
+    // Variables
+    UsbManagerTransfer_t *Transfer = NULL;
+    EhciController_t *Controller = NULL;
+    UUId_t Device = UUID_INVALID, Pipe = UUID_INVALID;
+    OsStatus_t Result = OsError;
 
-	// Instantiate some variables
-	Device = (UUId_t)Arg0->Data.Value;
-	Pipe = (UUId_t)Arg1->Data.Value;
-	
-	// Lookup controller
-	Controller = (EhciController_t*)UsbManagerGetController(Device);
+    // Instantiate some variables
+    Device = (UUId_t)Arg0->Data.Value;
+    Pipe = (UUId_t)Arg1->Data.Value;
+    
+    // Lookup controller
+    Controller = (EhciController_t*)UsbManagerGetController(Device);
 
-	// Sanitize we have a controller
-	if (Controller == NULL) {
-		// Null response
-		return PipeSend(Queryee, ResponsePort, 
-			(void*)&Result, sizeof(OsStatus_t));
-	}
+    // Sanitize we have a controller
+    if (Controller == NULL) {
+        // Null response
+        return PipeSend(Queryee, ResponsePort, 
+            (void*)&Result, sizeof(OsStatus_t));
+    }
 
-	switch (QueryFunction) {
-		// Generic Queue
-		case __USBHOST_QUEUETRANSFER: {
+    switch (QueryFunction) {
+        // Generic Queue
+        case __USBHOST_QUEUETRANSFER: {
             // Variables
-			UsbTransferResult_t ResPackage;
+            UsbTransferResult_t ResPackage;
 
-			// Create and setup new transfer
-			Transfer = UsbManagerCreateTransfer(
-				(UsbTransfer_t*)Arg2->Data.Buffer,
+            // Create and setup new transfer
+            Transfer = UsbManagerCreateTransfer(
+                (UsbTransfer_t*)Arg2->Data.Buffer,
                 Queryee, ResponsePort, Device, Pipe);
                 
             // Queue the periodic transfer
             ResPackage.Status = UsbQueueTransferGeneric(Transfer);
-			ResPackage.Id = Transfer->Id;
-			ResPackage.BytesTransferred = 0;
+            ResPackage.Id = Transfer->Id;
+            ResPackage.BytesTransferred = 0;
 
             // Send back package?
             if (ResPackage.Status != TransferQueued) {
@@ -265,74 +262,74 @@ OnQuery(
             else {
                 return OsSuccess;
             }
-		} break;
+        } break;
 
-		// Periodic Queue
-		case __USBHOST_QUEUEPERIODIC: {
-			// Variables
-			UsbTransferResult_t ResPackage;
+        // Periodic Queue
+        case __USBHOST_QUEUEPERIODIC: {
+            // Variables
+            UsbTransferResult_t ResPackage;
 
-			// Create and setup new transfer
-			Transfer = UsbManagerCreateTransfer(
-				(UsbTransfer_t*)Arg2->Data.Buffer,
-				Queryee, ResponsePort, Device, Pipe);
+            // Create and setup new transfer
+            Transfer = UsbManagerCreateTransfer(
+                (UsbTransfer_t*)Arg2->Data.Buffer,
+                Queryee, ResponsePort, Device, Pipe);
 
             // Queue the periodic transfer
             ResPackage.Status = UsbQueueTransferGeneric(Transfer);
-			ResPackage.Id = Transfer->Id;
-			ResPackage.BytesTransferred = 0;
+            ResPackage.Id = Transfer->Id;
+            ResPackage.BytesTransferred = 0;
 
-			// Send back package
-			return PipeSend(Queryee, ResponsePort, 
-				(void*)&ResPackage, sizeof(UsbTransferResult_t));
-		} break;
+            // Send back package
+            return PipeSend(Queryee, ResponsePort, 
+                (void*)&ResPackage, sizeof(UsbTransferResult_t));
+        } break;
 
-		// Dequeue Transfer
-		case __USBHOST_DEQUEUEPERIODIC: {
-			// Variables
-			UsbManagerTransfer_t *Transfer = NULL;
-			UUId_t Id = (UUId_t)Arg1->Data.Value;
-			UsbTransferStatus_t Status = TransferInvalid;
+        // Dequeue Transfer
+        case __USBHOST_DEQUEUEPERIODIC: {
+            // Variables
+            UsbManagerTransfer_t *Transfer = NULL;
+            UUId_t Id = (UUId_t)Arg1->Data.Value;
+            UsbTransferStatus_t Status = TransferInvalid;
 
-			// Lookup transfer by iterating through
-			// available transfers
-			foreach(tNode, Controller->QueueControl.TransactionList) {
-				// Cast data to our type
-				UsbManagerTransfer_t *NodeTransfer = 
-					(UsbManagerTransfer_t*)tNode->Data;
-				if (NodeTransfer->Id == Id) {
-					Transfer = NodeTransfer;
-					break;
-				}
-			}
+            // Lookup transfer by iterating through
+            // available transfers
+            foreach(tNode, Controller->QueueControl.TransactionList) {
+                // Cast data to our type
+                UsbManagerTransfer_t *NodeTransfer = 
+                    (UsbManagerTransfer_t*)tNode->Data;
+                if (NodeTransfer->Id == Id) {
+                    Transfer = NodeTransfer;
+                    break;
+                }
+            }
 
-			// Dequeue and send result back
-			if (Transfer != NULL) {
-				Status = UsbDequeueTransferGeneric(Transfer);
+            // Dequeue and send result back
+            if (Transfer != NULL) {
+                Status = UsbDequeueTransferGeneric(Transfer);
             }
 
             // Send back package
-			return PipeSend(Queryee, ResponsePort, 
-				(void*)&Status, sizeof(UsbTransferStatus_t));
-		} break;
+            return PipeSend(Queryee, ResponsePort, 
+                (void*)&Status, sizeof(UsbTransferStatus_t));
+        } break;
 
-		// Reset port
-		case __USBHOST_RESETPORT: {
-			// Call reset procedure, then let it fall through
-			// to QueryPort
-			EhciPortReset(Controller, (int)Pipe);
-		};
-		// Query port
-		case __USBHOST_QUERYPORT: {
-			// Variables
-			UsbHcPortDescriptor_t Descriptor;
+        // Reset port
+        case __USBHOST_RESETPORT: {
+            // Call reset procedure, then let it fall through
+            // to QueryPort
+            EhciPortReset(Controller, (int)Pipe);
+        };
+        // Query port
+        case __USBHOST_QUERYPORT: {
+            // Variables
+            UsbHcPortDescriptor_t Descriptor;
 
-			// Fill port descriptor
-			EhciPortGetStatus(Controller, (int)Pipe, &Descriptor);
+            // Fill port descriptor
+            EhciPortGetStatus(Controller, (int)Pipe, &Descriptor);
 
-			// Send descriptor back
-			return PipeSend(Queryee, ResponsePort, 
-				(void*)&Descriptor, sizeof(UsbHcPortDescriptor_t));
+            // Send descriptor back
+            return PipeSend(Queryee, ResponsePort, 
+                (void*)&Descriptor, sizeof(UsbHcPortDescriptor_t));
         } break;
         
         // Reset endpoint toggles
@@ -340,12 +337,12 @@ OnQuery(
             Result = UsbManagerSetToggle(Device, Pipe, 0);
         } break;
 
-		// Fall-through, error
-		default:
-			break;
-	}
+        // Fall-through, error
+        default:
+            break;
+    }
 
-	// Dunno, fall-through case
-	// Return status response
-	return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
+    // Dunno, fall-through case
+    // Return status response
+    return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
 }

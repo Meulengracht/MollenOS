@@ -123,7 +123,7 @@ UsbManagerCreateController(
 	Key.Value = (int)Controller->Device.Id;
 
 	// Register controller with usbmanager service
-	if (UsbControllerRegister(Controller->Device.Id, 
+	if (UsbControllerRegister(&Controller->Device, 
 			Controller->Type, Controller->PortCount) != OsSuccess) {
 		return OsError;
 	}

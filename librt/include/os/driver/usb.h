@@ -32,6 +32,7 @@
  * - System */
 #include <os/driver/usb/definitions.h>
 #include <os/driver/bufferpool.h>
+#include <os/driver/device.h>
 
 /* USB Definitions
  * Contains magic constants, settings and bit definitions */
@@ -61,6 +62,15 @@ PACKED_TYPESTRUCT(UsbHcPortDescriptor, {
 	UsbSpeed_t                          Speed;
 	int                                 Enabled;
 	int                                 Connected;
+});
+
+/* UsbHcController
+ * Describes a generic controller with information needed
+ * in order for the manager to function */
+PACKED_TYPESTRUCT(UsbHcController, {
+    MCoreDevice_t                       Device;
+    UsbControllerType_t                 Type;
+    UsbHcPortDescriptor_t               Ports[USB_MAX_PORTS];
 });
 
 /* UsbHcEndpointDescriptor 
@@ -481,13 +491,23 @@ UsbEndpointReset(
     _In_ UsbHcDevice_t *UsbDevice, 
     _In_ UsbHcEndpointDescriptor_t *Endpoint);
 
-/* UsbQueryControllers 
- * Queries the available usb controllers and their status in the system
- * The given array must be of size USB_MAX_CONTROLLERS. */
+/* UsbQueryControllerCount
+ * Queries the available number of usb controllers. */
+MOSAPI
+OsStatus_t
+MOSABI
+UsbQueryControllerCount(
+    _Out_ int *ControllerCount);
 
-/* UsbQueryPorts 
- * Queries the available ports and their status on the given usb controller
- * the given array must be of size USB_MAX_PORTS. */
+/* UsbQueryController
+ * Queries the controller with the given index. Index-max is
+ * the controller count - 1. */
+MOSAPI
+OsStatus_t
+MOSABI
+UsbQueryController(
+    _In_ int Index,
+    _Out_ UsbHcController_t *Controller);
 
 /* UsbQueryPipes 
  * Queries the available interfaces and endpoints on a given

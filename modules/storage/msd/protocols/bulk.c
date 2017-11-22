@@ -493,7 +493,6 @@ BulkReadData(
     UsbTransferInitialize(&DataStage, &Device->Base.Device, 
         Device->In, BulkTransfer);
     UsbTransferIn(&DataStage, DataAddress, DataLength, 0);
-    //ThreadSleep(100);
     UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
         &DataStage, &Result);
     

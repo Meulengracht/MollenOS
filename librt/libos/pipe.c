@@ -25,112 +25,108 @@
 #include <os/ipc/pipe.h>
 
 /* Includes
- * - C-Library */
+ * - Library */
 #include <signal.h>
 
-/* IPC - Open - Pipe
+/* PipeOpen
  * Opens a new communication pipe on the given
  * port for this process, if one already exists
  * SIGPIPE is signaled */
-UUId_t PipeOpen(int Port)
+UUId_t
+PipeOpen(
+    _In_ int Port)
 {
-	/* Variables */
-	OsStatus_t Result;
+	// Variables
+	OsStatus_t Result = OsError;
 
-	/* Sanitize the port */
+	// Sanitize input
 	if (Port < 0) {
 		return UUID_INVALID;
 	}
 
-	/* Open is rather just calling the underlying syscall */
-	Result = Syscall1(SYSCALL_OPENPIPE, SYSCALL_PARAM(Port));
-
-	/* Sanitize the return parameters */
+    // Execute system call and verify
+	Result = (OsStatus_t)Syscall2(SYSCALL_OPENPIPE, SYSCALL_PARAM(Port), 0);
 	if (Result != OsSuccess) {
 		raise(SIGPIPE);
 	}
-
-	/* Done! */
 	return (UUId_t)Port;
 }
 
-/* IPC - Close - Pipe
+/* PipeClose
  * Closes an existing communication pipe on the given
  * port for this process, if one doesn't exists
  * SIGPIPE is signaled */
-OsStatus_t PipeClose(UUId_t Pipe)
+OsStatus_t
+PipeClose(
+    _In_ UUId_t Pipe)
 {
-	/* Variables */
-	OsStatus_t Result;
+	// Variables
+	OsStatus_t Result = OsError;
 
-	/* Sanitize parameters */
+	// Sanitize input
 	if (Pipe == UUID_INVALID) {
 		return OsError;
 	}
 
-	/* Close is rather just calling the underlying syscall */
-	Result = (OsStatus_t)Syscall1(SYSCALL_OPENPIPE, SYSCALL_PARAM(Pipe));
-
-	/* Sanitize the return parameters */
+	// Execute system call and verify
+	Result = (OsStatus_t)Syscall1(SYSCALL_CLOSEPIPE, SYSCALL_PARAM(Pipe));
 	if (Result != OsSuccess) {
 		raise(SIGPIPE);
-		return OsError;
 	}
-
-	/* Done! */
 	return Result;
 }
 
-/* IPC - Read
+/* PipeRead
  * This returns -1 if something went wrong reading
  * a message from the message queue, otherwise it returns 0
  * and fills the structures with information about the message */
-OsStatus_t PipeRead(UUId_t Pipe, void *Buffer, size_t Length)
+OsStatus_t
+PipeRead(
+    _In_ UUId_t  Pipe,
+    _In_ void   *Buffer,
+    _In_ size_t  Length)
 {
-	/* Variables */
-	OsStatus_t Result;
+	// Variables
+	OsStatus_t Result = OsError;
 
-	/* Sanitize length */
-	if (Length == 0) {
+	// Sanitize input
+	if (Pipe == UUID_INVALID || Length == 0) {
 		return OsError;
 	}
 
-	/* Read is rather just calling the underlying syscall */
+	// Execute system call and verify
 	Result = (OsStatus_t)Syscall4(SYSCALL_READPIPE, SYSCALL_PARAM(Pipe),
 		SYSCALL_PARAM(Buffer), SYSCALL_PARAM(Length), 0);
-
-	/* Sanitize the return parameters */
 	if (Result != OsSuccess) {
 		raise(SIGPIPE);
 	}
-
-	/* Done! */
 	return Result;
 }
 
-/* IPC - Send
+/* PipeSend
  * Returns -1 if message failed to send
  * Returns -2 if message-target didn't exist
  * Returns 0 if message was sent correctly to target */
-OsStatus_t PipeSend(UUId_t Target, int Port, void *Message, size_t Length)
+OsStatus_t
+PipeSend(
+    _In_ UUId_t  Target,
+    _In_ int     Port,
+    _In_ void   *Message,
+    _In_ size_t  Length)
 {
-	/* Variables */
-	OsStatus_t Result;
+	// Variables
+	OsStatus_t Result = OsError;
 
-	/* Sanitize length */
+	// Sanitize input
 	if (Length == 0) {
 		return OsError;
 	}
 
-	/* Send is rather just calling the underlying syscall */
+	// Execute system call and verify
 	Result = (OsStatus_t)Syscall4(SYSCALL_WRITEPIPE, SYSCALL_PARAM(Target),
 		SYSCALL_PARAM(Port), SYSCALL_PARAM(Message), SYSCALL_PARAM(Length));
-
-	/* Sanitize the return parameters */
 	if (Result != OsSuccess) {
 		raise(SIGPIPE);
 	}
-
-	/* Done! */
 	return Result;
 }

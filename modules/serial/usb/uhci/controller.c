@@ -143,6 +143,12 @@ UhciControllerCreate(
 	// Sanitize that we found the io-space
 	if (IoBase == NULL) {
 		ERROR("No memory space found for uhci-controller");
+        for (i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
+            ERROR("Io-Space (Type %u, Physical 0x%x, Size 0x%x)",
+		        Controller->Base.Device.IoSpaces[i].Type, 
+                Controller->Base.Device.IoSpaces[i].PhysicalBase, 
+                Controller->Base.Device.IoSpaces[i].Size);
+        }
 		free(Controller);
 		return NULL;
 	}

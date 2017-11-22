@@ -2,7 +2,8 @@
 ASM_SRCS = $(wildcard arch/$(arch)/*.s) 
 ASFLAGS = -f win32 -Xvc
 
-SOURCES = $(wildcard driver/*.c) \
+SOURCES = $(wildcard services/*.c) \
+		  $(wildcard driver/*.c) \
 		  $(wildcard common/*.c) \
       	  $(wildcard ds/*.c) \
        	  $(wildcard mstring/*.c) \

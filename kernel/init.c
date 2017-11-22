@@ -57,18 +57,18 @@ void
 PrintHeader(
     _In_ Multiboot_t *BootInformation)
 {
-	Log("MollenOS - Platform: %s - Version %i.%i.%i",
-		ARCHITECTURE_NAME, REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD);
-	Log("Written by Philip Meulengracht, Copyright 2011-2018.");
-	Log("Bootloader - %s", (char*)BootInformation->BootLoaderName);
-	Log("%s build %s - %s\n", BUILD_SYSTEM, BUILD_DATE, BUILD_TIME);
+    Log("MollenOS - Platform: %s - Version %i.%i.%i",
+        ARCHITECTURE_NAME, REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD);
+    Log("Written by Philip Meulengracht, Copyright 2011-2018.");
+    Log("Bootloader - %s", (char*)BootInformation->BootLoaderName);
+    Log("%s build %s - %s\n", BUILD_SYSTEM, BUILD_DATE, BUILD_TIME);
 }
 
 /* MCoreInitialize
  * Callable by the architecture layer to initialize the kernel */
 void
 MCoreInitialize(
-	_In_ Multiboot_t *BootInformation)
+    _In_ Multiboot_t *BootInformation)
 {
     // Variables
     Flags_t SystemsInitialized = 0;
@@ -119,57 +119,57 @@ MCoreInitialize(
 
     // Parse the ramdisk as early as possible, so right
     // after upgrading log and having heap
-	if (ModulesInitialize(&GlobalBootInformation) != OsSuccess) {
+    if (ModulesInitialize(&GlobalBootInformation) != OsSuccess) {
         ERROR("Failed to read the ramdisk supplied with the OS.");
-		CpuIdle();
-	}
+        CpuIdle();
+    }
     
     // Now that we have an allocation system add all initializors
     // that need dynamic memory here
     SchedulerCreate(0);
-	TimersInitialize();
+    TimersInitialize();
     IoSpaceInitialize();
     ThreadingInitialize(0);
 
     // Run early ACPI initialization if available
     // we will need table access maybe
-	if (AcpiInitializeEarly() == OsSuccess) {
+    if (AcpiInitializeEarly() == OsSuccess) {
         SystemsInitialized |= SYSTEM_FEATURE_ACPI;
     }
 
     // Initiate interrupt support now that systems are up and running
-	if (SystemsAvailable & SYSTEM_FEATURE_INTERRUPTS) {
+    if (SystemsAvailable & SYSTEM_FEATURE_INTERRUPTS) {
         TRACE("Running SYSTEM_FEATURE_INTERRUPTS");
         SystemFeaturesInitialize(&GlobalBootInformation, SYSTEM_FEATURE_INTERRUPTS);
     }
 
     // Perform the full acpi initialization sequence
-	if (AcpiAvailable() == ACPI_AVAILABLE) {
-		AcpiInitialize();
-		if (AcpiDevicesScan() != AE_OK) {
+    if (AcpiAvailable() == ACPI_AVAILABLE) {
+        AcpiInitialize();
+        if (AcpiDevicesScan() != AE_OK) {
             ERROR("Failed to finalize the ACPI setup.");
             CpuIdle();
         }
-	}
+    }
 
     // Initialize all subsystems that spawn threads
     // as almost everything is up and running at this point
-	GcInitialize();
+    GcInitialize();
     PhoenixInitialize();
     
     // Run system finalization before we spawn processes
-	if (SystemsAvailable & SYSTEM_FEATURE_FINALIZE) {
+    if (SystemsAvailable & SYSTEM_FEATURE_FINALIZE) {
         TRACE("Running SYSTEM_FEATURE_FINALIZE");
         SystemFeaturesInitialize(&GlobalBootInformation, SYSTEM_FEATURE_FINALIZE);
     }
 
-	// Last step, boot up all available system servers
-	// like device-managers, vfs, etc
-	ModulesRunServers();
+    // Last step, boot up all available system servers
+    // like device-managers, vfs, etc
+    ModulesRunServers();
     
     // Enter idle loop.
     TRACE("End of initialization");
-	while (1) {
-		CpuIdle();
+    while (1) {
+        CpuIdle();
     }
 }

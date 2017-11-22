@@ -126,8 +126,7 @@ PACKED_TYPESTRUCT(MCoreDevice, {
 
 /* Device Registering
  * Allows registering of a new device in the
- * device-manager, and automatically queries
- * for a driver for the new device */
+ * device-manager, and automatically queries for a driver for the new device */
 #ifdef __DEVICEMANAGER_IMPL
 __DEVAPI
 OsStatus_t
