@@ -883,16 +883,17 @@ OhciReloadPeriodic(
 
     // Initiate values
     Qh = (OhciQueueHead_t*)Transfer->EndpointDescriptor;
-    SwitchToggles = (DIVUP(Transfer->Transfer.Transactions[0].Length, 
-			Transfer->Transfer.Endpoint.MaxPacketSize)) % 2;
 
     // Do some extra processing for periodics
     if (Transfer->Transfer.Type == InterruptTransfer) {
+        SwitchToggles = Transfer->TransactionCount % 2;
         BufferBase = Transfer->Transfer.Transactions[0].BufferAddress;
         BufferStep = Transfer->Transfer.Endpoint.MaxPacketSize;
     }
 
     // Re-iterate all td's
+    // Almost everything must be restored due to the HC relinking
+    // things to the done-queue.
     Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
     while (Td->LinkIndex != OHCI_NO_INDEX) {
         // Extract error code
@@ -901,33 +902,29 @@ OhciReloadPeriodic(
         
         // Sanitize the error code
         if ((ErrorCount == 2 && ErrorCode != 0) && !ErrorTransfer) {
-            ErrorTransfer = 1;
             Transfer->Status = OhciGetStatusCode(ErrorCode);
+            ErrorTransfer = 1;
         }
         
+        // Interrupt transfers need some additional processing
         // Update toggle if neccessary (in original data)
-        if (Transfer->Transfer.Type == InterruptTransfer && SwitchToggles) {
-            int Toggle = UsbManagerGetToggle(Transfer->Device, Transfer->Pipe);
-            
-            // First clear toggle, then get if we should set it
-            Td->OriginalFlags &= ~OHCI_TD_TOGGLE;
-            Td->OriginalFlags |= (Toggle << 24);
-
-            // Update again if it's not dummy
-            UsbManagerSetToggle(Transfer->Device, Transfer->Pipe, Toggle ^ 1);
-        }
-
-        // Adjust buffers if interrupt in
         if (Transfer->Transfer.Type == InterruptTransfer) {
             uintptr_t BufferBaseUpdated = ADDLIMIT(BufferBase, Td->OriginalCbp, 
                 BufferStep, BufferBase + Transfer->Transfer.PeriodicBufferSize);
             Td->OriginalCbp = LODWORD(BufferBaseUpdated);
+            if (SwitchToggles == 1) {
+                int Toggle = UsbManagerGetToggle(Transfer->Device, Transfer->Pipe);
+                Td->OriginalFlags &= ~OHCI_TD_TOGGLE;
+                Td->OriginalFlags |= (Toggle << 24);
+                UsbManagerSetToggle(Transfer->Device, Transfer->Pipe, Toggle ^ 1);
+            }
         }
-        
+
         // Restart Td
         Td->Flags = Td->OriginalFlags;
         Td->Cbp = Td->OriginalCbp;
         Td->BufferEnd = Td->Cbp + (BufferStep - 1);
+        Td->Link = OHCI_POOL_TDINDEX(Controller, Td->LinkIndex);
 
         // Go to next td
         Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
@@ -936,7 +933,6 @@ OhciReloadPeriodic(
     // Notify process of transfer of the status
     if (Transfer->Transfer.Type == InterruptTransfer) {
         if (Transfer->Transfer.UpdatesOn) {
-            WARNING("Interrupt, buffer index %u", Transfer->PeriodicDataIndex);
             InterruptDriver(Transfer->Requester, 
                 (size_t)Transfer->Transfer.PeriodicData, 
                 (size_t)((ErrorTransfer == 0) ? TransferFinished : Transfer->Status), 
