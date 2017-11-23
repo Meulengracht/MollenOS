@@ -22,7 +22,7 @@
  * - Isochronous Transport
  * - Transaction Translator Support
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes
  * - System */
@@ -506,7 +506,12 @@ EhciSetup(
     Controller->SParameters = Controller->CapRegisters->SParams;
     Controller->CParameters = Controller->CapRegisters->CParams;
 
-    // Wait for all companion controllers to startup before initializing us
+    // We then stop the controller, reset it and 
+    // initialize data-structures
+    EhciQueueInitialize(Controller);
+    EhciRestart(Controller);
+
+    // Wait for all companion controllers to startup before handing off ports
     HcController = (UsbHcController_t*)malloc(sizeof(UsbHcController_t));
     CcToStart = EHCI_SPARAM_CCCOUNT(Controller->SParameters);
     TRACE("Waiting for %i cc's to boot", CcToStart);
@@ -537,11 +542,6 @@ EhciSetup(
         }
     }
     free(HcController);
-
-    // We then stop the controller, reset it and 
-    // initialize data-structures
-    EhciQueueInitialize(Controller);
-    EhciRestart(Controller);
     
     // Now, controller is up and running
     // and we should start doing port setups by first powering on

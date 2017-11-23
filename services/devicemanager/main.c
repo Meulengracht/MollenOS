@@ -120,7 +120,7 @@ OnEvent(
         // signals all drivers that are attached to 
         // un-attach
         case __DEVICEMANAGER_UNREGISTERDEVICE: {
-
+            WARNING("Got event __DEVICEMANAGER_UNREGISTERDEVICE");
         } break;
 
         // Queries device information and returns
@@ -184,6 +184,7 @@ OnEvent(
         // For now this function is un-implemented
         case __DEVICEMANAGER_UNREGISTERCONTRACT: {
             // Not Implemented
+            WARNING("Got event __DEVICEMANAGER_UNREGISTERCONTRACT");
         } break;
 
         // Query a contract for information 

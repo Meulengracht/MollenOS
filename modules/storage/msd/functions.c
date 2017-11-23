@@ -142,6 +142,7 @@ MsdScsiCommand(
     // Variables
     UsbTransferStatus_t Status  = { 0 };
     size_t DataToTransfer       = DataLength;
+    int RetryCount              = 3;
 
     // Debug
     TRACE("MsdScsiCommand(Direction %i, Command %u, Start %u, Length %u)",
@@ -171,6 +172,13 @@ MsdScsiCommand(
         if (Status != TransferFinished && Status != TransferStalled) {
             ERROR("Fatal error transfering data, skipping status stage");
             return Status;
+        }
+        if (Status == TransferStalled) {
+            RetryCount--;
+            if (RetryCount == 0) {
+                ERROR("Fatal error transfering data, skipping status stage");
+                return Status;
+            }
         }
         DataToTransfer -= BytesTransferred;
         DataAddress += BytesTransferred;

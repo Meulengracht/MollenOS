@@ -499,6 +499,7 @@ UsbDeviceLoadDrivers(
             CoreDevice.Base.Subclass = (Device->Interfaces[i].Base.Class << 16) | 0; // Subclass
             TRACE("Installing driver for interface %i (0x%x)", i, CoreDevice.Base.Subclass);
             RegisterDevice(CoreDevice.DeviceId, &CoreDevice.Base, __DEVICEMANAGER_REGISTER_LOADDRIVER);
+            Device->Interfaces[i].DeviceId = CoreDevice.Base.Id;
         }
     }
 
@@ -653,13 +654,10 @@ UsbDeviceSetup(
             goto DevError;
         }
     }
-
-    // Load drivers for device
-    UsbDeviceLoadDrivers(Controller, Device);
-
+    
     // Setup succeeded
     TRACE("Setup of port %i done!", Port->Index);
-    return OsSuccess;
+    return UsbDeviceLoadDrivers(Controller, Device);
 
     // All errors are handled here
 DevError:
@@ -694,6 +692,9 @@ UsbDeviceDestroy(
     // Variables
     UsbDevice_t *Device = NULL;
     int i;
+
+    // Debug
+    TRACE("UsbDeviceDestroy()");
 
     // Sanitize parameters
     if (Port == NULL || Port->Device == NULL) {

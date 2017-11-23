@@ -136,7 +136,7 @@ EhciPortSetup(
 {
 	// Wait for power-on delay
 	ThreadSleep(100);
-	return EhciPortReset(Controller, Index);;
+	return EhciPortReset(Controller, Index);
 }
 
 /* EhciPortCheck
@@ -171,7 +171,7 @@ EhciPortCheck(
 	}
 
 	// Fire off event
-	return UsbEventPort(Controller->Base.Id, Index);
+	return UsbEventPort(Controller->Base.Device.Id, Index);
 }
 
 /* EhciPortScan

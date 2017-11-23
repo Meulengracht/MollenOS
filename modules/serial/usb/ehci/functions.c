@@ -22,6 +22,7 @@
  * - Isochronous Transport
  * - Transaction Translator Support
  */
+#define __TRACE
 
 /* Includes
  * - System */
@@ -391,11 +392,11 @@ UsbQueueTransferGeneric(
     }
 
     // Update the stored information
-    Transfer->TransactionCount = 0;
-    Transfer->EndpointDescriptor = Qh;
-    Transfer->Status = TransferNotProcessed;
-    Transfer->BytesTransferred = 0;
-    Transfer->Cleanup = 0;
+    Transfer->TransactionCount      = 0;
+    Transfer->EndpointDescriptor    = Qh;
+    Transfer->Status                = TransferNotProcessed;
+    Transfer->BytesTransferred      = 0;
+    Transfer->Cleanup               = 0;
 
     // Extract address and endpoint
     Address = HIWORD(Transfer->Pipe);
@@ -499,19 +500,17 @@ UsbDequeueTransferGeneric(
     _In_ UsbManagerTransfer_t *Transfer)
 {
     // Variables
-    EhciQueueHead_t *Qh =
-        (EhciQueueHead_t *)Transfer->EndpointDescriptor;
-    EhciController_t *Controller = NULL;
+    EhciQueueHead_t *Qh             = (EhciQueueHead_t *)Transfer->EndpointDescriptor;
+    EhciController_t *Controller    = NULL;
 
     // Get Controller
     Controller = (EhciController_t *)UsbManagerGetController(Transfer->Device);
+    if (Controller == NULL) {
+        return TransferInvalid;
+    }
 
     // Mark for unscheduling
     Qh->HcdFlags |= EHCI_QH_UNSCHEDULE;
-
-    // Notice finalizer-thread? Or how to induce interrupt
-    // @todo
-
-    // Done, rest of cleanup happens in Finalize
+    EhciRingDoorbell(Controller);
     return TransferFinished;
 }

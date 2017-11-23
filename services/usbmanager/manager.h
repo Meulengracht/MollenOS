@@ -45,6 +45,7 @@ typedef struct _UsbInterfaceVersion {
 typedef struct _UsbInterface {
 	UsbHcInterface_t			Base;
 	int							Exists;
+    UUId_t                      DeviceId;
 	UsbInterfaceVersion_t		Versions[USB_MAX_VERSIONS];
 } UsbInterface_t;
 

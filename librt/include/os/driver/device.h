@@ -178,6 +178,38 @@ RegisterDevice(
 }
 #endif
 
+/* Device Unregistering
+ * Allows removal of a device in the device-manager, and automatically 
+ * unloads drivers for the removed device */
+#ifdef __DEVICEMANAGER_IMPL
+__DEVAPI
+OsStatus_t
+SERVICEABI
+UnregisterDevice(
+	_In_ UUId_t DeviceId);
+#else
+__DEVAPI
+OsStatus_t
+SERVICEABI
+UnregisterDevice(
+	_In_ UUId_t DeviceId)
+{
+	// Variables
+	MRemoteCall_t Request;
+    OsStatus_t Result = OsSuccess;
+
+	// Initialize RPC
+	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION, 
+        PIPE_RPCOUT, __DEVICEMANAGER_UNREGISTERDEVICE);
+	RPCSetArgument(&Request, 0, (__CONST void*)&DeviceId, sizeof(UUId_t));
+    RPCSetResult(&Request, (__CONST void*)&Result, sizeof(OsStatus_t));
+	if (RPCExecute(&Request, __DEVICEMANAGER_TARGET) != OsSuccess) {
+        return OsError;
+    }
+    return Result;
+}
+#endif
+
 /* Device I/O Control
  * Allows manipulation of a given device to either disable
  * or enable, or configure the device */
