@@ -319,14 +319,15 @@ StdioReadStdin(void)
 {
 	// Variables
 	MRemoteCall_t Event;
-	MInput_t *Input = NULL;
-	int Character = 0;
-	int Run = 1;
+    char EventBuffer[IPC_MAX_MESSAGELENGTH];
+	MInput_t *Input     = NULL;
+	int Character       = 0;
+	int Run             = 1;
 
 	// Wait for input message, we need to discard 
 	// everything else as this is a polling op
 	while (Run) {
-		if (RPCListen(&Event) == OsSuccess) {
+		if (RPCListen(&Event, &EventBuffer[0]) == OsSuccess) {
 			Input = (MInput_t*)Event.Arguments[0].Data.Buffer;
 			if (Event.Function == EVENT_INPUT) {
 				if (Input->Type == InputKeyboard
@@ -336,7 +337,6 @@ StdioReadStdin(void)
 				}
 			}
 		}
-		RPCCleanup(&Event);
 	}
 
 	// Return the resulting read character

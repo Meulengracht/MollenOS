@@ -89,54 +89,12 @@ RPCEvent(
  * an argument, set InUse to 0 */
 OsStatus_t 
 RPCListen(
-	_In_ MRemoteCall_t *Message)
+	_In_ MRemoteCall_t  *Message,
+    _In_ void           *ArgumentBuffer)
 {
 	// Variables
-	int i = 0;
-
-	// Wait for a new rpc message
-    memset(Message, 0, sizeof(MRemoteCall_t));
-	if (PipeRead(PIPE_RPCOUT, Message, sizeof(MRemoteCall_t)) == OsSuccess) {
-		for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
-			if (Message->Arguments[i].Type == ARGUMENT_BUFFER) {
-				Message->Arguments[i].Data.Buffer = 
-					(__CONST void*)malloc(Message->Arguments[i].Length);
-				if (PipeRead(PIPE_RPCOUT, (void*)Message->Arguments[i].Data.Buffer, 
-					Message->Arguments[i].Length) != OsSuccess) {
-                    raise(SIGPIPE);
-		            return OsError;
-                }
-			}
-			else if (Message->Arguments[i].Type == ARGUMENT_NOTUSED) {
-				Message->Arguments[i].Data.Buffer = NULL;
-				Message->Arguments[i].Length = 0;
-			}
-		}
-
-		// We handled it
-		return OsSuccess;
-	}
-	else {
-        raise(SIGPIPE);
-		return OsError;
-	}
-}
-
-/* RPCCleanup 
- * Call this to cleanup the RPC message, it frees all
- * allocated resources by RPCListen */
-OsStatus_t 
-RPCCleanup(
-	_In_ MRemoteCall_t *Message)
-{
-	// Do a cleanup of allocated buffers
-	for (int i = 0; i < IPC_MAX_ARGUMENTS; i++) {
-		if (Message->Arguments[i].Type == ARGUMENT_BUFFER) {
-			free((void*)Message->Arguments[i].Data.Buffer);
-			Message->Arguments[i].Data.Buffer = NULL;
-		}
-	}
-	return OsSuccess;
+    return (OsStatus_t)Syscall3(SYSCALL_REMOTECALLLISTEN, 
+        PIPE_RPCOUT, SYSCALL_PARAM(Message), SYSCALL_PARAM(ArgumentBuffer));
 }
 
 /* RPCRespond

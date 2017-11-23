@@ -44,7 +44,7 @@ MCoreEventHandler_t *EventInit(const char *Name, EventCallback Callback, void *D
 	/* Allocate lock etc */
 	EventHandler->Name = MStringCreate((void*)Name, StrUTF8);
 	EventHandler->Events = CollectionCreate(KeyInteger);
-	EventHandler->Lock = SemaphoreCreate(0);
+	EventHandler->Lock = SemaphoreCreate(0, 1000);
 	
 	/* Save stuff */
 	EventHandler->Callback = Callback;
@@ -75,7 +75,7 @@ void EventDestruct(MCoreEventHandler_t *EventHandler)
 	 * status to 0, and signaling it to wakeup 
 	 * this will cause it to stop */
 	EventHandler->Running = 0;
-	SemaphoreV(EventHandler->Lock, 1);
+	SemaphoreSignal(EventHandler->Lock, 1);
 
 	/* Stop 2. Cleanup */
 	MStringDestroy(EventHandler->Name);
@@ -116,7 +116,7 @@ void EventHandlerInternal(void *Args)
 	/* Start the while loop */
 	while (EventHandler->Running) {
 		// Wait for next event
-		SemaphoreP(EventHandler->Lock, 0);
+		SemaphoreWait(EventHandler->Lock, 0);
 
 		/* Sanitize our running status 
 		 * before doing anything else */
@@ -146,11 +146,7 @@ void EventHandlerInternal(void *Args)
 			Event->State = EventInProgress;
 			EventHandler->Callback(EventHandler->UserData, Event);
 		}
-
-		/* Signal Completion */
-		SemaphoreV(&Event->Queue, 1);
-
-		/* Cleanup? */
+        SemaphoreSignal(&Event->Queue, 1);
 		if (Event->Cleanup != 0) {
 			kfree(Event);
 		}	
@@ -175,13 +171,9 @@ void EventCreate(MCoreEventHandler_t *EventHandler, MCoreEvent_t *Event)
 	Event->State = EventPending;
 
 	/* Reset the semaphore */
-	SemaphoreConstruct(&Event->Queue, 0);
-
-	/* Add to list */
+	SemaphoreConstruct(&Event->Queue, 0, 1000);
 	CollectionAppend(EventHandler->Events, CollectionCreateNode(Key, Event));
-
-	/* Signal */
-	SemaphoreV(EventHandler->Lock, 1);
+	SemaphoreSignal(EventHandler->Lock, 1);
 }
 
 /* Event Wait
@@ -190,9 +182,7 @@ void EventCreate(MCoreEventHandler_t *EventHandler, MCoreEvent_t *Event)
  * be cancelled */
 void EventWait(MCoreEvent_t *Event, size_t Timeout)
 {
-	/* Try to acquire one piece of candy
-	 * from the queue */
-	SemaphoreP(&Event->Queue, Timeout);
+	SemaphoreWait(&Event->Queue, Timeout);
 }
 
 /* Event Cancel

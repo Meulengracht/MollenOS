@@ -26,6 +26,7 @@
 /* Includes
  * - System */
 #include <garbagecollector.h>
+#include <criticalsection.h>
 #include <semaphore.h>
 #include <threading.h>
 #include <debug.h>
@@ -55,7 +56,7 @@ void
 GcConstruct(void)
 {
 	// Create data-structures
-	GlbGcEventLock = SemaphoreCreate(0);
+	GlbGcEventLock = SemaphoreCreate(0, 0);
 	GlbGcHandlers = CollectionCreate(KeyInteger);
 	GlbGcEvents = CollectionCreate(KeyInteger);
     CriticalSectionConstruct(&GcSignalLock, CRITICALSECTION_PLAIN);
@@ -156,7 +157,7 @@ GcSignal(
     CriticalSectionEnter(&GcSignalLock);
 	CollectionAppend(GlbGcEvents, CollectionCreateNode(Key, Data));
     CriticalSectionLeave(&GcSignalLock);
-	SemaphoreV(GlbGcEventLock, 1);
+	SemaphoreSignal(GlbGcEventLock, 1);
 
 	// Done - no errors
 	return OsSuccess;
@@ -178,7 +179,7 @@ void GcWorker(void *Args)
 	while (Run)
 	{
 		// Wait for next event
-		SemaphoreP(GlbGcEventLock, 0);
+		SemaphoreWait(GlbGcEventLock, 0);
 
 		// Pop event
         CriticalSectionEnter(&GcSignalLock);

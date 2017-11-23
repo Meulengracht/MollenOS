@@ -27,49 +27,78 @@
 /* Includes 
  * - Systems */
 #include <os/osdefs.h>
-#include <criticalsection.h>
-
-/* Includes
- * - Library */
 #include <ds/mstring.h>
 
 /* The semaphore structure, contains
  * an internal safe-passge lock, a creator id
  * and a Hash (for global support), and the current value */
 typedef struct _Semaphore {
-	CriticalSection_t Lock;
-	UUId_t Creator;
-	size_t Hash;
-	int Value;
+	UUId_t              Creator;
+	size_t              Hash;
+	_Atomic(int)        Value;
+    int                 MaxValue;
+    int                 Cleanup;
 } Semaphore_t;
 
 /* SemaphoreCreate
  * Initializes and allocates a new semaphore
  * Semaphores use safe passages to avoid race-conditions */
-__EXTERN Semaphore_t *SemaphoreCreate(int InitialValue);
+KERNELAPI
+Semaphore_t*
+KERNELABI
+SemaphoreCreate(
+    _In_ int InitialValue,
+    _In_ int MaximumValue);
 
 /* SemaphoreCreateGlobal
  * Creates a global semaphore, identified by it's name
  * and makes sure only one can exist at the time. Returns
  * NULL if one already exists. */
-__EXTERN Semaphore_t *SemaphoreCreateGlobal(MString_t *Identifier, int InitialValue);
+KERNELAPI
+Semaphore_t*
+KERNELABI
+SemaphoreCreateGlobal(
+    _In_ MString_t  *Identifier, 
+    _In_ int         InitialValue,
+    _In_ int         MaximumValue);
 
 /* SemaphoreConstruct
  * Constructs an already allocated semaphore and resets
  * it's value to the given initial value */
-__EXTERN void SemaphoreConstruct(Semaphore_t *Semaphore, int InitialValue);
+KERNELAPI
+void
+KERNELABI
+SemaphoreConstruct(
+    _In_ Semaphore_t    *Semaphore,
+    _In_ int             InitialValue,
+    _In_ int             MaximumValue);
 
 /* SemaphoreDestroy
  * Destroys and frees a semaphore, releasing any
  * resources associated with it */
-__EXTERN void SemaphoreDestroy(Semaphore_t *Semaphore);
+KERNELAPI
+void
+KERNELABI
+SemaphoreDestroy(
+    _In_ Semaphore_t *Semaphore);
 
-/* SemaphoreP (Wait) 
- * Waits for the semaphore signal with the optional time-out */
-__EXTERN OsStatus_t SemaphoreP(Semaphore_t *Semaphore, size_t Timeout);
+/* SemaphoreWait
+ * Waits for the semaphore signal with the optional time-out.
+ * Returns SCHEDULER_SLEEP_OK or SCHEDULER_SLEEP_TIMEOUT */
+KERNELAPI
+int
+KERNELABI
+SemaphoreWait(
+    _In_ Semaphore_t    *Semaphore,
+    _In_ size_t          Timeout);
 
-/* SemaphoreV (Signal) 
+/* SemaphoreSignal
  * Signals the semaphore with the given value, default is 1 */
-__EXTERN void SemaphoreV(Semaphore_t *Semaphore, int Value);
+KERNELAPI
+void
+KERNELABI
+SemaphoreSignal(
+    _In_ Semaphore_t    *Semaphore,
+    _In_ int             Value);
 
 #endif // !_MCORE_SEMAPHORE_H_

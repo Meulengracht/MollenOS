@@ -25,6 +25,7 @@
 /* Includes
  * - (OS) System */
 #include <semaphore.h>
+#include <scheduler.h>
 #include <debug.h>
 
 /* Includes
@@ -174,7 +175,7 @@ AcpiOsCreateSemaphore(
     }
 
     // Allocate the semaphore
-    Semaphore = SemaphoreCreate(InitialUnits);
+    Semaphore = SemaphoreCreate(InitialUnits, MaxUnits);
     if (!Semaphore) {
         ACPI_ERROR ((AE_INFO, "Could not create semaphore"));
         return (AE_NO_MEMORY);
@@ -238,9 +239,9 @@ AcpiOsWaitSemaphore(
     UINT16                  Timeout)
 {
     // Variables
-    OsStatus_t WaitStatus;
-    UINT32 Index = (UINT32) Handle;
-    UINT32 OsTimeout = Timeout;
+    int WaitStatus      = 0;
+    UINT32 Index        = (UINT32) Handle;
+    UINT32 OsTimeout    = Timeout;
     ACPI_FUNCTION_ENTRY ();
 
     if ((Index >= ACPI_OS_MAX_SEMAPHORES) ||
@@ -265,9 +266,9 @@ AcpiOsWaitSemaphore(
         OsTimeout += 10;
     }
 
-    WaitStatus = SemaphoreP(
+    WaitStatus = SemaphoreWait(
         AcpiGbl_Semaphores[Index].OsHandle, OsTimeout);
-    if (WaitStatus == OsError) {
+    if (WaitStatus == SCHEDULER_SLEEP_TIMEOUT) {
         if (AcpiGbl_DebugTimeout) {
             ACPI_EXCEPTION ((AE_INFO, AE_TIME,
                 "Debug timeout on semaphore 0x%04X (%ums)\n",
@@ -333,7 +334,7 @@ AcpiOsSignalSemaphore(
     }
 
     AcpiGbl_Semaphores[Index].CurrentUnits++;
-    SemaphoreV(AcpiGbl_Semaphores[Index].OsHandle, (int)Units);
+    SemaphoreSignal(AcpiGbl_Semaphores[Index].OsHandle, (int)Units);
     return (AE_OK);
 }
 #endif

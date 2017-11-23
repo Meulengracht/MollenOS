@@ -95,8 +95,8 @@ PipeRead(
 	}
 
 	// Execute system call and verify
-	Result = (OsStatus_t)Syscall4(SYSCALL_READPIPE, SYSCALL_PARAM(Pipe),
-		SYSCALL_PARAM(Buffer), SYSCALL_PARAM(Length), 0);
+	Result = (OsStatus_t)Syscall3(SYSCALL_READPIPE, SYSCALL_PARAM(Pipe),
+		SYSCALL_PARAM(Buffer), SYSCALL_PARAM(Length));
 	if (Result != OsSuccess) {
 		raise(SIGPIPE);
 	}

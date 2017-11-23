@@ -35,6 +35,7 @@
  * - System */
 #include <system/addresspace.h>
 #include <process/pe.h>
+#include <criticalsection.h>
 #include <mutex.h>
 #include <pipe.h>
 
@@ -43,7 +44,6 @@
  * just some arbitrary sizes that are good enough */
 #define ASH_STACK_INIT          0x1000
 #define ASH_STACK_MAX           (4 << 20)
-#define ASH_PIPE_SIZE           0x2000
 
 /* Ash Queries
  * List of the different options

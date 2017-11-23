@@ -77,7 +77,6 @@ int _mDrvEvent(void *Argument)
 	OsStatus_t Result = OnEvent(Message);
 	
 	// Cleanup and return result
-	RPCCleanup(Message);
 	free(Message);
 	return Result == OsSuccess ? 0 : -1;
 }
@@ -87,12 +86,13 @@ int _mDrvEvent(void *Argument)
 void _mDrvCrt(void)
 {
 	// Variables
-	ThreadLocalStorage_t Tls;
-	MRemoteCall_t Message;
+	ThreadLocalStorage_t        Tls;
+	MRemoteCall_t               Message;
 #ifdef __SERVER_MULTITHREADED
-	ThreadPool_t *ThreadPool;
+	ThreadPool_t *ThreadPool    = NULL;
 #endif
-	int IsRunning = 1;
+    char *ArgumentBuffer        = NULL;
+	int IsRunning               = 1;
 
 	// Initialize environment
 	_mCrtInit(&Tls);
@@ -110,8 +110,7 @@ void _mDrvCrt(void)
 
 	// Initialize threadpool
 #ifdef __SERVER_MULTITHREADED
-	if (ThreadPoolInitialize(THREADPOOL_DEFAULT_WORKERS, 
-		&ThreadPool) != OsSuccess) {
+	if (ThreadPoolInitialize(THREADPOOL_DEFAULT_WORKERS, &ThreadPool) != OsSuccess) {
 		OnUnload();
 		goto Cleanup;
 	}
@@ -136,11 +135,11 @@ void _mDrvCrt(void)
 
 #else
 	// Initialize the server event loop
+    ArgumentBuffer = (char*)malloc(IPC_MAX_MESSAGELENGTH);
 	while (IsRunning) {
-		if (RPCListen(&Message) == OsSuccess) {
+		if (RPCListen(&Message, ArgumentBuffer) == OsSuccess) {
 			OnEvent(&Message);
 		}
-		RPCCleanup(&Message);
 	}
 #endif
 

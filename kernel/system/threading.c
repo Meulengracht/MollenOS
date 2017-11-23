@@ -181,7 +181,7 @@ ThreadingInitialize(
 	Init->CpuId = Cpu;
 
 	// Create a compipe
-	Init->Pipe = PipeCreate(PIPE_RPCOUT_SIZE, 0);
+	Init->Pipe = PipeCreate(PIPE_DEFAULT_SIZE, 0);
     
     // Acquire lock to generate id
 	CriticalSectionEnter(&ThreadGlobalLock);
@@ -266,7 +266,7 @@ ThreadingCreateThread(
     SchedulerThreadInitialize(Thread, Flags);
 
 	/* Create the pipe for communiciation */
-	Thread->Pipe = PipeCreate(PIPE_RPCOUT_SIZE, 0);
+	Thread->Pipe = PipeCreate(PIPE_DEFAULT_SIZE, 0);
 
 	// Flag-Special-Case
 	// If it's NOT a kernel thread

@@ -69,9 +69,10 @@ StdioInitialize(void);
 void _mDrvCrt(void)
 {
 	// Variables
-	ThreadLocalStorage_t Tls;
-	MRemoteCall_t Message;
-	int IsRunning = 1;
+	ThreadLocalStorage_t    Tls;
+	MRemoteCall_t           Message;
+    char *ArgumentBuffer    = NULL;
+	int IsRunning           = 1;
 
 	// Initialize environment
 	_mCrtInit(&Tls);
@@ -88,8 +89,9 @@ void _mDrvCrt(void)
 	}
 
 	// Initialize the driver event loop
+    ArgumentBuffer = (char*)malloc(IPC_MAX_MESSAGELENGTH);
 	while (IsRunning) {
-		if (RPCListen(&Message) == OsSuccess) {
+		if (RPCListen(&Message, ArgumentBuffer) == OsSuccess) {
 			switch (Message.Function) {
 				case __DRIVER_REGISTERINSTANCE: {
 					OnRegister((MCoreDevice_t*)Message.Arguments[0].Data.Buffer);
@@ -122,7 +124,6 @@ void _mDrvCrt(void)
 				}
 			}
 		}
-		RPCCleanup(&Message);
 	}
 
 	// Call unload, so driver can cleanup

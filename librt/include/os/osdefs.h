@@ -24,10 +24,18 @@
 #ifndef _OS_DEFITIONS_H_
 #define _OS_DEFITIONS_H_
 
-/* Include the standard integer
- * definitions header, we need them */
+/* Includes
+ * - Library */
 #include <crtdefs.h>
+#include <stddef.h>
 #include <stdint.h>
+
+#if __STDC_VERSION__ >= 201112L
+#include <stdatomic.h>
+#include <stdnoreturn.h>
+#else
+#error "Compiler does not support C11"
+#endif
 
 #ifdef _UNICODE
 # define TCHAR wchar_t

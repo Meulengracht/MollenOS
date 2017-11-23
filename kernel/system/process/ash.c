@@ -266,8 +266,8 @@ PhoenixOpenAshPipe(
     }
     CriticalSectionLeave(&Ash->Lock);
 
-    // Create a new pipe and add it to list
-    Pipe = PipeCreate(ASH_PIPE_SIZE, Flags);
+    // Create a new pipe and add it to list 
+    Pipe = PipeCreate(PIPE_DEFAULT_SIZE, Flags);
     
     CriticalSectionEnter(&Ash->Lock);
     CollectionAppend(Ash->Pipes, CollectionCreateNode(Key, Pipe));
@@ -298,12 +298,9 @@ PhoenixWaitAshPipe(
     // Wait for wake-event on pipe
     Key.Value = Port;
     while (Run) {
-        CriticalSectionEnter(&Ash->Lock);
         if (CollectionGetDataByKey(Ash->Pipes, Key, 0) != NULL) {
-            CriticalSectionLeave(&Ash->Lock);
             break;
         }
-        CriticalSectionLeave(&Ash->Lock);
         if (SchedulerThreadSleep((uintptr_t*)Ash->Pipes, 5000) == SCHEDULER_SLEEP_TIMEOUT) {
             ERROR("Failed to wait for open pipe, timeout after 5 seconds.");
             return OsError;

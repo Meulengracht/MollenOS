@@ -9,6 +9,7 @@
                 "${workspaceRoot}/kernel/include"
             ],
             "defines": [
+                "__STDC_VERSION__=201112L",
                 "__IDE",
                 "MOLLENOS",
                 "i386",

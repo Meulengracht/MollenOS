@@ -159,18 +159,12 @@ RPCSetResult(
  * Call this to wait for a new RPC message, it automatically
  * reads the message, and all the arguments. To avoid freeing
  * an argument, set InUse to 0 */
-MOSAPI 
-OsStatus_t 
+MOSAPI
+OsStatus_t
+MOSABI
 RPCListen(
-	_In_ MRemoteCall_t *Message);
-
-/* RPCCleanup 
- * Call this to cleanup the RPC message, it frees all
- * allocated resources by RPCListen */
-MOSAPI 
-OsStatus_t 
-RPCCleanup(
-	_In_ MRemoteCall_t *Message);
+	_In_ MRemoteCall_t  *Message,
+    _In_ void           *ArgumentBuffer);
 
 /* RPCExecute/RPCEvent
  * To get a reply from the RPC request, the user

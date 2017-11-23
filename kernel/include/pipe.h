@@ -17,8 +17,9 @@
  *
  *
  * MollenOS Pipe Interface
- *  - Builds on principle of a ringbuffer with added features
- *    as queues and locks
+ *  - Builds on principle of a ringbuffer and a multiple-producer
+ *    multiple-consumer queue. The queue is completely lock-less but
+ *    not wait-less. This is by design.
  */
 
 #ifndef _MCORE_PIPE_H_
@@ -35,7 +36,9 @@
 
 /* Customization of the pipe, these are some default
  * parameters for creation */
-#define PIPE_RPCOUT_SIZE            0x1000
+#define PIPE_DEFAULT_SIZE           32768
+#define PIPE_WORKERS                512
+#define PIPE_WORKERS_MASK           PIPE_WORKERS - 1
 
 /* MCorePipe
  * The pipe structure, it basically contains
@@ -45,13 +48,18 @@ typedef struct _MCorePipe {
     Flags_t                     Flags;
     uint8_t                    *Buffer;
     size_t                      Length;
-    size_t                      IndexWrite;
-    size_t                      IndexRead;
-
-    Semaphore_t                 ReadQueue;
     Semaphore_t                 WriteQueue;
-    size_t                      ReadQueueCount;
-    size_t                      WriteQueueCount;
+    int                         WritersInQueue;
+
+    _Atomic(unsigned)           DataWrite;
+    _Atomic(unsigned)           DataRead;
+    _Atomic(unsigned)           WriteWorker;
+    _Atomic(unsigned)           ReadWorker;
+    struct {
+        unsigned                IndexData;
+        _Atomic(int)            Allocated;
+        _Atomic(int)            Registered;
+    } Workers[PIPE_WORKERS];
 } MCorePipe_t;
 
 /* PipeCreate
@@ -84,52 +92,65 @@ KERNELABI
 PipeDestroy(
     _In_ MCorePipe_t    *Pipe);
 
-/* PipeAcquire
+/* PipeProduceAcquire
  * Acquires memory space in the pipe. The memory is not
  * visible at this point, stage 1 in the write-process. */
 KERNELAPI
 OsStatus_t
 KERNELABI
-PipeAcquire(
+PipeProduceAcquire(
     _In_ MCorePipe_t    *Pipe,
     _In_ size_t          Length,
-    _Out_ void         **Buffer,
-    _Out_ int           *Id);
+    _Out_ unsigned      *Worker,
+    _Out_ unsigned      *Index);
 
-/* PipeCommit
+/* PipeProduce
+ * Produces data for the consumer by adding to allocated worker. */
+KERNELAPI
+size_t
+KERNELABI
+PipeProduce(
+    _In_ MCorePipe_t    *Pipe,
+    _In_ uint8_t        *Data,
+    _In_ size_t          Length,
+    _InOut_ unsigned    *Index);
+
+/* PipeProduceCommit
  * Registers the data available and wakes up consumer. */
 KERNELAPI
 OsStatus_t
 KERNELABI
-PipeCommit(
+PipeProduceCommit(
     _In_ MCorePipe_t    *Pipe,
-    _In_ uint8_t        *Data,
-    _In_ int             Id);
+    _In_ unsigned        Worker);
 
-/* PipeConsume
- * Consumes the requested amount of data from the queue. */
+/* PipeConsumeAcquire
+ * Acquires the next available worker. */
 KERNELAPI
 OsStatus_t
 KERNELABI
+PipeConsumeAcquire(
+    _In_ MCorePipe_t    *Pipe,
+    _Out_ unsigned      *Worker);
+
+/* PipeConsume
+ * Consumes data available from the given worker. */
+KERNELAPI
+size_t
+KERNELABI
 PipeConsume(
-    _In_ MCorePipe_t    *Pipe, 
-    _In_ uint8_t        *Buffer,
-    _In_ size_t          Length);
+    _In_ MCorePipe_t    *Pipe,
+    _In_ uint8_t        *Data,
+    _In_ size_t          Length,
+    _In_ unsigned        Worker);
 
-/* PipeBytesAvailable
- * Returns how many bytes are available in buffer to be read */
+/* PipeConsumeCommit
+ * Registers the worker as available and wakes up producers. */
 KERNELAPI
-int
+OsStatus_t
 KERNELABI
-PipeBytesAvailable(
-    _In_ MCorePipe_t    *Pipe);
-
-/* PipeBytesLeft
- * Returns how many bytes are ready for usage/able to be written */
-KERNELAPI
-int
-KERNELABI
-PipeBytesLeft(
-    _In_ MCorePipe_t    *Pipe);
+PipeConsumeCommit(
+    _In_ MCorePipe_t    *Pipe,
+    _In_ unsigned        Worker);
 
 #endif // !_MCORE_PIPE_H_

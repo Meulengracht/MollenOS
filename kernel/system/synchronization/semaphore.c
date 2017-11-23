@@ -17,9 +17,10 @@
  *
  *
  * MollenOS Synchronization
- * - Semaphores implementation, used safe passages known as
- *   critical sections in MCore
+ * - Semaphores implementation, lockless implementation.
  */
+#define __MODULE "SEM0"
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -27,6 +28,7 @@
 #include <system/utils.h>
 #include <scheduler.h>
 #include <semaphore.h>
+#include <debug.h>
 #include <heap.h>
 
 /* Includes
@@ -43,17 +45,18 @@ int GlbSemaphoreInit = 0;
 /* SemaphoreCreate
  * Initializes and allocates a new semaphore
  * Semaphores use safe passages to avoid race-conditions */
-Semaphore_t *SemaphoreCreate(int InitialValue)
+Semaphore_t*
+SemaphoreCreate(
+    _In_ int InitialValue,
+    _In_ int MaximumValue)
 {
-	/* Variables */
+    // Variables
 	Semaphore_t *Semaphore = NULL;
 
-	/* Allocate a new instance of a semaphore 
-	 * and instantiate it */
+    // Initialize the new instance
 	Semaphore = (Semaphore_t*)kmalloc(sizeof(Semaphore_t));
-	SemaphoreConstruct(Semaphore, InitialValue);
-
-	/* Done! */
+	SemaphoreConstruct(Semaphore, InitialValue, MaximumValue);
+    Semaphore->Cleanup = 1;
 	return Semaphore;
 }
 
@@ -61,7 +64,11 @@ Semaphore_t *SemaphoreCreate(int InitialValue)
  * Creates a global semaphore, identified by it's name
  * and makes sure only one can exist at the time. Returns
  * NULL if one already exists. */
-Semaphore_t *SemaphoreCreateGlobal(MString_t *Identifier, int InitialValue)
+Semaphore_t*
+SemaphoreCreateGlobal(
+    _In_ MString_t  *Identifier, 
+    _In_ int         InitialValue,
+    _In_ int         MaximumValue)
 {
 	/* Variables */
 	DataKey_t hKey;
@@ -91,7 +98,7 @@ Semaphore_t *SemaphoreCreateGlobal(MString_t *Identifier, int InitialValue)
 
 	/* Allocate a new semaphore */
 	Semaphore_t *Semaphore = (Semaphore_t*)kmalloc(sizeof(Semaphore_t));
-	SemaphoreConstruct(Semaphore, InitialValue);
+	SemaphoreConstruct(Semaphore, InitialValue, MaximumValue);
 	Semaphore->Hash = MStringHash(Identifier);
 
 	/* Add to system list of semaphores if global */
@@ -106,84 +113,95 @@ Semaphore_t *SemaphoreCreateGlobal(MString_t *Identifier, int InitialValue)
 /* SemaphoreDestroy
  * Destroys and frees a semaphore, releasing any
  * resources associated with it */
-void SemaphoreDestroy(Semaphore_t *Semaphore)
+void
+SemaphoreDestroy(
+    _In_ Semaphore_t *Semaphore)
 {
-	/* Variables */
+	// Variables
 	DataKey_t Key;
-
-	/* Sanity 
-	 * If it has a global identifier
-	 * we want to remove it from list */
 	if (Semaphore->Hash != 0) {
 		Key.Value = (int)Semaphore->Hash;
 		CollectionRemoveByKey(GlbSemaphores, Key);
 	}
-
-	/* Wake up all */
 	SchedulerThreadWakeAll((uintptr_t*)Semaphore);
-
-	/* Free it */
-	kfree(Semaphore);
+    if (Semaphore->Cleanup) {
+	    kfree(Semaphore);
+    }
 }
 
 /* SemaphoreConstruct
  * Constructs an already allocated semaphore and resets
  * it's value to the given initial value */
-void SemaphoreConstruct(Semaphore_t *Semaphore, int InitialValue)
+void
+SemaphoreConstruct(
+    _In_ Semaphore_t    *Semaphore,
+    _In_ int             InitialValue,
+    _In_ int             MaximumValue)
 {
-	/* Sanitize the parameters */
+	// Sanitize values
 	assert(Semaphore != NULL);
 	assert(InitialValue >= 0);
+    assert(MaximumValue >= InitialValue);
 
-	/* Reset values to initial stuff */
-	Semaphore->Hash = 0;
-	Semaphore->Value = InitialValue;
+	// Initiate members
+    Semaphore->MaxValue = MaximumValue;
+	Semaphore->Value = ATOMIC_VAR_INIT(InitialValue);
 	Semaphore->Creator = ThreadingGetCurrentThreadId();
-
-	/* Reset safe passage */
-	CriticalSectionConstruct(&Semaphore->Lock, CRITICALSECTION_PLAIN);
+	Semaphore->Hash = 0;
+    Semaphore->Cleanup = 0;
 }
 
-/* SemaphoreP (Wait) 
- * Waits for the semaphore signal with the optional time-out */
-OsStatus_t
-SemaphoreP(
-    Semaphore_t *Semaphore,
-    size_t Timeout)
+/* SemaphoreWait
+ * Waits for the semaphore signal with the optional time-out.
+ * Returns SCHEDULER_SLEEP_OK or SCHEDULER_SLEEP_TIMEOUT */
+int
+SemaphoreWait(
+    _In_ Semaphore_t    *Semaphore,
+    _In_ size_t          Timeout)
 {
+    // Variables
+    int UpdatedValue = 0;
+
 	// Decrease the value, and do the sanity check 
 	// if we should sleep for events
-	CriticalSectionEnter(&Semaphore->Lock);
-	Semaphore->Value--;
-	if (Semaphore->Value < 0) {
-		CriticalSectionLeave(&Semaphore->Lock);
-        if (SchedulerThreadSleep((uintptr_t*)Semaphore, Timeout) 
-                == SCHEDULER_SLEEP_TIMEOUT) {
-            Semaphore->Value++;
-            return OsError;
+    UpdatedValue = atomic_fetch_sub(&Semaphore->Value, 1);
+    
+    // Debug
+    TRACE("SemaphoreWait(Value %i)", UpdatedValue);
+	UpdatedValue--;
+	if (UpdatedValue < 0) {
+        if (SchedulerThreadSleep((uintptr_t*)Semaphore, Timeout) == SCHEDULER_SLEEP_TIMEOUT) {
+            atomic_fetch_add(&Semaphore->Value, 1);
+            return SCHEDULER_SLEEP_TIMEOUT;
         }
 	}
-	else {
-		CriticalSectionLeave(&Semaphore->Lock);
-    }
-    return OsSuccess;
+    return SCHEDULER_SLEEP_OK;
 }
 
-/* SemaphoreV (Signal) 
+/* SemaphoreSignal
  * Signals the semaphore with the given value, default is 1 */
-void SemaphoreV(Semaphore_t *Semaphore, int Value)
+void
+SemaphoreSignal(
+    _In_ Semaphore_t    *Semaphore,
+    _In_ int             Value)
 {
-	/* Enter the safe-passage, we do not wish
-	 * to be interrupted while doing this */
-	CriticalSectionEnter(&Semaphore->Lock);
+	// Variables
+    int CurrentValue = atomic_load(&Semaphore->Value);
+    int i;
 
-	/* Increase by the given value 
-	 * and check if we should wake up others */
-	Semaphore->Value += Value;
-	if (Semaphore->Value <= 0) {
-		SchedulerThreadWake((uintptr_t*)Semaphore);
-	}
+    // Debug
+    TRACE("SemaphoreSignal(Value %i)", CurrentValue);
 
-	/* Make sure to leave safe passage again! */
-	CriticalSectionLeave(&Semaphore->Lock);
+    // assert not max
+    assert(CurrentValue != Semaphore->MaxValue);
+    for (i = 0; i < Value; i++) {
+        CurrentValue = atomic_fetch_add(&Semaphore->Value, 1);
+        CurrentValue++;
+        if (CurrentValue <= 0) {
+            SchedulerThreadWake((uintptr_t*)Semaphore);
+        }
+        if (CurrentValue == Semaphore->MaxValue) {
+            break;
+        }
+    }
 }
