@@ -273,6 +273,7 @@
         "stdatomic.h": "c",
         "tls.h": "c",
         "setlocale.h": "c",
-        "threads.h": "c"
+        "threads.h": "c",
+        "coroutine": "c"
     }
 }

@@ -269,7 +269,8 @@ ScProcessQuery(
 /* Installs a signal handler for 
  * the given signal number, it's then invokable
  * by other threads/processes etc */
-int ScProcessSignal(
+uintptr_t
+ScProcessSignal(
     int Signal, 
     uintptr_t Handler) 
 {
@@ -278,7 +279,7 @@ int ScProcessSignal(
 
     // Sanitize the signal
     if (Signal > NUMSIGNALS) {
-        return -1;
+        return 0;
     }
 
     // Get current process
@@ -288,14 +289,14 @@ int ScProcessSignal(
     // This should never happen though
     // Only I write code that has no process
     if (Process == NULL) {
-        return -1;
+        return 0;
     }
 
     // Always retrieve the old handler 
     // and return it, so temp store it before updating
     uintptr_t OldHandler = Process->Base.Signals.Handlers[Signal];
     Process->Base.Signals.Handlers[Signal] = Handler;
-    return (int)OldHandler;
+    return OldHandler;
 }
 
 /* Dispatches a signal to the target process id 
@@ -496,9 +497,10 @@ ScThreadExit(
 /* ScThreadJoin
  * Thread join, waits for a given
  * thread to finish executing, and returns it's exit code */
-int
+OsStatus_t
 ScThreadJoin(
-    _In_ UUId_t ThreadId)
+    _In_ UUId_t ThreadId,
+    _Out_ int *ExitCode)
 {
     // Variables
     UUId_t PId;
@@ -509,11 +511,12 @@ ScThreadJoin(
     // Perform security checks
     if (ThreadingGetThread(ThreadId) == NULL
         || ThreadingGetThread(ThreadId)->AshId != PId) {
-        return -1;
+        return OsError;
     }
 
     // Redirect to thread function
-    return ThreadingJoinThread(ThreadId);
+    *ExitCode = ThreadingJoinThread(ThreadId);
+    return OsSuccess;
 }
 
 /* ScThreadSignal
@@ -536,7 +539,7 @@ ScThreadSignal(
     // Perform security checks
     if (ThreadingGetThread(ThreadId) == NULL
         || ThreadingGetThread(ThreadId)->AshId != PId) {
-        return -1;
+        return OsError;
     }
 
     // Error
@@ -581,16 +584,19 @@ ScThreadYield(void)
 /* ScConditionCreate
  * Create a new shared handle 
  * that is unique for a condition variable */
-uintptr_t ScConditionCreate(void)
+Handle_t
+ScConditionCreate(void)
 {
     /* Allocate a new unique address */
-    return (uintptr_t)kmalloc(sizeof(int));
+    return (Handle_t)kmalloc(sizeof(int));
 }
 
 /* ScConditionDestroy
  * Destroys a shared handle
  * for a condition variable */
-OsStatus_t ScConditionDestroy(uintptr_t *Handle)
+OsStatus_t
+ScConditionDestroy(
+    _In_ Handle_t Handle)
 {
     kfree(Handle);
     return OsSuccess;

@@ -42,37 +42,38 @@ _CODE_END
 
 /* Process system calls
  * - Process related system call definitions */
-#define Syscall_ProcessExit(ExitCode) syscall1(1, SCPARAM(ExitCode))
-#define Syscall_ProcessQuery(ProcessId, Function, Buffer, Length) syscall4(2, SCPARAM(ProcessId), SCPARAM(Function), SCPARAM(Buffer), SCPARAM(Length))
-#define Syscall_ProcessSpawn(Path, StartupInformation, Async) syscall3(3, SCPARAM(Path), SCPARAM(StartupInformation), SCPARAM(Async))
+#define Syscall_ProcessExit(ExitCode) (OsStatus_t)syscall1(1, SCPARAM(ExitCode))
+#define Syscall_ProcessQuery(ProcessId, Function, Buffer, Length) (OsStatus_t)syscall4(2, SCPARAM(ProcessId), SCPARAM(Function), SCPARAM(Buffer), SCPARAM(Length))
+#define Syscall_ProcessSpawn(Path, StartupInformation, Async) (UUId_t)syscall3(3, SCPARAM(Path), SCPARAM(StartupInformation), SCPARAM(Async))
 #define Syscall_ProcessJoin(ProcessId) syscall1(4, SCPARAM(ProcessId))
-#define Syscall_ProcessKill(ProcessId) syscall1(5, SCPARAM(ProcessId))
-#define Syscall_ProcessSignal(Signal, Handler) syscall2(6, SCPARAM(Signal), SCPARAM(Handler))
-#define Syscall_ProcessRaise(ProcessId, Signal) syscall2(7, SCPARAM(ProcessId), SCPARAM(Signal))
+#define Syscall_ProcessKill(ProcessId) (OsStatus_t)syscall1(5, SCPARAM(ProcessId))
+#define Syscall_ProcessSignal(Signal, Handler) (uintptr_t)syscall2(6, SCPARAM(Signal), SCPARAM(Handler))
+#define Syscall_ProcessRaise(ProcessId, Signal) (OsStatus_t)syscall2(7, SCPARAM(ProcessId), SCPARAM(Signal))
 
 /* SharedObject system calls
  * - SharedObject related system call definitions */
-#define Syscall_LibraryLoad(Path) syscall1(8, SCPARAM(Path))
-#define Syscall_LibraryFunction(Handle, FunctionName) syscall2(9, SCPARAM(Handle), SCPARAM(FunctionName))
-#define Syscall_LibraryUnload(Handle) syscall1(10, SCPARAM(Handle))
+#define Syscall_LibraryLoad(Path) (Handle_t)syscall1(8, SCPARAM(Path))
+#define Syscall_LibraryFunction(Handle, FunctionName) (uintptr_t)syscall2(9, SCPARAM(Handle), SCPARAM(FunctionName))
+#define Syscall_LibraryUnload(Handle) (OsStatus_t)syscall1(10, SCPARAM(Handle))
 
 /* Threading system calls
  * - Threading related system call definitions */
-#define SYSCALL_THREADCREATE        0xB
-#define SYSCALL_THREADEXIT            0xC
-#define SYSCALL_THREADSIGNAL        0xD
-#define SYSCALL_THREADJOIN            0xE
-#define SYSCALL_THREADSLEEP            0xF
-#define SYSCALL_THREADYIELD            0x10
-#define SYSCALL_THREADID            0x11
-#define Syscall_GetStartInfo(StartupInformation) syscall1(18, SCPARAM(StartupInformation))
+#define Syscall_ThreadCreate(Entry, Argument, Flags) (UUId_t)syscall3(11, SCPARAM(Entry), SCPARAM(Argument), SCPARAM(Flags))
+#define Syscall_ThreadExit(ExitCode) (OsStatus_t)syscall1(12, SCPARAM(ExitCode))
+#define Syscall_ThreadSignal(ThreadId, Signal) (OsStatus_t)syscall2(13, SCPARAM(ThreadId), SCPARAM(Signal))
+#define Syscall_ThreadJoin(ThreadId, ExitCode) (OsStatus_t)syscall2(14, SCPARAM(ThreadId), SCPARAM(ExitCode))
+#define Syscall_ThreadSleep(Milliseconds) (OsStatus_t)syscall1(15, SCPARAM(Milliseconds))
+#define Syscall_ThreadYield() (OsStatus_t)syscall0(16)
+#define Syscall_ThreadId() (UUId_t)syscall0(17)
+#define Syscall_GetStartInfo(StartupInformation) (OsStatus_t)syscall1(18, SCPARAM(StartupInformation))
 
-/* Synchronization System Calls */
-#define SYSCALL_CONDCREATE            0x15
-#define SYSCALL_CONDDESTROY            0x16
-#define SYSCALL_SYNCSLEEP            0x17
-#define SYSCALL_SYNCWAKEONE            0x18
-#define SYSCALL_SYNCWAKEALL            0x19
+/* Condition system calls
+ * - Condition related system call definitions */
+#define Syscall_ConditionCreate() (Handle_t)syscall0(21)
+#define Syscall_ConditionDestroy(Handle) (OsStatus_t)syscall1(22, SCPARAM(Handle))
+#define Syscall_WaitForObject(Handle, Timeout) (OsStatus_t)syscall2(23, SCPARAM(Handle), SCPARAM(Timeout))
+#define Syscall_SignalHandle(Handle) (OsStatus_t)syscall1(24, SCPARAM(Handle))
+#define Syscall_BroadcastHandle(Handle) (OsStatus_t)syscall1(25, SCPARAM(Handle))
 
 /* Memory System Calls */
 #define SYSCALL_MEMALLOC            0x1F
