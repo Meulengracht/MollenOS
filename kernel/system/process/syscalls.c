@@ -240,7 +240,12 @@ OsStatus_t ScProcessExit(int ExitCode)
  * the given process id, if called
  * with -1 it queries information
  * about itself */
-OsStatus_t ScProcessQuery(UUId_t ProcessId, AshQueryFunction_t Function, void *Buffer, size_t Length)
+OsStatus_t 
+ScProcessQuery(
+    UUId_t ProcessId, 
+    AshQueryFunction_t Function, 
+    void *Buffer, 
+    size_t Length)
 {
     /* Variables */
     MCoreProcess_t *Process = NULL;
@@ -264,7 +269,9 @@ OsStatus_t ScProcessQuery(UUId_t ProcessId, AshQueryFunction_t Function, void *B
 /* Installs a signal handler for 
  * the given signal number, it's then invokable
  * by other threads/processes etc */
-int ScProcessSignal(int Signal, uintptr_t Handler) 
+int ScProcessSignal(
+    int Signal, 
+    uintptr_t Handler) 
 {
     // Process
     MCoreProcess_t *Process = NULL;
@@ -294,7 +301,10 @@ int ScProcessSignal(int Signal, uintptr_t Handler)
 /* Dispatches a signal to the target process id 
  * It will get handled next time it's selected for execution 
  * so we yield instantly as well. If processid is -1, we select self */
-OsStatus_t ScProcessRaise(UUId_t ProcessId, int Signal)
+OsStatus_t
+ScProcessRaise(
+    UUId_t ProcessId, 
+    int Signal)
 {
     /* Variables */
     MCoreProcess_t *Process = NULL;
