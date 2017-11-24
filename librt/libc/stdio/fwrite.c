@@ -23,7 +23,6 @@
  * - System */
 #include <os/driver/file.h>
 #include <os/syscall.h>
-#include <os/thread.h>
 
 /* Includes 
  * - Library */

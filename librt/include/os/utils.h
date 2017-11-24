@@ -48,19 +48,19 @@
 
 /* Threading Utility
  * Waits for a condition to set in a busy-loop using
- * ThreadSleep */
+ * thrd_sleepex */
 #define WaitForCondition(condition, runs, wait, message, ...)\
     for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
         if (timeout_ >= runs) {\
              SystemDebug(SYSTEM_DEBUG_WARNING, message, __VA_ARGS__);\
              break;\
 												        }\
-        ThreadSleep(wait);\
+        thrd_sleepex(wait);\
 						    }
 
 /* Threading Utility
  * Waits for a condition to set in a busy-loop using
- * ThreadSleep */
+ * thrd_sleepex */
 #define WaitForConditionWithFault(fault, condition, runs, wait)\
 	fault = 0; \
     for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
@@ -68,7 +68,7 @@
 			 fault = 1; \
              break;\
 										        }\
-        ThreadSleep(wait);\
+        thrd_sleepex(wait);\
 					    }
 
 // Cpp Barrier

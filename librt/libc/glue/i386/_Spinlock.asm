@@ -79,11 +79,12 @@ __spinlock_test:
 	push ebx
 
 	; Get address of lock
+    mov eax, 0
 	mov ebx, dword [ebp + 8]
 
 	; Sanity
 	test ebx, ebx
-	je .gotlock
+	je .end
 
 	; We use this to test
 	mov eax, 1

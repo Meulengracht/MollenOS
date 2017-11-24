@@ -86,8 +86,8 @@ int wctomb(char *mbchar, wchar_t wchar)
 #include <os/driver/input.h>
 #include <os/driver/file.h>
 #include <os/ipc/ipc.h>
-#include <os/thread.h>
 #include <ds/collection.h>
+#include "../../threads/tls.h"
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -354,7 +354,7 @@ StdioReadInternal(
 {
     // Variables
 	size_t BytesReadTotal = 0, BytesLeft = (size_t)Length;
-	size_t OriginalSize = GetBufferSize(TLSGetCurrent()->Transfer);
+	size_t OriginalSize = GetBufferSize(tls_current()->transfer_buffer);
 	uint8_t *Pointer = (uint8_t*)Buffer;
     UUId_t Handle = StdioFdToHandle(fd);
     
@@ -391,18 +391,18 @@ StdioReadInternal(
 	while (BytesLeft > 0) {
 		size_t ChunkSize = MIN(OriginalSize, BytesLeft);
 		size_t BytesReaden = 0, BytesIndex = 0;
-		ChangeBufferSize(TLSGetCurrent()->Transfer, ChunkSize);
-        if (_fval(ReadFile(Handle, TLSGetCurrent()->Transfer, 
+		ChangeBufferSize(tls_current()->transfer_buffer, ChunkSize);
+        if (_fval(ReadFile(Handle, tls_current()->transfer_buffer, 
             &BytesIndex, &BytesReaden))) {
 			break;
 		}
 		if (BytesReaden == 0) {
 			break;
 		}
-		SeekBuffer(TLSGetCurrent()->Transfer, BytesIndex);
-        ReadBuffer(TLSGetCurrent()->Transfer, 
+		SeekBuffer(tls_current()->transfer_buffer, BytesIndex);
+        ReadBuffer(tls_current()->transfer_buffer, 
             (__CONST void*)Pointer, BytesReaden, NULL);
-		SeekBuffer(TLSGetCurrent()->Transfer, 0);
+		SeekBuffer(tls_current()->transfer_buffer, 0);
 		BytesReadTotal += BytesReaden;
 		BytesLeft -= BytesReaden;
 		Pointer += BytesReaden;
@@ -410,8 +410,7 @@ StdioReadInternal(
 
     // Restore transfer buffer
     *BytesRead = BytesReadTotal;
-	return ChangeBufferSize(
-        TLSGetCurrent()->Transfer, OriginalSize);
+	return ChangeBufferSize(tls_current()->transfer_buffer, OriginalSize);
 }
 
 /* StdioWriteInternal
@@ -425,7 +424,7 @@ StdioWriteInternal(
 {
     // Variables
 	size_t BytesWrittenTotal = 0, BytesLeft = (size_t)Length;
-	size_t OriginalSize = GetBufferSize(TLSGetCurrent()->Transfer);
+	size_t OriginalSize = GetBufferSize(tls_current()->transfer_buffer);
     uint8_t *Pointer = (uint8_t *)Buffer;
     UUId_t Handle = StdioFdToHandle(fd);
     
@@ -448,10 +447,10 @@ StdioWriteInternal(
 	while (BytesLeft > 0) {
 		size_t ChunkSize = MIN(OriginalSize, BytesLeft);
 		size_t BytesWrittenLocal = 0;
-		ChangeBufferSize(TLSGetCurrent()->Transfer, ChunkSize);
-        WriteBuffer(TLSGetCurrent()->Transfer, 
+		ChangeBufferSize(tls_current()->transfer_buffer, ChunkSize);
+        WriteBuffer(tls_current()->transfer_buffer, 
             (__CONST void *)Pointer, ChunkSize, &BytesWrittenLocal);
-		if (WriteFile(Handle, TLSGetCurrent()->Transfer, &BytesWrittenLocal) != FsOk) {
+		if (WriteFile(Handle, tls_current()->transfer_buffer, &BytesWrittenLocal) != FsOk) {
 			break;
 		}
 		if (BytesWrittenLocal == 0) {
@@ -463,7 +462,7 @@ StdioWriteInternal(
 	}
 
 	// Restore our transfer buffer and return
-    ChangeBufferSize(TLSGetCurrent()->Transfer, OriginalSize);
+    ChangeBufferSize(tls_current()->transfer_buffer, OriginalSize);
     *BytesWritten = BytesWrittenTotal;
 	return OsSuccess;
 }

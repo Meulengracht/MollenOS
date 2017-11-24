@@ -25,12 +25,12 @@
 
 /* Includes
  * - System */
-#include <os/thread.h>
 #include <os/utils.h>
 #include "ehci.h"
 
 /* Includes
  * - Library */
+#include <threads.h>
 #include <string.h>
 
 /* EhciPortReset
@@ -49,7 +49,7 @@ EhciPortReset(
 		&& !(Temp & EHCI_PORT_POWER)) {
 		Temp |= EHCI_PORT_POWER;
 		Controller->OpRegisters->Ports[Index] = Temp;
-		ThreadSleep(20);
+		thrd_sleepex(20);
 	}
 
 	// We must set the port-reset and keep the signal asserted for atleast 50 ms
@@ -63,7 +63,7 @@ EhciPortReset(
 	Controller->OpRegisters->Ports[Index] = Temp;
 
 	// Wait 100 ms for reset
-	ThreadSleep(100);
+	thrd_sleepex(100);
 
 	// Clear reset signal
 	Temp = Controller->OpRegisters->Ports[Index];
@@ -135,7 +135,7 @@ EhciPortSetup(
 	_In_ int Index)
 {
 	// Wait for power-on delay
-	ThreadSleep(100);
+	thrd_sleepex(100);
 	return EhciPortReset(Controller, Index);
 }
 

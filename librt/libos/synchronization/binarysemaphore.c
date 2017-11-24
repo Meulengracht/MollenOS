@@ -43,8 +43,8 @@ BinarySemaphoreConstruct(
 	}
 
 	// Initialize resources
-	MutexConstruct(&BinarySemaphore->Mutex, MUTEX_PLAIN);
-	ConditionConstruct(&BinarySemaphore->Condition);
+    mtx_init(&BinarySemaphore->Mutex, mtx_plain);
+    cnd_init(&BinarySemaphore->Condition);
 	BinarySemaphore->Value = Value;
 
 	// Done
@@ -67,14 +67,12 @@ BinarySemaphorePost(
 	_In_ BinarySemaphore_t *BinarySemaphore)
 {
 	// Lock mutex
-	MutexLock(&BinarySemaphore->Mutex);
+	mtx_lock(&BinarySemaphore->Mutex);
 
 	// Set value to 1, and signal a thread
 	BinarySemaphore->Value = 1;
-	ConditionSignal(&BinarySemaphore->Condition);
-
-	// Unlock again
-	MutexUnlock(&BinarySemaphore->Mutex);
+	cnd_signal(&BinarySemaphore->Condition);
+	mtx_unlock(&BinarySemaphore->Mutex);
 }
 
 /* BinarySemaphorePostAll
@@ -84,14 +82,12 @@ BinarySemaphorePostAll(
 	_In_ BinarySemaphore_t *BinarySemaphore)
 {
 	// Lock mutex
-	MutexLock(&BinarySemaphore->Mutex);
+	mtx_lock(&BinarySemaphore->Mutex);
 
 	// Set value to 1, and signal a thread
 	BinarySemaphore->Value = 1;
-	ConditionBroadcast(&BinarySemaphore->Condition);
-
-	// Unlock again
-	MutexUnlock(&BinarySemaphore->Mutex);
+	cnd_broadcast(&BinarySemaphore->Condition);
+	mtx_unlock(&BinarySemaphore->Mutex);
 }
 
 /* BinarySemaphoreWait
@@ -101,15 +97,12 @@ BinarySemaphoreWait(
 	_In_ BinarySemaphore_t* BinarySemaphore)
 {
 	// Lock mutex
-	MutexLock(&BinarySemaphore->Mutex);
+	mtx_lock(&BinarySemaphore->Mutex);
 
 	// Wait for value to become set before waiting
 	while (BinarySemaphore->Value != 1) {
-		ConditionWait(&BinarySemaphore->Condition, 
-			&BinarySemaphore->Mutex);
+		cnd_wait(&BinarySemaphore->Condition, &BinarySemaphore->Mutex);
 	}
 	BinarySemaphore->Value = 0;
-	
-	// Unlock again
-	MutexUnlock(&BinarySemaphore->Mutex);
+	mtx_unlock(&BinarySemaphore->Mutex);
 }

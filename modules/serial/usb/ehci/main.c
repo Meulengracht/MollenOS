@@ -27,8 +27,6 @@
 /* Includes 
  * - System */
 #include <os/mollenos.h>
-#include <os/condition.h>
-#include <os/thread.h>
 #include <os/utils.h>
 
 #include "../common/manager.h"

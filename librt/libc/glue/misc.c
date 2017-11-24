@@ -22,7 +22,6 @@
 /* Includes */
 #include <os/mollenos.h>
 #include <os/syscall.h>
-#include <os/thread.h>
 #include <signal.h>
 #include <string.h>
 #include <stdio.h>
@@ -82,30 +81,6 @@ MemoryFree(
 	/* Redirect call */
 	return (OsStatus_t)Syscall2(SYSCALL_MEMFREE,
 		SYSCALL_PARAM(MemoryPointer), SYSCALL_PARAM(Length));
-}
-
-/* Thread sleep,
- * Sleeps the current thread for the
- * given milliseconds. */
-void ThreadSleep(size_t MilliSeconds)
-{
-	/* This is also just a redirected syscall
-	 * we don't validate the asked time, it's 
-	 * up to the user not to fuck it up */
-	if (MilliSeconds == 0)
-		return;
-
-	/* Gogo! */
-	Syscall1(SYSCALL_THREADSLEEP, SYSCALL_PARAM(MilliSeconds));
-}
-
-/* TLSGetCurrent 
- * Retrieves the local storage space
- * for the current thread */
-ThreadLocalStorage_t *
-TLSGetCurrent(void)
-{
-	return (ThreadLocalStorage_t*)__get_reserved(0);
 }
 
 /* Const Message */

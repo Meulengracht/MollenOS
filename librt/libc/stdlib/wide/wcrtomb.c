@@ -1,4 +1,4 @@
-#include <os/thread.h>
+#include "../../threads/tls.h"
 #include <wchar.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -14,9 +14,8 @@ size_t _wcrtomb_r(
   char buf[10];
 
 #ifdef _MB_CAPABLE
-  if (ps == NULL)
-    {
-      ps = &(TLSGetCurrent()->MbState);
+  if (ps == NULL) {
+      ps = &(tls_current()->mbst);
     }
 #endif
 
@@ -49,7 +48,7 @@ size_t wcrtomb(
 #ifdef _MB_CAPABLE
   if (ps == NULL)
     {
-      ps = &(TLSGetCurrent()->MbState);
+      ps = &(tls_current()->mbst);
     }
 #endif
 

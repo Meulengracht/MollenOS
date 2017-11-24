@@ -25,12 +25,12 @@
 
 /* Includes
  * - System */
-#include <os/thread.h>
 #include <os/utils.h>
 #include "uhci.h"
 
 /* Includes
  * - Library */
+#include <threads.h>
 #include <string.h>
 
 /* UhciPortReset
@@ -49,7 +49,7 @@ UhciPortReset(
 	UhciWrite16(Controller, pOffset, UHCI_PORT_RESET);
 
 	// Wait atlest 50 ms (per USB specification)
-	ThreadSleep(60);
+	thrd_sleepex(60);
 
 	// Now re-read port and deassert the signal
 	// We preserve the state now
@@ -87,7 +87,7 @@ UhciPortReset(
 	// I found this wait to be EXTREMELY 
 	// crucical, otherwise devices would stall. 
 	// because I accessed them to quickly after the reset
-	ThreadSleep(30);
+	thrd_sleepex(30);
 
 	// Done
 	return OsSuccess;

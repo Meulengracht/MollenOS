@@ -35,75 +35,71 @@
 /* ThreadPoolJob (Private)
  * Describes a linked list of jobs for threads to execute */
 typedef struct _ThreadPoolJob {
-	struct _ThreadPoolJob*  Previous;
-	ThreadFunc_t			Function;
-	void *					Argument;
+    struct _ThreadPoolJob*  Previous;
+    thrd_start_t            Function;
+    void *                  Argument;
 } ThreadPoolJob_t;
 
 /* ThreadPoolJobQueue (Private)
  * Contains a list of job entries (ThreadPoolJob), and keeps
  * the synchronization between retrieving and adding */
 typedef struct _ThreadPoolJobQueue {
-	Mutex_t					Lock;
-	ThreadPoolJob_t	*		Head;
-	ThreadPoolJob_t	*		Tail;
-	BinarySemaphore_t *		HasJobs;
-	int						Length;
+    mtx_t               Lock;
+    ThreadPoolJob_t    *Head;
+    ThreadPoolJob_t    *Tail;
+    BinarySemaphore_t  *HasJobs;
+    int                 Length;
 } ThreadPoolJobQueue_t;
 
 /* ThreadPoolThread (Private) 
  * Contains the thread information and some extra information */
 typedef struct _ThreadPoolThread {
-	int						Id;
-	UUId_t					Thread;
-	ThreadPool_t *			Pool;
+    int                  Id;
+    thrd_t               Thread;
+    ThreadPool_t        *Pool;
 } ThreadPoolThread_t;
 
 /* ThreadPool (Private) 
  * Contains all the neccessary information about the threadpool
  * and it's locks/threads/jobs */
 typedef struct _ThreadPool {
-	volatile int			ThreadsAlive;
-	volatile int			ThreadsWorking;
-	volatile int			ThreadsKeepAlive;
-	volatile sig_atomic_t	ThreadsOnHold;
+    volatile int            ThreadsAlive;
+    volatile int            ThreadsWorking;
+    volatile int            ThreadsKeepAlive;
+    volatile sig_atomic_t   ThreadsOnHold;
 
-	// Resources
-	Mutex_t					ThreadLock;
-	Condition_t				ThreadsIdle;
-	ThreadPoolThread_t **	Threads;
-	ThreadPoolJobQueue_t	JobQueue;
+    // Resources
+    mtx_t                   ThreadLock;
+    cnd_t                   ThreadsIdle;
+    ThreadPoolThread_t **   Threads;
+    ThreadPoolJobQueue_t    JobQueue;
 } ThreadPool_t;
 
 /* Globals
  * Keeps volatile/static information related to state */
-static TlsKey_t __GlbThreadPoolKey = TLS_KEY_INVALID;
+static tss_t __GlbThreadPoolKey = UUID_INVALID;
 
 /* JobQueueInitialize
  * Allocates resources and initializes the job-queue */
 OsStatus_t
 JobQueueInitialize(
-	_In_ ThreadPoolJobQueue_t *JobQueue)
+    _In_ ThreadPoolJobQueue_t *JobQueue)
 {
-	// Sanitize
-	if (JobQueue == NULL) {
-		return OsError;
-	}
+    // Sanitize
+    if (JobQueue == NULL) {
+        return OsError;
+    }
 
-	// Reset members
-	JobQueue->Length = 0;
-	JobQueue->Head = NULL;
-	JobQueue->Tail = NULL;
+    // Reset members
+    JobQueue->Length = 0;
+    JobQueue->Head = NULL;
+    JobQueue->Tail = NULL;
 
-	// Allocate a new lock
-	JobQueue->HasJobs = (BinarySemaphore_t*)malloc(sizeof(BinarySemaphore_t));
-
-	// Initialize resources
-	MutexConstruct(&JobQueue->Lock, MUTEX_PLAIN);
-	BinarySemaphoreConstruct(JobQueue->HasJobs, 0);
-
-	// Done
-	return OsSuccess;
+    // Allocate a new lock
+    JobQueue->HasJobs = (BinarySemaphore_t*)malloc(sizeof(BinarySemaphore_t));
+    mtx_init(&JobQueue->Lock, mtx_plain);
+    BinarySemaphoreConstruct(JobQueue->HasJobs, 0);
+    return OsSuccess;
 }
 
 /* JobQueuePush
@@ -111,34 +107,34 @@ JobQueueInitialize(
  * as fast as possible. */
 OsStatus_t
 JobQueuePush(
-	_In_ ThreadPoolJobQueue_t *JobQueue,
-	_In_ ThreadPoolJob_t *Job)
+    _In_ ThreadPoolJobQueue_t *JobQueue,
+    _In_ ThreadPoolJob_t *Job)
 {
-	// Sanitize
-	if (JobQueue == NULL) {
-		return OsError;
-	}
+    // Sanitize
+    if (JobQueue == NULL) {
+        return OsError;
+    }
 
-	// Acquire lock and reset previous
-	MutexLock(&JobQueue->Lock);
-	Job->Previous = NULL;
+    // Acquire lock and reset previous
+    mtx_lock(&JobQueue->Lock);
+    Job->Previous = NULL;
 
-	// Either add to start or end
-	if (JobQueue->Length == 0) {
-		JobQueue->Head = Job;
-		JobQueue->Tail = Job;
-	}
-	else {
-		JobQueue->Tail->Previous = Job;
-		JobQueue->Tail = Job;
-	}
+    // Either add to start or end
+    if (JobQueue->Length == 0) {
+        JobQueue->Head = Job;
+        JobQueue->Tail = Job;
+    }
+    else {
+        JobQueue->Tail->Previous = Job;
+        JobQueue->Tail = Job;
+    }
 
-	// Increase length
-	JobQueue->Length++;
+    // Increase length
+    JobQueue->Length++;
 
-	// Notify threads
-	BinarySemaphorePost(JobQueue->HasJobs);
-	return MutexUnlock(&JobQueue->Lock);
+    // Notify threads
+    BinarySemaphorePost(JobQueue->HasJobs);
+    return mtx_unlock(&JobQueue->Lock);
 }
 
 /* JobQueuePull
@@ -146,43 +142,43 @@ JobQueuePush(
  * The caller must hold a mutex */
 ThreadPoolJob_t*
 JobQueuePull(
-	_In_ ThreadPoolJobQueue_t *JobQueue)
+    _In_ ThreadPoolJobQueue_t *JobQueue)
 {
-	// Variables
-	ThreadPoolJob_t *Job = NULL;
+    // Variables
+    ThreadPoolJob_t *Job = NULL;
 
-	// Sanitize
-	if (JobQueue == NULL) {
-		return NULL;
-	}
+    // Sanitize
+    if (JobQueue == NULL) {
+        return NULL;
+    }
 
-	// Acquire lock and reset previous
-	MutexLock(&JobQueue->Lock);
-	Job = JobQueue->Head;
+    // Acquire lock and reset previous
+    mtx_lock(&JobQueue->Lock);
+    Job = JobQueue->Head;
 
-	// On pull we have three different cases
-	// Either it's empty, return null
-	// If there is one job, clear head/tail
-	// If more, get head and notify
-	if (JobQueue->Length == 0) {
-		// Do nothing
-	}
-	else if (JobQueue->Length == 1) {
-		JobQueue->Head = NULL;
-		JobQueue->Tail = NULL;
-		JobQueue->Length--;
-	}
-	else {
-		JobQueue->Head = Job->Previous;
-		JobQueue->Length--;
+    // On pull we have three different cases
+    // Either it's empty, return null
+    // If there is one job, clear head/tail
+    // If more, get head and notify
+    if (JobQueue->Length == 0) {
+        // Do nothing
+    }
+    else if (JobQueue->Length == 1) {
+        JobQueue->Head = NULL;
+        JobQueue->Tail = NULL;
+        JobQueue->Length--;
+    }
+    else {
+        JobQueue->Head = Job->Previous;
+        JobQueue->Length--;
 
-		// Update that we still have jobs
-		BinarySemaphorePost(JobQueue->HasJobs);
-	}
+        // Update that we still have jobs
+        BinarySemaphorePost(JobQueue->HasJobs);
+    }
 
-	// Unlock and return the job
-	MutexUnlock(&JobQueue->Lock);
-	return Job;
+    // Unlock and return the job
+    mtx_unlock(&JobQueue->Lock);
+    return Job;
 }
 
 /* JobQueueClear
@@ -190,220 +186,216 @@ JobQueuePull(
  * any resources associated with the jobs */
 OsStatus_t
 JobQueueClear(
-	_In_ ThreadPoolJobQueue_t *JobQueue)
+    _In_ ThreadPoolJobQueue_t *JobQueue)
 {
-	// Sanitize
-	if (JobQueue == NULL) {
-		return OsError;
-	}
+    // Sanitize
+    if (JobQueue == NULL) {
+        return OsError;
+    }
 
-	// Iterate and free jobs
-	while (JobQueue->Length) {
-		free(JobQueuePull(JobQueue));
-	}
+    // Iterate and free jobs
+    while (JobQueue->Length) {
+        free(JobQueuePull(JobQueue));
+    }
 
-	// Reset members
-	JobQueue->Head = NULL;
-	JobQueue->Tail = NULL;
-	BinarySemaphoreReset(JobQueue->HasJobs);
-	JobQueue->Length = 0;
-	
-	// Done
-	return OsSuccess;
+    // Reset members
+    JobQueue->Head = NULL;
+    JobQueue->Tail = NULL;
+    BinarySemaphoreReset(JobQueue->HasJobs);
+    JobQueue->Length = 0;
+    
+    // Done
+    return OsSuccess;
 }
 
 /* JobQueueDestroy
  * Free all queue resources back to the system and clears the queue */
 void
 JobQueueDestroy(
-	_In_ ThreadPoolJobQueue_t *JobQueue)
+    _In_ ThreadPoolJobQueue_t *JobQueue)
 {
-	// Clear queue, then cleanup
-	JobQueueClear(JobQueue);
-	free(JobQueue->HasJobs);
+    // Clear queue, then cleanup
+    JobQueueClear(JobQueue);
+    free(JobQueue->HasJobs);
 }
 
 /* ThreadPoolThreadHold
  * Signal-handler: Sets the calling thread on hold */
 void
 ThreadPoolThreadHold(
-	_In_ int SignalCode)
+    _In_ int SignalCode)
 {
-	// Variables 
-	ThreadPool_t *Tp = NULL;
+    // Variables 
+    ThreadPool_t *Tp = NULL;
 
-	// Unused
-	_CRT_UNUSED(SignalCode);
+    // Unused
+    _CRT_UNUSED(SignalCode);
 
-	// Extract pool from tls
-	Tp = (ThreadPool_t*)TLSGetKey(__GlbThreadPoolKey);
+    // Extract pool from tls
+    Tp = (ThreadPool_t*)tss_get(__GlbThreadPoolKey);
 
-	// Set on hold
-	if (Tp != NULL) {
-		Tp->ThreadsOnHold = 1;
-		while (Tp->ThreadsOnHold) {
-			ThreadSleep(1);
-		}
-	}
+    // Set on hold
+    if (Tp != NULL) {
+        Tp->ThreadsOnHold = 1;
+        while (Tp->ThreadsOnHold) {
+            thrd_sleepex(1);
+        }
+    }
 }
 
 /* ThreadPoolThreadLoop
  * The primary loop of each thread */
 int
 ThreadPoolThreadLoop(
-	_In_ void *Argument)
+    _In_ void *Argument)
 {
-	// Variables
-	ThreadPoolThread_t* Thread = NULL;
-	ThreadPoolJob_t *Job = NULL;
-	ThreadPool_t *Pool = NULL;
+    // Variables
+    ThreadPoolThread_t* Thread = NULL;
+    ThreadPoolJob_t *Job = NULL;
+    ThreadPool_t *Pool = NULL;
 
-	// Instantiate the pointers
-	Thread = (ThreadPoolThread_t*)Argument;
-	Pool = Thread->Pool;
+    // Instantiate the pointers
+    Thread = (ThreadPoolThread_t*)Argument;
+    Pool = Thread->Pool;
 
-	// Update tls and store the pool
-	TLSSetKey(__GlbThreadPoolKey, Pool);
+    // Update tls and store the pool
+    tss_set(__GlbThreadPoolKey, Pool);
 
-	// Update signal handler for this thread
-	signal(SIGUSR1, ThreadPoolThreadHold);
+    // Update signal handler for this thread
+    signal(SIGUSR1, ThreadPoolThreadHold);
 
-	// Increase thread-live count
-	MutexLock(&Pool->ThreadLock);
-	Pool->ThreadsAlive += 1;
-	MutexUnlock(&Pool->ThreadLock);
+    // Increase thread-live count
+    mtx_lock(&Pool->ThreadLock);
+    Pool->ThreadsAlive += 1;
+    mtx_unlock(&Pool->ThreadLock);
 
-	// Enter job-queue loop
-	while (Pool->ThreadsKeepAlive) {
-		BinarySemaphoreWait(Pool->JobQueue.HasJobs);
+    // Enter job-queue loop
+    while (Pool->ThreadsKeepAlive) {
+        BinarySemaphoreWait(Pool->JobQueue.HasJobs);
 
-		// Make sure we check it again after wake-up
-		if (Pool->ThreadsKeepAlive) {
-			// Increase thread-working count
-			MutexLock(&Pool->ThreadLock);
-			Pool->ThreadsWorking++;
-			MutexUnlock(&Pool->ThreadLock);
+        // Make sure we check it again after wake-up
+        if (Pool->ThreadsKeepAlive) {
+            // Increase thread-working count
+            mtx_lock(&Pool->ThreadLock);
+            Pool->ThreadsWorking++;
+            mtx_unlock(&Pool->ThreadLock);
 
-			// Get next job and execute
-			Job = JobQueuePull(&Pool->JobQueue);
-			if (Job != NULL) {
-				Job->Function(Job->Argument);
-				free(Job);
-			}
+            // Get next job and execute
+            Job = JobQueuePull(&Pool->JobQueue);
+            if (Job != NULL) {
+                Job->Function(Job->Argument);
+                free(Job);
+            }
 
-			// Decrease thread-working count
-			MutexLock(&Pool->ThreadLock);
-			Pool->ThreadsWorking--;
+            // Decrease thread-working count
+            mtx_lock(&Pool->ThreadLock);
+            Pool->ThreadsWorking--;
 
-			// If none are working anymore, signal all idle
-			if (!Pool->ThreadsWorking) {
-				ConditionSignal(&Pool->ThreadsIdle);
-			}
-			MutexUnlock(&Pool->ThreadLock);
-		}
-	}
+            // If none are working anymore, signal all idle
+            if (!Pool->ThreadsWorking) {
+                cnd_signal(&Pool->ThreadsIdle);
+            }
+            mtx_unlock(&Pool->ThreadLock);
+        }
+    }
 
-	// Decrease thread-live count
-	MutexLock(&Pool->ThreadLock);
-	Pool->ThreadsAlive--;
-	MutexUnlock(&Pool->ThreadLock);
+    // Decrease thread-live count
+    mtx_lock(&Pool->ThreadLock);
+    Pool->ThreadsAlive--;
+    mtx_unlock(&Pool->ThreadLock);
 
-	// Thread is done
-	return 0;
+    // Thread is done
+    return 0;
 }
 
 /* ThreadPoolInitializeThread
  * Initialize a thread in the thread pool */
 int 
 ThreadPoolInitializeThread(
-	_In_ ThreadPool_t* ThreadPool,
-	_In_ ThreadPoolThread_t** Thread,
-	_In_ int Id)
+    _In_ ThreadPool_t* ThreadPool,
+    _In_ ThreadPoolThread_t** Thread,
+    _In_ int Id)
 {
-	// Allocate a new instance of a thread
-	*Thread = (ThreadPoolThread_t*)malloc(sizeof(ThreadPoolThread_t));
-	(*Thread)->Id = Id;
-	(*Thread)->Pool = ThreadPool;
+    // Allocate a new instance of a thread
+    *Thread = (ThreadPoolThread_t*)malloc(sizeof(ThreadPoolThread_t));
+    (*Thread)->Id = Id;
+    (*Thread)->Pool = ThreadPool;
 
-	// Spawn it
-	(*Thread)->Thread = ThreadCreate(ThreadPoolThreadLoop, *Thread);
-	return 0;
+    // Spawn it
+    thrd_create(&(*Thread)->Thread, ThreadPoolThreadLoop, *Thread);
+    return 0;
 }
 
 /* ThreadPoolThreadDestroy
  * Frees any resources related to the given thread */
 void
 ThreadPoolThreadDestroy(
-	_In_ ThreadPoolThread_t *Thread)
+    _In_ ThreadPoolThread_t *Thread)
 {
-	// Simply free it
-	free(Thread);
+    // Simply free it
+    free(Thread);
 }
 
 /* ThreadPoolInitialize 
  * Initializes a new thread-pool with the given number of threads */
 OsStatus_t
 ThreadPoolInitialize(
-	_In_ int NumThreads,
-	_Out_ ThreadPool_t **ThreadPool)
+    _In_ int NumThreads,
+    _Out_ ThreadPool_t **ThreadPool)
 {
-	// Variables
-	ThreadPool_t *Tp = NULL;
-	int i;
+    // Variables
+    ThreadPool_t *Tp = NULL;
+    int i;
 
-	// Trace
-	TRACE("ThreadPoolInitialize(%i)", NumThreads);
-	
-	// Handle thread count
-	if (NumThreads == THREADPOOL_DEFAULT_WORKERS) {
-		NumThreads = 4;
-		// for now.. set to num_cpus
-	}
+    // Trace
+    TRACE("ThreadPoolInitialize(%i)", NumThreads);
+    
+    // Handle thread count
+    if (NumThreads == THREADPOOL_DEFAULT_WORKERS) {
+        NumThreads = 4;
+        // for now.. set to num_cpus
+    }
 
-	// Sanitize parameters
-	if (ThreadPool == NULL || NumThreads < 0) {
-		ERROR("Invalid parameters");
-		return OsError;
-	}
+    // Sanitize parameters
+    if (ThreadPool == NULL || NumThreads < 0) {
+        ERROR("Invalid parameters");
+        return OsError;
+    }
 
-	// Sanitize the tls-key
-	if (__GlbThreadPoolKey == TLS_KEY_INVALID) {
-		__GlbThreadPoolKey = TLSCreateKey(NULL);
-	}
+    // Sanitize the tls-key
+    if (__GlbThreadPoolKey == UUID_INVALID) {
+        tss_create(&__GlbThreadPoolKey, NULL);
+    }
 
-	// Allocate a new instance of threadpool
-	Tp = (ThreadPool_t*)malloc(sizeof(ThreadPool_t));
-	Tp->ThreadsAlive = 0;
-	Tp->ThreadsWorking = 0;
-	Tp->ThreadsOnHold = 0;
-	Tp->ThreadsKeepAlive = 1;
+    // Allocate a new instance of threadpool
+    Tp = (ThreadPool_t*)malloc(sizeof(ThreadPool_t));
+    Tp->ThreadsAlive = 0;
+    Tp->ThreadsWorking = 0;
+    Tp->ThreadsOnHold = 0;
+    Tp->ThreadsKeepAlive = 1;
 
-	// Initialize job queue
-	if (JobQueueInitialize(&Tp->JobQueue) != OsSuccess) {
-		free(Tp);
-		return OsError;
-	}
+    // Initialize job queue
+    if (JobQueueInitialize(&Tp->JobQueue) != OsSuccess) {
+        free(Tp);
+        return OsError;
+    }
 
-	// Initialize the list of threads
-	Tp->Threads = (ThreadPoolThread_t**)malloc(NumThreads * sizeof(ThreadPoolThread_t*));
+    // Initialize the list of threads
+    Tp->Threads = (ThreadPoolThread_t**)malloc(NumThreads * sizeof(ThreadPoolThread_t*));
 
-	// Initialize locks
-	ConditionConstruct(&Tp->ThreadsIdle);
-	MutexConstruct(&Tp->ThreadLock, MUTEX_PLAIN);
+    // Initialize locks
+    cnd_init(&Tp->ThreadsIdle);
+    mtx_init(&Tp->ThreadLock, mtx_plain);
 
-	// Spawn threads
-	for (i = 0; i < NumThreads; i++) {
-		ThreadPoolInitializeThread(Tp, &Tp->Threads[i], i);
-	}
+    // Spawn threads
+    for (i = 0; i < NumThreads; i++) {
+        ThreadPoolInitializeThread(Tp, &Tp->Threads[i], i);
+    }
 
-	// Wait for all threads to spin-up
-	while (Tp->ThreadsAlive != NumThreads);
-
-	// Update out
-	*ThreadPool = Tp;
-
-	// Done - no errors
-	return OsSuccess;
+    // Wait for all threads to spin-up
+    while (Tp->ThreadsAlive != NumThreads);
+    *ThreadPool = Tp;
+    return OsSuccess;
 }
 
 /* ThreadPoolAddWork
@@ -412,25 +404,25 @@ ThreadPoolInitialize(
  * a way to implement this is by passing a pointer to a structure. */
 OsStatus_t
 ThreadPoolAddWork(
-	_In_ ThreadPool_t *ThreadPool,
-	_In_ ThreadFunc_t Function,
-	_In_ void *Argument)
+    _In_ ThreadPool_t *ThreadPool,
+    _In_ thrd_start_t Function,
+    _In_ void *Argument)
 {
-	// Variables
-	ThreadPoolJob_t *Job = NULL;
+    // Variables
+    ThreadPoolJob_t *Job = NULL;
 
-	// Sanitize parameters
-	if (ThreadPool == NULL) {
-		return OsError;
-	}
+    // Sanitize parameters
+    if (ThreadPool == NULL) {
+        return OsError;
+    }
 
-	// Allocate a new instance of the thread job
-	Job = (ThreadPoolJob_t*)malloc(sizeof(ThreadPoolJob_t));
-	Job->Function = Function;
-	Job->Argument = Argument;
+    // Allocate a new instance of the thread job
+    Job = (ThreadPoolJob_t*)malloc(sizeof(ThreadPoolJob_t));
+    Job->Function = Function;
+    Job->Argument = Argument;
 
-	// Add the job to our queue
-	return JobQueuePush(&ThreadPool->JobQueue, Job);
+    // Add the job to our queue
+    return JobQueuePush(&ThreadPool->JobQueue, Job);
 }
 
 /* ThreadPoolWait
@@ -439,24 +431,24 @@ ThreadPoolAddWork(
  * (probably the main program) will continue. */
 OsStatus_t
 ThreadPoolWait(
-	_In_ ThreadPool_t *ThreadPool)
+    _In_ ThreadPool_t *ThreadPool)
 {
-	// Sanitize parameters
-	if (ThreadPool == NULL) {
-		return OsError;
-	}
+    // Sanitize parameters
+    if (ThreadPool == NULL) {
+        return OsError;
+    }
 
-	// Grab a hold of the mutex
-	MutexLock(&ThreadPool->ThreadLock);
+    // Grab a hold of the mutex
+    mtx_lock(&ThreadPool->ThreadLock);
 
-	// Now wait for all threads
-	while (ThreadPool->JobQueue.Length || ThreadPool->ThreadsWorking) {
-		ConditionWait(&ThreadPool->ThreadsIdle, &ThreadPool->ThreadLock);
-	}
+    // Now wait for all threads
+    while (ThreadPool->JobQueue.Length || ThreadPool->ThreadsWorking) {
+        cnd_wait(&ThreadPool->ThreadsIdle, &ThreadPool->ThreadLock);
+    }
 
-	// Done, unlock again
-	MutexUnlock(&ThreadPool->ThreadLock);
-	return OsSuccess;
+    // Done, unlock again
+    mtx_unlock(&ThreadPool->ThreadLock);
+    return OsSuccess;
 }
 
 /* ThreadPoolPause
@@ -465,39 +457,39 @@ ThreadPoolWait(
  * is called. */
 OsStatus_t
 ThreadPoolPause(
-	_In_ ThreadPool_t *ThreadPool)
+    _In_ ThreadPool_t *ThreadPool)
 {
-	// Variables
-	int i;
+    // Variables
+    int i;
 
-	// Sanitize the parameters
-	if (ThreadPool == NULL) {
-		return OsError;
-	}
+    // Sanitize the parameters
+    if (ThreadPool == NULL) {
+        return OsError;
+    }
 
-	// Iterate and pause threads
-	for (i = 0; i < ThreadPool->ThreadsAlive; i++) {
-		ThreadSignal(ThreadPool->Threads[i]->Thread, SIGUSR1);
-	}
+    // Iterate and pause threads
+    for (i = 0; i < ThreadPool->ThreadsAlive; i++) {
+        thrd_signal(ThreadPool->Threads[i]->Thread, SIGUSR1);
+    }
 
-	// Done
-	return OsSuccess;
+    // Done
+    return OsSuccess;
 }
 
 /* ThreadPoolResume
  * Unpauses all threads if they are paused. */
 OsStatus_t
 ThreadPoolResume(
-	_In_ ThreadPool_t *ThreadPool)
+    _In_ ThreadPool_t *ThreadPool)
 {
-	// Sanitize the parameters
-	if (ThreadPool == NULL) {
-		return OsError;
-	}
+    // Sanitize the parameters
+    if (ThreadPool == NULL) {
+        return OsError;
+    }
 
-	// Resume
-	ThreadPool->ThreadsOnHold = 0;
-	return OsSuccess;
+    // Resume
+    ThreadPool->ThreadsOnHold = 0;
+    return OsSuccess;
 }
 
 /* ThreadPoolDestroy
@@ -505,63 +497,63 @@ ThreadPoolResume(
  * the whole threadpool to free up memory. */
 OsStatus_t
 ThreadPoolDestroy(
-	_In_ ThreadPool_t *ThreadPool)
+    _In_ ThreadPool_t *ThreadPool)
 {
-	// Variables
-	volatile int ThreadsTotal;
-	double TimeOut = 1.0;
-	double TimePassed = 0.0;
-	time_t Start, End;
-	int i;
+    // Variables
+    volatile int ThreadsTotal;
+    double TimeOut = 1.0;
+    double TimePassed = 0.0;
+    time_t Start, End;
+    int i;
 
-	// Sanitize the parameters
-	if (ThreadPool == NULL) {
-		return OsError;
-	}
+    // Sanitize the parameters
+    if (ThreadPool == NULL) {
+        return OsError;
+    }
 
-	// Store information and end infinite loop
-	ThreadsTotal = ThreadPool->ThreadsAlive;
-	ThreadPool->ThreadsKeepAlive = 0;
+    // Store information and end infinite loop
+    ThreadsTotal = ThreadPool->ThreadsAlive;
+    ThreadPool->ThreadsKeepAlive = 0;
 
-	// Give it a second to shut-down threads
-	time(&Start);
-	while (TimePassed < TimeOut && ThreadPool->ThreadsAlive) {
-		BinarySemaphorePostAll(ThreadPool->JobQueue.HasJobs);
-		time(&End);
-		TimePassed = difftime(End, Start);
-	}
+    // Give it a second to shut-down threads
+    time(&Start);
+    while (TimePassed < TimeOut && ThreadPool->ThreadsAlive) {
+        BinarySemaphorePostAll(ThreadPool->JobQueue.HasJobs);
+        time(&End);
+        TimePassed = difftime(End, Start);
+    }
 
-	// Wait for remaining threads to shut-down
-	while (ThreadPool->ThreadsAlive) {
-		BinarySemaphorePostAll(ThreadPool->JobQueue.HasJobs);
-		ThreadSleep(1);
-	}
+    // Wait for remaining threads to shut-down
+    while (ThreadPool->ThreadsAlive) {
+        BinarySemaphorePostAll(ThreadPool->JobQueue.HasJobs);
+        thrd_sleepex(1);
+    }
 
-	// Cleanup job-queue
-	JobQueueDestroy(&ThreadPool->JobQueue);
-	
-	// Deallocate threading resources
-	for (i = 0; i < ThreadsTotal; i++) {
-		ThreadPoolThreadDestroy(ThreadPool->Threads[i]);
-	}
+    // Cleanup job-queue
+    JobQueueDestroy(&ThreadPool->JobQueue);
+    
+    // Deallocate threading resources
+    for (i = 0; i < ThreadsTotal; i++) {
+        ThreadPoolThreadDestroy(ThreadPool->Threads[i]);
+    }
 
-	// Cleanup
-	free(ThreadPool->Threads);
-	free(ThreadPool);
-	return OsSuccess;
+    // Cleanup
+    free(ThreadPool->Threads);
+    free(ThreadPool);
+    return OsSuccess;
 }
 
 /* ThreadPoolGetWorkingCount
  * Returns the number of working threads are the threads that are performing work (not idle). */
 size_t
 ThreadPoolGetWorkingCount(
-	_In_ ThreadPool_t *ThreadPool)
+    _In_ ThreadPool_t *ThreadPool)
 {
-	// Sanitize the parameters
-	if (ThreadPool == NULL) {
-		return 0;
-	}
+    // Sanitize the parameters
+    if (ThreadPool == NULL) {
+        return 0;
+    }
 
-	// Ok - return count
-	return ThreadPool->ThreadsWorking;
+    // Ok - return count
+    return ThreadPool->ThreadsWorking;
 }

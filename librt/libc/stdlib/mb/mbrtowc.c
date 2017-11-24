@@ -1,4 +1,4 @@
-#include <os/thread.h>
+#include "../../threads/tls.h"
 #include <wchar.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -15,9 +15,8 @@ size_t _mbrtowc_r(
   int retval = 0;
 
 #ifdef _MB_CAPABLE
-  if (ps == NULL)
-    {
-      ps = &(TLSGetCurrent()->MbState);
+  if (ps == NULL) {
+      ps = &(tls_current()->mbst);
     }
 #endif
 
@@ -50,7 +49,7 @@ size_t mbrtowc(
 #ifdef _MB_CAPABLE
   if (ps == NULL)
     {
-      ps = &(TLSGetCurrent()->MbState);
+      ps = &(tls_current()->mbst);
     }
 #endif
 

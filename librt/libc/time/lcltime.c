@@ -44,8 +44,9 @@ ANSI C requires <<localtime>>.
 <<localtime>> requires no supporting OS subroutines.
 */
 
-/* Includes */
-#include <os/thread.h>
+/* Includes 
+ * - Library */
+#include "../threads/tls.h"
 #include <string.h>
 #include <time.h>
 #include "local.h"
@@ -165,15 +166,8 @@ struct tm *localtime_r(__CONST time_t *__restrict tim_p, struct tm *__restrict r
 
 /* Normal version of localtime 
  * Modified implementation by newlib */
-struct tm *localtime(__CONST time_t * tim_p)
-{
-	/* Get the TLS buffer for
-	* time-modification */
-	struct tm *lclbuf = &(TLSGetCurrent()->TmBuffer);
-
-	/* Reset the buffer */
+struct tm *localtime(__CONST time_t * tim_p) {
+	struct tm *lclbuf = &(tls_current()->tm_buffer);
 	memset(lclbuf, 0, sizeof(struct tm));
-
-	/* Return the reentrency version */
 	return localtime_r(tim_p, lclbuf);
 }

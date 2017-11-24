@@ -27,14 +27,14 @@
 /* Includes
  * - System */
 #include <os/osdefs.h>
-#include <os/condition.h>
+#include <threads.h>
 
 /* Binary Semaphore
  * Provides a synchronization method between threads and jobs */
 typedef struct _BinarySemaphore {
-	Mutex_t					Mutex;
-	Condition_t				Condition;
-	int						Value;
+    mtx_t           Mutex;
+    cnd_t           Condition;
+    int             Value;
 } BinarySemaphore_t;
 
 /* BinarySemaphoreConstruct
@@ -44,8 +44,8 @@ MOSAPI
 OsStatus_t
 MOSABI
 BinarySemaphoreConstruct(
-	_In_ BinarySemaphore_t *BinarySemaphore,
-	_In_ int Value);
+    _In_ BinarySemaphore_t *BinarySemaphore,
+    _In_ int Value);
 
 /* BinarySemaphoreReset
  * Reinitializes the semaphore with a value of 0 */
@@ -53,7 +53,7 @@ MOSAPI
 OsStatus_t
 MOSABI
 BinarySemaphoreReset(
-	_In_ BinarySemaphore_t *BinarySemaphore);
+    _In_ BinarySemaphore_t *BinarySemaphore);
 
 /* BinarySemaphorePost
  * Post event to a single thread waiting for an event */
@@ -61,7 +61,7 @@ MOSAPI
 void
 MOSABI
 BinarySemaphorePost(
-	_In_ BinarySemaphore_t *BinarySemaphore);
+    _In_ BinarySemaphore_t *BinarySemaphore);
 
 /* BinarySemaphorePostAll
  * Post event to all threads waiting for an event */
@@ -69,7 +69,7 @@ MOSAPI
 void
 MOSABI
 BinarySemaphorePostAll(
-	_In_ BinarySemaphore_t *BinarySemaphore);
+    _In_ BinarySemaphore_t *BinarySemaphore);
 
 /* BinarySemaphoreWait
  * Wait on semaphore until semaphore has value 0 */
@@ -77,6 +77,6 @@ MOSAPI
 void
 MOSABI
 BinarySemaphoreWait(
-	_In_ BinarySemaphore_t* BinarySemaphore);
+    _In_ BinarySemaphore_t* BinarySemaphore);
 
 #endif //!_BINARYSEMAPHORE_INTERFACE_H_

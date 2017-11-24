@@ -22,10 +22,10 @@
 
 /* Includes
  * - System */
-#include <os/thread.h>
 #include <os/utils.h>
 #include <os/driver/usb.h>
 #include "msd.h"
+#include <threads.h>
 
 /* Protocol-Table
  * Used for setting up the different protocol implemtation 
@@ -343,7 +343,7 @@ MsdDeviceStart(
         if (Device->IsReady == 1) {
             break; 
         }
-        ThreadSleep(100);
+        thrd_sleepex(100);
         i--;
     }
 

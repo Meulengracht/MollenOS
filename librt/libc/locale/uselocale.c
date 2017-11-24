@@ -50,8 +50,9 @@ PORTABILITY
 <<uselocale>> is POSIX-1.2008.
 */
 
-/* Includes */
-#include <os/thread.h>
+/* Includes 
+ * - Library */
+#include "../threads/tls.h"
 #include <stdlib.h>
 #include "setlocale.h"
 
@@ -63,8 +64,8 @@ struct __locale_t *uselocale(struct __locale_t *newloc)
   if (!current_locale)
     current_locale = LC_GLOBAL_LOCALE;
   if (newloc == LC_GLOBAL_LOCALE)
-    TLSGetCurrent()->Locale = NULL;
+    tls_current()->locale = NULL;
   else if (newloc)
-    TLSGetCurrent()->Locale = (void*)newloc;
+    tls_current()->locale = (void*)newloc;
   return current_locale;
 }

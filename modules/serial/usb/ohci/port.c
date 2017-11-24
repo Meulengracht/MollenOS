@@ -25,12 +25,12 @@
 /* Includes 
  * - System */
 #include <os/mollenos.h>
-#include <os/thread.h>
 #include <os/utils.h>
 #include "ohci.h"
 
 /* Includes
  * - Library */
+#include <threads.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
@@ -59,7 +59,7 @@ OhciPortReset(
     }
 
     // We need a delay here to allow the port to settle
-    ThreadSleep(50);
+    thrd_sleepex(50);
     return OsSuccess;
 }
 
@@ -111,7 +111,7 @@ OhciPortInitialize(
     _In_ int Index)
 {
     // Wait for port-power to stabilize
-    ThreadSleep(Controller->PowerOnDelayMs);
+    thrd_sleepex(Controller->PowerOnDelayMs);
 
     // Run reset procedure
     OhciPortPrepare(Controller, Index);
@@ -173,7 +173,7 @@ OhciPortCheck(
     if (Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_CONNECT_EVENT) {
         if (!(Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_CONNECTED)) {
             // Wait for port-power to stabilize
-            ThreadSleep(Controller->PowerOnDelayMs);
+            thrd_sleepex(Controller->PowerOnDelayMs);
 
             // All ports must be reset when attached
             OhciPortReset(Controller, Index);

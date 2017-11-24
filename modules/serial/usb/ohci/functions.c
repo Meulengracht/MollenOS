@@ -24,9 +24,7 @@
 
 /* Includes 
  * - System */
-#include <os/condition.h>
 #include <os/mollenos.h>
-#include <os/thread.h>
 #include <os/utils.h>
 #include "ohci.h"
 

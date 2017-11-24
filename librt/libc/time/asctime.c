@@ -47,8 +47,9 @@ ANSI C requires <<asctime>>.
 <<asctime>> requires no supporting OS subroutines.
 */
 
-/* Includes */
-#include <os/thread.h>
+/* Includes 
+ * - Library */
+#include "../threads/tls.h"
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
@@ -77,13 +78,7 @@ char *asctime_r(__CONST struct tm *__restrict tim_p, char *__restrict result)
  * string of format Www Mmm dd hh:mm:ss yyyy */
 char *asctime(__CONST struct tm *tim_p)
 {
-	/* Get the TLS buffer for 
-	 * time-modification */
-	char *ascbuf = &TLSGetCurrent()->AscBuffer[0];
-
-	/* Reset the buffer */
-	memset(ascbuf, 0, sizeof(TLSGetCurrent()->AscBuffer));
-
-	/* Return the formatted time */
+	char *ascbuf = &tls_current()->asc_buffer[0];
+	memset(ascbuf, 0, sizeof(tls_current()->asc_buffer));
 	return asctime_r(tim_p, ascbuf);
 }

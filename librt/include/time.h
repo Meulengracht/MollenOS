@@ -1,144 +1,247 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS C Library - Standard Time
-*/
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS C11-Support Time Implementation
+ * - Definitions, prototypes and information needed.
+ */
 
-#ifndef __TIME_INC__
-#define __TIME_INC__
+#ifndef __STDC_TIME__
+#define __STDC_TIME__
 
-/* Includes */
+/* Includes
+ * - Library */
 #include <os/osdefs.h>
-#include <sys/types.h>
 
-#define __need_size_t
-#include <stddef.h>
-
-/* C Guard */
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/* According to the C-standard we must have
- * NULL, size_t and CLOCKS_PER_SEC defined 
- * in this header, we get two first from stddef */
-#define CLOCKS_PER_SEC	1000
-
-/* clock_t must be defined in this header, and should
- * be as wide as possible in the given platform */
-#if defined(_X86_32)
-typedef unsigned long clock_t;
-#elif defined(_X86_64)
-typedef unsigned long long clock_t;
-#else
+/* Time Definitions
+ * Definitions, prototypes and typedefs. */
+#define CLOCKS_PER_SEC      1000
+#define TIME_UTC            0 // The epoch for this clock is 1970-01-01 00:00:00 in Coordinated Universal Time (UTC)
+#define TIME_TAI            1 // The epoch for this clock is 1970-01-01 00:00:00 in International Atomic Time (TAI)
+#define TIME_MONOTONIC      2 // The epoch is when the computer was booted.
+#define TIME_PROCESS        3 // The epoch for this clock is at some time during the generation of the current process.
+#define TIME_THREAD         4 // The epic is like TIME_PROCESS, but locally for the calling thread.
 typedef size_t clock_t;
-#endif
 
-/* Define the time structures, this one is the base
+/* tm
+ * Define the time structures, this one is the base
  * structure that describes a point in time */
-struct tm
-{
-	int tm_sec;		//Seconds
-	int tm_min;		//Minutes
-	int tm_hour;	//Hours
-	int tm_mday;	//Day of the month
-	int tm_mon;		//Months
-	int tm_year;	//Years
-	int tm_wday;	//Days since sunday
-	int tm_yday;	//Days since January 1'st
-	int tm_isdst;	//Is daylight saving?
-	long tm_gmtoff; //Offset from UTC in seconds
-	char *tm_zone;
+struct tm {
+    int tm_sec;     //Seconds
+    int tm_min;     //Minutes
+    int tm_hour;    //Hours
+    int tm_mday;    //Day of the month
+    int tm_mon;     //Months
+    int tm_year;    //Years
+    int tm_wday;    //Days since sunday
+    int tm_yday;    //Days since January 1'st
+    int tm_isdst;   //Is daylight saving?
+    long tm_gmtoff; //Offset from UTC in seconds
+    char *tm_zone;
+};
+struct timespec {
+    time_t tv_sec;
+    long tv_nsec;
 };
 
-/* Define the timezone rule structure, this is 
- * related to the current timezone */
-typedef struct __tzrule_struct
-{
-	char ch;
-	char p[3];
-	int m;
-	int n;
-	int d;
-	int s;
-	int p1;
-	time_t change;
-	long offset; /* Match type of _timezone. */
-	int p2;
+/* tzrule_struct
+ * Define the timezone rule structure, this is related to the current timezone */
+typedef struct __tzrule_struct {
+    char ch;
+    char p[3];
+    int m;
+    int n;
+    int d;
+    int s;
+    int p1;
+    time_t change;
+    long offset; /* Match type of _timezone. */
+    int p2;
 } __tzrule_type;
 
-/* The timezone information structure, used by
- * locale and current timezone settings given by
- * getenv */
-typedef struct __tzinfo_struct
-{
-	int __tznorth;
-	int __tzyear;
-	__tzrule_type __tzrule[2];
+/* tzinfo_type
+ * The timezone information structure, used by
+ * locale and current timezone settings given by getenv */
+typedef struct __tzinfo_struct {
+    int __tznorth;
+    int __tzyear;
+    __tzrule_type __tzrule[2];
 } __tzinfo_type;
 
-/* Get the current calendar time as a 
- * value of type time_t. */
-_CRTIMP time_t time(time_t*);
+/* time
+ * Returns the current calendar time encoded as a time_t object, and 
+ * also stores it in the time_t object pointed to by arg (unless arg is a null pointer). */
+_CRTIMP
+time_t
+time(
+    _Out_Opt_ time_t *arg);
 
-/* Returns the value of type time_t that represents the local time 
- * described by the tm structure pointed by timeptr (which may be modified). */
-_CRTIMP time_t mktime(struct tm*);
+/* timespec_get
+ * 1. Modifies the timespec object pointed to by ts to hold the current calendar 
+ *    time in the time base base.
+ * 2. Expands to a value suitable for use as the base argument of timespec_get
+ * Other macro constants beginning with TIME_ may be provided by the implementation 
+ * to indicate additional time bases. If base is TIME_UTC, then
+ * 1. ts->tv_sec is set to the number of seconds since an implementation defined epoch, 
+ *    truncated to a whole value
+ * 2. ts->tv_nsec member is set to the integral number of nanoseconds, rounded to the 
+ *    resolution of the system clock*/
+_CRTIMP
+int
+timespec_get(
+    _In_ struct timespec *ts,
+    _In_ int base);
 
-/* Calculates the difference in seconds 
- * between start and end. */
-_CRTIMP double difftime(time_t end, time_t start);
+/* timespec_diff
+ * The difference between two timespec with the same base. Result
+ * is stored in static storage provided by user. */
+_CRTIMP
+void
+timespec_diff(
+    _In_ __CONST struct timespec *start,
+    _In_ __CONST struct timespec *stop,
+    _In_ struct timespec *result);
 
-/* Returns the processor time consumed by the program. 
- * To calculate the number of seconds the program has
- * been running divide by CLOCKS_PER_SEC */
-_CRTIMP clock_t clock(void);
+/* mktime
+ * Renormalizes local calendar time expressed as a struct tm object and also 
+ * converts it to time since epoch as a time_t object. time->tm_wday and 
+ * time->tm_yday are ignored. The values in time are not checked for being out of range. */
+_CRTIMP
+time_t
+mktime(
+    _In_ struct tm *time);
+
+/* difftime
+ * Computes difference between two calendar times as time_t objects 
+ * (time_end - time_beg) in seconds. If time_end refers to time point 
+ * before time_beg then the result is negative. */
+_CRTIMP
+double
+difftime(
+    _In_ time_t time_end,
+    _In_ time_t time_beg);
+
+/* clock
+ * Returns the approximate processor time used by the process since the beginning of 
+ * an implementation-defined era related to the program's execution. 
+ * To convert result value to seconds, divide it by CLOCKS_PER_SEC. */
+_CRTIMP
+clock_t
+clock(void);
 
 /* Timezone functions */
-_CRTIMP __tzinfo_type *__gettzinfo(void);
+_CRTIMP
+__tzinfo_type*
+__gettzinfo(void);
 
-/* Uses the value pointed by timer to fill a tm structure 
- * with the values that represent the corresponding time, 
- * expressed as a UTC time (i.e., the time at the GMT timezone). */
-_CRTIMP struct tm *gmtime(__CONST time_t*);
+/* gmtime
+ * Converts given time since epoch (a time_t value pointed to by time) into calendar time,
+ * expressed in Coordinated Universal Time (UTC) in the struct tm format. 
+ * The result is stored in static storage and a pointer to that static storage is returned. */
+_CRTIMP
+struct tm*
+gmtime(
+    _In_ __CONST time_t *time);
 
-/* Uses the value pointed by timer to fill a tm structure with the 
+/* gmtime_s
+ * Same as gmtime, except that the function uses user-provided storage result for the 
+ * result and that the following errors are detected at runtime and call the currently 
+ * installed constraint handler function. */
+#ifdef __STDC_LIB_EXT1__
+_CRTIMP
+struct tm*
+gmtime_s(
+    _In_ __CONST time_t *restrict time,
+    _In_ struct tm *restrict result);
+#endif
+
+/* localtime
+ * Uses the value pointed by timer to fill a tm structure with the 
  * values that represent the corresponding time, expressed for the local timezone. */
-_CRTIMP struct tm *localtime(__CONST time_t*);
+_CRTIMP
+struct tm*
+localtime(
+    _In_ __CONST time_t*);
 
-/* Formats a given timebuffer to a 
- * string of format Www Mmm dd hh:mm:ss yyyy */
-_CRTIMP char* asctime(__CONST struct tm*);
+/* asctime
+ * Converts given calendar time tm to a textual representation of the 
+ * following fixed 25-character form: Www Mmm dd hh:mm:ss yyyy\n */
+_CRTIMP
+char*
+asctime(
+    _In_ __CONST struct tm* time_ptr);
 
-/* Interprets the value pointed by timer as a calendar time and 
+/* asctime_s
+ * Same as asctime, except that the message is copied into user-provided storage buf, 
+ * which is guaranteed to be null-terminated, and the following errors are 
+ * detected at runtime and call the currently installed constraint handler function */
+#ifdef __STDC_LIB_EXT1__
+_CRTIMP
+errno_t
+asctime_s(
+    _In_ char *buf,
+    _In_ rsize_t bufsz,
+    _In_ __CONST struct tm *time_ptr);
+#endif
+
+/* ctime
+ * Interprets the value pointed by timer as a calendar time and 
  * converts it to a C-string containing a human-readable version 
  * of the corresponding time and date, in terms of local time. */
-_CRTIMP char *ctime(__CONST time_t*);
+_CRTIMP
+char*
+ctime(
+    _In_ __CONST time_t* time);
 
-/* Copies into ptr the content of format, expanding its format 
+/* ctime_s
+ * Same as ctime, except that the function is equivalent to 
+ * asctime_s(buffer, bufsz, localtime_s(time, &(struct tm){0})), and the following 
+ * errors are detected at runtime and call the currently installed constraint handler function: */
+#ifdef __STDC_LIB_EXT1__
+_CRTIMP
+errno_t
+ctime_s(
+    _In_ char *buffer,
+    _In_ rsize_t bufsz,
+    _In_ __CONST time_t *time);
+#endif
+
+/* strftime
+ * Copies into ptr the content of format, expanding its format 
  * specifiers into the corresponding values that represent the 
  * time described in timeptr, with a limit of maxsize characters. */
-_CRTIMP size_t strftime(char *__restrict dest, size_t maxsize, 
-	__CONST char *__restrict format,
-	__CONST struct tm *__restrict tmptr);
+_CRTIMP
+size_t
+strftime(
+    _In_ char *__restrict dest,
+    _In_ size_t maxsize, 
+    _In_ __CONST char *__restrict format,
+    _In_ __CONST struct tm *__restrict tmptr);
 
-#ifdef __cplusplus
-}
-#endif
+/* wcsftime
+ * Converts the date and time information from a given calendar time time 
+ * to a null-terminated wide character string str according to format string format. 
+ * Up to count bytes are written. */
+_CRTIMP
+size_t
+wcsftime(
+    _In_ wchar_t*__restrict str,
+    _In_ size_t maxsize,
+    _In_ __CONST wchar_t*__restrict format, 
+    _In_ __CONST struct tm*__restrict time);
 
-#endif
+#endif //!__STDC_TIME__

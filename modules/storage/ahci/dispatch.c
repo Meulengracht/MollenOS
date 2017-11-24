@@ -26,12 +26,12 @@
 /* Includes
  * - System */
 #include <os/mollenos.h>
-#include <os/thread.h>
 #include <os/utils.h>
 #include "manager.h"
 
 /* Includes
  * - Library */
+#include <threads.h>
 #include <stddef.h>
 #include <stdlib.h>
 
@@ -189,7 +189,7 @@ AhciCommandDispatch(
 
 	// Enable command 
 	AhciPortStartCommandSlot(Transaction->Device->Port, Transaction->Slot);
-	ThreadSleep(1000);
+	thrd_sleepex(1000);
 
 	// Dump state
 	AhciDumpCurrentState(Transaction->Device->Controller, Transaction->Device->Port);

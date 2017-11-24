@@ -25,10 +25,6 @@
 #include <string.h>
 #include <assert.h>
 
-/* OS Includes */
-#include <os/mollenos.h>
-#include <os/thread.h>
-
 #ifdef LIBC_KERNEL
 void __ExceptionLibCEmpty(void)
 {

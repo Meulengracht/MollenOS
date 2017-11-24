@@ -26,8 +26,6 @@
  * - System */
 #include <os/driver/timers.h>
 #include <os/mollenos.h>
-#include <os/condition.h>
-#include <os/thread.h>
 #include <os/utils.h>
 
 #include "../common/manager.h"
@@ -41,7 +39,7 @@
 #include <stdlib.h>
 
 /* Globals
- * Use these for state-keeping the thread */
+ * Use these for state-keeping */
 static UUId_t __GlbTimerEvent = UUID_INVALID;
 
 /* OnFastInterrupt

@@ -27,12 +27,12 @@
 /* Includes
  * - System */
 #include <os/driver/device.h>
-#include <os/thread.h>
 #include <os/utils.h>
 #include "ehci.h"
 
 /* Includes
  * - Library */
+#include <threads.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -281,7 +281,7 @@ EhciDisableLegacySupport(
                         TRACE("EHCI: Failed to release BIOS Semaphore");
                         break;
                     }
-                    ThreadSleep(10);
+                    thrd_sleepex(10);
                 }
                 One = 1;
                 while (One++) {
@@ -295,7 +295,7 @@ EhciDisableLegacySupport(
                         TRACE("EHCI: Failed to set OS Semaphore");
                         break;
                     }
-                    ThreadSleep(10);
+                    thrd_sleepex(10);
                 }
             }
 
@@ -400,7 +400,7 @@ EhciReset(
     if (Fault) {
         ERROR("EHCI-Failure: Reset signal won't deassert, waiting one last long wait",
             Controller->OpRegisters->UsbCommand, Controller->OpRegisters->UsbStatus);
-        ThreadSleep(250);
+        thrd_sleepex(250);
         return ((Controller->OpRegisters->UsbCommand & EHCI_COMMAND_HCRESET) == 0) ? OsSuccess : OsError;
     }
     else {
@@ -517,7 +517,7 @@ EhciSetup(
     TRACE("Waiting for %i cc's to boot", CcToStart);
     while (CcStarted < CcToStart && (Timeout > 0)) {
         int UpdatedControllerCount = 0;
-        ThreadSleep(500);
+        thrd_sleepex(500);
         Timeout -= 500;
         if (UsbQueryControllerCount(&UpdatedControllerCount) != OsSuccess) {
             WARNING("Failed to acquire controller count");
@@ -555,7 +555,7 @@ EhciSetup(
     }
 
     // Wait 20 ms for power to stabilize
-    ThreadSleep(20);
+    thrd_sleepex(20);
 
     // Last step is to enumerate all ports that are connected with low-speed
     // devices and release them to companion hc's for bandwidth.

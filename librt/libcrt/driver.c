@@ -23,10 +23,10 @@
  * - System */
 #include <os/driver/driver.h>
 #include <os/mollenos.h>
-#include <os/thread.h>
 
 /* Includes
  * - Library */
+#include "../libc/threads/tls.h"
 #include <stdlib.h>
 
 /* Extern
@@ -46,21 +46,23 @@ StdioInitialize(void);
 
 /* CRT Initialization sequence
  * for a shared C/C++ environment call this in all entry points */
- void _mCrtInit(ThreadLocalStorage_t *Tls)
- {
-	 // Initialize C/CPP
-	 __CppInit();
- 
-	 // Initialize the TLS System
-	 TLSInitInstance(Tls);
-	 TLSInit();
- 
-	 // Initialize STD-C
-	 StdioInitialize();
- 
-	 // If msc, initialize the vectored-eh
+void
+__CrtInitialize(
+    _In_ thread_storage_t *Tls)
+{
+    // Initialize C/CPP
+    __CppInit();
+
+    // Initialize the TLS System
+    tls_create(Tls);
+    tls_initialize();
+
+    // Initialize STD-C
+    StdioInitialize();
+
+    // If msc, initialize the vectored-eh
  #ifndef __clang__
-	 __CppInitVectoredEH();
+    __CppInitVectoredEH();
  #endif
  }
 
@@ -68,71 +70,71 @@ StdioInitialize(void);
  * Use this entry point for drivers/servers/modules */
 void _mDrvCrt(void)
 {
-	// Variables
-	ThreadLocalStorage_t    Tls;
-	MRemoteCall_t           Message;
+    // Variables
+    thread_storage_t        Tls;
+    MRemoteCall_t           Message;
     char *ArgumentBuffer    = NULL;
-	int IsRunning           = 1;
+    int IsRunning           = 1;
 
-	// Initialize environment
-	_mCrtInit(&Tls);
+    // Initialize environment
+    __CrtInitialize(&Tls);
 
-	// Initialize default pipes
-	PipeOpen(PIPE_RPCOUT);
-	PipeOpen(PIPE_RPCIN);
+    // Initialize default pipes
+    PipeOpen(PIPE_RPCOUT);
+    PipeOpen(PIPE_RPCIN);
 
-	// Call the driver load function 
-	// - This will be run once, before loop
-	if (OnLoad() != OsSuccess) {
-		OnUnload();
-		goto Cleanup;
-	}
+    // Call the driver load function 
+    // - This will be run once, before loop
+    if (OnLoad() != OsSuccess) {
+        OnUnload();
+        goto Cleanup;
+    }
 
-	// Initialize the driver event loop
+    // Initialize the driver event loop
     ArgumentBuffer = (char*)malloc(IPC_MAX_MESSAGELENGTH);
-	while (IsRunning) {
-		if (RPCListen(&Message, ArgumentBuffer) == OsSuccess) {
-			switch (Message.Function) {
-				case __DRIVER_REGISTERINSTANCE: {
-					OnRegister((MCoreDevice_t*)Message.Arguments[0].Data.Buffer);
-				} break;
-				case __DRIVER_UNREGISTERINSTANCE: {
-					OnUnregister((MCoreDevice_t*)Message.Arguments[0].Data.Buffer);
-				} break;
-				case __DRIVER_INTERRUPT: {
+    while (IsRunning) {
+        if (RPCListen(&Message, ArgumentBuffer) == OsSuccess) {
+            switch (Message.Function) {
+                case __DRIVER_REGISTERINSTANCE: {
+                    OnRegister((MCoreDevice_t*)Message.Arguments[0].Data.Buffer);
+                } break;
+                case __DRIVER_UNREGISTERINSTANCE: {
+                    OnUnregister((MCoreDevice_t*)Message.Arguments[0].Data.Buffer);
+                } break;
+                case __DRIVER_INTERRUPT: {
                     OnInterrupt((void*)Message.Arguments[1].Data.Value,
                         Message.Arguments[2].Data.Value,
                         Message.Arguments[3].Data.Value,
                         Message.Arguments[4].Data.Value);
-				} break;
-				case __DRIVER_TIMEOUT: {
-					OnTimeout((UUId_t)Message.Arguments[0].Data.Value,
-						(void*)Message.Arguments[1].Data.Value);
-				} break;
-				case __DRIVER_QUERY: {
-					OnQuery((MContractType_t)Message.Arguments[0].Data.Value, 
-						(int)Message.Arguments[1].Data.Value, 
-						&Message.Arguments[2], &Message.Arguments[3], 
-						&Message.Arguments[4], Message.Sender, Message.ResponsePort);
-				} break;
-				case __DRIVER_UNLOAD: {
-					IsRunning = 0;
-				} break;
+                } break;
+                case __DRIVER_TIMEOUT: {
+                    OnTimeout((UUId_t)Message.Arguments[0].Data.Value,
+                        (void*)Message.Arguments[1].Data.Value);
+                } break;
+                case __DRIVER_QUERY: {
+                    OnQuery((MContractType_t)Message.Arguments[0].Data.Value, 
+                        (int)Message.Arguments[1].Data.Value, 
+                        &Message.Arguments[2], &Message.Arguments[3], 
+                        &Message.Arguments[4], Message.Sender, Message.ResponsePort);
+                } break;
+                case __DRIVER_UNLOAD: {
+                    IsRunning = 0;
+                } break;
 
-				default: {
-					break;
-				}
-			}
-		}
-	}
+                default: {
+                    break;
+                }
+            }
+        }
+    }
 
-	// Call unload, so driver can cleanup
-	OnUnload();
+    // Call unload, so driver can cleanup
+    OnUnload();
 
 Cleanup:
-	// Cleanup allocated resources
-	// and perform a normal exit
-	PipeClose(PIPE_RPCOUT);
-	PipeClose(PIPE_RPCIN);
-	exit(-1);
+    // Cleanup allocated resources
+    // and perform a normal exit
+    PipeClose(PIPE_RPCOUT);
+    PipeClose(PIPE_RPCIN);
+    exit(-1);
 }

@@ -25,14 +25,13 @@
 
 /* Includes
  * - System */
-#include <os/condition.h>
 #include <os/mollenos.h>
-#include <os/thread.h>
 #include <os/utils.h>
 #include "manager.h"
 
 /* Includes
  * - Library */
+#include <threads.h>
 #include <stddef.h>
 #include <stdlib.h>
 
@@ -178,7 +177,7 @@ AhciPortCleanup(
 
 	// Cleanup all transactions
 	_foreach(pNode, Port->Transactions) {
-		ConditionDestroy((Condition_t*)pNode->Data);
+		cnd_destroy((cnd_t*)pNode->Data);
 	}
 
 	// Free the memory resources allocated
@@ -219,7 +218,7 @@ AhciPortReset(
 	MemoryBarrier();
 
 	// wait at least 1 millisecond before clearing PxSCTL.DET to 0h
-	ThreadSleep(2);
+	thrd_sleepex(2);
 
 	// After clearing PxSCTL.DET to 0h, software should wait for 
 	// communication to be re-established as indicated by PxSSTS.DET 

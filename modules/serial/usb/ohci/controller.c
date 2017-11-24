@@ -25,13 +25,13 @@
 /* Includes 
  * - System */
 #include <os/mollenos.h>
-#include <os/thread.h>
 #include <os/utils.h>
 #include "ohci.h"
 
 /* Includes
  * - Library */
 #include <ds/collection.h>
+#include <threads.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
@@ -249,12 +249,12 @@ OhciTakeControl(
 		// If it's suspended, resume and wait 10 ms
 		if ((Controller->Registers->HcControl & OHCI_CONTROL_STATE_MASK) != OHCI_CONTROL_ACTIVE) {
 			OhciSetMode(Controller, OHCI_CONTROL_ACTIVE);
-			ThreadSleep(10);
+			thrd_sleepex(10);
 		}
 	}
 	else {
 		// Cold boot, wait 10 ms
-		ThreadSleep(10);
+		thrd_sleepex(10);
 	}
 
 	return OsSuccess;
@@ -299,7 +299,7 @@ OhciReset(
 	// Suspend the controller just in case it's running
 	// and wait for it to suspend
 	OhciSetMode(Controller, OHCI_CONTROL_SUSPEND);
-	ThreadSleep(10);
+	thrd_sleepex(10);
 
 	// Toggle bit 0 to initiate a reset
 	Temporary = Controller->Registers->HcCommandStatus;

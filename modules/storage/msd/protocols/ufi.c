@@ -23,7 +23,6 @@
 
 /* Includes
  * - System */
-#include <os/thread.h>
 #include <os/utils.h>
 #include <os/driver/usb.h>
 #include "../msd.h"

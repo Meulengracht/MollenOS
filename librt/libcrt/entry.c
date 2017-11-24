@@ -24,10 +24,10 @@
 #include <os/driver/window.h>
 #include <os/syscall.h>
 #include <os/process.h>
-#include <os/thread.h>
 
 /* Includes 
  * - Library */
+#include "../libc/threads/tls.h"
 #include <stddef.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -155,8 +155,8 @@ ParseCommandLine(
  * for a shared C/C++ environment call this in all entry points */
 char **
 __CrtInitialize(
-    _InOut_ ThreadLocalStorage_t    *Tls,
-    _Out_ int                       *ArgumentCount)
+    _InOut_ thread_storage_t    *Tls,
+    _Out_ int                   *ArgumentCount)
 {
     // Variables
     ProcessStartupInformation_t StartupInformation;
@@ -166,8 +166,8 @@ __CrtInitialize(
 	__CppInit();
  
 	// Initialize the TLS System
-	TLSInitInstance(Tls);
-	TLSInit();
+	tls_create(Tls);
+	tls_initialize();
 
     // Get startup information
     memset(&StartupArgumentBuffer[0], 0, sizeof(StartupArgumentBuffer));
@@ -200,7 +200,7 @@ void
 __CrtConsoleEntry(void)
 {
 	// Variables
-	ThreadLocalStorage_t    Tls;
+	thread_storage_t        Tls;
 	char **Arguments        = NULL;
 	int ArgumentCount       = 0;
 	int ExitCode            = 0;

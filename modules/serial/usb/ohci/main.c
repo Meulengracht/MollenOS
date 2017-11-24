@@ -25,8 +25,6 @@
 /* Includes 
  * - System */
 #include <os/mollenos.h>
-#include <os/condition.h>
-#include <os/thread.h>
 #include <os/utils.h>
 
 #include "../common/manager.h"
@@ -35,6 +33,7 @@
 /* Includes
  * - Library */
 #include <ds/collection.h>
+#include <threads.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
@@ -145,7 +144,7 @@ ProcessInterrupt:
     // Resume Detection? 
     // We must wait 20 ms before putting Controller to Operational
     if (InterruptStatus & OHCI_RESUMEDETECT_EVENT) {
-        ThreadSleep(20);
+        thrd_sleepex(20);
         OhciSetMode(Controller, OHCI_CONTROL_ACTIVE);
     }
 

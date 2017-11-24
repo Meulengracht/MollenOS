@@ -27,12 +27,12 @@
 #include <os/driver/contracts/usbdevice.h>
 #include <os/driver/device.h>
 #include <os/driver/usb.h>
-#include <os/thread.h>
 #include <os/utils.h>
 #include "manager.h"
 
 /* Includes
  * - Library */
+#include <threads.h>
 #include <stdlib.h>
 #include <stddef.h>
 
@@ -601,7 +601,7 @@ UsbDeviceSetup(
     Device->Base.Address = ReservedAddress;
 
     // After SetAddress device is allowed 2 ms recovery
-    ThreadSleep(2);
+    thrd_sleepex(2);
 
     // Query Device Descriptor
     if (UsbGetDeviceDescriptor(Controller->DriverId, Controller->Device.Id,

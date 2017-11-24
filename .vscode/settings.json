@@ -270,6 +270,9 @@
         "crc32.h": "c",
         "driver.h": "c",
         "ostream": "c",
-        "stdatomic.h": "c"
+        "stdatomic.h": "c",
+        "tls.h": "c",
+        "setlocale.h": "c",
+        "threads.h": "c"
     }
 }

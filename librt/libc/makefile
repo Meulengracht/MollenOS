@@ -39,6 +39,7 @@ LIBC_SRCS = $(wildcard glue/*.c) \
 			$(wildcard stdlib/wide/*.c) \
 			$(wildcard time/*.c) \
 			$(wildcard wstring/*.c) \
+			$(wildcard threads/*.c) \
 			../libos/synchronization/spinlock.c \
 			../libos/driver/bufferobject.c \
 			../libos/syscalls.c \

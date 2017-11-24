@@ -26,12 +26,12 @@
 /* Includes
  * - System */
 #include <os/mollenos.h>
-#include <os/thread.h>
 #include <os/utils.h>
 #include "ahci.h"
 
 /* Includes
  * - Library */
+#include <threads.h>
 #include <stddef.h>
 #include <stdlib.h>
 
@@ -256,7 +256,7 @@ AhciReset(
 	MemoryBarrier();
 
 	// Software should wait at least 500 milliseconds for port idle to occur
-	ThreadSleep(650);
+	thrd_sleepex(650);
 
 	// Now we iterate through and see what happened
 	for (i = 0; i < AHCI_MAX_PORTS; i++) {
@@ -290,13 +290,13 @@ AhciTakeOwnership(
 	MemoryBarrier();
 
 	// Wait 25 ms, to determine how long time BIOS needs to release
-	ThreadSleep(25);
+	thrd_sleepex(25);
 
 	// If the BIOS Busy (BOHC.BB) has been set to �1� within 25 milliseconds, 
 	// then the OS driver shall provide the BIOS a minimum of two seconds 
 	// for finishing outstanding commands on the HBA.
 	if (Controller->Registers->OSControlAndStatus & AHCI_CONTROLSTATUS_BB) {
-		ThreadSleep(2000);
+		thrd_sleepex(2000);
 	}
 
 	// Step 2. Spin on the BIOS Ownership (BOHC.BOS) bit, waiting for it to be cleared to �0�.
@@ -379,7 +379,7 @@ AhciSetup(
 	TRACE("Ports initializing: %i", PortItr);
 
 	// Software should wait at least 500 milliseconds for port idle to occur
-	ThreadSleep(650);
+	thrd_sleepex(650);
 
 	// Now we iterate through and see what happened
 	for (i = 0; i < AHCI_MAX_PORTS; i++) {

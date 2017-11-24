@@ -25,12 +25,12 @@
 
 /* Includes
  * - System */
-#include <os/thread.h>
 #include <os/utils.h>
 #include "uhci.h"
 
 /* Includes
  * - Library */
+#include <threads.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -359,7 +359,7 @@ UhciSetup(
 
 	// Perform a global reset, we must wait 100 ms for this complete
 	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, UHCI_COMMAND_GRESET);
-	ThreadSleep(100);
+	thrd_sleepex(100);
 	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, 0x0000);
 
 	// Initialize queues

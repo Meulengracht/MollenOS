@@ -27,7 +27,7 @@
 /* Includes
  * - Library */
 #include <os/osdefs.h>
-#include <os/thread.h>
+#include <threads.h>
 
 /* ThreadPool Definitions
  * These include structure prototypes and customization through
@@ -56,7 +56,7 @@ OsStatus_t
 MOSABI
 ThreadPoolAddWork(
 	_In_ ThreadPool_t *ThreadPool,
-	_In_ ThreadFunc_t Function,
+	_In_ thrd_start_t Function,
 	_In_ void *Argument);
 
 /* ThreadPoolWait

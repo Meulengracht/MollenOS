@@ -30,6 +30,7 @@
 
 /* Includes
  * - Library */
+#include "../libc/threads/tls.h"
 #include <stdlib.h>
 
 /* Extern
@@ -49,14 +50,16 @@ StdioInitialize(void);
 
 /* CRT Initialization sequence
  * for a shared C/C++ environment call this in all entry points */
-void _mCrtInit(ThreadLocalStorage_t *Tls)
+void
+__CrtInitialize(
+    _In_ thread_storage_t *Tls)
 {
 	// Initialize C/CPP
 	__CppInit();
 
 	// Initialize the TLS System
-	TLSInitInstance(Tls);
-	TLSInit();
+	tls_create(Tls);
+	tls_initialize();
 
 	// Initialize STD-C
 	StdioInitialize();
@@ -86,7 +89,7 @@ int _mDrvEvent(void *Argument)
 void _mDrvCrt(void)
 {
 	// Variables
-	ThreadLocalStorage_t        Tls;
+	thread_storage_t            Tls;
 	MRemoteCall_t               Message;
 #ifdef __SERVER_MULTITHREADED
 	ThreadPool_t *ThreadPool    = NULL;
@@ -95,7 +98,7 @@ void _mDrvCrt(void)
 	int IsRunning               = 1;
 
 	// Initialize environment
-	_mCrtInit(&Tls);
+	__CrtInitialize(&Tls);
 
 	// Initialize default pipes
 	PipeOpen(PIPE_RPCOUT);

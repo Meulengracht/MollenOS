@@ -28,11 +28,11 @@
 #include <os/driver/bufferpool.h>
 #include <os/driver/driver.h>
 #include <os/driver/usb.h>
-#include <os/thread.h>
 #include <os/utils.h>
 
 /* Includes
  * - Library */
+#include <threads.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
