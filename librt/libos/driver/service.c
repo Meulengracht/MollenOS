@@ -32,10 +32,8 @@
  * and function requests */
 OsStatus_t
 RegisterService(
-    _In_ UUId_t Alias)
-{
-	return (OsStatus_t)Syscall1(
-        SYSCALL_SERVICEREGISTER, SYSCALL_PARAM(Alias));
+    _In_ UUId_t Alias) {
+	return Syscall_RegisterService(Alias);
 }
 
 /* InstallDriver 
@@ -46,8 +44,6 @@ RegisterService(
 OsStatus_t
 InstallDriver(
     _In_ MCoreDevice_t *Device, 
-    _In_ size_t Length)
-{
-	return (OsStatus_t)Syscall2(SYSCALL_RESOLVEDRIVER, 
-        SYSCALL_PARAM(Device), SYSCALL_PARAM(Length));
+    _In_ size_t Length) {
+	return Syscall_LoadDriver(Device, Length);
 }

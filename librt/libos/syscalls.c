@@ -29,32 +29,26 @@
  * - Access to assembler for the platform */
 __EXTERN int _syscall(int Function, int Arg0, int Arg1, int Arg2, int Arg3, int Arg4);
 
-int Syscall0(int Function)
-{
+int syscall0(int Function) {
 	return _syscall(Function, 0, 0, 0, 0, 0);
 }
 
-int Syscall1(int Function, int Arg0)
-{
+int syscall1(int Function, int Arg0) {
 	return _syscall(Function, Arg0, 0, 0, 0, 0);
 }
 
-int Syscall2(int Function, int Arg0, int Arg1)
-{
+int syscall2(int Function, int Arg0, int Arg1) {
 	return _syscall(Function, Arg0, Arg1, 0, 0, 0);
 }
 
-int Syscall3(int Function, int Arg0, int Arg1, int Arg2)
-{
+int syscall3(int Function, int Arg0, int Arg1, int Arg2) {
 	return _syscall(Function, Arg0, Arg1, Arg2, 0, 0);
 }
 
-int Syscall4(int Function, int Arg0, int Arg1, int Arg2, int Arg3)
-{
+int syscall4(int Function, int Arg0, int Arg1, int Arg2, int Arg3) {
 	return _syscall(Function, Arg0, Arg1, Arg2, Arg3, 0);
 }
 
-int Syscall5(int Function, int Arg0, int Arg1, int Arg2, int Arg3, int Arg4)
-{
+int syscall5(int Function, int Arg0, int Arg1, int Arg2, int Arg3, int Arg4) {
 	return _syscall(Function, Arg0, Arg1, Arg2, Arg3, Arg4);
 }

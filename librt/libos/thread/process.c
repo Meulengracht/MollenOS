@@ -67,11 +67,8 @@ UUId_t
 ProcessSpawnEx(
 	_In_ __CONST char *Path,
 	_In_ __CONST ProcessStartupInformation_t *StartupInformation,
-	_In_ int Asynchronous)
-{
-	return (UUId_t)Syscall3(SYSCALL_PROCSPAWN,
-		SYSCALL_PARAM(Path), SYSCALL_PARAM(StartupInformation),
-		SYSCALL_PARAM(Asynchronous));
+	_In_ int Asynchronous) {
+	return Syscall_ProcessSpawn(Path, StartupInformation, Asynchronous);
 }
 
 /* ProcessJoin
@@ -85,9 +82,7 @@ ProcessJoin(
 	if (Process == UUID_INVALID) {
 		return -1;
 	}
-
-	/* Redirect call */
-	return Syscall1(SYSCALL_PROCJOIN, SYSCALL_PARAM(Process));
+	return Syscall_ProcessJoin(Process);
 }
 
 /* ProcessKill
@@ -100,9 +95,7 @@ ProcessKill(
 	if (Process == UUID_INVALID) {
 		return OsError;
 	}
-
-	/* Redirect the call */
-	return (OsStatus_t)Syscall1(SYSCALL_PROCKILL, SYSCALL_PARAM(Process));
+	return Syscall_ProcessKill(Process);
 }
 
 /* ProcessQuery
@@ -115,9 +108,7 @@ ProcessQuery(
 	_In_ void *Buffer, 
 	_In_ size_t Length)
 {
-	return Syscall4(SYSCALL_PROCQUERY, SYSCALL_PARAM(Process),
-		SYSCALL_PARAM(Function), SYSCALL_PARAM(Buffer),
-		SYSCALL_PARAM(Length));
+	return Syscall_ProcessQuery(Process, Function, Buffer, Length);
 }
 
 /* GetStartupInformation
@@ -125,7 +116,6 @@ ProcessQuery(
  * Data buffers must be supplied with a max length. */
 OsStatus_t
 GetStartupInformation(
-    _InOut_ ProcessStartupInformation_t *StartupInformation)
-{
-    return Syscall1(SYSCALL_GETSTARTINFO, SYSCALL_PARAM(StartupInformation));
+    _InOut_ ProcessStartupInformation_t *StartupInformation) {
+    return Syscall_GetStartInfo(StartupInformation);
 }

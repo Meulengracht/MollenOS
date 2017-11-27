@@ -27,6 +27,8 @@
 /* Includes 
  * - System */
 #include <os/osdefs.h>
+#include <ds/collection.h>
+#include <signal.h>
 #include <system/addresspace.h>
 #include <mutex.h>
 #include <pipe.h>
@@ -77,6 +79,15 @@ typedef void(*ThreadEntry_t)(void*);
 #define THREADING_TRANSITION_USERMODE   0x10000000
 #define THREADING_TRANSITION_SLEEP      0x20000000
 
+/* A Signal Entry 
+ * This is used to describe a signal 
+ * that is waiting for execution */
+typedef struct _MCoreSignal {
+    int                 Ignorable;
+    int                 Signal;
+    Context_t           Context;
+} MCoreSignal_t;
+
 /* The different possible threading priorities 
  * Normal is the default thread-priority, and Critical
  * should only be used by the system */
@@ -100,6 +111,11 @@ typedef struct _MCoreThread {
     MCorePipe_t                     *Pipe;
     AddressSpace_t                  *AddressSpace;
     void                            *ThreadData;
+
+    // Signal Support
+    int                              SignalInformation[NUMSIGNALS];
+    MCoreSignal_t                   *ActiveSignal;
+    Collection_t                    *SignalQueue;
 
     // Scheduler Information
     UUId_t                           CpuId;
@@ -202,5 +218,51 @@ __EXTERN MCoreThread_t *ThreadingSwitch(UUId_t Cpu,
  * Prints out debugging information about each thread
  * in the system, only active threads */
 __EXTERN void ThreadingDebugPrint(void);
+
+/* SignalReturn
+ * Call upon returning from a signal, this will finish
+ * the signal-call and enter a new signal if any is queued up */
+KERNELAPI
+OsStatus_t
+KERNELABI
+SignalReturn(void);
+
+/* Handle Signal 
+ * This checks if the process has any waiting signals
+ * and if it has, it executes the first in list */
+KERNELAPI
+OsStatus_t
+KERNELABI
+SignalHandle(
+	_In_ UUId_t ThreadId);
+
+/* Create Signal 
+ * Dispatches a signal to a thread in the system. If the thread is sleeping
+ * and the signal is not masked, then it will be woken up. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+SignalCreate(
+    _In_ UUId_t     ThreadId,
+    _In_ int        Signal);
+
+/* SignalExecute
+ * This function does preliminary checks before actually
+ * dispatching the signal to the process */
+KERNELAPI
+void
+KERNELABI
+SignalExecute(
+    _In_ MCoreThread_t *Thread,
+    _In_ MCoreSignal_t *Signal);
+
+/* Architecture Specific  
+ * Must be implemented in the arch-layer */
+KERNELAPI
+OsStatus_t
+KERNELABI
+SignalDispatch(
+	_In_ MCoreThread_t *Thread, 
+	_In_ MCoreSignal_t *Signal);
 
 #endif

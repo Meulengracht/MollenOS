@@ -103,9 +103,7 @@ thrd_create(
     Tp->Data = arg;
 
     // Redirect to operating system to handle rest
-    Result = (thrd_t)Syscall3(SYSCALL_THREADCREATE,
-        SYSCALL_PARAM((thrd_start_t)thrd_initialize),
-        SYSCALL_PARAM(Tp), SYSCALL_PARAM(0));
+    Result = (thrd_t)Syscall_ThreadCreate((thrd_start_t)thrd_initialize, Tp, 0);
     if (Result == UUID_INVALID) {
         free(Tp);
         return thrd_error;
@@ -138,7 +136,7 @@ thrd_current(void)
     }
 
     // Otherwise invoke OS to refresh id
-    tls_current()->thr_id = (thrd_t)Syscall0(SYSCALL_THREADID);
+    tls_current()->thr_id = (thrd_t)Syscall_ThreadId();
     return tls_current()->thr_id;
 }
 
@@ -154,7 +152,8 @@ thrd_sleep(
     _In_Opt_ struct timespec* remaining)
 {
     // Add up to msec granularity, we don't support sub-ms
-    time_t msec = time_point->tv_sec * MSEC_PER_SEC;
+    time_t msec         = time_point->tv_sec * MSEC_PER_SEC;
+    time_t msec_slept   = 0;
     if (time_point->tv_nsec != 0) {
         msec += ((time_point->tv_nsec - 1) / NSEC_PER_MSEC) + 1;
     }
@@ -165,10 +164,11 @@ thrd_sleep(
     }
 
     // Redirect the call
-    msec = (time_t)Syscall1(SYSCALL_THREADSLEEP, SYSCALL_PARAM(msec));
+    Syscall_ThreadSleep(msec, &msec_slept);
 
     // Update out if any
-    if (remaining != NULL && msec != 0) {
+    if (remaining != NULL && msec > msec_slept) {
+        msec -= msec_slept;
         remaining->tv_nsec = (msec % MSEC_PER_SEC) * NSEC_PER_MSEC;
         remaining->tv_sec = msec / MSEC_PER_SEC;
     }
@@ -181,20 +181,17 @@ int
 thrd_sleepex(
     _In_ size_t msec)
 {
-    time_t msec_left = Syscall1(SYSCALL_THREADSLEEP, SYSCALL_PARAM(msec));
-    if (msec_left == 0) {
-        return 0;
-    }
-    return 1;
+    time_t msec_slept = 0;
+    Syscall_ThreadSleep(msec, &msec_slept);
+    return 0;
 }
 
 /* thrd_yield
  * Provides a hint to the implementation to reschedule the execution of threads, 
  * allowing other threads to run. */
 void
-thrd_yield(void)
-{
-    (void)Syscall0(SYSCALL_THREADYIELD);
+thrd_yield(void) {
+    (void)Syscall_ThreadYield();
 }
 
 /* thrd_exit
@@ -215,7 +212,7 @@ thrd_exit(
     // Perform cleanup of TLS
     tls_cleanup(thrd_current());
     tls_destroy(tls_current());
-    Syscall1(SYSCALL_THREADEXIT, SYSCALL_PARAM(res));
+    Syscall_ThreadExit(res);
     for(;;);
 }
 
@@ -229,9 +226,8 @@ thrd_join(
     _In_ thrd_t thr,
     _Out_ int *res)
 {
-    // The syscall actually does most of the work @todo
-    if ((OsStatus_t)Syscall2(SYSCALL_THREADJOIN, SYSCALL_PARAM(thr), 
-        SYSCALL_PARAM(res)) == OsSuccess) {
+    // The syscall actually does most of the work
+    if (Syscall_ThreadJoin(thr, res) == OsSuccess) {
         return thrd_success;
     }
     return thrd_error;
@@ -257,5 +253,5 @@ thrd_signal(
     _In_ int sig)
 {
     // Simply redirect
-    return Syscall2(SYSCALL_THREADSIGNAL, SYSCALL_PARAM(thr), SYSCALL_PARAM(sig));
+    return Syscall_ThreadSignal(thr, sig);
 }

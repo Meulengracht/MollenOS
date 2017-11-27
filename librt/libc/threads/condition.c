@@ -44,7 +44,9 @@ cnd_init(
     if (cond == NULL) {
         return thrd_error;
     }
-    *cond = (cnd_t)Syscall0(SYSCALL_CONDCREATE);
+    if (Syscall_ConditionCreate(cond) != OsSuccess) {
+        return thrd_error;
+    }
     return thrd_success;
 }
 
@@ -59,7 +61,7 @@ cnd_destroy(
 	if (cond == NULL) {
 		return;
 	}
-	Syscall1(SYSCALL_CONDDESTROY, SYSCALL_PARAM(*cond));
+    Syscall_ConditionDestroy(*cond);
 }
 
 /* cnd_signal
@@ -73,7 +75,7 @@ cnd_signal(
 	if (cond == NULL) {
 		return thrd_error;
 	}
-	if ((OsStatus_t)Syscall1(SYSCALL_SYNCWAKEONE, SYSCALL_PARAM(*cond)) != OsSuccess) {
+	if (Syscall_SignalHandle(*cond) != OsSuccess) {
         return thrd_error;
     }
     return thrd_success;
@@ -90,7 +92,7 @@ cnd_broadcast(
 	if (cond == NULL) {
 		return thrd_error;
 	}
-    if ((OsStatus_t)Syscall1(SYSCALL_SYNCWAKEALL, SYSCALL_PARAM(*cond)) != OsSuccess) {
+    if (Syscall_BroadcastHandle(*cond) != OsSuccess) {
         return thrd_error;
     }
     return thrd_success;
@@ -114,7 +116,7 @@ cnd_wait(
 	if (mtx_unlock(mutex) != thrd_success) {
         return thrd_error;
     }
-	Syscall2(SYSCALL_SYNCSLEEP, SYSCALL_PARAM(*cond), SYSCALL_PARAM(0));
+	Syscall_WaitForObject(*cond, 0);
     return mtx_lock(mutex);
 }
 
@@ -150,8 +152,7 @@ cnd_timedwait(
     if (result.tv_nsec != 0) {
         msec += ((result.tv_nsec - 1) / NSEC_PER_MSEC) + 1;
     }
-	osresult = (OsStatus_t)Syscall2(SYSCALL_SYNCSLEEP, 
-        SYSCALL_PARAM(*cond), SYSCALL_PARAM(msec));
+	osresult = Syscall_WaitForObject(*cond, msec);
 	if (osresult != OsSuccess) {
 		return thrd_timedout;
 	}

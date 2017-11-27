@@ -38,6 +38,7 @@
 #define __FILEMANAGER_TARGET                __SERVICE_TARGET(1)
 #define __WINDOWMANAGER_TARGET              __SERVICE_TARGET(2)
 #define __USBMANAGER_TARGET                 __SERVICE_TARGET(3)
+#define __SESSIONMANAGER_TARGET             __SERVICE_TARGET(4)
 
 /* RegisterService 
  * Registers a service on the current alias, allowing

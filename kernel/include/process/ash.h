@@ -29,7 +29,6 @@
 #include <ds/blbitmap.h>
 #include <ds/mstring.h>
 #include <ds/collection.h>
-#include <signal.h>
 
 /* Includes
  * - System */
@@ -54,22 +53,6 @@ typedef enum _AshQueryFunction {
     AshQueryParent,
     AshQueryTopMostParent
 } AshQueryFunction_t;
-
-/* Signal Table 
- * This is used for interrupt-signals
- * across threads and processes */
-typedef struct _MCoreSignalTable {
-    uintptr_t           Handlers[NUMSIGNALS + 1];
-} MCoreSignalTable_t;
-
-/* A Signal Entry 
- * This is used to describe a signal 
- * that is waiting for execution */
-typedef struct _MCoreSignal {
-    int                 Signal;
-    uintptr_t           Handler;
-    Context_t           Context;
-} MCoreSignal_t;
 
 /* This is the different types of ashes
  * that exists in MollenOS */
@@ -106,9 +89,7 @@ typedef struct _MCoreAsh {
     BlockBitmap_t       *Shm;
 
     // Signal support for Ashes
-    MCoreSignalTable_t   Signals;
-    MCoreSignal_t       *ActiveSignal;
-    Collection_t        *SignalQueue;
+    uintptr_t            SignalHandler;
 
     // Below is everything related to
     // the startup and the executable information
@@ -254,34 +235,5 @@ MCoreAsh_t*
 KERNELABI
 PhoenixGetAshByName(
     _In_ __CONST char *Name);
-
-/* SignalReturn
- * Call upon returning from a signal, this will finish
- * the signal-call and enter a new signal if any is queued up */
-KERNELAPI
-OsStatus_t
-KERNELABI
-SignalReturn(void);
-
-/* Handle Signal 
- * This checks if the process has any waiting signals
- * and if it has, it executes the first in list */
-KERNELAPI
-OsStatus_t
-KERNELABI
-SignalHandle(
-	_In_ UUId_t ThreadId);
-
-__EXTERN int SignalCreate(UUId_t AshId, int Signal);
-__EXTERN void SignalExecute(MCoreAsh_t *Ash, MCoreSignal_t *Signal);
-
-/* Architecture Specific  
- * Must be implemented in the arch-layer */
-KERNELAPI
-OsStatus_t
-KERNELABI
-SignalDispatch(
-	_In_ MCoreAsh_t *Ash, 
-	_In_ MCoreSignal_t *Signal);
 
 #endif //!_MCORE_ASH_H_

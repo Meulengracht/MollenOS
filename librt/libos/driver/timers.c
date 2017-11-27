@@ -38,8 +38,7 @@ TimerStart(
     _In_ __CONST void *Data)
 {
     // Translate to Ns
-    return (UUId_t)Syscall3(SYSCALL_TIMERSTART, SYSCALL_PARAM(Interval * 1000),
-        SYSCALL_PARAM(Periodic), SYSCALL_PARAM(Data));
+    return Syscall_TimerCreate(Interval * 1000, Periodic, Data);
 }
 
 /* TimerStop
@@ -47,7 +46,6 @@ TimerStart(
  * process. Otherwise access fault. */
 OsStatus_t
 TimerStop(
-    _In_ UUId_t TimerId)
-{
-    return (OsStatus_t)Syscall1(SYSCALL_TIMERSTART, SYSCALL_PARAM(TimerId));
+    _In_ UUId_t TimerId) {
+    return Syscall_TimerStop(TimerId);
 }

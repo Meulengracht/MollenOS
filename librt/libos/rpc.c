@@ -63,10 +63,8 @@ RPCExecute(
 OsStatus_t 
 RPCExecute(
 	_In_ MRemoteCall_t *Rpc, 
-	_In_ UUId_t Target)
-{
-    return (OsStatus_t)Syscall3(SYSCALL_RPCEVAL, 
-        SYSCALL_PARAM(Rpc), SYSCALL_PARAM(Target), 0);
+	_In_ UUId_t Target) {
+    return Syscall_RemoteCall(Rpc, Target, 0);
 }
 
 /* RPCExecute/RPCEvent
@@ -77,10 +75,8 @@ RPCExecute(
 OsStatus_t 
 RPCEvent(
 	_In_ MRemoteCall_t *Rpc, 
-	_In_ UUId_t Target)
-{
-    return (OsStatus_t)Syscall3(SYSCALL_RPCEVAL, 
-        SYSCALL_PARAM(Rpc), SYSCALL_PARAM(Target), 1);
+	_In_ UUId_t Target) {
+    return Syscall_RemoteCall(Rpc, Target, 1);
 }
 
 /* RPCListen 
@@ -90,11 +86,8 @@ RPCEvent(
 OsStatus_t 
 RPCListen(
 	_In_ MRemoteCall_t  *Message,
-    _In_ void           *ArgumentBuffer)
-{
-	// Variables
-    return (OsStatus_t)Syscall3(SYSCALL_REMOTECALLLISTEN, 
-        PIPE_RPCOUT, SYSCALL_PARAM(Message), SYSCALL_PARAM(ArgumentBuffer));
+    _In_ void           *ArgumentBuffer) {
+    return Syscall_RemoteCallWait(PIPE_RPCOUT, Message, ArgumentBuffer);
 }
 
 /* RPCRespond
@@ -118,9 +111,8 @@ RPCRespond(
  * signal. */
 OsStatus_t
 WaitForSignal(
-	_In_ size_t Timeout)
-{
-	return Syscall1(SYSCALL_PSIGWAIT, SYSCALL_PARAM(Timeout));
+	_In_ size_t Timeout) {
+	return Syscall_IpcWait(Timeout);
 }
 
 /* IPC - Wake
@@ -129,9 +121,8 @@ WaitForSignal(
  * the Sleep. */
 OsStatus_t
 SignalProcess(
-	_In_ UUId_t Target)
-{
-	return Syscall1(SYSCALL_PSIGSEND, SYSCALL_PARAM(Target));
+	_In_ UUId_t Target) {
+	return Syscall_IpcWake(Target);
 }
 
 #endif

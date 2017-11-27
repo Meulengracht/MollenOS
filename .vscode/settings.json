@@ -274,6 +274,8 @@
         "tls.h": "c",
         "setlocale.h": "c",
         "threads.h": "c",
-        "coroutine": "c"
+        "coroutine": "c",
+        "exception": "c",
+        "syscall.h": "c"
     }
 }

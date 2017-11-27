@@ -51,6 +51,7 @@
 #define SCHEDULER_TIMEOUT_INFINITE      0
 #define SCHEDULER_SLEEP_OK              0
 #define SCHEDULER_SLEEP_TIMEOUT         1
+#define SCHEDULER_SLEEP_INTERRUPTED     2
 
 /* MCoreSchedulerQueue
  * Represents a queue level in the scheduler. */

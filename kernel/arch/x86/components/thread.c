@@ -48,7 +48,7 @@ __EXTERN void save_fpu(uintptr_t *buffer);
 __EXTERN void set_ts(void);
 __EXTERN void _yield(void);
 __EXTERN void enter_thread(Context_t *Regs);
-__EXTERN void enter_signal(Context_t *Regs, uintptr_t Handler, int Signal, uintptr_t Return);
+__EXTERN void enter_signal(Context_t *Context, uintptr_t Handler, int Signal, uintptr_t Return);
 __EXTERN void RegisterDump(Context_t *Regs);
 
 /* Globals,
@@ -207,31 +207,29 @@ ThreadingYield(void)
  * signals will always be dispatched to main thread */
 OsStatus_t
 SignalDispatch(
-	_In_ MCoreAsh_t *Ash, 
+	_In_ MCoreThread_t *Thread, 
 	_In_ MCoreSignal_t *Signal)
 {
 	// Variables
-	MCoreThread_t *Thread = ThreadingGetThread(Ash->MainThread);
-	x86Thread_t *Thread86 = (x86Thread_t*)Thread->ThreadData;
-	Context_t *Regs = NULL;
+    MCoreAsh_t *Process     = PhoenixGetAsh(Thread->AshId);
+	x86Thread_t *Thread86   = (x86Thread_t*)Thread->ThreadData;
+	Context_t *Context      = NULL;
 
 	/* User or kernel mode thread? */
 	if (Thread->Flags & THREADING_USERMODE) {
-		Regs = Thread86->UserContext;
+		Context = Thread86->UserContext;
 	}
 	else {
-		Regs = Thread86->Context;
+		Context = Thread86->Context;
 	}
 
 	// Store current context
-	memcpy(&Signal->Context, Regs, sizeof(Context_t));
+	memcpy(&Signal->Context, Context, sizeof(Context_t));
 
 	// Now we can enter the signal context 
-	// handler, we cannot return from this function 
-    enter_signal(Regs, Signal->Handler, 
+	// handler, we cannot return from this function
+    enter_signal(Context, Process->SignalHandler, 
         Signal->Signal, MEMORY_LOCATION_SIGNAL_RET);
-
-	// We don't reach this
 	return OsSuccess;
 }
 

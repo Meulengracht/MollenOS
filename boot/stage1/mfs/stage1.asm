@@ -200,7 +200,7 @@ PrintNumber:
 	pushad
 
 	; Loops
-	xor 	bx, bx
+	; xor 	bx, bx
     mov 	ecx, 10
 
 	.DigitLoop:

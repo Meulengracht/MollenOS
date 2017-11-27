@@ -54,15 +54,12 @@ SystemDebug(
 	va_end(Args);
 
 	// Now spit it out
-	Syscall3(0, SYSCALL_PARAM(Type), SYSCALL_PARAM(__SysTypeMessage), 
-		SYSCALL_PARAM(&TmpBuffer[0]));
+    Syscall_Debug(Type, __SysTypeMessage, &TmpBuffer[0]);
 }
 
 /* End Boot Sequence */
-void MollenOSEndBoot(void)
-{
-	/* Prep for syscall */
-	Syscall0(SYSCALL_ENDBOOT);
+void MollenOSEndBoot(void) {
+    Syscall_SystemStart();
 }
 
 /* ScreenQueryGeometry
@@ -93,9 +90,8 @@ ScreenQueryGeometry(
  * if a system clock has been initialized. */
 OsStatus_t
 SystemTime(
-	_Out_ struct tm *time)
-{
-    return (OsStatus_t)Syscall1(SYSCALL_GETTIME, SYSCALL_PARAM(time));
+	_Out_ struct tm *time) {
+    return Syscall_SystemTime(time);
 }
 
 /* SystemTick
@@ -103,9 +99,8 @@ SystemTime(
  * if a system timer has been initialized. */
 OsStatus_t
 SystemTick(
-	_Out_ clock_t *clock)
-{
-    return (OsStatus_t)Syscall1(SYSCALL_GETTICK, SYSCALL_PARAM(clock));
+	_Out_ clock_t *clock) {
+    return Syscall_SystemTick(clock);
 }
 
 /* QueryPerformanceFrequency
@@ -113,9 +108,8 @@ SystemTick(
  * second, the value will never be 0 */
 OsStatus_t
 QueryPerformanceFrequency(
-	_Out_ LargeInteger_t *Frequency)
-{
-    return (OsStatus_t)Syscall1(SYSCALL_GETPERFFREQ, SYSCALL_PARAM(Frequency));
+	_Out_ LargeInteger_t *Frequency) {
+    return Syscall_SystemPerformanceFrequency(Frequency);
 }
 
 /* QueryPerformanceTimer 
@@ -123,7 +117,6 @@ QueryPerformanceFrequency(
  * information in the given structure */
 OsStatus_t
 QueryPerformanceTimer(
-	_Out_ LargeInteger_t *Value)
-{
-    return (OsStatus_t)Syscall1(SYSCALL_GETPERFTICK, SYSCALL_PARAM(Value));
+	_Out_ LargeInteger_t *Value) {
+    return Syscall_SystemPerformanceTime(Value);
 }

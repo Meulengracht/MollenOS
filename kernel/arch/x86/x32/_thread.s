@@ -164,11 +164,12 @@ _enter_thread:
 	; Return
 	iret
 
-; void enter_signal(registers_t *stack, uintptr_t handler, int sig)
+; void enter_signal(registers_t *context, uintptr_t handler, int sig, uintptr_t return)
 ; Switches stack and far jumps to next task
 _enter_signal:
 
 	; Get pointer
+    xchg bx, bx
 	mov eax, [esp + 4]
 	mov ebx, [esp + 8]
 	mov ecx, [esp + 12]
@@ -202,6 +203,4 @@ _enter_signal:
 
 	; Push handler
 	push ebx
-
-	; Return
 	iret

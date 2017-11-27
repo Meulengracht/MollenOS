@@ -19,16 +19,18 @@
  * This is like exit, except it does not call any CRT related cleanup
  */
 
-/* Includes */
+/* Includes 
+ * - System */
 #include <os/syscall.h>
-#include <stdlib.h>
 
 /* Terminate normally, no cleanup. No calls to anything. 
  * And it never returns this function */
-void _Exit(int Status)
+void
+_Exit(
+    _In_ int Status)
 {
 	// Call for terminate and then yield.
-	Syscall1(SYSCALL_TERMINATE, SYSCALL_PARAM(Status));
-	Syscall0(SYSCALL_THREADYIELD);
+    Syscall_ProcessExit(Status);
+    Syscall_ThreadYield();
 	for (;;);
 }

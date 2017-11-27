@@ -47,7 +47,7 @@ _CODE_END
 #define Syscall_ProcessSpawn(Path, StartupInformation, Async) (UUId_t)syscall3(3, SCPARAM(Path), SCPARAM(StartupInformation), SCPARAM(Async))
 #define Syscall_ProcessJoin(ProcessId) syscall1(4, SCPARAM(ProcessId))
 #define Syscall_ProcessKill(ProcessId) (OsStatus_t)syscall1(5, SCPARAM(ProcessId))
-#define Syscall_ProcessSignal(Signal, Handler) (uintptr_t)syscall2(6, SCPARAM(Signal), SCPARAM(Handler))
+#define Syscall_ProcessSignal(Handler) (OsStatus_t)syscall1(6, SCPARAM(Handler))
 #define Syscall_ProcessRaise(ProcessId, Signal) (OsStatus_t)syscall2(7, SCPARAM(ProcessId), SCPARAM(Signal))
 
 /* SharedObject system calls
@@ -62,73 +62,79 @@ _CODE_END
 #define Syscall_ThreadExit(ExitCode) (OsStatus_t)syscall1(12, SCPARAM(ExitCode))
 #define Syscall_ThreadSignal(ThreadId, Signal) (OsStatus_t)syscall2(13, SCPARAM(ThreadId), SCPARAM(Signal))
 #define Syscall_ThreadJoin(ThreadId, ExitCode) (OsStatus_t)syscall2(14, SCPARAM(ThreadId), SCPARAM(ExitCode))
-#define Syscall_ThreadSleep(Milliseconds) (OsStatus_t)syscall1(15, SCPARAM(Milliseconds))
+#define Syscall_ThreadSleep(Milliseconds, MillisecondsSlept) (OsStatus_t)syscall2(15, SCPARAM(Milliseconds), SCPARAM(MillisecondsSlept))
 #define Syscall_ThreadYield() (OsStatus_t)syscall0(16)
 #define Syscall_ThreadId() (UUId_t)syscall0(17)
 #define Syscall_GetStartInfo(StartupInformation) (OsStatus_t)syscall1(18, SCPARAM(StartupInformation))
 
 /* Condition system calls
  * - Condition related system call definitions */
-#define Syscall_ConditionCreate() (Handle_t)syscall0(21)
+#define Syscall_ConditionCreate(Handle) (OsStatus_t)syscall1(21, SCPARAM(Handle))
 #define Syscall_ConditionDestroy(Handle) (OsStatus_t)syscall1(22, SCPARAM(Handle))
 #define Syscall_WaitForObject(Handle, Timeout) (OsStatus_t)syscall2(23, SCPARAM(Handle), SCPARAM(Timeout))
 #define Syscall_SignalHandle(Handle) (OsStatus_t)syscall1(24, SCPARAM(Handle))
 #define Syscall_BroadcastHandle(Handle) (OsStatus_t)syscall1(25, SCPARAM(Handle))
 
-/* Memory System Calls */
-#define SYSCALL_MEMALLOC            0x1F
-#define SYSCALL_MEMFREE                0x20
-#define SYSCALL_MEMQUERY            0x21
-#define SYSCALL_MEMACQUIRE            0x22
-#define SYSCALL_MEMRELEASE            0x23
+/* Memory system calls
+ * - Memory related system call definitions */
+#define Syscall_MemoryAllocate(Size, Flags, Virtual, Physical) (OsStatus_t)syscall4(31, SCPARAM(Size), SCPARAM(Flags), SCPARAM(Virtual), SCPARAM(Physical))
+#define Syscall_MemoryFree(Pointer, Size) (OsStatus_t)syscall2(32, SCPARAM(Pointer), SCPARAM(Size))
+#define Syscall_MemoryQuery(MemoryInformation) (OsStatus_t)syscall1(33, SCPARAM(MemoryInformation))
+#define Syscall_MemoryAcquire(Physical, Size, Virtual) (OsStatus_t)syscall3(34, SCPARAM(Physical), SCPARAM(Size), SCPARAM(Virtual))
+#define Syscall_MemoryRelease(Virtual, Size) (OsStatus_t)syscall2(35, SCPARAM(Virtual), SCPARAM(Size))
 
-/* Path System Calls */
-#define SYSCALL_QUERYCWD            0x26
-#define SYSCALL_CHANGECWD            0x27
-#define SYSCALL_QUERYCAD            0x28
+/* Path system calls
+ * - Path related system call definitions */
+#define Syscall_QueryWorkingPath(Buffer, MaxLength) (OsStatus_t)syscall2(38, SCPARAM(Buffer), SCPARAM(MaxLength))
+#define Syscall_ChangeWorkingPath(Path) (OsStatus_t)syscall1(39, SCPARAM(Path))
+#define Syscall_QueryApplicationPath(Buffer, MaxLength) (OsStatus_t)syscall2(40, SCPARAM(Buffer), SCPARAM(MaxLength))
 
-/* IPC System Calls */
-#define SYSCALL_OPENPIPE            0x29
-#define SYSCALL_CLOSEPIPE            0x2A
-#define SYSCALL_READPIPE            0x2B
-#define SYSCALL_WRITEPIPE            0x2C
-#define SYSCALL_PSIGWAIT            0x2D
-#define SYSCALL_PSIGSEND            0x2E
-#define SYSCALL_RPCEVAL                0x2F
-#define SYSCALL_RPCWAIT                0x30
-#define SYSCALL_REMOTECALLLISTEN    0x31
+/* Communication system calls
+ * - Communication related system call definitions */
+#define Syscall_PipeOpen(Port, Flags) (OsStatus_t)syscall2(41, SCPARAM(Port), SCPARAM(Flags))
+#define Syscall_PipeClose(Port) (OsStatus_t)syscall1(42, SCPARAM(Port))
+#define Syscall_PipeRead(Port, Buffer, Length) (OsStatus_t)syscall3(43, SCPARAM(Port), SCPARAM(Buffer), SCPARAM(Length))
+#define Syscall_PipeWrite(ProcessId, Port, Buffer, Length) (OsStatus_t)syscall4(44, SCPARAM(ProcessId), SCPARAM(Port), SCPARAM(Buffer), SCPARAM(Length))
+#define Syscall_IpcWait(Timeout) (OsStatus_t)syscall1(45, SCPARAM(Timeout))
+#define Syscall_IpcWake(ProcessId) (OsStatus_t)syscall1(46, SCPARAM(ProcessId))
+#define Syscall_RemoteCall(RemoteCall, ProcessId, Asynchronous) (OsStatus_t)syscall3(47, SCPARAM(RemoteCall), SCPARAM(ProcessId), SCPARAM(Asynchronous))
+#define Syscall_RpcGetResponse(RemoteCall) (OsStatus_t)syscall1(48, SCPARAM(RemoteCall))
+#define Syscall_RemoteCallWait(Port, RemoteCall, ArgumentBuffer) (OsStatus_t)syscall3(49, SCPARAM(Port), SCPARAM(RemoteCall), SCPARAM(ArgumentBuffer))
 
-#define SYSCALL_ENDBOOT                0x33
-#define SYSCALL_SYSTEMQUERY            0x35
-#define SYSCALL_GETTICK             0x36
-#define SYSCALL_GETPERFFREQ         0x37
-#define SYSCALL_GETPERFTICK         0x38
-#define SYSCALL_GETTIME             0x39
+/* Base system calls
+ * - Base related system call definitions */
+#define Syscall_Debug(Type, Module, Message) (OsStatus_t)syscall3(0, SCPARAM(Type), SCPARAM(Module), SCPARAM(Message))
+#define Syscall_SystemStart() (OsStatus_t)syscall0(51)
+#define Syscall_SystemQuery() (OsStatus_t)syscall0(53)
+#define Syscall_SystemTick(Tick) (OsStatus_t)syscall1(54, SCPARAM(Tick))
+#define Syscall_SystemPerformanceFrequency(Frequency) (OsStatus_t)syscall1(55, SCPARAM(Frequency))
+#define Syscall_SystemPerformanceTime(Value) (OsStatus_t)syscall1(56, SCPARAM(Value))
+#define Syscall_SystemTime(Time) (OsStatus_t)syscall1(57, SCPARAM(Time))
 
-/* Driver System Calls 
- * - ACPI Support */
-#define SYSCALL_ACPIQUERY            0x3D
-#define SYSCALL_ACPIGETTBLHEADER    0x3E
-#define SYSCALL_ACPIGETTBLFULL        0x3F
-#define SYSCALL_ACPIQUERYIRQ        0x40
+/* Driver system calls
+ * - ACPI related system call definitions */
+#define Syscall_AcpiQuery(Descriptor) (OsStatus_t)syscall1(61, SCPARAM(Descriptor))
+#define Syscall_AcpiGetHeader(Signature, Header) (OsStatus_t)syscall2(62, SCPARAM(Signature), SCPARAM(Header))
+#define Syscall_AcpiGetTable(Signature, Table) (OsStatus_t)syscall2(63, SCPARAM(Signature), SCPARAM(Table))
+#define Syscall_AcpiQueryInterrupt(Bus, Slot, Pin, Interrupt, Conform) (OsStatus_t)syscall5(64, SCPARAM(Bus), SCPARAM(Slot), SCPARAM(Pin), SCPARAM(Interrupt), SCPARAM(Conform))
 
-/* Driver System Calls 
- * - I/O Support */
-#define SYSCALL_IOSREGISTER            0x47
-#define SYSCALL_IOSACQUIRE            0x48
-#define SYSCALL_IOSRELEASE            0x49
-#define SYSCALL_IOSDESTROY            0x4A
+/* Driver system calls
+ * - I/O related system call definitions */
+#define Syscall_IoSpaceRegister(IoSpace) (OsStatus_t)syscall1(71, SCPARAM(IoSpace))
+#define Syscall_IoSpaceAcquire(IoSpace) (OsStatus_t)syscall1(72, SCPARAM(IoSpace))
+#define Syscall_IoSpaceRelease(IoSpace) (OsStatus_t)syscall1(73, SCPARAM(IoSpace))
+#define Syscall_IoSpaceDestroy(IoSpaceId) (OsStatus_t)syscall1(74, SCPARAM(IoSpaceId))
 
-/* Driver System Calls 
- * - Server Support */
-#define SYSCALL_SERVICEREGISTER        0x4B
-#define SYSCALL_RESOLVEDRIVER        0x4C
+/* Driver system calls
+ * - Server related system call definitions */
+#define Syscall_RegisterService(Alias) (OsStatus_t)syscall1(75, SCPARAM(Alias))
+#define Syscall_LoadDriver(Device, Length) (OsStatus_t)syscall2(76, SCPARAM(Device), SCPARAM(Length))
 
-/* Driver System Calls 
- * - Interrupt Support */
-#define SYSCALL_REGISTERIRQ            0x51
-#define SYSCALL_UNREGISTERIRQ        0x52
-#define SYSCALL_TIMERSTART          0x55
-#define SYSCALL_TIMERSTOP           0x56
+/* Driver system calls
+ * - Interrupt related system call definitions */
+#define Syscall_InterruptAdd(Descriptor, Flags) (UUId_t)syscall2(81, SCPARAM(Descriptor), SCPARAM(Flags))
+#define Syscall_InterruptRemove(InterruptId) (OsStatus_t)syscall1(82, SCPARAM(InterruptId))
+#define Syscall_TimerCreate(Interval, Periodic, Context) (UUId_t)syscall3(85, SCPARAM(Interval), SCPARAM(Periodic), SCPARAM(Context))
+#define Syscall_TimerStop(TimerId) (OsStatus_t)syscall1(86, SCPARAM(TimerId))
 
 #endif //!_SYSCALL_INTEFACE_H_

@@ -7,3 +7,4 @@ __setjmp3
 longjmp
 ___global_locale DATA
 _exit
+_StdSignalInitialize

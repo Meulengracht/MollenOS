@@ -44,6 +44,12 @@ _CRTIMP
 void
 StdioInitialize(void);
 
+/* StdSignalInitialize
+ * Initializes the default signal-handler for the process. */
+_CRTIMP
+void
+StdSignalInitialize(void);
+
 /* CRT Initialization sequence
  * for a shared C/C++ environment call this in all entry points */
 void
@@ -59,6 +65,7 @@ __CrtInitialize(
 
     // Initialize STD-C
     StdioInitialize();
+    StdSignalInitialize();
 
     // If msc, initialize the vectored-eh
  #ifndef __clang__

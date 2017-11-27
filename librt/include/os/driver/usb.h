@@ -37,6 +37,7 @@
 /* USB Definitions
  * Contains magic constants, settings and bit definitions */
 #define USB_DEVICE_CLASS            0x0000CABB
+#define USB_TRANSACTIONCOUNT        3
 
 /* UsbControllerType
  * Describes the possible types of usb controllers */
@@ -203,7 +204,7 @@ PACKED_TYPESTRUCT(UsbTransfer, {
     UUId_t                              Pipe;
 	UsbTransferType_t                   Type;
 	UsbSpeed_t                          Speed;
-    UsbTransaction_t                    Transactions[3];
+    UsbTransaction_t                    Transactions[USB_TRANSACTIONCOUNT];
     int                                 TransactionCount;
 
 	// Endpoint Information

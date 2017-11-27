@@ -296,6 +296,7 @@ TimersGetSystemTick(
     // Sanitize
     if (GlbActiveSystemTimer == NULL
         || GlbActiveSystemTimer->SystemTick == NULL) {
+        *SystemTick = 0;
         return OsError;
     }
     *SystemTick = GlbActiveSystemTimer->SystemTick();

@@ -1,79 +1,159 @@
-/** MollenOS Signal Implementation
+/* MollenOS
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS C-Support Signal Implementation
+ * - Definitions, prototypes and information needed.
  */
 
+/* Includes
+ * -Library */
+#include <os/syscall.h>
 #include <internal/_all.h>
 #include <signal.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <stddef.h>
 
-static sig_element signal_list[] =
-{
-	{ SIGINT, "CTRL+C", SIG_DFL },
-	{ SIGILL, "Illegal instruction", SIG_DFL },
-	{ SIGFPE, "Floating-point exception", SIG_DFL },
-	{ SIGSEGV, "Illegal storage access", SIG_DFL },
-	{ SIGTERM, "Termination request", SIG_DFL },
-	{ SIGQUIT, "CTRL+BREAK", SIG_DFL },
-	{ SIGABRT, "Abnormal termination", SIG_DFL }
+// The consequences of recieving the different signals
+char signal_fatality[] = {
+	0, /* 0? */
+	1, /* SIGHUP     */
+	1, /* SIGINT     */
+	2, /* SIGQUIT    */
+	2, /* SIGILL     */
+	2, /* SIGTRAP    */
+	2, /* SIGABRT    */
+	2, /* SIGEMT     */
+	2, /* SIGFPE     */
+	1, /* SIGKILL    */
+	2, /* SIGBUS     */
+	2, /* SIGSEGV    */
+	2, /* SIGSYS     */
+	1, /* SIGPIPE    */
+	1, /* SIGALRM    */
+	1, /* SIGTERM    */
+	1, /* SIGUSR1    */
+	1, /* SIGUSR2    */
+	0, /* SIGCHLD    */
+	0, /* SIGPWR     */
+	0, /* SIGWINCH   */
+	0, /* SIGURG     */
+	0, /* SIGPOLL    */
+	3, /* SIGSTOP    */
+	3, /* SIGTSTP    */
+	0, /* SIGCONT    */
+	3, /* SIGTTIN    */
+	3, /* SIGTTOUT   */
+	1, /* SIGVTALRM  */
+	1, /* SIGPROF    */
+	2, /* SIGXCPU    */
+	2, /* SIGXFSZ    */
+	0, /* SIGWAITING */
+	1, /* SIGDIAF    */
+	0, /* SIGHATE    */
+	0, /* SIGWINEVENT*/
+	0, /* SIGCAT     */
+	0  /* SIGEND	 */
 };
 
-//int nsignal = 21;
+// Default interrupt handlers
+static sig_element signal_list[] = {
+    { SIGINT, "Interrupt (Ctrl-c)", SIG_DFL },
+    { SIGILL, "Illegal instruction", SIG_DFL },
+    { SIGFPE, "Erroneous arithmetic operation such as divide by zero", SIG_DFL },
+    { SIGSEGV, "Invalid memory access (segmentation fault)", SIG_DFL },
+    { SIGTERM, "Termination request", SIG_DFL },
+    { SIGQUIT, "Interrupt (Ctrl+break)", SIG_DFL },
+    { SIGABRT, "Abnormal termination", SIG_DFL }
+};
 
-/*
- * @implemented
- */
-
-__p_sig_fn_t signal(int sig, __p_sig_fn_t func)
+/* StdSignalEntry
+ * Default entry for all signal-handlers */
+void
+StdSignalEntry(int Signal)
 {
-   __p_sig_fn_t temp;
-   unsigned int i;
-
-   switch (sig)
-   {
-      case SIGINT:
-      case SIGILL:
-      case SIGFPE:
-      case SIGSEGV:
-      case SIGTERM:
-	  case SIGQUIT:
-      case SIGABRT:
-         break;
-
-      default:
-         _set_errno(EINVAL);
-         return SIG_ERR;
-   }
-
-   // check with IsBadCodePtr
-   if ( (uintptr_t)func < 4096 && func != SIG_DFL && func != SIG_IGN)
-   {
-      _set_errno(EINVAL);
-      return SIG_ERR;
-   }
-
-   for(i=0; i < sizeof(signal_list)/sizeof(signal_list[0]); i++)
-   {
-      if ( signal_list[i].signal == sig )
-      {
-         temp = signal_list[i].handler;
-         signal_list[i].handler = func;
-         return temp;
-      }
-   }
-
-   /* should be impossible to get here */
-   _set_errno(EINVAL);
-   return SIG_ERR;
+    BOCHSBREAK
+    _CRT_UNUSED(Signal);
+    _exit(3);
 }
 
-
-/*
- * @implemented
- */
-int raise(int sig)
+/* StdSignalInitialize
+ * Initializes the default signal-handler for the process. */
+void
+StdSignalInitialize()
 {
-   __p_sig_fn_t temp = 0;
+    // Install default handler
+    if (Syscall_ProcessSignal(StdSignalEntry) != OsSuccess) {
+        // Uhh?
+    }
+}
+
+/* signal
+ * Install a handler for the given signal. We allow handlers for
+ * SIGINT, SIGSEGV, SIGTERM, SIGILL, SIGABRT, SIGFPE. */
+__signalhandler_t
+signal(
+    _In_ int sig,
+    _In_ __signalhandler_t func)
+{
+    // Variables
+    __signalhandler_t temp;
+    unsigned int i;
+
+    // Validate signal
+    switch (sig) {
+        case SIGINT:
+        case SIGILL:
+        case SIGFPE:
+        case SIGSEGV:
+        case SIGTERM:
+        case SIGQUIT:
+        case SIGABRT:
+            break;
+        default: {
+            _set_errno(EINVAL);
+            return SIG_ERR;
+        }
+    }
+
+    // Check specials
+    if ((uintptr_t)func < 10 && func != SIG_DFL && func != SIG_IGN) {
+        _set_errno(EINVAL);
+        return SIG_ERR;
+    }
+
+    // Update handler list
+    for(i = 0; i < sizeof(signal_list) / sizeof(signal_list[0]); i++) {
+        if (signal_list[i].signal == sig) {
+            temp = signal_list[i].handler;
+            signal_list[i].handler = func;
+            return temp;
+        }
+    }
+    _set_errno(EINVAL);
+    return SIG_ERR;
+}
+
+int
+raise(
+    int sig)
+{
+   __signalhandler_t temp = 0;
    unsigned int i;
 
    switch (sig)
@@ -83,7 +163,7 @@ int raise(int sig)
       case SIGFPE:
       case SIGSEGV:
       case SIGTERM:
-	  case SIGQUIT:
+      case SIGQUIT:
       case SIGABRT:
          break;
 
@@ -111,25 +191,9 @@ int raise(int sig)
       return 0;   /* Ignore it */
 
    if(temp == SIG_DFL)
-      _default_handler(sig); /* this does not return */
+      StdSignalEntry(sig); /* this does not return */
    else
       temp(sig);
 
    return 0;
-}
-
-void _default_handler(int sig)
-{
-	/* Silence warning */
-	_CRT_UNUSED(sig);
-
-   _exit(3);
-}
-
-/*
- * @unimplemented
- */
-void **__pxcptinfoptrs (void)
-{
-	return NULL;
 }

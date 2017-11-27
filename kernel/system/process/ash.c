@@ -90,9 +90,6 @@ PhoenixFinishAsh(
     ((MEMORY_LOCATION_RING3_STACK_START - ASH_STACK_INIT) & PAGE_MASK),
         ASH_STACK_INIT, __MASK, AS_FLAG_APPLICATION, NULL);
     Ash->StackStart = MEMORY_LOCATION_RING3_STACK_START;
-
-    // Initialize signal queue
-    Ash->SignalQueue = CollectionCreate(KeyInteger);
 }
 
 /* PhoenixStartupEntry
@@ -203,6 +200,7 @@ PhoenixInitializeAsh(
     Ash->Name = MStringSubString(Ash->Path, Index + 1, -1);
 
     // Store members and initialize members
+    Ash->SignalHandler = 0;
     Ash->FileBuffer = fBuffer;
     Ash->FileBufferLength = fSize;
     Ash->Pipes = CollectionCreate(KeyInteger);
@@ -462,12 +460,6 @@ PhoenixCleanupAsh(
     // Strings first
     MStringDestroy(Ash->Name);
     MStringDestroy(Ash->Path);
-
-    // Cleanup signals
-    _foreach(fNode, Ash->SignalQueue) {
-        kfree(fNode->Data);
-    }
-    CollectionDestroy(Ash->SignalQueue);
 
     // Cleanup pipes
     _foreach(fNode, Ash->Pipes) {

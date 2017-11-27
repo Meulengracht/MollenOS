@@ -33,9 +33,10 @@
 /* AcpiQueryStatus
  * Queries basic acpi information and returns either OsSuccess
  * or OsError if Acpi is not supported on the running platform */
-OsStatus_t AcpiQueryStatus(AcpiDescriptor_t *AcpiDescriptor)
-{
-	return (OsStatus_t)Syscall1(SYSCALL_ACPIQUERY, SYSCALL_PARAM(AcpiDescriptor));
+OsStatus_t
+AcpiQueryStatus(
+    AcpiDescriptor_t *AcpiDescriptor) {
+	return Syscall_AcpiQuery(AcpiDescriptor);
 }
 
 /* AcpiQueryTable
@@ -50,8 +51,7 @@ OsStatus_t AcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER **Table)
 
 	/* Now query for the header information
 	 * so we know what we should allocate */
-	Result = (OsStatus_t)Syscall2(SYSCALL_ACPIGETTBLHEADER,
-		SYSCALL_PARAM(Signature), SYSCALL_PARAM(&Header));
+	Result = Syscall_AcpiGetHeader(Signature, &Header);
 
 	/* Sanitize the result */
 	if (Result != OsSuccess) {
@@ -64,8 +64,7 @@ OsStatus_t AcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER **Table)
 
 	/* And finally, we can query for the entirety of
 	 * the requested table! */
-	return (OsStatus_t)Syscall2(SYSCALL_ACPIGETTBLHEADER,
-		SYSCALL_PARAM(Signature), SYSCALL_PARAM(*Table));
+	return Syscall_AcpiGetTable(Signature, *Table);
 }
 
 /* AcpiQueryInterrupt
@@ -75,13 +74,9 @@ OsStatus_t AcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER **Table)
 OsStatus_t AcpiQueryInterrupt(DevInfo_t Bus, DevInfo_t Device, int Pin,
 	int *Interrupt, Flags_t *AcpiConform)
 {
-	/* Validate the pointers */
+	// Validate the pointers
 	if (Interrupt == NULL || AcpiConform == NULL) {
 		return OsError;
 	}
-
-	/* Redirect all parameters to syscall */
-	return (OsStatus_t)Syscall5(SYSCALL_ACPIQUERYIRQ, SYSCALL_PARAM(Bus),
-		SYSCALL_PARAM(Device), SYSCALL_PARAM(Pin), SYSCALL_PARAM(Interrupt),
-		SYSCALL_PARAM(AcpiConform));
+	return Syscall_AcpiQueryInterrupt(Bus, Device, Pin, Interrupt, AcpiConform);
 }

@@ -45,7 +45,7 @@ PipeOpen(
 	}
 
     // Execute system call and verify
-	Result = (OsStatus_t)Syscall2(SYSCALL_OPENPIPE, SYSCALL_PARAM(Port), 0);
+	Result = Syscall_PipeOpen(Port, 0);
 	if (Result != OsSuccess) {
 		raise(SIGPIPE);
 	}
@@ -69,7 +69,7 @@ PipeClose(
 	}
 
 	// Execute system call and verify
-	Result = (OsStatus_t)Syscall1(SYSCALL_CLOSEPIPE, SYSCALL_PARAM(Pipe));
+	Result = Syscall_PipeClose(Pipe);
 	if (Result != OsSuccess) {
 		raise(SIGPIPE);
 	}
@@ -95,8 +95,7 @@ PipeRead(
 	}
 
 	// Execute system call and verify
-	Result = (OsStatus_t)Syscall3(SYSCALL_READPIPE, SYSCALL_PARAM(Pipe),
-		SYSCALL_PARAM(Buffer), SYSCALL_PARAM(Length));
+	Result = Syscall_PipeRead(Pipe, Buffer, Length);
 	if (Result != OsSuccess) {
 		raise(SIGPIPE);
 	}
@@ -123,8 +122,7 @@ PipeSend(
 	}
 
 	// Execute system call and verify
-	Result = (OsStatus_t)Syscall4(SYSCALL_WRITEPIPE, SYSCALL_PARAM(Target),
-		SYSCALL_PARAM(Port), SYSCALL_PARAM(Message), SYSCALL_PARAM(Length));
+	Result = Syscall_PipeWrite(Target, Port, Message, Length);
 	if (Result != OsSuccess) {
 		raise(SIGPIPE);
 	}

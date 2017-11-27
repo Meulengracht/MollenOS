@@ -266,21 +266,14 @@ ScProcessQuery(
     return PhoenixQueryAsh(&Process->Base, Function, Buffer, Length);
 }
 
-/* Installs a signal handler for 
- * the given signal number, it's then invokable
- * by other threads/processes etc */
-uintptr_t
+/* ScProcessSignal
+ * Installs a default signal handler for the given process. */
+OsStatus_t
 ScProcessSignal(
-    int Signal, 
-    uintptr_t Handler) 
+    _In_ uintptr_t Handler) 
 {
     // Process
     MCoreProcess_t *Process = NULL;
-
-    // Sanitize the signal
-    if (Signal > NUMSIGNALS) {
-        return 0;
-    }
 
     // Get current process
     Process = PhoenixGetCurrentProcess();
@@ -289,14 +282,11 @@ ScProcessSignal(
     // This should never happen though
     // Only I write code that has no process
     if (Process == NULL) {
-        return 0;
+        return OsError;
     }
 
-    // Always retrieve the old handler 
-    // and return it, so temp store it before updating
-    uintptr_t OldHandler = Process->Base.Signals.Handlers[Signal];
-    Process->Base.Signals.Handlers[Signal] = Handler;
-    return OldHandler;
+    Process->Base.SignalHandler = Handler;
+    return OsSuccess;
 }
 
 /* Dispatches a signal to the target process id 
@@ -307,32 +297,17 @@ ScProcessRaise(
     UUId_t ProcessId, 
     int Signal)
 {
-    /* Variables */
+    // Variables
     MCoreProcess_t *Process = NULL;
 
-    /* Sanitize our params */
-    if (Signal > NUMSIGNALS) {
-        return OsError;
-    }
-
-    /* Lookup process */
+    // Lookup process
     Process = PhoenixGetProcess(ProcessId);
-
-    /* Sanity...
-     * This should never happen though
-     * Only I write code that has no process */
     if (Process == NULL) {
         return OsError;
     }
 
-    /* Simply create a new signal 
-     * and return it's value */
-    if (SignalCreate(ProcessId, Signal))
-        return OsError;
-    else {
-        ThreadingYield();
-        return OsSuccess;
-    }
+    // Create the signal
+    return SignalCreate(Process->Base.MainThread, Signal);
 }
 
 /* ScGetStartupInformation
@@ -551,9 +526,27 @@ ScThreadSignal(
  * Sleeps the current thread for the given milliseconds. */
 OsStatus_t
 ScThreadSleep(
-    _In_ size_t MilliSeconds)
+    _In_ time_t Milliseconds,
+    _Out_ time_t *MillisecondsSlept)
 {
-    SchedulerThreadSleep(NULL, MilliSeconds);
+    // Variables
+    clock_t Start   = 0;
+    clock_t End     = 0;
+    
+    // Initiate start
+    TimersGetSystemTick(&Start);
+    if (SchedulerThreadSleep(NULL, Milliseconds) == SCHEDULER_SLEEP_INTERRUPTED) {
+        // Get interrupted_at clock_stamp
+        End = 0; //interrupt_at
+    }
+    else {
+        TimersGetSystemTick(&End);
+    }
+
+    // Update outs
+    if (MillisecondsSlept != NULL) {
+        *MillisecondsSlept = (time_t)(End - Start);
+    }
     return OsSuccess;
 }
 
@@ -584,11 +577,17 @@ ScThreadYield(void)
 /* ScConditionCreate
  * Create a new shared handle 
  * that is unique for a condition variable */
-Handle_t
-ScConditionCreate(void)
+OsStatus_t
+ScConditionCreate(
+    _Out_ Handle_t *Handle)
 {
-    /* Allocate a new unique address */
-    return (Handle_t)kmalloc(sizeof(int));
+    // Sanitize input
+    if (Handle == NULL) {
+        return OsError;
+    }
+ 
+    *Handle = (Handle_t)kmalloc(sizeof(Handle_t));
+    return OsSuccess;
 }
 
 /* ScConditionDestroy
@@ -879,8 +878,10 @@ ScMemoryRelease(
 /* ScPathQueryWorkingDirectory
  * Queries the current working directory path
  * for the current process (See _MAXPATH) */
-OsStatus_t ScPathQueryWorkingDirectory(
-    char *Buffer, size_t MaxLength)
+OsStatus_t
+ScPathQueryWorkingDirectory(
+    _In_ char *Buffer,
+    _In_ size_t MaxLength)
 {
     // Variables
     MCoreProcess_t *Process = PhoenixGetCurrentProcess();
@@ -905,7 +906,9 @@ OsStatus_t ScPathQueryWorkingDirectory(
  * Performs changes to the current working directory
  * by canonicalizing the given path modifier or absolute
  * path */
-OsStatus_t ScPathChangeWorkingDirectory(__CONST char *Path)
+OsStatus_t
+ScPathChangeWorkingDirectory(
+    _In_ __CONST char *Path)
 {
     // Variables
     MCoreProcess_t *Process = PhoenixGetCurrentProcess();
@@ -926,8 +929,10 @@ OsStatus_t ScPathChangeWorkingDirectory(__CONST char *Path)
 /* ScPathQueryApplication
  * Queries the application path for
  * the current process (See _MAXPATH) */
-OsStatus_t ScPathQueryApplication(
-    char *Buffer, size_t MaxLength)
+OsStatus_t
+ScPathQueryApplication(
+    _In_ char *Buffer,
+    _In_ size_t MaxLength)
 {
     // Variables
     MCoreProcess_t *Process = PhoenixGetCurrentProcess();
@@ -1247,7 +1252,9 @@ ScRpcListen(
 /* ScAcpiQueryStatus
  * Queries basic acpi information and returns either OsSuccess
  * or OsError if Acpi is not supported on the running platform */
-OsStatus_t ScAcpiQueryStatus(AcpiDescriptor_t *AcpiDescriptor)
+OsStatus_t
+ScAcpiQueryStatus(
+    AcpiDescriptor_t *AcpiDescriptor)
 {
     /* Sanitize the parameters */
     if (AcpiDescriptor == NULL) {
@@ -1273,7 +1280,10 @@ OsStatus_t ScAcpiQueryStatus(AcpiDescriptor_t *AcpiDescriptor)
 /* ScAcpiQueryTableHeader
  * Queries the table header of the table that matches
  * the given signature, if none is found OsError is returned */
-OsStatus_t ScAcpiQueryTableHeader(const char *Signature, ACPI_TABLE_HEADER *Header)
+OsStatus_t
+ScAcpiQueryTableHeader(
+    const char *Signature,
+    ACPI_TABLE_HEADER *Header)
 {
     /* Use a temporary buffer as we don't
      * really know the length */
@@ -1299,7 +1309,10 @@ OsStatus_t ScAcpiQueryTableHeader(const char *Signature, ACPI_TABLE_HEADER *Head
 /* ScAcpiQueryTable
  * Queries the full table information of the table that matches
  * the given signature, if none is found OsError is returned */
-OsStatus_t ScAcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER *Table)
+OsStatus_t
+ScAcpiQueryTable(
+    const char *Signature,
+    ACPI_TABLE_HEADER *Table)
 {
     /* Use a temporary buffer as we don't
      * really know the length */
@@ -1326,8 +1339,13 @@ OsStatus_t ScAcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER *Table)
  * Queries the interrupt-line for the given bus, device and
  * pin combination. The pin must be zero indexed. Conform flags
  * are returned in the <AcpiConform> */
-OsStatus_t ScAcpiQueryInterrupt(DevInfo_t Bus, DevInfo_t Device, int Pin, 
-    int *Interrupt, Flags_t *AcpiConform)
+OsStatus_t
+ScAcpiQueryInterrupt(
+    DevInfo_t Bus,
+    DevInfo_t Device,
+    int Pin, 
+    int *Interrupt,
+    Flags_t *AcpiConform)
 {
     // Redirect the call to the interrupt system
     *Interrupt = AcpiDeriveInterrupt(Bus, Device, Pin, AcpiConform);
@@ -1495,7 +1513,10 @@ ScLoadDriver(
  * the requesting driver, an id for the interrupt source
  * is returned. After a succesful register, OnInterrupt
  * can be called by the event-system */
-UUId_t ScRegisterInterrupt(MCoreInterrupt_t *Interrupt, Flags_t Flags)
+UUId_t
+ScRegisterInterrupt(
+    _In_ MCoreInterrupt_t *Interrupt,
+    _In_ Flags_t Flags)
 {
     /* Sanitize parameters */
     if (Interrupt == NULL
@@ -1510,7 +1531,9 @@ UUId_t ScRegisterInterrupt(MCoreInterrupt_t *Interrupt, Flags_t Flags)
 /* ScUnregisterInterrupt 
  * Unallocates the given interrupt source and disables
  * all events of OnInterrupt */
-OsStatus_t ScUnregisterInterrupt(UUId_t Source)
+OsStatus_t
+ScUnregisterInterrupt(
+    _In_ UUId_t Source)
 {
     return InterruptUnregister(Source);
 }
@@ -1608,13 +1631,13 @@ ScPerformanceFrequency(
  * if a system performance timer has been initialized. */
 OsStatus_t
 ScPerformanceTick(
-    _Out_ LargeInteger_t *Frequency)
+    _Out_ LargeInteger_t *Value)
 {
     // Sanitize input
-    if (Frequency == NULL) {
+    if (Value == NULL) {
         return OsError;
     }
-    return TimersQueryPerformanceTick(Frequency);
+    return TimersQueryPerformanceTick(Value);
 }
 
 /* NoOperation

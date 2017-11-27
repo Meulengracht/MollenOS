@@ -44,10 +44,7 @@ PathQueryWorkingDirectory(
 	if (Buffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
-
-	/* Redirect to os-sublayer */
-	return (OsStatus_t)Syscall2(SYSCALL_QUERYCWD,
-		SYSCALL_PARAM(Buffer), SYSCALL_PARAM(MaxLength));
+	return Syscall_QueryWorkingPath(Buffer, MaxLength);
 }
 
 /* PathChangeWorkingDirectory
@@ -75,9 +72,7 @@ PathChangeWorkingDirectory(
 		(char*)Path, &TempBuffer[0], _MAXPATH) != OsSuccess) {
 		return OsError;
 	}
-
-	/* Redirect to os-sublayer */
-	return (OsStatus_t)Syscall1(SYSCALL_CHANGECWD, SYSCALL_PARAM(&TempBuffer[0]));
+	return Syscall_ChangeWorkingPath(&TempBuffer[0]);
 }
 
 /* PathQueryApplication
@@ -92,8 +87,5 @@ PathQueryApplication(
 	if (Buffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
-
-	/* Redirect to os-sublayer */
-	return (OsStatus_t)Syscall2(SYSCALL_QUERYCAD,
-		SYSCALL_PARAM(Buffer), SYSCALL_PARAM(MaxLength));
+	return Syscall_QueryApplicationPath(Buffer, MaxLength);
 }

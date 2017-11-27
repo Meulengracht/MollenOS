@@ -42,37 +42,37 @@ __EXTERN void __writelong(uint16_t Port, uint32_t Value);
 /* Creates a new io-space and registers it with
  * the operation system, returns OsSuccess if it's 
  * a valid io-space */
-OsStatus_t CreateIoSpace(DeviceIoSpace_t *IoSpace)
-{
-	/* Simple redirect */
-	return (OsStatus_t)Syscall1(SYSCALL_IOSREGISTER, SYSCALL_PARAM(IoSpace));
+OsStatus_t
+CreateIoSpace(
+    DeviceIoSpace_t *IoSpace) {
+	return Syscall_IoSpaceRegister(IoSpace);
 }
 
 /* Tries to claim a given io-space, only one driver
  * can claim a single io-space at a time, to avoid
  * two drivers using the same device */
-OsStatus_t AcquireIoSpace(DeviceIoSpace_t *IoSpace)
-{
-	/* Simple redirect */
-	return (OsStatus_t)Syscall1(SYSCALL_IOSACQUIRE, SYSCALL_PARAM(IoSpace));
+OsStatus_t
+AcquireIoSpace(
+    DeviceIoSpace_t *IoSpace) {
+	return Syscall_IoSpaceAcquire(IoSpace);
 }
 
 /* Tries to release a given io-space, only one driver
  * can claim a single io-space at a time, to avoid
  * two drivers using the same device */
-OsStatus_t ReleaseIoSpace(DeviceIoSpace_t *IoSpace)
-{
-	/* Simple redirect */
-	return (OsStatus_t)Syscall1(SYSCALL_IOSRELEASE, SYSCALL_PARAM(IoSpace));
+OsStatus_t
+ReleaseIoSpace(
+    DeviceIoSpace_t *IoSpace) {
+	return Syscall_IoSpaceRelease(IoSpace);
 }
 
 /* Destroys the io-space with the given id and removes
  * it from the io-manage in the operation system, it
  * can only be removed if its not already acquired */
-OsStatus_t DestroyIoSpace(UUId_t IoSpace)
-{
-	/* Simple redirect */
-	return (OsStatus_t)Syscall1(SYSCALL_IOSDESTROY, SYSCALL_PARAM(IoSpace));
+OsStatus_t
+DestroyIoSpace(
+    UUId_t IoSpace) {
+	return Syscall_IoSpaceDestroy(IoSpace);
 }
 
 /* Read data from the given io-space at <offset> with 

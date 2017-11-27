@@ -201,10 +201,12 @@ PACKED_TYPESTRUCT(UhciQueueHead, {
 #define UHCI_POOL_TDINDEX(Ctrl, Index)	(Ctrl->QueueControl.TDPoolPhysical + (Index * sizeof(UhciTransferDescriptor_t)))
 #define UHCI_POOL_START				14
 #define UHCI_BANDWIDTH_PHASES		32
-#define UHCI_POOL_QHS				60
-#define UHCI_POOL_TDS				200
-#define UHCI_POOL_TDNULL			(UHCI_POOL_TDS - 1)
 
+#define UHCI_POOL_QHS				50
+#define UHCI_POOL_TDS				300
+#define UHCI_POOL_BULKMAX           150
+
+#define UHCI_POOL_TDNULL			(UHCI_POOL_TDS - 1)
 #define UHCI_QH_REMOVE				0
 #define UHCI_QH_ISOCHRONOUS			1
 #define UHCI_QH_ASYNC				9

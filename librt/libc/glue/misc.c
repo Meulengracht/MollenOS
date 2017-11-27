@@ -53,9 +53,7 @@ MemoryAllocate(
 	}
 
 	/* Redirect to OS sublayer */
-	Result = (OsStatus_t)Syscall4(SYSCALL_MEMALLOC,
-		SYSCALL_PARAM(Length), SYSCALL_PARAM(Flags),
-		SYSCALL_PARAM(MemoryPointer), SYSCALL_PARAM(&Physical));
+	Result = Syscall_MemoryAllocate(Length, Flags, MemoryPointer, &Physical);
 
 	/* Update outs and return */
 	if (PhysicalPointer != NULL) {
@@ -77,10 +75,7 @@ MemoryFree(
 		|| MemoryPointer == NULL) {
 		return OsError;
 	}
-
-	/* Redirect call */
-	return (OsStatus_t)Syscall2(SYSCALL_MEMFREE,
-		SYSCALL_PARAM(MemoryPointer), SYSCALL_PARAM(Length));
+    return Syscall_MemoryFree(MemoryPointer, Length);
 }
 
 /* Const Message */
@@ -107,8 +102,7 @@ SystemDebug(
 	va_end(Args);
 
 	// Now spit it out
-	Syscall3(0, SYSCALL_PARAM(Type), SYSCALL_PARAM(__SysTypeMessage), 
-		SYSCALL_PARAM(&TmpBuffer[0]));
+    Syscall_Debug(Type, __SysTypeMessage, &TmpBuffer[0]);
 }
 
 /* SystemTime
@@ -118,7 +112,7 @@ OsStatus_t
 SystemTime(
 	_Out_ struct tm *time)
 {
-    return (OsStatus_t)Syscall1(SYSCALL_GETTIME, SYSCALL_PARAM(time));
+    return Syscall_SystemTime(time);
 }
 
 /* SystemTick
@@ -128,7 +122,7 @@ OsStatus_t
 SystemTick(
 	_Out_ clock_t *clock)
 {
-    return (OsStatus_t)Syscall1(SYSCALL_GETTICK, SYSCALL_PARAM(clock));
+    return Syscall_SystemTick(clock);
 }
 
 #endif

@@ -148,10 +148,8 @@ AcquireBuffer(
 #ifndef LIBC_KERNEL
 	// Map in address space
 	// Two params (Physical -> Capacity)
-	return (OsStatus_t)Syscall3(SYSCALL_MEMACQUIRE,
-		SYSCALL_PARAM(BufferObject->Physical),
-		SYSCALL_PARAM(BufferObject->Capacity),
-		SYSCALL_PARAM(&BufferObject->Virtual));
+	return Syscall_MemoryAcquire(BufferObject->Physical, 
+        BufferObject->Capacity, &BufferObject->Virtual);
 #else
 	return OsError;
 #endif
@@ -172,9 +170,7 @@ ReleaseBuffer(
 #ifndef LIBC_KERNEL
 	// Unmap from addressing space
 	// Two params (Physical -> Capacity)
-	return (OsStatus_t)Syscall2(SYSCALL_MEMRELEASE,
-		SYSCALL_PARAM(BufferObject->Virtual),
-		SYSCALL_PARAM(BufferObject->Capacity));
+	return Syscall_MemoryRelease(BufferObject->Virtual, BufferObject->Capacity);
 #else
 return OsError;
 #endif

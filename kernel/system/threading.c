@@ -182,6 +182,7 @@ ThreadingInitialize(
 
 	// Create a compipe
 	Init->Pipe = PipeCreate(PIPE_DEFAULT_SIZE, 0);
+    Init->SignalQueue = CollectionCreate(KeyInteger);
     
     // Acquire lock to generate id
 	CriticalSectionEnter(&ThreadGlobalLock);
@@ -265,8 +266,9 @@ ThreadingCreateThread(
     // Setup initial scheduler information
     SchedulerThreadInitialize(Thread, Flags);
 
-	/* Create the pipe for communiciation */
+	// Create communication members
 	Thread->Pipe = PipeCreate(PIPE_DEFAULT_SIZE, 0);
+    Thread->SignalQueue = CollectionCreate(KeyInteger);
 
 	// Flag-Special-Case
 	// If it's NOT a kernel thread
@@ -329,9 +331,18 @@ void
 ThreadingCleanupThread(
     _In_ MCoreThread_t *Thread)
 {
+    // Variables
+    CollectionItem_t *fNode = NULL;
+
     // Make sure we are completely removed as reference
     // from the entire system
     SchedulerThreadDequeue(Thread);
+
+    // Cleanup signals
+    _foreach(fNode, Thread->SignalQueue) {
+        kfree(fNode->Data);
+    }
+    CollectionDestroy(Thread->SignalQueue);
 
 	// Cleanup resources allocated by sub-systems
 	AddressSpaceDestroy(Thread->AddressSpace);

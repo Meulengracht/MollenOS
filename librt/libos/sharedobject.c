@@ -44,14 +44,14 @@ SharedObjectLoad(
 
 	// Just deep call, we have 
 	// all neccessary functionlity and validation already in place
-	return (Handle_t*)Syscall1(SYSCALL_LOADSO, SYSCALL_PARAM(SharedObject));
+	return Syscall_LibraryLoad(SharedObject);
 }
 
 /* SharedObjectGetFunction
  * Load a function-address given an shared object
  * handle and a function name, function must exist
  * otherwise null is returned */
-void *
+void*
 SharedObjectGetFunction(
 	_In_ Handle_t Handle, 
 	_In_ __CONST char *Function)
@@ -61,11 +61,7 @@ SharedObjectGetFunction(
 		|| Function == NULL) {
 		return NULL;
 	}
-
-	/* Just deep call, we have
-	* all neccessary functionlity and validation already in place */
-	return (void*)Syscall2(SYSCALL_LOADPROC, 
-		SYSCALL_PARAM(Handle), SYSCALL_PARAM(Function));
+	return (void*)Syscall_LibraryFunction(Handle, Function);
 }
 
 /* SharedObjectUnload
@@ -79,8 +75,5 @@ SharedObjectUnload(
 	if (Handle == HANDLE_INVALID) {
 		return OsError;
 	}
-
-	/* Just deep call, we have
-	* all neccessary functionlity and validation already in place */
-	return (OsStatus_t)Syscall1(SYSCALL_UNLOADSO, SYSCALL_PARAM(Handle));
+	return Syscall_LibraryUnload(Handle);
 }

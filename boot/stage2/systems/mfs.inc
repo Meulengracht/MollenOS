@@ -212,7 +212,7 @@ ReadBucket:
 ; ****************************
 MfsLoadFile:
 	; Save arguments, we dont need them yet
-	xchg 	bx, bx
+	; xchg 	bx, bx
 	mov 	ax, es
 	mov 	word [wMFSLoadFileFSegment], ax
 	mov 	word [wMFSLoadFileFOffset], bx

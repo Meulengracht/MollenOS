@@ -52,9 +52,7 @@ MemoryAllocate(
 	}
 
 	// Redirect call to OS
-	Result = (OsStatus_t)Syscall4(SYSCALL_MEMALLOC,
-		SYSCALL_PARAM(Length), SYSCALL_PARAM(Flags),
-		SYSCALL_PARAM(&Virtual), SYSCALL_PARAM(&Physical));
+	Result = Syscall_MemoryAllocate(Length, Flags, &Virtual, &Physical);
 
 	// Update memory-pointer
 	*MemoryPointer = (void*)Virtual;
@@ -80,8 +78,7 @@ MemoryFree(
 	}
 
 	// Redirect call to OS - no post ops here
-	return (OsStatus_t)Syscall2(SYSCALL_MEMFREE,
-		SYSCALL_PARAM(MemoryPointer), SYSCALL_PARAM(Length));
+	return Syscall_MemoryFree(MemoryPointer, Length);
 }
 
 /* MemoryQuery
@@ -97,6 +94,5 @@ MemoryQuery(
 	}
 
 	// Redirect call to OS - no post ops here
-	return (OsStatus_t)Syscall1(
-		SYSCALL_MEMQUERY, SYSCALL_PARAM(Descriptor));
+	return Syscall_MemoryQuery(Descriptor);
 }

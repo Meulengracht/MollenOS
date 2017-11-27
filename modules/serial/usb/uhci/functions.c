@@ -364,7 +364,7 @@ UhciTransactionFinalize(
 
         // Check that the qh even exists
         if (PrevQh->LinkIndex != QhIndex) {
-            TRACE("UHCI: Couldn't find Qh in frame-list");
+            ERROR("UHCI: Couldn't find Qh in frame-list");
         }
         else {
             // Transfer the link to previous
@@ -482,6 +482,64 @@ UhciTransactionFinalize(
     return OsSuccess;
 }
 
+/* UsbTransferFill 
+ * Fills the transfer with as many transfer-descriptors as possible/needed. */
+OsStatus_t
+UsbTransferFill(
+    _In_ UhciController_t           *Controller,
+    _InOut_ UsbManagerTransfer_t    *Transfer)
+{
+    // Variables
+    UhciTransferDescriptor_t *Td        = NULL;
+    int i;
+
+    // Get next address from which we need to load
+    for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
+        if (Transfer->BytesTransferred[i] != Transfer->Transfer.Transactions[i].Length) {
+            UsbTransactionType_t Type   = Transfer->Transfer.Transactions[i].Type;
+            size_t BytesToTransfer      = Transfer->Transfer.Transactions[i].Length;
+            size_t ByteOffset           = 0;
+            size_t ByteStep             = 0;
+            int AddZeroLength           = 0;
+
+            // Adjust offsets
+            ByteOffset                  = Transfer->BytesTransferred[i];
+            BytesToTransfer            -= Transfer->BytesTransferred[i];
+
+            // If it's a handshake package AND it's first td
+            // of package, then set toggle
+            if (ByteOffset == 0 && Transfer->Transfer.Transactions[i].Handshake) {
+                UsbManagerSetToggle(Transfer->Device, Transfer->Pipe, 1);
+            }
+
+            // Keep adding td's
+            while (BytesToTransfer 
+                || Transfer->Transfer.Transactions[i].ZeroLength == 1
+                || AddZeroLength == 1) {
+                if (Type == SetupTransaction) {
+                    Td = UhciTdSetup(Controller, &Transfer->Transfer.Transactions[i], 
+                        Address, Endpoint, Transfer->Transfer.Type, 
+                        Transfer->Transfer.Speed);
+
+                    // Consume entire setup-package
+                    BytesStep = BytesToTransfer;
+                }
+                else {
+                    // Depending on how much we are able to take in
+                    // 1 page per non-isoc, Isochronous can handle 2 pages
+                    BytesStep = MIN(BytesToTransfer, Transfer->Transfer.Endpoint.MaxPacketSize);
+
+                    Td = UhciTdIo(Controller, Transfer->Transfer.Type, 
+                        (Transfer->Transfer.Transactions[i].Type == InTransaction ? UHCI_TD_PID_IN : UHCI_TD_PID_OUT), 
+                        Toggle, Address, Endpoint, Transfer->Transfer.Endpoint.MaxPacketSize,
+                        Transfer->Transfer.Speed, 
+                        Transfer->Transfer.Transactions[i].BufferAddress + ByteOffset, BytesStep);
+                }
+            }
+        }
+    }
+}
+
 /* UsbQueueTransferGeneric 
  * Queues a new transfer for the given driver
  * and pipe. They must exist. The function does not block*/
@@ -490,9 +548,10 @@ UsbQueueTransferGeneric(
     _InOut_ UsbManagerTransfer_t *Transfer)
 {
     // Variables
-    UhciQueueHead_t *Qh = NULL;
-    UhciTransferDescriptor_t *FirstTd = NULL, *ItrTd = NULL;
-    UhciController_t *Controller = NULL;
+    UhciQueueHead_t *Qh                 = NULL;
+    UhciTransferDescriptor_t *FirstTd   = NULL, 
+                             *ItrTd     = NULL;
+    UhciController_t *Controller        = NULL;
     size_t Address, Endpoint;
     int i;
     
@@ -508,11 +567,8 @@ UsbQueueTransferGeneric(
     }
 
     // Update the stored information
-    Transfer->TransactionCount = 0;
     Transfer->EndpointDescriptor = Qh;
     Transfer->Status = TransferNotProcessed;
-    Transfer->BytesTransferred = 0;
-    Transfer->Cleanup = 0;
     
     // Extract address and endpoint
     Address = HIWORD(Transfer->Pipe);

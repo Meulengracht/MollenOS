@@ -31,7 +31,8 @@
 #include <stddef.h>
 #include <string.h>
 
-/* Globals */
+/* Globals 
+ * Keep track of signal-consequences */
 char GlbSignalIsDeadly[] = {
 	0, /* 0? */
 	1, /* SIGHUP     */
@@ -74,43 +75,41 @@ char GlbSignalIsDeadly[] = {
 };
 
 /* Create Signal 
- * Dispatches a signal to a given ash */
-int SignalCreate(UUId_t AshId, int Signal)
+ * Dispatches a signal to a thread in the system. If the thread is sleeping
+ * and the signal is not masked, then it will be woken up. */
+OsStatus_t
+SignalCreate(
+    _In_ UUId_t     ThreadId,
+    _In_ int        Signal)
 {
-	/* Variables*/
-	MCoreAsh_t *Target = PhoenixGetAsh(AshId);
-	MCoreSignal_t *Sig = NULL;
+	// Variables
+	MCoreThread_t *Target   = ThreadingGetThread(ThreadId);
+	MCoreSignal_t *Sig      = NULL;
 	DataKey_t sKey;
 
-	/* Sanitize the Ash 
-	 * and that the signal given is valid */
-	if (Target == NULL
-		|| (Signal > NUMSIGNALS)) {
-		return -1;
+    // Sanitize input, and then sanitize if we have a handler
+	if (Target == NULL || Signal >= NUMSIGNALS) {
+		return OsError; // Invalid
 	}
+    if (Target->SignalInformation[Signal] == 1) {
+        return OsError; // Ignored
+    }
 
-	/* Make sure we don't deliver a signal to a handler 
-	 * that doesn't exist, unless it's deadly, then it needs to die */
-	if (!Target->Signals.Handlers[Signal] && !GlbSignalIsDeadly[Signal]) {
-		return 0;
-	}
-
-	/* Append signal to list */
+	// Create a new signal instance for process.
 	Sig = (MCoreSignal_t*)kmalloc(sizeof(MCoreSignal_t));
-	Sig->Handler = (uintptr_t)Target->Signals.Handlers[Signal];
+    Sig->Ignorable = GlbSignalIsDeadly[Signal];
 	Sig->Signal = Signal;
-
-	/* Zero the context */
 	memset(&Sig->Context, 0, sizeof(Context_t));
 
-	/* Append it */
+	// Add to signal-list
 	sKey.Value = Signal;
-    CriticalSectionEnter(&Target->Lock);
 	CollectionAppend(Target->SignalQueue, CollectionCreateNode(sKey, Sig));
-    CriticalSectionLeave(&Target->Lock);
 
-	/* Done! */
-	return 0;
+    // Wake up thread if neccessary
+    if (THREADING_RUNMODE(Target->Flags) == THREADING_INACTIVE) {
+        // @todo
+    }
+    return OsSuccess;
 }
 
 /* SignalReturn
@@ -120,28 +119,26 @@ OsStatus_t
 SignalReturn(void)
 {
 	// Variables
-	MCoreThread_t *cThread = NULL;
-	MCoreSignal_t *Signal = NULL;
-	MCoreAsh_t *Ash = NULL;
+	MCoreThread_t *Thread   = NULL;
+	MCoreSignal_t *Signal   = NULL;
 	UUId_t Cpu;
 
 	// Oh oh, someone has done the dirty signal
-	Cpu = CpuGetCurrentId();
-	cThread = ThreadingGetCurrentThread(Cpu);
-	Ash = PhoenixGetAsh(cThread->AshId);
+	Cpu         = CpuGetCurrentId();
+	Thread      = ThreadingGetCurrentThread(Cpu);
 
 	// Now.. get active signal
-	Signal = Ash->ActiveSignal;
+	Signal = Thread->ActiveSignal;
 
 	// Restore context
-	// Neccessary?
+	// @todo
 
 	// Cleanup signal
-	Ash->ActiveSignal = NULL;
+	Thread->ActiveSignal = NULL;
 	kfree(Signal);
 
 	// Continue into next signal?
-	return SignalHandle(cThread->Id);
+	return SignalHandle(Thread->Id);
 }
 
 /* Handle Signal 
@@ -152,76 +149,67 @@ SignalHandle(
 	_In_ UUId_t ThreadId)
 {
 	// Variables
-	MCoreThread_t *Thread = NULL;
-	MCoreSignal_t *Signal = NULL;
+	MCoreThread_t *Thread   = NULL;
+	MCoreSignal_t *Signal   = NULL;
 	CollectionItem_t *sNode = NULL;
-	MCoreAsh_t *Ash = NULL;
 	
 	// Lookup variables
-	Thread = ThreadingGetThread(ThreadId);
-	Ash = PhoenixGetAsh(Thread->AshId);
+	Thread                  = ThreadingGetThread(ThreadId);
 
 	// Sanitize, we might not have an Ash
-	if (Ash == NULL) {
+	if (Thread == NULL) {
 		return OsError;
 	}
 
 	// Even if there is a Ash, we might want not
 	// to Ash any signals ATM if there is already 
 	// one active
-	if (Ash->ActiveSignal != NULL) {
+	if (Thread->ActiveSignal != NULL) {
 		return OsError;
 	}
 
 	// Ok.. pop off first signal
-    CriticalSectionEnter(&Ash->Lock);
-	sNode = CollectionPopFront(Ash->SignalQueue);
+	sNode = CollectionPopFront(Thread->SignalQueue);
 
 	// Sanitize the node, no more signals?
 	if (sNode != NULL) {
 		Signal = (MCoreSignal_t*)sNode->Data;
-		CollectionDestroyNode(Ash->SignalQueue, sNode);
-        CriticalSectionLeave(&Ash->Lock);
-		SignalExecute(Ash, Signal);
+		CollectionDestroyNode(Thread->SignalQueue, sNode);
+		SignalExecute(Thread, Signal);
 	}
-    else {
-        CriticalSectionLeave(&Ash->Lock);
-    }
 
 	// No more signals
 	return OsSuccess;
 }
 
-/* Execute Signal 
+/* SignalExecute
  * This function does preliminary checks before actually
  * dispatching the signal to the process */
-void SignalExecute(MCoreAsh_t *Ash, MCoreSignal_t *Signal)
+void
+SignalExecute(
+    _In_ MCoreThread_t *Thread,
+    _In_ MCoreSignal_t *Signal)
 {
-	/* Sanitize the thread and signal */
-	if ((Signal->Signal == 0 || Signal->Signal >= NUMSIGNALS)
-		|| Signal->Handler == 1) {
-		return;
-	}
+    // Variables
+    MCoreAsh_t *Process = NULL;
 
-	/* Do we have a handler? */
-	if (Signal->Handler == 0)
-	{
-		/* Thing is ... if the signal is deadly
-		 * we can't ignore the signal */
+    // Instantiate the process
+    Process = PhoenixGetAsh(Thread->AshId);
+    if (Process == NULL) {
+        return;
+    }
+
+	// If there is no handler for the process and we
+    // can't ignore signal, we must kill
+	if (Process->SignalHandler == 0) {
 		char Action = GlbSignalIsDeadly[Signal->Signal];
-		
-		/* Kill? */
 		if (Action == 1 || Action == 2) {
-			PhoenixTerminateAsh(Ash);
+			PhoenixTerminateAsh(Process);
 		}
-
-		/* Done, return, ignore rest */
 		return;
 	}
 
-	/* Update some settings */
-	Ash->ActiveSignal = Signal;
-
-	/* Handle Signal */
-	SignalDispatch(Ash, Signal);
+	// Update active and dispatch
+	Thread->ActiveSignal = Signal;
+	SignalDispatch(Thread, Signal);
 }

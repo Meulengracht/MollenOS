@@ -40,8 +40,7 @@ RegisterInterruptSource(
 	if (Interrupt == NULL) {
 		return UUID_INVALID;
 	}
-	return (UUId_t)Syscall2(SYSCALL_REGISTERIRQ, SYSCALL_PARAM(Interrupt),
-		SYSCALL_PARAM(Flags));
+	return Syscall_InterruptAdd(Interrupt, Flags);
 }
 
 /* UnregisterInterruptSource 
@@ -55,5 +54,5 @@ UnregisterInterruptSource(
 	if (Source == UUID_INVALID) {
 		return OsError;
 	}
-	return (OsStatus_t)Syscall1(SYSCALL_UNREGISTERIRQ, SYSCALL_PARAM(Source));
+	return Syscall_InterruptRemove(Source);
 }
