@@ -411,22 +411,6 @@ UhciTransactionDispatch(
         MemoryBarrier();
         PrevQh->Link = (QhAddress | UHCI_LINK_QH);
         PrevQh->LinkIndex = QhIndex;
-#ifdef UHCI_FSBR
-        /* FSBR? */
-        if (PrevQueue < UHCI_QH_FSBRQ
-            && Queue >= UHCI_QH_FSBRQ) {
-            /* Link NULL to fsbr */
-            Ctrl->QhPool[UHCI_POOL_NULL]->Link = (QhAddress | UHCI_TD_LINK_QH);
-            Ctrl->QhPool[UHCI_POOL_NULL]->LinkVirtual = (uint32_t)Qh;
-            
-            /* Link last QH to NULL */
-            PrevQh = Ctrl->QhPool[UHCI_POOL_ASYNC];
-            while (PrevQh->LinkVirtual != 0)
-                PrevQh = (UhciQueueHead_t*)PrevQh->LinkVirtual;
-            PrevQh->Link = (Ctrl->QhPoolPhys[UHCI_POOL_NULL] | UHCI_TD_LINK_QH);
-            PrevQh->LinkVirtual = (uint32_t)Ctrl->QhPool[UHCI_POOL_NULL];
-        }
-#endif
     }
     // Periodic requests
     else if (Queue > UHCI_QH_ISOCHRONOUS && Queue < UHCI_QH_ASYNC) {

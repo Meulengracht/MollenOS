@@ -19,7 +19,6 @@
  * MollenOS MCore - Universal Host Controller Interface Driver
  * Todo:
  * Power Management
- * Finish the FSBR implementation, right now there is no guarantee of order ls/fs/bulk 
  */
 //#define __TRACE
 

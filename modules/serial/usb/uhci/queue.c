@@ -19,7 +19,6 @@
  * MollenOS MCore - Universal Host Controller Interface Driver
  * Todo:
  * Power Management
- * Finish the FSBR implementation, right now there is no guarantee of order ls/fs/bulk
  */
 //#define __TRACE
 
@@ -397,10 +396,10 @@ UhciQhAllocate(
             Controller->QueueControl.QHPool[i].Flags |= UHCI_QH_SET_QUEUE(UHCI_QH_LCTRL);
         }
         else if (Speed == FullSpeed && Type == ControlTransfer) {
-            Controller->QueueControl.QHPool[i].Flags |= UHCI_QH_SET_QUEUE(UHCI_QH_FCTRL) | UHCI_QH_FSBR;
+            Controller->QueueControl.QHPool[i].Flags |= UHCI_QH_SET_QUEUE(UHCI_QH_FCTRL);
         }
         else if (Type == BulkTransfer) {
-            Controller->QueueControl.QHPool[i].Flags |= UHCI_QH_SET_QUEUE(UHCI_QH_FBULK) | UHCI_QH_FSBR;
+            Controller->QueueControl.QHPool[i].Flags |= UHCI_QH_SET_QUEUE(UHCI_QH_FBULK);
         }
         else {
             Controller->QueueControl.QHPool[i].Flags |= UHCI_QH_BANDWIDTH_ALLOC;
@@ -622,12 +621,14 @@ UhciUnlinkGeneric(
     _In_ UhciQueueHead_t        *Qh)
 {
     // Variables
-    int QhIndex     = -1;
+    int QhIndex         = UHCI_NO_INDEX;
 
+    // Initiate values
     QhIndex         = UHCI_QH_GET_INDEX(Qh->Flags);
+
+    // Handle unlinking based on type of transfer
     if (Transfer->Transfer.Type == ControlTransfer
-        || Transfer->Transfer.Type == BulkTransfer)
-    {
+        || Transfer->Transfer.Type == BulkTransfer) {
         // Variables
         UhciQueueHead_t *PrevQh = &Controller->QueueControl.QHPool[UHCI_QH_ASYNC];
 
@@ -645,29 +646,9 @@ UhciUnlinkGeneric(
         }
         else {
             // Transfer the link to previous
-            PrevQh->Link = Qh->Link;
-            PrevQh->LinkIndex = Qh->LinkIndex;
+            PrevQh->Link        = Qh->Link;
+            PrevQh->LinkIndex   = Qh->LinkIndex;
             MemoryBarrier();
-
-#ifdef UHCI_FSBR
-            /* Get */
-            int PrevQueue = UHCI_QH_GET_QUEUE(PrevQh->Flags);
-
-            /* Deactivate FSBR? */
-            if (PrevQueue < UHCI_POOL_FSBR
-                && Queue >= UHCI_POOL_FSBR) {
-                /* Link NULL to the next in line */
-                Ctrl->QhPool[UHCI_POOL_NULL]->Link = Qh->Link;
-                Ctrl->QhPool[UHCI_POOL_NULL]->LinkVirtual = Qh->LinkVirtual;
-
-                /* Link last QH to NULL */
-                PrevQh = Ctrl->QhPool[UHCI_POOL_ASYNC];
-                while (PrevQh->LinkVirtual != 0)
-                    PrevQh = (UhciQueueHead_t*)PrevQh->LinkVirtual;
-                PrevQh->Link = (Ctrl->QhPoolPhys[UHCI_POOL_NULL] | UHCI_TD_LINK_QH);
-                PrevQh->LinkVirtual = (uint32_t)Ctrl->QhPool[UHCI_POOL_NULL];
-            }
-#endif
         }
     }
     else if (Transfer->Transfer.Type == InterruptTransfer) {

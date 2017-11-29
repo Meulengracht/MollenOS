@@ -19,7 +19,6 @@
  * MollenOS MCore - Universal Host Controller Interface Driver
  * Todo:
  * Power Management
- * Finish the FSBR implementation, right now there is no guarantee of order ls/fs/bul
  */
 
 #ifndef _USB_UHCI_H_
@@ -33,8 +32,6 @@
 
 #include "../common/manager.h"
 #include "../common/scheduler.h"
-
-//#define UHCI_FSBR
 
 /* UHCI Definitions 
  * Definitions and constants used in general for the controller setup */
@@ -180,15 +177,13 @@ PACKED_TYPESTRUCT(UhciQueueHead, {
  * Bit 1-7: Pool Number
  * Bit 8-15: Queue Head Index 
  * Bit 16-17: Queue Head Type (00 Control, 01 Bulk, 10 Interrupt, 11 Isochronous) 
- * Bit 18: Bandwidth allocated 
- * Bit 19: FSBR 
- * Bit 20: Unschedule */
+ * Bit 18: Bandwidth allocated
+ * Bit 19: Unschedule */
 #define UHCI_QH_ACTIVE				0x1
 #define UHCI_QH_INDEX(n)			((n & 0xFF) << 8)
 #define UHCI_QH_TYPE(n)				((n & 0x3) << 16)
 #define UHCI_QH_BANDWIDTH_ALLOC		(1 << 18)
-#define UHCI_QH_FSBR				(1 << 19)
-#define UHCI_QH_UNSCHEDULE			(1 << 20)
+#define UHCI_QH_UNSCHEDULE			(1 << 19)
 
 #define UHCI_QH_SET_QUEUE(n)		((n << 1) & 0xFE)	
 #define UHCI_QH_CLR_QUEUE(n)		(n & 0xFFFFFF01)
@@ -206,14 +201,12 @@ PACKED_TYPESTRUCT(UhciQueueHead, {
 #define UHCI_POOL_TDS				400
 
 #define UHCI_POOL_TDNULL			(UHCI_POOL_TDS - 1)
-#define UHCI_QH_REMOVE				0
 #define UHCI_QH_ISOCHRONOUS			1
 #define UHCI_QH_ASYNC				9
 #define UHCI_QH_NULL				10
 #define UHCI_QH_LCTRL				11
 #define UHCI_QH_FCTRL				12
 #define UHCI_QH_FBULK				13
-#define UHCI_QH_FSBRQ				UHCI_POOL_FCTRL
 
 /* UhciControl
  * Contains all necessary Queue related information

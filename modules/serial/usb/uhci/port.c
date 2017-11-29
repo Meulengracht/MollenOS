@@ -19,7 +19,6 @@
  * MollenOS MCore - Universal Host Controller Interface Driver
  * Todo:
  * Power Management
- * Finish the FSBR implementation, right now there is no guarantee of order ls/fs/bulk
  */
 //#define __TRACE
 
@@ -179,11 +178,6 @@ UhciPortsCheck(
 	for (i = 0; i < (int)(Controller->Base.PortCount); i++) {
 		UhciPortCheck(Controller, i);
 	}
-
-	// Disable FSBR
-	// @todo
-
-	// Done
 	return OsSuccess;
 }
 
