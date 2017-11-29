@@ -266,7 +266,7 @@ PACKED_ATYPESTRUCT(volatile, OhciRegisters, {
 /* Ohci Pool Definitions 
  * Contains settings, magic constants and bit defitions. */
 #define OHCI_POOL_QHS                   50
-#define OHCI_POOL_TDS                   200
+#define OHCI_POOL_TDS                   400
 #define OHCI_POOL_TDNULL                (OHCI_POOL_TDS - 1)
 #define OHCI_POOL_QHINDEX(Ctrl, Index)  (Ctrl->QueueControl.QHPoolPhysical + (Index * sizeof(OhciQueueHead_t)))
 #define OHCI_POOL_TDINDEX(Ctrl, Index)  (Ctrl->QueueControl.TDPoolPhysical + (Index * sizeof(OhciTransferDescriptor_t)))
