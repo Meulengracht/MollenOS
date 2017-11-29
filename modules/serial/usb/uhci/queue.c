@@ -612,6 +612,105 @@ UhciTdIo(
     return Td;
 }
 
+/* UhciUnlinkGeneric
+ * Dequeues an generic queue-head from the scheduler. This does not do
+ * any cleanup. */
+OsStatus_t
+UhciUnlinkGeneric(
+    _In_ UhciController_t       *Controller,
+    _In_ UsbManagerTransfer_t   *Transfer,
+    _In_ UhciQueueHead_t        *Qh)
+{
+    // Variables
+    int QhIndex     = -1;
+
+    QhIndex         = UHCI_QH_GET_INDEX(Qh->Flags);
+    if (Transfer->Transfer.Type == ControlTransfer
+        || Transfer->Transfer.Type == BulkTransfer)
+    {
+        // Variables
+        UhciQueueHead_t *PrevQh = &Controller->QueueControl.QHPool[UHCI_QH_ASYNC];
+
+        // Iterate untill the current qh
+        while (PrevQh->LinkIndex != QhIndex) {
+            if (PrevQh->LinkIndex == UHCI_NO_INDEX) {
+                break;
+            }
+            PrevQh = &Controller->QueueControl.QHPool[PrevQh->LinkIndex];
+        }
+
+        // Check that the qh even exists
+        if (PrevQh->LinkIndex != QhIndex) {
+            ERROR("UHCI: Couldn't find Qh in frame-list");
+        }
+        else {
+            // Transfer the link to previous
+            PrevQh->Link = Qh->Link;
+            PrevQh->LinkIndex = Qh->LinkIndex;
+            MemoryBarrier();
+
+#ifdef UHCI_FSBR
+            /* Get */
+            int PrevQueue = UHCI_QH_GET_QUEUE(PrevQh->Flags);
+
+            /* Deactivate FSBR? */
+            if (PrevQueue < UHCI_POOL_FSBR
+                && Queue >= UHCI_POOL_FSBR) {
+                /* Link NULL to the next in line */
+                Ctrl->QhPool[UHCI_POOL_NULL]->Link = Qh->Link;
+                Ctrl->QhPool[UHCI_POOL_NULL]->LinkVirtual = Qh->LinkVirtual;
+
+                /* Link last QH to NULL */
+                PrevQh = Ctrl->QhPool[UHCI_POOL_ASYNC];
+                while (PrevQh->LinkVirtual != 0)
+                    PrevQh = (UhciQueueHead_t*)PrevQh->LinkVirtual;
+                PrevQh->Link = (Ctrl->QhPoolPhys[UHCI_POOL_NULL] | UHCI_TD_LINK_QH);
+                PrevQh->LinkVirtual = (uint32_t)Ctrl->QhPool[UHCI_POOL_NULL];
+            }
+#endif
+        }
+    }
+    else if (Transfer->Transfer.Type == InterruptTransfer) {
+        
+        // Variables
+        UhciQueueHead_t *ItrQh = NULL, *PrevQh = NULL;
+        int Queue = UHCI_QH_GET_QUEUE(Qh->Flags);
+
+        // Get initial qh of the queue
+        // and find the correct spot
+        ItrQh = &Controller->QueueControl.QHPool[Queue];
+        while (ItrQh != Qh) {
+            if (ItrQh->LinkIndex == UHCI_QH_NULL
+                || ItrQh->LinkIndex == UHCI_NO_INDEX) {
+                ItrQh = NULL;
+                break;
+            }
+
+            // Go to next
+            PrevQh = ItrQh;
+            ItrQh = &Controller->QueueControl.QHPool[ItrQh->LinkIndex];
+        }
+
+        // If ItrQh is null it didn't exist
+        if (ItrQh == NULL) {
+            TRACE("UHCI: Tried to unschedule a queue-qh that didn't exist in queue");
+        }
+        else {
+            // If there is a previous transfer link, should always happen
+            if (PrevQh != NULL) {
+                PrevQh->Link = Qh->Link;
+                PrevQh->LinkIndex = Qh->LinkIndex;
+                MemoryBarrier();
+            }
+        }
+
+        // Release bandwidth
+        UsbSchedulerReleaseBandwidth(Controller->Scheduler, Qh->Period,
+            Qh->Bandwidth, Qh->StartFrame, 1);
+    }
+    return OsSuccess;
+}
+
 /* UhciLinkIsochronous
  * Queue's up a isochronous transfer. The bandwidth must be allocated
  * before this function is called. */
@@ -732,7 +831,18 @@ UhciFixupToggles(
     }
 
     // Update endpoint toggle
-    UsbManagerSetToggle(Transfer->Device, Transfer->Pipe, Toggle ^ 1);
+    UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, Toggle ^ 1);
+
+    // @todo update all queued transfers for same endpoint
+    foreach(Node, Controller->QueueControl.TransactionList) {
+        // Instantiate the usb-transfer pointer, and then the EP
+        UsbManagerTransfer_t *NodeTransfer = (UsbManagerTransfer_t*)Node->Data;
+        if (NodeTransfer != Transfer && NodeTransfer->Pipe == Transfer->Pipe) {
+            //int Toggle = UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe);
+            Qh = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
+            Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
+        }
+    }
 }
 
 /* UhciProcessRequest
@@ -764,9 +874,10 @@ UhciProcessRequest(
         }
 
         // Finalize transaction and remove from list
-        CollectionRemoveByNode(Controller->QueueControl.TransactionList, Node);
-        CollectionDestroyNode(Controller->QueueControl.TransactionList, Node);
-        UhciTransactionFinalize(Controller, Transfer, 1);
+        if (UhciTransactionFinalize(Controller, Transfer, 1) == OsSuccess) {
+            CollectionRemoveByNode(Controller->QueueControl.TransactionList, Node);
+            CollectionDestroyNode(Controller->QueueControl.TransactionList, Node);
+        }
     }
     else if (Transfer->Transfer.Type == InterruptTransfer) {
 
@@ -793,12 +904,12 @@ UhciProcessRequest(
         while (Td) {
             // Fixup toggles if not dividable by 2
             if (SwitchToggles || FixupToggles) {
-                int Toggle = UsbManagerGetToggle(Transfer->Device, Transfer->Pipe);
+                int Toggle = UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe);
                 Td->OriginalHeader &= ~UHCI_TD_DATA_TOGGLE;
                 if (Toggle) {
                     Td->OriginalHeader |= UHCI_TD_DATA_TOGGLE;
                 }
-                UsbManagerSetToggle(Transfer->Device, Transfer->Pipe, Toggle ^ 1);
+                UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, Toggle ^ 1);
             }
             
             // Adjust buffer
@@ -832,11 +943,11 @@ UhciProcessRequest(
                 InterruptDriver(Transfer->Requester, 
                     (size_t)Transfer->Transfer.PeriodicData, 
                     (size_t)((ErrorTransfer == 0) ? TransferFinished : Transfer->Status), 
-                    Transfer->PeriodicDataIndex, 0);
+                    Transfer->CurrentDataIndex, 0);
             }
 
             // Increase
-            Transfer->PeriodicDataIndex = ADDLIMIT(0, Transfer->PeriodicDataIndex,
+            Transfer->CurrentDataIndex = ADDLIMIT(0, Transfer->CurrentDataIndex,
                 BufferStep, Transfer->Transfer.PeriodicBufferSize);
         }
 

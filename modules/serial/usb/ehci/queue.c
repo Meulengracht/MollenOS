@@ -943,11 +943,11 @@ EhciProcessTransfers(
                     InterruptDriver(Transfer->Requester, 
                         (size_t)Transfer->Transfer.PeriodicData, 
                         (size_t)((Processed == 1) ? TransferFinished : Transfer->Status), 
-                        Transfer->PeriodicDataIndex, 0);
+                        Transfer->CurrentDataIndex, 0);
                 }
 
                 // Increase
-                Transfer->PeriodicDataIndex = ADDLIMIT(0, Transfer->PeriodicDataIndex,
+                Transfer->CurrentDataIndex = ADDLIMIT(0, Transfer->CurrentDataIndex,
                     Transfer->Transfer.Transactions[0].Length, Transfer->Transfer.PeriodicBufferSize);
 			}
 			else {

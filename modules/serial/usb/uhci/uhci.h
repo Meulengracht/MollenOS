@@ -203,8 +203,7 @@ PACKED_TYPESTRUCT(UhciQueueHead, {
 #define UHCI_BANDWIDTH_PHASES		32
 
 #define UHCI_POOL_QHS				50
-#define UHCI_POOL_TDS				300
-#define UHCI_POOL_BULKMAX           150
+#define UHCI_POOL_TDS				400
 
 #define UHCI_POOL_TDNULL			(UHCI_POOL_TDS - 1)
 #define UHCI_QH_REMOVE				0
@@ -440,6 +439,16 @@ UhciTdIo(
 	_In_ UsbSpeed_t Speed,
 	_In_ uintptr_t BufferAddress,
 	_In_ size_t Length);
+
+/* UhciUnlinkGeneric
+ * Dequeues an generic queue-head from the scheduler. This does not do
+ * any cleanup. */
+__EXTERN
+OsStatus_t
+UhciUnlinkGeneric(
+    _In_ UhciController_t       *Controller,
+    _In_ UsbManagerTransfer_t   *Transfer,
+    _In_ UhciQueueHead_t        *Qh);
 
 /* UhciLinkIsochronous
  * Queue's up a isochronous transfer. The bandwidth must be allocated

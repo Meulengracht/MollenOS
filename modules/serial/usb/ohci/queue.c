@@ -886,7 +886,7 @@ OhciReloadPeriodic(
 
     // Do some extra processing for periodics
     if (Transfer->Transfer.Type == InterruptTransfer) {
-        SwitchToggles = Transfer->TransactionCount % 2;
+        SwitchToggles = Transfer->TransactionsTotal % 2;
         BufferBase = Transfer->Transfer.Transactions[0].BufferAddress;
         BufferStep = Transfer->Transfer.Endpoint.MaxPacketSize;
     }
@@ -913,10 +913,10 @@ OhciReloadPeriodic(
                 BufferStep, BufferBase + Transfer->Transfer.PeriodicBufferSize);
             Td->OriginalCbp = LODWORD(BufferBaseUpdated);
             if (SwitchToggles == 1) {
-                int Toggle = UsbManagerGetToggle(Transfer->Device, Transfer->Pipe);
+                int Toggle = UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe);
                 Td->OriginalFlags &= ~OHCI_TD_TOGGLE;
                 Td->OriginalFlags |= (Toggle << 24);
-                UsbManagerSetToggle(Transfer->Device, Transfer->Pipe, Toggle ^ 1);
+                UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, Toggle ^ 1);
             }
         }
 
@@ -936,11 +936,11 @@ OhciReloadPeriodic(
             InterruptDriver(Transfer->Requester, 
                 (size_t)Transfer->Transfer.PeriodicData, 
                 (size_t)((ErrorTransfer == 0) ? TransferFinished : Transfer->Status), 
-                Transfer->PeriodicDataIndex, 0);
+                Transfer->CurrentDataIndex, 0);
         }
 
         // Increase
-        Transfer->PeriodicDataIndex = ADDLIMIT(0, Transfer->PeriodicDataIndex,
+        Transfer->CurrentDataIndex = ADDLIMIT(0, Transfer->CurrentDataIndex,
             BufferStep, Transfer->Transfer.PeriodicBufferSize);
     }
 
@@ -982,9 +982,11 @@ OhciProcessDoneQueue(
                     OhciReloadControlBulk(Controller, Transfer->Transfer.Type);
                     
                     // Handle completion of transfer
-                    CollectionRemoveByNode(Controller->QueueControl.TransactionList, Node);
-                    CollectionDestroyNode(Controller->QueueControl.TransactionList, Node);
-                    OhciTransactionFinalize(Controller, Transfer, 1);
+                    // Finalize transaction and remove from list
+                    if (OhciTransactionFinalize(Controller, Transfer, 1) == OsSuccess) {
+                        CollectionRemoveByNode(Controller->QueueControl.TransactionList, Node);
+                        CollectionDestroyNode(Controller->QueueControl.TransactionList, Node);
+                    }
                 }
                 else {
                     OhciReloadPeriodic(Controller, Transfer);
@@ -1041,9 +1043,10 @@ OhciProcessTransactions(
             // Handle completion of transfer
             if (Finalize == 1) {
                 QueueHead->HcdInformation &= ~OHCI_QH_UNSCHEDULE;
-                CollectionRemoveByNode(Controller->QueueControl.TransactionList, Node);
-                CollectionDestroyNode(Controller->QueueControl.TransactionList, Node);
-                OhciTransactionFinalize(Controller, Transfer, 0);
+                if (OhciTransactionFinalize(Controller, Transfer, 0) == OsSuccess) {
+                    CollectionRemoveByNode(Controller->QueueControl.TransactionList, Node);
+                    CollectionDestroyNode(Controller->QueueControl.TransactionList, Node);
+                }
             }
             else {
                 // Only interrupt and isoc requests unscheduling

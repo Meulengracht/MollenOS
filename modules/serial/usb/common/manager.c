@@ -98,7 +98,7 @@ UsbManagerCreateTransfer(
 	memcpy(&UsbTransfer->Transfer, Transfer, sizeof(UsbTransfer_t));
 	UsbTransfer->Requester = Requester;
 	UsbTransfer->ResponsePort = ResponsePort;
-	UsbTransfer->Device = Device;
+	UsbTransfer->DeviceId = Device;
 	UsbTransfer->Pipe = Pipe;
 
 	// Generate an id

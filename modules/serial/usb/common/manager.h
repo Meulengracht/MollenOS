@@ -68,7 +68,7 @@ typedef struct _UsbManagerTransfer {
 
     // Transfer Metadata
     UUId_t                      Id;
-    UUId_t                      Device;
+    UUId_t                      DeviceId;
     UUId_t                      Pipe;
     int                         Cleanup;
     UsbTransferStatus_t         Status;
@@ -76,7 +76,8 @@ typedef struct _UsbManagerTransfer {
     // Control/Interrupt transfers are small, but carry data.
     // Information here is shared
     void*                       EndpointDescriptor;  // We only use one no matter what
-    int                         TransactionCount;    // In Total
+    int                         TransactionsExecuted;
+    int                         TransactionsTotal;
     size_t                      BytesTransferred[USB_TRANSACTIONCOUNT]; // In Total
     size_t                      CurrentDataIndex;    // Periodic Transfers
 } UsbManagerTransfer_t;
