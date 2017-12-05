@@ -121,20 +121,28 @@ SchedulerThreadSleep(
     _In_ uintptr_t *Handle,
     _In_ size_t Timeout);
 
-/* SchedulerThreadWake
+/* SchedulerThreadSignal
+ * Finds a sleeping thread with the given thread id and wakes it. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+SchedulerThreadSignal(
+    _In_ MCoreThread_t *Thread);
+
+/* SchedulerHandleSignal
  * Finds a sleeping thread with the given sleep-handle and wakes it. */
 KERNELAPI
 OsStatus_t
 KERNELABI
-SchedulerThreadWake(
+SchedulerHandleSignal(
     _In_ uintptr_t *Handle);
 
-/* SchedulerThreadWakeAll
+/* SchedulerHandleSignalAll
  * Finds any sleeping threads on the given handle and wakes them. */
 KERNELAPI
 void
 KERNELABI
-SchedulerThreadWakeAll(
+SchedulerHandleSignalAll(
     _In_ uintptr_t *Handle);
 
 /* SchedulerTick

@@ -36,14 +36,15 @@
 #include <string.h>
 #include <stdio.h>
 
-/* Stack manipulation / setup of stacks for given
+/* ContextCreate
+ * Stack manipulation / setup of stacks for given
  * threading. We need functions that create a new kernel
  * stack and user/driver stack. Pass threading flags */
 Context_t*
 ContextCreate(
-    _In_ Flags_t ThreadFlags,
-    _In_ uintptr_t Eip,
-    _In_ uintptr_t *Arguments)
+    _In_ Flags_t    ThreadFlags,
+    _In_ int        ContextType,
+	_In_ uintptr_t  EntryAddress)
 {
 	// Variables
 	Context_t *Context       = NULL;
@@ -55,32 +56,47 @@ ContextCreate(
               EbpInitial     = 0;
 
 	// Trace
-	TRACE("ContextCreate(Flags 0x%x, Eip 0x%x, Args 0x%x)",
-		ThreadFlags, Eip, (uintptr_t)Arguments);
+	TRACE("ContextCreate(ThreadFlags 0x%x, Type %i, Eip 0x%x, Args 0x%x)",
+		ThreadFlags, ContextType, EntryAddress);
 
-	// Select proper segments
-	if (THREADING_RUNMODE(ThreadFlags) == THREADING_KERNELMODE) {
-		ContextAddress = ((uintptr_t)kmalloc_a(0x1000)) + 0x1000 - sizeof(Context_t);
-		CodeSegment = GDT_KCODE_SEGMENT;
-		ExtraSegment = StackSegment = DataSegment = GDT_KDATA_SEGMENT;
-		EbpInitial = (ContextAddress + sizeof(Context_t));
+	// Select proper segments based on context type and run-mode
+	if (ContextType == THREADING_CONTEXT_LEVEL0 || ContextType == THREADING_CONTEXT_SIGNAL0) {
+		ContextAddress  = ((uintptr_t)kmalloc_a(0x1000)) + 0x1000 - sizeof(Context_t);
+		CodeSegment     = GDT_KCODE_SEGMENT;
+		ExtraSegment    = StackSegment = DataSegment = GDT_KDATA_SEGMENT;
+		EbpInitial      = (ContextAddress + sizeof(Context_t));
 	}
-	else if (THREADING_RUNMODE(ThreadFlags) == THREADING_DRIVERMODE) {
-		ContextAddress = (MEMORY_LOCATION_RING3_STACK_START - sizeof(Context_t));
-		CodeSegment = GDT_PCODE_SEGMENT + 0x03;
-		StackSegment = DataSegment = GDT_PDATA_SEGMENT + 0x03;
-        ExtraSegment = GDT_EXTRA_SEGMENT + 0x03;
-		EbpInitial = MEMORY_LOCATION_RING3_STACK_START;
-	}
-	else if (THREADING_RUNMODE(ThreadFlags) == THREADING_USERMODE) {
-		ContextAddress = (MEMORY_LOCATION_RING3_STACK_START - sizeof(Context_t));
-		CodeSegment = GDT_UCODE_SEGMENT + 0x03;
-		StackSegment = DataSegment = GDT_UDATA_SEGMENT + 0x03;
-        ExtraSegment = GDT_EXTRA_SEGMENT + 0x03;
-		EbpInitial = MEMORY_LOCATION_RING3_STACK_START;
-	}
+    else if (ContextType == THREADING_CONTEXT_LEVEL1 || ContextType == THREADING_CONTEXT_SIGNAL1) {
+        if (ContextType == THREADING_CONTEXT_LEVEL1) {
+		    ContextAddress  = (MEMORY_LOCATION_RING3_STACK_START - sizeof(Context_t));
+        }
+        else {
+		    ContextAddress  = ((MEMORY_SEGMENT_SIGSTACK_BASE + MEMORY_SEGMENT_SIGSTACK_SIZE) - sizeof(Context_t));
+        }
+ 		EbpInitial      = MEMORY_LOCATION_RING3_STACK_START;
+        ExtraSegment    = GDT_EXTRA_SEGMENT + 0x03;
+
+        // Now select the correct run-mode segments
+        if (THREADING_RUNMODE(ThreadFlags) == THREADING_DRIVERMODE) {
+            CodeSegment     = GDT_PCODE_SEGMENT + 0x03;
+		    StackSegment    = DataSegment = GDT_PDATA_SEGMENT + 0x03;
+        }
+        else if (THREADING_RUNMODE(ThreadFlags) == THREADING_USERMODE) {
+            CodeSegment     = GDT_UCODE_SEGMENT + 0x03;
+		    StackSegment    = DataSegment = GDT_UDATA_SEGMENT + 0x03;
+        }
+        else {
+            FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID THREADFLAGS(%u)", ThreadFlags);
+        }
+
+        // Map in the context
+        if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), ContextAddress & PAGE_MASK)) {
+            AddressSpaceMap(AddressSpaceGetCurrent(), ContextAddress & PAGE_MASK, 
+                0x1000, __MASK, AS_FLAG_APPLICATION, NULL);
+        }
+    }
 	else {
-		FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID THREADFLAGS(%u)", ThreadFlags);
+		FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%i)", ContextType);
 	}
 
 	// Initialize the context pointer
@@ -108,22 +124,14 @@ ContextCreate(
 	Context->ErrorCode = 0;
 
 	// Setup entry, eflags and the code segment
-	Context->Eip = Eip;
+	Context->Eip = EntryAddress;
 	Context->Eflags = X86_THREAD_EFLAGS;
 	Context->Cs = CodeSegment;
 
 	// Either initialize the ring3 stuff
 	// or zero out the values
-	if (THREADING_RUNMODE(ThreadFlags) == THREADING_KERNELMODE) {
-		Context->UserEsp = 0;
-		Context->UserSs = 0;
-		Context->UserArg = 0;
-	}
-	else {
-		Context->UserEsp = (uintptr_t)&Context->UserSs;
-		Context->UserSs = StackSegment;
-		Context->UserArg = (uintptr_t)Arguments;
-	}
+    Context->UserEsp = (uintptr_t)&Context->Arguments[0];
+    Context->UserSs = StackSegment;
 
 	// Return the newly created context
 	return Context;

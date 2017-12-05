@@ -26,18 +26,29 @@
 
 /* Includes 
  * - System */
-#include <os/osdefs.h>
-#include <ds/collection.h>
-#include <signal.h>
 #include <system/addresspace.h>
 #include <mutex.h>
 #include <pipe.h>
+
+/* Includes 
+ * - Library */
+#include <os/osdefs.h>
+#include <os/context.h>
+#include <ds/collection.h>
+#include <signal.h>
+#include <time.h>
 
 /* Define the thread entry point signature */
 #ifndef __THREADING_ENTRY
 #define __THREADING_ENTRY
 typedef void(*ThreadEntry_t)(void*);
 #endif
+
+#define THREADING_CONTEXT_LEVEL0        0   // Kernel
+#define THREADING_CONTEXT_LEVEL1        1   // Application
+#define THREADING_CONTEXT_SIGNAL0       2   // Signal (Cpu)
+#define THREADING_CONTEXT_SIGNAL1       3   // Signal (Application)
+#define THREADING_NUMCONTEXTS           4
 
 /* MCoreThread::Flags Bit Definitions 
  * The first two bits denode the thread
@@ -85,7 +96,7 @@ typedef void(*ThreadEntry_t)(void*);
 typedef struct _MCoreSignal {
     int                 Ignorable;
     int                 Signal;
-    Context_t           Context;
+    Context_t          *Context;
 } MCoreSignal_t;
 
 /* The different possible threading priorities 
@@ -107,14 +118,19 @@ typedef struct _MCoreThread {
     UUId_t                           ParentId;
     UUId_t                           AshId;
     Flags_t                          Flags;
-    
+    Context_t                       *Contexts[THREADING_NUMCONTEXTS];
+    Context_t                       *ContextActive;
+
     MCorePipe_t                     *Pipe;
     AddressSpace_t                  *AddressSpace;
-    void                            *ThreadData;
+
+    ThreadEntry_t                    Function;
+    void                            *Arguments;
+    int                              RetCode;
 
     // Signal Support
     int                              SignalInformation[NUMSIGNALS];
-    MCoreSignal_t                   *ActiveSignal;
+    MCoreSignal_t                    ActiveSignal;
     Collection_t                    *SignalQueue;
 
     // Scheduler Information
@@ -126,20 +142,25 @@ typedef struct _MCoreThread {
         uintptr_t                   *Handle;
         int                          Timeout;
         size_t                       TimeLeft;
+        clock_t                      InterruptedAt;
     }                                Sleep;
     struct _MCoreThread             *Link;
-
-    ThreadEntry_t                    Function;
-    void                            *Arguments;
-    int                              RetCode;
 } MCoreThread_t;
 
 /* ThreadingInitialize
- * Initializes threading on the given cpu-core
- * and initializes the current 'context' as the
- * idle-thread, first time it's called it also
- * does initialization of threading system */
-__EXTERN void ThreadingInitialize(UUId_t Cpu);
+ * Initializes static data and allocates resources. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+ThreadingInitialize(void);
+
+/* ThreadingEnable
+ * Enables the threading system for the given cpu calling the function. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+ThreadingEnable(
+    _In_ UUId_t Cpu);
 
 /* Create a new thread with the given name,
  * entry point, arguments and flags, if name 
@@ -163,44 +184,72 @@ __EXTERN void ThreadingKillThread(UUId_t ThreadId);
  * value of this function is the ret-code of the thread */
 __EXTERN int ThreadingJoinThread(UUId_t ThreadId);
 
-/* ThreadingEnterUserMode
+/* ThreadingSwitchLevel
  * Initializes non-kernel mode and marks the thread
  * for transitioning, there is no return from this function */
-__EXTERN void ThreadingEnterUserMode(void *AshInfo);
+KERNELAPI
+void
+KERNELABI
+ThreadingSwitchLevel(
+    _In_ void *AshInfo);
 
 /* ThreadingTerminateAshThreads
  * Marks all threads belonging to the given ashid
  * as finished and they will be cleaned up on next switch */
-__EXTERN void ThreadingTerminateAshThreads(UUId_t AshId);
+KERNELAPI
+void
+KERNELABI
+ThreadingTerminateAshThreads(
+    _In_ UUId_t AshId);
 
 /* ThreadingIsEnabled
  * Returns 1 if the threading system has been
  * initialized, otherwise it returns 0 */
-__EXTERN int ThreadingIsEnabled(void);
+KERNELAPI
+int 
+KERNELABI
+ThreadingIsEnabled(void);
 
 /* ThreadingIsCurrentTaskIdle
  * Is the given cpu running it's idle task? */
-__EXTERN int ThreadingIsCurrentTaskIdle(UUId_t Cpu);
+KERNELAPI
+int
+KERNELABI
+ThreadingIsCurrentTaskIdle(
+    _In_ UUId_t Cpu);
 
 /* ThreadingGetCurrentMode
  * Returns the current run-mode for the current
  * thread on the current cpu */
-__EXTERN Flags_t ThreadingGetCurrentMode(void);
+KERNELAPI
+Flags_t
+KERNELABI
+ThreadingGetCurrentMode(void);
 
 /* ThreadingGetCurrentThread
  * Retrieves the current thread on the given cpu
  * if there is any issues it returns NULL */
-__EXTERN MCoreThread_t *ThreadingGetCurrentThread(UUId_t Cpu);
+KERNELAPI
+MCoreThread_t*
+KERNELABI
+ThreadingGetCurrentThread(
+    _In_ UUId_t Cpu);
 
 /* ThreadingGetCurrentThreadId
  * Retrives the current thread id on the current cpu
  * from the callers perspective */
-__EXTERN UUId_t ThreadingGetCurrentThreadId(void);
+KERNELAPI
+UUId_t
+KERNELABI
+ThreadingGetCurrentThreadId(void);
 
 /* ThreadingGetThread
- * Lookup thread by the given thread-id, 
- * returns NULL if invalid */
-__EXTERN MCoreThread_t *ThreadingGetThread(UUId_t ThreadId);
+ * Lookup thread by the given thread-id, returns NULL if invalid */
+KERNELAPI
+MCoreThread_t*
+KERNELABI
+ThreadingGetThread(
+    _In_ UUId_t ThreadId);
 
 /* ThreadingWakeCpu
  * Wake's the target cpu from an idle thread
@@ -211,8 +260,14 @@ __EXTERN void ThreadingWakeCpu(UUId_t Cpu);
  * This is the thread-switch function and must be 
  * be called from the below architecture to get the
  * next thread to run */
-__EXTERN MCoreThread_t *ThreadingSwitch(UUId_t Cpu, 
-    MCoreThread_t *Current, int PreEmptive);
+KERNELAPI
+MCoreThread_t*
+KERNELABI
+ThreadingSwitch(
+    _In_ UUId_t         Cpu, 
+    _In_ MCoreThread_t *Current, 
+    _In_ int            PreEmptive,
+    _InOut_ Context_t **Context);
 
 /* ThreadingDebugPrint
  * Prints out debugging information about each thread
@@ -255,14 +310,5 @@ KERNELABI
 SignalExecute(
     _In_ MCoreThread_t *Thread,
     _In_ MCoreSignal_t *Signal);
-
-/* Architecture Specific  
- * Must be implemented in the arch-layer */
-KERNELAPI
-OsStatus_t
-KERNELABI
-SignalDispatch(
-	_In_ MCoreThread_t *Thread, 
-	_In_ MCoreSignal_t *Signal);
 
 #endif

@@ -7,7 +7,7 @@
 # - windows
 
 .PHONY: all
-all: build devicemanager filemanager usbmanager
+all: build devicemanager filemanager usbmanager sessionmanager
 
 build:
 	@mkdir -p $@
@@ -34,6 +34,7 @@ windowmanager:
 
 .PHONY: clean
 clean:
+	$(MAKE) -C sessionmanager -f makefile clean
 	$(MAKE) -C devicemanager -f makefile clean
 	$(MAKE) -C filemanager -f makefile clean
 	$(MAKE) -C usbmanager -f makefile clean

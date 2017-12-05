@@ -56,7 +56,7 @@ void
 GcConstruct(void)
 {
 	// Create data-structures
-	GlbGcEventLock = SemaphoreCreate(0, 0);
+	GlbGcEventLock = SemaphoreCreate(0, 1000);
 	GlbGcHandlers = CollectionCreate(KeyInteger);
 	GlbGcEvents = CollectionCreate(KeyInteger);
     CriticalSectionConstruct(&GcSignalLock, CRITICALSECTION_PLAIN);
@@ -176,8 +176,7 @@ void GcWorker(void *Args)
 	_CRT_UNUSED(Args);
 
 	// Run as long as the OS runs
-	while (Run)
-	{
+	while (Run) {
 		// Wait for next event
 		SemaphoreWait(GlbGcEventLock, 0);
 

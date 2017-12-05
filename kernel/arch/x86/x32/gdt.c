@@ -207,11 +207,9 @@ TssUpdateIo(
 void
 TssEnableIo(
     _In_ UUId_t Cpu,
-    _In_ uint8_t *IoMap,
     _In_ uint16_t Port)
 {
 	__TssDescriptors[Cpu]->IoMap[Port / 8] &= ~(1 << (Port % 8));
-	IoMap[Port / 8] &= ~(1 << (Port % 8));
 }
 
 /* TssDisableIo
@@ -221,9 +219,7 @@ TssEnableIo(
 void
 TssDisableIo(
     _In_ UUId_t Cpu,
-    _In_ uint8_t *IoMap,
     _In_ uint16_t Port)
-{    
+{
 	__TssDescriptors[Cpu]->IoMap[Port / 8] |= (1 << (Port % 8));
-	IoMap[Port / 8] |= (1 << (Port % 8));
 }

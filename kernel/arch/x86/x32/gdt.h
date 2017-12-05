@@ -203,7 +203,6 @@ __EXTERN
 void
 TssEnableIo(
     _In_ UUId_t Cpu,
-    _In_ uint8_t *IoMap,
     _In_ uint16_t Port);
 
 /* TssDisableIo
@@ -214,7 +213,6 @@ __EXTERN
 void
 TssDisableIo(
     _In_ UUId_t Cpu,
-    _In_ uint8_t *IoMap,
     _In_ uint16_t Port);
 
 #endif //!_GDT_H_

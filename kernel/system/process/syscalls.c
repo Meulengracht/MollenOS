@@ -230,8 +230,6 @@ OsStatus_t ScProcessExit(int ExitCode)
     /* Kill this thread */
     ThreadingKillThread(ThreadingGetCurrentThreadId());
     ThreadingYield();
-
-    /* Done */
     return OsSuccess;
 }
 
@@ -273,19 +271,15 @@ ScProcessSignal(
     _In_ uintptr_t Handler) 
 {
     // Process
-    MCoreProcess_t *Process = NULL;
+    MCoreAsh_t *Process = NULL;
 
     // Get current process
-    Process = PhoenixGetCurrentProcess();
-
-    // Sanity... 
-    // This should never happen though
-    // Only I write code that has no process
+    Process = PhoenixGetCurrentAsh();
     if (Process == NULL) {
         return OsError;
     }
 
-    Process->Base.SignalHandler = Handler;
+    Process->SignalHandler = Handler;
     return OsSuccess;
 }
 
@@ -495,8 +489,7 @@ ScThreadJoin(
 }
 
 /* ScThreadSignal
- * Kills the thread with the given id, owner
- * must be same process */
+ * Kills the thread with the given id, owner must be same process */
 OsStatus_t
 ScThreadSignal(
     _In_ UUId_t ThreadId,
@@ -505,21 +498,18 @@ ScThreadSignal(
     // Variables
     UUId_t PId;
 
-    // Unused
-    _CRT_UNUSED(SignalCode);
-
     // Lookup process id
     PId = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
 
     // Perform security checks
     if (ThreadingGetThread(ThreadId) == NULL
         || ThreadingGetThread(ThreadId)->AshId != PId) {
+        ERROR("Thread does not belong to same process");
         return OsError;
     }
 
-    // Error
-    ERROR("ThreadSignal invoked, not implemented");
-    return OsSuccess;
+    // Create signal for thread
+    return SignalCreate(ThreadId, SignalCode);
 }
 
 /* ScThreadSleep
@@ -536,8 +526,7 @@ ScThreadSleep(
     // Initiate start
     TimersGetSystemTick(&Start);
     if (SchedulerThreadSleep(NULL, Milliseconds) == SCHEDULER_SLEEP_INTERRUPTED) {
-        // Get interrupted_at clock_stamp
-        End = 0; //interrupt_at
+        End = ThreadingGetCurrentThread(CpuGetCurrentId())->Sleep.InterruptedAt;
     }
     else {
         TimersGetSystemTick(&End);
@@ -609,7 +598,7 @@ OsStatus_t
 ScSignalHandle(
     _In_ uintptr_t *Handle)
 {
-    return SchedulerThreadWake(Handle);
+    return SchedulerHandleSignal(Handle);
 }
 
 /* Signals a handle for wakeup all
@@ -619,7 +608,7 @@ OsStatus_t
 ScSignalHandleAll(
     _In_ uintptr_t *Handle)
 {
-    SchedulerThreadWakeAll(Handle);
+    SchedulerHandleSignalAll(Handle);
     return OsSuccess;
 }
 
@@ -1097,7 +1086,7 @@ ScIpcWake(
     }
 
     // Signal wake-up
-    SchedulerThreadWake((uintptr_t*)Ash);
+    SchedulerHandleSignal((uintptr_t*)Ash);
     return OsSuccess;
 }
 

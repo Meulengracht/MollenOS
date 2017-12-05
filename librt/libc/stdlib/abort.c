@@ -1,32 +1,35 @@
-/*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS CLib - Abort Function (Exit)
-*/
+/* MollenOS
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS C-Support Abort Implementation
+ * - Definitions, prototypes and information needed.
+ */
 
-/* Includes */
-#include <stdlib.h>
+/* Includes 
+ * - Library */
+#include <signal.h>
 
+/* abort
+ * Causes abnormal program termination unless SIGABRT is being caught by a signal handler 
+ * passed to signal and the handler does not return. */
 #ifndef LIBC_KERNEL
-
-/* Abort is simply a wrapper for exit
- * which does the actual cleanup and shutdown of
- * the current process */
-void abort(void)
-{
-	exit(EXIT_FAILURE);
+void
+abort(void) {
+	raise(SIGABRT);
 }
-
 #endif

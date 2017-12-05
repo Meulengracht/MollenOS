@@ -66,7 +66,7 @@ void
 MutexDestroy(
     _In_ Mutex_t *Mutex)
 {
-	SchedulerThreadWakeAll((uintptr_t*)Mutex);
+	SchedulerHandleSignalAll((uintptr_t*)Mutex);
     if (Mutex->Cleanup == 1) {
         kfree(Mutex);
     }
@@ -124,6 +124,6 @@ MutexUnlock(
     // Reduce and wake people up
 	Mutex->Blocks--;
 	if (Mutex->Blocks == 0) {
-		SchedulerThreadWake((uintptr_t*)Mutex);
+		SchedulerHandleSignal((uintptr_t*)Mutex);
     }
 }

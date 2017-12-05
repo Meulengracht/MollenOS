@@ -123,7 +123,7 @@ SemaphoreDestroy(
 		Key.Value = (int)Semaphore->Hash;
 		CollectionRemoveByKey(GlbSemaphores, Key);
 	}
-	SchedulerThreadWakeAll((uintptr_t*)Semaphore);
+	SchedulerHandleSignalAll((uintptr_t*)Semaphore);
     if (Semaphore->Cleanup) {
 	    kfree(Semaphore);
     }
@@ -198,7 +198,7 @@ SemaphoreSignal(
         CurrentValue = atomic_fetch_add(&Semaphore->Value, 1);
         CurrentValue++;
         if (CurrentValue <= 0) {
-            SchedulerThreadWake((uintptr_t*)Semaphore);
+            SchedulerHandleSignal((uintptr_t*)Semaphore);
         }
         if (CurrentValue == Semaphore->MaxValue) {
             break;

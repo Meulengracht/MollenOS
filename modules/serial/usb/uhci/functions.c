@@ -438,6 +438,7 @@ UhciTransactionDispatch(
     }
 
     // Done
+    Transfer->Status = TransferQueued;
     return TransferQueued;
 }
 
@@ -452,6 +453,7 @@ UhciTransactionFinalize(
     // Variables
     UhciQueueHead_t *Qh             = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
     UhciTransferDescriptor_t *Td    = NULL;
+    CollectionItem_t *Node          = NULL;
     int ShortTransfer               = 0;
     int BytesLeft                   = 0;
     int i;
@@ -579,6 +581,16 @@ UhciTransactionFinalize(
                 (void*)&Result, sizeof(UsbTransferResult_t));
         }
         free(Transfer);
+
+        // Now run through transactions and check if any are ready to run
+        _foreach(Node, Controller->QueueControl.TransactionList) {
+            UsbManagerTransfer_t *NextTransfer = (UsbManagerTransfer_t*)Node->Data;
+            if (NextTransfer->Status == TransferNotProcessed) {
+                if (UhciTransferFill(Controller, Transfer) == OsSuccess) {
+                    UhciTransactionDispatch(Controller, Transfer);
+                }
+            }
+        }
         return OsSuccess;
     }
 }
@@ -625,6 +637,7 @@ UsbQueueTransferGeneric(
 
     // Fill transfer
     if (UhciTransferFill(Controller, Transfer) != OsSuccess) {
+        // Transfer not processed or queued
         return TransferQueued;
     }
 

@@ -20,8 +20,6 @@
  * - Contains the shared kernel addressing space interface
  *   that all sub-layers / architectures must conform to
  */
-
-
 #ifndef _MCORE_ADDRESSINGSPACE_H_
 #define _MCORE_ADDRESSINGSPACE_H_
 
@@ -29,21 +27,17 @@
  * - Library */
 #include <os/osdefs.h>
 #include <os/spinlock.h>
-
-/* Includes
- * - System */
 #include <arch.h>
 
 /* Address Space Structure
  * Denotes the must have and architecture specific
  * members of an addressing space */
 PACKED_TYPESTRUCT(AddressSpace, {
+    UUId_t                  Id;
 	Spinlock_t				Lock;
 	int						References;
 	Flags_t					Flags;
-
-	// Architecture Members
-	ADDRESSSPACE_MEMBERS
+    ADDRESSSPACE_MEMBERS
 });
 
 /* Address space creation flags, use these

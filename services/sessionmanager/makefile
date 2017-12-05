@@ -8,7 +8,10 @@ CFLAGS = $(GCFLAGS) -Wno-address-of-packed-member -D__SERVICE_IMPL $(INCLUDES)
 LFLAGS = /nodefaultlib /subsystem:native /lldmap /entry:_mDrvCrt /dll ../../librt/build/libsrv.lib ../../librt/build/libc.lib ../../librt/build/libos.lib
 
 .PHONY: all
-all: ../build/sessionmanager.dll
+all: ../build/sessionmanager.dll ../build/sessionmanager.mdrv
+
+../build/sessionmanager.mdrv: sessionmanager.mdrv
+	cp $< $@
 
 ../build/sessionmanager.dll: $(OBJECTS)
 	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
@@ -19,4 +22,5 @@ all: ../build/sessionmanager.dll
 .PHONY: clean
 clean:
 	rm -f $(OBJECTS)
-	rm -f ../build/usbmanager.dll
+	rm -f ../build/sessionmanager.dll
+	rm -f ../build/sessionmanager.mdrv

@@ -35,8 +35,10 @@
 #include <system/interrupts.h>
 #include <system/utils.h>
 #include <scheduler.h>
+#include <timers.h>
 #include <debug.h>
 #include <heap.h>
+
 #include <assert.h>
 
 /* Globals
@@ -328,15 +330,56 @@ SchedulerThreadSleep(
     if (CurrentThread->Sleep.Timeout == 1) {
         return SCHEDULER_SLEEP_TIMEOUT;
     }
+    else if (CurrentThread->Sleep.TimeLeft != 0) {
+        return SCHEDULER_SLEEP_INTERRUPTED;        
+    }
     else {
         return SCHEDULER_SLEEP_OK;
     }
 }
 
-/* SchedulerThreadWake
+/* SchedulerThreadSignal
+ * Finds a sleeping thread with the given thread id and wakes it. */
+OsStatus_t
+SchedulerThreadSignal(
+    _In_ MCoreThread_t *Thread)
+{
+	// Variables
+	MCoreThread_t *Current = NULL;
+
+	// Sanitize the io-queue
+	if (IoQueue.Head == NULL || Thread == NULL) {
+        return OsError;
+    }
+
+    // Iterate the queue
+    Current = IoQueue.Head;
+    while (Current) {
+        if (Current == Thread) {
+            break;
+        }
+        else {
+            Current = Current->Link;
+        }
+    }
+
+	// If found, remove from queue and queue
+	if (Current != NULL) {
+        Current->Sleep.Timeout = 0;
+        Current->Sleep.Handle = NULL;
+        TimersGetSystemTick(&Current->Sleep.InterruptedAt);
+        SchedulerQueueRemove(&IoQueue, Current);
+		return SchedulerThreadQueue(Current);
+	}
+	else {
+        return OsError;
+    }
+}
+
+/* SchedulerHandleSignal
  * Finds a sleeping thread with the given sleep-handle and wakes it. */
 OsStatus_t
-SchedulerThreadWake(
+SchedulerHandleSignal(
     _In_ uintptr_t *Handle)
 {
 	// Variables
@@ -363,6 +406,7 @@ SchedulerThreadWake(
         Current->Sleep.Timeout = 0;
         Current->Sleep.Handle = NULL;
         Current->Sleep.TimeLeft = 0;
+        TimersGetSystemTick(&Current->Sleep.InterruptedAt);
         SchedulerQueueRemove(&IoQueue, Current);
 		return SchedulerThreadQueue(Current);
 	}
@@ -371,14 +415,14 @@ SchedulerThreadWake(
     }
 }
 
-/* SchedulerThreadWakeAll
+/* SchedulerHandleSignalAll
  * Finds any sleeping threads on the given handle and wakes them. */
 void
-SchedulerThreadWakeAll(
+SchedulerHandleSignalAll(
     _In_ uintptr_t *Handle)
 {
     while (1) {
-		if (SchedulerThreadWake(Handle) == OsError) {
+		if (SchedulerHandleSignal(Handle) == OsError) {
             break;
         }
 	}

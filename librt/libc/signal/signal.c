@@ -23,6 +23,7 @@
 /* Includes
  * -Library */
 #include <os/syscall.h>
+#include <os/utils.h>
 #include <internal/_all.h>
 #include <signal.h>
 #include <errno.h>
@@ -47,8 +48,8 @@ char signal_fatality[] = {
 	1, /* SIGPIPE    */
 	1, /* SIGALRM    */
 	1, /* SIGTERM    */
-	1, /* SIGUSR1    */
-	1, /* SIGUSR2    */
+	0, /* SIGUSR1    */
+	0, /* SIGUSR2    */
 	0, /* SIGCHLD    */
 	0, /* SIGPWR     */
 	0, /* SIGWINCH   */
@@ -79,7 +80,9 @@ static sig_element signal_list[] = {
     { SIGSEGV, "Invalid memory access (segmentation fault)", SIG_DFL },
     { SIGTERM, "Termination request", SIG_DFL },
     { SIGQUIT, "Interrupt (Ctrl+break)", SIG_DFL },
-    { SIGABRT, "Abnormal termination", SIG_DFL }
+    { SIGABRT, "Abnormal termination", SIG_DFL },
+    { SIGUSR1, "User-defined signal-1", SIG_IGN },
+    { SIGUSR2, "User-defined signal-2", SIG_IGN }
 };
 
 /* StdSignalEntry
@@ -87,9 +90,40 @@ static sig_element signal_list[] = {
 void
 StdSignalEntry(int Signal)
 {
-    BOCHSBREAK
-    _CRT_UNUSED(Signal);
-    _exit(3);
+    // Variables
+    __signalhandler_t Handler = SIG_ERR;
+    int i;
+    
+    // Find handler
+    for(i = 0; i < sizeof(signal_list) / sizeof(signal_list[0]); i++) {
+        if (signal_list[i].signal == Signal) {
+            Handler = signal_list[i].handler;
+            break;
+        }
+    }
+
+    // Sanitize
+    if (Handler != SIG_IGN && Handler != SIG_ERR) {
+        if (Handler == SIG_DFL) {
+            if (signal_fatality[Signal] == 1 || signal_fatality[Signal] == 2) {
+                _exit(EXIT_FAILURE);
+            }
+        }
+        else {
+            Handler(Signal);
+        }
+    }
+
+    // Unhandled signal?
+    if (Handler == SIG_ERR) {
+        ERROR("Unhandled signal %i. Aborting application", Signal);
+        _exit(Signal);
+    }
+
+    // Some signals MUST exit, and are not ignorable
+    if (Signal == SIGFPE || Signal == SIGSEGV || Signal == SIGILL) {
+        _exit(Signal);
+    }
 }
 
 /* StdSignalInitialize
@@ -124,6 +158,8 @@ signal(
         case SIGTERM:
         case SIGQUIT:
         case SIGABRT:
+        case SIGUSR1:
+        case SIGUSR2:
             break;
         default: {
             _set_errno(EINVAL);
@@ -149,51 +185,35 @@ signal(
     return SIG_ERR;
 }
 
+/* raise
+ * Sends signal sig to the program. The signal handler, specified using signal(), is invoked.
+ * If the user-defined signal handling strategy is not set using signal() yet, 
+ * it is implementation-defined whether the signal will be ignored or default handler will be invoked. */
 int
 raise(
-    int sig)
+    _In_ int sig)
 {
-   __signalhandler_t temp = 0;
-   unsigned int i;
+    // Variables
+    __signalhandler_t temp = 0;
+    unsigned int i;
 
-   switch (sig)
-   {
-      case SIGINT:
-      case SIGILL:
-      case SIGFPE:
-      case SIGSEGV:
-      case SIGTERM:
-      case SIGQUIT:
-      case SIGABRT:
-         break;
+    // Validate which signals we can update
+    switch (sig) {
+        case SIGINT:
+        case SIGILL:
+        case SIGFPE:
+        case SIGSEGV:
+        case SIGTERM:
+        case SIGQUIT:
+        case SIGABRT:
+        case SIGUSR1:
+        case SIGUSR2:
+            break;
+        default:
+            return -1;
+    }
 
-      default:
-         //FIXME: set last err?
-         return -1;
-   }
-
-
-   //  if(sig <= 0)
-   //    return -1;
-   //  if(sig > SIGMAX)
-   //    return -1;
-
-   for(i=0;i<sizeof(signal_list)/sizeof(signal_list[0]);i++)
-   {
-      if ( signal_list[i].signal == sig )
-      {
-         temp = signal_list[i].handler;
-         break;
-      }
-   }
-
-   if(temp == SIG_IGN)// || (sig == SIGQUIT && temp == (_p_sig_fn_t)SIG_DFL))
-      return 0;   /* Ignore it */
-
-   if(temp == SIG_DFL)
-      StdSignalEntry(sig); /* this does not return */
-   else
-      temp(sig);
-
-   return 0;
+    // Use the std-signal-entry, it correctly calls the attached handler.
+    StdSignalEntry(sig);
+    return 0;
 }

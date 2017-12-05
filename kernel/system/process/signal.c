@@ -18,12 +18,17 @@
  *
  * MollenOS MCore - Signal Implementation
  */
+#define __MODULE "SIG0"
+//#define __TRACE
 
 /* Includes 
  * - System */
 #include <process/phoenix.h>
+#include <system/thread.h>
 #include <system/utils.h>
 #include <threading.h>
+#include <scheduler.h>
+#include <debug.h>
 #include <heap.h>
 
 /* Includes
@@ -50,8 +55,8 @@ char GlbSignalIsDeadly[] = {
 	1, /* SIGPIPE    */
 	1, /* SIGALRM    */
 	1, /* SIGTERM    */
-	1, /* SIGUSR1    */
-	1, /* SIGUSR2    */
+	0, /* SIGUSR1    */
+	0, /* SIGUSR2    */
 	0, /* SIGCHLD    */
 	0, /* SIGPWR     */
 	0, /* SIGWINCH   */
@@ -87,11 +92,16 @@ SignalCreate(
 	MCoreSignal_t *Sig      = NULL;
 	DataKey_t sKey;
 
+    // Debug
+    TRACE("SignalCreate(Thread %u, Signal %i)", ThreadId, Signal);
+
     // Sanitize input, and then sanitize if we have a handler
 	if (Target == NULL || Signal >= NUMSIGNALS) {
+        ERROR("Signal %i was not in range");
 		return OsError; // Invalid
 	}
     if (Target->SignalInformation[Signal] == 1) {
+        ERROR("Signal %i was blocked");
         return OsError; // Ignored
     }
 
@@ -99,15 +109,14 @@ SignalCreate(
 	Sig = (MCoreSignal_t*)kmalloc(sizeof(MCoreSignal_t));
     Sig->Ignorable = GlbSignalIsDeadly[Signal];
 	Sig->Signal = Signal;
-	memset(&Sig->Context, 0, sizeof(Context_t));
 
 	// Add to signal-list
 	sKey.Value = Signal;
 	CollectionAppend(Target->SignalQueue, CollectionCreateNode(sKey, Sig));
 
     // Wake up thread if neccessary
-    if (THREADING_RUNMODE(Target->Flags) == THREADING_INACTIVE) {
-        // @todo
+    if (THREADING_STATE(Target->Flags) == THREADING_INACTIVE) {
+        SchedulerThreadSignal(Target);
     }
     return OsSuccess;
 }
@@ -120,24 +129,14 @@ SignalReturn(void)
 {
 	// Variables
 	MCoreThread_t *Thread   = NULL;
-	MCoreSignal_t *Signal   = NULL;
 	UUId_t Cpu;
 
 	// Oh oh, someone has done the dirty signal
 	Cpu         = CpuGetCurrentId();
 	Thread      = ThreadingGetCurrentThread(Cpu);
 
-	// Now.. get active signal
-	Signal = Thread->ActiveSignal;
-
-	// Restore context
-	// @todo
-
 	// Cleanup signal
-	Thread->ActiveSignal = NULL;
-	kfree(Signal);
-
-	// Continue into next signal?
+	Thread->ActiveSignal.Signal = -1;
 	return SignalHandle(Thread->Id);
 }
 
@@ -164,7 +163,7 @@ SignalHandle(
 	// Even if there is a Ash, we might want not
 	// to Ash any signals ATM if there is already 
 	// one active
-	if (Thread->ActiveSignal != NULL) {
+	if (Thread->ActiveSignal.Signal != -1) {
 		return OsError;
 	}
 
@@ -193,9 +192,13 @@ SignalExecute(
     // Variables
     MCoreAsh_t *Process = NULL;
 
+    // Debug
+    TRACE("SignalExecute(Thread %u, Signal %i)", Thread->Id, Signal->Signal);
+
     // Instantiate the process
     Process = PhoenixGetAsh(Thread->AshId);
     if (Process == NULL) {
+        kfree(Signal);
         return;
     }
 
@@ -206,10 +209,16 @@ SignalExecute(
 		if (Action == 1 || Action == 2) {
 			PhoenixTerminateAsh(Process);
 		}
+        kfree(Signal);
 		return;
 	}
 
 	// Update active and dispatch
-	Thread->ActiveSignal = Signal;
-	SignalDispatch(Thread, Signal);
+    memcpy(&Thread->ActiveSignal, Signal, sizeof(MCoreSignal_t));
+    Thread->ActiveSignal.Context = Thread->ContextActive;
+
+    // Cleanup signal and dispatch
+    kfree(Signal);
+    TRACE("Signal dispatching..");
+	ThreadingSignalDispatch(Thread);
 }

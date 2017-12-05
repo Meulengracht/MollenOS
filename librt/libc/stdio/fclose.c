@@ -68,15 +68,17 @@ int fclose(FILE *stream)
 	// Variables
 	int r, flag;
 
+    // Flush file before anything
+	if (stream->_flag & _IOWRT) {
+		fflush(stream);
+	}
+
 	_lock_file(stream);
 	flag = stream->_flag;
 
 	// Flush and free associated buffers
 	if (stream->_tmpfname != NULL) {
 		free(stream->_tmpfname);
-	}
-	if (stream->_flag & _IOWRT) {
-		fflush(stream);
 	}
 	if (stream->_flag & _IOMYBUF) {
 		free(stream->_base);

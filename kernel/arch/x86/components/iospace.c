@@ -38,6 +38,14 @@
 #include <ds/collection.h>
 #include <stddef.h>
 
+/* ThreadingIoSet
+ * Set's the io status of the given thread. */
+OsStatus_t
+ThreadingIoSet(
+    _In_ MCoreThread_t *Thread,
+    _In_ uint16_t       Port,
+    _In_ int            Enable);
+
 /* Represents an io-space in MollenOS, they represent
  * some kind of communication between hardware and software
  * by either port or mmio */
@@ -181,10 +189,10 @@ IoSpaceAcquire(
         TRACE("Allocated virtual address 0x%x for region", IoSpace->VirtualBase);
     }
     else if (SysCopy->Type == IO_SPACE_IO) {
-        x86Thread_t *Tx = (x86Thread_t*)ThreadingGetCurrentThread(Cpu)->ThreadData;
+        MCoreThread_t *Thread = ThreadingGetCurrentThread(Cpu);
         for (size_t i = 0; i < SysCopy->Size; i++) {
-            TssEnableIo(Cpu, &Tx->IoMap[0],
-                ((uint16_t)(SysCopy->PhysicalBase + i)));
+            ThreadingIoSet(Thread, ((uint16_t)(SysCopy->PhysicalBase + i)), 1);
+            TssEnableIo(Cpu, ((uint16_t)(SysCopy->PhysicalBase + i)));
         }
     }
     else {
@@ -252,10 +260,10 @@ IoSpaceRelease(
         NOTIMPLEMENTED("Free pages from space!!");
     }
     else if (SysCopy->Type == IO_SPACE_IO) {
-        x86Thread_t *Tx = (x86Thread_t*)ThreadingGetCurrentThread(Cpu)->ThreadData;
+        MCoreThread_t *Thread = ThreadingGetCurrentThread(Cpu);
         for (size_t i = 0; i < SysCopy->Size; i++) {
-            TssDisableIo(Cpu, &Tx->IoMap[0],
-                ((uint16_t)(SysCopy->PhysicalBase + i)));
+            ThreadingIoSet(Thread, ((uint16_t)(SysCopy->PhysicalBase + i)), 0);
+            TssDisableIo(Cpu, ((uint16_t)(SysCopy->PhysicalBase + i)));
         }
     }
 

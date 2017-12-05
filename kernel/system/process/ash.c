@@ -84,12 +84,6 @@ PhoenixFinishAsh(
         AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_SHM), PAGE_SIZE);
     Ash->Shm = BlockBitmapCreate(AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_SHM),
         AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_IOSPACE), PAGE_SIZE);
-
-    // Create the stack mapping
-    AddressSpaceMap(AddressSpaceGetCurrent(), 
-    ((MEMORY_LOCATION_RING3_STACK_START - ASH_STACK_INIT) & PAGE_MASK),
-        ASH_STACK_INIT, __MASK, AS_FLAG_APPLICATION, NULL);
-    Ash->StackStart = MEMORY_LOCATION_RING3_STACK_START;
 }
 
 /* PhoenixStartupEntry
@@ -104,7 +98,7 @@ PhoenixStartupEntry(
     
     // Finish boot-process and go to usermode
     PhoenixFinishAsh(Ash);
-    ThreadingEnterUserMode(Ash);
+    ThreadingSwitchLevel(Ash);
 }
 
 /* PhoenixInitializeAsh
@@ -272,7 +266,7 @@ PhoenixOpenAshPipe(
     CriticalSectionLeave(&Ash->Lock);
 
     // Wake sleepers waiting for pipe creations
-    SchedulerThreadWakeAll((uintptr_t*)Ash->Pipes);
+    SchedulerHandleSignalAll((uintptr_t*)Ash->Pipes);
     return OsSuccess;
 }
 

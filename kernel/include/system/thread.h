@@ -27,24 +27,19 @@
 /* Includes 
  * - Library */
 #include <os/osdefs.h>
-#include <os/spinlock.h>
-
-/* Includes
- * - System */
-#include <arch.h>
+#include <os/context.h>
 
 typedef struct _MCoreThread MCoreThread_t;
 
-/* ThreadingCreateArch
+/* ThreadingRegister
  * Initializes a new arch-specific thread context
  * for the given threading flags, also initializes
  * the yield interrupt handler first time its called */
 KERNELAPI
-void*
+OsStatus_t
 KERNELABI
-ThreadingCreateArch(
-    _In_ Flags_t ThreadFlags,
-    _In_ uintptr_t EntryPoint);
+ThreadingRegister(
+    _In_ MCoreThread_t *Thread);
 
 /* ThreadingImpersonate
  * This function switches the current runtime-context
@@ -56,16 +51,14 @@ KERNELABI
 ThreadingImpersonate(
     _In_ MCoreThread_t *Thread);
 
-/* IThreadSetupUserMode
- * Initializes user-mode data for the given thread, and
- * allocates all neccessary resources (x86 specific) for
- * usermode operations */
-__EXTERN void IThreadSetupUserMode(MCoreThread_t *Thread, uintptr_t StackAddress);
-
-/* IThreadDestroy
- * Free's all the allocated resources for x86
- * specific threading operations */
-__EXTERN void IThreadDestroy(MCoreThread_t *Thread);
+/* ThreadingUnregister
+ * Unregisters the thread from the system and cleans up any 
+ * resources allocated by ThreadingRegister */
+KERNELAPI
+OsStatus_t
+KERNELABI
+ThreadingUnregister(
+    _In_ MCoreThread_t *Thread);
 
 /* ThreadingWakeCpu
  * Wake's the target cpu from an idle thread
@@ -82,5 +75,26 @@ KERNELAPI
 void
 KERNELABI
 ThreadingYield(void);
+
+/* ThreadingSignalDispatch
+ * Dispatches a signal to the given thread. This function
+ * does not return. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+ThreadingSignalDispatch(
+	_In_ MCoreThread_t *Thread);
+
+/* ContextCreate
+ * Stack manipulation / setup of stacks for given
+ * threading. We need functions that create a new kernel
+ * stack and user/driver stack. Pass threading flags */
+KERNELAPI
+Context_t*
+KERNELABI
+ContextCreate(
+    _In_ Flags_t    ThreadFlags,
+    _In_ int        ContextType,
+	_In_ uintptr_t  EntryAddress);
 
 #endif //!_MCORE_SYSTHREADS_H_

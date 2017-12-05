@@ -24,6 +24,7 @@
 /* Includes 
  * - System */
 #include <os/driver/contracts/filesystem.h>
+#include <os/driver/sessions.h>
 #include <os/driver/file.h>
 #include <os/process.h>
 #include <os/utils.h>
@@ -164,39 +165,14 @@ OsStatus_t DiskRegisterFileSystem(FileSystemDisk_t *Disk,
 		// Add to list, by using the disk id as identifier
 		CollectionAppend(VfsGetFileSystems(), CollectionCreateNode(Key, Fs));
 
+        // Send notification to sessionmanager
+        SessionCheckDisk(&IdentBuffer[0]);
+
 		// Start init?
 		if (!GlbInitHasRun) {
-			// Create a path from the identifier and hardcoded path
-			FileSystemFile_t *File = (FileSystemFile_t*)malloc(sizeof(FileSystemFile_t));
-			MString_t *Path = MStringCreate((void*)__FILEMANAGER_INITPROCESS, StrUTF8);
-
-			// Check if file exists on this filesystem
-			// If it exists - close up and spawn a new process
-			if (Fs->Module->OpenFile(&Fs->Descriptor, File, Path) == FsOk) {
-				MString_t *FullPath = MStringCreate((void*)MStringRaw(Fs->Identifier), StrUTF8);
-				MStringAppendCharacters(FullPath, ":/", StrUTF8);
-				MStringAppendCharacters(FullPath, __FILEMANAGER_INITPROCESS, StrUTF8);
-				
-				// Close file
-				Fs->Module->CloseFile(&Fs->Descriptor, File);
-
-				// Trace
-				TRACE("Startup existed on this filesystem - spawning %s", 
-					MStringRaw(FullPath));
-
-				// Spawn the process
-				//ProcessSpawn(MStringRaw(FullPath), NULL, 1);
-				Fs->Descriptor.Flags |= __FILESYSTEM_BOOT;
-				VfsResolveQueueEvent();
-				GlbInitHasRun = 1;
-
-				// Cleanup path
-				MStringDestroy(FullPath);
-			}
-
-			// Cleanup
-			MStringDestroy(Path);
-			free(File);
+            Fs->Descriptor.Flags |= __FILESYSTEM_BOOT;
+            VfsResolveQueueEvent();
+            GlbInitHasRun = 1;
 		}
 	}
 

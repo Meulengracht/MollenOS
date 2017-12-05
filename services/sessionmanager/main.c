@@ -25,12 +25,25 @@
 /* Includes
  * - System */
 #include <os/driver/service.h>
+#include <os/driver/sessions.h>
 #include <os/utils.h>
+#include <threads.h>
 #include <signal.h>
 
 // test
 void test_signal(int test) {
     TRACE("SIGNAL recieved: %i", test);
+}
+
+int thread_entry(void *argument) {
+    // get id
+    thrd_t tid = (thrd_t)argument;
+    TRACE("%u: thread started", tid);
+
+    // wait a little before sending signal
+    thrd_sleepex(1000);
+    TRACE("%u: Sending signal to main thread..", tid);
+    thrd_signal(tid, SIGUSR1);
 }
 
 /* OnLoad
@@ -39,11 +52,25 @@ void test_signal(int test) {
 OsStatus_t
 OnLoad(void)
 {
+    // Variables
+    struct timespec to_sleep;
+    struct timespec time_left;
+    thrd_t tid = 0;
+
     // Debug
     TRACE("SessionManager.OnLoad()");
     TRACE("Running signal test");
-    TRACE("Installing signal for 0 division");
-    signal(SIGFPE, test_signal);
+    TRACE("Installing signal for external interrupt");
+    signal(SIGUSR1, test_signal);
+    TRACE("Creating a new thread that will send us a signal");
+    thrd_create(&tid, thread_entry, (void*)thrd_current());
+
+    // Wait untill signal
+    TRACE("Waiting for signal...");
+    to_sleep.tv_sec = 50;
+    to_sleep.tv_nsec = 0;
+    thrd_sleep(&to_sleep, &time_left);
+    TRACE("Woken up! time left is %u:%u", time_left.tv_sec, time_left.tv_nsec);
 
     // Register us with server manager
 	return RegisterService(__SESSIONMANAGER_TARGET);
@@ -67,5 +94,16 @@ OnEvent(
 {
 	// Variables
 	OsStatus_t Result = OsSuccess;
+
+    // New function call!
+    switch (Message->Function) {
+        case __SESSIONMANAGER_CHECKUP: {
+
+        } break;
+
+        default: {
+            break;
+        }
+    }
     return Result;
 }

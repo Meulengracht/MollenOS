@@ -126,10 +126,11 @@ MCoreInitialize(
     
     // Now that we have an allocation system add all initializors
     // that need dynamic memory here
+    ThreadingInitialize();
     SchedulerCreate(0);
     TimersInitialize();
     IoSpaceInitialize();
-    ThreadingInitialize(0);
+    ThreadingEnable(0);
 
     // Run early ACPI initialization if available
     // we will need table access maybe

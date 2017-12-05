@@ -330,6 +330,7 @@ OhciTransactionDispatch(
 	Controller->Registers->HcInterruptEnable = OHCI_SOF_EVENT;
 
 	// Done
+    Transfer->Status = TransferQueued;
 	return TransferQueued;
 }
 
@@ -344,6 +345,7 @@ OhciTransactionFinalize(
 	// Variables
 	OhciQueueHead_t *Qh             = (OhciQueueHead_t*)Transfer->EndpointDescriptor;
 	OhciTransferDescriptor_t *Td    = NULL;
+    CollectionItem_t *Node          = NULL;
     int ShortTransfer               = 0;
     int BytesLeft                   = 0;
     int i;
@@ -454,6 +456,16 @@ OhciTransactionFinalize(
 
         // Cleanup the transfer
         free(Transfer);
+
+        // Now run through transactions and check if any are ready to run
+        _foreach(Node, Controller->QueueControl.TransactionList) {
+            UsbManagerTransfer_t *NextTransfer = (UsbManagerTransfer_t*)Node->Data;
+            if (NextTransfer->Status == TransferNotProcessed) {
+                if (OhciTransferFill(Controller, Transfer) == OsSuccess) {
+                    OhciTransactionDispatch(Controller, Transfer);
+                }
+            }
+        }
 	    return OsSuccess;
     }
 }

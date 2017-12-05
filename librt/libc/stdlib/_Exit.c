@@ -1,6 +1,7 @@
-/*
- * MollenOS - Philip Meulengracht, Copyright 2011-2016
- * 
+/* MollenOS
+ *
+ * Copyright 2011 - 2017, Philip Meulengracht
+ *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation ? , either version 3 of the License, or
@@ -15,20 +16,20 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS CLib - _Exit Function
- * This is like exit, except it does not call any CRT related cleanup
+ * MollenOS C-Support Exit Implementation
+ * - Definitions, prototypes and information needed.
  */
 
 /* Includes 
  * - System */
 #include <os/syscall.h>
 
-/* Terminate normally, no cleanup. No calls to anything. 
+/* _Exit
+ * Terminate normally, no cleanup. No calls to anything. 
  * And it never returns this function */
 void
 _Exit(
-    _In_ int Status)
-{
+    _In_ int Status) {
 	// Call for terminate and then yield.
     Syscall_ProcessExit(Status);
     Syscall_ThreadYield();

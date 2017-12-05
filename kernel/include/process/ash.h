@@ -98,7 +98,6 @@ typedef struct _MCoreAsh {
     uintptr_t            NextLoadingAddress;
     uint8_t             *FileBuffer;
     size_t               FileBufferLength;
-    uintptr_t            StackStart;
 
     // This is the return/code
     // that gets set upon ash-exit

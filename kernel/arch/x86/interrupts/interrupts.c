@@ -30,6 +30,7 @@
 #include <system/interrupts.h>
 #include <system/thread.h>
 #include <system/utils.h>
+
 #include <process/phoenix.h>
 #include <acpiinterface.h>
 #include <interrupts.h>
@@ -39,6 +40,7 @@
 #include <debug.h>
 #include <heap.h>
 #include <apic.h>
+#include <gdt.h>
 #include <idt.h>
 #include <pic.h>
 
@@ -47,6 +49,13 @@
 #include <ds/collection.h>
 #include <assert.h>
 #include <stdio.h>
+
+/* ThreadingFpuException
+ * Handles the fpu exception that might get triggered
+ * when performing any float/double instructions. */
+OsStatus_t
+ThreadingFpuException(
+    _In_ MCoreThread_t *Thread);
 
 /* Internal definitons and helper contants */
 #define EFLAGS_INTERRUPT_FLAG        (1 << 9)
@@ -58,9 +67,6 @@ __EXTERN void __cli(void);
 __EXTERN void __sti(void);
 __EXTERN reg_t __getflags(void);
 __EXTERN reg_t __getcr2(void);
-__EXTERN void init_fpu(void);
-__EXTERN void load_fpu(uintptr_t *buffer);
-__EXTERN void clear_ts(void);
 __EXTERN void enter_thread(Context_t *Regs);
 
 /* Externs 
@@ -355,20 +361,56 @@ InterruptEntry(
     }
 }
 
-/* ExceptionEntry
- * Common entry for all exceptions */
-void ExceptionEntry(Context_t *Registers)
+/* ExceptionSignal
+ * Sends a signal to the executing thread/process immediately.
+ * If the signal is blocked the process/thread is killed. */
+OsStatus_t
+ExceptionSignal(
+    _In_ Context_t  *Registers,
+    _In_ int         Signal)
 {
     // Variables
-    MCoreThread_t *cThread = NULL;
-    x86Thread_t *cT86 = NULL;
-    uintptr_t Address = __MASK;
-    int IssueFixed = 0;
-    UUId_t Cpu;
+    MCoreThread_t *Thread   = NULL;
+    MCoreAsh_t *Process     = NULL;
+    UUId_t Cpu              = CpuGetCurrentId();
+
+    // Debug
+    TRACE("ExceptionSignal(Signal %i)", Signal);
+
+    // Sanitize if user-process
+    Process = PhoenixGetCurrentAsh();
+    if (Process == NULL) {
+        return OsError;
+    }
+
+    // Lookup current thread
+    Thread = ThreadingGetCurrentThread(Cpu);
+
+    // Initialize signal
+    Thread->ActiveSignal.Ignorable = 0;
+    Thread->ActiveSignal.Signal = Signal;
+    Thread->ActiveSignal.Context = Registers;
+
+    // Dispatch
+    return ThreadingSignalDispatch(Thread);
+}
+
+/* ExceptionEntry
+ * Common entry for all exceptions */
+void
+ExceptionEntry(
+    _In_ Context_t *Registers)
+{
+    // Variables
+    MCoreThread_t *Thread   = NULL;
+    uintptr_t Address       = __MASK;
+    int IssueFixed          = 0;
 
     // Handle IRQ
-    if (Registers->Irq == 0) {        // Divide By Zero
-
+    if (Registers->Irq == 0) {      // Divide By Zero
+        if (ExceptionSignal(Registers, SIGFPE) == OsSuccess) {
+            IssueFixed = 1;
+        }
     }
     else if (Registers->Irq == 1) { // Single Step
         if (DebugSingleStep(Registers) == OsSuccess) {
@@ -384,40 +426,33 @@ void ExceptionEntry(Context_t *Registers)
         IssueFixed = 1;
     }
     else if (Registers->Irq == 4) { // Overflow
-
+        if (ExceptionSignal(Registers, SIGSEGV) == OsSuccess) {
+            IssueFixed = 1;
+        }
     }
     else if (Registers->Irq == 5) { // Bound Range Exceeded
-
+        if (ExceptionSignal(Registers, SIGSEGV) == OsSuccess) {
+            IssueFixed = 1;
+        }
     }
     else if (Registers->Irq == 6) { // Invalid Opcode
-
+        if (ExceptionSignal(Registers, SIGILL) == OsSuccess) {
+            IssueFixed = 1;
+        }
     }
     else if (Registers->Irq == 7) { // DeviceNotAvailable 
-
-        // Lookup variables
-        Cpu = CpuGetCurrentId();
-        cThread = ThreadingGetCurrentThread(Cpu);
-
-        // Important asserts
-        assert(cThread != NULL);
-
-        // Get the x86 specific details
-        cT86 = (x86Thread_t*)cThread->ThreadData;
-
-        // Clear the task-switch bit
-        clear_ts();
+        Thread = ThreadingGetCurrentThread(CpuGetCurrentId());
+        assert(Thread != NULL);
 
         // Either of two cases;
         // 1 - We need to initialize the FPU
         // 2 - We need to load the FPU
-        if (!(cT86->Flags & X86_THREAD_FPU_INITIALISED)) {
-            init_fpu();
-            cT86->Flags |= X86_THREAD_FPU_INITIALISED;
-            IssueFixed = 1;
+        if (ThreadingFpuException(Thread) != OsSuccess) {
+            if (ExceptionSignal(Registers, SIGFPE) == OsSuccess) {
+                IssueFixed = 1;
+            }
         }
-        else if (!(cT86->Flags & X86_THREAD_USEDFPU)) {
-            load_fpu(cT86->FpuBuffer);
-            cT86->Flags |= X86_THREAD_USEDFPU;
+        else {
             IssueFixed = 1;
         }
     }
@@ -431,13 +466,19 @@ void ExceptionEntry(Context_t *Registers)
 
     }
     else if (Registers->Irq == 11) { // Segment Not Present
-
+        if (ExceptionSignal(Registers, SIGSEGV) == OsSuccess) {
+            IssueFixed = 1;
+        }
     }
     else if (Registers->Irq == 12) { // Stack Segment Fault
-
+        if (ExceptionSignal(Registers, SIGSEGV) == OsSuccess) {
+            IssueFixed = 1;
+        }
     }
     else if (Registers->Irq == 13) { // General Protection Fault
-
+        if (ExceptionSignal(Registers, SIGSEGV) == OsSuccess) {
+            IssueFixed = 1;
+        }
     }
     else if (Registers->Irq == 14) {    // Page Fault
         Address = (uintptr_t)__getcr2();
@@ -445,19 +486,14 @@ void ExceptionEntry(Context_t *Registers)
         // The first thing we must check before propegating events
         // is that we must check special locations
         if (Address == MEMORY_LOCATION_SIGNAL_RET) {
+            UUId_t Cpu  = CpuGetCurrentId();
+            Thread      = ThreadingGetCurrentThread(Cpu);
+            Registers   = Thread->ActiveSignal.Context;
+            TssUpdateStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
+
+            // Complete signal handling
             SignalReturn();
-
-            // If we reach here, no more signals, 
-            // and we should just enter the actual thread
-            if (cThread->Flags != THREADING_KERNELMODE) {
-                enter_thread(((x86Thread_t*)cThread->ThreadData)->UserContext);
-            }    
-            else {
-                enter_thread(((x86Thread_t*)cThread->ThreadData)->Context);
-            }
-
-            // Never reach beyond here
-            FATAL(FATAL_SCOPE_KERNEL, "REACHED BEYOND enter_thread AFTER SIGNAL");
+            enter_thread(Registers);
         }
 
         // Next step is to check whether or not the address is already
@@ -470,6 +506,11 @@ void ExceptionEntry(Context_t *Registers)
         // unallocated address
         if (DebugPageFault(Registers, Address) == OsSuccess) {
             IssueFixed = 1;
+        }
+        else {
+            if (ExceptionSignal(Registers, SIGSEGV) == OsSuccess) {
+                IssueFixed = 1;
+            }
         }
     }
 

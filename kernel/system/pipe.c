@@ -89,7 +89,7 @@ PipeDestroy(
     _In_ MCorePipe_t    *Pipe)
 {
     // Wake all up so no-one is left behind
-    SchedulerThreadWakeAll((uintptr_t*)&Pipe->WriteQueue);
+    SchedulerHandleSignalAll((uintptr_t*)&Pipe->WriteQueue);
     kfree(Pipe->Buffer);
     kfree(Pipe);
 }
@@ -173,7 +173,7 @@ PipeProduceCommit(
 
     // Register us and signal
     atomic_store(&Pipe->Workers[Worker].Registered, 1);
-    SchedulerThreadWake((uintptr_t*)&Pipe->Workers[Worker]);
+    SchedulerHandleSignal((uintptr_t*)&Pipe->Workers[Worker]);
     return OsSuccess;
 }
 
@@ -242,6 +242,6 @@ PipeConsumeCommit(
     // Register us and signal
     atomic_store(&Pipe->Workers[Worker].Allocated, 0);
     atomic_store(&Pipe->Workers[Worker].Registered, 0);
-    SchedulerThreadWake((uintptr_t*)&Pipe->Workers[Worker]);
+    SchedulerHandleSignal((uintptr_t*)&Pipe->Workers[Worker]);
     return OsSuccess;
 }

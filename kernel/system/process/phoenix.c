@@ -275,7 +275,7 @@ PhoenixTerminateAsh(
     CriticalSectionLeave(&ProcessLock);
 
 	// Alert GC
-	SchedulerThreadWakeAll((uintptr_t*)Ash);
+	SchedulerHandleSignalAll((uintptr_t*)Ash);
 	GcSignal(GcHandlerId, Ash);
 }
 

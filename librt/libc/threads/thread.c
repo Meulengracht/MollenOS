@@ -48,7 +48,7 @@ thrd_initialize(
 {
     // Variables (and TLS)
     thread_storage_t        Tls;
-    ThreadPackage_t *Tp     = NULL;
+    ThreadPackage_t *Tp      = NULL;
     int ExitCode             = 0;
 
     // Initialize TLS and package pointer

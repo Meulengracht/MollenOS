@@ -37,16 +37,17 @@
 #define X86_THREAD_EFLAGS			0x202
 #define X86_THREAD_SINGLESTEP		0x100
 
-/* This function loads a new task from the scheduler, it
+/* _ThreadingSwitch
+ * This function loads a new task from the scheduler, it
  * implements the task-switching functionality, which MCore leaves
  * up to the underlying architecture */
-__EXTERN Context_t *_ThreadingSwitch(Context_t *Regs,
-	int PreEmptive, size_t *TimeSlice, int *TaskQueue);
-
-/* Stack manipulation / setup of stacks for given
- * threading. We need functions that create a new kernel
- * stack and user/driver stack. Pass threading flags */
-__EXTERN Context_t *ContextCreate(Flags_t ThreadFlags,
-	uintptr_t Eip, uintptr_t *Arguments);
+KERNELAPI
+Context_t*
+KERNELABI
+_ThreadingSwitch(
+    _In_ Context_t  *Context,
+    _In_ int         PreEmptive,
+    _Out_ size_t    *TimeSlice,
+    _Out_ int       *TaskQueue);
 
 #endif // !_MCORE_THREAD_H_

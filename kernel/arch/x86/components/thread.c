@@ -23,6 +23,9 @@
 
 /* Includes 
  * - System */
+#include <system/thread.h>
+#include <system/utils.h>
+
 #include <threading.h>
 #include <process/phoenix.h>
 #include <interrupts.h>
@@ -40,26 +43,30 @@
 #include <string.h>
 #include <stdio.h>
 
-/* Extern access, we need access
- * to the timer-quantum and a bunch of 
- * assembly functions */
+/* Externs
+ * Extern access, we need access to the timer-quantum 
+ * and a bunch of  assembly functions */
 __EXTERN size_t GlbTimerQuantum;
+__EXTERN void init_fpu(void);
+__EXTERN void load_fpu(uintptr_t *buffer);
 __EXTERN void save_fpu(uintptr_t *buffer);
 __EXTERN void set_ts(void);
+__EXTERN void clear_ts(void);
 __EXTERN void _yield(void);
 __EXTERN void enter_thread(Context_t *Regs);
-__EXTERN void enter_signal(Context_t *Context, uintptr_t Handler, int Signal, uintptr_t Return);
-__EXTERN void RegisterDump(Context_t *Regs);
 
 /* Globals,
  * Keep track of whether or not init code has run */
-static int __GlbThreadX86Initialized = 0;
+static Collection_t *Threads            = NULL;
+static int ThreadsInitialized           = 0;
 
 /* The yield interrupt code for switching tasks
  * and is controlled by software interrupts, the yield interrupt
  * also like the apic switch need to reload the apic timer as it
  * controlls the primary switch */
-InterruptStatus_t ThreadingYieldHandler(void *Args)
+InterruptStatus_t
+ThreadingYieldHandler(
+    _In_ void *Context)
 {
 	/* Variables we will need for loading
 	 * a new task */
@@ -78,7 +85,7 @@ InterruptStatus_t ThreadingYieldHandler(void *Args)
 
 	/* Switch Task, if there is no threading enabled yet
 	 * it should return the same structure as we give */
-	Regs = _ThreadingSwitch((Context_t*)Args, 0, &TimeSlice, &TaskPriority);
+	Regs = _ThreadingSwitch((Context_t*)Context, 0, &TimeSlice, &TaskPriority);
 
 	/* If we just got hold of idle task, well fuck it disable timer 
 	 * untill we get another task */
@@ -93,96 +100,142 @@ InterruptStatus_t ThreadingYieldHandler(void *Args)
 
 	/* Enter new thread */
 	enter_thread(Regs);
-
-	/* Never reached */
 	return InterruptHandled;
 }
 
-/* ThreadingCreateArch
+/* ThreadingRegister
  * Initializes a new arch-specific thread context
  * for the given threading flags, also initializes
  * the yield interrupt handler first time its called */
-void*
-ThreadingCreateArch(
-    _In_ Flags_t ThreadFlags,
-    _In_ uintptr_t EntryPoint)
+OsStatus_t
+ThreadingRegister(
+    _In_ MCoreThread_t *Thread)
 {
 	// Variables
 	MCoreInterrupt_t Interrupt;
-	x86Thread_t *Thread = NULL;
+	x86Thread_t *Thread86       = NULL;
+    DataKey_t Key;
 
 	// Allocate a new thread context (x86) 
 	// and zero it out
-	Thread = (x86Thread_t*)kmalloc(sizeof(x86Thread_t));
-	memset(Thread, 0, sizeof(x86Thread_t));
+    Key.Value           = (int)Thread->Id;
+	Thread86            = (x86Thread_t*)kmalloc(sizeof(x86Thread_t));
+	memset(Thread86, 0, sizeof(x86Thread_t));
 
 	// Allocate a new buffer for FPU operations  
 	// and zero out the buffer space
-	Thread->FpuBuffer = kmalloc_a(0x1000);
-	memset(Thread->FpuBuffer, 0, 0x1000);
+	Thread86->FpuBuffer = kmalloc_a(0x1000);
+	memset(Thread86->FpuBuffer, 0, 0x1000);
 
-	// Don't create contexts for idle threads 
-	// Otherwise setup a kernel stack 
-	if (!(ThreadFlags & THREADING_IDLE)) {
-		Thread->Context = ContextCreate(ThreadFlags, EntryPoint, NULL);
-	}
+	// Disable all port-access
+    if (THREADING_RUNMODE(Thread->Flags) != THREADING_KERNELMODE) {
+	    memset(&Thread86->IoMap[0], 0xFF, GDT_IOMAP_SIZE);
+    }
 
 	// If its the first time we run, install
 	// the yield interrupt
-	if (__GlbThreadX86Initialized == 0) {
-		__GlbThreadX86Initialized = 1;
-        Interrupt.Vectors[0] = INTERRUPT_YIELD;
-        Interrupt.Vectors[1] = INTERRUPT_NONE;
-		Interrupt.Line = INTERRUPT_NONE;
-		Interrupt.Pin = INTERRUPT_NONE;
-        Interrupt.FastHandler = ThreadingYieldHandler;
-		Interrupt.Data = NULL;
+	if (ThreadsInitialized == 0) {
+        Threads                     = CollectionCreate(KeyInteger);
+        Interrupt.Vectors[0]        = INTERRUPT_YIELD;
+        Interrupt.Vectors[1]        = INTERRUPT_NONE;
+		Interrupt.Line              = INTERRUPT_NONE;
+		Interrupt.Pin               = INTERRUPT_NONE;
+        Interrupt.FastHandler       = ThreadingYieldHandler;
+		Interrupt.Data              = NULL;
         InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
             | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
+		ThreadsInitialized          = 1;
 	}
-	return Thread;
+	return CollectionAppend(Threads, CollectionCreateNode(Key, Thread86));
 }
 
-/* IThreadSetupUserMode
- * Initializes user-mode data for the given thread, and
- * allocates all neccessary resources (x86 specific) for
- * usermode operations */
-void
-IThreadSetupUserMode(
-    _In_ MCoreThread_t *Thread, 
-    _In_ uintptr_t StackAddress)
+/* ThreadingUnregister
+ * Unregisters the thread from the system and cleans up any 
+ * resources allocated by ThreadingRegister */
+OsStatus_t
+ThreadingUnregister(
+    _In_ MCoreThread_t *Thread)
 {
 	// Variables
-	x86Thread_t *tData = (x86Thread_t*)Thread->ThreadData;
-	_CRT_UNUSED(StackAddress);
+	x86Thread_t *tData = NULL;
+    DataKey_t Key;
 
-	// Initialize a user/driver-context based on
-	// the requested runmode
-	tData->UserContext = ContextCreate(Thread->Flags,
-		(uintptr_t)Thread->Function, (uintptr_t*)Thread->Arguments);
+    // Get data from our list
+    Key.Value   = (int)Thread->Id; 
+    tData       =  (x86Thread_t*)CollectionGetDataByKey(Threads, Key, 0);
+    if (tData == NULL) {
+        return OsError;
+    }
 
-	// Disable all port-access
-	memset(&tData->IoMap[0], 0xFF, GDT_IOMAP_SIZE);
-}
-
-/* IThreadDestroy
- * Free's all the allocated resources for x86
- * specific threading operations */
-void IThreadDestroy(MCoreThread_t *Thread)
-{
-	/* Initialize a pointer to x86 specific data */
-	x86Thread_t *tData = (x86Thread_t*)Thread->ThreadData;
-
-	/* Cleanup both contexts */
-	kfree(tData->Context);
-	if (tData->UserContext != NULL) {
-		kfree(tData->UserContext);
-	}
-
-	/* Free fpu buffer and the
-	 * base structure */
+    // Cleanup
+    CollectionRemoveByKey(Threads, Key);
 	kfree(tData->FpuBuffer);
 	kfree(tData);
+    return OsSuccess;
+}
+
+/* ThreadingFpuException
+ * Handles the fpu exception that might get triggered
+ * when performing any float/double instructions. */
+OsStatus_t
+ThreadingFpuException(
+    _In_ MCoreThread_t *Thread)
+{
+    // Variables
+    x86Thread_t *tData = NULL;
+    DataKey_t Key;
+
+    // Clear the task-switch bit
+    clear_ts();
+
+    // Get data from our list
+    Key.Value   = (int)Thread->Id; 
+    tData       =  (x86Thread_t*)CollectionGetDataByKey(Threads, Key, 0);
+    if (tData == NULL) {
+        ERROR("Thread data was not found for thread %u", Thread->Id);
+        return OsError;
+    }
+
+    if (!(tData->Flags & X86_THREAD_FPU_INITIALISED)) {
+        init_fpu();
+        tData->Flags |= X86_THREAD_FPU_INITIALISED;
+        return OsSuccess;
+    }
+    else if (!(tData->Flags & X86_THREAD_USEDFPU)) {
+        load_fpu(tData->FpuBuffer);
+        tData->Flags |= X86_THREAD_USEDFPU;
+        return OsSuccess;
+    }
+    return OsError;
+}
+
+/* ThreadingIoSet
+ * Set's the io status of the given thread. */
+OsStatus_t
+ThreadingIoSet(
+    _In_ MCoreThread_t *Thread,
+    _In_ uint16_t       Port,
+    _In_ int            Enable)
+{
+    // Variables
+    x86Thread_t *tData = NULL;
+    DataKey_t Key;
+
+    // Get data from our list
+    Key.Value   = (int)Thread->Id; 
+    tData       =  (x86Thread_t*)CollectionGetDataByKey(Threads, Key, 0);
+    if (tData == NULL) {
+        return OsError;
+    }
+
+    // Update thread's io-map
+    if (Enable) {
+        tData->IoMap[Port / 8] &= ~(1 << (Port % 8));
+    }
+    else {
+        tData->IoMap[Port / 8] |= (1 << (Port % 8));
+    }
+    return OsSuccess;
 }
 
 /* ThreadingWakeCpu
@@ -190,46 +243,35 @@ void IThreadDestroy(MCoreThread_t *Thread)
  * by sending it an yield IPI */
 void
 ThreadingWakeCpu(
-    _In_ UUId_t Cpu)
-{
+    _In_ UUId_t Cpu) {
 	ApicSendInterrupt(InterruptSpecific, Cpu, INTERRUPT_YIELD);
 }
 
 /* ThreadingYield
  * Yields the current thread control to the scheduler */
 void
-ThreadingYield(void)
-{
+ThreadingYield(void) {
 	_yield();
 }
 
-/* Dispatches a signal to the given process 
- * signals will always be dispatched to main thread */
+/* ThreadingSignalDispatch
+ * Dispatches a signal to the given thread. This function
+ * does not return. */
 OsStatus_t
-SignalDispatch(
-	_In_ MCoreThread_t *Thread, 
-	_In_ MCoreSignal_t *Signal)
+ThreadingSignalDispatch(
+	_In_ MCoreThread_t *Thread)
 {
 	// Variables
     MCoreAsh_t *Process     = PhoenixGetAsh(Thread->AshId);
-	x86Thread_t *Thread86   = (x86Thread_t*)Thread->ThreadData;
-	Context_t *Context      = NULL;
-
-	/* User or kernel mode thread? */
-	if (Thread->Flags & THREADING_USERMODE) {
-		Context = Thread86->UserContext;
-	}
-	else {
-		Context = Thread86->Context;
-	}
-
-	// Store current context
-	memcpy(&Signal->Context, Context, sizeof(Context_t));
 
 	// Now we can enter the signal context 
 	// handler, we cannot return from this function
-    enter_signal(Context, Process->SignalHandler, 
-        Signal->Signal, MEMORY_LOCATION_SIGNAL_RET);
+    Thread->Contexts[THREADING_CONTEXT_SIGNAL1] = ContextCreate(Thread->Flags,
+        THREADING_CONTEXT_SIGNAL1, Process->SignalHandler);
+    Thread->Contexts[THREADING_CONTEXT_SIGNAL1]->Arguments[0] = MEMORY_LOCATION_SIGNAL_RET;
+    Thread->Contexts[THREADING_CONTEXT_SIGNAL1]->Arguments[1] = Thread->ActiveSignal.Signal;
+    TssUpdateStack(CpuGetCurrentId(), (uintptr_t)Thread->Contexts[THREADING_CONTEXT_SIGNAL0]);
+    enter_thread(Thread->Contexts[THREADING_CONTEXT_SIGNAL1]);
 	return OsSuccess;
 }
 
@@ -245,11 +287,13 @@ ThreadingImpersonate(
     MCoreThread_t *Current  = NULL;
 	x86Thread_t *SubContext = NULL;
 	UUId_t Cpu              = 0;
+    DataKey_t Key;
 
 	// Instantiate values
-	SubContext = (x86Thread_t*)Thread->ThreadData;
-    Cpu = ApicGetCpu();
-    Current = ThreadingGetCurrentThread(Cpu);
+    Key.Value       = (int)Thread->Id;
+    Cpu             = ApicGetCpu();
+    Current         = ThreadingGetCurrentThread(Cpu);
+	SubContext      = (x86Thread_t*)CollectionGetDataByKey(Threads, Key, 0);
     
     // If we impersonate ourself, leave
     if (Current == Thread) {
@@ -266,97 +310,72 @@ ThreadingImpersonate(
 		Thread->AddressSpace->Cr3);
 }
 
-/* This function loads a new task from the scheduler, it
+/* _ThreadingSwitch
+ * This function loads a new task from the scheduler, it
  * implements the task-switching functionality, which MCore leaves
  * up to the underlying architecture */
 Context_t*
 _ThreadingSwitch(
-    Context_t *Regs,
-    int PreEmptive,
-    size_t *TimeSlice,
-    int *TaskQueue)
+    _In_ Context_t  *Context,
+    _In_ int         PreEmptive,
+    _Out_ size_t    *TimeSlice,
+    _Out_ int       *TaskQueue)
 {
 	// Variables
-	MCoreThread_t *Thread = NULL;
-	x86Thread_t *Tx = NULL;
-	UUId_t Cpu = 0;
+	MCoreThread_t *Thread   = NULL;
+	x86Thread_t *Threadx    = NULL;
+	UUId_t Cpu              = 0;
+    DataKey_t Key;
 
     // Sanitize the status of threading
     // return default values
 	if (ThreadingIsEnabled() != 1) {
-        *TimeSlice = 20;
-        *TaskQueue = 0;
-		return Regs;
+        *TimeSlice      = 20;
+        *TaskQueue      = 0;
+		return Context;
     }
 
 	// Instantiate variables
-	Cpu = ApicGetCpu();
-	Thread = ThreadingGetCurrentThread(Cpu);
-    assert(Thread != NULL && Regs != NULL);
-	Tx = (x86Thread_t*)Thread->ThreadData;
+	Cpu         = ApicGetCpu();
+	Thread      = ThreadingGetCurrentThread(Cpu);
+    Key.Value   = (int)Thread->Id;
+	Threadx     = (x86Thread_t*)CollectionGetDataByKey(Threads, Key, 0);
+    assert(Thread != NULL && Threadx != NULL);
     
     // Sanitize impersonation status, don't schedule
     if (Thread->Flags & THREADING_IMPERSONATION) {
-        *TimeSlice = Thread->TimeSlice;
-        *TaskQueue = Thread->Queue;
-        return Regs;
+        *TimeSlice      = Thread->TimeSlice;
+        *TaskQueue      = Thread->Queue;
+        return Context;
     }
 
-	/* Save FPU/MMX/SSE information if it's
-	 * been used, otherwise skip this and save time */
-	if (Tx->Flags & X86_THREAD_USEDFPU) {
-		save_fpu(Tx->FpuBuffer);
+	// Save FPU/MMX/SSE information if it's
+	// been used, otherwise skip this and save time
+	if (Threadx->Flags & X86_THREAD_USEDFPU) {
+		save_fpu(Threadx->FpuBuffer);
 	}
 
-	/* Save stack, we have a few cases here. 
-	 * We are using kernel stack in case of two things:
-	 * 1. Transitioning threads
-	 * 2. Kernel threads (surprise!) */
-	if ((THREADING_RUNMODE(Thread->Flags) == THREADING_KERNELMODE)
-		|| (Thread->Flags & THREADING_SWITCHMODE)) {
-		Tx->Context = Regs;
-	}
-	else {
-		Tx->UserContext = Regs;
-	}
-	
-	/* Lookup a new thread and initiate our pointers */
-	Thread = ThreadingSwitch(Cpu, Thread, PreEmptive);
-	Tx = (x86Thread_t*)Thread->ThreadData;
+	// Get a new thread for us to enter
+	Thread      = ThreadingSwitch(Cpu, Thread, PreEmptive, &Context);
+    Key.Value   = (int)Thread->Id;
+	Threadx     = (x86Thread_t*)CollectionGetDataByKey(Threads, Key, 0);
 
-	/* Update scheduler variables */
-	*TimeSlice = Thread->TimeSlice;
-	*TaskQueue = Thread->Queue;
+	// Update out's
+	*TimeSlice  = Thread->TimeSlice;
+	*TaskQueue  = Thread->Queue;
 
 	// Load thread-specific resources
 	MmVirtualSwitchPageDirectory(Cpu, 
 		(PageDirectory_t*)Thread->AddressSpace->PageDirectory, 
 		Thread->AddressSpace->Cr3);
-	TssUpdateStack(Cpu, (uintptr_t)Tx->Context);
-	TssUpdateIo(Cpu, &Tx->IoMap[0]);
+	TssUpdateStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
+	TssUpdateIo(Cpu,    &Threadx->IoMap[0]);
 
-    /* Clear FPU/MMX/SSE flags */
-    Tx->Flags &= ~X86_THREAD_USEDFPU;
-
-	/* We want to handle any signals if neccessary
-	 * before we handle the transition */
-	SignalHandle(Thread->Id);
-
-	/* Handle the transition, we have to remove
-	 * the bit as we now have transitioned */
-	if (Thread->Flags & THREADING_TRANSITION_USERMODE) {
-		Thread->Flags &= ~(THREADING_SWITCHMODE | THREADING_TRANSITION_USERMODE);
-	}
-
-	/* Set TS bit in CR0 */
+    // Clear fpu flags and set task switch
+    Threadx->Flags &= ~X86_THREAD_USEDFPU;
 	set_ts();
 
-	/* Return new stack */
-	if ((THREADING_RUNMODE(Thread->Flags) == THREADING_KERNELMODE)
-		|| (Thread->Flags & THREADING_SWITCHMODE)) {
-		return Tx->Context;
-	}	
-	else {
-		return Tx->UserContext;
-	}
+    // Handle any signals pending for thread
+	SignalHandle(Thread->Id);
+    return Context;
 }
