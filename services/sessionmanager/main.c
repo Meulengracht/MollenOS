@@ -26,7 +26,13 @@
  * - System */
 #include <os/driver/service.h>
 #include <os/driver/sessions.h>
+#include <os/process.h>
 #include <os/utils.h>
+#include <string.h>
+
+/* Globals
+ * - State keeping variables */
+static UUId_t WindowingSystemId = UUID_INVALID;
 
 /* OnLoad
  * The entry-point of a server, this is called
@@ -56,6 +62,7 @@ OnEvent(
 {
 	// Variables
     OsStatus_t Result = OsSuccess;
+    char PathBuffer[64];
     
     // Debug
     TRACE("Sessionmanager.OnEvent(%i)", Message->Function);
@@ -63,7 +70,15 @@ OnEvent(
     // New function call!
     switch (Message->Function) {
         case __SESSIONMANAGER_CHECKUP: {
-
+#ifndef __OSCONFIG_DISABLE_VALI
+            if (WindowingSystemId == UUID_INVALID) {
+                const char *DiskIdentifier = Message->Arguments[0].Data.Buffer;
+                memset(&PathBuffer[0], 0, sizeof(PathBuffer));
+                sprintf(&PathBuffer[0], "%s/system/vali.app", DiskIdentifier);
+                TRACE("Spawning %s", &PathBuffer[0]);
+                WindowingSystemId = ProcessSpawn(&PathBuffer[0], NULL, 0);
+            }
+#endif
         } break;
         case __SESSIONMANAGER_LOGIN: {
 

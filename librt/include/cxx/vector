@@ -275,13 +275,15 @@ void swap(vector<T,Allocator>& x, vector<T,Allocator>& y)
 #include <__split_buffer>
 #include <__functional_base>
 
-#include <__undef_min_max>
-
 #include <__debug>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header
 #endif
+
+_LIBCPP_PUSH_MACROS
+#include <__undef_macros>
+
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -308,14 +310,7 @@ __vector_base_common<__b>::__throw_out_of_range() const
     _VSTD::__throw_out_of_range("vector");
 }
 
-#ifdef _LIBCPP_MSVC
-#pragma warning( push )
-#pragma warning( disable: 4231 )
-#endif // _LIBCPP_MSVC
 _LIBCPP_EXTERN_TEMPLATE(class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS __vector_base_common<true>)
-#ifdef _LIBCPP_MSVC
-#pragma warning( pop )
-#endif // _LIBCPP_MSVC
 
 template <class _Tp, class _Allocator>
 class __vector_base
@@ -639,7 +634,7 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     size_type capacity() const _NOEXCEPT
         {return __base::capacity();}
-    _LIBCPP_INLINE_VISIBILITY
+    _LIBCPP_NODISCARD_AFTER_CXX17 _LIBCPP_INLINE_VISIBILITY
     bool empty() const _NOEXCEPT
         {return this->__begin_ == this->__end_;}
     size_type max_size() const _NOEXCEPT;
@@ -678,6 +673,17 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     const value_type* data() const _NOEXCEPT
         {return _VSTD::__to_raw_pointer(this->__begin_);}
+
+#ifdef _LIBCPP_CXX03_LANG
+    _LIBCPP_INLINE_VISIBILITY
+    void __emplace_back(const value_type& __x) { push_back(__x); }
+#else
+    template <class _Arg>
+    _LIBCPP_INLINE_VISIBILITY
+    void __emplace_back(_Arg&& __arg) {
+      emplace_back(_VSTD::forward<_Arg>(__arg));
+    }
+#endif
 
     _LIBCPP_INLINE_VISIBILITY void push_back(const_reference __x);
 
@@ -1133,7 +1139,7 @@ vector<_Tp, _Allocator>::vector(_InputIterator __first,
     __get_db()->__insert_c(this);
 #endif
     for (; __first != __last; ++__first)
-        push_back(*__first);
+        __emplace_back(*__first);
 }
 
 template <class _Tp, class _Allocator>
@@ -1150,7 +1156,7 @@ vector<_Tp, _Allocator>::vector(_InputIterator __first, _InputIterator __last, c
     __get_db()->__insert_c(this);
 #endif
     for (; __first != __last; ++__first)
-        push_back(*__first);
+        __emplace_back(*__first);
 }
 
 template <class _Tp, class _Allocator>
@@ -1370,7 +1376,7 @@ vector<_Tp, _Allocator>::assign(_InputIterator __first, _InputIterator __last)
 {
     clear();
     for (; __first != __last; ++__first)
-        push_back(*__first);
+        __emplace_back(*__first);
 }
 
 template <class _Tp, class _Allocator>
@@ -2284,7 +2290,7 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     size_type size() const _NOEXCEPT
         {return __size_;}
-    _LIBCPP_INLINE_VISIBILITY
+    _LIBCPP_NODISCARD_AFTER_CXX17 _LIBCPP_INLINE_VISIBILITY
     bool empty() const _NOEXCEPT
         {return __size_ == 0;}
     void reserve(size_type __n);
@@ -3356,5 +3362,7 @@ swap(vector<_Tp, _Allocator>& __x, vector<_Tp, _Allocator>& __y)
 }
 
 _LIBCPP_END_NAMESPACE_STD
+
+_LIBCPP_POP_MACROS
 
 #endif  // _LIBCPP_VECTOR

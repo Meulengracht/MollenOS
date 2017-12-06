@@ -113,10 +113,6 @@ template <size_t N> struct hash<std::bitset<N>>;
 
 */
 
-#if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
-#endif
-
 #include <__config>
 #include <__bit_reference>
 #include <cstddef>
@@ -126,7 +122,13 @@ template <size_t N> struct hash<std::bitset<N>>;
 #include <iosfwd>
 #include <__functional_base>
 
-#include <__undef_min_max>
+#if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
+#pragma GCC system_header
+#endif
+
+_LIBCPP_PUSH_MACROS
+#include <__undef_macros>
+
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -233,8 +235,13 @@ void
 __bitset<_N_words, _Size>::__init(unsigned long long __v, false_type) _NOEXCEPT
 {
     __storage_type __t[sizeof(unsigned long long) / sizeof(__storage_type)];
-    for (size_t __i = 0; __i < sizeof(__t)/sizeof(__t[0]); ++__i, __v >>= __bits_per_word)
-        __t[__i] = static_cast<__storage_type>(__v);
+    size_t __sz = _Size;
+    for (size_t __i = 0; __i < sizeof(__t)/sizeof(__t[0]); ++__i, __v >>= __bits_per_word, __sz -= __bits_per_word )
+        if ( __sz < __bits_per_word)
+        	__t[__i] = static_cast<__storage_type>(__v) & ( 1ULL << __sz ) - 1;
+        else
+        	__t[__i] = static_cast<__storage_type>(__v);
+
     _VSTD::copy(__t, __t + sizeof(__t)/sizeof(__t[0]), __first_);
     _VSTD::fill(__first_ + sizeof(__t)/sizeof(__t[0]), __first_ + sizeof(__first_)/sizeof(__first_[0]),
                __storage_type(0));
@@ -246,6 +253,9 @@ void
 __bitset<_N_words, _Size>::__init(unsigned long long __v, true_type) _NOEXCEPT
 {
     __first_[0] = __v;
+    if (_Size < __bits_per_word)
+    	__first_[0] &= ( 1ULL << _Size ) - 1;
+
     _VSTD::fill(__first_ + 1, __first_ + sizeof(__first_)/sizeof(__first_[0]), __storage_type(0));
 }
 
@@ -259,7 +269,9 @@ __bitset<_N_words, _Size>::__bitset(unsigned long long __v) _NOEXCEPT
 #if __SIZEOF_SIZE_T__ == 8
     : __first_{__v}
 #elif __SIZEOF_SIZE_T__ == 4
-    : __first_{static_cast<__storage_type>(__v), static_cast<__storage_type>(__v >> __bits_per_word)}
+    : __first_{static_cast<__storage_type>(__v), 
+    			_Size >= 2 * __bits_per_word ? static_cast<__storage_type>(__v >> __bits_per_word)
+    			: static_cast<__storage_type>((__v >> __bits_per_word) & (__storage_type(1) << (_Size - __bits_per_word)) - 1)}
 #else
 #error This constructor has not been ported to this platform
 #endif
@@ -501,7 +513,10 @@ template <size_t _Size>
 inline
 _LIBCPP_CONSTEXPR
 __bitset<1, _Size>::__bitset(unsigned long long __v) _NOEXCEPT
-    : __first_(static_cast<__storage_type>(__v))
+    : __first_(
+        _Size == __bits_per_word ? static_cast<__storage_type>(__v)
+                                 : static_cast<__storage_type>(__v) & ((__storage_type(1) << _Size) - 1)
+    )
 {
 }
 
@@ -1089,5 +1104,7 @@ basic_ostream<_CharT, _Traits>&
 operator<<(basic_ostream<_CharT, _Traits>& __os, const bitset<_Size>& __x);
 
 _LIBCPP_END_NAMESPACE_STD
+
+_LIBCPP_POP_MACROS
 
 #endif  // _LIBCPP_BITSET

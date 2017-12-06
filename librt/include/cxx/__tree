@@ -17,11 +17,13 @@
 #include <stdexcept>
 #include <algorithm>
 
-#include <__undef_min_max>
-
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header
 #endif
+
+_LIBCPP_PUSH_MACROS
+#include <__undef_macros>
+
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -82,7 +84,7 @@ __tree_is_left_child(_NodePtr __x) _NOEXCEPT
     return __x == __x->__parent_->__left_;
 }
 
-// Determintes if the subtree rooted at __x is a proper red black subtree.  If
+// Determines if the subtree rooted at __x is a proper red black subtree.  If
 //    __x is a proper subtree, returns the black height (null counts as 1).  If
 //    __x is an improper subtree, returns 0.
 template <class _NodePtr>
@@ -117,7 +119,7 @@ __tree_sub_invariant(_NodePtr __x)
     return __h + __x->__is_black_;  // return black height of this node
 }
 
-// Determintes if the red black tree rooted at __root is a proper red black tree.
+// Determines if the red black tree rooted at __root is a proper red black tree.
 //    __root == nullptr is a proper tree.  Returns true is __root is a proper
 //    red black tree, else returns false.
 template <class _NodePtr>
@@ -2684,5 +2686,7 @@ swap(__tree<_Tp, _Compare, _Allocator>& __x,
 }
 
 _LIBCPP_END_NAMESPACE_STD
+
+_LIBCPP_POP_MACROS
 
 #endif  // _LIBCPP___TREE

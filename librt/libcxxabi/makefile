@@ -5,8 +5,8 @@ INCLUDES = -I../include -I../include/cxx -I./
 SOURCES = $(wildcard ./*.cpp)
 OBJECTS = $(SOURCES:.cpp=.o)
 
-# dll - _LIBCXXABI_BUILDING_LIBRARY
-CXXFLAGS = $(GCXXFLAGS) -D_DLL -D_LIBCXXABI_BUILDING_LIBRARY -D_NEWLIB_VERSION -fno-ms-compatibility $(INCLUDES)
+# dll - -D_DLL -D_LIBCXXABI_BUILDING_LIBRARY
+CXXFLAGS = $(GCXXFLAGS) -D_DLL -DCRTDLL -D_LIBCXXABI_BUILDING_LIBRARY -fno-ms-compatibility -D_NEWLIB_VERSION $(INCLUDES)
 LFLAGS = /nodefaultlib /subsystem:native /noentry /dll ../build/libc.lib ../build/libcrt.lib
 
 # default-target

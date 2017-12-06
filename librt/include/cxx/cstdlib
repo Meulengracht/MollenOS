@@ -146,11 +146,11 @@ using ::ldiv;
 #ifndef _LIBCPP_HAS_NO_LONG_LONG
 using ::lldiv;
 #endif // _LIBCPP_HAS_NO_LONG_LONG
-//using ::mblen;
-//using ::mbtowc;
-//using ::wctomb;
-//using ::mbstowcs;
-//using ::wcstombs;
+using ::mblen;
+using ::mbtowc;
+using ::wctomb;
+using ::mbstowcs;
+using ::wcstombs;
 #ifdef _LIBCPP_HAS_QUICK_EXIT
 using ::at_quick_exit;
 using ::quick_exit;

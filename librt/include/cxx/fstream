@@ -171,11 +171,13 @@ typedef basic_fstream<wchar_t> wfstream;
 #include <__locale>
 #include <cstdio>
 
-#include <__undef_min_max>
-
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header
 #endif
+
+_LIBCPP_PUSH_MACROS
+#include <__undef_macros>
+
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -313,7 +315,7 @@ basic_filebuf<_CharT, _Traits>::basic_filebuf(basic_filebuf&& __rhs)
         else
             this->setp((char_type*)__extbuf_,
                        (char_type*)__extbuf_ + (__rhs. epptr() - __rhs.pbase()));
-        this->pbump(__rhs. pptr() - __rhs.pbase());
+        this->__pbump(__rhs. pptr() - __rhs.pbase());
     }
     else if (__rhs.eback())
     {
@@ -432,7 +434,7 @@ basic_filebuf<_CharT, _Traits>::swap(basic_filebuf& __rhs)
         ptrdiff_t __e = this->epptr() - this->pbase();
         this->setp((char_type*)__extbuf_min_,
                    (char_type*)__extbuf_min_ + __e);
-        this->pbump(__n);
+        this->__pbump(__n);
     }
     if (__rhs.eback() == (char_type*)__extbuf_min_)
     {
@@ -448,7 +450,7 @@ basic_filebuf<_CharT, _Traits>::swap(basic_filebuf& __rhs)
         ptrdiff_t __e = __rhs.epptr() - __rhs.pbase();
         __rhs.setp((char_type*)__rhs.__extbuf_min_,
                    (char_type*)__rhs.__extbuf_min_ + __e);
-        __rhs.pbump(__n);
+        __rhs.__pbump(__n);
     }
 }
 
@@ -615,7 +617,7 @@ basic_filebuf<_CharT, _Traits>::underflow()
                                  static_cast<size_t>(__extbufend_ - __extbufnext_));
             codecvt_base::result __r;
             __st_last_ = __st_;
-            size_t __nr = fread((void*)__extbufnext_, 1, __nmemb, __file_);
+            size_t __nr = fread((void*) const_cast<char *>(__extbufnext_), 1, __nmemb, __file_);
             if (__nr != 0)
             {
                 if (!__cv_)
@@ -628,7 +630,8 @@ basic_filebuf<_CharT, _Traits>::underflow()
                                        this->eback() + __ibs_, __inext);
                 if (__r == codecvt_base::noconv)
                 {
-                    this->setg((char_type*)__extbuf_, (char_type*)__extbuf_, (char_type*)__extbufend_);
+                    this->setg((char_type*)__extbuf_, (char_type*)__extbuf_, 
+                                          (char_type*)const_cast<char *>(__extbufend_));
                     __c = traits_type::to_int_type(*this->gptr());
                 }
                 else if (__inext != this->eback() + __unget_sz)
@@ -720,8 +723,8 @@ basic_filebuf<_CharT, _Traits>::overflow(int_type __c)
                         return traits_type::eof();
                     if (__r == codecvt_base::partial)
                     {
-                        this->setp((char_type*)__e, this->pptr());
-                        this->pbump(this->epptr() - this->pbase());
+                        this->setp(const_cast<char_type*>(__e), this->pptr());
+                        this->__pbump(this->epptr() - this->pbase());
                     }
                 }
                 else
@@ -1475,5 +1478,7 @@ basic_fstream<_CharT, _Traits>::close()
 }
 
 _LIBCPP_END_NAMESPACE_STD
+
+_LIBCPP_POP_MACROS
 
 #endif  // _LIBCPP_FSTREAM
