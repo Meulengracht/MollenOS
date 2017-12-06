@@ -24,6 +24,7 @@
 
 /* Includes 
  * - System */
+#include <system/io.h>
 #include "../pit.h"
 #include <interrupts.h>
 #include <timers.h>
@@ -103,14 +104,14 @@ PitInitialize(void)
 	Divisor /= 1000;
 
 	// We use counter 0, select counter 0 and configure it
-	outb(PIT_IO_BASE + PIT_REGISTER_COMMAND,
+	IoWrite(IO_SOURCE_HARDWARE, PIT_IO_BASE + PIT_REGISTER_COMMAND, 1,
 		PIT_COMMAND_MODE3 | PIT_COMMAND_FULL |
 		PIT_COMMAND_COUNTER_0);
 
 	// Write divisor to the PIT chip
-	outb(PIT_IO_BASE + PIT_REGISTER_COUNTER0,
+	IoWrite(IO_SOURCE_HARDWARE, PIT_IO_BASE + PIT_REGISTER_COUNTER0, 1,
 		(uint8_t)(Divisor & 0xFF));
-	outb(PIT_IO_BASE + PIT_REGISTER_COUNTER0,
+	IoWrite(IO_SOURCE_HARDWARE, PIT_IO_BASE + PIT_REGISTER_COUNTER0, 1,
 		(uint8_t)((Divisor >> 8) & 0xFF));
 	return OsSuccess;
 }

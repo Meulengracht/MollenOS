@@ -24,6 +24,7 @@
 
 /* Includes 
  * - System */
+#include <system/io.h>
 #include <acpiinterface.h>
 #include <timers.h>
 #include <debug.h>
@@ -48,14 +49,20 @@ CmosRead(
     _In_ uint8_t Register)
 {
 	// Variables
-	uint8_t Tmp = 0;
+    size_t Storage  = 0;
+	uint8_t Tmp     = 0;
 	
 	// Keep NMI if disabled
-	Tmp = inb(CMOS_IO_BASE + CMOS_IO_SELECT) & CMOS_NMI_BIT;
+    IoRead(IO_SOURCE_HARDWARE, CMOS_IO_BASE + CMOS_IO_SELECT, 1, &Storage);
+    Storage     &= CMOS_NMI_BIT;
+    Tmp         = Storage & 0xFF;
 
 	// Select Register (but do not change NMI)
-	outb(CMOS_IO_BASE + CMOS_IO_SELECT, (Tmp | (Register & CMOS_ALLBITS_NONMI)));
-	return inb(CMOS_IO_BASE + CMOS_IO_DATA);
+	IoWrite(IO_SOURCE_HARDWARE, CMOS_IO_BASE + CMOS_IO_SELECT, 1, 
+        (Tmp | (Register & CMOS_ALLBITS_NONMI)));
+    IoRead(IO_SOURCE_HARDWARE, CMOS_IO_BASE + CMOS_IO_DATA, 1, &Storage);
+    Tmp         = Storage & 0xFF;
+	return Tmp;
 }
 
 /* CmosWrite
@@ -67,15 +74,18 @@ CmosWrite(
     _In_ uint8_t Data)
 {
 	// Variables
-	uint8_t Tmp = 0;
+    size_t Storage  = 0;
+	uint8_t Tmp     = 0;
 
 	// Keep NMI if disabled
-	Tmp = inb(CMOS_IO_BASE + CMOS_IO_SELECT) & CMOS_NMI_BIT;
+    IoRead(IO_SOURCE_HARDWARE, CMOS_IO_BASE + CMOS_IO_SELECT, 1, &Storage);
+    Storage     &= CMOS_NMI_BIT;
+    Tmp         = Storage & 0xFF;
 
 	// Select Register (but do not change NMI)
-	outb(CMOS_IO_BASE + CMOS_IO_SELECT,
+	IoWrite(IO_SOURCE_HARDWARE, CMOS_IO_BASE + CMOS_IO_SELECT, 1,
 		(Tmp | (Register & CMOS_ALLBITS_NONMI)));
-	outb(CMOS_IO_BASE + CMOS_IO_DATA, Data);
+	IoWrite(IO_SOURCE_HARDWARE, CMOS_IO_BASE + CMOS_IO_DATA, 1, Data);
 }
 
 /* CmosGetTicks

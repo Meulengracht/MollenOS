@@ -26,6 +26,7 @@
  * - System */
 #include <system/interrupts.h>
 #include <system/utils.h>
+#include <system/io.h>
 #include <acpiinterface.h>
 #include <interrupts.h>
 #include <memory.h>
@@ -433,8 +434,8 @@ ApicInitialize(void)
 	// Step 1. Disable IMCR if present (to-do..) 
 	// But the bit that tells us if IMCR is present
 	// is located in the MP tables
-	outb(0x22, 0x70);
-	outb(0x23, 0x1);
+	IoWrite(IO_SOURCE_HARDWARE, 0x22, 1, 0x70);
+	IoWrite(IO_SOURCE_HARDWARE, 0x23, 1, 0x1);
 
 	// Clear out the global timer-tick counter
 	// we don't want any values in it previously :-)

@@ -24,14 +24,13 @@
 
 /* Includes
  * - (OS) System */
-#include "../../../arch/x86/pci.h"
 #include <system/addresspace.h>
 #include <system/utils.h>
+#include <system/io.h>
 #include <interrupts.h>
 #include <threading.h>
 #include <scheduler.h>
 #include <debug.h>
-#include <arch.h>
 
 /* Includes
  * - (ACPI) System */
@@ -63,26 +62,11 @@ AcpiOsReadPort (
     UINT32                  Width)
 {
     ACPI_FUNCTION_NAME(OsReadPort);
-
-	switch (Width) {
-        case 8:
-            *Value = inb((uint16_t)Address);
-            break;
-
-        case 16:
-            *Value = inw((uint16_t)Address);
-            break;
-
-        case 32:
-            *Value = inl((uint16_t)Address);
-            break;
-
-        default:
-            ACPI_ERROR((AE_INFO, "Bad width parameter: %X", Width));
-            return (AE_BAD_PARAMETER);
-	}
-
-	return (AE_OK);
+    if (IoRead(IO_SOURCE_HARDWARE, Address, DIVUP(Width, 8), Value) != OsSuccess) {
+        ACPI_ERROR((AE_INFO, "Bad width parameter: %X", Width));
+        return (AE_BAD_PARAMETER);
+    }
+    return (AE_OK);
 }
 
 /******************************************************************************
@@ -105,24 +89,11 @@ AcpiOsWritePort (
     UINT32                  Width)
 {
     ACPI_FUNCTION_NAME(OsWritePort);
-    
-    if ((Width == 8) || (Width == 16) || (Width == 32)) {
-		switch (Width) {
-            case 8:
-                outb((uint16_t)Address, (uint8_t)Value);
-                break;
-            case 16:
-                outw((uint16_t)Address, (uint16_t)Value);
-                break;
-            case 32:
-                outl((uint16_t)Address, (uint32_t)Value);
-                break;
-		}
-		return (AE_OK);
-	}
-
-	ACPI_ERROR((AE_INFO, "Bad width parameter: %X", Width));
-	return (AE_BAD_PARAMETER);
+    if (IoWrite(IO_SOURCE_HARDWARE, Address, DIVUP(Width, 8), Value) != OsSuccess) {
+        ACPI_ERROR((AE_INFO, "Bad width parameter: %X", Width));
+        return (AE_BAD_PARAMETER);
+    }
+    return (AE_OK);
 }
 
 
@@ -147,28 +118,11 @@ AcpiOsReadMemory (
     UINT32                  Width)
 {
     ACPI_FUNCTION_NAME(AcpiOsReadMemory);
-
-    switch (Width) {
-        case 8: {
-            *Value = 0;
-        } break;
-        case 16: {
-            *Value = 0;
-        } break;
-        case 32: {
-            *Value = 0;
-        } break;
-        case 64: {
-            *Value = 0;
-        } break;
-        default: {
-            return (AE_BAD_PARAMETER);
-            break;
-        }
+    if (IoRead(IO_SOURCE_MEMORY, Address, DIVUP(Width, 8), (size_t*)Value) != OsSuccess) {
+        ACPI_ERROR((AE_INFO, "Bad width parameter: %X", Width));
+        return (AE_BAD_PARAMETER);
     }
-    
-    FATAL(FATAL_SCOPE_KERNEL, "AcpiOsReadMemory()");
-    return AE_NOT_IMPLEMENTED;
+    return (AE_OK);
 }
 
 /******************************************************************************
@@ -191,8 +145,11 @@ AcpiOsWriteMemory (
     UINT32                  Width)
 {
     ACPI_FUNCTION_NAME(AcpiOsWriteMemory);
-    FATAL(FATAL_SCOPE_KERNEL, "AcpiOsWriteMemory()");
-    return AE_NOT_IMPLEMENTED;
+    if (IoWrite(IO_SOURCE_MEMORY, Address, DIVUP(Width, 8), (size_t)Value) != OsSuccess) {
+        ACPI_ERROR((AE_INFO, "Bad width parameter: %X", Width));
+        return (AE_BAD_PARAMETER);
+    }
+    return (AE_OK);
 }
 
 /******************************************************************************
@@ -217,23 +174,11 @@ AcpiOsReadPciConfiguration (
     UINT32                  Width)
 {
     ACPI_FUNCTION_NAME(AcpiOsReadPciConfiguration);
-    switch (Width) {
-		case 8: {
-			*Value = (UINT64)PciRead8(PciId->Bus, PciId->Device, PciId->Function, Reg);
-		} break;
-
-		case 16: {
-			*Value = (UINT64)PciRead16(PciId->Bus, PciId->Device, PciId->Function, Reg);
-		} break;
-
-		case 32: {
-			*Value = (UINT64)PciRead32(PciId->Bus, PciId->Device, PciId->Function, Reg);
-		} break;
-
-		default:
-			return (AE_ERROR);
-	}
-	return (AE_OK);
+    if (PciRead(PciId->Bus, PciId->Device, PciId->Function, Reg, DIVUP(Width, 8), (size_t*)Value) != OsSuccess) {
+        ACPI_ERROR((AE_INFO, "Bad width parameter: %X", Width));
+        return (AE_BAD_PARAMETER);
+    }
+    return (AE_OK);
 }
 
 /******************************************************************************
@@ -258,21 +203,9 @@ AcpiOsWritePciConfiguration (
     UINT32                  Width)
 {
     ACPI_FUNCTION_NAME(AcpiOsWritePciConfiguration);
-    switch (Width) {
-		case 8: {
-			PciWrite8(PciId->Bus, PciId->Device, PciId->Function, Reg, (UINT8)Value);
-		} break;
-
-		case 16: {
-			PciWrite16(PciId->Bus, PciId->Device, PciId->Function, Reg, (UINT16)Value);
-		} break;
-
-		case 32: {
-			PciWrite32(PciId->Bus, PciId->Device, PciId->Function, Reg, (UINT32)Value);
-		} break;
-
-		default:
-			return (AE_ERROR);
-	}
-	return (AE_OK);
+    if (PciWrite(PciId->Bus, PciId->Device, PciId->Function, Reg, DIVUP(Width, 8), (size_t)Value) != OsSuccess) {
+        ACPI_ERROR((AE_INFO, "Bad width parameter: %X", Width));
+        return (AE_BAD_PARAMETER);
+    }
+    return (AE_OK);
 }

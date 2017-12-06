@@ -28,12 +28,25 @@
 #include <os/osdefs.h>
 #include <os/ipc/ipc.h>
 #include <os/driver/service.h>
+#include <time.h>
 
 /* These are the different IPC functions supported
  * by the driver, note that some of them might
  * be changed in the different versions, and/or new
  * functions will be added */
 #define __SESSIONMANAGER_CHECKUP        IPC_DECL_FUNCTION(0)
+#define __SESSIONMANAGER_LOGIN          IPC_DECL_FUNCTION(1)
+#define __SESSIONMANAGER_LOGOUT         IPC_DECL_FUNCTION(2)
+
+/* SessionObject 
+ * Response object from login-requests and session inquiries. */
+PACKED_TYPESTRUCT(SessionObject, {
+    OsStatus_t              Status;
+
+    char                    SessionId[16];
+    time_t                  LastLogin;
+ /* UserProfile_t           Profile; */
+});
 
 /* SessionCheckDisk
  * Notifies the sessionmanager of a new accessible system disk. */
@@ -52,6 +65,55 @@ SessionCheckDisk(
 
 	// Send
 	return RPCEvent(&Request, __SESSIONMANAGER_TARGET);
+}
+
+/* SessionLoginRequest
+ * Sends a login-request to the session-manager. The sessionmanager will respond
+ * with a SessionObject structure containing information about success/failure. */
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+SessionLoginRequest(
+	_In_ __CONST char *User,
+    _In_ __CONST char *Password,
+    _Out_ SessionObject_t *Result)
+{
+	// Variables
+	MRemoteCall_t Request;
+
+	// Initialze RPC
+	RPCInitialize(&Request, 1, PIPE_RPCOUT, __SESSIONMANAGER_LOGIN);
+	RPCSetArgument(&Request, 0, (__CONST void*)User, strlen(User) + 1);
+    RPCSetArgument(&Request, 1, (__CONST void*)Password, strlen(Password) + 1);
+    RPCSetResult(&Request, (__CONST void*)Result, sizeof(SessionObject_t));
+
+	// Send
+	return RPCExecute(&Request, __SESSIONMANAGER_TARGET);
+}
+
+/* SessionLogoutRequest
+ * Sends a logout-request to the session-manager. The acquired session-id from
+ * the login must be used to logout the correct user. */
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+SessionLogoutRequest(
+	_In_ __CONST char *SessionId)
+{
+	// Variables
+	MRemoteCall_t Request;
+    OsStatus_t Result   = OsError;
+
+	// Initialze RPC
+	RPCInitialize(&Request, 1, PIPE_RPCOUT, __SESSIONMANAGER_LOGOUT);
+	RPCSetArgument(&Request, 0, (__CONST void*)SessionId, strlen(SessionId) + 1);
+    RPCSetResult(&Request, (__CONST void*)&Result, sizeof(OsStatus_t));
+
+	// Send
+	if (RPCExecute(&Request, __SESSIONMANAGER_TARGET) != OsSuccess) {
+        return OsError;
+    }
+    return Result;
 }
 
 #endif //!__SDK_SESSIONS_H__

@@ -22,6 +22,7 @@
 /* Includes 
  * - System */
 #include <system/video.h>
+#include <system/io.h>
 #include <multiboot.h>
 #include <vbe.h>
 
@@ -444,12 +445,12 @@ TextPutCharacter(
 		+ __GlbVideoTerminal.CursorX);
 
 	// Send the high byte.
-	outb(0x3D4, 14);
-	outb(0x3D5, (uint8_t)(CursorLoc >> 8));
+	IoWrite(IO_SOURCE_HARDWARE, 0x3D4, 1, 14);
+	IoWrite(IO_SOURCE_HARDWARE, 0x3D5, 1, (uint8_t)(CursorLoc >> 8));
 
 	// Send the low byte.
-	outb(0x3D4, 15);
-	outb(0x3D5, (uint8_t)CursorLoc);
+	IoWrite(IO_SOURCE_HARDWARE, 0x3D4, 1, 15);
+	IoWrite(IO_SOURCE_HARDWARE, 0x3D5, 1, (uint8_t)CursorLoc);
 
 	// Release lock and return
 	SpinlockRelease(&__GlbVideoTerminal.Lock);
