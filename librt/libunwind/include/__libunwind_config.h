@@ -78,4 +78,21 @@
 # define _LIBUNWIND_HIGHEST_DWARF_REGISTER 287
 #endif // _LIBUNWIND_IS_NATIVE_ONLY
 
+#if defined(_LIBUNWIND_DISABLE_VISIBILITY_ANNOTATIONS)
+  #define _LIBUNWIND_EXPORT
+  #define _LIBUNWIND_HIDDEN
+#else
+  #if !defined(__ELF__) && !defined(__MACH__)
+    #ifdef __OSLIB_UNWIND_IMPLEMENTATION
+    #define _LIBUNWIND_EXPORT __declspec(dllexport)
+    #else 
+    #define _LIBUNWIND_EXPORT __declspec(dllimport)
+    #endif
+    #define _LIBUNWIND_HIDDEN
+  #else
+    #define _LIBUNWIND_EXPORT __attribute__((visibility("default")))
+    #define _LIBUNWIND_HIDDEN __attribute__((visibility("hidden")))
+  #endif
+#endif
+
 #endif // ____LIBUNWIND_CONFIG_H__

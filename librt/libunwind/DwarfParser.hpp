@@ -12,7 +12,6 @@
 
 #ifndef __DWARF_PARSER_HPP__
 #define __DWARF_PARSER_HPP__
-
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -369,7 +368,7 @@ bool CFI_Parser<A>::parseInstructions(A &addressSpace, pint_t instructions,
   pint_t codeOffset = 0;
   PrologInfo initialState = *results;
 
-  _LIBUNWIND_TRACE_DWARF("parseInstructions(instructions=0x%0" PRIx64 ")\n",
+  _LIBUNWIND_TRACE_DWARF("parseInstructions(instructions=0x%0llx\n",
                          static_cast<uint64_t>(instructionsEnd));
 
   // see DWARF Spec, section 6.4.2 for details on unwind opcodes
@@ -544,8 +543,7 @@ bool CFI_Parser<A>::parseInstructions(A &addressSpace, pint_t instructions,
       length = addressSpace.getULEB128(p, instructionsEnd);
       assert(length < std::numeric_limits<pint_t>::max() && "pointer overflow");
       p += static_cast<pint_t>(length);
-      _LIBUNWIND_TRACE_DWARF("DW_CFA_def_cfa_expression(expression=0x%" PRIx64
-                             ", length=%" PRIu64 ")\n",
+      _LIBUNWIND_TRACE_DWARF("DW_CFA_def_cfa_expression(expression=0x%llx, length=%llu\n",
                              results->cfaExpression, length);
       break;
     case DW_CFA_expression:
@@ -560,9 +558,7 @@ bool CFI_Parser<A>::parseInstructions(A &addressSpace, pint_t instructions,
       length = addressSpace.getULEB128(p, instructionsEnd);
       assert(length < std::numeric_limits<pint_t>::max() && "pointer overflow");
       p += static_cast<pint_t>(length);
-      _LIBUNWIND_TRACE_DWARF("DW_CFA_expression(reg=%" PRIu64 ", "
-                             "expression=0x%" PRIx64 ", "
-                             "length=%" PRIu64 ")\n",
+      _LIBUNWIND_TRACE_DWARF("DW_CFA_expression(reg=%llu, expression=0x%llx, length=%llu)\n",
                              reg, results->savedRegisters[reg].value, length);
       break;
     case DW_CFA_offset_extended_sf:
@@ -647,14 +643,13 @@ bool CFI_Parser<A>::parseInstructions(A &addressSpace, pint_t instructions,
       length = addressSpace.getULEB128(p, instructionsEnd);
       assert(length < std::numeric_limits<pint_t>::max() && "pointer overflow");
       p += static_cast<pint_t>(length);
-      _LIBUNWIND_TRACE_DWARF("DW_CFA_val_expression(reg=%" PRIu64 ", "
-                             "expression=0x%" PRIx64 ", length=%" PRIu64 ")\n",
+      _LIBUNWIND_TRACE_DWARF("DW_CFA_val_expression(reg=%llu, expression=0x%llx, length=%llu)\n",
                              reg, results->savedRegisters[reg].value, length);
       break;
     case DW_CFA_GNU_args_size:
       length = addressSpace.getULEB128(p, instructionsEnd);
       results->spExtraArgSize = (uint32_t)length;
-      _LIBUNWIND_TRACE_DWARF("DW_CFA_GNU_args_size(%" PRIu64 ")\n", length);
+      _LIBUNWIND_TRACE_DWARF("DW_CFA_GNU_args_size(%llu)\n", length);
       break;
     case DW_CFA_GNU_negative_offset_extended:
       reg = addressSpace.getULEB128(p, instructionsEnd);

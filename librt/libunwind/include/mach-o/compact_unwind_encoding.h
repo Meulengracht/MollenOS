@@ -42,7 +42,7 @@ typedef uint32_t compact_unwind_encoding_t;
 
 
 // architecture independent bits
-enum {
+enum : unsigned int {
     UNWIND_IS_NOT_FUNCTION_START           = 0x80000000,
     UNWIND_HAS_LSDA                        = 0x40000000,
     UNWIND_PERSONALITY_MASK                = 0x30000000,

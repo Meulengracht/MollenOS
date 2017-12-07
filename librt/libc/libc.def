@@ -8,3 +8,4 @@ longjmp
 ___global_locale DATA
 _exit
 _StdSignalInitialize
+_abort

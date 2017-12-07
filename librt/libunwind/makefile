@@ -3,13 +3,15 @@
 INCLUDES = -I./include -I./ -I../include -I../include/cxx 
 
 # to generate $(wildcard ./*.S) $(SOURCES:.S=.o)
-SOURCES = $(wildcard ./arch/$(arch)/*.s) $(wildcard ./*.c) libunwind.cpp Unwind-EHABI.cpp
-OBJECTS = $(SOURCES:.s=.o) $(SOURCES:.c=.o) $(SOURCES:.cpp=.o)
+SOURCES_S = $(wildcard ./arch/$(arch)/*.s)
+SOURCES_C = $(wildcard ./*.c)
+SOURCES_X = libunwind.cpp Unwind-EHABI.cpp
+OBJECTS = $(SOURCES_S:.s=.o) $(SOURCES_C:.c=.o) $(SOURCES_X:.cpp=.o)
 
 ASFLAGS = -f win32 -Xvc
-CFLAGS = $(GCFLAGS) -DNDEBUG -D_DLL -DCRTDLL $(INCLUDES)
-CXXFLAGS = $(GCXXFLAGS) -DNDEBUG -D_DLL -DCRTDLL -fno-ms-compatibility $(INCLUDES)
-LFLAGS = $(GLFLAGS) /noentry /dll ../build/libc.lib ../build/libcrt.lib
+CFLAGS = $(GCFLAGS) -std=c11 -D_DLL -DCRTDLL -D__OSLIB_UNWIND_IMPLEMENTATION -fno-ms-compatibility $(INCLUDES)
+CXXFLAGS = $(GCXXFLAGS) -DNDEBUG -D_DLL -DCRTDLL -D__OSLIB_UNWIND_IMPLEMENTATION -fno-ms-compatibility $(INCLUDES)
+LFLAGS = $(GLFLAGS) /noentry /dll ../build/libos.lib ../build/libc.lib ../build/libcrt.lib
 
 # default-target
 .PHONY: all
@@ -38,4 +40,4 @@ generate:
 clean:
 	@rm -f ../deploy/libunwind.dll
 	@rm -f ../deploy/libunwind.lib
-	#@rm -f $(OBJECTS)
+	@rm -f $(OBJECTS)

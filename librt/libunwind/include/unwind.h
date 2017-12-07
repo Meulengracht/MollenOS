@@ -158,15 +158,15 @@ extern "C" {
 // The following are the base functions documented by the C++ ABI
 //
 #ifdef __USING_SJLJ_EXCEPTIONS__
-extern _Unwind_Reason_Code
+_LIBUNWIND_EXPORT _Unwind_Reason_Code
     _Unwind_SjLj_RaiseException(_Unwind_Exception *exception_object);
-extern void _Unwind_SjLj_Resume(_Unwind_Exception *exception_object);
+_LIBUNWIND_EXPORT void _Unwind_SjLj_Resume(_Unwind_Exception *exception_object);
 #else
-extern _Unwind_Reason_Code
+_LIBUNWIND_EXPORT _Unwind_Reason_Code
     _Unwind_RaiseException(_Unwind_Exception *exception_object);
-extern void _Unwind_Resume(_Unwind_Exception *exception_object);
+_LIBUNWIND_EXPORT void _Unwind_Resume(_Unwind_Exception *exception_object);
 #endif
-extern void _Unwind_DeleteException(_Unwind_Exception *exception_object);
+_LIBUNWIND_EXPORT void _Unwind_DeleteException(_Unwind_Exception *exception_object);
 
 #if defined(_LIBUNWIND_ARM_EHABI)
 typedef enum {

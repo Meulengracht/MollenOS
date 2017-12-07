@@ -73,7 +73,7 @@ wint_t fgetwc(
             }
         }
 
-        if (!len || mbtowc(&ret, mbs, len) == -1)
+        if (!len || mbtowc((wchar_t*)&ret, mbs, len) == -1)
             ret = WEOF;
     }
 

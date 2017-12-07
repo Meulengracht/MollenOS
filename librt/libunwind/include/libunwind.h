@@ -98,29 +98,27 @@ typedef struct unw_proc_info_t unw_proc_info_t;
 extern "C" {
 #endif
 
-extern int unw_getcontext(unw_context_t *) LIBUNWIND_AVAIL;
-extern int unw_init_local(unw_cursor_t *, unw_context_t *) LIBUNWIND_AVAIL;
-extern int unw_step(unw_cursor_t *) LIBUNWIND_AVAIL;
-extern int unw_get_reg(unw_cursor_t *, unw_regnum_t, unw_word_t *) LIBUNWIND_AVAIL;
-extern int unw_get_fpreg(unw_cursor_t *, unw_regnum_t, unw_fpreg_t *) LIBUNWIND_AVAIL;
-extern int unw_set_reg(unw_cursor_t *, unw_regnum_t, unw_word_t) LIBUNWIND_AVAIL;
-extern int unw_set_fpreg(unw_cursor_t *, unw_regnum_t, unw_fpreg_t)  LIBUNWIND_AVAIL;
-extern int unw_resume(unw_cursor_t *) LIBUNWIND_AVAIL;
+_LIBUNWIND_EXPORT int unw_getcontext(unw_context_t *) LIBUNWIND_AVAIL;
+_LIBUNWIND_EXPORT int unw_init_local(unw_cursor_t *, unw_context_t *) LIBUNWIND_AVAIL;
+_LIBUNWIND_EXPORT int unw_step(unw_cursor_t *) LIBUNWIND_AVAIL;
+_LIBUNWIND_EXPORT int unw_get_reg(unw_cursor_t *, unw_regnum_t, unw_word_t *) LIBUNWIND_AVAIL;
+_LIBUNWIND_EXPORT int unw_get_fpreg(unw_cursor_t *, unw_regnum_t, unw_fpreg_t *) LIBUNWIND_AVAIL;
+_LIBUNWIND_EXPORT int unw_set_reg(unw_cursor_t *, unw_regnum_t, unw_word_t) LIBUNWIND_AVAIL;
+_LIBUNWIND_EXPORT int unw_set_fpreg(unw_cursor_t *, unw_regnum_t, unw_fpreg_t)  LIBUNWIND_AVAIL;
+_LIBUNWIND_EXPORT int unw_resume(unw_cursor_t *) LIBUNWIND_AVAIL;
 
 #ifdef __arm__
 /* Save VFP registers in FSTMX format (instead of FSTMD). */
-extern void unw_save_vfp_as_X(unw_cursor_t *) LIBUNWIND_AVAIL;
+_LIBUNWIND_EXPORT void unw_save_vfp_as_X(unw_cursor_t *) LIBUNWIND_AVAIL;
 #endif
 
 
-extern const char *unw_regname(unw_cursor_t *, unw_regnum_t) LIBUNWIND_AVAIL;
-extern int unw_get_proc_info(unw_cursor_t *, unw_proc_info_t *) LIBUNWIND_AVAIL;
-extern int unw_is_fpreg(unw_cursor_t *, unw_regnum_t) LIBUNWIND_AVAIL;
-extern int unw_is_signal_frame(unw_cursor_t *) LIBUNWIND_AVAIL;
-extern int unw_get_proc_name(unw_cursor_t *, char *, size_t, unw_word_t *) LIBUNWIND_AVAIL;
+_LIBUNWIND_EXPORT const char *unw_regname(unw_cursor_t *, unw_regnum_t) LIBUNWIND_AVAIL;
+_LIBUNWIND_EXPORT int unw_get_proc_info(unw_cursor_t *, unw_proc_info_t *) LIBUNWIND_AVAIL;
+_LIBUNWIND_EXPORT int unw_is_fpreg(unw_cursor_t *, unw_regnum_t) LIBUNWIND_AVAIL;
+_LIBUNWIND_EXPORT int unw_is_signal_frame(unw_cursor_t *) LIBUNWIND_AVAIL;
+_LIBUNWIND_EXPORT int unw_get_proc_name(unw_cursor_t *, char *, size_t, unw_word_t *) LIBUNWIND_AVAIL;
 //extern int       unw_get_save_loc(unw_cursor_t*, int, unw_save_loc_t*);
-
-extern unw_addr_space_t unw_local_addr_space;
 
 #ifdef UNW_REMOTE
 /*

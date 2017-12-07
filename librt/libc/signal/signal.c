@@ -193,10 +193,6 @@ int
 raise(
     _In_ int sig)
 {
-    // Variables
-    __signalhandler_t temp = 0;
-    unsigned int i;
-
     // Validate which signals we can update
     switch (sig) {
         case SIGINT:

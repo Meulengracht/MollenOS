@@ -47,9 +47,9 @@ _LIBUNWIND_EXPORT int unw_init_local(unw_cursor_t *cursor,
   _LIBUNWIND_TRACE_API("unw_init_local(cursor=%p, context=%p)",
                        static_cast<void *>(cursor),
                        static_cast<void *>(context));
-#if defined(__i386__)
+#if defined(__i386__) || defined(i386)
 # define REGISTER_KIND Registers_x86
-#elif defined(__x86_64__)
+#elif defined(__x86_64__) || defined(amd64)
 # define REGISTER_KIND Registers_x86_64
 #elif defined(__ppc__)
 # define REGISTER_KIND Registers_ppc
