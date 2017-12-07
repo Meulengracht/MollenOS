@@ -422,7 +422,7 @@ OsStatus_t
 MOSABI
 bpool(
 	_In_ void *buf, 
-	_In_ ssize_t len,
+	_In_ long len,
 	_Out_ BytePool_t **out);
 
 /* bget
@@ -433,7 +433,7 @@ void*
 MOSABI
 bget(
 	_In_ BytePool_t *pool, 
-	_In_ ssize_t requested_size);
+	_In_ long requested_size);
 
 /* bgetz
  * Allocate a buffer and clear its contents to zero.  We clear
@@ -444,7 +444,7 @@ void*
 MOSABI
 bgetz(
 	_In_ BytePool_t *pool,
-	_In_ ssize_t size);
+	_In_ long size);
 
 /* bgetr
  * Reallocate a buffer.  This is a minimal implementation,
@@ -457,7 +457,7 @@ MOSABI
 bgetr(
 	_In_ BytePool_t *pool, 
 	_In_ void *buf, 
-	_In_ ssize_t size);
+	_In_ long size);
 
 /* brel
  * Release a previous allocated buffer in the given pool. */
@@ -475,10 +475,10 @@ void
 MOSABI
 bectl(
 	_In_ BytePool_t *pool,
-	_In_ int (*compact) (ssize_t sizereq, int sequence),
-	_In_ void *(*acquire) (ssize_t size),
+	_In_ int (*compact) (long sizereq, int sequence),
+	_In_ void *(*acquire) (long size),
 	_In_ void (*release) (void *buf),
-	_In_ ssize_t pool_incr);
+	_In_ long pool_incr);
 
 /* bstats
  * Return buffer allocation free space statistics.  */
@@ -487,9 +487,9 @@ void
 MOSABI
 bstats(
 	_In_ BytePool_t *pool,
-	_Out_ ssize_t *curalloc, 
-	_Out_ ssize_t *totfree, 
-	_Out_ ssize_t *maxfree, 
+	_Out_ long *curalloc, 
+	_Out_ long *totfree, 
+	_Out_ long *maxfree, 
 	_Out_ long *nget, 
 	_Out_ long *nrel);
 
@@ -500,7 +500,7 @@ void
 MOSABI
 bstatse(
 	_In_ BytePool_t *pool,
-	_Out_ ssize_t *pool_incr, 
+	_Out_ long *pool_incr, 
 	_Out_ long *npool, 
 	_Out_ long *npget, 
 	_Out_ long *nprel, 

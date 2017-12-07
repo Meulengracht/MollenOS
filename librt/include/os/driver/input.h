@@ -52,9 +52,9 @@ typedef struct _MInput {
 	unsigned			Scancode;
 	VKey				Key;
 	unsigned			Flags;		/* Flags (Bit-field, see under structure) */
-	ssize_t				xRelative;
-	ssize_t				yRelative;
-	ssize_t				zRelative;
+	long 				xRelative;
+	long				yRelative;
+	long				zRelative;
 } MInput_t;
 
 /* Flags - Event Types */

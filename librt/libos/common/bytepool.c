@@ -56,7 +56,7 @@ extern char *sprintf();               /* Sun includes don't define sprintf */
 #endif
 
 /*  Declare the interface, including the requested buffer size type,
-    ssize_t.  */
+    long.  */
 #include "bytepool.h"
 
 /* Type for size arguments to memxxx()
@@ -71,17 +71,17 @@ struct qlinks {
 
 /* Header in allocated and free buffers */
 struct bhead {
-    ssize_t prevfree;		      /* Relative link back to previous
+    long prevfree;		      /* Relative link back to previous
 					 free buffer in memory or 0 if
 					 previous buffer is allocated.	*/
-    ssize_t bsize;		      /* Buffer size: positive if free,
+    long bsize;		      /* Buffer size: positive if free,
 					 negative if allocated. */
 };
 #define BH(p)	((struct bhead *) (p))
 
 /*  Header in directly allocated buffers (by acqfcn) */
 struct bdhead {
-    ssize_t tsize;		      /* Total size, including overhead */
+    long tsize;		      /* Total size, including overhead */
     struct bhead bh;		      /* Common header */
 };
 #define BDH(p)	((struct bdhead *) (p))
@@ -100,8 +100,8 @@ struct bfhead {
 
 /* End sentinel: value placed in bsize field of dummy block delimiting
    end of pool block.  The most negative number which will  fit  in  a
-   ssize_t, defined in a way that the compiler will accept. */
-#define ESent	((ssize_t) (-(((1L << (sizeof(ssize_t) * 8 - 2)) - 1) * 2) - 2))
+   long, defined in a way that the compiler will accept. */
+#define ESent	((long) (-(((1L << (sizeof(long) * 8 - 2)) - 1) * 2) - 2))
 
 /* BytePool
  * This is the structure containing all neccessary state-variables
@@ -109,7 +109,7 @@ struct bfhead {
 typedef struct _BytePool {
 	struct bfhead freelist;
 #ifdef BufStats
-	ssize_t totalloc;	      /* Total space currently allocated */
+	long totalloc;	      /* Total space currently allocated */
 	long numget, numrel;   /* Number of bget() and brel() calls */
 #ifdef BECtl
 	long numpblk;	      /* Number of pool blocks */
@@ -120,11 +120,11 @@ typedef struct _BytePool {
 
 #ifdef BECtl
 	/* Automatic expansion block management functions */
-	int (*compfcn) (ssize_t sizereq, int sequence);
-	void *(*acqfcn) (ssize_t size);
+	int (*compfcn) (long sizereq, int sequence);
+	void *(*acqfcn) (long size);
 	void (*relfcn) (void *buf);
-	ssize_t exp_incr;	      /* Expansion block size */
-	ssize_t pool_len;	      /* 0: no bpool calls have been made
+	long exp_incr;	      /* Expansion block size */
+	long pool_len;	      /* 0: no bpool calls have been made
 					 -1: not all pool blocks are
 					     the same size
 					 >0: (common) block size for all
@@ -139,10 +139,10 @@ typedef struct _BytePool {
 void*
 bget(
 	_In_ BytePool_t *pool, 
-	_In_ ssize_t requested_size)
+	_In_ long requested_size)
 {
 	// Variables
-    ssize_t size = requested_size;
+    long size = requested_size;
     struct bfhead *b;
 #ifdef BestFit
     struct bfhead *best;
@@ -193,7 +193,7 @@ bget(
 #endif /* BestFit */
 
 	while (b != &pool->freelist) {
-	    if ((ssize_t) b->bh.bsize >= size) {
+	    if ((long) b->bh.bsize >= size) {
 
 		/* Buffer  is big enough to satisfy  the request.  Allocate it
 		   to the caller.  We must decide whether the buffer is  large
@@ -214,7 +214,7 @@ bget(
 		    /* Link allocated buffer to the previous free buffer. */
 		    ba->prevfree = b->bh.bsize;
 		    /* Plug negative size into user buffer. */
-		    ba->bsize = -(ssize_t) size;
+		    ba->bsize = -(long) size;
 		    /* Mark buffer after this one not preceded by free block. */
 		    bn->prevfree = 0;
 
@@ -275,7 +275,7 @@ bget(
 	    struct bdhead *bdh;
 
 	    size += sizeof(struct bdhead) - sizeof(struct bhead);
-	    if ((bdh = BDH((*pool->acqfcn)((ssize_t) size))) != NULL) {
+	    if ((bdh = BDH((*pool->acqfcn)((long) size))) != NULL) {
 
 		/*  Mark the buffer special by setting the size field
 		    of its header to zero.  */
@@ -296,7 +296,7 @@ bget(
 	    /*	Try to obtain a new expansion block */
 	    void *newpool;
 
-	    if ((newpool = (*pool->acqfcn)((ssize_t) pool->exp_incr)) != NULL) {
+	    if ((newpool = (*pool->acqfcn)((long) pool->exp_incr)) != NULL) {
 		bpool(newpool, pool->exp_incr, &pool);
                 buf =  bget(pool, requested_size);  /* This can't, I say, can't
 						 get into a loop. */
@@ -317,13 +317,13 @@ bget(
 void*
 bgetz(
 	_In_ BytePool_t *pool,
-	_In_ ssize_t size)
+	_In_ long size)
 {
     char *buf = (char *) bget(pool, size);
 
     if (buf != NULL) {
 	struct bhead *b;
-	ssize_t rsize;
+	long rsize;
 
 	b = BH(buf - sizeof(struct bhead));
 	rsize = -(b->bsize);
@@ -350,11 +350,11 @@ void*
 bgetr(
 	_In_ BytePool_t *pool, 
 	_In_ void *buf, 
-	_In_ ssize_t size)
+	_In_ long size)
 {
 	// Variables
     void *nbuf;
-    ssize_t osize;		      /* Old size of buffer */
+    long osize;		      /* Old size of buffer */
     struct bhead *b;
 
     if ((nbuf = bget(pool, size)) == NULL) { /* Acquire new buffer */
@@ -442,7 +442,7 @@ brel(
 	   buffer.  Note that we subtract the size  in	the  buffer  being
            released,  since  it's  negative to indicate that the buffer is
 	   allocated. */
-	register ssize_t size = b->bh.bsize;
+	register long size = b->bh.bsize;
 
         /* Make the previous buffer the one we're working on. */
 	assert(BH((char *) b - b->bh.prevfree)->bsize == b->bh.prevfree);
@@ -502,7 +502,7 @@ brel(
 	is  defined  in  such a way that the test will fail unless all
 	pool blocks are the same size.	*/
     if (pool->relfcn != NULL &&
-	((ssize_t) b->bh.bsize) == (pool->pool_len - sizeof(struct bhead))) {
+	((long) b->bh.bsize) == (pool->pool_len - sizeof(struct bhead))) {
 
 	assert(b->bh.prevfree == 0);
 	assert(BH((char *) b + b->bh.bsize)->bsize == ESent);
@@ -528,10 +528,10 @@ brel(
 void
 bectl(
 	_In_ BytePool_t *pool,
-	_In_ int (*compact) (ssize_t sizereq, int sequence),
-	_In_ void *(*acquire) (ssize_t size),
+	_In_ int (*compact) (long sizereq, int sequence),
+	_In_ void *(*acquire) (long size),
 	_In_ void (*release) (void *buf),
-	_In_ ssize_t pool_incr)
+	_In_ long pool_incr)
 {
     pool->compfcn = compact;
     pool->acqfcn = acquire;
@@ -548,7 +548,7 @@ bectl(
 OsStatus_t
 bpool(
 	_In_ void *buf, 
-	_In_ ssize_t len,
+	_In_ long len,
 	_Out_ BytePool_t **out)
 {
 	// Variables
@@ -582,7 +582,7 @@ bpool(
     /* Since the block is initially occupied by a single free  buffer,
        it  had	better	not  be  (much) larger than the largest buffer
        whose size we can store in bhead.bsize. */
-    assert(len - sizeof(struct bhead) <= -((ssize_t) ESent + 1));
+    assert(len - sizeof(struct bhead) <= -((long) ESent + 1));
 
     /* Clear  the  backpointer at  the start of the block to indicate that
        there  is  no  free  block  prior  to  this   one.    That   blocks
@@ -605,13 +605,13 @@ bpool(
        routines (this specific value is  not  counted  on  by  the  actual
        allocation and release functions). */
     len -= sizeof(struct bhead);
-    b->bh.bsize = (ssize_t) len;
+    b->bh.bsize = (long) len;
 #ifdef FreeWipe
     V memset(((char *) b) + sizeof(struct bfhead), 0x55,
 	     (MemSize) (len - sizeof(struct bfhead)));
 #endif
     bn = BH(((char *) b) + len);
-    bn->prevfree = (ssize_t) len;
+    bn->prevfree = (long) len;
     /* Definition of ESent assumes two's complement! */
     assert((~0) == -1);
     bn->bsize = ESent;
@@ -625,9 +625,9 @@ bpool(
 void
 bstats(
 	_In_ BytePool_t *pool,
-	_Out_ ssize_t *curalloc, 
-	_Out_ ssize_t *totfree, 
-	_Out_ ssize_t *maxfree, 
+	_Out_ long *curalloc, 
+	_Out_ long *totfree, 
+	_Out_ long *maxfree, 
 	_Out_ long *nget, 
 	_Out_ long *nrel)
 {
@@ -656,7 +656,7 @@ bstats(
 void
 bstatse(
 	_In_ BytePool_t *pool,
-	_Out_ ssize_t *pool_incr, 
+	_Out_ long *pool_incr, 
 	_Out_ long *npool, 
 	_Out_ long *npget, 
 	_Out_ long *nprel, 
@@ -687,7 +687,7 @@ bufdump(
 	// Variables
     struct bfhead *b;
     unsigned char *bdump;
-    ssize_t bdlen;
+    long bdlen;
 
     b = BFH(((char *) buf) - sizeof(struct bhead));
     assert(b->bh.bsize != 0);
@@ -701,7 +701,7 @@ bufdump(
 
     while (bdlen > 0) {
 	int i, dupes = 0;
-	ssize_t l = bdlen;
+	long l = bdlen;
 	char bhex[50], bascii[20];
 
 	if (l > 16) {
@@ -752,7 +752,7 @@ bpoold(
     struct bfhead *b = BFH(buf);
 
     while (b->bh.bsize != ESent) {
-	ssize_t bs = b->bh.bsize;
+	long bs = b->bh.bsize;
 
 	if (bs < 0) {
 	    bs = -bs;
@@ -802,7 +802,7 @@ bpoolv(
     struct bfhead *b = BFH(buf);
 
     while (b->bh.bsize != ESent) {
-	ssize_t bs = b->bh.bsize;
+	long bs = b->bh.bsize;
 
 	if (bs < 0) {
 	    bs = -bs;

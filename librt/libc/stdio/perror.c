@@ -19,17 +19,16 @@
 * MollenOS C Library - Print Error
 */
 
+#include <string.h>
 #include <stdio.h>
 #include <errno.h>
 
 void perror(
-	_In_ __CONST char * str)
-{
+	_In_ __CONST char * str) {
 	fprintf(stderr, "%s: %s\n", str, strerror(errno));
 }
 
 void wperror(
-	_In_ __CONST wchar_t *str)
-{
+	_In_ __CONST wchar_t *str) {
 	fwprintf(stderr, L"%s: %S\n", str, strerror(errno));
 }

@@ -6,14 +6,14 @@ SOURCES = $(wildcard ./*.cpp)
 OBJECTS = $(SOURCES:.cpp=.o)
 
 # dll - -D_DLL -D_LIBCXXABI_BUILDING_LIBRARY
-CXXFLAGS = $(GCXXFLAGS) -D_DLL -DCRTDLL -D_LIBCXXABI_BUILDING_LIBRARY -fno-ms-compatibility -D_NEWLIB_VERSION $(INCLUDES)
-LFLAGS = /nodefaultlib /subsystem:native /noentry /dll ../build/libc.lib ../build/libcrt.lib
+CXXFLAGS = $(GCXXFLAGS) -D_DLL -DCRTDLL -D_LIBCXXABI_ENABLE_EXCEPTIONS -DHAVE___CXA_THREAD_ATEXIT_IMPL -D_LIBCXXABI_BUILDING_LIBRARY -fno-ms-compatibility -D_NEWLIB_VERSION $(INCLUDES)
+LFLAGS = $(GLFLAGS) /noentry /dll ../build/libc.lib ../build/libcrt.lib ../deploy/libunwind.lib
 
 # default-target
 .PHONY: all
-all: ../build/libcxxabi.dll
+all: ../deploy/libcxxabi.dll
 
-../build/libcxxabi.dll: $(OBJECTS)
+../deploy/libcxxabi.dll: $(OBJECTS)
 	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
 %.o : %.cpp
@@ -21,6 +21,6 @@ all: ../build/libcxxabi.dll
 
 .PHONY: clean
 clean:
-	@rm -f ../build/libcxxabi.dll
-	@rm -f ../build/libcxxabi.lib
+	@rm -f ../deploy/libcxxabi.dll
+	@rm -f ../deploy/libcxxabi.lib
 	@rm -f $(OBJECTS)

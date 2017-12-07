@@ -24,34 +24,25 @@
  */
 
 #include <wchar.h>
+#include <string.h>
 #include <stdio.h>
-#include "local.h"
 
 int fputws(
-    _In_ __CONST wchar_t *s, 
-    _In_ FILE* file)
+    _In_ const wchar_t *str,
+    _In_ FILE *stream)
 {
-    size_t i, len = wcslen(s);
-    int tmp_buf = 0;
+    // Variables
+    static const wchar_t nl = '\n';
+    size_t len = wcslen(str);
     int ret;
 
-    _lock_file(file);
-    if (!(get_ioinfo(file->_fd)->wxflag & WX_TEXT)) {
-        ret = fwrite(s,sizeof(*s),len,file) == len ? 0 : EOF;
-        _unlock_file(file);
-        return ret;
+    _lock_file(stream);
+    if(fwrite(str, sizeof(*str), len, stream) != len) {
+        _unlock_file(stream);
+        return EOF;
     }
 
-    tmp_buf = add_std_buffer(file);
-    for (i=0; i<len; i++) {
-        if(fputwc(s[i], file) == WEOF) {
-            if(tmp_buf) remove_std_buffer(file);
-            _unlock_file(file);
-            return WEOF;
-        }
-    }
-
-    if(tmp_buf) remove_std_buffer(file);
-    _unlock_file(file);
-    return 0;
+    ret = fwrite(&nl,sizeof(nl),1,stream) == 1 ? 0 : EOF;
+    _unlock_file(stream);
+    return ret;
 }

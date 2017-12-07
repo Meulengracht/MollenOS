@@ -276,6 +276,15 @@
         "threads.h": "c",
         "coroutine": "c",
         "exception": "c",
-        "syscall.h": "c"
+        "syscall.h": "c",
+        "hash_map": "c",
+        "hash_set": "c",
+        "set": "c",
+        "unordered_map": "c",
+        "unordered_set": "c",
+        "dynarray": "c",
+        "forward_list": "c",
+        "scoped_allocator": "c",
+        "stdexcept": "cpp"
     }
 }

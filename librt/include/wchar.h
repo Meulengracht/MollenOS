@@ -28,6 +28,14 @@
 #include <stddef.h>
 #include <stdarg.h>
 
+#ifndef _WINT_T 
+#define _WINT_T 
+#ifndef __WINT_TYPE__ 
+#define __WINT_TYPE__ unsigned int 
+#endif 
+typedef __WINT_TYPE__ wint_t; 
+#endif
+
 #ifndef WEOF
 # define WEOF ((wint_t)-1)
 #endif
@@ -81,6 +89,12 @@ typedef _mbstate_t mbstate_t;
 #define __VALIST char*
 #endif
 #endif
+
+/* mbsinit
+ * If ps is not a null pointer, the mbsinit function determines whether the pointed-to 
+ * mbstate_t object describes the initial conversion state. */
+CRTDECL(int, mbsinit(
+    _In_ const mbstate_t *ps));
 
 _CRTIMP wchar_t *wcpcpy(wchar_t *s1, __CONST wchar_t *s2);
 _CRTIMP wchar_t *wcpncpy(wchar_t *__restrict dst,

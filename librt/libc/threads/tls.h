@@ -27,6 +27,7 @@
  * - Library */
 #include <os/osdefs.h>
 #include <os/driver/buffer.h>
+#include <errno.h>
 #include <threads.h>
 #include <wchar.h>
 

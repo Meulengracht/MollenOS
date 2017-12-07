@@ -27,6 +27,30 @@
  * - Library */
 #include <os/osdefs.h>
 
+#ifndef _CLOCK_T_DEFINED
+#define _CLOCK_T_DEFINED
+typedef __SIZE_TYPE__ clock_t;
+#endif //!_CLOCK_T_DEFINED
+
+#ifndef _TIME32_T_DEFINED
+#define _TIME32_T_DEFINED
+  typedef long __time32_t;
+#endif
+#ifndef _TIME64_T_DEFINED
+#define _TIME64_T_DEFINED
+#if _INTEGRAL_MAX_BITS >= 64
+  typedef __int64 __time64_t;
+#endif
+#endif
+#ifndef _TIME_T_DEFINED
+#define _TIME_T_DEFINED
+#ifdef _USE_32BIT_TIME_T
+  typedef __time32_t time_t;
+#else
+  typedef __time64_t time_t;
+#endif
+#endif
+
 /* Time Definitions
  * Definitions, prototypes and typedefs. */
 #define CLOCKS_PER_SEC      1000
@@ -35,7 +59,6 @@
 #define TIME_MONOTONIC      2 // The epoch is when the computer was booted.
 #define TIME_PROCESS        3 // The epoch for this clock is at some time during the generation of the current process.
 #define TIME_THREAD         4 // The epic is like TIME_PROCESS, but locally for the calling thread.
-typedef size_t clock_t;
 
 /* tm
  * Define the time structures, this one is the base

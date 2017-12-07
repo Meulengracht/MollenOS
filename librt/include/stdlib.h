@@ -141,7 +141,18 @@ _CRTIMP void srand(unsigned int seed);
 _CRTIMP void *malloc(size_t);
 _CRTIMP void *realloc(void*, size_t);
 _CRTIMP void *calloc(size_t, size_t);
-_CRTIMP void free(void*);
+
+/* aligned_alloc
+ * Allocate size bytes of uninitialized storage whose alignment is specified by alignment. 
+ * The size parameter must be an integral multiple of alignment. */
+CRTDECL(void*, aligned_alloc(
+    _In_ size_t alignment,
+    _In_ size_t size));
+
+/* free
+ * Deallocates the space previously allocated by malloc(), calloc(), 
+ * aligned_alloc, (since C11) or realloc(). */
+CRTDECL(void, free(void *ptr));
 
 /* Environment functions, primarily functions
  * related to system env setup and exit functionality */

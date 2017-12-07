@@ -209,6 +209,9 @@ void* __aligned_malloc_with_fallback(size_t size) {
 #elif defined(_LIBCPP_HAS_NO_ALIGNED_ALLOCATION)
   if (void* dest = std::malloc(size))
     return dest;
+#elif defined(MOLLENOS)
+    if (void* dest = std::aligned_alloc(alignof(__aligned_type), size))
+        return dest;
 #else
   if (size == 0)
     size = 1;

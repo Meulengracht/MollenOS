@@ -27,20 +27,21 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#ifndef _WINT_T 
+#define _WINT_T 
+#ifndef __WINT_TYPE__ 
+#define __WINT_TYPE__ unsigned int 
+#endif 
+typedef __WINT_TYPE__ wint_t; 
+#endif
+
 #ifndef WEOF
 # define WEOF ((wint_t)-1)
 #endif
 
-/* CPP Guard */
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 #ifndef _WCTYPE_T_DEFINED
 #define _WCTYPE_T_DEFINED
-	typedef unsigned short wint_t;
-	typedef unsigned short wctype_t;
+typedef unsigned short wctype_t;
 #endif
 
 #ifndef _WCTRANS_T
@@ -48,6 +49,7 @@ extern "C"
 typedef int wctrans_t;
 #endif
 
+_CODE_BEGIN
 _CRTIMP int	iswalpha(wint_t);
 _CRTIMP int	iswalnum(wint_t);
 _CRTIMP int	iswblank(wint_t);
@@ -87,9 +89,5 @@ _CRTIMP wint_t	towlower_l (wint_t, locale_t);
 _CRTIMP wctrans_t wctrans_l (__CONST char *, locale_t);
 _CRTIMP wctype_t wctype_l (__CONST char *, locale_t);
 #endif
-
-#ifdef __cplusplus
-}
-#endif
-
+_CODE_END
 #endif /* _WCTYPE_H_ */

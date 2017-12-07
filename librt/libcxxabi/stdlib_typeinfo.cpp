@@ -14,21 +14,21 @@ namespace std
 
 // type_info
 
-type_info::~type_info()
+_CRTIMP type_info::~type_info()
 {
 }
 
 // bad_cast
 
-bad_cast::bad_cast() _NOEXCEPT
+_CRTIMP bad_cast::bad_cast() _NOEXCEPT
 {
 }
 
-bad_cast::~bad_cast() _NOEXCEPT
+_CRTIMP bad_cast::~bad_cast() _NOEXCEPT
 {
 }
 
-const char*
+_CRTIMP const char*
 bad_cast::what() const _NOEXCEPT
 {
   return "std::bad_cast";
@@ -36,15 +36,15 @@ bad_cast::what() const _NOEXCEPT
 
 // bad_typeid
 
-bad_typeid::bad_typeid() _NOEXCEPT
+_CRTIMP bad_typeid::bad_typeid() _NOEXCEPT
 {
 }
 
-bad_typeid::~bad_typeid() _NOEXCEPT
+_CRTIMP bad_typeid::~bad_typeid() _NOEXCEPT
 {
 }
 
-const char*
+_CRTIMP const char*
 bad_typeid::what() const _NOEXCEPT
 {
   return "std::bad_typeid";

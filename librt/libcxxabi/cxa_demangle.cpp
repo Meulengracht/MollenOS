@@ -20,7 +20,7 @@
 #include <cstring>
 #include <cctype>
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(MOLLENOS)
 // snprintf is implemented in VS 2015
 #if _MSC_VER < 1900
 #define snprintf _snprintf_s

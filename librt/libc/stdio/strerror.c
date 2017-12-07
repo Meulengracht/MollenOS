@@ -25,6 +25,8 @@
 #include <string.h>
 #include <stdlib.h>
 
+__EXTERN const char** _errstrings;
+
 /* The strerror
  * converts an error code
  * to a string representation */

@@ -23,7 +23,7 @@ namespace std
 {
 
 unexpected_handler
-get_unexpected() _NOEXCEPT
+_CRTIMP get_unexpected() _NOEXCEPT
 {
     return __sync_fetch_and_add(&__cxa_unexpected_handler, (unexpected_handler)0);
 //  The above is safe but overkill on x86
@@ -41,13 +41,13 @@ __unexpected(unexpected_handler func)
 
 __attribute__((noreturn))
 void
-unexpected()
+_CRTIMP unexpected()
 {
     __unexpected(get_unexpected());
 }
 
 terminate_handler
-get_terminate() _NOEXCEPT
+_CRTIMP get_terminate() _NOEXCEPT
 {
     return __sync_fetch_and_add(&__cxa_terminate_handler, (terminate_handler)0);
 //  The above is safe but overkill on x86
@@ -77,7 +77,7 @@ __terminate(terminate_handler func) _NOEXCEPT
 
 __attribute__((noreturn))
 void
-terminate() _NOEXCEPT
+_CRTIMP terminate() _NOEXCEPT
 {
     // If there might be an uncaught exception
     using namespace __cxxabiv1;
@@ -106,7 +106,7 @@ new_handler __cxa_new_handler = 0;
 }
 
 new_handler
-set_new_handler(new_handler handler) _NOEXCEPT
+_CRTIMP set_new_handler(new_handler handler) _NOEXCEPT
 {
     return __atomic_exchange_n(&__cxa_new_handler, handler, __ATOMIC_ACQ_REL);
 //  Using of C++11 atomics this should be rewritten
@@ -114,7 +114,7 @@ set_new_handler(new_handler handler) _NOEXCEPT
 }
 
 new_handler
-get_new_handler() _NOEXCEPT
+_CRTIMP get_new_handler() _NOEXCEPT
 {
     return __sync_fetch_and_add(&__cxa_new_handler, (new_handler)0);
 //  The above is safe but overkill on x86

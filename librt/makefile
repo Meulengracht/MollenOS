@@ -10,9 +10,12 @@
 # The remaining libraries are run-time libraries for C++ support
 
 .PHONY: all
-all: build build/libcxxabi.dll build/libk.lib build/libds.lib build/libdsk.lib build/libcrt.lib build/libdrv.lib build/libsrv.lib build/libm.dll build/libc.dll build/libos.dll build/libusb.lib
+all: build deploy build/libk.lib build/libds.lib build/libdsk.lib build/libcrt.lib build/libdrv.lib build/libsrv.lib build/libm.dll build/libc.dll build/libos.dll build/libusb.lib deploy/libunwind.dll deploy/libcxxabi.dll
 
 build:
+	mkdir -p $@
+
+deploy:
 	mkdir -p $@
 
 build/libk.lib:
@@ -45,7 +48,10 @@ build/libos.dll:
 build/libusb.lib:
 	$(MAKE) -C libusb -f makefile
 
-build/libcxxabi.dll:
+deploy/libunwind.dll:
+	$(MAKE) -C libunwind -f makefile
+
+deploy/libcxxabi.dll:
 	$(MAKE) -C libcxxabi -f makefile
 
 .PHONY: clean
@@ -56,5 +62,7 @@ clean:
 	$(MAKE) -C libos -f makefile clean
 	$(MAKE) -C libusb -f makefile clean
 	$(MAKE) -C libcrt -f makefile clean
+	$(MAKE) -C libunwind -f makefile clean
 	$(MAKE) -C libcxxabi -f makefile clean
 	@rm -rf build
+	@rm -rf deploy

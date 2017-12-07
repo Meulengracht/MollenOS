@@ -231,6 +231,12 @@
 # define _LIBCPP_HAS_QUICK_EXIT
 #endif  // __NetBSD__
 
+#if defined(MOLLENOS)
+#  undef _WIN32
+#  define _LIBCPP_LITTLE_ENDIAN
+#  define _LIBCPP_SHORT_WCHAR   1
+#endif //!MOLLENOS
+
 #if defined(_WIN32)
 #  define _LIBCPP_WIN32API
 #  define _LIBCPP_LITTLE_ENDIAN
@@ -1026,6 +1032,8 @@ _LIBCPP_FUNC_VIS extern "C" void __sanitizer_annotate_contiguous_container(
     defined(__sun__) || \
     (defined(__MINGW32__) && __libcpp_has_include(<pthread.h>))
 #   define _LIBCPP_HAS_THREAD_API_PTHREAD
+# elif defined(MOLLENOS)
+#  define _LIBCPP_HAS_THREAD_API_C11
 # elif defined(_LIBCPP_WIN32API)
 #  define _LIBCPP_HAS_THREAD_API_WIN32
 # else

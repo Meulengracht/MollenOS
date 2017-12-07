@@ -19,6 +19,8 @@
 #include "cxa_exception.hpp"
 #include "cxa_handlers.hpp"
 
+#ifndef _LIBCXXABI_ENABLE_EXCEPTIONS
+
 namespace __cxxabiv1 {
 
 extern "C" {
@@ -53,3 +55,5 @@ __cxa_uncaught_exceptions() throw() { return 0; }
 }  // extern "C"
 
 }  // abi
+
+#endif

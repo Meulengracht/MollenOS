@@ -16,21 +16,21 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - C Standard Library
+ * MollenOS C11-Support Io Implementation
+ * - Definitions, prototypes and information needed.
  */
 
-#ifndef __STDIO_INC__
-#define __STDIO_INC__
+#ifndef __STDC_STDIO__
+#define __STDC_STDIO__
 
 /* Includes 
  * - Library */
 #include <os/osdefs.h>
+#define __need_wint_t
 #include <stddef.h>
 #include <stdarg.h>
 
-/* C Guard */
 _CODE_BEGIN
-
 /*******************************
  *        Definitions          *
  *******************************/
@@ -65,7 +65,6 @@ _CODE_BEGIN
 /* Stdio errno String Definitions 
  * Definitions and symbols for error strings in standard C */
 #define _MAX_ERRNO	127
-_CRTIMP __CONST char **_errstrings;
 
 /* Stdio file modes and flags
  * Definitions and bit-flags for available IO modes */
@@ -80,6 +79,8 @@ _CRTIMP __CONST char **_errstrings;
 #define _IOSTRG    0x0040
 #define _IORW      0x0080
 #define _USERBUF   0x0100
+#define _FWIDE     0x0200
+#define _FBYTE     0x0400
 
 /*******************************
  *       File Structures       *
@@ -203,6 +204,29 @@ _CRTIMP int swscanf(
     _In_ __CONST wchar_t *format, 
     ...);
 
+_CRTIMP int vscanf(
+    _In_ const char *format,
+    _In_ va_list vlist);
+_CRTIMP int vfscanf(
+    FILE *stream,
+    const char *format, 
+    va_list vlist);
+_CRTIMP int vsscanf(
+    const char *buffer,
+    const char *format, 
+    va_list vlist);
+_CRTIMP int vwscanf(
+    const wchar_t *format,
+    va_list vlist);
+_CRTIMP int vfwscanf(
+    FILE *stream,
+    const wchar_t *format,
+    va_list vlist);
+_CRTIMP int vswscanf(
+    const wchar_t *buffer,
+    const wchar_t *format,
+    va_list vlist);
+
 _CRTIMP int fprintf(
     _In_ FILE *file, 
     _In_ __CONST char *format,
@@ -304,21 +328,43 @@ _CRTIMP wint_t getwc(
 _CRTIMP int putw(
     _In_ int val, 
     _In_ FILE *file);
+
+/* putwc
+ * Writes a wide character ch to the given output stream stream. putwc() may be implemented as a 
+ * macro and may evaluate stream more than once. */
+CRTDECL(wint_t, putwc(
+    _In_ wchar_t ch,
+    _In_ FILE *stream));
 _CRTIMP wint_t putwch(
     _In_ wchar_t character);
 _CRTIMP int putws(
     _In_ __CONST wchar_t *s);
 _CRTIMP wchar_t* getws(
     _In_ wchar_t* buf);
+CRTDECL(int, fwide(
+    _In_ FILE *stream,
+    _In_ int mode));
 
 _CRTIMP wint_t fgetwchar(void);
 _CRTIMP wint_t fputwchar(
     _In_ wint_t wc);
-_CRTIMP wint_t fputwc(
+
+/* putwchar 
+ * Writes a wide character ch to stdout */
+CRTDECL(wint_t, putwchar(
+    _In_ wchar_t ch));
+
+/* fputwc
+ * Writes a wide character ch to the given output stream stream. putwc() may be implemented as a 
+ * macro and may evaluate stream more than once. */
+CRTDECL(wint_t, fputwc(
     _In_ wchar_t c, 
-    _In_ FILE* stream);
+    _In_ FILE* stream));
 _CRTIMP wint_t fgetwc(
     _In_ FILE *file);
+_CRTIMP int fputws(
+    _In_ const wchar_t *str,
+    _In_ FILE *stream);
 _CRTIMP wchar_t *fgetws(
     _In_ wchar_t *s,
     _In_ int size,
@@ -382,8 +428,6 @@ _CRTIMP void perror(
     _In_ __CONST char * str);
 _CRTIMP void wperror(
 	_In_ __CONST wchar_t *str);
-_CRTIMP char *strerror(int errnum);
-
 _CODE_END
 
-#endif
+#endif //!__STDC_STDIO__

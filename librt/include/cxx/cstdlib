@@ -125,6 +125,7 @@ using ::srand;
 using ::calloc;
 using ::free;
 using ::malloc;
+using ::aligned_alloc;
 using ::realloc;
 using ::abort;
 using ::atexit;

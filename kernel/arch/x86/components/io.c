@@ -33,12 +33,12 @@
  * - Library */
 #include <stddef.h>
 
-__EXTERN uint8_t __CRTDECL inb(uint16_t port);
-__EXTERN uint16_t __CRTDECL inw(uint16_t port);
-__EXTERN uint32_t __CRTDECL inl(uint16_t port);
-__EXTERN void __CRTDECL outb(uint16_t port, uint8_t data);
-__EXTERN void __CRTDECL outw(uint16_t port, uint16_t data);
-__EXTERN void __CRTDECL outl(uint16_t port, uint32_t data);
+__EXTERN uint8_t inb(uint16_t port);
+__EXTERN uint16_t inw(uint16_t port);
+__EXTERN uint32_t inl(uint16_t port);
+__EXTERN void outb(uint16_t port, uint8_t data);
+__EXTERN void outw(uint16_t port, uint16_t data);
+__EXTERN void outl(uint16_t port, uint32_t data);
 
 /* PCI I/O Helper
  * This function calculates the correct offset

@@ -27,6 +27,9 @@
 /* Includes
  * - Library */
 #include <os/osdefs.h>
+#include <os/pe.h>
+
+#define PROCESS_MAXMODULES          128
 
 /* ProcessQueryFunction
  * List of the different options for process queries */
@@ -112,6 +115,15 @@ OsStatus_t
 MOSABI
 GetStartupInformation(
     _InOut_ ProcessStartupInformation_t *StartupInformation);
+
+/* GetProcessModules
+ * Retrieves a list of loaded module handles. Handles can be queried
+ * for various application-image data. Like sections. */
+MOSAPI
+OsStatus_t
+MOSABI
+GetProcessModules(
+    _Out_ Handle_t ModuleList[PROCESS_MAXMODULES]);
 
 _CODE_END
 

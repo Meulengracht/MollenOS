@@ -18,10 +18,8 @@
  *
  * MollenOS C Library - CRT Definitions
  */
-
-
-#ifndef _INC_CRTDEFS
-#define _INC_CRTDEFS
+#ifndef __STDC_CRTDEF__
+#define __STDC_CRTDEF__
 
 #ifdef _USE_32BIT_TIME_T
 #ifdef _WIN64
@@ -44,6 +42,32 @@
 #define __CRT_WIDE(_String) L ## _String
 #define _CRT_WIDE(_String) __CRT_WIDE(_String)
 #endif
+
+#ifdef __cplusplus
+#define restrict /*restrict*/
+#endif
+
+/* Standard C-Library Export 
+ * Standard definition for the std-c. */
+#ifdef __OSLIB_C_IMPLEMENTATION
+#ifdef __OSLIB_C_SHAREDLIBRARY
+#define __STDC_DECORATION __declspec(dllexport)
+#else
+#define __STDC_DECORATION 
+#endif //!__OSLIB_C_SHAREDLIBRARY
+#else
+#ifdef __OSLIB_C_SHAREDLIBRARY
+#define __STDC_DECORATION __declspec(dllimport)
+#else
+#define __STDC_DECORATION 
+#endif //!__OSLIB_C_SHAREDLIBRARY
+#endif //!__OSLIB_C_IMPLEMENTATION
+#define CRTDECL(ReturnType, Function) __STDC_DECORATION ReturnType Function
+#ifdef __STDC_LIB_EXT1__
+#define CRTDECL_EX(ReturnType, Function) __STDC_DECORATION ReturnType Function
+#else
+#define CRTDECL_EX(ReturnType, Function)
+#endif //!__STDC_LIB_EXT1__
 
 /* This is the export definitions used by
  * the runtime libraries, they default to
@@ -222,22 +246,6 @@
  #endif
 #endif
 
-#ifndef _MRTIMP2
- #define _MRTIMP2  _CRTIMP
-#endif
-
-#ifndef _MCRTIMP
- #define _MCRTIMP _CRTIMP
-#endif
-
-#ifndef _PGLOBAL
- #define _PGLOBAL
-#endif
-
-#ifndef _AGLOBAL
- #define _AGLOBAL
-#endif
-
 #ifndef _CONST_RETURN
  #define _CONST_RETURN
 #endif
@@ -295,14 +303,6 @@
 #endif
 #endif
 
-#ifndef _CRTNOALIAS
-#define _CRTNOALIAS
-#endif
-
-#ifndef _CRTRESTRICT
-#define _CRTRESTRICT
-#endif
-
 #ifndef __CRTDECL
 #define __CRTDECL __cdecl
 #endif
@@ -310,17 +310,6 @@
 #ifndef _CRT_UNUSED
 #define _CRT_UNUSED(x) (void)x
 #endif
-
-#ifndef _CONST_RETURN
-#ifdef __cplusplus
-#define _CONST_RETURN const
-#define _CRT_CONST_CORRECT_OVERLOADS
-#else
-#define _CONST_RETURN
-#endif
-#endif
-
-#define __crt_typefix(ctype)
 
 #ifdef _MSC_VER
 #ifdef _AMD64_
@@ -352,53 +341,6 @@ MemoryBarrier (void)
 #define _CRT_DEPRECATE_TEXT(_Text)
 #endif
 
-#ifndef __STDC_WANT_SECURE_LIB__
-#define __STDC_WANT_SECURE_LIB__ 1
-#endif
-
-#ifndef _CRT_INSECURE_DEPRECATE
-# ifdef _CRT_SECURE_NO_DEPRECATE
-#  define _CRT_INSECURE_DEPRECATE(_Replacement)
-# else
-#  define _CRT_INSECURE_DEPRECATE(_Replacement) \
-    _CRT_DEPRECATE_TEXT("This may be unsafe, Try " #_Replacement " instead!")
-# endif
-#endif
-
-#ifndef _CRT_INSECURE_DEPRECATE_CORE
-# ifdef _CRT_SECURE_NO_DEPRECATE_CORE
-#  define _CRT_INSECURE_DEPRECATE_CORE(_Replacement)
-# else
-#  define _CRT_INSECURE_DEPRECATE_CORE(_Replacement) \
-    _CRT_DEPRECATE_TEXT("This may be unsafe, Try " #_Replacement " instead! Enable _CRT_SECURE_NO_DEPRECATE to avoid thie warning.")
-# endif
-#endif
-
-#ifndef _CRT_NONSTDC_DEPRECATE
-# ifdef _CRT_NONSTDC_NO_DEPRECATE
-#  define _CRT_NONSTDC_DEPRECATE(_Replacement)
-# else
-#  define _CRT_NONSTDC_DEPRECATE(_Replacement) \
-    _CRT_DEPRECATE_TEXT("Deprecated POSIX name, Try " #_Replacement " instead!")
-# endif
-#endif
-
-#ifndef _CRT_INSECURE_DEPRECATE_MEMORY
-#define _CRT_INSECURE_DEPRECATE_MEMORY(_Replacement)
-#endif
-
-#ifndef _CRT_INSECURE_DEPRECATE_GLOBALS
-#define _CRT_INSECURE_DEPRECATE_GLOBALS(_Replacement)
-#endif
-
-#ifndef _CRT_MANAGED_HEAP_DEPRECATE
-#define _CRT_MANAGED_HEAP_DEPRECATE
-#endif
-
-#ifndef _CRT_OBSOLETE
-#define _CRT_OBSOLETE(_NewItem)
-#endif
-
 /* Sometimes it's necessary to define __LITTLE_ENDIAN explicitly
  * but these catch some common cases. */
 #if defined(i386) || defined(i486) || \
@@ -407,148 +349,4 @@ MemoryBarrier (void)
 #define __LITTLE_ENDIAN
 #endif
 
-
-/** Constants ****************************************************************/
-
-#define _ARGMAX 100
-
-#ifndef _TRUNCATE
-#define _TRUNCATE ((size_t)-1)
-#endif
-
-#define __STDC_SECURE_LIB__ 200411L
-#define __GOT_SECURE_LIB__ __STDC_SECURE_LIB__
-#define _SECURECRT_FILL_BUFFER_PATTERN 0xFD
-
-
-/** Type definitions *********************************************************/
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#ifndef _SIZE_T_DEFINED
-#define _SIZE_T_DEFINED
-#undef size_t
-#if defined(_WIN64) || defined(_X86_64)
-#if defined(__GNUC__) && defined(__STRICT_ANSI__)
-	typedef unsigned int size_t __attribute__ ((mode (DI)));
-#else
-	typedef unsigned long long size_t;
-#endif
-#define SIZET_MAX 0xFFFFFFFFFFFFFFFFULL
-#else
-	typedef unsigned int size_t;
-#define SIZET_MAX 0xFFFFFFFF
-#endif
-#endif
-
-#ifndef _SSIZE_T_DEFINED
-#define _SSIZE_T_DEFINED
-#undef ssize_t
-#if defined(_WIN64) || defined(_X86_64)
-#if defined(__GNUC__) && defined(__STRICT_ANSI__)
-	typedef signed int ssize_t __attribute__((mode(DI)));
-#else
-	typedef signed long long ssize_t;
-#endif
-#else
-	typedef signed int ssize_t;
-#endif
-#endif
-
-#ifndef _INTPTR_T_DEFINED
-#define _INTPTR_T_DEFINED
-#ifndef __intptr_t_defined
-#define __intptr_t_defined
-#undef intptr_t
-#if defined(_WIN64) || defined(_X86_64)
-#if defined(__GNUC__) && defined(__STRICT_ANSI__)
-	typedef int intptr_t __attribute__ ((mode (DI)));
-#else
-	typedef long long intptr_t;
-#endif
-#else
-	typedef int intptr_t;
-#endif
-#endif
-#endif
-
-#ifndef _UINTPTR_T_DEFINED
-#define _UINTPTR_T_DEFINED
-#ifndef __uintptr_t_defined
-#define __uintptr_t_defined
-#undef uintptr_t
-#if defined(_WIN64) || defined(_X86_64)
-#if defined(__GNUC__) && defined(__STRICT_ANSI__)
-	typedef unsigned int uintptr_t __attribute__ ((mode (DI)));
-#else
-	typedef unsigned long long uintptr_t;
-#endif
-#else
-	typedef unsigned int uintptr_t;
-#endif
-#endif
-#endif
-
-#ifndef _PTRDIFF_T_DEFINED
-#define _PTRDIFF_T_DEFINED
-#ifndef _PTRDIFF_T_
-#undef ptrdiff_t
-#if defined(_WIN64) || defined(_X86_64)
-#if defined(__GNUC__) && defined(__STRICT_ANSI__)
-	typedef int ptrdiff_t __attribute__ ((mode (DI)));
-#else
-	typedef long long ptrdiff_t;
-#endif
-#else
-	typedef int ptrdiff_t;
-#endif
-#endif
-#endif
-
-#ifndef _WCHAR_T_DEFINED
-#define _WCHAR_T_DEFINED
-#ifndef __cplusplus
-  typedef unsigned short wchar_t;
-#endif
-#endif
-
-#ifndef _WCTYPE_T_DEFINED
-#define _WCTYPE_T_DEFINED
-  typedef unsigned short wctype_t;
-  typedef unsigned short wint_t;
-#endif
-
-#ifndef _ERRCODE_DEFINED
-#define _ERRCODE_DEFINED
-  typedef int errcode;
-  typedef int errno_t;
-#endif
-
-#ifndef _TIME32_T_DEFINED
-#define _TIME32_T_DEFINED
-  typedef long __time32_t;
-#endif
-
-#ifndef _TIME64_T_DEFINED
-#define _TIME64_T_DEFINED
-#if _INTEGRAL_MAX_BITS >= 64
-  typedef __int64 __time64_t;
-#endif
-#endif
-
-#ifndef _TIME_T_DEFINED
-#define _TIME_T_DEFINED
-#ifdef _USE_32BIT_TIME_T
-  typedef __time32_t time_t;
-#else
-  typedef __time64_t time_t;
-#endif
-#endif
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /* !_INC_CRTDEFS */
+#endif /* !__STDC_CRTDEF__ */

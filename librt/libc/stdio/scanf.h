@@ -52,9 +52,9 @@
 #define _UNLOCK_FILE_(file) _unlock_file(stdin)
 #ifdef WIDE_SCANF
 #ifdef SECURE
-#define _FUNCTION_ static int vcwscanf_s_l(const char *format, locale_t locale, va_list ap)
+#define _FUNCTION_ static int vcwscanf_s_l(const wchar_t *format, locale_t locale, va_list ap)
 #else  /* SECURE */
-#define _FUNCTION_ static int vcwscanf_l(const char *format, locale_t locale, va_list ap)
+#define _FUNCTION_ static int vcwscanf_l(const wchar_t *format, locale_t locale, va_list ap)
 #endif /* SECURE */
 #else  /* WIDE_SCANF */
 #ifdef SECURE

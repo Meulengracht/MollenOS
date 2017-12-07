@@ -71,6 +71,13 @@ static int wchar2digit(wchar_t c, int base) {
 #undef SECURE
 #include "scanf.h"
 
+/* vcwscanf_l */
+#define WIDE_SCANF 1
+#define CONSOLE 1
+#undef STRING
+#undef SECURE
+#include "scanf.h"
+
 /* vsscanf_l */
 #undef WIDE_SCANF
 #undef CONSOLE
@@ -180,6 +187,52 @@ int swscanf(
     res = vswscanf_l(str, format, NULL, valist);
     va_end(valist);
     return res;
+}
+
+int vscanf(
+    _In_ __CONST char *format,
+    _In_ va_list vlist)
+{
+    return vcscanf_l(format, NULL, vlist);
+}
+
+int vfscanf(
+    FILE *stream,
+    __CONST char *format, 
+    va_list vlist)
+{
+    return vfscanf_l(stream, format, NULL, vlist);
+}
+
+int vsscanf(
+    __CONST char *buffer,
+    __CONST char *format, 
+    va_list vlist )
+{
+    return vsscanf_l(buffer, format, NULL, vlist);
+}
+
+int vwscanf(
+    _In_ const wchar_t *format,
+    _In_ va_list vlist)
+{
+    return vcwscanf_l(format, NULL, vlist);
+}
+
+int vfwscanf(
+    FILE *stream,
+    __CONST wchar_t *format,
+    va_list vlist )
+{
+    return vfwscanf_l(stream, format, NULL, vlist);
+}
+
+int vswscanf(
+    __CONST wchar_t *buffer,
+    __CONST wchar_t *format,
+    va_list vlist )
+{
+    return vswscanf_l(buffer, format, NULL, vlist);
 }
 
 int _cscanf(const char *format, ...)
