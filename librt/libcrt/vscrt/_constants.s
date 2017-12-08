@@ -14,15 +14,19 @@
 ;
 ;*******************************************************************************
 bits 32
+SECTION .data
 
 ; offset, with respect to FS, of pointer to currently active exception handler.
 ; referenced by compiler generated code for SEH and by _setjmp().
 
 global _except_list
-_except_list    dd     0
+_except_list    dd     4
 
 global _fltused
 _fltused        dd     9876h
+
+global __fltused
+__fltused       dd     9876h
 
 global _ldused
 _ldused         dd     9876h

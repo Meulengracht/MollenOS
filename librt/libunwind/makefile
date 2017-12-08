@@ -9,8 +9,8 @@ SOURCES_X = libunwind.cpp Unwind-EHABI.cpp
 OBJECTS = $(SOURCES_S:.s=.o) $(SOURCES_C:.c=.o) $(SOURCES_X:.cpp=.o)
 
 ASFLAGS = -f win32 -Xvc
-CFLAGS = $(GCFLAGS) -std=c11 -D_DLL -DCRTDLL -D__OSLIB_UNWIND_IMPLEMENTATION -fno-ms-compatibility $(INCLUDES)
-CXXFLAGS = $(GCXXFLAGS) -DNDEBUG -D_DLL -DCRTDLL -D__OSLIB_UNWIND_IMPLEMENTATION -fno-ms-compatibility $(INCLUDES)
+CFLAGS = $(GCFLAGS) -std=c11 -D_DLL -DCRTDLL -D__OSLIB_UNWIND_IMPLEMENTATION $(INCLUDES)
+CXXFLAGS = $(GCXXFLAGS) -D_DLL -DCRTDLL -D__OSLIB_UNWIND_IMPLEMENTATION -fno-rtti $(INCLUDES)
 LFLAGS = $(GLFLAGS) /noentry /dll ../build/libos.lib ../build/libc.lib ../build/libcrt.lib
 
 # default-target

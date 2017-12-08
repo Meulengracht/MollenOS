@@ -58,6 +58,7 @@ enum {
     mtx_timed       = 2
 };
 
+_CODE_BEGIN
 /* call_once
  * Calls function func exactly once, even if invoked from several threads. 
  * The completion of the function func synchronizes with all previous or subsequent 
@@ -303,4 +304,5 @@ void
 tss_delete(
     _In_ tss_t tss_id);
 
+_CODE_END
 #endif //!__STDC_THREADS__

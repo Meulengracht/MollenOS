@@ -684,27 +684,29 @@ PeResolveFunction(
  * the next address is available for load */
 MCorePeFile_t*
 PeLoadImage(
-    _In_ MCorePeFile_t *Parent,
-    _In_ MString_t *Name,
-    _In_ uint8_t *Buffer,
-    _In_ size_t Length,
-    _InOut_ uintptr_t *BaseAddress,
-    _In_ int UsingInitRD)
+    _In_ MCorePeFile_t  *Parent,
+    _In_ MString_t      *Name,
+    _In_ uint8_t        *Buffer,
+    _In_ size_t          Length,
+    _InOut_ uintptr_t   *BaseAddress,
+    _In_ int             UsingInitRD)
 {
     // Variables
-    MzHeader_t *DosHeader = NULL;
-    PeHeader_t *BaseHeader = NULL;
-    PeOptionalHeader_t *OptHeader = NULL;
+    MzHeader_t *DosHeader               = NULL;
+    PeHeader_t *BaseHeader              = NULL;
+    PeOptionalHeader_t *OptHeader       = NULL;
 
     // Optional headers for both bit-widths
-    PeOptionalHeader32_t *OptHeader32 = NULL;
-    PeOptionalHeader64_t *OptHeader64 = NULL;
+    PeOptionalHeader32_t *OptHeader32   = NULL;
+    PeOptionalHeader64_t *OptHeader64   = NULL;
 
     // More variables
-    uintptr_t SectionAddress = 0;
-    uintptr_t ImageBase = 0;
-    PeDataDirectory_t *DirectoryPtr = NULL;
-    MCorePeFile_t *PeInfo = NULL;
+    uintptr_t SectionAddress            = 0;
+    uintptr_t ImageBase                 = 0;
+    size_t SizeOfMetaData               = 0;
+    PeDataDirectory_t *DirectoryPtr     = NULL;
+    MCorePeFile_t *PeInfo               = NULL;
+    int i;
 
 #ifdef __OSCONFIG_PROCESS_SINGLELOAD
     CriticalSectionEnter(&LoaderLock);
@@ -722,28 +724,30 @@ PeLoadImage(
     }
     
     // Start out by initializing our header pointers
-    DosHeader = (MzHeader_t*)Buffer;
-    BaseHeader = (PeHeader_t*)(Buffer + DosHeader->PeHeaderAddress);
-    OptHeader = (PeOptionalHeader_t*)
+    DosHeader       = (MzHeader_t*)Buffer;
+    BaseHeader      = (PeHeader_t*)(Buffer + DosHeader->PeHeaderAddress);
+    OptHeader       = (PeOptionalHeader_t*)
         (Buffer + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
 
     // We need to re-cast based on architecture 
     // and handle them differnetly
     if (OptHeader->Architecture == PE_ARCHITECTURE_32) {
-        OptHeader32 = (PeOptionalHeader32_t*)(Buffer 
+        OptHeader32     = (PeOptionalHeader32_t*)(Buffer 
             + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
-        ImageBase = OptHeader32->BaseAddress;
-        SectionAddress = (uintptr_t)(Buffer + DosHeader->PeHeaderAddress 
+        ImageBase       = OptHeader32->BaseAddress;
+        SizeOfMetaData  = OptHeader32->SizeOfHeaders;
+        SectionAddress  = (uintptr_t)(Buffer + DosHeader->PeHeaderAddress 
             + sizeof(PeHeader_t) + sizeof(PeOptionalHeader32_t));
-        DirectoryPtr = (PeDataDirectory_t*)&OptHeader32->Directories[0];
+        DirectoryPtr    = (PeDataDirectory_t*)&OptHeader32->Directories[0];
     }
     else if (OptHeader->Architecture == PE_ARCHITECTURE_64) {
-        OptHeader64 = (PeOptionalHeader64_t*)(Buffer 
+        OptHeader64     = (PeOptionalHeader64_t*)(Buffer 
             + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
-        ImageBase = (uintptr_t)OptHeader64->BaseAddress;
-        SectionAddress = (uintptr_t)(Buffer + DosHeader->PeHeaderAddress 
+        ImageBase       = (uintptr_t)OptHeader64->BaseAddress;
+        SizeOfMetaData  = OptHeader64->SizeOfHeaders;
+        SectionAddress  = (uintptr_t)(Buffer + DosHeader->PeHeaderAddress 
             + sizeof(PeHeader_t) + sizeof(PeOptionalHeader64_t));
-        DirectoryPtr = (PeDataDirectory_t*)&OptHeader64->Directories[0];
+        DirectoryPtr    = (PeDataDirectory_t*)&OptHeader64->Directories[0];
     }
     else {
         // Cleanup, return null
@@ -752,16 +756,16 @@ PeLoadImage(
     }
 
     // Allocate a new pe image file structure
-    PeInfo = (MCorePeFile_t*)kmalloc(sizeof(MCorePeFile_t));
+    PeInfo                  = (MCorePeFile_t*)kmalloc(sizeof(MCorePeFile_t));
     memset(PeInfo, 0, sizeof(MCorePeFile_t));
 
     // Fill initial members
-    PeInfo->Name = Name;
-    PeInfo->Architecture = OptHeader->Architecture;
-    PeInfo->VirtualAddress = *BaseAddress;
+    PeInfo->Name            = Name;
+    PeInfo->Architecture    = OptHeader->Architecture;
+    PeInfo->VirtualAddress  = *BaseAddress;
     PeInfo->LoadedLibraries = CollectionCreate(KeyInteger);
-    PeInfo->References = 1;
-    PeInfo->UsingInitRD = UsingInitRD;
+    PeInfo->References      = 1;
+    PeInfo->UsingInitRD     = UsingInitRD;
     SpinlockReset(&PeInfo->LibraryLock);
 
     // Set the entry point if there is any
@@ -772,6 +776,16 @@ PeLoadImage(
     else {
         PeInfo->EntryAddress = 0;
     }
+
+    // Copy sections to base address
+    TRACE("Copying image meta-data to base of image address");
+    for (i = 0; i < DIVUP(SizeOfMetaData, PAGE_SIZE); i++) {
+        if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), PeInfo->VirtualAddress + (i * PAGE_SIZE))) {
+            AddressSpaceMap(AddressSpaceGetCurrent(), PeInfo->VirtualAddress + (i * PAGE_SIZE),
+                PAGE_SIZE, __MASK, AS_FLAG_APPLICATION, NULL);
+        }
+    }
+    memcpy((void*)PeInfo->VirtualAddress, Buffer, SizeOfMetaData);
         
     // Now we want to handle all the directories
     // and sections in the image, start out by handling
@@ -868,5 +882,34 @@ PeUnloadImage(
 
     // Last step, free base
     kfree(Executable);
+    return OsSuccess;
+}
+
+/* PeGetModuleHandles
+ * Retrieves a list of loaded module handles currently loaded for the process. */
+OsStatus_t
+PeGetModuleHandles(
+    _In_ MCorePeFile_t *Executable,
+    _Out_ Handle_t ModuleList[PROCESS_MAXMODULES])
+{
+    // Variables
+    int Index = 0;
+
+    // Sanitize input
+    if (Executable == NULL || ModuleList == NULL) {
+        return OsError;
+    }
+
+    // Reset data
+    memset(&ModuleList[0], 0, sizeof(Handle_t * PROCESS_MAXMODULES));
+
+    // Copy base over
+    ModuleList[Index++] = (Handle_t)Executable->VirtualAddress;
+    if (Executable->LoadedLibraries != NULL) {
+        _foreach(Node, Executable->LoadedLibraries) {
+            MCorePeFile_t *Library = (MCorePeFile_t*)Node->Data;
+            ModuleList[Index++] = (Handle_t)Executable->VirtualAddress;
+        }
+    }
     return OsSuccess;
 }

@@ -85,9 +85,9 @@ ScSystemDebug(
  * and the given arguments, returns UUID_INVALID on failure */
 UUId_t
 ScProcessSpawn(
-    _In_ __CONST char *Path,
-    _In_ __CONST ProcessStartupInformation_t *StartupInformation,
-    _In_ int Asynchronous)
+    _In_ __CONST char                           *Path,
+    _In_ __CONST ProcessStartupInformation_t    *StartupInformation,
+    _In_ int                                     Asynchronous)
 {
     // Variables
     MCorePhoenixRequest_t *Request  = NULL;
@@ -288,8 +288,8 @@ ScProcessSignal(
  * so we yield instantly as well. If processid is -1, we select self */
 OsStatus_t
 ScProcessRaise(
-    UUId_t ProcessId, 
-    int Signal)
+    _In_ UUId_t ProcessId, 
+    _In_ int    Signal)
 {
     // Variables
     MCoreProcess_t *Process = NULL;
@@ -304,10 +304,10 @@ ScProcessRaise(
     return SignalCreate(Process->Base.MainThread, Signal);
 }
 
-/* ScGetStartupInformation
+/* ScProcessGetStartupInformation
  * Retrieves information passed about process startup. */
 OsStatus_t
-ScGetStartupInformation(
+ScProcessGetStartupInformation(
     _InOut_ ProcessStartupInformation_t *StartupInformation)
 {
     // Variables
@@ -354,6 +354,26 @@ ScGetStartupInformation(
     return OsSuccess;
 }
 
+/* ScProcessGetModuleHandles
+ * Retrieves a list of loaded module handles. Handles can be queried
+ * for various application-image data. */
+OsStatus_t
+ScProcessGetModuleHandles(
+    _In_ Handle_t ModuleList[PROCESS_MAXMODULES])
+{
+    // Variables
+    MCoreAsh_t *Process = NULL;
+
+    // Get current process
+    Process = PhoenixGetCurrentAsh();
+    if (Process == NULL) {
+        return OsError;
+    }
+
+    // Redirect call to executable interface
+    return PeGetModuleHandles(Process->Executable, ModuleList);
+}
+
 /**************************
 * Shared Object Functions *
 ***************************/
@@ -395,8 +415,8 @@ ScSharedObjectLoad(
  * otherwise null is returned */
 uintptr_t
 ScSharedObjectGetFunction(
-    _In_ Handle_t Handle, 
-    _In_ __CONST char *Function)
+    _In_ Handle_t        Handle, 
+    _In_ __CONST char   *Function)
 {
     // Validate parameters
     if (Handle == HANDLE_INVALID
@@ -1649,6 +1669,8 @@ uintptr_t GlbSyscallTable[91] = {
     DefineSyscall(ScProcessKill),
     DefineSyscall(ScProcessSignal),
     DefineSyscall(ScProcessRaise),
+    DefineSyscall(ScProcessGetModuleHandles),
+    DefineSyscall(ScProcessGetStartupInformation),
     DefineSyscall(ScSharedObjectLoad),
     DefineSyscall(ScSharedObjectGetFunction),
     DefineSyscall(ScSharedObjectUnload),
@@ -1659,8 +1681,6 @@ uintptr_t GlbSyscallTable[91] = {
     DefineSyscall(ScThreadSleep),
     DefineSyscall(ScThreadYield),
     DefineSyscall(ScThreadGetCurrentId),
-    DefineSyscall(ScGetStartupInformation),
-    DefineSyscall(NoOperation),
     DefineSyscall(NoOperation),
 
     /* Synchronization Functions - 21 */

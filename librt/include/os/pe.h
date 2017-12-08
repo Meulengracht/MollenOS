@@ -289,4 +289,80 @@ PACKED_TYPESTRUCT(PeSectionHeader, {
     uint32_t            Flags;
 });
 
+/* PE-Directory
+ * The Debug Directory, either it actually contains
+ * debug information (old versions of pe), or it contains
+ * a PDB entry as described by the pdb header */
+PACKED_TYPESTRUCT(PeDebugDirectory, {
+    uint32_t            Flags;
+    uint32_t            TimeStamp;
+    uint16_t            MajorVersion;
+    uint16_t            MinorVersion;
+    uint32_t            Type;
+    uint32_t            SizeOfData;
+    uint32_t            AddressOfRawData;
+    uint32_t            PointerToRawData;
+});
+
+/* PE-PDB Entry Header
+ * Describes where and the name of the pdb
+ * file resides, usually in same folder as binary
+ * as the name is just the name of the file */
+PACKED_TYPESTRUCT(PePdbInformation, {
+    uint32_t            Signature;
+    uint8_t             Guid[16];
+    uint32_t            Age;
+    char                PdbFileName[1];
+});
+
+/* PE-Directory
+ * The Export Directory, contains a list
+ * of exported functions, their ordinals and
+ * function names. */
+PACKED_TYPESTRUCT(PeExportDirectory, {
+    uint32_t            Flags;
+    uint32_t            TimeStamp;
+    uint16_t            VersionMajor;
+    uint16_t            VersionMinor;
+    uint32_t            DllName;
+    uint32_t            OrdinalBase;
+    uint32_t            NumberOfFunctions;
+    uint32_t            NumberOfOrdinals;
+    uint32_t            AddressOfFunctions;
+    uint32_t            AddressOfNames;
+    uint32_t            AddressOfOrdinals;
+});
+
+/* PE-Directory
+ * The Import Directory, contains a list of
+ * Pe-Import-Headers that each describe a new
+ * image dependancy */
+PACKED_TYPESTRUCT(PeImportDirectory, {
+    uint16_t            Signature1; // Must be 0 
+    uint16_t            Signature2; // Must be 0xFFFF
+    uint16_t            Version;
+    uint16_t            Machine;
+    uint32_t            TimeStamp;
+    uint32_t            DataSize;
+    uint16_t            Ordinal;
+    /* Flags 
+     * Bits 0:1 - Import Type 
+     * Bits 2:4 - Import Name Type */
+    uint16_t            Flags;
+});
+
+/* PE-Import-Header 
+ * The Import Descriptor, describes a new
+ * library dependancy */
+PACKED_TYPESTRUCT(PeImportDescriptor, {
+    union {
+        uint32_t        Attributes;
+        uint32_t        ImportLookupTable; // RVA Value
+    } Variable;
+    uint32_t            TimeStamp; // Set to 0 if image is not bound
+    uint32_t            ForwarderChainId;
+    uint32_t            ModuleName; // RVA
+    uint32_t            ImportAddressTable; // RVA
+});
+
 #endif //!__OS_PEIMAGE__

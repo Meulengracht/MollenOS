@@ -399,7 +399,7 @@ inline bool LocalAddressSpace::findUnwindSections(pint_t targetAddr,
   Handle_t ModuleList[PROCESS_MAXMODULES];
 
   // Get a list of loaded modules
-  if (GetProcessModules(ModuleList) != OsSuccess) {
+  if (ProcessGetModuleHandles(ModuleList) != OsSuccess) {
       return false;
   }
 

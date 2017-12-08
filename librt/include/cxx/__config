@@ -329,7 +329,7 @@
 #  define _ALIGNAS(x) __attribute__((__aligned__(x)))
 #endif
 
-#if __cplusplus < 201103L
+#if __cplusplus < 201103L || defined(MOLLENOS)
 typedef __char16_t char16_t;
 typedef __char32_t char32_t;
 #endif

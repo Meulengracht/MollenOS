@@ -117,5 +117,14 @@ ProcessQuery(
 OsStatus_t
 GetStartupInformation(
     _InOut_ ProcessStartupInformation_t *StartupInformation) {
-    return Syscall_GetStartInfo(StartupInformation);
+    return Syscall_ProcessGetStartupInfo(StartupInformation);
+}
+
+/* ProcessGetModuleHandles
+ * Retrieves a list of loaded module handles. Handles can be queried
+ * for various application-image data. */
+OsStatus_t
+ProcessGetModuleHandles(
+    _Out_ Handle_t ModuleList[PROCESS_MAXMODULES]) {
+    return Syscall_ProcessGetModuleHandles(ModuleList);
 }

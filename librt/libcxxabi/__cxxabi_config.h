@@ -54,7 +54,7 @@
  #endif
 #endif
 
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(MOLLENOS)
 #define _LIBCXXABI_WEAK
 #else
 #define _LIBCXXABI_WEAK __attribute__((__weak__))

@@ -116,13 +116,13 @@ MOSABI
 GetStartupInformation(
     _InOut_ ProcessStartupInformation_t *StartupInformation);
 
-/* GetProcessModules
+/* ProcessGetModuleHandles
  * Retrieves a list of loaded module handles. Handles can be queried
- * for various application-image data. Like sections. */
+ * for various application-image data. */
 MOSAPI
 OsStatus_t
 MOSABI
-GetProcessModules(
+ProcessGetModuleHandles(
     _Out_ Handle_t ModuleList[PROCESS_MAXMODULES]);
 
 _CODE_END

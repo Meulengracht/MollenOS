@@ -285,6 +285,9 @@
         "dynarray": "c",
         "forward_list": "c",
         "scoped_allocator": "c",
-        "stdexcept": "cpp"
+        "stdexcept": "cpp",
+        "__nullptr": "cpp",
+        "new": "cpp",
+        "*.ii": "cpp"
     }
 }
