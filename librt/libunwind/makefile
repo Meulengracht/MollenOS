@@ -32,7 +32,7 @@ generate:
 %.o : %.cpp
 	$(CXX) -c $(CXXFLAGS) -o $@ $<
 %.o : %.c
-	$(CC) -c $(CFLAGS) -fno-ms-compatibility -o $@ $<
+	$(CC) -c $(CFLAGS) -o $@ $<
 %.o : %.s
 	$(AS) $(ASFLAGS) $< -o $@
 

@@ -288,6 +288,7 @@
         "stdexcept": "cpp",
         "__nullptr": "cpp",
         "new": "cpp",
-        "*.ii": "cpp"
+        "*.ii": "cpp",
+        "strings.h": "c"
     }
 }

@@ -52,7 +52,6 @@ PORTABILITY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-#include <sys/types.h>
 #include <wchar.h>
 
 size_t wcsnlen(__CONST wchar_t *s, size_t maxlen)

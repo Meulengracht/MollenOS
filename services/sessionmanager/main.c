@@ -70,7 +70,7 @@ OnEvent(
     // New function call!
     switch (Message->Function) {
         case __SESSIONMANAGER_CHECKUP: {
-#ifndef __OSCONFIG_DISABLE_VALI
+#ifndef __OSCONFIG_DISABLE_VIOARR
             if (WindowingSystemId == UUID_INVALID) {
                 const char *DiskIdentifier = Message->Arguments[0].Data.Buffer;
                 memset(&PathBuffer[0], 0, sizeof(PathBuffer));

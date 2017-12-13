@@ -31,6 +31,7 @@
 #define _USE_32BIT_TIME_T
 #endif
 #endif
+
 /** Properties ***************************************************************/
 
 #ifndef _CRT_STRINGIZE
@@ -47,17 +48,32 @@
 #define restrict /*restrict*/
 #endif
 
+#if defined(_MSC_VER)
+    //  Microsoft 
+    #define CRTEXPORT __declspec(dllexport)
+    #define CRTIMPORT __declspec(dllimport)
+#elif defined(__GNUC__) || defined(__clang__)
+    //  GCC
+    #define CRTEXPORT __attribute__((visibility("default")))
+    #define CRTIMPORT
+#else
+    //  do nothing and hope for the best?
+    #define CRTEXPORT
+    #define CRTIMPORT
+    #pragma warning Unknown dynamic link import/export semantics.
+#endif
+
 /* Standard C-Library Export 
  * Standard definition for the std-c. */
 #ifdef __OSLIB_C_IMPLEMENTATION
 #ifdef __OSLIB_C_SHAREDLIBRARY
-#define __STDC_DECORATION __declspec(dllexport)
+#define __STDC_DECORATION CRTEXPORT
 #else
 #define __STDC_DECORATION 
 #endif //!__OSLIB_C_SHAREDLIBRARY
 #else
 #ifdef __OSLIB_C_SHAREDLIBRARY
-#define __STDC_DECORATION __declspec(dllimport)
+#define __STDC_DECORATION CRTIMPORT
 #else
 #define __STDC_DECORATION 
 #endif //!__OSLIB_C_SHAREDLIBRARY
@@ -77,11 +93,11 @@
  * as static is for the OS */
 #ifndef _CRTIMP
 #ifdef CRTDLL /* Defined for libc, libm, etc */
-#define _CRTIMP __declspec(dllexport)
+#define _CRTIMP CRTEXPORT
 #elif defined(_DLL) && defined(_CRTIMP_STATIC) /* Defined for servers */
 #define _CRTIMP 
 #elif defined(_DLL) && !defined(_KRNL_DLL)
-#define _CRTIMP __declspec(dllimport)
+#define _CRTIMP CRTIMPORT
 #define __CRT_INLINE __inline
 #else /* !CRTDLL && !_DLL */
 #define _CRTIMP 
@@ -136,7 +152,7 @@
 #define MOSABI __cdecl
 #ifdef _LIBOS_DLL
 #ifdef _MSC_VER
-#define MOSAPI __declspec(dllexport)
+#define MOSAPI CRTEXPORT
 #else
 #define MOSAPI __EXTERN
 #endif
@@ -145,7 +161,7 @@
 #define MOSAPI
 #else
 #ifdef _MSC_VER
-#define MOSAPI __declspec(dllimport)
+#define MOSAPI CRTIMPORT
 #else
 #define MOSAPI __EXTERN
 #endif

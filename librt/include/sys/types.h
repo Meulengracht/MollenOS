@@ -25,28 +25,23 @@
 //Includes
 #include <stdint.h>
 
-/* 32-bit time value */
 #ifndef _TIME32_T_DEFINED
 #define _TIME32_T_DEFINED
-typedef long __time32_t;
+  typedef long __time32_t;
 #endif
-
-/* 64-bit time value */
 #ifndef _TIME64_T_DEFINED
 #define _TIME64_T_DEFINED
 #if _INTEGRAL_MAX_BITS >= 64
-typedef __int64 __time64_t;
+  typedef __int64 __time64_t;
 #endif
 #endif
-
-/* time value */
 #ifndef _TIME_T_DEFINED
+#define _TIME_T_DEFINED
 #ifdef _USE_32BIT_TIME_T
-typedef __time32_t time_t;      /* time value */
+  typedef __time32_t time_t;
 #else
-typedef __time64_t time_t;      /* time value */
+  typedef __time64_t time_t;
 #endif
-#define _TIME_T_DEFINED         /* avoid multiple def's of time_t */
 #endif
 
 #ifndef __BIT_TYPES_DEFINED__

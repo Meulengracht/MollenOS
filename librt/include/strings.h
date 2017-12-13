@@ -22,21 +22,11 @@
 #ifndef _STRINGS_H_
 #define _STRINGS_H_
 
-#include <crtdefs.h> /* for size_t */
+#include <os/osdefs.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/*******************************
- *     String Comparison       *
- *******************************/
-_CRTIMP int strcasecmp(__CONST char *, __CONST char *);
-_CRTIMP int strncasecmp(__CONST char *, __CONST char *, size_t);
-
-#ifdef __cplusplus
-}
-#endif
-
+_CODE_BEGIN
+CRTDECL(int, strcasecmp(const char *, const char *));
+CRTDECL(int, strncasecmp(const char *, const char *, size_t));
+_CODE_END
 
 #endif /* _STRINGS_H_ */

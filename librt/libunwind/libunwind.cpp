@@ -106,7 +106,6 @@ _LIBUNWIND_EXPORT int unw_init_remote_thread(unw_cursor_t *cursor,
   return UNW_ESUCCESS;
 }
 
-
 static bool is64bit(task_t task) {
   return false; // FIXME
 }

@@ -76,15 +76,10 @@ void CxxRaiseException(uint32_t dwExceptionCode, uint32_t dwExceptionFlags,
  * the exception to the program */
 void CxxThrowException(InternalException_t *ExcObject, const CxxExceptionType_t *ExcType)
 {
-	/* Variables needed for
-	* constructing a new exception frame */
 	unsigned long Arguments[3];
-
 	Arguments[0] = CXX_FRAME_MAGIC_VC6;
 	Arguments[1] = (unsigned long)ExcObject;
 	Arguments[2] = (unsigned long)ExcType;
-
-	/* Redirect */
 	CxxRaiseException(CXX_EXCEPTION, EH_NONCONTINUABLE, 3, Arguments);
 }
 

@@ -39,7 +39,7 @@
  * compiler-dependent header(s) and were introduced because there is no common
  * 64-bit integer type across the various compilation models, as shown in
  * the table below. */
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__clang__)
 #define COMPILER_DEPENDENT_INT64    __int64
 #define COMPILER_DEPENDENT_UINT64   unsigned __int64
 #define ACPI_INLINE                 __inline

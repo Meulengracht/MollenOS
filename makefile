@@ -23,7 +23,7 @@ config_flags =
 config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE # Use a full debug console on height
 #config_flags += -D__OSCONFIG_NODRIVERS # Don't load drivers, run it without for debug
 #config_flags += -D__OSCONFIG_DISABLE_EHCI # Disable usb 2.0 support, run only in usb 1.1
-config_flags += -D__OSCONFIG_DISABLE_VALI # Disable auto starting the windowing system
+config_flags += -D__OSCONFIG_DISABLE_VIOARR # Disable auto starting the windowing system
 
 export arch = i386
 export CC = $(CROSS)/bin/clang
@@ -36,7 +36,7 @@ export GCFLAGS = -Wall -Wno-address-of-packed-member -Wno-self-assign -Wno-unuse
 export GCXXFLAGS = -Wall -Wno-self-assign -Wno-unused-function -ffreestanding -nostdlib -O3 -DMOLLENOS -D$(arch) $(config_flags)
 export GLFLAGS = /nodefaultlib /machine:X86 /subsystem:native
 export FCOPY = cp
-
+# -gdwarf
 .PHONY: all
 all: tools gen_revision boot_loader libraries kernel drivers initrd
 

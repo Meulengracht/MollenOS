@@ -393,8 +393,6 @@ inline bool LocalAddressSpace::findUnwindSections(pint_t targetAddr,
     }
   }
   return false;
-
-//@todo
 #elif defined(_LIBUNWIND_SUPPORT_DWARF_UNWIND) && defined(MOLLENOS)
   Handle_t ModuleList[PROCESS_MAXMODULES];
 
