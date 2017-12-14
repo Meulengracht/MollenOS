@@ -35,75 +35,65 @@
 typedef struct _ThreadPool ThreadPool_t;
 #define THREADPOOL_DEFAULT_WORKERS			-1 // Call this to initialize with default number of workers
 
-/* Cpp guard to avoid name-mangling */
 _CODE_BEGIN
-
 /* ThreadPoolInitialize 
  * Initializes a new thread-pool with the given number of threads */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 ThreadPoolInitialize(
 	_In_ int NumThreads,
-	_Out_ ThreadPool_t **ThreadPool);
+	_Out_ ThreadPool_t **ThreadPool));
 
 /* ThreadPoolAddWork
  * Takes an action and its argument and adds it to the threadpool's job queue. 
  * If you want to add to work a function with more than one arguments then
  * a way to implement this is by passing a pointer to a structure. */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 ThreadPoolAddWork(
 	_In_ ThreadPool_t *ThreadPool,
 	_In_ thrd_start_t Function,
-	_In_ void *Argument);
+	_In_ void *Argument));
 
 /* ThreadPoolWait
  * Will wait for all jobs - both queued and currently running to finish.
  * Once the queue is empty and all work has completed, the calling thread
  * (probably the main program) will continue. */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 ThreadPoolWait(
-	_In_ ThreadPool_t *ThreadPool);
+	_In_ ThreadPool_t *ThreadPool));
 
 /* ThreadPoolPause
  * The threads will be paused no matter if they are idle or working.
  * The threads return to their previous states once thpool_resume
  * is called. */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 ThreadPoolPause(
-	_In_ ThreadPool_t *ThreadPool);
+	_In_ ThreadPool_t *ThreadPool));
 
 /* ThreadPoolResume
  * Unpauses all threads if they are paused. */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 ThreadPoolResume(
-	_In_ ThreadPool_t *ThreadPool);
+	_In_ ThreadPool_t *ThreadPool));
 
 /* ThreadPoolDestroy
  * This will wait for the currently active threads to finish and then 'kill'
  * the whole threadpool to free up memory. */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 ThreadPoolDestroy(
-	_In_ ThreadPool_t *ThreadPool);
+	_In_ ThreadPool_t *ThreadPool));
 
 /* ThreadPoolGetWorkingCount
  * Returns the number of working threads are the threads that are performing work (not idle). */
-MOSAPI
-size_t
-MOSABI
+CRTDECL(
+size_t,
 ThreadPoolGetWorkingCount(
-	_In_ ThreadPool_t *ThreadPool);
-
+	_In_ ThreadPool_t *ThreadPool));
 _CODE_END
 
 #endif //!_THREADINGPOOL_INTERFACE_H_

@@ -5,12 +5,11 @@
 # - libcrt (Userspace CRT-Library)
 # - libc (Userspace C-Library)
 # - libm (Userspace Math Library)
-# - libos (Userspace OS Support Library)
 # 
 # The remaining libraries are run-time libraries for C++ support
 
 .PHONY: all
-all: build deploy build/libk.lib build/libds.lib build/libdsk.lib build/libcrt.lib build/libdrv.lib build/libsrv.lib build/libm.dll build/libc.dll build/libos.dll build/libusb.lib deploy/libunwind.dll deploy/libcxxabi.dll
+all: build deploy build/libk.lib build/libds.lib build/libdsk.lib build/libclang.lib build/libcrt.lib build/libdrv.lib build/libsrv.lib build/libm.dll build/libc.dll build/libusb.lib deploy/libunwind.dll deploy/libcxxabi.dll deploy/libcxx.dll
 
 build:
 	mkdir -p $@
@@ -27,6 +26,9 @@ build/libds.lib:
 build/libds.lib:
 	$(MAKE) -C libds -f makefile libdsk
 
+build/libclang.lib:
+	$(MAKE) -C libclang -f makefile
+
 build/libcrt.lib:
 	$(MAKE) -C libcrt -f makefile libcrt
 
@@ -42,9 +44,6 @@ build/libm.dll:
 build/libc.dll:
 	$(MAKE) -C libc -f makefile libc
 
-build/libos.dll:
-	$(MAKE) -C libos -f makefile
-
 build/libusb.lib:
 	$(MAKE) -C libusb -f makefile
 
@@ -54,15 +53,19 @@ deploy/libunwind.dll:
 deploy/libcxxabi.dll:
 	$(MAKE) -C libcxxabi -f makefile
 
+deploy/libcxx.dll:
+	$(MAKE) -C libcxx -f makefile
+
 .PHONY: clean
 clean:
 	$(MAKE) -C libm -f makefile clean
 	$(MAKE) -C libds -f makefile clean
 	$(MAKE) -C libc -f makefile clean
-	$(MAKE) -C libos -f makefile clean
 	$(MAKE) -C libusb -f makefile clean
+	$(MAKE) -C libclang -f makefile clean
 	$(MAKE) -C libcrt -f makefile clean
 	$(MAKE) -C libunwind -f makefile clean
 	$(MAKE) -C libcxxabi -f makefile clean
+	$(MAKE) -C libcxx -f makefile clean
 	@rm -rf build
 	@rm -rf deploy

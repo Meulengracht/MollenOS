@@ -344,7 +344,6 @@ PhoenixGetAshPipe(
     _In_ int             Port)
 {
     // Variables
-    MCorePipe_t *Pipe = NULL;
     DataKey_t Key;
 
     // Sanitize input
@@ -354,10 +353,7 @@ PhoenixGetAshPipe(
 
     // Perform the lookup
     Key.Value = Port;
-    CriticalSectionEnter(&Ash->Lock);
-    Pipe = (MCorePipe_t*)CollectionGetDataByKey(Ash->Pipes, Key, 0);
-    CriticalSectionLeave(&Ash->Lock);
-    return Pipe;
+    return (MCorePipe_t*)CollectionGetDataByKey(Ash->Pipes, Key, 0);
 }
 
 /* PhoenixGetCurrentAsh

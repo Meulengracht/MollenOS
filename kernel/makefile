@@ -16,7 +16,7 @@ OBJECTS = $(SOURCES:.c=.o)
 
 # --save-temps
 CFLAGS = $(GCFLAGS) -D_KAPI -DUNICODE -DLIBC_KERNEL -D_KRNL_DLL -mno-sse $(INCLUDES)
-LFLAGS = /nodefaultlib /subsystem:native /entry:kentry /fixed /base:"0x100000" /manifest:no /lldmap ../librt/build/libcrt.lib ../librt/build/libk.lib ../librt/build/libdsk.lib build/acpica.lib build/$(arch).lib
+LFLAGS = /nodefaultlib /subsystem:native /entry:kentry /fixed /base:"0x100000" /manifest:no /lldmap ../librt/build/libcrt.lib ../librt/build/libclang.lib ../librt/build/libk.lib ../librt/build/libdsk.lib build/acpica.lib build/$(arch).lib
 
 .PHONY: all
 all: build arch acpica build/syskrnl.mos

@@ -81,20 +81,18 @@ typedef struct _MCoreInterrupt {
  * the requesting driver, an id for the interrupt source
  * is returned. After a succesful register, OnInterrupt
  * can be called by the event-system */
-MOSAPI
-UUId_t
-MOSABI
+CRTDECL(
+UUId_t,
 RegisterInterruptSource(
 	_In_ MCoreInterrupt_t *Interrupt, 
-	_In_ Flags_t Flags);
+	_In_ Flags_t Flags));
 
 /* UnregisterInterruptSource 
  * Unallocates the given interrupt source and disables
  * all events of OnInterrupt */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 UnregisterInterruptSource(
-	_In_ UUId_t Source);
+	_In_ UUId_t Source));
 
 #endif //!_INTERRUPT_INTERFACE_H_

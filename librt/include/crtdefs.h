@@ -52,14 +52,17 @@
     //  Microsoft 
     #define CRTEXPORT __declspec(dllexport)
     #define CRTIMPORT __declspec(dllimport)
+    #define CRTHIDE
 #elif defined(__GNUC__) || defined(__clang__)
     //  GCC
     #define CRTEXPORT __attribute__((visibility("default")))
     #define CRTIMPORT 
+    #define CRTHIDE __attribute__((visibility("internal")))
 #else
     //  do nothing and hope for the best?
     #define CRTEXPORT
     #define CRTIMPORT
+    #define CRTHIDE
     #pragma warning Unknown dynamic link import/export semantics.
 #endif
 
@@ -145,30 +148,7 @@
 #define KERNELAPI __EXTERN
 #define KERNELABI __cdecl
 #endif
-
-/* LibOS export for userspace programs. However
- * except for the usual stuff, we have a static case aswell */
-#ifndef MOSAPI
-#define MOSABI __cdecl
-#ifdef _LIBOS_DLL
-#ifdef _MSC_VER
-#define MOSAPI CRTEXPORT
-#else
-#define MOSAPI __EXTERN
 #endif
-#else
-#if defined(_KRNL_DLL) || defined(CRTDLL) || defined(_CRTIMP_STATIC)
-#define MOSAPI
-#else
-#ifdef _MSC_VER
-#define MOSAPI CRTIMPORT
-#else
-#define MOSAPI __EXTERN
-#endif
-#endif
-#endif
-#endif // !LIBOS_DLL
-#endif // !MOSAPI
 
 #if (defined (__clang__))
 #define PACKED_STRUCT(name, body) struct __attribute__((packed)) name body 
@@ -327,7 +307,7 @@
 #define _CRT_UNUSED(x) (void)x
 #endif
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER)
 #ifdef _AMD64_
 #define MemoryBarrier __faststorefence
 #endif
@@ -345,6 +325,12 @@ MemoryBarrier (void)
         xchg Barrier, eax
     }
 }
+#elif defined(__clang__)
+#if defined(i386)
+#define MemoryBarrier __sync_synchronize
+#elif defined(amd64)
+#define MemoryBarrier __sync_synchronize
+#endif
 #endif
 
 /** Deprecated ***************************************************************/

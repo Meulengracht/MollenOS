@@ -1,9 +1,7 @@
 # Makefile for building the standard c-libraries for both userspace and kernel
 # - libk
 # - libc
-ASM_SRCS = $(wildcard arch/$(arch)/*.s) \
-		   $(wildcard ../libos/arch/$(arch)/*.s)
-
+ASM_SRCS = $(wildcard arch/$(arch)/*.s)
 ASFLAGS = -f win32 -Xvc
 
 COMMON_SRCS = $(wildcard assert/*.c) \
@@ -18,8 +16,8 @@ COMMON_INCS = -I../include
 LIBK_INCS = -I../../kernel/include \
 			-I../../kernel/arch/x86/x32
 
-LIBK_SRCS = $(wildcard ../libos/mstring/*.c) \
-			../libos/synchronization/spinlock.c \
+LIBK_SRCS = $(wildcard os/mstring/*.c) \
+			os/synchronization/spinlock.c \
 			bufferobject_kernel.c \
 			rpc_kernel.c \
 			locale/locale.c \
@@ -28,8 +26,7 @@ LIBK_SRCS = $(wildcard ../libos/mstring/*.c) \
 			stdlib/abs.c \
 			wstring/wcsnlen.c
 
-LIBC_SRCS = $(wildcard glue/*.c) \
-			$(wildcard ctype/*.c) \
+LIBC_SRCS = $(wildcard ctype/*.c) \
 			$(wildcard getop/*.c) \
 			$(wildcard locale/*.c) \
 			$(wildcard signal/*.c) \
@@ -40,11 +37,9 @@ LIBC_SRCS = $(wildcard glue/*.c) \
 			$(wildcard time/*.c) \
 			$(wildcard wstring/*.c) \
 			$(wildcard threads/*.c) \
-			../libos/synchronization/spinlock.c \
-			../libos/driver/bufferobject.c \
-			../libos/syscalls.c \
-			../libos/pipe.c \
-			../libos/rpc.c
+			$(wildcard threads/*.c) \
+			$(wildcard os/**/*.c) \
+			$(wildcard os/*.c)
 
 # Setup flags and stuff each for individual build  $(subst ../,,$(ASM_SRCS))
 ifeq ($(MAKECMDGOALS),libk)
@@ -59,7 +54,7 @@ else
 			  $(join $(addprefix obc/, $(dir $(COMMON_SRCS))), $(notdir $(COMMON_SRCS:.c=.o))) \
 			  $(join $(addprefix obc/, $(dir $(LIBC_SRCS))), $(notdir $(LIBC_SRCS:.c=.o)))
 	CFLAGS = $(GCFLAGS) -D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAREDLIBRARY -D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL -D_DLL -DCRTDLL $(COMMON_INCS)
-	LFLAGS = $(GLFLAGS) /export-all-symbols /noentry /dll /lldmap ../build/libcrt.lib ../build/libm.lib ../build/libds.lib
+	LFLAGS = $(GLFLAGS) /export-all-symbols /noentry /dll /lldmap ../build/libcrt.lib ../build/libclang.lib ../build/libm.lib ../build/libds.lib
 	OBJDIR = obc
 endif
 
@@ -68,10 +63,10 @@ endif
 libk: rpc_kernel.c bufferobject_kernel.c ../build/libk.lib
 
 # libk-dependency on its own version
-rpc_kernel.c: ../libos/rpc.c
+rpc_kernel.c: os/rpc.c
 	cp $< $@
 
-bufferobject_kernel.c: ../libos/driver/bufferobject.c
+bufferobject_kernel.c: os/driver/bufferobject.c
 	cp $< $@
 
 # libc-target

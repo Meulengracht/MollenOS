@@ -50,205 +50,182 @@ typedef struct _Collection Collection_t;
 #define _foreach(i, Collection) for (i = CollectionBegin(Collection); i != NULL; i = CollectionNext(i))
 #define _foreach_nolink(i, Collection) for (i = CollectionBegin(Collection); i != NULL; )
 
-/* Protect against c++ files */
 _CODE_BEGIN
-
 /* CollectionCreate
  * Instantiates a new Collection with the given attribs and keytype */
-MOSAPI
-Collection_t*
-MOSABI
+CRTDECL(
+Collection_t*,
 CollectionCreate(
-    _In_ KeyType_t KeyType);
+    _In_ KeyType_t KeyType));
     
 /* CollectionClear
  * Clears the Collection of members, cleans up nodes. */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 CollectionClear(
-    _In_ Collection_t *Collection);
+    _In_ Collection_t *Collection));
 
 /* CollectionDestroy
  * Destroys the Collection and frees all resources associated
  * does also free all Collection elements and keys */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 CollectionDestroy(
-    _In_ Collection_t *Collection);
+    _In_ Collection_t *Collection));
 
 /* CollectionLength
  * Returns the length of the given Collection */
-MOSAPI
-size_t
-MOSABI
+CRTDECL(
+size_t,
 CollectionLength(
-    _In_ Collection_t *Collection);
+    _In_ Collection_t *Collection));
 
 /* CollectionBegin
  * Retrieves the starting element of the Collection */
-MOSAPI
-CollectionIterator_t*
-MOSABI
+CRTDECL(
+CollectionIterator_t*,
 CollectionBegin(
-    _In_ Collection_t *Collection);
+    _In_ Collection_t *Collection));
 
 /* CollectionNext
  * Iterates to the next element in the Collection and returns
  * NULL when the end has been reached */
-MOSAPI
-CollectionIterator_t*
-MOSABI
+CRTDECL(
+CollectionIterator_t*,
 CollectionNext(
-    _In_ CollectionIterator_t *It);
+    _In_ CollectionIterator_t *It));
 
 /* CollectionCreateNode
  * Instantiates a new Collection node that can be appended to the Collection 
  * by CollectionAppend. If using an unsorted Collection set the sortkey == key */
-MOSAPI
-CollectionItem_t*
-MOSABI
+CRTDECL(
+CollectionItem_t*,
 CollectionCreateNode(
     _In_ DataKey_t Key,
-    _In_ void *Data);
+    _In_ void *Data));
 
 /* CollectionDestroyNode
  * Cleans up a Collection node and frees all resources it had */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 CollectionDestroyNode(
     _In_ Collection_t *Collection,
-    _In_ CollectionItem_t *Node);
+    _In_ CollectionItem_t *Node));
 
 /* CollectionInsertAt
  * Insert the node into a specific position in the Collection, if position is invalid it is
  * inserted at the back. This function is not available for sorted Collections, it will simply 
  * call CollectionInsert instead */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 CollectionInsertAt(
     _In_ Collection_t *Collection, 
     _In_ CollectionItem_t *Node, 
-    _In_ int Position);
+    _In_ int Position));
 
 /* CollectionInsert 
  * Inserts the node into the front of the Collection. This should be used for sorted
  * Collections, but is available for unsorted Collections aswell */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 CollectionInsert(
     _In_ Collection_t *Collection, 
-    _In_ CollectionItem_t *Node);
+    _In_ CollectionItem_t *Node));
 
 /* CollectionAppend
  * Inserts the node into the the back of the Collection. This function is not
  * available for sorted Collections, it will simply redirect to CollectionInsert */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 CollectionAppend(
     _In_ Collection_t *Collection,
-    _In_ CollectionItem_t *Node);
+    _In_ CollectionItem_t *Node));
 
 /* Collection pop functions, the either 
  * remove an element from the back or 
  * the front of the given Collection and return the node */
-MOSAPI
-CollectionItem_t*
-MOSABI
+CRTDECL(
+CollectionItem_t*,
 CollectionPopFront(
-    _In_ Collection_t *Collection);
+    _In_ Collection_t *Collection));
 
-MOSAPI
-CollectionItem_t*
-MOSABI
+CRTDECL(
+CollectionItem_t*,
 CollectionPopBack(
-    _In_ Collection_t *Collection);
+    _In_ Collection_t *Collection));
 
 /* CollectionGetNodeByKey
  * These are the node-retriever functions 
  * they return the Collection-node by either key data or index */
-MOSAPI
-CollectionItem_t*
-MOSABI
+CRTDECL(
+CollectionItem_t*,
 CollectionGetNodeByKey(
     _In_ Collection_t *Collection,
     _In_ DataKey_t Key, 
-    _In_ int n);
+    _In_ int n));
 
 /* These are the data-retriever functions 
  * they return the Collection-node by either key
  * node or index */
-MOSAPI
-void*
-MOSABI
+CRTDECL(
+void*,
 CollectionGetDataByKey(
     _In_ Collection_t *Collection, 
     _In_ DataKey_t Key, 
-    _In_ int n);
+    _In_ int n));
 
 /* CollectionExecute(s)
  * These functions execute a given function on all relevant nodes (see names) */
-MOSAPI
-void
-MOSABI
+CRTDECL(
+void,
 CollectionExecuteOnKey(
     _In_ Collection_t *Collection,
     _In_ void(*Function)(void*, int, void*),
     _In_ DataKey_t Key,
-    _In_ void *UserData);
+    _In_ void *UserData));
 
 /* CollectionExecute(s)
  * These functions execute a given function on all relevant nodes (see names) */
-MOSAPI
-void
-MOSABI
+CRTDECL(
+void,
 CollectionExecuteAll(
     _In_ Collection_t *Collection,
     _In_ void(*Function)(void*, int, void*),
-    _In_ void *UserData);
+    _In_ void *UserData));
 
 /* CollectionUnlinkNode
  * This functions unlinks a node and returns the next node for usage */
-MOSAPI
-CollectionItem_t*
-MOSABI
+CRTDECL(
+CollectionItem_t*,
 CollectionUnlinkNode(
     _In_ Collection_t *Collection, 
-    _In_ CollectionItem_t *Node);
+    _In_ CollectionItem_t *Node));
 
 /* CollectionRemove
  * These are the deletion functions 
  * and remove based on either node index or key */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 CollectionRemoveByNode(
     _In_ Collection_t *Collection,
-    _In_ CollectionItem_t* Node);
+    _In_ CollectionItem_t* Node));
 
 /* CollectionRemove
  * These are the deletion functions 
  * and remove based on either node index or key */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 CollectionRemoveByIndex(
     _In_ Collection_t *Collection, 
-    _In_ int Index);
+    _In_ int Index));
 
 /* CollectionRemove
  * These are the deletion functions 
  * and remove based on either node index or key */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 CollectionRemoveByKey(
     _In_ Collection_t *Collection, 
-    _In_ DataKey_t Key);
+    _In_ DataKey_t Key));
 
 #endif //!_GENERIC_COLLECTION_H_

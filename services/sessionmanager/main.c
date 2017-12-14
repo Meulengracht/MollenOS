@@ -74,7 +74,7 @@ OnEvent(
             if (WindowingSystemId == UUID_INVALID) {
                 const char *DiskIdentifier = Message->Arguments[0].Data.Buffer;
                 memset(&PathBuffer[0], 0, sizeof(PathBuffer));
-                sprintf(&PathBuffer[0], "%s/system/vali.app", DiskIdentifier);
+                sprintf(&PathBuffer[0], "%s/system/vioarr.app", DiskIdentifier);
                 TRACE("Spawning %s", &PathBuffer[0]);
                 WindowingSystemId = ProcessSpawn(&PathBuffer[0], NULL, 0);
             }

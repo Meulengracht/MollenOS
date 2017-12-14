@@ -209,6 +209,11 @@ __EXTERN void __CppFinit(void)
 	_initterm(__xt_a, __xt_z);
 }
 
+__EXTERN int __cxa_thread_atexit_impl(void* dtor, void* obj, void* dso_symbol)
+{
+    return 0;
+}
+
 __EXTERN int onexitinit(void)
 {
 	onexitend = onexitbegin = onexitarray;

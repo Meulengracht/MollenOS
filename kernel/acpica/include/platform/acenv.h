@@ -273,10 +273,10 @@
  *
  *****************************************************************************/
 
-#if defined(__GNUC__) && !defined(__INTEL_COMPILER)
+#if defined(__GNUC__) && !defined(__INTEL_COMPILER) && !defined(MOLLENOS)
 #include "acgcc.h"
 
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) || defined(MOLLENOS)
 #include "acmsvc.h"
 
 #elif defined(__INTEL_COMPILER)

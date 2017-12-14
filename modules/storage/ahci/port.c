@@ -226,7 +226,7 @@ AhciPortReset(
 	Port->Registers->AtaControl &= ~(AHCI_PORT_SCTL_DET_MASK);
 	MemoryBarrier();
 	WaitForCondition((Port->Registers->AtaStatus & AHCI_PORT_SSTS_DET_ENABLED), 10, 25,
-		"Port status never reached communication established, proceeding anyway.");
+		"Port status never reached communication established, proceeding anyway.", 0);
 
 	// Then software should write all 1s to the PxSERR register to clear 
 	// any bits that were set as part of the port reset.

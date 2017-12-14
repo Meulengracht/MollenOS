@@ -82,7 +82,7 @@
   #define _LIBUNWIND_EXPORT
   #define _LIBUNWIND_HIDDEN
 #else
-  #if !defined(__ELF__) && !defined(__MACH__)
+  #if !defined(__ELF__) && !defined(__MACH__) && defined(_MSC_VER)
     #ifdef __OSLIB_UNWIND_IMPLEMENTATION
     #define _LIBUNWIND_EXPORT __declspec(dllexport)
     #else 

@@ -44,51 +44,46 @@ typedef struct _HashTable {
 /* HashTableCreate
  * Initializes a new hash table
  * of the given capacity */
-MOSAPI
-HashTable_t*
-MOSABI
+CRTDECL(
+HashTable_t*,
 HashTableCreate(
     _In_ KeyType_t KeyType, 
-    _In_ size_t Capacity);
+    _In_ size_t Capacity));
 
 /* HashTableDestroy
  * Releases all resources 
  * associated with the hashtable */
-MOSAPI
-void
-MOSABI
+CRTDECL(
+void,
 HashTableDestroy(
-    _In_ HashTable_t *HashTable);
+    _In_ HashTable_t *HashTable));
 
 /* HashTableInsert
  * Inserts an object with the given
  * string key from the hash table */
-MOSAPI
-void
-MOSABI
+CRTDECL(
+void,
 HashTableInsert(
     _In_ HashTable_t *HashTable, 
     _In_ DataKey_t Key, 
-    _In_ void *Data);
+    _In_ void *Data));
 
 /* HashTableRemove 
  * Removes an object with the given 
  * string key from the hash table */
-MOSAPI
-void
-MOSABI
+CRTDECL(
+void,
 HashTableRemove(
     _In_ HashTable_t *HashTable, 
-    _In_ DataKey_t Key);
+    _In_ DataKey_t Key));
 
 /* HashTableGetValue
  * Retrieves the data associated with
  * a value from the hash table */
-MOSAPI
-void*
-MOSABI
+CRTDECL(
+void*,
 HashTableGetValue(
     _In_ HashTable_t *HashTable, 
-    _In_ DataKey_t Key);
+    _In_ DataKey_t Key));
 
 #endif //!_HASHTABLE_H_

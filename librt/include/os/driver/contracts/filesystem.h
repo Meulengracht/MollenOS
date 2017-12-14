@@ -44,7 +44,7 @@
 #define __FSAPI					typedef
 #define __FSDECL(Function)		(*Function##_t)
 #else
-#define __FSAPI					__declspec(dllexport)
+#define __FSAPI					CRTEXPORT
 #define __FSDECL(Function)		Function
 #endif
 

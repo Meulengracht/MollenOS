@@ -44,11 +44,10 @@
  * Registers a service on the current alias, allowing
  * other applications and frameworks to send commands
  * and function requests */
-MOSAPI 
-OsStatus_t
-MOSABI
+CRTDECL( 
+OsStatus_t,
 RegisterService(
-    _In_ UUId_t Alias);
+    _In_ UUId_t Alias));
 
 /* OnLoad
  * The entry-point of a service, this is called

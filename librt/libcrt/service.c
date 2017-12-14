@@ -39,7 +39,7 @@
 __EXTERN void __CppInit(void);
 __EXTERN void __CppFinit(void);
 #ifndef __clang__
-MOSAPI void __CppInitVectoredEH(void);
+CRTDECL(void, __CppInitVectoredEH(void));
 #endif
 
 /* StdioInitialize

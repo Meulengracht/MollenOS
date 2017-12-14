@@ -71,112 +71,99 @@ PACKED_TYPESTRUCT(MemoryDescriptor, {
 	size_t			PageSizeBytes;
 });
 
-/* Cpp Guard */
 _CODE_BEGIN
-
 /* MemoryAllocate
  * Allocates a chunk of memory, controlled by the
  * requested size of memory. The returned memory will always
  * be rounded up to nearest page-size */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 MemoryAllocate(
 	_In_ size_t Length,
 	_In_ Flags_t Flags,
 	_Out_ void **MemoryPointer,
-	_Out_Opt_ uintptr_t *PhysicalPointer);
+	_Out_Opt_ uintptr_t *PhysicalPointer));
 
 /* MemoryFree
  * Frees previously allocated memory and releases
  * the system resources associated. */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 MemoryFree(
 	_In_ void *MemoryPointer,
-	_In_ size_t Length);
+	_In_ size_t Length));
 
 /* MemoryQuery
  * Queries the underlying system for memory information 
  * like memory used and the page-size */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 MemoryQuery(
-	_Out_ MemoryDescriptor_t *Descriptor);
+	_Out_ MemoryDescriptor_t *Descriptor));
 
 /* ScreenQueryGeometry
  * This function returns screen geomemtry
  * descriped as a rectangle structure */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 ScreenQueryGeometry(
-	_Out_ Rect_t *Rectangle);
+	_Out_ Rect_t *Rectangle));
 
 /* PathQueryWorkingDirectory
  * Queries the current working directory path for the current process (See _MAXPATH) */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 PathQueryWorkingDirectory(
 	_Out_ char *Buffer,
-	_In_ size_t MaxLength);
+	_In_ size_t MaxLength));
 
 /* PathChangeWorkingDirectory
  * Performs changes to the current working directory
  * by canonicalizing the given path modifier or absolute path */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 PathChangeWorkingDirectory(
-	_In_ __CONST char *Path);
+	_In_ __CONST char *Path));
 
 /* PathQueryApplication
  * Queries the application path for the current process (See _MAXPATH) */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 PathQueryApplication(
 	_Out_ char *Buffer,
-	_In_ size_t MaxLength);
+	_In_ size_t MaxLength));
 
 /* SystemTime
  * Retrieves the system time. This is only ticking
  * if a system clock has been initialized. */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 SystemTime(
-	_Out_ struct tm *time);
+	_Out_ struct tm *time));
 
 /* SystemTick
  * Retrieves the system tick counter. This is only ticking
  * if a system timer has been initialized. */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 SystemTick(
-	_Out_ clock_t *clock);
+	_Out_ clock_t *clock));
 
 /* QueryPerformanceFrequency
  * Returns how often the performance timer fires every
  * second, the value will never be 0 */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 QueryPerformanceFrequency(
-	_Out_ LargeInteger_t *Frequency);
+	_Out_ LargeInteger_t *Frequency));
 
 /* QueryPerformanceTimer 
  * Queries the created performance timer and returns the
  * information in the given structure */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 QueryPerformanceTimer(
-	_Out_ LargeInteger_t *Value);
+	_Out_ LargeInteger_t *Value));
 
 /* __get_reserved
  * Read and write the magic tls thread-specific
@@ -225,23 +212,19 @@ __set_reserved(size_t index, size_t value) {
  *   they are automatically used
  *   by systems
  ***********************/
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 WaitForSignal(
-	_In_ size_t Timeout);
+	_In_ size_t Timeout));
 
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 SignalProcess(
-	_In_ UUId_t Target);
+	_In_ UUId_t Target));
 
-MOSAPI 
-void
-MOSABI
-MollenOSEndBoot(void);
+CRTDECL( 
+void,
+MollenOSEndBoot(void));
 
 _CODE_END
-
 #endif //!_MOLLENOS_INTERFACE_H_

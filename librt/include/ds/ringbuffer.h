@@ -46,24 +46,24 @@ typedef struct _RingBuffer
 } RingBuffer_t;
 
 /* Initialise a new ring buffer */
-MOSAPI RingBuffer_t *RingBufferCreate(size_t Size);
+CRTDECL(RingBuffer_t*, RingBufferCreate(size_t Size));
 
 /* Construct a new ring buffer */
-MOSAPI void RingBufferConstruct(RingBuffer_t *RingBuffer, uint8_t *Buffer, size_t BufferLength);
+CRTDECL(void, RingBufferConstruct(RingBuffer_t *RingBuffer, uint8_t *Buffer, size_t BufferLength));
 
 /* Destroy Ringbuffer */
-MOSAPI void RingBufferDestroy(RingBuffer_t *RingBuffer);
+CRTDECL(void, RingBufferDestroy(RingBuffer_t *RingBuffer));
 
 /* Write to buffer */
-MOSAPI int RingBufferWrite(RingBuffer_t *RingBuffer, size_t SrcLength, uint8_t *Source);
+CRTDECL(int, RingBufferWrite(RingBuffer_t *RingBuffer, size_t SrcLength, uint8_t *Source));
 
 /* Read from buffer */
-MOSAPI int RingBufferRead(RingBuffer_t *RingBuffer, size_t DestLength, uint8_t *Destination);
+CRTDECL(int, RingBufferRead(RingBuffer_t *RingBuffer, size_t DestLength, uint8_t *Destination));
 
 /* How many bytes are available in buffer to be read */
-MOSAPI size_t RingBufferSize(RingBuffer_t *RingBuffer);
+CRTDECL(size_t, RingBufferSize(RingBuffer_t *RingBuffer));
 
 /* How many bytes are ready for usage */
-MOSAPI int RingBufferSpaceAvailable(RingBuffer_t *RingBuffer);
+CRTDECL(int, RingBufferSpaceAvailable(RingBuffer_t *RingBuffer));
 
 #endif // !_MCORE_RINGBUFFER_H_

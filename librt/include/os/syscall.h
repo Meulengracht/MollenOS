@@ -32,12 +32,12 @@
  * Helpers, macros and definitions for system calls */
 #define SCPARAM(Arg)                ((int)Arg)
 _CODE_BEGIN
-MOSAPI int syscall0(int Function);
-MOSAPI int syscall1(int Function, int Arg0);
-MOSAPI int syscall2(int Function, int Arg0, int Arg1);
-MOSAPI int syscall3(int Function, int Arg0, int Arg1, int Arg2);
-MOSAPI int syscall4(int Function, int Arg0, int Arg1, int Arg2, int Arg3);
-MOSAPI int syscall5(int Function, int Arg0, int Arg1, int Arg2, int Arg3, int Arg4);
+CRTDECL(int, syscall0(int Function));
+CRTDECL(int, syscall1(int Function, int Arg0));
+CRTDECL(int, syscall2(int Function, int Arg0, int Arg1));
+CRTDECL(int, syscall3(int Function, int Arg0, int Arg1, int Arg2));
+CRTDECL(int, syscall4(int Function, int Arg0, int Arg1, int Arg2, int Arg3));
+CRTDECL(int, syscall5(int Function, int Arg0, int Arg1, int Arg2, int Arg3, int Arg4));
 _CODE_END
 
 /* Process system calls

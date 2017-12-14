@@ -25,6 +25,7 @@ config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE # Use a full debug console on heig
 #config_flags += -D__OSCONFIG_DISABLE_EHCI # Disable usb 2.0 support, run only in usb 1.1
 config_flags += -D__OSCONFIG_DISABLE_VIOARR # Disable auto starting the windowing system
 
+#-std=c11 
 export arch = i386
 export CC = $(CROSS)/bin/clang
 export CXX = $(CROSS)/bin/clang++
@@ -33,7 +34,7 @@ export LIB = $(CROSS)/bin/llvm-lib
 export ASFLAGS = -f bin
 export AS = nasm
 export GCFLAGS = -fms-extensions -Wall -Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function -ffreestanding -nostdlib -O3 -DMOLLENOS -D$(arch) $(config_flags)
-export GCXXFLAGS = -Wall -Wno-self-assign -Wno-unused-function -ffreestanding -nostdlib -O3 -DMOLLENOS -D$(arch) $(config_flags)
+export GCXXFLAGS = -fms-extensions -Wall -Wno-self-assign -Wno-unused-function -ffreestanding -nostdlib -O3 -DMOLLENOS -D$(arch) $(config_flags)
 export GLFLAGS = /nodefaultlib /machine:X86 /subsystem:native /debug:dwarf /nopdb
 export FCOPY = cp
 # -gdwarf

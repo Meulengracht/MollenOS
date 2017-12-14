@@ -40,82 +40,74 @@ typedef struct _Bitmap {
  * Creates a bitmap of the given size in bytes, the actual available
  * member count will then be Size * sizeof(byte). This automatically
  * allocates neccessary resources */
-MOSAPI
-Bitmap_t*
-MOSABI
+CRTDECL(
+Bitmap_t*,
 BitmapCreate(
-    _In_ size_t Size);
+    _In_ size_t Size));
 
 /* BitmapConstruct
  * Creates a bitmap of the given size in bytes, the actual available
  * member count will then be Size * sizeof(byte). This uses user-provided
  * resources, and won't be cleaned up. */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 BitmapConstruct(
     _In_ Bitmap_t *Bitmap,
     _In_ uintptr_t *Data,
-    _In_ size_t Size);
+    _In_ size_t Size));
 
 /* BitmapDestroy
  * Cleans up any resources allocated by the Create/Construct. */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 BitmapDestroy(
-    _In_ Bitmap_t *Bitmap);
+    _In_ Bitmap_t *Bitmap));
 
 /* BitmapSetBits
  * Flips all bits to 1 at the given index, and for <Count> bits. */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 BitmapSetBits(
     _In_ Bitmap_t *Bitmap,
     _In_ int Index,
-    _In_ int Count);
+    _In_ int Count));
 
 /* BitmapClearBits
  * Clears all bits from the given index, and for <Count> bits. */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 BitmapClearBits(
     _In_ Bitmap_t *Bitmap,
     _In_ int Index,
-    _In_ int Count);
+    _In_ int Count));
 
 /* BitmapAreBitsSet
  * If all bits are set from the given index, and for <Count> bits, then this
  * function returns 1. Otherwise 0. */
-MOSAPI
-int
-MOSABI
+CRTDECL(
+int,
 BitmapAreBitsSet(
     _In_ Bitmap_t *Bitmap,
     _In_ int Index,
-    _In_ int Count);
+    _In_ int Count));
 
 /* BitmapAreBitsClear
  * If all bits are cleared from the given index, and for <Count> bits, then this
  * function returns 1. Otherwise 0. */
-MOSAPI
-int
-MOSABI
+CRTDECL(
+int,
 BitmapAreBitsClear(
     _In_ Bitmap_t *Bitmap,
     _In_ int Index,
-    _In_ int Count);
+    _In_ int Count));
 
 /* BitmapFindBits
  * Locates the requested number of consequtive free bits.
  * Returns the index of the first free bit. Returns -1 on no free. */
-MOSAPI
-int
-MOSABI
+CRTDECL(
+int,
 BitmapFindBits(
     _In_ Bitmap_t *Bitmap,
-    _In_ int Count);
+    _In_ int Count));
 
 #endif //!_GENERIC_BITMAP_H_

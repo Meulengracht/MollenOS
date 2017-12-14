@@ -40,43 +40,38 @@ typedef struct _BinarySemaphore {
 /* BinarySemaphoreConstruct
  * Initializes the semaphore value to either 0 or 1. The pointer
  * must be pre-allocated before calling. */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 BinarySemaphoreConstruct(
     _In_ BinarySemaphore_t *BinarySemaphore,
-    _In_ int Value);
+    _In_ int Value));
 
 /* BinarySemaphoreReset
  * Reinitializes the semaphore with a value of 0 */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 BinarySemaphoreReset(
-    _In_ BinarySemaphore_t *BinarySemaphore);
+    _In_ BinarySemaphore_t *BinarySemaphore));
 
 /* BinarySemaphorePost
  * Post event to a single thread waiting for an event */
-MOSAPI
-void
-MOSABI
+CRTDECL(
+void,
 BinarySemaphorePost(
-    _In_ BinarySemaphore_t *BinarySemaphore);
+    _In_ BinarySemaphore_t *BinarySemaphore));
 
 /* BinarySemaphorePostAll
  * Post event to all threads waiting for an event */
-MOSAPI
-void
-MOSABI
+CRTDECL(
+void,
 BinarySemaphorePostAll(
-    _In_ BinarySemaphore_t *BinarySemaphore);
+    _In_ BinarySemaphore_t *BinarySemaphore));
 
 /* BinarySemaphoreWait
  * Wait on semaphore until semaphore has value 0 */
-MOSAPI
-void
-MOSABI
+CRTDECL(
+void,
 BinarySemaphoreWait(
-    _In_ BinarySemaphore_t* BinarySemaphore);
+    _In_ BinarySemaphore_t* BinarySemaphore));
 
 #endif //!_BINARYSEMAPHORE_INTERFACE_H_

@@ -33,21 +33,19 @@
  * When interval elapses a __TIMEOUT event is generated for
  * the owner of the timer. 
  * <Interval> is in MilliSeconds */
-MOSAPI
-UUId_t
-MOSABI
+CRTDECL(
+UUId_t,
 TimerStart(
     _In_ size_t Interval,
     _In_ int Periodic,
-    _In_ __CONST void *Data);
+    _In_ __CONST void *Data));
 
 /* TimersStop
  * Destroys a existing standard timer, owner must be the requesting
  * process. Otherwise access fault. */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 TimerStop(
-    _In_ UUId_t TimerId);
+    _In_ UUId_t TimerId));
 
 #endif //!_TIMERS_INTERFACE_H_

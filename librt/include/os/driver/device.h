@@ -314,11 +314,10 @@ IoctlDeviceEx(
  * by searching storage-medias for the vendorid/deviceid 
  * combination or the class/subclass combination if specific
  * is not found */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 InstallDriver(
 	_In_ MCoreDevice_t *Device,
-	_In_ size_t Length);
+	_In_ size_t Length));
 
 #endif //!_DEVICE_INTERFACE_H_

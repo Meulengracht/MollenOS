@@ -32,8 +32,8 @@
  * currently supported in MollenOS, to get which
  * kind of io-space check with IoSpace->Type */
 #define IO_SPACE_INVALID        0x00
-#define IO_SPACE_IO                0x01
-#define IO_SPACE_MMIO            0x02
+#define IO_SPACE_IO             0x01
+#define IO_SPACE_MMIO           0x02
 
 /* Represents an io-space in MollenOS, they represent
  * some kind of communication between hardware and software
@@ -46,35 +46,37 @@ typedef struct _DeviceIoSpace {
     size_t                        Size;
 } DeviceIoSpace_t;
 
+_CODE_BEGIN
 /* Creates a new io-space and registers it with
  * the operation system, returns OsSuccess if it's 
  * a valid io-space */
-MOSAPI OsStatus_t CreateIoSpace(DeviceIoSpace_t *IoSpace);
+CRTDECL(OsStatus_t, CreateIoSpace(DeviceIoSpace_t *IoSpace));
 
 /* Tries to claim a given io-space, only one driver
  * can claim a single io-space at a time, to avoid
  * two drivers using the same device */
-MOSAPI OsStatus_t AcquireIoSpace(DeviceIoSpace_t *IoSpace);
+CRTDECL(OsStatus_t, AcquireIoSpace(DeviceIoSpace_t *IoSpace));
 
 /* Tries to release a given io-space, only one driver
  * can claim a single io-space at a time, to avoid
  * two drivers using the same device */
-MOSAPI OsStatus_t ReleaseIoSpace(DeviceIoSpace_t *IoSpace);
+CRTDECL(OsStatus_t, ReleaseIoSpace(DeviceIoSpace_t *IoSpace));
 
 /* Destroys the io-space with the given id and removes
  * it from the io-manage in the operation system, it
  * can only be removed if its not already acquired */
-MOSAPI OsStatus_t DestroyIoSpace(UUId_t IoSpace);
+CRTDECL(OsStatus_t, DestroyIoSpace(UUId_t IoSpace));
 
 /* Read data from the given io-space at <offset> with 
  * the given <length>, the offset and length must be below 
  * the size of the io-space */
-MOSAPI size_t ReadIoSpace(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length);
+CRTDECL(size_t, ReadIoSpace(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length));
 
 /* Write data from the given io-space at <offset> with 
  * the given <length>, the offset and length must be below 
  * the size of the io-space */
-MOSAPI void WriteIoSpace(DeviceIoSpace_t *IoSpace, 
-    size_t Offset, size_t Value, size_t Length);
+CRTDECL(void, WriteIoSpace(DeviceIoSpace_t *IoSpace, 
+    size_t Offset, size_t Value, size_t Length));
+_CODE_END
 
 #endif //!_IO_INTEFACE_H_

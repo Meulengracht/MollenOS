@@ -33,52 +33,45 @@
  * */
 typedef struct _BufferPool BufferPool_t;
 
-// Cpp guard begin
 _CODE_BEGIN
-
 /* BufferPoolCreate
  * Creates a new buffer-pool from the given buffer object. 
  * This allows sub-allocations from a buffer-object. */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 BufferPoolCreate(
     _In_ BufferObject_t *Buffer,
-    _Out_ BufferPool_t **Pool);
+    _Out_ BufferPool_t **Pool));
 
 /* BufferPoolDestroy
  * Cleans up the buffer-pool and deallocates resources previously
  * allocated. This does not destroy the buffer-object. */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 BufferPoolDestroy(
-    _In_ BufferPool_t *Pool);
+    _In_ BufferPool_t *Pool));
 
 /* BufferPoolAllocate
  * Allocates the requested size and outputs two addresses. The
  * virtual pointer to the accessible data, and the address of its 
  * corresponding physical address for hardware. */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 BufferPoolAllocate(
     _In_ BufferPool_t *Pool,
     _In_ size_t Size,
     _Out_ uintptr_t **VirtualPointer,
-    _Out_ uintptr_t *PhysicalAddress);
+    _Out_ uintptr_t *PhysicalAddress));
 
 /* BufferPoolFree
  * Frees previously allocations made by the buffer-pool. The virtual
  * address must be the one passed back. */
-MOSAPI
+CRTDECL(
 OsStatus_t
-MOSABI
+,
 BufferPoolFree(
     _In_ BufferPool_t *Pool,
-    _In_ uintptr_t *VirtualPointer);
-
-// Cpp guard end
+    _In_ uintptr_t *VirtualPointer));
 _CODE_END
 
 #endif //!_BUFFERPOOL_INTERFACE_H_

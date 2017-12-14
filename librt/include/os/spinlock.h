@@ -33,42 +33,39 @@
 typedef int Spinlock_t;
 #define SPINLOCK_INIT			0
 
-/* Start one of these before function prototypes */
 _CODE_BEGIN
-
 /* SpinlockReset
  * This initializes a spinlock
  * handle and sets it to default
  * value (unlocked) */
-MOSAPI 
-OsStatus_t 
+CRTDECL( 
+OsStatus_t,
 SpinlockReset(
-	_In_ Spinlock_t *Lock);
+	_In_ Spinlock_t *Lock));
 
 /* SpinlockAcquire
  * Acquires the spinlock while busy-waiting
  * for it to be ready if neccessary */
-MOSAPI 
-OsStatus_t
+CRTDECL( 
+OsStatus_t,
 SpinlockAcquire(
-	_In_ Spinlock_t *Lock);
+	_In_ Spinlock_t *Lock));
 
 /* SpinlockTryAcquire
  * Makes an attempt to acquire the
  * spinlock without blocking */
-MOSAPI 
-OsStatus_t
+CRTDECL( 
+OsStatus_t,
 SpinlockTryAcquire(
-	_In_ Spinlock_t *Lock);
+	_In_ Spinlock_t *Lock));
 
 /* SpinlockRelease
  * Releases the spinlock, and lets
  * other threads access the lock */
-MOSAPI 
-OsStatus_t 
+CRTDECL( 
+OsStatus_t,
 SpinlockRelease(
-	_In_ Spinlock_t *Lock);
-
+	_In_ Spinlock_t *Lock));
 _CODE_END
 
 #endif //!_SPINLOCK_INTERFACE_H_

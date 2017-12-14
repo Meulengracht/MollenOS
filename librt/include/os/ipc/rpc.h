@@ -62,9 +62,7 @@ PACKED_TYPESTRUCT(MRemoteCall, {
 	RPCArgument_t			Result;
 });
 
-/* Start one of these before function prototypes */
 _CODE_BEGIN
-
 /* RPCInitialize 
  * Initializes a new RPC message of the 
  * given type and length */
@@ -159,41 +157,39 @@ RPCSetResult(
  * Call this to wait for a new RPC message, it automatically
  * reads the message, and all the arguments. To avoid freeing
  * an argument, set InUse to 0 */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 RPCListen(
 	_In_ MRemoteCall_t  *Message,
-    _In_ void           *ArgumentBuffer);
+    _In_ void           *ArgumentBuffer));
 
 /* RPCExecute/RPCEvent
  * To get a reply from the RPC request, the user
  * must use RPCExecute, this will automatically wait
  * for a reply, whereas RPCEvent will send the request
  * and not block/wait for reply */
-MOSAPI 
-OsStatus_t 
+CRTDECL( 
+OsStatus_t,
 RPCExecute(
 	_In_ MRemoteCall_t *Rpc, 
-	_In_ UUId_t Target);
+	_In_ UUId_t Target));
 
-MOSAPI 
-OsStatus_t 
+CRTDECL(
+OsStatus_t,
 RPCEvent(
 	_In_ MRemoteCall_t *Rpc, 
-	_In_ UUId_t Target);
+	_In_ UUId_t Target));
 
 /* RPCRespond
  * This is a wrapper to return a respond message/buffer to the
  * sender of the message, it's good practice to always wait for
  * a result when there is going to be one */
-MOSAPI 
-OsStatus_t 
+CRTDECL( 
+OsStatus_t,
 RPCRespond(
 	_In_ MRemoteCall_t *Rpc,
 	_In_ __CONST void *Buffer, 
-	_In_ size_t Length);
-
+	_In_ size_t Length));
 _CODE_END
 
 #endif //!_RPC_INTERFACE_H_

@@ -3,28 +3,18 @@
 INCLUDES = -I./include -I./ -I../include -I../include/cxx 
 
 # to generate $(wildcard ./*.S) $(SOURCES:.S=.o)
-SOURCES_S = $(wildcard ./arch/$(arch)/*.s)
+SOURCES_S = $(wildcard ./*.S)
 SOURCES_C = $(wildcard ./*.c)
 SOURCES_X = libunwind.cpp Unwind-EHABI.cpp
-OBJECTS = $(SOURCES_S:.s=.o) $(SOURCES_C:.c=.o) $(SOURCES_X:.cpp=.o)
+OBJECTS = $(SOURCES_S:.S=.o) $(SOURCES_C:.c=.o) $(SOURCES_X:.cpp=.o)
 
-ASFLAGS = -f win32 -Xvc
 CFLAGS = $(GCFLAGS) -std=c11 -D_DLL -DCRTDLL -D__OSLIB_UNWIND_IMPLEMENTATION $(INCLUDES)
 CXXFLAGS = $(GCXXFLAGS) -D_DLL -DCRTDLL -D__OSLIB_UNWIND_IMPLEMENTATION -fno-rtti $(INCLUDES)
-LFLAGS = $(GLFLAGS) /noentry /dll ../build/libos.lib ../build/libc.lib ../build/libcrt.lib
+LFLAGS = $(GLFLAGS) /noentry /dll /export-all-symbols ../build/libc.lib ../build/libcrt.lib
 
 # default-target
 .PHONY: all
 all: ../deploy/libunwind.dll
-
-.PHONE: generate
-generate: 
-	gcc -E $(CFLAGS) UnwindRegistersRestore.S > restore.asm
-	gcc -E $(CFLAGS) UnwindRegistersSave.S > save.asm
-	perl x86_64-xlate.pl nasm restore.s restore.asm
-	perl x86_64-xlate.pl nasm save.s save.asm
-	rm restore.s
-	rm save.s
 
 ../deploy/libunwind.dll: $(OBJECTS)
 	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
@@ -33,8 +23,8 @@ generate:
 	$(CXX) -c $(CXXFLAGS) -o $@ $<
 %.o : %.c
 	$(CC) -c $(CFLAGS) -o $@ $<
-%.o : %.s
-	$(AS) $(ASFLAGS) $< -o $@
+%.o : %.S
+	$(CC) -c $(CFLAGS) -o $@ $<
 
 .PHONY: clean
 clean:

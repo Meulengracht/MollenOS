@@ -40,148 +40,133 @@ _CODE_BEGIN
 /* CreateBuffer 
  * Creates a new buffer object with the given size, 
  * this allows hardware drivers to interact with the buffer */
-MOSAPI 
-BufferObject_t*
-MOSABI
+CRTDECL(
+BufferObject_t*,
 CreateBuffer(
-	_In_ size_t Length);
+	_In_ size_t Length));
 
 /* DestroyBuffer 
  * Destroys the given buffer object and release resources
  * allocated with the CreateBuffer function */
-MOSAPI 
-OsStatus_t
-MOSABI
+CRTDECL( 
+OsStatus_t,
 DestroyBuffer(
-	_In_ BufferObject_t *BufferObject);
+	_In_ BufferObject_t *BufferObject));
 
 /* AcquireBuffer
  * Acquires the buffer for access in this addressing space
  * It's impossible to access the data by normal means before calling this */
-MOSAPI 
-OsStatus_t
-MOSABI
+CRTDECL( 
+OsStatus_t,
 AcquireBuffer(
-	_In_ BufferObject_t *BufferObject);
+	_In_ BufferObject_t *BufferObject));
 
 /* ReleaseBuffer 
  * Releases the buffer access and frees resources needed for accessing 
  * this buffer */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 ReleaseBuffer(
-	_In_ BufferObject_t *BufferObject);
+	_In_ BufferObject_t *BufferObject));
 
 /* ZeroBuffer 
  * Clears the entire buffer and resets the internal indices */
-MOSAPI 
-OsStatus_t
-MOSABI
+CRTDECL( 
+OsStatus_t,
 ZeroBuffer(
-	_In_ BufferObject_t *BufferObject);
+	_In_ BufferObject_t *BufferObject));
 
 /* SeekBuffer
  * Seeks the current write/read marker to a specified point
  * in the buffer */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 SeekBuffer(
 	_In_ BufferObject_t *BufferObject,
-	_In_ size_t Position);
+	_In_ size_t Position));
 
 /* ReadBuffer 
  * Reads <BytesToWrite> into the given user-buffer
  * from the given buffer-object. It uses indexed reads, so
  * the read will be from the current position */
-MOSAPI 
-OsStatus_t
-MOSABI
+CRTDECL( 
+OsStatus_t,
 ReadBuffer(
 	_In_ BufferObject_t *BufferObject, 
 	_Out_ __CONST void *Buffer, 
 	_In_ size_t BytesToRead,
-	_Out_Opt_ size_t *BytesRead);
+	_Out_Opt_ size_t *BytesRead));
 
 /* WriteBuffer 
  * Writes <BytesToWrite> into the allocated buffer-object
  * from the given user-buffer. It uses indexed writes, so
  * the next write will be appended to the current position */
-MOSAPI 
-OsStatus_t
-MOSABI
+CRTDECL( 
+OsStatus_t,
 WriteBuffer(
 	_In_ BufferObject_t *BufferObject, 
 	_In_ __CONST void *Buffer, 
 	_In_ size_t BytesToWrite,
-	_Out_Opt_ size_t *BytesWritten);
+	_Out_Opt_ size_t *BytesWritten));
 
 /* CombineBuffer 
  * Writes <BytesToTransfer> into the destination from the given
  * source buffer, make sure the position in both buffers are correct.
  * The number of bytes transferred is set as output */
-MOSAPI 
-OsStatus_t
-MOSABI
+CRTDECL( 
+OsStatus_t,
 CombineBuffer(
 	_Out_ BufferObject_t *Destination, 
 	_In_ BufferObject_t *Source,
 	_In_ size_t BytesToTransfer,
-	_Out_Opt_ size_t *BytesTransferred);
+	_Out_Opt_ size_t *BytesTransferred));
 
 /* GetBufferSize
  * Retrieves the current size of the given buffer, note that the capacity
  * and current size of the buffer may differ because of the current subsystem */
-MOSAPI
-size_t
-MOSABI
+CRTDECL(
+size_t,
 GetBufferSize(
-	_In_ BufferObject_t *BufferObject);
+	_In_ BufferObject_t *BufferObject));
 
 /* ChangeBufferSize
  * Changes the current size of the buffer, but may only be changed within the
  * limits of the capacity of the buffer. This operation resets position */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 ChangeBufferSize(
 	_In_ BufferObject_t *BufferObject,
-	_In_ size_t Size);
+	_In_ size_t Size));
 
 /* GetBufferCapacity
  * Retrieves the capacity of the given buffer-object */
-MOSAPI
-size_t
-MOSABI
+CRTDECL(
+size_t,
 GetBufferCapacity(
-	_In_ BufferObject_t *BufferObject);
+	_In_ BufferObject_t *BufferObject));
 
 /* GetBufferObjectSize
  * Retrieves the size of the buffer-object structure as it can be dynamic
  * in size due to the memory regions it allocates */
-MOSAPI
-size_t
-MOSABI
+CRTDECL(
+size_t,
 GetBufferObjectSize(
-	_In_ BufferObject_t *BufferObject);
+	_In_ BufferObject_t *BufferObject));
 
 /* GetBufferData
  * Returns a pointer to the raw data currently in the buffer */
-MOSAPI
-uintptr_t*
-MOSABI
+CRTDECL(
+uintptr_t*,
 GetBufferData(
-	_In_ BufferObject_t *BufferObject);
+	_In_ BufferObject_t *BufferObject));
 
 /* GetBufferAddress
  * Returns the physical address of the buffer in memory. This address
  * is not accessible by normal means. */
-MOSAPI
-uintptr_t
-MOSABI
+CRTDECL(
+uintptr_t,
 GetBufferAddress(
-	_In_ BufferObject_t *BufferObject);
+	_In_ BufferObject_t *BufferObject));
 
 _CODE_END
 

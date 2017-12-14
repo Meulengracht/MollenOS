@@ -6,7 +6,7 @@ INCLUDES = -I../../../librt/include
 OBJECTS = $(SOURCES:.c=.o)
 
 CFLAGS = $(GCFLAGS) -D_DLL $(INCLUDES)
-LFLAGS = /nodefaultlib /subsystem:native /noentry /dll ../../../librt/build/libc.lib ../../../librt/build/libdrv.lib ../../../librt/build/libos.lib
+LFLAGS = /nodefaultlib /subsystem:native /noentry /dll ../../../librt/build/libc.lib ../../../librt/build/libdrv.lib
 
 .PHONY: all
 all: ../../build/mfs.dll ../../build/mfs.mdrv

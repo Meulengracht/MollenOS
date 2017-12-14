@@ -50,53 +50,48 @@ typedef struct _BlockBitmap {
 /* BlockBitmapCreate
  * Instantiate a new bitmap that keeps track of a
  * block range between Start -> End with a given block size */
-MOSAPI
-BlockBitmap_t*
-MOSABI
+CRTDECL(
+BlockBitmap_t*,
 BlockBitmapCreate(
     _In_ uintptr_t BlockStart, 
     _In_ uintptr_t BlockEnd, 
-    _In_ size_t BlockSize);
+    _In_ size_t BlockSize));
 
 /* BlockBitmapDestroy
  * Destroys a block bitmap, and releases 
  * all resources associated with the bitmap */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 BlockBitmapDestroy(
-    _In_ BlockBitmap_t *Blockmap);
+    _In_ BlockBitmap_t *Blockmap));
 
 /* BlockBitmapAllocate
  * Allocates a number of bytes in the bitmap (rounded up in blocks)
  * and returns the calculated block of the start of block allocated (continously) */
-MOSAPI
-uintptr_t
-MOSABI
+CRTDECL(
+uintptr_t,
 BlockBitmapAllocate(
     _In_ BlockBitmap_t *Blockmap,
-    _In_ size_t Size);
+    _In_ size_t Size));
 
 /* BlockBitmapFree
  * Deallocates a given block translated into offsets 
  * into the given bitmap, and frees them in the bitmap */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 BlockBitmapFree(
     _In_ BlockBitmap_t *Blockmap,
     _In_ uintptr_t Block,
-    _In_ size_t Size);
+    _In_ size_t Size));
 
 /* BlockBitmapValidate
  * Validates the given block that it's within
  * range of our bitmap and that it is either set or clear */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 BlockBitmapValidateState(
     _In_ BlockBitmap_t *Blockmap,
     _In_ uintptr_t Block,
-    _In_ int Set);
+    _In_ int Set));
 
 #endif //!_MOLLENOS_BLOCKBITMAP_H_

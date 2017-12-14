@@ -54,9 +54,9 @@
         if (timeout_ >= runs) {\
              SystemDebug(SYSTEM_DEBUG_WARNING, message, __VA_ARGS__);\
              break;\
-												        }\
+		}\
         thrd_sleepex(wait);\
-						    }
+	}
 
 /* Threading Utility
  * Waits for a condition to set in a busy-loop using
@@ -67,24 +67,17 @@
         if (timeout_ >= runs) {\
 			 fault = 1; \
              break;\
-										        }\
+		}\
         thrd_sleepex(wait);\
-					    }
+	}
 
-// Cpp Barrier
 _CODE_BEGIN
-
 /* SystemDebug 
  * Debug/trace printing for userspace application and drivers */
-MOSAPI
-void
-MOSABI
+CRTDECL(void,
 SystemDebug(
 	_In_ int Type,
-	_In_ __CONST char *Format, ...);
-
-
-// Cpp Barrier
+	_In_ __CONST char *Format, ...));
 _CODE_END
 
 #endif //!_UTILS_INTERFACE_H_

@@ -50,81 +50,71 @@ typedef struct _ProcessStartupInformation {
     size_t                       InheritanceBlockLength;
 } ProcessStartupInformation_t;
 
-/* Start one of these before function prototypes */
 _CODE_BEGIN
-
 /* ProcessSpawn
  * Spawns a new process by the given path and
  * optionally the given parameters are passed 
  * returns UUID_INVALID in case of failure unless Asynchronous is set
  * then this call will always result in UUID_INVALID. */
-MOSAPI
-UUId_t
-MOSABI
+CRTDECL(
+UUId_t,
 ProcessSpawn(
 	_In_ __CONST char *Path,
 	_In_Opt_ __CONST char *Arguments,
-	_In_ int Asynchronous);
+	_In_ int Asynchronous));
 
 /* ProcessSpawnEx
  * Spawns a new process by the given path and the given startup information block. 
  * Returns UUID_INVALID in case of failure unless Asynchronous is set
  * then this call will always result in UUID_INVALID. */
-MOSAPI
-UUId_t
-MOSABI
+CRTDECL(
+UUId_t,
 ProcessSpawnEx(
 	_In_ __CONST char *Path,
 	_In_ __CONST ProcessStartupInformation_t *StartupInformation,
-	_In_ int Asynchronous);
+	_In_ int Asynchronous));
 
 /* ProcessJoin
  * Waits for the given process to terminate and
  * returns the return-code the process exit'ed with */
-MOSAPI 
-int
-MOSABI
+CRTDECL( 
+int,
 ProcessJoin(
-	_In_ UUId_t Process);
+	_In_ UUId_t Process));
 
 /* ProcessKill
  * Terminates the process with the given id */
-MOSAPI 
-OsStatus_t
-MOSABI
+CRTDECL( 
+OsStatus_t,
 ProcessKill(
-	_In_ UUId_t Process);
+	_In_ UUId_t Process));
 
 /* ProcessQuery
  * Queries information about the given process
  * based on the function it returns the requested information */
-MOSAPI 
-OsStatus_t
-MOSABI
+CRTDECL( 
+OsStatus_t,
 ProcessQuery(
 	_In_ UUId_t Process, 
 	_In_ ProcessQueryFunction_t Function, 
 	_In_ void *Buffer, 
-	_In_ size_t Length);
+	_In_ size_t Length));
 
 /* GetStartupInformation
  * Retrieves startup information about the process. 
  * Data buffers must be supplied with a max length. */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 GetStartupInformation(
-    _InOut_ ProcessStartupInformation_t *StartupInformation);
+    _InOut_ ProcessStartupInformation_t *StartupInformation));
 
 /* ProcessGetModuleHandles
  * Retrieves a list of loaded module handles. Handles can be queried
  * for various application-image data. */
-MOSAPI
-OsStatus_t
-MOSABI
+CRTDECL(
+OsStatus_t,
 ProcessGetModuleHandles(
-    _Out_ Handle_t ModuleList[PROCESS_MAXMODULES]);
-
+    _Out_ Handle_t ModuleList[PROCESS_MAXMODULES]));
 _CODE_END
 
 #endif //!_PROCESS_INTERFACE_H_

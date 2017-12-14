@@ -901,14 +901,14 @@ PeGetModuleHandles(
     }
 
     // Reset data
-    memset(&ModuleList[0], 0, sizeof(Handle_t * PROCESS_MAXMODULES));
+    memset(&ModuleList[0], 0, sizeof(Handle_t) * PROCESS_MAXMODULES);
 
     // Copy base over
     ModuleList[Index++] = (Handle_t)Executable->VirtualAddress;
     if (Executable->LoadedLibraries != NULL) {
-        _foreach(Node, Executable->LoadedLibraries) {
+        foreach(Node, Executable->LoadedLibraries) {
             MCorePeFile_t *Library = (MCorePeFile_t*)Node->Data;
-            ModuleList[Index++] = (Handle_t)Executable->VirtualAddress;
+            ModuleList[Index++] = (Handle_t)Library->VirtualAddress;
         }
     }
     return OsSuccess;

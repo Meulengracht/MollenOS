@@ -32,12 +32,6 @@
 #include <stdlib.h>
 #include <ctype.h>
 
-#ifdef LIBC_KERNEL
-void __EntryLibCEmpty(void)
-{
-}
-#else
-
 /* Extern
  * - C/C++ Initialization
  * - C/C++ Cleanup */
@@ -45,7 +39,7 @@ __EXTERN int main(int argc, char** argv);
 __EXTERN void __CppInit(void);
 __EXTERN void __CppFinit(void);
 #ifndef __clang__
-MOSAPI void __CppInitVectoredEH(void);
+CRTDECL(void, __CppInitVectoredEH(void));
 #endif
 
 /* Globals
@@ -234,5 +228,3 @@ void _mDllCrt(int Action)
 		__CppFinit();
 	}
 }
-
-#endif

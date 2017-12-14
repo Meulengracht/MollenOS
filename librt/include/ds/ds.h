@@ -45,41 +45,37 @@ typedef enum _KeyType {
 
 /* dsalloc
  * Seperate portable memory allocator for data-structures */
-MOSAPI
-void*
-MOSABI
+CRTDECL(
+void*,
 dsalloc(
-    _In_ size_t size);
+    _In_ size_t size));
 
 /* dsfree
  * Seperate portable memory freeing for data-structures */
-MOSAPI
-void
-MOSABI
+CRTDECL(
+void,
 dsfree(
-    _In_ void *p);
+    _In_ void *p));
 
 /* Helper Function 
  * Matches two keys based on the key type 
  * returns 0 if they are equal, or -1 if not */
-MOSAPI
-int
-MOSABI
+CRTDECL(
+int,
 dsmatchkey(
     _In_ KeyType_t KeyType, 
     _In_ DataKey_t Key1, 
-    _In_ DataKey_t Key2);
+    _In_ DataKey_t Key2));
 
 /* Helper Function
  * Used by sorting, it compares to values
  * and returns 1 if 1 > 2, 0 if 1 == 2 and
  * -1 if 2 > 1 */
-MOSAPI
-int
-MOSABI
+CRTDECL(
+int,
 dssortkey(
     _In_ KeyType_t KeyType, 
     _In_ DataKey_t Key1, 
-    _In_ DataKey_t Key2);
+    _In_ DataKey_t Key2));
 
 #endif //!_DATASTRUCTURES_H_
