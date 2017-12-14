@@ -55,7 +55,7 @@
 #elif defined(__GNUC__) || defined(__clang__)
     //  GCC
     #define CRTEXPORT __attribute__((visibility("default")))
-    #define CRTIMPORT
+    #define CRTIMPORT 
 #else
     //  do nothing and hope for the best?
     #define CRTEXPORT
@@ -363,6 +363,18 @@ MemoryBarrier (void)
 	defined(intel) || defined(x86) || defined(i86pc) || \
 	defined(__alpha) || defined(__osf__) || defined(_X86_32)
 #define __LITTLE_ENDIAN
+#endif
+
+#if defined(__i386__) || defined(i386) || defined(_X86_32)
+#if !defined(_USE_32BIT_TIME_T) && !defined(_USE_64BIT_TIME_T)
+#define _USE_32BIT_TIME_T
+#endif
+#else
+#if defined(_USE_32BIT_TIME_T)
+#error "Can't use 32 bit time structures in 64 bit mode"
+#elif !defined(_USE_64BIT_TIME_T)
+#define _USE_64BIT_TIME_T
+#endif
 #endif
 
 #endif /* !__STDC_CRTDEF__ */

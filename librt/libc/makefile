@@ -59,7 +59,7 @@ else
 			  $(join $(addprefix obc/, $(dir $(COMMON_SRCS))), $(notdir $(COMMON_SRCS:.c=.o))) \
 			  $(join $(addprefix obc/, $(dir $(LIBC_SRCS))), $(notdir $(LIBC_SRCS:.c=.o)))
 	CFLAGS = $(GCFLAGS) -D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAREDLIBRARY -D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL -D_DLL -DCRTDLL $(COMMON_INCS)
-	LFLAGS = /nodefaultlib /subsystem:native /def:libc.def /noentry /dll /lldmap ../build/libcrt.lib ../build/libm.lib ../build/libds.lib
+	LFLAGS = $(GLFLAGS) /export-all-symbols /noentry /dll /lldmap ../build/libcrt.lib ../build/libm.lib ../build/libds.lib
 	OBJDIR = obc
 endif
 

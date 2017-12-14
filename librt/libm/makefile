@@ -8,8 +8,8 @@ INCLUDES = -I../include
 
 OBJECTS = $(ASM_SRCS:.s=.o) $(ARCH_SRCS:.c=.o) $(SOURCES:.c=.o)
 
-CFLAGS = $(GCFLAGS) -D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL -DCRTDLL $(INCLUDES)
-LFLAGS = /nodefaultlib /subsystem:native /noentry /dll /def:libm.def
+CFLAGS = $(GCFLAGS) -D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAREDLIBRARY -D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL -DCRTDLL $(INCLUDES)
+LFLAGS = $(GLFLAGS) /noentry /dll /export-all-symbols
 ASFLAGS = -f win32 -Xvc
 
 .PHONY: all

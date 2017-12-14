@@ -531,7 +531,7 @@ void __MallocLibCEmpty(void)
 {
 }
 #else
-#include <crtdefs.h>
+#include <os/osdefs.h>
 
 #ifndef DLMALLOC_EXPORT
 #ifdef MOLLENOS

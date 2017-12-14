@@ -32,9 +32,9 @@ export LD = $(CROSS)/bin/lld-link
 export LIB = $(CROSS)/bin/llvm-lib
 export ASFLAGS = -f bin
 export AS = nasm
-export GCFLAGS = -Wall -Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function -fms-extensions -ffreestanding -nostdlib -O3 -DMOLLENOS -D$(arch) $(config_flags)
+export GCFLAGS = -fms-extensions -Wall -Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function -ffreestanding -nostdlib -O3 -DMOLLENOS -D$(arch) $(config_flags)
 export GCXXFLAGS = -Wall -Wno-self-assign -Wno-unused-function -ffreestanding -nostdlib -O3 -DMOLLENOS -D$(arch) $(config_flags)
-export GLFLAGS = /nodefaultlib /machine:X86 /subsystem:native
+export GLFLAGS = /nodefaultlib /machine:X86 /subsystem:native /debug:dwarf /nopdb
 export FCOPY = cp
 # -gdwarf
 .PHONY: all

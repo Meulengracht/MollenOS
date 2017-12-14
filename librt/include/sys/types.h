@@ -23,7 +23,7 @@
 #define __SYS_TYPES__
 
 //Includes
-#include <stdint.h>
+#include <os/osdefs.h>
 
 #ifndef _TIME32_T_DEFINED
 #define _TIME32_T_DEFINED
