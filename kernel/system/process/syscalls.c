@@ -374,6 +374,25 @@ ScProcessGetModuleHandles(
     return PeGetModuleHandles(Process->Executable, ModuleList);
 }
 
+/* ScProcessGetModuleEntryPoints
+ * Retrieves a list of loaded module entry points. */
+OsStatus_t
+ScProcessGetModuleEntryPoints(
+    _In_ Handle_t ModuleList[PROCESS_MAXMODULES])
+{
+    // Variables
+    MCoreAsh_t *Process = NULL;
+
+    // Get current process
+    Process = PhoenixGetCurrentAsh();
+    if (Process == NULL) {
+        return OsError;
+    }
+
+    // Redirect call to executable interface
+    return PeGetModuleEntryPoints(Process->Executable, ModuleList);
+}
+
 /**************************
 * Shared Object Functions *
 ***************************/
@@ -1670,6 +1689,7 @@ uintptr_t GlbSyscallTable[91] = {
     DefineSyscall(ScProcessSignal),
     DefineSyscall(ScProcessRaise),
     DefineSyscall(ScProcessGetModuleHandles),
+    DefineSyscall(ScProcessGetModuleEntryPoints),
     DefineSyscall(ScProcessGetStartupInformation),
     DefineSyscall(ScSharedObjectLoad),
     DefineSyscall(ScSharedObjectGetFunction),
@@ -1681,7 +1701,6 @@ uintptr_t GlbSyscallTable[91] = {
     DefineSyscall(ScThreadSleep),
     DefineSyscall(ScThreadYield),
     DefineSyscall(ScThreadGetCurrentId),
-    DefineSyscall(NoOperation),
 
     /* Synchronization Functions - 21 */
     DefineSyscall(ScConditionCreate),

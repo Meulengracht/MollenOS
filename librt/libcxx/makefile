@@ -6,7 +6,7 @@ SOURCES = $(wildcard ./*.cpp)
 OBJECTS = $(SOURCES:.cpp=.o)
 
 CXXFLAGS = $(GCXXFLAGS) -D_DLL -DCRTDLL -std=c++11 -funwind-tables -DLIBCXXRT -D_LIBCPP_DEBUG_LEVEL=0 -D_LIBCPP_BUILDING_LIBRARY $(INCLUDES)
-LFLAGS = $(GLFLAGS) /noentry /dll /export-all-symbols ../build/libc.lib ../build/libcrt.lib ../build/libclang.lib ../deploy/libunwind.lib ../deploy/libcxxabi.lib
+LFLAGS = $(GLFLAGS) /entry:__CrtLibraryEntry /dll /export-all-symbols ../build/libc.lib ../build/libcrt.lib ../build/libclang.lib ../deploy/libunwind.lib ../deploy/libcxxabi.lib
 
 # default-target
 .PHONY: all

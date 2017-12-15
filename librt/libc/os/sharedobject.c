@@ -30,6 +30,10 @@
  * - Library */
 #include <stddef.h>
 
+/* Globals
+ * - Function blueprint for dll-entry */
+typedef void (*SOInitializer_t)(int);
+
 /* SharedObjectLoad
  * Load a shared object given a path
  * path must exists otherwise NULL is returned */
@@ -37,6 +41,10 @@ Handle_t
 SharedObjectLoad(
 	_In_ __CONST char *SharedObject)
 {
+    // Variables
+    SOInitializer_t Initialize  = NULL;
+    Handle_t Result             = NULL;
+
 	// Sanitize parameters
 	if (SharedObject == NULL) {
 		return HANDLE_INVALID;
@@ -44,7 +52,15 @@ SharedObjectLoad(
 
 	// Just deep call, we have 
 	// all neccessary functionlity and validation already in place
-	return Syscall_LibraryLoad(SharedObject);
+	Result = Syscall_LibraryLoad(SharedObject);
+    if (Result != NULL) {
+        Initialize = (SOInitializer_t)SharedObjectGetFunction(
+            Result, "__CrtLibraryEntry");
+        if (Initialize != NULL) {
+            Initialize(0);
+        }
+    }
+    return Result;
 }
 
 /* SharedObjectGetFunction
@@ -71,9 +87,19 @@ OsStatus_t
 SharedObjectUnload(
 	_In_ Handle_t Handle)
 {
-	/* Sanitize the handle */
+    // Variables
+    SOInitializer_t Initialize  = NULL;
+
+	// Sanitize input
 	if (Handle == HANDLE_INVALID) {
 		return OsError;
 	}
+
+    // Run finalizer before unload
+    Initialize = (SOInitializer_t)SharedObjectGetFunction(
+        Handle, "__CrtLibraryEntry");
+    if (Initialize != NULL) {
+        Initialize(1);
+    }
 	return Syscall_LibraryUnload(Handle);
 }

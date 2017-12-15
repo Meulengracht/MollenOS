@@ -35,29 +35,35 @@
 /* Extern
  * - C/C++ Initialization
  * - C/C++ Cleanup */
-__EXTERN int main(int argc, char** argv);
+__EXTERN int main(int argc, char **argv);
+#ifdef __clang__
+__EXTERN void __CrtCxxInitialize(void);
+__EXTERN void __CrtCxxFinalize(void);
+#else
 __EXTERN void __CppInit(void);
 __EXTERN void __CppFinit(void);
-#ifndef __clang__
 CRTDECL(void, __CppInitVectoredEH(void));
 #endif
+
+/* StdioInitialize
+ * Initializes default handles and resources */
+CRTDECL(void, StdioInitialize(void));
+
+/* StdSignalInitialize
+ * Initializes the default signal-handler for the process. */
+CRTDECL(void, StdSignalInitialize(void));
+
+/* ProcessGetModuleEntryPoints
+ * Retrieves a list of loaded modules for the process and
+ * their entry points. */
+CRTDECL(OsStatus_t,
+ProcessGetModuleEntryPoints(
+    _Out_ Handle_t ModuleList[PROCESS_MAXMODULES]));
 
 /* Globals
  * Static buffer to avoid allocations for process startup information. */
 static char StartupArgumentBuffer[512];
 static char StartupInheritanceBuffer[512];
-
-/* StdioInitialize
- * Initializes default handles and resources */
-_CRTIMP
-void
-StdioInitialize(void);
-
-/* StdSignalInitialize
- * Initializes the default signal-handler for the process. */
-_CRTIMP
-void
-StdSignalInitialize(void);
 
 /* Unescape Quotes in arguments */
 void
@@ -160,10 +166,15 @@ __CrtInitialize(
 {
     // Variables
     ProcessStartupInformation_t StartupInformation;
+    Handle_t ModuleList[PROCESS_MAXMODULES];
 	char **Arguments            = NULL;
 
 	// Initialize C/CPP
-	__CppInit();
+#ifdef __clang__
+    __CrtCxxInitialize();
+#else
+    __CppInit();
+#endif
  
 	// Initialize the TLS System
 	tls_create(Tls);
@@ -178,14 +189,24 @@ __CrtInitialize(
     StartupInformation.InheritanceBlockLength = sizeof(StartupInheritanceBuffer);
     GetStartupInformation(&StartupInformation);
 
+    // Get modules available
+    if (ProcessGetModuleEntryPoints(ModuleList) == OsSuccess) {
+        for (int i = 0; i < PROCESS_MAXMODULES; i++) {
+            if (ModuleList[i] == NULL) {
+                break;
+            }
+            ((void (*)(int))ModuleList[i])(0);
+        }
+    }
+
 	// Initialize STD-C
 	StdioInitialize( /* StartupInformation.InheritanceBlockPointer */ );
     StdSignalInitialize();
  
-	// If msc, initialize the vectored-eh
- #ifndef __clang__
-	__CppInitVectoredEH();
- #endif
+    // If msc, initialize the vectored-eh
+#ifndef __clang__
+    __CppInitVectoredEH();
+#endif
 
     // Handle process arguments
     *ArgumentCount = ParseCommandLine(&StartupArgumentBuffer[0], NULL);
@@ -215,16 +236,4 @@ __CrtConsoleEntry(void)
 	// Exit cleanly, calling atexit() functions
 	free(Arguments);
 	exit(ExitCode);
-}
-
-/* Dll Entry Point 
- * Use this entry point for dll extensions */
-void _mDllCrt(int Action)
-{
-	if (Action == 0) {
-		__CppInit();
-	}
-	else {
-		__CppFinit();
-	}
 }

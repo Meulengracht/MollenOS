@@ -169,7 +169,7 @@ tls_create(
 
 /* tls_destroy
  * Destroys a thread-storage space should be called by thread crt */
-OsStatus_t 
+OsStatus_t
 tls_destroy(
     _In_ thread_storage_t *Tls)
 {

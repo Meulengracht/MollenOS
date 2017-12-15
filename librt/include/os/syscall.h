@@ -50,23 +50,24 @@ _CODE_END
 #define Syscall_ProcessSignal(Handler) (OsStatus_t)syscall1(6, SCPARAM(Handler))
 #define Syscall_ProcessRaise(ProcessId, Signal) (OsStatus_t)syscall2(7, SCPARAM(ProcessId), SCPARAM(Signal))
 #define Syscall_ProcessGetModuleHandles(HandleList) (OsStatus_t)syscall1(8, SCPARAM(HandleList))
-#define Syscall_ProcessGetStartupInfo(StartupInformation) (OsStatus_t)syscall1(9, SCPARAM(StartupInformation))
+#define Syscall_ProcessGetModuleEntryPoints(HandleList) (OsStatus_t)syscall1(9, SCPARAM(HandleList))
+#define Syscall_ProcessGetStartupInfo(StartupInformation) (OsStatus_t)syscall1(10, SCPARAM(StartupInformation))
 
 /* SharedObject system calls
  * - SharedObject related system call definitions */
-#define Syscall_LibraryLoad(Path) (Handle_t)syscall1(10, SCPARAM(Path))
-#define Syscall_LibraryFunction(Handle, FunctionName) (uintptr_t)syscall2(11, SCPARAM(Handle), SCPARAM(FunctionName))
-#define Syscall_LibraryUnload(Handle) (OsStatus_t)syscall1(12, SCPARAM(Handle))
+#define Syscall_LibraryLoad(Path) (Handle_t)syscall1(11, SCPARAM(Path))
+#define Syscall_LibraryFunction(Handle, FunctionName) (uintptr_t)syscall2(12, SCPARAM(Handle), SCPARAM(FunctionName))
+#define Syscall_LibraryUnload(Handle) (OsStatus_t)syscall1(13, SCPARAM(Handle))
 
 /* Threading system calls
  * - Threading related system call definitions */
-#define Syscall_ThreadCreate(Entry, Argument, Flags) (UUId_t)syscall3(13, SCPARAM(Entry), SCPARAM(Argument), SCPARAM(Flags))
-#define Syscall_ThreadExit(ExitCode) (OsStatus_t)syscall1(14, SCPARAM(ExitCode))
-#define Syscall_ThreadSignal(ThreadId, Signal) (OsStatus_t)syscall2(15, SCPARAM(ThreadId), SCPARAM(Signal))
-#define Syscall_ThreadJoin(ThreadId, ExitCode) (OsStatus_t)syscall2(16, SCPARAM(ThreadId), SCPARAM(ExitCode))
-#define Syscall_ThreadSleep(Milliseconds, MillisecondsSlept) (OsStatus_t)syscall2(17, SCPARAM(Milliseconds), SCPARAM(MillisecondsSlept))
-#define Syscall_ThreadYield() (OsStatus_t)syscall0(18)
-#define Syscall_ThreadId() (UUId_t)syscall0(19)
+#define Syscall_ThreadCreate(Entry, Argument, Flags) (UUId_t)syscall3(14, SCPARAM(Entry), SCPARAM(Argument), SCPARAM(Flags))
+#define Syscall_ThreadExit(ExitCode) (OsStatus_t)syscall1(15, SCPARAM(ExitCode))
+#define Syscall_ThreadSignal(ThreadId, Signal) (OsStatus_t)syscall2(16, SCPARAM(ThreadId), SCPARAM(Signal))
+#define Syscall_ThreadJoin(ThreadId, ExitCode) (OsStatus_t)syscall2(17, SCPARAM(ThreadId), SCPARAM(ExitCode))
+#define Syscall_ThreadSleep(Milliseconds, MillisecondsSlept) (OsStatus_t)syscall2(18, SCPARAM(Milliseconds), SCPARAM(MillisecondsSlept))
+#define Syscall_ThreadYield() (OsStatus_t)syscall0(19)
+#define Syscall_ThreadId() (UUId_t)syscall0(20)
 
 /* Condition system calls
  * - Condition related system call definitions */

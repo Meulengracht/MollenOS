@@ -1,4 +1,4 @@
-#define _sxprintf vnsprintf
+#define _sxprintf vsnprintf
 #define USE_COUNT 1
 #define USE_VARARGS 1
 

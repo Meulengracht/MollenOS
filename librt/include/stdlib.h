@@ -217,14 +217,12 @@ _CRTIMP int system(__CONST char*);
 
 /* Terminate normally, no cleanup. 
  * Call all functions in atexit_quick stack */
-_CRTIMP int at_quick_exit(void(__CRTDECL *function)(void));
+CRTDECL(int, at_quick_exit(void(*Function)(void)));
 _CRTIMP_NORETURN(void quick_exit(int));
-
 /* Terminate normally, no cleanup. No calls to anything. */
 _CRTIMP_NORETURN(void _Exit(int));
-
 /* Terminate normally with cleanup, call all functions in atexit stack */
-__EXTERN int atexit(void(__CRTDECL *func)(void));
+CRTDECL(int, atexit(void(*Function)(void)));
 _CRTIMP_NORETURN(void exit(int));
 #define _exit(s)	exit(s);
 

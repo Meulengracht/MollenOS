@@ -145,4 +145,13 @@ PeGetModuleHandles(
     _In_ MCorePeFile_t *Executable,
     _Out_ Handle_t ModuleList[PROCESS_MAXMODULES]);
 
+/* PeGetModuleEntryPoints
+ * Retrieves a list of loaded module entry points currently loaded for the process. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+PeGetModuleEntryPoints(
+    _In_ MCorePeFile_t *Executable,
+    _Out_ Handle_t ModuleList[PROCESS_MAXMODULES]);
+
 #endif //!__MCORE_PELOADER__

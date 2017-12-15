@@ -120,6 +120,15 @@ GetStartupInformation(
     return Syscall_ProcessGetStartupInfo(StartupInformation);
 }
 
+/* ProcessGetModuleEntryPoints
+ * Retrieves a list of loaded modules for the process and
+ * their entry points. */
+OsStatus_t
+ProcessGetModuleEntryPoints(
+    _Out_ Handle_t ModuleList[PROCESS_MAXMODULES]) {
+    return Syscall_ProcessGetModuleEntryPoints(ModuleList);
+}
+
 /* ProcessGetModuleHandles
  * Retrieves a list of loaded module handles. Handles can be queried
  * for various application-image data. */

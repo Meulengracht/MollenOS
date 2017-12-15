@@ -23,6 +23,7 @@
  * - System */
 #include <os/threadpool.h>
 #include <os/mollenos.h>
+#include <os/process.h>
 
 /* Includes
  * - Driver */
@@ -33,26 +34,32 @@
 #include "../libc/threads/tls.h"
 #include <stdlib.h>
 
+/* ProcessGetModuleEntryPoints
+ * Retrieves a list of loaded modules for the process and
+ * their entry points. */
+CRTDECL(OsStatus_t,
+ProcessGetModuleEntryPoints(
+    _Out_ Handle_t ModuleList[PROCESS_MAXMODULES]));
+
 /* Extern
  * - C/C++ Initialization
  * - C/C++ Cleanup */
+#ifdef __clang__
+__EXTERN void __CrtCxxInitialize(void);
+__EXTERN void __CrtCxxFinalize(void);
+#else
 __EXTERN void __CppInit(void);
 __EXTERN void __CppFinit(void);
-#ifndef __clang__
 CRTDECL(void, __CppInitVectoredEH(void));
 #endif
 
 /* StdioInitialize
  * Initializes default handles and resources */
-_CRTIMP
-void
-StdioInitialize(void);
+CRTDECL(void, StdioInitialize(void));
 
 /* StdSignalInitialize
  * Initializes the default signal-handler for the process. */
-_CRTIMP
-void
-StdSignalInitialize(void);
+CRTDECL(void, StdSignalInitialize(void));
 
 /* CRT Initialization sequence
  * for a shared C/C++ environment call this in all entry points */
@@ -60,20 +67,37 @@ void
 __CrtInitialize(
     _In_ thread_storage_t *Tls)
 {
-	// Initialize C/CPP
-	__CppInit();
+    // Variables
+    Handle_t ModuleList[PROCESS_MAXMODULES];
 
-	// Initialize the TLS System
-	tls_create(Tls);
-	tls_initialize();
+    // Initialize C/CPP
+#ifdef __clang__
+    __CrtCxxInitialize();
+#else
+    __CppInit();
+#endif
 
-	// Initialize STD-C
-	StdioInitialize();
+    // Initialize the TLS System
+    tls_create(Tls);
+    tls_initialize();
+
+    // Get modules available
+    if (ProcessGetModuleEntryPoints(ModuleList) == OsSuccess) {
+        for (int i = 0; i < PROCESS_MAXMODULES; i++) {
+            if (ModuleList[i] == NULL) {
+                break;
+            }
+            ((void (*)(int))ModuleList[i])(0);
+        }
+    }
+
+    // Initialize STD-C
+    StdioInitialize();
     StdSignalInitialize();
 
-	// If msc, initialize the vectored-eh
+    // If msc, initialize the vectored-eh
 #ifndef __clang__
-	__CppInitVectoredEH();
+    __CppInitVectoredEH();
 #endif
 }
 

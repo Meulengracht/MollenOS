@@ -913,3 +913,31 @@ PeGetModuleHandles(
     }
     return OsSuccess;
 }
+
+/* PeGetModuleEntryPoints
+ * Retrieves a list of loaded module entry points currently loaded for the process. */
+OsStatus_t
+PeGetModuleEntryPoints(
+    _In_ MCorePeFile_t *Executable,
+    _Out_ Handle_t ModuleList[PROCESS_MAXMODULES])
+{
+    // Variables
+    int Index = 0;
+
+    // Sanitize input
+    if (Executable == NULL || ModuleList == NULL) {
+        return OsError;
+    }
+
+    // Reset data
+    memset(&ModuleList[0], 0, sizeof(Handle_t) * PROCESS_MAXMODULES);
+
+    // Copy base over
+    if (Executable->LoadedLibraries != NULL) {
+        foreach(Node, Executable->LoadedLibraries) {
+            MCorePeFile_t *Library = (MCorePeFile_t*)Node->Data;
+            ModuleList[Index++] = (Handle_t)Library->EntryAddress;
+        }
+    }
+    return OsSuccess;
+}

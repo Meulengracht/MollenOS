@@ -177,6 +177,7 @@ int __CRTDECL _purecall(void)
 }
 #endif
 
+#ifndef __clang__
 int __CRTDECL atexit(_PVFV fn)
 {
 	if (32 * 4 < ((int)onexitend - (int)onexitbegin) + 4)
@@ -185,6 +186,7 @@ int __CRTDECL atexit(_PVFV fn)
 		*(onexitend++) = fn;
 	return 0;
 }
+#endif
 
 /* Cpp Init */
 __EXTERN void __CppInit(void)
@@ -207,11 +209,6 @@ __EXTERN void __CppFinit(void)
 
 	_initterm(__xp_a, __xp_z);
 	_initterm(__xt_a, __xt_z);
-}
-
-__EXTERN int __cxa_thread_atexit_impl(void* dtor, void* obj, void* dso_symbol)
-{
-    return 0;
 }
 
 __EXTERN int onexitinit(void)

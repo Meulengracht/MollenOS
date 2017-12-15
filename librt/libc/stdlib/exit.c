@@ -25,9 +25,6 @@
 #include <stdlib.h>
 
 #ifndef LIBC_KERNEL
-__EXTERN void __CppFinit(void);
-__EXTERN void StdioCleanup(void);
-
 /* exit
  * Causes normal program termination to occur.
  * Several cleanup steps are performed:
@@ -37,6 +34,24 @@ __EXTERN void StdioCleanup(void);
  *    an implementation-defined status, indicating successful termination is returned. 
  *    If exit_code is EXIT_FAILURE, an implementation-defined status, indicating unsuccessful 
  *    termination is returned. In other cases implementation-defined status value is returned. */
+#ifdef __clang__
+__EXTERN void __CrtCallExitHandlers(int Status, int Quick, int DoAtExit, int CleanupCrt);
+__EXTERN int __cxa_atexit(void (*Function)(void*), void *Argument, void *Dso);
+__EXTERN void *__dso_handle;
+int
+atexit(
+    _In_ void (*Function)(void)) {
+    return __cxa_atexit((void (*)(void*))Function, NULL, __dso_handle);
+}
+void
+exit(
+    _In_ int Status) {
+    __CrtCallExitHandlers(Status, 0, 1, 1);
+	_Exit(Status);
+}
+#else
+__EXTERN void __CppFinit(void);
+__EXTERN void StdioCleanup(void);
 void
 exit(
     _In_ int Status) {
@@ -45,3 +60,4 @@ exit(
 	_Exit(Status);
 }
 #endif
+#endif //!LIBC_KERNEL

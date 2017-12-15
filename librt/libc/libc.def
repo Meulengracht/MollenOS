@@ -1,11 +1,3 @@
 LIBRARY libc
 EXPORTS
-memcpy
-memset
-__setjmp
-__setjmp3
-longjmp
-___global_locale DATA
-_exit
-_StdSignalInitialize
-_abort
+_ctype_

@@ -106,6 +106,7 @@ typedef struct __tzinfo_struct {
     __tzrule_type __tzrule[2];
 } __tzinfo_type;
 
+_CODE_BEGIN
 /* time
  * Returns the current calendar time encoded as a time_t object, and 
  * also stores it in the time_t object pointed to by arg (unless arg is a null pointer). */
@@ -275,5 +276,6 @@ CRTDECL(size_t, wcsftime_l(
     _In_ __CONST wchar_t*__restrict format, 
     _In_ __CONST struct tm*__restrict time,
     _In_ struct __locale_t *locale));
+_CODE_END
 
 #endif //!__STDC_TIME__

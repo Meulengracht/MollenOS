@@ -23,6 +23,29 @@
 #include <stdlib.h>
 #include <errno.h>
 
+#ifdef __clang__
+__EXTERN void __CrtCallExitHandlers(int Status, int Quick, int DoAtExit, int CleanupCrt);
+__EXTERN int __cxa_at_quick_exit(void (*Function)(void*), void *Dso);
+__EXTERN void *__dso_handle;
+
+/* at_quick_exit 
+ * Register a cleanup handler for
+ * the quick_exit method */
+int
+at_quick_exit(
+    _In_ void(*Function)(void)) {
+    return __cxa_at_quick_exit((void (*)(void*))Function, __dso_handle);
+}
+
+/* quick_exit 
+ * Calls all function in quick_exit and then exits normally */
+void
+quick_exit(
+    _In_ int Status) {
+    __CrtCallExitHandlers(Status, 1, 0, 0);
+	_Exit(Status);
+}
+#else
 /* We use a simple linked list structure of handles
  * quick-exit is a custom implementation of atexit and
  * thus we have to support much less */
@@ -90,3 +113,4 @@ void quick_exit(int Status)
 	 * CRT related cleanup */
 	_Exit(Status);
 }
+#endif
