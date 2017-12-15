@@ -1,0 +1,21 @@
+LIBRARY libcxxabi
+EXPORTS
+__cxa_allocate_exception
+__cxa_free_exception
+__cxa_allocate_dependent_exception
+__cxa_free_dependent_exception
+__cxa_throw
+__cxa_get_exception_ptr
+__cxa_begin_catch
+__cxa_end_catch
+__cxa_rethrow
+__cxa_current_primary_exception
+__cxa_rethrow_primary_exception
+__cxa_uncaught_exception
+__cxa_uncaught_exceptions
+__cxa_atexit
+__ZTVN10__cxxabiv117__class_type_infoE
+__ZTVN10__cxxabiv120__si_class_type_infoE
+__ZTISt8bad_cast
+__ZTISt11logic_error
+__ZTVSt14overflow_error

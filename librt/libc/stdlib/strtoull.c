@@ -36,15 +36,14 @@
 #include <ctype.h>
 #include <errno.h>
 #include <stdlib.h>
-
-#ifdef _MSC_VER
-#pragma warning(disable:4146)
-#endif
+#include "../locale/setlocale.h"
 
 /*
-* Convert a string to an unsigned long long integer.
-*/
-unsigned long long strtoull(const char *__restrict nptr, char **__restrict endptr, int base)
+ * Convert a string to an unsigned long long integer.
+ */
+static unsigned long long
+_strtoull_l (const char *__restrict nptr,
+	     char **__restrict endptr, int base, locale_t loc)
 {
 	register const unsigned char *s = (const unsigned char *)nptr;
 	register unsigned long long acc;
@@ -53,27 +52,26 @@ unsigned long long strtoull(const char *__restrict nptr, char **__restrict endpt
 	register int neg = 0, any, cutlim;
 
 	/*
-	* See strtol for comments as to the logic used.
-	*/
+	 * See strtol for comments as to the logic used.
+	 */
 	do {
 		c = *s++;
-	} while (isspace(c));
+	} while (isspace_l(c, loc));
 	if (c == '-') {
 		neg = 1;
 		c = *s++;
-	}
-	else if (c == '+')
+	} else if (c == '+')
 		c = *s++;
 	if ((base == 0 || base == 16) &&
-		c == '0' && (*s == 'x' || *s == 'X')) {
+	    c == '0' && (*s == 'x' || *s == 'X')) {
 		c = s[1];
 		s += 2;
 		base = 16;
 	}
 	if (base == 0)
 		base = c == '0' ? 8 : 10;
-	cutoff = (unsigned long long)ULLONG_MAX / (unsigned long long)base;
-	cutlim = (unsigned long long)ULLONG_MAX % (unsigned long long)base;
+	cutoff = (unsigned long long)ULONG_LONG_MAX / (unsigned long long)base;
+	cutlim = (unsigned long long)ULONG_LONG_MAX % (unsigned long long)base;
 	for (acc = 0, any = 0;; c = *s++) {
 		if (c >= '0' && c <= '9')
 			c -= '0';
@@ -85,7 +83,7 @@ unsigned long long strtoull(const char *__restrict nptr, char **__restrict endpt
 			break;
 		if (c >= base)
 			break;
-		if (any < 0 || acc > cutoff || (acc == cutoff && c > cutlim))
+               if (any < 0 || acc > cutoff || (acc == cutoff && c > cutlim))
 			any = -1;
 		else {
 			any = 1;
@@ -94,16 +92,28 @@ unsigned long long strtoull(const char *__restrict nptr, char **__restrict endpt
 		}
 	}
 	if (any < 0) {
-		acc = ULLONG_MAX;
+		acc = ULONG_LONG_MAX;
 		_set_errno(ERANGE);
-	}
-	else if (neg)
+	} else if (neg)
 		acc = -acc;
 	if (endptr != 0)
-		*endptr = (char *)(any ? (char *)s - 1 : nptr);
+		*endptr = (char *) (any ? (char *)s - 1 : nptr);
 	return (acc);
 }
 
-#ifdef _MSC_VER
-#pragma warning(default:4146)
-#endif
+unsigned long long strtoull_l(
+    const char *__restrict s, 
+    char **__restrict ptr, 
+    int base,
+	locale_t loc)
+{
+	return _strtoull_l (s, ptr, base, loc);
+}
+
+unsigned long long strtoull(
+	__CONST char *__restrict s,
+	char **__restrict ptr,
+	int base)
+{
+	return _strtoull_l (s, ptr, base, __get_current_locale());
+}

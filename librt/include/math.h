@@ -5,10 +5,6 @@
 #ifndef  _MATH_H_
 #define  _MATH_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <crtdefs.h>
 #include <locale.h>
 
@@ -61,6 +57,20 @@ extern "C" {
 		};
 #endif
 
+#ifndef _MATH_TYPES_DEFINED
+#define _MATH_TYPES_DEFINED
+typedef float float_t;
+#ifdef _HAVE_LONG_DOUBLE
+#ifdef _LDBL_EQ_DBL
+typedef double double_t;
+#else
+typedef long double double_t;
+#endif
+#else
+typedef double double_t;
+#endif
+#endif
+
 #define _DOMAIN 1
 #define _SING 2
 #define _OVERFLOW 3
@@ -89,7 +99,7 @@ _CRTDATA(__EXTERN double __CONST _HUGE);
 #define _INFCODE 1
 #define _NANCODE 2
 
-/* The prototypes */
+_CODE_BEGIN
 _CRTIMP int	__fpclassifyd(double);
 _CRTIMP int	__fpclassifyf(float);
 _CRTIMP int	__fpclassifyl(long double);
@@ -145,9 +155,8 @@ _CRTIMP long long llabs(long long);
     : (sizeof (x) == sizeof (double)) ? __isinf((double)x)	\
     : __isinfl(x))
 
-/* 7.12.3.4 */
-/* We don't need to worry about truncation here: 
- * A NaN stays a NaN. */
+/* 7.12.3.4
+ * We don't need to worry about truncation here: A NaN stays a NaN. */
 #define	isnan(x)					\
     ((sizeof (x) == sizeof (float)) ? __isnanf((float)x)	\
     : (sizeof (x) == sizeof (double)) ? __isnan((double)x)	\
@@ -586,12 +595,12 @@ __fp_unordered_compare(long double x, long double y){
 	}
 	extern "C++" {
 		template<class _Ty> inline _Ty _Pow_int(_Ty x,int y) {
-			unsigned int _CTYPE_N;
-			if(y >= 0) _CTYPE_N = (unsigned int)y;
-			else _CTYPE_N = (unsigned int)(-y);
+			unsigned int _N;
+			if(y >= 0) _N = (unsigned int)y;
+			else _N = (unsigned int)(-y);
 			for(_Ty _Z = _Ty(1);;x *= x) {
-				if((_CTYPE_N & 1)!=0) _Z *= x;
-				if((_CTYPE_N >>= 1)==0) return (y < 0 ? _Ty(1) / _Z : _Z);
+				if((_N & 1)!=0) _Z *= x;
+				if((_N >>= 1)==0) return (y < 0 ? _Ty(1) / _Z : _Z);
 			}
 		}
 	}
@@ -712,13 +721,8 @@ double __CRTDECL _scalb (double, long);
 #define _finite(x) isfinite(x)
 #define _fpclass(x) fpclassify(x)
 #define _isnan(x) isnan(x)
-
-#ifdef	__cplusplus
-}
-#endif
+_CODE_END
 
 #endif	/* Not RC_INVOKED */
-
 #endif	/* Not __STRICT_ANSI__ */
-
 #endif /* _MATH_H_ */

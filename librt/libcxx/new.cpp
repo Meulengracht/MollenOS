@@ -56,7 +56,7 @@ __throw_bad_alloc()
 
 }  // std
 
-#if !defined(__GLIBCXX__) &&                                                   \
+#if !defined(__GLIBCXX__) && !defined(MOLLENOS) &&                                                  \
     (!defined(_LIBCPP_ABI_MICROSOFT) || defined(_LIBCPP_NO_VCRUNTIME)) &&      \
     !defined(_LIBCPP_DISABLE_NEW_DELETE_DEFINITIONS)
 
@@ -189,6 +189,8 @@ operator new(std::size_t size, std::align_val_t alignment) _THROW_BAD_ALLOC
     void* p;
 #if defined(_LIBCPP_MSVCRT_LIKE)
     while ((p = _aligned_malloc(size, static_cast<size_t>(alignment))) == nullptr)
+#elif defined(MOLLENOS)
+    while ((p = aligned_alloc(static_cast<size_t>(alignment), size)) == nullptr)
 #else
     while (::posix_memalign(&p, static_cast<size_t>(alignment), size) != 0)
 #endif

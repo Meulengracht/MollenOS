@@ -166,6 +166,24 @@ random_device::operator()()
     return r;
 }
 
+#elif defined(_LIBCPP_USING_CRAND_RANDOM)
+
+random_device::random_device(const string& __token)
+{
+    if (__token != "/dev/urandom")
+        __throw_system_error(ENOENT, ("random device not supported " + __token).c_str());
+}
+
+random_device::~random_device()
+{
+}
+
+unsigned
+random_device::operator()()
+{
+    return (unsigned)rand();
+}
+
 #else
 #error "Random device not implemented for this architecture"
 #endif

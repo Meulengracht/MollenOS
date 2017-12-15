@@ -266,6 +266,26 @@
 #endif
 #endif // defined(_WIN32)
 
+#if defined(MOLLENOS)
+#if defined(_MSC_VER)
+    //  Microsoft 
+    #define CRTEXPORT __declspec(dllexport)
+    #define CRTIMPORT __declspec(dllimport)
+    #define CRTHIDE
+#elif defined(__GNUC__) || defined(__clang__)
+    //  GCC
+    #define CRTEXPORT __attribute__((visibility("default")))
+    #define CRTIMPORT 
+    #define CRTHIDE __attribute__((visibility("internal")))
+#else
+    //  do nothing and hope for the best?
+    #define CRTEXPORT
+    #define CRTIMPORT
+    #define CRTHIDE
+    #pragma warning Unknown dynamic link import/export semantics.
+#endif
+#endif
+
 #ifdef __sun__
 # include <sys/isa_defs.h>
 # ifdef _LITTLE_ENDIAN
@@ -290,6 +310,8 @@
 # define _LIBCPP_USING_NACL_RANDOM
 #elif defined(_LIBCPP_WIN32API)
 # define _LIBCPP_USING_WIN32_RANDOM
+#elif defined(MOLLENOS)
+# define _LIBCPP_USING_CRAND_RANDOM
 #else
 # define _LIBCPP_USING_DEV_RANDOM
 #endif
@@ -628,12 +650,20 @@ namespace std {
 # define _LIBCPP_CLASS_TEMPLATE_INSTANTIATION_VIS
 # define _LIBCPP_OVERRIDABLE_FUNC_VIS
 #elif defined(_LIBCPP_BUILDING_LIBRARY)
+#if defined(MOLLENOS)
+# define _LIBCPP_DLL_VIS CRTEXPORT
+#else
 # define _LIBCPP_DLL_VIS __declspec(dllexport)
+#endif
 # define _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS
 # define _LIBCPP_CLASS_TEMPLATE_INSTANTIATION_VIS _LIBCPP_DLL_VIS
 # define _LIBCPP_OVERRIDABLE_FUNC_VIS _LIBCPP_DLL_VIS
 #else
+#if defined(MOLLENOS)
+# define _LIBCPP_DLL_VIS CRTIMPORT
+#else
 # define _LIBCPP_DLL_VIS __declspec(dllimport)
+#endif
 # define _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS _LIBCPP_DLL_VIS
 # define _LIBCPP_CLASS_TEMPLATE_INSTANTIATION_VIS
 # define _LIBCPP_OVERRIDABLE_FUNC_VIS

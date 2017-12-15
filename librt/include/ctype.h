@@ -24,13 +24,9 @@
 
 /* Includes */
 #include <crtdefs.h>
+#include <locale.h>
 
-/* CPP Guard */
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
+_CODE_BEGIN
 /* Checks for an alphanumeric character. */
 _CRTIMP int isalnum(int __c);
 /* Checks for an alphabetic character. */
@@ -76,24 +72,22 @@ _CRTIMP int toascii(int __c);
 #define _tolower(__c) ((unsigned char)(__c) - 'A' + 'a')
 #define _toupper(__c) ((unsigned char)(__c) - 'a' + 'A')
 
-#if defined(__POSIX_VISIBLE)
-extern int isalnum_l(int __c, locale_t __l);
-extern int isalpha_l(int __c, locale_t __l);
-extern int isblank_l(int __c, locale_t __l);
-extern int iscntrl_l(int __c, locale_t __l);
-extern int isdigit_l(int __c, locale_t __l);
-extern int isgraph_l(int __c, locale_t __l);
-extern int islower_l(int __c, locale_t __l);
-extern int isprint_l(int __c, locale_t __l);
-extern int ispunct_l(int __c, locale_t __l);
-extern int isspace_l(int __c, locale_t __l);
-extern int isupper_l(int __c, locale_t __l);
-extern int isxdigit_l(int __c, locale_t __l);
-extern int tolower_l(int __c, locale_t __l);
-extern int toupper_l(int __c, locale_t __l);
-extern int isascii_l(int __c, locale_t __l);
-extern int toascii_l(int __c, locale_t __l);
-#endif
+CRTDECL(int, isalnum_l(int __c, locale_t __l));
+CRTDECL(int, isalpha_l(int __c, locale_t __l));
+CRTDECL(int, isblank_l(int __c, locale_t __l));
+CRTDECL(int, iscntrl_l(int __c, locale_t __l));
+CRTDECL(int, isdigit_l(int __c, locale_t __l));
+CRTDECL(int, isgraph_l(int __c, locale_t __l));
+CRTDECL(int, islower_l(int __c, locale_t __l));
+CRTDECL(int, isprint_l(int __c, locale_t __l));
+CRTDECL(int, ispunct_l(int __c, locale_t __l));
+CRTDECL(int, isspace_l(int __c, locale_t __l));
+CRTDECL(int, isupper_l(int __c, locale_t __l));
+CRTDECL(int, isxdigit_l(int __c, locale_t __l));
+CRTDECL(int, tolower_l(int __c, locale_t __l));
+CRTDECL(int, toupper_l(int __c, locale_t __l));
+CRTDECL(int, isascii_l(int __c, locale_t __l));
+CRTDECL(int, toascii_l(int __c, locale_t __l));
 
 #define	_CTYPE_U	01
 #define	_CTYPE_L	02
@@ -137,7 +131,6 @@ an out-of-bounds reference on a 64-bit machine.  */
         (__ctype_lookup(__x)&_B) || (int) (__x) == '\t';})
 #endif
 
-#if defined(__POSIX_VISIBLE)
 const char *__locale_ctype_ptr_l(locale_t);
 #define __ctype_lookup_l(__c,__l) ((__locale_ctype_ptr_l(__l)+sizeof(""[__c]))[(int)(__c)])
 
@@ -158,8 +151,6 @@ const char *__locale_ctype_ptr_l(locale_t);
   __extension__ ({ __typeof__ (__c) __x = (__c);		\
         (__ctype_lookup_l(__x,__l)&_B) || (int) (__x) == '\t';})
 #endif
-
-#endif /* __POSIX_VISIBLE >= 200809 */
 
 #if defined(__MISC_VISIBLE) || defined(__XSI_VISIBLE)
 #define isascii(__c)	((unsigned)(__c)<=0177)
@@ -197,9 +188,6 @@ function.  */
 
 /* For C++ backward-compatibility only.  */
 _CRTDATA(__EXTERN __CONST char _ctype_[]);
-
-#ifdef __cplusplus
-}
-#endif
+_CODE_END
 
 #endif /* _CTYPE_H_ */

@@ -6,8 +6,8 @@ SOURCES = $(wildcard ./*.cpp)
 OBJECTS = $(SOURCES:.cpp=.o)
 
 # -DHAVE___CXA_THREAD_ATEXIT_IMPL
-CXXFLAGS = $(GCXXFLAGS) -std=c++11 -funwind-tables -D_DLL -DCRTDLL -DLIBCXXABI_USE_LLVM_UNWINDER -D_LIBCXXABI_ENABLE_EXCEPTIONS -DHAVE___CXA_THREAD_ATEXIT_IMPL -D_LIBCXXABI_BUILDING_LIBRARY -D_NEWLIB_VERSION $(INCLUDES)
-LFLAGS = $(GLFLAGS) /noentry /dll /export-all-symbols ../build/libc.lib ../build/libcrt.lib ../deploy/libunwind.lib
+CXXFLAGS = $(GCXXFLAGS) -std=c++11 -funwind-tables -D_DLL -DCRTDLL -DLIBCXXABI_USE_LLVM_UNWINDER -D_LIBCXXABI_ENABLE_EXCEPTIONS -DHAVE___CXA_THREAD_ATEXIT_IMPL -D_LIBCXXABI_BUILDING_LIBRARY $(INCLUDES)
+LFLAGS = $(GLFLAGS) /noentry /dll /export-all-symbols /def:libcxxabi.def ../build/libc.lib ../build/libcrt.lib ../deploy/libunwind.lib
 
 # default-target
 .PHONY: all

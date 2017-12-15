@@ -115,7 +115,9 @@ _CRTIMP wchar_t *wcscat(wchar_t *__restrict s1,
 	__CONST wchar_t *__restrict s2);
 _CRTIMP wchar_t *wcschr(__CONST wchar_t *s, wchar_t c);
 _CRTIMP int wcscmp(__CONST wchar_t *s1, __CONST wchar_t *s2);
-_CRTIMP int wcscoll(__CONST wchar_t *a, __CONST wchar_t *b);
+CRTDECL(int, wcscoll(
+    __CONST wchar_t *a,
+    __CONST wchar_t *b));
 _CRTIMP wchar_t *wcscpy(wchar_t *__restrict s1,
 	__CONST wchar_t *__restrict s2);
 _CRTIMP	size_t wcscspn(__CONST wchar_t *s, wchar_t *set);
@@ -142,7 +144,6 @@ _CRTIMP wchar_t *wcstok(wchar_t *__restrict source,
 	__CONST wchar_t *__restrict delimiters,
 	wchar_t **__restrict lasts);
 
-#if defined(__POSIX_VISIBLE)
 #include <locale.h>
 _CRTIMP int wcsxfrm_l(wchar_t *__restrict a,
 	__CONST wchar_t *__restrict b, size_t n,
@@ -154,7 +155,6 @@ _CRTIMP int wcscoll_l(__CONST wchar_t *a,
 _CRTIMP int wcsncasecmp_l(__CONST wchar_t *s1, 
 	__CONST wchar_t *s2, size_t n, 
 	locale_t locale);
-#endif
 
 #ifdef __cplusplus
 }

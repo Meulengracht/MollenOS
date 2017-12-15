@@ -20,7 +20,7 @@
 
 #if defined(ELAST)
 #define _LIBCPP_ELAST ELAST
-#elif defined(_NEWLIB_VERSION)
+#elif defined(_NEWLIB_VERSION) || defined(MOLLENOS)
 #define _LIBCPP_ELAST __ELASTERROR
 #elif defined(__Fuchsia__)
 // No _LIBCPP_ELAST needed on Fuchsia

@@ -36,15 +36,14 @@
 #include <ctype.h>
 #include <errno.h>
 #include <stdlib.h>
-
-#ifdef _MSC_VER
-#pragma warning(disable:4146)
-#endif
+#include "../locale/setlocale.h"
 
 /*
-* Convert a string to an unsigned long integer.
-*/
-unsigned long strtoul(const char *__restrict nptr, char **__restrict endptr, int base)
+ * Convert a string to an unsigned long integer.
+ */
+static unsigned long
+_strtoul_l (const char *__restrict nptr,
+	    char **__restrict endptr, int base, locale_t loc)
 {
 	register const unsigned char *s = (const unsigned char *)nptr;
 	register unsigned long acc;
@@ -53,19 +52,18 @@ unsigned long strtoul(const char *__restrict nptr, char **__restrict endptr, int
 	register int neg = 0, any, cutlim;
 
 	/*
-	* See strtol for comments as to the logic used.
-	*/
+	 * See strtol for comments as to the logic used.
+	 */
 	do {
 		c = *s++;
-	} while (isspace(c));
+	} while (isspace_l(c, loc));
 	if (c == '-') {
 		neg = 1;
 		c = *s++;
-	}
-	else if (c == '+')
+	} else if (c == '+')
 		c = *s++;
 	if ((base == 0 || base == 16) &&
-		c == '0' && (*s == 'x' || *s == 'X')) {
+	    c == '0' && (*s == 'x' || *s == 'X')) {
 		c = s[1];
 		s += 2;
 		base = 16;
@@ -85,7 +83,7 @@ unsigned long strtoul(const char *__restrict nptr, char **__restrict endptr, int
 			break;
 		if (c >= base)
 			break;
-		if (any < 0 || acc > cutoff || (acc == cutoff && c > cutlim))
+               if (any < 0 || acc > cutoff || (acc == cutoff && c > cutlim))
 			any = -1;
 		else {
 			any = 1;
@@ -96,14 +94,26 @@ unsigned long strtoul(const char *__restrict nptr, char **__restrict endptr, int
 	if (any < 0) {
 		acc = ULONG_MAX;
 		_set_errno(ERANGE);
-	}
-	else if (neg)
+	} else if (neg)
 		acc = -acc;
 	if (endptr != 0)
-		*endptr = (char *)(any ? (char *)s - 1 : nptr);
+		*endptr = (char *) (any ? (char *)s - 1 : nptr);
 	return (acc);
 }
 
-#ifdef _MSC_VER
-#pragma warning(default:4146)
-#endif
+unsigned long strtoul_l (
+    const char *__restrict s, 
+    char **__restrict ptr, 
+    int base,
+	locale_t loc)
+{
+	return _strtoul_l (s, ptr, base, loc);
+}
+
+unsigned long strtoul(
+	__CONST char *__restrict s,
+	char **__restrict ptr,
+	int base)
+{
+	return _strtoul_l (s, ptr, base, __get_current_locale());
+}

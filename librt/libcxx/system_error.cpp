@@ -73,6 +73,13 @@ string do_strerror_r(int ev) {
   std::snprintf(buffer, strerror_buff_size, "unknown error %d", ev);
   return string(buffer);
 }
+#elif defined(MOLLENOS)
+// @todo
+string do_strerror_r(int ev) {
+  char buffer[strerror_buff_size];
+  ::strcpy(&buffer[0], ::strerror(ev));
+  return string(buffer);
+}
 #else
 
 // Only one of the two following functions will be used, depending on

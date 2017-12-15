@@ -31,7 +31,7 @@
 #include "__sso_allocator"
 #if defined(_LIBCPP_MSVCRT) || defined(__MINGW32__)
 #include "support/win32/locale_win32.h"
-#elif !defined(__BIONIC__)
+#elif !defined(__BIONIC__) && !defined(MOLLENOS)
 #include <langinfo.h>
 #endif
 #include <stdlib.h>
@@ -1132,9 +1132,9 @@ ctype<char>::classic_table()  _NOEXCEPT
     return __pctype_func();
 #elif defined(__EMSCRIPTEN__)
     return *__ctype_b_loc();
-#elif defined(_NEWLIB_VERSION)
+#elif defined(_NEWLIB_VERSION) || defined(MOLLENOS)
     // Newlib has a 257-entry table in ctype_.c, where (char)0 starts at [1].
-    return _ctype_ + 1;
+    return (const unsigned long *)(_ctype_ + 1);
 #elif defined(_AIX)
     return (const unsigned int *)__lc_ctype_ptr->obj->mask;
 #else

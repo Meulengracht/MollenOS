@@ -26,6 +26,7 @@
 /* Includes 
  * - Library */
 #include <os/osdefs.h>
+#include <locale.h>
 #include <errno.h>
 
 _CODE_BEGIN
@@ -119,9 +120,23 @@ _CRTIMP	char* strncat(char* destination, char* source, size_t num);
  *******************************/
 _CRTIMP	int memcmp(__CONST void* ptr1, __CONST void* ptr2, size_t num);
 _CRTIMP	int strcmp(__CONST char* str1, __CONST char* str2);
-_CRTIMP	int strcoll(__CONST char* str1, __CONST char* str2);
+CRTDECL(int, strcoll(
+    __CONST char* str1,
+    __CONST char* str2));
+CRTDECL(int, strcoll_l(
+    const char *a,
+    const char *b,
+    struct __locale_t *locale));
 _CRTIMP	int strncmp(__CONST char* s1, __CONST char* s2, size_t n);
-_CRTIMP	size_t strxfrm(char* destination, __CONST char* source, size_t num);
+CRTDECL(size_t, strxfrm(
+    char* destination,
+    __CONST char* source,
+    size_t num));
+CRTDECL(size_t, strxfrm_l(
+    char *__restrict s1,
+    const char *__restrict s2,
+    size_t n,
+	struct __locale_t *locale));
 
 /*******************************
  *      String S&D             *

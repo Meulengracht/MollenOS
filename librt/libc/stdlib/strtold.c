@@ -61,15 +61,31 @@ __flt_rounds(void)
 #define FLT_ROUNDS 0
 #endif
 
-long double strtold(const char *__restrict s00, char **__restrict se)
+long double
+strtold_l (const char *__restrict s00, char **__restrict se, locale_t loc)
 {
 #ifdef _LDBL_EQ_DBL
-	/* On platforms where long double is as wide as double.  */
-	return strtod(s00, se);
+  /* On platforms where long double is as wide as double.  */
+  return _strtod_l (s00, se, loc);
 #else
-	long double result;
-	_strtorx_l(s00, se, FLT_ROUNDS, &result);
-	return result;
+  long double result;
+
+  _strtorx_l (s00, se, FLT_ROUNDS, &result, loc);
+  return result;
+#endif
+}
+
+long double
+strtold (const char *__restrict s00, char **__restrict se)
+{
+#ifdef _LDBL_EQ_DBL
+  /* On platforms where long double is as wide as double.  */
+  return _strtod_l (s00, se, __get_current_locale ());
+#else
+  long double result;
+
+  _strtorx_l (s00, se, FLT_ROUNDS, &result, __get_current_locale());
+  return result;
 #endif
 }
 

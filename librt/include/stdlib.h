@@ -25,6 +25,7 @@
 /* Includes
  * Library */
 #include <os/osdefs.h>
+#include <locale.h>
 #include <wchar.h>
 
 /* Termination codes that must be defined in 
@@ -118,16 +119,66 @@ _CRTIMP long double	atold(__CONST char*);
 /* Same as above, but these allow to specify an 
  * endpoint in the string, and allows the specification
  * of a decimal-base to use for the conversion */
-_CRTIMP float strtof(__CONST char* __restrict, char ** __restrict end);
-_CRTIMP double strtod(__CONST char* __restrict, char ** __restrict end);
-_CRTIMP long int strtol(__CONST char* __restrict, char ** __restrict end, int base);
-_CRTIMP unsigned long int strtoul(__CONST char* __restrict, char ** __restrict end, int base);
+CRTDECL(float, strtof(
+    __CONST char* __restrict, 
+    char ** __restrict end));
+CRTDECL(float, strtof_l(
+    const char *__restrict s00,
+    char **__restrict se,
+    locale_t loc));
+CRTDECL(double, strtod(
+    __CONST char* __restrict, 
+    char ** __restrict end));
+CRTDECL(double, strtod_l(
+    const char *__restrict s00,
+    char **__restrict se,
+    locale_t loc));
+CRTDECL(long int, strtol(
+    __CONST char* __restrict,
+    char ** __restrict end,
+    int base));
+CRTDECL(long, strtol_l(
+    const char *__restrict s,
+    char **__restrict ptr,
+    int base,
+	locale_t loc));
+CRTDECL(unsigned long int, strtoul(
+    __CONST char* __restrict,
+    char ** __restrict end,
+    int base));
+CRTDECL(unsigned long, strtoul_l(
+    const char *__restrict s, 
+    char **__restrict ptr, 
+    int base,
+	locale_t loc));
 
 /* C++11 Added functions, to support 
  * 64 bit integers and 80/128 bit doubles */
-_CRTIMP long long strtoll(__CONST char* __restrict, char ** __restrict end, int base);
-_CRTIMP long double strtold(__CONST char* __restrict, char ** __restrict end);
-_CRTIMP unsigned long long strtoull(__CONST char* __restrict, char ** __restrict end, int base);
+CRTDECL(long long, strtoll(
+    __CONST char* __restrict, 
+    char ** __restrict end, 
+    int base));
+CRTDECL(long long, strtoll_l(
+    const char *__restrict s, 
+    char **__restrict ptr, 
+    int base,
+    locale_t loc));
+CRTDECL(long double, strtold(
+    __CONST char* __restrict, 
+    char ** __restrict end));
+CRTDECL(long double, strtold_l (
+    const char *__restrict s00, 
+    char **__restrict se, 
+    locale_t loc));
+CRTDECL(unsigned long long, strtoull(
+    __CONST char* __restrict, 
+    char ** __restrict end, 
+    int base));
+CRTDECL(unsigned long long, strtoull_l(
+    const char *__restrict s, 
+    char **__restrict ptr, 
+    int base,
+	locale_t loc));
 
 /* Pseudo-random sequence generation 
  * The seed is thread-specific and setup by the CRT 

@@ -19,7 +19,7 @@
 #include "cxa_exception.hpp"
 #include "cxa_handlers.hpp"
 
-#ifndef _LIBCXXABI_ENABLE_EXCEPTIONS
+#ifdef _LIBCXXABI_NO_EXCEPTIONS
 
 namespace __cxxabiv1 {
 

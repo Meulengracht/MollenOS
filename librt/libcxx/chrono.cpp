@@ -43,14 +43,16 @@
 #endif
 #else
 #if !defined(CLOCK_REALTIME) || !defined(_LIBCXX_USE_CLOCK_GETTIME)
+#if !defined(MOLLENOS)
 #include <sys/time.h>        // for gettimeofday and timeval
+#endif
 #endif // !defined(CLOCK_REALTIME)
 #endif // defined(_LIBCPP_WIN32API)
 
 #if !defined(_LIBCPP_HAS_NO_MONOTONIC_CLOCK)
 #if __APPLE__
 #include <mach/mach_time.h>  // mach_absolute_time, mach_timebase_info_data_t
-#elif !defined(_LIBCPP_WIN32API) && !defined(CLOCK_MONOTONIC)
+#elif !defined(_LIBCPP_WIN32API) && !defined(MOLLENOS) && !defined(CLOCK_MONOTONIC)
 #error "Monotonic clock not implemented"
 #endif
 #endif
@@ -91,6 +93,10 @@ system_clock::now() _NOEXCEPT
   filetime_duration d{(static_cast<__int64>(ft.dwHighDateTime) << 32) |
                        static_cast<__int64>(ft.dwLowDateTime)};
   return time_point(duration_cast<duration>(d - nt_to_unix_epoch));
+#elif defined(MOLLENOS)
+    struct timespec tp;
+    timespec_get(&tp, TIME_UTC);
+    return time_point(seconds(tp.tv_sec) + microseconds(tp.tv_nsec / 1000));
 #else
 #if defined(_LIBCXX_USE_CLOCK_GETTIME) && defined(CLOCK_REALTIME)
     struct timespec tp;
@@ -206,6 +212,16 @@ steady_clock::now() _NOEXCEPT
   LARGE_INTEGER counter;
   QueryPerformanceCounter(&counter);
   return time_point(duration(counter.QuadPart * nano::den / freq.QuadPart));
+}
+
+#elif defined(MOLLENOS)
+
+steady_clock::time_point
+steady_clock::now() _NOEXCEPT
+{
+    struct timespec tp;
+    timespec_get(&tp, TIME_MONOTONIC);
+    return time_point(seconds(tp.tv_sec) + nanoseconds(tp.tv_nsec));
 }
 
 #elif defined(CLOCK_MONOTONIC)

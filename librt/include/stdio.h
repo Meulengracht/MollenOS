@@ -251,8 +251,9 @@ _CRTIMP int vwprintf(
     _In_ __CONST wchar_t *format, 
     _In_ va_list valist);
 _CRTIMP int swprintf(
-    _In_ wchar_t *buffer,
-    _In_ __CONST wchar_t *format,
+    _In_ wchar_t *restrict buffer,
+    _In_ size_t len,
+    _In_ __CONST wchar_t *restrict format,
     ...);
 _CRTIMP int swnprintf(
     _In_ wchar_t *buffer,

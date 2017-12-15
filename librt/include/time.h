@@ -26,6 +26,7 @@
 /* Includes
  * - Library */
 #include <os/osdefs.h>
+#include <locale.h>
 
 #ifndef _CLOCK_T_DEFINED
 #define _CLOCK_T_DEFINED
@@ -247,24 +248,32 @@ ctime_s(
  * Copies into ptr the content of format, expanding its format 
  * specifiers into the corresponding values that represent the 
  * time described in timeptr, with a limit of maxsize characters. */
-_CRTIMP
-size_t
-strftime(
+CRTDECL(size_t, strftime(
     _In_ char *__restrict dest,
     _In_ size_t maxsize, 
     _In_ __CONST char *__restrict format,
-    _In_ __CONST struct tm *__restrict tmptr);
+    _In_ __CONST struct tm *__restrict tmptr));
+CRTDECL(size_t, strftime_l(
+    _In_ char *__restrict s,
+    _In_ size_t maxsize,
+    _In_ __CONST char *__restrict format,
+	_In_ __CONST struct tm *__restrict tim_p,
+    _In_ struct __locale_t *locale));
 
 /* wcsftime
  * Converts the date and time information from a given calendar time time 
  * to a null-terminated wide character string str according to format string format. 
  * Up to count bytes are written. */
-_CRTIMP
-size_t
-wcsftime(
+CRTDECL(size_t, wcsftime(
     _In_ wchar_t*__restrict str,
     _In_ size_t maxsize,
     _In_ __CONST wchar_t*__restrict format, 
-    _In_ __CONST struct tm*__restrict time);
+    _In_ __CONST struct tm*__restrict time));
+CRTDECL(size_t, wcsftime_l(
+    _In_ wchar_t*__restrict str,
+    _In_ size_t maxsize,
+    _In_ __CONST wchar_t*__restrict format, 
+    _In_ __CONST struct tm*__restrict time,
+    _In_ struct __locale_t *locale));
 
 #endif //!__STDC_TIME__

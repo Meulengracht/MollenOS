@@ -29,8 +29,6 @@
 // +---------------------------+-----------------------------+
 // | __cxa_dependent_exception | _Unwind_Exception CLNGC++\1 |
 // +---------------------------+-----------------------------+
-#ifndef _LIBCXXABI_NO_EXCEPTIONS
-
 namespace __cxxabiv1 {
 
 //  Utility routines
@@ -699,4 +697,3 @@ __cxa_uncaught_exceptions() throw()
 
 }  // abi
 
-#endif //!_LIBCXXABI_NO_EXCEPTIONS

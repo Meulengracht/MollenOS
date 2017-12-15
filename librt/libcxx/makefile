@@ -1,12 +1,12 @@
 # Makefile for building the standard c++ runtime-libraries for userspace
 # This will produce the file libcxx.lib
-INCLUDES = -I../include -I../include/cxx -I./include
+INCLUDES = -I../include/cxx -I../include -I../libcxxabi/ -I./include
 
 SOURCES = $(wildcard ./*.cpp)
 OBJECTS = $(SOURCES:.cpp=.o)
 
-CXXFLAGS = $(GCXXFLAGS) $(INCLUDES)
-LFLAGS = $(GLFLAGS) /noentry /dll /export-all-symbols ../build/libc.lib ../build/libcrt.lib ../deploy/libcxxabi.lib
+CXXFLAGS = $(GCXXFLAGS) -D_DLL -DCRTDLL -std=c++11 -funwind-tables -DLIBCXXRT -D_LIBCPP_DEBUG_LEVEL=0 -D_LIBCPP_BUILDING_LIBRARY $(INCLUDES)
+LFLAGS = $(GLFLAGS) /noentry /dll /export-all-symbols ../build/libc.lib ../build/libcrt.lib ../build/libclang.lib ../deploy/libunwind.lib ../deploy/libcxxabi.lib
 
 # default-target
 .PHONY: all

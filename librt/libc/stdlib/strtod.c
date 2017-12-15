@@ -1133,6 +1133,28 @@ dig_done:
 		return sign ? -dval(rv) : dval(rv);
 	}
 
+double strtod_l (
+    const char *__restrict s00,
+    char **__restrict se,
+    locale_t loc)
+{
+  return _strtod_l (s00, se, loc);
+}
+
+float strtof_l (
+    const char *__restrict s00,
+    char **__restrict se,
+    locale_t loc)
+{
+  double val = _strtod_l(s00, se, loc);
+  if (isnan (val))
+    return nanf (NULL);
+  float retval = (float) val;
+  if (isinf (retval) && !isinf (val))
+    _set_errno(ERANGE);
+  return retval;
+}
+
 /* Implementation of strtod */
 double strtod(const char *__restrict s00, char **__restrict se)
 {
@@ -1142,10 +1164,13 @@ double strtod(const char *__restrict s00, char **__restrict se)
 /* Implementation of strtof */
 float strtof(const char *__restrict s00, char **__restrict se)
 {
-	double retval = _strtod_l(s00, se, __get_current_locale());
-	if (isnan(retval))
-		return nanf(NULL);
-	return (float)retval;
+	double val = _strtod_l (s00, se, __get_current_locale ());
+  if (isnan (val))
+    return nanf (NULL);
+  float retval = (float) val;
+  if (isinf (retval) && !isinf (val))
+    _set_errno(ERANGE);
+  return retval;
 }
 
 #ifdef _MSC_VER
