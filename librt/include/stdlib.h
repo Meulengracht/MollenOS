@@ -214,16 +214,11 @@ _CRTIMP int system(__CONST char*);
 /* These are the different exit functions, they 
  * all do the same, but have different procedures
  * of doing it */
-
-/* Terminate normally, no cleanup. 
- * Call all functions in atexit_quick stack */
-CRTDECL(int, at_quick_exit(void(*Function)(void)));
-_CRTIMP_NORETURN(void quick_exit(int));
-/* Terminate normally, no cleanup. No calls to anything. */
-_CRTIMP_NORETURN(void _Exit(int));
-/* Terminate normally with cleanup, call all functions in atexit stack */
-CRTDECL(int, atexit(void(*Function)(void)));
-_CRTIMP_NORETURN(void exit(int));
+CRTDECL(int, at_quick_exit(void(*Function)(void))); // Register quick termination handler
+_CRTIMP_NORETURN(void quick_exit(int));             // Quick termination, No cleanup
+_CRTIMP_NORETURN(void _Exit(int));                  // No cleanup
+CRTDECL(int, atexit(void(*Function)(void)));        // Register termination handler
+_CRTIMP_NORETURN(void exit(int));                   // Normal termination, cleanup
 #define _exit(s)	exit(s);
 
 /* Search and sort functions, a custom sorting 

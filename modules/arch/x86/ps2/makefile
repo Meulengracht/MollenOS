@@ -8,7 +8,7 @@ INCLUDES = -I../../../../librt/include
 OBJECTS = $(SOURCES:.c=.o)
 
 CFLAGS = $(GCFLAGS) -Wno-invalid-source-encoding -D_DLL -D__DRIVER_IMPL $(INCLUDES)
-LFLAGS = /nodefaultlib /subsystem:native /entry:_mDrvCrt /dll ../../../../librt/build/libc.lib ../../../../librt/build/libdrv.lib
+LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtModuleEntry /dll ../../../../librt/build/libc.lib ../../../../librt/build/libdrv.lib
 
 .PHONY: all
 all: ../../../build/ps2.dll ../../../build/ps2.mdrv

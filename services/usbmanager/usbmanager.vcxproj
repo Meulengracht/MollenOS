@@ -68,7 +68,7 @@
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <Driver>Driver</Driver>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <EntryPointSymbol>_mDrvCrt</EntryPointSymbol>
+      <EntryPointSymbol>_CrtServiceEntry</EntryPointSymbol>
       <MapExports>true</MapExports>
       <DataExecutionPrevention />
       <NoEntryPoint>false</NoEntryPoint>

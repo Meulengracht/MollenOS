@@ -36,12 +36,9 @@
  * - C/C++ Initialization
  * - C/C++ Cleanup */
 __EXTERN int main(int argc, char **argv);
-#ifdef __clang__
 __EXTERN void __CrtCxxInitialize(void);
 __EXTERN void __CrtCxxFinalize(void);
-#else
-__EXTERN void __CppInit(void);
-__EXTERN void __CppFinit(void);
+#ifndef __clang__
 CRTDECL(void, __CppInitVectoredEH(void));
 #endif
 
@@ -53,12 +50,9 @@ CRTDECL(void, StdioInitialize(void));
  * Initializes the default signal-handler for the process. */
 CRTDECL(void, StdSignalInitialize(void));
 
-/* ProcessGetModuleEntryPoints
- * Retrieves a list of loaded modules for the process and
- * their entry points. */
-CRTDECL(OsStatus_t,
-ProcessGetModuleEntryPoints(
-    _Out_ Handle_t ModuleList[PROCESS_MAXMODULES]));
+/* __cxa_runinitializers 
+ * C++ Initializes library C++ runtime for all loaded modules */
+CRTDECL(void, __cxa_runinitializers(void (*Initializer)(void)));
 
 /* Globals
  * Static buffer to avoid allocations for process startup information. */
@@ -166,17 +160,12 @@ __CrtInitialize(
 {
     // Variables
     ProcessStartupInformation_t StartupInformation;
-    Handle_t ModuleList[PROCESS_MAXMODULES];
 	char **Arguments            = NULL;
 
 	// Initialize C/CPP
-#ifdef __clang__
-    __CrtCxxInitialize();
-#else
-    __CppInit();
-#endif
- 
-	// Initialize the TLS System
+    __cxa_runinitializers(__CrtCxxInitialize);
+
+    // Initialize the TLS System
 	tls_create(Tls);
 	tls_initialize();
 
@@ -188,16 +177,6 @@ __CrtInitialize(
     StartupInformation.InheritanceBlockPointer = &StartupInheritanceBuffer[0];
     StartupInformation.InheritanceBlockLength = sizeof(StartupInheritanceBuffer);
     GetStartupInformation(&StartupInformation);
-
-    // Get modules available
-    if (ProcessGetModuleEntryPoints(ModuleList) == OsSuccess) {
-        for (int i = 0; i < PROCESS_MAXMODULES; i++) {
-            if (ModuleList[i] == NULL) {
-                break;
-            }
-            ((void (*)(int))ModuleList[i])(0);
-        }
-    }
 
 	// Initialize STD-C
 	StdioInitialize( /* StartupInformation.InheritanceBlockPointer */ );

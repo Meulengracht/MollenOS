@@ -52,6 +52,16 @@ typedef struct _TlsThreadInstance {
     tss_dtor_t           Destructor;
 } TlsThreadInstance_t;
 
+/* _TlsThreadAtExit (Private)
+ * Contains a thread-specific storage for a given
+ * thread-key and a thread-specific destructor. */
+typedef struct _TlsThreadAtExit {
+    thrd_t               Key;
+    void                *DsoHandle;
+    void                *Value;
+    tss_dtor_t           Destructor;
+} TlsThreadAtExit_t;
+
 /* TlsProcessInstance (Private
  * Per-process TLS data that stores the
  * allocated keys and their desctructors. 
@@ -60,6 +70,7 @@ typedef struct _TlsProcessInstance {
     int                  Keys[TLS_MAX_KEYS];
     tss_dtor_t           Dss[TLS_MAX_KEYS];
     Collection_t        *Tls;
+    Collection_t        *TlsAtExit;
 } TlsProcessInstance_t;
 
 /* Globals 
@@ -81,6 +92,7 @@ tls_initialize(void)
 
     // Initialize the list of thread-instances
     TlsGlobal.Tls = CollectionCreate(KeyInteger);
+    TlsGlobal.TlsAtExit = CollectionCreate(KeyInteger);
     return SpinlockReset(&TlsLock);
 }
 
@@ -113,6 +125,63 @@ tls_callback(
     }
 }
 
+/* tls_atexit
+ * Registers a thread-specific at-exit handler. */
+void
+tls_atexit(
+    _In_ thrd_t thr,
+    _In_ void (*function)(void*),
+    _In_ void *argument,
+    _In_ void *dso_symbol) // dso_handle symbol
+{
+    // Variables
+    TlsThreadAtExit_t *Function = NULL;
+    DataKey_t Key;
+
+    // Init key
+    Key.Value = thr;
+
+    // Allocate a new instance
+    Function = (TlsThreadAtExit_t*)malloc(sizeof(TlsThreadAtExit_t));
+    Function->Key = thr;
+    Function->Destructor = function;
+    Function->Value = argument;
+    Function->DsoHandle = dso_symbol;
+
+    // Append to list
+    SpinlockAcquire(&TlsLock);
+    CollectionAppend(TlsGlobal.TlsAtExit, CollectionCreateNode(Key, Function));
+    SpinlockRelease(&TlsLock);
+}
+
+/* tls_callatexit
+ * Invokes all thread-specific at-exit handlers registered. */
+OsStatus_t
+tls_callatexit(
+    _In_ thrd_t thr,
+    _In_ void *dso_symbol) // dso_handle symbol
+{
+    // Variables
+    DataKey_t Key;
+
+    // Iterate and call at-exit handlers for thread
+    foreach (Node, TlsGlobal.TlsAtExit) {
+        TlsThreadAtExit_t *Function = (TlsThreadAtExit_t*)Node->Data;
+        if (Function->Key == thr 
+            && (dso_symbol == NULL || dso_symbol == Function->DsoHandle)) {
+            Function->Destructor(Function->Value);
+        }
+    }
+    
+    // Init key
+    Key.Value = thr;
+
+    // Cleanup handlers
+    SpinlockAcquire(&TlsLock);
+    while (CollectionRemoveByKey(TlsGlobal.TlsAtExit, Key));
+    return SpinlockRelease(&TlsLock);
+}
+
 /* tls_cleanup
  * Destroys the TLS for the specific thread
  * by freeing resources and calling c11 destructors. */
@@ -140,7 +209,10 @@ tls_cleanup(
     // Cleanup all stored tls-keys by this thread
     SpinlockAcquire(&TlsLock);
     while (CollectionRemoveByKey(TlsGlobal.Tls, Key));
-    return SpinlockRelease(&TlsLock);
+    SpinlockRelease(&TlsLock);
+
+    // Invoke at-exit
+    return tls_callatexit(thr, NULL);
 }
 
 /* tls_create

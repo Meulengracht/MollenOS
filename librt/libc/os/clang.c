@@ -23,8 +23,11 @@
  * - Library */
 #include <os/osdefs.h>
 #include <os/spinlock.h>
+#include <os/process.h>
 #include <threads.h>
+#include <stdlib.h>
 #include <assert.h>
+#include "../threads/tls.h"
 
 /* CRT Definitions
  * CRT Constants, definitions and types. */
@@ -34,6 +37,13 @@
 typedef void(*_PVFV)(void);
 typedef int(*_PIFV)(void);
 typedef void(*_PVFI)(int);
+
+/* ProcessGetModuleEntryPoints
+ * Retrieves a list of loaded modules for the process and
+ * their entry points. */
+OsStatus_t CRTHIDE
+ProcessGetModuleEntryPoints(
+    _Out_ Handle_t ModuleList[PROCESS_MAXMODULES]);
 
 /* RTExitFunction
  * Implementation support for at-exit functions. 
@@ -66,10 +76,21 @@ typedef struct _RTExitFunctionList {
  * Declare any external cleanup function. */
 __EXTERN void StdioCleanup(void);
 
+/* tls_atexit
+ * Registers a thread-specific at-exit handler for a given symbol. */
+__EXTERN void
+tls_atexit(
+    _In_ thrd_t thr,
+    _In_ void (*function)(void*),
+    _In_ void *argument,
+    _In_ void *dso_symbol);
+
 /* Globals
  * Statically defined globals for keeping track. */
+static Handle_t ModuleList[PROCESS_MAXMODULES]      = { 0 };
+
 static RTExitFunctionList_t  ExitFunctionQuickHead  = { 0 };
-static RTExitFunctionList_t *ExitFunctionsQuick     = &ExitFunctionsQuick;
+static RTExitFunctionList_t *ExitFunctionsQuick     = &ExitFunctionQuickHead;
 
 static RTExitFunctionList_t  ExitFunctionHead       = { 0 };
 static RTExitFunctionList_t *ExitFunctions          = &ExitFunctionHead;
@@ -208,8 +229,9 @@ __CrtCallExitHandlers(
 
     // Cleanup CRT if asked
     if (CleanupCrt != 0) {
-        StdioCleanup();
         tls_cleanup(thrd_current());
+        StdioCleanup();
+        tls_destroy(tls_current());
     }
 
     // Initialize list pointer
@@ -269,7 +291,12 @@ __CrtCallExitHandlers(
 
     // Run at-exit lists
     if (DoAtExit != 0) {
-        // @todo
+        for (int i = 0; i < PROCESS_MAXMODULES; i++) {
+            if (ModuleList[i] == NULL) {
+                break;
+            }
+            ((void (*)(int))ModuleList[i])(DLL_ACTION_FINALIZE);
+        }
     }
 }
 
@@ -282,17 +309,74 @@ int __cxa_at_quick_exit(void (*Function)(void*), void *Dso) {
   return __CrtAtExit(Function, NULL, Dso, &ExitFunctionsQuick);
 }
 
+/* __cxa_runinitializers 
+ * C++ Initializes library C++ runtime for all loaded modules */
+void __cxa_runinitializers(void (*Initializer)(void))
+{
+    // Get modules available
+    if (ProcessGetModuleEntryPoints(ModuleList) == OsSuccess) {
+        for (int i = 0; i < PROCESS_MAXMODULES; i++) {
+            if (ModuleList[i] == NULL) {
+                break;
+            }
+            ((void (*)(int))ModuleList[i])(DLL_ACTION_INITIALIZE);
+        }
+    }
+
+    // Run callers initializer
+    Initializer();
+}
+
 /* __cxa_finalize
  * C++ Cleanup implementation for process specific cleanup. */
 void __cxa_finalize(void *Dso)
 {
+    // Variables
+    RTExitFunctionList_t *List  = NULL;
 
+    // Acquire lock
+    SpinlockAcquire(&ExitFunctionsLock);
+    
+Cleanup:
+    // Iterate all normal termination handlers and call them
+    for (List = ExitFunctions; List != NULL; List = List->Link) {
+        RTExitFunction_t *Function = NULL;
+        for (Function = &List->Functions[List->Index - 1];
+             Function >= &List->Functions[0]; --Function) {
+            if ((Dso == NULL || Dso == Function->Handler.Cxa.DsoHandle)
+                && Function->Type == EXITFUNCTION_CXA) {
+                uint64_t __ExitFunctionsCalled = ExitFunctionsCalled;
+
+                // Mark free before calling
+                Function->Type = EXITFUNCTION_FREE;
+                SpinlockRelease(&ExitFunctionsLock);
+                Function->Handler.Cxa.Function(Function->Handler.Cxa.Argument, 0);
+                SpinlockAcquire(&ExitFunctionsLock);
+
+                // Did new things get registered?
+                if (__ExitFunctionsCalled != ExitFunctionsCalled) {
+                    goto Cleanup;
+                }
+            }
+        }
+    }
+
+    // Also iterate and remove quick termination handlers
+    for (List = ExitFunctionsQuick; List != NULL; List = List->Link) {
+        RTExitFunction_t *Function = NULL;
+        for (Function = &List->Functions[List->Index - 1];
+             Function >= &List->Functions[0]; --Function) {
+            if (Dso == NULL || Dso == Function->Handler.Cxa.DsoHandle) {
+                Function->Type = EXITFUNCTION_FREE;
+            }
+        }
+    }
 }
 
 /* __cxa_thread_atexit_impl
  * C++ At-Exit implementation for thread specific cleanup. */
-int __cxa_thread_atexit_impl(void* dtor, void* obj, void* dso_symbol)
-{
+int __cxa_thread_atexit_impl(void (*dtor)(void*), void* arg, void* dso_symbol) {
+    tls_atexit(thrd_current(), dtor, arg, dso_symbol);
     return 0;
 }
 

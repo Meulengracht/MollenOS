@@ -6,7 +6,7 @@ SOURCES = $(wildcard arch/$(arch)/*.c) \
 OBJECTS = $(SOURCES:.c=.o)
 
 CFLAGS = $(GCFLAGS) -Wno-address-of-packed-member -D__SERVICE_IMPL -D__DEVICEMANAGER_IMPL $(INCLUDES)
-LFLAGS = /nodefaultlib /subsystem:native /lldmap /entry:_mDrvCrt /dll ../../librt/build/libsrv.lib ../../librt/build/libc.lib
+LFLAGS = /nodefaultlib /subsystem:native /lldmap /entry:__CrtServiceEntry /dll ../../librt/build/libsrv.lib ../../librt/build/libc.lib
 
 .PHONY: all
 all: ../build/devicemanager.dll ../build/devicemanager.mdrv

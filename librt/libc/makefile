@@ -39,7 +39,8 @@ LIBC_SRCS = $(wildcard ctype/*.c) \
 			$(wildcard threads/*.c) \
 			$(wildcard threads/*.c) \
 			$(wildcard os/**/*.c) \
-			$(wildcard os/*.c)
+			$(wildcard os/*.c) \
+			main.c
 
 # Setup flags and stuff each for individual build  $(subst ../,,$(ASM_SRCS))
 ifeq ($(MAKECMDGOALS),libk)

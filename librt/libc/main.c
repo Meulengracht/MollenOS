@@ -16,18 +16,15 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C-Support Abort Implementation
- * - Definitions, prototypes and information needed.
+ * MollenOS C Library - Entry Point
  */
 
 /* Includes 
  * - Library */
-#include <signal.h>
+#include <os/osdefs.h>
 
-/* abort
- * Causes abnormal program termination unless SIGABRT is being caught by a signal handler 
- * passed to signal and the handler does not return. */
-void
-abort(void) {
-	raise(SIGABRT);
+void CRTHIDE dllmain(
+    _In_ int action)
+{
+    _CRT_UNUSED(action);
 }

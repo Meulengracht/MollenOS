@@ -33,8 +33,8 @@ __EXTERN void *__dso_handle;
 #else
 __EXTERN void __CppInit(void);
 __EXTERN void __CppFinit(void);
-CRTDECL(void, __CppInitVectoredEH(void));
 #endif
+__EXTERN void dllmain(int action);
 
 /* __CrtLibraryEntry
  * Library crt initialization routine. This runs
@@ -43,16 +43,18 @@ void
 __CrtLibraryEntry(int Action)
 {
 	switch (Action) {
-        case 0: {
+        case DLL_ACTION_INITIALIZE: {
             // Module has been attached to system.
 #ifdef __clang__
             __CrtCxxInitialize();
 #else
             __CppInit();
 #endif
+            dllmain(DLL_ACTION_INITIALIZE);
         } break;
-        case 1: {
+        case DLL_ACTION_FINALIZE: {
             // Module is being unloaded
+            dllmain(DLL_ACTION_FINALIZE);
 #ifdef __clang__
             __cxa_finalize(__dso_handle);
 #else

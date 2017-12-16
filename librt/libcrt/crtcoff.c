@@ -58,11 +58,15 @@ CRTDECL(int, __CrtCallInitializersEx(_PIFV *pfbegin, _PIFV *pfend));
  * - Global exported shared variables */
 void *__dso_handle = &__dso_handle;
 
+// On ALL coff platform this must be called
+// to run all initializers for C/C++
 void __CrtCxxInitialize(void) {
 	__CrtCallInitializers(__xc_a, __xc_z);
 	__CrtCallInitializersEx(__xi_a, __xi_z);
 }
 
+// On non-windows coff platforms this should not be run
+// as terminators are registered by cxa_atexit.
 void __CrtCxxFinalize(void) {
 	__CrtCallInitializers(__xp_a, __xp_z);
 	__CrtCallInitializersEx(__xt_a, __xt_z);

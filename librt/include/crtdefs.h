@@ -88,6 +88,9 @@
 #define CRTDECL_EX(ReturnType, Function)
 #endif //!__STDC_LIB_EXT1__
 
+#define DLL_ACTION_INITIALIZE   0
+#define DLL_ACTION_FINALIZE     1
+
 /* This is the export definitions used by
  * the runtime libraries, they default to
  * import by standard. RT Libraries have

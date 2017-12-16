@@ -23,7 +23,6 @@
  * - System */
 #include <os/threadpool.h>
 #include <os/mollenos.h>
-#include <os/process.h>
 
 /* Includes
  * - Driver */
@@ -33,13 +32,6 @@
  * - Library */
 #include "../libc/threads/tls.h"
 #include <stdlib.h>
-
-/* ProcessGetModuleEntryPoints
- * Retrieves a list of loaded modules for the process and
- * their entry points. */
-CRTDECL(OsStatus_t,
-ProcessGetModuleEntryPoints(
-    _Out_ Handle_t ModuleList[PROCESS_MAXMODULES]));
 
 /* Extern
  * - C/C++ Initialization
@@ -61,35 +53,22 @@ CRTDECL(void, StdioInitialize(void));
  * Initializes the default signal-handler for the process. */
 CRTDECL(void, StdSignalInitialize(void));
 
+/* __cxa_runinitializers 
+ * C++ Initializes library C++ runtime for all loaded modules */
+CRTDECL(void, __cxa_runinitializers(void (*Initializer)(void)));
+
 /* CRT Initialization sequence
  * for a shared C/C++ environment call this in all entry points */
 void
 __CrtInitialize(
     _In_ thread_storage_t *Tls)
 {
-    // Variables
-    Handle_t ModuleList[PROCESS_MAXMODULES];
-
     // Initialize C/CPP
-#ifdef __clang__
-    __CrtCxxInitialize();
-#else
-    __CppInit();
-#endif
+    __cxa_runinitializers(__CrtCxxInitialize);
 
     // Initialize the TLS System
     tls_create(Tls);
     tls_initialize();
-
-    // Get modules available
-    if (ProcessGetModuleEntryPoints(ModuleList) == OsSuccess) {
-        for (int i = 0; i < PROCESS_MAXMODULES; i++) {
-            if (ModuleList[i] == NULL) {
-                break;
-            }
-            ((void (*)(int))ModuleList[i])(0);
-        }
-    }
 
     // Initialize STD-C
     StdioInitialize();
@@ -104,7 +83,7 @@ __CrtInitialize(
 /* Server event entry point
  * Used in multi-threading environment as means to cleanup
  * all allocated resources properly */
-int _mDrvEvent(void *Argument)
+int __CrtHandleEvent(void *Argument)
 {
 	// Initiate the message pointer
 	MRemoteCall_t *Message = (MRemoteCall_t*)Argument;
@@ -115,9 +94,9 @@ int _mDrvEvent(void *Argument)
 	return Result == OsSuccess ? 0 : -1;
 }
 
-/* Server Entry Point
- * Use this entry point for servers */
-void _mDrvCrt(void)
+/* __CrtServiceEntry
+ * Use this entry point for services. */
+void __CrtServiceEntry(void)
 {
 	// Variables
 	thread_storage_t            Tls;
@@ -154,7 +133,7 @@ void _mDrvCrt(void)
 		if (RPCListen(&Message) == OsSuccess) {
 			MRemoteCall_t *RpcCopy = (MRemoteCall_t*)malloc(sizeof(MRemoteCall_t));
 			memcpy(RpcCopy, &Message, sizeof(MRemoteCall_t));
-			ThreadPoolAddWork(ThreadPool, _mDrvEvent, RpcCopy);
+			ThreadPoolAddWork(ThreadPool, __CrtHandleEvent, RpcCopy);
 		}
 		else {}
 	}

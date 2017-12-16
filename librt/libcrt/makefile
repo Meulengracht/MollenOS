@@ -16,7 +16,7 @@ ifeq ($(MAKECMDGOALS),libcrt)
 	CFLAGS = $(GCFLAGS) $(INCLUDES)
 else 
 	ifeq ($(MAKECMDGOALS),libdrv)
-		SOURCES = $(C_SRCS) driver.c crtcoff.c
+		SOURCES = $(C_SRCS) module.c crtcoff.c
 		CFLAGS = $(GCFLAGS) -D__DRIVER_IMPL $(INCLUDES)
 	else
 		SOURCES = $(C_SRCS) service.c crtcoff.c
