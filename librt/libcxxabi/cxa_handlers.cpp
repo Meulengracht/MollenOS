@@ -9,7 +9,8 @@
 // This file implements the functionality associated with the terminate_handler,
 //   unexpected_handler, and new_handler.
 //===----------------------------------------------------------------------===//
-
+#define _LIBCPP_BUILDING_NEW
+#define _LIBCPP_BUILDING_LIBRARY
 #include <stdexcept>
 #include <new>
 #include <exception>
@@ -23,7 +24,7 @@ namespace std
 {
 
 unexpected_handler
-_CRTIMP get_unexpected() _NOEXCEPT
+get_unexpected() _NOEXCEPT
 {
     return __sync_fetch_and_add(&__cxa_unexpected_handler, (unexpected_handler)0);
 //  The above is safe but overkill on x86
@@ -41,13 +42,13 @@ __unexpected(unexpected_handler func)
 
 __attribute__((noreturn))
 void
-_CRTIMP unexpected()
+unexpected()
 {
     __unexpected(get_unexpected());
 }
 
 terminate_handler
-_CRTIMP get_terminate() _NOEXCEPT
+get_terminate() _NOEXCEPT
 {
     return __sync_fetch_and_add(&__cxa_terminate_handler, (terminate_handler)0);
 //  The above is safe but overkill on x86
@@ -77,7 +78,7 @@ __terminate(terminate_handler func) _NOEXCEPT
 
 __attribute__((noreturn))
 void
-_CRTIMP terminate() _NOEXCEPT
+terminate() _NOEXCEPT
 {
     // If there might be an uncaught exception
     using namespace __cxxabiv1;
@@ -106,7 +107,7 @@ new_handler __cxa_new_handler = 0;
 }
 
 new_handler
-_CRTIMP set_new_handler(new_handler handler) _NOEXCEPT
+set_new_handler(new_handler handler) _NOEXCEPT
 {
     return __atomic_exchange_n(&__cxa_new_handler, handler, __ATOMIC_ACQ_REL);
 //  Using of C++11 atomics this should be rewritten
@@ -114,7 +115,7 @@ _CRTIMP set_new_handler(new_handler handler) _NOEXCEPT
 }
 
 new_handler
-_CRTIMP get_new_handler() _NOEXCEPT
+get_new_handler() _NOEXCEPT
 {
     return __sync_fetch_and_add(&__cxa_new_handler, (new_handler)0);
 //  The above is safe but overkill on x86

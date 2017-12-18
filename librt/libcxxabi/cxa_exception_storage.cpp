@@ -10,7 +10,8 @@
 //  http://mentorembedded.github.io/cxx-abi/abi-eh.html (section 2.2.2)
 //  
 //===----------------------------------------------------------------------===//
-
+#define _LIBCPP_BUILDING_NEW
+#define _LIBCPP_BUILDING_LIBRARY
 #include "cxa_exception.hpp"
 
 #include <__threading_support>

@@ -12,6 +12,8 @@
 //  
 //===----------------------------------------------------------------------===//
 
+#define _LIBCPP_BUILDING_NEW
+#define _LIBCPP_BUILDING_LIBRARY
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>

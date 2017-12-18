@@ -100,9 +100,9 @@ static int ExitFunctionsDone                        = 0;
 
 /* __CrtCallInitializers
  * */
-void __CrtCallInitializers(
+CRTDECL(void, __CrtCallInitializers(
 	_PVFV *pfbegin,
-	_PVFV *pfend)
+	_PVFV *pfend))
 {
 	while (pfbegin < pfend) {
 		if (*pfbegin != NULL)
@@ -113,9 +113,9 @@ void __CrtCallInitializers(
 
 /* __CrtCallInitializersEx
  * */
-int __CrtCallInitializersEx(
+CRTDECL(int, __CrtCallInitializersEx(
 	_PIFV *pfbegin,
-	_PIFV *pfend)
+	_PIFV *pfend))
 {
 	int ret = 0;
 	while (pfbegin < pfend  && ret == 0) {
@@ -302,16 +302,16 @@ __CrtCallExitHandlers(
 
 /* __cxa_atexit/__cxa_at_quick_exit 
  * C++ At-Exit implementation for registering of exit-handlers. */
-int __cxa_atexit(void (*Function)(void*), void *Argument, void *Dso) {
+CRTDECL(int, __cxa_atexit(void (*Function)(void*), void *Argument, void *Dso)) {
   return __CrtAtExit(Function, Argument, Dso, &ExitFunctions);
 }
-int __cxa_at_quick_exit(void (*Function)(void*), void *Dso) {
+CRTDECL(int, __cxa_at_quick_exit(void (*Function)(void*), void *Dso)) {
   return __CrtAtExit(Function, NULL, Dso, &ExitFunctionsQuick);
 }
 
 /* __cxa_runinitializers 
  * C++ Initializes library C++ runtime for all loaded modules */
-void __cxa_runinitializers(void (*Initializer)(void))
+CRTDECL(void, __cxa_runinitializers(void (*Initializer)(void)))
 {
     // Get modules available
     if (ProcessGetModuleEntryPoints(ModuleList) == OsSuccess) {
@@ -329,7 +329,7 @@ void __cxa_runinitializers(void (*Initializer)(void))
 
 /* __cxa_finalize
  * C++ Cleanup implementation for process specific cleanup. */
-void __cxa_finalize(void *Dso)
+CRTDECL(void, __cxa_finalize(void *Dso))
 {
     // Variables
     RTExitFunctionList_t *List  = NULL;
@@ -375,7 +375,7 @@ Cleanup:
 
 /* __cxa_thread_atexit_impl
  * C++ At-Exit implementation for thread specific cleanup. */
-int __cxa_thread_atexit_impl(void (*dtor)(void*), void* arg, void* dso_symbol) {
+CRTDECL(int, __cxa_thread_atexit_impl(void (*dtor)(void*), void* arg, void* dso_symbol)) {
     tls_atexit(thrd_current(), dtor, arg, dso_symbol);
     return 0;
 }

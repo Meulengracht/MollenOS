@@ -290,6 +290,7 @@
         "new": "cpp",
         "*.ii": "cpp",
         "strings.h": "c",
-        "types.h": "c"
+        "types.h": "c",
+        "__debug": "cpp"
     }
 }

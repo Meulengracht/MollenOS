@@ -9,8 +9,8 @@ SOURCES_X = libunwind.cpp Unwind-EHABI.cpp
 OBJECTS = $(SOURCES_S:.S=.o) $(SOURCES_C:.c=.o) $(SOURCES_X:.cpp=.o)
 
 CFLAGS = $(GCFLAGS) -std=c11 -D_DLL -DCRTDLL -D__OSLIB_UNWIND_IMPLEMENTATION $(INCLUDES)
-CXXFLAGS = $(GCXXFLAGS) -D_DLL -DCRTDLL -D__OSLIB_UNWIND_IMPLEMENTATION -fno-rtti $(INCLUDES)
-LFLAGS = $(GLFLAGS) /entry:__CrtLibraryEntry /dll /export-all-symbols ../build/libc.lib ../build/libcrt.lib
+CXXFLAGS = $(GCXXFLAGS) -D_DLL -DCRTDLL -D__OSLIB_UNWIND_IMPLEMENTATION -fno-rtti -fno-exceptions $(INCLUDES)
+LFLAGS = $(GLFLAGS) /entry:__CrtLibraryEntry /dll ../build/libc.lib ../build/libcrt.lib
 
 # default-target
 .PHONY: all

@@ -7,6 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define _LIBCPP_BUILDING_NEW
+#define _LIBCPP_BUILDING_LIBRARY
 #include <exception>
 #include "cxxabi.h"
 #include "cxa_exception.hpp"

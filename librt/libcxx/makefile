@@ -5,8 +5,10 @@ INCLUDES = -I../include/cxx -I../include -I../libcxxabi/ -I./include
 SOURCES = $(wildcard ./*.cpp)
 OBJECTS = $(SOURCES:.cpp=.o)
 
-CXXFLAGS = $(GCXXFLAGS) -D_DLL -DCRTDLL -std=c++11 -funwind-tables -DLIBCXXRT -D_LIBCPP_DEBUG_LEVEL=0 -D_LIBCPP_BUILDING_LIBRARY $(INCLUDES)
-LFLAGS = $(GLFLAGS) /entry:__CrtLibraryEntry /dll /export-all-symbols ../build/libc.lib ../build/libcrt.lib ../build/libclang.lib ../deploy/libunwind.lib ../deploy/libcxxabi.lib
+#CXXFLAGS = $(GCXXFLAGS) -D_DLL -DCRTDLL -DLIBCXXRT -D_LIBCPP_BUILDING_LIBRARY $(INCLUDES)
+#LFLAGS = $(GLFLAGS) /entry:__CrtLibraryEntry /dll ../build/libc.lib ../build/libcrt.lib ../build/libclang.lib ../deploy/libunwind.lib ../deploy/libcxxabi.lib
+CXXFLAGS = $(GCXXFLAGS) -DLIBCXX_BUILDING_LIBCXXABI -DLIBCXXRT -D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS -D_LIBCPP_BUILDING_LIBRARY -D_LIBCPP_DEBUG_LEVEL=2 $(INCLUDES)
+LFLAGS = /lib
 
 # default-target
 .PHONY: all

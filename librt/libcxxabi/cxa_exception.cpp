@@ -12,7 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "cxxabi.h"
-
+#define _LIBCPP_BUILDING_NEW
+#define _LIBCPP_BUILDING_LIBRARY
 #include <exception>        // for std::terminate
 #include <cstring>          // for memset
 #include "cxa_exception.hpp"

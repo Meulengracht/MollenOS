@@ -14,7 +14,8 @@
 // Support functions for the no-exceptions libc++ library
 
 #include "cxxabi.h"
-
+#define _LIBCPP_BUILDING_NEW
+#define _LIBCPP_BUILDING_LIBRARY
 #include <exception>        // for std::terminate
 #include "cxa_exception.hpp"
 #include "cxa_handlers.hpp"

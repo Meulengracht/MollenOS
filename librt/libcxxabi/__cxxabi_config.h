@@ -19,7 +19,7 @@
 #define __has_attribute(_attribute_) 0
 #endif
 
-#if defined(_WIN32) && !defined(MOLLENOS)
+#if defined(_WIN32) || defined(MOLLENOS)
  #if defined(_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS)
   #define _LIBCXXABI_HIDDEN
   #define _LIBCXXABI_DATA_VIS

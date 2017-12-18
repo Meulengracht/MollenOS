@@ -1,3 +1,20 @@
 LIBRARY libc
 EXPORTS
-_ctype_
+abort
+CollectionCreateNode
+CollectionDestroyNode
+CollectionUnlinkNode
+CollectionAppend
+CollectionCreate
+CollectionClear
+CollectionExecuteAll
+CollectionBegin
+CollectionNext
+CollectionGetDataByKey
+CollectionGetNodeByKey
+CollectionRemoveByNode
+CollectionRemoveByKey
+CollectionDestroy
+CollectionLength
+StdSignalInitialize
+exit

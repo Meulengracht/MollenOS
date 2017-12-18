@@ -5,9 +5,10 @@ INCLUDES = -I../include -I../include/cxx -I./
 SOURCES = $(wildcard ./*.cpp)
 OBJECTS = $(SOURCES:.cpp=.o)
 
-# -DHAVE___CXA_THREAD_ATEXIT_IMPL
-CXXFLAGS = $(GCXXFLAGS) -std=c++11 -funwind-tables -D_DLL -DCRTDLL -DLIBCXXABI_USE_LLVM_UNWINDER -D_LIBCXXABI_ENABLE_EXCEPTIONS -DHAVE___CXA_THREAD_ATEXIT_IMPL -D_LIBCXXABI_BUILDING_LIBRARY $(INCLUDES)
-LFLAGS = $(GLFLAGS) /entry:__CrtLibraryEntry /dll /export-all-symbols /def:libcxxabi.def ../build/libc.lib ../build/libcrt.lib ../deploy/libunwind.lib
+CXXFLAGS = $(GCXXFLAGS) -D_DLL -DCRTDLL -DLIBCXXABI_USE_LLVM_UNWINDER -D_LIBCXXABI_ENABLE_EXCEPTIONS -DHAVE___CXA_THREAD_ATEXIT_IMPL -D_LIBCXXABI_BUILDING_LIBRARY $(INCLUDES)
+LFLAGS = $(GLFLAGS) /entry:__CrtLibraryEntry /dll /def:libcxxabi.def ../build/libc.lib ../build/libcrt.lib ../deploy/libunwind.lib
+#CXXFLAGS = $(GCXXFLAGS) -std=c++17 -D_LIBCPP_BUILDING_LIBRARY -DLIBCXXABI_USE_LLVM_UNWINDER -D_LIBCXXABI_ENABLE_EXCEPTIONS -DHAVE___CXA_THREAD_ATEXIT_IMPL $(INCLUDES)
+#LFLAGS = /lib
 
 # default-target
 .PHONY: all

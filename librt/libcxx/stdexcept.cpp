@@ -21,7 +21,6 @@
 
 static_assert(sizeof(std::__libcpp_refstring) == sizeof(const char *), "");
 
-
 namespace std  // purposefully not using versioning namespace
 {
 

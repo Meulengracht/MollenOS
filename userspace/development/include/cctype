@@ -1,5 +1,0 @@
-// C++ forwarding C type header.
-
-#pragma once
-
-#include <ctype.h>

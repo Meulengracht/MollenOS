@@ -34,12 +34,14 @@ export LIB = $(CROSS)/bin/llvm-lib
 export ASFLAGS = -f bin
 export AS = nasm
 export GCFLAGS = -fms-extensions -Wall -Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function -ffreestanding -nostdlib -O3 -DMOLLENOS -D$(arch) $(config_flags)
-export GCXXFLAGS = -fms-extensions -Wall -Wno-self-assign -Wno-unused-function -ffreestanding -nostdlib -O3 -DMOLLENOS -D$(arch) $(config_flags)
+export GCXXFLAGS = -std=c++17 -fms-extensions -Wall -Wno-self-assign -Wno-unused-function -ffreestanding -nostdlib -DMOLLENOS -D$(arch) $(config_flags)
 export GLFLAGS = /nodefaultlib /machine:X86 /subsystem:native /debug:dwarf /nopdb
 export FCOPY = cp
+export GLIBRARIES = ../lib/libcrt.lib ../lib/libclang.lib ../lib/libc.lib ../lib/libunwind.lib ../lib/libcxxabi.lib ../lib/libcxx.lib
+
 # -gdwarf
 .PHONY: all
-all: tools gen_revision boot_loader libraries kernel drivers initrd
+all: tools gen_revision boot_loader libraries kernel drivers build_userspace initrd
 
 .PHONY: initrd
 initrd:
@@ -61,6 +63,10 @@ tools:
 gen_revision:
 	./revision build clang
 	$(FCOPY) revision.h kernel/include/revision.h
+
+.PHONE: build_userspace
+build_userspace:
+	$(MAKE) -C userspace -f makefile
 
 .PHONY: kernel
 kernel:
@@ -121,6 +127,7 @@ clean:
 	$(MAKE) -C services -f makefile clean
 	$(MAKE) -C modules -f makefile clean
 	$(MAKE) -C kernel -f makefile clean
+	$(MAKE) -C userspace -f makefile clean
 	$(MAKE) -C tools/lzss -f makefile clean
 	$(MAKE) -C tools/rd -f makefile clean
 	$(MAKE) -C tools/diskutility -f makefile clean

@@ -8,7 +8,8 @@
 //
 // This file implements the default terminate_handler and unexpected_handler.
 //===----------------------------------------------------------------------===//
-
+#define _LIBCPP_BUILDING_NEW
+#define _LIBCPP_BUILDING_LIBRARY
 #include <stdexcept>
 #include <new>
 #include <exception>
@@ -109,7 +110,7 @@ namespace std
 {
 
 unexpected_handler
-_CRTIMP set_unexpected(unexpected_handler func) _NOEXCEPT
+set_unexpected(unexpected_handler func) _NOEXCEPT
 {
     if (func == 0)
         func = default_unexpected_handler;
@@ -120,7 +121,7 @@ _CRTIMP set_unexpected(unexpected_handler func) _NOEXCEPT
 }
 
 terminate_handler
-_CRTIMP set_terminate(terminate_handler func) _NOEXCEPT
+set_terminate(terminate_handler func) _NOEXCEPT
 {
     if (func == 0)
         func = default_terminate_handler;
