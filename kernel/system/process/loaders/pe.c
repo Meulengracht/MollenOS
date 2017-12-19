@@ -19,7 +19,7 @@
  * MollenOS MCore - PE Format Loader
  */
 #define __MODULE        "PELD"
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -34,6 +34,7 @@
 
 /* Includes
  * - Library */
+#include <assert.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <string.h>

@@ -7,7 +7,7 @@ OBJECTS = $(SOURCES:.cpp=.o)
 
 CONFIG_FLAGS = -fstrict-aliasing -funwind-tables -DLIBCXXABI_USE_LLVM_UNWINDER -D_LIBCXXABI_BUILDING_LIBRARY -D_LIBCPP_DISABLE_EXTERN_TEMPLATE -DHAVE___CXA_THREAD_ATEXIT_IMPL -D_LIBCXXABI_ENABLE_EXCEPTIONS
 CXXFLAGS = $(GCXXFLAGS) $(CONFIG_FLAGS) $(INCLUDES)
-#-D_DLL -DCRTDLL
+#-DCRTDLL
 #LFLAGS = $(GLFLAGS) /entry:__CrtLibraryEntry /dll /def:libcxxabi.def ../build/libc.lib ../build/libcrt.lib ../deploy/libunwind.lib
 LFLAGS = /lib
 

@@ -6,7 +6,7 @@ SOURCES = $(wildcard ./protocols/*.c) \
 INCLUDES = -I../../../librt/include -I../sata
 OBJECTS = $(SOURCES:.c=.o)
 
-CFLAGS = $(GCFLAGS) -D_DLL -D__DRIVER_IMPL $(INCLUDES)
+CFLAGS = $(GCFLAGS) -D__DRIVER_IMPL $(INCLUDES)
 LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtModuleEntry /dll ../../../librt/build/libc.lib ../../../librt/build/libdrv.lib ../../../librt/build/libusb.lib
 
 .PHONY: all

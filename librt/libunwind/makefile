@@ -8,8 +8,8 @@ SOURCES_C = $(wildcard ./*.c)
 SOURCES_X = libunwind.cpp Unwind-EHABI.cpp
 OBJECTS = $(SOURCES_S:.S=.o) $(SOURCES_C:.c=.o) $(SOURCES_X:.cpp=.o)
 
-CFLAGS = $(GCFLAGS) -std=c11 -D_DLL -DCRTDLL -D__OSLIB_UNWIND_IMPLEMENTATION $(INCLUDES)
-CXXFLAGS = $(GCXXFLAGS) -D_DLL -DCRTDLL -D__OSLIB_UNWIND_IMPLEMENTATION -fno-rtti -fno-exceptions $(INCLUDES)
+CFLAGS = $(GCFLAGS) -std=c11 -DCRTDLL -D__OSLIB_UNWIND_IMPLEMENTATION $(INCLUDES)
+CXXFLAGS = $(GCXXFLAGS) -DCRTDLL -D__OSLIB_UNWIND_IMPLEMENTATION -fno-rtti -fno-exceptions $(INCLUDES)
 LFLAGS = $(GLFLAGS) /entry:__CrtLibraryEntry /dll ../build/libc.lib ../build/libcrt.lib
 
 # default-target

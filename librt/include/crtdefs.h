@@ -48,21 +48,30 @@
 #define restrict /*restrict*/
 #endif
 
-#if defined(_MSC_VER) || defined(__clang__)
+#if defined(__clang__)
+    //  Clang 
+    #define CRTEXPORT __declspec(dllexport)
+    #define CRTIMPORT 
+    #define CRTHIDE
+    #define CRTEXTERN extern
+#elif defined(_MSC_VER)
     //  Microsoft 
     #define CRTEXPORT __declspec(dllexport)
     #define CRTIMPORT __declspec(dllimport)
     #define CRTHIDE
+    #define CRTEXTERN extern
 #elif defined(__GNUC__)
     //  GCC
     #define CRTEXPORT __attribute__((visibility("default")))
     #define CRTIMPORT 
     #define CRTHIDE __attribute__((visibility("internal")))
+    #define CRTEXTERN extern
 #else
     //  do nothing and hope for the best?
     #define CRTEXPORT
     #define CRTIMPORT
     #define CRTHIDE
+    #define CRTEXTERN extern
     #pragma warning Unknown dynamic link import/export semantics.
 #endif
 
@@ -99,18 +108,14 @@
  * The only time this needs to be defined
  * as static is for the OS */
 #ifndef _CRTIMP
-#ifdef CRTDLL /* Defined for libc, libm, etc */
+#if defined(CRTDLL)
 #define _CRTIMP CRTEXPORT
-#elif defined(_DLL) && defined(_CRTIMP_STATIC) /* Defined for servers */
-#define _CRTIMP 
-#elif defined(_DLL) && !defined(_KRNL_DLL)
+#elif defined(_KRNL_DLL)
+#define _CRTIMP CRTEXTERN
+#else
 #define _CRTIMP CRTIMPORT
-#define __CRT_INLINE __inline
-#else /* !CRTDLL && !_DLL */
-#define _CRTIMP 
-#define __CRT_INLINE __inline
-#endif /* CRTDLL || _DLL */
-#endif /* !_CRTIMP */
+#endif
+#endif //!_CRTIMP
 
 #ifndef __CRT_INLINE
 #define __CRT_INLINE __inline
@@ -202,31 +207,6 @@
 
 #ifndef _M_IX86
 #define _M_IX86 600
-#endif
-
-#ifndef _CRTIMP_ALT
- #ifdef _DLL
-  #ifdef _CRT_ALTERNATIVE_INLINES
-   #define _CRTIMP_ALT
-  #else
-   #define _CRTIMP_ALT _CRTIMP
-   #define _CRT_ALTERNATIVE_IMPORTED
-  #endif
- #else
-  #define _CRTIMP_ALT
- #endif
-#endif
-
-#ifndef _CRTDATA
- #ifdef _M_CEE_PURE
-  #define _CRTDATA(x) x
- #else
-  #define _CRTDATA(x) _CRTIMP x
- #endif
-#endif
-
-#ifndef _CRTIMP2
- #define _CRTIMP2 _CRTIMP
 #endif
 
 #ifndef _CRTIMP_PURE

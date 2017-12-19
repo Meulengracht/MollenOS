@@ -5,7 +5,7 @@ INCLUDES = -I../include/cxx -I../include -I../libcxxabi/ -I./include
 SOURCES = $(wildcard ./*.cpp)
 OBJECTS = $(SOURCES:.cpp=.o)
 
-#-D_DLL -DCRTDLL
+#-DCRTDLL
 
 #CXXFLAGS = $(GCXXFLAGS)  -DLIBCXXRT -D_LIBCPP_BUILDING_LIBRARY $(INCLUDES)
 #LFLAGS = $(GLFLAGS) /entry:__CrtLibraryEntry /dll ../build/libc.lib ../build/libcrt.lib ../build/libclang.lib ../deploy/libunwind.lib ../deploy/libcxxabi.lib

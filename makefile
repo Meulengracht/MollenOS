@@ -24,9 +24,9 @@ config_flags =
 
 # OS Configuration
 config_flags += -D__OSCONFIG_DISABLE_SIGNALLING # Kernel fault on all signals
-config_flags += -D__OSCONFIG_LOGGING_KTRACE # Kernel Tracing
+#config_flags += -D__OSCONFIG_LOGGING_KTRACE # Kernel Tracing
 #config_flags += -D__OSCONFIG_ENABLE_MULTIPROCESSORS # Use all cores
-config_flags += -D__OSCONFIG_PROCESS_SINGLELOAD # No simuoultanous process loading
+#config_flags += -D__OSCONFIG_PROCESS_SINGLELOAD # No simuoultanous process loading
 config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE # Use a full debug console on height
 #config_flags += -D__OSCONFIG_NODRIVERS # Don't load drivers, run it without for debug
 #config_flags += -D__OSCONFIG_DISABLE_EHCI # Disable usb 2.0 support, run only in usb 1.1
@@ -34,7 +34,7 @@ config_flags += -D__OSCONFIG_DISABLE_VIOARR # Disable auto starting the windowin
 
 #-std=c11 -gdwarf
 disable_warnings = -Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function
-shared_flags = -target i386-pc-win32-itanium-coff -U_WIN32 -fms-extensions -Wall -ffreestanding -nostdlib -O3
+shared_flags = -target i386-pc-win32-itanium-coff -U_WIN32 -m32 -fms-extensions -Wall -ffreestanding -nostdlib -O3
 
 export ASFLAGS = -f bin
 export GCFLAGS = $(shared_flags) -DMOLLENOS -D$(arch) $(disable_warnings) $(config_flags)

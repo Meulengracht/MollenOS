@@ -32,3 +32,5 @@ build/cpptest.app:
 clean:
 	$(MAKE) -C cpptest -f makefile clean
 	@rm -rf build
+	@rm -rf include
+	@rm -rf lib

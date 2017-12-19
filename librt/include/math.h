@@ -1,16 +1,33 @@
-/* MollenOS Math Implementation
+/* MollenOS
  *
+ * Copyright 2011 - 2018, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS Standard C - Math Implementation
  */
 
-#ifndef  _MATH_H_
-#define  _MATH_H_
+#ifndef __STDC_MATH__
+#define __STDC_MATH__
 
+/* Includes
+ * - Library */
 #include <crtdefs.h>
 #include <locale.h>
 
-/* Useful constants.  */
 #define _MOLLENOS 0x100
-
 #define M_E 2.71828182845904523536
 #define M_LOG2E 1.44269504088896340736
 #define M_LOG10E 0.434294481903251827651
@@ -81,8 +98,7 @@ typedef double double_t;
 #define EDOM 33
 #define ERANGE 34
 
-_CRTDATA(__EXTERN double __CONST _HUGE);
-
+CRTDECL_DATA(extern double const, _HUGE);
 #define HUGE_VAL _HUGE
 
 #ifndef _HUGE_ENUF
@@ -100,33 +116,33 @@ _CRTDATA(__EXTERN double __CONST _HUGE);
 #define _NANCODE 2
 
 _CODE_BEGIN
-_CRTIMP int	__fpclassifyd(double);
-_CRTIMP int	__fpclassifyf(float);
-_CRTIMP int	__fpclassifyl(long double);
-_CRTIMP int	__isfinitef(float);
-_CRTIMP int	__isfinite(double);
-_CRTIMP int	__isfinitel(long double);
-_CRTIMP int __isinf(double);
-_CRTIMP int	__isinff(float);
-_CRTIMP int	__isinfl(long double);
-_CRTIMP int __isnan(double);
-_CRTIMP int	__isnanf(float);
-_CRTIMP int	__isnanl(long double);
-_CRTIMP int	__isnormalf(float);
-_CRTIMP int	__isnormal(double);
-_CRTIMP int	__isnormall(long double);
-_CRTIMP int __signbit(double);
-_CRTIMP int __signbitf(float);
-_CRTIMP int __signbitl(long double);
+CRTDECL(int, __fpclassifyd(double));
+CRTDECL(int, __fpclassifyf(float));
+CRTDECL(int, __fpclassifyl(long double));
+CRTDECL(int, __isfinitef(float));
+CRTDECL(int, __isfinite(double));
+CRTDECL(int, __isfinitel(long double));
+CRTDECL(int, __isinf(double));
+CRTDECL(int, __isinff(float));
+CRTDECL(int, __isinfl(long double));
+CRTDECL(int, __isnan(double));
+CRTDECL(int, __isnanf(float));
+CRTDECL(int, __isnanl(long double));
+CRTDECL(int, __isnormalf(float));
+CRTDECL(int, __isnormal(double));
+CRTDECL(int, __isnormall(long double));
+CRTDECL(int, __signbit(double));
+CRTDECL(int, __signbitf(float));
+CRTDECL(int, __signbitl(long double));
 
 /* Integer version of absolute functions 
  * they are defined in stdlib usually as well
  * but keep them here for compat */
 #ifndef _CRT_ABS_DEFINED
 #define _CRT_ABS_DEFINED
-_CRTIMP int abs(int);
-_CRTIMP long labs(long);
-_CRTIMP long long llabs(long long);
+CRTDECL(int,        abs(int));
+CRTDECL(long,       labs(long));
+CRTDECL(long long,  llabs(long long));
 #endif
 
 /* 7.12.3.1 */
@@ -675,17 +691,13 @@ __fp_unordered_compare(long double x, long double y){
 
 #ifndef RC_INVOKED
 
-#ifdef	__cplusplus
-extern "C" {
-#endif
-
+_CODE_BEGIN
 /* Set the FPU control word as cw = (cw & ~unMask) | (unNew & unMask),
  * i.e. change the bits in unMask to have the values they have in unNew,
  * leaving other bits unchanged. */
-_CRTIMP unsigned int __CRTDECL _controlfp (unsigned int unNew, unsigned int unMask);
-_CRTIMP unsigned int __CRTDECL _control87 (unsigned int unNew, unsigned int unMask);
-
-unsigned int __CRTDECL _clearfp (void);	/* Clear the FPU status word */
+CRTDECL(unsigned int, _controlfp(unsigned int unNew, unsigned int unMask));
+CRTDECL(unsigned int, _control87(unsigned int unNew, unsigned int unMask));
+unsigned int __CRTDECL _clearfp (void);	    /* Clear the FPU status word */
 unsigned int __CRTDECL _statusfp (void);	/* Report the FPU status word */
 #define		_clear87	_clearfp
 #define		_status87	_statusfp
@@ -704,7 +716,7 @@ void __CRTDECL _fpreset (void);
 void __CRTDECL fpreset (void);
 
 /* Global 'variable' for the current floating point error code. */
- int * __CRTDECL __fpecode(void);
+int * __CRTDECL __fpecode(void);
 #define	_fpecode	(*(__fpecode()))
 
 /*
@@ -723,6 +735,6 @@ double __CRTDECL _scalb (double, long);
 #define _isnan(x) isnan(x)
 _CODE_END
 
-#endif	/* Not RC_INVOKED */
-#endif	/* Not __STRICT_ANSI__ */
-#endif /* _MATH_H_ */
+#endif //!RC_INVOKED
+#endif //!__STRICT_ANSI__
+#endif //!__STDC_MATH__

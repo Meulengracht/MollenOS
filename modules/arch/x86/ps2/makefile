@@ -7,7 +7,7 @@ SOURCES = $(wildcard devices/scancodes/*.c) \
 INCLUDES = -I../../../../librt/include
 OBJECTS = $(SOURCES:.c=.o)
 
-CFLAGS = $(GCFLAGS) -Wno-invalid-source-encoding -D_DLL -D__DRIVER_IMPL $(INCLUDES)
+CFLAGS = $(GCFLAGS) -Wno-invalid-source-encoding -D__DRIVER_IMPL $(INCLUDES)
 LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtModuleEntry /lldmap /dll ../../../../librt/build/libc.lib ../../../../librt/build/libdrv.lib
 
 .PHONY: all

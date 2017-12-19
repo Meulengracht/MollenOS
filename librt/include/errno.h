@@ -1,47 +1,39 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS C Library - ERR NO
-*/
+ *
+ * Copyright 2011 - 2018, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS Standard C - Errno Implementation
+ */
 
-#ifndef __ERRNO_H__
-#define __ERRNO_H__
+#ifndef __STDC_ERRNO__
+#define __STDC_ERRNO__
 
-/* CPP Guard */
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/* Includes */
+/* Includes 
+ * - Library */
 #include <crtdefs.h>
 
-/* Definitions */
 #ifndef _ERRCODE_DEFINED
 #define _ERRCODE_DEFINED
 	typedef int errcode;
 	typedef int errno_t;
 #endif
 
-/* These are the errno access 
- * macros and should be used for 
- * either accessing or setting the 
- * current errno */
-_CRTIMP errno_t *__errno(void);
+_CODE_BEGIN
+CRTDECL(errno_t*, __errno(void));
 #define errno (*__errno())
 #define _set_errno(err) (errno = err)
 
@@ -50,6 +42,7 @@ _CRTIMP errno_t *__errno(void);
 extern const char * const _sys_errlist[];
 extern int _sys_nerr;
 #define __errno_r(ptr) ((ptr)->_errno)
+_CODE_END
 
 #define EOK 0
 #define	EPERM 1		/* Not super-user */
@@ -182,9 +175,4 @@ extern int _sys_nerr;
 
 #define __ELASTERROR 2000	/* Users can add values starting here */
 
-#ifdef __cplusplus
-}
-#endif
-
-#endif
-
+#endif //!__STDC_ERRNO__
