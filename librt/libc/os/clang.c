@@ -18,12 +18,15 @@
  *
  * MollenOS C - CRT Functions 
  */
+#define __TRACE
 
 /* Includes
  * - Library */
 #include <os/osdefs.h>
 #include <os/spinlock.h>
 #include <os/process.h>
+#include <os/utils.h>
+
 #include <threads.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -316,7 +319,7 @@ CRTDECL(int, __cxa_at_quick_exit(void (*Function)(void*), void *Dso)) {
  * C++ Initializes library C++ runtime for all loaded modules */
 CRTDECL(void, __cxa_runinitializers(
     _In_ void (*Initializer)(void), 
-    _In_ void (*Finalizers)(void)))
+    _In_ void (*Finalizer)(void)))
 {
     // Get modules available
     if (ProcessGetModuleEntryPoints(ModuleList) == OsSuccess) {
@@ -330,7 +333,7 @@ CRTDECL(void, __cxa_runinitializers(
 
     // Run callers initializer
     Initializer();
-    PrimaryApplicationFinalizers = Finalizers;
+    PrimaryApplicationFinalizers = Finalizer;
 }
 
 /* __cxa_finalize

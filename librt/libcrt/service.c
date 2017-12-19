@@ -36,12 +36,9 @@
 /* Extern
  * - C/C++ Initialization
  * - C/C++ Cleanup */
-#ifdef __clang__
 __EXTERN void __CrtCxxInitialize(void);
 __EXTERN void __CrtCxxFinalize(void);
-#else
-__EXTERN void __CppInit(void);
-__EXTERN void __CppFinit(void);
+#ifndef __clang__
 CRTDECL(void, __CppInitVectoredEH(void));
 #endif
 

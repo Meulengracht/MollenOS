@@ -19,7 +19,7 @@
  * MollenOS MCore - PE Format Loader
  */
 #define __MODULE        "PELD"
-//#define __TRACE
+#define __TRACE
 
 /* Includes 
  * - System */
@@ -431,8 +431,8 @@ PeHandleImports(
 
         // Initialize the string pointer 
         // and create a new mstring instance from it
-        NamePtr = (char*)(PeFile->VirtualAddress + ImportDescriptor->ModuleName);
-        Name = MStringCreate(NamePtr, StrUTF8);
+        NamePtr     = (char*)(PeFile->VirtualAddress + ImportDescriptor->ModuleName);
+        Name        = MStringCreate(NamePtr, StrUTF8);
 
         // Resolve the library from the import chunk
         ResolvedLibrary = PeResolveLibrary(Parent, PeFile, Name, NextImageBase);
@@ -457,9 +457,9 @@ PeHandleImports(
 
             /* Iterate Import table for this module */
             while (*Iat) {
-                MCorePeExportFunction_t *Function = NULL;
-                char *FunctionName = NULL;
-                uint32_t Value = *Iat;
+                MCorePeExportFunction_t *Function   = NULL;
+                char *FunctionName                  = NULL;
+                uint32_t Value                      = *Iat;
 
                 /* Is it an ordinal or a function name? */
                 if (Value & PE_IMPORT_ORDINAL_32) {

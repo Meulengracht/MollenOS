@@ -1191,7 +1191,7 @@ ScRpcExecute(
     unsigned PipeIndex  = 0;
 
     // Trace
-    TRACE("ScRpcExecute()");
+    TRACE("%s: ScRpcExecute(Target 0x%x, Message %i, Async %i)", MStringRaw(PhoenixGetCurrentAsh()->Name), Target, RemoteCall->Function, Async);
     
     // Start out by resolving both the
     // process and pipe
@@ -1248,6 +1248,9 @@ ScRpcListen(
     uint8_t *BufferPointer  = ArgumentBuffer;
     unsigned PipeWorker     = 0;
     int i                   = 0;
+
+    // Trace
+    TRACE("%s: ScRpcListen(Port %i)", MStringRaw(PhoenixGetCurrentAsh()->Name), Port);
     
     // Start out by resolving both the
     // process and pipe
@@ -1473,7 +1476,9 @@ ScLoadDriver(
     MRemoteCall_t RemoteCall        = { 0 };
 
     // Trace
-    TRACE("ScLoadDriver()");
+    TRACE("ScLoadDriver(Vid 0x%x, Pid 0x%x, Class 0x%x, Subclass 0x%x)",
+        Device->VendorId, Device->DeviceId,
+        Device->Class, Device->Subclass);
 
     // Sanitize parameters, length must not be less than base
     if (Device == NULL || Length < sizeof(MCoreDevice_t)) {

@@ -379,7 +379,11 @@ ExceptionSignal(
 
     // Sanitize if user-process
     Process = PhoenixGetCurrentAsh();
+#ifdef __OSCONFIG_DISABLE_SIGNALLING
+    if (Signal >= 0) {
+#else
     if (Process == NULL) {
+#endif
         return OsError;
     }
 
