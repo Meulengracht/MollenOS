@@ -5,16 +5,18 @@ INCLUDES = -I../include/cxx -I../include -I../libcxxabi/ -I./include
 SOURCES = $(wildcard ./*.cpp)
 OBJECTS = $(SOURCES:.cpp=.o)
 
-#CXXFLAGS = $(GCXXFLAGS) -D_DLL -DCRTDLL -DLIBCXXRT -D_LIBCPP_BUILDING_LIBRARY $(INCLUDES)
+#-D_DLL -DCRTDLL
+
+#CXXFLAGS = $(GCXXFLAGS)  -DLIBCXXRT -D_LIBCPP_BUILDING_LIBRARY $(INCLUDES)
 #LFLAGS = $(GLFLAGS) /entry:__CrtLibraryEntry /dll ../build/libc.lib ../build/libcrt.lib ../build/libclang.lib ../deploy/libunwind.lib ../deploy/libcxxabi.lib
-CXXFLAGS = $(GCXXFLAGS) -DLIBCXX_BUILDING_LIBCXXABI -DLIBCXXRT -D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS -D_LIBCPP_BUILDING_LIBRARY -D_LIBCPP_DEBUG_LEVEL=2 $(INCLUDES)
+CXXFLAGS = $(GCXXFLAGS) -DLIBCXX_BUILDING_LIBCXXABI -DLIBCXXRT -D_LIBCPP_BUILDING_LIBRARY -D_LIBCPP_DEBUG_LEVEL=2 $(INCLUDES)
 LFLAGS = /lib
 
 # default-target
 .PHONY: all
-all: ../deploy/libcxx.dll
+all: ../deploy/libcxx.lib
 
-../deploy/libcxx.dll: $(OBJECTS)
+../deploy/libcxx.lib: $(OBJECTS)
 	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
 %.o : %.cpp
@@ -22,6 +24,6 @@ all: ../deploy/libcxx.dll
 
 .PHONY: clean
 clean:
-	@rm -f ../deploy/libcxx.dll
+	#@rm -f ../deploy/libcxx.dll
 	@rm -f ../deploy/libcxx.lib
 	@rm -f $(OBJECTS)

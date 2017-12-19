@@ -49,7 +49,9 @@ CRTDECL(void, StdSignalInitialize(void));
 
 /* __cxa_runinitializers 
  * C++ Initializes library C++ runtime for all loaded modules */
-CRTDECL(void, __cxa_runinitializers(void (*Initializer)(void)));
+CRTDECL(void, __cxa_runinitializers(
+    _In_ void (*Initializer)(void), 
+    _In_ void (*Finalizers)(void)));
 
 /* CRT Initialization sequence
  * for a shared C/C++ environment call this in all entry points */
@@ -58,7 +60,7 @@ __CrtInitialize(
     _In_ thread_storage_t *Tls)
 {
     // Initialize C/CPP
-    __cxa_runinitializers(__CrtCxxInitialize);
+    __cxa_runinitializers(__CrtCxxInitialize, __CrtCxxFinalize);
 
     // Initialize the TLS System
     tls_create(Tls);

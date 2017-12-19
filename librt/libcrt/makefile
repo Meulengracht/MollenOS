@@ -4,22 +4,20 @@ ASFLAGS = -f win32 -Xvc
 
 INCLUDES = -I../include
 
-ASM_SRCS = #$(wildcard vscrt/*.s)
+ASM_SRCS = $(wildcard vscrt/*.s)
 C_SRCS_ALL = $(wildcard vscrt/*.c) \
 			 $(wildcard ./*.c)
 OBJECTS_ALL = $(ASM_SRCS:.s=.o) $(C_SRCS_ALL:.c=.o)
 
-C_SRCS = #$(wildcard vscrt/*.c)
-
 ifeq ($(MAKECMDGOALS),libcrt)
-	SOURCES = $(C_SRCS) entry.c crtcoff.c library.c
+	SOURCES = entry.c crtcoff.c library.c
 	CFLAGS = $(GCFLAGS) $(INCLUDES)
 else 
 	ifeq ($(MAKECMDGOALS),libdrv)
-		SOURCES = $(C_SRCS) module.c crtcoff.c
+		SOURCES = module.c crtcoff.c
 		CFLAGS = $(GCFLAGS) -D__DRIVER_IMPL $(INCLUDES)
 	else
-		SOURCES = $(C_SRCS) service.c crtcoff.c
+		SOURCES = service.c crtcoff.c
 		CFLAGS = $(GCFLAGS) -D__SERVICE_IMPL $(INCLUDES)
 	endif
 endif

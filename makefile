@@ -6,6 +6,12 @@
 # Required environmental stuff:
 # - CROSS=/path/to/cross/home
 #
+export arch = i386
+export CC = $(CROSS)/bin/clang
+export CXX = $(CROSS)/bin/clang++
+export LD = $(CROSS)/bin/lld-link
+export LIB = $(CROSS)/bin/llvm-lib
+export AS = nasm
 
 # MollenOS Configuration, comment in or out for specific features
 config_flags = 
@@ -25,35 +31,30 @@ config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE # Use a full debug console on heig
 #config_flags += -D__OSCONFIG_DISABLE_EHCI # Disable usb 2.0 support, run only in usb 1.1
 config_flags += -D__OSCONFIG_DISABLE_VIOARR # Disable auto starting the windowing system
 
-#-std=c11 
-export arch = i386
-export CC = $(CROSS)/bin/clang
-export CXX = $(CROSS)/bin/clang++
-export LD = $(CROSS)/bin/lld-link
-export LIB = $(CROSS)/bin/llvm-lib
+#-std=c11 -gdwarf
+disable_warnings = -Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function
+shared_flags = -target i386-pc-win32-itanium-coff -U_WIN32 -fms-extensions -Wall -ffreestanding -nostdlib -O3
+
 export ASFLAGS = -f bin
-export AS = nasm
-export GCFLAGS = -fms-extensions -Wall -Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function -ffreestanding -nostdlib -O3 -DMOLLENOS -D$(arch) $(config_flags)
-export GCXXFLAGS = -std=c++17 -fms-extensions -Wall -Wno-self-assign -Wno-unused-function -ffreestanding -nostdlib -DMOLLENOS -D$(arch) $(config_flags)
+export GCFLAGS = $(shared_flags) -DMOLLENOS -D$(arch) $(disable_warnings) $(config_flags)
+export GCXXFLAGS = -std=c++17 $(shared_flags) -DMOLLENOS -D$(arch) $(disable_warnings) $(config_flags)
 export GLFLAGS = /nodefaultlib /machine:X86 /subsystem:native /debug:dwarf /nopdb
-export FCOPY = cp
 export GLIBRARIES = ../lib/libcrt.lib ../lib/libclang.lib ../lib/libc.lib ../lib/libunwind.lib ../lib/libcxxabi.lib ../lib/libcxx.lib
 
-# -gdwarf
 .PHONY: all
-all: tools gen_revision boot_loader libraries kernel drivers build_userspace initrd
+all: build_tools gen_revision build_bootloader build_libraries build_kernel build_drivers build_userspace build_initrd
 
-.PHONY: initrd
-initrd:
+.PHONY: build_initrd
+build_initrd:
 	mkdir -p initrd
-	$(FCOPY) librt/build/*.dll initrd/
-	$(FCOPY) services/build/*.dll initrd/
-	$(FCOPY) services/build/*.mdrv initrd/
-	$(FCOPY) modules/build/*.dll initrd/
-	$(FCOPY) modules/build/*.mdrv initrd/
+	cp librt/build/*.dll initrd/
+	cp services/build/*.dll initrd/
+	cp services/build/*.mdrv initrd/
+	cp modules/build/*.dll initrd/
+	cp modules/build/*.mdrv initrd/
 
-.PHONY: tools
-tools:
+.PHONY: build_tools
+build_tools:
 	$(MAKE) -C tools/lzss -f makefile
 	$(MAKE) -C tools/rd -f makefile
 	$(MAKE) -C tools/diskutility -f makefile
@@ -62,27 +63,27 @@ tools:
 .PHONY: gen_revision
 gen_revision:
 	./revision build clang
-	$(FCOPY) revision.h kernel/include/revision.h
+	cp revision.h kernel/include/revision.h
 
 .PHONE: build_userspace
 build_userspace:
 	$(MAKE) -C userspace -f makefile
 
-.PHONY: kernel
-kernel:
+.PHONY: build_kernel
+build_kernel:
 	$(MAKE) -C kernel -f makefile
 
-.PHONY: drivers
-drivers:
+.PHONY: build_drivers
+build_drivers:
 	$(MAKE) -C services -f makefile
 	$(MAKE) -C modules -f makefile
 
-.PHONY: libraries
-libraries:
+.PHONY: build_libraries
+build_libraries:
 	$(MAKE) -C librt -f makefile
 
-.PHONY: boot_loader
-boot_loader:
+.PHONY: build_bootloader
+build_bootloader:
 	$(MAKE) -C boot -f makefile
 
 .PHONY: install_shared
@@ -90,10 +91,10 @@ install_shared:
 	mkdir -p deploy/hdd
 	mkdir -p deploy/hdd/shared
 	mkdir -p deploy/hdd/system
-	$(FCOPY) -a resources/system/. deploy/hdd/system/
-	$(FCOPY) -a resources/shared/. deploy/hdd/shared/
-	$(FCOPY) -a boot/build/. deploy/
-	$(FCOPY) librt/build/*.dll deploy/hdd/system/
+	cp -a resources/system/. deploy/hdd/system/
+	cp -a resources/shared/. deploy/hdd/shared/
+	cp -a boot/build/. deploy/
+	cp librt/build/*.dll deploy/hdd/system/
 	./rd $(arch) initrd.mos
 	./lzss c initrd.mos deploy/hdd/system/initrd.mos
 	./lzss c kernel/build/syskrnl.mos deploy/hdd/system/syskrnl.mos
@@ -101,14 +102,14 @@ install_shared:
 .PHONY: install_img
 install_img: install_shared
 	mono diskutility -auto -target img -scheme mbr
-	$(FCOPY) mollenos.img mollenos_usb.img
+	cp mollenos.img mollenos_usb.img
 
 .PHONY: install_vmdk
 install_vmdk: install_shared
 	mono diskutility -auto -target vmdk -scheme mbr
 
-.PHONY: toolchain
-toolchain:
+.PHONY: build_toolchain
+build_toolchain:
 	mkdir -p toolchain
 	chmod +x ./tools/depends.sh
 	chmod +x ./tools/checkout.sh

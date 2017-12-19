@@ -26,14 +26,10 @@
 /* Extern
  * - C/C++ Initialization
  * - C/C++ Cleanup */
-#ifdef __clang__
 __EXTERN void __CrtCxxInitialize(void);
+__EXTERN void __CrtCxxFinalize(void);
 CRTDECL(void, __cxa_finalize(void *Dso));
 __EXTERN void *__dso_handle;
-#else
-__EXTERN void __CppInit(void);
-__EXTERN void __CppFinit(void);
-#endif
 __EXTERN void dllmain(int action);
 
 /* __CrtLibraryEntry
@@ -45,21 +41,14 @@ __CrtLibraryEntry(int Action)
 	switch (Action) {
         case DLL_ACTION_INITIALIZE: {
             // Module has been attached to system.
-#ifdef __clang__
             __CrtCxxInitialize();
-#else
-            __CppInit();
-#endif
             dllmain(DLL_ACTION_INITIALIZE);
         } break;
         case DLL_ACTION_FINALIZE: {
             // Module is being unloaded
             dllmain(DLL_ACTION_FINALIZE);
-#ifdef __clang__
             __cxa_finalize(__dso_handle);
-#else
-            __CppFinit();
-#endif
+            __CrtCxxFinalize();
         } break;
     }
 }

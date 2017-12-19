@@ -49,6 +49,10 @@
 #error Unknown object file format
 #endif
 
+#if defined(MOLLENOS)
+#define _LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS 1
+#endif
+
 #if defined(_LIBCPP_ABI_UNSTABLE) || _LIBCPP_ABI_VERSION >= 2
 // Change short string representation so that string data starts at offset 0,
 // improving its alignment in some cases.

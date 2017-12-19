@@ -8,8 +8,8 @@
 //
 // This file implements the default terminate_handler and unexpected_handler.
 //===----------------------------------------------------------------------===//
-#define _LIBCPP_BUILDING_NEW
 #define _LIBCPP_BUILDING_LIBRARY
+#define _LIBCPP_BUILDING_NEW
 #include <stdexcept>
 #include <new>
 #include <exception>

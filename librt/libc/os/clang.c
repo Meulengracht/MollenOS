@@ -97,6 +97,7 @@ static RTExitFunctionList_t *ExitFunctions          = &ExitFunctionHead;
 static uint64_t ExitFunctionsCalled                 = 0;
 static Spinlock_t ExitFunctionsLock                 = SPINLOCK_INIT;
 static int ExitFunctionsDone                        = 0;
+static void (*PrimaryApplicationFinalizers)(void);
 
 /* __CrtCallInitializers
  * */
@@ -297,6 +298,8 @@ __CrtCallExitHandlers(
             }
             ((void (*)(int))ModuleList[i])(DLL_ACTION_FINALIZE);
         }
+        // Cleanup primary app
+        PrimaryApplicationFinalizers();
     }
 }
 
@@ -311,7 +314,9 @@ CRTDECL(int, __cxa_at_quick_exit(void (*Function)(void*), void *Dso)) {
 
 /* __cxa_runinitializers 
  * C++ Initializes library C++ runtime for all loaded modules */
-CRTDECL(void, __cxa_runinitializers(void (*Initializer)(void)))
+CRTDECL(void, __cxa_runinitializers(
+    _In_ void (*Initializer)(void), 
+    _In_ void (*Finalizers)(void)))
 {
     // Get modules available
     if (ProcessGetModuleEntryPoints(ModuleList) == OsSuccess) {
@@ -325,6 +330,7 @@ CRTDECL(void, __cxa_runinitializers(void (*Initializer)(void)))
 
     // Run callers initializer
     Initializer();
+    PrimaryApplicationFinalizers = Finalizers;
 }
 
 /* __cxa_finalize
