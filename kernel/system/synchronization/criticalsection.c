@@ -90,9 +90,9 @@ CriticalSectionEnter(
         }
     }
 
-    // Don't disable interrupts before we acquired the lock
-	SpinlockAcquire(&Section->Lock);
+    // Disable interrupts before we try to acquire the lock
 	IrqState = InterruptDisable();
+	SpinlockAcquire(&Section->Lock);
 
 	// Update lock
 	Section->Owner = ThreadingGetCurrentThreadId();

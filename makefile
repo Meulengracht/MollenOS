@@ -30,7 +30,7 @@ config_flags += -D__OSCONFIG_DISABLE_SIGNALLING # Kernel fault on all signals
 config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE # Use a full debug console on height
 #config_flags += -D__OSCONFIG_NODRIVERS # Don't load drivers, run it without for debug
 #config_flags += -D__OSCONFIG_DISABLE_EHCI # Disable usb 2.0 support, run only in usb 1.1
-config_flags += -D__OSCONFIG_DISABLE_VIOARR # Disable auto starting the windowing system
+#config_flags += -D__OSCONFIG_DISABLE_VIOARR # Disable auto starting the windowing system
 
 #-std=c11 -gdwarf
 disable_warnings = -Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function
@@ -87,6 +87,8 @@ build_libraries:
 build_bootloader:
 	$(MAKE) -C boot -f makefile
 
+# Build the deploy directory, which contains the primary (system) drive
+# structure, system folder, default binaries etc
 .PHONY: install_shared
 install_shared:
 	mkdir -p deploy/hdd
@@ -95,10 +97,15 @@ install_shared:
 	cp -a resources/system/. deploy/hdd/system/
 	cp -a resources/shared/. deploy/hdd/shared/
 	cp -a boot/build/. deploy/
-	cp librt/build/*.dll deploy/hdd/system/
 	./rd $(arch) initrd.mos
 	./lzss c initrd.mos deploy/hdd/system/initrd.mos
 	./lzss c kernel/build/syskrnl.mos deploy/hdd/system/syskrnl.mos
+	cp librt/build/*.lib deploy/hdd/shared/lib/
+	cp librt/build/*.dll deploy/hdd/shared/bin/
+	cp librt/deploy/*.lib deploy/hdd/shared/lib/
+	cp librt/deploy/*.dll deploy/hdd/shared/bin/
+	cp userspace/build/*.app deploy/hdd/shared/bin/ 2>/dev/null || :
+	cp userspace/build/*.dll deploy/hdd/shared/bin/ 2>/dev/null || :
 
 .PHONY: install_img
 install_img: install_shared

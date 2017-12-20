@@ -19,7 +19,7 @@
  * MollenOS MCore - Mass Storage Device Driver (Generic)
  *  - Bulk Protocol Implementation
  */
-#define __TRACE
+//#define __TRACE
 
 #define BULK_RESET      0x1
 #define BULK_RESET_IN   0x2

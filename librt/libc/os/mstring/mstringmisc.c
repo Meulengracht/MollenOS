@@ -33,11 +33,11 @@ int MStringFindChars(MString_t *String, const char *Chars)
 	char *DataPtr = (char*)String->Data;
 	int iSource = 0, iDest = 0;
 
-	/* Sanity */
-	if (String->Data == NULL
-		|| String->Length == 0)
-		return MSTRING_NOT_FOUND;
-
+	// Sanitize input
+	if (String->Data == NULL || String->Length == 0) {
+        return MSTRING_NO_MATCH;
+    }
+    
 	/* Iterate */
 	while (DataPtr[iSource]) {
 

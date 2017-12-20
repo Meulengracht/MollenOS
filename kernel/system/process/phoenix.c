@@ -188,7 +188,6 @@ PhoenixGetAsh(
     PhoenixUpdateAlias(&AshId);
 
     // Iterate the list for ash-id
-    CriticalSectionEnter(&ProcessLock);
     _foreach(Node, Processes) {
         MCoreAsh_t *Ash = (MCoreAsh_t*)Node->Data;
         if (Ash->Id == AshId) {
@@ -196,7 +195,6 @@ PhoenixGetAsh(
             break;
         }
     }
-    CriticalSectionLeave(&ProcessLock);
 
     // We didn't find it
     return Result;
@@ -212,7 +210,6 @@ PhoenixGetServerByDriver(
     _In_ DevInfo_t DeviceClass,
     _In_ DevInfo_t DeviceSubClass)
 {
-    CriticalSectionEnter(&ProcessLock);
 	foreach(pNode, Processes) {
 		MCoreAsh_t *Ash = (MCoreAsh_t*)pNode->Data;
 		if (Ash->Type == AshServer) {
@@ -222,7 +219,6 @@ PhoenixGetServerByDriver(
             if (VendorId != 0 && DeviceId != 0) {
                 if (Server->VendorId == VendorId
                     && Server->DeviceId == DeviceId) {
-                    CriticalSectionLeave(&ProcessLock);
                     return Server;
                 }
             }
@@ -231,13 +227,11 @@ PhoenixGetServerByDriver(
             if (Server->VendorId != 0xFFEF) {
                 if (Server->DeviceClass == DeviceClass
                     && Server->DeviceSubClass == DeviceSubClass) {
-                    CriticalSectionLeave(&ProcessLock);
                     return Server;
                 }
             }
 		}
 	}
-    CriticalSectionLeave(&ProcessLock);
 	return NULL;
 }
 
