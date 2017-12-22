@@ -113,10 +113,13 @@ CRTDECL(void, MStringAppendHex64(MString_t *String, uint64_t Value));
 CRTDECL(int, MStringFind(MString_t *String, mchar_t Character));
 CRTDECL(int, MStringFindReverse(MString_t *String, mchar_t Character));
 
-/* Find first occurence of the given UTF8 string
+/* MStringFindCString
+ * Find first occurence of the given UTF8 string
  * in the given string. This does not accept UTF16 or UTF32.
  * returns the index if found, otherwise MSTRING_NOT_FOUND */
-CRTDECL(int, MStringFindChars(MString_t *String, __CONST char *Chars));
+CRTDECL(int, MStringFindCString(
+    _In_ MString_t  *String,
+    _In_ const char *Chars));
 
 /* Get character at the given index and 
  * return the character found as UTF32 */
@@ -132,23 +135,29 @@ CRTDECL(mchar_t, MStringIterate(MString_t *String, char **Iterator, size_t *Inde
  * it takes the rest of string */
 CRTDECL(MString_t*, MStringSubString(MString_t *String, int Index, int Length));
 
-/* Replace string occurences,
- * this function replaces occurence of <Old> string 
- * with <New> string. The strings must be of format of UTF8 */
-CRTDECL(void, MStringReplace(MString_t *String, __CONST char *Old, __CONST char *New));
+/* MStringReplace
+ * Replace string occurences, this function replaces occurence of <SearchFor> string 
+ * with <ReplaceWith> string. The strings must be of format of UTF8. returns MSTRING_NO_MATCH
+ * on any errors. */
+CRTDECL(int, MStringReplace(
+    _In_ MString_t  *String,
+    _In_ const char *SearchFor,
+    _In_ const char *ReplaceWith));
 
-/* Get's the number of characters in a mstring
- * and not the actual byte length. */
-CRTDECL(size_t, MStringLength(MString_t *String));
+/* MStringLength
+ * Get's the number of characters in a mstring and not the actual byte length. */
+CRTDECL(size_t, MStringLength(
+    _In_ MString_t *String));
 
-/* Retrieves the number of bytes used 
- * in the given mstring */
-CRTDECL(size_t, MStringSize(MString_t *String));
+/* MStringSize
+ * Retrieves the number of bytes used in the given mstring */
+CRTDECL(size_t, MStringSize(
+    _In_ MString_t *String));
 
-/* Returns the raw data pointer 
- * of the given MString, which can be used for
- * usage, not recommended to edit data */
-CRTDECL(__CONST char*, MStringRaw(MString_t *String));
+/* MStringRaw
+ * Returns the data buffer pointer to the string data. */
+CRTDECL(const char*, MStringRaw(
+    _In_ MString_t *String));
 
 /* Generate hash of a mstring
  * the hash will be either 32/64 depending
@@ -162,12 +171,18 @@ CRTDECL(size_t, MStringHash(MString_t *String));
  * if not match */
 CRTDECL(int, MStringCompare(MString_t *String1, MString_t *String2, int IgnoreCase));
 
-/* Converts mstring-data to ASCII, if a character is non-ascii
- * the character is ignored. */
-CRTDECL(void, MStringToASCII(MString_t *String, void *Buffer));
+/* MStringGetAscii
+ * Converts the given MString into Ascii string and stores it
+ * in the given buffer. Unicode characters are truncated. */
+CRTDECL(void, MStringGetAscii(
+    _In_ MString_t  *String,
+    _Out_ char      *Buffer,
+    _In_ size_t      BufferLength));
 
-/* Prints out a mstring to stdout */
-CRTDECL(void, MStringPrint(MString_t *String));
+/* MStringPrint
+ * Writes the string to stdout. */
+CRTDECL(void, MStringPrint(
+    _In_ MString_t *String));
 
 /* Casing */
 CRTDECL(void, MStringUpperCase(MString_t *String));
@@ -176,4 +191,5 @@ CRTDECL(MString_t*, MStringUpperCaseCopy(MString_t *String));
 CRTDECL(void, MStringLowerCase(MString_t *String));
 CRTDECL(MString_t*, MStringLowerCaseCopy(MString_t *String));
 _CODE_END
+
 #endif //!_MCORE_STRING_H_

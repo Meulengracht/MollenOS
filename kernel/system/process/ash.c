@@ -54,7 +54,7 @@ PhoenixFinishAsh(
 
     // Sanitize the loaded path, if we were
     // using the initrd set flags accordingly
-    if (MStringFindChars(Ash->Path, "rd:/") != MSTRING_NOT_FOUND) {
+    if (MStringFindCString(Ash->Path, "rd:/") != MSTRING_NOT_FOUND) {
         LoadedFromInitRD = 1;
     }
 
@@ -136,7 +136,7 @@ PhoenixInitializeAsh(
     // Open File 
     // We have a special case here
     // in case we are loading from RD
-    if (MStringFindChars(Path, "rd:/") != MSTRING_NOT_FOUND) { 
+    if (MStringFindCString(Path, "rd:/") != MSTRING_NOT_FOUND) { 
         Ash->Path = MStringCreate((void*)MStringRaw(Path), StrUTF8);
         if (ModulesQueryPath(Path, (void**)&fBuffer, &fSize) != OsSuccess) {
             ERROR("Failed to locate module/file in ramdisk.");
@@ -152,19 +152,19 @@ PhoenixInitializeAsh(
 
         // Allocate buffer large enough to read entire file
         GetFileSize(fHandle, &fSize, NULL);
-        BufferObject = CreateBuffer(fSize);
-        fBuffer = (uint8_t*)kmalloc(fSize);
-        fPath = (char*)kmalloc(_MAXPATH);
+        BufferObject    = CreateBuffer(fSize);
+        fBuffer         = (uint8_t*)kmalloc(fSize);
+        fPath           = (char*)kmalloc(_MAXPATH);
 
         // Set that we should free the buffer again
-        ShouldFree = 1;
+        ShouldFree      = 1;
 
         // Read file and copy path
         memset(fPath, 0, _MAXPATH);
         ReadFile(fHandle, BufferObject, &fIndex, &fRead);
         ReadBuffer(BufferObject, (__CONST void*)fBuffer, fRead, NULL);
         GetFilePath(fHandle, fPath, _MAXPATH);
-        Ash->Path = MStringCreate(fPath, StrUTF8);
+        Ash->Path       = MStringCreate(fPath, StrUTF8);
 
         // Cleanup
         DestroyBuffer(BufferObject);
