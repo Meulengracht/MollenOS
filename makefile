@@ -39,7 +39,7 @@ shared_flags = -target i386-pc-win32-itanium-coff -U_WIN32 -m32 -fms-extensions 
 export ASFLAGS = -f bin
 export GCFLAGS = $(shared_flags) -DMOLLENOS -D$(arch) $(disable_warnings) $(config_flags)
 export GCXXFLAGS = -std=c++17 $(shared_flags) -DMOLLENOS -D$(arch) $(disable_warnings) $(config_flags)
-export GLFLAGS = /nodefaultlib /machine:X86 /subsystem:native /debug:dwarf /nopdb
+export GLFLAGS = /nodefaultlib /machine:X86 /subsystem:native /debug:dwarf
 export GLIBRARIES = ../lib/libcrt.lib ../lib/libclang.lib ../lib/libc.lib ../lib/libunwind.lib ../lib/libcxxabi.lib ../lib/libcxx.lib
 
 .PHONY: all
