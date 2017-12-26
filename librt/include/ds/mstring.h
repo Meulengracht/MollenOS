@@ -116,7 +116,7 @@ CRTDECL(int, MStringFindReverse(MString_t *String, mchar_t Character));
 /* MStringFindCString
  * Find first occurence of the given UTF8 string
  * in the given string. This does not accept UTF16 or UTF32.
- * returns the index if found, otherwise MSTRING_NOT_FOUND */
+ * returns the index if found, otherwise -1 */
 CRTDECL(int, MStringFindCString(
     _In_ MString_t  *String,
     _In_ const char *Chars));

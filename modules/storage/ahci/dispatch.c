@@ -361,8 +361,9 @@ AhciCommandFinish(
 	}
 	else {
 		// Write the result back to the requester
-		Rpc.Sender = Transaction->Requester;
-		Rpc.ResponsePort = Transaction->Pipe;
+		Rpc.From.Process = Transaction->Requester;
+		Rpc.From.Port = Transaction->Pipe;
+        Rpc.From.Type = 0;
 		RPCRespond(&Rpc, &Status, sizeof(OsStatus_t));
 	}
 

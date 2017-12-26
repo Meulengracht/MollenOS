@@ -196,7 +196,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		// or a GPT table 
 		case __FILEMANAGER_REGISTERDISK: {
 			TRACE("Filemanager.OnEvent RegisterDisk");
-			Result = RegisterDisk(Message->Sender,
+			Result = RegisterDisk(Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(Flags_t)Message->Arguments[1].Data.Value);
 		} break;
@@ -227,7 +227,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		case __FILEMANAGER_OPENFILE: {
 			OpenFilePackage_t Package;
 			TRACE("Filemanager.OnEvent OpenFile");
-			Package.Code = OpenFile(Message->Sender,
+			Package.Code = OpenFile(Message->From.Process,
 				(__CONST char*)Message->Arguments[0].Data.Buffer,
 				(Flags_t)Message->Arguments[1].Data.Value,
 				(Flags_t)Message->Arguments[2].Data.Value,
@@ -239,7 +239,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		/* Closes the given file-handle, but does not necessarily
 		 * close the link to the file. */
 		case __FILEMANAGER_CLOSEFILE: {
-			FileSystemCode_t Code = CloseFile(Message->Sender,
+			FileSystemCode_t Code = CloseFile(Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value);
 			TRACE("Filemanager.OnEvent CloseFile");
 			Result = RPCRespond(Message,
@@ -250,7 +250,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		 * the caller must make sure there is no other references
 		 * to the file - otherwise delete fails */
 		case __FILEMANAGER_DELETEFILE: {
-			FileSystemCode_t Code = DeleteFile(Message->Sender,
+			FileSystemCode_t Code = DeleteFile(Message->From.Process,
 				(__CONST char*)Message->Arguments[0].Data.Buffer);
 			TRACE("Filemanager.OnEvent DeleteFile");
 			Result = RPCRespond(Message,
@@ -262,7 +262,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		case __FILEMANAGER_READFILE: {
 			RWFilePackage_t Package;
 			TRACE("Filemanager.OnEvent ReadFile");
-			Package.Code = ReadFile(Message->Sender,
+			Package.Code = ReadFile(Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(BufferObject_t*)Message->Arguments[1].Data.Buffer,
 				&Package.Index,
@@ -276,7 +276,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		case __FILEMANAGER_WRITEFILE: {
 			RWFilePackage_t Package;
 			TRACE("Filemanager.OnEvent WriteFile");
-			Package.Code = WriteFile(Message->Sender,
+			Package.Code = WriteFile(Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(BufferObject_t*)Message->Arguments[1].Data.Buffer,
 				&Package.ActualSize);
@@ -288,7 +288,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		 * values given, the position is absolute and must
 		 * be within range of the file size */
 		case __FILEMANAGER_SEEKFILE: {
-			FileSystemCode_t Code = SeekFile(Message->Sender,
+			FileSystemCode_t Code = SeekFile(Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(uint32_t)Message->Arguments[1].Data.Value,
 				(uint32_t)Message->Arguments[2].Data.Value);
@@ -300,7 +300,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		/* Flushes the internal file buffers and ensures there are
 		 * no pending file operations for the given file handle */
 		case __FILEMANAGER_FLUSHFILE: {
-			FileSystemCode_t Code = FlushFile(Message->Sender,
+			FileSystemCode_t Code = FlushFile(Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value);
 			TRACE("Filemanager.OnEvent FlushFile");
 			Result = RPCRespond(Message,
@@ -311,7 +311,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		 * this can also be used for renamining if the dest/source paths
 		 * match (except for filename/directoryname) */
 		case __FILEMANAGER_MOVEFILE: {
-			FileSystemCode_t Code = MoveFile(Message->Sender,
+			FileSystemCode_t Code = MoveFile(Message->From.Process,
 				(__CONST char*)Message->Arguments[0].Data.Buffer,
 				(__CONST char*)Message->Arguments[1].Data.Buffer,
 				(int)Message->Arguments[2].Data.Value);
@@ -326,7 +326,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		case __FILEMANAGER_GETPOSITION: {
 			QueryFileValuePackage_t Package;
 			TRACE("Filemanager.OnEvent GetPosition");
-			Result = GetFilePosition(Message->Sender,
+			Result = GetFilePosition(Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				&Package);
 			Result = RPCRespond(Message, (__CONST void*)&Package,
@@ -338,7 +338,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		case __FILEMANAGER_GETOPTIONS: {
 			QueryFileOptionsPackage_t Package;
 			TRACE("Filemanager.OnEvent GetOptions");
-			Result = GetFileOptions(Message->Sender,
+			Result = GetFileOptions(Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				&Package);
 			Result = RPCRespond(Message, (__CONST void*)&Package,
@@ -348,7 +348,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		/* Attempts to modify the current option and or access flags
 		 * for the given file handle as specified by <Options> and <Access> */
 		case __FILEMANAGER_SETOPTIONS: {
-			Result = SetFileOptions(Message->Sender,
+			Result = SetFileOptions(Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(Flags_t)Message->Arguments[1].Data.Value,
 				(Flags_t)Message->Arguments[2].Data.Value);
@@ -363,7 +363,7 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		case __FILEMANAGER_GETSIZE: {
 			QueryFileValuePackage_t Package;
 			TRACE("Filemanager.OnEvent GetSize");
-			Result = GetFileSize(Message->Sender,
+			Result = GetFileSize(Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				&Package);
 			Result = RPCRespond(Message, (__CONST void*)&Package,

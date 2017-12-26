@@ -108,9 +108,9 @@ OsStatus_t
 OnQuery(
 	_In_ MContractType_t QueryType, 
 	_In_ int QueryFunction, 
-	_In_Opt_ RPCArgument_t *Arg0,
-	_In_Opt_ RPCArgument_t *Arg1,
-	_In_Opt_ RPCArgument_t *Arg2,
+	_In_Opt_ MRemoteCallArgument_t *Arg0,
+	_In_Opt_ MRemoteCallArgument_t *Arg1,
+	_In_Opt_ MRemoteCallArgument_t *Arg2,
 	_In_ UUId_t Queryee, 
 	_In_ int ResponsePort);
 
@@ -133,7 +133,7 @@ InterruptDriver(
 	UUId_t NoId = UUID_INVALID;
 
 	// Initialze RPC
-	RPCInitialize(&Request, 1, PIPE_RPCOUT, __DRIVER_INTERRUPT);
+	RPCInitialize(&Request, Driver, 1, PIPE_RPCOUT, __DRIVER_INTERRUPT);
 	RPCSetArgument(&Request, 0, (__CONST void*)&NoId, sizeof(UUId_t));
     RPCSetArgument(&Request, 1, (__CONST void*)&Argument0, sizeof(size_t));
     RPCSetArgument(&Request, 2, (__CONST void*)&Argument1, sizeof(size_t));
@@ -141,7 +141,7 @@ InterruptDriver(
     RPCSetArgument(&Request, 4, (__CONST void*)&Argument3, sizeof(size_t));
 
 	// Send
-	return RPCEvent(&Request, Driver);
+	return RPCEvent(&Request);
 }
 
 /* OnQuery
@@ -168,7 +168,7 @@ QueryDriver(
 
 	// Initialize static RPC variables like
 	// type of RPC, pipe and version
-	RPCInitialize(&Request, Contract->Version, PIPE_RPCOUT, __DRIVER_QUERY);
+	RPCInitialize(&Request, Contract->DriverId, Contract->Version, PIPE_RPCOUT, __DRIVER_QUERY);
 	RPCSetArgument(&Request, 0, (const void*)&Contract->Type, sizeof(MContractType_t));
 	RPCSetArgument(&Request, 1, (const void*)&Function, sizeof(int));
 
@@ -187,7 +187,7 @@ QueryDriver(
 
 	// Execute RPC
 	RPCSetResult(&Request, ResultBuffer, ResultLength);
-	return RPCExecute(&Request, Contract->DriverId);
+	return RPCExecute(&Request);
 }
 
 #endif //!DRIVER_SDK

@@ -291,6 +291,7 @@
         "*.ii": "cpp",
         "strings.h": "c",
         "types.h": "c",
-        "__debug": "cpp"
+        "__debug": "cpp",
+        "buffer.h": "c"
     }
 }

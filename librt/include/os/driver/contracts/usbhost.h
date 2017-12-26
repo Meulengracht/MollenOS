@@ -68,8 +68,8 @@ UsbControllerRegister(
     MRemoteCall_t Request;
 
     // Initialize RPC
-    RPCInitialize(&Request, __USBMANAGER_INTERFACE_VERSION,
-        PIPE_RPCOUT, __USBMANAGER_REGISTERCONTROLLER);
+    RPCInitialize(&Request, __USBMANAGER_TARGET, 
+        __USBMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __USBMANAGER_REGISTERCONTROLLER);
 
     // Setup arguments
     RPCSetArgument(&Request, 0, (__CONST void*)Device, sizeof(MCoreDevice_t));
@@ -77,7 +77,7 @@ UsbControllerRegister(
     RPCSetArgument(&Request, 2, (__CONST void*)&Ports, sizeof(size_t));
 
     // Send event, no response
-    return RPCEvent(&Request, __USBMANAGER_TARGET);
+    return RPCEvent(&Request);
 }
 
 /* UsbControllerUnregister
@@ -93,14 +93,14 @@ UsbControllerUnregister(
     MRemoteCall_t Request;
 
     // Initialize RPC
-    RPCInitialize(&Request, __USBMANAGER_INTERFACE_VERSION,
-        PIPE_RPCOUT, __USBMANAGER_UNREGISTERCONTROLLER);
+    RPCInitialize(&Request, __USBMANAGER_TARGET, 
+        __USBMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __USBMANAGER_UNREGISTERCONTROLLER);
 
     // Setup arguments
     RPCSetArgument(&Request, 0, (__CONST void*)&DeviceId, sizeof(UUId_t));
 
     // Send event, no response
-    return RPCEvent(&Request, __USBMANAGER_TARGET);
+    return RPCEvent(&Request);
 }
 
 /* UsbEventPort 
@@ -118,15 +118,15 @@ UsbEventPort(
     MRemoteCall_t Request;
 
     // Initialize RPC
-    RPCInitialize(&Request, __USBMANAGER_INTERFACE_VERSION,
-        PIPE_RPCOUT, __USBMANAGER_PORTEVENT);
+    RPCInitialize(&Request, __USBMANAGER_TARGET, 
+        __USBMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __USBMANAGER_PORTEVENT);
 
     // Setup arguments
     RPCSetArgument(&Request, 0, (__CONST void*)&DeviceId, sizeof(UUId_t));
     RPCSetArgument(&Request, 1, (__CONST void*)&Index, sizeof(int));
 
     // Send event, no response
-    return RPCEvent(&Request, __USBMANAGER_TARGET);
+    return RPCEvent(&Request);
 }
 
 #endif //!_CONTRACT_USBHOST_INTERFACE_H_

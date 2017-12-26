@@ -60,11 +60,11 @@ SessionCheckDisk(
 	MRemoteCall_t Request;
 
 	// Initialze RPC
-	RPCInitialize(&Request, 1, PIPE_RPCOUT, __SESSIONMANAGER_CHECKUP);
+	RPCInitialize(&Request, __SESSIONMANAGER_TARGET, 1, PIPE_RPCOUT, __SESSIONMANAGER_CHECKUP);
 	RPCSetArgument(&Request, 0, (__CONST void*)DiskIdentifier, strlen(DiskIdentifier) + 1);
 
 	// Send
-	return RPCEvent(&Request, __SESSIONMANAGER_TARGET);
+	return RPCEvent(&Request);
 }
 
 /* SessionLoginRequest
@@ -82,13 +82,13 @@ SessionLoginRequest(
 	MRemoteCall_t Request;
 
 	// Initialze RPC
-	RPCInitialize(&Request, 1, PIPE_RPCOUT, __SESSIONMANAGER_LOGIN);
+	RPCInitialize(&Request, __SESSIONMANAGER_TARGET, 1, PIPE_RPCOUT, __SESSIONMANAGER_LOGIN);
 	RPCSetArgument(&Request, 0, (__CONST void*)User, strlen(User) + 1);
     RPCSetArgument(&Request, 1, (__CONST void*)Password, strlen(Password) + 1);
     RPCSetResult(&Request, (__CONST void*)Result, sizeof(SessionObject_t));
 
 	// Send
-	return RPCExecute(&Request, __SESSIONMANAGER_TARGET);
+	return RPCExecute(&Request);
 }
 
 /* SessionLogoutRequest
@@ -105,12 +105,12 @@ SessionLogoutRequest(
     OsStatus_t Result   = OsError;
 
 	// Initialze RPC
-	RPCInitialize(&Request, 1, PIPE_RPCOUT, __SESSIONMANAGER_LOGOUT);
+	RPCInitialize(&Request, __SESSIONMANAGER_TARGET, 1, PIPE_RPCOUT, __SESSIONMANAGER_LOGOUT);
 	RPCSetArgument(&Request, 0, (__CONST void*)SessionId, strlen(SessionId) + 1);
     RPCSetResult(&Request, (__CONST void*)&Result, sizeof(OsStatus_t));
 
 	// Send
-	if (RPCExecute(&Request, __SESSIONMANAGER_TARGET) != OsSuccess) {
+	if (RPCExecute(&Request) != OsSuccess) {
         return OsError;
     }
     return Result;

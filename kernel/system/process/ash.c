@@ -136,7 +136,7 @@ PhoenixInitializeAsh(
     // Open File 
     // We have a special case here
     // in case we are loading from RD
-    if (MStringFindCString(Path, "rd:/") != MSTRING_NOT_FOUND) { 
+    if (MStringFindCString(Path, "rd:/") != -1) { 
         Ash->Path = MStringCreate((void*)MStringRaw(Path), StrUTF8);
         if (ModulesQueryPath(Path, (void**)&fBuffer, &fSize) != OsSuccess) {
             ERROR("Failed to locate module/file in ramdisk.");

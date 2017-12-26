@@ -79,15 +79,12 @@ CreateInput(MInput_t *Input)
 	MRemoteCall_t Request;
 	
 	// Initialize rpc request
-	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION, 
-		PIPE_RPCOUT, __WINDOWMANAGER_NEWINPUT);
+	RPCInitialize(&Request, __WINDOWMANAGER_TARGET, 
+        __WINDOWMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __WINDOWMANAGER_NEWINPUT);
 	
 	// Setup rpc arguments
-	RPCSetArgument(&Request, 0, (__CONST void*)Input, 
-		sizeof(MInput_t));
-	
-	// Fire off asynchronous event
-	return RPCEvent(&Request, __WINDOWMANAGER_TARGET);
+	RPCSetArgument(&Request, 0, (__CONST void*)Input, sizeof(MInput_t));
+	return RPCEvent(&Request);
 }
 #endif
 

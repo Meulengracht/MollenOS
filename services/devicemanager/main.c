@@ -112,8 +112,7 @@ OnEvent(
             }
             
             // Write the result back to the caller
-            PipeSend(Message->Sender, Message->ResponsePort,
-                &Result, sizeof(UUId_t));
+            RPCRespond(Message, &Result, sizeof(UUId_t));
         } break;
 
         // Unregisters a device from the system, and 
@@ -154,8 +153,7 @@ OnEvent(
             }
 
             // Write back response
-            PipeSend(Message->Sender, Message->ResponsePort,
-                &Result, sizeof(OsStatus_t));
+            RPCRespond(Message, &Result, sizeof(OsStatus_t));
         } break;
 
         // Registers a driver for the given device 
@@ -168,7 +166,7 @@ OnEvent(
             UUId_t Result = UUID_INVALID;
 
             // Update sender in contract
-            Contract->DriverId = Message->Sender;
+            Contract->DriverId = Message->From.Process;
 
             // Evaluate request, but don't free
             // the allocated contract storage, we need it
@@ -177,8 +175,7 @@ OnEvent(
             }
 
             // Write the result back to the caller
-            PipeSend(Message->Sender, Message->ResponsePort,
-                &Result, sizeof(UUId_t));
+            RPCRespond(Message, &Result, sizeof(UUId_t));
         } break;
 
         // For now this function is un-implemented
@@ -208,12 +205,10 @@ OnEvent(
                     &Message->Arguments[4].Data.Value : Message->Arguments[4].Data.Buffer,
                     Message->Arguments[4].Length,
                     ResponseBuffer, Message->Result.Length) == OsSuccess) {
-                PipeSend(Message->Sender, Message->ResponsePort,
-                    ResponseBuffer, Message->Result.Length);
+                RPCRespond(Message, ResponseBuffer, Message->Result.Length);
             }
             else {
-                PipeSend(Message->Sender, Message->ResponsePort, 
-                    NullPointer, sizeof(void*));
+                RPCRespond(Message, NullPointer, sizeof(void*));
             }
 
             // Cleanup

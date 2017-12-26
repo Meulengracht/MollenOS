@@ -29,7 +29,7 @@
 /* MStringFindCString
  * Find first occurence of the given UTF8 string
  * in the given string. This does not accept UTF16 or UTF32.
- * returns the index if found, otherwise MSTRING_NOT_FOUND */
+ * returns the index if found, otherwise -1 */
 int
 MStringFindCString(
     _In_ MString_t  *String,
@@ -37,7 +37,7 @@ MStringFindCString(
 {
     // Variables
     char *SourcePointer = NULL;
-    int Result          = MSTRING_NO_MATCH;
+    int Result          = -1;
     int iSource         = 0;
     int iDest           = 0;
 
@@ -69,11 +69,11 @@ MStringFindCString(
             // Make sure final character is still equal after loop
             if (SourceCharacter == DestCharacter) {
                 if (!Chars[iDest]) { // Must be end of string, otherwise there are chars left
+                    Result = iSource;
                     break;
                 }
             }
         }
-        Result++;
     }
 
     // Cleanup and return

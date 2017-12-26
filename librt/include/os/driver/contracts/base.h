@@ -120,11 +120,11 @@ RegisterContract(
 
 	// Initialize static RPC variables like
 	// type of RPC, pipe and version
-	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION,
-		PIPE_RPCOUT, __DEVICEMANAGER_REGISTERCONTRACT);
+	RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
+        __DEVICEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __DEVICEMANAGER_REGISTERCONTRACT);
 	RPCSetArgument(&Request, 0, (const void*)Contract, sizeof(MContract_t));
 	RPCSetResult(&Request, &ContractId, sizeof(UUId_t));
-	Result = RPCExecute(&Request, __DEVICEMANAGER_TARGET);
+	Result = RPCExecute(&Request);
 
 	// Update the contract-id
 	Contract->ContractId = ContractId;
@@ -171,8 +171,8 @@ QueryContract(
 
 	// Initialize static RPC variables like
 	// type of RPC, pipe and version
-	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION, 
-		PIPE_RPCOUT, __DEVICEMANAGER_QUERYCONTRACT);
+	RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
+        __DEVICEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __DEVICEMANAGER_QUERYCONTRACT);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Type, sizeof(MContractType_t));
 	RPCSetArgument(&Request, 1, (__CONST void*)&Function, sizeof(int));
 
@@ -191,11 +191,11 @@ QueryContract(
 	// get a osstatus - we also execute the rpc here
 	if (ResultBuffer != NULL && ResultLength != 0) {
 		RPCSetResult(&Request, ResultBuffer, ResultLength);
-		return RPCExecute(&Request, __DEVICEMANAGER_TARGET);
+		return RPCExecute(&Request);
 	}
 	else {
 		RPCSetResult(&Request, &Result, sizeof(OsStatus_t));
-		if (RPCExecute(&Request, __DEVICEMANAGER_TARGET) != OsSuccess) {
+		if (RPCExecute(&Request) != OsSuccess) {
 			return OsError;
 		}
 		else {

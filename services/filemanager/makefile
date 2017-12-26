@@ -6,7 +6,7 @@ SOURCES = $(wildcard layouts/*.c) \
 OBJECTS = $(SOURCES:.c=.o)
 
 CFLAGS = $(GCFLAGS) -Wno-address-of-packed-member -D__SERVICE_IMPL -D__FILEMANAGER_IMPL $(INCLUDES)
-LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtServiceEntry /dll ../../librt/build/libsrv.lib ../../librt/build/libc.lib
+LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtServiceEntry /dll /lldmap ../../librt/build/libsrv.lib ../../librt/build/libc.lib
 
 .PHONY: all
 all: ../build/filemanager.dll ../build/filemanager.mdrv

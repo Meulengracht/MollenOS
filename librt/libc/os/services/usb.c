@@ -36,12 +36,12 @@ UsbQueryControllerCount(
 	MRemoteCall_t Request;
 
 	// Initialize RPC
-	RPCInitialize(&Request, __USBMANAGER_INTERFACE_VERSION,
-		PIPE_RPCOUT, __USBMANAGER_QUERYCONTROLLERCOUNT);
+	RPCInitialize(&Request, __USBMANAGER_TARGET, 
+        __USBMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __USBMANAGER_QUERYCONTROLLERCOUNT);
 
     // No arguments, set result buffer
     RPCSetResult(&Request, (__CONST void*)ControllerCount, sizeof(int));
-	return RPCExecute(&Request, __USBMANAGER_TARGET);
+	return RPCExecute(&Request);
 }
 
 /* UsbQueryController
@@ -56,13 +56,13 @@ UsbQueryController(
 	MRemoteCall_t Request;
 
 	// Initialize RPC
-	RPCInitialize(&Request, __USBMANAGER_INTERFACE_VERSION,
-		PIPE_RPCOUT, __USBMANAGER_QUERYCONTROLLER);
+	RPCInitialize(&Request, __USBMANAGER_TARGET, 
+        __USBMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __USBMANAGER_QUERYCONTROLLER);
 
     // Set arguments
     RPCSetArgument(&Request, 0, (__CONST void*)&Index, sizeof(int));
 
     // Set result buffer
     RPCSetResult(&Request, (__CONST void*)Controller, sizeof(UsbHcController_t));
-	return RPCExecute(&Request, __USBMANAGER_TARGET);
+	return RPCExecute(&Request);
 }

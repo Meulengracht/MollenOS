@@ -36,121 +36,133 @@
  * - Library */
 #include <string.h>
 
-/* The argument package that can be passed
- * to an IPC function request, we support up
- * to 5 arguments */
-PACKED_TYPESTRUCT(RPCArgument, {
-	int						Type;
-	union {
-		__CONST void		*Buffer;
-		size_t				Value;
-	} Data;
-	size_t					Length;
+/* MRemoteCallAddress
+ * A mailbox address for a remote call procedure. A remote call
+ * always include both a From and To address. */
+PACKED_TYPESTRUCT(MRemoteCallAddress, {
+    uint8_t                 Type;
+    UUId_t                  Process;
+    int                     Port;
 });
 
-/* The base event message structure, any IPC
+/* MRemoteCallArgument
+ * The argument package that can be passed
+ * to an IPC function request, we support up
+ * to 5 arguments */
+PACKED_TYPESTRUCT(MRemoteCallArgument, {
+    uint8_t                  Type;
+    union {
+        __CONST void        *Buffer;
+        size_t               Value;
+    } Data;
+    size_t                   Length;
+});
+
+/* MRemoteCall
+ * The base event message structure, any IPC
  * action going through pipes in MollenOS must
  * inherit from this structure for security */
 PACKED_TYPESTRUCT(MRemoteCall, {
-	int						Version;
-	int						Function;
-	int						Port;
-	int						ResponsePort;
-	size_t					Length;		/* Excluding this header */
-	UUId_t					Sender;		/* Automatically set by OS */
-	RPCArgument_t			Arguments[IPC_MAX_ARGUMENTS];
-	RPCArgument_t			Result;
+    MRemoteCallAddress_t    To;
+    MRemoteCallAddress_t    From;
+
+    // Interface Information
+    int                     Version;
+    int                     Function;
+    size_t                  DataLength;
+    MRemoteCallArgument_t   Arguments[IPC_MAX_ARGUMENTS];
+    MRemoteCallArgument_t   Result;
 });
 
 _CODE_BEGIN
+
 /* RPCInitialize 
- * Initializes a new RPC message of the 
- * given type and length */
+ * Initializes a new RPC message of the given type and length */
 SERVICEAPI
 void
 SERVICEABI
 RPCInitialize(
-	_InOut_ MRemoteCall_t *RemoteCall, 
-	_In_ int Version, 
-	_In_ int Port, 
-	_In_ int Function)
+    _In_ MRemoteCall_t *RemoteCall,
+    _In_ UUId_t         Target,
+    _In_ int            Version, 
+    _In_ int            Port, 
+    _In_ int            Function)
 {
-	// Initialize structure
-	memset((void*)RemoteCall, 0, sizeof(MRemoteCall_t));
-	RemoteCall->Version = Version;
-	RemoteCall->Function = Function;
-	RemoteCall->Port = Port;
+    // Initialize structure
+    memset((void*)RemoteCall, 0, sizeof(MRemoteCall_t));
+    RemoteCall->Version     = Version;
+    RemoteCall->Function    = Function;
 
-	// Standard response port
-	RemoteCall->ResponsePort = PIPE_RPCIN;
+    // Setup from/to as much as possible
+    RemoteCall->To.Process  = Target;
+    RemoteCall->To.Port     = Port;
+    RemoteCall->From.Port   = PIPE_RPCIN;
 }
 
 /* RPCSetArgument
- * Adds a new argument for the RPC request at
- * the given argument index. It's not possible to override 
- * a current argument */
+ * Adds a new argument for the RPC request at the given argument index. 
+ * It's not possible to override a current argument */
 SERVICEAPI
 void
 SERVICEABI
 RPCSetArgument(
-	_InOut_ MRemoteCall_t *RemoteCall,
-	_In_ int Index, 
-	_In_ __CONST void *Data, 
-	_In_ size_t Length)
+    _In_ MRemoteCall_t *RemoteCall,
+    _In_ int            Index, 
+    _In_ __CONST void  *Data, 
+    _In_ size_t         Length)
 {
-	// Sanitize the index and the current argument
-	if (Index >= IPC_MAX_ARGUMENTS || Index < 0 
+    // Sanitize the index and the current argument
+    if (Index >= IPC_MAX_ARGUMENTS || Index < 0 
         || RemoteCall->Arguments[Index].Type != ARGUMENT_NOTUSED) {
-		return;
+        return;
     }
     
     // We must have room for the argument
-    if ((RemoteCall->Length + Length) > IPC_MAX_MESSAGELENGTH
+    if ((RemoteCall->DataLength + Length) > IPC_MAX_MESSAGELENGTH
         || Length == 0) {
         return;
     }
 
-	// Determine the type of argument
-	if (Length <= sizeof(size_t)) {
-		RemoteCall->Arguments[Index].Type = ARGUMENT_REGISTER;
+    // Determine the type of argument
+    if (Length <= sizeof(size_t)) {
+        RemoteCall->Arguments[Index].Type = ARGUMENT_REGISTER;
 
-		if (Length == 1) {
-			RemoteCall->Arguments[Index].Data.Value = *((uint8_t*)Data);
-		}
-		else if (Length == 2) {
-			RemoteCall->Arguments[Index].Data.Value = *((uint16_t*)Data);
-		}
-		else if (Length == 4) {
-			RemoteCall->Arguments[Index].Data.Value = *((uint32_t*)Data);
-		}
-		else if (Length == 8) {
-			RemoteCall->Arguments[Index].Data.Value = *((size_t*)Data);
-		}
-	}
-	else {
-		RemoteCall->Arguments[Index].Type = ARGUMENT_BUFFER;
-		RemoteCall->Arguments[Index].Data.Buffer = Data;
-		RemoteCall->Arguments[Index].Length = Length;
-	}
-	RemoteCall->Length += Length;
+        if (Length == 1) {
+            RemoteCall->Arguments[Index].Data.Value = *((uint8_t*)Data);
+        }
+        else if (Length == 2) {
+            RemoteCall->Arguments[Index].Data.Value = *((uint16_t*)Data);
+        }
+        else if (Length == 4) {
+            RemoteCall->Arguments[Index].Data.Value = *((uint32_t*)Data);
+        }
+        else if (Length == 8) {
+            RemoteCall->Arguments[Index].Data.Value = *((size_t*)Data);
+        }
+    }
+    else {
+        RemoteCall->Arguments[Index].Type = ARGUMENT_BUFFER;
+        RemoteCall->Arguments[Index].Data.Buffer = Data;
+        RemoteCall->Arguments[Index].Length = Length;
+    }
+    RemoteCall->DataLength += Length;
 }
 
 /* RPCSetResult
- * Installs a result buffer that will be filled
- * with the response from the RPC request */
+ * Installs a result buffer that will be filled with the response from the RPC request */
 SERVICEAPI 
 void
 SERVICEABI
 RPCSetResult(
-	_InOut_ MRemoteCall_t *RemoteCall,
-	_In_ __CONST void *Data, 
-	_In_ size_t Length)
+    _In_ MRemoteCall_t *RemoteCall,
+    _In_ __CONST void  *Data, 
+    _In_ size_t         Length)
 {
-	// Always a buffer element as we need
-	// a target to copy the data into
-	RemoteCall->Result.Type = ARGUMENT_BUFFER;
-	RemoteCall->Result.Data.Buffer = Data;
-	RemoteCall->Result.Length = Length;
+    // Always a buffer element as we need
+    // a target to copy the data into
+    RemoteCall->Result.Type = ARGUMENT_BUFFER;
+    RemoteCall->Result.Data.Buffer = Data;
+    RemoteCall->Result.Length = Length;
 }
 
 /* RPCListen 
@@ -160,7 +172,7 @@ RPCSetResult(
 CRTDECL(
 OsStatus_t,
 RPCListen(
-	_In_ MRemoteCall_t  *Message,
+    _In_ MRemoteCall_t  *Message,
     _In_ void           *ArgumentBuffer));
 
 /* RPCExecute/RPCEvent
@@ -171,14 +183,12 @@ RPCListen(
 CRTDECL( 
 OsStatus_t,
 RPCExecute(
-	_In_ MRemoteCall_t *Rpc, 
-	_In_ UUId_t Target));
+    _In_ MRemoteCall_t *RemoteCall));
 
 CRTDECL(
 OsStatus_t,
 RPCEvent(
-	_In_ MRemoteCall_t *Rpc, 
-	_In_ UUId_t Target));
+    _In_ MRemoteCall_t *RemoteCall));
 
 /* RPCRespond
  * This is a wrapper to return a respond message/buffer to the
@@ -187,9 +197,9 @@ RPCEvent(
 CRTDECL( 
 OsStatus_t,
 RPCRespond(
-	_In_ MRemoteCall_t *Rpc,
-	_In_ __CONST void *Buffer, 
-	_In_ size_t Length));
+    _In_ MRemoteCall_t *RemoteCall,
+    _In_ __CONST void  *Buffer, 
+    _In_ size_t         Length));
 _CODE_END
 
 #endif //!_RPC_INTERFACE_H_

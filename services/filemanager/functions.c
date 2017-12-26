@@ -20,12 +20,14 @@
  * - Handles all file related services and disk services
  * - ToDo Buffering is not ported to BufferObjects yet
  */
+#define __TRACE
 
 /* Includes 
  * - System */
 #include <os/driver/file.h>
-#include "include/vfs.h"
 #include <os/mollenos.h>
+#include <os/utils.h>
+#include "include/vfs.h"
 
 /* Includes
  * - C-Library */
@@ -39,49 +41,50 @@
  * opening the handle */
 FileSystemCode_t 
 VfsOpenHandleInternal(
-	_Out_ FileSystemFileHandle_t *Handle,
-	_In_ FileSystemFile_t *File)
+	_Out_ FileSystemFileHandle_t*   Handle,
+	_In_  FileSystemFile_t*         File)
 {
-	/* Instantiate some pointers */
-	FileSystem_t *Fs = (FileSystem_t*)File->System;
-	FileSystemCode_t Code = FsOk;
+    // Variables
+	FileSystemCode_t Code       = FsOk;
+    FileSystem_t *Filesystem    = NULL;
 
-	/* Set some initial variables 
-	 * Id, Options, Access, Owner has been set */
-	Handle->LastOperation = __FILE_OPERATION_NONE;
-	Handle->OutBuffer = NULL;
-	Handle->OutBufferPosition = 0;
-	Handle->Position = 0;
-	Handle->File = File;
+    // Debug
+    TRACE("VfsOpenHandleInternal()");
 
-	/* Instantiate the handle on a per-fs basis */
-	Code = Fs->Module->OpenHandle(&Fs->Descriptor, Handle);
+    // Inititate pointers
+    Filesystem = (FileSystem_t*)File->System;
 
-	/* Sanitize the code */
+	// Set some initial variables 
+	// Id, Options, Access, Owner has been set
+	Handle->LastOperation       = __FILE_OPERATION_NONE;
+	Handle->OutBuffer           = NULL;
+	Handle->OutBufferPosition   = 0;
+	Handle->Position            = 0;
+	Handle->File                = File;
+	Code = Filesystem->Module->OpenHandle(&Filesystem->Descriptor, Handle);
 	if (Code != FsOk) {
+        ERROR("Failed to initiate a new file-handle, code %i", Code);
 		return Code;
 	}
 
-	/* Initialise buffering as long as the file
-	 * handle is not opened as volatile */
+	// Initialise buffering as long as the file
+	// handle is not opened as volatile
 	if (!(Handle->Options & __FILE_VOLATILE)) {
-		Handle->OutBuffer = malloc(Fs->Descriptor.Disk.Descriptor.SectorSize);
-		memset(Handle->OutBuffer, 0, Fs->Descriptor.Disk.Descriptor.SectorSize);
+		Handle->OutBuffer = malloc(Filesystem->Descriptor.Disk.Descriptor.SectorSize);
+		memset(Handle->OutBuffer, 0, Filesystem->Descriptor.Disk.Descriptor.SectorSize);
 	}
 
-	/* Now comes the step where we handle options 
-	 * - but only options that are handle-specific */
+	// Now comes the step where we handle options 
+	// - but only options that are handle-specific
 	if (Handle->Options & __FILE_APPEND) {
-		Code = Fs->Module->SeekFile(&Fs->Descriptor, Handle, File->Size);
+		Code = Filesystem->Module->SeekFile(&Filesystem->Descriptor, Handle, File->Size);
 	}
 
-	/* File locked for access? */
+	// File locked for access?
 	if (Handle->Access & __FILE_WRITE_ACCESS
 		&& !(Handle->Access & __FILE_WRITE_SHARE)) {
 		File->IsLocked = Handle->Owner;
 	}
-
-	/* Return the code */
 	return Code;
 }
 
@@ -90,32 +93,36 @@ VfsOpenHandleInternal(
  * handles and performs the interaction with fs */
 FileSystemCode_t 
 VfsOpenInternal(
-	_Out_ FileSystemFileHandle_t *Handle, 
-	_In_ MString_t *Path)
+	_Out_ FileSystemFileHandle_t*   Handle, 
+	_In_  MString_t*                Path)
 {
 	// Variables
-	CollectionItem_t *fNode = NULL, *pNode = NULL;
-	FileSystemFile_t *File = NULL;
-	FileSystemCode_t Code = FsOk;
-	MString_t *Identifier = NULL;
-	MString_t *SubPath = NULL;
-	size_t PathHash = 0;
-	DataKey_t Key;
-	int Index = 0;
+	CollectionItem_t *fNode = NULL;
+    CollectionItem_t *pNode = NULL;
+	FileSystemFile_t *File  = NULL;
+	FileSystemCode_t Code   = FsOk;
+	MString_t *Identifier   = NULL;
+	MString_t *SubPath      = NULL;
+	size_t PathHash         = 0;
+	int Index               = 0;
+    DataKey_t Key;
+
+    // Debug
+    TRACE("VfsOpenInternal(Path %s)", MStringRaw(Path));
 
 	// To ensure that we don't spend resources doing
 	// the wheel all over again, compute the hash 
 	// and check cache 
-	PathHash = MStringHash(Path);
-	Key.Value = (int)PathHash;
-	pNode = CollectionGetNodeByKey(VfsGetOpenFiles(), Key, 0);
-	
+	PathHash    = MStringHash(Path);
+	Key.Value   = (int)PathHash;
+	pNode       = CollectionGetNodeByKey(VfsGetOpenFiles(), Key, 0);
 	if (pNode != NULL) {
 		FileSystemFile_t *NodeFile = (FileSystemFile_t*)pNode->Data;
 
 		// If file is locked, bad luck 
 		// - Otherwise open a handle and increase ref-count
 		if (NodeFile->IsLocked != UUID_INVALID) {
+            ERROR("File is opened in exclusive mode already, access denied.");
 			return FsAccessDenied;
 		}
 		else {
@@ -123,45 +130,44 @@ VfsOpenInternal(
 			// __FILE_FAILONEXIST has been set, then we return
 			// the appropriate code instead of opening a new handle
 			if (Handle->Options & __FILE_FAILONEXIST) {
+                ERROR("File already exists - open mode specifies this to be failure.");
 				return FsPathExists;
 			}
-
-			// Store it
 			File = NodeFile;
 		}
 	}
 
 	// Ok if it didn't exist in cache it's a new lookup
-	if (File != NULL) {
+	if (File == NULL) {
 		// To open a new file we need to find the correct
 		// filesystem identifier and seperate it from it's absolute path
-		Index = MStringFind(Path, ':');
-		Identifier = MStringSubString(Path, 0, Index);
-		SubPath = MStringSubString(Path, Index + 2, -1);
+		Index       = MStringFind(Path, ':');
+		Identifier  = MStringSubString(Path, 0, Index);
+		SubPath     = MStringSubString(Path, Index + 2, -1);
 
 		// Iterate all the filesystems and find the one
 		// that matches
 		_foreach(fNode, VfsGetFileSystems()) {
-			FileSystem_t *Fs = (FileSystem_t*)fNode->Data;
-			if (MStringCompare(Identifier, Fs->Identifier, 1)) {
-				// Variables
-				int Created = 0;
+			FileSystem_t *Filesystem = (FileSystem_t*)fNode->Data;
+			if (MStringCompare(Identifier, Filesystem->Identifier, 1)) {
+				int Created     = 0;
 
 				// We found it, allocate a new file structure and prefill
 				// some information, the module call will fill rest
-				File = (FileSystemFile_t*)malloc(sizeof(FileSystemFile_t));
+				File            = (FileSystemFile_t*)malloc(sizeof(FileSystemFile_t));
 				memset(File, 0, sizeof(FileSystemFile_t));
-				File->System = (uintptr_t*)Fs;
-				File->Path = MStringCreate((void*)MStringRaw(Path), StrUTF8);
-				File->Hash = PathHash;
+				File->System    = (uintptr_t*)Filesystem;
+				File->Path      = MStringCreate((void*)MStringRaw(Path), StrUTF8);
+				File->Hash      = PathHash;
+                File->IsLocked  = UUID_INVALID;
 
 				// Let the module do the rest
-				Code = Fs->Module->OpenFile(&Fs->Descriptor, File, SubPath);
+				Code            = Filesystem->Module->OpenFile(&Filesystem->Descriptor, File, SubPath);
 
 				// Handle the creation flag
 				if (Code == FsPathNotFound && (Handle->Options & __FILE_CREATE)) {
-					Code = Fs->Module->CreateFile(&Fs->Descriptor, File, SubPath, 0);
-					Created = 1;
+					Code        = Filesystem->Module->CreateFile(&Filesystem->Descriptor, File, SubPath, 0);
+					Created     = 1;
 				}
 
 				// Sanitize the open
@@ -173,17 +179,18 @@ VfsOpenInternal(
 					// Also this is ok if file was just created
 					if (Handle->Options & __FILE_FAILONEXIST) {
 						if (Created == 0) {
-							Code = Fs->Module->CloseFile(&Fs->Descriptor, File);
+                            ERROR("File already exists in path. FailOnExists has been specified.");
+							Code    = Filesystem->Module->CloseFile(&Filesystem->Descriptor, File);
 							MStringDestroy(File->Path);
 							free(File);
-							File = NULL;
+							File    = NULL;
 							break;
 						}
 					}
 
 					// Take care of truncation flag
 					if (Handle->Options & __FILE_TRUNCATE) {
-						Code = Fs->Module->ChangeFileSize(&Fs->Descriptor, File, 0);
+						Code = Filesystem->Module->ChangeFileSize(&Filesystem->Descriptor, File, 0);
 					}
 
 					// Append file handle
@@ -191,6 +198,7 @@ VfsOpenInternal(
 					File->References = 1;
 				}
 				else {
+                    ERROR("File opening/creation failed with code: %i", Code);
 					MStringDestroy(File->Path);
 					free(File);
 					File = NULL;
@@ -215,8 +223,6 @@ VfsOpenInternal(
 			File->References++;
 		}
 	}
-	
-	// Return the result
 	return Code;
 }
 
@@ -226,70 +232,62 @@ VfsOpenInternal(
  * top of this file */
 FileSystemCode_t
 OpenFile(
-	_In_ UUId_t Requester,
-	_In_ __CONST char *Path, 
-	_In_ Flags_t Options, 
-	_In_ Flags_t Access,
-	_Out_ UUId_t *Handle)
+	_In_  UUId_t        Requester,
+	_In_  __CONST char* Path, 
+	_In_  Flags_t       Options, 
+	_In_  Flags_t       Access,
+	_Out_ UUId_t*       Handle)
 {
-	/* Variables */
-	FileSystemFileHandle_t *hFile = NULL;
-	FileSystemCode_t Code = FsOk;
-	MString_t *mPath = NULL;
+	// Variables
+	FileSystemFileHandle_t *hFile   = NULL;
+	FileSystemCode_t Code           = FsOk;
+	MString_t *mPath                = NULL;
+	int i                           = 0;
 	DataKey_t Key;
-	int i = 0;
 
-	/* Sanitize parameters */
+    // Debug
+    TRACE("OpenFile(Path %s, Options 0x%x, Access 0x%x)", 
+        Path, Options, Access);
+
+	// Sanitize parameters
 	if (Path == NULL) {
 		return FsInvalidParameters;
 	}
 
-	/* Allocate a new file-handle instance as we'll need it */
-	hFile = (FileSystemFileHandle_t*)malloc(sizeof(FileSystemFileHandle_t));
+	// Allocate a new file-handle instance as we'll need it
+	hFile           = (FileSystemFileHandle_t*)malloc(sizeof(FileSystemFileHandle_t));
 	memset((void*)hFile, 0, sizeof(FileSystemFileHandle_t));
+	hFile->Owner    = Requester;
+	hFile->Access   = Access;
+	hFile->Options  = Options;
 
-	/* Initialize to default values */
-	hFile->Owner = Requester;
-	hFile->Access = Access;
-	hFile->Options = Options;
-
-	/* If path is not absolute or special, we 
-	 * must try all 'relative' possble paths... */
-	if (strchr(Path, ':') == NULL
-		&& strchr(Path, '%') == NULL) 
-	{
-		/* Now we loop through all possible locations
-		 * of our hardcoded :( environment paths */
-		for (i = 0; i < (int)PathEnvironmentCount; i++)
-		{
-			/* Which locations do we allow? */
+    // If path is not absolute or special, we 
+    // must try all 'relative' possble paths...
+	if (strchr(Path, ':') == NULL && strchr(Path, '%') == NULL) {
+		for (i = 0; i < (int)PathEnvironmentCount; i++) {
 			if (i != (int)PathCurrentWorkingDirectory
 				&& i != (int)PathSystemDirectory
-				&& i != (int)PathCommonBin) {
+				&& i != (int)PathCommonBin) { // Include only these directories in default path
 				continue;
 			}	
 
-			/* Canonicalize Path */
-			mPath = PathCanonicalize((EnvironmentPath_t)i, Path);
-
-			/* Sanitize that the path is valid */
+			// Canonicalize the path and test it
+			mPath       = PathCanonicalize((EnvironmentPath_t)i, Path);
 			if (mPath == NULL) {
-				Code = FsPathNotFound;
+				Code    = FsPathNotFound;
 				continue;
 			}
 			else {
-				Code = VfsOpenInternal(hFile, mPath);
+				Code    = VfsOpenInternal(hFile, mPath);
 			}
-			
-			/* Cleanup path before continuing */
 			MStringDestroy(mPath);
 
-			/* Sanitize the status in which we tried to
-			 * open the current path */
+			// Sanitize the status in which we tried to
+			// open the current path
 			if ((Code == FsPathNotFound
 				|| Code == FsPathIsNotDirectory)
 				&& i < ((int)PathEnvironmentCount - 1)) {
-				Code = FsPathNotFound;
+				Code    = FsPathNotFound;
 			}
 			else {
 				break;
@@ -298,37 +296,31 @@ OpenFile(
 	}
 	else
 	{
-		/* Handle it like a normal path 
-		 * since we gave an absolute - and work from current
-		 * working directory */
-		mPath = PathCanonicalize(PathCurrentWorkingDirectory, Path);
-
-		/* Sanitize that the path is valid */
+		// Handle it like a normal path 
+		// since we gave an absolute - and work from current
+		// working directory
+		mPath       = PathCanonicalize(PathCurrentWorkingDirectory, Path);
 		if (mPath == NULL) {
-			Code = FsPathNotFound;
+			Code    = FsPathNotFound;
 		}
 		else {
-			Code = VfsOpenInternal(hFile, mPath);
+			Code    = VfsOpenInternal(hFile, mPath);
 		}
-
-		/* Cleanup path */
 		MStringDestroy(mPath);
 	}
 
-	/* Sanitize code */
+	// Sanitize code
 	if (Code != FsOk) {
-		*Handle = UUID_INVALID;
+        TRACE("Error opening file, exited with code: %i", Code);
+		*Handle     = UUID_INVALID;
 		free(hFile);
 	}
 	else {
-		*Handle = hFile->Id 
-			= VfsIdentifierFileGet();
+		*Handle = hFile->Id = VfsIdentifierFileGet();
 		Key.Value = (int)hFile->Id;
 		CollectionAppend(VfsGetOpenHandles(),
 			CollectionCreateNode(Key, hFile));
 	}
-
-	/* Done - return code */
 	return Code;
 }
 
@@ -466,59 +458,68 @@ Cleanup:
  * from the current position in the handle filehandle */
 FileSystemCode_t
 ReadFile(
-	_In_ UUId_t Requester,
-	_In_ UUId_t Handle,
-	_Out_ BufferObject_t *BufferObject,
-	_Out_ size_t *BytesIndex,
-	_Out_ size_t *BytesRead)
+	_In_  UUId_t            Requester,
+	_In_  UUId_t            Handle,
+	_Out_ BufferObject_t*   BufferObject,
+	_Out_ size_t*           BytesIndex,
+	_Out_ size_t*           BytesRead)
 {
-	/* Variables */
+	// Variables
 	FileSystemFileHandle_t *fHandle = NULL;
-	FileSystemCode_t Code = FsOk;
-	CollectionItem_t *hNode = NULL;
-	FileSystem_t *Fs = NULL;
+	FileSystemCode_t Code           = FsOk;
+	CollectionItem_t *hNode         = NULL;
+	FileSystem_t *Fs                = NULL;
 	DataKey_t Key;
 
-	/* Sanitize request parameters first
-	* Is handle valid? */
-	Key.Value = (int)Handle;
-	hNode = CollectionGetNodeByKey(VfsGetOpenHandles(), Key, 0);
+    // Debug
+    TRACE("ReadFile(Handle %u, Size %u)", 
+        Handle, GetBufferSize(BufferObject));
 
-	/* Case 1 - Not found / Invalid parameters */
+	// Sanitize request parameters first
+	// Is handle valid?
+	Key.Value   = (int)Handle;
+	hNode       = CollectionGetNodeByKey(VfsGetOpenHandles(), Key, 0);
 	if (hNode == NULL
 		|| BufferObject == NULL
 		|| GetBufferSize(BufferObject) == 0) {
+        ERROR("Either handle was not available or bufferobject is invalid.");
 		return FsInvalidParameters;
 	}
 
-	/* Instantiate pointer for next check */
+	// Instantiate pointer for next check(s)
 	fHandle = (FileSystemFileHandle_t*)hNode->Data;
-
-	/* Case 2 - Invalid Owner / Missing Access */
-	if (fHandle->Owner != Requester
-		|| !(fHandle->Access & __FILE_READ_ACCESS)
-		|| (fHandle->File->IsLocked != UUID_INVALID
-			&& fHandle->File->IsLocked != Requester)) {
+    if (fHandle->Owner != Requester) {
+        ERROR("Owner of handle was not the requester. Access Denied. (%u != %u)",
+            fHandle->Owner, Requester);
+        return FsAccessDenied;
+    }
+    if (!(fHandle->Access & __FILE_READ_ACCESS)) {
+        ERROR("File was not opened with read-permssions. Access Denied.");
+		return FsAccessDenied;
+    }
+	if (fHandle->File->IsLocked != UUID_INVALID
+        && fHandle->File->IsLocked != Requester) {
+        ERROR("File is locked and lock is not held by requester. Access Denied.");
 		return FsAccessDenied;
 	}
 
-	/* Case 3 - End of File */
+	// Case 3 - End of File
 	if (fHandle->Position == fHandle->File->Size) {
-		*BytesRead = 0;
+		*BytesRead  = 0;
 		return FsOk;
 	}
 
-	/* Sanity -> Flush if we wrote and now read */
+	// Sanity -> Flush if we wrote and now read
 	if (fHandle->LastOperation != __FILE_OPERATION_READ) {
-		Code = FlushFile(Requester, Handle);
+		Code        = FlushFile(Requester, Handle);
 	}
 
-	/* Instantiate the pointer and read */
-	Fs = (FileSystem_t*)fHandle->File->System;
-	Code = Fs->Module->ReadFile(&Fs->Descriptor, fHandle, 
+	// Instantiate the pointer and read
+	Fs      = (FileSystem_t*)fHandle->File->System;
+	Code    = Fs->Module->ReadFile(&Fs->Descriptor, fHandle, 
 		BufferObject, BytesIndex, BytesRead);
 
-	/* Update stats for the handle */
+	// Update stats for the handle
 	fHandle->LastOperation = __FILE_OPERATION_READ;
 	fHandle->Position += *BytesRead;
 	return Code;
@@ -907,36 +908,37 @@ SetFileOptions(
  * value is optional and should only be checked for large files */
 OsStatus_t
 GetFileSize(
-	_In_ UUId_t Requester,
-	_In_ UUId_t Handle,
-	_Out_ QueryFileValuePackage_t *Result)
+	_In_  UUId_t                    Requester,
+	_In_  UUId_t                    Handle,
+	_Out_ QueryFileValuePackage_t*  Result)
 {
-	/* Variables */
+	// Variables
 	FileSystemFileHandle_t *fHandle = NULL;
-	CollectionItem_t *hNode = NULL;
+	CollectionItem_t *hNode         = NULL;
 	DataKey_t Key;
 
-	/* Sanitize request parameters first
-	 * Is handle valid? */
+    // Debug
+    TRACE("GetFileSize(Handle %u)", Handle);
+
+	// Sanitize request parameters first
+	// Is handle valid?
 	Key.Value = (int)Handle;
 	hNode = CollectionGetNodeByKey(VfsGetOpenHandles(), Key, 0);
-
-	/* Case 1 - Not found */
 	if (hNode == NULL) {
+        ERROR("Handle did not exist in list of avialable handles");
 		Result->Code = FsInvalidParameters;
 		return OsError;
 	}
 
-	/* Instantiate pointer for next check */
+	// Instantiate pointer for next check
 	fHandle = (FileSystemFileHandle_t*)hNode->Data;
-
-	/* Case 2 - Invalid Owner */
 	if (fHandle->Owner != Requester) {
+        ERROR("Handle is not owned by the one requesting information. Access Denied.");
 		Result->Code = FsAccessDenied;
 		return OsError;
 	}
 
-	/* Fill in information */
+	// Fill in information
 	Result->Value.Full = fHandle->File->Size;
 	Result->Code = FsOk;
 	return OsSuccess;

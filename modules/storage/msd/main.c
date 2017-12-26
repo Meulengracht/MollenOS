@@ -163,9 +163,9 @@ OsStatus_t
 OnQuery(
     _In_ MContractType_t QueryType, 
     _In_ int QueryFunction, 
-    _In_Opt_ RPCArgument_t *Arg0,
-    _In_Opt_ RPCArgument_t *Arg1,
-    _In_Opt_ RPCArgument_t *Arg2, 
+    _In_Opt_ MRemoteCallArgument_t *Arg0,
+    _In_Opt_ MRemoteCallArgument_t *Arg1,
+    _In_Opt_ MRemoteCallArgument_t *Arg2, 
     _In_ UUId_t Queryee, 
     _In_ int ResponsePort)
 {

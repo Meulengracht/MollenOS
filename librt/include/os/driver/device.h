@@ -156,8 +156,8 @@ RegisterDevice(
     }
 
 	// Initialize RPC
-	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION, 
-        PIPE_RPCOUT, __DEVICEMANAGER_REGISTERDEVICE);
+	RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
+        __DEVICEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __DEVICEMANAGER_REGISTERDEVICE);
         
     // Arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)&Parent, sizeof(UUId_t));
@@ -168,7 +168,7 @@ RegisterDevice(
     RPCSetResult(&Request, (__CONST void*)&Result, sizeof(UUId_t));
 	
 	// Execute RPC
-	if (RPCExecute(&Request, __DEVICEMANAGER_TARGET) != OsSuccess) {
+	if (RPCExecute(&Request) != OsSuccess) {
         return UUID_INVALID;
     }
     else {
@@ -199,11 +199,11 @@ UnregisterDevice(
     OsStatus_t Result = OsSuccess;
 
 	// Initialize RPC
-	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION, 
-        PIPE_RPCOUT, __DEVICEMANAGER_UNREGISTERDEVICE);
+	RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
+        __DEVICEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __DEVICEMANAGER_UNREGISTERDEVICE);
 	RPCSetArgument(&Request, 0, (__CONST void*)&DeviceId, sizeof(UUId_t));
     RPCSetResult(&Request, (__CONST void*)&Result, sizeof(OsStatus_t));
-	if (RPCExecute(&Request, __DEVICEMANAGER_TARGET) != OsSuccess) {
+	if (RPCExecute(&Request) != OsSuccess) {
         return OsError;
     }
     return Result;
@@ -234,15 +234,15 @@ IoctlDevice(
 	OsStatus_t Result = OsSuccess;
 
 	// Initialize RPC
-	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION, 
-		PIPE_RPCOUT, __DEVICEMANAGER_IOCTLDEVICE);
+	RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
+        __DEVICEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __DEVICEMANAGER_IOCTLDEVICE);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (__CONST void*)&Command, sizeof(Flags_t));
 	RPCSetArgument(&Request, 2, (__CONST void*)&Flags, sizeof(Flags_t));
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(OsStatus_t));
 	
 	// Execute RPC
-	RPCExecute(&Request, __DEVICEMANAGER_TARGET);
+	RPCExecute(&Request);
 	return Result;
 }
 #endif
@@ -284,8 +284,8 @@ IoctlDeviceEx(
 	}
 
 	// Initialize RPC
-	RPCInitialize(&Request, __DEVICEMANAGER_INTERFACE_VERSION, 
-		PIPE_RPCOUT, __DEVICEMANAGER_IOCTLDEVICE);
+	RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
+        __DEVICEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __DEVICEMANAGER_IOCTLDEVICE);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (__CONST void*)&Select, sizeof(Flags_t));
 	RPCSetArgument(&Request, 2, (__CONST void*)&Register, sizeof(Flags_t));
@@ -294,7 +294,7 @@ IoctlDeviceEx(
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(Flags_t));
 	
 	// Execute RPC
-	RPCExecute(&Request, __DEVICEMANAGER_TARGET);
+	RPCExecute(&Request);
 
 	// Handle return
 	if (Direction == 0 && Value != NULL) {

@@ -102,8 +102,8 @@ CreateWindow(
 	MRemoteCall_t Request;
 
 	// Initialize rpc request
-	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION, 
-		PIPE_RPCOUT, __WINDOWMANAGER_CREATE);
+	RPCInitialize(&Request, __WINDOWMANAGER_TARGET, 
+        __WINDOWMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __WINDOWMANAGER_CREATE);
 
 	// Setup rpc arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)Params, 
@@ -115,7 +115,7 @@ CreateWindow(
 	RPCSetResult(&Request, (__CONST void*)Handle, sizeof(Handle_t));
 	
 	// Execute the request
-	return RPCExecute(&Request, __WINDOWMANAGER_TARGET);
+	return RPCExecute(&Request);
 }
 #endif
 
@@ -135,15 +135,15 @@ DestroyWindow(
 	MRemoteCall_t Request;
 
 	// Initialize rpc request
-	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION,
-		PIPE_RPCOUT, __WINDOWMANAGER_DESTROY);
+	RPCInitialize(&Request, __WINDOWMANAGER_TARGET, 
+        __WINDOWMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __WINDOWMANAGER_DESTROY);
 
 	// Setup rpc arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, 
 		sizeof(Handle_t));
 	
 	// Fire off asynchronous event
-	return RPCEvent(&Request, __WINDOWMANAGER_TARGET);
+	return RPCEvent(&Request);
 }
 #endif
 
@@ -164,8 +164,8 @@ QueryWindow(
 	MRemoteCall_t Request;
 
 	// Initialize rpc request
-	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION,
-		PIPE_RPCOUT, __WINDOWMANAGER_QUERY);
+	RPCInitialize(&Request, __WINDOWMANAGER_TARGET, 
+        __WINDOWMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __WINDOWMANAGER_QUERY);
 
 	// Setup rpc arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, 
@@ -176,7 +176,7 @@ QueryWindow(
 		sizeof(WindowDescriptor_t));
 
 	// Execute the request
-	return RPCExecute(&Request, __WINDOWMANAGER_TARGET);
+	return RPCExecute(&Request);
 }
 #endif
 
@@ -198,8 +198,8 @@ InvalidateWindow(
 	MRemoteCall_t Request;
 
 	// Initialize rpc request
-	RPCInitialize(&Request, __WINDOWMANAGER_INTERFACE_VERSION,
-		PIPE_RPCOUT, __WINDOWMANAGER_INVALIDATE);
+	RPCInitialize(&Request, __WINDOWMANAGER_TARGET, 
+        __WINDOWMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __WINDOWMANAGER_INVALIDATE);
 	
 	// Setup rpc arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, 
@@ -208,7 +208,7 @@ InvalidateWindow(
 		sizeof(Rect_t));
 	
 	// Fire off asynchronous event
-	return RPCEvent(&Request, __WINDOWMANAGER_TARGET);
+	return RPCEvent(&Request);
 }
 #endif
 

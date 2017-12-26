@@ -204,8 +204,7 @@ AcpiDeriveInterrupt(
 __EXTERN
 OsStatus_t
 ScRpcExecute(
-	_In_ MRemoteCall_t *Rpc, 
-	_In_ UUId_t Target,
+	_In_ MRemoteCall_t *Rpc,
 	_In_ int Async);
 
 SERVICEAPI
@@ -221,7 +220,7 @@ __KernelInterruptDriver(
     size_t Zero = 0;
 
 	// Initialze RPC
-	RPCInitialize(&Request, 1, PIPE_RPCOUT, __DRIVER_INTERRUPT);
+	RPCInitialize(&Request, Ash, 1, PIPE_RPCOUT, __DRIVER_INTERRUPT);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Id, sizeof(UUId_t));
     RPCSetArgument(&Request, 1, (__CONST void*)&Data, sizeof(void*));
     RPCSetArgument(&Request, 2, (__CONST void*)&Zero, sizeof(size_t));
@@ -229,7 +228,7 @@ __KernelInterruptDriver(
     RPCSetArgument(&Request, 4, (__CONST void*)&Zero, sizeof(size_t));
 
 	// Send
-	return ScRpcExecute(&Request, Ash, 1);
+	return ScRpcExecute(&Request, 1);
 }
 
 /* __KernelTimeoutDriver
@@ -248,7 +247,7 @@ __KernelTimeoutDriver(
     size_t Zero = 0;
 
 	// Initialze RPC
-	RPCInitialize(&Request, 1, PIPE_RPCOUT, __DRIVER_TIMEOUT);
+	RPCInitialize(&Request, Ash, 1, PIPE_RPCOUT, __DRIVER_TIMEOUT);
 	RPCSetArgument(&Request, 0, (__CONST void*)&TimerId, sizeof(UUId_t));
     RPCSetArgument(&Request, 1, (__CONST void*)&TimerData, sizeof(void*));
     RPCSetArgument(&Request, 2, (__CONST void*)&Zero, sizeof(size_t));
@@ -256,7 +255,7 @@ __KernelTimeoutDriver(
     RPCSetArgument(&Request, 4, (__CONST void*)&Zero, sizeof(size_t));
 
 	// Send
-	return ScRpcExecute(&Request, Ash, 1);
+	return ScRpcExecute(&Request, 1);
 }
 
 #endif //!_MCORE_INTERRUPTS_H_

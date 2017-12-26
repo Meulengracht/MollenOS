@@ -125,7 +125,7 @@ void __CrtModuleEntry(void)
                     OnQuery((MContractType_t)Message.Arguments[0].Data.Value, 
                         (int)Message.Arguments[1].Data.Value, 
                         &Message.Arguments[2], &Message.Arguments[3], 
-                        &Message.Arguments[4], Message.Sender, Message.ResponsePort);
+                        &Message.Arguments[4], Message.From.Process, Message.From.Port);
                 } break;
                 case __DRIVER_UNLOAD: {
                     IsRunning = 0;

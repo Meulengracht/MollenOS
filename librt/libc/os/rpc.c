@@ -35,9 +35,8 @@
 __EXTERN
 OsStatus_t 
 ScRpcExecute(
-	_In_ MRemoteCall_t *Rpc, 
-	_In_ UUId_t Target, 
-	_In_ int Async);
+	_In_ MRemoteCall_t *RemoteCall,
+	_In_ int            Asynchronous);
 
 /* RPCExecute/RPCEvent
  * To get a reply from the RPC request, the user
@@ -46,11 +45,10 @@ ScRpcExecute(
  * and not block/wait for reply */
 OsStatus_t
 RPCExecute(
-	_In_ MRemoteCall_t *Rpc,
-	_In_ UUId_t Target)
+	_In_ MRemoteCall_t *RemoteCall)
 {
-	Rpc->ResponsePort = -1;
-	return ScRpcExecute(Rpc, Target, 0);
+	RemoteCall->From.Port = -1;
+	return ScRpcExecute(RemoteCall, 0);
 }
 
 #else
@@ -62,9 +60,8 @@ RPCExecute(
  * and not block/wait for reply */
 OsStatus_t 
 RPCExecute(
-	_In_ MRemoteCall_t *Rpc, 
-	_In_ UUId_t Target) {
-    return Syscall_RemoteCall(Rpc, Target, 0);
+	_In_ MRemoteCall_t *RemoteCall) {
+    return Syscall_RemoteCall(RemoteCall, 0);
 }
 
 /* RPCExecute/RPCEvent
@@ -74,9 +71,8 @@ RPCExecute(
  * and not block/wait for reply */
 OsStatus_t 
 RPCEvent(
-	_In_ MRemoteCall_t *Rpc, 
-	_In_ UUId_t Target) {
-    return Syscall_RemoteCall(Rpc, Target, 1);
+	_In_ MRemoteCall_t *RemoteCall) {
+    return Syscall_RemoteCall(RemoteCall, 1);
 }
 
 /* RPCListen 
@@ -96,12 +92,10 @@ RPCListen(
  * a result when there is going to be one */ 
 OsStatus_t 
 RPCRespond(
-	_In_ MRemoteCall_t *Rpc,
-	_In_ __CONST void *Buffer, 
-	_In_ size_t Length)
-{
-	// Write the result back to the caller
-	return PipeSend(Rpc->Sender, Rpc->ResponsePort, (void*)Buffer, Length);
+	_In_ MRemoteCall_t *RemoteCall,
+	_In_ __CONST void  *Buffer, 
+	_In_ size_t         Length) {
+	return Syscall_RemoteCallRespond(RemoteCall, (void*)Buffer, Length);
 }
 
 /* IPC - Sleep

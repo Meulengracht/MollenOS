@@ -114,7 +114,7 @@ PipeProduceAcquire(
     AcquiredWorker = atomic_fetch_add(&Pipe->WriteWorker, 1);
     AcquiredWorker &= PIPE_WORKERS_MASK;
     while (atomic_exchange(&Pipe->Workers[AcquiredWorker].Allocated, 1) != 0) {
-        SchedulerThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredWorker], 0);
+        SchedulerThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredWorker], 1000);  // @todo 
     }
 
     // Acquire space in the buffer
@@ -194,7 +194,7 @@ PipeConsumeAcquire(
     AcquiredReader = atomic_fetch_add(&Pipe->ReadWorker, 1);
     AcquiredReader &= PIPE_WORKERS_MASK;
     while (atomic_load(&Pipe->Workers[AcquiredReader].Registered) != 1) {
-        SchedulerThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredReader], 0);
+        SchedulerThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredReader], 1000); // @todo
     }
     
     // Update outs

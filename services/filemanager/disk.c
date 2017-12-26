@@ -49,9 +49,9 @@ OsStatus_t VfsResolveQueueEvent(void)
 	MRemoteCall_t Rpc;
 
 	/* Initialize the request */
-	RPCInitialize(&Rpc, __FILEMANAGER_INTERFACE_VERSION,
-		PIPE_RPCOUT, __FILEMANAGER_RESOLVEQUEUE);
-	return RPCEvent(&Rpc, __FILEMANAGER_TARGET);
+	RPCInitialize(&Rpc, __FILEMANAGER_TARGET, 
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_RESOLVEQUEUE);
+	return RPCEvent(&Rpc);
 }
 
 /* VfsResolveQueueExecute

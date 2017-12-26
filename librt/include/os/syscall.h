@@ -99,9 +99,10 @@ _CODE_END
 #define Syscall_PipeWrite(ProcessId, Port, Buffer, Length) (OsStatus_t)syscall4(44, SCPARAM(ProcessId), SCPARAM(Port), SCPARAM(Buffer), SCPARAM(Length))
 #define Syscall_IpcWait(Timeout) (OsStatus_t)syscall1(45, SCPARAM(Timeout))
 #define Syscall_IpcWake(ProcessId) (OsStatus_t)syscall1(46, SCPARAM(ProcessId))
-#define Syscall_RemoteCall(RemoteCall, ProcessId, Asynchronous) (OsStatus_t)syscall3(47, SCPARAM(RemoteCall), SCPARAM(ProcessId), SCPARAM(Asynchronous))
+#define Syscall_RemoteCall(RemoteCall, Asynchronous) (OsStatus_t)syscall2(47, SCPARAM(RemoteCall), SCPARAM(Asynchronous))
 #define Syscall_RpcGetResponse(RemoteCall) (OsStatus_t)syscall1(48, SCPARAM(RemoteCall))
 #define Syscall_RemoteCallWait(Port, RemoteCall, ArgumentBuffer) (OsStatus_t)syscall3(49, SCPARAM(Port), SCPARAM(RemoteCall), SCPARAM(ArgumentBuffer))
+#define Syscall_RemoteCallRespond(RemoteCall, Buffer, Length) (OsStatus_t)syscall3(50, SCPARAM(RemoteCall), SCPARAM(Buffer), SCPARAM(Length))
 
 /* Base system calls
  * - Base related system call definitions */
