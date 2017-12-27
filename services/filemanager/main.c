@@ -239,11 +239,10 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		/* Closes the given file-handle, but does not necessarily
 		 * close the link to the file. */
 		case __FILEMANAGER_CLOSEFILE: {
-			FileSystemCode_t Code = CloseFile(Message->From.Process,
-				(UUId_t)Message->Arguments[0].Data.Value);
+			FileSystemCode_t Code = FsOk;
 			TRACE("Filemanager.OnEvent CloseFile");
-			Result = RPCRespond(Message,
-				(__CONST void*)&Code, sizeof(FileSystemCode_t));
+            Code    = CloseFile(Message->From.Process, (UUId_t)Message->Arguments[0].Data.Value);
+			Result  = RPCRespond(Message, (__CONST void*)&Code, sizeof(FileSystemCode_t));
 		} break;
 
 		/* Deletes the given file associated with the filehandle
@@ -370,6 +369,19 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 				sizeof(QueryFileValuePackage_t));
 		} break;
 
+        // Retrieve the full canonical path of the given file-handle.
+        case __FILEMANAGER_GETPATH: {
+            MString_t *FilePath = NULL;
+			TRACE("Filemanager.OnEvent GetPath");
+            if (GetFilePath(Message->From.Process,
+				(UUId_t)Message->Arguments[0].Data.Value, &FilePath) != OsSuccess) {
+                Result = RPCRespond(Message, FilePath, sizeof(MString_t*));
+            }
+            else {
+                Result = RPCRespond(Message, MStringRaw(FilePath), MStringSize(FilePath));
+            }
+        } break;
+
 		/* Resolves a special environment path for
 		 * the given the process and it returns it
 		 * as a buffer in the pipe */
@@ -378,8 +390,8 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 				(EnvironmentPath_t)Message->Arguments[0].Data.Value);
 			TRACE("Filemanager.OnEvent ResolvePath");
 			if (Resolved != NULL) {
-				Result = RPCRespond(Message, MStringRaw(Resolved), 
-					strlen(MStringRaw(Resolved)));
+				Result = RPCRespond(Message, MStringRaw(Resolved), MStringSize(Resolved));
+                free(Resolved);
 			}
 			else {
 				Result = RPCRespond(Message, NULL, sizeof(void*));
@@ -394,8 +406,8 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 				Message->Arguments[1].Data.Buffer);
 			TRACE("Filemanager.OnEvent CanonicalizePath");
 			if (Resolved != NULL) {
-				Result = RPCRespond(Message, MStringRaw(Resolved),
-					strlen(MStringRaw(Resolved)));
+				Result = RPCRespond(Message, MStringRaw(Resolved), MStringSize(Resolved));
+                free(Resolved);
 			}
 			else {
 				Result = RPCRespond(Message, NULL, sizeof(void*));

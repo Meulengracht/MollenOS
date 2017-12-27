@@ -600,28 +600,40 @@ PeResolveLibrary(
             }
         }
         else {
-            // Load the file from hard storage
-            FileSystemCode_t Code = 
-                OpenFile(MStringRaw(LibraryName),
-                __FILE_MUSTEXIST, __FILE_READ_ACCESS, &fHandle);
-            
-            // Sanitize the open file result
-            if (Code != FsOk) {
-                ERROR("Failed to load library %s (Code %i)",
-                    MStringRaw(LibraryName), Code);
+            // Variables
+            FileSystemCode_t FsCode = FsOk;
+            OsStatus_t FsResult     = OsSuccess;
+
+            // Open the file as read-only
+            FsCode = OpenFile(MStringRaw(LibraryName), __FILE_MUSTEXIST, __FILE_READ_ACCESS, &fHandle);
+            if (FsCode != FsOk) {
+                ERROR("Invalid path given: %s", MStringRaw(LibraryName));
                 for (;;);
             }
 
-            /* Allocate a new buffer */
-            GetFileSize(fHandle, &fSize, NULL);
-            BufferObject = CreateBuffer(fSize);
-            fBuffer = (uint8_t*)kmalloc(fSize);
+            // Allocate buffer large enough to read entire file
+            if (GetFileSize(fHandle, &fSize, NULL) != OsSuccess) {
+                ERROR("Failed to retrieve the file size");
+                for (;;);
+            }
+            BufferObject    = CreateBuffer(fSize);
+            fBuffer         = (uint8_t*)kmalloc(fSize);
 
-            /* Read */
-            ReadFile(fHandle, BufferObject, &fIndex, &fRead);
-            ReadBuffer(BufferObject, (__CONST void*)fBuffer, fRead, NULL);
+            // Sanitize allocations
+            if (BufferObject == NULL || fBuffer == NULL) {
+                ERROR("Failed to allocate resources for file-loading");
+                for(;;);
+            }
 
-            /* Cleanup */
+            // Read file and copy path
+            FsCode          = ReadFile(fHandle, BufferObject, &fIndex, &fRead);
+            if (FsCode != FsOk) {
+                ERROR("Failed to read file, code %i", FsCode);
+                for(;;);
+            }
+            ReadBuffer(BufferObject, (const void*)fBuffer, fRead, NULL);
+
+            // Cleanup
             DestroyBuffer(BufferObject);
             CloseFile(fHandle);
         }

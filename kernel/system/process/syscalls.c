@@ -212,7 +212,7 @@ OsStatus_t ScProcessExit(int ExitCode)
     }
 
     /* Log it and save return code */
-    TRACE("Process %s terminated with code %i", 
+    WARNING("Process %s terminated with code %i", 
         MStringRaw(Process->Name), ExitCode);
     Process->Code = ExitCode;
 

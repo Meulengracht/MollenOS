@@ -35,6 +35,7 @@
 #include <os/driver/service.h>
 #include <os/driver/buffer.h>
 #include <os/ipc/ipc.h>
+#include <ds/mstring.h>
 
 /* This is the options structure used exclusively
  * for multi-params readback from the ipc operations */
@@ -220,7 +221,7 @@ OpenFile(
         __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_OPENFILE);
 
 	// Set arguments
-	RPCSetArgument(&Request, 0, (__CONST void*)Path, strlen(Path));
+	RPCSetArgument(&Request, 0, (__CONST void*)Path, strlen(Path) + 1);
 	RPCSetArgument(&Request, 1, (__CONST void*)&Options, sizeof(Flags_t));
 	RPCSetArgument(&Request, 2, (__CONST void*)&Access, sizeof(Flags_t));
 
@@ -309,7 +310,7 @@ DeleteFile(
         __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_DELETEFILE);
 
 	// Set request arguments
-	RPCSetArgument(&Request, 0, (__CONST void*)Path, strlen(Path));
+	RPCSetArgument(&Request, 0, (__CONST void*)Path, strlen(Path) + 1);
 
 	// Set result buffer
 	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(FileSystemCode_t));
@@ -553,8 +554,8 @@ MoveFile(
         __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_MOVEFILE);
 
 	// Set the request arguments
-	RPCSetArgument(&Request, 0, (__CONST void*)Source, strlen(Source));
-	RPCSetArgument(&Request, 1, (__CONST void*)Destination, strlen(Destination));
+	RPCSetArgument(&Request, 0, (__CONST void*)Source, strlen(Source) + 1);
+	RPCSetArgument(&Request, 1, (__CONST void*)Destination, strlen(Destination) + 1);
 	RPCSetArgument(&Request, 2, (__CONST void*)&Copy, sizeof(int));
 	
 	// Set the request result buffer
@@ -774,16 +775,16 @@ GetFileSize(
 #endif
 
 /* GetFilePath 
- * Queries the path of a file that the given handle
+ * Queries the full path of a file that the given handle
  * has, it returns it as a UTF8 string with max length of _MAXPATH */
 #ifdef __FILEMANAGER_IMPL
 __EXTERN
 OsStatus_t
 SERVICEABI
 GetFilePath(
-	_In_ UUId_t Requester,
-	_In_ UUId_t Handle,
-	_Out_ __CONST char *Path);
+	_In_  UUId_t        Requester,
+	_In_  UUId_t        Handle,
+	_Out_ MString_t**   Path);
 #else
 SERVICEAPI
 OsStatus_t
@@ -803,11 +804,7 @@ GetFilePath(
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
         __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_GETPATH);
-
-	// Set the request arguments
 	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
-
-	// Set the request result buffer
 	RPCSetResult(&Request, (__CONST void*)&Buffer[0], _MAXPATH);
 
 	// Execute the request
@@ -817,8 +814,6 @@ GetFilePath(
 
 	// Copy the result into the given buffer
 	memcpy(Path, &Buffer[0], MIN(MaxLength, strlen(&Buffer[0])));
-
-	// Done
 	return OsSuccess;
 }
 #endif

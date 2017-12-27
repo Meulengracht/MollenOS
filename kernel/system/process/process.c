@@ -92,7 +92,6 @@ PhoenixCreateProcess(
 
     // Debug
     TRACE("Arguments: %s", ArgumentBuffer);
-    BOCHSBREAK
 
     // Copy data over
     memcpy(&Process->StartupInformation, 

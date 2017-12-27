@@ -57,6 +57,7 @@ typedef struct _MCorePipe {
     _Atomic(unsigned)           ReadWorker;
     struct {
         unsigned                IndexData;
+        unsigned                LengthData;
         _Atomic(int)            Allocated;
         _Atomic(int)            Registered;
     } Workers[PIPE_WORKERS];

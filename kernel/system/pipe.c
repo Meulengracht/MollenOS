@@ -76,6 +76,7 @@ PipeConstruct(
     Pipe->DataRead          = ATOMIC_VAR_INIT(0);
     for (i = 0; i < PIPE_WORKERS; i++) {
         Pipe->Workers[i].IndexData  = 0;
+        Pipe->Workers[i].LengthData = 0;
         Pipe->Workers[i].Allocated  = ATOMIC_VAR_INIT(0);
         Pipe->Workers[i].Registered = ATOMIC_VAR_INIT(0);
     }
@@ -118,11 +119,12 @@ PipeProduceAcquire(
     }
 
     // Acquire space in the buffer
-    Pipe->Workers[AcquiredWorker].IndexData = atomic_fetch_add(&Pipe->DataWrite, Length);
+    Pipe->Workers[AcquiredWorker].IndexData     = atomic_fetch_add(&Pipe->DataWrite, Length);
+    Pipe->Workers[AcquiredWorker].LengthData    = Length;
 
     // Update outs
     *Worker = AcquiredWorker;
-    *Index = Pipe->Workers[AcquiredWorker].IndexData;
+    *Index  = Pipe->Workers[AcquiredWorker].IndexData;
     return OsSuccess;
 }
 
@@ -217,7 +219,7 @@ PipeConsume(
     // Debug
     TRACE("PipeConsume(Length %u, Worker %u)", Length, Worker);
 
-    while (DataConsumed < Length) {
+    while (DataConsumed < Length && DataConsumed < Pipe->Workers[Worker].LengthData) {
         Data[DataConsumed++] = Pipe->Buffer[Pipe->Workers[Worker].IndexData & (Pipe->Length - 1)];
         Pipe->Workers[Worker].IndexData++;
     }

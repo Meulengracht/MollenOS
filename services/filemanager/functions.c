@@ -943,3 +943,41 @@ GetFileSize(
 	Result->Code = FsOk;
 	return OsSuccess;
 }
+
+/* GetFilePath 
+ * Queries the full path of a file that the given handle
+ * has, it returns it as a UTF8 string with max length of _MAXPATH */
+OsStatus_t
+GetFilePath(
+	_In_  UUId_t        Requester,
+	_In_  UUId_t        Handle,
+	_Out_ MString_t**   Path)
+{
+    // Variables
+	FileSystemFileHandle_t *fHandle = NULL;
+	CollectionItem_t *hNode         = NULL;
+	DataKey_t Key;
+
+    // Debug
+    TRACE("GetFilePath(Handle %u)", Handle);
+
+	// Sanitize request parameters first
+	// Is handle valid?
+	Key.Value = (int)Handle;
+	hNode = CollectionGetNodeByKey(VfsGetOpenHandles(), Key, 0);
+	if (hNode == NULL) {
+        ERROR("Handle did not exist in list of avialable handles");
+		return OsError;
+	}
+
+	// Instantiate pointer for next check
+	fHandle = (FileSystemFileHandle_t*)hNode->Data;
+	if (fHandle->Owner != Requester) {
+        ERROR("Handle is not owned by the one requesting information. Access Denied.");
+		return OsError;
+	}
+
+    // Return the 
+    *Path = fHandle->File->Path;
+    return OsSuccess;
+}

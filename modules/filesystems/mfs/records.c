@@ -117,11 +117,11 @@ MfsLocateRecord(
 		}
 
 		// Trace
-		TRACE("Reading bucket %u with length %u", CurrentBucket, Link.Length);
+		TRACE("Reading bucket %u with length %u, link 0x%x", 
+            CurrentBucket, Link.Length, Link.Link);
 		
 		// Start out by loading the bucket buffer with data
-		if (MfsReadSectors(Descriptor, Mfs->TransferBuffer, 
-			MFS_GETSECTOR(Mfs, CurrentBucket), 
+		if (MfsReadSectors(Descriptor, Mfs->TransferBuffer, MFS_GETSECTOR(Mfs, CurrentBucket), 
 			Mfs->SectorsPerBucket * Link.Length) != OsSuccess) {
 			ERROR("Failed to read directory-bucket %u", CurrentBucket);
 			Result = FsDiskError;
@@ -130,8 +130,9 @@ MfsLocateRecord(
 
 		// Iterate the number of records in a bucket
 		// A record spans two sectors
+        // @todo can't handle dynamic sizing. 
 		Record = (FileRecord_t*)GetBufferData(Mfs->TransferBuffer);
-		for (i = 0; i < (Mfs->SectorsPerBucket / 2); i++) {
+		for (i = 0; i < ((Mfs->SectorsPerBucket * Link.Length) / 2); i++) {
 			// Variables
 			MString_t *Filename = NULL;
 

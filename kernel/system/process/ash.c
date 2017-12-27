@@ -143,36 +143,68 @@ PhoenixInitializeAsh(
         }
     }
     else {
+        // Variables
         FileSystemCode_t FsCode = FsOk;
-        if (OpenFile(MStringRaw(Path), 
-            __FILE_MUSTEXIST, __FILE_READ_ACCESS, &fHandle) != FsOk) {
-            ERROR("Invalid path given.");
+        OsStatus_t FsResult     = OsSuccess;
+
+        // Open the file as read-only
+        FsCode = OpenFile(MStringRaw(Path), __FILE_MUSTEXIST, __FILE_READ_ACCESS, &fHandle);
+        if (FsCode != FsOk) {
+            ERROR("Invalid path given: %s", MStringRaw(Path));
             return OsError;
         }
 
         // Allocate buffer large enough to read entire file
-        GetFileSize(fHandle, &fSize, NULL);
+        if (GetFileSize(fHandle, &fSize, NULL) != OsSuccess) {
+            ERROR("Failed to retrieve the file size");
+            FsResult = OsError;
+            goto FileCleanup;
+        }
         BufferObject    = CreateBuffer(fSize);
         fBuffer         = (uint8_t*)kmalloc(fSize);
         fPath           = (char*)kmalloc(_MAXPATH);
+
+        // Sanitize allocations
+        if (BufferObject == NULL || fBuffer == NULL || fPath == NULL) {
+            ERROR("Failed to allocate resources for file-loading");
+            FsResult = OsError;
+            goto FileCleanup;
+        }
+        memset(fPath, 0, _MAXPATH);
 
         // Set that we should free the buffer again
         ShouldFree      = 1;
 
         // Read file and copy path
-        memset(fPath, 0, _MAXPATH);
         FsCode          = ReadFile(fHandle, BufferObject, &fIndex, &fRead);
         if (FsCode != FsOk) {
             ERROR("Failed to read file, code %i", FsCode);
+            FsResult = OsError;
+            goto FileCleanup;
         }
         ReadBuffer(BufferObject, (const void*)fBuffer, fRead, NULL);
-        GetFilePath(fHandle, fPath, _MAXPATH);
+        if (GetFilePath(fHandle, fPath, _MAXPATH) != OsSuccess) {
+            ERROR("Failed to query file handle for full path");
+            FsResult = OsError;
+            goto FileCleanup;
+        }
         Ash->Path       = MStringCreate(fPath, StrUTF8);
 
         // Cleanup
-        DestroyBuffer(BufferObject);
+    FileCleanup:
+        if (BufferObject != NULL) {
+            DestroyBuffer(BufferObject);
+        }
+        if (fPath != NULL) {
+            kfree(fPath);
+        }
         CloseFile(fHandle);
-        kfree(fPath);
+        if (FsResult != OsSuccess) {
+            if (fBuffer != NULL) {
+                kfree(fBuffer);
+            }
+            return FsResult;
+        }
     }
 
     // Validate the pe-file buffer
