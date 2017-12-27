@@ -152,16 +152,16 @@ SERVICEAPI
 OsStatus_t
 SERVICEABI
 QueryDriver(
-	_In_ MContract_t *Contract, 
-	_In_ int Function, 
-	_In_Opt_ __CONST void *Arg0,
-	_In_Opt_ size_t Length0,
-	_In_Opt_ __CONST void *Arg1,
-	_In_Opt_ size_t Length1,
-	_In_Opt_ __CONST void *Arg2,
-	_In_Opt_ size_t Length2,
-	_Out_Opt_ __CONST void *ResultBuffer,
-	_In_Opt_ size_t ResultLength)
+	_In_      MContract_t*  Contract, 
+	_In_      int           Function, 
+	_In_Opt_  const void*   Arg0,
+	_In_Opt_  size_t        Length0,
+	_In_Opt_  const void*   Arg1,
+	_In_Opt_  size_t        Length1,
+	_In_Opt_  const void*   Arg2,
+	_In_Opt_  size_t        Length2,
+	_Out_Opt_ const void*   ResultBuffer,
+	_In_Opt_  size_t        ResultLength)
 {
 	// Variables
 	MRemoteCall_t Request;
@@ -171,22 +171,18 @@ QueryDriver(
 	RPCInitialize(&Request, Contract->DriverId, Contract->Version, PIPE_RPCOUT, __DRIVER_QUERY);
 	RPCSetArgument(&Request, 0, (const void*)&Contract->Type, sizeof(MContractType_t));
 	RPCSetArgument(&Request, 1, (const void*)&Function, sizeof(int));
+	RPCSetResult(&Request, ResultBuffer, ResultLength);
 
 	// Setup arguments if given
 	if (Arg0 != NULL && Length0 != 0) {
 		RPCSetArgument(&Request, 2, Arg0, Length0);
 	}
-
 	if (Arg1 != NULL && Length1 != 0) {
 		RPCSetArgument(&Request, 3, Arg1, Length1);
 	}
-
 	if (Arg2 != NULL && Length2 != 0) {
 		RPCSetArgument(&Request, 4, Arg2, Length2);
 	}
-
-	// Execute RPC
-	RPCSetResult(&Request, ResultBuffer, ResultLength);
 	return RPCExecute(&Request);
 }
 

@@ -520,20 +520,22 @@ ExceptionEntry(
 
     // Was the exception handled?
     if (IssueFixed == 0) {
+        char *Name      = NULL;
+        uintptr_t Base  = 0;
         LogRedirect(LogConsole);
 
         // Was it a page-fault?
         if (Address != __MASK) {
             LogDebug(__MODULE, "CR2 Address: 0x%x", Address);
-            char *Name = NULL;
-            uintptr_t Base = 0;
-            if (DebugGetModuleByAddress(Registers->Eip, &Base, &Name) == OsSuccess) {
-                uintptr_t Diff = Registers->Eip - Base;
-                LogDebug(__MODULE, "Fauly Address: 0x%x (%s)", Diff, Name);
-            }
-            else {
-                LogDebug(__MODULE, "Faulty Address: 0x%x", Registers->Eip);
-            }
+        }
+
+        // Locate which module
+        if (DebugGetModuleByAddress(Registers->Eip, &Base, &Name) == OsSuccess) {
+            uintptr_t Diff = Registers->Eip - Base;
+            LogDebug(__MODULE, "Fauly Address: 0x%x (%s)", Diff, Name);
+        }
+        else {
+            LogDebug(__MODULE, "Faulty Address: 0x%x", Registers->Eip);
         }
 
         // Enter panic handler

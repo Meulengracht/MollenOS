@@ -376,8 +376,6 @@ ReadFile(
 	if (BytesIndex != NULL) {
 		*BytesIndex = Package.Index;
 	}
-	
-	// Return the result code
 	return Package.Code;
 }
 #endif

@@ -216,44 +216,48 @@ FsCloseHandle(
  * file handle and outputs the number of bytes actually read */
 FileSystemCode_t
 FsReadFile(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ FileSystemFileHandle_t *Handle,
-	_Out_ BufferObject_t *BufferObject,
-	_Out_ size_t *BytesAt,
-	_Out_ size_t *BytesRead)
+	_In_  FileSystemDescriptor_t*   Descriptor,
+	_In_  FileSystemFileHandle_t*   Handle,
+	_Out_ BufferObject_t*           BufferObject,
+	_Out_ size_t*                   BytesAt,
+	_Out_ size_t*                   BytesRead)
 {
 	// Variables
-	MfsFileInstance_t *fInstance = NULL;
-	MfsFile_t *fInformation = NULL;
-	MfsInstance_t *Mfs = NULL;
-	FileSystemCode_t Result = FsOk;
-	uintptr_t DataPointer;
-	uint64_t Position;
-	size_t BucketSizeBytes;
-	size_t BytesToRead;
+	MfsFileInstance_t *fInstance    = NULL;
+	MfsFile_t *fInformation         = NULL;
+	MfsInstance_t *Mfs              = NULL;
+	FileSystemCode_t Result         = FsOk;
+	uintptr_t DataPointer           = 0;
+	uint64_t Position               = 0;
+	size_t BucketSizeBytes          = 0;
+	size_t BytesToRead              = 0;
 
 	// Trace
 	TRACE("FsReadFile(Id 0x%x, Position %u, Length %u)",
 		Handle->Id, LODWORD(Handle->Position), GetBufferSize(BufferObject));
 
 	// Instantiate the pointers
-	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
-	fInstance = (MfsFileInstance_t*)Handle->ExtensionData;
-	fInformation = (MfsFile_t*)Handle->File->ExtensionData;
+	Mfs             = (MfsInstance_t*)Descriptor->ExtensionData;
+	fInstance       = (MfsFileInstance_t*)Handle->ExtensionData;
+	fInformation    = (MfsFile_t*)Handle->File->ExtensionData;
 
 	// Instantiate some of the contents
 	BucketSizeBytes = Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize;
-	DataPointer = GetBufferAddress(BufferObject);
-	Position = Handle->Position;
-	BytesToRead = GetBufferSize(BufferObject);
-	*BytesRead = 0;
-	*BytesAt = __MASK;
+	DataPointer     = GetBufferAddress(BufferObject);
+	Position        = Handle->Position;
+	BytesToRead     = GetBufferSize(BufferObject);
+	*BytesRead      = 0;
+	*BytesAt        = __MASK;
 
 	// Sanitize the amount of bytes we want
 	// to read, cap it at bytes available
 	if ((Position + BytesToRead) > Handle->File->Size) {
 		BytesToRead = (size_t)(Handle->File->Size - Position);
 	}
+
+    // Debug initial counters
+    TRACE("BucketSize: %u, Physical Pointer: 0x%x, File Position %u, BytesToRead %u",
+        BucketSizeBytes, DataPointer, LODWORD(Position), BytesToRead);
 
 	// Read the current sector, update index to where data starts
 	// Keep reading consecutive after that untill all bytes requested have
@@ -263,18 +267,23 @@ FsReadFile(
 	while (BytesToRead) {
 		// Calculate which bucket, then the sector offset
 		// Then calculate how many sectors of the bucket we need to read
-		uint64_t Sector = MFS_GETSECTOR(Mfs, fInstance->DataBucketPosition);
-		uint64_t SectorOffset = (Position - fInstance->BucketByteBoundary) 
+		uint64_t Sector         = MFS_GETSECTOR(Mfs, fInstance->DataBucketPosition);
+		uint64_t SectorOffset   = (Position - fInstance->BucketByteBoundary) 
 			% Descriptor->Disk.Descriptor.SectorSize;
-		size_t SectorIndex = (size_t)((Position - fInstance->BucketByteBoundary)
+		size_t SectorIndex      = (size_t)((Position - fInstance->BucketByteBoundary)
 			/ Descriptor->Disk.Descriptor.SectorSize);
-		size_t SectorsLeft = fInstance->DataBucketLength - SectorIndex;
-		size_t SectorCount = 0, ByteCount = 0;
+		size_t SectorsLeft      = MFS_GETSECTOR(Mfs, fInstance->DataBucketLength) - SectorIndex;
+		size_t SectorCount      = 0;
+        size_t ByteCount        = 0;
 		
 		// Update the data-offset
 		if (*BytesAt == __MASK) {
-			*BytesAt = (size_t)SectorOffset;
+			*BytesAt            = (size_t)SectorOffset;
 		}
+
+        // Debug counter values
+        TRACE(">> Physical Pointer: 0x%x, File Position %u, BytesToRead %u",
+            DataPointer, LODWORD(Position), BytesToRead);
 
 		// Calculate the sector index into bucket
 		Sector += SectorIndex;
@@ -299,8 +308,8 @@ FsReadFile(
 		// SectorIndex = 2, SectorOffset = 85, SectorCount = 2 - ByteCount = 450 (Capacity 4096)
 		// Ex pos 490 - length 4000
 		// SectorIndex = 0, SectorOffset = 490, SectorCount = 8 - ByteCount = 3606 (Capacity 4096)
-		TRACE("Read metrics - Sector %u + %u, Count %u, ByteOffset %u, ByteCount %u",
-			LODWORD(Sector), SectorIndex, SectorCount, SectorOffset, ByteCount);
+		TRACE(">> Read metrics - Sector %u + %u, Count %u, ByteOffset %u, ByteCount %u",
+			LODWORD(Sector), SectorIndex, SectorCount, LODWORD(SectorOffset), ByteCount);
 
 		// If there is less than one sector left - break
 		if ((Descriptor->Disk.Descriptor.SectorSize + *BytesRead) > GetBufferCapacity(BufferObject)) {
@@ -317,10 +326,12 @@ FsReadFile(
 			break;
 		}
 
+        TRACE(">> Read success");
+
 		// Increase the pointers and decrease with bytes read
 		DataPointer += Descriptor->Disk.Descriptor.SectorSize * SectorCount;
-		*BytesRead += ByteCount;
-		Position += ByteCount;
+		*BytesRead  += ByteCount;
+		Position    += ByteCount;
 		BytesToRead -= ByteCount;
 
 		// Do we need to switch bucket?
@@ -353,15 +364,11 @@ FsReadFile(
 				break;
 			}
 
-			// Store length
+			// Store length & Update bucket boundary
 			fInstance->DataBucketLength = Link.Length;
-
-			// Update bucket boundary
 			fInstance->BucketByteBoundary += (Link.Length * BucketSizeBytes);
 		}
 	}
-
-	// Return error code
 	return Result;
 }
 

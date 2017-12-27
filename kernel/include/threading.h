@@ -26,7 +26,7 @@
 
 /* Includes 
  * - System */
-#include <system/addresspace.h>
+#include <system/addressspace.h>
 #include <mutex.h>
 #include <pipe.h>
 

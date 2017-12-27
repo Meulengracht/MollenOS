@@ -25,11 +25,12 @@
 
 /* Includes
  * - System */
-#include <system/addresspace.h>
+#include <system/addressspace.h>
 #include <system/iospace.h>
 #include <system/utils.h>
 #include <process/phoenix.h>
 #include <debug.h>
+#include <arch.h>
 #include <heap.h>
 
 /* Includes
@@ -96,9 +97,9 @@ DebugPageFault(
 		uintptr_t Physical = IoSpaceValidate(Address);
 		if (Physical != 0) {
 			// Try to map it in and return the result
-			return AddressSpaceMapFixed(AddressSpaceGetCurrent(),
-				(Physical & PAGE_MASK), (Address & PAGE_MASK), PAGE_SIZE,
-				AS_FLAG_NOCACHE | AS_FLAG_APPLICATION);
+			return AddressSpaceMap(AddressSpaceGetCurrent(), &Physical, &Address, AddressSpaceGetPageSize(),
+				ASPACE_FLAG_NOCACHE | ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDPHYSICAL 
+                | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
 		}
 	}
 
@@ -107,8 +108,8 @@ DebugPageFault(
 		&& Address < MEMORY_LOCATION_HEAP_END) {
 		if (!HeapValidateAddress(HeapGetKernel(), Address)) {
 			// Try to map it in and return the result
-			return AddressSpaceMap(AddressSpaceGetCurrent(),
-				(Address & PAGE_MASK), PAGE_SIZE, __MASK, 0, NULL);
+			return AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &Address, 
+                AddressSpaceGetPageSize(), ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
 		}
 	}
 
@@ -119,9 +120,8 @@ DebugPageFault(
 		if (Ash != NULL) {
 			if (BlockBitmapValidateState(Ash->Heap, Address, 1) == OsSuccess) {
 				// Try to map it in and return the result
-				return AddressSpaceMap(AddressSpaceGetCurrent(),
-					(Address & PAGE_MASK), PAGE_SIZE, __MASK,
-					AS_FLAG_APPLICATION, NULL);
+				return AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &Address, 
+                    AddressSpaceGetPageSize(), ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
 			}
 		}
 	}
@@ -130,9 +130,8 @@ DebugPageFault(
     else if (Address >= MEMORY_LOCATION_RING3_THREAD_START
         && Address <= MEMORY_LOCATION_RING3_THREAD_END) {
 		// Try to map it in and return the result
-		return AddressSpaceMap(AddressSpaceGetCurrent(),
-			(Address & PAGE_MASK), PAGE_SIZE, __MASK,
-			AS_FLAG_APPLICATION, NULL);
+		return AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &Address, 
+                    AddressSpaceGetPageSize(), ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
 	}
 
 	// If we reach here, it was invalid
@@ -261,8 +260,7 @@ DebugStackTrace(
 
 		// Santize IP
 		// It cannot be null and it must be a valid address
-		if (Ip == 0
-			|| AddressSpaceGetMap(AddressSpaceGetCurrent(), Ip) == 0) {
+		if (Ip == 0 || AddressSpaceGetMapping(AddressSpaceGetCurrent(), Ip) == 0) {
 			break;
 		}
 
@@ -277,8 +275,7 @@ DebugStackTrace(
 
 		// Again, sanitize the EBP frame as we may
 		// reach invalid values
-		if (StackPtr[1] == 0
-			|| AddressSpaceGetMap(AddressSpaceGetCurrent(), StackPtr[1]) == 0) {
+		if (StackPtr[1] == 0 || AddressSpaceGetMapping(AddressSpaceGetCurrent(), StackPtr[1]) == 0) {
 			break;
 		}
 
@@ -290,7 +287,7 @@ DebugStackTrace(
 		StackPtr--;
 
 		/* Sanitize */
-		if (AddressSpaceGetMap(AddressSpaceGetCurrent(), (VirtualAddress_t)StackPtr) == 0) {
+		if (AddressSpaceGetMapping(AddressSpaceGetCurrent(), (VirtualAddress_t)StackPtr) == 0) {
 			break;
 		}
 

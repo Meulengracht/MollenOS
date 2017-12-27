@@ -306,8 +306,8 @@ ThreadingImpersonate(
     // Load resources
 	TssUpdateIo(Cpu, &SubContext->IoMap[0]);
 	MmVirtualSwitchPageDirectory(Cpu,
-		(PageDirectory_t*)Thread->AddressSpace->PageDirectory,
-		Thread->AddressSpace->Cr3);
+		(PageDirectory_t*)Thread->AddressSpace->Data[ASPACE_DATA_PDPOINTER],
+		Thread->AddressSpace->Data[ASPACE_DATA_CR3]);
 }
 
 /* _ThreadingSwitch
@@ -366,8 +366,8 @@ _ThreadingSwitch(
 
 	// Load thread-specific resources
 	MmVirtualSwitchPageDirectory(Cpu, 
-		(PageDirectory_t*)Thread->AddressSpace->PageDirectory, 
-		Thread->AddressSpace->Cr3);
+		(PageDirectory_t*)Thread->AddressSpace->Data[ASPACE_DATA_PDPOINTER], 
+		Thread->AddressSpace->Data[ASPACE_DATA_CR3]);
 	TssUpdateStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
 	TssUpdateIo(Cpu,    &Threadx->IoMap[0]);
 

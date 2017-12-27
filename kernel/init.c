@@ -40,6 +40,7 @@
 #include <crc32.h>
 #include <video.h>
 #include <debug.h>
+#include <arch.h>
 #include <heap.h>
 #include <log.h>
 

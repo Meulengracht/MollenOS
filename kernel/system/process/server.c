@@ -28,6 +28,7 @@
 #include <threading.h>
 #include <semaphore.h>
 #include <scheduler.h>
+#include <arch.h>
 #include <heap.h>
 #include <log.h>
 
@@ -58,7 +59,7 @@ PhoenixCreateServer(
 
 	// Initialize the server io-space memory
 	Server->DriverMemory = BlockBitmapCreate(MEMORY_LOCATION_RING3_IOSPACE,
-		MEMORY_LOCATION_RING3_IOSPACE_END, PAGE_SIZE);
+		MEMORY_LOCATION_RING3_IOSPACE_END, AddressSpaceGetPageSize());
 
 	// Register ash
 	Server->Base.Type = AshServer;

@@ -24,7 +24,7 @@
 
 /* Includes
  * - (OS) System */
-#include <system/addresspace.h>
+#include <system/addressspace.h>
 #include <system/utils.h>
 #include <debug.h>
 #include <heap.h>
@@ -100,7 +100,7 @@ AcpiOsMapMemory(
 
 	// There is a few special cases where the mapping doesn't exist, so we must create it 
 	if (Lookup == 0) {
-        int PageCount = DIVUP(Length, PAGE_SIZE);
+        int PageCount = DIVUP(Length, AddressSpaceGetPageSize());
         if (PageCount == 1) {
             ACPI_PHYSICAL_ADDRESS PageStart = Where & PAGE_MASK;
             ACPI_PHYSICAL_ADDRESS PageEnd = (Where + Length) & PAGE_MASK;
@@ -119,8 +119,8 @@ AcpiOsMapMemory(
             int i = 0;
             
 			for (; i < PageCount; i++) {
-				if (!MmVirtualGetMapping(NULL, ReservedMem + (i * PAGE_SIZE)))
-					MmVirtualMap(NULL, (Where & PAGE_MASK) + (i * PAGE_SIZE), ReservedMem + (i * PAGE_SIZE), 0);
+				if (!MmVirtualGetMapping(NULL, ReservedMem + (i * AddressSpaceGetPageSize())))
+					MmVirtualMap(NULL, (Where & PAGE_MASK) + (i * AddressSpaceGetPageSize()), ReservedMem + (i * AddressSpaceGetPageSize()), 0);
 			}
 			return (void*)(ReservedMem + ((uintptr_t)Where & ATTRIBUTE_MASK));
 		}
@@ -167,7 +167,7 @@ AcpiOsGetPhysicalAddress(
     void                    *LogicalAddress,
     ACPI_PHYSICAL_ADDRESS   *PhysicalAddress)
 {
-    PhysicalAddress_t Result = AddressSpaceGetMap(
+    PhysicalAddress_t Result = AddressSpaceGetMapping(
         AddressSpaceGetCurrent(), (VirtualAddress_t)LogicalAddress);
     if (Result != 0) {
         *PhysicalAddress = (ACPI_PHYSICAL_ADDRESS)Result;

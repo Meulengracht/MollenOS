@@ -25,7 +25,7 @@
 
 /* Includes
  * - System */
-#include <system/addresspace.h>
+#include <system/addressspace.h>
 #include <system/video.h>
 #include <system/utils.h>
 #include <threading.h>
@@ -560,10 +560,8 @@ MmVirtualInit(void)
 	memory_set_paging(1);
 
 	// Setup kernel addressing space
-	KernelSpace.Flags = AS_TYPE_KERNEL;
-	KernelSpace.Cr3 = (uintptr_t)GlbKernelPageDirectory;
-	KernelSpace.PageDirectory = GlbKernelPageDirectory;
-
-	// Done! 
-	return AddressSpaceInitKernel(&KernelSpace);
+	KernelSpace.Flags = ASPACE_TYPE_KERNEL;
+	KernelSpace.Data[ASPACE_DATA_CR3] = (uintptr_t)GlbKernelPageDirectory;
+	KernelSpace.Data[ASPACE_DATA_PDPOINTER] = (uintptr_t)GlbKernelPageDirectory;
+	return AddressSpaceInitialize(&KernelSpace);
 }

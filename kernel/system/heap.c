@@ -36,8 +36,9 @@
 
 /* Includes 
  * - System */
-#include <system/addresspace.h>
+#include <system/addressspace.h>
 #include <debug.h>
+#include <arch.h>
 #include <heap.h>
 
 /* Includes 
@@ -77,7 +78,9 @@ HeapAllocateInternal(
     _In_ size_t  Length)
 {
     // Variables
-    uintptr_t ReturnAddress = 0;
+    uintptr_t ReturnAddressEnd  = 0;
+    uintptr_t ReturnAddress     = 0;
+    Flags_t MapFlags            = ((Heap->IsUser == 1) ? ASPACE_FLAG_APPLICATION : 0) | ASPACE_FLAG_SUPPLIEDVIRTUAL;
 
     // Sanitize the size, and memory status
     assert(Length > 0);
@@ -91,13 +94,12 @@ HeapAllocateInternal(
 
     // Sanitize that the header address is mapped, take into account
     // a physical memory page-boundary
-    if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), ReturnAddress)) {
-        AddressSpaceMap(AddressSpaceGetCurrent(), ReturnAddress, PAGE_SIZE, 
-            __MASK, (Heap->IsUser == 1) ? AS_FLAG_APPLICATION : 0, NULL);
+    ReturnAddressEnd = ReturnAddress + Length;
+    if (!AddressSpaceGetMapping(AddressSpaceGetCurrent(), ReturnAddress)) {
+        AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &ReturnAddress, AddressSpaceGetPageSize(), MapFlags, __MASK);
     }
-    if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), ReturnAddress + Length)) {
-        AddressSpaceMap(AddressSpaceGetCurrent(), ReturnAddress + Length, PAGE_SIZE, 
-            __MASK, (Heap->IsUser == 1) ? AS_FLAG_APPLICATION : 0, NULL);
+    if (!AddressSpaceGetMapping(AddressSpaceGetCurrent(), ReturnAddressEnd)) {
+        AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &ReturnAddressEnd, AddressSpaceGetPageSize(), MapFlags, __MASK);
     }
     return (uintptr_t*)ReturnAddress;
 }
@@ -453,8 +455,8 @@ HeapCommitPages(
     _In_ uintptr_t  Mask)
 {
     // Variables
-    size_t Pages = DIVUP(Size, PAGE_SIZE);
-    size_t i = 0;
+    size_t Pages    = DIVUP(Size, AddressSpaceGetPageSize());
+    size_t i        = 0;
 
     // Sanitize the page boundary
     // Do we step across page boundary?
@@ -464,9 +466,10 @@ HeapCommitPages(
 
     // Do the actual mapping
     for (; i < Pages; i++) {
-        if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), Address + (i * PAGE_SIZE))) {
-            AddressSpaceMap(AddressSpaceGetCurrent(), Address + (i * PAGE_SIZE), 
-                PAGE_SIZE, Mask, 0, NULL);
+        uintptr_t VirtualPage = Address + (i * AddressSpaceGetPageSize());
+        if (!AddressSpaceGetMapping(AddressSpaceGetCurrent(), VirtualPage)) {
+            AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &VirtualPage, 
+                AddressSpaceGetPageSize(), ASPACE_FLAG_SUPPLIEDVIRTUAL, Mask);
         }
     }
 }
@@ -495,14 +498,14 @@ HeapAllocate(
     // we want to use our normal blocks for smaller allocations 
     // and the page-aligned for larger ones 
     if (ALLOCISNORMAL(Flags) && Length >= HEAP_NORMAL_BLOCK) {
-        AdjustedSize = ALIGN(Length, PAGE_SIZE, 1);
+        AdjustedSize = ALIGN(Length, AddressSpaceGetPageSize(), 1);
         Flags |= ALLOCATION_PAGEALIGN;
     }
     if (ALLOCISNOTBIG(Flags) && AdjustedSize >= HEAP_LARGE_BLOCK) {
         Flags |= ALLOCATION_BIG;
     }
-    if (ALLOCISPAGE(Flags) && !ISALIGNED(AdjustedSize, PAGE_SIZE)) {
-        AdjustedSize = ALIGN(AdjustedSize, PAGE_SIZE, 1);
+    if (ALLOCISPAGE(Flags) && !ISALIGNED(AdjustedSize, AddressSpaceGetPageSize())) {
+        AdjustedSize = ALIGN(AdjustedSize, AddressSpaceGetPageSize(), 1);
     }
 
     // Select the proper child list
@@ -937,7 +940,7 @@ kmalloc_base(
 
     // Lookup physical
     if (PhysicalAddress != NULL) {
-        *PhysicalAddress =  AddressSpaceGetMap(AddressSpaceGetCurrent(), ReturnAddress);
+        *PhysicalAddress =  AddressSpaceGetMapping(AddressSpaceGetCurrent(), ReturnAddress);
     }
     return (void*)ReturnAddress;
 }

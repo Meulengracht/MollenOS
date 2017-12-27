@@ -23,7 +23,7 @@
 
 /* Includes 
  * - System */
-#include <system/addresspace.h>
+#include <system/addressspace.h>
 #include <modules/modules.h>
 #include <os/driver/file.h>
 #include <process/ash.h>
@@ -193,7 +193,7 @@ PeHandleSections(
         // in memory we want to copy data to
         uint8_t *FileBuffer = (uint8_t*)(Data + Section->RawAddress);
         uint8_t *Destination = (uint8_t*)(PeFile->VirtualAddress + Section->VirtualAddress);
-        int PageCount = DIVUP(MAX(Section->RawSize, Section->VirtualSize), PAGE_SIZE);
+        int PageCount = DIVUP(MAX(Section->RawSize, Section->VirtualSize), AddressSpaceGetPageSize());
 
         // Make a local copy of the name, just in case
         // we need to do some debug print
@@ -201,18 +201,19 @@ PeHandleSections(
         SectionName[8] = 0;
 
         // Iterate pages and map them in our memory space
+        Flags_t PageFlags = (UserSpace == 1) ? ASPACE_FLAG_APPLICATION : 0;
+        PageFlags |= ASPACE_FLAG_SUPPLIEDVIRTUAL;
         for (j = 0; j < PageCount; j++) {
-            uintptr_t Calculated = (uintptr_t)Destination + (j * PAGE_SIZE);
-            if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), Calculated)) {
-                AddressSpaceMap(AddressSpaceGetCurrent(), Calculated, 
-                    PAGE_SIZE, __MASK, (UserSpace == 1) ? AS_FLAG_APPLICATION : 0, NULL);
+            uintptr_t Calculated = (uintptr_t)Destination + (j * AddressSpaceGetPageSize());
+            if (!AddressSpaceGetMapping(AddressSpaceGetCurrent(), Calculated)) {
+                AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &Calculated, AddressSpaceGetPageSize(), PageFlags, __MASK);
             }
         }
 
         // Handle sections specifics, we want to:
         // BSS: Zero out the memory 
         // Code: Copy memory 
-        // Data: Copy memory */
+        // Data: Copy memory
         if (Section->RawSize == 0
             || (Section->Flags & PE_SECTION_BSS)) {
             memset(Destination, 0, Section->VirtualSize);
@@ -238,8 +239,8 @@ PeHandleSections(
 
     // Return a page-aligned address that points to the
     // next free relocation address
-    if (CurrentAddress % PAGE_SIZE) {
-        CurrentAddress += (PAGE_SIZE - (CurrentAddress % PAGE_SIZE));
+    if (CurrentAddress % AddressSpaceGetPageSize()) {
+        CurrentAddress += (AddressSpaceGetPageSize() - (CurrentAddress % AddressSpaceGetPageSize()));
     }
     return CurrentAddress;
 }
@@ -309,8 +310,7 @@ void PeHandleRelocations(MCorePeFile_t *PeFile,
                 /* Create a pointer, the low 12 bits have 
                  * an offset into the PageRVA */
                 uintptr_t Offset = (PeFile->VirtualAddress + PageRVA + Value);
-                uintptr_t Translated = AddressSpaceTranslate(AddressSpaceGetCurrent(), 
-                    PeFile->VirtualAddress);
+                uintptr_t Translated = PeFile->VirtualAddress;
 
                 /* Should we add or subtract? */
                 if (Translated >= ImageBase) {
@@ -395,8 +395,7 @@ PeHandleExports(
             ExFunc->Address = 0;
         }
         else {
-            ExFunc->Address = AddressSpaceTranslate(AddressSpaceGetCurrent(), 
-                (uintptr_t)(PeFile->VirtualAddress + FunctionAddressTable[ExFunc->Ordinal - OrdinalBase]));
+            ExFunc->Address = (uintptr_t)(PeFile->VirtualAddress + FunctionAddressTable[ExFunc->Ordinal - OrdinalBase]);
         }
     }
 }
@@ -771,8 +770,7 @@ PeLoadImage(
 
     // Set the entry point if there is any
     if (OptHeader->EntryPoint != 0) {
-        PeInfo->EntryAddress = AddressSpaceTranslate(AddressSpaceGetCurrent(), 
-            PeInfo->VirtualAddress + OptHeader->EntryPoint);
+        PeInfo->EntryAddress = PeInfo->VirtualAddress + OptHeader->EntryPoint;
     }
     else {
         PeInfo->EntryAddress = 0;
@@ -780,10 +778,11 @@ PeLoadImage(
 
     // Copy sections to base address
     TRACE("Copying image meta-data to base of image address");
-    for (i = 0; i < DIVUP(SizeOfMetaData, PAGE_SIZE); i++) {
-        if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), PeInfo->VirtualAddress + (i * PAGE_SIZE))) {
-            AddressSpaceMap(AddressSpaceGetCurrent(), PeInfo->VirtualAddress + (i * PAGE_SIZE),
-                PAGE_SIZE, __MASK, AS_FLAG_APPLICATION, NULL);
+    for (i = 0; i < DIVUP(SizeOfMetaData, AddressSpaceGetPageSize()); i++) {
+        uintptr_t VirtualPage = PeInfo->VirtualAddress + (i * AddressSpaceGetPageSize());
+        if (!AddressSpaceGetMapping(AddressSpaceGetCurrent(), VirtualPage)) {
+            AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &VirtualPage,
+                AddressSpaceGetPageSize(), ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
         }
     }
     memcpy((void*)PeInfo->VirtualAddress, Buffer, SizeOfMetaData);

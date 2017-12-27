@@ -20,13 +20,16 @@
  * - Contains the x86-32 implementation of the addressing interface
  *   specified by MCore
  */
+#define __MODULE "ASPC"
 
 /* Includes 
  * - System */
-#include <system/addresspace.h>
+#include <system/addressspace.h>
 #include <system/utils.h>
 #include <threading.h>
 #include <memory.h>
+#include <debug.h>
+#include <arch.h>
 #include <heap.h>
 #include <log.h>
 
@@ -37,56 +40,58 @@
 #include <string.h>
 
 /* Globals */
-static AddressSpace_t GlbKernelAddressSpace;
+static AddressSpace_t KernelAddressSpace    = { 0 };
+static UUId_t AddressSpaceIdGenerator       = 0;
 
-/* AddressSpaceInitKernel
- * Initializes the Kernel Address Space 
- * This only copies the data into a static global
- * storage, which means users should just pass something
- * temporary structure */
+/* AddressSpaceInitialize
+ * Initializes the Kernel Address Space. This only copies the data into a static global
+ * storage, which means users should just pass something temporary structure */
 OsStatus_t
-AddressSpaceInitKernel(
-	_In_ AddressSpace_t *Kernel)
+AddressSpaceInitialize(
+    _In_ AddressSpace_t *KernelSpace)
 {
+    // Variables
+    int i;
+
 	// Sanitize parameter
-	assert(Kernel != NULL);
+	assert(KernelSpace != NULL);
+    AddressSpaceIdGenerator = 0;
 
 	// Copy data into our static storage
-	GlbKernelAddressSpace.Cr3 = Kernel->Cr3;
-	GlbKernelAddressSpace.Flags = Kernel->Flags;
-	GlbKernelAddressSpace.PageDirectory = Kernel->PageDirectory;
+    for (i = 0; i < ASPACE_DATASIZE; i++) {
+        KernelAddressSpace.Data[i] = KernelSpace->Data[i];
+    }
+	KernelAddressSpace.Flags = KernelSpace->Flags;
 
 	// Setup reference and lock
-	SpinlockReset(&GlbKernelAddressSpace.Lock);
-	GlbKernelAddressSpace.References = 1;
-
-	// No errors
+	SpinlockReset(&KernelAddressSpace.Lock);
+	KernelAddressSpace.References   = 1;
+    KernelAddressSpace.Id           = AddressSpaceIdGenerator++;
 	return OsSuccess;
 }
 
 /* AddressSpaceCreate
- * Initialize a new address space, depending on 
- * what user is requesting we might recycle a already
- * existing address space */
+ * Initialize a new address space, depending on what user is requesting we 
+ * might recycle a already existing address space */
 AddressSpace_t*
 AddressSpaceCreate(
-	_In_ Flags_t Flags)
+    _In_ Flags_t Flags)
 {
 	// Variables
-	AddressSpace_t *AddressSpace = NULL;
-	UUId_t CurrentCpu = CpuGetCurrentId();
-	int Itr = 0;
+	AddressSpace_t *AddressSpace    = NULL;
+	UUId_t CurrentCpu               = CpuGetCurrentId();
+	int Itr                         = 0;
 
 	// If we want to create a new kernel address
 	// space we instead want to re-use the current 
 	// If kernel is specified, ignore rest 
-	if (Flags & AS_TYPE_KERNEL) {
-		SpinlockAcquire(&GlbKernelAddressSpace.Lock);
-		GlbKernelAddressSpace.References++;
-		SpinlockRelease(&GlbKernelAddressSpace.Lock);
-		AddressSpace = &GlbKernelAddressSpace;
+	if (Flags & ASPACE_TYPE_KERNEL) {
+		SpinlockAcquire(&KernelAddressSpace.Lock);
+		KernelAddressSpace.References++;
+		SpinlockRelease(&KernelAddressSpace.Lock);
+		AddressSpace = &KernelAddressSpace;
 	}
-	else if (Flags == AS_TYPE_INHERIT) {
+	else if (Flags == ASPACE_TYPE_INHERIT) {
 		// Inheritance is a bit different, we re-use again
 		// but instead of reusing the kernel, we reuse the current
 		MCoreThread_t *Current = ThreadingGetCurrentThread(CurrentCpu);
@@ -95,28 +100,27 @@ AddressSpaceCreate(
 		SpinlockRelease(&Current->AddressSpace->Lock);
 		AddressSpace = Current->AddressSpace;
 	}
-	else if (Flags & (AS_TYPE_APPLICATION | AS_TYPE_DRIVER))
-	{
+	else if (Flags & (ASPACE_TYPE_APPLICATION | ASPACE_TYPE_DRIVER)) {
 		// This is the only case where we should create a 
 		// new and seperate address space, user processes!
-		uintptr_t PhysAddr = 0;
-		PageDirectory_t *NewPd = (PageDirectory_t*)kmalloc_ap(sizeof(PageDirectory_t), &PhysAddr);
-		PageDirectory_t *CurrPd = (PageDirectory_t*)AddressSpaceGetCurrent()->PageDirectory;
-		PageDirectory_t *KernPd = (PageDirectory_t*)GlbKernelAddressSpace.PageDirectory;
+		uintptr_t PhysicalAddress   = 0;
+		PageDirectory_t *NewPd      = (PageDirectory_t*)kmalloc_ap(sizeof(PageDirectory_t), &PhysicalAddress);
+		PageDirectory_t *CurrPd     = (PageDirectory_t*)AddressSpaceGetCurrent()->Data[ASPACE_DATA_PDPOINTER];
+		PageDirectory_t *KernPd     = (PageDirectory_t*)KernelAddressSpace.Data[ASPACE_DATA_PDPOINTER];
 
 		// Copy at max kernel directories up to MEMORY_SEGMENT_RING3_BASE
-		int KernelRegion = 0;
-		int KernelRegionEnd = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_KERNEL_END);
+		int KernelRegion            = 0;
+		int KernelRegionEnd         = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_KERNEL_END);
 
 		// Lookup which table-region is the stack region
-		int ThreadRegion = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_START);
-		int ThreadRegionEnd = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_END);
+		int ThreadRegion            = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_START);
+		int ThreadRegionEnd         = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_END);
 
 		// Allocate a new address space
-		AddressSpace = (AddressSpace_t*)kmalloc(sizeof(AddressSpace_t));
-		memset(NewPd, 0, sizeof(PageDirectory_t));
+		AddressSpace                = (AddressSpace_t*)kmalloc(sizeof(AddressSpace_t));
 
 		// Initialize members
+		memset(NewPd, 0, sizeof(PageDirectory_t));
 		MutexConstruct(&NewPd->Lock);
 
 		// Initialize base mappings
@@ -135,34 +139,32 @@ AddressSpaceCreate(
 
 			// Inherit? We must mark that table inherited to avoid
 			// it being freed again
-			if (Flags & AS_TYPE_INHERIT && CurrPd->pTables[Itr]) {
+			if ((Flags & ASPACE_TYPE_INHERIT) && CurrPd->pTables[Itr]) {
 				NewPd->pTables[Itr] = CurrPd->pTables[Itr] | PAGE_INHERITED;
 				NewPd->vTables[Itr] = CurrPd->vTables[Itr];
 			}
 		}
 
 		// Store new configuration into AS
-		AddressSpace->Flags = Flags;
-		AddressSpace->Cr3 = PhysAddr;
-		AddressSpace->PageDirectory = NewPd;
-
-		// Reset lock and ref count
+        AddressSpace->Id                            = AddressSpaceIdGenerator++;
+		AddressSpace->Flags                         = Flags;
+        AddressSpace->Data[ASPACE_DATA_CR3]         = PhysicalAddress;
+        AddressSpace->Data[ASPACE_DATA_PDPOINTER]   = (uintptr_t)NewPd;
+		AddressSpace->References                    = 1;
 		SpinlockReset(&AddressSpace->Lock);
-		AddressSpace->References = 1;
 	}
 	else {
-		LogFatal("VMEM", "Invalid flags parsed in AddressSpaceCreate 0x%x", Flags);
+		FATAL(FATAL_SCOPE_KERNEL, "Invalid flags parsed in AddressSpaceCreate 0x%x", Flags);
 	}
 	return AddressSpace;
 }
 
 /* AddressSpaceDestroy
- * Destroy and release all resources related
- * to an address space, only if there is no more
- * references */
+ * Destroy and release all resources related to an address space, 
+ * only if there is no more references */
 OsStatus_t
 AddressSpaceDestroy(
-	_In_ AddressSpace_t *AddressSpace)
+    _In_ AddressSpace_t *AddressSpace)
 {
 	// Acquire lock on the address space
 	SpinlockAcquire(&AddressSpace->Lock);
@@ -172,9 +174,9 @@ AddressSpaceDestroy(
 	// cleanup the address space otherwise
 	// just unlock
 	if (AddressSpace->References == 0) {
-		if (AddressSpace->Flags & (AS_TYPE_APPLICATION | AS_TYPE_DRIVER)) {
-			PageDirectory_t *KernPd = (PageDirectory_t*)GlbKernelAddressSpace.PageDirectory;
-			PageDirectory_t *Pd = (PageDirectory_t*)AddressSpace->PageDirectory;
+		if (AddressSpace->Flags & (ASPACE_TYPE_APPLICATION | ASPACE_TYPE_DRIVER)) {
+			PageDirectory_t *KernPd = (PageDirectory_t*)KernelAddressSpace.Data[ASPACE_DATA_PDPOINTER];
+			PageDirectory_t *Pd = (PageDirectory_t*)AddressSpace->Data[ASPACE_DATA_PDPOINTER];
 			int i, j;
 
 			// Iterate page-mappings
@@ -209,201 +211,168 @@ AddressSpaceDestroy(
 				kfree(Pt);
 			}
 		}
-
-		/* Free structure */
 		kfree(AddressSpace);
 	}
 	else {
 		SpinlockRelease(&AddressSpace->Lock);
 	}
-
-	// No errors
 	return OsSuccess;
 }
 
+/* AddressSpaceSwitch
+ * Switches the current address space out with the the address space provided 
+ * for the current cpu */
+OsStatus_t
+AddressSpaceSwitch(
+    _In_ AddressSpace_t *AddressSpace) {
+	return MmVirtualSwitchPageDirectory(CpuGetCurrentId(),
+		(PageDirectory_t*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], 
+        (PhysicalAddress_t)AddressSpace->Data[ASPACE_DATA_CR3]);
+}
+
 /* AddressSpaceGetCurrent
- * Returns the current address space
- * if there is no active threads or threading
+ * Returns the current address space if there is no active threads or threading
  * is not setup it returns the kernel address space */
 AddressSpace_t*
 AddressSpaceGetCurrent(void)
 {
 	// Lookup current thread
-	MCoreThread_t *CurrThread = 
+	MCoreThread_t *CurrentThread = 
 		ThreadingGetCurrentThread(CpuGetCurrentId());
 
-	// if no threads are active return
-	// the kernel address space
-	if (CurrThread == NULL) {
-		return &GlbKernelAddressSpace;
+	// if no threads are active return the kernel address space
+	if (CurrentThread == NULL) {
+		return &KernelAddressSpace;
 	}
 	else {
-		return CurrThread->AddressSpace;
-	}
-}
-
-/* AddressSpaceSwitch
- * Switches the current address space out with the
- * the address space provided for the current cpu */
-OsStatus_t
-AddressSpaceSwitch(
-	_In_ AddressSpace_t *AddressSpace)
-{
-	// Redirect to our virtual memory manager
-	return MmVirtualSwitchPageDirectory(CpuGetCurrentId(),
-		AddressSpace->PageDirectory, AddressSpace->Cr3);
-}
-
-/* AddressSpaceTranslate
- * Translates the given address to the correct virtual
- * address, this can be used to correct any special cases on
- * virtual addresses in the sub-layer */
-VirtualAddress_t
-AddressSpaceTranslate(
-	_In_ AddressSpace_t *AddressSpace,
-	_In_ VirtualAddress_t Address)
-{
-	// Sanitize on the address, and the
-	// the type of addressing space 
-	if (AddressSpace->Flags & AS_TYPE_KERNEL) {
-		return Address;
-	}
-	else {
-		return Address;
+		return CurrentThread->AddressSpace;
 	}
 }
 
 /* AddressSpaceMap
  * Maps the given virtual address into the given address space
- * automatically allocates physical pages based on the passed Flags
- * It returns the start address of the allocated physical region */
-OsStatus_t
-AddressSpaceMap(
-	_In_ AddressSpace_t *AddressSpace,
-	_In_ VirtualAddress_t Address,
-	_In_ size_t Size,
-	_In_ uintptr_t Mask,
-	_In_ Flags_t Flags,
-	_Out_Opt_ uintptr_t *Physical)
-{
-	// Variables
-	size_t PageCount = DIVUP(Size, PAGE_SIZE);
-	PhysicalAddress_t PhysicalBase = 0;
-	Flags_t AllocFlags = 0;
-	size_t Itr = 0;
-
-	// Parse and convert flags
-	if (Flags & AS_FLAG_APPLICATION) {
-		AllocFlags |= PAGE_USER;
-	}
-	if (Flags & AS_FLAG_NOCACHE) {
-		AllocFlags |= PAGE_CACHE_DISABLE;
-	}
-	if (Flags & AS_FLAG_VIRTUAL) {
-		AllocFlags |= PAGE_VIRTUAL;
-	}
-	if (Flags & AS_FLAG_CONTIGIOUS) {
-		PhysicalBase = MmPhysicalAllocateBlock(Mask, (int)PageCount);
-	}
-
-	// Iterate the number of pages to map 
-	for (Itr = 0; Itr < PageCount; Itr++) {
-		uintptr_t PhysBlock = 0;
-		if (PhysicalBase != 0) {
-			PhysBlock = PhysicalBase + (Itr * PAGE_SIZE);
-		}
-		else {
-			PhysBlock = MmPhysicalAllocateBlock(Mask, 1);
-		}
-
-		// Only return the base physical page
-		if (PhysicalBase == 0) {
-			PhysicalBase = PhysBlock;
-		}
-
-		// Redirect call to our virtual page manager
-		if (MmVirtualMap(AddressSpace->PageDirectory, PhysBlock,
-			(Address + (Itr * PAGE_SIZE)), AllocFlags) != OsSuccess) {
-			return OsError;
-		}
-	}
-
-	// Update out and return
-	if (Physical != NULL) {
-		*Physical = PhysicalBase;
-	}
-	return OsSuccess;
-}
-
-/* AddressSpaceMapFixed
- * Maps the given virtual address into the given address space
  * uses the given physical pages instead of automatic allocation
  * It returns the start address of the allocated physical region */
 OsStatus_t
-AddressSpaceMapFixed(
-	_In_ AddressSpace_t *AddressSpace,
-	_In_ PhysicalAddress_t pAddress, 
-	_In_ VirtualAddress_t vAddress, 
-	_In_ size_t Size, 
-	_In_ Flags_t Flags)
+AddressSpaceMap(
+    _In_        AddressSpace_t*     AddressSpace,
+    _InOut_Opt_ PhysicalAddress_t*  PhysicalAddress, 
+    _InOut_Opt_ VirtualAddress_t*   VirtualAddress, 
+    _In_        size_t              Size, 
+    _In_        Flags_t             Flags,
+    _In_        uintptr_t           Mask)
 {
-	// Variables
-	size_t PageCount = DIVUP(Size, PAGE_SIZE);
-	int AllocFlags = 0;
-	size_t Itr = 0;
+    // Variables
+	PhysicalAddress_t PhysicalBase  = 0;
+    VirtualAddress_t VirtualBase    = 0;
+	Flags_t AllocFlags              = 0;
+	int PageCount                   = 0;
+	int i;
 
-	// Parse and convert flags
-	// MapFixed does not support CONTIGIOUS
-	if (Flags & AS_FLAG_APPLICATION) {
-		AllocFlags |= PAGE_USER;
-	}
-	if (Flags & AS_FLAG_NOCACHE) {
-		AllocFlags |= PAGE_CACHE_DISABLE;
-	}
-	if (Flags & AS_FLAG_VIRTUAL) {
-		AllocFlags |= PAGE_VIRTUAL;
-	}
-    if (Flags & AS_FLAG_RESOLVEVIRTUAL) {
-        vAddress = (VirtualAddress_t)MmReserveMemory(PageCount);
+    // Assert that address space is not null
+    assert(AddressSpace != NULL);
+
+    // Calculate the number of pages of this allocation
+    PageCount           = DIVUP(Size, PAGE_SIZE);
+
+    // Determine the memory mappings initially
+    if (Flags & ASPACE_FLAG_SUPPLIEDPHYSICAL) {
+        assert(PhysicalAddress != NULL);
+        PhysicalBase        = (*PhysicalAddress & PAGE_MASK);
+    }
+    else if (Flags & ASPACE_FLAG_CONTIGIOUS) { // Allocate contigious physical? 
+        PhysicalBase = MmPhysicalAllocateBlock(Mask, PageCount);
+        if (PhysicalAddress != NULL) {
+            *PhysicalAddress = PhysicalBase;
+        }
+    }
+    else { // Set it on first allocation
+        if (PhysicalAddress != NULL) {
+            *PhysicalAddress = 0;
+        }
+    }
+    if (Flags & ASPACE_FLAG_SUPPLIEDVIRTUAL) {
+        assert(VirtualAddress != NULL);
+        VirtualBase         = (*VirtualAddress & PAGE_MASK);
+    }
+    else { // allocate from some place... @todo
+        VirtualBase         = (VirtualAddress_t)MmReserveMemory(PageCount);
+        if (VirtualAddress != NULL) {
+            *VirtualAddress = VirtualBase;
+        }
     }
 
-	// Now map it in by redirecting to virtual memory manager
-	for (Itr = 0; Itr < PageCount; Itr++) {
-		MmVirtualMap(AddressSpace->PageDirectory, (pAddress + (Itr * PAGE_SIZE)),
-			(vAddress + (Itr * PAGE_SIZE)), (uint32_t)AllocFlags);
+    // Handle other flags
+    if (Flags & ASPACE_FLAG_APPLICATION) {
+		AllocFlags |= PAGE_USER;
+	}
+	if (Flags & ASPACE_FLAG_NOCACHE) {
+		AllocFlags |= PAGE_CACHE_DISABLE;
+	}
+	if (Flags & ASPACE_FLAG_VIRTUAL) {
+		AllocFlags |= PAGE_VIRTUAL;
 	}
 
-	// No errors
-	return OsSuccess;
+    // Iterate the number of pages to map 
+	for (i = 0; i < PageCount; i++) {
+		uintptr_t PhysicalPage  = 0;
+        if ((Flags & ASPACE_FLAG_CONTIGIOUS) || (Flags & ASPACE_FLAG_SUPPLIEDPHYSICAL)) {
+            PhysicalPage        = PhysicalBase + (i * PAGE_SIZE);
+        }
+		else {
+			PhysicalPage        = MmPhysicalAllocateBlock(Mask, 1);
+            if (PhysicalAddress != NULL && *PhysicalAddress == 0) {
+                *PhysicalAddress = PhysicalPage;
+            }
+		}
+
+		// Redirect call to our virtual page manager
+		if (MmVirtualMap((PageDirectory_t*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], 
+            PhysicalPage, (VirtualBase + (i * PAGE_SIZE)), AllocFlags) != OsSuccess) {
+            WARNING("Failed to map virtual 0x%x => physical 0x%x", 
+                (VirtualBase + (i * PAGE_SIZE)), PhysicalPage);
+			return OsError;
+		}
+	}
+    return OsSuccess;
 }
 
 /* AddressSpaceUnmap
  * Unmaps a virtual memory region from an address space */
 OsStatus_t
 AddressSpaceUnmap(
-	_In_ AddressSpace_t *AddressSpace, 
-	_In_ VirtualAddress_t Address, 
-	_In_ size_t Size)
+    _In_ AddressSpace_t*    AddressSpace, 
+    _In_ VirtualAddress_t   Address, 
+    _In_ size_t             Size)
 {
 	// Variables
-	size_t PageCount = DIVUP(Size, PAGE_SIZE);
-	size_t Itr = 0;
+	int PageCount   = DIVUP(Size, PAGE_SIZE);
+	int i;
 
 	// Iterate page-count and unmap
-	for (Itr = 0; Itr < PageCount; Itr++) {
-		MmVirtualUnmap(AddressSpace->PageDirectory, (Address + (Itr * PAGE_SIZE)));
+	for (i = 0; i < PageCount; i++) {
+		if (MmVirtualUnmap((PageDirectory_t*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], 
+                (Address + (i * PAGE_SIZE))) != OsSuccess) {
+            WARNING("Failed to unmap address 0x%x", (Address + (i * PAGE_SIZE)));
+        }
 	}
-	
-	// Done - no errors
 	return OsSuccess;
 }
 
-/* AddressSpaceGetMap
+/* AddressSpaceGetMapping
  * Retrieves a physical mapping from an address space determined
  * by the virtual address given */
 PhysicalAddress_t
-AddressSpaceGetMap(
-	_In_ AddressSpace_t *AddressSpace, 
-	_In_ VirtualAddress_t Address) {
-	return MmVirtualGetMapping(AddressSpace->PageDirectory, Address);
+AddressSpaceGetMapping(
+    _In_ AddressSpace_t*    AddressSpace, 
+    _In_ VirtualAddress_t   VirtualAddress) {
+	return MmVirtualGetMapping(
+        (PageDirectory_t*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], VirtualAddress);
+}
+
+/* AddressSpaceGetPageSize
+ * Retrieves the memory page-size used by the underlying architecture. */
+size_t
+AddressSpaceGetPageSize(void) {
+    return PAGE_SIZE;
 }

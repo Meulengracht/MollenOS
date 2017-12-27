@@ -32,7 +32,7 @@
 
 /* Includes
  * - System */
-#include <system/addresspace.h>
+#include <system/addressspace.h>
 #include <process/pe.h>
 #include <criticalsection.h>
 #include <mutex.h>

@@ -33,6 +33,7 @@
 #include <scheduler.h>
 #include <threading.h>
 #include <debug.h>
+#include <arch.h>
 #include <heap.h>
 
 /* Includes
@@ -80,10 +81,8 @@ PhoenixFinishAsh(
     Ash->FileBuffer = NULL;
 
     // Initialize the memory bitmaps
-    Ash->Heap = BlockBitmapCreate(AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_HEAP),
-        AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_SHM), PAGE_SIZE);
-    Ash->Shm = BlockBitmapCreate(AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_SHM),
-        AddressSpaceTranslate(Ash->AddressSpace, MEMORY_LOCATION_RING3_IOSPACE), PAGE_SIZE);
+    Ash->Heap = BlockBitmapCreate(MEMORY_LOCATION_RING3_HEAP, MEMORY_LOCATION_RING3_SHM, AddressSpaceGetPageSize());
+    Ash->Shm = BlockBitmapCreate(MEMORY_LOCATION_RING3_SHM, MEMORY_LOCATION_RING3_IOSPACE, AddressSpaceGetPageSize());
 }
 
 /* PhoenixStartupEntry
@@ -144,6 +143,7 @@ PhoenixInitializeAsh(
         }
     }
     else {
+        FileSystemCode_t FsCode = FsOk;
         if (OpenFile(MStringRaw(Path), 
             __FILE_MUSTEXIST, __FILE_READ_ACCESS, &fHandle) != FsOk) {
             ERROR("Invalid path given.");
@@ -161,8 +161,11 @@ PhoenixInitializeAsh(
 
         // Read file and copy path
         memset(fPath, 0, _MAXPATH);
-        ReadFile(fHandle, BufferObject, &fIndex, &fRead);
-        ReadBuffer(BufferObject, (__CONST void*)fBuffer, fRead, NULL);
+        FsCode          = ReadFile(fHandle, BufferObject, &fIndex, &fRead);
+        if (FsCode != FsOk) {
+            ERROR("Failed to read file, code %i", FsCode);
+        }
+        ReadBuffer(BufferObject, (const void*)fBuffer, fRead, NULL);
         GetFilePath(fHandle, fPath, _MAXPATH);
         Ash->Path       = MStringCreate(fPath, StrUTF8);
 
@@ -408,7 +411,7 @@ PhoenixQueryAsh(
         // For now, we only support querying of
         // how much memory has been allocated for the heap 
         case AshQueryMemory: {
-            *((size_t*)Buffer) = (Ash->Heap->BlocksAllocated * PAGE_SIZE);
+            *((size_t*)Buffer) = (Ash->Heap->BlocksAllocated * AddressSpaceGetPageSize());
             Result = OsSuccess;
         } break;
 

@@ -37,6 +37,7 @@
 #include <scheduler.h>
 #include <timers.h>
 #include <debug.h>
+#include <arch.h>
 #include <heap.h>
 
 #include <assert.h>

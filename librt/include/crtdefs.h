@@ -203,6 +203,7 @@
 
 #ifndef _InOut_
 #define _InOut_
+#define _InOut_Opt_
 #endif
 
 #ifndef _M_IX86

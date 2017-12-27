@@ -32,9 +32,10 @@
 #include <threading.h>
 #include <scheduler.h>
 #include <interrupts.h>
-#include <heap.h>
-#include <debug.h>
 #include <timers.h>
+#include <debug.h>
+#include <arch.h>
+#include <heap.h>
 #include <log.h>
 
 /* Includes
@@ -685,8 +686,8 @@ ScMemoryAllocate(
     _Out_ uintptr_t *PhysicalAddress)
 {
     // Variables
-    MCoreAsh_t *Ash = NULL;
-    uintptr_t AllocatedAddress = 0;
+    uintptr_t AllocatedAddress  = 0;
+    MCoreAsh_t *Ash             = NULL;
 
     // Locate the current running process
     Ash = PhoenixGetCurrentAsh();
@@ -715,22 +716,22 @@ ScMemoryAllocate(
     // Handle flags
     // If the commit flag is not given the flags won't be applied
     if (Flags & MEMORY_COMMIT) {
-        int ExtendedFlags = AS_FLAG_APPLICATION;
+        int ExtendedFlags = ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL;
 
         // Build extensions
         if (Flags & MEMORY_CONTIGIOUS) {
-            ExtendedFlags |= AS_FLAG_CONTIGIOUS;
+            ExtendedFlags |= ASPACE_FLAG_CONTIGIOUS;
         }
         if (Flags & MEMORY_UNCHACHEABLE) {
-            ExtendedFlags |= AS_FLAG_NOCACHE;
+            ExtendedFlags |= ASPACE_FLAG_NOCACHE;
         }
         if (Flags & MEMORY_LOWFIRST) {
             // Handle mask
         }
 
         // Do the actual mapping
-        if (AddressSpaceMap(AddressSpaceGetCurrent(),
-            AllocatedAddress, Size, __MASK, ExtendedFlags, PhysicalAddress) != OsSuccess) {
+        if (AddressSpaceMap(AddressSpaceGetCurrent(), PhysicalAddress, &AllocatedAddress, 
+            Size, ExtendedFlags, __MASK) != OsSuccess) {
             BlockBitmapFree(Ash->Heap, AllocatedAddress, Size);
             *VirtualAddress = 0;
             return OsError;
@@ -793,9 +794,9 @@ ScMemoryQuery(
     }
 
     // Copy relevant data over
-    Descriptor->PageSizeBytes = PAGE_SIZE;
-    Descriptor->PagesTotal = SystemInfo.PagesTotal;
-    Descriptor->PagesUsed = SystemInfo.PagesAllocated;
+    Descriptor->PageSizeBytes   = AddressSpaceGetPageSize();
+    Descriptor->PagesTotal      = SystemInfo.PagesTotal;
+    Descriptor->PagesUsed       = SystemInfo.PagesAllocated;
 
     // Return no error, should never fail
     return OsSuccess;
@@ -830,7 +831,7 @@ ScMemoryAcquire(
     // Start out by allocating memory 
     // in target process's shared memory space
     uintptr_t Shm = BlockBitmapAllocate(Ash->Shm, Size);
-    NumBlocks = DIVUP(Size, PAGE_SIZE);
+    NumBlocks = DIVUP(Size, AddressSpaceGetPageSize());
 
     // Sanity -> If we cross a page boundary
     if (((PhysicalAddress + Size) & PAGE_MASK)
@@ -847,11 +848,13 @@ ScMemoryAcquire(
     // Now we have to transfer our physical mappings 
     // to their new virtual
     for (i = 0; i < NumBlocks; i++) {
+        uintptr_t PhysicalPage = PhysicalAddress + (i * AddressSpaceGetPageSize());
+        uintptr_t VirtualPage = Shm + (i * AddressSpaceGetPageSize());
+
         // Map it directly into target process
-        AddressSpaceMapFixed(Ash->AddressSpace, 
-            PhysicalAddress + (i * PAGE_SIZE),
-            Shm + (i * PAGE_SIZE),
-            PAGE_SIZE, AS_FLAG_APPLICATION | AS_FLAG_VIRTUAL);
+        AddressSpaceMap(Ash->AddressSpace, &PhysicalPage, &VirtualPage, AddressSpaceGetPageSize(), 
+            ASPACE_FLAG_APPLICATION | ASPACE_FLAG_VIRTUAL | ASPACE_FLAG_SUPPLIEDPHYSICAL 
+            | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
     }
 
     // Done
@@ -880,7 +883,7 @@ ScMemoryRelease(
     }
 
     // Calculate the number of blocks
-    NumBlocks = DIVUP(Size, PAGE_SIZE);
+    NumBlocks = DIVUP(Size, AddressSpaceGetPageSize());
 
     // Sanity -> If we cross a page boundary
     if (((VirtualAddress + Size) & PAGE_MASK)
@@ -891,7 +894,7 @@ ScMemoryRelease(
     // Iterate through allocated pages and free them
     for (i = 0; i < NumBlocks; i++) {
         AddressSpaceUnmap(Ash->AddressSpace, 
-            VirtualAddress + (i * PAGE_SIZE), PAGE_SIZE);
+            VirtualAddress + (i * AddressSpaceGetPageSize()), AddressSpaceGetPageSize());
     }
 
     // Free it in bitmap

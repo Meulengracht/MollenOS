@@ -24,7 +24,6 @@
 
 /* Includes
  * - (OS) System */
-#include <system/addresspace.h>
 #include <system/utils.h>
 #include <interrupts.h>
 #include <threading.h>

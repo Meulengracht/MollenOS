@@ -148,7 +148,7 @@ ThreadingEnable(
     Thread->SignalQueue = CollectionCreate(KeyInteger);
 
 	// Initialize arch-dependant members
-	Thread->AddressSpace = AddressSpaceCreate(AS_TYPE_KERNEL);
+	Thread->AddressSpace = AddressSpaceCreate(ASPACE_TYPE_KERNEL);
 	if (ThreadingRegister(Thread) != OsSuccess) {
         ERROR("Failed to register thread with system. Threading is not enabled.");
         // @todo
@@ -234,19 +234,19 @@ ThreadingCreateThread(
 	// Determine the address space we want
 	// to initialize for this thread
 	if (THREADING_RUNMODE(Flags) == THREADING_KERNELMODE) {
-		Thread->AddressSpace = AddressSpaceCreate(AS_TYPE_INHERIT);
+		Thread->AddressSpace = AddressSpaceCreate(ASPACE_TYPE_INHERIT);
 	}
 	else {
 		Flags_t ASFlags = 0;
 
 		if (THREADING_RUNMODE(Flags) == THREADING_DRIVERMODE) {
-			ASFlags |= AS_TYPE_DRIVER;
+			ASFlags |= ASPACE_TYPE_DRIVER;
 		}
 		else {
-			ASFlags |= AS_TYPE_APPLICATION;
+			ASFlags |= ASPACE_TYPE_APPLICATION;
 		}
 		if (Flags & THREADING_INHERIT) {
-			ASFlags |= AS_TYPE_INHERIT;
+			ASFlags |= ASPACE_TYPE_INHERIT;
         }
 		Thread->AddressSpace = AddressSpaceCreate(ASFlags);
 	}

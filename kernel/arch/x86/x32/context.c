@@ -90,9 +90,9 @@ ContextCreate(
         }
 
         // Map in the context
-        if (!AddressSpaceGetMap(AddressSpaceGetCurrent(), ContextAddress & PAGE_MASK)) {
-            AddressSpaceMap(AddressSpaceGetCurrent(), ContextAddress & PAGE_MASK, 
-                0x1000, __MASK, AS_FLAG_APPLICATION, NULL);
+        if (!AddressSpaceGetMapping(AddressSpaceGetCurrent(), ContextAddress)) {
+            AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &ContextAddress, PAGE_SIZE,
+                ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
         }
     }
 	else {

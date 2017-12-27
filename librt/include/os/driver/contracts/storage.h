@@ -99,11 +99,11 @@ SERVICEAPI
 OsStatus_t
 SERVICEABI
 StorageRead(
-	_In_ UUId_t Driver, 
-	_In_ UUId_t StorageDevice,
-	_In_ uint64_t Sector, 
+	_In_  UUId_t    DriverId, 
+	_In_  UUId_t    StorageDeviceId,
+	_In_  uint64_t  Sector, 
 	_Out_ uintptr_t PhysicalAddress, 
-	_In_ size_t SectorCount)
+	_In_  size_t    SectorCount)
 {
 	/* Variables */
 	MContract_t Contract;
@@ -111,19 +111,19 @@ StorageRead(
 	OsStatus_t Result = OsSuccess;
 
 	/* Setup contract stuff for request */
-	Contract.DriverId = Driver;
-	Contract.Type = ContractStorage;
-	Contract.Version = __DEVICEMANAGER_INTERFACE_VERSION;
+	Contract.DriverId       = DriverId;
+	Contract.Type           = ContractStorage;
+	Contract.Version        = __DEVICEMANAGER_INTERFACE_VERSION;
 
 	/* Initialize the operation */
-	Operation.Direction = __STORAGE_OPERATION_READ;
-	Operation.AbsSector = Sector;
+	Operation.Direction     = __STORAGE_OPERATION_READ;
+	Operation.AbsSector     = Sector;
 	Operation.PhysicalBuffer = PhysicalAddress;
-	Operation.SectorCount = SectorCount;
+	Operation.SectorCount   = SectorCount;
 
 	/* Query the driver directly */
 	QueryDriver(&Contract, __STORAGE_QUERY_READ,
-		&StorageDevice, sizeof(UUId_t), &Operation, sizeof(StorageOperation_t),
+		&StorageDeviceId, sizeof(UUId_t), &Operation, sizeof(StorageOperation_t),
 		NULL, 0, &Result, sizeof(OsStatus_t));
 	return Result;
 }

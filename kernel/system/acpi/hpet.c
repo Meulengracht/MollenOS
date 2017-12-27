@@ -24,7 +24,7 @@
 
 /* Includes
  * - System */
-#include <system/addresspace.h>
+#include <system/addressspace.h>
 #include <interrupts.h>
 #include <timers.h>
 #include <debug.h>
@@ -347,9 +347,9 @@ HpInitialize(
 		(uintptr_t)(Table->Address.Address & __MASK);
 
     // Map the address
-    if (AddressSpaceMapFixed(AddressSpaceGetCurrent(), 
-        HpetController.BaseAddress, 0, 0x1000, 
-        AS_FLAG_RESOLVEVIRTUAL | AS_FLAG_NOCACHE) != OsSuccess) {
+    if (AddressSpaceMap(AddressSpaceGetCurrent(), 
+        &HpetController.BaseAddress, &HpetController.BaseAddress, 0x1000, 
+        ASPACE_FLAG_SUPPLIEDPHYSICAL | ASPACE_FLAG_NOCACHE, __MASK) != OsSuccess) {
         ERROR("Failed to map address for hpet.");
         return OsError;
     }

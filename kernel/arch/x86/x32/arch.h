@@ -32,8 +32,10 @@
 #define MAX_SUPPORTED_CPUS			64
 #define MAX_SUPPORTED_INTERRUPTS    256
 
-/* X86-32 Address Space */
-#define ADDRESSSPACE_MEMBERS		uintptr_t Cr3; void *PageDirectory;
+/* AddressSpace (Data) Definitions
+ * Definitions, bit definitions and magic constants for address spaces */
+#define ASPACE_DATA_CR3             0
+#define ASPACE_DATA_PDPOINTER       1
 
 #ifndef GDT_IOMAP_SIZE
 #define GDT_IOMAP_SIZE				2048

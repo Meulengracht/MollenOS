@@ -30,6 +30,7 @@
 #include <process/server.h>
 #include <memory.h>
 #include <debug.h>
+#include <arch.h>
 #include <heap.h>
 #include <gdt.h>
 

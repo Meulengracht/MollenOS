@@ -24,7 +24,6 @@
 
 /* Includes
  * - (OS) System */
-#include <system/addresspace.h>
 #include <system/thread.h>
 #include <system/utils.h>
 #include <interrupts.h>
@@ -133,7 +132,7 @@ AcpiOsInstallInterruptHandler (
 
 	// Install it
     AcpiGbl_InterruptId[InterruptNumber] = 
-        InterruptRegister(&ACPIInterrupt, INTERRUPT_KERNEL);
+        InterruptRegister(&ACPIInterrupt, INTERRUPT_KERNEL);InterruptRegister(&ACPIInterrupt, INTERRUPT_KERNEL);
     if (AcpiGbl_InterruptId[InterruptNumber] != UUID_INVALID) {
         return AE_OK;
     }
