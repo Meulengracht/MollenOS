@@ -1,7 +1,7 @@
 
 # About MollenOS
 
-[![Build Status](https://travis-ci.org/Fadekraft/MollenOS.svg?branch=master)](https://travis-ci.org/Fadekraft/MollenOS)
+[![Build Status](http://ec2-35-157-236-132.eu-central-1.compute.amazonaws.com/app/rest/builds/buildType:(id:ValiOS_Build)/statusIcon)](http://ec2-35-157-236-132.eu-central-1.compute.amazonaws.com/project.html?projectId=ValiOS&branch_ValiOS=__all_branches__)
 
 ## The Goal
 
