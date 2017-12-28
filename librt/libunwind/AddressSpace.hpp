@@ -403,16 +403,33 @@ inline bool LocalAddressSpace::findUnwindSections(pint_t targetAddr,
 
   // Foreach module, get section headers
   for (unsigned i = 0; i < PROCESS_MAXMODULES; i++) {
-    MzHeader_t *DosHeader       = (MzHeader_t*)ModuleList[i];
-    PeHeader_t *PeHeader        = NULL;
-    PeSectionHeader_t *Section  = NULL;
-    bool found_obj              = false;
-    bool found_hdr              = false;
-    if (DosHeader == NULL) {
+    MzHeader_t *DosHeader           = NULL;
+    PeHeader_t *PeHeader            = NULL;
+    PeOptionalHeader_t *OptHeader   = NULL;
+    PeSectionHeader_t *Section      = NULL;
+    bool found_obj                  = false;
+    bool found_hdr                  = false;
+    if (ModuleList[i] == NULL) {
         break;
     }
+
+    // Initiate values
     info.dso_base = (uintptr_t)ModuleList[i];
-    for (unsigned j = 0; j < PeHeader->NumSections; j++) {
+    DosHeader   = (MzHeader_t*)ModuleList[i];
+    PeHeader    = (PeHeader_t*)(((uint8_t*)DosHeader) + DosHeader->PeHeaderAddress);
+    OptHeader   = (PeOptionalHeader_t*)(((uint8_t*)DosHeader) + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
+    if (OptHeader->Architecture == PE_ARCHITECTURE_32) {
+        Section = (PeSectionHeader_t*)(((uint8_t*)DosHeader) + DosHeader->PeHeaderAddress + sizeof(PeHeader_t) + sizeof(PeOptionalHeader32_t));
+    }
+    else if (OptHeader->Architecture == PE_ARCHITECTURE_64) {
+        Section = (PeSectionHeader_t*)(((uint8_t*)DosHeader) + DosHeader->PeHeaderAddress + sizeof(PeHeader_t) + sizeof(PeOptionalHeader64_t));
+    }
+    else {
+        return false;
+    }
+
+    // Iterate sections and spot correct one
+    for (unsigned j = 0; j < PeHeader->NumSections; j++, Section++) {
       uintptr_t begin = Section->VirtualAddress + (uintptr_t)ModuleList[i];
       uintptr_t end = begin + Section->VirtualSize;
       if (!strncmp((const char *)Section->Name, ".text", PE_SECTION_NAME_LENGTH)) {

@@ -602,7 +602,6 @@ PeResolveLibrary(
         else {
             // Variables
             FileSystemCode_t FsCode = FsOk;
-            OsStatus_t FsResult     = OsSuccess;
 
             // Open the file as read-only
             FsCode = OpenFile(MStringRaw(LibraryName), __FILE_MUSTEXIST, __FILE_READ_ACCESS, &fHandle);

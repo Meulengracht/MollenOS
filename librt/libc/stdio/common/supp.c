@@ -643,14 +643,11 @@ _fcloseall(void)
     LOCK_FILES();
     foreach(fNode, IoObjects) {
         file = (FILE*)(((ioobject*)fNode->Data)->file);
-
-        // Close found file
         if (!fclose(file)) {
             num_closed++;      
         }
     }
     UNLOCK_FILES();
-
     return num_closed;
 }
 

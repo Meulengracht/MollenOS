@@ -20,7 +20,7 @@
 #endif
 
 #if defined(MOLLENOS)
-#define _LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS
+#define _LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS 1
 #endif
 
 #if defined(_WIN32) || defined(MOLLENOS)

@@ -32,13 +32,16 @@ config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE # Use a full debug console on heig
 #config_flags += -D__OSCONFIG_DISABLE_EHCI # Disable usb 2.0 support, run only in usb 1.1
 #config_flags += -D__OSCONFIG_DISABLE_VIOARR # Disable auto starting the windowing system
 
-#-std=c11 -gdwarf
+# -Xclang -flto-visibility-public-std makes sure to generate cxx-abi stuff without __imp_ 
+# -std=c11 enables c11 support for C compilation
+# -gdwarf enables dwarf debugging generation, should be used
 disable_warnings = -Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function
-shared_flags = -target i386-pc-win32-itanium-coff -U_WIN32 -m32 -fms-extensions -Wall -ffreestanding -nostdlib -O3
+shared_flags = -U_WIN32 -m32 -fms-extensions -Wall -ffreestanding -nostdlib -O3 -DMOLLENOS -D$(arch)
 
 export ASFLAGS = -f bin
-export GCFLAGS = $(shared_flags) -DMOLLENOS -D$(arch) $(disable_warnings) $(config_flags)
-export GCXXFLAGS = -std=c++17 $(shared_flags) -DMOLLENOS -D$(arch) $(disable_warnings) $(config_flags)
+export GCFLAGS = $(shared_flags) $(disable_warnings) $(config_flags)
+export GCXXFLAGS = -std=c++17 $(shared_flags) -Xclang -flto-visibility-public-std $(disable_warnings) $(config_flags)
+
 export GLFLAGS = /nodefaultlib /machine:X86 /subsystem:native /debug:dwarf
 export GLIBRARIES = ../lib/libcrt.lib ../lib/libclang.lib ../lib/libc.lib ../lib/libunwind.lib ../lib/libcxxabi.lib ../lib/libcxx.lib
 

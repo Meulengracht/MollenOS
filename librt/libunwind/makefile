@@ -8,9 +8,10 @@ SOURCES_C = $(wildcard ./*.c)
 SOURCES_X = libunwind.cpp Unwind-EHABI.cpp
 OBJECTS = $(SOURCES_S:.S=.o) $(SOURCES_C:.c=.o) $(SOURCES_X:.cpp=.o)
 
-CFLAGS = $(GCFLAGS) -std=c11 -DCRTDLL -D__OSLIB_UNWIND_IMPLEMENTATION $(INCLUDES)
-CXXFLAGS = $(GCXXFLAGS) -DCRTDLL -D__OSLIB_UNWIND_IMPLEMENTATION -fno-rtti -fno-exceptions $(INCLUDES)
-LFLAGS = $(GLFLAGS) /entry:__CrtLibraryEntry /dll ../build/libc.lib ../build/libcrt.lib
+CONFIG_FLAGS = -DNDEBUG -D_LIBUNWIND_IS_NATIVE_ONLY -D_LIBUNWIND_IS_BAREMETAL
+CFLAGS = $(GCFLAGS) -std=c11 -D__OSLIB_UNWIND_IMPLEMENTATION $(CONFIG_FLAGS) $(INCLUDES)
+CXXFLAGS = $(GCXXFLAGS) -D__OSLIB_UNWIND_IMPLEMENTATION -fno-rtti -fno-exceptions $(CONFIG_FLAGS) $(INCLUDES)
+LFLAGS = $(GLFLAGS) /entry:__CrtLibraryEntry /dll /lldmap ../build/libc.lib ../build/libcrt.lib
 
 # default-target
 .PHONY: all

@@ -86,7 +86,7 @@
     #ifdef __OSLIB_UNWIND_IMPLEMENTATION
     #define _LIBUNWIND_EXPORT __declspec(dllexport)
     #else 
-    #define _LIBUNWIND_EXPORT __declspec(dllimport)
+    #define _LIBUNWIND_EXPORT
     #endif
     #define _LIBUNWIND_HIDDEN
   #else
