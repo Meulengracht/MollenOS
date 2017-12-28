@@ -178,7 +178,7 @@ tls_callatexit(
 
     // Cleanup handlers
     SpinlockAcquire(&TlsLock);
-    while (CollectionRemoveByKey(TlsGlobal.TlsAtExit, Key));
+    while (CollectionRemoveByKey(TlsGlobal.TlsAtExit, Key) == OsSuccess);
     return SpinlockRelease(&TlsLock);
 }
 
@@ -208,7 +208,7 @@ tls_cleanup(
 
     // Cleanup all stored tls-keys by this thread
     SpinlockAcquire(&TlsLock);
-    while (CollectionRemoveByKey(TlsGlobal.Tls, Key));
+    while (CollectionRemoveByKey(TlsGlobal.Tls, Key) == OsSuccess);
     SpinlockRelease(&TlsLock);
 
     // Invoke at-exit

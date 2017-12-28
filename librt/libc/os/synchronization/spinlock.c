@@ -37,68 +37,89 @@ __EXTERN int _spinlock_test(Spinlock_t *Spinlock);
 __EXTERN void _spinlock_release(Spinlock_t *Spinlock);
 
 /* SpinlockReset
- * This initializes a spinlock
- * handle and sets it to default
- * value (unlocked) */
+ * This initializes a spinlock handle and sets it to default value (unlocked) */
 OsStatus_t 
 SpinlockReset(
 	_In_ Spinlock_t *Lock)
 {
-	/* Sanity */
+    // Sanitize
 	if (Lock == NULL) {
 		return OsError;
 	}
-
-	/* Reset it to 0 */
-	*Lock = SPINLOCK_INIT;
+	Lock->Value         = 0;
+    Lock->References    = 0;
+    Lock->Owner         = UUID_INVALID;
 	return OsSuccess;
 }
 
 /* SpinlockAcquire
- * Acquires the spinlock while busy-waiting
- * for it to be ready if neccessary */
+ * Acquires the spinlock while busy-waiting for it to be ready if neccessary */
 OsStatus_t
 SpinlockAcquire(
 	_In_ Spinlock_t *Lock)
 {
-	/* Sanitize params */
+	// Sanitize
 	if (Lock == NULL) {
 		return OsError;
 	}
 
-	/* Redirect to platform specific implementation */
-	return _spinlock_acquire(Lock) == 1 ? OsSuccess : OsError;
+    // Reentrancy
+    if (Lock->Owner == thrd_current()) {
+        Lock->References++;
+        return OsSuccess;
+    }
+
+    // Value is updated by _acquire
+	if (!_spinlock_acquire(Lock)) {
+        return OsError;
+    }
+    Lock->Owner         = thrd_current();
+    Lock->References    = 1;
+    return OsSuccess;
 }
 
 /* SpinlockTryAcquire
- * Makes an attempt to acquire the
- * spinlock without blocking */
+ * Makes an attempt to acquire the spinlock without blocking */
 OsStatus_t
 SpinlockTryAcquire(
 	_In_ Spinlock_t *Lock)
 {
-	/* Sanity */
+	// Sanitize
 	if (Lock == NULL) {
 		return OsError;
 	}
 
-	/* Redirect to platform specific implementation */
-	return _spinlock_test(Lock) == 1 ? OsSuccess : OsError;
+    // Reentrancy
+    if (Lock->Owner == thrd_current()) {
+        Lock->References++;
+        return OsSuccess;
+    }
+
+    // Value is updated by _acquire
+	if (!_spinlock_test(Lock)) {
+        return OsError;
+    }
+    Lock->Owner         = thrd_current();
+    Lock->References    = 1;
+    return OsSuccess;
 }
 
 /* SpinlockRelease
- * Releases the spinlock, and lets
- * other threads access the lock */
+ * Releases the spinlock, and lets other threads access the lock */
 OsStatus_t 
 SpinlockRelease(
 	_In_ Spinlock_t *Lock)
 {
-	/* Sanity */
+	// Sanitize
 	if (Lock == NULL) {
 		return OsError;
 	}
 
-	/* Redirect to platform specific implementation */
-	_spinlock_release(Lock);
+    // Reduce the number of references
+    Lock->References--;
+    if (Lock->References == 0) {
+        Lock->Owner = UUID_INVALID;
+        _spinlock_release(Lock);
+    }
 	return OsSuccess;
 }

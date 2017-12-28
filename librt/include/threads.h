@@ -26,7 +26,6 @@
 /* Includes
  * - Library */
 #include <os/osdefs.h>
-#include <stdatomic.h>
 #include <time.h>
 
 /* Thread Definitions

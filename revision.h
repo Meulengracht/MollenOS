@@ -4,11 +4,11 @@
 #define _REVISION_H_
 
 #define BUILD_DATE "28 December 2017"
-#define BUILD_TIME "11:10:50"
+#define BUILD_TIME "13:28:50"
 #define BUILD_SYSTEM "clang"
 
 #define REVISION_MAJOR 0
 #define REVISION_MINOR 4
-#define REVISION_BUILD 6612
+#define REVISION_BUILD 6631
 
 #endif //!_REVISION_H_

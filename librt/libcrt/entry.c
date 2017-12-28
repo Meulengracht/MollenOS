@@ -164,12 +164,12 @@ __CrtInitialize(
     ProcessStartupInformation_t StartupInformation;
 	char **Arguments            = NULL;
 
-	// Initialize C/CPP
-    __cxa_runinitializers(__CrtCxxInitialize, __CrtCxxFinalize);
-
     // Initialize the TLS System
 	tls_create(Tls);
 	tls_initialize();
+
+	// Initialize C/CPP
+    __cxa_runinitializers(__CrtCxxInitialize, __CrtCxxFinalize);
 
     // Get startup information
     memset(&StartupArgumentBuffer[0], 0, sizeof(StartupArgumentBuffer));

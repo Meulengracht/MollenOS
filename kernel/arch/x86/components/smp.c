@@ -52,7 +52,6 @@ extern Collection_t *GlbAcpiNodes;
 extern UUId_t GlbBootstrapCpuId;
 
 /* Globals */
-Spinlock_t GlbApLock;
 volatile int GlbCpusBooted = 1;
 
 /* Trampoline Code */

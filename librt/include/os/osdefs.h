@@ -30,13 +30,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#if !defined(cplusplus)
 #if defined __STDC_VERSION__ && __STDC_VERSION__ >= 201112L
 #include <stdatomic.h>
 #include <stdnoreturn.h>
 #elif defined __STDC_VERSION__
 #error "Compiler does not support C11"
-#endif
 #endif
 
 #ifdef _UNICODE

@@ -231,13 +231,6 @@ __CrtCallExitHandlers(
     // Variables
     RTExitFunctionList_t **ListPointer = NULL;
 
-    // Cleanup CRT if asked
-    if (CleanupCrt != 0) {
-        tls_cleanup(thrd_current());
-        StdioCleanup();
-        tls_destroy(tls_current());
-    }
-
     // Initialize list pointer
     ListPointer = ((Quick == 0) ? &ExitFunctions : &ExitFunctionsQuick);
 
@@ -303,6 +296,13 @@ __CrtCallExitHandlers(
         }
         // Cleanup primary app
         PrimaryApplicationFinalizers();
+    }
+    
+    // Cleanup CRT if asked
+    if (CleanupCrt != 0) {
+        tls_cleanup(thrd_current());
+        StdioCleanup();
+        tls_destroy(tls_current());
     }
 }
 

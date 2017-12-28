@@ -27,6 +27,7 @@
 # include <pthread.h>
 # include <sched.h>
 #elif defined(_LIBCPP_HAS_THREAD_API_C11)
+# include <stdatomic.h>
 # include <threads.h>
 #elif defined(_LIBCPP_HAS_THREAD_API_WIN32)
 #include <windows.h>

@@ -22,6 +22,7 @@
 
 #ifdef LIBC_KERNEL
 #include <os/spinlock.h>
+#include <threading.h>
 #include <stdio.h>
 
 /* Globals
@@ -80,6 +81,12 @@ int wctomb(char *mbchar, wchar_t wchar)
     _CRT_UNUSED(mbchar);
     _CRT_UNUSED(wchar);
     return 0;
+}
+
+/* thrd_current
+ * Returns the identifier of the calling thread. */
+thrd_t thrd_current(void) {
+    return (thrd_t)ThreadingGetCurrentThreadId();
 }
 
 #else
