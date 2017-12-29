@@ -19,7 +19,7 @@
  * MollenOS - File Manager Service
  * - Handles all file related services and disk services
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -43,12 +43,10 @@ static int GlbInitHasRun = 0;
 /* VfsResolveQueueEvent
  * Sends the event to ourself that we are ready to
  * execute the resolver queue */
-OsStatus_t VfsResolveQueueEvent(void)
+OsStatus_t
+VfsResolveQueueEvent(void)
 {
-	/* Variables */
 	MRemoteCall_t Rpc;
-
-	/* Initialize the request */
 	RPCInitialize(&Rpc, __FILEMANAGER_TARGET, 
         __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_RESOLVEQUEUE);
 	return RPCEvent(&Rpc);
@@ -57,18 +55,19 @@ OsStatus_t VfsResolveQueueEvent(void)
 /* VfsResolveQueueExecute
  * Resolves all remaining filesystems that have been
  * waiting in the resolver-queue */
-OsStatus_t VfsResolveQueueExecute(void)
+OsStatus_t
+VfsResolveQueueExecute(void)
 {
-	/* Iterate nodes */
+	// Iterate nodes and resolve
 	foreach(fNode, VfsGetResolverQueue()) {
 		FileSystem_t *Fs = (FileSystem_t*)fNode->Data;
 		DataKey_t Key;
 		
-		/* Try to resolve it now */
+		// Try to resolve it now
 		Fs->Module = VfsResolveFileSystem(Fs);
 		Key.Value = (int)Fs->Descriptor.Disk.Device;
 
-		/* Sanitize the module - must exist */
+		// Sanitize the module - must exist 
 		if (Fs->Module == NULL) {
 			MStringDestroy(Fs->Identifier);
 			VfsIdentifierFree(&Fs->Descriptor.Disk, Fs->Id);
@@ -76,7 +75,7 @@ OsStatus_t VfsResolveQueueExecute(void)
 			continue;
 		}
 
-		/* Run initializor function */
+		// Run initializor function
 		if (Fs->Module->Initialize(&Fs->Descriptor) != OsSuccess) {
 			MStringDestroy(Fs->Identifier);
 			VfsIdentifierFree(&Fs->Descriptor.Disk, Fs->Id);
@@ -84,11 +83,9 @@ OsStatus_t VfsResolveQueueExecute(void)
 			continue;
 		}
 
-		/* Add to list, by using the disk id as identifier */
+		// Add to list, by using the disk id as identifier
 		CollectionAppend(VfsGetFileSystems(), CollectionCreateNode(Key, Fs));
 	}
-
-	/* Done! */
 	return OsSuccess;
 }
 
@@ -96,8 +93,12 @@ OsStatus_t VfsResolveQueueExecute(void)
  * Registers a new filesystem of the given type, on
  * the given disk with the given position on the disk 
  * and assigns it an identifier */
-OsStatus_t DiskRegisterFileSystem(FileSystemDisk_t *Disk,
-	uint64_t Sector, uint64_t SectorCount, FileSystemType_t Type) 
+OsStatus_t
+DiskRegisterFileSystem(
+    _In_ FileSystemDisk_t*  Disk,
+	_In_ uint64_t           Sector,
+    _In_ uint64_t           SectorCount,
+    _In_ FileSystemType_t   Type) 
 {
 	// Variables
 	FileSystem_t *Fs = NULL;
@@ -175,16 +176,18 @@ OsStatus_t DiskRegisterFileSystem(FileSystemDisk_t *Disk,
             GlbInitHasRun = 1;
 		}
 	}
-
-	// Done
 	return OsSuccess;
 }
 
-/* RegisterDisk
+/* VfsRegisterDisk
  * Registers a disk with the file-manager and it will
  * automatically be parsed (MBR, GPT, etc), and all filesystems
  * on the disk will be brought online */
-OsStatus_t RegisterDisk(UUId_t Driver, UUId_t Device, Flags_t Flags)
+OsStatus_t
+VfsRegisterDisk(
+    _In_ UUId_t  Driver,
+    _In_ UUId_t  Device,
+    _In_ Flags_t Flags)
 {
 	// Variables
 	FileSystemDisk_t *Disk = NULL;
@@ -217,12 +220,15 @@ OsStatus_t RegisterDisk(UUId_t Driver, UUId_t Device, Flags_t Flags)
 	return DiskDetectLayout(Disk);
 }
 
-/* UnregisterDisk
+/* VfsUnregisterDisk
  * Unregisters a disk from the system, and brings any filesystems
  * registered on this disk offline */
-OsStatus_t UnregisterDisk(UUId_t Device, Flags_t Flags)
+OsStatus_t
+VfsUnregisterDisk(
+    _In_ UUId_t  Device,
+    _In_ Flags_t Flags)
 {
-	/* Variables for iteration */
+	// Variables
 	FileSystemDisk_t *Disk = NULL;
 	CollectionItem_t *lNode = NULL;
 	DataKey_t Key;
@@ -231,44 +237,37 @@ OsStatus_t UnregisterDisk(UUId_t Device, Flags_t Flags)
 	Key.Value = (int)Device;
 	lNode = CollectionGetNodeByKey(VfsGetFileSystems(), Key, 0);
 
-	/* Keep iterating untill no more FS's are present on disk */
+	// Keep iterating untill no more FS's are present on disk
 	while (lNode != NULL) {
 		FileSystem_t *Fs = (FileSystem_t*)lNode->Data;
 
-		/* Close all open files that relate to this filesystem */
-		// TODO
+		// Close all open files that relate to this filesystem
+		// @todo
 
-		/* Call destroy handler for that FS */
+		// Call destroy handler for that FS
 		if (Fs->Module->Destroy(&Fs->Descriptor, Flags) != OsSuccess) {
 			// What do?
 		}
-
-		/* Reduce the number of references to that module */
 		Fs->Module->References--;
 
-		/* Sanitize the module references 
-		 * If there are no more refs then cleanup module */
+		// Sanitize the module references 
+		// If there are no more refs then cleanup module
 		if (Fs->Module->References <= 0) {
 			// Unload? Or keep loaded?
 		}
 
-		/* Cleanup resources allocated by the filesystem */
+		// Cleanup resources allocated by the filesystem 
 		VfsIdentifierFree(&Fs->Descriptor.Disk, Fs->Id);
 		MStringDestroy(Fs->Identifier);
 		free(Fs);
 
-		/* Remove it from list */
 		CollectionRemoveByNode(VfsGetFileSystems(), lNode);
-
-		/* Get next */
 		lNode = CollectionGetNodeByKey(VfsGetFileSystems(), Key, 0);
 	}
 
-	/* Remove the disk from the list of disks */
+	// Remove the disk from the list of disks
 	Disk = CollectionGetDataByKey(VfsGetDisks(), Key, 0);
 	CollectionRemoveByKey(VfsGetDisks(), Key);
 	free(Disk);
-
-	/* Done! */
 	return OsSuccess;
 }

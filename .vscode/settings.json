@@ -292,6 +292,7 @@
         "strings.h": "c",
         "types.h": "c",
         "__debug": "cpp",
-        "buffer.h": "c"
+        "buffer.h": "c",
+        "fstream": "c"
     }
 }

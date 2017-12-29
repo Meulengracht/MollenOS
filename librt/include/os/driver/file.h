@@ -122,20 +122,11 @@ PACKED_TYPESTRUCT(QueryFileOptionsPackage, {
  * Registers a disk with the file-manager and it will
  * automatically be parsed (MBR, GPT, etc), and all filesystems
  * on the disk will be brought online */
-#ifdef __FILEMANAGER_IMPL
-__EXTERN 
-OsStatus_t
-SERVICEABI
-RegisterDisk(
-	_In_ UUId_t Driver, 
-	_In_ UUId_t Device, 
-	_In_ Flags_t Flags);
-#else
 SERVICEAPI
 OsStatus_t
 SERVICEABI
 RegisterDisk( 
-	_In_ UUId_t Device, 
+	_In_ UUId_t  Device, 
 	_In_ Flags_t Flags)
 {
 	// Variables
@@ -144,32 +135,19 @@ RegisterDisk(
 	// Initialize RPC
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
         __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_REGISTERDISK);
-
-	// Setup arguments
-	RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
-	RPCSetArgument(&Request, 1, (__CONST void*)&Flags, sizeof(Flags_t));
-
-	// Send event, no response
+	RPCSetArgument(&Request, 0, (const void*)&Device, sizeof(UUId_t));
+	RPCSetArgument(&Request, 1, (const void*)&Flags, sizeof(Flags_t));
 	return RPCEvent(&Request);
 }
-#endif
 
 /* UnregisterDisk
  * Unregisters a disk from the system, and brings any filesystems
  * registered on this disk offline */
-#ifdef __FILEMANAGER_IMPL
-__EXTERN 
-OsStatus_t
-SERVICEABI
-UnregisterDisk(
-	_In_ UUId_t Device, 
-	_In_ Flags_t Flags);
-#else
 SERVICEAPI
 OsStatus_t
 SERVICEABI
 UnregisterDisk(
-	_In_ UUId_t Device,
+	_In_ UUId_t  Device,
 	_In_ Flags_t Flags)
 {
 	// Variables
@@ -178,39 +156,23 @@ UnregisterDisk(
 	// Initialize RPC
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
         __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_UNREGISTERDISK);
-
-	// Setup arguments
-	RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
-	RPCSetArgument(&Request, 1, (__CONST void*)&Flags, sizeof(Flags_t));
-
-	// Send event, no response
+	RPCSetArgument(&Request, 0, (const void*)&Device, sizeof(UUId_t));
+	RPCSetArgument(&Request, 1, (const void*)&Flags, sizeof(Flags_t));
 	return RPCEvent(&Request);
 }
-#endif
 
 /* OpenFile
  * Opens or creates the given file path based on
  * the given <Access> and <Options> flags. See the
  * top of this file */
-#ifdef __FILEMANAGER_IMPL
-__EXTERN 
-FileSystemCode_t
-SERVICEABI
-OpenFile(
-	_In_ UUId_t Requester,
-	_In_ __CONST char *Path, 
-	_In_ Flags_t Options, 
-	_In_ Flags_t Access,
-	_Out_ UUId_t *Handle);
-#else
 SERVICEAPI
 FileSystemCode_t
 SERVICEABI
 OpenFile(
-	_In_ __CONST char *Path, 
-	_In_ Flags_t Options, 
-	_In_ Flags_t Access,
-	_Out_ UUId_t *Handle)
+	_In_  const char*   Path, 
+	_In_  Flags_t       Options, 
+	_In_  Flags_t       Access,
+	_Out_ UUId_t*       Handle)
 {
 	// Variables
 	OpenFilePackage_t Package;
@@ -219,40 +181,23 @@ OpenFile(
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
         __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_OPENFILE);
-
-	// Set arguments
-	RPCSetArgument(&Request, 0, (__CONST void*)Path, strlen(Path) + 1);
-	RPCSetArgument(&Request, 1, (__CONST void*)&Options, sizeof(Flags_t));
-	RPCSetArgument(&Request, 2, (__CONST void*)&Access, sizeof(Flags_t));
-
-	// Set result buffer
-	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(OpenFilePackage_t));
+	RPCSetArgument(&Request, 0, (const void*)Path, strlen(Path) + 1);
+	RPCSetArgument(&Request, 1, (const void*)&Options, sizeof(Flags_t));
+	RPCSetArgument(&Request, 2, (const void*)&Access, sizeof(Flags_t));
+	RPCSetResult(&Request, (const void*)&Package, sizeof(OpenFilePackage_t));
 
 	// Execute the rpc request
 	if (RPCExecute(&Request) != OsSuccess) {
 		*Handle = UUID_INVALID;
 		return FsInvalidParameters;
 	}
-
-	// Update out variables
 	*Handle = Package.Handle;
-
-	// Return the result code
 	return Package.Code;
 }
-#endif
 
 /* CloseFile
  * Closes the given file-handle, but does not necessarily
  * close the link to the file. Returns the result */
-#ifdef __FILEMANAGER_IMPL
-__EXTERN 
-FileSystemCode_t
-SERVICEABI
-CloseFile(
-	_In_ UUId_t Requester, 
-	_In_ UUId_t Handle);
-#else
 SERVICEAPI
 FileSystemCode_t
 SERVICEABI
@@ -266,40 +211,25 @@ CloseFile(
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
         __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_CLOSEFILE);
-
-	// Set request arguments
-	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
-
-	// Set result buffer
-	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(FileSystemCode_t));
+	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
+	RPCSetResult(&Request, (const void*)&Result, sizeof(FileSystemCode_t));
 
 	// Execute the request 
 	if (RPCExecute(&Request) != OsSuccess) {
 		return FsInvalidParameters;
 	}
-
-	// Return the result code
 	return Result;
 }
-#endif
 
 /* DeleteFile
  * Deletes the given file associated with the filehandle
  * the caller must make sure there is no other references
  * to the file - otherwise delete fails */
-#ifdef __FILEMANAGER_IMPL
-__EXTERN 
-FileSystemCode_t
-SERVICEABI
-DeleteFile(
-	_In_ UUId_t Requester, 
-	_In_ __CONST char *Path);
-#else
 SERVICEAPI
 FileSystemCode_t
 SERVICEABI
 DeleteFile(
-	_In_ __CONST char *Path)
+	_In_ const char* Path)
 {
 	// Variables
 	FileSystemCode_t Result = FsOk;
@@ -308,45 +238,27 @@ DeleteFile(
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
         __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_DELETEFILE);
-
-	// Set request arguments
-	RPCSetArgument(&Request, 0, (__CONST void*)Path, strlen(Path) + 1);
-
-	// Set result buffer
-	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(FileSystemCode_t));
+	RPCSetArgument(&Request, 0, (const void*)Path, strlen(Path) + 1);
+	RPCSetResult(&Request, (const void*)&Result, sizeof(FileSystemCode_t));
 
 	// Execute the request 
 	if (RPCExecute(&Request) != OsSuccess) {
 		return FsInvalidParameters;
 	}
-
-	// Return the result code
 	return Result;
 }
-#endif
 
 /* ReadFile
  * Reads the requested number of bytes into the given buffer
  * from the current position in the file-handle */
-#ifdef __FILEMANAGER_IMPL
-__EXTERN
-FileSystemCode_t
-SERVICEABI
-ReadFile(
-	_In_ UUId_t Requester,
-	_In_ UUId_t Handle,
-	_Out_ BufferObject_t *BufferObject,
-	_Out_ size_t *BytesIndex,
-	_Out_ size_t *BytesRead);
-#else
 SERVICEAPI
 FileSystemCode_t
 SERVICEABI
 ReadFile(
-	_In_ UUId_t Handle, 
-	_Out_ BufferObject_t *BufferObject,
-	_Out_Opt_ size_t *BytesIndex,
-	_Out_Opt_ size_t *BytesRead)
+	_In_      UUId_t            Handle, 
+	_Out_     BufferObject_t*   BufferObject,
+	_Out_Opt_ size_t*           BytesIndex,
+	_Out_Opt_ size_t*           BytesRead)
 {
 	// Variables
 	RWFilePackage_t Package;
@@ -355,13 +267,9 @@ ReadFile(
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
         __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_READFILE);
-
-	// Set request arguments
-	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
-	RPCSetArgument(&Request, 1, (__CONST void*)BufferObject, GetBufferObjectSize(BufferObject));
-
-	// Set result buffer
-	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(RWFilePackage_t));
+	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
+	RPCSetArgument(&Request, 1, (const void*)BufferObject, GetBufferObjectSize(BufferObject));
+	RPCSetResult(&Request, (const void*)&Package, sizeof(RWFilePackage_t));
 
 	// Execute the request 
 	if (RPCExecute(&Request) != OsSuccess) {
@@ -379,28 +287,17 @@ ReadFile(
 	}
 	return Package.Code;
 }
-#endif
 
 /* WriteFile
  * Writes the requested number of bytes from the given buffer
  * into the current position in the file-handle */
-#ifdef __FILEMANAGER_IMPL
-__EXTERN
-FileSystemCode_t
-SERVICEABI
-WriteFile(
-	_In_ UUId_t Requester,
-	_In_ UUId_t Handle,
-	_In_ BufferObject_t *BufferObject,
-	_Out_ size_t *BytesWritten);
-#else
 SERVICEAPI
 FileSystemCode_t
 SERVICEABI
 WriteFile(
-	_In_ UUId_t Handle,
-	_In_ BufferObject_t *BufferObject,
-	_Out_Opt_ size_t *BytesWritten)
+	_In_      UUId_t            Handle,
+	_In_      BufferObject_t*   BufferObject,
+	_Out_Opt_ size_t*           BytesWritten)
 {
 	// Variables
 	RWFilePackage_t Package;
@@ -409,13 +306,9 @@ WriteFile(
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
         __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_WRITEFILE);
-
-	// Set the request arguments
-	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
-	RPCSetArgument(&Request, 1, (__CONST void*)BufferObject, GetBufferObjectSize(BufferObject));
-
-	// Set the request result buffer
-	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(RWFilePackage_t));
+	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
+	RPCSetArgument(&Request, 1, (const void*)BufferObject, GetBufferObjectSize(BufferObject));
+	RPCSetResult(&Request, (const void*)&Package, sizeof(RWFilePackage_t));
 
 	// Execute the request
 	if (RPCExecute(&Request) != OsSuccess) {
@@ -428,33 +321,20 @@ WriteFile(
 	if (BytesWritten != NULL) {
 		*BytesWritten = Package.ActualSize;
 	}
-
-	// Return the result code
 	return Package.Code;
 }
-#endif
 
 /* SeekFile
  * Sets the file-pointer for the given handle to the
  * values given, the position is absolute and must
  * be within range of the file size */
-#ifdef __FILEMANAGER_IMPL
-__EXTERN 
-FileSystemCode_t
-SERVICEABI
-SeekFile(
-	_In_ UUId_t Requester,
-	_In_ UUId_t Handle, 
-	_In_ uint32_t SeekLo, 
-	_In_ uint32_t SeekHi);
-#else
 SERVICEAPI
 FileSystemCode_t
 SERVICEABI
 SeekFile(
-	_In_ UUId_t Handle, 
-	_In_ uint32_t SeekLo, 
-	_In_ uint32_t SeekHi)
+	_In_ UUId_t     Handle, 
+	_In_ uint32_t   SeekLo, 
+	_In_ uint32_t   SeekHi)
 {
 	// Variables
 	FileSystemCode_t Result = FsOk;
@@ -463,36 +343,21 @@ SeekFile(
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
         __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_SEEKFILE);
-
-	// Set the request arguments
-	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
-	RPCSetArgument(&Request, 1, (__CONST void*)&SeekLo, sizeof(uint32_t));
-	RPCSetArgument(&Request, 2, (__CONST void*)&SeekHi, sizeof(uint32_t));
-
-	// Set the request result buffer
-	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(FileSystemCode_t));
+	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
+	RPCSetArgument(&Request, 1, (const void*)&SeekLo, sizeof(uint32_t));
+	RPCSetArgument(&Request, 2, (const void*)&SeekHi, sizeof(uint32_t));
+	RPCSetResult(&Request, (const void*)&Result, sizeof(FileSystemCode_t));
 
 	// Execute the request
 	if (RPCExecute(&Request) != OsSuccess) {
 		return FsInvalidParameters;
 	}
-
-	// Return the result code
 	return Result;
 }
-#endif
 
 /* FlushFile
  * Flushes the internal file buffers and ensures there are
  * no pending file operations for the given file handle */
-#ifdef __FILEMANAGER_IMPL
-__EXTERN 
-FileSystemCode_t
-SERVICEABI
-FlushFile(
-	_In_ UUId_t Requester, 
-	_In_ UUId_t Handle);
-#else
 SERVICEAPI
 FileSystemCode_t
 SERVICEABI
@@ -506,44 +371,27 @@ FlushFile(
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
         __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_FLUSHFILE);
-
-	// Set the request arguments
-	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
-
-	// Set the request result buffer
-	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(FileSystemCode_t));
+	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
+	RPCSetResult(&Request, (const void*)&Result, sizeof(FileSystemCode_t));
 
 	// Execute the request
 	if (RPCExecute(&Request) != OsSuccess) {
 		return FsInvalidParameters;
 	}
-
-	// Return the result code
 	return Result;
 }
-#endif
 
 /* MoveFile
  * Moves or copies a given file path to the destination path
  * this can also be used for renamining if the dest/source paths
  * match (except for filename/directoryname) */
-#ifdef __FILEMANAGER_IMPL
-__EXTERN 
-FileSystemCode_t
-SERVICEABI
-MoveFile(
-	_In_ UUId_t Requester,
-	_In_ __CONST char *Source, 
-	_In_ __CONST char *Destination,
-	_In_ int Copy);
-#else
 SERVICEAPI
 FileSystemCode_t
 SERVICEABI
 MoveFile(
-	_In_ __CONST char *Source,
-	_In_ __CONST char *Destination,
-	_In_ int Copy)
+	_In_ const char*    Source,
+	_In_ const char*    Destination,
+	_In_ int            Copy)
 {
 	// Variables
 	FileSystemCode_t Result = FsOk;
@@ -552,45 +400,29 @@ MoveFile(
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
         __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_MOVEFILE);
-
-	// Set the request arguments
-	RPCSetArgument(&Request, 0, (__CONST void*)Source, strlen(Source) + 1);
-	RPCSetArgument(&Request, 1, (__CONST void*)Destination, strlen(Destination) + 1);
-	RPCSetArgument(&Request, 2, (__CONST void*)&Copy, sizeof(int));
-	
-	// Set the request result buffer
-	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(FileSystemCode_t));
+	RPCSetArgument(&Request, 0, (const void*)Source, strlen(Source) + 1);
+	RPCSetArgument(&Request, 1, (const void*)Destination, strlen(Destination) + 1);
+	RPCSetArgument(&Request, 2, (const void*)&Copy, sizeof(int));
+	RPCSetResult(&Request, (const void*)&Result, sizeof(FileSystemCode_t));
 	
 	// Execute the request
 	if (RPCExecute(&Request) != OsSuccess) {
 		return FsInvalidParameters;
 	}
-
-	// Return the result code
 	return Result;
 }
-#endif
 
 /* GetFilePosition 
  * Queries the current file position that the given handle
  * is at, it returns as two separate unsigned values, the upper
  * value is optional and should only be checked for large files */
-#ifdef __FILEMANAGER_IMPL
-__EXTERN
-OsStatus_t
-SERVICEABI
-GetFilePosition(
-	_In_ UUId_t Requester,
-	_In_ UUId_t Handle,
-	_Out_ QueryFileValuePackage_t *Result);
-#else
 SERVICEAPI
 OsStatus_t
 SERVICEABI
 GetFilePosition(
-	_In_ UUId_t Handle,
-	_Out_ uint32_t *PositionLo,
-	_Out_Opt_ uint32_t *PositionHi)
+	_In_      UUId_t    Handle,
+	_Out_     uint32_t* PositionLo,
+	_Out_Opt_ uint32_t* PositionHi)
 {
 	// Variables
 	QueryFileValuePackage_t Package;
@@ -599,12 +431,8 @@ GetFilePosition(
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
         __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_GETPOSITION);
-	
-	// Set the request arguments
-	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
-	
-	// Set the request result buffer
-	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(QueryFileValuePackage_t));
+	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
+	RPCSetResult(&Request, (const void*)&Package, sizeof(QueryFileValuePackage_t));
 	
 	// Execute the request
 	if (RPCExecute(&Request) != OsSuccess) {
@@ -620,31 +448,19 @@ GetFilePosition(
 	if (PositionHi != NULL) {
 		*PositionHi = Package.Value.Parts.Hi;
 	}
-
-	// Return the result code
 	return OsSuccess;
 }
-#endif
 
 /* GetFileOptions 
  * Queries the current file options and file access flags
  * for the given file handle */
-#ifdef __FILEMANAGER_IMPL
-__EXTERN
-OsStatus_t
-SERVICEABI
-GetFileOptions(
-	_In_ UUId_t Requester,
-	_In_ UUId_t Handle,
-	_Out_ QueryFileOptionsPackage_t *Result);
-#else
 SERVICEAPI
 OsStatus_t
 SERVICEABI
 GetFileOptions(
-	_In_ UUId_t Handle,
-	_Out_ Flags_t *Options,
-	_Out_ Flags_t *Access)
+	_In_  UUId_t    Handle,
+	_Out_ Flags_t*  Options,
+	_Out_ Flags_t*  Access)
 {
 	// Variables
 	QueryFileOptionsPackage_t Package;
@@ -653,12 +469,8 @@ GetFileOptions(
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
         __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_GETOPTIONS);
-
-	// Set the request arguments
-	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
-	
-	// Set the request result buffer
-	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(QueryFileOptionsPackage_t));
+	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
+	RPCSetResult(&Request, (const void*)&Package, sizeof(QueryFileOptionsPackage_t));
 	
 	// Execute the request
 	if (RPCExecute(&Request) != OsSuccess) {
@@ -670,30 +482,17 @@ GetFileOptions(
 	// Update out's
 	*Options = Package.Options;
 	*Access = Package.Access;
-	
-	// Return no error
 	return OsSuccess;
 }
-#endif
 
 /* SetFileOptions 
  * Attempts to modify the current option and or access flags
  * for the given file handle as specified by <Options> and <Access> */
-#ifdef __FILEMANAGER_IMPL
-__EXTERN
-OsStatus_t
-SERVICEABI
-SetFileOptions(
-	_In_ UUId_t Requester,
-	_In_ UUId_t Handle,
-	_In_ Flags_t Options,
-	_In_ Flags_t Access);
-#else
 SERVICEAPI
 OsStatus_t
 SERVICEABI
 SetFileOptions(
-	_In_ UUId_t Handle,
+	_In_ UUId_t  Handle,
 	_In_ Flags_t Options,
 	_In_ Flags_t Access)
 {
@@ -704,38 +503,22 @@ SetFileOptions(
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
         __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_SETOPTIONS);
-	
-	// Set the request arguments
-	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
-	RPCSetArgument(&Request, 1, (__CONST void*)&Options, sizeof(Flags_t));
-	RPCSetArgument(&Request, 2, (__CONST void*)&Access, sizeof(Flags_t));
-	
-	// Set the request result buffer
-	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(OsStatus_t));
+	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
+	RPCSetArgument(&Request, 1, (const void*)&Options, sizeof(Flags_t));
+	RPCSetArgument(&Request, 2, (const void*)&Access, sizeof(Flags_t));
+	RPCSetResult(&Request, (const void*)&Result, sizeof(OsStatus_t));
 	
 	// Execute the request
 	if (RPCExecute(&Request) != OsSuccess) {
 		return OsError;
 	}
-
-	// Return the result
 	return Result;
 }
-#endif
 
 /* GetFileSize 
  * Queries the current file size that the given handle
  * has, it returns as two separate unsigned values, the upper
  * value is optional and should only be checked for large files */
-#ifdef __FILEMANAGER_IMPL
-__EXTERN
-OsStatus_t
-SERVICEABI
-GetFileSize(
-	_In_ UUId_t Requester,
-	_In_ UUId_t Handle,
-	_Out_ QueryFileValuePackage_t *Result);
-#else
 SERVICEAPI
 OsStatus_t
 SERVICEABI
@@ -751,8 +534,8 @@ GetFileSize(
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
         __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_GETSIZE);
-	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
-	RPCSetResult(&Request, (__CONST void*)&Package, sizeof(QueryFileValuePackage_t));
+	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
+	RPCSetResult(&Request, (const void*)&Package, sizeof(QueryFileValuePackage_t));
 
 	// Execute the request
 	if (RPCExecute(&Request) != OsSuccess) {
@@ -768,31 +551,19 @@ GetFileSize(
 	if (SizeHi != NULL) {
 		*SizeHi = Package.Value.Parts.Hi;
 	}
-
-	// Return the result
 	return OsSuccess;
 }
-#endif
 
 /* GetFilePath 
  * Queries the full path of a file that the given handle
  * has, it returns it as a UTF8 string with max length of _MAXPATH */
-#ifdef __FILEMANAGER_IMPL
-__EXTERN
-OsStatus_t
-SERVICEABI
-GetFilePath(
-	_In_  UUId_t        Requester,
-	_In_  UUId_t        Handle,
-	_Out_ MString_t**   Path);
-#else
 SERVICEAPI
 OsStatus_t
 SERVICEABI
 GetFilePath(
-	_In_ UUId_t Handle,
-	_Out_ char *Path,
-	_Out_ size_t MaxLength)
+	_In_  UUId_t    Handle,
+	_Out_ char*     Path,
+	_Out_ size_t    MaxLength)
 {
 	// Variables
 	MRemoteCall_t Request;
@@ -804,8 +575,8 @@ GetFilePath(
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
         __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_GETPATH);
-	RPCSetArgument(&Request, 0, (__CONST void*)&Handle, sizeof(UUId_t));
-	RPCSetResult(&Request, (__CONST void*)&Buffer[0], _MAXPATH);
+	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
+	RPCSetResult(&Request, (const void*)&Buffer[0], _MAXPATH);
 
 	// Execute the request
 	if (RPCExecute(&Request) != OsSuccess) {
@@ -816,6 +587,5 @@ GetFilePath(
 	memcpy(Path, &Buffer[0], MIN(MaxLength, strlen(&Buffer[0])));
 	return OsSuccess;
 }
-#endif
 
 #endif //!_FILE_INTERFACE_H_

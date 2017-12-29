@@ -63,20 +63,22 @@ struct {
 	{ NULL, PathCurrentWorkingDirectory }
 };
 
-/* PathResolveEnvironment
+/* VfsPathResolveEnvironment
  * Resolves the given env-path identifier to a string
  * that can be used to locate files. */
-MString_t *PathResolveEnvironment(EnvironmentPath_t Base)
+MString_t*
+VfsPathResolveEnvironment(
+    _In_ EnvironmentPath_t Base)
 {
-	/* Variables */
-	char PathBuffer[_MAXPATH];
+	// Variables
 	MString_t *ResolvedPath = NULL;
 	CollectionItem_t *fNode = NULL;
-	int pIndex = (int)Base;
-	int pFound = 0;
+	int pIndex              = (int)Base;
+	int pFound              = 0;
+	char PathBuffer[_MAXPATH];
 
-	/* Handle Special Case - 0 & 1
-	 * Just return the current working directory */
+	// Handle Special Case - 0 & 1
+	// Just return the current working directory
 	if (Base == PathCurrentWorkingDirectory
 		|| Base == PathApplicationBase) {
 		memset(&PathBuffer[0], 0, _MAXPATH);
@@ -98,10 +100,8 @@ MString_t *PathResolveEnvironment(EnvironmentPath_t Base)
 		}
 	}
 
-	/* Create a new string instance */
+	// Create a new string instance to store resolved in
 	ResolvedPath = MStringCreate(NULL, StrUTF8);
-
-	/* Get system path */
 	_foreach(fNode, VfsGetFileSystems()) {
 		FileSystem_t *Fs = (FileSystem_t*)fNode->Data;
 		if (Fs->Descriptor.Flags & __FILESYSTEM_BOOT) {
@@ -110,39 +110,37 @@ MString_t *PathResolveEnvironment(EnvironmentPath_t Base)
 			break;
 		}
 	}
-
-	/* Sanity */
 	if (!pFound) {
 		MStringDestroy(ResolvedPath);
 		return NULL;
 	}
 
-	/* Now append the special paths */
-	MStringAppendCharacters(ResolvedPath, 
-		GlbEnvironmentalPaths[pIndex], StrUTF8);
-
-	/* Done! */
+	// Now append the special paths and return it
+	MStringAppendCharacters(ResolvedPath, GlbEnvironmentalPaths[pIndex], StrUTF8);
 	return ResolvedPath;
 }
 
-/* PathCanonicalize
+/* VfsPathCanonicalize
  * Canonicalizes the path by removing extra characters
  * and resolving all identifiers in path */
-MString_t *PathCanonicalize(EnvironmentPath_t Base, __CONST char *Path)
+MString_t*
+VfsPathCanonicalize(
+    _In_ EnvironmentPath_t  Base, 
+    _In_ const char*        Path)
 {
-	/* Store result */
-	MString_t *AbsPath = MStringCreate(NULL, StrUTF8);
+	// Variables
 	CollectionItem_t *fNode = NULL;
-	int i = 0;
+	MString_t *AbsPath      = NULL;
+	int i                   = 0;
 
-	/* There must be either a FS indicator in a path
-	 * or an identifier that resolves one for us, otherwise
-	 * we must assume the path is relative */
-	if (strchr(Path, ':') == NULL
-		&& strchr(Path, '%') == NULL) {
-		MString_t *BasePath = PathResolveEnvironment(Base);
+    // Create result string
+    AbsPath = MStringCreate(NULL, StrUTF8);
 
-		/* If base is NULL, then abort */
+	// There must be either a FS indicator in a path
+	// or an identifier that resolves one for us, otherwise
+	// we must assume the path is relative
+	if (strchr(Path, ':') == NULL && strchr(Path, '%') == NULL) {
+		MString_t *BasePath = VfsPathResolveEnvironment(Base);
 		if (BasePath == NULL) {
 			MStringDestroy(AbsPath);
 			return NULL;
@@ -155,26 +153,22 @@ MString_t *PathCanonicalize(EnvironmentPath_t Base, __CONST char *Path)
 		}
 	}
 
-	/* Iterate all characters and build a new string
-	 * containing the canonicalized path simoultanously */
+	// Iterate all characters and build a new string
+	// containing the canonicalized path simoultanously
 	while (Path[i]) {
-
-		/* Always skip initial '/' */
-		if (Path[i] == '/' && i == 0) {
+		if (Path[i] == '/' && i == 0) { // Always skip initial '/'
 			i++;
 			continue;
 		}
 
-		/* Special Case 1 - Identifier */
+		// Special Case 1 - Identifier
 		if (Path[i] == '%') {
 			int j = 0;
-
-			/* Iterate all possible identifiers */
-			while (GlbIdentifers[j].Identifier != NULL) {
+			while (GlbIdentifers[j].Identifier != NULL) { // Iterate all possible identifiers
 				if (strcasecmp(GlbIdentifers[j].Identifier, 
 					(__CONST char*)&Path[i])) {
 
-					/* Resolve filesystem */
+					// Resolve filesystem
 					_foreach(fNode, VfsGetFileSystems()) {
 						FileSystem_t *Fs = (FileSystem_t*)fNode->Data;
 						if (Fs->Descriptor.Flags & __FILESYSTEM_BOOT) {
@@ -183,35 +177,30 @@ MString_t *PathCanonicalize(EnvironmentPath_t Base, __CONST char *Path)
 						}
 					}
 
-					/* Resolve identifier */
+					// Resolve identifier 
 					MStringAppendCharacters(AbsPath, 
 						GlbEnvironmentalPaths[GlbIdentifers[j].Resolve], StrUTF8);
-
-					/* Skip */
 					i += strlen(GlbIdentifers[j].Identifier);
 
-					/* Is the next char a '/'? If so skip */
+					// Is the next char a '/'? If so skip 
 					if (Path[i] == '/' || Path[i] == '\\') {
 						i++;
 					}
-
-					/* Done! */
 					break;
 				}
 			}
 
-			/* Did we find what we looked for? */
+			// Did we find what we looked for?
 			if (GlbIdentifers[j].Identifier != NULL) {
 				continue;
 			}
 		}
 
-		/* Special Case 2, 3 and 4
-		 * 2 - If it's ./ or .\ ignore it
-		 * 3 - If it's ../ or ..\ go back 
-		 * 4 - Normal case, copy */
-		if (Path[i] == '.'
-			&& (Path[i + 1] == '/' || Path[i + 1] == '\\')) {
+		// Special Case 2, 3 and 4
+		// 2 - If it's ./ or .\ ignore it
+		// 3 - If it's ../ or ..\ go back 
+		// 4 - Normal case, copy
+		if (Path[i] == '.' && (Path[i + 1] == '/' || Path[i + 1] == '\\')) {
 			i += 2;
 			continue;
 		}
@@ -232,14 +221,10 @@ MString_t *PathCanonicalize(EnvironmentPath_t Base, __CONST char *Path)
 				MStringAppendCharacter(AbsPath, Path[i]);
 			}
 		}
-
-		/* Increase */
 		i++;
 	}
 
-	/* Replace dublicate // with / */
+	// Replace dublicate // with /
 	//MStringReplace(AbsPath, "//", "/");
-
-	/* Done! */
 	return AbsPath;
 }

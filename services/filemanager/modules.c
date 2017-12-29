@@ -47,7 +47,9 @@ const char *_GlbFileSystemDrivers[] = {
 /* VfsResolveFileSystem
  * Tries to resolve the given filesystem by locating
  * the appropriate driver library for the given type */
-FileSystemModule_t *VfsResolveFileSystem(FileSystem_t *FileSystem)
+FileSystemModule_t*
+VfsResolveFileSystem(
+    _In_ FileSystem_t *FileSystem)
 {
 	// Variables
 	FileSystemModule_t *Module = NULL;
@@ -156,7 +158,5 @@ FileSystemModule_t *VfsResolveFileSystem(FileSystem_t *FileSystem)
 	// Last thing is to add it to the list
 	Key.Value = 0;
 	CollectionAppend(VfsGetModules(), CollectionCreateNode(Key, Module));
-
-	// Return the newly created module
 	return Module;
 }

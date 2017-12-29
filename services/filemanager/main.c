@@ -34,7 +34,30 @@
 #include <string.h>
 #include <ctype.h>
 
-/* Globals */
+/* Events function string table */
+static const char *FunctionNames[] = {
+    "RegisterDisk",
+    "UnregisterDisk",
+    "QueryDisks",
+    "OpenFile",
+    "CloseFile",
+    "DeleteFile",
+    "ReadFile",
+    "WriteFile",
+    "SeekFile",
+    "FlushFile",
+    "MoveFile",
+    "GetFilePosition",
+    "GetFileOptions",
+    "SetFileOptions",
+    "GetFileSize",
+    "GetFilePath",
+    "ResolvePath",
+    "NormalizePath"
+};
+
+/* Globals 
+ * - State variables */
 static Collection_t *GlbResolveQueue    = NULL;
 static Collection_t *GlbFileSystems     = NULL;
 static Collection_t *GlbOpenHandles     = NULL;
@@ -53,85 +76,94 @@ int GlbDiskIds[__FILEMANAGER_MAXDISKS];
 /* VfsGetOpenFiles / VfsGetOpenHandles
  * Retrieves the list of open files /handles and allows
  * access and manipulation of the list */
-Collection_t *VfsGetOpenFiles(void)
-{
+Collection_t*
+VfsGetOpenFiles(void) {
 	return GlbOpenFiles;
 }
 
 /* VfsGetOpenFiles / VfsGetOpenHandles
  * Retrieves the list of open files /handles and allows
  * access and manipulation of the list */
-Collection_t *VfsGetOpenHandles(void)
-{
+Collection_t*
+VfsGetOpenHandles(void) {
 	return GlbOpenHandles;
 }
 
 /* VfsGetModules
  * Retrieves a list of all the currently loaded
  * modules, provides access for manipulation */
-Collection_t *VfsGetModules(void)
-{
+Collection_t*
+VfsGetModules(void) {
 	return GlbModules;
 }
 
 /* VfsGetDisks
  * Retrieves a list of all the currently registered
  * disks, provides access for manipulation */
-Collection_t *VfsGetDisks(void)
-{
+Collection_t*
+VfsGetDisks(void) {
 	return GlbDisks;
 }
 
 /* VfsGetFileSystems
  * Retrieves a list of all the current filesystems
  * and provides access for manipulation */
-Collection_t *VfsGetFileSystems(void)
-{
+Collection_t*
+VfsGetFileSystems(void) {
 	return GlbFileSystems;
 }
 
 /* VfsGetResolverQueue
  * Retrieves a list of all the current filesystems
  * that needs to be resolved, and is scheduled */
-Collection_t *VfsGetResolverQueue(void)
-{
+Collection_t*
+VfsGetResolverQueue(void) {
 	return GlbResolveQueue;
 }
 
 /* VfsIdentifierFileGet
  * Retrieves a new identifier for a file-handle that
  * is system-wide unique */
-UUId_t VfsIdentifierFileGet(void)
-{
+UUId_t
+VfsIdentifierFileGet(void) {
 	return GlbFileId++;
 }
 
 /* VfsIdentifierAllocate 
  * Allocates a free identifier index for the
  * given disk, it varies based upon disk type */
-UUId_t VfsIdentifierAllocate(FileSystemDisk_t *Disk)
+UUId_t
+VfsIdentifierAllocate(
+    _In_ FileSystemDisk_t *Disk)
 {
-	/* Start out by determing start index */
-	int ArrayStartIndex = 0, ArrayEndIndex = __FILEMANAGER_MAXDISKS / 2, i;
+    // Variables
+    int ArrayStartIndex = 0;
+    int ArrayEndIndex   = 0;
+    int i;
+
+	// Start out by determing start index
+	ArrayEndIndex = __FILEMANAGER_MAXDISKS / 2;
 	if (Disk->Flags & __DISK_REMOVABLE) {
 		ArrayStartIndex = __FILEMANAGER_MAXDISKS / 2;
 		ArrayEndIndex = __FILEMANAGER_MAXDISKS;
 	}
 
-	/* Now iterate the range for the type of disk */
+	// Now iterate the range for the type of disk
 	for (i = ArrayStartIndex; i < ArrayEndIndex; i++) {
 		if (GlbDiskIds[i] == 0) {
 			GlbDiskIds[i] = 1;
 			return (UUId_t)(i - ArrayStartIndex);
 		}
 	}
-
 	return UUID_INVALID;
 }
 
 /* VfsIdentifierFree 
- * Frees a given identifier index */
-OsStatus_t VfsIdentifierFree(FileSystemDisk_t *Disk, UUId_t Id)
+ * Frees a given disk identifier index */
+OsStatus_t
+VfsIdentifierFree(
+    _In_ FileSystemDisk_t   *Disk,
+    _In_ UUId_t              Id)
 {
 	int ArrayIndex = (int)Id;
 	if (Disk->Flags & __DISK_REMOVABLE) {
@@ -149,54 +181,54 @@ OsStatus_t VfsIdentifierFree(FileSystemDisk_t *Disk, UUId_t Id)
 /* OnLoad
  * The entry-point of a server, this is called
  * as soon as the server is loaded in the system */
-OsStatus_t OnLoad(void)
+OsStatus_t
+OnLoad(void)
 {
 	// Initialize lists
 	GlbResolveQueue = CollectionCreate(KeyInteger);
-	GlbFileSystems = CollectionCreate(KeyInteger);
-	GlbOpenHandles = CollectionCreate(KeyInteger);
-	GlbOpenFiles = CollectionCreate(KeyInteger);
-	GlbModules = CollectionCreate(KeyInteger);
-	GlbDisks = CollectionCreate(KeyInteger);
+	GlbFileSystems  = CollectionCreate(KeyInteger);
+	GlbOpenHandles  = CollectionCreate(KeyInteger);
+	GlbOpenFiles    = CollectionCreate(KeyInteger);
+	GlbModules      = CollectionCreate(KeyInteger);
+	GlbDisks        = CollectionCreate(KeyInteger);
 
 	// Initialize variables
 	memset(&GlbDiskIds[0], 0, sizeof(int) * __FILEMANAGER_MAXDISKS);
 	GlbFileSystemId = 0;
-	GlbFileId = 0;
-	GlbInitialized = 1;
+	GlbFileId       = 0;
+	GlbInitialized  = 1;
 
 	// Register us with server manager
 	RegisterService(__FILEMANAGER_TARGET);
-
-	// Done
 	return OsSuccess;
 }
 
 /* OnUnload
  * This is called when the server is being unloaded
  * and should free all resources allocated by the system */
-OsStatus_t OnUnload(void)
-{
+OsStatus_t
+OnUnload(void) {
 	return OsSuccess;
 }
 
 /* OnEvent
  * This is called when the server recieved an external evnet
  * and should handle the given event*/
-OsStatus_t OnEvent(MRemoteCall_t *Message)
+OsStatus_t
+OnEvent(
+    _In_ MRemoteCall_t *Message)
 {
 	// Variables
 	OsStatus_t Result = OsSuccess;
 
-	// Which function is called?
-	switch (Message->Function)
-	{
+    TRACE("Filemanager.OnEvent %s", FunctionNames[Message->Function]);
+	switch (Message->Function) {
 		// Handles registration of a new disk 
 		// and and parses the disk-system for a MBR
 		// or a GPT table 
 		case __FILEMANAGER_REGISTERDISK: {
-			TRACE("Filemanager.OnEvent RegisterDisk");
-			Result = RegisterDisk(Message->From.Process,
+			Result = VfsRegisterDisk(
+                Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(Flags_t)Message->Arguments[1].Data.Value);
 		} break;
@@ -204,176 +236,161 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
 		// Unregisters a disk from the system and
 		// handles cleanup of all attached filesystems
 		case __FILEMANAGER_UNREGISTERDISK: {
-			TRACE("Filemanager.OnEvent UnregisterDisk");
-			Result = UnregisterDisk(
+			Result = VfsUnregisterDisk(
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(Flags_t)Message->Arguments[1].Data.Value);
 		} break;
 
 		// TODO
 		case __FILEMANAGER_QUERYDISKS: {
-			TRACE("Filemanager.OnEvent QueryDisk");
 		} break;
 
-		/* Resolves all stored filesystems that
-		 * has been waiting for boot-partition to be loaded */
+		// Resolves all stored filesystems that
+		// has been waiting for boot-partition to be loaded
 		case __FILEMANAGER_RESOLVEQUEUE: {
-			TRACE("Filemanager.OnEvent ResolveQueue");
 			Result = VfsResolveQueueExecute();
 		} break;
 
-		/* Opens or creates the given file path based on
-		 * the given <Access> and <Options> flags. */
+		// Opens or creates the given file path based on
+		// the given <Access> and <Options> flags.
 		case __FILEMANAGER_OPENFILE: {
 			OpenFilePackage_t Package;
-			TRACE("Filemanager.OnEvent OpenFile");
-			Package.Code = OpenFile(Message->From.Process,
-				(__CONST char*)Message->Arguments[0].Data.Buffer,
+			Package.Code    = VfsOpenFile(
+                Message->From.Process,
+				(const char*)Message->Arguments[0].Data.Buffer,
 				(Flags_t)Message->Arguments[1].Data.Value,
 				(Flags_t)Message->Arguments[2].Data.Value,
 				&Package.Handle);
-			Result = RPCRespond(Message, (__CONST void*)&Package,
-				sizeof(OpenFilePackage_t));
+			Result          = RPCRespond(Message, (const void*)&Package, sizeof(OpenFilePackage_t));
 		} break;
 
-		/* Closes the given file-handle, but does not necessarily
-		 * close the link to the file. */
+		// Closes the given file-handle, but does not necessarily
+		// close the link to the file.
 		case __FILEMANAGER_CLOSEFILE: {
 			FileSystemCode_t Code = FsOk;
-			TRACE("Filemanager.OnEvent CloseFile");
-            Code    = CloseFile(Message->From.Process, (UUId_t)Message->Arguments[0].Data.Value);
-			Result  = RPCRespond(Message, (__CONST void*)&Code, sizeof(FileSystemCode_t));
+            Code    = VfsCloseFile(
+                Message->From.Process, 
+                (UUId_t)Message->Arguments[0].Data.Value);
+			Result  = RPCRespond(Message, (const void*)&Code, sizeof(FileSystemCode_t));
 		} break;
 
-		/* Deletes the given file associated with the filehandle
-		 * the caller must make sure there is no other references
-		 * to the file - otherwise delete fails */
+		// Deletes the given file associated with the filehandle
+		// the caller must make sure there is no other references
+		// to the file - otherwise delete fails
 		case __FILEMANAGER_DELETEFILE: {
-			FileSystemCode_t Code = DeleteFile(Message->From.Process,
-				(__CONST char*)Message->Arguments[0].Data.Buffer);
-			TRACE("Filemanager.OnEvent DeleteFile");
-			Result = RPCRespond(Message,
-				(__CONST void*)&Code, sizeof(FileSystemCode_t));
+			FileSystemCode_t Code = VfsDeleteFile(
+                Message->From.Process,
+				(const char*)Message->Arguments[0].Data.Buffer);
+			Result = RPCRespond(Message, (const void*)&Code, sizeof(FileSystemCode_t));
 		} break;
 
-		/* Reads the requested number of bytes into the given buffer
-		 * from the current position in the file-handle */
+		// Reads the requested number of bytes into the given buffer
+		// from the current position in the file-handle
 		case __FILEMANAGER_READFILE: {
 			RWFilePackage_t Package;
-			TRACE("Filemanager.OnEvent ReadFile");
-			Package.Code = ReadFile(Message->From.Process,
+			Package.Code = VfsReadFile(
+                Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(BufferObject_t*)Message->Arguments[1].Data.Buffer,
 				&Package.Index,
 				&Package.ActualSize);
-			Result = RPCRespond(Message, (__CONST void*)&Package,
-				sizeof(RWFilePackage_t));
+			Result = RPCRespond(Message, (const void*)&Package, sizeof(RWFilePackage_t));
 		} break;
 
-		/* Writes the requested number of bytes from the given buffer
-		 * into the current position in the file-handle */
+		// Writes the requested number of bytes from the given buffer
+		// into the current position in the file-handle
 		case __FILEMANAGER_WRITEFILE: {
 			RWFilePackage_t Package;
-			TRACE("Filemanager.OnEvent WriteFile");
-			Package.Code = WriteFile(Message->From.Process,
+			Package.Code = VfsWriteFile(
+                Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(BufferObject_t*)Message->Arguments[1].Data.Buffer,
 				&Package.ActualSize);
-			Result = RPCRespond(Message, (__CONST void*)&Package,
-				sizeof(RWFilePackage_t));
+			Result = RPCRespond(Message, (const void*)&Package, sizeof(RWFilePackage_t));
 		} break;
 
-		/* Sets the file-pointer for the given handle to the
-		 * values given, the position is absolute and must
-		 * be within range of the file size */
+		// Sets the file-pointer for the given handle to the
+		// values given, the position is absolute and must
+		// be within range of the file size
 		case __FILEMANAGER_SEEKFILE: {
-			FileSystemCode_t Code = SeekFile(Message->From.Process,
+			FileSystemCode_t Code = VfsSeekFile(
+                Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(uint32_t)Message->Arguments[1].Data.Value,
 				(uint32_t)Message->Arguments[2].Data.Value);
-			TRACE("Filemanager.OnEvent SeekFile");
-			Result = RPCRespond(Message,
-				(__CONST void*)&Code, sizeof(FileSystemCode_t));
+			Result = RPCRespond(Message, (const void*)&Code, sizeof(FileSystemCode_t));
 		} break;
 
-		/* Flushes the internal file buffers and ensures there are
-		 * no pending file operations for the given file handle */
+		// Flushes the internal file buffers and ensures there are
+		// no pending file operations for the given file handle
 		case __FILEMANAGER_FLUSHFILE: {
-			FileSystemCode_t Code = FlushFile(Message->From.Process,
+			FileSystemCode_t Code = VfsFlushFile(Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value);
-			TRACE("Filemanager.OnEvent FlushFile");
-			Result = RPCRespond(Message,
-				(__CONST void*)&Code, sizeof(FileSystemCode_t));
+			Result = RPCRespond(Message, (const void*)&Code, sizeof(FileSystemCode_t));
 		} break;
 
-		/* Moves or copies a given file path to the destination path
-		 * this can also be used for renamining if the dest/source paths
-		 * match (except for filename/directoryname) */
+	    // Moves or copies a given file path to the destination path
+	    // this can also be used for renamining if the dest/source paths
+	    // match (except for filename/directoryname)
 		case __FILEMANAGER_MOVEFILE: {
-			FileSystemCode_t Code = MoveFile(Message->From.Process,
-				(__CONST char*)Message->Arguments[0].Data.Buffer,
-				(__CONST char*)Message->Arguments[1].Data.Buffer,
+			FileSystemCode_t Code = VfsMoveFile(
+                Message->From.Process,
+				(const char*)Message->Arguments[0].Data.Buffer,
+				(const char*)Message->Arguments[1].Data.Buffer,
 				(int)Message->Arguments[2].Data.Value);
-			TRACE("Filemanager.OnEvent MoveFile");
-			Result = RPCRespond(Message,
-				(__CONST void*)&Code, sizeof(FileSystemCode_t));
+			Result = RPCRespond(Message, (const void*)&Code, sizeof(FileSystemCode_t));
 		} break;
 
-		/* Queries the current file position that the given handle
-		 * is at, it returns as two separate unsigned values, the upper
-		 * value is optional and should only be checked for large files */
+		// Queries the current file position that the given handle
+		// is at, it returns as two separate unsigned values, the upper
+		// value is optional and should only be checked for large files
 		case __FILEMANAGER_GETPOSITION: {
 			QueryFileValuePackage_t Package;
-			TRACE("Filemanager.OnEvent GetPosition");
-			Result = GetFilePosition(Message->From.Process,
+			Result = VfsGetFilePosition(
+                Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				&Package);
-			Result = RPCRespond(Message, (__CONST void*)&Package,
-				sizeof(QueryFileValuePackage_t));
+			Result = RPCRespond(Message, (const void*)&Package, sizeof(QueryFileValuePackage_t));
 		} break;
 
-		/* Queries the current file options and file access flags
-		 * for the given file handle */
+		// Queries the current file options and file access flags
+		// for the given file handle
 		case __FILEMANAGER_GETOPTIONS: {
 			QueryFileOptionsPackage_t Package;
-			TRACE("Filemanager.OnEvent GetOptions");
-			Result = GetFileOptions(Message->From.Process,
+			Result = VfsGetFileOptions(
+                Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				&Package);
-			Result = RPCRespond(Message, (__CONST void*)&Package,
-				sizeof(QueryFileOptionsPackage_t));
+			Result = RPCRespond(Message, (const void*)&Package, sizeof(QueryFileOptionsPackage_t));
 		} break;
 
-		/* Attempts to modify the current option and or access flags
-		 * for the given file handle as specified by <Options> and <Access> */
+		// Attempts to modify the current option and or access flags
+		// for the given file handle as specified by <Options> and <Access>
 		case __FILEMANAGER_SETOPTIONS: {
-			Result = SetFileOptions(Message->From.Process,
+			Result = VfsSetFileOptions(
+                Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(Flags_t)Message->Arguments[1].Data.Value,
 				(Flags_t)Message->Arguments[2].Data.Value);
-			TRACE("Filemanager.OnEvent SetOptions");
-			Result = RPCRespond(Message, 
-				(__CONST void*)&Result, sizeof(OsStatus_t));
+			Result = RPCRespond(Message, (const void*)&Result, sizeof(OsStatus_t));
 		} break;
 
-		/* Queries the current file size that the given handle
-		 * has, it returns as two separate unsigned values, the upper
-		 * value is optional and should only be checked for large files */
+		// Queries the current file size that the given handle
+		// has, it returns as two separate unsigned values, the upper
+		// value is optional and should only be checked for large files
 		case __FILEMANAGER_GETSIZE: {
 			QueryFileValuePackage_t Package;
-			TRACE("Filemanager.OnEvent GetSize");
-			Result = GetFileSize(Message->From.Process,
+			Result = VfsGetFileSize(
+                Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				&Package);
-			Result = RPCRespond(Message, (__CONST void*)&Package,
-				sizeof(QueryFileValuePackage_t));
+			Result = RPCRespond(Message, (const void*)&Package, sizeof(QueryFileValuePackage_t));
 		} break;
 
         // Retrieve the full canonical path of the given file-handle.
         case __FILEMANAGER_GETPATH: {
             MString_t *FilePath = NULL;
-			TRACE("Filemanager.OnEvent GetPath");
-            if (GetFilePath(Message->From.Process,
+            if (VfsGetFilePath(Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value, &FilePath) != OsSuccess) {
                 Result = RPCRespond(Message, FilePath, sizeof(MString_t*));
             }
@@ -382,42 +399,38 @@ OsStatus_t OnEvent(MRemoteCall_t *Message)
             }
         } break;
 
-		/* Resolves a special environment path for
-		 * the given the process and it returns it
-		 * as a buffer in the pipe */
+		// Resolves a special environment path for
+		// the given the process and it returns it
+		// as a buffer in the pipe
 		case __FILEMANAGER_PATHRESOLVE: {
-			MString_t *Resolved = PathResolveEnvironment(
+			MString_t *Resolved = VfsPathResolveEnvironment(
 				(EnvironmentPath_t)Message->Arguments[0].Data.Value);
-			TRACE("Filemanager.OnEvent ResolvePath");
 			if (Resolved != NULL) {
 				Result = RPCRespond(Message, MStringRaw(Resolved), MStringSize(Resolved));
                 free(Resolved);
 			}
 			else {
-				Result = RPCRespond(Message, NULL, sizeof(void*));
+				Result = RPCRespond(Message, Resolved, sizeof(void*));
 			}
 		} break;
 
-		/* Resolves and combines the environment path together
-		 * and returns the newly concenated string */
+		// Resolves and combines the environment path together
+		// and returns the newly concenated string
 		case __FILEMANAGER_PATHCANONICALIZE: {
-			MString_t *Resolved = PathCanonicalize(
+			MString_t *Resolved = VfsPathCanonicalize(
 				(EnvironmentPath_t)Message->Arguments[0].Data.Value,
 				Message->Arguments[1].Data.Buffer);
-			TRACE("Filemanager.OnEvent CanonicalizePath");
 			if (Resolved != NULL) {
 				Result = RPCRespond(Message, MStringRaw(Resolved), MStringSize(Resolved));
                 free(Resolved);
 			}
 			else {
-				Result = RPCRespond(Message, NULL, sizeof(void*));
+				Result = RPCRespond(Message, Resolved, sizeof(void*));
 			}
 		} break;
 
 		default: {
 		} break;
 	}
-
-	/* Done! */
 	return Result;
 }

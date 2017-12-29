@@ -98,8 +98,13 @@ typedef struct _FileSystem {
  * Registers a new filesystem of the given type, on
  * the given disk with the given position on the disk 
  * and assigns it an identifier */
-__EXTERN OsStatus_t DiskRegisterFileSystem(FileSystemDisk_t *Disk,
-	uint64_t Sector, uint64_t SectorCount, FileSystemType_t Type);
+__EXTERN
+OsStatus_t
+DiskRegisterFileSystem(
+    _In_ FileSystemDisk_t*  Disk,
+	_In_ uint64_t           Sector,
+    _In_ uint64_t           SectorCount,
+    _In_ FileSystemType_t   Type);
 
 /* DiskDetectFileSystem
  * Detectes the kind of filesystem at the given absolute sector 
@@ -163,10 +168,214 @@ __EXTERN Collection_t *VfsGetOpenHandles(void);
 /* VfsIdentifierAllocate 
  * Allocates a free identifier index for the
  * given disk, it varies based upon disk type */
-__EXTERN UUId_t VfsIdentifierAllocate(FileSystemDisk_t *Disk);
+__EXTERN
+UUId_t
+SERVICEABI
+VfsIdentifierAllocate(
+    _In_ FileSystemDisk_t *Disk);
 
 /* VfsIdentifierFree 
- * Frees a given identifier index */
-__EXTERN OsStatus_t VfsIdentifierFree(FileSystemDisk_t *Disk, UUId_t Id);
+ * Frees a given disk identifier index */
+__EXTERN
+OsStatus_t
+SERVICEABI
+VfsIdentifierFree(
+    _In_ FileSystemDisk_t   *Disk,
+    _In_ UUId_t              Id);
+
+/* VfsRegisterDisk
+ * Registers a disk with the file-manager and it will
+ * automatically be parsed (MBR, GPT, etc), and all filesystems
+ * on the disk will be brought online */
+__EXTERN 
+OsStatus_t
+SERVICEABI
+VfsRegisterDisk(
+	_In_ UUId_t     Driver,
+	_In_ UUId_t     Device,
+	_In_ Flags_t    Flags);
+
+/* VfsUnregisterDisk
+ * Unregisters a disk from the system, and brings any filesystems
+ * registered on this disk offline */
+__EXTERN 
+OsStatus_t
+SERVICEABI
+VfsUnregisterDisk(
+	_In_ UUId_t     Device, 
+	_In_ Flags_t    Flags);
+
+/* VfsOpenFile
+ * Opens or creates the given file path based on
+ * the given <Access> and <Options> flags. See the
+ * top of this file */
+__EXTERN 
+FileSystemCode_t
+SERVICEABI
+VfsOpenFile(
+	_In_  UUId_t        Requester,
+	_In_  const char*   Path, 
+	_In_  Flags_t       Options, 
+	_In_  Flags_t       Access,
+	_Out_ UUId_t*       Handle);
+
+/* VfsCloseFile
+ * Closes the given file-handle, but does not necessarily
+ * close the link to the file. Returns the result */
+__EXTERN 
+FileSystemCode_t
+SERVICEABI
+VfsCloseFile(
+	_In_ UUId_t Requester, 
+	_In_ UUId_t Handle);
+
+/* VfsDeleteFile
+ * Deletes the given file associated with the filehandle
+ * the caller must make sure there is no other references
+ * to the file - otherwise delete fails */
+__EXTERN 
+FileSystemCode_t
+SERVICEABI
+VfsDeleteFile(
+	_In_ UUId_t         Requester, 
+	_In_ const char*    Path);
+
+/* VfsReadFile
+ * Reads the requested number of bytes into the given buffer
+ * from the current position in the file-handle */
+__EXTERN
+FileSystemCode_t
+SERVICEABI
+VfsReadFile(
+	_In_  UUId_t            Requester,
+	_In_  UUId_t            Handle,
+	_Out_ BufferObject_t*   BufferObject,
+	_Out_ size_t*           BytesIndex,
+	_Out_ size_t*           BytesRead);
+
+/* VfsWriteFile
+ * Writes the requested number of bytes from the given buffer
+ * into the current position in the file-handle */
+__EXTERN
+FileSystemCode_t
+SERVICEABI
+VfsWriteFile(
+	_In_  UUId_t            Requester,
+	_In_  UUId_t            Handle,
+	_In_  BufferObject_t*   BufferObject,
+	_Out_ size_t*           BytesWritten);
+
+/* VfsSeekFile
+ * Sets the file-pointer for the given handle to the
+ * values given, the position is absolute and must
+ * be within range of the file size */
+__EXTERN 
+FileSystemCode_t
+SERVICEABI
+VfsSeekFile(
+	_In_ UUId_t     Requester,
+	_In_ UUId_t     Handle, 
+	_In_ uint32_t   SeekLo, 
+	_In_ uint32_t   SeekHi);
+
+/* VfsFlushFile
+ * Flushes the internal file buffers and ensures there are
+ * no pending file operations for the given file handle */
+__EXTERN 
+FileSystemCode_t
+SERVICEABI
+VfsFlushFile(
+	_In_ UUId_t Requester, 
+	_In_ UUId_t Handle);
+
+/* VfsMoveFile
+ * Moves or copies a given file path to the destination path
+ * this can also be used for renamining if the dest/source paths
+ * match (except for filename/directoryname) */
+__EXTERN 
+FileSystemCode_t
+SERVICEABI
+VfsMoveFile(
+	_In_ UUId_t         Requester,
+	_In_ const char*    Source, 
+	_In_ const char*    Destination,
+	_In_ int            Copy);
+
+/* VfsGetFilePosition 
+ * Queries the current file position that the given handle
+ * is at, it returns as two separate unsigned values, the upper
+ * value is optional and should only be checked for large files */
+__EXTERN
+OsStatus_t
+SERVICEABI
+VfsGetFilePosition(
+	_In_  UUId_t                    Requester,
+	_In_  UUId_t                    Handle,
+	_Out_ QueryFileValuePackage_t*  Result);
+
+/* VfsGetFileOptions 
+ * Queries the current file options and file access flags
+ * for the given file handle */
+__EXTERN
+OsStatus_t
+SERVICEABI
+VfsGetFileOptions(
+	_In_  UUId_t                        Requester,
+	_In_  UUId_t                        Handle,
+	_Out_ QueryFileOptionsPackage_t*    Result);
+
+/* VfsSetFileOptions 
+ * Attempts to modify the current option and or access flags
+ * for the given file handle as specified by <Options> and <Access> */
+__EXTERN
+OsStatus_t
+SERVICEABI
+VfsSetFileOptions(
+	_In_ UUId_t     Requester,
+	_In_ UUId_t     Handle,
+	_In_ Flags_t    Options,
+	_In_ Flags_t    Access);
+
+/* VfsGetFileSize 
+ * Queries the current file size that the given handle
+ * has, it returns as two separate unsigned values, the upper
+ * value is optional and should only be checked for large files */
+__EXTERN
+OsStatus_t
+SERVICEABI
+VfsGetFileSize(
+	_In_  UUId_t                    Requester,
+	_In_  UUId_t                    Handle,
+	_Out_ QueryFileValuePackage_t*  Result);
+
+/* VfsGetFilePath 
+ * Queries the full path of a file that the given handle
+ * has, it returns it as a UTF8 string with max length of _MAXPATH */
+__EXTERN
+OsStatus_t
+SERVICEABI
+VfsGetFilePath(
+	_In_  UUId_t        Requester,
+	_In_  UUId_t        Handle,
+	_Out_ MString_t**   Path);
+
+/* VfsPathResolveEnvironment
+ * Resolves the given env-path identifier to a string
+ * that can be used to locate files. */
+__EXTERN 
+MString_t*
+SERVICEABI
+VfsPathResolveEnvironment(
+	_In_ EnvironmentPath_t Base);
+
+/* VfsPathCanonicalize
+ * Canonicalizes the path by removing extra characters
+ * and resolving all identifiers in path */
+__EXTERN 
+MString_t*
+SERVICEABI
+VfsPathCanonicalize(
+	_In_ EnvironmentPath_t  Base,
+	_In_ const char*        Path);
 
 #endif //!_VFS_INTERFACE_H_
