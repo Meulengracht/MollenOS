@@ -19,7 +19,7 @@
  * MollenOS - General File System (MFS) Driver
  *  - Contains the implementation of the MFS driver for mollenos
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes
  * - System */
@@ -37,12 +37,12 @@
  * will be NULL */
 OsStatus_t
 MfsExtractToken(
-	_In_ MString_t *Path, 
-	_Out_ MString_t **RemainingPath,
-	_Out_ MString_t **Token)
+	_In_  MString_t*    Path, 
+	_Out_ MString_t**   RemainingPath,
+	_Out_ MString_t**   Token)
 {
 	// Variables
-	int StrIndex;
+	int StrIndex = -1;
 
 	// Step 1 is to extract the next token we searching for in this directory
 	// we do also detect if that is the last token
@@ -51,8 +51,7 @@ MfsExtractToken(
 	// So, if StrIndex is MSTRING_NOT_FOUND now, we
 	// can pretty much assume this was the last token
 	// unless that StrIndex == Last character
-	if (StrIndex == MSTRING_NOT_FOUND
-		|| StrIndex == (int)(MStringLength(Path) - 1)) {
+	if (StrIndex == MSTRING_NOT_FOUND || StrIndex == (int)(MStringLength(Path) - 1)) {
 		*Token = MStringCreate((void*)MStringRaw(Path), StrUTF8);
 		*RemainingPath = NULL;
 		return OsSuccess;
@@ -70,23 +69,23 @@ MfsExtractToken(
 }
 
 /* MfsLocateRecord
- * Locates a given file-record by the path given, all sub
- * entries must be directories. File is only allocated and set
- * if the function returns FsOk */
+ * Locates a given file-record by the path given, all sub entries must be 
+ * directories. File is only allocated and set if the function returns FsOk */
 FileSystemCode_t
 MfsLocateRecord(
-	_In_ FileSystemDescriptor_t *Descriptor, 
-	_In_ uint32_t BucketOfDirectory, 
-	_In_ MString_t *Path,
-	_Out_ MfsFile_t **File)
+	_In_  FileSystemDescriptor_t*   Descriptor, 
+	_In_  uint32_t                  BucketOfDirectory, 
+	_In_  MString_t*                Path,
+	_Out_ MfsFile_t**               File)
 {
 	// Variables
-	FileSystemCode_t Result = FsOk;
-	MfsInstance_t *Mfs = NULL;
-	MString_t *Token = NULL, *Remaining = NULL;
-
-	int IsEndOfFolder = 0, IsEndOfPath = 0;
-	uint32_t CurrentBucket = BucketOfDirectory;
+	FileSystemCode_t Result     = FsOk;
+	MfsInstance_t *Mfs          = NULL;
+	MString_t *Remaining        = NULL;
+    MString_t *Token            = NULL;
+	uint32_t CurrentBucket      = BucketOfDirectory;
+	int IsEndOfPath             = 0;
+    int IsEndOfFolder           = 0;
 	size_t i;
 
 	// Trace
@@ -98,8 +97,6 @@ MfsLocateRecord(
 
 	// Get next token
 	MfsExtractToken(Path, &Remaining, &Token);
-
-	// Was it the last path token?
 	if (Remaining == NULL) {
 		IsEndOfPath = 1;
 	}
@@ -130,14 +127,11 @@ MfsLocateRecord(
 
 		// Iterate the number of records in a bucket
 		// A record spans two sectors
-        // @todo can't handle dynamic sizing. 
 		Record = (FileRecord_t*)GetBufferData(Mfs->TransferBuffer);
 		for (i = 0; i < ((Mfs->SectorsPerBucket * Link.Length) / 2); i++) {
 			// Variables
 			MString_t *Filename = NULL;
-
-			// Skip unused records
-			if (!(Record->Flags & MFS_FILERECORD_INUSE)) {
+			if (!(Record->Flags & MFS_FILERECORD_INUSE)) { // Skip unused records
 				Record++;
 				continue;
 			}
@@ -180,21 +174,21 @@ MfsLocateRecord(
 				}
 				else {
 					// Convert the file-record into a mfs-file instance
-					*File = (MfsFile_t*)malloc(sizeof(MfsFile_t));
+					*File                   = (MfsFile_t*)malloc(sizeof(MfsFile_t));
 
 					// Initialize the data
-					(*File)->Name = Filename;
-					(*File)->Flags = Record->Flags;
-					(*File)->Size = Record->Size;
-					(*File)->AllocatedSize = Record->AllocatedSize;
-					(*File)->StartBucket = Record->StartBucket;
-					(*File)->StartLength = Record->StartLength;
+					(*File)->Name           = Filename;
+					(*File)->Flags          = Record->Flags;
+					(*File)->Size           = Record->Size;
+					(*File)->AllocatedSize  = Record->AllocatedSize;
+					(*File)->StartBucket    = Record->StartBucket;
+					(*File)->StartLength    = Record->StartLength;
 
 					// Save where in the directory we found it
 					(*File)->DirectoryBucket = CurrentBucket;
 					(*File)->DirectoryLength = Link.Length;
-					(*File)->DirectoryIndex = i;
-					Result = FsOk;
+					(*File)->DirectoryIndex  = i;
+					Result                   = FsOk;
 					goto Cleanup;
 				}
 			}
@@ -208,11 +202,11 @@ MfsLocateRecord(
 		if (!IsEndOfFolder) {			
 			// End of link?
 			if (Link.Link == MFS_ENDOFCHAIN) {
-				Result = FsPathNotFound;
-				IsEndOfFolder = 1;
+				Result          = FsPathNotFound;
+				IsEndOfFolder   = 1;
 			}
 			else {
-				CurrentBucket = Link.Link;
+				CurrentBucket   = Link.Link;
 			}
 		}
 	}
@@ -227,24 +221,23 @@ Cleanup:
 }
 
 /* MfsLocateFreeRecord
- * Very alike to the MfsLocateRecord
- * except instead of locating a file entry
- * it locates a free entry in the last token of
- * the path, and validates the path as it goes */
+ * Very alike to the MfsLocateRecord except instead of locating a file entry
+ * it locates a free entry in the last token of the path, and validates the path as it goes */
 FileSystemCode_t
 MfsLocateFreeRecord(
-	_In_ FileSystemDescriptor_t *Descriptor, 
-	_In_ uint32_t BucketOfDirectory, 
-	_In_ MString_t *Path,
-	_Out_ MfsFile_t **File)
+	_In_  FileSystemDescriptor_t*   Descriptor, 
+	_In_  uint32_t                  BucketOfDirectory, 
+	_In_  MString_t*                Path,
+	_Out_ MfsFile_t**               File)
 {
 	// Variables
 	FileSystemCode_t Result = FsOk;
-	MfsInstance_t *Mfs = NULL;
-	MString_t *Token = NULL, *Remaining = NULL;
-
-	int IsEndOfFolder = 0, IsEndOfPath = 0;
-	uint32_t CurrentBucket = BucketOfDirectory;
+	MfsInstance_t *Mfs      = NULL;
+	MString_t *Remaining    = NULL;
+    MString_t *Token        = NULL;
+	uint32_t CurrentBucket  = BucketOfDirectory;
+	int IsEndOfFolder       = 0;
+    int IsEndOfPath         = 0;
 	size_t i;
 
 	// Trace
@@ -256,8 +249,6 @@ MfsLocateFreeRecord(
 
 	// Get next token
 	MfsExtractToken(Path, &Remaining, &Token);
-
-	// Was it the last path token?
 	if (Remaining == NULL) {
 		IsEndOfPath = 1;
 	}
@@ -286,7 +277,7 @@ MfsLocateFreeRecord(
 		// Iterate the number of records in a bucket
 		// A record spans two sectors
 		Record = (FileRecord_t*)GetBufferData(Mfs->TransferBuffer);
-		for (i = 0; i < (Mfs->SectorsPerBucket / 2); i++) {
+		for (i = 0; i < ((Mfs->SectorsPerBucket * Link.Length) / 2); i++) {
 			// Variables
 			MString_t *Filename = NULL;
 
@@ -296,19 +287,19 @@ MfsLocateFreeRecord(
 				// Are we at end of path? If we are - we have found our
 				// free entry in the file-record-table
 				if (IsEndOfPath) {
-					*File = (MfsFile_t*)malloc(sizeof(MfsFile_t));
+					*File                   = (MfsFile_t*)malloc(sizeof(MfsFile_t));
 					memset(*File, 0, sizeof(MfsFile_t));
 
 					// Store initial stuff, like name
-					(*File)->Name = Token;
+					(*File)->Name           = Token;
 
 					// Store it's position in the directory
 					(*File)->DirectoryBucket = CurrentBucket;
 					(*File)->DirectoryLength = Link.Length;
-					(*File)->DirectoryIndex = i;
+					(*File)->DirectoryIndex  = i;
 
 					// Set code and cleanup
-					Result = FsOk;
+					Result                   = FsOk;
 					goto Cleanup;
 				}
 				else {
@@ -345,9 +336,9 @@ MfsLocateFreeRecord(
 						}
 
 						// Update record information
-						Record->StartBucket = Expansion.Link;
-						Record->StartLength = Expansion.Length;
-						Record->AllocatedSize = Mfs->SectorsPerBucket 
+						Record->StartBucket         = Expansion.Link;
+						Record->StartLength         = Expansion.Length;
+						Record->AllocatedSize       = Mfs->SectorsPerBucket 
 							* Descriptor->Disk.Descriptor.SectorSize;
 
 						// Write back record bucket
@@ -373,21 +364,21 @@ MfsLocateFreeRecord(
 				}
 				else {
 					// Convert the file-record into a mfs-file instance
-					*File = (MfsFile_t*)malloc(sizeof(MfsFile_t));
+					*File                   = (MfsFile_t*)malloc(sizeof(MfsFile_t));
 
 					// Initialize the data
-					(*File)->Name = Filename;
-					(*File)->Flags = Record->Flags;
-					(*File)->Size = Record->Size;
-					(*File)->AllocatedSize = Record->AllocatedSize;
-					(*File)->StartBucket = Record->StartBucket;
-					(*File)->StartLength = Record->StartLength;
+					(*File)->Name           = Filename;
+					(*File)->Flags          = Record->Flags;
+					(*File)->Size           = Record->Size;
+					(*File)->AllocatedSize  = Record->AllocatedSize;
+					(*File)->StartBucket    = Record->StartBucket;
+					(*File)->StartLength    = Record->StartLength;
 
 					// Save where in the directory we found it
 					(*File)->DirectoryBucket = CurrentBucket;
 					(*File)->DirectoryLength = Link.Length;
-					(*File)->DirectoryIndex = i;
-					Result = FsOk;
+					(*File)->DirectoryIndex  = i;
+					Result                   = FsOk;
 					goto Cleanup;
 				}
 			}
@@ -403,7 +394,7 @@ MfsLocateFreeRecord(
 			// Expand directory
 			if (Link.Link == MFS_ENDOFCHAIN) {
 				// Allocate bucket
-				if (MfsAllocateBuckets(Descriptor, 1, &Link) != OsSuccess) {
+				if (MfsAllocateBuckets(Descriptor, MFS_DIRECTORYEXPANSION, &Link) != OsSuccess) {
 					ERROR("Failed to allocate bucket for expansion");
 					Result = FsDiskError;
 					goto Cleanup;
@@ -439,16 +430,15 @@ Cleanup:
 }
 
 /* MfsCreateRecord
- * Creates a new file-record in a directory
- * It internally calls MfsLocateFreeRecord to
+ * Creates a new file-record in a directory. It internally calls MfsLocateFreeRecord to
  * find a viable entry and validate the path */
 FileSystemCode_t
 MfsCreateRecord(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ uint32_t BucketOfDirectory,
-	_In_ MString_t *Path,
-	_In_ Flags_t Flags, 
-	_Out_ MfsFile_t **File)
+	_In_  FileSystemDescriptor_t*   Descriptor,
+	_In_  uint32_t                  BucketOfDirectory,
+	_In_  MString_t*                Path,
+	_In_  Flags_t                   Flags, 
+	_Out_ MfsFile_t**               File)
 {
 	// Locate a free entry, and make sure file does not exist 
 	FileSystemCode_t Result = MfsLocateFreeRecord(Descriptor, 
@@ -462,11 +452,11 @@ MfsCreateRecord(
 	}
 
 	// Initialize the new file record
-	(*File)->StartBucket = MFS_ENDOFCHAIN;
-	(*File)->StartLength = 0;
-	(*File)->Size = 0;
-	(*File)->AllocatedSize = 0;
-	(*File)->Flags = Flags | MFS_FILERECORD_INUSE;
+	(*File)->StartBucket    = MFS_ENDOFCHAIN;
+	(*File)->StartLength    = 0;
+	(*File)->Size           = 0;
+	(*File)->AllocatedSize  = 0;
+	(*File)->Flags          = Flags | MFS_FILERECORD_INUSE;
 
 	// Update the on-disk record with the new data
 	return MfsUpdateRecord(Descriptor, *File, MFS_ACTION_CREATE);

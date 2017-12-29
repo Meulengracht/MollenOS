@@ -19,7 +19,7 @@
  * MollenOS - General File System (MFS) Driver
  *  - Contains the implementation of the MFS driver for mollenos
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes
  * - System */
@@ -36,12 +36,12 @@
  * for a new open-file in the system */
 FileSystemCode_t 
 FsOpenFile(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_Out_ FileSystemFile_t *File,
-	_In_ MString_t *Path)
+	_In_ FileSystemDescriptor_t*    Descriptor,
+	_In_ FileSystemFile_t*          File,
+	_In_ MString_t*                 Path)
 {
 	// Variables
-	MfsInstance_t *Mfs = NULL;
+	MfsInstance_t *Mfs      = NULL;
 	MfsFile_t *fInformation = NULL;
 	FileSystemCode_t Result;
 
@@ -54,18 +54,14 @@ FsOpenFile(
 	// Try to locate the given file-record
 	Result = MfsLocateRecord(Descriptor, Mfs->MasterRecord.RootIndex, 
 		Path, &fInformation);
-
-	// Sanitize the result
 	if (Result != FsOk) {
 		return Result;
 	}
 
 	// Fill out information in _out_
-	File->Name = fInformation->Name;
-	File->Size = fInformation->Size;
+	File->Name          = fInformation->Name;
+	File->Size          = fInformation->Size;
 	File->ExtensionData = (uintptr_t*)fInformation;
-
-	// Done
 	return Result;
 }
 
@@ -74,13 +70,13 @@ FsOpenFile(
  * for a new open-file in the system */
 FileSystemCode_t 
 FsCreateFile(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_Out_ FileSystemFile_t *File,
-	_In_ MString_t *Path,
-	_In_ Flags_t Options)
+	_In_ FileSystemDescriptor_t*    Descriptor,
+	_In_ FileSystemFile_t*          File,
+	_In_ MString_t*                 Path,
+	_In_ Flags_t                    Options)
 {
 	// Variables
-	MfsInstance_t *Mfs = NULL;
+	MfsInstance_t *Mfs      = NULL;
 	MfsFile_t *fInformation = NULL;
 	FileSystemCode_t Result;
 
@@ -94,18 +90,14 @@ FsCreateFile(
 	// Create the record
 	Result = MfsCreateRecord(Descriptor, Mfs->MasterRecord.RootIndex,
 		Path, Options, &fInformation);
-
-	// Sanitize the result
 	if (Result != FsOk) {
 		return Result;
 	}
 
 	// Fill out information in _out_
-	File->Name = fInformation->Name;
-	File->Size = fInformation->Size;
+	File->Name          = fInformation->Name;
+	File->Size          = fInformation->Size;
 	File->ExtensionData = (uintptr_t*)fInformation;
-
-	// Done
 	return Result;
 }
 
@@ -115,21 +107,17 @@ FsCreateFile(
  * to that file link, or the file-system is unmounted */
 FileSystemCode_t
 FsCloseFile(
-	_In_ FileSystemDescriptor_t *Descriptor, 
-	_In_ FileSystemFile_t *File)
+	_In_ FileSystemDescriptor_t*    Descriptor, 
+	_In_ FileSystemFile_t*          File)
 {
 	// Variables
-	MfsInstance_t *Mfs = NULL;
 	MfsFile_t *fInformation = NULL;
 
 	// Trace
 	TRACE("FsCloseFile(Hash 0x%x)", File->Hash);
 
 	// Instantiate the pointers
-	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
-	fInformation = (MfsFile_t*)File->ExtensionData;
-
-	// Sanitize the pointer
+	fInformation    = (MfsFile_t*)File->ExtensionData;
 	if (fInformation == NULL) {
 		return FsOk;
 	}
@@ -147,22 +135,18 @@ FsCloseFile(
  * should be done here too */
 FileSystemCode_t
 FsOpenHandle(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ FileSystemFileHandle_t *Handle)
+	_In_ FileSystemDescriptor_t* Descriptor,
+	_In_ FileSystemFileHandle_t* Handle)
 {
 	// Variables
-	MfsFileInstance_t *fInstance = NULL;
-	MfsFile_t *fInformation = NULL;
-	MfsInstance_t *Mfs = NULL;
+	MfsFileInstance_t *fInstance    = NULL;
+	MfsFile_t *fInformation         = NULL;
 
 	// Trace
 	TRACE("FsOpenHandle(Id 0x%x)", Handle->Id);
 
 	// Instantiate the pointers
-	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
 	fInformation = (MfsFile_t*)Handle->File->ExtensionData;
-
-	// Sanitize the parameters
 	if (fInformation == NULL) {
 		return FsInvalidParameters;
 	}
@@ -177,8 +161,6 @@ FsOpenHandle(
 
 	// Update out
 	Handle->ExtensionData = (uintptr_t*)fInstance;
-
-	// Done
 	return FsOk;
 }
 
@@ -187,21 +169,17 @@ FsOpenHandle(
  * by the OpenHandle equivelent. Renders the handle useless */
 FileSystemCode_t
 FsCloseHandle(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ FileSystemFileHandle_t *Handle)
+	_In_ FileSystemDescriptor_t* Descriptor,
+	_In_ FileSystemFileHandle_t* Handle)
 {
 	// Variables
-	MfsFileInstance_t *fHandle = NULL;
-	MfsInstance_t *Mfs = NULL;
+	MfsFileInstance_t *fHandle  = NULL;
 
 	// Trace
 	TRACE("FsCloseHandle(Id 0x%x)", Handle->Id);
 
 	// Instantiate the pointers
-	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
 	fHandle = (MfsFileInstance_t*)Handle->ExtensionData;
-
-	// Sanitize the parameters
 	if (fHandle == NULL) {
 		return FsInvalidParameters;
 	}
@@ -218,7 +196,7 @@ FileSystemCode_t
 FsReadFile(
 	_In_  FileSystemDescriptor_t*   Descriptor,
 	_In_  FileSystemFileHandle_t*   Handle,
-	_Out_ BufferObject_t*           BufferObject,
+	_In_  BufferObject_t*           BufferObject,
 	_Out_ size_t*                   BytesAt,
 	_Out_ size_t*                   BytesRead)
 {
@@ -326,8 +304,6 @@ FsReadFile(
 			break;
 		}
 
-        TRACE(">> Read success");
-
 		// Increase the pointers and decrease with bytes read
 		DataPointer += Descriptor->Disk.Descriptor.SectorSize * SectorCount;
 		*BytesRead  += ByteCount;
@@ -377,34 +353,34 @@ FsReadFile(
  * file handle and outputs the number of bytes actually written */
 FileSystemCode_t
 FsWriteFile(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ FileSystemFileHandle_t *Handle,
-	_In_ BufferObject_t *BufferObject,
-	_Out_ size_t *BytesWritten)
+	_In_  FileSystemDescriptor_t*   Descriptor,
+	_In_  FileSystemFileHandle_t*   Handle,
+	_In_  BufferObject_t*           BufferObject,
+	_Out_ size_t*                   BytesWritten)
 {
 	// Variables
-	MfsFileInstance_t *fInstance = NULL;
-	MfsFile_t *fInformation = NULL;
-	MfsInstance_t *Mfs = NULL;
-	FileSystemCode_t Result = FsOk;
-	uint64_t Position;
-	size_t BucketSizeBytes;
-	size_t BytesToWrite;
+	MfsFileInstance_t *fInstance    = NULL;
+	MfsFile_t *fInformation         = NULL;
+	MfsInstance_t *Mfs              = NULL;
+	FileSystemCode_t Result         = FsOk;
+	uint64_t Position               = 0;
+	size_t BucketSizeBytes          = 0;
+	size_t BytesToWrite             = 0;
 
 	// Trace
 	TRACE("FsWriteFile(Id 0x%x, Position %u, Length %u)",
 		Handle->Id, LODWORD(Handle->Position), GetBufferSize(BufferObject));
 
 	// Instantiate the pointers
-	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
-	fInstance = (MfsFileInstance_t*)Handle->ExtensionData;
-	fInformation = (MfsFile_t*)Handle->File->ExtensionData;
+	Mfs             = (MfsInstance_t*)Descriptor->ExtensionData;
+	fInstance       = (MfsFileInstance_t*)Handle->ExtensionData;
+	fInformation    = (MfsFile_t*)Handle->File->ExtensionData;
 
 	// Instantiate some of the variables
 	BucketSizeBytes = Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize;
-	Position = Handle->Position;
-	BytesToWrite = GetBufferSize(BufferObject);
-	*BytesWritten = 0;
+	Position        = Handle->Position;
+	BytesToWrite    = GetBufferSize(BufferObject);
+	*BytesWritten   = 0;
 
 	// Make sure record has enough disk-space allocated for 
 	// the write operations
@@ -476,13 +452,13 @@ FsWriteFile(
 	while (BytesToWrite) {
 		// Calculate which bucket, then the sector offset
 		// Then calculate how many sectors of the bucket we need to read
-		uint64_t Sector = MFS_GETSECTOR(Mfs, fInstance->DataBucketPosition);
-		uint64_t SectorOffset = (Position - fInstance->BucketByteBoundary)
+		uint64_t Sector         = MFS_GETSECTOR(Mfs, fInstance->DataBucketPosition);
+		uint64_t SectorOffset   = (Position - fInstance->BucketByteBoundary)
 			% Descriptor->Disk.Descriptor.SectorSize;
-		size_t SectorIndex = (size_t)((Position - fInstance->BucketByteBoundary)
+		size_t SectorIndex      = (size_t)((Position - fInstance->BucketByteBoundary)
 			/ Descriptor->Disk.Descriptor.SectorSize);
-		size_t SectorsLeft = fInstance->DataBucketLength - SectorIndex;
-		size_t SectorCount = 0, ByteCount = 0;
+		size_t SectorsLeft      = MFS_GETSECTOR(Mfs, fInstance->DataBucketLength) - SectorIndex;
+		size_t SectorCount      = 0, ByteCount = 0;
 
 		// Ok - so sectorindex contains the index in the bucket
 		// and sector offset contains the byte-offset in that sector
@@ -511,7 +487,7 @@ FsWriteFile(
 		// Ex pos 490 - length 4000
 		// SectorIndex = 0, SectorOffset = 490, SectorCount = 8 - ByteCount = 3606 (Capacity 4096)
 		TRACE("Write metrics - Sector %u + %u, Count %u, ByteOffset %u, ByteCount %u",
-			LODWORD(Sector), SectorIndex, SectorCount, SectorOffset, ByteCount);
+			LODWORD(Sector), SectorIndex, SectorCount, LODWORD(SectorOffset), ByteCount);
 
 		// First of all, calculate the bounds as we might need to read
 		// in existing data - Start out by clearing our combination buffer
@@ -608,21 +584,19 @@ FsWriteFile(
  * and make them fail on next access */
 FileSystemCode_t
 FsDeleteFile(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ FileSystemFileHandle_t *Handle)
+	_In_ FileSystemDescriptor_t* Descriptor,
+	_In_ FileSystemFileHandle_t* Handle)
 {
 	// Variables
-	MfsFileInstance_t *fHandle = NULL;
-	MfsFile_t *fInformation = NULL;
-	MfsInstance_t *Mfs = NULL;
+	MfsFileInstance_t *fHandle  = NULL;
+	MfsFile_t *fInformation     = NULL;
 
 	// Trace
 	TRACE("FsDeleteFile(Id 0x%x)", Handle->Id);
 
 	// Instantiate the pointers
-	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
-	fHandle = (MfsFileInstance_t*)Handle->ExtensionData;
-	fInformation = (MfsFile_t*)Handle->File->ExtensionData;
+	fHandle         = (MfsFileInstance_t*)Handle->ExtensionData;
+	fInformation    = (MfsFile_t*)Handle->File->ExtensionData;
 
 	// Free all buckets allocated
 	if (MfsFreeBuckets(Descriptor, fInformation->StartBucket, 
@@ -642,25 +616,25 @@ FsDeleteFile(
  * take a place */
 FileSystemCode_t
 FsSeekFile(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ FileSystemFileHandle_t *Handle,
-	_In_ uint64_t AbsolutePosition)
+	_In_ FileSystemDescriptor_t*    Descriptor,
+	_In_ FileSystemFileHandle_t*    Handle,
+	_In_ uint64_t                   AbsolutePosition)
 {
 	// Variables
-	MfsFileInstance_t *fInstance = NULL;
-	MfsFile_t *fInformation = NULL;
-	MfsInstance_t *Mfs = NULL;
-	size_t InitialBucketMax;
-	int ConstantLoop = 1;
+	MfsFileInstance_t *fInstance    = NULL;
+	MfsFile_t *fInformation         = NULL;
+	MfsInstance_t *Mfs              = NULL;
+	size_t InitialBucketMax         = 0;
+	int ConstantLoop                = 1;
 
 	// Trace
 	TRACE("FsSeekFile(Id 0x%x, Position 0x%x)", 
 		Handle->Id, LODWORD(AbsolutePosition));
 
 	// Instantiate the pointers
-	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
-	fInstance = (MfsFileInstance_t*)Handle->ExtensionData;
-	fInformation = (MfsFile_t*)Handle->File->ExtensionData;
+	Mfs             = (MfsInstance_t*)Descriptor->ExtensionData;
+	fInstance       = (MfsFileInstance_t*)Handle->ExtensionData;
+	fInformation    = (MfsFile_t*)Handle->File->ExtensionData;
 
 	// Sanitize seeking bounds
 	if (AbsolutePosition > fInformation->Size
@@ -671,12 +645,12 @@ FsSeekFile(
 	// Step 1, if the new position is in
 	// initial bucket, we need to do no actual
 	// seeking
-	InitialBucketMax = (fInformation->StartLength * 
+	InitialBucketMax                    = (fInformation->StartLength * 
 		(Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize));
 	if (AbsolutePosition < InitialBucketMax) {
-		fInstance->DataBucketPosition = fInformation->StartBucket;
-		fInstance->DataBucketLength = fInformation->StartLength;
-		fInstance->BucketByteBoundary = 0;
+		fInstance->DataBucketPosition   = fInformation->StartBucket;
+		fInstance->DataBucketLength     = fInformation->StartLength;
+		fInstance->BucketByteBoundary   = 0;
 	}
 	else {
 		// Step 2. We might still get out easy
@@ -685,8 +659,8 @@ FsSeekFile(
 		uint64_t OldBucketLow, OldBucketHigh;
 
 		// Calculate bucket boundaries
-		OldBucketLow = fInstance->BucketByteBoundary;
-		OldBucketHigh = OldBucketLow + (fInstance->DataBucketLength 
+		OldBucketLow    = fInstance->BucketByteBoundary;
+		OldBucketHigh   = OldBucketLow + (fInstance->DataBucketLength 
 			* (Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize));
 
 		// If we are seeking inside the same bucket no need
@@ -697,13 +671,13 @@ FsSeekFile(
 		}
 		else {
 			// We need to figure out which bucket the position is in
-			uint64_t PositionBoundLow = 0;
-			uint64_t PositionBoundHigh = InitialBucketMax;
+			uint64_t PositionBoundLow   = 0;
+			uint64_t PositionBoundHigh  = InitialBucketMax;
 			MapRecord_t Link;
 
 			// Start at the file-bucket
-			uint32_t BucketPtr = fInformation->StartBucket;
-			uint32_t BucketLength = fInformation->StartLength;
+			uint32_t BucketPtr          = fInformation->StartBucket;
+			uint32_t BucketLength       = fInformation->StartLength;
 			while (ConstantLoop) {
 				// Check if we reached correct bucket
 				if (AbsolutePosition >= PositionBoundLow
@@ -723,17 +697,13 @@ FsSeekFile(
 					ERROR("Reached end of chain during seek");
 					return FsInvalidParameters;
 				}
-
-				// Update
-				BucketPtr = Link.Link;
+				BucketPtr   = Link.Link;
 
 				// Get length of link
 				if (MfsGetBucketLink(Descriptor, BucketPtr, &Link) != OsSuccess) {
 					ERROR("Failed to get length for bucket %u", BucketPtr);
 					return FsDiskError;
 				}
-
-				// Update length of link
 				BucketLength = Link.Length;
 
 				// Calculate bounds for the new bucket
@@ -751,8 +721,6 @@ FsSeekFile(
 	
 	// Update the new position since everything went ok
 	Handle->Position = AbsolutePosition;
-
-	// Done
 	return FsOk;
 }
 
@@ -761,12 +729,11 @@ FsSeekFile(
  * file-handle to the requested size. */
 FileSystemCode_t
 FsChangeFileSize(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ FileSystemFile_t *Handle,
-	_In_ uint64_t Size)
+	_In_ FileSystemDescriptor_t*    Descriptor,
+	_In_ FileSystemFile_t*          Handle,
+	_In_ uint64_t                   Size)
 {
 	// Variables
-	MfsInstance_t *Mfs = NULL;
 	MfsFile_t *fInformation = NULL;
 
 	// Trace
@@ -774,7 +741,6 @@ FsChangeFileSize(
 		MStringRaw(Handle->Name), LODWORD(Size));
 
 	// Instantiate the pointers
-	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
 	fInformation = (MfsFile_t*)Handle->ExtensionData;
 
 	// Handle a special case of 0
@@ -789,8 +755,8 @@ FsChangeFileSize(
 
 		// Set new allocated size
 		fInformation->AllocatedSize = 0;
-		fInformation->StartBucket = MFS_ENDOFCHAIN;
-		fInformation->StartLength = 0;
+		fInformation->StartBucket   = MFS_ENDOFCHAIN;
+		fInformation->StartLength   = 0;
 	}
 
 	// Set new size
@@ -807,26 +773,25 @@ FsChangeFileSize(
  * information queried is determined by the function */
 FileSystemCode_t
 FsQueryFile(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ FileSystemFileHandle_t *Handle,
-	_In_ int Function,
-	_Out_ void *Buffer,
-	_In_ size_t MaxLength)
+	_In_  FileSystemDescriptor_t*   Descriptor,
+	_In_  FileSystemFileHandle_t*   Handle,
+	_In_  int                       Function,
+	_Out_ void*                     Buffer,
+	_In_  size_t                    MaxLength)
 {
 	// Variables
-	MfsFileInstance_t *fInstance = NULL;
-	MfsFile_t *fInformation = NULL;
-	MfsInstance_t *Mfs = NULL;
+	MfsFileInstance_t *fInstance    = NULL;
+	MfsFile_t *fInformation         = NULL;
 
 	// Trace
 	TRACE("FsQueryFile(Id 0x%x, Function %i, Length %u)",
 		Handle->Id, Function, MaxLength);
 
 	// Instantiate the pointers
-	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
-	fInstance = (MfsFileInstance_t*)Handle->ExtensionData;
-	fInformation = (MfsFile_t*)Handle->File->ExtensionData;
+	fInstance       = (MfsFileInstance_t*)Handle->ExtensionData;
+	fInformation    = (MfsFile_t*)Handle->File->ExtensionData;
 	
+    // @todo
 	_CRT_UNUSED(Function);
 	_CRT_UNUSED(Buffer);
 	_CRT_UNUSED(MaxLength);
@@ -840,8 +805,8 @@ FsQueryFile(
  * up any resources allocated by the filesystem instance */
 OsStatus_t
 FsDestroy(
-	_InOut_ FileSystemDescriptor_t *Descriptor,
-	_In_ Flags_t UnmountFlags)
+	_InOut_ FileSystemDescriptor_t* Descriptor,
+	_In_    Flags_t                 UnmountFlags)
 {
 	// Variables
 	MfsInstance_t *Mfs = NULL;
@@ -857,6 +822,7 @@ FsDestroy(
 	// Which kind of unmount is it?
 	if (!(UnmountFlags & __DISK_FORCED_REMOVE)) {
 		// Flush everything
+        // @todo
 	}
 
 	// Cleanup all allocated resources
@@ -882,12 +848,12 @@ FsInitialize(
 	_InOut_ FileSystemDescriptor_t *Descriptor)
 {
 	// Variables
-	MasterRecord_t *MasterRecord = NULL;
-	BootRecord_t *BootRecord = NULL;
-	BufferObject_t *Buffer = NULL;
-	MfsInstance_t *Mfs = NULL;
-	uint8_t *bMap = NULL;
-	uint64_t BytesLeft;
+	MasterRecord_t *MasterRecord    = NULL;
+	BootRecord_t *BootRecord        = NULL;
+	BufferObject_t *Buffer          = NULL;
+	MfsInstance_t *Mfs              = NULL;
+	uint8_t *bMap                   = NULL;
+	uint64_t BytesLeft              = 0;
 	size_t i;
 
 	// Trace
@@ -903,11 +869,11 @@ FsInitialize(
 	}
 
 	// Allocate a new instance of mfs
-	Mfs = (MfsInstance_t*)malloc(sizeof(MfsInstance_t));
-	Descriptor->ExtensionData = (uintptr_t*)Mfs;
+	Mfs                         = (MfsInstance_t*)malloc(sizeof(MfsInstance_t));
+	Descriptor->ExtensionData   = (uintptr_t*)Mfs;
 
 	// Instantiate the boot-record pointer
-	BootRecord = (BootRecord_t*)GetBufferData(Buffer);
+	BootRecord                  = (BootRecord_t*)GetBufferData(Buffer);
 
 	// Process the boot-record
 	if (BootRecord->Magic != MFS_BOOTRECORD_MAGIC) {
@@ -920,17 +886,17 @@ FsInitialize(
 	TRACE("Fs-Version: %u", BootRecord->Version);
 
 	// Store some data from the boot-record
-	Mfs->Version = (int)BootRecord->Version;
-	Mfs->Flags = (Flags_t)BootRecord->Flags;
-	Mfs->MasterRecordSector = BootRecord->MasterRecordSector;
-	Mfs->MasterRecordMirrorSector = BootRecord->MasterRecordMirror;
-	Mfs->SectorsPerBucket = BootRecord->SectorsPerBucket;
+	Mfs->Version                    = (int)BootRecord->Version;
+	Mfs->Flags                      = (Flags_t)BootRecord->Flags;
+	Mfs->MasterRecordSector         = BootRecord->MasterRecordSector;
+	Mfs->MasterRecordMirrorSector   = BootRecord->MasterRecordMirror;
+	Mfs->SectorsPerBucket           = BootRecord->SectorsPerBucket;
 
 	// Calculate where our map sector is
-	Mfs->BucketCount = Descriptor->SectorCount / Mfs->SectorsPerBucket;
+	Mfs->BucketCount                = Descriptor->SectorCount / Mfs->SectorsPerBucket;
 	
 	// Bucket entries are 64 bit (8 bytes) in map
-	Mfs->BucketsPerSectorInMap = Descriptor->Disk.Descriptor.SectorSize / 8;
+	Mfs->BucketsPerSectorInMap      = Descriptor->Disk.Descriptor.SectorSize / 8;
 
 	// Read the master-record
 	if (MfsReadSectors(Descriptor, Buffer, Mfs->MasterRecordSector, 1) != OsSuccess) {
@@ -939,7 +905,7 @@ FsInitialize(
 	}
 
 	// Instantiate the master-record pointer
-	MasterRecord = (MasterRecord_t*)GetBufferData(Buffer);
+	MasterRecord                    = (MasterRecord_t*)GetBufferData(Buffer);
 
 	// Process the master-record
 	if (MasterRecord->Magic != MFS_BOOTRECORD_MAGIC) {
@@ -958,9 +924,9 @@ FsInitialize(
 	DestroyBuffer(Buffer);
 
 	// Allocate a new in the size of a bucket
-	Buffer = CreateBuffer(Mfs->SectorsPerBucket 
+	Buffer                          = CreateBuffer(Mfs->SectorsPerBucket 
 		* Descriptor->Disk.Descriptor.SectorSize * MFS_ROOTSIZE);
-	Mfs->TransferBuffer = Buffer;
+	Mfs->TransferBuffer             = Buffer;
 
 	// Allocate a buffer for the map
 	Mfs->BucketMap = (uint32_t*)malloc((size_t)Mfs->MasterRecord.MapSize);
@@ -989,8 +955,8 @@ FsInitialize(
 		// Reset buffer position to 0 and read the data into the map
 		SeekBuffer(Buffer, 0);
 		ReadBuffer(Buffer, (__CONST void*)bMap, TransferSize, NULL);
-		BytesLeft -= TransferSize;
-		bMap += TransferSize;
+		BytesLeft   -= TransferSize;
+		bMap        += TransferSize;
 		i++;
 	}
 

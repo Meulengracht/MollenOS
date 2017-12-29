@@ -35,18 +35,16 @@
  * with the file-system descriptor */
 OsStatus_t
 MfsReadSectors(
-	_In_ FileSystemDescriptor_t *Descriptor, 
-	_In_ BufferObject_t *Buffer,
-	_In_ uint64_t Sector,
-	_In_ size_t Count)
+	_In_ FileSystemDescriptor_t*    Descriptor, 
+	_In_ BufferObject_t*            Buffer,
+	_In_ uint64_t                   Sector,
+	_In_ size_t                     Count)
 {
 	// Variables
 	uint64_t AbsoluteSector;
 
 	// Calculate the absolute sector
 	AbsoluteSector = Descriptor->SectorStart + Sector;
-
-	// Do the actual read
 	return StorageRead(Descriptor->Disk.Driver,
 		Descriptor->Disk.Device, AbsoluteSector, 
 		GetBufferAddress(Buffer), Count);
@@ -57,26 +55,23 @@ MfsReadSectors(
  * with the file-system descriptor */
 OsStatus_t
 MfsWriteSectors(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ BufferObject_t *Buffer,
-	_In_ uint64_t Sector,
-	_In_ size_t Count)
+	_In_ FileSystemDescriptor_t*    Descriptor,
+	_In_ BufferObject_t*            Buffer,
+	_In_ uint64_t                   Sector,
+	_In_ size_t                     Count)
 {
 	// Variables
 	uint64_t AbsoluteSector;
 
 	// Calculate the absolute sector
 	AbsoluteSector = Descriptor->SectorStart + Sector;
-
-	// Do the actual read
 	return StorageWrite(Descriptor->Disk.Driver,
 		Descriptor->Disk.Device, AbsoluteSector,
 		GetBufferAddress(Buffer), Count);
 }
 
 /* MfsUpdateMasterRecord
- * master-bucket and it's mirror 
- * by writing the updated stats in our stored data */
+ * Update the master-bucket and it's mirror by writing the updated stats in our stored data */
 OsStatus_t
 MfsUpdateMasterRecord(
 	_In_ FileSystemDescriptor_t *Descriptor)
@@ -103,8 +98,6 @@ MfsUpdateMasterRecord(
 		ERROR("Failed to write master-record to disk");
 		return OsError;
 	}
-
-	// Done
 	return OsSuccess;
 }
 
@@ -113,9 +106,9 @@ MfsUpdateMasterRecord(
  * in-memory version of the bucketmap */
 OsStatus_t
 MfsGetBucketLink(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ uint32_t Bucket, 
-	_Out_ MapRecord_t *Link)
+	_In_  FileSystemDescriptor_t*   Descriptor,
+	_In_  uint32_t                  Bucket, 
+	_Out_ MapRecord_t*              Link)
 {
 	// Variables
 	MfsInstance_t *Mfs = NULL;
@@ -124,13 +117,11 @@ MfsGetBucketLink(
 	TRACE("MfsGetBucketLink(Bucket %u)", Bucket);
 
 	// Instantiate the pointers
-	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
+	Mfs             = (MfsInstance_t*)Descriptor->ExtensionData;
 
 	// Access the entry and update out
-	Link->Link = Mfs->BucketMap[(Bucket * 2)];
-	Link->Length = Mfs->BucketMap[(Bucket * 2) + 1];
-
-	// Done
+	Link->Link      = Mfs->BucketMap[(Bucket * 2)];
+	Link->Length    = Mfs->BucketMap[(Bucket * 2) + 1];
 	return OsSuccess;
 }
 
@@ -139,35 +130,35 @@ MfsGetBucketLink(
  * the changes to disk */
 OsStatus_t 
 MfsSetBucketLink(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ uint32_t Bucket, 
-	_In_ MapRecord_t *Link,
-	_In_ int UpdateLength)
+	_In_ FileSystemDescriptor_t*    Descriptor,
+	_In_ uint32_t                   Bucket, 
+	_In_ MapRecord_t*               Link,
+	_In_ int                        UpdateLength)
 {
 	// Variables
-	MfsInstance_t *Mfs = NULL;
-	uint8_t *BufferOffset;
-	size_t SectorOffset;
+	MfsInstance_t *Mfs      = NULL;
+	uint8_t *BufferOffset   = NULL;
+	size_t SectorOffset     = 0;
 
 	// Trace
 	TRACE("MfsSetBucketLink(Bucket %u, Link %u)", 
 		Bucket, Link->Link);
 
 	// Instantiate the pointers
-	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
+	Mfs                             = (MfsInstance_t*)Descriptor->ExtensionData;
 
 	// Update in-memory map first
-	Mfs->BucketMap[(Bucket * 2)] = Link->Link;
+	Mfs->BucketMap[(Bucket * 2)]    = Link->Link;
 	if (UpdateLength) {
 		Mfs->BucketMap[(Bucket * 2) + 1] = Link->Length;
 	}
 
 	// Calculate which sector that is dirty now
-	SectorOffset = Bucket / Mfs->BucketsPerSectorInMap;
+	SectorOffset        = Bucket / Mfs->BucketsPerSectorInMap;
 
 	// Calculate offset into buffer
-	BufferOffset = (uint8_t*)Mfs->BucketMap;
-	BufferOffset += (SectorOffset * Descriptor->Disk.Descriptor.SectorSize);
+	BufferOffset        = (uint8_t*)Mfs->BucketMap;
+	BufferOffset        += (SectorOffset * Descriptor->Disk.Descriptor.SectorSize);
 
 	// Copy a sector's worth of data into the buffer
 	ZeroBuffer(Mfs->TransferBuffer);
@@ -181,8 +172,6 @@ MfsSetBucketLink(
 			LODWORD(Mfs->MasterRecord.MapSector + SectorOffset));
 		return OsError;
 	}
-
-	// Done
 	return OsSuccess;
 }
 
@@ -191,12 +180,12 @@ MfsSetBucketLink(
  * if the allocation could not be done, it'll return OsError */
 OsStatus_t
 MfsAllocateBuckets(
-	_In_ FileSystemDescriptor_t *Descriptor, 
-	_In_ size_t BucketCount, 
-	_Out_ MapRecord_t *RecordResult)
+	_In_  FileSystemDescriptor_t*   Descriptor, 
+	_In_  size_t                    BucketCount, 
+	_Out_ MapRecord_t*              RecordResult)
 {
 	// Variables
-	MfsInstance_t *Mfs = NULL;
+	MfsInstance_t *Mfs  = NULL;
 	MapRecord_t Record;
 	uint32_t Bucket, PreviousBucket;
 	size_t Counter;
@@ -206,16 +195,16 @@ MfsAllocateBuckets(
 		Bucket, Link->Link);
 
 	// Instantiate the pointers
-	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
+	Mfs                     = (MfsInstance_t*)Descriptor->ExtensionData;
 
 	// Instantiate out
-	RecordResult->Link = Mfs->MasterRecord.FreeBucket;
-	RecordResult->Length = 0;
-	PreviousBucket = 0;
+	RecordResult->Link      = Mfs->MasterRecord.FreeBucket;
+	RecordResult->Length    = 0;
+	PreviousBucket          = 0;
 
 	// Instantiate our varibles
-	Bucket = Mfs->MasterRecord.FreeBucket;
-	Counter = BucketCount;
+	Bucket                  = Mfs->MasterRecord.FreeBucket;
+	Counter                 = BucketCount;
 
 	// Do allocation in a for-loop as bucket-sizes
 	// are variable and thus we might need multiple
@@ -242,12 +231,12 @@ MfsAllocateBuckets(
 			MapRecord_t Update, Next;
 
 			// Set update
-			Update.Link = MFS_ENDOFCHAIN;
-			Update.Length = Counter;
+			Update.Link     = MFS_ENDOFCHAIN;
+			Update.Length   = Counter;
 
 			// Set next
-			Next.Link = Record.Link;
-			Next.Length = Record.Length - Counter;
+			Next.Link       = Record.Link;
+			Next.Length     = Record.Length - Counter;
 
 			// Make sure only to update out once, we just need
 			// the initial size, not for each new allocation
@@ -281,11 +270,11 @@ MfsAllocateBuckets(
 			}
 
 			// Decrease allocation amount
-			Counter -= Record.Length;
+			Counter         -= Record.Length;
 
 			// Set bucket to next
-			PreviousBucket = Bucket;
-			Bucket = Record.Link;
+			PreviousBucket  = Bucket;
+			Bucket          = Record.Link;
 		}
 	}
 
@@ -315,9 +304,9 @@ MfsAllocateBuckets(
  * a file-record */
 OsStatus_t
 MfsFreeBuckets(
-	_In_ FileSystemDescriptor_t *Descriptor, 
-	_In_ uint32_t StartBucket,
-	_In_ uint32_t StartLength)
+	_In_ FileSystemDescriptor_t*    Descriptor, 
+	_In_ uint32_t                   StartBucket,
+	_In_ uint32_t                   StartLength)
 {
 	// Variables
 	MfsInstance_t *Mfs = NULL;
@@ -329,7 +318,7 @@ MfsFreeBuckets(
 		StartBucket, StartLength);
 
 	// Instantiate the variables
-	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
+	Mfs         = (MfsInstance_t*)Descriptor->ExtensionData;
 	Record.Link = StartBucket;
 
 	// Sanitize params
@@ -347,9 +336,9 @@ MfsFreeBuckets(
 	// So I'm already limited by time due to life, so i'll with the quick
 
 	// Start by iterating to the last bucket
-	PreviousBucket = MFS_ENDOFCHAIN;
+	PreviousBucket      = MFS_ENDOFCHAIN;
 	while (Record.Link != MFS_ENDOFCHAIN) {
-		PreviousBucket = Record.Link;
+		PreviousBucket  = Record.Link;
 		if (MfsGetBucketLink(Descriptor, Record.Link, &Record) != OsSuccess) {
 			ERROR("Failed to retrieve the next bucket-link");
 			return OsError;
@@ -384,9 +373,9 @@ MfsFreeBuckets(
  * useful for clearing clusters of sectors */
 OsStatus_t
 MfsZeroBucket(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ uint32_t Bucket,
-	_In_ size_t Count)
+	_In_ FileSystemDescriptor_t*    Descriptor,
+	_In_ uint32_t                   Bucket,
+	_In_ size_t                     Count)
 {
 	// Variables
 	MfsInstance_t *Mfs = NULL;
@@ -411,8 +400,6 @@ MfsZeroBucket(
 			return OsError;
 		}
 	}
-	
-	// We are done
 	return OsSuccess;
 }
 
@@ -421,9 +408,9 @@ MfsZeroBucket(
  * the disk, not data related to file, but the metadata */
 FileSystemCode_t
 MfsUpdateRecord(
-	_In_ FileSystemDescriptor_t *Descriptor, 
-	_In_ MfsFile_t *Handle,
-	_In_ int Action)
+	_In_ FileSystemDescriptor_t*    Descriptor, 
+	_In_ MfsFile_t*                 Handle,
+	_In_ int                        Action)
 {
 	// Variables
 	FileSystemCode_t Result = FsOk;

@@ -43,6 +43,7 @@
 #define MFS_ENDOFCHAIN							0xFFFFFFFF
 #define MFS_GETSECTOR(mInstance, Bucket)		((Mfs->SectorsPerBucket * Bucket))
 #define MFS_ROOTSIZE							8
+#define MFS_DIRECTORYEXPANSION                  4
 
 /* MFS Update Entry Action Codes */
 #define MFS_ACTION_UPDATE	0x0
@@ -244,10 +245,10 @@ typedef struct _MfsInstance {
 __EXTERN
 OsStatus_t
 MfsReadSectors(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ BufferObject_t *Buffer,
-	_In_ uint64_t Sector,
-	_In_ size_t Count);
+	_In_ FileSystemDescriptor_t*    Descriptor, 
+	_In_ BufferObject_t*            Buffer,
+	_In_ uint64_t                   Sector,
+	_In_ size_t                     Count);
 
 /* MfsWriteSectors 
  * A wrapper for writing sectors to the disk associated
@@ -255,10 +256,10 @@ MfsReadSectors(
 __EXTERN
 OsStatus_t
 MfsWriteSectors(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ BufferObject_t *Buffer,
-	_In_ uint64_t Sector,
-	_In_ size_t Count);
+	_In_ FileSystemDescriptor_t*    Descriptor,
+	_In_ BufferObject_t*            Buffer,
+	_In_ uint64_t                   Sector,
+	_In_ size_t                     Count);
 
 /* MfsGetBucketLink
  * Looks up the next bucket link by utilizing the cached
@@ -266,20 +267,20 @@ MfsWriteSectors(
 __EXTERN
 OsStatus_t
 MfsGetBucketLink(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ uint32_t Bucket,
-	_Out_ MapRecord_t *Link);
+	_In_  FileSystemDescriptor_t*   Descriptor,
+	_In_  uint32_t                  Bucket, 
+	_Out_ MapRecord_t*              Link);
 
 /* MfsSetBucketLink
  * Updates the next link for the given bucket and flushes
  * the changes to disk */
 __EXTERN
-OsStatus_t
+OsStatus_t 
 MfsSetBucketLink(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ uint32_t Bucket,
-	_In_ MapRecord_t *Link,
-	_In_ int UpdateLength);
+	_In_ FileSystemDescriptor_t*    Descriptor,
+	_In_ uint32_t                   Bucket, 
+	_In_ MapRecord_t*               Link,
+	_In_ int                        UpdateLength);
 
 /* MfsZeroBucket
  * Wipes the given bucket and count with zero values
@@ -287,9 +288,9 @@ MfsSetBucketLink(
 __EXTERN
 OsStatus_t
 MfsZeroBucket(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ uint32_t Bucket,
-	_In_ size_t Count);
+	_In_ FileSystemDescriptor_t*    Descriptor,
+	_In_ uint32_t                   Bucket,
+	_In_ size_t                     Count);
 
 /* MfsAllocateBuckets
  * Allocates the number of requested buckets in the bucket-map
@@ -297,9 +298,9 @@ MfsZeroBucket(
 __EXTERN
 OsStatus_t
 MfsAllocateBuckets(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ size_t BucketCount,
-	_Out_ MapRecord_t *RecordResult);
+	_In_  FileSystemDescriptor_t*   Descriptor, 
+	_In_  size_t                    BucketCount, 
+	_Out_ MapRecord_t*              RecordResult);
 
 /* MfsFreeBuckets
  * Frees an entire chain of buckets that has been allocated for 
@@ -307,9 +308,9 @@ MfsAllocateBuckets(
 __EXTERN
 OsStatus_t
 MfsFreeBuckets(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ uint32_t StartBucket,
-	_In_ uint32_t StartLength);
+	_In_ FileSystemDescriptor_t*    Descriptor, 
+	_In_ uint32_t                   StartBucket,
+	_In_ uint32_t                   StartLength);
 
 /* MfsUpdateRecord
  * Conveniance function for updating a given file on
@@ -317,46 +318,42 @@ MfsFreeBuckets(
 __EXTERN
 FileSystemCode_t
 MfsUpdateRecord(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ MfsFile_t *Handle,
-	_In_ int Action);
+	_In_ FileSystemDescriptor_t*    Descriptor, 
+	_In_ MfsFile_t*                 Handle,
+	_In_ int                        Action);
 
 /* MfsLocateRecord
- * Locates a given file-record by the path given, all sub
- * entries must be directories. File is only allocated and set
- * if the function returns FsOk */
+ * Locates a given file-record by the path given, all sub entries must be 
+ * directories. File is only allocated and set if the function returns FsOk */
 __EXTERN
 FileSystemCode_t
 MfsLocateRecord(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ uint32_t BucketOfDirectory,
-	_In_ MString_t *Path,
-	_Out_ MfsFile_t **File);
+	_In_  FileSystemDescriptor_t*   Descriptor, 
+	_In_  uint32_t                  BucketOfDirectory, 
+	_In_  MString_t*                Path,
+	_Out_ MfsFile_t**               File);
 
 /* MfsLocateFreeRecord
- * Very alike to the MfsLocateRecord
- * except instead of locating a file entry
- * it locates a free entry in the last token of
- * the path, and validates the path as it goes */
+ * Very alike to the MfsLocateRecord except instead of locating a file entry
+ * it locates a free entry in the last token of the path, and validates the path as it goes */
 __EXTERN
 FileSystemCode_t
 MfsLocateFreeRecord(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ uint32_t BucketOfDirectory,
-	_In_ MString_t *Path,
-	_Out_ MfsFile_t **File);
+	_In_  FileSystemDescriptor_t*   Descriptor, 
+	_In_  uint32_t                  BucketOfDirectory, 
+	_In_  MString_t*                Path,
+	_Out_ MfsFile_t**               File);
 
 /* MfsCreateRecord
- * Creates a new file-record in a directory
- * It internally calls MfsLocateFreeRecord to
+ * Creates a new file-record in a directory. It internally calls MfsLocateFreeRecord to
  * find a viable entry and validate the path */
 __EXTERN
 FileSystemCode_t
 MfsCreateRecord(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ uint32_t BucketOfDirectory,
-	_In_ MString_t *Path,
-	_In_ Flags_t Flags,
-	_Out_ MfsFile_t **File);
+	_In_  FileSystemDescriptor_t*   Descriptor,
+	_In_  uint32_t                  BucketOfDirectory,
+	_In_  MString_t*                Path,
+	_In_  Flags_t                   Flags, 
+	_Out_ MfsFile_t**               File);
 
 #endif //!_MFS_H_
