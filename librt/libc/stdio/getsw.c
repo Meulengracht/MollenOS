@@ -33,9 +33,7 @@ wchar_t* getws(
     wchar_t* ws = buf;
 
     _lock_file(stdin);
-    for (cc = fgetwc(stdin); cc != WEOF && cc != '\n';
-         cc = fgetwc(stdin))
-    {
+    for (cc = fgetwc(stdin); cc != WEOF && cc != '\n'; cc = fgetwc(stdin)) {
         if (cc != '\r')
             *buf++ = (wchar_t)cc;
     }

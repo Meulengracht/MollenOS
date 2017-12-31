@@ -34,17 +34,14 @@ int _filbuf(
 {
 	// Variables
 	unsigned char c;
-
-	// Lock access
-	_lock_file(file);
-
+    
 	// We can't fill the io buffer if this is a string resource
 	if (file->_flag & _IOSTRG) {
-		_unlock_file(file);
 		return EOF;
 	}
 
 	// Allocate buffer if needed
+	_lock_file(file);
 	if (!(file->_flag & (_IONBF | _IOMYBUF | _USERBUF))) {
 		os_alloc_buffer(file);
 	}
@@ -114,10 +111,8 @@ int fgetc(
 	unsigned char *i;
 	unsigned int j;
 
-	// Locked access
-	_lock_file(file);
-
 	// Check buffer before filling/raw-reading
+    _lock_file(file);
 	if (file->_cnt > 0) {
 		file->_cnt--;
 		i = (unsigned char *)file->_ptr++;
@@ -126,8 +121,6 @@ int fgetc(
 	else {
 		j = _filbuf(file);
 	}
-
-	// Unlock and return
 	_unlock_file(file);
 	return j;
 }

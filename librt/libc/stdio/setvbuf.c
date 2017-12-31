@@ -20,7 +20,6 @@ int setvbuf(
     if(file == NULL) return -1;
     if(mode != _IONBF && mode != _IOFBF && mode != _IOLBF) return -1;
     if(mode == _IONBF && (size >= 2 && size <= INT_MAX)) return -1;
-
     _lock_file(file);
 
     fflush(file);

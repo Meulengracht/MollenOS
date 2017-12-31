@@ -31,18 +31,15 @@ int getw(
     ch = (char *)&i;
 
     _lock_file(file);
-    for (j = 0; j < sizeof(int); j++)
-    {
+    for (j = 0; j < sizeof(int); j++) {
         k = fgetc(file);
-        if (k == EOF)
-        {
+        if (k == EOF) {
             file->_flag |= _IOEOF;
             _unlock_file(file);
             return EOF;
         }
         ch[j] = k;
     }
-
     _unlock_file(file);
     return i;
 }

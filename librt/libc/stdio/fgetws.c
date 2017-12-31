@@ -33,14 +33,11 @@ wchar_t *fgetws(
     wchar_t *buf_start = s;
 
     _lock_file(file);
-
-    while ((size > 1) && (cc = fgetwc(file)) != WEOF && cc != '\n')
-    {
+    while ((size > 1) && (cc = fgetwc(file)) != WEOF && cc != '\n') {
         *s++ = (char)cc;
         size--;
     }
-    if ((cc == WEOF) && (s == buf_start)) /* If nothing read, return 0*/
-    {
+    if ((cc == WEOF) && (s == buf_start)) { // If nothing read, return 0
         _unlock_file(file);
         return NULL;
     }

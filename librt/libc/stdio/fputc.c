@@ -30,7 +30,6 @@ int fputc(
     int res;
 
     _lock_file(file);
-    
     if (file->_cnt > 0) {
         *file->_ptr++ = character;
         file->_cnt--;

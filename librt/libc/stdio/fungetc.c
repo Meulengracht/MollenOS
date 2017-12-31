@@ -26,18 +26,12 @@
 #include <stdlib.h>
 
 /* The fungetc
- * Restores given input character
- * to the given stream */
+ * Restores given input character to the given stream */
 int fungetc(int character, FILE * stream)
 {
-	/* Sanity */
-	if (stream == NULL
-		|| stream == stdout
-		|| stream == stderr) {
+	if (stream == NULL || stream == stdout || stream == stderr) {
 		_set_errno(EINVAL);
 		return EOF;
 	}
-
-	/* @Unimplemented */
-	return character;
+    return ungetc(character, stream);
 }

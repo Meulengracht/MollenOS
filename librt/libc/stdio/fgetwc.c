@@ -33,16 +33,13 @@ wint_t fgetwc(
     int ch;
 
     _lock_file(file);
-
     if ((get_ioinfo(file->_fd)->exflag & (EF_UTF8 | EF_UTF16)) 
         || !(get_ioinfo(file->_fd)->wxflag & WX_TEXT)) {
         
         char *p;
-        for (p = (char *)&ret; (wint_t *)p < &ret + 1; p++)
-        {
+        for (p = (char *)&ret; (wint_t *)p < &ret + 1; p++) {
             ch = fgetc(file);
-            if (ch == EOF)
-            {
+            if (ch == EOF) {
                 ret = WEOF;
                 break;
             }
@@ -55,11 +52,9 @@ wint_t fgetwc(
         int len = 0;
 
         ch = fgetc(file);
-        if (ch != EOF)
-        {
+        if (ch != EOF) {
             mbs[0] = (char)ch;
-            if (_issjis1((unsigned char)mbs[0]))
-            {
+            if (_issjis1((unsigned char)mbs[0])) {
                 ch = fgetc(file);
                 if (ch != EOF)
                 {
@@ -67,8 +62,7 @@ wint_t fgetwc(
                     len = 2;
                 }
             }
-            else
-            {
+            else {
                 len = 1;
             }
         }
@@ -76,7 +70,6 @@ wint_t fgetwc(
         if (!len || mbtowc((wchar_t*)&ret, mbs, len) == -1)
             ret = WEOF;
     }
-
     _unlock_file(file);
     return ret;
 }

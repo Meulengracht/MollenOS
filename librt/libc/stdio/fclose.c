@@ -69,11 +69,10 @@ int fclose(FILE *stream)
 	int r, flag;
 
     // Flush file before anything
+	_lock_file(stream);
 	if (stream->_flag & _IOWRT) {
 		fflush(stream);
 	}
-
-	_lock_file(stream);
 	flag = stream->_flag;
 
 	// Flush and free associated buffers

@@ -17,35 +17,33 @@ _flsbuf(
 {
     int count, written;
 
-    /* Check if the stream supports flushing */
+    // Check if the stream supports flushing
     if ((stream->_flag & _IOSTRG) || !(stream->_flag & (_IORW|_IOWRT))) {
         stream->_flag |= _IOERR;
         return EOF;
     }
 
-    /* Always reset _cnt */
+    // lock file and reset count
+    _lock_file(stream);
     stream->_cnt = 0;
 
-    /* Check if this was a read buffer */
-    if (stream->_flag & _IOREAD) {
-        /* Must be at the end of the file */
+    // Check if this was a read buffer
+    if (stream->_flag & _IOREAD) { // Must be at the end of the file
         if (!(stream->_flag & _IOEOF)) {
             stream->_flag |= _IOERR;
+            _unlock_file(stream);
             return EOF;
         }
-
-        /* Reset buffer */
         stream->_ptr = stream->_base;
     }
-
-    /* Fixup flags */
     stream->_flag &= ~(_IOREAD|_IOEOF);
     stream->_flag |= _IOWRT;
 
-    /* Check if should get a buffer */
+    // Check if should get a buffer
     if (!(stream->_flag & _IONBF) && stream != stdout && stream != stderr) {
-        /* If we have no buffer, try to allocate one */
-        if (!stream->_base) os_alloc_buffer(stream);
+        if (!stream->_base) {
+            os_alloc_buffer(stream);
+        }
     }
 
     /* Check if we can use a buffer now */
@@ -71,8 +69,9 @@ _flsbuf(
     /* Check for failure */
     if (written != count) {
         stream->_flag |= _IOERR;
+        _unlock_file(stream);
         return EOF;
     }
-
+    _unlock_file(stream);
     return ch & (sizeof(TCHAR) > sizeof(char) ? 0xffff : 0xff);
 }

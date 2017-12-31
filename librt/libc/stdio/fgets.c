@@ -30,14 +30,11 @@ char *fgets(
 	char *buf_start = s;
 
 	_lock_file(file);
-
-	while ((size > 1) && (cc = fgetc(file)) != EOF && cc != '\n')
-	{
+	while ((size > 1) && (cc = fgetc(file)) != EOF && cc != '\n') {
 		*s++ = (char)cc;
 		size--;
 	}
-	if ((cc == EOF) && (s == buf_start)) /* If nothing read, return 0*/
-	{
+	if ((cc == EOF) && (s == buf_start)) { // If nothing read, return 0
 		_unlock_file(file);
 		return NULL;
 	}
