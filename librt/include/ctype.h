@@ -187,7 +187,7 @@ function.  */
 #endif /* !__cplusplus */
 
 /* For C++ backward-compatibility only.  */
-CRTDECL_DATA(extern const char, _ctype_[]);
+extern const char _ctype_[];
 _CODE_END
 
 #endif /* _CTYPE_H_ */
