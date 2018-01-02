@@ -1,27 +1,50 @@
-# Makefile for building the standard c++ runtime-libraries for userspace
-# This will produce the file libcxx.lib
-INCLUDES = -I../include/cxx -I../include -I../libcxxabi/ -I./include
+# Makefile for building the standard c++abi runtime-libraries for userspace
+# This will produce the file libcxxabi.lib
+INCLUDES = -Icxx/include -I../include -Iabi/include/
 
-SOURCES = $(wildcard ./*.cpp)
-OBJECTS = $(SOURCES:.cpp=.o)
+ABI_SOURCES = $(wildcard abi/src/*.cpp)
+CXX_SOURCES = $(wildcard cxx/src/*.cpp)
+SHR_SOURCES = main.cpp
+ABI_OBJECTS = $(ABI_SOURCES:.cpp=.o)
+CXX_OBJECTS = $(CXX_SOURCES:.cpp=.o)
+SHR_OBJECTS = $(SHR_SOURCES:.cpp=.o)
 
-#CXXFLAGS = $(GCXXFLAGS)  -DLIBCXXRT -D_LIBCPP_BUILDING_LIBRARY $(INCLUDES)
-#LFLAGS = $(GLFLAGS) /entry:__CrtLibraryEntry /dll ../build/libc.lib ../build/libcrt.lib ../build/libclang.lib ../deploy/libunwind.lib ../deploy/libcxxabi.lib
-CXXFLAGS = $(GCXXFLAGS) -DLIBCXX_BUILDING_LIBCXXABI -DLIBCXXRT -D_LIBCPP_BUILDING_LIBRARY -D_LIBCPP_DEBUG_LEVEL=2 $(INCLUDES)
-LFLAGS = /lib
+# Configuration flags for each project
+SHARED_CONFIG = $(GCXXFLAGS) -fstrict-aliasing -D_LIBCPP_ENABLE_CXX17_REMOVED_UNEXPECTED_FUNCTIONS -D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS -D_LIBCPP_BUILDING_LIBRARY
+ABI_CONFIG = -funwind-tables -DLIBCXXABI_USE_LLVM_UNWINDER -D_LIBCXXABI_BUILDING_LIBRARY -DHAVE___CXA_THREAD_ATEXIT_IMPL -D_LIBCXXABI_ENABLE_EXCEPTIONS
+CXX_CONFIG = -DLIBCXX_BUILDING_LIBCXXABI -DLIBCXXRT -D_LIBCPP_DISABLE_NEW_DELETE_DEFINITIONS
+CXXFLAGS = $(SHARED_CONFIG) $(INCLUDES)
+
+STT_LFLAGS = /lib
+SHR_LFLAGS = $(GLFLAGS) /entry:__CrtLibraryEntry /dll /lldmap ../deploy/libcxxabi.lib ../build/libc.lib ../build/libcrt.lib ../deploy/libunwind.lib
+
+# default-static-target
+.PHONY: all-static
+all-static: ../deploy/libcxx.lib
 
 # default-target
-.PHONY: all
-all: ../deploy/libcxx.lib
+.PHONY: all-shared
+all-shared: ../deploy/libcxx.dll
 
-../deploy/libcxx.lib: $(OBJECTS)
-	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+../deploy/libcxx.lib: $(ABI_OBJECTS) $(CXX_OBJECTS)
+	$(LD) $(STT_LFLAGS) $(ABI_OBJECTS) $(CXX_OBJECTS) /out:$@
 
-%.o : %.cpp
-	$(CXX) -c $(CXXFLAGS) -o $@ $<
+../deploy/libcxx.dll: $(ABI_OBJECTS) $(CXX_OBJECTS) $(SHR_OBJECTS)
+	$(LD) $(SHR_LFLAGS) $(ABI_OBJECTS) $(CXX_OBJECTS) $(SHR_OBJECTS) /out:$@
+
+$(ABI_OBJECTS): %.o : %.cpp
+	$(CXX) -c $(CXXFLAGS) $(ABI_CONFIG) -o $@ $<
+
+$(CXX_OBJECTS): %.o : %.cpp
+	$(CXX) -c $(CXXFLAGS) $(CXX_CONFIG) -o $@ $<
+
+$(SHR_OBJECTS): %.o : %.cpp
+	$(CXX) -c $(CXXFLAGS) $(CXX_CONFIG) -o $@ $<
 
 .PHONY: clean
 clean:
-	#@rm -f ../deploy/libcxx.dll
+	@rm -f ../deploy/libcxx.dll
 	@rm -f ../deploy/libcxx.lib
-	@rm -f $(OBJECTS)
+	@rm -f $(ABI_OBJECTS)
+	@rm -f $(CXX_OBJECTS)
+	@rm -f $(SHR_OBJECTS)

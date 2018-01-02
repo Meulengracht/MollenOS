@@ -1,5 +1,5 @@
 # Makefile for building a generic userspace application
-INCLUDES = -I../include -I../include/cxx
+INCLUDES = -I../include/cxx -I../include
 SOURCES = $(wildcard ./*.cpp)
 OBJECTS = $(SOURCES:.cpp=.o)
 

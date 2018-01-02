@@ -9,7 +9,7 @@
 # The remaining libraries are run-time libraries for C++ support
 
 .PHONY: all
-all: build deploy build/libk.lib build/libds.lib build/libdsk.lib build/libclang.lib build/libcrt.lib build/libdrv.lib build/libsrv.lib build/libm.dll build/libc.dll build/libusb.lib deploy/libunwind.dll deploy/libcxxabi.dll deploy/libcxx.dll
+all: build deploy build/libk.lib build/libds.lib build/libdsk.lib build/libclang.lib build/libcrt.lib build/libdrv.lib build/libsrv.lib build/libm.dll build/libc.dll build/libusb.lib deploy/libunwind.dll deploy/libcxx.dll
 
 build:
 	mkdir -p $@
@@ -65,7 +65,6 @@ clean:
 	$(MAKE) -C libclang -f makefile clean
 	$(MAKE) -C libcrt -f makefile clean
 	$(MAKE) -C libunwind -f makefile clean
-	$(MAKE) -C libcxxabi -f makefile clean
 	$(MAKE) -C libcxx -f makefile clean
 	@rm -rf build
 	@rm -rf deploy

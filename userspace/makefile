@@ -18,7 +18,7 @@ headers:
 	cp ../librt/include/sys/*.h include/sys/
 	cp ../librt/include/ds/*.h include/ds/
 	cp -r ../librt/include/os/ include/
-	cp -r ../librt/include/cxx/ include/
+	cp -r ../librt/libcxx/cxx/include/* include/cxx/
 
 libraries:
 	mkdir -p lib

@@ -34,16 +34,16 @@ config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE # Use a full debug console on heig
 
 # -Xclang -flto-visibility-public-std makes sure to generate cxx-abi stuff without __imp_ 
 # -std=c11 enables c11 support for C compilation
-# -gdwarf enables dwarf debugging generation, should be used
+# -gdwarf enables dwarf debugging generation, should be used ... -fexceptions -fcxx-exceptions
 disable_warnings = -Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function
 shared_flags = -U_WIN32 -m32 -fms-extensions -Wall -ffreestanding -nostdlib -O3 -DMOLLENOS -D$(arch)
 
 export ASFLAGS = -f bin
 export GCFLAGS = $(shared_flags) $(disable_warnings) $(config_flags)
-export GCXXFLAGS = -std=c++17 $(shared_flags) -Xclang -flto-visibility-public-std $(disable_warnings) $(config_flags)
-
-export GLFLAGS = /nodefaultlib /machine:X86 /subsystem:native /debug:dwarf
-export GLIBRARIES = ../lib/libcrt.lib ../lib/libclang.lib ../lib/libc.lib ../lib/libunwind.lib ../lib/libcxxabi.lib ../lib/libcxx.lib
+export GCXXFLAGS = -std=c++17 $(shared_flags) $(disable_warnings) $(config_flags)
+#/debug:dwarf
+export GLFLAGS = /nodefaultlib /machine:X86 /subsystem:native
+export GLIBRARIES = ../lib/libcxx.lib ../lib/libcrt.lib ../lib/libclang.lib ../lib/libc.lib ../lib/libunwind.lib
 
 .PHONY: all
 all: build_tools gen_revision build_bootloader build_libraries build_kernel build_drivers build_userspace build_initrd
