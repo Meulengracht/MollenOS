@@ -1,3 +1,6 @@
 [submodule "librt/libcxx/abi"]
 	path = librt/libcxx/abi
 	url = https://github.com/Meulengracht/libcxxabi
+[submodule "librt/libcxx/cxx"]
+	path = librt/libcxx/cxx
+	url = https://github.com/Meulengracht/libcxx
