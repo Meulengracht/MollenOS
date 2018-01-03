@@ -7,3 +7,6 @@
 [submodule "userspace/mesa"]
 	path = userspace/mesa
 	url = https://github.com/Meulengracht/mesa
+[submodule "userspace/llvm"]
+	path = userspace/llvm
+	url = https://github.com/Meulengracht/llvm
