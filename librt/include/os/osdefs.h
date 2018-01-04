@@ -118,7 +118,7 @@ typedef union _LargeInteger {
 
 /* Helper function, retrieves the first 
  * set bit in a set of bits */
-static int FirstSetBit(size_t Value)
+static inline int FirstSetBit(size_t Value)
 {
     // Variables
     int bCount = 0;
@@ -134,7 +134,7 @@ static int FirstSetBit(size_t Value)
 
 /* Helper function, retrieves the last 
  * set bit in a set of bits */
-static int LastSetBit(size_t Value)
+static inline int LastSetBit(size_t Value)
 {
     // Variables
     size_t _Val = Value;

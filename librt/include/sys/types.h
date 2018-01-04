@@ -32,7 +32,7 @@
 #ifndef _TIME64_T_DEFINED
 #define _TIME64_T_DEFINED
 #if _INTEGRAL_MAX_BITS >= 64
-  typedef __int64 __time64_t;
+  typedef long long __time64_t;
 #endif
 #endif
 #ifndef _TIME_T_DEFINED
@@ -65,8 +65,16 @@ typedef unsigned int            uint;
 typedef unsigned long           ulong;
 
 /* Used in file handles for offsets */
-typedef long int off_t;
-typedef long long int off64_t;
+#ifndef OFF_T_DEFINED
+#if _FILE_OFFSET_BITS==64
+	typedef int64_t off_t;
+	typedef int64_t off_t;
+#else
+	typedef long off_t;
+	typedef long long off64_t;
+#endif
+#define OFF_T_DEFINED
+#endif 
 typedef unsigned short nlink_t;
 
 /* i-node number (not used on DOS) */

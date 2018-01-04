@@ -40,7 +40,7 @@ typedef __SIZE_TYPE__ clock_t;
 #ifndef _TIME64_T_DEFINED
 #define _TIME64_T_DEFINED
 #if _INTEGRAL_MAX_BITS >= 64
-  typedef __int64 __time64_t;
+  typedef long long __time64_t;
 #endif
 #endif
 #ifndef _TIME_T_DEFINED
@@ -197,10 +197,8 @@ gmtime_s(
 /* localtime
  * Uses the value pointed by timer to fill a tm structure with the 
  * values that represent the corresponding time, expressed for the local timezone. */
-_CRTIMP
-struct tm*
-localtime(
-    _In_ __CONST time_t*);
+CRTDECL(struct tm*, localtime(const time_t*));
+CRTDECL(int,        localtime_s(struct tm *__restrict, const time_t *__restrict));
 
 /* asctime
  * Converts given calendar time tm to a textual representation of the 

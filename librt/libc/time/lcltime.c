@@ -171,3 +171,10 @@ struct tm *localtime(__CONST time_t * tim_p) {
 	memset(lclbuf, 0, sizeof(struct tm));
 	return localtime_r(tim_p, lclbuf);
 }
+
+/* Safe version of localtime  */
+int localtime_s(struct tm *__restrict storage, const time_t *__restrict tim_p) {
+	memset(storage, 0, sizeof(struct tm));
+	localtime_r(tim_p, storage);
+    return 0;
+}

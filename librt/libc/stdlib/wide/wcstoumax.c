@@ -122,12 +122,6 @@ noconv:
 	return (acc);
 }
 
-uintmax_t _wcstoumax_r(__CONST wchar_t *__restrict nptr,
-	     wchar_t **__restrict endptr, int base)
-{
-	return _wcstoumax_l(nptr, endptr, base, __get_current_locale());
-}
-
 uintmax_t
 wcstoumax_l(__CONST wchar_t * __restrict nptr, wchar_t ** __restrict endptr,
 	    int base, locale_t loc)

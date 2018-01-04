@@ -125,13 +125,6 @@ _set_errno(EINVAL);
 }
 
 intmax_t
-_wcstoimax_r(__CONST wchar_t *__restrict nptr,
-	     wchar_t **__restrict endptr, int base)
-{
-	return _wcstoimax_l(nptr, endptr, base, __get_current_locale());
-}
-
-intmax_t
 wcstoimax_l(__CONST wchar_t * __restrict nptr, wchar_t ** __restrict endptr,
 	    int base, locale_t loc)
 {
