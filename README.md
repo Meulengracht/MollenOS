@@ -13,9 +13,19 @@ MollenOS is a OS project that started back in 2011 as a hobby project. I then to
 
 ## Current Progress
 
-Currently, the focus is on the modularity of MollenOS and its modules (/drivers). A lot of time is going into modelling and designing driver API a long with the user-API on how to use these drivers. The result of this will also be a unified driver framework that will allow any developer to easily write new drivers for MollenOS and contribute to the OS in that way.
+Progress so far is that the kernel has succesfully been converted to a hybrid micro-kernel. Drivers have all been fitted to the new driver framework and
+are compiling. The new toolchain has also been taken into use (llvm/clang/lld) and i am currently working on a native port of said toolchain. The focus
+for 2018 will be the userspace, and stability/robustness of the operating system. No new features are planned for the OS, and no new drivers unless
+I should reach a point where they are highly required.
 
-Once the drivers and the driver-framework are in place, focus can be moved to userspace, and building the programming model along with essential userspace applications. (Window manager, Terminal driver etc)
+Userspace libraries that are being ported currently (native builds)
+ - llvm
+
+Userspace libraries planned for port in 2018
+ - llvm
+ - clang
+ - mesa (/w gallium + llvmpipe as backend)
+ - tbd (rest will be announced as we go)
 
 ## Project Structure
 
@@ -29,10 +39,12 @@ Once the drivers and the driver-framework are in place, focus can be moved to us
 - /tools (Contains tools for building and manipulating)
 - /userspace (Contains software projects for the user-applications)
 
-## Features
+## Core-Features
 
+### Boot
 MollenOS uses it's own filesystem (MFS), it is not booted by the more traditional way of GRUB. Instead it has it's own advanced bootloader, which can be found in the /boot directory. mBoot is written specifically for MollenOS, and supports booting from both FAT32 & MFS.
 
+### Kernel
 MollenOS supports a wide array of features and has implementation for VFS, Processes, Pipes, an advanced PE loader (which is used as the file format in MollenOS), ACPICA built in and MollenOS natively uses UTF-8 in it's kernel. UTF-8 Is implemented in a library called MString which is written for MollenOS.
 
 ### MollenOS FileSystem (MFS)
@@ -80,15 +92,19 @@ ToDo
 
 ### The C-Library, C++ Library and OS Library
 
-ToDo
+The run-time libraries used/implemented in mollenos are:
+ - libcrt (Contains compiler support functions and entry points for apps/drivers/etc)
+ - libclang (Contains compiler support for clang)
+ - libc + libm (Contains the standard c library support for the c-language)
+ - libcxx (Contains the standard c++ library runtime and support for the c++-language)
 
-### Sapphire (Window Manager)
+The c++ runtime and support is a native port of the c++ runtime for clang and the itanium abi. All os support functions are available in
+the standard c library.
 
-ToDo
+### Vioarr (Window Manager)
 
-### Terminal Implementation
-
-ToDo
+Vioarr (formerly known as Sapphire), is the windowmanager for MollenOS. It will be based upon a 3d engine (tbd) to perform advanced and beautiful
+graphical user interfaces.
 
 ### Ported libraries and programs
 
@@ -96,36 +112,23 @@ These are the various libraries ported to MollenOS userspace, and are primarily 
 
 | Library       | Version   | Description             |
 | ------------- | ---------:|:-----------------------:|
-| openlibm      | <unk>     | Portable Math Library   |
-| zlib          | 1.2.8     | Compression library, used by libpng |
-| libpng        | 1.6.26    | Library for handling *.png image files |
-| libjpeg       | 9b        | Library for handling *.jpg image files |
-| freetype2     | 2.7.0     | Library for handling and rendering truetype fonts |
-| SDL2          | 2.0.3     | Graphics/Utility library used by Sapphire for rendering |
-| SDL2_image    | 2.0.1     | Image helper library used by Sapphire for rendering |
-| lua           | 5.3.2     | I ported this just for fun so I had something to test when the terminal implementation is ready |
+| openlibm      | <unk>     | open mathematical c-library   |
+| compiler-rt   | <unk>     | llvm/clang compiler runtime support  |
+| libunwind     | <unk>     | unwind support for the c++ itanium abi  |
+| libcxxabi     | <unk>     | c++ itanium abi compiler support implementation  |
+| libcxx        | <unk>     | c++ standard library support   |
 
 
 ## Building MollenOS
 
 ### Pre-requisites
-In order to build MollenOS you need NASM installed on your system in order to assemble the bootloader and various assembler files in the visual studio projects, you also need Visual Studio 2017 installed on your system to build the projects. These are the only programs needed in order to build MollenOS, drivers, userspace etc. 
+
+In order to build MollenOS you will need the following libraries and programs:
+ - Clang cross-compiler
+ - Nasm
+ - Monodevelop
+ - Git
+ - Cmake (3.8+)
 
 ### Build Script Information
-The build and install process is almost fully automated on windows, and is controlled by Build.bat and MfsTool.exe, the only thing you have to run is the Build.bat. In order to customize your installation and build process, there is a number of switches you can give to Build.bat
-
-#### Build Arguments
-`-arch` This switch allows you to specify which platform you want to build for, right now it defaults to the `x86` platform. At this moment, it's also the only supported platform. Valid parameters for it are `i386`, `x86` and `X86`
-
-`-target` This switch allows you to control which medium you want MollenOS installed to. It always default to the creation of a VMDK image file, to use with virtual computers. If you want it installed to a live disk, use `live` as an argument, where MfsTool will automatically be run and allow you to specify which disk you want to use. Other valid targets are `img` (image file).
-
-`-install` The install switch allows you to skip the building of the entire MollenOS project and go directly to the creation of the disk image / disk installation. This is used as a shortcut when no code-changes has been made, but rather only disk image changes. 
-
-
-#### MfsTool Instructions (Use with `-target live`)
-The installer is started automatically by Build.bat at the end, and the installer will present you with the available disks in your system, in a numbered fashion. To format a disk with MFS type the following in the command-line:
-
-1. format disk_no (Example: format 1)
-2. install disk_no (Example: install 1)
-
-These two commands is all that is needed, when the program stops writing files to the disk, your disk is now setup for MollenOS
+The build and install process is almost fully automated on windows, and is controlled by makefiles, the only thing you have to run is the <make>. In order to customize your installation and build process, there is a number of definitions that can be turned on and off in the makefile.
