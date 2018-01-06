@@ -48,6 +48,12 @@
 #define restrict /*restrict*/
 #endif
 
+#if defined(i386) && !defined(__i386__)
+#define __i386__ 1
+#elif defined(amd64) && !defined(__x86_64__)
+#define __x86_64__ 1
+#endif
+
 #if defined(__clang__)
     //  Clang 
     #define CRTEXPORT __declspec(dllexport)

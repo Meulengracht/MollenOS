@@ -108,6 +108,10 @@ OsStatus_t,
 GetStartupInformation(
     _InOut_ ProcessStartupInformation_t *StartupInformation));
 
+/* ProcessGetCurrentId 
+ * Retrieves the current process identifier. */
+CRTDECL(UUId_t, ProcessGetCurrentId(void));
+
 /* ProcessGetModuleHandles
  * Retrieves a list of loaded module handles. Handles can be queried
  * for various application-image data. */
