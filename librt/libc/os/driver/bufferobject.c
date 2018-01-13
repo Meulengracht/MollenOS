@@ -89,7 +89,7 @@ CreateBuffer(
 	Result = OsSuccess;
 #else
 	Buffer = (BufferObject_t*)malloc(sizeof(BufferObject_t));
-    Result = MemoryAllocate(Length, MEMORY_COMMIT 
+    Result = MemoryAllocate(NULL, Length, MEMORY_COMMIT 
         | MEMORY_CONTIGIOUS | MEMORY_LOWFIRST | MEMORY_CLEAN,
 		(void**)&Buffer->Virtual, &Buffer->Physical);
 	Buffer->Capacity = DIVUP(Length, 0x1000) * 0x1000;

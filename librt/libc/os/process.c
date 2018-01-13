@@ -98,17 +98,16 @@ ProcessKill(
 	return Syscall_ProcessKill(Process);
 }
 
-/* ProcessQuery
- * Queries information about the given process
- * based on the function it returns the requested information */
-OsStatus_t 
-ProcessQuery(
-	_In_ UUId_t Process, 
-	_In_ ProcessQueryFunction_t Function, 
-	_In_ void *Buffer, 
-	_In_ size_t Length)
+/* ProcessGetCurrentId 
+ * Retrieves the current process identifier. */
+UUId_t
+ProcessGetCurrentId(void)
 {
-	return Syscall_ProcessQuery(Process, Function, Buffer, Length);
+    UUId_t ProcessId;
+	if (Syscall_ProcessId(&ProcessId) != OsSuccess) {
+        return UUID_INVALID;
+    }
+    return ProcessId;
 }
 
 /* GetStartupInformation

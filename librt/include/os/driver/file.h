@@ -26,7 +26,7 @@
 
 /* Includes
  * - Library */
-#include <os/osdefs.h>
+#include <os/mollenos.h>
 #include <stddef.h>
 
 /* Includes
@@ -63,6 +63,11 @@ PACKED_TYPESTRUCT(QueryFileOptionsPackage, {
 	Flags_t					Options;
 	Flags_t					Access;
 });
+PACKED_TYPESTRUCT(ReadDirectoryPackage, {
+	FileSystemCode_t		Code;
+    char                    FileName[256];
+    vFileDescriptor_t       FileInformation;
+});
 
 /* These definitions are in-place to allow a custom
  * setting of the file-manager, these are set to values
@@ -71,29 +76,38 @@ PACKED_TYPESTRUCT(QueryFileOptionsPackage, {
 
 /* These are the different IPC functions supported
  * by the filemanager, note that some of them might
- * be changed in the different versions, and/or new
- * functions will be added */
+ * be changed in the different versions, and/or new functions will be added */
 #define __FILEMANAGER_REGISTERDISK				IPC_DECL_FUNCTION(0)
 #define __FILEMANAGER_UNREGISTERDISK			IPC_DECL_FUNCTION(1)
 #define __FILEMANAGER_QUERYDISKS				IPC_DECL_FUNCTION(2)
+#define __FILEMANAGER_QUERYDISK                 IPC_DECL_FUNCTION(3)
+#define __FILEMANAGER_QUERYDISKBYPATH           IPC_DECL_FUNCTION(4)
+#define __FILEMANAGER_QUERYDISKBYHANDLE         IPC_DECL_FUNCTION(5)
 
-#define __FILEMANAGER_OPENFILE					IPC_DECL_FUNCTION(3)
-#define __FILEMANAGER_CLOSEFILE					IPC_DECL_FUNCTION(4)
-#define __FILEMANAGER_DELETEFILE				IPC_DECL_FUNCTION(5)
-#define __FILEMANAGER_READFILE					IPC_DECL_FUNCTION(6)
-#define __FILEMANAGER_WRITEFILE					IPC_DECL_FUNCTION(7)
-#define __FILEMANAGER_SEEKFILE					IPC_DECL_FUNCTION(8)
-#define __FILEMANAGER_FLUSHFILE					IPC_DECL_FUNCTION(9)
-#define __FILEMANAGER_MOVEFILE					IPC_DECL_FUNCTION(10)
+#define __FILEMANAGER_OPENFILE					IPC_DECL_FUNCTION(6)
+#define __FILEMANAGER_CLOSEFILE					IPC_DECL_FUNCTION(7)
+#define __FILEMANAGER_READFILE					IPC_DECL_FUNCTION(8)
+#define __FILEMANAGER_WRITEFILE					IPC_DECL_FUNCTION(9)
+#define __FILEMANAGER_SEEKFILE					IPC_DECL_FUNCTION(10)
+#define __FILEMANAGER_FLUSHFILE					IPC_DECL_FUNCTION(11)
+#define __FILEMANAGER_MOVEFILE					IPC_DECL_FUNCTION(12)
 
-#define __FILEMANAGER_GETPOSITION				IPC_DECL_FUNCTION(11)
-#define __FILEMANAGER_GETOPTIONS				IPC_DECL_FUNCTION(12)
-#define __FILEMANAGER_SETOPTIONS				IPC_DECL_FUNCTION(13)
-#define __FILEMANAGER_GETSIZE					IPC_DECL_FUNCTION(14)
-#define __FILEMANAGER_GETPATH					IPC_DECL_FUNCTION(15)
+#define __FILEMANAGER_GETPOSITION				IPC_DECL_FUNCTION(13)
+#define __FILEMANAGER_GETOPTIONS				IPC_DECL_FUNCTION(14)
+#define __FILEMANAGER_SETOPTIONS				IPC_DECL_FUNCTION(15)
+#define __FILEMANAGER_GETSIZE					IPC_DECL_FUNCTION(16)
+#define __FILEMANAGER_GETPATH					IPC_DECL_FUNCTION(17)
+#define __FILEMANAGER_GETSTATSBYPATH            IPC_DECL_FUNCTION(18)
+#define __FILEMANAGER_GETSTATSBYHANDLE          IPC_DECL_FUNCTION(19)
+#define __FILEMANAGER_DELETEPATH				IPC_DECL_FUNCTION(20)
 
-#define __FILEMANAGER_PATHRESOLVE				IPC_DECL_FUNCTION(16)
-#define __FILEMANAGER_PATHCANONICALIZE			IPC_DECL_FUNCTION(17)
+#define __FILEMANAGER_OPENDIRECTORY             IPC_DECL_FUNCTION(21)
+#define __FILEMANAGER_CLOSEDIRECTORY            IPC_DECL_FUNCTION(22)
+#define __FILEMANAGER_READDIRECTORY             IPC_DECL_FUNCTION(23)
+#define __FILEMANAGER_SEEKDIRECTORY             IPC_DECL_FUNCTION(24)
+
+#define __FILEMANAGER_PATHRESOLVE				IPC_DECL_FUNCTION(25)
+#define __FILEMANAGER_PATHCANONICALIZE			IPC_DECL_FUNCTION(26)
 
 /* Bit flag defintions for operations such as 
  * registering / unregistering of disks, open flags
@@ -117,6 +131,14 @@ PACKED_TYPESTRUCT(QueryFileOptionsPackage, {
 #define __FILE_BINARY							0x00000200
 #define __FILE_VOLATILE							0x00000400
 #define __FILE_TEMPORARY						0x00000800
+
+// Directory flags
+#define __DIRECTORY_CREATE                      0x00000001
+#define __DIRECTORY_MUSTEXIST                   0x00000002
+#define __DIRECTORY_FAILONEXIST                 0x00000004
+
+// Delete flags
+#define __FILE_DELETE_RECURSIVE                 0x00000001
 
 /* RegisterDisk
  * Registers a disk with the file-manager and it will
@@ -159,6 +181,158 @@ UnregisterDisk(
 	RPCSetArgument(&Request, 0, (const void*)&Device, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (const void*)&Flags, sizeof(Flags_t));
 	return RPCEvent(&Request);
+}
+
+/* QueryDiskByPath
+ * Queries information about a storage medium that belong to the given file path. */
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+QueryDiskByPath(
+	_In_  const char*           Path,
+	_Out_ vStorageDescriptor_t* StorageDescriptor)
+{
+	// Variables
+	MRemoteCall_t Request;
+
+	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_QUERYDISKBYPATH);
+	RPCSetArgument(&Request, 0, (const void*)Path, strlen(Path) + 1);
+	RPCSetResult(&Request, (const void*)StorageDescriptor, sizeof(vStorageDescriptor_t));
+	return RPCExecute(&Request);
+}
+
+/* QueryDiskByHandle
+ * Queries information about a storage medium that belong to the given file handle. */
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+QueryDiskByHandle(
+	_In_  UUId_t                Handle,
+	_Out_ vStorageDescriptor_t* StorageDescriptor)
+{
+	// Variables
+	MRemoteCall_t Request;
+    
+	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_QUERYDISKBYHANDLE);
+	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
+	RPCSetResult(&Request, (const void*)StorageDescriptor, sizeof(vStorageDescriptor_t));
+	return RPCExecute(&Request);
+}
+
+/* OpenDirectory
+ * Opens or creates the given directory path based on
+ * the given <Access> and <Options> flags. See the
+ * top of this file */
+SERVICEAPI
+FileSystemCode_t
+SERVICEABI
+OpenDirectory(
+	_In_  const char*   Path,
+	_In_  Flags_t       Options,
+	_In_  Flags_t       Access,
+	_Out_ UUId_t*       Handle)
+{
+	// Variables
+	OpenFilePackage_t Package;
+	MRemoteCall_t Request;
+
+	// Initialize the request
+	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_OPENDIRECTORY);
+	RPCSetArgument(&Request, 0, (const void*)Path, strlen(Path) + 1);
+	RPCSetArgument(&Request, 1, (const void*)&Options, sizeof(Flags_t));
+	RPCSetArgument(&Request, 2, (const void*)&Access, sizeof(Flags_t));
+	RPCSetResult(&Request, (const void*)&Package, sizeof(OpenFilePackage_t));
+
+	// Execute the rpc request
+	if (RPCExecute(&Request) != OsSuccess) {
+		*Handle = UUID_INVALID;
+		return FsInvalidParameters;
+	}
+	*Handle = Package.Handle;
+	return Package.Code;
+}
+
+/* CloseDirectory
+ * Closes the given file-handle, but does not necessarily
+ * close the link to the file. Returns the result */
+SERVICEAPI
+FileSystemCode_t
+SERVICEABI
+CloseDirectory(
+	_In_ UUId_t Handle)
+{
+	// Variables
+	FileSystemCode_t Result = FsOk;
+	MRemoteCall_t Request;
+
+	// Initialize the request
+	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_CLOSEDIRECTORY);
+	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
+	RPCSetResult(&Request, (const void*)&Result, sizeof(FileSystemCode_t));
+
+	// Execute the request 
+	if (RPCExecute(&Request) != OsSuccess) {
+		return FsInvalidParameters;
+	}
+	return Result;
+}
+
+/* ReadDirectory
+ * Reads a directory entry at the current index and increases the current index
+ * for the directory handle. */
+SERVICEAPI
+FileSystemCode_t
+SERVICEABI
+ReadDirectory(
+	_In_  UUId_t                    Handle,
+	_Out_ ReadDirectoryPackage_t*   DirectoryEntry)
+{
+	// Variables
+	MRemoteCall_t Request;
+
+	// Initialize the request
+	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_READDIRECTORY);
+	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
+	RPCSetResult(&Request, (const void*)DirectoryEntry, sizeof(ReadDirectoryPackage_t));
+
+	// Execute the request 
+	if (RPCExecute(&Request) != OsSuccess) {
+		return FsInvalidParameters;
+	}
+	return DirectoryEntry->Code;
+}
+
+/* SeekDirectory
+ * Sets the index for the given directory handle. The index will then indicate
+ * the next read directory index. */
+SERVICEAPI
+FileSystemCode_t
+SERVICEABI
+SeekDirectory(
+	_In_ UUId_t     Handle, 
+	_In_ int        Index)
+{
+	// Variables
+	FileSystemCode_t Result = FsOk;
+	MRemoteCall_t Request;
+
+	// Initialize the request
+	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_SEEKDIRECTORY);
+	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
+	RPCSetArgument(&Request, 1, (const void*)&Index, sizeof(int));
+	RPCSetResult(&Request, (const void*)&Result, sizeof(FileSystemCode_t));
+
+	// Execute the request
+	if (RPCExecute(&Request) != OsSuccess) {
+		return FsInvalidParameters;
+	}
+	return Result;
 }
 
 /* OpenFile
@@ -221,15 +395,15 @@ CloseFile(
 	return Result;
 }
 
-/* DeleteFile
- * Deletes the given file associated with the filehandle
- * the caller must make sure there is no other references
- * to the file - otherwise delete fails */
+/* DeletePath
+ * Deletes the given path. The caller must make sure there is no other references
+ * to the file or directory - otherwise delete fails */
 SERVICEAPI
 FileSystemCode_t
 SERVICEABI
-DeleteFile(
-	_In_ const char* Path)
+DeletePath(
+	_In_ const char*    Path,
+    _In_ Flags_t        Flags)
 {
 	// Variables
 	FileSystemCode_t Result = FsOk;
@@ -237,8 +411,9 @@ DeleteFile(
 
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_DELETEFILE);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_DELETEPATH);
 	RPCSetArgument(&Request, 0, (const void*)Path, strlen(Path) + 1);
+	RPCSetArgument(&Request, 1, (const void*)&Flags, sizeof(Flags_t));
 	RPCSetResult(&Request, (const void*)&Result, sizeof(FileSystemCode_t));
 
 	// Execute the request 
@@ -586,6 +761,48 @@ GetFilePath(
 	// Copy the result into the given buffer
 	memcpy(Path, &Buffer[0], MIN(MaxLength, strlen(&Buffer[0])));
 	return OsSuccess;
+}
+
+/* GetFileStatsByPath 
+ * Queries file information by the given path. If the path is invalid
+ * or doesn't exist the information is zeroed out. */
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+GetFileStatsByPath(
+	_In_  const char*           Path,
+	_Out_ vFileDescriptor_t*    FileDescriptor)
+{
+	// Variables
+	MRemoteCall_t Request;
+
+	// Initialize the request
+	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_GETSTATSBYPATH);
+	RPCSetArgument(&Request, 0, (const void*)Path, strlen(Path) + 1);
+	RPCSetResult(&Request, (const void*)&FileDescriptor, sizeof(vFileDescriptor_t));
+	return RPCExecute(&Request);
+}
+
+/* GetFileStatsByHandle 
+ * Queries file information by the given file handle. If the handle is invalid
+ * or doesn't exist the information is zeroed out. */
+SERVICEAPI
+OsStatus_t
+SERVICEABI
+GetFileStatsByHandle(
+	_In_  UUId_t                Handle,
+	_Out_ vFileDescriptor_t*    FileDescriptor)
+{
+	// Variables
+	MRemoteCall_t Request;
+
+	// Initialize the request
+	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_GETSTATSBYHANDLE);
+	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
+	RPCSetResult(&Request, (const void*)&FileDescriptor, sizeof(vFileDescriptor_t));
+	return RPCExecute(&Request);
 }
 
 #endif //!_FILE_INTERFACE_H_

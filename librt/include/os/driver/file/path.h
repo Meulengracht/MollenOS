@@ -63,7 +63,7 @@ OsStatus_t
 SERVICEABI
 PathCanonicalize(
 	_In_  EnvironmentPath_t Base,
-	_In_  char*             Path,
+	_In_  const char*       Path,
 	_Out_ char*             Buffer,
 	_In_  size_t            MaxLength)
 {

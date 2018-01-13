@@ -223,6 +223,12 @@ OnEvent(
 
     TRACE("Filemanager.OnEvent %s", FunctionNames[Message->Function]);
 	switch (Message->Function) {
+		// Resolves all stored filesystems that
+		// has been waiting for boot-partition to be loaded
+		case __FILEMANAGER_RESOLVEQUEUE: {
+			Result = VfsResolveQueueExecute();
+		} break;
+
 		// Handles registration of a new disk 
 		// and and parses the disk-system for a MBR
 		// or a GPT table 
@@ -241,15 +247,15 @@ OnEvent(
 				(Flags_t)Message->Arguments[1].Data.Value);
 		} break;
 
-		// TODO
+		// @todo
 		case __FILEMANAGER_QUERYDISKS: {
 		} break;
-
-		// Resolves all stored filesystems that
-		// has been waiting for boot-partition to be loaded
-		case __FILEMANAGER_RESOLVEQUEUE: {
-			Result = VfsResolveQueueExecute();
-		} break;
+        case __FILEMANAGER_QUERYDISK: {
+        } break;
+        case __FILEMANAGER_QUERYDISKBYPATH: {
+        } break;
+        case __FILEMANAGER_QUERYDISKBYHANDLE: {
+        } break;
 
 		// Opens or creates the given file path based on
 		// the given <Access> and <Options> flags.
@@ -272,16 +278,6 @@ OnEvent(
                 Message->From.Process, 
                 (UUId_t)Message->Arguments[0].Data.Value);
 			Result  = RPCRespond(Message, (const void*)&Code, sizeof(FileSystemCode_t));
-		} break;
-
-		// Deletes the given file associated with the filehandle
-		// the caller must make sure there is no other references
-		// to the file - otherwise delete fails
-		case __FILEMANAGER_DELETEFILE: {
-			FileSystemCode_t Code = VfsDeleteFile(
-                Message->From.Process,
-				(const char*)Message->Arguments[0].Data.Buffer);
-			Result = RPCRespond(Message, (const void*)&Code, sizeof(FileSystemCode_t));
 		} break;
 
 		// Reads the requested number of bytes into the given buffer
@@ -397,6 +393,29 @@ OnEvent(
             else {
                 Result = RPCRespond(Message, MStringRaw(FilePath), MStringSize(FilePath));
             }
+        } break;
+
+        // @todo
+        case __FILEMANAGER_GETSTATSBYPATH: {
+        } break;
+        case __FILEMANAGER_GETSTATSBYHANDLE: {
+        } break;
+
+		// Deletes the given path, the path can both be file or directory.
+		case __FILEMANAGER_DELETEPATH: {
+			FileSystemCode_t Code = VfsDeletePath(Message->From.Process,
+				(const char*)Message->Arguments[0].Data.Buffer, (Flags_t)Message->Arguments[1].Data.Value);
+			Result = RPCRespond(Message, (const void*)&Code, sizeof(FileSystemCode_t));
+		} break;
+
+        // @todo
+        case __FILEMANAGER_OPENDIRECTORY: {
+        } break;
+        case __FILEMANAGER_CLOSEDIRECTORY: {
+        } break;
+        case __FILEMANAGER_READDIRECTORY: {
+        } break;
+        case __FILEMANAGER_SEEKDIRECTORY: {
         } break;
 
 		// Resolves a special environment path for

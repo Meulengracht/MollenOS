@@ -29,6 +29,7 @@
 #include <os/process.h>
 #include <os/utils.h>
 #include <string.h>
+#include <stdio.h>
 
 /* Globals
  * - State keeping variables */

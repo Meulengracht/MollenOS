@@ -31,15 +31,6 @@
 
 #define PROCESS_MAXMODULES          128
 
-/* ProcessQueryFunction
- * List of the different options for process queries */
-typedef enum _ProcessQueryFunction {
-	ProcessQueryName,
-	ProcessQueryMemory,
-	ProcessQueryParent,
-	ProcessQueryTopMostParent
-} ProcessQueryFunction_t;
-
 /* ProcessStartupInformation
  * Contains information about the process startup. Can be queried
  * from the operating system during process startup. */
@@ -89,17 +80,6 @@ OsStatus_t,
 ProcessKill(
 	_In_ UUId_t Process));
 
-/* ProcessQuery
- * Queries information about the given process
- * based on the function it returns the requested information */
-CRTDECL( 
-OsStatus_t,
-ProcessQuery(
-	_In_ UUId_t Process, 
-	_In_ ProcessQueryFunction_t Function, 
-	_In_ void *Buffer, 
-	_In_ size_t Length));
-
 /* GetStartupInformation
  * Retrieves startup information about the process. 
  * Data buffers must be supplied with a max length. */
@@ -110,7 +90,9 @@ GetStartupInformation(
 
 /* ProcessGetCurrentId 
  * Retrieves the current process identifier. */
-CRTDECL(UUId_t, ProcessGetCurrentId(void));
+CRTDECL(
+UUId_t, 
+ProcessGetCurrentId(void));
 
 /* ProcessGetModuleHandles
  * Retrieves a list of loaded module handles. Handles can be queried

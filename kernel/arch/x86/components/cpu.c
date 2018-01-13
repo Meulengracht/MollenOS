@@ -42,6 +42,7 @@ __EXTERN UUId_t ApicGetCpu(void);
 
 /* Extern assembly functions
  * These utilities are located in boot.asm */
+__EXTERN void __wbinvd(void);
 __EXTERN void __hlt(void);
 __EXTERN void CpuEnableSse(void);
 __EXTERN void CpuEnableFpu(void);
@@ -145,9 +146,22 @@ CpuHalt(void)
 /* CpuGetTicks
  * Get the ticks for the current cpu. */
 size_t
-CpuGetTicks(void)
-{
+CpuGetTicks(void) {
     return GlbTimerTicks[CpuGetCurrentId()];
+}
+
+/* CpuFlushInstructionCache
+ * Flushes the instruction cache for the processor. */
+void
+CpuFlushInstructionCache(
+    _In_Opt_ void*  Start, 
+    _In_Opt_ size_t Length) {
+    // Unused
+    _CRT_UNUSED(Start);
+    _CRT_UNUSED(Length);
+
+    // Invoke assembly routine
+    __wbinvd();
 }
 
 /* Backup Timer, Should always be provided */

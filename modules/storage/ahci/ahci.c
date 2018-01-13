@@ -408,13 +408,13 @@ AhciSetup(
 
 	// Allocate some shared resources, especially 
 	// command lists as we need 1K * portcount
-	if (MemoryAllocate(1024 * PortItr, MEMORY_LOWFIRST | MEMORY_CONTIGIOUS
+	if (MemoryAllocate(NULL, 1024 * PortItr, MEMORY_LOWFIRST | MEMORY_CONTIGIOUS
 		| MEMORY_CLEAN | MEMORY_COMMIT, &Controller->CommandListBase,
 		&Controller->CommandListBasePhysical) != OsSuccess) {
 		ERROR("AHCI::Failed to allocate memory for the command list.");
 		return OsError;
 	}
-	if (MemoryAllocate((AHCI_COMMAND_TABLE_SIZE * 32) * PortItr, 
+	if (MemoryAllocate(NULL, (AHCI_COMMAND_TABLE_SIZE * 32) * PortItr, 
 		MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN 
 		| MEMORY_COMMIT, &Controller->CommandTableBase,
 		&Controller->CommandTableBasePhysical) != OsSuccess) {
@@ -433,7 +433,7 @@ AhciSetup(
 	// We have to take into account FIS based switching here, 
 	// if it's supported we need 4K
 	if (Controller->Registers->Capabilities & AHCI_CAPABILITIES_FBSS) {
-		if (MemoryAllocate(0x1000 * PortItr,
+		if (MemoryAllocate(NULL, 0x1000 * PortItr,
 			MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN
 			| MEMORY_COMMIT, &Controller->FisBase,
 			&Controller->FisBasePhysical) != OsSuccess) {
@@ -442,7 +442,7 @@ AhciSetup(
 		}
 	}
 	else {
-		if (MemoryAllocate(256 * PortItr,
+		if (MemoryAllocate(NULL, 256 * PortItr,
 			MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN
 			| MEMORY_COMMIT, &Controller->FisBase,
 			&Controller->FisBasePhysical) != OsSuccess) {

@@ -293,6 +293,13 @@
         "types.h": "c",
         "__debug": "cpp",
         "buffer.h": "c",
-        "fstream": "c"
+        "fstream": "c",
+        "clocale": "c",
+        "cmath": "c",
+        "cstdio": "c",
+        "cstdlib": "c",
+        "cstring": "c",
+        "ctime": "c",
+        "cerrno": "cpp"
     }
 }

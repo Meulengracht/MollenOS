@@ -17,34 +17,23 @@
  *
  *
  * MollenOS - C Standard Library
- * - Deletes the file specified by the path
+ * - File link implementation
  */
 
 /* Includes
  * - System */
 #include <os/driver/file.h>
-#include <os/syscall.h>
-
-/* Includes 
- * - Library */
-#include <io.h>
-#include <stdio.h>
+#include <stdlib.h>
 #include <errno.h>
+#include <io.h>
 
-/* _unlink
- * The is the ANSI C file 
- * deletion method and is shared by the 'modern' */
-int _unlink(
-	_In_ const char *path) {
-	if (path == NULL) {
-		_set_errno(EINVAL);
-		return EOF;
-	}
-	return _fval(DeletePath(path, __FILE_DELETE_RECURSIVE));
-}
-
-/* remove
- * Deletes either a file or a directory specified by the path. */
-int remove(const char * filename) {
-	return _unlink(filename);
+/* _link
+ * Creates a new symbolic or hard-link from a path to a new path. */
+int _link(
+    _In_ const char*    from, 
+    _In_ const char*    to, 
+    _In_ int            symbolic)
+{
+    // @todo
+    return -1;
 }

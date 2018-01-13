@@ -249,6 +249,66 @@ AddressSpaceGetCurrent(void)
 	}
 }
 
+/* AddressSpaceGetNativeFlags
+ * Converts address-space generic flags to native page flags */
+Flags_t
+AddressSpaceGetNativeFlags(Flags_t Flags)
+{
+    // Variables
+    Flags_t NativeFlags = PAGE_PRESENT;
+    if (Flags & ASPACE_FLAG_APPLICATION) {
+		NativeFlags |= PAGE_USER;
+	}
+	if (Flags & ASPACE_FLAG_NOCACHE) {
+		NativeFlags |= PAGE_CACHE_DISABLE;
+	}
+	if (Flags & ASPACE_FLAG_VIRTUAL) {
+		NativeFlags |= PAGE_VIRTUAL;
+	}
+    if (!(Flags & ASPACE_FLAG_READONLY)) {
+        NativeFlags |= PAGE_WRITE;
+    }
+    return NativeFlags;
+}
+
+/* AddressSpaceChangeProtection
+ * Changes the protection parameters for the given memory region.
+ * The region must already be mapped and the size will be rounded up
+ * to a multiple of the page-size. */
+OsStatus_t
+AddressSpaceChangeProtection(
+    _In_        AddressSpace_t*     AddressSpace,
+    _InOut_Opt_ VirtualAddress_t    VirtualAddress,
+    _In_        size_t              Size,
+    _In_        Flags_t             Flags,
+    _Out_       Flags_t*            PreviousFlags)
+{
+    // Variables
+	Flags_t ProtectionFlags         = AddressSpaceGetNativeFlags(Flags);
+    OsStatus_t Result               = OsSuccess;
+    int PageCount                   = 0;
+    int i;
+
+    // Assert that address space is not null
+    assert(AddressSpace != NULL);
+
+    // Calculate the number of pages of this allocation
+    PageCount           = DIVUP((Size + VirtualAddress & ATTRIBUTE_MASK), PAGE_SIZE);
+
+    // Update pages with new protection
+    for (i = 0; i < PageCount; i++) {
+        uintptr_t Block = VirtualAddress + (i * PAGE_SIZE);
+        if (PreviousFlags != NULL) {
+            *PreviousFlags = MmVirtualGetMapping((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], Block) & ATTRIBUTE_MASK;
+        }
+        if (MmVirtualSetFlags((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], Block, ProtectionFlags) != OsSuccess) {
+            Result = OsError;
+            break;
+        }
+    }
+    return Result;
+}
+
 /* AddressSpaceMap
  * Maps the given virtual address into the given address space
  * uses the given physical pages instead of automatic allocation
@@ -303,15 +363,7 @@ AddressSpaceMap(
     }
 
     // Handle other flags
-    if (Flags & ASPACE_FLAG_APPLICATION) {
-		AllocFlags |= PAGE_USER;
-	}
-	if (Flags & ASPACE_FLAG_NOCACHE) {
-		AllocFlags |= PAGE_CACHE_DISABLE;
-	}
-	if (Flags & ASPACE_FLAG_VIRTUAL) {
-		AllocFlags |= PAGE_VIRTUAL;
-	}
+    AllocFlags = AddressSpaceGetNativeFlags(Flags);
 
     // Iterate the number of pages to map 
 	for (i = 0; i < PageCount; i++) {
@@ -327,7 +379,7 @@ AddressSpaceMap(
 		}
 
 		// Redirect call to our virtual page manager
-		if (MmVirtualMap((PageDirectory_t*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], 
+		if (MmVirtualMap((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], 
             PhysicalPage, (VirtualBase + (i * PAGE_SIZE)), AllocFlags) != OsSuccess) {
             WARNING("Failed to map virtual 0x%x => physical 0x%x", 
                 (VirtualBase + (i * PAGE_SIZE)), PhysicalPage);
@@ -351,8 +403,7 @@ AddressSpaceUnmap(
 
 	// Iterate page-count and unmap
 	for (i = 0; i < PageCount; i++) {
-		if (MmVirtualUnmap((PageDirectory_t*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], 
-                (Address + (i * PAGE_SIZE))) != OsSuccess) {
+		if (MmVirtualUnmap((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], (Address + (i * PAGE_SIZE))) != OsSuccess) {
             WARNING("Failed to unmap address 0x%x", (Address + (i * PAGE_SIZE)));
         }
 	}
@@ -366,8 +417,7 @@ PhysicalAddress_t
 AddressSpaceGetMapping(
     _In_ AddressSpace_t*    AddressSpace, 
     _In_ VirtualAddress_t   VirtualAddress) {
-	return MmVirtualGetMapping(
-        (PageDirectory_t*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], VirtualAddress);
+	return MmVirtualGetMapping((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], VirtualAddress);
 }
 
 /* AddressSpaceGetPageSize

@@ -36,28 +36,25 @@
  * be rounded up to nearest page-size */
 OsStatus_t
 MemoryAllocate(
-	_In_ size_t Length,
-	_In_ Flags_t Flags,
-	_Out_ void **MemoryPointer,
-	_Out_Opt_ uintptr_t *PhysicalPointer)
+    _In_      void*         NearAddress,
+	_In_      size_t        Length,
+	_In_      Flags_t       Flags,
+	_Out_     void**        MemoryPointer,
+	_Out_Opt_ uintptr_t*    PhysicalPointer)
 {
 	// Variables
-	uintptr_t Physical = 0;
-	uintptr_t Virtual = 0;
-	OsStatus_t Result;
+	OsStatus_t Result   = OsSuccess;
+	uintptr_t Physical  = 0;
+	uintptr_t Virtual   = 0;
 
 	// Sanitize parameters
 	if (Length == 0 || MemoryPointer == NULL) {
 		return OsError;
 	}
-
-	// Redirect call to OS
 	Result = Syscall_MemoryAllocate(Length, Flags, &Virtual, &Physical);
 
 	// Update memory-pointer
 	*MemoryPointer = (void*)Virtual;
-
-	// Update the physical out in case its given
 	if (PhysicalPointer != NULL) {
 		*PhysicalPointer = Physical;
 	}

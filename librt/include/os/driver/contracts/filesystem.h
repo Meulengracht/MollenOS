@@ -187,15 +187,15 @@ __FSDECL(FsSeekFile)(
 	_In_ FileSystemFileHandle_t *Handle,
 	_In_ uint64_t AbsolutePosition);
 
-/* FsDeleteFile 
- * Deletes the file connected to the file-handle, this
- * will disconnect all existing file-handles to the file
- * and make them fail on next access */
+/* DeletePath 
+ * Deletes the path specified, if it's a directory
+ * the recursive variable must be set to 1. */
 __FSAPI
 FileSystemCode_t
-__FSDECL(FsDeleteFile)(
+__FSDECL(FsDeletePath)(
 	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ FileSystemFileHandle_t *Handle);
+	_In_ MString_t*              Path,
+    _In_ int                     Recursive);
 
 /* FsQueryFile 
  * Queries the given file handle for information, the kind of

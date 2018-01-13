@@ -78,7 +78,7 @@ typedef struct _FileSystemModule {
 	FsWriteFile_t					WriteFile;
 	FsSeekFile_t					SeekFile;
 	FsChangeFileSize_t				ChangeFileSize;
-	FsDeleteFile_t					DeleteFile;
+	FsDeletePath_t					DeletePath;
 	FsQueryFile_t					QueryFile;
 } FileSystemModule_t;
 
@@ -229,16 +229,17 @@ VfsCloseFile(
 	_In_ UUId_t Requester, 
 	_In_ UUId_t Handle);
 
-/* VfsDeleteFile
- * Deletes the given file associated with the filehandle
+/* VfsDeletePath
+ * Deletes the given file path
  * the caller must make sure there is no other references
  * to the file - otherwise delete fails */
 __EXTERN 
 FileSystemCode_t
 SERVICEABI
-VfsDeleteFile(
+VfsDeletePath(
 	_In_ UUId_t         Requester, 
-	_In_ const char*    Path);
+	_In_ const char*    Path,
+    _In_ Flags_t        Options);
 
 /* VfsReadFile
  * Reads the requested number of bytes into the given buffer

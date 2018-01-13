@@ -26,6 +26,7 @@
 /* Includes 
  * - Library */
 #include <os/osdefs.h>
+#include <os/driver/buffer.h>
 #include <ds/blbitmap.h>
 #include <ds/mstring.h>
 #include <ds/collection.h>
@@ -62,6 +63,17 @@ typedef enum _MCoreAshType {
     AshProcess
 } MCoreAshType_t;
 
+/* This is the different types of ashes
+ * that exists in MollenOS */
+typedef struct _MCoreAshFileMapping {
+    BufferObject_t*     TransferObject;
+    UUId_t              FileHandle;
+    uintptr_t           VirtualBase;
+    uint64_t            Offset;
+    size_t              Length;
+    Flags_t             Flags;
+} MCoreAshFileMapping_t;
+
 /* The phoenix base structure, this contains
 * basic information shared across all ashes
 * Whether it's a process or a server */
@@ -80,6 +92,7 @@ typedef struct _MCoreAsh {
     MString_t           *Name;
     MString_t           *Path;
     Collection_t        *Pipes;
+    Collection_t        *FileMappings;
 
     // Memory management and information,
     // Ashes run in their own space, and have their

@@ -40,14 +40,9 @@ typedef enum _FileSystemCode {
 /* Special Paths
  * Used for a combination of different things
  * especially for the environment resolve */
-typedef enum _EnvironmentPath
-{
-	/* The default */
+typedef enum _EnvironmentPath {
 	PathCurrentWorkingDirectory = 0,
-
-	/* Application Paths */
-	PathApplicationBase,
-	PathApplicationData,
+    PathCurrentAssemblyDirectory,
 
 	/* System Directories */
 	PathRoot,
@@ -59,13 +54,17 @@ typedef enum _EnvironmentPath
 	PathCommonInclude,
 	PathCommonLib,
 	PathCommonMedia,
+    
+    // User specific paths
+    UserDataDirectory,
+    UserCacheDirectory,
 
-	/* User Directories */
-	PathUserBase,
+    // Application specific paths
+    ApplicationDataDirectory,
+    ApplicationTemporaryDirectory,
 
-	/* Special Directory Count */
+    // EoE
 	PathEnvironmentCount
-
 } EnvironmentPath_t;
 
 #endif //!_FILE_DEFINITIONS_H_

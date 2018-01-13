@@ -220,7 +220,7 @@ UhciQueueInitialize(
     PoolSize += UHCI_POOL_TDS * sizeof(UhciTransferDescriptor_t);
 
     // Perform the allocation
-    if (MemoryAllocate(PoolSize, MEMORY_CLEAN | MEMORY_COMMIT
+    if (MemoryAllocate(NULL, PoolSize, MEMORY_CLEAN | MEMORY_COMMIT
         | MEMORY_LOWFIRST | MEMORY_CONTIGIOUS, &Pool, &PoolPhysical) != OsSuccess) {
         ERROR("Failed to allocate memory for resource-pool");
         return OsError;

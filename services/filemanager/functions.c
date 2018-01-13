@@ -35,6 +35,42 @@
 #include <string.h>
 #include <ctype.h>
 
+/* VfsGetFileSystemFromPath
+ * Retrieves the filesystem handle associated with the given path. */
+FileSystem_t*
+VfsGetFileSystemFromPath(
+    _In_  MString_t *Path,
+    _Out_ MString_t **SubPath)
+{
+    // Variables
+	CollectionItem_t *Node  = NULL;
+	MString_t *Identifier   = NULL;
+	int Index               = 0;
+
+    // To open a new file we need to find the correct
+    // filesystem identifier and seperate it from it's absolute path
+    Index       = MStringFind(Path, ':');
+    if (Index == MSTRING_NOT_FOUND) {
+        return NULL;
+    }
+
+    Identifier  = MStringSubString(Path, 0, Index);
+    *SubPath    = MStringSubString(Path, Index + 2, -1);
+
+    // Iterate all the filesystems and find the one
+    // that matches
+    _foreach(Node, VfsGetFileSystems()) {
+        FileSystem_t *Filesystem = (FileSystem_t*)Node->Data;
+        if (MStringCompare(Identifier, Filesystem->Identifier, 1)) {
+            MStringDestroy(Identifier);
+            return Filesystem;
+        }
+    }
+    MStringDestroy(Identifier);
+    MStringDestroy(*SubPath);
+    return NULL;
+}
+
 /* VfsOpenHandleInternal
  * Internal helper for instantiating the file handle
  * this does not take care of anything else than
@@ -97,14 +133,11 @@ VfsOpenInternal(
 	_In_  MString_t*                Path)
 {
 	// Variables
-	CollectionItem_t *fNode = NULL;
     CollectionItem_t *pNode = NULL;
 	FileSystemFile_t *File  = NULL;
 	FileSystemCode_t Code   = FsOk;
-	MString_t *Identifier   = NULL;
 	MString_t *SubPath      = NULL;
 	size_t PathHash         = 0;
-	int Index               = 0;
     DataKey_t Key;
 
     // Debug
@@ -139,78 +172,61 @@ VfsOpenInternal(
 
 	// Ok if it didn't exist in cache it's a new lookup
 	if (File == NULL) {
-		// To open a new file we need to find the correct
-		// filesystem identifier and seperate it from it's absolute path
-		Index       = MStringFind(Path, ':');
-		Identifier  = MStringSubString(Path, 0, Index);
-		SubPath     = MStringSubString(Path, Index + 2, -1);
+        FileSystem_t *Filesystem    = VfsGetFileSystemFromPath(Path, &SubPath);
+        int Created                 = 0;
+        if (Filesystem == NULL) {
+            return FsPathNotFound;
+        }
 
-		// Iterate all the filesystems and find the one
-		// that matches
-		_foreach(fNode, VfsGetFileSystems()) {
-			FileSystem_t *Filesystem = (FileSystem_t*)fNode->Data;
-			if (MStringCompare(Identifier, Filesystem->Identifier, 1)) {
-				int Created     = 0;
+        // We found it, allocate a new file structure and prefill
+        // some information, the module call will fill rest
+        File            = (FileSystemFile_t*)malloc(sizeof(FileSystemFile_t));
+        memset(File, 0, sizeof(FileSystemFile_t));
+        File->System    = (uintptr_t*)Filesystem;
+        File->Path      = MStringCreate((void*)MStringRaw(Path), StrUTF8);
+        File->Hash      = PathHash;
+        File->IsLocked  = UUID_INVALID;
 
-				// We found it, allocate a new file structure and prefill
-				// some information, the module call will fill rest
-				File            = (FileSystemFile_t*)malloc(sizeof(FileSystemFile_t));
-				memset(File, 0, sizeof(FileSystemFile_t));
-				File->System    = (uintptr_t*)Filesystem;
-				File->Path      = MStringCreate((void*)MStringRaw(Path), StrUTF8);
-				File->Hash      = PathHash;
-                File->IsLocked  = UUID_INVALID;
+        // Let the module do the rest
+        Code            = Filesystem->Module->OpenFile(&Filesystem->Descriptor, File, SubPath);
 
-				// Let the module do the rest
-				Code            = Filesystem->Module->OpenFile(&Filesystem->Descriptor, File, SubPath);
+        // Handle the creation flag
+        if (Code == FsPathNotFound && (Handle->Options & __FILE_CREATE)) {
+            Code        = Filesystem->Module->CreateFile(&Filesystem->Descriptor, File, SubPath, 0);
+            Created     = 1;
+        }
 
-				// Handle the creation flag
-				if (Code == FsPathNotFound && (Handle->Options & __FILE_CREATE)) {
-					Code        = Filesystem->Module->CreateFile(&Filesystem->Descriptor, File, SubPath, 0);
-					Created     = 1;
-				}
+        // Sanitize the open
+        // otherwise we must cleanup
+        if (Code == FsOk) {
+            // It's important here that we check if the flag
+            // __FILE_FAILONEXIST has been set, then we return
+            // the appropriate code instead of opening a new handle
+            // Also this is ok if file was just created
+            if ((Handle->Options & __FILE_FAILONEXIST) && Created == 0) {
+                ERROR("File already exists in path. FailOnExists has been specified.");
+                Code    = Filesystem->Module->CloseFile(&Filesystem->Descriptor, File);
+                MStringDestroy(File->Path);
+                free(File);
+                File    = NULL;
+            }
+            else {
+                // Take care of truncation flag
+                if (Handle->Options & __FILE_TRUNCATE) {
+                    Code = Filesystem->Module->ChangeFileSize(&Filesystem->Descriptor, File, 0);
+                }
 
-				// Sanitize the open
-				// otherwise we must cleanup
-				if (Code == FsOk) {
-					// It's important here that we check if the flag
-					// __FILE_FAILONEXIST has been set, then we return
-					// the appropriate code instead of opening a new handle
-					// Also this is ok if file was just created
-					if (Handle->Options & __FILE_FAILONEXIST) {
-						if (Created == 0) {
-                            ERROR("File already exists in path. FailOnExists has been specified.");
-							Code    = Filesystem->Module->CloseFile(&Filesystem->Descriptor, File);
-							MStringDestroy(File->Path);
-							free(File);
-							File    = NULL;
-							break;
-						}
-					}
-
-					// Take care of truncation flag
-					if (Handle->Options & __FILE_TRUNCATE) {
-						Code = Filesystem->Module->ChangeFileSize(&Filesystem->Descriptor, File, 0);
-					}
-
-					// Append file handle
-					CollectionAppend(VfsGetOpenFiles(), CollectionCreateNode(Key, File));
-					File->References = 1;
-				}
-				else {
-                    TRACE("File opening/creation failed with code: %i", Code);
-					MStringDestroy(File->Path);
-					free(File);
-					File = NULL;
-				}
-
-				// Done - break out
-				break;
-			}
-		}
-
-		// Cleanup
-		MStringDestroy(Identifier);
+                // Append file handle
+                CollectionAppend(VfsGetOpenFiles(), CollectionCreateNode(Key, File));
+                File->References = 1;
+            }
+        }
+        else {
+            TRACE("File opening/creation failed with code: %i", Code);
+            MStringDestroy(File->Path);
+            free(File);
+            File = NULL;
+        }
 		MStringDestroy(SubPath);
 	}
 
@@ -395,49 +411,45 @@ VfsCloseFile(
 	return Code;
 }
 
-/* VfsDeleteFile
- * Deletes the given file denoted by the givne path
- * the caller must make sure there is no other references
+/* VfsDeletePath
+ * Deletes the given path the caller must make sure there is no other references
  * to the file - otherwise delete fails */
 FileSystemCode_t
-VfsDeleteFile(
+VfsDeletePath(
 	_In_ UUId_t         Requester, 
-	_In_ const char*    Path)
+	_In_ const char*    Path,
+    _In_ Flags_t        Options)
 {
 	// Variables
-	FileSystemFileHandle_t *Handle  = NULL;
-	CollectionItem_t *hNode         = NULL;
 	FileSystemCode_t Code           = FsOk;
-	FileSystem_t *Fs                = NULL;
-	UUId_t HandleId                 = UUID_INVALID;
-	DataKey_t Key;
+    FileSystem_t *Filesystem        = NULL;
+	MString_t *SubPath              = NULL;
+	MString_t *mPath                = NULL;
 
     // Debug
-    TRACE("VfsDeleteFile(Path %s)", Path);
+    TRACE("VfsDeletePath(Path %s, Options 0x%x)", Path, Options);
 
-	// Open the file, it must exist
-	Code = VfsOpenFile(Requester, Path, __FILE_MUSTEXIST | __FILE_VOLATILE,
-		__FILE_WRITE_ACCESS, &HandleId);
-	if (Code != FsOk) {
-        ERROR("Path %s did not exist", Path);
-		return Code;
+	// Sanitize parameters
+	if (Path == NULL) {
+		return FsInvalidParameters;
 	}
 
-	// Convert the handle id into a handle
-    // We also perform this step to validate the number of active handles on the file.
-	Key.Value = (int)HandleId;
-	hNode = CollectionGetNodeByKey(VfsGetOpenHandles(), Key, 0);
-	Handle = (FileSystemFileHandle_t*)hNode->Data;
-	if (Handle->File->References > 1) {
-        ERROR("Other handles are active for the file, cannot delete it.");
-		Code = FsAccessDenied;
-		goto Cleanup;
-	}
-	Fs = (FileSystem_t*)Handle->File->System;
-	Code = Fs->Module->DeleteFile(&Fs->Descriptor, Handle);
-
-Cleanup:
-	VfsCloseFile(Requester, HandleId);
+    // If path is not absolute or special, we should ONLY try either
+    // the current working directory.
+    mPath       = VfsPathCanonicalize(PathCurrentWorkingDirectory, Path);
+    if (mPath == NULL) {
+        return FsPathNotFound;
+    }
+    Filesystem  = VfsGetFileSystemFromPath(mPath, &SubPath);
+    MStringDestroy(mPath);
+    if (Filesystem == NULL) {
+        return FsPathNotFound;
+    }
+    Code = Filesystem->Module->DeletePath(&Filesystem->Descriptor, 
+        SubPath, (Options & __FILE_DELETE_RECURSIVE));
+    if (Code != FsOk) {
+        WARNING("Failed to delete path %s", Path);
+    }
 	return Code;
 }
 

@@ -382,7 +382,7 @@ OhciSetup(
 
 	// Allocate the HCCA-space in low memory as controllers
 	// have issues with higher memory (<2GB)
-	if (MemoryAllocate(0x1000, MEMORY_CLEAN | MEMORY_COMMIT
+	if (MemoryAllocate(NULL, 0x1000, MEMORY_CLEAN | MEMORY_COMMIT
 		| MEMORY_LOWFIRST | MEMORY_UNCHACHEABLE, &VirtualPointer,
 		&Controller->HccaPhysical) != OsSuccess) {
 		ERROR("Failed to allocate space for HCCA");

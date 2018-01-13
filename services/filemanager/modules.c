@@ -105,7 +105,7 @@ VfsResolveFileSystem(
 	// - FsWriteFile
 	// - FsSeekFile
 	// - FsChangeFileSize
-	// - FsDeleteFile
+	// - FsDeletePath
 	// - FsQueryFile 
 	Module->Initialize = (FsInitialize_t)
 		SharedObjectGetFunction(Module->Handle, "FsInitialize");
@@ -129,8 +129,8 @@ VfsResolveFileSystem(
 		SharedObjectGetFunction(Module->Handle, "FsSeekFile");
 	Module->ChangeFileSize = (FsChangeFileSize_t)
 		SharedObjectGetFunction(Module->Handle, "FsChangeFileSize");
-	Module->DeleteFile = (FsDeleteFile_t)
-		SharedObjectGetFunction(Module->Handle, "FsDeleteFile");
+	Module->DeletePath = (FsDeletePath_t)
+		SharedObjectGetFunction(Module->Handle, "FsDeletePath");
 	Module->QueryFile = (FsQueryFile_t)
 		SharedObjectGetFunction(Module->Handle, "FsQueryFile");
 
@@ -145,7 +145,7 @@ VfsResolveFileSystem(
 		|| Module->ReadFile == NULL
 		|| Module->WriteFile == NULL
 		|| Module->SeekFile == NULL
-		|| Module->DeleteFile == NULL
+		|| Module->DeletePath == NULL
 		|| Module->QueryFile == NULL) {
 		SharedObjectUnload(Module->Handle);
 		free(Module);

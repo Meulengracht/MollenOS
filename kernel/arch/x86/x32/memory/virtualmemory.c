@@ -185,6 +185,55 @@ MmVirtualInstallPaging(
 	return OsSuccess;
 }
 
+/* MmVirtualSetFlags
+ * Changes memory protection flags for the given virtual address */
+OsStatus_t
+MmVirtualSetFlags(
+	_In_ void*              PageDirectory, 
+	_In_ VirtualAddress_t   vAddress, 
+	_In_ Flags_t            Flags)
+{
+	// Variabes
+	PageDirectory_t *Directory  = (PageDirectory_t*)PageDirectory;
+	PageTable_t *Table          = NULL;
+	int IsCurrent               = 0;
+
+	// Determine page directory 
+	// If we were given null, select the cuyrrent
+	if (Directory == NULL) {
+		Directory = GlbPageDirectories[CpuGetCurrentId()];
+	}
+	if (GlbPageDirectories[CpuGetCurrentId()] == Directory) {
+		IsCurrent = 1;
+	}
+	assert(Directory != NULL);
+
+	// Does page table exist?
+	MutexLock(&Directory->Lock);
+	if (!(Directory->pTables[PAGE_DIRECTORY_INDEX(vAddress)] & PAGE_PRESENT)) {
+        MutexUnlock(&Directory->Lock);
+        return OsError;
+	}
+	else {
+		Table = (PageTable_t*)Directory->vTables[PAGE_DIRECTORY_INDEX(vAddress)];
+	}
+
+	// Sanitize the table before we use it otherwise we might fuck up
+	assert(Table != NULL);
+
+	// Map it, make sure we mask the page address
+	// so we don't accidently set any flags
+	Table->Pages[PAGE_TABLE_INDEX(vAddress)] &= PAGE_MASK;
+    Table->Pages[PAGE_TABLE_INDEX(vAddress)] |= (Flags & ATTRIBUTE_MASK);
+	MutexUnlock(&Directory->Lock);
+
+	// Last step is to invalidate the the address in the MMIO
+	if (IsCurrent) {
+		memory_invalidate_addr(vAddress);
+	}
+	return OsSuccess;
+}
+
 /* MmVirtualMap
  * Installs a new page-mapping in the given
  * page-directory. The type of mapping is controlled by

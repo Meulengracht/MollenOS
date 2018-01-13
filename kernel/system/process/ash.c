@@ -217,22 +217,22 @@ PhoenixInitializeAsh(
     }
 
     // Update initial members
-    Ash->Id = PhoenixGetNextId();
-    Ash->Parent = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
-    Ash->Type = AshBase;
+    Ash->Id                 = PhoenixGetNextId();
+    Ash->Parent             = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+    Ash->Type               = AshBase;
     CriticalSectionConstruct(&Ash->Lock, CRITICALSECTION_PLAIN);
 
     // Split path, even if a / is not found
-    // it won't fail, since -1 + 1 = 0, so we just copy
-    // the entire string
-    Index = MStringFindReverse(Ash->Path, '/');
-    Ash->Name = MStringSubString(Ash->Path, Index + 1, -1);
+    // it won't fail, since -1 + 1 = 0, so we just copy the entire string
+    Index                   = MStringFindReverse(Ash->Path, '/');
+    Ash->Name               = MStringSubString(Ash->Path, Index + 1, -1);
 
     // Store members and initialize members
-    Ash->SignalHandler = 0;
-    Ash->FileBuffer = fBuffer;
-    Ash->FileBufferLength = fSize;
-    Ash->Pipes = CollectionCreate(KeyInteger);
+    Ash->SignalHandler      = 0;
+    Ash->FileBuffer         = fBuffer;
+    Ash->FileBufferLength   = fSize;
+    Ash->Pipes              = CollectionCreate(KeyInteger);
+    Ash->FileMappings       = CollectionCreate(KeyInteger);
     return OsSuccess;
 }
 

@@ -61,6 +61,9 @@ typedef struct _MollenOSVideoDescriptor
 #define MEMORY_LOWFIRST					0x00000004
 #define MEMORY_CLEAN					0x00000008
 #define MEMORY_UNCHACHEABLE				0x00000010
+#define MEMORY_READ                     0x00000020
+#define MEMORY_WRITE                    0x00000040
+#define MEMORY_EXECUTABLE               0x00000080
 
 /* Memory Descriptor
  * Describes the current memory state and setup
@@ -71,6 +74,10 @@ PACKED_TYPESTRUCT(MemoryDescriptor, {
 	size_t			PageSizeBytes;
 });
 
+/* Cache Type Definitions
+ * Flags that can be used when requesting a flush of one of the hardware caches */
+#define CACHE_INSTRUCTION               1
+
 _CODE_BEGIN
 /* MemoryAllocate
  * Allocates a chunk of memory, controlled by the
@@ -79,10 +86,11 @@ _CODE_BEGIN
 CRTDECL(
 OsStatus_t,
 MemoryAllocate(
-	_In_ size_t Length,
-	_In_ Flags_t Flags,
-	_Out_ void **MemoryPointer,
-	_Out_Opt_ uintptr_t *PhysicalPointer));
+    _In_      void*         NearAddress,
+	_In_      size_t        Length,
+	_In_      Flags_t       Flags,
+	_Out_     void**        MemoryPointer,
+	_Out_Opt_ uintptr_t*    PhysicalPointer));
 
 /* MemoryFree
  * Frees previously allocated memory and releases
@@ -90,8 +98,19 @@ MemoryAllocate(
 CRTDECL(
 OsStatus_t,
 MemoryFree(
-	_In_ void *MemoryPointer,
-	_In_ size_t Length));
+	_In_ void*      MemoryPointer,
+	_In_ size_t     Length));
+
+/* MemoryProtect
+ * Changes the protection flags of a previous memory allocation
+ * made by MemoryAllocate */
+CRTDECL(
+OsStatus_t,
+MemoryProtect(
+    _In_  void*     MemoryPointer,
+	_In_  size_t    Length,
+    _In_  Flags_t   Flags,
+    _Out_ Flags_t*  PreviousFlags));
 
 /* MemoryQuery
  * Queries the underlying system for memory information 
@@ -108,30 +127,6 @@ CRTDECL(
 OsStatus_t,
 ScreenQueryGeometry(
 	_Out_ Rect_t *Rectangle));
-
-/* PathQueryWorkingDirectory
- * Queries the current working directory path for the current process (See _MAXPATH) */
-CRTDECL(
-OsStatus_t,
-PathQueryWorkingDirectory(
-	_Out_ char *Buffer,
-	_In_ size_t MaxLength));
-
-/* PathChangeWorkingDirectory
- * Performs changes to the current working directory
- * by canonicalizing the given path modifier or absolute path */
-CRTDECL(
-OsStatus_t,
-PathChangeWorkingDirectory(
-	_In_ __CONST char *Path));
-
-/* PathQueryApplication
- * Queries the application path for the current process (See _MAXPATH) */
-CRTDECL(
-OsStatus_t,
-PathQueryApplication(
-	_Out_ char *Buffer,
-	_In_ size_t MaxLength));
 
 /* SystemTime
  * Retrieves the system time. This is only ticking
@@ -164,6 +159,74 @@ CRTDECL(
 OsStatus_t,
 QueryPerformanceTimer(
 	_Out_ LargeInteger_t *Value));
+
+/* FlushHardwareCache
+ * Flushes the specified hardware cache. Should be used with caution as it might
+ * result in performance drops. */
+CRTDECL(
+OsStatus_t,
+FlushHardwareCache(
+    _In_     int    Cache,
+    _In_Opt_ void*  Start, 
+    _In_Opt_ size_t Length));
+
+/*******************************************************************************
+ * Threading Extensions
+ *******************************************************************************/
+CRTDECL(OsStatus_t, SetCurrentThreadName(const char *ThreadName));
+CRTDECL(OsStatus_t, GetCurrentThreadName(char *ThreadNameBuffer, size_t MaxLength));
+
+/*******************************************************************************
+ * Path Extensions
+ *******************************************************************************/
+CRTDECL(OsStatus_t, SetWorkingDirectory(const char *Path));
+CRTDECL(OsStatus_t, GetWorkingDirectory(char* PathBuffer, size_t MaxLength));
+CRTDECL(OsStatus_t, GetAssemblyDirectory(char *PathBuffer, size_t MaxLength));
+CRTDECL(OsStatus_t, GetUserDirectory(char *PathBuffer, size_t MaxLength));
+CRTDECL(OsStatus_t, GetUserCacheDirectory(char *PathBuffer, size_t MaxLength));
+CRTDECL(OsStatus_t, GetApplicationDirectory(char *PathBuffer, size_t MaxLength));
+CRTDECL(OsStatus_t, GetApplicationTemporaryDirectory(char *PathBuffer, size_t MaxLength));
+
+/*******************************************************************************
+ * File Extensions
+ *******************************************************************************/
+#define STORAGE_STATIC          0x00000001
+typedef struct _vStorageDescriptor {
+    long                Id;
+    Flags_t             Flags;
+    char                SerialNumber[32];
+    LargeInteger_t      BytesTotal;
+    LargeInteger_t      BytesFree;
+    LargeInteger_t      BytesAvailable;
+} vStorageDescriptor_t;
+
+#define FILE_MAPPING_READ       0x00000001
+#define FILE_MAPPING_WRITE      0x00000002
+#define FILE_MAPPING_EXECUTE    0x00000004
+
+#define FILE_FLAG_DIRECTORY     0x000000001
+
+#define FILE_PERMISSION_READ    0x000000001
+#define FILE_PERMISSION_WRITE   0x000000002
+#define FILE_PERMISSION_EXECUTE 0x000000004
+typedef struct _vFileDescriptor {
+    long                Id;
+    long                StorageId;
+    Flags_t             Flags;
+    Flags_t             Permissions;
+    LargeInteger_t      Size;
+    struct timespec     CreatedAt;
+    struct timespec     ModifiedAt;
+    struct timespec     AccessedAt;
+} vFileDescriptor_t;
+
+CRTDECL(OsStatus_t, GetFilePathFromFd(int FileDescriptor, char *PathBuffer, size_t MaxLength));
+CRTDECL(OsStatus_t, GetStorageInformationFromPath(const char *Path, vStorageDescriptor_t *Information));
+CRTDECL(OsStatus_t, GetStorageInformationFromFd(int FileDescriptor, vStorageDescriptor_t *Information));
+CRTDECL(OsStatus_t, GetFileInformationFromPath(const char *Path, vFileDescriptor_t *Information));
+CRTDECL(OsStatus_t, GetFileInformationFromFd(int FileDescriptor, vFileDescriptor_t *Information));
+CRTDECL(OsStatus_t, CreateFileMapping(int FileDescriptor, int Flags, uint64_t Offset, size_t Size, void **MemoryPointer));
+CRTDECL(OsStatus_t, DestroyFileMapping(void *MemoryPointer));
 
 /* __get_reserved
  * Read and write the magic tls thread-specific
@@ -205,26 +268,12 @@ __set_reserved(size_t index, size_t value) {
 #error "Implement rw for tls for this architecture"
 #endif
 
-/***********************
- * System Misc Prototypes
- * - No functions here should
- *   be called manually
- *   they are automatically used
- *   by systems
- ***********************/
-CRTDECL(
-OsStatus_t,
-WaitForSignal(
-	_In_ size_t Timeout));
-
-CRTDECL(
-OsStatus_t,
-SignalProcess(
-	_In_ UUId_t Target));
-
-CRTDECL( 
-void,
-MollenOSEndBoot(void));
+/*******************************************************************************
+ * System Extensions
+ *******************************************************************************/
+CRTDECL(OsStatus_t, WaitForSignal(size_t Timeout));
+CRTDECL(OsStatus_t, SignalProcess(UUId_t Target));
+CRTDECL(void,       MollenOSEndBoot(void));
 
 _CODE_END
 #endif //!_MOLLENOS_INTERFACE_H_

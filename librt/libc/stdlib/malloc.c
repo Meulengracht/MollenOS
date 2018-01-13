@@ -1679,7 +1679,7 @@ unsigned char _BitScanReverse(unsigned long *index, unsigned long mask);
 /* MollenOS MMAP via Syscall */
 static FORCEINLINE void* mosmmap(size_t Size) {
 	void* ptr = NULL;
-	if (MemoryAllocate(Size, 0, &ptr, NULL) != OsSuccess) {
+	if (MemoryAllocate(NULL, Size, 0, &ptr, NULL) != OsSuccess) {
 		return MFAIL;
 	}
 	else {

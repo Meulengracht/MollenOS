@@ -120,3 +120,14 @@ QueryPerformanceTimer(
 	_Out_ LargeInteger_t *Value) {
     return Syscall_SystemPerformanceTime(Value);
 }
+
+/* FlushHardwareCache
+ * Flushes the specified hardware cache. Should be used with caution as it might
+ * result in performance drops. */
+OsStatus_t
+FlushHardwareCache(
+    _In_     int    Cache,
+    _In_Opt_ void*  Start, 
+    _In_Opt_ size_t Length) {
+    return Syscall_FlushHardwareCache(Cache, Start, Length);
+}

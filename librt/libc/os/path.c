@@ -32,60 +32,104 @@
 #include <string.h>
 #include <stddef.h>
 
-/* PathQueryWorkingDirectory
- * Queries the current working directory path
- * for the current process (See _MAXPATH) */
+/* SetWorkingDirectory
+ * Performs changes to the current working directory by canonicalizing the 
+ * given path modifier or absolute path */
 OsStatus_t
-PathQueryWorkingDirectory(
-	_Out_ char *Buffer,
-	_In_ size_t MaxLength)
+SetWorkingDirectory(
+    _In_ const char *Path)
 {
-	/* Do some quick validation */
-	if (Buffer == NULL || MaxLength == 0) {
-		return OsError;
-	}
-	return Syscall_QueryWorkingPath(Buffer, MaxLength);
-}
-
-/* PathChangeWorkingDirectory
- * Performs changes to the current working directory
- * by canonicalizing the given path modifier or absolute
- * path */
-OsStatus_t
-PathChangeWorkingDirectory(
-	_In_ __CONST char *Path)
-{
-	/* Variables */
+    // Variables
 	char TempBuffer[_MAXPATH];
 
-	/* Do some quick validation */
 	if (Path == NULL) {
 		return OsError;
 	}
 
-	/* Reset the buffer */
+    // Make sure the path is valid by asking filemanager
 	memset(TempBuffer, 0, _MAXPATH);
-
-	/* Have our filemanager validate the path 
-	 * changes before updating */
-	if (PathCanonicalize(PathCurrentWorkingDirectory, 
-		(char*)Path, &TempBuffer[0], _MAXPATH) != OsSuccess) {
+	if (PathCanonicalize(PathCurrentWorkingDirectory, Path, &TempBuffer[0], _MAXPATH) != OsSuccess) {
 		return OsError;
 	}
-	return Syscall_ChangeWorkingPath(&TempBuffer[0]);
+	return Syscall_SetWorkingDirectory(&TempBuffer[0]);
 }
 
-/* PathQueryApplication
- * Queries the application path for
- * the current process (See _MAXPATH) */
+/* GetWorkingDirectory
+ * Queries the current working directory path for the current process (See _MAXPATH) */
 OsStatus_t
-PathQueryApplication(
-	_Out_ char *Buffer,
-	_In_ size_t MaxLength)
-{
-	/* Do some quick validation */
-	if (Buffer == NULL || MaxLength == 0) {
+GetWorkingDirectory(
+    _In_ char*  PathBuffer, 
+    _In_ size_t MaxLength) {
+	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
-	return Syscall_QueryApplicationPath(Buffer, MaxLength);
+	return Syscall_GetWorkingDirectory(PathBuffer, MaxLength);
+}
+
+/* GetAssemblyDirectory
+ * Queries the application path for the current process (See _MAXPATH) */
+OsStatus_t
+GetAssemblyDirectory(
+    _In_ char*  PathBuffer, 
+    _In_ size_t MaxLength) {
+	if (PathBuffer == NULL || MaxLength == 0) {
+		return OsError;
+	}
+	return Syscall_GetAssemblyDirectory(PathBuffer, MaxLength);
+}
+
+/* GetUserDirectory 
+ * Queries the system for the current user data directory. (See _MAXPATH) */
+OsStatus_t
+GetUserDirectory(
+    _In_ char*  PathBuffer, 
+    _In_ size_t MaxLength)
+{
+    // Quick validation before passing on
+	if (PathBuffer == NULL || MaxLength == 0) {
+		return OsError;
+	}
+    return PathResolveEnvironment(UserDataDirectory, PathBuffer, MaxLength);
+}
+
+/* GetUserCacheDirectory 
+ * Queries the system for the current user cache directory. (See _MAXPATH) */
+OsStatus_t
+GetUserCacheDirectory(
+    _In_ char*  PathBuffer, 
+    _In_ size_t MaxLength)
+{
+    // Quick validation before passing on
+	if (PathBuffer == NULL || MaxLength == 0) {
+		return OsError;
+	}
+    return PathResolveEnvironment(UserCacheDirectory, PathBuffer, MaxLength);
+}
+
+/* GetApplicationDirectory 
+ * Queries the system for the current application data directory. (See _MAXPATH) */
+OsStatus_t
+GetApplicationDirectory(
+    _In_ char*  PathBuffer, 
+    _In_ size_t MaxLength)
+{
+    // Quick validation before passing on
+	if (PathBuffer == NULL || MaxLength == 0) {
+		return OsError;
+	}
+    return PathResolveEnvironment(ApplicationDataDirectory, PathBuffer, MaxLength);
+}
+
+/* GetApplicationTemporaryDirectory 
+ * Queries the system for the current application temporary directory. (See _MAXPATH) */
+OsStatus_t
+GetApplicationTemporaryDirectory(
+    _In_ char*  PathBuffer, 
+    _In_ size_t MaxLength)
+{
+    // Quick validation before passing on
+	if (PathBuffer == NULL || MaxLength == 0) {
+		return OsError;
+	}
+    return PathResolveEnvironment(ApplicationTemporaryDirectory, PathBuffer, MaxLength);
 }

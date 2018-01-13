@@ -25,6 +25,7 @@ segment .text
 global _exception_common
 global _irq_common
 global _syscall_entry
+global ___wbinvd
 global ___cli
 global ___sti
 global ___hlt
@@ -36,50 +37,41 @@ extern _ExceptionEntry
 extern _InterruptEntry
 extern _GlbSyscallTable
 
+; void __wbinvd(void)
+; Flushes the internal cpu caches
+___wbinvd:
+    wbinvd
+    ret
+
 ; void __cli(void)
 ; Disables interrupts
 ___cli:
-	; Disable interrupts
 	cli
-
-	; Return
 	ret 
 
 ; void __sti(void)
 ; Enables interrupts
 ___sti:
-	; Enable interrupts
 	sti
-
-	; Return
 	ret 
 
 ; void __hlt(void)
-; Enables interrupts
+; Halts the cpu untill interrupt
 ___hlt:
-	; Idle
 	hlt
-
-	; Return
 	ret 
 
 ; uint32_t __getflags(void)
 ; Gets Eflags
 ___getflags:
-	; Get flags
 	pushfd
 	pop eax
-
-	; Return
 	ret 
 
 ; uint32_t __getcr2(void)
 ; Gets CR2 register
 ___getcr2:
-	; Get cr2
 	mov eax, cr2
-
-	; Return
 	ret 
 
 ;Common entry point for exceptions

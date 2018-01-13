@@ -16,35 +16,29 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - C Standard Library
- * - Deletes the file specified by the path
+ * MollenOS MCore - Threads Definitions & Structures
+ * - This header describes the base threads-structures, prototypes
+ *   and functionality, refer to the individual things for descriptions
  */
 
-/* Includes
+/* Includes 
  * - System */
-#include <os/driver/file.h>
+#include <os/mollenos.h>
 #include <os/syscall.h>
 
-/* Includes 
- * - Library */
-#include <io.h>
-#include <stdio.h>
-#include <errno.h>
-
-/* _unlink
- * The is the ANSI C file 
- * deletion method and is shared by the 'modern' */
-int _unlink(
-	_In_ const char *path) {
-	if (path == NULL) {
-		_set_errno(EINVAL);
-		return EOF;
-	}
-	return _fval(DeletePath(path, __FILE_DELETE_RECURSIVE));
+/* SetCurrentThreadName
+ * Updates the name of the currently running thread. */
+OsStatus_t 
+SetCurrentThreadName(
+    _In_ const char *ThreadName) {
+    return Syscall_ThreadSetCurrentName(ThreadName);
 }
 
-/* remove
- * Deletes either a file or a directory specified by the path. */
-int remove(const char * filename) {
-	return _unlink(filename);
+/* GetCurrentThreadName
+ * Retrieves the name of the currently running thread. */
+OsStatus_t 
+GetCurrentThreadName(
+    _In_ char*  ThreadNameBuffer,
+    _In_ size_t MaxLength) {
+    return Syscall_ThreadGetCurrentName(ThreadNameBuffer, MaxLength);
 }

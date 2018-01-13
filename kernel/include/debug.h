@@ -65,6 +65,13 @@
 #define FATAL(Scope, ...)			DebugPanic(Scope, __MODULE, __VA_ARGS__)
 #define NOTIMPLEMENTED(...)
 
+/* DebugInstallPageFaultHandlers
+ * Install page-fault handlers. Should be called as soon as memory setup phase is done */
+KERNELAPI
+OsStatus_t
+KERNELABI
+DebugInstallPageFaultHandlers(void);
+
 /* DebugSingleStep
  * Handles the SingleStep trap on a higher level 
  * and the actual interrupt/exception should be propegated

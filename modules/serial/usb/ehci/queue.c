@@ -179,7 +179,7 @@ EhciQueueInitialize(
     Queue->PoolBytes    = RequiredSpace;
 
 	// Perform the allocation
-	if (MemoryAllocate(RequiredSpace, MEMORY_CLEAN | MEMORY_COMMIT
+	if (MemoryAllocate(NULL, RequiredSpace, MEMORY_CLEAN | MEMORY_COMMIT
 		| MEMORY_LOWFIRST | MEMORY_CONTIGIOUS, &Pool, &PoolPhysical) != OsSuccess) {
 		ERROR("Failed to allocate memory for resource-pool");
 		return OsError;

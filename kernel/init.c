@@ -108,6 +108,7 @@ MCoreInitialize(
     if (SystemsAvailable & SYSTEM_FEATURE_MEMORY) {
         TRACE("Running SYSTEM_FEATURE_MEMORY");
         SystemFeaturesInitialize(&GlobalBootInformation, SYSTEM_FEATURE_MEMORY);
+        DebugInstallPageFaultHandlers();
     }        
     
     // Initialize our kernel heap

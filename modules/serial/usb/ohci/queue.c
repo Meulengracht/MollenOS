@@ -135,7 +135,7 @@ OhciQueueInitialize(
     PoolSize += OHCI_POOL_TDS * sizeof(OhciTransferDescriptor_t);
 
     // Allocate both TD's and ED's pool
-    if (MemoryAllocate(PoolSize, MEMORY_CLEAN | MEMORY_COMMIT
+    if (MemoryAllocate(NULL, PoolSize, MEMORY_CLEAN | MEMORY_COMMIT
         | MEMORY_LOWFIRST | MEMORY_CONTIGIOUS, &Pool, &PoolPhysical) != OsSuccess) {
         ERROR("Failed to allocate memory for resource-pool");
         return OsError;

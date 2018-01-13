@@ -578,25 +578,36 @@ FsWriteFile(
 	return MfsUpdateRecord(Descriptor, fInformation, MFS_ACTION_UPDATE);
 }
 
-/* FsDeleteFile 
+/* FsDeletePath 
  * Deletes the file connected to the file-handle, this
  * will disconnect all existing file-handles to the file
  * and make them fail on next access */
 FileSystemCode_t
-FsDeleteFile(
-	_In_ FileSystemDescriptor_t* Descriptor,
-	_In_ FileSystemFileHandle_t* Handle)
+FsDeletePath(
+	_In_ FileSystemDescriptor_t *Descriptor,
+	_In_ MString_t*              Path,
+    _In_ int                     Recursive)
 {
 	// Variables
-	MfsFileInstance_t *fHandle  = NULL;
+	MfsInstance_t *Mfs          = NULL;
 	MfsFile_t *fInformation     = NULL;
+	FileSystemCode_t Result;
 
 	// Trace
-	TRACE("FsDeleteFile(Id 0x%x)", Handle->Id);
+	TRACE("FsDeletePath(Path %s, Recursive %i)", MStringRaw(Path), Recursive);
+    if (Recursive != 0) {
+        ERROR("No support for deleting directories. Exitting");
+        return FsInvalidParameters;
+    }
 
 	// Instantiate the pointers
-	fHandle         = (MfsFileInstance_t*)Handle->ExtensionData;
-	fInformation    = (MfsFile_t*)Handle->File->ExtensionData;
+	Mfs     = (MfsInstance_t*)Descriptor->ExtensionData;
+
+	// Try to locate the given file-record
+	Result  = MfsLocateRecord(Descriptor, Mfs->MasterRecord.RootIndex, Path, &fInformation);
+	if (Result != FsOk) {
+		return Result;
+	}
 
 	// Free all buckets allocated
 	if (MfsFreeBuckets(Descriptor, fInformation->StartBucket, 

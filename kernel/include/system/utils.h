@@ -104,4 +104,13 @@ KERNELABI
 CpuStall(
     size_t MilliSeconds);
 
+/* CpuFlushInstructionCache
+ * Flushes the instruction cache for the processor. */
+KERNELAPI
+void
+KERNELABI
+CpuFlushInstructionCache(
+    _In_Opt_ void*  Start, 
+    _In_Opt_ size_t Length);
+
 #endif //!_MCORE_UTILS_H_

@@ -55,7 +55,7 @@ _strtoumax_l(
     int base,
     locale_t loc)
 {
-    const char *s = (const unsigned char *)nptr;
+    const char *s = (const char *)nptr;
     uintmax_t acc;
     char c;
     uintmax_t cutoff;
@@ -66,7 +66,7 @@ _strtoumax_l(
      */
     do {
         c = *s++;
-    } while (isspace_l(c, loc));
+    } while (isspace_l((int)c, loc));
     if (c == '-') {
         neg = 1;
         c = *s++;

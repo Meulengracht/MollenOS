@@ -34,30 +34,36 @@
 /* Globals 
  * These are default static environment strings 
  * that can be resolved from an enum array */
-__CONST char *GlbEnvironmentalPaths[PathEnvironmentCount] = {
+const char *GlbEnvironmentalPaths[PathEnvironmentCount] = {
+	"./",
 	"./",
 
-	"./",
-	":/shared/appdata/",
-
+    // System paths
 	":/",
 	":/system/",
 
+    // Shared paths
 	":/shared/bin/",
 	":/shared/documents/",
 	":/shared/includes/",
 	":/shared/libraries/",
 	":/shared/media/",
 
-	":/users/"
+    // User paths
+	":/users/$(user)/",
+    ":/users/$(user)/cache",
+
+    // Application paths
+	":/shared/appdata/$(app)/",
+    ":/shared/appdata/$(app)/temp/"
 };
 
 /* These are the default fixed identifiers that can
  * be used in paths to denote access, mostly these
  * identifers must be preceeding the rest of the path */
 struct {
-	__CONST char *Identifier;
-	EnvironmentPath_t Resolve;
+	const char*         Identifier;
+	EnvironmentPath_t   Resolve;
 } GlbIdentifers[] = {
 	{ "%sys%", PathSystemDirectory },
 	{ NULL, PathCurrentWorkingDirectory }
@@ -80,10 +86,10 @@ VfsPathResolveEnvironment(
 	// Handle Special Case - 0 & 1
 	// Just return the current working directory
 	if (Base == PathCurrentWorkingDirectory
-		|| Base == PathApplicationBase) {
+		|| Base == PathCurrentAssemblyDirectory) {
 		memset(&PathBuffer[0], 0, _MAXPATH);
 		if (Base == PathCurrentWorkingDirectory) {
-			if (PathQueryWorkingDirectory(&PathBuffer[0], _MAXPATH) != OsSuccess) {
+			if (GetWorkingDirectory(&PathBuffer[0], _MAXPATH) != OsSuccess) {
 				return NULL;
 			}
 			else {
@@ -91,7 +97,7 @@ VfsPathResolveEnvironment(
 			}
 		}
 		else {
-			if (PathQueryApplication(&PathBuffer[0], _MAXPATH) != OsSuccess) {
+			if (GetAssemblyDirectory(&PathBuffer[0], _MAXPATH) != OsSuccess) {
 				return NULL;
 			}
 			else {

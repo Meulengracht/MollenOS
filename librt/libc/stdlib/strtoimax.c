@@ -55,8 +55,8 @@ _strtoimax_l(
     int base, 
     locale_t loc)
 {
-    const char *s = (const unsigned char *)nptr;
-    uintmax_t acc;
+    const char *s = (const char *)nptr;
+    uintmax_t acc = 0;
     char c;
     uintmax_t cutoff;
     int neg = 0, any, cutlim;
@@ -68,7 +68,7 @@ _strtoimax_l(
      */
     do {
         c = *s++;
-    } while (isspace_l(c, loc));
+    } while (isspace_l((int)c, loc));
     if (c == '-') {
         neg = 1;
         c = *s++;
@@ -130,7 +130,7 @@ _strtoimax_l(
         acc = neg ? INTMAX_MIN : INTMAX_MAX;
         _set_errno(ERANGE);
     } else if (!any) {
-noconv:
+//noconv:
          _set_errno(EINVAL);
     } else if (neg)
         acc = -acc;

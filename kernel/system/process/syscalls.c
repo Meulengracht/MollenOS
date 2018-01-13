@@ -234,35 +234,17 @@ OsStatus_t ScProcessExit(int ExitCode)
     return OsSuccess;
 }
 
-/* ScProcessQuery
- * Queries information about 
- * the given process id, if called
- * with -1 it queries information
- * about itself */
+/* ScProcessGetCurrentId 
+ * Retrieves the current process identifier. */
 OsStatus_t 
-ScProcessQuery(
-    UUId_t ProcessId, 
-    AshQueryFunction_t Function, 
-    void *Buffer, 
-    size_t Length)
+ScProcessGetCurrentId(
+    UUId_t *ProcessId)
 {
-    /* Variables */
-    MCoreProcess_t *Process = NULL;
-
-    /* Sanity arguments */
-    if (Buffer == NULL
-        || Length == 0) {
+    MCoreAsh_t *Process = PhoenixGetCurrentAsh();
+    if (ProcessId == NULL || Process == NULL) {
         return OsError;
     }
-
-    /* Lookup process */
-    Process = PhoenixGetProcess(ProcessId);
-
-    /* Sanity, found? */
-    if (Process == NULL) {
-        return OsError;
-    }
-    return PhoenixQueryAsh(&Process->Base, Function, Buffer, Length);
+    return Process->Id;
 }
 
 /* ScProcessSignal
@@ -403,17 +385,23 @@ ScProcessGetModuleEntryPoints(
  * path must exists otherwise NULL is returned */
 Handle_t
 ScSharedObjectLoad(
-    _In_ __CONST char *SharedObject)
+    _In_ const char *SharedObject)
 {
     // Variables
-    MCoreAsh_t *Process = PhoenixGetCurrentAsh();
-    MString_t *Path = NULL;
-    Handle_t Handle = NULL;
-    uintptr_t BaseAddress = 0;
+    MCoreAsh_t *Process     = PhoenixGetCurrentAsh();
+    MString_t *Path         = NULL;
+    uintptr_t BaseAddress   = 0;
+    Handle_t Handle         = HANDLE_INVALID;
     
     // Sanitize the process
     if (Process == NULL) {
-        return Handle;
+        return HANDLE_INVALID;
+    }
+
+    // Sanitize the given shared-object path
+    // If null, get handle to current assembly
+    if (SharedObject == NULL) {
+        return (Handle_t)Process->Executable;
     }
 
     // Create a mstring object from the string
@@ -436,15 +424,12 @@ ScSharedObjectLoad(
 uintptr_t
 ScSharedObjectGetFunction(
     _In_ Handle_t        Handle, 
-    _In_ __CONST char   *Function)
+    _In_ const char     *Function)
 {
     // Validate parameters
-    if (Handle == HANDLE_INVALID
-        || Function == NULL) {
+    if (Handle == HANDLE_INVALID || Function == NULL) {
         return 0;
     }
-
-    // Simply redirect to resolver
     return PeResolveFunction((MCorePeFile_t*)Handle, Function);
 }
 
@@ -456,49 +441,41 @@ ScSharedObjectUnload(
 {
     // Variables
     MCoreAsh_t *Process = PhoenixGetCurrentAsh();
-
-    // Sanitize the parameters and lookup
     if (Process == NULL || Handle == HANDLE_INVALID) {
         return OsError;
     }
-
-    // Unload library
-    PeUnloadLibrary(Process->Executable, (MCorePeFile_t*)Handle);
-    return OsSuccess;
+    if (Handle == (Handle_t)Process->Executable) {
+        // Never close running handle
+        return OsSuccess;
+    }
+    return PeUnloadLibrary(Process->Executable, (MCorePeFile_t*)Handle);
 }
 
-/***********************
-* Threading Functions  *
-***********************/
+/*******************************************************************************
+ * Threading Functions
+ *******************************************************************************/
 
 /* ScThreadCreate
  * Creates a new thread bound to 
  * the calling process, with the given entry point and arguments */
 UUId_t
 ScThreadCreate(
-    _In_ ThreadEntry_t Entry, 
-    _In_ void *Data, 
-    _In_ Flags_t Flags)
+    _In_ ThreadEntry_t      Entry, 
+    _In_ void*              Data, 
+    _In_ Flags_t            Flags)
 {
     // Sanitize parameters
     if (Entry == NULL) {
         return UUID_INVALID;
     }
-
-    // Redirect call with flags inheritted from
-    // the current thread, we don't spawn threads in other priv-modes
-    return ThreadingCreateThread(NULL, Entry, Data, 
-        ThreadingGetCurrentMode() | THREADING_INHERIT | Flags);
+    return ThreadingCreateThread(NULL, Entry, Data, ThreadingGetCurrentMode() | THREADING_INHERIT | Flags);
 }
 
 /* ScThreadExit
- * Exits the current thread and 
- * instantly yields control to scheduler */
+ * Exits the current thread and instantly yields control to scheduler */
 OsStatus_t
 ScThreadExit(
-    _In_ int ExitCode)
-{
-    // Redirect to this function, there is no return
+    _In_ int ExitCode) {
     ThreadingExitThread(ExitCode);
     return OsSuccess;
 }
@@ -508,22 +485,17 @@ ScThreadExit(
  * thread to finish executing, and returns it's exit code */
 OsStatus_t
 ScThreadJoin(
-    _In_ UUId_t ThreadId,
-    _Out_ int *ExitCode)
+    _In_  UUId_t    ThreadId,
+    _Out_ int*      ExitCode)
 {
     // Variables
-    UUId_t PId;
-
-    // Lookup process id
-    PId = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+    UUId_t PId = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
 
     // Perform security checks
     if (ThreadingGetThread(ThreadId) == NULL
         || ThreadingGetThread(ThreadId)->AshId != PId) {
         return OsError;
     }
-
-    // Redirect to thread function
     *ExitCode = ThreadingJoinThread(ThreadId);
     return OsSuccess;
 }
@@ -532,14 +504,11 @@ ScThreadJoin(
  * Kills the thread with the given id, owner must be same process */
 OsStatus_t
 ScThreadSignal(
-    _In_ UUId_t ThreadId,
-    _In_ int SignalCode)
+    _In_ UUId_t     ThreadId,
+    _In_ int        SignalCode)
 {
     // Variables
-    UUId_t PId;
-
-    // Lookup process id
-    PId = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+    UUId_t PId = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
 
     // Perform security checks
     if (ThreadingGetThread(ThreadId) == NULL
@@ -547,8 +516,6 @@ ScThreadSignal(
         ERROR("Thread does not belong to same process");
         return OsError;
     }
-
-    // Create signal for thread
     return SignalCreate(ThreadId, SignalCode);
 }
 
@@ -556,8 +523,8 @@ ScThreadSignal(
  * Sleeps the current thread for the given milliseconds. */
 OsStatus_t
 ScThreadSleep(
-    _In_ time_t Milliseconds,
-    _Out_ time_t *MillisecondsSlept)
+    _In_  time_t    Milliseconds,
+    _Out_ time_t*   MillisecondsSlept)
 {
     // Variables
     clock_t Start   = 0;
@@ -582,20 +549,48 @@ ScThreadSleep(
 /* ScThreadGetCurrentId
  * Retrieves the thread id of the calling thread */
 UUId_t
-ScThreadGetCurrentId(void)
-{
-    // Simple
+ScThreadGetCurrentId(void) {
     return ThreadingGetCurrentThreadId();
 }
 
 /* ScThreadYield
- * This yields the current thread 
- * and gives cpu time to another thread */
+ * This yields the current thread and gives cpu time to another thread */
 OsStatus_t
-ScThreadYield(void)
-{
-    // Invoke yield and return
+ScThreadYield(void) {
     ThreadingYield();
+    return OsSuccess;
+}
+
+/* ScThreadSetCurrentName
+ * Changes the name of the current thread to the one specified by ThreadName. */
+OsStatus_t
+ScThreadSetCurrentName(const char *ThreadName) 
+{
+    // Variables
+    MCoreThread_t *Thread       = ThreadingGetCurrentThread(CpuGetCurrentId());
+    const char *PreviousName    = NULL;
+
+    if (Thread == NULL || ThreadName == NULL) {
+        return OsError;
+    }
+    PreviousName = Thread->Name;
+    Thread->Name = strdup(ThreadName);
+    kfree((void*)PreviousName);
+    return OsSuccess;
+}
+
+/* ScThreadGetCurrentName
+ * Retrieves the name of the current thread, up to max specified bytes. */
+OsStatus_t
+ScThreadGetCurrentName(char *ThreadNameBuffer, size_t MaxLength)
+{
+    // Variables
+    MCoreThread_t *Thread       = ThreadingGetCurrentThread(CpuGetCurrentId());
+
+    if (Thread == NULL || ThreadNameBuffer == NULL) {
+        return OsError;
+    }
+    strncpy(ThreadNameBuffer, Thread->Name, MaxLength);
     return OsSuccess;
 }
 
@@ -902,44 +897,57 @@ ScMemoryRelease(
     return OsSuccess;
 }
 
-/***********************
-* Path Functions       *
-***********************/
-
-/* ScPathQueryWorkingDirectory
- * Queries the current working directory path
- * for the current process (See _MAXPATH) */
+/* MemoryProtect
+ * Changes the protection flags of a previous memory allocation
+ * made by MemoryAllocate */
 OsStatus_t
-ScPathQueryWorkingDirectory(
-    _In_ char *Buffer,
-    _In_ size_t MaxLength)
+ScMemoryProtect(
+    _In_  void*     MemoryPointer,
+	_In_  size_t    Length,
+    _In_  Flags_t   Flags,
+    _Out_ Flags_t*  PreviousFlags)
+{
+    // Variables
+    uintptr_t AddressStart = (uintptr_t)MemoryPointer;
+    if (MemoryPointer == NULL || Length == 0) {
+        return OsSuccess;
+    }
+    return AddressSpaceChangeProtection(AddressSpaceGetCurrent(), 
+        AddressStart, Length, Flags, PreviousFlags);
+}
+
+/*******************************************************************************
+ * Path Functions
+ *******************************************************************************/
+
+/* ScGetWorkingDirectory
+ * Queries the current working directory path for the current process (See _MAXPATH) */
+OsStatus_t
+ScGetWorkingDirectory(
+    _In_ char*      PathBuffer,
+    _In_ size_t     MaxLength)
 {
     // Variables
     MCoreProcess_t *Process = PhoenixGetCurrentProcess();
     size_t BytesToCopy = MaxLength;
 
     // Sanitize parameters
-    if (Process == NULL || Buffer == NULL) {
+    if (Process == NULL || PathBuffer == NULL) {
         return OsError;
     }
-
-    // Make sure we copy optimal num of bytes
     if (strlen(MStringRaw(Process->WorkingDirectory)) < MaxLength) {
         BytesToCopy = strlen(MStringRaw(Process->WorkingDirectory));
     }
-
-    // Copy data over into buffer
-    memcpy(Buffer, MStringRaw(Process->WorkingDirectory), BytesToCopy);
+    memcpy(PathBuffer, MStringRaw(Process->WorkingDirectory), BytesToCopy);
     return OsSuccess;
 }
 
-/* ScPathChangeWorkingDirectory
- * Performs changes to the current working directory
- * by canonicalizing the given path modifier or absolute
- * path */
+/* ScSetWorkingDirectory
+ * Performs changes to the current working directory by canonicalizing the given 
+ * path modifier or absolute path */
 OsStatus_t
-ScPathChangeWorkingDirectory(
-    _In_ __CONST char *Path)
+ScSetWorkingDirectory(
+    _In_ const char *Path)
 {
     // Variables
     MCoreProcess_t *Process = PhoenixGetCurrentProcess();
@@ -957,30 +965,122 @@ ScPathChangeWorkingDirectory(
     return OsSuccess;
 }
 
-/* ScPathQueryApplication
- * Queries the application path for
- * the current process (See _MAXPATH) */
+/* ScGetAssemblyDirectory
+ * Queries the application path for the current process (See _MAXPATH) */
 OsStatus_t
-ScPathQueryApplication(
-    _In_ char *Buffer,
-    _In_ size_t MaxLength)
+ScGetAssemblyDirectory(
+    _In_ char*      PathBuffer,
+    _In_ size_t     MaxLength)
 {
     // Variables
     MCoreProcess_t *Process = PhoenixGetCurrentProcess();
     size_t BytesToCopy = MaxLength;
 
     // Sanitize parameters
-    if (Process == NULL || Buffer == NULL) {
+    if (Process == NULL || PathBuffer == NULL) {
         return OsError;
     }
-
-    // Make sure we copy optimal num of bytes
     if (strlen(MStringRaw(Process->BaseDirectory)) < MaxLength) {
         BytesToCopy = strlen(MStringRaw(Process->BaseDirectory));
     }
+    memcpy(PathBuffer, MStringRaw(Process->BaseDirectory), BytesToCopy);
+    return OsSuccess;
+}
 
-    // Copy data over into buffer
-    memcpy(Buffer, MStringRaw(Process->BaseDirectory), BytesToCopy);
+/* Parameter structure for creating file-mappings. 
+ * Private structure, only used for parameter passing. */
+struct FileMappingParameters {
+    UUId_t    FileHandle;
+    int       Flags;
+    uint64_t  Offset;
+    size_t    Size;
+};
+
+/* ScCreateFileMapping
+ * Creates a new file-mapping that are bound to a specific file-descriptor. 
+ * Accessing this mapping will be proxied to the specific file-access */
+OsStatus_t
+ScCreateFileMapping(
+    _In_  struct FileMappingParameters* Parameters,
+    _Out_ void**                        MemoryPointer)
+{
+    // Variables
+    MCoreAshFileMapping_t *Mapping  = NULL;
+    MCoreAsh_t *Ash                 = PhoenixGetCurrentAsh();
+    uintptr_t BaseAddress           = 0;
+    DataKey_t Key;
+
+    // Sanity
+    if (Ash == NULL || Parameters == NULL || Parameters->Size == 0) {
+        return OsError;
+    }
+
+    // Start out by allocating memory
+    // in target process's shared memory space
+    BaseAddress             = BlockBitmapAllocate(Ash->Shm, Parameters->Size);
+    if (BaseAddress == 0) {
+        return OsError;
+    }
+
+    // Create a new mapping
+    Mapping                 = (MCoreAshFileMapping_t*)kmalloc(sizeof(MCoreAshFileMapping_t));
+    Mapping->FileHandle     = Parameters->FileHandle;
+    Mapping->VirtualBase    = BaseAddress;
+    Mapping->Flags          = (Flags_t)Parameters->Flags;
+    Mapping->Offset         = Parameters->Offset;
+    Mapping->Length         = Parameters->Size;
+    Mapping->TransferObject = CreateBuffer(AddressSpaceGetPageSize());
+    Key.Value               = 0;
+    CollectionAppend(Ash->FileMappings, CollectionCreateNode(Key, Mapping));
+
+    // Update out
+    *MemoryPointer          = (void*)(BaseAddress);
+    return OsSuccess;
+}
+
+/* ScDestroyFileMapping
+ * Destroys a previously created file-mapping using it's counterpart. */
+OsStatus_t
+ScDestroyFileMapping(
+    _In_ void *MemoryPointer)
+{
+    // Variables
+    MCoreAshFileMapping_t *Mapping  = NULL;
+    CollectionItem_t *Node          = NULL;
+    MCoreAsh_t *Ash                 = PhoenixGetCurrentAsh();
+
+    // Sanity
+    if (Ash == NULL) {
+        return OsError;
+    }
+
+    // Iterate and find the node first
+    _foreach(Node, Ash->FileMappings) {
+        Mapping = (MCoreAshFileMapping_t*)Node->Data;
+        if (ISINRANGE((uintptr_t)MemoryPointer, Mapping->VirtualBase, (Mapping->VirtualBase + Mapping->Length) - 1)) {
+            break; // Continue to unmap process
+        }
+    }
+    if (Node == NULL) {
+        return OsError;
+    }
+
+    // Start the unmap process
+    CollectionRemoveByNode(Ash->FileMappings, Node);
+    CollectionDestroyNode(Ash->FileMappings, Node);
+    
+    // Unmap all mappings done
+    for (uintptr_t ItrAddress = Mapping->VirtualBase; 
+         ItrAddress < (Mapping->VirtualBase + Mapping->Length); ItrAddress += AddressSpaceGetPageSize()) {
+        if (AddressSpaceGetMapping(AddressSpaceGetCurrent(), ItrAddress) != 0) {
+            AddressSpaceUnmap(AddressSpaceGetCurrent(), ItrAddress, AddressSpaceGetPageSize());
+        }
+    }
+    BlockBitmapFree(Ash->Shm, Mapping->VirtualBase, Mapping->Length);
+
+    // Destroy transfer buffer
+    DestroyBuffer(Mapping->TransferObject);
+    kfree(Mapping);
     return OsSuccess;
 }
 
@@ -1642,31 +1742,37 @@ ScTimersStart(
  * process. Otherwise access fault. */
 OsStatus_t
 ScTimersStop(
-    _In_ UUId_t TimerId)
-{
+    _In_ UUId_t TimerId) {
     return TimersStop(TimerId);
 }
 
-/***********************
-* System Functions     *
-***********************/
-
-/* This ends the boot sequence
- * and thus redirects logging
- * to the system log-file
- * rather than the stdout */
-int ScEndBootSequence(void)
-{
+/*******************************************************************************
+ * System Functions
+ *******************************************************************************/
+OsStatus_t ScEndBootSequence(void) {
     TRACE("Ending console session");
     LogRedirect(LogFile);
     return 0;
 }
 
+/* ScFlushHardwareCache
+ * Flushes the specified hardware cache. Should be used with caution as it might
+ * result in performance drops. */
+OsStatus_t ScFlushHardwareCache(
+    _In_     int    Cache,
+    _In_Opt_ void*  Start, 
+    _In_Opt_ size_t Length) {
+    if (Cache == CACHE_INSTRUCTION) {
+        CpuFlushInstructionCache(Start, Length);
+        return OsSuccess;
+    }
+    return OsError;
+}
+
 /* System (Environment) Query 
  * This function allows the user to query 
  * information about cpu, memory, stats etc */
-int ScEnvironmentQuery(void)
-{
+int ScEnvironmentQuery(void) {
     return 0;
 }
 
@@ -1734,13 +1840,13 @@ NoOperation(void) {
 }
 
 /* Syscall Table */
-uintptr_t GlbSyscallTable[91] = {
+uintptr_t GlbSyscallTable[111] = {
     DefineSyscall(ScSystemDebug),
 
     /* Process & Threading
      * - Starting index is 1 */
     DefineSyscall(ScProcessExit),
-    DefineSyscall(ScProcessQuery),
+    DefineSyscall(ScProcessGetCurrentId),
     DefineSyscall(ScProcessSpawn),
     DefineSyscall(ScProcessJoin),
     DefineSyscall(ScProcessKill),
@@ -1759,8 +1865,18 @@ uintptr_t GlbSyscallTable[91] = {
     DefineSyscall(ScThreadSleep),
     DefineSyscall(ScThreadYield),
     DefineSyscall(ScThreadGetCurrentId),
+    DefineSyscall(ScThreadSetCurrentName),
+    DefineSyscall(ScThreadGetCurrentName),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
 
-    /* Synchronization Functions - 21 */
+    /* Synchronization Functions - 31 */
     DefineSyscall(ScConditionCreate),
     DefineSyscall(ScConditionDestroy),
     DefineSyscall(ScWaitForObject),
@@ -1772,21 +1888,31 @@ uintptr_t GlbSyscallTable[91] = {
     DefineSyscall(NoOperation),
     DefineSyscall(NoOperation),
 
-    /* Memory Functions - 31 */
+    /* Memory Functions - 41 */
     DefineSyscall(ScMemoryAllocate),
     DefineSyscall(ScMemoryFree),
     DefineSyscall(ScMemoryQuery),
     DefineSyscall(ScMemoryAcquire),
     DefineSyscall(ScMemoryRelease),
+    DefineSyscall(ScMemoryProtect),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
     DefineSyscall(NoOperation),
     DefineSyscall(NoOperation),
 
-    /* Path Functions - 38 */
-    DefineSyscall(ScPathQueryWorkingDirectory),
-    DefineSyscall(ScPathChangeWorkingDirectory),
-    DefineSyscall(ScPathQueryApplication),
+    /* Operating System Support Functions - 51 */
+    DefineSyscall(ScGetWorkingDirectory),
+    DefineSyscall(ScSetWorkingDirectory),
+    DefineSyscall(ScGetAssemblyDirectory),
+    DefineSyscall(ScCreateFileMapping),
+    DefineSyscall(ScDestroyFileMapping),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
+    DefineSyscall(NoOperation),
 
-    /* IPC Functions - 41 */
+    /* IPC Functions - 61 */
     DefineSyscall(ScPipeOpen),
     DefineSyscall(ScPipeClose),
     DefineSyscall(ScPipeRead),
@@ -1798,9 +1924,9 @@ uintptr_t GlbSyscallTable[91] = {
     DefineSyscall(ScRpcListen),
     DefineSyscall(ScRpcRespond),
 
-    /* System Functions - 51 */
+    /* System Functions - 71 */
     DefineSyscall(ScEndBootSequence),
-    DefineSyscall(NoOperation),
+    DefineSyscall(ScFlushHardwareCache),
     DefineSyscall(ScEnvironmentQuery),
     DefineSyscall(ScSystemTick),
     DefineSyscall(ScPerformanceFrequency),
@@ -1810,7 +1936,7 @@ uintptr_t GlbSyscallTable[91] = {
     DefineSyscall(NoOperation),
     DefineSyscall(NoOperation),
 
-    /* Driver Functions - 61 
+    /* Driver Functions - 81 
      * - ACPI Support */
     DefineSyscall(ScAcpiQueryStatus),
     DefineSyscall(ScAcpiQueryTableHeader),
@@ -1823,14 +1949,14 @@ uintptr_t GlbSyscallTable[91] = {
     DefineSyscall(NoOperation),
     DefineSyscall(NoOperation),
 
-    /* Driver Functions - 71 
+    /* Driver Functions - 91 
      * - I/O Support */
     DefineSyscall(ScIoSpaceRegister),
     DefineSyscall(ScIoSpaceAcquire),
     DefineSyscall(ScIoSpaceRelease),
     DefineSyscall(ScIoSpaceDestroy),
 
-    /* Driver Functions - 75
+    /* Driver Functions - 95
      * - Support */
     DefineSyscall(ScRegisterAliasId),
     DefineSyscall(ScLoadDriver),
@@ -1839,7 +1965,7 @@ uintptr_t GlbSyscallTable[91] = {
     DefineSyscall(NoOperation),
     DefineSyscall(NoOperation),
 
-    /* Driver Functions - 81
+    /* Driver Functions - 101
      * - Interrupt Support */
     DefineSyscall(ScRegisterInterrupt),
     DefineSyscall(ScUnregisterInterrupt),

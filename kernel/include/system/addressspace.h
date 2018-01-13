@@ -47,6 +47,8 @@
 #define ASPACE_FLAG_CONTIGIOUS          0x00000008  // Contigious physical pages
 #define ASPACE_FLAG_SUPPLIEDVIRTUAL     0x00000010  // Virtual base-page is supplied
 #define ASPACE_FLAG_SUPPLIEDPHYSICAL    0x00000020  // Physical base-page is supplied
+#define ASPACE_FLAG_READONLY            0x00000040  // Memory can only be read
+#define ASPACE_FLAG_EXECUTABLE          0x00000080  // Memory can be executed
 
 /* Address Space Structure
  * Denotes the must have and architecture specific
@@ -103,6 +105,20 @@ KERNELAPI
 AddressSpace_t*
 KERNELABI
 AddressSpaceGetCurrent(void);
+
+/* AddressSpaceChangeProtection
+ * Changes the protection parameters for the given memory region.
+ * The region must already be mapped and the size will be rounded up
+ * to a multiple of the page-size. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+AddressSpaceChangeProtection(
+    _In_        AddressSpace_t*     AddressSpace,
+    _InOut_Opt_ VirtualAddress_t    VirtualAddress, 
+    _In_        size_t              Size, 
+    _In_        Flags_t             Flags,
+    _Out_       Flags_t*            PreviousFlags);
 
 /* AddressSpaceMap
  * Maps the given virtual address into the given address space

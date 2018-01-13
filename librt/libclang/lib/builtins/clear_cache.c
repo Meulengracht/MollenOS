@@ -24,6 +24,10 @@ uint32_t FlushInstructionCache(uintptr_t hProcess, void *lpBaseAddress,
 uintptr_t GetCurrentProcess(void);
 #endif
 
+#if defined(MOLLENOS)
+#include <os/mollenos.h>
+#endif
+
 #if defined(__FreeBSD__) && defined(__arm__)
   #include <sys/types.h>
   #include <machine/sysarch.h>
@@ -123,6 +127,8 @@ void __clear_cache(void *start, void *end) {
                           : "r"(syscall_nr), "r"(start_reg), "r"(end_reg),
                             "r"(flags));
          assert(start_reg == 0 && "Cache flush syscall failed.");
+    #elif defined(MOLLENOS)
+        FlushHardwareCache(CACHE_INSTRUCTION, start, end - start);
     #elif defined(_WIN32)
         FlushInstructionCache(GetCurrentProcess(), start, end - start);
     #else

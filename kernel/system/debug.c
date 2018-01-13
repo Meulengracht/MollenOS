@@ -38,6 +38,14 @@
 #include <stdio.h>
 #include <stddef.h>
 
+/* Page-fault handlers for different page-fault areas. 
+ * Static storage to only allow a maximum handlers. */
+static struct MCorePageFaultHandler_t {
+    uintptr_t   AreaStart;
+    uintptr_t   AreaEnd;
+    OsStatus_t (*AreaHandler)(Context_t *Context, uintptr_t Address);
+} PageFaultHandlers[8] = { { 0 } };
+
 /* DebugSingleStep
  * Handles the SingleStep trap on a higher level 
  * and the actual interrupt/exception should be propegated
@@ -86,56 +94,18 @@ DebugPageFault(
 	_In_ uintptr_t Address)
 {
 	// Trace
-	TRACE("DebugPageFault(IP 0x%x, Address 0x%x)",
-		Context->Eip, Address);
-	_CRT_UNUSED(Context);
-
-	// Check the given address in special regions of memory
-	// Case 1 - Userspace
-	if (Address >= MEMORY_LOCATION_RING3_IOSPACE
-		&& Address < MEMORY_LOCATION_RING3_IOSPACE_END) {
-		uintptr_t Physical = IoSpaceValidate(Address);
-		if (Physical != 0) {
-			// Try to map it in and return the result
-			return AddressSpaceMap(AddressSpaceGetCurrent(), &Physical, &Address, AddressSpaceGetPageSize(),
-				ASPACE_FLAG_NOCACHE | ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDPHYSICAL 
-                | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
-		}
-	}
-
-	// Case 2 - Kernel Heap
-	else if (Address >= MEMORY_LOCATION_HEAP
-		&& Address < MEMORY_LOCATION_HEAP_END) {
-		if (!HeapValidateAddress(HeapGetKernel(), Address)) {
-			// Try to map it in and return the result
-			return AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &Address, 
-                AddressSpaceGetPageSize(), ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
-		}
-	}
-
-	// Case 3 - User Heap
-	else if (Address >= MEMORY_LOCATION_RING3_HEAP
-		&& Address < MEMORY_LOCATION_RING3_SHM) {
-		MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
-		if (Ash != NULL) {
-			if (BlockBitmapValidateState(Ash->Heap, Address, 1) == OsSuccess) {
-				// Try to map it in and return the result
-				return AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &Address, 
-                    AddressSpaceGetPageSize(), ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
-			}
-		}
-	}
-
-	// Case 4 - User Per-Thread Storage (Stack + TLS)
-    else if (Address >= MEMORY_LOCATION_RING3_THREAD_START
-        && Address <= MEMORY_LOCATION_RING3_THREAD_END) {
-		// Try to map it in and return the result
-		return AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &Address, 
-                    AddressSpaceGetPageSize(), ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
-	}
-
-	// If we reach here, it was invalid
-	return OsError;
+	TRACE("DebugPageFault(IP 0x%x, Address 0x%x)", Context->Eip, Address);
+    for (int i = 0; i < 8; i++) {
+        if (PageFaultHandlers[i].AreaHandler == NULL) {
+            break;
+        }
+        if (ISINRANGE(Address, PageFaultHandlers[i].AreaStart, PageFaultHandlers[i].AreaEnd - 1)) {
+            if (PageFaultHandlers[i].AreaHandler(Context, Address) == OsSuccess) {
+                return OsSuccess;
+            }
+        }
+    }
+    return OsError;
 }
 
 /* DebugPanic
@@ -388,6 +358,139 @@ DebugContext(
 
 	// Return 
 	return OsSuccess;
+}
+
+/* DebugPageFaultIoMemory 
+ * Checks for memory access that was io-space related and valid */
+OsStatus_t
+DebugPageFaultIoMemory(
+    _In_ Context_t* Context,
+    _In_ uintptr_t  Address)
+{
+    // Variables
+    uintptr_t Physical = IoSpaceValidate(Address);
+
+    // Sanitize
+    if (Physical != 0) {
+        // Try to map it in and return the result
+        return AddressSpaceMap(AddressSpaceGetCurrent(), &Physical, &Address, AddressSpaceGetPageSize(),
+            ASPACE_FLAG_NOCACHE | ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDPHYSICAL 
+            | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
+    }
+    return OsError;
+}
+
+/* DebugPageFaultKernelHeapMemory
+ * Checks for memory access that was (kernel) heap related and valid */
+OsStatus_t
+DebugPageFaultKernelHeapMemory(
+    _In_ Context_t* Context,
+    _In_ uintptr_t  Address)
+{
+    if (HeapValidateAddress(HeapGetKernel(), Address) == OsSuccess) {
+        // Try to map it in and return the result
+        return AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &Address, 
+            AddressSpaceGetPageSize(), ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
+    }
+    return OsError;
+}
+
+/* DebugPageFaultProcessHeapMemory
+ * Checks for memory access that was (process) heap related and valid */
+OsStatus_t
+DebugPageFaultProcessHeapMemory(
+    _In_ Context_t* Context,
+    _In_ uintptr_t  Address)
+{
+    // Variables
+    MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
+
+    if (Ash != NULL) {
+        if (BlockBitmapValidateState(Ash->Heap, Address, 1) == OsSuccess) {
+            // Try to map it in and return the result
+            return AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &Address, 
+                AddressSpaceGetPageSize(), ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
+        }
+    }
+    return OsSuccess;
+}
+
+/* DebugPageFaultProcessSharedMemory
+ * Checks for memory access that was io-space related and valid */
+OsStatus_t
+DebugPageFaultProcessSharedMemory(
+    _In_ Context_t* Context,
+    _In_ uintptr_t  Address)
+{
+    // Variables
+    MCoreAshFileMapping_t *Mapping  = NULL;
+    MCoreAsh_t *Ash                 = PhoenixGetCurrentAsh();
+
+    if (Ash != NULL) {
+        // Iterate file-mappings
+        foreach(Node, Ash->FileMappings) {
+            Mapping = (MCoreAshFileMapping_t*)Node->Data;
+            if (ISINRANGE(Address, Mapping->VirtualBase, (Mapping->VirtualBase + Mapping->Length) - 1)) {
+                // Oh, woah, file-mapping
+                FATAL(FATAL_SCOPE_KERNEL, "Not implemented yet, handle file-mapping reads");
+            }
+        }
+
+        // Validate through the bitmap to make sure
+        if (BlockBitmapValidateState(Ash->Shm, Address, 1) == OsSuccess) {
+            // Try to map it in and return the result
+            return AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &Address, 
+                AddressSpaceGetPageSize(), ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
+        }
+    }
+    return OsError;
+}
+
+/* DebugPageFaultThreadMemory
+ * Checks for memory access that was io-space related and valid */
+OsStatus_t
+DebugPageFaultThreadMemory(
+    _In_ Context_t* Context,
+    _In_ uintptr_t  Address)
+{
+    // Try to map it in and return the result
+    return AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &Address, 
+                AddressSpaceGetPageSize(), ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
+}
+
+/* DebugInstallPageFaultHandlers
+ * Install page-fault handlers. Should be called as soon as memory setup phase is done */
+OsStatus_t
+DebugInstallPageFaultHandlers(void)
+{
+    // Debug
+    TRACE("DebugInstallPageFaultHandlers()");
+
+    // Io memory handler
+    PageFaultHandlers[0].AreaStart      = MEMORY_LOCATION_RING3_IOSPACE;
+    PageFaultHandlers[0].AreaEnd        = MEMORY_LOCATION_RING3_IOSPACE_END;
+    PageFaultHandlers[0].AreaHandler    = DebugPageFaultIoMemory;
+
+    // Heap memory handler
+    PageFaultHandlers[1].AreaStart      = MEMORY_LOCATION_HEAP;
+    PageFaultHandlers[1].AreaEnd        = MEMORY_LOCATION_HEAP_END;
+    PageFaultHandlers[1].AreaHandler    = DebugPageFaultKernelHeapMemory;
+
+    // Process heap memory handler
+    PageFaultHandlers[2].AreaStart      = MEMORY_LOCATION_RING3_HEAP;
+    PageFaultHandlers[2].AreaEnd        = MEMORY_LOCATION_RING3_SHM;
+    PageFaultHandlers[2].AreaHandler    = DebugPageFaultProcessHeapMemory;
+
+    // Process shared memory handler
+    PageFaultHandlers[3].AreaStart      = MEMORY_LOCATION_RING3_SHM;
+    PageFaultHandlers[3].AreaEnd        = MEMORY_LOCATION_RING3_IOSPACE;
+    PageFaultHandlers[3].AreaHandler    = DebugPageFaultProcessSharedMemory;
+
+    // Thread-specific memory handler
+    PageFaultHandlers[4].AreaStart      = MEMORY_LOCATION_RING3_THREAD_START;
+    PageFaultHandlers[4].AreaEnd        = MEMORY_LOCATION_RING3_THREAD_END;
+    PageFaultHandlers[4].AreaHandler    = DebugPageFaultThreadMemory;
+    return OsSuccess;
 }
 
 /* Disassembles Memory */
