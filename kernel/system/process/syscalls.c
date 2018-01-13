@@ -155,20 +155,27 @@ ScProcessSpawn(
 /* ScProcessJoin
  * This waits for a child process to 
  * finish executing and returns it's exit-code */
-int ScProcessJoin(UUId_t ProcessId)
+OsStatus_t
+ScProcessJoin(
+	_In_  UUId_t    ProcessId,
+    _In_  size_t    Timeout,
+    _Out_ int*      ExitCode)
 {
-    /* Wait for process */
+    // Variables
     MCoreAsh_t *Process = PhoenixGetAsh(ProcessId);
-
-    /* Sanity */
-    if (Process == NULL)
-        return -1;
-
-    /* Sleep */
-    SchedulerThreadSleep((uintptr_t*)Process, 0);
-
-    /* Return the exit code */
-    return Process->Code;
+    int SleepResult     = 0;
+    
+    if (Process == NULL) {
+        return OsError;
+    }
+    SleepResult = SchedulerThreadSleep((uintptr_t*)Process, Timeout);
+    if (SleepResult == SCHEDULER_SLEEP_OK) {
+        if (ExitCode != NULL) {
+            *ExitCode = Process->Code;
+        }
+        return OsSuccess;
+    }
+    return OsError;
 }
 
 /* Attempts to kill the process 

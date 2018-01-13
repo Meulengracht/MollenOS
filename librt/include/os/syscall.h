@@ -45,7 +45,7 @@ _CODE_END
 #define Syscall_ProcessExit(ExitCode) (OsStatus_t)syscall1(1, SCPARAM(ExitCode))
 #define Syscall_ProcessId(ProcessId) (OsStatus_t)syscall1(2, SCPARAM(ProcessId))
 #define Syscall_ProcessSpawn(Path, StartupInformation, Async) (UUId_t)syscall3(3, SCPARAM(Path), SCPARAM(StartupInformation), SCPARAM(Async))
-#define Syscall_ProcessJoin(ProcessId) syscall1(4, SCPARAM(ProcessId))
+#define Syscall_ProcessJoin(ProcessId, Timeout, ExitCode) (OsStatus_t)syscall3(4, SCPARAM(ProcessId), SCPARAM(Timeout), SCPARAM(ExitCode))
 #define Syscall_ProcessKill(ProcessId) (OsStatus_t)syscall1(5, SCPARAM(ProcessId))
 #define Syscall_ProcessSignal(Handler) (OsStatus_t)syscall1(6, SCPARAM(Handler))
 #define Syscall_ProcessRaise(ProcessId, Signal) (OsStatus_t)syscall2(7, SCPARAM(ProcessId), SCPARAM(Signal))

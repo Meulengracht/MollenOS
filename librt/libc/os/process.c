@@ -28,19 +28,19 @@
 
 /* Includes
  * - Library */
+#include <errno.h>
 #include <stddef.h>
 #include <string.h>
 
 /* ProcessSpawn
- * Spawns a new process by the given path and
- * optionally the given parameters are passed 
+ * Spawns a new process by the given path and optionally the given parameters are passed 
  * returns UUID_INVALID in case of failure unless Asynchronous is set
  * then this call will always result in UUID_INVALID. */
 UUId_t 
 ProcessSpawn(
-	_In_ __CONST char *Path,
-	_In_Opt_ __CONST char *Arguments,
-	_In_ int Asynchronous)
+	_In_     const char*    Path,
+	_In_Opt_ const char*    Arguments,
+	_In_     int            Asynchronous)
 {
     // Variables
     ProcessStartupInformation_t StartupInformation;
@@ -65,24 +65,25 @@ ProcessSpawn(
  * then this call will always result in UUID_INVALID. */
 UUId_t
 ProcessSpawnEx(
-	_In_ __CONST char *Path,
-	_In_ __CONST ProcessStartupInformation_t *StartupInformation,
-	_In_ int Asynchronous) {
+	_In_ const char*                        Path,
+	_In_ const ProcessStartupInformation_t* StartupInformation,
+	_In_ int                                Asynchronous) {
 	return Syscall_ProcessSpawn(Path, StartupInformation, Asynchronous);
 }
 
 /* ProcessJoin
  * Waits for the given process to terminate and
  * returns the return-code the process exit'ed with */
-int 
+OsStatus_t 
 ProcessJoin(
-	_In_ UUId_t Process)
-{
-	/* Sanitize the given id */
-	if (Process == UUID_INVALID) {
-		return -1;
+	_In_  UUId_t    ProcessId,
+    _In_  size_t    Timeout,
+    _Out_ int*      ExitCode) {
+	if (ProcessId == UUID_INVALID || ExitCode == NULL) {
+        _set_errno(EINVAL);
+		return OsError;
 	}
-	return Syscall_ProcessJoin(Process);
+	return Syscall_ProcessJoin(ProcessId, Timeout, ExitCode);
 }
 
 /* ProcessKill

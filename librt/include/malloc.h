@@ -30,6 +30,7 @@
 #define MALLINFO_FIELD_TYPE size_t
 #endif  /* MALLINFO_FIELD_TYPE */
 
+#ifndef _STRUCT_MALLINFO
 #define _STRUCT_MALLINFO
 #define STRUCT_MALLINFO_DECLARED 1
 struct mallinfo {

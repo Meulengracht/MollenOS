@@ -35,24 +35,25 @@
  * Contains information about the process startup. Can be queried
  * from the operating system during process startup. */
 typedef struct _ProcessStartupInformation {
-    __CONST char                *ArgumentPointer;
-    size_t                       ArgumentLength;
-    __CONST char                *InheritanceBlockPointer;
-    size_t                       InheritanceBlockLength;
+    const char*     ArgumentPointer;
+    size_t          ArgumentLength;
+    const char*     InheritanceBlockPointer;
+    size_t          InheritanceBlockLength;
+    int             InheritStdHandles;
+    size_t          MemoryLimit;
 } ProcessStartupInformation_t;
 
 _CODE_BEGIN
 /* ProcessSpawn
- * Spawns a new process by the given path and
- * optionally the given parameters are passed 
+ * Spawns a new process by the given path and optionally the given parameters are passed 
  * returns UUID_INVALID in case of failure unless Asynchronous is set
  * then this call will always result in UUID_INVALID. */
 CRTDECL(
 UUId_t,
 ProcessSpawn(
-	_In_ __CONST char *Path,
-	_In_Opt_ __CONST char *Arguments,
-	_In_ int Asynchronous));
+	_In_     const char*    Path,
+	_In_Opt_ const char*    Arguments,
+	_In_     int            Asynchronous));
 
 /* ProcessSpawnEx
  * Spawns a new process by the given path and the given startup information block. 
@@ -61,17 +62,19 @@ ProcessSpawn(
 CRTDECL(
 UUId_t,
 ProcessSpawnEx(
-	_In_ __CONST char *Path,
-	_In_ __CONST ProcessStartupInformation_t *StartupInformation,
-	_In_ int Asynchronous));
+	_In_ const char*                        Path,
+	_In_ const ProcessStartupInformation_t* StartupInformation,
+	_In_ int                                Asynchronous));
 
 /* ProcessJoin
  * Waits for the given process to terminate and
  * returns the return-code the process exit'ed with */
 CRTDECL( 
-int,
+OsStatus_t,
 ProcessJoin(
-	_In_ UUId_t Process));
+	_In_  UUId_t    ProcessId,
+    _In_  size_t    Timeout,
+    _Out_ int*      ExitCode));
 
 /* ProcessKill
  * Terminates the process with the given id */

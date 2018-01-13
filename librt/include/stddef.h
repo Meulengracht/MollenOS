@@ -25,17 +25,19 @@
 
 #if !defined(__STDDEF_H) || defined(__need_ptrdiff_t) ||                       \
     defined(__need_size_t) || defined(__need_wchar_t) ||                       \
-    defined(__need_NULL) || defined(__need_wint_t)
+    defined(__need_NULL) || defined(__need_wint_t) ||                          \
+    defined(__need_ssize_t) 
 
 #if !defined(__need_ptrdiff_t) && !defined(__need_size_t) &&                   \
     !defined(__need_wchar_t) && !defined(__need_NULL) &&                       \
-    !defined(__need_wint_t)
+    !defined(__need_wint_t) && !defined(__need_ssize_t)
 /* Always define miscellaneous pieces when modules are available. */
 #if !__has_feature(modules)
 #define __STDDEF_H
 #endif
 #define __need_ptrdiff_t
 #define __need_size_t
+#define __need_ssize_t
 #define __need_wchar_t
 #define __need_NULL
 #define __need_STDDEF_H_misc
@@ -63,6 +65,21 @@ typedef __SIZE_TYPE__ size_t;
 #endif
 #undef __need_size_t
 #endif /*defined(__need_size_t) */
+
+#if defined(__need_ssize_t)
+#if !defined(_SSIZE_T) || __has_feature(modules)
+/* Always define size_t when modules are available. */
+#if !__has_feature(modules)
+#define _SSIZE_T
+#endif
+#if defined (_X86_64)
+typedef long long ssize_t;
+#else
+typedef long ssize_t;
+#endif
+#endif
+#undef __need_ssize_t
+#endif /*defined(__need_ssize_t) */
 
 #if defined(__need_STDDEF_H_misc)
 /* ISO9899:2011 7.20 (C11 Annex K): Define rsize_t if __STDC_WANT_LIB_EXT1__ is

@@ -51,7 +51,7 @@ typedef uint32_t                    reg32_t;
 typedef uint64_t                    reg64_t;
 
 /* Variable Width */
-#if defined(_X86_32) || defined(i386)
+#if defined(_X86_32) || (defined(i386) || defined(__i386__))
 #define __BITS                      32
 #define __MASK                      0xFFFFFFFF
 typedef unsigned int                PhysicalAddress_t;

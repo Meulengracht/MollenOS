@@ -32,7 +32,9 @@
  * Definitions, prototypes and typedefs. */
 #define TSS_DTOR_ITERATIONS     4
 #define ONCE_FLAG_INIT          ATOMIC_VAR_INIT(1)
+#if !defined(__cplusplus)
 #define thread_local _Thread_local
+#endif
 typedef _Atomic(int) once_flag;
 typedef unsigned int tss_t;
 typedef int (*thrd_start_t)(void*);

@@ -31,9 +31,9 @@
  * Opens or creates a new directory and returns a handle to it. */
 int
 _opendir(
-    _In_  const char*               path,
-    _In_  int                       flags,
-    _Out_ struct directory_handle** handle)
+    _In_  const char*   path,
+    _In_  int           flags,
+    _Out_ struct DIR**  handle)
 {
     // Variables
     FileSystemCode_t Code   = FsOk;
@@ -65,7 +65,7 @@ _opendir(
     }
 
     // Setup out
-    *handle = (struct directory_handle*)malloc(sizeof(struct directory_handle));
+    *handle = (struct DIR*)malloc(sizeof(struct DIR));
     (*handle)->d_handle = FileHandle;
     (*handle)->d_index  = -1;
     return 0;
@@ -75,7 +75,7 @@ _opendir(
  * Closes a directory handle. Releases any resources and frees the handle. */
 int
 _closedir(
-    _In_ struct directory_handle *handle)
+    _In_ struct DIR *handle)
 {
     // Variables
     FileSystemCode_t Code   = FsOk;
@@ -100,8 +100,8 @@ _closedir(
  * for the directory handle. */
 int
 _readdir(
-    _In_ struct directory_handle*   handle, 
-    _In_ struct directory_entry*    entry)
+    _In_ struct DIR*    handle, 
+    _In_ struct DIRENT* entry)
 {
     // Variables
     ReadDirectoryPackage_t DirEntry;
@@ -121,7 +121,7 @@ _readdir(
 
     // Convert to c structure
     handle->d_index++;
-    memset(entry, 0, sizeof(struct directory_entry));
+    memset(entry, 0, sizeof(struct DIRENT));
     entry->d_type = DirEntry.FileInformation.Flags;
     memcpy(entry->d_name, &DirEntry.FileName[0], strlen(&DirEntry.FileName[0]));
     return 0;

@@ -88,11 +88,11 @@
 /* Directory handling support. 
  * Structures contain basic information about the directory
  * and it's entries. */
-struct directory_handle {
+struct DIR {
     UUId_t d_handle;
     int    d_index;
 };
-struct directory_entry {
+struct DIRENT {
     Flags_t d_type;
     char    d_name[256];
 };
@@ -114,9 +114,9 @@ CRTDECL(long long,  _telli64(int fd));
 CRTDECL(int,        _chsize(int fd, long size));
 
 // directory interface
-CRTDECL(int,        _opendir(const char *path, int flags, struct directory_handle **handle));
-CRTDECL(int,        _closedir(struct directory_handle *handle));
-CRTDECL(int,        _readdir(struct directory_handle *handle, struct directory_entry *entry));
+CRTDECL(int,        _opendir(const char *path, int flags, struct DIR **handle));
+CRTDECL(int,        _closedir(struct DIR *handle));
+CRTDECL(int,        _readdir(struct DIR *handle, struct DIRENT *entry));
 
 // shared interface
 CRTDECL(int,        _link(const char *from, const char *to, int symbolic));
