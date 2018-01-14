@@ -16,22 +16,24 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * CppTest - Entry
+ * MollenOS - C Standard Library
+ * - File link implementation
  */
-#include <string>
-std::string mystring = "global init";
 
-int main(int argc, char **argv)
+/* Includes
+ * - System */
+#include <os/driver/file.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <stdio.h>
+
+/* rename
+ * Renames a file if the the directories/paths match. Otherwise
+ * the file will be moved. */
+int rename(
+	_In_ __CONST char * oldname, 
+	_In_ __CONST char * newname)
 {
-    int throw_me = 1;
-
-    try {
-        if (throw_me) {
-            throw new std::exception();
-        }
-    }
-    catch (std::exception ex) {
-        return -1;
-    }
-    return 0;
+    // @todo
+    return -1;
 }

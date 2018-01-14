@@ -3,8 +3,8 @@ INCLUDES = -I../include/cxx -I../include
 SOURCES = $(wildcard ./*.c)
 OBJECTS = $(SOURCES:.c=.o)
 
-CFLAGS = $(GCFLAGS) $(INCLUDES)
-LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtLibraryEntry $(GLIBRARIES)
+CFLAGS = $(GUCFLAGS) $(INCLUDES)
+LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtLibraryEntry $(GULIBRARIES)
 
 .PHONY: all
 all: ../lib/zlib.dll

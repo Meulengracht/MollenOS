@@ -71,7 +71,6 @@
 #define SIGCAT      36 /* Everybody loves cats */
 #define NUMSIGNALS  37
 
-_CODE_BEGIN
 #ifndef __SIGTYPE_DEFINED__
 #define __SIGTYPE_DEFINED__
 typedef	void (*__signalhandler_t)(int);
@@ -80,21 +79,10 @@ typedef	void (*__signalhandler_t)(int);
 #define SIG_IGN (__signalhandler_t)1
 #define SIG_ERR (__signalhandler_t)-1
 
-/* signal
- * Install a handler for the given signal. We allow handlers for
- * SIGINT, SIGSEGV, SIGTERM, SIGILL, SIGABRT, SIGFPE. */
-_CRTIMP
-__signalhandler_t
-__CRTDECL
-signal(
-    int _SigNum, 
-    __signalhandler_t _Func);
-
-_CRTIMP
-int
-__CRTDECL
-raise(
-    int _SigNum);
+/* We allow handlers for SIGINT, SIGSEGV, SIGTERM, SIGILL, SIGABRT, SIGFPE. */
+_CODE_BEGIN
+CRTDECL(__signalhandler_t, signal(int Sig, __signalhandler_t Func));
+CRTDECL(int,               raise(int Sig));
 _CODE_END
 
 #endif //__LIBC_SIGNAL__

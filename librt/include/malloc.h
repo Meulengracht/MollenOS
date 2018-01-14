@@ -30,6 +30,7 @@
 #define MALLINFO_FIELD_TYPE size_t
 #endif  /* MALLINFO_FIELD_TYPE */
 
+_CODE_BEGIN
 #ifndef _STRUCT_MALLINFO
 #define _STRUCT_MALLINFO
 #define STRUCT_MALLINFO_DECLARED 1
@@ -70,5 +71,6 @@ struct mallinfo {
   thus be inaccurate.
 */
 CRTDECL(struct mallinfo, mallinfo(void));
+_CODE_END
 
 #endif

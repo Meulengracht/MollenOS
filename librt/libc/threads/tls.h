@@ -31,6 +31,7 @@
 #include <threads.h>
 #include <wchar.h>
 
+_CODE_BEGIN
 /* Thread Local Storage
  * This is the structure that exists seperately for each running
  * thread, and can be retrieved with TLSGetCurrent() which returns
@@ -63,38 +64,26 @@ PACKED_TYPESTRUCT(thread_storage, {
 
 /* tls_current 
  * Retrieves the local storage space for the current thread */
-_CRTIMP
-thread_storage_t*
-tls_current(void);
+CRTDECL(thread_storage_t*, tls_current(void));
 
 /* tls_initialize
  * Initialises the TLS and allocates resources needed. 
  * Part of CRT initializaiton routines */
-_CRTIMP
-OsStatus_t
-tls_initialize(void);
+CRTDECL(OsStatus_t,        tls_initialize(void));
 
 /* tls_create
  * Initializes a new thread-storage space for the caller thread.
  * Part of CRT initialization routines. */
-_CRTIMP
-OsStatus_t 
-tls_create(
-    _In_ thread_storage_t *Tls);
+CRTDECL(OsStatus_t,        tls_create(thread_storage_t *Tls));
 
 /* tls_destroy
  * Destroys a thread-storage space should be called by thread crt */
-_CRTIMP
-OsStatus_t 
-tls_destroy(
-    _In_ thread_storage_t *Tls);
+CRTDECL(OsStatus_t,        tls_destroy(thread_storage_t *Tls));
 
 /* tls_cleanup
  * Destroys the TLS for the specific thread
  * by freeing resources and calling c11 destructors. */
-_CRTIMP
-OsStatus_t
-tls_cleanup(
-    _In_ thrd_t thr);
+CRTDECL(OsStatus_t,        tls_cleanup(thrd_t thr));
+_CODE_END
 
 #endif //!__STDC_TLS__

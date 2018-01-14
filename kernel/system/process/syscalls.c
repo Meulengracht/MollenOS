@@ -77,9 +77,9 @@ ScSystemDebug(
     return OsSuccess;
 }
 
-/***********************
- * Process Functions   *
- ***********************/
+/*******************************************************************************
+ * Process Extensions
+ *******************************************************************************/
 
 /* ScProcessSpawn
  * Spawns a new process with the given path
@@ -153,8 +153,8 @@ ScProcessSpawn(
 }
 
 /* ScProcessJoin
- * This waits for a child process to 
- * finish executing and returns it's exit-code */
+ * Wait for a given process to exit, optionaly specifying a timeout.
+ * The exit-code for the process will be returned. */
 OsStatus_t
 ScProcessJoin(
 	_In_  UUId_t    ProcessId,

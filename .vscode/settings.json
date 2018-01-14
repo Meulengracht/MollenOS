@@ -301,5 +301,6 @@
         "cstring": "c",
         "ctime": "c",
         "cerrno": "cpp"
-    }
+    },
+    "git.ignoreLimitWarning": true
 }

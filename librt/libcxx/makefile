@@ -2,9 +2,11 @@
 # This will produce the file libcxxabi.lib
 INCLUDES = -Icxx/include -I../include -Iabi/include/
 
-ABI_SOURCES = $(wildcard abi/src/*.cpp)
+INT_SOURCES = $(wildcard init/*.c)
+ABI_SOURCES = $(wildcard abi/src/*.cpp) $(wildcard init/*.cpp)
 CXX_SOURCES = $(wildcard cxx/src/*.cpp)
 SHR_SOURCES = main.cpp
+INT_OBJECTS = $(INT_SOURCES:.c=.o)
 ABI_OBJECTS = $(ABI_SOURCES:.cpp=.o)
 CXX_OBJECTS = $(CXX_SOURCES:.cpp=.o)
 SHR_OBJECTS = $(SHR_SOURCES:.cpp=.o)
@@ -13,6 +15,7 @@ SHR_OBJECTS = $(SHR_SOURCES:.cpp=.o)
 SHARED_CONFIG = $(GCXXFLAGS) -fstrict-aliasing -D_LIBCPP_ENABLE_CXX17_REMOVED_UNEXPECTED_FUNCTIONS -D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS -D_LIBCPP_BUILDING_LIBRARY
 ABI_CONFIG = -funwind-tables -DLIBCXXABI_USE_LLVM_UNWINDER -D_LIBCXXABI_BUILDING_LIBRARY -DHAVE___CXA_THREAD_ATEXIT_IMPL -D_LIBCXXABI_ENABLE_EXCEPTIONS
 CXX_CONFIG = -DLIBCXX_BUILDING_LIBCXXABI -DLIBCXXRT -D_LIBCPP_DISABLE_NEW_DELETE_DEFINITIONS
+CFLAGS = $(GCFLAGS) $(INCLUDES)
 CXXFLAGS = $(SHARED_CONFIG) $(INCLUDES)
 
 STT_LFLAGS = /lib
@@ -26,8 +29,8 @@ all-static: ../deploy/libcxx.lib
 .PHONY: all-shared
 all-shared: ../deploy/libcxx.dll
 
-../deploy/libcxx.lib: $(ABI_OBJECTS) $(CXX_OBJECTS)
-	$(LD) $(STT_LFLAGS) $(ABI_OBJECTS) $(CXX_OBJECTS) /out:$@
+../deploy/libcxx.lib: $(INT_OBJECTS) $(ABI_OBJECTS) $(CXX_OBJECTS)
+	$(LD) $(STT_LFLAGS) $(INT_OBJECTS) $(ABI_OBJECTS) $(CXX_OBJECTS) /out:$@
 
 ../deploy/libcxx.dll: $(ABI_OBJECTS) $(CXX_OBJECTS) $(SHR_OBJECTS)
 	$(LD) $(SHR_LFLAGS) $(ABI_OBJECTS) $(CXX_OBJECTS) $(SHR_OBJECTS) /out:$@
@@ -41,10 +44,14 @@ $(CXX_OBJECTS): %.o : %.cpp
 $(SHR_OBJECTS): %.o : %.cpp
 	$(CXX) -c $(CXXFLAGS) $(CXX_CONFIG) -o $@ $<
 
+%.o : %.c
+	$(CC) -c $(CFLAGS) -o $@ $<
+
 .PHONY: clean
 clean:
 	@rm -f ../deploy/libcxx.dll
 	@rm -f ../deploy/libcxx.lib
+	@rm -f $(INT_OBJECTS)
 	@rm -f $(ABI_OBJECTS)
 	@rm -f $(CXX_OBJECTS)
 	@rm -f $(SHR_OBJECTS)

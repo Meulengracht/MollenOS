@@ -3,8 +3,8 @@ INCLUDES = -I../include/cxx -I../include
 SOURCES = $(wildcard ./*.cpp)
 OBJECTS = $(SOURCES:.cpp=.o)
 
-CXXFLAGS = $(GCXXFLAGS) $(INCLUDES)
-LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtConsoleEntry $(GLIBRARIES)
+CXXFLAGS = $(GUCXXFLAGS) $(INCLUDES)
+LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtConsoleEntry $(GUCXXLIBRARIES)
 
 .PHONY: all
 all: ../build/cpptest.app

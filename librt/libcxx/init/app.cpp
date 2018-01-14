@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C Library - Entry Points
+ * MollenOS C++ Library - Entry Points
  */
 
 /* Includes 
@@ -27,7 +27,7 @@
 
 /* Includes 
  * - Library */
-#include "../libc/threads/tls.h"
+#include "../../libc/threads/tls.h"
 #include <stddef.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -35,26 +35,17 @@
 /* Extern
  * - C/C++ Initialization
  * - C/C++ Cleanup */
-__EXTERN int main(int argc, char **argv, char **envp);
-__EXTERN void __CrtCxxInitialize(void);
-__EXTERN void __CrtCxxFinalize(void);
+extern "C" {
+    extern int main(int argc, char **argv, char **envp);
+    extern void __CrtCxxInitialize(void);
+    extern void __CrtCxxFinalize(void);
 #ifndef __clang__
-CRTDECL(void, __CppInitVectoredEH(void));
+    CRTDECL(void, __CppInitVectoredEH(void));
 #endif
-
-/* StdioInitialize
- * Initializes default handles and resources */
-CRTDECL(void, StdioInitialize(void));
-
-/* StdSignalInitialize
- * Initializes the default signal-handler for the process. */
-CRTDECL(void, StdSignalInitialize(void));
-
-/* __cxa_runinitializers 
- * C++ Initializes library C++ runtime for all loaded modules */
-CRTDECL(void, __cxa_runinitializers(
-    _In_ void (*Initializer)(void), 
-    _In_ void (*Finalizers)(void)));
+    CRTDECL(void, StdioInitialize(void));
+    CRTDECL(void, StdSignalInitialize(void));
+    CRTDECL(void, __cxa_runinitializers(void (*Initializer)(void), void (*Finalizers)(void)));
+}
 
 /* Globals
  * Static buffer to avoid allocations for process startup information. */
@@ -199,7 +190,7 @@ __CrtInitialize(
 /* __CrtConsoleEntry
  * Console crt initialization routine. This spawns a new console
  * if no inheritance is given. */
-void
+extern "C" void
 __CrtConsoleEntry(void)
 {
 	// Variables

@@ -1,13 +1,11 @@
 # Makefile for building the standard c runtime-libraries for userspace
 # This will produce the file libcrt.lib, libsrv.lib, libdrv.lib
-ASFLAGS = -f win32 -Xvc
 
 INCLUDES = -I../include
 
-ASM_SRCS = $(wildcard vscrt/*.s)
 C_SRCS_ALL = $(wildcard vscrt/*.c) \
 			 $(wildcard ./*.c)
-OBJECTS_ALL = $(ASM_SRCS:.s=.o) $(C_SRCS_ALL:.c=.o)
+OBJECTS_ALL = $(C_SRCS_ALL:.c=.o)
 
 ifeq ($(MAKECMDGOALS),libcrt)
 	SOURCES = entry.c crtcoff.c library.c
@@ -46,9 +44,6 @@ libsrv: ../build/libsrv.lib
 
 %.o : %.c
 	$(CC) -c $(CFLAGS) -o $@ $<
-
-%.o : %.s
-	$(AS) $(ASFLAGS) $< -o $@
 
 .PHONY: clean
 clean:

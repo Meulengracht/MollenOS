@@ -32,7 +32,6 @@
 /* Extern
  * - C/C++ Initialization
  * - C/C++ Cleanup */
-__EXTERN int main(int argc, char **argv);
 __EXTERN void __CrtCxxInitialize(void);
 __EXTERN void __CrtCxxFinalize(void);
 #ifndef __clang__

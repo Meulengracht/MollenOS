@@ -2,10 +2,11 @@
 #
 
 ASM_SRCS = $(wildcard lib/builtins/$(arch)/*.S)
+ASM2_SRCS = $(wildcard lib/msvc/*.s)
 SOURCES = $(wildcard lib/builtins/*.c)
 INCLUDES = -I../include
 
-OBJECTS = $(ASM_SRCS:.S=.o) $(SOURCES:.c=.o)
+OBJECTS = $(ASM_SRCS:.S=.o) $(ASM2_SRCS:.s=.o) $(SOURCES:.c=.o)
 
 CFLAGS = $(GCFLAGS) -D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL -DCRTDLL $(INCLUDES)
 LFLAGS = /lib
@@ -21,6 +22,9 @@ all: ../build/libclang.lib
 
 %.o : %.S
 	$(CC) -c $(CFLAGS) -o $@ $<
+
+%.o : %.s
+	$(AS) -f win32 -Xvc $< -o $@
 
 .PHONY: clean
 clean:
