@@ -54,6 +54,14 @@
 #define __x86_64__ 1
 #endif
 
+#if defined(__i386__)
+#define __STDC_CONVENTION __cdecl
+#define ASMDECL(ReturnType, Function) ReturnType __cdecl Function
+#elif defined(__x86_64__)
+#define __STDC_CONVENTION
+#define ASMDECL(ReturnType, Function) ReturnType __cdecl Function
+#endif
+
 #if defined(__clang__)
     //  Clang 
     #define CRTEXPORT __declspec(dllexport)
@@ -96,10 +104,10 @@
 #define __STDC_DECORATION 
 #endif //!__OSLIB_C_SHAREDLIBRARY
 #endif //!__OSLIB_C_IMPLEMENTATION
-#define CRTDECL(ReturnType, Function) __STDC_DECORATION ReturnType Function
+#define CRTDECL(ReturnType, Function) __STDC_DECORATION ReturnType __STDC_CONVENTION Function
 #define CRTDECL_DATA(Type, Name) __STDC_DECORATION Type Name
 #ifdef __STDC_LIB_EXT1__
-#define CRTDECL_EX(ReturnType, Function) __STDC_DECORATION ReturnType Function
+#define CRTDECL_EX(ReturnType, Function) __STDC_DECORATION ReturnType __STDC_CONVENTION Function
 #else
 #define CRTDECL_EX(ReturnType, Function)
 #endif //!__STDC_LIB_EXT1__
@@ -155,13 +163,13 @@
 /* API Interfaces */
 #ifndef SERVICEAPI
 #define SERVICEAPI static __inline
-#define SERVICEABI __cdecl
+#define SERVICEABI __STDC_CONVENTION
 #endif
 
 /* Kernel Export for Modules */
 #ifndef KERNELAPI
 #define KERNELAPI __EXTERN
-#define KERNELABI __cdecl
+#define KERNELABI __STDC_CONVENTION
 #endif
 #endif
 

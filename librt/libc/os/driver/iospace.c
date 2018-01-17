@@ -32,12 +32,12 @@
 
 /* Externs, this is i/o
  * access and varies from architecture */
-__EXTERN uint8_t __readbyte(uint16_t Port);
-__EXTERN void __writebyte(uint16_t Port, uint8_t Value);
-__EXTERN uint16_t __readword(uint16_t Port);
-__EXTERN void __writeword(uint16_t Port, uint16_t Value);
-__EXTERN uint32_t __readlong(uint16_t Port);
-__EXTERN void __writelong(uint16_t Port, uint32_t Value);
+ASMDECL(uint8_t,  __readbyte(uint16_t Port));
+ASMDECL(void,     __writebyte(uint16_t Port, uint8_t Value));
+ASMDECL(uint16_t, __readword(uint16_t Port));
+ASMDECL(void,     __writeword(uint16_t Port, uint16_t Value));
+ASMDECL(uint32_t, __readlong(uint16_t Port));
+ASMDECL(void,     __writelong(uint16_t Port, uint32_t Value));
 
 /* Creates a new io-space and registers it with
  * the operation system, returns OsSuccess if it's 
@@ -117,7 +117,7 @@ size_t ReadIoSpace(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length)
 			case 4:
 				Result = *(uint32_t*)MmAddr;
 				break;
-#if defined(_X86_64)
+#if defined(__amd64__)
 			case 8:
 				Result = *(uint64_t*)MmAddr;
 				break;
@@ -170,7 +170,7 @@ void WriteIoSpace(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Value, size_t 
 			case 4:
 				*(uint32_t*)MmAddr = (uint32_t)(Value & 0xFFFFFFFF);
 				break;
-#if defined(_X86_64)
+#if defined(__amd64__)
 			case 8:
 				*(uint64_t*)MmAddr = (uint64_t)(Value & 0xFFFFFFFFFFFFFFFF);
 				break;

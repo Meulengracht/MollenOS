@@ -3,7 +3,7 @@
 # - drivers
 
 .PHONY: all
-all: build mfs ahci ohci uhci ehci msd hid $(arch)
+all: build mfs ahci ohci uhci ehci msd hid $(VALI_ARCH)
 
 build:
 	@mkdir -p $@
@@ -63,7 +63,7 @@ clean_amd64:
 
 # Cleanup - shared
 .PHONY: clean
-clean: clean_$(arch)
+clean: clean_$(VALI_ARCH)
 	$(MAKE) -C filesystems/mfs -f makefile clean
 	$(MAKE) -C storage/ahci -f makefile clean
 	$(MAKE) -C storage/msd -f makefile clean

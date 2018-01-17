@@ -49,7 +49,15 @@ jmp Entry
 %define 		MEMLOCATION_FLOAD_LOWER			0xB000 
 %define 		MEMLOCATION_KERNEL_UPPER		0x100000
 %define 		MEMLOCATION_RAMDISK_UPPER		0x200000
+
+; Unpack area will be not used afterwards and will then be used for 
+; initial page directory in 64 bit. We will need 0x4000 space
 %define			MEMLOCATION_UNPACK_AREA			0x300000
+%define         MEMLOCATION_PML4T               0x300000
+%define         MEMLOCATION_PDPT                0x301000
+%define         MEMLOCATION_PDT                 0x302000
+%define         MEMLOCATION_PT                  0x303000
+
 
 ; Includes
 %include "systems/common.inc"
@@ -371,11 +379,18 @@ Entry32:
 	rep		movsd
 
 	; Setup Cpu
-	call	CpuInit
+%ifdef __amd64__
+	call	CpuDetect64
+    cmp     eax, 1
+    jne     Skip64BitMode
 
 	; If eax is set to 1, 
 	; we will enter 64 bit mode instead (todo)
+    call    CpuSetupLongMode
+    jmp     CODE64_DESC:LoadKernel64
+%endif
 
+Skip64BitMode:
 	; Setup Registers
 	xor 	esi, esi
 	xor 	edi, edi
@@ -391,6 +406,43 @@ Entry32:
 
 	; Safety
 EndOfStage:
+	cli
+	hlt
+
+align 64
+; ****************************
+; 64 Bit Stage Below 
+; ****************************
+BITS 64
+
+LoadKernel64:
+    xor 	eax, eax
+	mov 	ax, DATA64_DESC
+	mov 	ds, ax
+	mov 	fs, ax
+	mov 	gs, ax
+	mov 	ss, ax
+	mov 	es, ax
+	mov 	rsp, 0x7BFF
+
+    ; Setup Registers
+	xor 	rsi, rsi
+	xor 	rdi, rdi
+    xor     rax, rax
+    xor     rbx, rbx
+    xor     rcx, rcx
+	mov 	ecx, dword [dKernelEntry]
+	mov 	eax, MULTIBOOT_MAGIC
+	mov 	ebx, BootHeader
+
+	; MultiBoot structure also needs to be on stack
+	push 	rbx
+
+	; Jump to kernel (Entry Point in ECX)
+	jmp 	rcx
+
+	; Safety
+EndOfStage64:
 	cli
 	hlt
 

@@ -6,12 +6,24 @@
 # Required environmental stuff:
 # - CROSS=/path/to/cross/home
 #
-export arch = i386
 export CC = $(CROSS)/bin/clang
 export CXX = $(CROSS)/bin/clang++
 export LD = $(CROSS)/bin/lld-link
 export LIB = $(CROSS)/bin/llvm-lib
 export AS = nasm
+
+# Check for architecture
+ifeq ($(VALI_ARCH), i386)
+	build_target = target_i386
+	arch_flags = -m32 -Di386 -D__i386__ --target=i386-pc-win32-itanium-coff 
+	link_flags = /machine:X86
+else ifeq ($(VALI_ARCH), amd64)
+	build_target = target_amd64
+	arch_flags = -m64 -Damd64 -D__x86_64__ --target=amd64-pc-win32-itanium-coff
+	link_flags = /machine:X64
+else
+$(error VALI_ARCH is not set to a valid value)
+endif
 
 # MollenOS Configuration, comment in or out for specific features
 config_flags = 
@@ -33,6 +45,7 @@ config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE # Use a full debug console on heig
 #config_flags += -D__OSCONFIG_DISABLE_VIOARR # Disable auto starting the windowing system
 
 # Before building llvm, one must export $(INCLUDES) to point at the include directory (full path)
+# Before building llvm, one must export $(LIBRARIES) to point at the lib directory (full path)
 # One must also specify $(CROSS) as per default
 #cmake -G "Unix Makefiles" -DMOLLENOS=True -DCMAKE_CROSSCOMPILING=True -DLLVM_TABLEGEN=llvm-tblgen -DLLVM_DEFAULT_TARGET_TRIPLE=i386-pc-win32-itanium-coff -DCMAKE_C_FLAGS=' -U_WIN32 -m32 -fms-extensions -Wall -ffreestanding -nostdlib -nostdinc -O3 -DMOLLENOS -Di386 -I$(INCLUDES)/cxx -I$(INCLUDES)' -DCMAKE_CXX_FLAGS=' -U_WIN32 -m32 -fms-extensions -Wall -ffreestanding -nostdlib -nostdinc -O3 -DMOLLENOS -Di386 -I$(INCLUDES)/cxx -I$(INCLUDES)' -DLLVM_ENABLE_EH=True -DLLVM_ENABLE_RTTI=True -DCMAKE_BUILD_TYPE=Release -DLLVM_INCLUDE_TESTS=Off -DLLVM_INCLUDE_EXAMPLES=Off -DCMAKE_C_COMPILER=$CROSS/bin/clang -DCMAKE_CXX_COMPILER=$CROSS/bin/clang++ -DCMAKE_LINKER=$CROSS/bin/lld-link -DLLVM_USE_LINKER=$CROSS/bin/lld VERBOSE=1 ../llvm
 #cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../llvm/cmake/platforms/Vali.cmake ../llvm
@@ -41,19 +54,19 @@ config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE # Use a full debug console on heig
 # -std=c11 enables c11 support for C compilation
 # -gdwarf enables dwarf debugging generation, should be used ... -fexceptions -fcxx-exceptions
 disable_warnings = -Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function
-shared_flags = -U_WIN32 -m32 -fms-extensions -Wall -nostdlib -nostdinc -O3 -DMOLLENOS -D$(arch)
+shared_flags = -U_WIN32 -fms-extensions -Wall -nostdlib -nostdinc -O3 -DMOLLENOS 
 
 # Kernel + Kernel environment compilation flags
-export ASFLAGS = -f bin
-export GCFLAGS = $(shared_flags) -ffreestanding $(disable_warnings) $(config_flags)
-export GCXXFLAGS = -std=c++17 -ffreestanding $(shared_flags) $(disable_warnings) $(config_flags)
+export ASFLAGS = -f bin -D$(VALI_ARCH)
+export GCFLAGS = $(shared_flags) $(arch_flags) -ffreestanding $(disable_warnings) $(config_flags)
+export GCXXFLAGS = -std=c++17 -ffreestanding $(shared_flags) $(arch_flags) $(disable_warnings) $(config_flags)
 
 # Shared link flags for everything. /debug:dwarf
-export GLFLAGS = /nodefaultlib /machine:X86 /subsystem:native
+export GLFLAGS = /nodefaultlib $(link_flags) /subsystem:native
 
 # Userspace environment compilation flags
-export GUCFLAGS = $(shared_flags) $(disable_warnings) $(config_flags)
-export GUCXXFLAGS = -std=c++17 $(shared_flags) $(disable_warnings) $(config_flags)
+export GUCFLAGS = $(shared_flags) $(arch_flags) $(disable_warnings) $(config_flags)
+export GUCXXFLAGS = -std=c++17 $(shared_flags) $(arch_flags) $(disable_warnings) $(config_flags)
 export GUCLIBRARIES = ../lib/libcrt.lib ../lib/libclang.lib ../lib/libc.lib ../lib/libunwind.lib
 export GUCXXLIBRARIES = ../lib/libcxx.lib ../lib/libclang.lib ../lib/libc.lib ../lib/libunwind.lib
 
@@ -81,7 +94,7 @@ gen_revision:
 	./revision build clang
 	cp revision.h kernel/include/revision.h
 
-.PHONE: build_userspace
+.PHONY: build_userspace
 build_userspace:
 	$(MAKE) -C userspace -f makefile
 
@@ -112,7 +125,7 @@ install_shared:
 	cp -a resources/system/. deploy/hdd/system/
 	cp -a resources/shared/. deploy/hdd/shared/
 	cp -a boot/build/. deploy/
-	./rd $(arch) initrd.mos
+	./rd $(VALI_ARCH) initrd.mos
 	./lzss c initrd.mos deploy/hdd/system/initrd.mos
 	./lzss c kernel/build/syskrnl.mos deploy/hdd/system/syskrnl.mos
 	cp librt/build/*.lib deploy/hdd/shared/lib/

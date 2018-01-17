@@ -1,15 +1,25 @@
 # Makefile for building the standard c-libraries for both userspace and kernel
 # - libds
 # - libdsk
-ASM_SRCS = $(wildcard arch/$(arch)/*.s) \
-		   $(wildcard ../libos/arch/$(arch)/*.s)
+ASM_SRCS = $(wildcard arch/$(VALI_ARCH)/*.s) \
+		   $(wildcard ../libos/arch/$(VALI_ARCH)/*.s)
 
-ASFLAGS = -f win32 -Xvc
+# Setup architecture specific flags and paths
+ifeq ($(VALI_ARCH), i386)
+	ASFLAGS = -f win32 -Xvc
+	KERNEL_INCLUDES = -I../../kernel/include \
+				      -I../../kernel/arch/x86/x32
+else ifeq ($(VALI_ARCH), amd64)
+	ASFLAGS = -f win64 -Xvc
+	KERNEL_INCLUDES = -I../../kernel/include \
+				      -I../../kernel/arch/x86/x64
+else
+$(error VALI_ARCH is not set to a valid value)
+endif
+
 COMMON_INCLUDES = -I../include
 COMMON_SOURCES = $(wildcard *.c)
 
-KERNEL_INCLUDES = -I../../kernel/include \
-				  -I../../kernel/arch/x86/x32
 KERNEL_SOURCES = $(COMMON_SOURCES) support/dsk.c
 KERNEL_OBJECTS = $(KERNEL_SOURCES:.c=.o)
 

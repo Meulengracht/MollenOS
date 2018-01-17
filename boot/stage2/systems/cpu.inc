@@ -28,25 +28,93 @@
 BITS 32
 
 ; **************************
-; CpuInit 
+; CpuDetect64 
 ; Out:
 ;   - EAX: 1 if 64 bit is ok, 0 if stay in 32 bit
 ;
 ; Registers:
 ; 	- Conserves all
 ; **************************
-CpuInit:
-	; Save registers
+CpuDetect64:
 	pushad
 
-	
+    ; Use cpuid to detect features
+    mov     eax, 0x80000001
+    cpuid
+    test    edx, 0x20000000
+    jz      .NotSupported
+    popad
+	mov 	eax, 1
+    ret
 
-	; Done
-	popad
-	mov 	eax, 0
-	ret
+    .NotSupported:
+        popad
+        xor     eax, eax
+        ret
 
+; **************************
+; CpuSetupLongMode 
+; Out:
+;   - EAX: 1 if ok 0 if error
+;
+; Registers:
+; 	- Conserves all
+; **************************
+CpuSetupLongMode:
+	pushad
 
+    ; Initialize the PM4LT and set CR3 to it
+    ; This zeroes out all memory needed for paging 
+    mov     edi, MEMLOCATION_PML4T
+    mov     cr3, edi
+    xor     eax, eax
+    mov     ecx, 0x1000
+    rep     stosd
+    mov     edi, cr3
 
+    ; Make PM4LT[0] => PDPT and set PAGE_PRESENT | PAGE_WRITE
+    mov     dword [edi], MEMLOCATION_PDPT
+    or      dword [edi], 0x00000003
+
+    ; Make PDPT[0] => PDT and set PAGE_PRESENT | PAGE_WRITE
+    mov     edi, MEMLOCATION_PDPT
+    mov     dword [edi], MEMLOCATION_PDT
+    or      dword [edi], 0x00000003
+
+    ; Make PDT[0] => PT and set PAGE_PRESENT | PAGE_WRITE
+    mov     edi, MEMLOCATION_PDT
+    mov     dword [edi], MEMLOCATION_PT
+    or      dword [edi], 0x00000003
+
+    ; Setup the page-table to be identity mapped to the first 4mb
+    ; and mark the pages for PAGE_PRESENT | PAGE_WRITE
+    mov     edi, MEMLOCATION_PT
+    mov     ebx, 0x00000003
+    mov     ecx, 512
+
+    .SetPageTableEntry:
+        mov     dword [edi], ebx
+        add     ebx, 0x00001000
+        add     edi, 8
+        loop    .SetPageTableEntry
+        
+    ; Enable PAE paging
+    mov     eax, cr4
+    or      eax, 0x20
+    mov     cr4, eax
+
+    ; Switch to compatability mode
+    mov     ecx, 0xC0000080
+    rdmsr
+    or      eax, 0x100
+    wrmsr
+
+    ; Enable paging
+    mov     eax, cr0
+    or      eax, 0x80000000
+    mov     cr0, eax
+
+    popad
+    ret
 
 %endif

@@ -4,7 +4,7 @@
 # - arch sub-layer
 INCLUDES = -I../../librt/include -I../acpica/include -I../include
 
-ifeq ($(arch),i386)
+ifeq ($(VALI_ARCH),i386)
     INCLUDES += -Ix86 -Ix86/x32
     SOURCES = $(wildcard x86/components/*.c) \
 			  $(wildcard x86/interrupts/apic/*.c) \
@@ -20,8 +20,12 @@ ifeq ($(arch),i386)
 			   $(wildcard x86/x32/*.s)
 	ASFLAGS = -f win32 -Xvc
 	HPATH = x86/x32/arch.h
+else ifeq ($(VALI_ARCH),amd64)
+	INCLUDES += -Ix86 -Ix86/x64
+	ASFLAGS = -f win64 -Xvc
+	HPATH = x86/x64/arch.h
 else
-
+$(error VALI_ARCH is not set to a valid value)
 endif
 
 OBJECTS = $(ASSEMBLY:.s=.o) $(SOURCES:.c=.o)
@@ -29,7 +33,7 @@ CFLAGS = $(GCFLAGS) -D_KAPI -DLIBC_KERNEL -DUNICODE -Wno-address-of-packed-membe
 LFLAGS = /lib
 
 .PHONY: all
-all: header ../build/$(arch).lib
+all: header ../build/$(VALI_ARCH).lib
 
 .PHONY: header
 header:
@@ -47,5 +51,5 @@ header:
 .PHONY: clean
 clean:
 	rm -f ../include/arch.h
-	rm -f ../build/$(arch).lib
+	rm -f ../build/$(VALI_ARCH).lib
 	rm -f $(OBJECTS)

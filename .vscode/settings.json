@@ -300,7 +300,8 @@
         "cstdlib": "c",
         "cstring": "c",
         "ctime": "c",
-        "cerrno": "cpp"
+        "cerrno": "cpp",
+        "*.gen": "c"
     },
     "git.ignoreLimitWarning": true
 }

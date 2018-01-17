@@ -60,7 +60,7 @@ __setjmp:
 	mov r8, [rsp]
 
 	; Save state
-    mov qword ptr [rcx + REGISTER_FRAME], 0
+    mov qword [rcx + REGISTER_FRAME], 0
     mov [rcx + REGISTER_BX], rbx
     mov [rcx + REGISTER_BP], rbp
     mov [rcx + REGISTER_SI], rsi
@@ -99,7 +99,7 @@ __setjmpex:
 	mov r8, [rsp]
 
 	; Save state
-    mov qword ptr [rcx + REGISTER_FRAME], 0
+    mov qword [rcx + REGISTER_FRAME], 0
     mov [rcx + REGISTER_BX], rbx
     mov [rcx + REGISTER_BP], rbp
     mov [rcx + REGISTER_SI], rsi
