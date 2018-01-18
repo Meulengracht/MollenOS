@@ -23,7 +23,7 @@ build/libk.lib:
 build/libds.lib:
 	$(MAKE) -C libds -f makefile libds
 
-build/libds.lib:
+build/libdsk.lib:
 	$(MAKE) -C libds -f makefile libdsk
 
 build/libclang.lib:

@@ -40,7 +40,7 @@ LFLAGS = /lib
 libdsk: ../build/libdsk.lib
 
 .PHONY: libds
-libdsk: ../build/libds.lib
+libds: ../build/libds.lib
 
 ../build/libds.lib: $(OBJECTS)
 	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
