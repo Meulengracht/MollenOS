@@ -28,10 +28,10 @@
  * - C/C++ Cleanup */
 extern void dllmain(int action);
 extern "C" {
-    void __CrtCxxInitialize(void);
-    void __CrtCxxFinalize(void);
-    CRTDECL(void, __cxa_finalize(void *Dso));
-    void *__dso_handle;
+    extern void __CrtCxxInitialize(void);
+    extern void __CrtCxxFinalize(void);
+    extern CRTDECL(void, __cxa_finalize(void *Dso));
+    extern void *__dso_handle;
 }
 
 /* __CrtLibraryEntry

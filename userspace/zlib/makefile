@@ -3,14 +3,16 @@ INCLUDES = -I../include/cxx -I../include
 SOURCES = $(wildcard ./*.c)
 OBJECTS = $(SOURCES:.c=.o)
 
-CFLAGS = $(GUCFLAGS) $(INCLUDES)
-LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtLibraryEntry $(GULIBRARIES)
+CONFIG_FLAGS = -DZLIB_DLL
+CFLAGS = $(GUCFLAGS) $(CONFIG_FLAGS) $(INCLUDES)
+LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtLibraryEntry $(GUCLIBRARIES)
 
 .PHONY: all
-all: ../lib/zlib.dll
+all: ../bin/zlib.dll
 
-../lib/zlib.dll: $(OBJECTS)
+../bin/zlib.dll: $(OBJECTS)
 	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	mv -f ../bin/zlib.lib ../lib/zlib.lib
 	
 %.o : %.c
 	$(CC) -c $(CFLAGS) -o $@ $<
@@ -19,4 +21,4 @@ all: ../lib/zlib.dll
 clean:
 	rm -f $(OBJECTS)
 	rm -f ../lib/zlib.lib
-	rm -f ../lib/zlib.dll
+	rm -f ../bin/zlib.dll

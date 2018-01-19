@@ -7,9 +7,9 @@ CXXFLAGS = $(GUCXXFLAGS) $(INCLUDES)
 LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtConsoleEntry $(GUCXXLIBRARIES)
 
 .PHONY: all
-all: ../build/cpptest.app
+all: ../bin/cpptest.app
 
-../build/cpptest.app: $(OBJECTS)
+../bin/cpptest.app: $(OBJECTS)
 	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 	
 %.o : %.cpp
@@ -18,4 +18,4 @@ all: ../build/cpptest.app
 .PHONY: clean
 clean:
 	rm -f $(OBJECTS)
-	rm -f ../build/cpptest.app
+	rm -f ../bin/cpptest.app

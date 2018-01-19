@@ -1,12 +1,24 @@
 # Makefile for building all applications and userspace related
 #
 
-.PHONY: all
-all: build copy_headers copy_libraries build/cpptest.app
+# Setup environment
+install_prefix = $(shell pwd)
+export INCLUDES = $(install_prefix)/include
+export LIBRARIES = $(install_prefix)/lib
 
-build:
+# Setup userspace environment
+# Always build test applications to make sure env is ok.
+.PHONY: all
+all: bin copy_headers copy_libraries build_cpptest
+
+# Build userspace applications, the order might be important.
+.PHONY: applications
+applications: build_zlib build_llvm
+
+bin:
 	mkdir -p $@
 
+.PHONY: copy_headers
 copy_headers:
 	mkdir -p include
 	mkdir -p include/ds
@@ -20,26 +32,32 @@ copy_headers:
 	cp -r ../librt/include/os/ include/
 	cp -r ../librt/libcxx/cxx/include/* include/cxx/
 
+.PHONY: copy_libraries
 copy_libraries:
 	mkdir -p lib
 	cp ../librt/build/*.lib lib/
 	cp ../librt/deploy/*.lib lib/
 
-build/zlib.dll:
+.PHONY: build_zlib
+build_zlib:
 	$(MAKE) -C zlib -f makefile
 
-build/cpptest.app:
+.PHONY: build_cpptest
+build_cpptest:
 	$(MAKE) -C cpptest -f makefile
 
-build/llvm.app:
+.PHONY: build_llvm
+build_llvm:
 	mkdir -p llvm_out
 	cd llvm_out
-	cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../llvm/cmake/platforms/Vali.cmake ../llvm
+	cmake -G "Unix Makefiles" -DCMAKE_INSTALL_PREFIX=$(install_prefix) -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../llvm/cmake/platforms/Vali.cmake ../llvm
 	make -j3
+	make install
 
 .PHONY: clean
 clean:
 	$(MAKE) -C cpptest -f makefile clean
-	@rm -rf build
+	$(MAKE) -C zlib -f makefile clean
+	@rm -rf bin
 	@rm -rf include
 	@rm -rf lib

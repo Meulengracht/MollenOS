@@ -73,9 +73,24 @@ MemoryFree(
 	if (Length == 0 || MemoryPointer == NULL) {
 		return OsError;
 	}
-
-	// Redirect call to OS - no post ops here
 	return Syscall_MemoryFree(MemoryPointer, Length);
+}
+
+/* MemoryProtect
+ * Changes the protection flags of a previous memory allocation
+ * made by MemoryAllocate */
+OsStatus_t
+MemoryProtect(
+    _In_  void*     MemoryPointer,
+	_In_  size_t    Length,
+    _In_  Flags_t   Flags,
+    _Out_ Flags_t*  PreviousFlags)
+{
+    // Sanitize parameters
+	if (Length == 0 || MemoryPointer == NULL) {
+		return OsError;
+	}
+    return Syscall_MemoryProtect(MemoryPointer, Length, Flags, PreviousFlags);
 }
 
 /* MemoryQuery
@@ -89,7 +104,5 @@ MemoryQuery(
 	if (Descriptor == NULL) {
 		return OsError;
 	}
-
-	// Redirect call to OS - no post ops here
 	return Syscall_MemoryQuery(Descriptor);
 }

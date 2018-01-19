@@ -12,6 +12,11 @@ __ftol2=_ftol2
 __ftol2_sse=_ftol2_sse
 __isnan
 __isfinite
+cos
+sin
+fmod
+atan2
+tan
 nan
 nanf
 pow
@@ -19,6 +24,7 @@ sqrt
 sqrtf
 sqrtl
 modf
+exp
 exp2
 exp2f
 log2

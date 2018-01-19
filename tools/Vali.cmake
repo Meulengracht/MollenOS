@@ -3,6 +3,14 @@
 ##################################################
 set(MOLLENOS ON)
 
+set(CMAKE_EXECUTABLE_SUFFIX     ".app")
+set(CMAKE_IMPORT_LIBRARY_SUFFIX ".dll.a")
+set(CMAKE_SHARED_LIBRARY_SUFFIX ".dll")
+set(CMAKE_SHARED_MODULE_SUFFIX  ".dll")
+set(CMAKE_STATIC_LIBRARY_SUFFIX ".a")
+
+set(CMAKE_LINK_DEF_FILE_FLAG "/def:")
+
 # No -fPIC on Vali
 set(CMAKE_C_COMPILE_OPTIONS_PIC "")
 set(CMAKE_CXX_COMPILE_OPTIONS_PIC "")

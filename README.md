@@ -19,10 +19,9 @@ for 2018 will be the userspace, and stability/robustness of the operating system
 I should reach a point where they are highly required.
 
 Userspace libraries that are being ported currently (native builds)
- - llvm
+ - mesa (/w gallium + llvmpipe as backend)
 
 Userspace libraries planned for port in 2018
- - llvm
  - clang
  - mesa (/w gallium + llvmpipe as backend)
  - tbd (rest will be announced as we go)
@@ -117,6 +116,7 @@ These are the various libraries ported to MollenOS userspace, and are primarily 
 | libunwind     | <unk>     | unwind support for the c++ itanium abi  |
 | libcxxabi     | <unk>     | c++ itanium abi compiler support implementation  |
 | libcxx        | <unk>     | c++ standard library support   |
+| llvm          | <unk>     | The LLVM compiler back-end   |
 
 
 ## Building MollenOS
