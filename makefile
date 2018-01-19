@@ -71,7 +71,7 @@ export GUCLIBRARIES = ../lib/libcrt.lib ../lib/libclang.lib ../lib/libc.lib ../l
 export GUCXXLIBRARIES = ../lib/libcxx.lib ../lib/libclang.lib ../lib/libc.lib ../lib/libunwind.lib
 
 .PHONY: all
-all: build_tools gen_revision build_bootloader build_libraries build_kernel build_drivers build_userspace build_initrd
+all: build_tools gen_revision build_bootloader build_libraries build_kernel build_drivers setup_userspace build_initrd
 
 .PHONY: build_initrd
 build_initrd:
@@ -94,9 +94,13 @@ gen_revision:
 	./revision build clang
 	cp revision.h kernel/include/revision.h
 
+.PHONY: setup_userspace
+setup_userspace:
+	$(MAKE) -C userspace -f makefile
+
 .PHONY: build_userspace
 build_userspace:
-	$(MAKE) -C userspace -f makefile
+	$(MAKE) -C userspace -f makefile applications
 
 .PHONY: build_kernel
 build_kernel:
@@ -132,8 +136,8 @@ install_shared:
 	cp librt/build/*.dll deploy/hdd/shared/bin/
 	cp librt/deploy/*.lib deploy/hdd/shared/lib/
 	cp librt/deploy/*.dll deploy/hdd/shared/bin/
-	cp userspace/build/*.app deploy/hdd/shared/bin/ 2>/dev/null || :
-	cp userspace/build/*.dll deploy/hdd/shared/bin/ 2>/dev/null || :
+	cp userspace/bin/* deploy/hdd/shared/bin/ 2>/dev/null || :
+	cp userspace/lib/* deploy/hdd/shared/lib/ 2>/dev/null || :
 
 .PHONY: install_img
 install_img: install_shared
