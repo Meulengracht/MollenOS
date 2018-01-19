@@ -18,14 +18,18 @@ LFLAGS = $(GLFLAGS) /entry:__CrtLibraryEntry /dll /lldmap ../build/libc.lib ../b
 all: ../deploy/libunwind.dll
 
 ../deploy/libunwind.dll: $(OBJECTS)
-	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
+	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
 %.o : %.cpp
-	$(CXX) -c $(CXXFLAGS) -o $@ $<
+	@printf "%b" "\033[0;32mCompiling c++ source object " $< "\033[m\n"
+	@$(CXX) -c $(CXXFLAGS) -o $@ $<
 %.o : %.c
-	$(CC) -c $(CFLAGS) -o $@ $<
+	@printf "%b" "\033[0;32mCompiling source object " $< "\033[m\n"
+	@$(CC) -c $(CFLAGS) -o $@ $<
 %.o : %.S
-	$(CC) -c $(CFLAGS) -o $@ $<
+	@printf "%b" "\033[0;32mAssembling source object " $< "\033[m\n"
+	@$(CC) -c $(CFLAGS) -o $@ $<
 
 .PHONY: clean
 clean:

@@ -16,17 +16,20 @@ LFLAGS = /lib
 all: ../build/libusb.lib
 
 ../build/libusb.lib: $(OBJECTS)
-	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	@printf "%b" "\033[0;36mCreating static library " $@ "\033[m\n"
+	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
 %.o : %.c
 	@mkdir -p $(dir $@)
-	$(CC) -c $(CFLAGS) -o $@ $<
+	@printf "%b" "\033[0;32mCompiling source object " $< "\033[m\n"
+	@$(CC) -c $(CFLAGS) -o $@ $<
 
 %.o : %.s
 	@mkdir -p $(dir $@)
-	$(AS) $(ASFLAGS) $< -o $@
+	@printf "%b" "\033[0;32mAssembling source object " $< "\033[m\n"
+	@$(AS) $(ASFLAGS) $< -o $@
 
 .PHONY: clean
 clean:
-	rm -f ../build/libusb.lib
+	@rm -f ../build/libusb.lib
 	@rm -f $(OBJECTS)

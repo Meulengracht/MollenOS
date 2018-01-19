@@ -30,22 +30,28 @@ all-static: ../deploy/libcxx.lib
 all-shared: ../deploy/libcxx.dll
 
 ../deploy/libcxx.lib: $(INT_OBJECTS) $(ABI_OBJECTS) $(CXX_OBJECTS)
-	$(LD) $(STT_LFLAGS) $(INT_OBJECTS) $(ABI_OBJECTS) $(CXX_OBJECTS) /out:$@
+	@printf "%b" "\033[0;36mCreating static library " $@ "\033[m\n"
+	@$(LD) $(STT_LFLAGS) $(INT_OBJECTS) $(ABI_OBJECTS) $(CXX_OBJECTS) /out:$@
 
 ../deploy/libcxx.dll: $(ABI_OBJECTS) $(CXX_OBJECTS) $(SHR_OBJECTS)
+	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
 	$(LD) $(SHR_LFLAGS) $(ABI_OBJECTS) $(CXX_OBJECTS) $(SHR_OBJECTS) /out:$@
 
 $(ABI_OBJECTS): %.o : %.cpp
-	$(CXX) -c $(CXXFLAGS) $(ABI_CONFIG) -o $@ $<
+	@printf "%b" "\033[0;32mCompiling C++ source object " $< "\033[m\n"
+	@$(CXX) -c $(CXXFLAGS) $(ABI_CONFIG) -o $@ $<
 
 $(CXX_OBJECTS): %.o : %.cpp
-	$(CXX) -c $(CXXFLAGS) $(CXX_CONFIG) -o $@ $<
+	@printf "%b" "\033[0;32mCompiling C++ source object " $< "\033[m\n"
+	@$(CXX) -c $(CXXFLAGS) $(CXX_CONFIG) -o $@ $<
 
 $(SHR_OBJECTS): %.o : %.cpp
-	$(CXX) -c $(CXXFLAGS) $(CXX_CONFIG) -o $@ $<
+	@printf "%b" "\033[0;32mCompiling C++ source object " $< "\033[m\n"
+	@$(CXX) -c $(CXXFLAGS) $(CXX_CONFIG) -o $@ $<
 
 %.o : %.c
-	$(CC) -c $(CFLAGS) -o $@ $<
+	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
+	@$(CC) -c $(CFLAGS) -o $@ $<
 
 .PHONY: clean
 clean:

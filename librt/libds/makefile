@@ -43,18 +43,22 @@ libdsk: ../build/libdsk.lib
 libds: ../build/libds.lib
 
 ../build/libds.lib: $(OBJECTS)
-	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	@printf "%b" "\033[0;36mCreating static library " $@ "\033[m\n"
+	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
 ../build/libdsk.lib: $(KERNEL_OBJECTS)
-	$(LD) $(LFLAGS) $(KERNEL_OBJECTS) /out:$@
+	@printf "%b" "\033[0;36mCreating static library " $@ "\033[m\n"
+	@$(LD) $(LFLAGS) $(KERNEL_OBJECTS) /out:$@
 
 %.o : %.c
 	@mkdir -p $(dir $@)
-	$(CC) -c $(CFLAGS) -o $@ $<
+	@printf "%b" "\033[0;32mCompiling source object " $< "\033[m\n"
+	@$(CC) -c $(CFLAGS) -o $@ $<
 
 %.o : %.s
 	@mkdir -p $(dir $@)
-	$(AS) $(ASFLAGS) $< -o $@
+	@printf "%b" "\033[0;32mAssembling source object " $< "\033[m\n"
+	@$(AS) $(ASFLAGS) $< -o $@
 
 .PHONY: clean
 clean:

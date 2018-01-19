@@ -29,13 +29,15 @@
 #ifndef _POSIX_SOURCE
 #  define _POSIX_SOURCE
 #endif
+#ifndef MOLLENOS
 #include <fcntl.h>
+#endif
 
 #ifdef _WIN32
 #  include <stddef.h>
 #endif
 
-#if defined(__TURBOC__) || defined(_MSC_VER) || defined(_WIN32)
+#if defined(__TURBOC__) || defined(_MSC_VER) || defined(_WIN32) || defined(MOLLENOS)
 #  include <io.h>
 #endif
 
@@ -43,11 +45,17 @@
 #  define WIDECHAR
 #endif
 
-#ifdef WINAPI_FAMILY
+#if defined(WINAPI_FAMILY) || defined(MOLLENOS)
 #  define open _open
 #  define read _read
 #  define write _write
 #  define close _close
+#  define lseek _lseek
+#  define O_WRONLY _O_WRONLY
+#  define O_CREAT _O_CREAT
+#  define O_TRUNC _O_TRUNC
+#  define O_APPEND _O_APPEND
+#  define O_RDONLY _O_RDONLY
 #endif
 
 #ifdef NO_DEFLATE       /* for compatibility with old definition */

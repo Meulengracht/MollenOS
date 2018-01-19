@@ -328,7 +328,7 @@
 #  endif
 #endif
 
-#if defined(WINDOWS) || defined(WIN32) || defined(MOLLENOS)
+#if defined(WINDOWS) || defined(WIN32)
    /* If building or using zlib as a DLL, define ZLIB_DLL.
     * This is not mandatory, but it offers a little performance increase.
     */
@@ -357,6 +357,16 @@
 #      define ZEXPORTVA WINAPIV
 #    else
 #      define ZEXPORTVA FAR CDECL
+#    endif
+#  endif
+#endif
+
+#if defined (MOLLENOS)
+#  ifdef ZLIB_DLL
+#    ifdef ZLIB_INTERNAL
+#      define ZEXTERN extern __declspec(dllexport)
+#    else
+#      define ZEXTERN extern __declspec(dllimport)
 #    endif
 #  endif
 #endif

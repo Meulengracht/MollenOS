@@ -86,18 +86,22 @@ bufferobject_kernel.c: os/driver/bufferobject.c
 libc: ../build/libc.dll
 
 ../build/libk.lib: $(OBJECTS)
-	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	@printf "%b" "\033[0;36mCreating static library " $@ "\033[m\n"
+	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
 ../build/libc.dll: $(OBJECTS)
-	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
+	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
 $(OBJDIR)/%.o : %.c
 	@mkdir -p $(dir $@)
-	$(CC) -c $(CFLAGS) -o $@ $<
+	@printf "%b" "\033[0;32mCompiling source object " $< "\033[m\n"
+	@$(CC) -c $(CFLAGS) -o $@ $<
 
 $(OBJDIR)/%.o : %.s
 	@mkdir -p $(dir $@)
-	$(AS) $(ASFLAGS) $< -o $@
+	@printf "%b" "\033[0;32mAssembling source object " $< "\033[m\n"
+	@$(AS) $(ASFLAGS) $< -o $@
 
 .PHONY: clean
 clean:

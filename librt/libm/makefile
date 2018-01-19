@@ -25,13 +25,16 @@ LFLAGS = $(GLFLAGS) /def:libm.def /noentry /dll
 all: ../build/libm.dll
 
 ../build/libm.dll: $(OBJECTS)
-	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
+	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
 %.o : %.c
-	$(CC) -c $(CFLAGS) -o $@ $<
+	@printf "%b" "\033[0;32mCompiling source object " $< "\033[m\n"
+	@$(CC) -c $(CFLAGS) -o $@ $<
 
 %.o : %.s
-	$(AS) $(ASFLAGS) $< -o $@
+	@printf "%b" "\033[0;32mAssembling source object " $< "\033[m\n"
+	@$(AS) $(ASFLAGS) $< -o $@
 
 .PHONY: clean
 clean:

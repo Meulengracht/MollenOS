@@ -40,16 +40,19 @@ header:
 	cp $(HPATH) ../include/arch.h
 
 ../build/i386.lib: $(OBJECTS)
-	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	@printf "%b" "\033[0;36mCreating static library " $@ "\033[m\n"
+	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 	
 %.o : %.c
-	$(CC) -c $(CFLAGS) -o $@ $<
+	@printf "%b" "\033[0;32mCompiling source object " $< "\033[m\n"
+	@$(CC) -c $(CFLAGS) -o $@ $<
 
 %.o : %.s
-	$(AS) $(ASFLAGS) $< -o $@
+	@printf "%b" "\033[0;32mAssembling source object " $< "\033[m\n"
+	@$(AS) $(ASFLAGS) $< -o $@
 
 .PHONY: clean
 clean:
-	rm -f ../include/arch.h
-	rm -f ../build/$(VALI_ARCH).lib
-	rm -f $(OBJECTS)
+	@rm -f ../include/arch.h
+	@rm -f ../build/$(VALI_ARCH).lib
+	@rm -f $(OBJECTS)

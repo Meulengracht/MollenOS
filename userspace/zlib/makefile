@@ -5,7 +5,7 @@ OBJECTS = $(SOURCES:.c=.o)
 
 CONFIG_FLAGS = -DZLIB_DLL
 CFLAGS = $(GUCFLAGS) $(CONFIG_FLAGS) $(INCLUDES)
-LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtLibraryEntry $(GUCLIBRARIES)
+LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtLibraryEntry /dll $(GUCLIBRARIES)
 
 .PHONY: all
 all: ../bin/zlib.dll
@@ -13,6 +13,8 @@ all: ../bin/zlib.dll
 ../bin/zlib.dll: $(OBJECTS)
 	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 	mv -f ../bin/zlib.lib ../lib/zlib.lib
+	cp zconf.h ../include/zconf.h
+	cp zlib.h ../include/zlib.h
 	
 %.o : %.c
 	$(CC) -c $(CFLAGS) -o $@ $<

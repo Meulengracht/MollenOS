@@ -13,7 +13,7 @@ all: bin copy_headers copy_libraries build_cpptest
 
 # Build userspace applications, the order might be important.
 .PHONY: applications
-applications: build_zlib build_llvm
+applications: build_zlib build_macia build_llvm
 
 bin:
 	mkdir -p $@
@@ -46,12 +46,16 @@ build_zlib:
 build_cpptest:
 	$(MAKE) -C cpptest -f makefile
 
+.PHONY: build_macia
+build_macia:
+	$(MAKE) -C macia -f makefile
+
 .PHONY: build_llvm
 build_llvm:
 	mkdir -p llvm_out
-	cd llvm_out
-	cmake -G "Unix Makefiles" -DCMAKE_INSTALL_PREFIX=$(install_prefix) -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../llvm/cmake/platforms/Vali.cmake ../llvm
-	make -j3
+	cd llvm_out; \
+	cmake -G "Unix Makefiles" -DCMAKE_INSTALL_PREFIX=$(install_prefix) -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../llvm/cmake/platforms/Vali.cmake ../llvm; \
+	make; \
 	make install
 
 .PHONY: clean
@@ -61,3 +65,4 @@ clean:
 	@rm -rf bin
 	@rm -rf include
 	@rm -rf lib
+	@rm -rf llvm_out
