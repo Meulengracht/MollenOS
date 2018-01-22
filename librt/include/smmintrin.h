@@ -586,7 +586,9 @@ _mm_mul_epi32 (__m128i __V1, __m128i __V2)
 /* SSE4 Floating Point Dot Product Instructions.  */
 /// \brief Computes the dot product of the two 128-bit vectors of [4 x float]
 ///    and returns it in the elements of the 128-bit result vector of
-///    [4 x float]. The immediate integer operand controls which input elements
+///    [4 x float].
+///
+///    The immediate integer operand controls which input elements
 ///    will contribute to the dot product, and where the final results are
 ///    returned.
 ///
@@ -620,7 +622,9 @@ _mm_mul_epi32 (__m128i __V1, __m128i __V2)
 
 /// \brief Computes the dot product of the two 128-bit vectors of [2 x double]
 ///    and returns it in the elements of the 128-bit result vector of
-///    [2 x double]. The immediate integer operand controls which input
+///    [2 x double].
+///
+///    The immediate integer operand controls which input
 ///    elements will contribute to the dot product, and where the final results
 ///    are returned.
 ///
@@ -644,7 +648,7 @@ _mm_mul_epi32 (__m128i __V1, __m128i __V2)
 ///    input vectors are used as an input for dot product; otherwise that input
 ///    is treated as zero. Bits [1:0] determine which elements of the result
 ///    will receive a copy of the final dot product, with bit [0] corresponding
-///    to the lowest element and bit [3] corresponding to the highest element of
+///    to the lowest element and bit [1] corresponding to the highest element of
 ///    each [2 x double] vector. If a bit is set, the dot product is returned in
 ///    the corresponding element; otherwise that element is set to zero.
 #define _mm_dp_pd(X, Y, M) __extension__ ({\
@@ -862,8 +866,8 @@ _mm_max_epu32 (__m128i __V1, __m128i __V2)
 ///      11: Copies the selected bits from \a Y to result bits [127:96]. \n
 ///    Bits[3:0]: If any of these bits are set, the corresponding result
 ///    element is cleared.
-/// \returns A 128-bit vector of [4 x float] containing the copied single-
-///    precision floating point elements from the operands.
+/// \returns A 128-bit vector of [4 x float] containing the copied
+///    single-precision floating point elements from the operands.
 #define _mm_insert_ps(X, Y, N) __builtin_ia32_insertps128((X), (Y), (N))
 
 /// \brief Extracts a 32-bit integer from a 128-bit vector of [4 x float] and
@@ -875,7 +879,7 @@ _mm_max_epu32 (__m128i __V1, __m128i __V2)
 /// int _mm_extract_ps(__m128 X, const int N);
 /// \endcode
 ///
-/// This intrinsic corresponds to the <c> VEXTRACTPS / EXTRACTPS </c> 
+/// This intrinsic corresponds to the <c> VEXTRACTPS / EXTRACTPS </c>
 /// instruction.
 ///
 /// \param X

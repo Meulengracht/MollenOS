@@ -22,10 +22,10 @@ all: ../deploy/libunwind.dll
 	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
 %.o : %.cpp
-	@printf "%b" "\033[0;32mCompiling c++ source object " $< "\033[m\n"
+	@printf "%b" "\033[0;32mCompiling C++ source object " $< "\033[m\n"
 	@$(CXX) -c $(CXXFLAGS) -o $@ $<
 %.o : %.c
-	@printf "%b" "\033[0;32mCompiling source object " $< "\033[m\n"
+	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
 	@$(CC) -c $(CFLAGS) -o $@ $<
 %.o : %.S
 	@printf "%b" "\033[0;32mAssembling source object " $< "\033[m\n"

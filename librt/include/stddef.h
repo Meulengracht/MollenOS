@@ -25,19 +25,17 @@
 
 #if !defined(__STDDEF_H) || defined(__need_ptrdiff_t) ||                       \
     defined(__need_size_t) || defined(__need_wchar_t) ||                       \
-    defined(__need_NULL) || defined(__need_wint_t) ||                          \
-    defined(__need_ssize_t) 
+    defined(__need_NULL) || defined(__need_wint_t)
 
 #if !defined(__need_ptrdiff_t) && !defined(__need_size_t) &&                   \
     !defined(__need_wchar_t) && !defined(__need_NULL) &&                       \
-    !defined(__need_wint_t) && !defined(__need_ssize_t)
+    !defined(__need_wint_t)
 /* Always define miscellaneous pieces when modules are available. */
 #if !__has_feature(modules)
 #define __STDDEF_H
 #endif
 #define __need_ptrdiff_t
 #define __need_size_t
-#define __need_ssize_t
 #define __need_wchar_t
 #define __need_NULL
 #define __need_STDDEF_H_misc
@@ -65,21 +63,6 @@ typedef __SIZE_TYPE__ size_t;
 #endif
 #undef __need_size_t
 #endif /*defined(__need_size_t) */
-
-#if defined(__need_ssize_t)
-#if !defined(_SSIZE_T) || __has_feature(modules)
-/* Always define size_t when modules are available. */
-#if !__has_feature(modules)
-#define _SSIZE_T
-#endif
-#if defined (_X86_64)
-typedef long long ssize_t;
-#else
-typedef long ssize_t;
-#endif
-#endif
-#undef __need_ssize_t
-#endif /*defined(__need_ssize_t) */
 
 #if defined(__need_STDDEF_H_misc)
 /* ISO9899:2011 7.20 (C11 Annex K): Define rsize_t if __STDC_WANT_LIB_EXT1__ is
@@ -109,18 +92,6 @@ typedef __WCHAR_TYPE__ wchar_t;
 #endif
 #undef __need_wchar_t
 #endif /* defined(__need_wchar_t) */
-
-#if defined (__need_wint_t) 
-#ifndef _WINT_T 
-#define _WINT_T 
-
-#ifndef __WINT_TYPE__ 
-#define __WINT_TYPE__ unsigned int 
-#endif 
-typedef __WINT_TYPE__ wint_t; 
-#endif 
-#undef __need_wint_t 
-#endif 
 
 #if defined(__need_NULL)
 #undef NULL
@@ -162,33 +133,5 @@ typedef __WINT_TYPE__ wint_t;
 #endif
 #undef __need_wint_t
 #endif /* __need_wint_t */
-
-#ifdef __need_time_t
-#ifndef _TIME32_T_DEFINED
-#define _TIME32_T_DEFINED
-  typedef long __time32_t;
-#endif
-#ifndef _TIME64_T_DEFINED
-#define _TIME64_T_DEFINED
-#if _INTEGRAL_MAX_BITS >= 64
-  typedef __int64 __time64_t;
-#endif
-#endif
-#ifndef _TIME_T_DEFINED
-#define _TIME_T_DEFINED
-#ifdef _USE_32BIT_TIME_T
-  typedef __time32_t time_t;
-#else
-  typedef __time64_t time_t;
-#endif
-#endif
-#endif //!__need_time_t
-
-#ifdef __need_time_t
-#ifndef _CLOCK_T_DEFINED
-#define _CLOCK_T_DEFINED
-typedef __SIZE_TYPE__ clock_t;
-#endif //!_CLOCK_T_DEFINED
-#endif //!__need_time_t
 
 #endif

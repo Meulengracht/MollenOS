@@ -52,7 +52,7 @@ libds: ../build/libds.lib
 
 %.o : %.c
 	@mkdir -p $(dir $@)
-	@printf "%b" "\033[0;32mCompiling source object " $< "\033[m\n"
+	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
 	@$(CC) -c $(CFLAGS) -o $@ $<
 
 %.o : %.s

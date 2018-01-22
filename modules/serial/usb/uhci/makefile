@@ -13,17 +13,20 @@ LFLAGS = /nodefaultlib /subsystem:native /lldmap /entry:__CrtModuleEntry /dll ..
 all: ../../../build/uhci.dll ../../../build/uhci.mdrv
 
 ../../../build/uhci.dll: $(OBJECTS)
-	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
+	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
 ../../../build/uhci.mdrv: uhci.mdrv
-	cp $< $@
+	@printf "%b" "\033[1;35mCopying settings file " $< "\033[m\n"
+	@cp $< $@
 
 %.o : %.c
-	$(CC) -c $(CFLAGS) -o $@ $<
+	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
+	@$(CC) -c $(CFLAGS) -o $@ $<
 
 .PHONY: clean
 clean:
-	rm -f ../../../build/uhci.dll
-	rm -f ../../../build/uhci.lib
-	rm -f ../../../build/uhci.mdrv
-	rm -f $(OBJECTS)
+	@rm -f ../../../build/uhci.dll
+	@rm -f ../../../build/uhci.lib
+	@rm -f ../../../build/uhci.mdrv
+	@rm -f $(OBJECTS)

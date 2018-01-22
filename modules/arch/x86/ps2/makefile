@@ -14,17 +14,20 @@ LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtModuleEntry /lldmap /dll ..
 all: ../../../build/ps2.dll ../../../build/ps2.mdrv
 
 ../../../build/ps2.dll: $(OBJECTS)
-	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
+	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
 ../../../build/ps2.mdrv: ps2.mdrv
-	cp $< $@
+	@printf "%b" "\033[1;35mCopying settings file " $< "\033[m\n"
+	@cp $< $@
 
 %.o : %.c
-	$(CC) -c $(CFLAGS) -o $@ $<
+	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
+	@$(CC) -c $(CFLAGS) -o $@ $<
 
 .PHONY: clean
 clean:
-	rm -f ../../../build/ps2.dll
-	rm -f ../../../build/ps2.lib
-	rm -f ../../../build/ps2.mdrv
-	rm -f $(OBJECTS)
+	@rm -f ../../../build/ps2.dll
+	@rm -f ../../../build/ps2.lib
+	@rm -f ../../../build/ps2.mdrv
+	@rm -f $(OBJECTS)

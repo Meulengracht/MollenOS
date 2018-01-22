@@ -11,16 +11,20 @@ LFLAGS = /nodefaultlib /subsystem:native /lldmap /entry:__CrtServiceEntry /dll .
 all: ../build/usbmanager.dll ../build/usbmanager.mdrv
 
 ../build/usbmanager.mdrv: usbmanager.mdrv
-	cp $< $@
+	@printf "%b" "\033[1;35mCopying settings file " $< "\033[m\n"
+	@cp $< $@
 
 ../build/usbmanager.dll: $(OBJECTS)
-	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
+	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 	
 %.o : %.c
-	$(CC) -c $(CFLAGS) -o $@ $<
+	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
+	@$(CC) -c $(CFLAGS) -o $@ $<
 
 .PHONY: clean
 clean:
-	rm -f $(OBJECTS)
-	rm -f ../build/usbmanager.dll
-	rm -f ../build/usbmanager.mdrv
+	@rm -f $(OBJECTS)
+	@rm -f ../build/usbmanager.dll
+	@rm -f ../build/usbmanager.lib
+	@rm -f ../build/usbmanager.mdrv

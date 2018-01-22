@@ -101,8 +101,6 @@
  * To accommodate these targets, a required minimum-width type is only
  * defined if there exists an exact-width type of equal or greater width.
  */
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wmacro-redefined"
 
 #ifdef __INT64_TYPE__
 # ifndef __int8_t_defined /* glibc sys/types.h also defines int64_t*/
@@ -701,8 +699,6 @@ typedef __UINTMAX_TYPE__ uintmax_t;
 /* 7.18.4.2 Macros for greatest-width integer constants. */
 #define  INTMAX_C(v) __int_c(v,  __INTMAX_C_SUFFIX__)
 #define UINTMAX_C(v) __int_c(v, __UINTMAX_C_SUFFIX__)
-
-#pragma clang diagnostic pop
 
 #endif /* __STDC_HOSTED__ */
 #endif /* __CLANG_STDINT_H */

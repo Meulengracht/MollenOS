@@ -12,17 +12,20 @@ LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtModuleEntry /dll ../../../l
 all: ../../build/hid.dll ../../build/hid.mdrv
 
 ../../build/hid.dll: $(OBJECTS)
-	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
+	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
 ../../build/hid.mdrv: hid.mdrv
-	cp $< $@
+	@printf "%b" "\033[1;35mCopying settings file " $< "\033[m\n"
+	@cp $< $@
 
 %.o : %.c
-	$(CC) -c $(CFLAGS) -o $@ $<
+	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
+	@$(CC) -c $(CFLAGS) -o $@ $<
 
 .PHONY: clean
 clean:
-	rm -f ../../build/hid.dll
-	rm -f ../../build/hid.lib
-	rm -f ../../build/hid.mdrv
-	rm -f $(OBJECTS)
+	@rm -f ../../build/hid.dll
+	@rm -f ../../build/hid.lib
+	@rm -f ../../build/hid.mdrv
+	@rm -f $(OBJECTS)

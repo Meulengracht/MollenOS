@@ -31,9 +31,11 @@
   __attribute__((__always_inline__, __nodebug__, __target__("sse3")))
 
 /// \brief Loads data from an unaligned memory location to elements in a 128-bit
-///    vector. If the address of the data is not 16-byte aligned, the
-///    instruction may read two adjacent aligned blocks of memory to retrieve
-///    the requested data.
+///    vector.
+///
+///    If the address of the data is not 16-byte aligned, the instruction may
+///    read two adjacent aligned blocks of memory to retrieve the requested
+///    data.
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -113,8 +115,8 @@ _mm_hsub_ps(__m128 __a, __m128 __b)
   return __builtin_ia32_hsubps((__v4sf)__a, (__v4sf)__b);
 }
 
-/// \brief Moves and duplicates high-order (odd-indexed) values from a 128-bit
-///    vector of [4 x float] to float values stored in a 128-bit vector of
+/// \brief Moves and duplicates odd-indexed values from a 128-bit vector
+///    of [4 x float] to float values stored in a 128-bit vector of
 ///    [4 x float].
 ///
 /// \headerfile <x86intrin.h>
@@ -135,7 +137,7 @@ _mm_movehdup_ps(__m128 __a)
   return __builtin_shufflevector((__v4sf)__a, (__v4sf)__a, 1, 1, 3, 3);
 }
 
-/// \brief Duplicates low-order (even-indexed) values from a 128-bit vector of
+/// \brief Duplicates even-indexed values from a 128-bit vector of
 ///    [4 x float] to float values stored in a 128-bit vector of [4 x float].
 ///
 /// \headerfile <x86intrin.h>

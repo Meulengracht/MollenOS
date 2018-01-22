@@ -3,6 +3,7 @@
 # - nasm assembler
 # - clang cross-compiler (requires cmake, svn, libelf)
 # - monodevelop
+# - python + (sudo apt-get install python-pip libyaml-dev) + (sudo pip install prettytable Mako pyaml dateutils --upgrade) + scons
 # Required environmental stuff:
 # - CROSS=/path/to/cross/home
 #
@@ -50,8 +51,12 @@ config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE # Use a full debug console on heig
 #cmake -G "Unix Makefiles" -DMOLLENOS=True -DCMAKE_CROSSCOMPILING=True -DLLVM_TABLEGEN=llvm-tblgen -DLLVM_DEFAULT_TARGET_TRIPLE=i386-pc-win32-itanium-coff -DCMAKE_C_FLAGS=' -U_WIN32 -m32 -fms-extensions -Wall -ffreestanding -nostdlib -nostdinc -O3 -DMOLLENOS -Di386 -I$(INCLUDES)/cxx -I$(INCLUDES)' -DCMAKE_CXX_FLAGS=' -U_WIN32 -m32 -fms-extensions -Wall -ffreestanding -nostdlib -nostdinc -O3 -DMOLLENOS -Di386 -I$(INCLUDES)/cxx -I$(INCLUDES)' -DLLVM_ENABLE_EH=True -DLLVM_ENABLE_RTTI=True -DCMAKE_BUILD_TYPE=Release -DLLVM_INCLUDE_TESTS=Off -DLLVM_INCLUDE_EXAMPLES=Off -DCMAKE_C_COMPILER=$CROSS/bin/clang -DCMAKE_CXX_COMPILER=$CROSS/bin/clang++ -DCMAKE_LINKER=$CROSS/bin/lld-link -DLLVM_USE_LINKER=$CROSS/bin/lld VERBOSE=1 ../llvm
 #cmake -G "Unix Makefiles" -DCMAKE_INSTALL_PREFIX=$(USERSPACE) -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../llvm/cmake/platforms/Vali.cmake ../llvm
 
+# Before building mesa, llvm must be built
+# LLVM env variable must point to userspace directory
+# scons platform=windows toolchain=crossvali llvm=yes
+
 # -Xclang -flto-visibility-public-std makes sure to generate cxx-abi stuff without __imp_ 
-# -std=c11 enables c11 support for C compilation
+# -std=c11 enables c11 support for C compilation 0;35
 # -gdwarf enables dwarf debugging generation, should be used ... -fexceptions -fcxx-exceptions
 disable_warnings = -Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function
 shared_flags = -U_WIN32 -fms-extensions -Wall -nostdlib -nostdinc -O3 -DMOLLENOS 
