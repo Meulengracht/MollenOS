@@ -38,6 +38,6 @@ all: ../build/libm.dll
 
 .PHONY: clean
 clean:
-	rm -f ../build/libm.dll
-	rm -f ../build/libm.lib
-	rm -f $(OBJECTS)
+	@rm -f ../build/libm.dll
+	@rm -f ../build/libm.lib
+	@rm -f $(OBJECTS)

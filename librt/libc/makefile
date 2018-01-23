@@ -105,11 +105,11 @@ $(OBJDIR)/%.o : %.s
 
 .PHONY: clean
 clean:
-	rm -f rpc_kernel.c
-	rm -f bufferobject_kernel.c
-	rm -f ../build/libk.lib
-	rm -f ../build/libc.dll
-	rm -f ../build/libc.lib
-	rm -rf obk
-	rm -rf obc
-	rm -rf libos
+	@rm -f rpc_kernel.c
+	@rm -f bufferobject_kernel.c
+	@rm -f ../build/libk.lib
+	@rm -f ../build/libc.dll
+	@rm -f ../build/libc.lib
+	@rm -rf obk
+	@rm -rf obc
+	@rm -rf libos

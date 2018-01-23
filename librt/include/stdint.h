@@ -72,7 +72,10 @@
 # endif
 
 #else
-
+#if defined(MOLLENOS) && defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmacro-redefined"
+#endif
 /* C99 7.18.1.1 Exact-width integer types.
  * C99 7.18.1.2 Minimum-width integer types.
  * C99 7.18.1.3 Fastest minimum-width integer types.
@@ -700,5 +703,8 @@ typedef __UINTMAX_TYPE__ uintmax_t;
 #define  INTMAX_C(v) __int_c(v,  __INTMAX_C_SUFFIX__)
 #define UINTMAX_C(v) __int_c(v, __UINTMAX_C_SUFFIX__)
 
+#if defined(MOLLENOS) && defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 #endif /* __STDC_HOSTED__ */
 #endif /* __CLANG_STDINT_H */

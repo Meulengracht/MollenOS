@@ -12,10 +12,10 @@
 all: build deploy build/libk.lib build/libds.lib build/libdsk.lib build/libclang.lib build/libcrt.lib build/libdrv.lib build/libsrv.lib build/libm.dll build/libc.dll build/libusb.lib deploy/libunwind.dll deploy/libcxx.dll
 
 build:
-	mkdir -p $@
+	@mkdir -p $@
 
 deploy:
-	mkdir -p $@
+	@mkdir -p $@
 
 build/libk.lib:
 	$(MAKE) -C libc -f makefile libk

@@ -25,17 +25,19 @@
 
 #if !defined(__STDDEF_H) || defined(__need_ptrdiff_t) ||                       \
     defined(__need_size_t) || defined(__need_wchar_t) ||                       \
-    defined(__need_NULL) || defined(__need_wint_t)
+    defined(__need_NULL) || defined(__need_wint_t)    ||                       \
+    defined(__need_ssize_t)
 
 #if !defined(__need_ptrdiff_t) && !defined(__need_size_t) &&                   \
     !defined(__need_wchar_t) && !defined(__need_NULL) &&                       \
-    !defined(__need_wint_t)
+    !defined(__need_wint_t) && !defined(__need_ssize_t)
 /* Always define miscellaneous pieces when modules are available. */
 #if !__has_feature(modules)
 #define __STDDEF_H
 #endif
 #define __need_ptrdiff_t
 #define __need_size_t
+#define __need_ssize_t
 #define __need_wchar_t
 #define __need_NULL
 #define __need_STDDEF_H_misc
@@ -62,6 +64,17 @@ typedef __PTRDIFF_TYPE__ ptrdiff_t;
 typedef __SIZE_TYPE__ size_t;
 #endif
 #undef __need_size_t
+#endif /*defined(__need_size_t) */
+
+#if defined(__need_ssize_t)
+#if !defined(_SSIZE_T) || __has_feature(modules)
+/* Always define ssize_t when modules are available. */
+#if !__has_feature(modules)
+#define _SSIZE_T
+#endif
+typedef long ssize_t;
+#endif
+#undef __need_ssize_t
 #endif /*defined(__need_size_t) */
 
 #if defined(__need_STDDEF_H_misc)

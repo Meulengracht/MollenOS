@@ -44,5 +44,5 @@ all: ../build/libclang.lib
 
 .PHONY: clean
 clean:
-	rm -f ../build/libclang.lib
-	rm -f $(OBJECTS)
+	@rm -f ../build/libclang.lib
+	@rm -f $(OBJECTS)

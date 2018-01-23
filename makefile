@@ -101,6 +101,7 @@ gen_revision:
 
 .PHONY: setup_userspace
 setup_userspace:
+	@printf "%b" "\033[1;35mSetting up userspace folders(include/lib)\033[m\n"
 	$(MAKE) -C userspace -f makefile
 
 .PHONY: build_userspace
@@ -178,9 +179,9 @@ clean:
 	$(MAKE) -C tools/rd -f makefile clean
 	$(MAKE) -C tools/diskutility -f makefile clean
 	$(MAKE) -C tools/revision -f makefile clean
-	rm -f initrd.mos
-	rm -rf deploy
-	rm -rf initrd
-	rm -f *.vmdk
-	rm -f *.img
-	rm -f *.lock
+	@rm -f initrd.mos
+	@rm -rf deploy
+	@rm -rf initrd
+	@rm -f *.vmdk
+	@rm -f *.img
+	@rm -f *.lock
