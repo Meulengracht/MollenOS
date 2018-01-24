@@ -52,6 +52,7 @@ typedef struct _imaxdiv_t {
 #define PRIi8 "i"
 #define PRIi16 "i"
 #define PRIi32 "i"
+#define PRIi64 "lli"
 #define PRIll "lli"
 
 #define PRIiLEAST8 "i"

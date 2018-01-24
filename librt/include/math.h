@@ -732,7 +732,7 @@ double __CRTDECL _scalb (double, long);
 
 #define _finite(x) isfinite(x)
 #define _fpclass(x) fpclassify(x)
-#define _isnan(x) isnan(x)
+//#define _isnan(x) isnan(x)
 _CODE_END
 
 #endif //!RC_INVOKED

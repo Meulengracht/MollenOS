@@ -188,13 +188,13 @@ void format_float(
         *prefix = _T(" ");
 
     /* Handle special cases first */
-    if (_isnan(fpval))
+    if (isnan(fpval))
     {
         (*string) -= sizeof(_nan) / sizeof(TCHAR) - 1;
         _tcscpy((*string), _nan);
         fpval2 = 1;
     }
-    else if (!_finite(fpval))
+    else if (!isfinite(fpval))
     {
         (*string) -= sizeof(_infinity) / sizeof(TCHAR) - 1;
         _tcscpy((*string), _infinity);

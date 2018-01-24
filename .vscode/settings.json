@@ -301,7 +301,8 @@
         "cstring": "c",
         "ctime": "c",
         "cerrno": "cpp",
-        "*.gen": "c"
+        "*.gen": "c",
+        "nir_builder.h": "c"
     },
     "git.ignoreLimitWarning": true
 }
