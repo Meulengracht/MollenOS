@@ -55,11 +55,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-int	opterr = 1;		/* if error message should be printed */
-int	optind = 1;		/* index into parent argv vector */
-int	optopt = '?';		/* character checked for validity */
-int	optreset;		/* reset getopt */
-char    *optarg;		/* argument associated with option */
+CRTDECL_DATA(int,   _opterr = 1);    /* if error message should be printed */
+CRTDECL_DATA(int,   _optind = 1);    /* index into parent argv vector */
+CRTDECL_DATA(int,   _optopt = '?');  /* character checked for validity */
+CRTDECL_DATA(int,   _optreset);      /* reset getopt */
+CRTDECL_DATA(char*, _optarg);       /* argument associated with option */
+#define opterr _opterr
+#define optind _optind
+#define optopt _optopt
+#define optreset _optreset
+#define optarg _optarg
 
 #define PRINT_ERROR	((opterr) && (*options != ':'))
 

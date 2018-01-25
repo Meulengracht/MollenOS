@@ -302,7 +302,9 @@
         "ctime": "c",
         "cerrno": "cpp",
         "*.gen": "c",
-        "nir_builder.h": "c"
+        "nir_builder.h": "c",
+        "glapi_priv.h": "c",
+        "glapitable.h": "c"
     },
     "git.ignoreLimitWarning": true
 }

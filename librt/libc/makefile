@@ -38,7 +38,7 @@ LIBK_SRCS = $(wildcard os/mstring/*.c) \
 			wstring/wcsnlen.c
 
 LIBC_SRCS = $(wildcard ctype/*.c) \
-			$(wildcard getop/*.c) \
+			$(wildcard getopt/*.c) \
 			$(wildcard locale/*.c) \
 			$(wildcard signal/*.c) \
 			$(wildcard stdio/*.c) \

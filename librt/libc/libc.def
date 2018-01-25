@@ -19,3 +19,9 @@ CollectionLength
 StdSignalInitialize
 exit
 _ctype_
+getopt_long
+opterr=_opterr
+optind=_optind
+optopt=_optopt
+optreset=_optreset
+optarg=_optarg

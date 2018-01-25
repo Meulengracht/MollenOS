@@ -53,7 +53,7 @@ config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE # Use a full debug console on heig
 
 # Before building mesa, llvm must be built
 # LLVM env variable must point to userspace directory
-# scons platform=windows toolchain=crossvali llvm=yes
+# scons toolchain=crossvali llvm=yes
 
 # -Xclang -flto-visibility-public-std makes sure to generate cxx-abi stuff without __imp_ 
 # -std=c11 enables c11 support for C compilation 0;35

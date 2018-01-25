@@ -40,13 +40,10 @@
 #define required_argument  1
 #define optional_argument  2
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /* Includes */
 #include <crtdefs.h>
 
+_CODE_BEGIN
 struct option {
 	/* name of long option */
 	const char *name;
@@ -61,25 +58,20 @@ struct option {
 	int val;
 };
 
-_CRTIMP int	 getopt_long(int, char * __CONST *, __CONST char *,
-	__CONST struct option *, int *);
-_CRTIMP int	 getopt_long_only(int, char * __CONST *, __CONST char *,
-	__CONST struct option *, int *);
+CRTDECL(int,                getopt_long(int, char * const *, const char *, const struct option *, int *));
+CRTDECL(int,                getopt_long_only(int, char * const *, const char *, const struct option *, int *));
 #ifndef _GETOPT_DEFINED_
 #define _GETOPT_DEFINED_
-_CRTIMP int	 getopt(int, char * const *, const char *);
-_CRTIMP int	 getsubopt(char **, char * const *, char **);
+CRTDECL(int,                getopt(int, char * const *, const char *));
+CRTDECL(int,                getsubopt(char **, char * const *, char **));
 
-_CRTIMP __EXTERN char *optarg;                  /* getopt(3) external variables */
-_CRTIMP __EXTERN int opterr;
-_CRTIMP __EXTERN int optind;
-_CRTIMP __EXTERN int optopt;
-_CRTIMP __EXTERN int optreset;
-_CRTIMP __EXTERN char *suboptarg;               /* getsubopt(3) external variable */
+CRTDECL_DATA(extern char*,  optarg);                  /* getopt(3) external variables */
+CRTDECL_DATA(extern int,    opterr);
+CRTDECL_DATA(extern int,    optind);
+CRTDECL_DATA(extern int,    optopt);
+CRTDECL_DATA(extern int,    optreset);
+CRTDECL_DATA(extern char*,  suboptarg);               /* getsubopt(3) external variable */
 #endif
-
-#ifdef __cplusplus
-}
-#endif
+_CODE_END
  
 #endif /* !_GETOPT_H_ */
