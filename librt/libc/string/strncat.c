@@ -21,7 +21,7 @@
 #endif
 #endif
 
-char* strncat (char* destination, char* source, size_t num)
+char* strncat (char* destination, const char* source, size_t num)
 {
 	char *s = destination;
 

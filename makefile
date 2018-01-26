@@ -80,50 +80,52 @@ all: build_tools gen_revision build_bootloader build_libraries build_kernel buil
 
 .PHONY: build_initrd
 build_initrd:
-	mkdir -p initrd
-	cp librt/build/*.dll initrd/
-	cp services/build/*.dll initrd/
-	cp services/build/*.mdrv initrd/
-	cp modules/build/*.dll initrd/
-	cp modules/build/*.mdrv initrd/
+	@printf "%b" "\033[1;35mInstalling initrd files into /initrd\033[m\n"
+	@mkdir -p initrd
+	@cp librt/build/*.dll initrd/
+	@cp services/build/*.dll initrd/
+	@cp services/build/*.mdrv initrd/
+	@cp modules/build/*.dll initrd/
+	@cp modules/build/*.mdrv initrd/
 
 .PHONY: build_tools
 build_tools:
-	$(MAKE) -C tools/lzss -f makefile
-	$(MAKE) -C tools/rd -f makefile
-	$(MAKE) -C tools/diskutility -f makefile
-	$(MAKE) -C tools/revision -f makefile
+	@$(MAKE) -C tools/lzss -f makefile
+	@$(MAKE) -C tools/rd -f makefile
+	@$(MAKE) -C tools/diskutility -f makefile
+	@$(MAKE) -C tools/revision -f makefile
 
 .PHONY: gen_revision
 gen_revision:
-	./revision build clang
-	cp revision.h kernel/include/revision.h
+	@printf "%b" "\033[1;35mUpdating revision file\033[m\n"
+	@./revision build clang
+	@cp revision.h kernel/include/revision.h
 
 .PHONY: setup_userspace
 setup_userspace:
 	@printf "%b" "\033[1;35mSetting up userspace folders(include/lib)\033[m\n"
-	$(MAKE) -C userspace -f makefile
+	@$(MAKE) -C userspace -f makefile
 
 .PHONY: build_userspace
 build_userspace:
-	$(MAKE) -C userspace -f makefile applications
+	@$(MAKE) -C userspace -f makefile applications
 
 .PHONY: build_kernel
 build_kernel:
-	$(MAKE) -C kernel -f makefile
+	@$(MAKE) -C kernel -f makefile
 
 .PHONY: build_drivers
 build_drivers:
-	$(MAKE) -C services -f makefile
-	$(MAKE) -C modules -f makefile
+	@$(MAKE) -C services -f makefile
+	@$(MAKE) -C modules -f makefile
 
 .PHONY: build_libraries
 build_libraries:
-	$(MAKE) -C librt -f makefile
+	@$(MAKE) -C librt -f makefile
 
 .PHONY: build_bootloader
 build_bootloader:
-	$(MAKE) -C boot -f makefile
+	@$(MAKE) -C boot -f makefile
 
 # Build the deploy directory, which contains the primary (system) drive
 # structure, system folder, default binaries etc
@@ -169,16 +171,16 @@ build_toolchain:
 
 .PHONY: clean
 clean:
-	$(MAKE) -C boot -f makefile clean
-	$(MAKE) -C librt -f makefile clean
-	$(MAKE) -C services -f makefile clean
-	$(MAKE) -C modules -f makefile clean
-	$(MAKE) -C kernel -f makefile clean
-	$(MAKE) -C userspace -f makefile clean
-	$(MAKE) -C tools/lzss -f makefile clean
-	$(MAKE) -C tools/rd -f makefile clean
-	$(MAKE) -C tools/diskutility -f makefile clean
-	$(MAKE) -C tools/revision -f makefile clean
+	@$(MAKE) -C boot -f makefile clean
+	@$(MAKE) -C librt -f makefile clean
+	@$(MAKE) -C services -f makefile clean
+	@$(MAKE) -C modules -f makefile clean
+	@$(MAKE) -C kernel -f makefile clean
+	@$(MAKE) -C userspace -f makefile clean
+	@$(MAKE) -C tools/lzss -f makefile clean
+	@$(MAKE) -C tools/rd -f makefile clean
+	@$(MAKE) -C tools/diskutility -f makefile clean
+	@$(MAKE) -C tools/revision -f makefile clean
 	@rm -f initrd.mos
 	@rm -rf deploy
 	@rm -rf initrd

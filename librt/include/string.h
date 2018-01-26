@@ -112,8 +112,8 @@ CRTDECL_EX(errno_t, strncpy_s(
 /*******************************
  *       String Concenation    *
  *******************************/
-_CRTIMP	char* strcat(char* destination, const char* source);
-_CRTIMP	char* strncat(char* destination, char* source, size_t num);
+CRTDECL(char*,      strcat(char* destination, const char* source));
+CRTDECL(char*,      strncat(char* destination, const char* source, size_t num));
 
 /*******************************
  *      String Comparison      *

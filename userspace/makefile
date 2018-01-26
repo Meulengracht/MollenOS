@@ -53,10 +53,8 @@ build_macia:
 .PHONY: build_llvm
 build_llvm:
 	mkdir -p llvm_out
-	cd llvm_out; \
-	cmake -G "Unix Makefiles" -DCMAKE_INSTALL_PREFIX=$(install_prefix) -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../llvm/cmake/platforms/Vali.cmake ../llvm; \
-	make; \
-	make install
+	cd llvm_out && cmake -G "Unix Makefiles" -DCMAKE_INSTALL_PREFIX=$(install_prefix) -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../llvm/cmake/platforms/Vali.cmake ../llvm; \
+	cd llvm_out && make && make install
 
 .PHONY: clean
 clean:
@@ -66,3 +64,4 @@ clean:
 	@rm -rf include
 	@rm -rf lib
 	@rm -rf llvm_out
+	@rm -rf share
