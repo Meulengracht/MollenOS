@@ -658,10 +658,10 @@ _fcloseall(void)
     return num_closed;
 }
 
-/* _isatty
+/* isatty
  * Returns non-zero if the given file-descriptor points to a tty. */
 int
-_isatty(
+isatty(
     _In_ int fd)
 {
     return get_ioinfo(fd)->wxflag & WX_TTY;
@@ -682,7 +682,7 @@ os_alloc_buffer(
     _In_ FILE *file)
 {
     // Sanitize that it's not an std tty stream
-    if ((file->_fd == STDOUT_FD || file->_fd == STDERR_FD) && _isatty(file->_fd)) {
+    if ((file->_fd == STDOUT_FD || file->_fd == STDERR_FD) && isatty(file->_fd)) {
         return OsError;
     }
 
@@ -716,7 +716,7 @@ add_std_buffer(
     // Sanitize the file stream
     if ((file->_fd != STDOUT_FD && file->_fd != STDERR_FD) 
         || (file->_flag & (_IONBF | _IOMYBUF | _USERBUF)) 
-        || !_isatty(file->_fd)) {
+        || !isatty(file->_fd)) {
         return OsError;
     }
 

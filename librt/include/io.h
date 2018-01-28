@@ -121,7 +121,7 @@ CRTDECL(int,        _readdir(struct DIR *handle, struct DIRENT *entry));
 // shared interface
 CRTDECL(int,        _link(const char *from, const char *to, int symbolic));
 CRTDECL(int,        _unlink(const char *path));
-CRTDECL(int,        _isatty(int fd));
+CRTDECL(int,        isatty(int fd));
 _CODE_END
 
 /* In case of non-strict ANSI standard c 

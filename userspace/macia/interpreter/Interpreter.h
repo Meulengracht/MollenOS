@@ -29,7 +29,7 @@
 
 /* System Includes */
 #include "MachineState.h"
-#include "../Shared/DataPool.h"
+#include "../shared/DataPool.h"
 
 /* The object instance 
  * this is used for objects when new instances

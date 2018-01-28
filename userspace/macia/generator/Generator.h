@@ -32,8 +32,8 @@
 #define AUTHOR	"Philip Meulengracht"
 
 /* System Includes */
-#include "../Parser/Parser.h"
-#include "../Shared/DataPool.h"
+#include "../parser/Parser.h"
+#include "../shared/DataPool.h"
 
 /* This is the generator state 
  * structure that holds information 

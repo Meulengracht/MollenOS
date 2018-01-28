@@ -143,8 +143,6 @@ _CRTIMP char *tmpnam(
 	_In_ char * str);
 _CRTIMP int fflush(
 	_In_ FILE * stream);
-_CRTIMP int _fileno(
-	_In_ FILE * stream);
 _CRTIMP void setbuf(
     _In_ FILE* file, 
     _In_ char *buf);
@@ -153,6 +151,7 @@ _CRTIMP int setvbuf(
     _In_ char *buf, 
     _In_ int mode, 
     _In_ size_t size);
+CRTDECL(int, fileno(FILE * stream));
 
 /*******************************
  *       Formatted IO          *
