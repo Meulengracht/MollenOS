@@ -40,15 +40,18 @@ copy_libraries:
 
 .PHONY: build_zlib
 build_zlib:
-	$(MAKE) -C zlib -f makefile
+	@printf "%b" "\033[1;35mChecking if zlib needs to be built\033[m\n"
+	@$(MAKE) -C zlib -f makefile
 
 .PHONY: build_cpptest
 build_cpptest:
-	$(MAKE) -C cpptest -f makefile
+	@printf "%b" "\033[1;35mChecking if cpptest needs to be built\033[m\n"
+	@$(MAKE) -C cpptest -f makefile
 
 .PHONY: build_macia
 build_macia:
-	$(MAKE) -C macia -f makefile
+	@printf "%b" "\033[1;35mChecking if macia needs to be built\033[m\n"
+	@$(MAKE) -C macia -f makefile
 
 .PHONY: build_llvm
 build_llvm:
@@ -58,8 +61,8 @@ build_llvm:
 
 .PHONY: clean
 clean:
-	$(MAKE) -C cpptest -f makefile clean
-	$(MAKE) -C zlib -f makefile clean
+	@$(MAKE) -C cpptest -f makefile clean
+	@$(MAKE) -C zlib -f makefile clean
 	@rm -rf bin
 	@rm -rf include
 	@rm -rf lib
