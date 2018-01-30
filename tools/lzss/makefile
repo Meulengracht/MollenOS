@@ -4,9 +4,10 @@
 .PHONY: all
 all: ../../lzss
 
-../../lzss: 
-	clang main.c aplib64.a -o $@
+../../lzss: main.c
+	@printf "%b" "\033[0;36mCreating tool " $@ "\033[m\n"
+	@clang main.c aplib64.a -o $@
 
 .PHONY: clean
 clean:
-	rm -f ../../lzss
+	@rm -f ../../lzss

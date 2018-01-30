@@ -10,12 +10,14 @@ LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtConsoleEntry $(GUCXXLIBRARIES)
 all: ../bin/cpptest.app
 
 ../bin/cpptest.app: $(OBJECTS)
-	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	@printf "%b" "\033[0;36mCreating application " $@ "\033[m\n"
+	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 	
 %.o : %.cpp
-	$(CC) -c $(CXXFLAGS) -o $@ $<
+	@printf "%b" "\033[0;32mCompiling C++ source object " $< "\033[m\n"
+	@$(CC) -c $(CXXFLAGS) -o $@ $<
 
 .PHONY: clean
 clean:
-	rm -f $(OBJECTS)
-	rm -f ../bin/cpptest.app
+	@rm -f $(OBJECTS)
+	@rm -f ../bin/cpptest.app

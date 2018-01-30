@@ -4,9 +4,10 @@
 .PHONY: all
 all: ../../rd
 
-../../rd: 
-	clang main.c -o $@
+../../rd: main.c
+	@printf "%b" "\033[0;36mCreating tool " $@ "\033[m\n"
+	@clang main.c -o $@
 
 .PHONY: clean
 clean:
-	rm -f ../../rd
+	@rm -f ../../rd

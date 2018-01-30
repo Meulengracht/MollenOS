@@ -5,9 +5,10 @@ SOURCE = $(wildcard mfstool/*/*/*.cs mfstool/*/*.cs mfstool/*.cs)
 all: ../../diskutility
 
 ../../diskutility: $(SOURCE)
-	mcs $(SOURCE) /reference:System.Management.dll /reference:DiscUtils.dll -out:$@
-	cp *.dll ../../
+	@printf "%b" "\033[0;36mCreating tool " $@ "\033[m\n"
+	@mcs $(SOURCE) /reference:System.Management.dll /reference:DiscUtils.dll -out:$@
+	@cp *.dll ../../
 
 clean:
-	rm -f ../../diskutility
-	rm -f ../../*.dll
+	@rm -f ../../diskutility
+	@rm -f ../../*.dll

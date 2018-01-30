@@ -14,28 +14,28 @@ build:
 
 .PHONY: devicemanager
 devicemanager:
-	$(MAKE) -C devicemanager -f makefile
+	@$(MAKE) -C devicemanager -f makefile
 
 .PHONY: filemanager
 filemanager:
-	$(MAKE) -C filemanager -f makefile
+	@$(MAKE) -C filemanager -f makefile
 
 .PHONY: sessionmanager
 sessionmanager:
-	$(MAKE) -C sessionmanager -f makefile
+	@$(MAKE) -C sessionmanager -f makefile
 
 .PHONY: usbmanager
 usbmanager:
-	$(MAKE) -C usbmanager -f makefile
+	@$(MAKE) -C usbmanager -f makefile
 
 .PHONY: windowmanager
 windowmanager:
-	$(MAKE) -C windowmanager -f makefile
+	@$(MAKE) -C windowmanager -f makefile
 
 .PHONY: clean
 clean:
-	$(MAKE) -C sessionmanager -f makefile clean
-	$(MAKE) -C devicemanager -f makefile clean
-	$(MAKE) -C filemanager -f makefile clean
-	$(MAKE) -C usbmanager -f makefile clean
-	rm -rf build
+	@$(MAKE) -C sessionmanager -f makefile clean
+	@$(MAKE) -C devicemanager -f makefile clean
+	@$(MAKE) -C filemanager -f makefile clean
+	@$(MAKE) -C usbmanager -f makefile clean
+	@rm -rf build

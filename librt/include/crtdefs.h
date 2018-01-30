@@ -45,7 +45,9 @@
 #endif
 
 #ifdef __cplusplus
+#ifndef restrict
 #define restrict /*restrict*/
+#endif
 #endif
 
 #if defined(i386) && !defined(__i386__)

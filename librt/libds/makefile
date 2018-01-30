@@ -62,7 +62,7 @@ libds: ../build/libds.lib
 
 .PHONY: clean
 clean:
-	rm -f ../build/libds.lib
-	rm -f ../build/libdsk.lib
+	@rm -f ../build/libds.lib
+	@rm -f ../build/libdsk.lib
 	@rm -f $(KERNEL_OBJECTS)
 	@rm -f $(OBJECTS)

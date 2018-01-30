@@ -2,9 +2,9 @@
 #
 
 # Setup environment
-install_prefix = $(shell pwd)
-export INCLUDES = $(install_prefix)/include
-export LIBRARIES = $(install_prefix)/lib
+export LLVM = $(shell pwd)
+export INCLUDES = $(LLVM)/include
+export LIBRARIES = $(LLVM)/lib
 
 # Setup userspace environment
 # Always build test applications to make sure env is ok.
@@ -13,7 +13,7 @@ all: bin copy_headers copy_libraries build_cpptest
 
 # Build userspace applications, the order might be important.
 .PHONY: applications
-applications: build_zlib build_macia build_llvm
+applications: build_zlib build_macia build_llvm build_mesa
 
 bin:
 	@mkdir -p $@
@@ -56,11 +56,16 @@ build_macia:
 .PHONY: build_llvm
 build_llvm:
 	mkdir -p llvm_out
-	cd llvm_out && cmake -G "Unix Makefiles" -DCMAKE_INSTALL_PREFIX=$(install_prefix) -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../llvm/cmake/platforms/Vali.cmake ../llvm; \
+	cd llvm_out && cmake -G "Unix Makefiles" -DCMAKE_INSTALL_PREFIX=$(LLVM) -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../llvm/cmake/platforms/Vali.cmake ../llvm; \
 	cd llvm_out && make && make install
+
+.PHONY: build_mesa
+build_mesa:
+	cd mesa && make && make install
 
 .PHONY: clean
 clean:
+	@$(MAKE) -C mesa -f makefile clean
 	@$(MAKE) -C cpptest -f makefile clean
 	@$(MAKE) -C zlib -f makefile clean
 	@rm -rf bin

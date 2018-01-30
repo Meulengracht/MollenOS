@@ -11,16 +11,18 @@ LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtLibraryEntry /dll $(GUCLIBRARIES)
 all: ../bin/zlib.dll
 
 ../bin/zlib.dll: $(OBJECTS)
-	$(LD) $(LFLAGS) $(OBJECTS) /out:$@
-	mv -f ../bin/zlib.lib ../lib/zlib.lib
-	cp zconf.h ../include/zconf.h
-	cp zlib.h ../include/zlib.h
+	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
+	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	@mv -f ../bin/zlib.lib ../lib/zlib.lib
+	@cp zconf.h ../include/zconf.h
+	@cp zlib.h ../include/zlib.h
 	
 %.o : %.c
-	$(CC) -c $(CFLAGS) -o $@ $<
+	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
+	@$(CC) -c $(CFLAGS) -o $@ $<
 
 .PHONY: clean
 clean:
-	rm -f $(OBJECTS)
-	rm -f ../lib/zlib.lib
-	rm -f ../bin/zlib.dll
+	@rm -f $(OBJECTS)
+	@rm -f ../lib/zlib.lib
+	@rm -f ../bin/zlib.dll
