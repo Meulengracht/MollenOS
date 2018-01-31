@@ -28,9 +28,9 @@
  * and must be either 32 or 64. 16-bit ACPICA is no longer supported, as of
  * 12/2006. */
 #ifndef ACPI_MACHINE_WIDTH
-#if defined(_X86_32) || defined(i386)
+#if defined(i386) || defined(__i386__)
 #define ACPI_MACHINE_WIDTH 32
-#elif defined (_X86_64)
+#elif defined(__x86_64__) || defined(amd64) || defined(__amd64__)
 #define ACPI_MACHINE_WIDTH 64
 #endif
 #endif

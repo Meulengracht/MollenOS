@@ -15,92 +15,30 @@
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;
 ;
-; MollenOS x86 MMX/SSE Memcpy
+; MollenOS x86-64 SSE Memcpy
 
-bits 32
+bits 64
 segment .text
 
 ;Functions in this asm
-global _asm_memcpy_mmx
 global _asm_memcpy_sse
-
-; void asm_memcpy_mmx(void *Dest, void *Source, int Loops, int RemainingBytes)
-; We wait for the spinlock to become free
-; then set value to 1 to mark it in use.
-_asm_memcpy_mmx:
-	; Stack Frame
-	push	ebp
-	mov		ebp, esp
-	
-	; Save stuff
-	push	edi
-	push	esi
-
-	; Get destination/source
-	mov		edi, dword [ebp + 8]
-	mov		esi, dword [ebp + 12]
-
-	; get loop count
-	mov		ecx, dword [ebp + 16]
-	mov		edx, dword [ebp + 20]
-
-	; Make sure there is loops to do
-	test	ecx, ecx
-	je		MmxRemain
-
-MmxLoop:
-	movq	mm0, [esi]
-	movq	[edi], mm0
-
-	; Increase Pointers
-	add		esi, 8
-	add		edi, 8
-
-	; Loop Epilogue
-	dec		ecx							      
-	jnz		MmxLoop
-
-	; Done, cleanup MMX
-	emms
-	
-	; Remainders
-MmxRemain:
-	mov		ecx, edx
-	test	ecx, ecx
-	je		MmxDone
-
-	; Esi and Edi are already setup
-	rep		movsb
-
-MmxDone:
-	pop		esi
-	pop		edi
-	
-	; Unwind & return
-	pop     ebp
-	ret
-
 
 ; void asm_memcpy_sse(void *Dest, void *Source, int Loops, int RemainingBytes)
 ; We set the spinlock to value 0
 _asm_memcpy_sse:
-	; Stack Frame
-	push	ebp
-	mov		ebp, esp
-	
 	; Save stuff
-	push	edi
-	push	esi
+	push	rdi
+	push	rsi
 
 	; Get destination/source
-	mov		edi, dword [ebp + 8]
-	mov		esi, dword [ebp + 12]
+	mov		rdi, rcx
+	mov		rsi, rdx
 
 	; get loop count
-	mov		ecx, dword [ebp + 16]
-	mov		edx, dword [ebp + 20]
+	mov		rcx, r8
+	mov		rdx, r9
 	
-	test ecx, ecx
+	test    rcx, rcx
 	je		SseRemain
 
 	; Test if buffers are 16 byte aligned
@@ -111,29 +49,29 @@ _asm_memcpy_sse:
 
 	; Aligned Loop
 AlignedLoop:
-	movaps	xmm0, [esi]
-	movaps	[edi], xmm0
+	movaps	xmm0, [rsi]
+	movaps	[rdi], xmm0
 
 	; Increase Pointers
-	add		esi, 16
-	add		edi, 16
+	add		rsi, 16
+	add		rdi, 16
 
 	; Loop Epilogue
-	dec		ecx							      
+	dec		rcx							      
 	jnz		AlignedLoop
 	jmp		SseDone
 	
 	; Unaligned Loop
 UnalignedLoop:
-	movups	xmm0, [esi]
-	movups	[edi], xmm0
+	movups	xmm0, [rsi]
+	movups	[rdi], xmm0
 
 	; Increase Pointers
-	add		esi, 16
-	add		edi, 16
+	add		rsi, 16
+	add		rdi, 16
 
 	; Loop Epilogue
-	dec		ecx							      
+	dec		rcx							      
 	jnz		UnalignedLoop
 
 SseDone:
@@ -142,17 +80,14 @@ SseDone:
 
 	; Remainders
 SseRemain:
-	mov		ecx, edx
-	test	ecx, ecx
+	mov		rcx, rdx
+	test	rcx, rcx
 	je		CpyDone
 
 	; Esi and Edi are already setup
 	rep		movsb
 
 CpyDone:
-	pop		esi
-	pop		edi
-
-	; Unwind & return
-	pop     ebp
+	pop		rsi
+	pop		rdi
 	ret

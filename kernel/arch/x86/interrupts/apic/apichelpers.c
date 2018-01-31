@@ -54,7 +54,7 @@ uint32_t ApicGetVersion(void)
  * the integrated APIC */
 int ApicIsIntegrated(void)
 {
-#ifdef _X86_64
+#if defined(__x86_64__) || defined(amd64) || defined(__amd64__)
 	return 1;
 #else
 	return (ApicGetVersion() & 0xF0);

@@ -39,7 +39,7 @@
 #ifndef _SIZE_T_DEFINED
 #define _SIZE_T_DEFINED
 #undef size_t
-#if defined(_WIN64) || defined(_X86_64)
+#if defined(_WIN64) || defined(__x86_64__)
 #if defined(__GNUC__) && defined(__STRICT_ANSI__)
     typedef unsigned int size_t __attribute__((mode(DI)));
 #else

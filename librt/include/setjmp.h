@@ -1,38 +1,34 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS C Library - SetJmp & LongJmp
-*/
+ *
+ * Copyright 2011 - 2018, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS C Library - SetJmp & LongJmp
+ */
 
 #ifndef __SETJMP_INC__
 #define __SETJMP_INC__
 
-/* Includes */
+/* Includes 
+ * - Library */
 #include <crtdefs.h>
 #include <stdint.h>
 
 #pragma pack(push, _CRT_PACKING)
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#if (defined(_X86_) && !defined(__x86_64)) || defined(_X86_32) || defined(i386)
+#if (defined(_X86_) && !defined(__x86_64)) || defined(__i386__) || defined(i386)
 
 #define _JBLEN 16
 #define _JBTYPE int
@@ -113,7 +109,7 @@ typedef struct __JUMP_BUFFER {
 
 	} _JUMP_BUFFER;
 
-#elif defined(_x86_64)
+#elif defined(__x86_64__) || defined(__amd64__) || defined(amd64)
 
 	typedef _CRT_ALIGN(16) struct _SETJMP_FLOAT128 {
 		unsigned __int64 Part[2];
@@ -147,7 +143,7 @@ typedef struct __JUMP_BUFFER {
 		SETJMP_FLOAT128 Xmm15;
 	} _JUMP_BUFFER;
 
-#elif defined(_M_ARM)
+#elif defined(_M_ARM) || defined(__arm__)
 
 #define _JBLEN  28
 #define _JBTYPE int
@@ -174,27 +170,17 @@ typedef struct __JUMP_BUFFER {
 
 #endif
 
-/* Definitions */
 #ifndef _JMP_BUF_DEFINED
 typedef _JBTYPE jmp_buf[_JBLEN];
 #define _JMP_BUF_DEFINED
 #endif
 
-/* Prototypes */
-
-/* The save in time -> jump */
-_CRTIMP int _setjmp(jmp_buf env);
-_CRTIMP int _setjmp3(jmp_buf env, int nb_args, ...);
-
-/* Shorthand */
+_CODE_BEGIN
+CRTDECL(int,    _setjmp(jmp_buf env));
+CRTDECL(int,    _setjmp3(jmp_buf env, int nb_args, ...));
+CRTDECL(void,   longjmp(jmp_buf env, int value));
 #define setjmp(env) _setjmp(env)
-
-/* Restore time-state -> jmp */
-_CRTIMP void longjmp(jmp_buf env, int value);
-
-#ifdef __cplusplus
-}
-#endif
+_CODE_END
 
 #pragma pack(pop, _CRT_PACKING)
 

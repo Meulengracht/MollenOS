@@ -51,13 +51,13 @@ typedef uint32_t                    reg32_t;
 typedef uint64_t                    reg64_t;
 
 /* Variable Width */
-#if defined(_X86_32) || (defined(i386) || defined(__i386__))
+#if defined(i386) || defined(__i386__)
 #define __BITS                      32
 #define __MASK                      0xFFFFFFFF
 typedef unsigned int                PhysicalAddress_t;
 typedef unsigned int                VirtualAddress_t;
 typedef reg32_t                     reg_t;
-#elif defined(_X86_64)
+#elif defined(__x86_64__) || defined(amd64) || defined(__amd64__)
 #define __BITS                      64
 #define __MASK                      0xFFFFFFFFFFFFFFFF
 typedef unsigned long long          PhysicalAddress_t;

@@ -25,6 +25,11 @@
 #include <internal/_string.h>
 #include <stddef.h>
 
+/* Definitions CPUID */
+#define CPUID_FEAT_EDX_MMX      1 << 23
+#define CPUID_FEAT_EDX_SSE		1 << 25
+#define MEMCPY_ACCEL_THRESHOLD	10
+
 /* This is the default non-accelerated byte copier, it's optimized
  * for transfering as much as possible, but no CPU acceleration */
 void*
@@ -92,6 +97,27 @@ memcpy(
 	return memcpy_base(destination, source, count);
 }
 
+#elif defined(__amd64__) || defined(amd64)
+
+// Use the sse by default as all 64 bit cpus support sse
+extern void asm_memcpy_sse(void *Dest, const void *Source, int Loops, int RemainingBytes);
+void *memcpy(
+    _InOut_ void *destination,
+    _In_ const void *source,
+    _In_ size_t count) 
+{
+	size_t SseLoops = Count / 16;
+	size_t mBytes = Count % 16;
+
+	/* Sanity, we don't want to go through the
+	 * overhead if it's less than a certain threshold */
+	if (SseLoops < MEMCPY_ACCEL_THRESHOLD) {
+		return memcpy_base(Destination, Source, Count);
+	}
+	asm_memcpy_sse(Destination, Source, SseLoops, mBytes);
+	return Destination;
+}
+
 #else
 
 #if defined(_MSC_VER) && !defined(__clang__)
@@ -102,11 +128,6 @@ memcpy(
 
 /* Typedef the memset fingerprint */
 typedef void *(*MemCpyTemplate)(void *Destination, const void *Source, size_t Count);
-
-/* Definitions CPUID */
-#define CPUID_FEAT_EDX_MMX      1 << 23
-#define CPUID_FEAT_EDX_SSE		1 << 25
-#define MEMCPY_ACCEL_THRESHOLD	10
 
 /* ASM Externs + Prototypes */
 extern void asm_memcpy_mmx(void *Dest, const void *Source, int Loops, int RemainingBytes);

@@ -31,7 +31,7 @@
 /* The context depends on the current running 
  * architecture - and describes which kind of
  * information is stored for each context */
-#if defined(_X86_32) || defined(i386)
+#if defined(__i386__) || defined(i386)
 PACKED_TYPESTRUCT(Context, {
 	uint32_t                Edi;
 	uint32_t                Esi;
@@ -57,6 +57,33 @@ PACKED_TYPESTRUCT(Context, {
 	uint32_t                UserSs;
     
     uint32_t                Arguments[5];
+});
+#elif defined(__amd64__) || defined(amd64)
+PACKED_TYPESTRUCT(Context, {
+	uint64_t                Rdi;
+	uint64_t                Rsi;
+	uint64_t                Rbp;
+	uint64_t                Rsp;
+	uint64_t                Rbx;
+	uint64_t                Rdx;
+	uint64_t                Rcx;
+	uint64_t                Rax;
+			                
+	uint64_t                Gs;
+	uint64_t                Fs;
+	uint64_t                Es;
+	uint64_t                Ds;
+			                
+	uint64_t                Irq;
+	uint64_t                ErrorCode;
+	uint64_t                Rip;
+	uint64_t                Cs;
+	uint64_t                Eflags;
+			                
+	uint64_t                UserRsp;
+	uint64_t                UserSs;
+    
+    uint64_t                Arguments[5];
 });
 #else
 #error "os/context.h: Invalid architecture"

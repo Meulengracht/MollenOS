@@ -15,9 +15,9 @@
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;
 ;
-; MollenOS x86-32 Syscall Assembly Routine
+; MollenOS x86-64 Syscall Assembly Routine
 
-bits 32
+bits 64
 segment .text
 
 ;Functions in this asm
@@ -26,34 +26,32 @@ global __syscall
 ; int _syscall(int Function, int Arg0, int Arg1, int Arg2, int Arg3, int Arg4)
 __syscall:
 	; Stack Frame
-	push ebp
-	mov ebp, esp
+	push rbp
+	mov rbp, rsp
 
 	; Save
-	push ebx
-	push ecx
-	push edx
-	push esi
-	push edi
+	push rbx
+	push rcx
+	push rdx
+	push rsi
+	push rdi
 
 	; Get params
-	mov eax, [ebp + 8]
-	mov ebx, [ebp + 12]
-	mov ecx, [ebp + 16]
-	mov edx, [ebp + 20]
-	mov esi, [ebp + 24]
-	mov edi, [ebp + 28]
+	mov rax, rcx
+    mov rbx, rdx
+    mov rcx, r8
+    mov rdx, r9
+    mov rsi, [rbp + 0x30]
+    mov rdi, [rbp + 0x38]
 
 	; Syscall
 	int	80h
 
 	; Restore
-	pop edi
-	pop esi
-	pop edx
-	pop ecx
-	pop ebx
-
-	; Release stack frame
-	pop ebp
+	pop rdi
+	pop rsi
+	pop rdx
+	pop rcx
+	pop rbx
+	leave
 	ret 

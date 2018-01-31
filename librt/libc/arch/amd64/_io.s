@@ -16,7 +16,7 @@
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;
 ;
-; MollenOS x86 Direct Port IO Code
+; MollenOS x86-64 Direct Port IO Code
 ;
 bits 64
 segment .text
@@ -30,124 +30,71 @@ global ___writebyte
 global ___writeword
 global ___writelong
 
-; uint8_t __readbyte(uint16_t port)
+; uint8_t __readbyte(uint16_t port <rcx>)
 ; Recieves a byte from a port
 ___readbyte:
-	; Setup frame
-	push rbp
-	mov rbp, rsp
-	push rdx
-
-	; Get byte
 	xor rax, rax
 	xor rdx, rdx
-	mov dx, word [rbp + 8]
+	mov dx, cx
 	in al, dx
-
-	; Restore
-	pop rdx
-	pop rbp
 	ret
 
-; uint16_t __readword(uint16_t port)
+; uint16_t __readword(uint16_t port <rcx>)
 ; Recieves a word from a port
 ___readword:
-	; Setup frame
-	push rbp
-	mov rbp, rsp
-	push rdx
-
-	; Get word
 	xor rax, rax
 	xor rdx, rdx
-	mov dx, word [rbp + 8]
+	mov dx, cx
 	in ax, dx
-
-	; Restore
-	pop rdx
-	pop rbp
 	ret
 
-; uint32_t __readlong(uint16_t port)
+; uint32_t __readlong(uint16_t port <rcx>)
 ; Recieves a long from a port
 ___readlong:
-	; Setup frame
-	push rbp
-	mov rbp, rsp
-	push rdx
-
-	; Get dword
 	xor rax, rax
 	xor rdx, rdx
-	mov dx, word [rbp + 8]
+	mov dx, cx
 	in eax, dx
-
-	; Restore
-	pop rdx
-	pop rbp
 	ret
 
-; void __writebyte(uint16_t port, uint8_t data)
+; void __writebyte(uint16_t port <rcx> , uint8_t data <rdx>)
 ; Sends a byte to a port
 ___writebyte:
-	; Setup frame
-	push ebp
-	mov ebp, esp
-	push eax
-	push edx
-
 	; Get data
-	xor eax, eax
-	xor edx, edx
-	mov dx, [ebp + 8]
-	mov al, [ebp + 12]
+    push rbx
+    mov rbx, rdx
+	xor rdx, rdx
+	xor rax, rax
+	mov dx, cx
+	mov al, bl
 	out dx, al
-
-	; Restore
-	pop edx
-	pop eax
-	pop ebp
+    pop rbx
 	ret
 
-; void __writeword(uint16_t port, uint16_t data)
+; void __writeword(uint16_t port <rcx>, uint16_t data <rdx>)
 ; Sends a word to a port
 ___writeword:
-	; Stack Frame
-	push rbp
-	mov rbp, rsp
-	push rax
-	push rdx
-
 	; Get data
-	xor rax, rax
+    push rbx
+    mov rbx, rdx
 	xor rdx, rdx
-	mov dx, [rbp + 8]
-	mov ax, [rbp + 16]
+	xor rax, rax
+	mov dx, cx
+	mov ax, bx
 	out dx, ax
-
-	; Restore
-	pop rdx
-	pop rax
-	pop rbp
+    pop rbx
 	ret
 
-; void __writelong(uint16_t port, uint32_t data)
+; void __writelong(uint16_t port <rdx>, uint32_t data <rdx>)
 ; Sends a long to a port
 ___writelong:
-	; Stack Frame
-	push rbp
-	mov rbp, rsp
-	push rax
-	push rdx
-
 	; Get data
+    push rbx
+    mov rbx, rdx
 	xor rdx, rdx
-	mov dx, word [rbp + 8]
-	mov eax, dword [rbp + 16]
+	xor rax, rax
+	mov dx, cx
+	mov eax, ebx
 	out dx, eax
-
-	; Restore
-	pop rdx
-	pop rax
-	pop rbp
+    pop rbx
 	ret
