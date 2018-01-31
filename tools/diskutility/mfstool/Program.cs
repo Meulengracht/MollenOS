@@ -217,9 +217,9 @@ namespace DiskUtility
                 if (Target.ToLower() == "live" && Drives.Count > 0)
                     Disk = (CDisk)Drives[0];
                 else if (Target.ToLower() == "vmdk")
-                    Disk = new CDisk("VMDK", 512, 63, 255, 262144);
+                    Disk = new CDisk("VMDK", 512, 63, 255, 2097152);
                 else if (Target.ToLower() == "img")
-                    Disk = new CDisk("IMG", 512, 63, 255, 262144);
+                    Disk = new CDisk("IMG", 512, 63, 255, 2097152);
                 else {
                     Console.WriteLine("Invalid option for -target");
                     return -1;

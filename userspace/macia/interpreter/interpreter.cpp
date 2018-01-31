@@ -23,6 +23,7 @@
 
 /* Includes */
 #include "interpreter.h"
+#include <cstdio>
 
 /* Constructor 
  * Save the data given for execution 

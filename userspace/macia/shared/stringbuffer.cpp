@@ -30,7 +30,7 @@
 #define STR_BUF_INIT_SIZE 32
 
 /* Function declarations */
-void error(char *msg);
+void error(const char *msg);
 void Grow(StringBuffer_t *sb);
 void Init(StringBuffer_t *sb);
 
@@ -73,7 +73,7 @@ void Append(StringBuffer_t *Sb, char c)
 }
 
 /* Catenate all strings and return result */
-char *ToString(StringBuffer_t *Sb)
+const char *ToString(StringBuffer_t *Sb)
 {
 	/* Null-checks! */
 	if (!Sb || !Sb->Count)
@@ -102,7 +102,7 @@ void Dispose(StringBuffer_t **Sb)
 /* Begin of quasi-private functions */
 
 /* Print simple error message to stderr and call exit() */
-void error(char *msg) {
+void error(const char *msg) {
 	fprintf(stderr, "%s\n", (msg) ? msg : "");
 	exit(1);
 }

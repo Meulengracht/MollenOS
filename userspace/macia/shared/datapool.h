@@ -42,27 +42,27 @@ public:
 
 	/* Create a new object and return
 	 * the id for the current scope */
-	int CreateObject(char *pIdentifier);
+	int CreateObject(const char *pIdentifier);
 
 	/* Create a new function for the given scope 
 	 * and return the id for the current scope */
-	int CreateFunction(char *pIdentifier, int ScopeId);
+	int CreateFunction(const char *pIdentifier, int ScopeId);
 
 	/* Create a new variable for the given scope
 	 * and return the id of the variable */
-	int DefineVariable(char *pIdentifier, int ScopeId);
+	int DefineVariable(const char *pIdentifier, int ScopeId);
 
 	/* Creates a new string in the string pool
 	 * and returns the id given to it */
-	int DefineString(char *pString);
+	int DefineString(const char *pString);
 
 	/* Retrieve a code object Id from the given 
 	 * identifier and scope */
-	int LookupSymbol(char *pIdentifier, int ScopeId);
+	int LookupSymbol(const char *pIdentifier, int ScopeId);
 
 	/* Retrieves a code object from the given 
 	 * identifier path */
-	CodeObject *LookupObject(char *pPath);
+	CodeObject *LookupObject(const char *pPath);
 
 	/* Calculates the memory requirement of 
 	 * an object, returned as bytes */
@@ -81,8 +81,8 @@ public:
 
 private:
 	/* Private - Functions */
-	int CheckDublicate(char *pIdentifier, char *pPath);
-	char *CreatePath(int ScopeId, char *Identifier);
+	int CheckDublicate(const char *pIdentifier, const char *pPath);
+	char *CreatePath(int ScopeId, const char *Identifier);
 
 	/* Private - Data */
 	std::map<int, CodeObject*> m_sTable;

@@ -22,6 +22,10 @@
 #ifndef _STRINGBUFFER_H_
 #define _STRINGBUFFER_H_
 
+/* Includes
+ * - Library */
+#include <cstddef>
+
 /* The structure for the
  * stringbuffer, includes functions */
 typedef struct _StringBuffer {
@@ -37,7 +41,7 @@ typedef struct _StringBuffer {
 
 	/* Functions */
 	void(*Append) (struct _StringBuffer *Sb, char c);
-	char * (*ToString) (struct _StringBuffer *Sb);
+	const char * (*ToString) (struct _StringBuffer *Sb);
 	void(*Dispose) (struct _StringBuffer **Sb);
 
 } StringBuffer_t;

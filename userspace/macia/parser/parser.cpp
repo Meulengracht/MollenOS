@@ -24,6 +24,7 @@
 #include "parser.h"
 #include <cstdio>
 #include <cstring>
+#include <strings.h>
 
 /* Constructor
  * Takes a elem list for parsing */
@@ -185,7 +186,7 @@ int Parser::ParseStatement(int Index, Statement **Parent)
 			|| m_lElements[ModIndex + 2]->GetType() == LeftParenthesis)) {
 		
 		/* Function declaration, object declaration */
-		if (!strcmpi("object", m_lElements[ModIndex]->GetData())) {
+		if (!strcasecmp("object", m_lElements[ModIndex]->GetData())) {
 
 			/* Create a new Object and parse it's body */
 			Object *Obj = new Object(m_lElements[ModIndex + 1]->GetData());
@@ -218,7 +219,7 @@ int Parser::ParseStatement(int Index, Statement **Parent)
 			/* Set it  */
 			Stmt = Obj;
 		}
-		else if (!strcmpi("func", m_lElements[ModIndex]->GetData())) {
+		else if (!strcasecmp("func", m_lElements[ModIndex]->GetData())) {
 
 			/* Create a new Object and parse it's body */
 			Function *Func = new Function(m_lElements[ModIndex + 1]->GetData());
@@ -307,11 +308,11 @@ int Parser::ParseModifiers(int Index, int *Modifiers)
 	/* Determine what kind of statement this is
 	 * Start out by checking decl */
 	while (m_lElements[ModIndex]->GetType() == Identifier) {
-		if (!strcmpi("const", m_lElements[ModIndex]->GetData())) {
+		if (!strcasecmp("const", m_lElements[ModIndex]->GetData())) {
 			ModIndex++;
 			Consumed++;
 		}
-		else if (!strcmpi("locked", m_lElements[ModIndex]->GetData())) {
+		else if (!strcasecmp("locked", m_lElements[ModIndex]->GetData())) {
 			ModIndex++;
 			Consumed++;
 		}
@@ -413,6 +414,11 @@ int Parser::ParseExpression(int Index, Expression **Parent)
 				ExprOperator = ExprOperatorDivide;
 			else if (m_lElements[ModIndex]->GetType() == OperatorMultiply)
 				ExprOperator = ExprOperatorMultiply;
+            else {
+                // @todo
+                printf("Expressions");
+                return 0;
+            }
 
 			/* Ok, create a new expression */
 			Binary = new BinaryExpression(ExprOperator);

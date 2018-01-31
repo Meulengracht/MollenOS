@@ -106,10 +106,10 @@
 #define __STDC_DECORATION 
 #endif //!__OSLIB_C_SHAREDLIBRARY
 #endif //!__OSLIB_C_IMPLEMENTATION
-#define CRTDECL(ReturnType, Function) __STDC_DECORATION ReturnType __STDC_CONVENTION Function
+#define CRTDECL(ReturnType, Function) __STDC_DECORATION ReturnType Function
 #define CRTDECL_DATA(Type, Name) __STDC_DECORATION Type Name
 #ifdef __STDC_LIB_EXT1__
-#define CRTDECL_EX(ReturnType, Function) __STDC_DECORATION ReturnType __STDC_CONVENTION Function
+#define CRTDECL_EX(ReturnType, Function) __STDC_DECORATION ReturnType Function
 #else
 #define CRTDECL_EX(ReturnType, Function)
 #endif //!__STDC_LIB_EXT1__

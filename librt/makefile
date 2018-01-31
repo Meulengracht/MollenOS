@@ -18,53 +18,53 @@ deploy:
 	@mkdir -p $@
 
 build/libk.lib:
-	@$(MAKE) -C libc -f makefile libk
+	@$(MAKE) -s -C libc -f makefile libk
 
 build/libds.lib:
-	@$(MAKE) -C libds -f makefile libds
+	@$(MAKE) -s -C libds -f makefile libds
 
 build/libdsk.lib:
-	@$(MAKE) -C libds -f makefile libdsk
+	@$(MAKE) -s -C libds -f makefile libdsk
 
 build/libclang.lib:
-	@$(MAKE) -C libclang -f makefile
+	@$(MAKE) -s -C libclang -f makefile
 
 build/libcrt.lib:
-	@$(MAKE) -C libcrt -f makefile libcrt
+	@$(MAKE) -s -C libcrt -f makefile libcrt
 
 build/libdrv.lib:
-	@$(MAKE) -C libcrt -f makefile libdrv
+	@$(MAKE) -s -C libcrt -f makefile libdrv
 
 build/libsrv.lib:
-	@$(MAKE) -C libcrt -f makefile libsrv
+	@$(MAKE) -s -C libcrt -f makefile libsrv
 
 build/libm.dll:
-	@$(MAKE) -C libm -f makefile
+	@$(MAKE) -s -C libm -f makefile
 
 build/libc.dll:
-	@$(MAKE) -C libc -f makefile libc
+	@$(MAKE) -s -C libc -f makefile libc
 
 build/libusb.lib:
-	@$(MAKE) -C libusb -f makefile
+	@$(MAKE) -s -C libusb -f makefile
 
 deploy/libunwind.dll:
-	@$(MAKE) -C libunwind -f makefile
+	@$(MAKE) -s -C libunwind -f makefile
 
 deploy/libcxxabi.dll:
-	@$(MAKE) -C libcxxabi -f makefile
+	@$(MAKE) -s -C libcxxabi -f makefile
 
 deploy/libcxx.dll:
-	@$(MAKE) -C libcxx -f makefile
+	@$(MAKE) -s -C libcxx -f makefile
 
 .PHONY: clean
 clean:
-	@$(MAKE) -C libm -f makefile clean
-	@$(MAKE) -C libds -f makefile clean
-	@$(MAKE) -C libc -f makefile clean
-	@$(MAKE) -C libusb -f makefile clean
-	@$(MAKE) -C libclang -f makefile clean
-	@$(MAKE) -C libcrt -f makefile clean
-	@$(MAKE) -C libunwind -f makefile clean
-	@$(MAKE) -C libcxx -f makefile clean
+	@$(MAKE) -s -C libm -f makefile clean
+	@$(MAKE) -s -C libds -f makefile clean
+	@$(MAKE) -s -C libc -f makefile clean
+	@$(MAKE) -s -C libusb -f makefile clean
+	@$(MAKE) -s -C libclang -f makefile clean
+	@$(MAKE) -s -C libcrt -f makefile clean
+	@$(MAKE) -s -C libunwind -f makefile clean
+	@$(MAKE) -s -C libcxx -f makefile clean
 	@rm -rf build
 	@rm -rf deploy

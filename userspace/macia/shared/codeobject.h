@@ -44,8 +44,8 @@ typedef enum {
 class CodeObject
 {
 public:
-	CodeObject(CodeType_t pType, char *pIdentifier,
-		char *pPath, int pScopeId);
+	CodeObject(CodeType_t pType, const char *pIdentifier,
+		const char *pPath, int pScopeId);
 	~CodeObject();
 
 	/* State Tracking
@@ -61,7 +61,7 @@ public:
 	/* Gets */
 	std::vector<unsigned char> &GetCode() { return m_lByteCode; }
 	CodeType_t GetType() { return m_eType; }
-	char *GetPath() { return m_pPath; }
+	const char *GetPath() { return m_pPath; }
 	char *GetIdentifier() { return m_pIdentifier; }
 	int GetScopeId() { return m_iScopeId; }
 	int GetOffset() { return m_iOffset; }
@@ -73,7 +73,7 @@ private:
 	/* Private - Data */
 	CodeType_t m_eType;
 	char *m_pIdentifier;
-	char *m_pPath;
+	const char *m_pPath;
 	int m_iScopeId;
 
 	/* Private - State Tracking */

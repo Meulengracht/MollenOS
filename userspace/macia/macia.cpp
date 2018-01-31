@@ -20,17 +20,16 @@
  */
 
 /* Includes */
-#include <tchar.h>
 #include <cstdio>
 #include <cstdlib>
 
 /* Suite Includes */
-#include "Lexer/Scanner.h"
-#include "Parser/Parser.h"
-#include "Generator/Generator.h"
-#include "Interpreter/Interpreter.h"
+#include "lexer/scanner.h"
+#include "parser/parser.h"
+#include "generator/generator.h"
+#include "interpreter/interpreter.h"
 
-int _tmain(int argc, _TCHAR* argv[])
+int main(int argc, char* argv[])
 {
 	/* Variables we will need
 	 * for build */

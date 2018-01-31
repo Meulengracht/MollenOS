@@ -58,7 +58,7 @@ ifeq ($(MAKECMDGOALS),libk)
 	OBJECTS = $(join $(addprefix obk/, $(dir $(ASM_SRCS))), $(notdir $(ASM_SRCS:.s=.o))) \
 			  $(join $(addprefix obk/, $(dir $(COMMON_SRCS))), $(notdir $(COMMON_SRCS:.c=.o))) \
 			  $(join $(addprefix obk/, $(dir $(LIBK_SRCS))), $(notdir $(LIBK_SRCS:.c=.o)))
-	CFLAGS = $(GCFLAGS) -D__OSLIB_C_IMPLEMENTATION -DLIBC_KERNEL -D_KRNL_DLL -mno-sse $(COMMON_INCS) $(LIBK_INCS)
+	CFLAGS = $(GCFLAGS) -mno-sse -D__OSLIB_C_IMPLEMENTATION -DLIBC_KERNEL -D_KRNL_DLL $(COMMON_INCS) $(LIBK_INCS)
 	LFLAGS = /lib
 	OBJDIR = obk
 else

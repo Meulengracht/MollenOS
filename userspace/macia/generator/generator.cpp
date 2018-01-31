@@ -23,6 +23,7 @@
 
 /* Includes */
 #include "generator.h"
+#include <cstdio>
 
 /* Constructor 
  * Takes an AST for a program */
@@ -343,7 +344,7 @@ int Generator::ParseStatement(Statement *pStmt, int ScopeId) {
 			}
 
 #ifdef DIAGNOSE
-			printf("return\n", Func->GetIdentifier());
+			printf("return\n");
 #endif
 
 		} break;

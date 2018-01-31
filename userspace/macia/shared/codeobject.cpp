@@ -26,8 +26,8 @@
 
 /* Constructor 
  * Initialize and setup vars */
-CodeObject::CodeObject(CodeType_t pType, char *pIdentifier,
-	char *pPath, int pScopeId) {
+CodeObject::CodeObject(CodeType_t pType, const char *pIdentifier,
+	const char *pPath, int pScopeId) {
 
 	/* Store */
 	m_eType = pType;

@@ -59,7 +59,7 @@
 #ifndef _EXCEPTION_DEFINED
 #define _EXCEPTION_DEFINED
 		struct _exception {
-			int type;
+			int exctyp;
 			char *name;
 			double arg1;
 			double arg2;
@@ -578,7 +578,6 @@ __fp_unordered_compare(long double x, long double y){
 		 double __CRTDECL _copysign(double x,double sgn);
 		 double __CRTDECL _chgsign(double x);
 #endif
-		 _CRTIMP double __CRTDECL _cabs(struct _complex a);
 
 #if defined(__i386__) || defined(_M_IX86)
 		 int __CRTDECL _set_SSE2_enable(int flag);
@@ -603,8 +602,6 @@ __fp_unordered_compare(long double x, long double y){
 #define PLOSS _PLOSS
 #define matherr _matherr
 #define HUGE _HUGE
-		//  double __CRTDECL cabs(struct _complex x);
-#define cabs _cabs
 #endif
 
 #ifdef __cplusplus

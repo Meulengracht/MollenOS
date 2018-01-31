@@ -1,16 +1,12 @@
 # Makefile for building the standard c-libraries for both userspace and kernel
 # - libds
 # - libdsk
-ASM_SRCS = $(wildcard arch/$(VALI_ARCH)/*.s) \
-		   $(wildcard ../libos/arch/$(VALI_ARCH)/*.s)
 
 # Setup architecture specific flags and paths
 ifeq ($(VALI_ARCH), i386)
-	ASFLAGS = -f win32 -Xvc
 	KERNEL_INCLUDES = -I../../kernel/include \
 				      -I../../kernel/arch/x86/x32
 else ifeq ($(VALI_ARCH), amd64)
-	ASFLAGS = -f win64 -Xvc
 	KERNEL_INCLUDES = -I../../kernel/include \
 				      -I../../kernel/arch/x86/x64
 else
@@ -21,14 +17,14 @@ COMMON_INCLUDES = -I../include
 COMMON_SOURCES = $(wildcard *.c)
 
 KERNEL_SOURCES = $(COMMON_SOURCES) support/dsk.c
-KERNEL_OBJECTS = $(KERNEL_SOURCES:.c=.o)
+KERNEL_OBJECTS = $(KERNEL_SOURCES:.c=.ko)
 
 SOURCES = $(COMMON_SOURCES) support/ds.c
 OBJECTS = $(SOURCES:.c=.o)
 
 # Setup flags and stuff each for individual build  $(subst ../,,$(ASM_SRCS))
 ifeq ($(MAKECMDGOALS), libdsk)
-	CFLAGS = $(GCFLAGS) -D_KRNL_DLL -mno-sse $(COMMON_INCLUDES) $(KERNEL_INCLUDES)
+	CFLAGS = $(GCFLAGS) -mno-sse -D_KRNL_DLL $(COMMON_INCLUDES) $(KERNEL_INCLUDES)
 else
 	CFLAGS = $(GCFLAGS) -D_KRNL_DLL $(COMMON_INCLUDES)
 endif
@@ -55,10 +51,10 @@ libds: ../build/libds.lib
 	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
 	@$(CC) -c $(CFLAGS) -o $@ $<
 
-%.o : %.s
+%.ko : %.c
 	@mkdir -p $(dir $@)
-	@printf "%b" "\033[0;32mAssembling source object " $< "\033[m\n"
-	@$(AS) $(ASFLAGS) $< -o $@
+	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
+	@$(CC) -c $(CFLAGS) -o $@ $<
 
 .PHONY: clean
 clean:

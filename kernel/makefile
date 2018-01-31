@@ -15,7 +15,7 @@ SOURCES = $(wildcard common/*.c) \
 OBJECTS = $(SOURCES:.c=.o)
 
 # --save-temps
-CFLAGS = $(GCFLAGS) -D_KAPI -DUNICODE -DLIBC_KERNEL -D_KRNL_DLL -mno-sse $(INCLUDES)
+CFLAGS = $(GCFLAGS) -mno-sse -D_KAPI -DUNICODE -DLIBC_KERNEL -D_KRNL_DLL $(INCLUDES)
 LFLAGS = /nodefaultlib /subsystem:native /entry:kentry /fixed /base:"0x100000" /manifest:no /lldmap ../librt/build/libcrt.lib ../librt/build/libclang.lib ../librt/build/libk.lib ../librt/build/libdsk.lib build/acpica.lib build/$(VALI_ARCH).lib
 
 .PHONY: all
@@ -42,7 +42,7 @@ build/syskrnl.mos: $(OBJECTS)
 
 .PHONY: clean
 clean:
-	@$(MAKE) -C acpica -f makefile clean
-	@$(MAKE) -C arch -f makefile clean
+	@$(MAKE) -s -C acpica -f makefile clean
+	@$(MAKE) -s -C arch -f makefile clean
 	@rm -f $(OBJECTS)
 	@rm -rf build

@@ -85,10 +85,10 @@ build_initrd:
 
 .PHONY: build_tools
 build_tools:
-	@$(MAKE) -C tools/lzss -f makefile
-	@$(MAKE) -C tools/rd -f makefile
-	@$(MAKE) -C tools/diskutility -f makefile
-	@$(MAKE) -C tools/revision -f makefile
+	@$(MAKE) -s -C tools/lzss -f makefile
+	@$(MAKE) -s -C tools/rd -f makefile
+	@$(MAKE) -s -C tools/diskutility -f makefile
+	@$(MAKE) -s -C tools/revision -f makefile
 
 .PHONY: gen_revision
 gen_revision:
@@ -99,28 +99,28 @@ gen_revision:
 .PHONY: setup_userspace
 setup_userspace:
 	@printf "%b" "\033[1;35mSetting up userspace folders(include/lib)\033[m\n"
-	@$(MAKE) -C userspace -f makefile
+	@$(MAKE) -s -C userspace -f makefile
 
 .PHONY: build_userspace
 build_userspace:
-	@$(MAKE) -C userspace -f makefile applications
+	@$(MAKE) -s -C userspace -f makefile applications
 
 .PHONY: build_kernel
 build_kernel:
-	@$(MAKE) -C kernel -f makefile
+	@$(MAKE) -s -C kernel -f makefile
 
 .PHONY: build_drivers
 build_drivers:
-	@$(MAKE) -C services -f makefile
-	@$(MAKE) -C modules -f makefile
+	@$(MAKE) -s -C services -f makefile
+	@$(MAKE) -s -C modules -f makefile
 
 .PHONY: build_libraries
 build_libraries:
-	@$(MAKE) -C librt -f makefile
+	@$(MAKE) -s -C librt -f makefile
 
 .PHONY: build_bootloader
 build_bootloader:
-	@$(MAKE) -C boot -f makefile
+	@$(MAKE) -s -C boot -f makefile
 
 # Build the deploy directory, which contains the primary (system) drive
 # structure, system folder, default binaries etc
@@ -166,16 +166,16 @@ build_toolchain:
 
 .PHONY: clean
 clean:
-	@$(MAKE) -C boot -f makefile clean
-	@$(MAKE) -C librt -f makefile clean
-	@$(MAKE) -C services -f makefile clean
-	@$(MAKE) -C modules -f makefile clean
-	@$(MAKE) -C kernel -f makefile clean
-	@$(MAKE) -C userspace -f makefile clean
-	@$(MAKE) -C tools/lzss -f makefile clean
-	@$(MAKE) -C tools/rd -f makefile clean
-	@$(MAKE) -C tools/diskutility -f makefile clean
-	@$(MAKE) -C tools/revision -f makefile clean
+	@$(MAKE) -s -C boot -f makefile clean
+	@$(MAKE) -s -C librt -f makefile clean
+	@$(MAKE) -s -C services -f makefile clean
+	@$(MAKE) -s -C modules -f makefile clean
+	@$(MAKE) -s -C kernel -f makefile clean
+	@$(MAKE) -s -C userspace -f makefile clean
+	@$(MAKE) -s -C tools/lzss -f makefile clean
+	@$(MAKE) -s -C tools/rd -f makefile clean
+	@$(MAKE) -s -C tools/diskutility -f makefile clean
+	@$(MAKE) -s -C tools/revision -f makefile clean
 	@rm -f initrd.mos
 	@rm -rf deploy
 	@rm -rf initrd

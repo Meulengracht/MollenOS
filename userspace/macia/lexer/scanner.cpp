@@ -300,7 +300,7 @@ int Scanner::Scan(char *Data, size_t Length)
 
 				default: {
 					/* Error message */
-					printf("Invalid token at line %i, position %i: %c\n", LineNo, CharPos, Character);
+					printf("Invalid token at line %i, position %li: %c\n", LineNo, CharPos, Character);
 
 					/* Bail out */
 					return -1;

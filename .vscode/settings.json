@@ -304,7 +304,9 @@
         "*.gen": "c",
         "nir_builder.h": "c",
         "glapi_priv.h": "c",
-        "glapitable.h": "c"
+        "glapitable.h": "c",
+        "math_private.h": "c",
+        "e_rem_pio2l.h": "c"
     },
     "git.ignoreLimitWarning": true
 }

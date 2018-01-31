@@ -18,7 +18,6 @@
 *
 * Macia - Scanner Elements (Lexer)
 */
-#pragma once
 
 /* Includes */
 #include "element.h"

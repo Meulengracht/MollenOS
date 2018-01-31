@@ -23,6 +23,8 @@
 
 /* Includes */
 #include "datapool.h"
+#include <strings.h>
+#include <cstdio>
 
 /* Constructor 
  * Initialize the data pool etc */
@@ -42,7 +44,7 @@ DataPool::~DataPool() {
 }
 
 /* Checks for dublicates path */
-int DataPool::CheckDublicate(char *pIdentifier, char *pPath) {
+int DataPool::CheckDublicate(const char *pIdentifier, const char *pPath) {
 	
 	/* Iterate our code objects */
 	for (std::map<int, CodeObject*>::iterator Itr = m_sTable.begin();
@@ -52,7 +54,7 @@ int DataPool::CheckDublicate(char *pIdentifier, char *pPath) {
 		CodeObject *Obj = Itr->second;
 
 		/* Compare path */
-		if (!strcmpi(Obj->GetPath(), pPath)) {
+		if (!strcasecmp(Obj->GetPath(), pPath)) {
 
 			/* So, it exists */
 			printf("Dublicate objects with name %s\n", pIdentifier);
@@ -68,7 +70,7 @@ int DataPool::CheckDublicate(char *pIdentifier, char *pPath) {
 
 /* Calculates and creates a path for the given
  * identifier, so it lets us easily check for dubs */
-char *DataPool::CreatePath(int ScopeId, char *Identifier) {
+char *DataPool::CreatePath(int ScopeId, const char *Identifier) {
 
 	/* Static storage */
 	char Buffer[256];
@@ -102,7 +104,7 @@ char *DataPool::CreatePath(int ScopeId, char *Identifier) {
 
 /* Create a new object and return
  * the id for the current scope */
-int DataPool::CreateObject(char *pIdentifier) {
+int DataPool::CreateObject(const char *pIdentifier) {
 
 	/* Variables */
 	CodeObject *dObj = NULL;
@@ -130,7 +132,7 @@ int DataPool::CreateObject(char *pIdentifier) {
 
 /* Create a new function for the given scope
  * and return the id for the current scope */
-int DataPool::CreateFunction(char *pIdentifier, int ScopeId) {
+int DataPool::CreateFunction(const char *pIdentifier, int ScopeId) {
 
 	/* Variables */
 	CodeObject *OwnerObj = NULL;
@@ -169,7 +171,7 @@ int DataPool::CreateFunction(char *pIdentifier, int ScopeId) {
 
 /* Create a new variable for the given scope
  * and return the id of the variable */
-int DataPool::DefineVariable(char *pIdentifier, int ScopeId) {
+int DataPool::DefineVariable(const char *pIdentifier, int ScopeId) {
 
 	/* Variables */
 	CodeObject *OwnerObj = NULL;
@@ -208,7 +210,7 @@ int DataPool::DefineVariable(char *pIdentifier, int ScopeId) {
 
 /* Creates a new string in the string pool
  * and returns the id given to it */
-int DataPool::DefineString(char *pString) {
+int DataPool::DefineString(const char *pString) {
 
 	/* Create Path */
 	char Buffer[1024];
@@ -251,7 +253,7 @@ int DataPool::DefineString(char *pString) {
 
 /* Retrieve a variable Id from the given 
  * scope and identifier */
-int DataPool::LookupSymbol(char *pIdentifier, int ScopeId) {
+int DataPool::LookupSymbol(const char *pIdentifier, int ScopeId) {
 
 	/* Iterate our code objects */
 	for (std::map<int, CodeObject*>::iterator Itr = m_sTable.begin();
@@ -262,7 +264,7 @@ int DataPool::LookupSymbol(char *pIdentifier, int ScopeId) {
 
 		/* Compare path */
 		if (Obj->GetIdentifier() != NULL
-			&& !strcmpi(Obj->GetIdentifier(), pIdentifier)
+			&& !strcasecmp(Obj->GetIdentifier(), pIdentifier)
 			&& Obj->GetScopeId() == ScopeId) {
 			
 			/* Yay! Found! */
@@ -276,7 +278,7 @@ int DataPool::LookupSymbol(char *pIdentifier, int ScopeId) {
 
 /* Retrieves a code object from the given 
  * identifier path */
-CodeObject *DataPool::LookupObject(char *pPath) {
+CodeObject *DataPool::LookupObject(const char *pPath) {
 
 	/* Iterate our code objects */
 	for (std::map<int, CodeObject*>::iterator Itr = m_sTable.begin();
@@ -286,7 +288,7 @@ CodeObject *DataPool::LookupObject(char *pPath) {
 		CodeObject *Obj = Itr->second;
 
 		/* Compare path */
-		if (!strcmpi(Obj->GetPath(), pPath)) {
+		if (!strcasecmp(Obj->GetPath(), pPath)) {
 
 			/* Yay! Found! */
 			return Obj;
