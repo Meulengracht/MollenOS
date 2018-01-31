@@ -139,7 +139,7 @@ int Generator::Generate() {
 		/* Get index */
 		CodeObject *Obj = Itr->second;
 		size_t DataLength = strlen(Obj->GetPath());
-		char *DataPtr = Obj->GetPath();
+		const char *DataPtr = Obj->GetPath();
 
 		/* Serialize code object */
 

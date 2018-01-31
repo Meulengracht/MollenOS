@@ -123,7 +123,7 @@ typedef struct {
 
 /*The C99 standard (7.6.9) allows us to define 
  * implementation-specific macros for different fp environments */
-_CRTIMP extern __CONST fenv_t __fe_dfl_env;
+CRTDECL_DATA(extern const fenv_t, __fe_dfl_env);
 #define	FE_DFL_ENV	(&__fe_dfl_env)
 
 /* The SSE status */
@@ -135,8 +135,8 @@ enum __sse_support {
 
 /* After testing for SSE support once 
  * we cache the result in __has_sse. */
-_CRTIMP enum __sse_support __has_sse;
-_CRTIMP int __test_sse(void);
+CRTDECL_DATA(extern enum __sse_support,__has_sse);
+CRTDECL(int,                           __test_sse(void));
 #ifdef __SSE__
 #define	__HAS_SSE()	1
 #else
@@ -145,13 +145,13 @@ _CRTIMP int __test_sse(void);
 #endif
 
 /* Prototypes which we don't inline */
-_CRTIMP int fesetexceptflag(__CONST fexcept_t *__flagp, int __excepts);
-_CRTIMP int feraiseexcept(int __excepts);
-_CRTIMP int fegetenv(fenv_t *__envp);
-_CRTIMP int feholdexcept(fenv_t *__envp);
-_CRTIMP int feupdateenv(__CONST fenv_t *__envp);
-_CRTIMP int feenableexcept(int __mask);
-_CRTIMP int fedisableexcept(int __mask);
+CRTDECL(int, fesetexceptflag(__CONST fexcept_t *__flagp, int __excepts));
+CRTDECL(int, feraiseexcept(int __excepts));
+CRTDECL(int, fegetenv(fenv_t *__envp));
+CRTDECL(int, feholdexcept(fenv_t *__envp));
+CRTDECL(int, feupdateenv(__CONST fenv_t *__envp));
+CRTDECL(int, feenableexcept(int __mask));
+CRTDECL(int, fedisableexcept(int __mask));
 
 __fenv_static __CRT_INLINE 
 int feclearexcept(int __excepts)

@@ -198,12 +198,14 @@ AddressSpaceDestroy(
 
 				// Iterate pages in table
 				for (j = 0; j < PAGES_PER_TABLE; j++) {
-					if (Pt->Pages[i] & PAGE_VIRTUAL)
+					if (Pt->Pages[j] & PAGE_VIRTUAL)
 						continue;
 
 					// If it has a mapping - free it
-					if (Pt->Pages[i] != 0) {
-						MmPhysicalFreeBlock(Pt->Pages[i] & PAGE_MASK);
+					if ((Pt->Pages[j] & PAGE_MASK) != 0) {
+						if (MmPhysicalFreeBlock(Pt->Pages[j] & PAGE_MASK) != OsSuccess) {
+                            ERROR("Tried to free page %i (0x%x) , but was not allocated", j, Pt->Pages[j]);
+                        }
 					}
 				}
 

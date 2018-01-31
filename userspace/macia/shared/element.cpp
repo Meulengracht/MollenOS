@@ -60,7 +60,7 @@ Element::Element(ElementType_t Type, int Line, long Character) {
  * Cleanup data as well */
 Element::~Element() {
 	if (m_pData != NULL) {
-		free(m_pData);
+		free((void*)m_pData);
 	}
 }
 

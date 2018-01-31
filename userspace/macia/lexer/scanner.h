@@ -42,7 +42,7 @@ public:
 
 private:
 	/* Private - Functions */
-	void CreateElement(ElementType_t Type, char *Data, int Line, long Character);
+	void CreateElement(ElementType_t Type, const char *Data, int Line, long Character);
 
 	/* Private - Data */
 	std::vector<Element*> m_lElements;

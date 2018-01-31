@@ -71,11 +71,11 @@ public:
 	~Element();
 
 	/* Modify data for element */
-	void SetData(char *Data) { m_pData = Data; }
+	void SetData(const char *Data) { m_pData = Data; }
 
 	/* Get(s) */
 	ElementType_t GetType() { return m_eType; }
-	char *GetData() { return m_pData; }
+	const char *GetData() { return m_pData; }
 	int GetLineNumber() { return m_iLinePosition; }
 	long GetCharacterPosition() { return m_iCharPosition; }
 	const char *GetName();
@@ -83,7 +83,7 @@ public:
 private:
 	/* Private - Information */
 	ElementType_t m_eType;
-	char *m_pData;
+	const char *m_pData;
 
 	long m_iCharPosition;
 	int m_iLinePosition;

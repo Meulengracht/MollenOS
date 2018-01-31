@@ -42,7 +42,7 @@ const fenv_t __fe_dfl_env = {
 	0, 0, 0, 0, 0, 0, 0, 0
 };
 
-enum __sse_support __has_sse =
+CRTDECL_DATA(enum __sse_support, __has_sse) =
 #ifdef __SSE__
 	__SSE_YES;
 #else

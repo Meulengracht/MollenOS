@@ -319,7 +319,7 @@ int Scanner::Scan(char *Data, size_t Length)
 
 /* Private helper for creating elements
  * and adding to the element list */
-void Scanner::CreateElement(ElementType_t Type, char *Data, int Line, long Character)
+void Scanner::CreateElement(ElementType_t Type, const char *Data, int Line, long Character)
 {
 	/* Allocate a new instance and assign */
 	Element *elem = new Element(Type, Line, Character);

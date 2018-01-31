@@ -368,27 +368,27 @@ OsStatus_t
 MmPhysicalFreeBlock(
 	_In_ PhysicalAddress_t Address)
 {
-	/* Calculate the bitmap bit */
+	// Variables
 	int Frame = (int)(Address / PAGE_SIZE);
-
-	/* Sanitize the address
-	 * parameter for ranges */
-	assert(Address < MemorySize);
+	if (Address >= MemorySize) {
+        FATAL(FATAL_SCOPE_KERNEL, 
+            "Tried to free address that was higher than allowed (0x%x >= 0x%x)",
+            Address, MemorySize);
+    }
 
     // Enter critical section
 	CriticalSectionEnter(&MemoryLock);
-
-	/* Sanitize that the page is 
-	 * actually allocated */
-	assert(MmMemoryMapTestBit(Frame) != 0);
+	if (MmMemoryMapTestBit(Frame) == 0) {
+	    CriticalSectionLeave(&MemoryLock);
+        return OsError;
+    }
 
 	// Free the bit and leave section
 	MmMemoryMapUnsetBit(Frame);
 	CriticalSectionLeave(&MemoryLock);
-
-	/* Statistics */
-	if (MemoryBlocksUsed != 0)
+	if (MemoryBlocksUsed != 0) {
 		MemoryBlocksUsed--;
+    }
 
 	// Done - no errors
 	return OsSuccess;

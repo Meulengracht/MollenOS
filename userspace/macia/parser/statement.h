@@ -65,13 +65,13 @@ private:
 class Declaration : public Statement
 {
 public:
-	Declaration(char *pOfType, char *pIdentifier) : Statement(StmtDeclaration) {
+	Declaration(const char *pOfType, const char *pIdentifier) : Statement(StmtDeclaration) {
 		m_pIdentifier = strdup(pIdentifier);
 		m_pOfType = strdup(pOfType);
 		m_pExpression = NULL;
 	}
 	~Declaration() {
-		free(m_pIdentifier);
+		free((void*)m_pIdentifier);
 	}
 
 	/* Update expression */
@@ -80,13 +80,13 @@ public:
 	}
 
 	/* Gets */
-	char *GetOfType() { return m_pOfType; }
-	char *GetIdentifier() { return m_pIdentifier; }
+	const char *GetOfType() { return m_pOfType; }
+	const char *GetIdentifier() { return m_pIdentifier; }
 	Expression *GetExpression() { return m_pExpression; }
 
 private:
-	char *m_pOfType;
-	char *m_pIdentifier;
+	const char *m_pOfType;
+	const char *m_pIdentifier;
 	Expression *m_pExpression;
 };
 
@@ -95,12 +95,12 @@ private:
 class Assignment : public Statement
 {
 public:
-	Assignment(char *pIdentifier) : Statement(StmtAssign) {
+	Assignment(const char *pIdentifier) : Statement(StmtAssign) {
 		m_pIdentifier = strdup(pIdentifier);
 		m_pExpression = NULL;
 	}
 	~Assignment() {
-		free(m_pIdentifier);
+		free((void*)m_pIdentifier);
 	}
 
 	/* Update expression */
@@ -109,11 +109,11 @@ public:
 	}
 
 	/* Gets */
-	char *GetIdentifier() { return m_pIdentifier; }
+	const char *GetIdentifier() { return m_pIdentifier; }
 	Expression *GetExpression() { return m_pExpression; }
 
 private:
-	char *m_pIdentifier;
+	const char *m_pIdentifier;
 	Expression *m_pExpression;
 };
 
@@ -122,12 +122,12 @@ private:
 class Object : public Statement
 {
 public:
-	Object(char *pIdentifier) : Statement(StmtObject) {
+	Object(const char *pIdentifier) : Statement(StmtObject) {
 		m_pIdentifier = strdup(pIdentifier);
 		m_pBody = NULL;
 	}
 	~Object() {
-		free(m_pIdentifier);
+		free((void*)m_pIdentifier);
 		if (m_pBody != NULL) {
 			delete m_pBody;
 		}
@@ -139,11 +139,11 @@ public:
 	}
 
 	/* Gets */
-	char *GetIdentifier() { return m_pIdentifier; }
+	const char *GetIdentifier() { return m_pIdentifier; }
 	Statement *GetBody() { return m_pBody; }
 
 private:
-	char *m_pIdentifier;
+	const char *m_pIdentifier;
 	Statement *m_pBody;
 };
 
@@ -152,12 +152,12 @@ private:
 class Function : public Statement
 {
 public:
-	Function(char *pIdentifier) : Statement(StmtFunction) {
+	Function(const char *pIdentifier) : Statement(StmtFunction) {
 		m_pIdentifier = strdup(pIdentifier);
 		m_pBody = NULL;
 	}
 	~Function() {
-		free(m_pIdentifier);
+		free((void*)m_pIdentifier);
 		if (m_pBody != NULL) {
 			delete m_pBody;
 		}
@@ -171,11 +171,11 @@ public:
 	}
 
 	/* Gets */
-	char *GetIdentifier() { return m_pIdentifier; }
+	const char *GetIdentifier() { return m_pIdentifier; }
 	Statement *GetBody() { return m_pBody; }
 
 private:
-	char *m_pIdentifier;
+	const char *m_pIdentifier;
 	Statement *m_pBody;
 };
 
