@@ -254,7 +254,7 @@ const struct __locale_t __C_locale =
 };
 #endif /* _MB_CAPABLE */
 
-struct __locale_t __global_locale =
+CRTDECL_DATA(struct __locale_t, __global_locale) =
 {
   { "C", "C", DEFAULT_LOCALE, "C", "C", "C", "C", },
 #ifdef __CYGWIN__

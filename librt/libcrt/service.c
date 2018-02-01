@@ -44,7 +44,7 @@ CRTDECL(void, __CppInitVectoredEH(void));
 
 /* StdioInitialize
  * Initializes default handles and resources */
-CRTDECL(void, StdioInitialize(void));
+CRTDECL(void, StdioInitialize(void *InheritanceBlock, size_t InheritanceBlockLength));
 
 /* StdSignalInitialize
  * Initializes the default signal-handler for the process. */
@@ -70,7 +70,7 @@ __CrtInitialize(
     tls_initialize();
 
     // Initialize STD-C
-    StdioInitialize();
+    StdioInitialize(NULL, 0);
     StdSignalInitialize();
 
     // If msc, initialize the vectored-eh

@@ -49,27 +49,28 @@ _CODE_END
 #define Syscall_ProcessKill(ProcessId) (OsStatus_t)syscall1(5, SCPARAM(ProcessId))
 #define Syscall_ProcessSignal(Handler) (OsStatus_t)syscall1(6, SCPARAM(Handler))
 #define Syscall_ProcessRaise(ProcessId, Signal) (OsStatus_t)syscall2(7, SCPARAM(ProcessId), SCPARAM(Signal))
-#define Syscall_ProcessGetModuleHandles(HandleList) (OsStatus_t)syscall1(8, SCPARAM(HandleList))
-#define Syscall_ProcessGetModuleEntryPoints(HandleList) (OsStatus_t)syscall1(9, SCPARAM(HandleList))
-#define Syscall_ProcessGetStartupInfo(StartupInformation) (OsStatus_t)syscall1(10, SCPARAM(StartupInformation))
+#define Syscall_ProcessName(Buffer, MaxLength) (OsStatus_t)syscall2(8, SCPARAM(Buffer), SCPARAM(MaxLength))
+#define Syscall_ProcessGetModuleHandles(HandleList) (OsStatus_t)syscall1(9, SCPARAM(HandleList))
+#define Syscall_ProcessGetModuleEntryPoints(HandleList) (OsStatus_t)syscall1(10, SCPARAM(HandleList))
+#define Syscall_ProcessGetStartupInfo(StartupInformation) (OsStatus_t)syscall1(11, SCPARAM(StartupInformation))
 
 /* SharedObject system calls
  * - SharedObject related system call definitions */
-#define Syscall_LibraryLoad(Path) (Handle_t)syscall1(11, SCPARAM(Path))
-#define Syscall_LibraryFunction(Handle, FunctionName) (uintptr_t)syscall2(12, SCPARAM(Handle), SCPARAM(FunctionName))
-#define Syscall_LibraryUnload(Handle) (OsStatus_t)syscall1(13, SCPARAM(Handle))
+#define Syscall_LibraryLoad(Path) (Handle_t)syscall1(12, SCPARAM(Path))
+#define Syscall_LibraryFunction(Handle, FunctionName) (uintptr_t)syscall2(13, SCPARAM(Handle), SCPARAM(FunctionName))
+#define Syscall_LibraryUnload(Handle) (OsStatus_t)syscall1(14, SCPARAM(Handle))
 
 /* Threading system calls
  * - Threading related system call definitions */
-#define Syscall_ThreadCreate(Entry, Argument, Flags) (UUId_t)syscall3(14, SCPARAM(Entry), SCPARAM(Argument), SCPARAM(Flags))
-#define Syscall_ThreadExit(ExitCode) (OsStatus_t)syscall1(15, SCPARAM(ExitCode))
-#define Syscall_ThreadSignal(ThreadId, Signal) (OsStatus_t)syscall2(16, SCPARAM(ThreadId), SCPARAM(Signal))
-#define Syscall_ThreadJoin(ThreadId, ExitCode) (OsStatus_t)syscall2(17, SCPARAM(ThreadId), SCPARAM(ExitCode))
-#define Syscall_ThreadSleep(Milliseconds, MillisecondsSlept) (OsStatus_t)syscall2(18, SCPARAM(Milliseconds), SCPARAM(MillisecondsSlept))
-#define Syscall_ThreadYield() (OsStatus_t)syscall0(19)
-#define Syscall_ThreadId() (UUId_t)syscall0(20)
-#define Syscall_ThreadSetCurrentName(Name) (UUId_t)syscall1(21, SCPARAM(Name))
-#define Syscall_ThreadGetCurrentName(NameBuffer, MaxLength) (UUId_t)syscall2(22, SCPARAM(NameBuffer), SCPARAM(MaxLength))
+#define Syscall_ThreadCreate(Entry, Argument, Flags) (UUId_t)syscall3(15, SCPARAM(Entry), SCPARAM(Argument), SCPARAM(Flags))
+#define Syscall_ThreadExit(ExitCode) (OsStatus_t)syscall1(16, SCPARAM(ExitCode))
+#define Syscall_ThreadSignal(ThreadId, Signal) (OsStatus_t)syscall2(17, SCPARAM(ThreadId), SCPARAM(Signal))
+#define Syscall_ThreadJoin(ThreadId, ExitCode) (OsStatus_t)syscall2(18, SCPARAM(ThreadId), SCPARAM(ExitCode))
+#define Syscall_ThreadSleep(Milliseconds, MillisecondsSlept) (OsStatus_t)syscall2(19, SCPARAM(Milliseconds), SCPARAM(MillisecondsSlept))
+#define Syscall_ThreadYield() (OsStatus_t)syscall0(20)
+#define Syscall_ThreadId() (UUId_t)syscall0(21)
+#define Syscall_ThreadSetCurrentName(Name) (UUId_t)syscall1(22, SCPARAM(Name))
+#define Syscall_ThreadGetCurrentName(NameBuffer, MaxLength) (UUId_t)syscall2(23, SCPARAM(NameBuffer), SCPARAM(MaxLength))
 
 /* Condition system calls
  * - Condition related system call definitions */
@@ -101,9 +102,8 @@ _CODE_END
 #define Syscall_PipeOpen(Port, Flags) (OsStatus_t)syscall2(61, SCPARAM(Port), SCPARAM(Flags))
 #define Syscall_PipeClose(Port) (OsStatus_t)syscall1(62, SCPARAM(Port))
 #define Syscall_PipeRead(Port, Buffer, Length) (OsStatus_t)syscall3(63, SCPARAM(Port), SCPARAM(Buffer), SCPARAM(Length))
-#define Syscall_PipeWrite(ProcessId, Port, Buffer, Length) (OsStatus_t)syscall4(64, SCPARAM(ProcessId), SCPARAM(Port), SCPARAM(Buffer), SCPARAM(Length))
-#define Syscall_IpcWait(Timeout) (OsStatus_t)syscall1(65, SCPARAM(Timeout))
-#define Syscall_IpcWake(ProcessId) (OsStatus_t)syscall1(66, SCPARAM(ProcessId))
+#define Syscall_PipeSend(ProcessId, Port, Buffer, Length) (OsStatus_t)syscall4(64, SCPARAM(ProcessId), SCPARAM(Port), SCPARAM(Buffer), SCPARAM(Length))
+#define Syscall_PipeReceive(ProcessId, Port, Buffer, Length) (OsStatus_t)syscall4(65, SCPARAM(ProcessId), SCPARAM(Port), SCPARAM(Buffer), SCPARAM(Length))
 #define Syscall_RemoteCall(RemoteCall, Asynchronous) (OsStatus_t)syscall2(67, SCPARAM(RemoteCall), SCPARAM(Asynchronous))
 #define Syscall_RpcGetResponse(RemoteCall) (OsStatus_t)syscall1(68, SCPARAM(RemoteCall))
 #define Syscall_RemoteCallWait(Port, RemoteCall, ArgumentBuffer) (OsStatus_t)syscall3(69, SCPARAM(Port), SCPARAM(RemoteCall), SCPARAM(ArgumentBuffer))

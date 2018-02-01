@@ -102,13 +102,13 @@ typedef struct _iobuf FILE;
 
 /* Stdio Standard Handles
  * Contains definitions for standard input and output handles used in C */
-_CRTIMP FILE *getstdfile(int n);
-#define STDOUT_FD                   (int)0
-#define STDIN_FD                    (int)1
-#define STDERR_FD                   (int)2
-#define stdout						getstdfile(STDOUT_FD)
-#define stdin						getstdfile(STDIN_FD)
-#define	stderr						getstdfile(STDERR_FD)
+CRTDECL(FILE*,                      getstdfile(int n));
+#define STDOUT_FILENO               (int)0
+#define STDIN_FILENO                (int)1
+#define STDERR_FILENO               (int)2
+#define stdout						getstdfile(STDOUT_FILENO)
+#define stdin						getstdfile(STDIN_FILENO)
+#define	stderr						getstdfile(STDERR_FILENO)
 
 /*******************************
  *       File Access           *

@@ -254,6 +254,19 @@ ScProcessGetCurrentId(
     return Process->Id;
 }
 
+/* ScProcessGetCurrentName
+ * Retreieves the current process name */
+OsStatus_t
+ScProcessGetCurrentName(const char *Buffer, size_t MaxLength) {
+    MCoreAsh_t *Process = PhoenixGetCurrentAsh();
+    if (Process == NULL) {
+        return OsError;
+    }
+    memset((void*)Buffer, 0, MaxLength);
+    memcpy((void*)Buffer, MStringRaw(Process->Name), MIN(MStringSize(Process->Name), MaxLength));
+    return OsSuccess;
+}
+
 /* ScProcessSignal
  * Installs a default signal handler for the given process. */
 OsStatus_t
@@ -329,14 +342,14 @@ ScProcessGetStartupInformation(
     }
     if (Process->StartupInformation.InheritanceBlockPointer != NULL) {
         if (StartupInformation->InheritanceBlockPointer != NULL) {
+            size_t BytesToCopy = MIN(StartupInformation->InheritanceBlockLength, 
+                    Process->StartupInformation.InheritanceBlockLength);
             memcpy((void*)StartupInformation->InheritanceBlockPointer, 
-                Process->StartupInformation.InheritanceBlockPointer,
-                MIN(StartupInformation->InheritanceBlockLength, 
-                    Process->StartupInformation.InheritanceBlockLength));
+                Process->StartupInformation.InheritanceBlockPointer, BytesToCopy);
+            StartupInformation->InheritanceBlockLength = BytesToCopy;
         }
         else {
-            StartupInformation->InheritanceBlockLength = 
-                Process->StartupInformation.InheritanceBlockLength;
+            StartupInformation->InheritanceBlockLength = 0;
         }
     }
 
@@ -1101,11 +1114,8 @@ ScDestroyFileMapping(
  * processes */
 OsStatus_t
 ScPipeOpen(
-    _In_ int Port, 
-    _In_ Flags_t Flags)
-{
-    // No need for any preperation on this call, the
-    // underlying call takes care of validation as well
+    _In_ int        Port, 
+    _In_ Flags_t    Flags) {
     return PhoenixOpenAshPipe(PhoenixGetCurrentAsh(), Port, Flags);
 }
 
@@ -1114,10 +1124,7 @@ ScPipeOpen(
  * shutdowns any communication on that port */
 OsStatus_t
 ScPipeClose(
-    _In_ int Port)
-{
-    // No need for any preperation on this call, the
-    // underlying call takes care of validation as well
+    _In_ int Port) {
     return PhoenixCloseAshPipe(PhoenixGetCurrentAsh(), Port);
 }
 
@@ -1125,9 +1132,9 @@ ScPipeClose(
  * Reads the requested number of bytes from the system-pipe. */
 OsStatus_t
 ScPipeRead(
-    _In_ int         Port,
-    _In_ uint8_t    *Container,
-    _In_ size_t      Length)
+    _In_ int        Port,
+    _In_ uint8_t*   Container,
+    _In_ size_t     Length)
 {
     // Variables
     MCorePipe_t *Pipe   = NULL;
@@ -1178,10 +1185,26 @@ ScPipeWrite(
         return OsError;
     }
 
-    // Lookup the pipe for the given port
-    if (Port == -1 && ThreadingGetThread(AshId) != NULL) {
+    // Look for system pipe?
+    if (AshId == UUID_INVALID) {
+        if (Port == PIPE_STDOUT || Port == PIPE_STDERR) {
+            if (Port == PIPE_STDOUT) {
+                Pipe = LogPipeStdout();
+            }
+            else if (Port == PIPE_STDERR) {
+                Pipe = LogPipeStderr();
+            }
+        }
+        else {
+            ERROR("Invalid system pipe %i", Port);
+            return OsError;
+        }
+    }
+    // Look for thread pipe?
+    else if (Port == -1 && ThreadingGetThread(AshId) != NULL) {
         Pipe = ThreadingGetThread(AshId)->Pipe;
     }
+    // Look for normal pipe?
     else {
         Pipe = PhoenixGetAshPipe(PhoenixGetAsh(AshId), Port);
     }
@@ -1198,45 +1221,44 @@ ScPipeWrite(
     return PipeProduceCommit(Pipe, PipeWorker);
 }
 
-/* ScIpcSleep
- * This is a bit of a tricky synchronization method
- * and should always be used with care and WITH the timeout
- * since it could hang a process */
+/* ScPipeReceive
+ * Receives the requested number of bytes to the system-pipe. */
 OsStatus_t
-ScIpcSleep(
-    _In_ size_t Timeout)
+ScPipeReceive(
+    _In_ UUId_t      AshId,
+    _In_ int         Port,
+    _In_ uint8_t    *Message,
+    _In_ size_t      Length)
 {
     // Variables
-    MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
-    if (Ash == NULL) {
-        FATAL(FATAL_SCOPE_KERNEL, "System-call from non-process.");
-    }
+    MCorePipe_t *Pipe   = NULL;
+    unsigned PipeWorker = 0;
 
-    if (SchedulerThreadSleep((uintptr_t*)Ash, Timeout) != SCHEDULER_SLEEP_OK) {
+    // Sanitize parameters
+    if (Message == NULL || Length == 0 || AshId == UUID_INVALID) {
+        ERROR("Invalid paramters for pipe-recieve");
         return OsError;
     }
+
+    // Check for thread pipe if Port == -1
+    if (Port == -1 && ThreadingGetThread(AshId) != NULL) {
+        Pipe = ThreadingGetThread(AshId)->Pipe;
+    }
+    // Otherwise normal pipe
     else {
-        return OsSuccess;
+        Pipe = PhoenixGetAshPipe(PhoenixGetAsh(AshId), Port);
     }
-}
 
-/* ScIpcWake
- * This must be used in conjuction with the above function
- * otherwise this function has no effect, this is used for
- * very limited IPC synchronization */
-OsStatus_t
-ScIpcWake(
-    _In_ UUId_t Target)
-{
-    // Variables
-    MCoreAsh_t *Ash = PhoenixGetAsh(Target);
-    if (Ash == NULL) {
+    // Sanitize the pipe
+    if (Pipe == NULL) {
+        ERROR("Invalid pipe %i", Port);
         return OsError;
     }
-
-    // Signal wake-up
-    SchedulerHandleSignal((uintptr_t*)Ash);
-    return OsSuccess;
+    
+    // Debug
+    PipeConsumeAcquire(Pipe, &PipeWorker);
+    PipeConsume(Pipe, Message, Length, PipeWorker);
+    return PipeConsumeCommit(Pipe, PipeWorker);
 }
 
 /* ScRpcResponse
@@ -1859,6 +1881,7 @@ uintptr_t GlbSyscallTable[111] = {
     DefineSyscall(ScProcessKill),
     DefineSyscall(ScProcessSignal),
     DefineSyscall(ScProcessRaise),
+    DefineSyscall(ScProcessGetCurrentName),
     DefineSyscall(ScProcessGetModuleHandles),
     DefineSyscall(ScProcessGetModuleEntryPoints),
     DefineSyscall(ScProcessGetStartupInformation),
@@ -1874,7 +1897,6 @@ uintptr_t GlbSyscallTable[111] = {
     DefineSyscall(ScThreadGetCurrentId),
     DefineSyscall(ScThreadSetCurrentName),
     DefineSyscall(ScThreadGetCurrentName),
-    DefineSyscall(NoOperation),
     DefineSyscall(NoOperation),
     DefineSyscall(NoOperation),
     DefineSyscall(NoOperation),
@@ -1924,8 +1946,8 @@ uintptr_t GlbSyscallTable[111] = {
     DefineSyscall(ScPipeClose),
     DefineSyscall(ScPipeRead),
     DefineSyscall(ScPipeWrite),
-    DefineSyscall(ScIpcSleep),
-    DefineSyscall(ScIpcWake),
+    DefineSyscall(ScPipeReceive),
+    DefineSyscall(NoOperation),
     DefineSyscall(ScRpcExecute),
     DefineSyscall(ScRpcResponse),
     DefineSyscall(ScRpcListen),

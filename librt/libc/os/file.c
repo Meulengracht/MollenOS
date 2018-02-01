@@ -26,12 +26,8 @@
 #include <os/driver/file.h>
 #include <os/mollenos.h>
 #include <os/syscall.h>
-
-/* StdioFdToHandle
- * Retrieves the file descriptor os-handle from the given fd */
-UUId_t
-StdioFdToHandle(
-    _In_ int fd);
+#include <stdio.h>
+#include "../stdio/local.h"
 
 /* GetFilePathFromFd 
  * Queries the system for the absolute file-path of the given file-descriptor. */
@@ -42,12 +38,13 @@ GetFilePathFromFd(
     _In_ size_t MaxLength)
 {
     // Variables
-    UUId_t FileHandle = StdioFdToHandle(FileDescriptor);
+    StdioHandle_t *FileHandle = StdioFdToHandle(FileDescriptor);
 
-    if (FileHandle == UUID_INVALID || PathBuffer == NULL) {
+    if (FileHandle == NULL || PathBuffer == NULL || 
+        FileHandle->InheritationType != STDIO_HANDLE_FILE) {
         return OsError;
     }
-    return GetFilePath(FileHandle, PathBuffer, MaxLength);
+    return GetFilePath(FileHandle->InheritationData.FileHandle, PathBuffer, MaxLength);
 }
 
 /* GetStorageInformationFromPath 
@@ -73,12 +70,13 @@ GetStorageInformationFromFd(
     _In_ vStorageDescriptor_t*  Information)
 {
     // Variables
-    UUId_t FileHandle = StdioFdToHandle(FileDescriptor);
+    StdioHandle_t *FileHandle = StdioFdToHandle(FileDescriptor);
 
-    if (FileHandle == UUID_INVALID || Information == NULL) {
+    if (FileHandle == NULL || Information == NULL ||
+        FileHandle->InheritationType != STDIO_HANDLE_FILE) {
         return OsError;
     }
-    return QueryDiskByHandle(FileHandle, Information);
+    return QueryDiskByHandle(FileHandle->InheritationData.FileHandle, Information);
 }
 
 /* GetFileInformationFromPath 
@@ -104,12 +102,13 @@ GetFileInformationFromFd(
     _In_ vFileDescriptor_t* Information)
 {
     // Variables
-    UUId_t FileHandle = StdioFdToHandle(FileDescriptor);
+    StdioHandle_t *FileHandle = StdioFdToHandle(FileDescriptor);
 
-    if (FileHandle == UUID_INVALID || Information == NULL) {
+    if (FileHandle == NULL || Information == NULL ||
+        FileHandle->InheritationType != STDIO_HANDLE_FILE) {
         return OsError;
     }
-    return GetFileStatsByHandle(FileHandle, Information);
+    return GetFileStatsByHandle(FileHandle->InheritationData.FileHandle, Information);
 }
 
 /* Parameter structure for creating file-mappings. 
@@ -134,14 +133,14 @@ CreateFileMapping(
 {
     // Variables
     struct FileMappingParameters Parameters;
-    UUId_t FileHandle = StdioFdToHandle(FileDescriptor);
+    StdioHandle_t *FileHandle = StdioFdToHandle(FileDescriptor);
 
     // Sanitize that the descritor is valid
-    if (FileHandle == UUID_INVALID) {
+    if (FileHandle == NULL || FileHandle->InheritationType != STDIO_HANDLE_FILE) {
         return OsError;
     }
 
-    Parameters.FileHandle = FileHandle;
+    Parameters.FileHandle = FileHandle->InheritationData.FileHandle;
     Parameters.Flags = Flags;
     Parameters.Offset = Offset;
     Parameters.Size = Size;

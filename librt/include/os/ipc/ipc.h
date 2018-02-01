@@ -40,8 +40,11 @@
 /* Predefined system pipe-ports that should not
  * be used by user pipes. Trying to open new pipes
  * on these ports will result in error */
-#define PIPE_RPCOUT						0
-#define PIPE_RPCIN						1
+#define PIPE_STDOUT                     0
+#define PIPE_STDIN                      1
+#define PIPE_STDERR                     2
+#define PIPE_RPCOUT						3
+#define PIPE_RPCIN						4
 
 /* Predefined system events that is common for
  * all userspace applications, these primarily consists

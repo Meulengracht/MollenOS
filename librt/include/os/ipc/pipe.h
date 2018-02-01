@@ -35,42 +35,25 @@ _CODE_BEGIN
  * Opens a new communication pipe on the given
  * port for this process, if one already exists
  * SIGPIPE is signaled */
-CRTDECL( 
-UUId_t,
-PipeOpen(
-	_In_ int Port));
+CRTDECL(OsStatus_t, PipeOpen(int Port));
 
 /* Pipe - Close
  * Closes an existing communication pipe on the given
  * port for this process, if one doesn't exists
  * SIGPIPE is signaled */
-CRTDECL( 
-OsStatus_t,
-PipeClose(
-	_In_ UUId_t Pipe));
+CRTDECL(OsStatus_t, PipeClose(int Port));
 
 /* Pipe - Read
  * This returns -1 if something went wrong reading
  * a message from the message queue, otherwise it returns 0
  * and fills the structures with information about the message */
-CRTDECL( 
-OsStatus_t,
-PipeRead(
-	_In_ UUId_t Pipe, 
-	_In_ void *Buffer, 
-	_In_ size_t Length));
+CRTDECL(OsStatus_t, PipeRead(int Port, void *Buffer, size_t Length));
 
-/* Pipe - Send
- * Returns -1 if message failed to send
- * Returns -2 if message-target didn't exist
- * Returns 0 if message was sent correctly to target */
-CRTDECL( 
-OsStatus_t,
-PipeSend(
-	_In_ UUId_t Target, 
-	_In_ int Port, 
-	_In_ void *Message, 
-	_In_ size_t Length));
+/* Pipe send + recieve
+ * The send and recieve calls can actually be used for reading extern pipes
+ * and send to external pipes */
+CRTDECL(OsStatus_t, PipeSend(UUId_t ProcessId, int Port, void *Buffer, size_t Length));
+CRTDECL(OsStatus_t, PipeReceive(UUId_t ProcessId, int Port, void *Buffer, size_t Length));
 _CODE_END
 
 #endif //!KERNEL_API

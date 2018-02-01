@@ -41,6 +41,20 @@ size_t GlbLogSize = 0;
 CriticalSection_t GlbLogLock;
 char *GlbLog = NULL;
 int GlbLogIndex = 0;
+static MCorePipe_t *LogStdout = NULL;
+static MCorePipe_t *LogStderr = NULL;
+
+/* LogPipeStdout
+ * The log pipe for stdout when no windowing system is running. */
+MCorePipe_t *LogPipeStdout(void) {
+    return LogStdout;
+}
+
+/* LogPipeStderr
+ * The log pipe for stderr when no windowing system is running. */
+MCorePipe_t *LogPipeStderr(void) {
+    return LogStderr;
+}
 
 /* LogInitialize
  * Initializes loggin data-structures and global variables
@@ -75,6 +89,10 @@ void LogUpgrade(size_t Size)
 		kfree(GlbLog);
 	GlbLog = nBuffer;
 	GlbLogSize = Size;
+
+    // Create standard pipes
+    LogStdout = PipeCreate(0x1000, 0);
+    LogStderr = PipeCreate(0x1000, 0);
 }
 
 /* Switches target */

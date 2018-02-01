@@ -41,7 +41,7 @@ int _write(
 	_In_ unsigned int length)
 {
 	// Variables
-	ioobject *Info = get_ioinfo(fd);
+	StdioObject_t *Info = get_ioinfo(fd);
 	size_t BytesWritten = 0;
 
 	// Don't write uneven bytes in case of UTF8/16

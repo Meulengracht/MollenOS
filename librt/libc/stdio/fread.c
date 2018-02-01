@@ -54,7 +54,7 @@ _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
 	// Variables
     char min_buf[5], *readbuf, lookahead;
     size_t readbuf_size, pos=0, BytesRead = 1, char_len, i, j;
-	ioobject *fdinfo = get_ioinfo(fd);
+	StdioObject_t *fdinfo = get_ioinfo(fd);
 	long long noppos;
 	
     // make the buffer big enough to hold at least one character
@@ -276,7 +276,7 @@ int _read(
 	// Variables
 	size_t BytesRead, Utf16;
 	char *BufferCursor = (char *)buffer;
-	ioobject *fdinfo = get_ioinfo(fd);
+	StdioObject_t *fdinfo = get_ioinfo(fd);
 	long long pos;
 
 	// Sanitize parameters

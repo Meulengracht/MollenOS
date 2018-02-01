@@ -101,7 +101,8 @@ int _open(
 	// Invoke os service
 	Code = OpenFile(file, _fopts(flags), _faccess(flags), &Handle);
 	if (!_fval(Code)) {
-		fd = StdioFdAllocate(Handle, wxflags);
+		fd = StdioFdAllocate(-1, wxflags);
+        StdioCreateFileHandle(Handle, get_ioinfo(fd));
 		if (flags & _O_WTEXT) {
 			get_ioinfo(fd)->exflag |= EF_UTF16|EF_UNK_UNICODE;		
 		}

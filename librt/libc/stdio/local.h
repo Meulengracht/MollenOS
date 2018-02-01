@@ -48,20 +48,40 @@
 #define EF_UTF8             0x01
 #define EF_UTF16            0x02
 #define EF_UNK_UNICODE      0x08
+#define EF_CLOSE            0x10
 
 #define INTERNAL_BUFSIZ     4096
 #define INTERNAL_MAXFILES   1024
 
+#define STDIO_HANDLE_INVALID    0
+#define STDIO_HANDLE_PIPE       1
+#define STDIO_HANDLE_FILE       2
+
+/* StdioHandle
+ * Describes a handle that can be inherited by the process. 
+ * These can only be created from existing handles (file, pipe etc) */
+typedef struct _StdioHandle {
+    int             InheritationType;
+    union {
+        struct {
+            UUId_t  ProcessId;
+            int     Port;
+        } Pipe;
+        UUId_t      FileHandle;
+    } InheritationData;
+} StdioHandle_t;
+
 typedef struct {
-    UUId_t              handle;
+    int                 fd;
+    StdioHandle_t       handle;
     unsigned char       wxflag;
     char                lookahead[3];
     int                 exflag;
-    void               *file;
+    void*               file;
     Spinlock_t          lock;
-} ioobject;
+} StdioObject_t;
 
-__EXTERN ioobject* get_ioinfo(int fd);
+__EXTERN StdioObject_t* get_ioinfo(int fd);
 __EXTERN OsStatus_t os_alloc_buffer(FILE *file);
 __EXTERN OsStatus_t os_flush_buffer(FILE *file);
 __EXTERN int os_flush_all_buffers(int mask);
@@ -71,13 +91,24 @@ __EXTERN void remove_std_buffer(FILE *file);
 __EXTERN int _flsbuf(int ch, FILE *stream);
 __EXTERN int _flswbuf(int ch, FILE *stream);
 
-/* StdioFdAllocate 
- * Allocates a new file descriptor handle from the bitmap.
- * Returns -1 on error. */
-__EXTERN int StdioFdAllocate(UUId_t handle, int flag);
+/* Stdio internal file-descriptor management functions 
+ * Used internally by the c library to manage open file handles */
+__EXTERN int StdioFdAllocate(int fd, int flag);
+__EXTERN void StdioCreateFileHandle(UUId_t FileHandle, StdioObject_t *Object);
+__EXTERN void StdioCreatePipeHandle(UUId_t ProcessId, int Port, int Oflags, StdioObject_t *Object);
 __EXTERN OsStatus_t StdioFdInitialize(_In_ FILE *file, _In_ int fd, _In_ unsigned stream_flags);
 __EXTERN void StdioFdFree(_In_ int fd);
-__EXTERN UUId_t StdioFdToHandle(_In_ int fd);
+__EXTERN StdioHandle_t* StdioFdToHandle(_In_ int fd);
+
+/* StdioCreateInheritanceBlock
+ * Creates a block of data containing all the stdio handles that
+ * can be inherited. */
+__EXTERN
+OsStatus_t
+StdioCreateInheritanceBlock(
+    _In_  int       InheritStdHandles,
+    _Out_ void**    InheritanceBlock,
+    _Out_ size_t*   BlockSize);
 
 /* StdioReadInternal
  * Internal read wrapper for file-reading */

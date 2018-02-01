@@ -98,25 +98,4 @@ RPCRespond(
 	return Syscall_RemoteCallRespond(RemoteCall, (void*)Buffer, Length);
 }
 
-/* IPC - Sleep
- * This suspends the current process-thread
- * and puts it in a sleep state untill either
- * the timeout runs out or it recieves a wake
- * signal. */
-OsStatus_t
-WaitForSignal(
-	_In_ size_t Timeout) {
-	return Syscall_IpcWait(Timeout);
-}
-
-/* IPC - Wake
- * This wakes up a thread in suspend mode on the
- * target. This should be used in conjunction with
- * the Sleep. */
-OsStatus_t
-SignalProcess(
-	_In_ UUId_t Target) {
-	return Syscall_IpcWake(Target);
-}
-
 #endif

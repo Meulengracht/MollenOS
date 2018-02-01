@@ -28,47 +28,47 @@
 
 _CODE_BEGIN
 /* Checks for an alphanumeric character. */
-_CRTIMP int isalnum(int __c);
+CRTDECL(int, isalnum(int __c));
 /* Checks for an alphabetic character. */
-_CRTIMP int isalpha(int __c);
+CRTDECL(int, isalpha(int __c));
 /* Checks for a control character. */
-_CRTIMP int iscntrl(int __c);
+CRTDECL(int, iscntrl(int __c));
 /* Checks for a digit (0 through 9). */
-_CRTIMP int isdigit(int __c);
+CRTDECL(int, isdigit(int __c));
 /* Checks for any printable character except space. */
-_CRTIMP int isgraph(int __c);
+CRTDECL(int, isgraph(int __c));
 /* Checks for a lower-case character. */
-_CRTIMP int islower(int __c);
+CRTDECL(int, islower(int __c));
 /* Checks for any printable character including space. */
-_CRTIMP int isprint(int __c);
+CRTDECL(int, isprint(int __c));
 /* Checks for any printable character which is not a space
  * or an alphanumeric character. */
-_CRTIMP int ispunct(int __c);
+CRTDECL(int, ispunct(int __c));
 /* Checks for white-space characters. */
-_CRTIMP int isspace(int __c);
+CRTDECL(int, isspace(int __c));
 /* Checks for an uppercase letter. */
-_CRTIMP int isupper(int __c);
+CRTDECL(int, isupper(int __c));
 /* Checks for a hexadecimal digits. */
-_CRTIMP int isxdigit(int __c);
+CRTDECL(int, isxdigit(int __c));
 
 /* Checks whether c is a 7-bit unsigned char value that
  * fits into the ASCII character set. */
-_CRTIMP int tolower(int __c);
-_CRTIMP int toupper(int __c);
+CRTDECL(int, tolower(int __c));
+CRTDECL(int, toupper(int __c));
 
 /* <<isblank>> is a function which classifies singlebyte charset values by table
  * lookup.  It is a predicate returning non-zero for blank characters, and 0
  * for other characters.  It is defined only if <[c]> is representable as an
  * unsigned char or if <[c]> is EOF. */
-_CRTIMP int isblank(int __c);
+CRTDECL(int, isblank(int __c));
 
 /* Determine whether or not the given character 
  * is a valid ASCII character */
-_CRTIMP int isascii(int __c);
+CRTDECL(int, isascii(int __c));
 
 /* <<toascii>> is a macro which coerces integers 
  * to the ASCII range (0--127) by zeroing any higher-order bits. */
-_CRTIMP int toascii(int __c);
+CRTDECL(int, toascii(int __c));
 #define _tolower(__c) ((unsigned char)(__c) - 'A' + 'a')
 #define _toupper(__c) ((unsigned char)(__c) - 'a' + 'A')
 
@@ -98,7 +98,7 @@ CRTDECL(int, toascii_l(int __c, locale_t __l));
 #define _CTYPE_X	0100
 #define	_CTYPE_B	0200
 
-_CRTIMP const char *__locale_ctype_ptr(void);
+CRTDECL(const char*,     __locale_ctype_ptr(void));
 # define __CTYPE_PTR	(__locale_ctype_ptr ())
 
 #ifndef __cplusplus

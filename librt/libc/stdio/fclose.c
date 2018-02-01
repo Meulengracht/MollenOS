@@ -39,26 +39,38 @@
 int _close(int fd)
 {
 	// Variables
-	UUId_t handle;
-	int result;
+	StdioObject_t *object   = NULL;
+	int result              = -1;
 
 	// Retrieve handle
-	handle = StdioFdToHandle(fd);
-	if (handle == UUID_INVALID) {
-		return -1;
+	object = get_ioinfo(fd);
+	if (object == NULL) {
+		return result;
 	}
 
-	// Call OS routine
-	result = (int)CloseFile(handle);
-
-	// Validate the result code
-	if (_fval(result)) {
-		return -1;
-	}
-	else {
-		StdioFdFree(fd);
-		return 0;
-	}
+    // File or pipe?
+    if (object->handle.InheritationType == STDIO_HANDLE_FILE) {
+        if (object->exflag & EF_CLOSE) {
+            result = (int)CloseFile(object->handle.InheritationData.FileHandle);
+            if (_fval(result)) {
+                result = -1;
+            }
+        }
+        else {
+            result = 0;
+        }
+    }
+    else if (object->handle.InheritationType == STDIO_HANDLE_PIPE) {
+        // if it has read caps then we have an issue, close pipe
+        if (object->exflag & EF_CLOSE) {
+            PipeClose(object->handle.InheritationData.Pipe.Port);
+        }
+        else {
+            result = 0;
+        }
+    }
+    StdioFdFree(fd);
+    return result;
 }
 
 /* fclose

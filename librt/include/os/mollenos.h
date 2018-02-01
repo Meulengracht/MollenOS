@@ -271,8 +271,6 @@ __set_reserved(size_t index, size_t value) {
 /*******************************************************************************
  * System Extensions
  *******************************************************************************/
-CRTDECL(OsStatus_t, WaitForSignal(size_t Timeout));
-CRTDECL(OsStatus_t, SignalProcess(UUId_t Target));
 CRTDECL(void,       MollenOSEndBoot(void));
 
 _CODE_END

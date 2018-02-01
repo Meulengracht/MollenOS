@@ -42,7 +42,7 @@ extern "C" {
 #ifndef __clang__
     CRTDECL(void, __CppInitVectoredEH(void));
 #endif
-    CRTDECL(void, StdioInitialize(void));
+    CRTDECL(void, StdioInitialize(void *InheritanceBlock, size_t InheritanceBlockLength));
     CRTDECL(void, StdSignalInitialize(void));
     CRTDECL(void, __cxa_runinitializers(void (*Initializer)(void), void (*Finalizers)(void)));
 }
@@ -172,7 +172,7 @@ __CrtInitialize(
     GetStartupInformation(&StartupInformation);
 
 	// Initialize STD-C
-	StdioInitialize( /* StartupInformation.InheritanceBlockPointer */ );
+	StdioInitialize((void*)StartupInformation.InheritanceBlockPointer, StartupInformation.InheritanceBlockLength);
     StdSignalInitialize();
  
     // If msc, initialize the vectored-eh

@@ -32,24 +32,15 @@
  * Opens a new communication pipe on the given
  * port for this process, if one already exists
  * SIGPIPE is signaled */
-UUId_t
+OsStatus_t
 PipeOpen(
     _In_ int Port)
 {
-	// Variables
-	OsStatus_t Result = OsError;
-
 	// Sanitize input
 	if (Port < 0) {
 		return UUID_INVALID;
 	}
-
-    // Execute system call and verify
-	Result = Syscall_PipeOpen(Port, 0);
-	if (Result != OsSuccess) {
-		raise(SIGPIPE);
-	}
-	return (UUId_t)Port;
+	return Syscall_PipeOpen(Port, 0);
 }
 
 /* PipeClose
@@ -58,22 +49,13 @@ PipeOpen(
  * SIGPIPE is signaled */
 OsStatus_t
 PipeClose(
-    _In_ UUId_t Pipe)
+    _In_ int Port)
 {
-	// Variables
-	OsStatus_t Result = OsError;
-
 	// Sanitize input
-	if (Pipe == UUID_INVALID) {
+	if (Port < 0) {
 		return OsError;
 	}
-
-	// Execute system call and verify
-	Result = Syscall_PipeClose(Pipe);
-	if (Result != OsSuccess) {
-		raise(SIGPIPE);
-	}
-	return Result;
+	return Syscall_PipeClose(Port);
 }
 
 /* PipeRead
@@ -82,49 +64,48 @@ PipeClose(
  * and fills the structures with information about the message */
 OsStatus_t
 PipeRead(
-    _In_ UUId_t  Pipe,
-    _In_ void   *Buffer,
-    _In_ size_t  Length)
+    _In_ int    Port,
+    _In_ void*  Buffer,
+    _In_ size_t Length)
 {
-	// Variables
-	OsStatus_t Result = OsError;
-
 	// Sanitize input
-	if (Pipe == UUID_INVALID || Length == 0) {
+	if (Port < 0 || Buffer == NULL || Length == 0) {
 		return OsError;
 	}
-
-	// Execute system call and verify
-	Result = Syscall_PipeRead(Pipe, Buffer, Length);
-	if (Result != OsSuccess) {
-		raise(SIGPIPE);
-	}
-	return Result;
+	return Syscall_PipeRead(Port, Buffer, Length);
 }
 
-/* PipeSend
- * Returns -1 if message failed to send
- * Returns -2 if message-target didn't exist
- * Returns 0 if message was sent correctly to target */
+/* Pipe send + recieve
+ * The send and recieve calls can actually be used for reading extern pipes
+ * and send to external pipes */
 OsStatus_t
 PipeSend(
-    _In_ UUId_t  Target,
-    _In_ int     Port,
-    _In_ void   *Message,
-    _In_ size_t  Length)
-{
-	// Variables
-	OsStatus_t Result = OsError;
-
+    _In_ UUId_t ProcessId,
+    _In_ int    Port,
+    _In_ void*  Buffer,
+    _In_ size_t Length) {
 	// Sanitize input
-	if (Length == 0) {
+	if (Port < 0 || Buffer == NULL || Length == 0) {
 		return OsError;
 	}
+	return Syscall_PipeSend(ProcessId, Port, Buffer, Length);
+}
 
-	// Execute system call and verify
-	Result = Syscall_PipeWrite(Target, Port, Message, Length);
-	if (Result != OsSuccess) {
-		raise(SIGPIPE);
+/* Pipe send + recieve
+ * The send and recieve calls can actually be used for reading extern pipes
+ * and send to external pipes */
+OsStatus_t
+PipeReceive(
+    _In_ UUId_t ProcessId,
+    _In_ int    Port,
+    _In_ void*  Buffer,
+    _In_ size_t Length) {
+    if (ProcessId == UUID_INVALID) {
+        return PipeRead(Port, Buffer, Length);
+    }
+    // Sanitize input
+	if (Port < 0 || Buffer == NULL || Length == 0) {
+		return OsError;
 	}
-	return Result;
+	return Syscall_PipeReceive(ProcessId, Port, Buffer, Length);
 }

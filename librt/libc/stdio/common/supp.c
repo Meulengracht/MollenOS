@@ -61,13 +61,13 @@ getstdfile(
     _In_ int n)
 {
     switch (n) {
-        case STDOUT_FD: {
+        case STDOUT_FILENO: {
             return &__GlbStdout;
         }
-        case STDIN_FD: {
+        case STDIN_FILENO: {
             return &__GlbStdin;
         }
-        case STDERR_FD: {
+        case STDERR_FILENO: {
             return &__GlbStderr;
         }
         default: {
@@ -118,11 +118,46 @@ FILE __GlbStdout, __GlbStdin, __GlbStderr;
 int _flushall(void);
 int _fcloseall(void);
 
+/* StdioCloneHandle 
+ * Allocates and initializes a new stdio handle. */
+void
+StdioCloneHandle(StdioHandle_t *Handle, StdioHandle_t *Original) {
+    Handle->InheritationType = Original->InheritationType;
+    
+    Handle->InheritationData.FileHandle = Original->InheritationData.FileHandle;
+    Handle->InheritationData.Pipe.ProcessId = Original->InheritationData.Pipe.ProcessId;
+    Handle->InheritationData.Pipe.Port = Original->InheritationData.Pipe.Port;
+}
+
+/* StdioCreateFileHandle 
+ * Initializes the handle as a file handle in the stdio object */ 
+void StdioCreateFileHandle(UUId_t FileHandle, StdioObject_t *Object) {
+    Object->handle.InheritationType = STDIO_HANDLE_FILE;
+    Object->handle.InheritationData.FileHandle = FileHandle;
+    Object->exflag |= EF_CLOSE;
+}
+
+/* StdioCreateFileHandle 
+ * Initializes the handle as a pipe handle in the stdio object */ 
+void StdioCreatePipeHandle(UUId_t ProcessId, int Port, int Oflags, StdioObject_t *Object) {
+    Object->handle.InheritationType = STDIO_HANDLE_PIPE;
+    Object->handle.InheritationData.Pipe.ProcessId = ProcessId;
+    Object->handle.InheritationData.Pipe.Port = Port;
+    if (Oflags & _IOREAD) {
+        if (PipeOpen(Port) != OsSuccess) {
+            // what
+        }
+        Object->exflag |= EF_CLOSE;
+    }
+}
+
 /* StdioInitialize
  * Initializes default handles and resources */
 _CRTIMP
 void
-StdioInitialize(void)
+StdioInitialize(
+    _In_ void *InheritanceBlock,
+    _In_ size_t InheritanceBlockLength)
 {
     // Initialize the list of io-objects
     IoObjects = CollectionCreate(KeyInteger);
@@ -133,19 +168,49 @@ StdioInitialize(void)
     memset(FdBitmap, 0, DIVUP(INTERNAL_MAXFILES, 8));
     SpinlockReset(&BitmapLock);
 
-    // Initialize the STDOUT handle
+    // Initialize the std handles
     memset(&__GlbStdout, 0, sizeof(FILE));
-    __GlbStdout._fd = StdioFdAllocate(UUID_INVALID, WX_PIPE | WX_TTY);
-    StdioFdInitialize(&__GlbStdout, __GlbStdout._fd, _IOWRT);
-
-    // Initialize the STDIN handle
     memset(&__GlbStdin, 0, sizeof(FILE));
-    __GlbStdin._fd = StdioFdAllocate(UUID_INVALID, WX_PIPE | WX_TTY);
-    StdioFdInitialize(&__GlbStdin, __GlbStdin._fd, _IOREAD);
-
-    // Initialize the STDERR handle
     memset(&__GlbStderr, 0, sizeof(FILE));
-    __GlbStderr._fd = StdioFdAllocate(UUID_INVALID, WX_PIPE | WX_TTY);
+
+    // Handle inheritance
+    if (InheritanceBlock != NULL) {
+        StdioObject_t *ObjectPointer = (void*)InheritanceBlock;
+        size_t BytesLeft = InheritanceBlockLength;
+        while (BytesLeft >= sizeof(StdioObject_t)) {
+            int fd = StdioFdAllocate(ObjectPointer->fd, ObjectPointer->wxflag);
+            if (fd == STDOUT_FILENO) {
+                __GlbStdout._fd = fd;
+            }
+            else if (fd == STDIN_FILENO) {
+                __GlbStdin._fd = fd;
+            }
+            else if (fd == STDERR_FILENO) {
+                __GlbStderr._fd = fd;
+            }
+            StdioCloneHandle(&get_ioinfo(fd)->handle, &ObjectPointer->handle);
+            BytesLeft -= sizeof(StdioObject_t);
+            ObjectPointer++;
+        }
+    }
+    
+    // Make sure all handles have been set for std
+    if (get_ioinfo(STDOUT_FILENO) == NULL) {
+        __GlbStdout._fd = StdioFdAllocate(STDOUT_FILENO, WX_PIPE | WX_TTY);
+        StdioCreatePipeHandle(UUID_INVALID, PIPE_STDOUT, _IOWRT, get_ioinfo(STDOUT_FILENO));
+    }
+    if (get_ioinfo(STDIN_FILENO) == NULL) {
+        __GlbStdin._fd = StdioFdAllocate(STDIN_FILENO, WX_PIPE | WX_TTY);
+        StdioCreatePipeHandle(UUID_INVALID, PIPE_STDIN, _IOREAD, get_ioinfo(STDIN_FILENO));
+    }
+    if (get_ioinfo(STDERR_FILENO) == NULL) {
+        __GlbStderr._fd = StdioFdAllocate(STDERR_FILENO, WX_PIPE | WX_TTY);
+        StdioCreatePipeHandle(UUID_INVALID, PIPE_STDERR, _IOWRT, get_ioinfo(STDERR_FILENO));
+    }
+    
+    // Initialize them
+    StdioFdInitialize(&__GlbStdout, __GlbStdout._fd, _IOWRT);
+    StdioFdInitialize(&__GlbStdin, __GlbStdin._fd, _IOREAD);
     StdioFdInitialize(&__GlbStderr, __GlbStderr._fd, _IOWRT);
 }
 
@@ -161,14 +226,44 @@ StdioCleanup(void)
     _fcloseall();
 }
 
+/* StdioCreateInheritanceBlock
+ * Creates a block of data containing all the stdio handles that
+ * can be inherited. */
+OsStatus_t
+StdioCreateInheritanceBlock(
+    _In_  int       InheritStdHandles,
+    _Out_ void**    InheritanceBlock,
+    _Out_ size_t*   BlockSize)
+{
+    // Variables
+    StdioObject_t *BlockPointer = NULL;
+
+    // Allocate a block big enough
+    *BlockSize = CollectionLength(IoObjects) * sizeof(StdioObject_t);
+    if (CollectionLength(IoObjects) <= 3 && !InheritStdHandles) {
+        return OsError;
+    }
+    *InheritanceBlock = malloc(*BlockSize);
+    BlockPointer = (StdioObject_t*)*InheritanceBlock;
+
+    // Iterate all stdio-objects and copy
+    LOCK_FILES();
+    foreach(Node, IoObjects) {
+        StdioObject_t *Object = (StdioObject_t*)Node->Data;
+        if (!InheritStdHandles && Object->fd < 3) {
+            continue;
+        }
+        memcpy(BlockPointer, Object, sizeof(StdioObject_t));
+        BlockPointer++;
+    }
+    UNLOCK_FILES();
+    return OsSuccess;
+}
+
 /* StdioFdValid
  * Determines the validity of a file-descriptor handle */
-OsStatus_t
-StdioFdValid(
-    _In_ int fd)
-{
-    return fd >= 0 && fd < INTERNAL_MAXFILES 
-        && (get_ioinfo(fd)->wxflag & WX_OPEN);
+OsStatus_t StdioFdValid(int fd) {
+    return fd >= 0 && fd < INTERNAL_MAXFILES && (get_ioinfo(fd)->wxflag & WX_OPEN);
 }
 
 /* StdioFdAllocate 
@@ -176,45 +271,58 @@ StdioFdValid(
  * Returns -1 on error. */
 int
 StdioFdAllocate(
-    _In_ UUId_t handle, 
+    _In_ int fd,
     _In_ int flag)
 {
     // Variables
-    ioobject *io = NULL;
+    StdioObject_t *io   = NULL;
+    int result          = -1;
     DataKey_t Key;
-    int i, j, result = -1;
+    int i, j;
 
-    // Acquire the bitmap lock
+    // Trying to allocate a specific fd?
     SpinlockAcquire(&BitmapLock);
+    if (fd >= 0) {
+        int Block   = fd / (8 * sizeof(int));
+        int Offset  = fd % (8 * sizeof(int));
+        if (FdBitmap[Block] & (1 << Offset)) {
+            result  = -1;
+        }
+        else {
+            FdBitmap[Block] |= (1 << Offset);
+            result  = fd;
+        }
+    }
+    else {
+        // Iterate the bitmap and find a free fd
+        for (i = 0; i < DIVUP(INTERNAL_MAXFILES, (8 * sizeof(int))); i++) {
+            for (j = 0; i < (8 * sizeof(int)); j++) {
+                if (!(FdBitmap[i] & (1 << j))) {
+                    FdBitmap[i] |= (1 << j);
+                    result = (i * (8 * sizeof(int))) + j;
+                    break;
+                }
+            }
 
-    // Iterate the bitmap and find a free fd
-    for (i = 0; i < DIVUP(INTERNAL_MAXFILES, (8 * sizeof(int))); i++) {
-        for (j = 0; i < (8 * sizeof(int)); j++) {
-            if (!(FdBitmap[i] & (1 << j))) {
-                FdBitmap[i] |= (1 << j);
-                result = (i * (8 * sizeof(int))) + j;
+            // Early breakout?
+            if (j != (8 * sizeof(int))) {
                 break;
             }
         }
-
-        // Early breakout?
-        if (j != (8 * sizeof(int))) {
-            break;
-        }
     }
-
-    // Release lock before returning
     SpinlockRelease(&BitmapLock);
 
     // Create a new io-object
     if (result != -1) {
-        io = (ioobject*)malloc(sizeof(ioobject));
-        io->handle = handle;
+        io = (StdioObject_t*)malloc(sizeof(StdioObject_t));
+        io->fd = result;
+        io->handle.InheritationType = STDIO_HANDLE_INVALID;
         io->wxflag = WX_OPEN | (flag & (WX_DONTINHERIT | WX_APPEND | WX_TEXT | WX_PIPE | WX_TTY));
         io->lookahead[0] = '\n';
         io->lookahead[1] = '\n';
         io->lookahead[2] = '\n';
         io->exflag = 0;
+        SpinlockReset(&io->lock);
     
         // Add to list
         Key.Value = result;
@@ -222,8 +330,6 @@ StdioFdAllocate(
         CollectionAppend(IoObjects, CollectionCreateNode(Key, io));
         SpinlockRelease(&IoLock);
     }
-
-    // Done
     return result;
 }
 
@@ -257,7 +363,7 @@ StdioFdFree(
 
 /* StdioFdToHandle
  * Retrieves the file descriptor os-handle from the given fd */
-UUId_t
+StdioHandle_t*
 StdioFdToHandle(
     _In_ int fd)
 {
@@ -271,10 +377,10 @@ StdioFdToHandle(
     fNode = CollectionGetNodeByKey(IoObjects, Key, 0);
     SpinlockRelease(&IoLock);
     if (fNode != NULL) {
-        return ((ioobject*)fNode->Data)->handle;
+        return &((StdioObject_t*)fNode->Data)->handle;
     }
     else {
-        return UUID_INVALID;
+        return NULL;
     }
 }
 
@@ -298,13 +404,13 @@ StdioFdInitialize(
     
     // Node must exist
     if (fNode != NULL) {
-        if (((ioobject*)fNode->Data)->wxflag & WX_OPEN) {
+        if (((StdioObject_t*)fNode->Data)->wxflag & WX_OPEN) {
             file->_ptr = file->_base = NULL;
             file->_cnt = 0;
             file->_fd = fd;
             file->_flag = stream_flags;
             file->_tmpfname = NULL;
-            ((ioobject*)fNode->Data)->file = file;
+            ((StdioObject_t*)fNode->Data)->file = file;
             return OsSuccess;
         }
         else {
@@ -318,89 +424,25 @@ StdioFdInitialize(
     }
 }
 
-/* StdioReadStdin
- * Waits for an input event of type key, and returns the key.
- * This is a blocking call. */
-int
-StdioReadStdin(void)
-{
-	// Variables
-	MRemoteCall_t Event;
-    char EventBuffer[IPC_MAX_MESSAGELENGTH];
-	MInput_t *Input     = NULL;
-	int Character       = 0;
-	int Run             = 1;
-
-	// Wait for input message, we need to discard 
-	// everything else as this is a polling op
-	while (Run) {
-		if (RPCListen(&Event, &EventBuffer[0]) == OsSuccess) {
-			Input = (MInput_t*)Event.Arguments[0].Data.Buffer;
-			if (Event.Function == EVENT_INPUT) {
-				if (Input->Type == InputKeyboard
-					&& (Input->Flags & INPUT_BUTTON_CLICKED)) {
-					Character = (int)Input->Key;
-					Run = 0;
-				}
-			}
-		}
-	}
-
-	// Return the resulting read character
-	return Character;
-}
-
-/* StdioReadInternal
- * Internal read wrapper for file-reading */
+/* StdioHandleReadFile
+ * Reads the requested number of bytes from a file handle */
 OsStatus_t
-StdioReadInternal(
-    _In_ int fd, 
-    _In_ char *Buffer, 
-    _In_ size_t Length,
-    _Out_ size_t *BytesRead)
+StdioHandleReadFile(
+    _In_  StdioHandle_t* Handle, 
+    _In_  char*          Buffer, 
+    _In_  size_t         Length,
+    _Out_ size_t*        BytesRead)
 {
-    // Variables
-	size_t BytesReadTotal = 0, BytesLeft = (size_t)Length;
-	size_t OriginalSize = GetBufferSize(tls_current()->transfer_buffer);
-	uint8_t *Pointer = (uint8_t*)Buffer;
-    UUId_t Handle = StdioFdToHandle(fd);
-    
-    // Determine handle
-    if (Handle == UUID_INVALID) {
-        // Only one case this is allowed
-        if (__GlbStdin._fd == fd) {
-            switch (BytesLeft) {
-                case 1: {
-                    *Pointer = (uint8_t)StdioReadStdin();
-                    *BytesRead = 1;
-                } break;
-                case 2: {
-                    *((uint16_t*)Pointer) = (uint16_t)StdioReadStdin();
-                    *BytesRead = 2;
-                } break;
-                case 4: {
-                    *((uint32_t*)Pointer) = (uint32_t)StdioReadStdin();
-                    *BytesRead = 4;
-                } break;
-                default: {
-                    return OsError;
-                }
-            }
-            return OsSuccess;
-        }
+	size_t BytesReadTotal   = 0, BytesLeft = (size_t)Length;
+	size_t OriginalSize     = GetBufferSize(tls_current()->transfer_buffer);
+	uint8_t *Pointer        = (uint8_t*)Buffer;
 
-        // Otherwise set error
-        _set_errno(EBADF);
-		return OsError;
-    }
-
-	// Keep reading chunks untill we've read all requested
+    // Keep reading chunks untill we've read all requested
 	while (BytesLeft > 0) {
 		size_t ChunkSize = MIN(OriginalSize, BytesLeft);
 		size_t BytesReaden = 0, BytesIndex = 0;
 		ChangeBufferSize(tls_current()->transfer_buffer, ChunkSize);
-        if (_fval(ReadFile(Handle, tls_current()->transfer_buffer, 
-            &BytesIndex, &BytesReaden))) {
+        if (_fval(ReadFile(Handle->InheritationData.FileHandle, tls_current()->transfer_buffer, &BytesIndex, &BytesReaden))) {
 			break;
 		}
 		if (BytesReaden == 0) {
@@ -420,44 +462,57 @@ StdioReadInternal(
 	return ChangeBufferSize(tls_current()->transfer_buffer, OriginalSize);
 }
 
-/* StdioWriteInternal
- * Internal write wrapper for file-writing */
+/* StdioReadInternal
+ * Internal read wrapper for file-reading */
 OsStatus_t
-StdioWriteInternal(
-    _In_ int fd, 
-    _Out_ char *Buffer, 
-    _In_ size_t Length,
-    _Out_ size_t *BytesWritten)
+StdioReadInternal(
+    _In_  int       fd, 
+    _In_  char*     Buffer, 
+    _In_  size_t    Length,
+    _Out_ size_t*   BytesRead)
 {
     // Variables
-	size_t BytesWrittenTotal = 0, BytesLeft = (size_t)Length;
-	size_t OriginalSize = GetBufferSize(tls_current()->transfer_buffer);
-    uint8_t *Pointer = (uint8_t *)Buffer;
-    UUId_t Handle = StdioFdToHandle(fd);
-    
-    // Special cases
-    if (Handle == UUID_INVALID) {
-        // Check for stdout
-        if (__GlbStdout._fd == fd) {
+    StdioHandle_t *Handle   = StdioFdToHandle(fd);
 
+    if (Handle->InheritationType == STDIO_HANDLE_FILE) {
+        return StdioHandleReadFile(Handle, Buffer, Length, BytesRead);
+    }
+    else if (Handle->InheritationType == STDIO_HANDLE_PIPE) {
+        if (PipeReceive(Handle->InheritationData.Pipe.ProcessId, 
+            Handle->InheritationData.Pipe.Port, Buffer, Length) == OsSuccess) {
+            *BytesRead = Length;
+            return OsSuccess;
         }
-        else if (__GlbStderr._fd == fd) {
-
-        }
-
-        // Otherwise set error
+        _set_errno(EPIPE);
+        return OsError;
+    }
+    else {
         _set_errno(EBADF);
 		return OsError;
     }
+}
 
-	// Keep writing chunks untill we've read all requested
+/* StdioHandleWriteFile
+ * Writes the requested number of bytes to a file handle */
+OsStatus_t
+StdioHandleWriteFile(
+    _In_  StdioHandle_t* Handle, 
+    _In_  char*          Buffer, 
+    _In_  size_t         Length,
+    _Out_ size_t*        BytesWritten)
+{
+	size_t BytesWrittenTotal = 0, BytesLeft = (size_t)Length;
+	size_t OriginalSize = GetBufferSize(tls_current()->transfer_buffer);
+    uint8_t *Pointer = (uint8_t*)Buffer;
+
+    // Keep writing chunks untill we've read all requested
 	while (BytesLeft > 0) {
 		size_t ChunkSize = MIN(OriginalSize, BytesLeft);
 		size_t BytesWrittenLocal = 0;
 		ChangeBufferSize(tls_current()->transfer_buffer, ChunkSize);
         WriteBuffer(tls_current()->transfer_buffer, 
-            (__CONST void *)Pointer, ChunkSize, &BytesWrittenLocal);
-		if (WriteFile(Handle, tls_current()->transfer_buffer, &BytesWrittenLocal) != FsOk) {
+            (const void *)Pointer, ChunkSize, &BytesWrittenLocal);
+		if (WriteFile(Handle->InheritationData.FileHandle, tls_current()->transfer_buffer, &BytesWrittenLocal) != FsOk) {
 			break;
 		}
 		if (BytesWrittenLocal == 0) {
@@ -474,27 +529,51 @@ StdioWriteInternal(
 	return OsSuccess;
 }
 
+/* StdioWriteInternal
+ * Internal write wrapper for file-writing */
+OsStatus_t
+StdioWriteInternal(
+    _In_  int       fd, 
+    _In_  char*     Buffer, 
+    _In_  size_t    Length,
+    _Out_ size_t*   BytesWritten)
+{
+    // Variables
+    StdioHandle_t *Handle   = StdioFdToHandle(fd);
+
+    if (Handle->InheritationType == STDIO_HANDLE_FILE) {
+        return StdioHandleWriteFile(Handle, Buffer, Length, BytesWritten);
+    }
+    else if (Handle->InheritationType == STDIO_HANDLE_PIPE) {
+        if (PipeSend(Handle->InheritationData.Pipe.ProcessId, 
+            Handle->InheritationData.Pipe.Port, Buffer, Length) == OsSuccess) {
+            *BytesWritten = Length;
+            return OsSuccess;
+        }
+        _set_errno(EPIPE);
+        return OsError;
+    }
+    else {
+        _set_errno(EBADF);
+		return OsError;
+    }
+}
+
 off64_t offabs(off64_t Value) {
 	return (Value <= 0) ? 0 - Value : Value;
 }
 
-/* StdioSeekInternal
- * Internal wrapper for stdio's syntax, conversion to our own RPC syntax */
+/* StdioHandleSeekFile 
+ * Performs a seek or a tell operation on a file handle */
 OsStatus_t
-StdioSeekInternal(
-    _In_ int fd, 
-    _In_ off64_t Offset, 
-    _In_ int Origin,
-    _Out_ long long *Position)
+StdioHandleSeekFile(
+    _In_  StdioHandle_t*    Handle,
+    _In_  off64_t           Offset,
+    _In_  int               Origin,
+    _Out_ long long*        Position)
 {
     // Variables
     off_t SeekSpotLow = 0, SeekSpotHigh = 0;
-    UUId_t Handle = StdioFdToHandle(fd);
-
-    // Sanitize the handle
-    if (Handle == UUID_INVALID) {
-        return OsError;
-    }
 
     // If we search from SEEK_SET, just build offset directly
 	if (Origin != SEEK_SET) {
@@ -504,8 +583,8 @@ StdioSeekInternal(
 		uint32_t pLo = 0, pHi = 0, sLo = 0, sHi = 0;
 
 	    // Invoke filemanager services
-		if (GetFilePosition(Handle, &pLo, &pHi) != OsSuccess
-			&& GetFileSize(Handle, &sLo, &sHi) != OsSuccess) {
+		if (GetFilePosition(Handle->InheritationData.FileHandle, &pLo, &pHi) != OsSuccess
+			&& GetFileSize(Handle->InheritationData.FileHandle, &sLo, &sHi) != OsSuccess) {
 			return OsError;
 		}
 		else {
@@ -538,7 +617,7 @@ StdioSeekInternal(
 	SeekSpotHigh = (Offset >> 32) & 0xFFFFFFFF;
 
 	// Now perform the seek
-	if (_fval(SeekFile(Handle, SeekSpotLow, SeekSpotHigh))) {
+	if (_fval(SeekFile(Handle->InheritationData.FileHandle, SeekSpotLow, SeekSpotHigh))) {
 		return OsError;
 	}
 	else {
@@ -547,20 +626,42 @@ StdioSeekInternal(
 	}
 }
 
+/* StdioSeekInternal
+ * Internal wrapper for stdio's syntax, conversion to our own RPC syntax */
+OsStatus_t
+StdioSeekInternal(
+    _In_  int           fd,
+    _In_  off64_t       Offset,
+    _In_  int           Origin,
+    _Out_ long long*    Position)
+{
+    // Variables
+    StdioHandle_t *Handle   = StdioFdToHandle(fd);
+
+    if (Handle->InheritationType == STDIO_HANDLE_FILE) {
+        return StdioHandleSeekFile(Handle, Offset, Origin, Position);
+    }
+    else if (Handle->InheritationType == STDIO_HANDLE_PIPE) {
+        _set_errno(EPIPE);
+        return OsError;
+    }
+    else {
+        _set_errno(EBADF);
+		return OsError;
+    }
+}
+
 /* getstdfile
  * Retrieves a standard io stream handle */
-FILE *
-getstdfile(
-    _In_ int n)
-{
+FILE* getstdfile(int n) {
     switch (n) {
-        case STDOUT_FD: {
+        case STDOUT_FILENO: {
             return &__GlbStdout;
         }
-        case STDIN_FD: {
+        case STDIN_FILENO: {
             return &__GlbStdin;
         }
-        case STDERR_FD: {
+        case STDERR_FILENO: {
             return &__GlbStderr;
         }
         default: {
@@ -613,7 +714,7 @@ os_flush_all_buffers(
     // Iterate list of open files
     LOCK_FILES();
     foreach(fNode, IoObjects) {
-        file = (FILE*)(((ioobject*)fNode->Data)->file);
+        file = (FILE*)(((StdioObject_t*)fNode->Data)->file);
 
         // Does file match the given mask?
         if (file->_flag & mask) {
@@ -628,15 +729,10 @@ os_flush_all_buffers(
 
 /* get_ioinfo
  * Retrieves the io-object that is bound to the given file descriptor. */
-ioobject*
-get_ioinfo(int fd)
-{
-    // Variables
+StdioObject_t* get_ioinfo(int fd) {
     DataKey_t Key;
     Key.Value = fd;
-
-    // Lookup io-object
-    return (ioobject*)CollectionGetDataByKey(IoObjects, Key, 0);
+    return (StdioObject_t*)CollectionGetDataByKey(IoObjects, Key, 0);
 }
 
 /* _fcloseall
@@ -649,7 +745,7 @@ _fcloseall(void)
 
     LOCK_FILES();
     foreach(fNode, IoObjects) {
-        file = (FILE*)(((ioobject*)fNode->Data)->file);
+        file = (FILE*)(((StdioObject_t*)fNode->Data)->file);
         if (!fclose(file)) {
             num_closed++;      
         }
@@ -660,18 +756,13 @@ _fcloseall(void)
 
 /* isatty
  * Returns non-zero if the given file-descriptor points to a tty. */
-int
-isatty(
-    _In_ int fd)
-{
+int isatty(int fd) {
     return get_ioinfo(fd)->wxflag & WX_TTY;
 }
 
 /* _flushall
  * Flushes all open streams in this process-scope. */
-int
-_flushall(void)
-{
+int _flushall(void) {
     return os_flush_all_buffers(_IOWRT | _IOREAD);
 }
 
@@ -682,7 +773,7 @@ os_alloc_buffer(
     _In_ FILE *file)
 {
     // Sanitize that it's not an std tty stream
-    if ((file->_fd == STDOUT_FD || file->_fd == STDERR_FD) && isatty(file->_fd)) {
+    if ((file->_fd == STDOUT_FILENO || file->_fd == STDERR_FILENO) && isatty(file->_fd)) {
         return OsError;
     }
 
@@ -714,7 +805,7 @@ add_std_buffer(
     static char buffers[2][BUFSIZ];
 
     // Sanitize the file stream
-    if ((file->_fd != STDOUT_FD && file->_fd != STDERR_FD) 
+    if ((file->_fd != STDOUT_FILENO && file->_fd != STDERR_FILENO) 
         || (file->_flag & (_IONBF | _IOMYBUF | _USERBUF)) 
         || !isatty(file->_fd)) {
         return OsError;
@@ -722,7 +813,7 @@ add_std_buffer(
 
     // Update buffer pointers
     file->_ptr = file->_base =
-        buffers[file->_fd == STDOUT_FD ? 0 : 1];
+        buffers[file->_fd == STDOUT_FILENO ? 0 : 1];
     file->_bufsiz = file->_cnt = BUFSIZ;
     file->_flag |= _USERBUF;
     return OsSuccess;

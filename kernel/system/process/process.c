@@ -80,12 +80,14 @@ PhoenixCreateProcess(
         memcpy(ArgumentBuffer + MStringSize(Process->Base.Path) + 1,
             StartupInformation->ArgumentPointer, StartupInformation->ArgumentLength);
         kfree((void*)StartupInformation->ArgumentPointer);
+
         StartupInformation->ArgumentPointer = ArgumentBuffer;
         StartupInformation->ArgumentLength = MStringSize(Process->Base.Path) + 1 + StartupInformation->ArgumentLength;
 	}
 	else {
         ArgumentBuffer = (char*)kmalloc(MStringSize(Process->Base.Path));
         memcpy(ArgumentBuffer, MStringRaw(Process->Base.Path), MStringSize(Process->Base.Path));
+
         StartupInformation->ArgumentPointer = ArgumentBuffer;
         StartupInformation->ArgumentLength = MStringSize(Process->Base.Path);
     }
@@ -93,14 +95,22 @@ PhoenixCreateProcess(
     // Debug
     TRACE("Arguments: %s", ArgumentBuffer);
 
+    // Handle the inheritance block
+    if (StartupInformation->InheritanceBlockPointer != NULL
+        && StartupInformation->InheritanceBlockLength != 0) {
+        // Create a kernel space copy
+        void *InheritanceBlock = kmalloc(StartupInformation->InheritanceBlockLength);
+        memcpy(InheritanceBlock, StartupInformation->InheritanceBlockPointer, StartupInformation->InheritanceBlockLength);
+        StartupInformation->InheritanceBlockPointer = InheritanceBlock;
+    }
+
     // Copy data over
     memcpy(&Process->StartupInformation, 
         StartupInformation, sizeof(ProcessStartupInformation_t));
 
 	// Register ash and spawn it
 	PhoenixRegisterAsh(&Process->Base);
-	ThreadingCreateThread((char*)MStringRaw(Process->Base.Name), 
-		PhoenixStartupEntry, Process, THREADING_USERMODE);
+	ThreadingCreateThread((char*)MStringRaw(Process->Base.Name), PhoenixStartupEntry, Process, THREADING_USERMODE);
 	return Process->Base.Id;
 }
 

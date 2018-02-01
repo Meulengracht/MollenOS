@@ -31,6 +31,9 @@
 #include <errno.h>
 #include <stddef.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include "../stdio/local.h"
 
 /* ProcessSpawn
  * Spawns a new process by the given path and optionally the given parameters are passed 
@@ -52,6 +55,7 @@ ProcessSpawn(
 
     // Setup information block
     memset(&StartupInformation, 0, sizeof(ProcessStartupInformation_t));
+    StartupInformation.InheritStdHandles = 1;
     if (Arguments != NULL) {
         StartupInformation.ArgumentPointer = Arguments;
         StartupInformation.ArgumentLength = strlen(Arguments);
@@ -68,7 +72,13 @@ ProcessSpawnEx(
 	_In_ const char*                        Path,
 	_In_ const ProcessStartupInformation_t* StartupInformation,
 	_In_ int                                Asynchronous) {
-	return Syscall_ProcessSpawn(Path, StartupInformation, Asynchronous);
+    OsStatus_t Cleanup  = StdioCreateInheritanceBlock(StartupInformation->InheritStdHandles, 
+        (void**)&StartupInformation->InheritanceBlockPointer, (size_t*)&StartupInformation->InheritanceBlockLength);
+	UUId_t Result       = Syscall_ProcessSpawn(Path, StartupInformation, Asynchronous);
+    if (Cleanup == OsSuccess) {
+        free((void*)StartupInformation->InheritanceBlockPointer);
+    }
+    return Result;
 }
 
 /* ProcessJoin
@@ -90,9 +100,7 @@ ProcessJoin(
  * Terminates the process with the given id */
 OsStatus_t 
 ProcessKill(
-	_In_ UUId_t Process)
-{
-	/* Sanitize the given id */
+	_In_ UUId_t Process) {
 	if (Process == UUID_INVALID) {
 		return OsError;
 	}
@@ -109,6 +117,13 @@ ProcessGetCurrentId(void)
         return UUID_INVALID;
     }
     return ProcessId;
+}
+
+/* ProcessGetCurrentName
+ * Retrieves the current process identifier. */
+OsStatus_t
+ProcessGetCurrentName(const char *Buffer, size_t MaxLength) {
+    return Syscall_ProcessName(Buffer, MaxLength);
 }
 
 /* GetStartupInformation

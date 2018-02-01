@@ -97,6 +97,12 @@ CRTDECL(
 UUId_t, 
 ProcessGetCurrentId(void));
 
+/* ProcessGetCurrentName
+ * Retrieves the current process identifier. */
+CRTDECL(
+OsStatus_t, 
+ProcessGetCurrentName(const char *Buffer, size_t MaxLength));
+
 /* ProcessGetModuleHandles
  * Retrieves a list of loaded module handles. Handles can be queried
  * for various application-image data. */
