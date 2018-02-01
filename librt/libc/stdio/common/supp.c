@@ -90,9 +90,11 @@ thrd_t thrd_current(void) {
 }
 
 #else
+#define __TRACE
 #include <os/driver/input.h>
 #include <os/driver/file.h>
 #include <os/ipc/ipc.h>
+#include <os/utils.h>
 #include <ds/collection.h>
 #include "../../threads/tls.h"
 #include <stdio.h>
@@ -219,8 +221,7 @@ StdioInitialize(
  * allocated to the open file handles. */
 _CRTIMP
 void
-StdioCleanup(void)
-{
+StdioCleanup(void) {
     // Flush all file buffers and close handles
     _flushall();
     _fcloseall();
@@ -322,6 +323,7 @@ StdioFdAllocate(
         io->lookahead[1] = '\n';
         io->lookahead[2] = '\n';
         io->exflag = 0;
+        io->file = NULL;
         SpinlockReset(&io->lock);
     
         // Add to list
@@ -747,7 +749,7 @@ _fcloseall(void)
     foreach(fNode, IoObjects) {
         file = (FILE*)(((StdioObject_t*)fNode->Data)->file);
         if (!fclose(file)) {
-            num_closed++;      
+            num_closed++;
         }
     }
     UNLOCK_FILES();

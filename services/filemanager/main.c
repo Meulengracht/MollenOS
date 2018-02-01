@@ -220,8 +220,10 @@ OnEvent(
 {
 	// Variables
 	OsStatus_t Result = OsSuccess;
-
-    TRACE("Filemanager.OnEvent(%i) %s", Message->Function, FunctionNames[Message->Function]);
+    if (Message->Function != __FILEMANAGER_RESOLVEQUEUE) {
+        TRACE("Filemanager.OnEvent(%i) %s", Message->Function, FunctionNames[Message->Function]);
+    }
+    
 	switch (Message->Function) {
 		// Resolves all stored filesystems that
 		// has been waiting for boot-partition to be loaded

@@ -69,6 +69,8 @@ int _close(int fd)
             result = 0;
         }
     }
+
+    // Cleanup and return
     StdioFdFree(fd);
     return result;
 }
@@ -95,11 +97,9 @@ int fclose(FILE *stream)
 		free(stream->_base);
 	}
 
-	// Call underlying close
+	// Call underlying close and never
+    // unlock the file as underlying stream is closed
 	r = _close(stream->_fd);
-	_unlock_file(stream);
-
-	// Free the stream
 	free(stream);
 	return ((r == -1) || (flag & _IOERR) ? EOF : 0);
 }

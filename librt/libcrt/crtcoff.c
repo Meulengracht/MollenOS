@@ -69,5 +69,5 @@ void __CrtCxxInitialize(void) {
 // as terminators are registered by cxa_atexit.
 void __CrtCxxFinalize(void) {
 	__CrtCallInitializers(__xp_a, __xp_z);
-	__CrtCallInitializersEx(__xt_a, __xt_z);
+	__CrtCallInitializers(__xt_a, __xt_z);
 }
