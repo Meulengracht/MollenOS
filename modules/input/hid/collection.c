@@ -769,8 +769,10 @@ HidParseReportInput(
     if (InputData.xRelative != 0 ||
         InputData.yRelative != 0 ||
         InputData.zRelative != 0) {
-        //InputManagerCreatePointerEvent(&PointerData);
+        CreateInput(&InputData);
     }
+
+    // Buttons @todo
 }
 
 /* HidParseReport
