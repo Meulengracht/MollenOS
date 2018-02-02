@@ -45,16 +45,6 @@
 #define ASH_STACK_INIT          0x1000
 #define ASH_STACK_MAX           (4 << 20)
 
-/* Ash Queries
- * List of the different options
- * for querying of ashes */
-typedef enum _AshQueryFunction {
-    AshQueryName,
-    AshQueryMemory,
-    AshQueryParent,
-    AshQueryTopMostParent
-} AshQueryFunction_t;
-
 /* This is the different types of ashes
  * that exists in MollenOS */
 typedef enum _MCoreAshType {
@@ -193,18 +183,6 @@ KERNELABI
 PhoenixGetAshPipe(
     _In_ MCoreAsh_t     *Ash, 
     _In_ int             Port);
-
-/* PhoenixQueryAsh
- * Queries the given ash for information
- * which kind of information is determined by <Function> */
-KERNELAPI
-OsStatus_t
-KERNELABI
-PhoenixQueryAsh(
-    _In_ MCoreAsh_t         *Ash,
-	_In_ AshQueryFunction_t  Function,
-    _In_ void               *Buffer,
-    _In_ size_t              Length);
 
 /* PhoenixCleanupAsh
  * Cleans up a given Ash, freeing all it's allocated resources

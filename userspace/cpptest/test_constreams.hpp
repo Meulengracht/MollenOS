@@ -20,14 +20,21 @@
  *  - Runs a variety of userspace tests against the libc/libc++ to verify
  *    the stability and integrity of the operating system.
  */
-
-/* Includes
- * - Tests */
+#pragma once
+#include <iostream>
 #include "test.hpp"
-#include "test_constreams.hpp"
 
-int main(int argc, char **argv) {
-    int ErrorCounter = 0;
-    RUN_TEST_SUITE(ErrorCounter, ConsoleStreamTests);
-    return ErrorCounter;
-}
+class ConsoleStreamTests : public OSTest {
+public:
+    ConsoleStreamTests() : OSTest("ConsoleStreamTests") { }
+    int RunTests() {
+        int Errors = 0;
+        TestLog(">> Testing stdout, stderr");
+        fprintf(stdout, "This is a message printed by stdout\n");
+        fprintf(stderr, "This is a message printed by stderr\n");
+        TestLog(">> Testing cout");
+        std::cout << "This is a message printed by cout" << std::endl;
+        TestLog(">> Testing complete");
+        return Errors;
+    }
+};

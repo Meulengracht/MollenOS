@@ -118,8 +118,8 @@ KERNELAPI
 int
 KERNELABI
 SchedulerThreadSleep(
-    _In_ uintptr_t *Handle,
-    _In_ size_t Timeout);
+    _In_ uintptr_t*         Handle,
+    _In_ size_t             Timeout);
 
 /* SchedulerThreadSignal
  * Finds a sleeping thread with the given thread id and wakes it. */

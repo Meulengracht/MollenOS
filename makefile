@@ -73,6 +73,9 @@ export GUCXXLIBRARIES = ../lib/libcxx.lib ../lib/libclang.lib ../lib/libc.lib ..
 .PHONY: all
 all: build_tools gen_revision build_bootloader build_libraries build_kernel build_drivers setup_userspace build_initrd
 
+#kernel/git_revision.c: .git/HEAD .git/index
+#    echo "const char *gitversion = \"$(shell git rev-parse HEAD)\";" > $@
+
 .PHONY: build_initrd
 build_initrd:
 	@printf "%b" "\033[1;35mInstalling initrd files into /initrd\033[m\n"

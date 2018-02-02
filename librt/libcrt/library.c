@@ -28,9 +28,10 @@
  * - C/C++ Cleanup */
 __EXTERN void __CrtCxxInitialize(void);
 __EXTERN void __CrtCxxFinalize(void);
+__EXTERN void __CrtAttachTlsBlock(void);
 CRTDECL(void, __cxa_finalize(void *Dso));
-__EXTERN void *__dso_handle;
 __EXTERN void dllmain(int action);
+__EXTERN void *__dso_handle;
 
 /* __CrtLibraryEntry
  * Library crt initialization routine. This runs
@@ -49,6 +50,9 @@ __CrtLibraryEntry(int Action)
             dllmain(DLL_ACTION_FINALIZE);
             __cxa_finalize(__dso_handle);
             __CrtCxxFinalize();
+        } break;
+        case DLL_ACTION_THREADATTACH: {
+            __CrtAttachTlsBlock();
         } break;
     }
 }

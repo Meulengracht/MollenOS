@@ -20,14 +20,22 @@
  *  - Runs a variety of userspace tests against the libc/libc++ to verify
  *    the stability and integrity of the operating system.
  */
+#pragma once
+#define __TRACE
+#include <os/utils.h>
+#include <string>
 
-/* Includes
- * - Tests */
-#include "test.hpp"
-#include "test_constreams.hpp"
+class OSTest {
+public:
+    OSTest(const std::string &SuiteName) {
+        TestLog(SuiteName);
+    }
+    virtual int RunTests() = 0;
 
-int main(int argc, char **argv) {
-    int ErrorCounter = 0;
-    RUN_TEST_SUITE(ErrorCounter, ConsoleStreamTests);
-    return ErrorCounter;
-}
+protected:
+    void TestLog(const std::string &Message) {
+        TRACE(Message.c_str());
+    }
+};
+
+#define RUN_TEST_SUITE(ErrorCounter, CClass) CClass *p##CClass = new CClass(); ErrorCounter += p##CClass->RunTests();

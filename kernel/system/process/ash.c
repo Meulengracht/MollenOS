@@ -414,63 +414,6 @@ PhoenixGetCurrentAsh(void)
     }
 }
 
-/* PhoenixQueryAsh
- * Queries the given ash for information
- * which kind of information is determined by <Function> */
-OsStatus_t
-PhoenixQueryAsh(
-    _In_ MCoreAsh_t         *Ash,
-    _In_ AshQueryFunction_t  Function,
-    _In_ void               *Buffer,
-    _In_ size_t              Length)
-{
-    // Variables
-    OsStatus_t Result   = OsError;
-    
-    // Sanitize input
-    if (Ash == NULL || Buffer == NULL || Length == 0) {
-        return OsError;
-    }
-
-    // Handle function
-    switch (Function) {
-        case AshQueryName: {
-            size_t BytesToCopy = MIN(MStringSize(Ash->Name), Length);
-            memcpy(Buffer, MStringRaw(Ash->Name), BytesToCopy);
-            Result = OsSuccess;
-        } break;
-
-        // For now, we only support querying of
-        // how much memory has been allocated for the heap 
-        case AshQueryMemory: {
-            *((size_t*)Buffer) = (Ash->Heap->BlocksAllocated * AddressSpaceGetPageSize());
-            Result = OsSuccess;
-        } break;
-
-        case AshQueryParent: {
-            UUId_t *bPtr = (UUId_t*)Buffer;
-            *bPtr = Ash->Parent;
-            Result = OsSuccess;
-        } break;
-        case AshQueryTopMostParent: {
-            UUId_t *bPtr = (UUId_t*)Buffer;
-            *bPtr = UUID_INVALID;
-
-            // Iterate up till top parent
-            MCoreAsh_t *Parent = Ash;
-            while (Parent->Parent != UUID_INVALID) {
-                *bPtr = Parent->Parent;
-                Parent = PhoenixGetAsh(Parent->Parent);
-            }
-            Result = OsSuccess;
-        } break;
-
-        default:
-            break;
-    }
-    return Result;
-}
-
 /* PhoenixCleanupAsh
  * Cleans up a given Ash, freeing all it's allocated resources
  * and unloads it's executables, memory space is not cleaned up
@@ -480,17 +423,23 @@ PhoenixCleanupAsh(
     _In_ MCoreAsh_t *Ash)
 {
     // Variables
-    CollectionItem_t *fNode = NULL;
+    CollectionItem_t *Node = NULL;
 
     // Strings first
     MStringDestroy(Ash->Name);
     MStringDestroy(Ash->Path);
 
     // Cleanup pipes
-    _foreach(fNode, Ash->Pipes) {
-        PipeDestroy((MCorePipe_t*)fNode->Data);
+    _foreach(Node, Ash->Pipes) {
+        PipeDestroy((MCorePipe_t*)Node->Data);
     }
     CollectionDestroy(Ash->Pipes);
+
+    // Cleanup mappings
+    _foreach(Node, Ash->FileMappings) {
+        kfree(Node->Data);
+    }
+    CollectionDestroy(Ash->FileMappings);
 
     // Cleanup memory
     BlockBitmapDestroy(Ash->Shm);

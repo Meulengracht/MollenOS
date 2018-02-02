@@ -33,6 +33,10 @@
 #include <stdlib.h>
 #include <signal.h>
 
+/* __cxa_threadinitialize
+ * Initializes thread storage runtime for all loaded modules */
+CRTDECL(void, __cxa_threadinitialize(void));
+
 /* ThreadPackage (Private)
  * Startup-package, used internally for starting threads */
 typedef struct _ThreadPackage {
@@ -53,11 +57,11 @@ thrd_initialize(
 
     // Initialize TLS and package pointer
     tls_create(&Tls);
+    __cxa_threadinitialize();
     Tp                      = (ThreadPackage_t*)Data;
     ExitCode                = Tp->Entry(Tp->Data);
 
     // Cleanup and call threadexit
-    tls_destroy(&Tls);
     free(Tp);
     thrd_exit(ExitCode);
 }

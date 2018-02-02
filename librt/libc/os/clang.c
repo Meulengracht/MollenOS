@@ -37,9 +37,13 @@
 #define EXITFUNCTION_FREE               0
 #define EXITFUNCTION_CXA                1
 #define EXITFUNCTION_ONEXIT             2
+#ifndef __INTERNAL_FUNC_DEFINED
+#define __INTERNAL_FUNC_DEFINED
 typedef void(*_PVFV)(void);
 typedef int(*_PIFV)(void);
 typedef void(*_PVFI)(int);
+typedef void(*_PVTLS)(void*, unsigned long, void*);
+#endif
 
 /* ProcessGetModuleEntryPoints
  * Retrieves a list of loaded modules for the process and
@@ -101,6 +105,7 @@ static uint64_t ExitFunctionsCalled                 = 0;
 static Spinlock_t ExitFunctionsLock                 = SPINLOCK_INIT;
 static int ExitFunctionsDone                        = 0;
 static void (*PrimaryApplicationFinalizers)(void);
+static void (*PrimaryApplicationTlsAttach)(void);
 
 /* __CrtCallInitializers
  * */
@@ -128,6 +133,21 @@ CRTDECL(int, __CrtCallInitializersEx(
 		++pfbegin;
 	}
 	return ret;
+}
+
+/* __CrtCallInitializersTls
+ * */
+CRTDECL(void, __CrtCallInitializersTls(
+	_In_ _PVTLS*        pfbegin,
+	_In_ _PVTLS*        pfend,
+    _In_ void*          dso_handle,
+    _In_ unsigned long  reason))
+{
+	while (pfbegin < pfend) {
+		if (*pfbegin != NULL)
+			(**pfbegin)(dso_handle, reason, NULL);
+		++pfbegin;
+	}
 }
 
 /* __CrtNewExitFunction
@@ -319,7 +339,8 @@ CRTDECL(int, __cxa_at_quick_exit(void (*Function)(void*), void *Dso)) {
  * C++ Initializes library C++ runtime for all loaded modules */
 CRTDECL(void, __cxa_runinitializers(
     _In_ void (*Initializer)(void), 
-    _In_ void (*Finalizer)(void)))
+    _In_ void (*Finalizer)(void), 
+    _In_ void (*TlsAttachFunction)(void)))
 {
     // Get modules available
     if (ProcessGetModuleEntryPoints(ModuleList) == OsSuccess) {
@@ -334,6 +355,25 @@ CRTDECL(void, __cxa_runinitializers(
     // Run callers initializer
     Initializer();
     PrimaryApplicationFinalizers = Finalizer;
+    PrimaryApplicationTlsAttach = TlsAttachFunction;
+}
+
+/* __cxa_threadinitialize
+ * Initializes thread storage runtime for all loaded modules */
+CRTDECL(void, __cxa_threadinitialize(void))
+{
+    // Get modules available
+    if (ProcessGetModuleEntryPoints(ModuleList) == OsSuccess) {
+        for (int i = 0; i < PROCESS_MAXMODULES; i++) {
+            if (ModuleList[i] == NULL) {
+                break;
+            }
+            ((void (*)(int))ModuleList[i])(DLL_ACTION_THREADATTACH);
+        }
+    }
+
+    // __CrtAttachTlsBlock for primary application
+    PrimaryApplicationTlsAttach();
 }
 
 /* __cxa_finalize

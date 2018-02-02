@@ -34,6 +34,7 @@
  * - C/C++ Cleanup */
 __EXTERN void __CrtCxxInitialize(void);
 __EXTERN void __CrtCxxFinalize(void);
+__EXTERN void __CrtAttachTlsBlock(void);
 #ifndef __clang__
 CRTDECL(void, __CppInitVectoredEH(void));
 #endif
@@ -50,7 +51,8 @@ CRTDECL(void, StdSignalInitialize(void));
  * C++ Initializes library C++ runtime for all loaded modules */
 CRTDECL(void, __cxa_runinitializers(
     _In_ void (*Initializer)(void), 
-    _In_ void (*Finalizers)(void)));
+    _In_ void (*Finalizer)(void), 
+    _In_ void (*TlsAttachFunction)(void)));
 
 /* CRT Initialization sequence
  * for a shared C/C++ environment call this in all entry points */
@@ -58,12 +60,12 @@ void
 __CrtInitialize(
     _In_ thread_storage_t *Tls)
 {
-    // Initialize C/CPP
-    __cxa_runinitializers(__CrtCxxInitialize, __CrtCxxFinalize);
-
     // Initialize the TLS System
     tls_create(Tls);
     tls_initialize();
+
+    // Initialize C/CPP
+    __cxa_runinitializers(__CrtCxxInitialize, __CrtCxxFinalize, __CrtAttachTlsBlock);
 
     // Initialize STD-C
     StdioInitialize(NULL, 0);

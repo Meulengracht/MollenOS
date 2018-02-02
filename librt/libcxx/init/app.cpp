@@ -39,12 +39,13 @@ extern "C" {
     extern int main(int argc, char **argv, char **envp);
     extern void __CrtCxxInitialize(void);
     extern void __CrtCxxFinalize(void);
+    extern void __CrtAttachTlsBlock(void);
 #ifndef __clang__
     CRTDECL(void, __CppInitVectoredEH(void));
 #endif
     CRTDECL(void, StdioInitialize(void *InheritanceBlock, size_t InheritanceBlockLength));
     CRTDECL(void, StdSignalInitialize(void));
-    CRTDECL(void, __cxa_runinitializers(void (*Initializer)(void), void (*Finalizers)(void)));
+    CRTDECL(void, __cxa_runinitializers(void (*Initializer)(void), void (*Finalizers)(void), void (*TlsAttachFunction)(void)));
 }
 
 /* Globals
@@ -160,7 +161,7 @@ __CrtInitialize(
 	tls_initialize();
 
 	// Initialize C/CPP
-    __cxa_runinitializers(__CrtCxxInitialize, __CrtCxxFinalize);
+    __cxa_runinitializers(__CrtCxxInitialize, __CrtCxxFinalize, __CrtAttachTlsBlock);
 
     // Get startup information
     memset(&StartupArgumentBuffer[0], 0, sizeof(StartupArgumentBuffer));

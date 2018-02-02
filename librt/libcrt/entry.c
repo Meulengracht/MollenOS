@@ -38,6 +38,7 @@
 __EXTERN int main(int argc, char **argv, char **envp);
 __EXTERN void __CrtCxxInitialize(void);
 __EXTERN void __CrtCxxFinalize(void);
+__EXTERN void __CrtAttachTlsBlock(void);
 #ifndef __clang__
 CRTDECL(void, __CppInitVectoredEH(void));
 #endif
@@ -54,7 +55,8 @@ CRTDECL(void, StdSignalInitialize(void));
  * C++ Initializes library C++ runtime for all loaded modules */
 CRTDECL(void, __cxa_runinitializers(
     _In_ void (*Initializer)(void), 
-    _In_ void (*Finalizers)(void)));
+    _In_ void (*Finalizer)(void), 
+    _In_ void (*TlsAttachFunction)(void)));
 
 /* Globals
  * Static buffer to avoid allocations for process startup information. */
@@ -169,7 +171,7 @@ __CrtInitialize(
 	tls_initialize();
 
 	// Initialize C/CPP
-    __cxa_runinitializers(__CrtCxxInitialize, __CrtCxxFinalize);
+    __cxa_runinitializers(__CrtCxxInitialize, __CrtCxxFinalize, __CrtAttachTlsBlock);
 
     // Get startup information
     memset(&StartupArgumentBuffer[0], 0, sizeof(StartupArgumentBuffer));

@@ -358,19 +358,12 @@ void ThreadingKillThread(UUId_t ThreadId)
 /* ThreadingJoinThread
  * Can be used to wait for a thread the return 
  * value of this function is the ret-code of the thread */
-int ThreadingJoinThread(UUId_t ThreadId)
-{
-	/* Get thread handle */
+int ThreadingJoinThread(UUId_t ThreadId) {
 	MCoreThread_t *Target = ThreadingGetThread(ThreadId);
-
-	/* Sanity */
-	if (Target == NULL)
+	if (Target == NULL) {
 		return -1;
+    }
 	SchedulerThreadSleep((uintptr_t*)Target, 0);
-
-	/* When we reach this point 
-	 * the thread is scheduled for
-	 * destruction */
 	return Target->RetCode;
 }
 

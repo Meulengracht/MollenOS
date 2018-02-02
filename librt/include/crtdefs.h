@@ -116,6 +116,7 @@
 
 #define DLL_ACTION_INITIALIZE   0
 #define DLL_ACTION_FINALIZE     1
+#define DLL_ACTION_THREADATTACH 2
 
 /* This is the export definitions used by
  * the runtime libraries, they default to
