@@ -222,11 +222,15 @@ OsStatus_t
 tls_create(
     _In_ thread_storage_t *Tls)
 {
+    // Variables
+    void *_TlsArrayStorage = NULL;
+
     // Clean out the tls
     memset(Tls, 0, sizeof(thread_storage_t));
 
     // Store it at reserved pointer place first
     __set_reserved(0, (size_t)Tls);
+    __set_reserved(1, (size_t)&Tls->tls_array[0]);
     
     // Initialize members to default values
     Tls->thr_id = UUID_INVALID;

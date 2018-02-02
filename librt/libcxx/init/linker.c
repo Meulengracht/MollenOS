@@ -21,7 +21,7 @@
 
 /* Includes
  * - Library */
-#include <os/osdefs.h>
+#include <os/mollenos.h>
 #include <stdlib.h>
 #include <threads.h>
 #include <string.h>
@@ -116,11 +116,15 @@ CRTDECL(void, __CrtCallInitializersTls(_PVTLS *pfbegin, _PVTLS *pfend, void *dso
 
 /* Globals
  * - Global exported shared variables */
-static tss_t _tls_key = 0;
 static int _tls_init = 0;
 void *__dso_handle = &__dso_handle;
-void *_tls_array = NULL;
+void *_tls_module_data = NULL;
+#if defined(i386) || defined(__i386__)
+void **_tls_array = NULL; // on 64 bit this must be at gs:0x58, 32 bit this should point into tls area
 unsigned long _tls_index = 0;
+#else
+#error "Implicit tls architecture must be implemented"
+#endif
 
 _CRTALLOC(".rdata$T") const struct {
     uintptr_t*  StartOfData;
@@ -130,7 +134,7 @@ _CRTALLOC(".rdata$T") const struct {
     size_t      SizeOfZeroFill;
     size_t      Characteristics;
 } _tls_used = {
-        (uintptr_t*)&_tls_start + 1,    // start of tls data
+        (uintptr_t*)(&_tls_start + 1),  // start of tls data
         (uintptr_t*)&_tls_end,          // end of tls data
         (uintptr_t*)&_tls_index,        // address of tls_index
         (uintptr_t*)(&__xl_a + 1),      // pointer to call back array
@@ -142,7 +146,9 @@ _CRTALLOC(".rdata$T") const struct {
 // Creates a new tls key for the module that links against
 // this file
 void __CrtCreateTlsBlock(void) {
-    tss_create(&_tls_key, NULL);
+    _tls_array = (void**)__get_reserved(1);
+    _tls_index = 0;
+    while (_tls_array[_tls_index] != NULL) _tls_index++;
 }
 
 // __CrtAttachTlsBlock
@@ -151,9 +157,9 @@ void __CrtCreateTlsBlock(void) {
 void __CrtAttachTlsBlock(void) {
     size_t TlsDataSize = (size_t)_tls_used.EndOfData - (size_t)_tls_used.StartOfData;
     if (TlsDataSize > 0 && _tls_used.StartOfData < _tls_used.EndOfData) {
-        _tls_array = malloc(TlsDataSize);
-        _tls_index = 0; // Always zero as _tls_array is unique
-        memcpy(_tls_array, (void*)_tls_used.StartOfData, TlsDataSize);
+        _tls_module_data = malloc(TlsDataSize);
+        memcpy(_tls_module_data, (void*)_tls_used.StartOfData, TlsDataSize);
+        _tls_array[_tls_index] = _tls_module_data;
     }
     if (_tls_init == 0) {
         __CrtCallInitializersTls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_INITIALIZE);

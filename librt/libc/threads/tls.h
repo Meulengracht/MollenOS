@@ -31,6 +31,9 @@
 #include <threads.h>
 #include <wchar.h>
 
+/* Tls Configuration */
+#define TLS_NUMBER_ENTRIES          64
+
 _CODE_BEGIN
 /* Thread Local Storage
  * This is the structure that exists seperately for each running
@@ -47,6 +50,7 @@ PACKED_TYPESTRUCT(thread_storage, {
     struct tm                tm_buffer;
     char                     asc_buffer[26];
     BufferObject_t          *transfer_buffer;
+    uintptr_t                tls_array[TLS_NUMBER_ENTRIES];
 
     // Exception & RTTI Support for msc++
 #if defined(_MSC_VER) && !defined(__clang__)

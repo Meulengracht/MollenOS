@@ -25,9 +25,42 @@
  * - Tests */
 #include "test.hpp"
 #include "test_constreams.hpp"
+#include <thread>
 
+/*******************************************
+ * Tls Testing
+ *******************************************/
+thread_local std::thread::id thread_id;
+void thread_function() {
+    thread_id = std::this_thread::get_id();
+    TRACE("Thread id of new thread: %u", thread_id);
+}
+
+int TestThreading() {
+    int ErrorCounter = 0;
+    std::thread::id local_id = std::this_thread::get_id();
+    thread_id = std::this_thread::get_id();
+    TRACE("Thread id of main thread: %u", thread_id);
+    std::thread tlsthread(thread_function);
+    tlsthread.join();
+    TRACE("Thread id of main thread: %u", thread_id);
+    if (thread_id != local_id) {
+        ErrorCounter++;
+    }
+    return ErrorCounter;
+}
+
+/*******************************************
+ * Entry Point
+ *******************************************/
 int main(int argc, char **argv) {
     int ErrorCounter = 0;
+
+    // Run tests
     RUN_TEST_SUITE(ErrorCounter, ConsoleStreamTests);
+
+    // Run tests that must be in source files
+    BOCHSBREAK
+    ErrorCounter += TestThreading();
     return ErrorCounter;
 }

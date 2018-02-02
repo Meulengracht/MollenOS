@@ -509,14 +509,18 @@ ScThreadJoin(
     _Out_ int*      ExitCode)
 {
     // Variables
-    UUId_t PId = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+    UUId_t PId      = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+    int ResultCode  = 0;
 
     // Perform security checks
     if (ThreadingGetThread(ThreadId) == NULL
         || ThreadingGetThread(ThreadId)->AshId != PId) {
         return OsError;
     }
-    *ExitCode = ThreadingJoinThread(ThreadId);
+    ResultCode = ThreadingJoinThread(ThreadId);
+    if (ExitCode != NULL) {
+        *ExitCode = ResultCode;
+    }
     return OsSuccess;
 }
 

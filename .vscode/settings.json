@@ -306,7 +306,8 @@
         "glapi_priv.h": "c",
         "glapitable.h": "c",
         "math_private.h": "c",
-        "e_rem_pio2l.h": "c"
+        "e_rem_pio2l.h": "c",
+        "__threading_support": "cpp"
     },
     "git.ignoreLimitWarning": true
 }

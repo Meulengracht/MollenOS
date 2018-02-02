@@ -104,8 +104,8 @@ ContextCreate(
 
 	// Setup segments for the stack
 	Context->Ds = DataSegment;
-	Context->Fs = DataSegment;
 	Context->Es = DataSegment;
+	Context->Fs = DataSegment;
 	Context->Gs = ExtraSegment;
 
 	// Initialize registers to zero value
