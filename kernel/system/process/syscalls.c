@@ -396,9 +396,9 @@ ScProcessGetModuleEntryPoints(
     return PeGetModuleEntryPoints(Process->Executable, ModuleList);
 }
 
-/**************************
-* Shared Object Functions *
-***************************/
+/*******************************************************************************
+ * Shared Object Functions
+ *******************************************************************************/
 
 /* ScSharedObjectLoad
  * Load a shared object given a path 
@@ -482,8 +482,7 @@ UUId_t
 ScThreadCreate(
     _In_ ThreadEntry_t      Entry, 
     _In_ void*              Data, 
-    _In_ Flags_t            Flags)
-{
+    _In_ Flags_t            Flags) {
     // Sanitize parameters
     if (Entry == NULL) {
         return UUID_INVALID;
@@ -521,6 +520,27 @@ ScThreadJoin(
     if (ExitCode != NULL) {
         *ExitCode = ResultCode;
     }
+    return OsSuccess;
+}
+
+/* ScThreadDetach
+ * Unattaches a running thread from a process, making sure it lives
+ * past the lifetime of a process unless killed. */
+OsStatus_t
+ScThreadDetach(
+    _In_  UUId_t    ThreadId)
+{
+    // Variables
+    UUId_t PId      = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+
+    // Perform security checks
+    if (ThreadingGetThread(ThreadId) == NULL
+        || ThreadingGetThread(ThreadId)->AshId != PId) {
+        return OsError;
+    }
+    
+    // Perform the detach
+    // @todo
     return OsSuccess;
 }
 
@@ -1896,12 +1916,12 @@ uintptr_t GlbSyscallTable[111] = {
     DefineSyscall(ScThreadExit),
     DefineSyscall(ScThreadSignal),
     DefineSyscall(ScThreadJoin),
+    DefineSyscall(ScThreadDetach),
     DefineSyscall(ScThreadSleep),
     DefineSyscall(ScThreadYield),
     DefineSyscall(ScThreadGetCurrentId),
     DefineSyscall(ScThreadSetCurrentName),
     DefineSyscall(ScThreadGetCurrentName),
-    DefineSyscall(NoOperation),
     DefineSyscall(NoOperation),
     DefineSyscall(NoOperation),
     DefineSyscall(NoOperation),

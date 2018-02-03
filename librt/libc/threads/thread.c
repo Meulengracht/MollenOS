@@ -244,7 +244,10 @@ int
 thrd_detach(
     _In_ thrd_t thr)
 {
-    // @todo
+    // The syscall actually does most of the work
+    if (Syscall_ThreadDetach(thr) == OsSuccess) {
+        return thrd_success;
+    }
     return thrd_error;
 }
 

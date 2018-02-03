@@ -66,11 +66,12 @@ _CODE_END
 #define Syscall_ThreadExit(ExitCode) (OsStatus_t)syscall1(16, SCPARAM(ExitCode))
 #define Syscall_ThreadSignal(ThreadId, Signal) (OsStatus_t)syscall2(17, SCPARAM(ThreadId), SCPARAM(Signal))
 #define Syscall_ThreadJoin(ThreadId, ExitCode) (OsStatus_t)syscall2(18, SCPARAM(ThreadId), SCPARAM(ExitCode))
-#define Syscall_ThreadSleep(Milliseconds, MillisecondsSlept) (OsStatus_t)syscall2(19, SCPARAM(Milliseconds), SCPARAM(MillisecondsSlept))
-#define Syscall_ThreadYield() (OsStatus_t)syscall0(20)
-#define Syscall_ThreadId() (UUId_t)syscall0(21)
-#define Syscall_ThreadSetCurrentName(Name) (UUId_t)syscall1(22, SCPARAM(Name))
-#define Syscall_ThreadGetCurrentName(NameBuffer, MaxLength) (UUId_t)syscall2(23, SCPARAM(NameBuffer), SCPARAM(MaxLength))
+#define Syscall_ThreadDetach(ThreadId) (OsStatus_t)syscall1(19, SCPARAM(ThreadId))
+#define Syscall_ThreadSleep(Milliseconds, MillisecondsSlept) (OsStatus_t)syscall2(20, SCPARAM(Milliseconds), SCPARAM(MillisecondsSlept))
+#define Syscall_ThreadYield() (OsStatus_t)syscall0(21)
+#define Syscall_ThreadId() (UUId_t)syscall0(22)
+#define Syscall_ThreadSetCurrentName(Name) (UUId_t)syscall1(23, SCPARAM(Name))
+#define Syscall_ThreadGetCurrentName(NameBuffer, MaxLength) (UUId_t)syscall2(24, SCPARAM(NameBuffer), SCPARAM(MaxLength))
 
 /* Condition system calls
  * - Condition related system call definitions */
