@@ -222,9 +222,6 @@ OsStatus_t
 tls_create(
     _In_ thread_storage_t *Tls)
 {
-    // Variables
-    void *_TlsArrayStorage = NULL;
-
     // Clean out the tls
     memset(Tls, 0, sizeof(thread_storage_t));
 

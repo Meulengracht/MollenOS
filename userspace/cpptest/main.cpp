@@ -60,7 +60,6 @@ int main(int argc, char **argv) {
     RUN_TEST_SUITE(ErrorCounter, ConsoleStreamTests);
 
     // Run tests that must be in source files
-    BOCHSBREAK
     ErrorCounter += TestThreading();
     return ErrorCounter;
 }
