@@ -86,6 +86,8 @@ typedef void(*ThreadEntry_t)(void*);
 #define THREADING_INHERIT               0x00000100
 #define THREADING_FINISHED              0x00000200
 #define THREADING_IMPERSONATION         0x00000400
+#define THREADING_DETACHED              0x00000800
+#define THREADING_CLEANUPASH            0x00001000
 
 #define THREADING_TRANSITION_USERMODE   0x10000000
 #define THREADING_TRANSITION_SLEEP      0x20000000
@@ -175,9 +177,15 @@ __EXTERN UUId_t ThreadingCreateThread(const char *Name,
 __EXTERN void ThreadingExitThread(int ExitCode);
 
 /* ThreadingKillThread
- * Kills a thread with the given id, the thread
- * might not be killed immediately */
-__EXTERN void ThreadingKillThread(UUId_t ThreadId);
+ * Marks the thread with the given id for finished, and it will be cleaned up
+ * on next switch unless specified. The given exitcode will be stored. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+ThreadingKillThread(
+    _In_ UUId_t ThreadId,
+    _In_ int    ExitCode,
+    _In_ int    TerminateInstantly);
 
 /* ThreadingJoinThread
  * Can be used to wait for a thread the return 
@@ -194,13 +202,16 @@ ThreadingSwitchLevel(
     _In_ void *AshInfo);
 
 /* ThreadingTerminateAshThreads
- * Marks all threads belonging to the given ashid
- * as finished and they will be cleaned up on next switch */
+ * Marks all running threads that are not detached unless specified
+ * for complete and to terminate on next switch, unless specified. 
+ * Returns the number of threads not killed (0 if we terminate detached). */
 KERNELAPI
-void
+int
 KERNELABI
 ThreadingTerminateAshThreads(
-    _In_ UUId_t AshId);
+    _In_ UUId_t AshId,
+    _In_ int    TerminateDetached,
+    _In_ int    TerminateInstantly);
 
 /* ThreadingIsEnabled
  * Returns 1 if the threading system has been

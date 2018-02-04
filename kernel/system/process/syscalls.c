@@ -178,66 +178,52 @@ ScProcessJoin(
     return OsError;
 }
 
-/* Attempts to kill the process 
- * with the given process-id */
-OsStatus_t ScProcessKill(UUId_t ProcessId)
+/* ScProcessKill
+ * Kills the given process-id, it does not guarantee instant kill. */
+OsStatus_t
+ScProcessKill(
+    _In_ UUId_t ProcessId)
 {
-    /* Alloc on stack */
+    // Variables
     MCorePhoenixRequest_t Request;
 
-    /* Clean out structure */
+    // Initialize the request
     memset(&Request, 0, sizeof(MCorePhoenixRequest_t));
-
-    /* Setup */
     Request.Base.Type = AshKill;
     Request.AshId = ProcessId;
 
-    /* Fire! */
+    // Create and wait with 1 second timeout
     PhoenixCreateRequest(&Request);
     PhoenixWaitRequest(&Request, 1000);
-
-    /* Return the exit code */
-    if (Request.Base.State == EventOk)
+    if (Request.Base.State == EventOk) {
         return OsSuccess;
-    else
+    }
+    else {
         return OsError;
+    }
 }
 
 /* ScProcessExit
- * Kills the current process with the 
- * error code given as argument */
-OsStatus_t ScProcessExit(int ExitCode)
+ * Kills the entire process and all non-detached threads that
+ * has been spawned by the process. */
+OsStatus_t
+ScProcessExit(
+    _In_ int ExitCode)
 {
-    /* Retrieve crrent process */
-    MCoreAsh_t *Process = PhoenixGetCurrentAsh();
-    IntStatus_t IntrState;
-
-    /* Sanity 
-     * We don't proceed in case it's not a process */
+    // Variables
+    MCoreAsh_t *Process     = PhoenixGetCurrentAsh();
     if (Process == NULL) {
         return OsError;
     }
+    
+    // Debug
+    WARNING("Process %s terminated with code %i", MStringRaw(Process->Name), ExitCode);
 
-    /* Log it and save return code */
-    WARNING("Process %s terminated with code %i", 
-        MStringRaw(Process->Name), ExitCode);
-    Process->Code = ExitCode;
-
-    /* Disable interrupts before proceeding */
-    IntrState = InterruptDisable();
-
-    /* Terminate all threads used by process */
-    ThreadingTerminateAshThreads(Process->Id);
-
-    /* Mark process for reaping */
-    PhoenixTerminateAsh(Process);
-
-    /* Enable Interrupts */
-    InterruptRestoreState(IntrState);
-
-    /* Kill this thread */
-    ThreadingKillThread(ThreadingGetCurrentThreadId());
-    ThreadingYield();
+    // Terminate ash and current thread
+    PhoenixTerminateAsh(Process, ExitCode, 0, 1);
+    ThreadingKillThread(ThreadingGetCurrentThreadId(), ExitCode, 1);
+    
+    // @unreachable
     return OsSuccess;
 }
 
@@ -531,16 +517,17 @@ ScThreadDetach(
     _In_  UUId_t    ThreadId)
 {
     // Variables
-    UUId_t PId      = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+    MCoreThread_t *Thread   = ThreadingGetCurrentThread(CpuGetCurrentId());
+    MCoreThread_t *Target   = ThreadingGetThread(ThreadId);
+    UUId_t PId              = Thread->AshId;
 
     // Perform security checks
-    if (ThreadingGetThread(ThreadId) == NULL
-        || ThreadingGetThread(ThreadId)->AshId != PId) {
+    if (Target == NULL || Target->AshId != PId) {
         return OsError;
     }
     
     // Perform the detach
-    // @todo
+    Target->Flags |= THREADING_DETACHED;
     return OsSuccess;
 }
 

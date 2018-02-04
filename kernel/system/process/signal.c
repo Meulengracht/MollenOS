@@ -207,7 +207,7 @@ SignalExecute(
 	if (Process->SignalHandler == 0) {
 		char Action = GlbSignalIsDeadly[Signal->Signal];
 		if (Action == 1 || Action == 2) {
-			PhoenixTerminateAsh(Process);
+			PhoenixTerminateAsh(Process, Signal->Signal, 1, 1);
 		}
         kfree(Signal);
 		return;

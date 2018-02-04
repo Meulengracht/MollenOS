@@ -315,13 +315,16 @@ ThreadingExitThread(
 	UUId_t Cpu              = 0;
 
 	// Instantiate some values
-	Cpu = CpuGetCurrentId();
-    Thread = ThreadingGetCurrentThread(Cpu);
+	Cpu     = CpuGetCurrentId();
+    Thread  = ThreadingGetCurrentThread(Cpu);
     assert(Thread != NULL);
 
 	// Update thread state
-	Thread->RetCode = ExitCode;
-    Thread->Flags |= THREADING_FINISHED;
+    if (Thread->Flags & THREADING_CLEANUPASH) {
+        ThreadingTerminateAshThreads(Thread->AshId, 0, 0);
+    }
+	Thread->RetCode  = ExitCode;
+    Thread->Flags   |= THREADING_FINISHED;
 
     // Wake people waiting for us
 	SchedulerHandleSignalAll((uintptr_t*)Thread);
@@ -329,30 +332,39 @@ ThreadingExitThread(
 }
 
 /* ThreadingKillThread
- * Kills a thread with the given id, the thread
- * might not be killed immediately */
-void ThreadingKillThread(UUId_t ThreadId)
+ * Marks the thread with the given id for finished, and it will be cleaned up
+ * on next switch unless specified. The given exitcode will be stored. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+ThreadingKillThread(
+    _In_ UUId_t ThreadId,
+    _In_ int    ExitCode,
+    _In_ int    TerminateInstantly)
 {
-	/* Get thread handle */
+	// Variables
 	MCoreThread_t *Target = ThreadingGetThread(ThreadId);
 
-	/* Sanity 
-	 * NULL check and IDLE check
-	 * don't ever kill idle threads.. */
-	if (Target == NULL
-		|| (Target->Flags & THREADING_IDLE))
-		return;
+	// Security check
+	if (Target == NULL || (Target->Flags & THREADING_IDLE)) {
+        return OsError;
+    }
 
-	/* Mark thread finished */
-	Target->Flags |= THREADING_FINISHED;
-	Target->RetCode = -1;
+    // Update thread state
+	Target->Flags   |= THREADING_FINISHED;
+	Target->RetCode  = ExitCode;
 
-	/* Wakeup people that were
-	* waiting for the thread to finish */
+    // Wake-up threads waiting with ThreadJoin
 	SchedulerHandleSignalAll((uintptr_t*)Target);
 
-	/* This means that it will be 
-	 * cleaned up at next schedule */
+    // Should we instagib?
+    if (TerminateInstantly) {
+        if (ThreadId == ThreadingGetCurrentThreadId()) {
+            ThreadingYield();
+        }
+        // @todo
+    }
+    return OsSuccess;
 }
 
 /* ThreadingJoinThread
@@ -395,19 +407,33 @@ ThreadingSwitchLevel(
 }
 
 /* ThreadingTerminateAshThreads
- * Marks all threads belonging to the given ashid
- * as finished and they will be cleaned up on next switch */
-void
+ * Marks all running threads that are not detached unless specified
+ * for complete and to terminate on next switch, unless specified. 
+ * Returns the number of threads not killed (0 if we terminate detached). */
+int
 ThreadingTerminateAshThreads(
-    _In_ UUId_t AshId)
+    _In_ UUId_t AshId,
+    _In_ int    TerminateDetached,
+    _In_ int    TerminateInstantly)
 {
+    int ThreadsNotKilled = 0;
 	foreach(tNode, GlbThreads) {
-		MCoreThread_t *Thread = 
-			(MCoreThread_t*)tNode->Data;
+		MCoreThread_t *Thread = (MCoreThread_t*)tNode->Data;
 		if (Thread->AshId == AshId) {
-			Thread->Flags |= THREADING_FINISHED;
+            if ((Thread->Flags & THREADING_DETACHED) && !TerminateDetached) {
+                Thread->Flags |= THREADING_CLEANUPASH;
+                ThreadsNotKilled++;
+            }
+            else {
+			    Thread->Flags   |= THREADING_FINISHED;
+                Thread->RetCode  = -1;
+                if (TerminateInstantly) {
+                    // Is thread running on any cpu currently?
+                }
+            }
 		}
 	}
+    return ThreadsNotKilled;
 }
 
 /* ThreadingGetCurrentThread

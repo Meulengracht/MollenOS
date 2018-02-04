@@ -201,7 +201,10 @@ KERNELAPI
 void
 KERNELABI
 PhoenixTerminateAsh(
-    _In_ MCoreAsh_t *Ash);
+    _In_ MCoreAsh_t*    Ash,
+    _In_ int            ExitCode,
+    _In_ int            TerminateDetachedThreads,
+    _In_ int            TerminateInstantly);
 
 /* PhoenixGetAsh
  * This function looks up a ash structure by the given id */

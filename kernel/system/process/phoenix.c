@@ -257,10 +257,24 @@ PhoenixRegisterAsh(
  * of rotation and adding it to the cleanup list */
 void
 PhoenixTerminateAsh(
-    _In_ MCoreAsh_t *Ash)
+    _In_ MCoreAsh_t*    Ash,
+    _In_ int            ExitCode,
+    _In_ int            TerminateDetachedThreads,
+    _In_ int            TerminateInstantly)
 {
     // Variables
+    int LeftoverThreads = 0;
     DataKey_t Key;
+
+    // Update it's return code
+    Ash->Code = ExitCode;
+
+    // Kill it's threads
+    LeftoverThreads = ThreadingTerminateAshThreads(Ash->Id, 
+        TerminateDetachedThreads, TerminateInstantly);
+    if (LeftoverThreads != 0) {
+        return;
+    }
 
     // To modify list is locked operation
     Key.Value = (int)Ash->Id;
@@ -339,8 +353,7 @@ PhoenixEventHandler(
 		case AshKill: {
 			MCoreAsh_t *Ash = PhoenixGetAsh(Request->AshId);
 			if (Ash != NULL) {
-				ThreadingTerminateAshThreads(Ash->Id);
-				PhoenixTerminateAsh(Ash);
+				PhoenixTerminateAsh(Ash, 0, 1, 1);
 			}
 			else {
 				Request->Base.State = EventFailed;
