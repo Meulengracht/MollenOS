@@ -67,8 +67,8 @@ export GLFLAGS = /nodefaultlib $(link_flags) /subsystem:native
 # Userspace environment compilation flags
 export GUCFLAGS = $(shared_flags) $(arch_flags) $(disable_warnings) $(config_flags)
 export GUCXXFLAGS = -std=c++17 $(shared_flags) $(arch_flags) $(disable_warnings) $(config_flags)
-export GUCLIBRARIES = ../lib/libcrt.lib ../lib/libclang.lib ../lib/libc.lib ../lib/libunwind.lib
-export GUCXXLIBRARIES = ../lib/libcxx.lib ../lib/libclang.lib ../lib/libc.lib ../lib/libunwind.lib
+export GUCLIBRARIES = ../lib/libcrt.lib ../lib/libclang.lib ../lib/libc.lib ../lib/libunwind.lib ../lib/libm.lib
+export GUCXXLIBRARIES = ../lib/libcxx.lib ../lib/libclang.lib ../lib/libc.lib ../lib/libunwind.lib ../lib/libm.lib
 
 .PHONY: all
 all: build_tools gen_revision build_bootloader build_libraries build_kernel build_drivers setup_userspace build_initrd

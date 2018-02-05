@@ -29,6 +29,7 @@
 #include <system/iospace.h>
 #include <system/utils.h>
 #include <process/phoenix.h>
+#include <scheduler.h>
 #include <debug.h>
 #include <arch.h>
 #include <heap.h>
@@ -439,7 +440,7 @@ DebugPageFaultProcessSharedMemory(
                 Event->Address = Address;
     
                 PhoenixFileMappingEvent(Event);
-                SchedulerThreadSleep(Event, 0);
+                SchedulerThreadSleep((uintptr_t*)Event, 0);
                 Result = Event->Result;
                 kfree(Event);
                 return Result;

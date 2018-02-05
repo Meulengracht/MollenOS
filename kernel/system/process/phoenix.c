@@ -337,7 +337,8 @@ PhoenixFileHandler(
             size_t BytesIndex = 0;
             size_t BytesRead = 0;
             FATAL(FATAL_SCOPE_KERNEL, "Finish implementation of file mappings. They are obviously used now");
-            AddressSpaceMap(Event->Ash->AddressSpace, &Block, Event->Address & (AddressSpaceGetPageSize() - 1), 
+            AddressSpaceMap(Event->Ash->AddressSpace, &Block, 
+                (VirtualAddress_t*)(Event->Address & (AddressSpaceGetPageSize() - 1)), 
                 AddressSpaceGetPageSize(), ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
             if (SeekFile(Mapping->FileHandle, 0, 0) == FsOk && 
                 ReadFile(Mapping->FileHandle, Mapping->TransferObject, &BytesIndex, &BytesRead) == FsOk) {
