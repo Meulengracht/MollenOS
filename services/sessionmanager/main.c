@@ -71,7 +71,6 @@ OnEvent(
     // New function call!
     switch (Message->Function) {
         case __SESSIONMANAGER_CHECKUP: {
-#ifndef __OSCONFIG_DISABLE_VIOARR
             if (WindowingSystemId == UUID_INVALID) {
                 // The identifier might be stored as a value here if less than a specific
                 // amount of bytes
@@ -85,11 +84,14 @@ OnEvent(
 
                 // Clear up buffer and spawn app
                 memset(&PathBuffer[0], 0, sizeof(PathBuffer));
-                sprintf(&PathBuffer[0], "%s:/shared/bin/cpptest.app", DiskIdentifier); //%s/system/vioarr.app
+#ifdef __OSCONFIG_DISABLE_VIOARR
+                sprintf(&PathBuffer[0], "%s:/shared/bin/cpptest.app", DiskIdentifier);
+#else
+                sprintf(&PathBuffer[0], "%s:/shared/bin/vioarr.app", DiskIdentifier);
+#endif
                 TRACE("Spawning %s", &PathBuffer[0]);
                 WindowingSystemId = ProcessSpawn(&PathBuffer[0], NULL, 0);
             }
-#endif
         } break;
         case __SESSIONMANAGER_LOGIN: {
 

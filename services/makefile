@@ -28,10 +28,6 @@ sessionmanager:
 usbmanager:
 	@$(MAKE) -s -C usbmanager -f makefile
 
-.PHONY: windowmanager
-windowmanager:
-	@$(MAKE) -s -C windowmanager -f makefile
-
 .PHONY: clean
 clean:
 	@$(MAKE) -s -C sessionmanager -f makefile clean

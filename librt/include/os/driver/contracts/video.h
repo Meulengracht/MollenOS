@@ -30,22 +30,22 @@
 #include <os/osdefs.h>
 
 PACKED_TYPESTRUCT(VideoDescriptor, {
-	uintptr_t				FrameBufferAddress;
-	
-	size_t				BytesPerScanline;
-	size_t				Height;
-	size_t				Width;
-	int					Depth;
+    uintptr_t           FrameBufferAddress;
+    
+    size_t              BytesPerScanline;
+    size_t              Height;
+    size_t              Width;
+    int                 Depth;
 
-	int					RedPosition;
-	int					BluePosition;
-	int					GreenPosition;
-	int					ReservedPosition;
+    int                 RedPosition;
+    int                 BluePosition;
+    int                 GreenPosition;
+    int                 ReservedPosition;
 
-	int					RedMask;
-	int					BlueMask;
-	int					GreenMask;
-	int					ReservedMask;
+    int                 RedMask;
+    int                 BlueMask;
+    int                 GreenMask;
+    int                 ReservedMask;
 });
 
 #endif //!_CONTRACT_VIDEO_INTERFACE_H_
