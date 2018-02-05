@@ -421,8 +421,12 @@ ThreadingTerminateAshThreads(
 		MCoreThread_t *Thread = (MCoreThread_t*)tNode->Data;
 		if (Thread->AshId == AshId) {
             if ((Thread->Flags & THREADING_DETACHED) && !TerminateDetached) {
-                Thread->Flags |= THREADING_CLEANUPASH;
-                ThreadsNotKilled++;
+                // If it's a detached thread calling this method we are killing ourselves
+                // and shouldn't increase
+                if (Thread->Id != ThreadingGetCurrentThreadId()) {
+                    Thread->Flags |= THREADING_CLEANUPASH;
+                    ThreadsNotKilled++;
+                }
             }
             else {
 			    Thread->Flags   |= THREADING_FINISHED;

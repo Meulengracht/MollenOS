@@ -423,8 +423,10 @@ DebugPageFaultProcessSharedMemory(
     _In_ uintptr_t  Address)
 {
     // Variables
-    MCoreAshFileMapping_t *Mapping  = NULL;
-    MCoreAsh_t *Ash                 = PhoenixGetCurrentAsh();
+    MCoreAshFileMappingEvent_t *Event   = NULL;
+    MCoreAshFileMapping_t *Mapping      = NULL;
+    MCoreAsh_t *Ash                     = PhoenixGetCurrentAsh();
+    OsStatus_t Result                   = OsSuccess;
 
     if (Ash != NULL) {
         // Iterate file-mappings
@@ -432,7 +434,15 @@ DebugPageFaultProcessSharedMemory(
             Mapping = (MCoreAshFileMapping_t*)Node->Data;
             if (ISINRANGE(Address, Mapping->VirtualBase, (Mapping->VirtualBase + Mapping->Length) - 1)) {
                 // Oh, woah, file-mapping
-                FATAL(FATAL_SCOPE_KERNEL, "Not implemented yet, handle file-mapping reads");
+                Event = (MCoreAshFileMappingEvent_t*)kmalloc(sizeof(MCoreAshFileMappingEvent_t));
+                Event->Ash = Ash;
+                Event->Address = Address;
+    
+                PhoenixFileMappingEvent(Event);
+                SchedulerThreadSleep(Event, 0);
+                Result = Event->Result;
+                kfree(Event);
+                return Result;
             }
         }
 

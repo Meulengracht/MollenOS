@@ -36,6 +36,7 @@
 
 /* Includes
  * C-Library */
+#include <os/driver/file.h>
 #include <ds/collection.h>
 #include <ds/mstring.h>
 #include <stddef.h>
@@ -50,6 +51,9 @@ PhoenixEventHandler(
 OsStatus_t
 PhoenixReapAsh(
     _In_Opt_ void *UserData);
+OsStatus_t
+PhoenixFileHandler(
+    _In_Opt_ void *UserData);
 
 /* Globals 
  * State-keeping and data-storage */
@@ -58,6 +62,7 @@ static Collection_t *Processes              = NULL;
 static CriticalSection_t ProcessLock;
 static UUId_t *AliasMap                     = NULL;
 static UUId_t GcHandlerId                   = 0;
+static UUId_t GcFileHandleId                = 0;
 static UUId_t ProcessIdGenerator            = 0;
 CriticalSection_t LoaderLock;
 
@@ -78,6 +83,7 @@ PhoenixInitialize(void)
 	ProcessIdGenerator = 1;
 	Processes = CollectionCreate(KeyInteger);
     GcHandlerId = GcRegister(PhoenixReapAsh);
+    GcFileHandleId = GcRegister(PhoenixFileHandler);
     CriticalSectionConstruct(&ProcessLock, CRITICALSECTION_PLAIN);
     CriticalSectionConstruct(&LoaderLock, CRITICALSECTION_REENTRANCY);
 
@@ -95,8 +101,7 @@ PhoenixInitialize(void)
  * Creates and queues up a new request for the process-manager. */
 void
 PhoenixCreateRequest(
-    _In_ MCorePhoenixRequest_t *Request)
-{
+    _In_ MCorePhoenixRequest_t *Request) {
 	EventCreate(EventHandler, &Request->Base);
 }
 
@@ -105,8 +110,7 @@ PhoenixCreateRequest(
 void
 PhoenixWaitRequest(
     _In_ MCorePhoenixRequest_t *Request,
-    _In_ size_t Timeout)
-{
+    _In_ size_t Timeout) {
 	EventWait(&Request->Base, Timeout);
 }
 
@@ -310,6 +314,49 @@ PhoenixReapAsh(
 		return OsError;
 	}
 	return OsSuccess;
+}
+
+/* PhoenixFileHandler
+ * Handles new file-mapping events that occur through unmapped page events. */
+OsStatus_t
+PhoenixFileHandler(
+    _In_Opt_ void *UserData)
+{
+    // Variables
+	MCoreAshFileMappingEvent_t *Event   = (MCoreAshFileMappingEvent_t*)UserData;
+    MCoreAshFileMapping_t *Mapping      = NULL;
+
+    // Set default response
+    Event->Result = OsError;
+
+    // Iterate file-mappings
+    foreach(Node, Event->Ash->FileMappings) {
+        Mapping = (MCoreAshFileMapping_t*)Node->Data;
+        if (ISINRANGE(Event->Address, Mapping->VirtualBase, (Mapping->VirtualBase + Mapping->Length) - 1)) {
+            uintptr_t Block = 0;
+            size_t BytesIndex = 0;
+            size_t BytesRead = 0;
+            FATAL(FATAL_SCOPE_KERNEL, "Finish implementation of file mappings. They are obviously used now");
+            AddressSpaceMap(Event->Ash->AddressSpace, &Block, Event->Address & (AddressSpaceGetPageSize() - 1), 
+                AddressSpaceGetPageSize(), ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
+            if (SeekFile(Mapping->FileHandle, 0, 0) == FsOk && 
+                ReadFile(Mapping->FileHandle, Mapping->TransferObject, &BytesIndex, &BytesRead) == FsOk) {
+                Event->Result = OsSuccess;
+            }
+        }
+    }
+
+    // Ignore invalid requests
+    SchedulerHandleSignal((uintptr_t*)Event);
+    return OsSuccess;
+}
+
+/* PhoenixFileMappingEvent
+ * Signals a new file-mapping access event to the phoenix process system. */
+void
+PhoenixFileMappingEvent(
+    _In_ MCoreAshFileMappingEvent_t* Event) {
+    GcSignal(GcFileHandleId, Event);
 }
 
 /* PhoenixEventHandler

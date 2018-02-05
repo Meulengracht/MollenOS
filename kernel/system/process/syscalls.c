@@ -1101,6 +1101,8 @@ ScDestroyFileMapping(
     CollectionDestroyNode(Ash->FileMappings, Node);
     
     // Unmap all mappings done
+    // @todo Check if the (D) Dirty flag is set on the page, that means write-access
+    // did occur and we should flush it to file.
     for (uintptr_t ItrAddress = Mapping->VirtualBase; 
          ItrAddress < (Mapping->VirtualBase + Mapping->Length); ItrAddress += AddressSpaceGetPageSize()) {
         if (AddressSpaceGetMapping(AddressSpaceGetCurrent(), ItrAddress) != 0) {

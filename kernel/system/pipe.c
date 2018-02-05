@@ -107,6 +107,7 @@ PipeProduceAcquire(
 {
     // Variables
     unsigned AcquiredWorker = 0;
+    int SleepResult         = SCHEDULER_SLEEP_OK;
 
     // Debug
     TRACE("PipeProduceAcquire(Length %u)", Length);
@@ -115,7 +116,12 @@ PipeProduceAcquire(
     AcquiredWorker = atomic_fetch_add(&Pipe->WriteWorker, 1);
     AcquiredWorker &= PIPE_WORKERS_MASK;
     while (atomic_exchange(&Pipe->Workers[AcquiredWorker].Allocated, 1) != 0) {
-        SchedulerThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredWorker], 1000);  // @todo 
+        if (SleepResult == SCHEDULER_SLEEP_TIMEOUT) { // If we timedout on the 50 ms and still no trigger, assume long sleep
+            SchedulerThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredWorker], 0);
+        }
+        else {
+            SchedulerThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredWorker], 50);
+        }
     }
 
     // Acquire space in the buffer
@@ -188,6 +194,7 @@ PipeConsumeAcquire(
 {
     // Variables
     unsigned AcquiredReader = 0;
+    int SleepResult         = SCHEDULER_SLEEP_OK;
 
     // Debug
     TRACE("PipeConsumeAcquire()");
@@ -196,7 +203,12 @@ PipeConsumeAcquire(
     AcquiredReader = atomic_fetch_add(&Pipe->ReadWorker, 1);
     AcquiredReader &= PIPE_WORKERS_MASK;
     while (atomic_load(&Pipe->Workers[AcquiredReader].Registered) != 1) {
-        SchedulerThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredReader], 1000); // @todo
+        if (SleepResult == SCHEDULER_SLEEP_TIMEOUT) { // If we timedout on the 50 ms and still no trigger, assume long sleep
+            SchedulerThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredReader], 0);
+        }
+        else {
+            SchedulerThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredReader], 50);
+        }
     }
     
     // Update outs

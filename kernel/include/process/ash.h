@@ -107,6 +107,14 @@ typedef struct _MCoreAsh {
     int                  Code;
 } MCoreAsh_t;
 
+/* MCoreAshFileMappingEvent
+ * Descripes a file mapping access event. */
+typedef struct _MCoreAshFileMappingEvent {
+    MCoreAsh_t*             Ash;
+    uintptr_t               Address;
+    OsStatus_t              Result;
+} MCoreAshFileMappingEvent_t;
+
 /* PhoenixInitializeAsh
  * This function loads the executable and
  * prepares the ash-environment, at this point
@@ -205,6 +213,14 @@ PhoenixTerminateAsh(
     _In_ int            ExitCode,
     _In_ int            TerminateDetachedThreads,
     _In_ int            TerminateInstantly);
+
+/* PhoenixFileMappingEvent
+ * Signals a new file-mapping access event to the phoenix process system. */
+KERNELAPI
+void
+KERNELABI
+PhoenixFileMappingEvent(
+    _In_ MCoreAshFileMappingEvent_t* Event);
 
 /* PhoenixGetAsh
  * This function looks up a ash structure by the given id */
