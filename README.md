@@ -19,11 +19,10 @@ for 2018 will be the userspace, and stability/robustness of the operating system
 I should reach a point where they are highly required.
 
 Userspace libraries that are being ported currently (native builds)
- - mesa (/w gallium + llvmpipe as backend)
+ - None at the moment, currently working on the window manager system
 
 Userspace libraries planned for port in 2018
  - clang
- - mesa (/w gallium + llvmpipe as backend)
  - tbd (rest will be announced as we go)
 
 ## Project Structure
@@ -102,7 +101,7 @@ the standard c library.
 
 ### Vioarr (Window Manager)
 
-Vioarr (formerly known as Sapphire), is the windowmanager for MollenOS. It will be based upon a 3d engine (tbd) to perform advanced and beautiful
+Vioarr (formerly known as Sapphire), is the windowmanager for MollenOS. It will be based upon a 3d platform (opengl) to perform advanced and beautiful
 graphical user interfaces.
 
 ### Ported libraries and programs
@@ -117,6 +116,10 @@ These are the various libraries ported to MollenOS userspace, and are primarily 
 | libcxxabi     | <unk>     | c++ itanium abi compiler support implementation  |
 | libcxx        | <unk>     | c++ standard library support   |
 | llvm          | <unk>     | The LLVM compiler back-end   |
+| mesa3d        | <unk>     | Open source 3d opengl framework   |
+| zlib          | <unk>     | Compression library   |
+| libpng        | <unk>     | PNG image library   |
+| freetype2     | <unk>     | Library to handle and render fonts   |
 
 
 ## Building MollenOS

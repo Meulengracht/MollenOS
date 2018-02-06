@@ -9,7 +9,7 @@ export LIBRARIES = $(LLVM)/lib
 # Setup userspace environment
 # Always build test applications to make sure env is ok.
 .PHONY: all
-all: bin copy_headers copy_libraries build_cpptest build_zlib build_libpng build_macia
+all: bin copy_headers copy_libraries build_cpptest build_zlib build_libpng build_libfreetype build_macia
 
 # Build userspace applications, the order might be important.
 .PHONY: applications
@@ -48,6 +48,11 @@ build_libpng:
 	@printf "%b" "\033[1;35mChecking if libpng needs to be built\033[m\n"
 	@$(MAKE) -s -C libpng -f makefile
 
+.PHONY: build_libfreetype
+build_libfreetype:
+	@printf "%b" "\033[1;35mChecking if freetype needs to be built\033[m\n"
+	@$(MAKE) -s -C freetype -f makefile
+
 .PHONY: build_vioarr
 build_vioarr:
 	@printf "%b" "\033[1;35mChecking if vioarr needs to be built\033[m\n"
@@ -79,6 +84,7 @@ clean:
 	@$(MAKE) -s -C cpptest -f makefile clean
 	@$(MAKE) -s -C vioarr -f makefile clean
 	@$(MAKE) -s -C libpng -f makefile clean
+	@$(MAKE) -s -C freetype -f makefile clean
 	@$(MAKE) -s -C zlib -f makefile clean
 	@$(MAKE) -s -C macia -f makefile clean
 	@rm -rf bin
