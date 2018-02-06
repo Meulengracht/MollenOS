@@ -4,6 +4,9 @@
 [submodule "librt/libcxx/cxx"]
 	path = librt/libcxx/cxx
 	url = https://github.com/Meulengracht/libcxx
+[submodule "librt/libcxx/unwind"]
+	path = librt/libcxx/unwind
+	url = https://github.com/Meulengracht/libunwind
 [submodule "userspace/mesa"]
 	path = userspace/mesa
 	url = https://github.com/Meulengracht/mesa

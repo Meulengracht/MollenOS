@@ -21,11 +21,19 @@ CXXFLAGS = $(SHARED_CONFIG) $(INCLUDES)
 STT_LFLAGS = /lib
 SHR_LFLAGS = $(GLFLAGS) /entry:__CrtLibraryEntry /dll /lldmap ../deploy/libcxxabi.lib ../build/libc.lib ../build/libcrt.lib ../deploy/libunwind.lib
 
+.PHONY: all
+all: dep-unwind all-static
+
+# Libunwind
+.PHONY: dep-unwind
+dep-unwind:
+	@$(MAKE) -s -C unwind -f makefile
+
 # default-static-target
 .PHONY: all-static
 all-static: ../deploy/libcxx.lib
 
-# default-target
+# default-shared-target
 .PHONY: all-shared
 all-shared: ../deploy/libcxx.dll
 
@@ -55,6 +63,7 @@ $(SHR_OBJECTS): %.o : %.cpp
 
 .PHONY: clean
 clean:
+	@$(MAKE) -s -C unwind -f makefile clean
 	@rm -f ../deploy/libcxx.dll
 	@rm -f ../deploy/libcxx.lib
 	@rm -f $(INT_OBJECTS)
