@@ -10,3 +10,6 @@
 [submodule "userspace/llvm"]
 	path = userspace/llvm
 	url = https://github.com/Meulengracht/llvm
+[submodule "librt/libclang"]
+	path = librt/libclang
+	url = https://github.com/Meulengracht/compiler-rt
