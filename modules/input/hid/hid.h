@@ -28,10 +28,10 @@
 
 /* Includes
  * - Interfaces */
-#include <os/driver/input.h>
-#include <os/driver/contracts/base.h>
-#include <os/driver/contracts/usbhost.h>
-#include <os/driver/contracts/usbdevice.h>
+#include <os/input.h>
+#include <os/contracts/base.h>
+#include <os/contracts/usbhost.h>
+#include <os/contracts/usbdevice.h>
 
 /* HID Class Definitions 
  * Contains generic magic constants and definitions */

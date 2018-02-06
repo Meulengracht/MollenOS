@@ -29,31 +29,6 @@
 #include <os/osdefs.h>
 #include <time.h>
 
-/* Structures */
-typedef struct _MollenOSVideoDescriptor
-{
-	/* Framebuffer */
-	void *FrameBufferAddr;
-
-	/* Mode Information */
-	size_t BytesPerScanline;
-	size_t Height;
-	size_t Width;
-	int Depth;
-
-	/* Pixel Information */
-	unsigned RedPosition;
-	unsigned BluePosition;
-	unsigned GreenPosition;
-	unsigned ReservedPosition;
-
-	unsigned RedMask;
-	unsigned BlueMask;
-	unsigned GreenMask;
-	unsigned ReservedMask;
-
-} OSVideoDescriptor_t;
-
 /* Memory Allocation Definitions
  * Flags that can be used when requesting virtual memory */
 #define MEMORY_COMMIT					0x00000001
@@ -119,14 +94,6 @@ CRTDECL(
 OsStatus_t,
 MemoryQuery(
 	_Out_ MemoryDescriptor_t *Descriptor));
-
-/* ScreenQueryGeometry
- * This function returns screen geomemtry
- * descriped as a rectangle structure */
-CRTDECL(
-OsStatus_t,
-ScreenQueryGeometry(
-	_Out_ Rect_t *Rectangle));
 
 /* SystemTime
  * Retrieves the system time. This is only ticking

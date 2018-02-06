@@ -26,7 +26,7 @@
 /* Includes 
  * - System */
 #include <os/osdefs.h>
-#include <os/driver/io.h>
+#include <os/io.h>
 
 /* Definitions */
 #define X86_PCI_SELECT		0xCF8

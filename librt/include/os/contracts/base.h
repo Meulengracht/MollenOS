@@ -26,7 +26,7 @@
 
 /* Includes 
  * - System */
-#include <os/driver/device.h>
+#include <os/device.h>
 #include <os/osdefs.h>
 
 /* Includes

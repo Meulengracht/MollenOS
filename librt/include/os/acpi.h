@@ -32,12 +32,12 @@
  * file. Useful because they make it more difficult to inadvertently type in
  * the wrong signature. */
 #ifndef __ACPI_EXCLUDE_TABLES
-#include <os/driver/acpi/acsetup.h>
-#include <os/driver/acpi/actypes.h>
-#include <os/driver/acpi/actbl.h>
-#include <os/driver/acpi/actbl1.h>
-#include <os/driver/acpi/actbl2.h>
-#include <os/driver/acpi/actbl3.h>
+#include <os/acpi/acsetup.h>
+#include <os/acpi/actypes.h>
+#include <os/acpi/actbl.h>
+#include <os/acpi/actbl1.h>
+#include <os/acpi/actbl2.h>
+#include <os/acpi/actbl3.h>
 #endif
 
 /* The ACPI system descriptor structure

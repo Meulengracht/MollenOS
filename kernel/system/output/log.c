@@ -20,7 +20,7 @@
 */
 
 /* Includes */
-#include <os/driver/file.h>
+#include <os/file.h>
 #include <system/video.h>
 #include <criticalsection.h>
 #include <heap.h>

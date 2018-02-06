@@ -19,13 +19,15 @@
  * MollenOS System Interface
  */
 
-/* Includes */
+/* Includes 
+ * - System */
+#include <os/contracts/video.h>
 #include <os/mollenos.h>
 #include <os/syscall.h>
 #include <os/utils.h>
 
 /* Includes
- * - C-Library */
+ * - Library */
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -62,27 +64,10 @@ void MollenOSEndBoot(void) {
     Syscall_SystemStart();
 }
 
-/* ScreenQueryGeometry
- * This function returns screen geomemtry
- * descriped as a rectangle structure */
-OsStatus_t 
-ScreenQueryGeometry(
-	_Out_ Rect_t *Rectangle)
-{
-	/* Vars */
-	OSVideoDescriptor_t VidDescriptor = { 0 };
-
-	/* Do it */
-	// TODO
-	//MollenOSDeviceQuery(DeviceVideo, 0, &VidDescriptor, sizeof(OSVideoDescriptor_t));
-
-	/* Save info */
-	Rectangle->x = 0;
-	Rectangle->y = 0;
-	Rectangle->w = VidDescriptor.Width;
-	Rectangle->h = VidDescriptor.Height;
-
-	return OsSuccess;
+/* QueryDisplayInformation
+ * Queries the current display driver for information. */
+OsStatus_t QueryDisplayInformation(VideoDescriptor_t *Descriptor) {
+    return Syscall_DisplayInformation(Descriptor);
 }
 
 /* SystemTime

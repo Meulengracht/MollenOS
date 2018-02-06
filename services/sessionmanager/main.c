@@ -24,8 +24,8 @@
 
 /* Includes
  * - System */
-#include <os/driver/service.h>
-#include <os/driver/sessions.h>
+#include <os/service.h>
+#include <os/sessions.h>
 #include <os/process.h>
 #include <os/utils.h>
 #include <string.h>

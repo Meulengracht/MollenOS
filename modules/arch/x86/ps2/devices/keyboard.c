@@ -23,7 +23,7 @@
 
 /* Includes 
  * - System */
-#include <os/driver/input.h>
+#include <os/input.h>
 #include <os/utils.h>
 #include "keyboard.h"
 

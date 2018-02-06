@@ -25,9 +25,9 @@ if ! [ -x "$(command -v g++)" ]; then
   apt-get -qq install g++
 fi
 
-# svn is required
-if ! [ -x "$(command -v svn)" ]; then
-  apt-get -qq install subversion
+# git is required
+if ! [ -x "$(command -v git)" ]; then
+  apt-get -qq install git
 fi
 
 # nasm is required

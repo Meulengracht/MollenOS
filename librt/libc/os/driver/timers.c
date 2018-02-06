@@ -23,7 +23,7 @@
 
 /* Includes
  * - System */
-#include <os/driver/timers.h>
+#include <os/timers.h>
 #include <os/syscall.h>
 
 /* TimerStart 

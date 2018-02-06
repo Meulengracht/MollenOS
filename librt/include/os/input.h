@@ -26,7 +26,7 @@
 
 /* Includes
  * - System */
-#include <os/driver/window.h>
+#include <os/window.h>
 #include <os/virtualkeycodes.h>
 #include <os/osdefs.h>
 

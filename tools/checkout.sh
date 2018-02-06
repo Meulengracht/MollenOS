@@ -5,28 +5,28 @@ if [ ! -f $CROSS/bin/clang ]; then
   
   if [ ! -f ./llvm ]; then
     echo Checking out llvm
-    svn -q co http://llvm.org/svn/llvm-project/llvm/trunk llvm
+    git clone https://github.com/llvm-mirror/llvm.git
     cd llvm/tools
     echo Checking out clang
-    svn -q co http://llvm.org/svn/llvm-project/cfe/trunk clang
+    git clone https://github.com/llvm-mirror/clang.git
     cd ../..
     
     cd llvm/tools/clang/tools
     echo Checking out clang-extra
-    svn -q co http://llvm.org/svn/llvm-project/clang-tools-extra/trunk extra
+    git clone https://github.com/llvm-mirror/clang-tools-extra.git extra
     cd ../../../..
     
     cd llvm/projects
     echo Checking out compiler-rt
-    svn -q co http://llvm.org/svn/llvm-project/compiler-rt/trunk compiler-rt
+    git clone https://github.com/llvm-mirror/compiler-rt.git
     echo Checking out libcxxabi
-    svn -q co http://llvm.org/svn/llvm-project/libcxxabi/trunk libcxxabi
+    git clone https://github.com/llvm-mirror/libcxxabi.git
     echo Checking out libcxx
-    svn -q co http://llvm.org/svn/llvm-project/libcxx/trunk libcxx
+    git clone https://github.com/llvm-mirror/libcxx.git
     echo Checking out openmp
-    svn -q co http://llvm.org/svn/llvm-project/openmp/trunk openmp
+    git clone https://github.com/llvm-mirror/openmp.git
     echo Checking out lld
-    svn -q co http://llvm.org/svn/llvm-project/lld/trunk lld
+    git clone https://github.com/llvm-mirror/lld.git
     cd ../..
     echo Checkout done
   fi

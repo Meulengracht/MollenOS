@@ -26,10 +26,10 @@
 
 /* Includes 
  * - Library */
-#include <os/driver/contracts/usbhost.h>
-#include <os/driver/device.h>
-#include <os/driver/driver.h>
-#include <os/driver/usb.h>
+#include <os/contracts/usbhost.h>
+#include <os/device.h>
+#include <os/driver.h>
+#include <os/usb.h>
 #include <os/osdefs.h>
 #include <os/spinlock.h>
 #include <ds/collection.h>

@@ -26,8 +26,8 @@
 
 /* Includes
  * - Driver System */
-#include <os/driver/interrupt.h>
-#include <os/driver/driver.h>
+#include <os/interrupt.h>
+#include <os/driver.h>
 
 /* Includes 
  * - System */

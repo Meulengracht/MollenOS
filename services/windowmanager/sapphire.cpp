@@ -22,7 +22,7 @@
 
 /* Includes
  * - System */
-#include <os/driver/window.h>
+#include <os/window.h>
 #include <os/mollenos.h>
 #include <os/utils.h>
 

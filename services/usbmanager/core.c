@@ -24,9 +24,9 @@
 
 /* Includes 
  * - System */
-#include <os/driver/contracts/usbdevice.h>
-#include <os/driver/device.h>
-#include <os/driver/usb.h>
+#include <os/contracts/usbdevice.h>
+#include <os/device.h>
+#include <os/usb.h>
 #include <os/utils.h>
 #include "manager.h"
 

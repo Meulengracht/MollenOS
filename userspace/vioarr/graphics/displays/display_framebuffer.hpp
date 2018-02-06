@@ -25,7 +25,7 @@
 
 /* Includes
  * - OpenGL */
-#include <os/driver/contracts/video.h>
+#include <os/contracts/video.h>
 #include "GL/osmesa.h"
 #include "GL/glu.h"
 
@@ -58,7 +58,7 @@ public:
         // Handle -1 in parameters
         VideoDescriptor_t VideoInformation;
         if (Width == -1 || Height == -1) {
-            if (ScreenQueryGeometry(&ScreenSize) != OsSuccess) {
+            if (QueryDisplayInformation(&VideoInformation) != OsSuccess) {
                 return false;
             }
             Width = (Width == -1) ? VideoInformation.Width : Width;

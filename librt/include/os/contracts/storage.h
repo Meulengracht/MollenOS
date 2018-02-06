@@ -26,7 +26,7 @@
 
 /* Includes 
  * - System */
-#include <os/driver/driver.h>
+#include <os/driver.h>
 #include <os/osdefs.h>
 
 /* Storage device query functions that must be implemented

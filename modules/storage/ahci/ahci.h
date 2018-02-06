@@ -33,11 +33,11 @@
 
 /* Includes
  * - System */
-#include <os/driver/contracts/base.h>
-#include <os/driver/contracts/storage.h>
-#include <os/driver/interrupt.h>
-#include <os/driver/device.h>
-#include <os/driver/buffer.h>
+#include <os/contracts/base.h>
+#include <os/contracts/storage.h>
+#include <os/interrupt.h>
+#include <os/device.h>
+#include <os/buffer.h>
 
 /* Includes
  * - Sata */

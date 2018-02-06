@@ -30,8 +30,8 @@
 
 /* Includes
  * - System */
-#include <os/driver/service.h>
-#include <os/driver/buffer.h>
+#include <os/service.h>
+#include <os/buffer.h>
 
 /* These definitions are in-place to allow a custom
  * setting of the windowmanager, these are set to values

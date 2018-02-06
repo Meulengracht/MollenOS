@@ -26,9 +26,9 @@
 
 /* Includes 
  * - System */
-#include <os/driver/contracts/usbhost.h>
-#include <os/driver/bufferpool.h>
-#include <os/driver/usb.h>
+#include <os/contracts/usbhost.h>
+#include <os/bufferpool.h>
+#include <os/usb.h>
 #include <os/osdefs.h>
 #include <ds/collection.h>
 

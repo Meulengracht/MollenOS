@@ -23,7 +23,7 @@
 
 /* Includes
  * - System */
-#include <os/driver/buffer.h>
+#include <os/buffer.h>
 
 #ifdef LIBC_KERNEL
 #define __MODULE		"IOBF"

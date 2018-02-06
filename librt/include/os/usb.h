@@ -30,9 +30,9 @@
 
 /* Includes
  * - System */
-#include <os/driver/usb/definitions.h>
-#include <os/driver/bufferpool.h>
-#include <os/driver/device.h>
+#include <os/usb/definitions.h>
+#include <os/bufferpool.h>
+#include <os/device.h>
 
 /* USB Definitions
  * Contains magic constants, settings and bit definitions */

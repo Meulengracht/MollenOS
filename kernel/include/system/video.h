@@ -31,7 +31,7 @@
 
 /* Includes
  * - System */
-#include <os/driver/contracts/video.h>
+#include <os/contracts/video.h>
 #include <arch.h>
 
 PACKED_TYPESTRUCT(BootTerminal, {

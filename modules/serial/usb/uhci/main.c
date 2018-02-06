@@ -24,7 +24,7 @@
 
 /* Includes 
  * - System */
-#include <os/driver/timers.h>
+#include <os/timers.h>
 #include <os/mollenos.h>
 #include <os/utils.h>
 

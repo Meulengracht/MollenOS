@@ -33,6 +33,7 @@
 #include <scheduler.h>
 #include <interrupts.h>
 #include <timers.h>
+#include <video.h>
 #include <debug.h>
 #include <arch.h>
 #include <heap.h>
@@ -1469,9 +1470,9 @@ ScRpcRespond(
  * Driver Functions    *
  ***********************/
 #include <acpiinterface.h>
-#include <os/driver/io.h>
-#include <os/driver/device.h>
-#include <os/driver/buffer.h>
+#include <os/io.h>
+#include <os/device.h>
+#include <os/buffer.h>
 #include <modules/modules.h>
 #include <process/server.h>
 
@@ -1874,6 +1875,17 @@ ScPerformanceTick(
     return TimersQueryPerformanceTick(Value);
 }
 
+/* ScQueryDisplayInformation
+ * Queries information about the active display */
+OsStatus_t
+ScQueryDisplayInformation(
+    _In_ VideoDescriptor_t *Descriptor) {
+    if (Descriptor == NULL) {
+        return OsError;
+    }
+    return VideoQuery(Descriptor);
+}
+
 /* NoOperation
  * Empty operation, mostly because the operation is reserved */
 OsStatus_t
@@ -1974,7 +1986,7 @@ uintptr_t GlbSyscallTable[111] = {
     DefineSyscall(ScPerformanceFrequency),
     DefineSyscall(ScPerformanceTick),
     DefineSyscall(ScSystemTime),
-    DefineSyscall(NoOperation),
+    DefineSyscall(ScQueryDisplayInformation),
     DefineSyscall(NoOperation),
     DefineSyscall(NoOperation),
 

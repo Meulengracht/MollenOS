@@ -26,8 +26,8 @@
 
 /* Includes 
  * - System */
-#include <os/driver/contracts/filesystem.h>
-#include <os/driver/buffer.h>
+#include <os/contracts/filesystem.h>
+#include <os/buffer.h>
 #include <os/sharedobject.h>
 
 /* Includes 

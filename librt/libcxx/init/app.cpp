@@ -21,7 +21,7 @@
 
 /* Includes 
  * - System */
-#include <os/driver/window.h>
+#include <os/window.h>
 #include <os/syscall.h>
 #include <os/process.h>
 

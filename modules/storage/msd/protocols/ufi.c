@@ -24,7 +24,7 @@
 /* Includes
  * - System */
 #include <os/utils.h>
-#include <os/driver/usb.h>
+#include <os/usb.h>
 #include "../msd.h"
 
 /* UfiConstructCommand

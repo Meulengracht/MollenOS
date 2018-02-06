@@ -23,7 +23,7 @@
 
 /* Includes
  * - System */
-#include <os/driver/acpi.h>
+#include <os/acpi.h>
 #include <os/syscall.h>
 
 /* Includes

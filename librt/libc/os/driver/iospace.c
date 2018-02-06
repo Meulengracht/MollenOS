@@ -23,7 +23,7 @@
 
 /* Includes
  * - System */
-#include <os/driver/io.h>
+#include <os/io.h>
 #include <os/syscall.h>
 
 /* Includes

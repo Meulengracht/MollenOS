@@ -23,7 +23,7 @@
 
 /* Includes
  * - System */
-#include <os/driver/file.h>
+#include <os/file.h>
 #include <os/utils.h>
 #include "include/vfs.h"
 

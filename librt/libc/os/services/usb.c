@@ -23,8 +23,8 @@
 
 /* Includes
  * - System */
-#include <os/driver/contracts/usbhost.h>
-#include <os/driver/usb.h>
+#include <os/contracts/usbhost.h>
+#include <os/usb.h>
 
 /* UsbQueryControllerCount
  * Queries the available number of usb controllers. */

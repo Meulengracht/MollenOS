@@ -21,7 +21,7 @@
 
 /* Includes 
  * - System */
-#include <os/driver/driver.h>
+#include <os/driver.h>
 #include <os/mollenos.h>
 
 /* Includes

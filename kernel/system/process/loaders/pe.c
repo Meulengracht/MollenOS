@@ -25,7 +25,7 @@
  * - System */
 #include <system/addressspace.h>
 #include <modules/modules.h>
-#include <os/driver/file.h>
+#include <os/file.h>
 #include <process/ash.h>
 #include <process/pe.h>
 #include <debug.h>

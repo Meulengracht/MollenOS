@@ -23,7 +23,7 @@
 
 /* Includes
  * - Library */
-#include <os/driver/bufferpool.h>
+#include <os/bufferpool.h>
 #include <os/osdefs.h>
 #include "../common/bytepool.h"
 #include <stdlib.h>

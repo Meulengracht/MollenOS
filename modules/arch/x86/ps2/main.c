@@ -22,7 +22,7 @@
 
 /* Includes 
  * - System */
-#include <os/driver/contracts/base.h>
+#include <os/contracts/base.h>
 #include <os/mollenos.h>
 #include "ps2.h"
 

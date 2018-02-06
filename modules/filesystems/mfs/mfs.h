@@ -31,7 +31,7 @@
 
 /* Includes
  * - System */
-#include <os/driver/contracts/filesystem.h>
+#include <os/contracts/filesystem.h>
 
 /* Includes
  * - Library */

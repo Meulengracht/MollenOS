@@ -29,7 +29,7 @@
 /* Includes
  * - Library */
 #include <os/osdefs.h>
-#include <os/driver/contracts/usbhost.h>
+#include <os/contracts/usbhost.h>
 #include <ds/collection.h>
 
 #include "../common/manager.h"

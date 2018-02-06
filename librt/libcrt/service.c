@@ -26,7 +26,7 @@
 
 /* Includes
  * - Driver */
-#include <os/driver/service.h>
+#include <os/service.h>
 
 /* Includes
  * - Library */

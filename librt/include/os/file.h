@@ -31,9 +31,9 @@
 
 /* Includes
  * - System */
-#include <os/driver/file/definitions.h>
-#include <os/driver/service.h>
-#include <os/driver/buffer.h>
+#include <os/file/definitions.h>
+#include <os/service.h>
+#include <os/buffer.h>
 #include <os/ipc/ipc.h>
 #include <ds/mstring.h>
 

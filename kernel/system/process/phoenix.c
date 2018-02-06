@@ -36,7 +36,7 @@
 
 /* Includes
  * C-Library */
-#include <os/driver/file.h>
+#include <os/file.h>
 #include <ds/collection.h>
 #include <ds/mstring.h>
 #include <stddef.h>

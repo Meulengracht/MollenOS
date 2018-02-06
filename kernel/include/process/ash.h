@@ -26,7 +26,7 @@
 /* Includes 
  * - Library */
 #include <os/osdefs.h>
-#include <os/driver/buffer.h>
+#include <os/buffer.h>
 #include <ds/blbitmap.h>
 #include <ds/mstring.h>
 #include <ds/collection.h>

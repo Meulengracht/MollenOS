@@ -16,34 +16,40 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Contract Definitions & Structures (Usb-Device Contract)
+ * MollenOS MCore - Contract Definitions & Structures (Video Contract)
  * - This header describes the base contract-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _CONTRACT_USBDEVICE_INTERFACE_H_
-#define _CONTRACT_USBDEVICE_INTERFACE_H_
+#ifndef _CONTRACT_VIDEO_INTERFACE_H_
+#define _CONTRACT_VIDEO_INTERFACE_H_
 
 /* Includes 
  * - System */
-#include <os/driver/usb/definitions.h>
-#include <os/driver/driver.h>
-#include <os/driver/device.h>
-#include <os/driver/usb.h>
+#include <os/contracts/base.h>
 #include <os/osdefs.h>
 
-/* MCoreUsbDevice_t
- * This is the base usb device structure definition
- * and is passed on to all usb-drivers on their initialization
- * to give them an overview and description of their device 
- * and functions to read/write directly to the device */
-PACKED_TYPESTRUCT(MCoreUsbDevice, {
-    MCoreDevice_t                   Base;
-    UsbHcDevice_t                   Device;
-    UsbHcInterface_t                Interface;
-    UsbHcEndpointDescriptor_t       Endpoints[USB_MAX_ENDPOINTS];
-    UUId_t                          DriverId;
-    UUId_t                          DeviceId;
+PACKED_TYPESTRUCT(VideoDescriptor, {
+    uintptr_t           FrameBufferAddress;
+    
+    size_t              BytesPerScanline;
+    size_t              Height;
+    size_t              Width;
+    int                 Depth;
+
+    int                 RedPosition;
+    int                 BluePosition;
+    int                 GreenPosition;
+    int                 ReservedPosition;
+
+    int                 RedMask;
+    int                 BlueMask;
+    int                 GreenMask;
+    int                 ReservedMask;
 });
 
-#endif
+/* QueryDisplayInformation
+ * Queries the current display driver for information. */
+CRTDECL(OsStatus_t, QueryDisplayInformation(VideoDescriptor_t *Descriptor));
+
+#endif //!_CONTRACT_VIDEO_INTERFACE_H_

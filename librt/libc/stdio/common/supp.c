@@ -91,8 +91,8 @@ thrd_t thrd_current(void) {
 
 #else
 #define __TRACE
-#include <os/driver/input.h>
-#include <os/driver/file.h>
+#include <os/input.h>
+#include <os/file.h>
 #include <os/ipc/ipc.h>
 #include <os/utils.h>
 #include <ds/collection.h>

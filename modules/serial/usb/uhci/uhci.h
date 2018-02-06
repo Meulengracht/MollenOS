@@ -26,7 +26,7 @@
 
 /* Includes
  * - Library */
-#include <os/driver/contracts/usbhost.h>
+#include <os/contracts/usbhost.h>
 #include <os/osdefs.h>
 #include <ds/collection.h>
 

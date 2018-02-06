@@ -23,7 +23,7 @@
 
 /* Includes
  * - System */
-#include <os/driver/usb.h>
+#include <os/usb.h>
 #include <os/utils.h>
 #include "manager.h"
 

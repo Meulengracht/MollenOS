@@ -24,8 +24,8 @@
 
 /* Includes 
  * - System */
-#include <os/driver/device.h>
-#include <os/driver/acpi.h>
+#include <os/device.h>
+#include <os/acpi.h>
 #include <os/utils.h>
 #include "bus.h"
 

@@ -28,7 +28,7 @@
  * - Library */
 #include <os/osdefs.h>
 #include <os/spinlock.h>
-#include <os/driver/io.h>
+#include <os/io.h>
 
 /* IoSpaceInitialize
  * Initialize the Io Space manager so we 

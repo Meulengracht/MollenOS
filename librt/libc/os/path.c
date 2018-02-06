@@ -23,7 +23,7 @@
 
 /* Includes
  * - System */
-#include <os/driver/contracts/filesystem.h>
+#include <os/contracts/filesystem.h>
 #include <os/mollenos.h>
 #include <os/syscall.h>
 

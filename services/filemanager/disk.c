@@ -23,9 +23,9 @@
 
 /* Includes 
  * - System */
-#include <os/driver/contracts/filesystem.h>
-#include <os/driver/sessions.h>
-#include <os/driver/file.h>
+#include <os/contracts/filesystem.h>
+#include <os/sessions.h>
+#include <os/file.h>
 #include <os/process.h>
 #include <os/utils.h>
 #include "include/vfs.h"

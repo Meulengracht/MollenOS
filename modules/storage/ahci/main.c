@@ -25,7 +25,7 @@
 
 /* Includes 
  * - System */
-#include <os/driver/contracts/storage.h>
+#include <os/contracts/storage.h>
 #include <os/mollenos.h>
 #include <os/utils.h>
 #include "manager.h"

@@ -23,8 +23,8 @@
 
 /* Includes
  * - System */
-#include <os/driver/contracts/base.h>
-#include <os/driver/driver.h>
+#include <os/contracts/base.h>
+#include <os/driver.h>
 #include <os/utils.h>
 #include <ds/collection.h>
 #include <bus.h>

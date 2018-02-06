@@ -25,7 +25,7 @@
 
 /* Includes
  * - System */
-#include <os/driver/file.h>
+#include <os/file.h>
 #include <os/mollenos.h>
 #include <os/utils.h>
 #include "manager.h"

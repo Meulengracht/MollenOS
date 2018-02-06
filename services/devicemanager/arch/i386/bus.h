@@ -28,7 +28,7 @@
  * - System */
 #include <os/osdefs.h>
 #include <ds/collection.h>
-#include <os/driver/device.h>
+#include <os/device.h>
 
 /* Fixed device-id and vendor-id values for 
  * loading non-dynamic devices */

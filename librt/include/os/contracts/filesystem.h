@@ -26,16 +26,16 @@
 
 /* Includes 
  * - System */
-#include <os/driver/contracts/storage.h>
-#include <os/driver/buffer.h>
-#include <os/driver/driver.h>
+#include <os/contracts/storage.h>
+#include <os/buffer.h>
+#include <os/driver.h>
 #include <os/osdefs.h>
 
 /* Includes
  * - File System */
-#include <os/driver/file/definitions.h>
-#include <os/driver/file/file.h>
-#include <os/driver/file/path.h>
+#include <os/file/definitions.h>
+#include <os/file/file.h>
+#include <os/file/path.h>
 
 /* FileSystem Export 
  * This is define the interface between user (filemanager)

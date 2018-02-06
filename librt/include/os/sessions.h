@@ -27,7 +27,7 @@
  * - Library */
 #include <os/osdefs.h>
 #include <os/ipc/ipc.h>
-#include <os/driver/service.h>
+#include <os/service.h>
 #include <time.h>
 
 /* These are the different IPC functions supported

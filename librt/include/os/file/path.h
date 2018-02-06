@@ -31,7 +31,7 @@
 /* Includes
  * - System */
 #include <os/osdefs.h>
-#include <os/driver/file.h>
+#include <os/file.h>
 
 /* PathResolveEnvironment
  * Resolves the given env-path identifier to a string

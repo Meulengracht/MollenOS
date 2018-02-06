@@ -120,6 +120,7 @@ _CODE_END
 #define Syscall_SystemPerformanceFrequency(Frequency) (OsStatus_t)syscall1(75, SCPARAM(Frequency))
 #define Syscall_SystemPerformanceTime(Value) (OsStatus_t)syscall1(76, SCPARAM(Value))
 #define Syscall_SystemTime(Time) (OsStatus_t)syscall1(77, SCPARAM(Time))
+#define Syscall_DisplayInformation(Descriptor) (OsStatus_t)syscall1(78, SCPARAM(Descriptor))
 
 /* Driver system calls
  * - ACPI related system call definitions */

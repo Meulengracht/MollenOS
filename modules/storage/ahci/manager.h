@@ -32,7 +32,7 @@
 
 /* Includes
  * - System */
-#include <os/driver/buffer.h>
+#include <os/buffer.h>
 #include "ahci.h"
 
 /* Dispatcher Flags 

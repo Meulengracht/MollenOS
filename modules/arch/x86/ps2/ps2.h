@@ -25,10 +25,10 @@
 
 /* Includes 
  * - System */
-#include <os/driver/contracts/base.h>
+#include <os/contracts/base.h>
 #include <os/osdefs.h>
-#include <os/driver/io.h>
-#include <os/driver/interrupt.h>
+#include <os/io.h>
+#include <os/interrupt.h>
 
 /* Io-space for accessing the PS2
  * Spans over 2 bytes from 0x60 & 0x64 */
