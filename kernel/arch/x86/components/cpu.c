@@ -29,6 +29,14 @@
 #include <log.h>
 #include <cpu.h>
 
+#if defined(_MSC_VER) && !defined(__clang__)
+#include <intrin.h>
+#define __get_cpuid(Function, Registers) __cpuid(Registers, Function);
+#else
+#include <cpuid.h>
+#define __get_cpuid(Function, Registers) __cpuid(Function, Registers[0], Registers[1], Registers[2], Registers[3]);
+#endif
+
  /* Globals 
   * Keep a copy of cpu information in the system */
 static CpuInformation_t __CpuInformation = { 0 };
@@ -44,9 +52,9 @@ __EXTERN UUId_t ApicGetCpu(void);
  * These utilities are located in boot.asm */
 __EXTERN void __wbinvd(void);
 __EXTERN void __hlt(void);
+__EXTERN void CpuEnableAvx(void);
 __EXTERN void CpuEnableSse(void);
 __EXTERN void CpuEnableFpu(void);
-__EXTERN void CpuId(uint32_t CpuId, uint32_t *Eax, uint32_t *Ebx, uint32_t *Ecx, uint32_t *Edx);
 
 /* CpuInitialize
  * Initializes the CPU and gathers available
@@ -55,29 +63,27 @@ void
 CpuInitialize(void)
 {
 	// Variables
-	uint32_t _eax, _ebx, _ecx, _edx;
+	int CpuRegisters[4] = { 0 };
 
 	// Has init already run?
 	if (__CpuInitialized != 1) {
-
-		// Get base cpu-id information
-		CpuId(0, &_eax, &_ebx, &_ecx, &_edx);
+	    __get_cpuid(0, CpuRegisters);
 
 		// Store cpu-id level
-		__CpuInformation.CpuIdLevel = _eax;
+		__CpuInformation.CpuIdLevel = CpuRegisters[0];
 
 		// Does it support retrieving features?
 		if (__CpuInformation.CpuIdLevel >= 1) {
-			CpuId(1, &_eax, &_ebx, &_ecx, &_edx);
-			__CpuInformation.EcxFeatures = _ecx;
-			__CpuInformation.EdxFeatures = _edx;
+	        __get_cpuid(1, CpuRegisters);
+			__CpuInformation.EcxFeatures = CpuRegisters[2];
+			__CpuInformation.EdxFeatures = CpuRegisters[3];
 		}
 
 		// Get extensions supported
-		CpuId(0x80000000, &_eax, &_ebx, &_ecx, &_edx);
+	    __get_cpuid(0x80000000, CpuRegisters);
 
 		// Store them
-		__CpuInformation.CpuIdExtensions = _eax;
+		__CpuInformation.CpuIdExtensions = CpuRegisters[0];
 	}
 
 	// Can we enable FPU?
@@ -88,6 +94,11 @@ CpuInitialize(void)
 	// Can we enable SSE?
 	if (__CpuInformation.EdxFeatures & CPUID_FEAT_EDX_SSE) {
 		CpuEnableSse();
+	}
+
+    // Can we enable AVX?
+	if (__CpuInformation.EcxFeatures & CPUID_FEAT_ECX_AVX) {
+		CpuEnableAvx();
 	}
 }
 

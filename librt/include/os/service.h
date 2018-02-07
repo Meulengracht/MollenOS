@@ -40,41 +40,21 @@
 #define __USBMANAGER_TARGET                 __SERVICE_TARGET(3)
 #define __SESSIONMANAGER_TARGET             __SERVICE_TARGET(4)
 
+_CODE_BEGIN
 /* RegisterService 
  * Registers a service on the current alias, allowing
  * other applications and frameworks to send commands
  * and function requests */
-CRTDECL( 
-OsStatus_t,
-RegisterService(
-    _In_ UUId_t Alias));
+CRTDECL(OsStatus_t, RegisterService(UUId_t Alias));
 
-/* OnLoad
+/* OnLoad/OnUnload/OnEvent
  * The entry-point of a service, this is called
  * as soon as the server is loaded in the system */
 #ifdef __SERVICE_IMPL
-__EXTERN 
-OsStatus_t
-OnLoad(void);
+__EXTERN OsStatus_t OnLoad(void);
+__EXTERN OsStatus_t OnUnload(void);
+__EXTERN OsStatus_t OnEvent(MRemoteCall_t *Message);
 #endif
-
-/* OnUnload
- * This is called when the service is being unloaded
- * and should free all resources allocated by the system */
-#ifdef __SERVICE_IMPL
-__EXTERN 
-OsStatus_t 
-OnUnload(void);
-#endif
-
-/* OnEvent
- * This is called when the service recieved an external event
- * and should handle the given event*/
-#ifdef __SERVICE_IMPL
-__EXTERN 
-OsStatus_t 
-OnEvent(
-    _In_ MRemoteCall_t *Message);
-#endif
+_CODE_END
 
 #endif //!_SERVICE_H_

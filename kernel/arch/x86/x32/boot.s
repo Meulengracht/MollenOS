@@ -26,9 +26,9 @@ extern _MCoreInitialize
 
 ; Publics in this file
 global _kentry
+global _CpuEnableAvx
 global _CpuEnableSse
 global _CpuEnableFpu
-global _CpuId
 
 ; No matter what, this is booted by multiboot, and thus
 ; We can assume the state when this point is reached.
@@ -39,16 +39,6 @@ global _CpuId
 _kentry:
 	;We disable interrupts, we have no IDT installed
 	cli
-
-	;If any important information has been passed to 
-	;us through the stack, we need to save it now.
-
-	;Setup a new stack to an unused
-	;place in memory. This will be temporary.
-	mov eax, 0x10
-	mov ss, ax					
-	mov esp, 0x9F000
-	mov ebp, esp
 
 	;Now, we place multiboot structure and kernel
 	;size information on the stack.
@@ -66,8 +56,32 @@ _kentry:
 		jmp .idle
 
 
-; Assembly routine to enable
-; sse support
+; Assembly routine to enable avx support
+_CpuEnableAvx:
+	; Save registers
+	push eax
+    push ecx
+    push edx
+
+	; Enable
+	mov eax, cr4
+	bts eax, 14		;Set Operating System Support for Advanced Vector Extensions (Bit 14)
+	mov cr4, eax
+
+    ; Modify the extended control register
+    mov ecx, 0
+    xgetbv     ; Load into EDX:EAX
+    or eax, 6
+    mov ecx, 0
+    xsetbv
+
+	; Restore registers
+    pop edx
+    pop ecx
+	pop eax
+	ret 
+
+; Assembly routine to enable sse support
 _CpuEnableSse:
 	; Save EAX
 	push eax
@@ -82,8 +96,7 @@ _CpuEnableSse:
 	pop eax
 	ret 
 
-; Assembly routine to enable
-; fpu support
+; Assembly routine to enable fpu support
 _CpuEnableFpu:
 	; Save EAX
 	push eax
@@ -100,30 +113,4 @@ _CpuEnableFpu:
 
 	; Restore
 	pop eax
-	ret 
-
-; Assembly routine to get
-; cpuid information
-; void cpuid(uint32_t cpuid, uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx)
-_CpuId:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
-	pushad
-
-	; Get CPUID
-	mov eax, [ebp + 8]
-	cpuid
-	mov edi, [ebp + 12]
-	mov [edi], eax
-	mov edi, [ebp + 16]
-	mov [edi], ebx
-	mov edi, [ebp + 20]
-	mov [edi], ecx
-	mov edi, [ebp + 24]
-	mov [edi], edx
-
-	; Release stack frame
-	popad
-	pop ebp
 	ret 

@@ -124,9 +124,8 @@ PhoenixRegisterAlias(
 	_In_ UUId_t Alias)
 {
 	// Sanitize both the server and alias 
-	if (Ash == NULL
-		|| (Alias < PHOENIX_ALIAS_BASE)
-		|| AliasMap[Alias - PHOENIX_ALIAS_BASE] != UUID_INVALID) {
+	if (Ash == NULL || (Alias < PHOENIX_ALIAS_BASE) || 
+        AliasMap[Alias - PHOENIX_ALIAS_BASE] != UUID_INVALID) {
 		LogFatal("PHNX", "Failed to register alias 0x%x for ash %u (0x%x - %u)",
 			Alias, (Ash == NULL ? UUID_INVALID : Ash->Id),
 			AliasMap[Alias - PHOENIX_ALIAS_BASE], Alias - PHOENIX_ALIAS_BASE);

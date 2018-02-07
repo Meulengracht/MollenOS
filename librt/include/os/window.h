@@ -87,9 +87,6 @@ typedef struct _MWindowDescriptor {
  * dimensions and flags. The returned
  * value is the id of the newly created
  * window. Returns NULL on failure */
-#ifdef __WINDOWMANAGER_EXPORT
-__WNDAPI Handle_t CreateWindow(WindowParameters_t *Params);
-#else
 SERVICEAPI
 OsStatus_t
 SERVICEABI
@@ -117,14 +114,10 @@ CreateWindow(
 	// Execute the request
 	return RPCExecute(&Request);
 }
-#endif
 
 /* DestroyWindow 
  * Destroys a given window 
  * and frees the resources associated with it. */
-#ifdef __WINDOWMANAGER_EXPORT
-__WNDAPI void DestroyWindow(Handle_t Handle);
-#else
 SERVICEAPI
 OsStatus_t
 SERVICEABI
@@ -145,14 +138,10 @@ DestroyWindow(
 	// Fire off asynchronous event
 	return RPCEvent(&Request);
 }
-#endif
 
 /* QueryWindow
  * Queries the window for information about dimensions
  * and its surface, that can be used for direct pixel access */
-#ifdef __WINDOWMANAGER_EXPORT
-__WNDAPI void QueryWindow(Handle_t Handle, MWindowDescriptor_t *Descriptor);
-#else
 SERVICEAPI
 OsStatus_t
 SERVICEABI
@@ -178,15 +167,11 @@ QueryWindow(
 	// Execute the request
 	return RPCExecute(&Request);
 }
-#endif
 
 /* InvalidateWindow
  * Invalides a region of the window
  * based on relative coordinates in the window 
  * if its called with NULL as dimensions it invalidates all */
-#ifdef __WINDOWMANAGER_EXPORT
-__WNDAPI void InvalidateWindow(Handle_t Handle, Rect_t *Rectangle);
-#else
 SERVICEAPI
 OsStatus_t
 SERVICEABI
@@ -210,6 +195,5 @@ InvalidateWindow(
 	// Fire off asynchronous event
 	return RPCEvent(&Request);
 }
-#endif
 
 #endif //!_MOLLENOS_WINDOW_H_

@@ -19,22 +19,23 @@
 * MollenOS - Optimized memory copy
 */
 
-/* Includes */
+/* Includes 
+ * - Library */
 #include <string.h>
 #include <stdint.h>
 #include <internal/_string.h>
 #include <stddef.h>
 
-/* Definitions CPUID */
 #define CPUID_FEAT_EDX_MMX      1 << 23
 #define CPUID_FEAT_EDX_SSE		1 << 25
+#define CPUID_FEAT_EDX_SSE2     1 << 26
 #define MEMCPY_ACCEL_THRESHOLD	10
 
 /* This is the default non-accelerated byte copier, it's optimized
  * for transfering as much as possible, but no CPU acceleration */
 void*
 memcpy_base(
-    _InOut_ void *Destination, 
+    _In_ void *Destination, 
     _In_ const void *Source, 
     _In_ size_t Count)
 {
@@ -45,14 +46,12 @@ memcpy_base(
 
 	/* If the size is small, or either SRC or DST is unaligned,
 	then punt into the byte copy loop.  This should be rare.  */
-	if (!TOO_SMALL(Count) && !UNALIGNED(src, dst))
-	{
+	if (!TOO_SMALL(Count) && !UNALIGNED(src, dst)) {
 		aligned_dst = (long*)dst;
 		aligned_src = (long*)src;
 
 		/* Copy 4X long words at a time if possible.  */
-		while (Count >= BIGBLOCKSIZE)
-		{
+		while (Count >= BIGBLOCKSIZE) {
 			*aligned_dst++ = *aligned_src++;
 			*aligned_dst++ = *aligned_src++;
 			*aligned_dst++ = *aligned_src++;
@@ -61,8 +60,7 @@ memcpy_base(
 		}
 
 		/* Copy one long word at a time if possible.  */
-		while (Count >= LITTLEBLOCKSIZE)
-		{
+		while (Count >= LITTLEBLOCKSIZE) {
 			*aligned_dst++ = *aligned_src++;
 			Count -= LITTLEBLOCKSIZE;
 		}
@@ -81,102 +79,73 @@ memcpy_base(
 // Don't use SSE/MMX instructions in kernel environment
 // it's way to fragile on task-switches as we can heavily use memcpy
 #ifdef LIBC_KERNEL
-
 #if defined(_MSC_VER) && !defined(__clang__)
 #pragma function(memcpy)
 #endif
-
-/* memcpy
- * The memory copy function, simply calls the selector */
-void*
-memcpy(
-    _InOut_ void *destination,
-    _In_ const void *source,
-    _In_ size_t count)
-{
+void* memcpy(void *destination, const void *source, size_t count) {
 	return memcpy_base(destination, source, count);
 }
-
 #elif defined(__amd64__) || defined(amd64)
-
-// Use the sse by default as all 64 bit cpus support sse
-extern void asm_memcpy_sse(void *Dest, const void *Source, int Loops, int RemainingBytes);
-void *memcpy(
-    _InOut_ void *destination,
-    _In_ const void *source,
-    _In_ size_t count) 
-{
-	size_t SseLoops = Count / 16;
-	size_t mBytes = Count % 16;
-
-	/* Sanity, we don't want to go through the
-	 * overhead if it's less than a certain threshold */
-	if (SseLoops < MEMCPY_ACCEL_THRESHOLD) {
+// Use the sse2 by default as all 64 bit cpus support sse
+extern void asm_memcpy_sse2(void *Dest, const void *Source, int Loops, int RemainingBytes);
+void *memcpy(void *destination, const void *source, size_t count) {
+	int Loops        = Count / 128;
+	int Remaining    = Count % 128;
+	if (Loops < MEMCPY_ACCEL_THRESHOLD) {
 		return memcpy_base(Destination, Source, Count);
 	}
-	asm_memcpy_sse(Destination, Source, SseLoops, mBytes);
+	asm_memcpy_sse(Destination, Source, Loops, Remaining);
 	return Destination;
 }
-
 #else
-
 #if defined(_MSC_VER) && !defined(__clang__)
 #include <intrin.h>
 #else
 #include <cpuid.h>
 #endif
-
-/* Typedef the memset fingerprint */
 typedef void *(*MemCpyTemplate)(void *Destination, const void *Source, size_t Count);
-
-/* ASM Externs + Prototypes */
+void *memcpy_select(void *Destination, const void *Source, size_t Count);
 extern void asm_memcpy_mmx(void *Dest, const void *Source, int Loops, int RemainingBytes);
 extern void asm_memcpy_sse(void *Dest, const void *Source, int Loops, int RemainingBytes);
+extern void asm_memcpy_sse2(void *Dest, const void *Source, int Loops, int RemainingBytes);
+static MemCpyTemplate __GlbMemCpyInstance = memcpy_select;
 
-/* Global */
-MemCpyTemplate __GlbMemCpyInstance = NULL;
+/* This is the SSE2 optimized version of memcpy, but there is a fallback
+ * to the normal one, in case there isn't enough loops for overhead to be
+ * worth it. */
+void *memcpy_sse2(void *Destination, const void *Source, size_t Count) {
+	int Loops        = Count / 128;
+	int Remaining    = Count % 128;
+	if (Loops < MEMCPY_ACCEL_THRESHOLD) {
+		return memcpy_base(Destination, Source, Count);
+	}
+	asm_memcpy_sse2(Destination, Source, Loops, Remaining);
+	return Destination;
+}
 
 /* This is the SSE optimized version of memcpy, but there is a fallback
  * to the normal one, in case there isn't enough loops for overhead to be
  * worth it. */
-void *MemCpySSE(void *Destination, const void *Source, size_t Count)
-{
-	/* Loop Count */
-	uint32_t SseLoops = Count / 16;
-	uint32_t mBytes = Count % 16;
-
-	/* Sanity, we don't want to go through the
-	 * overhead if it's less than a certain threshold */
-	if (SseLoops < MEMCPY_ACCEL_THRESHOLD) {
+void *memcpy_sse(void *Destination, const void *Source, size_t Count) {
+	int Loops        = Count / 128;
+	int Remaining    = Count % 128;
+	if (Loops < MEMCPY_ACCEL_THRESHOLD) {
 		return memcpy_base(Destination, Source, Count);
 	}
-
-	/* Call asm */
-	asm_memcpy_sse(Destination, Source, SseLoops, mBytes);
-	
-	/* Done */
+	asm_memcpy_sse(Destination, Source, Loops, Remaining);
 	return Destination;
 }
 
 /* This is the MMX optimized version of memcpy, but there is a fallback
  * to the normal one, in case there isn't enough loops for overhead to be
  * worth it. */
-void *MemCpyMMX(void *Destination, const void *Source, size_t Count)
-{
-	/* Loop Count */
-	uint32_t MmxLoops = Count / 8;
-	uint32_t mBytes = Count % 8;
-
-	/* Sanity, we don't want to go through the
-	* overhead if it's less than a certain threshold */
+void *memcpy_mmx(void *Destination, const void *Source, size_t Count) {
+	int MmxLoops    = Count / 64;
+	int mBytes      = Count % 64;
 	if (MmxLoops < MEMCPY_ACCEL_THRESHOLD) {
 		return memcpy_base(Destination, Source, Count);
 	}
-
-	/* Call asm */
 	asm_memcpy_mmx(Destination, Source, MmxLoops, mBytes);
-
-	/* Done */
 	return Destination;
 }
 
@@ -184,12 +153,7 @@ void *MemCpyMMX(void *Destination, const void *Source, size_t Count)
  * This is the default, initial routine, it selects the best
  * optimized memcpy for this system. It can be either SSE or MMX
  * or just the byte copier */
-void*
-MemCpySelect(
-    _InOut_ void *Destination,
-    _In_ const void *Source,
-    _In_ size_t Count)
-{
+void *memcpy_select(void *Destination, const void *Source, size_t Count) {
 	// Variables
 	int CpuRegisters[4] = { 0 };
 	int CpuFeatEcx = 0;
@@ -200,21 +164,24 @@ MemCpySelect(
 #if defined(_MSC_VER) && !defined(__clang__)
 	__cpuid(CpuRegisters, 1);
 #else
-    __cpuid(1, CpuRegisters[0], CpuRegisters[1], 
-        CpuRegisters[2], CpuRegisters[3]);
+    __cpuid(1, CpuRegisters[0], CpuRegisters[1], CpuRegisters[2], CpuRegisters[3]);
 #endif
     // Features are in ecx/edx
     CpuFeatEcx = CpuRegisters[2];
     CpuFeatEdx = CpuRegisters[3];
 
-    // Choose between SSE, MMX and base
-	if (CpuFeatEdx & CPUID_FEAT_EDX_SSE) {
-		__GlbMemCpyInstance = MemCpySSE;
-		return MemCpySSE(Destination, Source, Count);
+    // Choose between SSE2, SSE, MMX and base
+    if (CpuFeatEdx & CPUID_FEAT_EDX_SSE2) {
+		__GlbMemCpyInstance = memcpy_sse2;
+		return memcpy_sse2(Destination, Source, Count);
+	}
+	else if (CpuFeatEdx & CPUID_FEAT_EDX_SSE) {
+		__GlbMemCpyInstance = memcpy_sse;
+		return memcpy_sse(Destination, Source, Count);
 	}
 	else if (CpuFeatEdx & CPUID_FEAT_EDX_MMX) {
-		__GlbMemCpyInstance = MemCpyMMX;
-		return MemCpyMMX(Destination, Source, Count);
+		__GlbMemCpyInstance = memcpy_mmx;
+		return memcpy_mmx(Destination, Source, Count);
 	}
 	else {
 		__GlbMemCpyInstance = memcpy_base;
@@ -225,19 +192,7 @@ MemCpySelect(
 #if defined(_MSC_VER) && !defined(__clang__)
 #pragma function(memcpy)
 #endif
-
-/* memcpy
- * The memory copy function, simply calls the selector */
-void*
-memcpy(
-    _InOut_ void *destination,
-    _In_ const void *source,
-    _In_ size_t count)
-{
-	if (__GlbMemCpyInstance == NULL) {
-		__GlbMemCpyInstance = MemCpySelect;
-	}
+void *memcpy(void *destination, const void *source, size_t count) {
 	return __GlbMemCpyInstance(destination, source, count);
 }
-
 #endif

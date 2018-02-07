@@ -29,15 +29,50 @@
 #include "GL/osmesa.h"
 #include "GL/glu.h"
 
-class DisplayOsMesa {
+/* Includes
+ * - Project */
+#include "display.hpp"
+#include <cstdlib>
+#if defined(_MSC_VER) && !defined(__clang__)
+#include <intrin.h>
+#else
+#include <cpuid.h>
+#endif
+
+/* Extern 
+ * Assembler optimized presenting methods for byte copying */
+extern present_basic(void *Framebuffer, void *Backbuffer, int Rows, int RowLoops, int RowRemaining, int LeftoverBytes);
+extern present_sse(void *Framebuffer, void *Backbuffer, int Rows, int RowLoops, int RowRemaining, int LeftoverBytes);
+extern present_sse2(void *Framebuffer, void *Backbuffer, int Rows, int RowLoops, int RowRemaining, int LeftoverBytes);
+
+class DisplayOsMesa : public Display {
 public:
     
     // Constructor
     // Initializes the os-mesa context and prepares a backbuffer for the
     // display (vbe/vesa) framebuffer
     DisplayOsMesa() {
-        // Initialize the context
-        _Context = OSMesaCreateContext(OSMESA_RGBA, NULL);
+        int CpuRegisters[4] = { 0 };
+        _Context            = OSMesaCreateContext(OSMESA_RGBA, NULL);
+
+        // Select a present-method (basic/sse/sse2)
+#if defined(_MSC_VER) && !defined(__clang__)
+	    __cpuid(CpuRegisters, 1);
+#else
+        __cpuid(1, CpuRegisters[0], CpuRegisters[1], CpuRegisters[2], CpuRegisters[3]);
+#endif
+        if (CpuRegisters[3] & CPUID_FEAT_EDX_SSE2) {
+            _BytesStep      = 128;
+            _PresentMethod  = present_sse2;
+        }
+        else if (CpuRegisters[3] & CPUID_FEAT_EDX_SSE) {
+            _BytesStep      = 128;
+            _PresentMethod  = present_sse;
+        }
+        else {
+            _BytesStep      = 1;
+            _PresentMethod  = present_basic;
+        }
     }
 
     // Destructor
@@ -54,21 +89,23 @@ public:
         if (!IsValid()) {
             return false;
         }
+        if (QueryDisplayInformation(&_VideoInformation) != OsSuccess) {
+            return false;
+        }
         
         // Handle -1 in parameters
-        VideoDescriptor_t VideoInformation;
-        if (Width == -1 || Height == -1) {
-            if (QueryDisplayInformation(&VideoInformation) != OsSuccess) {
-                return false;
-            }
-            Width = (Width == -1) ? VideoInformation.Width : Width;
-            Height = (Height == -1) ? VideoInformation.Height : Height;
-        }
+        Width           = (Width == -1) ? _VideoInformation.Width : Width;
+        Height          = (Height == -1) ? _VideoInformation.Height : Height;
         _BackbufferSize = Width * Height * 4 * sizeof(GLubyte);
-        _Backbuffer = malloc(_BackbufferSize);
+        _Backbuffer     = std::aligned_alloc(32, _BackbufferSize);
         if (_Backbuffer == nullptr) {
             return false;
         }
+
+        // Calculate some values needed for filling the framebuffer
+        _BytesToCopy    = Width * 4  * sizeof(GLubyte);
+        _RowLoops       = _BytesToCopy / _BytesStep;
+        _BytesRemaining = _BytesToCopy % _BytesStep;
         return OSMesaMakeCurrent(_Context, _Backbuffer, GL_UNSIGNED_BYTE, Width, Height);
     }
 
@@ -81,11 +118,19 @@ public:
     // Present
     // Flushes the entire backbuffer to the display
     bool Present() {
-
+        _PresentMethod((void*)_VideoInformation.FrameBufferAddress, _Backbuffer, 
+            _VideoInformation.Height, _RowLoops, _BytesRemaining, _VideoInformation.BytesPerScanline - _BytesToCopy);
     }
 
 private:
-    OSMesaContext   _Context;
-    unsigned long   _BackbufferSize;
-    void*           _Backbuffer;
+    VideoDescriptor_t   _VideoInformation;
+    OSMesaContext       _Context;
+    unsigned long       _BackbufferSize;
+    void*               _Backbuffer;
+
+    // Needed by flushing
+    void(*_PresentMethod)(void*, void*, int, int, int, int);
+    int                 _BytesToCopy;
+    int                 _BytesRemaining;
+    int                 _BytesStep;
 }

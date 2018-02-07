@@ -308,7 +308,8 @@
         "math_private.h": "c",
         "e_rem_pio2l.h": "c",
         "__threading_support": "cpp",
-        "revision.h": "c"
+        "revision.h": "c",
+        "_string.h": "c"
     },
     "git.ignoreLimitWarning": true
 }

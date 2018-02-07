@@ -67,9 +67,6 @@ typedef struct _MInput {
  * type and flags. The event is either handled
  * by the window manager or proxied to the active
  * window */
-#ifdef __WINDOWMANAGER_EXPORT
-__WNDAPI OsStatus_t CreateInput(MInput_t *Params);
-#else
 SERVICEAPI
 OsStatus_t
 SERVICEABI
@@ -86,6 +83,5 @@ CreateInput(MInput_t *Input)
 	RPCSetArgument(&Request, 0, (__CONST void*)Input, sizeof(MInput_t));
 	return RPCEvent(&Request);
 }
-#endif
 
 #endif //!_MOLLENOS_INPUT_H_

@@ -16,19 +16,20 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - Vioarr Window Compositor System
+ * MollenOS - Vioarr Window Compositor System (Input Interface)
  *  - The window compositor system and general window manager for
  *    MollenOS.
  */
+#pragma once
 
-/* Includes
- * - Library */
-#include <os/service.h>
+// Includes
+#include <thread>
 
-int main(int argc, char **argv) {
-    if (RegisterService(__WINDOWMANAGER_TARGET) != OsSuccess) {
-        // Only once instance at the time
-        return -1;
-    }
-    return 0;
+class InputHandler {
+public:
+    InputHandler();
+    ~InputHandler();
+
+private:
+    std::thread    _MessageThread;
 }

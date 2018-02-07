@@ -16,19 +16,47 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - Vioarr Window Compositor System
+ * MollenOS - Vioarr Window Compositor System (Input Interface)
  *  - The window compositor system and general window manager for
  *    MollenOS.
  */
 
-/* Includes
- * - Library */
+#include <input_handler.hpp>
 #include <os/service.h>
+#include <cstdlib>
 
-int main(int argc, char **argv) {
-    if (RegisterService(__WINDOWMANAGER_TARGET) != OsSuccess) {
-        // Only once instance at the time
-        return -1;
-    }
-    return 0;
+void MessageHandler(InputHandler *Handler) 
+{
+    // Variables
+    char *ArgumentBuffer    = NULL;
+    bool IsRunning          = true;
+	MRemoteCall_t Message;
+
+    // Open pipe
+    ArgumentBuffer = (char*)::malloc(IPC_MAX_MESSAGELENGTH);
+	PipeOpen(PIPE_RPCOUT);
+
+    // Listen for messages
+	while (IsRunning) {
+		if (RPCListen(&Message, ArgumentBuffer) == OsSuccess) {
+			// Handle event
+            if (Message.Function == __WINDOWMANAGER_NEWINPUT) {
+                
+            }
+		}
+	}
+
+    // Done
+    PipeClose(PIPE_RPCOUT);
+}
+
+// Constructor
+InputHandler::InputHandler() : 
+    _MessageThread(MessageHandler, this) {
+    
+}
+
+// Destructor
+~InputHandler::~InputHandler() {
+    // Kill thread
 }

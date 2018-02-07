@@ -48,7 +48,8 @@ jmp Entry
 %define 		MEMLOCATION_FLOAD_OFFSET		0xB000
 %define 		MEMLOCATION_FLOAD_LOWER			0xB000 
 %define 		MEMLOCATION_KERNEL_UPPER		0x100000
-%define 		MEMLOCATION_RAMDISK_UPPER		0x200000
+%define         MEMLOCATION_RAMDISK_UPPER		0x200000
+%define         MEMLOCATION_KERNEL_STACK        0x9F000
 
 ; Unpack area will be not used afterwards and will then be used for 
 ; initial page directory in 64 bit. We will need 0x4000 space
@@ -398,9 +399,9 @@ Skip64BitMode:
 	mov 	eax, MULTIBOOT_MAGIC
 	mov 	ebx, BootHeader
 
-	; MultiBoot structure also needs to be on stack
-	push 	ebx
-
+	; Setup the final stack
+	mov 	esp, MEMLOCATION_KERNEL_STACK
+    
 	; Jump to kernel (Entry Point in ECX)
 	jmp 	ecx
 
@@ -423,7 +424,7 @@ LoadKernel64:
 	mov 	gs, ax
 	mov 	ss, ax
 	mov 	es, ax
-	mov 	rsp, 0x7BFF
+	mov 	rsp, MEMLOCATION_KERNEL_STACK   ; We can set a correct stack from start
 
     ; Setup Registers
 	xor 	rsi, rsi
@@ -434,9 +435,6 @@ LoadKernel64:
 	mov 	ecx, dword [dKernelEntry]
 	mov 	eax, MULTIBOOT_MAGIC
 	mov 	ebx, BootHeader
-
-	; MultiBoot structure also needs to be on stack
-	push 	rbx
 
 	; Jump to kernel (Entry Point in ECX)
 	jmp 	rcx

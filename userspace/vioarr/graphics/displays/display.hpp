@@ -22,7 +22,7 @@
  */
 #pragma once
 
-class DisplayBase {
+class Display {
 public:
     virtual bool Initialize(int Width, int Height) = 0;
     virtual bool IsValid() { return false; }
