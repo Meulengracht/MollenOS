@@ -26,8 +26,8 @@
 /* Includes
  * - OpenGL */
 #include <os/contracts/video.h>
-#include "GL/osmesa.h"
-#include "GL/glu.h"
+#include <GL/osmesa.h>
+#include <GL/glu.h>
 
 /* Includes
  * - Project */
@@ -45,7 +45,7 @@ extern present_basic(void *Framebuffer, void *Backbuffer, int Rows, int RowLoops
 extern present_sse(void *Framebuffer, void *Backbuffer, int Rows, int RowLoops, int RowRemaining, int LeftoverBytes);
 extern present_sse2(void *Framebuffer, void *Backbuffer, int Rows, int RowLoops, int RowRemaining, int LeftoverBytes);
 
-class DisplayOsMesa : public Display {
+class CDisplayOsMesa : public CDisplay {
 public:
     
     // Constructor

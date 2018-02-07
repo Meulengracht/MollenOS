@@ -22,41 +22,13 @@
  */
 
 #include <input_handler.hpp>
-#include <os/service.h>
-#include <cstdlib>
-
-void MessageHandler(InputHandler *Handler) 
-{
-    // Variables
-    char *ArgumentBuffer    = NULL;
-    bool IsRunning          = true;
-	MRemoteCall_t Message;
-
-    // Open pipe
-    ArgumentBuffer = (char*)::malloc(IPC_MAX_MESSAGELENGTH);
-	PipeOpen(PIPE_RPCOUT);
-
-    // Listen for messages
-	while (IsRunning) {
-		if (RPCListen(&Message, ArgumentBuffer) == OsSuccess) {
-			// Handle event
-            if (Message.Function == __WINDOWMANAGER_NEWINPUT) {
-                
-            }
-		}
-	}
-
-    // Done
-    PipeClose(PIPE_RPCOUT);
-}
 
 // Constructor
-InputHandler::InputHandler() : 
-    _MessageThread(MessageHandler, this) {
+InputHandler::InputHandler() {
     
 }
 
 // Destructor
 ~InputHandler::~InputHandler() {
-    // Kill thread
+    
 }

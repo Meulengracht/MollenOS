@@ -29,7 +29,4 @@ class InputHandler {
 public:
     InputHandler();
     ~InputHandler();
-
-private:
-    std::thread    _MessageThread;
 }

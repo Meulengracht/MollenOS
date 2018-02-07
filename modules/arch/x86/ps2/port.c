@@ -261,8 +261,7 @@ OsStatus_t PS2PortFinishCommand(PS2Port_t *Port, uint8_t Result)
     int i;
 
     // Always handle ACK's first
-    if (Result == PS2_ACK_COMMAND
-        && Port->CommandIndex != -1) {
+    if (Result == PS2_ACK_COMMAND && Port->CommandIndex != -1) {
         Port->Commands[Port->CommandIndex].Executed = 1;
 
         // Does it need a response byte as-well?

@@ -24,11 +24,12 @@
 /* Includes
  * - Library */
 #include <os/service.h>
+#include "vioarr.hpp"
 
 int main(int argc, char **argv) {
     if (RegisterService(__WINDOWMANAGER_TARGET) != OsSuccess) {
         // Only once instance at the time
         return -1;
     }
-    return 0;
+    return sVioarr.Run();
 }
