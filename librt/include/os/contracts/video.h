@@ -48,8 +48,10 @@ PACKED_TYPESTRUCT(VideoDescriptor, {
     int                 ReservedMask;
 });
 
+_CODE_BEGIN
 /* QueryDisplayInformation
  * Queries the current display driver for information. */
 CRTDECL(OsStatus_t, QueryDisplayInformation(VideoDescriptor_t *Descriptor));
+_CODE_END
 
 #endif //!_CONTRACT_VIDEO_INTERFACE_H_

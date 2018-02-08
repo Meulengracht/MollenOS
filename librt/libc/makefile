@@ -82,22 +82,18 @@ libc: ../build/libc.dll
 	@$(LD) $(LFLAGS) $(LIBC_OBJECTS) /out:$@
 
 %.ko : %.c
-	@mkdir -p $(dir $@)
 	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
 	@$(CC) -c $(CFLAGS) -o $@ $<
 
 %.ko : %.s
-	@mkdir -p $(dir $@)
 	@printf "%b" "\033[0;32mAssembling source object " $< "\033[m\n"
 	@$(AS) $(ASFLAGS) $< -o $@
 
 %.o : %.c
-	@mkdir -p $(dir $@)
 	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
 	@$(CC) -c $(CFLAGS) -o $@ $<
 
 %.o : %.s
-	@mkdir -p $(dir $@)
 	@printf "%b" "\033[0;32mAssembling source object " $< "\033[m\n"
 	@$(AS) $(ASFLAGS) $< -o $@
 

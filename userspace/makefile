@@ -53,11 +53,6 @@ build_libfreetype:
 	@printf "%b" "\033[1;35mChecking if freetype needs to be built\033[m\n"
 	@$(MAKE) -s -C freetype -f makefile
 
-.PHONY: build_vioarr
-build_vioarr:
-	@printf "%b" "\033[1;35mChecking if vioarr needs to be built\033[m\n"
-	@$(MAKE) -s -C vioarr -f makefile
-
 .PHONY: build_cpptest
 build_cpptest:
 	@printf "%b" "\033[1;35mChecking if cpptest needs to be built\033[m\n"
@@ -71,12 +66,19 @@ build_macia:
 .PHONY: build_llvm
 build_llvm:
 	mkdir -p llvm_out
-	cd llvm_out && cmake -G "Unix Makefiles" -DCMAKE_INSTALL_PREFIX=$(LLVM) -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../llvm/cmake/platforms/Vali.cmake ../llvm; \
-	cd llvm_out && make && make install
+	cd llvm_out && cmake -G "Unix Makefiles" -DCMAKE_INSTALL_PREFIX=$(LLVM) -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../llvm/cmake/platforms/Vali.cmake ../llvm
+	cd llvm_out && make -j3 && make install
+	@cp llvm_out/bin/*.lib lib/
+	@mv lib/*.dll bin/
 
 .PHONY: build_mesa
 build_mesa:
 	cd mesa && make && make install
+
+.PHONY: build_vioarr
+build_vioarr:
+	@printf "%b" "\033[1;35mChecking if vioarr needs to be built\033[m\n"
+	@$(MAKE) -s -C vioarr -f makefile
 
 .PHONY: clean
 clean:

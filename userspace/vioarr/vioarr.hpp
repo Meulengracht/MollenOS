@@ -24,13 +24,28 @@
 
 /* Includes
  * - Library */
-#include <os/service.h>
 #include <cstdlib>
+#include <queue>
+#include <thread>
 
 /* Includes
  * - System */
 #include "graphics/displays/display_framebuffer.hpp"
 #include "input/input_handler.hpp"
+
+class CVioarrEvent {
+public:
+    enum EVioarrEventType {
+        EventStateChange
+    };
+    CVioarrEvent(EVioarrEventType Type) {
+        _Type = Type;
+    }
+    ~CVioarrEvent() { }
+    EVioarrEventType GetType() { return _Type; }
+private:
+    EVioarrEventType _Type;
+};
 
 class VioarrCompositor {
 public:
@@ -42,19 +57,24 @@ public:
 	}
 private:
 	VioarrCompositor() {}                     // Constructor? (the {} brackets) are needed here.
-	VioarrCompositor(VioarrCompositor const&);// Don't Implement
-	void operator=(VioarrCompositor const&);  // Don't implement
 
 public:
 	VioarrCompositor(VioarrCompositor const&) = delete;
 	void operator=(VioarrCompositor const&) = delete;
 
+    enum EVioarrState {
+        StateStartup,
+        StateLogin,
+        StateDesktop
+    };
+
     // Run
     // The main program loop
     int Run() {
-        char *ArgumentBuffer    = NULL;
-        bool IsRunning          = true;
-        MRemoteCall_t Message;
+
+        // Initialize state
+        _State      = StateStartup;
+        _IsRunning  = true;
 
         // Create the display
         _Display = new CDisplayOsMesa();
@@ -63,29 +83,54 @@ public:
             return -2;
         }
 
-        // Present the background image
-        
-        // Open pipe
-        ArgumentBuffer = (char*)::malloc(IPC_MAX_MESSAGELENGTH);
-        PipeOpen(PIPE_RPCOUT);
+        // Spawn message handler
+        SpawnMessageHandler();
 
-        // Listen for messages
-        while (IsRunning) {
-            if (RPCListen(&Message, ArgumentBuffer) == OsSuccess) {
-                if (Message.Function == __WINDOWMANAGER_NEWINPUT) {
-                    
+        // Load the background texture
+        
+
+        // Enter event loop
+        while (_IsRunning) {
+            CVioarrEvent *Event = nullptr;
+            {
+                std::unique_lock<std::mutex> _eventlock(_EventMutex);
+                while (_EventQueue.empty()) _EventSignal.wait(_eventlock);
+                Event = _EventQueue.front();
+                _EventQueue.pop();
+            }
+            switch (Event->GetType()) {
+                case CVioarrEvent::EventStateChange: {
+
                 }
             }
         }
 
         // Done
-        PipeClose(PIPE_RPCOUT);
+        return 0;
+    }
+
+    // Queues a new event up
+    void QueueEvent(CVioarrEvent *Event) {
+        std::unique_lock<std::mutex> _eventlock(_EventMutex);
+        _EventQueue.push(Event);
+        _EventSignal.notify_one();
     }
 
 private:
-    CDisplay *_Display;
-}
+    // Functions
+    void SpawnMessageHandler();
 
+    // Resources
+    CDisplay*                   _Display;
+    std::thread*                _MessageThread;
+    std::condition_variable     _EventSignal;
+    std::queue<CVioarrEvent*>   _EventQueue;
+    std::mutex                  _EventMutex;
+
+    // State tracking
+    EVioarrState                _State;
+    bool                        _IsRunning;
+};
 
 // Shorthand for the vioarr
 #define sVioarr VioarrCompositor::GetInstance()

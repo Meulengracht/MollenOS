@@ -24,7 +24,9 @@
 
 class CDisplay {
 public:
+    CDisplay() { };
+    virtual ~CDisplay() { };
     virtual bool Initialize(int Width, int Height) = 0;
     virtual bool IsValid() { return false; }
     virtual bool Present() = 0;
-}
+};

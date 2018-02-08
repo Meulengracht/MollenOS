@@ -27,7 +27,7 @@
  * - OpenGL */
 #include <os/contracts/video.h>
 #include <GL/osmesa.h>
-#include <GL/glu.h>
+#include <GL/gl.h>
 
 /* Includes
  * - Project */
@@ -39,11 +39,14 @@
 #include <cpuid.h>
 #endif
 
+#define CPUID_FEAT_EDX_SSE		1 << 25
+#define CPUID_FEAT_EDX_SSE2     1 << 26
+
 /* Extern 
  * Assembler optimized presenting methods for byte copying */
-extern present_basic(void *Framebuffer, void *Backbuffer, int Rows, int RowLoops, int RowRemaining, int LeftoverBytes);
-extern present_sse(void *Framebuffer, void *Backbuffer, int Rows, int RowLoops, int RowRemaining, int LeftoverBytes);
-extern present_sse2(void *Framebuffer, void *Backbuffer, int Rows, int RowLoops, int RowRemaining, int LeftoverBytes);
+extern "C" void present_basic(void *Framebuffer, void *Backbuffer, int Rows, int RowLoops, int RowRemaining, int LeftoverBytes);
+extern "C" void present_sse(void *Framebuffer, void *Backbuffer, int Rows, int RowLoops, int RowRemaining, int LeftoverBytes);
+extern "C" void present_sse2(void *Framebuffer, void *Backbuffer, int Rows, int RowLoops, int RowRemaining, int LeftoverBytes);
 
 class CDisplayOsMesa : public CDisplay {
 public:
@@ -51,7 +54,7 @@ public:
     // Constructor
     // Initializes the os-mesa context and prepares a backbuffer for the
     // display (vbe/vesa) framebuffer
-    DisplayOsMesa() {
+    CDisplayOsMesa() {
         int CpuRegisters[4] = { 0 };
         _Context            = OSMesaCreateContext(OSMESA_RGBA, NULL);
 
@@ -77,7 +80,7 @@ public:
 
     // Destructor
     // Cleans up the opengl context and frees the resources allocated.
-    ~DisplayOsMesa() {
+    ~CDisplayOsMesa() {
         if (_Context != nullptr) {
             OSMesaDestroyContext(_Context);
         }
@@ -120,6 +123,7 @@ public:
     bool Present() {
         _PresentMethod((void*)_VideoInformation.FrameBufferAddress, _Backbuffer, 
             _VideoInformation.Height, _RowLoops, _BytesRemaining, _VideoInformation.BytesPerScanline - _BytesToCopy);
+        return true;
     }
 
 private:
@@ -130,7 +134,8 @@ private:
 
     // Needed by flushing
     void(*_PresentMethod)(void*, void*, int, int, int, int);
+    int                 _RowLoops;
     int                 _BytesToCopy;
     int                 _BytesRemaining;
     int                 _BytesStep;
-}
+};

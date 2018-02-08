@@ -24,7 +24,35 @@
 /* Includes
  * - Library */
 #include <os/service.h>
+#include <os/window.h>
 #include "vioarr.hpp"
+
+void MessageHandler() {
+    char *ArgumentBuffer    = NULL;
+    bool IsRunning          = true;
+    MRemoteCall_t Message;
+
+    // Open pipe
+    ArgumentBuffer = (char*)::malloc(IPC_MAX_MESSAGELENGTH);
+    PipeOpen(PIPE_RPCOUT);
+
+    // Listen for messages
+    while (IsRunning) {
+        if (RPCListen(&Message, ArgumentBuffer) == OsSuccess) {
+            if (Message.Function == __WINDOWMANAGER_NEWINPUT) {
+                
+            }
+        }
+    }
+
+    // Done
+    PipeClose(PIPE_RPCOUT);
+}
+
+// Spawn the message handler for compositor
+void VioarrCompositor::SpawnMessageHandler() {
+    _MessageThread = new std::thread(MessageHandler);
+}
 
 int main(int argc, char **argv) {
     if (RegisterService(__WINDOWMANAGER_TARGET) != OsSuccess) {
