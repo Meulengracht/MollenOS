@@ -76,6 +76,11 @@ all: build_tools gen_revision build_bootloader build_libraries build_kernel buil
 #kernel/git_revision.c: .git/HEAD .git/index
 #    echo "const char *gitversion = \"$(shell git rev-parse HEAD)\";" > $@
 
+# Kernel + minimal userspace release
+.PHONY: kernel_release
+kernel_release: all install_img
+	#zip mollenos.img mollenos_$(shell revision print all).zip
+
 .PHONY: build_initrd
 build_initrd:
 	@printf "%b" "\033[1;35mInstalling initrd files into /initrd\033[m\n"

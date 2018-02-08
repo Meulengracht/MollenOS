@@ -136,15 +136,11 @@ InterruptStatus_t PS2MouseInterrupt(void *InterruptData)
 
 /* PS2SetSampling
  * Updates the sampling rate for the mouse driver */
-OsStatus_t PS2SetSampling(PS2Mouse_t *Mouse, uint8_t Sampling)
-{
-	/* Retrieve the mouse id */
+OsStatus_t PS2SetSampling(PS2Mouse_t *Mouse, uint8_t Sampling) {
 	if (PS2PortQueueCommand(Mouse->Port, PS2_MOUSE_SETSAMPLE, NULL) != OsSuccess
 		|| PS2PortQueueCommand(Mouse->Port, Sampling, NULL) != OsSuccess) {
 		return OsError;
 	}
-
-	/* Wuhuu! */
 	return OsSuccess;
 }
 

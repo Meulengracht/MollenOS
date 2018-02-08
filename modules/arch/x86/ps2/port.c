@@ -22,6 +22,7 @@
 
 /* Includes 
  * - System */
+#include <threads.h>
 #include <os/utils.h>
 #include "ps2.h"
 
@@ -226,6 +227,7 @@ FindCommand:
 
     // Did we find one? Or try again?
     if (pCommand == NULL) {
+        thrd_sleepex(10);
         goto FindCommand;
     }
 
@@ -244,7 +246,7 @@ FindCommand:
 
     // Asynchronously? Or do we need response?
     if (Response != NULL) {
-        while (pCommand->Executed != 2);
+        while (pCommand->Executed != 2) thrd_sleepex(10);
     }
 
     // Queued successfully 

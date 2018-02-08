@@ -95,7 +95,7 @@
  * This represents a ps2-device command that
  * can be queued and executed */
 typedef struct _PS2Command {
-	int						InUse;
+	volatile int			InUse;
 	volatile int			Executed;
 	int						Step;
 	uint8_t					Command;

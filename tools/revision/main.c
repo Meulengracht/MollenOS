@@ -18,6 +18,7 @@ static void ShowSyntax(void)
            "    Build            :  revision build <msvc, clang>\n"
            "    Minor Release    :  revision minor <msvc, clang>\n"
            "    Major Release    :  revision major <msvc, clang>\n"
+           "    Print Info       :  revision print <all, version, revision, etc)\n"
            "\n");
 }
 
@@ -145,8 +146,8 @@ int main(int argc, char *argv[])
 	int revision = 0, minor = 0, major = 0;
 
 	// Print header
-	printf("MollenOS Versioning Utility\n"
-           "Copyright 2017 Philip Meulengracht (www.mollenos.com)\n\n");
+	//printf("MollenOS Versioning Utility\n"
+    //       "Copyright 2017 Philip Meulengracht (www.mollenos.com)\n\n");
 
 	// Validate the number of arguments
 	// format: revision $(cmd) $(arg)
@@ -156,7 +157,6 @@ int main(int argc, char *argv[])
 	}
 
 	// Create the output file
-	printf("opening existing file for parsing...\n");
 	out = fopen("revision.h", "r");
 	if (out == NULL) {
         printf("revision.h was an invalid input file\n");
@@ -164,7 +164,6 @@ int main(int argc, char *argv[])
 	}
 
 	// Get the next revision for generation
-	printf("extracting revision...\n");
 	GetRevision(out, &revision, &minor, &major);
 
 	// Close and cleanup
@@ -172,8 +171,27 @@ SkipParse:
 	fflush(out);
 	fclose(out);
 
+    // Handle print operation
+    if (!strcmp(argv[1], "print")) {
+        if (!strcmp(argv[2], "all")) {
+            printf("%i.%i.%i\n", major, minor, revision);
+        }
+        else if (!strcmp(argv[2], "version")) {
+            printf("%i.%i\n", major, minor);
+        }
+        else if (!strcmp(argv[2], "major")) {
+            printf("%i\n", major);
+        }
+        else if (!strcmp(argv[2], "minor")) {
+            printf("%i\n", minor);
+        }
+        else if (!strcmp(argv[2], "revision")) {
+            printf("%i\n", revision);
+        }
+        return 0;
+    }
+
 	// Truncate the file
-	printf("truncating file...\n");
 	out = fopen("revision.h", "w");
 	if (out == NULL) {
 		printf("revision.h was an invalid output file: %i\n", errno);
@@ -196,7 +214,6 @@ SkipParse:
     }
 
 	// Print out header
-	printf("generating revision file...\n");
 	fprintf(out, "/* Automatically generated revision file, do not change contents.\n");
 	fprintf(out, " * Provides a time, date and description of the current build. */\n");
 	fprintf(out, "#ifndef _REVISION_H_\n");
@@ -220,7 +237,6 @@ SkipParse:
 	fprintf(out, "#endif //!_REVISION_H_\n");
 
 	// Close and cleanup
-	printf("cleaning up...\n");
 	fflush(out);
 	return fclose(out);
 }
