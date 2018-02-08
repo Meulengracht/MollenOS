@@ -35,10 +35,11 @@
 #include <heap.h>
 
 /* Includes
- * C-Library */
-#include <os/file.h>
+ * - Library */
+#include "../../../librt/libc/os/driver/private.h"
 #include <ds/collection.h>
 #include <ds/mstring.h>
+#include <os/file.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -324,6 +325,8 @@ PhoenixFileHandler(
     // Variables
 	MCoreAshFileMappingEvent_t *Event   = (MCoreAshFileMappingEvent_t*)UserData;
     MCoreAshFileMapping_t *Mapping      = NULL;
+    BufferObject_t TransferObject;
+    LargeInteger_t Value;
 
     // Set default response
     Event->Result = OsError;
@@ -332,15 +335,25 @@ PhoenixFileHandler(
     foreach(Node, Event->Ash->FileMappings) {
         Mapping = (MCoreAshFileMapping_t*)Node->Data;
         if (ISINRANGE(Event->Address, Mapping->VirtualBase, (Mapping->VirtualBase + Mapping->Length) - 1)) {
-            uintptr_t Block = 0;
-            size_t BytesIndex = 0;
-            size_t BytesRead = 0;
-            FATAL(FATAL_SCOPE_KERNEL, "Finish implementation of file mappings. They are obviously used now");
-            AddressSpaceMap(Event->Ash->AddressSpace, &Block, 
-                (VirtualAddress_t*)(Event->Address & (AddressSpaceGetPageSize() - 1)), 
-                AddressSpaceGetPageSize(), ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
-            if (SeekFile(Mapping->FileHandle, 0, 0) == FsOk && 
-                ReadFile(Mapping->FileHandle, Mapping->TransferObject, &BytesIndex, &BytesRead) == FsOk) {
+            uintptr_t Block         = 0;
+            uintptr_t Address       = Event->Address & (AddressSpaceGetPageSize() - 1);
+            Flags_t MappingFlags    = ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL;
+            size_t BytesIndex       = 0;
+            size_t BytesRead        = 0;
+            if (!(Mapping->Flags & FILE_MAPPING_WRITE)) {
+                MappingFlags |= ASPACE_FLAG_READONLY;
+            }
+            if (Mapping->Flags & FILE_MAPPING_EXECUTE) {
+                MappingFlags |= ASPACE_FLAG_EXECUTABLE;
+            }
+            Value.QuadPart = Mapping->FileBlock + (Event->Address - Mapping->VirtualBase);
+            AddressSpaceMap(Event->Ash->AddressSpace, &Block, (VirtualAddress_t*)Address, AddressSpaceGetPageSize(), MappingFlags, __MASK);
+            TransferObject.Virtual  = (const char*)Address;
+            TransferObject.Physical = Block;
+            TransferObject.Capacity = TransferObject.Length = AddressSpaceGetPageSize();
+            TransferObject.Position = 0;
+            if (SeekFile(Mapping->FileHandle, Value.u.LowPart, Value.u.HighPart) == FsOk && 
+                ReadFile(Mapping->FileHandle, &TransferObject, &BytesIndex, &BytesRead) == FsOk) {
                 Event->Result = OsSuccess;
             }
         }

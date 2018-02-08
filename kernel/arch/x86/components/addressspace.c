@@ -301,7 +301,7 @@ AddressSpaceChangeProtection(
     for (i = 0; i < PageCount; i++) {
         uintptr_t Block = VirtualAddress + (i * PAGE_SIZE);
         if (PreviousFlags != NULL) {
-            *PreviousFlags = MmVirtualGetMapping((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], Block) & ATTRIBUTE_MASK;
+            MmVirtualGetFlags((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], Block, PreviousFlags);
         }
         if (MmVirtualSetFlags((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], Block, ProtectionFlags) != OsSuccess) {
             Result = OsError;
@@ -420,6 +420,24 @@ AddressSpaceGetMapping(
     _In_ AddressSpace_t*    AddressSpace, 
     _In_ VirtualAddress_t   VirtualAddress) {
 	return MmVirtualGetMapping((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], VirtualAddress);
+}
+
+/* AddressSpaceIsDirty
+ * Checks if the given virtual address is dirty (has been written data to). 
+ * Returns OsSuccess if the address is dirty. */
+OsStatus_t
+AddressSpaceIsDirty(
+    _In_ AddressSpace_t*    AddressSpace,
+    _In_ VirtualAddress_t   Address)
+{
+    Flags_t Flags = 0;
+    if (MmVirtualGetFlags((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], Address, &Flags) != OsSuccess) {
+        return OsError;
+    }
+    if (Flags & PAGE_DIRTY) {
+        return OsSuccess;
+    }
+    return OsError;
 }
 
 /* AddressSpaceGetPageSize

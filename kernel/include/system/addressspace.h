@@ -162,4 +162,14 @@ size_t
 KERNELABI
 AddressSpaceGetPageSize(void);
 
+/* AddressSpaceIsDirty
+ * Checks if the given virtual address is dirty (has been written data to). 
+ * Returns OsSuccess if the address is dirty. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+AddressSpaceIsDirty(
+    _In_ AddressSpace_t*    AddressSpace,
+    _In_ VirtualAddress_t   Address);
+
 #endif //!_MCORE_ADDRESSSINGSPACE_H_

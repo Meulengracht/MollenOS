@@ -41,10 +41,12 @@
 
 /* Includes
  * - Library */
+#include "../../../librt/libc/os/driver/private.h"
+#include <ds/mstring.h>
+#include <os/ipc/ipc.h>
+#include <os/file.h>
 #include <assert.h>
 #include <stddef.h>
-#include <os/ipc/ipc.h>
-#include <ds/mstring.h>
 #include <string.h>
 
 /* Shorthand */
@@ -1049,24 +1051,25 @@ ScCreateFileMapping(
 
     // Start out by allocating memory
     // in target process's shared memory space
-    BaseAddress             = BlockBitmapAllocate(Ash->Shm, Parameters->Size);
+    BaseAddress             = BlockBitmapAllocate(Ash->Shm, Parameters->Size + (Parameters->Offset % AddressSpaceGetPageSize()));
     if (BaseAddress == 0) {
         return OsError;
     }
 
     // Create a new mapping
+    // We only read in block-sizes of page-size, this means the
     Mapping                 = (MCoreAshFileMapping_t*)kmalloc(sizeof(MCoreAshFileMapping_t));
     Mapping->FileHandle     = Parameters->FileHandle;
     Mapping->VirtualBase    = BaseAddress;
     Mapping->Flags          = (Flags_t)Parameters->Flags;
-    Mapping->Offset         = Parameters->Offset;
-    Mapping->Length         = Parameters->Size;
-    Mapping->TransferObject = CreateBuffer(AddressSpaceGetPageSize());
+    Mapping->FileBlock      = (Parameters->Offset / AddressSpaceGetPageSize()) * AddressSpaceGetPageSize();
+    Mapping->BlockOffset    = (Parameters->Offset % AddressSpaceGetPageSize());
+    Mapping->Length         = Parameters->Size + Mapping->BlockOffset;
     Key.Value               = 0;
     CollectionAppend(Ash->FileMappings, CollectionCreateNode(Key, Mapping));
 
     // Update out
-    *MemoryPointer          = (void*)(BaseAddress);
+    *MemoryPointer          = (void*)(BaseAddress + Mapping->BlockOffset);
     return OsSuccess;
 }
 
@@ -1081,7 +1084,9 @@ ScDestroyFileMapping(
     CollectionItem_t *Node          = NULL;
     MCoreAsh_t *Ash                 = PhoenixGetCurrentAsh();
 
-    // Sanity
+    // Buffers
+    BufferObject_t TransferObject;
+    LargeInteger_t Value;
     if (Ash == NULL) {
         return OsError;
     }
@@ -1102,18 +1107,31 @@ ScDestroyFileMapping(
     CollectionDestroyNode(Ash->FileMappings, Node);
     
     // Unmap all mappings done
-    // @todo Check if the (D) Dirty flag is set on the page, that means write-access
-    // did occur and we should flush it to file.
     for (uintptr_t ItrAddress = Mapping->VirtualBase; 
-         ItrAddress < (Mapping->VirtualBase + Mapping->Length); ItrAddress += AddressSpaceGetPageSize()) {
+        ItrAddress < (Mapping->VirtualBase + Mapping->Length); 
+        ItrAddress += AddressSpaceGetPageSize()) {
+        
+        // Check if page should be flushed to disk
+        if (AddressSpaceIsDirty(AddressSpaceGetCurrent(), ItrAddress) == OsSuccess) {
+            Value.QuadPart          = Mapping->FileBlock + (ItrAddress - Mapping->VirtualBase);
+            TransferObject.Virtual  = (const char*)ItrAddress;
+            TransferObject.Physical = AddressSpaceGetMapping(AddressSpaceGetCurrent(), ItrAddress) & (AddressSpaceGetPageSize() - 1);
+            TransferObject.Capacity = TransferObject.Length = AddressSpaceGetPageSize();
+            TransferObject.Position = 0;
+            if (SeekFile(Mapping->FileHandle, Value.u.LowPart, Value.u.HighPart) != FsOk ||
+                WriteFile(Mapping->FileHandle, &TransferObject, NULL) != FsOk) {
+                ERROR("Failed to flush file mapping, file most likely is closed or doesn't exist");
+            }
+        }
+
+        // Unmap and cleanup
         if (AddressSpaceGetMapping(AddressSpaceGetCurrent(), ItrAddress) != 0) {
             AddressSpaceUnmap(AddressSpaceGetCurrent(), ItrAddress, AddressSpaceGetPageSize());
         }
     }
     BlockBitmapFree(Ash->Shm, Mapping->VirtualBase, Mapping->Length);
 
-    // Destroy transfer buffer
-    DestroyBuffer(Mapping->TransferObject);
+    // Cleanup
     kfree(Mapping);
     return OsSuccess;
 }

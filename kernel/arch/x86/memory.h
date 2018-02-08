@@ -174,6 +174,16 @@ MmVirtualSetFlags(
 	_In_ VirtualAddress_t   vAddress, 
 	_In_ Flags_t            Flags);
 
+/* MmVirtualGetFlags
+ * Retrieves memory protection flags for the given virtual address */
+KERNELAPI
+OsStatus_t
+KERNELABI
+MmVirtualGetFlags(
+	_In_ void*              PageDirectory, 
+	_In_ VirtualAddress_t   vAddress, 
+	_In_ Flags_t*           Flags);
+
 /* MmVirtualMap
  * Installs a new page-mapping in the given
  * page-directory. The type of mapping is controlled by

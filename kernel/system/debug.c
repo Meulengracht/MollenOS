@@ -91,8 +91,8 @@ DebugBreakpoint(
  * maps in the page and returns OsSuccess */
 OsStatus_t
 DebugPageFault(
-	_In_ Context_t *Context,
-	_In_ uintptr_t Address)
+	_In_ Context_t* Context,
+	_In_ uintptr_t  Address)
 {
 	// Trace
 	TRACE("DebugPageFault(IP 0x%x, Address 0x%x)", Context->Eip, Address);
@@ -450,8 +450,8 @@ DebugPageFaultProcessSharedMemory(
         // Validate through the bitmap to make sure
         if (BlockBitmapValidateState(Ash->Shm, Address, 1) == OsSuccess) {
             // Try to map it in and return the result
-            return AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &Address, 
-                AddressSpaceGetPageSize(), ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
+            return AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &Address, AddressSpaceGetPageSize(), 
+                ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
         }
     }
     return OsError;

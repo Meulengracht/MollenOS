@@ -147,16 +147,10 @@ OsStatus_t
 MmVirtualSwitchPageDirectory(
 	_In_ UUId_t Cpu, 
 	_In_ PageDirectory_t* PageDirectory, 
-	_In_ PhysicalAddress_t Pdb)
-{
-	// Sanitize the parameter
+	_In_ PhysicalAddress_t Pdb) {
 	assert(PageDirectory != NULL);
-
-	// Update current and load the page-directory
 	GlbPageDirectories[Cpu] = PageDirectory;
 	memory_load_cr3(Pdb);
-
-	// Done - no errors
 	return OsSuccess;
 }
 
@@ -164,12 +158,8 @@ MmVirtualSwitchPageDirectory(
  * Retrieves the current page-directory for the given cpu */
 PageDirectory_t*
 MmVirtualGetCurrentDirectory(
-	_In_ UUId_t Cpu)
-{
-	// Sanitize
+	_In_ UUId_t Cpu) {
 	assert(Cpu < MAX_SUPPORTED_CPUS);
-
-	// Return the current - even if null
 	return GlbPageDirectories[Cpu];
 }
 
@@ -177,10 +167,8 @@ MmVirtualGetCurrentDirectory(
  * Initializes paging for the given cpu id */
 OsStatus_t
 MmVirtualInstallPaging(
-	_In_ UUId_t Cpu)
-{
-	MmVirtualSwitchPageDirectory(Cpu, GlbKernelPageDirectory, 
-		(uintptr_t)GlbKernelPageDirectory);
+	_In_ UUId_t Cpu) {
+	MmVirtualSwitchPageDirectory(Cpu, GlbKernelPageDirectory, (uintptr_t)GlbKernelPageDirectory);
 	memory_set_paging(1);
 	return OsSuccess;
 }
@@ -231,6 +219,51 @@ MmVirtualSetFlags(
 	if (IsCurrent) {
 		memory_invalidate_addr(vAddress);
 	}
+	return OsSuccess;
+}
+
+/* MmVirtualGetFlags
+ * Retrieves memory protection flags for the given virtual address */
+OsStatus_t
+MmVirtualGetFlags(
+	_In_ void*              PageDirectory, 
+	_In_ VirtualAddress_t   vAddress, 
+	_In_ Flags_t*           Flags)
+{
+	// Variabes
+	PageDirectory_t *Directory  = (PageDirectory_t*)PageDirectory;
+	PageTable_t *Table          = NULL;
+	int IsCurrent               = 0;
+
+	// Determine page directory 
+	// If we were given null, select the cuyrrent
+	if (Directory == NULL) {
+		Directory = GlbPageDirectories[CpuGetCurrentId()];
+	}
+	if (GlbPageDirectories[CpuGetCurrentId()] == Directory) {
+		IsCurrent = 1;
+	}
+	assert(Directory != NULL);
+
+	// Does page table exist?
+	MutexLock(&Directory->Lock);
+	if (!(Directory->pTables[PAGE_DIRECTORY_INDEX(vAddress)] & PAGE_PRESENT)) {
+        MutexUnlock(&Directory->Lock);
+        return OsError;
+	}
+	else {
+		Table = (PageTable_t*)Directory->vTables[PAGE_DIRECTORY_INDEX(vAddress)];
+	}
+
+	// Sanitize the table before we use it otherwise we might fuck up
+	assert(Table != NULL);
+
+	// Map it, make sure we mask the page address
+	// so we don't accidently set any flags
+    if (Flags != NULL) {
+        *Flags = Table->Pages[PAGE_TABLE_INDEX(vAddress)] & ATTRIBUTE_MASK;
+    }
+	MutexUnlock(&Directory->Lock);
 	return OsSuccess;
 }
 

@@ -26,7 +26,6 @@
 /* Includes 
  * - Library */
 #include <os/osdefs.h>
-#include <os/buffer.h>
 #include <ds/blbitmap.h>
 #include <ds/mstring.h>
 #include <ds/collection.h>
@@ -56,10 +55,10 @@ typedef enum _MCoreAshType {
 /* This is the different types of ashes
  * that exists in MollenOS */
 typedef struct _MCoreAshFileMapping {
-    BufferObject_t*     TransferObject;
     UUId_t              FileHandle;
     uintptr_t           VirtualBase;
-    uint64_t            Offset;
+    uint64_t            FileBlock;
+    uint64_t            BlockOffset;
     size_t              Length;
     Flags_t             Flags;
 } MCoreAshFileMapping_t;
