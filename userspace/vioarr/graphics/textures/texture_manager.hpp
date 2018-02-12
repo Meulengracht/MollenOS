@@ -16,37 +16,34 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - Vioarr Window Compositor System (Display Interface)
+ * MollenOS - Vioarr Window Compositor System
  *  - The window compositor system and general window manager for
  *    MollenOS.
  */
 #pragma once
 
-class CDisplay {
+/* Includes
+ * - OpenGL */
+#include <GL/gl.h>
+
+class CTextureManager {
 public:
-    CDisplay() { _X = 0; _Y = 0; _Width = 0; _Height = 0; }
-    virtual ~CDisplay() { }
+	static CTextureManager& GetInstance() {
+		// Guaranteed to be destroyed.
+		// Is instantiated on first use
+		static CTextureManager _Instance;
+		return _Instance;
+	}
+private:
+	CTextureManager() {}                     // Constructor? (the {} brackets) are needed here.
 
-    // Builtins
-    void SetDimensions(int X, int Y, int Width, int Height) {
-        _X      = X;
-        _Y      = Y;
-        _Width  = Width;
-        _Height = Height;
-    }
-    
-    int GetX() { return _X; }
-    int GetY() { return _Y; }
-    int GetWidth() { return _Width; }
-    int GetHeight() { return _Height; }
+public:
+	CTextureManager(CTextureManager const&) = delete;
+	void operator=(CTextureManager const&) = delete;
 
-    // Overrides
-    virtual bool Initialize() = 0;
-    virtual bool IsValid() { return false; }
-    virtual bool Present() = 0;
-
-protected:
-    int _X, _Y;
-    int _Width;
-    int _Height;
+    // Texture loaders
+    GLuint CreateTexturePNG(const char *Path, int *Width, int *Height);
 };
+
+// Shorthand for the vioarr
+#define sTextureManager CTextureManager::GetInstance()

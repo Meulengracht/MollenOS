@@ -88,7 +88,7 @@ public:
 
     // Initialize
     // Initializes the display to the given parameters, use -1 for maximum size
-    bool Initialize(int Width, int Height) {
+    bool Initialize() {
         if (!IsValid()) {
             return false;
         }
@@ -96,14 +96,14 @@ public:
             return false;
         }
         
-        // Handle -1 in parameters
-        Width           = (Width == -1) ? _VideoInformation.Width : Width;
-        Height          = (Height == -1) ? _VideoInformation.Height : Height;
+        int Width       = _VideoInformation.Width;
+        int Height      = _VideoInformation.Height;
         _BackbufferSize = Width * Height * 4 * sizeof(GLubyte);
         _Backbuffer     = std::aligned_alloc(32, _BackbufferSize);
         if (_Backbuffer == nullptr) {
             return false;
         }
+        SetDimensions(0, 0, Width, Height);
 
         // Calculate some values needed for filling the framebuffer
         _BytesToCopy    = Width * 4  * sizeof(GLubyte);

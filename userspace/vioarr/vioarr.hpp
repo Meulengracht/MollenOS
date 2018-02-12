@@ -31,12 +31,13 @@
 /* Includes
  * - System */
 #include "graphics/displays/display_framebuffer.hpp"
+#include "screens/screen.hpp"
 #include "input/input_handler.hpp"
 
 class CVioarrEvent {
 public:
     enum EVioarrEventType {
-        EventStateChange
+        EventScreenChange,
     };
     CVioarrEvent(EVioarrEventType Type) {
         _Type = Type;
@@ -45,6 +46,17 @@ public:
     EVioarrEventType GetType() { return _Type; }
 private:
     EVioarrEventType _Type;
+};
+
+class CVioarrScreenChangeEvent : public CVioarrEvent {
+public:
+    CVioarrScreenChangeEvent(CSceneManager::EScreenType Type) 
+        : CVioarrEvent(CVioarrEvent::EventScreenChange) {
+        _ScreenType = Type;
+    }
+    CSceneManager::EScreenType GetType() { return _ScreenType; }
+private:
+    CSceneManager::EScreenType _ScreenType;
 };
 
 class VioarrCompositor {
@@ -62,23 +74,16 @@ public:
 	VioarrCompositor(VioarrCompositor const&) = delete;
 	void operator=(VioarrCompositor const&) = delete;
 
-    enum EVioarrState {
-        StateStartup,
-        StateLogin,
-        StateDesktop
-    };
-
     // Run
     // The main program loop
     int Run() {
 
         // Initialize state
-        _State      = StateStartup;
-        _IsRunning  = true;
+        _IsRunning      = true;
 
         // Create the display
         _Display = new CDisplayOsMesa();
-        if (!_Display->Initialize(-1, -1)) {
+        if (!_Display->Initialize()) {
             delete _Display;
             return -2;
         }
@@ -87,7 +92,13 @@ public:
         SpawnMessageHandler();
 
         // Load the background texture
-        
+
+        // Create the available screens
+        _ScreenManager = new CScreenManager();
+        _ScreenManager.RegisterScreen(new CLoginScreen(_Display), CSceneManager::ScreenLogin);
+
+        // Set available screen
+        _ScreenManager.SetActiveScreen(CSceneManager::ScreenLogin, true);
 
         // Enter event loop
         while (_IsRunning) {
@@ -99,13 +110,13 @@ public:
                 _EventQueue.pop();
             }
             switch (Event->GetType()) {
-                case CVioarrEvent::EventStateChange: {
-
-                }
+                case CVioarrEvent::EventScreenChange: {
+                    CVioarrScreenChangeEvent *ScreenChangeEvent = (CVioarrScreenChangeEvent*)Event;
+                    _ScreenManager.SetActiveScreen(ScreenChangeEvent->GetType(), true);
+                } break;
             }
+            delete Event;
         }
-
-        // Done
         return 0;
     }
 
@@ -121,6 +132,7 @@ private:
     void SpawnMessageHandler();
 
     // Resources
+    CScreenManager              _ScreenManager;
     CDisplay*                   _Display;
     std::thread*                _MessageThread;
     std::condition_variable     _EventSignal;
@@ -128,7 +140,6 @@ private:
     std::mutex                  _EventMutex;
 
     // State tracking
-    EVioarrState                _State;
     bool                        _IsRunning;
 };
 
