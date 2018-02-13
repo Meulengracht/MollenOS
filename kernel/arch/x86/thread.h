@@ -30,7 +30,6 @@
 
 /* Definitions */
 #define X86_THREAD_USEDFPU			0x1
-#define X86_THREAD_FPU_INITIALISED	0x2
 
 /* Constants and magic values which set the correct
  * bits for x86-specific registers, especially eflags */

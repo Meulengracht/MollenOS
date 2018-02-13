@@ -53,9 +53,10 @@
  * a function we cache them here, an exported function consists
  * of a name, ordinal and where they reside in memory */
 typedef struct _MCorePeExportFunction {
-    char                    *Name;
-    int                      Ordinal;
-    uintptr_t                Address; // Absolute Address
+    char*                   Name;
+    char*                   ForwardName; //Library.Function
+    int                     Ordinal;
+    uintptr_t               Address;
 } MCorePeExportFunction_t;
 
 /* The Pe-Image file structure, this contains the

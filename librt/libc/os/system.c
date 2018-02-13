@@ -70,6 +70,12 @@ OsStatus_t QueryDisplayInformation(VideoDescriptor_t *Descriptor) {
     return Syscall_DisplayInformation(Descriptor);
 }
 
+/* CreateDisplayFramebuffer
+ * Creates a new display framebuffer to use for direct drawing. */
+void* CreateDisplayFramebuffer(void) {
+    return Syscall_CreateDisplayFramebuffer();
+}
+
 /* SystemTime
  * Retrieves the system time. This is only ticking
  * if a system clock has been initialized. */

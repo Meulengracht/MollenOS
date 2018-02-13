@@ -196,12 +196,7 @@ ThreadingFpuException(
         return OsError;
     }
 
-    if (!(tData->Flags & X86_THREAD_FPU_INITIALISED)) {
-        init_fpu();
-        tData->Flags |= X86_THREAD_FPU_INITIALISED;
-        return OsSuccess;
-    }
-    else if (!(tData->Flags & X86_THREAD_USEDFPU)) {
+    if (!(tData->Flags & X86_THREAD_USEDFPU)) {
         load_fpu(tData->FpuBuffer);
         tData->Flags |= X86_THREAD_USEDFPU;
         return OsSuccess;

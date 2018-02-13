@@ -24,6 +24,7 @@
 
 class CScreen {
 public:
+    virtual ~CScreen() { }
     virtual void Hide() = 0;
     virtual void Show() = 0;
     virtual void SetDimensions(int X, int Y, int Width, int Height) = 0;

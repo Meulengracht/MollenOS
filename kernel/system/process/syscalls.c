@@ -27,6 +27,7 @@
 #include <system/iospace.h>
 #include <system/thread.h>
 #include <system/utils.h>
+#include <system/video.h>
 
 #include <process/process.h>
 #include <threading.h>
@@ -1904,6 +1905,39 @@ ScQueryDisplayInformation(
     return VideoQuery(Descriptor);
 }
 
+/* ScCreateDisplayFramebuffer
+ * Right now it simply identity maps the screen display framebuffer
+ * into the current process's memory mappings and returns a pointer to it. */
+void*
+ScCreateDisplayFramebuffer(void) {
+    uintptr_t FbPhysical    = VideoGetTerminal()->FrameBufferAddressPhysical;
+    uintptr_t FbVirtual     = 0;
+    size_t FbSize           = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
+    uintptr_t FbVirtualItr  = 0;
+    uintptr_t FbPhysicalItr = 0;
+
+    // Sanitize
+    if (PhoenixGetCurrentAsh() == NULL) {
+        return NULL;
+    }
+
+    // Allocate the neccessary size
+    FbVirtual               =  BlockBitmapAllocate(PhoenixGetCurrentAsh()->Shm, FbSize);
+    if (FbVirtual == 0) {
+        return NULL;
+    }
+
+    // Map the virtual region to the physical region
+    for (FbVirtualItr = FbVirtual, FbPhysicalItr = FbPhysical; 
+        FbVirtualItr < (FbVirtual + FbSize); 
+        FbVirtualItr += AddressSpaceGetPageSize(), FbPhysicalItr += AddressSpaceGetPageSize()) {
+        AddressSpaceMap(AddressSpaceGetCurrent(), &FbPhysicalItr, &FbVirtualItr, AddressSpaceGetPageSize(), 
+        ASPACE_FLAG_APPLICATION | ASPACE_FLAG_NOCACHE | ASPACE_FLAG_SUPPLIEDPHYSICAL | 
+        ASPACE_FLAG_SUPPLIEDVIRTUAL | ASPACE_FLAG_VIRTUAL, __MASK);
+    }
+    return (void*)FbVirtual;
+}
+
 /* NoOperation
  * Empty operation, mostly because the operation is reserved */
 OsStatus_t
@@ -2005,7 +2039,7 @@ uintptr_t GlbSyscallTable[111] = {
     DefineSyscall(ScPerformanceTick),
     DefineSyscall(ScSystemTime),
     DefineSyscall(ScQueryDisplayInformation),
-    DefineSyscall(NoOperation),
+    DefineSyscall(ScCreateDisplayFramebuffer),
     DefineSyscall(NoOperation),
 
     /* Driver Functions - 81 

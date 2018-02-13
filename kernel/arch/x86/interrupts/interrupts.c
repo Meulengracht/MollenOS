@@ -517,6 +517,11 @@ ExceptionEntry(
             }
         }
     }
+    else if (Registers->Irq == 16 || Registers->Irq == 19) {    // FPU & SIMD Floating Point Exception
+        if (ExceptionSignal(Registers, SIGFPE) == OsSuccess) {
+            IssueFixed = 1;
+        }
+    }
 
     // Was the exception handled?
     if (IssueFixed == 0) {

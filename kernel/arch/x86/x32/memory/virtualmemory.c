@@ -32,6 +32,7 @@
 #include <memory.h>
 #include <debug.h>
 #include <heap.h>
+#include <arch.h>
 
 /* Includes
  * - Library */
@@ -607,7 +608,7 @@ MmVirtualInit(void)
 
 	// Pre-map video region
 	TRACE("Mapping video memory to 0x%x", MEMORY_LOCATION_VIDEO);
-	MmVirtualIdentityMapMemoryRange(GlbKernelPageDirectory, VideoGetTerminal()->Info.FrameBufferAddress,
+	MmVirtualIdentityMapMemoryRange(GlbKernelPageDirectory, VideoGetTerminal()->FrameBufferAddress,
 		MEMORY_LOCATION_VIDEO, (VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height),
 		1, PAGE_USER);
 
@@ -635,7 +636,7 @@ MmVirtualInit(void)
 	}
 
 	// Update video address to the new
-	VideoGetTerminal()->Info.FrameBufferAddress = MEMORY_LOCATION_VIDEO;
+	VideoGetTerminal()->FrameBufferAddress = MEMORY_LOCATION_VIDEO;
 
 	// Update and switch page-directory for boot-cpu
 	MmVirtualSwitchPageDirectory(0, GlbKernelPageDirectory, (uintptr_t)GlbKernelPageDirectory);

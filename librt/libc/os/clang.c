@@ -27,6 +27,7 @@
 #include <os/process.h>
 #include <os/utils.h>
 
+#include <math.h>
 #include <threads.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -342,6 +343,9 @@ CRTDECL(void, __cxa_runinitializers(
     _In_ void (*Finalizer)(void), 
     _In_ void (*TlsAttachFunction)(void)))
 {
+    // Initialize math state
+    fpreset();
+
     // Get modules available
     if (ProcessGetModuleEntryPoints(ModuleList) == OsSuccess) {
         for (int i = 0; i < PROCESS_MAXMODULES; i++) {
@@ -362,6 +366,9 @@ CRTDECL(void, __cxa_runinitializers(
  * Initializes thread storage runtime for all loaded modules */
 CRTDECL(void, __cxa_threadinitialize(void))
 {
+    // Initialize math
+    fpreset();
+
     // Get modules available
     if (ProcessGetModuleEntryPoints(ModuleList) == OsSuccess) {
         for (int i = 0; i < PROCESS_MAXMODULES; i++) {

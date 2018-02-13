@@ -709,8 +709,8 @@ unsigned int __CRTDECL _statusfp (void);	/* Report the FPU status word */
    per fninit. To use the MSVCRT.dll _fpreset, include CRT_fp8.o when
    building your application.
 */
-void __CRTDECL _fpreset (void);
-void __CRTDECL fpreset (void);
+CRTDECL(void,       _fpreset(void));
+#define fpreset()   _fpreset()
 
 /* Global 'variable' for the current floating point error code. */
 int * __CRTDECL __fpecode(void);

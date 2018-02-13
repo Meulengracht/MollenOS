@@ -30,8 +30,6 @@
 #include <os/osdefs.h>
 
 PACKED_TYPESTRUCT(VideoDescriptor, {
-    uintptr_t           FrameBufferAddress;
-    
     size_t              BytesPerScanline;
     size_t              Height;
     size_t              Width;
@@ -52,6 +50,10 @@ _CODE_BEGIN
 /* QueryDisplayInformation
  * Queries the current display driver for information. */
 CRTDECL(OsStatus_t, QueryDisplayInformation(VideoDescriptor_t *Descriptor));
+
+/* CreateDisplayFramebuffer
+ * Creates a new display framebuffer to use for direct drawing. */
+CRTDECL(void*, CreateDisplayFramebuffer(void));
 _CODE_END
 
 #endif //!_CONTRACT_VIDEO_INTERFACE_H_

@@ -69,7 +69,8 @@ VbeInitialize(
 			__GlbVideoTerminal.Info.Height = 25;
 			__GlbVideoTerminal.Info.Depth = 16;
 			__GlbVideoTerminal.Info.BytesPerScanline = 2 * 80;
-			__GlbVideoTerminal.Info.FrameBufferAddress = STD_VIDEO_MEMORY;
+			__GlbVideoTerminal.FrameBufferAddress = STD_VIDEO_MEMORY;
+			__GlbVideoTerminal.FrameBufferAddressPhysical = STD_VIDEO_MEMORY;
 
 			__GlbVideoTerminal.CursorLimitX = 80;
 			__GlbVideoTerminal.CursorLimitY = 25;
@@ -84,7 +85,8 @@ VbeInitialize(
 			__GlbVideoTerminal.Info.Height = 50;
 			__GlbVideoTerminal.Info.Depth = 16;
 			__GlbVideoTerminal.Info.BytesPerScanline = 2 * 80;
-			__GlbVideoTerminal.Info.FrameBufferAddress = STD_VIDEO_MEMORY;
+			__GlbVideoTerminal.FrameBufferAddress = STD_VIDEO_MEMORY;
+			__GlbVideoTerminal.FrameBufferAddressPhysical = STD_VIDEO_MEMORY;
 
 			__GlbVideoTerminal.CursorLimitX = 80;
 			__GlbVideoTerminal.CursorLimitY = 50;
@@ -111,7 +113,8 @@ VbeInitialize(
 
 			// Copy information over
 			__GlbVideoTerminal.Type = VIDEO_GRAPHICS;
-			__GlbVideoTerminal.Info.FrameBufferAddress = vbe->PhysBasePtr;
+			__GlbVideoTerminal.FrameBufferAddress = vbe->PhysBasePtr;
+			__GlbVideoTerminal.FrameBufferAddressPhysical = vbe->PhysBasePtr;
 			__GlbVideoTerminal.Info.Width = vbe->XResolution;
 			__GlbVideoTerminal.Info.Height = vbe->YResolution;
 			__GlbVideoTerminal.Info.Depth = vbe->BitsPerPixel;
@@ -126,7 +129,7 @@ VbeInitialize(
 			__GlbVideoTerminal.Info.ReservedMask = vbe->ReservedMaskSize;
 
 			// Clear out background (to white)
-			memset((void*)__GlbVideoTerminal.Info.FrameBufferAddress, 0xFF,
+			memset((void*)__GlbVideoTerminal.FrameBufferAddress, 0xFF,
 				(__GlbVideoTerminal.Info.BytesPerScanline * __GlbVideoTerminal.Info.Height));
 
 			__GlbVideoTerminal.CursorLimitX = __GlbVideoTerminal.Info.Width;
@@ -151,7 +154,7 @@ VesaDrawPixel(
 
 	// Calculate the video-offset
 	VideoPtr = (uint32_t*)
-		(__GlbVideoTerminal.Info.FrameBufferAddress 
+		(__GlbVideoTerminal.FrameBufferAddress 
 			+ ((Y * __GlbVideoTerminal.Info.BytesPerScanline)
 		+ (X * (__GlbVideoTerminal.Info.Depth / 8))));
 
@@ -179,7 +182,7 @@ VesaDrawCharacter(
 	unsigned Row, i = (unsigned)Character;
 
 	// Calculate the video-offset
-	vPtr = (uint32_t*)(__GlbVideoTerminal.Info.FrameBufferAddress 
+	vPtr = (uint32_t*)(__GlbVideoTerminal.FrameBufferAddress 
 		+ ((CursorY * __GlbVideoTerminal.Info.BytesPerScanline)
 		+ (CursorX * (__GlbVideoTerminal.Info.Depth / 8))));
 
@@ -235,7 +238,7 @@ VesaScroll(
 	Lines = (__GlbVideoTerminal.CursorLimitY - __GlbVideoTerminal.CursorStartY);
 
 	// Calculate the initial screen position
-	VideoPtr = (uint8_t*)(__GlbVideoTerminal.Info.FrameBufferAddress +
+	VideoPtr = (uint8_t*)(__GlbVideoTerminal.FrameBufferAddress +
 		((__GlbVideoTerminal.CursorStartY * __GlbVideoTerminal.Info.BytesPerScanline)
 			+ (__GlbVideoTerminal.CursorStartX * (__GlbVideoTerminal.Info.Depth / 8))));
 
@@ -253,7 +256,7 @@ VesaScroll(
 	}
 
 	// Clear out the lines that was scrolled
-	VideoPtr = (uint8_t*)(__GlbVideoTerminal.Info.FrameBufferAddress +
+	VideoPtr = (uint8_t*)(__GlbVideoTerminal.FrameBufferAddress +
 		((__GlbVideoTerminal.CursorStartX * (__GlbVideoTerminal.Info.Depth / 8))));
 
 	// Scroll pointer down to bottom - n lines
@@ -345,7 +348,7 @@ TextDrawCharacter(
 	uint16_t Data = ((uint16_t)Color << 8) | (uint8_t)(Character & 0xFF);
 
 	// Calculate video position
-	Video = (uint16_t*)__GlbVideoTerminal.Info.FrameBufferAddress +
+	Video = (uint16_t*)__GlbVideoTerminal.FrameBufferAddress +
 		(CursorY * __GlbVideoTerminal.Info.Width + CursorX);
 
 	// Plot it on the screen
@@ -363,7 +366,7 @@ TextScroll(
 	_In_ int ByLines)
 {
 	// Variables
-	uint16_t *Video = (uint16_t*)__GlbVideoTerminal.Info.FrameBufferAddress;
+	uint16_t *Video = (uint16_t*)__GlbVideoTerminal.FrameBufferAddress;
 	uint16_t Color = (uint16_t)(__GlbVideoTerminal.FgColor << 8);
 	unsigned i;
 	int j;
@@ -460,9 +463,7 @@ TextPutCharacter(
 /* VideoGetTerminal
  * Retrieves the current terminal information */
 BootTerminal_t*
-VideoGetTerminal(void)
-{
-	// Simply return the static
+VideoGetTerminal(void) {
 	return &__GlbVideoTerminal;
 }
 

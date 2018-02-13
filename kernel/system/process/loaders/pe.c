@@ -345,15 +345,15 @@ void PeHandleRelocations(MCorePeFile_t *PeFile,
  * Parses the exporst that the pe image provides and caches the list */
 void
 PeHandleExports(
-    _In_ MCorePeFile_t *PeFile, 
-    _In_ PeDataDirectory_t *ExportDirectory)
+    _In_ MCorePeFile_t*     PeFile, 
+    _In_ PeDataDirectory_t* ExportDirectory)
 {
     // Variables
-    PeExportDirectory_t *ExportTable = NULL;
-    uint32_t *FunctionNamesTable = NULL;
-    uint16_t *FunctionOrdinalsTable = NULL;
-    uint32_t *FunctionAddressTable = NULL;
-    int i, OrdinalBase;
+    PeExportDirectory_t *ExportTable    = NULL;
+    uint32_t *FunctionNamesTable        = NULL;
+    uint16_t *FunctionOrdinalsTable     = NULL;
+    uint32_t *FunctionAddressTable      = NULL;
+    int i, OrdinalBase                  = 0;
 
     // Debug
     TRACE("PeHandleExports(%s, AddressRVA 0x%x, Size 0x%x)",
@@ -361,24 +361,23 @@ PeHandleExports(
         ExportDirectory->AddressRVA, ExportDirectory->Size);
 
     // Sanitize the directory first
-    if (ExportDirectory->AddressRVA == 0
-        || ExportDirectory->Size == 0) {
+    if (ExportDirectory->AddressRVA == 0 || ExportDirectory->Size == 0) {
         return;
     }
 
     // Initiate pointer to export table
-    ExportTable = (PeExportDirectory_t*)(PeFile->VirtualAddress + ExportDirectory->AddressRVA);
+    ExportTable             = (PeExportDirectory_t*)(PeFile->VirtualAddress + ExportDirectory->AddressRVA);
 
     // Calculate the names
-    FunctionNamesTable = (uint32_t*)(PeFile->VirtualAddress + ExportTable->AddressOfNames);
-    FunctionOrdinalsTable = (uint16_t*)(PeFile->VirtualAddress + ExportTable->AddressOfOrdinals);
-    FunctionAddressTable = (uint32_t*)(PeFile->VirtualAddress + ExportTable->AddressOfFunctions);
+    FunctionNamesTable      = (uint32_t*)(PeFile->VirtualAddress + ExportTable->AddressOfNames);
+    FunctionOrdinalsTable   = (uint16_t*)(PeFile->VirtualAddress + ExportTable->AddressOfOrdinals);
+    FunctionAddressTable    = (uint32_t*)(PeFile->VirtualAddress + ExportTable->AddressOfFunctions);
 
     // Allocate statis array for exports
-    PeFile->ExportedFunctions = (MCorePeExportFunction_t*)
+    PeFile->ExportedFunctions           = (MCorePeExportFunction_t*)
         kmalloc(sizeof(MCorePeExportFunction_t) * ExportTable->NumberOfOrdinals);
-    PeFile->NumberOfExportedFunctions = (int)ExportTable->NumberOfOrdinals;
-    OrdinalBase = ExportTable->OrdinalBase;
+    PeFile->NumberOfExportedFunctions   = (int)ExportTable->NumberOfOrdinals;
+    OrdinalBase                         = ExportTable->OrdinalBase;
 
     // Instantiate the list for exported functions
     TRACE("Number of functions to iterate: %u", ExportTable->NumberOfOrdinals);
@@ -387,15 +386,18 @@ PeHandleExports(
         MCorePeExportFunction_t *ExFunc = &PeFile->ExportedFunctions[i];
 
         // Extract the function information
-        ExFunc->Ordinal = (int)FunctionOrdinalsTable[i];
-        ExFunc->Name = (char*)(PeFile->VirtualAddress + FunctionNamesTable[i]);
-        if ((ExFunc->Ordinal - OrdinalBase) > ExportTable->NumberOfOrdinals) {
-            ERROR("(%s) Found invalid ordinal index: %u (Ordinal %u, Base %u)", 
-                MStringRaw(PeFile->Name), (ExFunc->Ordinal - OrdinalBase), ExFunc->Ordinal, OrdinalBase);
-            ExFunc->Address = 0;
+        ExFunc->Name            = NULL;
+        ExFunc->ForwardName     = NULL;
+        ExFunc->Ordinal         = (int)FunctionOrdinalsTable[i];
+        ExFunc->Address         = (uintptr_t)(PeFile->VirtualAddress + FunctionAddressTable[ExFunc->Ordinal - OrdinalBase]);
+        if ((ExFunc->Ordinal - OrdinalBase) <= ExportTable->NumberOfOrdinals) {
+            ExFunc->Name        = (char*)(PeFile->VirtualAddress + FunctionNamesTable[i]);
         }
-        else {
-            ExFunc->Address = (uintptr_t)(PeFile->VirtualAddress + FunctionAddressTable[ExFunc->Ordinal - OrdinalBase]);
+        if (FunctionAddressTable[ExFunc->Ordinal - OrdinalBase] >= ExportDirectory->AddressRVA &&
+            FunctionAddressTable[ExFunc->Ordinal - OrdinalBase] < (ExportDirectory->AddressRVA + ExportDirectory->Size)) {
+            ExFunc->ForwardName = (char*)(PeFile->VirtualAddress + FunctionAddressTable[ExFunc->Ordinal - OrdinalBase]);
+            ERROR("(%s): Ordinal %i is forwarded as %s, this is not supported yet", 
+                MStringRaw(PeFile->Name), ExFunc->Ordinal, ExFunc->ForwardName);
         }
     }
 }
@@ -404,17 +406,16 @@ PeHandleExports(
  * Parses and resolves all image imports by parsing the import address table */
 OsStatus_t
 PeHandleImports(
-    _In_ MCorePeFile_t *Parent,
-    _In_ MCorePeFile_t *PeFile, 
-    _In_ PeDataDirectory_t *ImportDirectory,
-    _InOut_ uintptr_t *NextImageBase)
+    _In_    MCorePeFile_t*     Parent,
+    _In_    MCorePeFile_t*     PeFile, 
+    _In_    PeDataDirectory_t* ImportDirectory,
+    _InOut_ uintptr_t*         NextImageBase)
 {
     // Variables
     PeImportDescriptor_t *ImportDescriptor = NULL;
 
     // Sanitize input
-    if (ImportDirectory->AddressRVA == 0
-        || ImportDirectory->Size == 0) {
+    if (ImportDirectory->AddressRVA == 0 || ImportDirectory->Size == 0) {
         return OsSuccess;
     }
 
@@ -477,9 +478,11 @@ PeHandleImports(
                     FunctionName = (char*)
                         (PeFile->VirtualAddress + (Value & PE_IMPORT_NAMEMASK) + 2);
                     for (int i = 0; i < NumberOfExports; i++) {
-                        if (!strcmp(Exports[i].Name, FunctionName)) {
-                            Function = &Exports[i];
-                            break;
+                        if (Exports[i].Name != NULL) {
+                            if (!strcmp(Exports[i].Name, FunctionName)) {
+                                Function = &Exports[i];
+                                break;
+                            }
                         }
                     }
                 }
@@ -518,9 +521,11 @@ PeHandleImports(
                     char *FunctionName = (char*)
                         (PeFile->VirtualAddress + (uint32_t)(Value & PE_IMPORT_NAMEMASK) + 2);
                     for (int i = 0; i < NumberOfExports; i++) {
-                        if (!strcmp(Exports[i].Name, FunctionName)) {
-                            Function = &Exports[i];
-                            break;
+                        if (Exports[i].Name != NULL) {
+                            if (!strcmp(Exports[i].Name, FunctionName)) {
+                                Function = &Exports[i];
+                                break;
+                            }
                         }
                     }
                 }

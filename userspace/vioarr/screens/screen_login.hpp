@@ -33,7 +33,7 @@ public:
     CLoginScreen(CDisplay *Display) {
         // Load texture
         // @todo load from some settings
-        _TextureBg  = sTextureManager.CreateTexturePNG("%sys%/themes/default/gfxbg.png", &_TextureBgWidth, &TextureBgHeight);
+        _TextureBg  = sTextureManager.CreateTexturePNG("%sys%/themes/default/gfxbg.png", &_TextureBgWidth, &_TextureBgHeight);
         _Display    = Display;
 
         // Initialize to current size

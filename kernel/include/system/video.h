@@ -32,12 +32,14 @@
 /* Includes
  * - System */
 #include <os/contracts/video.h>
-#include <arch.h>
 
 PACKED_TYPESTRUCT(BootTerminal, {
 	Flags_t						Type;
 	Spinlock_t					Lock;
 	VideoDescriptor_t			Info;
+
+    uintptr_t                   FrameBufferAddress;
+    uintptr_t                   FrameBufferAddressPhysical;
 
 	unsigned					CursorX;
 	unsigned					CursorY;

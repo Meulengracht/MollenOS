@@ -24,6 +24,7 @@
 /* Includes
  * - System */
 #include "texture_manager.hpp"
+#include <cstdlib>
 #include <png.h>
 
 GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Height)
@@ -95,8 +96,8 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
     png_get_IHDR(png_ptr, info_ptr, &temp_width, &temp_height, &bit_depth, &color_type,
         NULL, NULL, NULL);
 
-    if (Width){ *width = temp_width; }
-    if (Height){ *height = temp_height; }
+    if (Width){ *Width = temp_width; }
+    if (Height){ *Height = temp_height; }
 
     if (bit_depth != 8) {
         fprintf(stderr, "%s: Unsupported bit depth %d.  Must be 8.\n", Path, bit_depth);

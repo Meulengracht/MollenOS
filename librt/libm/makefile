@@ -19,7 +19,7 @@ endif
 
 OBJECTS = $(ASM_SRCS:.s=.o) $(ARCH_SRCS:.c=.o) $(SOURCES:.c=.o)
 CFLAGS = $(GCFLAGS) -D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAREDLIBRARY $(math_flags) -DCRTDLL $(INCLUDES)
-LFLAGS = $(GLFLAGS) /def:libm.def /noentry /dll 
+LFLAGS = $(GLFLAGS) /lldmap /def:libm.def /noentry /dll 
 
 .PHONY: all
 all: ../build/libm.dll

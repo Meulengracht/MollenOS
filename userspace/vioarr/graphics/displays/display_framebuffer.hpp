@@ -31,6 +31,7 @@
 
 /* Includes
  * - Project */
+#include "../../utils/log_manager.hpp"
 #include "display.hpp"
 #include <cstdlib>
 #if defined(_MSC_VER) && !defined(__clang__)
@@ -56,6 +57,7 @@ public:
     // display (vbe/vesa) framebuffer
     CDisplayOsMesa() {
         int CpuRegisters[4] = { 0 };
+        sLog.Info("Creating the opengl context");
         _Context            = OSMesaCreateContext(OSMESA_RGBA, NULL);
 
         // Select a present-method (basic/sse/sse2)
@@ -65,14 +67,17 @@ public:
         __cpuid(1, CpuRegisters[0], CpuRegisters[1], CpuRegisters[2], CpuRegisters[3]);
 #endif
         if (CpuRegisters[3] & CPUID_FEAT_EDX_SSE2) {
+            sLog.Info("Using SSE2 presentation method");
             _BytesStep      = 128;
             _PresentMethod  = present_sse2;
         }
         else if (CpuRegisters[3] & CPUID_FEAT_EDX_SSE) {
+            sLog.Info("Using SSE presentation method");
             _BytesStep      = 128;
             _PresentMethod  = present_sse;
         }
         else {
+            sLog.Info("Using basic presentation method");
             _BytesStep      = 1;
             _PresentMethod  = present_basic;
         }
@@ -89,6 +94,7 @@ public:
     // Initialize
     // Initializes the display to the given parameters, use -1 for maximum size
     bool Initialize() {
+        std::string logmessage = "";
         if (!IsValid()) {
             return false;
         }
@@ -98,6 +104,9 @@ public:
         
         int Width       = _VideoInformation.Width;
         int Height      = _VideoInformation.Height;
+        logmessage      = "Creating a backbuffer of size: ";
+        logmessage      += std::to_string(Width) + ", " + std::to_string(Height);
+        sLog.Info(logmessage);
         _BackbufferSize = Width * Height * 4 * sizeof(GLubyte);
         _Backbuffer     = std::aligned_alloc(32, _BackbufferSize);
         if (_Backbuffer == nullptr) {
@@ -106,6 +115,8 @@ public:
         SetDimensions(0, 0, Width, Height);
 
         // Calculate some values needed for filling the framebuffer
+        sLog.Info("Creating access to the display framebuffer");
+        _Framebuffer    = CreateDisplayFramebuffer();
         _BytesToCopy    = Width * 4  * sizeof(GLubyte);
         _RowLoops       = _BytesToCopy / _BytesStep;
         _BytesRemaining = _BytesToCopy % _BytesStep;
@@ -121,8 +132,8 @@ public:
     // Present
     // Flushes the entire backbuffer to the display
     bool Present() {
-        _PresentMethod((void*)_VideoInformation.FrameBufferAddress, _Backbuffer, 
-            _VideoInformation.Height, _RowLoops, _BytesRemaining, _VideoInformation.BytesPerScanline - _BytesToCopy);
+        _PresentMethod(_Framebuffer, _Backbuffer, _VideoInformation.Height, 
+            _RowLoops, _BytesRemaining, _VideoInformation.BytesPerScanline - _BytesToCopy);
         return true;
     }
 
@@ -131,6 +142,7 @@ private:
     OSMesaContext       _Context;
     unsigned long       _BackbufferSize;
     void*               _Backbuffer;
+    void*               _Framebuffer;
 
     // Needed by flushing
     void(*_PresentMethod)(void*, void*, int, int, int, int);

@@ -22,6 +22,7 @@ bits 32
 segment .text
 
 ;Functions in this asm
+global _init_sse
 global _init_fpu
 global _save_fpu
 global _load_fpu
@@ -34,10 +35,7 @@ global _enter_thread
 ; void _yield(void)
 ; Yields
 __yield:
-	; call int 0x81
 	int 0x81
-
-	; Return
 	ret 
 
 ; void save_fpu(uintptr_t *buffer)
@@ -100,20 +98,14 @@ _set_ts:
 ; void clear_ts()
 ; Clears the Task-Switch register
 _clear_ts:
-	; clear
 	clts
-
-	; Return
 	ret 
 
 ; void init_fpu()
 ; Initializes the FPU
 _init_fpu:
-	; fpu init
 	finit
-
-	; Return
-	ret 
+	ret
 
 ; void rdtsc(uint64_t *value)
 ; Gets the CPU time-stamp counter
