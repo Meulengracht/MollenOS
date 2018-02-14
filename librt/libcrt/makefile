@@ -8,14 +8,14 @@ C_SRCS_ALL = $(wildcard vscrt/*.c) \
 OBJECTS_ALL = $(C_SRCS_ALL:.c=.o)
 
 ifeq ($(MAKECMDGOALS),libcrt)
-	SOURCES = entry.c crtcoff.c library.c
+	SOURCES = entry.c crtos.c crtcoff.c library.c
 	CFLAGS = $(GCFLAGS) $(INCLUDES)
 else 
 	ifeq ($(MAKECMDGOALS),libdrv)
-		SOURCES = module.c crtcoff.c
+		SOURCES = module.c crtos.c crtcoff.c
 		CFLAGS = $(GCFLAGS) -D__DRIVER_IMPL $(INCLUDES)
 	else
-		SOURCES = service.c crtcoff.c
+		SOURCES = service.c crtos.c crtcoff.c
 		CFLAGS = $(GCFLAGS) -D__SERVICE_IMPL $(INCLUDES)
 	endif
 endif

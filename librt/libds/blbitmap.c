@@ -105,9 +105,9 @@ BlockBitmapAllocate(
  * into the given bitmap, and frees them in the bitmap */
 OsStatus_t
 BlockBitmapFree(
-    _In_ BlockBitmap_t *Blockmap,
-    _In_ uintptr_t Block,
-    _In_ size_t Size)
+    _In_ BlockBitmap_t* Blockmap,
+    _In_ uintptr_t      Block,
+    _In_ size_t         Size)
 {
     // Variables
     OsStatus_t Result   = OsError;
@@ -115,8 +115,8 @@ BlockBitmapFree(
 	int Index           = -1;
     
     // Calculate the index and number of bits
-    Index = (Block - Blockmap->BlockStart) / Blockmap->BlockSize;
-    BitCount = DIVUP(Size, Blockmap->BlockSize);
+    Index       = (Block - Blockmap->BlockStart) / Blockmap->BlockSize;
+    BitCount    = DIVUP(Size, Blockmap->BlockSize);
 
 	// Do some sanity checks on the calculated 
 	// values, they should be in bounds

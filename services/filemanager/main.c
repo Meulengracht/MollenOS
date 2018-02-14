@@ -39,9 +39,11 @@ static const char *FunctionNames[] = {
     "RegisterDisk",
     "UnregisterDisk",
     "QueryDisks",
+    "QueryDisk",
+    "QueryDiskByPath",
+    "QueryDiskByHandle",
     "OpenFile",
     "CloseFile",
-    "DeleteFile",
     "ReadFile",
     "WriteFile",
     "SeekFile",
@@ -52,6 +54,13 @@ static const char *FunctionNames[] = {
     "SetFileOptions",
     "GetFileSize",
     "GetFilePath",
+    "GetFileStatsByPath",
+    "GetFileStatsByHandle",
+    "DeletePath",
+    "OpenDirectory",
+    "CloseDirectory",
+    "ReadDirectory",
+    "SeekDirectory",
     "ResolvePath",
     "NormalizePath"
 };
@@ -438,9 +447,7 @@ OnEvent(
 		// Resolves and combines the environment path together
 		// and returns the newly concenated string
 		case __FILEMANAGER_PATHCANONICALIZE: {
-			MString_t *Resolved = VfsPathCanonicalize(
-				(EnvironmentPath_t)Message->Arguments[0].Data.Value,
-				Message->Arguments[1].Data.Buffer);
+			MString_t *Resolved = VfsPathCanonicalize(Message->Arguments[0].Data.Buffer);
 			if (Resolved != NULL) {
 				Result = RPCRespond(Message, MStringRaw(Resolved), MStringSize(Resolved));
                 free(Resolved);

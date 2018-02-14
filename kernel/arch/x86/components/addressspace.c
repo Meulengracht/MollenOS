@@ -383,8 +383,7 @@ AddressSpaceMap(
 		// Redirect call to our virtual page manager
 		if (MmVirtualMap((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], 
             PhysicalPage, (VirtualBase + (i * PAGE_SIZE)), AllocFlags) != OsSuccess) {
-            WARNING("Failed to map virtual 0x%x => physical 0x%x", 
-                (VirtualBase + (i * PAGE_SIZE)), PhysicalPage);
+            WARNING("Failed to map virtual 0x%x => physical 0x%x", (VirtualBase + (i * PAGE_SIZE)), PhysicalPage);
 			return OsError;
 		}
 	}
@@ -405,8 +404,13 @@ AddressSpaceUnmap(
 
 	// Iterate page-count and unmap
 	for (i = 0; i < PageCount; i++) {
-		if (MmVirtualUnmap((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], (Address + (i * PAGE_SIZE))) != OsSuccess) {
-            WARNING("Failed to unmap address 0x%x", (Address + (i * PAGE_SIZE)));
+        if (MmVirtualGetMapping((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], (Address + (i * PAGE_SIZE))) != 0) {
+            if (MmVirtualUnmap((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], (Address + (i * PAGE_SIZE))) != OsSuccess) {
+                WARNING("Failed to unmap address 0x%x", (Address + (i * PAGE_SIZE)));
+            }
+        }
+        else {
+            WARNING("Freeing unmapped address 0x%x", (Address + (i * PAGE_SIZE)));
         }
 	}
 	return OsSuccess;

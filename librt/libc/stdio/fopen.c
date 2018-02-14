@@ -60,10 +60,8 @@ unsigned split_oflags(
                     _O_SEQUENTIAL|_O_RANDOM|_O_SHORT_LIVED|
                     _O_WTEXT|_O_U16TEXT|_O_U8TEXT
                     ))) {
-		TRACE(":unsupported oflags 0x%04x\n", unsupp);
+		TRACE(":unsupported oflags 0x%x\n", unsupp);
 	}
-
-	// Done
     return wxflags;
 }
 

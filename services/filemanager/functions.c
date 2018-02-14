@@ -20,7 +20,7 @@
  * - Handles all file related services and disk services
  * - ToDo Buffering is not ported to BufferObjects yet
  */
-//#define __TRACE
+#define __TRACE
 
 /* Includes 
  * - System */
@@ -242,6 +242,29 @@ VfsOpenInternal(
 	return Code;
 }
 
+/* VfsResolvePath
+ * Resolves the undetermined abs or relative path. */
+MString_t*
+VfsResolvePath(
+	_In_ UUId_t         Requester,
+    _In_ const char*    Path)
+{
+    // Variables
+    MString_t *PathResult = NULL;
+
+    if (strchr(Path, ':') == NULL && strchr(Path, '%') == NULL) {
+        char *BasePath  = (char*)malloc(_MAXPATH);
+        memset(BasePath, 0, _MAXPATH);
+        GetWorkingDirectoryOfApplication(Requester, &BasePath[0], _MAXPATH);
+        strcat(BasePath, Path);
+		PathResult      = VfsPathCanonicalize(Path);
+	}
+	else {
+		PathResult      = VfsPathCanonicalize(Path);
+	}
+    return PathResult;
+}
+
 /* VfsOpenFile
  * Opens or creates the given file path based on
  * the given <Access> and <Options> flags. See the
@@ -249,7 +272,7 @@ VfsOpenInternal(
 FileSystemCode_t
 VfsOpenFile(
 	_In_  UUId_t        Requester,
-	_In_  __CONST char* Path, 
+	_In_  const char*   Path, 
 	_In_  Flags_t       Options, 
 	_In_  Flags_t       Access,
 	_Out_ UUId_t*       Handle)
@@ -278,52 +301,15 @@ VfsOpenFile(
 	hFile->Options  = Options;
 
     // If path is not absolute or special, we 
-    // must try all 'relative' possble paths...
-	if (strchr(Path, ':') == NULL && strchr(Path, '%') == NULL) {
-		for (i = 0; i < (int)PathEnvironmentCount; i++) {
-			if (i != (int)PathCurrentWorkingDirectory
-				&& i != (int)PathSystemDirectory
-				&& i != (int)PathCommonBin) { // Include only these directories in default path
-				continue;
-			}	
-
-			// Canonicalize the path and test it
-			mPath       = VfsPathCanonicalize((EnvironmentPath_t)i, Path);
-			if (mPath == NULL) {
-				Code    = FsPathNotFound;
-				continue;
-			}
-			else {
-				Code    = VfsOpenInternal(hFile, mPath);
-			}
-			MStringDestroy(mPath);
-
-			// Sanitize the status in which we tried to
-			// open the current path
-			if ((Code == FsPathNotFound
-				|| Code == FsPathIsNotDirectory)
-				&& i < ((int)PathEnvironmentCount - 1)) {
-				Code    = FsPathNotFound;
-			}
-			else {
-				break;
-			}
-		}
-	}
-	else
-	{
-		// Handle it like a normal path 
-		// since we gave an absolute - and work from current
-		// working directory
-		mPath       = VfsPathCanonicalize(PathCurrentWorkingDirectory, Path);
-		if (mPath == NULL) {
-			Code    = FsPathNotFound;
-		}
-		else {
-			Code    = VfsOpenInternal(hFile, mPath);
-		}
-		MStringDestroy(mPath);
-	}
+    // must try the working directory of caller
+    mPath       = VfsResolvePath(Requester, Path);
+    if (mPath == NULL) {
+        Code    = FsPathNotFound;
+    }
+    else {
+        Code    = VfsOpenInternal(hFile, mPath);
+    }
+    MStringDestroy(mPath);
 
 	// Sanitize code
 	if (Code != FsOk) {
@@ -436,7 +422,7 @@ VfsDeletePath(
 
     // If path is not absolute or special, we should ONLY try either
     // the current working directory.
-    mPath       = VfsPathCanonicalize(PathCurrentWorkingDirectory, Path);
+    mPath       = VfsResolvePath(Requester, Path);
     if (mPath == NULL) {
         return FsPathNotFound;
     }

@@ -148,6 +148,7 @@ CRTDECL(OsStatus_t, GetCurrentThreadName(char *ThreadNameBuffer, size_t MaxLengt
  *******************************************************************************/
 CRTDECL(OsStatus_t, SetWorkingDirectory(const char *Path));
 CRTDECL(OsStatus_t, GetWorkingDirectory(char* PathBuffer, size_t MaxLength));
+CRTDECL(OsStatus_t, GetWorkingDirectoryOfApplication(UUId_t ProcessId, char* PathBuffer, size_t MaxLength));
 CRTDECL(OsStatus_t, GetAssemblyDirectory(char *PathBuffer, size_t MaxLength));
 CRTDECL(OsStatus_t, GetUserDirectory(char *PathBuffer, size_t MaxLength));
 CRTDECL(OsStatus_t, GetUserCacheDirectory(char *PathBuffer, size_t MaxLength));

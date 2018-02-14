@@ -785,8 +785,8 @@ ScMemoryAllocate(
  * and a size (though not needed for now!) */
 OsStatus_t 
 ScMemoryFree(
-    _In_ uintptr_t Address, 
-    _In_ size_t Size)
+    _In_ uintptr_t  Address, 
+    _In_ size_t     Size)
 {
     // Variables
     MCoreAsh_t *Ash = NULL;
@@ -802,7 +802,10 @@ ScMemoryFree(
 
     // Now do the deallocation in the user-bitmap 
     // since memory is managed in userspace for speed
-    BlockBitmapFree(Ash->Heap, Address, Size);
+    if (BlockBitmapFree(Ash->Heap, Address, Size) != OsSuccess) {
+        ERROR("ScMemoryFree(Address 0x%x, Size 0x%x) was invalid", Address, Size);
+        return OsError;
+    }
 
     // Return the result from unmap
     return AddressSpaceUnmap(AddressSpaceGetCurrent(), Address, Size);
@@ -959,20 +962,28 @@ ScMemoryProtect(
  * Queries the current working directory path for the current process (See _MAXPATH) */
 OsStatus_t
 ScGetWorkingDirectory(
+    _In_ UUId_t     ProcessId,
     _In_ char*      PathBuffer,
     _In_ size_t     MaxLength)
 {
     // Variables
-    MCoreProcess_t *Process = PhoenixGetCurrentProcess();
-    size_t BytesToCopy = MaxLength;
+    MCoreProcess_t *Process     = NULL;
+    size_t BytesToCopy          = MaxLength;
+
+    // Determine the process
+    if (ProcessId == UUID_INVALID) {
+        Process = PhoenixGetCurrentProcess();
+    }
+    else {
+        Process = PhoenixGetProcess(ProcessId);
+    }
 
     // Sanitize parameters
     if (Process == NULL || PathBuffer == NULL) {
         return OsError;
     }
-    if (strlen(MStringRaw(Process->WorkingDirectory)) < MaxLength) {
-        BytesToCopy = strlen(MStringRaw(Process->WorkingDirectory));
-    }
+    
+    BytesToCopy = MIN(strlen(MStringRaw(Process->WorkingDirectory)), MaxLength);
     memcpy(PathBuffer, MStringRaw(Process->WorkingDirectory), BytesToCopy);
     return OsSuccess;
 }

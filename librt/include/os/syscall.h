@@ -92,7 +92,7 @@ _CODE_END
 
 /* Operating support system calls
  * - Operating support related system call definitions */
-#define Syscall_GetWorkingDirectory(Buffer, MaxLength) (OsStatus_t)syscall2(51, SCPARAM(Buffer), SCPARAM(MaxLength))
+#define Syscall_GetWorkingDirectory(ProcessId, Buffer, MaxLength) (OsStatus_t)syscall3(51, SCPARAM(ProcessId), SCPARAM(Buffer), SCPARAM(MaxLength))
 #define Syscall_SetWorkingDirectory(Path) (OsStatus_t)syscall1(52, SCPARAM(Path))
 #define Syscall_GetAssemblyDirectory(Buffer, MaxLength) (OsStatus_t)syscall2(53, SCPARAM(Buffer), SCPARAM(MaxLength))
 #define Syscall_CreateFileMapping(MappingParameters, MemoryPointer) (OsStatus_t)syscall2(54, SCPARAM(MappingParameters), SCPARAM(MemoryPointer))

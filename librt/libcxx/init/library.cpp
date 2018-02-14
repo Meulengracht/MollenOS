@@ -30,6 +30,7 @@ extern void dllmain(int action);
 extern "C" {
     extern void __CrtCxxInitialize(void);
     extern void __CrtCxxFinalize(void);
+    extern void __CrtAttachTlsBlock(void);
     extern CRTDECL(void, __cxa_finalize(void *Dso));
     extern void *__dso_handle;
 }
@@ -51,6 +52,9 @@ __CrtLibraryEntry(int Action)
             dllmain(DLL_ACTION_FINALIZE);
             __cxa_finalize(__dso_handle);
             __CrtCxxFinalize();
+        } break;
+        case DLL_ACTION_THREADATTACH: {
+            __CrtAttachTlsBlock();
         } break;
     }
 }

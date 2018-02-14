@@ -41,10 +41,6 @@ typedef enum _FileSystemCode {
  * Used for a combination of different things
  * especially for the environment resolve */
 typedef enum _EnvironmentPath {
-	PathCurrentWorkingDirectory = 0,
-    PathCurrentAssemblyDirectory,
-
-	/* System Directories */
 	PathRoot,
 	PathSystemDirectory,
 

@@ -32,11 +32,8 @@ void MessageHandler() {
     bool IsRunning          = true;
     MRemoteCall_t Message;
 
-    // Open pipe
-    ArgumentBuffer = (char*)::malloc(IPC_MAX_MESSAGELENGTH);
-    PipeOpen(PIPE_RPCOUT);
-
     // Listen for messages
+    ArgumentBuffer = (char*)::malloc(IPC_MAX_MESSAGELENGTH);
     while (IsRunning) {
         if (RPCListen(&Message, ArgumentBuffer) == OsSuccess) {
             if (Message.Function == __WINDOWMANAGER_NEWINPUT) {
@@ -44,9 +41,6 @@ void MessageHandler() {
             }
         }
     }
-
-    // Done
-    PipeClose(PIPE_RPCOUT);
 }
 
 // Spawn the message handler for compositor

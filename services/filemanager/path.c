@@ -35,9 +35,6 @@
  * These are default static environment strings 
  * that can be resolved from an enum array */
 const char *GlbEnvironmentalPaths[PathEnvironmentCount] = {
-	"./",
-	"./",
-
     // System paths
 	":/",
 	":/system/",
@@ -66,7 +63,7 @@ struct {
 	EnvironmentPath_t   Resolve;
 } GlbIdentifers[] = {
 	{ "%sys%", PathSystemDirectory },
-	{ NULL, PathCurrentWorkingDirectory }
+	{ NULL, PathSystemDirectory }
 };
 
 /* VfsPathResolveEnvironment
@@ -82,29 +79,6 @@ VfsPathResolveEnvironment(
 	int pIndex              = (int)Base;
 	int pFound              = 0;
 	char PathBuffer[_MAXPATH];
-
-	// Handle Special Case - 0 & 1
-	// Just return the current working directory
-	if (Base == PathCurrentWorkingDirectory
-		|| Base == PathCurrentAssemblyDirectory) {
-		memset(&PathBuffer[0], 0, _MAXPATH);
-		if (Base == PathCurrentWorkingDirectory) {
-			if (GetWorkingDirectory(&PathBuffer[0], _MAXPATH) != OsSuccess) {
-				return NULL;
-			}
-			else {
-				return MStringCreate(&PathBuffer[0], StrUTF8);
-			}
-		}
-		else {
-			if (GetAssemblyDirectory(&PathBuffer[0], _MAXPATH) != OsSuccess) {
-				return NULL;
-			}
-			else {
-				return MStringCreate(&PathBuffer[0], StrUTF8);
-			}
-		}
-	}
 
 	// Create a new string instance to store resolved in
 	ResolvedPath = MStringCreate(NULL, StrUTF8);
@@ -131,7 +105,6 @@ VfsPathResolveEnvironment(
  * and resolving all identifiers in path */
 MString_t*
 VfsPathCanonicalize(
-    _In_ EnvironmentPath_t  Base, 
     _In_ const char*        Path)
 {
 	// Variables
@@ -141,23 +114,6 @@ VfsPathCanonicalize(
 
     // Create result string
     AbsPath = MStringCreate(NULL, StrUTF8);
-
-	// There must be either a FS indicator in a path
-	// or an identifier that resolves one for us, otherwise
-	// we must assume the path is relative
-	if (strchr(Path, ':') == NULL && strchr(Path, '%') == NULL) {
-		MString_t *BasePath = VfsPathResolveEnvironment(Base);
-		if (BasePath == NULL) {
-			MStringDestroy(AbsPath);
-			return NULL;
-		}
-		else {
-			MStringCopy(AbsPath, BasePath, -1);
-			if (MStringGetCharAt(AbsPath, MStringLength(AbsPath) - 1) != '/') {
-				MStringAppendCharacter(AbsPath, '/');
-			}
-		}
-	}
 
 	// Iterate all characters and build a new string
 	// containing the canonicalized path simoultanously

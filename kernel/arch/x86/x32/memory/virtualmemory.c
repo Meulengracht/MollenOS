@@ -274,10 +274,10 @@ MmVirtualGetFlags(
  * the Flags parameter. */
 OsStatus_t
 MmVirtualMap(
-	_In_ void *PageDirectory, 
-	_In_ PhysicalAddress_t pAddress, 
-	_In_ VirtualAddress_t vAddress, 
-	_In_ Flags_t Flags)
+	_In_ void*              PageDirectory, 
+	_In_ PhysicalAddress_t  pAddress, 
+	_In_ VirtualAddress_t   vAddress, 
+	_In_ Flags_t            Flags)
 {
 	// Variabes
 	OsStatus_t Result = OsSuccess;

@@ -376,7 +376,6 @@ __EXTERN
 MString_t*
 SERVICEABI
 VfsPathCanonicalize(
-	_In_ EnvironmentPath_t  Base,
 	_In_ const char*        Path);
 
 #endif //!_VFS_INTERFACE_H_

@@ -411,7 +411,7 @@ ExceptionEntry(
     int IssueFixed          = 0;
 
     // Handle IRQ
-    if (Registers->Irq == 0) {      // Divide By Zero
+    if (Registers->Irq == 0) {      // Divide By Zero (Non-math instruction)
         if (ExceptionSignal(Registers, SIGFPE) == OsSuccess) {
             IssueFixed = 1;
         }
@@ -448,9 +448,7 @@ ExceptionEntry(
         Thread = ThreadingGetCurrentThread(CpuGetCurrentId());
         assert(Thread != NULL);
 
-        // Either of two cases;
-        // 1 - We need to initialize the FPU
-        // 2 - We need to load the FPU
+        // This might be because we need to restore fpu/sse state
         if (ThreadingFpuException(Thread) != OsSuccess) {
             if (ExceptionSignal(Registers, SIGFPE) == OsSuccess) {
                 IssueFixed = 1;
@@ -525,8 +523,8 @@ ExceptionEntry(
 
     // Was the exception handled?
     if (IssueFixed == 0) {
-        char *Name      = NULL;
         uintptr_t Base  = 0;
+        char *Name      = NULL;
         LogRedirect(LogConsole);
 
         // Was it a page-fault?

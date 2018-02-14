@@ -62,7 +62,6 @@ SERVICEAPI
 OsStatus_t
 SERVICEABI
 PathCanonicalize(
-	_In_  EnvironmentPath_t Base,
 	_In_  const char*       Path,
 	_Out_ char*             Buffer,
 	_In_  size_t            MaxLength)
@@ -73,8 +72,7 @@ PathCanonicalize(
     // Initialize rpc and execute
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
         __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_PATHCANONICALIZE);
-	RPCSetArgument(&Request, 0, (__CONST void*)&Base, sizeof(EnvironmentPath_t));
-	RPCSetArgument(&Request, 1, (__CONST void*)Path, strlen(Path));
+	RPCSetArgument(&Request, 0, (__CONST void*)Path, strlen(Path));
 	RPCSetResult(&Request, (__CONST void*)Buffer, MaxLength);
 	return RPCExecute(&Request);
 }

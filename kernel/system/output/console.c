@@ -114,12 +114,7 @@ VideoQuery(
 	if (Descriptor == NULL || VideoGetTerminal() == NULL) {
 		return OsError;
 	}
-
-	// Copy information over directly from
-	// the sub-layer descriptor
-	memcpy(&VideoGetTerminal()->Info, Descriptor, sizeof(VideoDescriptor_t));
-
-	// Done - no errors
+	memcpy(Descriptor, &VideoGetTerminal()->Info, sizeof(VideoDescriptor_t));
 	return OsSuccess;
 }
 

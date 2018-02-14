@@ -47,8 +47,12 @@ SetWorkingDirectory(
 	}
 
     // Make sure the path is valid by asking filemanager
-	memset(TempBuffer, 0, _MAXPATH);
-	if (PathCanonicalize(PathCurrentWorkingDirectory, Path, &TempBuffer[0], _MAXPATH) != OsSuccess) {
+	memset(&TempBuffer[0], 0, _MAXPATH);
+    if (Syscall_GetWorkingDirectory(UUID_INVALID, &TempBuffer[0], _MAXPATH) != OsSuccess) {
+        return OsError;
+    }
+    strcat(&TempBuffer[0], Path);
+	if (PathCanonicalize(&TempBuffer[0], &TempBuffer[0], _MAXPATH) != OsSuccess) {
 		return OsError;
 	}
 	return Syscall_SetWorkingDirectory(&TempBuffer[0]);
@@ -63,7 +67,20 @@ GetWorkingDirectory(
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
-	return Syscall_GetWorkingDirectory(PathBuffer, MaxLength);
+	return Syscall_GetWorkingDirectory(UUID_INVALID, PathBuffer, MaxLength);
+}
+
+/* GetWorkingDirectoryOfApplication
+ * Queries the current working directory path for the specific process (See _MAXPATH) */
+OsStatus_t
+GetWorkingDirectoryOfApplication(
+    _In_ UUId_t ProcessId,
+    _In_ char*  PathBuffer,
+    _In_ size_t MaxLength) {
+	if (PathBuffer == NULL || MaxLength == 0) {
+		return OsError;
+	}
+	return Syscall_GetWorkingDirectory(ProcessId, PathBuffer, MaxLength);
 }
 
 /* GetAssemblyDirectory

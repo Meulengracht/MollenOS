@@ -33,53 +33,13 @@
 #include "../libc/threads/tls.h"
 #include <stdlib.h>
 
-/* Extern
- * - C/C++ Initialization
- * - C/C++ Cleanup */
-__EXTERN void __CrtCxxInitialize(void);
-__EXTERN void __CrtCxxFinalize(void);
-__EXTERN void __CrtAttachTlsBlock(void);
-#ifndef __clang__
-CRTDECL(void, __CppInitVectoredEH(void));
-#endif
-
-/* StdioInitialize
- * Initializes default handles and resources */
-CRTDECL(void, StdioInitialize(void *InheritanceBlock, size_t InheritanceBlockLength));
-
-/* StdSignalInitialize
- * Initializes the default signal-handler for the process. */
-CRTDECL(void, StdSignalInitialize(void));
-
-/* __cxa_runinitializers 
- * C++ Initializes library C++ runtime for all loaded modules */
-CRTDECL(void, __cxa_runinitializers(
-    _In_ void (*Initializer)(void), 
-    _In_ void (*Finalizer)(void), 
-    _In_ void (*TlsAttachFunction)(void)));
-
 /* CRT Initialization sequence
  * for a shared C/C++ environment call this in all entry points */
-void
+extern char**
 __CrtInitialize(
-    _In_ thread_storage_t *Tls)
-{
-    // Initialize the TLS System
-    tls_create(Tls);
-    tls_initialize();
-
-    // Initialize C/CPP
-    __cxa_runinitializers(__CrtCxxInitialize, __CrtCxxFinalize, __CrtAttachTlsBlock);
-
-    // Initialize STD-C
-    StdioInitialize(NULL, 0);
-    StdSignalInitialize();
-
-    // If msc, initialize the vectored-eh
-#ifndef __clang__
-    __CppInitVectoredEH();
-#endif
-}
+    _In_  thread_storage_t* Tls,
+    _In_  int               StartupInfoEnabled,
+    _Out_ int*              ArgumentCount);
 
 /* Server event entry point
  * Used in multi-threading environment as means to cleanup
@@ -109,11 +69,7 @@ void __CrtServiceEntry(void)
 	int IsRunning               = 1;
 
 	// Initialize environment
-	__CrtInitialize(&Tls);
-
-	// Initialize default pipes
-	PipeOpen(PIPE_RPCOUT);
-	PipeOpen(PIPE_RPCIN);
+	__CrtInitialize(&Tls, 0, NULL);
 
 	// Call the driver load function 
 	// - This will be run once, before loop
@@ -161,9 +117,5 @@ void __CrtServiceEntry(void)
 	OnUnload();
 
 Cleanup:
-	// Cleanup allocated resources
-	// and perform a normal exit
-	PipeClose(PIPE_RPCOUT);
-	PipeClose(PIPE_RPCIN);
 	exit(-1);
 }

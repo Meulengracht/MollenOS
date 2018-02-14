@@ -30,6 +30,12 @@
 #include <stdlib.h>
 #include <stddef.h>
 
+#if defined(__i386__)
+#include <i386/fenv.h>
+#elif defined(__amd64__)
+#include <amd64/fenv.h>
+#endif
+
 // The consequences of recieving the different signals
 char signal_fatality[] = {
 	0, /* 0? */
@@ -85,10 +91,34 @@ static sig_element signal_list[] = {
     { SIGUSR2, "User-defined signal-2", SIG_IGN }
 };
 
+/* StdMathErrorEntry
+ * The default math error handler for zero divison, fpu and sse errors. */
+void
+StdMathErrorEntry(
+    _In_ __signalhandler_t Handler)
+{
+    // Variables
+    int Fixed = 0;
+
+    // Is it an FPU/SSE exception?
+    Fixed = fetestexcept(FE_ALL_EXCEPT);
+
+    // Is handler valid?
+    if (Handler != SIG_DFL && Handler != SIG_IGN && Handler != SIG_ERR) {
+        Handler(SIGFPE);
+    }
+    
+    // If none are detected, it is integer division, quit program
+    if (!Fixed) {
+        _exit(EXIT_FAILURE);
+    }
+}
+
 /* StdSignalEntry
  * Default entry for all signal-handlers */
 void
-StdSignalEntry(int Signal)
+StdSignalEntry(
+    _In_ int Signal)
 {
     // Variables
     __signalhandler_t Handler = SIG_ERR;
@@ -100,6 +130,11 @@ StdSignalEntry(int Signal)
             Handler = signal_list[i].handler;
             break;
         }
+    }
+
+    // Handle math errors in any case
+    if (Signal == SIGFPE) {
+        StdMathErrorEntry(Handler);
     }
 
     // Sanitize
@@ -120,8 +155,8 @@ StdSignalEntry(int Signal)
         _exit(Signal);
     }
 
-    // Some signals MUST exit, and are not ignorable
-    if (Signal == SIGFPE || Signal == SIGSEGV || Signal == SIGILL) {
+    // Some signals are ignorable, others cause exit no matter what
+    if (Signal != SIGINT && Signal != SIGFPE && Signal != SIGUSR1 && Signal != SIGUSR2) {
         _exit(Signal);
     }
 }
