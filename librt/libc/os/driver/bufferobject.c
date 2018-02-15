@@ -211,10 +211,10 @@ SeekBuffer(
  * the read will be from the current position */
 OsStatus_t 
 ReadBuffer(
-    _In_ BufferObject_t *BufferObject, 
-    _Out_ __CONST void *Buffer, 
-    _In_ size_t BytesToRead,
-    _Out_Opt_ size_t *BytesRead)
+    _In_      BufferObject_t*   BufferObject, 
+    _Out_     const void*       Buffer, 
+    _In_      size_t            BytesToRead,
+    _Out_Opt_ size_t*           BytesRead)
 {
     // Variables
     size_t BytesNormalized = 0;

@@ -9,7 +9,7 @@ export LIBRARIES = $(LLVM)/lib
 # Setup userspace environment
 # Always build test applications to make sure env is ok.
 .PHONY: all
-all: bin copy_headers copy_libraries build_cpptest build_zlib build_libpng build_libfreetype build_macia
+all: bin copy_headers copy_libraries build_zlib build_libpng build_libfreetype build_macia build_cpptest
 
 # Build userspace applications, the order might be important.
 .PHONY: applications

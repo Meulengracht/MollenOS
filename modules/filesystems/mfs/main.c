@@ -245,10 +245,8 @@ FsReadFile(
 		// Calculate which bucket, then the sector offset
 		// Then calculate how many sectors of the bucket we need to read
 		uint64_t Sector         = MFS_GETSECTOR(Mfs, fInstance->DataBucketPosition);
-		uint64_t SectorOffset   = (Position - fInstance->BucketByteBoundary) 
-			% Descriptor->Disk.Descriptor.SectorSize;
-		size_t SectorIndex      = (size_t)((Position - fInstance->BucketByteBoundary)
-			/ Descriptor->Disk.Descriptor.SectorSize);
+		uint64_t SectorOffset   = (Position - fInstance->BucketByteBoundary) % Descriptor->Disk.Descriptor.SectorSize;
+		size_t SectorIndex      = (size_t)((Position - fInstance->BucketByteBoundary) / Descriptor->Disk.Descriptor.SectorSize);
 		size_t SectorsLeft      = MFS_GETSECTOR(Mfs, fInstance->DataBucketLength) - SectorIndex;
 		size_t SectorCount      = 0;
         size_t ByteCount        = 0;

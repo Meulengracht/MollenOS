@@ -435,28 +435,35 @@ StdioHandleReadFile(
     _In_  size_t         Length,
     _Out_ size_t*        BytesRead)
 {
+	uint8_t *Pointer        = (uint8_t*)Buffer;
 	size_t BytesReadTotal   = 0, BytesLeft = (size_t)Length;
 	size_t OriginalSize     = GetBufferSize(tls_current()->transfer_buffer);
-	uint8_t *Pointer        = (uint8_t*)Buffer;
-
+    
     // Keep reading chunks untill we've read all requested
 	while (BytesLeft > 0) {
-		size_t ChunkSize = MIN(OriginalSize, BytesLeft);
-		size_t BytesReaden = 0, BytesIndex = 0;
+        FileSystemCode_t FsCode = FsOk;
+		size_t ChunkSize        = MIN(OriginalSize, BytesLeft);
+		size_t BytesReadFs      = 0, BytesIndex = 0;
+
+        // Change buffer size if the requested read is less than capacity
 		ChangeBufferSize(tls_current()->transfer_buffer, ChunkSize);
-        if (_fval(ReadFile(Handle->InheritationData.FileHandle, tls_current()->transfer_buffer, &BytesIndex, &BytesReaden))) {
+
+        // Perform the read
+        FsCode = ReadFile(Handle->InheritationData.FileHandle, tls_current()->transfer_buffer, &BytesIndex, &BytesReadFs);
+        if (_fval(FsCode) || BytesReadFs == 0) {
 			break;
 		}
-		if (BytesReaden == 0) {
-			break;
-		}
+        
+        // Seek to the valid buffer index, then read the byte count
+        ChangeBufferSize(tls_current()->transfer_buffer, GetBufferCapacity(tls_current()->transfer_buffer));
 		SeekBuffer(tls_current()->transfer_buffer, BytesIndex);
-        ReadBuffer(tls_current()->transfer_buffer, 
-            (__CONST void*)Pointer, BytesReaden, NULL);
+        ReadBuffer(tls_current()->transfer_buffer, (const void*)Pointer, BytesReadFs, NULL);
 		SeekBuffer(tls_current()->transfer_buffer, 0);
-		BytesReadTotal += BytesReaden;
-		BytesLeft -= BytesReaden;
-		Pointer += BytesReaden;
+
+        // Update indices
+		BytesLeft       -= BytesReadFs;
+		BytesReadTotal  += BytesReadFs;
+		Pointer         += BytesReadFs;
 	}
 
     // Restore transfer buffer

@@ -27,6 +27,7 @@
 #include "test_constreams.hpp"
 #include "test_filestreams.hpp"
 #include <thread>
+#include <png.h>
 
 /*******************************************
  * Tls Testing
