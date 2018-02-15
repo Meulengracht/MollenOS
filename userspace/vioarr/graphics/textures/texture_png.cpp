@@ -26,37 +26,60 @@
 #include "../../utils/log_manager.hpp"
 #include "texture_manager.hpp"
 #include <cstdlib>
+#include <fstream>
 #include <string>
 #include <png.h>
 
+struct PngMemoryStream {
+    char*   FileBuffer;
+    size_t  Index;
+};
+
+void MemoryStreamRead(png_structp png_ptr, png_bytep outBytes, png_size_t byteCountToRead) {
+    png_voidp io_ptr = png_get_io_ptr(png_ptr);
+    if(io_ptr == NULL) {
+        return;
+    }
+    struct PngMemoryStream *MemoryStream = (struct PngMemoryStream*)io_ptr;
+    memcpy(outBytes, &MemoryStream->FileBuffer[MemoryStream->Index], byteCountToRead);
+    MemoryStream->Index += byteCountToRead;
+}
+
 GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Height)
 {
-    png_byte header[8];
+    struct PngMemoryStream *MemoryStream = NULL;
+    FILE *fp;
     std::string msg = "";
+    char *fbuffer = NULL;
+    long fsize = 0;
 
-    FILE *fp = fopen(Path, "rb");
+    // Step 1, read the entire image into buffer
+    fp = fopen(Path, "rb");
     if (fp == NULL) {
         sLog.Error("Failed to locate file-path");
-        perror(Path);
         return 0;
     }
+    fseek(fp, 0, SEEK_END);
+    fsize = ftell(fp);
+    rewind(fp);
+    fbuffer = new char[fsize];
+    fsize = fread(fbuffer, 1, fsize, fp);
+    fclose(fp);
 
-    // read the header
-    fread(header, 1, 8, fp);
-
-    if (png_sig_cmp(header, 0, 8)) {
+    // Validate header
+    if (png_sig_cmp((png_const_bytep)fbuffer, 0, 8)) {
         msg = "error: ";
         msg += Path;
         msg += " is not a PNG.";
         sLog.Error(msg);
-        fclose(fp);
+        delete fbuffer;
         return 0;
     }
 
     png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     if (!png_ptr) {
         sLog.Error("error: png_create_read_struct returned 0.");
-        fclose(fp);
+        delete fbuffer;
         return 0;
     }
 
@@ -65,7 +88,7 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
     if (!info_ptr) {
         sLog.Error("error: png_create_info_struct returned 0.");
         png_destroy_read_struct(&png_ptr, (png_infopp)NULL, (png_infopp)NULL);
-        fclose(fp);
+        delete fbuffer;
         return 0;
     }
 
@@ -74,7 +97,7 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
     if (!end_info) {
         sLog.Error("error: png_create_info_struct returned 0.");
         png_destroy_read_struct(&png_ptr, &info_ptr, (png_infopp) NULL);
-        fclose(fp);
+        delete fbuffer;
         return 0;
     }
 
@@ -82,12 +105,17 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
     if (setjmp(png_jmpbuf(png_ptr))) {
         sLog.Error("error from libpng");
         png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
-        fclose(fp);
+        delete fbuffer;
         return 0;
     }
 
-    // init png reading
-    png_init_io(png_ptr, fp);
+    // Create memory stream
+    MemoryStream = new struct PngMemoryStream;
+    MemoryStream->FileBuffer = fbuffer;
+    MemoryStream->Index      = 8;
+
+    // Set read function
+    png_set_read_fn(png_ptr, (png_voidp)MemoryStream, MemoryStreamRead);
 
     // let libpng know you already read the first 8 bytes
     png_set_sig_bytes(png_ptr, 8);
@@ -107,7 +135,10 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
     if (Height){ *Height = temp_height; }
 
     if (bit_depth != 8) {
-        fprintf(stderr, "%s: Unsupported bit depth %d.  Must be 8.\n", Path, bit_depth);
+        msg = Path;
+        msg += ": Unsupported bit depth ";
+        msg += std::to_string(bit_depth) + ". Must be 8.";
+        sLog.Error(msg);
         return 0;
     }
 
@@ -120,7 +151,10 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
             format = GL_RGBA;
             break;
         default:
-            fprintf(stderr, "%s: Unknown libpng color type %d.\n", Path, color_type);
+            msg = Path;
+            msg += ": Unknown libpng color type ";
+            msg += std::to_string(color_type) + ".";
+            sLog.Error(msg);
             return 0;
     }
 
@@ -136,19 +170,19 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
     // Allocate the image_data as a big block, to be given to opengl
     png_byte * image_data = (png_byte *)malloc(rowbytes * temp_height * sizeof(png_byte)+15);
     if (image_data == NULL) {
-        fprintf(stderr, "error: could not allocate memory for PNG image data\n");
+        sLog.Error("error: could not allocate memory for PNG image data\n");
         png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
-        fclose(fp);
+        delete fbuffer;
         return 0;
     }
 
     // row_pointers is for pointing to image_data for reading the png with libpng
     png_byte ** row_pointers = (png_byte **)malloc(temp_height * sizeof(png_byte *));
     if (row_pointers == NULL) {
-        fprintf(stderr, "error: could not allocate memory for PNG row pointers\n");
+        sLog.Error("error: could not allocate memory for PNG row pointers\n");
         png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
         free(image_data);
-        fclose(fp);
+        delete fbuffer;
         return 0;
     }
 
@@ -172,6 +206,6 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
     png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
     free(image_data);
     free(row_pointers);
-    fclose(fp);
+    delete fbuffer;
     return texture;
 }

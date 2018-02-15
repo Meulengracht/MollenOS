@@ -309,7 +309,9 @@
         "e_rem_pio2l.h": "c",
         "__threading_support": "cpp",
         "revision.h": "c",
-        "_string.h": "c"
+        "_string.h": "c",
+        "__std_stream": "c",
+        "streambuf": "c"
     },
     "git.ignoreLimitWarning": true
 }

@@ -582,55 +582,41 @@ StdioHandleSeekFile(
     _Out_ long long*        Position)
 {
     // Variables
-    off_t SeekSpotLow = 0, SeekSpotHigh = 0;
+    LargeInteger_t SeekFinal;
 
     // If we search from SEEK_SET, just build offset directly
 	if (Origin != SEEK_SET) {
 		// Start calculation of corrected offsets
-		off64_t CorrectedValue = offabs(Offset);
-		uint64_t fPos = 0, fSize = 0;
-		uint32_t pLo = 0, pHi = 0, sLo = 0, sHi = 0;
-
-	    // Invoke filemanager services
-		if (GetFilePosition(Handle->InheritationData.FileHandle, &pLo, &pHi) != OsSuccess
-			&& GetFileSize(Handle->InheritationData.FileHandle, &sLo, &sHi) != OsSuccess) {
-			return OsError;
-		}
-		else {
-			fSize = ((uint64_t)sHi << 32) | sLo;
-			fPos = ((uint64_t)pHi << 32) | pLo;
-		}
-
-		// Sanitize for overflow
-		if ((size_t)fPos != fPos) {
-			_set_errno(EOVERFLOW);
-			return OsError;
-		}
+        LargeInteger_t FileInitial;
 
 		// Adjust for seek origin
 		if (Origin == SEEK_CUR) {
-			if (Offset < 0) {
-				Offset = (long)fPos - CorrectedValue;
-			}
-			else {
-				Offset = (long)fPos + CorrectedValue;
-			}
+            if (GetFilePosition(Handle->InheritationData.FileHandle, &FileInitial.u.LowPart, &FileInitial.u.HighPart) != OsSuccess) {
+                return OsError;
+            }
+            // Sanitize for overflow
+            if ((size_t)FileInitial.QuadPart != FileInitial.QuadPart) {
+                _set_errno(EOVERFLOW);
+                return OsError;
+            }
 		}
 		else {
-			Offset = (long)fSize - CorrectedValue;
+            if (GetFileSize(Handle->InheritationData.FileHandle, &FileInitial.u.LowPart, &FileInitial.u.HighPart) != OsSuccess) {
+                return OsError;
+            }
 		}
+        SeekFinal.QuadPart = FileInitial.QuadPart + Offset;
 	}
-
-	// Build the final destination
-	SeekSpotLow = Offset & 0xFFFFFFFF;
-	SeekSpotHigh = (Offset >> 32) & 0xFFFFFFFF;
+    else {
+        SeekFinal.QuadPart = Offset;
+    }
 
 	// Now perform the seek
-	if (_fval(SeekFile(Handle->InheritationData.FileHandle, SeekSpotLow, SeekSpotHigh))) {
+	if (_fval(SeekFile(Handle->InheritationData.FileHandle, SeekFinal.u.LowPart, SeekFinal.u.HighPart))) {
 		return OsError;
 	}
 	else {
-        *Position = ((long long)SeekSpotHigh << 32) | SeekSpotLow;
+        *Position = SeekFinal.QuadPart;
 		return OsSuccess;
 	}
 }
