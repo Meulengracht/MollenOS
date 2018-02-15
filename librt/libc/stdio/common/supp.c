@@ -512,8 +512,8 @@ StdioHandleWriteFile(
 		size_t ChunkSize = MIN(OriginalSize, BytesLeft);
 		size_t BytesWrittenLocal = 0;
 		ChangeBufferSize(tls_current()->transfer_buffer, ChunkSize);
-        WriteBuffer(tls_current()->transfer_buffer, 
-            (const void *)Pointer, ChunkSize, &BytesWrittenLocal);
+        WriteBuffer(tls_current()->transfer_buffer, (const void *)Pointer, ChunkSize, &BytesWrittenLocal);
+        SeekBuffer(tls_current()->transfer_buffer, 0); // Rewind buffer
 		if (WriteFile(Handle->InheritationData.FileHandle, tls_current()->transfer_buffer, &BytesWrittenLocal) != FsOk) {
 			break;
 		}

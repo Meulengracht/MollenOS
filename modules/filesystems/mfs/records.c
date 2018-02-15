@@ -291,7 +291,7 @@ MfsLocateFreeRecord(
 					memset(*File, 0, sizeof(MfsFile_t));
 
 					// Store initial stuff, like name
-					(*File)->Name           = Token;
+					(*File)->Name           = MStringCreate((void*)MStringRaw(Token), StrUTF8);
 
 					// Store it's position in the directory
 					(*File)->DirectoryBucket = CurrentBucket;

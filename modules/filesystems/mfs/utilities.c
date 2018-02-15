@@ -425,8 +425,7 @@ MfsUpdateRecord(
 	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
 
 	// Read the stored data bucket where the record is
-	if (MfsReadSectors(Descriptor, Mfs->TransferBuffer, 
-		MFS_GETSECTOR(Mfs, Handle->DirectoryBucket), 
+	if (MfsReadSectors(Descriptor, Mfs->TransferBuffer, MFS_GETSECTOR(Mfs, Handle->DirectoryBucket), 
 		Mfs->SectorsPerBucket * Handle->DirectoryLength) != OsSuccess) {
 		ERROR("Failed to read bucket %u", Handle->DirectoryBucket);
 		Result = FsDiskError;
@@ -451,8 +450,7 @@ MfsUpdateRecord(
 		// extra updates otherwise they share
 		if (Action == MFS_ACTION_CREATE) {
 			Record->Flags = MFS_FILERECORD_INUSE;
-			memcpy(&Record->Name[0],
-				MStringRaw(Handle->Name), MStringSize(Handle->Name));
+			memcpy(&Record->Name[0], MStringRaw(Handle->Name), MStringSize(Handle->Name));
 			memset(&Record->Integrated[0], 0, 512);
 		}
 
@@ -469,8 +467,7 @@ MfsUpdateRecord(
 	}
 	
 	// Write the bucket back to the disk
-	if (MfsWriteSectors(Descriptor, Mfs->TransferBuffer,
-		MFS_GETSECTOR(Mfs, Handle->DirectoryBucket), 
+	if (MfsWriteSectors(Descriptor, Mfs->TransferBuffer, MFS_GETSECTOR(Mfs, Handle->DirectoryBucket), 
 		Mfs->SectorsPerBucket * Handle->DirectoryLength) != OsSuccess) {
 		ERROR("Failed to update bucket %u", Handle->DirectoryBucket);
 		Result = FsDiskError;

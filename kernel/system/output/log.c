@@ -211,7 +211,7 @@ void LogFlush(LogTarget_t Output)
 		int Index = 0;
 		if (GlbLogFileHandle == UUID_INVALID)  {
 			FileSystemCode_t Code =
-				OpenFile("%sys%:/system/boot.txt",
+				OpenFile("$sys/boot.txt",
 					__FILE_CREATE | __FILE_TRUNCATE,
 					__FILE_READ_ACCESS | __FILE_WRITE_ACCESS,
 					&GlbLogFileHandle);

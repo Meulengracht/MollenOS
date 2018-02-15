@@ -23,16 +23,20 @@
 
 /* Includes
  * - System */
+#include "../../utils/log_manager.hpp"
 #include "texture_manager.hpp"
 #include <cstdlib>
+#include <string>
 #include <png.h>
 
 GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Height)
 {
     png_byte header[8];
+    std::string msg = "";
 
     FILE *fp = fopen(Path, "rb");
-    if (fp == 0) {
+    if (fp == NULL) {
+        sLog.Error("Failed to locate file-path");
         perror(Path);
         return 0;
     }
@@ -41,14 +45,17 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
     fread(header, 1, 8, fp);
 
     if (png_sig_cmp(header, 0, 8)) {
-        fprintf(stderr, "error: %s is not a PNG.\n", Path);
+        msg = "error: ";
+        msg += Path;
+        msg += " is not a PNG.";
+        sLog.Error(msg);
         fclose(fp);
         return 0;
     }
 
     png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     if (!png_ptr) {
-        fprintf(stderr, "error: png_create_read_struct returned 0.\n");
+        sLog.Error("error: png_create_read_struct returned 0.");
         fclose(fp);
         return 0;
     }
@@ -56,7 +63,7 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
     // create png info struct
     png_infop info_ptr = png_create_info_struct(png_ptr);
     if (!info_ptr) {
-        fprintf(stderr, "error: png_create_info_struct returned 0.\n");
+        sLog.Error("error: png_create_info_struct returned 0.");
         png_destroy_read_struct(&png_ptr, (png_infopp)NULL, (png_infopp)NULL);
         fclose(fp);
         return 0;
@@ -65,7 +72,7 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
     // create png info struct
     png_infop end_info = png_create_info_struct(png_ptr);
     if (!end_info) {
-        fprintf(stderr, "error: png_create_info_struct returned 0.\n");
+        sLog.Error("error: png_create_info_struct returned 0.");
         png_destroy_read_struct(&png_ptr, &info_ptr, (png_infopp) NULL);
         fclose(fp);
         return 0;
@@ -73,7 +80,7 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
 
     // the code in this if statement gets called if libpng encounters an error
     if (setjmp(png_jmpbuf(png_ptr))) {
-        fprintf(stderr, "error from libpng\n");
+        sLog.Error("error from libpng");
         png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
         fclose(fp);
         return 0;

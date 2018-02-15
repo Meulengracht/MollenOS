@@ -19,11 +19,13 @@
  * MollenOS - File Manager Service
  * - Handles all file related services and disk services
  */
+//#define __TRACE
 
 /* Includes 
  * - System */
 #include "include/vfs.h"
 #include <os/mollenos.h>
+#include <os/utils.h>
 
 /* Includes
  * - C-Library */
@@ -62,7 +64,8 @@ struct {
 	const char*         Identifier;
 	EnvironmentPath_t   Resolve;
 } GlbIdentifers[] = {
-	{ "%sys%", PathSystemDirectory },
+	{ "sys", PathSystemDirectory },
+	{ "bin", PathCommonBin },
 	{ NULL, PathSystemDirectory }
 };
 
@@ -78,7 +81,6 @@ VfsPathResolveEnvironment(
 	CollectionItem_t *fNode = NULL;
 	int pIndex              = (int)Base;
 	int pFound              = 0;
-	char PathBuffer[_MAXPATH];
 
 	// Create a new string instance to store resolved in
 	ResolvedPath = MStringCreate(NULL, StrUTF8);
@@ -112,6 +114,9 @@ VfsPathCanonicalize(
 	MString_t *AbsPath      = NULL;
 	int i                   = 0;
 
+    // Debug
+    TRACE("VfsPathCanonicalize(%s)", Path);
+
     // Create result string
     AbsPath = MStringCreate(NULL, StrUTF8);
 
@@ -124,14 +129,12 @@ VfsPathCanonicalize(
 		}
 
 		// Special Case 1 - Identifier
-		if (Path[i] == '%') {
+		if (Path[i] == '$') {
 			int j = 0;
 			while (GlbIdentifers[j].Identifier != NULL) { // Iterate all possible identifiers
-				if (strcasecmp(GlbIdentifers[j].Identifier, 
-					(__CONST char*)&Path[i])) {
-
-					// Resolve filesystem
-					_foreach(fNode, VfsGetFileSystems()) {
+                size_t IdentifierLength = strlen(GlbIdentifers[j].Identifier);
+				if (!strncasecmp(GlbIdentifers[j].Identifier, (const char*)&Path[i + 1], IdentifierLength)) {
+					_foreach(fNode, VfsGetFileSystems()) { // Resolve filesystem
 						FileSystem_t *Fs = (FileSystem_t*)fNode->Data;
 						if (Fs->Descriptor.Flags & __FILESYSTEM_BOOT) {
 							MStringAppendString(AbsPath, Fs->Identifier);
@@ -142,7 +145,7 @@ VfsPathCanonicalize(
 					// Resolve identifier 
 					MStringAppendCharacters(AbsPath, 
 						GlbEnvironmentalPaths[GlbIdentifers[j].Resolve], StrUTF8);
-					i += strlen(GlbIdentifers[j].Identifier);
+					i += strlen(GlbIdentifers[j].Identifier) + 1; // skip $
 
 					// Is the next char a '/'? If so skip 
 					if (Path[i] == '/' || Path[i] == '\\') {
@@ -150,6 +153,7 @@ VfsPathCanonicalize(
 					}
 					break;
 				}
+                j++;
 			}
 
 			// Did we find what we looked for?
@@ -188,5 +192,6 @@ VfsPathCanonicalize(
 
 	// Replace dublicate // with /
 	//MStringReplace(AbsPath, "//", "/");
+    TRACE("=> %s", MStringRaw(AbsPath));
 	return AbsPath;
 }

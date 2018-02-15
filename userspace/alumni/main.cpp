@@ -31,7 +31,7 @@ int main(int argc, char* argv[])
 
 	/* Setup console stuff */
 	Term->SetSize(80, 25);
-	Term->SetFont("%Sys%/Fonts/DejaVuSansMono.ttf", 12);
+	Term->SetFont("$sys/Fonts/DejaVuSansMono.ttf", 12);
 	Term->SetTextColor(255, 255, 255, 255);
 	Term->SetBackgroundColor(0, 0, 0, 255);
 

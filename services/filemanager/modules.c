@@ -35,13 +35,13 @@
  * untill i figure out a smart protocol for it */
 const char *_GlbFileSystemDrivers[] = {
 	NULL,
-	"%sys%/drivers/filesystems/fat.dll",
-	"%sys%/drivers/filesystems/exfat.dll",
-	"%sys%/drivers/filesystems/ntfs.dll",
-	"%sys%/drivers/filesystems/hfs.dll",
-	"%sys%/drivers/filesystems/hpfs.dll",
+	"$sys/drivers/filesystems/fat.dll",
+	"$sys/drivers/filesystems/exfat.dll",
+	"$sys/drivers/filesystems/ntfs.dll",
+	"$sys/drivers/filesystems/hfs.dll",
+	"$sys/drivers/filesystems/hpfs.dll",
 	"rd:/mfs.dll",
-	"%sys%/drivers/filesystems/ext.dll"
+	"$sys/drivers/filesystems/ext.dll"
 };
 
 /* VfsResolveFileSystem

@@ -20,7 +20,7 @@
  * - Handles all file related services and disk services
  * - ToDo Buffering is not ported to BufferObjects yet
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -211,8 +211,8 @@ VfsOpenInternal(
                 File    = NULL;
             }
             else {
-                // Take care of truncation flag
-                if (Handle->Options & __FILE_TRUNCATE) {
+                // Take care of truncation flag if file was not newly created
+                if ((Handle->Options & __FILE_TRUNCATE) && Created == 0) {
                     Code = Filesystem->Module->ChangeFileSize(&Filesystem->Descriptor, File, 0);
                 }
 
@@ -242,6 +242,39 @@ VfsOpenInternal(
 	return Code;
 }
 
+/* VfsGuessBasePath
+ * Tries to guess the base path of the relative file path in case
+ * the working directory cannot be resolved. */
+OsStatus_t
+VfsGuessBasePath(
+    _In_  const char *Path,
+    _Out_ char *Result)
+{
+    char *dot = strrchr(Path, '.');
+
+    // Debug
+    TRACE("VfsGuessBasePath(%s)", Path);
+
+    if (dot) {
+        // Binaries are found in common
+        if (!strcmp(dot, ".app") || !strcmp(dot, ".dll")) {
+            memcpy(Result, "$bin/", 5);
+        }
+        // Resources are found in system folder
+        else {
+            memcpy(Result, "$sys/", 5);
+        }
+    }
+    // Assume we are looking for folders in system folder
+    else {
+        memcpy(Result, "$sys/", 5);
+    }
+    
+    // Debug
+    TRACE("=> %s", Result);
+    return OsSuccess;
+}
+
 /* VfsResolvePath
  * Resolves the undetermined abs or relative path. */
 MString_t*
@@ -252,12 +285,23 @@ VfsResolvePath(
     // Variables
     MString_t *PathResult = NULL;
 
-    if (strchr(Path, ':') == NULL && strchr(Path, '%') == NULL) {
+    // Debug
+    TRACE("VfsResolvePath(%s)", Path);
+
+    if (strchr(Path, ':') == NULL && strchr(Path, '$') == NULL) {
         char *BasePath  = (char*)malloc(_MAXPATH);
         memset(BasePath, 0, _MAXPATH);
-        GetWorkingDirectoryOfApplication(Requester, &BasePath[0], _MAXPATH);
+        if (GetWorkingDirectoryOfApplication(Requester, &BasePath[0], _MAXPATH) == OsError) {
+            if (VfsGuessBasePath(Path, &BasePath[0]) == OsError) {
+                ERROR("Failed to guess the base path for path %s", Path);
+                return NULL;
+            }
+        }
+        else {
+            strcat(BasePath, "/");
+        }
         strcat(BasePath, Path);
-		PathResult      = VfsPathCanonicalize(Path);
+		PathResult      = VfsPathCanonicalize(BasePath);
 	}
 	else {
 		PathResult      = VfsPathCanonicalize(Path);
@@ -281,7 +325,6 @@ VfsOpenFile(
 	FileSystemFileHandle_t *hFile   = NULL;
 	FileSystemCode_t Code           = FsOk;
 	MString_t *mPath                = NULL;
-	int i                           = 0;
 	DataKey_t Key;
 
     // Debug

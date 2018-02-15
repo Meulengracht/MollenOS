@@ -120,7 +120,7 @@ PipeProduceAcquire(
             SchedulerThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredWorker], 0);
         }
         else {
-            SchedulerThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredWorker], 50);
+            SleepResult = SchedulerThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredWorker], 50);
         }
     }
 
@@ -207,7 +207,7 @@ PipeConsumeAcquire(
             SchedulerThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredReader], 0);
         }
         else {
-            SchedulerThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredReader], 50);
+            SleepResult = SchedulerThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredReader], 50);
         }
     }
     

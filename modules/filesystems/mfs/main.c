@@ -81,8 +81,7 @@ FsCreateFile(
 	FileSystemCode_t Result;
 
 	// Trace
-	TRACE("FsCreateFile(Path %s, Options 0x%x)", 
-		MStringRaw(Path), Options);
+	TRACE("FsCreateFile(Path %s, Options 0x%x)", MStringRaw(Path), Options);
 
 	// Instantiate the pointers
 	Mfs = (MfsInstance_t*)Descriptor->ExtensionData;
@@ -453,10 +452,8 @@ FsWriteFile(
 		// Calculate which bucket, then the sector offset
 		// Then calculate how many sectors of the bucket we need to read
 		uint64_t Sector         = MFS_GETSECTOR(Mfs, fInstance->DataBucketPosition);
-		uint64_t SectorOffset   = (Position - fInstance->BucketByteBoundary)
-			% Descriptor->Disk.Descriptor.SectorSize;
-		size_t SectorIndex      = (size_t)((Position - fInstance->BucketByteBoundary)
-			/ Descriptor->Disk.Descriptor.SectorSize);
+		uint64_t SectorOffset   = (Position - fInstance->BucketByteBoundary) % Descriptor->Disk.Descriptor.SectorSize;
+		size_t SectorIndex      = (size_t)((Position - fInstance->BucketByteBoundary) / Descriptor->Disk.Descriptor.SectorSize);
 		size_t SectorsLeft      = MFS_GETSECTOR(Mfs, fInstance->DataBucketLength) - SectorIndex;
 		size_t SectorCount      = 0, ByteCount = 0;
 
@@ -864,8 +861,9 @@ FsInitialize(
 	BufferObject_t *Buffer          = NULL;
 	MfsInstance_t *Mfs              = NULL;
 	uint8_t *bMap                   = NULL;
+	uint64_t BytesRead              = 0;
 	uint64_t BytesLeft              = 0;
-	size_t i;
+	size_t i, imax;
 
 	// Trace
 	TRACE("FsInitialize()");
@@ -948,9 +946,11 @@ FsInitialize(
 		LODWORD(Mfs->MasterRecord.MapSize));
 
 	// Load map
-	bMap = (uint8_t*)Mfs->BucketMap;
-	BytesLeft = Mfs->MasterRecord.MapSize;
-	i = 0;
+	bMap        = (uint8_t*)Mfs->BucketMap;
+	BytesLeft   = Mfs->MasterRecord.MapSize;
+    BytesRead   = 0;
+	i           = 0;
+    imax        = DIVUP(BytesLeft, (Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize)); //GetBufferCapacity(Buffer)
 	while (BytesLeft) {
 		// Variables
 		uint64_t MapSector = Mfs->MasterRecord.MapSector + (i * Mfs->SectorsPerBucket);
@@ -965,10 +965,14 @@ FsInitialize(
 
 		// Reset buffer position to 0 and read the data into the map
 		SeekBuffer(Buffer, 0);
-		ReadBuffer(Buffer, (__CONST void*)bMap, TransferSize, NULL);
+		ReadBuffer(Buffer, (const void*)bMap, TransferSize, NULL);
 		BytesLeft   -= TransferSize;
+        BytesRead   += TransferSize;
 		bMap        += TransferSize;
 		i++;
+        if (i == (imax / 4) || i == (imax / 2) || i == ((imax / 4) * 3)) {
+            WARNING("Cached %u/%u bytes of sector-map", LODWORD(BytesRead), LODWORD(Mfs->MasterRecord.MapSize));
+        }
 	}
 
 	// Update the structure

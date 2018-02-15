@@ -301,10 +301,10 @@ WriteBuffer(
  * The number of bytes transferred is set as output */
 OsStatus_t
 CombineBuffer(
-    _Out_ BufferObject_t *Destination,
-    _In_ BufferObject_t *Source,
-    _In_ size_t BytesToTransfer,
-    _Out_Opt_ size_t *BytesTransferred)
+    _Out_     BufferObject_t*   Destination,
+    _In_      BufferObject_t*   Source,
+    _In_      size_t            BytesToTransfer,
+    _Out_Opt_ size_t*           BytesTransferred)
 {
     // Variables
     size_t BytesNormalized = 0;
@@ -326,6 +326,8 @@ CombineBuffer(
     BytesNormalized = MIN(BytesToTransfer, 
         MIN(Destination->Length - Destination->Position, Source->Length - Source->Position));
     if (BytesNormalized == 0) {
+        WARNING("CombineBuffer::Source(Position %u, Length %u)", Source->Position, Source->Length);
+        WARNING("CombineBuffer::Destination(Position %u, Length %u)", Destination->Position, Destination->Length);
         WARNING("CombineBuffer::BytesNormalized == 0");
         return OsError;
     }
@@ -368,8 +370,7 @@ ChangeBufferSize(
     _In_ size_t Size)
 {
     // Sanitize
-    if (BufferObject == NULL
-        || (BufferObject->Capacity < Size)) {
+    if (BufferObject == NULL || (BufferObject->Capacity < Size)) {
         return OsError;
     }
 

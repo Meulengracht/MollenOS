@@ -33,7 +33,7 @@ public:
     CLoginScreen(CDisplay *Display) {
         // Load texture
         // @todo load from some settings
-        _TextureBg  = sTextureManager.CreateTexturePNG("%sys%/themes/default/gfxbg.png", &_TextureBgWidth, &_TextureBgHeight);
+        _TextureBg  = sTextureManager.CreateTexturePNG("$sys/themes/default/gfxbg.png", &_TextureBgWidth, &_TextureBgHeight);
         _Display    = Display;
 
         // Initialize to current size
@@ -80,7 +80,7 @@ public:
         glEnable(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, _TextureBg);
 
-        glBegin (GL_QUADS);
+        glBegin(GL_QUADS);
           glTexCoord2d(0.0,0.0); glVertex2d(0.0, 0.0);
           glTexCoord2d(1.0,0.0); glVertex2d((GLdouble)_Width, 0.0);
           glTexCoord2d(1.0,1.0); glVertex2d((GLdouble)_Width, (GLdouble)_Height);
