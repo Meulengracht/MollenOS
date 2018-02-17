@@ -72,6 +72,7 @@ KERNELAPI void LogFlush(LogTarget_t Output);
 /* The log pipes */
 KERNELAPI MCorePipe_t *LogPipeStdout(void);
 KERNELAPI MCorePipe_t *LogPipeStderr(void);
+KERNELAPI void LogDumpPipe(MCorePipe_t *Pipe);
 
 /* The log functions */
 KERNELAPI void Log(__CONST char *Message, ...);

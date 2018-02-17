@@ -247,6 +247,9 @@ streamout_char(FILE *stream, int chr)
     if (stream->_flag & _IOSTRG) {
         // Sanitize buffer
         if (stream->_cnt < sizeof(TCHAR)) {
+            if (stream->_flag & _IOVRT) {
+                return 1;
+            }
             return 0;
         }
 

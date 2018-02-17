@@ -62,7 +62,7 @@
 #define WRITELINE(...)              LogDebug(__MODULE, __VA_ARGS__)
 #define WARNING(...)				LogDebug(__MODULE, __VA_ARGS__)
 #define ERROR(...)					LogFatal(__MODULE, __VA_ARGS__)
-#define FATAL(Scope, ...)			DebugPanic(Scope, __MODULE, __VA_ARGS__)
+#define FATAL(Scope, ...)			DebugPanic(Scope, NULL, __MODULE, __VA_ARGS__)
 #define NOTIMPLEMENTED(...)
 
 /* DebugInstallPageFaultHandlers
@@ -112,8 +112,9 @@ OsStatus_t
 KERNELABI
 DebugPanic(
 	_In_ int FatalityScope,
-	_In_ __CONST char *Module,
-	_In_ __CONST char *Message, ...);
+    _In_ Context_t *Context,
+	_In_ const char *Module,
+	_In_ const char *Message, ...);
 
 /* DebugGetModuleByAddress
  * Retrieves the module (Executable) at the given address */
@@ -132,7 +133,8 @@ KERNELAPI
 OsStatus_t
 KERNELABI
 DebugStackTrace(
-	_In_ size_t MaxFrames);
+    _In_ Context_t* Context,
+	_In_ size_t     MaxFrames);
 
 /* DebugMemory 
  * Dumps memory in the form of <data> <string> at the

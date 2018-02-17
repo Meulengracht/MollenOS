@@ -81,6 +81,7 @@ _CODE_BEGIN
 #define _USERBUF   0x0100
 #define _FWIDE     0x0200
 #define _FBYTE     0x0400
+#define _IOVRT     0x0800
 
 /*******************************
  *       File Structures       *
@@ -156,47 +157,24 @@ CRTDECL(int, fileno(FILE * stream));
 /*******************************
  *       Formatted IO          *
  *******************************/
-_CRTIMP int printf(
-    _In_ __CONST char *format, 
-    ...);
-_CRTIMP int vprintf(
-    _In_ __CONST char *format, 
-    _In_ va_list argptr);
-_CRTIMP int sprintf(
-    _In_ char *buffer,
-    _In_ __CONST char *format,
-    ...);
-_CRTIMP int snprintf(
-	_In_ char *str, 
-	_In_ size_t size, 
-	_In_ __CONST char *format, 
-	...);
-_CRTIMP int vsprintf(
-    _In_ char *buffer,
-    _In_ __CONST char *format,
-    _In_ va_list argptr);
-_CRTIMP int vsnprintf(
-	_In_ char *str, 
-	_In_ size_t size, 
-	_In_ __CONST char *format,
-	_In_ va_list ap);
-_CRTIMP int asprintf(
-	_In_ char **ret, 
-	_In_ __CONST char *format, 
-	...);
-_CRTIMP int vasprintf(
-	_In_ char **ret, 
-	_In_ __CONST char *format, 
-	_In_ va_list ap);
+CRTDECL(int, printf(const char *format, ...));
+CRTDECL(int, vprintf(const char *format, va_list argptr));
+CRTDECL(int, sprintf(char *buffer, const char *format, ...));
+CRTDECL(int, snprintf(char *str, size_t size, const char *format, ...));
+CRTDECL(int, vsprintf(char *buffer, const char *format, va_list argptr));
+CRTDECL(int, vsnprintf(char *str, size_t size, const char *format, va_list ap));
+CRTDECL(int, asprintf(char **ret, const char *format, ...));
+CRTDECL(int, vasprintf(char **ret, const char *format, va_list ap));
+
 _CRTIMP int scanf(
-    _In_ __CONST char *format, 
+    _In_ const char *format, 
     ...);
 _CRTIMP int wscanf(
-    _In_ __CONST wchar_t *format, 
+    _In_ const wchar_t *format, 
     ...);
 _CRTIMP int sscanf(
-    _In_ __CONST char *str, 
-    _In_ __CONST char *format, 
+    _In_ const char *str, 
+    _In_ const char *format, 
     ...);
 _CRTIMP int swscanf(
     _In_ __CONST wchar_t *str, 

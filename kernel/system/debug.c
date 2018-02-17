@@ -116,8 +116,9 @@ DebugPageFault(
 OsStatus_t
 DebugPanic(
 	_In_ int FatalityScope,
-	_In_ __CONST char *Module,
-	_In_ __CONST char *Message, ...)
+    _In_ Context_t *Context,
+	_In_ const char *Module,
+	_In_ const char *Message, ...)
 {
 	// Variables
 	char MessageBuffer[256];
@@ -142,13 +143,14 @@ DebugPanic(
 	LogFatal(Module, &MessageBuffer[0]);
 
 	// Stack trace
-	DebugStackTrace(8);
+	DebugStackTrace(Context, 16);
 
 	// Log cpu and threads
 	LogFatal(Module, "Thread %s - %u (Core %u)!",
 		ThreadingGetCurrentThread(Cpu)->Name, 
 		ThreadingGetCurrentThreadId(), Cpu);
 	ThreadingDebugPrint();
+    LogDumpPipe(LogPipeStderr());
 
 	// Handle based on the scope of the fatality
 	if (FatalityScope == FATAL_SCOPE_KERNEL) {
@@ -172,9 +174,9 @@ DebugPanic(
  * Retrieves the module (Executable) at the given address */
 OsStatus_t
 DebugGetModuleByAddress(
-	_In_ uintptr_t Address,
-	_Out_ uintptr_t *Base,
-	_Out_ char **Name)
+	_In_  uintptr_t     Address,
+	_Out_ uintptr_t*    Base,
+	_Out_ char**        Name)
 {
 	// Validate that the address is within userspace
 	if (Address >= MEMORY_LOCATION_RING3_CODE
@@ -191,8 +193,7 @@ DebugGetModuleByAddress(
 			if (Ash->Executable->LoadedLibraries != NULL) {
 				foreach(lNode, Ash->Executable->LoadedLibraries) {
 					MCorePeFile_t *Lib = (MCorePeFile_t*)lNode->Data;
-					if (Address >= Lib->VirtualAddress
-						&& Lib->VirtualAddress > PmBase) {
+					if (Address >= Lib->VirtualAddress && Lib->VirtualAddress > PmBase) {
 						PmName = (char*)MStringRaw(Lib->Name);
 						PmBase = Lib->VirtualAddress;
 					}
@@ -217,54 +218,43 @@ DebugGetModuleByAddress(
  * Goes back a maximum of <MaxFrames> in the stack */
 OsStatus_t
 DebugStackTrace(
-	_In_ size_t MaxFrames)
+    _In_ Context_t* Context,
+	_In_ size_t     MaxFrames)
 {
 	// Derive stack pointer from the argument
-	uintptr_t *StackPtr = (uintptr_t*)&MaxFrames;
-	size_t Itr = MaxFrames;
+	uintptr_t *StackPtr = NULL;
+    uintptr_t StackLmt  = 0;
+	size_t Itr          = MaxFrames;
 
-	// Iterate the stack frames by retrieving EBP
-	while (Itr != 0 && StackPtr != NULL) {
-		uintptr_t Ip = StackPtr[2];
-		uintptr_t Base = 0;
-		char *Name = NULL;
+    // Use local or given?
+    if (Context == NULL) {
+        StackPtr = (uintptr_t*)&MaxFrames;
+        StackLmt = ((uintptr_t)StackPtr & PAGE_MASK) + PAGE_SIZE;
+    }
+    else if (Context->UserEsp != 0) {
+        StackPtr = (uintptr_t*)Context->UserEsp;
+        StackLmt = MEMORY_LOCATION_RING3_STACK_START;
+    }
+    else {
+        StackPtr = (uintptr_t*)Context->Esp;
+        StackLmt = (Context->Esp & PAGE_MASK) + PAGE_SIZE;
+    }
 
-		// Santize IP
-		// It cannot be null and it must be a valid address
-		if (Ip == 0 || AddressSpaceGetMapping(AddressSpaceGetCurrent(), Ip) == 0) {
-			break;
-		}
-
-		// Lookup module if the address is within userspace
-		if (DebugGetModuleByAddress(Ip, &Base, &Name) == OsSuccess) {
-			uintptr_t Diff = Ip - Base;
+    while (Itr && (uintptr_t)StackPtr < StackLmt) {
+		uintptr_t Value = StackPtr[0];
+		uintptr_t Base  = 0;
+		char *Name      = NULL;
+        if (DebugGetModuleByAddress(Value, &Base, &Name) == OsSuccess) {
+			uintptr_t Diff = Value - Base;
 			WRITELINE("%u - 0x%x (%s)", MaxFrames - Itr, Diff, Name);
+            Itr--;
 		}
-		else {
-			WRITELINE("%u - 0x%x", MaxFrames - Itr, Ip);
+		else if (Value >= MEMORY_LOCATION_RING3_CODE && Value < MEMORY_LOCATION_RING3_HEAP) {
+			WRITELINE("%u - 0x%x", MaxFrames - Itr, Value);
+            Itr--;
 		}
-
-		// Again, sanitize the EBP frame as we may
-		// reach invalid values
-		if (StackPtr[1] == 0 || AddressSpaceGetMapping(AddressSpaceGetCurrent(), StackPtr[1]) == 0) {
-			break;
-		}
-
-		// Retrieve argument pointer
-		//uint32_t *ArgPtr = &StackPtr[0];
-
-		// Get next EBP frame
-		StackPtr = (uint32_t*)StackPtr[1];
-		StackPtr--;
-
-		/* Sanitize */
-		if (AddressSpaceGetMapping(AddressSpaceGetCurrent(), (VirtualAddress_t)StackPtr) == 0) {
-			break;
-		}
-
-		// One less frame to unwind
-		Itr--;
-	}
+        StackPtr++;
+    }
 
 	// Always succeed
 	return OsSuccess;

@@ -24,7 +24,7 @@ int _sxprintf(
 #if USE_COUNT
     _In_ size_t count,
 #endif
-    _In_ __CONST TCHAR *format,
+    _In_ const TCHAR *format,
 #if USE_VARARGS
     _In_ va_list argptr)
 #else
@@ -49,6 +49,10 @@ int _sxprintf(
     stream._bufsiz = 0;
     stream._flag = _IOSTRG | _IOWRT;
     stream._tmpfname = 0;
+
+#if USE_VIRTUAL
+    stream._flag |= _IOVRT;
+#endif
 
 #if !USE_VARARGS
     va_start(argptr, format);

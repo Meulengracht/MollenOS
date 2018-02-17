@@ -56,6 +56,14 @@ MCorePipe_t *LogPipeStderr(void) {
     return LogStderr;
 }
 
+void LogDumpPipe(MCorePipe_t *Pipe) {
+    for (int i = 0; i < PIPE_WORKERS; i++) {
+        if (Pipe->Workers[i].Registered) {
+            LogRaw((const char*)&Pipe->Buffer[Pipe->Workers[i].IndexData]);
+        }
+    } 
+}
+
 /* LogInitialize
  * Initializes loggin data-structures and global variables
  * by setting everything to sane value */

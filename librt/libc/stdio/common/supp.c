@@ -438,6 +438,30 @@ StdioHandleReadFile(
 	uint8_t *Pointer        = (uint8_t*)Buffer;
 	size_t BytesReadTotal   = 0, BytesLeft = (size_t)Length;
 	size_t OriginalSize     = GetBufferSize(tls_current()->transfer_buffer);
+
+    // There is a time when reading more than a couple of times is considerably slower
+    // than just reading the entire thing at once. When? Who knows, but in our case anything
+    // more than 5 transfers is useless
+    if (Length >= (OriginalSize * 5)) {
+        BufferObject_t *TransferBuffer  = CreateBuffer(Length);
+		size_t BytesReadFs              = 0, BytesIndex = 0;
+        FileSystemCode_t FsCode         = FsOk;
+
+        FsCode = ReadFile(Handle->InheritationData.FileHandle, TransferBuffer, &BytesIndex, &BytesReadFs);
+        if (_fval(FsCode) || BytesReadFs == 0) {
+            if (BytesReadFs == 0) {
+                *BytesRead = 0;
+                return OsSuccess;
+            }
+            return OsError;
+        }
+        ChangeBufferSize(TransferBuffer, GetBufferCapacity(TransferBuffer));
+		SeekBuffer(TransferBuffer, BytesIndex);
+        ReadBuffer(TransferBuffer, (const void*)Pointer, BytesReadFs, NULL);
+        DestroyBuffer(TransferBuffer);
+        *BytesRead = BytesReadFs;
+        return OsSuccess;
+    }
     
     // Keep reading chunks untill we've read all requested
 	while (BytesLeft > 0) {
@@ -566,10 +590,6 @@ StdioWriteInternal(
         _set_errno(EBADF);
 		return OsError;
     }
-}
-
-off64_t offabs(off64_t Value) {
-	return (Value <= 0) ? 0 - Value : Value;
 }
 
 /* StdioHandleSeekFile 

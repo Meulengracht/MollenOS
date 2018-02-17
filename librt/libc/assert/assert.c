@@ -25,9 +25,8 @@
 #ifdef LIBC_KERNEL
 #define __MODULE "LIBK"
 #include <debug.h>
-void _assert_panic(const char* str)
-{
-	DebugPanic(FATAL_SCOPE_KERNEL, __MODULE, str);
+void _assert_panic(const char* str) {
+	DebugPanic(FATAL_SCOPE_KERNEL, NULL, __MODULE, str);
 }
 #else
 #include <os/utils.h>

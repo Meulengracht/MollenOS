@@ -6,7 +6,9 @@
                 "${workspaceRoot}",
                 "${workspaceRoot}/librt/include",
                 "${workspaceRoot}/kernel/acpica/include",
-                "${workspaceRoot}/kernel/include"
+                "${workspaceRoot}/kernel/include",
+                "${workspaceRoot}/userspace/include",
+                "${workspaceRoot}/userspace/include/cxx"
             ],
             "defines": [
                 "__STDC_VERSION__=201112L",
