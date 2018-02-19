@@ -1,17 +1,19 @@
 # Makefile for building a generic userspace application
 INCLUDES = -I../include/cxx -I../include
-SOURCES = $(wildcard ./*.cpp)
-OBJECTS = $(SOURCES:.cpp=.o)
 
 CXXFLAGS = $(GUCXXFLAGS) $(INCLUDES)
-LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtConsoleEntry $(GUCXXLIBRARIES)
+LFLAGS = $(GLFLAGS) /lldmap $(GUCXXLIBRARIES)
 
 .PHONY: all
-all: ../bin/cpptest.app
+all: ../bin/cpplibtest.dll ../bin/cpptest.app
 
-../bin/cpptest.app: $(OBJECTS)
+../bin/cpplibtest.dll: lib.o
+	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
+	@$(LD) /dll /entry:__CrtLibraryEntry $(LFLAGS) lib.o /out:$@
+
+../bin/cpptest.app: main.o
 	@printf "%b" "\033[0;36mCreating application " $@ "\033[m\n"
-	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	@$(LD) /entry:__CrtConsoleEntry ../bin/cpplibtest.lib $(LFLAGS) main.o /out:$@
 	
 %.o : %.cpp
 	@printf "%b" "\033[0;32mCompiling C++ source object " $< "\033[m\n"
@@ -19,5 +21,7 @@ all: ../bin/cpptest.app
 
 .PHONY: clean
 clean:
-	@rm -f $(OBJECTS)
+	@rm -f main.o lib.o
 	@rm -f ../bin/cpptest.app
+	@rm -f ../bin/cpplibtest.dll
+	@rm -f ../bin/cpplibtest.lib

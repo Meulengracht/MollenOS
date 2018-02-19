@@ -110,9 +110,7 @@ static void (*PrimaryApplicationTlsAttach)(void);
 
 /* __CrtCallInitializers
  * */
-CRTDECL(void, __CrtCallInitializers(
-	_PVFV *pfbegin,
-	_PVFV *pfend))
+CRTDECL(void, __CrtCallInitializers(_PVFV *pfbegin, _PVFV *pfend))
 {
 	while (pfbegin < pfend) {
 		if (*pfbegin != NULL)

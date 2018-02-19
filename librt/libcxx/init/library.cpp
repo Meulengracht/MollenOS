@@ -50,8 +50,8 @@ __CrtLibraryEntry(int Action)
         case DLL_ACTION_FINALIZE: {
             // Module is being unloaded
             dllmain(DLL_ACTION_FINALIZE);
-            __cxa_finalize(__dso_handle);
             __CrtCxxFinalize();
+            __cxa_finalize(__dso_handle);
         } break;
         case DLL_ACTION_THREADATTACH: {
             __CrtAttachTlsBlock();

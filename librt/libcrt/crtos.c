@@ -172,9 +172,6 @@ __CrtInitialize(
 	tls_create(Tls);
 	tls_initialize();
 
-	// Initialize C/CPP
-    __cxa_runinitializers(__CrtCxxInitialize, __CrtCxxFinalize, __CrtAttachTlsBlock);
-
     // Get startup information
     memset(&StartupInformation, 0, sizeof(ProcessStartupInformation_t));
     if (StartupInfoEnabled) {
@@ -206,5 +203,8 @@ __CrtInitialize(
     // Initialize default comm pipes
     PipeOpen(PIPE_RPCOUT);
     PipeOpen(PIPE_RPCIN);
+
+	// Initialize C/CPP constructors as the last step
+    __cxa_runinitializers(__CrtCxxInitialize, __CrtCxxFinalize, __CrtAttachTlsBlock);
     return Arguments;
 }

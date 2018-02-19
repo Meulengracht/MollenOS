@@ -18,10 +18,12 @@
  *
  * MollenOS C Environment - Shared Routines
  */
+#define __TRACE
 
 /* Includes
  * - Library */
 #include <os/mollenos.h>
+#include <os/utils.h>
 #include <stdlib.h>
 #include <threads.h>
 #include <string.h>
@@ -111,7 +113,7 @@ _CRTALLOC(".tls$ZZZ") char _tls_end     = 0;
 /* Externs 
  * - Access to lib-c initializers */
 CRTDECL(void, __CrtCallInitializers(_PVFV *pfbegin, _PVFV *pfend));
-CRTDECL(int, __CrtCallInitializersEx(_PIFV *pfbegin, _PIFV *pfend));
+CRTDECL(int,  __CrtCallInitializersEx(_PIFV *pfbegin, _PIFV *pfend));
 CRTDECL(void, __CrtCallInitializersTls(_PVTLS *pfbegin, _PVTLS *pfend, void *dso_handle, unsigned long reason));
 
 /* Globals
@@ -170,10 +172,10 @@ void __CrtAttachTlsBlock(void) {
 // On ALL coff platform this must be called
 // to run all initializers for C/C++
 void __CrtCxxInitialize(void) {
-	__CrtCallInitializers(__xc_a, __xc_z);
-	__CrtCallInitializersEx(__xi_a, __xi_z);
     __CrtCreateTlsBlock();
     __CrtAttachTlsBlock();
+	__CrtCallInitializers(__xc_a, __xc_z);
+	__CrtCallInitializersEx(__xi_a, __xi_z);
 }
 
 // On non-windows coff platforms this should not be run

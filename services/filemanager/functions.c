@@ -363,8 +363,7 @@ VfsOpenFile(
 	else {
 		*Handle = hFile->Id = VfsIdentifierFileGet();
 		Key.Value = (int)hFile->Id;
-		CollectionAppend(VfsGetOpenHandles(),
-			CollectionCreateNode(Key, hFile));
+		CollectionAppend(VfsGetOpenHandles(), CollectionCreateNode(Key, hFile));
 	}
 	return Code;
 }

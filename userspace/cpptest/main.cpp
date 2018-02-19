@@ -53,16 +53,28 @@ int TestThreading() {
 }
 
 /*******************************************
+ * Global init test
+ *******************************************/
+#include "lib.hpp"
+static CTestLib _TestLibInstance;
+int TestGlobalInitialization() {
+    TRACE("(M) Value of the global static: %i", _TestLibInstance.callme());
+    if (_TestLibInstance.callme() != 42) return 1;
+    return 0;
+}
+
+/*******************************************
  * Entry Point
  *******************************************/
 int main(int argc, char **argv) {
     int ErrorCounter = 0;
 
+    // Run tests that must be in source files
+    ErrorCounter += TestThreading();
+    ErrorCounter += TestGlobalInitialization();
+   
     // Run tests
     RUN_TEST_SUITE(ErrorCounter, ConsoleStreamTests);
     RUN_TEST_SUITE(ErrorCounter, FileStreamTests);
-
-    // Run tests that must be in source files
-    ErrorCounter += TestThreading();
     return ErrorCounter;
 }

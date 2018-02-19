@@ -57,6 +57,9 @@ MCorePipe_t *LogPipeStderr(void) {
 }
 
 void LogDumpPipe(MCorePipe_t *Pipe) {
+    if (Pipe == NULL || Pipe->Buffer == NULL) {
+        return;
+    }
     for (int i = 0; i < PIPE_WORKERS; i++) {
         if (Pipe->Workers[i].Registered) {
             LogRaw((const char*)&Pipe->Buffer[Pipe->Workers[i].IndexData]);

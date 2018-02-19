@@ -550,14 +550,14 @@ PeHandleImports(
  * the library */
 MCorePeFile_t*
 PeResolveLibrary(
-    _In_ MCorePeFile_t *Parent,
-    _In_ MCorePeFile_t *PeFile,
-    _In_ MString_t *LibraryName,
-    _InOut_ uintptr_t *LoadAddress)
+    _In_    MCorePeFile_t*  Parent,
+    _In_    MCorePeFile_t*  PeFile,
+    _In_    MString_t*      LibraryName,
+    _InOut_ uintptr_t*      LoadAddress)
 {
     // Variables
     MCorePeFile_t *ExportParent = Parent;
-    MCorePeFile_t *Exports = NULL;
+    MCorePeFile_t *Exports      = NULL;
 
     // Sanitize the parent, because the parent will
     // be null when it's the root module
@@ -578,7 +578,7 @@ PeResolveLibrary(
         // If we find it, then increase the ref count
         // and use its exports
         if (MStringCompare(Library->Name, LibraryName, 1) == MSTRING_FULL_MATCH) {
-            TRACE("Library was already resolved, increasing ref count");
+            TRACE("Library %s was already resolved, increasing ref count", MStringRaw(Library->Name));
             Library->References++;
             Exports = Library;
             break;
@@ -645,34 +645,20 @@ PeResolveLibrary(
         // After retrieving the data we can now
         // load the actual image
         TRACE("Parsing pe-image");
-        Library = PeLoadImage(ExportParent, 
-            LibraryName, fBuffer, fSize, LoadAddress, ExportParent->UsingInitRD);
+        Library = PeLoadImage(ExportParent, LibraryName, fBuffer, fSize, LoadAddress, ExportParent->UsingInitRD);
         Exports = Library;
 
         // Cleanup buffer, we are done with it now
         if (!ExportParent->UsingInitRD) {
             kfree(fBuffer);
         }
-
-        // Add library to loaded libs
-        if (Exports != NULL) {
-            DataKey_t Key;
-            Key.Value = 0;
-            SpinlockAcquire(&ExportParent->LibraryLock);
-            CollectionAppend(ExportParent->LoadedLibraries, 
-                CollectionCreateNode(Key, Library));
-            SpinlockRelease(&ExportParent->LibraryLock);
-        }
     }
 
     // Sanitize exports again, it's only NULL
     // if all our attempts failed!
     if (Exports == NULL) {
-        ERROR("Library %s was unable to be resolved", 
-            MStringRaw(LibraryName));
+        ERROR("Library %s was unable to be resolved", MStringRaw(LibraryName));
     }
-
-    // Exporting done
     return Exports;
 }
 
@@ -934,8 +920,8 @@ PeGetModuleHandles(
  * Retrieves a list of loaded module entry points currently loaded for the process. */
 OsStatus_t
 PeGetModuleEntryPoints(
-    _In_ MCorePeFile_t *Executable,
-    _Out_ Handle_t ModuleList[PROCESS_MAXMODULES])
+    _In_  MCorePeFile_t*    Executable,
+    _Out_ Handle_t          ModuleList[PROCESS_MAXMODULES])
 {
     // Variables
     int Index = 0;
@@ -952,7 +938,9 @@ PeGetModuleEntryPoints(
     if (Executable->LoadedLibraries != NULL) {
         foreach(Node, Executable->LoadedLibraries) {
             MCorePeFile_t *Library = (MCorePeFile_t*)Node->Data;
-            ModuleList[Index++] = (Handle_t)Library->EntryAddress;
+            if (Library->EntryAddress != 0) {
+                ModuleList[Index++] = (Handle_t)Library->EntryAddress;
+            }
         }
     }
     return OsSuccess;

@@ -2,11 +2,11 @@
 # This will produce the file libcxxabi.lib
 INCLUDES = -Icxx/include -I../include -Iabi/include/
 
-INT_SOURCES = $(wildcard init/*.c)
+INT_SOURCES = ../libcrt/crtos.c ../libcrt/crtcoff.c
 ABI_SOURCES = $(wildcard abi/src/*.cpp) $(wildcard init/*.cpp)
 CXX_SOURCES = $(wildcard cxx/src/*.cpp)
 SHR_SOURCES = main.cpp
-INT_OBJECTS = $(INT_SOURCES:.c=.o)
+INT_OBJECTS = $(INT_SOURCES:.c=.xo)
 ABI_OBJECTS = $(ABI_SOURCES:.cpp=.o)
 CXX_OBJECTS = $(CXX_SOURCES:.cpp=.o)
 SHR_OBJECTS = $(SHR_SOURCES:.cpp=.o)
@@ -57,7 +57,7 @@ $(SHR_OBJECTS): %.o : %.cpp
 	@printf "%b" "\033[0;32mCompiling C++ source object " $< "\033[m\n"
 	@$(CXX) -c $(CXXFLAGS) $(CXX_CONFIG) -o $@ $<
 
-%.o : %.c
+%.xo : %.c
 	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
 	@$(CC) -c $(CFLAGS) -o $@ $<
 

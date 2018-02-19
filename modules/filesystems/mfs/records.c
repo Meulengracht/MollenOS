@@ -265,9 +265,12 @@ MfsLocateFreeRecord(
 			goto Cleanup;
 		}
 
+		// Trace
+		TRACE("Reading bucket %u with length %u, link 0x%x", 
+            CurrentBucket, Link.Length, Link.Link);
+		
 		// Start out by loading the bucket buffer with data
-		if (MfsReadSectors(Descriptor, Mfs->TransferBuffer,
-			MFS_GETSECTOR(Mfs, CurrentBucket), 
+		if (MfsReadSectors(Descriptor, Mfs->TransferBuffer, MFS_GETSECTOR(Mfs, CurrentBucket), 
 			Mfs->SectorsPerBucket * Link.Length) != OsSuccess) {
 			ERROR("Failed to read directory-bucket %u", CurrentBucket);
 			Result = FsDiskError;
@@ -356,6 +359,10 @@ MfsLocateFreeRecord(
 							goto Cleanup;
 						}
 					}
+                    
+					// Trace
+					TRACE("Following the trail into bucket %u with the remaining path %s",
+						Record->StartBucket, MStringRaw(Remaining));
 					
 					// Go recursive with the remaining path
 					Result = MfsLocateFreeRecord(Descriptor, Record->StartBucket, 
@@ -413,10 +420,10 @@ MfsLocateFreeRecord(
 					Result = FsDiskError;
 					goto Cleanup;
 				}
-
-				// Update current bucket pointer
-				CurrentBucket = Link.Link;
 			}
+
+            // Update current bucket pointer
+            CurrentBucket = Link.Link;
 		}
 	}
 
@@ -440,9 +447,14 @@ MfsCreateRecord(
 	_In_  Flags_t                   Flags, 
 	_Out_ MfsFile_t**               File)
 {
-	// Locate a free entry, and make sure file does not exist 
-	FileSystemCode_t Result = MfsLocateFreeRecord(Descriptor, 
-		BucketOfDirectory, Path, File);
+	// Variables
+	FileSystemCode_t Result = FsOk;
+
+    // Debug
+    TRACE("MfsCreateRecord(Bucket %u, Path %s)", BucketOfDirectory, MStringRaw(Path));
+
+    // Locate a free entry, and make sure file does not exist 
+    Result = MfsLocateFreeRecord(Descriptor, BucketOfDirectory, Path, File);
 
 	// If it failed either of two things happened 
 	// 1) Path was invalid 
@@ -457,7 +469,5 @@ MfsCreateRecord(
 	(*File)->Size           = 0;
 	(*File)->AllocatedSize  = 0;
 	(*File)->Flags          = Flags | MFS_FILERECORD_INUSE;
-
-	// Update the on-disk record with the new data
-	return MfsUpdateRecord(Descriptor, *File, MFS_ACTION_CREATE);
+    return MfsUpdateRecord(Descriptor, *File, MFS_ACTION_CREATE);
 }
