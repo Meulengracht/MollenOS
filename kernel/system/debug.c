@@ -58,7 +58,8 @@ DebugSingleStep(
 	// Variables
 
 	// Trace
-	TRACE("DebugSingleStep(IP 0x%x)", Context->Eip);
+	TRACE("DebugSingleStep(IP 0x%x)", CONTEXT_IP(Context));
+    // @todo
 
 	_CRT_UNUSED(Context);
 
@@ -77,7 +78,8 @@ DebugBreakpoint(
 	// Variables
 
 	// Trace
-	TRACE("DebugBreakpoint(IP 0x%x)", Context->Eip);
+	TRACE("DebugBreakpoint(IP 0x%x)", CONTEXT_IP(Context));
+    // @todo
 
 	_CRT_UNUSED(Context);
 
@@ -95,7 +97,7 @@ DebugPageFault(
 	_In_ uintptr_t  Address)
 {
 	// Trace
-	TRACE("DebugPageFault(IP 0x%x, Address 0x%x)", Context->Eip, Address);
+	TRACE("DebugPageFault(IP 0x%x, Address 0x%x)", CONTEXT_IP(Context), Address);
     for (int i = 0; i < 8; i++) {
         if (PageFaultHandlers[i].AreaHandler == NULL) {
             break;
@@ -115,10 +117,10 @@ DebugPageFault(
  * return again */
 OsStatus_t
 DebugPanic(
-	_In_ int FatalityScope,
-    _In_ Context_t *Context,
-	_In_ const char *Module,
-	_In_ const char *Message, ...)
+	_In_ int            FatalityScope,
+    _In_ Context_t*     Context,
+	_In_ const char*    Module,
+	_In_ const char*    Message, ...)
 {
 	// Variables
 	char MessageBuffer[256];
@@ -138,12 +140,10 @@ DebugPanic(
 	va_start(Arguments, Message);
 	vsprintf(&MessageBuffer[0], Message, Arguments);
 	va_end(Arguments);
-
-	// Debug print it
 	LogFatal(Module, &MessageBuffer[0]);
 
 	// Stack trace
-	DebugStackTrace(Context, 16);
+	DebugStackTrace(Context, 8);
 
 	// Log cpu and threads
 	LogFatal(Module, "Thread %s - %u (Core %u)!",
@@ -157,16 +157,15 @@ DebugPanic(
 		CpuHalt();
 	}
 	else if (FatalityScope == FATAL_SCOPE_PROCESS) {
-		// Dismiss process
+        // @todo
 	}
 	else if (FatalityScope == FATAL_SCOPE_THREAD) {
-		// Dismiss thread
+        // @todo
 	}
 	else {
-		WARNING("Encounted an unkown fatality scope %i", FatalityScope);
+		ERROR("Encounted an unkown fatality scope %i", FatalityScope);
+        CpuHalt();
 	}
-
-	// Never reached
 	return OsSuccess;
 }
 
@@ -179,26 +178,27 @@ DebugGetModuleByAddress(
 	_Out_ char**        Name)
 {
 	// Validate that the address is within userspace
-	if (Address >= MEMORY_LOCATION_RING3_CODE
-		&& Address < MEMORY_LOCATION_RING3_HEAP) {
+	if (Address >= MEMORY_LOCATION_RING3_CODE && Address < MEMORY_LOCATION_RING3_HEAP) {
 		MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
 
 		// Sanitize whether or not a process was running
 		if (Ash != NULL && Ash->Executable != NULL) {
-			char *PmName = (char*)MStringRaw(Ash->Executable->Name);
-			uintptr_t PmBase = Ash->Executable->VirtualAddress;
+			uintptr_t PmBase    = Ash->Executable->VirtualAddress;
+			char *PmName        = (char*)MStringRaw(Ash->Executable->Name);
 
-			// Iterate libraries to find the sinner
-			// We only want one 
-			if (Ash->Executable->LoadedLibraries != NULL) {
-				foreach(lNode, Ash->Executable->LoadedLibraries) {
-					MCorePeFile_t *Lib = (MCorePeFile_t*)lNode->Data;
-					if (Address >= Lib->VirtualAddress && Lib->VirtualAddress > PmBase) {
-						PmName = (char*)MStringRaw(Lib->Name);
-						PmBase = Lib->VirtualAddress;
-					}
-				}
-			}
+            // Was it not main executable?
+            if (Address > (Ash->Executable->CodeBase + Ash->Executable->CodeSize)) {
+			    // Iterate libraries to find the sinner
+                if (Ash->Executable->LoadedLibraries != NULL) {
+                    foreach(lNode, Ash->Executable->LoadedLibraries) {
+                        MCorePeFile_t *Lib = (MCorePeFile_t*)lNode->Data;
+                        if (Address >= Lib->CodeBase && Address < (Lib->CodeBase + Lib->CodeSize)) {
+                            PmName = (char*)MStringRaw(Lib->Name);
+                            PmBase = Lib->VirtualAddress;
+                        }
+                    }
+                }
+            }
 
 			// Update out's
 			*Base = PmBase;
@@ -249,14 +249,8 @@ DebugStackTrace(
 			WRITELINE("%u - 0x%x (%s)", MaxFrames - Itr, Diff, Name);
             Itr--;
 		}
-		else if (Value >= MEMORY_LOCATION_RING3_CODE && Value < MEMORY_LOCATION_RING3_HEAP) {
-			WRITELINE("%u - 0x%x", MaxFrames - Itr, Value);
-            Itr--;
-		}
         StackPtr++;
     }
-
-	// Always succeed
 	return OsSuccess;
 }
 
@@ -265,9 +259,9 @@ DebugStackTrace(
  * given address and length of memory dump */
 OsStatus_t
 DebugMemory(
-	_In_Opt_ __CONST char *Description,
-	_In_ void *Address,
-	_In_ size_t Length)
+	_In_Opt_ const char*    Description,
+	_In_     void*          Address,
+	_In_     size_t         Length)
 {
 	// Variables
 	uint8_t Buffer[17];

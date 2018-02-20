@@ -203,7 +203,6 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
     sLog.Info("Projecting texture");
     TRACE("%u x %u x %u, 0x%x (rowbytes %i), format %i, alloc size %u", 
         temp_width, temp_height, bit_depth, image_data, rowbytes, format, rowbytes * temp_height * sizeof(png_byte)+15);
-    BOCHSBREAK
     glTexImage2D(GL_TEXTURE_2D, 0, format, temp_width, temp_height, 0, format, GL_UNSIGNED_BYTE, image_data);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);

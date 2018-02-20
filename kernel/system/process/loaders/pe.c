@@ -50,14 +50,14 @@ __EXTERN CriticalSection_t LoaderLock;
  * of a PE executable */
 uint32_t
 PeCalculateChecksum(
-    _In_ uint8_t *Data, 
-    _In_ size_t DataLength, 
-    _In_ size_t PeChkSumOffset)
+    _In_ uint8_t*   Data, 
+    _In_ size_t     DataLength, 
+    _In_ size_t     PeChkSumOffset)
 {
     // Variables
-    uint32_t *DataPtr = (uint32_t*)Data;
-    uint64_t Limit = 4294967296;
-    uint64_t CheckSum = 0;
+    uint32_t *DataPtr   = (uint32_t*)Data;
+    uint64_t Limit      = 4294967296;
+    uint64_t CheckSum   = 0;
 
     for (size_t i = 0; i < (DataLength / 4); i++, DataPtr++) {
         uint32_t Val = *DataPtr;
@@ -85,15 +85,15 @@ PeCalculateChecksum(
  * validation. Returns either PE_INVALID or PE_VALID */
 int
 PeValidate(
-    _In_ uint8_t *Buffer, 
-    _In_ size_t Length)
+    _In_ uint8_t*   Buffer, 
+    _In_ size_t     Length)
 {
     // Variables
-    MzHeader_t *DosHeader = NULL;
-    PeHeader_t *BaseHeader = NULL;
-    PeOptionalHeader_t *OptHeader = NULL;
-    size_t HeaderCheckSum = 0, CalculatedCheckSum = 0;
-    size_t CheckSumAddress = 0;
+    PeOptionalHeader_t *OptHeader   = NULL;
+    PeHeader_t *BaseHeader          = NULL;
+    MzHeader_t *DosHeader           = NULL;
+    size_t HeaderCheckSum           = 0, CalculatedCheckSum = 0;
+    size_t CheckSumAddress          = 0;
 
     // Get pointer to DOS
     DosHeader = (MzHeader_t*)Buffer;
@@ -169,15 +169,15 @@ PeValidate(
  * It also returns the last memory address of the relocations */
 uintptr_t
 PeHandleSections(
-    _In_ MCorePeFile_t *PeFile,
-    _In_ uint8_t *Data,
-    _In_ uintptr_t SectionAddress,
-    _In_ int SectionCount,
-    _In_ int UserSpace)
+    _In_ MCorePeFile_t* PeFile,
+    _In_ uint8_t*       Data,
+    _In_ uintptr_t      SectionAddress,
+    _In_ int            SectionCount,
+    _In_ int            UserSpace)
 {
     // Variables
-    PeSectionHeader_t *Section = (PeSectionHeader_t*)SectionAddress;
-    uintptr_t CurrentAddress = PeFile->VirtualAddress;
+    PeSectionHeader_t *Section  = (PeSectionHeader_t*)SectionAddress;
+    uintptr_t CurrentAddress    = PeFile->VirtualAddress;
     char SectionName[PE_SECTION_NAME_LENGTH + 1];
     int i, j;
 
@@ -191,14 +191,14 @@ PeHandleSections(
         // Calculate pointers, we need two of them, one that
         // points to data in file, and one that points to where
         // in memory we want to copy data to
-        uint8_t *FileBuffer = (uint8_t*)(Data + Section->RawAddress);
-        uint8_t *Destination = (uint8_t*)(PeFile->VirtualAddress + Section->VirtualAddress);
-        int PageCount = DIVUP(MAX(Section->RawSize, Section->VirtualSize), AddressSpaceGetPageSize());
+        uint8_t *FileBuffer     = (uint8_t*)(Data + Section->RawAddress);
+        uint8_t *Destination    = (uint8_t*)(PeFile->VirtualAddress + Section->VirtualAddress);
+        int PageCount           = DIVUP(MAX(Section->RawSize, Section->VirtualSize), AddressSpaceGetPageSize());
 
         // Make a local copy of the name, just in case
         // we need to do some debug print
         memcpy(&SectionName[0], &Section->Name[0], 8);
-        SectionName[8] = 0;
+        SectionName[8]          = 0;
 
         // Iterate pages and map them in our memory space
         Flags_t PageFlags = (UserSpace == 1) ? ASPACE_FLAG_APPLICATION : 0;
@@ -210,16 +210,22 @@ PeHandleSections(
             }
         }
 
+        // Store first code segment we encounter
+        if (Section->Flags & PE_SECTION_CODE) {
+            if (PeFile->CodeBase == 0) {
+                PeFile->CodeBase = (uintptr_t)Destination;
+                PeFile->CodeSize = Section->VirtualSize;
+            }
+        }
+
         // Handle sections specifics, we want to:
         // BSS: Zero out the memory 
         // Code: Copy memory 
         // Data: Copy memory
-        if (Section->RawSize == 0
-            || (Section->Flags & PE_SECTION_BSS)) {
+        if (Section->RawSize == 0 || (Section->Flags & PE_SECTION_BSS)) {
             memset(Destination, 0, Section->VirtualSize);
         }
-        else if ((Section->Flags & PE_SECTION_CODE)
-                || (Section->Flags & PE_SECTION_DATA)) {
+        else if ((Section->Flags & PE_SECTION_CODE) || (Section->Flags & PE_SECTION_DATA)) {
             memcpy(Destination, FileBuffer, Section->RawSize);
 
             // Sanitize this special case, if the virtual size
@@ -667,8 +673,8 @@ PeResolveLibrary(
  * value is the address of the function. 0 If not found */
 uintptr_t
 PeResolveFunction(
-    _In_ MCorePeFile_t *Library, 
-    _In_ __CONST char *Function)
+    _In_ MCorePeFile_t* Library, 
+    _In_ const char*    Function)
 {
     // Variables
     MCorePeExportFunction_t *Exports = Library->ExportedFunctions;

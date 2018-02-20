@@ -65,10 +65,13 @@ typedef struct _MCorePeExportFunction {
 typedef struct _MCorePeFile {
     MString_t               *Name;
     uint32_t                 Architecture;
-    uintptr_t                VirtualAddress;
-    uintptr_t                EntryAddress;
     int                      References;
     int                      UsingInitRD;
+
+    uintptr_t                VirtualAddress;
+    uintptr_t                EntryAddress;
+    uintptr_t                CodeBase;
+    size_t                   CodeSize;
     
     int                      NumberOfExportedFunctions;
     MCorePeExportFunction_t *ExportedFunctions;
