@@ -491,6 +491,13 @@ OhciProcessDoneQueue(
     _In_ OhciController_t *Controller, 
     _In_ uintptr_t DoneHeadAddress);
 
+/* OhciCheckDoneQueue
+ * Iterates all active transfers and handles completion/error events */
+__EXTERN
+void
+OhciCheckDoneQueue(
+    _In_ OhciController_t *Controller);
+
 /* UsbQueueTransferGeneric 
  * Queues a new transfer for the given driver
  * and pipe. They must exist. The function does not block*/

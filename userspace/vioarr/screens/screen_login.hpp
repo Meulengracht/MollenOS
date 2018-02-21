@@ -26,6 +26,7 @@
  * - System */
 #include "../graphics/textures/texture_manager.hpp"
 #include "../graphics/displays/display.hpp"
+#include "../utils/log_manager.hpp"
 #include "screen.hpp"
 
 class CLoginScreen : public CScreen {
@@ -67,14 +68,15 @@ public:
         glViewport(X, Y, _Width, _Height);
         glMatrixMode(GL_PROJECTION);
         glLoadIdentity();
-        //gluPerspective(60, (GLfloat)Width / (GLfloat)Height, 1.0, 100.0);
-        //glMatrixMode(GL_MODELVIEW);
+        glOrtho(-_Width/2.f, _Width/2.f, -_Height/2.f, _Height/2.f, -1, 1);
+        glMatrixMode(GL_MODELVIEW);
     }
 
     // Perform the render task of this screen
     void Update() {
+        sLog.Info("login::Rendering");
         glClearColor(0.0, 0.0, 0.0, 1.0);
-        glClear(GL_COLOR_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glLoadIdentity();
 
         glEnable(GL_TEXTURE_2D);
@@ -87,7 +89,9 @@ public:
           glTexCoord2d(0.0,1.0); glVertex2d(0.0, (GLdouble)_Height);
         glEnd();
 
+        sLog.Info("login::6");
         glFinish();
+        sLog.Info("login::Presenting");
         _Display->Present();
     }
 

@@ -411,7 +411,7 @@ ScSharedObjectLoad(
     // Sanitize the given shared-object path
     // If null, get handle to current assembly
     if (SharedObject == NULL) {
-        return (Handle_t)Process->Executable;
+        return HANDLE_GLOBAL;
     }
 
     // Create a mstring object from the string
@@ -440,7 +440,28 @@ ScSharedObjectGetFunction(
     if (Handle == HANDLE_INVALID || Function == NULL) {
         return 0;
     }
-    return PeResolveFunction((MCorePeFile_t*)Handle, Function);
+
+    // If the handle is the handle_global, search all loaded
+    // libraries for the symbol
+    if (Handle == HANDLE_GLOBAL) {
+        MCoreAsh_t *Process = PhoenixGetCurrentAsh();
+        uintptr_t Address   = 0;
+        if (Process != NULL) {
+            Address = PeResolveFunction(Process->Executable, Function);
+            if (!Address) {
+                foreach(Node, Process->Executable->LoadedLibraries) {
+                    Address = PeResolveFunction((MCorePeFile_t*)Node->Data, Function);
+                    if (Address != 0) {
+                        break;
+                    }
+                }
+            }
+        }
+        return Address;
+    }
+    else {
+        return PeResolveFunction((MCorePeFile_t*)Handle, Function);
+    }
 }
 
 /* Unloads a valid shared object handle
@@ -454,8 +475,7 @@ ScSharedObjectUnload(
     if (Process == NULL || Handle == HANDLE_INVALID) {
         return OsError;
     }
-    if (Handle == (Handle_t)Process->Executable) {
-        // Never close running handle
+    if (Handle == HANDLE_GLOBAL) { // Never close running handle
         return OsSuccess;
     }
     return PeUnloadLibrary(Process->Executable, (MCorePeFile_t*)Handle);

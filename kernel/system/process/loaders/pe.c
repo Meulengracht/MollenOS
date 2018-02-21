@@ -678,9 +678,11 @@ PeResolveFunction(
 {
     // Variables
     MCorePeExportFunction_t *Exports = Library->ExportedFunctions;
-    for (int i = 0; i < Library->NumberOfExportedFunctions; i++) {
-        if (!strcmp(Exports[i].Name, Function)) {
-            return Exports[i].Address;
+    if (Exports != NULL) {
+        for (int i = 0; i < Library->NumberOfExportedFunctions; i++) {
+            if (!strcmp(Exports[i].Name, Function)) {
+                return Exports[i].Address;
+            }
         }
     }
     return 0;

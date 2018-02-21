@@ -35,7 +35,7 @@ _CODE_BEGIN
 CRTDECL( 
 Handle_t,
 SharedObjectLoad(
-	_In_ __CONST char *SharedObject));
+	_In_ const char* SharedObject));
 
 /* SharedObjectGetFunction
  * Load a function-address given an shared object
@@ -44,8 +44,8 @@ SharedObjectLoad(
 CRTDECL( 
 void*,
 SharedObjectGetFunction(
-	_In_ Handle_t Handle, 
-	_In_ __CONST char *Function));
+	_In_ Handle_t       Handle, 
+	_In_ const char*    Function));
 
 /* SharedObjectUnload
  * Unloads a valid shared object handle

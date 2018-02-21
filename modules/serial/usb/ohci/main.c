@@ -25,6 +25,7 @@
 /* Includes 
  * - System */
 #include <os/mollenos.h>
+#include <os/timers.h>
 #include <os/utils.h>
 
 #include "../common/manager.h"
@@ -37,6 +38,9 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+
+// Globals
+static UUId_t CheckupTimer = UUID_INVALID;
 
 /* OnFastInterrupt
  * Is called for the sole purpose to determine if this source
@@ -174,9 +178,10 @@ ProcessInterrupt:
 OsStatus_t
 OnTimeout(
     _In_ UUId_t Timer,
-    _In_ void *Data)
-{
-    // Unused variables
+    _In_ void*  Data) {
+    foreach(Node, UsbManagerGetControllers()) {
+        OhciCheckDoneQueue((OhciController_t*)Node->Data);
+    }
     _CRT_UNUSED(Timer);
     _CRT_UNUSED(Data);
     return OsSuccess;
@@ -186,9 +191,8 @@ OnTimeout(
  * The entry-point of a driver, this is called
  * as soon as the driver is loaded in the system */
 OsStatus_t
-OnLoad(void)
-{
-    // Initialize the device manager here
+OnLoad(void) {
+    //CheckupTimer = TimerStart(MSEC_PER_SEC, 1, NULL);
     return UsbManagerInitialize();
 }
 
@@ -196,9 +200,10 @@ OnLoad(void)
  * This is called when the driver is being unloaded
  * and should free all resources allocated by the system */
 OsStatus_t
-OnUnload(void)
-{
-    // Cleanup the internal device manager
+OnUnload(void) {
+    if (CheckupTimer != UUID_INVALID) {
+        TimerStop(CheckupTimer);
+    }
     return UsbManagerDestroy();
 }
 

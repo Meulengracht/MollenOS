@@ -81,6 +81,7 @@ typedef void *                      Handle_t;
 /* Define some special UUId_t constants 
  * Especially a constant for invalid */
 #define HANDLE_INVALID              (Handle_t)0
+#define HANDLE_GLOBAL               (Handle_t)1
 
 /* This definies various possible results
  * from certain os-operations */

@@ -70,9 +70,7 @@ UsbManagerDestroy(void)
 /* UsbManagerGetControllers
  * Retrieve a list of all attached controllers to the system. */
 Collection_t*
-UsbManagerGetControllers(void)
-{
-	// Retrieve a list pointer
+UsbManagerGetControllers(void) {
 	return __GlbControllers;
 }
 

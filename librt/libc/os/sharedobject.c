@@ -39,25 +39,24 @@ typedef void (*SOInitializer_t)(int);
  * path must exists otherwise NULL is returned */
 Handle_t 
 SharedObjectLoad(
-	_In_ __CONST char *SharedObject)
+	_In_ const char* SharedObject)
 {
     // Variables
     SOInitializer_t Initialize  = NULL;
     Handle_t Result             = NULL;
 
-	// Sanitize parameters
-	if (SharedObject == NULL) {
-		return HANDLE_INVALID;
-	}
+    // Special case
+    if (SharedObject == NULL) {
+        return HANDLE_GLOBAL;
+    }
 
 	// Just deep call, we have 
 	// all neccessary functionlity and validation already in place
 	Result = Syscall_LibraryLoad(SharedObject);
-    if (Result != NULL) {
-        Initialize = (SOInitializer_t)SharedObjectGetFunction(
-            Result, "__CrtLibraryEntry");
+    if (Result != HANDLE_INVALID) {
+        Initialize = (SOInitializer_t)SharedObjectGetFunction(Result, "__CrtLibraryEntry");
         if (Initialize != NULL) {
-            Initialize(0);
+            Initialize(DLL_ACTION_INITIALIZE);
         }
     }
     return Result;
@@ -69,12 +68,10 @@ SharedObjectLoad(
  * otherwise null is returned */
 void*
 SharedObjectGetFunction(
-	_In_ Handle_t Handle, 
-	_In_ __CONST char *Function)
+	_In_ Handle_t       Handle, 
+	_In_ const char*    Function)
 {
-	/* Sanitize the arguments */
-	if (Handle == HANDLE_INVALID
-		|| Function == NULL) {
+	if (Handle == HANDLE_INVALID || Function == NULL) {
 		return NULL;
 	}
 	return (void*)Syscall_LibraryFunction(Handle, Function);
@@ -94,12 +91,14 @@ SharedObjectUnload(
 	if (Handle == HANDLE_INVALID) {
 		return OsError;
 	}
+    if (Handle == HANDLE_GLOBAL) {
+        return OsSuccess;
+    }
 
     // Run finalizer before unload
-    Initialize = (SOInitializer_t)SharedObjectGetFunction(
-        Handle, "__CrtLibraryEntry");
+    Initialize = (SOInitializer_t)SharedObjectGetFunction(Handle, "__CrtLibraryEntry");
     if (Initialize != NULL) {
-        Initialize(1);
+        Initialize(DLL_ACTION_FINALIZE);
     }
 	return Syscall_LibraryUnload(Handle);
 }

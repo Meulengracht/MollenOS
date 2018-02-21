@@ -36,9 +36,9 @@
 CRTDECL(
 UUId_t,
 TimerStart(
-    _In_ size_t Interval,
-    _In_ int Periodic,
-    _In_ __CONST void *Data));
+    _In_ size_t         Interval,
+    _In_ int            Periodic,
+    _In_ const void*    Data));
 
 /* TimersStop
  * Destroys a existing standard timer, owner must be the requesting

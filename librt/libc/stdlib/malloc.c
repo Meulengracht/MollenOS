@@ -565,7 +565,7 @@ void __MallocLibCEmpty(void)
 #ifndef MALLOC_FAILURE_ACTION
 #define MALLOC_FAILURE_ACTION
 #endif /* MALLOC_FAILURE_ACTION */
-#define MMAP_CLEARS 1
+#define MMAP_CLEARS 0
 #endif
 
 #ifdef WIN32
@@ -1679,7 +1679,7 @@ unsigned char _BitScanReverse(unsigned long *index, unsigned long mask);
 /* MollenOS MMAP via Syscall */
 static FORCEINLINE void* mosmmap(size_t Size) {
 	void* ptr = NULL;
-	if (MemoryAllocate(NULL, Size, 0, &ptr, NULL) != OsSuccess) {
+	if (MemoryAllocate(NULL, Size, MEMORY_READ | MEMORY_WRITE, &ptr, NULL) != OsSuccess) {
 		return MFAIL;
 	}
 	else {

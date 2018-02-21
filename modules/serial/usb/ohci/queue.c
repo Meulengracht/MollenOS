@@ -545,6 +545,9 @@ OhciGetStatusCode(
     else if (ConditionCode == 5) {
         return TransferNotResponding;
     }
+    else if (ConditionCode == 15) {
+        return TransferNotProcessed;
+    }
     else {
         TRACE("Error: 0x%x (%s)", ConditionCode, OhciErrorMessages[ConditionCode]);
         return TransferInvalid;
@@ -1000,6 +1003,63 @@ OhciProcessDoneQueue(
             }
             else {
                 break;
+            }
+        }
+    }
+}
+
+/* OhciIsTransferComplete
+ * Checks a transfer if it has either completed or failed. If it hasn't
+ * been fully processed yet we return OsError */
+OsStatus_t
+OhciIsTransferComplete(
+    _In_ OhciController_t*  Controller,
+    _In_ OhciQueueHead_t*   QueueHead)
+{
+    // Variables
+    OhciTransferDescriptor_t *Td = NULL;
+
+    // Iterate through all td's except for null in this transaction and find the guilty
+    Td = &Controller->QueueControl.TDPool[QueueHead->ChildIndex];
+    while (Td->LinkIndex != OHCI_NO_INDEX) {
+        int ErrorCode               = OHCI_TD_ERRORCODE(Td->Flags);
+        UsbTransferStatus_t Status  = OhciGetStatusCode(ErrorCode);
+
+        // Break if we encounter unprocessed
+        if (Status == TransferNotProcessed) {
+            return OsError;
+        }
+
+        // Go to next td or terminate
+        Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
+    }
+    return OsSuccess;
+}
+
+/* OhciCheckDoneQueue
+ * Iterates all active transfers and handles completion/error events */
+void
+OhciCheckDoneQueue(
+    _In_ OhciController_t *Controller)
+{
+    // Go through active transactions and locate the EP that was done
+    foreach(Node, Controller->QueueControl.TransactionList) {
+        // Instantiate the usb-transfer pointer, and then the EP
+        UsbManagerTransfer_t *Transfer  = (UsbManagerTransfer_t*)Node->Data;
+        OhciQueueHead_t *QueueHead      = (OhciQueueHead_t*)Transfer->EndpointDescriptor;
+
+        // Only check control/bulk for completion
+        if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
+            if (QueueHead != NULL && OhciIsTransferComplete(Controller, QueueHead) == OsSuccess) {
+                // Reload and finalize transfer
+                OhciReloadControlBulk(Controller, Transfer->Transfer.Type);
+                
+                // Handle completion of transfer
+                // Finalize transaction and remove from list
+                if (OhciTransactionFinalize(Controller, Transfer, 1) == OsSuccess) {
+                    CollectionRemoveByNode(Controller->QueueControl.TransactionList, Node);
+                    CollectionDestroyNode(Controller->QueueControl.TransactionList, Node);
+                }
             }
         }
     }

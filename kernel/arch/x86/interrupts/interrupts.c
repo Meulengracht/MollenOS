@@ -423,7 +423,7 @@ ExceptionEntry(
         IssueFixed = 1;
     }
     else if (Registers->Irq == 2) { // NMI
-        
+        // Fall-through to kernel fault
     }
     else if (Registers->Irq == 3) { // Breakpoint
         DebugBreakpoint(Registers);
@@ -459,13 +459,13 @@ ExceptionEntry(
         }
     }
     else if (Registers->Irq == 8) { // Double Fault
-
+        // Fall-through to kernel fault
     }
     else if (Registers->Irq == 9) { // Coprocessor Segment Overrun (Obsolete)
-
+        // Fall-through to kernel fault
     }
     else if (Registers->Irq == 10) { // Invalid TSS
-
+        // Fall-through to kernel fault
     }
     else if (Registers->Irq == 11) { // Segment Not Present
         if (ExceptionSignal(Registers, SIGSEGV) == OsSuccess) {
@@ -535,7 +535,7 @@ ExceptionEntry(
         // Locate which module
         if (DebugGetModuleByAddress(Registers->Eip, &Base, &Name) == OsSuccess) {
             uintptr_t Diff = Registers->Eip - Base;
-            LogDebug(__MODULE, "Fauly Address: 0x%x (%s)", Diff, Name);
+            LogDebug(__MODULE, "Faulty Address: 0x%x (%s)", Diff, Name);
         }
         else {
             LogDebug(__MODULE, "Faulty Address: 0x%x", Registers->Eip);
