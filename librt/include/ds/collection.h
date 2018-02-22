@@ -37,11 +37,19 @@ typedef struct _CollectionItem {
     struct _CollectionItem  *Link;
     struct _CollectionItem  *Prev;
 } CollectionItem_t;
-
-/* This is the Collection structure
- * it holds basic information about the Collection */
 typedef struct _CollectionItem CollectionIterator_t;
-typedef struct _Collection Collection_t;
+#define COLLECTION_NODE_INIT(Node, Key) (Node)->Key.Value = Key.Value; (Node)->Data = 0; (Node)->Link = 0; (Node)->Prev = 0 
+
+/* Collection
+ * Generic collection implemented by doubly linked list. */
+typedef struct _Collection {
+    KeyType_t                KeyType;
+    size_t                   Length;
+
+    CollectionItem_t        *Headp;
+    CollectionItem_t        *Tailp;
+} Collection_t;
+#define COLLECTION_INIT(KeyType) { KeyType, 0 }
 
 /* Foreach Macro(s)
  * They help keeping the code clean and readable when coding loops */

@@ -26,6 +26,7 @@
 #include "test.hpp"
 #include "test_constreams.hpp"
 #include "test_filestreams.hpp"
+#include "test_so.hpp"
 #include <thread>
 #include <png.h>
 
@@ -75,6 +76,7 @@ int main(int argc, char **argv) {
    
     // Run tests
     RUN_TEST_SUITE(ErrorCounter, ConsoleStreamTests);
+    RUN_TEST_SUITE(ErrorCounter, SharedObjectTests);
     RUN_TEST_SUITE(ErrorCounter, FileStreamTests);
     return ErrorCounter;
 }

@@ -28,11 +28,35 @@
 
 /* Includes
  * - Library */
+#include <ds/collection.h>
+#include <stdlib.h>
 #include <stddef.h>
+#include <ctype.h>
+
+typedef struct _LibraryItem {
+    CollectionItem_t Header;
+    Handle_t         Handle;
+    int              References;
+} LibraryItem_t;
 
 /* Globals
  * - Function blueprint for dll-entry */
 typedef void (*SOInitializer_t)(int);
+static Collection_t LoadedLibraries = COLLECTION_INIT(KeyInteger);
+
+/* SharedObjectHash
+ * Helper utility to identify shared libraries */
+size_t SharedObjectHash(const char *String) {
+	uint8_t* Pointer    = (uint8_t*)String;
+	size_t Hash         = 5381;
+	int Character       = 0;
+	if (String == NULL) {
+        return 0;
+    }
+	while ((Character = tolower(*Pointer++)) != 0)
+		Hash = ((Hash << 5) + Hash) + Character; /* hash * 33 + c */
+	return Hash;
+}
 
 /* SharedObjectLoad
  * Load a shared object given a path
@@ -42,22 +66,37 @@ SharedObjectLoad(
 	_In_ const char* SharedObject)
 {
     // Variables
-    SOInitializer_t Initialize  = NULL;
-    Handle_t Result             = NULL;
+    SOInitializer_t Initializer = NULL;
+    LibraryItem_t *Library      = NULL;
+    Handle_t Result             = HANDLE_INVALID;
+    DataKey_t Key               = { (int)SharedObjectHash(SharedObject) };
 
     // Special case
     if (SharedObject == NULL) {
         return HANDLE_GLOBAL;
     }
 
-	// Just deep call, we have 
-	// all neccessary functionlity and validation already in place
-	Result = Syscall_LibraryLoad(SharedObject);
-    if (Result != HANDLE_INVALID) {
-        Initialize = (SOInitializer_t)SharedObjectGetFunction(Result, "__CrtLibraryEntry");
-        if (Initialize != NULL) {
-            Initialize(DLL_ACTION_INITIALIZE);
+    Library = CollectionGetDataByKey(&LoadedLibraries, Key, 0);
+    if (Library == NULL) {
+	    Result = Syscall_LibraryLoad(SharedObject);
+        if (Result != HANDLE_INVALID) {
+            Library = (LibraryItem_t*)malloc(sizeof(LibraryItem_t));
+            COLLECTION_NODE_INIT((CollectionItem_t*)Library, Key);
+            Library->Handle     = Result;
+            Library->References = 0;
+            CollectionAppend(&LoadedLibraries, (CollectionItem_t*)Library);
         }
+    }
+
+    if (Library != NULL) {
+        Library->References++;
+        if (Library->References == 1) {
+            Initializer = (SOInitializer_t)SharedObjectGetFunction(Library->Handle, "__CrtLibraryEntry");
+            if (Initializer != NULL) {
+                Initializer(DLL_ACTION_INITIALIZE);
+            }
+        }
+        Result = Library->Handle;
     }
     return Result;
 }
@@ -86,6 +125,7 @@ SharedObjectUnload(
 {
     // Variables
     SOInitializer_t Initialize  = NULL;
+    LibraryItem_t *Library      = NULL;
 
 	// Sanitize input
 	if (Handle == HANDLE_INVALID) {
@@ -94,11 +134,22 @@ SharedObjectUnload(
     if (Handle == HANDLE_GLOBAL) {
         return OsSuccess;
     }
-
-    // Run finalizer before unload
-    Initialize = (SOInitializer_t)SharedObjectGetFunction(Handle, "__CrtLibraryEntry");
-    if (Initialize != NULL) {
-        Initialize(DLL_ACTION_FINALIZE);
+    foreach(Node, &LoadedLibraries) {
+        if (((LibraryItem_t*)Node)->Handle == Handle) {
+            Library = (LibraryItem_t*)Node;
+            break;
+        }
     }
-	return Syscall_LibraryUnload(Handle);
+    if (Library != NULL) {
+        Library->References--;
+        if (Library->References == 0) {
+            // Run finalizer before unload
+            Initialize = (SOInitializer_t)SharedObjectGetFunction(Handle, "__CrtLibraryEntry");
+            if (Initialize != NULL) {
+                Initialize(DLL_ACTION_FINALIZE);
+            }
+	        return Syscall_LibraryUnload(Handle);
+        }
+    }
+    return OsError;
 }

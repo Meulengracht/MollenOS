@@ -395,14 +395,14 @@ ScProcessGetModuleEntryPoints(
  * path must exists otherwise NULL is returned */
 Handle_t
 ScSharedObjectLoad(
-    _In_ const char *SharedObject)
+    _In_  const char*   SharedObject)
 {
     // Variables
     MCoreAsh_t *Process     = PhoenixGetCurrentAsh();
     MString_t *Path         = NULL;
     uintptr_t BaseAddress   = 0;
     Handle_t Handle         = HANDLE_INVALID;
-    
+
     // Sanitize the process
     if (Process == NULL) {
         return HANDLE_INVALID;
@@ -433,8 +433,8 @@ ScSharedObjectLoad(
  * otherwise null is returned */
 uintptr_t
 ScSharedObjectGetFunction(
-    _In_ Handle_t        Handle, 
-    _In_ const char     *Function)
+    _In_ Handle_t       Handle, 
+    _In_ const char*    Function)
 {
     // Validate parameters
     if (Handle == HANDLE_INVALID || Function == NULL) {
@@ -468,7 +468,7 @@ ScSharedObjectGetFunction(
  * returns 0 on success */
 OsStatus_t
 ScSharedObjectUnload(
-    _In_ Handle_t Handle)
+    _In_  Handle_t  Handle)
 {
     // Variables
     MCoreAsh_t *Process = PhoenixGetCurrentAsh();

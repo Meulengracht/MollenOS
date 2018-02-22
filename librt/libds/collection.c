@@ -26,17 +26,6 @@
 #include <stddef.h>
 #include <string.h>
 
-/* Data structures 
- * These are to keep things transparent, and rather keep
- * functions to do stuff than using them directly */
-typedef struct _Collection {
-    KeyType_t                KeyType;
-    size_t                   Length;
-
-    CollectionItem_t        *Headp;
-    CollectionItem_t        *Tailp;
-} Collection_t;
-
 /* CollectionCreate
  * Instantiates a new collection with the specified key-type. */
 Collection_t*

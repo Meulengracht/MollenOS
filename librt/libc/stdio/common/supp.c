@@ -109,7 +109,7 @@ thrd_t thrd_current(void) {
 
 /* Globals
  * Used to keep state of all io-objects */
-static Collection_t *IoObjects  = NULL;
+static Collection_t IoObjects   = COLLECTION_INIT(KeyInteger);
 static int *FdBitmap            = NULL;
 static Spinlock_t BitmapLock;
 static Spinlock_t IoLock;
@@ -162,7 +162,6 @@ StdioInitialize(
     _In_ size_t InheritanceBlockLength)
 {
     // Initialize the list of io-objects
-    IoObjects = CollectionCreate(KeyInteger);
     SpinlockReset(&IoLock);
 
     // Initialize the bitmap of fds
@@ -240,8 +239,8 @@ StdioCreateInheritanceBlock(
     StdioObject_t *BlockPointer = NULL;
 
     // Allocate a block big enough
-    *BlockSize = CollectionLength(IoObjects) * sizeof(StdioObject_t);
-    if (CollectionLength(IoObjects) <= 3 && !InheritStdHandles) {
+    *BlockSize = CollectionLength(&IoObjects) * sizeof(StdioObject_t);
+    if (CollectionLength(&IoObjects) <= 3 && !InheritStdHandles) {
         return OsError;
     }
     *InheritanceBlock = malloc(*BlockSize);
@@ -249,7 +248,7 @@ StdioCreateInheritanceBlock(
 
     // Iterate all stdio-objects and copy
     LOCK_FILES();
-    foreach(Node, IoObjects) {
+    foreach(Node, &IoObjects) {
         StdioObject_t *Object = (StdioObject_t*)Node->Data;
         if (!InheritStdHandles && Object->fd < 3) {
             continue;
@@ -329,7 +328,7 @@ StdioFdAllocate(
         // Add to list
         Key.Value = result;
         SpinlockAcquire(&IoLock);
-        CollectionAppend(IoObjects, CollectionCreateNode(Key, io));
+        CollectionAppend(&IoObjects, CollectionCreateNode(Key, io));
         SpinlockRelease(&IoLock);
     }
     return result;
@@ -348,11 +347,11 @@ StdioFdFree(
     // Free any resources allocated by the fd
     Key.Value = fd;
     SpinlockAcquire(&IoLock);
-    fNode = CollectionGetNodeByKey(IoObjects, Key, 0);
+    fNode = CollectionGetNodeByKey(&IoObjects, Key, 0);
     if (fNode != NULL) {
         free(fNode->Data);
-        CollectionRemoveByNode(IoObjects, fNode);
-        CollectionDestroyNode(IoObjects, fNode);
+        CollectionRemoveByNode(&IoObjects, fNode);
+        CollectionDestroyNode(&IoObjects, fNode);
     }
     SpinlockRelease(&IoLock);
 
@@ -376,7 +375,7 @@ StdioFdToHandle(
     // Free any resources allocated by the fd
     Key.Value = fd;
     SpinlockAcquire(&IoLock);
-    fNode = CollectionGetNodeByKey(IoObjects, Key, 0);
+    fNode = CollectionGetNodeByKey(&IoObjects, Key, 0);
     SpinlockRelease(&IoLock);
     if (fNode != NULL) {
         return &((StdioObject_t*)fNode->Data)->handle;
@@ -401,7 +400,7 @@ StdioFdInitialize(
     // Lookup node of the file descriptor
     Key.Value = fd;
     SpinlockAcquire(&IoLock);
-    fNode = CollectionGetNodeByKey(IoObjects, Key, 0);
+    fNode = CollectionGetNodeByKey(&IoObjects, Key, 0);
     SpinlockRelease(&IoLock);
     
     // Node must exist
@@ -728,7 +727,7 @@ os_flush_all_buffers(
 
     // Iterate list of open files
     LOCK_FILES();
-    foreach(fNode, IoObjects) {
+    foreach(fNode, &IoObjects) {
         file = (FILE*)(((StdioObject_t*)fNode->Data)->file);
 
         // Does file match the given mask?
@@ -747,7 +746,7 @@ os_flush_all_buffers(
 StdioObject_t* get_ioinfo(int fd) {
     DataKey_t Key;
     Key.Value = fd;
-    return (StdioObject_t*)CollectionGetDataByKey(IoObjects, Key, 0);
+    return (StdioObject_t*)CollectionGetDataByKey(&IoObjects, Key, 0);
 }
 
 /* _fcloseall
@@ -759,7 +758,7 @@ _fcloseall(void)
     FILE *file;
 
     LOCK_FILES();
-    foreach(fNode, IoObjects) {
+    foreach(fNode, &IoObjects) {
         file = (FILE*)(((StdioObject_t*)fNode->Data)->file);
         if (!fclose(file)) {
             num_closed++;

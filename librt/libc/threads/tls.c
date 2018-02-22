@@ -62,15 +62,15 @@ typedef struct _TlsThreadAtExit {
     tss_dtor_t           Destructor;
 } TlsThreadAtExit_t;
 
-/* TlsProcessInstance (Private
+/* TlsProcessInstance (Private)
  * Per-process TLS data that stores the
  * allocated keys and their desctructors. 
  * Also keeps a list of tls-entries for threads */
 typedef struct _TlsProcessInstance {
-    int                  Keys[TLS_MAX_KEYS];
-    tss_dtor_t           Dss[TLS_MAX_KEYS];
-    Collection_t        *Tls;
-    Collection_t        *TlsAtExit;
+    int                 Keys[TLS_MAX_KEYS];
+    tss_dtor_t          Dss[TLS_MAX_KEYS];
+    Collection_t*       Tls;
+    Collection_t*       TlsAtExit;
 } TlsProcessInstance_t;
 
 /* Globals 
