@@ -68,13 +68,12 @@ public:
         glViewport(X, Y, _Width, _Height);
         glMatrixMode(GL_PROJECTION);
         glLoadIdentity();
-        glOrtho(-_Width/2.f, _Width/2.f, -_Height/2.f, _Height/2.f, -1, 1);
+        glOrtho(0, _Width, _Height, 0, -1, 1);
         glMatrixMode(GL_MODELVIEW);
     }
 
     // Perform the render task of this screen
     void Update() {
-        sLog.Info("login::Rendering");
         glClearColor(0.0, 0.0, 0.0, 1.0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glLoadIdentity();
@@ -83,15 +82,21 @@ public:
         glBindTexture(GL_TEXTURE_2D, _TextureBg);
 
         glBegin(GL_QUADS);
-          glTexCoord2d(0.0,0.0); glVertex2d(0.0, 0.0);
-          glTexCoord2d(1.0,0.0); glVertex2d((GLdouble)_Width, 0.0);
-          glTexCoord2d(1.0,1.0); glVertex2d((GLdouble)_Width, (GLdouble)_Height);
-          glTexCoord2d(0.0,1.0); glVertex2d(0.0, (GLdouble)_Height);
+          //glTexCoord2f(0,0); glVertex2f(-1.0f, -1.0f);
+		  //glTexCoord2f(1,0); glVertex2f(1.0f, -1.0f);
+          //glTexCoord2f(1,1); glVertex2f(1.0f, 1.0f);
+		  //glTexCoord2f(0,1); glVertex2f(-1.0f, 1.0f);
+          glTexCoord2d(0.0, 0.0); glVertex2d(0.0, _Height);
+          glTexCoord2d(1.0, 0.0); glVertex2d(_Width, _Height);
+          glTexCoord2d(1.0, 1.0); glVertex2d(_Width, 0.0);
+          glTexCoord2d(0.0, 1.0); glVertex2d(0.0, 0.0);
+          //glTexCoord2d(0.0,0.0); glVertex2d(0.0, 0.0);
+          //glTexCoord2d(1.0,0.0); glVertex2d(_Width, 0.0);
+          //glTexCoord2d(1.0,1.0); glVertex2d(_Width, _Height);
+          //glTexCoord2d(0.0,1.0); glVertex2d(0.0, _Height);
         glEnd();
 
-        sLog.Info("login::6");
         glFinish();
-        sLog.Info("login::Presenting");
         _Display->Present();
     }
 

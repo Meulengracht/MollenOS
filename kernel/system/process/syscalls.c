@@ -970,8 +970,11 @@ ScMemoryProtect(
     if (MemoryPointer == NULL || Length == 0) {
         return OsSuccess;
     }
+
+    // We must force the application flag as it will remove
+    // the user-accessibility if we allow it to change
     return AddressSpaceChangeProtection(AddressSpaceGetCurrent(), 
-        AddressStart, Length, Flags, PreviousFlags);
+        AddressStart, Length, Flags | ASPACE_FLAG_APPLICATION, PreviousFlags);
 }
 
 /*******************************************************************************

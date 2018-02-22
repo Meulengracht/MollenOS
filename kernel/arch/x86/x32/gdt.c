@@ -92,26 +92,25 @@ GdtInitialize(void)
 	// Kernel segments
 	// Kernel segments span the entire virtual
 	// address space from 0 -> 0xFFFFFFFF
-	//(MEMORY_SEGMENT_KERNEL_CODE_LIMIT - 1) / PAGE_SIZE
-	GdtInstallDescriptor(0, (MEMORY_SEGMNET_RING3_CODE_LIMIT - 1) / PAGE_SIZE,
+	GdtInstallDescriptor(0, MEMORY_SEGMENT_RING0_LIMIT / PAGE_SIZE,
 		GDT_RING0_CODE, GDT_GRANULARITY);
-	GdtInstallDescriptor(0, MEMORY_SEGMENT_KERNEL_DATA_LIMIT,
+	GdtInstallDescriptor(0, MEMORY_SEGMENT_RING0_LIMIT,
 		GDT_RING0_DATA, GDT_GRANULARITY);
 
 	// Applications segments
 	// Application segments does not span entire address space
 	// but rather in their own subset
-	GdtInstallDescriptor(0, (MEMORY_SEGMNET_RING3_CODE_LIMIT - 1) / PAGE_SIZE,
+	GdtInstallDescriptor(0, MEMORY_SEGMENT_RING3_LIMIT / PAGE_SIZE,
 		GDT_RING3_CODE, GDT_GRANULARITY);
-	GdtInstallDescriptor(0, MEMORY_SEGMENT_RING3_DATA_LIMIT,
+	GdtInstallDescriptor(0, MEMORY_SEGMENT_RING3_LIMIT,
 		GDT_RING3_DATA, GDT_GRANULARITY);
 
 	// Driver segments
 	// Driver segments does not span entire address space
 	// but rather in their own subset
-	GdtInstallDescriptor(0, (MEMORY_SEGMNET_RING3_CODE_LIMIT - 1) / PAGE_SIZE,
+	GdtInstallDescriptor(0, MEMORY_SEGMENT_RING3_LIMIT / PAGE_SIZE,
 		GDT_RING3_CODE, GDT_GRANULARITY);
-	GdtInstallDescriptor(0, MEMORY_SEGMENT_RING3_DATA_LIMIT,
+	GdtInstallDescriptor(0, MEMORY_SEGMENT_RING3_LIMIT,
 		GDT_RING3_DATA, GDT_GRANULARITY);
 
 	// Shared segments

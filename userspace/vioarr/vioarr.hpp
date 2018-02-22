@@ -107,7 +107,6 @@ public:
         _ScreenManager->SetActiveScreen(CScreenManager::ScreenLogin, true);
 
         // Enter event loop
-        sLog.Info("Entering event loop");
         while (_IsRunning) {
             CVioarrEvent *Event = nullptr;
             {

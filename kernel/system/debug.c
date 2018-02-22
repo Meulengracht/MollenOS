@@ -150,7 +150,7 @@ DebugPanic(
 		ThreadingGetCurrentThread(Cpu)->Name, 
 		ThreadingGetCurrentThreadId(), Cpu);
 	ThreadingDebugPrint();
-    LogDumpPipe(LogPipeStderr());
+    //LogDumpPipe(LogPipeStderr());
 
 	// Handle based on the scope of the fatality
 	if (FatalityScope == FATAL_SCOPE_KERNEL) {
