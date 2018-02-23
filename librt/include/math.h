@@ -88,6 +88,9 @@ typedef double double_t;
 #endif
 #endif
 
+CRTDECL(int*, __signgam(void));
+#define signgam (*__signgam())
+
 #define _DOMAIN 1
 #define _SING 2
 #define _OVERFLOW 3
@@ -365,6 +368,8 @@ _CRTIMP long double __CRTDECL lgammal(long double);
 /* Reentrant version of lgamma; passes signgam back by reference as the
  * second argument; user must allocate space for signgam. */
 _CRTIMP double __CRTDECL lgamma_r(double, int *);
+_CRTIMP float __CRTDECL lgammaf_r(float, int*);
+_CRTIMP long double __CRTDECL lgammal_r(long double, int *);
 
 /* 7.12.8.4 The tgamma functions */
 _CRTIMP double __CRTDECL tgamma(double);

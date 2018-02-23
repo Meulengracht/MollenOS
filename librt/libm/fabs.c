@@ -21,26 +21,22 @@
 #pragma function(fabs)
 #endif
 
-double fabs(double x)
-{
+double fabs(double x) {
 	uint32_t High;
 	GET_HIGH_WORD(High, x);
 	SET_HIGH_WORD(x, High & 0x7fffffff);
 	return x;
 }
 
-float fabsf(float x)
-{
+float fabsf(float x) {
 	uint32_t ix;
 	GET_FLOAT_WORD(ix, x);
 	SET_FLOAT_WORD(x, ix & 0x7fffffff);
 	return x;
 }
 
-long double fabsl(long double x)
-{
+long double fabsl(long double x) {
 	union IEEEl2bits u = { 0 };
-
 	u.e = x;
 	u.bits.sign = 0;
 	return (u.e);

@@ -24,6 +24,7 @@ segment .text
 global _scalbn
 global _scalbnf
 global _scalbnl
+global _ldexpl
 
 ; The math scale
 _scalbn:
@@ -63,7 +64,6 @@ _scalbnf:
 
 ; The math scale long double
 _scalbnl:
-	; Stack Frame
 	push    ebp
 	mov     ebp, esp
 
@@ -74,7 +74,5 @@ _scalbnl:
 	
 	; Store result
 	fstp	st1
-	
-	; Unwind & return
 	pop     ebp
 	ret

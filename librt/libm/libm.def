@@ -12,6 +12,7 @@ __ftol2=_ftol2
 __ftol2_sse=_ftol2_sse
 __isnan
 __isfinite
+__signgam
 cos
 sin
 fmod
@@ -59,6 +60,9 @@ lrintl
 llrint
 llrintf
 llrintl
+remquo
+remquof
+remquol
 remainder
 remainderf
 remainderl

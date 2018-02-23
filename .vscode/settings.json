@@ -311,7 +311,8 @@
         "revision.h": "c",
         "_string.h": "c",
         "__std_stream": "c",
-        "streambuf": "c"
+        "streambuf": "c",
+        "*.txt": "c"
     },
     "git.ignoreLimitWarning": true
 }

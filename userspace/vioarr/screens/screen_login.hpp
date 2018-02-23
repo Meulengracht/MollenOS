@@ -75,26 +75,20 @@ public:
     // Perform the render task of this screen
     void Update() {
         glClearColor(0.0, 0.0, 0.0, 1.0);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glLoadIdentity();
+        glClear(GL_COLOR_BUFFER_BIT);
 
         glEnable(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, _TextureBg);
 
+        glPushMatrix();
+        glLoadIdentity();
         glBegin(GL_QUADS);
-          //glTexCoord2f(0,0); glVertex2f(-1.0f, -1.0f);
-		  //glTexCoord2f(1,0); glVertex2f(1.0f, -1.0f);
-          //glTexCoord2f(1,1); glVertex2f(1.0f, 1.0f);
-		  //glTexCoord2f(0,1); glVertex2f(-1.0f, 1.0f);
           glTexCoord2d(0.0, 0.0); glVertex2d(0.0, _Height);
           glTexCoord2d(1.0, 0.0); glVertex2d(_Width, _Height);
           glTexCoord2d(1.0, 1.0); glVertex2d(_Width, 0.0);
           glTexCoord2d(0.0, 1.0); glVertex2d(0.0, 0.0);
-          //glTexCoord2d(0.0,0.0); glVertex2d(0.0, 0.0);
-          //glTexCoord2d(1.0,0.0); glVertex2d(_Width, 0.0);
-          //glTexCoord2d(1.0,1.0); glVertex2d(_Width, _Height);
-          //glTexCoord2d(0.0,1.0); glVertex2d(0.0, _Height);
         glEnd();
+        glPopMatrix();
 
         glFinish();
         _Display->Present();

@@ -27,42 +27,27 @@ global _rintl
 
 ; Rounds a double to int
 _rint:
-	; Stack Frame
 	push	ebp
 	mov		ebp, esp
-
-	; Load real from stack
 	fld		qword [ebp + 8]
 	frndint
-
-	; Unwind & return
 	pop     ebp
 	ret
 
 ; Rounds a float to int
 _rintf:
-	; Stack Frame
 	push	ebp
 	mov		ebp, esp
-
-	; Load real from stack
 	fld		dword [ebp + 8]
 	frndint
-
-	; Unwind & return
 	pop     ebp
 	ret
 
 ; Rounds a long double to int
 _rintl:
-	; Stack Frame
 	push	ebp
 	mov		ebp, esp
-
-	; Load real from stack
 	fld		tword [ebp + 8]
 	frndint
-
-	; Unwind & return
 	pop     ebp
 	ret

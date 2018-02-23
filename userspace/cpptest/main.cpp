@@ -30,6 +30,8 @@
 #include <thread>
 #include <png.h>
 
+extern "C" int libm_main (int argc, char **argv);
+
 /*******************************************
  * Tls Testing
  *******************************************/
@@ -78,5 +80,8 @@ int main(int argc, char **argv) {
     RUN_TEST_SUITE(ErrorCounter, ConsoleStreamTests);
     RUN_TEST_SUITE(ErrorCounter, SharedObjectTests);
     RUN_TEST_SUITE(ErrorCounter, FileStreamTests);
+
+    // Run libm test
+    libm_main(argc, argv);
     return ErrorCounter;
 }

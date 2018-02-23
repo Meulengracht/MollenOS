@@ -14,6 +14,7 @@
 
 /* Includes */
 #include <os/osdefs.h>
+#include <endian.h>
 #include <float.h>
 
 /* Include arch-specfic files */
@@ -100,30 +101,38 @@ union IEEEd2bits {
  * A union which permits us to convert between a double and two 32 bit
  * ints.
  */
-#ifdef __LITTLE_ENDIAN
+#if __FLOAT_WORD_ORDER__ == __ORDER_BIG_ENDIAN__
 
-typedef union {
-	double value;
-	struct {
-		uint32_t lsw;
-		uint32_t msw;
-	} parts;
-	struct {
-		uint64_t w;
-	} xparts;
+typedef union
+{
+  double value;
+  struct
+  {
+    uint32_t msw;
+    uint32_t lsw;
+  } parts;
+  struct
+  {
+    uint64_t w;
+  } xparts;
 } ieee_double_shape_type;
 
-#else
+#endif
 
-typedef union {
-	double value;
-	struct {
-		u_int32_t msw;
-		u_int32_t lsw;
-	} parts;
-	struct {
-		u_int64_t w;
-	} xparts;
+#if __FLOAT_WORD_ORDER__ == __ORDER_LITTLE_ENDIAN__
+
+typedef union
+{
+  double value;
+  struct
+  {
+    uint32_t lsw;
+    uint32_t msw;
+  } parts;
+  struct
+  {
+    uint64_t w;
+  } xparts;
 } ieee_double_shape_type;
 
 #endif
@@ -264,6 +273,196 @@ do {								\
 #endif
 #endif
 */
+
+#if __FLOAT_WORD_ORDER__ == __ORDER_BIG_ENDIAN__
+
+typedef union
+{
+  long double value;
+  struct {
+    uint32_t mswhi;
+    uint32_t mswlo;
+    uint32_t lswhi;
+    uint32_t lswlo;
+  } parts32;
+  struct {
+    uint64_t msw;
+    uint64_t lsw;
+  } parts64;
+} ieee_quad_shape_type;
+
+#endif
+
+#if __FLOAT_WORD_ORDER__ == __ORDER_LITTLE_ENDIAN__
+
+typedef union
+{
+  long double value;
+  struct {
+    uint32_t lswlo;
+    uint32_t lswhi;
+    uint32_t mswlo;
+    uint32_t mswhi;
+  } parts32;
+  struct {
+    uint64_t lsw;
+    uint64_t msw;
+  } parts64;
+} ieee_quad_shape_type;
+
+#endif
+
+/* Get two 64 bit ints from a long double.  */
+
+#define GET_LDOUBLE_WORDS64(ix0,ix1,d)				\
+do {								\
+  ieee_quad_shape_type qw_u;					\
+  qw_u.value = (d);						\
+  (ix0) = qw_u.parts64.msw;					\
+  (ix1) = qw_u.parts64.lsw;					\
+} while (0)
+
+/* Set a long double from two 64 bit ints.  */
+
+#define SET_LDOUBLE_WORDS64(d,ix0,ix1)				\
+do {								\
+  ieee_quad_shape_type qw_u;					\
+  qw_u.parts64.msw = (ix0);					\
+  qw_u.parts64.lsw = (ix1);					\
+  (d) = qw_u.value;						\
+} while (0)
+
+/* Get the more significant 64 bits of a long double mantissa.  */
+
+#define GET_LDOUBLE_MSW64(v,d)					\
+do {								\
+  ieee_quad_shape_type sh_u;					\
+  sh_u.value = (d);						\
+  (v) = sh_u.parts64.msw;					\
+} while (0)
+
+/* Set the more significant 64 bits of a long double mantissa from an int.  */
+
+#define SET_LDOUBLE_MSW64(d,v)					\
+do {								\
+  ieee_quad_shape_type sh_u;					\
+  sh_u.value = (d);						\
+  sh_u.parts64.msw = (v);					\
+  (d) = sh_u.value;						\
+} while (0)
+
+/* Get the least significant 64 bits of a long double mantissa.  */
+
+#define GET_LDOUBLE_LSW64(v,d)					\
+do {								\
+  ieee_quad_shape_type sh_u;					\
+  sh_u.value = (d);						\
+  (v) = sh_u.parts64.lsw;					\
+} while (0)
+
+/* A union which permits us to convert between a long double and
+   three 32 bit ints.  */
+
+#if __FLOAT_WORD_ORDER__ == __ORDER_BIG_ENDIAN__
+typedef union
+{
+  long double value;
+  struct {
+#ifdef __LP64__
+    int padh:32;
+#endif
+    int exp:16;
+    int padl:16;
+    uint32_t msw;
+    uint32_t lsw;
+  } parts;
+} ieee_extended_shape_type;
+
+#endif
+
+#if __FLOAT_WORD_ORDER__ == __ORDER_LITTLE_ENDIAN__
+typedef union
+{
+  long double value;
+  struct {
+    uint32_t lsw;
+    uint32_t msw;
+    int exp:16;
+    int padl:16;
+#ifdef __LP64__
+    int padh:32;
+#endif
+  } parts;
+} ieee_extended_shape_type;
+#endif
+
+/* Get three 32 bit ints from a double.  */
+
+#define GET_LDOUBLE_WORDS(se,ix0,ix1,d)				\
+do {								\
+  ieee_extended_shape_type ew_u;				\
+  ew_u.value = (d);						\
+  (se) = ew_u.parts.exp;					\
+  (ix0) = ew_u.parts.msw;					\
+  (ix1) = ew_u.parts.lsw;					\
+} while (0)
+
+/* Set a double from two 32 bit ints.  */
+
+#define SET_LDOUBLE_WORDS(d,se,ix0,ix1)				\
+do {								\
+  ieee_extended_shape_type iw_u;				\
+  iw_u.parts.exp = (se);					\
+  iw_u.parts.msw = (ix0);					\
+  iw_u.parts.lsw = (ix1);					\
+  (d) = iw_u.value;						\
+} while (0)
+
+/* Get the more significant 32 bits of a long double mantissa.  */
+
+#define GET_LDOUBLE_MSW(v,d)					\
+do {								\
+  ieee_extended_shape_type sh_u;				\
+  sh_u.value = (d);						\
+  (v) = sh_u.parts.msw;						\
+} while (0)
+
+/* Set the more significant 32 bits of a long double mantissa from an int.  */
+
+#define SET_LDOUBLE_MSW(d,v)					\
+do {								\
+  ieee_extended_shape_type sh_u;				\
+  sh_u.value = (d);						\
+  sh_u.parts.msw = (v);						\
+  (d) = sh_u.value;						\
+} while (0)
+
+/* Get int from the exponent of a long double.  */
+
+#define GET_LDOUBLE_EXP(se,d)					\
+do {								\
+  ieee_extended_shape_type ge_u;				\
+  ge_u.value = (d);						\
+  (se) = ge_u.parts.exp;					\
+} while (0)
+
+/* Set exponent of a long double from an int.  */
+
+#define SET_LDOUBLE_EXP(d,se)					\
+do {								\
+  ieee_extended_shape_type se_u;				\
+  se_u.value = (d);						\
+  se_u.parts.exp = (se);					\
+  (d) = se_u.value;						\
+} while (0)
+
+/*
+ * Functions internal to the math package, yet not static.
+ */
+double __exp__D(double, double);
+struct Double __log__D(double);
+long double __p1evll(long double, void *, int);
+long double __polevll(long double, void *, int);
 
 /*
  * Common routine to process the arguments to nan(), nanf(), and nanl().

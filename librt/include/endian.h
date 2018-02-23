@@ -26,8 +26,14 @@
 #define _BIG_ENDIAN         4321
 #define _PDP_ENDIAN         3412
 
+#ifndef __BYTE_ORDER__
+#define __ORDER_LITTLE_ENDIAN__  1234
+#define __ORDER_BIG_ENDIAN__     4321
+#endif
+
 #if defined(i386) || defined(amd64)
 #define _BYTE_ORDER         _LITTLE_ENDIAN
+#define __BYTE_ORDER__      __ORDER_LITTLE_ENDIAN__
 #else
 #error "Please specify byte-order for this platform"
 #endif
@@ -36,6 +42,10 @@
 #define LITTLE_ENDIAN       _LITTLE_ENDIAN
 #define BIG_ENDIAN          _BIG_ENDIAN
 #define PDP_ENDIAN          _PDP_ENDIAN
+
+#ifndef __FLOAT_WORD_ORDER__
+#define __FLOAT_WORD_ORDER__     __BYTE_ORDER__
+#endif
 
 #if _BYTE_ORDER == _LITTLE_ENDIAN
 #define    _QUAD_HIGHWORD    1

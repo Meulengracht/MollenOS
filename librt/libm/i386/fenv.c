@@ -37,12 +37,13 @@ const fenv_t __fe_dfl_env = {
 	__INITIAL_NPXCW__,
 	0x0000,
 	0x0000,
-	0x1F80,
-	0xFFFF,
-	0, 0, 0, 0, 0, 0, 0, 0
+	0x1f80,
+	0xffffffff,
+	{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff }
 };
 
-CRTDECL_DATA(enum __sse_support, __has_sse) =
+enum __sse_support __has_sse =
 #ifdef __SSE__
 	__SSE_YES;
 #else
@@ -55,11 +56,11 @@ CRTDECL_DATA(enum __sse_support, __has_sse) =
 #define setfl(x)	__writeeflags(x)
 #define	cpuid_dx(x)	int cpufeats[4]; __cpuid(cpufeats, 1); x = cpufeats[3]
 #else
-#define	getfl(x)	__asm __volatile("pushfl\n\tpopl %0" : "=mr" (*(&x)))
+#define	getfl(x)	__asm __volatile("pushfl\n\tpopl %0" : "=mr" (*(x)))
 #define	setfl(x)	__asm __volatile("pushl %0\n\tpopfl" : : "g" (x))
 #define	cpuid_dx(x)	__asm __volatile("pushl %%ebx\n\tmovl $1, %%eax\n\t"  \
 					 "cpuid\n\tpopl %%ebx"		      \
-					: "=d" (*(&x)) : : "eax", "ecx")
+					: "=d" (*(x)) : : "eax", "ecx")
 #endif
 
 /*
@@ -68,19 +69,20 @@ CRTDECL_DATA(enum __sse_support, __has_sse) =
  * of the program was compiled to use SSE floating-point, but we can't
  * use SSE on older processors.
  */
-int __test_sse(void)
+int
+__test_sse(void)
 {
 	int flag, nflag;
 	int dx_features;
 
 	/* Am I a 486? */
-	getfl(flag);
+	getfl(&flag);
 	nflag = flag ^ 0x200000;
 	setfl(nflag);
-	getfl(nflag);
+	getfl(&nflag);
 	if (flag != nflag) {
 		/* Not a 486, so CPUID should work. */
-		cpuid_dx(dx_features);
+		cpuid_dx(&dx_features);
 		if (dx_features & 0x2000000) {
 			__has_sse = __SSE_YES;
 			return (1);
@@ -90,19 +92,19 @@ int __test_sse(void)
 	return (0);
 }
 
-int fesetexceptflag(const fexcept_t *flagp, int excepts)
+int
+fesetexceptflag(const fexcept_t *flagp, int excepts)
 {
 	fenv_t env;
 	uint32_t mxcsr;
-	fenv_t *envp = &env;
 
-	__fnstenv(envp);
-	env.__status_word &= ~excepts;
-	env.__status_word |= *flagp & excepts;
-	__fldenv(envp);
+	__fnstenv(&env);
+	env.__status &= ~excepts;
+	env.__status |= *flagp & excepts;
+	__fldenv(env);
 
 	if (__HAS_SSE()) {
-		__stmxcsr(mxcsr);
+		__stmxcsr(&mxcsr);
 		mxcsr &= ~excepts;
 		mxcsr |= *flagp & excepts;
 		__ldmxcsr(mxcsr);
@@ -111,38 +113,48 @@ int fesetexceptflag(const fexcept_t *flagp, int excepts)
 	return (0);
 }
 
-int feraiseexcept(int excepts)
+int
+feraiseexcept(int excepts)
 {
-	fexcept_t ex = (fexcept_t)excepts;
+	fexcept_t ex = excepts;
+
 	fesetexceptflag(&ex, excepts);
 	__fwait();
 	return (0);
 }
 
-/* fnstenv masks all exceptions, so we need to restore
- * the old control word to avoid this side effect. */
-int fegetenv(fenv_t *envp)
+extern inline int fetestexcept(int __excepts);
+extern inline int fegetround(void);
+extern inline int fesetround(int __round);
+
+int
+fegetenv(fenv_t *envp)
 {
 	uint32_t mxcsr;
-	uint16_t control = envp->__control_word;
+
 	__fnstenv(envp);
-	__fldcw(control);
+	/*
+	 * fnstenv masks all exceptions, so we need to restore
+	 * the old control word to avoid this side effect.
+	 */
+	__fldcw(envp->__control);
 	if (__HAS_SSE()) {
-		__stmxcsr(mxcsr);
-		envp->__mxcsr = mxcsr;
+		__stmxcsr(&mxcsr);
+		__set_mxcsr(*envp, mxcsr);
 	}
 	return (0);
 }
 
-int feholdexcept(fenv_t *envp)
+int
+feholdexcept(fenv_t *envp)
 {
 	uint32_t mxcsr;
 
 	__fnstenv(envp);
 	__fnclex();
 	if (__HAS_SSE()) {
-		__stmxcsr(mxcsr);
-		envp->__mxcsr = mxcsr;
+		__stmxcsr(&mxcsr);
+		__set_mxcsr(*envp, mxcsr);
 		mxcsr &= ~FE_ALL_EXCEPT;
 		mxcsr |= FE_ALL_EXCEPT << _SSE_EMASK_SHIFT;
 		__ldmxcsr(mxcsr);
@@ -150,14 +162,17 @@ int feholdexcept(fenv_t *envp)
 	return (0);
 }
 
-int feupdateenv(const fenv_t *envp)
+extern inline int fesetenv(const fenv_t *__envp);
+
+int
+feupdateenv(const fenv_t *envp)
 {
 	uint32_t mxcsr;
 	uint16_t status;
 
-	__fnstsw(status);
+	__fnstsw(&status);
 	if (__HAS_SSE())
-		__stmxcsr(mxcsr);
+		__stmxcsr(&mxcsr);
 	else
 		mxcsr = 0;
 	fesetenv(envp);
@@ -165,15 +180,16 @@ int feupdateenv(const fenv_t *envp)
 	return (0);
 }
 
-int feenableexcept(int mask)
+int
+feenableexcept(int mask)
 {
 	uint32_t mxcsr, omask;
 	uint16_t control;
 
 	mask &= FE_ALL_EXCEPT;
-	__fnstcw(control);
+	__fnstcw(&control);
 	if (__HAS_SSE())
-		__stmxcsr(mxcsr);
+		__stmxcsr(&mxcsr);
 	else
 		mxcsr = 0;
 	omask = ~(control | mxcsr >> _SSE_EMASK_SHIFT) & FE_ALL_EXCEPT;
@@ -186,15 +202,16 @@ int feenableexcept(int mask)
 	return (omask);
 }
 
-int fedisableexcept(int mask)
+int
+fedisableexcept(int mask)
 {
 	uint32_t mxcsr, omask;
 	uint16_t control;
 
 	mask &= FE_ALL_EXCEPT;
-	__fnstcw(control);
+	__fnstcw(&control);
 	if (__HAS_SSE())
-		__stmxcsr(mxcsr);
+		__stmxcsr(&mxcsr);
 	else
 		mxcsr = 0;
 	omask = ~(control | mxcsr >> _SSE_EMASK_SHIFT) & FE_ALL_EXCEPT;
@@ -206,3 +223,4 @@ int fedisableexcept(int mask)
 	}
 	return (omask);
 }
+

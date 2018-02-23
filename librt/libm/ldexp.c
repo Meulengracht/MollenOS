@@ -23,13 +23,16 @@
 #include <math.h>
 
 double
-ldexp(double x, int n)
-{
+ldexp(double x, int n) {
 	return scalbn(x, n);
 }
 
 float 
-ldexpf(float x, int n)
-{
+ldexpf(float x, int n) {
 	return scalbnf(x, n);
+}
+
+long double 
+ldexpl(long double x, int n) {
+	return scalbnl(x, n);
 }

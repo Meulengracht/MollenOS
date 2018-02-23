@@ -28,49 +28,28 @@ global __CIsqrt
 
 ; Computes the square-root
 _sqrt:
-	; Stack Frame
 	push	ebp
 	mov		ebp, esp
-
-	; Load real from stack
 	fld		qword [ebp + 8]
-	
-	; Take the square root
 	fsqrt
-		
-	; Unwind & return
 	pop     ebp
 	ret
 
 ; Computes the square-root
 _sqrtf:
-	; Stack Frame
 	push	ebp
 	mov		ebp, esp
-
-	; Load real from stack
 	fld		dword [ebp + 8]
-	
-	; Take the square root
 	fsqrt
-		
-	; Unwind & return
 	pop     ebp
 	ret
 
 ; Computes the square-root
 _sqrtl:
-	; Stack Frame
 	push	ebp
 	mov		ebp, esp
-
-	; Load real from stack
 	fld		tword [ebp + 8]
-	
-	; Take the square root
 	fsqrt
-		
-	; Unwind & return
 	pop     ebp
 	ret
 
