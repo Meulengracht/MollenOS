@@ -27,23 +27,82 @@
 #include <crtdefs.h>
 #include <locale.h>
 
-#define _MOLLENOS 0x100
-#define M_E 2.71828182845904523536
-#define M_LOG2E 1.44269504088896340736
-#define M_LOG10E 0.434294481903251827651
-#define M_LN2 0.693147180559945309417
-#define M_LN10 2.30258509299404568402
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
+/*
+ * ANSI/POSIX
+ */
+extern const union __infinity_un {
+	unsigned char	__uc[8];
+	double		__ud;
+} __infinity;
+
+extern const union __nan_un {
+	unsigned char	__uc[sizeof(float)];
+	float		__uf;
+} __nan;
+
+/* VBS
+#if __GNUC_PREREQ__(3, 3) || (defined(__INTEL_COMPILER) && __INTEL_COMPILER >= 800)
+#define	__MATH_BUILTIN_CONSTANTS
 #endif
-#define M_PI_2 1.57079632679489661923
-#define M_PI_4 0.785398163397448309616
-#define M_1_PI 0.318309886183790671538
-#define M_2_PI 0.636619772367581343076
-#define M_2_SQRTPI 1.12837916709551257390
-#define M_SQRT2 1.41421356237309504880
-#define M_SQRT1_2 0.707106781186547524401
-	
+
+#if __GNUC_PREREQ__(3, 0) && !defined(__INTEL_COMPILER)
+#define	__MATH_BUILTIN_RELOPS
+#endif
+*/
+
+//VBS begin
+#define __MATH_BUILTIN_CONSTANTS
+#define	__MATH_BUILTIN_RELOPS
+#ifndef __ISO_C_VISIBLE
+#define __ISO_C_VISIBLE 1999
+#endif
+//VBS end
+
+#ifdef __MATH_BUILTIN_CONSTANTS
+#define	HUGE_VAL	__builtin_huge_val()
+#else
+#define	HUGE_VAL	(__infinity.__ud)
+#endif
+
+#define	FP_ILOGB0	(-INT_MAX)
+#define	FP_ILOGBNAN	 INT_MAX
+
+#ifdef __MATH_BUILTIN_CONSTANTS
+#define	HUGE_VALF	__builtin_huge_valf()
+#define	HUGE_VALL	__builtin_huge_vall()
+#define	INFINITY	__builtin_inff()
+#define	NAN		    __builtin_nanf("")
+#else
+#define	HUGE_VALF	(float)HUGE_VAL
+#define	HUGE_VALL	(long double)HUGE_VAL
+#define	INFINITY	HUGE_VALF
+#define	NAN		    (__nan.__uf)
+#endif /* __MATH_BUILTIN_CONSTANTS */
+
+#define	MATH_ERRNO	1
+#define	MATH_ERREXCEPT	2
+#define	math_errhandling	MATH_ERREXCEPT
+
+/*
+ * XOPEN/SVID
+ */
+#define	M_E		    2.7182818284590452354	/* e */
+#define	M_LOG2E		1.4426950408889634074	/* log 2e */
+#define	M_LOG10E	0.43429448190325182765	/* log 10e */
+#define	M_LN2		0.69314718055994530942	/* log e2 */
+#define	M_LN10		2.30258509299404568402	/* log e10 */
+#define	M_PI		3.14159265358979323846	/* pi */
+#define	M_PI_2		1.57079632679489661923	/* pi/2 */
+#define	M_PI_4		0.78539816339744830962	/* pi/4 */
+#define	M_1_PI		0.31830988618379067154	/* 1/pi */
+#define	M_2_PI		0.63661977236758134308	/* 2/pi */
+#define	M_2_SQRTPI	1.12837916709551257390	/* 2/sqrt(pi) */
+#define	M_SQRT2		1.41421356237309504880	/* sqrt(2) */
+#define	M_SQRT1_2	0.70710678118654752440	/* 1/sqrt(2) */
+
+#define	MAXFLOAT	((float)3.40282346638528860e+38)
+#define	HUGE		MAXFLOAT
+
 #ifdef __LITTLE_ENDIAN
 #define __HI(x) *(1+(int*)&x)
 #define __LO(x) *(int*)&x
@@ -100,23 +159,6 @@ CRTDECL(int*, __signgam(void));
 
 #define EDOM 33
 #define ERANGE 34
-
-CRTDECL_DATA(extern double const, _HUGE);
-#define HUGE_VAL _HUGE
-
-#ifndef _HUGE_ENUF
-#define _HUGE_ENUF 1e+300
-#endif
-#define INFINITY  ((float)(_HUGE_ENUF * _HUGE_ENUF))
-#define HUGE_VALD ((double)INFINITY)
-#define HUGE_VALF ((float)INFINITY)
-#define HUGE_VALL ((long double)INFINITY)
-#define NAN       ((float)(INFINITY * 0.0F))
-
-#define _DENORM  (-2)
-#define _FINITE  (-1)
-#define _INFCODE 1
-#define _NANCODE 2
 
 _CODE_BEGIN
 CRTDECL(int, __fpclassifyd(double));
@@ -279,8 +321,6 @@ _CRTIMP float __CRTDECL ldexpf(float, int);
 _CRTIMP long double __CRTDECL ldexpl(long double, int);
 
 /* 7.12.6.6 */
-#define FP_ILOGB0 ((int)0x80000000)
-#define FP_ILOGBNAN ((int)0x80000000)
 _CRTIMP int __CRTDECL ilogb(double);
 _CRTIMP int __CRTDECL ilogbf(float);
 _CRTIMP int __CRTDECL ilogbl(long double);
@@ -606,7 +646,6 @@ __fp_unordered_compare(long double x, long double y){
 #define TLOSS _TLOSS
 #define PLOSS _PLOSS
 #define matherr _matherr
-#define HUGE _HUGE
 #endif
 
 #ifdef __cplusplus

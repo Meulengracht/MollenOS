@@ -1966,8 +1966,8 @@ ScCreateDisplayFramebuffer(void) {
         FbVirtualItr < (FbVirtual + FbSize); 
         FbVirtualItr += AddressSpaceGetPageSize(), FbPhysicalItr += AddressSpaceGetPageSize()) {
         AddressSpaceMap(AddressSpaceGetCurrent(), &FbPhysicalItr, &FbVirtualItr, AddressSpaceGetPageSize(), 
-        ASPACE_FLAG_APPLICATION | ASPACE_FLAG_NOCACHE | ASPACE_FLAG_SUPPLIEDPHYSICAL | 
-        ASPACE_FLAG_SUPPLIEDVIRTUAL | ASPACE_FLAG_VIRTUAL, __MASK);
+            ASPACE_FLAG_APPLICATION | ASPACE_FLAG_NOCACHE | ASPACE_FLAG_SUPPLIEDPHYSICAL | 
+            ASPACE_FLAG_SUPPLIEDVIRTUAL | ASPACE_FLAG_VIRTUAL, __MASK);
     }
     return (void*)FbVirtual;
 }

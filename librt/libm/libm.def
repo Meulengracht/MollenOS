@@ -33,7 +33,6 @@ log2f
 log10
 log10f
 log10l
-__HUGE=_HUGE
 hypot
 tanf
 log
@@ -69,6 +68,7 @@ remainderl
 copysign
 copysignf
 copysignl
+_HUGE=__HUGE
 __CItanh=_CItanh
 __CItan=_CItan
 __CIsqrt=_CIsqrt

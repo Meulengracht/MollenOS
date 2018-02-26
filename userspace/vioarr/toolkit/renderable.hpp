@@ -16,35 +16,18 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - Vioarr Window Compositor System
+ * MollenOS - Vioarr Window Compositor System (Scene)
  *  - The window compositor system and general window manager for
  *    MollenOS.
  */
 #pragma once
 
-/* Includes
- * - OpenGL */
-#include <GL/gl.h>
-#include "../displays/display.hpp"
-
-class CTextureManager {
+class CRenderable {
 public:
-	static CTextureManager& GetInstance() {
-		// Guaranteed to be destroyed.
-		// Is instantiated on first use
-		static CTextureManager _Instance;
-		return _Instance;
-	}
+
 private:
-	CTextureManager() {}                     // Constructor? (the {} brackets) are needed here.
-
-public:
-	CTextureManager(CTextureManager const&) = delete;
-	void operator=(CTextureManager const&) = delete;
-
-    // Texture loaders
-    GLuint CreateTexturePNG(const char *Path, int *Width, int *Height);
-};
-
-// Shorthand for the vioarr
-#define sTextureManager CTextureManager::GetInstance()
+    // Scene information
+    int _X, _Y;
+    int _Width;
+    int _Height;
+}

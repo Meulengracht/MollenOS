@@ -76,17 +76,18 @@ public:
     void Update() {
         glClearColor(0.0, 0.0, 0.0, 1.0);
         glClear(GL_COLOR_BUFFER_BIT);
+        glShadeModel(GL_SMOOTH);
 
         glEnable(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, _TextureBg);
 
         glPushMatrix();
         glLoadIdentity();
-        glBegin(GL_QUADS);
+        glBegin(GL_QUADS); // Top left, Bot Left, Top Right, Bot Right (Vertices, not texture)
+          glTexCoord2d(0.0, 1.0); glVertex2d(0.0, 0.0);
           glTexCoord2d(0.0, 0.0); glVertex2d(0.0, _Height);
           glTexCoord2d(1.0, 0.0); glVertex2d(_Width, _Height);
           glTexCoord2d(1.0, 1.0); glVertex2d(_Width, 0.0);
-          glTexCoord2d(0.0, 1.0); glVertex2d(0.0, 0.0);
         glEnd();
         glPopMatrix();
 

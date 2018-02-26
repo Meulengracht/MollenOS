@@ -123,27 +123,36 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
     // read all the info up to the image data
     png_read_info(png_ptr, info_ptr);
 
-    // variables to pass to get info
-    int bit_depth, color_type;
-    png_uint_32 temp_width, temp_height;
-
-    // get info about png
-    png_get_IHDR(png_ptr, info_ptr, &temp_width, &temp_height, &bit_depth, &color_type,
-        NULL, NULL, NULL);
-
-    if (Width){ *Width = temp_width; }
-    if (Height){ *Height = temp_height; }
-
-    if (bit_depth != 8) {
-        msg = Path;
-        msg += ": Unsupported bit depth ";
-        msg += std::to_string(bit_depth) + ". Must be 8.";
-        sLog.Error(msg);
-        return 0;
-    }
+    // Read image metadata
+    png_uint_32 temp_width  = png_get_image_width(png_ptr, info_ptr);
+    png_uint_32 temp_height = png_get_image_height(png_ptr, info_ptr);
+    png_uint_32 bit_depth   = png_get_bit_depth(png_ptr, info_ptr);
+    png_uint_32 channels    = png_get_channels(png_ptr, info_ptr);
+    png_uint_32 color_type  = png_get_color_type(png_ptr, info_ptr);
+    if (Width){ *Width = (int)temp_width; }
+    if (Height){ *Height = (int)temp_height; }
 
     GLint format;
-    switch(color_type) {
+    switch (color_type) {
+        case PNG_COLOR_TYPE_PALETTE:
+            format = GL_RGB;
+            png_set_palette_to_rgb(png_ptr);
+            //Don't forget to update the channel info
+            //It's used later to know how big a buffer we need for the image
+            channels = 3;           
+            break;
+        case PNG_COLOR_TYPE_GRAY_ALPHA:
+            format = GL_RGBA;
+            png_set_gray_to_rgb(png_ptr);
+        case PNG_COLOR_TYPE_GRAY:
+            format = GL_RGB;
+            if (bit_depth < 8) {
+                png_set_expand_gray_1_2_4_to_8(png_ptr);
+            }
+            png_set_gray_to_rgb(png_ptr);
+            //And the bitdepth info
+            bit_depth = 8;
+            break;
         case PNG_COLOR_TYPE_RGB:
             format = GL_RGB;
             break;
@@ -158,40 +167,49 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
             return 0;
     }
 
+    // if the image has a transperancy set.. convert it to a full Alpha channel..
+    if (png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS)) {
+        png_set_tRNS_to_alpha(png_ptr);
+        channels += 1;
+    }
+
+    //We don't support 16 bit precision.. so if the image Has 16 bits per channel
+    //precision... round it down to 8.
+    if (bit_depth == 16) {
+        png_set_strip_16(png_ptr);
+        bit_depth = 8;
+    }
+
+    if (bit_depth != 8) {
+        msg = Path;
+        msg += ": Unsupported bit depth ";
+        msg += std::to_string(bit_depth) + ". Must be 8.";
+        sLog.Error(msg);
+        return 0;
+    }
+
     // Update the png info struct.
     png_read_update_info(png_ptr, info_ptr);
 
-    // Row size in bytes.
-    int rowbytes = png_get_rowbytes(png_ptr, info_ptr);
+    // Data pointers
+    png_bytep* row_pointers = NULL;
+    char* image_data        = NULL;
 
-    // glTexImage2d requires rows to be 4-byte aligned
-    rowbytes += 3 - ((rowbytes-1) % 4);
+    // Initialize row pointers
+    const unsigned int stride = temp_width * bit_depth * channels / 8;
+    row_pointers    = new png_bytep[temp_height];
+    image_data      = new char[temp_width * temp_height * bit_depth * channels / 8];
 
-    // Allocate the image_data as a big block, to be given to opengl
-    png_byte * image_data = (png_byte *)malloc(rowbytes * temp_height * sizeof(png_byte)+15);
-    if (image_data == NULL) {
-        sLog.Error("error: could not allocate memory for PNG image data\n");
-        png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
-        delete fbuffer;
-        return 0;
+    for (size_t i = 0; i < temp_height; i++) {
+        //Set the pointer to the data pointer + i times the row stride.
+        //Notice that the row order is reversed with q.
+        //This is how at least OpenGL expects it,
+        //and how many other image loaders present the data.
+        png_uint_32 q   = (temp_height - i - 1) * stride;
+        row_pointers[i] = (png_bytep)image_data + q;
     }
 
-    // row_pointers is for pointing to image_data for reading the png with libpng
-    png_byte ** row_pointers = (png_byte **)malloc(temp_height * sizeof(png_byte *));
-    if (row_pointers == NULL) {
-        sLog.Error("error: could not allocate memory for PNG row pointers\n");
-        png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
-        free(image_data);
-        delete fbuffer;
-        return 0;
-    }
-
-    // set the individual row_pointers to point at the correct offsets of image_data
-    for (unsigned int i = 0; i < temp_height; i++) {
-        row_pointers[temp_height - 1 - i] = image_data + i * rowbytes;
-    }
-
-    // read the png into image_data through row_pointers
+    // Perform the actual read
     png_read_image(png_ptr, row_pointers);
 
     // Generate the OpenGL texture object

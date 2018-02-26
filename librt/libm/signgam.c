@@ -28,6 +28,7 @@
 #include <math.h>
 
 static int __global_signgam = 0;
+CRTDECL_DATA(double, __HUGE) = (double)HUGE;
 
 int* __signgam(void) {
     return &__global_signgam;

@@ -56,9 +56,11 @@ _present_basic:
     ; Iterate for ebx times
     .NextRow:
         push    ecx
+        push    edi
         rep     movsb
+        pop     edi
         pop     ecx
-        add     edi, edx
+        sub     edi, edx
 
         ; Loop Epilogue
         dec ebx
@@ -103,6 +105,7 @@ _present_sse:
 
         ; Iterate for ecx times
         push    ecx
+        push    edi
         .NextCopy:
             movdqa xmm0, [esi]
             movdqa xmm1, [esi + 16]
@@ -129,8 +132,9 @@ _present_sse:
         ; Copy remainder bytes
         mov     ecx, eax
         rep     movsb
+        pop     edi
         pop     ecx
-        add     edi, edx
+        sub     edi, edx
 
         ; Loop Epilogue
         dec     ebx
@@ -170,11 +174,12 @@ _present_sse2:
 	mov		eax, dword [ebp + 24]
 	mov		edx, dword [ebp + 28]
 
-    ; Iterate for ebx times
+    ; Iterate for ebx (Rows) times
     .NextRow:
 
-        ; Iterate for ecx times
+        ; Iterate for ecx (RowLoops) times
         push    ecx
+        push    edi
         .NextCopy:
             prefetchnta [esi + 128]
             prefetchnta [esi + 160]
@@ -206,8 +211,9 @@ _present_sse2:
         ; Copy remainder bytes
         mov     ecx, eax
         rep     movsb
+        pop     edi
         pop     ecx
-        add     edi, edx
+        sub     edi, edx
 
         ; Loop Epilogue
         dec     ebx

@@ -29,6 +29,9 @@ public:
     virtual void Show() = 0;
     virtual void SetDimensions(int X, int Y, int Width, int Height) = 0;
     virtual void Update() = 0;
+
+private:
+    CScene *_Scene;
 };
 
 class CScreenManager {

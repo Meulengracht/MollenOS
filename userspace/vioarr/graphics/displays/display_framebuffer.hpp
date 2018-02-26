@@ -58,7 +58,7 @@ public:
     CDisplayOsMesa() {
         int CpuRegisters[4] = { 0 };
         sLog.Info("Creating the opengl context");
-        _Context            = OSMesaCreateContext(OSMESA_RGBA, NULL);
+        _Context            = OSMesaCreateContext(OSMESA_BGRA, NULL);
 
         // Select a present-method (basic/sse/sse2)
 #if defined(_MSC_VER) && !defined(__clang__)
@@ -104,8 +104,13 @@ public:
         
         int Width       = _VideoInformation.Width;
         int Height      = _VideoInformation.Height;
+        int Depth       = _VideoInformation.Depth;
         logmessage      = "Creating a backbuffer of size: ";
         logmessage      += std::to_string(Width) + ", " + std::to_string(Height);
+        logmessage      += ", " + std::to_string(Depth);
+        logmessage      += " (R=" + std::to_string(_VideoInformation.RedPosition);
+        logmessage      += ", G=" + std::to_string(_VideoInformation.GreenPosition);
+        logmessage      += ", B=" + std::to_string(_VideoInformation.BluePosition) + ")";
         sLog.Info(logmessage);
         _BackbufferSize = Width * Height * 4 * sizeof(GLubyte);
         _Backbuffer     = std::aligned_alloc(32, _BackbufferSize);
@@ -120,6 +125,7 @@ public:
         _BytesToCopy    = Width * 4  * sizeof(GLubyte);
         _RowLoops       = _BytesToCopy / _BytesStep;
         _BytesRemaining = _BytesToCopy % _BytesStep;
+        _FramebufferEnd = ((char*)_Framebuffer + (_VideoInformation.BytesPerScanline * (Height - 1)));
         return OSMesaMakeCurrent(_Context, _Backbuffer, GL_UNSIGNED_BYTE, Width, Height);
     }
 
@@ -130,19 +136,21 @@ public:
     }
 
     // Present
-    // Flushes the entire backbuffer to the display
+    // Flushes the entire backbuffer to the display in a reverse manner
+    // as opengl's buffer is backwards
     bool Present() {
-        _PresentMethod(_Framebuffer, _Backbuffer, _VideoInformation.Height, 
-            _RowLoops, _BytesRemaining, _VideoInformation.BytesPerScanline - _BytesToCopy);
+        _PresentMethod(_FramebufferEnd, _Backbuffer, _VideoInformation.Height, 
+            _RowLoops, _BytesRemaining, _VideoInformation.BytesPerScanline);
         return true;
     }
-
+    
 private:
     VideoDescriptor_t   _VideoInformation;
     OSMesaContext       _Context;
     unsigned long       _BackbufferSize;
     void*               _Backbuffer;
     void*               _Framebuffer;
+    void*               _FramebufferEnd;
 
     // Needed by flushing
     void(*_PresentMethod)(void*, void*, int, int, int, int);

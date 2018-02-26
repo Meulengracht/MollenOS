@@ -26,7 +26,7 @@ all: ../bin/cpplibtest.dll ../bin/cpptest.app
 
 .PHONY: clean
 clean:
-	@rm -f main.o lib.o
+	@rm -f main.o lib.o test-double.o test-float.o
 	@rm -f ../bin/cpptest.app
 	@rm -f ../bin/cpplibtest.dll
 	@rm -f ../bin/cpplibtest.lib
