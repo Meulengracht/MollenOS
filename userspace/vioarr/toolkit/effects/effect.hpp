@@ -16,25 +16,20 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - Vioarr Window Compositor System (Scene)
+ * MollenOS - Vioarr Window Compositor System (Effect)
  *  - The window compositor system and general window manager for
  *    MollenOS.
  */
 #pragma once
 
 /* Includes
- * - Library */
-#include "../toolkit/renderable.hpp"
-#include <list>
+ * - OpenGL */
+#include <GL/gl.h>
 
-class CScene {
-
-private:
-    // Scene information
-    int _X, _Y;
-    int _Width;
-    int _Height;
-
-    // Renderables
-    std::list<CRenderable*> _Objects;
-}
+class CEffect {
+public:
+    CEffect() { }
+    virtual ~CEffect() { }
+    virtual void Set() = 0;
+    virtual void Unset() {  } 
+};

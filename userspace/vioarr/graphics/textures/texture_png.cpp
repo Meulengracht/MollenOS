@@ -72,14 +72,14 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
         msg += Path;
         msg += " is not a PNG.";
         sLog.Error(msg);
-        delete fbuffer;
+        delete[] fbuffer;
         return 0;
     }
 
     png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     if (!png_ptr) {
         sLog.Error("error: png_create_read_struct returned 0.");
-        delete fbuffer;
+        delete[] fbuffer;
         return 0;
     }
 
@@ -88,7 +88,7 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
     if (!info_ptr) {
         sLog.Error("error: png_create_info_struct returned 0.");
         png_destroy_read_struct(&png_ptr, (png_infopp)NULL, (png_infopp)NULL);
-        delete fbuffer;
+        delete[] fbuffer;
         return 0;
     }
 
@@ -97,7 +97,7 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
     if (!end_info) {
         sLog.Error("error: png_create_info_struct returned 0.");
         png_destroy_read_struct(&png_ptr, &info_ptr, (png_infopp) NULL);
-        delete fbuffer;
+        delete[] fbuffer;
         return 0;
     }
 
@@ -105,7 +105,7 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
     if (setjmp(png_jmpbuf(png_ptr))) {
         sLog.Error("error from libpng");
         png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
-        delete fbuffer;
+        delete[] fbuffer;
         return 0;
     }
 
@@ -224,6 +224,6 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
     png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
     free(image_data);
     free(row_pointers);
-    delete fbuffer;
+    delete[] fbuffer;
     return texture;
 }

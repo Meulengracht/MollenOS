@@ -29,22 +29,30 @@
 #include "../utils/log_manager.hpp"
 #include "screen.hpp"
 
+/* Includes
+ * - Toolkit */
+#include "../toolkit/sprite.hpp"
+
 class CLoginScreen : public CScreen {
 public:
-    CLoginScreen(CDisplay *Display) {
-        // Load texture
+    CLoginScreen(CDisplay *Display) : CScreen() {
+        // Create scene objects
+        CSprite *Background = new CSprite("$sys/themes/default/gfxbg.png");
+        Background->SetWidth(_Display->GetWidth());
+        Background->SetHeight(_Display->GetHeight());
+
         // @todo load from some settings
-        _TextureBg  = sTextureManager.CreateTexturePNG("$sys/themes/default/gfxbg.png", &_TextureBgWidth, &_TextureBgHeight);
-        _Display    = Display;
+        AddRenderable(Background);
 
         // Initialize to current size
+        _Display    = Display;
         _X          = _Display->GetX();
         _Y          = _Display->GetY();
         _Width      = _Display->GetWidth();
         _Height     = _Display->GetHeight();
     }
     ~CLoginScreen() {
-        glDeleteTextures(1, &_TextureBg);
+
     }
 
     // Hide this screen by fading us out or something @todo
@@ -76,21 +84,7 @@ public:
     void Update() {
         glClearColor(0.0, 0.0, 0.0, 1.0);
         glClear(GL_COLOR_BUFFER_BIT);
-        glShadeModel(GL_SMOOTH);
-
-        glEnable(GL_TEXTURE_2D);
-        glBindTexture(GL_TEXTURE_2D, _TextureBg);
-
-        glPushMatrix();
-        glLoadIdentity();
-        glBegin(GL_QUADS); // Top left, Bot Left, Top Right, Bot Right (Vertices, not texture)
-          glTexCoord2d(0.0, 1.0); glVertex2d(0.0, 0.0);
-          glTexCoord2d(0.0, 0.0); glVertex2d(0.0, _Height);
-          glTexCoord2d(1.0, 0.0); glVertex2d(_Width, _Height);
-          glTexCoord2d(1.0, 1.0); glVertex2d(_Width, 0.0);
-        glEnd();
-        glPopMatrix();
-
+        RenderScene();
         glFinish();
         _Display->Present();
     }
@@ -98,9 +92,6 @@ public:
 private:
     // Resources
     CDisplay*   _Display;
-    GLuint      _TextureBg;
-    int         _TextureBgWidth;
-    int         _TextureBgHeight;
 
     // Information
     int _X, _Y;

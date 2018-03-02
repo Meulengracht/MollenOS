@@ -1469,7 +1469,7 @@ static void
 cbrt_test (void)
 {
   errno = 0;
-  FUNC(cbrt) (8);
+  (void)FUNC(cbrt) (8);
   if (errno == ENOSYS)
     /* Function not implemented.  */
     return;

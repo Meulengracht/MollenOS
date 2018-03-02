@@ -22,16 +22,40 @@
  */
 #pragma once
 
+/* Includes
+ * - System */
+#include "../toolkit/renderable.hpp"
+#include <list>
+
 class CScreen {
 public:
-    virtual ~CScreen() { }
+    CScreen() { }
+    virtual ~CScreen() {
+        _Objects.remove_if([](CRenderable* Element) { delete Element; return true; }); 
+    }
+
+    // Functions that can be overriden
     virtual void Hide() = 0;
     virtual void Show() = 0;
     virtual void SetDimensions(int X, int Y, int Width, int Height) = 0;
     virtual void Update() = 0;
 
+    // Adds a new element to the current scene
+    void AddRenderable(CRenderable *Element) { 
+        _Objects.push_back(Element);
+    }
+
+    // Renders the scene by updating all elements present
+    void RenderScene() {
+        for (auto iterator = _Objects.begin(); iterator != _Objects.end(); iterator++) {
+            (*iterator)->PreProcess();
+            (*iterator)->Render();
+            (*iterator)->PostProcess();
+        }
+    }
+
 private:
-    CScene *_Scene;
+    std::list<CRenderable*> _Objects;
 };
 
 class CScreenManager {
