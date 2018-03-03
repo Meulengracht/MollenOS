@@ -45,12 +45,12 @@ segment .text
 %define REGISTER_XMM15		240
 
 ;Functions in this asm
-global __setjmp
-global __setjmpex
-global _longjmp
+global _setjmp
+global _setjmp3
+global longjmp
 
 ; int _setjmp(jmp_buf env);
-__setjmp:
+_setjmp:
 	; We don't use a stack frame here
 
 	; Get params
@@ -89,7 +89,7 @@ __setjmp:
 	ret 
 
 ; int _setjmpex(jmp_buf _Buf,void *_Ctx);
-__setjmpex:
+_setjmp3:
 	; We don't use a stack frame here
 
 	; Get params
@@ -128,7 +128,7 @@ __setjmpex:
 	ret 
 
 ; void longjmp(jmp_buf env, int value);
-_longjmp:
+longjmp:
 	; Don't use a stack frame here
 
 	; Restore registers

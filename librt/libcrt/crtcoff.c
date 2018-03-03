@@ -118,11 +118,11 @@ CRTDECL(void, __CrtCallInitializersTls(_PVTLS *pfbegin, _PVTLS *pfend, void *dso
 
 /* Globals
  * - Global exported shared variables */
-static int _tls_init = 0;
-void *__dso_handle = &__dso_handle;
-void *_tls_module_data = NULL;
-#if defined(i386) || defined(__i386__)
-void **_tls_array = NULL; // on 64 bit this must be at gs:0x58, 32 bit this should point into tls area
+static int _tls_init    = 0;
+void *__dso_handle      = &__dso_handle;
+void *_tls_module_data  = NULL;
+#if defined(i386) || defined(__i386__) || defined(amd64) || defined(__amd64__)
+void **_tls_array       = NULL; // on 64 bit this must be at gs:0x58 [11], 32 bit this should point into tls area
 unsigned long _tls_index = 0;
 #else
 #error "Implicit tls architecture must be implemented"

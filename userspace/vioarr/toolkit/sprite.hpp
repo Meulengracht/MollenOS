@@ -29,8 +29,13 @@
 
 class CSprite : public CRenderable {
 public:
+    CSprite(const std::string &Path, int Width, int Height) : CRenderable(0, 0, Width, Height) {
+        _Texture = sTextureManager.CreateTexturePNG(Path.c_str(), &_TextureWidth, &_TextureHeight);
+    }
     CSprite(const std::string &Path) : CRenderable(0, 0, 0, 0) {
         _Texture = sTextureManager.CreateTexturePNG(Path.c_str(), &_TextureWidth, &_TextureHeight);
+        SetWidth(_TextureWidth);
+        SetHeight(_TextureHeight);
     }
     ~CSprite() {
         glDeleteTextures(1, &_Texture);

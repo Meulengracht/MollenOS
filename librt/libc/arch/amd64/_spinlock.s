@@ -22,14 +22,14 @@ bits 64
 segment .text
 
 ;Functions in this asm
-global __spinlock_acquire
-global __spinlock_test
-global __spinlock_release
+global _spinlock_acquire
+global _spinlock_test
+global _spinlock_release
 
 ; int spinlock_acquire(spinlock_t *spinlock)
 ; We wait for the spinlock to become free
 ; then set value to 1 to mark it in use.
-__spinlock_acquire:
+_spinlock_acquire:
 	; Sanity
 	test rcx, rcx
 	je .gotlock
@@ -57,7 +57,7 @@ __spinlock_acquire:
 ; int spinlock_test(spinlock_t *spinlock)
 ; This tests whether or not spinlock is
 ; set or not
-__spinlock_test:
+_spinlock_test:
 	; Get address of lock
     mov rax, 0
 	test rcx, rcx
@@ -82,7 +82,7 @@ __spinlock_test:
 
 ; void spinlock_release(spinlock_t *spinlock)
 ; We set the spinlock to value 0
-__spinlock_release:
+_spinlock_release:
 	test rcx, rcx
 	je .done
 	mov qword [rcx], 0

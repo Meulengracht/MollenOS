@@ -41,6 +41,8 @@ public:
     // Public standard methods
     virtual void SetWidth(int Width) { _Width = Width; }
     virtual void SetHeight(int Height) { _Height = Height; }
+    void AttachEffect(CEffect *Effect) { _Effect = Effect; }
+    void RemoveEffect() { _Effect = nullptr; }
 
     int GetWidth() const { return _Width; }
     int GetHeight() const { return _Height; }

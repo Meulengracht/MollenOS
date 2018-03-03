@@ -184,8 +184,7 @@ _CRTIMP_NORETURN(void exit(int));                   // Normal termination, clean
  * comparator function can be provided for the sort */
 _CRTIMP void *bsearch(__CONST void *key, __CONST void *base, size_t nmemb, 
     size_t size, int(*compar)(__CONST void *, __CONST void *));
-_CRTIMP void qsort(void *base, unsigned num, unsigned width, 
-    int(*comp)(__CONST void *, __CONST void *));
+CRTDECL(void,       qsort(void *base, size_t num, size_t width, int(*comp)(const void*, const void*)));
 
 /* Integer Arethmetic functions 
  * Used to do integer divisions and to calculate

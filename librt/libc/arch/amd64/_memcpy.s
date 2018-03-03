@@ -21,10 +21,10 @@ bits 64
 segment .text
 
 ;Functions in this asm
-global _asm_memcpy_sse2
+global asm_memcpy_sse2
 
 ; void asm_memcpy_sse2(void *Dest, void *Source, int Loops, int RemainingBytes)
-_asm_memcpy_sse2:
+asm_memcpy_sse2:
 	; Save stuff
 	push	rdi
 	push	rsi

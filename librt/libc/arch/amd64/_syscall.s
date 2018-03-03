@@ -21,10 +21,10 @@ bits 64
 segment .text
 
 ;Functions in this asm
-global __syscall
+global _syscall
 
 ; int _syscall(int Function, int Arg0, int Arg1, int Arg2, int Arg3, int Arg4)
-__syscall:
+_syscall:
 	; Stack Frame
 	push rbp
 	mov rbp, rsp

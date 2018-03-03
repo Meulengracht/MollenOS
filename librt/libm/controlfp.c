@@ -22,12 +22,6 @@
 
 #define X87_CW_IC          (1<<12)  /* infinity control flag */
 
-#ifdef _M_AMD64
-unsigned int __getfpcw87(void);
-void __setfpcw87(unsigned int);
-#endif
-
-
 unsigned int _controlfp(unsigned int newval, unsigned int mask)
 {
     return _control87( newval, mask & ~_FPE_DENORMAL );
@@ -39,9 +33,7 @@ unsigned int _control87(unsigned int newval, unsigned int mask)
   unsigned int flags = 0;
 
   /* Get fp control word */
-#ifdef _M_AMD64
-  fpword = __getfpcw87();
-#elif defined(__GNUC__)
+#if defined(__GNUC__)
   __asm__ __volatile__( "fstcw %0" : "=m" (fpword) : );
 #else
   __asm fstcw [fpword];
@@ -90,13 +82,10 @@ unsigned int _control87(unsigned int newval, unsigned int mask)
   if (flags & _IC_AFFINE) fpword |= 0x1000;
 
   /* Put fp control word */
-#ifdef _M_AMD64
-  __setfpcw87(fpword);
-#elif defined(__GNUC__)
+#if defined(__GNUC__)
   __asm__ __volatile__( "fldcw %0" : : "m" (fpword) );
 #else
   __asm fldcw [fpword];
 #endif
-
   return flags;
 }

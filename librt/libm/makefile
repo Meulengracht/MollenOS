@@ -10,18 +10,18 @@ INCLUDES = -I../include
 ifeq ($(VALI_ARCH), i386)
 	math_flags = -D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL
 	ASFLAGS = -f win32 -Xvc
-	SOURCES += ld80/lgammal_r.c ld80/tgammal.c ld80/expl.c ld80/powl.c ld80/core_cosl.c ld80/core_sinl.c ld80/core_tanl.c
+	SOURCES += ld80/lgammal_r.c ld80/tgammal.c ld80/expl.c ld80/powl.c ld80/core_cosl.c ld80/core_sinl.c ld80/core_tanl.c ld80/sinl.c
 else ifeq ($(VALI_ARCH), amd64)
 	math_flags = -D_HAVE_LONG_DOUBLE
 	ASFLAGS = -f win64 -Xvc
-	SOURCES += ld80/lgammal_r.c ld80/tgammal.c ld80/expl.c ld80/powl.c ld80/core_cosl.c ld80/core_sinl.c ld80/core_tanl.c
+	SOURCES += ld80/lgammal_r.c ld80/tgammal.c ld80/expl.c ld80/powl.c ld80/core_cosl.c ld80/core_sinl.c ld80/core_tanl.c ld80/logl.c ld80/log10l.c
 else
 $(error VALI_ARCH is not set to a valid value)
 endif
 
 OBJECTS = $(ASM_SRCS:.s=.o) $(ARCH_SRCS:.c=.o) $(SOURCES:.c=.o)
 CFLAGS = $(GCFLAGS) -D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAREDLIBRARY $(math_flags) -DCRTDLL $(INCLUDES)
-LFLAGS = $(GLFLAGS) /lldmap /def:libm.def /noentry /dll 
+LFLAGS = $(GLFLAGS) /lldmap /def:$(VALI_ARCH)/libm.def /noentry /dll 
 
 .PHONY: all
 all: ../build/libm.dll

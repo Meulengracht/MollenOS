@@ -18,9 +18,9 @@
 #include <float.h>
 
 /* Include arch-specfic files */
-#if defined(_X86_32) || defined(i386)
+#if defined(i386) || defined(__i386__)
 #include "i386/fpmath.h"
-#elif defined(_X86_64)
+#elif defined(amd64) || defined(__amd64__)
 #include "amd64/fpmath.h"
 #else
 /* Dunno */
@@ -590,5 +590,57 @@ float	__ldexp_expf(float,int);
 long double __kernel_sinl(long double, long double, int);
 long double __kernel_cosl(long double, long double);
 long double __kernel_tanl(long double, long double, int);
+
+#ifdef __KERNEL_LOG
+static const double
+Lg1 = 6.666666666666735130e-01,  /* 3FE55555 55555593 */
+Lg2 = 3.999999999940941908e-01,  /* 3FD99999 9997FA04 */
+Lg3 = 2.857142874366239149e-01,  /* 3FD24924 94229359 */
+Lg4 = 2.222219843214978396e-01,  /* 3FCC71C5 1D8E78AF */
+Lg5 = 1.818357216161805012e-01,  /* 3FC74664 96CB03DE */
+Lg6 = 1.531383769920937332e-01,  /* 3FC39A09 D078C69F */
+Lg7 = 1.479819860511658591e-01;  /* 3FC2F112 DF3E5244 */
+
+/*
+ * We always inline k_log1p(), since doing so produces a
+ * substantial performance improvement (~40% on amd64).
+ */
+static inline double
+k_log1p(double f)
+{
+	double hfsq,s,z,R,w,t1,t2;
+
+ 	s = f/(2.0+f);
+	z = s*s;
+	w = z*z;
+	t1= w*(Lg2+w*(Lg4+w*Lg6));
+	t2= z*(Lg1+w*(Lg3+w*(Lg5+w*Lg7)));
+	R = t2+t1;
+	hfsq=0.5*f*f;
+	return s*(hfsq+R);
+}
+#elif defined (__KERNEL_LOGF)
+
+static const float
+Lg1 = 6.666666666666735130e-01f,  /* 3FE55555 55555593 */
+Lg2 = 3.999999999940941908e-01f,  /* 3FD99999 9997FA04 */
+Lg3 = 2.857142874366239149e-01f,  /* 3FD24924 94229359 */
+Lg4 = 2.222219843214978396e-01f;  /* 3FCC71C5 1D8E78AF */
+
+static inline float
+k_log1pf(float f)
+{
+	float hfsq, s, z, R, w, t1, t2;
+
+	s = f / ((float)2.0 + f);
+	z = s*s;
+	w = z*z;
+	t1 = w*(Lg2 + w*Lg4);
+	t2 = z*(Lg1 + w*Lg3);
+	R = t2 + t1;
+	hfsq = (float)0.5*f*f;
+	return s*(hfsq + R);
+}
+#endif
 
 #endif /* !_MATH_PRIVATE_H_ */

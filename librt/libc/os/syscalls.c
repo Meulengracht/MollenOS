@@ -24,31 +24,32 @@
 /* Includes
  * - Library */
 #include <os/osdefs.h>
+#include <os/syscall.h>
 
 /* Extern 
  * - Access to assembler for the platform */
-__EXTERN int _syscall(int Function, int Arg0, int Arg1, int Arg2, int Arg3, int Arg4);
+__EXTERN SCTYPE _syscall(SCTYPE Function, SCTYPE Arg0, SCTYPE Arg1, SCTYPE Arg2, SCTYPE Arg3, SCTYPE Arg4);
 
-int syscall0(int Function) {
+SCTYPE syscall0(SCTYPE Function) {
 	return _syscall(Function, 0, 0, 0, 0, 0);
 }
 
-int syscall1(int Function, int Arg0) {
+SCTYPE syscall1(SCTYPE Function, SCTYPE Arg0) {
 	return _syscall(Function, Arg0, 0, 0, 0, 0);
 }
 
-int syscall2(int Function, int Arg0, int Arg1) {
+SCTYPE syscall2(SCTYPE Function, SCTYPE Arg0, SCTYPE Arg1) {
 	return _syscall(Function, Arg0, Arg1, 0, 0, 0);
 }
 
-int syscall3(int Function, int Arg0, int Arg1, int Arg2) {
+SCTYPE syscall3(SCTYPE Function, SCTYPE Arg0, SCTYPE Arg1, SCTYPE Arg2) {
 	return _syscall(Function, Arg0, Arg1, Arg2, 0, 0);
 }
 
-int syscall4(int Function, int Arg0, int Arg1, int Arg2, int Arg3) {
+SCTYPE syscall4(SCTYPE Function, SCTYPE Arg0, SCTYPE Arg1, SCTYPE Arg2, SCTYPE Arg3) {
 	return _syscall(Function, Arg0, Arg1, Arg2, Arg3, 0);
 }
 
-int syscall5(int Function, int Arg0, int Arg1, int Arg2, int Arg3, int Arg4) {
+SCTYPE syscall5(SCTYPE Function, SCTYPE Arg0, SCTYPE Arg1, SCTYPE Arg2, SCTYPE Arg3, SCTYPE Arg4) {
 	return _syscall(Function, Arg0, Arg1, Arg2, Arg3, Arg4);
 }

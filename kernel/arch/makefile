@@ -37,7 +37,7 @@ all: header ../build/$(VALI_ARCH).lib
 header:
 	cp $(HPATH) ../include/arch.h
 
-../build/i386.lib: $(OBJECTS)
+../build/$(VALI_ARCH).lib: $(OBJECTS)
 	@printf "%b" "\033[0;36mCreating static library " $@ "\033[m\n"
 	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 	

@@ -36,20 +36,15 @@
 class CLoginScreen : public CScreen {
 public:
     CLoginScreen(CDisplay *Display) : CScreen() {
-        // Create scene objects
-        CSprite *Background = new CSprite("$sys/themes/default/gfxbg.png");
-        Background->SetWidth(_Display->GetWidth());
-        Background->SetHeight(_Display->GetHeight());
-
-        // @todo load from some settings
-        AddRenderable(Background);
-
         // Initialize to current size
         _Display    = Display;
         _X          = _Display->GetX();
         _Y          = _Display->GetY();
         _Width      = _Display->GetWidth();
         _Height     = _Display->GetHeight();
+
+        // @todo load from some settings
+        AddRenderable(new CSprite("$sys/themes/default/gfxbg.png", _Width, _Height));
     }
     ~CLoginScreen() {
 

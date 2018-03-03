@@ -228,12 +228,13 @@ tls_create(
     // Store it at reserved pointer place first
     __set_reserved(0, (size_t)Tls);
     __set_reserved(1, (size_t)&Tls->tls_array[0]);
+    __set_reserved(11, (size_t)&Tls->tls_array[0]);
     
     // Initialize members to default values
     Tls->thr_id = UUID_INVALID;
     Tls->err_no = EOK;
     Tls->locale = __get_global_locale();
-    Tls->seed = 1;
+    Tls->seed   = 1;
 
     // Setup a local transfer buffer for stdio operations
     Tls->transfer_buffer = CreateBuffer(BUFSIZ);

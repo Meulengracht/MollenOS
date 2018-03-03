@@ -89,13 +89,13 @@ void* memcpy(void *destination, const void *source, size_t count) {
 // Use the sse2 by default as all 64 bit cpus support sse
 extern void asm_memcpy_sse2(void *Dest, const void *Source, int Loops, int RemainingBytes);
 void *memcpy(void *destination, const void *source, size_t count) {
-	int Loops        = Count / 128;
-	int Remaining    = Count % 128;
+	int Loops        = count / 128;
+	int Remaining    = count % 128;
 	if (Loops < MEMCPY_ACCEL_THRESHOLD) {
-		return memcpy_base(Destination, Source, Count);
+		return memcpy_base(destination, source, count);
 	}
-	asm_memcpy_sse(Destination, Source, Loops, Remaining);
-	return Destination;
+	asm_memcpy_sse2(destination, source, Loops, Remaining);
+	return destination;
 }
 #else
 #if defined(_MSC_VER) && !defined(__clang__)

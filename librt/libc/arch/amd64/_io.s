@@ -22,17 +22,17 @@ bits 64
 segment .text
 
 ;Functions in this asm
-global ___readbyte
-global ___readword
-global ___readlong
+global __readbyte
+global __readword
+global __readlong
 
-global ___writebyte
-global ___writeword
-global ___writelong
+global __writebyte
+global __writeword
+global __writelong
 
 ; uint8_t __readbyte(uint16_t port <rcx>)
 ; Recieves a byte from a port
-___readbyte:
+__readbyte:
 	xor rax, rax
 	xor rdx, rdx
 	mov dx, cx
@@ -41,7 +41,7 @@ ___readbyte:
 
 ; uint16_t __readword(uint16_t port <rcx>)
 ; Recieves a word from a port
-___readword:
+__readword:
 	xor rax, rax
 	xor rdx, rdx
 	mov dx, cx
@@ -50,7 +50,7 @@ ___readword:
 
 ; uint32_t __readlong(uint16_t port <rcx>)
 ; Recieves a long from a port
-___readlong:
+__readlong:
 	xor rax, rax
 	xor rdx, rdx
 	mov dx, cx
@@ -59,7 +59,7 @@ ___readlong:
 
 ; void __writebyte(uint16_t port <rcx> , uint8_t data <rdx>)
 ; Sends a byte to a port
-___writebyte:
+__writebyte:
 	; Get data
     push rbx
     mov rbx, rdx
@@ -73,7 +73,7 @@ ___writebyte:
 
 ; void __writeword(uint16_t port <rcx>, uint16_t data <rdx>)
 ; Sends a word to a port
-___writeword:
+__writeword:
 	; Get data
     push rbx
     mov rbx, rdx
@@ -87,7 +87,7 @@ ___writeword:
 
 ; void __writelong(uint16_t port <rdx>, uint32_t data <rdx>)
 ; Sends a long to a port
-___writelong:
+__writelong:
 	; Get data
     push rbx
     mov rbx, rdx

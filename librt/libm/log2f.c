@@ -12,7 +12,7 @@
 /*
 * Float version of e_log2.c.  See the latter for most comments.
 */
-
+#define __KERNEL_LOGF
 #include "private.h"
 #include <math.h>
 
@@ -22,31 +22,6 @@
 
 // VBS
 #define float_t float
-
-/*
-* Float version of k_log.h.  See the latter for most comments.
-*/
-
-static const float
-Lg1 = 6.666666666666735130e-01f,  /* 3FE55555 55555593 */
-Lg2 = 3.999999999940941908e-01f,  /* 3FD99999 9997FA04 */
-Lg3 = 2.857142874366239149e-01f,  /* 3FD24924 94229359 */
-Lg4 = 2.222219843214978396e-01f;  /* 3FCC71C5 1D8E78AF */
-
-float
-k_log1pf(float f)
-{
-	float hfsq, s, z, R, w, t1, t2;
-
-	s = f / ((float)2.0 + f);
-	z = s*s;
-	w = z*z;
-	t1 = w*(Lg2 + w*Lg4);
-	t2 = z*(Lg1 + w*Lg3);
-	R = t2 + t1;
-	hfsq = (float)0.5*f*f;
-	return s*(hfsq + R);
-}
 
 static const float
 two25 = 3.3554432000e+07f, /* 0x4c000000 */

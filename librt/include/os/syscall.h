@@ -30,14 +30,19 @@
 
 /* System Call Definitions 
  * Helpers, macros and definitions for system calls */
-#define SCPARAM(Arg)                ((int)Arg)
+#if defined(i386) || defined(__i386__)
+#define SCTYPE  int
+#elif defined(amd64) || defined(__amd64__)
+#define SCTYPE  long long
+#endif
+#define SCPARAM(Arg)                ((SCTYPE)Arg)
 _CODE_BEGIN
-CRTDECL(int, syscall0(int Function));
-CRTDECL(int, syscall1(int Function, int Arg0));
-CRTDECL(int, syscall2(int Function, int Arg0, int Arg1));
-CRTDECL(int, syscall3(int Function, int Arg0, int Arg1, int Arg2));
-CRTDECL(int, syscall4(int Function, int Arg0, int Arg1, int Arg2, int Arg3));
-CRTDECL(int, syscall5(int Function, int Arg0, int Arg1, int Arg2, int Arg3, int Arg4));
+CRTDECL(SCTYPE, syscall0(SCTYPE Function));
+CRTDECL(SCTYPE, syscall1(SCTYPE Function, SCTYPE Arg0));
+CRTDECL(SCTYPE, syscall2(SCTYPE Function, SCTYPE Arg0, SCTYPE Arg1));
+CRTDECL(SCTYPE, syscall3(SCTYPE Function, SCTYPE Arg0, SCTYPE Arg1, SCTYPE Arg2));
+CRTDECL(SCTYPE, syscall4(SCTYPE Function, SCTYPE Arg0, SCTYPE Arg1, SCTYPE Arg2, SCTYPE Arg3));
+CRTDECL(SCTYPE, syscall5(SCTYPE Function, SCTYPE Arg0, SCTYPE Arg1, SCTYPE Arg2, SCTYPE Arg3, SCTYPE Arg4));
 _CODE_END
 
 /* Process system calls

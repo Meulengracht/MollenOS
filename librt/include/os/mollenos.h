@@ -196,23 +196,29 @@ CRTDECL(OsStatus_t, GetFileInformationFromFd(int FileDescriptor, vFileDescriptor
 CRTDECL(OsStatus_t, CreateFileMapping(int FileDescriptor, int Flags, uint64_t Offset, size_t Size, void **MemoryPointer));
 CRTDECL(OsStatus_t, DestroyFileMapping(void *MemoryPointer));
 
+#if defined(i386) || defined(__i386__)
+#define TLS_VALUE   uint32_t
+#define TLS_READ    __asm { __asm mov ebx, [Offset] __asm mov eax, gs:[ebx] __asm mov [Value], eax }
+#define TLS_WRITE   __asm { __asm mov ebx, [Offset] __asm mov eax, [Value] __asm mov gs:[ebx], eax }
+#elif defined(amd64) || defined(__amd64__)
+#define TLS_VALUE   uint64_t
+#define TLS_READ    __asm { __asm mov rbx, [Offset] __asm mov rax, gs:[rbx] __asm mov [Value], rax }
+#define TLS_WRITE   __asm { __asm mov rbx, [Offset] __asm mov rax, [Value] __asm mov gs:[rbx], rax }
+#else
+#error "Implement rw for tls for this architecture"
+#endif
+
 /* __get_reserved
  * Read and write the magic tls thread-specific
  * pointer, we need to take into account the compiler here */
-#if defined(i386)
-#if defined(_MSC_VER) || defined(__clang__)
 SERVICEAPI
 size_t
 SERVICEABI
-__get_reserved(size_t index) {
-	size_t result = 0;
-	size_t gs_offset = (index * sizeof(size_t));
-	__asm {
-		mov ebx, [gs_offset];
-		mov eax, gs:[ebx];
-		mov [result], eax;
-	}
-	return result;
+__get_reserved(size_t Index) {
+	TLS_VALUE Value = 0;
+	size_t Offset   = (Index * sizeof(TLS_VALUE));
+	TLS_READ;
+	return (size_t)Value;
 }
 
 /* __set_reserved
@@ -221,20 +227,10 @@ __get_reserved(size_t index) {
 SERVICEAPI
 void
 SERVICEABI
-__set_reserved(size_t index, size_t value) {
-	size_t gs_offset = (index * sizeof(size_t));
-	__asm {
-		mov ebx, [gs_offset];
-		mov eax, [value];
-		mov gs:[ebx], eax;
-	}
+__set_reserved(size_t Index, TLS_VALUE Value) {
+	size_t Offset = (Index * sizeof(TLS_VALUE));
+	TLS_WRITE;
 }
-#else
-#error "Implement rw for tls for this compiler"
-#endif
-#else
-#error "Implement rw for tls for this architecture"
-#endif
 
 /*******************************************************************************
  * System Extensions
