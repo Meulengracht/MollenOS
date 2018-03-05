@@ -13,13 +13,21 @@ ifeq ($(VALI_ARCH),i386)
 			  $(wildcard x86/x32/memory/*.c) \
 			  $(wildcard x86/x32/*.c) \
 			  $(wildcard x86/*.c)
-    ASSEMBLY = $(wildcard x86/components/*.s) \
-			   $(wildcard x86/x32/memory/*.s) \
+    ASSEMBLY = $(wildcard x86/x32/memory/*.s) \
 			   $(wildcard x86/x32/*.s)
 	ASFLAGS = -f win32 -Xvc
 	HPATH = x86/x32/arch.h
 else ifeq ($(VALI_ARCH),amd64)
 	INCLUDES += -Ix86 -Ix86/x64
+	SOURCES = $(wildcard x86/components/*.c) \
+			  $(wildcard x86/interrupts/apic/*.c) \
+			  $(wildcard x86/interrupts/pic/*.c) \
+			  $(wildcard x86/interrupts/*.c) \
+			  $(wildcard x86/x64/memory/*.c) \
+			  $(wildcard x86/x64/*.c) \
+			  $(wildcard x86/*.c)
+    ASSEMBLY = $(wildcard x86/x64/memory/*.s) \
+			   $(wildcard x86/x64/*.s)
 	ASFLAGS = -f win64 -Xvc
 	HPATH = x86/x64/arch.h
 else

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -101,6 +101,7 @@ ContextCreate(
 
 	// Initialize the context pointer
 	Context = (Context_t*)ContextAddress;
+    memset(Context, 0, sizeof(Context_t));
 
 	// Setup segments for the stack
 	Context->Ds = DataSegment;
@@ -109,19 +110,7 @@ ContextCreate(
 	Context->Gs = ExtraSegment;
 
 	// Initialize registers to zero value
-	Context->Eax = 0;
-	Context->Ebx = 0;
-	Context->Ecx = 0;
-	Context->Edx = 0;
-	Context->Esi = 0;
-	Context->Edi = 0;
 	Context->Ebp = EbpInitial;
-	Context->Esp = 0;
-
-	// Initialize irq/error code for
-	// interrupt values
-	Context->Irq = 0;
-	Context->ErrorCode = 0;
 
 	// Setup entry, eflags and the code segment
 	Context->Eip = EntryAddress;

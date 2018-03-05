@@ -24,34 +24,25 @@ segment .text
 global _syscall
 
 ; int _syscall(int Function, int Arg0, int Arg1, int Arg2, int Arg3, int Arg4)
+; rcx => arg0
+; rdx => arg1
+; r8  => arg2
+; r9  => arg3
+; r10 => arg4
+; r11 => index
 _syscall:
-	; Stack Frame
-	push rbp
-	mov rbp, rsp
+    ; reorder arguments
+    pop r10 ;arg3
+    pop r11 ;arg4
 
-	; Save
-	push rbx
-	push rcx
-	push rdx
-	push rsi
-	push rdi
-
-	; Get params
-	mov rax, rcx
-    mov rbx, rdx
-    mov rcx, r8
-    mov rdx, r9
-    mov rsi, [rbp + 0x30]
-    mov rdi, [rbp + 0x38]
-
-	; Syscall
+    push r12
+    mov r12, rcx 
+    mov rcx, rdx
+    mov rdx, r8
+    mov r8, r9
+    mov r9, r10
+    mov r10, r11
+    mov r11, r12
+    pop r12
 	int	80h
-
-	; Restore
-	pop rdi
-	pop rsi
-	pop rdx
-	pop rcx
-	pop rbx
-	leave
-	ret 
+	ret

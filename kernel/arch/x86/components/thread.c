@@ -265,7 +265,7 @@ ThreadingSignalDispatch(
         THREADING_CONTEXT_SIGNAL1, Process->SignalHandler);
     Thread->Contexts[THREADING_CONTEXT_SIGNAL1]->Arguments[0] = MEMORY_LOCATION_SIGNAL_RET;
     Thread->Contexts[THREADING_CONTEXT_SIGNAL1]->Arguments[1] = Thread->ActiveSignal.Signal;
-    TssUpdateStack(CpuGetCurrentId(), (uintptr_t)Thread->Contexts[THREADING_CONTEXT_SIGNAL0]);
+    TssUpdateThreadStack(CpuGetCurrentId(), (uintptr_t)Thread->Contexts[THREADING_CONTEXT_SIGNAL0]);
     enter_thread(Thread->Contexts[THREADING_CONTEXT_SIGNAL1]);
 	return OsSuccess;
 }
@@ -363,7 +363,7 @@ _ThreadingSwitch(
 	MmVirtualSwitchPageDirectory(Cpu, 
 		(PageDirectory_t*)Thread->AddressSpace->Data[ASPACE_DATA_PDPOINTER], 
 		Thread->AddressSpace->Data[ASPACE_DATA_CR3]);
-	TssUpdateStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
+	TssUpdateThreadStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
 	TssUpdateIo(Cpu,    &Threadx->IoMap[0]);
 
     // Clear fpu flags and set task switch

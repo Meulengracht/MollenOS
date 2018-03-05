@@ -13,7 +13,7 @@ ifeq ($(VALI_ARCH), i386)
 	SOURCES += ld80/lgammal_r.c ld80/tgammal.c ld80/expl.c ld80/powl.c ld80/core_cosl.c ld80/core_sinl.c ld80/core_tanl.c ld80/sinl.c
 else ifeq ($(VALI_ARCH), amd64)
 	math_flags = -D_HAVE_LONG_DOUBLE
-	ASFLAGS = -f win64 -Xvc
+	ASFLAGS = -f win64 -Xvc -D_MICROSOFT_LIBM
 	SOURCES += ld80/lgammal_r.c ld80/tgammal.c ld80/expl.c ld80/powl.c ld80/core_cosl.c ld80/core_sinl.c ld80/core_tanl.c ld80/logl.c ld80/log10l.c
 else
 $(error VALI_ARCH is not set to a valid value)

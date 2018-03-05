@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -155,9 +155,9 @@ PACKED_TYPESTRUCT(TssDescriptor, {
 /* GdtInitialize
  * Initialize the gdt table with the 5 default
  * descriptors for kernel/user mode data/code segments */
- __EXTERN
- void
- GdtInitialize(void);
+__EXTERN
+void
+GdtInitialize(void);
 
 /* GdtInstall
  * This installs the current gdt-object in the
@@ -174,16 +174,16 @@ __EXTERN
 void
 GdtInstallTss(
     _In_ UUId_t Cpu,
-    _In_ int Static);
+    _In_ int    Static);
 
-/* TssUpdateStack
+/* TssUpdateThreadStack
  * Updates the kernel/interrupt stack for the current
  * cpu tss entry, this should be updated at each task-switch */
 __EXTERN
 void
-TssUpdateStack(
-    _In_ UUId_t Cpu, 
-    _In_ uintptr_t Stack);
+TssUpdateThreadStack(
+    _In_ UUId_t     Cpu, 
+    _In_ uintptr_t  Stack);
 
 /* TssUpdateIo
  * Updates the io-map for the current runinng task, should
@@ -192,8 +192,8 @@ TssUpdateStack(
 __EXTERN
 void
 TssUpdateIo(
-    _In_ UUId_t Cpu,
-    _In_ uint8_t *IoMap);
+    _In_ UUId_t     Cpu,
+    _In_ uint8_t*   IoMap);
 
 /* TssEnableIo
  * Enables the given port in the given io-map, also updates
@@ -202,8 +202,8 @@ TssUpdateIo(
 __EXTERN
 void
 TssEnableIo(
-    _In_ UUId_t Cpu,
-    _In_ uint16_t Port);
+    _In_ UUId_t     Cpu,
+    _In_ uint16_t   Port);
 
 /* TssDisableIo
  * Disables the given port in the given io-map, also updates
@@ -212,7 +212,7 @@ TssEnableIo(
 __EXTERN
 void
 TssDisableIo(
-    _In_ UUId_t Cpu,
-    _In_ uint16_t Port);
+    _In_ UUId_t     Cpu,
+    _In_ uint16_t   Port);
 
 #endif //!_GDT_H_

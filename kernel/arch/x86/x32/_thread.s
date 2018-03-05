@@ -28,7 +28,7 @@ global _save_fpu
 global _load_fpu
 global _clear_ts
 global _set_ts
-global _rdtsc
+global __rdtsc
 global __yield
 global _enter_thread
 
@@ -107,9 +107,9 @@ _init_fpu:
 	finit
 	ret
 
-; void rdtsc(uint64_t *value)
+; void _rdtsc(uint64_t *value)
 ; Gets the CPU time-stamp counter
-_rdtsc:
+__rdtsc:
 	; Stack Frame
 	push ebp
 	mov ebp, esp

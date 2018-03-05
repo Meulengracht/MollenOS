@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -135,7 +135,7 @@ GdtInitialize(void)
 void
 GdtInstallTss(
     _In_ UUId_t Cpu,
-    _In_ int Static)
+    _In_ int    Static)
 {
 	// Variables
 	uint32_t tBase = 0;
@@ -175,14 +175,13 @@ GdtInstallTss(
 	TssInstall(TssIndex);
 }
 
-/* TssUpdateStack
+/* TssUpdateThreadStack
  * Updates the kernel/interrupt stack for the current
  * cpu tss entry, this should be updated at each task-switch */
 void
-TssUpdateStack(
-    _In_ UUId_t Cpu, 
-    _In_ uintptr_t Stack)
-{
+TssUpdateThreadStack(
+    _In_ UUId_t     Cpu, 
+    _In_ uintptr_t  Stack) {
     // Update stack pointer for ring0
 	__TssDescriptors[Cpu]->Esp0 = Stack;
 }
@@ -193,9 +192,8 @@ TssUpdateStack(
  * io-privs. Iomap given must be length GDT_IOMAP_SIZE */
 void
 TssUpdateIo(
-    _In_ UUId_t Cpu,
-    _In_ uint8_t *IoMap)
-{
+    _In_ UUId_t     Cpu,
+    _In_ uint8_t*   IoMap) {
 	memcpy(&__TssDescriptors[Cpu]->IoMap[0], IoMap, GDT_IOMAP_SIZE);
 }
 
@@ -205,9 +203,8 @@ TssUpdateIo(
  * reflect the port-ownership instantly */
 void
 TssEnableIo(
-    _In_ UUId_t Cpu,
-    _In_ uint16_t Port)
-{
+    _In_ UUId_t     Cpu,
+    _In_ uint16_t   Port) {
 	__TssDescriptors[Cpu]->IoMap[Port / 8] &= ~(1 << (Port % 8));
 }
 
@@ -217,8 +214,7 @@ TssEnableIo(
  * reflect the port-ownership instantly */
 void
 TssDisableIo(
-    _In_ UUId_t Cpu,
-    _In_ uint16_t Port)
-{
+    _In_ UUId_t     Cpu,
+    _In_ uint16_t   Port) {
 	__TssDescriptors[Cpu]->IoMap[Port / 8] |= (1 << (Port % 8));
 }

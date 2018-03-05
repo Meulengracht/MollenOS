@@ -38,7 +38,7 @@
 #endif
 
  /* Globals 
-  * Keep a copy of cpu information in the system */
+  * Keep a copy of cpu information in the system for the boot cpu */
 static CpuInformation_t __CpuInformation = { 0 };
 static int __CpuInitialized = 0;
 
@@ -176,7 +176,7 @@ CpuFlushInstructionCache(
 }
 
 /* Backup Timer, Should always be provided */
-extern void rdtsc(uint64_t *Value);
+extern void _rdtsc(uint64_t *Value);
 
 /* CpuStall
  * Stalls the cpu for the given milliseconds, blocking call. */
@@ -194,7 +194,7 @@ CpuStall(
 	}
 
 	// Use the read timestamp counter
-	rdtsc(&Counter);
+	_rdtsc(&Counter);
 	TimeOut = Counter + (uint64_t)(MilliSeconds * 100000);
-	while (Counter < TimeOut) { rdtsc(&Counter); }
+	while (Counter < TimeOut) { _rdtsc(&Counter); }
 }

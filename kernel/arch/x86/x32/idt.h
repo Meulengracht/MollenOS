@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -60,19 +60,15 @@
 /* The IDT base structure, this is what the hardware
  * will poin to, that describes the memory range where
  * all the idt-descriptors reside */
-#pragma pack(push, 1)
-typedef struct _IdtObject {
+PACKED_TYPESTRUCT(IdtObject, {
 	uint16_t			Limit;
 	uint32_t			Base;
-} Idt_t;
-#pragma pack(pop)
+});
 
 /* The IDT descriptor structure, this is the actual entry
  * in the idt table, and keeps information about the 
  * interrupt structure. */
-#pragma pack(push, 1)
-typedef struct _IdtEntry
-{
+PACKED_TYPESTRUCT(IdtEntry, {
 	uint16_t			BaseLow;	/* Base 0:15 */
 	uint16_t			Selector;	/* Selector */
 	uint8_t				Zero;		/* Reserved */
@@ -84,8 +80,7 @@ typedef struct _IdtEntry
 	 * Bits   7: Present */
 	uint8_t				Flags;
 	uint16_t			BaseHigh;	/* Base 16:31 */
-} IdtEntry_t;
-#pragma pack(pop)
+});
 
 /* Initialize the idt table with the 256 default
  * descriptors for entering shared interrupt handlers

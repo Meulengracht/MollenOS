@@ -41,7 +41,7 @@ sqrtl:
 	fld		tword [rdx]
 	fsqrt
 	mov 	rax, rcx
-	movq 	qword [rcx + 8], 0
+	mov 	qword [rcx + 8], 0
 	fstp	tword [rcx]
 %else
 	fld 	tword [rsp + 8]

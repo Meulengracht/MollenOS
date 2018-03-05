@@ -113,6 +113,9 @@ void SmpApEntry(void)
 	/* Install the TSS descriptor, 
 	 * we need memory management for that */
 	GdtInstallTss(Cpu, 0);
+#if defined(amd64) || defined(__amd64__)
+    TssCreateStacks(Cpu);
+#endif
 
 	/* Setup Threading */
 	SchedulerCreate(Cpu);

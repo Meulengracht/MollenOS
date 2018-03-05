@@ -491,7 +491,7 @@ ExceptionEntry(
             UUId_t Cpu  = CpuGetCurrentId();
             Thread      = ThreadingGetCurrentThread(Cpu);
             Registers   = Thread->ActiveSignal.Context;
-            TssUpdateStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
+            TssUpdateThreadStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
 
             // Complete signal handling
             SignalReturn();

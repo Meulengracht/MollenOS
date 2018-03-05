@@ -79,7 +79,7 @@ PACKED_TYPESTRUCT(Context, {
 	uint64_t                ErrorCode;
 	uint64_t                Rip;
 	uint64_t                Cs;
-	uint64_t                Eflags;
+	uint64_t                Rflags;
 			                
 	uint64_t                UserRsp;
 	uint64_t                UserSs;
