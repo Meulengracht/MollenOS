@@ -17,7 +17,7 @@
  *
  *
  * MollenOS Address Space Interface
- * - Contains the x86-32 implementation of the addressing interface
+ * - Contains the x86 implementation of the addressing interface
  *   specified by MCore
  */
 #define __MODULE "ASPC"
@@ -80,7 +80,6 @@ AddressSpaceCreate(
 	// Variables
 	AddressSpace_t *AddressSpace    = NULL;
 	UUId_t CurrentCpu               = CpuGetCurrentId();
-	int Itr                         = 0;
 
 	// If we want to create a new kernel address
 	// space we instead want to re-use the current 
@@ -103,53 +102,18 @@ AddressSpaceCreate(
 	else if (Flags & (ASPACE_TYPE_APPLICATION | ASPACE_TYPE_DRIVER)) {
 		// This is the only case where we should create a 
 		// new and seperate address space, user processes!
-		uintptr_t PhysicalAddress   = 0;
-		PageDirectory_t *NewPd      = (PageDirectory_t*)kmalloc_ap(sizeof(PageDirectory_t), &PhysicalAddress);
-		PageDirectory_t *CurrPd     = (PageDirectory_t*)AddressSpaceGetCurrent()->Data[ASPACE_DATA_PDPOINTER];
-		PageDirectory_t *KernPd     = (PageDirectory_t*)KernelAddressSpace.Data[ASPACE_DATA_PDPOINTER];
-
-		// Copy at max kernel directories up to MEMORY_SEGMENT_RING3_BASE
-		int KernelRegion            = 0;
-		int KernelRegionEnd         = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_KERNEL_END);
-
-		// Lookup which table-region is the stack region
-		int ThreadRegion            = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_START);
-		int ThreadRegionEnd         = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_END);
+        uintptr_t DirectoryAddress  = 0;
+        void *DirectoryPointer      = NULL;
 
 		// Allocate a new address space
 		AddressSpace                = (AddressSpace_t*)kmalloc(sizeof(AddressSpace_t));
-
-		// Initialize members
-		memset(NewPd, 0, sizeof(PageDirectory_t));
-		MutexConstruct(&NewPd->Lock);
-
-		// Initialize base mappings
-		for (Itr = 0; Itr < TABLES_PER_PDIR; Itr++) {
-			// Sanitize if it's inside kernel region
-			if (Itr >= KernelRegion && Itr < KernelRegionEnd) {
-				NewPd->pTables[Itr] = KernPd->pTables[Itr];
-				NewPd->vTables[Itr] = KernPd->vTables[Itr];
-				continue;
-			}
-
-			// Sanitize stack region, never copy
-			if (Itr >= ThreadRegion && Itr <= ThreadRegionEnd) {
-				continue;
-			}
-
-			// Inherit? We must mark that table inherited to avoid
-			// it being freed again
-			if ((Flags & ASPACE_TYPE_INHERIT) && CurrPd->pTables[Itr]) {
-				NewPd->pTables[Itr] = CurrPd->pTables[Itr] | PAGE_INHERITED;
-				NewPd->vTables[Itr] = CurrPd->vTables[Itr];
-			}
-		}
+        MmVirtualClone((Flags & ASPACE_TYPE_INHERIT) ? 1 : 0, &DirectoryPointer, &DirectoryAddress);
 
 		// Store new configuration into AS
         AddressSpace->Id                            = AddressSpaceIdGenerator++;
 		AddressSpace->Flags                         = Flags;
-        AddressSpace->Data[ASPACE_DATA_CR3]         = PhysicalAddress;
-        AddressSpace->Data[ASPACE_DATA_PDPOINTER]   = (uintptr_t)NewPd;
+        AddressSpace->Data[ASPACE_DATA_CR3]         = DirectoryAddress;
+        AddressSpace->Data[ASPACE_DATA_PDPOINTER]   = (uintptr_t)DirectoryPointer;
 		AddressSpace->References                    = 1;
 		SpinlockReset(&AddressSpace->Lock);
 	}
@@ -175,43 +139,7 @@ AddressSpaceDestroy(
 	// just unlock
 	if (AddressSpace->References == 0) {
 		if (AddressSpace->Flags & (ASPACE_TYPE_APPLICATION | ASPACE_TYPE_DRIVER)) {
-			PageDirectory_t *KernPd = (PageDirectory_t*)KernelAddressSpace.Data[ASPACE_DATA_PDPOINTER];
-			PageDirectory_t *Pd = (PageDirectory_t*)AddressSpace->Data[ASPACE_DATA_PDPOINTER];
-			int i, j;
-
-			// Iterate page-mappings
-			for (i = 0; i < TABLES_PER_PDIR; i++) {
-				if (Pd->pTables[i] == 0)
-					continue;
-
-				// Is it a kernel page-table? Ignore it 
-				if (Pd->pTables[i] == KernPd->pTables[i])
-					continue;
-
-				// Is this an inherited page-table?
-				// We don't free our parents stuff
-				if (Pd->pTables[i] & PAGE_INHERITED)
-					continue;
-
-				// Ok, OUR user page-table, free everything in it
-				PageTable_t *Pt = (PageTable_t*)Pd->vTables[i];
-
-				// Iterate pages in table
-				for (j = 0; j < PAGES_PER_TABLE; j++) {
-					if (Pt->Pages[j] & PAGE_VIRTUAL)
-						continue;
-
-					// If it has a mapping - free it
-					if ((Pt->Pages[j] & PAGE_MASK) != 0) {
-						if (MmPhysicalFreeBlock(Pt->Pages[j] & PAGE_MASK) != OsSuccess) {
-                            ERROR("Tried to free page %i (0x%x) , but was not allocated", j, Pt->Pages[j]);
-                        }
-					}
-				}
-
-				// Free the page-table
-				kfree(Pt);
-			}
+			MmVirtualDestroy((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER]);
 		}
 		kfree(AddressSpace);
 	}
@@ -228,8 +156,8 @@ OsStatus_t
 AddressSpaceSwitch(
     _In_ AddressSpace_t *AddressSpace) {
 	return MmVirtualSwitchPageDirectory(CpuGetCurrentId(),
-		(PageDirectory_t*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], 
-        (PhysicalAddress_t)AddressSpace->Data[ASPACE_DATA_CR3]);
+		(void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], 
+        AddressSpace->Data[ASPACE_DATA_CR3]);
 }
 
 /* AddressSpaceGetCurrent

@@ -61,10 +61,12 @@ AcpiOsReadPort (
     UINT32                  Width)
 {
     ACPI_FUNCTION_NAME(OsReadPort);
-    if (IoRead(IO_SOURCE_HARDWARE, Address, DIVUP(Width, 8), Value) != OsSuccess) {
+    size_t LargeValue;
+    if (IoRead(IO_SOURCE_HARDWARE, Address, DIVUP(Width, 8), &LargeValue) != OsSuccess) {
         ACPI_ERROR((AE_INFO, "Bad width parameter: %X", Width));
         return (AE_BAD_PARAMETER);
     }
+    *Value = LODWORD(LargeValue);
     return (AE_OK);
 }
 

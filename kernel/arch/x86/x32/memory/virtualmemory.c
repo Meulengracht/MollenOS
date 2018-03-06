@@ -70,7 +70,7 @@ MmVirtualCreatePageTable(void)
 	PhysicalAddress_t Address = 0;
 
 	// Allocate a new page-table instance
-	Address = MmPhysicalAllocateBlock(MEMORY_INIT_MASK, 1);
+	Address = MmPhysicalAllocateBlock(MEMORY_ALLOCATION_MASK, 1);
 	Table = (PageTable_t*)Address;
 
 	// Make sure all is good
@@ -97,7 +97,7 @@ MmVirtualFillPageTable(
 
 	// Iterate through pages and map them
 	for (i = PAGE_TABLE_INDEX(vAddressStart), pAddress = pAddressStart, vAddress = vAddressStart;
-		i < 1024;
+		i < ENTRIES_PER_PAGE;
 		i++, pAddress += PAGE_SIZE, vAddress += PAGE_SIZE) {
 		uint32_t pEntry = pAddress | PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP | Flags;
 		pTable->Pages[PAGE_TABLE_INDEX(vAddress)] = pEntry;
@@ -147,21 +147,21 @@ MmVirtualIdentityMapMemoryRange(
 OsStatus_t
 MmVirtualSwitchPageDirectory(
 	_In_ UUId_t Cpu, 
-	_In_ PageDirectory_t* PageDirectory, 
+	_In_ void* PageDirectory, 
 	_In_ PhysicalAddress_t Pdb) {
 	assert(PageDirectory != NULL);
-	GlbPageDirectories[Cpu] = PageDirectory;
+	GlbPageDirectories[Cpu] = (PageDirectory_t*)PageDirectory;
 	memory_load_cr3(Pdb);
 	return OsSuccess;
 }
 
 /* MmVirtualGetCurrentDirectory
  * Retrieves the current page-directory for the given cpu */
-PageDirectory_t*
+void*
 MmVirtualGetCurrentDirectory(
 	_In_ UUId_t Cpu) {
 	assert(Cpu < MAX_SUPPORTED_CPUS);
-	return GlbPageDirectories[Cpu];
+	return (void*)GlbPageDirectories[Cpu];
 }
 
 /* MmVirtualInstallPaging
@@ -169,7 +169,7 @@ MmVirtualGetCurrentDirectory(
 OsStatus_t
 MmVirtualInstallPaging(
 	_In_ UUId_t Cpu) {
-	MmVirtualSwitchPageDirectory(Cpu, GlbKernelPageDirectory, (uintptr_t)GlbKernelPageDirectory);
+	MmVirtualSwitchPageDirectory(Cpu, (void*)GlbKernelPageDirectory, (uintptr_t)GlbKernelPageDirectory);
 	memory_set_paging(1);
 	return OsSuccess;
 }
@@ -507,6 +507,102 @@ NotMapped:
 	return 0;
 }
 
+/* MmVirtualClone
+ * Clones a new virtual memory space for an application to use. */
+OsStatus_t
+MmVirtualClone(
+    _In_  int           Inherit,
+    _Out_ void**        PageDirectory,
+    _Out_ uintptr_t*    Pdb)
+{
+    // Variables
+    uintptr_t PhysicalAddress   = 0;
+    PageDirectory_t *NewPd      = (PageDirectory_t*)kmalloc_ap(sizeof(PageDirectory_t), &PhysicalAddress);
+    PageDirectory_t *CurrPd     = GlbPageDirectories[CpuGetCurrentId()];
+    PageDirectory_t *KernPd     = GlbKernelPageDirectory;
+
+    // Copy at max kernel directories up to MEMORY_SEGMENT_RING3_BASE
+    int KernelRegion            = 0;
+    int KernelRegionEnd         = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_KERNEL_END);
+
+    // Lookup which table-region is the stack region
+    int ThreadRegion            = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_START);
+    int ThreadRegionEnd         = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_END);
+	
+    memset(NewPd, 0, sizeof(PageDirectory_t));
+	MutexConstruct(&NewPd->Lock);
+
+    // Initialize base mappings
+    for (Itr = 0; Itr < ENTRIES_PER_PAGE; Itr++) {
+        // Sanitize if it's inside kernel region
+        if (Itr >= KernelRegion && Itr < KernelRegionEnd) {
+            NewPd->pTables[Itr] = KernPd->pTables[Itr];
+            NewPd->vTables[Itr] = KernPd->vTables[Itr];
+            continue;
+        }
+
+        // Sanitize stack region, never copy
+        if (Itr >= ThreadRegion && Itr <= ThreadRegionEnd) {
+            continue;
+        }
+
+        // Inherit? We must mark that table inherited to avoid
+        // it being freed again
+        if (Inherit && CurrPd->pTables[Itr]) {
+            NewPd->pTables[Itr] = CurrPd->pTables[Itr] | PAGE_INHERITED;
+            NewPd->vTables[Itr] = CurrPd->vTables[Itr];
+        }
+    }
+    return OsSuccess;
+}
+
+/* MmVirtualDestroy
+ * Destroys and cleans up any resources used by the virtual address space. */
+OsStatus_t
+MmVirtualDestroy(
+	_In_ void* PageDirectory)
+{
+    // Variables
+    PageDirectory_t *Pd = (PageDirectory_t*)PageDirectory;
+    PageDirectory_t *KernPd = GlbKernelPageDirectory;
+    int i, j;
+
+    // Iterate page-mappings
+    for (i = 0; i < ENTRIES_PER_PAGE; i++) {
+        if (Pd->pTables[i] == 0)
+            continue;
+
+        // Is it a kernel page-table? Ignore it 
+        if (Pd->pTables[i] == KernPd->pTables[i])
+            continue;
+
+        // Is this an inherited page-table?
+        // We don't free our parents stuff
+        if (Pd->pTables[i] & PAGE_INHERITED)
+            continue;
+
+        // Ok, OUR user page-table, free everything in it
+        PageTable_t *Pt = (PageTable_t*)Pd->vTables[i];
+
+        // Iterate pages in table
+        for (j = 0; j < ENTRIES_PER_PAGE; j++) {
+            if (Pt->Pages[j] & PAGE_VIRTUAL)
+                continue;
+
+            // If it has a mapping - free it
+            if ((Pt->Pages[j] & PAGE_MASK) != 0) {
+                if (MmPhysicalFreeBlock(Pt->Pages[j] & PAGE_MASK) != OsSuccess) {
+                    ERROR("Tried to free page %i (0x%x) , but was not allocated", j, Pt->Pages[j]);
+                }
+            }
+        }
+
+        // Free the page-table
+        kfree(Pt);
+    }
+    return OsSuccess;
+}
+
 /* MmVirtualInitialMap
  * Maps a virtual memory address to a physical
  * memory address in a given page-directory
@@ -584,7 +680,7 @@ MmVirtualInit(void)
 	// Allocate 3 pages for the kernel page directory
 	// and reset it by zeroing it out
 	GlbKernelPageDirectory = (PageDirectory_t*)
-		MmPhysicalAllocateBlock(MEMORY_INIT_MASK, 3);
+		MmPhysicalAllocateBlock(MEMORY_ALLOCATION_MASK, 3);
 	memset((void*)GlbKernelPageDirectory, 0, sizeof(PageDirectory_t));
 
 	// Allocate initial page directory and
@@ -639,7 +735,7 @@ MmVirtualInit(void)
 	VideoGetTerminal()->FrameBufferAddress = MEMORY_LOCATION_VIDEO;
 
 	// Update and switch page-directory for boot-cpu
-	MmVirtualSwitchPageDirectory(0, GlbKernelPageDirectory, (uintptr_t)GlbKernelPageDirectory);
+	MmVirtualSwitchPageDirectory(0, (void*)GlbKernelPageDirectory, (uintptr_t)GlbKernelPageDirectory);
 	memory_set_paging(1);
 
 	// Setup kernel addressing space

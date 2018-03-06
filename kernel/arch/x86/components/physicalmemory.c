@@ -40,15 +40,12 @@
 /* Globals 
  * This is primarily stats and 
  * information about the memory bitmap */
-uintptr_t *MemoryBitmap = NULL;
-size_t MemoryBitmapSize = 0;
-size_t MemoryBlocks = 0;
-size_t MemoryBlocksUsed = 0;
-size_t MemorySize = 0;
-
-/* The section that protects
- * the physical memory manager */
-CriticalSection_t MemoryLock;
+static CriticalSection_t MemoryLock;
+static uintptr_t *MemoryBitmap  = NULL;
+static size_t MemoryBitmapSize  = 0;
+static size_t MemoryBlocks      = 0;
+static size_t MemoryBlocksUsed  = 0;
+static size_t MemorySize        = 0;
 
 /* Reserved Regions 
  * This primarily comes from the region-descriptor */
@@ -58,8 +55,7 @@ SystemMemoryMapping_t SysMappings[32];
  * This is a debug function for inspecting
  * the memory status, it spits out how many blocks are in use */
 void
-MmMemoryDebugPrint(void)
-{
+MmMemoryDebugPrint(void) {
 	TRACE("Bitmap size: %u Bytes", MemoryBitmapSize);
 	TRACE("Memory in use %u Bytes", MemoryBlocksUsed * PAGE_SIZE);
 	TRACE("Block status %u/%u", MemoryBlocksUsed, MemoryBlocks);
@@ -269,7 +265,7 @@ MmPhyiscalInit(
 
 	/* Good, good ! 
 	 * Get a pointer to the region descriptors */
-	RegionItr = (BIOSMemoryRegion_t*)BootInformation->MemoryMapAddress;
+	RegionItr = (BIOSMemoryRegion_t*)(uintptr_t)BootInformation->MemoryMapAddress;
 
 	/* Get information from multiboot struct 
 	 * The memory-high part is 64kb blocks 

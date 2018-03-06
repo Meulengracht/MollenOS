@@ -146,7 +146,7 @@ AcpiOsCreateSemaphore(
 {
     // Variables
     Semaphore_t *Semaphore = NULL;
-    UINT32 i = 0;
+    size_t i = 0;
     ACPI_FUNCTION_NAME(OsCreateSemaphore);
 
     if (MaxUnits == ACPI_UINT32_MAX) {

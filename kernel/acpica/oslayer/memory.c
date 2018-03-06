@@ -87,7 +87,7 @@ AcpiOsFree(
  * DESCRIPTION: Map physical memory into caller's address space
  *
  *****************************************************************************/
-#if defined(i386)
+#if defined(i386) || defined(__i386__) || defined(amd64) || defined(__amd64__)
 #include "../../arch/x86/memory.h"
 #endif
 void *
@@ -111,7 +111,7 @@ AcpiOsMapMemory(
 
         // If we are looking for something below the first 4 mb
         // It's already identity mapped
-		if (Where >= 0x1000 && Where < TABLE_SPACE_SIZE) {
+		if (Where >= 0x1000 && Where < 0x400000) {
             Lookup = (uintptr_t)Where;
         }
 		else {

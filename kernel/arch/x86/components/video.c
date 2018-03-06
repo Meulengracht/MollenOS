@@ -109,7 +109,7 @@ VbeInitialize(
 		default:
 		{
 			// Get active VBE information structure
-			VbeMode_t *vbe = (VbeMode_t*)BootInfo->VbeModeInfo;
+			VbeMode_t *vbe = (VbeMode_t*)(uintptr_t)BootInfo->VbeModeInfo;
 
 			// Copy information over
 			__GlbVideoTerminal.Type = VIDEO_GRAPHICS;
@@ -204,7 +204,7 @@ VesaDrawCharacter(
 	// Iterate bitmap rows
 	for (Row = 0; Row < MCoreFontHeight; Row++) {
 		uint8_t BmpData = ChPtr[Row];
-		uint32_t _;
+		uintptr_t _;
 
 		// Render data in row
 		for (i = 0; i < 8; i++) {
@@ -212,7 +212,7 @@ VesaDrawCharacter(
 		}
 
 		// Increase the memory pointer by row
-		_ = (uint32_t)vPtr;
+		_ = (uintptr_t)vPtr;
 		_ += __GlbVideoTerminal.Info.BytesPerScanline;
 		vPtr = (uint32_t*)_;
 	}

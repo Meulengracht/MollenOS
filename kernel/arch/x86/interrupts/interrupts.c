@@ -60,6 +60,7 @@ ThreadingFpuException(
 /* Internal definitons and helper contants */
 #define EFLAGS_INTERRUPT_FLAG        (1 << 9)
 #define APIC_FLAGS_DEFAULT            0x7F00000000000000
+#define NUM_ISA_INTERRUPTS			16
 
 /* Externs 
  * Extern assembly functions */
@@ -533,19 +534,19 @@ ExceptionEntry(
         }
 
         // Locate which module
-        if (DebugGetModuleByAddress(Registers->Eip, &Base, &Name) == OsSuccess) {
-            uintptr_t Diff = Registers->Eip - Base;
+        if (DebugGetModuleByAddress(CONTEXT_IP(Registers), &Base, &Name) == OsSuccess) {
+            uintptr_t Diff = CONTEXT_IP(Registers) - Base;
             LogDebug(__MODULE, "Faulty Address: 0x%x (%s)", Diff, Name);
         }
         else {
-            LogDebug(__MODULE, "Faulty Address: 0x%x", Registers->Eip);
+            LogDebug(__MODULE, "Faulty Address: 0x%x", CONTEXT_IP(Registers));
         }
 
         // Enter panic handler
         DebugContext(Registers);
         DebugPanic(FATAL_SCOPE_KERNEL, Registers, __MODULE,
             "Unhandled or fatal interrupt %u, Error Code: %u, Faulty Address: 0x%x",
-            Registers->Irq, Registers->ErrorCode, Registers->Eip);
+            Registers->Irq, Registers->ErrorCode, CONTEXT_IP(Registers));
     }
 }
 

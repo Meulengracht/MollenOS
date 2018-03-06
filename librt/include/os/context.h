@@ -56,7 +56,7 @@ PACKED_TYPESTRUCT(Context, {
 	uint32_t                UserEsp;
 	uint32_t                UserSs;
     
-    uint32_t                Arguments[5];
+    uint32_t                Arguments[6];
 });
 #define CONTEXT_IP(Context)     Context->Eip
 #elif defined(__amd64__) || defined(amd64)
@@ -69,6 +69,15 @@ PACKED_TYPESTRUCT(Context, {
 	uint64_t                Rdx;
 	uint64_t                Rcx;
 	uint64_t                Rax;
+	
+    uint64_t                R8;
+	uint64_t                R9;
+	uint64_t                R10;
+	uint64_t                R11;
+	uint64_t                R12;
+	uint64_t                R13;
+	uint64_t                R14;
+	uint64_t                R15;
 			                
 	uint64_t                Gs;
 	uint64_t                Fs;
@@ -84,7 +93,7 @@ PACKED_TYPESTRUCT(Context, {
 	uint64_t                UserRsp;
 	uint64_t                UserSs;
     
-    uint64_t                Arguments[5];
+    uint64_t                Arguments[6];
 });
 #define CONTEXT_IP(Context)     Context->Rip
 #else

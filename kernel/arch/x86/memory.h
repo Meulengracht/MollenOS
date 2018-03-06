@@ -26,16 +26,7 @@
  * - System */
 #include <os/osdefs.h>
 #include <multiboot.h>
-#include <mutex.h>
-
-/* Structural Sizes */
-#define PAGES_PER_TABLE			1024
-#define TABLES_PER_PDIR			1024
-#define TABLE_SPACE_SIZE		0x400000
-#define DIRECTORY_SPACE_SIZE	0xFFFFFFFF
-
-/* Only allocate memory below 4mb */
-#define MEMORY_INIT_MASK		0x3FFFFF
+#include <paging.h>
 
 /* Shared PT/Page Definitions */
 #define PAGE_PRESENT			0x1
@@ -47,7 +38,7 @@
 
 /* Page Table Definitions */
 #define PAGETABLE_UNUSED		0x40
-#define PAGETABLE_4MB			0x80
+#define PAGETABLE_LARGE			0x80
 #define PAGETABLE_IGNORED		0x100
 
 /* Page Definitions */
@@ -59,30 +50,6 @@
 #define PAGE_SYSTEM_MAP			0x200
 #define PAGE_INHERITED			0x400
 #define PAGE_VIRTUAL			0x800
-
-/* Masks */
-#define PAGE_MASK				0xFFFFF000
-#define ATTRIBUTE_MASK			0x00000FFF
-
-/* Index's */
-#define PAGE_DIRECTORY_INDEX(x) (((x) >> 22) & 0x3FF)
-#define PAGE_TABLE_INDEX(x) (((x) >> 12) & 0x3FF)
-
-/* Page Table Structure
- * Denotes how the paging structure is for the X86-32
- * platform, this is different from X86-64 */
-PACKED_TYPESTRUCT(PageTable, {
-	uint32_t				Pages[PAGES_PER_TABLE];
-});
-
-/* Page Directory Structure
- * Denotes how the paging structure is for the X86-32
- * platform, this is different from X86-64 */
-PACKED_TYPESTRUCT(PageDirectory, {
-	uint32_t				pTables[TABLES_PER_PDIR];	// Seen by MMU
-	uint32_t				vTables[TABLES_PER_PDIR];	// Not seen by MMU
-	Mutex_t					Lock;						// Not seen by MMU
-});
 
 /* Memory Map Structure 
  * This is the structure passed to us by
@@ -113,7 +80,7 @@ KERNELAPI
 OsStatus_t
 KERNELABI
 MmPhyiscalInit(
-	_In_ Multiboot_t *BootInformation);
+	_In_ Multiboot_t* BootInformation);
 
 /* MmPhysicalQuery
  * Queries information about current block status */
@@ -121,8 +88,8 @@ KERNELAPI
 OsStatus_t
 KERNELABI
 MmPhysicalQuery(
-	_Out_Opt_ size_t *BlocksTotal,
-	_Out_Opt_ size_t *BlocksAllocated);
+	_Out_Opt_ size_t* BlocksTotal,
+	_Out_Opt_ size_t* BlocksAllocated);
 
 /* MmPhysicalAllocateBlock
  * This is the primary function for allocating
@@ -132,8 +99,8 @@ KERNELAPI
 PhysicalAddress_t
 KERNELABI
 MmPhysicalAllocateBlock(
-	_In_ uintptr_t Mask, 
-	_In_ int Count);
+	_In_ uintptr_t  Mask, 
+	_In_ int        Count);
 
 /* MmPhysicalFreeBlock
  * This is the primary function for
@@ -164,6 +131,24 @@ OsStatus_t
 KERNELABI
 MmVirtualInit(void);
 
+/* MmVirtualClone
+ * Clones a new virtual memory space for an application to use. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+MmVirtualClone(
+    _In_  int           Inherit,
+    _Out_ void**        PageDirectory,
+    _Out_ uintptr_t*    Pdb);
+
+/* MmVirtualDestroy
+ * Destroys and cleans up any resources used by the virtual address space. */
+KERNELAPI
+OsStatus_t
+KERNELABI
+MmVirtualDestroy(
+	_In_ void* PageDirectory);
+
 /* MmVirtualSetFlags
  * Changes memory protection flags for the given virtual address */
 KERNELAPI
@@ -192,10 +177,10 @@ KERNELAPI
 OsStatus_t
 KERNELABI
 MmVirtualMap(
-	_In_ void *PageDirectory, 
-	_In_ PhysicalAddress_t pAddress, 
-	_In_ VirtualAddress_t vAddress, 
-	_In_ Flags_t Flags);
+	_In_ void*              PageDirectory, 
+	_In_ PhysicalAddress_t  pAddress, 
+	_In_ VirtualAddress_t   vAddress, 
+	_In_ Flags_t            Flags);
 
 /* MmVirtualUnmap
  * Unmaps a previous mapping from the given page-directory
@@ -204,8 +189,8 @@ KERNELAPI
 OsStatus_t
 KERNELABI
 MmVirtualUnmap(
-	_In_ void *PageDirectory, 
-	_In_ VirtualAddress_t Address);
+	_In_ void*              PageDirectory, 
+	_In_ VirtualAddress_t   Address);
 
 /* MmVirtualGetMapping
  * Retrieves the physical address mapping of the
@@ -215,8 +200,8 @@ KERNELAPI
 PhysicalAddress_t
 KERNELABI
 MmVirtualGetMapping(
-	_In_ void *PageDirectory, 
-	_In_ VirtualAddress_t Address);
+	_In_ void*              PageDirectory, 
+	_In_ VirtualAddress_t   Address);
 
 /* MmReserveMemory
  * Reserves memory for system use - should be allocated
@@ -231,7 +216,7 @@ MmReserveMemory(
 /* MmVirtualGetCurrentDirectory
  * Retrieves the current page-directory for the given cpu */
 KERNELAPI
-PageDirectory_t*
+void*
 KERNELABI
 MmVirtualGetCurrentDirectory(
 	_In_ UUId_t Cpu);
@@ -244,9 +229,9 @@ KERNELAPI
 OsStatus_t
 KERNELABI
 MmVirtualSwitchPageDirectory(
-	_In_ UUId_t Cpu, 
-	_In_ PageDirectory_t* PageDirectory, 
-	_In_ PhysicalAddress_t Pdb);
+	_In_ UUId_t             Cpu, 
+	_In_ void*              PageDirectory, 
+	_In_ PhysicalAddress_t  Pdb);
 
 /* MmVirtualInstallPaging
  * Initializes paging for the given cpu id */
