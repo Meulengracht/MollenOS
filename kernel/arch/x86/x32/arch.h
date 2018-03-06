@@ -48,9 +48,8 @@ typedef struct _x86_Thread {
 	uintptr_t			*FpuBuffer;
 } x86Thread_t;
 
-/* Architecture Memory Layout, this
- * gives you an idea how memory layout
- * is on the x86-32 platform in MollenOS 
+/* Architecture Memory Layout
+ * This gives you an idea how memory layout is on the x86-32 platform in MollenOS 
  * 0x0				=>			0x10000000 (Kernel Memory Space 256 mb)
  * 0x10000000		=>			0xB0000000 (Application Memory Space 2.5gb) 
  * 0xB0000000		=>			0xF0000000 (Driver Io Memory Space, 1gb)
@@ -69,7 +68,9 @@ typedef struct _x86_Thread {
 
 #define MEMORY_LOCATION_RING3_CODE			0x20000000	/* Base for ring3 code */
 #define MEMORY_LOCATION_RING3_HEAP			0x30000000	/* Base for ring3 heap */
+#define MEMORY_LOCATION_RING3_HEAP_END      0xA0000000
 #define MEMORY_LOCATION_RING3_SHM			0xA0000000	/* Base for ring3 shm */
+#define MEMORY_LOCATION_RING3_SHM_END		0xB0000000
 #define MEMORY_LOCATION_RING3_IOSPACE		0xB0000000	/* Base for ring3 io-space (1gb) */
 #define MEMORY_LOCATION_RING3_IOSPACE_END	0xF0000000
 

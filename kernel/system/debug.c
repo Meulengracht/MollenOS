@@ -473,12 +473,12 @@ DebugInstallPageFaultHandlers(void)
 
     // Process heap memory handler
     PageFaultHandlers[2].AreaStart      = MEMORY_LOCATION_RING3_HEAP;
-    PageFaultHandlers[2].AreaEnd        = MEMORY_LOCATION_RING3_SHM;
+    PageFaultHandlers[2].AreaEnd        = MEMORY_LOCATION_RING3_HEAP_END;
     PageFaultHandlers[2].AreaHandler    = DebugPageFaultProcessHeapMemory;
 
     // Process shared memory handler
     PageFaultHandlers[3].AreaStart      = MEMORY_LOCATION_RING3_SHM;
-    PageFaultHandlers[3].AreaEnd        = MEMORY_LOCATION_RING3_IOSPACE;
+    PageFaultHandlers[3].AreaEnd        = MEMORY_LOCATION_RING3_SHM_END;
     PageFaultHandlers[3].AreaHandler    = DebugPageFaultProcessSharedMemory;
 
     // Thread-specific memory handler

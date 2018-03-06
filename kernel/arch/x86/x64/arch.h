@@ -48,14 +48,13 @@ typedef struct _x86_Thread {
 	uintptr_t			*FpuBuffer;
 } x86Thread_t;
 
-/* Architecture Memory Layout, this
- * gives you an idea how memory layout
- * is on the x86-64 platform in MollenOS 
- * 0x0				=>			0x10000000 (Kernel Memory Space 256 mb)
- * 0x10000000		=>			0xB0000000 (Application Memory Space 2.5gb) 
- * 0xB0000000		=>			0xF0000000 (Driver Io Memory Space, 1gb)
- * 0xF0000000		=>			0xFF000000 (Empty)
- * 0xFF000000		=>			0xFFFFFFFF (Application Stack Space, 16mb) 
+/* Architecture Memory Layout
+ * This gives you an idea how memory layout is on the x86-64 platform in MollenOS 
+ * 0x0				=>			0x10000000  (Kernel Memory Space 256 mb)
+ * 0x10000000		=>			0xFF000000  (Empty)
+ * 0xFF000000		=>			0xFFFFFFFF  (Application Stack Space, 16mb)
+ * 0x100000000      =>          0x1FFFFFFFF (Driver Memory Space - 4.0gb)
+ * 0x200000000      =>          0xFFFFFFFFFFFFFFFF (Application Memory Space - terabytes)
  */
 #define MEMORY_LOCATION_KERNEL				0x100000 	/* Kernel Image Space: 1024 kB */
 #define MEMORY_LOCATION_RAMDISK				0x200000 	/* RamDisk Image Space: 1024 kB */
@@ -66,22 +65,18 @@ typedef struct _x86_Thread {
 #define MEMORY_LOCATION_RESERVED			0x5000000	/* Driver Space: 190~ mB */
 #define MEMORY_LOCATION_KERNEL_END			0x10000000
 
-#define MEMORY_SEGMENT_KERNEL_CODE_LIMIT	MEMORY_LOCATION_RAMDISK
-#define MEMORY_SEGMENT_KERNEL_DATA_LIMIT	0xFFFFFFFF
-
-#define MEMORY_LOCATION_RING3_CODE			0x20000000	/* Base for ring3 code */
-#define MEMORY_LOCATION_RING3_HEAP			0x30000000	/* Base for ring3 heap */
-#define MEMORY_LOCATION_RING3_SHM			0xA0000000	/* Base for ring3 shm */
-#define MEMORY_LOCATION_RING3_IOSPACE		0xB0000000	/* Base for ring3 io-space (1gb) */
-#define MEMORY_LOCATION_RING3_IOSPACE_END	0xF0000000
-
 #define MEMORY_LOCATION_RING3_THREAD_START  0xFF000000
 #define MEMORY_LOCATION_RING3_STACK_START   0xFFFE0000
 #define MEMORY_LOCATION_RING3_STACK_END       0xFE0000
 #define MEMORY_LOCATION_RING3_THREAD_END    0xFFFFFFFF
 
-#define MEMORY_SEGMNET_RING3_CODE_LIMIT		MEMORY_LOCATION_RING3_HEAP
-#define MEMORY_SEGMENT_RING3_DATA_LIMIT		0xFFFFFFFF
+#define MEMORY_LOCATION_RING3_CODE			0x200000000     // 4gb code space
+#define MEMORY_LOCATION_RING3_SHM			0x300000000     // 20gb shared memory space
+#define MEMORY_LOCATION_RING3_SHM_END		0x800000000
+#define MEMORY_LOCATION_RING3_IOSPACE   	0x800000000     // 16gb io memory space
+#define MEMORY_LOCATION_RING3_IOSPACE_END	0x1000000000
+#define MEMORY_LOCATION_RING3_HEAP			0x1000000000    // xxgb heap memory space
+#define MEMORY_LOCATION_RING3_HEAP_END		0xFFFFFFFFFFFFFFFF
 
 #define MEMORY_SEGMENT_SIGSTACK_BASE        MEMORY_LOCATION_RING3_STACK_START
 #define MEMORY_SEGMENT_SIGSTACK_SIZE        0x00010000
@@ -102,4 +97,4 @@ typedef struct _x86_Thread {
 #define INTERRUPT_YIELD					0x81
 #define INTERRUPT_LVTERROR				0x82
 
-#endif // !_MCORE_X86_ARCH_
+#endif // !_MCORE_X64_ARCH_

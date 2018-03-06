@@ -504,8 +504,12 @@ MmVirtualClone(
 {
     // Variables
     uintptr_t PhysicalAddress   = 0;
-    PageDirectory_t *Created    = (PageDirectory_t*)kmalloc_ap(sizeof(PageDirectory_t), &PhysicalAddress);
-    PageDirectory_t *Current    = MasterTables[CpuGetCurrentId()];
+    PageMasterTable_t *Created    = (PageMasterTable_t*)kmalloc_ap(sizeof(PageMasterTable_t), &PhysicalAddress);
+    PageMasterTable_t *Current    = MasterTables[CpuGetCurrentId()];
+
+    // Essentially what we want to do here is to clone almost the entire
+    // kernel address space (index 0 of the pdp) except for thread region
+    // If inherit is set, then clone all other mappings as well
 
     // Copy at max kernel directories up to MEMORY_SEGMENT_RING3_BASE
     int KernelRegion            = 0;
@@ -515,8 +519,17 @@ MmVirtualClone(
     int ThreadRegion            = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_START);
     int ThreadRegionEnd         = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_END);
 	
-    memset(Created, 0, sizeof(PageDirectory_t));
+    memset(Created, 0, sizeof(PageMasterTable_t));
 	MutexConstruct(&Created->Lock);
+
+    // Create PML4[0] and PDP[0] and PD[0]
+    Created->vTables[0] = (uint64_t)kmalloc_ap(sizeof(PageDirectoryTable_t), &PhysicalAddress);
+    Created->pTables[0] = PhysicalAddress | PAGE_PRESENT | PAGE_WRITE | PAGE_USER;
+
+    // Then iterate PD[0] of host and copy all (excl: ThreadRegion => ThreadRegionEnd)
+    // Then iterate all rest PD[1..511] and copy if Inherit
+    // Then iterate all rest PDP[1..511] and copy if Inherit
+    // Then iterate all rest PML4[1..511] and copy if Inherit
 
     // Initialize base mappings
     for (Itr = 0; Itr < ENTRIES_PER_PAGE; Itr++) {
