@@ -37,7 +37,7 @@
 /* We have no memory allocation system 
  * in place yet, so uhm, allocate in place */
 IdtEntry_t IdtDescriptors[IDT_DESCRIPTORS];
-Idt_t Idtptr;
+IdtObject_t Idtptr;
 
 /* InterruptInstallDefaultGates
  * Installs the default interrupt and exception

@@ -142,9 +142,9 @@ MmVirtualIdentityMapMemoryRange(
  * as well */
 OsStatus_t
 MmVirtualSwitchPageDirectory(
-	_In_ UUId_t Cpu, 
-	_In_ void* PageDirectory, 
-	_In_ PhysicalAddress_t Pdb) {
+	_In_ UUId_t             Cpu, 
+	_In_ void*              PageDirectory, 
+	_In_ PhysicalAddress_t  Pdb) {
 	assert(PageDirectory != NULL);
 	GlbPageDirectories[Cpu] = (PageDirectory_t*)PageDirectory;
 	memory_load_cr3(Pdb);
@@ -516,6 +516,7 @@ MmVirtualClone(
     PageDirectory_t *NewPd      = (PageDirectory_t*)kmalloc_ap(sizeof(PageDirectory_t), &PhysicalAddress);
     PageDirectory_t *CurrPd     = GlbPageDirectories[CpuGetCurrentId()];
     PageDirectory_t *KernPd     = GlbKernelPageDirectory;
+    int Itr;
 
     // Copy at max kernel directories up to MEMORY_SEGMENT_RING3_BASE
     int KernelRegion            = 0;
@@ -549,6 +550,10 @@ MmVirtualClone(
             NewPd->vTables[Itr] = CurrPd->vTables[Itr];
         }
     }
+
+    // Update out's
+    *PageDirectory  = (void*)NewPd;
+    *Pdb            = PhysicalAddress;
     return OsSuccess;
 }
 
@@ -668,7 +673,6 @@ MmVirtualInit(void)
 	// Variables
 	AddressSpace_t KernelSpace;
 	PageTable_t *iTable = NULL;
-	int i;
 
 	// Trace information
 	TRACE("MmVirtualInit()");

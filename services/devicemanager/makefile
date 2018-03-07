@@ -1,8 +1,19 @@
 # Makefile for building the mollenos devicemanager service
 # The devicemanager service takes care of devices present in system
-INCLUDES = -I../../librt/include -Iarch/$(VALI_ARCH)
-SOURCES = $(wildcard arch/$(VALI_ARCH)/*.c) \
-		  main.c
+INCLUDES = -I../../librt/include
+SOURCES = main.c
+
+# Check for architecture
+ifeq ($(VALI_ARCH), i386)
+	INCLUDES += -Iarch/x86
+	SOURCES += $(wildcard arch/x86/*.c)
+else ifeq ($(VALI_ARCH), amd64)
+	INCLUDES += -Iarch/x86
+	SOURCES += $(wildcard arch/x86/*.c)
+else
+$(error VALI_ARCH is not set to a valid value)
+endif
+
 OBJECTS = $(SOURCES:.c=.o)
 
 CFLAGS = $(GCFLAGS) -Wno-address-of-packed-member -D__SERVICE_IMPL -D__DEVICEMANAGER_IMPL $(INCLUDES)

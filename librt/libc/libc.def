@@ -18,6 +18,7 @@ CollectionDestroy
 CollectionLength
 StdSignalInitialize
 exit
+_setjmp
 _setjmp3
 longjmp
 _ctype_

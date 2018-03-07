@@ -503,7 +503,8 @@ MmVirtualClone(
 {
     // Variables
     uintptr_t PhysicalAddress   = 0;
-    PageMasterTable_t *Created  = (PageMasterTable_t*)kmalloc_ap(sizeof(PageMasterTable_t), &PhysicalAddress);
+    uintptr_t MasterAddress     = 0;
+    PageMasterTable_t *Created  = (PageMasterTable_t*)kmalloc_ap(sizeof(PageMasterTable_t), &MasterAddress);
     PageMasterTable_t *Current  = MasterTables[CpuGetCurrentId()];
 
     PageDirectoryTable_t *KernelDirectoryTable  = NULL;
@@ -567,6 +568,10 @@ MmVirtualClone(
             ApplicationRegionPdp = 0;
         }
     }
+
+    // Update out's
+    *PageDirectory  = (void*)Created;
+    *Pdb            = MasterAddress;
     return OsSuccess;
 }
 

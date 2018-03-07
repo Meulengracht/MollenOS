@@ -108,12 +108,14 @@ AddressSpaceCreate(
 		// Allocate a new address space
 		AddressSpace                = (AddressSpace_t*)kmalloc(sizeof(AddressSpace_t));
         MmVirtualClone((Flags & ASPACE_TYPE_INHERIT) ? 1 : 0, &DirectoryPointer, &DirectoryAddress);
+        assert(DirectoryPointer != NULL);
+        assert(DirectoryAddress != 0);
 
 		// Store new configuration into AS
         AddressSpace->Id                            = AddressSpaceIdGenerator++;
 		AddressSpace->Flags                         = Flags;
-        AddressSpace->Data[ASPACE_DATA_CR3]         = DirectoryAddress;
         AddressSpace->Data[ASPACE_DATA_PDPOINTER]   = (uintptr_t)DirectoryPointer;
+        AddressSpace->Data[ASPACE_DATA_CR3]         = DirectoryAddress;
 		AddressSpace->References                    = 1;
 		SpinlockReset(&AddressSpace->Lock);
 	}
