@@ -126,7 +126,7 @@ typedef struct _HpController {
 
 	int						 Is64Bit;
 	size_t					 TickMinimum;
-	size_t					 Period;
+	uint32_t				 Period;
 	LargeInteger_t			 Frequency;
 	clock_t					 Clock;
 } HpController_t;

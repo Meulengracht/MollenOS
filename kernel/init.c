@@ -61,7 +61,7 @@ PrintHeader(
     Log("MollenOS - Platform: %s - Version %i.%i.%i",
         ARCHITECTURE_NAME, REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD);
     Log("Written by Philip Meulengracht, Copyright 2011-2018.");
-    Log("Bootloader - %s", (char*)BootInformation->BootLoaderName);
+    Log("Bootloader - %s", (char*)(uintptr_t)BootInformation->BootLoaderName);
     Log("%s build %s - %s\n", BUILD_SYSTEM, BUILD_DATE, BUILD_TIME);
 }
 

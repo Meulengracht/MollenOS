@@ -29,6 +29,7 @@
 #include <memory.h>
 #include <debug.h>
 #include <heap.h>
+#include <log.h>
 #include <gdt.h>
 
 /* Includes
@@ -124,4 +125,37 @@ ContextCreate(
 
 	// Return the newly created context
 	return Context;
+}
+
+/* ContextDump 
+ * Dumps the contents of the given context for debugging */
+OsStatus_t
+ContextDump(
+	_In_ Context_t *Context)
+{
+	// Dump general registers
+	LogDebug(__MODULE, "RAX: 0x%x, RBX 0x%x, RCX 0x%x, RDX 0x%x",
+		Context->Rax, Context->Rbx, Context->Rcx, Context->Rdx);
+	LogDebug(__MODULE, "R8: 0x%x, R9 0x%x, R10 0x%x, R11 0x%x",
+		Context->R8, Context->R9, Context->R10, Context->R11);
+	LogDebug(__MODULE, "R12: 0x%x, R13 0x%x, R14 0x%x, R15 0x%x",
+		Context->R12, Context->R13, Context->R14, Context->R15);
+
+	// Dump stack registers
+	LogDebug(__MODULE, "RSP 0x%x (UserRSP 0x%x), RBP 0x%x, Flags 0x%x",
+        Context->Rsp, Context->UserRsp, Context->Rbp, Context->Rflags);
+        
+    // Dump copy registers
+	LogDebug(__MODULE, "ESI 0x%x, EDI 0x%x", Context->Rsi, Context->Rdi);
+
+	// Dump segments
+	LogDebug(__MODULE, "CS 0x%x, DS 0x%x, GS 0x%x, ES 0x%x, FS 0x%x",
+		Context->Cs, Context->Ds, Context->Gs, Context->Es, Context->Fs);
+
+	// Dump IRQ information
+	LogDebug(__MODULE, "IRQ 0x%x, ErrorCode 0x%x, UserSS 0x%x",
+		Context->Irq, Context->ErrorCode, Context->UserSs);
+
+	// Return 
+	return OsSuccess;
 }

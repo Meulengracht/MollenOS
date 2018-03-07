@@ -22,13 +22,13 @@ bits 64
 segment .text
 
 ; Extern main function in C-code
-extern _MCoreInitialize
+extern MCoreInitialize
 
 ; Publics in this file
-global _kentry
-global _CpuEnableAvx
-global _CpuEnableSse
-global _CpuEnableFpu
+global kentry
+global CpuEnableAvx
+global CpuEnableSse
+global CpuEnableFpu
 
 ; No matter what, this is booted by multiboot, and thus
 ; We can assume the state when this point is reached.
@@ -36,7 +36,7 @@ global _CpuEnableFpu
 ; RBX - Contains address of the multiboot structure, but
 ;		it should be located in stack aswell.
 
-_kentry:
+kentry:
 	;We disable interrupts, we have no IDT installed
 	cli
     
@@ -45,7 +45,7 @@ _kentry:
 	mov rcx, rbx
 
 	;Now call the init function
-	call _MCoreInitialize
+	call MCoreInitialize
 
 	;When we return from here, we just
 	;enter into an idle loop.
@@ -57,7 +57,7 @@ _kentry:
 
 
 ; Assembly routine to enable avx support
-_CpuEnableAvx:
+CpuEnableAvx:
 	; Save registers
 	push rax
     push rcx
@@ -82,7 +82,7 @@ _CpuEnableAvx:
 	ret 
 
 ; Assembly routine to enable sse support
-_CpuEnableSse:
+CpuEnableSse:
 	; Save EAX
 	push rax
 
@@ -97,7 +97,7 @@ _CpuEnableSse:
 	ret 
 
 ; Assembly routine to enable fpu support
-_CpuEnableFpu:
+CpuEnableFpu:
 	; Save EAX
 	push rax
 

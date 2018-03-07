@@ -30,12 +30,14 @@
 /* Paging Definitions
  * Defines paging structure sizes for the different hardware paging structures. */
 #define ENTRIES_PER_PAGE        512
+#define PAGE_SIZE               0x1000
 #define PAGE_MASK               0xFFFFFFFFFFFFF000
 #define ATTRIBUTE_MASK          0x0000000000000FFF
 
 /* Table sizes, in 64 bit a table is 2mb 
  * and this means we need to identity map more than a single page-table. */
 #define TABLE_SPACE_SIZE        0x200000
+#define DIRECTORY_SPACE_SIZE    0x40000000
 #define MEMORY_ALLOCATION_MASK  0x3FFFFF
 
 /* Indices

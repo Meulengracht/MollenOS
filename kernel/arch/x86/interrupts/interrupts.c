@@ -543,7 +543,7 @@ ExceptionEntry(
         }
 
         // Enter panic handler
-        DebugContext(Registers);
+        ContextDump(Registers);
         DebugPanic(FATAL_SCOPE_KERNEL, Registers, __MODULE,
             "Unhandled or fatal interrupt %u, Error Code: %u, Faulty Address: 0x%x",
             Registers->Irq, Registers->ErrorCode, CONTEXT_IP(Registers));

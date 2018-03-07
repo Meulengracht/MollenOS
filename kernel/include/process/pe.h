@@ -36,16 +36,14 @@
  * some information about the current build, this
  * is so we can do proper validation of the loaded
  * binary */
-#if (defined(_X86_32) || defined(i386)) || defined(_X86_64)
-#if defined(_X86_32) || defined(i386)
+#if defined(i386) || defined(__i386__)
 #define PE_CURRENT_MACHINE                  PE_MACHINE_X32
 #define PE_CURRENT_ARCH                     PE_ARCHITECTURE_32
-#else
+#elif defined(amd64) || defined(__amd64__)
 #define PE_CURRENT_MACHINE                  PE_MACHINE_X64
 #define PE_CURRENT_ARCH                     PE_ARCHITECTURE_64
-#endif
 #else
-/* Uh arm and such.. */
+#error "Unhandled PE architecture used"
 #endif
 
 /* The Pe-Image file exports a number of functions

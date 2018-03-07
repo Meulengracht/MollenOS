@@ -28,6 +28,7 @@
  * - Library */
 #include <os/osdefs.h>
 #include <os/spinlock.h>
+#include <os/context.h>
 #include <time.h>
 
 /* System Information structure
@@ -52,13 +53,20 @@ typedef struct _SystemInformation {
 } SystemInformation_t;
 
 /* SystemInformationQuery 
- * Queries information about the running system
- * and the underlying architecture */
+ * Queries information about the running system and the underlying architecture */
 KERNELAPI
 OsStatus_t
 KERNELABI
 SystemInformationQuery(
 	_Out_ SystemInformation_t *Information);
+
+/* ContextDump 
+ * Dumps the contents of the given context for debugging */
+KERNELAPI
+OsStatus_t
+KERNELABI
+ContextDump(
+	_In_ Context_t *Context);
 
 /* CpuGetCurrentId 
  * Retrieves the current cpu id for caller */

@@ -868,6 +868,7 @@ ScMemoryAcquire(
     // Variables
     MCoreAsh_t *Ash = NULL;
     size_t NumBlocks = 0, i = 0;
+    uintptr_t PageMask = ~(AddressSpaceGetPageSize() - 1);
 
     // Assumptions:
     // PhysicalAddress is page aligned
@@ -887,8 +888,7 @@ ScMemoryAcquire(
     NumBlocks = DIVUP(Size, AddressSpaceGetPageSize());
 
     // Sanity -> If we cross a page boundary
-    if (((PhysicalAddress + Size) & PAGE_MASK)
-        != (PhysicalAddress & PAGE_MASK)) {
+    if (((PhysicalAddress + Size) & PageMask) != (PhysicalAddress & PageMask)) {
         NumBlocks++;
     }
 
@@ -896,7 +896,7 @@ ScMemoryAcquire(
     assert(Shm != 0);
 
     // Update out
-    *VirtualAddress = Shm + (PhysicalAddress & ATTRIBUTE_MASK);
+    *VirtualAddress = Shm + (PhysicalAddress & (AddressSpaceGetPageSize() - 1));
 
     // Now we have to transfer our physical mappings 
     // to their new virtual
@@ -924,6 +924,7 @@ ScMemoryRelease(
 {
     // Variables
     MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
+    uintptr_t PageMask = ~(AddressSpaceGetPageSize() - 1);
     size_t NumBlocks, i;
 
     // Assumptions:
@@ -939,8 +940,7 @@ ScMemoryRelease(
     NumBlocks = DIVUP(Size, AddressSpaceGetPageSize());
 
     // Sanity -> If we cross a page boundary
-    if (((VirtualAddress + Size) & PAGE_MASK)
-        != (VirtualAddress & PAGE_MASK)) {
+    if (((VirtualAddress + Size) & PageMask) != (VirtualAddress & PageMask)) {
         NumBlocks++;
     }
 

@@ -29,6 +29,7 @@
 #include <memory.h>
 #include <debug.h>
 #include <heap.h>
+#include <log.h>
 #include <gdt.h>
 
 /* Includes
@@ -124,4 +125,33 @@ ContextCreate(
 
 	// Return the newly created context
 	return Context;
+}
+
+/* ContextDump 
+ * Dumps the contents of the given context for debugging */
+OsStatus_t
+ContextDump(
+	_In_ Context_t *Context)
+{
+	// Dump general registers
+	LogDebug(__MODULE, "EAX: 0x%x, EBX 0x%x, ECX 0x%x, EDX 0x%x",
+		Context->Eax, Context->Ebx, Context->Ecx, Context->Edx);
+
+	// Dump stack registers
+	LogDebug(__MODULE, "ESP 0x%x (UserESP 0x%x), EBP 0x%x, Flags 0x%x",
+        Context->Esp, Context->UserEsp, Context->Ebp, Context->Eflags);
+        
+    // Dump copy registers
+	LogDebug(__MODULE, "ESI 0x%x, EDI 0x%x", Context->Esi, Context->Edi);
+
+	// Dump segments
+	LogDebug(__MODULE, "CS 0x%x, DS 0x%x, GS 0x%x, ES 0x%x, FS 0x%x",
+		Context->Cs, Context->Ds, Context->Gs, Context->Es, Context->Fs);
+
+	// Dump IRQ information
+	LogDebug(__MODULE, "IRQ 0x%x, ErrorCode 0x%x, UserSS 0x%x",
+		Context->Irq, Context->ErrorCode, Context->UserSs);
+
+	// Return 
+	return OsSuccess;
 }

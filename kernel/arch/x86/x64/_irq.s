@@ -213,23 +213,23 @@ syscall_entry:
 
 ; Exception with no error code
 %macro irq_no_error 1
-	global _irq_handler%1
-	_irq_handler%1:
+	global irq_handler%1
+	irq_handler%1:
 		push 0
 		push %1
 		jmp exception_common
 %endmacro
 
 %macro irq_error 1
-	global _irq_handler%1
-	_irq_handler%1:
+	global irq_handler%1
+	irq_handler%1:
 		push %1
 		jmp exception_common
 %endmacro
 
 %macro irq_normal 2
-	global _irq_handler%1
-	_irq_handler%1:
+	global irq_handler%1
+	irq_handler%1:
 		push 0
 		push %2
 		jmp irq_common

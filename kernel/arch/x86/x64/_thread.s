@@ -114,7 +114,7 @@ _rdtsc:
 
 ; void enter_thread(registers_t *stack)
 ; Switches stack and far jumps to next task
-_enter_thread:
+enter_thread:
 	mov rsp, rcx
 
     ; Restore segments and registers

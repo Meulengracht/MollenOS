@@ -87,45 +87,29 @@ AcpiOsFree(
  * DESCRIPTION: Map physical memory into caller's address space
  *
  *****************************************************************************/
-#if defined(i386) || defined(__i386__) || defined(amd64) || defined(__amd64__)
-#include "../../arch/x86/memory.h"
-#endif
 void *
 AcpiOsMapMemory(
     ACPI_PHYSICAL_ADDRESS   Where,
     ACPI_SIZE               Length)
 {
     // Variables
-	uintptr_t Lookup = MmPhyiscalGetSysMappingVirtual((PhysicalAddress_t)Where);
+    VirtualAddress_t Result = 0;
+    size_t AdjustedLength   = Length + (Where & (AddressSpaceGetPageSize() - 1));
 
-	// There is a few special cases where the mapping doesn't exist, so we must create it 
-	if (Lookup == 0) {
-        int PageCount = DIVUP(Length, AddressSpaceGetPageSize());
-        if (PageCount == 1) {
-            ACPI_PHYSICAL_ADDRESS PageStart = Where & PAGE_MASK;
-            ACPI_PHYSICAL_ADDRESS PageEnd = (Where + Length) & PAGE_MASK;
-            if (PageStart != PageEnd) {
-                PageCount++;
-            }
-        }
+    // We have everything below 4mb identity mapped
+    if (Where >= 0x1000 && Where < 0x400000) {
+        return (void*)Where;
+    }
+    if (AddressSpaceMap(AddressSpaceGetCurrent(), &Where, &Result, AdjustedLength, 
+        ASPACE_FLAG_NOCACHE | ASPACE_FLAG_VIRTUAL | ASPACE_FLAG_SUPPLIEDPHYSICAL, __MASK) != OsSuccess) {
+        // Uhh
+        ERROR("Failed to map physical memory 0x%x", Where);
+        return NULL;
+    }
 
-        // If we are looking for something below the first 4 mb
-        // It's already identity mapped
-		if (Where >= 0x1000 && Where < 0x400000) {
-            Lookup = (uintptr_t)Where;
-        }
-		else {
-			uintptr_t ReservedMem = (uintptr_t)MmReserveMemory(PageCount);
-            int i = 0;
-            
-			for (; i < PageCount; i++) {
-				if (!MmVirtualGetMapping(NULL, ReservedMem + (i * AddressSpaceGetPageSize())))
-					MmVirtualMap(NULL, (Where & PAGE_MASK) + (i * AddressSpaceGetPageSize()), ReservedMem + (i * AddressSpaceGetPageSize()), 0);
-			}
-			return (void*)(ReservedMem + ((uintptr_t)Where & ATTRIBUTE_MASK));
-		}
-	}
-	return (void*)Lookup;
+    // Readjust pointer to correct offset
+    Result += Where & (AddressSpaceGetPageSize() - 1);
+    return (void*)Result;
 }
 
 /******************************************************************************
@@ -143,11 +127,20 @@ AcpiOsMapMemory(
  *****************************************************************************/
 void
 AcpiOsUnmapMemory(
-    void                    *LogicalAddress,
+    void*                   LogicalAddress,
     ACPI_SIZE               Size)
 {
-    // Don't unmap anything yet
-    // @todo
+    // Variables
+    VirtualAddress_t Address = (VirtualAddress_t)LogicalAddress;
+    size_t AdjustedLength    = Size + (Address & (AddressSpaceGetPageSize() - 1));
+
+    // We have everything below 4mb identity mapped
+    if (Address >= 0x1000 && Address < 0x400000) {
+        return;
+    }
+    else if (AddressSpaceUnmap(AddressSpaceGetCurrent(), Address, AdjustedLength) != OsSuccess) {
+        ERROR("Failed to unmap memory 0x%x", Address);
+    }
 }
 
 /******************************************************************************

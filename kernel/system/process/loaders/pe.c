@@ -598,7 +598,8 @@ PeResolveLibrary(
         UUId_t fHandle = UUID_INVALID;
         MCorePeFile_t *Library = NULL;
         uint8_t *fBuffer = NULL;
-        size_t fSize = 0, fRead = 0, fIndex = 0;
+        size_t fRead = 0, fIndex = 0;
+        size_t fSize = 0;
 
         // Open the file
         // We have a special case here that it might
@@ -613,6 +614,7 @@ PeResolveLibrary(
         else {
             // Variables
             FileSystemCode_t FsCode = FsOk;
+            LargeInteger_t QueriedSize;
 
             // Open the file as read-only
             FsCode = OpenFile(MStringRaw(LibraryName), __FILE_MUSTEXIST, __FILE_READ_ACCESS, &fHandle);
@@ -622,10 +624,12 @@ PeResolveLibrary(
             }
 
             // Allocate buffer large enough to read entire file
-            if (GetFileSize(fHandle, &fSize, NULL) != OsSuccess) {
+            QueriedSize.QuadPart = 0;
+            if (GetFileSize(fHandle, &QueriedSize.u.LowPart, NULL) != OsSuccess) {
                 ERROR("Failed to retrieve the file size");
                 for (;;);
             }
+            fSize = (size_t)QueriedSize.QuadPart;
             BufferObject    = CreateBuffer(fSize);
             fBuffer         = (uint8_t*)kmalloc(fSize);
 

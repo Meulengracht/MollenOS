@@ -112,17 +112,6 @@ KERNELABI
 MmPhysicalFreeBlock(
 	_In_ PhysicalAddress_t Address);
 
-/* MmPhyiscalGetSysMappingVirtual
- * This function retrieves the virtual address 
- * of an mapped system mapping, this is to avoid
- * re-mapping and continous unmap of device memory 
- * Returns 0 if none exists */
-KERNELAPI
-VirtualAddress_t
-KERNELABI
-MmPhyiscalGetSysMappingVirtual(
-	_In_ PhysicalAddress_t PhysicalAddress);
-
 /* MmVirtualInit
  * Initializes the virtual memory system and
  * installs default kernel mappings */

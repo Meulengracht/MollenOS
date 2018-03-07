@@ -48,10 +48,6 @@ static PageDirectory_t *GlbPageDirectories[MAX_SUPPORTED_CPUS];
 static Spinlock_t GlbVmLock = SPINLOCK_INIT;
 static uintptr_t GblReservedPtr = 0;
 
-/* Extern acess to system mappings in the
- * physical memory manager */
-__EXTERN SystemMemoryMapping_t SysMappings[32];
-
 /* Extern assembly functions that are
  * implemented in _paging.asm */
 __EXTERN void memory_set_paging(int enable);
@@ -600,6 +596,9 @@ MmVirtualDestroy(
         // Free the page-table
         kfree(Pt);
     }
+    
+    // Free the page-directory
+    kfree(Pd);
     return OsSuccess;
 }
 
@@ -711,25 +710,6 @@ MmVirtualInit(void)
 	// Install the page table at the reserved system
 	// memory, important! 
 	TRACE("Mapping reserved memory to 0x%x", MEMORY_LOCATION_RESERVED);
-
-	// Iterate all saved physical system memory mappings
-	for (i = 0; i < 32; i++) {
-		if (SysMappings[i].Length != 0 && SysMappings[i].Type != 1) {
-			int PageCount = DIVUP(SysMappings[i].Length, PAGE_SIZE);
-			int j;
-
-			// Update virtual address for this entry
-			SysMappings[i].vAddressStart = GblReservedPtr;
-
-			// Map it with our special initial mapping function
-			// that is a simplified version
-			for (j = 0; j < PageCount; j++, GblReservedPtr += PAGE_SIZE) {
-				MmVirtualInitialMap(
-					((SysMappings[i].pAddressStart & PAGE_MASK) + (j * PAGE_SIZE)), 
-					GblReservedPtr);
-			}
-		}
-	}
 
 	// Update video address to the new
 	VideoGetTerminal()->FrameBufferAddress = MEMORY_LOCATION_VIDEO;

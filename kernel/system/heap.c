@@ -455,12 +455,13 @@ HeapCommitPages(
     _In_ uintptr_t  Mask)
 {
     // Variables
+    uintptr_t PageMask = ~(AddressSpaceGetPageSize() - 1);
     size_t Pages    = DIVUP(Size, AddressSpaceGetPageSize());
     size_t i        = 0;
 
     // Sanitize the page boundary
     // Do we step across page boundary?
-    if ((Address & PAGE_MASK) != ((Address + Size - 1) & PAGE_MASK)) {
+    if ((Address & PageMask) != ((Address + Size - 1) & PageMask)) {
         Pages++;
     }
 
@@ -923,8 +924,7 @@ kmalloc_base(
     }
 
     // Perform the allocation
-    ReturnAddress = HeapAllocate(HeapGetKernel(), 
-        IDENTIFIER Length, Flags, Alignment, Mask);
+    ReturnAddress = HeapAllocate(HeapGetKernel(), IDENTIFIER Length, Flags, Alignment, Mask);
 
     // Fail on NULL allocations
     if (ReturnAddress == 0) {
@@ -933,7 +933,7 @@ kmalloc_base(
     }
 
     // Check alignment
-    if ((Flags & ALLOCATION_PAGEALIGN) && ((ReturnAddress & ATTRIBUTE_MASK) != 0)) {
+    if ((Flags & ALLOCATION_PAGEALIGN) && ((ReturnAddress & (AddressSpaceGetPageSize() - 1)) != 0)) {
         FATAL(FATAL_SCOPE_KERNEL, "Allocation result 0x%x (alignment failed)", ReturnAddress);
         return NULL;
     } 
@@ -949,8 +949,7 @@ void*
 kmalloc_apm(
     _In_ size_t      Length,
     _In_ uintptr_t   Mask,
-    _Out_ uintptr_t *PhysicalAddress)
-{
+    _Out_ uintptr_t *PhysicalAddress) {
     return kmalloc_base(Length, ALLOCATION_COMMIT | ALLOCATION_PAGEALIGN, 
         0, Mask, PhysicalAddress);
 }
@@ -958,35 +957,27 @@ kmalloc_apm(
 void*
 kmalloc_ap(
     _In_ size_t      Length,
-    _Out_ uintptr_t *PhysicalAddress)
-{
-    return kmalloc_base(Length, ALLOCATION_COMMIT | ALLOCATION_PAGEALIGN, 
-        0, __MASK, PhysicalAddress);
+    _Out_ uintptr_t *PhysicalAddress) {
+    return kmalloc_base(Length, ALLOCATION_COMMIT | ALLOCATION_PAGEALIGN, 0, __MASK, PhysicalAddress);
 }
 
 void*
 kmalloc_p(
     _In_ size_t      Length,
-    _Out_ uintptr_t *PhysicalAddress)
-{
-    return kmalloc_base(Length, ALLOCATION_COMMIT, 
-        HEAP_STANDARD_ALIGN, __MASK, PhysicalAddress);
+    _Out_ uintptr_t *PhysicalAddress) {
+    return kmalloc_base(Length, ALLOCATION_COMMIT, HEAP_STANDARD_ALIGN, __MASK, PhysicalAddress);
 }
 
 void*
 kmalloc_a(
-    _In_ size_t      Length)
-{
-    return kmalloc_base(Length, ALLOCATION_COMMIT | ALLOCATION_PAGEALIGN, 
-        0, __MASK, NULL);
+    _In_ size_t      Length) {
+    return kmalloc_base(Length, ALLOCATION_COMMIT | ALLOCATION_PAGEALIGN, 0, __MASK, NULL);
 }
 
 void*
 kmalloc(
-    _In_ size_t      Length)
-{
-    return kmalloc_base(Length, ALLOCATION_COMMIT, 
-        HEAP_STANDARD_ALIGN, __MASK, NULL);
+    _In_ size_t      Length) {
+    return kmalloc_base(Length, ALLOCATION_COMMIT, HEAP_STANDARD_ALIGN, __MASK, NULL);
 }
 
 /* kfree 
@@ -994,8 +985,7 @@ kmalloc(
  * just calls it with the kernel heap as argument */
 void
 kfree(
-    _In_ void *Pointer)
-{
+    _In_ void *Pointer) {
     assert(Pointer != NULL);
     HeapFree(HeapGetKernel(), (uintptr_t)Pointer);
 }
@@ -1006,7 +996,7 @@ kfree(
 void heap_test(void)
 {
     /* Do some debugging */
-    uint32_t phys1 = 0, phys2 = 0, i = 0;
+    uintptr_t phys1 = 0, phys2 = 0, i = 0;
     void *res1, *res2, *res3, *res4, *res5, *res6;
 
     HeapStatisticsPrint(&GlbKernelHeap);
@@ -1022,8 +1012,8 @@ void heap_test(void)
     HeapStatisticsPrint(&GlbKernelHeap);
 
     printf(" Alloc1 (0x30): 0x%x, Alloc2 (0x50): 0x%x, Alloc3 (0x130): 0x%x, Alloc4 (0x180): 0x%x\n",
-        (uint32_t)res1, (uint32_t)res2, (uint32_t)res3, (uint32_t)res4);
-    printf(" Alloc5 (0x600): 0x%x, Alloc6 (0x3000): 0x%x\n", (uint32_t)res5, (uint32_t)res6);
+        (uintptr_t)res1, (uintptr_t)res2, (uintptr_t)res3, (uintptr_t)res4);
+    printf(" Alloc5 (0x600): 0x%x, Alloc6 (0x3000): 0x%x\n", (uintptr_t)res5, (uintptr_t)res6);
 
     printf(" Freeing Alloc5, 2 & 3...\n");
     kfree(res5);
@@ -1037,7 +1027,7 @@ void heap_test(void)
     res3 = kmalloc(0x20);
     res5 = kmalloc(0x320);
 
-    printf(" Alloc2 (0x90): 0x%x, Alloc3 (0x20): 0x%x, Alloc5 (0x320): 0x%x\n", (uint32_t)res2, (uint32_t)res3, (uint32_t)res5);
+    printf(" Alloc2 (0x90): 0x%x, Alloc3 (0x20): 0x%x, Alloc5 (0x320): 0x%x\n", (uintptr_t)res2, (uintptr_t)res3, (uintptr_t)res5);
     printf(" Freeing all...\n");
 
     kfree(res1);
@@ -1059,8 +1049,8 @@ void heap_test(void)
     res6 = kmalloc_ap(0x1000, &phys2);
 
     printf(" Alloc1 (0x30): 0x%x, Alloc2 (0x210): 0x%x, Alloc3 (0x900): 0x%x, Alloc4 (0x4500): 0x%x\n",
-        (uint32_t)res1, (uint32_t)res2, (uint32_t)res3, (uint32_t)res4);
-    printf(" Alloc5 (0x32): 0x%x, Alloc6 (0x1000): 0x%x\n", (uint32_t)res5, (uint32_t)res6);
+        (uintptr_t)res1, (uintptr_t)res2, (uintptr_t)res3, (uintptr_t)res4);
+    printf(" Alloc5 (0x32): 0x%x, Alloc6 (0x1000): 0x%x\n", (uintptr_t)res5, (uintptr_t)res6);
     printf(" Alloc5 Physical: 0x%x, Alloc6 Physical: 0x%x\n", phys1, phys2);
 
     printf(" Freeing all...\n");

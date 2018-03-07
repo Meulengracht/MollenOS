@@ -47,10 +47,6 @@ static size_t MemoryBlocks      = 0;
 static size_t MemoryBlocksUsed  = 0;
 static size_t MemorySize        = 0;
 
-/* Reserved Regions 
- * This primarily comes from the region-descriptor */
-SystemMemoryMapping_t SysMappings[32];
-
 /* MmMemoryDebugPrint
  * This is a debug function for inspecting
  * the memory status, it spits out how many blocks are in use */
@@ -226,28 +222,6 @@ void MmAllocateRegion(uintptr_t Base, size_t Size)
 	}
 }
 
-/* This validates if a system mapping already
- * exists at the given <Physical> address and of
- * the given type */
-int MmSysMappingsContain(uintptr_t Base, int Type)
-{
-	/* Find address, if it exists! */
-	for (int i = 0; i < 32; i++)
-	{
-		/* Sanity, it has to be a valid mapping */
-		if (SysMappings[i].Length == 0)
-			continue;
-
-		/* Does type/address match ? */
-		if (SysMappings[i].Type == Type
-			&& SysMappings[i].pAddressStart == Base) {
-			return 1;
-		}
-	}
-
-	return 0;
-}
-
 /* MmPhyiscalInit
  * This is the physical memory manager initializor
  * It reads the multiboot memory descriptor(s), initialies
@@ -258,7 +232,7 @@ MmPhyiscalInit(
 {
 	/* Variables, cast neccessary data */
 	BIOSMemoryRegion_t *RegionItr = NULL;
-	int i, j;
+	int i;
 	
 	/* Sanitize the bootdescriptor */
 	assert(BootInformation != NULL);
@@ -285,42 +259,14 @@ MmPhyiscalInit(
 
 	/* Set all memory in use */
 	memset((void*)MemoryBitmap, 0xFFFFFFFF, MemoryBitmapSize);
-	memset((void*)SysMappings, 0, sizeof(SysMappings));
 
 	// Create critical section
 	CriticalSectionConstruct(&MemoryLock, CRITICALSECTION_PLAIN);
 
-	/* Let us make it possible to access 
-	 * the first page of memory, but not through normal means */
-	SysMappings[0].Type = 2;
-	SysMappings[0].pAddressStart = 0;
-	SysMappings[0].vAddressStart = 0;
-	SysMappings[0].Length = PAGE_SIZE;
-
 	/* Loop through memory regions from bootloader */
-	for (i = 0, j = 1; i < (int)BootInformation->MemoryMapLength; i++) {
-		if (!MmSysMappingsContain((PhysicalAddress_t)RegionItr->Address, (int)RegionItr->Type))
-		{
-			/* Available Region? 
-			 * It has to be of type 1 */
-			if (RegionItr->Type == 1)
-				MmFreeRegion((uintptr_t)RegionItr->Address, (size_t)RegionItr->Size);
-
-			/*printf("      > Memory Region %u: Address: 0x%x, Size 0x%x\n",
-				region->type, (PhysicalAddress_t)region->address, (size_t)region->size);*/
-
-			/* Setup a new system mapping, 
-			 * we cache this map for conveniance */
-			SysMappings[j].Type = RegionItr->Type;
-			SysMappings[j].pAddressStart = (PhysicalAddress_t)RegionItr->Address;
-			SysMappings[j].vAddressStart = 0;
-			SysMappings[j].Length = (size_t)RegionItr->Size;
-
-			/* Advance */
-			j++;
-		}
-		
-		/* Advance to next */
+	for (i = 0; i < (int)BootInformation->MemoryMapLength; i++) {
+		if (RegionItr->Type == 1)
+			MmFreeRegion((uintptr_t)RegionItr->Address, (size_t)RegionItr->Size);
 		RegionItr++;
 	}
 
@@ -351,8 +297,6 @@ MmPhyiscalInit(
 
 	/* Debug */
 	MmMemoryDebugPrint();
-
-	// No problems
 	return OsSuccess;
 }
 
@@ -437,36 +381,4 @@ MmPhysicalAllocateBlock(
 	/* Calculate the return 
 	 * address by multiplying by block size */
 	return (PhysicalAddress_t)(Frame * PAGE_SIZE);
-}
-
-/* MmPhyiscalGetSysMappingVirtual
- * This function retrieves the virtual address 
- * of an mapped system mapping, this is to avoid
- * re-mapping and continous unmap of device memory 
- * Returns 0 if none exists */
-VirtualAddress_t
-MmPhyiscalGetSysMappingVirtual(
-	_In_ PhysicalAddress_t PhysicalAddress)
-{
-	/* Iterate the sys-mappings, we only
-	 * have up to 32 at the moment, should always be enough */
-	for (int i = 0; i < 32; i++) {
-		/* It has to be valid, and NOT of type available */
-		if (SysMappings[i].Length != 0 && SysMappings[i].Type != 1) 
-		{
-			/* Calculate start and end 
-			 * of this system memory region */
-			PhysicalAddress_t Start = SysMappings[i].pAddressStart;
-			PhysicalAddress_t End = SysMappings[i].pAddressStart + SysMappings[i].Length;
-
-			/* Is it in range? :) */
-			if (PhysicalAddress >= Start && PhysicalAddress < End) {
-				return SysMappings[i].vAddressStart 
-					+ (PhysicalAddress - SysMappings[i].pAddressStart);
-			}
-		}
-	}
-
-	/* Not found */
-	return 0;
 }

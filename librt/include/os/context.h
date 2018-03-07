@@ -59,6 +59,8 @@ PACKED_TYPESTRUCT(Context, {
     uint32_t                Arguments[6];
 });
 #define CONTEXT_IP(Context)     Context->Eip
+#define CONTEXT_SP(Context)     Context->Esp
+#define CONTEXT_USERSP(Context) Context->UserEsp
 #elif defined(__amd64__) || defined(amd64)
 PACKED_TYPESTRUCT(Context, {
 	uint64_t                Rdi;
@@ -96,6 +98,8 @@ PACKED_TYPESTRUCT(Context, {
     uint64_t                Arguments[6];
 });
 #define CONTEXT_IP(Context)     Context->Rip
+#define CONTEXT_SP(Context)     Context->Rsp
+#define CONTEXT_USERSP(Context) Context->UserRsp
 #else
 #error "os/context.h: Invalid architecture"
 #endif

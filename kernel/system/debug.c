@@ -224,20 +224,21 @@ DebugStackTrace(
 	// Derive stack pointer from the argument
 	uintptr_t *StackPtr = NULL;
     uintptr_t StackLmt  = 0;
+    uintptr_t PageMask  = ~(AddressSpaceGetPageSize() - 1);
 	size_t Itr          = MaxFrames;
 
     // Use local or given?
     if (Context == NULL) {
         StackPtr = (uintptr_t*)&MaxFrames;
-        StackLmt = ((uintptr_t)StackPtr & PAGE_MASK) + PAGE_SIZE;
+        StackLmt = ((uintptr_t)StackPtr & PageMask) + AddressSpaceGetPageSize();
     }
-    else if (Context->UserEsp != 0) {
-        StackPtr = (uintptr_t*)Context->UserEsp;
+    else if (CONTEXT_USERSP(Context) != 0) {
+        StackPtr = (uintptr_t*)CONTEXT_USERSP(Context);
         StackLmt = MEMORY_LOCATION_RING3_STACK_START;
     }
     else {
-        StackPtr = (uintptr_t*)Context->Esp;
-        StackLmt = (Context->Esp & PAGE_MASK) + PAGE_SIZE;
+        StackPtr = (uintptr_t*)CONTEXT_SP(Context);
+        StackLmt = (CONTEXT_SP(Context) & PageMask) + AddressSpaceGetPageSize();
     }
 
     while (Itr && (uintptr_t)StackPtr < StackLmt) {
@@ -313,35 +314,6 @@ DebugMemory(
 
 	// And print the final ASCII bit.
 	LogRaw("  %s\n", Buffer);
-	return OsSuccess;
-}
-
-/* DebugContext 
- * Dumps the contents of the given context for debugging */
-OsStatus_t
-DebugContext(
-	_In_ Context_t *Context)
-{
-	// Dump general registers
-	LogDebug(__MODULE, "EAX: 0x%x, EBX 0x%x, ECX 0x%x, EDX 0x%x",
-		Context->Eax, Context->Ebx, Context->Ecx, Context->Edx);
-
-	// Dump stack registers
-	LogDebug(__MODULE, "ESP 0x%x (UserESP 0x%x), EBP 0x%x, Flags 0x%x",
-        Context->Esp, Context->UserEsp, Context->Ebp, Context->Eflags);
-        
-    // Dump copy registers
-	LogDebug(__MODULE, "ESI 0x%x, EDI 0x%x", Context->Esi, Context->Edi);
-
-	// Dump segments
-	LogDebug(__MODULE, "CS 0x%x, DS 0x%x, GS 0x%x, ES 0x%x, FS 0x%x",
-		Context->Cs, Context->Ds, Context->Gs, Context->Es, Context->Fs);
-
-	// Dump IRQ information
-	LogDebug(__MODULE, "IRQ 0x%x, ErrorCode 0x%x, UserSS 0x%x",
-		Context->Irq, Context->ErrorCode, Context->UserSs);
-
-	// Return 
 	return OsSuccess;
 }
 

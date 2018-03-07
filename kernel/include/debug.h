@@ -147,12 +147,4 @@ DebugMemory(
 	_In_ void *Address,
 	_In_ size_t Length);
 
-/* DebugContext 
- * Dumps the contents of the given context for debugging */
-KERNELAPI
-OsStatus_t
-KERNELABI
-DebugContext(
-	_In_ Context_t *Context);
-
 #endif //!_DEBUG_H_

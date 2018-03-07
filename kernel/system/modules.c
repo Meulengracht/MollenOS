@@ -73,7 +73,7 @@ ModulesInitialize(
     }
     
     // Initialize the pointer and read the signature value, must match
-    Ramdisk = (MCoreRamDiskHeader_t*)BootInformation->RamdiskAddress;
+    Ramdisk = (MCoreRamDiskHeader_t*)(uintptr_t)BootInformation->RamdiskAddress;
     if (Ramdisk->Magic != RAMDISK_MAGIC) {
         ERROR("Invalid magic in ramdisk - 0x%x", Ramdisk->Magic);
         return OsError;
@@ -97,7 +97,7 @@ ModulesInitialize(
     while (Counter != 0) {
         if (Entry->Type == RAMDISK_MODULE || Entry->Type == RAMDISK_FILE) {
             MCoreRamDiskModuleHeader_t *Header =
-                (MCoreRamDiskModuleHeader_t*)(BootInformation->RamdiskAddress + Entry->DataHeaderOffset);
+                (MCoreRamDiskModuleHeader_t*)(uintptr_t)(BootInformation->RamdiskAddress + Entry->DataHeaderOffset);
             MCoreModule_t *Module = NULL;
             uint8_t *ModuleData = NULL;
             uint32_t CrcOfData = 0;

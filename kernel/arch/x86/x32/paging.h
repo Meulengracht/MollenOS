@@ -30,6 +30,7 @@
 /* Paging Definitions
  * Defines paging structure sizes for the different hardware paging structures. */
 #define ENTRIES_PER_PAGE        1024
+#define PAGE_SIZE               0x1000
 #define PAGE_MASK               0xFFFFF000
 #define ATTRIBUTE_MASK          0x00000FFF
 

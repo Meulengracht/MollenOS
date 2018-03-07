@@ -50,7 +50,6 @@ static uintptr_t ReservedMemoryPointer      = 0;
 
 /* Extern acess to system mappings in the
  * physical memory manager */
-__EXTERN SystemMemoryMapping_t SysMappings[32];
 __EXTERN void memory_load_cr3(uintptr_t pda);
 __EXTERN void memory_reload_cr3(void);
 __EXTERN void memory_invalidate_addr(uintptr_t pda);
@@ -504,52 +503,68 @@ MmVirtualClone(
 {
     // Variables
     uintptr_t PhysicalAddress   = 0;
-    PageMasterTable_t *Created    = (PageMasterTable_t*)kmalloc_ap(sizeof(PageMasterTable_t), &PhysicalAddress);
-    PageMasterTable_t *Current    = MasterTables[CpuGetCurrentId()];
+    PageMasterTable_t *Created  = (PageMasterTable_t*)kmalloc_ap(sizeof(PageMasterTable_t), &PhysicalAddress);
+    PageMasterTable_t *Current  = MasterTables[CpuGetCurrentId()];
+
+    PageDirectoryTable_t *KernelDirectoryTable  = NULL;
+    PageDirectoryTable_t *DirectoryTable        = NULL;
+    PageDirectory_t *Directory                  = NULL;
 
     // Essentially what we want to do here is to clone almost the entire
     // kernel address space (index 0 of the pdp) except for thread region
     // If inherit is set, then clone all other mappings as well
 
-    // Copy at max kernel directories up to MEMORY_SEGMENT_RING3_BASE
-    int KernelRegion            = 0;
-    int KernelRegionEnd         = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_KERNEL_END);
-
     // Lookup which table-region is the stack region
-    int ThreadRegion            = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_START);
-    int ThreadRegionEnd         = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_END);
+    int ThreadRegion            = PAGE_DIRECTORY_POINTER_INDEX(MEMORY_LOCATION_RING3_THREAD_START);
+    int ApplicationRegionPdp    = PAGE_DIRECTORY_POINTER_INDEX(MEMORY_LOCATION_RING3_CODE);
+    int ApplicationRegionPd     = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_CODE);
 	
     memset(Created, 0, sizeof(PageMasterTable_t));
 	MutexConstruct(&Created->Lock);
 
-    // Create PML4[0] and PDP[0] and PD[0]
+    // Get kernel PD[0]
+    KernelDirectoryTable = (PageDirectoryTable_t*)KernelMasterTable->vTables[0];
+
+    // PML4[512] => PDP[512] => [PD => PT]
+    // Create PML4[0] and PDP[0]
     Created->vTables[0] = (uint64_t)kmalloc_ap(sizeof(PageDirectoryTable_t), &PhysicalAddress);
     Created->pTables[0] = PhysicalAddress | PAGE_PRESENT | PAGE_WRITE | PAGE_USER;
+    DirectoryTable      = (PageDirectoryTable_t*)Created->vTables[0];
+    memset((void*)DirectoryTable, 0, sizeof(PageDirectoryTable_t));
 
-    // Then iterate PD[0] of host and copy all (excl: ThreadRegion => ThreadRegionEnd)
-    // Then iterate all rest PD[1..511] and copy if Inherit
+    // Set PD[0] => KERNEL PD[0]
+    DirectoryTable->vTables[0] = KernelDirectoryTable->vTables[0];
+    DirectoryTable->pTables[0] = KernelDirectoryTable->pTables[0];
+
+    // Set PD[ThreadRegion] => NEW [NON-INHERITABLE]
+    DirectoryTable->vTables[ThreadRegion] = (uint64_t)kmalloc_ap(sizeof(PageDirectory_t), &PhysicalAddress);
+    DirectoryTable->pTables[ThreadRegion] = PhysicalAddress | PAGE_PRESENT | PAGE_WRITE | PAGE_USER;
+    Directory                             = (PageDirectory_t*)DirectoryTable->vTables[ThreadRegion];
+    memset((void*)Directory, 0, sizeof(PageDirectory_t));
+    
+    // Then iterate all rest PD[0..511] and copy if Inherit
     // Then iterate all rest PDP[1..511] and copy if Inherit
     // Then iterate all rest PML4[1..511] and copy if Inherit
+    if (Inherit) {
+        for (int PmIndex = 0; PmIndex < ENTRIES_PER_PAGE; PmIndex++) {
+            PageDirectoryTable_t *PdpCreated = (PageDirectoryTable_t*)Created->vTables[PmIndex];
+            PageDirectoryTable_t *PdpCurrent = (PageDirectoryTable_t*)Current->vTables[PmIndex];
+            for (int PdpIndex = ApplicationRegionPdp; PdpIndex < ENTRIES_PER_PAGE; PdpIndex++) {
+                PageDirectory_t *PdCreated = (PageDirectory_t*)PdpCreated->vTables[PdpIndex];
+                PageDirectory_t *PdCurrent = (PageDirectory_t*)PdpCurrent->vTables[PdpIndex];
+                for (int PdIndex = ApplicationRegionPd; PdIndex < ENTRIES_PER_PAGE; PdIndex++) {
+                    if (PdCurrent->pTables[PdIndex]) {
+                        PdCreated->pTables[PdIndex] = PdCurrent->pTables[PdIndex] | PAGE_INHERITED;
+                        PdCreated->vTables[PdIndex] = PdCurrent->vTables[PdIndex];
+                    }
+                }
 
-    // Initialize base mappings
-    for (Itr = 0; Itr < ENTRIES_PER_PAGE; Itr++) {
-        // Sanitize if it's inside kernel region
-        if (Itr >= KernelRegion && Itr < KernelRegionEnd) {
-            Created->pTables[Itr] = KernelMasterTable->pTables[Itr];
-            Created->vTables[Itr] = KernelMasterTable->vTables[Itr];
-            continue;
-        }
+                // Reset to start from zero next iteration
+                ApplicationRegionPd = 0;
+            }
 
-        // Sanitize stack region, never copy
-        if (Itr >= ThreadRegion && Itr <= ThreadRegionEnd) {
-            continue;
-        }
-
-        // Inherit? We must mark that table inherited to avoid
-        // it being freed again
-        if (Inherit && Current->pTables[Itr]) {
-            Created->pTables[Itr] = Current->pTables[Itr] | PAGE_INHERITED;
-            Created->vTables[Itr] = Current->vTables[Itr];
+            // Reset to start from zero next iteration
+            ApplicationRegionPdp = 0;
         }
     }
     return OsSuccess;
@@ -562,43 +577,102 @@ MmVirtualDestroy(
 	_In_ void* PageDirectory)
 {
     // Variables
-    PageDirectory_t *Pd = (PageDirectory_t*)PageDirectory;
-    PageDirectory_t *KernPd = GlbKernelPageDirectory;
-    int i, j;
+    PageMasterTable_t *Current = (PageMasterTable_t*)PageDirectory;
 
-    // Iterate page-mappings
-    for (i = 0; i < ENTRIES_PER_PAGE; i++) {
-        if (Pd->pTables[i] == 0)
+    // Iterate all PML4 entries
+    for (int PmIndex = 0; PmIndex < ENTRIES_PER_PAGE; PmIndex++) {
+        // Do iteration validation;
+        // 1 If index is 0 => not mapped or used
+        // 2 If entry equals kernel => skip
+        // 3 If entry is inherited => skip
+        PageDirectoryTable_t *PdpKernel  = NULL;
+        PageDirectoryTable_t *PdpCurrent = NULL;
+        
+        // Sanitize 1, 2 and 3
+        if (Current->pTables[PmIndex] == 0 || 
+            (Current->pTables[PmIndex] == KernelMasterTable->pTables[PmIndex]) || 
+            (Current->pTables[PmIndex] & PAGE_INHERITED)) {
             continue;
-
-        // Is it a kernel page-table? Ignore it 
-        if (Pd->pTables[i] == KernPd->pTables[i])
-            continue;
-
-        // Is this an inherited page-table?
-        // We don't free our parents stuff
-        if (Pd->pTables[i] & PAGE_INHERITED)
-            continue;
-
-        // Ok, OUR user page-table, free everything in it
-        PageTable_t *Pt = (PageTable_t*)Pd->vTables[i];
-
-        // Iterate pages in table
-        for (j = 0; j < ENTRIES_PER_PAGE; j++) {
-            if (Pt->Pages[j] & PAGE_VIRTUAL)
-                continue;
-
-            // If it has a mapping - free it
-            if ((Pt->Pages[j] & PAGE_MASK) != 0) {
-                if (MmPhysicalFreeBlock(Pt->Pages[j] & PAGE_MASK) != OsSuccess) {
-                    ERROR("Tried to free page %i (0x%x) , but was not allocated", j, Pt->Pages[j]);
-                }
-            }
         }
 
-        // Free the page-table
-        kfree(Pt);
+        // Safe Cast indicies
+        if (KernelMasterTable->vTables[PmIndex] != 0) {
+            PdpKernel = (PageDirectoryTable_t*)KernelMasterTable->vTables[PmIndex];
+        }
+        PdpCurrent = (PageDirectoryTable_t*)Current->vTables[PmIndex];
+        for (int PdpIndex = 0; PdpIndex < ENTRIES_PER_PAGE; PdpIndex++) {
+            PageDirectory_t *PdKernel  = NULL;
+            PageDirectory_t *PdCurrent = NULL;
+            
+            // Sanitize 1 and 3
+            if (PdpCurrent->pTables[PdpIndex] == 0 || (PdpCurrent->pTables[PdpIndex] & PAGE_INHERITED)) {
+                continue;
+            }
+
+            // Safe Cast indicies
+            if (PdpKernel != NULL) {
+                // Sanitize 2
+                if (PdpCurrent->pTables[PdpIndex] == PdpKernel->pTables[PdpIndex]) {
+                    continue;
+                }
+                PdKernel = (PageDirectory_t*)PdpKernel->vTables[PdpIndex];
+            }
+            PdCurrent = (PageDirectory_t*)PdpCurrent->vTables[PdpIndex];
+            for (int PdIndex = 0; PdIndex < ENTRIES_PER_PAGE; PdIndex++) {
+                PageTable_t *PtKernel  = NULL;
+                PageTable_t *PtCurrent = NULL;
+                
+                // Sanitize 1 and 3
+                if (PdCurrent->pTables[PdIndex] == 0 || (PdCurrent->pTables[PdIndex] & PAGE_INHERITED)) {
+                    continue;
+                }
+
+                // Safe Cast indicies
+                if (PdKernel != NULL) {
+                    // Sanitize 2
+                    if (PdCurrent->pTables[PdIndex] == PdKernel->pTables[PdIndex]) {
+                        continue;
+                    }
+                    PtKernel = (PageTable_t*)PdKernel->vTables[PdIndex];
+                }
+                PtCurrent = (PageTable_t*)PdCurrent->vTables[PdIndex];
+                for (int PtIndex = 0; PtIndex < ENTRIES_PER_PAGE; PtIndex++) {
+                    // Sanitize 1 and 3
+                    if (PtCurrent->Pages[PtIndex] == 0 || (PtCurrent->Pages[PtIndex] & PAGE_INHERITED)) {
+                        continue;
+                    }
+                    if (PtKernel != NULL) {
+                        // Sanitize 2
+                        if (PtCurrent->Pages[PtIndex] == PtKernel->Pages[PtIndex]) {
+                            continue;
+                        }
+                    }
+
+                    // Sanitize 4 (Virtual mappings)
+                    if (PtCurrent->Pages[PtIndex] & PAGE_VIRTUAL) {
+                        continue;
+                    }
+
+                    if ((PtCurrent->Pages[PtIndex] & PAGE_MASK) != 0) {
+                        if (MmPhysicalFreeBlock(PtCurrent->Pages[PtIndex] & PAGE_MASK) != OsSuccess) {
+                            ERROR("Tried to free page %i (0x%x) , but was not allocated", PtIndex, PtCurrent->Pages[PtIndex]);
+                        }
+                    }
+                }
+
+                // Done with page-table, free it
+                kfree(PtCurrent);
+            }
+            
+            // Done with page-directory, free it
+            kfree(PdCurrent);
+        }
+
+        // Done with page-directory-table, free it
+        kfree(PdpCurrent);
     }
+    // Done with page-master table, free it
+    kfree(Current);
     return OsSuccess;
 }
 
@@ -678,7 +752,6 @@ MmVirtualInit(void)
 	PageTable_t *Table2                     = NULL;
 
 	AddressSpace_t KernelSpace;
-	int i;
 
 	// Trace information
 	TRACE("MmVirtualInit()");
@@ -731,24 +804,6 @@ MmVirtualInit(void)
 	// Install the page table at the reserved system
 	// memory, important! 
 	TRACE("Mapping reserved memory to 0x%x", MEMORY_LOCATION_RESERVED);
-
-	// Iterate all saved physical system memory mappings
-	for (i = 0; i < 32; i++) {
-		if (SysMappings[i].Length != 0 && SysMappings[i].Type != 1) {
-			int PageCount = DIVUP(SysMappings[i].Length, PAGE_SIZE);
-			int j;
-
-			// Update virtual address for this entry
-			SysMappings[i].vAddressStart = ReservedMemoryPointer;
-
-			// Map it with our special initial mapping function
-			// that is a simplified version
-			for (j = 0; j < PageCount; j++, ReservedMemoryPointer += PAGE_SIZE) {
-				MmVirtualInitialMap(((SysMappings[i].pAddressStart & PAGE_MASK) + (j * PAGE_SIZE)), 
-					ReservedMemoryPointer);
-			}
-		}
-	}
 
 	// Update video address to the new
 	VideoGetTerminal()->FrameBufferAddress = MEMORY_LOCATION_VIDEO;

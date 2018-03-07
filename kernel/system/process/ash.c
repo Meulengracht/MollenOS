@@ -146,6 +146,7 @@ PhoenixInitializeAsh(
         // Variables
         FileSystemCode_t FsCode = FsOk;
         OsStatus_t FsResult     = OsSuccess;
+        LargeInteger_t QueriedSize;
 
         // Open the file as read-only
         FsCode = OpenFile(MStringRaw(Path), __FILE_MUSTEXIST, __FILE_READ_ACCESS, &fHandle);
@@ -155,11 +156,13 @@ PhoenixInitializeAsh(
         }
 
         // Allocate buffer large enough to read entire file
-        if (GetFileSize(fHandle, &fSize, NULL) != OsSuccess) {
+        QueriedSize.QuadPart = 0;
+        if (GetFileSize(fHandle, &QueriedSize.u.LowPart, NULL) != OsSuccess) {
             ERROR("Failed to retrieve the file size");
             FsResult = OsError;
             goto FileCleanup;
         }
+        fSize = (size_t)QueriedSize.QuadPart;
         BufferObject    = CreateBuffer(fSize);
         fBuffer         = (uint8_t*)kmalloc(fSize);
         fPath           = (char*)kmalloc(_MAXPATH);

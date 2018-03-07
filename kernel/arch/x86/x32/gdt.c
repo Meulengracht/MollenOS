@@ -23,6 +23,7 @@
 
 /* Includes
  * - System */
+#include <memory.h>
 #include <arch.h>
 #include <heap.h>
 #include <gdt.h>

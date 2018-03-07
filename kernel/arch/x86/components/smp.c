@@ -105,7 +105,11 @@ void SmpApEntry(void)
 	Cpu = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
 
 	/* Memory */
+#if defined(amd64) || defined(__amd64__)
+#warning "Update trampoline code for 64 bit smp"
+#else
 	MmVirtualInstallPaging(Cpu);
+#endif
 
 	/* Setup apic */
 	ApicInitAp();
