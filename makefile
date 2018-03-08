@@ -57,7 +57,7 @@ disable_warnings = -Wno-address-of-packed-member -Wno-self-assign -Wno-unused-fu
 shared_flags = -U_WIN32 -fms-extensions -Wall -nostdlib -nostdinc -O3 -DMOLLENOS 
 
 # Kernel + Kernel environment compilation flags
-export ASFLAGS = -f bin -D$(VALI_ARCH)
+export ASFLAGS = -f bin -D$(VALI_ARCH) -D__$(VALI_ARCH)__
 export GCFLAGS = $(shared_flags) $(arch_flags) -ffreestanding $(disable_warnings) $(config_flags)
 export GCXXFLAGS = -std=c++17 -ffreestanding $(shared_flags) $(arch_flags) $(disable_warnings) $(config_flags)
 

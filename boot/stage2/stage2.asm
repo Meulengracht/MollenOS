@@ -52,12 +52,13 @@ jmp Entry
 %define         MEMLOCATION_KERNEL_STACK        0x9F000
 
 ; Unpack area will be not used afterwards and will then be used for 
-; initial page directory in 64 bit. We will need 0x4000 space
+; initial page directory in 64 bit. We will need 0x5000 space
 %define			MEMLOCATION_UNPACK_AREA			0x300000
 %define         MEMLOCATION_PML4T               0x300000
 %define         MEMLOCATION_PDPT                0x301000
 %define         MEMLOCATION_PDT                 0x302000
 %define         MEMLOCATION_PT                  0x303000
+%define         MEMLOCATION_PT2                 0x304000
 
 
 ; Includes
@@ -386,7 +387,7 @@ Entry32:
     jne     Skip64BitMode
 
 	; If eax is set to 1, 
-	; we will enter 64 bit mode instead (todo)
+	; we will enter 64 bit mode instead
     call    CpuSetupLongMode
     jmp     CODE64_DESC:LoadKernel64
 %endif

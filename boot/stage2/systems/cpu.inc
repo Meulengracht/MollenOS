@@ -52,6 +52,17 @@ CpuDetect64:
         xor     eax, eax
         ret
 
+CpuIdentityMapPageTable:
+    ; Mark the pages for PAGE_PRESENT | PAGE_WRITE
+    or      ebx, 0x00000003
+    mov     ecx, 512
+    .SetPageTableEntry:
+        mov     dword [edi], ebx
+        add     ebx, 0x00001000
+        add     edi, 8
+        loop    .SetPageTableEntry
+    ret
+
 ; **************************
 ; CpuSetupLongMode 
 ; Out:
@@ -81,31 +92,21 @@ CpuSetupLongMode:
     mov     dword [edi], MEMLOCATION_PDT
     or      dword [edi], 0x00000003
 
-%ifdef __NO_LARGE_PAGING
     ; Make PDT[0] => PT and set PAGE_PRESENT | PAGE_WRITE
     mov     edi, MEMLOCATION_PDT
     mov     dword [edi], MEMLOCATION_PT
     or      dword [edi], 0x00000003
+    mov     dword [edi + 8], MEMLOCATION_PT2
+    or      dword [edi + 8], 0x00000003
 
-    ; Setup the page-table to be identity mapped to the first 2mb
-    ; and mark the pages for PAGE_PRESENT | PAGE_WRITE
+    ; Setup the page-table to be identity mapped to the first 4mb
     mov     edi, MEMLOCATION_PT
-    mov     ebx, 0x00000003
-    mov     ecx, 512
-
-    .SetPageTableEntry:
-        mov     dword [edi], ebx
-        add     ebx, 0x00001000
-        add     edi, 8
-        loop    .SetPageTableEntry
-%else
-    ; We setup the first 4 mb to identity mapped by marking them LARGE and using first 2 entries
-    ; Make PDT[0] => PT and set PAGE_PRESENT | PAGE_WRITE | PAGE_SIZE
-    mov     edi, MEMLOCATION_PDT
-    mov     dword [edi], 0x00000083
-    mov     dword [edi + 8], 0x00200083
-%endif
-        
+    mov     ebx, 0x00000000
+    call    CpuIdentityMapPageTable
+    mov     edi, MEMLOCATION_PT2
+    mov     ebx, 0x00200000
+    call    CpuIdentityMapPageTable
+    
     ; Enable PAE paging
     mov     eax, cr4
     or      eax, 0x20

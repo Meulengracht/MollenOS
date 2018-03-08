@@ -45,6 +45,7 @@ kentry:
 	mov rcx, rbx
 
 	;Now call the init function
+    sub rsp, 0x20
 	call MCoreInitialize
 
 	;When we return from here, we just

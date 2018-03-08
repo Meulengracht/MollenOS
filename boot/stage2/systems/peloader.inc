@@ -63,7 +63,8 @@ endstruc
 
 struc PEMainHeader
 	.PeMagic 			resd 	1 		; Must contain PE\0\0
-	; File Header Begins Here
+	
+    ; File Header Begins Here
 	.MachineType 		resw 	1
 	.NumSections 		resw 	1
 	.DateStamp			resd 	1
@@ -71,7 +72,10 @@ struc PEMainHeader
 	.NumSymbols 		resd 	1
 	.OptHeaderSize	 	resw 	1
 	.Attributes 		resw 	1
-	; Optional Header Begins Here 
+endstruc
+
+struc PEOptionalHeader32
+    ; Optional header begins here 
 	.PeOptMagic 		resw 	1
 	.MajorLinkVersion 	resb 	1
 	.MinorLinkVersion 	resb 	1
@@ -80,29 +84,48 @@ struc PEMainHeader
 	.SizeOfUninitData 	resd 	1
 	.EntryPoint 		resd 	1
 	.BaseOfCode 		resd 	1
+
 	.BaseOfData 		resd 	1
 	.ImageBase 			resd 	1
 	.SectionAlignment 	resd 	1
 	.FileAlignment		resd 	1
-	.MajorOSVersion 	resw	1
-	.MinorOSVersion 	resw 	1
-	.MajorFileVersion 	resw 	1
-	.MinorFileVersion 	resw 	1
-	.MajorSubSysVersion resw 	1
-	.MinorSubSysVersion resw 	1
-	.Win32Version		resd 	1
+	.Reserved           resb    16
 	.ImageSize			resd 	1
 	.HeaderSize 		resd 	1
 	.Checksum 			resd 	1
 	.Subsystem			resw 	1
 	.DllAttribs			resw 	1
-	.SizeStackReserve 	resd 	1
-	.SizeStackCommit 	resd 	1
-	.SizeHeapReserve 	resd 	1
-	.SizeHeapCommit 	resd 	1
+	.Reserved1          resb    16
 	.LoaderFlags		resd 	1
 	.NumRVA				resd 	1
-	.ExportAddrRva			resd	1
+	.ExportAddrRva		resd	1
+	.ExportSize			resd 	1
+endstruc
+
+struc PEOptionalHeader64
+    ; Optional header begins here 
+	.PeOptMagic 		resw 	1
+	.MajorLinkVersion 	resb 	1
+	.MinorLinkVersion 	resb 	1
+	.SizeOfCode 		resd 	1
+	.SizeOfInitData 	resd 	1
+	.SizeOfUninitData 	resd 	1
+	.EntryPoint 		resd 	1
+	.BaseOfCode 		resd 	1
+
+	.BaseAddress 		resq 	1
+	.SectionAlignment 	resd 	1
+	.FileAlignment 	    resd 	1
+	.Reserved           resb    16
+	.SizeOfImage        resd    1
+	.SizeOfHeaders      resd 	1
+    .ImageChecksum      resd    1
+    .SubSystem          resw    1
+    .DllAttributes      resw    1
+    .Reserved1          resb    32
+    .LoaderFlags        resd    1
+    .NumDataDirectories resd    1
+	.ExportAddrRva		resd	1
 	.ExportSize			resd 	1
 endstruc
 
@@ -134,84 +157,100 @@ PELoad:
 	mov 	dword [dPEFileBase], esi
 
 	; Save target address
-	mov	dword [BootHeader + MultiBoot.KernelAddress], edi
+	mov	    dword [BootHeader + MultiBoot.KernelAddress], edi
 
 	; Copy DOS header
-	pushad
+	push    esi
 	mov 	ecx, 16 			; 16 * 4 = 64
 	mov 	edi, DosHeader
 	cld
 	rep 	movsd
-	popad
+	pop     esi
 
 	; Do checks
-	xor 	eax, eax
 	mov 	ax, word [DosHeader + PEDosHeader.DosMagic]
 	cmp 	ax, DOS_MAGIC
 	jne 	.NotPE
 
-	; Get next header address 
+	; Get pe header address 
 	mov 	eax, dword [DosHeader + PEDosHeader.HeaderAddr]
 	add 	esi, eax
-
-	; Copy PE header
-	pushad
-	mov 	ecx, 32 			; 30 * 4 = 120
-	mov 	edi, PEHeader
-	cld
-	rep 	movsd
-	popad
-
-	; Do checks
-	xor 	eax, eax
-	mov 	eax, dword [PEHeader + PEMainHeader.PeMagic]
+   
+    ; Check PE magic
+	mov 	eax, dword [esi]
 	cmp 	eax, PE_MAGIC
 	jne 	.NotPE
 
-	; We only support 32 bit for now
-	mov 	ax, word [PEHeader + PEMainHeader.PeOptMagic]
+    ; Read the PE header
+	mov 	ecx, 6 			; 6 * 4 = 24
+	mov 	edi, PEHeader
+	cld
+	rep 	movsd
+	
+    ; Determine the kind of PE file
+	mov 	ax, word [esi]
 	cmp 	ax, PE_OPT_MAGIC32
-	jne 	.NotPE
+	je 	    .PE32
+    cmp 	ax, PE_OPT_MAGIC64
+	je 	    .PE64
+    jmp     .NotPE
 
-	; Get entry point
-	mov 	eax, dword [PEHeader + PEMainHeader.ImageBase]
-	add 	eax, dword [PEHeader + PEMainHeader.EntryPoint]
-	mov 	dword [dPEEntryPoint], eax
+    .PE32:
+    	; Copy PE header
+        push    esi
+        mov 	ecx, 26 			; 26 * 4 = 104
+        mov 	edi, PEOptHeader32
+        cld
+        rep 	movsd
+        pop     esi
 
-	; Get export section
-	mov	eax, dword [PEHeader + PEMainHeader.ExportAddrRva]
-	;mov	dword [BootDescriptor + MollenOsBootDescriptor.ExportAddr], eax
-	mov	eax, dword [PEHeader + PEMainHeader.ExportSize]
-	;mov	dword [BootDescriptor + MollenOsBootDescriptor.ExportSize], eax
+        ; Get entry point
+        mov 	eax, dword [PEOptHeader32 + PEOptionalHeader32.ImageBase]
+        add 	eax, dword [PEOptHeader32 + PEOptionalHeader32.EntryPoint]
+        mov 	dword [dPEEntryPoint], eax
+        jmp     .HandleSections
+
+    .PE64:
+    	; Copy PE header
+        push    esi
+        mov 	ecx, 30 			; 30 * 4 = 120
+        mov 	edi, PEOptHeader64
+        cld
+        rep 	movsd
+        pop     esi
+
+        ; Get entry point
+        mov 	eax, dword [PEOptHeader64 + PEOptionalHeader64.BaseAddress]
+        add 	eax, dword [PEOptHeader64 + PEOptionalHeader64.EntryPoint]
+        mov 	dword [dPEEntryPoint], eax
 
 	; Get sections
-	xor 	eax, eax
-	xor 	ecx, ecx
-	mov 	ax, word [PEHeader + PEMainHeader.OptHeaderSize]
-	add 	esi, eax
-	add 	esi, 24  ; Size of FILE header
-	mov 	cx, word [PEHeader + PEMainHeader.NumSections]
+    .HandleSections:
+        xor 	eax, eax
+        xor 	ecx, ecx
+        mov 	ax, word [PEHeader + PEMainHeader.OptHeaderSize]
+        add 	esi, eax
+        mov 	cx, word [PEHeader + PEMainHeader.NumSections]
 
 	; Now we need to relocate
 	.cLoop:
+        push    ecx
+
 		; Copy Section Header
-		pushad
 		mov 	ecx, 10 			; 10 * 4 = 40
 		mov 	edi, PESection
 		cld
 		rep 	movsd
-		popad
 
 		; Save locations
 		push 	esi
-		push 	edi
-		push 	ecx
 
 		; Calculate file offset
 		mov 	esi, dword [dPEFileBase]
 		add 	esi, dword [PESection + PESectionHeader.RawDataPtr]
 
 		; Calculate memory offset
+        mov     edi, dword [BootHeader + MultiBoot.KernelAddress]
 		add 	edi, dword [PESection + PESectionHeader.VirtualAddr]
 
 		; How much stuff should be copy?
@@ -275,15 +314,13 @@ PELoad:
 
 		.NextSection:
 			; Save last edi
-			mov	dword [dPELastPage], edi
+			mov	    dword [dPELastPage], edi
 
-			; Restore locations
-			pop 	ecx
-			pop 	edi
+			; Restore location and counter
 			pop 	esi
+            pop     ecx
 
 			; Move to next section
-			add 	esi, 40
 			dec 	ecx
 			jnz 	.cLoop
 
@@ -300,7 +337,7 @@ PELoad:
 	.Done:
 		; Page align up
 		mov	eax, dword [dPELastPage]
-		and 	eax, 0xFFFFF000
+		and eax, 0xFFFFF000
 		add	eax, 0x1000
 		sub	eax, dword [BootHeader + MultiBoot.KernelAddress]
 		mov	dword [BootHeader + MultiBoot.KernelSize], eax
@@ -322,7 +359,7 @@ PELoad:
 ; Etc
 dPEEntryPoint 					dd 		0
 dPEFileBase						dd 		0
-dPELastPage					dd 		0
+dPELastPage					    dd 		0
 
 ; DOS Header (64 Bytes)
 DosHeader:
@@ -348,7 +385,7 @@ istruc PEDosHeader
 	at PEDosHeader.HeaderAddr,			dd	0
 iend
 
-; PE MainHeader (120 Bytes)
+; PE MainHeader (24 Bytes)
 PEHeader:
 istruc PEMainHeader
 	at PEMainHeader.PeMagic, 			dd 	0 		; Must contain PE\0\0
@@ -360,39 +397,66 @@ istruc PEMainHeader
 	at PEMainHeader.NumSymbols, 		dd 	0
 	at PEMainHeader.OptHeaderSize,	 	dw 	0
 	at PEMainHeader.Attributes,			dw 	0 ; 24
-	; Optional Header Begins Here 
-	at PEMainHeader.PeOptMagic, 		dw 	0
-	at PEMainHeader.MajorLinkVersion, 	db 	0
-	at PEMainHeader.MinorLinkVersion, 	db 	0
-	at PEMainHeader.SizeOfCode, 		dd 	0
-	at PEMainHeader.SizeOfInitData, 	dd 	0
-	at PEMainHeader.SizeOfUninitData, 	dd 	0 ; 40
-	at PEMainHeader.EntryPoint, 		dd 	0
-	at PEMainHeader.BaseOfCode, 		dd 	0
-	at PEMainHeader.BaseOfData, 		dd 	0
-	at PEMainHeader.ImageBase, 			dd 	0
-	at PEMainHeader.SectionAlignment, 	dd 	0
-	at PEMainHeader.FileAlignment,		dd 	0 ; 64
-	at PEMainHeader.MajorOSVersion, 	dw	0
-	at PEMainHeader.MinorOSVersion, 	dw 	0
-	at PEMainHeader.MajorFileVersion, 	dw 	0
-	at PEMainHeader.MinorFileVersion, 	dw 	0
-	at PEMainHeader.MajorSubSysVersion, dw 	0
-	at PEMainHeader.MinorSubSysVersion, dw 	0
-	at PEMainHeader.Win32Version,		dd 	0
-	at PEMainHeader.ImageSize,			dd 	0
-	at PEMainHeader.HeaderSize, 		dd 	0
-	at PEMainHeader.Checksum, 			dd 	0 ; 92
-	at PEMainHeader.Subsystem,			dw 	0
-	at PEMainHeader.DllAttribs,			dw 	0
-	at PEMainHeader.SizeStackReserve, 	dd 	0
-	at PEMainHeader.SizeStackCommit, 	dd 	0
-	at PEMainHeader.SizeHeapReserve, 	dd 	0
-	at PEMainHeader.SizeHeapCommit, 	dd 	0
-	at PEMainHeader.LoaderFlags,		dd 	0
-	at PEMainHeader.NumRVA,				dd 	0 ; 120
-	at PEMainHeader.ExportAddrRva,			dd	0 ; 124
-	at PEMainHeader.ExportSize,			dd	0 ; 128
+iend
+
+; PE Optional Header 32 bit (104 Bytes)
+PEOptHeader32:
+istruc PEOptionalHeader32
+    ; Optional (Shared) Header Begins Here 
+	at PEOptionalHeader32.PeOptMagic, 		dw 	0
+	at PEOptionalHeader32.MajorLinkVersion, db 	0
+	at PEOptionalHeader32.MinorLinkVersion, db 	0
+	at PEOptionalHeader32.SizeOfCode, 		dd 	0
+	at PEOptionalHeader32.SizeOfInitData, 	dd 	0
+	at PEOptionalHeader32.SizeOfUninitData, dd 	0 ; 16
+	at PEOptionalHeader32.EntryPoint, 		dd 	0
+	at PEOptionalHeader32.BaseOfCode, 		dd 	0
+
+    ; Optional (32 bit) Header Begins Here
+	at PEOptionalHeader32.BaseOfData, 		dd 	0
+	at PEOptionalHeader32.ImageBase, 		dd 	0
+	at PEOptionalHeader32.SectionAlignment, dd 	0
+	at PEOptionalHeader32.FileAlignment,	dd 	0 ; 40
+	at PEOptionalHeader32.Reserved, 	    db	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+	at PEOptionalHeader32.ImageSize,		dd 	0
+	at PEOptionalHeader32.HeaderSize, 		dd 	0
+	at PEOptionalHeader32.Checksum, 		dd 	0 ; 68
+	at PEOptionalHeader32.Subsystem,		dw 	0
+	at PEOptionalHeader32.DllAttribs,		dw 	0
+	at PEOptionalHeader32.Reserved1, 	    db	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+	at PEOptionalHeader32.LoaderFlags,		dd 	0
+	at PEOptionalHeader32.NumRVA,			dd 	0 ; 96
+	at PEOptionalHeader32.ExportAddrRva,	dd	0 ; 100
+	at PEOptionalHeader32.ExportSize,		dd	0 ; 104
+iend
+
+PEOptHeader64:
+istruc PEOptionalHeader64
+    ; Optional (Shared) Header Begins Here 
+	at PEOptionalHeader64.PeOptMagic, 		dw 	0
+	at PEOptionalHeader64.MajorLinkVersion, db 	0
+	at PEOptionalHeader64.MinorLinkVersion, db 	0
+	at PEOptionalHeader64.SizeOfCode, 		dd 	0
+	at PEOptionalHeader64.SizeOfInitData, 	dd 	0
+	at PEOptionalHeader64.SizeOfUninitData, dd 	0 ; 16
+	at PEOptionalHeader64.EntryPoint, 		dd 	0
+	at PEOptionalHeader64.BaseOfCode, 		dd 	0
+
+    ; Optional (64 bit) Header Begins Here
+	at PEOptionalHeader64.BaseAddress, 		dq 	0 ; 32
+	at PEOptionalHeader64.SectionAlignment, dd 	0
+	at PEOptionalHeader64.FileAlignment,	dd 	0 ; 40
+	at PEOptionalHeader64.Reserved, 	    db	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+	at PEOptionalHeader64.SizeOfImage,		dd 	0
+	at PEOptionalHeader64.SizeOfHeaders, 	dd 	0
+	at PEOptionalHeader64.ImageChecksum,	dd 	0 ; 68
+	at PEOptionalHeader64.SubSystem,		dw 	0
+	at PEOptionalHeader64.DllAttributes,	dw 	0
+	at PEOptionalHeader64.Reserved1, 	    db	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+	at PEOptionalHeader64.LoaderFlags,		dd 	0 ; 108
+	at PEOptionalHeader64.NumDataDirectories,   dd  0 ; 112
+	at PEOptionalHeader64.ExportAddrRva,	dd	0 ; 116
+	at PEOptionalHeader64.ExportSize,		dd	0 ; 120
 iend
 
 ; PE Section Header (40 Bytes)

@@ -56,10 +56,10 @@ CriticalSectionConstruct(
     _In_ int Flags)
 {
     // Initiate all members to default state
-	Section->Flags = Flags;
-	Section->State = 0;
+	Section->Flags      = Flags;
+	Section->State      = 0;
 	Section->References = 0;
-	Section->Owner = UUID_INVALID;
+	Section->Owner      = UUID_INVALID;
 	SpinlockReset(&Section->Lock);
 }
 

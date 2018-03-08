@@ -255,7 +255,13 @@ int main(int argc, char *argv[])
 
 	// Fill in architecture
 	// Arch - x86_32 = 0x08, x86_64 = 0x10
-	RdHeaderStatic.Architecture = 0x08;
+    if (!strcmp(argv[1], "i386") || !strcmp(argv[1], "__i386__")) {
+	    RdHeaderStatic.Architecture = 0x08;
+    }
+    else if (!strcmp(argv[1], "amd64") || !strcmp(argv[1], "__amd64__")) {
+	    RdHeaderStatic.Architecture = 0x10;
+    }
+
 	RdHeaderStatic.FileCount = 0;
 
     // Open directory

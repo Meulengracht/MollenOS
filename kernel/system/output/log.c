@@ -74,13 +74,13 @@ void
 LogInitialize(void)
 {
 	// Initialize global values
-	GlbLogTarget = LogMemory;
-	GlbLogLevel = LogLevel1;
-	GlbLogIndex = 0;
-	GlbLogFileHandle = UUID_INVALID;
-	GlbLogBuffer = NULL;
-	GlbLog = &GlbLogStatic[0];
-	GlbLogSize = LOG_INITIAL_SIZE;
+	GlbLogTarget        = LogMemory;
+	GlbLogLevel         = LogLevel1;
+	GlbLogIndex         = 0;
+	GlbLogFileHandle    = UUID_INVALID;
+	GlbLogBuffer        = NULL;
+	GlbLog              = &GlbLogStatic[0];
+	GlbLogSize          = LOG_INITIAL_SIZE;
 
 	// Construct and clear
 	memset(GlbLog, 0, GlbLogSize);

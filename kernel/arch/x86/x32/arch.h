@@ -58,7 +58,7 @@ typedef struct _x86_Thread {
  */
 #define MEMORY_LOCATION_KERNEL				0x100000 	/* Kernel Image Space: 1024 kB */
 #define MEMORY_LOCATION_RAMDISK				0x200000 	/* RamDisk Image Space: 1024 kB */
-#define MEMORY_LOCATION_BITMAP				0x300000 	/* Bitmap Space: 12 mB */
+#define MEMORY_LOCATION_BITMAP				0x305000 	/* Bitmap Space: 12 mB (first 0x4000 is used for initial page-dir) */
 #define MEMORY_LOCATION_HEAP				0x1000000	/* Heap Space: 50 mB */
 #define MEMORY_LOCATION_HEAP_END			0x4000000
 #define MEMORY_LOCATION_VIDEO				0x4000000	/* Video Space: 16 mB */
