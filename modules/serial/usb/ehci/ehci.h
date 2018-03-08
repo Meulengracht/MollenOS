@@ -105,7 +105,7 @@ PACKED_ATYPESTRUCT(volatile, EchiOperationalRegisters, {
 	reg32_t						UsbStatus;
 	reg32_t						UsbIntr;
 	reg32_t						FrameIndex;
-	reg32_t						SegmentSelector;	// 4G Segment Selector
+	reg32_t						SegmentSelector;	    // 4G Segment Selector
 	reg32_t						PeriodicListAddress;	// Periodic List
 	reg32_t						AsyncListAddress;		// AsyncList
 	uint8_t						Reserved[(0x40 - 0x1C)];
@@ -544,7 +544,7 @@ typedef union _EhciGenericLink {
 	EhciIsochronousDescriptor_t         *iTd;
 	EhciSplitIsochronousDescriptor_t    *siTd;
 	EhciFSTN_t                          *FSTN;
-	uintptr_t                            Address;
+	reg32_t                              Address;
 } EhciGenericLink_t;
 
 /* Pool Definitions */

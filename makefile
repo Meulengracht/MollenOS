@@ -20,7 +20,7 @@ ifeq ($(VALI_ARCH), i386)
 	link_flags = /machine:X86
 else ifeq ($(VALI_ARCH), amd64)
 	build_target = target_amd64
-	arch_flags = -m64 -Damd64 -D__x86_64__ --target=amd64-pc-win32-itanium-coff
+	arch_flags = -m64 -Damd64 -D__x86_64__ --target=amd64-pc-win32-itanium-coff -fdwarf-exceptions
 	link_flags = /machine:X64
 else
 $(error VALI_ARCH is not set to a valid value)

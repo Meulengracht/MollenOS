@@ -39,8 +39,8 @@ int main(int argc, char* argv[])
 	Parser *parser = NULL;
 	char *fileData = NULL;
 	FILE *source = NULL;
-	size_t size = 0;
-	size_t bread = 0;
+	unsigned size = 0;
+	unsigned bread = 0;
 
 	/* So, welcome! */
 #ifdef DIAGNOSE
@@ -60,14 +60,14 @@ int main(int argc, char* argv[])
 	/* Get size before allocation of
 	 * data array */
 	fseek(source, 0, SEEK_END);
-	size = ftell(source);
+	size = (unsigned)ftell(source);
 	fseek(source, 0, SEEK_SET);
 
 	/* Allocata a new array */
 	fileData = (char*)malloc(size);
 
 	/* Read entire file */
-	if ((bread = fread(fileData, 1, size, source)) != size) {
+	if ((bread = (unsigned)fread(fileData, 1, size, source)) != size) {
 		printf("Failed to read file; read %u, expected %u\n", bread, size);
 		goto Cleanup;
 	}
@@ -90,7 +90,7 @@ int main(int argc, char* argv[])
 	}
 
 #ifdef DIAGNOSE
-	printf(" - Parsing (elements = %u)\n", scrambler->GetElements().size());
+	printf(" - Parsing (elements = %u)\n", (unsigned)scrambler->GetElements().size());
 #endif
 
 	/* Setup the parser */

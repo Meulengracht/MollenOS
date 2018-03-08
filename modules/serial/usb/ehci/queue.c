@@ -411,11 +411,10 @@ EhciLinkPeriodicQh(
 	// Iterate the entire framelist and install the periodic qh
 	for (i = (int)Qh->sFrame; i < (int)Controller->QueueControl.FrameLength; i += Interval) {
 		// Retrieve a virtual pointer and a physical
-        EhciGenericLink_t *VirtualLink =
-            (EhciGenericLink_t*)&Controller->QueueControl.VirtualList[i];
-		uintptr_t *PhysicalLink = &Controller->QueueControl.FrameList[i];
-		EhciGenericLink_t This = *VirtualLink;
-		uintptr_t Type = 0;
+        EhciGenericLink_t *VirtualLink  = (EhciGenericLink_t*)&Controller->QueueControl.VirtualList[i];
+		reg32_t *PhysicalLink           = &Controller->QueueControl.FrameList[i];
+		EhciGenericLink_t This          = *VirtualLink;
+		reg32_t Type                    = 0;
 
 		// Iterate past isochronous tds
 		while (This.Address) {
@@ -482,11 +481,10 @@ EhciUnlinkPeriodic(
 	// and wait for next frame
 	for (i = sFrame; i < Controller->QueueControl.FrameLength; i += Period) {
 		// Retrieve a virtual pointer and a physical
-        EhciGenericLink_t *VirtualLink =
-            (EhciGenericLink_t*)&Controller->QueueControl.VirtualList[i];
-        uintptr_t *PhysicalLink = &Controller->QueueControl.FrameList[i];
-        EhciGenericLink_t This = *VirtualLink;
-        uintptr_t Type = 0;
+        EhciGenericLink_t *VirtualLink  = (EhciGenericLink_t*)&Controller->QueueControl.VirtualList[i];
+        reg32_t *PhysicalLink           = &Controller->QueueControl.FrameList[i];
+        EhciGenericLink_t This          = *VirtualLink;
+        reg32_t Type                    = 0;
 
 		// Find previous handle that points to our qh
 		while (This.Address && This.Address != Address) {

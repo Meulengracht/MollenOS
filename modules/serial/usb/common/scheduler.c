@@ -211,16 +211,16 @@ UsbSchedulerValidate(
  * Validate Bandwith should have been called first */
 OsStatus_t
 UsbSchedulerReserveBandwidth(
-	_In_ UsbScheduler_t *Schedule, 
-	_In_ size_t Period, 
-	_In_ size_t Bandwidth, 
-	_In_ size_t TransferCount,
-	_Out_ size_t *StartFrame,
-	_Out_ size_t *FrameMask)
+	_In_  UsbScheduler_t*   Schedule, 
+	_In_  size_t            Period, 
+	_In_  size_t            Bandwidth, 
+	_In_  size_t            TransferCount,
+	_Out_ reg32_t*          StartFrame,
+	_Out_ reg32_t*          FrameMask)
 {
 	// Variables
 	OsStatus_t Result = OsSuccess;
-	size_t sMask = 0, sFrame = 0;
+	reg32_t sMask = 0, sFrame = 0;
 	size_t i, j;
 
 	// Sanitize some bounds for period

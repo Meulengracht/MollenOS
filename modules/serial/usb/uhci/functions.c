@@ -147,7 +147,7 @@ UhciTransactionInitialize(
 
             // Validate the bandwidth
             Run = UsbSchedulerValidate(Controller->Scheduler,
-                    Qh->Period, Qh->Bandwidth, TransactionCount);
+                Qh->Period, Qh->Bandwidth, TransactionCount);
         }
 
         // Sanitize the validation
@@ -158,8 +158,7 @@ UhciTransactionInitialize(
 
         // Reserve and done!
         UsbSchedulerReserveBandwidth(Controller->Scheduler,
-                    Qh->Period, Qh->Bandwidth, TransactionCount, 
-                    &Qh->StartFrame, NULL);
+            Qh->Period, Qh->Bandwidth, TransactionCount, &Qh->StartFrame, NULL);
     }
 
     // Done
