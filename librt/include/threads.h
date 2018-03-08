@@ -26,11 +26,13 @@
 /* Includes
  * - Library */
 #include <os/osdefs.h>
+#include <limits.h>
 #include <time.h>
 
 /* Thread Definitions
  * Definitions, prototypes and typedefs. */
 #define TSS_DTOR_ITERATIONS     4
+#define TSS_KEY_INVALID         UINT_MAX
 #define ONCE_FLAG_INIT          ATOMIC_VAR_INIT(1)
 #if !defined(__cplusplus)
 #define thread_local _Thread_local

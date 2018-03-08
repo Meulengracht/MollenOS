@@ -41,7 +41,6 @@
 #include <string.h>
 
 #define TLS_MAX_KEYS			64
-#define TLS_KEY_INVALID			UUID_INVALID
 
 /* TlsThreadInstance (Private)
  * Contains a thread-specific storage for a given
@@ -274,7 +273,7 @@ tss_create(
     _In_ tss_dtor_t destructor)
 {
     // Variables
-    tss_t Result    = TLS_KEY_INVALID;
+    tss_t Result    = TSS_KEY_INVALID;
     int i;
 
     // Iterate and find an unallocated key
@@ -290,7 +289,7 @@ tss_create(
     SpinlockRelease(&TlsLock);
 
     // If we reach here all keys are allocated
-    if (Result != TLS_KEY_INVALID)  *tss_key = Result;
+    if (Result != TSS_KEY_INVALID)  *tss_key = Result;
     else                            return thrd_error;
     return thrd_success;
 }

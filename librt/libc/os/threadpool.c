@@ -77,7 +77,7 @@ typedef struct _ThreadPool {
 
 /* Globals
  * Keeps volatile/static information related to state */
-static tss_t __GlbThreadPoolKey = UUID_INVALID;
+static tss_t __GlbThreadPoolKey = TSS_KEY_INVALID;
 
 /* JobQueueInitialize
  * Allocates resources and initializes the job-queue */
@@ -363,7 +363,7 @@ ThreadPoolInitialize(
     }
 
     // Sanitize the tls-key
-    if (__GlbThreadPoolKey == UUID_INVALID) {
+    if (__GlbThreadPoolKey == TSS_KEY_INVALID) {
         tss_create(&__GlbThreadPoolKey, NULL);
     }
 

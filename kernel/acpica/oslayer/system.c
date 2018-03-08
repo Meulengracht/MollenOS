@@ -67,7 +67,7 @@ AcpiOsInitialize (
     // Initialize globals
     memset(&AcpiGbl_Semaphores[0], 0, sizeof(AcpiGbl_Semaphores));
     memset(&AcpiGbl_OutputBuffer[0], 0, sizeof(AcpiGbl_OutputBuffer));
-    memset(&AcpiGbl_InterruptId[0], UUID_INVALID, sizeof(AcpiGbl_InterruptId));
+    memset(&AcpiGbl_InterruptId[0], -1, sizeof(AcpiGbl_InterruptId));
     AcpiGbl_RedirectionTarget = NULL;
     AcpiGbl_DebugTimeout = 0;
     return AE_OK;
@@ -131,8 +131,7 @@ AcpiOsInstallInterruptHandler (
     ACPIInterrupt.FastHandler = (InterruptHandler_t)ServiceRoutine;
 
 	// Install it
-    AcpiGbl_InterruptId[InterruptNumber] = 
-        InterruptRegister(&ACPIInterrupt, INTERRUPT_KERNEL);InterruptRegister(&ACPIInterrupt, INTERRUPT_KERNEL);
+    AcpiGbl_InterruptId[InterruptNumber] = InterruptRegister(&ACPIInterrupt, INTERRUPT_KERNEL);
     if (AcpiGbl_InterruptId[InterruptNumber] != UUID_INVALID) {
         return AE_OK;
     }

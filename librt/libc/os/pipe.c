@@ -38,7 +38,7 @@ PipeOpen(
 {
 	// Sanitize input
 	if (Port < 0) {
-		return UUID_INVALID;
+		return OsError;
 	}
 	return Syscall_PipeOpen(Port, 0);
 }
