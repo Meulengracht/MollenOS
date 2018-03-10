@@ -60,18 +60,16 @@ GdtInstallDescriptor(
     _In_ uint8_t Access, 
     _In_ uint8_t Grandularity)
 {
-	// Prepare the entry by zeroing it
-	memset(&__GdtDescriptors[__GblGdtIndex], 0, sizeof(GdtDescriptor_t));
-
 	// Fill descriptor
-	__GdtDescriptors[__GblGdtIndex].BaseLow = (uint16_t)(Base & 0xFFFF);
-	__GdtDescriptors[__GblGdtIndex].BaseMid = (uint8_t)((Base >> 16) & 0xFF);
-	__GdtDescriptors[__GblGdtIndex].BaseHigh = (uint8_t)((Base >> 24) & 0xFF);
-	__GdtDescriptors[__GblGdtIndex].BaseUpper = (uint32_t)((Base >> 32) & 0xFFFFFFFF);
-	__GdtDescriptors[__GblGdtIndex].LimitLow = (uint16_t)(Limit & 0xFFFF);
-	__GdtDescriptors[__GblGdtIndex].Flags = (uint8_t)((Limit >> 16) & 0x0F);
-	__GdtDescriptors[__GblGdtIndex].Flags |= (Grandularity & 0xF0);
-	__GdtDescriptors[__GblGdtIndex].Access = Access;
+	__GdtDescriptors[__GblGdtIndex].BaseLow     = (uint16_t)(Base & 0xFFFF);
+	__GdtDescriptors[__GblGdtIndex].BaseMid     = (uint8_t)((Base >> 16) & 0xFF);
+	__GdtDescriptors[__GblGdtIndex].BaseHigh    = (uint8_t)((Base >> 24) & 0xFF);
+	__GdtDescriptors[__GblGdtIndex].BaseUpper   = (uint32_t)((Base >> 32) & 0xFFFFFFFF);
+	__GdtDescriptors[__GblGdtIndex].LimitLow    = (uint16_t)(Limit & 0xFFFF);
+	__GdtDescriptors[__GblGdtIndex].Flags       = (uint8_t)((Limit >> 16) & 0x0F);
+	__GdtDescriptors[__GblGdtIndex].Flags       |= (Grandularity & 0xF0);
+	__GdtDescriptors[__GblGdtIndex].Access      = Access;
+    __GdtDescriptors[__GblGdtIndex].Reserved    = 0;
 
 	// Increase index so we know where to write next
 	__GblGdtIndex++;
@@ -84,9 +82,9 @@ void
 GdtInitialize(void)
 {
 	// Setup gdt-table object
-	__GdtTableObject.Limit = (sizeof(GdtDescriptor_t) * GDT_MAX_DESCRIPTORS) - 1;
-	__GdtTableObject.Base = (uint64_t)&__GdtDescriptors[0];
-	__GblGdtIndex = 0;
+	__GdtTableObject.Limit  = (sizeof(GdtDescriptor_t) * GDT_MAX_DESCRIPTORS) - 1;
+	__GdtTableObject.Base   = (uint64_t)&__GdtDescriptors[0];
+	__GblGdtIndex           = 0;
 
 	// Install NULL descriptor
 	GdtInstallDescriptor(0, 0, 0, 0);

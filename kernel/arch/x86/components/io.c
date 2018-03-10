@@ -214,13 +214,13 @@ IoWrite(
     }
     else if (Source == IO_SOURCE_HARDWARE) {
         if (Width == 1) {
-            outb((uint16_t)Address, (uint8_t)Value);
+            outb((uint16_t)Address, (uint8_t)(Value & 0xFF));
         }
         else if (Width == 2) {
-            outw((uint16_t)Address, (uint16_t)Value);
+            outw((uint16_t)Address, (uint16_t)(Value & 0xFFFF));
         }
         else if (Width == 4) {
-            outl((uint16_t)Address, (uint32_t)Value);
+            outl((uint16_t)Address, (uint32_t)(Value & 0xFFFFFFFF));
         }
 #if __BITS == 64
         else if (Width == 8) {

@@ -319,7 +319,7 @@ void ApicInitialSetup(UUId_t Cpu)
 	ApicClear();
 
 	/* Disable ESR */
-#if defined(_X86_32) || defined(i386)
+#if defined(i386) || defined(__i386__)
 	if (ApicIsIntegrated()) {
 		ApicWriteLocal(APIC_ESR, 0);
 		ApicWriteLocal(APIC_ESR, 0);
@@ -395,7 +395,7 @@ ApicEnable(void)
 	Temp &= ~(0x000FF);
 	Temp |= 0x100;
 
-#if defined(_X86_32) || defined(i386)
+#if defined(i386) || defined(__i386__)
 	// This reduces some problems with to fast
 	// interrupt mask/unmask
 	Temp &= ~(0x200);

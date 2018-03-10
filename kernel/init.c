@@ -72,8 +72,8 @@ MCoreInitialize(
     _In_ Multiboot_t *BootInformation)
 {
     // Variables
-    Flags_t SystemsInitialized = 0;
-    Flags_t SystemsAvailable = 0;
+    Flags_t SystemsInitialized  = 0;
+    Flags_t SystemsAvailable    = 0;
     
     // Initialize all our static memory systems
     // and global variables
@@ -97,20 +97,20 @@ MCoreInitialize(
         SystemFeaturesInitialize(&GlobalBootInformation, SYSTEM_FEATURE_INITIALIZE);
     }
 
-    // Initialize output
+    // Initialize memory systems
+    if (SystemsAvailable & SYSTEM_FEATURE_MEMORY) {
+        TRACE("Running SYSTEM_FEATURE_MEMORY");
+        SystemFeaturesInitialize(&GlobalBootInformation, SYSTEM_FEATURE_MEMORY);
+        DebugInstallPageFaultHandlers();
+    }
+
+    // Don't access video before after memory access
     if (SystemsAvailable & SYSTEM_FEATURE_OUTPUT) {
         TRACE("Running SYSTEM_FEATURE_OUTPUT");
         SystemFeaturesInitialize(&GlobalBootInformation, SYSTEM_FEATURE_OUTPUT);
         VideoInitialize();
     }
 
-    // Initialize memory systems
-    if (SystemsAvailable & SYSTEM_FEATURE_MEMORY) {
-        TRACE("Running SYSTEM_FEATURE_MEMORY");
-        SystemFeaturesInitialize(&GlobalBootInformation, SYSTEM_FEATURE_MEMORY);
-        DebugInstallPageFaultHandlers();
-    }        
-    
     // Initialize our kernel heap
     HeapConstruct(HeapGetKernel(), MEMORY_LOCATION_HEAP, MEMORY_LOCATION_HEAP_END, 0);
 

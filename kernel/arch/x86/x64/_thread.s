@@ -116,8 +116,6 @@ _rdtsc:
 ; Switches stack and far jumps to next task
 enter_thread:
 	mov rsp, rcx
-
-    ; Restore segments and registers
     restore_state
 
 	; Cleanup irq & error code from stack

@@ -55,9 +55,9 @@ MutexConstruct(
     _In_ Mutex_t *Mutex)
 {
     // Initialize members
-	Mutex->Blocker = 0;
-	Mutex->Blocks = 0;
-    Mutex->Cleanup = 0;
+	Mutex->Blocker  = 0;
+	Mutex->Blocks   = 0;
+    Mutex->Cleanup  = 0;
 }
 
 /* MutexDestroy
@@ -80,16 +80,14 @@ MutexTryLock(
     _In_ size_t Timeout)
 {
 	// Mutexes are inherintly re-entrant, so check.
-	if (Mutex->Blocks != 0 
-		&& Mutex->Blocker == ThreadingGetCurrentThreadId()) {
+	if (Mutex->Blocks != 0 && Mutex->Blocker == ThreadingGetCurrentThreadId()) {
 		Mutex->Blocks++;
 		return OsSuccess;
 	}
 
 	// Try to acquire the mutex.
 	while (Mutex->Blocks != 0) {
-        if (SchedulerThreadSleep((uintptr_t*)Mutex, Timeout)
-            == SCHEDULER_SLEEP_TIMEOUT) {
+        if (SchedulerThreadSleep((uintptr_t*)Mutex, Timeout) == SCHEDULER_SLEEP_TIMEOUT) {
             return OsError;
         }
 	}

@@ -37,10 +37,7 @@ __EXTERN uintptr_t GlbLocalApicBase;
 /* Reads from the local apic registers 
  * Reads and writes from and to the local apic
  * registers must always be 32 bit */
-uint32_t ApicReadLocal(size_t Register)
-{
-	/* Sanitize the local base
-	 * to protect against bad setup sequence */
+uint32_t ApicReadLocal(size_t Register) {
 	assert(GlbLocalApicBase != 0);
 	return (uint32_t)(*(volatile uint32_t*)(GlbLocalApicBase + Register));
 }
@@ -48,10 +45,7 @@ uint32_t ApicReadLocal(size_t Register)
 /* Write to the local apic registers 
  * Reads and writes from and to the local apic
  * registers must always be 32 bit */
-void ApicWriteLocal(size_t Register, uint32_t Value)
-{
-	/* Sanitize the local base
-	 * to protect against bad setup sequence */
+void ApicWriteLocal(size_t Register, uint32_t Value) {
 	assert(GlbLocalApicBase != 0);
 
 	/* Write the value, then re-read it to 
@@ -63,52 +57,38 @@ void ApicWriteLocal(size_t Register, uint32_t Value)
 /* Set the io-apic register selctor
  * Reads and writes from and to the io apic
  * registers must always be 32 bit */
-void ApicSetIoRegister(IoApic_t *IoApic, uint32_t Register)
-{
-	/* Write the value, then do a memory barrier
-	 * to ensure transaction has been made */
+void ApicSetIoRegister(IoApic_t *IoApic, uint32_t Register) {
 	(*(volatile uint32_t*)(IoApic->BaseAddress)) = Register;
 	MemoryBarrier();
 }
 
 /* Read from io-apic registers
- * Reads and writes from and to the io apic
- * registers must always be 32 bit */
-uint32_t ApicIoRead(IoApic_t *IoApic, uint32_t Register)
-{
-	/* Sanitize the io-apic structure 
-	 * to protect against bad code */
+ * Reads and writes from and to the io apic registers must always be 32 bit */
+uint32_t ApicIoRead(IoApic_t *IoApic, uint32_t Register) {
 	assert(IoApic != NULL);
 
-	/* Select the given register 
-	 * and read the register */
+	// Select the given register and read the register
 	ApicSetIoRegister(IoApic, Register);
 	return *((volatile uint32_t*)(IoApic->BaseAddress + 0x10));
 }
 
 /* Write to the io-apic registers
- * Reads and writes from and to the io apic
- * registers must always be 32 bit */
-void ApicIoWrite(IoApic_t *IoApic, uint32_t Register, uint32_t Data)
-{
-	/* Sanitize the io-apic structure 
-	 * to protect against bad code */
+ * Reads and writes from and to the io apic registers must always be 32 bit */
+void ApicIoWrite(IoApic_t *IoApic, uint32_t Register, uint32_t Data) {
 	assert(IoApic != NULL);
 
-	/* Write the value, then re-read it to
-	 * ensure memory synchronization */
+	// Write the value, then re-read it to ensure memory synchronization
 	ApicSetIoRegister(IoApic, Register);
-	*((volatile uintptr_t*)(IoApic->BaseAddress + 0x10)) = Data;
-	Data = (*(volatile uintptr_t*)(IoApic->BaseAddress + 0x10));
+	*((volatile uint32_t*)(IoApic->BaseAddress + 0x10)) = Data;
+	Data = (*(volatile uint32_t*)(IoApic->BaseAddress + 0x10));
 }
 
-/* Writes interrupt data to the io-apic
- * interrupt register. It writes the data to
+/* Writes interrupt data to the io-apic interrupt register. It writes the data to
  * the given Pin (io-apic entry) offset. */
 void ApicWriteIoEntry(IoApic_t *IoApic, int Pin, uint64_t Data)
 {
-	/* Union this for easier 
-	 * memory access becuase we do 32 bit accesses */
+	// Union this for easier 
+	// memory access becuase we do 32 bit accesses
 	union {
 		struct {
 			uint32_t Lo;

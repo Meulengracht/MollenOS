@@ -54,14 +54,14 @@ ApicSyncArbIds(void)
  * Sends an interrupt vector-request to a given cpu-id. */
 OsStatus_t
 ApicSendInterrupt(
-    _In_ InterruptTarget_t Type,
-    _In_ UUId_t Specific,
-    _In_ int Vector)
+    _In_ InterruptTarget_t  Type,
+    _In_ UUId_t             Specific,
+    _In_ int                Vector)
 {
 	// Variables
-    UUId_t CpuId        = UUID_INVALID;
 	uint32_t IpiLow     = 0;
 	uint32_t IpiHigh    = 0;
+    UUId_t CpuId        = UUID_INVALID;
 
     // Get cpu-id of us
     CpuId = CpuGetCurrentId();

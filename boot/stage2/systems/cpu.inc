@@ -79,7 +79,7 @@ CpuSetupLongMode:
     mov     edi, MEMLOCATION_PML4T
     mov     cr3, edi
     xor     eax, eax
-    mov     ecx, 0x1000
+    mov     ecx, 0x1400
     rep     stosd
     mov     edi, cr3
 

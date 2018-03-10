@@ -60,41 +60,23 @@ inl:
 ; void outb(uint16_t port, uint8_t data)
 ; Sends a byte to a port
 outb:
-	; Get data
-    push rbx
-    mov rbx, rdx
-	xor rdx, rdx
-	xor rax, rax
-	mov dx, cx
-	mov al, bl
-	out dx, al
-    pop rbx
+    xchg rcx, rdx
+    mov al, cl
+    out dx, al
 	ret
 
 ; void outw(uint16_t port, uint16_t data)
 ; Sends a word to a port
 outw:
-	; Get data
-    push rbx
-    mov rbx, rdx
-	xor rdx, rdx
-	xor rax, rax
-	mov dx, cx
-	mov ax, bx
-	out dx, ax
-    pop rbx
+    xchg rcx, rdx
+    mov ax, cx
+    out dx, ax
 	ret
 
 ; void outl(uint16_t port, uint32_t data)
 ; Sends a long to a port
 outl:
-	; Get data
-    push rbx
-    mov rbx, rdx
-	xor rdx, rdx
-	xor rax, rax
-	mov dx, cx
-	mov eax, ebx
-	out dx, eax
-    pop rbx
+    xchg rcx, rdx
+    mov eax, ecx
+    out dx, eax
 	ret

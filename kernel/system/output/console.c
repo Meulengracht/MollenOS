@@ -33,7 +33,7 @@
 
 /* Globals
  * Window title for boot console */
-__CONST char *GlbBootVideoWindowTitle = "Startup Debug Console";
+const char *GlbBootVideoWindowTitle = "Startup Debug Console";
 
 /* VideoDrawLine
  * Draw's a line from (StartX, StartY) -> (EndX, EndY) 
@@ -124,6 +124,9 @@ VideoQuery(
 OsStatus_t 
 VideoInitialize(void)
 {
+    // Clear video
+    VideoClear();
+
 	// Draw boot terminal if we have graphics
 	if (VideoGetTerminal()->Type == VIDEO_GRAPHICS) {
 #ifdef __OSCONFIG_FULLDEBUGCONSOLE

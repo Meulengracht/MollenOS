@@ -40,10 +40,10 @@
 
 /* Globals */
 static MCoreTimePerformanceOps_t PerformanceTimer;
+static CriticalSection_t TimerLock;
 static MCoreSystemTimer_t *GlbActiveSystemTimer = NULL;
 static Collection_t *GlbSystemTimers            = NULL;
 static Collection_t *GlbTimers                  = NULL;
-static CriticalSection_t TimerLock;
 static UUId_t GlbTimerIds                       = 0;
 static int GlbTimersInitialized                 = 0;
 
@@ -56,12 +56,12 @@ TimersInitialize(void)
 	// Initialize all the globals 
 	// including lists etc
     memset(&PerformanceTimer, 0, sizeof(MCoreTimePerformanceOps_t));
-	GlbActiveSystemTimer = NULL;
-	GlbSystemTimers = CollectionCreate(KeyInteger);
-	GlbTimers = CollectionCreate(KeyInteger);
+	GlbActiveSystemTimer    = NULL;
+	GlbSystemTimers         = CollectionCreate(KeyInteger);
+	GlbTimers               = CollectionCreate(KeyInteger);
     CriticalSectionConstruct(&TimerLock, CRITICALSECTION_PLAIN);
-	GlbTimersInitialized = 1;
-	GlbTimerIds = 0;
+	GlbTimersInitialized    = 1;
+	GlbTimerIds             = 0;
 }
 
 /* TimersStart 
@@ -70,9 +70,9 @@ KERNELAPI
 UUId_t
 KERNELABI
 TimersStart(
-    _In_ size_t IntervalNs,
-    _In_ int Periodic,
-    _In_ __CONST void *Data)
+    _In_ size_t         IntervalNs,
+    _In_ int            Periodic,
+    _In_ const void*    Data)
 {
     // Variables
     MCoreTimer_t *Timer = NULL;
@@ -85,13 +85,13 @@ TimersStart(
 
     // Allocate a new instance and initialize
     Timer = (MCoreTimer_t*)kmalloc(sizeof(MCoreTimer_t));
-    Timer->Id = GlbTimerIds++;
-    Timer->AshId = PhoenixGetCurrentAsh()->Id;
-    Timer->Data = Data;
+    Timer->Id       = GlbTimerIds++;
+    Timer->AshId    = PhoenixGetCurrentAsh()->Id;
+    Timer->Data     = Data;
     Timer->Interval = IntervalNs;
-    Timer->Current = 0;
+    Timer->Current  = 0;
     Timer->Periodic = Periodic;
-    Key.Value = (int)Timer->Id;
+    Key.Value       = (int)Timer->Id;
 
     // Add to list of timers
     CriticalSectionEnter(&TimerLock);
@@ -119,8 +119,7 @@ TimersStop(
         MCoreTimer_t *Timer = (MCoreTimer_t*)tNode->Data;
         
         // Does it match the id? + Owner must match
-        if (Timer->Id == TimerId
-            && Timer->AshId == PhoenixGetCurrentAsh()->Id) {
+        if (Timer->Id == TimerId && Timer->AshId == PhoenixGetCurrentAsh()->Id) {
 			CollectionRemoveByNode(GlbTimers, tNode);
             kfree(Timer);
             kfree(tNode);
@@ -141,7 +140,7 @@ TimersTick(
 {
 	// Variables
 	CollectionItem_t *i = NULL;
-	size_t MilliTicks = 0;
+	size_t MilliTicks   = 0;
 
 	// Calculate how many milliseconds
 	MilliTicks = DIVUP(Tick, NSEC_PER_MSEC);
@@ -223,8 +222,6 @@ TimersRegisterSystemTimer(
 
 	// Trace
 	TRACE("New system timer: %u", GlbActiveSystemTimer->Source);
-
-	// Done
 	return OsSuccess;
 }
 

@@ -40,11 +40,11 @@
  * null descriptor to catch cases where segment has
  * been set to 0, and we need 2 for ring 0, and 4 for ring 3 */
 #define GDT_NULL_SEGMENT            0x00
-#define GDT_KCODE_SEGMENT           0x08    // Kernel
-#define GDT_KDATA_SEGMENT           0x10    // Kernel
-#define GDT_UCODE_SEGMENT           0x18    // Applications
-#define GDT_UDATA_SEGMENT           0x20    // Applications
-#define GDT_EXTRA_SEGMENT           0x28    // Shared
+#define GDT_KCODE_SEGMENT           0x10    // Kernel
+#define GDT_KDATA_SEGMENT           0x20    // Kernel
+#define GDT_UCODE_SEGMENT           0x30    // Applications
+#define GDT_UDATA_SEGMENT           0x40    // Applications
+#define GDT_EXTRA_SEGMENT           0x50    // Shared
 
 /* Gdt type codes, they set the appropriate bits
  * needed for our needs, both for code and data segments

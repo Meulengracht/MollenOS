@@ -109,15 +109,10 @@ void LogUpgrade(size_t Size)
 /* Switches target */
 void LogRedirect(LogTarget_t Output)
 {
-	/* Ignore if already */
-	if (GlbLogTarget == Output)
+	if (GlbLogTarget == Output) {
 		return;
-
-	/* Update target */
+    }
 	GlbLogTarget = Output;
-
-	/* If we redirect to anything else than
-	 * memory, flush the log */
 	LogFlush(Output);
 }
 
@@ -132,8 +127,7 @@ void LogFlush(LogTarget_t Output)
 	/* If we are flushing to anything 
 	 * other than a file, and the logfile is 
 	 * opened, we close it */
-	if (GlbLogFileHandle != UUID_INVALID
-		&& Output != LogFile)  {
+	if (GlbLogFileHandle != UUID_INVALID && Output != LogFile)  {
 		CloseFile(GlbLogFileHandle);
 		GlbLogFileHandle = UUID_INVALID;
 	}

@@ -73,8 +73,6 @@ MmPhysicalQuery(
 	if (BlocksAllocated != NULL) {
 		*BlocksAllocated = MemoryBlocksUsed;
 	}
-
-	// Never fails
 	return OsSuccess;
 }
 
@@ -101,17 +99,16 @@ int MmMemoryMapTestBit(int Bit) {
 	return (MemoryBitmap[Bit / __BITS] & (1 << (Bit % __BITS))) > 0 ? 1 : 0;
 }
 
-/* This function can be used to retrieve
- * a page of memory below the MEMORY_LOW_THRESHOLD 
+/* MmGetFreeMapBitLow
+ * This function can be used to retrieve a page of memory below the MEMORY_LOW_THRESHOLD 
  * this is useful for devices that use DMA */
 int MmGetFreeMapBitLow(int Count)
 {
-	/* Variables needed for iteration */
+	// Variables
 	int i, j, Result = -1;
 
 	/* Start out by iterating the 
-	 * different memory blocks, but always skip
-	 * the first mem-block */
+	 * different memory blocks, but always skip the first mem-block */
 	for (i = 1; i < (8 * 16); i++)
 	{
 		/* Quick-check, if it's maxxed we can skip it 
@@ -139,8 +136,6 @@ int MmGetFreeMapBitLow(int Count)
 		if (Result != -1)
 			break;
 	}
-
-	/* Return frame */
 	return Result;
 }
 
@@ -182,8 +177,6 @@ int MmGetFreeMapBitHigh(int Count)
 		if (Result != -1)
 			break;
 	}
-
-	/* Return frame */
 	return Result;
 }
 
@@ -230,72 +223,56 @@ OsStatus_t
 MmPhyiscalInit(
 	_In_ Multiboot_t *BootInformation)
 {
-	/* Variables, cast neccessary data */
-	BIOSMemoryRegion_t *RegionItr = NULL;
+	// Variables
+	BIOSMemoryRegion_t *RegionPointer = NULL;
 	int i;
-	
-	/* Sanitize the bootdescriptor */
+
 	assert(BootInformation != NULL);
 
-	/* Good, good ! 
-	 * Get a pointer to the region descriptors */
-	RegionItr = (BIOSMemoryRegion_t*)(uintptr_t)BootInformation->MemoryMapAddress;
+    // Initialize
+	RegionPointer = (BIOSMemoryRegion_t*)(uintptr_t)BootInformation->MemoryMapAddress;
 
-	/* Get information from multiboot struct 
-	 * The memory-high part is 64kb blocks 
-	 * whereas the memory-low part is bytes of memory */
-	MemorySize = (BootInformation->MemoryHigh * 64 * 1024);
-	MemorySize += BootInformation->MemoryLow; /* This is in kilobytes ... */
-
-	/* Sanity, we need AT LEAST 32 mb to run! */
+	// The memory-high part is 64kb blocks 
+	// whereas the memory-low part is bytes of memory
+	MemorySize  = (BootInformation->MemoryHigh * 64 * 1024);
+	MemorySize  += BootInformation->MemoryLow; // This is in kilobytes 
 	assert((MemorySize / 1024 / 1024) >= 32);
-
-	/* Set storage variables 
-	 * We have the bitmap normally at 2mb mark */
-	MemoryBitmap = (uintptr_t*)MEMORY_LOCATION_BITMAP;
+	
+    MemoryBitmap = (uintptr_t*)MEMORY_LOCATION_BITMAP;
 	MemoryBlocks = MemorySize / PAGE_SIZE;
 	MemoryBlocksUsed = MemoryBlocks;
-	MemoryBitmapSize = DIVUP(MemoryBlocks, 8); /* 8 blocks per byte, 32/64 per int */
+	MemoryBitmapSize = DIVUP(MemoryBlocks, 8); // 8 blocks per byte
 
-	/* Set all memory in use */
+	// Reset all blocks to in-use
 	memset((void*)MemoryBitmap, 0xFFFFFFFF, MemoryBitmapSize);
-
-	// Create critical section
 	CriticalSectionConstruct(&MemoryLock, CRITICALSECTION_PLAIN);
-
-	/* Loop through memory regions from bootloader */
 	for (i = 0; i < (int)BootInformation->MemoryMapLength; i++) {
-		if (RegionItr->Type == 1)
-			MmFreeRegion((uintptr_t)RegionItr->Address, (size_t)RegionItr->Size);
-		RegionItr++;
+		if (RegionPointer->Type == 1) {
+			MmFreeRegion((uintptr_t)RegionPointer->Address, (size_t)RegionPointer->Size);
+        }
+		RegionPointer++;
 	}
 
-	/* Mark special regions as reserved */
+    // Mark default regions in use and special regions
+    //  0x0000              || Used for catching null-pointers
+    //  0x4000 - 0x6000     || Used for memory region & Trampoline-code
+    //  0x90000 - 0x9F000   || Kernel Stack
+    //  0x100000 - KernelSize
+    //  0x200000 - RamDiskSize
+    //  0x300000 - ??       || Bitmap Space
 	MmMemoryMapSetBit(0);
+	MmMemoryMapSetBit(0x4000 / PAGE_SIZE); // What the hell is this used for
+	MmMemoryMapSetBit(0x5000 / PAGE_SIZE); // Trampoline code area
+	MmMemoryMapSetBit(0x9000 / PAGE_SIZE); // Memory map (not needed anymore??)
+	MmMemoryMapSetBit(0xA000 / PAGE_SIZE); // Used for vbe controller region (not needed anymore??)
+	MemoryBlocksUsed += 5;
 
-	/* 0x4000 - 0x6000 || Used for memory region & Trampoline-code */
-	MmMemoryMapSetBit(0x4000 / PAGE_SIZE);
-	MmMemoryMapSetBit(0x5000 / PAGE_SIZE);
-	MmMemoryMapSetBit(0x9000 / PAGE_SIZE);
-	MmMemoryMapSetBit(0xA000 / PAGE_SIZE);
-	MemoryBlocksUsed += 4;
-
-	/* 0x90000 - 0x9F000 || Kernel Stack */
 	MmAllocateRegion(0x90000, 0xF000);
-
-	/* 0x100000 - 0x200000 
-	 * Untill we know how much the kernel itself actually takes up 
-	 * after PE relocation */
 	MmAllocateRegion(MEMORY_LOCATION_KERNEL, BootInformation->KernelSize + PAGE_SIZE);
-
-	/* 0x200000 - RamDiskSize */
 	MmAllocateRegion(MEMORY_LOCATION_RAMDISK, BootInformation->RamdiskSize + PAGE_SIZE);
-
-	/* 0x300000 - ?? || Bitmap Space 
-	 * We allocate an extra guard-page */
 	MmAllocateRegion(MEMORY_LOCATION_BITMAP, (MemoryBitmapSize + PAGE_SIZE));
 
-	/* Debug */
+	// Debug initial stats
 	MmMemoryDebugPrint();
 	return OsSuccess;
 }
@@ -335,26 +312,20 @@ MmPhysicalFreeBlock(
 }
 
 /* MmPhysicalAllocateBlock
- * This is the primary function for allocating
- * physical memory pages, this takes an argument
+ * This is the primary function for allocating physical memory pages, this takes an argument
  * <Mask> which determines where in memory the allocation is OK */
 PhysicalAddress_t
 MmPhysicalAllocateBlock(
-	_In_ uintptr_t Mask, 
-	_In_ int Count)
+	_In_ uintptr_t  Mask, 
+	_In_ int        Count)
 {
-	/* Variables, keep track of 
-	 * the frame allocated */
+	// Variables
 	int Frame = -1;
 
-	/* Sanitize params */
 	assert(Count > 0);
-
-    // Enter critical section
+	
+    // Calculate which allocation function to use with the given mask
 	CriticalSectionEnter(&MemoryLock);
-
-	/* Calculate which allocation function
-	 * to use with the given mask */
 	if (Mask <= 0xFFFFFF) {
 		Frame = MmGetFreeMapBitLow(Count);
 	}
@@ -362,23 +333,18 @@ MmPhysicalAllocateBlock(
 		Frame = MmGetFreeMapBitHigh(Count);
 	}
 
-	/* Set bit allocated before we 
-	 * release the lock, but ONLY if 
-	 * the frame is valid */
+	// Set bit allocated before we release the lock, but ONLY if 
+	// the frame is valid 
 	if (Frame != -1) {
 		for (int i = 0; i < Count; i++) {
 			MmMemoryMapSetBit(Frame + i);
 		}
 	}
-
-    // Leave critical and sanitize frame
     CriticalSectionLeave(&MemoryLock);
-	assert(Frame != -1);
-
-	/* Statistics */
+	
+    assert(Frame != -1);
 	MemoryBlocksUsed++;
 
-	/* Calculate the return 
-	 * address by multiplying by block size */
+	// Calculate actual address
 	return (PhysicalAddress_t)(Frame * PAGE_SIZE);
 }

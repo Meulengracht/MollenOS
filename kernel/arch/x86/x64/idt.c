@@ -79,9 +79,20 @@ void IdtInitialize(void)
 	memset(&IdtDescriptors[0], 0, sizeof(IdtDescriptors));
 	InterruptInstallDefaultGates();
 
-	// Override system call gate
+	// Override ALL call gates that need on per-thread base
+    // INTERRUPT_SYSCALL, INTERRUPT_YIELD, INTERRUPT_LAPIC
+
+    // INTERRUPT_SYSCALL
 	IdtInstallDescriptor(INTERRUPT_SYSCALL, (uintptr_t)syscall_entry, 
-		GDT_KCODE_SEGMENT, IDT_RING3 | IDT_PRESENT | IDT_TRAP_GATE32, IDT_IST_INDEX_ISR);
+		GDT_KCODE_SEGMENT, IDT_RING3 | IDT_PRESENT | IDT_TRAP_GATE32, IDT_IST_INDEX_LEGACY);
+    
+    // INTERRUPT_YIELD
+	IdtInstallDescriptor(INTERRUPT_YIELD, (uint32_t)&irq_stringify(129), 
+        GDT_KCODE_SEGMENT, IDT_RING3 | IDT_PRESENT | IDT_INTERRUPT_GATE32, IDT_IST_INDEX_LEGACY);
+
+    // INTERRUPT_LAPIC
+	IdtInstallDescriptor(INTERRUPT_LAPIC, (uint32_t)&irq_stringify(240), 
+        GDT_KCODE_SEGMENT, IDT_RING3 | IDT_PRESENT | IDT_INTERRUPT_GATE32, IDT_IST_INDEX_LEGACY);
 
 	// Install the IDT
 	IdtInstall();
@@ -120,10 +131,10 @@ void InterruptInstallDefaultGates(void)
 		GDT_KCODE_SEGMENT, IDT_RING3 | IDT_PRESENT | IDT_INTERRUPT_GATE32, IDT_IST_INDEX_EXC);
 	IdtInstallDescriptor(12, (uint32_t)&irq_handler12,
 		GDT_KCODE_SEGMENT, IDT_RING3 | IDT_PRESENT | IDT_INTERRUPT_GATE32, IDT_IST_INDEX_EXC);
-	IdtInstallDescriptor(13, (uint32_t)&irq_handler13,
+	IdtInstallDescriptor(13, (uint32_t)&irq_handler13, // General Protection Fault
 		GDT_KCODE_SEGMENT, IDT_RING3 | IDT_PRESENT | IDT_INTERRUPT_GATE32, IDT_IST_INDEX_EXC);
-	IdtInstallDescriptor(14, (uint32_t)&irq_handler14,
-		GDT_KCODE_SEGMENT, IDT_RING3 | IDT_PRESENT | IDT_INTERRUPT_GATE32, IDT_IST_INDEX_EXC);
+	IdtInstallDescriptor(14, (uint32_t)&irq_handler14, // Page Fault (Per-Thread as reschedule can happen here)
+		GDT_KCODE_SEGMENT, IDT_RING3 | IDT_PRESENT | IDT_INTERRUPT_GATE32, IDT_IST_INDEX_LEGACY);
 	IdtInstallDescriptor(15, (uint32_t)&irq_handler15,
 		GDT_KCODE_SEGMENT, IDT_RING3 | IDT_PRESENT | IDT_INTERRUPT_GATE32, IDT_IST_INDEX_EXC);
 	IdtInstallDescriptor(16, (uint32_t)&irq_handler16,

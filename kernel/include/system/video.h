@@ -67,9 +67,15 @@ BootTerminal_t*
 KERNELABI
 VideoGetTerminal(void);
 
+/* VideoClear
+ * Clears the video framebuffer by initializing it to a default color. */
+KERNELAPI
+void
+KERNELABI
+VideoClear(void);
+
 /* VideoDrawPixel
- * Draws a pixel of the given color at the specified
- * pixel-position */
+ * Draws a pixel of the given color at the specifiedpixel-position */
 KERNELAPI
 OsStatus_t
 KERNELABI
@@ -79,8 +85,7 @@ VideoDrawPixel(
 	_In_ uint32_t Color);
 
 /* VideoDrawCharacter
- * Renders a character of the given color(s) 
- * at the specified pixel-position */
+ * Renders a character of the given color(s) at the specified pixel-position */
 KERNELAPI
 OsStatus_t
 KERNELABI
@@ -92,8 +97,7 @@ VideoDrawCharacter(
 	_In_ uint32_t Fg);
 
 /* VideoPutCharacter
- * Renders a character with default colors
- * at the current terminal position */
+ * Renders a character with default colors at the current terminal position */
 KERNELAPI
 OsStatus_t
 KERNELABI

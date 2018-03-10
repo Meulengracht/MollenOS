@@ -463,7 +463,7 @@ ThreadingGetCurrentThreadId(void)
 {
 	UUId_t Cpu = CpuGetCurrentId();
 	if (GlbCurrentThreads[Cpu] == NULL) {
-		return (UUId_t)Cpu;
+		return Cpu;
 	}
 	if (GlbThreadingEnabled != 1) {
 		return 0;
@@ -482,8 +482,7 @@ ThreadingGetThread(
 {
 	// Iterate thread nodes and find the correct
 	foreach(tNode, GlbThreads) {
-		MCoreThread_t *Thread = 
-			(MCoreThread_t*)tNode->Data;
+		MCoreThread_t *Thread = (MCoreThread_t*)tNode->Data;
 		if (Thread->Id == ThreadId) {
 			return Thread;
 		}

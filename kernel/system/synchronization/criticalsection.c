@@ -82,8 +82,7 @@ CriticalSectionEnter(
 	IntStatus_t IrqState = 0;
 
 	// If the section is reentrancy supported, check
-    if (Section->References > 0
-        && Section->Flags & CRITICALSECTION_REENTRANCY) {
+    if (Section->References > 0 && (Section->Flags & CRITICALSECTION_REENTRANCY)) {
         if (Section->Owner == ThreadingGetCurrentThreadId()) {
             Section->References++;
 		    return OsSuccess;

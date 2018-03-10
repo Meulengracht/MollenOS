@@ -100,10 +100,6 @@ SystemFeaturesInitialize(
         GdtInitialize();
         IdtInitialize();
         PicInitialize();
-    }
-
-    // Handle the output initialization
-    if (Systems & SYSTEM_FEATURE_OUTPUT) {
         VbeInitialize(BootInformation);
     }
 

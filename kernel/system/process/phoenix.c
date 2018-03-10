@@ -81,10 +81,10 @@ PhoenixInitialize(void)
 	TRACE("Initializing environment and event handler");
 
 	// Initialize Globals
-	ProcessIdGenerator = 1;
-	Processes = CollectionCreate(KeyInteger);
-    GcHandlerId = GcRegister(PhoenixReapAsh);
-    GcFileHandleId = GcRegister(PhoenixFileHandler);
+	ProcessIdGenerator  = 1;
+	Processes           = CollectionCreate(KeyInteger);
+    GcHandlerId         = GcRegister(PhoenixReapAsh);
+    GcFileHandleId      = GcRegister(PhoenixFileHandler);
     CriticalSectionConstruct(&ProcessLock, CRITICALSECTION_PLAIN);
     CriticalSectionConstruct(&LoaderLock, CRITICALSECTION_REENTRANCY);
 

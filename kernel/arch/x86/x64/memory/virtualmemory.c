@@ -58,7 +58,7 @@ __EXTERN uint64_t memory_get_cr3(void);
 // Function helpers for repeating functions where it pays off
 // to have them seperate
 #define CREATE_STRUCTURE_HELPER(Type, Name) Type* MmVirtualCreate##Name(void) { \
-                                            Type *Instance = (Type*)MmPhysicalAllocateBlock(MEMORY_ALLOCATION_MASK, 1); \
+                                            Type *Instance = (Type*)MmPhysicalAllocateBlock(MEMORY_ALLOCATION_MASK, DIVUP(sizeof(Type), PAGE_SIZE)); \
                                             assert(Instance != NULL); \
                                             memset((void*)Instance, 0, sizeof(Type)); \
                                             return Instance; }
@@ -93,10 +93,8 @@ MmVirtualFillPageTable(
 
 	// Iterate through pages and map them
 	for (i = PAGE_TABLE_INDEX(VirtualAddress), PhysicalEntry = PhysicalAddress, VirtualEntry = VirtualAddress;
-		i < ENTRIES_PER_PAGE;
-		i++, PhysicalEntry += PAGE_SIZE, VirtualEntry += PAGE_SIZE) {
-		uint64_t Entry = PhysicalEntry | PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP | Flags;
-		Table->Pages[PAGE_TABLE_INDEX(VirtualEntry)] = Entry;
+		i < ENTRIES_PER_PAGE; i++, PhysicalEntry += PAGE_SIZE, VirtualEntry += PAGE_SIZE) {
+		Table->Pages[PAGE_TABLE_INDEX(VirtualEntry)] = PhysicalEntry | Flags;
 	}
 }
 
@@ -131,9 +129,9 @@ MmVirtualIdentityMapMemoryRange(
         // Sanitize existance/mapping
         if (!PageMaster->vTables[PmIndex]) {
             PageMaster->vTables[PmIndex] = (uint64_t)MmVirtualCreatePageDirectoryTable();
-            PageMaster->pTables[PmIndex] = PageMaster->vTables[PmIndex] | PAGE_PRESENT | PAGE_WRITE;
-            DirectoryTable = (PageDirectoryTable_t*)PageMaster->vTables[PmIndex];
+            PageMaster->pTables[PmIndex] = PageMaster->vTables[PmIndex] | Flags;
         }
+        DirectoryTable = (PageDirectoryTable_t*)PageMaster->vTables[PmIndex];
 
         // Determine start + end of the page directory pointer index
         int PdpIndexStart   = PAGE_DIRECTORY_POINTER_INDEX(VirtualAddress);
@@ -142,9 +140,9 @@ MmVirtualIdentityMapMemoryRange(
             // Sanitize existance/mapping
             if (!DirectoryTable->vTables[PdpIndex]) {
                 DirectoryTable->vTables[PdpIndex] = (uint64_t)MmVirtualCreatePageDirectory();
-                DirectoryTable->pTables[PdpIndex] = DirectoryTable->vTables[PdpIndex] | PAGE_PRESENT | PAGE_WRITE;
-                Directory = (PageDirectory_t*)DirectoryTable->vTables[PdpIndex];
+                DirectoryTable->pTables[PdpIndex] = DirectoryTable->vTables[PdpIndex] | Flags;
             }
+            Directory = (PageDirectory_t*)DirectoryTable->vTables[PdpIndex];
 
             int PdIndexStart    = PAGE_DIRECTORY_INDEX(VirtualAddress);
             int PdIndexEnd      = PAGE_DIRECTORY_INDEX(VirtualAddress + Length - 1) + 1;
@@ -152,15 +150,14 @@ MmVirtualIdentityMapMemoryRange(
                 // Sanitize existance/mapping
                 if (!Directory->vTables[PdIndex]) {
                     Directory->vTables[PdIndex] = (uint64_t)MmVirtualCreatePageTable();
-                    Directory->pTables[PdIndex] = Directory->vTables[PdIndex] | PAGE_PRESENT | PAGE_WRITE;
-                    Table = (PageTable_t*)Directory->vTables[PdIndex];
+                    Directory->pTables[PdIndex] = Directory->vTables[PdIndex] | Flags;
                 }
+                Table = (PageTable_t*)Directory->vTables[PdIndex];
 
                 // Fill with mappings?
                 if (Fill) {
                     MmVirtualFillPageTable(Table, PhysicalAddress, VirtualAddress, Flags);
                 }
-
                 PhysicalAddress += TABLE_SPACE_SIZE;
                 VirtualAddress  += TABLE_SPACE_SIZE;
             }
@@ -226,7 +223,7 @@ MmVirtualGetTable(
         if (!Create) {
             goto Cleanup;
         }
-		DirectoryTable = (PageDirectoryTable_t*)kmalloc_ap(PAGE_SIZE, &Physical);
+		DirectoryTable = (PageDirectoryTable_t*)kmalloc_ap(sizeof(PageDirectoryTable_t), &Physical);
         assert(DirectoryTable != NULL);
         memset((void*)DirectoryTable, 0, sizeof(PageDirectoryTable_t));
         PageMasterTable->pTables[PmIndex] = Physical | PAGE_PRESENT | PAGE_WRITE;
@@ -241,7 +238,7 @@ MmVirtualGetTable(
         if (!Create) {
             goto Cleanup;
         }
-		Directory = (PageDirectory_t*)kmalloc_ap(PAGE_SIZE, &Physical);
+		Directory = (PageDirectory_t*)kmalloc_ap(sizeof(PageDirectory_t), &Physical);
         assert(Directory != NULL);
         memset((void*)Directory, 0, sizeof(PageDirectory_t));
         DirectoryTable->pTables[PdpIndex] = Physical | PAGE_PRESENT | PAGE_WRITE;
@@ -256,7 +253,7 @@ MmVirtualGetTable(
         if (!Create) {
             goto Cleanup;
         }
-		Table = (PageTable_t*)kmalloc_ap(PAGE_SIZE, &Physical);
+		Table = (PageTable_t*)kmalloc_ap(sizeof(PageTable_t), &Physical);
         assert(Table != NULL);
         memset((void*)Table, 0, sizeof(PageTable_t));
         Directory->pTables[PdIndex] = Physical | PAGE_PRESENT | PAGE_WRITE;
@@ -770,12 +767,12 @@ MmVirtualInit(void)
 	memset((void*)KernelMasterTable, 0, sizeof(PageMasterTable_t));
 
     // Allocate rest of resources
-    DirectoryTable = MmVirtualCreatePageDirectoryTable();
-    Directory = MmVirtualCreatePageDirectory();
-    Table1 = MmVirtualCreatePageTable();
-    Table2 = MmVirtualCreatePageTable();
-	MmVirtualFillPageTable(Table1, 0x1000, 0x1000, 0);
-	MmVirtualFillPageTable(Table2, TABLE_SPACE_SIZE, TABLE_SPACE_SIZE, 0);
+    DirectoryTable  = MmVirtualCreatePageDirectoryTable();
+    Directory       = MmVirtualCreatePageDirectory();
+    Table1          = MmVirtualCreatePageTable();
+    Table2          = MmVirtualCreatePageTable();
+	MmVirtualFillPageTable(Table1, 0x1000, 0x1000, PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP);
+	MmVirtualFillPageTable(Table2, TABLE_SPACE_SIZE, TABLE_SPACE_SIZE, PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP);
 
     // Create the structure
     // PML4[0] => PDP
@@ -787,9 +784,9 @@ MmVirtualInit(void)
     DirectoryTable->vTables[0]      = (uint64_t)Directory;
     DirectoryTable->pTables[0]      = (uint64_t)Directory | PAGE_PRESENT | PAGE_WRITE;
     Directory->vTables[0]           = (uint64_t)Table1;
-    Directory->vTables[0]           = (uint64_t)Table1 | PAGE_PRESENT | PAGE_WRITE;
+    Directory->pTables[0]           = (uint64_t)Table1 | PAGE_PRESENT | PAGE_WRITE;
     Directory->vTables[1]           = (uint64_t)Table2;
-    Directory->vTables[1]           = (uint64_t)Table2 | PAGE_PRESENT | PAGE_WRITE;
+    Directory->pTables[1]           = (uint64_t)Table2 | PAGE_PRESENT | PAGE_WRITE;
 
 	// Initialize locks
 	MutexConstruct(&KernelMasterTable->Lock);
@@ -798,13 +795,13 @@ MmVirtualInit(void)
 	// Pre-map heap region
 	TRACE("Mapping heap region to 0x%x", MEMORY_LOCATION_HEAP);
 	MmVirtualIdentityMapMemoryRange(KernelMasterTable, 0, MEMORY_LOCATION_HEAP,
-		(MEMORY_LOCATION_HEAP_END - MEMORY_LOCATION_HEAP), 0, 0);
+		(MEMORY_LOCATION_HEAP_END - MEMORY_LOCATION_HEAP), 0, PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP);
 
 	// Pre-map video region
 	TRACE("Mapping video memory to 0x%x", MEMORY_LOCATION_VIDEO);
 	MmVirtualIdentityMapMemoryRange(KernelMasterTable, VideoGetTerminal()->FrameBufferAddress,
 		MEMORY_LOCATION_VIDEO, (VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height),
-		1, PAGE_USER);
+		1, PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP | PAGE_USER);
 
 	// Install the page table at the reserved system
 	// memory, important! 

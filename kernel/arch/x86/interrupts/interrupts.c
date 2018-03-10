@@ -326,7 +326,7 @@ InterruptConfigure(
     return OsSuccess;
 }
 
-/* InterruptEntry
+/* InterruptEntryInterruptEntry
  * The common entry point for interrupts, all
  * non-exceptions will enter here, lookup a handler
  * and execute the code */
@@ -335,9 +335,9 @@ InterruptEntry(
     _In_ Context_t *Registers)
 {
     // Variables
-    InterruptStatus_t Result = InterruptNotHandled;
-    int TableIndex = (int)Registers->Irq + 32;
-    int Gsi = APIC_NO_GSI;
+    InterruptStatus_t Result    = InterruptNotHandled;
+    int TableIndex              = (int)Registers->Irq + 32;
+    int Gsi                     = APIC_NO_GSI;
 
     // Call kernel method
     Result = InterruptHandle(Registers, TableIndex, &Gsi);

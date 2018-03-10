@@ -68,19 +68,13 @@ InterruptStatus_t
 ThreadingYieldHandler(
     _In_ void *Context)
 {
-	/* Variables we will need for loading
-	 * a new task */
-	Context_t *Regs = NULL;
-	UUId_t CurrCpu = ApicGetCpu();
+    // Variables
+	Context_t *Regs     = NULL;
+	UUId_t CurrCpu      = ApicGetCpu();
+	size_t TimeSlice    = 20;
+	int TaskPriority    = 0;
 
-	/* These will be assigned from the 
-	 * _switch function, but set them in
-	 * case threading is not initialized yet */
-	size_t TimeSlice = 20;
-	int TaskPriority = 0;
-
-	/* Before we do anything, send EOI so 
-	 * we don't forget :-) */
+    // Yield => start by sending eoi
 	ApicSendEoi(APIC_NO_GSI, INTERRUPT_YIELD);
 
 	/* Switch Task, if there is no threading enabled yet
@@ -97,8 +91,6 @@ ThreadingYieldHandler(
 		ApicSetTaskPriority(0);
 		ApicWriteLocal(APIC_INITIAL_COUNT, 0);
 	}
-
-	/* Enter new thread */
 	enter_thread(Regs);
 	return InterruptHandled;
 }
@@ -364,7 +356,7 @@ _ThreadingSwitch(
 		(void*)Thread->AddressSpace->Data[ASPACE_DATA_PDPOINTER], 
 		Thread->AddressSpace->Data[ASPACE_DATA_CR3]);
 	TssUpdateThreadStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
-	TssUpdateIo(Cpu,    &Threadx->IoMap[0]);
+	TssUpdateIo(Cpu, &Threadx->IoMap[0]);
 
     // Clear fpu flags and set task switch
     Threadx->Flags &= ~X86_THREAD_USEDFPU;

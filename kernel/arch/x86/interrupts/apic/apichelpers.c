@@ -122,10 +122,8 @@ int ApicGetPinFromGsi(int Gsi)
 /* Creates the correct bit index for
  * the given cpu id, and converts the type
  * to uint, since thats what the apic needs */
-uint32_t ApicGetCpuMask(UUId_t Cpu)
-{
-	/* Lets generate the bit */
-	return (1 << (uint32_t)Cpu);
+uint32_t ApicGetCpuMask(UUId_t Cpu) {
+	return (uint32_t)(1 << Cpu);
 }
 
 /* Helper for updating the task priority register

@@ -531,9 +531,9 @@ InterruptGetActiveStatus(void)
  * on the given table-index. */
 InterruptStatus_t
 InterruptHandle(
-    _In_ Context_t *Context,
-    _In_ int TableIndex,
-    _Out_ int *Source)
+    _In_  Context_t*    Context,
+    _In_  int           TableIndex,
+    _Out_ int*          Source)
 {
     // Variables
     MCoreThread_t *Current = NULL, *Target = NULL, *Start = NULL;

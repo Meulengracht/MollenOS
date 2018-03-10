@@ -37,15 +37,21 @@ GdtInstall:
 
 	; Jump into correct descriptor
 	xor rax, rax
-	mov ax, 0x10
+	mov ax, 0x20
 	mov ds, ax
 	mov es, ax
 	mov fs, ax
 	mov gs, ax
 	mov ss, ax
 
+    ; Invoke a faux interrupt return to switch CS
+    mov rax, rsp
     sub rsp, 16
-    mov qword [rsp + 8], 0x08
+    mov qword [rsp + 8], 0x20
+    mov qword [rsp], rax
+    pushfq
+    sub rsp, 16
+    mov qword [rsp + 8], 0x10
     mov rax, done
     mov qword [rsp], rax
     iretq
@@ -56,9 +62,9 @@ GdtInstall:
 ; Load the given TSS descriptor
 ; index
 TssInstall:
-	; Calculate index
+	; Calculate index (gdt_index * 16)
 	mov rax, rcx
-	shl rax, 3
+	shl rax, 4
 	or rax, 0x3
 
 	; Load task register

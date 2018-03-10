@@ -71,8 +71,8 @@ OsStatus_t
 PitInitialize(void)
 {
 	// Variables
-	MCoreInterrupt_t Interrupt = { 0 };
-	size_t Divisor = 1193181;
+	MCoreInterrupt_t Interrupt  = { 0 };
+	size_t Divisor              = 1193181;
 
     // Debug
     TRACE("PitInitialize()");
@@ -81,11 +81,11 @@ PitInitialize(void)
 	memset(&PitUnit, 0, sizeof(Pit_t));
 
 	// Initialize the interrupt request
-	Interrupt.Line = PIT_IRQ;
-	Interrupt.Pin = INTERRUPT_NONE;
-	Interrupt.Vectors[0] = INTERRUPT_NONE;
-	Interrupt.FastHandler = PitInterrupt;
-	PitUnit.NsTick = 1000;
+	Interrupt.Line          = PIT_IRQ;
+	Interrupt.Pin           = INTERRUPT_NONE;
+	Interrupt.Vectors[0]    = INTERRUPT_NONE;
+	Interrupt.FastHandler   = PitInterrupt;
+	PitUnit.NsTick          = 1000;
 
 	// Install interrupt in system
 	// Install a fast interrupt handler
@@ -105,13 +105,10 @@ PitInitialize(void)
 
 	// We use counter 0, select counter 0 and configure it
 	IoWrite(IO_SOURCE_HARDWARE, PIT_IO_BASE + PIT_REGISTER_COMMAND, 1,
-		PIT_COMMAND_MODE3 | PIT_COMMAND_FULL |
-		PIT_COMMAND_COUNTER_0);
+		PIT_COMMAND_MODE3 | PIT_COMMAND_FULL | PIT_COMMAND_COUNTER_0);
 
 	// Write divisor to the PIT chip
-	IoWrite(IO_SOURCE_HARDWARE, PIT_IO_BASE + PIT_REGISTER_COUNTER0, 1,
-		(uint8_t)(Divisor & 0xFF));
-	IoWrite(IO_SOURCE_HARDWARE, PIT_IO_BASE + PIT_REGISTER_COUNTER0, 1,
-		(uint8_t)((Divisor >> 8) & 0xFF));
+	IoWrite(IO_SOURCE_HARDWARE, PIT_IO_BASE + PIT_REGISTER_COUNTER0, 1, Divisor & 0xFF);
+	IoWrite(IO_SOURCE_HARDWARE, PIT_IO_BASE + PIT_REGISTER_COUNTER0, 1, (Divisor >> 8) & 0xFF);
 	return OsSuccess;
 }

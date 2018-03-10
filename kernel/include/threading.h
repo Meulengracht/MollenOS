@@ -116,7 +116,7 @@ typedef enum _MCoreThreadPriority {
  * of the information here is shared in MCore */
 typedef struct _MCoreThread {
     UUId_t                           Id;
-    __CONST char                    *Name;
+    const char*                      Name;
     UUId_t                           ParentId;
     UUId_t                           AshId;
     Flags_t                          Flags;

@@ -127,11 +127,6 @@ VbeInitialize(
 			__GlbVideoTerminal.Info.BlueMask = vbe->BlueMaskSize;
 			__GlbVideoTerminal.Info.GreenMask = vbe->GreenMaskSize;
 			__GlbVideoTerminal.Info.ReservedMask = vbe->ReservedMaskSize;
-
-			// Clear out background (to white)
-			memset((void*)__GlbVideoTerminal.FrameBufferAddress, 0xFF,
-				(__GlbVideoTerminal.Info.BytesPerScanline * __GlbVideoTerminal.Info.Height));
-
 			__GlbVideoTerminal.CursorLimitX = __GlbVideoTerminal.Info.Width;
 			__GlbVideoTerminal.CursorLimitY = __GlbVideoTerminal.Info.Height;
 			__GlbVideoTerminal.FgColor = 0;
@@ -139,6 +134,19 @@ VbeInitialize(
 
 		} break;
 	}
+}
+
+/* VideoClear
+ * Clears the video framebuffer by initializing it to a default color. */
+KERNELAPI
+void
+KERNELABI
+VideoClear(void)
+{
+    // Variables
+    void *Destination   = (void*)__GlbVideoTerminal.FrameBufferAddress;
+    size_t ByteCount    = __GlbVideoTerminal.Info.BytesPerScanline * __GlbVideoTerminal.Info.Height;
+    memset(Destination, 0xFF, ByteCount);
 }
 
 /* VesaDrawPixel

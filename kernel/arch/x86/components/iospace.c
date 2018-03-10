@@ -155,8 +155,7 @@ IoSpaceAcquire(
     SpinlockRelease(&__GlbIoSpaceLock);
 
     // Sanitize the system copy
-    if (Server == NULL || SysCopy == NULL
-        || SysCopy->Owner != UUID_INVALID) {
+    if (Server == NULL || SysCopy == NULL || SysCopy->Owner != UUID_INVALID) {
         if (Server == NULL) {
             ERROR("Non-server process tried to acquire io-space");
         }
@@ -200,8 +199,6 @@ IoSpaceAcquire(
         WARNING("Invalid Io-Space Type %u by Id %u",
             SysCopy->Type, SysCopy->Id);
     }
-
-    // Done - no errors
     return OsSuccess;
 }
 
@@ -234,8 +231,7 @@ IoSpaceRelease(
 
     // Sanitize the system copy and do
     // some security checks
-    if (Server == NULL || SysCopy == NULL
-        || SysCopy->Owner != Server->Base.Id) {
+    if (Server == NULL || SysCopy == NULL || SysCopy->Owner != Server->Base.Id) {
         return OsError;
     }
 
@@ -271,8 +267,6 @@ IoSpaceRelease(
     // Clear out some stuff
     SysCopy->VirtualBase = IoSpace->VirtualBase = 0;
     SysCopy->Owner = UUID_INVALID;
-
-    // Done - no errors
     return OsSuccess;
 }
 
@@ -310,8 +304,6 @@ IoSpaceDestroy(
     CollectionRemoveByKey(__GlbIoSpaces, Key);
     SpinlockRelease(&__GlbIoSpaceLock);
     kfree(SysCopy);
-
-    // Done - no errors
     return OsSuccess;
 }
 
@@ -353,7 +345,5 @@ IoSpaceValidate(
             return IoSpace->PhysicalBase + (Address - IoSpace->VirtualBase);
         }
     }
-
-    // Nothing found - invalid
     return 0;
 }

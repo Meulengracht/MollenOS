@@ -93,8 +93,7 @@ MmVirtualFillPageTable(
 
 	// Iterate through pages and map them
 	for (i = PAGE_TABLE_INDEX(vAddressStart), pAddress = pAddressStart, vAddress = vAddressStart;
-		i < ENTRIES_PER_PAGE;
-		i++, pAddress += PAGE_SIZE, vAddress += PAGE_SIZE) {
+		i < ENTRIES_PER_PAGE; i++, pAddress += PAGE_SIZE, vAddress += PAGE_SIZE) {
 		uint32_t pEntry = pAddress | PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP | Flags;
 		pTable->Pages[PAGE_TABLE_INDEX(vAddress)] = pEntry;
 	}

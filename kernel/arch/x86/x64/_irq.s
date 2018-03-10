@@ -112,8 +112,8 @@ __getcr2:
     push rsi
     push rdi
 
-    ; Switch to kernel segment
-	mov ax, 0x10
+    ; Switch to kernel data segment
+	mov ax, 0x20
 	mov ds, ax
 	mov es, ax
 	mov fs, ax
@@ -149,9 +149,9 @@ exception_common:
     
     ; Set current stack as argument 1
     mov rcx, rsp
-    sub rsp, 0x20 ; microsoft home-space
+    sub rsp, 0x28 ; microsoft home-space + 8 to align
 	call ExceptionEntry
-	add rsp, 0x20 ; cleanup microsoft home-space
+	add rsp, 0x28 ; cleanup microsoft home-space
 
 	; _IF_ we return, restore state
 	restore_state
@@ -166,9 +166,9 @@ irq_common:
 
 	; Set current stack as argument 1
     mov rcx, rsp
-    sub rsp, 0x20 ; microsoft home-space
+    sub rsp, 0x28 ; microsoft home-space + 8 to align
 	call InterruptEntry
-	add rsp, 0x20 ; cleanup microsoft home-space
+	add rsp, 0x28 ; cleanup microsoft home-space
 
 	; When we return, restore state
 	restore_state
@@ -188,7 +188,7 @@ syscall_entry:
 	save_segments
 
 	; Switch to kernel segment
-	mov ax, 0x10
+	mov ax, 0x20
 	mov ds, ax
 	mov es, ax
 	mov fs, ax
@@ -203,6 +203,7 @@ syscall_entry:
 
 	; Call function
     sub rsp, 0x20 ; microsoft home-space
+    xchg bx, bx
 	call r11
 	add rsp, 0x28 ; cleanup microsoft home-space + 1 arg
 
