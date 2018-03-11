@@ -71,8 +71,12 @@ OsStatus_t AcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER **Table)
  * Queries the interrupt-line for the given bus, device and
  * pin combination. The pin must be zero indexed. Conform flags
  * are returned in the <AcpiConform> */
-OsStatus_t AcpiQueryInterrupt(DevInfo_t Bus, DevInfo_t Device, int Pin,
-	int *Interrupt, Flags_t *AcpiConform)
+OsStatus_t AcpiQueryInterrupt(
+    DevInfo_t   Bus,
+    DevInfo_t   Device,
+    int         Pin,
+	int*        Interrupt,
+    Flags_t*    AcpiConform)
 {
 	// Validate the pointers
 	if (Interrupt == NULL || AcpiConform == NULL) {

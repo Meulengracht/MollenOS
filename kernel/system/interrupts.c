@@ -112,10 +112,10 @@ AcpiGetTriggerMode(
  * and spits out flags in AcpiConform and returns irq */
 int
 AcpiDeriveInterrupt(
-    _In_ DevInfo_t Bus, 
-    _In_ DevInfo_t Device,
-    _In_ int Pin,
-    _Out_ Flags_t *AcpiConform)
+    _In_  DevInfo_t Bus, 
+    _In_  DevInfo_t Device,
+    _In_  int       Pin,
+    _Out_ Flags_t*  AcpiConform)
 {
 	// Variables
 	AcpiDevice_t *Dev = NULL;
@@ -123,11 +123,10 @@ AcpiDeriveInterrupt(
 
 	// Calculate routing index
 	unsigned rIndex = (Device * 4) + (Pin - 1);
-	iKey.Value = 0;
+	iKey.Value      = 0;
 
 	// Trace
-	TRACE("AcpiDeriveInterrupt(Bus %u, Device %u, Pin %i)",
-		Bus, Device, Pin);
+	TRACE("AcpiDeriveInterrupt(Bus %u, Device %u, Pin %i)", Bus, Device, Pin);
 
 	// Start by checking if we can find the
 	// routings by checking the given device

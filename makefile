@@ -37,7 +37,7 @@ config_flags =
 
 # OS Configuration
 config_flags += -D__OSCONFIG_DISABLE_SIGNALLING # Kernel fault on all hardware signals
-config_flags += -D__OSCONFIG_LOGGING_KTRACE # Kernel Tracing
+#config_flags += -D__OSCONFIG_LOGGING_KTRACE # Kernel Tracing
 #config_flags += -D__OSCONFIG_ENABLE_MULTIPROCESSORS # Use all cores
 #config_flags += -D__OSCONFIG_PROCESS_SINGLELOAD # No simuoultanous process loading
 config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE # Use a full debug console on height
@@ -54,7 +54,7 @@ config_flags += -D__OSCONFIG_DISABLE_VIOARR # Disable auto starting the windowin
 # -std=c11 enables c11 support for C compilation 0;35
 # -gdwarf enables dwarf debugging generation, should be used ... -fexceptions -fcxx-exceptions
 disable_warnings = -Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function
-shared_flags = -U_WIN32 -fms-extensions -Wall -nostdlib -nostdinc -O3 -DMOLLENOS 
+shared_flags = -U_WIN32 -fms-extensions -Wall -nostdlib -nostdinc -O3 -DMOLLENOS
 
 # Kernel + Kernel environment compilation flags
 export ASFLAGS = -f bin -D$(VALI_ARCH) -D__$(VALI_ARCH)__

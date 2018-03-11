@@ -144,6 +144,7 @@
 #define PE_RELOCATION_LOW                   2
 #define PE_RELOCATION_HIGHLOW               3
 #define PE_RELOCATION_HIGHADJ               4
+#define PE_RELOCATION_RELATIVE64            10
 
 /* Import Types */
 #define PE_IMPORT_CODE                      0

@@ -99,9 +99,9 @@ OnEvent(
             UUId_t Result           = UUID_INVALID;
             
             // Extract variables
-            ParentDeviceId = (UUId_t)Message->Arguments[0].Data.Value;
-            Device = (MCoreDevice_t*)Message->Arguments[1].Data.Buffer;
-            DeviceFlags = (Flags_t)Message->Arguments[2].Data.Value;
+            ParentDeviceId  = (UUId_t)Message->Arguments[0].Data.Value;
+            Device          = (MCoreDevice_t*)Message->Arguments[1].Data.Buffer;
+            DeviceFlags     = (Flags_t)Message->Arguments[2].Data.Value;
 
             // Sanitize buffer
             if (Device != NULL) {
@@ -137,8 +137,8 @@ OnEvent(
             DataKey_t Key;
 
             // Lookup device
-            Key.Value = (int)Message->Arguments[0].Data.Value;
-            Device = CollectionGetDataByKey(__GlbDevices, Key, 0);
+            Key.Value   = (int)Message->Arguments[0].Data.Value;
+            Device      = CollectionGetDataByKey(__GlbDevices, Key, 0);
 
             // Sanitizie
             if (Device != NULL) {

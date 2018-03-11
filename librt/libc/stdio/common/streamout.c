@@ -331,12 +331,7 @@ streamout_wstring(FILE *stream, const wchar_t *string, size_t count)
 #else
 #define streamout_string streamout_astring
 #endif
-
-#ifdef LIBC_KERNEL
-# define USE_MULTISIZE 0
-#else
-# define USE_MULTISIZE 1
-#endif
+#define USE_MULTISIZE 1
 
 int streamout(
     _In_ FILE *stream, 

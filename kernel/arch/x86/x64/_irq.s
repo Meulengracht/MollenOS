@@ -195,17 +195,14 @@ syscall_entry:
 	mov gs, ax
 
 	; Lookup Function (index * 8)
-	shl r11, 4
+	shl r11, 3
 	mov r11, qword [GlbSyscallTable + r11]
-	
-    ; Push last arguments to stack
-    push r10
 
 	; Call function
-    sub rsp, 0x20 ; microsoft home-space
-    xchg bx, bx
+    sub rsp, 0x28        ; microsoft home-space + 1 reg
+    mov qword [rsp + 0x20], r10 ; push last argument
 	call r11
-	add rsp, 0x28 ; cleanup microsoft home-space + 1 arg
+	add rsp, 0x28        ; cleanup microsoft home-space + 1 reg
 
 	restore_segments
 	iretq

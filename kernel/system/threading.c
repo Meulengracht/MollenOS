@@ -28,7 +28,6 @@
 #include <system/interrupts.h>
 #include <system/thread.h>
 #include <system/utils.h>
-#include <arch.h>
 
 #include <garbagecollector.h>
 #include <process/phoenix.h>
@@ -36,6 +35,7 @@
 #include <threading.h>
 #include <scheduler.h>
 #include <debug.h>
+#include <arch.h>
 #include <heap.h>
 
 /* Includes

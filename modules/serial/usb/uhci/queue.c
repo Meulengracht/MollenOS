@@ -30,6 +30,7 @@
 
 /* Includes
  * - Library */
+#include <assert.h>
 #include <string.h>
 
 /* UhciErrorMessages
@@ -147,10 +148,10 @@ UhciQueueResetInternalData(
     int i;
     
     // Initialize null-td
-    NullTd = &Queue->TDPool[UHCI_POOL_TDNULL];
-    NullTd->Header = (uint32_t)(UHCI_TD_PID_IN | UHCI_TD_DEVICE_ADDR(0x7F) | UHCI_TD_MAX_LEN(0x7FF));
-    NullTd->Link = UHCI_LINK_END;
-    NullTdPhysical = UHCI_POOL_TDINDEX(Controller, UHCI_POOL_TDNULL);
+    NullTd          = &Queue->TDPool[UHCI_POOL_TDNULL];
+    NullTd->Header  = (reg32_t)(UHCI_TD_PID_IN | UHCI_TD_DEVICE_ADDR(0x7F) | UHCI_TD_MAX_LEN(0x7FF));
+    NullTd->Link    = UHCI_LINK_END;
+    NullTdPhysical  = UHCI_POOL_TDINDEX(Controller, UHCI_POOL_TDNULL);
 
     // Enumerate all Qh's and initialize them
     for (i = 0; i < UHCI_POOL_QHS; i++) {
@@ -160,14 +161,13 @@ UhciQueueResetInternalData(
     // Initialize interrupt-queue
     for (i = UHCI_QH_ISOCHRONOUS + 1; i < UHCI_QH_ASYNC; i++) {
         // All interrupts queues need to end in the async-head
-        Queue->QHPool[i].Link = (UHCI_POOL_QHINDEX(Controller, UHCI_QH_ASYNC) 
-            | UHCI_LINK_QH);
-        Queue->QHPool[i].LinkIndex = UHCI_QH_ASYNC;
+        Queue->QHPool[i].Link       = (UHCI_POOL_QHINDEX(Controller, UHCI_QH_ASYNC) | UHCI_LINK_QH);
+        Queue->QHPool[i].LinkIndex  = UHCI_QH_ASYNC;
 
         // Initialize qh
-        Queue->QHPool[i].Child = UHCI_LINK_END;
+        Queue->QHPool[i].Child      = UHCI_LINK_END;
         Queue->QHPool[i].ChildIndex = UHCI_NO_INDEX;
-        Queue->QHPool[i].Flags |= (UHCI_QH_SET_QUEUE(i) | UHCI_QH_ACTIVE);
+        Queue->QHPool[i].Flags      |= (UHCI_QH_SET_QUEUE(i) | UHCI_QH_ACTIVE);
     }
 
     // Initialize the null QH
@@ -226,6 +226,9 @@ UhciQueueInitialize(
         return OsError;
     }
 
+    // Physical address of pool must be below 4gb
+    assert(PoolPhysical < 0xFFFFFFFF);
+
     // Initialize pointers
     Queue->QHPool = (UhciQueueHead_t*)((uint8_t*)Pool + 0x1000);
     Queue->QHPoolPhysical = PoolPhysical + 0x1000;
@@ -235,8 +238,8 @@ UhciQueueInitialize(
         (UHCI_POOL_QHS * sizeof(UhciTransferDescriptor_t));
     
     // Update frame-list
-    Queue->FrameList = (uintptr_t*)Pool;
-    Queue->FrameListPhysical = PoolPhysical;
+    Queue->FrameList = (reg32_t*)Pool;
+    Queue->FrameListPhysical = (reg32_t)PoolPhysical;
 
     // Initialize the transaction list
     Queue->TransactionList = CollectionCreate(KeyInteger);
@@ -701,7 +704,7 @@ UhciLinkIsochronous(
     _In_ UhciQueueHead_t *Qh)
 {
     // Variables
-    uint32_t *Frames = (uint32_t*)Controller->QueueControl.FrameList;
+    reg32_t *Frames = (reg32_t*)Controller->QueueControl.FrameList;
     UhciTransferDescriptor_t *Td = NULL;
     uintptr_t PhysicalAddress = 0;
     size_t Frame = Qh->StartFrame;
@@ -719,7 +722,7 @@ UhciLinkIsochronous(
         // Insert td at start of frame
         Td->Link = Frames[Td->Frame];
         MemoryBarrier();
-        Frames[Td->Frame] = PhysicalAddress;
+        Frames[Td->Frame] = (reg32_t)PhysicalAddress;
 
         // Go to next td or terminate
         if (Td->LinkIndex != UHCI_NO_INDEX) {
@@ -744,7 +747,7 @@ UhciUnlinkIsochronous(
     _In_ UhciQueueHead_t *Qh)
 {
     // Variables
-    uint32_t *Frames = (uint32_t*)Controller->QueueControl.FrameList;
+    reg32_t *Frames = Controller->QueueControl.FrameList;
     UhciTransferDescriptor_t *Td = NULL;
     uintptr_t PhysicalAddress = 0;
 
@@ -753,7 +756,7 @@ UhciUnlinkIsochronous(
     Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
     PhysicalAddress = UHCI_POOL_TDINDEX(Controller, Qh->ChildIndex);
     while (Td) {
-        if (Frames[Td->Frame] == PhysicalAddress) {
+        if (Frames[Td->Frame] == (reg32_t)PhysicalAddress) {
             Frames[Td->Frame] = Td->Link;
         }
 

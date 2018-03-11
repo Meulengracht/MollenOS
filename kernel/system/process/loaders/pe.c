@@ -309,23 +309,22 @@ void PeHandleRelocations(MCorePeFile_t *PeFile,
             uint16_t RelocationEntry = *RelocationEntryPtr;
             uint16_t Type = (RelocationEntry >> 12);
             uint16_t Value = RelocationEntry & 0x0FFF;
+            
+            if (Type == PE_RELOCATION_HIGHLOW ||
+                Type == PE_RELOCATION_RELATIVE64) { // 32/64 Bit Relative
+                // Create a pointer, the low 12 bits have 
+                // an offset into the PageRVA
+                uintptr_t Offset        = (PeFile->VirtualAddress + PageRVA + Value);
+                uintptr_t Translated    = PeFile->VirtualAddress;
 
-            /* 32 Bit Difference */
-            if (Type == PE_RELOCATION_HIGHLOW)
-            {
-                /* Create a pointer, the low 12 bits have 
-                 * an offset into the PageRVA */
-                uintptr_t Offset = (PeFile->VirtualAddress + PageRVA + Value);
-                uintptr_t Translated = PeFile->VirtualAddress;
-
-                /* Should we add or subtract? */
+                // Handle relocation
                 if (Translated >= ImageBase) {
-                    uintptr_t Delta = (uintptr_t)(Translated - ImageBase);
-                    *((uintptr_t*)Offset) += Delta;
+                    uintptr_t Delta         = (uintptr_t)(Translated - ImageBase);
+                    *((uintptr_t*)Offset)   += Delta;
                 }
                 else {
-                    uintptr_t Delta = (uintptr_t)(ImageBase - Translated);
-                    *((uintptr_t*)Offset) -= Delta;
+                    uintptr_t Delta         = (uintptr_t)(ImageBase - Translated);
+                    *((uintptr_t*)Offset)   -= Delta;
                 }
             }
             else if (Type == PE_RELOCATION_ALIGN) {
@@ -698,12 +697,12 @@ PeResolveFunction(
  * the next address is available for load */
 MCorePeFile_t*
 PeLoadImage(
-    _In_ MCorePeFile_t  *Parent,
-    _In_ MString_t      *Name,
-    _In_ uint8_t        *Buffer,
-    _In_ size_t          Length,
-    _InOut_ uintptr_t   *BaseAddress,
-    _In_ int             UsingInitRD)
+    _In_    MCorePeFile_t*  Parent,
+    _In_    MString_t*      Name,
+    _In_    uint8_t*        Buffer,
+    _In_    size_t          Length,
+    _InOut_ uintptr_t*      BaseAddress,
+    _In_    int             UsingInitRD)
 {
     // Variables
     MzHeader_t *DosHeader               = NULL;
@@ -791,7 +790,6 @@ PeLoadImage(
     }
 
     // Copy sections to base address
-    TRACE("Copying image meta-data to base of image address");
     for (i = 0; i < DIVUP(SizeOfMetaData, AddressSpaceGetPageSize()); i++) {
         uintptr_t VirtualPage = PeInfo->VirtualAddress + (i * AddressSpaceGetPageSize());
         if (!AddressSpaceGetMapping(AddressSpaceGetCurrent(), VirtualPage)) {

@@ -730,10 +730,10 @@ ScWaitForObject(
  * from the userheap, it takes a size and allocation flags */
 OsStatus_t
 ScMemoryAllocate(
-    _In_ size_t Size, 
-    _In_ Flags_t Flags, 
-    _Out_ uintptr_t *VirtualAddress,
-    _Out_ uintptr_t *PhysicalAddress)
+    _In_  size_t        Size, 
+    _In_  Flags_t       Flags, 
+    _Out_ uintptr_t*    VirtualAddress,
+    _Out_ uintptr_t*    PhysicalAddress)
 {
     // Variables
     uintptr_t AllocatedAddress  = 0;
@@ -1621,11 +1621,11 @@ ScAcpiQueryTable(
  * are returned in the <AcpiConform> */
 OsStatus_t
 ScAcpiQueryInterrupt(
-    DevInfo_t Bus,
-    DevInfo_t Device,
-    int Pin, 
-    int *Interrupt,
-    Flags_t *AcpiConform)
+    DevInfo_t   Bus,
+    DevInfo_t   Device,
+    int         Pin, 
+    int*        Interrupt,
+    Flags_t*    AcpiConform)
 {
     // Redirect the call to the interrupt system
     *Interrupt = AcpiDeriveInterrupt(Bus, Device, Pin, AcpiConform);

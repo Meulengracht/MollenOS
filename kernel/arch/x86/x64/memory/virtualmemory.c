@@ -197,6 +197,7 @@ MmVirtualGetTable(
 	_In_  PageMasterTable_t* PageMasterTable,
 	_In_  VirtualAddress_t   VirtualAddress,
     _In_  int                Create,
+    _In_  Flags_t            Flags,
     _Out_ int*               Update)
 {
 	// Variabes
@@ -205,6 +206,9 @@ MmVirtualGetTable(
 	PageTable_t *Table                      = NULL;
 	uintptr_t Physical                      = 0;
 	int IsCurrent                           = 0;
+    
+    // Debug
+    TRACE("MmVirtualGetTable(VirtualAddress 0x%llx, Create %i)", VirtualAddress, Create);
 
     // No invalids allowed here
 	assert(PageMasterTable != NULL);
@@ -216,19 +220,20 @@ MmVirtualGetTable(
     // Calculate indices
     int PmIndex     = PAGE_LEVEL_4_INDEX(VirtualAddress);
     int PdpIndex    = PAGE_DIRECTORY_POINTER_INDEX(VirtualAddress);
-    int PdIndex    = PAGE_DIRECTORY_INDEX(VirtualAddress);
+    int PdIndex     = PAGE_DIRECTORY_INDEX(VirtualAddress);
 
 	// Does page directroy table exist?
 	if (!(PageMasterTable->pTables[PmIndex] & PAGE_PRESENT)) {
         if (!Create) {
+            TRACE("Page directory table was not present in PML4");
             goto Cleanup;
         }
 		DirectoryTable = (PageDirectoryTable_t*)kmalloc_ap(sizeof(PageDirectoryTable_t), &Physical);
         assert(DirectoryTable != NULL);
         memset((void*)DirectoryTable, 0, sizeof(PageDirectoryTable_t));
-        PageMasterTable->pTables[PmIndex] = Physical | PAGE_PRESENT | PAGE_WRITE;
+        PageMasterTable->pTables[PmIndex] = Physical | PAGE_PRESENT | PAGE_WRITE | Flags;
         PageMasterTable->vTables[PmIndex] = (uint64_t)DirectoryTable;
-        *Update = 1 & IsCurrent;
+        *Update = IsCurrent;
 	}
 	DirectoryTable = (PageDirectoryTable_t*)PageMasterTable->vTables[PmIndex];
 	assert(DirectoryTable != NULL);
@@ -236,14 +241,15 @@ MmVirtualGetTable(
     // Does page directroy exist?
 	if (!(DirectoryTable->pTables[PdpIndex] & PAGE_PRESENT)) {
         if (!Create) {
+            TRACE("Page directory was not present in the page directory table");
             goto Cleanup;
         }
 		Directory = (PageDirectory_t*)kmalloc_ap(sizeof(PageDirectory_t), &Physical);
         assert(Directory != NULL);
         memset((void*)Directory, 0, sizeof(PageDirectory_t));
-        DirectoryTable->pTables[PdpIndex] = Physical | PAGE_PRESENT | PAGE_WRITE;
+        DirectoryTable->pTables[PdpIndex] = Physical | PAGE_PRESENT | PAGE_WRITE | Flags;
         DirectoryTable->vTables[PdpIndex] = (uint64_t)Directory;
-        *Update = 1 & IsCurrent;
+        *Update = IsCurrent;
 	}
 	Directory = (PageDirectory_t*)DirectoryTable->vTables[PdpIndex];
 	assert(Directory != NULL);
@@ -251,14 +257,15 @@ MmVirtualGetTable(
     // Does page table exist?
 	if (!(Directory->pTables[PdIndex] & PAGE_PRESENT)) {
         if (!Create) {
+            TRACE("Page table was not present in the page directory");
             goto Cleanup;
         }
 		Table = (PageTable_t*)kmalloc_ap(sizeof(PageTable_t), &Physical);
         assert(Table != NULL);
         memset((void*)Table, 0, sizeof(PageTable_t));
-        Directory->pTables[PdIndex] = Physical | PAGE_PRESENT | PAGE_WRITE;
+        Directory->pTables[PdIndex] = Physical | PAGE_PRESENT | PAGE_WRITE | Flags;
         Directory->vTables[PdIndex] = (uint64_t)Table;
-        *Update = 1 & IsCurrent;
+        *Update = IsCurrent;
 	}
 	Table = (PageTable_t*)Directory->vTables[PdIndex];
 	assert(Table != NULL);
@@ -291,7 +298,7 @@ MmVirtualSetFlags(
 		IsCurrent = 1;
 	}
 	assert(PageMasterTable != NULL);
-    Table = MmVirtualGetTable(PageMasterTable, vAddress, 0, &Update);
+    Table = MmVirtualGetTable(PageMasterTable, vAddress, 0, 0, &Update);
     if (Table == NULL) {
         return OsError;
     }
@@ -327,7 +334,7 @@ MmVirtualGetFlags(
 		PageMasterTable = MasterTables[CpuGetCurrentId()];
 	}
 	assert(PageMasterTable != NULL);
-    Table = MmVirtualGetTable(PageMasterTable, vAddress, 0, &Update);
+    Table = MmVirtualGetTable(PageMasterTable, vAddress, 0, 0, &Update);
     if (Table == NULL) {
         return OsError;
     }
@@ -357,6 +364,10 @@ MmVirtualMap(
 	int IsCurrent                       = 0;
     int Update                          = 0;
 
+    // Debug
+    TRACE("MmVirtualMap(Physical 0x%llx, Virtual 0x%llx, Flags 0x%x)",
+        pAddress, vAddress, Flags);
+
 	// Determine page master directory 
 	// If we were given null, select the current
 	if (PageMasterTable == NULL) {
@@ -366,10 +377,14 @@ MmVirtualMap(
 		IsCurrent = 1;
 	}
 	assert(PageMasterTable != NULL);
-    Table = MmVirtualGetTable(PageMasterTable, vAddress, 1, &Update);
+    Table = MmVirtualGetTable(PageMasterTable, vAddress, 1, Flags, &Update);
     if (Table == NULL) {
+        WARNING("No table was found or created for virtual address 0x%llx", vAddress);
         return OsError;
     }
+
+    // Trace
+    TRACE("After table get/create, update %i", Update);
 
 	// Sanitize that the index isn't already
 	// mapped in, thats a fatality
@@ -418,7 +433,7 @@ MmVirtualUnmap(
 		IsCurrent = 1;
 	}
 	assert(PageMasterTable != NULL);
-    Table = MmVirtualGetTable(PageMasterTable, Address, 0, &Update);
+    Table = MmVirtualGetTable(PageMasterTable, Address, 0, 0, &Update);
     if (Table == NULL) {
         Result = OsError;
 		goto Leave;
@@ -473,9 +488,9 @@ MmVirtualGetMapping(
 		PageMasterTable = MasterTables[CpuGetCurrentId()];
 	}
 	assert(PageMasterTable != NULL);
-    Table = MmVirtualGetTable(PageMasterTable, Address, 0, &Update);
+    Table = MmVirtualGetTable(PageMasterTable, Address, 0, 0, &Update);
     if (Table == NULL) {
-        return OsError;
+        goto NotMapped;
     }
 
 	// Sanitize the mapping before anything

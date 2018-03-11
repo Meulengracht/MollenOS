@@ -31,18 +31,14 @@ global _syscall
 ; r10 => arg4
 ; r11 => index
 _syscall:
-    ; reorder arguments
-    pop r10 ;arg3
-    pop r11 ;arg4
+    ; index is rcx
+    xchg rcx, r11
 
-    push r12
-    mov r12, rcx 
+    ; args is rdx, r8, r9, stack
     mov rcx, rdx
     mov rdx, r8
     mov r8, r9
-    mov r9, r10
-    mov r10, r11
-    mov r11, r12
-    pop r12
+    mov r9, qword [rsp + 40]  ; arg0 is 32 + 8 (reserved + return address)
+    mov r10, qword [rsp + 48] ; arg1 is 32 + 8 + 8 (reserved + return address + arg0)
 	int	80h
 	ret

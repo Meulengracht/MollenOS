@@ -56,7 +56,7 @@ PACKED_TYPESTRUCT(Context, {
 	uint32_t                UserEsp;
 	uint32_t                UserSs;
     
-    uint32_t                Arguments[6];
+    uint32_t                Arguments[5];
 });
 #define CONTEXT_IP(Context)     Context->Eip
 #define CONTEXT_SP(Context)     Context->Esp
@@ -95,7 +95,7 @@ PACKED_TYPESTRUCT(Context, {
 	uint64_t                UserRsp;
 	uint64_t                UserSs;
     
-    uint64_t                Arguments[6];
+    uint64_t                Arguments[5];
 });
 #define CONTEXT_IP(Context)     Context->Rip
 #define CONTEXT_SP(Context)     Context->Rsp

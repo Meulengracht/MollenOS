@@ -53,6 +53,9 @@ PhoenixFinishAsh(
     uintptr_t BaseAddress   = 0;
     int LoadedFromInitRD    = 0;
 
+    // Debug
+    TRACE("PhoenixFinishAsh(%s)", MStringRaw(Ash->Path));
+
     // Sanitize the loaded path, if we were
     // using the initrd set flags accordingly
     if (MStringFindCString(Ash->Path, "rd:/") != MSTRING_NOT_FOUND) {
@@ -60,17 +63,19 @@ PhoenixFinishAsh(
     }
 
     // Update currently running thread
-    Ash->MainThread = Thread->Id;
-    Thread->AshId = Ash->Id;
+    Ash->MainThread         = Thread->Id;
+    Thread->AshId           = Ash->Id;
 
     // Store current address space
-    Ash->AddressSpace = AddressSpaceGetCurrent();
+    Ash->AddressSpace       = AddressSpaceGetCurrent();
 
     // Setup base address for code data
-    BaseAddress = MEMORY_LOCATION_RING3_CODE;
+    BaseAddress             = MEMORY_LOCATION_RING3_CODE;
 
     // Load Executable
-    Ash->Executable = PeLoadImage(NULL, Ash->Name, Ash->FileBuffer, 
+    TRACE("Loading PE-image into memory (buffer 0x%x, size %u)", 
+        Ash->FileBuffer, Ash->FileBufferLength);
+    Ash->Executable         = PeLoadImage(NULL, Ash->Name, Ash->FileBuffer, 
         Ash->FileBufferLength, &BaseAddress, LoadedFromInitRD);
     Ash->NextLoadingAddress = BaseAddress;
 
@@ -81,8 +86,9 @@ PhoenixFinishAsh(
     Ash->FileBuffer = NULL;
 
     // Initialize the memory bitmaps
-    Ash->Heap = BlockBitmapCreate(MEMORY_LOCATION_RING3_HEAP, MEMORY_LOCATION_RING3_SHM, AddressSpaceGetPageSize());
-    Ash->Shm = BlockBitmapCreate(MEMORY_LOCATION_RING3_SHM, MEMORY_LOCATION_RING3_IOSPACE, AddressSpaceGetPageSize());
+    TRACE("Creating bitmaps");
+    Ash->Heap   = BlockBitmapCreate(MEMORY_LOCATION_RING3_HEAP, MEMORY_LOCATION_RING3_SHM, AddressSpaceGetPageSize());
+    Ash->Shm    = BlockBitmapCreate(MEMORY_LOCATION_RING3_SHM, MEMORY_LOCATION_RING3_IOSPACE, AddressSpaceGetPageSize());
 }
 
 /* PhoenixStartupEntry
@@ -90,12 +96,13 @@ PhoenixFinishAsh(
  * which simply sets up the ash and jumps to userland */
 void
 PhoenixStartupEntry(
-    _In_ void *BasePointer)
-{
+    _In_ void *BasePointer) {
     // Variables
     MCoreAsh_t *Ash = (MCoreAsh_t*)BasePointer;
-    
-    // Finish boot-process and go to usermode
+
+    // Debug
+    TRACE("PhoenixStartupEntry(%s)", MStringRaw(Ash->Path));
+
     PhoenixFinishAsh(Ash);
     ThreadingSwitchLevel(Ash);
 }
@@ -109,8 +116,8 @@ KERNELAPI
 OsStatus_t
 KERNELABI
 PhoenixInitializeAsh(
-    _InOut_ MCoreAsh_t  *Ash, 
-    _In_ MString_t      *Path)
+    _InOut_ MCoreAsh_t* Ash, 
+    _In_    MString_t*  Path)
 { 
     // Variables
     BufferObject_t *BufferObject    = NULL;
@@ -162,7 +169,7 @@ PhoenixInitializeAsh(
             FsResult = OsError;
             goto FileCleanup;
         }
-        fSize = (size_t)QueriedSize.QuadPart;
+        fSize           = (size_t)QueriedSize.QuadPart;
         BufferObject    = CreateBuffer(fSize);
         fBuffer         = (uint8_t*)kmalloc(fSize);
         fPath           = (char*)kmalloc(_MAXPATH);
