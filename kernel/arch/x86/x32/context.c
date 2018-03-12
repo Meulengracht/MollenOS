@@ -45,7 +45,10 @@ Context_t*
 ContextCreate(
     _In_ Flags_t    ThreadFlags,
     _In_ int        ContextType,
-	_In_ uintptr_t  EntryAddress)
+	_In_ uintptr_t  EntryAddress,
+    _In_ uintptr_t  ReturnAddress,
+    _In_ uintptr_t  Argument0,
+    _In_ uintptr_t  Argument1)
 {
 	// Variables
 	Context_t *Context       = NULL;
@@ -122,6 +125,11 @@ ContextCreate(
 	// or zero out the values
     Context->UserEsp = (uintptr_t)&Context->Arguments[0];
     Context->UserSs = StackSegment;
+
+    // Setup arguments
+    Context->Arguments[0] = ReturnAddress;
+    Context->Arguments[1] = Argument0;
+    Context->Arguments[2] = Argument1;
 
 	// Return the newly created context
 	return Context;

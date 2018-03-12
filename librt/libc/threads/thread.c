@@ -88,9 +88,9 @@ call_once(
  * The completion of this function synchronizes-with the beginning of the thread. */
 int
 thrd_create(
-    _Out_ thrd_t *thr,
-    _In_ thrd_start_t func,
-    _In_ void *arg)
+    _Out_ thrd_t*       thr,
+    _In_  thrd_start_t  func,
+    _In_  void*         arg)
 {
     // Variables
     ThreadPackage_t *Tp = NULL;

@@ -45,7 +45,10 @@ Context_t*
 ContextCreate(
     _In_ Flags_t    ThreadFlags,
     _In_ int        ContextType,
-	_In_ uintptr_t  EntryAddress)
+	_In_ uintptr_t  EntryAddress,
+    _In_ uintptr_t  ReturnAddress,
+    _In_ uintptr_t  Argument0,
+    _In_ uintptr_t  Argument1)
 {
 	// Variables
 	Context_t *Context       = NULL;
@@ -123,6 +126,11 @@ ContextCreate(
     Context->UserRsp = (uintptr_t)&Context->Arguments[0];
     Context->UserSs = StackSegment;
 
+    // Setup arguments
+    Context->Arguments[0] = ReturnAddress;
+    Context->Rcx    = Argument0;
+    Context->Rdx    = Argument1;
+
 	// Return the newly created context
 	return Context;
 }
@@ -146,7 +154,7 @@ ContextDump(
         Context->Rsp, Context->UserRsp, Context->Rbp, Context->Rflags);
         
     // Dump copy registers
-	LogDebug(__MODULE, "ESI 0x%llx, EDI 0x%llx", Context->Rsi, Context->Rdi);
+	LogDebug(__MODULE, "RSI 0x%llx, RDI 0x%llx", Context->Rsi, Context->Rdi);
 
 	// Dump segments
 	LogDebug(__MODULE, "CS 0x%llx, DS 0x%llx, GS 0x%llx, ES 0x%llx, FS 0x%llx",

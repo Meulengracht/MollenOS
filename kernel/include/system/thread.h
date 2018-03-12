@@ -95,6 +95,9 @@ KERNELABI
 ContextCreate(
     _In_ Flags_t    ThreadFlags,
     _In_ int        ContextType,
-	_In_ uintptr_t  EntryAddress);
+	_In_ uintptr_t  EntryAddress,
+    _In_ uintptr_t  ReturnAddress,
+    _In_ uintptr_t  Argument0,
+    _In_ uintptr_t  Argument1);
 
 #endif //!_MCORE_SYSTHREADS_H_

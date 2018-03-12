@@ -108,10 +108,9 @@ ThreadingEntryPoint(void)
     }
     else {
         Thread->Contexts[THREADING_CONTEXT_LEVEL1] = ContextCreate(Thread->Flags, 
-            THREADING_CONTEXT_LEVEL1, (uintptr_t)Thread->Function);
-        Thread->Contexts[THREADING_CONTEXT_LEVEL1]->Arguments[1] = (uint32_t)Thread->Arguments;
+            THREADING_CONTEXT_LEVEL1, (uintptr_t)Thread->Function, 0, (uintptr_t)Thread->Arguments, 0);
         Thread->Contexts[THREADING_CONTEXT_SIGNAL1] = ContextCreate(Thread->Flags, 
-            THREADING_CONTEXT_SIGNAL1, 0);
+            THREADING_CONTEXT_SIGNAL1, 0, 0, 0, 0);
 	    Thread->Flags |= THREADING_TRANSITION_USERMODE;
     }
 
@@ -252,9 +251,9 @@ ThreadingCreateThread(
 
     // Create context's neccessary
     Thread->Contexts[THREADING_CONTEXT_LEVEL0] = 
-        ContextCreate(Thread->Flags, THREADING_CONTEXT_LEVEL0, (uintptr_t)&ThreadingEntryPoint);
+        ContextCreate(Thread->Flags, THREADING_CONTEXT_LEVEL0, (uintptr_t)&ThreadingEntryPoint, 0, 0, 0);
     Thread->Contexts[THREADING_CONTEXT_SIGNAL0] = 
-        ContextCreate(Thread->Flags, THREADING_CONTEXT_SIGNAL0, 0);
+        ContextCreate(Thread->Flags, THREADING_CONTEXT_SIGNAL0, 0, 0, 0, 0);
     if (ThreadingRegister(Thread) != OsSuccess) {
         ERROR("Failed to register a new thread with system.");
         // @todo
@@ -390,15 +389,16 @@ ThreadingSwitchLevel(
 	MCoreAsh_t *Ash         = (MCoreAsh_t*)AshInfo;
 
 	// Bind thread to process
-	Thread->AshId = Ash->Id;
-	Thread->Function = (ThreadEntry_t)Ash->Executable->EntryAddress;
-    Thread->Arguments = NULL;
+	Thread->AshId       = Ash->Id;
+	Thread->Function    = (ThreadEntry_t)Ash->Executable->EntryAddress;
+    Thread->Arguments   = NULL;
+
+    // Argument when calling a new process is just NULL
 	Thread->Contexts[THREADING_CONTEXT_LEVEL1] = ContextCreate(Thread->Flags,
-        THREADING_CONTEXT_LEVEL1, (uintptr_t)Thread->Function);
-    Thread->Contexts[THREADING_CONTEXT_LEVEL1]->Arguments[1] = (uint32_t)Thread->Arguments;
+        THREADING_CONTEXT_LEVEL1, (uintptr_t)Thread->Function, 0, 0, 0);
     Thread->Contexts[THREADING_CONTEXT_SIGNAL1] = ContextCreate(Thread->Flags,
-        THREADING_CONTEXT_SIGNAL1, 0);
-	Thread->Flags |= THREADING_TRANSITION_USERMODE;
+        THREADING_CONTEXT_SIGNAL1, 0, 0, 0, 0);
+	Thread->Flags       |= THREADING_TRANSITION_USERMODE;
 
 	// Safety-catch
 	ThreadingYield();

@@ -526,12 +526,12 @@ MmVirtualClone(
     // Essentially what we want to do here is to clone almost the entire
     // kernel address space (index 0 of the pdp) except for thread region
     // If inherit is set, then clone all other mappings as well
-    WARNING("MmVirtualClone(Inherit %i)", Inherit);
+    TRACE("MmVirtualClone(Inherit %i)", Inherit);
 
     // Lookup which table-region is the stack region
-    int ThreadRegion            = PAGE_DIRECTORY_POINTER_INDEX(MEMORY_LOCATION_RING3_THREAD_START);
-    int ApplicationRegionPdp    = PAGE_DIRECTORY_POINTER_INDEX(MEMORY_LOCATION_RING3_CODE);
-    int ApplicationRegionPd     = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_CODE);
+    // We already know the thread-locale region is in PML4[0] => PDP[0] => UNKN
+    int ThreadRegion        = PAGE_DIRECTORY_POINTER_INDEX(MEMORY_LOCATION_RING3_THREAD_START);
+    int ApplicationRegion   = PAGE_DIRECTORY_POINTER_INDEX(MEMORY_LOCATION_RING3_CODE);
 	
     memset(Created, 0, sizeof(PageMasterTable_t));
 	MutexConstruct(&Created->Lock);
@@ -560,25 +560,22 @@ MmVirtualClone(
     // Then iterate all rest PDP[1..511] and copy if Inherit
     // Then iterate all rest PML4[1..511] and copy if Inherit
     if (Inherit) {
-        for (int PmIndex = 0; PmIndex < ENTRIES_PER_PAGE; PmIndex++) {
-            PageDirectoryTable_t *PdpCreated = (PageDirectoryTable_t*)Created->vTables[PmIndex];
-            PageDirectoryTable_t *PdpCurrent = (PageDirectoryTable_t*)Current->vTables[PmIndex];
-            for (int PdpIndex = ApplicationRegionPdp; PdpIndex < ENTRIES_PER_PAGE; PdpIndex++) {
-                PageDirectory_t *PdCreated = (PageDirectory_t*)PdpCreated->vTables[PdpIndex];
-                PageDirectory_t *PdCurrent = (PageDirectory_t*)PdpCurrent->vTables[PdpIndex];
-                for (int PdIndex = ApplicationRegionPd; PdIndex < ENTRIES_PER_PAGE; PdIndex++) {
-                    if (PdCurrent->pTables[PdIndex]) {
-                        PdCreated->pTables[PdIndex] = PdCurrent->pTables[PdIndex] | PAGE_INHERITED;
-                        PdCreated->vTables[PdIndex] = PdCurrent->vTables[PdIndex];
-                    }
-                }
-
-                // Reset to start from zero next iteration
-                ApplicationRegionPd = 0;
+        // Handle PML4[0] a little different as we can't just copy it
+        PageDirectoryTable_t *DirectoryTableCurrent = (PageDirectoryTable_t*)Current->vTables[0];
+        for (int PdpIndex = ApplicationRegion; PdpIndex < ENTRIES_PER_PAGE; PdpIndex++) {
+            if (DirectoryTableCurrent->pTables[PdpIndex] & PAGE_PRESENT) {
+                DirectoryTable->pTables[PdpIndex] = DirectoryTableCurrent->pTables[PdpIndex] | PAGE_INHERITED;
+                DirectoryTable->vTables[PdpIndex] = DirectoryTableCurrent->vTables[PdpIndex];   
             }
+        }
 
-            // Reset to start from zero next iteration
-            ApplicationRegionPdp = 0;
+        // Handle rest by just copying all the remaining PML4 entries
+        // @todo flexibility
+        for (int PmIndex = 1; PmIndex < ENTRIES_PER_PAGE; PmIndex++) {
+            if (Current->pTables[PmIndex] & PAGE_PRESENT) {
+                Created->pTables[PmIndex] = Current->pTables[PmIndex] | PAGE_INHERITED;
+                Created->vTables[PmIndex] = Current->vTables[PmIndex];
+            }
         }
     }
 
