@@ -121,7 +121,6 @@ PACKED_TYPESTRUCT(MCoreDevice, {
 	DevInfo_t					Bus;
 	DevInfo_t					Slot;
 	DevInfo_t					Function;
-
 });
 
 /* Device Registering
@@ -142,9 +141,9 @@ __DEVAPI
 UUId_t
 SERVICEABI
 RegisterDevice(
-	_In_ UUId_t Parent,
-	_InOut_ MCoreDevice_t *Device, 
-	_In_ Flags_t Flags)
+	_In_    UUId_t          Parent,
+	_InOut_ MCoreDevice_t*  Device, 
+	_In_    Flags_t         Flags)
 {
 	// Variables
 	MRemoteCall_t Request;
@@ -158,14 +157,12 @@ RegisterDevice(
 	// Initialize RPC
 	RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
         __DEVICEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __DEVICEMANAGER_REGISTERDEVICE);
-        
-    // Arguments
-	RPCSetArgument(&Request, 0, (__CONST void*)&Parent, sizeof(UUId_t));
-	RPCSetArgument(&Request, 1, (__CONST void*)Device, Device->Length);
-    RPCSetArgument(&Request, 2, (__CONST void*)&Flags, sizeof(Flags_t));
+	RPCSetArgument(&Request, 0, (const void*)&Parent, sizeof(UUId_t));
+	RPCSetArgument(&Request, 1, (const void*)Device, Device->Length);
+    RPCSetArgument(&Request, 2, (const void*)&Flags, sizeof(Flags_t));
     
     // Result
-    RPCSetResult(&Request, (__CONST void*)&Result, sizeof(UUId_t));
+    RPCSetResult(&Request, (const void*)&Result, sizeof(UUId_t));
 	
 	// Execute RPC
 	if (RPCExecute(&Request) != OsSuccess) {

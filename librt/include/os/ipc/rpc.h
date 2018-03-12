@@ -28,12 +28,9 @@
 #error "You must include ipc.h and not this directly"
 #endif
 
-/* Includes 
- * - System */
-#include <os/osdefs.h>
-
 /* Includes
  * - Library */
+#include <os/osdefs.h>
 #include <string.h>
 
 /* MRemoteCallAddress
@@ -50,12 +47,12 @@ PACKED_TYPESTRUCT(MRemoteCallAddress, {
  * to an IPC function request, we support up
  * to 5 arguments */
 PACKED_TYPESTRUCT(MRemoteCallArgument, {
-    uint8_t                  Type;
+    uint8_t                 Type;
     union {
-        __CONST void        *Buffer;
-        size_t               Value;
+        const void*         Buffer;
+        size_t              Value;
     } Data;
-    size_t                   Length;
+    size_t                  Length;
 });
 
 /* MRemoteCall
@@ -82,7 +79,7 @@ SERVICEAPI
 void
 SERVICEABI
 RPCInitialize(
-    _In_ MRemoteCall_t *RemoteCall,
+    _In_ MRemoteCall_t* RemoteCall,
     _In_ UUId_t         Target,
     _In_ int            Version, 
     _In_ int            Port, 
@@ -106,9 +103,9 @@ SERVICEAPI
 void
 SERVICEABI
 RPCSetArgument(
-    _In_ MRemoteCall_t *RemoteCall,
+    _In_ MRemoteCall_t* RemoteCall,
     _In_ int            Index, 
-    _In_ __CONST void  *Data, 
+    _In_ const void*    Data, 
     _In_ size_t         Length)
 {
     // Sanitize the index and the current argument
@@ -118,8 +115,7 @@ RPCSetArgument(
     }
     
     // We must have room for the argument
-    if ((RemoteCall->DataLength + Length) > IPC_MAX_MESSAGELENGTH
-        || Length == 0) {
+    if ((RemoteCall->DataLength + Length) > IPC_MAX_MESSAGELENGTH || Length == 0) {
         return;
     }
 
@@ -141,9 +137,9 @@ RPCSetArgument(
         }
     }
     else {
-        RemoteCall->Arguments[Index].Type = ARGUMENT_BUFFER;
-        RemoteCall->Arguments[Index].Data.Buffer = Data;
-        RemoteCall->Arguments[Index].Length = Length;
+        RemoteCall->Arguments[Index].Type           = ARGUMENT_BUFFER;
+        RemoteCall->Arguments[Index].Data.Buffer    = Data;
+        RemoteCall->Arguments[Index].Length         = Length;
     }
     RemoteCall->DataLength += Length;
 }
@@ -154,15 +150,37 @@ SERVICEAPI
 void
 SERVICEABI
 RPCSetResult(
-    _In_ MRemoteCall_t *RemoteCall,
-    _In_ __CONST void  *Data, 
+    _In_ MRemoteCall_t* RemoteCall,
+    _In_ const void*    Data, 
     _In_ size_t         Length)
 {
     // Always a buffer element as we need
     // a target to copy the data into
-    RemoteCall->Result.Type = ARGUMENT_BUFFER;
-    RemoteCall->Result.Data.Buffer = Data;
-    RemoteCall->Result.Length = Length;
+    RemoteCall->Result.Type         = ARGUMENT_BUFFER;
+    RemoteCall->Result.Data.Buffer  = Data;
+    RemoteCall->Result.Length       = Length;
+}
+
+/* RPCGetStringArgument
+ * Casts the argument index to a string safely and handling cases where string
+ * fits entirely into the register argument. */
+SERVICEAPI 
+const char*
+SERVICEABI
+RPCGetStringArgument(
+    _In_ MRemoteCall_t* RemoteCall,
+    _In_ int            Index)
+{
+    if (RemoteCall == NULL || Index < 0 || Index >= IPC_MAX_ARGUMENTS) {
+        return NULL;
+    }
+    if (RemoteCall->Arguments[Index].Type == ARGUMENT_REGISTER) {
+        return (const char*)&RemoteCall->Arguments[Index].Data.Value;
+    }
+    else if (RemoteCall->Arguments[Index].Type == ARGUMENT_BUFFER) {
+        return (const char*)RemoteCall->Arguments[Index].Data.Buffer;
+    }
+    return NULL;
 }
 
 /* RPCListen 

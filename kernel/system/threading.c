@@ -168,10 +168,10 @@ ThreadingEnable(
  * Thread is started as soon as possible */
 UUId_t
 ThreadingCreateThread(
-    _In_ __CONST char   *Name,
-    _In_ ThreadEntry_t   Function,
-    _In_ void           *Arguments,
-    _In_ Flags_t         Flags)
+    _In_ const char*    Name,
+    _In_ ThreadEntry_t  Function,
+    _In_ void*          Arguments,
+    _In_ Flags_t        Flags)
 {
 	// Variables
 	MCoreThread_t *Thread   = NULL;
@@ -207,26 +207,25 @@ ThreadingCreateThread(
 	// Initialize some basic thread information 
 	// The only flags we want to copy for now are
 	// the running-mode
-	Thread->Id = (UUId_t)Key.Value;
-	Thread->ParentId = Parent->Id;
-	Thread->AshId = Parent->AshId;
-	Thread->Function = Function;
-	Thread->Arguments = Arguments;
-	Thread->Flags = Flags;
+	Thread->Id          = (UUId_t)Key.Value;
+	Thread->ParentId    = Parent->Id;
+	Thread->AshId       = Parent->AshId;
+	Thread->Function    = Function;
+	Thread->Arguments   = Arguments;
+	Thread->Flags       = Flags;
 
     // Setup initial scheduler information
     SchedulerThreadInitialize(Thread, Flags);
 
 	// Create communication members
-	Thread->Pipe = PipeCreate(PIPE_DEFAULT_SIZE, 0);
+	Thread->Pipe        = PipeCreate(PIPE_DEFAULT_SIZE, 0);
     Thread->SignalQueue = CollectionCreate(KeyInteger);
     Thread->ActiveSignal.Signal = -1;
 
 	// Flag-Special-Case
 	// If it's NOT a kernel thread
 	// we specify transition-mode
-	if (THREADING_RUNMODE(Flags) != THREADING_KERNELMODE
-        && !(Flags & THREADING_INHERIT)) {
+	if (THREADING_RUNMODE(Flags) != THREADING_KERNELMODE && !(Flags & THREADING_INHERIT)) {
 		Thread->Flags |= THREADING_SWITCHMODE;
 	}
 

@@ -74,13 +74,7 @@ OnEvent(
             if (WindowingSystemId == UUID_INVALID) {
                 // The identifier might be stored as a value here if less than a specific
                 // amount of bytes
-                char *DiskIdentifier = NULL;
-                if (Message->Arguments[0].Type == ARGUMENT_REGISTER) {
-                    DiskIdentifier = (char*)&Message->Arguments[0].Data.Value;
-                }
-                else {
-                    DiskIdentifier = (char*)Message->Arguments[0].Data.Buffer;
-                }
+                const char *DiskIdentifier = RPCGetStringArgument(Message, 0);
 
                 // Clear up buffer and spawn app
                 memset(&PathBuffer[0], 0, sizeof(PathBuffer));

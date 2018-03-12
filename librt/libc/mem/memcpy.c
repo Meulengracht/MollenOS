@@ -29,9 +29,10 @@
 #define CPUID_FEAT_EDX_MMX      1 << 23
 #define CPUID_FEAT_EDX_SSE		1 << 25
 #define CPUID_FEAT_EDX_SSE2     1 << 26
-#define MEMCPY_ACCEL_THRESHOLD	10
+#define MEMCPY_ACCEL_THRESHOLD	10      // Must be worth the extra overhead
 
-/* This is the default non-accelerated byte copier, it's optimized
+/* memcpy_base
+ * This is the default non-accelerated byte copier, it's optimized
  * for transfering as much as possible, but no CPU acceleration */
 void*
 memcpy_base(

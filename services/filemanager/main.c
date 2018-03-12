@@ -274,7 +274,7 @@ OnEvent(
 			OpenFilePackage_t Package;
 			Package.Code    = VfsOpenFile(
                 Message->From.Process,
-				(const char*)Message->Arguments[0].Data.Buffer,
+				RPCGetStringArgument(Message, 0),
 				(Flags_t)Message->Arguments[1].Data.Value,
 				(Flags_t)Message->Arguments[2].Data.Value,
 				&Package.Handle);
@@ -342,8 +342,8 @@ OnEvent(
 		case __FILEMANAGER_MOVEFILE: {
 			FileSystemCode_t Code = VfsMoveFile(
                 Message->From.Process,
-				(const char*)Message->Arguments[0].Data.Buffer,
-				(const char*)Message->Arguments[1].Data.Buffer,
+				RPCGetStringArgument(Message, 0),
+				RPCGetStringArgument(Message, 1),
 				(int)Message->Arguments[2].Data.Value);
 			Result = RPCRespond(Message, (const void*)&Code, sizeof(FileSystemCode_t));
 		} break;
@@ -397,8 +397,7 @@ OnEvent(
         // Retrieve the full canonical path of the given file-handle.
         case __FILEMANAGER_GETPATH: {
             MString_t *FilePath = NULL;
-            if (VfsGetFilePath(Message->From.Process,
-				(UUId_t)Message->Arguments[0].Data.Value, &FilePath) != OsSuccess) {
+            if (VfsGetFilePath(Message->From.Process, (UUId_t)Message->Arguments[0].Data.Value, &FilePath) != OsSuccess) {
                 Result = RPCRespond(Message, FilePath, sizeof(MString_t*));
             }
             else {
@@ -415,7 +414,7 @@ OnEvent(
 		// Deletes the given path, the path can both be file or directory.
 		case __FILEMANAGER_DELETEPATH: {
 			FileSystemCode_t Code = VfsDeletePath(Message->From.Process,
-				(const char*)Message->Arguments[0].Data.Buffer, (Flags_t)Message->Arguments[1].Data.Value);
+				RPCGetStringArgument(Message, 0), (Flags_t)Message->Arguments[1].Data.Value);
 			Result = RPCRespond(Message, (const void*)&Code, sizeof(FileSystemCode_t));
 		} break;
 
@@ -433,8 +432,7 @@ OnEvent(
 		// the given the process and it returns it
 		// as a buffer in the pipe
 		case __FILEMANAGER_PATHRESOLVE: {
-			MString_t *Resolved = VfsPathResolveEnvironment(
-				(EnvironmentPath_t)Message->Arguments[0].Data.Value);
+			MString_t *Resolved = VfsPathResolveEnvironment((EnvironmentPath_t)Message->Arguments[0].Data.Value);
 			if (Resolved != NULL) {
 				Result = RPCRespond(Message, MStringRaw(Resolved), MStringSize(Resolved));
                 free(Resolved);
@@ -447,7 +445,7 @@ OnEvent(
 		// Resolves and combines the environment path together
 		// and returns the newly concenated string
 		case __FILEMANAGER_PATHCANONICALIZE: {
-			MString_t *Resolved = VfsPathCanonicalize(Message->Arguments[0].Data.Buffer);
+			MString_t *Resolved = VfsPathCanonicalize(RPCGetStringArgument(Message, 0));
 			if (Resolved != NULL) {
 				Result = RPCRespond(Message, MStringRaw(Resolved), MStringSize(Resolved));
                 free(Resolved);

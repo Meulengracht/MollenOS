@@ -23,7 +23,7 @@ segment .text
 ;Functions in this asm
 global asm_memcpy_sse2
 
-; void asm_memcpy_sse2(void *Dest, void *Source, int Loops, int RemainingBytes)
+; void asm_memcpy_sse2(void *Dest <rcx>, void *Source <rdx>, int Loops <r8>, int RemainingBytes <r9>)
 asm_memcpy_sse2:
 	; Save stuff
 	push	rdi
@@ -48,28 +48,28 @@ asm_memcpy_sse2:
 
 	; Aligned Loop
 AlignedLoop:
-    prefetchnta [esi + 128]
-    prefetchnta [esi + 160]
-    prefetchnta [esi + 192]
-    prefetchnta [esi + 224]
+    prefetchnta [rsi + 128]
+    prefetchnta [rsi + 160]
+    prefetchnta [rsi + 192]
+    prefetchnta [rsi + 224]
 
-    movdqa xmm0, [esi]
-    movdqa xmm1, [esi + 16]
-    movdqa xmm2, [esi + 32]
-    movdqa xmm3, [esi + 48]
-    movdqa xmm4, [esi + 64]
-    movdqa xmm5, [esi + 80]
-    movdqa xmm6, [esi + 96]
-    movdqa xmm7, [esi + 112]
+    movdqa xmm0, [rsi]
+    movdqa xmm1, [rsi + 16]
+    movdqa xmm2, [rsi + 32]
+    movdqa xmm3, [rsi + 48]
+    movdqa xmm4, [rsi + 64]
+    movdqa xmm5, [rsi + 80]
+    movdqa xmm6, [rsi + 96]
+    movdqa xmm7, [rsi + 112]
 
-    movntdq [edi], xmm0
-    movntdq [edi + 16], xmm1
-    movntdq [edi + 32], xmm2
-    movntdq [edi + 48], xmm3
-    movntdq [edi + 64], xmm4
-    movntdq [edi + 96], xmm6
-    movntdq [edi + 80], xmm5
-    movntdq [edi + 112], xmm7
+    movntdq [rdi], xmm0
+    movntdq [rdi + 16], xmm1
+    movntdq [rdi + 32], xmm2
+    movntdq [rdi + 48], xmm3
+    movntdq [rdi + 64], xmm4
+    movntdq [rdi + 96], xmm6
+    movntdq [rdi + 80], xmm5
+    movntdq [rdi + 112], xmm7
 
 	; Increase Pointers
 	add		rsi, 128
@@ -82,28 +82,28 @@ AlignedLoop:
 	
 	; Unaligned Loop
 UnalignedLoop:
-    prefetchnta [esi + 128]
-    prefetchnta [esi + 160]
-    prefetchnta [esi + 192]
-    prefetchnta [esi + 224]
+    prefetchnta [rsi + 128]
+    prefetchnta [rsi + 160]
+    prefetchnta [rsi + 192]
+    prefetchnta [rsi + 224]
 
-    movdqu xmm0, [esi]
-    movdqu xmm1, [esi + 16]
-    movdqu xmm2, [esi + 32]
-    movdqu xmm3, [esi + 48]
-    movdqu xmm4, [esi + 64]
-    movdqu xmm5, [esi + 80]
-    movdqu xmm6, [esi + 96]
-    movdqu xmm7, [esi + 112]
+    movdqu xmm0, [rsi]
+    movdqu xmm1, [rsi + 16]
+    movdqu xmm2, [rsi + 32]
+    movdqu xmm3, [rsi + 48]
+    movdqu xmm4, [rsi + 64]
+    movdqu xmm5, [rsi + 80]
+    movdqu xmm6, [rsi + 96]
+    movdqu xmm7, [rsi + 112]
 
-    movdqu [edi], xmm0
-    movdqu [edi + 16], xmm1
-    movdqu [edi + 32], xmm2
-    movdqu [edi + 48], xmm3
-    movdqu [edi + 64], xmm4
-    movdqu [edi + 80], xmm5
-    movdqu [edi + 96], xmm6
-    movdqu [edi + 112], xmm7
+    movdqu [rdi], xmm0
+    movdqu [rdi + 16], xmm1
+    movdqu [rdi + 32], xmm2
+    movdqu [rdi + 48], xmm3
+    movdqu [rdi + 64], xmm4
+    movdqu [rdi + 80], xmm5
+    movdqu [rdi + 96], xmm6
+    movdqu [rdi + 112], xmm7
 
 	; Increase Pointers
 	add		rsi, 128

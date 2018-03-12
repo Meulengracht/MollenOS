@@ -466,11 +466,11 @@ UsbDeviceLoadDrivers(
     // Initialize the base device
     memset(&CoreDevice, 0, sizeof(MCoreUsbDevice_t));
     memcpy(&CoreDevice.Base.Name[0], "Generic Usb Device", 18);
-    CoreDevice.Base.Id = UUID_INVALID;
-    CoreDevice.Base.Length = sizeof(MCoreUsbDevice_t);
-    CoreDevice.Base.VendorId = Device->Base.VendorId;
-    CoreDevice.Base.DeviceId = Device->Base.ProductId;
-    CoreDevice.Base.Class = USB_DEVICE_CLASS;
+    CoreDevice.Base.Id          = UUID_INVALID;
+    CoreDevice.Base.Length      = sizeof(MCoreUsbDevice_t);
+    CoreDevice.Base.VendorId    = Device->Base.VendorId;
+    CoreDevice.Base.DeviceId    = Device->Base.ProductId;
+    CoreDevice.Base.Class       = USB_DEVICE_CLASS;
 
     // Initialize the usb device
     memcpy(&CoreDevice.Device, &Device->Base, sizeof(UsbHcDevice_t));

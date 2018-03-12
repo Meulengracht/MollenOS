@@ -1467,7 +1467,7 @@ ScRpcListen(
     PipeConsume(Pipe, (uint8_t*)RemoteCall, sizeof(MRemoteCall_t), PipeWorker);
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
         if (RemoteCall->Arguments[i].Type == ARGUMENT_BUFFER) {
-            RemoteCall->Arguments[i].Data.Buffer = (__CONST void*)BufferPointer;
+            RemoteCall->Arguments[i].Data.Buffer = (const void*)BufferPointer;
             PipeConsume(Pipe, BufferPointer, RemoteCall->Arguments[i].Length, PipeWorker);
             BufferPointer += RemoteCall->Arguments[i].Length;
         }

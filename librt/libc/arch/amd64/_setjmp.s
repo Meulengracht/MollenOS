@@ -53,10 +53,10 @@ global longjmp
 _setjmp:
 	; We don't use a stack frame here
 
-	; Get params
+	; Get SP
 	lea rax, [rsp + 8]
 
-	; Load SP
+	; Load IP
 	mov r8, [rsp]
 
 	; Save state
@@ -92,10 +92,10 @@ _setjmp:
 _setjmp3:
 	; We don't use a stack frame here
 
-	; Get params
+	; Get SP
 	lea rax, [rsp + 8]
 
-	; Load SP
+	; Load IP
 	mov r8, [rsp]
 
 	; Save state

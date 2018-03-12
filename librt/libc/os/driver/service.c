@@ -43,7 +43,7 @@ RegisterService(
  * is not found */
 OsStatus_t
 InstallDriver(
-    _In_ MCoreDevice_t *Device, 
-    _In_ size_t Length) {
+    _In_ MCoreDevice_t* Device, 
+    _In_ size_t         Length) {
 	return Syscall_LoadDriver(Device, Length);
 }

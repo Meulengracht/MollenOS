@@ -526,6 +526,7 @@ MmVirtualClone(
     // Essentially what we want to do here is to clone almost the entire
     // kernel address space (index 0 of the pdp) except for thread region
     // If inherit is set, then clone all other mappings as well
+    WARNING("MmVirtualClone(Inherit %i)", Inherit);
 
     // Lookup which table-region is the stack region
     int ThreadRegion            = PAGE_DIRECTORY_POINTER_INDEX(MEMORY_LOCATION_RING3_THREAD_START);

@@ -31,6 +31,7 @@
 
 /* Includes
  * - Library */
+#include <assert.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
@@ -105,8 +106,7 @@ OnEvent(
 
             // Sanitize buffer
             if (Device != NULL) {
-                if (RegisterDevice(ParentDeviceId, Device, 
-                        NULL, DeviceFlags, &Result) != OsSuccess) {
+                if (RegisterDevice(ParentDeviceId, Device, NULL, DeviceFlags, &Result) != OsSuccess) {
                     Result = UUID_INVALID;
                 }
             }
@@ -161,9 +161,8 @@ OnEvent(
         // which devices in order to keep track
         case __DEVICEMANAGER_REGISTERCONTRACT: {
             // Extract arguments
-            MContract_t *Contract = (MContract_t*)
-                Message->Arguments[0].Data.Buffer;
-            UUId_t Result = UUID_INVALID;
+            MContract_t *Contract   = (MContract_t*)Message->Arguments[0].Data.Buffer;
+            UUId_t Result           = UUID_INVALID;
 
             // Update sender in contract
             Contract->DriverId = Message->From.Process;
@@ -222,24 +221,26 @@ OnEvent(
     return OsSuccess;
 }
 
-/* Device Registering
- * Allows registering of a new device in the
- * device-manager, and automatically queries
+/* RegisterDevice
+ * Allows registering of a new device in the device-manager, and automatically queries
  * for a driver for the new device */
 OsStatus_t
 RegisterDevice(
-    _In_ UUId_t Parent,
-    _In_ MCoreDevice_t *Device, 
-    _In_ __CONST char *Name,
-    _In_ Flags_t Flags,
-    _Out_ UUId_t *Id)
+    _In_  UUId_t            Parent,
+    _In_  MCoreDevice_t*    Device, 
+    _In_  const char*       Name,
+    _In_  Flags_t           Flags,
+    _Out_ UUId_t*           Id)
 {
     // Variables
     MCoreDevice_t *CopyDevice = NULL;
     DataKey_t Key;
 
-    // Not sure what to do with this rn
+    // Argument checks
     _CRT_UNUSED(Parent);
+    assert(Device != NULL);
+    assert(Id != NULL);
+    assert(Device->Length >= sizeof(MCoreDevice_t));
 
     // Update name 
     if (Name != NULL) {
@@ -251,25 +252,22 @@ RegisterDevice(
         GlbDeviceIdGen, &Device->Name[0], Device->Length);
 
     // Generate id and update out
-    *Id = Device->Id = GlbDeviceIdGen++;
-    Key.Value = (int)Device->Id;
+    *Id = Device->Id    = GlbDeviceIdGen++;
+    Key.Value           = (int)Device->Id;
 
     // Allocate our own copy of the device
-    CopyDevice = (MCoreDevice_t*)malloc(Device->Length);
+    CopyDevice          = (MCoreDevice_t*)malloc(Device->Length);
     memcpy(CopyDevice, Device, Device->Length);
-
-    // Add to list
     CollectionAppend(__GlbDevices, CollectionCreateNode(Key, CopyDevice));
 
     // Now, we want to try to find a driver
     // for the new device
 #ifndef __OSCONFIG_NODRIVERS
     if (Flags & __DEVICEMANAGER_REGISTER_LOADDRIVER) {
+        TRACE("Loading driver by querying system.");
         return InstallDriver(CopyDevice, Device->Length);
     }
 #endif
-    
-    // Done with task
     return OsSuccess;
 }
 
@@ -279,12 +277,16 @@ RegisterDevice(
  * of functionality the device supports */
 OsStatus_t
 RegisterContract(
-    _In_ MContract_t *Contract,
-    _Out_ UUId_t *Id)
+    _In_  MContract_t*  Contract,
+    _Out_ UUId_t*       Id)
 {
     // Variables
     MContract_t *CopyContract = NULL;
     DataKey_t Key;
+
+    // Argument checks
+    assert(Contract != NULL);
+    assert(Id != NULL);
 
     // Trace
     TRACE("Registered driver for device %u: %s", 
@@ -292,30 +294,21 @@ RegisterContract(
 
     // Lookup device
     Key.Value = (int)Contract->DeviceId;
-
-    // Sanitize device
     if (CollectionGetDataByKey(__GlbDevices, Key, 0) == NULL) {
         ERROR("Device id %u was not registered with the device manager",
             Contract->DeviceId);
         return OsError;
     }
 
-    // Generate a new id
-    *Id = GlbDriverIdGen++;
-
     // Update contract id
-    Contract->ContractId = *Id;
-    Key.Value = (int)*Id;
+    *Id                     = GlbDriverIdGen++;
+    Contract->ContractId    = *Id;
+    Key.Value               = (int)*Id;
 
     // Allocate our own copy of the contract
     CopyContract = (MContract_t*)malloc(sizeof(MContract_t));
     memcpy(CopyContract, Contract, sizeof(MContract_t));
-
-    // Add to list
-    CollectionAppend(__GlbContracts, CollectionCreateNode(Key, CopyContract));
-
-    // Done
-    return OsSuccess;
+    return CollectionAppend(__GlbContracts, CollectionCreateNode(Key, CopyContract));
 }
 
 /* HandleQuery
@@ -323,16 +316,16 @@ RegisterContract(
  * the correct driver and asking for data */
 OsStatus_t 
 QueryContract(
-    _In_ MContractType_t Type, 
-    _In_ int Function,
-    _In_Opt_ __CONST void *Arg0,
-    _In_Opt_ size_t Length0,
-    _In_Opt_ __CONST void *Arg1,
-    _In_Opt_ size_t Length1,
-    _In_Opt_ __CONST void *Arg2,
-    _In_Opt_ size_t Length2,
-    _Out_Opt_ __CONST void *ResultBuffer,
-    _In_Opt_ size_t ResultLength)
+    _In_      MContractType_t   Type, 
+    _In_      int               Function,
+    _In_Opt_  const void*       Arg0,
+    _In_Opt_  size_t            Length0,
+    _In_Opt_  const void*       Arg1,
+    _In_Opt_  size_t            Length1,
+    _In_Opt_  const void*       Arg2,
+    _In_Opt_  size_t            Length2,
+    _Out_Opt_ const void*       ResultBuffer,
+    _In_Opt_  size_t            ResultLength)
 {
     // Iterate driver list and find a contract that
     // matches the request

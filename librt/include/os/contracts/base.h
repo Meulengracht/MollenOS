@@ -154,16 +154,16 @@ SERVICEAPI
 OsStatus_t
 SERVICEABI
 QueryContract(
-	_In_ MContractType_t Type, 
-	_In_ int Function,
-	_In_Opt_ __CONST void *Arg0,
-	_In_Opt_ size_t Length0,
-	_In_Opt_ __CONST void *Arg1,
-	_In_Opt_ size_t Length1,
-	_In_Opt_ __CONST void *Arg2,
-	_In_Opt_ size_t Length2,
-	_Out_Opt_ __CONST void *ResultBuffer,
-	_In_Opt_ size_t ResultLength)
+    _In_      MContractType_t   Type, 
+    _In_      int               Function,
+    _In_Opt_  const void*       Arg0,
+    _In_Opt_  size_t            Length0,
+    _In_Opt_  const void*       Arg1,
+    _In_Opt_  size_t            Length1,
+    _In_Opt_  const void*       Arg2,
+    _In_Opt_  size_t            Length2,
+    _Out_Opt_ const void*       ResultBuffer,
+    _In_Opt_  size_t            ResultLength)
 {
 	// Variables
 	MRemoteCall_t Request;
@@ -173,8 +173,8 @@ QueryContract(
 	// type of RPC, pipe and version
 	RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
         __DEVICEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __DEVICEMANAGER_QUERYCONTRACT);
-	RPCSetArgument(&Request, 0, (__CONST void*)&Type, sizeof(MContractType_t));
-	RPCSetArgument(&Request, 1, (__CONST void*)&Function, sizeof(int));
+	RPCSetArgument(&Request, 0, (const void*)&Type, sizeof(MContractType_t));
+	RPCSetArgument(&Request, 1, (const void*)&Function, sizeof(int));
 
 	// Handle arguments
 	if (Arg0 != NULL && Length0 != 0) {

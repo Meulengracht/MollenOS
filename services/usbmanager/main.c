@@ -87,7 +87,7 @@ OnEvent(
         case __USBMANAGER_QUERYCONTROLLER: {
             UsbHcController_t HcController  = { { 0 }, 0 };
             UsbController_t *Controller     = NULL;
-            Controller = UsbCoreGetControllerIndex((int)Message->Arguments[0].Data.Value);
+            Controller                      = UsbCoreGetControllerIndex((int)Message->Arguments[0].Data.Value);
             if (Controller != NULL) {
                 memcpy(&HcController.Device, &Controller->Device, sizeof(MCoreDevice_t));
                 HcController.Type = Controller->Type;
