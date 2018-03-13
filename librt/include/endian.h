@@ -31,7 +31,7 @@
 #define __ORDER_BIG_ENDIAN__     4321
 #endif
 
-#if defined(i386) || defined(amd64)
+#if (defined(i386) || defined(__i386__)) || (defined(amd64) || defined(__amd64__))
 #define _BYTE_ORDER         _LITTLE_ENDIAN
 #define __BYTE_ORDER__      __ORDER_LITTLE_ENDIAN__
 #else

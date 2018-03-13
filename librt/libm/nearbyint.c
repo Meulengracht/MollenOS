@@ -35,10 +35,10 @@
  * rounding can't overflow as long as emax >= p. */
 #define	DECL(type, fn, rint)	\
 type fn(type x)			\
-{				\
-	type ret;		\
-	fenv_t env;		\
-				\
+{				        \
+	type ret;		    \
+	fenv_t env;		    \
+				        \
 	fegetenv(&env);		\
 	ret = rint(x);		\
 	fesetenv(&env);		\

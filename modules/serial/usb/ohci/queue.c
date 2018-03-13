@@ -31,6 +31,7 @@
 /* Includes
  * - Library */
 #include <ds/collection.h>
+#include <assert.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
@@ -83,29 +84,29 @@ OhciQueueResetInternalData(
     // Initialize the null-td
     NullTd = &Queue->TDPool[OHCI_POOL_TDNULL];
     NullTd->BufferEnd = 0;
-    NullTd->Cbp = 0;
-    NullTd->Link = 0x0;
-    NullTd->Flags = OHCI_TD_ALLOCATED;
-    NullPhysical = OHCI_POOL_TDINDEX(Controller, OHCI_POOL_TDNULL);
+    NullTd->Cbp     = 0;
+    NullTd->Link    = 0;
+    NullTd->Flags   = OHCI_TD_ALLOCATED;
+    NullPhysical    = OHCI_POOL_TDINDEX(Controller, OHCI_POOL_TDNULL);
 
     // Enumerate the ED pool and initialize them
     for (i = 0; i < OHCI_POOL_QHS; i++) {
         // Mark it skippable and set a NULL td
         Queue->QHPool[i].HcdInformation = 0;
-        Queue->QHPool[i].Flags = OHCI_QH_SKIP;
-        Queue->QHPool[i].EndPointer = NullPhysical;
-        Queue->QHPool[i].Current = NullPhysical | OHCI_LINK_HALTED;
+        Queue->QHPool[i].Flags      = OHCI_QH_SKIP;
+        Queue->QHPool[i].EndPointer = LODWORD(NullPhysical);
+        Queue->QHPool[i].Current    = LODWORD((NullPhysical | OHCI_LINK_HALTED));
         Queue->QHPool[i].ChildIndex = OHCI_NO_INDEX;
-        Queue->QHPool[i].LinkIndex = OHCI_NO_INDEX;
-        Queue->QHPool[i].Index = (int16_t)i;
+        Queue->QHPool[i].LinkIndex  = OHCI_NO_INDEX;
+        Queue->QHPool[i].Index      = (int16_t)i;
     }
 
     // Enumerate the TD pool and initialize them
     for (i = 0; i < OHCI_POOL_TDNULL; i++) {
-        Queue->TDPool[i].Flags = 0;
-        Queue->TDPool[i].Link = 0;
-        Queue->TDPool[i].Index = (int16_t)i;
-        Queue->TDPool[i].LinkIndex = OHCI_NO_INDEX;
+        Queue->TDPool[i].Flags      = 0;
+        Queue->TDPool[i].Link       = 0;
+        Queue->TDPool[i].Index      = (int16_t)i;
+        Queue->TDPool[i].LinkIndex  = OHCI_NO_INDEX;
     }
 
     // Done
@@ -131,8 +132,8 @@ OhciQueueInitialize(
     memset(Queue, 0, sizeof(OhciControl_t));
 
     // Calculate how many bytes of memory we will need
-    PoolSize = OHCI_POOL_QHS * sizeof(OhciQueueHead_t);
-    PoolSize += OHCI_POOL_TDS * sizeof(OhciTransferDescriptor_t);
+    PoolSize    = OHCI_POOL_QHS * sizeof(OhciQueueHead_t);
+    PoolSize    += OHCI_POOL_TDS * sizeof(OhciTransferDescriptor_t);
 
     // Allocate both TD's and ED's pool
     if (MemoryAllocate(NULL, PoolSize, MEMORY_CLEAN | MEMORY_COMMIT
@@ -143,11 +144,10 @@ OhciQueueInitialize(
 
     // Initialize pointers
     Queue->QHPool = (OhciQueueHead_t*)Pool;
-    Queue->QHPoolPhysical = PoolPhysical;
-    Queue->TDPool = (OhciTransferDescriptor_t*)((uint8_t*)Pool +
-        (OHCI_POOL_QHS * sizeof(OhciQueueHead_t)));
-    Queue->TDPoolPhysical = PoolPhysical + 
-        (OHCI_POOL_QHS * sizeof(OhciQueueHead_t));
+    Queue->QHPoolPhysical = LODWORD(PoolPhysical);
+    Queue->TDPool = (OhciTransferDescriptor_t*)((uint8_t*)Pool + (OHCI_POOL_QHS * sizeof(OhciQueueHead_t)));
+    Queue->TDPoolPhysical = LODWORD((PoolPhysical + (OHCI_POOL_QHS * sizeof(OhciQueueHead_t))));
+    assert(PoolPhysical < 0xFFFFFFFF);
 
     // Initialize transaction counters
     // and the transaction list
@@ -410,12 +410,12 @@ OhciTdSetup(
  * The Td is immediately ready for execution. */
 OhciTransferDescriptor_t*
 OhciTdIo(
-    _In_ OhciController_t *Controller,
-    _In_ UsbTransferType_t Type,
-    _In_ uint32_t PId,
-    _In_ int Toggle,
-    _In_ uintptr_t Address,
-    _In_ size_t Length)
+    _In_ OhciController_t*  Controller,
+    _In_ UsbTransferType_t  Type,
+    _In_ uint32_t           PId,
+    _In_ int                Toggle,
+    _In_ uintptr_t          Address,
+    _In_ size_t             Length)
 {
     // Variables
     OhciTransferDescriptor_t *Td = NULL;
@@ -434,9 +434,9 @@ OhciTdIo(
     // Max packet size is 1023 for isoc
     if (Type == IsochronousTransfer) {
         uintptr_t BufItr = 0;
-        int FrameCount = DIVUP(Length, 1023);
-        int FrameItr = 0;
-        int Crossed = 0;
+        int FrameCount  = DIVUP(Length, 1023);
+        int FrameItr    = 0;
+        int Crossed     = 0;
 
         // If direction is out and mod 1023 is 0
         // add a zero-length frame
@@ -446,12 +446,12 @@ OhciTdIo(
         }
         
         // Initialize flags
-        Td->Flags |= OHCI_TD_FRAMECOUNT(FrameCount - 1);
-        Td->Flags |= OHCI_TD_IOC_NONE;
+        Td->Flags       |= OHCI_TD_FRAMECOUNT(FrameCount - 1);
+        Td->Flags       |= OHCI_TD_IOC_NONE;
 
         // Initialize buffer access
-        Td->Cbp = Address;
-        Td->BufferEnd = Td->Cbp + Length - 1;
+        Td->Cbp         = LODWORD(Address);
+        Td->BufferEnd   = Td->Cbp + Length - 1;
 
         // Iterate frames and setup
         while (FrameCount) {
@@ -476,16 +476,14 @@ OhciTdIo(
         Td->LinkIndex = OHCI_NO_INDEX;
 
         // Store copy of original content
-        Td->OriginalFlags = Td->Flags;
-        Td->OriginalCbp = Td->Cbp;
-
-        // Setup done
+        Td->OriginalFlags   = Td->Flags;
+        Td->OriginalCbp     = Td->Cbp;
         return Td;
     }
 
     // Set this is as end of chain
-    Td->Link = 0;
-    Td->LinkIndex = OHCI_NO_INDEX;
+    Td->Link        = 0;
+    Td->LinkIndex   = OHCI_NO_INDEX;
 
     // Initialize flags as a IO Td
     Td->Flags |= PId;
@@ -511,8 +509,8 @@ OhciTdIo(
 
     // Is there bytes to transfer or null packet?
     if (Length > 0) {
-        Td->Cbp = Address;
-        Td->BufferEnd = Td->Cbp + (Length - 1);
+        Td->Cbp         = LODWORD(Address);
+        Td->BufferEnd   = Td->Cbp + (Length - 1);
     }
 
     // Store copy of original content
@@ -635,8 +633,8 @@ OhciLinkGeneric(
                 }
 
                 // Insert it
-                ExistingQueueHead->LinkPointer = QhAddress;
-                ExistingQueueHead->LinkIndex = QueueHeadIndex;
+                ExistingQueueHead->LinkPointer  = LODWORD(QhAddress);
+                ExistingQueueHead->LinkIndex    = QueueHeadIndex;
             }
 
             // Increase number of transactions waiting
@@ -645,7 +643,7 @@ OhciLinkGeneric(
         else {
             // Add it HcControl/BulkCurrentED
             Controller->Registers->HcControlHeadED =
-                Controller->Registers->HcControlCurrentED = QhAddress;
+                Controller->Registers->HcControlCurrentED = LODWORD(QhAddress);
             Queue->TransactionsWaitingControl++;
 
             // Enable control list
@@ -713,8 +711,8 @@ OhciLinkPeriodic(
     int i;
 
     // Lookup physical and calculate the queue
-    QhAddress = OHCI_POOL_QHINDEX(Controller, QueueHeadIndex);
-    Queue = OhciCalculateQueue(Controller, Qh->Interval, Qh->Bandwidth);
+    QhAddress   = OHCI_POOL_QHINDEX(Controller, QueueHeadIndex);
+    Queue       = OhciCalculateQueue(Controller, Qh->Interval, Qh->Bandwidth);
 
     // Sanitize that it's valid queue
     if (Queue < 0) {
@@ -725,8 +723,8 @@ OhciLinkPeriodic(
     for (i = Queue; i < OHCI_FRAMELIST_SIZE; i += (int)Qh->Interval) {
         // Two cases, first or not first
         if (Controller->QueueControl.RootTable[i] == NULL) {
-            Controller->QueueControl.RootTable[i] = Qh;
-            Controller->Hcca->InterruptTable[i] = QhAddress;
+            Controller->QueueControl.RootTable[i]   = Qh;
+            Controller->Hcca->InterruptTable[i]     = LODWORD(QhAddress);
         }
         else {
             // Ok, so we need to index us by Interval
@@ -739,8 +737,8 @@ OhciLinkPeriodic(
                 Qh->LinkPointer = Controller->Hcca->InterruptTable[i];
                 Qh->LinkIndex = ExistingQh->Index;
                 MemoryBarrier();
-                Controller->QueueControl.RootTable[i] = Qh;
-                Controller->Hcca->InterruptTable[i] = QhAddress;
+                Controller->QueueControl.RootTable[i]   = Qh;
+                Controller->Hcca->InterruptTable[i]     = LODWORD(QhAddress);
             }
             else {
                 // Sort case
@@ -754,11 +752,11 @@ OhciLinkPeriodic(
 
                 // Only insert if we aren't already present in queue
                 if (ExistingQh->LinkIndex != Qh->Index) {
-                    Qh->LinkPointer = ExistingQh->LinkPointer;
-                    Qh->LinkIndex = ExistingQh->LinkIndex;
+                    Qh->LinkPointer         = ExistingQh->LinkPointer;
+                    Qh->LinkIndex           = ExistingQh->LinkIndex;
                     MemoryBarrier();
-                    ExistingQh->LinkIndex = Qh->Index;
-                    ExistingQh->LinkPointer = QhAddress;
+                    ExistingQh->LinkIndex   = Qh->Index;
+                    ExistingQh->LinkPointer = LODWORD(QhAddress);
                 }
             }
         }
@@ -842,7 +840,7 @@ OhciReloadControlBulk(
             
             // Update new start and kick off queue
             Controller->Registers->HcControlHeadED =
-                Controller->Registers->HcControlCurrentED = QhPhysical;
+                Controller->Registers->HcControlCurrentED = LODWORD(QhPhysical);
             Controller->Registers->HcCommandStatus |= OHCI_COMMAND_CONTROL_ACTIVE;
         }
 
@@ -858,7 +856,7 @@ OhciReloadControlBulk(
 
             // Update new start and kick off queue
             Controller->Registers->HcBulkHeadED =
-                Controller->Registers->HcBulkCurrentED = QhPhysical;
+                Controller->Registers->HcBulkCurrentED = LODWORD(QhPhysical);
             Controller->Registers->HcCommandStatus |= OHCI_COMMAND_BULK_ACTIVE;
         }
 
@@ -914,20 +912,20 @@ OhciReloadPeriodic(
         if (Transfer->Transfer.Type == InterruptTransfer) {
             uintptr_t BufferBaseUpdated = ADDLIMIT(BufferBase, Td->OriginalCbp, 
                 BufferStep, BufferBase + Transfer->Transfer.PeriodicBufferSize);
-            Td->OriginalCbp = LODWORD(BufferBaseUpdated);
+            Td->OriginalCbp             = LODWORD(BufferBaseUpdated);
             if (SwitchToggles == 1) {
-                int Toggle = UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe);
-                Td->OriginalFlags &= ~OHCI_TD_TOGGLE;
-                Td->OriginalFlags |= (Toggle << 24);
+                int Toggle          = UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe);
+                Td->OriginalFlags   &= ~OHCI_TD_TOGGLE;
+                Td->OriginalFlags   |= (Toggle << 24);
                 UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, Toggle ^ 1);
             }
         }
 
         // Restart Td
-        Td->Flags = Td->OriginalFlags;
-        Td->Cbp = Td->OriginalCbp;
-        Td->BufferEnd = Td->Cbp + (BufferStep - 1);
-        Td->Link = OHCI_POOL_TDINDEX(Controller, Td->LinkIndex);
+        Td->Flags       = Td->OriginalFlags;
+        Td->Cbp         = Td->OriginalCbp;
+        Td->BufferEnd   = Td->Cbp + (BufferStep - 1);
+        Td->Link        = OHCI_POOL_TDINDEX(Controller, Td->LinkIndex);
 
         // Go to next td
         Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
@@ -957,8 +955,8 @@ OhciReloadPeriodic(
  * Iterates all active transfers and handles completion/error events */
 void
 OhciProcessDoneQueue(
-    _In_ OhciController_t *Controller, 
-    _In_ uintptr_t DoneHeadAddress)
+    _In_ OhciController_t*  Controller, 
+    _In_ uintptr_t          DoneHeadAddress)
 {
     // Variables
     OhciTransferDescriptor_t *Td = NULL;

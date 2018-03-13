@@ -34,32 +34,30 @@
 #include "bsd_fpu.h"
 
 const fenv_t __fe_dfl_env = {
-	{ 0xffff0000 | __INITIAL_FPUCW__,
-	  0xffff0000,
-	  0xffffffff,
-	  { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff }
-	},
-	__INITIAL_MXCSR__
+	__INITIAL_NPXCW__,
+	0x0000,
+	0x0000,
+	__INITIAL_MXCSR__,
+	0xffffffff,
+	{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff }
 };
-
-extern inline int feclearexcept(int __excepts);
-extern inline int fegetexceptflag(fexcept_t *__flagp, int __excepts);
 
 int
 fesetexceptflag(const fexcept_t *flagp, int excepts)
 {
 	fenv_t env;
+	uint32_t mxcsr;
 
-	__fnstenv(&env.__x87);
-	env.__x87.__status &= ~excepts;
-	env.__x87.__status |= *flagp & excepts;
-	__fldenv(env.__x87);
+	__fnstenv(&env);
+	env.__status &= ~excepts;
+	env.__status |= *flagp & excepts;
+	__fldenv(env);
 
-	__stmxcsr(&env.__mxcsr);
-	env.__mxcsr &= ~excepts;
-	env.__mxcsr |= *flagp & excepts;
-	__ldmxcsr(env.__mxcsr);
+    __stmxcsr(&mxcsr);
+    mxcsr &= ~excepts;
+    mxcsr |= *flagp & excepts;
+    __ldmxcsr(mxcsr);
 
 	return (0);
 }
@@ -81,14 +79,16 @@ extern inline int fesetround(int __round);
 int
 fegetenv(fenv_t *envp)
 {
+	uint32_t mxcsr;
 
-	__fnstenv(&envp->__x87);
-	__stmxcsr(&envp->__mxcsr);
+	__fnstenv(envp);
 	/*
-	 * fnstenv masks all exceptions, so we need to restore the
-	 * control word to avoid this side effect.
+	 * fnstenv masks all exceptions, so we need to restore
+	 * the old control word to avoid this side effect.
 	 */
-	__fldcw(envp->__x87.__control);
+	__fldcw(envp->__control);
+    __stmxcsr(&mxcsr);
+    __set_mxcsr(*envp, mxcsr);
 	return (0);
 }
 
@@ -97,13 +97,13 @@ feholdexcept(fenv_t *envp)
 {
 	uint32_t mxcsr;
 
-	__stmxcsr(&mxcsr);
-	__fnstenv(&envp->__x87);
+	__fnstenv(envp);
 	__fnclex();
-	envp->__mxcsr = mxcsr;
-	mxcsr &= ~FE_ALL_EXCEPT;
-	mxcsr |= FE_ALL_EXCEPT << _SSE_EMASK_SHIFT;
-	__ldmxcsr(mxcsr);
+    __stmxcsr(&mxcsr);
+    __set_mxcsr(*envp, mxcsr);
+    mxcsr &= ~FE_ALL_EXCEPT;
+    mxcsr |= FE_ALL_EXCEPT << _SSE_EMASK_SHIFT;
+    __ldmxcsr(mxcsr);
 	return (0);
 }
 
@@ -134,8 +134,8 @@ feenableexcept(int mask)
 	omask = ~(control | mxcsr >> _SSE_EMASK_SHIFT) & FE_ALL_EXCEPT;
 	control &= ~mask;
 	__fldcw(control);
-	mxcsr &= ~(mask << _SSE_EMASK_SHIFT);
-	__ldmxcsr(mxcsr);
+    mxcsr &= ~(mask << _SSE_EMASK_SHIFT);
+    __ldmxcsr(mxcsr);
 	return (omask);
 }
 
@@ -151,7 +151,7 @@ fedisableexcept(int mask)
 	omask = ~(control | mxcsr >> _SSE_EMASK_SHIFT) & FE_ALL_EXCEPT;
 	control |= mask;
 	__fldcw(control);
-	mxcsr |= mask << _SSE_EMASK_SHIFT;
-	__ldmxcsr(mxcsr);
+    mxcsr |= mask << _SSE_EMASK_SHIFT;
+    __ldmxcsr(mxcsr);
 	return (omask);
 }

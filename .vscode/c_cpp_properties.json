@@ -1,12 +1,14 @@
 {
     "configurations": [
         {
-            "name": "MollenOS",
+            "name": "MollenOS-i386",
             "includePath": [
                 "${workspaceRoot}",
                 "${workspaceRoot}/librt/include",
                 "${workspaceRoot}/kernel/acpica/include",
                 "${workspaceRoot}/kernel/include",
+                "${workspaceRoot}/kernel/arch/x86",
+                "${workspaceRoot}/kernel/arch/x86/x32",
                 "${workspaceRoot}/userspace/include",
                 "${workspaceRoot}/userspace/include/cxx"
             ],
@@ -25,7 +27,51 @@
                 "__UINT16_TYPE__=unsigned short",
                 "__INT8_TYPE__=char",
                 "__UINT8_TYPE__=unsigned char",
-                "__SIZE_TYPE__=__UINT32_TYPE__"
+                "__SIZE_TYPE__=__UINT32_TYPE__",
+                "_DOUBLE_IS_32BITS",
+                "_HAVE_LONG_DOUBLE"
+            ],
+            "browse": {
+                "path": [
+                    "${workspaceRoot}/librt/include",
+                    "${workspaceRoot}"
+                ],
+                "limitSymbolsToIncludedHeaders": true,
+                "databaseFilename": ""
+            },
+            "intelliSenseMode": "clang-x64"
+        },
+        {
+            "name": "MollenOS-amd64",
+            "includePath": [
+                "${workspaceRoot}",
+                "${workspaceRoot}/librt/include",
+                "${workspaceRoot}/kernel/acpica/include",
+                "${workspaceRoot}/kernel/include",
+                "${workspaceRoot}/kernel/arch/x86",
+                "${workspaceRoot}/kernel/arch/x86/x32",
+                "${workspaceRoot}/userspace/include",
+                "${workspaceRoot}/userspace/include/cxx"
+            ],
+            "defines": [
+                "__STDC_VERSION__=201112L",
+                "__IDE",
+                "MOLLENOS",
+                "amd64",
+                "__amd64__",
+                "UNICODE",
+                "__need_size_t",
+                "__INT64_TYPE__=long long",
+                "__UINT64_TYPE__=unsigned long long",
+                "__INT32_TYPE__=int",
+                "__UINT32_TYPE__=unsigned int",
+                "__INT16_TYPE__=short",
+                "__UINT16_TYPE__=unsigned short",
+                "__INT8_TYPE__=char",
+                "__UINT8_TYPE__=unsigned char",
+                "__SIZE_TYPE__=__UINT64_TYPE__",
+                "_LDBL_EQ_DBL",
+                "_HAVE_LONG_DOUBLE"
             ],
             "browse": {
                 "path": [

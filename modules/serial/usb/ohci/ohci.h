@@ -278,8 +278,8 @@ typedef struct _OhciControl {
     // Resources
     OhciQueueHead_t             *QHPool;
     OhciTransferDescriptor_t    *TDPool;
-    uintptr_t                    QHPoolPhysical;
-    uintptr_t                    TDPoolPhysical;
+    reg32_t                      QHPoolPhysical;
+    reg32_t                      TDPoolPhysical;
 
     // Bandwidth
     OhciQueueHead_t             *RootTable[OHCI_FRAMELIST_SIZE];
@@ -312,7 +312,7 @@ typedef struct _OhciController {
     // Registers and resources
     OhciRegisters_t             *Registers;
     OhciHCCA_t                  *Hcca;
-    uintptr_t                    HccaPhysical;
+    reg32_t                      HccaPhysical;
 
     // State information
     size_t                       PowerOnDelayMs;

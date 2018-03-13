@@ -136,15 +136,7 @@ extern const union __nan_un {
 #ifndef _MATH_TYPES_DEFINED
 #define _MATH_TYPES_DEFINED
 typedef float float_t;
-#ifdef _HAVE_LONG_DOUBLE
-#ifdef _LDBL_EQ_DBL
 typedef double double_t;
-#else
-typedef long double double_t;
-#endif
-#else
-typedef double double_t;
-#endif
 #endif
 
 CRTDECL(int*, __signgam(void));

@@ -42,6 +42,7 @@
 
 /* Includes
  * - Library */
+#include <assert.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -82,6 +83,7 @@ CreateBuffer(
         | MEMORY_CONTIGIOUS | MEMORY_LOWFIRST | MEMORY_CLEAN,
         (void**)&Buffer->Virtual, &Buffer->Physical);
     Buffer->Capacity = DIVUP(Length, 0x1000) * 0x1000;
+    assert(Buffer->Physical < 0xFFFFFFFF); // When we reach this => improve this
 
     // Sanitize the result and
     // return the newly created object

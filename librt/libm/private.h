@@ -12,12 +12,14 @@
 #ifndef _MATH_PRIVATE_H_
 #define	_MATH_PRIVATE_H_
 
-/* Includes */
+/* Includes 
+ * - Library */
 #include <os/osdefs.h>
 #include <endian.h>
 #include <float.h>
 
-/* Include arch-specfic files */
+/* Includes 
+ * - Architecture */
 #if defined(i386) || defined(__i386__)
 #include "i386/fpmath.h"
 #elif defined(amd64) || defined(__amd64__)
@@ -26,47 +28,105 @@
 /* Dunno */
 #endif
 
+#ifndef _LDBL_EQ_DBL
+#ifndef LDBL_MANT_DIG
+#error "LDBL_MANT_DIG not defined - should be found in float.h"
+#elif LDBL_MANT_DIG == DBL_MANT_DIG
+#error "double and long double are the same size but LDBL_EQ_DBL is not defined"
+#elif LDBL_MANT_DIG == 53
+/* This happens when doubles are 32-bits and long doubles are 64-bits.  */
+#define	EXT_EXPBITS	    11
+#define EXT_FRACHBITS	20
+#define	EXT_FRACLBITS	32
+
+#elif LDBL_MANT_DIG == 64
+#define	EXT_EXPBITS	    15
+#define EXT_FRACHBITS	32
+#define	EXT_FRACLBITS	32
+
+#elif LDBL_MANT_DIG == 65
+#define	EXT_EXPBITS	    15
+#define EXT_FRACHBITS	32
+#define	EXT_FRACLBITS	32
+
+#elif LDBL_MANT_DIG == 112
+#define	EXT_EXPBITS	    15
+#define EXT_FRACHBITS	48
+#define	EXT_FRACLBITS	64
+
+#elif LDBL_MANT_DIG == 113
+#define	EXT_EXPBITS	    15
+#define EXT_FRACHBITS	48
+#define	EXT_FRACLBITS	64
+
+#else
+#error Unsupported value for LDBL_MANT_DIG
+#endif
+
+#define	EXT_EXP_INFNAN	   ((1 << EXT_EXPBITS) - 1)         /* 32767 */
+#define	EXT_EXP_BIAS	   ((1 << (EXT_EXPBITS - 1)) - 1)   /* 16383 */
+#define	EXT_FRACBITS	   (EXT_FRACLBITS + EXT_FRACHBITS)
+#else
+#define	EXT_EXPBITS	    11
+#define EXT_FRACHBITS	20
+#define	EXT_FRACLBITS	32
+#endif /* ! _LDBL_EQ_DBL */
+
 /* IEEE Bits for float and double */
-#ifdef __LITTLE_ENDIAN
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 union IEEEf2bits {
 	float	f;
 	struct {
-		unsigned int	man : 23;
-		unsigned int	exp : 8;
-		unsigned int	sign : 1;
+		unsigned int man  : 23;
+		unsigned int exp  : 8;
+		unsigned int sign : 1;
 	} bits;
 };
 union IEEEd2bits {
 		double	d;
 		struct {
-			unsigned int	manl : 32;
-			unsigned int	manh : 20;
-			unsigned int	exp : 11;
-			unsigned int	sign : 1;
+#ifdef _DOUBLE_IS_32BITS
+			unsigned int manl : EXT_FRACLBITS;
+			unsigned int manh : EXT_FRACHBITS;
+			unsigned int exp  : EXT_EXPBITS;
+			unsigned int sign : 1;
+#else
+			unsigned long long manl : EXT_FRACLBITS;
+			unsigned long long manh : EXT_FRACHBITS;
+			unsigned long long exp  : EXT_EXPBITS;
+			unsigned long long sign : 1;
+#endif
 	} bits;
 };
 #else
 union IEEEf2bits {
 	float	f;
 	struct {
-		unsigned int	sign : 1;
-		unsigned int	exp : 8;
-		unsigned int	man : 23;
+		unsigned int sign : 1;
+		unsigned int exp : 8;
+		unsigned int man : 23;
 	} bits;
 };
 union IEEEd2bits {
 	double	d;
 	struct {
-		unsigned int	sign : 1;
-		unsigned int	exp : 11;
-		unsigned int	manh : 20;
-		unsigned int	manl : 32;
+#if _DOUBLE_IS_32BITS
+		unsigned int sign : 1;
+		unsigned int exp  : EXT_EXPBITS;
+		unsigned int manh : EXT_FRACHBITS;
+		unsigned int manl : EXT_FRACLBITS;
+#else
+		unsigned long long sign : 1;
+		unsigned long long exp  : EXT_EXPBITS;
+		unsigned long long manh : EXT_FRACHBITS;
+		unsigned long long manl : EXT_FRACLBITS;
+#endif
 	} bits;
 };
 #endif
 
-#define	DBL_MANH_SIZE	20
-#define	DBL_MANL_SIZE	32
+#define	DBL_MANH_SIZE	EXT_FRACHBITS
+#define	DBL_MANL_SIZE	EXT_FRACLBITS
 
 /* This is a shortcut for MSVC double intrinsincs
  * that are generated ONLY by msvc, used by __CI* functions */

@@ -40,15 +40,25 @@
 #define	__fenv_extern	extern
 #endif
 
+/*                   
+ * To preserve binary compatibility with FreeBSD 5.3, we pack the
+ * mxcsr into some reserved fields, rather than changing sizeof(fenv_t).
+ */
 typedef struct {
-	struct {
-		uint32_t	__control;
-		uint32_t	__status;
-		uint32_t	__tag;
-		char		__other[16];
-	} __x87;
-	uint32_t		__mxcsr;
+	uint16_t	__control;
+	uint16_t    __mxcsr_hi;
+	uint16_t	__status;
+	uint16_t    __mxcsr_lo;
+	uint32_t	__tag;
+	char		__other[16];
 } fenv_t;
+
+#define	__get_mxcsr(env)	(((env).__mxcsr_hi << 16) |	\
+				 ((env).__mxcsr_lo))
+#define	__set_mxcsr(env, x)	do {				\
+	(env).__mxcsr_hi = (uint32_t)(x) >> 16;		\
+	(env).__mxcsr_lo = (uint16_t)(x);			\
+} while (0)
 
 typedef	uint16_t	fexcept_t;
 
@@ -77,12 +87,6 @@ typedef	uint16_t	fexcept_t;
  */
 #define	_SSE_ROUND_SHIFT	3
 #define	_SSE_EMASK_SHIFT	7
-
-_CODE_BEGIN
-
-/* Default floating-point environment */
-CRTDECL_DATA(extern const fenv_t, __fe_dfl_env);
-#define	FE_DFL_ENV	(&__fe_dfl_env)
 
 /* Inline helpers for both MSVC assembler, 
  * but also for GCC assembler, unfortunately
@@ -113,21 +117,38 @@ CRTDECL_DATA(extern const fenv_t, __fe_dfl_env);
 #define	__stmxcsr(__csr)	__asm __volatile("stmxcsr %0" : "=m" (*(__csr)))
 #endif
 
-__fenv_static __attribute__((always_inline)) inline int
+_CODE_BEGIN
+
+/* The C99 standard (7.6.9) allows us to define 
+ * implementation-specific macros for different fp environments */
+CRTDECL_DATA(extern const fenv_t, __fe_dfl_env);
+#define	FE_DFL_ENV	(&__fe_dfl_env)
+
+/* Prototypes which we don't inline */
+CRTDECL(int, fesetexceptflag(__CONST fexcept_t *__flagp, int __excepts));
+CRTDECL(int, feraiseexcept(int __excepts));
+CRTDECL(int, fegetenv(fenv_t *__envp));
+CRTDECL(int, feholdexcept(fenv_t *__envp));
+CRTDECL(int, feupdateenv(__CONST fenv_t *__envp));
+CRTDECL(int, feenableexcept(int __mask));
+CRTDECL(int, fedisableexcept(int __mask));
+
+__fenv_static inline int
 feclearexcept(int __excepts)
 {
 	fenv_t __env;
+	uint32_t __mxcsr;
 
 	if (__excepts == FE_ALL_EXCEPT) {
 		__fnclex();
 	} else {
-		__fnstenv(&__env.__x87);
-		__env.__x87.__status &= ~__excepts;
-		__fldenv(__env.__x87);
+		__fnstenv(&__env);
+		__env.__status &= ~__excepts;
+		__fldenv(__env);
 	}
-	__stmxcsr(&__env.__mxcsr);
-	__env.__mxcsr &= ~__excepts;
-	__ldmxcsr(__env.__mxcsr);
+    __stmxcsr(&__mxcsr);
+    __mxcsr &= ~__excepts;
+    __ldmxcsr(__mxcsr);
 	return (0);
 }
 
@@ -137,23 +158,20 @@ fegetexceptflag(fexcept_t *__flagp, int __excepts)
 	uint32_t __mxcsr;
 	uint16_t __status;
 
-	__stmxcsr(&__mxcsr);
 	__fnstsw(&__status);
+	__stmxcsr(&__mxcsr);
 	*__flagp = (__mxcsr | __status) & __excepts;
 	return (0);
 }
 
-CRTDECL(int, fesetexceptflag(const fexcept_t *__flagp, int __excepts));
-CRTDECL(int, feraiseexcept(int __excepts));
-
-__fenv_static __attribute__((always_inline)) inline int
+__fenv_static inline int
 fetestexcept(int __excepts)
 {
 	uint32_t __mxcsr;
 	uint16_t __status;
 
-	__stmxcsr(&__mxcsr);
 	__fnstsw(&__status);
+	__stmxcsr(&__mxcsr);
 	return ((__status | __mxcsr) & __excepts);
 }
 
@@ -194,12 +212,14 @@ fesetround(int __round)
 	return (0);
 }
 
-CRTDECL(int, fegetenv(fenv_t *__envp));
-CRTDECL(int, feholdexcept(fenv_t *__envp));
-
 __fenv_static inline int
 fesetenv(const fenv_t *__envp)
 {
+	fenv_t __env = *__envp;
+	uint32_t __mxcsr;
+
+	__mxcsr = __get_mxcsr(__env);
+	__set_mxcsr(__env, 0xffffffff);
 
 	/*
 	 * XXX Using fldenvx() instead of fldenv() tells the compiler that this
@@ -209,12 +229,11 @@ fesetenv(const fenv_t *__envp)
 	 * function calls to clobber the i387 regs.  However, fesetenv() is
 	 * inlined, so we need to be more careful.
 	 */
-	__fldenvx(__envp->__x87);
-	__ldmxcsr(__envp->__mxcsr);
+	__fldenvx(__env);
+	__ldmxcsr(__mxcsr);
+
 	return (0);
 }
-
-CRTDECL(int, feupdateenv(const fenv_t *__envp));
 
 #if __BSD_VISIBLE
 

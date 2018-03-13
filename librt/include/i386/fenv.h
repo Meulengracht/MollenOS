@@ -46,9 +46,9 @@
  */
 typedef struct {
 	uint16_t	__control;
-	uint16_t      __mxcsr_hi;
+	uint16_t    __mxcsr_hi;
 	uint16_t	__status;
-	uint16_t      __mxcsr_lo;
+	uint16_t    __mxcsr_lo;
 	uint32_t	__tag;
 	char		__other[16];
 } fenv_t;
@@ -117,7 +117,9 @@ typedef	uint16_t	fexcept_t;
 #define	__stmxcsr(__csr)	__asm __volatile("stmxcsr %0" : "=m" (*(__csr)))
 #endif
 
-/*The C99 standard (7.6.9) allows us to define 
+_CODE_BEGIN
+
+/* The C99 standard (7.6.9) allows us to define 
  * implementation-specific macros for different fp environments */
 CRTDECL_DATA(extern const fenv_t, __fe_dfl_env);
 #define	FE_DFL_ENV	(&__fe_dfl_env)
@@ -140,11 +142,11 @@ CRTDECL(int,                           __test_sse(void));
 #endif
 
 /* Prototypes which we don't inline */
-CRTDECL(int, fesetexceptflag(__CONST fexcept_t *__flagp, int __excepts));
+CRTDECL(int, fesetexceptflag(const fexcept_t *__flagp, int __excepts));
 CRTDECL(int, feraiseexcept(int __excepts));
 CRTDECL(int, fegetenv(fenv_t *__envp));
 CRTDECL(int, feholdexcept(fenv_t *__envp));
-CRTDECL(int, feupdateenv(__CONST fenv_t *__envp));
+CRTDECL(int, feupdateenv(const fenv_t *__envp));
 CRTDECL(int, feenableexcept(int __mask));
 CRTDECL(int, fedisableexcept(int __mask));
 
@@ -183,9 +185,6 @@ fegetexceptflag(fexcept_t *__flagp, int __excepts)
 	*__flagp = (__mxcsr | __status) & __excepts;
 	return (0);
 }
-
-int fesetexceptflag(const fexcept_t *__flagp, int __excepts);
-int feraiseexcept(int __excepts);
 
 __fenv_static inline int
 fetestexcept(int __excepts)
@@ -240,9 +239,6 @@ fesetround(int __round)
 	return (0);
 }
 
-int fegetenv(fenv_t *__envp);
-int feholdexcept(fenv_t *__envp);
-
 __fenv_static inline int
 fesetenv(const fenv_t *__envp)
 {
@@ -265,12 +261,10 @@ fesetenv(const fenv_t *__envp)
 	return (0);
 }
 
-int feupdateenv(const fenv_t *__envp);
-
 #if __BSD_VISIBLE
 
-int feenableexcept(int __mask);
-int fedisableexcept(int __mask);
+CRTDECL(int, feenableexcept(int __mask));
+CRTDECL(int, fedisableexcept(int __mask));
 
 /* We currently provide no external definition of fegetexcept(). */
 static inline int
@@ -287,5 +281,7 @@ fegetexcept(void)
 }
 
 #endif /* __BSD_VISIBLE */
+
+_CODE_END
 
 #endif	/* !_FENV_H_ */

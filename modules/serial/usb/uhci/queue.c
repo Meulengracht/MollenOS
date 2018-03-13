@@ -604,7 +604,7 @@ UhciTdIo(
     }
 
     // Store buffer
-    Td->Buffer = BufferAddress;
+    Td->Buffer = LODWORD(BufferAddress);
 
     // Store data
     Td->OriginalFlags = Td->Flags;
@@ -870,9 +870,9 @@ UhciProcessRequest(
         int SwitchToggles = 0;
         
         // Setup some variables
-        Qh = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
-        Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
-        SwitchToggles = (DIVUP(Transfer->Transfer.Transactions[0].Length, 
+        Qh              = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
+        Td              = &Controller->QueueControl.TDPool[Qh->ChildIndex];
+        SwitchToggles   = (DIVUP(Transfer->Transfer.Transactions[0].Length, 
             Transfer->Transfer.Endpoint.MaxPacketSize)) % 2;
 
         // Do we need to fix toggles?
@@ -898,9 +898,9 @@ UhciProcessRequest(
             
             // Adjust buffer
             if (!RestartOnly) {
-                BufferBaseUpdated = ADDLIMIT(BufferBase, Td->Buffer, 
+                BufferBaseUpdated   = ADDLIMIT(BufferBase, Td->Buffer, 
                     BufferStep, BufferBase + Transfer->Transfer.PeriodicBufferSize);
-                Td->Buffer = LODWORD(BufferBaseUpdated);
+                Td->Buffer          = LODWORD(BufferBaseUpdated);
             }
 
             // Restore

@@ -374,6 +374,7 @@ OhciSetup(
 {
 	// Variables
 	void *VirtualPointer = NULL;
+    uintptr_t PhysicalAddress = 0;
 	reg32_t Temporary = 0;
 	int i;
 
@@ -383,14 +384,14 @@ OhciSetup(
 	// Allocate the HCCA-space in low memory as controllers
 	// have issues with higher memory (<2GB)
 	if (MemoryAllocate(NULL, 0x1000, MEMORY_CLEAN | MEMORY_COMMIT
-		| MEMORY_LOWFIRST | MEMORY_UNCHACHEABLE, &VirtualPointer,
-		&Controller->HccaPhysical) != OsSuccess) {
+		| MEMORY_LOWFIRST | MEMORY_UNCHACHEABLE, &VirtualPointer, &PhysicalAddress) != OsSuccess) {
 		ERROR("Failed to allocate space for HCCA");
 		return OsError;
 	}
 
 	// Cast the pointer to hcca
-	Controller->Hcca = (OhciHCCA_t*)VirtualPointer;
+    Controller->HccaPhysical    = LODWORD(PhysicalAddress);
+	Controller->Hcca            = (OhciHCCA_t*)VirtualPointer;
 
 	// Retrieve the revision of the controller, we support 0x10 && 0x11
 	Temporary = (Controller->Registers->HcRevision & 0xFF);

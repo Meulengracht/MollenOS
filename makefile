@@ -78,8 +78,11 @@ all: build_tools gen_revision build_bootloader build_libraries build_kernel buil
 
 # Kernel + minimal userspace release
 .PHONY: kernel_release
-kernel_release: all install_img
+kernel_release: build_tools gen_revision_minor gen_revision build_bootloader build_libraries build_kernel build_drivers setup_userspace build_initrd install_img
 	#zip mollenos.img mollenos_$(shell revision print all).zip
+	#zip userspace/include mollenos_$(shell revision print all)_sdk.zip
+	#zip userspace/lib mollenos_$(shell revision print all)_sdk.zip
+	#zip userspace/bin mollenos_$(shell revision print all)_sdk.zip
 
 .PHONY: build_initrd
 build_initrd:
@@ -97,6 +100,10 @@ build_tools:
 	@$(MAKE) -s -C tools/rd -f makefile
 	@$(MAKE) -s -C tools/diskutility -f makefile
 	@$(MAKE) -s -C tools/revision -f makefile
+
+.PHONY: gen_revision_minor
+	@printf "%b" "\033[1;35mUpdating revision version (minor)\033[m\n"
+	@./revision minor clang
 
 .PHONY: gen_revision
 gen_revision:

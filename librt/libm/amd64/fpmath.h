@@ -31,13 +31,13 @@ union IEEEl2bits {
 	struct {
 		unsigned int	manl	:32;
 		unsigned int	manh	:32;
-		unsigned int	exp	:15;
+		unsigned int	exp	    :15;
 		unsigned int	sign	:1;
 		unsigned int	junkl	:16;
 		unsigned int	junkh	:32;
 	} bits;
 	struct {
-		unsigned long long	man	:64;
+		unsigned long long	man	    :64;
 		unsigned int	    expsign	:16;
 		unsigned long long	junk	:48;
 	} xbits;
