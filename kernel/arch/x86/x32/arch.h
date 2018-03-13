@@ -67,6 +67,7 @@ typedef struct _x86_Thread {
 #define MEMORY_SEGMENT_RING0_LIMIT	        0xFFFFFFFF
 
 #define MEMORY_LOCATION_RING3_CODE			0x20000000	/* Base for ring3 code */
+#define MEMORY_LOCATION_RING3_CODE_END		0x30000000	/* Base for ring3 code */
 #define MEMORY_LOCATION_RING3_HEAP			0x30000000	/* Base for ring3 heap */
 #define MEMORY_LOCATION_RING3_HEAP_END      0xA0000000
 #define MEMORY_LOCATION_RING3_SHM			0xA0000000	/* Base for ring3 shm */

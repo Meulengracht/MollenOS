@@ -178,7 +178,7 @@ DebugGetModuleByAddress(
 	_Out_ char**        Name)
 {
 	// Validate that the address is within userspace
-	if (Address >= MEMORY_LOCATION_RING3_CODE && Address < MEMORY_LOCATION_RING3_HEAP) {
+	if (Address >= MEMORY_LOCATION_RING3_CODE && Address < MEMORY_LOCATION_RING3_CODE_END) {
 		MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
 
 		// Sanitize whether or not a process was running

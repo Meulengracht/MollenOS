@@ -51,7 +51,7 @@ typedef struct _x86_Thread {
 /* Architecture Memory Layout
  * This gives you an idea how memory layout is on the x86-64 platform in MollenOS 
  * 0x0				=>			0x10000000  (Kernel Memory Space 256 mb)
- * 0x10000000		=>			0xFF000000  (Empty)
+ * 0x10000000		=>			0xFF000000  (Empty 3.5gb)
  * 0xFF000000		=>			0xFFFFFFFF  (Application Stack Space, 16mb)
  * 0x100000000      =>          0x1FFFFFFFF (Driver Memory Space - 4.0gb)
  * 0x200000000      =>          0xFFFFFFFFFFFFFFFF (Application Memory Space - terabytes)
@@ -71,6 +71,7 @@ typedef struct _x86_Thread {
 #define MEMORY_LOCATION_RING3_THREAD_END    0xFFFFFFFF
 
 #define MEMORY_LOCATION_RING3_CODE			0x200000000     // 4gb code space
+#define MEMORY_LOCATION_RING3_CODE_END      0x300000000
 #define MEMORY_LOCATION_RING3_SHM			0x300000000     // 20gb shared memory space
 #define MEMORY_LOCATION_RING3_SHM_END		0x800000000
 #define MEMORY_LOCATION_RING3_IOSPACE   	0x800000000     // 16gb io memory space

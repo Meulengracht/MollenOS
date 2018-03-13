@@ -87,8 +87,8 @@ PhoenixFinishAsh(
 
     // Initialize the memory bitmaps
     TRACE("Creating bitmaps");
-    Ash->Heap   = BlockBitmapCreate(MEMORY_LOCATION_RING3_HEAP, MEMORY_LOCATION_RING3_SHM, AddressSpaceGetPageSize());
-    Ash->Shm    = BlockBitmapCreate(MEMORY_LOCATION_RING3_SHM, MEMORY_LOCATION_RING3_IOSPACE, AddressSpaceGetPageSize());
+    Ash->Heap   = BlockBitmapCreate(MEMORY_LOCATION_RING3_HEAP, MEMORY_LOCATION_RING3_HEAP_END, AddressSpaceGetPageSize());
+    Ash->Shm    = BlockBitmapCreate(MEMORY_LOCATION_RING3_SHM, MEMORY_LOCATION_RING3_SHM_END, AddressSpaceGetPageSize());
 }
 
 /* PhoenixStartupEntry
