@@ -259,7 +259,11 @@ HeapCreateBlock(
 
     // OOM Sanitization
     if ((Heap->DataCurrent + Length) > Heap->EndAddress) {
-        FATAL(FATAL_SCOPE_KERNEL, "Out of memory");
+#if __BITS == 64
+        FATAL(FATAL_SCOPE_KERNEL, "Out of memory (Current 0x%llx, End 0x%llx)", Heap->DataCurrent, Heap->EndAddress);
+#elif __BITS == 32
+        FATAL(FATAL_SCOPE_KERNEL, "Out of memory (Current 0x%x, End 0x%x)", Heap->DataCurrent, Heap->EndAddress);
+#endif
         return NULL;
     }
 

@@ -33,7 +33,6 @@
 #include <scheduler.h>
 #include <threading.h>
 #include <debug.h>
-#include <arch.h>
 #include <heap.h>
 
 /* Includes
@@ -48,6 +47,7 @@ PhoenixFinishAsh(
     _In_ MCoreAsh_t *Ash)
 {
     // Variables
+    SystemInformation_t SystemInformation;
     UUId_t CurrentCpu       = CpuGetCurrentId();
     MCoreThread_t *Thread   = ThreadingGetCurrentThread(CurrentCpu);
     uintptr_t BaseAddress   = 0;
@@ -62,6 +62,9 @@ PhoenixFinishAsh(
         LoadedFromInitRD = 1;
     }
 
+    // Get memory information
+    SystemInformationQuery(&SystemInformation);
+
     // Update currently running thread
     Ash->MainThread         = Thread->Id;
     Thread->AshId           = Ash->Id;
@@ -70,7 +73,7 @@ PhoenixFinishAsh(
     Ash->AddressSpace       = AddressSpaceGetCurrent();
 
     // Setup base address for code data
-    BaseAddress             = MEMORY_LOCATION_RING3_CODE;
+    BaseAddress             = SystemInformation.MemoryOverview.UserCodeStart;
 
     // Load Executable
     TRACE("Loading PE-image into memory (buffer 0x%x, size %u)", 
@@ -87,8 +90,12 @@ PhoenixFinishAsh(
 
     // Initialize the memory bitmaps
     TRACE("Creating bitmaps");
-    Ash->Heap   = BlockBitmapCreate(MEMORY_LOCATION_RING3_HEAP, MEMORY_LOCATION_RING3_HEAP_END, AddressSpaceGetPageSize());
-    Ash->Shm    = BlockBitmapCreate(MEMORY_LOCATION_RING3_SHM, MEMORY_LOCATION_RING3_SHM_END, AddressSpaceGetPageSize());
+    Ash->Heap   = BlockBitmapCreate(SystemInformation.MemoryOverview.UserHeapStart, 
+        SystemInformation.MemoryOverview.UserHeapStart + SystemInformation.MemoryOverview.UserHeapSize, 
+        SystemInformation.AllocationGranularity);
+    Ash->Shm    = BlockBitmapCreate(SystemInformation.MemoryOverview.UserSharedMemoryStart, 
+        SystemInformation.MemoryOverview.UserSharedMemoryStart + SystemInformation.MemoryOverview.UserSharedMemorySize, 
+        SystemInformation.AllocationGranularity);
 }
 
 /* PhoenixStartupEntry

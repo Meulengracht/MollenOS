@@ -585,6 +585,75 @@ MmVirtualClone(
     return OsSuccess;
 }
 
+/* MmVirtualDestroyPageTable
+ * Iterates entries in a page-directory and cleans up structures and entries. */
+OsStatus_t
+MmVirtualDestroyPageTable(
+	_In_ PageTable_t* PageTable)
+{
+    // Handle PT[0..511] normally
+    for (int Index = 0; Index < ENTRIES_PER_PAGE; Index++) {
+        if ((PageTable->Pages[Index] & PAGE_INHERITED) ||
+            (PageTable->Pages[Index] & PAGE_SYSTEM_MAP)) {
+            continue;
+        }
+
+        if (PageTable->Pages[Index] & PAGE_PRESENT) {
+            MmPhysicalFreeBlock(PageTable->Pages[Index] & PAGE_MASK);
+        }
+    }
+
+    // Done with page-table, free it
+    kfree(PageTable);
+    return OsSuccess;
+}
+
+/* MmVirtualDestroyPageDirectory
+ * Iterates entries in a page-directory and cleans up structures and entries. */
+OsStatus_t
+MmVirtualDestroyPageDirectory(
+	_In_ PageDirectory_t* PageDirectory)
+{
+    // Handle PD[0..511] normally
+    for (int Index = 0; Index < ENTRIES_PER_PAGE; Index++) {
+        if ((PageDirectory->pTables[Index] & PAGE_INHERITED) ||
+            (PageDirectory->pTables[Index] & PAGE_SYSTEM_MAP)) {
+            continue;
+        }
+
+        if (PageDirectory->pTables[Index] & PAGE_PRESENT) {
+            MmVirtualDestroyPageTable((PageTable_t*)PageDirectory->vTables[Index]);
+        }
+    }
+
+    // Done with page-directory, free it
+    kfree(PageDirectory);
+    return OsSuccess;
+}
+
+/* MmVirtualDestroyPageDirectoryTable
+ * Iterates entries in a page-directory-table and cleans up structures and entries. */
+OsStatus_t
+MmVirtualDestroyPageDirectoryTable(
+	_In_ PageDirectoryTable_t* PageDirectoryTable)
+{
+    // Handle PDP[0..511] normally
+    for (int Index = 0; Index < ENTRIES_PER_PAGE; Index++) {
+        if ((PageDirectoryTable->pTables[Index] & PAGE_INHERITED) ||
+            (PageDirectoryTable->pTables[Index] & PAGE_SYSTEM_MAP)) {
+            continue;
+        }
+
+        if (PageDirectoryTable->pTables[Index] & PAGE_PRESENT) {
+            MmVirtualDestroyPageDirectory((PageDirectory_t*)PageDirectoryTable->vTables[Index]);
+        }
+    }
+
+    // Done with page-directory-table, free it
+    kfree(PageDirectoryTable);
+    return OsSuccess;
+}
+
 /* MmVirtualDestroy
  * Destroys and cleans up any resources used by the virtual address space. */
 OsStatus_t
@@ -592,100 +661,15 @@ MmVirtualDestroy(
 	_In_ void* PageDirectory)
 {
     // Variables
-    PageMasterTable_t *Current = (PageMasterTable_t*)PageDirectory;
+    PageMasterTable_t *Current          = (PageMasterTable_t*)PageDirectory;
 
-    // Iterate all PML4 entries
+    // Handle PML4[0..511] normally
     for (int PmIndex = 0; PmIndex < ENTRIES_PER_PAGE; PmIndex++) {
-        // Do iteration validation;
-        // 1 If index is 0 => not mapped or used
-        // 2 If entry equals kernel => skip
-        // 3 If entry is inherited => skip
-        PageDirectoryTable_t *PdpKernel  = NULL;
-        PageDirectoryTable_t *PdpCurrent = NULL;
-        
-        // Sanitize 1, 2 and 3
-        if (Current->pTables[PmIndex] == 0 || 
-            (Current->pTables[PmIndex] == KernelMasterTable->pTables[PmIndex]) || 
-            (Current->pTables[PmIndex] & PAGE_INHERITED)) {
-            continue;
+        if (Current->pTables[PmIndex] & PAGE_PRESENT) {
+            MmVirtualDestroyPageDirectoryTable((PageDirectoryTable_t*)Current->vTables[PmIndex]);
         }
-
-        // Safe Cast indicies
-        if (KernelMasterTable->vTables[PmIndex] != 0) {
-            PdpKernel = (PageDirectoryTable_t*)KernelMasterTable->vTables[PmIndex];
-        }
-        PdpCurrent = (PageDirectoryTable_t*)Current->vTables[PmIndex];
-        for (int PdpIndex = 0; PdpIndex < ENTRIES_PER_PAGE; PdpIndex++) {
-            PageDirectory_t *PdKernel  = NULL;
-            PageDirectory_t *PdCurrent = NULL;
-            
-            // Sanitize 1 and 3
-            if (PdpCurrent->pTables[PdpIndex] == 0 || (PdpCurrent->pTables[PdpIndex] & PAGE_INHERITED)) {
-                continue;
-            }
-
-            // Safe Cast indicies
-            if (PdpKernel != NULL) {
-                // Sanitize 2
-                if (PdpCurrent->pTables[PdpIndex] == PdpKernel->pTables[PdpIndex]) {
-                    continue;
-                }
-                PdKernel = (PageDirectory_t*)PdpKernel->vTables[PdpIndex];
-            }
-            PdCurrent = (PageDirectory_t*)PdpCurrent->vTables[PdpIndex];
-            for (int PdIndex = 0; PdIndex < ENTRIES_PER_PAGE; PdIndex++) {
-                PageTable_t *PtKernel  = NULL;
-                PageTable_t *PtCurrent = NULL;
-                
-                // Sanitize 1 and 3
-                if (PdCurrent->pTables[PdIndex] == 0 || (PdCurrent->pTables[PdIndex] & PAGE_INHERITED)) {
-                    continue;
-                }
-
-                // Safe Cast indicies
-                if (PdKernel != NULL) {
-                    // Sanitize 2
-                    if (PdCurrent->pTables[PdIndex] == PdKernel->pTables[PdIndex]) {
-                        continue;
-                    }
-                    PtKernel = (PageTable_t*)PdKernel->vTables[PdIndex];
-                }
-                PtCurrent = (PageTable_t*)PdCurrent->vTables[PdIndex];
-                for (int PtIndex = 0; PtIndex < ENTRIES_PER_PAGE; PtIndex++) {
-                    // Sanitize 1 and 3
-                    if (PtCurrent->Pages[PtIndex] == 0 || (PtCurrent->Pages[PtIndex] & PAGE_INHERITED)) {
-                        continue;
-                    }
-                    if (PtKernel != NULL) {
-                        // Sanitize 2
-                        if (PtCurrent->Pages[PtIndex] == PtKernel->Pages[PtIndex]) {
-                            continue;
-                        }
-                    }
-
-                    // Sanitize 4 (Virtual mappings)
-                    if (PtCurrent->Pages[PtIndex] & PAGE_VIRTUAL) {
-                        continue;
-                    }
-
-                    if ((PtCurrent->Pages[PtIndex] & PAGE_MASK) != 0) {
-                        if (MmPhysicalFreeBlock(PtCurrent->Pages[PtIndex] & PAGE_MASK) != OsSuccess) {
-                            ERROR("Tried to free page %i (0x%x) , but was not allocated", PtIndex, PtCurrent->Pages[PtIndex]);
-                        }
-                    }
-                }
-
-                // Done with page-table, free it
-                kfree(PtCurrent);
-            }
-            
-            // Done with page-directory, free it
-            kfree(PdCurrent);
-        }
-
-        // Done with page-directory-table, free it
-        kfree(PdpCurrent);
     }
+
     // Done with page-master table, free it
     kfree(Current);
     return OsSuccess;
@@ -793,13 +777,13 @@ MmVirtualInit(void)
     // PD[0] => PT1
     // PD[1] => PT2
     KernelMasterTable->vTables[0]   = (uint64_t)DirectoryTable;
-    KernelMasterTable->pTables[0]   = (uint64_t)DirectoryTable | PAGE_PRESENT | PAGE_WRITE;
+    KernelMasterTable->pTables[0]   = (uint64_t)DirectoryTable | PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP;
     DirectoryTable->vTables[0]      = (uint64_t)Directory;
-    DirectoryTable->pTables[0]      = (uint64_t)Directory | PAGE_PRESENT | PAGE_WRITE;
+    DirectoryTable->pTables[0]      = (uint64_t)Directory | PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP;
     Directory->vTables[0]           = (uint64_t)Table1;
-    Directory->pTables[0]           = (uint64_t)Table1 | PAGE_PRESENT | PAGE_WRITE;
+    Directory->pTables[0]           = (uint64_t)Table1 | PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP;
     Directory->vTables[1]           = (uint64_t)Table2;
-    Directory->pTables[1]           = (uint64_t)Table2 | PAGE_PRESENT | PAGE_WRITE;
+    Directory->pTables[1]           = (uint64_t)Table2 | PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP;
 
 	// Initialize locks
 	MutexConstruct(&KernelMasterTable->Lock);

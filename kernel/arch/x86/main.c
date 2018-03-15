@@ -49,10 +49,20 @@ SystemInformationQuery(
 	_Out_ SystemInformation_t *Information)
 {
 	// Copy memory information
-	if (MmPhysicalQuery(&Information->PagesTotal, 
-		&Information->PagesAllocated) != OsSuccess) {
+	if (MmPhysicalQuery(&Information->PagesTotal, &Information->PagesAllocated) != OsSuccess) {
 		return OsError;
 	}
+
+    // Fill in memory overview
+    Information->AllocationGranularity                  = ALLOCATION_BLOCK_SIZE;
+    Information->MemoryOverview.UserCodeStart           = MEMORY_LOCATION_RING3_CODE;
+    Information->MemoryOverview.UserCodeSize            = MEMORY_LOCATION_RING3_CODE_END - MEMORY_LOCATION_RING3_CODE;
+    Information->MemoryOverview.UserSharedMemoryStart   = MEMORY_LOCATION_RING3_SHM;
+    Information->MemoryOverview.UserSharedMemorySize    = MEMORY_LOCATION_RING3_SHM_END - MEMORY_LOCATION_RING3_SHM;
+    Information->MemoryOverview.UserDriverMemoryStart   = MEMORY_LOCATION_RING3_IOSPACE;
+    Information->MemoryOverview.UserDriverMemorySize    = MEMORY_LOCATION_RING3_IOSPACE_END - MEMORY_LOCATION_RING3_IOSPACE;
+    Information->MemoryOverview.UserHeapStart           = MEMORY_LOCATION_RING3_HEAP;
+    Information->MemoryOverview.UserHeapSize            = MEMORY_LOCATION_RING3_HEAP_END - MEMORY_LOCATION_RING3_HEAP;
 
 	// Done
 	return OsSuccess;

@@ -30,9 +30,9 @@
  * memory range between Start -> End with a given block size */
 BlockBitmap_t*
 BlockBitmapCreate(
-    _In_ uintptr_t BlockStart, 
-    _In_ uintptr_t BlockEnd, 
-    _In_ size_t BlockSize)
+    _In_ uintptr_t  BlockStart, 
+    _In_ uintptr_t  BlockEnd, 
+    _In_ size_t     BlockSize)
 {
     // Variables
     BlockBitmap_t *Blockmap = NULL;

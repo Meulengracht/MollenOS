@@ -31,6 +31,7 @@
 #define ARCHITECTURE_NAME		    "x86-32"
 #define MAX_SUPPORTED_CPUS			64
 #define MAX_SUPPORTED_INTERRUPTS    256
+#define ALLOCATION_BLOCK_SIZE       0x1000
 
 /* AddressSpace (Data) Definitions
  * Definitions, bit definitions and magic constants for address spaces */

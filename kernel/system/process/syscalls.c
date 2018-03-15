@@ -847,6 +847,7 @@ ScMemoryQuery(
     }
 
     // Copy relevant data over
+    Descriptor->AllocationGranularityBytes = SystemInfo.AllocationGranularity;
     Descriptor->PageSizeBytes   = AddressSpaceGetPageSize();
     Descriptor->PagesTotal      = SystemInfo.PagesTotal;
     Descriptor->PagesUsed       = SystemInfo.PagesAllocated;

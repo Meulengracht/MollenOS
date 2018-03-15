@@ -31,13 +31,27 @@
 #include <os/context.h>
 #include <time.h>
 
+typedef struct _SystemMemoryOverview {
+    uintptr_t               UserCodeStart;
+    uintptr_t               UserCodeSize;
+    
+    uintptr_t               UserSharedMemoryStart;
+    uintptr_t               UserSharedMemorySize;
+    
+    uintptr_t               UserDriverMemoryStart;
+    uintptr_t               UserDriverMemorySize;
+    
+    uintptr_t               UserHeapStart;
+    uintptr_t               UserHeapSize;
+} SystemMemoryOverview_t;
+
 /* System Information structure
  * Contains information related to the OS and the system
  * like Cpu, Memory, Architecture etc */
 typedef struct _SystemInformation {
 
 	// Architecture
-	char					Architecture[16];
+	char                    Architecture[16];
 	char					Author[32];
 	char					Date[16];
 	unsigned				VersionMajor;
@@ -47,6 +61,8 @@ typedef struct _SystemInformation {
 	// Cpu
 
 	// Memory
+    SystemMemoryOverview_t  MemoryOverview;
+    size_t                  AllocationGranularity;
 	size_t					PagesTotal;
 	size_t					PagesAllocated;
 

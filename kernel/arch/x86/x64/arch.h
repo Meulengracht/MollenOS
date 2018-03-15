@@ -31,6 +31,7 @@
 #define ARCHITECTURE_NAME		    "x86-64"
 #define MAX_SUPPORTED_CPUS			64
 #define MAX_SUPPORTED_INTERRUPTS    256
+#define ALLOCATION_BLOCK_SIZE       0x100000 // 1 mb
 
 /* AddressSpace (Data) Definitions
  * Definitions, bit definitions and magic constants for address spaces */
@@ -70,14 +71,17 @@ typedef struct _x86_Thread {
 #define MEMORY_LOCATION_RING3_STACK_END       0xFE0000
 #define MEMORY_LOCATION_RING3_THREAD_END    0xFFFFFFFF
 
-#define MEMORY_LOCATION_RING3_CODE			0x200000000     // 4gb code space
-#define MEMORY_LOCATION_RING3_CODE_END      0x300000000
+// Every gigabyte in page size blocks is 131 Kb
+// Every gigabyte in 1mb page blocks is then 512 bytes
+#define MEMORY_LOCATION_RING3_CODE			0x200000000
+#define MEMORY_LOCATION_RING3_CODE_END      0x300000000     // 4gb code space
 #define MEMORY_LOCATION_RING3_SHM			0x300000000     // 20gb shared memory space
 #define MEMORY_LOCATION_RING3_SHM_END		0x800000000
 #define MEMORY_LOCATION_RING3_IOSPACE   	0x800000000     // 16gb io memory space
 #define MEMORY_LOCATION_RING3_IOSPACE_END	0x1000000000
 #define MEMORY_LOCATION_RING3_HEAP			0x1000000000    // xxgb heap memory space
-#define MEMORY_LOCATION_RING3_HEAP_END		0xFFFFFFFFFFFFFFFF
+#define MEMORY_LOCATION_RING3_HEAP_END		0x1100000000    // xxgb heap memory space
+//#define MEMORY_LOCATION_RING3_HEAP_END		0xFFFFFFFFFFFFFFFF
 
 #define MEMORY_SEGMENT_SIGSTACK_BASE        MEMORY_LOCATION_RING3_STACK_START
 #define MEMORY_SEGMENT_SIGSTACK_SIZE        0x00010000

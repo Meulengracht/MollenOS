@@ -23,12 +23,12 @@
 /* Includes
 * - System */
 #include <system/thread.h>
+#include <system/utils.h>
 #include <process/server.h>
 #include <garbagecollector.h>
 #include <threading.h>
 #include <semaphore.h>
 #include <scheduler.h>
-#include <arch.h>
 #include <heap.h>
 #include <log.h>
 
@@ -47,6 +47,7 @@ PhoenixCreateServer(
 	_In_ MString_t *Path)
 {
 	// Variables
+    SystemInformation_t SystemInformation;
 	MCoreServer_t *Server = NULL;
 
 	// Allocate and initiate new instance
@@ -57,9 +58,13 @@ PhoenixCreateServer(
 		return UUID_INVALID;
 	}
 
+    // Get memory information
+    SystemInformationQuery(&SystemInformation);
+
 	// Initialize the server io-space memory
-	Server->DriverMemory = BlockBitmapCreate(MEMORY_LOCATION_RING3_IOSPACE,
-		MEMORY_LOCATION_RING3_IOSPACE_END, AddressSpaceGetPageSize());
+	Server->DriverMemory = BlockBitmapCreate(SystemInformation.MemoryOverview.UserDriverMemoryStart,
+		SystemInformation.MemoryOverview.UserDriverMemoryStart + SystemInformation.MemoryOverview.UserDriverMemorySize, 
+        SystemInformation.AllocationGranularity);
 
 	// Register ash
 	Server->Base.Type = AshServer;

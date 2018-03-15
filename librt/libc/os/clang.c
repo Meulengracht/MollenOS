@@ -395,6 +395,10 @@ Cleanup:
     // Iterate all normal termination handlers and call them
     for (List = ExitFunctions; List != NULL; List = List->Link) {
         RTExitFunction_t *Function = NULL;
+        if (List->Index == 0) {
+            continue;
+        }
+
         for (Function = &List->Functions[List->Index - 1];
              Function >= &List->Functions[0]; --Function) {
             if ((Dso == NULL || Dso == Function->Handler.Cxa.DsoHandle)
@@ -418,6 +422,10 @@ Cleanup:
     // Also iterate and remove quick termination handlers
     for (List = ExitFunctionsQuick; List != NULL; List = List->Link) {
         RTExitFunction_t *Function = NULL;
+        if (List->Index == 0) {
+            continue;
+        }
+        
         for (Function = &List->Functions[List->Index - 1];
              Function >= &List->Functions[0]; --Function) {
             if (Dso == NULL || Dso == Function->Handler.Cxa.DsoHandle) {

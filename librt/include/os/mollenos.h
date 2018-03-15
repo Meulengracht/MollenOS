@@ -47,6 +47,7 @@ PACKED_TYPESTRUCT(MemoryDescriptor, {
 	size_t			PagesTotal;
 	size_t			PagesUsed;
 	size_t			PageSizeBytes;
+    size_t          AllocationGranularityBytes;
 });
 
 /* Cache Type Definitions
