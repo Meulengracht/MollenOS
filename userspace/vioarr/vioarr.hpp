@@ -30,7 +30,13 @@
 
 /* Includes
  * - System */
-#include "graphics/displays/display_framebuffer.hpp"
+#if defined(_VIOARR_OSMESA)
+#include "graphics/opengl/osmesa/display_osmesa.hpp"
+#define DISPLAY_TYPE() CDisplayOsMesa()
+#else
+#include "graphics/soft/display_framebuffer.hpp"
+#define DISPLAY_TYPE() CDisplayFramebuffer()
+#endif
 #include "screens/screen_login.hpp"
 #include "screens/screen.hpp"
 
@@ -86,7 +92,7 @@ public:
 
         // Create the display
         sLog.Info("Creating display");
-        _Display = new CDisplayOsMesa();
+        _Display = new DISPLAY_TYPE();
         if (!_Display->Initialize()) {
             delete _Display;
             return -2;

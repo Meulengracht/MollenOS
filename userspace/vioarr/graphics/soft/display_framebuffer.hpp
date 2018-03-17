@@ -24,12 +24,6 @@
 #pragma once
 
 /* Includes
- * - OpenGL */
-#include <os/contracts/video.h>
-#include <GL/osmesa.h>
-#include <GL/gl.h>
-
-/* Includes
  * - Project */
 #include "../../utils/log_manager.hpp"
 #include "display.hpp"
@@ -49,13 +43,13 @@ extern "C" void present_basic(void *Framebuffer, void *Backbuffer, int Rows, int
 extern "C" void present_sse(void *Framebuffer, void *Backbuffer, int Rows, int RowLoops, int RowRemaining, int LeftoverBytes);
 extern "C" void present_sse2(void *Framebuffer, void *Backbuffer, int Rows, int RowLoops, int RowRemaining, int LeftoverBytes);
 
-class CDisplayOsMesa : public CDisplay {
+class CDisplayFramebuffer : public CDisplay {
 public:
     
     // Constructor
     // Initializes the os-mesa context and prepares a backbuffer for the
     // display (vbe/vesa) framebuffer
-    CDisplayOsMesa() {
+    CDisplayFramebuffer() {
         int CpuRegisters[4] = { 0 };
         sLog.Info("Creating the opengl context");
         _Context            = OSMesaCreateContext(OSMESA_BGRA, NULL);

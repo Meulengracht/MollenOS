@@ -13,7 +13,7 @@ all: bin copy_headers copy_libraries build_zlib build_libpng build_libfreetype b
 
 # Build userspace applications, the order might be important.
 .PHONY: applications
-applications: build_llvm build_mesa build_vioarr
+applications: build_llvm build_mesa build_vioarr_osmesa
 
 bin:
 	@mkdir -p $@
@@ -63,6 +63,11 @@ build_macia:
 	@printf "%b" "\033[1;35mChecking if macia needs to be built\033[m\n"
 	@$(MAKE) -s -C macia -f makefile
 
+.PHONY: build_vioarr_soft
+build_vioarr_soft:
+	@printf "%b" "\033[1;35mChecking if vioarr needs to be built\033[m\n"
+	@$(MAKE) -s -C vioarr -f makefile
+
 .PHONY: build_llvm
 build_llvm:
 	mkdir -p llvm_out
@@ -75,10 +80,10 @@ build_llvm:
 build_mesa:
 	cd mesa && make && make install
 
-.PHONY: build_vioarr
-build_vioarr:
+.PHONY: build_vioarr_osmesa
+build_vioarr_osmesa:
 	@printf "%b" "\033[1;35mChecking if vioarr needs to be built\033[m\n"
-	@$(MAKE) -s -C vioarr -f makefile
+	@$(MAKE) -s -C vioarr -f makefile osmesa
 
 .PHONY: clean
 clean:

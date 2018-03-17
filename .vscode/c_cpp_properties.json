@@ -10,7 +10,8 @@
                 "${workspaceRoot}/kernel/arch/x86",
                 "${workspaceRoot}/kernel/arch/x86/x32",
                 "${workspaceRoot}/userspace/include",
-                "${workspaceRoot}/userspace/include/cxx"
+                "${workspaceRoot}/userspace/include/cxx",
+                "${workspaceRoot}/userspace/vioarr"
             ],
             "defines": [
                 "__STDC_VERSION__=201112L",
@@ -53,7 +54,8 @@
                 "${workspaceRoot}/kernel/arch/x86",
                 "${workspaceRoot}/kernel/arch/x86/x32",
                 "${workspaceRoot}/userspace/include",
-                "${workspaceRoot}/userspace/include/cxx"
+                "${workspaceRoot}/userspace/include/cxx",
+                "${workspaceRoot}/userspace/vioarr"
             ],
             "defines": [
                 "__STDC_VERSION__=201112L",

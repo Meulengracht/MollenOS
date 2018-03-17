@@ -28,21 +28,46 @@
 #include <string>
 
 // Window consist of => 
-// Rounded corners
 // Top bar
 // Maniuplation buttons (left)
 // Navigators (right)
 // Content (changeable)
 class CWindow : public CRenderable {
+private:
+    enum WindowDecorations {
+        DecorTopLeft = 0,
+        DecorTopMiddle,
+        DecorTopRight,
+        DecorFill,
+        DecorBottomLeft,
+        DecorBottomMiddle,
+        DecorBottomRight,
+        DecorIconClose,
+
+        DecorCount
+    };
+
 public:
-    CWindow(const std::string &Title, int X, int Y, int Width, int Height) 
-        : CRenderable(X, Y, Width, Height), _Title(Title) {
-        
-    }
-    CWindow(const std::string &Title) {
-        CWindow(Title, 100, 100, 600, 450);
-    }
+    CWindow(const std::string &Title, int X, int Y, int Width, int Height);
+    CWindow(const std::string &Title);
+    ~CWindow();
+
+    // Inherited Methods
+    void Render();
+
+    // Window Logic
+    void SetActive(bool Active);
 
 private:
-    std::string _Title;
+    void RenderQuad(int X, int Y, int Height, int Width, GLuint Texture);
+    void RenderDecorations(GLuint Framebuffer, GLuint *Textures);
+
+    std::string m_Title;
+    bool        m_Active;
+    bool        m_UpdateDecorations;
+    void*       m_Backbuffer;
+
+    GLuint      m_ActiveTextures[DecorCount];
+    GLuint      m_InactiveTextures[DecorCount];
+    GLuint      m_Framebuffers[2];
 };

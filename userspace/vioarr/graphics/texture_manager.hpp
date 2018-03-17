@@ -24,8 +24,28 @@
 
 /* Includes
  * - OpenGL */
+#ifdef _VIOARR_OPENGL
 #include <GL/gl.h>
-#include "../displays/display.hpp"
+#endif
+
+/* Includes
+ * - System */
+#include "display.hpp"
+#include <vector>
+
+class CTexture {
+public:
+    CTexture(GLuint Id, int References) : m_Id(Id), m_References(References) { }
+    ~CTexture() { }
+
+    void DecreaseReferences() { m_References--; }
+
+    GLuint GetId() { return m_Id; }
+    int GetReferences() { return m_References; }
+private:
+    GLuint  m_Id;
+    int     m_References;
+};
 
 class CTextureManager {
 public:
@@ -37,13 +57,23 @@ public:
 	}
 private:
 	CTextureManager() {}                     // Constructor? (the {} brackets) are needed here.
+    ~CTextureManager() {
+
+    }
 
 public:
 	CTextureManager(CTextureManager const&) = delete;
 	void operator=(CTextureManager const&) = delete;
 
     // Texture loaders
-    GLuint CreateTexturePNG(const char *Path, int *Width, int *Height);
+#ifdef _VIOARR_OPENGL
+    GLuint  CreateTexturePNG(const char *Path, int *Width, int *Height);
+#else
+
+#endif
+
+private:
+    std::vector<GLuint> m_Textures;
 };
 
 // Shorthand for the vioarr

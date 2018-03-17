@@ -1,16 +1,31 @@
 # Makefile for building a generic userspace application
 ASFLAGS = -f win32 -Xvc
-INCLUDES = -I../include/cxx -I../include
-SOURCES = graphics/textures/texture_png.cpp\
-		  main.cpp
-ASM = graphics/displays/display_framebuffer_$(VALI_ARCH).s
-OBJECTS = $(SOURCES:.cpp=.o) $(ASM:.s=.o)
+INCLUDES = -I../include/cxx -I../include -I. -Igraphics
+SHARED_SOURCES = graphics/opengl/texture_png.cpp screens/window.cpp main.cpp
+
+OSMESA_SOURCES = 
+OSMESA_ASM = graphics/opengl/osmesa/display_osmesa_$(VALI_ARCH).s
+OSMESA_OBJECTS = $(SHARED_SOURCES:.cpp=.o) $(OSMESA_SOURCES:.cpp=.o) $(OSMESA_ASM:.s=.o)
+
+SOFT_SOURCES = 
+SOFT_ASM = graphics/displays/fb/display_framebuffer_$(VALI_ARCH).s
+SOFT_OBJECTS = $(SHARED_SOURCES:.cpp=.o) $(SOFT_SOURCES:.cpp=.o) $(SOFT_ASM:.s=.o)
 
 CXXFLAGS = $(GUCXXFLAGS) $(INCLUDES)
-LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtConsoleEntry $(GUCXXLIBRARIES) ../lib/gallium-osmesa.lib ../lib/libpng.lib
+ifeq ($(MAKECMDGOALS),osmesa)
+	OBJECTS = $(OSMESA_OBJECTS)
+	CXXFLAGS += -D_VIOARR_OSMESA -D_VIOARR_OPENGL
+	LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtConsoleEntry $(GUCXXLIBRARIES) ../lib/gallium-osmesa.lib ../lib/libpng.lib
+else
+	OBJECTS = $(SOFT_OBJECTS)
+	LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtConsoleEntry $(GUCXXLIBRARIES) ../lib/libpng.lib
+endif
 
 .PHONY: all
 all: ../bin/vioarr.app
+
+.PHONY: osmesa
+osmesa: all
 
 ../bin/vioarr.app: $(OBJECTS)
 	@printf "%b" "\033[0;36mCreating application " $@ "\033[m\n"

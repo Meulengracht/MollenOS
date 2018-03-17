@@ -43,7 +43,7 @@ config_flags += -D__OSCONFIG_DISABLE_SIGNALLING # Kernel fault on all hardware s
 config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE # Use a full debug console on height
 #config_flags += -D__OSCONFIG_NODRIVERS # Don't load drivers, run it without for debug
 #config_flags += -D__OSCONFIG_DISABLE_EHCI # Disable usb 2.0 support, run only in usb 1.1
-config_flags += -D__OSCONFIG_DISABLE_VIOARR # Disable auto starting the windowing system
+#config_flags += -D__OSCONFIG_DISABLE_VIOARR # Disable auto starting the windowing system
 
 # Before building llvm, one must export $(INCLUDES) to point at the include directory (full path)
 # Before building llvm, one must export $(LIBRARIES) to point at the lib directory (full path)
@@ -122,7 +122,7 @@ build_userspace:
 
 .PHONY: build_vioarr
 build_vioarr:
-	@$(MAKE) -s -C userspace -f makefile build_vioarr
+	@$(MAKE) -s -C userspace -f makefile build_vioarr_osmesa
 
 .PHONY: build_kernel
 build_kernel:

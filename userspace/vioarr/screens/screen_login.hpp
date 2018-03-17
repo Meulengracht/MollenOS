@@ -24,14 +24,14 @@
 
 /* Includes
  * - System */
-#include "../graphics/textures/texture_manager.hpp"
-#include "../graphics/displays/display.hpp"
-#include "../utils/log_manager.hpp"
+#include "graphics/texture_manager.hpp"
+#include "graphics/display.hpp"
+#include "utils/log_manager.hpp"
 #include "screen.hpp"
 
 /* Includes
  * - Toolkit */
-#include "../toolkit/sprite.hpp"
+#include "toolkit/sprite.hpp"
 
 class CLoginScreen : public CScreen {
 public:
