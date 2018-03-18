@@ -25,7 +25,7 @@
 /* Includes
  * - OpenGL */
 #ifdef _VIOARR_OPENGL
-#include <GL/gl.h>
+#include "opengl/opengl_exts.hpp"
 #endif
 
 /* Includes

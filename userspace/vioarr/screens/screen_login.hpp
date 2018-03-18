@@ -28,6 +28,7 @@
 #include "graphics/display.hpp"
 #include "utils/log_manager.hpp"
 #include "screen.hpp"
+#include "window.hpp"
 
 /* Includes
  * - Toolkit */
@@ -45,6 +46,7 @@ public:
 
         // @todo load from some settings
         AddRenderable(new CSprite("$sys/themes/default/gfxbg.png", _Width, _Height));
+        AddRenderable(new CWindow("Test"));
     }
     ~CLoginScreen() {
 

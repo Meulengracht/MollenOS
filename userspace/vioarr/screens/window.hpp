@@ -33,7 +33,7 @@
 // Navigators (right)
 // Content (changeable)
 class CWindow : public CRenderable {
-private:
+public:
     enum WindowDecorations {
         DecorTopLeft = 0,
         DecorTopMiddle,
@@ -59,6 +59,7 @@ public:
     void SetActive(bool Active);
 
 private:
+    bool CreateFB(GLuint *Id, GLuint *Texture);
     void RenderQuad(int X, int Y, int Height, int Width, GLuint Texture);
     void RenderDecorations(GLuint Framebuffer, GLuint *Textures);
 
@@ -70,4 +71,5 @@ private:
     GLuint      m_ActiveTextures[DecorCount];
     GLuint      m_InactiveTextures[DecorCount];
     GLuint      m_Framebuffers[2];
+    GLuint      m_FramebufferTextures[2];
 };

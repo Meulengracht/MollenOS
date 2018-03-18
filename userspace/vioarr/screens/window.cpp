@@ -23,11 +23,12 @@
 
 /* Includes
  * - System */
-#include "Window.hpp"
+#include "texture_manager.hpp"
+#include "window.hpp"
 
 /* Window Decorations
  * Sprites and icons for an active window. */
-const char *m_WindowDecorationsActive[DecorCount] = {
+const char *m_WindowDecorationsActive[CWindow::DecorCount] = {
     "$sys/themes/default/active/00.png",
     "$sys/themes/default/active/01.png",
     "$sys/themes/default/active/02.png",
@@ -40,7 +41,7 @@ const char *m_WindowDecorationsActive[DecorCount] = {
 
 /* Window Decorations
  * Sprites and icons for an in-active window. */
-const char *m_WindowDecorationsInactive[DecorCount] = {
+const char *m_WindowDecorationsInactive[CWindow::DecorCount] = {
     "$sys/themes/default/inactive/00.png",
     "$sys/themes/default/inactive/01.png",
     "$sys/themes/default/inactive/02.png",
@@ -52,12 +53,12 @@ const char *m_WindowDecorationsInactive[DecorCount] = {
 };
 
 CWindow::CWindow(const std::string &Title, int X, int Y, int Width, int Height) 
-    : CRenderable(X, Y, Width, Height), _Title(Title)
+    : CRenderable(X, Y, Width, Height), m_Title(Title)
 {
     // Load window textures
     for (int i = 0; i < (int)DecorCount; i++) {
-        m_ActiveTextures[i]     = CreateTexturePNG(m_WindowDecorationsActive[i], NULL, NULL);
-        m_InactiveTextures[i]   = CreateTexturePNG(m_WindowDecorationsInactive[i], NULL, NULL);
+        m_ActiveTextures[i]     = sTextureManager.CreateTexturePNG(m_WindowDecorationsActive[i], NULL, NULL);
+        m_InactiveTextures[i]   = sTextureManager.CreateTexturePNG(m_WindowDecorationsInactive[i], NULL, NULL);
     }
 
     // Set initially to true
@@ -65,28 +66,14 @@ CWindow::CWindow(const std::string &Title, int X, int Y, int Width, int Height)
     m_UpdateDecorations = true;
 
     // Generate a texture that will represent this window
-    glGenFramebuffers(2, &m_Framebuffers[0]);
-    for (int i = 0; i < 2; i++) {
-        // Bind the fbo
-        glBindFramebuffer(GL_FRAMEBUFFER, Framebuffer);
-
-        // Generate empty textures
-        generateColorTexture(GetWidth(), GetHeight() + 48);
-        generateDepthTexture(GetWidth(), GetHeight() + 48);
-
-        // Done, unbind
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    }
+    CreateFB(&m_Framebuffers[0], &m_FramebufferTextures[0]);
 
     // Generate the user backbuffer
     m_Backbuffer = nullptr; // @todo
 }
 
 CWindow::CWindow(const std::string &Title) : 
-    CWindow(Title, 100, 100, 600, 450)
-{
-
-}
+    CWindow(Title, 100, 100, 450, 300) { }
 
 CWindow::~CWindow()
 {
@@ -100,16 +87,38 @@ void CWindow::SetActive(bool Active)
     Active              = m_Active;    
 }
 
+bool CWindow::CreateFB(GLuint *Id, GLuint *Texture)
+{
+    // Create the empty framebuffer texture
+    glGenTextures(1, Texture);
+    glBindTexture(GL_TEXTURE_2D, *Texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, GetWidth(), GetHeight() + 48, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    // Create the framebuffer, which regroups 0, 1, or more textures, and 0 or 1 depth buffer.
+    GLenum DrawBuffers[1] = { GL_COLOR_ATTACHMENT0 };
+    sOpenGL.glGenFramebuffers(1, Id);
+    sOpenGL.glBindFramebuffer(GL_FRAMEBUFFER, *Id);
+    sOpenGL.glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, *Texture, 0);
+    sOpenGL.glDrawBuffers(1, DrawBuffers); // "1" is the size of DrawBuffers
+    GLenum FbStatus = sOpenGL.glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    sOpenGL.glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    return (FbStatus == GL_FRAMEBUFFER_COMPLETE);
+}
+
 void CWindow::RenderQuad(int X, int Y, int Height, int Width, GLuint Texture)
 {
     glEnable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, Texture);
 
     glBegin(GL_QUADS); // Top left, Bot Left, Top Right, Bot Right (Vertices, not texture)
-        glTexCoord2d(0.0, 1.0); glVertex2i(0.0, 0.0);
-        glTexCoord2d(0.0, 0.0); glVertex2i(0.0, Height);
-        glTexCoord2d(1.0, 0.0); glVertex2i(Width, Height);
-        glTexCoord2d(1.0, 1.0); glVertex2i(Width, 0.0);
+        glTexCoord2d(0.0, 0.0); glVertex2i(X, Y);
+        glTexCoord2d(0.0, 1.0); glVertex2i(X, Y + Height);
+        glTexCoord2d(1.0, 1.0); glVertex2i(X + Width, Y + Height);
+        glTexCoord2d(1.0, 0.0); glVertex2i(X + Width, Y);
     glEnd();
     glDisable(GL_TEXTURE_2D);
 }
@@ -117,7 +126,14 @@ void CWindow::RenderQuad(int X, int Y, int Height, int Width, GLuint Texture)
 void CWindow::RenderDecorations(GLuint Framebuffer, GLuint *Textures)
 {
     // Bind the fbo
-    glBindFramebuffer(GL_FRAMEBUFFER, Framebuffer);
+    sOpenGL.glBindFramebuffer(GL_FRAMEBUFFER, Framebuffer);
+    glViewport(0, 0, GetWidth(), GetHeight() + 48);
+    glClearColor(1, 1, 1, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(0, GetWidth(), GetHeight() + 48, 0, -1, 1);
+    glMatrixMode(GL_MODELVIEW);
 
     // Draw textures
     glPushMatrix();
@@ -133,13 +149,13 @@ void CWindow::RenderDecorations(GLuint Framebuffer, GLuint *Textures)
     glPopMatrix();
 
     // Done, unbind
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    sOpenGL.glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void CWindow::Render() {
     // Update decorations?
     if (m_UpdateDecorations) {
-        RenderDecorations(m_Framebuffers[0], m_Active ? &m_ActiveTextures[0] : &m_InactiveTextures);
+        RenderDecorations(m_Framebuffers[0], m_Active ? &m_ActiveTextures[0] : &m_InactiveTextures[0]);
         m_UpdateDecorations = false;
     }
 
@@ -147,6 +163,6 @@ void CWindow::Render() {
     glPushMatrix();
     glLoadIdentity();
         glTranslated((double)GetX(), (double)GetY(), 0.0);
-        RenderQuad(0, 0, GetWidth(), GetHeight() + 48, m_Framebuffers[0]);
+        RenderQuad(0, 0, GetWidth(), GetHeight() + 48, m_FramebufferTextures[0]);
     glPopMatrix();
 }

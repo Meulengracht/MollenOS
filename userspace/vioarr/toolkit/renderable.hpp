@@ -46,6 +46,8 @@ public:
 
     int GetWidth() const { return _Width; }
     int GetHeight() const { return _Height; }
+    int GetX() const { return _X; }
+    int GetY() const { return _Y; }
 
     virtual void PreProcess() { if(_Effect) _Effect->Set(); }
     virtual void Render() = 0;

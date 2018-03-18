@@ -1,6 +1,6 @@
 # Makefile for building a generic userspace application
 ASFLAGS = -f win32 -Xvc
-INCLUDES = -I../include/cxx -I../include -I. -Igraphics
+INCLUDES = -I../include/cxx -I../include -I. -Igraphics -Iscreens
 SHARED_SOURCES = graphics/opengl/texture_png.cpp screens/window.cpp main.cpp
 
 OSMESA_SOURCES = 
