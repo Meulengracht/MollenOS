@@ -32,7 +32,9 @@
 
 /* Includes
  * - Toolkit */
+#include "toolkit/quad.hpp"
 #include "toolkit/sprite.hpp"
+#include "toolkit/effects/effect_none.hpp"
 
 class CLoginScreen : public CScreen {
 public:
@@ -73,13 +75,12 @@ public:
         glViewport(X, Y, _Width, _Height);
         glMatrixMode(GL_PROJECTION);
         glLoadIdentity();
-        glOrtho(0, _Width, _Height, 0, -1, 1);
+        glOrtho(0.0f, _Width, _Height, 0.0f, -1.0f, 1.0f);
         glMatrixMode(GL_MODELVIEW);
     }
 
     // Perform the render task of this screen
     void Update() {
-        glClearColor(0.0, 0.0, 0.0, 1.0);
         glClear(GL_COLOR_BUFFER_BIT);
         RenderScene();
         glFinish();

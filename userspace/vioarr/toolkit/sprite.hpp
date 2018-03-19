@@ -48,10 +48,10 @@ public:
         glPushMatrix();
         glLoadIdentity();
         glBegin(GL_QUADS); // Top left, Bot Left, Top Right, Bot Right (Vertices, not texture)
-          glTexCoord2d(0.0, 1.0); glVertex2d(0.0, 0.0);
-          glTexCoord2d(0.0, 0.0); glVertex2d(0.0, GetHeight());
-          glTexCoord2d(1.0, 0.0); glVertex2d(GetWidth(), GetHeight());
-          glTexCoord2d(1.0, 1.0); glVertex2d(GetWidth(), 0.0);
+            glTexCoord2d(0.0, 0.0); glVertex2i(0, 0);
+            glTexCoord2d(0.0, 1.0); glVertex2i(0, GetHeight());
+            glTexCoord2d(1.0, 1.0); glVertex2i(GetWidth(), GetHeight());
+            glTexCoord2d(1.0, 0.0); glVertex2i(GetWidth(), 0);
         glEnd();
         glPopMatrix();
 

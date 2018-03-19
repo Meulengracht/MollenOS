@@ -32,7 +32,8 @@
                 "__SIZE_TYPE__=__UINT32_TYPE__",
                 "_DOUBLE_IS_32BITS",
                 "_HAVE_LONG_DOUBLE",
-                "_LDBL_EQ_DBL"
+                "_LDBL_EQ_DBL",
+                "_VIOARR_OPENGL"
             ],
             "browse": {
                 "path": [
@@ -75,7 +76,8 @@
                 "__UINT8_TYPE__=unsigned char",
                 "__SIZE_TYPE__=__UINT64_TYPE__",
                 "_LDBL_EQ_DBL",
-                "_HAVE_LONG_DOUBLE"
+                "_HAVE_LONG_DOUBLE",
+                "_VIOARR_OPENGL"
             ],
             "browse": {
                 "path": [

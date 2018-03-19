@@ -60,7 +60,8 @@ public:
 
 private:
     bool CreateFB(GLuint *Id, GLuint *Texture);
-    void RenderQuad(int X, int Y, int Height, int Width, GLuint Texture);
+    void RenderTexturedQuad(int X, int Y, int Height, int Width, GLuint Texture);
+    void RenderColoredQuad(int X, int Y, int Height, int Width, unsigned Color);
     void RenderDecorations(GLuint Framebuffer, GLuint *Textures);
 
     std::string m_Title;

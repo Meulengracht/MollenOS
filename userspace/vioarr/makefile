@@ -1,7 +1,7 @@
 # Makefile for building a generic userspace application
 ASFLAGS = -f win32 -Xvc
 INCLUDES = -I../include/cxx -I../include -I. -Igraphics -Iscreens
-SHARED_SOURCES = graphics/opengl/texture_png.cpp screens/window.cpp main.cpp
+SHARED_SOURCES = graphics/opengl/texture_png.cpp toolkit/shader.cpp screens/window.cpp main.cpp
 
 OSMESA_SOURCES = 
 OSMESA_ASM = graphics/opengl/osmesa/display_osmesa_$(VALI_ARCH).s
@@ -14,7 +14,7 @@ SOFT_OBJECTS = $(SHARED_SOURCES:.cpp=.o) $(SOFT_SOURCES:.cpp=.o) $(SOFT_ASM:.s=.
 CXXFLAGS = $(GUCXXFLAGS) $(INCLUDES)
 ifeq ($(MAKECMDGOALS),osmesa)
 	OBJECTS = $(OSMESA_OBJECTS)
-	CXXFLAGS += -D_VIOARR_OSMESA -D_VIOARR_OPENGL
+	CXXFLAGS += -D_VIOARR_OSMESA -D_VIOARR_OPENGL -DGL_GLEXT_PROTOTYPES
 	LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtConsoleEntry $(GUCXXLIBRARIES) ../lib/gallium-osmesa.lib ../lib/libpng.lib
 else
 	OBJECTS = $(SOFT_OBJECTS)

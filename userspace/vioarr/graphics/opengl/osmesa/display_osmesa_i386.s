@@ -213,7 +213,7 @@ _present_sse2:
         rep     movsb
         pop     edi
         pop     ecx
-        sub     edi, edx
+        add     edi, edx
 
         ; Loop Epilogue
         dec     ebx

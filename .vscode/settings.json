@@ -312,7 +312,8 @@
         "_string.h": "c",
         "__std_stream": "c",
         "streambuf": "c",
-        "*.txt": "c"
+        "*.txt": "c",
+        "typeindex": "cpp"
     },
     "git.ignoreLimitWarning": true
 }

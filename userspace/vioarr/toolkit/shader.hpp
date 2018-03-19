@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - Vioarr Window Compositor System (Effect)
+ * MollenOS - Vioarr Window Compositor System (OpenGL Program)
  *  - The window compositor system and general window manager for
  *    MollenOS.
  */
@@ -25,15 +25,17 @@
 /* Includes
  * - OpenGL */
 #include <GL/gl.h>
-#include "../../graphics/opengl/opengl_exts.hpp"
+#include <string>
 
-class CEffect {
+class CShader {
 public:
-    CEffect() { m_ShaderId = 0; }
-    virtual ~CEffect() { }
-    virtual void Set() { sOpenGL.glUseProgram(m_ShaderId); };
-    virtual void Unset() { sOpenGL.glUseProgram(0); } 
+    CShader(const std::string ShaderCode, GLenum ShaderType);
+    CShader(const CShader& other);
+    ~CShader();
 
-protected:
-    GLuint m_ShaderId;
+    CShader& operator =(const CShader& other);
+
+    GLuint GetHandle() const;
+private:
+    GLuint m_Handle;
 };

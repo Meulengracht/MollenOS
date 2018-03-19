@@ -139,7 +139,7 @@ public:
     // Flushes the entire backbuffer to the display in a reverse manner
     // as opengl's buffer is backwards
     bool Present() {
-        _PresentMethod(_FramebufferEnd, _Backbuffer, _VideoInformation.Height, 
+        _PresentMethod(_Framebuffer, _Backbuffer, _VideoInformation.Height, 
             _RowLoops, _BytesRemaining, _VideoInformation.BytesPerScanline);
         return true;
     }
