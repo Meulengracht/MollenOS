@@ -83,6 +83,8 @@ Showcase of MollenOS to get an idea of how the userspace will be once it's finis
 
 ![The usb stack enumerating an usb-port](docs/images/usbstack.png)
 
+![The mesa/llvmpipe/gallium port for the OS running](docs/images/opengl.png)
+
 ### Usage
 
 ToDo

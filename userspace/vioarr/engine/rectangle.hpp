@@ -16,26 +16,17 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - Vioarr Window Compositor System (OpenGL Program)
- *  - The window compositor system and general window manager for
- *    MollenOS.
+ * MollenOS - Vioarr Engine System (V8)
+ *  - The Vioarr V8 Graphics Engine.
  */
-#pragma once
 
-/* Includes
- * - OpenGL */
-#include <GL/gl.h>
-#include <string>
-
-class CShader {
+class CRectangle {
 public:
-    CShader(const std::string ShaderCode, GLenum ShaderType);
-    CShader(const CShader& other);
-    ~CShader();
+    CRectangle();
+    ~CRectangle();
 
-    CShader& operator =(const CShader& other);
+    void Render();
 
-    GLuint GetHandle() const;
 private:
-    GLuint m_Handle;
+    unsigned int VBO, VAO, EBO;
 };

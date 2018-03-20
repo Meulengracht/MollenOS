@@ -57,8 +57,25 @@ public:
     // display (vbe/vesa) framebuffer
     CDisplayOsMesa() {
         int CpuRegisters[4] = { 0 };
+        int OSMesaAttributes[100], n = 0;
+
         sLog.Info("Creating the opengl context");
-        _Context            = OSMesaCreateContext(OSMESA_BGRA, NULL);
+        OSMesaAttributes[n++] = OSMESA_FORMAT;
+        OSMesaAttributes[n++] = OSMESA_BGRA;
+        OSMesaAttributes[n++] = OSMESA_DEPTH_BITS;
+        OSMesaAttributes[n++] = 24;
+        OSMesaAttributes[n++] = OSMESA_STENCIL_BITS;
+        OSMesaAttributes[n++] = 8;
+        OSMesaAttributes[n++] = OSMESA_ACCUM_BITS;
+        OSMesaAttributes[n++] = 0;
+        OSMesaAttributes[n++] = OSMESA_PROFILE;
+        OSMesaAttributes[n++] = OSMESA_CORE_PROFILE;
+        OSMesaAttributes[n++] = OSMESA_CONTEXT_MAJOR_VERSION;
+        OSMesaAttributes[n++] = 3;
+        OSMesaAttributes[n++] = OSMESA_CONTEXT_MINOR_VERSION;
+        OSMesaAttributes[n++] = 3;
+        OSMesaAttributes[n++] = 0;
+        _Context            = OSMesaCreateContextAttribs(&OSMesaAttributes[0], NULL);
 
         // Select a present-method (basic/sse/sse2)
 #if defined(_MSC_VER) && !defined(__clang__)

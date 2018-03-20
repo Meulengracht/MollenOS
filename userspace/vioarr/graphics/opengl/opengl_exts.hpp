@@ -77,6 +77,16 @@ private:
         INIT_OPENGL_FUNCTION(glLinkProgram, PFNGLLINKPROGRAMPROC);
         INIT_OPENGL_FUNCTION(glDeleteProgram, PFNGLDELETEPROGRAMPROC);
         INIT_OPENGL_FUNCTION(glDeleteShader, PFNGLDELETESHADERPROC);
+        INIT_OPENGL_FUNCTION(glGetProgramiv, PFNGLGETPROGRAMIVPROC);
+        INIT_OPENGL_FUNCTION(glGetShaderInfoLog, PFNGLGETSHADERINFOLOGPROC);
+        INIT_OPENGL_FUNCTION(glGetProgramInfoLog, PFNGLGETPROGRAMINFOLOGPROC);
+        
+        INIT_OPENGL_FUNCTION(glGetAttribLocation, PFNGLGETATTRIBLOCATIONPROC);
+        INIT_OPENGL_FUNCTION(glGetUniformLocation, PFNGLGETUNIFORMLOCATIONPROC);
+
+
+
+#undef INIT_OPENGL_FUNCTION
     }
 
     ~COpenGLExtensions() {
@@ -119,40 +129,57 @@ public:
     void glLinkProgram(GLuint program) { m_glLinkProgram(program); }
     void glDeleteProgram(GLuint program) { m_glDeleteProgram(program); }
     void glDeleteShader(GLuint shader) { m_glDeleteShader(shader); }
+    void glGetShaderInfoLog(GLuint shader, GLsizei bufSize, GLsizei *length, GLchar *infoLog) { m_glGetShaderInfoLog(shader, bufSize, length, infoLog); }
+    void glGetProgramInfoLog (GLuint program, GLsizei bufSize, GLsizei *length, GLchar *infoLog) { m_glGetProgramInfoLog(program, bufSize, length, infoLog); }
+
+    void glGetProgramiv(GLuint program, GLenum pname, GLint *params) { m_glGetProgramiv(program, pname, params); }
+    GLint glGetAttribLocation(GLuint program, const GLchar *name) { return m_glGetAttribLocation(program, name); }
+    GLint glGetUniformLocation(GLuint program, const GLchar *name) { return m_glGetUniformLocation(program, name); }
 
 private:
+#define DEFINE_OPENGL_FUNCTION(Function, Prototype) Prototype m_##Function
+
     // Version 2.0
-    PFNGLGENBUFFERSPROC                 m_glGenBuffers;
-    PFNGLBINDBUFFERPROC                 m_glBindBuffer;
-    PFNGLDRAWBUFFERSPROC                m_glDrawBuffers;
-    PFNGLBUFFERDATAPROC                 m_glBufferData;
-    PFNGLDELETEBUFFERSPROC              m_glDeleteBuffers;
+    DEFINE_OPENGL_FUNCTION(glGenBuffers, PFNGLGENBUFFERSPROC);
+    DEFINE_OPENGL_FUNCTION(glBindBuffer, PFNGLBINDBUFFERPROC);
+    DEFINE_OPENGL_FUNCTION(glDrawBuffers, PFNGLDRAWBUFFERSPROC);
+    DEFINE_OPENGL_FUNCTION(glBufferData, PFNGLBUFFERDATAPROC);
+    DEFINE_OPENGL_FUNCTION(glDeleteBuffers, PFNGLDELETEBUFFERSPROC);
 
     // Version 3.0
-    PFNGLCHECKFRAMEBUFFERSTATUSPROC     m_glCheckFramebufferStatus;
-    PFNGLGENRENDERBUFFERSEXTPROC        m_glGenFramebuffers;
-    PFNGLBINDFRAMEBUFFEREXTPROC         m_glBindFramebuffer;
-    PFNGLFRAMEBUFFERTEXTURE2DEXTPROC    m_glFramebufferTexture2D;
+    DEFINE_OPENGL_FUNCTION(glCheckFramebufferStatus, PFNGLCHECKFRAMEBUFFERSTATUSPROC);
+    DEFINE_OPENGL_FUNCTION(glGenFramebuffers, PFNGLGENRENDERBUFFERSEXTPROC);
+    DEFINE_OPENGL_FUNCTION(glBindFramebuffer, PFNGLBINDFRAMEBUFFEREXTPROC);
+    DEFINE_OPENGL_FUNCTION(glFramebufferTexture2D, PFNGLFRAMEBUFFERTEXTURE2DEXTPROC);
 
-    PFNGLGENVERTEXARRAYSPROC            m_glGenVertexArrays;
-    PFNGLBINDVERTEXARRAYPROC            m_glBindVertexArray;
-    PFNGLVERTEXATTRIBPOINTERPROC        m_glVertexAttribPointer;
-    PFNGLENABLEVERTEXATTRIBARRAYPROC    m_glEnableVertexAttribArray;
-    PFNGLDELETEVERTEXARRAYSPROC         m_glDeleteVertexArrays;
+    DEFINE_OPENGL_FUNCTION(glGenVertexArrays, PFNGLGENVERTEXARRAYSPROC);
+    DEFINE_OPENGL_FUNCTION(glBindVertexArray, PFNGLBINDVERTEXARRAYPROC);
+    DEFINE_OPENGL_FUNCTION(glVertexAttribPointer, PFNGLVERTEXATTRIBPOINTERPROC);
+    DEFINE_OPENGL_FUNCTION(glEnableVertexAttribArray, PFNGLENABLEVERTEXATTRIBARRAYPROC);
+    DEFINE_OPENGL_FUNCTION(glDeleteVertexArrays, PFNGLDELETEVERTEXARRAYSPROC);
 
-    PFNGLACTIVETEXTUREPROC              m_glActiveTexture;
+    DEFINE_OPENGL_FUNCTION(glActiveTexture, PFNGLACTIVETEXTUREPROC);
 
-    PFNGLCREATEPROGRAMPROC              m_glCreateProgram;
-    PFNGLCREATESHADERPROC               m_glCreateShader;
-    PFNGLSHADERSOURCEPROC               m_glShaderSource;
-    PFNGLCOMPILESHADERPROC              m_glCompileShader;
-    PFNGLATTACHSHADERPROC               m_glAttachShader;
-    PFNGLDETACHSHADERPROC               m_glDetachShader;
-    PFNGLGETSHADERIVPROC                m_glGetShaderiv;
-    PFNGLUSEPROGRAMPROC                 m_glUseProgram;
-    PFNGLLINKPROGRAMPROC                m_glLinkProgram;
-    PFNGLDELETEPROGRAMPROC              m_glDeleteProgram;
-    PFNGLDELETESHADERPROC               m_glDeleteShader;
+    DEFINE_OPENGL_FUNCTION(glCreateProgram, PFNGLCREATEPROGRAMPROC);
+    DEFINE_OPENGL_FUNCTION(glCreateShader, PFNGLCREATESHADERPROC);
+    DEFINE_OPENGL_FUNCTION(glShaderSource, PFNGLSHADERSOURCEPROC);
+    DEFINE_OPENGL_FUNCTION(glCompileShader, PFNGLCOMPILESHADERPROC);
+    DEFINE_OPENGL_FUNCTION(glAttachShader, PFNGLATTACHSHADERPROC);
+    DEFINE_OPENGL_FUNCTION(glDetachShader, PFNGLDETACHSHADERPROC);
+    DEFINE_OPENGL_FUNCTION(glGetShaderiv, PFNGLGETSHADERIVPROC);
+    DEFINE_OPENGL_FUNCTION(glGetProgramiv, PFNGLGETPROGRAMIVPROC);
+    DEFINE_OPENGL_FUNCTION(glUseProgram, PFNGLUSEPROGRAMPROC);
+    DEFINE_OPENGL_FUNCTION(glLinkProgram, PFNGLLINKPROGRAMPROC);
+    DEFINE_OPENGL_FUNCTION(glDeleteProgram, PFNGLDELETEPROGRAMPROC);
+    DEFINE_OPENGL_FUNCTION(glDeleteShader, PFNGLDELETESHADERPROC);
+    DEFINE_OPENGL_FUNCTION(glGetShaderInfoLog, PFNGLGETSHADERINFOLOGPROC);
+    DEFINE_OPENGL_FUNCTION(glGetProgramInfoLog, PFNGLGETPROGRAMINFOLOGPROC);
+    
+    DEFINE_OPENGL_FUNCTION(glGetAttribLocation, PFNGLGETATTRIBLOCATIONPROC);
+    DEFINE_OPENGL_FUNCTION(glGetUniformLocation, PFNGLGETUNIFORMLOCATIONPROC);
+
+
+#undef DEFINE_OPENGL_FUNCTION
 };
 
 // Shorthand for the vioarr

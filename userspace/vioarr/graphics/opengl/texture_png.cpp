@@ -170,7 +170,7 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
     // if the image has a transperancy set.. convert it to a full Alpha channel..
     if (png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS)) {
         png_set_tRNS_to_alpha(png_ptr);
-        channels += 1;
+        if (channels != 4) channels += 1;
     }
 
     //We don't support 16 bit precision.. so if the image Has 16 bits per channel

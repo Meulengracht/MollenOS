@@ -22,11 +22,15 @@
  */
 #include "program.hpp"
 #include "../graphics/opengl/opengl_exts.hpp"
+#include "utils/log_manager.hpp"
 
 CProgram::CProgram(const std::vector<CShader> &Shaders)
 {
-    // Make sure there are shaders present
+    // Variables
+    char CompileLog[512];
     GLint Status;
+
+    // Make sure there are shaders present
     assert(Shaders.size() > 0);
 
     // Create the program
@@ -45,8 +49,14 @@ CProgram::CProgram(const std::vector<CShader> &Shaders)
     }
 
     // Sanitize compilation
-    glGetProgramiv(m_Handle, GL_LINK_STATUS, &Status);
-    assert(Status != GL_FALSE);
+    sOpenGL.glGetProgramiv(m_Handle, GL_LINK_STATUS, &Status);
+    if (Status == GL_FALSE) {
+        memset(&CompileLog[0], 0, sizeof(CompileLog));
+        sOpenGL.glGetProgramInfoLog(m_Handle, sizeof(CompileLog), NULL, &CompileLog[0]);
+        sLog.Error("Program linking failed:");
+        sLog.Error(std::string(&CompileLog[0]));
+        abort();
+    }
 }
 
 CProgram::~CProgram()
@@ -58,7 +68,7 @@ CProgram::~CProgram()
 
 void CProgram::Use() const
 {
-    glUseProgram(m_Handle);
+    sOpenGL.glUseProgram(m_Handle);
 }
 
 bool CProgram::IsInUse() const
@@ -77,7 +87,7 @@ void CProgram::Unuse() const
 GLint CProgram::Attribute(const GLchar* AttributeName) const
 {
     assert(AttributeName != nullptr);
-    GLint Attribute = glGetAttribLocation(m_Handle, AttributeName);
+    GLint Attribute = sOpenGL.glGetAttribLocation(m_Handle, AttributeName);
     assert(Attribute != -1);
     return Attribute;
 }
@@ -85,7 +95,7 @@ GLint CProgram::Attribute(const GLchar* AttributeName) const
 GLint CProgram::Uniform(const GLchar* UniformName) const
 {
     assert(UniformName != nullptr);
-    GLint Uniform = glGetUniformLocation(m_Handle, UniformName);
+    GLint Uniform = sOpenGL.glGetUniformLocation(m_Handle, UniformName);
     assert(Uniform != -1);
     return Uniform;
 }

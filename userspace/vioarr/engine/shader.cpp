@@ -22,22 +22,29 @@
  */
 #include "shader.hpp"
 #include "../graphics/opengl/opengl_exts.hpp"
+#include "utils/log_manager.hpp"
 
-CShader::CShader(const std::string ShaderCode, GLenum ShaderType)
+CShader::CShader(const char *ShaderCode, GLenum ShaderType)
 {
-    const char* CCode = ShaderCode.c_str();
+    char CompileLog[512];
     GLint Status;
 
     // Create the shader
     m_Handle = sOpenGL.glCreateShader(ShaderType);
     assert(m_Handle != 0);
 
-    sOpenGL.glShaderSource(m_Handle, 1, (const GLchar**)&CCode, NULL);
+    sOpenGL.glShaderSource(m_Handle, 1, &ShaderCode, NULL);
     sOpenGL.glCompileShader(m_Handle);
 
     // Check compilation status
     sOpenGL.glGetShaderiv(m_Handle, GL_COMPILE_STATUS, &Status);
-    assert(Status != GL_FALSE);
+    if (Status == GL_FALSE) {
+        memset(&CompileLog[0], 0, sizeof(CompileLog));
+        sOpenGL.glGetShaderInfoLog(m_Handle, sizeof(CompileLog), NULL, &CompileLog[0]);
+        sLog.Error("Shader compilation failed:");
+        sLog.Error(std::string(&CompileLog[0]));
+        abort();
+    }
 }
 
 CShader::CShader(const CShader& other)

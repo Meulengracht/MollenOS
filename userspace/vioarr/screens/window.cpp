@@ -151,9 +151,6 @@ void CWindow::RenderDecorations(GLuint Framebuffer, GLuint *Textures)
     glLoadIdentity();
     glOrtho(0, GetWidth(), GetHeight() + 48, 0, -1, 1);
     glMatrixMode(GL_MODELVIEW);
-    glTexEnvf(GL_TEXTURE_2D, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     // Draw textures
     glPushMatrix();
@@ -168,13 +165,15 @@ void CWindow::RenderDecorations(GLuint Framebuffer, GLuint *Textures)
         //RenderTexturedQuad(48, GetHeight() - 48, 48, GetWidth() - (2 * 48), Textures[DecorBottomMiddle]);
         //RenderTexturedQuad(GetWidth() - 48, GetHeight() - 48, 48, 48, Textures[DecorBottomRight]);
     glPopMatrix();
-    glDisable(GL_BLEND);
 
     // Done, unbind
     sOpenGL.glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void CWindow::Render() {
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
     // Update decorations?
     if (m_UpdateDecorations) {
         GLint Viewport[4];
@@ -191,8 +190,6 @@ void CWindow::Render() {
     }
 
     // Translate
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     RenderTexturedQuad(GetX(), GetY(), GetHeight() + 48, GetWidth(), m_FramebufferTextures[0]);
     glDisable(GL_BLEND);
 }

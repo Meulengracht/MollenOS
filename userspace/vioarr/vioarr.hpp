@@ -37,6 +37,7 @@
 #include "graphics/soft/display_framebuffer.hpp"
 #define DISPLAY_TYPE() CDisplayFramebuffer()
 #endif
+#include "engine/veightengine.hpp"
 #include "screens/screen_login.hpp"
 #include "screens/screen.hpp"
 
@@ -102,15 +103,18 @@ public:
         sLog.Info("Spawning message handler");
         SpawnMessageHandler();
 
-        // Load the background texture
+        // Initialize V8 Engine
+        sLog.Info("Initializing V8");
+        sEngine.Initialize(_Display);
+        sEngine.Render();
 
         // Create the available screens
-        sLog.Info("Creating available screens");
-        _ScreenManager = new CScreenManager();
-        _ScreenManager->RegisterScreen(new CLoginScreen(_Display), CScreenManager::ScreenLogin);
+        //sLog.Info("Creating available screens");
+        //_ScreenManager = new CScreenManager();
+        //_ScreenManager->RegisterScreen(new CLoginScreen(_Display), CScreenManager::ScreenLogin);
 
         // Set available screen
-        _ScreenManager->SetActiveScreen(CScreenManager::ScreenLogin, true);
+        //_ScreenManager->SetActiveScreen(CScreenManager::ScreenLogin, true);
 
         // Enter event loop
         while (_IsRunning) {
