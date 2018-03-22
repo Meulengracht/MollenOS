@@ -20,38 +20,19 @@
  *  - The Vioarr V8 Graphics Engine.
  */
 #pragma once
+#include "component.hpp"
+#include <string>
 
-/* Includes
- * - System */
-#include "graphics/opengl/opengl_exts.hpp"
-#include "graphics/display.hpp"
-
-class CVEightEngine {
+class CTexture : public CComponent {
 public:
-	static CVEightEngine& GetInstance() {
-		// Guaranteed to be destroyed.
-		// Is instantiated on first use
-		static CVEightEngine _Instance;
-		return _Instance;
-	}
+    CTexture(const std::string &Path);
+    ~CTexture();
+
+    void Bind();
+    void Draw();
+    void Unbind();
 private:
-	CVEightEngine();
-    ~CVEightEngine();
-
-public:
-	CVEightEngine(CVEightEngine const&) = delete;
-	void operator=(CVEightEngine const&) = delete;
-
-    void Initialize(CDisplay *Screen);
-    void Render();
-
-    // Utilities
-    float ClampToScreenAxisX(int Value);
-    float ClampToScreenAxisY(int Value);
-
-private:
-    CDisplay*   m_Screen;
+    GLuint  m_TextureId;
+    int     m_TextureWidth;
+    int     m_TextureHeight;
 };
-
-// Shorthand for the vioarr
-#define sEngine CVEightEngine::GetInstance()

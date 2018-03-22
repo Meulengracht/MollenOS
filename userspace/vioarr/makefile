@@ -1,8 +1,12 @@
 # Makefile for building a generic userspace application
 ASFLAGS = -f win32 -Xvc
 INCLUDES = -I../include/cxx -I../include -I. -Igraphics -Iscreens
-SHARED_SOURCES = $(wildcard engine/*.cpp) \
-				 graphics/opengl/texture_png.cpp screens/window.cpp main.cpp
+SHARED_SOURCES = $(wildcard engine/components/textures/*.cpp) \
+				 $(wildcard engine/components/*.cpp) \
+				 $(wildcard engine/programs/*.cpp) \
+				 $(wildcard engine/entity/*.cpp) \
+				 $(wildcard engine/*.cpp) \
+				 main.cpp
 
 OSMESA_SOURCES = 
 OSMESA_ASM = graphics/opengl/osmesa/display_osmesa_$(VALI_ARCH).s

@@ -19,14 +19,23 @@
  * MollenOS - Vioarr Engine System (V8)
  *  - The Vioarr V8 Graphics Engine.
  */
+#pragma once
+#include "component.hpp"
 
-class CRectangle {
+class CRectangle : public CComponent {
 public:
-    CRectangle();
+    CRectangle(int X, int Y, int Width, int Height, bool Textured);
+    CRectangle(float ClampX, float ClampY, float ClampWidth, float ClampHeigth, bool Textured);
     ~CRectangle();
 
-    void Render();
+    void Bind();
+    void Draw();
+    void Unbind();
 
 private:
-    unsigned int VBO, VAO, EBO;
+    float*          m_Vertices;
+    unsigned int    m_Indices[6];
+    unsigned int    m_VertexBuffer;
+    unsigned int    m_ArrayBuffer;
+    unsigned int    m_ElementBuffer;
 };

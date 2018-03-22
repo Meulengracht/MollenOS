@@ -23,8 +23,9 @@
 
 /* Includes
  * - System */
-#include "../../utils/log_manager.hpp"
-#include "texture_manager.hpp"
+#include <GL/gl.h>
+#include "graphics/opengl/opengl_exts.hpp"
+#include "utils/log_manager.hpp"
 #include <cstdlib>
 #include <fstream>
 #include <string>
@@ -45,7 +46,7 @@ void MemoryStreamRead(png_structp png_ptr, png_bytep outBytes, png_size_t byteCo
     MemoryStream->Index += byteCountToRead;
 }
 
-GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Height)
+GLuint CreateTexturePNG(const char *Path, int *Width, int *Height)
 {
     struct PngMemoryStream *MemoryStream = NULL;
     FILE *fp;
@@ -139,7 +140,7 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
             png_set_palette_to_rgb(png_ptr);
             //Don't forget to update the channel info
             //It's used later to know how big a buffer we need for the image
-            channels = 3;           
+            channels = 3;
             break;
         case PNG_COLOR_TYPE_GRAY_ALPHA:
             format = GL_RGBA;

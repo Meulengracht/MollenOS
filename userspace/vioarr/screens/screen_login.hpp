@@ -24,17 +24,9 @@
 
 /* Includes
  * - System */
-#include "graphics/texture_manager.hpp"
 #include "graphics/display.hpp"
 #include "utils/log_manager.hpp"
 #include "screen.hpp"
-#include "window.hpp"
-
-/* Includes
- * - Toolkit */
-#include "toolkit/quad.hpp"
-#include "toolkit/sprite.hpp"
-#include "toolkit/effects/effect_none.hpp"
 
 class CLoginScreen : public CScreen {
 public:
@@ -47,8 +39,8 @@ public:
         _Height     = _Display->GetHeight();
 
         // @todo load from some settings
-        AddRenderable(new CSprite("$sys/themes/default/gfxbg.png", _Width, _Height));
-        AddRenderable(new CWindow("Test"));
+        //AddRenderable(new CSprite("$sys/themes/default/gfxbg.png", _Width, _Height));
+        //AddRenderable(new CWindow("Test"));
     }
     ~CLoginScreen() {
 

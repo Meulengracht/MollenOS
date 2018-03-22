@@ -20,24 +20,10 @@
  *  - The Vioarr V8 Graphics Engine.
  */
 
+#include "components/rectangle.hpp"
+#include "programs/program_color.hpp"
 #include "veightengine.hpp"
-#include "shader.hpp"
-#include "program.hpp"
-#include "rectangle.hpp"
-
-const char *m_VertexShader1 = "#version 330 core\n"
-"layout (location = 0) in vec3 aPos;\n"
-"void main()\n"
-"{\n"
-"   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
-"}\0";
-
-const char *m_FragmentShader1 = "#version 330 core\n"
-"out vec4 FragColor;\n"
-"void main()\n"
-"{\n"
-"   FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n"
-"}\n\0";
+#include "utils/log_manager.hpp"
 
 CVEightEngine::CVEightEngine()
 {
@@ -59,26 +45,20 @@ void CVEightEngine::Initialize(CDisplay *Screen) {
 
 void CVEightEngine::Render()
 {
-    // Shaders
-    CShader VertexShader(m_VertexShader1, GL_VERTEX_SHADER);
-    CShader FragmentShader(m_FragmentShader1, GL_FRAGMENT_SHADER);
-    std::vector<CShader> Shaders;
-
-    // Add shaders
-    Shaders.push_back(VertexShader);
-    Shaders.push_back(FragmentShader);
-    CProgram Program(Shaders);
-
-    // Create a rectangle
-    CRectangle Rect;
+    // Create a rectangle and the standard color program
+    CColorProgram Program;
+    CRectangle Rect(-0.5f, -0.5f, 1.0f, 1.0f, false);
 
     // Initialize screen
     glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     
-    // 2. use our shader program when we want to render an object
+    // Use our shader program when we want to render an object
     Program.Use();
-    Rect.Render();
+    Program.SetColor(0.9f, 0.1f, 0.5f, 1.0f);
+    Rect.Bind();
+    Rect.Draw();
+    Rect.Unbind();
     Program.Unuse();
 
     // Present
@@ -87,4 +67,20 @@ void CVEightEngine::Render()
 
     // don't leave
     for(;;);
+}
+
+// ClampToScreenAxisX
+// Clamps the given value to screen coordinates on the X axis
+float CVEightEngine::ClampToScreenAxisX(int Value)
+{
+    float ClampedValue = (float)Value / (float)m_Screen->GetWidth();
+    return (ClampedValue * 2) - 1.0f;
+}
+
+// ClampToScreenAxisY
+// Clamps the given value to screen coordinates on the Y axis
+float CVEightEngine::ClampToScreenAxisY(int Value)
+{
+    float ClampedValue = (float)Value / (float)m_Screen->GetHeight();
+    return (ClampedValue * 2) - 1.0f;
 }

@@ -21,37 +21,12 @@
  */
 #pragma once
 
-/* Includes
- * - System */
-#include "graphics/opengl/opengl_exts.hpp"
-#include "graphics/display.hpp"
-
-class CVEightEngine {
+class CEntity {
 public:
-	static CVEightEngine& GetInstance() {
-		// Guaranteed to be destroyed.
-		// Is instantiated on first use
-		static CVEightEngine _Instance;
-		return _Instance;
-	}
-private:
-	CVEightEngine();
-    ~CVEightEngine();
+    CEntity();
+    ~CEntity();
 
-public:
-	CVEightEngine(CVEightEngine const&) = delete;
-	void operator=(CVEightEngine const&) = delete;
-
-    void Initialize(CDisplay *Screen);
-    void Render();
-
-    // Utilities
-    float ClampToScreenAxisX(int Value);
-    float ClampToScreenAxisY(int Value);
-
-private:
-    CDisplay*   m_Screen;
+    // Overrideable methods
+    virtual void Update() { };
+    virtual void Render() { };
 };
-
-// Shorthand for the vioarr
-#define sEngine CVEightEngine::GetInstance()

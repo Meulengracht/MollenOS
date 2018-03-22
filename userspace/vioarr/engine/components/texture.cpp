@@ -19,39 +19,32 @@
  * MollenOS - Vioarr Engine System (V8)
  *  - The Vioarr V8 Graphics Engine.
  */
-#pragma once
 
-/* Includes
- * - System */
+#include <GL/gl.h>
 #include "graphics/opengl/opengl_exts.hpp"
-#include "graphics/display.hpp"
+#include "texture.hpp"
 
-class CVEightEngine {
-public:
-	static CVEightEngine& GetInstance() {
-		// Guaranteed to be destroyed.
-		// Is instantiated on first use
-		static CVEightEngine _Instance;
-		return _Instance;
-	}
-private:
-	CVEightEngine();
-    ~CVEightEngine();
+// Extern our image loaders
+extern GLuint CreateTexturePNG(const char *Path, int *Width, int *Height);
 
-public:
-	CVEightEngine(CVEightEngine const&) = delete;
-	void operator=(CVEightEngine const&) = delete;
+CTexture::CTexture(const std::string &Path) {
+    // Detect the kind of loader to use (img extension) @todo
+    m_TextureId = CreateTexturePNG(Path.c_str(), &m_TextureWidth, &m_TextureHeight);
+}
 
-    void Initialize(CDisplay *Screen);
-    void Render();
+CTexture::~CTexture() {
+    glDeleteTextures(1, &m_TextureId);
+}
 
-    // Utilities
-    float ClampToScreenAxisX(int Value);
-    float ClampToScreenAxisY(int Value);
+void CTexture::Bind() {
+    glBindTexture(GL_TEXTURE_2D, m_TextureId);
+}
 
-private:
-    CDisplay*   m_Screen;
-};
+void CTexture::Draw() {
+    // Empty
+}
 
-// Shorthand for the vioarr
-#define sEngine CVEightEngine::GetInstance()
+void CTexture::Unbind() {
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+

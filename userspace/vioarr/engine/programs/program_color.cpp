@@ -20,28 +20,41 @@
  *  - The window compositor system and general window manager for
  *    MollenOS.
  */
-#pragma once
+#include "program_color.hpp"
 
-/* Includes
- * - OpenGL */
-#include <GL/gl.h>
-#include <vector>
-#include "shader.hpp"
+static const char *g_VertexShaderColor = 
+"#version 330 core\n"
+"layout (location = 0) in vec3 InPosition;\n"
+"void main()\n"
+"{\n"
+"   gl_Position = vec4(InPosition, 1.0);\n"
+"}\0";
 
-class CProgram {
-public:
-    CProgram(const std::vector<CShader> &Shaders);
-    ~CProgram();
+static const char *g_FragmentShaderColor = 
+"#version 330 core\n"
+"out vec4 ResultColor;\n"
+"uniform vec4 InColor;\n"
+"void main()\n"
+"{\n"
+"   ResultColor = InColor;\n"
+"}\n\0";
 
-    void Use() const;
-    bool IsInUse() const;
-    void Unuse() const;
+CColorProgram::CColorProgram() : CProgram()
+{
+    // Shaders
+    CShader VertexShader(g_VertexShaderColor, GL_VERTEX_SHADER);
+    CShader FragmentShader(g_FragmentShaderColor, GL_FRAGMENT_SHADER);
 
-    GLint Attribute(const GLchar* AttributeName) const;
-    GLint Uniform(const GLchar* UniformName) const;
+    // Add shaders and initialize
+    AddShader(VertexShader);
+    AddShader(FragmentShader);
+    Initialize();
+}
 
-    GLuint GetHandle() const;
-private:
-    GLuint m_Handle;
-};
+CColorProgram::~CColorProgram() {
 
+}
+
+void CColorProgram::SetColor(float r, float g, float b, float a) {
+    SetUniform("InColor", r, g, b, a);
+}
