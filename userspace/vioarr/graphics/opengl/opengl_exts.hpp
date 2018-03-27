@@ -46,12 +46,63 @@ private:
 #define INIT_OPENGL_FUNCTION(Function, Blueprint) m_##Function = (Blueprint)glGetProcAddress(#Function); \
                                                   assert(m_##Function != nullptr)
 #define INIT_OPENGL_FUNCTION_OPT(Function, Blueprint) m_##Function = (Blueprint)glGetProcAddress(#Function);
+        
+        // Load extensions Version 1.4
+        INIT_OPENGL_FUNCTION(glBlendFuncSeparate, PFNGLBLENDFUNCSEPARATEPROC);
+        INIT_OPENGL_FUNCTION(glMultiDrawArrays, PFNGLMULTIDRAWARRAYSPROC);
+        INIT_OPENGL_FUNCTION(glMultiDrawElements, PFNGLMULTIDRAWELEMENTSPROC);
+        INIT_OPENGL_FUNCTION(glPointParameterf, PFNGLPOINTPARAMETERFPROC);
+        INIT_OPENGL_FUNCTION(glPointParameterfv, PFNGLPOINTPARAMETERFVPROC);
+        INIT_OPENGL_FUNCTION(glPointParameteri, PFNGLPOINTPARAMETERIPROC);
+        INIT_OPENGL_FUNCTION(glPointParameteriv, PFNGLPOINTPARAMETERIVPROC);
+        INIT_OPENGL_FUNCTION(glFogCoordf, PFNGLFOGCOORDFPROC);
+        INIT_OPENGL_FUNCTION(glFogCoordfv, PFNGLFOGCOORDFVPROC);
+        INIT_OPENGL_FUNCTION(glFogCoordd, PFNGLFOGCOORDDPROC);
+        INIT_OPENGL_FUNCTION(glFogCoorddv, PFNGLFOGCOORDDVPROC);
+        INIT_OPENGL_FUNCTION(glFogCoordPointer, PFNGLFOGCOORDPOINTERPROC);
+        INIT_OPENGL_FUNCTION(glSecondaryColor3b, PFNGLSECONDARYCOLOR3BPROC);
+        INIT_OPENGL_FUNCTION(glSecondaryColor3bv, PFNGLSECONDARYCOLOR3BVPROC);
+        INIT_OPENGL_FUNCTION(glSecondaryColor3d, PFNGLSECONDARYCOLOR3DPROC);
+        INIT_OPENGL_FUNCTION(glSecondaryColor3dv, PFNGLSECONDARYCOLOR3DVPROC);
+        INIT_OPENGL_FUNCTION(glSecondaryColor3f, PFNGLSECONDARYCOLOR3FPROC);
+        INIT_OPENGL_FUNCTION(glSecondaryColor3fv, PFNGLSECONDARYCOLOR3FVPROC);
+        INIT_OPENGL_FUNCTION(glSecondaryColor3i, PFNGLSECONDARYCOLOR3IPROC);
+        INIT_OPENGL_FUNCTION(glSecondaryColor3iv, PFNGLSECONDARYCOLOR3IVPROC);
+        INIT_OPENGL_FUNCTION(glSecondaryColor3s, PFNGLSECONDARYCOLOR3SPROC);
+        INIT_OPENGL_FUNCTION(glSecondaryColor3sv, PFNGLSECONDARYCOLOR3SVPROC);
+        INIT_OPENGL_FUNCTION(glSecondaryColor3ub, PFNGLSECONDARYCOLOR3UBPROC);
+        INIT_OPENGL_FUNCTION(glSecondaryColor3ubv, PFNGLSECONDARYCOLOR3UBVPROC);
+        INIT_OPENGL_FUNCTION(glSecondaryColor3ui, PFNGLSECONDARYCOLOR3UIPROC);
+        INIT_OPENGL_FUNCTION(glSecondaryColor3uiv, PFNGLSECONDARYCOLOR3UIVPROC);
+        INIT_OPENGL_FUNCTION(glSecondaryColor3us, PFNGLSECONDARYCOLOR3USPROC);
+        INIT_OPENGL_FUNCTION(glSecondaryColor3usv, PFNGLSECONDARYCOLOR3USVPROC);
+        INIT_OPENGL_FUNCTION(glSecondaryColorPointer, PFNGLSECONDARYCOLORPOINTERPROC);
+        INIT_OPENGL_FUNCTION(glWindowPos2d, PFNGLWINDOWPOS2DPROC);
+        INIT_OPENGL_FUNCTION(glWindowPos2dv, PFNGLWINDOWPOS2DVPROC);
+        INIT_OPENGL_FUNCTION(glWindowPos2f, PFNGLWINDOWPOS2FPROC);
+        INIT_OPENGL_FUNCTION(glWindowPos2fv, PFNGLWINDOWPOS2FVPROC);
+        INIT_OPENGL_FUNCTION(glWindowPos2i, PFNGLWINDOWPOS2IPROC);
+        INIT_OPENGL_FUNCTION(glWindowPos2iv, PFNGLWINDOWPOS2IVPROC);
+        INIT_OPENGL_FUNCTION(glWindowPos2s, PFNGLWINDOWPOS2SPROC);
+        INIT_OPENGL_FUNCTION(glWindowPos2sv, PFNGLWINDOWPOS2SVPROC);
+        INIT_OPENGL_FUNCTION(glWindowPos3d, PFNGLWINDOWPOS3DPROC);
+        INIT_OPENGL_FUNCTION(glWindowPos3dv, PFNGLWINDOWPOS3DVPROC);
+        INIT_OPENGL_FUNCTION(glWindowPos3f, PFNGLWINDOWPOS3FPROC);
+        INIT_OPENGL_FUNCTION(glWindowPos3fv, PFNGLWINDOWPOS3FVPROC);
+        INIT_OPENGL_FUNCTION(glWindowPos3i, PFNGLWINDOWPOS3IPROC);
+        INIT_OPENGL_FUNCTION(glWindowPos3iv, PFNGLWINDOWPOS3IVPROC);
+        INIT_OPENGL_FUNCTION(glWindowPos3s, PFNGLWINDOWPOS3SPROC);
+        INIT_OPENGL_FUNCTION(glWindowPos3sv, PFNGLWINDOWPOS3SVPROC);
+        INIT_OPENGL_FUNCTION(glBlendColor, PFNGLBLENDCOLORPROC);
+        INIT_OPENGL_FUNCTION(glBlendEquation, PFNGLBLENDEQUATIONPROC);
+
         // Load extensions Version 2.0
         INIT_OPENGL_FUNCTION(glGenBuffers, PFNGLGENBUFFERSPROC);
         INIT_OPENGL_FUNCTION(glBindBuffer, PFNGLBINDBUFFERPROC);
         INIT_OPENGL_FUNCTION(glDrawBuffers, PFNGLDRAWBUFFERSPROC);
         INIT_OPENGL_FUNCTION(glBufferData, PFNGLBUFFERDATAPROC);
         INIT_OPENGL_FUNCTION(glDeleteBuffers, PFNGLDELETEBUFFERSPROC);
+        INIT_OPENGL_FUNCTION(glBindAttribLocation, PFNGLBINDATTRIBLOCATIONPROC);
 
         INIT_OPENGL_FUNCTION(glVertexAttrib1d, PFNGLVERTEXATTRIB1DPROC);
         INIT_OPENGL_FUNCTION(glVertexAttrib1dv, PFNGLVERTEXATTRIB1DVPROC);
@@ -111,6 +162,9 @@ private:
         INIT_OPENGL_FUNCTION(glUniformMatrix4fv, PFNGLUNIFORMMATRIX4FVPROC);
         
         // Load extensions Version 3.0
+        INIT_OPENGL_FUNCTION(glStencilOpSeparate, PFNGLSTENCILOPSEPARATEPROC);
+        INIT_OPENGL_FUNCTION(glBindBufferRange, PFNGLBINDBUFFERRANGEPROC);
+        INIT_OPENGL_FUNCTION(glGenerateMipmap, PFNGLGENERATEMIPMAPPROC);
         INIT_OPENGL_FUNCTION(glCheckFramebufferStatus, PFNGLCHECKFRAMEBUFFERSTATUSPROC);
         INIT_OPENGL_FUNCTION(glGenFramebuffers, PFNGLGENRENDERBUFFERSEXTPROC);
         INIT_OPENGL_FUNCTION(glBindFramebuffer, PFNGLBINDFRAMEBUFFEREXTPROC);
@@ -120,6 +174,7 @@ private:
         INIT_OPENGL_FUNCTION(glBindVertexArray, PFNGLBINDVERTEXARRAYPROC);
         INIT_OPENGL_FUNCTION(glVertexAttribPointer, PFNGLVERTEXATTRIBPOINTERPROC);
         INIT_OPENGL_FUNCTION(glEnableVertexAttribArray, PFNGLENABLEVERTEXATTRIBARRAYPROC);
+        INIT_OPENGL_FUNCTION(glDisableVertexAttribArray, PFNGLDISABLEVERTEXATTRIBARRAYPROC);
         INIT_OPENGL_FUNCTION(glDeleteVertexArrays, PFNGLDELETEVERTEXARRAYSPROC);
 
         INIT_OPENGL_FUNCTION(glActiveTexture, PFNGLACTIVETEXTUREPROC);
@@ -171,6 +226,20 @@ private:
         INIT_OPENGL_FUNCTION(glUniform2uiv, PFNGLUNIFORM2UIVPROC);
         INIT_OPENGL_FUNCTION(glUniform3uiv, PFNGLUNIFORM3UIVPROC);
         INIT_OPENGL_FUNCTION(glUniform4uiv, PFNGLUNIFORM4UIVPROC);
+
+        // Version 3.1
+        INIT_OPENGL_FUNCTION(glDrawArraysInstanced, PFNGLDRAWARRAYSINSTANCEDPROC);
+        INIT_OPENGL_FUNCTION(glDrawElementsInstanced, PFNGLDRAWELEMENTSINSTANCEDPROC);
+        INIT_OPENGL_FUNCTION(glTexBuffer, PFNGLTEXBUFFERPROC);
+        INIT_OPENGL_FUNCTION(glPrimitiveRestartIndex, PFNGLPRIMITIVERESTARTINDEXPROC);
+        INIT_OPENGL_FUNCTION(glCopyBufferSubData, PFNGLCOPYBUFFERSUBDATAPROC);
+        INIT_OPENGL_FUNCTION(glGetUniformIndices, PFNGLGETUNIFORMINDICESPROC);
+        INIT_OPENGL_FUNCTION(glGetActiveUniformsiv, PFNGLGETACTIVEUNIFORMSIVPROC);
+        INIT_OPENGL_FUNCTION(glGetActiveUniformName, PFNGLGETACTIVEUNIFORMNAMEPROC);
+        INIT_OPENGL_FUNCTION(glGetUniformBlockIndex, PFNGLGETUNIFORMBLOCKINDEXPROC);
+        INIT_OPENGL_FUNCTION(glGetActiveUniformBlockiv, PFNGLGETACTIVEUNIFORMBLOCKIVPROC);
+        INIT_OPENGL_FUNCTION(glUniformBlockBinding, PFNGLUNIFORMBLOCKBINDINGPROC);
+        INIT_OPENGL_FUNCTION(glGetActiveUniformBlockName, PFNGLGETACTIVEUNIFORMBLOCKNAMEPROC);
 
         // Version 4.0
         INIT_OPENGL_FUNCTION_OPT(glMinSampleShading, PFNGLMINSAMPLESHADINGPROC);
@@ -232,14 +301,67 @@ public:
 	COpenGLExtensions(COpenGLExtensions const&) = delete;
 	void operator=(COpenGLExtensions const&) = delete;
 
+    // Version 1.4
+    void glBlendFuncSeparate(GLenum sfactorRGB, GLenum dfactorRGB, GLenum sfactorAlpha, GLenum dfactorAlpha) { m_glBlendFuncSeparate(sfactorRGB, dfactorRGB, sfactorAlpha, dfactorAlpha); }
+    void glMultiDrawArrays(GLenum mode, const GLint *first, const GLsizei *count, GLsizei drawcount) { m_glMultiDrawArrays(mode, first, count, drawcount); }
+    void glMultiDrawElements(GLenum mode, const GLsizei *count, GLenum type, const void *const*indices, GLsizei drawcount) { m_glMultiDrawElements(mode, count, type, indices, drawcount); }
+    void glPointParameterf(GLenum pname, GLfloat param) { m_glPointParameterf(pname, param); }
+    void glPointParameterfv(GLenum pname, const GLfloat *params) { m_glPointParameterfv(pname, params); }
+    void glPointParameteri(GLenum pname, GLint param) { m_glPointParameteri(pname, param); }
+    void glPointParameteriv(GLenum pname, const GLint *params) { m_glPointParameteriv(pname, params); }
+    void glFogCoordf(GLfloat coord) { m_glFogCoordf(coord); }
+    void glFogCoordfv(const GLfloat *coord) { m_glFogCoordfv(coord); }
+    void glFogCoordd(GLdouble coord) { m_glFogCoordd(coord); }
+    void glFogCoorddv(const GLdouble *coord) { m_glFogCoorddv(coord); }
+    void glFogCoordPointer(GLenum type, GLsizei stride, const void *pointer) { m_glFogCoordPointer(type, stride, pointer); }
+    void glSecondaryColor3b(GLbyte red, GLbyte green, GLbyte blue) { m_glSecondaryColor3b(red, green, blue); }
+    void glSecondaryColor3bv(const GLbyte *v) { m_glSecondaryColor3bv(v); }
+    void glSecondaryColor3d(GLdouble red, GLdouble green, GLdouble blue) { m_glSecondaryColor3d(red, green, blue); }
+    void glSecondaryColor3dv(const GLdouble *v) { m_glSecondaryColor3dv(v); }
+    void glSecondaryColor3f(GLfloat red, GLfloat green, GLfloat blue) { m_glSecondaryColor3f(red, green, blue); }
+    void glSecondaryColor3fv(const GLfloat *v) { m_glSecondaryColor3fv(v); }
+    void glSecondaryColor3i(GLint red, GLint green, GLint blue) { m_glSecondaryColor3i(red, green, blue); }
+    void glSecondaryColor3iv(const GLint *v) { m_glSecondaryColor3iv(v); }
+    void glSecondaryColor3s(GLshort red, GLshort green, GLshort blue) { m_glSecondaryColor3s(red, green, blue); }
+    void glSecondaryColor3sv(const GLshort *v) { m_glSecondaryColor3sv(v); }
+    void glSecondaryColor3ub(GLubyte red, GLubyte green, GLubyte blue) { m_glSecondaryColor3ub(red, green, blue); }
+    void glSecondaryColor3ubv(const GLubyte *v) { m_glSecondaryColor3ubv(v); }
+    void glSecondaryColor3ui(GLuint red, GLuint green, GLuint blue) { m_glSecondaryColor3ui(red, green, blue); }
+    void glSecondaryColor3uiv(const GLuint *v) { m_glSecondaryColor3uiv(v); }
+    void glSecondaryColor3us(GLushort red, GLushort green, GLushort blue) { m_glSecondaryColor3us(red, green, blue); }
+    void glSecondaryColor3usv(const GLushort *v) { m_glSecondaryColor3usv(v); }
+    void glSecondaryColorPointer(GLint size, GLenum type, GLsizei stride, const void *pointer) { m_glSecondaryColorPointer(size, type, stride, pointer); }
+    void glWindowPos2d(GLdouble x, GLdouble y) { m_glWindowPos2d(x, y); }
+    void glWindowPos2dv(const GLdouble *v) { m_glWindowPos2dv(v); }
+    void glWindowPos2f(GLfloat x, GLfloat y) { m_glWindowPos2f(x, y); }
+    void glWindowPos2fv(const GLfloat *v) { m_glWindowPos2fv(v); }
+    void glWindowPos2i(GLint x, GLint y) { m_glWindowPos2i(x, y); }
+    void glWindowPos2iv(const GLint *v) { m_glWindowPos2iv(v); }
+    void glWindowPos2s(GLshort x, GLshort y) { m_glWindowPos2s(x, y); }
+    void glWindowPos2sv(const GLshort *v) { m_glWindowPos2sv(v); }
+    void glWindowPos3d(GLdouble x, GLdouble y, GLdouble z) { m_glWindowPos3d(x, y, z); }
+    void glWindowPos3dv(const GLdouble *v) { m_glWindowPos3dv(v); }
+    void glWindowPos3f(GLfloat x, GLfloat y, GLfloat z) { m_glWindowPos3f(x, y, z); }
+    void glWindowPos3fv(const GLfloat *v) { m_glWindowPos3fv(v); }
+    void glWindowPos3i(GLint x, GLint y, GLint z) { m_glWindowPos3i(x, y, z); }
+    void glWindowPos3iv(const GLint *v) { m_glWindowPos3iv(v); }
+    void glWindowPos3s(GLshort x, GLshort y, GLshort z) { m_glWindowPos3s(x, y, z); }
+    void glWindowPos3sv(const GLshort *v) { m_glWindowPos3sv(v); }
+    void glBlendColor(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha) { m_glBlendColor(red, green, blue, alpha); }
+    void glBlendEquation(GLenum mode) { m_glBlendEquation(mode); }
+
     // Version 2.0
     void glGenBuffers(GLsizei n, GLuint *buffers) { m_glGenBuffers(n, buffers); }
     void glBindBuffer(GLenum target, GLuint buffer) { m_glBindBuffer(target, buffer); }
     void glDrawBuffers(GLsizei n, const GLenum *bufs) { m_glDrawBuffers(n, bufs); }
     void glBufferData(GLenum target, GLsizeiptr size, const void *data, GLenum usage) { m_glBufferData(target, size, data, usage); }
     void glDeleteBuffers(GLsizei n, const GLuint *buffers) { m_glDeleteBuffers(n, buffers); }
+    void glBindAttribLocation(GLuint program, GLuint index, const GLchar *name) { m_glBindAttribLocation(program, index, name); }
 
     // Version 3.0
+    void glStencilOpSeparate(GLenum face, GLenum sfail, GLenum dpfail, GLenum dppass) { m_glStencilOpSeparate(face, sfail, dpfail, dppass); }
+    void glBindBufferRange(GLenum target, GLuint index, GLuint buffer, GLintptr offset, GLsizeiptr size) { m_glBindBufferRange(target, index, buffer, offset, size); }
+    void glGenerateMipmap(GLenum target) { m_glGenerateMipmap(target); }
     void glGenFramebuffers(GLsizei n, GLuint *framebuffers) { m_glGenFramebuffers(n, framebuffers); }
     void glBindFramebuffer(GLenum target, GLuint framebuffer) { m_glBindFramebuffer(target, framebuffer); }
     void glFramebufferTexture2D(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level) { m_glFramebufferTexture2D(target, attachment, textarget, texture, level); }
@@ -249,8 +371,8 @@ public:
     void glBindVertexArray(GLuint array) { m_glBindVertexArray(array); }
     void glVertexAttribPointer(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void *pointer) { m_glVertexAttribPointer(index, size, type, normalized, stride, pointer); }
     void glEnableVertexAttribArray(GLuint index) { m_glEnableVertexAttribArray(index); }
+    void glDisableVertexAttribArray(GLuint index) { m_glDisableVertexAttribArray(index); }
     void glDeleteVertexArrays(GLsizei n, const GLuint *arrays) { m_glDeleteVertexArrays(n, arrays); }
-
     void glActiveTexture(GLenum texture) { m_glActiveTexture(texture); }
 
     GLuint glCreateProgram(void) { return m_glCreateProgram(); }
@@ -358,6 +480,20 @@ public:
     void glUniformMatrix3fv(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value) { m_glUniformMatrix3fv(location, count, transpose, value); }
     void glUniformMatrix4fv(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value) { m_glUniformMatrix4fv(location, count, transpose, value); }
 
+    // Version 3.1
+    void glDrawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsizei instancecount) { m_glDrawArraysInstanced(mode, first, count, instancecount); }
+    void glDrawElementsInstanced(GLenum mode, GLsizei count, GLenum type, const void *indices, GLsizei instancecount) { m_glDrawElementsInstanced(mode, count, type, indices, instancecount); }
+    void glTexBuffer(GLenum target, GLenum internalformat, GLuint buffer) { m_glTexBuffer(target, internalformat, buffer); }
+    void glPrimitiveRestartIndex(GLuint index) { m_glPrimitiveRestartIndex(index); }
+    void glCopyBufferSubData(GLenum readTarget, GLenum writeTarget, GLintptr readOffset, GLintptr writeOffset, GLsizeiptr size) { m_glCopyBufferSubData(readTarget, writeTarget, readOffset, writeOffset, size); }
+    void glGetUniformIndices(GLuint program, GLsizei uniformCount, const GLchar *const*uniformNames, GLuint *uniformIndices) { m_glGetUniformIndices(program, uniformCount, uniformNames, uniformIndices); }
+    void glGetActiveUniformsiv(GLuint program, GLsizei uniformCount, const GLuint *uniformIndices, GLenum pname, GLint *params) { m_glGetActiveUniformsiv(program, uniformCount, uniformIndices, pname, params); }
+    void glGetActiveUniformName(GLuint program, GLuint uniformIndex, GLsizei bufSize, GLsizei *length, GLchar *uniformName) { m_glGetActiveUniformName(program, uniformIndex, bufSize, length, uniformName); }
+    GLuint glGetUniformBlockIndex(GLuint program, const GLchar *uniformBlockName) { return m_glGetUniformBlockIndex(program, uniformBlockName); }
+    void glGetActiveUniformBlockiv(GLuint program, GLuint uniformBlockIndex, GLenum pname, GLint *params) { m_glGetActiveUniformBlockiv(program, uniformBlockIndex, pname, params); }
+    void glGetActiveUniformBlockName(GLuint program, GLuint uniformBlockIndex, GLsizei bufSize, GLsizei *length, GLchar *uniformBlockName) { m_glGetActiveUniformBlockName(program, uniformBlockIndex, bufSize, length, uniformBlockName); }
+    void glUniformBlockBinding(GLuint program, GLuint uniformBlockIndex, GLuint uniformBlockBinding) { m_glUniformBlockBinding(program, uniformBlockIndex, uniformBlockBinding); }
+
     // Version 4.0
     void glMinSampleShading(GLfloat value) { m_glMinSampleShading(value); }
     void glBlendEquationi(GLuint buf, GLenum mode) { m_glBlendEquationi(buf, mode); }
@@ -409,14 +545,67 @@ public:
 private:
 #define DEFINE_OPENGL_FUNCTION(Function, Prototype) Prototype m_##Function
 
+    // Version 1.4
+    DEFINE_OPENGL_FUNCTION(glBlendFuncSeparate, PFNGLBLENDFUNCSEPARATEPROC);
+    DEFINE_OPENGL_FUNCTION(glMultiDrawArrays, PFNGLMULTIDRAWARRAYSPROC);
+    DEFINE_OPENGL_FUNCTION(glMultiDrawElements, PFNGLMULTIDRAWELEMENTSPROC);
+    DEFINE_OPENGL_FUNCTION(glPointParameterf, PFNGLPOINTPARAMETERFPROC);
+    DEFINE_OPENGL_FUNCTION(glPointParameterfv, PFNGLPOINTPARAMETERFVPROC);
+    DEFINE_OPENGL_FUNCTION(glPointParameteri, PFNGLPOINTPARAMETERIPROC);
+    DEFINE_OPENGL_FUNCTION(glPointParameteriv, PFNGLPOINTPARAMETERIVPROC);
+    DEFINE_OPENGL_FUNCTION(glFogCoordf, PFNGLFOGCOORDFPROC);
+    DEFINE_OPENGL_FUNCTION(glFogCoordfv, PFNGLFOGCOORDFVPROC);
+    DEFINE_OPENGL_FUNCTION(glFogCoordd, PFNGLFOGCOORDDPROC);
+    DEFINE_OPENGL_FUNCTION(glFogCoorddv, PFNGLFOGCOORDDVPROC);
+    DEFINE_OPENGL_FUNCTION(glFogCoordPointer, PFNGLFOGCOORDPOINTERPROC);
+    DEFINE_OPENGL_FUNCTION(glSecondaryColor3b, PFNGLSECONDARYCOLOR3BPROC);
+    DEFINE_OPENGL_FUNCTION(glSecondaryColor3bv, PFNGLSECONDARYCOLOR3BVPROC);
+    DEFINE_OPENGL_FUNCTION(glSecondaryColor3d, PFNGLSECONDARYCOLOR3DPROC);
+    DEFINE_OPENGL_FUNCTION(glSecondaryColor3dv, PFNGLSECONDARYCOLOR3DVPROC);
+    DEFINE_OPENGL_FUNCTION(glSecondaryColor3f, PFNGLSECONDARYCOLOR3FPROC);
+    DEFINE_OPENGL_FUNCTION(glSecondaryColor3fv, PFNGLSECONDARYCOLOR3FVPROC);
+    DEFINE_OPENGL_FUNCTION(glSecondaryColor3i, PFNGLSECONDARYCOLOR3IPROC);
+    DEFINE_OPENGL_FUNCTION(glSecondaryColor3iv, PFNGLSECONDARYCOLOR3IVPROC);
+    DEFINE_OPENGL_FUNCTION(glSecondaryColor3s, PFNGLSECONDARYCOLOR3SPROC);
+    DEFINE_OPENGL_FUNCTION(glSecondaryColor3sv, PFNGLSECONDARYCOLOR3SVPROC);
+    DEFINE_OPENGL_FUNCTION(glSecondaryColor3ub, PFNGLSECONDARYCOLOR3UBPROC);
+    DEFINE_OPENGL_FUNCTION(glSecondaryColor3ubv, PFNGLSECONDARYCOLOR3UBVPROC);
+    DEFINE_OPENGL_FUNCTION(glSecondaryColor3ui, PFNGLSECONDARYCOLOR3UIPROC);
+    DEFINE_OPENGL_FUNCTION(glSecondaryColor3uiv, PFNGLSECONDARYCOLOR3UIVPROC);
+    DEFINE_OPENGL_FUNCTION(glSecondaryColor3us, PFNGLSECONDARYCOLOR3USPROC);
+    DEFINE_OPENGL_FUNCTION(glSecondaryColor3usv, PFNGLSECONDARYCOLOR3USVPROC);
+    DEFINE_OPENGL_FUNCTION(glSecondaryColorPointer, PFNGLSECONDARYCOLORPOINTERPROC);
+    DEFINE_OPENGL_FUNCTION(glWindowPos2d, PFNGLWINDOWPOS2DPROC);
+    DEFINE_OPENGL_FUNCTION(glWindowPos2dv, PFNGLWINDOWPOS2DVPROC);
+    DEFINE_OPENGL_FUNCTION(glWindowPos2f, PFNGLWINDOWPOS2FPROC);
+    DEFINE_OPENGL_FUNCTION(glWindowPos2fv, PFNGLWINDOWPOS2FVPROC);
+    DEFINE_OPENGL_FUNCTION(glWindowPos2i, PFNGLWINDOWPOS2IPROC);
+    DEFINE_OPENGL_FUNCTION(glWindowPos2iv, PFNGLWINDOWPOS2IVPROC);
+    DEFINE_OPENGL_FUNCTION(glWindowPos2s, PFNGLWINDOWPOS2SPROC);
+    DEFINE_OPENGL_FUNCTION(glWindowPos2sv, PFNGLWINDOWPOS2SVPROC);
+    DEFINE_OPENGL_FUNCTION(glWindowPos3d, PFNGLWINDOWPOS3DPROC);
+    DEFINE_OPENGL_FUNCTION(glWindowPos3dv, PFNGLWINDOWPOS3DVPROC);
+    DEFINE_OPENGL_FUNCTION(glWindowPos3f, PFNGLWINDOWPOS3FPROC);
+    DEFINE_OPENGL_FUNCTION(glWindowPos3fv, PFNGLWINDOWPOS3FVPROC);
+    DEFINE_OPENGL_FUNCTION(glWindowPos3i, PFNGLWINDOWPOS3IPROC);
+    DEFINE_OPENGL_FUNCTION(glWindowPos3iv, PFNGLWINDOWPOS3IVPROC);
+    DEFINE_OPENGL_FUNCTION(glWindowPos3s, PFNGLWINDOWPOS3SPROC);
+    DEFINE_OPENGL_FUNCTION(glWindowPos3sv, PFNGLWINDOWPOS3SVPROC);
+    DEFINE_OPENGL_FUNCTION(glBlendColor, PFNGLBLENDCOLORPROC);
+    DEFINE_OPENGL_FUNCTION(glBlendEquation, PFNGLBLENDEQUATIONPROC);
+
     // Version 2.0
     DEFINE_OPENGL_FUNCTION(glGenBuffers, PFNGLGENBUFFERSPROC);
     DEFINE_OPENGL_FUNCTION(glBindBuffer, PFNGLBINDBUFFERPROC);
     DEFINE_OPENGL_FUNCTION(glDrawBuffers, PFNGLDRAWBUFFERSPROC);
     DEFINE_OPENGL_FUNCTION(glBufferData, PFNGLBUFFERDATAPROC);
     DEFINE_OPENGL_FUNCTION(glDeleteBuffers, PFNGLDELETEBUFFERSPROC);
+    DEFINE_OPENGL_FUNCTION(glBindAttribLocation, PFNGLBINDATTRIBLOCATIONPROC);
 
     // Version 3.0
+    DEFINE_OPENGL_FUNCTION(glStencilOpSeparate, PFNGLSTENCILOPSEPARATEPROC);
+    DEFINE_OPENGL_FUNCTION(glBindBufferRange, PFNGLBINDBUFFERRANGEPROC);
+    DEFINE_OPENGL_FUNCTION(glGenerateMipmap, PFNGLGENERATEMIPMAPPROC);
     DEFINE_OPENGL_FUNCTION(glCheckFramebufferStatus, PFNGLCHECKFRAMEBUFFERSTATUSPROC);
     DEFINE_OPENGL_FUNCTION(glGenFramebuffers, PFNGLGENRENDERBUFFERSEXTPROC);
     DEFINE_OPENGL_FUNCTION(glBindFramebuffer, PFNGLBINDFRAMEBUFFEREXTPROC);
@@ -426,6 +615,7 @@ private:
     DEFINE_OPENGL_FUNCTION(glBindVertexArray, PFNGLBINDVERTEXARRAYPROC);
     DEFINE_OPENGL_FUNCTION(glVertexAttribPointer, PFNGLVERTEXATTRIBPOINTERPROC);
     DEFINE_OPENGL_FUNCTION(glEnableVertexAttribArray, PFNGLENABLEVERTEXATTRIBARRAYPROC);
+    DEFINE_OPENGL_FUNCTION(glDisableVertexAttribArray, PFNGLDISABLEVERTEXATTRIBARRAYPROC);
     DEFINE_OPENGL_FUNCTION(glDeleteVertexArrays, PFNGLDELETEVERTEXARRAYSPROC);
 
     DEFINE_OPENGL_FUNCTION(glActiveTexture, PFNGLACTIVETEXTUREPROC);
@@ -534,6 +724,20 @@ private:
     DEFINE_OPENGL_FUNCTION(glUniformMatrix2fv, PFNGLUNIFORMMATRIX2FVPROC);
     DEFINE_OPENGL_FUNCTION(glUniformMatrix3fv, PFNGLUNIFORMMATRIX3FVPROC);
     DEFINE_OPENGL_FUNCTION(glUniformMatrix4fv, PFNGLUNIFORMMATRIX4FVPROC);
+
+    // Version 3.1
+    DEFINE_OPENGL_FUNCTION(glDrawArraysInstanced, PFNGLDRAWARRAYSINSTANCEDPROC);
+    DEFINE_OPENGL_FUNCTION(glDrawElementsInstanced, PFNGLDRAWELEMENTSINSTANCEDPROC);
+    DEFINE_OPENGL_FUNCTION(glTexBuffer, PFNGLTEXBUFFERPROC);
+    DEFINE_OPENGL_FUNCTION(glPrimitiveRestartIndex, PFNGLPRIMITIVERESTARTINDEXPROC);
+    DEFINE_OPENGL_FUNCTION(glCopyBufferSubData, PFNGLCOPYBUFFERSUBDATAPROC);
+    DEFINE_OPENGL_FUNCTION(glGetUniformIndices, PFNGLGETUNIFORMINDICESPROC);
+    DEFINE_OPENGL_FUNCTION(glGetActiveUniformsiv, PFNGLGETACTIVEUNIFORMSIVPROC);
+    DEFINE_OPENGL_FUNCTION(glGetActiveUniformName, PFNGLGETACTIVEUNIFORMNAMEPROC);
+    DEFINE_OPENGL_FUNCTION(glGetUniformBlockIndex, PFNGLGETUNIFORMBLOCKINDEXPROC);
+    DEFINE_OPENGL_FUNCTION(glGetActiveUniformBlockiv, PFNGLGETACTIVEUNIFORMBLOCKIVPROC);
+    DEFINE_OPENGL_FUNCTION(glUniformBlockBinding, PFNGLUNIFORMBLOCKBINDINGPROC);
+    DEFINE_OPENGL_FUNCTION(glGetActiveUniformBlockName, PFNGLGETACTIVEUNIFORMBLOCKNAMEPROC);
 
     // Version 4.0
     DEFINE_OPENGL_FUNCTION(glMinSampleShading, PFNGLMINSAMPLESHADINGPROC);

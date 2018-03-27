@@ -22,9 +22,18 @@
 #pragma once
 
 /* Includes
+ * - OpenGL */
+#include <GL/gl.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
+/* Includes
  * - System */
-#include "graphics/opengl/opengl_exts.hpp"
 #include "graphics/display.hpp"
+#include "backend/nanovg.h"
+
+class CEntity;
 
 class CVEightEngine {
 public:
@@ -43,14 +52,23 @@ public:
 	void operator=(CVEightEngine const&) = delete;
 
     void Initialize(CDisplay *Screen);
+    void SetRootEntity(CEntity *Entity);
+
+    void Update(size_t MilliSeconds);
     void Render();
 
     // Utilities
     float ClampToScreenAxisX(int Value);
     float ClampToScreenAxisY(int Value);
+    float ClampMagnitudeToScreenAxisX(int Value);
+    float ClampMagnitudeToScreenAxisY(int Value);
+    NVGcontext *GetContext() const;
 
 private:
     CDisplay*   m_Screen;
+    CEntity*    m_RootEntity;
+    float       m_PixelRatio;
+    NVGcontext* m_VgContext; 
 };
 
 // Shorthand for the vioarr

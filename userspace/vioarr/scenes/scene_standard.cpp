@@ -16,26 +16,27 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - Vioarr Engine System (V8)
- *  - The Vioarr V8 Graphics Engine.
+ * MollenOS - Vioarr Window Compositor System
+ *  - The window compositor system and general window manager for
+ *    MollenOS.
  */
-#pragma once
-#include "component.hpp"
 
-class CRectangle : public CComponent {
-public:
-    CRectangle(int X, int Y, int Width, int Height, bool Textured);
-    CRectangle(float ClampX, float ClampY, float ClampWidth, float ClampHeigth, bool Textured);
-    ~CRectangle();
+#include "../engine/veightengine.hpp"
+#include "../engine/elements/sprite.hpp"
+#include "../engine/elements/window.hpp"
+#include "vioarr.hpp"
 
-    void Bind();
-    void Draw();
-    void Unbind();
+CEntity *VioarrCompositor::CreateStandardScene()
+{
+    // Create a new root instance
+    CSprite *Background = new CSprite(sEngine.GetContext(), "$sys/themes/default/gfxbg.png", _Display->GetWidth(), _Display->GetHeight());
 
-private:
-    float*          m_Vertices;
-    unsigned int    m_Indices[6];
-    unsigned int    m_VertexBuffer;
-    unsigned int    m_ArrayBuffer;
-    unsigned int    m_ElementBuffer;
-};
+    // Create user interface
+
+    // Spawn test window
+    CWindow *Test = new CWindow(Background, sEngine.GetContext(), "Test", 450, 300);
+    Test->Move(200, 200, 0);
+
+    // Done
+    return Background;
+}

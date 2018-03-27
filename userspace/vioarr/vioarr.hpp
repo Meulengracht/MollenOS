@@ -38,10 +38,6 @@
 #define DISPLAY_TYPE() CDisplayFramebuffer()
 #endif
 #include "engine/veightengine.hpp"
-#include "screens/screen_login.hpp"
-#include "screens/screen.hpp"
-
-#include "input/input_handler.hpp"
 #include "utils/log_manager.hpp"
 
 class CVioarrEvent {
@@ -56,17 +52,6 @@ public:
     EVioarrEventType GetType() { return _Type; }
 private:
     EVioarrEventType _Type;
-};
-
-class CVioarrScreenChangeEvent : public CVioarrEvent {
-public:
-    CVioarrScreenChangeEvent(CScreenManager::EScreenType Type) 
-        : CVioarrEvent(CVioarrEvent::EventScreenChange) {
-        _ScreenType = Type;
-    }
-    CScreenManager::EScreenType GetType() { return _ScreenType; }
-private:
-    CScreenManager::EScreenType _ScreenType;
 };
 
 class VioarrCompositor {
@@ -106,15 +91,11 @@ public:
         // Initialize V8 Engine
         sLog.Info("Initializing V8");
         sEngine.Initialize(_Display);
+        sEngine.SetRootEntity(CreateStandardScene());
+
+        // Initial render
+        sEngine.Update(0);
         sEngine.Render();
-
-        // Create the available screens
-        //sLog.Info("Creating available screens");
-        //_ScreenManager = new CScreenManager();
-        //_ScreenManager->RegisterScreen(new CLoginScreen(_Display), CScreenManager::ScreenLogin);
-
-        // Set available screen
-        //_ScreenManager->SetActiveScreen(CScreenManager::ScreenLogin, true);
 
         // Enter event loop
         while (_IsRunning) {
@@ -127,8 +108,6 @@ public:
             }
             switch (Event->GetType()) {
                 case CVioarrEvent::EventScreenChange: {
-                    CVioarrScreenChangeEvent *ScreenChangeEvent = (CVioarrScreenChangeEvent*)Event;
-                    _ScreenManager->SetActiveScreen(ScreenChangeEvent->GetType(), true);
                 } break;
             }
             delete Event;
@@ -146,9 +125,9 @@ public:
 private:
     // Functions
     void SpawnMessageHandler();
+    CEntity* CreateStandardScene();
 
     // Resources
-    CScreenManager*             _ScreenManager;
     CDisplay*                   _Display;
     std::thread*                _MessageThread;
     std::condition_variable     _EventSignal;

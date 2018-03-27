@@ -16,3 +16,9 @@
 [submodule "librt/libclang"]
 	path = librt/libclang
 	url = https://github.com/Meulengracht/compiler-rt
+[submodule "userspace/glm"]
+	path = userspace/glm
+	url = https://github.com/Meulengracht/glm.git
+[submodule "userspace/nanovg"]
+	path = userspace/nanovg
+	url = https://github.com/Meulengracht/nanovg

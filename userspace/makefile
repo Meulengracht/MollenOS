@@ -13,7 +13,7 @@ all: bin copy_headers copy_libraries build_zlib build_libpng build_libfreetype b
 
 # Build userspace applications, the order might be important.
 .PHONY: applications
-applications: build_llvm build_mesa build_vioarr_osmesa
+applications: build_llvm build_mesa build_glm build_vioarr_osmesa
 
 bin:
 	@mkdir -p $@
@@ -79,6 +79,12 @@ build_llvm:
 .PHONY: build_mesa
 build_mesa:
 	cd mesa && make && make install
+
+.PHONY: build_glm
+build_glm:
+	@printf "%b" "\033[1;35mInstalling GLM\033[m\n"
+	@cp -r glm/glm/. $(INCLUDES)/glm
+	@rm $(INCLUDES)/glm/CMakeLists.txt
 
 .PHONY: build_vioarr_osmesa
 build_vioarr_osmesa:

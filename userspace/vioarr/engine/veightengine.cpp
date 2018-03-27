@@ -20,20 +20,28 @@
  *  - The Vioarr V8 Graphics Engine.
  */
 
-#include "components/rectangle.hpp"
-#include "programs/program_color.hpp"
-#include "veightengine.hpp"
+/* Includes
+ * - System */
 #include "utils/log_manager.hpp"
+#include "veightengine.hpp"
+#include "entity.hpp"
+#include <algorithm>
+
+#define NANOVG_GL3_IMPLEMENTATION
+#define GL_VIOARR_LOADER
+#include "../graphics/opengl/opengl_exts.hpp"
+#include "backend/nanovg_gl.h"
 
 CVEightEngine::CVEightEngine()
 {
     // Null members
-    m_Screen = nullptr;
+    m_Screen        = nullptr;
+    m_RootEntity    = nullptr;
+    m_VgContext     = nullptr;
 }
 
-CVEightEngine::~CVEightEngine()
-{
-
+CVEightEngine::~CVEightEngine() {
+    nvgDeleteGL3(m_VgContext);
 }
 
 void CVEightEngine::Initialize(CDisplay *Screen) {
@@ -41,46 +49,75 @@ void CVEightEngine::Initialize(CDisplay *Screen) {
 
     // Initialize the viewport
     glViewport(0, 0, Screen->GetWidth(), Screen->GetHeight());
+    m_PixelRatio = (float)Screen->GetWidth() / (float)Screen->GetHeight();
+#ifdef QUALITY_MSAA
+	m_VgContext = nvgCreateGL3(NVG_STENCIL_STROKES | NVG_DEBUG);
+#else
+	m_VgContext = nvgCreateGL3(NVG_ANTIALIAS | NVG_STENCIL_STROKES | NVG_DEBUG);
+#endif
+    assert(m_VgContext != nullptr);
+}
+
+void CVEightEngine::SetRootEntity(CEntity *Entity) {
+    m_RootEntity = Entity;
+}
+
+void CVEightEngine::Update(size_t MilliSeconds) {
+    if (m_RootEntity != nullptr) {
+        m_RootEntity->PreProcess(MilliSeconds);
+    }
 }
 
 void CVEightEngine::Render()
 {
-    // Create a rectangle and the standard color program
-    CColorProgram Program;
-    CRectangle Rect(-0.5f, -0.5f, 1.0f, 1.0f, false);
-
     // Initialize screen
     glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     
-    // Use our shader program when we want to render an object
-    Program.Use();
-    Program.SetColor(0.9f, 0.1f, 0.5f, 1.0f);
-    Rect.Bind();
-    Rect.Draw();
-    Rect.Unbind();
-    Program.Unuse();
-
-    // Present
+    nvgBeginFrame(m_VgContext, m_Screen->GetWidth(), m_Screen->GetHeight(), m_PixelRatio);
+    if (m_RootEntity != nullptr) {
+        m_RootEntity->Render(m_VgContext);
+    }
+    nvgEndFrame(m_VgContext);
+    
     glFinish();
     m_Screen->Present();
-
-    // don't leave
-    for(;;);
 }
 
 // ClampToScreenAxisX
 // Clamps the given value to screen coordinates on the X axis
+// to the range of -1:1
 float CVEightEngine::ClampToScreenAxisX(int Value)
 {
-    float ClampedValue = (float)Value / (float)m_Screen->GetWidth();
-    return (ClampedValue * 2) - 1.0f;
+    // Unsigned: Value/MaxValue
+    // Signed:   max((Value/MaxValue), -1.0)
+    return std::max<float>(((Value - ((m_Screen->GetWidth() / 2.0f))) / (m_Screen->GetWidth() / 2.0f)), -1.0f);
 }
 
 // ClampToScreenAxisY
 // Clamps the given value to screen coordinates on the Y axis
+// to the range of -1:1
 float CVEightEngine::ClampToScreenAxisY(int Value)
 {
-    float ClampedValue = (float)Value / (float)m_Screen->GetHeight();
-    return (ClampedValue * 2) - 1.0f;
+    // Unsigned: Value/MaxValue
+    // Signed:   max((Value/MaxValue), -1.0)
+    return std::max<float>(((Value - ((m_Screen->GetHeight() / 2.0f))) / (m_Screen->GetHeight() / 2.0f)), -1.0f);
+}
+
+// ClampMagnitudeToScreenAxisX
+// Clamps the given value to screen coordinates on the Y axis
+// to the range of 0:2
+float CVEightEngine::ClampMagnitudeToScreenAxisX(int Value) {
+    return (Value * 2.0f) / (float)m_Screen->GetWidth();
+}
+
+// ClampMagnitudeToScreenAxisY
+// Clamps the given value to screen coordinates on the Y axis
+// to the range of 0:2
+float CVEightEngine::ClampMagnitudeToScreenAxisY(int Value) {
+    return (Value * 2.0f) / (float)m_Screen->GetHeight();
+}
+
+NVGcontext *CVEightEngine::GetContext() const {
+    return m_VgContext;
 }

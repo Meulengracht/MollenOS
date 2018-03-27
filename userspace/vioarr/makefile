@@ -1,26 +1,25 @@
 # Makefile for building a generic userspace application
 ASFLAGS = -f win32 -Xvc
-INCLUDES = -I../include/cxx -I../include -I. -Igraphics -Iscreens
-SHARED_SOURCES = $(wildcard engine/components/textures/*.cpp) \
-				 $(wildcard engine/components/*.cpp) \
-				 $(wildcard engine/programs/*.cpp) \
-				 $(wildcard engine/entity/*.cpp) \
+INCLUDES = -I../include/cxx -I../include -I. -Igraphics
+NVG_SOURCES = engine/backend/nanovg.c
+SHARED_SOURCES = $(wildcard engine/elements/*.cpp) \
 				 $(wildcard engine/*.cpp) \
+				 $(wildcard scenes/*.cpp) \
 				 main.cpp
 
-OSMESA_SOURCES = 
 OSMESA_ASM = graphics/opengl/osmesa/display_osmesa_$(VALI_ARCH).s
-OSMESA_OBJECTS = $(SHARED_SOURCES:.cpp=.o) $(OSMESA_SOURCES:.cpp=.o) $(OSMESA_ASM:.s=.o)
+OSMESA_OBJECTS = $(OSMESA_ASM:.s=.o) $(NVG_SOURCES:.c=.o) $(SHARED_SOURCES:.cpp=.o)
 
 SOFT_SOURCES = 
 SOFT_ASM = graphics/displays/fb/display_framebuffer_$(VALI_ARCH).s
 SOFT_OBJECTS = $(SHARED_SOURCES:.cpp=.o) $(SOFT_SOURCES:.cpp=.o) $(SOFT_ASM:.s=.o)
 
+CFLAGS = $(GUCFLAGS) -DNANOVG_GL3_IMPLEMENTATION -DFONS_USE_FREETYPE $(INCLUDES)
 CXXFLAGS = $(GUCXXFLAGS) $(INCLUDES)
 ifeq ($(MAKECMDGOALS),osmesa)
 	OBJECTS = $(OSMESA_OBJECTS)
 	CXXFLAGS += -D_VIOARR_OSMESA -D_VIOARR_OPENGL -DGL_GLEXT_PROTOTYPES
-	LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtConsoleEntry $(GUCXXLIBRARIES) ../lib/gallium-osmesa.lib ../lib/libpng.lib
+	LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtConsoleEntry $(GUCXXLIBRARIES) ../lib/gallium-osmesa.lib ../lib/libfreetype.lib
 else
 	OBJECTS = $(SOFT_OBJECTS)
 	LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtConsoleEntry $(GUCXXLIBRARIES) ../lib/libpng.lib
@@ -39,6 +38,10 @@ osmesa: all
 %.o : %.cpp
 	@printf "%b" "\033[0;32mCompiling C++ source object " $< "\033[m\n"
 	@$(CC) -c $(CXXFLAGS) -o $@ $<
+
+%.o : %.c
+	@printf "%b" "\033[0;32mCompiling C++ source object " $< "\033[m\n"
+	@$(CC) -c $(CFLAGS) -o $@ $<
 
 %.o : %.s
 	@printf "%b" "\033[0;32mAssembling source object " $< "\033[m\n"
