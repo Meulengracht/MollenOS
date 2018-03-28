@@ -25,7 +25,9 @@ segment .text
 global init_sse
 global init_fpu
 global save_fpu
+global save_fpu_extended
 global load_fpu
+global load_fpu_extended
 global clear_ts
 global set_ts
 global _rdtsc
@@ -71,16 +73,32 @@ _yield:
 	ret 
 
 ; void save_fpu(uintptr_t *buffer)
-; Save MMX and MMX registers
+; Save FPU, MMX and SSE registers
 save_fpu:
 	fxsave [rcx]
-	ret 
+	ret
+
+; void save_fpu_extended(uintptr_t *buffer)
+; Save FPU, MMX, SSE, AVX extended registers
+save_fpu_extended:
+    mov rax, 0xFFFFFFFFFFFFFFFF
+    mov rdx, 0xFFFFFFFFFFFFFFFF
+	xsave [rcx]
+	ret
 
 ; void load_fpu(uintptr_t *buffer)
-; Load MMX and MMX registers
+; Load FPU, MMX and SSE registers
 load_fpu:
 	fxrstor [rcx]
-	ret 
+	ret
+
+; void load_fpu_extended(uintptr_t *buffer)
+; Load FPU, MMX, SSE, AVX extended registers
+load_fpu_extended:
+    mov rax, 0xFFFFFFFFFFFFFFFF
+    mov rdx, 0xFFFFFFFFFFFFFFFF
+	xrstor [rcx]
+	ret
 
 ; void set_ts()
 ; Sets the Task-Switch register
@@ -115,7 +133,7 @@ _rdtsc:
 
 ; void _rdmsr(size_t Register, uint64_t *value)
 ; Gets the CPU model specific register
-__rdmsr:
+_rdmsr:
     push rdx
     rdmsr
     shl rdx, 32

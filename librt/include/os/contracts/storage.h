@@ -120,8 +120,7 @@ StorageRead(
 	Operation.AbsSector     = Sector;
 	Operation.PhysicalBuffer = PhysicalAddress;
 	Operation.SectorCount   = SectorCount;
-
-	/* Query the driver directly */
+    
 	QueryDriver(&Contract, __STORAGE_QUERY_READ,
 		&StorageDeviceId, sizeof(UUId_t), &Operation, sizeof(StorageOperation_t),
 		NULL, 0, &Result, sizeof(OsStatus_t));
@@ -160,7 +159,6 @@ StorageWrite(
 	Operation.PhysicalBuffer = PhysicalAddress;
 	Operation.SectorCount = SectorCount;
 
-	/* Query the driver directly */
 	QueryDriver(&Contract, __STORAGE_QUERY_WRITE,
 		&StorageDevice, sizeof(UUId_t), &Operation, sizeof(StorageOperation_t),
 		NULL, 0, &Result, sizeof(OsStatus_t));

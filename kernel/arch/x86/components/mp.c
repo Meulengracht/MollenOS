@@ -36,7 +36,7 @@
 #define SEARCH_AREA(Start, End)     for(i = (uintptr_t*)Start; (uintptr_t)i < (uintptr_t)End; i++) { \
                                         if(*i == MP_HEADER_MAGIC) { \
                                             memcpy((void*)&MpHeader, (void*)i, sizeof(MpHeader_t)); \
-                                            i = (uintptr_t*)MpHeader.ConfigurationTableAddress; \
+                                            i = (uintptr_t*)(uintptr_t)MpHeader.ConfigurationTableAddress; \
                                             memcpy((void*)&MpConfigurationTable, (void*)i, sizeof(MpConfigurationTable_t)); \
                                             return OsSuccess; \
                                         } \

@@ -26,6 +26,7 @@ extern _MCoreInitialize
 
 ; Publics in this file
 global _kentry
+global _CpuEnableXSave
 global _CpuEnableAvx
 global _CpuEnableSse
 global _CpuEnableFpu
@@ -46,62 +47,43 @@ _kentry:
 
 	;Now call the init function
 	call _MCoreInitialize
-
-	;When we return from here, we just
-	;enter into an idle loop.
 	mov eax, 0x0000DEAD
 
 	.idle:
 		hlt
 		jmp .idle
 
+; Assembly routine to enable xsave support
+_CpuEnableXSave:
+	mov eax, cr4
+	bts eax, 18		; Set Operating System Support for XSave (Bit 18)
+	mov cr4, eax
+
+    ; Initialize control register
+    mov ecx, 0
+    xgetbv     ; Load into EDX:EAX
+    or  eax, 6
+    mov ecx, 0
+    xsetbv
+	ret 
 
 ; Assembly routine to enable avx support
 _CpuEnableAvx:
-	; Save registers
-	push eax
-    push ecx
-    push edx
-
-	; Enable
 	mov eax, cr4
 	bts eax, 14		;Set Operating System Support for Advanced Vector Extensions (Bit 14)
 	mov cr4, eax
-
-    ; Modify the extended control register
-    mov ecx, 0
-    xgetbv     ; Load into EDX:EAX
-    or eax, 6
-    mov ecx, 0
-    xsetbv
-
-	; Restore registers
-    pop edx
-    pop ecx
-	pop eax
 	ret 
 
 ; Assembly routine to enable sse support
 _CpuEnableSse:
-	; Save EAX
-	push eax
-
-	; Enable
 	mov eax, cr4
 	bts eax, 9		;Set Operating System Support for FXSAVE and FXSTOR instructions (Bit 9)
 	bts eax, 10		;Set Operating System Support for Unmasked SIMD Floating-Point Exceptions (Bit 10)
 	mov cr4, eax
-
-	; Restore EAX
-	pop eax
 	ret 
 
 ; Assembly routine to enable fpu support
 _CpuEnableFpu:
-	; Save EAX
-	push eax
-
-	; Enable
 	mov eax, cr0
 	bts eax, 1		;Set Monitor co-processor (Bit 1)
 	btr eax, 2		;Clear Emulation (Bit 2)
@@ -110,7 +92,4 @@ _CpuEnableFpu:
 	mov cr0, eax
 
 	finit
-
-	; Restore
-	pop eax
 	ret 

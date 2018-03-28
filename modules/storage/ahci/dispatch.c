@@ -262,10 +262,10 @@ AhciCommandRegisterFIS(
 		LOBYTE(Command), LODWORD(SectorLBA));
 
 	// Fill out initial information
-	Fis.Type = LOBYTE(FISRegisterH2D);
-	Fis.Flags |= FIS_HOST_TO_DEVICE;
+	Fis.Type    = LOBYTE(FISRegisterH2D);
+	Fis.Flags  |= FIS_HOST_TO_DEVICE;
 	Fis.Command = LOBYTE(Command);
-	Fis.Device = 0x40 | ((LOBYTE(Device) & 0x1) << 4);
+	Fis.Device  = 0x40 | ((LOBYTE(Device) & 0x1) << 4);
 
 	// Handle LBA to CHS translation if disk uses
 	// the CHS scheme
@@ -338,8 +338,7 @@ AhciCommandFinish(
 	_In_ AhciTransaction_t *Transaction)
 {
 	// Variables
-	MRemoteCall_t Rpc;
-	OsStatus_t Status;
+	OsStatus_t Status = OsError;
 
 	// Trace
 	TRACE("AhciCommandFinish()");
@@ -353,11 +352,7 @@ AhciCommandFinish(
 		AhciManagerCreateDeviceCallback(Transaction->Device);
 	}
 	else {
-		// Write the result back to the requester
-		Rpc.From.Process    = Transaction->Requester;
-		Rpc.From.Port       = Transaction->Pipe;
-        Rpc.From.Type       = 0;
-		RPCRespond(&Rpc, &Status, sizeof(OsStatus_t));
+        PipeSend(Transaction->Requester, Transaction->Pipe, (void*)&Status, sizeof(OsStatus_t));
 	}
 	free(Transaction);
 	return Status;

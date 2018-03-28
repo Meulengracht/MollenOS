@@ -35,7 +35,7 @@
 #include <heap.h>
 #include <apic.h>
 #include <gdt.h>
-#include <log.h>
+#include <cpu.h>
 
 /* Includes
  * - Library */
@@ -49,7 +49,9 @@
 __EXTERN size_t GlbTimerQuantum;
 __EXTERN void init_fpu(void);
 __EXTERN void load_fpu(uintptr_t *buffer);
+__EXTERN void load_fpu_extended(uintptr_t *buffer);
 __EXTERN void save_fpu(uintptr_t *buffer);
+__EXTERN void save_fpu_extended(uintptr_t *buffer);
 __EXTERN void set_ts(void);
 __EXTERN void clear_ts(void);
 __EXTERN void _yield(void);
@@ -189,7 +191,12 @@ ThreadingFpuException(
     }
 
     if (!(tData->Flags & X86_THREAD_USEDFPU)) {
-        load_fpu(tData->FpuBuffer);
+        if (CpuHasFeatures(CPUID_FEAT_ECX_XSAVE | CPUID_FEAT_ECX_OSXSAVE, 0) == OsSuccess) {
+            load_fpu_extended(tData->FpuBuffer);
+        }
+        else {
+            load_fpu(tData->FpuBuffer);
+        }
         tData->Flags |= X86_THREAD_USEDFPU;
         return OsSuccess;
     }
@@ -338,7 +345,12 @@ _ThreadingSwitch(
 	// Save FPU/MMX/SSE information if it's
 	// been used, otherwise skip this and save time
 	if (Threadx->Flags & X86_THREAD_USEDFPU) {
-		save_fpu(Threadx->FpuBuffer);
+        if (CpuHasFeatures(CPUID_FEAT_ECX_XSAVE | CPUID_FEAT_ECX_OSXSAVE, 0) == OsSuccess) {
+            save_fpu_extended(Threadx->FpuBuffer);
+        }
+        else {
+            save_fpu(Threadx->FpuBuffer);
+        }
 	}
 
 	// Get a new thread for us to enter

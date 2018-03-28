@@ -25,7 +25,9 @@ segment .text
 global _init_sse
 global _init_fpu
 global _save_fpu
+global _save_fpu_extended
 global _load_fpu
+global _load_fpu_extended
 global _clear_ts
 global _set_ts
 global __rdtsc
@@ -40,46 +42,36 @@ __yield:
 	ret 
 
 ; void save_fpu(uintptr_t *buffer)
-; Save MMX and MMX registers
+; Save FPU, MMX and SSE registers
 _save_fpu:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
-
-	; Save EAX
-	push eax
-
-	; Save FPU to argument 1
-	mov eax, [ebp + 8]
+	mov eax, [esp + 4]
 	fxsave [eax]
+	ret
 
-	; Restore EAX
-	pop eax
-
-	; Release stack frame
-	pop ebp
-	ret 
+; void save_fpu_extended(uintptr_t *buffer)
+; Save FPU, MMX, SSE, AVX extended registers
+_save_fpu_extended:
+    mov eax, 0xFFFFFFFF
+    mov edx, 0xFFFFFFFF
+	mov ecx, [esp + 4]
+	xsave [ecx]
+	ret
 
 ; void load_fpu(uintptr_t *buffer)
-; Load MMX and MMX registers
+; Load FPU, MMX and SSE registers
 _load_fpu:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
-
-	; Save EAX
-	push eax
-
-	; Save FPU to argument 1
-	mov eax, [ebp + 8]
+	mov eax, [esp + 4]
 	fxrstor [eax]
+	ret
 
-	; Restore EAX
-	pop eax
-
-	; Release stack frame
-	pop ebp
-	ret 
+; void load_fpu_extended(uintptr_t *buffer)
+; Load MMX and MMX registers
+_load_fpu_extended:
+    mov eax, 0xFFFFFFFF
+    mov edx, 0xFFFFFFFF
+	mov ecx, [esp + 4]
+	xrstor [ecx]
+	ret
 
 ; void set_ts()
 ; Sets the Task-Switch register

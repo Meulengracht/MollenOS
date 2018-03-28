@@ -1361,6 +1361,19 @@ ScRpcResponse(
             return OsError;
         }
         else if (RemoteCall->Result.Type == ARGUMENT_NOTUSED) {
+            ERROR("RemoteCall: To(%u:%u:%i), From(%u:%u:%i)",
+                RemoteCall->To.Type, RemoteCall->To.Process, RemoteCall->To.Port,
+                RemoteCall->From.Type, RemoteCall->From.Process, RemoteCall->From.Port);
+            ERROR("RemoteCall: Version(%i), Function(%i), DataLength(%u)",
+                RemoteCall->Version, RemoteCall->Function, RemoteCall->DataLength);
+            ERROR("RemoteCall: Arg0(%u:0x%x:%u), Arg0(%u:0x%x:%u), Arg0(%u:0x%x:%u)",
+                RemoteCall->Arguments[0].Type, RemoteCall->Arguments[0].Data.Value, RemoteCall->Arguments[0].Length,
+                RemoteCall->Arguments[1].Type, RemoteCall->Arguments[1].Data.Value, RemoteCall->Arguments[1].Length,
+                RemoteCall->Arguments[2].Type, RemoteCall->Arguments[2].Data.Value, RemoteCall->Arguments[2].Length);
+            ERROR("RemoteCall: Arg0(%u:0x%x:%u), Arg0(%u:0x%x:%u), Result(%u:0x%x:%u)",
+                RemoteCall->Arguments[3].Type, RemoteCall->Arguments[3].Data.Value, RemoteCall->Arguments[3].Length,
+                RemoteCall->Arguments[4].Type, RemoteCall->Arguments[4].Data.Value, RemoteCall->Arguments[4].Length,
+                RemoteCall->Result.Type, RemoteCall->Result.Data.Value, RemoteCall->Result.Length);
             ERROR("No result expected but used result-executer.");
             return OsError;
         }
@@ -1480,8 +1493,8 @@ ScRpcListen(
  * */
 OsStatus_t
 ScRpcRespond(
-    _In_ MRemoteCall_t *RemoteCall,
-    _In_ __CONST void  *Buffer, 
+    _In_ MRemoteCall_t* RemoteCall,
+    _In_ const void*    Buffer, 
     _In_ size_t         Length)
 {
     // Variables
@@ -1509,6 +1522,19 @@ ScRpcRespond(
             return OsError;
         }
         else if (RemoteCall->Result.Type == ARGUMENT_NOTUSED) {
+            ERROR("RemoteCall: To(%u:%u:%i), From(%u:%u:%i)",
+                RemoteCall->To.Type, RemoteCall->To.Process, RemoteCall->To.Port,
+                RemoteCall->From.Type, RemoteCall->From.Process, RemoteCall->From.Port);
+            ERROR("RemoteCall: Version(%i), Function(%i), DataLength(%u)",
+                RemoteCall->Version, RemoteCall->Function, RemoteCall->DataLength);
+            ERROR("RemoteCall: Arg0(%u:0x%x:%u), Arg0(%u:0x%x:%u), Arg0(%u:0x%x:%u)",
+                RemoteCall->Arguments[0].Type, RemoteCall->Arguments[0].Data.Value, RemoteCall->Arguments[0].Length,
+                RemoteCall->Arguments[1].Type, RemoteCall->Arguments[1].Data.Value, RemoteCall->Arguments[1].Length,
+                RemoteCall->Arguments[2].Type, RemoteCall->Arguments[2].Data.Value, RemoteCall->Arguments[2].Length);
+            ERROR("RemoteCall: Arg0(%u:0x%x:%u), Arg0(%u:0x%x:%u), Result(%u:0x%x:%u)",
+                RemoteCall->Arguments[3].Type, RemoteCall->Arguments[3].Data.Value, RemoteCall->Arguments[3].Length,
+                RemoteCall->Arguments[4].Type, RemoteCall->Arguments[4].Data.Value, RemoteCall->Arguments[4].Length,
+                RemoteCall->Result.Type, RemoteCall->Result.Data.Value, RemoteCall->Result.Length);
             ERROR("No result expected but used result-executer.");
             return OsError;
         }

@@ -26,6 +26,7 @@ extern MCoreInitialize
 
 ; Publics in this file
 global kentry
+global CpuEnableXSave
 global CpuEnableAvx
 global CpuEnableSse
 global CpuEnableFpu
@@ -47,71 +48,49 @@ kentry:
 	;Now call the init function
     sub rsp, 0x20
 	call MCoreInitialize
-
-	;When we return from here, we just
-	;enter into an idle loop.
 	mov rax, 0x000000000000DEAD
 
 	.idle:
 		hlt
 		jmp .idle
 
+; Assembly routine to enable xsave support
+CpuEnableXSave:
+    mov rax, cr4
+	bts rax, 18		; Set Operating System Support for XSave (Bit 18)
+	mov cr4, rax
+    
+    ; Set the control register
+    mov rcx, 0
+    xgetbv
+    or  eax, 6
+    mov rcx, 0
+    xsetbv
+    ret
 
 ; Assembly routine to enable avx support
 CpuEnableAvx:
-	; Save registers
-	push rax
-    push rcx
-    push rdx
-
-	; Enable
 	mov rax, cr4
-	bts rax, 14		;Set Operating System Support for Advanced Vector Extensions (Bit 14)
+	bts rax, 14		; Set Operating System Support for Advanced Vector Extensions (Bit 14)
 	mov cr4, rax
-
-    ; Modify the extended control register
-    mov rcx, 0
-    xgetbv     ; Load into RDX:RAX
-    or eax, 6
-    mov rcx, 0
-    xsetbv
-
-	; Restore registers
-    pop rdx
-    pop rcx
-	pop rax
 	ret 
 
 ; Assembly routine to enable sse support
 CpuEnableSse:
-	; Save EAX
-	push rax
-
-	; Enable
 	mov rax, cr4
-	bts rax, 9		;Set Operating System Support for FXSAVE and FXSTOR instructions (Bit 9)
-	bts rax, 10		;Set Operating System Support for Unmasked SIMD Floating-Point Exceptions (Bit 10)
+	bts rax, 9		; Set Operating System Support for FXSAVE and FXSTOR instructions (Bit 9)
+	bts rax, 10		; Set Operating System Support for Unmasked SIMD Floating-Point Exceptions (Bit 10)
 	mov cr4, rax
-
-	; Restore EAX
-	pop rax
 	ret 
 
 ; Assembly routine to enable fpu support
 CpuEnableFpu:
-	; Save EAX
-	push rax
-
-	; Enable
 	mov rax, cr0
-	bts rax, 1		;Set Monitor co-processor (Bit 1)
-	btr rax, 2		;Clear Emulation (Bit 2)
-	bts rax, 5		;Set Native Exception (Bit 5)
-	btr rax, 3		;Clear TS
+	bts rax, 1		; Set Monitor co-processor (Bit 1)
+	btr rax, 2		; Clear Emulation (Bit 2)
+	bts rax, 5		; Set Native Exception (Bit 5)
+	btr rax, 3		; Clear TS
 	mov cr0, rax
 
 	finit
-
-	; Restore
-	pop rax
 	ret

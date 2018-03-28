@@ -110,8 +110,7 @@ OsStatus_t DiskDetectLayout(FileSystemDisk_t *Disk)
 	// In order to detect the schema that is used
 	// for the disk - we can easily just read sector LBA 1
 	// and look for the GPT signature
-	if (StorageRead(Disk->Driver, Disk->Device, 
-		1, GetBufferAddress(Buffer), 1) != OsSuccess) {
+	if (StorageRead(Disk->Driver, Disk->Device, 1, GetBufferAddress(Buffer), 1) != OsSuccess) {
 		DestroyBuffer(Buffer);
 		return OsError;
 	}

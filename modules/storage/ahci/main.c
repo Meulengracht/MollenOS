@@ -218,21 +218,20 @@ OnQuery(_In_ MContractType_t QueryType,
 		// a StorageDescriptor
         case __STORAGE_QUERY_STAT: {
             // Get parameters
-            AhciDevice_t *Device = NULL;
-            UUId_t DiskId = (UUId_t)Arg0->Data.Value;
+            AhciDevice_t *Device    = NULL;
+            UUId_t DiskId           = (UUId_t)Arg0->Data.Value;
+            StorageDescriptor_t     NullDescriptor;
 
             // Lookup device
             Device = AhciManagerGetDevice(DiskId);
-
-            // Write the descriptor back
             if (Device != NULL) {
                 return PipeSend(Queryee, ResponsePort,
                     (void*)&Device->Descriptor, sizeof(StorageDescriptor_t));
             }
             else {
-                OsStatus_t Result = OsError;
+                memset((void*)&NullDescriptor, 0, sizeof(StorageDescriptor_t));
                 return PipeSend(Queryee, ResponsePort,
-                    (void*)&Result, sizeof(OsStatus_t));
+                    (void*)&NullDescriptor, sizeof(StorageDescriptor_t));
             }
 
         } break;

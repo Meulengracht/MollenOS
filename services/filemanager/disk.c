@@ -200,13 +200,10 @@ VfsRegisterDisk(
 	// Allocate a new instance of a disk descriptor 
 	// to store data and store initial data
 	Disk = (FileSystemDisk_t*)malloc(sizeof(FileSystemDisk_t));
-	Disk->Driver = Driver;
-	Disk->Device = Device;
-	Disk->Flags = Flags;
-	Key.Value = (int)Device;
-
-	// Query disk for general device information and 
-	// information about geometry
+	Disk->Driver    = Driver;
+	Disk->Device    = Device;
+	Disk->Flags     = Flags;
+	Key.Value       = (int)Device;
 	if (StorageQuery(Driver, Device, &Disk->Descriptor) != OsSuccess) {
 		free(Disk);
 		return OsError;

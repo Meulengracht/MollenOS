@@ -52,6 +52,7 @@ __EXTERN UUId_t ApicGetCpu(void);
  * These utilities are located in boot.asm */
 __EXTERN void __wbinvd(void);
 __EXTERN void __hlt(void);
+__EXTERN void CpuEnableXSave(void);
 __EXTERN void CpuEnableAvx(void);
 __EXTERN void CpuEnableSse(void);
 __EXTERN void CpuEnableFpu(void);
@@ -87,19 +88,24 @@ CpuInitialize(void)
 	}
 
 	// Can we enable FPU?
-	if (__CpuInformation.EdxFeatures & CPUID_FEAT_EDX_FPU) {
+	if (CpuHasFeatures(0, CPUID_FEAT_EDX_FPU) == OsSuccess) {
 		CpuEnableFpu();
 	}
 
 	// Can we enable SSE?
-	if (__CpuInformation.EdxFeatures & CPUID_FEAT_EDX_SSE) {
+	if (CpuHasFeatures(0, CPUID_FEAT_EDX_SSE) == OsSuccess) {
 		CpuEnableSse();
 	}
-
+    
     // Can we enable AVX?
-	if (__CpuInformation.EcxFeatures & CPUID_FEAT_ECX_AVX) {
+	if (CpuHasFeatures(CPUID_FEAT_ECX_AVX, 0) == OsSuccess) {
 		CpuEnableAvx();
 	}
+
+    // Can we enable XSave?
+    if (CpuHasFeatures(CPUID_FEAT_ECX_XSAVE | CPUID_FEAT_ECX_OSXSAVE, 0) == OsSuccess) {
+        CpuEnableXSave();
+    }
 }
 
 /* CpuHasFeatures

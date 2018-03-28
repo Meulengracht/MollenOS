@@ -39,6 +39,7 @@ ORG 0x0500
 jmp Entry
 
 ; Definitions
+%define         MEMLOCATION_INITIALSTACK        0x7C00
 %define 		MEMLOCATION_BOOTCODE			0x7C00
 %define 		MEMLOCATION_FAT_GETCLUSTER		0x7E00
 %define 		MEMLOCATION_FAT_FATTABLE		0x8000
@@ -94,7 +95,7 @@ Entry:
 
 	; Setup stack
 	mov		ss, ax
-	mov		ax, 0x7BFF
+	mov		ax, MEMLOCATION_INITIALSTACK
 	mov		sp, ax
 	xor 	ax, ax
 
@@ -230,7 +231,7 @@ LeaveProtected:
 
 	; Setup stack
 	mov		ss, ax
-	mov		ax, 0x7BFF
+	mov		ax, MEMLOCATION_INITIALSTACK
 	mov		sp, ax
 	xor 	ax, ax
 
@@ -314,7 +315,7 @@ LoadKernel32:
 	mov 	gs, ax
 	mov 	ss, ax
 	mov 	es, ax
-	mov 	esp, 0x7BFF
+	mov 	esp, MEMLOCATION_INITIALSTACK
 
 	; Unpack kernel
 	mov		esi, MEMLOCATION_FLOAD_LOWER
@@ -354,7 +355,7 @@ Entry32:
 	mov 	gs, ax
 	mov 	ss, ax
 	mov 	es, ax
-	mov 	esp, 0x7BFF
+	mov 	esp, MEMLOCATION_INITIALSTACK
 
 	; Disable ALL irq
 	mov 	al, 0xff

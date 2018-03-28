@@ -120,7 +120,11 @@ RPCSetArgument(
     }
 
     // Determine the type of argument
-    if (Length <= sizeof(size_t)) {
+#if __BITS == 64
+    if (Length <= 8) {
+#elif __BITS == 32
+    if (Length <= 4) {
+#endif
         RemoteCall->Arguments[Index].Type = ARGUMENT_REGISTER;
 
         if (Length == 1) {
@@ -132,9 +136,11 @@ RPCSetArgument(
         else if (Length == 4) {
             RemoteCall->Arguments[Index].Data.Value = *((uint32_t*)Data);
         }
+#if __BITS == 64
         else if (Length == 8) {
-            RemoteCall->Arguments[Index].Data.Value = *((size_t*)Data);
+            RemoteCall->Arguments[Index].Data.Value = *((uint64_t*)Data);
         }
+#endif
     }
     else {
         RemoteCall->Arguments[Index].Type           = ARGUMENT_BUFFER;

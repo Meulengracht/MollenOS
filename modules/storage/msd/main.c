@@ -186,12 +186,13 @@ OnQuery(
         // a StorageDescriptor
         case __STORAGE_QUERY_STAT: {
             // Get parameters
-            MsdDevice_t *Device = NULL;
+            StorageDescriptor_t     NullDescriptor;
+            MsdDevice_t *Device     = NULL;
             DataKey_t Key;
 
             // Lookup device
-            Key.Value = (int)Arg0->Data.Value;
-            Device = (MsdDevice_t*)CollectionGetDataByKey(GlbMsdDevices, Key, 0);
+            Key.Value   = (int)Arg0->Data.Value;
+            Device      = (MsdDevice_t*)CollectionGetDataByKey(GlbMsdDevices, Key, 0);
 
             // Write the descriptor back
             if (Device != NULL) {
@@ -199,9 +200,9 @@ OnQuery(
                     (void*)&Device->Descriptor, sizeof(StorageDescriptor_t));
             }
             else {
-                OsStatus_t Result = OsError;
+                memset((void*)&NullDescriptor, 0, sizeof(StorageDescriptor_t));
                 return PipeSend(Queryee, ResponsePort,
-                    (void*)&Result, sizeof(OsStatus_t));
+                    (void*)&NullDescriptor, sizeof(StorageDescriptor_t));
             }
         } break;
 
