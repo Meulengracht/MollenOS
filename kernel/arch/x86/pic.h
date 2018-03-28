@@ -79,4 +79,12 @@ PicGetConfiguration(
     _Out_ int *Enabled,
     _Out_ int *LevelTriggered);
 
+/* PicSendEoi
+ * Signals end of interrupt service for the appropriate pic chip */
+KERNELAPI
+void
+KERNELABI
+PicSendEoi(
+    _In_ int Irq);
+
 #endif //!_X86_PIC_H_

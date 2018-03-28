@@ -34,6 +34,7 @@
 #include <debug.h>
 #include <apic.h>
 #include <heap.h>
+#include <mp.h>
 
 /* Includes
  * - Library */
@@ -53,7 +54,8 @@ int GlbIoApicI8259Apic = 0;
 
 /* Externs, we need access to some cpu information
  * and the ACPI nodes to get LVT information */
-__EXTERN Collection_t *GlbAcpiNodes;
+extern void _rdmsr(size_t Register, uint64_t *Value);
+extern Collection_t *GlbAcpiNodes;
 
 /* Handlers, they are defined in ApicHandlers.c
  * but are installed by the boot setup apic func */
@@ -427,8 +429,10 @@ ApicInitialize(void)
 	// Variables
 	MCoreInterrupt_t IrqInformation;
 	ACPI_TABLE_HEADER *Header       = NULL;
+	uint32_t TemporaryValue         = 0;
 	UUId_t BspApicId                = 0;
-	uint32_t Temp                   = 0;
+    uintptr_t OriginalApAddress     = 0;
+    uintptr_t RemapTo               = 0;
 	DataKey_t Key;
 
 	// Step 1. Disable IMCR if present (to-do..) 
@@ -441,52 +445,58 @@ ApicInitialize(void)
 	// we don't want any values in it previously :-)
 	memset((void*)GlbTimerTicks, 0, sizeof(GlbTimerTicks));
 
-	// Step 2. Get MADT and the LAPIC base 
+	// Step 2. Get the LAPIC base 
 	// So we lookup the MADT table if it exists (if it doesn't
-	// we should fallback to MP tables, but not rn..) 
+	// we should fallback to MP tables)
+    RemapTo = (uintptr_t)MmReserveMemory(1);
 	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 0, &Header))) {
-		ACPI_TABLE_MADT *MadtTable = (ACPI_TABLE_MADT*)Header;
-		uintptr_t RemapTo = (uintptr_t)MmReserveMemory(1);
-
-		// We don't identity map it for several reasons, as we use
-		// higher space memory for stuff, so we allocate a new address
-		// for it!
-		TRACE("LAPIC address at 0x%x", MadtTable->Address);
-		MmVirtualMap(NULL, MadtTable->Address, RemapTo, PAGE_CACHE_DISABLE);
-        GlbLocalApicBase = RemapTo + (MadtTable->Address & 0xFFF);
-        
-        // Cleanup table when we are done with it as we are using
-        // static pointers and reaollcating later
+		ACPI_TABLE_MADT *MadtTable  = (ACPI_TABLE_MADT*)Header;
+        OriginalApAddress           = MadtTable->Address;
         AcpiPutTable(Header);
 	}
+    else if (MpInitialize() == OsSuccess) {
+        if (MpGetLocalApicAddress(&OriginalApAddress) != OsSuccess) {
+		    // Fallback to msr
+            uint64_t Value = 0;
+            _rdmsr(0x1B, &Value);
+            OriginalApAddress = (uintptr_t)Value;
+        }
+    }
 	else {
-		ERROR("Failed to get LAPIC base address, ABORT!!!");
-		FATAL(FATAL_SCOPE_KERNEL, "Philip now we need MP-table support!");
+		// Read from msr
+        uint64_t Value = 0;
+        _rdmsr(0x1B, &Value);
+        OriginalApAddress = (uintptr_t)Value;
 	}
 
+    // Perform the remap
+    WARNING("LAPIC address at 0x%x", OriginalApAddress);
+    MmVirtualMap(NULL, OriginalApAddress, RemapTo, PAGE_CACHE_DISABLE);
+    GlbLocalApicBase    = RemapTo + (OriginalApAddress & 0xFFF);
+
 	// Get the bootstrap processor id, and save it
-	BspApicId = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
-	GlbBootstrapCpuId = BspApicId;
+	BspApicId           = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
+	GlbBootstrapCpuId   = BspApicId;
 
 	// Do some initial shared Apic setup
 	// for this processor id
 	ApicInitialSetup(BspApicId);
 
     // Prepare some irq information
-	IrqInformation.Data = NULL;
-	IrqInformation.Line = INTERRUPT_NONE;
-    IrqInformation.Pin = INTERRUPT_NONE;
-    IrqInformation.Vectors[1] = INTERRUPT_NONE;
+	IrqInformation.Data         = NULL;
+	IrqInformation.Line         = INTERRUPT_NONE;
+    IrqInformation.Pin          = INTERRUPT_NONE;
+    IrqInformation.Vectors[1]   = INTERRUPT_NONE;
 
 	// Install Apic Handlers 
 	// - LVT Error handler
 	// - Timer handler
-	IrqInformation.Vectors[0] = INTERRUPT_LVTERROR;
-	IrqInformation.FastHandler = ApicErrorHandler;
+	IrqInformation.Vectors[0]   = INTERRUPT_LVTERROR;
+	IrqInformation.FastHandler  = ApicErrorHandler;
     InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFT 
         | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
-	IrqInformation.Vectors[0] = INTERRUPT_LAPIC;
-	IrqInformation.FastHandler = ApicTimerHandler;
+	IrqInformation.Vectors[0]   = INTERRUPT_LAPIC;
+	IrqInformation.FastHandler  = ApicTimerHandler;
     InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFT 
         | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
 
@@ -505,16 +515,21 @@ ApicInitialize(void)
 
 	// Disable Apic Timer while we setup the io-apics 
 	// we need to be careful still
-	Temp = ApicReadLocal(APIC_TIMER_VECTOR);
-	Temp |= (APIC_MASKED | INTERRUPT_LAPIC);
-	ApicWriteLocal(APIC_TIMER_VECTOR, Temp);
+	TemporaryValue = ApicReadLocal(APIC_TIMER_VECTOR);
+	TemporaryValue |= (APIC_MASKED | INTERRUPT_LAPIC);
+	ApicWriteLocal(APIC_TIMER_VECTOR, TemporaryValue);
 
 	// Setup IO apics 
 	// this is done by the AcpiSetupIoApic code
-	// that is called for all present io-apics 
-	GlbIoApics = CollectionCreate(KeyInteger);
-	Key.Value = ACPI_MADT_TYPE_IO_APIC;
-	CollectionExecuteOnKey(GlbAcpiNodes, AcpiSetupIoApic, Key, NULL);
+	// that is called for all present io-apics
+	Key.Value   = ACPI_MADT_TYPE_IO_APIC;
+    if (CollectionGetDataByKey(GlbAcpiNodes, Key, 0) != NULL) {
+        GlbIoApics  = CollectionCreate(KeyInteger);
+        CollectionExecuteOnKey(GlbAcpiNodes, AcpiSetupIoApic, Key, NULL);
+    }
+    else {
+        GlbIoApics = NULL;
+    }
 
 	// We can now enable the interrupts, as 
 	// the IVT table is in place and the local apic
@@ -583,9 +598,9 @@ ApicRecalibrateTimer(void)
     // Stop counter and calibrate
 	ApicWriteLocal(APIC_TIMER_VECTOR, APIC_MASKED);
 	TimerTicks = (0xFFFFFFFF - ApicReadLocal(APIC_CURRENT_COUNT));
-	WARNING("Bus Speed: %u Hz", TimerTicks);
+	TRACE("Bus Speed: %u Hz", TimerTicks);
 	GlbTimerQuantum = (TimerTicks / 100) + 1;
-	WARNING("Quantum: %u", GlbTimerQuantum);
+	TRACE("Quantum: %u", GlbTimerQuantum);
 
 	// Start timer for good
 	ApicStartTimer(GlbTimerQuantum * 20);

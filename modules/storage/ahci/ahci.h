@@ -347,6 +347,7 @@ typedef struct _AhciPort {
 	// There can be max 32 slots,
 	// so we use a 32 bit unsigned
 	uint32_t				 SlotStatus;
+    reg32_t                  InterruptStatus;
 
 	// Transactions for this port 
 	// Keeps track of active transfers. 

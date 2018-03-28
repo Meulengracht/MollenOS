@@ -19,21 +19,22 @@
  * MollenOS x86 Initialization code
  * - Handles setup from a x86 entry point
  */
+#define __MODULE "INIT"
 
 /* Includes 
  * - System */
 #include <system/setup.h>
 #include <system/utils.h>
-#include <multiboot.h>
 #include <interrupts.h>
+#include <multiboot.h>
 #include <memory.h>
+#include <debug.h>
 #include <arch.h>
 #include <apic.h>
 #include <cpu.h>
 #include <gdt.h>
 #include <idt.h>
 #include <pic.h>
-#include <log.h>
 #include <vbe.h>
 
 /* TimersDiscover 
@@ -143,6 +144,9 @@ SystemFeaturesInitialize(
         // Initialize APIC?
         if (CpuHasFeatures(0, CPUID_FEAT_EDX_APIC) == OsSuccess) {
             ApicInitialize();
+        }
+        else {
+            FATAL(FATAL_SCOPE_KERNEL, "Cpu does not have a local apic. This model is too old and not supported.");
         }
     }
 

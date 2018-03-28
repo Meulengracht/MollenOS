@@ -46,8 +46,8 @@ static UUId_t GlbDiskId = 0;
  * so it's readable */
 void
 AhciStringFlip(
-	_In_ uint8_t *Buffer,
-	_In_ size_t Length)
+	_In_ uint8_t*   Buffer,
+	_In_ size_t     Length)
 {
 	// Variables
 	size_t StringPairs = Length / 2;
@@ -55,10 +55,21 @@ AhciStringFlip(
 
 	// Iterate pairs in string, and swap
 	for (i = 0; i < StringPairs; i++) {
-		uint8_t TempChar = Buffer[i * 2];
-		Buffer[i * 2] = Buffer[i * 2 + 1];
-		Buffer[i * 2 + 1] = TempChar;
+		uint8_t TempChar    = Buffer[i * 2];
+		Buffer[i * 2]       = Buffer[i * 2 + 1];
+		Buffer[i * 2 + 1]   = TempChar;
 	}
+
+    // Zero terminate by trimming trailing spaces
+    for (i = (Length - 1); i > 0; i--) {
+        if (Buffer[i] != ' ' && Buffer[i] != '\0') {
+            i += 1;
+            if (i < Length) {
+                Buffer[i] = '\0';
+            }
+            break;
+        }
+    }
 }
 
 /* AhciManagerInitialize
@@ -71,10 +82,8 @@ AhciManagerInitialize(void)
 	TRACE("AhciManagerInitialize()");
 
 	// Create list and reset id
-	GlbDisks = CollectionCreate(KeyInteger);
-	GlbDiskId = 0;
-
-	// No errors
+	GlbDisks    = CollectionCreate(KeyInteger);
+	GlbDiskId   = 0;
 	return OsSuccess;
 }
 
@@ -94,8 +103,6 @@ AhciManagerDestroy(void)
 		DestroyBuffer(Device->Buffer);
 		free(Device);
 	}
-
-	// Cleanup list
 	return CollectionDestroy(GlbDisks);
 }
 
@@ -104,13 +111,13 @@ AhciManagerDestroy(void)
  * port and controller. Identifies and registers with neccessary services */
 OsStatus_t
 AhciManagerCreateDevice(
-	_In_ AhciController_t *Controller, 
-	_In_ AhciPort_t *Port)
+	_In_ AhciController_t*  Controller, 
+	_In_ AhciPort_t*        Port)
 {
 	// Structures
-	AhciTransaction_t *Transaction = NULL;
-	BufferObject_t *Buffer = NULL;
-	AhciDevice_t *Device = NULL;
+	AhciTransaction_t *Transaction  = NULL;
+	BufferObject_t *Buffer          = NULL;
+	AhciDevice_t *Device            = NULL;
 
 	// First of all, is this a port multiplier? 
 	// because then we should really enumerate it
@@ -126,27 +133,25 @@ AhciManagerCreateDevice(
 		Controller->Device.Id, Port->Id);
 
 	// Allocate data-structures
-	Transaction = (AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
-	Device = (AhciDevice_t*)malloc(sizeof(AhciDevice_t));
-	Buffer = CreateBuffer(sizeof(ATAIdentify_t));
+	Transaction                 = (AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
+	Device                      = (AhciDevice_t*)malloc(sizeof(AhciDevice_t));
+	Buffer                      = CreateBuffer(sizeof(ATAIdentify_t));
 
 	// Initiate a new device structure
-	Device->Controller = Controller;
-	Device->Port = Port;
-	Device->Buffer = Buffer;
-	Device->Index = 0;
+	Device->Controller          = Controller;
+	Device->Port                = Port;
+	Device->Buffer              = Buffer;
+	Device->Index               = 0;
 
 	// Important!
-	Device->AddressingMode = 1;
-	Device->SectorSize = sizeof(ATAIdentify_t);
+	Device->AddressingMode      = 1;
+	Device->SectorSize          = sizeof(ATAIdentify_t);
 
 	// Initiate the transaction
-	Transaction->Requester = UUID_INVALID;
-	Transaction->Address = GetBufferAddress(Buffer);
-	Transaction->SectorCount = 1;
-	Transaction->Device = Device;
-
-	// Ok, so either ATA or ATAPI
+	Transaction->Requester      = UUID_INVALID;
+	Transaction->Address        = GetBufferAddress(Buffer);
+	Transaction->SectorCount    = 1;
+	Transaction->Device         = Device;
 	return AhciCommandRegisterFIS(Transaction, AtaPIOIdentifyDevice, 0, 0, 0);
 }
 
@@ -170,10 +175,7 @@ AhciManagerCreateDeviceCallback(
 	AhciStringFlip(DeviceInformation->FWRevision, 8);
 
 	// Trace
-	TRACE("AhciManagerCreateDeviceCallback(%s)",
-		&DeviceInformation->ModelNo[0]);
-
-	// Determine device type
+	TRACE("AhciManagerCreateDeviceCallback(%s)", &DeviceInformation->ModelNo[0]);
 	if (Device->Port->Registers->Signature == SATA_SIGNATURE_ATAPI) {
 		Device->Type = 1;
 	}
@@ -223,24 +225,21 @@ AhciManagerCreateDeviceCallback(
 	// At this point the ahcidisk structure is filled
 	// and we can continue to fill out the descriptor
 	memset(&Device->Descriptor, 0, sizeof(StorageDescriptor_t));
-	Device->Descriptor.Driver = UUID_INVALID;
-	Device->Descriptor.Device = GlbDiskId++;
-	Device->Descriptor.Flags = 0;
+	Device->Descriptor.Driver       = UUID_INVALID;
+	Device->Descriptor.Device       = GlbDiskId++;
+	Device->Descriptor.Flags        = 0;
 
-	Device->Descriptor.SectorCount = Device->SectorsLBA;
-	Device->Descriptor.SectorSize = Device->SectorSize;
+	Device->Descriptor.SectorCount  = Device->SectorsLBA;
+	Device->Descriptor.SectorSize   = Device->SectorSize;
 
 	// Copy string data
-	memcpy(&Device->Descriptor.Model[0], (__CONST void*)&DeviceInformation->ModelNo[0], 40);
-	memcpy(&Device->Descriptor.Serial[0], (__CONST void*)&DeviceInformation->SerialNo[0], 20);
+	memcpy(&Device->Descriptor.Model[0], (const void*)&DeviceInformation->ModelNo[0], 40);
+	memcpy(&Device->Descriptor.Serial[0], (const void*)&DeviceInformation->SerialNo[0], 20);
 
 	// Add disk to list
-	Key.Value = (int)Device->Descriptor.Device;
+	Key.Value                       = (int)Device->Descriptor.Device;
 	CollectionAppend(GlbDisks, CollectionCreateNode(Key, Device));
-
-	// Lastly register disk
-	return RegisterDisk(Device->Descriptor.Device, 
-		Device->Descriptor.Flags);
+	return RegisterDisk(Device->Descriptor.Device, Device->Descriptor.Flags);
 }
 
 /* AhciManagerRemoveDevice
@@ -251,8 +250,8 @@ AhciManagerRemoveDevice(
 	_In_ AhciPort_t *Port)
 {
 	// Variables
-	AhciDevice_t *Device = NULL;
 	CollectionItem_t *dNode = NULL;
+	AhciDevice_t *Device    = NULL;
 	DataKey_t Key;
 
 	// Trace
@@ -272,8 +271,6 @@ AhciManagerRemoveDevice(
 			break;
 		}
 	}
-
-	// Found? 
 	if (Key.Value == -1) {
 		return OsError;
 	}
@@ -284,8 +281,6 @@ AhciManagerRemoveDevice(
 	// Cleanup resources
 	DestroyBuffer(Device->Buffer);
 	free(Device);
-
-	// Now handle post operations
 	return UnregisterDisk(Key.Value, __DISK_FORCED_REMOVE);
 }
 

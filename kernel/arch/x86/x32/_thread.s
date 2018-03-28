@@ -29,6 +29,7 @@ global _load_fpu
 global _clear_ts
 global _set_ts
 global __rdtsc
+global __rdmsr
 global __yield
 global _enter_thread
 
@@ -113,9 +114,6 @@ __rdtsc:
 	; Stack Frame
 	push ebp
 	mov ebp, esp
-
-	; Save stuff
-	push eax
 	push ebx
 
 	; Get pointer
@@ -126,11 +124,28 @@ __rdtsc:
 
 	; Restore
 	pop ebx
-	pop eax
-
-	; Release stack frame
 	pop ebp
-	ret 
+	ret
+
+; void _rdmsr(size_t Register, uint64_t *value)
+; Gets the CPU model specific register
+__rdmsr:
+	; Stack Frame
+	push ebp
+	mov ebp, esp
+	push ebx
+
+	; Get pointer
+    mov ecx, [ebp + 8]
+	mov ebx, [ebp + 12]
+	rdmsr
+	mov [ebx], eax
+	mov [ebx + 4], edx
+
+	; Restore
+	pop ebx
+	pop ebp
+	ret
 
 ; void enter_thread(registers_t *stack)
 ; Switches stack and far jumps to next task

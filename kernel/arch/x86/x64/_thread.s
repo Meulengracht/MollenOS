@@ -29,6 +29,7 @@ global load_fpu
 global clear_ts
 global set_ts
 global _rdtsc
+global _rdmsr
 global _yield
 global enter_thread
 
@@ -110,7 +111,18 @@ _rdtsc:
     shl rdx, 32
     or rax, rdx
     mov qword [rcx], rax
-	ret 
+	ret
+
+; void _rdmsr(size_t Register, uint64_t *value)
+; Gets the CPU model specific register
+__rdmsr:
+    push rdx
+    rdmsr
+    shl rdx, 32
+    or rax, rdx
+    pop rdx
+    mov qword [rdx], rax
+	ret
 
 ; void enter_thread(registers_t *stack)
 ; Switches stack and far jumps to next task

@@ -116,9 +116,10 @@ PicConfigureLine(
 {
     // Variables
     uint16_t Status     = 0;
+    size_t Mask         = 0;
 
     // Configure for either level/edge
-    if (GlbElcrInitialized == 1) {
+    if (GlbElcrInitialized == 1 && LevelTriggered != -1) {
         PicGetElcr(&Status);
         if (LevelTriggered == 1) {
             Status |= PIC_ELCR_MASK(Irq);
@@ -136,10 +137,24 @@ PicConfigureLine(
 
     // Determine whether or not mask/unmask
     if (Enable == 0) {
-        // Mask
+        if (Irq >= 8) {
+            IoRead(IO_SOURCE_HARDWARE, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, &Mask);
+            IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, Mask | (1 << (Irq - 8)));
+        }
+        else {
+            IoRead(IO_SOURCE_HARDWARE, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1, &Mask);
+            IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1,  Mask | (1 << Irq));
+        }
     }
     else {
-        // Unmask
+        if (Irq >= 8) {
+            IoRead(IO_SOURCE_HARDWARE, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, &Mask);
+            IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, Mask & ~(1 << (Irq - 8)));
+        }
+        else {
+            IoRead(IO_SOURCE_HARDWARE, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1, &Mask);
+            IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1,  Mask & ~(1 << Irq));
+        }
     }
 }
 
@@ -154,6 +169,7 @@ PicGetConfiguration(
 {
     // Variables
     uint16_t Status     = 0;
+    size_t Mask         = 0;
 
     // Set initial
     *Enabled            = 0;
@@ -168,4 +184,24 @@ PicGetConfiguration(
     }
 
     // Determine whether or not mask/unmask
+    if (Irq >= 8) {
+        IoRead(IO_SOURCE_HARDWARE, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, &Mask);
+        Irq -= 8;
+    }
+    else {
+        IoRead(IO_SOURCE_HARDWARE, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1, &Mask);
+    }
+    *Enabled = (Mask & (1 << Irq)) == 0 ? 1 : 0;
+}
+
+/* PicSendEoi
+ * Signals end of interrupt service for the appropriate pic chip */
+void
+PicSendEoi(
+    _In_ int Irq)
+{
+	if(Irq >= 8) {
+        IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_SECONDARY, 1, 0x20);
+    }
+    IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_PRIMARY, 1, 0x20);
 }

@@ -27,6 +27,7 @@
 #include <debug.h>
 #include <apic.h>
 #include <acpi.h>
+#include <pic.h>
 
 /* Includes
  * - Library */
@@ -44,16 +45,14 @@ __EXTERN Collection_t *GlbIoApics;
 /* Retrieves the version of the 
  * onboard local apic chip, this is 
  * primarily used by the functions here */
-uint32_t ApicGetVersion(void)
-{
+uint32_t ApicGetVersion(void) {
 	return (ApicReadLocal(APIC_VERSION) & 0xFF);
 }
 
 /* This only is something we need to check on 
  * 32-bit processors, all 64 bit cpus must use
  * the integrated APIC */
-int ApicIsIntegrated(void)
-{
+int ApicIsIntegrated(void) {
 #if defined(__x86_64__) || defined(amd64) || defined(__amd64__)
 	return 1;
 #else
@@ -64,16 +63,14 @@ int ApicIsIntegrated(void)
 /* This function determines if the chip 
  * is modern or 'legacy', but it's not really used
  * here, just in case for the future */
-int ApicIsModern(void)
-{
+int ApicIsModern(void) {
 	return (ApicGetVersion() >= 0x14) ? 1 : 0;
 }
 
 /* Retrieve the max supported LVT for the
  * onboard local apic chip, this is used 
  * for the ESR among others */
-int ApicGetMaxLvt(void)
-{
+int ApicGetMaxLvt(void) {
 	uint32_t Version = ApicReadLocal(APIC_VERSION);
 	return APIC_INTEGRATED((Version & 0xFF)) ? (((Version) >> 16) & 0xFF) : 2;
 }
@@ -82,20 +79,13 @@ int ApicGetMaxLvt(void)
  * the given gsi index, by locating which
  * io-apic owns the gsi and returns it.
  * Returns NULL if gsi is invalid */
-IoApic_t *ApicGetIoFromGsi(int Gsi)
-{
-	/* Locate the io-apic that has
-	 * the gsi index in it's range */
+IoApic_t *ApicGetIoFromGsi(int Gsi) {
 	foreach(i, GlbIoApics) {
 		IoApic_t *Io = (IoApic_t*)i->Data;
-		if (Io->GsiStart <= Gsi &&
-			(Io->GsiStart + Io->PinCount) > Gsi) {
+		if (Io->GsiStart <= Gsi && (Io->GsiStart + Io->PinCount) > Gsi) {
 			return Io;
 		}
 	}
-
-	/* Invalid Gsi 
-	 * No io-apic! */
 	return NULL;
 }
 
@@ -103,9 +93,7 @@ IoApic_t *ApicGetIoFromGsi(int Gsi)
  * given gsi, it tries to locate the
  * relevenat io-apic, if not found 
  * it returns APIC_NO_GSI, otherwise the pin */
-int ApicGetPinFromGsi(int Gsi)
-{
-	/* Convert Gsi to Pin & IoApic */
+int ApicGetPinFromGsi(int Gsi) {
 	foreach(i, GlbIoApics) {
 		IoApic_t *Io = (IoApic_t*)i->Data;
 		if (Io->GsiStart <= Gsi &&
@@ -113,9 +101,6 @@ int ApicGetPinFromGsi(int Gsi)
 			return Gsi - Io->GsiStart;
 		}
 	}
-
-	/* Invalid Gsi 
-	 * No io-apic! */
 	return APIC_NO_GSI;
 }
 
@@ -130,27 +115,16 @@ uint32_t ApicGetCpuMask(UUId_t Cpu) {
  * this register helps us using Lowest-Priority
  * delivery mode, as this controls which cpu to
  * interrupt */
-void ApicSetTaskPriority(uint32_t Priority)
-{
-	/* Retrieve current value in the
-	 * task-prio register */
+void ApicSetTaskPriority(uint32_t Priority) {
 	uint32_t Temp = ApicReadLocal(APIC_TASK_PRIORITY);
-
-	/* Only clear the priority from the
-	 * the value register, then update */
 	Temp &= ~(APIC_PRIORITY_MASK);
 	Temp |= (Priority & APIC_PRIORITY_MASK);
-
-	/* Rewrite value back */
 	ApicWriteLocal(APIC_TASK_PRIORITY, Priority);
 }
 
 /* Retrives the current task priority
  * for the current cpu */
-uint32_t ApicGetTaskPriority(void)
-{
-	/* Only return the relevant bits from 
-	 * the task register */
+uint32_t ApicGetTaskPriority(void) {
 	return (ApicReadLocal(APIC_TASK_PRIORITY) & APIC_PRIORITY_MASK);
 }
 
@@ -160,30 +134,26 @@ uint32_t ApicGetTaskPriority(void)
  * the io-apic delivers no interrupts */
 void ApicMaskGsi(int Gsi)
 {
-	/* Variables */
-	uint64_t Entry = 0;
-	IoApic_t *IoApic = NULL;
-	int Pin = APIC_NO_GSI;
+	// Variables
+	IoApic_t *IoApic    = NULL;
+	uint64_t Entry      = 0;
+	int Pin             = APIC_NO_GSI;
 
-	/* Get both the io-apic we need
-	* to update and the pin */
-	IoApic = ApicGetIoFromGsi(Gsi);
-	Pin = ApicGetPinFromGsi(Gsi);
-
-	/* Sanitize the lookup */
-	if (IoApic == NULL || Pin == APIC_NO_GSI) {
-		FATAL(FATAL_SCOPE_KERNEL, "Invalid Gsi %u", Gsi);
-		return;
-	}
-
-	/* Read entry from the io-apic */
-	Entry = ApicReadIoEntry(IoApic, Pin);
-
-	/* Unmask */
-	Entry |= APIC_MASKED;
-
-	/* Write the entry back */
-	ApicWriteIoEntry(IoApic, Pin, Entry);
+    // Lookup the correct io-apic
+    if (GlbIoApics != NULL) {
+        IoApic  = ApicGetIoFromGsi(Gsi);
+        Pin     = ApicGetPinFromGsi(Gsi);
+        if (IoApic == NULL || Pin == APIC_NO_GSI) {
+            FATAL(FATAL_SCOPE_KERNEL, "Invalid Gsi %u", Gsi);
+            return;
+        }
+        Entry = ApicReadIoEntry(IoApic, Pin);
+        Entry |= APIC_MASKED;
+        ApicWriteIoEntry(IoApic, Pin, Entry);
+    }
+    else {
+        PicConfigureLine(Gsi, 0, -1);
+    }
 }
 
 /* ApicUnmaskGsi
@@ -192,30 +162,26 @@ void ApicMaskGsi(int Gsi)
  * io-apic to deliver interrupts again */
 void ApicUnmaskGsi(int Gsi)
 {
-	/* Variables */
-	uint64_t Entry = 0;
-	IoApic_t *IoApic = NULL;
-	int Pin = APIC_NO_GSI;
+    // Variables
+	IoApic_t *IoApic    = NULL;
+	uint64_t Entry      = 0;
+	int Pin             = APIC_NO_GSI;
 
-	/* Get both the io-apic we need
-	* to update and the pin */
-	IoApic = ApicGetIoFromGsi(Gsi);
-	Pin = ApicGetPinFromGsi(Gsi);
-
-	/* Sanitize the lookup */
-	if (IoApic == NULL || Pin == APIC_NO_GSI) {
-		FATAL(FATAL_SCOPE_KERNEL, "Invalid Gsi %u", Gsi);
-		return;
-	}
-
-	/* Read entry from the io-apic */
-	Entry = ApicReadIoEntry(IoApic, Pin);
-
-	/* Unmask */
-	Entry &= ~(APIC_MASKED);
-
-	/* Write the entry back */
-	ApicWriteIoEntry(IoApic, Pin, Entry);
+    // Lookup the correct io-apic
+    if (GlbIoApics != NULL) {
+        IoApic  = ApicGetIoFromGsi(Gsi);
+        Pin     = ApicGetPinFromGsi(Gsi);
+        if (IoApic == NULL || Pin == APIC_NO_GSI) {
+            FATAL(FATAL_SCOPE_KERNEL, "Invalid Gsi %u", Gsi);
+            return;
+        }
+        Entry = ApicReadIoEntry(IoApic, Pin);
+	    Entry &= ~(APIC_MASKED);
+        ApicWriteIoEntry(IoApic, Pin, Entry);
+    }
+    else {
+        PicConfigureLine(Gsi, 1, -1);
+    }
 }
 
 /* Sends end of interrupt to the local
@@ -223,10 +189,18 @@ void ApicUnmaskGsi(int Gsi)
  * on that irq line to occur */
 void ApicSendEoi(int Gsi, uint32_t Vector)
 {
+    // Old-school pic
+    if (GlbIoApics == NULL) {
+        if (Gsi != APIC_NO_GSI) {
+            PicSendEoi(Gsi);
+        }
+		ApicWriteLocal(APIC_INTERRUPT_ACK, 0);
+    }
+
 	// Some, older (external) chips
 	// require more code for sending a proper
 	// EOI, but if its new enough then no need
-	if (ApicGetVersion() >= 0x10 || Gsi == APIC_NO_GSI) {
+	else if (ApicGetVersion() >= 0x10 || Gsi == APIC_NO_GSI) {
         // @todo, x2APIC requires a write of 0
 		ApicWriteLocal(APIC_INTERRUPT_ACK, 0);
 	}
@@ -239,22 +213,16 @@ void ApicSendEoi(int Gsi, uint32_t Vector)
 		IoApic_t *IoApic = NULL;
 		int Pin = APIC_NO_GSI;
 
-		/* Get both the io-apic we need 
-		 * to update and the pin */
-		IoApic = ApicGetIoFromGsi(Gsi);
-		Pin = ApicGetPinFromGsi(Gsi);
-
-		/* Sanitize the lookup */
+		// Lookup io-apic conf
+		IoApic  = ApicGetIoFromGsi(Gsi);
+		Pin     = ApicGetPinFromGsi(Gsi);
 		if (IoApic == NULL || Pin == APIC_NO_GSI) {
 			FATAL(FATAL_SCOPE_KERNEL, "Invalid Gsi %u", Gsi);
 			return;
 		}
 
-		/* Read Entry */
+		/* We want to mask it and clear the level trigger bit */
         Modified = Original = ApicReadIoEntry(IoApic, Pin);
-
-		/* We want to mask it and clear
-		 * the level trigger bit */
 		Modified |= APIC_MASKED;
         Modified &= ~(APIC_LEVEL_TRIGGER | APIC_ICR_BUSY);
         Original &= ~(APIC_ICR_BUSY);
@@ -272,10 +240,7 @@ void ApicSendEoi(int Gsi, uint32_t Vector)
 /* Retrieve the cpu id for the current cpu
  * can be used as an identifier when running
  * multicore */
-UUId_t ApicGetCpu(void)
-{
-	/* Sanitize whether or not the
-	 * local apic has been initialized */
+UUId_t ApicGetCpu(void) {
 	if (GlbLocalApicBase == 0) {
 		return 0;
 	}
@@ -286,8 +251,7 @@ UUId_t ApicGetCpu(void)
 
 /* ApicPrintCpuTicks
  * Print ticks for all available cpus */
-void ApicPrintCpuTicks(void)
-{
+void ApicPrintCpuTicks(void) {
 	for (int i = 0; i < GlbCpusBooted; i++) {
 		WRITELINE("Cpu %i Ticks: %u\n", i, GlbTimerTicks[i]);
     }

@@ -155,9 +155,9 @@ InterruptGetApicConfiguration(
  * Resolves the table index from the given interrupt settings. */
 OsStatus_t
 InterruptResolve(
-    _InOut_ MCoreInterrupt_t *Interrupt,
-    _In_ Flags_t Flags,
-    _Out_ UUId_t *TableIndex)
+    _In_    MCoreInterrupt_t*   Interrupt,
+    _In_    Flags_t             Flags,
+    _Out_   UUId_t*             TableIndex)
 {
     // 1 Resolve the physical interrupt line
     if (!(Flags & INTERRUPT_SOFT)) {
@@ -251,8 +251,8 @@ InterruptResolve(
  * Configures the given interrupt in the system */
 OsStatus_t
 InterruptConfigure(
-    _In_ MCoreInterruptDescriptor_t *Descriptor,
-    _In_ int Enable)
+    _In_ MCoreInterruptDescriptor_t*    Descriptor,
+    _In_ int                            Enable)
 {
     // Variables
     uint64_t ApicFlags      = APIC_FLAGS_DEFAULT;
@@ -267,8 +267,7 @@ InterruptConfigure(
     } ApicExisting;
     
     // Debug
-    TRACE("InterruptConfigure(Id 0x%x, Enable %i)", 
-        Descriptor->Id, Enable);
+    TRACE("InterruptConfigure(Id 0x%x, Enable %i)", Descriptor->Id, Enable);
 
     // Is this a software interrupt? Don't install
     if (Descriptor->Flags & INTERRUPT_SOFT
@@ -282,8 +281,7 @@ InterruptConfigure(
     ApicFlags |= TableIndex;
 
     // Trace
-    TRACE("Calculated flags for interrupt: 0x%x (TableIndex %u)", 
-        LODWORD(ApicFlags), TableIndex);
+    TRACE("Calculated flags for interrupt: 0x%x (TableIndex %u)", LODWORD(ApicFlags), TableIndex);
 
     // If this is an (E)ISA interrupt make sure it's configured
     // properly in the PIC/ELCR

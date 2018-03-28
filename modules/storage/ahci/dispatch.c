@@ -72,10 +72,12 @@ AhciDumpCurrentState(
  * for the transfer */
 OsStatus_t
 AhciCommandDispatch(
-	_In_ AhciTransaction_t *Transaction,
-	_In_ Flags_t Flags,
-	_In_ void *Command, _In_ size_t CommandLength,
-	_In_ void *AtapiCmd, _In_ size_t AtapiCmdLength)
+	_In_ AhciTransaction_t* Transaction,
+	_In_ Flags_t            Flags,
+	_In_ void*              Command, 
+    _In_ size_t             CommandLength,
+	_In_ void*              AtapiCommand, 
+    _In_ size_t             AtapiCommandLength)
 {
 	// Variables
 	AHCICommandTable_t *CommandTable = NULL;
@@ -112,9 +114,9 @@ AhciCommandDispatch(
 
 	// Sanitizie packet lenghts
 	if (CommandLength > 64
-		|| AtapiCmdLength > 16) {
+		|| AtapiCommandLength > 16) {
 		ERROR("AHCI::Commands are exceeding the allowed length, FIS (%u), ATAPI (%u)",
-			CommandLength, AtapiCmdLength);
+			CommandLength, AtapiCommandLength);
 		goto Error;
 	}
 
@@ -122,8 +124,8 @@ AhciCommandDispatch(
 	if (Command != NULL) {
 		memcpy(&CommandTable->FISCommand[0], Command, CommandLength);
 	}
-	if (AtapiCmd != NULL) {
-		memcpy(&CommandTable->FISAtapi[0], AtapiCmd, AtapiCmdLength);
+	if (AtapiCommand != NULL) {
+		memcpy(&CommandTable->FISAtapi[0], AtapiCommand, AtapiCommandLength);
 	}
 
 	// Trace
@@ -178,23 +180,21 @@ AhciCommandDispatch(
 		|= (DISPATCH_MULTIPLIER(Flags) << 12);
 
 	// Setup key and sort key
-	Key.Value = Transaction->Slot;
+	Key.Value   = Transaction->Slot;
 
 	// Add transaction to list
-	tNode = CollectionCreateNode(Key, Transaction);
+	tNode       = CollectionCreateNode(Key, Transaction);
 	CollectionAppend(Transaction->Device->Port->Transactions, tNode);
-
-	// Trace
 	TRACE("Enabling command on slot %u", Transaction->Slot);
 
 	// Enable command 
 	AhciPortStartCommandSlot(Transaction->Device->Port, Transaction->Slot);
-	thrd_sleepex(1000);
 
+#ifdef __TRACE
 	// Dump state
+    thrd_sleepex(1000);
 	AhciDumpCurrentState(Transaction->Device->Controller, Transaction->Device->Port);
-	
-	// No error, transaction in progress
+#endif
 	return OsSuccess;
 
 Error:
@@ -243,11 +243,11 @@ AhciVerifyRegisterFIS(
  * Builds a new AHCI Transaction based on a register FIS */
 OsStatus_t 
 AhciCommandRegisterFIS(
-	_In_ AhciTransaction_t *Transaction,
-	_In_ ATACommandType_t Command, 
-	_In_ uint64_t SectorLBA, 
-	_In_ int Device, 
-	_In_ int Write)
+	_In_ AhciTransaction_t* Transaction,
+	_In_ ATACommandType_t   Command, 
+	_In_ uint64_t           SectorLBA, 
+	_In_ int                Device, 
+	_In_ int                Write)
 {
 	// Variables
 	FISRegisterH2D_t Fis;
@@ -324,15 +324,10 @@ AhciCommandRegisterFIS(
 
 	// Execute command - we do this asynchronously
 	// so we must handle the rest of this later on
-	Status = AhciCommandDispatch(Transaction, Flags, 
-		&Fis, sizeof(FISRegisterH2D_t), NULL, 0);
-
-	// Sanitize return, if it didn't start then handle right now
+	Status = AhciCommandDispatch(Transaction, Flags, &Fis, sizeof(FISRegisterH2D_t), NULL, 0);
 	if (Status != OsSuccess) {
 		AhciPortReleaseCommandSlot(Transaction->Device->Port, Transaction->Slot);
 	}
-	
-	// Return the success
 	return Status;
 }
 
@@ -351,8 +346,6 @@ AhciCommandFinish(
 
 	// Verify the command execution
 	Status = AhciVerifyRegisterFIS(Transaction);
-
-	// Release the allocated slot
 	AhciPortReleaseCommandSlot(Transaction->Device->Port, Transaction->Slot);
 
 	// If this was an internal request we need to notify manager
@@ -361,15 +354,11 @@ AhciCommandFinish(
 	}
 	else {
 		// Write the result back to the requester
-		Rpc.From.Process = Transaction->Requester;
-		Rpc.From.Port = Transaction->Pipe;
-        Rpc.From.Type = 0;
+		Rpc.From.Process    = Transaction->Requester;
+		Rpc.From.Port       = Transaction->Pipe;
+        Rpc.From.Type       = 0;
 		RPCRespond(&Rpc, &Status, sizeof(OsStatus_t));
 	}
-
-	// Cleanup the transaction
 	free(Transaction);
-
-	// Return the status
 	return Status;
 }

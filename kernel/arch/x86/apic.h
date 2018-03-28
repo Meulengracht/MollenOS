@@ -114,7 +114,6 @@ KERNELAPI
 void
 KERNELABI
 ApicInitialize(void);
-
 __EXTERN void ApicInitAp(void);
 
 /* ApicRecalibrateTimer

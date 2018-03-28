@@ -48,8 +48,7 @@ AhciPortCreate(
 
 	// Sanitize the port, don't create an already existing
 	// and make sure port is valid
-	if (Controller->Ports[Port] != NULL
-		|| Port >= AHCI_MAX_PORTS) {
+	if (Controller->Ports[Port] != NULL || Port >= AHCI_MAX_PORTS) {
 		if (Controller->Ports[Port] != NULL) {
 			return Controller->Ports[Port];
 		}
@@ -61,7 +60,7 @@ AhciPortCreate(
 	memset(AhciPort, 0, sizeof(AhciPort_t));
 
 	// Set port id and index
-	AhciPort->Id = Port;
+	AhciPort->Id    = Port;
 	AhciPort->Index = Index;
 	SpinlockReset(&AhciPort->Lock);
 
@@ -137,13 +136,11 @@ AhciPortInitialize(
 	// Update registers with the new physical addresses
 	// PhysicalAddress already contains the FIS
 	Port->Registers->FISBaseAddress = LOWORD(PhysicalAddress);
-	Port->Registers->FISBaseAdressUpper = (
-		sizeof(void*) > 4) ? HIDWORD(PhysicalAddress) : 0;
+	Port->Registers->FISBaseAdressUpper = (sizeof(void*) > 4) ? HIDWORD(PhysicalAddress) : 0;
 
 	PhysicalAddress = Controller->CommandListBasePhysical + (1024 * Port->Id);
 	Port->Registers->CmdListBaseAddress = LODWORD(PhysicalAddress);
-	Port->Registers->CmdListBaseAddressUpper = 
-		(sizeof(void*) > 4) ? HIDWORD(PhysicalAddress) : 0;
+	Port->Registers->CmdListBaseAddressUpper = (sizeof(void*) > 4) ? HIDWORD(PhysicalAddress) : 0;
 	MemoryBarrier();
 
 	// After setting PxFB and PxFBU to the physical address of the FIS receive area,
@@ -257,8 +254,7 @@ AhciPortSetupDevice(
 	}
 
 	// Update port status
-	TRACE("AHCI::Device present 0x%x on port %i",
-		Port->Registers->Signature, Port->Id);
+	TRACE("AHCI::Device present 0x%x on port %i", Port->Registers->Signature, Port->Id);
 	Port->Connected = 1;
 
 	// Identify device
@@ -343,34 +339,31 @@ AhciPortStartCommandSlot(
  * handles interrupt for a specific port */
 void
 AhciPortInterruptHandler(
-	_In_ AhciController_t *Controller, 
-	_In_ AhciPort_t *Port)
+	_In_ AhciController_t*  Controller, 
+	_In_ AhciPort_t*        Port)
 {
 	// Variables
-	reg32_t DoneCommands, InterruptStatus;
+	reg32_t DoneCommands;
 	CollectionItem_t *tNode;
 	DataKey_t Key;
 	int i;
 	
-	// Store a copy of IS so we can clear it
-	InterruptStatus = Port->Registers->InterruptStatus;
-
 	// Check interrupt services 
 	// Cold port detect, recieved fis etc
 	TRACE("AhciPortInterruptHandler(Port %i, Interrupt Status 0x%x)",
-		Port->Id, InterruptStatus);
+		Port->Id, Port->InterruptStatus);
 
 	// Check for errors status's
-	if (InterruptStatus & (AHCI_PORT_IE_TFEE | AHCI_PORT_IE_HBFE 
+	if (Port->InterruptStatus & (AHCI_PORT_IE_TFEE | AHCI_PORT_IE_HBFE 
 		| AHCI_PORT_IE_HBDE | AHCI_PORT_IE_IFE | AHCI_PORT_IE_INFE)) {
 		ERROR("AHCI::Port ERROR %i, CMD: 0x%x, CI 0x%x, IE: 0x%x, IS 0x%x, TFD: 0x%x", Port->Id,
 			Port->Registers->CommandAndStatus, Port->Registers->CommandIssue,
-			Port->Registers->InterruptEnable, Port->Registers->InterruptStatus,
+			Port->Registers->InterruptEnable, Port->InterruptStatus,
 			Port->Registers->TaskFileData);
 	}
 
 	// Check for hot-plugs
-	if (InterruptStatus & AHCI_PORT_IE_PCE) {
+	if (Port->InterruptStatus & AHCI_PORT_IE_PCE) {
 		// Determine whether or not there is a device connected
 		// Detect present ports using
 		// PxTFD.STS.BSY = 0, PxTFD.STS.DRQ = 0, and PxSSTS.DET = 3
@@ -387,14 +380,17 @@ AhciPortInterruptHandler(
 
 	// Get completed commands, by using our own slot-status
 	DoneCommands = Port->SlotStatus ^ Port->Registers->AtaActive;
+    TRACE("DoneCommands(0x%x) <= SlotStatus(0x%x) ^ AtaActive(0x%x)", 
+        DoneCommands, Port->SlotStatus, Port->Registers->AtaActive);
 
 	// Check for command completion
 	// by iterating through the command slots
 	if (DoneCommands != 0) {
 		for (i = 0; i < AHCI_MAX_PORTS; i++) {
 			if (DoneCommands & (1 << i)) {
-				Key.Value = i;
-				tNode = CollectionGetNodeByKey(Port->Transactions, Key, 0);
+				Key.Value   = i;
+				tNode       = CollectionGetNodeByKey(Port->Transactions, Key, 0);
+                TRACE("tNode(0x%x)", tNode);
 				if (tNode != NULL) {
 					size_t Offset = i * AHCI_RECIEVED_FIS_SIZE;
 
@@ -415,5 +411,5 @@ AhciPortInterruptHandler(
 	}
 
 	// Clear the interrupt status
-	Port->Registers->InterruptStatus = InterruptStatus;
+	Port->InterruptStatus = 0;
 }

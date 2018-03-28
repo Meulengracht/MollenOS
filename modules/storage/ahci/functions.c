@@ -39,8 +39,8 @@
  * Should return 0 on no error */
 OsStatus_t
 AhciReadSectors(
-	_In_ AhciTransaction_t *Transaction, 
-	_In_ uint64_t SectorLBA)
+	_In_ AhciTransaction_t* Transaction, 
+	_In_ uint64_t           SectorLBA)
 {
 	// Variables
 	ATACommandType_t Command;
@@ -84,8 +84,8 @@ AhciReadSectors(
  * Should return 0 on no error */
 OsStatus_t
 AhciWriteSectors(
-	_In_ AhciTransaction_t *Transaction,
-	_In_ uint64_t SectorLBA)
+	_In_ AhciTransaction_t* Transaction,
+	_In_ uint64_t           SectorLBA)
 {
 	// Variables
 	ATACommandType_t Command;

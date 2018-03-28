@@ -19,7 +19,7 @@
  * MollenOS MCore - System Calls
  */
 #define __MODULE "SCIF"
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */

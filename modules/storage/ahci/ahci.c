@@ -86,8 +86,7 @@ AhciControllerCreate(
 		IoBase->Type, IoBase->PhysicalBase, IoBase->Size);
 
 	// Acquire the io-space
-	if (CreateIoSpace(IoBase) != OsSuccess
-		|| AcquireIoSpace(IoBase) != OsSuccess) {
+	if (CreateIoSpace(IoBase) != OsSuccess || AcquireIoSpace(IoBase) != OsSuccess) {
 		ERROR("Failed to create and acquire the io-space for ahci-controller");
 		free(Controller);
 		return NULL;
@@ -105,12 +104,11 @@ AhciControllerCreate(
 	TRACE("Io-Space was assigned virtual address 0x%x", IoBase->VirtualBase);
 
 	// Instantiate the register-access
-	Controller->Registers = 
-		(AHCIGenericRegisters_t*)IoBase->VirtualBase;
+	Controller->Registers = (AHCIGenericRegisters_t*)IoBase->VirtualBase;
 
     // Initialize the interrupt settings
-    Controller->Device.Interrupt.FastHandler = OnFastInterrupt;
-	Controller->Device.Interrupt.Data = Controller;
+    Controller->Device.Interrupt.FastHandler    = OnFastInterrupt;
+	Controller->Device.Interrupt.Data           = Controller;
 
 	// Register contract before interrupt
 	if (RegisterContract(&Controller->Contract) != OsSuccess) {

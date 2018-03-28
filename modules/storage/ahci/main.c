@@ -48,11 +48,12 @@ OnFastInterrupt(
     _In_Opt_ void *InterruptData)
 {
 	// Variables
-	AhciController_t *Controller = NULL;
-	reg32_t InterruptStatus;
+	AhciController_t *Controller    = NULL;
+	reg32_t InterruptStatus         = 0;
+    int i;
 
 	// Instantiate the pointer
-	Controller = (AhciController_t*)InterruptData;
+	Controller      = (AhciController_t*)InterruptData;
     InterruptStatus = Controller->Registers->InterruptStatus;
 
 	// Trace
@@ -63,9 +64,17 @@ OnFastInterrupt(
 		return InterruptNotHandled;
 	}
 
+    // Save the status to port that made it and clear
+    for (i = 0; i < AHCI_MAX_PORTS; i++) {
+		if (Controller->Ports[i] != NULL && ((InterruptStatus & (1 << i)) != 0)) {
+			Controller->Ports[i]->InterruptStatus = Controller->Ports[i]->Registers->InterruptStatus;
+	        Controller->Ports[i]->Registers->InterruptStatus = InterruptStatus;
+		}
+    }
+
 	// Write clear interrupt register and return
-    Controller->Registers->InterruptStatus = InterruptStatus;
-    Controller->InterruptStatus |= InterruptStatus;
+    Controller->Registers->InterruptStatus   = InterruptStatus;
+    Controller->InterruptStatus             |= InterruptStatus;
 	return InterruptHandled;
 }
 
@@ -88,16 +97,15 @@ OnInterrupt(
     _CRT_UNUSED(Arg0);
     _CRT_UNUSED(Arg1);
     _CRT_UNUSED(Arg2);
-
-	// Instantiate the pointer
-	Controller = (AhciController_t*)InterruptData;
-    InterruptStatus = Controller->InterruptStatus;
-    Controller->InterruptStatus = 0;
+	Controller                  = (AhciController_t*)InterruptData;
 
 HandleInterrupt:
+    InterruptStatus             = Controller->InterruptStatus;
+    Controller->InterruptStatus = 0;
+    
     // Iterate the port-map and check if the interrupt
 	// came from that port
-	for (i = 0; i < 32; i++) {
+	for (i = 0; i < AHCI_MAX_PORTS; i++) {
 		if (Controller->Ports[i] != NULL
 			&& ((InterruptStatus & (1 << i)) != 0)) {
 			AhciPortInterruptHandler(Controller, Controller->Ports[i]);
@@ -118,8 +126,7 @@ HandleInterrupt:
 OsStatus_t
 OnTimeout(
 	_In_ UUId_t Timer,
-	_In_ void *Data)
-{
+	_In_ void *Data) {
 	_CRT_UNUSED(Timer);
 	_CRT_UNUSED(Data);
 	return OsSuccess;
@@ -128,29 +135,19 @@ OnTimeout(
 /* OnLoad
  * The entry-point of a driver, this is called
  * as soon as the driver is loaded in the system */
-OsStatus_t OnLoad(void)
-{
-	// Initialize state for this driver
+OsStatus_t OnLoad(void) {
 	GlbControllers = CollectionCreate(KeyInteger);
-
-	// Initialize the device manager here
 	return AhciManagerInitialize();
 }
 
 /* OnUnload
  * This is called when the driver is being unloaded
  * and should free all resources allocated by the system */
-OsStatus_t OnUnload(void)
-{
-	// Iterate registered controllers
+OsStatus_t OnUnload(void) {
 	foreach(cNode, GlbControllers) {
 		AhciControllerDestroy((AhciController_t*)cNode->Data);
 	}
-
-	// Data is now cleaned up, destroy list
 	CollectionDestroy(GlbControllers);
-
-	// Cleanup the internal device manager
 	return AhciManagerDestroy();
 }
 
@@ -165,20 +162,13 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 	
 	// Register the new controller
 	Controller = AhciControllerCreate(Device);
-
-	// Sanitize
 	if (Controller == NULL) {
 		return OsError;
 	}
 
 	// Use the device-id as key
 	Key.Value = (int)Device->Id;
-
-	// Append the controller to our list
-	CollectionAppend(GlbControllers, CollectionCreateNode(Key, Controller));
-
-	// Done - no error
-	return OsSuccess;
+	return CollectionAppend(GlbControllers, CollectionCreateNode(Key, Controller));
 }
 
 /* OnUnregister
@@ -193,20 +183,11 @@ OsStatus_t OnUnregister(MCoreDevice_t *Device)
 	// Set the key to the id of the device to find
 	// the bound controller
 	Key.Value = (int)Device->Id;
-
-	// Lookup controller
-	Controller = (AhciController_t*)
-		CollectionGetDataByKey(GlbControllers, Key, 0);
-
-	// Sanitize lookup
+	Controller = (AhciController_t*)CollectionGetDataByKey(GlbControllers, Key, 0);
 	if (Controller == NULL) {
 		return OsError;
 	}
-
-	// Remove node from list
 	CollectionRemoveByKey(GlbControllers, Key);
-
-	// Destroy it
 	return AhciControllerDestroy(Controller);
 }
 
@@ -235,81 +216,81 @@ OnQuery(_In_ MContractType_t QueryType,
 	switch (QueryFunction) {
 		// Query stats about a disk identifier in the form of
 		// a StorageDescriptor
-	case __STORAGE_QUERY_STAT: {
-		// Get parameters
-		AhciDevice_t *Device = NULL;
-		UUId_t DiskId = (UUId_t)Arg0->Data.Value;
+        case __STORAGE_QUERY_STAT: {
+            // Get parameters
+            AhciDevice_t *Device = NULL;
+            UUId_t DiskId = (UUId_t)Arg0->Data.Value;
 
-		// Lookup device
-		Device = AhciManagerGetDevice(DiskId);
+            // Lookup device
+            Device = AhciManagerGetDevice(DiskId);
 
-		// Write the descriptor back
-		if (Device != NULL) {
-			return PipeSend(Queryee, ResponsePort,
-				(void*)&Device->Descriptor, sizeof(StorageDescriptor_t));
-		}
-		else {
-			OsStatus_t Result = OsError;
-			return PipeSend(Queryee, ResponsePort,
-				(void*)&Result, sizeof(OsStatus_t));
-		}
+            // Write the descriptor back
+            if (Device != NULL) {
+                return PipeSend(Queryee, ResponsePort,
+                    (void*)&Device->Descriptor, sizeof(StorageDescriptor_t));
+            }
+            else {
+                OsStatus_t Result = OsError;
+                return PipeSend(Queryee, ResponsePort,
+                    (void*)&Result, sizeof(OsStatus_t));
+            }
 
-	} break;
+        } break;
 
-		// Read or write sectors from a disk identifier
-		// They have same parameters with different direction
-	case __STORAGE_QUERY_WRITE:
-	case __STORAGE_QUERY_READ: {
-		// Get parameters
-		StorageOperation_t *Operation = (StorageOperation_t*)Arg1->Data.Buffer;
-		UUId_t DiskId = (UUId_t)Arg0->Data.Value;
+            // Read or write sectors from a disk identifier
+            // They have same parameters with different direction
+        case __STORAGE_QUERY_WRITE:
+        case __STORAGE_QUERY_READ: {
+            // Get parameters
+            StorageOperation_t *Operation = (StorageOperation_t*)Arg1->Data.Buffer;
+            UUId_t DiskId = (UUId_t)Arg0->Data.Value;
 
-		// Create a new transaction
-		AhciTransaction_t *Transaction =
-			(AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
-		
-		// Set sender stuff so we can send a response
-		Transaction->Requester = Queryee;
-		Transaction->Pipe = ResponsePort;
-		
-		// Store buffer-object stuff
-		Transaction->Address = Operation->PhysicalBuffer;
-		Transaction->SectorCount = Operation->SectorCount;
+            // Create a new transaction
+            AhciTransaction_t *Transaction =
+                (AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
+            
+            // Set sender stuff so we can send a response
+            Transaction->Requester = Queryee;
+            Transaction->Pipe = ResponsePort;
+            
+            // Store buffer-object stuff
+            Transaction->Address = Operation->PhysicalBuffer;
+            Transaction->SectorCount = Operation->SectorCount;
 
-		// Lookup device
-		Transaction->Device = AhciManagerGetDevice(DiskId);
+            // Lookup device
+            Transaction->Device = AhciManagerGetDevice(DiskId);
 
-		// Determine the kind of operation
-		if (Transaction->Device != NULL
-			&& Operation->Direction == __STORAGE_OPERATION_READ) {
-			if (AhciReadSectors(Transaction, Operation->AbsSector) != OsSuccess) {
-				OsStatus_t Result = OsError;
-				return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
-			}
-			else {
-				return OsSuccess;
-			}
-		}
-		else if (Transaction->Device != NULL
-			&& Operation->Direction == __STORAGE_OPERATION_WRITE) {
-			if (AhciWriteSectors(Transaction, Operation->AbsSector) != OsSuccess) {
-				OsStatus_t Result = OsError;
-				return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
-			}
-			else {
-				return OsSuccess;
-			}
-		}
-		else {
-			OsStatus_t Result = OsError;
-			return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
-		}
+            // Determine the kind of operation
+            if (Transaction->Device != NULL
+                && Operation->Direction == __STORAGE_OPERATION_READ) {
+                if (AhciReadSectors(Transaction, Operation->AbsSector) != OsSuccess) {
+                    OsStatus_t Result = OsError;
+                    return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
+                }
+                else {
+                    return OsSuccess;
+                }
+            }
+            else if (Transaction->Device != NULL
+                && Operation->Direction == __STORAGE_OPERATION_WRITE) {
+                if (AhciWriteSectors(Transaction, Operation->AbsSector) != OsSuccess) {
+                    OsStatus_t Result = OsError;
+                    return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
+                }
+                else {
+                    return OsSuccess;
+                }
+            }
+            else {
+                OsStatus_t Result = OsError;
+                return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
+            }
 
-	} break;
+        } break;
 
-		// Other cases not supported
-	default: {
-		return OsError;
-	}
+            // Other cases not supported
+        default: {
+            return OsError;
+        }
 	}
 }
