@@ -37,106 +37,86 @@
  * Resets the given port and returns the result of the reset */
 OsStatus_t
 EhciPortReset(
-	_In_ EhciController_t *Controller, 
-	_In_ int Index)
+    _In_ EhciController_t*  Controller, 
+    _In_ int                Index)
 {
-	// Variables
-	reg32_t Temp = Controller->OpRegisters->Ports[Index];
+    // Variables
+    reg32_t Temp = Controller->OpRegisters->Ports[Index];
 
-	// If we are per-port handled, and power is not enabled
-	// then switch it on, and give it some time to recover
-	if (Controller->SParameters & EHCI_SPARAM_PPC
-		&& !(Temp & EHCI_PORT_POWER)) {
-		Temp |= EHCI_PORT_POWER;
-		Controller->OpRegisters->Ports[Index] = Temp;
-		thrd_sleepex(20);
-	}
+    // If we are per-port handled, and power is not enabled
+    // then switch it on, and give it some time to recover
+    if (Controller->SParameters & EHCI_SPARAM_PPC && !(Temp & EHCI_PORT_POWER)) {
+        Temp                                    |= EHCI_PORT_POWER;
+        Controller->OpRegisters->Ports[Index]   = Temp;
+        thrd_sleepex(20);
+    }
 
-	// We must set the port-reset and keep the signal asserted for atleast 50 ms
-	// now, we are going to keep the signal alive for (much) longer due to 
-	// some devices being slow AF
-	
-	// The EHCI documentation says we should 
-	// disable enabled and assert reset together
-	Temp &= ~(EHCI_PORT_ENABLED);
-	Temp |= EHCI_PORT_RESET;
-	Controller->OpRegisters->Ports[Index] = Temp;
+    // We must set the port-reset and keep the signal asserted for atleast 50 ms
+    // now, we are going to keep the signal alive for (much) longer due to 
+    // some devices being slow AF
+    
+    // The EHCI documentation says we should 
+    // disable enabled and assert reset together
+    Temp                                    &= ~(EHCI_PORT_ENABLED);
+    Temp                                    |= EHCI_PORT_RESET;
+    Controller->OpRegisters->Ports[Index]   = Temp;
 
-	// Wait 100 ms for reset
-	thrd_sleepex(100);
+    // Wait 100 ms for reset
+    thrd_sleepex(100);
 
-	// Clear reset signal
-	Temp = Controller->OpRegisters->Ports[Index];
-	Temp &= ~(EHCI_PORT_RESET);
-	Controller->OpRegisters->Ports[Index] = Temp;
+    // Clear reset signal
+    Temp                                    = Controller->OpRegisters->Ports[Index];
+    Temp                                    &= ~(EHCI_PORT_RESET);
+    Controller->OpRegisters->Ports[Index]   = Temp;
 
-	// Wait for deassertion: 
-	// The reset process is actually complete when software reads a 
-	// zero in the PortReset bit
-	Temp = 0;
-	WaitForConditionWithFault(Temp, 
-		(Controller->OpRegisters->Ports[Index] & EHCI_PORT_RESET) == 0, 250, 10);
+    // Wait for deassertion: 
+    // The reset process is actually complete when software reads a 
+    // zero in the PortReset bit
+    Temp                                    = 0;
+    WaitForConditionWithFault(Temp, (Controller->OpRegisters->Ports[Index] & EHCI_PORT_RESET) == 0, 250, 10);
 
-	// Clear the RWC bit
-	Controller->OpRegisters->Ports[Index] |= EHCI_PORT_RWC;
+    // Clear the RWC bit
+    Controller->OpRegisters->Ports[Index] |= EHCI_PORT_RWC;
 
-	// Now, if the port has a high-speed 
-	// device, the enabled port is set
-	if (!(Controller->OpRegisters->Ports[Index] & EHCI_PORT_ENABLED)) {
-		if (EHCI_SPARAM_CCCOUNT(Controller->SParameters) != 0) {
-			Controller->OpRegisters->Ports[Index] |= EHCI_PORT_COMPANION_HC;
-		}
-		return OsError;
-	}
-
-	// Done
-	return OsSuccess;
+    // Now, if the port has a high-speed 
+    // device, the enabled port is set
+    if (!(Controller->OpRegisters->Ports[Index] & EHCI_PORT_ENABLED)) {
+        if (EHCI_SPARAM_CCCOUNT(Controller->SParameters) != 0) {
+            Controller->OpRegisters->Ports[Index] |= EHCI_PORT_COMPANION_HC;
+        }
+        return OsError;
+    }
+    return OsSuccess;
 }
 
 /* EhciPortGetStatus 
  * Retrieve the current port status, with connected and enabled information */
 void 
 EhciPortGetStatus(
-	_In_ EhciController_t *Controller,
-	_In_ int Index,
-	_Out_ UsbHcPortDescriptor_t *Port)
+    _In_  EhciController_t*         Controller,
+    _In_  int                       Index,
+    _Out_ UsbHcPortDescriptor_t*    Port)
 {
-	// Variables
-	reg32_t Status;
+    // Variables
+    reg32_t Status  = 0;
 
-	// Now we can get current port status
-	Status = Controller->OpRegisters->Ports[Index];
+    // Now we can get current port status
+    Status          = Controller->OpRegisters->Ports[Index];
 
-	// Is port connected?
-	if (Status & EHCI_PORT_CONNECTED) {
-		Port->Connected = 1;
-	}
-	else {
-		Port->Connected = 0;
-	}
-
-	// Is port enabled?
-	if (Status & EHCI_PORT_ENABLED) {
-		Port->Enabled = 1;
-	}
-	else {
-		Port->Enabled = 0;
-	}
-
-    // Ehci only has high-speed root ports
-	Port->Speed = HighSpeed;
+    // Is port connected?
+    Port->Connected = (Status & EHCI_PORT_CONNECTED) == 0 ? 0 : 1;
+    Port->Enabled   = (Status & EHCI_PORT_ENABLED) == 0 ? 0 : 1;
+    Port->Speed     = HighSpeed; // Ehci only has high-speed root ports
 }
 
 /* EhciPortSetup 
  * Waits for power-on delay and resets port */
 OsStatus_t
 EhciPortSetup(
-	_In_ EhciController_t *Controller,
-	_In_ int Index)
-{
-	// Wait for power-on delay
-	thrd_sleepex(100);
-	return EhciPortReset(Controller, Index);
+    _In_ EhciController_t*  Controller,
+    _In_ int                Index) {
+    thrd_sleepex(100); // Wait for power-on delay
+    return EhciPortReset(Controller, Index);
 }
 
 /* EhciPortCheck
@@ -144,34 +124,32 @@ EhciPortSetup(
  * registers any events that happen. */
 OsStatus_t
 EhciPortCheck(
-	_In_ EhciController_t *Controller,
-	_In_ int Index)
+    _In_ EhciController_t*  Controller,
+    _In_ int                Index)
 {
-	// Variables
-	reg32_t Status = Controller->OpRegisters->Ports[Index];
+    // Variables
+    reg32_t Status = Controller->OpRegisters->Ports[Index];
 
-	// Connection event? Otherwise ignore
-	if (!(Status & EHCI_PORT_CONNECT_EVENT)) {
-		return OsSuccess;
-	}
+    // Connection event? Otherwise ignore
+    if (!(Status & EHCI_PORT_CONNECT_EVENT)) {
+        return OsSuccess;
+    }
 
-	// Clear all event bits
-	Controller->OpRegisters->Ports[Index] = (Status | EHCI_PORT_RWC);
+    // Clear all event bits
+    Controller->OpRegisters->Ports[Index] = (Status | EHCI_PORT_RWC);
 
-	// Determine the type of connection event
-	// because the port might not be for us
-	// We have to release it in case of low-speed
-	if (Status & EHCI_PORT_CONNECTED) {
-		if (EHCI_PORT_LINESTATUS(Status) == EHCI_LINESTATUS_RELEASE) {
-			if (EHCI_SPARAM_CCCOUNT(Controller->SParameters) != 0) {
-				Controller->OpRegisters->Ports[Index] |= EHCI_PORT_COMPANION_HC;
-			}
-			return OsSuccess;
-		}
-	}
-
-	// Fire off event
-	return UsbEventPort(Controller->Base.Device.Id, Index);
+    // Determine the type of connection event
+    // because the port might not be for us
+    // We have to release it in case of low-speed
+    if (Status & EHCI_PORT_CONNECTED) {
+        if (EHCI_PORT_LINESTATUS(Status) == EHCI_LINESTATUS_RELEASE) {
+            if (EHCI_SPARAM_CCCOUNT(Controller->SParameters) != 0) {
+                Controller->OpRegisters->Ports[Index] |= EHCI_PORT_COMPANION_HC;
+            }
+            return OsSuccess;
+        }
+    }
+    return UsbEventPort(Controller->Base.Device.Id, Index);
 }
 
 /* EhciPortScan
@@ -179,11 +157,8 @@ EhciPortCheck(
  * them accordingly. */
 void
 EhciPortScan(
-	_In_ EhciController_t *Controller)
-{
-	// Variables
-	size_t i;
-	for (i = 0; i < Controller->Base.PortCount; i++) {
-		EhciPortCheck(Controller, i);
-	}
+    _In_ EhciController_t *Controller) {
+    for (size_t i = 0; i < Controller->Base.PortCount; i++) {
+        EhciPortCheck(Controller, i);
+    }
 }

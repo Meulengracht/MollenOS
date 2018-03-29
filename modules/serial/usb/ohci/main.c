@@ -244,13 +244,9 @@ OnUnregister(
     
     // Lookup controller
     Controller = (OhciController_t*)UsbManagerGetController(Device->Id);
-
-    // Sanitize lookup
     if (Controller == NULL) {
         return OsError;
     }
-    
-    // Destroy it
     return OhciControllerDestroy(Controller);
 }
 
@@ -259,36 +255,30 @@ OnUnregister(
  * this driver for data, this will correspond to the query
  * function that is defined in the contract */
 OsStatus_t 
-OnQuery(_In_ MContractType_t QueryType, 
-        _In_ int QueryFunction, 
-        _In_Opt_ MRemoteCallArgument_t *Arg0,
-        _In_Opt_ MRemoteCallArgument_t *Arg1,
-        _In_Opt_ MRemoteCallArgument_t *Arg2, 
-        _In_ UUId_t Queryee, 
-        _In_ int ResponsePort)
+OnQuery(
+    _In_        MContractType_t         QueryType, 
+    _In_        int                     QueryFunction, 
+    _In_Opt_    MRemoteCallArgument_t*  Arg0,
+    _In_Opt_    MRemoteCallArgument_t*  Arg1,
+    _In_Opt_    MRemoteCallArgument_t*  Arg2, 
+    _In_        UUId_t                  Queryee,
+    _In_        int                     ResponsePort)
 {
     // Variables
     UsbManagerTransfer_t *Transfer  = NULL;
     OhciController_t *Controller    = NULL;
-    UUId_t Device                   = UUID_INVALID, 
-           Pipe                     = UUID_INVALID;
+    UUId_t Device = UUID_INVALID, Pipe = UUID_INVALID;
     OsStatus_t Result               = OsError;
-    
+
     // Debug
     TRACE("Ohci.OnQuery(Function %i)", QueryFunction);
 
     // Instantiate some variables
-    Device = (UUId_t)Arg0->Data.Value;
-    Pipe = (UUId_t)Arg1->Data.Value;
-    
-    // Lookup controller
-    Controller = (OhciController_t*)UsbManagerGetController(Device);
-
-    // Sanitize we have a controller
+    Device      = (UUId_t)Arg0->Data.Value;
+    Pipe        = (UUId_t)Arg1->Data.Value;
+    Controller  = (OhciController_t*)UsbManagerGetController(Device);
     if (Controller == NULL) {
-        // Null response
-        return PipeSend(Queryee, ResponsePort, 
-            (void*)&Result, sizeof(OsStatus_t));
+        return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
     }
 
     switch (QueryFunction) {

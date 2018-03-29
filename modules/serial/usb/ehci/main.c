@@ -22,7 +22,7 @@
  * - Isochronous Transport
  * - Transaction Translator Support
  */
-//#define __TRACE
+#define __TRACE
 
 /* Includes 
  * - System */
@@ -75,7 +75,7 @@ OnFastInterrupt(
  * This is to actually process the device interrupt */
 InterruptStatus_t 
 OnInterrupt(
-    _In_Opt_ void *InterruptData,
+    _In_Opt_ void*  InterruptData,
     _In_Opt_ size_t Arg0,
     _In_Opt_ size_t Arg1,
     _In_Opt_ size_t Arg2)
@@ -95,6 +95,7 @@ OnInterrupt(
 ProcessInterrupt:
     InterruptStatus = Controller->Base.InterruptStatus;
     Controller->Base.InterruptStatus = 0;
+
     // Transaction update, either error or completion
     if (InterruptStatus & (EHCI_STATUS_PROCESS | EHCI_STATUS_PROCESSERROR)) {
         EhciProcessTransfers(Controller);
@@ -136,8 +137,9 @@ ProcessInterrupt:
 OsStatus_t
 OnTimeout(
     _In_ UUId_t Timer,
-    _In_ void *Data)
-{
+    _In_ void*  Data) {
+    _CRT_UNUSED(Timer);
+    _CRT_UNUSED(Data);
     return OsSuccess;
 }
 
@@ -145,9 +147,7 @@ OnTimeout(
  * The entry-point of a driver, this is called
  * as soon as the driver is loaded in the system */
 OsStatus_t
-OnLoad(void)
-{
-    // Initialize the device manager here
+OnLoad(void) {
     return UsbManagerInitialize();
 }
 
@@ -155,9 +155,7 @@ OnLoad(void)
  * This is called when the driver is being unloaded
  * and should free all resources allocated by the system */
 OsStatus_t
-OnUnload(void)
-{
-    // Cleanup the internal device manager
+OnUnload(void) {
     return UsbManagerDestroy();
 }
 
@@ -173,8 +171,6 @@ OnRegister(
     
     // Register the new controller
     Controller = EhciControllerCreate(Device);
-
-    // Sanitize
     if (Controller == NULL) {
         return OsError;
     }
@@ -195,13 +191,9 @@ OnUnregister(
     
     // Lookup controller
     Controller = (EhciController_t*)UsbManagerGetController(Device->Id);
-
-    // Sanitize lookup
     if (Controller == NULL) {
         return OsError;
     }
-
-    // Destroy it
     return EhciControllerDestroy(Controller);
 }
 
@@ -211,32 +203,29 @@ OnUnregister(
  * function that is defined in the contract */
 OsStatus_t 
 OnQuery(
-    _In_ MContractType_t QueryType, 
-    _In_ int QueryFunction, 
-    _In_Opt_ MRemoteCallArgument_t *Arg0,
-    _In_Opt_ MRemoteCallArgument_t *Arg1,
-    _In_Opt_ MRemoteCallArgument_t *Arg2, 
-    _In_ UUId_t Queryee, 
-    _In_ int ResponsePort)
+    _In_        MContractType_t         QueryType, 
+    _In_        int                     QueryFunction, 
+    _In_Opt_    MRemoteCallArgument_t*  Arg0,
+    _In_Opt_    MRemoteCallArgument_t*  Arg1,
+    _In_Opt_    MRemoteCallArgument_t*  Arg2, 
+    _In_        UUId_t                  Queryee,
+    _In_        int                     ResponsePort)
 {
     // Variables
-    UsbManagerTransfer_t *Transfer = NULL;
-    EhciController_t *Controller = NULL;
+    UsbManagerTransfer_t *Transfer  = NULL;
+    EhciController_t *Controller    = NULL;
     UUId_t Device = UUID_INVALID, Pipe = UUID_INVALID;
-    OsStatus_t Result = OsError;
+    OsStatus_t Result               = OsError;
+
+    // Debug
+    TRACE("Ehci.OnQuery(Function %i)", QueryFunction);
 
     // Instantiate some variables
-    Device = (UUId_t)Arg0->Data.Value;
-    Pipe = (UUId_t)Arg1->Data.Value;
-    
-    // Lookup controller
-    Controller = (EhciController_t*)UsbManagerGetController(Device);
-
-    // Sanitize we have a controller
+    Device      = (UUId_t)Arg0->Data.Value;
+    Pipe        = (UUId_t)Arg1->Data.Value;
+    Controller  = (EhciController_t*)UsbManagerGetController(Device);
     if (Controller == NULL) {
-        // Null response
-        return PipeSend(Queryee, ResponsePort, 
-            (void*)&Result, sizeof(OsStatus_t));
+        return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
     }
 
     switch (QueryFunction) {

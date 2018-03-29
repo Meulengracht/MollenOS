@@ -89,7 +89,9 @@
                 "limitSymbolsToIncludedHeaders": true,
                 "databaseFilename": ""
             },
-            "intelliSenseMode": "clang-x64"
+            "intelliSenseMode": "clang-x64",
+            "cStandard": "c11",
+            "cppStandard": "c++17"
         }
     ],
     "version": 3

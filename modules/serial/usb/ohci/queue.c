@@ -39,22 +39,22 @@
 /* OhciErrorMessages
  * Textual representations of the possible error codes */
 const char *OhciErrorMessages[] = {
-	"No Error",
-	"CRC Error",
-	"Bit Stuffing Violation",
-	"Data Toggle Mismatch",
-	"Stall PID recieved",
-	"Device Not Responding",
-	"PID Check Failure",
-	"Unexpected PID",
-	"Data Overrun",
-	"Data Underrun",
-	"Reserved",
-	"Reserved",
-	"Buffer Overrun",
-	"Buffer Underrun",
-	"Not Accessed",
-	"Not Accessed"
+    "No Error",
+    "CRC Error",
+    "Bit Stuffing Violation",
+    "Data Toggle Mismatch",
+    "Stall PID recieved",
+    "Device Not Responding",
+    "PID Check Failure",
+    "Unexpected PID",
+    "Data Overrun",
+    "Data Underrun",
+    "Reserved",
+    "Reserved",
+    "Buffer Overrun",
+    "Buffer Underrun",
+    "Not Accessed",
+    "Not Accessed"
 };
 
 // Queue Balancing - Not Used since refactoring 
@@ -174,8 +174,7 @@ OhciQueueReset(
 
     // Iterate all queued transactions and dequeue
     _foreach(tNode, Controller->QueueControl.TransactionList) {
-        OhciTransactionFinalize(Controller, 
-            (UsbManagerTransfer_t*)tNode->Data, 0);
+        OhciTransactionFinalize(Controller, (UsbManagerTransfer_t*)tNode->Data, 0);
     }
     CollectionClear(Controller->QueueControl.TransactionList);
 
@@ -206,7 +205,7 @@ OhciQueueDestroy(
     // Cleanup resources
     CollectionDestroy(Controller->QueueControl.TransactionList);
     MemoryFree(Controller->QueueControl.QHPool, PoolSize);
-	return OsSuccess;
+    return OsSuccess;
 }
 
 /* OhciVisualizeQueue

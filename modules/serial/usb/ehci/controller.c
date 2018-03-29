@@ -22,7 +22,7 @@
  * - Isochronous Transport
  * - Transaction Translator Support
  */
-//#define __TRACE
+#define __TRACE
 
 /* Includes
  * - System */
@@ -38,16 +38,8 @@
 
 /* Prototypes 
  * This is to keep the create/destroy at the top of the source file */
-OsStatus_t
-EhciSetup(
-    _In_ EhciController_t *Controller);
-
-/* Externs
- * We need access to the interrupt-handlers in main.c */
-__EXTERN
-InterruptStatus_t
-OnFastInterrupt(
-    _In_Opt_ void *InterruptData);
+OsStatus_t          EhciSetup(EhciController_t *Controller);
+InterruptStatus_t   OnFastInterrupt(void *InterruptData);
 
 /* EhciControllerCreate 
  * Initializes and creates a new Ehci Controller instance
@@ -57,8 +49,8 @@ EhciControllerCreate(
     _In_ MCoreDevice_t *Device)
 {
     // Variables
-    EhciController_t *Controller = NULL;
-    DeviceIoSpace_t *IoBase = NULL;
+    EhciController_t *Controller    = NULL;
+    DeviceIoSpace_t *IoBase         = NULL;
     int i;
 
     // Allocate a new instance of the controller
@@ -67,8 +59,8 @@ EhciControllerCreate(
     memcpy(&Controller->Base.Device, Device, Device->Length);
 
     // Fill in some basic stuff needed for init
-    Controller->Base.Contract.DeviceId = Controller->Base.Device.Id;
-    Controller->Base.Type = UsbEHCI;
+    Controller->Base.Contract.DeviceId  = Controller->Base.Device.Id;
+    Controller->Base.Type               = UsbEHCI;
     SpinlockReset(&Controller->Base.Lock);
 
     // Get I/O Base, and for EHCI it'll be the first address we encounter
@@ -93,8 +85,7 @@ EhciControllerCreate(
         IoBase->Type, IoBase->PhysicalBase, IoBase->Size);
 
     // Acquire the io-space
-    if (CreateIoSpace(IoBase) != OsSuccess
-        || AcquireIoSpace(IoBase) != OsSuccess) {
+    if (CreateIoSpace(IoBase) != OsSuccess || AcquireIoSpace(IoBase) != OsSuccess) {
         ERROR("Failed to create and acquire the io-space for ehci-controller");
         free(Controller);
         return NULL;
@@ -112,15 +103,13 @@ EhciControllerCreate(
     TRACE("Io-Space was assigned virtual address 0x%x", IoBase->VirtualBase);
 
     // Instantiate the register-access
-    Controller->CapRegisters = (EchiCapabilityRegisters_t*)IoBase->VirtualBase;
-    Controller->OpRegisters = (EchiOperationalRegisters_t*)
+    Controller->CapRegisters    = (EchiCapabilityRegisters_t*)IoBase->VirtualBase;
+    Controller->OpRegisters     = (EchiOperationalRegisters_t*)
         (IoBase->VirtualBase + Controller->CapRegisters->Length);
 
     // Initialize the interrupt settings
-    Controller->Base.Device.Interrupt.FastHandler = OnFastInterrupt;
-    Controller->Base.Device.Interrupt.Data = Controller;
-
-    // Register contract before interrupt
+    Controller->Base.Device.Interrupt.FastHandler   = OnFastInterrupt;
+    Controller->Base.Device.Interrupt.Data          = Controller;
     if (RegisterContract(&Controller->Base.Contract) != OsSuccess) {
         ERROR("Failed to register contract for ehci-controller");
         ReleaseIoSpace(Controller->Base.IoBase);
@@ -130,7 +119,7 @@ EhciControllerCreate(
     }
 
     // Register interrupt
-    Controller->Base.Interrupt = RegisterInterruptSource(
+    Controller->Base.Interrupt  = RegisterInterruptSource(
         &Controller->Base.Device.Interrupt, INTERRUPT_USERSPACE);
 
     // Enable device
@@ -185,8 +174,6 @@ EhciControllerDestroy(
 
     // Free the controller structure
     free(Controller);
-
-    // Cleanup done
     return OsSuccess;
 }
 
@@ -219,10 +206,10 @@ EhciDisableLegacySupport(
     if (Eecp >= 0x40) {
 
         // Variables
-        Flags_t Semaphore = 0;
-        Flags_t CapId = 0;
-        Flags_t NextEecp = 0;
-        int Run = 1;
+        Flags_t Semaphore   = 0;
+        Flags_t CapId       = 0;
+        Flags_t NextEecp    = 0;
+        int Run             = 1;
 
         // Get the extended capability register
         // We read the second byte, because it contains
@@ -321,34 +308,29 @@ EhciHalt(
     TRACE("EhciHalt()");
 
     // Try to stop the scheduler
-    TemporaryValue = Controller->OpRegisters->UsbCommand;
+    TemporaryValue  = Controller->OpRegisters->UsbCommand;
     TemporaryValue &= ~(EHCI_COMMAND_PERIODIC_ENABLE | EHCI_COMMAND_ASYNC_ENABLE);
     Controller->OpRegisters->UsbCommand = TemporaryValue;
 
     // Wait for the active-bits to clear
-    WaitForConditionWithFault(Fault, 
-        (Controller->OpRegisters->UsbStatus & 0xC000) == 0, 250, 10);
-
-    // Did we stop the scheduler?
+    WaitForConditionWithFault(Fault, (Controller->OpRegisters->UsbStatus & 0xC000) == 0, 250, 10);
     if (Fault) {
         ERROR("EHCI-Failure: Failed to stop scheduler, Command Register: 0x%x - Status: 0x%x",
             Controller->OpRegisters->UsbCommand, Controller->OpRegisters->UsbStatus);
     }
 
     // Clear remaining interrupts
-    Controller->OpRegisters->UsbIntr = 0;
-    Controller->OpRegisters->UsbStatus = (0x3F);
+    Controller->OpRegisters->UsbIntr    = 0;
+    Controller->OpRegisters->UsbStatus  = (0x3F);
 
     // Now stop the controller, this should succeed
-    TemporaryValue = Controller->OpRegisters->UsbCommand;
-    TemporaryValue &= ~(EHCI_COMMAND_RUN);
+    TemporaryValue                      = Controller->OpRegisters->UsbCommand;
+    TemporaryValue                      &= ~(EHCI_COMMAND_RUN);
     Controller->OpRegisters->UsbCommand = TemporaryValue;
 
     // Wait for the active-bit to clear
-    Fault = 0;
-    WaitForConditionWithFault(Fault, 
-        (Controller->OpRegisters->UsbStatus & EHCI_STATUS_HALTED) != 0, 250, 10);
-
+    Fault                               = 0;
+    WaitForConditionWithFault(Fault, (Controller->OpRegisters->UsbStatus & EHCI_STATUS_HALTED) != 0, 250, 10);
     if (Fault) {
         ERROR("EHCI-Failure: Failed to stop controller, Command Register: 0x%x - Status: 0x%x",
             Controller->OpRegisters->UsbCommand, Controller->OpRegisters->UsbStatus);
@@ -388,15 +370,12 @@ EhciReset(
     TRACE("EhciReset()");
 
     // Reset controller
-    TemporaryValue = Controller->OpRegisters->UsbCommand;
-    TemporaryValue |= EHCI_COMMAND_HCRESET;
+    TemporaryValue                      = Controller->OpRegisters->UsbCommand;
+    TemporaryValue                      |= EHCI_COMMAND_HCRESET;
     Controller->OpRegisters->UsbCommand = TemporaryValue;
 
     // Wait for signal to deassert
-    WaitForConditionWithFault(Fault, 
-        (Controller->OpRegisters->UsbCommand & EHCI_COMMAND_HCRESET) == 0, 250, 10);
-
-    // Handle result
+    WaitForConditionWithFault(Fault, (Controller->OpRegisters->UsbCommand & EHCI_COMMAND_HCRESET) == 0, 250, 10);
     if (Fault) {
         ERROR("EHCI-Failure: Reset signal won't deassert, waiting one last long wait",
             Controller->OpRegisters->UsbCommand, Controller->OpRegisters->UsbStatus);
@@ -423,8 +402,7 @@ EhciRestart(
 
     // Stop controller, unschedule everything
     // and then reset it.
-    if (EhciHalt(Controller) != OsSuccess
-        || EhciReset(Controller) != OsSuccess) {
+    if (EhciHalt(Controller) != OsSuccess || EhciReset(Controller) != OsSuccess) {
         ERROR("Failed to halt or reset controller");
         return OsError;
     }
@@ -436,9 +414,9 @@ EhciRestart(
     Controller->OpRegisters->UsbStatus              = Controller->OpRegisters->UsbStatus;
 
     // Update the hardware registers to point to the newly allocated
-	// addresses
-	Controller->OpRegisters->PeriodicListAddress    = (reg32_t)Controller->QueueControl.FrameListPhysical;
-	Controller->OpRegisters->AsyncListAddress       = (reg32_t)EHCI_POOL_QHINDEX(Controller, EHCI_POOL_QH_ASYNC) | EHCI_LINK_QH;
+    // addresses
+    Controller->OpRegisters->PeriodicListAddress    = (reg32_t)Controller->QueueControl.FrameListPhysical;
+    Controller->OpRegisters->AsyncListAddress       = (reg32_t)EHCI_POOL_QHINDEX(Controller, EHCI_POOL_QH_ASYNC) | EHCI_LINK_QH;
 
     // Next step is to build the command configuring the controller
     // Set irq latency to 0, enable per-port changes, async park
@@ -503,8 +481,8 @@ EhciSetup(
 #else
     // Save some read-only but often accessed information
     Controller->Base.PortCount  = EHCI_SPARAM_PORTCOUNT(Controller->CapRegisters->SParams);
-    Controller->SParameters = Controller->CapRegisters->SParams;
-    Controller->CParameters = Controller->CapRegisters->CParams;
+    Controller->SParameters     = Controller->CapRegisters->SParams;
+    Controller->CParameters     = Controller->CapRegisters->CParams;
 
     // We then stop the controller, reset it and 
     // initialize data-structures
@@ -512,8 +490,8 @@ EhciSetup(
     EhciRestart(Controller);
 
     // Wait for all companion controllers to startup before handing off ports
-    HcController = (UsbHcController_t*)malloc(sizeof(UsbHcController_t));
-    CcToStart = EHCI_SPARAM_CCCOUNT(Controller->SParameters);
+    HcController                = (UsbHcController_t*)malloc(sizeof(UsbHcController_t));
+    CcToStart                   = EHCI_SPARAM_CCCOUNT(Controller->SParameters);
     TRACE("Waiting for %i cc's to boot", CcToStart);
     while (CcStarted < CcToStart && (Timeout > 0)) {
         int UpdatedControllerCount = 0;

@@ -40,28 +40,27 @@
  * and preparing it for usage */
 OsStatus_t
 EhciTransactionInitialize(
-    _In_ EhciController_t *Controller,
-    _In_ UsbTransfer_t *Transfer,
-    _In_ size_t Pipe,
-    _Out_ EhciQueueHead_t **QhOut)
+    _In_  EhciController_t* Controller,
+    _In_  UsbTransfer_t*    Transfer,
+    _In_  size_t            Pipe,
+    _Out_ EhciQueueHead_t** QhOut)
 {
     // Variables
     EhciQueueHead_t *Qh = NULL;
-    size_t Address, Endpoint;
+    size_t Address      = 0;
+    size_t Endpoint     = 0;
 
     // Extract address and endpoint
-    Address = HIWORD(Pipe);
-    Endpoint = LOWORD(Pipe);
+    Address     = HIWORD(Pipe);
+    Endpoint    = LOWORD(Pipe);
 
     // We handle Isochronous transfers a bit different
     if (Transfer->Type != IsochronousTransfer) {
-        *QhOut = Qh = EhciQhAllocate(Controller);
-
-        // Calculate the bus-time
-        if (Transfer->Type == InterruptTransfer) {
+        Qh      = EhciQhAllocate(Controller);
+        *QhOut  = Qh;
+        if (Transfer->Type == InterruptTransfer) { // Calculate the bus-time
             if (EhciQhInitialize(Controller, Qh, Transfer->Speed, 
-                Transfer->Endpoint.Direction,
-                Transfer->Type, Transfer->Endpoint.Interval,
+                Transfer->Endpoint.Direction, Transfer->Type, Transfer->Endpoint.Interval,
                 Transfer->Endpoint.MaxPacketSize, Transfer->Transactions[0].Length) != OsSuccess) {
                 return OsError;
             }
@@ -77,8 +76,7 @@ EhciTransactionInitialize(
         Qh->Flags |= EHCI_QH_MAXLENGTH(Transfer->Endpoint.MaxPacketSize);
 
         // Now, set additionals depending on speed
-        if (Transfer->Speed == LowSpeed 
-            || Transfer->Speed == FullSpeed) {
+        if (Transfer->Speed == LowSpeed || Transfer->Speed == FullSpeed) {
             if (Transfer->Type == ControlTransfer) {
                 Qh->Flags |= EHCI_QH_CONTROLEP;
             }
@@ -123,8 +121,6 @@ EhciTransactionInitialize(
     else {
         // Isochronous transfers (@todo)
     }
-
-    // Done
     return OsSuccess;
 }
 
@@ -132,9 +128,9 @@ EhciTransactionInitialize(
  * Returns the number of transactions neccessary for the transfer. */
 OsStatus_t
 EhciTransactionCount(
-    _In_ EhciController_t       *Controller,
-    _In_ UsbManagerTransfer_t   *Transfer,
-    _Out_ int                   *TransactionsTotal)
+    _In_  EhciController_t*     Controller,
+    _In_  UsbManagerTransfer_t* Transfer,
+    _Out_ int*                  TransactionsTotal)
 {
     // Variables
     int TransactionCount    = 0;
@@ -186,8 +182,8 @@ EhciTransactionCount(
  * Fills the transfer with as many transfer-descriptors as possible/needed. */
 OsStatus_t
 EhciTransferFill(
-    _In_ EhciController_t           *Controller,
-    _InOut_ UsbManagerTransfer_t    *Transfer)
+    _In_ EhciController_t*      Controller,
+    _In_ UsbManagerTransfer_t*  Transfer)
 {
     // Variables
     EhciQueueHead_t *Qh                     = (EhciQueueHead_t*)Transfer->EndpointDescriptor;
@@ -202,8 +198,8 @@ EhciTransferFill(
     TRACE("EhciTransferFill()");
 
     // Extract address and endpoint
-    Address = HIWORD(Transfer->Pipe);
-    Endpoint = LOWORD(Transfer->Pipe);
+    Address     = HIWORD(Transfer->Pipe);
+    Endpoint    = LOWORD(Transfer->Pipe);
 
     // Get next address from which we need to load
     for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
@@ -237,16 +233,13 @@ EhciTransferFill(
                 ByteStep    = BytesToTransfer;
             }
             else {
-                Td          = EhciTdIo(Controller, &Transfer->Transfer,
-                    &Transfer->Transfer.Transactions[i], Toggle);
+                Td          = EhciTdIo(Controller, &Transfer->Transfer, &Transfer->Transfer.Transactions[i], Toggle);
                 ByteStep    = (Td->Length & EHCI_TD_LENGTHMASK);
             }
 
             // If we didn't allocate a td, we ran out of 
             // resources, and have to wait for more. Queue up what we have
             if (Td == NULL) {
-                WARNING("Out of resources, queued up %u/%u bytes", 
-                    ByteOffset, Transfer->Transfer.Transactions[i].Length);
                 if (PreviousToggle != -1) {
                     UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, PreviousToggle);
                     Transfer->Transfer.Transactions[i].Handshake = 1;
@@ -295,13 +288,23 @@ EhciTransferFill(
             break;
         }
     }
-        
-    // End of <transfer>?
-    if (PreviousTd != NULL) {
+
+    // If we ran out of resources it can be pretty serious
+    // Add a null-transaction (Out, Zero)
+    if (Transfer->Transfer.Type != IsochronousTransfer) {
+        if (OutOfResources == 1) {
+            // If we allocated zero we have to unallocate zero and try again later
+            if (InitialTd == NULL) {
+                return OsError;
+            }
+        }
         // Set last td to generate a interrupt (not null)
         PreviousTd->Token           |= EHCI_TD_IOC;
         PreviousTd->OriginalToken   |= EHCI_TD_IOC;
+    }
 
+    // End of <transfer>?
+    if (InitialTd != NULL) {
         // Finalize the endpoint-descriptor
         Qh->ChildIndex              = InitialTd->Index;
         Qh->CurrentTD               = EHCI_POOL_TDINDEX(Controller, InitialTd->Index);
@@ -318,8 +321,8 @@ EhciTransferFill(
  * transactions and preparing them. */
 UsbTransferStatus_t
 EhciTransactionDispatch(
-    _In_ EhciController_t *Controller,
-    _In_ UsbManagerTransfer_t *Transfer)
+    _In_ EhciController_t*      Controller,
+    _In_ UsbManagerTransfer_t*  Transfer)
 {
     // Variables
     EhciTransferDescriptor_t *Td = NULL;
@@ -327,13 +330,13 @@ EhciTransactionDispatch(
     uintptr_t QhAddress;
 
     /*************************
-	 ****** SETUP PHASE ******
-	 *************************/
-    Qh = (EhciQueueHead_t *)Transfer->EndpointDescriptor;
-    Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
+     ****** SETUP PHASE ******
+     *************************/
+    Qh                      = (EhciQueueHead_t *)Transfer->EndpointDescriptor;
+    Td                      = &Controller->QueueControl.TDPool[Qh->ChildIndex];
 
     // Lookup physical
-    QhAddress = EHCI_POOL_QHINDEX(Controller, Qh->Index);
+    QhAddress               = EHCI_POOL_QHINDEX(Controller, Qh->Index);
 
     // Handle the initialization a bit differently for isoc
     if (Transfer->Transfer.Type != IsochronousTransfer) {
@@ -354,14 +357,28 @@ EhciTransactionDispatch(
     }
 
     // Trace
-    TRACE("UHCI: QH at 0x%x, FirstTd 0x%x, NextQh 0x%x",
-          QhAddress, Qh->CurrentTD, Qh->LinkPointer);
-    TRACE("UHCI: Bandwidth %u, StartFrame %u, Flags 0x%x",
-          Qh->Bandwidth, Qh->sFrame, Qh->Flags);
+    TRACE("EHCI: QH at 0x%x, FirstTd 0x%x, NextQh 0x%x", QhAddress, Qh->CurrentTD, Qh->LinkPointer);
+    TRACE("EHCI: Bandwidth %u, StartFrame %u, Flags 0x%x", Qh->Bandwidth, Qh->sFrame, Qh->Flags);
+
+    while (Td != NULL) {
+        uintptr_t TdPhysical = EHCI_POOL_TDINDEX(Controller, Td->Index);
+        TRACE("EHCI: TD(0x%x), Link(0x%x), AltLink(0x%x), Status(0x%x), Token(0x%x)",
+            TdPhysical, Td->Link, Td->AlternativeLink, Td->Status, Td->Token);
+        TRACE("          Length(0x%x), Buffer0(0x%x:0x%x), Buffer1(0x%x:0x%x)",
+            Td->Length, Td->ExtBuffers[0], Td->Buffers[0], Td->ExtBuffers[1], Td->Buffers[1]);
+        TRACE("          Buffer2(0x%x:0x%x), Buffer3(0x%x:0x%x), Buffer4(0x%x:0x%x)", 
+            Td->ExtBuffers[2], Td->Buffers[2], Td->ExtBuffers[3], Td->Buffers[3], Td->ExtBuffers[4], Td->Buffers[4]);
+        if (Td->LinkIndex != EHCI_NO_INDEX) {
+            Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
+        }
+        else {
+            Td = NULL;
+        }
+    }
 
     /*************************
-	 **** LINKING PHASE ******
-	 *************************/
+     **** LINKING PHASE ******
+     *************************/
 
     // Acquire the spinlock for atomic queue access
     SpinlockAcquire(&Controller->Base.Lock);
@@ -371,11 +388,11 @@ EhciTransactionDispatch(
         || Transfer->Transfer.Type == BulkTransfer) {
         // Transfer existing links
         Qh->LinkPointer = Controller->QueueControl.QHPool[EHCI_POOL_QH_ASYNC].LinkPointer;
-        Qh->LinkIndex = Controller->QueueControl.QHPool[EHCI_POOL_QH_ASYNC].LinkIndex;
+        Qh->LinkIndex   = Controller->QueueControl.QHPool[EHCI_POOL_QH_ASYNC].LinkIndex;
         MemoryBarrier();
 
         // Insert at the start of queue
-        Controller->QueueControl.QHPool[EHCI_POOL_QH_ASYNC].LinkIndex = Qh->Index;
+        Controller->QueueControl.QHPool[EHCI_POOL_QH_ASYNC].LinkIndex   = Qh->Index;
         Controller->QueueControl.QHPool[EHCI_POOL_QH_ASYNC].LinkPointer = QhAddress | EHCI_LINK_QH;
 
         // Enable the asynchronous scheduler
@@ -434,8 +451,6 @@ EhciTransactionDispatch(
     TRACE("Qh Address 0x%x, Flags 0x%x, State 0x%x, Current 0x%x, Next 0x%x\n",
                    QhAddress, Qh->Flags, Qh->State, Qh->CurrentTD, Qh->Overlay.NextTD);
 #endif
-
-    // Done
     Transfer->Status = TransferQueued;
     return TransferQueued;
 }
@@ -444,9 +459,9 @@ EhciTransactionDispatch(
  * Cleans up the transfer, deallocates resources and validates the td's */
 OsStatus_t
 EhciTransactionFinalize(
-    _In_ EhciController_t *Controller,
-    _In_ UsbManagerTransfer_t *Transfer,
-    _In_ int Validate)
+    _In_ EhciController_t*      Controller,
+    _In_ UsbManagerTransfer_t*  Transfer,
+    _In_ int                    Validate)
 {
     // Variables
     EhciQueueHead_t *Qh             =(EhciQueueHead_t*)Transfer->EndpointDescriptor;
@@ -524,11 +539,9 @@ EhciTransactionFinalize(
     else {
         // Unlinking periodics is an atomic operation
         SpinlockAcquire(&Controller->Base.Lock);
-        EhciUnlinkPeriodic(Controller, (uintptr_t)Qh, 
-                           Qh->Interval, Qh->sFrame);
+        EhciUnlinkPeriodic(Controller, (uintptr_t)Qh, Qh->Interval, Qh->sFrame);
         UsbSchedulerReleaseBandwidth(Controller->Scheduler,
-                                     Qh->Interval, Qh->Bandwidth, 
-                                     Qh->sFrame, Qh->sMask);
+            Qh->Interval, Qh->Bandwidth, Qh->sFrame, Qh->sMask);
         SpinlockRelease(&Controller->Base.Lock);
     }
     
@@ -629,9 +642,9 @@ UsbQueueTransferGeneric(
     Transfer->Status                = TransferNotProcessed;
 
     // If it's a control transfer set initial toggle 0
-	if (Transfer->Transfer.Type == ControlTransfer) {
-		UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, 0);
-	}
+    if (Transfer->Transfer.Type == ControlTransfer) {
+        UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, 0);
+    }
 
     // Store transaction in queue
     Key.Value = 0;
