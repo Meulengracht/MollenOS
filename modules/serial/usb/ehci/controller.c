@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,15 +19,15 @@
  * MollenOS MCore - Enhanced Host Controller Interface Driver
  * TODO:
  * - Power Management
- * - Isochronous Transport
  * - Transaction Translator Support
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes
  * - System */
 #include <os/device.h>
 #include <os/utils.h>
+#include "../common/hci.h"
 #include "ehci.h"
 
 /* Includes
@@ -41,12 +41,12 @@
 OsStatus_t          EhciSetup(EhciController_t *Controller);
 InterruptStatus_t   OnFastInterrupt(void *InterruptData);
 
-/* EhciControllerCreate 
- * Initializes and creates a new Ehci Controller instance
+/* HciControllerCreate 
+ * Initializes and creates a new Hci Controller instance
  * from a given new system device on the bus. */
-EhciController_t*
-EhciControllerCreate(
-    _In_ MCoreDevice_t *Device)
+UsbManagerController_t*
+HciControllerCreate(
+    _In_ MCoreDevice_t*             Device)
 {
     // Variables
     EhciController_t *Controller    = NULL;
@@ -61,6 +61,8 @@ EhciControllerCreate(
     // Fill in some basic stuff needed for init
     Controller->Base.Contract.DeviceId  = Controller->Base.Device.Id;
     Controller->Base.Type               = UsbEHCI;
+    Controller->Base.TransactionList    = CollectionCreate(KeyInteger);
+    Controller->Base.Endpoints          = CollectionCreate(KeyInteger);
     SpinlockReset(&Controller->Base.Lock);
 
     // Get I/O Base, and for EHCI it'll be the first address we encounter
@@ -134,43 +136,40 @@ EhciControllerCreate(
         return NULL;
     }
 
-    // Allocate a list of endpoints
-    Controller->Base.Endpoints = CollectionCreate(KeyInteger);
-
     // Now that all formalities has been taken care
     // off we can actually setup controller
     if (UsbManagerCreateController(&Controller->Base) == OsSuccess
         && EhciSetup(Controller) == OsSuccess) {
-        return Controller;
+        return &Controller->Base;
     }
     else {
-        EhciControllerDestroy(Controller);
+        HciControllerDestroy(&Controller->Base);
         return NULL;
     }
 }
 
-/* EhciControllerDestroy
+/* HciControllerDestroy
  * Destroys an existing controller instance and cleans up
  * any resources related to it */
 OsStatus_t
-EhciControllerDestroy(
-    _In_ EhciController_t *Controller)
+HciControllerDestroy(
+    _In_ UsbManagerController_t*    Controller)
 {
     // Unregister, then destroy
-    UsbManagerDestroyController(&Controller->Base);
+    UsbManagerDestroyController(Controller);
 
     // Cleanup scheduler
-    EhciQueueDestroy(Controller);
+    EhciQueueDestroy((EhciController_t*)Controller);
 
     // Unregister the interrupt
-    UnregisterInterruptSource(Controller->Base.Interrupt);
+    UnregisterInterruptSource(Controller->Interrupt);
 
     // Release the io-space
-    ReleaseIoSpace(Controller->Base.IoBase);
-    DestroyIoSpace(Controller->Base.IoBase->Id);
+    ReleaseIoSpace(Controller->IoBase);
+    DestroyIoSpace(Controller->IoBase->Id);
 
     // Free the list of endpoints
-    CollectionDestroy(Controller->Base.Endpoints);
+    CollectionDestroy(Controller->Endpoints);
 
     // Free the controller structure
     free(Controller);
@@ -419,12 +418,17 @@ EhciRestart(
     Controller->OpRegisters->AsyncListAddress       = (reg32_t)EHCI_POOL_QHINDEX(Controller, EHCI_POOL_QH_ASYNC) | EHCI_LINK_QH;
 
     // Next step is to build the command configuring the controller
-    // Set irq latency to 0, enable per-port changes, async park
-    // and if variable frame-list, set it to 256.
+    // Set irq latency to 0, enable per-port changes, async park.
     TemporaryValue = EHCI_COMMAND_INTR_THRESHOLD(8);
-    if (Controller->CParameters & EHCI_CPARAM_VARIABLEFRAMELIST) {
-        TemporaryValue |= EHCI_COMMAND_LISTSIZE(EHCI_LISTSIZE_256);
+    if (Controller->CParameters & (EHCI_CPARAM_VARIABLEFRAMELIST | EHCI_CPARAM_32FRAME_SUPPORT)) {
+        if (Controller->CParameters & EHCI_CPARAM_32FRAME_SUPPORT) {
+            TemporaryValue |= EHCI_COMMAND_LISTSIZE(EHCI_LISTSIZE_32);
+        }
+        else {
+            TemporaryValue |= EHCI_COMMAND_LISTSIZE(EHCI_LISTSIZE_256);
+        }
     }
+
     if (Controller->CParameters & EHCI_CPARAM_ASYNCPARK) {
         TemporaryValue |= EHCI_COMMAND_ASYNC_PARKMODE;
         TemporaryValue |= EHCI_COMMAND_PARK_COUNT(3);
@@ -434,7 +438,7 @@ EhciRestart(
         if (Controller->CParameters & EHCI_CPARAM_PERPORT_CHANGE) {
             TemporaryValue |= EHCI_COMMAND_PERPORT_ENABLE;
         }
-        if (Controller->CParameters & EHCI_CPARAM_HWPREFECT) {
+        if (Controller->CParameters & EHCI_CPARAM_HWPREFETCH) {
             TemporaryValue |= EHCI_COMMAND_PERIOD_PREFECTCH;
             TemporaryValue |= EHCI_COMMAND_ASYNC_PREFETCH;
             TemporaryValue |= EHCI_COMMAND_FULL_PREFETCH;

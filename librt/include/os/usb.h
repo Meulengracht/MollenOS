@@ -211,19 +211,18 @@ PACKED_TYPESTRUCT(UsbTransfer, {
 	UsbHcEndpointDescriptor_t           Endpoint;
 
 	// Periodic Information
-	int	                                UpdatesOn;
-    __CONST void*                       PeriodicData;
+    const void*                         PeriodicData;
     size_t                              PeriodicBufferSize;
 });
 
 /* UsbTransfer::Flags
  * Bit-definitions and declarations for the field. */
-#define USB_TRANSFER_SHORT_NOT_OK       0x00000001
+#define USB_TRANSFER_NO_NOTIFICATION    0x00000001
+#define USB_TRANSFER_SHORT_NOT_OK       0x00000002
 
 /* UsbTransferResult
  * Describes the result of an usb-transfer */
 PACKED_TYPESTRUCT(UsbTransferResult, {
-	// Generic Information
 	UUId_t					Id;
 	size_t					BytesTransferred;
 	UsbTransferStatus_t 	Status;
@@ -255,10 +254,11 @@ UsbRetrievePool(void);
 __EXTERN
 OsStatus_t
 UsbTransferInitialize(
-    _InOut_ UsbTransfer_t *Transfer,
-    _In_ UsbHcDevice_t *Device,
-    _In_ UsbHcEndpointDescriptor_t *Endpoint,
-    _In_ UsbTransferType_t Type);
+    _In_ UsbTransfer_t*             Transfer,
+    _In_ UsbHcDevice_t*             Device,
+    _In_ UsbHcEndpointDescriptor_t* Endpoint,
+    _In_ UsbTransferType_t          Type,
+    _In_ Flags_t                    Flags);
 
 /* UsbTransferSetup 
  * Initializes a transfer for a control setup-transaction. 
@@ -266,24 +266,23 @@ UsbTransferInitialize(
 __EXTERN
 OsStatus_t
 UsbTransferSetup(
-    _InOut_ UsbTransfer_t *Transfer,
-    _In_ uintptr_t SetupAddress,
-    _In_ uintptr_t DataAddress,
-    _In_ size_t DataLength,
-    _In_ UsbTransactionType_t DataType);
+    _In_ UsbTransfer_t*             Transfer,
+    _In_ uintptr_t                  SetupAddress,
+    _In_ uintptr_t                  DataAddress,
+    _In_ size_t                     DataLength,
+    _In_ UsbTransactionType_t       DataType);
 
 /* UsbTransferPeriodic
  * Initializes a transfer for a periodic-transaction. */
 __EXTERN
 OsStatus_t
 UsbTransferPeriodic(
-    _InOut_ UsbTransfer_t *Transfer,
-    _In_ uintptr_t BufferAddress,
-    _In_ size_t BufferLength,
-    _In_ size_t DataLength,
-    _In_ UsbTransactionType_t DataDirection,
-    _In_ int Notify,
-    _In_ __CONST void *NotifyData);
+    _In_ UsbTransfer_t*             Transfer,
+    _In_ uintptr_t                  BufferAddress,
+    _In_ size_t                     BufferLength,
+    _In_ size_t                     DataLength,
+    _In_ UsbTransactionType_t       DataDirection,
+    _In_ const void*                NotifificationData);
 
 /* UsbTransferIn 
  * Creates an In-transaction in the given usb-transfer. Both buffer and length 
@@ -291,10 +290,10 @@ UsbTransferPeriodic(
 __EXTERN
 OsStatus_t
 UsbTransferIn(
-	_InOut_ UsbTransfer_t *Transfer,
-	_In_ uintptr_t BufferAddress, 
-	_In_ size_t Length,
-    _In_ int Handshake);
+	_In_ UsbTransfer_t*             Transfer,
+	_In_ uintptr_t                  BufferAddress, 
+	_In_ size_t                     Length,
+    _In_ int                        Handshake);
     
 /* UsbTransferOut 
  * Creates an Out-transaction in the given usb-transfer. Both buffer and length 
@@ -302,10 +301,10 @@ UsbTransferIn(
 __EXTERN
 OsStatus_t
 UsbTransferOut(
-	_Out_ UsbTransfer_t *Transfer,
-	_In_ uintptr_t BufferAddress, 
-	_In_ size_t Length,
-	_In_ int Handshake);
+	_In_ UsbTransfer_t*             Transfer,
+	_In_ uintptr_t                  BufferAddress, 
+	_In_ size_t                     Length,
+	_In_ int                        Handshake);
 
 /* UsbTransferQueue 
  * Queues a new Control or Bulk transfer for the given driver
@@ -314,10 +313,10 @@ UsbTransferOut(
 __EXTERN
 OsStatus_t
 UsbTransferQueue(
-	_In_ UUId_t Driver,
-	_In_ UUId_t Device,
-	_In_ UsbTransfer_t *Transfer,
-	_Out_ UsbTransferResult_t *Result);
+	_In_  UUId_t                    Driver,
+	_In_  UUId_t                    Device,
+	_In_  UsbTransfer_t*            Transfer,
+	_Out_ UsbTransferResult_t*      Result);
 
 /* UsbTransferQueuePeriodic 
  * Queues a new Interrupt or Isochronous transfer. This transfer is 
@@ -326,10 +325,10 @@ UsbTransferQueue(
 __EXTERN
 UsbTransferStatus_t
 UsbTransferQueuePeriodic(
-	_In_ UUId_t Driver,
-	_In_ UUId_t Device,
-	_In_ UsbTransfer_t *Transfer,
-	_Out_ UUId_t *TransferId);
+	_In_  UUId_t                    Driver,
+	_In_  UUId_t                    Device,
+	_In_  UsbTransfer_t*            Transfer,
+	_Out_ UUId_t*                   TransferId);
 
 /* UsbTransferDequeuePeriodic 
  * Dequeues an existing periodic transfer from the given controller. The transfer
@@ -337,9 +336,9 @@ UsbTransferQueuePeriodic(
 __EXTERN
 UsbTransferStatus_t
 UsbTransferDequeuePeriodic(
-	_In_ UUId_t Driver,
-	_In_ UUId_t Device,
-	_In_ UUId_t TransferId);
+	_In_ UUId_t                     Driver,
+	_In_ UUId_t                     Device,
+	_In_ UUId_t                     TransferId);
 
 /* UsbHostResetPort
  * Resets the given port on the given controller and queries it's
@@ -348,20 +347,20 @@ UsbTransferDequeuePeriodic(
 __EXTERN
 OsStatus_t
 UsbHostResetPort(
-	_In_ UUId_t Driver,
-	_In_ UUId_t Device,
-	_In_ int Index,
-	_Out_ UsbHcPortDescriptor_t *Descriptor);
+	_In_  UUId_t                    Driver,
+	_In_  UUId_t                    Device,
+	_In_  int                       Index,
+	_Out_ UsbHcPortDescriptor_t*    Descriptor);
 
 /* UsbHostQueryPort 
  * Queries the port-descriptor of host-controller port. */
 __EXTERN
 OsStatus_t
 UsbHostQueryPort(
-	_In_ UUId_t Driver,
-	_In_ UUId_t Device,
-	_In_ int Index,
-	_Out_ UsbHcPortDescriptor_t *Descriptor);
+	_In_  UUId_t                    Driver,
+	_In_  UUId_t                    Device,
+	_In_  int                       Index,
+	_Out_ UsbHcPortDescriptor_t*    Descriptor);
 
 /* UsbSetAddress
  * Changes the address of the usb-device. This permanently updates the address. 
@@ -369,22 +368,22 @@ UsbHostQueryPort(
 __EXTERN
 UsbTransferStatus_t
 UsbSetAddress(
-	_In_ UUId_t Driver,
-	_In_ UUId_t Device,
-	_In_ UsbHcDevice_t *UsbDevice, 
-	_In_ UsbHcEndpointDescriptor_t *Endpoint, 
-    _In_ int Address);
+	_In_ UUId_t                     Driver,
+	_In_ UUId_t                     Device,
+	_In_ UsbHcDevice_t*             UsbDevice, 
+	_In_ UsbHcEndpointDescriptor_t* Endpoint, 
+    _In_ int                        Address);
     
 /* UsbGetDeviceDescriptor
  * Queries the device descriptor of an usb device on a given port. */
 __EXTERN
 UsbTransferStatus_t
 UsbGetDeviceDescriptor(
-	_In_ UUId_t Driver,
-	_In_ UUId_t Device,
-	_In_ UsbHcDevice_t *UsbDevice, 
-    _In_ UsbHcEndpointDescriptor_t *Endpoint,
-    _Out_ UsbDeviceDescriptor_t *DeviceDescriptor);
+	_In_  UUId_t                    Driver,
+	_In_  UUId_t                    Device,
+	_In_  UsbHcDevice_t*            UsbDevice, 
+    _In_  UsbHcEndpointDescriptor_t*Endpoint,
+    _Out_ UsbDeviceDescriptor_t*    DeviceDescriptor);
 
 /* UsbGetConfigDescriptor
  * Queries the configuration descriptor. Ideally this function is called twice to get
@@ -393,49 +392,49 @@ UsbGetDeviceDescriptor(
 __EXTERN
 UsbTransferStatus_t
 UsbGetConfigDescriptor(
-	_In_ UUId_t Driver,
-	_In_ UUId_t Device,
-	_In_ UsbHcDevice_t *UsbDevice, 
-    _In_ UsbHcEndpointDescriptor_t *Endpoint,
-    _Out_ void *ConfigDescriptorBuffer,
-    _Out_ size_t ConfigDescriptorBufferLength);
+	_In_  UUId_t                    Driver,
+	_In_  UUId_t                    Device,
+	_In_  UsbHcDevice_t*            UsbDevice, 
+    _In_  UsbHcEndpointDescriptor_t*Endpoint,
+    _Out_ void*                     ConfigDescriptorBuffer,
+    _Out_ size_t                    ConfigDescriptorBufferLength);
 
 /* UsbSetConfiguration
  * Updates the configuration of an usb-device. This changes active endpoints. */
 __EXTERN
 UsbTransferStatus_t
 UsbSetConfiguration(
-	_In_ UUId_t Driver,
-	_In_ UUId_t Device,
-	_In_ UsbHcDevice_t *UsbDevice, 
-    _In_ UsbHcEndpointDescriptor_t *Endpoint,
-    _In_ int Configuration);
+	_In_ UUId_t                     Driver,
+	_In_ UUId_t                     Device,
+	_In_ UsbHcDevice_t*             UsbDevice, 
+    _In_ UsbHcEndpointDescriptor_t* Endpoint,
+    _In_ int                        Configuration);
     
 /* UsbClearFeature
  * Indicates to an usb-device that we want to request a feature/state disabled. */
 __EXTERN
 UsbTransferStatus_t
 UsbClearFeature(
-    _In_ UUId_t Driver,
-    _In_ UUId_t Device,
-    _In_ UsbHcDevice_t *UsbDevice, 
-    _In_ UsbHcEndpointDescriptor_t *Endpoint,
-    _In_ uint8_t Target, 
-    _In_ uint16_t Index, 
-    _In_ uint16_t Feature);
+    _In_ UUId_t                     Driver,
+    _In_ UUId_t                     Device,
+    _In_ UsbHcDevice_t*             UsbDevice, 
+    _In_ UsbHcEndpointDescriptor_t* Endpoint,
+    _In_ uint8_t                    Target, 
+    _In_ uint16_t                   Index, 
+    _In_ uint16_t                   Feature);
 
 /* UsbSetFeature
  * Indicates to an usb-device that we want to request a feature/state enabled. */
 __EXTERN
 UsbTransferStatus_t
 UsbSetFeature(
-	_In_ UUId_t Driver,
-	_In_ UUId_t Device,
-	_In_ UsbHcDevice_t *UsbDevice, 
-    _In_ UsbHcEndpointDescriptor_t *Endpoint,
-	_In_ uint8_t Target, 
-	_In_ uint16_t Index, 
-    _In_ uint16_t Feature);
+	_In_ UUId_t                     Driver,
+	_In_ UUId_t                     Device,
+	_In_ UsbHcDevice_t*             UsbDevice, 
+    _In_ UsbHcEndpointDescriptor_t* Endpoint,
+	_In_ uint8_t                    Target, 
+	_In_ uint16_t                   Index, 
+    _In_ uint16_t                   Feature);
     
 /* UsbGetStringLanguages
  * Gets the device string language descriptors (Index 0). The retrieved string descriptors are
@@ -443,11 +442,11 @@ UsbSetFeature(
 __EXTERN
 UsbTransferStatus_t
 UsbGetStringLanguages(
-	_In_ UUId_t Driver,
-	_In_ UUId_t Device,
-	_In_ UsbHcDevice_t *UsbDevice, 
-    _In_ UsbHcEndpointDescriptor_t *Endpoint,
-    _Out_ UsbStringDescriptor_t *StringDescriptor);
+	_In_  UUId_t                    Driver,
+	_In_  UUId_t                    Device,
+	_In_  UsbHcDevice_t*            UsbDevice, 
+    _In_  UsbHcEndpointDescriptor_t*Endpoint,
+    _Out_ UsbStringDescriptor_t*    StringDescriptor);
 
 /* UsbGetStringDescriptor
  * Queries the usb device for a string with the given language and index. 
@@ -455,13 +454,13 @@ UsbGetStringLanguages(
 __EXTERN
 UsbTransferStatus_t
 UsbGetStringDescriptor(
-    _In_ UUId_t Driver,
-    _In_ UUId_t Device,
-    _In_ UsbHcDevice_t *UsbDevice, 
-    _In_ UsbHcEndpointDescriptor_t *Endpoint,
-    _In_ size_t LanguageId, 
-    _In_ size_t StringIndex, 
-    _Out_ char *String);
+    _In_  UUId_t                    Driver,
+    _In_  UUId_t                    Device,
+    _In_  UsbHcDevice_t*            UsbDevice, 
+    _In_  UsbHcEndpointDescriptor_t*Endpoint,
+    _In_  size_t                    LanguageId, 
+    _In_  size_t                    StringIndex, 
+    _Out_ char*                     String);
 
 /* UsbExecutePacket
  * Executes a custom packet with or without a data-stage. Use this for vendor-specific
@@ -469,17 +468,17 @@ UsbGetStringDescriptor(
 __EXTERN
 UsbTransferStatus_t
 UsbExecutePacket(
-    _In_ UUId_t Driver,
-    _In_ UUId_t Device,
-    _In_ UsbHcDevice_t *UsbDevice, 
-    _In_ UsbHcEndpointDescriptor_t *Endpoint,
-    _In_ uint8_t Direction,
-    _In_ uint8_t Type,
-    _In_ uint8_t ValueHigh,
-    _In_ uint8_t ValueLow,
-    _In_ uint16_t Index,
-    _In_ uint16_t Length,
-    _Out_ void *Buffer);
+    _In_  UUId_t                    Driver,
+    _In_  UUId_t                    Device,
+    _In_  UsbHcDevice_t*            UsbDevice, 
+    _In_  UsbHcEndpointDescriptor_t*Endpoint,
+    _In_  uint8_t                   Direction,
+    _In_  uint8_t                   Type,
+    _In_  uint8_t                   ValueHigh,
+    _In_  uint8_t                   ValueLow,
+    _In_  uint16_t                  Index,
+    _In_  uint16_t                  Length,
+    _Out_ void*                     Buffer);
 
 /* UsbEndpointReset
  * Resets the data for the given endpoint. This includes the data-toggles. 
@@ -487,17 +486,17 @@ UsbExecutePacket(
 __EXTERN
 OsStatus_t
 UsbEndpointReset(
-    _In_ UUId_t Driver,
-    _In_ UUId_t Device,
-    _In_ UsbHcDevice_t *UsbDevice, 
-    _In_ UsbHcEndpointDescriptor_t *Endpoint);
+    _In_ UUId_t                     Driver,
+    _In_ UUId_t                     Device,
+    _In_ UsbHcDevice_t*             UsbDevice, 
+    _In_ UsbHcEndpointDescriptor_t* Endpoint);
 
 /* UsbQueryControllerCount
  * Queries the available number of usb controllers. */
 CRTDECL(
 OsStatus_t,
 UsbQueryControllerCount(
-    _Out_ int *ControllerCount));
+    _Out_ int*                      ControllerCount));
 
 /* UsbQueryController
  * Queries the controller with the given index. Index-max is
@@ -505,8 +504,8 @@ UsbQueryControllerCount(
 CRTDECL(
 OsStatus_t,
 UsbQueryController(
-    _In_ int Index,
-    _Out_ UsbHcController_t *Controller));
+    _In_  int                       Index,
+    _Out_ UsbHcController_t*        Controller));
 
 /* UsbQueryPipes 
  * Queries the available interfaces and endpoints on a given

@@ -303,11 +303,11 @@ UsbQueryConfigurationDescriptors(
                 Endpoint->Attributes, Endpoint->MaxPacketSize);
 
             // Update the hc-endpoint
-            HcEndpoint->Address = EndpointAddress;
-            HcEndpoint->MaxPacketSize = (Endpoint->MaxPacketSize & 0x7FF);
-            HcEndpoint->Bandwidth = ((Endpoint->MaxPacketSize >> 11) & 0x3) + 1;
-            HcEndpoint->Interval = Endpoint->Interval;
-            HcEndpoint->Type = EndpointType;
+            HcEndpoint->Address         = EndpointAddress;
+            HcEndpoint->MaxPacketSize   = (Endpoint->MaxPacketSize & 0x7FF);
+            HcEndpoint->Bandwidth       = ((Endpoint->MaxPacketSize >> 11) & 0x3) + 1;
+            HcEndpoint->Interval        = Endpoint->Interval;
+            HcEndpoint->Type            = EndpointType;
 
             // Determine the direction of the EP
             if (Endpoint->Address & 0x80) {

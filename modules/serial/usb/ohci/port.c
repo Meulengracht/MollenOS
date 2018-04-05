@@ -26,6 +26,7 @@
  * - System */
 #include <os/mollenos.h>
 #include <os/utils.h>
+#include "../common/hci.h"
 #include "ohci.h"
 
 /* Includes
@@ -35,27 +36,30 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* OhciPortReset
+/* HciPortReset
  * Resets the given port and returns the result of the reset */
 OsStatus_t
-OhciPortReset(
-    _In_ OhciController_t *Controller, 
-    _In_ int Index)
+HciPortReset(
+    _In_ UsbManagerController_t*    Controller, 
+    _In_ int                        Index)
 {
+    // Variables
+    OhciController_t *OhciCtrl = (OhciController_t*)Controller;
+
     // Set reset bit to initialize reset-procedure
-    Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_RESET;
+    OhciCtrl->Registers->HcRhPortStatus[Index] = OHCI_PORT_RESET;
 
     // Wait for it to clear, with timeout
-    WaitForCondition((Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_RESET) == 0,
+    WaitForCondition((OhciCtrl->Registers->HcRhPortStatus[Index] & OHCI_PORT_RESET) == 0,
         200, 10, "Failed to reset device on port %i\n", Index);
 
     // Don't matter if timeout, try to enable it
     // If power-mode is port-power, also power it
-    if (Controller->PowerMode == PortControl) {
-        Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_ENABLED | OHCI_PORT_POWER;
+    if (OhciCtrl->PowerMode == PortControl) {
+        OhciCtrl->Registers->HcRhPortStatus[Index] = OHCI_PORT_ENABLED | OHCI_PORT_POWER;
     }
     else {
-        Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_ENABLED;
+        OhciCtrl->Registers->HcRhPortStatus[Index] = OHCI_PORT_ENABLED;
     }
 
     // We need a delay here to allow the port to settle
@@ -67,11 +71,11 @@ OhciPortReset(
  * Resets the port and also clears out any event on the port line. */
 OsStatus_t
 OhciPortPrepare(
-    _In_ OhciController_t *Controller, 
-    _In_ int Index)
+    _In_ OhciController_t*          Controller, 
+    _In_ int                        Index)
 {
     // Run reset procedure
-    OhciPortReset(Controller, Index);
+    HciPortReset(&Controller->Base, Index);
 
     // Clear connection event
     if (Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_CONNECT_EVENT) {
@@ -97,8 +101,6 @@ OhciPortPrepare(
     if (Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_RESET_EVENT) {
         Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_RESET_EVENT;
     }
-
-    // Done
     return OsSuccess;
 }
 
@@ -107,64 +109,42 @@ OhciPortPrepare(
  * state, no allocations are done here */
 OsStatus_t
 OhciPortInitialize(
-    _In_ OhciController_t *Controller, 
-    _In_ int Index)
+    _In_ OhciController_t*          Controller, 
+    _In_ int                        Index)
 {
     // Wait for port-power to stabilize
     thrd_sleepex(Controller->PowerOnDelayMs);
-
-    // Run reset procedure
     OhciPortPrepare(Controller, Index);
-
-    // Run usb port event
     return UsbEventPort(Controller->Base.Device.Id, Index);
 }
 
-/* OhciPortGetStatus 
+/* HciPortGetStatus 
  * Retrieve the current port status, with connected and enabled information */
-void 
-OhciPortGetStatus(
-    _In_ OhciController_t *Controller,
-    _In_ int Index,
-    _Out_ UsbHcPortDescriptor_t *Port)
+void
+HciPortGetStatus(
+    _In_  UsbManagerController_t*   Controller,
+    _In_  int                       Index,
+    _Out_ UsbHcPortDescriptor_t*    Port)
 {
     // Variables
+    OhciController_t *OhciCtrl  = (OhciController_t*)Controller;
     reg32_t Status;
 
     // Now we can get current port status
-    Status = Controller->Registers->HcRhPortStatus[Index];
+    Status          = OhciCtrl->Registers->HcRhPortStatus[Index];
 
-    // Is port connected?
-    if (Status & OHCI_PORT_CONNECTED) {
-        Port->Connected = 1;
-    }
-    else {
-        Port->Connected = 0;
-    }
-
-    // Is port enabled?
-    if (Status & OHCI_PORT_ENABLED) {
-        Port->Enabled = 1;
-    }
-    else {
-        Port->Enabled = 0;
-    }
-
-    // Detect speed of the connected device/port
-    if (Status & OHCI_PORT_LOW_SPEED) {
-        Port->Speed = LowSpeed;
-    }
-    else {
-        Port->Speed = FullSpeed;
-    }
+    // Update metrics
+    Port->Connected = (Status & OHCI_PORT_CONNECTED) == 0 ? 0 : 1;
+    Port->Enabled   = (Status & OHCI_PORT_ENABLED) == 0 ? 0 : 1;
+    Port->Speed     = (Status & OHCI_PORT_LOW_SPEED) == 0 ? FullSpeed : LowSpeed;
 }
 
 /* OhciPortCheck
  * Detects connection/error events on the given port */
 OsStatus_t 
 OhciPortCheck(
-    _In_ OhciController_t *Controller, 
-    _In_ int Index)
+    _In_ OhciController_t*  Controller, 
+    _In_ int                Index)
 {
     // Variables
     OsStatus_t Result = OsSuccess;
@@ -172,14 +152,10 @@ OhciPortCheck(
     // We only care about connection events here
     if (Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_CONNECT_EVENT) {
         if (!(Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_CONNECTED)) {
-            // Wait for port-power to stabilize
+            // Wait for port-power to stabilize and then reset
             thrd_sleepex(Controller->PowerOnDelayMs);
-
-            // All ports must be reset when attached
-            OhciPortReset(Controller, Index);
+            HciPortReset(&Controller->Base, Index);
         }
-
-        // Send out an event
         Result = UsbEventPort(Controller->Base.Device.Id, Index);
     }
 
@@ -207,8 +183,6 @@ OhciPortCheck(
     if (Controller->Registers->HcRhPortStatus[Index] & OHCI_PORT_RESET_EVENT) {
         Controller->Registers->HcRhPortStatus[Index] = OHCI_PORT_RESET_EVENT;
     }
-
-    // Done
     return Result;
 }
 
@@ -216,11 +190,8 @@ OhciPortCheck(
  * Enumerates all the ports and detects for connection/error events */
 OsStatus_t
 OhciPortsCheck(
-    _In_ OhciController_t *Controller)
-{
-    // Variables
-    int i;
-    for (i = 0; i < (int)(Controller->Base.PortCount); i++) {
+    _In_ OhciController_t*  Controller) {
+    for (int i = 0; i < (int)(Controller->Base.PortCount); i++) {
         OhciPortCheck(Controller, i);
     }
     return OsSuccess;

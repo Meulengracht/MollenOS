@@ -45,42 +45,46 @@ typedef struct _UsbManagerEndpoint {
  * Describes a generic controller with information needed
  * in order for the manager to function */
 typedef struct _UsbManagerController {
-    UUId_t                       Id;
-    MCoreDevice_t                Device;
-    MContract_t                  Contract;
-    UUId_t                       Interrupt;
-    Spinlock_t                   Lock;
-    UsbControllerType_t          Type;
+    UUId_t                  Id;
+    MCoreDevice_t           Device;
+    MContract_t             Contract;
+    UUId_t                  Interrupt;
+    Spinlock_t              Lock;
+    UsbControllerType_t     Type;
     
-    DeviceIoSpace_t             *IoBase;
-    size_t                       PortCount;
-    Collection_t                *Endpoints;
-    reg32_t                      InterruptStatus;
+    DeviceIoSpace_t*        IoBase;
+    size_t                  PortCount;
+    Collection_t*           Endpoints;
+    reg32_t                 InterruptStatus;
+    Collection_t*           TransactionList;
 } UsbManagerController_t;
 
 /* UsbManagerTransfer
  * Describes a generic transfer with information needed
  * in order to execute a callback for the requester */
 typedef struct _UsbManagerTransfer {
-    UsbTransfer_t               Transfer;
-    UUId_t                      Requester;
-    int                         ResponsePort;
+    UsbTransfer_t           Transfer;
+    UUId_t                  Requester;
+    int                     ResponsePort;
 
     // Transfer Metadata
-    UUId_t                      Id;
-    UUId_t                      DeviceId;
-    UUId_t                      Pipe;
-    int                         Cleanup;
-    UsbTransferStatus_t         Status;
+    UUId_t                  Id;
+    UUId_t                  DeviceId;
+    UUId_t                  Pipe;
+    UsbTransferStatus_t     Status;
 
     // Control/Interrupt transfers are small, but carry data.
     // Information here is shared
-    void*                       EndpointDescriptor;  // We only use one no matter what
-    int                         TransactionsExecuted;
-    int                         TransactionsTotal;
-    size_t                      BytesTransferred[USB_TRANSACTIONCOUNT]; // In Total
-    size_t                      CurrentDataIndex;    // Periodic Transfers
+    void*                   EndpointDescriptor;  // We only use one no matter what
+    int                     TransactionsExecuted;
+    int                     TransactionsTotal;
+    size_t                  BytesTransferred[USB_TRANSACTIONCOUNT]; // In Total
+    size_t                  CurrentDataIndex;    // Periodic Transfers
 } UsbManagerTransfer_t;
+
+#define USB_OUT_OF_RESOURCES       (void*)0
+#define USB_INVALID_BUFFER         (void*)1
+typedef void(*UsbCallback)(void);
 
 /* UsbManagerInitialize
  * Initializes the usb manager that keeps track of
@@ -88,6 +92,14 @@ typedef struct _UsbManagerTransfer {
 __EXTERN
 OsStatus_t
 UsbManagerInitialize(void);
+
+/* UsbManagerRegisterTimer
+ * Registers a timer function that will be called every given interval. */
+__EXTERN
+OsStatus_t
+UsbManagerRegisterTimer(
+    _In_ int            IntervalMs,
+    _In_ UsbCallback    Function);
 
 /* UsbManagerDestroy
  * Cleans up the manager and releases resources allocated */
@@ -107,11 +119,11 @@ UsbManagerGetControllers(void);
 __EXTERN
 UsbManagerTransfer_t*
 UsbManagerCreateTransfer(
-    _In_ UsbTransfer_t *Transfer,
-    _In_ UUId_t Requester,
-    _In_ int ResponsePort,
-    _In_ UUId_t Device,
-    _In_ UUId_t Pipe);
+    _In_ UsbTransfer_t* Transfer,
+    _In_ UUId_t         Requester,
+    _In_ int            ResponsePort,
+    _In_ UUId_t         Device,
+    _In_ UUId_t         Pipe);
 
 /* UsbManagerCreateController
  * Registers a new controller with the usb-manager.
@@ -152,5 +164,13 @@ UsbManagerSetToggle(
     _In_ UUId_t Device,
     _In_ UUId_t Pipe,
     _In_ int Toggle);
+
+/* UsbManagerSendNotification 
+ * Sends a notification to the subscribing process whenever a periodic
+ * transaction has completed/failed. */
+__EXTERN
+void
+UsbManagerSendNotification(
+    _In_ UsbManagerTransfer_t *Transfer);
 
 #endif //!_USB_MANAGER_H_

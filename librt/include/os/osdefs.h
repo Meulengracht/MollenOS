@@ -165,6 +165,13 @@ static inline int LastSetBit(size_t Value)
 #define ISALIGNED(Val, Alignment)               ((Val & (Alignment-1)) == 0)
 #define BOCHSBREAK                              __asm__ __volatile__ ("xchg %bx, %bx\n\t");
 
+#ifdef __COMPILE_ASSERT
+#define STATIC_ASSERT(COND,MSG)                 typedef char static_assertion_##MSG[(!!(COND))*2-1]
+#define COMPILE_TIME_ASSERT3(X,L)               STATIC_ASSERT(X,static_assertion_at_line_##L)
+#define COMPILE_TIME_ASSERT2(X,L)               COMPILE_TIME_ASSERT3(X,L)
+#define COMPILE_TIME_ASSERT(X)                  COMPILE_TIME_ASSERT2(X,__LINE__)
+#endif
+
 /* Time definitions that can help with 
  * conversion of the different time-units */
 #define FSEC_PER_NSEC                           1000000L

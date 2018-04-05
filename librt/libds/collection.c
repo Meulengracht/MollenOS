@@ -430,8 +430,8 @@ CollectionExecuteAll(
  * This functions unlinks a node and returns the next node for usage */
 CollectionItem_t*
 CollectionUnlinkNode(
-    _In_ Collection_t *Collection, 
-    _In_ CollectionItem_t *Node)
+    _In_ Collection_t*      Collection, 
+    _In_ CollectionItem_t*  Node)
 {
     // Sanitize parameters
     if (Collection == NULL || Collection->Headp == NULL
@@ -506,16 +506,11 @@ CollectionRemoveByNode(
     if (Collection == NULL || Node == NULL) {
         return OsError;
     }
-
-    // Reuse the unlink function and discard
-    // the return value
     CollectionUnlinkNode(Collection, Node);
 
     // Update links
     Node->Link = NULL;
     Node->Prev = NULL;
-
-    // Done - no errors
     return OsSuccess;
 }
 

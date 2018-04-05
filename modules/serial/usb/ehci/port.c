@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@
  * MollenOS MCore - Enhanced Host Controller Interface Driver
  * TODO:
  * - Power Management
- * - Isochronous Transport
  * - Transaction Translator Support
  */
 
@@ -33,21 +32,22 @@
 #include <threads.h>
 #include <string.h>
 
-/* EhciPortReset
+/* HciPortReset
  * Resets the given port and returns the result of the reset */
 OsStatus_t
-EhciPortReset(
-    _In_ EhciController_t*  Controller, 
-    _In_ int                Index)
+HciPortReset(
+    _In_ UsbManagerController_t*    Controller, 
+    _In_ int                        Index)
 {
     // Variables
-    reg32_t Temp = Controller->OpRegisters->Ports[Index];
+    EhciController_t *EhciHci   = (EhciController_t*)Controller;
+    reg32_t Temp                = EhciHci->OpRegisters->Ports[Index];
 
     // If we are per-port handled, and power is not enabled
     // then switch it on, and give it some time to recover
-    if (Controller->SParameters & EHCI_SPARAM_PPC && !(Temp & EHCI_PORT_POWER)) {
+    if (EhciHci->SParameters & EHCI_SPARAM_PPC && !(Temp & EHCI_PORT_POWER)) {
         Temp                                    |= EHCI_PORT_POWER;
-        Controller->OpRegisters->Ports[Index]   = Temp;
+        EhciHci->OpRegisters->Ports[Index]      = Temp;
         thrd_sleepex(20);
     }
 
@@ -59,49 +59,50 @@ EhciPortReset(
     // disable enabled and assert reset together
     Temp                                    &= ~(EHCI_PORT_ENABLED);
     Temp                                    |= EHCI_PORT_RESET;
-    Controller->OpRegisters->Ports[Index]   = Temp;
+    EhciHci->OpRegisters->Ports[Index]      = Temp;
 
     // Wait 100 ms for reset
     thrd_sleepex(100);
 
     // Clear reset signal
-    Temp                                    = Controller->OpRegisters->Ports[Index];
+    Temp                                    = EhciHci->OpRegisters->Ports[Index];
     Temp                                    &= ~(EHCI_PORT_RESET);
-    Controller->OpRegisters->Ports[Index]   = Temp;
+    EhciHci->OpRegisters->Ports[Index]      = Temp;
 
     // Wait for deassertion: 
     // The reset process is actually complete when software reads a 
     // zero in the PortReset bit
     Temp                                    = 0;
-    WaitForConditionWithFault(Temp, (Controller->OpRegisters->Ports[Index] & EHCI_PORT_RESET) == 0, 250, 10);
+    WaitForConditionWithFault(Temp, (EhciHci->OpRegisters->Ports[Index] & EHCI_PORT_RESET) == 0, 250, 10);
 
     // Clear the RWC bit
-    Controller->OpRegisters->Ports[Index] |= EHCI_PORT_RWC;
+    EhciHci->OpRegisters->Ports[Index]      |= EHCI_PORT_RWC;
 
     // Now, if the port has a high-speed 
     // device, the enabled port is set
-    if (!(Controller->OpRegisters->Ports[Index] & EHCI_PORT_ENABLED)) {
-        if (EHCI_SPARAM_CCCOUNT(Controller->SParameters) != 0) {
-            Controller->OpRegisters->Ports[Index] |= EHCI_PORT_COMPANION_HC;
+    if (!(EhciHci->OpRegisters->Ports[Index] & EHCI_PORT_ENABLED)) {
+        if (EHCI_SPARAM_CCCOUNT(EhciHci->SParameters) != 0) {
+            EhciHci->OpRegisters->Ports[Index] |= EHCI_PORT_COMPANION_HC;
         }
         return OsError;
     }
     return OsSuccess;
 }
 
-/* EhciPortGetStatus 
+/* HciPortGetStatus 
  * Retrieve the current port status, with connected and enabled information */
-void 
-EhciPortGetStatus(
-    _In_  EhciController_t*         Controller,
+void
+HciPortGetStatus(
+    _In_  UsbManagerController_t*   Controller,
     _In_  int                       Index,
     _Out_ UsbHcPortDescriptor_t*    Port)
 {
     // Variables
-    reg32_t Status  = 0;
+    EhciController_t *EhciHci   = (EhciController_t*)Controller;
+    reg32_t Status              = 0;
 
     // Now we can get current port status
-    Status          = Controller->OpRegisters->Ports[Index];
+    Status          = EhciHci->OpRegisters->Ports[Index];
 
     // Is port connected?
     Port->Connected = (Status & EHCI_PORT_CONNECTED) == 0 ? 0 : 1;
@@ -116,7 +117,7 @@ EhciPortSetup(
     _In_ EhciController_t*  Controller,
     _In_ int                Index) {
     thrd_sleepex(100); // Wait for power-on delay
-    return EhciPortReset(Controller, Index);
+    return HciPortReset(&Controller->Base, Index);
 }
 
 /* EhciPortCheck

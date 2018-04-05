@@ -21,18 +21,18 @@
  *    - Power Management
  */
 
-#ifndef _USB_OHCI_H_
-#define _USB_OHCI_H_
+#ifndef __USB_OHCI__
+#define __USB_OHCI__
 
 /* Includes
  * - Library */
 #include <os/osdefs.h>
 #include <os/contracts/usbhost.h>
-#include <os/osdefs.h>
 #include <ds/collection.h>
 
 #include "../common/manager.h"
 #include "../common/scheduler.h"
+#include "../common/hci.h"
 
 /* OHCI Controller Definitions 
  * Contains generic magic constants and definitions */
@@ -50,20 +50,22 @@
  * It will stop processing when Current == Tail.
  * Structure must always be 16 byte aligned */
 PACKED_TYPESTRUCT(OhciQueueHead, {
+    // Hardware Metadata (16 bytes)
     reg32_t                     Flags;
     reg32_t                     EndPointer;  // Lower 4 bits not used
     reg32_t                     Current;     // (Physical) Bit 0 - Halted, Bit 1 - Carry
     reg32_t                     LinkPointer; // Next EP (Physical)
     
-    // Software Metadata (16 Bytes)
+    // Software Metadata (32 Bytes)
     uint16_t                    HcdInformation;
-    uint8_t                     Queue;
-    uint8_t                     Period;
+    uint16_t                    Queue;
     int16_t                     ChildIndex;
     int16_t                     LinkIndex;
     int16_t                     Index;
     uint16_t                    Interval;
     reg32_t                     Bandwidth;
+    reg32_t                     IocAddress;
+    uint8_t                     Reserved[12];
 });
 
 /* OhciQueueHead::Flags
@@ -96,10 +98,12 @@ PACKED_TYPESTRUCT(OhciQueueHead, {
  * Contains definitions and bitfield definitions for OhciQueueHead::HcdInformation
  * Bit 0: Allocated
  * Bit 1: Schedule
- * Bit 2: Unschedule */
+ * Bit 2: Unschedule
+ * Bit 3: Short-Transfer */
 #define OHCI_QH_ALLOCATED               (1 << 0)
 #define OHCI_QH_SCHEDULE                (1 << 1)
 #define OHCI_QH_UNSCHEDULE              (1 << 2)
+#define OHCI_QH_SHORTTRANSFER           (1 << 3)
 
 /* OhciTransferDescriptor
  * Describes a transfer operation that can have 3 operations, either
@@ -112,14 +116,15 @@ PACKED_TYPESTRUCT(OhciTransferDescriptor, {
     reg32_t                     Cbp;
     reg32_t                     Link;
     reg32_t                     BufferEnd;
-    uint16_t                    Offsets[8]; // Isochronous offsets (16 bytes)
+    uint16_t                    Offsets[8];     // Isochronous offsets (16 bytes)
 
     // Software Metadata (32 Bytes)
     int16_t                     Index;
     int16_t                     LinkIndex;
     reg32_t                     OriginalFlags;  // Copy of flags
     reg32_t                     OriginalCbp;    // Copy of buffer
-    uint8_t                     Padding[20];    // Padding to 64 bytes
+    reg32_t                     OriginalBufferEnd; // Copy of buffer end
+    uint8_t                     Padding[16];    // Padding to 64 bytes
 });
 
 /* OhciTransferDescriptor::Flags
@@ -152,8 +157,8 @@ PACKED_TYPESTRUCT(OhciTransferDescriptor, {
 /* OhciTransferDescriptor::Offsets
  * Contains definitions and bitfield definitions for OhciTransferDescriptor::Offsets
  * Bits 0-11:    Packet Size on IN-transmissions
- * Bits 12:        CrossPage Field
- * Bits 12-15:    Condition Code (Error Code) */
+ * Bits 12:      CrossPage Field
+ * Bits 12-15:   Condition Code (Error Code) */
 #define OHCI_TD_OFFSETLENGTH(Length)    (Length & 0xFFF)
 #define OHCI_TD_CROSSPAGE               (1 << 12)
 #define OHCI_TD_OFFSETCODE(Flags)       ((Flags >> 12) & 0xF)
@@ -319,42 +324,30 @@ typedef struct _OhciController {
     OhciPowerMode_t              PowerMode;
 } OhciController_t;
 
-/* OhciControllerCreate 
- * Initializes and creates a new Ohci Controller instance
- * from a given new system device on the bus. */
-__EXTERN
-OhciController_t*
-OhciControllerCreate(
-    _In_ MCoreDevice_t *Device);
-
-/* OhciControllerDestroy
- * Destroys an existing controller instance and cleans up
- * any resources related to it */
-__EXTERN
-OsStatus_t
-OhciControllerDestroy(
-    _In_ OhciController_t *Controller);
+/*******************************************************************************
+ * Controller Methods
+ *******************************************************************************/
 
 /* OhciReset
  * Resets the controller back to usable state, does not restart the controller. */
 __EXTERN
 OsStatus_t
 OhciReset(
-    _In_ OhciController_t *Controller);
+    _In_ OhciController_t*  Controller);
 
 /* OhciQueueInitialize
  * Initialize the controller's queue resources and resets counters */
 __EXTERN
 OsStatus_t
 OhciQueueInitialize(
-    _In_ OhciController_t *Controller);
+    _In_ OhciController_t*  Controller);
     
 /* OhciQueueReset
  * Removes and cleans up any existing transfers, then reinitializes. */
 __EXTERN
 OsStatus_t
 OhciQueueReset(
-    _In_ OhciController_t *Controller);
+    _In_ OhciController_t*  Controller);
 
 /* OhciQueueDestroy
  * Unschedules any scheduled ed's and frees all resources allocated
@@ -362,15 +355,15 @@ OhciQueueReset(
 __EXTERN
 OsStatus_t
 OhciQueueDestroy(
-    _In_ OhciController_t *Controller);
+    _In_ OhciController_t*  Controller);
 
 /* OhciPortPrepare
  * Resets the port and also clears out any event on the port line. */
 __EXTERN
 OsStatus_t
 OhciPortPrepare(
-    _In_ OhciController_t *Controller, 
-    _In_ int Index);
+    _In_ OhciController_t*  Controller, 
+    _In_ int                Index);
 
 /* OhciPortInitialize
  * Initializes a port when the port has changed it's connection
@@ -378,32 +371,27 @@ OhciPortPrepare(
 __EXTERN
 OsStatus_t
 OhciPortInitialize(
-    _In_ OhciController_t *Controller,
-    _In_ int Index);
-
-/* OhciPortGetStatus 
- * Retrieve the current port status, with connected and enabled information */
-__EXTERN
-void
-OhciPortGetStatus(
-    _In_ OhciController_t *Controller,
-    _In_ int Index,
-    _Out_ UsbHcPortDescriptor_t *Port);
+    _In_ OhciController_t*  Controller,
+    _In_ int                Index);
 
 /* OhciPortsCheck
  * Enumerates all the ports and detects for connection/error events */
 __EXTERN
 OsStatus_t
 OhciPortsCheck(
-    _In_ OhciController_t *Controller);
+    _In_ OhciController_t*  Controller);
 
 /* OhciSetMode
  * Changes the state of the OHCI controller to the given mode */
 __EXTERN
 void
 OhciSetMode(
-    _In_ OhciController_t *Controller, 
-    _In_ reg32_t Mode);
+    _In_ OhciController_t*  Controller, 
+    _In_ reg32_t            Mode);
+
+/*******************************************************************************
+ * Queue Head Methods
+ *******************************************************************************/
 
 /* OhciQhAllocate
  * Allocates a new ED for usage with the transaction. If this returns
@@ -411,22 +399,37 @@ OhciSetMode(
 __EXTERN
 OhciQueueHead_t*
 OhciQhAllocate(
-    _In_ OhciController_t *Controller);
+    _In_ OhciController_t*      Controller);
 
 /* OhciQhInitialize
- * Initializes and sets up the endpoint descriptor with 
- * the given values */
+ * Initializes the queue head data-structure and the associated
+ * hcd flags. Afterwards the queue head is ready for use. */
 __EXTERN
 void
 OhciQhInitialize(
-    _In_ OhciController_t *Controller,
-    _Out_ OhciQueueHead_t *Qh, 
-    _In_ int HeadIndex, 
-    _In_ UsbTransferType_t Type,
-    _In_ size_t Address, 
-    _In_ size_t Endpoint, 
-    _In_ size_t PacketSize,
-    _In_ UsbSpeed_t Speed);
+    _In_ OhciController_t*      Controller,
+    _In_ OhciQueueHead_t*       Qh,
+    _In_ int16_t                HeadIndex,
+    _In_ int16_t                IocIndex,
+    _In_ UsbTransferType_t      Type,
+    _In_ size_t                 Address,
+    _In_ size_t                 Endpoint,
+    _In_ size_t                 PacketSize,
+    _In_ UsbSpeed_t             Speed);
+
+/* OhciQhValidate
+ * Iterates the queue head and the attached transfer descriptors
+ * for errors and updates the transfer that is attached. */
+__EXTERN
+void
+OhciQhValidate(
+    _In_ OhciController_t*      Controller, 
+    _In_ UsbManagerTransfer_t*  Transfer,
+    _In_ OhciQueueHead_t*       Qh);
+
+/*******************************************************************************
+ * Transfer Descriptor Methods
+ *******************************************************************************/
 
 /* OhciTdAllocate
  * Allocates a new TD for usage with the transaction. If this returns
@@ -434,7 +437,7 @@ OhciQhInitialize(
 __EXTERN
 OhciTransferDescriptor_t*
 OhciTdAllocate(
-    _In_ OhciController_t *Controller);
+    _In_ OhciController_t*  Controller);
 
 /* OhciTdSetup 
  * Creates a new setup token td and initializes all the members.
@@ -442,8 +445,8 @@ OhciTdAllocate(
 __EXTERN
 OhciTransferDescriptor_t*
 OhciTdSetup(
-    _In_ OhciController_t *Controller, 
-    _In_ UsbTransaction_t *Transaction);
+    _In_ OhciController_t*  Controller, 
+    _In_ UsbTransaction_t*  Transaction);
 
 /* OhciTdIo 
  * Creates a new io token td and initializes all the members.
@@ -451,28 +454,83 @@ OhciTdSetup(
 __EXTERN
 OhciTransferDescriptor_t*
 OhciTdIo(
-    _In_ OhciController_t *Controller,
-    _In_ UsbTransferType_t Type,
-    _In_ uint32_t PId,
-    _In_ int Toggle,
-    _In_ uintptr_t Address,
-    _In_ size_t Length);
+    _In_ OhciController_t*  Controller,
+    _In_ UsbTransferType_t  Type,
+    _In_ uint32_t           PId,
+    _In_ int                Toggle,
+    _In_ uintptr_t          Address,
+    _In_ size_t             Length);
+
+/* OhciTdIsochronous
+ * Creates a new isoc token td and initializes all the members.
+ * The Td is immediately ready for execution. */
+__EXTERN
+OhciTransferDescriptor_t*
+OhciTdIsochronous(
+    _In_ OhciController_t*          Controller,
+    _In_ size_t                     MaxPacketSize,
+    _In_ uint32_t                   PId,
+    _In_ uintptr_t                  Address,
+    _In_ size_t                     Length);
+
+/* OhciTdValidate
+ * Checks the transfer descriptors for errors and updates the transfer that is attached
+ * with the bytes transferred and error status. */
+__EXTERN
+void
+OhciTdValidate(
+    _In_  OhciController_t*         Controller,
+    _In_  UsbManagerTransfer_t*     Transfer,
+    _In_  OhciTransferDescriptor_t* Td,
+    _Out_ int*                      ShortTransfer);
+
+/* OhciTdRestart
+ * Restarts a transfer descriptor that already exists in queue. 
+ * Synchronizes toggles, updates buffer points if the transfer is not isochronous. */
+__EXTERN
+void
+OhciTdRestart(
+    _In_ OhciController_t*          Controller,
+    _In_ UsbManagerTransfer_t*      Transfer,
+    _In_ OhciTransferDescriptor_t*  Td);
+
+/*******************************************************************************
+ * Queue Methods
+ *******************************************************************************/
+
+/* OhciTransactionInitialize
+ * Initializes a transaction by allocating a new endpoint-descriptor
+ * and preparing it for usage */
+__EXTERN
+OhciQueueHead_t*
+OhciTransactionInitialize(
+    _In_ OhciController_t*      Controller, 
+    _In_ UsbTransfer_t*         Transfer);
+
+/* OhciTransactionDispatch
+ * Queues the transfer up in the controller hardware, after finalizing the
+ * transactions and preparing them. */
+__EXTERN
+UsbTransferStatus_t
+OhciTransactionDispatch(
+    _In_ OhciController_t*      Controller,
+    _In_ UsbManagerTransfer_t*  Transfer);
 
 /* OhciTransactionFinalize
  * Cleans up the transfer, deallocates resources and validates the td's */
 __EXTERN
 OsStatus_t
 OhciTransactionFinalize(
-    _In_ OhciController_t *Controller,
-    _In_ UsbManagerTransfer_t *Transfer,
-    _In_ int Validate);
+    _In_ OhciController_t*  Controller,
+    _In_ UsbManagerTransfer_t* Transfer,
+    _In_ int                Validate);
 
 /* OhciGetStatusCode
  * Retrieves a status-code from a given condition code */
 __EXTERN
 UsbTransferStatus_t
 OhciGetStatusCode(
-    _In_ int ConditionCode);
+    _In_ int                ConditionCode);
 
 /* Process Transactions 
  * This code unlinks / links pending endpoint descriptors. 
@@ -480,37 +538,22 @@ OhciGetStatusCode(
 __EXTERN
 void
 OhciProcessTransactions(
-    _In_ OhciController_t *Controller,
-    _In_ int               Finalize);
+    _In_ OhciController_t*  Controller,
+    _In_ int                Finalize);
 
 /* OhciProcessDoneQueue
  * Iterates all active transfers and handles completion/error events */
 __EXTERN
 void
 OhciProcessDoneQueue(
-    _In_ OhciController_t *Controller, 
-    _In_ uintptr_t DoneHeadAddress);
+    _In_ OhciController_t*  Controller, 
+    _In_ uintptr_t          DoneHeadAddress);
 
 /* OhciCheckDoneQueue
  * Iterates all active transfers and handles completion/error events */
 __EXTERN
 void
 OhciCheckDoneQueue(
-    _In_ OhciController_t *Controller);
+    _In_ OhciController_t*  Controller);
 
-/* UsbQueueTransferGeneric 
- * Queues a new transfer for the given driver
- * and pipe. They must exist. The function does not block*/
-__EXTERN
-UsbTransferStatus_t
-UsbQueueTransferGeneric(
-    _InOut_ UsbManagerTransfer_t *Transfer);
-
-/* UsbDequeueTransferGeneric 
- * Removes a queued transfer from the controller's framelist */
-__EXTERN
-UsbTransferStatus_t
-UsbDequeueTransferGeneric(
-    _In_ UsbManagerTransfer_t *Transfer);
-
-#endif // !_USB_OHCI_H_
+#endif // !__USB_OHCI__

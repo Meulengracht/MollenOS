@@ -39,17 +39,15 @@
 
 /* Globals
  * State-keeping variables for libusb */
-static const size_t LIBUSB_SHAREDBUFFER_SIZE = 0x2000;
-static BufferObject_t *__LibUsbBuffer = NULL;
-static BufferPool_t *__LibUsbBufferPool = NULL;
+static const size_t LIBUSB_SHAREDBUFFER_SIZE    = 0x2000;
+static BufferObject_t *__LibUsbBuffer           = NULL;
+static BufferPool_t *__LibUsbBufferPool         = NULL;
 
 /* UsbInitialize
  * Initializes libusb and enables the use of all the control
  * functions that require a shared buffer-pool. */
 OsStatus_t
-UsbInitialize(void)
-{
-    // Create buffer and pool
+UsbInitialize(void) {
     __LibUsbBuffer = CreateBuffer(LIBUSB_SHAREDBUFFER_SIZE);
     return BufferPoolCreate(__LibUsbBuffer, &__LibUsbBufferPool);
 }
@@ -57,9 +55,7 @@ UsbInitialize(void)
 /* UsbCleanup
  * Frees the shared resources allocated by UsbInitialize. */
 OsStatus_t
-UsbCleanup(void)
-{
-    // Free resources
+UsbCleanup(void) {
     BufferPoolDestroy(__LibUsbBufferPool);
     return DestroyBuffer(__LibUsbBuffer);
 }
@@ -69,8 +65,7 @@ UsbCleanup(void)
  * use this for small short-term use buffers. */
 __EXTERN
 BufferPool_t*
-UsbRetrievePool(void)
-{
+UsbRetrievePool(void) {
     return __LibUsbBufferPool;
 }
 
@@ -79,10 +74,11 @@ UsbRetrievePool(void)
  * device and requested transfer type. */
 OsStatus_t
 UsbTransferInitialize(
-    _InOut_ UsbTransfer_t *Transfer,
-    _In_ UsbHcDevice_t *Device,
-    _In_ UsbHcEndpointDescriptor_t *Endpoint,
-    _In_ UsbTransferType_t Type)
+    _In_ UsbTransfer_t*             Transfer,
+    _In_ UsbHcDevice_t*             Device,
+    _In_ UsbHcEndpointDescriptor_t* Endpoint,
+    _In_ UsbTransferType_t          Type,
+    _In_ Flags_t                    Flags)
 {
     // Debug
     TRACE("UsbTransferInitialize()");
@@ -92,11 +88,10 @@ UsbTransferInitialize(
     memcpy(&Transfer->Endpoint, Endpoint, sizeof(UsbHcEndpointDescriptor_t));
 
     // Initialize
-    Transfer->Type = Type;
+    Transfer->Type  = Type;
     Transfer->Speed = Device->Speed;
-    Transfer->Pipe = ((Device->Address & 0xFFFF) << 16) | (Endpoint->Address & 0xFFFF);
-    
-    // Done
+    Transfer->Pipe  = ((Device->Address & 0xFFFF) << 16) | (Endpoint->Address & 0xFFFF);
+    Transfer->Flags = Flags;
     return OsSuccess;
 }
 
@@ -105,30 +100,30 @@ UsbTransferInitialize(
  * If there is no data-stage then set Data members to 0. */
 OsStatus_t
 UsbTransferSetup(
-    _InOut_ UsbTransfer_t *Transfer,
-    _In_ uintptr_t SetupAddress,
-    _In_ uintptr_t DataAddress,
-    _In_ size_t DataLength,
-    _In_ UsbTransactionType_t DataType)
+    _In_ UsbTransfer_t*             Transfer,
+    _In_ uintptr_t                  SetupAddress,
+    _In_ uintptr_t                  DataAddress,
+    _In_ size_t                     DataLength,
+    _In_ UsbTransactionType_t       DataType)
 {
     // Variables
-    UsbTransactionType_t AckType = InTransaction;
-    int AckIndex = 1;
+    UsbTransactionType_t AckType    = InTransaction;
+    int AckIndex                    = 1;
 
     // Debug
     TRACE("UsbTransferSetup()");
 
     // Initialize the setup stage
-    Transfer->Transactions[0].Type = SetupTransaction;
+    Transfer->Transactions[0].Type          = SetupTransaction;
     Transfer->Transactions[0].BufferAddress = SetupAddress;
-    Transfer->Transactions[0].Length = sizeof(UsbPacket_t);
+    Transfer->Transactions[0].Length        = sizeof(UsbPacket_t);
 
     // Is there a data-stage?
     if (DataAddress != 0) {
         AckIndex = 2;
         Transfer->Transactions[1].BufferAddress = DataAddress;
-        Transfer->Transactions[1].Length = DataLength;
-        Transfer->Transactions[1].Type = DataType;
+        Transfer->Transactions[1].Length        = DataLength;
+        Transfer->Transactions[1].Type          = DataType;
         if (DataType == InTransaction) {
             AckType = OutTransaction;
         }
@@ -136,27 +131,22 @@ UsbTransferSetup(
 
     // Ack-stage
     Transfer->Transactions[AckIndex].ZeroLength = 1;
-    Transfer->Transactions[AckIndex].Handshake = 1;
-    Transfer->Transactions[AckIndex].Type = AckType;
-
-    // Update number of transactions
-    Transfer->TransactionCount = AckIndex + 1;
-
-    // Done
+    Transfer->Transactions[AckIndex].Handshake  = 1;
+    Transfer->Transactions[AckIndex].Type       = AckType;
+    Transfer->TransactionCount                  = AckIndex + 1;
     return OsSuccess;
 }
 
 /* UsbTransferPeriodic 
- * Initializes a transfer for a interrupt-transaction. */
+ * Initializes a transfer for a periodic-transaction. */
 OsStatus_t
 UsbTransferPeriodic(
-    _InOut_ UsbTransfer_t *Transfer,
-    _In_ uintptr_t BufferAddress,
-    _In_ size_t BufferLength,
-    _In_ size_t DataLength,
-    _In_ UsbTransactionType_t DataDirection,
-    _In_ int Notify,
-    _In_ __CONST void *NotifyData)
+    _In_ UsbTransfer_t*             Transfer,
+    _In_ uintptr_t                  BufferAddress,
+    _In_ size_t                     BufferLength,
+    _In_ size_t                     DataLength,
+    _In_ UsbTransactionType_t       DataDirection,
+    _In_ const void*                NotifificationData)
 {
     // Sanitize, an interrupt transfer must not consist
     // of other transfers
@@ -165,15 +155,14 @@ UsbTransferPeriodic(
     }
 
     // Initialize the data stage
-    Transfer->Transactions[0].Type = DataDirection;
+    Transfer->Transactions[0].Type          = DataDirection;
     Transfer->Transactions[0].BufferAddress = BufferAddress;
-    Transfer->Transactions[0].Length = DataLength;
+    Transfer->Transactions[0].Length        = DataLength;
 
     // Initialize the transfer for interrupt
-    Transfer->UpdatesOn = Notify;
-    Transfer->PeriodicData = NotifyData;
-    Transfer->PeriodicBufferSize = BufferLength;
-    Transfer->TransactionCount = 1;
+    Transfer->PeriodicData                  = NotifificationData;
+    Transfer->PeriodicBufferSize            = BufferLength;
+    Transfer->TransactionCount              = 1;
     return OsSuccess;
 }
 
@@ -182,10 +171,10 @@ UsbTransferPeriodic(
  * must be pre-allocated - and passed here. If handshake == 1 it's an ack-transaction. */
 OsStatus_t
 UsbTransferIn(
-    _Out_ UsbTransfer_t *Transfer,
-    _In_ uintptr_t BufferAddress, 
-    _In_ size_t Length,
-    _In_ int Handshake)
+	_In_ UsbTransfer_t*             Transfer,
+	_In_ uintptr_t                  BufferAddress, 
+	_In_ size_t                     Length,
+    _In_ int                        Handshake)
 {
     // Variables
     UsbTransaction_t *Transaction = NULL;
@@ -196,18 +185,14 @@ UsbTransferIn(
     }
 
     // Initialize variables
-    Transaction = &Transfer->Transactions[Transfer->TransactionCount];
-    Transaction->Type = InTransaction;
-    Transaction->Handshake = Handshake;
-    Transaction->BufferAddress = BufferAddress;
-    Transaction->Length = Length;
-
-    // Zero-length?
-    if (Length == 0) {
+    Transaction                 = &Transfer->Transactions[Transfer->TransactionCount];
+    Transaction->Type           = InTransaction;
+    Transaction->Handshake      = Handshake;
+    Transaction->BufferAddress  = BufferAddress;
+    Transaction->Length         = Length;
+    if (Length == 0) { // Zero-length?
         Transaction->ZeroLength = 1;
     }
-
-    // Done
     Transfer->TransactionCount++;
     return OsSuccess;
 }
@@ -217,10 +202,10 @@ UsbTransferIn(
  * must be pre-allocated - and passed here. If handshake == 1 it's an ack-transaction. */
 OsStatus_t
 UsbTransferOut(
-    _Out_ UsbTransfer_t *Transfer,
-    _In_ uintptr_t BufferAddress, 
-    _In_ size_t Length,
-    _In_ int Handshake)
+	_In_ UsbTransfer_t*             Transfer,
+	_In_ uintptr_t                  BufferAddress, 
+	_In_ size_t                     Length,
+	_In_ int                        Handshake)
 {
     // Variables
     UsbTransaction_t *Transaction = NULL;
@@ -231,31 +216,28 @@ UsbTransferOut(
     }
 
     // Initialize variables
-    Transaction = &Transfer->Transactions[Transfer->TransactionCount];
-    Transaction->Type = OutTransaction;
-    Transaction->Handshake = Handshake;
-    Transaction->BufferAddress = BufferAddress;
-    Transaction->Length = Length;
-
-    // Zero-length?
-    if (Length == 0) {
+    Transaction                 = &Transfer->Transactions[Transfer->TransactionCount];
+    Transaction->Type           = OutTransaction;
+    Transaction->Handshake      = Handshake;
+    Transaction->BufferAddress  = BufferAddress;
+    Transaction->Length         = Length;
+    if (Length == 0) { // Zero-length?
         Transaction->ZeroLength = 1;
     }
-
-    // Done
     Transfer->TransactionCount++;
     return OsSuccess;
 }
 
 /* UsbTransferQueue 
  * Queues a new Control or Bulk transfer for the given driver
- * and pipe. They must exist. The function blocks untill execution */
+ * and pipe. They must exist. The function blocks untill execution.
+ * Status-code must be TransferQueued on success. */
 OsStatus_t
 UsbTransferQueue(
-    _In_ UUId_t Driver,
-    _In_ UUId_t Device,
-    _In_ UsbTransfer_t *Transfer,
-    _Out_ UsbTransferResult_t *Result)
+	_In_  UUId_t                    Driver,
+	_In_  UUId_t                    Device,
+	_In_  UsbTransfer_t*            Transfer,
+	_Out_ UsbTransferResult_t*      Result)
 {
     // Variables
     MContract_t Contract;
@@ -264,11 +246,9 @@ UsbTransferQueue(
     TRACE("UsbTransferQueue()");
 
     // Setup contract stuff for request
-    Contract.DriverId = Driver;
-    Contract.Type = ContractController;
-    Contract.Version = __USBMANAGER_INTERFACE_VERSION;
-
-    // Query the driver directly
+    Contract.DriverId   = Driver;
+    Contract.Type       = ContractController;
+    Contract.Version    = __USBMANAGER_INTERFACE_VERSION;
     return QueryDriver(&Contract, __USBHOST_QUEUETRANSFER,
         &Device, sizeof(UUId_t), &Transfer->Pipe, sizeof(UUId_t), 
         Transfer, sizeof(UsbTransfer_t), 
@@ -277,24 +257,23 @@ UsbTransferQueue(
 
 /* UsbTransferQueuePeriodic 
  * Queues a new Interrupt or Isochronous transfer. This transfer is 
- * persistant untill device is disconnected or Dequeue is called. */
+ * persistant untill device is disconnected or Dequeue is called. 
+ * Returns TransferFinished on success. */
 UsbTransferStatus_t
 UsbTransferQueuePeriodic(
-    _In_ UUId_t Driver,
-    _In_ UUId_t Device,
-    _In_ UsbTransfer_t *Transfer,
-    _Out_ UUId_t *TransferId)
+	_In_  UUId_t                    Driver,
+	_In_  UUId_t                    Device,
+	_In_  UsbTransfer_t*            Transfer,
+	_Out_ UUId_t*                   TransferId)
 {
     // Variables
     UsbTransferResult_t Result;
     MContract_t Contract;
 
     // Setup contract stuff for request
-    Contract.DriverId = Driver;
-    Contract.Type = ContractController;
-    Contract.Version = __USBMANAGER_INTERFACE_VERSION;
-
-    // Query the driver directly
+    Contract.DriverId   = Driver;
+    Contract.Type       = ContractController;
+    Contract.Version    = __USBMANAGER_INTERFACE_VERSION;
     if (QueryDriver(&Contract, __USBHOST_QUEUEPERIODIC,
         &Device, sizeof(UUId_t), &Transfer->Pipe, sizeof(UUId_t), 
         Transfer, sizeof(UsbTransfer_t), 
@@ -310,23 +289,21 @@ UsbTransferQueuePeriodic(
 
 /* UsbTransferDequeuePeriodic 
  * Dequeues an existing periodic transfer from the given controller. The transfer
- * and the controller must be valid. */
+ * and the controller must be valid. Returns TransferFinished on success. */
 UsbTransferStatus_t
 UsbTransferDequeuePeriodic(
-    _In_ UUId_t Driver,
-    _In_ UUId_t Device,
-    _In_ UUId_t TransferId)
+	_In_ UUId_t                     Driver,
+	_In_ UUId_t                     Device,
+	_In_ UUId_t                     TransferId)
 {
     // Variables
     UsbTransferStatus_t Result = TransferNotProcessed;
     MContract_t Contract;
 
     // Setup contract stuff for request
-    Contract.DriverId = Driver;
-    Contract.Type = ContractController;
-    Contract.Version = __USBMANAGER_INTERFACE_VERSION;
-
-    // Query the driver directly
+    Contract.DriverId   = Driver;
+    Contract.Type       = ContractController;
+    Contract.Version    = __USBMANAGER_INTERFACE_VERSION;
     if (QueryDriver(&Contract, __USBHOST_DEQUEUEPERIODIC,
         &Device, sizeof(UUId_t), 
         &TransferId, sizeof(UUId_t), 
@@ -344,20 +321,18 @@ UsbTransferDequeuePeriodic(
  * the reset. */
 OsStatus_t
 UsbHostResetPort(
-    _In_ UUId_t Driver,
-    _In_ UUId_t Device,
-    _In_ int Index,
-    _Out_ UsbHcPortDescriptor_t *Descriptor)
+	_In_  UUId_t                    Driver,
+	_In_  UUId_t                    Device,
+	_In_  int                       Index,
+	_Out_ UsbHcPortDescriptor_t*    Descriptor)
 {
     // Variables
     MContract_t Contract;
 
     // Setup contract stuff for request
-    Contract.DriverId = Driver;
-    Contract.Type = ContractController;
-    Contract.Version = __USBMANAGER_INTERFACE_VERSION;
-
-    // Query the driver directly
+    Contract.DriverId   = Driver;
+    Contract.Type       = ContractController;
+    Contract.Version    = __USBMANAGER_INTERFACE_VERSION;
     return QueryDriver(&Contract, __USBHOST_RESETPORT,
         &Device, sizeof(UUId_t), 
         &Index, sizeof(int), NULL, 0, 
@@ -368,20 +343,18 @@ UsbHostResetPort(
  * Queries the port-descriptor of host-controller port. */
 OsStatus_t
 UsbHostQueryPort(
-    _In_ UUId_t Driver,
-    _In_ UUId_t Device,
-    _In_ int Index,
-    _Out_ UsbHcPortDescriptor_t *Descriptor)
+	_In_  UUId_t                    Driver,
+	_In_  UUId_t                    Device,
+	_In_  int                       Index,
+	_Out_ UsbHcPortDescriptor_t*    Descriptor)
 {
     // Variables
     MContract_t Contract;
 
     // Setup contract stuff for request
-    Contract.DriverId = Driver;
-    Contract.Type = ContractController;
-    Contract.Version = __USBMANAGER_INTERFACE_VERSION;
-
-    // Query the driver directly
+    Contract.DriverId   = Driver;
+    Contract.Type       = ContractController;
+    Contract.Version    = __USBMANAGER_INTERFACE_VERSION;
     return QueryDriver(&Contract, __USBHOST_QUERYPORT,
         &Device, sizeof(UUId_t), 
         &Index, sizeof(int), NULL, 0, 
@@ -393,22 +366,20 @@ UsbHostQueryPort(
  * This function is unavailable for control-endpoints. */
 OsStatus_t
 UsbEndpointReset(
-    _In_ UUId_t Driver,
-    _In_ UUId_t Device,
-    _In_ UsbHcDevice_t *UsbDevice, 
-    _In_ UsbHcEndpointDescriptor_t *Endpoint)
+    _In_ UUId_t                     Driver,
+    _In_ UUId_t                     Device,
+    _In_ UsbHcDevice_t*             UsbDevice, 
+    _In_ UsbHcEndpointDescriptor_t* Endpoint)
 {
     // Variables
-    OsStatus_t Result = OsError;
-    UUId_t Pipe = ((UsbDevice->Address & 0xFFFF) << 16) | (Endpoint->Address & 0xFFFF);
+    OsStatus_t Result   = OsError;
+    UUId_t Pipe         = ((UsbDevice->Address & 0xFFFF) << 16) | (Endpoint->Address & 0xFFFF);
     MContract_t Contract;
 
     // Setup contract stuff for request
-    Contract.DriverId = Driver;
-    Contract.Type = ContractController;
-    Contract.Version = __USBMANAGER_INTERFACE_VERSION;
-
-    // Query the driver directly
+    Contract.DriverId   = Driver;
+    Contract.Type       = ContractController;
+    Contract.Version    = __USBMANAGER_INTERFACE_VERSION;
     if (QueryDriver(&Contract, __USBHOST_RESETENDPOINT,
         &Device, sizeof(UUId_t), 
         &Pipe, sizeof(UUId_t), NULL, 0, 
@@ -425,20 +396,20 @@ UsbEndpointReset(
  * It is not possible to change the address once enumeration is done. */
 UsbTransferStatus_t
 UsbSetAddress(
-    _In_ UUId_t Driver,
-    _In_ UUId_t Device,
-    _In_ UsbHcDevice_t *UsbDevice, 
-    _In_ UsbHcEndpointDescriptor_t *Endpoint, 
-    _In_ int Address)
+	_In_ UUId_t                     Driver,
+	_In_ UUId_t                     Device,
+	_In_ UsbHcDevice_t*             UsbDevice, 
+	_In_ UsbHcEndpointDescriptor_t* Endpoint, 
+    _In_ int                        Address)
 {
     // Variables
-    uintptr_t *PacketBuffer = NULL;
-    uintptr_t PacketPhysical = 0;
-    UsbPacket_t *Packet = NULL;
+    uintptr_t *PacketBuffer     = NULL;
+    uintptr_t PacketPhysical    = 0;
+    UsbPacket_t *Packet         = NULL;
 
     // Buffers
-    UsbTransferResult_t Result = { 0 };
-    UsbTransfer_t Transfer = { 0 };
+    UsbTransferResult_t Result  = { 0 };
+    UsbTransfer_t Transfer      = { 0 };
 
     // Debug
     TRACE("UsbSetAddress()");
@@ -457,15 +428,15 @@ UsbSetAddress(
 
     // Setup packet
     Packet = (UsbPacket_t*)PacketBuffer;
-    Packet->Direction = USBPACKET_DIRECTION_OUT;
-    Packet->Type = USBPACKET_TYPE_SET_ADDRESS;
-    Packet->ValueLo = (uint8_t)(Address & 0xFF);
-    Packet->ValueHi = 0;
-    Packet->Index = 0;
-    Packet->Length = 0;
+    Packet->Direction   = USBPACKET_DIRECTION_OUT;
+    Packet->Type        = USBPACKET_TYPE_SET_ADDRESS;
+    Packet->ValueLo     = (uint8_t)(Address & 0xFF);
+    Packet->ValueHi     = 0;
+    Packet->Index       = 0;
+    Packet->Length      = 0;
 
     // Initialize transfer
-    UsbTransferInitialize(&Transfer, UsbDevice, Endpoint, ControlTransfer);
+    UsbTransferInitialize(&Transfer, UsbDevice, Endpoint, ControlTransfer, 0);
 
     // SetAddress does not have a data-stage
     UsbTransferSetup(&Transfer, PacketPhysical, 0, 0, InTransaction);
@@ -476,8 +447,6 @@ UsbSetAddress(
         Result.Status = TransferNotProcessed;
     }
     BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
-
-    // Done
     return Result.Status;
 }
 
@@ -485,26 +454,26 @@ UsbSetAddress(
  * Queries the device descriptor of an usb device on a given port. */
 UsbTransferStatus_t
 UsbGetDeviceDescriptor(
-    _In_ UUId_t Driver,
-    _In_ UUId_t Device,
-    _In_ UsbHcDevice_t *UsbDevice, 
-    _In_ UsbHcEndpointDescriptor_t *Endpoint,
-    _Out_ UsbDeviceDescriptor_t *DeviceDescriptor)
+	_In_  UUId_t                    Driver,
+	_In_  UUId_t                    Device,
+	_In_  UsbHcDevice_t*            UsbDevice, 
+    _In_  UsbHcEndpointDescriptor_t*Endpoint,
+    _Out_ UsbDeviceDescriptor_t*    DeviceDescriptor)
 {
     // Constants
-    const size_t DESCRIPTOR_SIZE = 0x12; // Max Descriptor Length is 18 bytes
+    const size_t DESCRIPTOR_SIZE        = 0x12; // Max Descriptor Length is 18 bytes
 
     // Variables
-    UsbDeviceDescriptor_t *Descriptor = NULL;
-    uintptr_t *DescriptorVirtual = NULL;
-    uintptr_t DescriptorPhysical = 0;
-    uintptr_t *PacketBuffer = NULL;
-    uintptr_t PacketPhysical = 0;
-    UsbPacket_t *Packet = NULL;
+    UsbDeviceDescriptor_t *Descriptor   = NULL;
+    uintptr_t *DescriptorVirtual        = NULL;
+    uintptr_t DescriptorPhysical        = 0;
+    uintptr_t *PacketBuffer             = NULL;
+    uintptr_t PacketPhysical            = 0;
+    UsbPacket_t *Packet                 = NULL;
 
     // Buffers
-    UsbTransferResult_t Result = { 0 };
-    UsbTransfer_t Transfer = { 0 };
+    UsbTransferResult_t Result          = { 0 };
+    UsbTransfer_t Transfer              = { 0 };
     
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
@@ -514,13 +483,13 @@ UsbGetDeviceDescriptor(
     }
 
     // Initialize the packet
-    Packet = (UsbPacket_t*)PacketBuffer;
-    Packet->Direction = USBPACKET_DIRECTION_IN;
-    Packet->Type = USBPACKET_TYPE_GET_DESC;
-    Packet->ValueHi = USB_DESCRIPTOR_DEVICE;
-    Packet->ValueLo = 0;
-    Packet->Index = 0;
-    Packet->Length = DESCRIPTOR_SIZE;    
+    Packet                  = (UsbPacket_t*)PacketBuffer;
+    Packet->Direction       = USBPACKET_DIRECTION_IN;
+    Packet->Type            = USBPACKET_TYPE_GET_DESC;
+    Packet->ValueHi         = USB_DESCRIPTOR_DEVICE;
+    Packet->ValueLo         = 0;
+    Packet->Index           = 0;
+    Packet->Length          = DESCRIPTOR_SIZE;    
 
     // Allocate a data-buffer
     if (BufferPoolAllocate(__LibUsbBufferPool, DESCRIPTOR_SIZE, 
@@ -536,7 +505,7 @@ UsbGetDeviceDescriptor(
     // Initialize transfer
     // Setup, In (Data) and Out (ACK)
     UsbTransferInitialize(&Transfer, UsbDevice, 
-        Endpoint, ControlTransfer);
+        Endpoint, ControlTransfer, 0);
     UsbTransferSetup(&Transfer, PacketPhysical, 
         DescriptorPhysical, DESCRIPTOR_SIZE, InTransaction);
 
@@ -555,33 +524,32 @@ UsbGetDeviceDescriptor(
     // Cleanup allocations
     BufferPoolFree(__LibUsbBufferPool, DescriptorVirtual);
     BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
-
-    // Done
     return Result.Status;
 }
 
 /* UsbGetInitialConfigDescriptor
- * Queries the initial configuration descriptor, and is neccessary to know how
- * long the full configuration descriptor is. */
+ * Queries the configuration descriptor. Ideally this function is called twice to get
+ * the full configuration descriptor. Once to retrieve the actual descriptor, and then
+ * twice to retrieve the full descriptor with all information. */
 UsbTransferStatus_t
 UsbGetInitialConfigDescriptor(
-    _In_ UUId_t Driver,
-    _In_ UUId_t Device,
-    _In_ UsbHcDevice_t *UsbDevice, 
-    _In_ UsbHcEndpointDescriptor_t *Endpoint,
-    _Out_ UsbConfigDescriptor_t *ConfigDescriptor)
+    _In_  UUId_t                    Driver,
+    _In_  UUId_t                    Device,
+    _In_  UsbHcDevice_t*            UsbDevice, 
+    _In_  UsbHcEndpointDescriptor_t*Endpoint,
+    _Out_ UsbConfigDescriptor_t*    ConfigDescriptor)
 {
     // Variables
-    UsbConfigDescriptor_t *Descriptor = NULL;
-    uintptr_t *DescriptorVirtual = NULL;
-    uintptr_t DescriptorPhysical = 0;
-    uintptr_t *PacketBuffer = NULL;
-    uintptr_t PacketPhysical = 0;
-    UsbPacket_t *Packet = NULL;
+    UsbConfigDescriptor_t *Descriptor   = NULL;
+    uintptr_t *DescriptorVirtual        = NULL;
+    uintptr_t DescriptorPhysical        = 0;
+    uintptr_t *PacketBuffer             = NULL;
+    uintptr_t PacketPhysical            = 0;
+    UsbPacket_t *Packet                 = NULL;
 
     // Buffers
-    UsbTransferResult_t Result = { 0 };
-    UsbTransfer_t Transfer = { 0 };
+    UsbTransferResult_t Result          = { 0 };
+    UsbTransfer_t Transfer              = { 0 };
     
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
@@ -591,13 +559,13 @@ UsbGetInitialConfigDescriptor(
     }
 
     // Initialize the packet
-    Packet = (UsbPacket_t*)PacketBuffer;
-    Packet->Direction = USBPACKET_DIRECTION_IN;
-    Packet->Type = USBPACKET_TYPE_GET_DESC;
-    Packet->ValueHi = USB_DESCRIPTOR_CONFIG;
-    Packet->ValueLo = 0;
-    Packet->Index = 0;
-    Packet->Length = sizeof(UsbConfigDescriptor_t);
+    Packet              = (UsbPacket_t*)PacketBuffer;
+    Packet->Direction   = USBPACKET_DIRECTION_IN;
+    Packet->Type        = USBPACKET_TYPE_GET_DESC;
+    Packet->ValueHi     = USB_DESCRIPTOR_CONFIG;
+    Packet->ValueLo     = 0;
+    Packet->Index       = 0;
+    Packet->Length      = sizeof(UsbConfigDescriptor_t);
 
     // Allocate a data-buffer
     if (BufferPoolAllocate(__LibUsbBufferPool,
@@ -614,7 +582,7 @@ UsbGetInitialConfigDescriptor(
     // Initialize transfer
     // Setup, In (Data) and Out (ACK)
     UsbTransferInitialize(&Transfer, UsbDevice, 
-        Endpoint, ControlTransfer);
+        Endpoint, ControlTransfer, 0);
     UsbTransferSetup(&Transfer, PacketPhysical, DescriptorPhysical, 
         sizeof(UsbConfigDescriptor_t), InTransaction);
 
@@ -632,8 +600,6 @@ UsbGetInitialConfigDescriptor(
     // Cleanup allocations
     BufferPoolFree(__LibUsbBufferPool, DescriptorVirtual);
     BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
-
-    // Done
     return Result.Status;
 }
 
@@ -643,23 +609,23 @@ UsbGetInitialConfigDescriptor(
  * twice to retrieve the full descriptor with all information. */
 UsbTransferStatus_t
 UsbGetConfigDescriptor(
-    _In_ UUId_t Driver,
-    _In_ UUId_t Device,
-    _In_ UsbHcDevice_t *UsbDevice, 
-    _In_ UsbHcEndpointDescriptor_t *Endpoint,
-    _Out_ void *ConfigDescriptorBuffer,
-    _Out_ size_t ConfigDescriptorBufferLength)
+	_In_  UUId_t                    Driver,
+	_In_  UUId_t                    Device,
+	_In_  UsbHcDevice_t*            UsbDevice, 
+    _In_  UsbHcEndpointDescriptor_t*Endpoint,
+    _Out_ void*                     ConfigDescriptorBuffer,
+    _Out_ size_t                    ConfigDescriptorBufferLength)
 {
     // Variables
-    uintptr_t *DescriptorVirtual = NULL;
-    uintptr_t DescriptorPhysical = 0;
-    uintptr_t *PacketBuffer = NULL;
-    uintptr_t PacketPhysical = 0;
-    UsbPacket_t *Packet = NULL;
+    uintptr_t *DescriptorVirtual    = NULL;
+    uintptr_t DescriptorPhysical    = 0;
+    uintptr_t *PacketBuffer         = NULL;
+    uintptr_t PacketPhysical        = 0;
+    UsbPacket_t *Packet             = NULL;
 
     // Buffers
-    UsbTransferResult_t Result = { 0 };
-    UsbTransfer_t Transfer = { 0 };
+    UsbTransferResult_t Result      = { 0 };
+    UsbTransfer_t Transfer          = { 0 };
     
     // Sanitize parameters
     if (ConfigDescriptorBuffer == NULL 
@@ -681,13 +647,13 @@ UsbGetConfigDescriptor(
     }
 
     // Initialize the packet
-    Packet = (UsbPacket_t*)PacketBuffer;
-    Packet->Direction = USBPACKET_DIRECTION_IN;
-    Packet->Type = USBPACKET_TYPE_GET_DESC;
-    Packet->ValueHi = USB_DESCRIPTOR_CONFIG;
-    Packet->ValueLo = 0;
-    Packet->Index = 0;
-    Packet->Length = ConfigDescriptorBufferLength;
+    Packet              = (UsbPacket_t*)PacketBuffer;
+    Packet->Direction   = USBPACKET_DIRECTION_IN;
+    Packet->Type        = USBPACKET_TYPE_GET_DESC;
+    Packet->ValueHi     = USB_DESCRIPTOR_CONFIG;
+    Packet->ValueLo     = 0;
+    Packet->Index       = 0;
+    Packet->Length      = ConfigDescriptorBufferLength;
 
     // Allocate a data-buffer
     if (BufferPoolAllocate(__LibUsbBufferPool, ConfigDescriptorBufferLength, 
@@ -700,7 +666,7 @@ UsbGetConfigDescriptor(
     // Initialize transfer
     // Setup, In (Data) and Out (ACK)
     UsbTransferInitialize(&Transfer, UsbDevice, 
-        Endpoint, ControlTransfer);
+        Endpoint, ControlTransfer, 0);
     UsbTransferSetup(&Transfer, PacketPhysical, DescriptorPhysical, 
         ConfigDescriptorBufferLength, InTransaction);
 
@@ -718,8 +684,6 @@ UsbGetConfigDescriptor(
     // Cleanup allocations
     BufferPoolFree(__LibUsbBufferPool, DescriptorVirtual);
     BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
-
-    // Done
     return Result.Status;
 }
 
@@ -727,20 +691,20 @@ UsbGetConfigDescriptor(
  * Updates the configuration of an usb-device. This changes active endpoints. */
 UsbTransferStatus_t
 UsbSetConfiguration(
-    _In_ UUId_t Driver,
-    _In_ UUId_t Device,
-    _In_ UsbHcDevice_t *UsbDevice, 
-    _In_ UsbHcEndpointDescriptor_t *Endpoint,
-    _In_ int Configuration)
+	_In_ UUId_t                     Driver,
+	_In_ UUId_t                     Device,
+	_In_ UsbHcDevice_t*             UsbDevice, 
+    _In_ UsbHcEndpointDescriptor_t* Endpoint,
+    _In_ int                        Configuration)
 {
     // Variables
-    uintptr_t *PacketBuffer = NULL;
-    uintptr_t PacketPhysical = 0;
-    UsbPacket_t *Packet = NULL;
+    uintptr_t *PacketBuffer     = NULL;
+    uintptr_t PacketPhysical    = 0;
+    UsbPacket_t *Packet         = NULL;
 
     // Buffers
-    UsbTransferResult_t Result = { 0 };
-    UsbTransfer_t Transfer = { 0 };
+    UsbTransferResult_t Result  = { 0 };
+    UsbTransfer_t Transfer      = { 0 };
 
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
@@ -750,16 +714,16 @@ UsbSetConfiguration(
     }
 
     // Initialize the packet
-    Packet = (UsbPacket_t*)PacketBuffer;
-    Packet->Direction = USBPACKET_DIRECTION_OUT;
-    Packet->Type = USBPACKET_TYPE_SET_CONFIG;
-    Packet->ValueHi = 0;
-    Packet->ValueLo = (Configuration & 0xFF);
-    Packet->Index = 0;
-    Packet->Length = 0;        // No data for us
+    Packet              = (UsbPacket_t*)PacketBuffer;
+    Packet->Direction   = USBPACKET_DIRECTION_OUT;
+    Packet->Type        = USBPACKET_TYPE_SET_CONFIG;
+    Packet->ValueHi     = 0;
+    Packet->ValueLo     = (Configuration & 0xFF);
+    Packet->Index       = 0;
+    Packet->Length      = 0;        // No data for us
 
     // Initialize transfer
-    UsbTransferInitialize(&Transfer, UsbDevice, Endpoint, ControlTransfer);
+    UsbTransferInitialize(&Transfer, UsbDevice, Endpoint, ControlTransfer, 0);
 
     // SetConfiguration does not have a data-stage
     UsbTransferSetup(&Transfer, PacketPhysical, 0, 0, InTransaction);
@@ -770,8 +734,6 @@ UsbSetConfiguration(
         Result.Status = TransferNotProcessed;
     }
     BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
-
-    // Done
     return Result.Status;
 }
 
@@ -780,23 +742,23 @@ UsbSetConfiguration(
  * stored in the given descriptor storage. */
 UsbTransferStatus_t
 UsbGetStringLanguages(
-    _In_ UUId_t Driver,
-    _In_ UUId_t Device,
-    _In_ UsbHcDevice_t *UsbDevice, 
-    _In_ UsbHcEndpointDescriptor_t *Endpoint,
-    _Out_ UsbStringDescriptor_t *StringDescriptor)
+	_In_  UUId_t                    Driver,
+	_In_  UUId_t                    Device,
+	_In_  UsbHcDevice_t*            UsbDevice, 
+    _In_  UsbHcEndpointDescriptor_t*Endpoint,
+    _Out_ UsbStringDescriptor_t*    StringDescriptor)
 {
     // Variables
-    UsbStringDescriptor_t *Descriptor = NULL;
-    uintptr_t *DescriptorVirtual = NULL;
-    uintptr_t DescriptorPhysical = 0;
-    uintptr_t *PacketBuffer = NULL;
-    uintptr_t PacketPhysical = 0;
-    UsbPacket_t *Packet = NULL;
+    UsbStringDescriptor_t *Descriptor   = NULL;
+    uintptr_t *DescriptorVirtual        = NULL;
+    uintptr_t DescriptorPhysical        = 0;
+    uintptr_t *PacketBuffer             = NULL;
+    uintptr_t PacketPhysical            = 0;
+    UsbPacket_t *Packet                 = NULL;
 
     // Buffers
-    UsbTransferResult_t Result = { 0 };
-    UsbTransfer_t Transfer = { 0 };
+    UsbTransferResult_t Result          = { 0 };
+    UsbTransfer_t Transfer              = { 0 };
     
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
@@ -806,13 +768,13 @@ UsbGetStringLanguages(
     }
 
     // Initialize the packet
-    Packet = (UsbPacket_t*)PacketBuffer;
-    Packet->Direction = USBPACKET_DIRECTION_IN;
-    Packet->Type = USBPACKET_TYPE_GET_DESC;
-    Packet->ValueHi = USB_DESCRIPTOR_STRING;
-    Packet->ValueLo = 0;
-    Packet->Index = 0;
-    Packet->Length = sizeof(UsbStringDescriptor_t);
+    Packet              = (UsbPacket_t*)PacketBuffer;
+    Packet->Direction   = USBPACKET_DIRECTION_IN;
+    Packet->Type        = USBPACKET_TYPE_GET_DESC;
+    Packet->ValueHi     = USB_DESCRIPTOR_STRING;
+    Packet->ValueLo     = 0;
+    Packet->Index       = 0;
+    Packet->Length      = sizeof(UsbStringDescriptor_t);
 
     // Allocate a data-buffer
     if (BufferPoolAllocate(__LibUsbBufferPool,
@@ -829,7 +791,7 @@ UsbGetStringLanguages(
     // Initialize transfer
     // Setup, In (Data) and Out (ACK)
     UsbTransferInitialize(&Transfer, UsbDevice, 
-        Endpoint, ControlTransfer);
+        Endpoint, ControlTransfer, 0);
     UsbTransferSetup(&Transfer, PacketPhysical, DescriptorPhysical, 
         sizeof(UsbStringDescriptor_t), InTransaction);
 
@@ -847,8 +809,6 @@ UsbGetStringLanguages(
     // Cleanup allocations
     BufferPoolFree(__LibUsbBufferPool, DescriptorVirtual);
     BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
-
-    // Done
     return Result.Status;
 }
 
@@ -857,25 +817,25 @@ UsbGetStringLanguages(
  * The provided buffer must be of size at-least 64 bytes. */
 UsbTransferStatus_t
 UsbGetStringDescriptor(
-    _In_ UUId_t Driver,
-    _In_ UUId_t Device,
-    _In_ UsbHcDevice_t *UsbDevice, 
-    _In_ UsbHcEndpointDescriptor_t *Endpoint,
-    _In_ size_t LanguageId, 
-    _In_ size_t StringIndex, 
-    _Out_ char *String)
+    _In_  UUId_t                    Driver,
+    _In_  UUId_t                    Device,
+    _In_  UsbHcDevice_t*            UsbDevice, 
+    _In_  UsbHcEndpointDescriptor_t*Endpoint,
+    _In_  size_t                    LanguageId, 
+    _In_  size_t                    StringIndex, 
+    _Out_ char*                     String)
 {
     // Variables
-    char *StringBuffer = NULL;
-    uintptr_t *DescriptorVirtual = NULL;
-    uintptr_t DescriptorPhysical = 0;
-    uintptr_t *PacketBuffer = NULL;
-    uintptr_t PacketPhysical = 0;
-    UsbPacket_t *Packet = NULL;
+    const char *StringBuffer        = NULL;
+    uintptr_t *DescriptorVirtual    = NULL;
+    uintptr_t DescriptorPhysical    = 0;
+    uintptr_t *PacketBuffer         = NULL;
+    uintptr_t PacketPhysical        = 0;
+    UsbPacket_t *Packet             = NULL;
 
     // Buffers
-    UsbTransferResult_t Result = { 0 };
-    UsbTransfer_t Transfer = { 0 };
+    UsbTransferResult_t Result      = { 0 };
+    UsbTransfer_t Transfer          = { 0 };
     
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
@@ -885,13 +845,13 @@ UsbGetStringDescriptor(
     }
 
     // Initialize the packet
-    Packet = (UsbPacket_t*)PacketBuffer;
-    Packet->Direction = USBPACKET_DIRECTION_IN;
-    Packet->Type = USBPACKET_TYPE_GET_DESC;
-    Packet->ValueHi = USB_DESCRIPTOR_STRING;
-    Packet->ValueLo = (uint8_t)StringIndex;
-    Packet->Index = (uint16_t)LanguageId;
-    Packet->Length = 64;
+    Packet              = (UsbPacket_t*)PacketBuffer;
+    Packet->Direction   = USBPACKET_DIRECTION_IN;
+    Packet->Type        = USBPACKET_TYPE_GET_DESC;
+    Packet->ValueHi     = USB_DESCRIPTOR_STRING;
+    Packet->ValueLo     = (uint8_t)StringIndex;
+    Packet->Index       = (uint16_t)LanguageId;
+    Packet->Length      = 64;
 
     // Allocate a data-buffer
     if (BufferPoolAllocate(__LibUsbBufferPool, 64, 
@@ -902,12 +862,12 @@ UsbGetStringDescriptor(
     }
 
     // Initialize pointer
-    StringBuffer = (char*)DescriptorVirtual;
+    StringBuffer = (const char*)DescriptorVirtual;
 
     // Initialize transfer
     // Setup, In (Data) and Out (ACK)
     UsbTransferInitialize(&Transfer, UsbDevice, 
-        Endpoint, ControlTransfer);
+        Endpoint, ControlTransfer, 0);
     UsbTransferSetup(&Transfer, PacketPhysical, DescriptorPhysical, 
         64, InTransaction);
 
@@ -919,7 +879,7 @@ UsbGetStringDescriptor(
 
     // Update the out variable with the string
     if (Result.Status == TransferFinished) {
-        /* Convert to Utf8 */
+        /* Convert to Utf8 */ //@todo
         //size_t StringLength = (*((uint8_t*)TempBuffer + 1) - 2);
         _CRT_UNUSED(StringBuffer);
     }
@@ -927,8 +887,6 @@ UsbGetStringDescriptor(
     // Cleanup allocations
     BufferPoolFree(__LibUsbBufferPool, DescriptorVirtual);
     BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
-
-    // Done
     return Result.Status;
 }
 
@@ -936,22 +894,22 @@ UsbGetStringDescriptor(
  * Indicates to an usb-device that we want to request a feature/state disabled. */
 UsbTransferStatus_t
 UsbClearFeature(
-    _In_ UUId_t Driver,
-    _In_ UUId_t Device,
-    _In_ UsbHcDevice_t *UsbDevice, 
-    _In_ UsbHcEndpointDescriptor_t *Endpoint,
-    _In_ uint8_t Target, 
-    _In_ uint16_t Index, 
-    _In_ uint16_t Feature)
+    _In_ UUId_t                     Driver,
+    _In_ UUId_t                     Device,
+    _In_ UsbHcDevice_t*             UsbDevice, 
+    _In_ UsbHcEndpointDescriptor_t* Endpoint,
+    _In_ uint8_t                    Target, 
+    _In_ uint16_t                   Index, 
+    _In_ uint16_t                   Feature)
 {
     // Variables
-    uintptr_t *PacketBuffer = NULL;
-    uintptr_t PacketPhysical = 0;
-    UsbPacket_t *Packet = NULL;
+    uintptr_t *PacketBuffer     = NULL;
+    uintptr_t PacketPhysical    = 0;
+    UsbPacket_t *Packet         = NULL;
 
     // Buffers
-    UsbTransferResult_t Result = { 0 };
-    UsbTransfer_t Transfer = { 0 };
+    UsbTransferResult_t Result  = { 0 };
+    UsbTransfer_t Transfer      = { 0 };
 
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
@@ -961,16 +919,16 @@ UsbClearFeature(
     }
 
     // Initialize the packet
-    Packet = (UsbPacket_t*)PacketBuffer;
-    Packet->Direction = Target;
-    Packet->Type = USBPACKET_TYPE_CLR_FEATURE;
-    Packet->ValueHi = ((Feature >> 8) & 0xFF);
-    Packet->ValueLo = (Feature & 0xFF);
-    Packet->Index = Index;
-    Packet->Length = 0;        // No data for us
+    Packet              = (UsbPacket_t*)PacketBuffer;
+    Packet->Direction   = Target;
+    Packet->Type        = USBPACKET_TYPE_CLR_FEATURE;
+    Packet->ValueHi     = ((Feature >> 8) & 0xFF);
+    Packet->ValueLo     = (Feature & 0xFF);
+    Packet->Index       = Index;
+    Packet->Length      = 0;        // No data for us
 
     // Initialize transfer
-    UsbTransferInitialize(&Transfer, UsbDevice, Endpoint, ControlTransfer);
+    UsbTransferInitialize(&Transfer, UsbDevice, Endpoint, ControlTransfer, 0);
 
     // ClearFeature does not have a data-stage
     UsbTransferSetup(&Transfer, PacketPhysical, 0, 0, InTransaction);
@@ -981,8 +939,6 @@ UsbClearFeature(
         Result.Status = TransferNotProcessed;
     }
     BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
-
-    // Done
     return Result.Status;
 }
 
@@ -990,22 +946,22 @@ UsbClearFeature(
  * Indicates to an usb-device that we want to request a feature/state enabled. */
 UsbTransferStatus_t
 UsbSetFeature(
-    _In_ UUId_t Driver,
-    _In_ UUId_t Device,
-    _In_ UsbHcDevice_t *UsbDevice, 
-    _In_ UsbHcEndpointDescriptor_t *Endpoint,
-    _In_ uint8_t Target, 
-    _In_ uint16_t Index, 
-    _In_ uint16_t Feature)
+	_In_ UUId_t                     Driver,
+	_In_ UUId_t                     Device,
+	_In_ UsbHcDevice_t*             UsbDevice, 
+    _In_ UsbHcEndpointDescriptor_t* Endpoint,
+	_In_ uint8_t                    Target, 
+	_In_ uint16_t                   Index, 
+    _In_ uint16_t                   Feature)
 {
     // Variables
-    uintptr_t *PacketBuffer = NULL;
-    uintptr_t PacketPhysical = 0;
-    UsbPacket_t *Packet = NULL;
+    uintptr_t *PacketBuffer     = NULL;
+    uintptr_t PacketPhysical    = 0;
+    UsbPacket_t *Packet         = NULL;
 
     // Buffers
-    UsbTransferResult_t Result = { 0 };
-    UsbTransfer_t Transfer = { 0 };
+    UsbTransferResult_t Result  = { 0 };
+    UsbTransfer_t Transfer      = { 0 };
 
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
@@ -1015,16 +971,16 @@ UsbSetFeature(
     }
 
     // Initialize the packet
-    Packet = (UsbPacket_t*)PacketBuffer;
-    Packet->Direction = Target;
-    Packet->Type = USBPACKET_TYPE_SET_FEATURE;
-    Packet->ValueHi = ((Feature >> 8) & 0xFF);
-    Packet->ValueLo = (Feature & 0xFF);
-    Packet->Index = Index;
-    Packet->Length = 0;        // No data for us
+    Packet              = (UsbPacket_t*)PacketBuffer;
+    Packet->Direction   = Target;
+    Packet->Type        = USBPACKET_TYPE_SET_FEATURE;
+    Packet->ValueHi     = ((Feature >> 8) & 0xFF);
+    Packet->ValueLo     = (Feature & 0xFF);
+    Packet->Index       = Index;
+    Packet->Length      = 0;        // No data for us
 
     // Initialize transfer
-    UsbTransferInitialize(&Transfer, UsbDevice, Endpoint, ControlTransfer);
+    UsbTransferInitialize(&Transfer, UsbDevice, Endpoint, ControlTransfer, 0);
 
     // SetFeature does not have a data-stage
     UsbTransferSetup(&Transfer, PacketPhysical, 0, 0, InTransaction);
@@ -1035,8 +991,6 @@ UsbSetFeature(
         Result.Status = TransferNotProcessed;
     }
     BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
-
-    // Done
     return Result.Status;
 }
 
@@ -1045,29 +999,29 @@ UsbSetFeature(
  * control requests. */
 UsbTransferStatus_t
 UsbExecutePacket(
-    _In_ UUId_t Driver,
-    _In_ UUId_t Device,
-    _In_ UsbHcDevice_t *UsbDevice, 
-    _In_ UsbHcEndpointDescriptor_t *Endpoint,
-    _In_ uint8_t Direction,
-    _In_ uint8_t Type,
-    _In_ uint8_t ValueHigh,
-    _In_ uint8_t ValueLow,
-    _In_ uint16_t Index,
-    _In_ uint16_t Length,
-    _Out_ void *Buffer)
+    _In_  UUId_t                    Driver,
+    _In_  UUId_t                    Device,
+    _In_  UsbHcDevice_t*            UsbDevice, 
+    _In_  UsbHcEndpointDescriptor_t*Endpoint,
+    _In_  uint8_t                   Direction,
+    _In_  uint8_t                   Type,
+    _In_  uint8_t                   ValueHigh,
+    _In_  uint8_t                   ValueLow,
+    _In_  uint16_t                  Index,
+    _In_  uint16_t                  Length,
+    _Out_ void*                     Buffer)
 {
     // Variables
-    UsbTransactionType_t DataStageType = OutTransaction;
-    uintptr_t *DescriptorVirtual = NULL;
-    uintptr_t DescriptorPhysical = 0;
-    uintptr_t *PacketBuffer = NULL;
-    uintptr_t PacketPhysical = 0;
-    UsbPacket_t *Packet = NULL;
+    UsbTransactionType_t DataStageType  = OutTransaction;
+    uintptr_t *DescriptorVirtual        = NULL;
+    uintptr_t DescriptorPhysical        = 0;
+    uintptr_t *PacketBuffer             = NULL;
+    uintptr_t PacketPhysical            = 0;
+    UsbPacket_t *Packet                 = NULL;
 
     // Buffers
-    UsbTransferResult_t Result = { 0 };
-    UsbTransfer_t Transfer = { 0 };
+    UsbTransferResult_t Result          = { 0 };
+    UsbTransfer_t Transfer              = { 0 };
     
     // Allocate buffers
     if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
@@ -1077,13 +1031,13 @@ UsbExecutePacket(
     }
 
     // Initialize the packet
-    Packet = (UsbPacket_t*)PacketBuffer;
-    Packet->Direction = Direction;
-    Packet->Type = Type;
-    Packet->ValueHi = ValueHigh;
-    Packet->ValueLo = ValueLow;
-    Packet->Index = Index;
-    Packet->Length = Length;
+    Packet              = (UsbPacket_t*)PacketBuffer;
+    Packet->Direction   = Direction;
+    Packet->Type        = Type;
+    Packet->ValueHi     = ValueHigh;
+    Packet->ValueLo     = ValueLow;
+    Packet->Index       = Index;
+    Packet->Length      = Length;
 
     // Allocate a data-buffer
     if (Length != 0 && BufferPoolAllocate(__LibUsbBufferPool,
@@ -1105,7 +1059,7 @@ UsbExecutePacket(
     }
 
     // Initialize setup transfer
-    UsbTransferInitialize(&Transfer, UsbDevice, Endpoint, ControlTransfer);
+    UsbTransferInitialize(&Transfer, UsbDevice, Endpoint, ControlTransfer, 0);
     UsbTransferSetup(&Transfer, PacketPhysical, DescriptorPhysical, Length, DataStageType);
 
     // Execute the transaction and cleanup the buffer
@@ -1125,7 +1079,5 @@ UsbExecutePacket(
         BufferPoolFree(__LibUsbBufferPool, DescriptorVirtual);
     }
     BufferPoolFree(__LibUsbBufferPool, PacketBuffer);
-
-    // Done
     return Result.Status;
 }
