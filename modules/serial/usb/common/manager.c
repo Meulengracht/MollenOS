@@ -94,6 +94,7 @@ UsbManagerRegisterTimer(
 {
     __GlbTimerEvent     = TimerStart(IntervalMs, 1, NULL);
     __GlbTimerCallback  = Function;
+    return OsSuccess;
 }
 
 /* UsbManagerCreateTransfer

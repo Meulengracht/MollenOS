@@ -456,7 +456,7 @@ BulkSendCommand(
     BulkScsiCommandConstruct(Device->CommandBlock, ScsiCommand, SectorStart, 
         DataLength, (uint16_t)Device->Descriptor.SectorSize);
     UsbTransferInitialize(&CommandStage, &Device->Base.Device, 
-        Device->Out, BulkTransfer);
+        Device->Out, BulkTransfer, 0);
     UsbTransferOut(&CommandStage, Device->CommandBlockAddress, 
         sizeof(MsdCommandBlock_t), 0);
     UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
@@ -490,7 +490,7 @@ BulkReadData(
 
     // Perform the transfer
     UsbTransferInitialize(&DataStage, &Device->Base.Device, 
-        Device->In, BulkTransfer);
+        Device->In, BulkTransfer, 0);
     UsbTransferIn(&DataStage, DataAddress, DataLength, 0);
     UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
         &DataStage, &Result);
@@ -529,7 +529,7 @@ BulkWriteData(
 
     // Perform the data-stage
     UsbTransferInitialize(&DataStage, &Device->Base.Device, 
-        Device->Out, BulkTransfer);
+        Device->Out, BulkTransfer, 0);
     UsbTransferOut(&DataStage, DataAddress, DataLength, 0);
     UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
         &DataStage, &Result);
@@ -569,7 +569,7 @@ BulkGetStatus(
 
     // Perform the transfer
     UsbTransferInitialize(&StatusStage, &Device->Base.Device, 
-        Device->In, BulkTransfer);
+        Device->In, BulkTransfer, 0);
     UsbTransferIn(&StatusStage, Device->StatusBlockAddress, 
         sizeof(MsdCommandStatus_t), 0);
     UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 

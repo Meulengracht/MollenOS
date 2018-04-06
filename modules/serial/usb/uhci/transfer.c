@@ -78,13 +78,8 @@ UhciCalculateBandwidth(
             Qh->Period  = 1 << Exponent;
             Qh->Queue   = Queue & 0xFF;
 
-            // For now, interrupt phase is fixed by the layout
-            // of the QH lists.
-            Qh->Phase   = (Qh->Period / 2) & (UHCI_BANDWIDTH_PHASES - 1);
-
             // Validate the bandwidth
-            Run         = UsbSchedulerValidate(Controller->Scheduler, 
-                Qh->Period, Qh->Bandwidth, TransactionCount);
+            Run         = UsbSchedulerValidate(Controller->Scheduler, Qh->Period, Qh->Bandwidth, TransactionCount);
         }
     }
     else {
@@ -95,13 +90,8 @@ UhciCalculateBandwidth(
         Qh->Period      = 1 << Exponent;
         Qh->Queue       = Queue & 0xFF;
 
-        // For now, interrupt phase is fixed by the layout
-        // of the QH lists.
-        Qh->Phase       = (Qh->Period / 2) & (UHCI_BANDWIDTH_PHASES - 1);
-
         // Validate the bandwidth
-        Run = UsbSchedulerValidate(Controller->Scheduler,
-            Qh->Period, Qh->Bandwidth, TransactionCount);
+        Run             = UsbSchedulerValidate(Controller->Scheduler, Qh->Period, Qh->Bandwidth, TransactionCount);
     }
 
     // Sanitize the validation
@@ -156,12 +146,10 @@ UhciTransactionDispatch(
     // Variables
     UhciQueueHead_t *Qh     = NULL;
     uintptr_t QhAddress     = 0;
-    int QhIndex             = -1;
 
     // Instantiate values
     Qh                      = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
-    QhIndex                 = UHCI_QH_GET_INDEX(Qh->Flags);
-    QhAddress               = UHCI_POOL_QHINDEX(Controller, QhIndex);
+    QhAddress               = UHCI_POOL_QHINDEX(Controller, Qh->Index);
 
     // Trace
     TRACE("UHCI: QH at 0x%x, FirstTd 0x%x, NextQh 0x%x", 
@@ -171,10 +159,8 @@ UhciTransactionDispatch(
 
     // Asynchronous requests, Control & Bulk
     UhciUpdateCurrentFrame(Controller);
-    if (Qh->Queue >= UHCI_QH_ASYNC) {
-        
-        // Variables
-        UhciQueueHead_t *PrevQh = &Controller->QueueControl.QHPool[UHCI_QH_ASYNC];
+    if (Qh->Queue >= UHCI_POOL_QH_ASYNC) {
+        UhciQueueHead_t *PrevQh = &Controller->QueueControl.QHPool[UHCI_POOL_QH_ASYNC];
 
         // Iterate and find a spot, based on the queue priority
         TRACE("(%u) Linking asynchronous queue-head (async-next: %i)", 
@@ -195,17 +181,17 @@ UhciTransactionDispatch(
         Qh->LinkIndex = PrevQh->LinkIndex;
         MemoryBarrier();
         PrevQh->Link = (QhAddress | UHCI_LINK_QH);
-        PrevQh->LinkIndex = QhIndex;
+        PrevQh->LinkIndex = Qh->Index;
     }
     // Periodic requests
-    else if (Qh->Queue > UHCI_QH_ISOCHRONOUS && Qh->Queue < UHCI_QH_ASYNC) {
+    else if (Qh->Queue > UHCI_POOL_QH_ISOCHRONOUS && Qh->Queue < UHCI_POOL_QH_ASYNC) {
         
         // Variables
         UhciQueueHead_t *ExistingQueueHead = 
             &Controller->QueueControl.QHPool[Qh->Queue];
 
         // Iterate to end of interrupt list
-        while (ExistingQueueHead->LinkIndex != UHCI_QH_ASYNC) {
+        while (ExistingQueueHead->LinkIndex != UHCI_POOL_QH_ASYNC) {
             ExistingQueueHead = &Controller->QueueControl.
                 QHPool[ExistingQueueHead->LinkIndex];
         }
@@ -216,7 +202,7 @@ UhciTransactionDispatch(
         Qh->LinkIndex = ExistingQueueHead->LinkIndex;
         MemoryBarrier();
         ExistingQueueHead->Link = (QhAddress | UHCI_LINK_QH);
-        ExistingQueueHead->LinkIndex = QhIndex;
+        ExistingQueueHead->LinkIndex = Qh->Index;
     }
     else {
         UhciLinkIsochronous(Controller, Qh);
@@ -265,8 +251,7 @@ UhciTransactionFinalize(
         memset((void*)Td, 0, sizeof(UhciTransferDescriptor_t));
 
         // Go to next td or terminate
-        if (LinkIndex != UHCI_NO_INDEX 
-            && LinkIndex != UHCI_POOL_TDNULL) {
+        if (LinkIndex != UHCI_NO_INDEX && LinkIndex != UHCI_POOL_TD_NULL) {
             Td = &Controller->QueueControl.TDPool[LinkIndex];
         }
         else {

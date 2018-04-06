@@ -185,7 +185,7 @@ UfiReadData(
 
     // Perform the transfer
     UsbTransferInitialize(&DataStage, &Device->Base.Device, 
-        Device->In, BulkTransfer);
+        Device->In, BulkTransfer, 0);
     UsbTransferIn(&DataStage, DataAddress, DataLength, 0);
     UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
         &DataStage, &Result);
@@ -216,7 +216,7 @@ UfiWriteData(
 
     // Perform the data-stage
     UsbTransferInitialize(&DataStage, &Device->Base.Device, 
-        Device->Out, BulkTransfer);
+        Device->Out, BulkTransfer, 0);
     UsbTransferOut(&DataStage, DataAddress, DataLength, 0);
     UsbTransferQueue(Device->Base.DriverId, Device->Base.DeviceId, 
         &DataStage, &Result);

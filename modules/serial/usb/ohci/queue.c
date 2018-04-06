@@ -142,10 +142,6 @@ OhciQueueInitialize(
     Queue->TDPoolPhysical   = LODWORD((PoolPhysical + (OHCI_POOL_QHS * sizeof(OhciQueueHead_t))));
     assert(PoolPhysical < 0xFFFFFFFF);
 
-    // Initialize transaction counters
-    // and the transaction list
-    Queue->TransactionList = CollectionCreate(KeyInteger);
-
     // Initialize the internal data structures
     return OhciQueueResetInternalData(Controller);
 }

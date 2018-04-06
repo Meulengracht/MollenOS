@@ -52,7 +52,7 @@ UhciQhAllocate(
     // and isoc, but it doesn't make sense for us as we keep one
     // large pool of QH's, just allocate from that in any case
     SpinlockAcquire(&Controller->Base.Lock);
-    for (i = UHCI_POOL_START; i < UHCI_POOL_QHS; i++) {
+    for (i = UHCI_POOL_QH_START; i < UHCI_POOL_QHS; i++) {
         // Skip in case already allocated
         if (Controller->QueueControl.QHPool[i].Flags & UHCI_QH_ALLOCATED) {
             continue;
@@ -69,13 +69,13 @@ UhciQhAllocate(
 
         // Determine which queue-priority
         if (Speed == LowSpeed && Type == ControlTransfer) {
-            Controller->QueueControl.QHPool[i].Queue    = UHCI_QH_LCTRL;
+            Controller->QueueControl.QHPool[i].Queue    = UHCI_POOL_QH_LCTRL;
         }
         else if (Speed == FullSpeed && Type == ControlTransfer) {
-            Controller->QueueControl.QHPool[i].Queue    = UHCI_QH_FCTRL;
+            Controller->QueueControl.QHPool[i].Queue    = UHCI_POOL_QH_FCTRL;
         }
         else if (Type == BulkTransfer) {
-            Controller->QueueControl.QHPool[i].Queue    = UHCI_QH_FBULK;
+            Controller->QueueControl.QHPool[i].Queue    = UHCI_POOL_QH_FBULK;
         }
         Qh                                              = &Controller->QueueControl.QHPool[i];
         break;
@@ -118,18 +118,19 @@ UhciQhValidate(
     _In_ UhciQueueHead_t*       Qh)
 {
     // Variables
-    UhciTransferDescriptor_t *Td    = NULL;
+    UhciTransferDescriptor_t *Td    = &Controller->QueueControl.TDPool[Qh->ChildIndex];
     int ShortTransfer               = 0;
-
-    // The initial state of the transfer will be complete
-    Transfer->Status                = TransferFinished;
-    Td                              = &Controller->QueueControl.TDPool[Qh->ChildIndex];
+    int NakTransfer                 = 0;
 
     // Iterate all the td's in the queue head, skip null td
     while (Td) {
-        UhciTdValidate(Controller, Transfer, Td, &ShortTransfer);
+        UhciTdValidate(Controller, Transfer, Td, &ShortTransfer, &NakTransfer);
         if (ShortTransfer == 1) {
             Qh->Flags |= UHCI_QH_SHORTTRANSFER;
+        }
+        if (NakTransfer == 1) {
+            Qh->Flags |= UHCI_QH_NAKTRANSFER;
+            break; // don't check anymore
         }
 
         // Go to next td
@@ -140,4 +141,70 @@ UhciQhValidate(
             break;
         }
     }
+}
+
+/* UhciQhRestart
+ * Restarts an interrupt QH by resetting it to it's start state */
+void
+UhciQhRestart(
+    _In_ UhciController_t*      Controller, 
+    _In_ UsbManagerTransfer_t*  Transfer)
+{
+    // Variables
+    UhciTransferDescriptor_t *Td    = NULL;
+    UhciQueueHead_t *Qh             = NULL;
+    uintptr_t BufferBaseUpdated     = 0;
+    uintptr_t BufferBase            = 0;
+    uintptr_t BufferStep            = 0;
+    
+    // Setup some variables
+    Qh              = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
+    Td              = &Controller->QueueControl.TDPool[Qh->ChildIndex];
+
+    // Do some extra processing for periodics
+    BufferBase      = Transfer->Transfer.Transactions[0].BufferAddress;
+    BufferStep      = Transfer->Transfer.Endpoint.MaxPacketSize;
+
+    // Restart transfer
+    while (Td) {
+        int Toggle  = UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe);
+        Td->OriginalHeader &= ~UHCI_TD_DATA_TOGGLE;
+        if (Toggle) {
+            Td->OriginalHeader |= UHCI_TD_DATA_TOGGLE;
+        }
+        UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, Toggle ^ 1);
+        
+        // Adjust buffer if not just restart
+        if (!(Qh->Flags & UHCI_QH_NAKTRANSFER)) {
+            BufferBaseUpdated   = ADDLIMIT(BufferBase, Td->Buffer, 
+                BufferStep, BufferBase + Transfer->Transfer.PeriodicBufferSize);
+            Td->Buffer          = LODWORD(BufferBaseUpdated);
+        }
+
+        // Restore
+        Td->Header = Td->OriginalHeader;
+        Td->Flags = Td->OriginalFlags;
+
+        // Restore IoC
+        if (Td->LinkIndex == UHCI_NO_INDEX) {
+            Td->Flags |= UHCI_TD_IOC;
+        }
+
+        // Go to next td
+        if (Td->LinkIndex != UHCI_NO_INDEX) {
+            Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
+        }
+        else {
+            break;
+        }
+    }
+    
+    // Notify process of transfer of the status
+    if (!(Qh->Flags & UHCI_QH_NAKTRANSFER)) {
+        UsbManagerSendNotification(Transfer);
+    }
+
+    // Reinitialize the queue-head and transfer
+    Qh->Child           = UHCI_POOL_TDINDEX(Controller, Qh->ChildIndex);
+    Transfer->Status    = TransferQueued;
 }

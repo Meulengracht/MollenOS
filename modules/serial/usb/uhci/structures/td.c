@@ -40,23 +40,17 @@
  * NULL we are out of TD's and we should wait till next transfer. */
 UhciTransferDescriptor_t*
 UhciTdAllocate(
-    _In_ UhciController_t *Controller,
-    _In_ UsbTransferType_t Type)
+    _In_ UhciController_t*  Controller)
 {
     // Variables
     UhciTransferDescriptor_t *Td = NULL;
     int i;
 
-    // Unused for now
-    _CRT_UNUSED(Type);
-
-    // Lock access to the queue
-    SpinlockAcquire(&Controller->Base.Lock);
-
     // Now, we usually allocated new descriptors for interrupts
     // and isoc, but it doesn't make sense for us as we keep one
     // large pool of TDs, just allocate from that in any case
-    for (i = 0; i < UHCI_POOL_TDNULL; i++) {
+    SpinlockAcquire(&Controller->Base.Lock);
+    for (i = UHCI_POOL_TD_START; i < UHCI_POOL_TDS; i++) {
         // Skip ahead if allocated, skip twice if isoc
         if (Controller->QueueControl.TDPool[i].HcdFlags & UHCI_TD_ALLOCATED) {
             continue;
@@ -64,14 +58,11 @@ UhciTdAllocate(
 
         // Found one, reset
         memset(&Controller->QueueControl.TDPool[i], 0, sizeof(UhciTransferDescriptor_t));
-        Controller->QueueControl.TDPool[i].LinkIndex = UHCI_NO_INDEX;
-        Controller->QueueControl.TDPool[i].HcdFlags = UHCI_TD_ALLOCATED;
-        Controller->QueueControl.TDPool[i].HcdFlags |= UHCI_TD_SET_INDEX(i);
-        Td = &Controller->QueueControl.TDPool[i];
+        Controller->QueueControl.TDPool[i].Index        = (int16_t)i;
+        Controller->QueueControl.TDPool[i].HcdFlags     = UHCI_TD_ALLOCATED;
+        Td                                              = &Controller->QueueControl.TDPool[i];
         break;
     }
-
-    // Release the lock, let others pass
     SpinlockRelease(&Controller->Base.Lock);
     return Td;
 }
@@ -81,31 +72,31 @@ UhciTdAllocate(
  * The Td is immediately ready for execution. */
 UhciTransferDescriptor_t*
 UhciTdSetup(
-    _In_ UhciController_t *Controller, 
-    _In_ UsbTransaction_t *Transaction,
-    _In_ size_t Address, 
-    _In_ size_t Endpoint,
-    _In_ UsbTransferType_t Type,
-    _In_ UsbSpeed_t Speed)
+    _In_ UhciController_t*  Controller, 
+    _In_ UsbTransaction_t*  Transaction,
+    _In_ size_t             Address, 
+    _In_ size_t             Endpoint,
+    _In_ UsbTransferType_t  Type,
+    _In_ UsbSpeed_t         Speed)
 {
     // Variables
     UhciTransferDescriptor_t *Td = NULL;
 
     // Allocate a new Td
-    Td = UhciTdAllocate(Controller, Type);
+    Td = UhciTdAllocate(Controller);
     if (Td == NULL) {
         return NULL;
     }
 
     // Set no link
-    Td->Link = UHCI_LINK_END;
-    Td->LinkIndex = UHCI_NO_INDEX;
+    Td->Link            = UHCI_LINK_END;
+    Td->LinkIndex       = UHCI_NO_INDEX;
 
     // Setup td flags
-    Td->Flags = UHCI_TD_ACTIVE;
-    Td->Flags |= UHCI_TD_SETCOUNT(3);
+    Td->Flags           = UHCI_TD_ACTIVE;
+    Td->Flags           |= UHCI_TD_SETCOUNT(3);
     if (Speed == LowSpeed) {
-        Td->Flags |= UHCI_TD_LOWSPEED;
+        Td->Flags       |= UHCI_TD_LOWSPEED;
     }
 
     // Setup td header
@@ -120,8 +111,6 @@ UhciTdSetup(
     // Store data
     Td->OriginalFlags = Td->Flags;
     Td->OriginalHeader = Td->Header;
-
-    // Done
     return Td;
 }
 
@@ -130,22 +119,22 @@ UhciTdSetup(
  * The Td is immediately ready for execution. */
 UhciTransferDescriptor_t*
 UhciTdIo(
-    _In_ UhciController_t *Controller,
-    _In_ UsbTransferType_t Type,
-    _In_ uint32_t PId,
-    _In_ int Toggle,
-    _In_ size_t Address, 
-    _In_ size_t Endpoint,
-    _In_ size_t MaxPacketSize,
-    _In_ UsbSpeed_t Speed,
-    _In_ uintptr_t BufferAddress,
-    _In_ size_t Length)
+    _In_ UhciController_t*  Controller,
+    _In_ UsbTransferType_t  Type,
+    _In_ uint32_t           PId,
+    _In_ int                Toggle,
+    _In_ size_t             Address, 
+    _In_ size_t             Endpoint,
+    _In_ size_t             MaxPacketSize,
+    _In_ UsbSpeed_t         Speed,
+    _In_ uintptr_t          BufferAddress,
+    _In_ size_t             Length)
 {
     // Variables
     UhciTransferDescriptor_t *Td = NULL;
     
     // Allocate a new Td
-    Td = UhciTdAllocate(Controller, Type);
+    Td = UhciTdAllocate(Controller);
     if (Td == NULL) {
         return NULL;
     }
@@ -214,7 +203,8 @@ UhciTdValidate(
     _In_  UhciController_t*         Controller,
     _In_  UsbManagerTransfer_t*     Transfer,
     _In_  UhciTransferDescriptor_t* Td,
-    _Out_ int*                      ShortTransfer)
+    _Out_ int*                      ShortTransfer,
+    _Out_ int*                      NakTransfer)
 {
     // Variables
     int ErrorCode = UhciConditionCodeToIndex(UHCI_TD_STATUS(Td->Flags));
@@ -226,9 +216,18 @@ UhciTdValidate(
     }
     Transfer->TransactionsExecuted++;
 
+    // NAK transfer? 
+    if (ErrorCode == 3) {
+        *NakTransfer            = 1;
+        return; // no further processing
+    }
+
     // Now validate the code
     if (ErrorCode != 0) {
         Transfer->Status        = UhciGetStatusCode(ErrorCode);
+    }
+    else if (ErrorCode == 0 && Transfer->Status == TransferQueued) {
+        Transfer->Status        = TransferFinished;
     }
 
     // Calculate length transferred 

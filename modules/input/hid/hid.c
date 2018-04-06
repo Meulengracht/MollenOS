@@ -93,9 +93,9 @@ HidDeviceCreate(
 
     // Install interrupt pipe
     UsbTransferInitialize(&Device->Transfer, &Device->Base.Device, 
-        Device->Interrupt, InterruptTransfer);
+        Device->Interrupt, InterruptTransfer, 0);
     UsbTransferPeriodic(&Device->Transfer, Device->BufferAddress, 0x400, 
-        Device->ReportLength, InTransaction, 1, (__CONST void*)Device);
+        Device->ReportLength, InTransaction, (const void*)Device);
     if (UsbTransferQueuePeriodic(Device->Base.DriverId, Device->Base.DeviceId, 
         &Device->Transfer, &Device->TransferId) != TransferQueued) {
         ERROR("Failed to install interrupt transfer");

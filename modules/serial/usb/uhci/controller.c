@@ -50,7 +50,7 @@ HciTimerCallback(void)
     // Do a port-check and perform transaction checks
     foreach(cNode, UsbManagerGetControllers()) {
         UhciPortsCheck((UhciController_t*)cNode->Data);
-        UhciProcessTransfers((UhciController_t*)cNode->Data, 1);
+        UhciProcessTransfers((UhciController_t*)cNode->Data);
     }
 }
 

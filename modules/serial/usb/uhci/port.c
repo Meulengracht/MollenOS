@@ -44,31 +44,31 @@ HciPortReset(
 	uint16_t TempValue  = 0;
 
 	// Send reset-signal to controller
-	UhciWrite16(Controller, pOffset, UHCI_PORT_RESET);
+	UhciWrite16((UhciController_t*)Controller, pOffset, UHCI_PORT_RESET);
 
 	// Wait atlest 50 ms (per USB specification)
 	thrd_sleepex(60);
 
 	// Now re-read port and deassert the signal
 	// We preserve the state now
-	TempValue           = UhciRead16(Controller, pOffset);
-	UhciWrite16(Controller, pOffset, TempValue & ~UHCI_PORT_RESET);
+	TempValue           = UhciRead16((UhciController_t*)Controller, pOffset);
+	UhciWrite16((UhciController_t*)Controller, pOffset, TempValue & ~UHCI_PORT_RESET);
 
 	// Now wait for the connection-status bit
 	TempValue           = 0;
-	WaitForConditionWithFault(TempValue, (UhciRead16(Controller, pOffset) & UHCI_PORT_CONNECT_STATUS), 10, 1);
+	WaitForConditionWithFault(TempValue, (UhciRead16((UhciController_t*)Controller, pOffset) & UHCI_PORT_CONNECT_STATUS), 10, 1);
 	if (TempValue != 0) {
 		WARNING("UHCI: Port %i failed to come online in a timely manner after reset...", Index);
 	}
 
 	// Enable port & clear event bits
-	TempValue           = UhciRead16(Controller, pOffset);
-	UhciWrite16(Controller, pOffset, TempValue | UHCI_PORT_CONNECT_EVENT 
+	TempValue           = UhciRead16((UhciController_t*)Controller, pOffset);
+	UhciWrite16((UhciController_t*)Controller, pOffset, TempValue | UHCI_PORT_CONNECT_EVENT 
 		| UHCI_PORT_ENABLED_EVENT | UHCI_PORT_ENABLED);
 
 	// Wait for enable, with timeout
 	TempValue           = 0;
-	WaitForConditionWithFault(TempValue, (UhciRead16(Controller, pOffset) & UHCI_PORT_ENABLED), 25, 10);
+	WaitForConditionWithFault(TempValue, (UhciRead16((UhciController_t*)Controller, pOffset) & UHCI_PORT_ENABLED), 25, 10);
 
 	// Sanitize the result
 	if (TempValue != 0) {
@@ -96,7 +96,7 @@ HciPortGetStatus(
     uint16_t pStatus    = 0;
     
 	// Now we can get current port status
-	pStatus             = UhciRead16(Controller, (UHCI_REGISTER_PORT_BASE + (Index * 2)));
+	pStatus             = UhciRead16((UhciController_t*)Controller, (UHCI_REGISTER_PORT_BASE + (Index * 2)));
 
     // Debug
     TRACE("UhciPortGetStatus(Port %i, Status 0x%x)", Index, pStatus);

@@ -40,7 +40,6 @@
  * The function does not block. */
 UsbTransferStatus_t
 HciQueueTransferIsochronous(
-    _In_ UsbManagerTransfer_t*      Transfer)
-{
-
+    _In_ UsbManagerTransfer_t*      Transfer) {
+    return HciQueueTransferGeneric(Transfer);
 }

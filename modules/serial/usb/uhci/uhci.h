@@ -41,6 +41,7 @@
 #define UHCI_FRAME_MASK                 2047
 #define UHCI_USBLEGEACY                 0xC0
 #define UHCI_USBRES_INTEL               0xC4
+#define UHCI_BANDWIDTH_PHASES           32
 
 /* UHCI Register Definitions
  * A list of all the fixed-offsets registers that exist in the io-space of
@@ -106,7 +107,8 @@ PACKED_TYPESTRUCT(UhciTransferDescriptor, {
     reg32_t                     Buffer;
 
     // 16 Byte software meta-data
-    reg32_t                     HcdFlags;
+    int16_t                     HcdFlags;
+    int16_t                     Index;
     int16_t                     LinkIndex;
     uint16_t                    Frame;
 
@@ -125,9 +127,6 @@ PACKED_TYPESTRUCT(UhciTransferDescriptor, {
 /* UhciTransferDescriptor::HcdFlags
  * Contains definitions and bitfield definitions for UhciTransferDescriptor::HcdFlags */
 #define UHCI_TD_ALLOCATED               0x1
-#define UHCI_TD_SET_INDEX(n)            ((n << 1) & 0x1FE)    
-#define UHCI_TD_CLR_INDEX(n)            (n & 0xFFFFFE01)
-#define UHCI_TD_GET_INDEX(n)            ((n & 0x1FE) >> 1)
 
 /* UhciTransferDescriptor::Flags
  * Contains definitions and bitfield definitions for UhciTransferDescriptor::Flags */
@@ -167,8 +166,7 @@ PACKED_TYPESTRUCT(UhciQueueHead, {
     int16_t                     Index;
     int16_t                     LinkIndex;    // Virtual address of Link
     int16_t                     ChildIndex;    // Virtual address of Child
-    uint16_t                    Phase;
-    uint16_t                    Period;
+    reg32_t                     Period;
     reg32_t                     Bandwidth;
     reg32_t                     StartFrame;
     reg32_t                     Unused;
@@ -180,29 +178,34 @@ PACKED_TYPESTRUCT(UhciQueueHead, {
  * Bit 1-2:     Queue Head Type (00 Control, 01 Bulk, 10 Interrupt, 11 Isochronous) 
  * Bit 3:       Bandwidth allocated
  * Bit 4:       Unschedule
- * Bit 5:       Short Transfer */
+ * Bit 5:       Short Transfer
+ * Bit 6:       NAK Transfer */
 #define UHCI_QH_ALLOCATED               (1 << 0)
 #define UHCI_QH_TYPE(n)                 ((n & 0x3) << 1)
 #define UHCI_QH_BANDWIDTH_ALLOC         (1 << 3)
 #define UHCI_QH_UNSCHEDULE              (1 << 4)
 #define UHCI_QH_SHORTTRANSFER           (1 << 5)
+#define UHCI_QH_NAKTRANSFER             (1 << 6)
 
-/* Pool Definitions */
-#define UHCI_POOL_QHINDEX(Ctrl, Index)  (Ctrl->QueueControl.QHPoolPhysical + (Index * sizeof(UhciQueueHead_t)))
-#define UHCI_POOL_TDINDEX(Ctrl, Index)  (Ctrl->QueueControl.TDPoolPhysical + (Index * sizeof(UhciTransferDescriptor_t)))
-#define UHCI_POOL_START                 14
-#define UHCI_BANDWIDTH_PHASES           32
+/* Uhci Definitions
+ * Pool sizes and helper functions. */
+#define UHCI_POOL_QHINDEX(Ctrl, Index)      (Ctrl->QueueControl.QHPoolPhysical + (Index * sizeof(UhciQueueHead_t)))
+#define UHCI_POOL_TDINDEX(Ctrl, Index)      (Ctrl->QueueControl.TDPoolPhysical + (Index * sizeof(UhciTransferDescriptor_t)))
+#define UHCI_POOL_QHS                       50
+#define UHCI_POOL_TDS                       400
 
-#define UHCI_POOL_QHS                   50
-#define UHCI_POOL_TDS                   400
+/* Uhci Definitions
+ * Uhci fixed pool indicies that are already in use. */
+#define UHCI_POOL_QH_NULL                   0
+#define UHCI_POOL_QH_ISOCHRONOUS            1
+#define UHCI_POOL_QH_ASYNC                  9
+#define UHCI_POOL_QH_LCTRL                  10
+#define UHCI_POOL_QH_FCTRL                  11
+#define UHCI_POOL_QH_FBULK                  12
+#define UHCI_POOL_QH_START                  13
 
-#define UHCI_POOL_TDNULL                (UHCI_POOL_TDS - 1)
-#define UHCI_QH_ISOCHRONOUS             1
-#define UHCI_QH_ASYNC                   9
-#define UHCI_QH_NULL                    10
-#define UHCI_QH_LCTRL                   11
-#define UHCI_QH_FCTRL                   12
-#define UHCI_QH_FBULK                   13
+#define UHCI_POOL_TD_NULL                   0
+#define UHCI_POOL_TD_START                  1
 
 /* UhciControl
  * Contains all necessary Queue related information
@@ -213,14 +216,12 @@ typedef struct _UhciControl {
     UhciTransferDescriptor_t*   TDPool;
     uintptr_t                   QHPoolPhysical;
     uintptr_t                   TDPoolPhysical;
+    size_t                      PoolBytes;
 
     // Frames
     reg32_t*                    FrameList;
     reg32_t                     FrameListPhysical;
     int                         Frame;
-
-    // Transactions
-    Collection_t*               TransactionList;
 } UhciControl_t;
 
 /* UhciController 
@@ -398,6 +399,14 @@ UhciQhValidate(
     _In_ UsbManagerTransfer_t*  Transfer,
     _In_ UhciQueueHead_t*       Qh);
 
+/* UhciQhRestart
+ * Restarts an interrupt QH by resetting it to it's start state */
+__EXTERN
+void
+UhciQhRestart(
+    _In_ UhciController_t*      Controller, 
+    _In_ UsbManagerTransfer_t*  Transfer);
+
 /*******************************************************************************
  * Transfer Descriptor Methods
  *******************************************************************************/
@@ -441,7 +450,8 @@ UhciTdValidate(
     _In_  UhciController_t*         Controller,
     _In_  UsbManagerTransfer_t*     Transfer,
     _In_  UhciTransferDescriptor_t* Td,
-    _Out_ int*                      ShortTransfer);
+    _Out_ int*                      ShortTransfer,
+    _Out_ int*                      NakTransfer);
 
 /*******************************************************************************
  * Queue Methods
@@ -491,8 +501,7 @@ UhciUnlinkIsochronous(
 __EXTERN
 void
 UhciProcessTransfers(
-    _In_ UhciController_t  *Controller,
-    _In_ int                Checkup);
+    _In_ UhciController_t  *Controller);
 
 /* UhciTransactionFinalize
  * Cleans up the transfer, deallocates resources and validates the td's */
@@ -502,5 +511,14 @@ UhciTransactionFinalize(
     _In_ UhciController_t*      Controller,
     _In_ UsbManagerTransfer_t*  Transfer,
     _In_ int                    Validate);
+
+/* UhciTransactionDispatch
+ * Queues the transfer up in the controller hardware, after finalizing the
+ * transactions and preparing them. */
+__EXTERN
+UsbTransferStatus_t
+UhciTransactionDispatch(
+    _In_ UhciController_t*      Controller,
+    _In_ UsbManagerTransfer_t*  Transfer);
 
 #endif // !__USB_UHCI__

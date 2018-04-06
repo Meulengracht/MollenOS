@@ -39,21 +39,21 @@
  * Dumps the QH-settings and all the attached td's */
 static void
 UhciQueueDebug(
-    _In_ UhciController_t   *Controller,
-    _In_ UhciQueueHead_t    *Qh)
+    _In_ UhciController_t*  Controller,
+    _In_ UhciQueueHead_t*   Qh)
 {
     // Variables
     UhciTransferDescriptor_t *Td = NULL;
     uintptr_t PhysicalAddress = 0;
 
-    PhysicalAddress = UHCI_POOL_QHINDEX(Controller, UHCI_QH_GET_INDEX(Qh->Flags));
+    PhysicalAddress = UHCI_POOL_QHINDEX(Controller, Qh->Index);
     TRACE("QH(0x%x): Flags 0x%x, NextQh 0x%x, FirstChild 0x%x", 
         PhysicalAddress, Qh->Flags, Qh->Link, Qh->Child);
 
     // Get first td
     Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
     while (Td != NULL) {
-        PhysicalAddress = UHCI_POOL_TDINDEX(Controller, UHCI_TD_GET_INDEX(Td->HcdFlags));
+        PhysicalAddress = UHCI_POOL_TDINDEX(Controller, Td->Index);
         TRACE("TD(0x%x): Link 0x%x, Flags 0x%x, Header 0x%x, Buffer 0x%x", 
             PhysicalAddress, Td->Link, Td->Flags, Td->Header, Td->Buffer);
         // Go to next td
@@ -70,9 +70,9 @@ UhciQueueDebug(
  * Returns the number of transactions neccessary for the transfer. */
 static OsStatus_t
 UhciTransactionCount(
-    _In_ UhciController_t       *Controller,
-    _In_ UsbManagerTransfer_t   *Transfer,
-    _Out_ int                   *TransactionsTotal)
+    _In_  UhciController_t*     Controller,
+    _In_  UsbManagerTransfer_t* Transfer,
+    _Out_ int*                  TransactionsTotal)
 {
     // Variables
     int TransactionCount    = 0;
@@ -98,8 +98,7 @@ UhciTransactionCount(
             TransactionCount++;
 
             // Break out on zero lengths
-            if (Transfer->Transfer.Transactions[i].ZeroLength == 1
-                || AddZeroLength == 1) {
+            if (Transfer->Transfer.Transactions[i].ZeroLength == 1 || AddZeroLength == 1) {
                 break;
             }
 
@@ -124,8 +123,8 @@ UhciTransactionCount(
  * Fills the transfer with as many transfer-descriptors as possible/needed. */
 static OsStatus_t
 UhciTransferFill(
-    _In_ UhciController_t           *Controller,
-    _InOut_ UsbManagerTransfer_t    *Transfer)
+    _In_ UhciController_t*      Controller,
+    _In_ UsbManagerTransfer_t*  Transfer)
 {
     // Variables
     UhciTransferDescriptor_t *InitialTd     = NULL;
@@ -201,7 +200,7 @@ UhciTransferFill(
                 }
                 else {
                     // Update physical link
-                    PreviousTd->LinkIndex   = UHCI_TD_GET_INDEX(Td->HcdFlags);
+                    PreviousTd->LinkIndex   = Td->Index;
                     PreviousTd->Link        = (UHCI_POOL_TDINDEX(Controller, PreviousTd->LinkIndex) | UHCI_LINK_DEPTH);
                     PreviousTd              = Td;
                 }
@@ -238,8 +237,7 @@ UhciTransferFill(
     // End of <transfer>?
     if (PreviousTd != NULL) {
         PreviousTd->Flags |= UHCI_TD_IOC;
-        UhciQhInitialize(Controller, Transfer->EndpointDescriptor, 
-            UHCI_TD_GET_INDEX(InitialTd->HcdFlags));
+        UhciQhInitialize(Controller, Transfer->EndpointDescriptor, InitialTd->Index);
         return OsSuccess;
     }
     else {

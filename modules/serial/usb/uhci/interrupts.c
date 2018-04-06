@@ -37,10 +37,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* Globals
- * Use these for state-keeping */
-static UUId_t __GlbTimerEvent = UUID_INVALID;
-
 /* OnFastInterrupt
  * Is called for the sole purpose to determine if this source
  * has invoked an irq. If it has, silence and return (Handled) */
@@ -97,7 +93,7 @@ HandleInterrupt:
     // If either interrupt or error is present, it means a change happened
     // in one of our transactions
     if (InterruptStatus & (UHCI_STATUS_USBINT | UHCI_STATUS_INTR_ERROR)) {
-        UhciProcessTransfers(Controller, 0);
+        UhciProcessTransfers(Controller);
     }
 
     // The controller is telling us to perform resume

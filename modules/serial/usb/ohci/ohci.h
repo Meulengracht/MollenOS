@@ -296,7 +296,6 @@ typedef struct _OhciControl {
     int                          TransactionsWaitingBulk;
     int                          TransactionQueueControlIndex;
     int                          TransactionQueueBulkIndex;
-    Collection_t                *TransactionList;
 } OhciControl_t;
 
 /* OhciPowerMode
