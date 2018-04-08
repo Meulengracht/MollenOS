@@ -134,23 +134,23 @@ UhciTdIo(
     UhciTransferDescriptor_t *Td = NULL;
     
     // Allocate a new Td
-    Td = UhciTdAllocate(Controller);
+    Td              = UhciTdAllocate(Controller);
     if (Td == NULL) {
         return NULL;
     }
 
     // Set no link
-    Td->Link = UHCI_LINK_END;
-    Td->LinkIndex = UHCI_NO_INDEX;
+    Td->Link        = UHCI_LINK_END;
+    Td->LinkIndex   = UHCI_NO_INDEX;
 
     // Setup td flags
-    Td->Flags = UHCI_TD_ACTIVE;
-    Td->Flags |= UHCI_TD_SETCOUNT(3);
+    Td->Flags       = UHCI_TD_ACTIVE;
+    Td->Flags       |= UHCI_TD_SETCOUNT(3);
     if (Speed == LowSpeed) {
-        Td->Flags |= UHCI_TD_LOWSPEED;
+        Td->Flags   |= UHCI_TD_LOWSPEED;
     }
     if (Type == IsochronousTransfer) {
-        Td->Flags |= UHCI_TD_ISOCHRONOUS;
+        Td->Flags   |= UHCI_TD_ISOCHRONOUS;
     }
 
     // We set SPD on in transfers, but NOT on zero length
@@ -176,22 +176,22 @@ UhciTdIo(
     // Setup size
     if (Length > 0) {
         if (Length < MaxPacketSize && Type == InterruptTransfer) {
-            Td->Header |= UHCI_TD_MAX_LEN((MaxPacketSize - 1));
+            Td->Header  |= UHCI_TD_MAX_LEN((MaxPacketSize - 1));
         }
         else {
-            Td->Header |= UHCI_TD_MAX_LEN((Length - 1));
+            Td->Header  |= UHCI_TD_MAX_LEN((Length - 1));
         }
     }
     else {
-        Td->Header |= UHCI_TD_MAX_LEN(0x7FF);
+        Td->Header      |= UHCI_TD_MAX_LEN(0x7FF);
     }
 
     // Store buffer
-    Td->Buffer = LODWORD(BufferAddress);
+    Td->Buffer          = LODWORD(BufferAddress);
 
     // Store data
-    Td->OriginalFlags = Td->Flags;
-    Td->OriginalHeader = Td->Header;
+    Td->OriginalFlags   = Td->Flags;
+    Td->OriginalHeader  = Td->Header;
     return Td;
 }
 

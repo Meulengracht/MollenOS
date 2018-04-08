@@ -168,7 +168,7 @@ MsdScsiCommand(
     while (DataToTransfer != 0) {
         size_t BytesTransferred = 0;
         if (Direction == 0) Status = Device->Operations->ReadData(Device, DataAddress, DataToTransfer, &BytesTransferred);
-        else Status = Device->Operations->WriteData(Device, DataAddress, DataToTransfer, &BytesTransferred);
+        else                Status = Device->Operations->WriteData(Device, DataAddress, DataToTransfer, &BytesTransferred);
         if (Status != TransferFinished && Status != TransferStalled) {
             ERROR("Fatal error transfering data, skipping status stage");
             return Status;

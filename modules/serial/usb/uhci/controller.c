@@ -71,7 +71,7 @@ HciControllerCreate(
 
     // Register the callback if it's not already
     if (TimerRegistered == 0) {
-        UsbManagerRegisterTimer(1000, HciTimerCallback);
+        UsbManagerRegisterTimer(MSEC_PER_SEC, HciTimerCallback);
         TimerRegistered = 1;
     }
 
@@ -160,7 +160,8 @@ HciControllerCreate(
 
 	// Now that all formalities has been taken care
 	// off we can actually setup controller
-	if (UhciSetup(Controller) == OsSuccess) {
+	if (UsbManagerCreateController(&Controller->Base) == OsSuccess
+        && UhciSetup(Controller) == OsSuccess) {
 		return &Controller->Base;
 	}
 	else {

@@ -65,6 +65,7 @@ UsbManagerInitialize(void) {
     __GlbControllers    = CollectionCreate(KeyInteger);
     __GlbTransferId     = 0;
     __GlbTimerEvent     = UUID_INVALID;
+    __GlbTimerCallback  = NULL;
     return OsSuccess;
 }
 

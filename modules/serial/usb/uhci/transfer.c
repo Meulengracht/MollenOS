@@ -118,9 +118,9 @@ UhciTransactionInitialize(
     UhciQueueHead_t *Qh     = NULL;
 
     // Allocate a new queue-head
-    *QhResult = Qh  = UhciQhAllocate(Controller, Transfer->Type, Transfer->Speed);
+    *QhResult = Qh          = UhciQhAllocate(Controller, Transfer->Type, Transfer->Speed);
     if (Qh == NULL) {
-        *QhResult   = USB_OUT_OF_RESOURCES;
+        *QhResult           = USB_OUT_OF_RESOURCES;
         return OsError;
     }
 
@@ -147,15 +147,14 @@ UhciTransactionDispatch(
     UhciQueueHead_t *Qh     = NULL;
     uintptr_t QhAddress     = 0;
 
-    // Instantiate values
+    // Instantiate values and update status
     Qh                      = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
     QhAddress               = UHCI_POOL_QHINDEX(Controller, Qh->Index);
+    Transfer->Status        = TransferQueued;
 
     // Trace
-    TRACE("UHCI: QH at 0x%x, FirstTd 0x%x, NextQh 0x%x", 
-        QhAddress, Qh->Child, Qh->Link);
-    TRACE("UHCI: Queue %u, StartFrame %u, Flags 0x%x", 
-        Qh->Queue, Qh->StartFrame, Qh->Flags);
+    TRACE("UHCI: QH at 0x%x, FirstTd 0x%x, NextQh 0x%x", QhAddress, Qh->Child, Qh->Link);
+    TRACE("UHCI: Queue %u, StartFrame %u, Flags 0x%x", Qh->Queue, Qh->StartFrame, Qh->Flags);
 
     // Asynchronous requests, Control & Bulk
     UhciUpdateCurrentFrame(Controller);
@@ -207,7 +206,6 @@ UhciTransactionDispatch(
     else {
         UhciLinkIsochronous(Controller, Qh);
     }
-    Transfer->Status = TransferQueued;
     return TransferQueued;
 }
 
@@ -227,7 +225,7 @@ UhciTransactionFinalize(
     UsbTransferResult_t Result;
     
     // Debug
-    TRACE("UhciTransactionFinalize()");
+    ERROR("UhciTransactionFinalize(Id %u)", Transfer->Id);
 
     // Unlink qh
     if (Transfer->Transfer.Type != IsochronousTransfer) {
@@ -241,13 +239,10 @@ UhciTransactionFinalize(
     }
 
     // Step two is to unallocate the td's
-    // Get first td
     Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
     while (Td) {
         // Save link-index before resetting
         int LinkIndex = Td->LinkIndex;
-
-        // Reset the TD, nothing in there is something we store further
         memset((void*)Td, 0, sizeof(UhciTransferDescriptor_t));
 
         // Go to next td or terminate
@@ -260,8 +255,7 @@ UhciTransactionFinalize(
     }
 
     // Is the transfer done?
-    if ((Transfer->Transfer.Type == ControlTransfer
-        || Transfer->Transfer.Type == BulkTransfer)
+    if ((Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer)
         && Transfer->Status == TransferFinished
         && Transfer->TransactionsExecuted != Transfer->TransactionsTotal
         && !(Qh->Flags & UHCI_QH_SHORTTRANSFER)) {
@@ -286,6 +280,7 @@ UhciTransactionFinalize(
             Result.BytesTransferred = Transfer->BytesTransferred[0];
             Result.BytesTransferred += Transfer->BytesTransferred[1];
             Result.BytesTransferred += Transfer->BytesTransferred[2];
+
             Result.Status           = Transfer->Status;
             PipeSend(Transfer->Requester, Transfer->ResponsePort, (void*)&Result, sizeof(UsbTransferResult_t));
         }

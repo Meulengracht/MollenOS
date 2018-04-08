@@ -103,7 +103,7 @@ UhciQhInitialize(
         Qh->ChildIndex  = HeadIndex;
     }
     else {
-        Qh->Child       = 0;
+        Qh->Child       = UHCI_LINK_END;
         Qh->ChildIndex  = UHCI_NO_INDEX;
     }
 }

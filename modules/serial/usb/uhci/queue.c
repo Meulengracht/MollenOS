@@ -484,6 +484,9 @@ UhciFixupToggles(
     UhciQueueHead_t *Qh             = NULL;
     int Toggle                      = 0;
 
+    // Debug
+    TRACE("UhciFixupToggles(Single %i)", Single);
+
     // Get qh from transfer
     Qh = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
 
@@ -630,7 +633,9 @@ UhciProcessTransfers(
             continue;
         }
 
+        TRACE("> Validation transfer(Id %u, Status %u)", Transfer->Id, Transfer->Status);
         UhciQhValidate(Controller, Transfer, Qh);
+        TRACE("> Updated metrics (Id %u, Status %u)", Transfer->Id, Transfer->Status);
         if (Transfer->Status != TransferQueued) {
             if (Transfer->Transfer.Type == BulkTransfer || Transfer->Transfer.Type == InterruptTransfer) {
                 if ((Qh->Flags & UHCI_QH_SHORTTRANSFER) || Transfer->Status != TransferFinished) {

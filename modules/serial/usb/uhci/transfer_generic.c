@@ -138,8 +138,8 @@ UhciTransferFill(
     TRACE("UhciTransferFill()");
 
     // Extract address and endpoint
-    Address = HIWORD(Transfer->Pipe);
-    Endpoint = LOWORD(Transfer->Pipe);
+    Address     = HIWORD(Transfer->Pipe);
+    Endpoint    = LOWORD(Transfer->Pipe);
 
     // Get next address from which we need to load
     for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
@@ -233,7 +233,7 @@ UhciTransferFill(
             break;
         }
     }
-        
+    
     // End of <transfer>?
     if (PreviousTd != NULL) {
         PreviousTd->Flags |= UHCI_TD_IOC;
@@ -256,7 +256,6 @@ HciQueueTransferGeneric(
     // Variables
     UhciQueueHead_t *EndpointDescriptor     = NULL;
     UhciController_t *Controller            = NULL;
-    int BackupToggle                        = UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe);
     DataKey_t Key;
 
     // Get Controller
@@ -275,18 +274,15 @@ HciQueueTransferGeneric(
     if (CollectionGetDataByKey(Controller->Base.TransactionList, Key, 0) == NULL) {
         CollectionAppend(Controller->Base.TransactionList, CollectionCreateNode(Key, Transfer));
         UhciTransactionCount(Controller, Transfer, &Transfer->TransactionsTotal);
-    }
-
-    // If it's a control transfer set initial toggle 0
-    if (Transfer->Transfer.Type == ControlTransfer) {
-        UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, 0);
+        
+        // If it's a control transfer set initial toggle 0
+        if (Transfer->Transfer.Type == ControlTransfer) {
+            UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, 0);
+        }
     }
 
     // If it fails to queue up => restore toggle
     if (UhciTransferFill(Controller, Transfer) != OsSuccess) {
-        if (Transfer->Transfer.Type == ControlTransfer) {
-            UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, BackupToggle);
-        }
         return TransferQueued;
     }
 #ifdef __TRACE

@@ -85,7 +85,7 @@ OnInterrupt(
     _CRT_UNUSED(Arg2);
 
     // Instantiate the pointer
-    Controller = (UhciController_t*)InterruptData;
+    Controller      = (UhciController_t*)InterruptData;
 
 HandleInterrupt:
     InterruptStatus = Controller->Base.InterruptStatus;
