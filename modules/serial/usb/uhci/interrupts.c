@@ -93,7 +93,8 @@ HandleInterrupt:
     // If either interrupt or error is present, it means a change happened
     // in one of our transactions
     if (InterruptStatus & (UHCI_STATUS_USBINT | UHCI_STATUS_INTR_ERROR)) {
-        UhciProcessTransfers(Controller);
+        UhciUpdateCurrentFrame(Controller);
+        UsbManagerProcessTransfers(&Controller->Base);
     }
 
     // The controller is telling us to perform resume

@@ -63,6 +63,27 @@ HciPortGetStatus(
     _In_  int                       Index,
     _Out_ UsbHcPortDescriptor_t*    Port);
 
+/* HciProcessElement 
+ * Proceses the element accordingly to the reason given. The transfer associated
+ * will be provided in <Context> */
+__EXTERN
+int
+HciProcessElement(
+    _In_ UsbManagerController_t*    Controller,
+    _In_ uint8_t*                   Element,
+    _In_ int                        Reason,
+    _In_ void*                      Context);
+
+/* HciTransactionFinalize
+ * Finalizes a transfer by cleaning up resources allocated. This should free
+ * all elements and unschedule elements. */
+__EXTERN
+OsStatus_t
+HciTransactionFinalize(
+    _In_ UsbManagerController_t*    Controller,
+    _In_ UsbManagerTransfer_t*      Transfer,
+    _In_ int                        Reset);
+
 /* HciQueueTransferGeneric 
  * Queues a new asynchronous/interrupt transfer for the given driver and pipe. 
  * The function does not block. */

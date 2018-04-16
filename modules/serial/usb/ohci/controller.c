@@ -137,8 +137,7 @@ HciControllerCreate(
 
     // Now that all formalities has been taken care
     // off we can actually setup controller
-    if (UsbManagerCreateController(&Controller->Base) == OsSuccess
-        && OhciSetup(Controller) == OsSuccess) {
+    if (OhciSetup(Controller) == OsSuccess) {
         return &Controller->Base;
     }
     else {
@@ -444,7 +443,12 @@ OhciSetup(
 
     TRACE("Ports %u (power mode %u, power delay %u)",
         Controller->Base.PortCount, Controller->PowerMode, Temporary);
-        
+    
+    // Register the controller before starting
+    if (UsbManagerRegisterController(&Controller->Base) != OsSuccess) {
+        ERROR("Failed to register uhci controller with the system.");
+    }
+
     // Now we can enable hub events (and clear interrupts)
     Controller->Registers->HcInterruptStatus &= ~(reg32_t)0;
     Controller->Registers->HcInterruptEnable = OHCI_ROOTHUB_EVENT;

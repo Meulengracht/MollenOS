@@ -188,7 +188,7 @@ EhciQueueInitialize(
     INIT_SPACE_POINTER(Queue->TDPoolPhysical, uintptr_t, Queue->ITDPoolPhysical, sizeof(EhciIsochronousDescriptor_t) * EHCI_POOL_NUM_ITD);
 #undef INIT_SPACE_POINTER
 
-    Controller->Scheduler       = UsbSchedulerInitialize(Queue->FrameLength, EHCI_MAX_BANDWIDTH, 8);
+    //Controller->Scheduler       = UsbSchedulerInitialize(Queue->FrameLength, EHCI_MAX_BANDWIDTH, 8);
     return EhciQueueResetInternalData(Controller);
 }
 

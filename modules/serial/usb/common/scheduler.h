@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,13 +33,13 @@
 
 /* Definitions
  * Generic bandwidth allocation constants/support */
-#define FRAME_TIME_USECS				1000L
+#define FRAME_TIME_USECS                1000L
 #define FRAME_TIME_BITS                 12000L
 #define FRAME_TIME_MAX_BITS_ALLOC       (90L * FRAME_TIME_BITS / 100L)
 #define FRAME_TIME_MAX_USECS_ALLOC      (90L * FRAME_TIME_USECS / 100L)
 
-#define BitTime(bytecount)				(7 * 8 * bytecount / 6)
-#define NS_TO_US(ns)					DIVUP(ns, 1000L)
+#define BitTime(ByteCount)              (7 * 8 * ByteCount / 6)
+#define NS_TO_US(ns)                    DIVUP(ns, 1000L)
 
 /* Full/low speed bandwidth allocation constants/support. */
 #define BW_HOST_DELAY   1000L
@@ -58,85 +58,276 @@
 #define HS_USECS(bytes)         NS_TO_US(HS_NSECS(bytes))
 #define HS_USECS_ISO(bytes)     NS_TO_US(HS_NSECS_ISO(bytes))
 
+/* UsbSchedulerObject
+ * The scheduler header information that must be present in all scheduleable
+ * objects. The scheduler can then check the element and update accordingly. */
+PACKED_TYPESTRUCT(UsbSchedulerObject, {
+    uint32_t                Flags;
+    uint16_t                Index;
+    uint16_t                BreathIndex;
+    uint16_t                DepthIndex;
+    uint16_t                FrameInterval;
+    uint16_t                Bandwidth;
+    uint16_t                StartFrame;
+    uint16_t                FrameMask;
+    uint8_t                 Reserved[14];
+});
+
+/* UsbSchedulerObject::Flags
+ * Contains definitions and bitfield definitions for UsbSchedulerObject::Flags 
+ * Bit  0-11: Reserved and should be always set to link-flags for the element. 
+ * Bit    12: Allocation status
+ * Bit    13: Has bandwidth allocated
+ * Bit    14: Isochronous Element
+ * Bit 15-31: Available */
+#define USB_ELEMENT_LINKFLAGS(Flags)    ((Flags & 0xFFF))
+#define USB_ELEMENT_ALLOCATED           (1 << 12)
+#define USB_ELEMENT_BANDWIDTH           (1 << 13)
+#define USB_ELEMENT_ISOCHRONOUS         (1 << 14)
+
+#define USB_ELEMENT_INDEX_MASK          0x1FFF
+#define USB_ELEMENT_POOL_MASK           0x7
+#define USB_ELEMENT_POOL_SHIFT          13
+
+#define USB_ELEMENT_CREATE_INDEX(Pool, Index)   (uint16_t)((Index & USB_ELEMENT_INDEX_MASK) | ((Pool & USB_ELEMENT_POOL_MASK) << USB_ELEMENT_POOL_SHIFT))
+#define USB_ELEMENT_NO_INDEX                    (uint16_t)0xFFFF
+
+#define USB_ELEMENT_LINK_END            (1 << 0)
+
+
+#define USB_CHAIN_BREATH                0
+#define USB_CHAIN_DEPTH                 1
+#define USB_POOL_MAXCOUNT               8
+
+/* UsbSchedulerPool
+ * Defines a type of pool for the usb scheduler. It allows for objects
+ * with different sizes */
+typedef struct _UsbSchedulerPool {
+    uint8_t*    ElementPool;                // Pool
+    uintptr_t   ElementPoolPhysical;        // Pool Physical
+    size_t      ElementSize;                // Size of an element
+    size_t      ElementCount;               // Number of elements
+    size_t      ElementCountReserved;       // Number of reserved elements
+
+    size_t      ElementLinkBreathOffset;    // Offset to the physical breath link member
+    size_t      ElementDepthBreathOffset;   // Offset to the physical breath link member
+    size_t      ElementObjectOffset;        // Offset to the UsbSchedulerObject
+} UsbSchedulerPool_t;
+
+/* UsbSchedulerSettings
+ * Available settings for customizing an instance of the usb scheduler.
+ * Allows for custom sizes, custom framelist and many others. */
+typedef struct _UsbSchedulerSettings {
+    Flags_t     Flags;                          // Flags
+    size_t      FrameCount;                     // Number of frames
+    size_t      SubframeCount;                  // Number of sub-frames
+    size_t      MaxBandwidthPerFrame;           // Max bandwidth per frame
+    
+    reg32_t*    FrameList;                      // Physical frame list
+    uintptr_t   FrameListPhysical;              // Physical address of frame list
+    
+    int         PoolCount;                      // Number of pools in use
+    UsbSchedulerPool_t Pools[USB_POOL_MAXCOUNT];// Pools
+} UsbSchedulerSettings_t;
+
+#define USB_SCHEDULER_FRAMELIST         (1 << 0) // If set, we should create a framelist
+#define USB_SCHEDULER_FL64              (1 << 1) // If set, use the 64 bit framelist
+
 /* UsbScheduler
  * Contains information neccessary to keep track of scheduling
  * bandwidths and which frames are occupied. As generic as possible
  * to be usuable by all controllers */
 typedef struct _UsbScheduler {
-	size_t					 Size;
-	size_t 					 MaskSize;
-	size_t 					 MaxBandwidth;
-	size_t 					 MaxMaskBandwidth;
-	size_t 					 TotalBandwidth;
-	size_t 					*Frames;
-	Spinlock_t 				 Lock;
+    // Meta
+    UsbSchedulerSettings_t  Settings;
+    Spinlock_t              Lock;
+
+    // Resources
+    size_t                  PoolSizeBytes;          // The total number of bytes allocated
+    uintptr_t*              VirtualFrameList;       // Virtual frame list
+    
+    // Bandwidth
+    size_t*                 Bandwidth;              // Bandwidth[FrameCount]
+    size_t                  TotalBandwidth;         // Total bandwidth
 } UsbScheduler_t;
+
+#define USB_ELEMENT_INDEX(Pool, Index)              (uint8_t*)&(Pool->ElementPool[(Index & USB_ELEMENT_INDEX_MASK) * Pool->ElementSize])
+#define USB_ELEMENT_PHYSICAL(Pool, Index)           (Pool->ElementPoolPhysical + ((Index & USB_ELEMENT_INDEX_MASK) * Pool->ElementSize))
+#define USB_ELEMENT_GET_POOL(Scheduler, Index)      &Scheduler->Settings.Pools[(Index >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK]
+
+#define USB_ELEMENT_LINK(Pool, Element, Direction)  *(reg32_t*)((uint8_t*)Element + ((Direction == USB_CHAIN_BREATH) ? Pool->ElementLinkBreathOffset : Pool->ElementDepthBreathOffset))
+#define USB_ELEMENT_OBJECT(Pool, Element)           (UsbSchedulerObject_t*)((uint8_t*)Element + Pool->ElementObjectOffset)
+
+/* UsbSchedulerSettingsCreate
+ * Initializes a new instance of the settings to customize the
+ * scheduler. */
+__EXTERN
+void
+UsbSchedulerSettingsCreate(
+    _In_ UsbSchedulerSettings_t*    Settings,
+    _In_ size_t                     FrameCount,
+    _In_ size_t                     SubframeCount,
+    _In_ size_t                     MaxBandwidthPerFrame,
+    _In_ Flags_t                    Flags);
+
+/* UsbSchedulerSettingsConfigureFrameList
+ * Configure the framelist settings for the scheduler. This is always
+ * neccessary to call if the controller is supplying its own framelist. */
+__EXTERN
+void
+UsbSchedulerSettingsConfigureFrameList(
+    _In_ UsbSchedulerSettings_t*    Settings,
+    _In_ reg32_t*                   FrameList,
+    _In_ uintptr_t                  FrameListPhysical);
+
+/* UsbSchedulerSettingsAddPool
+ * Adds a new pool to the scheduler configuration that will get created
+ * with the scheduler. */
+__EXTERN
+void
+UsbSchedulerSettingsAddPool(
+    _In_ UsbSchedulerSettings_t*    Settings,
+    _In_ size_t                     ElementSize,
+    _In_ size_t                     ElementCount,
+    _In_ size_t                     ElementCountReserved,
+    _In_ size_t                     LinkBreathMemberOffset,
+    _In_ size_t                     LinkDepthMemberOffset,
+    _In_ size_t                     ObjectMemberOffset);
 
 /* UsbSchedulerInitialize 
  * Initializes a new instance of a scheduler that can be used to
  * keep track of controller bandwidth and which frames are active.
  * MaxBandwidth is usually either 800 or 900. */
 __EXTERN
-UsbScheduler_t*
+OsStatus_t
 UsbSchedulerInitialize(
-	_In_ size_t Size,
-	_In_ size_t MaxBandwidth,
-	_In_ size_t MaskSize);
+	_In_  UsbSchedulerSettings_t*   Settings,
+    _Out_ UsbScheduler_t**          SchedulerOut);
 
 /* UsbSchedulerDestroy 
- * Cleans up any resources allocated by the scheduler */
+ * Cleans up any resources allocated by the scheduler. Any transactions already
+ * scheduled by this scheduler will be unreachable and invalid after this call. */
 __EXTERN
 OsStatus_t
 UsbSchedulerDestroy(
-	_In_ UsbScheduler_t *Schedule);
+	_In_ UsbScheduler_t*            Scheduler);
 
-/* UsbCalculateBandwidth
- * This function calculates the approx time a transfer 
- * needs to spend on the bus in NS. */
-__EXTERN
-long
-UsbCalculateBandwidth(
-	_In_ UsbSpeed_t Speed, 
-	_In_ int Direction,
-	_In_ UsbTransferType_t Type,
-	_In_ size_t Length);
-
-/* UsbSchedulerValidate
- * This function makes sure there is enough 
- * room for the requested bandwidth 
- * Period => Is the actual frequency we want it occuring in ms
- * Bandwidth => Is the NS required for allocation */
+/* UsbSchedulerResetInternalData
+ * Reinitializes all data structures in the scheduler to initial state. 
+ * This should never be called unless the associating controller is in a
+ * stopped state as the framelist is affected. */
 __EXTERN
 OsStatus_t
-UsbSchedulerValidate(
-	_In_ UsbScheduler_t *Schedule,
-	_In_ size_t Period,
-	_In_ size_t Bandwidth,
-	_In_ size_t TransferCount);
+UsbSchedulerResetInternalData(
+    _In_ UsbScheduler_t*            Scheduler,
+    _In_ int                        ResetElements,
+    _In_ int                        ResetFramelist);
 
-/* UsbSchedulerReserveBandwidth
- * This function actually makes the reservation 
- * Validate Bandwith should have been called first */
+/* UsbSchedulerGetPoolElement
+ * Retrieves the element at the given pool and index. */
 __EXTERN
 OsStatus_t
-UsbSchedulerReserveBandwidth(
-	_In_  UsbScheduler_t*   Schedule, 
-	_In_  size_t            Period, 
-	_In_  size_t            Bandwidth, 
-	_In_  size_t            TransferCount,
-	_Out_ reg32_t*          StartFrame,
-	_Out_ reg32_t*          FrameMask);
+UsbSchedulerGetPoolElement(
+    _In_  UsbScheduler_t*           Scheduler,
+    _In_  int                       Pool,
+    _In_  int                       Index,
+    _Out_ uint8_t**                 ElementOut,
+    _Out_ uintptr_t*                ElementPhysicalOut);
 
-/* UsbSchedulerReleaseBandwidth 
- * Release the given amount of bandwidth, the StartFrame and FrameMask must
- * be obtained from the ReserveBandwidth function */
+/* UsbSchedulerGetPoolFromElement
+ * Retrieves which pool an element belongs to by only knowing the address. */
 __EXTERN
 OsStatus_t
-UsbSchedulerReleaseBandwidth(
-	_In_ UsbScheduler_t *Schedule, 
-	_In_ size_t Period, 
-	_In_ size_t Bandwidth, 
-	_In_ size_t StartFrame, 
-	_In_ size_t FrameMask);
+UsbSchedulerGetPoolFromElement(
+    _In_  UsbScheduler_t*           Scheduler,
+    _In_  uint8_t*                  Element,
+    _Out_ UsbSchedulerPool_t**      Pool);
+
+/* UsbSchedulerGetPoolFromElementPhysical
+ * Retrieves which pool an element belongs to by only knowing the physical address. */
+__EXTERN
+OsStatus_t
+UsbSchedulerGetPoolFromElementPhysical(
+    _In_  UsbScheduler_t*           Scheduler,
+    _In_  uintptr_t                 ElementPhysical,
+    _Out_ UsbSchedulerPool_t**      Pool);
+
+/* UsbSchedulerAllocateElement
+ * Allocates a new element for usage with the scheduler. If this returns
+ * OsError we are out of elements and we should wait till next transfer. ElementOut
+ * will in this case be set to USB_OUT_OF_RESOURCES. */
+__EXTERN
+OsStatus_t
+UsbSchedulerAllocateElement(
+    _In_  UsbScheduler_t*           Scheduler,
+    _In_  int                       Pool,
+    _Out_ uint8_t**                 ElementOut);
+
+/* UsbSchedulerFreeElement
+ * Releases the previously allocated element by resetting it. This call automatically
+ * frees any bandwidth associated with the element. */
+__EXTERN
+void
+UsbSchedulerFreeElement(
+    _In_ UsbScheduler_t*            Scheduler,
+    _In_ uint8_t*                   Element);
+
+/* UsbSchedulerAllocateBandwidth
+ * Allocates bandwidth for a scheduler element. The bandwidth will automatically
+ * be fitted into where is best place on schedule. If there is no more room it will
+ * return OsError. */
+__EXTERN
+OsStatus_t
+UsbSchedulerAllocateBandwidth(
+    _In_ UsbScheduler_t*            Scheduler,
+    _In_ UsbHcEndpointDescriptor_t* Endpoint,
+    _In_ size_t                     BytesToTransfer,
+	_In_ UsbTransferType_t          Type,
+	_In_ UsbSpeed_t                 Speed,
+    _In_ uint8_t*                   Element);
+
+/* UsbSchedulerChainElement
+ * Chains up a new element to the given element chain. The root element
+ * must be specified and the element to append to the chain. Also the
+ * chain direction must be specified. */
+__EXTERN
+OsStatus_t
+UsbSchedulerChainElement(
+    _In_ UsbScheduler_t*        Scheduler,
+    _In_ uint8_t*               ElementRoot,
+    _In_ uint8_t*               Element,
+    _In_ uint16_t               Marker,
+    _In_ int                    Direction);
+
+/* UsbSchedulerUnchainElement
+ * Removes an existing element from the given element chain. The root element
+ * must be specified and the element to remove from the chain. Also the
+ * chain direction must be specified. */
+__EXTERN
+OsStatus_t
+UsbSchedulerUnchainElement(
+    _In_ UsbScheduler_t*        Scheduler,
+    _In_ uint8_t*               ElementRoot,
+    _In_ uint8_t*               Element,
+    _In_ int                    Direction);
+
+/* UsbSchedulerLinkPeriodicElement
+ * Queue's up a periodic/isochronous transfer. If it was not possible
+ * to schedule the transfer with the requested bandwidth, it returns
+ * OsError */
+__EXTERN
+OsStatus_t
+UsbSchedulerLinkPeriodicElement(
+    _In_ UsbScheduler_t*        Scheduler,
+    _In_ uint8_t*               Element);
+
+/* UsbSchedulerUnlinkPeriodicElement
+ * Removes an already queued up periodic transfer (interrupt/isoc) from the
+ * controllers scheduler. */
+__EXTERN
+void
+UsbSchedulerUnlinkPeriodicElement(
+    _In_ UsbScheduler_t*        Scheduler,
+    _In_ uint8_t*               Element);
 
 #endif //!__USB_SCHEDULER__

@@ -56,12 +56,7 @@ OsStatus_t
 OnRegister(
     _In_ MCoreDevice_t *Device)
 {
-    // Variables
-    UsbManagerController_t *Controller = NULL;
-    
-    // Register the new controller
-    Controller = HciControllerCreate(Device);
-    if (Controller == NULL) {
+    if (HciControllerCreate(Device) == NULL) {
         return OsError;
     }
     else {

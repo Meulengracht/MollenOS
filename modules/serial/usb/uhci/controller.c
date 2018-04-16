@@ -49,8 +49,9 @@ HciTimerCallback(void)
 {
     // Do a port-check and perform transaction checks
     foreach(cNode, UsbManagerGetControllers()) {
+        UhciUpdateCurrentFrame((UhciController_t*)cNode->Data);
         UhciPortsCheck((UhciController_t*)cNode->Data);
-        UhciProcessTransfers((UhciController_t*)cNode->Data);
+        UsbManagerProcessTransfers((UsbManagerController_t*)cNode->Data);
     }
 }
 
@@ -160,8 +161,7 @@ HciControllerCreate(
 
 	// Now that all formalities has been taken care
 	// off we can actually setup controller
-	if (UsbManagerCreateController(&Controller->Base) == OsSuccess
-        && UhciSetup(Controller) == OsSuccess) {
+	if (UhciSetup(Controller) == OsSuccess) {
 		return &Controller->Base;
 	}
 	else {
@@ -270,9 +270,8 @@ UhciReset(
 	// Now reconfigure the controller
 	UhciWrite8(Controller, UHCI_REGISTER_SOFMOD, 64); // Frame length 1 ms
 	UhciWrite32(Controller, UHCI_REGISTER_FRBASEADDR, 
-		Controller->QueueControl.FrameListPhysical);
-	UhciWrite16(Controller, UHCI_REGISTER_FRNUM, 
-		(Controller->QueueControl.Frame & UHCI_FRAME_MASK));
+		Controller->Base.Scheduler->Settings.FrameListPhysical);
+	UhciWrite16(Controller, UHCI_REGISTER_FRNUM, (Controller->Frame & UHCI_FRAME_MASK));
 
 	// Enable the interrupts that are relevant
 	UhciWrite16(Controller, UHCI_REGISTER_INTR, (UHCI_INTR_TIMEOUT | UHCI_INTR_SHORT_PACKET
@@ -337,6 +336,11 @@ UhciSetup(
 			return OsError;
 		}
 	}
+
+    // Register the controller before starting
+    if (UsbManagerRegisterController(&Controller->Base) != OsSuccess) {
+        ERROR("Failed to register uhci controller with the system.");
+    }
 
 	// Start the controller and return result from that
 	return UhciStart(Controller, 1);

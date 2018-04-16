@@ -34,7 +34,12 @@
 #include <os/spinlock.h>
 #include <ds/collection.h>
 
-/* UsbManagerEndpoint 
+/* Includes
+ * - System */
+#include "transfer.h"
+#include "scheduler.h"
+
+/* UsbManagerEndpoint
  * Keeps track of the active endpoints for a controller. */
 typedef struct _UsbManagerEndpoint {
     UUId_t                  Pipe;
@@ -57,34 +62,33 @@ typedef struct _UsbManagerController {
     Collection_t*           Endpoints;
     reg32_t                 InterruptStatus;
     Collection_t*           TransactionList;
+    UsbScheduler_t*         Scheduler;
 } UsbManagerController_t;
-
-/* UsbManagerTransfer
- * Describes a generic transfer with information needed
- * in order to execute a callback for the requester */
-typedef struct _UsbManagerTransfer {
-    UsbTransfer_t           Transfer;
-    UUId_t                  Requester;
-    int                     ResponsePort;
-
-    // Transfer Metadata
-    UUId_t                  Id;
-    UUId_t                  DeviceId;
-    UUId_t                  Pipe;
-    UsbTransferStatus_t     Status;
-
-    // Control/Interrupt transfers are small, but carry data.
-    // Information here is shared
-    void*                   EndpointDescriptor;  // We only use one no matter what
-    int                     TransactionsExecuted;
-    int                     TransactionsTotal;
-    size_t                  BytesTransferred[USB_TRANSACTIONCOUNT]; // In Total
-    size_t                  CurrentDataIndex;    // Periodic Transfers
-} UsbManagerTransfer_t;
 
 #define USB_OUT_OF_RESOURCES       (void*)0
 #define USB_INVALID_BUFFER         (void*)1
+
+#define ITERATOR_CONTINUE           0
+#define ITERATOR_STOP               (1 << 0)
+#define ITERATOR_REMOVE             (1 << 1)
+
+#define USB_REASON_DUMP             0
+#define USB_REASON_SCAN             1
+#define USB_REASON_RESET            2
+#define USB_REASON_FIXTOGGLE        3
+#define USB_REASON_LINK             4
+#define USB_REASON_UNLINK           5
+#define USB_REASON_CLEANUP          6
 typedef void(*UsbCallback)(void);
+typedef int(*UsbTransferItemCallback)(
+    _In_ UsbManagerController_t*    Controller,
+    _In_ UsbManagerTransfer_t*      Transfer,
+    _In_ void*                      Context);
+typedef int(*UsbSchedulerElementCallback)(
+    _In_ UsbManagerController_t*    Controller,
+    _In_ uint8_t*                   Element,
+    _In_ int                        Reason,
+    _In_ void*                      Context);
 
 /* UsbManagerInitialize
  * Initializes the usb manager that keeps track of
@@ -93,45 +97,18 @@ __EXTERN
 OsStatus_t
 UsbManagerInitialize(void);
 
-/* UsbManagerRegisterTimer
- * Registers a timer function that will be called every given interval. */
-__EXTERN
-OsStatus_t
-UsbManagerRegisterTimer(
-    _In_ int            IntervalMs,
-    _In_ UsbCallback    Function);
-
 /* UsbManagerDestroy
  * Cleans up the manager and releases resources allocated */
 __EXTERN
 OsStatus_t
 UsbManagerDestroy(void);
 
-/* UsbManagerGetControllers
- * Retrieve a list of all attached controllers to the system. */
-__EXTERN
-Collection_t*
-UsbManagerGetControllers(void);
-
-/* UsbManagerCreateTransfer
- * Creates a new transfer with the usb-manager.
- * Identifies and registers with neccessary services */
-__EXTERN
-UsbManagerTransfer_t*
-UsbManagerCreateTransfer(
-    _In_ UsbTransfer_t* Transfer,
-    _In_ UUId_t         Requester,
-    _In_ int            ResponsePort,
-    _In_ UUId_t         Device,
-    _In_ UUId_t         Pipe);
-
-/* UsbManagerCreateController
- * Registers a new controller with the usb-manager.
- * Identifies and registers with neccessary services */
+/* UsbManagerRegisterController
+ * Registers the usb controller with the system. */
 __EXTERN
 OsStatus_t
-UsbManagerCreateController(
-    _In_ UsbManagerController_t *Controller);
+UsbManagerRegisterController(
+    _In_ UsbManagerController_t*    Controller);
 
 /* UsbManagerDestroyController
  * Unregisters a controller with the usb-manager.
@@ -139,38 +116,94 @@ UsbManagerCreateController(
 __EXTERN
 OsStatus_t
 UsbManagerDestroyController(
-    _In_ UsbManagerController_t *Controller);
+    _In_ UsbManagerController_t*    Controller);
+
+/* UsbManagerRegisterTimer
+ * Registers a timer function that will be called every given interval. */
+__EXTERN
+OsStatus_t
+UsbManagerRegisterTimer(
+    _In_ int                        IntervalMs,
+    _In_ UsbCallback                Function);
+
+/* UsbManagerClearTransfers
+ * Clears all queued transfers by iterating them and invoking Finalize.
+ * This will also wake-up waiting processes and tell them it's off. */
+__EXTERN
+void
+UsbManagerClearTransfers(
+    _In_ UsbManagerController_t*    Controller);
+
+/* UsbManagerIterateTransfers
+ * Iterate the transfers associated with the given controller. The iteration
+ * flow can be controlled with the return codes. */
+__EXTERN
+void
+UsbManagerIterateTransfers(
+    _In_ UsbManagerController_t*    Controller,
+    _In_ UsbTransferItemCallback    ItemCallback,
+    _In_ void*                      Context);
+
+/* UsbManagerIterateChain
+ * Iterates a given chain at the requested direction. The reason
+ * for the iteration must also be provided to act accordingly. */
+__EXTERN
+void
+UsbManagerIterateChain(
+    _In_ UsbManagerController_t*    Controller,
+    _In_ uint8_t*                   ElementRoot,
+    _In_ int                        Direction,
+    _In_ int                        Reason,
+    _In_ UsbSchedulerElementCallback ElementCallback,
+    _In_ void*                      Context);
+
+/* UsbManagerDumpChain
+ * Iterates a given chain at the requested direction. The function then
+ * invokes the HciProcessElement with USB_REASON_DUMP. */
+__EXTERN
+void
+UsbManagerDumpChain(
+    _In_ UsbManagerController_t*    Controller,
+    _In_ UsbManagerTransfer_t*      Transfer,
+    _In_ uint8_t*                   ElementRoot,
+    _In_ int                        Direction);
+
+/* UsbManagerGetControllers
+ * Retrieve a list of all attached controllers to the system. */
+__EXTERN
+Collection_t*
+UsbManagerGetControllers(void);
 
 /* UsbManagerGetController 
  * Returns a controller by the given device-id */
 __EXTERN
 UsbManagerController_t*
 UsbManagerGetController(
-    _In_ UUId_t Device);
+    _In_ UUId_t                     Device);
 
 /* UsbManagerGetToggle 
  * Retrieves the toggle status for a given pipe */
 __EXTERN
 int
 UsbManagerGetToggle(
-    _In_ UUId_t Device,
-    _In_ UUId_t Pipe);
+    _In_ UUId_t                     Device,
+    _In_ UUId_t                     Pipe);
 
 /* UsbManagetSetToggle 
  * Updates the toggle status for a given pipe */
 __EXTERN
 OsStatus_t
 UsbManagerSetToggle(
-    _In_ UUId_t Device,
-    _In_ UUId_t Pipe,
-    _In_ int Toggle);
+    _In_ UUId_t                     Device,
+    _In_ UUId_t                     Pipe,
+    _In_ int                        Toggle);
 
-/* UsbManagerSendNotification 
- * Sends a notification to the subscribing process whenever a periodic
- * transaction has completed/failed. */
+/* UsbManagerProcessTransfers
+ * Processes all the associated transfers with the given usb controller.
+ * The iteration process will invoke <HciProcessElement> */
 __EXTERN
 void
-UsbManagerSendNotification(
-    _In_ UsbManagerTransfer_t *Transfer);
+UsbManagerProcessTransfers(
+    _In_ UsbManagerController_t*    Controller);
 
 #endif //!_USB_MANAGER_H_

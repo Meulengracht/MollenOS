@@ -172,9 +172,9 @@ typedef enum _UsbTransferStatus {
     TransferQueued,
 	TransferFinished,
     TransferInvalid,
+    TransferNoBandwidth,
 
     // Transaction Error Codes
-    TransferNoBandwidth,
 	TransferStalled,
 	TransferNotResponding,
 	TransferInvalidToggles,

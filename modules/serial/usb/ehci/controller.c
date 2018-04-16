@@ -138,8 +138,7 @@ HciControllerCreate(
 
     // Now that all formalities has been taken care
     // off we can actually setup controller
-    if (UsbManagerCreateController(&Controller->Base) == OsSuccess
-        && EhciSetup(Controller) == OsSuccess) {
+    if (EhciSetup(Controller) == OsSuccess) {
         return &Controller->Base;
     }
     else {
@@ -538,6 +537,11 @@ EhciSetup(
 
     // Wait 20 ms for power to stabilize
     thrd_sleepex(20);
+
+    // Register the controller before starting
+    if (UsbManagerRegisterController(&Controller->Base) != OsSuccess) {
+        ERROR("Failed to register uhci controller with the system.");
+    }
 
     // Last step is to enumerate all ports that are connected with low-speed
     // devices and release them to companion hc's for bandwidth.
