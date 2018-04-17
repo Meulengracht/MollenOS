@@ -36,11 +36,10 @@
 typedef enum _UsbManagerTransferFlags {
     TransferFlagNone        = 0x0,
     TransferFlagShort       = 0x1,
-    TransferFlagNAK         = 0x2,
-    TransferFlagSync        = 0x4,
-    TransferFlagSchedule    = 0x8,
-    TransferFlagUnschedule  = 0x10,
-    TransferFlagCleanup     = 0x20,
+    TransferFlagSync        = 0x2,
+    TransferFlagSchedule    = 0x4,
+    TransferFlagUnschedule  = 0x8,
+    TransferFlagCleanup     = 0x10,
 } UsbManagerTransferFlags_t;
 
 /* UsbManagerTransfer

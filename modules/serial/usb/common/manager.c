@@ -440,7 +440,12 @@ UsbManagerProcessTransfer(
     if (Transfer->Transfer.Type == InterruptTransfer || Transfer->Transfer.Type == IsochronousTransfer) {
         UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
             USB_CHAIN_DEPTH, USB_REASON_RESET, HciProcessElement, Transfer);
-        UsbManagerSendNotification(Transfer);
+
+        // Don't notify driver when recieving a NAK response. Simply means device had
+        // no data to send us. I just wished that it would leave the data intact instead.
+        if (Transfer->Status != TransferNAK) {
+            UsbManagerSendNotification(Transfer);
+        }
         Transfer->Status    = TransferQueued;
         Transfer->Flags     = TransferFlagNone;
     }

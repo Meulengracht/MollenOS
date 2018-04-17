@@ -372,22 +372,13 @@ HciProcessElement(
                 // Skip sync on queue-heads
                 return ITERATOR_CONTINUE;
             }
-
-            // Perform the synchronization
             UhciTdSynchronize(Transfer, Td);
         } break;
 
         case USB_REASON_LINK: {
             // If it's a queue head link that
             if (Transfer->Transfer.Type != IsochronousTransfer) {
-                if (Transfer->Transfer.Type == InterruptTransfer) {
-                    UsbSchedulerLinkPeriodicElement(Controller->Scheduler, Element);
-                }
-                else {
-                    UhciQhLink((UhciController_t*)Controller, (UhciQueueHead_t*)Element);
-                }
-
-                // Stop iteration immediately
+                UhciQhLink((UhciController_t*)Controller, (UhciQueueHead_t*)Element);
                 return ITERATOR_STOP;
             }
             else {
@@ -399,14 +390,7 @@ HciProcessElement(
         case USB_REASON_UNLINK: {
             // If it's a queue head link that
             if (Transfer->Transfer.Type != IsochronousTransfer) {
-                if (Transfer->Transfer.Type == InterruptTransfer) {
-                    UsbSchedulerUnlinkPeriodicElement(Controller->Scheduler, Element);
-                }
-                else {
-                    UhciQhUnlink((UhciController_t*)Controller, (UhciQueueHead_t*)Element);
-                }
-
-                // Stop iteration immediately
+                UhciQhUnlink((UhciController_t*)Controller, (UhciQueueHead_t*)Element);
                 return ITERATOR_STOP;
             }
             else {

@@ -185,15 +185,10 @@ UhciTdValidate(
     }
     Transfer->TransactionsExecuted++;
 
-    // NAK transfer? 
-    if (ErrorCode == 3) {
-        Transfer->Flags |= TransferFlagNAK;
-        return; // no further processing
-    }
-
     // Now validate the code
     if (ErrorCode != 0) {
         Transfer->Status        = UhciGetStatusCode(ErrorCode);
+        return; // Skip bytes transferred
     }
     else if (ErrorCode == 0 && Transfer->Status == TransferQueued) {
         Transfer->Status        = TransferFinished;
@@ -275,7 +270,7 @@ UhciTdRestart(
     UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, Toggle ^ 1);
     
     // Adjust buffer if not just restart
-    if (!(Transfer->Flags & TransferFlagNAK)) {
+    if (Transfer->Status != TransferNAK) {
         BufferBaseUpdated   = ADDLIMIT(Qh->BufferBase, Td->Buffer, 
             BufferStep, Qh->BufferBase + Transfer->Transfer.PeriodicBufferSize);
         Td->Buffer          = LODWORD(BufferBaseUpdated);
