@@ -396,8 +396,6 @@ UsbManagerProcessTransfer(
                 USB_CHAIN_DEPTH, USB_REASON_CLEANUP, HciProcessElement, Transfer);
             Transfer->EndpointDescriptor = NULL; // Reset
         }
-
-        // Finalize transfer
         if (UsbManagerFinalizeTransfer(Controller, Transfer) == OsSuccess) {
             return ITERATOR_REMOVE;
         }
@@ -406,8 +404,12 @@ UsbManagerProcessTransfer(
 
     // Has the transfer been marked for unschedule?
     if (Transfer->Flags & TransferFlagUnschedule) {
-        if (HciTransactionFinalize(Controller, Transfer, 0) == OsSuccess) {
-            Transfer->EndpointDescriptor = NULL; // Reset
+        HciTransactionFinalize(Controller, Transfer, 0);
+        if (Controller->Flags & ControllerFlagDelayedCleanup) {
+            Transfer->Flags |= TransferFlagCleanup;
+        }
+        else {
+            Transfer->EndpointDescriptor = NULL;
             if (UsbManagerFinalizeTransfer(Controller, Transfer) == OsSuccess) {
                 return ITERATOR_REMOVE;
             }
@@ -445,9 +447,15 @@ UsbManagerProcessTransfer(
 
     // Finish?
     if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
-        if (HciTransactionFinalize(Controller, Transfer, 0) == OsSuccess) {
-            free(Transfer);
-            return ITERATOR_REMOVE;
+        HciTransactionFinalize(Controller, Transfer, 0);
+        if (Controller->Flags & ControllerFlagDelayedCleanup) {
+            Transfer->Flags |= TransferFlagCleanup;
+        }
+        else {
+            Transfer->EndpointDescriptor = NULL;
+            if (UsbManagerFinalizeTransfer(Controller, Transfer) == OsSuccess) {
+                return ITERATOR_REMOVE;
+            }
         }
     }
     return ITERATOR_CONTINUE;
@@ -515,7 +523,7 @@ UsbManagerIterateChain(
         // Move to next object
         Pool            = USB_ELEMENT_GET_POOL(Controller->Scheduler, LinkIndex);
         Element         = USB_ELEMENT_INDEX(Pool, LinkIndex);
-        Object          = USB_ELEMENT_OBJECT(Pool, ElementRoot);
+        Object          = USB_ELEMENT_OBJECT(Pool, Element);
         LinkIndex       = (Direction == USB_CHAIN_BREATH) ? Object->BreathIndex : Object->DepthIndex;
     }
 }

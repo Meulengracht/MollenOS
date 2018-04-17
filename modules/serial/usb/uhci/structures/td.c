@@ -41,10 +41,9 @@
 void
 UhciTdSetup(
     _In_ UhciTransferDescriptor_t*  Td,
-    _In_ UsbTransaction_t*          Transaction,
+    _In_ uintptr_t                  BufferAddress,
     _In_ size_t                     Address, 
     _In_ size_t                     Endpoint,
-    _In_ UsbTransferType_t          Type,
     _In_ UsbSpeed_t                 Speed)
 {
     // Set no link
@@ -64,7 +63,7 @@ UhciTdSetup(
     Td->Header          |= UHCI_TD_MAX_LEN((sizeof(UsbPacket_t) - 1));
 
     // Install the buffer
-    Td->Buffer          = Transaction->BufferAddress;
+    Td->Buffer          = BufferAddress;
 
     // Store data
     Td->OriginalFlags   = Td->Flags;
@@ -159,7 +158,7 @@ UhciTdDump(
 
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler, UHCI_TD_POOL, 
         Td->Object.Index & USB_ELEMENT_INDEX_MASK, NULL, &PhysicalAddress);
-    TRACE("TD(0x%x): Link 0x%x, Flags 0x%x, Header 0x%x, Buffer 0x%x", 
+    WARNING("TD(0x%x): Link 0x%x, Flags 0x%x, Header 0x%x, Buffer 0x%x", 
         PhysicalAddress, Td->Link, Td->Flags, Td->Header, Td->Buffer);
 }
 

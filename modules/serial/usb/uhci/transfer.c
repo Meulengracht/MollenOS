@@ -20,7 +20,8 @@
  * TODO:
  *    - Power Management
  */
-//#define __TRACE
+#define __TRACE
+//#define __DIAGNOSE
 
 /* Includes 
  * - System */
@@ -48,6 +49,9 @@ UhciTransactionDispatch(
     UhciUpdateCurrentFrame(Controller);
 #ifdef __TRACE
     UsbManagerDumpChain(&Controller->Base, Transfer, (uint8_t*)Transfer->EndpointDescriptor, USB_CHAIN_DEPTH);
+#ifdef __DIAGNOSE
+    for(;;);
+#endif
 #endif
     UsbManagerIterateChain(&Controller->Base, Transfer->EndpointDescriptor, 
         USB_CHAIN_DEPTH, USB_REASON_LINK, HciProcessElement, Transfer);

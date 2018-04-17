@@ -30,7 +30,7 @@
 
 /* Includes
  * - Library */
-#include <ds/collection.h>
+#include <assert.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
@@ -195,11 +195,14 @@ UhciTransferFill(
         size_t ByteStep             = 0;
         int PreviousToggle          = -1;
         int Toggle                  = 0;
+        TRACE("Transaction(%i, Buffer 0x%x, Length %u, Type %i)", i,
+            Transfer->Transfer.Transactions[i].BufferAddress, BytesToTransfer, Type);
 
         // Adjust offsets
         ByteOffset                  = Transfer->BytesTransferred[i];
         BytesToTransfer            -= Transfer->BytesTransferred[i];
         if (BytesToTransfer == 0 && Transfer->Transfer.Transactions[i].ZeroLength != 1) {
+            TRACE(" > Skipping");
             continue;
         }
 
@@ -212,15 +215,19 @@ UhciTransferFill(
         }
 
         // Keep adding td's
+        TRACE(" > BytesToTransfer(%u)", BytesToTransfer);
         while (BytesToTransfer || Transfer->Transfer.Transactions[i].ZeroLength == 1) {
             Toggle          = UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe);
             if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, UHCI_TD_POOL, (uint8_t**)&Td) == OsSuccess) {
                 if (Type == SetupTransaction) {
+                    TRACE(" > Creating setup packet");
+                    Toggle      = 0; // Initial toggle must ALWAYS be 0 for setup
                     ByteStep    = BytesToTransfer;
-                    UhciTdSetup(Td, &Transfer->Transfer.Transactions[i], 
-                        Address, Endpoint, Transfer->Transfer.Type, Transfer->Transfer.Speed);
+                    UhciTdSetup(Td, Transfer->Transfer.Transactions[i].BufferAddress, 
+                        Address, Endpoint, Transfer->Transfer.Speed);
                 }
                 else {
+                    TRACE(" > Creating io packet");
                     ByteStep    = MIN(BytesToTransfer, Transfer->Transfer.Endpoint.MaxPacketSize);
                     UhciTdIo(Td, Transfer->Transfer.Type, 
                         (Type == InTransaction ? UHCI_TD_PID_IN : UHCI_TD_PID_OUT), 
@@ -233,6 +240,7 @@ UhciTransferFill(
             // If we didn't allocate a td, we ran out of 
             // resources, and have to wait for more. Queue up what we have
             if (Td == NULL) {
+                TRACE(" > Failed to allocate descriptor");
                 if (PreviousToggle != -1) {
                     UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, PreviousToggle);
                     Transfer->Transfer.Transactions[i].Handshake = 1;
@@ -241,21 +249,16 @@ UhciTransferFill(
                 break;
             }
             else {
-                // Store first
-                if (PreviousTd == NULL) {
-                    PreviousTd  = Td;
-                }
-                else {
-                    UsbSchedulerChainElement(Controller->Base.Scheduler, 
-                        (uint8_t*)Qh, (uint8_t*)Td, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
-                    PreviousTd  = Td;
-                }
+                UsbSchedulerChainElement(Controller->Base.Scheduler, 
+                    (uint8_t*)Qh, (uint8_t*)Td, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
+                PreviousTd = Td;
 
                 // Update toggle by flipping
                 UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, Toggle ^ 1);
 
                 // Break out on zero lengths
                 if (Transfer->Transfer.Transactions[i].ZeroLength == 1) {
+                    TRACE(" > Encountered zero-length");
                     Transfer->Transfer.Transactions[i].ZeroLength = 0;
                     break;
                 }
@@ -312,9 +315,10 @@ HciQueueTransferGeneric(
             UHCI_QH_POOL, (uint8_t**)&EndpointDescriptor) != OsSuccess) {
             return TransferQueued;
         }
+        assert(EndpointDescriptor != NULL);
+        Transfer->EndpointDescriptor = EndpointDescriptor;
 
         // Store and initialize the qh
-        Transfer->EndpointDescriptor = EndpointDescriptor;
         if (UhciQhInitialize(Controller, Transfer) != OsSuccess) {
             // No bandwidth, serious.
             UsbSchedulerFreeElement(Controller->Base.Scheduler, (uint8_t*)EndpointDescriptor);
@@ -327,12 +331,6 @@ HciQueueTransferGeneric(
     if (CollectionGetDataByKey(Controller->Base.TransactionList, Key, 0) == NULL) {
         CollectionAppend(Controller->Base.TransactionList, CollectionCreateNode(Key, Transfer));
         UhciTransactionCount(Controller, Transfer, &Transfer->TransactionsTotal);
-    }
-
-    // If it's a control transfer set initial toggle 0
-    if (Transfer->Transfer.Type == ControlTransfer
-        && Transfer->TransactionsExecuted == 0) {
-        UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, 0);
     }
 
     // If it fails to queue up => restore toggle

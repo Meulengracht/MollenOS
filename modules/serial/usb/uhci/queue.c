@@ -20,7 +20,7 @@
  * Todo:
  * Power Management
  */
-//#define __TRACE
+#define __TRACE
 
 /* Includes
  * - System */
@@ -147,6 +147,9 @@ UhciQueueResetInternalData(
     uintptr_t NullTdPhysical            = 0;
     int i;
 
+    // Debug
+    TRACE("UhciQueueResetInternalData()");
+
     // Reset all tds and qhs
     UsbSchedulerResetInternalData(Controller->Base.Scheduler, 1, 1);
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler, UHCI_QH_POOL, 
@@ -214,17 +217,23 @@ UhciQueueInitialize(
     // Variables
     UsbSchedulerSettings_t Settings;
 
+    // Debug
+    TRACE("UhciQueueInitialize()");
+
     // Initialize the scheduler
+    TRACE(" > Configuring scheduler");
     UsbSchedulerSettingsCreate(&Settings, UHCI_NUM_FRAMES, 1, 900, USB_SCHEDULER_FRAMELIST);
 
     UsbSchedulerSettingsAddPool(&Settings, sizeof(UhciQueueHead_t), UHCI_QH_COUNT, 
-        UHCI_POOL_QH_START, offsetof(UhciQueueHead_t, Object), offsetof(UhciQueueHead_t, Link), 
-        offsetof(UhciQueueHead_t, Child));
+        UHCI_POOL_QH_START, offsetof(UhciQueueHead_t, Link), 
+        offsetof(UhciQueueHead_t, Child), offsetof(UhciQueueHead_t, Object));
     
     UsbSchedulerSettingsAddPool(&Settings, sizeof(UhciTransferDescriptor_t), UHCI_TD_COUNT, 
-        UHCI_POOL_TD_START, offsetof(UhciTransferDescriptor_t, Object), offsetof(UhciTransferDescriptor_t, Link), 
-        offsetof(UhciTransferDescriptor_t, Link));
+        UHCI_POOL_TD_START, offsetof(UhciTransferDescriptor_t, Link), 
+        offsetof(UhciTransferDescriptor_t, Link), offsetof(UhciTransferDescriptor_t, Object));
     
+    // Create the scheduler
+    TRACE(" > Initializing scheduler");
     UsbSchedulerInitialize(&Settings, &Controller->Base.Scheduler);
 
     // Initialize internal data structures

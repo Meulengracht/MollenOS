@@ -95,6 +95,12 @@
 #define UHCI_PORT_RESERVED2             0x800
 #define UHCI_PORT_SUSPEND               0x1000
 
+/* UhciTransferDescriptor::Link & UhciQueueHead::Link,Child
+ * Contains definitions and bitfield definitions for UhciTransferDescriptor::Link */
+#define UHCI_LINK_END                   0x1
+#define UHCI_LINK_QH                    0x2        // 1 => Qh, 0 => Td
+#define UHCI_LINK_DEPTH                 0x4        // 1 => Depth, 0 => Breadth
+
 /* UhciTransferDescriptor
  * Describes a generic transfer-descriptor that can be either of all
  * four different transaction types. Must be 16 byte aligned. 
@@ -113,16 +119,6 @@ PACKED_TYPESTRUCT(UhciTransferDescriptor, {
     reg32_t                 OriginalHeader;
     uint8_t                 Padding[8];
 });
-
-/* UhciTransferDescriptor::Link & UhciQueueHead::Link,Child
- * Contains definitions and bitfield definitions for UhciTransferDescriptor::Link */
-#define UHCI_LINK_END                   0x1
-#define UHCI_LINK_QH                    0x2        // 1 => Qh, 0 => Td
-#define UHCI_LINK_DEPTH                 0x4        // 1 => Depth, 0 => Breadth
-
-/* UhciTransferDescriptor::HcdFlags
- * Contains definitions and bitfield definitions for UhciTransferDescriptor::HcdFlags */
-#define UHCI_TD_ALLOCATED               0x1
 
 /* UhciTransferDescriptor::Flags
  * Contains definitions and bitfield definitions for UhciTransferDescriptor::Flags */
@@ -382,10 +378,9 @@ __EXTERN
 void
 UhciTdSetup(
     _In_ UhciTransferDescriptor_t*  Td,
-    _In_ UsbTransaction_t*          Transaction,
+    _In_ uintptr_t                  BufferAddress,
     _In_ size_t                     Address, 
     _In_ size_t                     Endpoint,
-    _In_ UsbTransferType_t          Type,
     _In_ UsbSpeed_t                 Speed);
 
 /* UhciTdIo

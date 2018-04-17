@@ -20,7 +20,7 @@
  * - Contains the implementation of a shared controller manager
  *   for all the usb drivers
  */
-//#define __TRACE
+#define __TRACE
 
 /* Includes
  * - System */

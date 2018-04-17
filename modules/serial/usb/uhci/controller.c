@@ -303,7 +303,9 @@ UhciSetup(
 	UhciWrite16(Controller, UHCI_REGISTER_COMMAND, 0x0000);
 
 	// Initialize queues and controller
+    TRACE(" > Initializing queue system");
 	UhciQueueInitialize(Controller);
+    TRACE(" > Resetting controller");
 	UhciReset(Controller);
 
 	// Enumerate all available ports
@@ -319,6 +321,7 @@ UhciSetup(
 	}
 
 	// Store the number of available ports
+    TRACE(" > Ports(%i)", i);
 	Controller->Base.PortCount = i;
 
 	// Enable PCI Interrupts
@@ -338,10 +341,12 @@ UhciSetup(
 	}
 
     // Register the controller before starting
+    TRACE(" > Registering");
     if (UsbManagerRegisterController(&Controller->Base) != OsSuccess) {
         ERROR("Failed to register uhci controller with the system.");
     }
 
 	// Start the controller and return result from that
+    TRACE(" > Booting");
 	return UhciStart(Controller, 1);
 }

@@ -46,23 +46,33 @@ typedef struct _UsbManagerEndpoint {
     int                     Toggle;
 } UsbManagerEndpoint_t;
 
+/* UsbManagerControllerFlags
+ * Contains configuration flags for the usb manager controller.
+ * This influences how the manager interacts. */
+typedef enum _UsbManagerControllerFlags {
+    ControllerFlagDelayedCleanup = 0x1      // Allows for custom cleanup sequence. Normal behaviour is cleanup with unlink
+} UsbManagerControllerFlags_t;
+
 /* UsbManagerController
  * Describes a generic controller with information needed
  * in order for the manager to function */
 typedef struct _UsbManagerController {
     UUId_t                  Id;
+    UsbControllerType_t     Type;
     MCoreDevice_t           Device;
     MContract_t             Contract;
+
     UUId_t                  Interrupt;
-    Spinlock_t              Lock;
-    UsbControllerType_t     Type;
+    reg32_t                 InterruptStatus;
+    size_t                  PortCount;
+    UsbManagerControllerFlags_t Flags;
     
     DeviceIoSpace_t*        IoBase;
-    size_t                  PortCount;
-    Collection_t*           Endpoints;
-    reg32_t                 InterruptStatus;
-    Collection_t*           TransactionList;
     UsbScheduler_t*         Scheduler;
+
+    Collection_t*           Endpoints;
+    Collection_t*           TransactionList;
+    Spinlock_t              Lock;
 } UsbManagerController_t;
 
 #define USB_OUT_OF_RESOURCES       (void*)0

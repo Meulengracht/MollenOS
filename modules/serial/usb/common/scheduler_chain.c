@@ -48,26 +48,30 @@ UsbSchedulerChainElement(
 {
     // Variables
     UsbSchedulerObject_t *RootObject= NULL;
-    UsbSchedulerObject_t *sObject   = NULL;
+    UsbSchedulerObject_t *Object    = NULL;
     UsbSchedulerPool_t *RootPool    = NULL;
-    UsbSchedulerPool_t *sPool       = NULL;
+    UsbSchedulerPool_t *Pool        = NULL;
     uintptr_t PhysicalAddress       = 0;
     OsStatus_t Result               = OsSuccess;
     uint16_t RootIndex              = 0;
     uint16_t LinkIndex              = 0;
+
+    // Debug
+    TRACE("UsbSchedulerChainElement(Marker is 0x%x)", Marker);
     
     // Validate element and lookup pool
     Result                  = UsbSchedulerGetPoolFromElement(Scheduler, ElementRoot, &RootPool);
     assert(Result == OsSuccess);
-    Result                  = UsbSchedulerGetPoolFromElement(Scheduler, Element, &sPool);
+    Result                  = UsbSchedulerGetPoolFromElement(Scheduler, Element, &Pool);
     assert(Result == OsSuccess);
     RootObject              = USB_ELEMENT_OBJECT(RootPool, ElementRoot);
-    sObject                 = USB_ELEMENT_OBJECT(sPool, Element);
-    PhysicalAddress         = USB_ELEMENT_PHYSICAL(sPool, sObject->Index);
+    Object                  = USB_ELEMENT_OBJECT(Pool, Element);
+    PhysicalAddress         = USB_ELEMENT_PHYSICAL(Pool, Object->Index);
 
     // Get indices
     RootIndex               = RootObject->Index;
     LinkIndex               = (Direction == USB_CHAIN_BREATH) ? RootObject->BreathIndex : RootObject->DepthIndex;
+    TRACE(" > Root 0x%x, initial link of root is 0x%x. Index of new element is 0x%x", RootIndex, LinkIndex, Object->Index);
 
     // Iterate to marker, support cyclic queues
     while (LinkIndex != Marker && LinkIndex != RootIndex) {
@@ -76,18 +80,22 @@ UsbSchedulerChainElement(
         ElementRoot     = USB_ELEMENT_INDEX(RootPool, LinkIndex);
         RootObject      = USB_ELEMENT_OBJECT(RootPool, ElementRoot);
         LinkIndex       = (Direction == USB_CHAIN_BREATH) ? RootObject->BreathIndex : RootObject->DepthIndex;
+        TRACE(" > Current index is 0x%x, next index is 0x%x", RootObject->Index, LinkIndex);
     }
 
     // Append object
     // Set link of <Element> to be the link of <ElementRoot>
     // Set link of <ElementRoot> to be <Element>
-    if (Direction == USB_CHAIN_BREATH)  sObject->BreathIndex = RootObject->BreathIndex;
-    else                                sObject->DepthIndex  = RootObject->DepthIndex;
-    USB_ELEMENT_LINK(sPool, Element, Direction) = USB_ELEMENT_LINK(RootPool, ElementRoot, Direction);
+    if (Direction == USB_CHAIN_BREATH)  Object->BreathIndex = RootObject->BreathIndex;
+    else                                Object->DepthIndex  = RootObject->DepthIndex;
+    USB_ELEMENT_LINK(Pool, Element, Direction) = USB_ELEMENT_LINK(RootPool, ElementRoot, Direction);
     MemoryBarrier();
-    if (Direction == USB_CHAIN_BREATH)  RootObject->BreathIndex = sObject->Index;
-    else                                RootObject->DepthIndex = sObject->Index;
-    USB_ELEMENT_LINK(RootPool, ElementRoot, Direction) = LODWORD(PhysicalAddress) | USB_ELEMENT_LINKFLAGS(sObject->Flags);
+    if (Direction == USB_CHAIN_BREATH)  RootObject->BreathIndex = Object->Index;
+    else                                RootObject->DepthIndex = Object->Index;
+    USB_ELEMENT_LINK(RootPool, ElementRoot, Direction) = LODWORD(PhysicalAddress) | USB_ELEMENT_LINKFLAGS(Object->Flags);
+    TRACE("Indices of existing element is (0x%x:0x%x), indices of new element are now (0x%x:0x%x)",
+        RootObject->BreathIndex, RootObject->DepthIndex, Object->BreathIndex, Object->DepthIndex);
+
     return OsSuccess;
 }
 

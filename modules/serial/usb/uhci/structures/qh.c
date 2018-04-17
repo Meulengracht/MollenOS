@@ -102,7 +102,7 @@ UhciQhDump(
 
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler, UHCI_QH_POOL, 
         Qh->Object.Index & USB_ELEMENT_INDEX_MASK, NULL, &PhysicalAddress);
-    TRACE("QH(0x%x): Flags 0x%x, Link 0x%x, Child 0x%x", 
+    WARNING("QH(0x%x): Flags 0x%x, Link 0x%x, Child 0x%x", 
         PhysicalAddress, Qh->Object.Flags, Qh->Link, Qh->Child);
 }
 

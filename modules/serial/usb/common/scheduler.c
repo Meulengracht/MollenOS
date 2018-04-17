@@ -51,11 +51,16 @@ UsbSchedulerResetInternalData(
     // Variables
     int i, j;
 
+    // Debug
+    TRACE("UsbSchedulerInitialize()");
+
     // Start out by zeroing out memory
     if (ResetElements) {
         for (i = 0; i < Scheduler->Settings.PoolCount; i++) {
             memset((void*)Scheduler->Settings.Pools[i].ElementPool, 0, (Scheduler->Settings.Pools[i].ElementCount * Scheduler->Settings.Pools[i].ElementSize));
-            for (j = 0; i < Scheduler->Settings.Pools[i].ElementCount; j++) {
+            
+            // Allocate and initialze all the reserved elements
+            for (j = 0; j < Scheduler->Settings.Pools[i].ElementCountReserved; j++) {
                 uint8_t *Element                = USB_ELEMENT_INDEX((&Scheduler->Settings.Pools[i]), j);
                 UsbSchedulerObject_t *sObject   = USB_ELEMENT_OBJECT((&Scheduler->Settings.Pools[i]), Element);
                 sObject->Index                  = USB_ELEMENT_CREATE_INDEX(i, j);
@@ -92,6 +97,9 @@ UsbSchedulerInitialize(
     uint8_t *Pool               = NULL;
     int i;
 
+    // Debug
+    TRACE("UsbSchedulerInitialize()");
+
     // Parameter assertions
     assert(Settings->FrameCount > 0);
     assert(Settings->SubframeCount > 0);
@@ -106,6 +114,7 @@ UsbSchedulerInitialize(
     }
 
     // Perform the allocation
+    TRACE(" > Allocating memory (%u bytes)", PoolSizeBytes);
     if (MemoryAllocate(NULL, PoolSizeBytes, MEMORY_CLEAN | MEMORY_COMMIT
         | MEMORY_LOWFIRST | MEMORY_CONTIGIOUS, (void**)&Pool, &PoolPhysical) != OsSuccess) {
         ERROR("Failed to allocate memory for resource-pool");
@@ -139,12 +148,14 @@ UsbSchedulerInitialize(
     }
 
     // Allocate the last resources
+    TRACE(" > Allocating management resources");
     Scheduler->VirtualFrameList     = (uintptr_t*)malloc(Settings->FrameCount * sizeof(uintptr_t));
     assert(Scheduler->VirtualFrameList != NULL);
     Scheduler->Bandwidth            = (size_t*)malloc((Settings->FrameCount * Settings->SubframeCount * sizeof(size_t)));
     assert(Scheduler->Bandwidth != NULL);
 
     *SchedulerOut                   = Scheduler;
+    TRACE(" > Resetting internal data");
     return UsbSchedulerResetInternalData(Scheduler, 1, 1);
 }
 
@@ -295,10 +306,10 @@ UsbSchedulerAllocateElement(
     // Variables
     UsbSchedulerObject_t *sObject   = NULL;
     UsbSchedulerPool_t *sPool       = NULL;
-    uint8_t *Result                 = NULL;
     size_t i;
 
     // Get pool
+    assert(ElementOut != NULL);
     assert(Pool < Scheduler->Settings.PoolCount);
     sPool = &Scheduler->Settings.Pools[Pool];
 
@@ -319,12 +330,11 @@ UsbSchedulerAllocateElement(
         sObject->BreathIndex    = USB_ELEMENT_NO_INDEX;
         sObject->DepthIndex     = USB_ELEMENT_NO_INDEX;
         sObject->Flags          = USB_ELEMENT_ALLOCATED;
-        Result                  = Element;
+        *ElementOut             = Element;
         break;
     }
     SpinlockRelease(&Scheduler->Lock);
-    *ElementOut                 = Result;
-    return OsSuccess;
+    return (*ElementOut == NULL) ? OsError : OsSuccess;
 }
 
 /* UsbSchedulerAllocateBandwidthSubframe
