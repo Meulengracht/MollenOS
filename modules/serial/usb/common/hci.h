@@ -74,6 +74,16 @@ HciProcessElement(
     _In_ int                        Reason,
     _In_ void*                      Context);
 
+/* HciProcessEvent
+ * Invoked on different very specific events that require assistance. If a transfer 
+ * associated will be provided in <Context> */
+__EXTERN
+void
+HciProcessEvent(
+    _In_ UsbManagerController_t*    Controller,
+    _In_ int                        Event,
+    _In_ void*                      Context);
+
 /* HciTransactionFinalize
  * Finalizes a transfer by cleaning up resources allocated. This should free
  * all elements and unschedule elements. */

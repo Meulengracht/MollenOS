@@ -70,7 +70,6 @@ PACKED_TYPESTRUCT(UsbSchedulerObject, {
     uint16_t                Bandwidth;
     uint16_t                StartFrame;
     uint16_t                FrameMask;
-    uint8_t                 Reserved[14];
 });
 
 /* UsbSchedulerObject::Flags
@@ -105,7 +104,8 @@ PACKED_TYPESTRUCT(UsbSchedulerObject, {
 typedef struct _UsbSchedulerPool {
     uint8_t*    ElementPool;                // Pool
     uintptr_t   ElementPoolPhysical;        // Pool Physical
-    size_t      ElementSize;                // Size of an element
+    size_t      ElementBaseSize;            // Size of an element
+    size_t      ElementAlignedSize;         // Size of an element
     size_t      ElementCount;               // Number of elements
     size_t      ElementCountReserved;       // Number of reserved elements
 
@@ -132,6 +132,12 @@ typedef struct _UsbSchedulerSettings {
 
 #define USB_SCHEDULER_FRAMELIST         (1 << 0) // If set, we should create a framelist
 #define USB_SCHEDULER_FL64              (1 << 1) // If set, use the 64 bit framelist
+#define USB_SCHEDULER_DELAYED_CLEANUP   (1 << 2) // If set, cleanup of elements happens in a seperate process iteration
+#define USB_SCHEDULER_NULL_ELEMENT      (1 << 3) // If set, all chains make use of null-elements
+
+#define USB_SCHEDULER_LINK_BIT_EOL      (1 << 4) // Specify that empty links must be marked with EOL
+#define USB_SCHEDULER_LINK_BIT_DEPTH    (1 << 5) // Specify that elements that use their depth link must be marked as such
+#define USB_SCHEDULER_LINK_BIT_TYPE     (1 << 6) // Specify that elements use type bits
 
 /* UsbScheduler
  * Contains information neccessary to keep track of scheduling
@@ -151,8 +157,8 @@ typedef struct _UsbScheduler {
     size_t                  TotalBandwidth;         // Total bandwidth
 } UsbScheduler_t;
 
-#define USB_ELEMENT_INDEX(Pool, Index)              (uint8_t*)&(Pool->ElementPool[(Index & USB_ELEMENT_INDEX_MASK) * Pool->ElementSize])
-#define USB_ELEMENT_PHYSICAL(Pool, Index)           (Pool->ElementPoolPhysical + ((Index & USB_ELEMENT_INDEX_MASK) * Pool->ElementSize))
+#define USB_ELEMENT_INDEX(Pool, Index)              (uint8_t*)&(Pool->ElementPool[(Index & USB_ELEMENT_INDEX_MASK) * Pool->ElementAlignedSize])
+#define USB_ELEMENT_PHYSICAL(Pool, Index)           (Pool->ElementPoolPhysical + ((Index & USB_ELEMENT_INDEX_MASK) * Pool->ElementAlignedSize))
 #define USB_ELEMENT_GET_POOL(Scheduler, Index)      &Scheduler->Settings.Pools[(Index >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK]
 
 #define USB_ELEMENT_LINK(Pool, Element, Direction)  *(reg32_t*)((uint8_t*)Element + ((Direction == USB_CHAIN_BREATH) ? Pool->ElementLinkBreathOffset : Pool->ElementDepthBreathOffset))
@@ -188,6 +194,7 @@ void
 UsbSchedulerSettingsAddPool(
     _In_ UsbSchedulerSettings_t*    Settings,
     _In_ size_t                     ElementSize,
+    _In_ size_t                     ElementAlignment,
     _In_ size_t                     ElementCount,
     _In_ size_t                     ElementCountReserved,
     _In_ size_t                     LinkBreathMemberOffset,

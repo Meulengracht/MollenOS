@@ -74,7 +74,7 @@ UhciQhInitialize(
     Qh->Child           = UHCI_LINK_END;
 
     // Initialize link flags
-    Qh->Object.Flags    |= (UHCI_LINK_QH | UHCI_LINK_DEPTH);
+    Qh->Object.Flags    |= UHCI_LINK_QH;
 
     // Allocate bandwidth if int/isoc
     if (Transfer->Transfer.Type == InterruptTransfer || Transfer->Transfer.Type == IsochronousTransfer) {

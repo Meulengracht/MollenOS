@@ -80,6 +80,7 @@ void
 UsbSchedulerSettingsAddPool(
     _In_ UsbSchedulerSettings_t*    Settings,
     _In_ size_t                     ElementSize,
+    _In_ size_t                     ElementAlignment,
     _In_ size_t                     ElementCount,
     _In_ size_t                     ElementCountReserved,
     _In_ size_t                     LinkBreathMemberOffset,
@@ -94,7 +95,8 @@ UsbSchedulerSettingsAddPool(
     Pool = &Settings->Pools[Settings->PoolCount++];
 
     // Store configuration for pool
-    Pool->ElementSize               = ElementSize;
+    Pool->ElementBaseSize           = ElementSize;
+    Pool->ElementAlignedSize        = ALIGN(ElementSize, ElementAlignment, 1);
     Pool->ElementCount              = ElementCount;
     Pool->ElementCountReserved      = ElementCountReserved;
     Pool->ElementLinkBreathOffset   = LinkBreathMemberOffset;

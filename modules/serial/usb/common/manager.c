@@ -379,6 +379,56 @@ UsbManagerSynchronizeTransfers(
     return ITERATOR_CONTINUE;
 }
 
+/* UsbManagerScheduleTransfer
+ * Processes and validates the given transfer item. If any action needs to be taken
+ * this function will handle completion. */
+int
+UsbManagerScheduleTransfer(
+    _In_ UsbManagerController_t*    Controller,
+    _In_ UsbManagerTransfer_t*      Transfer,
+    _In_ void*                      Context)
+{
+    // Has the transfer been marked for unschedule?
+    if (Transfer->Flags & TransferFlagUnschedule) {
+        
+        // Clear flag
+        Transfer->Flags &= ~(TransferFlagUnschedule);
+        HciTransactionFinalize(Controller, Transfer, 0);
+
+        // Cleanup on next process if set, otherwise cleanup now     
+        if (Controller->Scheduler->Settings.Flags & USB_SCHEDULER_DELAYED_CLEANUP) {
+            Transfer->Flags |= TransferFlagCleanup;
+        }
+        else {
+            Transfer->EndpointDescriptor = NULL;
+            if (UsbManagerFinalizeTransfer(Controller, Transfer) == OsSuccess) {
+                return ITERATOR_REMOVE;
+            }
+        }
+    }
+
+    // Has the transfer been marked for schedule?
+    if (Transfer->Flags & TransferFlagSchedule) {
+
+        // Clear flag
+        Transfer->Flags &= ~(TransferFlagSchedule);
+        UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
+            USB_CHAIN_DEPTH, USB_REASON_LINK, HciProcessElement, Transfer);
+    }
+    return ITERATOR_CONTINUE;
+}
+
+/* UsbManagerScheduleTransfers
+ * Handles all transfers that are marked for either Schedule or Unscheduling.
+ * The iteration process will invoke <HciProcessElement> */
+void
+UsbManagerScheduleTransfers(
+    _In_ UsbManagerController_t*    Controller)
+{
+    // Simply invoke our iterator with a fixed shared implementation.
+    UsbManagerIterateTransfers(Controller, UsbManagerScheduleTransfer, NULL);
+}
+
 /* UsbManagerProcessTransfer
  * Processes and validates the given transfer item. If any action needs to be taken
  * this function will handle completion. */
@@ -389,7 +439,6 @@ UsbManagerProcessTransfer(
     _In_ void*                      Context)
 {
     // Has the transfer been marked for cleanup?
-    // Check this before the unscheduling
     if (Transfer->Flags & TransferFlagCleanup) {
         if (Transfer->EndpointDescriptor != NULL) {
             UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
@@ -398,21 +447,6 @@ UsbManagerProcessTransfer(
         }
         if (UsbManagerFinalizeTransfer(Controller, Transfer) == OsSuccess) {
             return ITERATOR_REMOVE;
-        }
-        return ITERATOR_CONTINUE;
-    }
-
-    // Has the transfer been marked for unschedule?
-    if (Transfer->Flags & TransferFlagUnschedule) {
-        HciTransactionFinalize(Controller, Transfer, 0);
-        if (Controller->Flags & ControllerFlagDelayedCleanup) {
-            Transfer->Flags |= TransferFlagCleanup;
-        }
-        else {
-            Transfer->EndpointDescriptor = NULL;
-            if (UsbManagerFinalizeTransfer(Controller, Transfer) == OsSuccess) {
-                return ITERATOR_REMOVE;
-            }
         }
         return ITERATOR_CONTINUE;
     }
@@ -440,6 +474,7 @@ UsbManagerProcessTransfer(
     if (Transfer->Transfer.Type == InterruptTransfer || Transfer->Transfer.Type == IsochronousTransfer) {
         UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
             USB_CHAIN_DEPTH, USB_REASON_RESET, HciProcessElement, Transfer);
+        HciProcessEvent(Controller, USB_EVENT_RESTART_DONE, Transfer);
 
         // Don't notify driver when recieving a NAK response. Simply means device had
         // no data to send us. I just wished that it would leave the data intact instead.
@@ -453,14 +488,9 @@ UsbManagerProcessTransfer(
     // Finish?
     if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
         HciTransactionFinalize(Controller, Transfer, 0);
-        if (Controller->Flags & ControllerFlagDelayedCleanup) {
-            Transfer->Flags |= TransferFlagCleanup;
-        }
-        else {
-            Transfer->EndpointDescriptor = NULL;
-            if (UsbManagerFinalizeTransfer(Controller, Transfer) == OsSuccess) {
-                return ITERATOR_REMOVE;
-            }
+        Transfer->EndpointDescriptor = NULL;
+        if (UsbManagerFinalizeTransfer(Controller, Transfer) == OsSuccess) {
+            return ITERATOR_REMOVE;
         }
     }
     return ITERATOR_CONTINUE;
@@ -496,6 +526,7 @@ UsbManagerIterateChain(
     uint16_t RootIndex              = 0;
     uint16_t LinkIndex              = 0;
     uint8_t *Element                = ElementRoot;
+    int Status                      = 0;
     
     // Debug
     assert(Controller != NULL);
@@ -512,7 +543,14 @@ UsbManagerIterateChain(
 
     // Iterate to end, support cyclic queues
     while (Element) {
-        int Status      = ElementCallback(Controller, Element, Reason, Context);
+        // Support null-elements
+        if (Controller->Scheduler->Settings.Flags & USB_SCHEDULER_NULL_ELEMENT) {
+            if (LinkIndex == USB_ELEMENT_NO_INDEX) {
+                break;
+            }
+        }
+
+        Status          = ElementCallback(Controller, Element, Reason, Context);
         if (Status & ITERATOR_STOP) {
             break;
         }

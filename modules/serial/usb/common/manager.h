@@ -46,13 +46,6 @@ typedef struct _UsbManagerEndpoint {
     int                     Toggle;
 } UsbManagerEndpoint_t;
 
-/* UsbManagerControllerFlags
- * Contains configuration flags for the usb manager controller.
- * This influences how the manager interacts. */
-typedef enum _UsbManagerControllerFlags {
-    ControllerFlagDelayedCleanup = 0x1      // Allows for custom cleanup sequence. Normal behaviour is cleanup with unlink
-} UsbManagerControllerFlags_t;
-
 /* UsbManagerController
  * Describes a generic controller with information needed
  * in order for the manager to function */
@@ -65,7 +58,6 @@ typedef struct _UsbManagerController {
     UUId_t                  Interrupt;
     reg32_t                 InterruptStatus;
     size_t                  PortCount;
-    UsbManagerControllerFlags_t Flags;
     
     DeviceIoSpace_t*        IoBase;
     UsbScheduler_t*         Scheduler;
@@ -81,6 +73,8 @@ typedef struct _UsbManagerController {
 #define ITERATOR_CONTINUE           0
 #define ITERATOR_STOP               (1 << 0)
 #define ITERATOR_REMOVE             (1 << 1)
+
+#define USB_EVENT_RESTART_DONE      0
 
 #define USB_REASON_DUMP             0
 #define USB_REASON_SCAN             1
@@ -214,6 +208,14 @@ UsbManagerSetToggle(
 __EXTERN
 void
 UsbManagerProcessTransfers(
+    _In_ UsbManagerController_t*    Controller);
+
+/* UsbManagerScheduleTransfers
+ * Handles all transfers that are marked for either Schedule or Unscheduling.
+ * The iteration process will invoke <HciProcessElement> */
+__EXTERN
+void
+UsbManagerScheduleTransfers(
     _In_ UsbManagerController_t*    Controller);
 
 #endif //!_USB_MANAGER_H_

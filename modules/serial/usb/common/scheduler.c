@@ -36,7 +36,7 @@
 #include <stdlib.h>
 
 // Data assertions
-COMPILE_TIME_ASSERT(sizeof(UsbSchedulerObject_t) == 32);
+COMPILE_TIME_ASSERT(sizeof(UsbSchedulerObject_t) == 18);
 
 /* UsbSchedulerResetInternalData
  * Reinitializes all data structures in the scheduler to initial state. 
@@ -57,7 +57,7 @@ UsbSchedulerResetInternalData(
     // Start out by zeroing out memory
     if (ResetElements) {
         for (i = 0; i < Scheduler->Settings.PoolCount; i++) {
-            memset((void*)Scheduler->Settings.Pools[i].ElementPool, 0, (Scheduler->Settings.Pools[i].ElementCount * Scheduler->Settings.Pools[i].ElementSize));
+            memset((void*)Scheduler->Settings.Pools[i].ElementPool, 0, (Scheduler->Settings.Pools[i].ElementCount * Scheduler->Settings.Pools[i].ElementAlignedSize));
             
             // Allocate and initialze all the reserved elements
             for (j = 0; j < Scheduler->Settings.Pools[i].ElementCountReserved; j++) {
@@ -110,7 +110,7 @@ UsbSchedulerInitialize(
         PoolSizeBytes           = Settings->FrameCount * 4;
     }
     for (i = 0; i < Settings->PoolCount; i++) {
-        PoolSizeBytes           += Settings->Pools[i].ElementCount * Settings->Pools[i].ElementSize;
+        PoolSizeBytes           += Settings->Pools[i].ElementCount * Settings->Pools[i].ElementAlignedSize;
     }
 
     // Perform the allocation
@@ -143,8 +143,8 @@ UsbSchedulerInitialize(
     for (i = 0; i < Settings->PoolCount; i++) {
         Scheduler->Settings.Pools[i].ElementPoolPhysical  = PoolPhysical;
         Scheduler->Settings.Pools[i].ElementPool          = Pool;
-        Pool            += Settings->Pools[i].ElementCount * Settings->Pools[i].ElementSize;
-        PoolPhysical    += Settings->Pools[i].ElementCount * Settings->Pools[i].ElementSize;
+        Pool            += Settings->Pools[i].ElementCount * Settings->Pools[i].ElementAlignedSize;
+        PoolPhysical    += Settings->Pools[i].ElementCount * Settings->Pools[i].ElementAlignedSize;
     }
 
     // Allocate the last resources
@@ -265,7 +265,7 @@ UsbSchedulerGetPoolFromElement(
 {
     for (int i = 0; i < Scheduler->Settings.PoolCount; i++) {
         uintptr_t PoolStart = (uintptr_t)Scheduler->Settings.Pools[i].ElementPool;
-        uintptr_t PoolEnd   = PoolStart + (Scheduler->Settings.Pools[i].ElementSize * Scheduler->Settings.Pools[i].ElementCount);
+        uintptr_t PoolEnd   = PoolStart + (Scheduler->Settings.Pools[i].ElementAlignedSize * Scheduler->Settings.Pools[i].ElementCount);
         if (ISINRANGE((uintptr_t)Element, PoolStart, PoolEnd)) {
             *Pool = &Scheduler->Settings.Pools[i];
             return OsSuccess;
@@ -284,7 +284,7 @@ UsbSchedulerGetPoolFromElementPhysical(
 {
     for (int i = 0; i < Scheduler->Settings.PoolCount; i++) {
         uintptr_t PoolStart = (uintptr_t)Scheduler->Settings.Pools[i].ElementPoolPhysical;
-        uintptr_t PoolEnd   = PoolStart + (Scheduler->Settings.Pools[i].ElementSize * Scheduler->Settings.Pools[i].ElementCount);
+        uintptr_t PoolEnd   = PoolStart + (Scheduler->Settings.Pools[i].ElementAlignedSize * Scheduler->Settings.Pools[i].ElementCount);
         if (ISINRANGE(ElementPhysical, PoolStart, PoolEnd)) {
             *Pool = &Scheduler->Settings.Pools[i];
             return OsSuccess;
@@ -325,7 +325,7 @@ UsbSchedulerAllocateElement(
         }
 
         // Found one, reset
-        memset((void*)Element, 0, sPool->ElementSize);
+        memset((void*)Element, 0, sPool->ElementAlignedSize);
         sObject->Index          = USB_ELEMENT_CREATE_INDEX(Pool, i);
         sObject->BreathIndex    = USB_ELEMENT_NO_INDEX;
         sObject->DepthIndex     = USB_ELEMENT_NO_INDEX;
@@ -591,5 +591,5 @@ UsbSchedulerFreeElement(
     }
 
     // Simply reset the data
-    memset((void*)Element, 0, sPool->ElementSize);
+    memset((void*)Element, 0, sPool->ElementAlignedSize);
 }

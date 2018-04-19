@@ -253,30 +253,32 @@ UhciTdRestart(
     _In_  UhciTransferDescriptor_t* Td)
 {
     // Variables
-    UhciQueueHead_t *Qh             = NULL;
+    UhciQueueHead_t *Qh         = NULL;
     uintptr_t BufferBaseUpdated = 0;
     uintptr_t BufferStep        = 0;
     int Toggle                  = UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe);
 
     // Setup some variables
-    Qh              = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
-    BufferStep      = Transfer->Transfer.Endpoint.MaxPacketSize;
-    
-    // Flip
-    Td->OriginalHeader &= ~UHCI_TD_DATA_TOGGLE;
-    if (Toggle) {
-        Td->OriginalHeader |= UHCI_TD_DATA_TOGGLE;
+    if (Transfer->Transfer.Type == InterruptTransfer) {
+        Qh              = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
+        BufferStep      = Transfer->Transfer.Endpoint.MaxPacketSize;
+        
+        // Flip
+        Td->OriginalHeader &= ~UHCI_TD_DATA_TOGGLE;
+        if (Toggle) {
+            Td->OriginalHeader |= UHCI_TD_DATA_TOGGLE;
+        }
+        UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, Toggle ^ 1);
+        
+        // Adjust buffer if not just restart
+        if (Transfer->Status != TransferNAK) {
+            BufferBaseUpdated   = ADDLIMIT(Qh->BufferBase, Td->Buffer, 
+                BufferStep, Qh->BufferBase + Transfer->Transfer.PeriodicBufferSize);
+            Td->Buffer          = LODWORD(BufferBaseUpdated);
+            Qh->BufferBase      = LODWORD(BufferBaseUpdated);
+        }
     }
-    UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, Toggle ^ 1);
     
-    // Adjust buffer if not just restart
-    if (Transfer->Status != TransferNAK) {
-        BufferBaseUpdated   = ADDLIMIT(Qh->BufferBase, Td->Buffer, 
-            BufferStep, Qh->BufferBase + Transfer->Transfer.PeriodicBufferSize);
-        Td->Buffer          = LODWORD(BufferBaseUpdated);
-        Qh->BufferBase      = LODWORD(BufferBaseUpdated);
-    }
-
     // Restore
     Td->Header  = Td->OriginalHeader;
     Td->Flags   = Td->OriginalFlags;

@@ -81,7 +81,7 @@ OnFastInterrupt(
 
     // Stage 1 of the linking/unlinking event
     if (InterruptStatus & OHCI_SOF_EVENT) {
-        OhciProcessTransactions(Controller, 0);
+        UsbManagerScheduleTransfers(&Controller->Base);
         Controller->Registers->HcInterruptDisable = OHCI_SOF_EVENT;
     }
 
@@ -120,8 +120,8 @@ ProcessInterrupt:
     // Process Checks first
     // This happens if a transaction has completed
     if (InterruptStatus & OHCI_PROCESS_EVENT) {
-        reg32_t TdAddress = (Controller->Hcca->HeadDone & ~(0x00000001));
-        OhciProcessDoneQueue(Controller, TdAddress);
+        //reg32_t TdAddress = (Controller->Hcca->HeadDone & ~(0x00000001));
+        UsbManagerProcessTransfers(&Controller->Base);
         Controller->Hcca->HeadDone = 0;
     }
 
@@ -151,7 +151,7 @@ ProcessInterrupt:
 
     // Stage 2 of an linking/unlinking event
     if (InterruptStatus & OHCI_SOF_EVENT) {
-        OhciProcessTransactions(Controller, 1);
+        UsbManagerProcessTransfers(&Controller->Base);
         Controller->Registers->HcInterruptDisable = OHCI_SOF_EVENT;
     }
 

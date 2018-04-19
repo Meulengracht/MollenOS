@@ -30,41 +30,10 @@
 
 /* Includes
  * - Library */
-#include <ds/collection.h>
+#include <assert.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-
-/* OhciQueueDebug
- * Dumps the QH-settings and all the attached td's */
-static void
-OhciQueueDebug(
-    OhciController_t *Controller,
-    OhciQueueHead_t *Qh)
-{
-    // Variables
-    OhciTransferDescriptor_t *Td = NULL;
-    uintptr_t PhysicalAddress = 0;
-
-    PhysicalAddress = OHCI_POOL_QHINDEX(Controller, Qh->Index);
-    TRACE("QH(0x%x): Flags 0x%x, NextQh 0x%x, FirstChild 0x%x", 
-        PhysicalAddress, Qh->Flags, Qh->LinkPointer, Qh->Current);
-
-    // Get first td
-    Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
-    while (Td != NULL) {
-        PhysicalAddress = OHCI_POOL_TDINDEX(Controller, Td->Index);
-        TRACE("TD(0x%x): Link 0x%x, Flags 0x%x, Cbp 0x%x, BufferEnd 0x%x", 
-            PhysicalAddress, Td->Link, Td->Flags, Td->Cbp, Td->BufferEnd);
-        // Go to next td
-        if (Td->LinkIndex != OHCI_NO_INDEX) {
-            Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
-        }
-        else {
-            Td = NULL;
-        }
-    }
-}
 
 /* OhciTransactionCount
  * Returns the number of transactions neccessary for the transfer. */
@@ -127,10 +96,10 @@ OhciTransferFill(
     _In_ UsbManagerTransfer_t*  Transfer)
 {
     // Variables
-    OhciTransferDescriptor_t *InitialTd     = NULL;
     OhciTransferDescriptor_t *PreviousTd    = NULL;
     OhciTransferDescriptor_t *ZeroTd        = NULL;
     OhciTransferDescriptor_t *Td            = NULL;
+    OhciQueueHead_t *Qh                     = (OhciQueueHead_t*)Transfer->EndpointDescriptor;
     size_t Address, Endpoint;
     int OutOfResources                      = 0;
     int i;
@@ -142,13 +111,9 @@ OhciTransferFill(
     Address     = HIWORD(Transfer->Pipe);
     Endpoint    = LOWORD(Transfer->Pipe);
 
-    // Start out by allocating a zero-td
-    ZeroTd      = OhciTdIo(Controller, Transfer->Transfer.Type, OHCI_TD_OUT, 
-            UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe), 0, 0);
-    // Queue up for later?
-    if (ZeroTd == USB_OUT_OF_RESOURCES) {
-        return OsError;
-    }
+    // Start out by retrieving the zero td
+    UsbSchedulerGetPoolElement(Controller->Base.Scheduler, OHCI_TD_POOL,
+        OHCI_TD_NULL, (uint8_t**)&ZeroTd, NULL);
 
     // Get next address from which we need to load
     for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
@@ -158,11 +123,14 @@ OhciTransferFill(
         size_t ByteStep             = 0;
         int PreviousToggle          = -1;
         int Toggle                  = 0;
+        TRACE("Transaction(%i, Buffer 0x%x, Length %u, Type %i)", i,
+            Transfer->Transfer.Transactions[i].BufferAddress, BytesToTransfer, Type);
 
         // Adjust offsets
         ByteOffset                  = Transfer->BytesTransferred[i];
         BytesToTransfer            -= Transfer->BytesTransferred[i];
         if (BytesToTransfer == 0 && Transfer->Transfer.Transactions[i].ZeroLength != 1) {
+            TRACE(" > Skipping");
             continue;
         }
 
@@ -175,22 +143,29 @@ OhciTransferFill(
         }
 
         // Keep adding td's
+        TRACE(" > BytesToTransfer(%u)", BytesToTransfer);
         while (BytesToTransfer || Transfer->Transfer.Transactions[i].ZeroLength == 1) {
             Toggle          = UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe);
-            if (Type == SetupTransaction) {
-                ByteStep    = BytesToTransfer;
-                Td          = OhciTdSetup(Controller, &Transfer->Transfer.Transactions[i]);
-            }
-            else {
-                ByteStep    = MIN(BytesToTransfer, Transfer->Transfer.Endpoint.MaxPacketSize);
-                Td          = OhciTdIo(Controller, Transfer->Transfer.Type, 
-                    (Type == InTransaction ? OHCI_TD_IN : OHCI_TD_OUT), Toggle, 
-                    Transfer->Transfer.Transactions[i].BufferAddress + ByteOffset, ByteStep);
+            if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, OHCI_TD_POOL, (uint8_t**)&Td) == OsSuccess) {
+                if (Type == SetupTransaction) {
+                    TRACE(" > Creating setup packet");
+                    Toggle      = 0; // Initial toggle must ALWAYS be 0 for setup
+                    ByteStep    = BytesToTransfer;
+                    OhciTdSetup(&Transfer->Transfer.Transactions[i], Td);
+                }
+                else {
+                    TRACE(" > Creating io packet");
+                    ByteStep    = MIN(BytesToTransfer, Transfer->Transfer.Endpoint.MaxPacketSize);
+                    OhciTdIo(Td, Transfer->Transfer.Type, 
+                        (Type == InTransaction ? OHCI_TD_IN : OHCI_TD_OUT), Toggle,
+                        Transfer->Transfer.Transactions[i].BufferAddress + ByteOffset, ByteStep);
+                }
             }
 
             // If we didn't allocate a td, we ran out of 
             // resources, and have to wait for more. Queue up what we have
-            if (Td == USB_OUT_OF_RESOURCES) {
+            if (Td == NULL) {
+                TRACE(" > Failed to allocate descriptor");
                 if (PreviousToggle != -1) {
                     UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, PreviousToggle);
                     Transfer->Transfer.Transactions[i].Handshake = 1;
@@ -199,23 +174,16 @@ OhciTransferFill(
                 break;
             }
             else {
-                // Store first
-                if (InitialTd == NULL) {
-                    InitialTd   = Td;
-                    PreviousTd  = Td;
-                }
-                else {
-                    // Update physical link
-                    PreviousTd->LinkIndex   = Td->Index;
-                    PreviousTd->Link        = OHCI_POOL_TDINDEX(Controller, Td->Index);
-                    PreviousTd              = Td;
-                }
+                UsbSchedulerChainElement(Controller->Base.Scheduler, 
+                    (uint8_t*)Qh, (uint8_t*)Td, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
+                PreviousTd = Td;
 
                 // Update toggle by flipping
                 UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, Toggle ^ 1);
 
                 // Break out on zero lengths
                 if (Transfer->Transfer.Transactions[i].ZeroLength == 1) {
+                    TRACE(" > Encountered zero-length");
                     Transfer->Transfer.Transactions[i].ZeroLength = 0;
                     break;
                 }
@@ -241,27 +209,19 @@ OhciTransferFill(
     }
 
     // If we ran out of resources it can be pretty serious
-    // Add a null-transaction (Out, Zero)
-    if (OutOfResources == 1) {
-        // If we allocated zero we have to unallocate zero and try again later
-        if (InitialTd == NULL) {
-            // Unallocate, do nothing
-            memset(ZeroTd, 0, sizeof(OhciTransferDescriptor_t));
-            return OsError;
-        }
+    if (PreviousTd != NULL) {
+        // We have a transfer
+        UsbSchedulerChainElement(Controller->Base.Scheduler, 
+            (uint8_t*)Qh, (uint8_t*)ZeroTd, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
+        
+        // Enable ioc
+        PreviousTd->Flags           &= ~OHCI_TD_IOC_NONE;
+        PreviousTd->OriginalFlags   = PreviousTd->Flags;
+        return OsSuccess;
     }
-
-    PreviousTd->Link            = OHCI_POOL_TDINDEX(Controller, ZeroTd->Index);
-    PreviousTd->LinkIndex       = ZeroTd->Index;
-    PreviousTd->Flags           &= ~OHCI_TD_IOC_NONE;
-    PreviousTd->OriginalFlags   = PreviousTd->Flags;
-
-    // Initialize Qh and queue it up
-    OhciQhInitialize(Controller, Transfer->EndpointDescriptor, 
-        InitialTd->Index, PreviousTd->Index, Transfer->Transfer.Type, 
-        Address, Endpoint, Transfer->Transfer.Endpoint.MaxPacketSize, 
-        Transfer->Transfer.Speed);
-    return OsSuccess;
+    else {
+        return OsError; // Queue up for later
+    }
 }
 
 /* HciQueueTransferGeneric 
@@ -274,18 +234,32 @@ HciQueueTransferGeneric(
     // Variables
     OhciQueueHead_t *EndpointDescriptor     = NULL;
     OhciController_t *Controller            = NULL;
-    int BackupToggle                        = UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe);
+    size_t Address, Endpoint;
     DataKey_t Key;
 
     // Get Controller
     Controller          = (OhciController_t*)UsbManagerGetController(Transfer->DeviceId);
     Transfer->Status    = TransferNotProcessed;
+
+    // Extract address and endpoint
+    Address     = HIWORD(Transfer->Pipe);
+    Endpoint    = LOWORD(Transfer->Pipe);
+
+    // Step 1 - Allocate queue head
     if (Transfer->EndpointDescriptor == NULL) {
-        EndpointDescriptor = OhciTransactionInitialize(Controller, &Transfer->Transfer);
-        if (EndpointDescriptor == USB_OUT_OF_RESOURCES) {
+        if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, 
+            OHCI_QH_POOL, (uint8_t**)&EndpointDescriptor) != OsSuccess) {
             return TransferQueued;
         }
+        assert(EndpointDescriptor != NULL);
         Transfer->EndpointDescriptor = EndpointDescriptor;
+
+        // Store and initialize the qh
+        if (OhciQhInitialize(Controller, Transfer, Address, Endpoint) != OsSuccess) {
+            // No bandwidth, serious.
+            UsbSchedulerFreeElement(Controller->Base.Scheduler, (uint8_t*)EndpointDescriptor);
+            return TransferNoBandwidth;
+        }
     }
 
     // Store transaction in queue if it's not there already
@@ -295,20 +269,9 @@ HciQueueTransferGeneric(
         OhciTransactionCount(Controller, Transfer, &Transfer->TransactionsTotal);
     }
 
-    // If it's a control transfer set initial toggle 0
-    if (Transfer->Transfer.Type == ControlTransfer) {
-        UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, 0);
-    }
-
     // If it fails to queue up => restore toggle
     if (OhciTransferFill(Controller, Transfer) != OsSuccess) {
-        if (Transfer->Transfer.Type == ControlTransfer) {
-            UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, BackupToggle);
-        }
         return TransferQueued;
     }
-#ifdef __TRACE
-    OhciQueueDebug(Controller, EndpointDescriptor);
-#endif
     return OhciTransactionDispatch(Controller, Transfer);
 }

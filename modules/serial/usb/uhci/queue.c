@@ -20,7 +20,7 @@
  * Todo:
  * Power Management
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes
  * - System */
@@ -224,11 +224,11 @@ UhciQueueInitialize(
     TRACE(" > Configuring scheduler");
     UsbSchedulerSettingsCreate(&Settings, UHCI_NUM_FRAMES, 1, 900, USB_SCHEDULER_FRAMELIST);
 
-    UsbSchedulerSettingsAddPool(&Settings, sizeof(UhciQueueHead_t), UHCI_QH_COUNT, 
+    UsbSchedulerSettingsAddPool(&Settings, sizeof(UhciQueueHead_t), UHCI_QH_ALIGNMENT, UHCI_QH_COUNT, 
         UHCI_POOL_QH_START, offsetof(UhciQueueHead_t, Link), 
         offsetof(UhciQueueHead_t, Child), offsetof(UhciQueueHead_t, Object));
     
-    UsbSchedulerSettingsAddPool(&Settings, sizeof(UhciTransferDescriptor_t), UHCI_TD_COUNT, 
+    UsbSchedulerSettingsAddPool(&Settings, sizeof(UhciTransferDescriptor_t), UHCI_TD_ALIGNMENT, UHCI_TD_COUNT, 
         UHCI_POOL_TD_START, offsetof(UhciTransferDescriptor_t, Link), 
         offsetof(UhciTransferDescriptor_t, Link), offsetof(UhciTransferDescriptor_t, Object));
     
@@ -356,9 +356,10 @@ HciProcessElement(
         } break;
         
         case USB_REASON_RESET: {
-            if (Transfer->Transfer.Type != IsochronousTransfer
-                && Element == (uint8_t*)Transfer->EndpointDescriptor) {
-                UhciQhRestart((UhciController_t*)Controller, Transfer);
+            if (Transfer->Transfer.Type != IsochronousTransfer) {
+                if (Element != (uint8_t*)Transfer->EndpointDescriptor) {
+                    UhciTdRestart(Transfer, Td);
+                }
             }
             else {
                 UhciTdRestart(Transfer, Td);
@@ -405,4 +406,29 @@ HciProcessElement(
         } break;
     }
     return ITERATOR_CONTINUE;
+}
+
+/* HciProcessEvent
+ * Invoked on different very specific events that require assistance. If a transfer 
+ * associated will be provided in <Context> */
+void
+HciProcessEvent(
+    _In_ UsbManagerController_t*    Controller,
+    _In_ int                        Event,
+    _In_ void*                      Context)
+{
+    // Variables
+    UsbManagerTransfer_t *Transfer  = (UsbManagerTransfer_t*)Context;
+
+    // Debug
+    TRACE("UhciProcessEvent(Event %i)", Event);
+
+    // Handle the reasons
+    switch (Event) {
+        case USB_EVENT_RESTART_DONE: {
+            if (Transfer->Transfer.Type != IsochronousTransfer) {
+                UhciQhRestart((UhciController_t*)Controller, Transfer);
+            }
+        } break;
+    }
 }

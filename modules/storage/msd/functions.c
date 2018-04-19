@@ -380,6 +380,7 @@ MsdReadSectors(
         LODWORD(SectorStart), BufferLength, BufferAddress);
 
     // Perform the read command
+    // @todo handle if num sectors > uint16_t when using SCSI_READ
     Result = MsdScsiCommand(Device, 0, 
         Device->IsExtended == 0 ? SCSI_READ : SCSI_READ_16,
         SectorStart, BufferAddress, BufferLength);
@@ -413,7 +414,8 @@ MsdWriteSectors(
     // Variables
     UsbTransferStatus_t Result;
 
-    // Perform the read command
+    // Perform the write command
+    // @todo handle if num sectors > uint16_t when using SCSI_WRITE
     Result = MsdScsiCommand(Device, 1, 
         Device->IsExtended == 0 ? SCSI_WRITE : SCSI_WRITE_16,
         SectorStart, BufferAddress, BufferLength);

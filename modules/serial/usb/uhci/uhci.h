@@ -103,21 +103,17 @@
 
 /* UhciTransferDescriptor
  * Describes a generic transfer-descriptor that can be either of all
- * four different transaction types. Must be 16 byte aligned. 
- * 16 + 32 + 16 */
+ * four different transaction types. Must be 16 byte aligned. */
 PACKED_TYPESTRUCT(UhciTransferDescriptor, {
     reg32_t                 Link;
     reg32_t                 Flags;
     reg32_t                 Header;
     reg32_t                 Buffer;
 
-    // 32 Byte software meta-data
+    // Software meta-data
     UsbSchedulerObject_t    Object;
-
-    // 16 Bytes backup data
     reg32_t                 OriginalFlags;
     reg32_t                 OriginalHeader;
-    uint8_t                 Padding[8];
 });
 
 /* UhciTransferDescriptor::Flags
@@ -145,25 +141,25 @@ PACKED_TYPESTRUCT(UhciTransferDescriptor, {
 #define UHCI_TD_MAX_LEN(n)              ((n & UHCI_TD_LENGTH_MASK) << 21)
 #define UHCI_TD_GET_LEN(n)              ((n >> 21) & UHCI_TD_LENGTH_MASK)
 
-/* Queue Head, 16 byte align 
- * 8 Bytes used by HC 
- * 40 Bytes used by HCD */
+/* Queue Head
+ * @todo */
 PACKED_TYPESTRUCT(UhciQueueHead, {
     reg32_t                 Link;
     reg32_t                 Child;
 
-    // 32+8 Byte software meta-data
+    // Software meta-data
     UsbSchedulerObject_t    Object;
-    uint8_t                 Queue;
-    uint8_t                 Padding[3];
     reg32_t                 BufferBase;
+    uint8_t                 Queue;
 });
 
 /* Uhci Definitions
  * Pool sizes and helper functions. */
+#define UHCI_QH_ALIGNMENT                   16
 #define UHCI_QH_POOL                        0
 #define UHCI_QH_COUNT                       50
 
+#define UHCI_TD_ALIGNMENT                   16
 #define UHCI_TD_POOL                        1
 #define UHCI_TD_COUNT                       400
 
