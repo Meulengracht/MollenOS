@@ -20,7 +20,7 @@
  * TODO:
  *    - Power Management
  */
-//#define __TRACE
+#define __TRACE
 
 /* Includes 
  * - System */
@@ -103,8 +103,10 @@ HciControllerCreate(
     // Trace
     TRACE("Io-Space was assigned virtual address 0x%x", IoBase->VirtualBase);
 
-    // Instantiate the register-access
+    // Instantiate the register-access and disable interrupts on device
     Controller->Registers                           = (OhciRegisters_t*)IoBase->VirtualBase;
+    Controller->Registers->HcInterruptEnable        = 0;
+    Controller->Registers->HcInterruptDisable       = OHCI_MASTER_INTERRUPT;
 
     // Initialize the interrupt settings
     Controller->Base.Device.Interrupt.FastHandler   = OnFastInterrupt;
@@ -187,7 +189,7 @@ OhciSetMode(
     // Read in value, mask it off, then update
     reg32_t Value                       = Controller->Registers->HcControl;
     
-    Value                               = (Value & ~OHCI_CONTROL_SUSPEND);
+    Value                               &= ~(OHCI_CONTROL_SUSPEND);
     Value                               |= Mode;
     
     Controller->Registers->HcControl    = Value;
@@ -321,7 +323,7 @@ OhciReset(
         OHCI_ROOTHUB_EVENT | OHCI_OWNERSHIP_EVENT;
 
     // Clear out INTR state and initialize the interrupt enable
-    Controller->Registers->HcInterruptStatus = ~(reg32_t)0;
+    Controller->Registers->HcInterruptStatus = Controller->Registers->HcInterruptStatus;
     Controller->Registers->HcInterruptEnable = OHCI_OVERRUN_EVENT 
         | OHCI_PROCESS_EVENT | OHCI_RESUMEDETECT_EVENT | OHCI_FATAL_EVENT
         | OHCI_OVERFLOW_EVENT | OHCI_MASTER_INTERRUPT;
@@ -329,15 +331,18 @@ OhciReset(
     // Set HcPeriodicStart to a value that is 90% of 
     // FrameInterval in HcFmInterval
     Temporary                               = (FmInt & OHCI_FMINTERVAL_FIMASK);
-    Controller->Registers->HcPeriodicStart  = (Temporary / 10) * 9;
+    Controller->Registers->HcPeriodicStart  = (Temporary / 10U) * 9U;
 
     // Clear Lists, Mode, Ratio and IR
     Temporary                               = Controller->Registers->HcControl;
-    Temporary                               = (Temporary & ~(0x0000003C | OHCI_CONTROL_SUSPEND | 0x3 | 0x100));
+    Temporary                               &= ~(OHCI_CONTROL_ALL_ACTIVE | OHCI_CONTROL_SUSPEND | OHCI_CONTROL_RATIO_MASK | OHCI_CONTROL_IR);
 
     // Set Ratio (4:1) and Mode (Operational)
-    Temporary                               |= (0x3 | OHCI_CONTROL_ACTIVE);
-    Controller->Registers->HcControl        = Temporary | OHCI_CONTROL_ALL_ACTIVE | OHCI_CONTROL_REMOTEWAKE;
+    Temporary                               |= (OHCI_CONTROL_RATIO_MASK | OHCI_CONTROL_ACTIVE);
+    Temporary                               |= OHCI_CONTROL_PERIODIC_ACTIVE;
+    Temporary                               |= OHCI_CONTROL_ISOC_ACTIVE;
+    Temporary                               |= OHCI_CONTROL_REMOTEWAKE;
+    Controller->Registers->HcControl        = Temporary;
     return OsSuccess;
 }
 

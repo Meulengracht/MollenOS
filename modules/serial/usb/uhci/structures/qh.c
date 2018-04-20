@@ -54,7 +54,7 @@ UhciQhCalculateQueue(
     // Update queue
     Queue       = 9 - Exponent;
     Qh->Queue   = Queue & 0xFF;
-    WARNING("Queue for interrupt transfer: %i", Queue);
+    TRACE("Queue for interrupt transfer: %i", Queue);
 }
 
 /* UhciQhInitialize

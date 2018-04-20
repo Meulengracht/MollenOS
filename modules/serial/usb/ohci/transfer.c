@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011, Philip Meulengracht
+ * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,8 +20,8 @@
  * TODO:
  *    - Power Management
  */
-//#define __TRACE
-//#define __DIAGNOSE
+#define __TRACE
+#define __DIAGNOSE
 
 /* Includes 
  * - System */

@@ -29,6 +29,7 @@
 #include <multiboot.h>
 #include <memory.h>
 #include <debug.h>
+#include <smbios.h>
 #include <arch.h>
 #include <apic.h>
 #include <cpu.h>
@@ -112,6 +113,7 @@ SystemFeaturesInitialize(
         IdtInitialize();
         PicInitialize();
         VbeInitialize(BootInformation);
+        SmBiosInitialize(NULL);
     }
 
     // Handle the memory initialization
