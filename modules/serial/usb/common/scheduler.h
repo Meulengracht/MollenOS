@@ -93,7 +93,6 @@ PACKED_TYPESTRUCT(UsbSchedulerObject, {
 
 #define USB_ELEMENT_LINK_END            (1 << 0)
 
-
 #define USB_CHAIN_BREATH                0
 #define USB_CHAIN_DEPTH                 1
 #define USB_POOL_MAXCOUNT               8

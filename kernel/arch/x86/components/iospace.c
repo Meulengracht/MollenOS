@@ -104,26 +104,21 @@ IoSpaceRegister(
 
     // Allocate a new system only copy of the io-space
     // as we don't want anyone to edit our copy
-    SysCopy = (MCoreIoSpace_t*)kmalloc(sizeof(MCoreIoSpace_t));
+    SysCopy                 = (MCoreIoSpace_t*)kmalloc(sizeof(MCoreIoSpace_t));
 
     // Initialize the system copy
-    SysCopy->Owner = UUID_INVALID;
-    SysCopy->Type = IoSpace->Type;
-    SysCopy->PhysicalBase = IoSpace->PhysicalBase;
-    SysCopy->VirtualBase = 0;
-    SysCopy->Size = IoSpace->Size;
+    SysCopy->Owner          = UUID_INVALID;
+    SysCopy->Type           = IoSpace->Type;
+    SysCopy->PhysicalBase   = IoSpace->PhysicalBase;
+    SysCopy->VirtualBase    = 0;
+    SysCopy->Size           = IoSpace->Size;
 
     // Add to list
     SpinlockAcquire(&__GlbIoSpaceLock);
-    IoSpace->Id = SysCopy->Id = __GlbIoSpaceId++;
-    Key.Value = (int)SysCopy->Id;
+    IoSpace->Id             = SysCopy->Id = __GlbIoSpaceId++;
+    Key.Value               = (int)SysCopy->Id;
     CollectionAppend(__GlbIoSpaces, CollectionCreateNode(Key, (void*)SysCopy));
     SpinlockRelease(&__GlbIoSpaceLock);
-
-    // Debugging
-    TRACE("Allocated Id %u", IoSpace->Id);
-
-    // Done!
     return OsSuccess;
 }
 
@@ -293,8 +288,7 @@ IoSpaceDestroy(
     SpinlockRelease(&__GlbIoSpaceLock);
 
     // Sanitize the system copy
-    if (SysCopy == NULL
-        || SysCopy->Owner != UUID_INVALID) {
+    if (SysCopy == NULL || SysCopy->Owner != UUID_INVALID) {
         return OsError;
     }
 

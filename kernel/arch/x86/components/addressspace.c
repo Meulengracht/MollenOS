@@ -268,7 +268,7 @@ AddressSpaceMap(
     PageCount           = DIVUP(Size, PAGE_SIZE);
 
     // Determine the memory mappings initially
-    if (Flags & ASPACE_FLAG_SUPPLIEDPHYSICAL) {
+    if (Flags & ASPACE_FLAG_VIRTUAL) {
         assert(PhysicalAddress != NULL);
         PhysicalBase        = (*PhysicalAddress & PAGE_MASK);
     }
@@ -300,7 +300,7 @@ AddressSpaceMap(
     // Iterate the number of pages to map 
 	for (i = 0; i < PageCount; i++) {
 		uintptr_t PhysicalPage  = 0;
-        if ((Flags & ASPACE_FLAG_CONTIGIOUS) || (Flags & ASPACE_FLAG_SUPPLIEDPHYSICAL)) {
+        if ((Flags & ASPACE_FLAG_CONTIGIOUS) || (Flags & ASPACE_FLAG_VIRTUAL)) {
             PhysicalPage        = PhysicalBase + (i * PAGE_SIZE);
         }
 		else {

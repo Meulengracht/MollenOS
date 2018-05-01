@@ -257,10 +257,10 @@ HciProcessElement(
         case USB_REASON_RESET: {
             if (Element != (uint8_t*)Transfer->EndpointDescriptor) {
                 if (Transfer->Transfer.Type != IsochronousTransfer) {
-                    OhciTdRestart(Transfer, (OhciTransferDescriptor_t*)Element);
+                    OhciTdRestart((OhciController_t*)Controller, Transfer, (OhciTransferDescriptor_t*)Element);
                 }
                 else {
-                    OhciiTdRestart(Transfer, (OhciIsocTransferDescriptor_t*)Element);
+                    OhciiTdRestart((OhciController_t*)Controller, Transfer, (OhciIsocTransferDescriptor_t*)Element);
                 }
             }
         } break;
@@ -270,11 +270,9 @@ HciProcessElement(
                 return ITERATOR_CONTINUE; // Skip sync on queue-heads
             }
 
+            // Isochronous transfers don't use toggles.
             if (Transfer->Transfer.Type != IsochronousTransfer) {
                 OhciTdSynchronize(Transfer, (OhciTransferDescriptor_t*)Element);
-            }
-            else {
-                // Isochronous transfers don't use toggles.
             }
         } break;
 

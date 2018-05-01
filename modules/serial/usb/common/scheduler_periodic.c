@@ -141,6 +141,7 @@ UsbSchedulerUnlinkPeriodicElement(
     UsbSchedulerObject_t *sObject   = NULL;
     UsbSchedulerPool_t *sPool       = NULL;
     OsStatus_t Result               = OsSuccess;
+    reg32_t NoLink                  = (Scheduler->Settings.Flags & USB_SCHEDULER_LINK_BIT_EOL) ? USB_ELEMENT_LINK_END : 0;
     size_t i;
 
     // Validate element and lookup pool
@@ -171,7 +172,7 @@ UsbSchedulerUnlinkPeriodicElement(
             }
             else {
                 Scheduler->VirtualFrameList[i]      = 0;
-                Scheduler->Settings.FrameList[i]    = USB_ELEMENT_LINK_END;
+                Scheduler->Settings.FrameList[i]    = NoLink;
             }
         }
         else {

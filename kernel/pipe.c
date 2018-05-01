@@ -149,8 +149,7 @@ PipeProduce(
     size_t DataProduced             = 0;
     
     // Debug
-    TRACE("PipeProduce(Index %u, Length %u)", 
-        CurrentWriterIndex, Length);
+    TRACE("PipeProduce(Index %u, Length %u)", CurrentWriterIndex, Length);
 
     while (DataProduced < Length) {
         CurrentReaderIndex = atomic_load(&Pipe->DataRead);

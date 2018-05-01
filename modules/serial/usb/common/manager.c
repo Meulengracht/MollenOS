@@ -154,12 +154,12 @@ UsbManagerIterateTransfers(
         UsbManagerTransfer_t *Transfer  = (UsbManagerTransfer_t*)Node->Data;
         int Status                      = ItemCallback(Controller, Transfer, Context);
         if (Status & ITERATOR_REMOVE) {
-            CollectionItem_t *NextNode = CollectionUnlinkNode(Controller->TransactionList, Node);
+            CollectionItem_t *NextNode  = CollectionUnlinkNode(Controller->TransactionList, Node);
             CollectionDestroyNode(Controller->TransactionList, Node);
-            Node = NextNode;
+            Node                        = NextNode;
         }
         else {
-            Node = CollectionNext(Node);
+            Node                        = CollectionNext(Node);
         }
         if (Status & ITERATOR_STOP) {
             break;
@@ -390,7 +390,6 @@ UsbManagerScheduleTransfer(
 {
     // Has the transfer been marked for unschedule?
     if (Transfer->Flags & TransferFlagUnschedule) {
-        
         // Clear flag
         Transfer->Flags &= ~(TransferFlagUnschedule);
         HciTransactionFinalize(Controller, Transfer, 0);
@@ -409,7 +408,6 @@ UsbManagerScheduleTransfer(
 
     // Has the transfer been marked for schedule?
     if (Transfer->Flags & TransferFlagSchedule) {
-
         // Clear flag
         Transfer->Flags &= ~(TransferFlagSchedule);
         UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
@@ -484,9 +482,7 @@ UsbManagerProcessTransfer(
         Transfer->Status    = TransferQueued;
         Transfer->Flags     = TransferFlagNone;
     }
-
-    // Finish?
-    if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
+    else if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
         HciTransactionFinalize(Controller, Transfer, 0);
         Transfer->EndpointDescriptor = NULL;
         if (UsbManagerFinalizeTransfer(Controller, Transfer) == OsSuccess) {

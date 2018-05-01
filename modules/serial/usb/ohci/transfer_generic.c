@@ -20,7 +20,7 @@
  * TODO:
  *    - Power Management
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -97,10 +97,10 @@ OhciTransferFill(
 {
     // Variables
     OhciTransferDescriptor_t *PreviousTd    = NULL;
-    OhciTransferDescriptor_t *ZeroTd        = NULL;
     OhciTransferDescriptor_t *Td            = NULL;
     OhciQueueHead_t *Qh                     = (OhciQueueHead_t*)Transfer->EndpointDescriptor;
     size_t Address, Endpoint;
+    uint16_t ZeroIndex                      = Qh->Object.DepthIndex;
     int OutOfResources                      = 0;
     int i;
 
@@ -110,10 +110,6 @@ OhciTransferFill(
     // Extract address and endpoint
     Address     = HIWORD(Transfer->Pipe);
     Endpoint    = LOWORD(Transfer->Pipe);
-
-    // Start out by retrieving the zero td
-    UsbSchedulerGetPoolElement(Controller->Base.Scheduler, OHCI_TD_POOL,
-        OHCI_TD_NULL, (uint8_t**)&ZeroTd, NULL);
 
     // Get next address from which we need to load
     for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
@@ -175,7 +171,7 @@ OhciTransferFill(
             }
             else {
                 UsbSchedulerChainElement(Controller->Base.Scheduler, 
-                    (uint8_t*)Qh, (uint8_t*)Td, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
+                    (uint8_t*)Qh, (uint8_t*)Td, ZeroIndex, USB_CHAIN_DEPTH);
                 PreviousTd = Td;
 
                 // Update toggle by flipping
@@ -208,12 +204,8 @@ OhciTransferFill(
         }
     }
 
-    // If we ran out of resources it can be pretty serious
+    // If we ran out of resources queue up later
     if (PreviousTd != NULL) {
-        // We have a transfer
-        UsbSchedulerChainElement(Controller->Base.Scheduler, 
-            (uint8_t*)Qh, (uint8_t*)ZeroTd, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
-        
         // Enable ioc
         PreviousTd->Flags           &= ~OHCI_TD_IOC_NONE;
         PreviousTd->OriginalFlags   = PreviousTd->Flags;

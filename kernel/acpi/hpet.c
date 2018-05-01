@@ -349,7 +349,7 @@ HpInitialize(
     // Map the address
     if (AddressSpaceMap(AddressSpaceGetCurrent(), 
         &HpetController.BaseAddress, &HpetController.BaseAddress, 0x1000, 
-        ASPACE_FLAG_SUPPLIEDPHYSICAL | ASPACE_FLAG_NOCACHE, __MASK) != OsSuccess) {
+        ASPACE_FLAG_VIRTUAL | ASPACE_FLAG_NOCACHE, __MASK) != OsSuccess) {
         ERROR("Failed to map address for hpet.");
         return OsError;
     }

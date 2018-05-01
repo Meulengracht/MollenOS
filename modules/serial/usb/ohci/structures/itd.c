@@ -30,6 +30,7 @@
 
 /* Includes
  * - Library */
+#include <assert.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
@@ -124,8 +125,8 @@ OhciiTdDump(
  * with the bytes transferred and error status. */
 void
 OhciiTdValidate(
-    _In_  UsbManagerTransfer_t*         Transfer,
-    _In_  OhciIsocTransferDescriptor_t* Td)
+    _In_ UsbManagerTransfer_t*          Transfer,
+    _In_ OhciIsocTransferDescriptor_t*  Td)
 {
     // Variables
     int i;
@@ -187,19 +188,28 @@ OhciiTdValidate(
  * trasnfer type is an interrupt-transfer that uses circularbuffers. */
 void
 OhciiTdRestart(
-    _In_  UsbManagerTransfer_t*         Transfer,
-    _In_  OhciIsocTransferDescriptor_t* Td)
+    _In_ OhciController_t*              Controller,
+    _In_ UsbManagerTransfer_t*          Transfer,
+    _In_ OhciIsocTransferDescriptor_t*  Td)
 {
     // Variables
+    uintptr_t LinkAddress   = 0;
     int i;
 
     // Reset offsets
     for (i = 0; i < 8; i++) {
-        Td->Offsets[i] = Td->OriginalOffsets[i];
+        Td->Offsets[i]      = Td->OriginalOffsets[i];
     }
 
     // Reset rest
-    Td->Flags       = Td->OriginalFlags;
-    Td->Cbp         = Td->OriginalCbp;
-    Td->BufferEnd   = Td->OriginalBufferEnd;
+    Td->Flags               = Td->OriginalFlags;
+    Td->Cbp                 = Td->OriginalCbp;
+    Td->BufferEnd           = Td->OriginalBufferEnd;
+    
+    // Restore link
+    UsbSchedulerGetPoolElement(Controller->Base.Scheduler,
+        (Td->Object.DepthIndex >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK, 
+        Td->Object.DepthIndex & USB_ELEMENT_INDEX_MASK, NULL, &LinkAddress);
+    Td->Link                = LinkAddress;
+    assert(Td->Link != 0);
 }

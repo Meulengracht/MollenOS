@@ -21,7 +21,7 @@
  *    - Power Management
  */
 #define __TRACE
-#define __DIAGNOSE
+//#define __DIAGNOSE
 
 /* Includes 
  * - System */
@@ -132,7 +132,9 @@ HciTransactionFinalize(
                 Control |= OHCI_CONTROL_CONTROL_ACTIVE;
             }
             else {
-                Control &= ~(OHCI_CONTROL_CONTROL_ACTIVE);
+                if (OhciCtrl->Registers->HcControlHeadED == 0) {
+                    Control &= ~(OHCI_CONTROL_CONTROL_ACTIVE);
+                }
             }
         }
         if ((Status & OHCI_COMMAND_BULK_FILLED) == 0) {
@@ -143,7 +145,9 @@ HciTransactionFinalize(
                 Control |= OHCI_CONTROL_BULK_ACTIVE;
             }
             else {
-                Control &= ~(OHCI_CONTROL_BULK_ACTIVE);
+            if (OhciCtrl->Registers->HcBulkHeadED == 0) {
+                    Control &= ~(OHCI_CONTROL_BULK_ACTIVE);
+                }
             }
         }
 

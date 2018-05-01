@@ -71,11 +71,12 @@ UsbSchedulerResetInternalData(
         }
     }
     if (ResetFramelist) {
+        reg32_t NoLink = (Scheduler->Settings.Flags & USB_SCHEDULER_LINK_BIT_EOL) ? USB_ELEMENT_LINK_END : 0;
         memset((void*)Scheduler->Settings.FrameList, 0, (Scheduler->Settings.FrameCount * 4));
         memset((void*)Scheduler->VirtualFrameList, 0, (Scheduler->Settings.FrameCount * sizeof(uintptr_t)));
         memset((void*)Scheduler->Bandwidth, 0, (Scheduler->Settings.FrameCount * Scheduler->Settings.SubframeCount * sizeof(size_t)));
         for (i = 0; i < Scheduler->Settings.FrameCount; i++) {
-            Scheduler->Settings.FrameList[i] = USB_ELEMENT_LINK_END;
+            Scheduler->Settings.FrameList[i] = NoLink;
         }
     }
     return OsSuccess;

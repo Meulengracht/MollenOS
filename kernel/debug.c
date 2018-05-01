@@ -331,7 +331,7 @@ DebugPageFaultIoMemory(
     if (Physical != 0) {
         // Try to map it in and return the result
         return AddressSpaceMap(AddressSpaceGetCurrent(), &Physical, &Address, AddressSpaceGetPageSize(),
-            ASPACE_FLAG_NOCACHE | ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDPHYSICAL 
+            ASPACE_FLAG_NOCACHE | ASPACE_FLAG_APPLICATION | ASPACE_FLAG_VIRTUAL 
             | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
     }
     return OsError;

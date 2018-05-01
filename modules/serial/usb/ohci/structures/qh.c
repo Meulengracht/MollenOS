@@ -30,7 +30,7 @@
 
 /* Includes
  * - Library */
-#include <threads.h>
+#include <assert.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
@@ -53,7 +53,6 @@ OhciQhInitialize(
 
     // Initialize link
     Qh->LinkPointer     = 0;
-    Qh->Current         = 0;
 
     if (Transfer->Transfer.Type == IsochronousTransfer) LastIndex = USB_ELEMENT_CREATE_INDEX(OHCI_iTD_POOL, OHCI_iTD_NULL);
     else                                                LastIndex = USB_ELEMENT_CREATE_INDEX(OHCI_TD_POOL, OHCI_TD_NULL);
@@ -62,7 +61,9 @@ OhciQhInitialize(
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler,
         (LastIndex >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK, 
         LastIndex & USB_ELEMENT_INDEX_MASK, NULL, &LinkEnd);
+    Qh->Current         = (reg32_t)LinkEnd;
     Qh->EndPointer      = (reg32_t)LinkEnd;
+    Qh->Object.DepthIndex = LastIndex;
 
     // Initialize flags
     Qh->Flags           = OHCI_QH_ADDRESS(Address);
@@ -81,7 +82,7 @@ OhciQhInitialize(
 
     // Allocate bandwidth if int/isoc
     if (Transfer->Transfer.Type == InterruptTransfer || Transfer->Transfer.Type == IsochronousTransfer) {
-        Status = UsbSchedulerAllocateBandwidth(Controller->Base.Scheduler, 
+        Status          = UsbSchedulerAllocateBandwidth(Controller->Base.Scheduler, 
             &Transfer->Transfer.Endpoint, Transfer->Transfer.Transactions[0].Length,
             Transfer->Transfer.Type, Transfer->Transfer.Speed, (uint8_t*)Qh);
     }
@@ -114,16 +115,13 @@ OhciQhRestart(
     // Variables
     OhciQueueHead_t *Qh     = (OhciQueueHead_t*)Transfer->EndpointDescriptor;
     uintptr_t LinkAddress   = 0;
-    uint16_t InitialIndex   = Qh->Object.DepthIndex;
-
-    // Do some extra processing for periodics
-    Qh->BufferBase  = Transfer->Transfer.Transactions[0].BufferAddress;
 
     // Reset the current link
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler,
-        (InitialIndex >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK, 
-        InitialIndex & USB_ELEMENT_INDEX_MASK, NULL, &LinkAddress);
+        (Qh->Object.DepthIndex >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK, 
+        Qh->Object.DepthIndex & USB_ELEMENT_INDEX_MASK, NULL, &LinkAddress);
     Qh->Current             = LinkAddress;
+    assert(Qh->Current != 0);
 }
 
 /* OhciQhLink 

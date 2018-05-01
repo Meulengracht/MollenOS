@@ -102,7 +102,7 @@ AcpiOsMapMemory(
         return (void*)Where;
     }
     if (AddressSpaceMap(AddressSpaceGetCurrent(), &Physical, &Result, AdjustedLength, 
-        ASPACE_FLAG_NOCACHE | ASPACE_FLAG_VIRTUAL | ASPACE_FLAG_SUPPLIEDPHYSICAL, __MASK) != OsSuccess) {
+        ASPACE_FLAG_NOCACHE | ASPACE_FLAG_VIRTUAL, __MASK) != OsSuccess) {
         // Uhh
         ERROR("Failed to map physical memory 0x%x", Where);
         return NULL;

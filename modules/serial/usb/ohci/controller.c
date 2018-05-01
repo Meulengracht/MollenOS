@@ -20,7 +20,7 @@
  * TODO:
  *    - Power Management
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -262,13 +262,13 @@ OhciReset(
     // Verify HcFmInterval and store the original value
     FmInt = Controller->Registers->HcFmInterval;
 
-    // What the hell OHCI?? You are supposed to be able 
+    // What the hell? You are supposed to be able 
     // to set this yourself!
     if (OHCI_FMINTERVAL_GETFSMP(FmInt) == 0) {
         FmInt |= OHCI_FMINTERVAL_FSMP(FmInt) << 16;
     }
 
-    // Sanitize the FI.. this should also we set but there
+    // Sanitize the FI.. this should also be set but there
     // are cases it isn't....
     if ((FmInt & OHCI_FMINTERVAL_FIMASK) == 0) {
         FmInt |= OHCI_FMINTERVAL_FI;
@@ -277,6 +277,7 @@ OhciReset(
     // We should check here if HcControl has RemoteWakeup Connected 
     // and then set device to remote wake capable
     // Disable interrupts during this reset
+    TRACE(" > Suspending controller");
     Controller->Registers->HcInterruptDisable = (reg32_t)OHCI_MASTER_INTERRUPT;
 
     // Suspend the controller just in case it's running
@@ -291,6 +292,7 @@ OhciReset(
 
     // Wait for reboot (takes maximum of 10 ms)
     // But the world is not perfect, given it up to 50
+    TRACE(" > Resetting controller");
     WaitForConditionWithFault(i, (Controller->Registers->HcCommandStatus & OHCI_COMMAND_RESET) == 0, 50, 1);
 
     // Sanitize the fault variable
@@ -300,14 +302,14 @@ OhciReset(
         return OsError;
     }
 
-    // Restore the FmInt and toggle the FIT
-    Controller->Registers->HcFmInterval     = FmInt;
-    Controller->Registers->HcFmInterval     ^= 0x80000000;
-
     //**************************************
     // We now have 2 ms to complete setup
     // and put it in Operational Mode
     //**************************************
+
+    // Restore the FmInt and toggle the FIT
+    Controller->Registers->HcFmInterval     = FmInt;
+    Controller->Registers->HcFmInterval     ^= 0x80000000;
 
     // Setup the Hcca Address and initiate some members of the HCCA
     Controller->Registers->HcHCCA           = Controller->HccaPhysical;
@@ -343,6 +345,7 @@ OhciReset(
     Temporary                               |= OHCI_CONTROL_ISOC_ACTIVE;
     Temporary                               |= OHCI_CONTROL_REMOTEWAKE;
     Controller->Registers->HcControl        = Temporary;
+    TRACE(" > Wrote control to controller");
     return OsSuccess;
 }
 

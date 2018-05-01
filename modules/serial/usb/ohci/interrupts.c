@@ -79,6 +79,13 @@ OnFastInterrupt(
         return InterruptNotHandled;
     }
 
+    // Process Checks first
+    // This happens if a transaction has completed
+    if (InterruptStatus & OHCI_PROCESS_EVENT) {
+        //reg32_t TdAddress = (Controller->Hcca->HeadDone & ~(0x00000001));
+        Controller->Hcca->HeadDone          = 0;
+    }
+
     // Stage 1 of the linking/unlinking event
     if (InterruptStatus & OHCI_SOF_EVENT) {
         UsbManagerScheduleTransfers(&Controller->Base);
@@ -86,7 +93,7 @@ OnFastInterrupt(
     }
 
     // Store interrupts, acknowledge and return
-    Controller->Base.InterruptStatus |= InterruptStatus;
+    Controller->Base.InterruptStatus        |= InterruptStatus;
     Controller->Registers->HcInterruptStatus = InterruptStatus;
     return InterruptHandled;
 }
@@ -102,8 +109,8 @@ OnInterrupt(
     _In_Opt_ size_t Arg2)
 {
     // Variables
-    OhciController_t *Controller    = NULL;
-    reg32_t InterruptStatus         = 0;
+    OhciController_t *Controller        = NULL;
+    reg32_t InterruptStatus             = 0;
     
     // Unusued
     _CRT_UNUSED(Arg0);
@@ -111,18 +118,15 @@ OnInterrupt(
     _CRT_UNUSED(Arg2);
 
     // Instantiate the pointer
-    Controller = (OhciController_t*)InterruptData;
+    Controller                          = (OhciController_t*)InterruptData;
     
 ProcessInterrupt:
-    InterruptStatus = Controller->Base.InterruptStatus;
-    Controller->Base.InterruptStatus = 0;
+    InterruptStatus                     = Controller->Base.InterruptStatus;
+    Controller->Base.InterruptStatus    = 0;
 
-    // Process Checks first
-    // This happens if a transaction has completed
+    // Process Checks
     if (InterruptStatus & OHCI_PROCESS_EVENT) {
-        //reg32_t TdAddress = (Controller->Hcca->HeadDone & ~(0x00000001));
         UsbManagerProcessTransfers(&Controller->Base);
-        Controller->Hcca->HeadDone = 0;
     }
 
     // Root Hub Status Change
@@ -132,11 +136,7 @@ ProcessInterrupt:
     }
 
     // Fatal errors, reset everything
-    if (InterruptStatus & OHCI_FATAL_EVENT) {
-        OhciReset(Controller);
-        OhciSetMode(Controller, OHCI_CONTROL_ACTIVE);
-    }
-    if (InterruptStatus & OHCI_OVERRUN_EVENT) {
+    if (InterruptStatus & (OHCI_FATAL_EVENT | OHCI_OVERRUN_EVENT)) {
         OhciQueueReset(Controller);
         OhciReset(Controller);
         OhciSetMode(Controller, OHCI_CONTROL_ACTIVE);
@@ -152,7 +152,6 @@ ProcessInterrupt:
     // Stage 2 of an linking/unlinking event
     if (InterruptStatus & OHCI_SOF_EVENT) {
         UsbManagerProcessTransfers(&Controller->Base);
-        Controller->Registers->HcInterruptDisable = OHCI_SOF_EVENT;
     }
 
     // Frame Overflow

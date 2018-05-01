@@ -43,12 +43,11 @@
  * Definitions, bit definitions and magic constants for address spaces */
 #define ASPACE_FLAG_APPLICATION         0x00000001  // Userspace mapping
 #define ASPACE_FLAG_NOCACHE             0x00000002  // Disable caching for mapping
-#define ASPACE_FLAG_VIRTUAL             0x00000004  // Virtual mapping (reuse physical mappings)
+#define ASPACE_FLAG_VIRTUAL             0x00000004  // Virtual mapping (Physical address is supplied)
 #define ASPACE_FLAG_CONTIGIOUS          0x00000008  // Contigious physical pages
 #define ASPACE_FLAG_SUPPLIEDVIRTUAL     0x00000010  // Virtual base-page is supplied
-#define ASPACE_FLAG_SUPPLIEDPHYSICAL    0x00000020  // Physical base-page is supplied
-#define ASPACE_FLAG_READONLY            0x00000040  // Memory can only be read
-#define ASPACE_FLAG_EXECUTABLE          0x00000080  // Memory can be executed
+#define ASPACE_FLAG_READONLY            0x00000020  // Memory can only be read
+#define ASPACE_FLAG_EXECUTABLE          0x00000040  // Memory can be executed
 
 /* Address Space Structure
  * Denotes the must have and architecture specific

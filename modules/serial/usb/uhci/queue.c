@@ -222,7 +222,8 @@ UhciQueueInitialize(
 
     // Initialize the scheduler
     TRACE(" > Configuring scheduler");
-    UsbSchedulerSettingsCreate(&Settings, UHCI_NUM_FRAMES, 1, 900, USB_SCHEDULER_FRAMELIST);
+    UsbSchedulerSettingsCreate(&Settings, UHCI_NUM_FRAMES, 1, 900, 
+        USB_SCHEDULER_FRAMELIST | USB_SCHEDULER_LINK_BIT_EOL);
 
     UsbSchedulerSettingsAddPool(&Settings, sizeof(UhciQueueHead_t), UHCI_QH_ALIGNMENT, UHCI_QH_COUNT, 
         UHCI_POOL_QH_START, offsetof(UhciQueueHead_t, Link), 

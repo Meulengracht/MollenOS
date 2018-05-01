@@ -57,7 +57,6 @@ PACKED_TYPESTRUCT(OhciQueueHead, {
     
     // Software meta-data
     UsbSchedulerObject_t    Object;
-    reg32_t                 BufferBase;
 });
 
 /* OhciQueueHead::Flags
@@ -461,8 +460,8 @@ OhciTdDump(
 __EXTERN
 void
 OhciTdValidate(
-    _In_  UsbManagerTransfer_t*     Transfer,
-    _In_  OhciTransferDescriptor_t* Td);
+    _In_ UsbManagerTransfer_t*      Transfer,
+    _In_ OhciTransferDescriptor_t*  Td);
 
 /* OhciTdSynchronize
  * Synchronizes the toggle status of the transfer descriptor by retrieving
@@ -470,8 +469,8 @@ OhciTdValidate(
 __EXTERN
 void
 OhciTdSynchronize(
-    _In_  UsbManagerTransfer_t*     Transfer,
-    _In_  OhciTransferDescriptor_t* Td);
+    _In_ UsbManagerTransfer_t*      Transfer,
+    _In_ OhciTransferDescriptor_t*  Td);
 
 /* OhciTdRestart
  * Restarts a transfer descriptor by resettings it's status and updating buffers if the
@@ -479,8 +478,9 @@ OhciTdSynchronize(
 __EXTERN
 void
 OhciTdRestart(
-    _In_  UsbManagerTransfer_t*     Transfer,
-    _In_  OhciTransferDescriptor_t* Td);
+    _In_ OhciController_t*          Controller,
+    _In_ UsbManagerTransfer_t*      Transfer,
+    _In_ OhciTransferDescriptor_t*  Td);
 
 /*******************************************************************************
  * Isochronous Transfer Descriptor Methods
@@ -512,8 +512,8 @@ OhciiTdDump(
 __EXTERN
 void
 OhciiTdValidate(
-    _In_  UsbManagerTransfer_t*         Transfer,
-    _In_  OhciIsocTransferDescriptor_t* Td);
+    _In_ UsbManagerTransfer_t*          Transfer,
+    _In_ OhciIsocTransferDescriptor_t*  Td);
 
 /* OhciiTdRestart
  * Restarts a transfer descriptor by resettings it's status and updating buffers if the
@@ -521,8 +521,9 @@ OhciiTdValidate(
 __EXTERN
 void
 OhciiTdRestart(
-    _In_  UsbManagerTransfer_t*         Transfer,
-    _In_  OhciIsocTransferDescriptor_t* Td);
+    _In_ OhciController_t*              Controller,
+    _In_ UsbManagerTransfer_t*          Transfer,
+    _In_ OhciIsocTransferDescriptor_t*  Td);
 
 /*******************************************************************************
  * Queue Methods

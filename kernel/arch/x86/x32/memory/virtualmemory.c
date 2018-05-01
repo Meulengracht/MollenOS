@@ -586,8 +586,9 @@ MmVirtualDestroy(
 
         // Iterate pages in table
         for (j = 0; j < ENTRIES_PER_PAGE; j++) {
-            if (Pt->Pages[j] & PAGE_VIRTUAL)
+            if (Pt->Pages[j] & PAGE_VIRTUAL) {
                 continue;
+            }
 
             // If it has a mapping - free it
             if ((Pt->Pages[j] & PAGE_MASK) != 0) {

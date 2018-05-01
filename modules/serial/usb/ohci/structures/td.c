@@ -30,6 +30,7 @@
 
 /* Includes
  * - Library */
+#include <assert.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
@@ -219,35 +220,43 @@ OhciTdSynchronize(
  * Synchronizes toggles, updates buffer points if the transfer is not isochronous. */
 void
 OhciTdRestart(
-    _In_  UsbManagerTransfer_t*     Transfer,
-    _In_  OhciTransferDescriptor_t* Td)
+    _In_ OhciController_t*          Controller,
+    _In_ UsbManagerTransfer_t*      Transfer,
+    _In_ OhciTransferDescriptor_t*  Td)
 {
     // Variables
     OhciQueueHead_t *Qh     = NULL;
     uintptr_t BufferBaseUpdated = 0;
     uintptr_t BufferStep    = 0;
+    uintptr_t LinkAddress   = 0;
     int Toggle              = UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe);
 
-    Qh                  = (OhciQueueHead_t*)Transfer->EndpointDescriptor;
-    BufferStep          = Transfer->Transfer.Endpoint.MaxPacketSize;
+    Qh                      = (OhciQueueHead_t*)Transfer->EndpointDescriptor;
+    BufferStep              = Transfer->Transfer.Endpoint.MaxPacketSize;
 
     // Clear
-    Td->Flags          &= ~(OHCI_TD_TOGGLE);
+    Td->Flags               &= ~(OHCI_TD_TOGGLE);
     if (Toggle) {
-        Td->Flags      |= OHCI_TD_TOGGLE;
+        Td->Flags           |= OHCI_TD_TOGGLE;
     }
     UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, Toggle ^ 1);
 
     // Adjust buffer if not just restart
     if (Transfer->Status != TransferNAK) {
-        BufferBaseUpdated   = ADDLIMIT(Qh->BufferBase, Td->OriginalCbp, 
-            BufferStep, Qh->BufferBase + Transfer->Transfer.PeriodicBufferSize);
+        BufferBaseUpdated   = ADDLIMIT(Transfer->Transfer.Transactions[0].BufferAddress, Td->OriginalCbp, 
+            BufferStep, (Transfer->Transfer.Transactions[0].BufferAddress + Transfer->Transfer.PeriodicBufferSize));
         Td->OriginalCbp     = LODWORD(BufferBaseUpdated);
-        Qh->BufferBase      = LODWORD(BufferBaseUpdated);
     }
 
     // Reset attributes
-    Td->Flags       = Td->OriginalFlags;
-    Td->Cbp         = Td->OriginalCbp;
-    Td->BufferEnd   = Td->Cbp + (BufferStep - 1);
+    Td->Flags               = Td->OriginalFlags;
+    Td->Cbp                 = Td->OriginalCbp;
+    Td->BufferEnd           = Td->Cbp + (BufferStep - 1);
+    
+    // Restore link
+    UsbSchedulerGetPoolElement(Controller->Base.Scheduler,
+        (Td->Object.DepthIndex >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK, 
+        Td->Object.DepthIndex & USB_ELEMENT_INDEX_MASK, NULL, &LinkAddress);
+    Td->Link                = LinkAddress;
+    assert(Td->Link != 0);
 }
