@@ -22,7 +22,6 @@
  * - Transaction Translator Support
  */
 //#define __TRACE
-#define __COMPILE_ASSERT
 
 /* Includes
  * - System */
@@ -35,41 +34,6 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
-
-// Size assertions
-COMPILE_TIME_ASSERT(sizeof(EhciQueueHead_t) == 96);
-
-/* EhciQhAllocate
- * This allocates a QH for a Control, Bulk and Interrupt 
- * transaction and should not be used for isoc */
-EhciQueueHead_t*
-EhciQhAllocate(
-    _In_ EhciController_t*          Controller)
-{
-    // Variables
-    EhciQueueHead_t *Qh = NULL;
-    int i;
-
-    // Iterate the pool and find a free entry
-    SpinlockAcquire(&Controller->Base.Lock);
-    for (i = EHCI_POOL_QH_START; i < EHCI_POOL_NUM_QH; i++) {
-        if (Controller->QueueControl.QHPool[i].HcdFlags & EHCI_HCDFLAGS_ALLOCATED) {
-            continue;
-        }
-
-        // Set initial state
-        memset(&Controller->QueueControl.QHPool[i], 0, sizeof(EhciQueueHead_t));
-        Controller->QueueControl.QHPool[i].Index            = i;
-        Controller->QueueControl.QHPool[i].Overlay.Status   = EHCI_TD_HALTED;
-        Controller->QueueControl.QHPool[i].HcdFlags         = EHCI_HCDFLAGS_ALLOCATED;
-        Controller->QueueControl.QHPool[i].LinkIndex        = EHCI_NO_INDEX;
-        Controller->QueueControl.QHPool[i].ChildIndex       = EHCI_NO_INDEX;
-        Qh                                                  = &Controller->QueueControl.QHPool[i];
-        break;
-    }
-    SpinlockRelease(&Controller->Base.Lock);
-    return Qh;
-}
 
 /* EhciQhInitialize
  * This initiates any periodic scheduling information that might be needed */
@@ -169,72 +133,6 @@ EhciQhInitialize(
     return OsSuccess;
 }
 
-/* EhciLinkPeriodicQh
- * This function links an interrupt Qh into the schedule at Qh->sFrame 
- * and every other Qh->Interval */
-void
-EhciLinkPeriodicQh(
-    _In_ EhciController_t*          Controller, 
-    _In_ EhciQueueHead_t*           Qh)
-{
-    // Variables
-    int Interval    = (int)Qh->Interval;
-    int i;
-
-    // Sanity the interval, it must be _atleast_ 1
-    if (Interval == 0) {
-        Interval    = 1;
-    }
-
-    // Iterate the entire framelist and install the periodic qh
-    for (i = (int)Qh->sFrame; i < (int)Controller->QueueControl.FrameLength; i += Interval) {
-        // Retrieve a virtual pointer and a physical
-        EhciGenericLink_t *VirtualLink  = (EhciGenericLink_t*)&Controller->QueueControl.VirtualList[i];
-        reg32_t *PhysicalLink           = &Controller->QueueControl.FrameList[i];
-        EhciGenericLink_t This          = *VirtualLink;
-        reg32_t Type                    = 0;
-
-        // Iterate past isochronous tds
-        while (This.Address) {
-            Type = EHCI_LINK_TYPE(*PhysicalLink);
-            if (Type == EHCI_LINK_QH) {
-                break;
-            }
-
-            // Update iterators
-            VirtualLink     = EhciNextGenericLink(Controller, VirtualLink, Type);
-            PhysicalLink    = &This.Address;
-            This            = *VirtualLink;
-        }
-
-        // sorting each branch by period (slow-->fast)
-        // enables sharing interior tree nodes
-        while (This.Address && Qh != This.Qh) {
-            if (Qh->Interval > This.Qh->Interval) {
-                break;
-            }
-            VirtualLink     = EhciNextGenericLink(Controller, VirtualLink, Type);
-            PhysicalLink    = &This.Address;
-            This            = *VirtualLink;
-        }
-
-        // link in this qh, unless some earlier pass did that
-        if (Qh != This.Qh) {
-            Qh->LinkIndex       = This.Qh->Index;
-            if (This.Qh) {
-                Qh->LinkPointer = *PhysicalLink;
-            }
-
-            // Flush memory writes
-            MemoryBarrier();
-
-            // Perform linking
-            VirtualLink->Qh     = Qh;
-            *PhysicalLink       = (EHCI_POOL_QHINDEX(Controller, Qh->Index) | EHCI_LINK_QH);
-        }
-    }
-}
-
 /* EhciRestartQh
  * Restarts an interrupt QH by resetting it to it's start state */
 void
@@ -321,4 +219,26 @@ EhciScanQh(
         }
     }
     return ProcessQh;
+}
+
+/* EhciUnlinkGeneric
+ * Generic unlink from asynchronous list */
+void
+EhciUnlinkGeneric(
+    _In_ EhciController_t*  Controller, 
+    _In_ EhciQueueHead_t*   Qh)
+{
+    // Variables
+    EhciQueueHead_t *PrevQh = NULL;
+    
+    // Perform an asynchronous memory unlink
+    PrevQh = &Controller->QueueControl.QHPool[EHCI_POOL_QH_ASYNC];
+    while (PrevQh->LinkIndex != Qh->Index
+        && PrevQh->LinkIndex != EHCI_NO_INDEX) {
+        PrevQh = &Controller->QueueControl.QHPool[PrevQh->LinkIndex];
+    }
+
+    // Now make sure we skip over our qh
+    PrevQh->LinkPointer = Qh->LinkPointer;
+    PrevQh->LinkIndex   = Qh->LinkIndex;
 }

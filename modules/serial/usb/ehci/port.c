@@ -114,8 +114,8 @@ HciPortGetStatus(
  * Waits for power-on delay and resets port */
 OsStatus_t
 EhciPortSetup(
-    _In_ EhciController_t*  Controller,
-    _In_ int                Index) {
+    _In_ EhciController_t*          Controller,
+    _In_ int                        Index) {
     thrd_sleepex(100); // Wait for power-on delay
     return HciPortReset(&Controller->Base, Index);
 }
@@ -125,8 +125,8 @@ EhciPortSetup(
  * registers any events that happen. */
 OsStatus_t
 EhciPortCheck(
-    _In_ EhciController_t*  Controller,
-    _In_ int                Index)
+    _In_ EhciController_t*          Controller,
+    _In_ int                        Index)
 {
     // Variables
     reg32_t Status = Controller->OpRegisters->Ports[Index];
@@ -158,7 +158,7 @@ EhciPortCheck(
  * them accordingly. */
 void
 EhciPortScan(
-    _In_ EhciController_t *Controller) {
+    _In_ EhciController_t*          Controller) {
     for (size_t i = 0; i < Controller->Base.PortCount; i++) {
         EhciPortCheck(Controller, i);
     }

@@ -36,33 +36,6 @@
 #include <assert.h>
 #include <string.h>
 
-// Transfer descriptor assertions
-COMPILE_TIME_ASSERT(sizeof(EhciTransferDescriptor_t) == 64);
-
-/* EhciTdAllocate
- * This allocates a QTD (TD) for Control, Bulk and Interrupt */
-EhciTransferDescriptor_t*
-EhciTdAllocate(
-    _In_ EhciController_t *Controller)
-{
-    // Variables
-    EhciTransferDescriptor_t *Td = NULL;
-    int i;
-
-    // Acquire controller lock
-    SpinlockAcquire(&Controller->Base.Lock);
-    for (i = EHCI_POOL_TD_START; i < EHCI_POOL_NUM_TD; i++) {
-        if (Controller->QueueControl.TDPool[i].HcdFlags & EHCI_HCDFLAGS_ALLOCATED) {
-            continue;
-        }
-        Controller->QueueControl.TDPool[i].HcdFlags = EHCI_HCDFLAGS_ALLOCATED;
-        Td                                          = &Controller->QueueControl.TDPool[i];
-        break;
-    }
-    SpinlockRelease(&Controller->Base.Lock);
-    return Td;
-}
-
 /* EhciTdFill
  * This sets up a QTD (TD) buffer structure and makes 
  * sure it's split correctly out on all the pages */

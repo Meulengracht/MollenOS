@@ -48,8 +48,8 @@ HciControllerCreate(
     _In_ MCoreDevice_t*             Device)
 {
     // Variables
-    OhciController_t *Controller = NULL;
-    DeviceIoSpace_t *IoBase = NULL;
+    OhciController_t *Controller    = NULL;
+    DeviceIoSpace_t *IoBase         = NULL;
     int i;
 
     // Allocate a new instance of the controller

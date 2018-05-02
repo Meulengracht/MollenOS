@@ -393,17 +393,7 @@ UsbManagerScheduleTransfer(
         // Clear flag
         Transfer->Flags &= ~(TransferFlagUnschedule);
         HciTransactionFinalize(Controller, Transfer, 0);
-
-        // Cleanup on next process if set, otherwise cleanup now     
-        if (Controller->Scheduler->Settings.Flags & USB_SCHEDULER_DELAYED_CLEANUP) {
-            Transfer->Flags |= TransferFlagCleanup;
-        }
-        else {
-            Transfer->EndpointDescriptor = NULL;
-            if (UsbManagerFinalizeTransfer(Controller, Transfer) == OsSuccess) {
-                return ITERATOR_REMOVE;
-            }
-        }
+        Transfer->Flags |= TransferFlagCleanup;
     }
 
     // Has the transfer been marked for schedule?

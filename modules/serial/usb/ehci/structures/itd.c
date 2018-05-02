@@ -22,7 +22,6 @@
  * - Transaction Translator Support
  */
 //#define __TRACE
-#define __COMPILE_ASSERT
 
 /* Includes
  * - System */
@@ -35,39 +34,6 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
-
-// Isochronous assertions
-COMPILE_TIME_ASSERT(sizeof(EhciIsochronousDescriptor_t) == 160);
-
-/* EhciIsocTdAllocate
- * This allocates an isochronous high-speed transfer descriptor
- * transaction and can only be used for the above. */
-EhciIsochronousDescriptor_t*
-EhciIsocTdAllocate(
-    _In_ EhciController_t *Controller)
-{
-    // Variables
-    EhciIsochronousDescriptor_t *iTd = NULL;
-    int i;
-
-    // Iterate the pool and find a free entry
-    SpinlockAcquire(&Controller->Base.Lock);
-    for (i = 0; i < EHCI_POOL_NUM_ITD; i++) {
-        if (Controller->QueueControl.ITDPool[i].HcdFlags & EHCI_HCDFLAGS_ALLOCATED) {
-            continue;
-        }
-
-        // Set initial state
-        memset(&Controller->QueueControl.ITDPool[i], 0, sizeof(EhciIsochronousDescriptor_t));
-        Controller->QueueControl.ITDPool[i].Index            = i;
-        Controller->QueueControl.ITDPool[i].HcdFlags         = EHCI_HCDFLAGS_ALLOCATED;
-        Controller->QueueControl.ITDPool[i].LinkIndex        = EHCI_NO_INDEX;
-        iTd                                                  = &Controller->QueueControl.ITDPool[i];
-        break;
-    }
-    SpinlockRelease(&Controller->Base.Lock);
-    return iTd;
-}
 
 /* EhciIsocTdInitialize
  * This initiates any periodic scheduling information that might be needed */
@@ -166,60 +132,6 @@ EhciIsocTdInitialize(
         return OsError;
     }
     return OsSuccess;
-}
-
-/* EhciLinkPeriodicIsoc
- * This function links an isochronous td into the schedule at iTd->StartFrame 
- * and every other Td->Interval. */
-void
-EhciLinkPeriodicIsoc(
-    _In_ EhciController_t*              Controller, 
-    _In_ EhciIsochronousDescriptor_t*   iTd)
-{
-    // Variables
-    int Interval    = (int)iTd->Interval;
-    int i;
-
-    // Sanity the interval, it must be _atleast_ 1
-    if (Interval == 0) {
-        Interval    = 1;
-    }
-
-    // Iterate the entire framelist and install the periodic qh
-    for (i = (int)iTd->StartFrame; i < (int)Controller->QueueControl.FrameLength; i += Interval) {
-        // Retrieve a virtual pointer and a physical
-        EhciGenericLink_t *VirtualLink  = (EhciGenericLink_t*)&Controller->QueueControl.VirtualList[i];
-        reg32_t *PhysicalLink           = &Controller->QueueControl.FrameList[i];
-        EhciGenericLink_t This          = *VirtualLink;
-        reg32_t Type                    = 0;
-
-        // sorting each branch by period (slow-->fast)
-        // enables sharing interior tree nodes
-        while (This.Address && iTd != This.iTd) {
-            Type = EHCI_LINK_TYPE(*PhysicalLink);
-            if (Type != EHCI_LINK_iTD || iTd->Interval > This.iTd->Interval) {
-                break;
-            }
-            VirtualLink     = EhciNextGenericLink(Controller, VirtualLink, Type);
-            PhysicalLink    = &This.Address;
-            This            = *VirtualLink;
-        }
-
-        // link in this qh, unless some earlier pass did that
-        if (iTd != This.iTd) {
-            iTd->LinkIndex  = This.iTd->Index;
-            if (This.iTd) {
-                iTd->Link   = *PhysicalLink;
-            }
-
-            // Flush memory writes
-            MemoryBarrier();
-
-            // Perform linking
-            VirtualLink->iTd = iTd;
-            *PhysicalLink    = (EHCI_POOL_ITDINDEX(Controller, iTd->Index) | EHCI_LINK_iTD);
-        }
-    }
 }
 
 /* EhciRestartIsocTd

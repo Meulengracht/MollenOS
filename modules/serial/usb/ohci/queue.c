@@ -20,7 +20,7 @@
  * TODO:
  *    - Power Management
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes 
  * - System */
@@ -121,8 +121,7 @@ OhciQueueInitialize(
 
     // Initialize the scheduler
     TRACE(" > Configuring scheduler");
-    UsbSchedulerSettingsCreate(&Settings, OHCI_FRAMELIST_SIZE, 1, 900, 
-        USB_SCHEDULER_DELAYED_CLEANUP | USB_SCHEDULER_NULL_ELEMENT);
+    UsbSchedulerSettingsCreate(&Settings, OHCI_FRAMELIST_SIZE, 1, 900, USB_SCHEDULER_NULL_ELEMENT);
 
     UsbSchedulerSettingsConfigureFrameList(&Settings, (reg32_t*)&Controller->Hcca->InterruptTable[0],
         Controller->HccaPhysical + offsetof(OhciHCCA_t, InterruptTable));
@@ -325,7 +324,9 @@ HciProcessEvent(
     // Handle the reasons
     switch (Event) {
         case USB_EVENT_RESTART_DONE: {
-            OhciQhRestart((OhciController_t*)Controller, Transfer);
+            if (Transfer->Transfer.Type != IsochronousTransfer) {
+                OhciQhRestart((OhciController_t*)Controller, Transfer);
+            }
         } break;
     }
 }

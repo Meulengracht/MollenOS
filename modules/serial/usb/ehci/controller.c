@@ -169,8 +169,6 @@ HciControllerDestroy(
 
     // Free the list of endpoints
     CollectionDestroy(Controller->Endpoints);
-
-    // Free the controller structure
     free(Controller);
     return OsSuccess;
 }
@@ -180,7 +178,7 @@ HciControllerDestroy(
  * kind will stop working. Must be done before using the ehci-controller. */
 void
 EhciDisableLegacySupport(
-    _In_ EhciController_t *Controller)
+    _In_ EhciController_t*          Controller)
 {
     // Variables
     reg32_t Eecp = 0;
@@ -296,7 +294,7 @@ EhciDisableLegacySupport(
  * Halt's the controller and clears any pending events. */
 OsStatus_t
 EhciHalt(
-    _In_ EhciController_t *Controller)
+    _In_ EhciController_t*          Controller)
 {
     // Variables
     reg32_t TemporaryValue  = 0;
@@ -343,7 +341,7 @@ EhciHalt(
  * Silences the controller by halting it and marking it unconfigured. */
 void
 EhciSilence(
-    _In_ EhciController_t *Controller)
+    _In_ EhciController_t*          Controller)
 {
     // Debug
     TRACE("EhciSilence()");
@@ -358,7 +356,7 @@ EhciSilence(
  * Resets the controller from any state, leaves it post-reset state. */
 OsStatus_t
 EhciReset(
-    _In_ EhciController_t *Controller)
+    _In_ EhciController_t*          Controller)
 {
     // Variables
     reg32_t TemporaryValue  = 0;
@@ -390,10 +388,11 @@ EhciReset(
  * case of serious failures. */
 OsStatus_t
 EhciRestart(
-    _In_ EhciController_t *Controller)
+    _In_ EhciController_t*          Controller)
 {
     // Variables
-    reg32_t TemporaryValue                          = 0;
+    uintptr_t AsyncListHead = 0;
+    reg32_t TemporaryValue  = 0;
 
     // Debug
     TRACE("EhciRestart()");
@@ -405,16 +404,16 @@ EhciRestart(
         return OsError;
     }
 
-    // Reset certain indexes
+    // Reset certain indices
     Controller->OpRegisters->SegmentSelector        = 0;
     Controller->OpRegisters->FrameIndex             = 0;
     Controller->OpRegisters->UsbIntr                = 0;
     Controller->OpRegisters->UsbStatus              = Controller->OpRegisters->UsbStatus;
 
-    // Update the hardware registers to point to the newly allocated
-    // addresses
-    Controller->OpRegisters->PeriodicListAddress    = (reg32_t)Controller->QueueControl.FrameListPhysical;
-    Controller->OpRegisters->AsyncListAddress       = (reg32_t)EHCI_POOL_QHINDEX(Controller, EHCI_POOL_QH_ASYNC) | EHCI_LINK_QH;
+    // Update the hardware registers to point to the newly allocated addresses
+    UsbSchedulerGetPoolElement(Controller->Base.Scheduler, EHCI_QH_POOL, EHCI_QH_ASYNC, NULL, &AsyncListHead);
+    Controller->OpRegisters->PeriodicListAddress    = (reg32_t)Controller->Base.Scheduler->Settings.FrameListPhysical;
+    Controller->OpRegisters->AsyncListAddress       = LODWORD(AsyncListHead) | EHCI_LINK_QH;
 
     // Next step is to build the command configuring the controller
     // Set irq latency to 0, enable per-port changes, async park.
@@ -455,46 +454,25 @@ EhciRestart(
     return OsSuccess;
 }
 
-/* EhciSetup
- * Initializes the ehci-controller and boots it up into runnable state. */
+/* EhciWaitForCompanionControllers
+ * Waits for all companion controllers to be booted and initialized
+ * as the ehci controller must be setup last. */
 OsStatus_t
-EhciSetup(
-    _In_ EhciController_t *Controller)
+EhciWaitForCompanionControllers(
+    _In_ EhciController_t*          Controller)
 {
     // Variables
-    int Timeout                         = 3000;
     UsbHcController_t *HcController     = NULL;
-    reg32_t TemporaryValue              = 0;
-    size_t i                            = 0;
     int ControllerCount                 = 0;
     int CcStarted                       = 0;
     int CcToStart                       = 0;
+    int Timeout                         = 3000;
 
-    // Debug
-    TRACE("EhciSetup()");
-
-    // Disable legacy support in controller
-    EhciDisableLegacySupport(Controller);
-
-    // Are we configured to disable ehci?
-#ifdef __OSCONFIG_DISABLE_EHCI
-    _CRT_UNUSED(TemporaryValue);
-    _CRT_UNUSED(i);
-    EhciSilence(Controller);
-#else
-    // Save some read-only but often accessed information
-    Controller->Base.PortCount  = EHCI_SPARAM_PORTCOUNT(Controller->CapRegisters->SParams);
-    Controller->SParameters     = Controller->CapRegisters->SParams;
-    Controller->CParameters     = Controller->CapRegisters->CParams;
-
-    // We then stop the controller, reset it and 
-    // initialize data-structures
-    EhciQueueInitialize(Controller);
-    EhciRestart(Controller);
-
-    // Wait for all companion controllers to startup before handing off ports
+    // Initialize resources
     HcController                = (UsbHcController_t*)malloc(sizeof(UsbHcController_t));
     CcToStart                   = EHCI_SPARAM_CCCOUNT(Controller->SParameters);
+
+    // Wait
     TRACE("Waiting for %i cc's to boot", CcToStart);
     while (CcStarted < CcToStart && (Timeout > 0)) {
         int UpdatedControllerCount = 0;
@@ -523,6 +501,41 @@ EhciSetup(
         }
     }
     free(HcController);
+    return (Timeout != 0) ? OsSuccess : OsError;
+}
+
+/* EhciSetup
+ * Initializes the ehci-controller and boots it up into runnable state. */
+OsStatus_t
+EhciSetup(
+    _In_ EhciController_t*          Controller)
+{
+    // Variables
+    reg32_t TemporaryValue              = 0;
+    size_t i                            = 0;
+
+    // Debug
+    TRACE("EhciSetup()");
+
+    // Disable legacy support in controller
+    EhciDisableLegacySupport(Controller);
+
+    // Are we configured to disable ehci?
+#ifdef __OSCONFIG_DISABLE_EHCI
+    _CRT_UNUSED(TemporaryValue);
+    _CRT_UNUSED(i);
+    EhciSilence(Controller);
+#else
+    // Save some read-only but often accessed information
+    Controller->Base.PortCount  = EHCI_SPARAM_PORTCOUNT(Controller->CapRegisters->SParams);
+    Controller->SParameters     = Controller->CapRegisters->SParams;
+    Controller->CParameters     = Controller->CapRegisters->CParams;
+
+    // We then stop the controller, reset it and 
+    // initialize data-structures
+    EhciQueueInitialize(Controller);
+    EhciRestart(Controller);
+    EhciWaitForCompanionControllers(Controller);    
     
     // Now, controller is up and running
     // and we should start doing port setups by first powering on
@@ -551,7 +564,7 @@ EhciSetup(
             // Is the port destined for other controllers?
             // Port must be in K-State + low-speed
             if (EHCI_PORT_LINESTATUS(Controller->OpRegisters->Ports[i]) == EHCI_LINESTATUS_RELEASE) {
-                if (CcToStart != 0) {
+                if (EHCI_SPARAM_CCCOUNT(Controller->SParameters) != 0) {
                     if (Controller->CapRegisters->SParams & EHCI_SPARAM_PORTINDICATORS) {
                         Controller->OpRegisters->Ports[i] |= EHCI_PORT_COLOR_GREEN;
                     }

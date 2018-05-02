@@ -42,12 +42,6 @@
 #define EHCI_VERSION_10             0x0100
 #define EHCI_VERSION_11             0x0110
 
-/* Ehci::HcdFlags
- * Contains definitions and bitfield definitions for Ehci::HcdFlags */
-#define EHCI_HCDFLAGS_ALLOCATED     (1 << 0)
-#define EHCI_HCDFLAGS_UNSCHEDULE    (1 << 1)
-#define EHCI_HCDFLAGS_SHORTTRANSFER (1 << 2)
-
 /* EchiCapabilityRegisters
  * Describes capabilities and gives information about which features the
  * EHCI controller supports. */
@@ -204,7 +198,6 @@ PACKED_ATYPESTRUCT(volatile, EchiOperationalRegisters, {
 #define EHCI_LINK_siTD                  (2 << 1)
 #define EHCI_LINK_FSTN                  (3 << 1)
 #define EHCI_LINK_TYPE(n)               ((n >> 1) & 0x3)
-#define EHCI_NO_INDEX                   (int16_t)-1
 
 /* EhciIsochronousDescriptor
  * A generic isochronous transfer descripter specifcally for high-speed
@@ -216,16 +209,10 @@ PACKED_TYPESTRUCT(EhciIsochronousDescriptor, {
     reg32_t                 Buffers[7];
     reg32_t                 ExtBuffers[7]; // 92 bytes for all this
 
-    // Add 36+32 bytes for allocation easieness
-    reg32_t                 HcdFlags;
-    int16_t                 Index;
-    int16_t                 LinkIndex; // Remember to link by type
-    reg32_t                 Interval;
-    reg32_t                 Bandwidth;
-    reg32_t                 StartFrame;
-    int16_t                 QueueIndex;
+    // Software metadata
+    UsbSchedulerObject_t    Object;
+    uint16_t                QueueIndex;
     reg32_t                 TransactionsCopy[8];
-    uint8_t                 Padding[14];
 });
 
 /* EhciIsochronousDescriptor::Transactions[0-7]
@@ -276,20 +263,22 @@ PACKED_TYPESTRUCT(EhciIsochronousDescriptor, {
 
 /* EhciSplitIsochronousDescriptor
  * All Full-speed isochronous transfers through Transaction Translators 
- * are managed using the siTD data structure. 
- * Must be 32 byte aligned */
+ * are managed using the siTD data structure. Must be 32 byte aligned */
 PACKED_TYPESTRUCT(EhciSplitIsochronousDescriptor, {
-    reg32_t                     Link;
-    reg32_t                     Flags;
-    uint8_t                     FrameStartMask;
-    uint8_t                     FrameCompletionMask;
-    uint16_t                    Reserved;
-    reg32_t                     Status;
-    reg32_t                     Bp0AndOffset;
-    reg32_t                     Bp1AndInfo;
-    reg32_t                     BackPointer;
-    reg32_t                     ExtBp0;
-    reg32_t                     ExtBp1;
+    reg32_t                 Link;
+    reg32_t                 Flags;
+    uint8_t                 FrameStartMask;
+    uint8_t                 FrameCompletionMask;
+    uint16_t                Reserved;
+    reg32_t                 Status;
+    reg32_t                 Bp0AndOffset;
+    reg32_t                 Bp1AndInfo;
+    reg32_t                 BackPointer;
+    reg32_t                 ExtBp0;
+    reg32_t                 ExtBp1;
+
+    // Software metadata
+    UsbSchedulerObject_t    Object;
 });
 
 /* EhciSplitIsochronousDescriptor::Flags
@@ -351,24 +340,20 @@ PACKED_TYPESTRUCT(EhciSplitIsochronousDescriptor, {
 
 /* EhciTransferDescriptor
  * Generic transfer descriptor, used for bulk and control transactions.
- * 64 Bytes in size, 52 bytes HW. Rest is used for metadata. 
- * 32 Bytes Aligned. */
+ * 52 Bytes are used by hardware - structure must be 32 byte aligned. */
 PACKED_TYPESTRUCT(EhciTransferDescriptor, {
-    reg32_t                     Link;
-    reg32_t                     AlternativeLink; // Used if short-packet is detected
-    uint8_t                     Status;
-    uint8_t                     Token;
-    uint16_t                    Length;
-    reg32_t                     Buffers[5];
-    reg32_t                     ExtBuffers[5];
+    reg32_t                 Link;
+    reg32_t                 AlternativeLink; // Used if short-packet is detected
+    uint8_t                 Status;
+    uint8_t                 Token;
+    uint16_t                Length;
+    reg32_t                 Buffers[5];
+    reg32_t                 ExtBuffers[5];
 
-    // Not seen by hardware, 12 bytes
-    uint16_t                    HcdFlags;
-    uint16_t                    OriginalToken;
-    uint16_t                    OriginalLength;
-    int16_t                     Index;
-    int16_t                     LinkIndex;
-    int16_t                     AlternativeLinkIndex;
+    // Software metadata
+    UsbSchedulerObject_t    Object;
+    uint16_t                OriginalToken;
+    uint16_t                OriginalLength;
 });
 
 /* EhciTransferDescriptor::Status
@@ -450,29 +435,19 @@ PACKED_TYPESTRUCT(EhciQueueHeadOverlay, {
 #define EHCI_TD_SBYTES(Val)             ((Val >> 5) & 0x7F)
 
 /* EhciQueueHead
- * Generic queue head, contains a working area aswell. The structure is 68 bytes
- * so we add 28 bytes of metadata to work in 96-bytes.
- * The structure must be 32 byte aligned */
+ * Generic queue head, contains a working area aswell. 
+ * The structure must be 32 bytes aligned. */
 PACKED_TYPESTRUCT(EhciQueueHead, {
     reg32_t                 LinkPointer;
     reg32_t                 Flags;
     uint8_t                 FrameStartMask;
     uint8_t                 FrameCompletionMask;
     uint16_t                State;
-    reg32_t                 CurrentTD;
+    reg32_t                 Current;
     EhciQueueHeadOverlay_t  Overlay; // Current working area, contains td
 
-    // 68 bytes 
-    // Add 28 bytes for allocation easieness
-    reg32_t                 HcdFlags;
-    int16_t                 Index;
-    int16_t                 LinkIndex;
-    int16_t                 ChildIndex;
-    uint16_t                Unused;
-    reg32_t                 Interval;
-    reg32_t                 Bandwidth;
-    reg32_t                 sFrame;
-    reg32_t                 sMask;
+    // Software metadata
+    UsbSchedulerObject_t    Object;
 });
 
 /* EhciQueueHead::Flags
@@ -533,57 +508,49 @@ typedef union _EhciGenericLink {
 /* Ehci Pool Definitions
  * The Ehci controller must keep track of pools for each type of transfer object
  * - Queue Heads
- * - Isochronous (High-Speed) Descriptors
+ * - (+Split)Isochronous (High-Speed) Descriptors
  * - Queue Element Transfer Descriptors */
-#define EHCI_POOL_NUM_QH                60
-#define EHCI_POOL_NUM_ITD               60
-#define EHCI_POOL_NUM_TD                200
-#define EHCI_POOL_QHINDEX(Ctrl, Index)  (Ctrl->QueueControl.QHPoolPhysical + (Index * sizeof(EhciQueueHead_t)))
-#define EHCI_POOL_ITDINDEX(Ctrl, Index) (Ctrl->QueueControl.ITDPoolPhysical + (Index * sizeof(EhciIsochronousDescriptor_t)))
-#define EHCI_POOL_TDINDEX(Ctrl, Index)  (Ctrl->QueueControl.TDPoolPhysical + (Index * sizeof(EhciTransferDescriptor_t)))
+#define EHCI_QH_ALIGNMENT                   32
+#define EHCI_QH_POOL                        0
+#define EHCI_QH_COUNT                       50
 
-/* Ehci Queue Definitions
- * Defines fixed indices into the pool of queue heads */
-#define EHCI_POOL_QH_ASYNC              0
-#define EHCI_POOL_TD_ASYNC              0
+#define EHCI_TD_ALIGNMENT                   32
+#define EHCI_TD_POOL                        1
+#define EHCI_TD_COUNT                       400
 
-#define EHCI_POOL_QH_START              1
-#define EHCI_POOL_TD_START              1
+#define EHCI_iTD_ALIGNMENT                  32
+#define EHCI_iTD_POOL                       2
+#define EHCI_iTD_COUNT                      50
 
-/* EhciControl
- * Contains all necessary Queue related information
- * and information needed to schedule */
-typedef struct _EhciControl {
-    // Resources
-    EhciQueueHead_t*                QHPool;
-    uintptr_t                       QHPoolPhysical;
+#define EHCI_siTD_ALIGNMENT                 32
+#define EHCI_siTD_POOL                      3
+#define EHCI_siTD_COUNT                     50
 
-    EhciIsochronousDescriptor_t*    ITDPool;
-    uintptr_t                       ITDPoolPhysical;
-    
-    EhciTransferDescriptor_t*       TDPool;
-    uintptr_t                       TDPoolPhysical;
-    
-    // Frame-list resources
-    size_t                          PoolBytes;
-    size_t                          FrameLength;
-    reg32_t*                        FrameList;
-    uintptr_t                       FrameListPhysical;
-    uintptr_t*                      VirtualList;
+#define EHCI_QH_NULL                        0
+#define EHCI_QH_ASYNC                       1
+#define EHCI_QH_START                       2
 
-    // Transactions
-    int                             AsyncTransactions;
-    int                             BellIsRinging;
-    int                             BellReScan;
-} EhciControl_t;
+#define EHCI_TD_NULL                        0
+#define EHCI_TD_START                       1
+
+#define EHCI_iTD_NULL                       0
+#define EHCI_iTD_START                      1
+
+#define EHCI_siTD_NULL                      0
+#define EHCI_siTD_START                     1
 
 /* EhciController 
  * Contains all per-controller information that is
  * needed to control, queue and handle devices on an ehci-controller. */
 typedef struct _EhciController {
     UsbManagerController_t      Base;
-    EhciControl_t               QueueControl;
     UsbScheduler_t*             Scheduler;
+
+    // Transactions
+    int                         AsyncTransactions;
+    int                         BellIsRinging;
+    int                         BellReScan;
+    size_t                      FrameCount;
 
     // Registers and resources
     EchiCapabilityRegisters_t*  CapRegisters;
@@ -664,14 +631,6 @@ EhciPortScan(
  * Queue Head Methods
  *******************************************************************************/
 
-/* EhciQhAllocate
- * This allocates a QH for a Control, Bulk and Interrupt 
- * transaction and should not be used for isoc */
-__EXTERN
-EhciQueueHead_t*
-EhciQhAllocate(
-    _In_ EhciController_t *Controller);
-
 /* EhciQhInitialize
  * This initiates any periodic scheduling information 
  * that might be needed */
@@ -683,21 +642,20 @@ EhciQhInitialize(
     _In_ EhciQueueHead_t*   Qh,
     _In_ size_t             Address,
     _In_ size_t             Endpoint);
-    
+
+/* EhciLinkGeneric
+ * Generic link to asynchronous list */
+__EXTERN
+void
+EhciLinkGeneric(
+    _In_ EhciController_t*  Controller, 
+    _In_ EhciQueueHead_t*   Qh);
+
 /* EhciUnlinkGeneric
  * Generic unlink from asynchronous list */
 __EXTERN
 void
 EhciUnlinkGeneric(
-    _In_ EhciController_t*  Controller, 
-    _In_ EhciQueueHead_t*   Qh);
-
-/* EhciLinkPeriodicQh
- * This function links an interrupt Qh into the schedule at Qh->sFrame 
- * and every other Qh->Interval */
-__EXTERN
-void
-EhciLinkPeriodicQh(
     _In_ EhciController_t*  Controller, 
     _In_ EhciQueueHead_t*   Qh);
 
@@ -720,14 +678,6 @@ EhciScanQh(
 /*******************************************************************************
  * Isochronous TD Methods
  *******************************************************************************/
-
-/* EhciIsocTdAllocate
- * This allocates an isochronous high-speed transfer descriptor
- * transaction and can only be used for the above. */
-__EXTERN
-EhciIsochronousDescriptor_t*
-EhciIsocTdAllocate(
-    _In_ EhciController_t *Controller);
 
 /* EhciIsocTdInitialize
  * This initiates any periodic scheduling information that might be needed */
@@ -829,16 +779,6 @@ __EXTERN
 int
 EhciConditionCodeToIndex(
     _In_ unsigned           ConditionCode);
-
-/* EhciNextGenericLink
- * Get's a pointer to the next virtual link, only Qh's have this implemented 
- * right now and will need modifications */
-__EXTERN
-EhciGenericLink_t*
-EhciNextGenericLink(
-    _In_ EhciController_t*   Controller,
-    _In_ EhciGenericLink_t*  Link, 
-    _In_ int                 Type);
 
 /* EhciUnlinkPeriodic
  * Generic unlink from periodic list needs a bit more information as it
