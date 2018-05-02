@@ -115,7 +115,6 @@ OhciTdIo(
 
 /* OhciTdDump
  * Dumps the information contained in the descriptor by writing it. */
-__EXTERN
 void
 OhciTdDump(
     _In_ OhciController_t*          Controller,

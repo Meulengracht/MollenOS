@@ -34,6 +34,7 @@
 
 #include "../common/manager.h"
 #include "../common/scheduler.h"
+#include "../common/hci.h"
 
 /* EHCI Controller Definitions 
  * Contains generic magic constants and definitions */
@@ -548,8 +549,6 @@ typedef struct _EhciController {
 
     // Transactions
     int                         AsyncTransactions;
-    int                         BellIsRinging;
-    int                         BellReScan;
     size_t                      FrameCount;
 
     // Registers and resources
@@ -637,11 +636,19 @@ EhciPortScan(
 __EXTERN
 OsStatus_t
 EhciQhInitialize(
-    _In_ EhciController_t*  Controller,
-    _In_ UsbTransfer_t*     Transfer,
-    _In_ EhciQueueHead_t*   Qh,
-    _In_ size_t             Address,
-    _In_ size_t             Endpoint);
+    _In_ EhciController_t*          Controller,
+    _In_ UsbTransfer_t*             Transfer,
+    _In_ EhciQueueHead_t*           Qh,
+    _In_ size_t                     Address,
+    _In_ size_t                     Endpoint);
+
+/* EhciQhDump
+ * Dumps the information contained in the queue-head by writing it to stdout */
+__EXTERN
+void
+EhciQhDump(
+    _In_ EhciController_t*          Controller,
+    _In_ EhciQueueHead_t*           Qh);
 
 /* EhciLinkGeneric
  * Generic link to asynchronous list */
@@ -742,9 +749,18 @@ EhciTdIo(
     _In_ UsbTransaction_t*  Transaction,
     _In_ int                Toggle);
 
+/* EhciTdDump
+ * Dumps the information contained in the descriptor by writing it. */
+__EXTERN
+void
+EhciTdDump(
+    _In_ EhciController_t*          Controller,
+    _In_ EhciTransferDescriptor_t*  Td);
+
 /* EhciRestartTd
  * Resets a transfer descriptor to it's original state but updates both data toggles
  * and the buffer address (if interrupt) to reflect the reset. */
+__EXTERN
 void
 EhciRestartTd(
     _In_ EhciController_t*          Controller, 
@@ -780,16 +796,12 @@ int
 EhciConditionCodeToIndex(
     _In_ unsigned           ConditionCode);
 
-/* EhciUnlinkPeriodic
- * Generic unlink from periodic list needs a bit more information as it
- * is used for all formats */
+/* EhciRingDoorbell
+ * This functions rings the bell */
 __EXTERN
 void
-EhciUnlinkPeriodic(
-    _In_ EhciController_t*  Controller, 
-    _In_ uintptr_t          Address, 
-    _In_ size_t             Period, 
-    _In_ size_t             StartFrame);
+EhciRingDoorbell(
+     _In_ EhciController_t* Controller);
 
 /* EhciTransactionDispatch
  * Queues the transfer up in the controller hardware, after finalizing the
@@ -799,73 +811,5 @@ UsbTransferStatus_t
 EhciTransactionDispatch(
     _In_ EhciController_t*      Controller,
     _In_ UsbManagerTransfer_t*  Transfer);
-
-/*******************************************************************************
- * Queue (Generic) Methods
- *******************************************************************************/
-
-/* EhciTransactionFinalizeGeneric
- * Cleans up the transfer, deallocates resources and validates the td's */
-__EXTERN
-OsStatus_t
-EhciTransactionFinalizeGeneric(
-    _In_ EhciController_t*      Controller,
-    _In_ UsbManagerTransfer_t*  Transfer);
-
-/* EchiCleanupTransferGeneric
- * Cleans up transation and the transfer resources. This can only
- * be called after the hardware reference has been dropped. */
-__EXTERN
-OsStatus_t
-EchiCleanupTransferGeneric(
-    _In_  EhciController_t*     Controller,
-    _In_  UsbManagerTransfer_t* Transfer);
-
-/*******************************************************************************
- * Queue (Isochronous) Methods
- *******************************************************************************/
-
-/* EhciTransactionFinalizeIsoc
- * Cleans up the transfer, deallocates resources and validates the td's */
-__EXTERN
-OsStatus_t
-EhciTransactionFinalizeIsoc(
-    _In_ EhciController_t*      Controller,
-    _In_ UsbManagerTransfer_t*  Transfer);
-
-/* EchiCleanupTransferIsoc
- * Cleans up transation and the transfer resources. This can only
- * be called after the hardware reference has been dropped. */
-__EXTERN
-OsStatus_t
-EchiCleanupTransferIsoc(
-    _In_  EhciController_t*     Controller,
-    _In_  UsbManagerTransfer_t* Transfer);
-
-/*******************************************************************************
- * Interrupt Context Methods
- *******************************************************************************/
-
-/* EhciRingDoorbell
- * This functions rings the bell */
-__EXTERN
-void
-EhciRingDoorbell(
-     _In_ EhciController_t* Controller);
-
-/* EhciProcessTransfers
- * For transaction progress this involves done/error transfers */
-__EXTERN
-void
-EhciProcessTransfers(
-    _In_ EhciController_t*  Controller);
-
-/* EhciProcessDoorBell
- * This makes sure to schedule and/or unschedule transfers */
-__EXTERN
-void
-EhciProcessDoorBell(
-    _In_ EhciController_t*  Controller,
-    _In_ int                InitialScan);
 
 #endif //!__USB_EHCI__

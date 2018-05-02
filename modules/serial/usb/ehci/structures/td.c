@@ -169,6 +169,26 @@ EhciTdIo(
     return Td;
 }
 
+/* EhciTdDump
+ * Dumps the information contained in the descriptor by writing it. */
+void
+EhciTdDump(
+    _In_ EhciController_t*          Controller,
+    _In_ EhciTransferDescriptor_t*  Td)
+{
+    // Variables
+    uintptr_t PhysicalAddress   = 0;
+
+    UsbSchedulerGetPoolElement(Controller->Base.Scheduler, EHCI_TD_POOL, 
+        Td->Object.Index & USB_ELEMENT_INDEX_MASK, NULL, &PhysicalAddress);
+    WARNING("EHCI: TD(0x%x), Link(0x%x), AltLink(0x%x), Status(0x%x), Token(0x%x)",
+        PhysicalAddress, Td->Link, Td->AlternativeLink, Td->Status, Td->Token);
+    WARNING("          Length(0x%x), Buffer0(0x%x:0x%x), Buffer1(0x%x:0x%x)",
+        Td->Length, Td->ExtBuffers[0], Td->Buffers[0], Td->ExtBuffers[1], Td->Buffers[1]);
+    WARNING("          Buffer2(0x%x:0x%x), Buffer3(0x%x:0x%x), Buffer4(0x%x:0x%x)", 
+        Td->ExtBuffers[2], Td->Buffers[2], Td->ExtBuffers[3], Td->Buffers[3], Td->ExtBuffers[4], Td->Buffers[4]);
+}
+
 /* EhciRestartTd
  * Resets a transfer descriptor to it's original state but updates both data toggles
  * and the buffer address (if interrupt) to reflect the reset. */

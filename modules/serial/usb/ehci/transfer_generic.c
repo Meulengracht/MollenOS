@@ -34,38 +34,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* EhciTransactionInitialize
- * Initializes a transaction by allocating a new endpoint-descriptor
- * and preparing it for usage. This is used to initialize transfers of type
- * Control, Bulk and Interrupt. */
-static OsStatus_t
-EhciTransactionInitialize(
-    _In_  EhciController_t* Controller,
-    _In_  UsbTransfer_t*    Transfer,
-    _In_  size_t            Pipe,
-    _Out_ void**            DescriptorOut)
-{
-    // Variables
-    EhciQueueHead_t *Qh = EhciQhAllocate(Controller);
-    size_t Address      = 0;
-    size_t Endpoint     = 0;
-
-    // Extract address and endpoint
-    Address             = HIWORD(Pipe);
-    Endpoint            = LOWORD(Pipe);
-    if (Qh != NULL) {
-        *DescriptorOut  = (void*)Qh;
-        if (EhciQhInitialize(Controller, Transfer, Qh, Address, Endpoint) != OsSuccess) {
-            return OsError;
-        }
-    }
-    else {
-        *DescriptorOut  = USB_OUT_OF_RESOURCES;
-        return OsError;
-    }
-    return OsSuccess;
-}
-
 /* EhciTransactionCount
  * Returns the number of transactions neccessary for the transfer. */
 static OsStatus_t
@@ -255,167 +223,52 @@ EhciTransferFill(
     }
 }
 
-/* EchiCleanupTransferGeneric
- * Cleans up transation and the transfer resources. This can only
- * be called after the hardware reference has been dropped. */
-OsStatus_t
-EchiCleanupTransferGeneric(
-    _In_  EhciController_t*     Controller,
-    _In_  UsbManagerTransfer_t* Transfer)
-{
-    // Variables
-    EhciQueueHead_t *Qh             =(EhciQueueHead_t*)Transfer->EndpointDescriptor;
-    EhciTransferDescriptor_t *Td    = NULL;
-    CollectionItem_t *Node          = NULL;
-    int BytesLeft                   = 0;
-
-    // Free all the td's while we hopefully get unscheduled
-    Td = &Controller->QueueControl.TDPool[Qh->ChildIndex];
-    while (Td) {
-        int LinkIndex   = Td->LinkIndex;
-        int Index       = Td->Index;
-
-        // Reset structure but store index
-        memset((void *)Td, 0, sizeof(EhciTransferDescriptor_t));
-        Td->Index       = Index;
-
-        // Switch to next transfer descriptor
-        if (LinkIndex != EHCI_NO_INDEX) {
-            Td = &Controller->QueueControl.TDPool[LinkIndex];
-        }
-        else {
-            break;
-        }
-    }
-
-    // Free bandwidth in case of interrupt transfer
-    if (Transfer->Transfer.Type == InterruptTransfer) {
-        UsbSchedulerReleaseBandwidth(Controller->Scheduler, Qh->Interval, Qh->Bandwidth, Qh->sFrame, Qh->sMask);
-    }
-
-    // Is the transfer done?
-    if ((Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer)
-        && Transfer->Status == TransferFinished
-        && Transfer->TransactionsExecuted != Transfer->TransactionsTotal
-        && !(Qh->HcdFlags & EHCI_HCDFLAGS_SHORTTRANSFER)) {
-        BytesLeft = 1;
-    }
-
-    // We don't allocate the queue head before the transfer
-    // is done, we might not be done yet
-    if (BytesLeft == 1) {
-        // Queue up more data
-        if (EhciTransferFill(Controller, Transfer) == OsSuccess) {
-            EhciTransactionDispatch(Controller, Transfer);
-        }
-        return OsError;
-    }
-    else {
-        Controller->QueueControl.AsyncTransactions--;
-    }
-
-    // Now run through transactions and check if any are ready to run
-    memset((void*)Qh, 0, sizeof(EhciQueueHead_t));
-    Transfer->EndpointDescriptor = NULL;
-    _foreach(Node, Controller->Base.TransactionList) {
-        UsbManagerTransfer_t *NextTransfer = (UsbManagerTransfer_t*)Node->Data;
-        if (NextTransfer->Status == TransferNotProcessed) {
-            if (EhciTransferFill(Controller, NextTransfer) == OsSuccess) {
-                EhciTransactionDispatch(Controller, NextTransfer);
-            }
-        }
-    }
-    return OsSuccess;
-}
-
-/* EhciTransactionFinalizeGeneric
- * Cleans up the transfer, deallocates resources and validates the td's */
-OsStatus_t
-EhciTransactionFinalizeGeneric(
-    _In_ EhciController_t*      Controller,
-    _In_ UsbManagerTransfer_t*  Transfer)
-{
-    // Variables
-    EhciQueueHead_t *Qh             = (EhciQueueHead_t*)Transfer->EndpointDescriptor;
-    int BytesLeft                   = 0;
-    UsbTransferResult_t Result;
-    
-    // Debug
-    TRACE("EhciTransactionFinalizeGeneric()");
-
-    // Unlink the endpoint descriptor 
-    SpinlockAcquire(&Controller->Base.Lock);
-    EhciSetPrefetching(Controller, Transfer->Transfer.Type, 0);
-    if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
-        EhciUnlinkGeneric(Controller, Qh);
-    }
-    else if (Transfer->Transfer.Type == InterruptTransfer) {
-        EhciUnlinkPeriodic(Controller, (uintptr_t)Qh, Qh->Interval, Qh->sFrame);
-    }
-    EhciSetPrefetching(Controller, Transfer->Transfer.Type, 1);
-    SpinlockRelease(&Controller->Base.Lock);
-    
-    // Is the transfer done?
-    if ((Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer)
-        && Transfer->Status == TransferFinished
-        && Transfer->TransactionsExecuted != Transfer->TransactionsTotal
-        && !(Qh->HcdFlags & EHCI_HCDFLAGS_SHORTTRANSFER)) {
-        BytesLeft = 1;
-    }
-
-    // Should we notify the user here?
-    if (BytesLeft != 1) {
-        if (Transfer->Requester != UUID_INVALID && 
-            (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer)) {
-            Result.Id                   = Transfer->Id;
-            Result.BytesTransferred     = Transfer->BytesTransferred[0];
-            Result.BytesTransferred     += Transfer->BytesTransferred[1];
-            Result.BytesTransferred     += Transfer->BytesTransferred[2];
-            Result.Status               = Transfer->Status;
-            PipeSend(Transfer->Requester, Transfer->ResponsePort, (void*)&Result, sizeof(UsbTransferResult_t));
-        }
-    }
-
-    // Mark for unscheduling, this will then be handled at the next door-bell
-    Qh->HcdFlags |= EHCI_HCDFLAGS_UNSCHEDULE;
-    EhciRingDoorbell(Controller);
-    return OsSuccess;
-}
-
 /* HciQueueTransferGeneric 
  * Queues a new asynchronous/interrupt transfer for the given driver and pipe. 
  * The function does not block. */
 UsbTransferStatus_t
 HciQueueTransferGeneric(
-    _In_ UsbManagerTransfer_t*      Transfer)
+    _In_ UsbManagerTransfer_t*  Transfer)
 {
     // Variables
-    EhciController_t *Controller    = NULL;
+    EhciQueueHead_t *EndpointDescriptor     = NULL;
+    EhciController_t *Controller            = NULL;
+    size_t Address, Endpoint;
     DataKey_t Key;
 
     // Get Controller
-    Controller = (EhciController_t *)UsbManagerGetController(Transfer->DeviceId);
+    Controller          = (EhciController_t*)UsbManagerGetController(Transfer->DeviceId);
+    Transfer->Status    = TransferNotProcessed;
 
-    // Update the stored information
-    Transfer->Status                = TransferNotProcessed;
+    // Extract address and endpoint
+    Address     = HIWORD(Transfer->Pipe);
+    Endpoint    = LOWORD(Transfer->Pipe);
 
-    // Initialize
-    if (EhciTransactionInitialize(Controller, &Transfer->Transfer, 
-        Transfer->Pipe, &Transfer->EndpointDescriptor) != OsSuccess) {
-        return TransferNoBandwidth;
+    // Step 1 - Allocate queue head
+    if (Transfer->EndpointDescriptor == NULL) {
+        if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, 
+            EHCI_QH_POOL, (uint8_t**)&EndpointDescriptor) != OsSuccess) {
+            return TransferQueued;
+        }
+        assert(EndpointDescriptor != NULL);
+        Transfer->EndpointDescriptor = EndpointDescriptor;
+
+        // Store and initialize the qh
+        if (OhciQhInitialize(Controller, Transfer, Address, Endpoint) != OsSuccess) {
+            // No bandwidth, serious.
+            UsbSchedulerFreeElement(Controller->Base.Scheduler, (uint8_t*)EndpointDescriptor);
+            return TransferNoBandwidth;
+        }
     }
 
-    // If it's a control transfer set initial toggle 0
-    if (Transfer->Transfer.Type == ControlTransfer) {
-        UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, 0);
+    // Store transaction in queue if it's not there already
+    Key.Value = (int)Transfer->Id;
+    if (CollectionGetDataByKey(Controller->Base.TransactionList, Key, 0) == NULL) {
+        CollectionAppend(Controller->Base.TransactionList, CollectionCreateNode(Key, Transfer));
+        EhciTransactionCount(Controller, Transfer, &Transfer->TransactionsTotal);
     }
 
-    // Store transaction in queue
-    Key.Value = 0;
-    CollectionAppend(Controller->Base.TransactionList, CollectionCreateNode(Key, Transfer));
-
-    // Count the transaction count
-    EhciTransactionCount(Controller, Transfer, &Transfer->TransactionsTotal);
+    // If it fails to queue up => restore toggle
     if (EhciTransferFill(Controller, Transfer) != OsSuccess) {
         return TransferQueued;
     }

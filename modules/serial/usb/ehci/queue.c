@@ -119,7 +119,8 @@ EhciQueueInitialize(
 
     // Initialize the scheduler
     TRACE(" > Configuring scheduler");
-    UsbSchedulerSettingsCreate(&Settings, Controller->FrameCount, 1, EHCI_MAX_BANDWIDTH, USB_SCHEDULER_FRAMELIST);
+    UsbSchedulerSettingsCreate(&Settings, Controller->FrameCount, 1, EHCI_MAX_BANDWIDTH, 
+        USB_SCHEDULER_DEFERRED_CLEAN | USB_SCHEDULER_FRAMELIST);
 
     // Add Queue-Heads
     UsbSchedulerSettingsAddPool(&Settings, sizeof(EhciQueueHead_t), EHCI_QH_ALIGNMENT, EHCI_QH_COUNT, 
@@ -342,14 +343,7 @@ void
 EhciRingDoorbell(
     _In_ EhciController_t*  Controller)
 {
-    // If the bell is already ringing, force a re-bell
-    if (!Controller->BellIsRinging) {
-        Controller->BellIsRinging           = 1;
-        Controller->OpRegisters->UsbCommand |= EHCI_COMMAND_IOC_ASYNC_DOORBELL;
-    }
-    else {
-        Controller->BellReScan              = 1;
-    }
+    Controller->OpRegisters->UsbCommand |= EHCI_COMMAND_IOC_ASYNC_DOORBELL;
 }
 
 /* HciProcessElement 
@@ -372,7 +366,7 @@ HciProcessElement(
     switch (Reason) {
         case USB_REASON_DUMP: {
             if (Element == (uint8_t*)Transfer->EndpointDescriptor) {
-                OhciQhDump((EhciController_t*)Controller, (EhciQueueHead_t*)Element);
+                EhciQhDump((EhciController_t*)Controller, (EhciQueueHead_t*)Element);
             }
             else if (Transfer->Transfer.Type != IsochronousTransfer) {
                 OhciTdDump((EhciController_t*)Controller, (EhciTransferDescriptor_t*)Element);
@@ -423,12 +417,17 @@ HciProcessElement(
         case USB_REASON_LINK: {
             // If it's a queue head link that
             if (Element == (uint8_t*)Transfer->EndpointDescriptor) {
+                SpinlockAcquire(&Controller->Lock);
+                EhciSetPrefetching((EhciController_t*)Controller, Transfer->Transfer.Type, 0);
                 if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
                     EhciLinkGeneric((EhciController_t*)Controller, (EhciQueueHead_t*)Element);
                 }
                 else {
                     UsbSchedulerLinkPeriodicElement(Controller->Scheduler, Element);
                 }
+                EhciSetPrefetching((EhciController_t*)Controller, Transfer->Transfer.Type, 1);
+                EhciEnableScheduler((EhciController_t*)Controller, Transfer->Transfer.Type);
+                SpinlockRelease(&Controller->Lock);
                 return ITERATOR_STOP;
             }
         } break;
@@ -436,12 +435,16 @@ HciProcessElement(
         case USB_REASON_UNLINK: {
             // If it's a queue head link that
             if (Element == (uint8_t*)Transfer->EndpointDescriptor) {
+                SpinlockAcquire(&Controller->Lock);
+                EhciSetPrefetching((EhciController_t*)Controller, Transfer->Transfer.Type, 0);
                 if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
                     EhciUnlinkGeneric((EhciController_t*)Controller, (EhciQueueHead_t*)Element);
                 }
                 else {
                     UsbSchedulerUnlinkPeriodicElement(Controller->Scheduler, Element);
                 }
+                EhciSetPrefetching((EhciController_t*)Controller, Transfer->Transfer.Type, 1);
+                SpinlockRelease(&Controller->Lock);
                 return ITERATOR_STOP;
             }
         } break;
@@ -477,135 +480,4 @@ HciProcessEvent(
             }
         } break;
     }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* EhciProcessTransfers
- * For transaction progress this involves done/error transfers */
-void
-EhciProcessTransfers(
-    _In_ EhciController_t *Controller)
-{
-    // Iterate active transfers
-    foreach(Node, Controller->Base.TransactionList) {
-        // Instantiate a transaction pointer
-        UsbManagerTransfer_t *Transfer  = (UsbManagerTransfer_t*)Node->Data;
-        int Processed                   = 0;
-
-        // Handle different transfer types
-        if (Transfer->Transfer.Type != IsochronousTransfer) {
-            Processed = EhciScanQh(Controller, Transfer);
-            if (Processed) {
-                if (Transfer->Transfer.Type == InterruptTransfer) {
-                    EhciRestartQh(Controller, Transfer);
-                }
-                else {
-                    EhciTransactionFinalizeGeneric(Controller, Transfer);
-                }
-            }
-        }
-        else {
-            Processed = EhciScanIsocTd(Controller, Transfer);
-            if (Processed) {
-                EhciRestartIsocTd(Controller, Transfer);
-            }
-        }
-
-        if (Processed && 
-            (Transfer->Transfer.Type == InterruptTransfer || Transfer->Transfer.Type == IsochronousTransfer)) {
-            UsbManagerSendNotification(Transfer);
-        }
-    }
-}
-
-/* EhciProcessDoorBell
- * This makes sure to schedule and/or unschedule transfers */
-void
-EhciProcessDoorBell(
-    _In_ EhciController_t*  Controller,
-    _In_ int                InitialScan)
-{
-    // Variables
-    CollectionItem_t *Node = NULL;
-
-Scan:
-    // As soon as we enter the scan area we reset the re-scan
-    // to allow other threads to set it again
-    Controller->BellReScan = 0;
-
-    // Iterate active transfers
-    _foreach_nolink(Node, Controller->Base.TransactionList) {
-        // Instantiate a transaction pointer
-        UsbManagerTransfer_t *Transfer  = (UsbManagerTransfer_t*)Node->Data;
-        if (Transfer->Transfer.Type != IsochronousTransfer) {
-            EhciQueueHead_t *Qh         = (EhciQueueHead_t*)Transfer->EndpointDescriptor;
-            if ((Qh->HcdFlags & EHCI_HCDFLAGS_UNSCHEDULE) && InitialScan != 0) {
-                if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
-                    // Nothing to do here really for now
-                }
-            }
-            else if ((Qh->HcdFlags & EHCI_HCDFLAGS_UNSCHEDULE) && InitialScan == 0) {
-                Qh->HcdFlags &= ~(EHCI_HCDFLAGS_UNSCHEDULE);
-                if (EchiCleanupTransferGeneric(Controller, Transfer) == OsSuccess) {
-                    CollectionItem_t *NextNode = CollectionUnlinkNode(Controller->Base.TransactionList, Node);
-                    CollectionDestroyNode(Controller->Base.TransactionList, Node);
-                    Node = NextNode;
-                    free(Transfer);
-                    continue;
-                }
-            }
-        }
-        else { // Isochronous transfers
-            EhciIsochronousDescriptor_t *iTd = (EhciIsochronousDescriptor_t*)Transfer->EndpointDescriptor;
-            if ((iTd->HcdFlags & EHCI_HCDFLAGS_UNSCHEDULE) && InitialScan != 0) {
-                // Nothing to do here really for now
-            }
-            else if ((iTd->HcdFlags & EHCI_HCDFLAGS_UNSCHEDULE) && InitialScan == 0) {
-                iTd->HcdFlags &= ~(EHCI_HCDFLAGS_UNSCHEDULE);
-                if (EchiCleanupTransferIsoc(Controller, Transfer) == OsSuccess) {
-                    CollectionItem_t *NextNode = CollectionUnlinkNode(Controller->Base.TransactionList, Node);
-                    CollectionDestroyNode(Controller->Base.TransactionList, Node);
-                    Node = NextNode;
-                    free(Transfer);
-                    continue;
-                }
-            }
-        }
-        
-        // Go to next
-        Node = CollectionNext(Node);
-    }
-
-    // If someone has rung the bell while 
-    // the door was opened, we should not close the door yet
-    if (Controller->BellReScan != 0) {
-        goto Scan;
-    }
-
-    // Bell is no longer ringing
-    Controller->BellIsRinging = 0;
 }

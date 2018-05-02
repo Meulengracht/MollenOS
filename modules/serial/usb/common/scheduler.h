@@ -132,7 +132,8 @@ typedef struct _UsbSchedulerSettings {
 #define USB_SCHEDULER_FRAMELIST         (1 << 0) // If set, we should create a framelist
 #define USB_SCHEDULER_FL64              (1 << 1) // If set, use the 64 bit framelist
 #define USB_SCHEDULER_NULL_ELEMENT      (1 << 2) // If set, all chains make use of null-elements
-#define USB_SCHEDULER_LINK_BIT_EOL      (1 << 3) // Specify that empty links must be marked with EOL
+#define USB_SCHEDULER_DEFERRED_CLEAN    (1 << 3) // If set, cleanup must occur later than unlink
+#define USB_SCHEDULER_LINK_BIT_EOL      (1 << 4) // Specify that empty links must be marked with EOL
 
 /* UsbScheduler
  * Contains information neccessary to keep track of scheduling

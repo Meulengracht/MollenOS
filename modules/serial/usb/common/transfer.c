@@ -74,21 +74,40 @@ void
 UsbManagerSendNotification(
     _In_ UsbManagerTransfer_t*  Transfer)
 {
+    // Variables
+    UsbTransferResult_t Result;
+    
     // If user doesn't want, ignore
     if (Transfer->Transfer.Flags & USB_TRANSFER_NO_NOTIFICATION) {
         return;
     }
 
-    // Send interrupt
-    InterruptDriver(
-        Transfer->Requester,                        // Process
-        (size_t)Transfer->Transfer.PeriodicData,    // Data pointer 
-        Transfer->Status,                           // Status of transfer
-        Transfer->CurrentDataIndex, 0);             // Data offset (not used in isoc)
+    // If notification has been sent on control/bulk do not send again
+    if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
+        if ((Transfer->Flags & TransferFlagNotified) || Transfer->Requester == UUID_INVALID) {
+            return;
+        }
+        Transfer->Flags |= TransferFlagNotified;
+        Result.Id               = Transfer->Id;
+        Result.BytesTransferred = Transfer->BytesTransferred[0];
+        Result.BytesTransferred += Transfer->BytesTransferred[1];
+        Result.BytesTransferred += Transfer->BytesTransferred[2];
 
-    // Increase
-    if (Transfer->Transfer.Type == InterruptTransfer) {
-        Transfer->CurrentDataIndex = ADDLIMIT(0, Transfer->CurrentDataIndex,
-            Transfer->Transfer.Transactions[0].Length, Transfer->Transfer.PeriodicBufferSize);
+        Result.Status           = Transfer->Status;
+        PipeSend(Transfer->Requester, Transfer->ResponsePort, (void*)&Result, sizeof(UsbTransferResult_t));
+    }
+    else {
+        // Send interrupt
+        InterruptDriver(
+            Transfer->Requester,                        // Process
+            (size_t)Transfer->Transfer.PeriodicData,    // Data pointer 
+            Transfer->Status,                           // Status of transfer
+            Transfer->CurrentDataIndex, 0);             // Data offset (not used in isoc)
+
+        // Increase
+        if (Transfer->Transfer.Type == InterruptTransfer) {
+            Transfer->CurrentDataIndex = ADDLIMIT(0, Transfer->CurrentDataIndex,
+                Transfer->Transfer.Transactions[0].Length, Transfer->Transfer.PeriodicBufferSize);
+        }
     }
 }

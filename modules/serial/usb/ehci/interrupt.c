@@ -45,11 +45,11 @@ OnFastInterrupt(
     _In_Opt_ void *InterruptData)
 {
     // Variables
-    EhciController_t *Controller = NULL;
+    EhciController_t *Controller    = NULL;
     reg32_t InterruptStatus;
 
     // Instantiate the pointer
-    Controller      = (EhciController_t*)InterruptData;
+    Controller                      = (EhciController_t*)InterruptData;
 
     // Calculate the kinds of interrupts this controller accepts
     InterruptStatus = (Controller->OpRegisters->UsbStatus & Controller->OpRegisters->UsbIntr);
@@ -61,11 +61,6 @@ OnFastInterrupt(
     if (!InterruptStatus) {
         return InterruptNotHandled;
     }
-
-    // Handle unscheduling events
-    //if (InterruptStatus & EHCI_STATUS_ASYNC_DOORBELL) {
-    //    EhciProcessDoorBell(Controller, 1);
-    //}
 
     // Acknowledge the interrupt by clearing
     Controller->OpRegisters->UsbStatus  = InterruptStatus;
@@ -84,8 +79,8 @@ OnInterrupt(
     _In_Opt_ size_t Arg2)
 {
     // Variables
-    EhciController_t *Controller    = NULL;
-    reg32_t InterruptStatus         = 0;
+    EhciController_t *Controller        = NULL;
+    reg32_t InterruptStatus             = 0;
     
     // Unused
     _CRT_UNUSED(Arg0);
@@ -93,15 +88,15 @@ OnInterrupt(
     _CRT_UNUSED(Arg2);
 
     // Instantiate the pointer
-    Controller      = (EhciController_t*)InterruptData;
+    Controller                          = (EhciController_t*)InterruptData;
 
 ProcessInterrupt:
-    InterruptStatus = Controller->Base.InterruptStatus;
-    Controller->Base.InterruptStatus = 0;
+    InterruptStatus                     = Controller->Base.InterruptStatus;
+    Controller->Base.InterruptStatus    = 0;
 
     // Transaction update, either error or completion
-    if (InterruptStatus & (EHCI_STATUS_PROCESS | EHCI_STATUS_PROCESSERROR)) {
-        EhciProcessTransfers(Controller);
+    if (InterruptStatus & (EHCI_STATUS_PROCESS | EHCI_STATUS_PROCESSERROR | EHCI_STATUS_ASYNC_DOORBELL)) {
+        UsbManagerProcessTransfers(&Controller->Base);
     }
 
     // Hub change? We should enumerate ports and detect
@@ -121,11 +116,6 @@ ProcessInterrupt:
         }
     }
 
-    // Doorbell? Process transactions in progress
-    if (InterruptStatus & EHCI_STATUS_ASYNC_DOORBELL) {
-        EhciProcessDoorBell(Controller, 0);
-    }
-    
     // In case an interrupt fired during processing
     if (Controller->Base.InterruptStatus != 0) {
         goto ProcessInterrupt;

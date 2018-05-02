@@ -186,6 +186,7 @@ HciDequeueTransfer(
 
     // Get Controller
     Controller  = (OhciController_t*)UsbManagerGetController(Transfer->DeviceId);
+    assert(Controller != NULL);
 
     // Mark for unscheduling and
     // enable SOF, ED is not scheduled before

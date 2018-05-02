@@ -40,6 +40,7 @@ typedef enum _UsbManagerTransferFlags {
     TransferFlagSchedule    = 0x4,
     TransferFlagUnschedule  = 0x8,
     TransferFlagCleanup     = 0x10,
+    TransferFlagNotified    = 0x20
 } UsbManagerTransferFlags_t;
 
 /* UsbManagerTransfer

@@ -288,7 +288,6 @@ UsbManagerFinalizeTransfer(
     _In_ UsbManagerTransfer_t*      Transfer)
 {
     // Variables
-    UsbTransferResult_t Result;
     CollectionItem_t *Node      = NULL;
     int BytesLeft               = 0;
 
@@ -308,16 +307,7 @@ UsbManagerFinalizeTransfer(
     }
     else {
         // Should we notify the user here?...
-        if (Transfer->Requester != UUID_INVALID && 
-            (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer)) {
-            Result.Id               = Transfer->Id;
-            Result.BytesTransferred = Transfer->BytesTransferred[0];
-            Result.BytesTransferred += Transfer->BytesTransferred[1];
-            Result.BytesTransferred += Transfer->BytesTransferred[2];
-
-            Result.Status           = Transfer->Status;
-            PipeSend(Transfer->Requester, Transfer->ResponsePort, (void*)&Result, sizeof(UsbTransferResult_t));
-        }
+        UsbManagerSendNotification(Transfer);
 
         // Now run through transactions and check if any are ready to run
         _foreach(Node, Controller->TransactionList) {
@@ -474,9 +464,11 @@ UsbManagerProcessTransfer(
     }
     else if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
         HciTransactionFinalize(Controller, Transfer, 0);
-        Transfer->EndpointDescriptor = NULL;
-        if (UsbManagerFinalizeTransfer(Controller, Transfer) == OsSuccess) {
-            return ITERATOR_REMOVE;
+        if (!(Controller->Scheduler->Settings.Flags & USB_SCHEDULER_DEFERRED_CLEAN)) {
+            Transfer->EndpointDescriptor = NULL;
+            if (UsbManagerFinalizeTransfer(Controller, Transfer) == OsSuccess) {
+                return ITERATOR_REMOVE;
+            }
         }
     }
     return ITERATOR_CONTINUE;

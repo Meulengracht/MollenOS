@@ -324,9 +324,7 @@ HciProcessEvent(
     // Handle the reasons
     switch (Event) {
         case USB_EVENT_RESTART_DONE: {
-            if (Transfer->Transfer.Type != IsochronousTransfer) {
-                OhciQhRestart((OhciController_t*)Controller, Transfer);
-            }
+            OhciQhRestart((OhciController_t*)Controller, Transfer);
         } break;
     }
 }

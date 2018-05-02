@@ -130,15 +130,43 @@ EhciQhInitialize(
             Qh->FrameCompletionMask = 0;
         }
     }
+
+
+
+
+
+        Qh                              = (EhciQueueHead_t*)Transfer->EndpointDescriptor;
+        Td                              = &Controller->QueueControl.TDPool[Qh->ChildIndex];
+        QhAddress                       = EHCI_POOL_QHINDEX(Controller, Qh->Index);
+        
+        memset(&Qh->Overlay, 0, sizeof(EhciQueueHeadOverlay_t));
+        Qh->Overlay.NextTD              = EHCI_POOL_TDINDEX(Controller, Td->Index);
+        Qh->Overlay.NextAlternativeTD   = EHCI_LINK_END;
     return OsSuccess;
+}
+
+/* EhciQhDump
+ * Dumps the information contained in the queue-head by writing it to stdout */
+void
+EhciQhDump(
+    _In_ EhciController_t*          Controller,
+    _In_ EhciQueueHead_t*           Qh)
+{
+    // Variables
+    uintptr_t PhysicalAddress   = 0;
+
+    UsbSchedulerGetPoolElement(Controller->Base.Scheduler, EHCI_QH_POOL, 
+        Qh->Object.Index & USB_ELEMENT_INDEX_MASK, NULL, &PhysicalAddress);
+    WARNING("EHCI: QH at 0x%x, FirstTd 0x%x, NextQh 0x%x", PhysicalAddress, Qh->Current, Qh->LinkPointer);
+    WARNING("      Bandwidth %u, StartFrame %u, Flags 0x%x", Qh->Object.Bandwidth, Qh->Object.StartFrame, Qh->Flags);
 }
 
 /* EhciRestartQh
  * Restarts an interrupt QH by resetting it to it's start state */
 void
 EhciRestartQh(
-    EhciController_t*       Controller, 
-    UsbManagerTransfer_t*   Transfer)
+    EhciController_t*               Controller, 
+    UsbManagerTransfer_t*           Transfer)
 {
     // Variables
     EhciTransferDescriptor_t *Td    = NULL;
@@ -219,6 +247,26 @@ EhciScanQh(
         }
     }
     return ProcessQh;
+}
+/* EhciLinkGeneric
+ * Generic link to asynchronous list */
+__EXTERN
+void
+EhciLinkGeneric(
+    _In_ EhciController_t*  Controller, 
+    _In_ EhciQueueHead_t*   Qh)
+{
+    // Transfer existing links
+    Qh->LinkPointer = Controller->QueueControl.QHPool[EHCI_POOL_QH_ASYNC].LinkPointer;
+    Qh->LinkIndex   = Controller->QueueControl.QHPool[EHCI_POOL_QH_ASYNC].LinkIndex;
+    MemoryBarrier();
+
+    // Insert at the start of queue
+    Controller->QueueControl.QHPool[EHCI_POOL_QH_ASYNC].LinkIndex   = Qh->Index;
+    Controller->QueueControl.QHPool[EHCI_POOL_QH_ASYNC].LinkPointer = QhAddress | EHCI_LINK_QH;
+
+    // Enable the asynchronous scheduler
+    Controller->AsyncTransactions++;
 }
 
 /* EhciUnlinkGeneric

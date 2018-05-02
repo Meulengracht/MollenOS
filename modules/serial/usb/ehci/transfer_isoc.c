@@ -34,64 +34,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* EchiCleanupTransferIsoc
- * Cleans up transation and the transfer resources. This can only
- * be called after the hardware reference has been dropped. */
-OsStatus_t
-EchiCleanupTransferIsoc(
-    _In_  EhciController_t*     Controller,
-    _In_  UsbManagerTransfer_t* Transfer)
-{
-    // Variables
-    EhciIsochronousDescriptor_t *iTd = (EhciIsochronousDescriptor_t*)Transfer->EndpointDescriptor;
-    while (iTd) {
-        int16_t QueueIndex = iTd->QueueIndex;
-        UsbSchedulerReleaseBandwidth(Controller->Scheduler, iTd->Interval, iTd->Bandwidth, iTd->StartFrame, 0);
-        memset((void*)iTd, 0, sizeof(EhciIsochronousDescriptor_t));
-        if (QueueIndex != EHCI_NO_INDEX) {
-            iTd = &Controller->QueueControl.ITDPool[QueueIndex];
-        }
-        else {
-            break;
-        }
-    }
-    return OsSuccess;
-}
-
-/* EhciTransactionFinalizeIsoc
- * Cleans up the transfer, deallocates resources and validates the td's */
-OsStatus_t
-EhciTransactionFinalizeIsoc(
-    _In_ EhciController_t*      Controller,
-    _In_ UsbManagerTransfer_t*  Transfer)
-{
-    // Variables
-    EhciIsochronousDescriptor_t *iTd = (EhciIsochronousDescriptor_t*)Transfer->EndpointDescriptor;
-
-    // Debug
-    TRACE("EhciTransactionFinalizeIsoc()");
-
-    // Unlink the endpoint descriptor 
-    SpinlockAcquire(&Controller->Base.Lock);
-    EhciSetPrefetching(Controller, Transfer->Transfer.Type, 0);
-    while (iTd) {
-        EhciUnlinkPeriodic(Controller, (uintptr_t)iTd, iTd->Interval, iTd->StartFrame);
-        if (iTd->QueueIndex != EHCI_NO_INDEX) {
-            iTd = &Controller->QueueControl.ITDPool[iTd->QueueIndex];
-        }
-        else {
-            break;
-        }
-    }
-    EhciSetPrefetching(Controller, Transfer->Transfer.Type, 1);
-    SpinlockRelease(&Controller->Base.Lock);
-
-    // Mark for unscheduling, this will then be handled at the next door-bell
-    iTd->HcdFlags |= EHCI_HCDFLAGS_UNSCHEDULE;
-    EhciRingDoorbell(Controller);
-    return OsSuccess;
-}
-
 /* HciQueueTransferIsochronous 
  * Queues a new isochronous transfer for the given driver and pipe. 
  * The function does not block. */

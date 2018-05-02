@@ -22,6 +22,7 @@
  * - Transaction Translator Support
  */
 #define __TRACE
+#define __DIAGNOSE
 
 /* Includes
  * - System */
@@ -34,44 +35,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* EhciDebugTransfer
- * Dumps transactions and transfer information for inspection. */
-void
-EhciDebugTransfer(
-    _In_ EhciController_t*      Controller,
-    _In_ UsbManagerTransfer_t*  Transfer)
-{
-    // Variables
-    EhciTransferDescriptor_t *Td    = NULL;
-    EhciQueueHead_t *Qh             = NULL;
-    uintptr_t QhAddress             = 0;
-
-    // Initialize pointers
-    Qh                      = (EhciQueueHead_t *)Transfer->EndpointDescriptor;
-    Td                      = &Controller->QueueControl.TDPool[Qh->ChildIndex];
-    QhAddress               = EHCI_POOL_QHINDEX(Controller, Qh->Index);
-
-    // Trace
-    TRACE("EHCI: QH at 0x%x, FirstTd 0x%x, NextQh 0x%x", QhAddress, Qh->CurrentTD, Qh->LinkPointer);
-    TRACE("      Bandwidth %u, StartFrame %u, Flags 0x%x", Qh->Bandwidth, Qh->sFrame, Qh->Flags);
-
-    while (Td != NULL) {
-        uintptr_t TdPhysical = EHCI_POOL_TDINDEX(Controller, Td->Index);
-        TRACE("EHCI: TD(0x%x), Link(0x%x), AltLink(0x%x), Status(0x%x), Token(0x%x)",
-            TdPhysical, Td->Link, Td->AlternativeLink, Td->Status, Td->Token);
-        TRACE("          Length(0x%x), Buffer0(0x%x:0x%x), Buffer1(0x%x:0x%x)",
-            Td->Length, Td->ExtBuffers[0], Td->Buffers[0], Td->ExtBuffers[1], Td->Buffers[1]);
-        TRACE("          Buffer2(0x%x:0x%x), Buffer3(0x%x:0x%x), Buffer4(0x%x:0x%x)", 
-            Td->ExtBuffers[2], Td->Buffers[2], Td->ExtBuffers[3], Td->Buffers[3], Td->ExtBuffers[4], Td->Buffers[4]);
-        if (Td->LinkIndex != EHCI_NO_INDEX) {
-            Td = &Controller->QueueControl.TDPool[Td->LinkIndex];
-        }
-        else {
-            Td = NULL;
-        }
-    }
-}
-
 /* EhciTransactionDispatch
  * Queues the transfer up in the controller hardware, after finalizing the
  * transactions and preparing them. */
@@ -80,80 +43,47 @@ EhciTransactionDispatch(
     _In_ EhciController_t*      Controller,
     _In_ UsbManagerTransfer_t*  Transfer)
 {
-    // Variables
-    EhciTransferDescriptor_t *Td        = NULL;
-    EhciQueueHead_t *Qh                 = NULL;
-    uintptr_t QhAddress                 = 0;
-
-    EhciIsochronousDescriptor_t *iTd    = NULL;
-
-    // Debug
-    TRACE("EhciTransactionDispatch()");
-
-    // Initialize values
-    Transfer->Status                    = TransferNotProcessed;
-
-    // Transfer specific
-    if (Transfer->Transfer.Type != IsochronousTransfer) {
-        Qh                              = (EhciQueueHead_t*)Transfer->EndpointDescriptor;
-        Td                              = &Controller->QueueControl.TDPool[Qh->ChildIndex];
-        QhAddress                       = EHCI_POOL_QHINDEX(Controller, Qh->Index);
-        
-        memset(&Qh->Overlay, 0, sizeof(EhciQueueHeadOverlay_t));
-        Qh->Overlay.NextTD              = EHCI_POOL_TDINDEX(Controller, Td->Index);
-        Qh->Overlay.NextAlternativeTD   = EHCI_LINK_END;
-
+    // Update status
+    Transfer->Status        = TransferQueued;
 #ifdef __TRACE
-        EhciDebugTransfer(Controller, Transfer);
+    UsbManagerDumpChain(&Controller->Base, Transfer, (uint8_t*)Transfer->EndpointDescriptor, USB_CHAIN_DEPTH);
+#ifdef __DIAGNOSE
+    for(;;);
 #endif
-    }
-    else {
-        iTd                             = (EhciIsochronousDescriptor_t*)Transfer->EndpointDescriptor;
-    }
-
-    // Acquire the spinlock for atomic queue access
-    SpinlockAcquire(&Controller->Base.Lock);
-    EhciSetPrefetching(Controller, Transfer->Transfer.Type, 0);
-
-    // Bulk and control are asynchronous transfers
-    if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
-        // Transfer existing links
-        Qh->LinkPointer = Controller->QueueControl.QHPool[EHCI_POOL_QH_ASYNC].LinkPointer;
-        Qh->LinkIndex   = Controller->QueueControl.QHPool[EHCI_POOL_QH_ASYNC].LinkIndex;
-        MemoryBarrier();
-
-        // Insert at the start of queue
-        Controller->QueueControl.QHPool[EHCI_POOL_QH_ASYNC].LinkIndex   = Qh->Index;
-        Controller->QueueControl.QHPool[EHCI_POOL_QH_ASYNC].LinkPointer = QhAddress | EHCI_LINK_QH;
-
-        // Enable the asynchronous scheduler
-        Controller->QueueControl.AsyncTransactions++;
-    }
-    else {
-        // Isochronous or interrupt, but handle each differently
-        if (Transfer->Transfer.Type == InterruptTransfer) {
-            EhciLinkPeriodicQh(Controller, Qh);
-        }
-        else {
-            while (iTd) {
-                EhciLinkPeriodicIsoc(Controller, iTd);
-                // End of chain?
-                if (iTd->QueueIndex != EHCI_NO_INDEX) {
-                    iTd = &Controller->QueueControl.ITDPool[iTd->QueueIndex];
-                }
-                else {
-                    break;
-                }
-            }
-        }
-    }
-
-    // All queue operations are now done
-    EhciSetPrefetching(Controller, Transfer->Transfer.Type, 1);
-    EhciEnableScheduler(Controller, Transfer->Transfer.Type);
-    SpinlockRelease(&Controller->Base.Lock);
-    Transfer->Status = TransferQueued;
+#endif
+    UsbManagerIterateChain(&Controller->Base, Transfer->EndpointDescriptor, 
+        USB_CHAIN_DEPTH, USB_REASON_LINK, HciProcessElement, Transfer);
     return TransferQueued;
+}
+
+/* HciTransactionFinalize
+ * Finalizes a transfer by cleaning up resources allocated. This should free
+ * all elements and unschedule elements. */
+OsStatus_t
+HciTransactionFinalize(
+    _In_ UsbManagerController_t*    Controller,
+    _In_ UsbManagerTransfer_t*      Transfer,
+    _In_ int                        Reset)
+{
+    // Debug
+    TRACE("EhciTransactionFinalize(Id %u)", Transfer->Id);
+
+    // Always unlink
+    UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
+        USB_CHAIN_DEPTH, USB_REASON_UNLINK, HciProcessElement, Transfer);
+
+    // Send notification for transfer if control/bulk immediately, but defer
+    // cleanup till the doorbell has been rung
+    UsbManagerSendNotification(Transfer);
+    if (Reset != 0) {
+        UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
+            USB_CHAIN_DEPTH, USB_REASON_CLEANUP, HciProcessElement, Transfer);
+    }
+    else {
+        Transfer->Flags |= TransferFlagCleanup;
+        EhciRingDoorbell(Controller);
+    }
+    return OsSuccess;
 }
 
 /* HciDequeueTransfer 
@@ -165,22 +95,18 @@ HciDequeueTransfer(
     // Variables
     EhciController_t *Controller    = NULL;
 
-    // Debug
-    TRACE("HciDequeueTransfer()");
-
     // Get Controller
-    Controller = (EhciController_t *)UsbManagerGetController(Transfer->DeviceId);
-    if (Controller == NULL) {
-        return TransferInvalid;
-    }
+    Controller  = (EhciController_t*)UsbManagerGetController(Transfer->DeviceId);
+    assert(Controller != NULL);
 
-    // Mark for unscheduling
-    if (Transfer->Transfer.Type != IsochronousTransfer) {
-        EhciTransactionFinalizeGeneric(Controller, Transfer);
-    }
-    else {
-        EhciTransactionFinalizeIsoc(Controller, Transfer);
-    }
+    // Unschedule immediately, but keep data intact as hardware
+    // still (might) reference it. To avoid this, we ring the doorbell
+    // to inform ehci to update it's references.
+    UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
+        USB_CHAIN_DEPTH, USB_REASON_UNLINK, HciProcessElement, Transfer);
+
+    // Mark transfer for cleanup and ring doorbell
+    Transfer->Flags |= TransferFlagCleanup;
     EhciRingDoorbell(Controller);
     return TransferFinished;
 }
