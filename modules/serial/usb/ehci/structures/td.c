@@ -67,10 +67,6 @@ EhciTdFill(
         if (Controller->CParameters & EHCI_CPARAM_64BIT) {
             Td->ExtBuffers[i]   = EHCI_TD_EXTBUFFER(Physical);
         }
-        else if (Physical > 0xFFFFFFFF) {
-            ERROR("EHCI::Address was larger than 4gb, but controller only supports 32bit");
-            return UINT_MAX;
-        }
 #endif
 
         // Update iterators
@@ -83,26 +79,18 @@ EhciTdFill(
 /* EhciTdSetup
  * This allocates & initializes a TD for a setup transaction 
  * this is only used for control transactions */
-EhciTransferDescriptor_t*
+void
 EhciTdSetup(
-    _In_ EhciController_t*  Controller, 
-    _In_ UsbTransaction_t*  Transaction)
+    _In_ EhciController_t*          Controller,
+    _In_ EhciTransferDescriptor_t*  Td,
+    _In_ UsbTransaction_t*          Transaction)
 {
     // Variables
-    EhciTransferDescriptor_t *Td;
     size_t CalculatedLength         = 0;
-
-    // Allocate the transfer-descriptor
-    Td                          = EhciTdAllocate(Controller);
-    if (Td == NULL) {
-        return USB_OUT_OF_RESOURCES;
-    }
 
     // Initialize the transfer-descriptor
     Td->Link                    = EHCI_LINK_END;
-    Td->LinkIndex               = EHCI_NO_INDEX;
     Td->AlternativeLink         = EHCI_LINK_END;
-    Td->AlternativeLinkIndex    = EHCI_NO_INDEX;
     Td->Status                  = EHCI_TD_ACTIVE;
     Td->Token                   = EHCI_TD_SETUP;
     Td->Token                   |= EHCI_TD_ERRCOUNT;
@@ -110,39 +98,29 @@ EhciTdSetup(
     // Calculate the length of the setup transfer
     CalculatedLength            = EhciTdFill(Controller, Td, Transaction->BufferAddress, sizeof(UsbPacket_t));
     Td->Length                  = (uint16_t)(EHCI_TD_LENGTH(CalculatedLength));
-    if (CalculatedLength == UINT_MAX) {
-        Td->HcdFlags &= ~(EHCI_HCDFLAGS_ALLOCATED);
-        return USB_INVALID_BUFFER;
-    }
 
     // Store copies
     Td->OriginalLength          = Td->Length;
     Td->OriginalToken           = Td->Token;
-    return Td;
 }
 
 /* EhciTdIo
  * This allocates & initializes a TD for an i/o transaction 
  * and is used for control, bulk and interrupt */
-EhciTransferDescriptor_t*
+void
 EhciTdIo(
-    _In_ EhciController_t*  Controller,
-    _In_ UsbTransfer_t*     Transfer,
-    _In_ UsbTransaction_t*  Transaction,
-    _In_ int                Toggle)
+    _In_ EhciController_t*          Controller,
+    _In_ EhciTransferDescriptor_t*  Td,
+    _In_ UsbTransfer_t*             Transfer,
+    _In_ UsbTransaction_t*          Transaction,
+    _In_ int                        Toggle)
 {
     // Variables
-    EhciTransferDescriptor_t *Td    = NULL;
-    unsigned PId                    = (Transaction->Type == InTransaction) ? EHCI_TD_IN : EHCI_TD_OUT;
-
-    // Allocate a new td
-    Td                          = EhciTdAllocate(Controller);
+    unsigned PId                = (Transaction->Type == InTransaction) ? EHCI_TD_IN : EHCI_TD_OUT;
 
     // Initialize the new Td
     Td->Link                    = EHCI_LINK_END;
-    Td->LinkIndex               = EHCI_NO_INDEX;
     Td->AlternativeLink         = EHCI_LINK_END;
-    Td->AlternativeLinkIndex    = EHCI_NO_INDEX;
     Td->Status                  = EHCI_TD_ACTIVE;
     Td->Token                   = (uint8_t)(PId & 0x3);
     Td->Token                   |= EHCI_TD_ERRCOUNT;
@@ -166,7 +144,6 @@ EhciTdIo(
     }
     Td->OriginalLength          = Td->Length;
     Td->OriginalToken           = Td->Token;
-    return Td;
 }
 
 /* EhciTdDump
@@ -189,52 +166,13 @@ EhciTdDump(
         Td->ExtBuffers[2], Td->Buffers[2], Td->ExtBuffers[3], Td->Buffers[3], Td->ExtBuffers[4], Td->Buffers[4]);
 }
 
-/* EhciRestartTd
- * Resets a transfer descriptor to it's original state but updates both data toggles
- * and the buffer address (if interrupt) to reflect the reset. */
+/* EhciTdValidate
+ * Checks the transfer descriptors for errors and updates the transfer that is attached
+ * with the bytes transferred and error status. */
 void
-EhciRestartTd(
-    _In_ EhciController_t*          Controller, 
+EhciTdValidate(
     _In_ UsbManagerTransfer_t*      Transfer,
     _In_ EhciTransferDescriptor_t*  Td)
-{
-    // Variables
-    uintptr_t BufferBase, BufferStep;
-
-    // Do some extra processing for periodics
-    if (Transfer->Transfer.Type == InterruptTransfer) {
-        BufferBase      = Transfer->Transfer.Transactions[0].BufferAddress;
-        BufferStep      = Transfer->Transfer.Transactions[0].Length;
-    }
-
-    // Update the toggle
-    Td->OriginalLength          &= ~(EHCI_TD_TOGGLE);
-    if (Td->Length & EHCI_TD_TOGGLE) {
-        Td->OriginalLength      |= EHCI_TD_TOGGLE;
-    }
-
-    // Reset members of td
-    Td->Status                  = EHCI_TD_ACTIVE;
-    Td->Length                  = Td->OriginalLength;
-    Td->Token                   = Td->OriginalToken;
-    
-    // Adjust buffers if interrupt in
-    if (Transfer->Transfer.Type == InterruptTransfer) {
-        uintptr_t BufferBaseUpdated = ADDLIMIT(BufferBase, Td->Buffers[0], 
-            BufferStep, BufferBase + Transfer->Transfer.PeriodicBufferSize);
-        EhciTdFill(Controller, Td, BufferBaseUpdated, BufferStep);
-    }
-}
-
-/* EhciScanTd
- * Scans a queue transfer descriptor for completion status and updates
- * the transfer object that belongs to it. */
-int
-EhciScanTd(
-    _In_  EhciController_t*         Controller, 
-    _In_  UsbManagerTransfer_t*     Transfer,
-    _In_  EhciTransferDescriptor_t* Td,
-    _Out_ int*                      ShortTransfer)
 {
     // Variables
     int ErrorCode               = 0;
@@ -275,4 +213,51 @@ EhciScanTd(
         Transfer->Status = EhciGetStatusCode(ErrorCode);
     }
     return ErrorCode;
+}
+/* EhciTdSynchronize
+ * Synchronizes the toggle status of the transfer descriptor by retrieving
+ * current and updating the pipe toggle. */
+void
+EhciTdSynchronize(
+    _In_ UsbManagerTransfer_t*      Transfer,
+    _In_ EhciTransferDescriptor_t*  Td)
+{
+
+}
+
+/* EhciTdRestart
+ * Restarts a transfer descriptor by resettings it's status and updating buffers if the
+ * trasnfer type is an interrupt-transfer that uses circularbuffers. */
+void
+EhciTdRestart(
+    _In_ EhciController_t*          Controller,
+    _In_ UsbManagerTransfer_t*      Transfer,
+    _In_ EhciTransferDescriptor_t*  Td)
+{
+    // Variables
+    uintptr_t BufferBase, BufferStep;
+
+    // Do some extra processing for periodics
+    if (Transfer->Transfer.Type == InterruptTransfer) {
+        BufferBase      = Transfer->Transfer.Transactions[0].BufferAddress;
+        BufferStep      = Transfer->Transfer.Transactions[0].Length;
+    }
+
+    // Update the toggle
+    Td->OriginalLength          &= ~(EHCI_TD_TOGGLE);
+    if (Td->Length & EHCI_TD_TOGGLE) {
+        Td->OriginalLength      |= EHCI_TD_TOGGLE;
+    }
+
+    // Reset members of td
+    Td->Status                  = EHCI_TD_ACTIVE;
+    Td->Length                  = Td->OriginalLength;
+    Td->Token                   = Td->OriginalToken;
+    
+    // Adjust buffers if interrupt in
+    if (Transfer->Transfer.Type == InterruptTransfer) {
+        uintptr_t BufferBaseUpdated = ADDLIMIT(BufferBase, Td->Buffers[0], 
+            BufferStep, BufferBase + Transfer->Transfer.PeriodicBufferSize);
+        EhciTdFill(Controller, Td, BufferBaseUpdated, BufferStep);
+    }
 }

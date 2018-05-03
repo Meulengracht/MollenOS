@@ -40,23 +40,31 @@
 OsStatus_t
 EhciQhInitialize(
     _In_ EhciController_t*          Controller,
-    _In_ UsbTransfer_t*             Transfer,
-    _In_ EhciQueueHead_t*           Qh,
+    _In_ UsbManagerTransfer_t*      Transfer,
     _In_ size_t                     Address,
     _In_ size_t                     Endpoint)
 {
     // Variables
-    size_t EpBandwidth = MAX(3, Transfer->Endpoint.Bandwidth);
+    EhciQueueHead_t *Qh = (EhciQueueHead_t*)Transfer->EndpointDescriptor;
+    OsStatus_t Status   = OsSuccess;
+    size_t EpBandwidth  = MAX(3, Transfer->Transfer.Endpoint.Bandwidth);
+
+    // Initialize link
+    Qh->LinkPointer     = EHCI_LINK_END;
+    Qh->Overlay.NextAlternativeTD = EHCI_LINK_END;
+
+    // Initialize link flags
+    Qh->Object.Flags    |= EHCI_LINK_QH;
 
     // Initialize the QH
-    Qh->Flags   = EHCI_QH_DEVADDR(Address);
-    Qh->Flags  |= EHCI_QH_EPADDR(Endpoint);
-    Qh->Flags  |= EHCI_QH_DTC;
+    Qh->Flags            = EHCI_QH_DEVADDR(Address);
+    Qh->Flags           |= EHCI_QH_EPADDR(Endpoint);
+    Qh->Flags           |= EHCI_QH_DTC;
 
     // The thing with maxlength is
     // that it needs to be MIN(TransferLength, MPS)
-    Qh->Flags  |= EHCI_QH_MAXLENGTH(Transfer->Endpoint.MaxPacketSize);
-    if (Transfer->Type == InterruptTransfer) {
+    Qh->Flags  |= EHCI_QH_MAXLENGTH(Transfer->Transfer.Endpoint.MaxPacketSize);
+    if (Transfer->Transfer.Type == InterruptTransfer) {
         Qh->State = EHCI_QH_MULTIPLIER(EpBandwidth);
     }
     else {
@@ -64,13 +72,13 @@ EhciQhInitialize(
     }
 
     // Now, set additionals depending on speed
-    if (Transfer->Speed == LowSpeed || Transfer->Speed == FullSpeed) {
-        if (Transfer->Type == ControlTransfer) {
+    if (Transfer->Transfer.Speed == LowSpeed || Transfer->Transfer.Speed == FullSpeed) {
+        if (Transfer->Transfer.Type == ControlTransfer) {
             Qh->Flags |= EHCI_QH_CONTROLEP;
         }
 
         // On low-speed, set this bit
-        if (Transfer->Speed == LowSpeed) {
+        if (Transfer->Transfer.Speed == LowSpeed) {
             Qh->Flags |= EHCI_QH_LOWSPEED;
         }
 
@@ -87,62 +95,39 @@ EhciQhInitialize(
         Qh->Flags |= EHCI_QH_HIGHSPEED;
 
         // Set nak-throttle to 4 if control or bulk
-        if (Transfer->Type == ControlTransfer || Transfer->Type == BulkTransfer) {
+        if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
             Qh->Flags |= EHCI_QH_RL(4);
         }
         else {
             Qh->Flags |= EHCI_QH_RL(0);
         }
     }
-                
+    
     // Allocate bandwith if interrupt qh
-    if (Transfer->Type == InterruptTransfer) {
-        size_t TransactionsPerFrame = DIVUP(Transfer->Transactions[0].Length, Transfer->Endpoint.MaxPacketSize);
-        Qh->Bandwidth               = (reg32_t)NS_TO_US(UsbCalculateBandwidth(Transfer->Speed, 
-            Transfer->Endpoint.Direction, Transfer->Type, Transfer->Transactions[0].Length));
-        
-        // If highspeed calculate period as 2^(Interval-1)
-        if (Transfer->Speed == HighSpeed) {
-            Qh->Interval            = (1 << Transfer->Endpoint.Interval);
-        }
-        else {
-            Qh->Interval            = Transfer->Endpoint.Interval;
-        }
-
+    if (Transfer->Transfer.Type == InterruptTransfer) {
         // If we use completion masks we'll need another transfer for start
-        if (Transfer->Speed != HighSpeed) {
-            TransactionsPerFrame++;
+        size_t BytesToTransfer = Transfer->Transfer.Transactions[0].Length;
+        if (Transfer->Transfer.Speed != HighSpeed) {
+            BytesToTransfer += Transfer->Transfer.Endpoint.MaxPacketSize;
         }
 
-        // Allocate the needed bandwidth
-        if (UsbSchedulerReserveBandwidth(Controller->Scheduler, Qh->Interval, 
-            Qh->Bandwidth, TransactionsPerFrame, &Qh->sFrame, &Qh->sMask) != OsSuccess) {
-            return OsError;
-        }
-
-        // Calculate both the frame start and completion mask
-        Qh->FrameStartMask  = (uint8_t)FirstSetBit(Qh->sMask);
-        if (Transfer->Speed != HighSpeed) {
-            Qh->FrameCompletionMask = (uint8_t)(Qh->sMask & 0xFF);
-            Qh->FrameCompletionMask &= ~(1 << Qh->FrameStartMask);
-        }
-        else {
-            Qh->FrameCompletionMask = 0;
+        // Allocate the bandwidth
+        Status = UsbSchedulerAllocateBandwidth(Controller->Base.Scheduler, 
+            &Transfer->Transfer.Endpoint, BytesToTransfer,
+            Transfer->Transfer.Type, Transfer->Transfer.Speed, (uint8_t*)Qh);
+        if (Status == OsSuccess) {
+            // Calculate both the frame start and completion mask
+            Qh->FrameStartMask  = (uint8_t)FirstSetBit(Qh->Object.FrameMask);
+            if (Transfer->Transfer.Speed != HighSpeed) {
+                Qh->FrameCompletionMask = (uint8_t)(Qh->Object.FrameMask & 0xFF);
+                Qh->FrameCompletionMask &= ~(1 << Qh->FrameStartMask);
+            }
+            else {
+                Qh->FrameCompletionMask = 0;
+            }
         }
     }
-
-
-
-
-
-        Qh                              = (EhciQueueHead_t*)Transfer->EndpointDescriptor;
-        Td                              = &Controller->QueueControl.TDPool[Qh->ChildIndex];
-        QhAddress                       = EHCI_POOL_QHINDEX(Controller, Qh->Index);
-        
-        memset(&Qh->Overlay, 0, sizeof(EhciQueueHeadOverlay_t));
-        Qh->Overlay.NextTD              = EHCI_POOL_TDINDEX(Controller, Td->Index);
-        Qh->Overlay.NextAlternativeTD   = EHCI_LINK_END;
-    return OsSuccess;
+    return Status;
 }
 
 /* EhciQhDump
@@ -161,132 +146,22 @@ EhciQhDump(
     WARNING("      Bandwidth %u, StartFrame %u, Flags 0x%x", Qh->Object.Bandwidth, Qh->Object.StartFrame, Qh->Flags);
 }
 
-/* EhciRestartQh
+/* EhciQhRestart
  * Restarts an interrupt QH by resetting it to it's start state */
 void
-EhciRestartQh(
+EhciQhRestart(
     EhciController_t*               Controller, 
     UsbManagerTransfer_t*           Transfer)
 {
     // Variables
-    EhciTransferDescriptor_t *Td    = NULL;
-    EhciQueueHead_t *Qh             = NULL;
-    
-    // Setup some variables
-    Qh                  = (EhciQueueHead_t*)Transfer->EndpointDescriptor;
-    Td                  = &Controller->QueueControl.TDPool[Qh->ChildIndex];
+    EhciQueueHead_t *Qh             = (EhciQueueHead_t*)Transfer->EndpointDescriptor;
+    uintptr_t LinkPhysical          = 0;
 
-    // Iterate td's
-    while (Td) {
-        EhciRestartTd(Controller, Transfer, Td);
-        if (Td->LinkIndex != EHCI_NO_INDEX) {
-            Td                      = &Controller->QueueControl.TDPool[Td->LinkIndex];
-        }
-        else {
-            break;
-        }
-    }
-
-    // Set Qh to point to first
-    Td                              = &Controller->QueueControl.TDPool[Qh->ChildIndex];
-
-    // Zero out overlay
     memset(&Qh->Overlay, 0, sizeof(EhciQueueHeadOverlay_t));
 
     // Update links
-    Qh->Overlay.NextTD              = EHCI_POOL_TDINDEX(Controller, Td->Index);
+    UsbSchedulerGetPoolElement(Controller->Base.Scheduler, EHCI_TD_POOL, 
+        Qh->Object.DepthIndex & USB_ELEMENT_INDEX_MASK, NULL, &LinkPhysical);
+    Qh->Overlay.NextTD              = LinkPhysical;
     Qh->Overlay.NextAlternativeTD   = EHCI_LINK_END;
-    
-    // Reset transfer status
-    Transfer->Status = TransferQueued;
-}
-
-/* EhciScanQh
- * Scans a chain of td's to check whether or not it has been processed. Returns 1
- * if there was work done - otherwise 0 if untouched. */
-int
-EhciScanQh(
-    _In_ EhciController_t*          Controller, 
-    _In_ UsbManagerTransfer_t*      Transfer)
-{
-    // Variables
-    EhciTransferDescriptor_t *Td    = NULL;
-    EhciQueueHead_t *Qh             = NULL;
-    int ProcessQh                   = 0;
-    int ShortTransfer               = 0;
-    
-    // Setup some variables
-    Qh                  = (EhciQueueHead_t*)Transfer->EndpointDescriptor;
-    Td                  = &Controller->QueueControl.TDPool[Qh->ChildIndex];
-
-    // Is Qh already in process of being unmade?
-    if (Qh->HcdFlags & EHCI_HCDFLAGS_UNSCHEDULE) {
-        return 0;
-    }
-    
-    // Iterate td's
-    while (Td) {
-        int Code = EhciScanTd(Controller, Transfer, Td, &ShortTransfer);
-        if (ShortTransfer == 1) {
-            Qh->HcdFlags |= EHCI_HCDFLAGS_SHORTTRANSFER;
-        }
-        
-        if (Code != 0) { // Error transfer
-            break;
-        }
-        else if (Code == 0 && Transfer->Status != TransferFinished) { // Not touched
-            break;
-        }
-        
-        ProcessQh           = 1;
-        if (Td->LinkIndex != EHCI_NO_INDEX) {
-            Td              = &Controller->QueueControl.TDPool[Td->LinkIndex];
-        }
-        else {
-            break;
-        }
-    }
-    return ProcessQh;
-}
-/* EhciLinkGeneric
- * Generic link to asynchronous list */
-__EXTERN
-void
-EhciLinkGeneric(
-    _In_ EhciController_t*  Controller, 
-    _In_ EhciQueueHead_t*   Qh)
-{
-    // Transfer existing links
-    Qh->LinkPointer = Controller->QueueControl.QHPool[EHCI_POOL_QH_ASYNC].LinkPointer;
-    Qh->LinkIndex   = Controller->QueueControl.QHPool[EHCI_POOL_QH_ASYNC].LinkIndex;
-    MemoryBarrier();
-
-    // Insert at the start of queue
-    Controller->QueueControl.QHPool[EHCI_POOL_QH_ASYNC].LinkIndex   = Qh->Index;
-    Controller->QueueControl.QHPool[EHCI_POOL_QH_ASYNC].LinkPointer = QhAddress | EHCI_LINK_QH;
-
-    // Enable the asynchronous scheduler
-    Controller->AsyncTransactions++;
-}
-
-/* EhciUnlinkGeneric
- * Generic unlink from asynchronous list */
-void
-EhciUnlinkGeneric(
-    _In_ EhciController_t*  Controller, 
-    _In_ EhciQueueHead_t*   Qh)
-{
-    // Variables
-    EhciQueueHead_t *PrevQh = NULL;
-    
-    // Perform an asynchronous memory unlink
-    PrevQh = &Controller->QueueControl.QHPool[EHCI_POOL_QH_ASYNC];
-    while (PrevQh->LinkIndex != Qh->Index
-        && PrevQh->LinkIndex != EHCI_NO_INDEX) {
-        PrevQh = &Controller->QueueControl.QHPool[PrevQh->LinkIndex];
-    }
-
-    // Now make sure we skip over our qh
-    PrevQh->LinkPointer = Qh->LinkPointer;
-    PrevQh->LinkIndex   = Qh->LinkIndex;
 }

@@ -254,7 +254,7 @@ HciQueueTransferGeneric(
         Transfer->EndpointDescriptor = EndpointDescriptor;
 
         // Store and initialize the qh
-        if (OhciQhInitialize(Controller, Transfer, Address, Endpoint) != OsSuccess) {
+        if (EhciQhInitialize(Controller, Transfer, Address, Endpoint) != OsSuccess) {
             // No bandwidth, serious.
             UsbSchedulerFreeElement(Controller->Base.Scheduler, (uint8_t*)EndpointDescriptor);
             return TransferNoBandwidth;

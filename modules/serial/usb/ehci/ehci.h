@@ -547,13 +547,10 @@ typedef struct _EhciController {
     UsbManagerController_t      Base;
     UsbScheduler_t*             Scheduler;
 
-    // Transactions
-    int                         AsyncTransactions;
-    size_t                      FrameCount;
-
     // Registers and resources
     EchiCapabilityRegisters_t*  CapRegisters;
     EchiOperationalRegisters_t* OpRegisters;
+    size_t                      FrameCount;
 
     // Copy of vital registers
     reg32_t                     SParameters;
@@ -637,8 +634,7 @@ __EXTERN
 OsStatus_t
 EhciQhInitialize(
     _In_ EhciController_t*          Controller,
-    _In_ UsbTransfer_t*             Transfer,
-    _In_ EhciQueueHead_t*           Qh,
+    _In_ UsbManagerTransfer_t*      Transfer,
     _In_ size_t                     Address,
     _In_ size_t                     Endpoint);
 
@@ -650,37 +646,75 @@ EhciQhDump(
     _In_ EhciController_t*          Controller,
     _In_ EhciQueueHead_t*           Qh);
 
-/* EhciLinkGeneric
- * Generic link to asynchronous list */
-__EXTERN
-void
-EhciLinkGeneric(
-    _In_ EhciController_t*  Controller, 
-    _In_ EhciQueueHead_t*   Qh);
-
-/* EhciUnlinkGeneric
- * Generic unlink from asynchronous list */
-__EXTERN
-void
-EhciUnlinkGeneric(
-    _In_ EhciController_t*  Controller, 
-    _In_ EhciQueueHead_t*   Qh);
-
-/* EhciRestartQh
+/* EhciQhRestart
  * Restarts an interrupt QH by resetting it to it's start state */
 __EXTERN
 void
-EhciRestartQh(
-    EhciController_t*       Controller, 
-    UsbManagerTransfer_t*   Transfer);
+EhciQhRestart(
+    EhciController_t*               Controller, 
+    UsbManagerTransfer_t*           Transfer);
 
-/* EhciScanQh
- * Scans a QH for completion or error returns non-zero if it has been touched */
+/*******************************************************************************
+ * Transfer Descriptor Methods
+ *******************************************************************************/
+
+/* EhciTdSetup
+ * This allocates & initializes a TD for a setup transaction 
+ * this is only used for control transactions */
 __EXTERN
-int
-EhciScanQh(
-    EhciController_t*       Controller, 
-    UsbManagerTransfer_t*   Transfer);
+void
+EhciTdSetup(
+    _In_ EhciController_t*          Controller,
+    _In_ EhciTransferDescriptor_t*  Td,
+    _In_ UsbTransaction_t*          Transaction);
+
+/* EhciTdIo
+ * This allocates & initializes a TD for an i/o transaction 
+ * and is used for control, bulk and interrupt */
+__EXTERN
+void
+EhciTdIo(
+    _In_ EhciController_t*          Controller,
+    _In_ EhciTransferDescriptor_t*  Td,
+    _In_ UsbTransfer_t*             Transfer,
+    _In_ UsbTransaction_t*          Transaction,
+    _In_ int                        Toggle);
+
+/* EhciTdDump
+ * Dumps the information contained in the descriptor by writing it. */
+__EXTERN
+void
+EhciTdDump(
+    _In_ EhciController_t*          Controller,
+    _In_ EhciTransferDescriptor_t*  Td);
+
+/* EhciTdValidate
+ * Checks the transfer descriptors for errors and updates the transfer that is attached
+ * with the bytes transferred and error status. */
+__EXTERN
+void
+EhciTdValidate(
+    _In_ UsbManagerTransfer_t*      Transfer,
+    _In_ EhciTransferDescriptor_t*  Td);
+
+/* EhciTdSynchronize
+ * Synchronizes the toggle status of the transfer descriptor by retrieving
+ * current and updating the pipe toggle. */
+__EXTERN
+void
+EhciTdSynchronize(
+    _In_ UsbManagerTransfer_t*      Transfer,
+    _In_ EhciTransferDescriptor_t*  Td);
+
+/* EhciTdRestart
+ * Restarts a transfer descriptor by resettings it's status and updating buffers if the
+ * trasnfer type is an interrupt-transfer that uses circularbuffers. */
+__EXTERN
+void
+EhciTdRestart(
+    _In_ EhciController_t*          Controller,
+    _In_ UsbManagerTransfer_t*      Transfer,
+    _In_ EhciTransferDescriptor_t*  Td);
 
 /*******************************************************************************
  * Isochronous TD Methods
@@ -726,59 +760,6 @@ EhciScanIsocTd(
     UsbManagerTransfer_t*   Transfer);
 
 /*******************************************************************************
- * Transfer Descriptor Methods
- *******************************************************************************/
-
-/* EhciTdSetup
- * This allocates & initializes a TD for a setup transaction 
- * this is only used for control transactions */
-__EXTERN
-EhciTransferDescriptor_t*
-EhciTdSetup(
-    _In_ EhciController_t*  Controller, 
-    _In_ UsbTransaction_t*  Transaction);
-
-/* EhciTdIo
- * This allocates & initializes a TD for an i/o transaction 
- * and is used for control, bulk and interrupt */
-__EXTERN
-EhciTransferDescriptor_t*
-EhciTdIo(
-    _In_ EhciController_t*  Controller,
-    _In_ UsbTransfer_t*     Transfer,
-    _In_ UsbTransaction_t*  Transaction,
-    _In_ int                Toggle);
-
-/* EhciTdDump
- * Dumps the information contained in the descriptor by writing it. */
-__EXTERN
-void
-EhciTdDump(
-    _In_ EhciController_t*          Controller,
-    _In_ EhciTransferDescriptor_t*  Td);
-
-/* EhciRestartTd
- * Resets a transfer descriptor to it's original state but updates both data toggles
- * and the buffer address (if interrupt) to reflect the reset. */
-__EXTERN
-void
-EhciRestartTd(
-    _In_ EhciController_t*          Controller, 
-    _In_ UsbManagerTransfer_t*      Transfer,
-    _In_ EhciTransferDescriptor_t*  Td);
-
-/* EhciScanTd
- * Scans a queue transfer descriptor for completion status and updates
- * the transfer object that belongs to it. */
-__EXTERN
-int
-EhciScanTd(
-    _In_  EhciController_t*         Controller, 
-    _In_  UsbManagerTransfer_t*     Transfer,
-    _In_  EhciTransferDescriptor_t* Td,
-    _Out_ int*                      ShortTransfer);
-
-/*******************************************************************************
  * Queue Methods
  *******************************************************************************/
     
@@ -787,21 +768,21 @@ EhciScanTd(
 __EXTERN
 UsbTransferStatus_t
 EhciGetStatusCode(
-    _In_ int                ConditionCode);
+    _In_ int                    ConditionCode);
 
 /* EhciConditionCodeToIndex
  * Converts a given condition bit-index to number */
 __EXTERN
 int
 EhciConditionCodeToIndex(
-    _In_ unsigned           ConditionCode);
+    _In_ unsigned               ConditionCode);
 
 /* EhciRingDoorbell
  * This functions rings the bell */
 __EXTERN
 void
 EhciRingDoorbell(
-     _In_ EhciController_t* Controller);
+     _In_ EhciController_t*     Controller);
 
 /* EhciTransactionDispatch
  * Queues the transfer up in the controller hardware, after finalizing the

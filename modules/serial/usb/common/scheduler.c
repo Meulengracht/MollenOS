@@ -489,8 +489,15 @@ UsbSchedulerAllocateBandwidth(
 
     // Calculate the number of microseconds the transfer will take
     sObject->Bandwidth      = (uint16_t)NS_TO_US(UsbSchedulerCalculateBandwidth(Speed, Endpoint->Direction, Type, BytesToTransfer));
-    sObject->FrameInterval  = (uint16_t)(Endpoint->Interval & 0xFFFF);
-
+    
+    // If highspeed calculate period as 2^(Interval-1)
+    if (Speed == HighSpeed) {
+        sObject->FrameInterval  = (1 << LOWORD(Endpoint->Interval));
+    }
+    else {
+        sObject->FrameInterval  = LOWORD(Endpoint->Interval);
+    }
+    
     // Sanitize some bounds for period
     // to be considered if it should fail instead
     if (sObject->FrameInterval == 0)                                sObject->FrameInterval = 1;

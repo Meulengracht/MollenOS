@@ -162,7 +162,6 @@ UhciQhLink(
 /* UhciQhUnlink 
  * Unlinks a given queue head from the correct queue determined by Qh->Queue.
  * This can handle removal of async and interrupt transfers. */
-__EXTERN
 void
 UhciQhUnlink(
     _In_ UhciController_t*      Controller,

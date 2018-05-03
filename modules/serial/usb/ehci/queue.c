@@ -119,13 +119,13 @@ EhciQueueInitialize(
 
     // Initialize the scheduler
     TRACE(" > Configuring scheduler");
-    UsbSchedulerSettingsCreate(&Settings, Controller->FrameCount, 1, EHCI_MAX_BANDWIDTH, 
-        USB_SCHEDULER_DEFERRED_CLEAN | USB_SCHEDULER_FRAMELIST);
+    UsbSchedulerSettingsCreate(&Settings, Controller->FrameCount, 8, EHCI_MAX_BANDWIDTH, 
+        USB_SCHEDULER_DEFERRED_CLEAN | USB_SCHEDULER_FRAMELIST | USB_SCHEDULER_LINK_BIT_EOL);
 
     // Add Queue-Heads
     UsbSchedulerSettingsAddPool(&Settings, sizeof(EhciQueueHead_t), EHCI_QH_ALIGNMENT, EHCI_QH_COUNT, 
         EHCI_QH_START, offsetof(EhciQueueHead_t, LinkPointer), 
-        offsetof(EhciQueueHead_t, Current), offsetof(EhciQueueHead_t, Object));
+        offsetof(EhciQueueHead_t, Overlay.NextTD), offsetof(EhciQueueHead_t, Object));
     
     // Add transfer-descriptors
     // Alternative Link is Breath
@@ -358,6 +358,7 @@ HciProcessElement(
 {
     // Variables
     UsbManagerTransfer_t *Transfer  = (UsbManagerTransfer_t*)Context;
+    uint8_t *AsyncRootElement       = NULL;
 
     // Debug
     TRACE("EhciProcessElement(Reason %i)", Reason);
@@ -420,7 +421,8 @@ HciProcessElement(
                 SpinlockAcquire(&Controller->Lock);
                 EhciSetPrefetching((EhciController_t*)Controller, Transfer->Transfer.Type, 0);
                 if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
-                    EhciLinkGeneric((EhciController_t*)Controller, (EhciQueueHead_t*)Element);
+                    UsbSchedulerGetPoolElement(Controller->Scheduler, EHCI_QH_POOL, EHCI_QH_ASYNC, &AsyncRootElement, NULL);
+                    UsbSchedulerChainElement(Controller->Scheduler, AsyncRootElement, Element, USB_ELEMENT_LINK_END, USB_CHAIN_BREATH);
                 }
                 else {
                     UsbSchedulerLinkPeriodicElement(Controller->Scheduler, Element);
@@ -438,7 +440,8 @@ HciProcessElement(
                 SpinlockAcquire(&Controller->Lock);
                 EhciSetPrefetching((EhciController_t*)Controller, Transfer->Transfer.Type, 0);
                 if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
-                    EhciUnlinkGeneric((EhciController_t*)Controller, (EhciQueueHead_t*)Element);
+                    UsbSchedulerGetPoolElement(Controller->Scheduler, EHCI_QH_POOL, EHCI_QH_ASYNC, &AsyncRootElement, NULL);
+                    UsbSchedulerUnchainElement(Controller->Scheduler, AsyncRootElement, Element, USB_CHAIN_BREATH);
                 }
                 else {
                     UsbSchedulerUnlinkPeriodicElement(Controller->Scheduler, Element);
