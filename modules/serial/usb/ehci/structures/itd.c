@@ -35,10 +35,10 @@
 #include <assert.h>
 #include <string.h>
 
-/* EhciIsocTdInitialize
+/* EhciTdIsochronous
  * This initiates any periodic scheduling information that might be needed */
 OsStatus_t
-EhciIsocTdInitialize(
+EhciTdIsochronous(
     _In_ EhciController_t*              Controller,
     _In_ UsbTransfer_t*                 Transfer,
     _In_ EhciIsochronousDescriptor_t*   iTd,
@@ -50,14 +50,13 @@ EhciIsocTdInitialize(
     // Variables
     uintptr_t BufferIterator    = BufferAddress;
     uintptr_t PageMask          = ~((uintptr_t)0xFFF);
-    size_t EpBandwidth          = MAX(3, Transfer->Endpoint.Bandwidth);
+    OsStatus_t Status           = OsSuccess;
     size_t BytesLeft            = ByteCount;
     size_t PageIndex            = 0;
     int i;
 
-    // Set link and id
+    // Set link
     iTd->Link                   = EHCI_LINK_END;
-    iTd->QueueIndex             = EHCI_NO_INDEX;
 
     // Fill in buffer page settings and initial page
     for (i = 0; i < 7; i++) {
@@ -70,10 +69,6 @@ EhciIsocTdInitialize(
 #if __BITS == 64
             if (Controller->CParameters & EHCI_CPARAM_64BIT) {
                 iTd->ExtBuffers[i] = EHCI_iTD_EXTBUFFER(BufferAddress);
-            }
-            else if (BufferAddress > 0xFFFFFFFF) {
-                ERROR("EHCI::BufferAddress was larger than 4gb, but controller only supports 32bit");
-                return UINT_MAX;
             }
 #endif
         }
@@ -103,10 +98,6 @@ EhciIsocTdInitialize(
                 if (Controller->CParameters & EHCI_CPARAM_64BIT) {
                     iTd->ExtBuffers[PageIndex] = EHCI_iTD_EXTBUFFER((BufferIterator + PageBytes));
                 }
-                else if ((BufferIterator + PageBytes) > 0xFFFFFFFF) {
-                    ERROR("EHCI::BufferAddress was larger than 4gb, but controller only supports 32bit");
-                    return UINT_MAX;
-                }
 #endif
             }
             BufferIterator          += PageBytes;
@@ -123,117 +114,94 @@ EhciIsocTdInitialize(
         iTd->TransactionsCopy[i] = iTd->Transactions[i];
     }
 
-    // Allocate bandwith
-    iTd->Bandwidth      = (reg32_t)NS_TO_US(UsbCalculateBandwidth(Transfer->Speed, 
-            Transfer->Endpoint.Direction, Transfer->Type, Transfer->Transactions[0].Length));
-    iTd->Interval       = (1 << Transfer->Endpoint.Interval);
-    if (UsbSchedulerReserveBandwidth(Controller->Scheduler, iTd->Interval, 
-        iTd->Bandwidth, EpBandwidth, &iTd->StartFrame, NULL) != OsSuccess) {
-        return OsError;
-    }
-    return OsSuccess;
+    // Handle bandwidth allocation
+    Status = UsbSchedulerAllocateBandwidth(Controller->Base.Scheduler, 
+        &Transfer->Endpoint, ByteCount, Transfer->Type, Transfer->Speed, (uint8_t*)iTd);
+    return Status;
 }
 
-/* EhciRestartIsocTd
- * Resets an isochronous td-chain by restoring all transactions to original states. */
+/* EhciiTdDump
+ * Dumps the information contained in the descriptor by writing it. */
 void
-EhciRestartIsocTd(
-    EhciController_t*       Controller, 
-    UsbManagerTransfer_t*   Transfer)
+EhciiTdDump(
+    _In_ EhciController_t*              Controller,
+    _In_ EhciIsochronousDescriptor_t*   Td)
 {
     // Variables
-    EhciIsochronousDescriptor_t* iTd = (EhciIsochronousDescriptor_t*)Transfer->EndpointDescriptor;
+    uintptr_t PhysicalAddress   = 0;
+
+    UsbSchedulerGetPoolElement(Controller->Base.Scheduler, EHCI_iTD_POOL, 
+        Td->Object.Index & USB_ELEMENT_INDEX_MASK, NULL, &PhysicalAddress);
+    WARNING("EHCI: iTD(0x%x), Link(0x%x), Buffer0(0x%x:0x%x), Buffer1(0x%x:0x%x), Buffer2(0x%x:0x%x)",
+        PhysicalAddress, Td->Link, Td->ExtBuffers[0], Td->Buffers[0],
+        Td->ExtBuffers[1], Td->Buffers[1], Td->ExtBuffers[2], Td->Buffers[2]);
+    WARNING("          Buffer3(0x%x), Buffer4(0x%x:0x%x), Buffer5(0x%x:0x%x)",
+        Td->ExtBuffers[3], Td->Buffers[3], Td->ExtBuffers[4], Td->Buffers[4], Td->ExtBuffers[5], Td->Buffers[5]);
+    WARNING("          Buffer6(0x%x:0x%x), XAction0(0x%x), XAction1(0x%x)", 
+        Td->ExtBuffers[6], Td->Buffers[6], Td->Transactions[0], Td->Transactions[1]);
+    WARNING("          XAction2(0x%x), XAction3(0x%x), XAction4(0x%x)", 
+        Td->Transactions[2], Td->Transactions[3], Td->Transactions[4]);
+    WARNING("          XAction5(0x%x), XAction6(0x%x), XAction7(0x%x)", 
+        Td->Transactions[5], Td->Transactions[6], Td->Transactions[7]);
+}
+
+/* EhciiTdValidate
+ * Checks the transfer descriptors for errors and updates the transfer that is attached
+ * with the bytes transferred and error status. */
+void
+EhciiTdValidate(
+    _In_ UsbManagerTransfer_t*          Transfer,
+    _In_ EhciIsochronousDescriptor_t*   Td)
+{
+    // Variables
     int i;
+    int ConditionCode                   = 0;
 
-    while (iTd) {
-        // Restore transactions
-        for (i = 0; i < 8; i++) {
-            iTd->Transactions[i] = iTd->TransactionsCopy[i];
-        }
+    // Don't check more if there is an error condition
+    if (Transfer->Status != TransferFinished && Transfer->Status != TransferQueued) {
+        return;
+    }
 
-        // End of chain?
-        if (iTd->QueueIndex != EHCI_NO_INDEX) {
-            iTd = &Controller->QueueControl.ITDPool[iTd->QueueIndex];
-        }
-        else {
+    // Check status of the transactions
+    for (i = 0; i < 8; i++) {
+        if (Td->Transactions[i] & EHCI_iTD_ACTIVE) {
             break;
         }
-    }
-    
-    // Reset transfer status
-    Transfer->Status = TransferQueued;
-}
-
-/* EhciScanIsocTd
- * Scans a chain of isochronous td's to check whether or not it has been processed. Returns 1
- * if there was work done - otherwise 0 if untouched. */
-int
-EhciScanIsocTd(
-    EhciController_t*       Controller, 
-    UsbManagerTransfer_t*   Transfer)
-{
-    // Variables
-    EhciIsochronousDescriptor_t* iTd    = (EhciIsochronousDescriptor_t*)Transfer->EndpointDescriptor;
-    int EarlyExit                       = 0;
-    int i;
-
-    // Is td already in process of being unmade?
-    if (iTd->HcdFlags & EHCI_HCDFLAGS_UNSCHEDULE) {
-        return 0;
-    }
-
-    while (iTd) {
-        int ConditionCode               = 0;
-
-        // Check status of the transactions
-        for (i = 0; i < 8; i++) {
-            if (iTd->Transactions[i] & EHCI_iTD_ACTIVE) {
-                EarlyExit               = 1;
+        Transfer->Status            = TransferFinished;
+        Transfer->TransactionsExecuted++;
+        ConditionCode               = EhciConditionCodeToIndex(EHCI_iTD_CC(Td->Transactions[i]));
+        switch (ConditionCode) {
+            case 1:
+                Transfer->Status    = TransferStalled;
                 break;
-            }
-            Transfer->Status            = TransferFinished;
-            Transfer->TransactionsExecuted++;
-            ConditionCode               = EhciConditionCodeToIndex(EHCI_iTD_CC(iTd->Transactions[i]));
-            switch (ConditionCode) {
-                case 1:
-                    Transfer->Status    = TransferStalled;
-                    break;
-                case 2:
-                    Transfer->Status    = TransferBabble;
-                    break;
-                case 3:
-                    Transfer->Status    = TransferBufferError;
-                    break;
-                default:
-                    break;
-            }
-            
-            // Break out early if error is encountered
-            if (Transfer->Status != TransferFinished) {
-                EarlyExit = 1;
+            case 2:
+                Transfer->Status    = TransferBabble;
                 break;
-            }
+            case 3:
+                Transfer->Status    = TransferBufferError;
+                break;
+            default:
+                break;
         }
-
-        // Don't check more if it's not ok
+        
+        // Break out early if error is encountered
         if (Transfer->Status != TransferFinished) {
             break;
         }
-
-        // End of chain?
-        if (iTd->QueueIndex != EHCI_NO_INDEX) {
-            iTd = &Controller->QueueControl.ITDPool[iTd->QueueIndex];
-        }
-        else {
-            break;
-        }
     }
+}
 
-    // Early exit?
-    if (EarlyExit == 1 && Transfer->Status == TransferQueued) {
-        return 0;
-    }
-    else {
-        return 1;
+/* EhciiTdRestart
+ * Restarts a transfer descriptor by resettings it's status and updating buffers if the
+ * trasnfer type is an interrupt-transfer that uses circularbuffers. */
+void
+EhciiTdRestart(
+    _In_ EhciController_t*              Controller,
+    _In_ UsbManagerTransfer_t*          Transfer,
+    _In_ EhciIsochronousDescriptor_t*   Td)
+{
+    // Restore transactions
+    for (int i = 0; i < 8; i++) {
+        Td->Transactions[i] = Td->TransactionsCopy[i];
     }
 }

@@ -68,36 +68,40 @@ HciQueueTransferIsochronous(
     while (BytesToTransfer) {
         EhciIsochronousDescriptor_t *iTd    = NULL;
         size_t BytesStep                    = MIN(BytesToTransfer, MaxBytesPerDescriptor);
-
-        // Allocate td
-        iTd = EhciIsocTdAllocate(Controller);
-        if (iTd == NULL) {
-            // Out of resources @todo
-            ERROR("EHCI::Isoc out of resources");
-            for(;;);
+        if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, EHCI_iTD_POOL, (uint8_t**)&iTd) == OsSuccess) {
+            if (EhciTdIsochronous(Controller, &Transfer->Transfer, iTd, 
+                    AddressPointer, BytesStep, Address, Endpoint) != OsSuccess) {
+                // Out of bandwidth @todo
+                TRACE(" > Out of bandwidth");
+                for(;;);
+            }
         }
 
-        if (EhciIsocTdInitialize(Controller, &Transfer->Transfer, iTd, AddressPointer, BytesStep, Address, Endpoint) != OsSuccess) {
-            // Out of bandwidth @todo
-            ERROR("EHCI::Isoc out of bandwidth");
+        if (iTd == NULL) {
+            TRACE(" > Failed to allocate descriptor");
             for(;;);
+            break;
         }
 
         // Update pointers
         if (FirstTd == NULL) {
-            FirstTd                 = iTd;
+            FirstTd     = iTd;
+            PreviousTd  = iTd;
         }
         else {
-            // Not last in chain, clear IOC
-            PreviousTd->QueueIndex  = iTd->Index;
+            UsbSchedulerChainElement(Controller->Base.Scheduler, 
+                (uint8_t*)FirstTd, (uint8_t*)iTd, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
+            
             for (i = 0; i < 8; i++) {
                 if (PreviousTd->Transactions[i] & EHCI_iTD_IOC) {
                     PreviousTd->Transactions[i] &= ~(EHCI_iTD_IOC);
                     PreviousTd->TransactionsCopy[i] &= ~(EHCI_iTD_IOC);
                 }
             }
+
+            PreviousTd  = iTd;
         }
-        PreviousTd                  = iTd;
+
         AddressPointer              += BytesStep;
         BytesToTransfer             -= BytesStep;
     }

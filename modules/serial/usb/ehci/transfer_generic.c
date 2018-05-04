@@ -25,11 +25,13 @@
 
 /* Includes
  * - System */
+#include <os/mollenos.h>
 #include <os/utils.h>
 #include "ehci.h"
 
 /* Includes
  * - Library */
+#include <assert.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
@@ -95,10 +97,9 @@ EhciTransferFill(
     _In_ UsbManagerTransfer_t*  Transfer)
 {
     // Variables
-    EhciQueueHead_t *Qh                     = (EhciQueueHead_t*)Transfer->EndpointDescriptor;
-    EhciTransferDescriptor_t *InitialTd     = NULL;
     EhciTransferDescriptor_t *PreviousTd    = NULL;
     EhciTransferDescriptor_t *Td            = NULL;
+    EhciQueueHead_t *Qh                     = (EhciQueueHead_t*)Transfer->EndpointDescriptor;
     size_t Address, Endpoint;
     int OutOfResources                      = 0;
     int i;
@@ -118,11 +119,14 @@ EhciTransferFill(
         size_t ByteStep             = 0;
         int PreviousToggle          = -1;
         int Toggle                  = 0;
+        TRACE("Transaction(%i, Buffer 0x%x, Length %u, Type %i)", i,
+            Transfer->Transfer.Transactions[i].BufferAddress, BytesToTransfer, Type);
 
         // Adjust offsets
         ByteOffset                  = Transfer->BytesTransferred[i];
         BytesToTransfer            -= Transfer->BytesTransferred[i];
         if (BytesToTransfer == 0 && Transfer->Transfer.Transactions[i].ZeroLength != 1) {
+            TRACE(" > Skipping");
             continue;
         }
 
@@ -135,20 +139,27 @@ EhciTransferFill(
         }
 
         // Keep adding td's
+        TRACE(" > BytesToTransfer(%u)", BytesToTransfer);
         while (BytesToTransfer || Transfer->Transfer.Transactions[i].ZeroLength == 1) {
             Toggle          = UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe);
-            if (Type == SetupTransaction) {
-                Td          = EhciTdSetup(Controller, &Transfer->Transfer.Transactions[i]);
-                ByteStep    = BytesToTransfer;
-            }
-            else {
-                Td          = EhciTdIo(Controller, &Transfer->Transfer, &Transfer->Transfer.Transactions[i], Toggle);
-                ByteStep    = (Td->Length & EHCI_TD_LENGTHMASK);
+            if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, EHCI_TD_POOL, (uint8_t**)&Td) == OsSuccess) {
+                if (Type == SetupTransaction) {
+                    TRACE(" > Creating setup packet");
+                    Toggle      = 0; // Initial toggle must ALWAYS be 0 for setup
+                    ByteStep    = BytesToTransfer;
+                    EhciTdSetup(Controller, Td, &Transfer->Transfer.Transactions[i]);
+                }
+                else {
+                    TRACE(" > Creating io packet");
+                    EhciTdIo(Controller, Td, &Transfer->Transfer, &Transfer->Transfer.Transactions[i], Toggle);
+                    ByteStep    = (Td->Length & EHCI_TD_LENGTHMASK);
+                }
             }
 
             // If we didn't allocate a td, we ran out of 
             // resources, and have to wait for more. Queue up what we have
             if (Td == NULL) {
+                TRACE(" > Failed to allocate descriptor");
                 if (PreviousToggle != -1) {
                     UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, PreviousToggle);
                     Transfer->Transfer.Transactions[i].Handshake = 1;
@@ -157,23 +168,16 @@ EhciTransferFill(
                 break;
             }
             else {
-                // Store first
-                if (InitialTd == NULL) {
-                    InitialTd   = Td;
-                    PreviousTd  = Td;
-                }
-                else {
-                    // Update physical link
-                    PreviousTd->LinkIndex   = Td->Index;
-                    PreviousTd->Link        = EHCI_POOL_TDINDEX(Controller, PreviousTd->LinkIndex);
-                    PreviousTd              = Td;
-                }
+                UsbSchedulerChainElement(Controller->Base.Scheduler, 
+                    (uint8_t*)Qh, (uint8_t*)Td, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
+                PreviousTd = Td;
 
                 // Update toggle by flipping
                 UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, Toggle ^ 1);
 
                 // Break out on zero lengths
                 if (Transfer->Transfer.Transactions[i].ZeroLength == 1) {
+                    TRACE(" > Encountered zero-length");
                     Transfer->Transfer.Transactions[i].ZeroLength = 0;
                     break;
                 }
@@ -198,28 +202,15 @@ EhciTransferFill(
         }
     }
 
-    // If we ran out of resources it can be pretty serious
-    // Add a null-transaction (Out, Zero)
-    if (OutOfResources == 1) {
-        // If we allocated zero we have to unallocate zero and try again later
-        if (InitialTd == NULL) {
-            return OsError;
-        }
-    }
-    // Set last td to generate a interrupt (not null)
-    PreviousTd->Token           |= EHCI_TD_IOC;
-    PreviousTd->OriginalToken   |= EHCI_TD_IOC;
-
-    // End of <transfer>?
-    if (InitialTd != NULL) {
-        // Finalize the endpoint-descriptor
-        Qh->ChildIndex              = InitialTd->Index;
-        Qh->CurrentTD               = EHCI_POOL_TDINDEX(Controller, InitialTd->Index);
+    // If we ran out of resources queue up later
+    if (PreviousTd != NULL) {
+        // Set last td to generate a interrupt (not null)
+        PreviousTd->Token           |= EHCI_TD_IOC;
+        PreviousTd->OriginalToken   |= EHCI_TD_IOC;
         return OsSuccess;
     }
     else {
-        // Queue up for later
-        return OsError;
+        return OsError; // Queue up for later
     }
 }
 

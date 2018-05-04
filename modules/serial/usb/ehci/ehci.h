@@ -545,7 +545,6 @@ typedef union _EhciGenericLink {
  * needed to control, queue and handle devices on an ehci-controller. */
 typedef struct _EhciController {
     UsbManagerController_t      Base;
-    UsbScheduler_t*             Scheduler;
 
     // Registers and resources
     EchiCapabilityRegisters_t*  CapRegisters;
@@ -720,11 +719,11 @@ EhciTdRestart(
  * Isochronous TD Methods
  *******************************************************************************/
 
-/* EhciIsocTdInitialize
+/* EhciTdIsochronous
  * This initiates any periodic scheduling information that might be needed */
 __EXTERN
 OsStatus_t
-EhciIsocTdInitialize(
+EhciTdIsochronous(
     _In_ EhciController_t*              Controller,
     _In_ UsbTransfer_t*                 Transfer,
     _In_ EhciIsochronousDescriptor_t*   iTd,
@@ -733,31 +732,32 @@ EhciIsocTdInitialize(
     _In_ size_t                         Address,
     _In_ size_t                         Endpoint);
 
-/* EhciLinkPeriodicIsoc
- * This function links an isochronous td into the schedule at iTd->StartFrame 
- * and every other Td->Interval. */
+/* EhciiTdDump
+ * Dumps the information contained in the descriptor by writing it. */
 __EXTERN
 void
-EhciLinkPeriodicIsoc(
-    _In_ EhciController_t*              Controller, 
-    _In_ EhciIsochronousDescriptor_t*   iTd);
+EhciiTdDump(
+    _In_ EhciController_t*              Controller,
+    _In_ EhciIsochronousDescriptor_t*   Td);
 
-/* EhciRestartIsocTd
- * Resets an isochronous td-chain by restoring all transactions to original states. */
+/* EhciiTdValidate
+ * Checks the transfer descriptors for errors and updates the transfer that is attached
+ * with the bytes transferred and error status. */
 __EXTERN
 void
-EhciRestartIsocTd(
-    EhciController_t*       Controller, 
-    UsbManagerTransfer_t*   Transfer);
+EhciiTdValidate(
+    _In_ UsbManagerTransfer_t*          Transfer,
+    _In_ EhciIsochronousDescriptor_t*   Td);
 
-/* EhciScanIsocTd
- * Scans a chain of isochronous td's to check whether or not it has been processed. Returns 1
- * if there was work done - otherwise 0 if untouched. */
+/* EhciiTdRestart
+ * Restarts a transfer descriptor by resettings it's status and updating buffers if the
+ * trasnfer type is an interrupt-transfer that uses circularbuffers. */
 __EXTERN
-int
-EhciScanIsocTd(
-    EhciController_t*       Controller, 
-    UsbManagerTransfer_t*   Transfer);
+void
+EhciiTdRestart(
+    _In_ EhciController_t*              Controller,
+    _In_ UsbManagerTransfer_t*          Transfer,
+    _In_ EhciIsochronousDescriptor_t*   Td);
 
 /*******************************************************************************
  * Queue Methods

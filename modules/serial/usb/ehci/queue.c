@@ -156,9 +156,6 @@ OsStatus_t
 EhciQueueReset(
     _In_ EhciController_t*  Controller)
 {
-    // Variables
-    CollectionItem_t *tNode = NULL;
-
     // Debug
     TRACE("EhciQueueReset()");
 
@@ -370,10 +367,10 @@ HciProcessElement(
                 EhciQhDump((EhciController_t*)Controller, (EhciQueueHead_t*)Element);
             }
             else if (Transfer->Transfer.Type != IsochronousTransfer) {
-                OhciTdDump((EhciController_t*)Controller, (EhciTransferDescriptor_t*)Element);
+                EhciTdDump((EhciController_t*)Controller, (EhciTransferDescriptor_t*)Element);
             }
             else {
-                OhciiTdDump((EhciController_t*)Controller, (EhciIsochronousDescriptor_t*)Element);
+                EhciiTdDump((EhciController_t*)Controller, (EhciIsochronousDescriptor_t*)Element);
             }
         } break;
         
@@ -383,13 +380,13 @@ HciProcessElement(
             }
 
             if (Transfer->Transfer.Type != IsochronousTransfer) {
-                OhciTdValidate(Transfer, (EhciTransferDescriptor_t*)Element);
+                EhciTdValidate(Transfer, (EhciTransferDescriptor_t*)Element);
                 if (Transfer->Flags & TransferFlagShort) {
                     return ITERATOR_STOP; // Stop here
                 }
             }
             else {
-                OhciiTdValidate(Transfer, (EhciIsochronousDescriptor_t*)Element);
+                EhciiTdValidate(Transfer, (EhciIsochronousDescriptor_t*)Element);
             }
         } break;
         
@@ -479,7 +476,7 @@ HciProcessEvent(
     switch (Event) {
         case USB_EVENT_RESTART_DONE: {
             if (Transfer->Transfer.Type != IsochronousTransfer) {
-                EhciRestartQh((EhciController_t*)Controller, Transfer);
+                EhciQhRestart((EhciController_t*)Controller, Transfer);
             }
         } break;
     }

@@ -31,6 +31,7 @@
 
 /* Includes
  * - Library */
+#include <assert.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
@@ -81,12 +82,12 @@ HciTransactionFinalize(
     }
     else {
         Transfer->Flags |= TransferFlagCleanup;
-        EhciRingDoorbell(Controller);
+        EhciRingDoorbell((EhciController_t*)Controller);
     }
     return OsSuccess;
 }
 
-/* HciDequeueTransfer 
+/* HciDequeueTransfer
  * Removes a queued transfer from the controller's transfer list */
 UsbTransferStatus_t
 HciDequeueTransfer(
@@ -102,7 +103,7 @@ HciDequeueTransfer(
     // Unschedule immediately, but keep data intact as hardware
     // still (might) reference it. To avoid this, we ring the doorbell
     // to inform ehci to update it's references.
-    UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
+    UsbManagerIterateChain(&Controller->Base, Transfer->EndpointDescriptor, 
         USB_CHAIN_DEPTH, USB_REASON_UNLINK, HciProcessElement, Transfer);
 
     // Mark transfer for cleanup and ring doorbell

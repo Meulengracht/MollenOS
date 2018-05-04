@@ -22,7 +22,6 @@
  * - Transaction Translator Support
  */
 //#define __TRACE
-#define __COMPILE_ASSERT
 
 /* Includes
  * - System */
@@ -91,6 +90,7 @@ EhciTdSetup(
     // Initialize the transfer-descriptor
     Td->Link                    = EHCI_LINK_END;
     Td->AlternativeLink         = EHCI_LINK_END;
+
     Td->Status                  = EHCI_TD_ACTIVE;
     Td->Token                   = EHCI_TD_SETUP;
     Td->Token                   |= EHCI_TD_ERRCOUNT;
@@ -127,8 +127,7 @@ EhciTdIo(
     
     // Short packet not ok? 
     if ((Transfer->Flags & USB_TRANSFER_SHORT_NOT_OK) && PId == EHCI_TD_IN) {
-        Td->AlternativeLink      = EHCI_POOL_TDINDEX(Controller, EHCI_POOL_TD_ASYNC);
-        Td->AlternativeLinkIndex = EHCI_POOL_TD_ASYNC;
+        // Todo - what should we do?
     }
 
     // Calculate the length of the transfer
@@ -175,25 +174,45 @@ EhciTdValidate(
     _In_ EhciTransferDescriptor_t*  Td)
 {
     // Variables
-    int ErrorCode               = 0;
+    int ErrorCode;
     int i;
 
-    // Sanitize if it's still active
+    // Sanitize active status
     if (Td->Status & EHCI_TD_ACTIVE) {
-        return 0;
+        // If this one is still active, but it's an transfer that has
+        // elements processed - resync toggles
+        if (Transfer->Status != TransferQueued) {
+            Transfer->Flags |= TransferFlagSync;
+        }
+        return;
     }
-
-    Transfer->Status            = TransferFinished;
-    ErrorCode                   = EhciConditionCodeToIndex(
-        Transfer->Transfer.Speed == HighSpeed ? (Td->Status & 0xFC) : Td->Status);
     Transfer->TransactionsExecuted++;
+
+    // Get error code based on type of transfer
+    ErrorCode               = EhciConditionCodeToIndex(
+        Transfer->Transfer.Speed == HighSpeed ? (Td->Status & 0xFC) : Td->Status);
+    
+    if (ErrorCode != 0) {
+        Transfer->Status    = EhciGetStatusCode(ErrorCode);
+        return; // Skip bytes transferred
+    }
+    else if (ErrorCode == 0 && Transfer->Status == TransferQueued) {
+        Transfer->Status    = TransferFinished;
+    }
 
     // Add bytes transferred
     if ((Td->OriginalLength & EHCI_TD_LENGTHMASK) != 0) {
         int BytesTransferred    = (Td->OriginalLength - Td->Length) & EHCI_TD_LENGTHMASK;
         int BytesRequested      = Td->OriginalLength & EHCI_TD_LENGTHMASK;
-        if (BytesRequested > BytesTransferred) {
-            *ShortTransfer = 1;
+        
+        if (BytesTransferred < BytesRequested) {
+            Transfer->Flags |= TransferFlagShort;
+
+            // On short transfers we might have to sync, but only 
+            // if there are un-processed td's after this one
+            if (Td->Object.DepthIndex != USB_ELEMENT_NO_INDEX) {
+                Transfer->Flags |= TransferFlagSync;
+            }
         }
         for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
             if (Transfer->Transfer.Transactions[i].Length > Transfer->BytesTransferred[i]) {
@@ -202,18 +221,8 @@ EhciTdValidate(
             }
         }
     }
-
-    // Debug
-    TRACE("Td (Id %u) Token 0x%x, Status 0x%x, Length 0x%x, Buffer 0x%x, Link 0x%x\n",
-        Td->Index, Td->Token, Td->Status, Td->Length, Td->Buffers[0], Td->Link);
-
-    // Now validate the code
-    if (ErrorCode != 0) {
-        WARNING("EHCI::Transfer non-success: %i (Flags 0x%x)", ErrorCode, Td->Status);
-        Transfer->Status = EhciGetStatusCode(ErrorCode);
-    }
-    return ErrorCode;
 }
+
 /* EhciTdSynchronize
  * Synchronizes the toggle status of the transfer descriptor by retrieving
  * current and updating the pipe toggle. */
@@ -222,7 +231,23 @@ EhciTdSynchronize(
     _In_ UsbManagerTransfer_t*      Transfer,
     _In_ EhciTransferDescriptor_t*  Td)
 {
+    // Variables
+    int Toggle          = UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe);
 
+    // Is it neccessary?
+    if (Toggle == 1 && (Td->Length & EHCI_TD_TOGGLE)) {
+        return;
+    }
+
+    // Clear
+    Td->Length          &= ~(EHCI_TD_TOGGLE);
+    if (Toggle) {
+        Td->Length      |= EHCI_TD_TOGGLE;
+    }
+
+    // Update copy
+    Td->OriginalLength  = Td->Length;
+    UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, Toggle ^ 1);
 }
 
 /* EhciTdRestart
@@ -235,28 +260,26 @@ EhciTdRestart(
     _In_ EhciTransferDescriptor_t*  Td)
 {
     // Variables
-    uintptr_t BufferBase, BufferStep;
+    uintptr_t BufferBaseUpdated = 0;
+    uintptr_t BufferBase    = 0;
+    uintptr_t BufferStep    = 0;
+    int Toggle              = UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe);
 
-    // Do some extra processing for periodics
-    if (Transfer->Transfer.Type == InterruptTransfer) {
-        BufferBase      = Transfer->Transfer.Transactions[0].BufferAddress;
-        BufferStep      = Transfer->Transfer.Transactions[0].Length;
+    // Clear
+    Td->OriginalLength      &= ~(EHCI_TD_TOGGLE);
+    if (Toggle) {
+        Td->OriginalLength  = EHCI_TD_TOGGLE;
     }
-
-    // Update the toggle
-    Td->OriginalLength          &= ~(EHCI_TD_TOGGLE);
-    if (Td->Length & EHCI_TD_TOGGLE) {
-        Td->OriginalLength      |= EHCI_TD_TOGGLE;
-    }
+    UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, Toggle ^ 1);
 
     // Reset members of td
     Td->Status                  = EHCI_TD_ACTIVE;
     Td->Length                  = Td->OriginalLength;
     Td->Token                   = Td->OriginalToken;
     
-    // Adjust buffers if interrupt in
-    if (Transfer->Transfer.Type == InterruptTransfer) {
-        uintptr_t BufferBaseUpdated = ADDLIMIT(BufferBase, Td->Buffers[0], 
+    // Adjust buffer if not just restart
+    if (Transfer->Status != TransferNAK) {
+        BufferBaseUpdated = ADDLIMIT(BufferBase, Td->Buffers[0], 
             BufferStep, BufferBase + Transfer->Transfer.PeriodicBufferSize);
         EhciTdFill(Controller, Td, BufferBaseUpdated, BufferStep);
     }

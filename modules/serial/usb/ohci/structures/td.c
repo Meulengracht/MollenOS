@@ -224,19 +224,17 @@ OhciTdRestart(
     _In_ OhciTransferDescriptor_t*  Td)
 {
     // Variables
-    OhciQueueHead_t *Qh     = NULL;
     uintptr_t BufferBaseUpdated = 0;
     uintptr_t BufferStep    = 0;
     uintptr_t LinkAddress   = 0;
     int Toggle              = UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe);
 
-    Qh                      = (OhciQueueHead_t*)Transfer->EndpointDescriptor;
     BufferStep              = Transfer->Transfer.Endpoint.MaxPacketSize;
 
     // Clear
-    Td->Flags               &= ~(OHCI_TD_TOGGLE);
+    Td->OriginalFlags       &= ~(OHCI_TD_TOGGLE);
     if (Toggle) {
-        Td->Flags           |= OHCI_TD_TOGGLE;
+        Td->OriginalFlags   |= OHCI_TD_TOGGLE;
     }
     UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, Toggle ^ 1);
 
