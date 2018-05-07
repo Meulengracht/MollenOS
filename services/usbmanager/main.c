@@ -99,7 +99,8 @@ OnEvent(
 			// Handle port event
 			return UsbCoreEventPort(Message->From.Process, 
 				(UUId_t)Message->Arguments[0].Data.Value, 
-				(int)Message->Arguments[1].Data.Value);
+				LOBYTE(Message->Arguments[1].Data.Value), 
+				LOBYTE(Message->Arguments[2].Data.Value));
 		} break;
 
 		// Don't handle anything else tbh

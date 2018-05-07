@@ -46,8 +46,7 @@ UsbManagerCreateTransfer(
     _In_ UsbTransfer_t*         Transfer,
     _In_ UUId_t                 Requester,
     _In_ int                    ResponsePort,
-    _In_ UUId_t                 Device,
-    _In_ UUId_t                 Pipe)
+    _In_ UUId_t                 Device)
 {
     // Variables
     UsbManagerTransfer_t *UsbTransfer = NULL;
@@ -61,7 +60,6 @@ UsbManagerCreateTransfer(
     UsbTransfer->Requester      = Requester;
     UsbTransfer->ResponsePort   = ResponsePort;
     UsbTransfer->DeviceId       = Device;
-    UsbTransfer->Pipe           = Pipe;
     UsbTransfer->Id             = __GlbTransferId++;
     UsbTransfer->Status         = TransferNotProcessed;
     return UsbTransfer;

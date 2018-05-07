@@ -196,7 +196,7 @@ OhciTdSynchronize(
     _In_  OhciTransferDescriptor_t* Td)
 {
     // Variables
-    int Toggle = UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe);
+    int Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
 
     // Is it neccessary?
     if (Toggle == 1 && (Td->Flags & OHCI_TD_TOGGLE)) {
@@ -211,7 +211,7 @@ OhciTdSynchronize(
 
     // Update copy
     Td->OriginalFlags  = Td->Flags;
-    UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, Toggle ^ 1);
+    UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, Toggle ^ 1);
 }
 
 /* OhciTdRestart
@@ -227,7 +227,7 @@ OhciTdRestart(
     uintptr_t BufferBaseUpdated = 0;
     uintptr_t BufferStep    = 0;
     uintptr_t LinkAddress   = 0;
-    int Toggle              = UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe);
+    int Toggle              = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
 
     BufferStep              = Transfer->Transfer.Endpoint.MaxPacketSize;
 
@@ -236,7 +236,7 @@ OhciTdRestart(
     if (Toggle) {
         Td->OriginalFlags   |= OHCI_TD_TOGGLE;
     }
-    UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, Toggle ^ 1);
+    UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, Toggle ^ 1);
 
     // Adjust buffer if not just restart
     if (Transfer->Status != TransferNAK) {

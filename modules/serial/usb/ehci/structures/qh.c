@@ -49,8 +49,9 @@ EhciQhInitialize(
     OsStatus_t Status   = OsSuccess;
     size_t EpBandwidth  = MAX(3, Transfer->Transfer.Endpoint.Bandwidth);
 
-    // Initialize link
+    // Initialize links
     Qh->LinkPointer     = EHCI_LINK_END;
+    Qh->Overlay.NextTD  = EHCI_LINK_END;
     Qh->Overlay.NextAlternativeTD = EHCI_LINK_END;
 
     // Initialize link flags
@@ -85,10 +86,9 @@ EhciQhInitialize(
         // Set nak-throttle to 0
         Qh->Flags |= EHCI_QH_RL(0);
 
-        // We need to fill the TT's hub-addr
-        // and port-addr (@todo)
-        ERROR("EHCI::Scheduling low/full-speed");
-        for (;;);
+        // We need to fill the TT's hub-address and port-address
+        Qh->State |= EHCI_QH_HUBADDR(Transfer->Transfer.Address.HubAddress);
+        Qh->State |= EHCI_QH_PORT(Transfer->Transfer.Address.PortAddress);
     }
     else {
         // High speed device, no transaction translator
@@ -117,6 +117,11 @@ EhciQhInitialize(
             Transfer->Transfer.Type, Transfer->Transfer.Speed, (uint8_t*)Qh);
         if (Status == OsSuccess) {
             // Calculate both the frame start and completion mask
+            // If the transfer was to spand over a boundary, starting with subframes in
+            // one frame, ending with subframes in next frame, we would have to use
+            // FSTN links for low/full speed interrupt transfers. But as the allocator
+            // works this never happens as it only allocates in same frame. If this
+            // changes we need to update this @todo
             Qh->FrameStartMask  = (uint8_t)FirstSetBit(Qh->Object.FrameMask);
             if (Transfer->Transfer.Speed != HighSpeed) {
                 Qh->FrameCompletionMask = (uint8_t)(Qh->Object.FrameMask & 0xFF);

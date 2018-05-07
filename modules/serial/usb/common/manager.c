@@ -188,10 +188,14 @@ UsbManagerGetController(
 int
 UsbManagerGetToggle(
     _In_ UUId_t                     Device,
-    _In_ UUId_t                     Pipe)
+    _In_ UsbHcAddress_t*            Address)
 {
     // Variables
     DataKey_t Key;
+    UUId_t Pipe;
+
+    // Create an unique id for this endpoint
+    Pipe = ((uint32_t)Address->DeviceAddress << 8)  | Address->EndpointAddress;
     Key.Value = (int)Pipe;
 
     // Iterate list of controllers
@@ -236,11 +240,15 @@ UsbManagerGetToggle(
 OsStatus_t
 UsbManagerSetToggle(
     _In_ UUId_t                     Device,
-    _In_ UUId_t                     Pipe,
+    _In_ UsbHcAddress_t*            Address,
     _In_ int                        Toggle)
 {
     // Variables
     DataKey_t Key;
+    UUId_t Pipe;
+
+    // Create an unique id for this endpoint
+    Pipe = ((uint32_t)Address->DeviceAddress << 8)  | Address->EndpointAddress;
     Key.Value = (int)Pipe;
 
     // Iterate list of controllers
@@ -344,6 +352,22 @@ UsbManagerClearTransfers(
     CollectionClear(Controller->TransactionList);
 }
 
+/* UsbManagerIsAddressesEqual
+ * Checks two different usb addreses if they are targetting the same endpoint. */
+OsStatus_t
+UsbManagerIsAddressesEqual(
+    _In_ UsbHcAddress_t*            Address1,
+    _In_ UsbHcAddress_t*            Address2)
+{
+    if (Address1->HubAddress        == Address2->HubAddress     &&
+        Address1->PortAddress       == Address2->PortAddress    && 
+        Address1->DeviceAddress     == Address2->DeviceAddress  &&
+        Address1->EndpointAddress   == Address2->EndpointAddress) {
+        return OsSuccess;
+    }
+    return OsError;
+}
+
 /* UsbManagerSynchronizeTransfers
  * Synchronizes transfers, the pipe to synchronize with must be passed in the <Context> parameter. 
  * This only affects Bulk/Interrupt and if their transfer status is Queued. */
@@ -354,10 +378,10 @@ UsbManagerSynchronizeTransfers(
     _In_ void*                      Context)
 {
     // Variables
-    UUId_t Pipe = *((UUId_t*)Context);
+    UsbHcAddress_t *Address = (UsbHcAddress_t*)Context;
 
     // Is this transfer relevant?
-    if (Transfer->Pipe != Pipe
+    if (UsbManagerIsAddressesEqual(&Transfer->Transfer.Address, Address) != OsSuccess
         && Transfer->Status != TransferQueued
         && (Transfer->Transfer.Type != BulkTransfer || Transfer->Transfer.Type != InterruptTransfer)) {
         return ITERATOR_CONTINUE;
@@ -445,7 +469,7 @@ UsbManagerProcessTransfer(
     
     // Do we need to fixup toggles?
     if (Transfer->Flags & TransferFlagSync) {
-        UsbManagerIterateTransfers(Controller, UsbManagerSynchronizeTransfers, &Transfer->Pipe);
+        UsbManagerIterateTransfers(Controller, UsbManagerSynchronizeTransfers, &Transfer->Transfer.Address);
     }
 
     // Restart?

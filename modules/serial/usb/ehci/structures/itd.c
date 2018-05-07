@@ -57,6 +57,7 @@ EhciTdIsochronous(
 
     // Set link
     iTd->Link                   = EHCI_LINK_END;
+    iTd->Object.Flags           |= EHCI_LINK_iTD;
 
     // Fill in buffer page settings and initial page
     for (i = 0; i < 7; i++) {

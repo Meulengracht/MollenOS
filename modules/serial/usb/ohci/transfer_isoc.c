@@ -145,16 +145,11 @@ HciQueueTransferIsochronous(
     // Variables
     OhciQueueHead_t *EndpointDescriptor     = NULL;
     OhciController_t *Controller            = NULL;
-    size_t Address, Endpoint;
     DataKey_t Key;
 
     // Get Controller
     Controller          = (OhciController_t*)UsbManagerGetController(Transfer->DeviceId);
     Transfer->Status    = TransferNotProcessed;
-
-    // Extract address and endpoint
-    Address     = HIWORD(Transfer->Pipe);
-    Endpoint    = LOWORD(Transfer->Pipe);
 
     // Step 1 - Allocate queue head
     if (Transfer->EndpointDescriptor == NULL) {
@@ -166,7 +161,9 @@ HciQueueTransferIsochronous(
         Transfer->EndpointDescriptor = EndpointDescriptor;
 
         // Store and initialize the qh
-        if (OhciQhInitialize(Controller, Transfer, Address, Endpoint) != OsSuccess) {
+        if (OhciQhInitialize(Controller, Transfer, 
+            Transfer->Transfer.Address.DeviceAddress, 
+            Transfer->Transfer.Address.EndpointAddress) != OsSuccess) {
             // No bandwidth, serious.
             UsbSchedulerFreeElement(Controller->Base.Scheduler, (uint8_t*)EndpointDescriptor);
             return TransferNoBandwidth;

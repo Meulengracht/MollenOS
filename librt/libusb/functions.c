@@ -88,10 +88,13 @@ UsbTransferInitialize(
     memcpy(&Transfer->Endpoint, Endpoint, sizeof(UsbHcEndpointDescriptor_t));
 
     // Initialize
-    Transfer->Type  = Type;
-    Transfer->Speed = Device->Speed;
-    Transfer->Pipe  = ((Device->Address & 0xFFFF) << 16) | (Endpoint->Address & 0xFFFF);
-    Transfer->Flags = Flags;
+    Transfer->Flags                 = Flags;
+    Transfer->Type                  = Type;
+    Transfer->Speed                 = Device->Speed;
+
+    Transfer->Address.HubAddress    = Device->HubAddress;
+    Transfer->Address.PortAddress   = Device->PortAddress;
+    Transfer->Address.DeviceAddress = Device->DeviceAddress;
     return OsSuccess;
 }
 
@@ -250,9 +253,8 @@ UsbTransferQueue(
     Contract.Type       = ContractController;
     Contract.Version    = __USBMANAGER_INTERFACE_VERSION;
     return QueryDriver(&Contract, __USBHOST_QUEUETRANSFER,
-        &Device, sizeof(UUId_t), &Transfer->Pipe, sizeof(UUId_t), 
-        Transfer, sizeof(UsbTransfer_t), 
-        Result, sizeof(UsbTransferResult_t));
+        &Device, sizeof(UUId_t), Transfer, sizeof(UsbTransfer_t), 
+        NULL, 0, Result, sizeof(UsbTransferResult_t));
 }
 
 /* UsbTransferQueuePeriodic 
@@ -275,9 +277,8 @@ UsbTransferQueuePeriodic(
     Contract.Type       = ContractController;
     Contract.Version    = __USBMANAGER_INTERFACE_VERSION;
     if (QueryDriver(&Contract, __USBHOST_QUEUEPERIODIC,
-        &Device, sizeof(UUId_t), &Transfer->Pipe, sizeof(UUId_t), 
-        Transfer, sizeof(UsbTransfer_t), 
-        &Result, sizeof(UsbTransferResult_t)) != OsSuccess) {
+        &Device, sizeof(UUId_t), Transfer, sizeof(UsbTransfer_t), 
+        NULL, 0, &Result, sizeof(UsbTransferResult_t)) != OsSuccess) {
         *TransferId = UUID_INVALID;
         return TransferInvalid;
     }
@@ -305,8 +306,7 @@ UsbTransferDequeuePeriodic(
     Contract.Type       = ContractController;
     Contract.Version    = __USBMANAGER_INTERFACE_VERSION;
     if (QueryDriver(&Contract, __USBHOST_DEQUEUEPERIODIC,
-        &Device, sizeof(UUId_t), 
-        &TransferId, sizeof(UUId_t), 
+        &Device, sizeof(UUId_t), &TransferId, sizeof(UUId_t), 
         NULL, 0, &Result, sizeof(UsbTransferStatus_t)) != OsSuccess) {
         return TransferInvalid;
     }
@@ -315,37 +315,38 @@ UsbTransferDequeuePeriodic(
     }
 }
 
-/* UsbHostResetPort
+/* UsbHubResetPort
  * Resets the given port on the given controller and queries it's
  * status afterwards. This returns an updated status of the port after
  * the reset. */
 OsStatus_t
-UsbHostResetPort(
-	_In_  UUId_t                    Driver,
-	_In_  UUId_t                    Device,
-	_In_  int                       Index,
+UsbHubResetPort(
+	_In_  UUId_t                    DriverId,
+	_In_  UUId_t                    DeviceId,
+	_In_  uint8_t                   PortAddress,
 	_Out_ UsbHcPortDescriptor_t*    Descriptor)
 {
     // Variables
     MContract_t Contract;
 
     // Setup contract stuff for request
-    Contract.DriverId   = Driver;
+    Contract.DriverId   = DriverId;
     Contract.Type       = ContractController;
     Contract.Version    = __USBMANAGER_INTERFACE_VERSION;
     return QueryDriver(&Contract, __USBHOST_RESETPORT,
-        &Device, sizeof(UUId_t), 
-        &Index, sizeof(int), NULL, 0, 
+        &DeviceId, sizeof(UUId_t),
+        &PortAddress, sizeof(uint8_t),
+        NULL, 0,
         Descriptor, sizeof(UsbHcPortDescriptor_t));
 }
 
-/* UsbHostQueryPort 
+/* UsbHubQueryPort 
  * Queries the port-descriptor of host-controller port. */
 OsStatus_t
-UsbHostQueryPort(
+UsbHubQueryPort(
 	_In_  UUId_t                    Driver,
 	_In_  UUId_t                    Device,
-	_In_  int                       Index,
+	_In_  uint8_t                   PortAddress,
 	_Out_ UsbHcPortDescriptor_t*    Descriptor)
 {
     // Variables
@@ -356,8 +357,9 @@ UsbHostQueryPort(
     Contract.Type       = ContractController;
     Contract.Version    = __USBMANAGER_INTERFACE_VERSION;
     return QueryDriver(&Contract, __USBHOST_QUERYPORT,
-        &Device, sizeof(UUId_t), 
-        &Index, sizeof(int), NULL, 0, 
+        &Device, sizeof(UUId_t),
+        &PortAddress, sizeof(uint8_t),
+        NULL, 0,
         Descriptor, sizeof(UsbHcPortDescriptor_t));
 }
 
@@ -372,17 +374,23 @@ UsbEndpointReset(
     _In_ UsbHcEndpointDescriptor_t* Endpoint)
 {
     // Variables
-    OsStatus_t Result   = OsError;
-    UUId_t Pipe         = ((UsbDevice->Address & 0xFFFF) << 16) | (Endpoint->Address & 0xFFFF);
+    OsStatus_t Result = OsError;
     MContract_t Contract;
+    UsbHcAddress_t Address;
 
     // Setup contract stuff for request
     Contract.DriverId   = Driver;
     Contract.Type       = ContractController;
     Contract.Version    = __USBMANAGER_INTERFACE_VERSION;
+
+    Address.HubAddress      = UsbDevice->HubAddress;
+    Address.PortAddress     = UsbDevice->PortAddress;
+    Address.DeviceAddress   = UsbDevice->DeviceAddress;
+    Address.EndpointAddress = Endpoint->Address;
     if (QueryDriver(&Contract, __USBHOST_RESETENDPOINT,
         &Device, sizeof(UUId_t), 
-        &Pipe, sizeof(UUId_t), NULL, 0, 
+        &Address, sizeof(UsbHcAddress_t),
+        NULL, 0, 
         &Result, sizeof(OsStatus_t)) != OsSuccess) {
         return OsError;
     }
@@ -415,7 +423,7 @@ UsbSetAddress(
     TRACE("UsbSetAddress()");
 
     // Sanitize current address
-    if (UsbDevice->Address != 0) {
+    if (UsbDevice->DeviceAddress != 0) {
         return TransferNotProcessed;
     }
 

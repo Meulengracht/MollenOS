@@ -106,12 +106,25 @@ PACKED_TYPESTRUCT(UsbHcInterface, {
 	UsbHcInterfaceVersion_t             Versions[USB_MAX_VERSIONS];
 });
 
+/* UsbHcAddress
+ * Address elements for accessing ports, devices and endpoints. */
+PACKED_TYPESTRUCT(UsbHcAddress, {
+    uint8_t                     HubAddress;
+    uint8_t                     PortAddress;
+    uint8_t                     DeviceAddress;
+    uint8_t                     EndpointAddress;
+});
+
 /* UsbHcDevice 
  * Describes a device present on a port of a usb-host controller. 
  * A device then further has a bunch of interfaces, and those interfaces
  * have a bunch of endpoints. */
 PACKED_TYPESTRUCT(UsbHcDevice, {
-    int                         Address;
+    // Device addressing information
+    uint8_t                     HubAddress;
+    uint8_t                     PortAddress;
+    uint8_t                     DeviceAddress;
+
     UsbSpeed_t                  Speed;
 	int                         InterfaceCount;
 	int                         LanguageCount;
@@ -201,9 +214,11 @@ PACKED_TYPESTRUCT(UsbTransaction, {
 PACKED_TYPESTRUCT(UsbTransfer, {
     // Generic Information
     Flags_t                             Flags;
-    UUId_t                              Pipe;
 	UsbTransferType_t                   Type;
 	UsbSpeed_t                          Speed;
+
+    // Addressing information
+    UsbHcAddress_t                      Address;
     UsbTransaction_t                    Transactions[USB_TRANSACTIONCOUNT];
     int                                 TransactionCount;
 
@@ -340,26 +355,26 @@ UsbTransferDequeuePeriodic(
 	_In_ UUId_t                     Device,
 	_In_ UUId_t                     TransferId);
 
-/* UsbHostResetPort
- * Resets the given port on the given controller and queries it's
+/* UsbHubResetPort
+ * Resets the given port on the given hub and queries it's
  * status afterwards. This returns an updated status of the port after
  * the reset. */
 __EXTERN
 OsStatus_t
-UsbHostResetPort(
-	_In_  UUId_t                    Driver,
-	_In_  UUId_t                    Device,
-	_In_  int                       Index,
+UsbHubResetPort(
+	_In_  UUId_t                    DriverId,
+	_In_  UUId_t                    DeviceId,
+	_In_  uint8_t                   PortAddress,
 	_Out_ UsbHcPortDescriptor_t*    Descriptor);
 
-/* UsbHostQueryPort 
+/* UsbHubQueryPort 
  * Queries the port-descriptor of host-controller port. */
 __EXTERN
 OsStatus_t
-UsbHostQueryPort(
-	_In_  UUId_t                    Driver,
-	_In_  UUId_t                    Device,
-	_In_  int                       Index,
+UsbHubQueryPort(
+	_In_  UUId_t                    DriverId,
+	_In_  UUId_t                    DeviceId,
+	_In_  uint8_t                   PortAddress,
 	_Out_ UsbHcPortDescriptor_t*    Descriptor);
 
 /* UsbSetAddress

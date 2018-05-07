@@ -72,11 +72,9 @@ UsbControllerRegister(
         __USBMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __USBMANAGER_REGISTERCONTROLLER);
 
     // Setup arguments
-    RPCSetArgument(&Request, 0, (__CONST void*)Device, sizeof(MCoreDevice_t));
-    RPCSetArgument(&Request, 1, (__CONST void*)&Type, sizeof(UsbControllerType_t));
-    RPCSetArgument(&Request, 2, (__CONST void*)&Ports, sizeof(size_t));
-
-    // Send event, no response
+    RPCSetArgument(&Request, 0, (const void*)Device, sizeof(MCoreDevice_t));
+    RPCSetArgument(&Request, 1, (const void*)&Type, sizeof(UsbControllerType_t));
+    RPCSetArgument(&Request, 2, (const void*)&Ports, sizeof(size_t));
     return RPCEvent(&Request);
 }
 
@@ -97,9 +95,7 @@ UsbControllerUnregister(
         __USBMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __USBMANAGER_UNREGISTERCONTROLLER);
 
     // Setup arguments
-    RPCSetArgument(&Request, 0, (__CONST void*)&DeviceId, sizeof(UUId_t));
-
-    // Send event, no response
+    RPCSetArgument(&Request, 0, (const void*)&DeviceId, sizeof(UUId_t));
     return RPCEvent(&Request);
 }
 
@@ -111,8 +107,9 @@ SERVICEAPI
 OsStatus_t
 SERVICEABI
 UsbEventPort(
-    _In_ UUId_t DeviceId,
-    _In_ int Index)
+    _In_ UUId_t     DeviceId,
+    _In_ uint8_t    HubAddress,
+    _In_ uint8_t    PortAddress)
 {
     // Variables
     MRemoteCall_t Request;
@@ -122,10 +119,9 @@ UsbEventPort(
         __USBMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __USBMANAGER_PORTEVENT);
 
     // Setup arguments
-    RPCSetArgument(&Request, 0, (__CONST void*)&DeviceId, sizeof(UUId_t));
-    RPCSetArgument(&Request, 1, (__CONST void*)&Index, sizeof(int));
-
-    // Send event, no response
+    RPCSetArgument(&Request, 0, (const void*)&DeviceId, sizeof(UUId_t));
+    RPCSetArgument(&Request, 1, (const void*)&HubAddress, sizeof(uint8_t));
+    RPCSetArgument(&Request, 2, (const void*)&PortAddress, sizeof(uint8_t));
     return RPCEvent(&Request);
 }
 

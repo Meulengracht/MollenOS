@@ -191,7 +191,7 @@ __EXTERN
 int
 UsbManagerGetToggle(
     _In_ UUId_t                     Device,
-    _In_ UUId_t                     Pipe);
+    _In_ UsbHcAddress_t*            Address);
 
 /* UsbManagetSetToggle 
  * Updates the toggle status for a given pipe */
@@ -199,7 +199,7 @@ __EXTERN
 OsStatus_t
 UsbManagerSetToggle(
     _In_ UUId_t                     Device,
-    _In_ UUId_t                     Pipe,
+    _In_ UsbHcAddress_t*            Address,
     _In_ int                        Toggle);
 
 /* UsbManagerProcessTransfers

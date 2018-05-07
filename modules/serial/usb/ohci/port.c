@@ -115,7 +115,7 @@ OhciPortInitialize(
     // Wait for port-power to stabilize
     thrd_sleepex(Controller->PowerOnDelayMs);
     OhciPortPrepare(Controller, Index);
-    return UsbEventPort(Controller->Base.Device.Id, Index);
+    return UsbEventPort(Controller->Base.Device.Id, 0, (uint8_t)(Index & 0xFF));
 }
 
 /* HciPortGetStatus 
@@ -156,7 +156,7 @@ OhciPortCheck(
             thrd_sleepex(Controller->PowerOnDelayMs);
             HciPortReset(&Controller->Base, Index);
         }
-        Result = UsbEventPort(Controller->Base.Device.Id, Index);
+        Result = UsbEventPort(Controller->Base.Device.Id, 0, (uint8_t)(Index & 0xFF));
     }
 
     // Clear connection event

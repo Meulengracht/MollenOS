@@ -189,6 +189,28 @@ RPCGetStringArgument(
     return NULL;
 }
 
+/* RPCCastArgumentToPointer
+ * Casts the argument to a pointer safely and handling cases where data
+ * fits entirely into the register argument. */
+SERVICEAPI 
+OsStatus_t
+SERVICEABI
+RPCCastArgumentToPointer(
+    _In_  MRemoteCallArgument_t*    Argument,
+    _Out_ void**                    DataOut)
+{
+    if (Argument == NULL) {
+        return OsError;
+    }
+    if (Argument->Type == ARGUMENT_REGISTER) {
+        *DataOut = (void*)&Argument->Data.Value;
+    }
+    else if (Argument->Type == ARGUMENT_BUFFER) {
+        *DataOut = (void*)Argument->Data.Buffer;
+    }
+    return OsSuccess;
+}
+
 /* RPCListen 
  * Call this to wait for a new RPC message, it automatically
  * reads the message, and all the arguments. To avoid freeing

@@ -54,7 +54,6 @@ typedef struct _UsbManagerTransfer {
     // Transfer Metadata
     UUId_t                      Id;
     UUId_t                      DeviceId;
-    UUId_t                      Pipe;
     UsbTransferStatus_t         Status;
     UsbManagerTransferFlags_t   Flags;
 
@@ -76,8 +75,7 @@ UsbManagerCreateTransfer(
     _In_ UsbTransfer_t*         Transfer,
     _In_ UUId_t                 Requester,
     _In_ int                    ResponsePort,
-    _In_ UUId_t                 Device,
-    _In_ UUId_t                 Pipe);
+    _In_ UUId_t                 Device);
 
 /* UsbManagerSendNotification
  * Sends a notification to the subscribing process whenever a periodic

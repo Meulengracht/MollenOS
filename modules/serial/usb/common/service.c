@@ -101,14 +101,12 @@ OnQuery(
     UsbManagerTransfer_t *Transfer      = NULL;
     OsStatus_t Result                   = OsError;
     UUId_t Device                       = UUID_INVALID;
-    UUId_t Pipe                         = UUID_INVALID;
 
     // Debug
     TRACE("Hci.OnQuery(Function %i)", QueryFunction);
 
     // Instantiate some variables
     Device      = (UUId_t)Arg0->Data.Value;
-    Pipe        = (UUId_t)Arg1->Data.Value;
     Controller  = UsbManagerGetController(Device);
     if (Controller == NULL) {
         return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
@@ -122,7 +120,7 @@ OnQuery(
 
             // Create and setup new transfer
             Transfer                    = UsbManagerCreateTransfer(
-                (UsbTransfer_t*)Arg2->Data.Buffer, Queryee, ResponsePort, Device, Pipe);
+                (UsbTransfer_t*)Arg1->Data.Buffer, Queryee, ResponsePort, Device);
             
             // Queue the periodic transfer
             ResPackage.Status           = HciQueueTransferGeneric(Transfer);
@@ -143,7 +141,7 @@ OnQuery(
 
             // Create and setup new transfer
             Transfer                    = UsbManagerCreateTransfer(
-                (UsbTransfer_t*)Arg2->Data.Buffer, Queryee, ResponsePort, Device, Pipe);
+                (UsbTransfer_t*)Arg1->Data.Buffer, Queryee, ResponsePort, Device);
 
             // Queue the periodic transfer
             if (Transfer->Transfer.Type == IsochronousTransfer) {
@@ -188,7 +186,7 @@ OnQuery(
         case __USBHOST_RESETPORT: {
             // Call reset procedure, then let it fall through
             // to QueryPort
-            HciPortReset(Controller, (int)Pipe);
+            HciPortReset(Controller, (int)Arg1->Data.Value);
         };
         // Query port
         case __USBHOST_QUERYPORT: {
@@ -196,13 +194,16 @@ OnQuery(
             UsbHcPortDescriptor_t Descriptor;
 
             // Fill port descriptor
-            HciPortGetStatus(Controller, (int)Pipe, &Descriptor);
+            HciPortGetStatus(Controller, (int)Arg1->Data.Value, &Descriptor);
             return PipeSend(Queryee, ResponsePort, (void*)&Descriptor, sizeof(UsbHcPortDescriptor_t));
         } break;
         
         // Reset endpoint toggles
         case __USBHOST_RESETENDPOINT: {
-            Result = UsbManagerSetToggle(Device, Pipe, 0);
+            UsbHcAddress_t *Address = NULL;
+            if (RPCCastArgumentToPointer(Arg1, (void**)&Address) == OsSuccess) {
+                Result = UsbManagerSetToggle(Device, Address, 0);
+            }
         } break;
 
         // Fall-through, error

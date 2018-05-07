@@ -495,17 +495,6 @@ PACKED_TYPESTRUCT(EhciFSTN, {
     reg32_t                    BackPathPointer; // HW Link
 });
 
-/* EhciGenericLink (Generic Link Format)
- * This union is used for iterating the periodic list */
-typedef union _EhciGenericLink {
-    EhciQueueHead_t*                    Qh;
-    EhciTransferDescriptor_t*           Td;
-    EhciIsochronousDescriptor_t*        iTd;
-    EhciSplitIsochronousDescriptor_t*   siTd;
-    EhciFSTN_t*                         FSTN;
-    reg32_t                             Address;
-} EhciGenericLink_t;
-
 /* Ehci Pool Definitions
  * The Ehci controller must keep track of pools for each type of transfer object
  * - Queue Heads

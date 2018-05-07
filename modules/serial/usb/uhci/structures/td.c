@@ -226,7 +226,7 @@ UhciTdSynchronize(
     _In_  UhciTransferDescriptor_t* Td)
 {
     // Variables
-    int Toggle = UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe);
+    int Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
 
     // Is it neccessary?
     if (Toggle == 1 && (Td->Header & UHCI_TD_DATA_TOGGLE)) {
@@ -241,7 +241,7 @@ UhciTdSynchronize(
 
     // Update copy
     Td->OriginalHeader  = Td->Header;
-    UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, Toggle ^ 1);
+    UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, Toggle ^ 1);
 }
 
 /* UhciTdRestart
@@ -256,7 +256,7 @@ UhciTdRestart(
     UhciQueueHead_t *Qh         = NULL;
     uintptr_t BufferBaseUpdated = 0;
     uintptr_t BufferStep        = 0;
-    int Toggle                  = UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe);
+    int Toggle                  = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
 
     // Setup some variables
     if (Transfer->Transfer.Type == InterruptTransfer) {
@@ -268,7 +268,7 @@ UhciTdRestart(
         if (Toggle) {
             Td->OriginalHeader |= UHCI_TD_DATA_TOGGLE;
         }
-        UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, Toggle ^ 1);
+        UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, Toggle ^ 1);
         
         // Adjust buffer if not just restart
         if (Transfer->Status != TransferNAK) {

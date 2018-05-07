@@ -21,7 +21,6 @@
  * - Power Management
  * - FSTN Transport
  * - Split-Isochronous Transport
- * - Transaction Translator Support
  */
 #define __TRACE
 
@@ -363,11 +362,13 @@ HciProcessElement(
     // Handle the reasons
     switch (Reason) {
         case USB_REASON_DUMP: {
-            if (Element == (uint8_t*)Transfer->EndpointDescriptor) {
-                EhciQhDump((EhciController_t*)Controller, (EhciQueueHead_t*)Element);
-            }
-            else if (Transfer->Transfer.Type != IsochronousTransfer) {
-                EhciTdDump((EhciController_t*)Controller, (EhciTransferDescriptor_t*)Element);
+            if (Transfer->Transfer.Type != IsochronousTransfer) {
+                if (Element == (uint8_t*)Transfer->EndpointDescriptor) {
+                    EhciQhDump((EhciController_t*)Controller, (EhciQueueHead_t*)Element);
+                }
+                else {
+                    EhciTdDump((EhciController_t*)Controller, (EhciTransferDescriptor_t*)Element);
+                }
             }
             else {
                 EhciiTdDump((EhciController_t*)Controller, (EhciIsochronousDescriptor_t*)Element);
@@ -402,12 +403,11 @@ HciProcessElement(
         } break;
         
         case USB_REASON_FIXTOGGLE: {
-            if (Element == (uint8_t*)Transfer->EndpointDescriptor) {
-                return ITERATOR_CONTINUE; // Skip sync on queue-heads
-            }
-
-            // Isochronous transfers don't use toggles.
+            // Isochronous transfers don't use toggles
             if (Transfer->Transfer.Type != IsochronousTransfer) {
+                if (Element == (uint8_t*)Transfer->EndpointDescriptor) {
+                    return ITERATOR_CONTINUE; // Skip sync on queue-heads
+                }
                 EhciTdSynchronize(Transfer, (EhciTransferDescriptor_t*)Element);
             }
         } break;

@@ -232,7 +232,7 @@ EhciTdSynchronize(
     _In_ EhciTransferDescriptor_t*  Td)
 {
     // Variables
-    int Toggle          = UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe);
+    int Toggle          = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
 
     // Is it neccessary?
     if (Toggle == 1 && (Td->Length & EHCI_TD_TOGGLE)) {
@@ -247,7 +247,7 @@ EhciTdSynchronize(
 
     // Update copy
     Td->OriginalLength  = Td->Length;
-    UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, Toggle ^ 1);
+    UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, Toggle ^ 1);
 }
 
 /* EhciTdRestart
@@ -263,14 +263,14 @@ EhciTdRestart(
     uintptr_t BufferBaseUpdated = 0;
     uintptr_t BufferBase    = 0;
     uintptr_t BufferStep    = 0;
-    int Toggle              = UsbManagerGetToggle(Transfer->DeviceId, Transfer->Pipe);
+    int Toggle              = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
 
     // Clear
     Td->OriginalLength      &= ~(EHCI_TD_TOGGLE);
     if (Toggle) {
         Td->OriginalLength  = EHCI_TD_TOGGLE;
     }
-    UsbManagerSetToggle(Transfer->DeviceId, Transfer->Pipe, Toggle ^ 1);
+    UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, Toggle ^ 1);
 
     // Reset members of td
     Td->Status                  = EHCI_TD_ACTIVE;

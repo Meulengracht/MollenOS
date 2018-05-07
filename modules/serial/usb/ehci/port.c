@@ -150,7 +150,7 @@ EhciPortCheck(
             return OsSuccess;
         }
     }
-    return UsbEventPort(Controller->Base.Device.Id, Index);
+    return UsbEventPort(Controller->Base.Device.Id, 0, (uint8_t)(Index & 0xFF));
 }
 
 /* EhciPortScan
