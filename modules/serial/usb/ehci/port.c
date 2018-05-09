@@ -19,7 +19,6 @@
  * MollenOS MCore - Enhanced Host Controller Interface Driver
  * TODO:
  * - Power Management
- * - Transaction Translator Support
  */
 
 /* Includes
@@ -45,7 +44,7 @@ HciPortReset(
 
     // If we are per-port handled, and power is not enabled
     // then switch it on, and give it some time to recover
-    if (EhciHci->SParameters & EHCI_SPARAM_PPC && !(Temp & EHCI_PORT_POWER)) {
+    if ((EhciHci->SParameters & EHCI_SPARAM_PPC) && !(Temp & EHCI_PORT_POWER)) {
         Temp                                    |= EHCI_PORT_POWER;
         EhciHci->OpRegisters->Ports[Index]      = Temp;
         thrd_sleepex(20);
@@ -108,16 +107,6 @@ HciPortGetStatus(
     Port->Connected = (Status & EHCI_PORT_CONNECTED) == 0 ? 0 : 1;
     Port->Enabled   = (Status & EHCI_PORT_ENABLED) == 0 ? 0 : 1;
     Port->Speed     = HighSpeed; // Ehci only has high-speed root ports
-}
-
-/* EhciPortSetup 
- * Waits for power-on delay and resets port */
-OsStatus_t
-EhciPortSetup(
-    _In_ EhciController_t*          Controller,
-    _In_ int                        Index) {
-    thrd_sleepex(100); // Wait for power-on delay
-    return HciPortReset(&Controller->Base, Index);
 }
 
 /* EhciPortCheck

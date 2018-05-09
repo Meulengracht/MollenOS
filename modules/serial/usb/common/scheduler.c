@@ -88,7 +88,7 @@ UsbSchedulerResetInternalData(
  * MaxBandwidth is usually either 800 or 900. */
 OsStatus_t
 UsbSchedulerInitialize(
-	_In_  UsbSchedulerSettings_t*   Settings,
+    _In_  UsbSchedulerSettings_t*   Settings,
     _Out_ UsbScheduler_t**          SchedulerOut)
 {
     // Variables
@@ -165,7 +165,7 @@ UsbSchedulerInitialize(
  * scheduled by this scheduler will be unreachable and invalid after this call. */
 OsStatus_t
 UsbSchedulerDestroy(
-	_In_ UsbScheduler_t*        Scheduler)
+    _In_ UsbScheduler_t*        Scheduler)
 {
     // Clear out allocated resources
     // Root is pool 0 or framelist
@@ -266,7 +266,7 @@ UsbSchedulerGetPoolFromElement(
 {
     for (int i = 0; i < Scheduler->Settings.PoolCount; i++) {
         uintptr_t PoolStart = (uintptr_t)Scheduler->Settings.Pools[i].ElementPool;
-        uintptr_t PoolEnd   = PoolStart + (Scheduler->Settings.Pools[i].ElementAlignedSize * Scheduler->Settings.Pools[i].ElementCount);
+        uintptr_t PoolEnd   = PoolStart + (Scheduler->Settings.Pools[i].ElementAlignedSize * Scheduler->Settings.Pools[i].ElementCount) - 1;
         if (ISINRANGE((uintptr_t)Element, PoolStart, PoolEnd)) {
             *Pool = &Scheduler->Settings.Pools[i];
             return OsSuccess;
@@ -468,8 +468,8 @@ UsbSchedulerAllocateBandwidth(
     _In_ UsbScheduler_t*        Scheduler,
     _In_ UsbHcEndpointDescriptor_t* Endpoint,
     _In_ size_t                 BytesToTransfer,
-	_In_ UsbTransferType_t      Type,
-	_In_ UsbSpeed_t             Speed,
+    _In_ UsbTransferType_t      Type,
+    _In_ UsbSpeed_t             Speed,
     _In_ uint8_t*               Element)
 {
     // Variables

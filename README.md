@@ -6,7 +6,7 @@
 
 ## The Goal
 
-The goal with MollenOS is to provide users with a free, modern operating system, capable of running on as many platforms as possible. Initially the goal will be to support the most popular platforms (Arm and x86). The focus will be in the user-experience as soon as I get that far with MollenOS.
+The goal with MollenOS is to provide users with a free, modern operating system, capable of running on as many platforms as possible. Initially the goal will be to support the most popular platforms (Arm and x86). The operating system will come with a default ui for the desktop releases.
 
 ## How it started
 
@@ -130,7 +130,8 @@ These are the various libraries ported to MollenOS userspace, and are primarily 
 ### Pre-requisites
 
 In order to build MollenOS you will need the following libraries and programs:
- - Clang cross-compiler
+ - LLVM/Clang 6.0+
+ - LLVM/Clang cross-compiled 6.0+
  - Nasm
  - Monodevelop
  - Git

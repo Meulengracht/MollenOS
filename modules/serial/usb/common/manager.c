@@ -585,5 +585,5 @@ UsbManagerDumpChain(
 {
     // Invoke HciProcessElement
     UsbManagerIterateChain(Controller, ElementRoot, 
-        USB_CHAIN_DEPTH, USB_REASON_DUMP, HciProcessElement, Transfer);
+        Direction, USB_REASON_DUMP, HciProcessElement, Transfer);
 }

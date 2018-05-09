@@ -21,7 +21,7 @@
  * - Power Management
  */
 #define __TRACE
-#define __DIAGNOSE
+//#define __DIAGNOSE
 
 /* Includes
  * - System */

@@ -19,9 +19,8 @@
  * MollenOS MCore - Enhanced Host Controller Interface Driver
  * TODO:
  * - Power Management
- * - Transaction Translator Support
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes
  * - System */

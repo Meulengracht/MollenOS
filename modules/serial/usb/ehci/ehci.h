@@ -19,7 +19,6 @@
  * MollenOS MCore - Enhanced Host Controller Interface Driver
  * TODO:
  * - Power Management
- * - Transaction Translator Support
  */
 
 #ifndef __USB_EHCI__
@@ -353,7 +352,7 @@ PACKED_TYPESTRUCT(EhciTransferDescriptor, {
 
     // Software metadata
     UsbSchedulerObject_t    Object;
-    uint16_t                OriginalToken;
+    uint8_t                 OriginalToken;
     uint16_t                OriginalLength;
 });
 
@@ -454,7 +453,7 @@ PACKED_TYPESTRUCT(EhciQueueHead, {
 /* EhciQueueHead::Flags
  * Contains definitions and bitfield definitions for EhciQueueHead::Flags
  * Bit 0-6: Device Address
- * Bit 7: Inactivate on Next Transaction
+ * Bit 7: Inactivate on Next Transaction (Interrupt only)
  * Bit 8-11: Endpoint Number 
  * Bit 12-13: Endpoint Speed
  * Bit 14: Data Toggle Control

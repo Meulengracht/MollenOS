@@ -71,20 +71,22 @@ EhciQueueResetInternalData(
     
     // Initialize the dummy (async) queue-head that we use for end-link
     // It must be a circular queue, so must always point back to 
-    AsyncQh->Flags                      = EHCI_QH_RECLAMATIONHEAD;
+    AsyncQh->Flags                      = EHCI_QH_RECLAMATIONHEAD | EHCI_QH_HIGHSPEED | 
+        EHCI_QH_EPADDR(1) | EHCI_QH_MAXLENGTH(64);
+    AsyncQh->Object.Flags               |= EHCI_LINK_QH;
 
     AsyncQh->LinkPointer                = AsyncQhPhysical | EHCI_LINK_QH;
     AsyncQh->Object.BreathIndex         = AsyncQh->Object.Index;
 
-    AsyncQh->Current                    = NullTdPhysical | EHCI_LINK_END;
+    AsyncQh->Overlay.NextTD             = NullTdPhysical;
     AsyncQh->Object.DepthIndex          = NullTd->Object.Index;
 
-    AsyncQh->Overlay.NextTD             = NullTdPhysical | EHCI_LINK_END;
-    AsyncQh->Overlay.NextAlternativeTD  = NullTdPhysical;
+    AsyncQh->Overlay.NextAlternativeTD  = EHCI_LINK_END;
     AsyncQh->Overlay.Status             = EHCI_TD_HALTED;
 
-    // Initialize the dummy (async) transfer-descriptor that we use for queuing
-    NullTd->Token                       = EHCI_TD_IN;
+    // Initialize the dummy (async) transfer-descriptor that we use for queuing short-transfers
+    // to make sure that short transfers cancel
+    NullTd->Token                       = EHCI_TD_OUT;
     NullTd->Status                      = EHCI_TD_HALTED;
     NullTd->Link                        = EHCI_LINK_END;
     NullTd->AlternativeLink             = EHCI_LINK_END;
@@ -354,16 +356,20 @@ HciProcessElement(
 {
     // Variables
     UsbManagerTransfer_t *Transfer  = (UsbManagerTransfer_t*)Context;
+    UsbSchedulerPool_t *QhPool      = &Controller->Scheduler->Settings.Pools[EHCI_QH_POOL];
+    UsbSchedulerPool_t *Pool        = NULL;
     uint8_t *AsyncRootElement       = NULL;
+    UsbSchedulerGetPoolFromElement(Controller->Scheduler, Element, &Pool);
+    assert(Pool != NULL);
 
     // Debug
     TRACE("EhciProcessElement(Reason %i)", Reason);
-
+    
     // Handle the reasons
     switch (Reason) {
         case USB_REASON_DUMP: {
             if (Transfer->Transfer.Type != IsochronousTransfer) {
-                if (Element == (uint8_t*)Transfer->EndpointDescriptor) {
+                if (Pool == QhPool) {
                     EhciQhDump((EhciController_t*)Controller, (EhciQueueHead_t*)Element);
                 }
                 else {
@@ -376,7 +382,7 @@ HciProcessElement(
         } break;
         
         case USB_REASON_SCAN: {
-            if (Element == (uint8_t*)Transfer->EndpointDescriptor) {
+            if (Pool == QhPool) {
                 return ITERATOR_CONTINUE; // Skip scan on queue-heads
             }
 
@@ -392,7 +398,7 @@ HciProcessElement(
         } break;
         
         case USB_REASON_RESET: {
-            if (Element != (uint8_t*)Transfer->EndpointDescriptor) {
+            if (Pool != QhPool) {
                 if (Transfer->Transfer.Type != IsochronousTransfer) {
                     EhciTdRestart((EhciController_t*)Controller, Transfer, (EhciTransferDescriptor_t*)Element);
                 }
@@ -405,7 +411,7 @@ HciProcessElement(
         case USB_REASON_FIXTOGGLE: {
             // Isochronous transfers don't use toggles
             if (Transfer->Transfer.Type != IsochronousTransfer) {
-                if (Element == (uint8_t*)Transfer->EndpointDescriptor) {
+                if (Pool == QhPool) {
                     return ITERATOR_CONTINUE; // Skip sync on queue-heads
                 }
                 EhciTdSynchronize(Transfer, (EhciTransferDescriptor_t*)Element);
@@ -414,26 +420,33 @@ HciProcessElement(
 
         case USB_REASON_LINK: {
             // If it's a queue head link that
-            if (Element == (uint8_t*)Transfer->EndpointDescriptor) {
+            if (Pool == QhPool) {
                 SpinlockAcquire(&Controller->Lock);
+                TRACE(" > Disabling prefetch");
                 EhciSetPrefetching((EhciController_t*)Controller, Transfer->Transfer.Type, 0);
                 if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
+                    TRACE(" > Scheduling asynchronous");
                     UsbSchedulerGetPoolElement(Controller->Scheduler, EHCI_QH_POOL, EHCI_QH_ASYNC, &AsyncRootElement, NULL);
-                    UsbSchedulerChainElement(Controller->Scheduler, AsyncRootElement, Element, USB_ELEMENT_LINK_END, USB_CHAIN_BREATH);
+                    UsbSchedulerChainElement(Controller->Scheduler, AsyncRootElement, Element, USB_ELEMENT_NO_INDEX, USB_CHAIN_BREATH);
                 }
                 else {
+                    TRACE(" > Scheduling periodic");
                     UsbSchedulerLinkPeriodicElement(Controller->Scheduler, Element);
                 }
+                TRACE(" > Enabling prefetch");
                 EhciSetPrefetching((EhciController_t*)Controller, Transfer->Transfer.Type, 1);
+                TRACE(" > Enabling scheduler");
                 EhciEnableScheduler((EhciController_t*)Controller, Transfer->Transfer.Type);
                 SpinlockRelease(&Controller->Lock);
+                thrd_sleepex(1000);
+                UsbManagerDumpChain(Controller, Transfer, Element, USB_CHAIN_DEPTH);
                 return ITERATOR_STOP;
             }
         } break;
         
         case USB_REASON_UNLINK: {
             // If it's a queue head link that
-            if (Element == (uint8_t*)Transfer->EndpointDescriptor) {
+            if (Pool == QhPool) {
                 SpinlockAcquire(&Controller->Lock);
                 EhciSetPrefetching((EhciController_t*)Controller, Transfer->Transfer.Type, 0);
                 if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {

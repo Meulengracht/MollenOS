@@ -116,22 +116,25 @@ EhciTdIo(
     _In_ int                        Toggle)
 {
     // Variables
+    uintptr_t NullTdPhysical    = 0;
     unsigned PId                = (Transaction->Type == InTransaction) ? EHCI_TD_IN : EHCI_TD_OUT;
+    size_t CalculatedLength     = 0;
 
     // Initialize the new Td
     Td->Link                    = EHCI_LINK_END;
-    Td->AlternativeLink         = EHCI_LINK_END;
     Td->Status                  = EHCI_TD_ACTIVE;
     Td->Token                   = (uint8_t)(PId & 0x3);
     Td->Token                   |= EHCI_TD_ERRCOUNT;
-    
-    // Short packet not ok? 
-    if ((Transfer->Flags & USB_TRANSFER_SHORT_NOT_OK) && PId == EHCI_TD_IN) {
-        // Todo - what should we do?
+
+    // Always stop transaction on short-reads
+    if (PId == EHCI_TD_IN) {
+        UsbSchedulerGetPoolElement(Controller->Base.Scheduler, EHCI_TD_POOL, EHCI_TD_NULL, NULL, &NullTdPhysical);
+        Td->AlternativeLink     = LODWORD(NullTdPhysical);
     }
 
     // Calculate the length of the transfer
-    Td->Length                  = (uint16_t)(EHCI_TD_LENGTH(EhciTdFill(Controller, Td, Transaction->BufferAddress, Transaction->Length)));
+    CalculatedLength            = EhciTdFill(Controller, Td, Transaction->BufferAddress, Transaction->Length);
+    Td->Length                  = (uint16_t)(EHCI_TD_LENGTH(CalculatedLength));
     if (Toggle) {
         Td->Length              |= EHCI_TD_TOGGLE;
     }

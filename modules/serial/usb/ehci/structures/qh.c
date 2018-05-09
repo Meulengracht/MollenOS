@@ -61,10 +61,7 @@ EhciQhInitialize(
     Qh->Flags            = EHCI_QH_DEVADDR(Address);
     Qh->Flags           |= EHCI_QH_EPADDR(Endpoint);
     Qh->Flags           |= EHCI_QH_DTC;
-
-    // The thing with maxlength is
-    // that it needs to be MIN(TransferLength, MPS)
-    Qh->Flags  |= EHCI_QH_MAXLENGTH(Transfer->Transfer.Endpoint.MaxPacketSize);
+    Qh->Flags           |= EHCI_QH_MAXLENGTH(Transfer->Transfer.Endpoint.MaxPacketSize); // MIN(TransferLength, MPS)?
     if (Transfer->Transfer.Type == InterruptTransfer) {
         Qh->State = EHCI_QH_MULTIPLIER(EpBandwidth);
     }
@@ -147,8 +144,10 @@ EhciQhDump(
 
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler, EHCI_QH_POOL, 
         Qh->Object.Index & USB_ELEMENT_INDEX_MASK, NULL, &PhysicalAddress);
-    WARNING("EHCI: QH at 0x%x, FirstTd 0x%x, NextQh 0x%x", PhysicalAddress, Qh->Current, Qh->LinkPointer);
+    WARNING("EHCI: QH at 0x%x, Current 0x%x, NextQh 0x%x", PhysicalAddress, Qh->Current, Qh->LinkPointer);
     WARNING("      Bandwidth %u, StartFrame %u, Flags 0x%x", Qh->Object.Bandwidth, Qh->Object.StartFrame, Qh->Flags);
+    WARNING("      .NextTd 0x%x, .AltTd 0x%x, .Status 0x%x", Qh->Overlay.NextTD, Qh->Overlay.NextAlternativeTD, Qh->Overlay.Status);
+    WARNING("      .Token 0x%x, .Length 0x%x, .Buffers[0] 0x%x", Qh->Overlay.Token, Qh->Overlay.Length, Qh->Overlay.Buffers[0]);
 }
 
 /* EhciQhRestart

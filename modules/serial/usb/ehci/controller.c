@@ -19,7 +19,6 @@
  * MollenOS MCore - Enhanced Host Controller Interface Driver
  * TODO:
  * - Power Management
- * - Transaction Translator Support
  */
 //#define __TRACE
 
@@ -539,7 +538,7 @@ EhciSetup(
     
     // Now, controller is up and running
     // and we should start doing port setups by first powering on
-    TRACE("Powering up ports");
+    TRACE(" > Powering up ports");
     if (Controller->SParameters & EHCI_SPARAM_PPC) {
         for (i = 0; i < Controller->Base.PortCount; i++) {
             TemporaryValue = Controller->OpRegisters->Ports[i];
@@ -558,7 +557,7 @@ EhciSetup(
 
     // Last step is to enumerate all ports that are connected with low-speed
     // devices and release them to companion hc's for bandwidth.
-    TRACE("Initializing ports");
+    TRACE(" > Initializing ports");
     for (i = 0; i < Controller->Base.PortCount; i++) {
         if (Controller->OpRegisters->Ports[i] & EHCI_PORT_CONNECTED) {
             // Is the port destined for other controllers?
