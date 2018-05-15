@@ -167,6 +167,7 @@ HciControllerDestroy(
     DestroyIoSpace(Controller->IoBase->Id);
 
     // Free the list of endpoints
+    CollectionDestroy(Controller->TransactionList);
     CollectionDestroy(Controller->Endpoints);
     free(Controller);
     return OsSuccess;
@@ -431,15 +432,14 @@ EhciRestart(
         TemporaryValue |= EHCI_COMMAND_PARK_COUNT(3);
     }
 
-    if (Controller->CapRegisters->Version == EHCI_VERSION_11) {
-        if (Controller->CParameters & EHCI_CPARAM_PERPORT_CHANGE) {
-            TemporaryValue |= EHCI_COMMAND_PERPORT_ENABLE;
-        }
-        if (Controller->CParameters & EHCI_CPARAM_HWPREFETCH) {
-            TemporaryValue |= EHCI_COMMAND_PERIOD_PREFECTCH;
-            TemporaryValue |= EHCI_COMMAND_ASYNC_PREFETCH;
-            TemporaryValue |= EHCI_COMMAND_FULL_PREFETCH;
-        }
+    // Supported with controllers 1.1
+    if (Controller->CParameters & EHCI_CPARAM_PERPORT_CHANGE) {
+        TemporaryValue |= EHCI_COMMAND_PERPORT_ENABLE;
+    }
+    if (Controller->CParameters & EHCI_CPARAM_HWPREFETCH) {
+        TemporaryValue |= EHCI_COMMAND_PERIOD_PREFECTCH;
+        TemporaryValue |= EHCI_COMMAND_ASYNC_PREFETCH;
+        TemporaryValue |= EHCI_COMMAND_FULL_PREFETCH;
     }
 
     // Start the controller by enabling it
@@ -536,24 +536,20 @@ EhciSetup(
     EhciRestart(Controller);
     EhciWaitForCompanionControllers(Controller);    
     
-    // Now, controller is up and running
-    // and we should start doing port setups by first powering on
-    TRACE(" > Powering up ports");
-    if (Controller->SParameters & EHCI_SPARAM_PPC) {
-        for (i = 0; i < Controller->Base.PortCount; i++) {
-            TemporaryValue = Controller->OpRegisters->Ports[i];
-            TemporaryValue |= EHCI_PORT_POWER;
-            Controller->OpRegisters->Ports[i] = TemporaryValue;
-        }
-    }
-
-    // Wait 20 ms for power to stabilize
-    thrd_sleepex(20);
-
     // Register the controller before starting
     if (UsbManagerRegisterController(&Controller->Base) != OsSuccess) {
         ERROR("Failed to register uhci controller with the system.");
     }
+
+    // Now, controller is up and running
+    // and we should start doing port setups by first powering on
+    TRACE(" > Powering up ports");
+    for (i = 0; i < Controller->Base.PortCount; i++) {
+        EhciPortSetBits(Controller, i, EHCI_PORT_POWER);
+    }
+
+    // Wait 20 ms for power to stabilize
+    thrd_sleepex(20);
 
     // Last step is to enumerate all ports that are connected with low-speed
     // devices and release them to companion hc's for bandwidth.
@@ -574,6 +570,7 @@ EhciSetup(
                 if (Controller->CapRegisters->SParams & EHCI_SPARAM_PORTINDICATORS) {
                     Controller->OpRegisters->Ports[i] |= EHCI_PORT_COLOR_AMBER;
                 }
+                UsbEventPort(Controller->Base.Device.Id, 0, (uint8_t)(i & 0xFF));
             }
         }
     }

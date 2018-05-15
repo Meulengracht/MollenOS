@@ -117,14 +117,13 @@ EhciTdIo(
 {
     // Variables
     uintptr_t NullTdPhysical    = 0;
-    unsigned PId                = (Transaction->Type == InTransaction) ? EHCI_TD_IN : EHCI_TD_OUT;
+    uint8_t PId                 = (Transaction->Type == InTransaction) ? EHCI_TD_IN : EHCI_TD_OUT;
     size_t CalculatedLength     = 0;
 
     // Initialize the new Td
     Td->Link                    = EHCI_LINK_END;
     Td->Status                  = EHCI_TD_ACTIVE;
-    Td->Token                   = (uint8_t)(PId & 0x3);
-    Td->Token                   |= EHCI_TD_ERRCOUNT;
+    Td->Token                   = PId | EHCI_TD_ERRCOUNT;
 
     // Always stop transaction on short-reads
     if (PId == EHCI_TD_IN) {

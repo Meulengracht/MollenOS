@@ -29,6 +29,7 @@
 
 /* Includes
  * - Library */
+#include <assert.h>
 #include <threads.h>
 #include <string.h>
 
@@ -73,10 +74,13 @@ HciPortReset(
 
     // If we are per-port handled, and power is not enabled
     // then switch it on, and give it some time to recover
-    if ((EhciHci->SParameters & EHCI_SPARAM_PPC) && !(Temp & EHCI_PORT_POWER)) {
+    if (!(Temp & EHCI_PORT_POWER)) {
         EhciPortSetBits(EhciHci, Index, EHCI_PORT_POWER);
         thrd_sleepex(20);
     }
+
+    // The USBSTS:HcHalted bit must be zero, hence, the schedule must be running
+    assert((EhciHci->OpRegisters->UsbStatus & EHCI_STATUS_HALTED) == 0);
     
     // We must set the port-reset and keep the signal asserted for atleast 50 ms
     // now, we are going to keep the signal alive for (much) longer due to 
@@ -84,8 +88,9 @@ HciPortReset(
     
     // The EHCI documentation says we should 
     // disable enabled and assert reset together
-    EhciPortClearBits(EhciHci, Index, EHCI_PORT_ENABLED);
-    EhciPortSetBits(EhciHci, Index, EHCI_PORT_RESET);
+    Temp  = EhciHci->OpRegisters->Ports[Index] & ~(EHCI_PORT_RWC | EHCI_PORT_ENABLED);
+    Temp |= EHCI_PORT_RESET;
+    EhciHci->OpRegisters->Ports[Index] = Temp;
 
     // Wait 200 ms for reset
     thrd_sleepex(200);

@@ -613,19 +613,19 @@ UsbDeviceSetup(
         DeviceDescriptor.ConfigurationCount, DeviceDescriptor.MaxPacketSize);
 
     // Update information
-    Device->Base.Class = DeviceDescriptor.Class;
-    Device->Base.Subclass = DeviceDescriptor.Subclass;
-    Device->Base.Protocol = DeviceDescriptor.Protocol;
-    Device->Base.VendorId = DeviceDescriptor.VendorId;
-    Device->Base.ProductId = DeviceDescriptor.ProductId;
-    Device->Base.StringIndexManufactor = DeviceDescriptor.StringIndexManufactor;
-    Device->Base.StringIndexProduct = DeviceDescriptor.StringIndexProduct;
-    Device->Base.StringIndexSerialNumber = DeviceDescriptor.StringIndexSerialNumber;
-    Device->Base.ConfigurationCount = DeviceDescriptor.ConfigurationCount;
+    Device->Base.Class                      = DeviceDescriptor.Class;
+    Device->Base.Subclass                   = DeviceDescriptor.Subclass;
+    Device->Base.Protocol                   = DeviceDescriptor.Protocol;
+    Device->Base.VendorId                   = DeviceDescriptor.VendorId;
+    Device->Base.ProductId                  = DeviceDescriptor.ProductId;
+    Device->Base.StringIndexManufactor      = DeviceDescriptor.StringIndexManufactor;
+    Device->Base.StringIndexProduct         = DeviceDescriptor.StringIndexProduct;
+    Device->Base.StringIndexSerialNumber    = DeviceDescriptor.StringIndexSerialNumber;
+    Device->Base.ConfigurationCount         = DeviceDescriptor.ConfigurationCount;
     
     // Update MPS
-    Device->Base.MaxPacketSize = DeviceDescriptor.MaxPacketSize;
-    Device->ControlEndpoint.MaxPacketSize = DeviceDescriptor.MaxPacketSize;
+    Device->Base.MaxPacketSize              = DeviceDescriptor.MaxPacketSize;
+    Device->ControlEndpoint.MaxPacketSize   = DeviceDescriptor.MaxPacketSize;
 
     // Query Config Descriptor
     if (UsbQueryConfigurationDescriptors(Controller, Device) != OsSuccess) {

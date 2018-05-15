@@ -166,7 +166,7 @@ UhciQueueResetInternalData(
         // All interrupts queues need to end in the async-head
         Qh->Queue               = (uint8_t)(i & 0xFF);
         Qh->Link                = (AsyncQhPhysical | UHCI_LINK_QH);
-        Qh->Child               = UHCI_LINK_END;
+        Qh->Child               = NullTdPhysical | UHCI_LINK_END;
         Qh->Object.BreathIndex  = USB_ELEMENT_CREATE_INDEX(UHCI_QH_POOL, UHCI_POOL_QH_ASYNC);
         Qh->Object.DepthIndex   = USB_ELEMENT_NO_INDEX;
         Qh->Object.Flags        |= UHCI_LINK_QH;
@@ -175,7 +175,7 @@ UhciQueueResetInternalData(
     // Initialize the null QH
     NullQh->Queue               = UHCI_POOL_QH_NULL;
     NullQh->Link                = (NullQhPhysical | UHCI_LINK_QH);
-    NullQh->Child               = NullTdPhysical;
+    NullQh->Child               = NullTdPhysical | UHCI_LINK_END;
     NullQh->Object.BreathIndex  = USB_ELEMENT_CREATE_INDEX(UHCI_QH_POOL, UHCI_POOL_QH_NULL);
     NullQh->Object.DepthIndex   = USB_ELEMENT_CREATE_INDEX(UHCI_TD_POOL, UHCI_POOL_TD_NULL);
     NullQh->Object.Flags        |= UHCI_LINK_QH;
@@ -183,13 +183,14 @@ UhciQueueResetInternalData(
     // Initialize the async QH
     AsyncQh->Queue              = UHCI_POOL_QH_ASYNC;
     AsyncQh->Link               = UHCI_LINK_END;
-    AsyncQh->Child              = NullTdPhysical;
+    AsyncQh->Child              = NullTdPhysical | UHCI_LINK_END;
     AsyncQh->Object.BreathIndex = USB_ELEMENT_NO_INDEX;
     AsyncQh->Object.DepthIndex  = USB_ELEMENT_CREATE_INDEX(UHCI_TD_POOL, UHCI_POOL_TD_NULL);
     AsyncQh->Object.Flags       |= UHCI_LINK_QH;
     
     // Initialize null-td
-    NullTd->Header              = (reg32_t)(UHCI_TD_PID_IN | UHCI_TD_DEVICE_ADDR(0x7F) | UHCI_TD_MAX_LEN(0x7FF));
+    NullTd->Flags               = UHCI_TD_LOWSPEED;
+    NullTd->Header              = (reg32_t)(UHCI_TD_PID_OUT | UHCI_TD_DEVICE_ADDR(0x7F) | UHCI_TD_MAX_LEN(0x7FF));
     NullTd->Link                = UHCI_LINK_END;
     NullTd->Object.BreathIndex  = USB_ELEMENT_NO_INDEX;
     NullTd->Object.DepthIndex   = USB_ELEMENT_NO_INDEX;

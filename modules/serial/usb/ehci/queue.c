@@ -282,6 +282,8 @@ EhciEnableScheduler(
     // Sanitize the current status
     if (Type == ControlTransfer || Type == BulkTransfer) {
         if (Controller->OpRegisters->UsbStatus & EHCI_STATUS_ASYNC_ACTIVE) {
+            // Should we ring the doorbell? I don't believe it's entirely neccessary
+            // as we use reclamation heads @todo
             return;
         }
 
@@ -341,7 +343,10 @@ void
 EhciRingDoorbell(
     _In_ EhciController_t*  Controller)
 {
-    Controller->OpRegisters->UsbCommand |= EHCI_COMMAND_IOC_ASYNC_DOORBELL;
+    // Do not ring the doorbell if the schedule is not running
+    if (Controller->OpRegisters->UsbStatus & EHCI_STATUS_ASYNC_ACTIVE) {
+        Controller->OpRegisters->UsbCommand |= EHCI_COMMAND_IOC_ASYNC_DOORBELL;
+    }
 }
 
 /* HciProcessElement 
@@ -422,22 +427,18 @@ HciProcessElement(
             // If it's a queue head link that
             if (Pool == QhPool) {
                 SpinlockAcquire(&Controller->Lock);
-                TRACE(" > Disabling prefetch");
                 EhciSetPrefetching((EhciController_t*)Controller, Transfer->Transfer.Type, 0);
                 if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
-                    TRACE(" > Scheduling asynchronous");
                     UsbSchedulerGetPoolElement(Controller->Scheduler, EHCI_QH_POOL, EHCI_QH_ASYNC, &AsyncRootElement, NULL);
                     UsbSchedulerChainElement(Controller->Scheduler, AsyncRootElement, Element, USB_ELEMENT_NO_INDEX, USB_CHAIN_BREATH);
                 }
                 else {
-                    TRACE(" > Scheduling periodic");
                     UsbSchedulerLinkPeriodicElement(Controller->Scheduler, Element);
                 }
-                TRACE(" > Enabling prefetch");
                 EhciSetPrefetching((EhciController_t*)Controller, Transfer->Transfer.Type, 1);
-                TRACE(" > Enabling scheduler");
                 EhciEnableScheduler((EhciController_t*)Controller, Transfer->Transfer.Type);
                 SpinlockRelease(&Controller->Lock);
+                
                 thrd_sleepex(1000);
                 UsbManagerDumpChain(Controller, Transfer, Element, USB_CHAIN_DEPTH);
                 return ITERATOR_STOP;

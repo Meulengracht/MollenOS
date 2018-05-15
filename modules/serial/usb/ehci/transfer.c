@@ -99,14 +99,18 @@ HciDequeueTransfer(
     Controller  = (EhciController_t*)UsbManagerGetController(Transfer->DeviceId);
     assert(Controller != NULL);
 
-    // Unschedule immediately, but keep data intact as hardware
-    // still (might) reference it. To avoid this, we ring the doorbell
-    // to inform ehci to update it's references.
+    // Unschedule immediately, but keep data intact as hardware still (might) reference it.
     UsbManagerIterateChain(&Controller->Base, Transfer->EndpointDescriptor, 
         USB_CHAIN_DEPTH, USB_REASON_UNLINK, HciProcessElement, Transfer);
 
-    // Mark transfer for cleanup and ring doorbell
-    Transfer->Flags |= TransferFlagCleanup;
-    EhciRingDoorbell(Controller);
+    // Mark transfer for cleanup and ring doorbell if async
+    if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
+        Transfer->Flags |= TransferFlagCleanup;
+        EhciRingDoorbell(Controller);
+    }
+    else {
+        UsbManagerIterateChain(&Controller->Base, Transfer->EndpointDescriptor, 
+            USB_CHAIN_DEPTH, USB_REASON_CLEANUP, HciProcessElement, Transfer);
+    }
     return TransferFinished;
 }

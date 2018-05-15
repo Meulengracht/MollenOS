@@ -604,6 +604,24 @@ OsStatus_t
 EhciRestart(
     _In_ EhciController_t *Controller);
 
+/* EhciPortClearBits
+ * Clears the given bits without touching the R/WC bits */
+__EXTERN
+void
+EhciPortClearBits(
+    _In_ EhciController_t*          Controller,
+    _In_ int                        Index,
+    _In_ reg32_t                    Bits);
+
+/* EhciPortSetBits
+ * Sets the given bits without touching the R/WC bits */
+__EXTERN
+void
+EhciPortSetBits(
+    _In_ EhciController_t*          Controller,
+    _In_ int                        Index,
+    _In_ reg32_t                    Bits);
+
 /* EhciPortScan
  * Scans all ports of the controller for event-changes and handles
  * them accordingly. */
