@@ -184,16 +184,12 @@ OnQuery(
 
         // Reset port
         case __USBHOST_RESETPORT: {
-            // Call reset procedure, then let it fall through
-            // to QueryPort
+            // Call reset procedure, then let it fall through to QueryPort
             HciPortReset(Controller, (int)Arg1->Data.Value);
         };
         // Query port
         case __USBHOST_QUERYPORT: {
-            // Variables
             UsbHcPortDescriptor_t Descriptor;
-
-            // Fill port descriptor
             HciPortGetStatus(Controller, (int)Arg1->Data.Value, &Descriptor);
             return PipeSend(Queryee, ResponsePort, (void*)&Descriptor, sizeof(UsbHcPortDescriptor_t));
         } break;

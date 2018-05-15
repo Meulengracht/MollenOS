@@ -80,6 +80,7 @@ OnInterrupt(
     // Variables
     EhciController_t *Controller        = NULL;
     reg32_t InterruptStatus             = 0;
+    reg32_t ChangeBits                  = (reg32_t)~0;
     
     // Unused
     _CRT_UNUSED(Arg0);
@@ -101,7 +102,11 @@ ProcessInterrupt:
     // Hub change? We should enumerate ports and detect
     // which events occured
     if (InterruptStatus & EHCI_STATUS_PORTCHANGE) {
-        EhciPortScan(Controller);
+        // Give it ~0 if it doesn't support per-port change
+        if (Controller->CParameters & EHCI_CPARAM_PERPORT_CHANGE) {
+            ChangeBits = (InterruptStatus >> 16);
+        }
+        EhciPortScan(Controller, ChangeBits);
     }
 
     // HC Fatal Error

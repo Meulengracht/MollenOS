@@ -167,14 +167,16 @@ PACKED_ATYPESTRUCT(volatile, EchiOperationalRegisters, {
 #define EHCI_PORT_CONNECT_EVENT         (1 << 1)
 #define EHCI_PORT_ENABLED               (1 << 2)
 #define EHCI_PORT_ENABLE_EVENT          (1 << 3)
-
+#define EHCI_PORT_OVERCURRENT           (1 << 4)
 #define EHCI_PORT_OC_EVENT              (1 << 5)
 #define EHCI_PORT_FORCERESUME           (1 << 6)
 #define EHCI_PORT_SUSPENDED             (1 << 7)
 #define EHCI_PORT_RESET                 (1 << 8)
+#define EHCI_PORT_L1SUSPEND             (1 << 9)
 
 #define EHCI_PORT_LINESTATUS(n)         ((n >> 10) & 0x3)
 #define EHCI_LINESTATUS_RELEASE         0x1
+// If any other state is present, reset EHCI
 
 #define EHCI_PORT_POWER                 (1 << 12)
 #define EHCI_PORT_COMPANION_HC          (1 << 13)
@@ -608,7 +610,8 @@ EhciRestart(
 __EXTERN
 void
 EhciPortScan(
-    _In_ EhciController_t *Controller);
+    _In_ EhciController_t*  Controller,
+    _In_ reg32_t            ChangeBits);
 
 /*******************************************************************************
  * Queue Head Methods

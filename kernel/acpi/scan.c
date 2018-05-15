@@ -43,33 +43,33 @@ AcpiDevice_t*
 AcpiDeviceLookupBusRoutings(
     _In_ int Bus)
 {
-	// Variables
-	AcpiDevice_t *Dev = NULL;
-	DataKey_t Key;
-	int Index = 0;
+    // Variables
+    AcpiDevice_t *Dev = NULL;
+    DataKey_t Key;
+    int Index = 0;
 
-	// Loop through buses
-	while (1) {
-		Key.Value = ACPI_BUS_ROOT_BRIDGE;
-		Dev = (AcpiDevice_t*)CollectionGetDataByKey(GlbPciAcpiDevices, Key, Index);
+    // Loop through buses
+    while (1) {
+        Key.Value = ACPI_BUS_ROOT_BRIDGE;
+        Dev = (AcpiDevice_t*)CollectionGetDataByKey(GlbPciAcpiDevices, Key, Index);
 
-		// Sanity, if this returns
-		// null we are out of data
-		if (Dev == NULL) {
-			break;
-		}
+        // Sanity, if this returns
+        // null we are out of data
+        if (Dev == NULL) {
+            break;
+        }
 
-		// Match the bus 
-		if (Dev->GlobalBus == Bus && Dev->Routings != NULL) {
-			return Dev;
-		}
+        // Match the bus 
+        if (Dev->GlobalBus == Bus && Dev->Routings != NULL) {
+            return Dev;
+        }
 
-		// Next bus
-		Index++;
-	}
+        // Next bus
+        Index++;
+    }
 
-	// Not found
-	return NULL;
+    // Not found
+    return NULL;
 }
 
 /* AcpiDeviceCreate
@@ -82,21 +82,21 @@ AcpiDeviceCreate(
     _In_ int Type)
 {
     // Variables
-	AcpiDevice_t *Device = NULL;
-	ACPI_BUFFER Buffer = { 0 };
-	ACPI_STATUS Status;
-	DataKey_t Key;
+    AcpiDevice_t *Device = NULL;
+    ACPI_BUFFER Buffer = { 0 };
+    ACPI_STATUS Status;
+    DataKey_t Key;
 
-	// Allocate a new instance
-	Device = (AcpiDevice_t*)kmalloc(sizeof(AcpiDevice_t));
-	memset(Device, 0, sizeof(AcpiDevice_t));
+    // Allocate a new instance
+    Device = (AcpiDevice_t*)kmalloc(sizeof(AcpiDevice_t));
+    memset(Device, 0, sizeof(AcpiDevice_t));
 
-	// Store initial members
+    // Store initial members
     Device->Handle = Handle;
     Device->Parent = Parent;
     Device->Type = Type; 
 
-	// Lookup identifiers, supported features and the bus-numbers
+    // Lookup identifiers, supported features and the bus-numbers
     Status = AcpiDeviceGetBusId(Device, Type);
     if (ACPI_FAILURE(Status)) {
         WARNING("Failed to retrieve bus-id");
@@ -110,71 +110,71 @@ AcpiDeviceCreate(
         WARNING("Failed to retrieve bus-location");
     }
 
-	// Get the name, if it fails set to (null)
-	Buffer.Length = 128;
-	Buffer.Pointer = &Device->Name[0];
-	Status = AcpiGetName(Handle, ACPI_FULL_PATHNAME, &Buffer);
-	if (ACPI_FAILURE(Status)) {
-		memset(&Device->Name[0], 0, 128);
-		strcpy(&Device->Name[0], "(null)");
-	}
+    // Get the name, if it fails set to (null)
+    Buffer.Length = 128;
+    Buffer.Pointer = &Device->Name[0];
+    Status = AcpiGetName(Handle, ACPI_FULL_PATHNAME, &Buffer);
+    if (ACPI_FAILURE(Status)) {
+        memset(&Device->Name[0], 0, 128);
+        strcpy(&Device->Name[0], "(null)");
+    }
 
-	// Handle their current status based on type
-	switch (Type) {
-		case ACPI_BUS_TYPE_DEVICE:
-		case ACPI_BUS_TYPE_PROCESSOR: {
-			Status = AcpiDeviceGetStatus(Device);
-			if (ACPI_FAILURE(Status)) {
-				ERROR("Device %s failed its dynamic status check", Device->BusId);
-			}
-			if (!(Device->Status & ACPI_STA_DEVICE_PRESENT) &&
-				!(Device->Status & ACPI_STA_DEVICE_FUNCTIONING)) {
+    // Handle their current status based on type
+    switch (Type) {
+        case ACPI_BUS_TYPE_DEVICE:
+        case ACPI_BUS_TYPE_PROCESSOR: {
+            Status = AcpiDeviceGetStatus(Device);
+            if (ACPI_FAILURE(Status)) {
+                ERROR("Device %s failed its dynamic status check", Device->BusId);
+            }
+            if (!(Device->Status & ACPI_STA_DEVICE_PRESENT) &&
+                !(Device->Status & ACPI_STA_DEVICE_FUNCTIONING)) {
                 ERROR("Device %s is not present or functioning", Device->BusId);
-			}
-		} break;
+            }
+        } break;
 
-		default: {
-			Device->Status = ACPI_STA_DEVICE_PRESENT | ACPI_STA_DEVICE_ENABLED |
+        default: {
+            Device->Status = ACPI_STA_DEVICE_PRESENT | ACPI_STA_DEVICE_ENABLED |
                 ACPI_STA_DEVICE_UI | ACPI_STA_DEVICE_FUNCTIONING;
         } break;
-	}
+    }
 
-	// Now retrieve the HID, UID and address
-	Status = AcpiDeviceGetHWInfo(Device, Parent, Type);
-	if (ACPI_FAILURE(Status)) {
-		ERROR("Failed to retrieve object information about device %s", Device->BusId);
-	}
+    // Now retrieve the HID, UID and address
+    Status = AcpiDeviceGetHWInfo(Device, Parent, Type);
+    if (ACPI_FAILURE(Status)) {
+        ERROR("Failed to retrieve object information about device %s", Device->BusId);
+    }
 
-	// Convience function, attach our own device data with device
+    // Convience function, attach our own device data with device
     Status = AcpiDeviceAttachData(Device, Type);
     if (ACPI_FAILURE(Status)) {
-		ERROR("Failed to attach device-data");
-	}
+        ERROR("Failed to attach device-data");
+    }
 
     // Convert the address field to device-location
-	if (Device->Features & ACPI_FEATURE_ADR) {
-		Device->PciLocation.Device = ACPI_HIWORD(ACPI_LODWORD(Device->Address));
-		Device->PciLocation.Function = ACPI_LOWORD(ACPI_LODWORD(Device->Address));
-		if (Device->PciLocation.Device > 31) {
-			Device->PciLocation.Device = 0;
+    if (Device->Features & ACPI_FEATURE_ADR) {
+        Device->PciLocation.Device = ACPI_HIWORD(ACPI_LODWORD(Device->Address));
+        Device->PciLocation.Function = ACPI_LOWORD(ACPI_LODWORD(Device->Address));
+        if (Device->PciLocation.Device > 31) {
+            Device->PciLocation.Device = 0;
         }
-		if (Device->PciLocation.Function > 8) {
-			Device->PciLocation.Function = 0;
+        if (Device->PciLocation.Function > 8) {
+            Device->PciLocation.Function = 0;
         }
     }
     
-	// EC: PNP0C09
-	// EC Batt: PNP0C0A
-	// Smart Battery Ctrl HID: ACPI0001
+    // EC: PNP0C09
+    // EC Batt: PNP0C0A
+    // Smart Battery Ctrl HID: ACPI0001
     // Smart Battery HID: ACPI0002
     // Power Source (Has _PSR): ACPI0003
     // GPE Block Device: ACPI0006
-	
+    
     // Check for the following HId's:
     // PNP0A03 (PCI Bridge)
     // PNP0A08 (PCI Express Bridge)
-	if (strncmp(Device->HId, "PNP0A03", 7) == 0 ||
-		strncmp(Device->HId, "PNP0A08", 7) == 0) {
+    if (strncmp(Device->HId, "PNP0A03", 7) == 0 ||
+        strncmp(Device->HId, "PNP0A08", 7) == 0) {
         // Steps are: 
         // 1 NegotiateOsControl
         // 2 Install pci-config address handler
@@ -193,13 +193,13 @@ AcpiDeviceCreate(
         }
         Status = AcpiHwDerivePciId(&Device->PciLocation, Device->Handle, NULL);
         
-		// Store correct bus-nr
-		Device->Type = ACPI_BUS_ROOT_BRIDGE;
-		Device->GlobalBus = GlbBusCounter;
-		GlbBusCounter++;
-	}
-	else {
-		Device->Type = Type;
+        // Store correct bus-nr
+        Device->Type = ACPI_BUS_ROOT_BRIDGE;
+        Device->GlobalBus = GlbBusCounter;
+        GlbBusCounter++;
+    }
+    else {
+        Device->Type = Type;
     }
     
     // Feature data checks like _PRT
@@ -226,9 +226,9 @@ AcpiDeviceCreate(
         }
     }
 
-	// Add the device to device-list
-	Key.Value = Device->Type;
-	return CollectionAppend(GlbPciAcpiDevices, CollectionCreateNode(Key, Device));
+    // Add the device to device-list
+    Key.Value = Device->Type;
+    return CollectionAppend(GlbPciAcpiDevices, CollectionCreateNode(Key, Device));
 }
 
 /* AcpiDeviceInstallFixed 
@@ -237,14 +237,14 @@ ACPI_STATUS
 AcpiDeviceInstallFixed(void)
 {
     // Variables
-	ACPI_TABLE_HEADER *Header   = NULL;
-	ACPI_STATUS Status          = AE_OK;
+    ACPI_TABLE_HEADER *Header   = NULL;
+    ACPI_STATUS Status          = AE_OK;
 
     // Check for HPET presence
-	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_HPET, 0, &Header))) {
-		TRACE("Initializing the hpet");
-		Status = HpInitialize((ACPI_TABLE_HPET*)Header);
-	}
+    if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_HPET, 0, &Header))) {
+        TRACE("Initializing the hpet");
+        Status = HpInitialize((ACPI_TABLE_HPET*)Header);
+    }
     return Status;
 }
 
@@ -257,44 +257,44 @@ AcpiDeviceScanCallback(
     _In_ void *Context,
     _Out_ void **ReturnValue)
 {
-	// Variables
-	ACPI_STATUS Status = AE_OK;
-	ACPI_OBJECT_TYPE Type = 0;
-	ACPI_HANDLE Parent = (ACPI_HANDLE)Context;
+    // Variables
+    ACPI_STATUS Status = AE_OK;
+    ACPI_OBJECT_TYPE Type = 0;
+    ACPI_HANDLE Parent = (ACPI_HANDLE)Context;
 
-	// Lookup the type of device-handle
-	Status = AcpiGetType(Handle, &Type);
-	if (ACPI_FAILURE(Status)) {
+    // Lookup the type of device-handle
+    Status = AcpiGetType(Handle, &Type);
+    if (ACPI_FAILURE(Status)) {
         WARNING("Failed to enumerate device at level %u", Level);
-		return AE_OK; // if it fails go to next
+        return AE_OK; // if it fails go to next
     }
 
     // The entire namespace is traversed and the_STA and _INI methods 
     // are run on all ACPI objects of type Device, Processor, and Thermal objects
-	switch (Type) {
-		case ACPI_TYPE_DEVICE:
-			Type = ACPI_BUS_TYPE_DEVICE;
-			break;
-		case ACPI_TYPE_PROCESSOR:
-			Type = ACPI_BUS_TYPE_PROCESSOR;
-			break;
-		case ACPI_TYPE_THERMAL:
-			Type = ACPI_BUS_TYPE_THERMAL;
-			break;
-		case ACPI_TYPE_POWER:
-			Type = ACPI_BUS_TYPE_PWM;
-		default: {
+    switch (Type) {
+        case ACPI_TYPE_DEVICE:
+            Type = ACPI_BUS_TYPE_DEVICE;
+            break;
+        case ACPI_TYPE_PROCESSOR:
+            Type = ACPI_BUS_TYPE_PROCESSOR;
+            break;
+        case ACPI_TYPE_THERMAL:
+            Type = ACPI_BUS_TYPE_THERMAL;
+            break;
+        case ACPI_TYPE_POWER:
+            Type = ACPI_BUS_TYPE_PWM;
+        default: {
             WARNING("Acpi gave us objects of type %u", Type);
-			return AE_OK;
+            return AE_OK;
         }
-	}
+    }
 
-	// Retrieve the parent device handle
-	Status = AcpiGetParent(Handle, &Parent);
-	if (AcpiDeviceCreate(Handle, Parent, (int)Type) != OsSuccess) {
+    // Retrieve the parent device handle
+    Status = AcpiGetParent(Handle, &Parent);
+    if (AcpiDeviceCreate(Handle, Parent, (int)Type) != OsSuccess) {
         ERROR("Failed to initialize acpi-device of type %u", Type);
     }
-	return AE_OK;
+    return AE_OK;
 }
 
 /* AcpiDevicesScan
@@ -303,20 +303,20 @@ AcpiDeviceScanCallback(
 ACPI_STATUS
 AcpiDevicesScan(void)
 {
-	// Debug
+    // Debug
     TRACE("AcpiDevicesScan()");
     
     // Initialize list and fixed objects
-	GlbPciAcpiDevices = CollectionCreate(KeyInteger);
-	if (AcpiGbl_FADT.Flags & ACPI_FADT_POWER_BUTTON) {
+    GlbPciAcpiDevices = CollectionCreate(KeyInteger);
+    if (AcpiGbl_FADT.Flags & ACPI_FADT_POWER_BUTTON) {
         TRACE("Initializing power button");
-		if (AcpiDeviceCreate(NULL, ACPI_ROOT_OBJECT, ACPI_BUS_TYPE_POWER) != OsSuccess) {
+        if (AcpiDeviceCreate(NULL, ACPI_ROOT_OBJECT, ACPI_BUS_TYPE_POWER) != OsSuccess) {
             ERROR("Failed to initialize power-button");
         }
     }
-	if (AcpiGbl_FADT.Flags & ACPI_FADT_SLEEP_BUTTON) {
+    if (AcpiGbl_FADT.Flags & ACPI_FADT_SLEEP_BUTTON) {
         TRACE("Initializing sleep button");
-		if (AcpiDeviceCreate(NULL, ACPI_ROOT_OBJECT, ACPI_BUS_TYPE_SLEEP) != OsSuccess) {
+        if (AcpiDeviceCreate(NULL, ACPI_ROOT_OBJECT, ACPI_BUS_TYPE_SLEEP) != OsSuccess) {
             ERROR("Failed to initialize sleep-button");
         }
     }

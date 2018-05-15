@@ -148,6 +148,7 @@ EhciQhDump(
     WARNING("      Bandwidth %u, StartFrame %u, Flags 0x%x", Qh->Object.Bandwidth, Qh->Object.StartFrame, Qh->Flags);
     WARNING("      .NextTd 0x%x, .AltTd 0x%x, .Status 0x%x", Qh->Overlay.NextTD, Qh->Overlay.NextAlternativeTD, Qh->Overlay.Status);
     WARNING("      .Token 0x%x, .Length 0x%x, .Buffers[0] 0x%x", Qh->Overlay.Token, Qh->Overlay.Length, Qh->Overlay.Buffers[0]);
+    WARNING("      .Buffers[1] 0x%x, .Buffers[2] 0x%x", Qh->Overlay.Buffers[1], Qh->Overlay.Buffers[2]);
 }
 
 /* EhciQhRestart

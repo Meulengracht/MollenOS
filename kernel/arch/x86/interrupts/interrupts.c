@@ -275,6 +275,11 @@ InterruptConfigure(
         return OsSuccess;
     }
 
+    // Are we disabling? Skip configuration
+    if (Enable == 0) {
+        goto UpdateEntry;
+    }
+
     // Determine the kind of apic configuration
     TableIndex = (Descriptor->Id & 0xFF);
     ApicFlags = InterruptGetApicConfiguration(&Descriptor->Interrupt);
@@ -293,34 +298,36 @@ InterruptConfigure(
         }
     }
 
-    // Get correct Io Apic
-    IoApic = ApicGetIoFromGsi(Descriptor->Source);
-
+UpdateEntry:
     // If Apic Entry is located, we need to adjust
+    IoApic = ApicGetIoFromGsi(Descriptor->Source);
     if (IoApic != NULL) {
-        ApicExisting.Full = ApicReadIoEntry(IoApic, Descriptor->Source);
-
-        // Sanity, we can't just override the existing interrupt vector
-        // so if it's already installed, we modify the table-index
-        if (!(ApicExisting.Parts.Lo & APIC_MASKED)) {
-            UUId_t ExistingIndex = LOBYTE(LOWORD(ApicExisting.Parts.Lo));
-            if (ExistingIndex != TableIndex) {
-                FATAL(FATAL_SCOPE_KERNEL, 
-                    "Table index for already installed interrupt: %u", 
-                    TableIndex);
-            }
+        if (Enable == 0) {
+            ApicWriteIoEntry(IoApic, Descriptor->Source, APIC_MASKED);
         }
         else {
-            // Unmask the irq in the io-apic
-            TRACE("Installing source %i => 0x%x", Descriptor->Source, LODWORD(ApicFlags));
-            ApicWriteIoEntry(IoApic, Descriptor->Source, ApicFlags);
+            ApicExisting.Full = ApicReadIoEntry(IoApic, Descriptor->Source);
+
+            // Sanity, we can't just override the existing interrupt vector
+            // so if it's already installed, we modify the table-index
+            if (!(ApicExisting.Parts.Lo & APIC_MASKED)) {
+                UUId_t ExistingIndex = LOBYTE(LOWORD(ApicExisting.Parts.Lo));
+                if (ExistingIndex != TableIndex) {
+                    FATAL(FATAL_SCOPE_KERNEL, 
+                        "Table index for already installed interrupt: %u", 
+                        TableIndex);
+                }
+            }
+            else {
+                // Unmask the irq in the io-apic
+                TRACE("Installing source %i => 0x%x", Descriptor->Source, LODWORD(ApicFlags));
+                ApicWriteIoEntry(IoApic, Descriptor->Source, ApicFlags);
+            }
         }
     }
     else {
         ERROR("Failed to derive io-apic for source %i", Descriptor->Source);
     }
-
-    // Done
     return OsSuccess;
 }
 

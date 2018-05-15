@@ -97,14 +97,12 @@ CpuInitialize(void)
 		CpuEnableSse();
 	}
     
-    // Can we enable AVX?
-	if (CpuHasFeatures(CPUID_FEAT_ECX_AVX, 0) == OsSuccess) {
-		CpuEnableAvx();
-	}
-
-    // Can we enable XSave?
+    // Can we enable xsave? (and maybe avx?)
     if (CpuHasFeatures(CPUID_FEAT_ECX_XSAVE | CPUID_FEAT_ECX_OSXSAVE, 0) == OsSuccess) {
         CpuEnableXSave();
+        if (CpuHasFeatures(CPUID_FEAT_ECX_AVX, 0) == OsSuccess) {
+            CpuEnableAvx();
+        }
     }
 }
 

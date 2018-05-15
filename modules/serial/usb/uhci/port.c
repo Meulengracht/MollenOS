@@ -75,12 +75,6 @@ HciPortReset(
 		WARNING("UHCI: Port %u enable time-out!", Index);
 		return OsError;
 	}
-
-	// Wait 30 ms more 
-	// I found this wait to be EXTREMELY 
-	// crucical, otherwise devices would stall. 
-	// because I accessed them to quickly after the reset
-	thrd_sleepex(30);
 	return OsSuccess;
 }
 

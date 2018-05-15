@@ -559,6 +559,17 @@ UsbDeviceSetup(
     Device->Base.Speed          = Port->Speed;
     TRACE("Control EP mps => %u", Device->ControlEndpoint.MaxPacketSize);
 
+	// Wait 100 for device to stabilize after port-reset 
+	// I found this wait to be EXTREMELY 
+	// crucical, otherwise devices would stall. 
+	// because I accessed them to quickly after the reset
+	thrd_sleepex(100);
+
+    // Get device descriptor, ask for all 64 bytes, but terminate after 8
+    // Perform a port-reset
+    // Set device address
+    // Continue as planned
+
     // Allocate a device-address
     if (UsbReserveAddress(Controller, &ReservedAddress) != OsSuccess) {
         ERROR("(UsbReserveAddress %u) Failed to setup port %u:%u",
@@ -581,8 +592,8 @@ UsbDeviceSetup(
     }
     Device->Base.DeviceAddress = ReservedAddress;
 
-    // After SetAddress device is allowed 2 ms recovery
-    thrd_sleepex(2);
+    // After SetAddress device is allowed at-least 10 ms recovery
+    thrd_sleepex(10);
 
     // Query Device Descriptor
     if (UsbGetDeviceDescriptor(Controller->DriverId, Controller->Device.Id,

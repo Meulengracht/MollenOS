@@ -62,7 +62,7 @@ _CpuEnableXSave:
     ; Initialize control register
     mov ecx, 0
     xgetbv     ; Load into EDX:EAX
-    or  eax, 6
+    or  eax, 6 ; Enable avx
     mov ecx, 0
     xsetbv
 	ret 

@@ -61,9 +61,6 @@ HciPortReset(
     else {
         OhciCtrl->Registers->HcRhPortStatus[Index] = OHCI_PORT_ENABLED;
     }
-
-    // We need a delay here to allow the port to settle
-    thrd_sleepex(50);
     return OsSuccess;
 }
 

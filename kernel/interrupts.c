@@ -297,8 +297,8 @@ InterruptInitialize(void)
  * returns UUID_INVALID */
 UUId_t
 InterruptRegister(
-    _In_ MCoreInterrupt_t *Interrupt,
-    _In_ Flags_t Flags)
+    _In_ MCoreInterrupt_t*  Interrupt,
+    _In_ Flags_t            Flags)
 {
 	// Variables
 	MCoreInterruptDescriptor_t *Entry = NULL;
@@ -317,15 +317,15 @@ InterruptRegister(
 
     // This is a locked procedure
     CriticalSectionEnter(&TableLock);
-    Id = InterruptIdGenerator++;
+    Id              = InterruptIdGenerator++;
     CriticalSectionLeave(&TableLock);
 
 	// Setup some initial information
-    Entry->Id = (Id << 16);    
-	Entry->Ash = UUID_INVALID;
-	Entry->Thread = ThreadingGetCurrentThreadId();
-	Entry->Flags = Flags;
-    Entry->Link = NULL;
+    Entry->Id       = (Id << 16);    
+	Entry->Ash      = UUID_INVALID;
+	Entry->Thread   = ThreadingGetCurrentThreadId();
+	Entry->Flags    = Flags;
+    Entry->Link     = NULL;
 
     // Clear out line if the interrupt is software
     if (Flags & INTERRUPT_SOFT) {
@@ -428,14 +428,19 @@ InterruptUnregister(
 		return OsError;
     }
     
-    // Unlinking is locked
-    CriticalSectionEnter(&TableLock);
-
 	// Iterate handlers in that table index 
 	// and unlink the given entry
+    CriticalSectionEnter(&TableLock);
 	Entry = InterruptTable[TableIndex].Descriptor;
 	while (Entry != NULL) {
 		if (Entry->Id == Source) {
+            if (!(Entry->Flags & INTERRUPT_KERNEL)) {
+                if (Entry->Ash != ThreadingGetCurrentThread(CpuGetCurrentId())->AshId) {
+                    continue;
+                }
+            }
+
+            // Marked entry as found
 			Found = 1;
 			if (Previous == NULL) {
 				InterruptTable[TableIndex].Descriptor = Entry->Link;
@@ -450,8 +455,6 @@ InterruptUnregister(
 		Previous = Entry;
 		Entry = Entry->Link;
     }
-    
-    // Done with sensitive op
     CriticalSectionLeave(&TableLock);
 
 	// Sanitize if we were successfull
@@ -467,7 +470,10 @@ InterruptUnregister(
 	// Entry is now unlinked, clean it up 
 	// mask the interrupt again if neccessary
 	if (Found == 1) {
-		FATAL(FATAL_SCOPE_KERNEL, "Finish the code for unlinking interrupts!!");
+        if (InterruptTable[Entry->Source].Penalty == 0) {
+            InterruptConfigure(Entry, 0);
+        }
+        kfree(Entry);
 	}
 	return Result;
 }

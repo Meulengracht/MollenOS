@@ -35,7 +35,7 @@ UhciRead16(
 	_In_ uint16_t           Register)
 {
 	// Wrapper for reading the io-space
-	return (uint16_t)ReadIoSpace(Controller->Base.IoBase, Register, 2);
+	return LOWORD(ReadIoSpace(Controller->Base.IoBase, Register, 2));
 }
 
 /* UhciRead32
@@ -46,7 +46,7 @@ UhciRead32(
 	_In_ uint16_t           Register)
 {
 	// Wrapper for reading the io-space
-	return (uint32_t)ReadIoSpace(Controller->Base.IoBase, Register, 4);
+	return LODWORD(ReadIoSpace(Controller->Base.IoBase, Register, 4));
 }
 
 /* UhciWrite8

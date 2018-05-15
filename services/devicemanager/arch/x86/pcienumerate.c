@@ -667,8 +667,6 @@ BusEnumerate(void)
 	/* Now, that the bus is enumerated, we can
 	 * iterate the found devices and load drivers */
 	CollectionExecuteAll(__GlbRoot->Children, PciInstallDriverCallback, NULL);
-
-	// No errors
 	return OsSuccess;
 }
 
@@ -677,8 +675,8 @@ BusEnumerate(void)
 __EXTERN
 OsStatus_t
 IoctlDevice(
-	_In_ MCoreDevice_t *Device,
-	_In_ Flags_t Flags)
+	_In_ MCoreDevice_t* Device,
+	_In_ Flags_t        Flags)
 {
 	// Variables
 	PciDevice_t *PciDevice = NULL;
@@ -687,9 +685,9 @@ IoctlDevice(
 	// Lookup pci-device
 	foreach(dNode, __GlbPciDevices) {
 		PciDevice_t *Entry = (PciDevice_t*)dNode->Data;
-		if (Entry->Bus == Device->Bus
-			&& Entry->Slot == Device->Slot
-			&& Entry->Function == Device->Function) {
+		if (Entry->Bus          == Device->Bus
+			&& Entry->Slot      == Device->Slot
+			&& Entry->Function  == Device->Function) {
 			PciDevice = Entry;
 			break;
 		}
@@ -701,8 +699,7 @@ IoctlDevice(
 	}
 
 	// Read value, modify and write back
-	Settings = PciRead16(PciDevice->BusIo, Device->Bus,
-		Device->Slot, Device->Function, 0x04);
+	Settings = PciRead16(PciDevice->BusIo, Device->Bus, Device->Slot, Device->Function, 0x04);
 
 	// Clear all possible flags first
 	Settings &= ~(PCI_COMMAND_BUSMASTER | PCI_COMMAND_FASTBTB 
@@ -717,7 +714,7 @@ IoctlDevice(
 	if (Flags & __DEVICEMANAGER_IOCTL_MMIO_ENABLE) {
 		Settings |= PCI_COMMAND_MMIO;
 	}
-	else if (Flags & __DEVICEMANAGER_IOCTL_IO_ENABLE) {
+	if (Flags & __DEVICEMANAGER_IOCTL_IO_ENABLE) {
 		Settings |= PCI_COMMAND_PORTIO;
 	}
 
@@ -732,10 +729,7 @@ IoctlDevice(
 	}
 
 	// Write back settings
-	PciWrite16(PciDevice->BusIo, Device->Bus, 
-		Device->Slot, Device->Function, 0x04, Settings);
-
-	// Done
+	PciWrite16(PciDevice->BusIo, Device->Bus, Device->Slot, Device->Function, 0x04, Settings);
 	return OsSuccess;
 }
 
@@ -743,11 +737,11 @@ IoctlDevice(
  * Performs any neccessary actions to control the device on the bus */
 Flags_t
 IoctlDeviceEx(
-	_In_ MCoreDevice_t *Device,
-	_In_ Flags_t Parameters,
-	_In_ Flags_t Register,
-	_In_ Flags_t Value,
-	_In_ size_t Width)
+	_In_ MCoreDevice_t* Device,
+	_In_ Flags_t        Parameters,
+	_In_ Flags_t        Register,
+	_In_ Flags_t        Value,
+	_In_ size_t         Width)
 {
 	// Variables
 	PciDevice_t *PciDevice = NULL;
@@ -798,7 +792,5 @@ IoctlDeviceEx(
 		}
 	
 	}
-
-	// Done
 	return OsSuccess;
 }

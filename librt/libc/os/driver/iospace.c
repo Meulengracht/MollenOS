@@ -80,16 +80,13 @@ DestroyIoSpace(
  * the size of the io-space */
 size_t ReadIoSpace(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length)
 {
-	/* Variables */
+	// Variables
 	size_t Result = 0;
-
-	/* Assert that its a valid offset
-	 * we are trying to read */
 	assert((Offset + Length) <= IoSpace->Size);
 
-	/* Sanity */
+	// Make sure we handle the types correctly
 	if (IoSpace->Type == IO_SPACE_IO) {
-		uint16_t IoPort = (uint16_t)IoSpace->PhysicalBase + (uint16_t)Offset;
+		uint16_t IoPort = LOWORD(IoSpace->PhysicalBase) + LOWORD(Offset);
 		switch (Length) {
 			case 1:
 				Result = __readbyte(IoPort);
@@ -126,8 +123,6 @@ size_t ReadIoSpace(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length)
 				break;
 		}
 	}
-
-	/* Done! */
 	return Result;
 }
 
