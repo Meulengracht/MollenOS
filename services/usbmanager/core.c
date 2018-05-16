@@ -565,11 +565,6 @@ UsbDeviceSetup(
 	// because I accessed them to quickly after the reset
 	thrd_sleepex(100);
 
-    // Get device descriptor, ask for all 64 bytes, but terminate after 8
-    // Perform a port-reset
-    // Set device address
-    // Continue as planned
-
     // Allocate a device-address
     if (UsbReserveAddress(Controller, &ReservedAddress) != OsSuccess) {
         ERROR("(UsbReserveAddress %u) Failed to setup port %u:%u",

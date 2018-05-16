@@ -313,7 +313,8 @@
         "__std_stream": "c",
         "streambuf": "c",
         "*.txt": "c",
-        "typeindex": "cpp"
+        "typeindex": "cpp",
+        "bufferpool.h": "c"
     },
     "git.ignoreLimitWarning": true
 }

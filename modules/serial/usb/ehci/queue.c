@@ -22,7 +22,7 @@
  * - FSTN Transport
  * - Split-Isochronous Transport
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes
  * - System */
@@ -444,9 +444,6 @@ HciProcessElement(
                 EhciSetPrefetching((EhciController_t*)Controller, Transfer->Transfer.Type, 1);
                 EhciEnableScheduler((EhciController_t*)Controller, Transfer->Transfer.Type);
                 SpinlockRelease(&Controller->Lock);
-                
-                thrd_sleepex(3000);
-                UsbManagerDumpChain(Controller, Transfer, Element, USB_CHAIN_DEPTH);
                 return ITERATOR_STOP;
             }
         } break;

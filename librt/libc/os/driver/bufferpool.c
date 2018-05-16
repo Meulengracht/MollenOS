@@ -20,11 +20,13 @@
  * - This header describes the base bufferpool-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
+//#define __TRACE
 
 /* Includes
  * - Library */
 #include <os/bufferpool.h>
 #include <os/osdefs.h>
+#include <os/utils.h>
 #include "../common/bytepool.h"
 #include <stdlib.h>
 #include <stddef.h>
@@ -39,11 +41,11 @@ typedef struct _BufferPool {
  * This allows sub-allocations from a buffer-object. */
 OsStatus_t
 BufferPoolCreate(
-    _In_ BufferObject_t *Buffer,
-    _Out_ BufferPool_t **Pool)
+    _In_  BufferObject_t*   Buffer,
+    _Out_ BufferPool_t**    Pool)
 {
     // Allocate the pool
-    *Pool = (BufferPool_t*)malloc(sizeof(BufferPool_t));
+    *Pool           = (BufferPool_t*)malloc(sizeof(BufferPool_t));
     (*Pool)->Buffer = Buffer;
 
     // Initiate the pool
@@ -69,26 +71,29 @@ BufferPoolDestroy(
  * corresponding physical address for hardware. */
 OsStatus_t
 BufferPoolAllocate(
-    _In_ BufferPool_t *Pool,
-    _In_ size_t Size,
-    _Out_ uintptr_t **VirtualPointer,
-    _Out_ uintptr_t *PhysicalAddress)
+    _In_  BufferPool_t* Pool,
+    _In_  size_t        Size,
+    _Out_ uintptr_t**   VirtualPointer,
+    _Out_ uintptr_t*    PhysicalAddress)
 {
     // Variables
     void *Allocation = NULL;
 
+    // Debug
+    TRACE("BufferPoolAllocate(Size %u)", Size);
+
     // Perform an allocation
     Allocation = bget(Pool->Pool, Size);
     if (Allocation == NULL) {
+        ERROR("Failed to allocate bufferpool memory (size %u)", Size);
         return OsError;
     }
 
     // Calculate the addresses and update out's
-    *VirtualPointer = (uintptr_t*)Allocation;
-    *PhysicalAddress = GetBufferAddress(Pool->Buffer) 
+    *VirtualPointer     = (uintptr_t*)Allocation;
+    *PhysicalAddress    = GetBufferAddress(Pool->Buffer) 
         + ((uintptr_t)Allocation - (uintptr_t)GetBufferData(Pool->Buffer));
-
-    // Done
+    TRACE(" > Virtual address 0x%x => Physical address 0x%x", (uintptr_t*)Allocation, *PhysicalAddress);
     return OsSuccess;
 }
 
@@ -97,10 +102,9 @@ BufferPoolAllocate(
  * address must be the one passed back. */
 OsStatus_t
 BufferPoolFree(
-    _In_ BufferPool_t *Pool,
-    _In_ uintptr_t *VirtualPointer)
+    _In_ BufferPool_t*  Pool,
+    _In_ uintptr_t*     VirtualPointer)
 {
-    // Free it in brel
     brel(Pool->Pool, (void*)VirtualPointer);
     return OsSuccess;
 }

@@ -423,8 +423,6 @@ GetBufferData(
     if (BufferObject == NULL) {
         return NULL;
     }
-
-    // Return the virtual address
     return (uintptr_t*)BufferObject->Virtual;
 }
 
@@ -439,7 +437,5 @@ GetBufferAddress(
     if (BufferObject == NULL) {
         return 0;
     }
-
-    // Return the physical address
     return BufferObject->Physical;
 }

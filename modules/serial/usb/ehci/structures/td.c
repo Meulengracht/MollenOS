@@ -60,7 +60,7 @@ EhciTdFill(
         uintptr_t Physical = BufferAddress + (i * 0x1000);
         
         // Update buffer
-        Td->Buffers[i]          = EHCI_TD_BUFFER(Physical);
+        Td->Buffers[i]          = (i == 0) ? Physical : EHCI_TD_BUFFER(Physical);
         Td->ExtBuffers[i]       = 0;
 #if __BITS == 64
         if (Controller->CParameters & EHCI_CPARAM_64BIT) {

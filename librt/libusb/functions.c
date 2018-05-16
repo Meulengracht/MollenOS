@@ -428,14 +428,14 @@ UsbSetAddress(
     }
 
     // Allocate buffers
-    if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
-            &PacketBuffer, &PacketPhysical) != OsSuccess) {
+    if (BufferPoolAllocate(__LibUsbBufferPool, sizeof(UsbPacket_t), 
+        &PacketBuffer, &PacketPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
     }
 
     // Setup packet
-    Packet = (UsbPacket_t*)PacketBuffer;
+    Packet              = (UsbPacket_t*)PacketBuffer;
     Packet->Direction   = USBPACKET_DIRECTION_OUT;
     Packet->Type        = USBPACKET_TYPE_SET_ADDRESS;
     Packet->ValueLo     = (uint8_t)(Address & 0xFF);
@@ -484,7 +484,7 @@ UsbGetDeviceDescriptor(
     UsbTransfer_t Transfer              = { 0 };
     
     // Allocate buffers
-    if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
+    if (BufferPoolAllocate(__LibUsbBufferPool, sizeof(UsbPacket_t), 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
@@ -560,7 +560,7 @@ UsbGetInitialConfigDescriptor(
     UsbTransfer_t Transfer              = { 0 };
     
     // Allocate buffers
-    if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
+    if (BufferPoolAllocate(__LibUsbBufferPool, sizeof(UsbPacket_t), 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
@@ -648,7 +648,7 @@ UsbGetConfigDescriptor(
     }
 
     // Allocate buffers
-    if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
+    if (BufferPoolAllocate(__LibUsbBufferPool, sizeof(UsbPacket_t), 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
@@ -715,7 +715,7 @@ UsbSetConfiguration(
     UsbTransfer_t Transfer      = { 0 };
 
     // Allocate buffers
-    if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
+    if (BufferPoolAllocate(__LibUsbBufferPool, sizeof(UsbPacket_t), 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
@@ -769,7 +769,7 @@ UsbGetStringLanguages(
     UsbTransfer_t Transfer              = { 0 };
     
     // Allocate buffers
-    if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
+    if (BufferPoolAllocate(__LibUsbBufferPool, sizeof(UsbPacket_t), 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
@@ -846,7 +846,7 @@ UsbGetStringDescriptor(
     UsbTransfer_t Transfer          = { 0 };
     
     // Allocate buffers
-    if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
+    if (BufferPoolAllocate(__LibUsbBufferPool, sizeof(UsbPacket_t), 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
@@ -920,7 +920,7 @@ UsbClearFeature(
     UsbTransfer_t Transfer      = { 0 };
 
     // Allocate buffers
-    if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
+    if (BufferPoolAllocate(__LibUsbBufferPool, sizeof(UsbPacket_t), 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
@@ -972,7 +972,7 @@ UsbSetFeature(
     UsbTransfer_t Transfer      = { 0 };
 
     // Allocate buffers
-    if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
+    if (BufferPoolAllocate(__LibUsbBufferPool, sizeof(UsbPacket_t), 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
@@ -1032,7 +1032,7 @@ UsbExecutePacket(
     UsbTransfer_t Transfer              = { 0 };
     
     // Allocate buffers
-    if (BufferPoolAllocate(__LibUsbBufferPool, 8, 
+    if (BufferPoolAllocate(__LibUsbBufferPool, sizeof(UsbPacket_t), 
             &PacketBuffer, &PacketPhysical) != OsSuccess) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
