@@ -405,14 +405,19 @@ EhciRestart(
     }
 
     // Reset certain indices
-    Controller->OpRegisters->SegmentSelector        = 0;
+    if (Controller->CParameters & EHCI_CPARAM_64BIT) {
+        Controller->OpRegisters->SegmentSelector    = 0;
+#ifdef __OSCONFIG_EHCI_ALLOW_64BIT
+        Controller->OpRegisters->SegmentSelector    = HIDWORD(Controller->Base.Scheduler->Settings.FrameListPhysical);
+#endif
+    }
     Controller->OpRegisters->FrameIndex             = 0;
     Controller->OpRegisters->UsbIntr                = 0;
     Controller->OpRegisters->UsbStatus              = Controller->OpRegisters->UsbStatus;
 
     // Update the hardware registers to point to the newly allocated addresses
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler, EHCI_QH_POOL, EHCI_QH_ASYNC, NULL, &AsyncListHead);
-    Controller->OpRegisters->PeriodicListAddress    = (reg32_t)Controller->Base.Scheduler->Settings.FrameListPhysical;
+    Controller->OpRegisters->PeriodicListAddress    = LODWORD(Controller->Base.Scheduler->Settings.FrameListPhysical);
     Controller->OpRegisters->AsyncListAddress       = LODWORD(AsyncListHead) | EHCI_LINK_QH;
 
     // Next step is to build the command configuring the controller
@@ -510,8 +515,7 @@ EhciSetup(
     _In_ EhciController_t*          Controller)
 {
     // Variables
-    reg32_t TemporaryValue              = 0;
-    size_t i                            = 0;
+    size_t i = 0;
 
     // Debug
     TRACE("EhciSetup()");
@@ -521,7 +525,6 @@ EhciSetup(
 
     // Are we configured to disable ehci?
 #ifdef __OSCONFIG_DISABLE_EHCI
-    _CRT_UNUSED(TemporaryValue);
     _CRT_UNUSED(i);
     EhciSilence(Controller);
 #else
@@ -538,7 +541,7 @@ EhciSetup(
     
     // Register the controller before starting
     if (UsbManagerRegisterController(&Controller->Base) != OsSuccess) {
-        ERROR("Failed to register uhci controller with the system.");
+        ERROR("Failed to register ehci controller with the system.");
     }
 
     // Now, controller is up and running

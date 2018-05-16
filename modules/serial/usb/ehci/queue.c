@@ -101,6 +101,7 @@ EhciQueueInitialize(
 {
     // Variables
     UsbSchedulerSettings_t Settings;
+    Flags_t SchedulerFlags = 0;
 
     // Trace
     TRACE("EhciQueueInitialize()");
@@ -120,8 +121,13 @@ EhciQueueInitialize(
 
     // Initialize the scheduler
     TRACE(" > Configuring scheduler");
-    UsbSchedulerSettingsCreate(&Settings, Controller->FrameCount, 8, EHCI_MAX_BANDWIDTH, 
-        USB_SCHEDULER_DEFERRED_CLEAN | USB_SCHEDULER_FRAMELIST | USB_SCHEDULER_LINK_BIT_EOL);
+    SchedulerFlags = USB_SCHEDULER_DEFERRED_CLEAN | USB_SCHEDULER_FRAMELIST | USB_SCHEDULER_LINK_BIT_EOL;
+    if (Controller->CParameters & EHCI_CPARAM_64BIT) {
+#ifdef __OSCONFIG_EHCI_ALLOW_64BIT
+        SchedulerFlags |= USB_SCHEDULER_FL64;
+#endif
+    }
+    UsbSchedulerSettingsCreate(&Settings, Controller->FrameCount, 8, EHCI_MAX_BANDWIDTH, SchedulerFlags);
 
     // Add Queue-Heads
     UsbSchedulerSettingsAddPool(&Settings, sizeof(EhciQueueHead_t), EHCI_QH_ALIGNMENT, EHCI_QH_COUNT, 
@@ -439,7 +445,7 @@ HciProcessElement(
                 EhciEnableScheduler((EhciController_t*)Controller, Transfer->Transfer.Type);
                 SpinlockRelease(&Controller->Lock);
                 
-                thrd_sleepex(1000);
+                thrd_sleepex(3000);
                 UsbManagerDumpChain(Controller, Transfer, Element, USB_CHAIN_DEPTH);
                 return ITERATOR_STOP;
             }

@@ -121,7 +121,15 @@ UsbSchedulerInitialize(
         ERROR("Failed to allocate memory for resource-pool");
         return OsError;
     }
-    assert(PoolPhysical < 0xFFFFFFFF);
+
+    // Validate memory boundaries
+    if (!(Settings->Flags & USB_SCHEDULER_FL64)) {
+        if ((PoolPhysical + PoolSizeBytes) > 0xFFFFFFFF) {
+            ERROR("Failed to allocate memory below 4gb memory for usb resources");
+            MemoryFree((void*)Pool, PoolSizeBytes);
+            return OsError;
+        }
+    }
 
     // Setup a new instance
     Scheduler = (UsbScheduler_t*)malloc(sizeof(UsbScheduler_t));

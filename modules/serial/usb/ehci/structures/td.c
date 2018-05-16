@@ -92,8 +92,7 @@ EhciTdSetup(
     Td->AlternativeLink         = EHCI_LINK_END;
 
     Td->Status                  = EHCI_TD_ACTIVE;
-    Td->Token                   = EHCI_TD_SETUP;
-    Td->Token                   |= EHCI_TD_ERRCOUNT;
+    Td->Token                   = EHCI_TD_SETUP | EHCI_TD_ERRCOUNT;
 
     // Calculate the length of the setup transfer
     CalculatedLength            = EhciTdFill(Controller, Td, Transaction->BufferAddress, sizeof(UsbPacket_t));
