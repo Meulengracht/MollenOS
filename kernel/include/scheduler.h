@@ -68,101 +68,73 @@ typedef struct _MCoreScheduler {
     size_t                      BoostTimer;
     int                         ThreadCount;
     CriticalSection_t           QueueLock;
-} Scheduler_t;
+} MCoreScheduler_t;
 
 /* SchedulerInitialize
- * Initializes state variables and global static resources. */
-KERNELAPI
-void
-KERNELABI
+ * Initializes the scheduler instance to default settings and parameters. */
+KERNELAPI void KERNELABI
 SchedulerInitialize(void);
-
-/* SchedulerCreate
- * Creates and initializes a scheduler for the given cpu-id. */
-KERNELAPI
-void
-KERNELABI
-SchedulerCreate(
-    _In_ UUId_t Cpu);
 
 /* SchedulerThreadInitialize
  * Can be called by the creation of a new thread to initalize
  * all the scheduler data for that thread. */
-KERNELAPI
-void
-KERNELABI
+KERNELAPI void KERNELABI
 SchedulerThreadInitialize(
-    _In_ MCoreThread_t *Thread,
-    _In_ Flags_t Flags);
+    _In_ MCoreThread_t*     Thread,
+    _In_ Flags_t            Flags);
 
 /* SchedulerThreadQueue
- * Queues up a thread for execution. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+ * Queues up a new thread for execution on the either least-loaded core, or the specified
+ * core in the thread structure. */
+KERNELAPI OsStatus_t KERNELABI
 SchedulerThreadQueue(
-    _In_ MCoreThread_t *Thread);
+    _In_ MCoreThread_t*     Thread);
 
 /* SchedulerThreadDequeue
  * Disarms a thread from all queues and mark the thread inactive. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 SchedulerThreadDequeue(
-    _In_ MCoreThread_t *Thread);
+    _In_ MCoreThread_t*     Thread);
 
 /* SchedulerThreadSleep
  * Enters the current thread into sleep-queue. Can return different
  * sleep-state results. SCHEDULER_SLEEP_OK or SCHEDULER_SLEEP_TIMEOUT. */
-KERNELAPI
-int
-KERNELABI
+KERNELAPI int KERNELABI
 SchedulerThreadSleep(
     _In_ uintptr_t*         Handle,
     _In_ size_t             Timeout);
 
 /* SchedulerThreadSignal
  * Finds a sleeping thread with the given thread id and wakes it. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 SchedulerThreadSignal(
-    _In_ MCoreThread_t *Thread);
+    _In_ MCoreThread_t*     Thread);
 
 /* SchedulerHandleSignal
  * Finds a sleeping thread with the given sleep-handle and wakes it. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 SchedulerHandleSignal(
-    _In_ uintptr_t *Handle);
+    _In_ uintptr_t*         Handle);
 
 /* SchedulerHandleSignalAll
  * Finds any sleeping threads on the given handle and wakes them. */
-KERNELAPI
-void
-KERNELABI
+KERNELAPI void KERNELABI
 SchedulerHandleSignalAll(
-    _In_ uintptr_t *Handle);
+    _In_ uintptr_t*         Handle);
 
 /* SchedulerTick
  * Iterates the io-queue and handle any threads that will timeout
  * on the tick. */
-KERNELAPI
-void
-KERNELABI
+KERNELAPI void KERNELABI
 SchedulerTick(
-    _In_ size_t Milliseconds);
+    _In_ size_t             Milliseconds);
 
 /* SchedulerThreadSchedule 
  * This should be called by the underlying archteicture code
  * to get the next thread that is to be run. */
-KERNELAPI
-MCoreThread_t*
-KERNELABI
+KERNELAPI MCoreThread_t* KERNELABI
 SchedulerThreadSchedule(
-    _In_ UUId_t Cpu,
-    _In_ MCoreThread_t *Thread,
-    _In_ int Preemptive);
+    _In_ MCoreThread_t*     Thread,
+    _In_ int                Preemptive);
 
 #endif // !_MCORE_SCHEDULER_H_

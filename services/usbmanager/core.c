@@ -518,13 +518,11 @@ UsbDeviceSetup(
     memset(Device, 0, sizeof(UsbDevice_t));
 
     // Initialize the control-endpoint
-    Device->ControlEndpoint.Type = EndpointControl;
-    Device->ControlEndpoint.Bandwidth = 1;
-    Device->ControlEndpoint.MaxPacketSize = 8;
-    Device->ControlEndpoint.Direction = USB_ENDPOINT_BOTH;
-
-    // Bind it to port
-    Port->Device = Device;
+    Device->ControlEndpoint.Type            = EndpointControl;
+    Device->ControlEndpoint.Bandwidth       = 1;
+    Device->ControlEndpoint.MaxPacketSize   = 8;
+    Device->ControlEndpoint.Direction       = USB_ENDPOINT_BOTH;
+    Port->Device                            = Device;
 
     // Initialize the port by resetting it
     if (UsbHubResetPort(Controller->DriverId, Controller->Device.Id,
@@ -560,8 +558,7 @@ UsbDeviceSetup(
     TRACE("Control EP mps => %u", Device->ControlEndpoint.MaxPacketSize);
 
 	// Wait 100 for device to stabilize after port-reset 
-	// I found this wait to be EXTREMELY 
-	// crucical, otherwise devices would stall. 
+	// I found this wait to be EXTREMELY crucical, otherwise devices would stall. 
 	// because I accessed them to quickly after the reset
 	thrd_sleepex(100);
 

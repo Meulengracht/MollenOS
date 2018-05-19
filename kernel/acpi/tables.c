@@ -23,6 +23,8 @@
 
 /* Includes 
  * - System */
+#include <component/domain.h>
+#include <component/cpu.h>
 #include <acpiinterface.h>
 #include <heap.h>
 #include <debug.h>
@@ -34,38 +36,38 @@ Collection_t *GlbAcpiNodes = NULL;
 int GlbAcpiAvailable = ACPI_NOT_AVAILABLE;
 static ACPI_TABLE_DESC TableArray[ACPI_MAX_INIT_TABLES];
 
-/* Enumerate MADT Entries */
-void AcpiEnumarateMADT(void *MadtStart, void *MadtEnd)
+/* AcpiEnumarateMADT
+ * Enumerates the MADT entries for hardware information. This relates closely
+ * to the system topology and it's configuration */
+void
+AcpiEnumarateMADT(
+    _In_ void*  MadtStart, 
+    _In_ void*  MadtEnd)
 {
-	/* Variables */
-	ACPI_SUBTABLE_HEADER *MadtEntry;
+	// Variables
+	ACPI_SUBTABLE_HEADER *MadtEntry = NULL;
 	DataKey_t Key;
 
-	for (MadtEntry = (ACPI_SUBTABLE_HEADER*)MadtStart; 
-		(void *)MadtEntry < MadtEnd;)
-	{
-		/* Avoid an infinite loop if we hit a bogus entry. */
-		if (MadtEntry->Length < sizeof(ACPI_SUBTABLE_HEADER))
-			return;
+	for (MadtEntry = (ACPI_SUBTABLE_HEADER*)MadtStart; (void *)MadtEntry < MadtEnd;) {
+		// Avoid an infinite loop if we hit a bogus entry.
+		if (MadtEntry->Length < sizeof(ACPI_SUBTABLE_HEADER)) {
+            return;
+        }
 
 		switch (MadtEntry->Type) {
 			case ACPI_MADT_TYPE_LOCAL_APIC: {
-				/* Allocate a new structure */
-				ACPI_MADT_LOCAL_APIC *CpuNode = 
-					(ACPI_MADT_LOCAL_APIC*)kmalloc(sizeof(ACPI_MADT_LOCAL_APIC));
-
-				/* Cast to correct structure */
+                // Cast to correct MADT structure
 				ACPI_MADT_LOCAL_APIC *AcpiCpu = (ACPI_MADT_LOCAL_APIC*)MadtEntry;
 
-				/* Now we have it allocated aswell, copy info */
-				memcpy(CpuNode, AcpiCpu, sizeof(ACPI_MADT_LOCAL_APIC));
+                // Register core with system if it's available
+                // @todo check with ProcessorId and find correct cpu
+                if (AcpiCpu->LapicFlags & 0x1) {
+                    RegisterApplicationCore(&GetCurrentDomain()->Cpu, AcpiCpu->Id, CpuStateShutdown, 0);
+                }
 
-				/* Insert it into list */
-				Key.Value = ACPI_MADT_TYPE_LOCAL_APIC;
-				CollectionAppend(GlbAcpiNodes, CollectionCreateNode(Key, CpuNode));
-
-				/* Debug */
-				TRACE("Found CPU: %u (%s)", AcpiCpu->Id, (AcpiCpu->LapicFlags & 0x1) ? "Active" : "Inactive");
+                // Debug
+				TRACE("Found CPU: %u:%u (%s)", AcpiCpu->ProcessorId, AcpiCpu->Id, 
+                    (AcpiCpu->LapicFlags & 0x1) ? "Active" : "Inactive");
 			} break;
 
 		/* IO Apic */

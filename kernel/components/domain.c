@@ -19,35 +19,26 @@
  * - Components mostly belong to system domains. This is the representation
  *   of a system domain.
  */
+#include <component/domain.h>
 
-#ifndef __COMPONENT_DOMAIN__
-#define __COMPONENT_DOMAIN__
-
-/* Includes
- * - System */
-#include <os/osdefs.h>
-#include <ds/collection.h>
-#include "cpu.h"
-#include "ic.h"
-
-typedef struct _SystemDomain {
-    SystemCpu_t                 Cpu;
-
-    // Memory and Interrupt Controller must be sharable
-    // between domains in this representation.
-    // Memory
-    SystemInterruptController_t InterruptController;
-} SystemDomain_t;
+/* Global storage
+ * Global static storage/variables for managing domains. */
+static SystemDomain_t CurrentDomain = { { { 0 } } };
+static Collection_t Domains         = COLLECTION_INIT(KeyInteger);
 
 /* GetCurrentDomain
  * Retrieves a pointer for the current domain. The current domain
  * is the domain that the calling cpu is bound to. */
-KERNELAPI SystemDomain_t* KERNELABI
-GetCurrentDomain(void);
+SystemDomain_t*
+GetCurrentDomain(void)
+{
+    return &CurrentDomain;
+}
 
 /* GetDomains
  * Retrieves the collection that contains all current domains. */
-KERNELAPI Collection_t* KERNELABI
-GetDomains(void);
-
-#endif // !__COMPONENT_DOMAIN__
+Collection_t*
+GetDomains(void)
+{
+    return &Domains;
+}

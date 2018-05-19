@@ -104,11 +104,10 @@ int ApicGetPinFromGsi(int Gsi) {
 	return APIC_NO_GSI;
 }
 
-/* Creates the correct bit index for
- * the given cpu id, and converts the type
- * to uint, since thats what the apic needs */
-uint32_t ApicGetCpuMask(UUId_t Cpu) {
-	return (uint32_t)(1 << Cpu);
+/* ApicComputeLogicalDestination
+ * Creates the correct bit index for the given cpu core */
+uint32_t ApicComputeLogicalDestination(UUId_t CoreId) {
+	return (1 << ((CoreId % 7) + 1)) | (1 << 0);
 }
 
 /* Helper for updating the task priority register
@@ -224,8 +223,8 @@ void ApicSendEoi(int Gsi, uint32_t Vector)
 		/* We want to mask it and clear the level trigger bit */
         Modified = Original = ApicReadIoEntry(IoApic, Pin);
 		Modified |= APIC_MASKED;
-        Modified &= ~(APIC_LEVEL_TRIGGER | APIC_ICR_BUSY);
-        Original &= ~(APIC_ICR_BUSY);
+        Modified &= ~(APIC_LEVEL_TRIGGER | APIC_DELIVERY_BUSY);
+        Original &= ~(APIC_DELIVERY_BUSY);
 
 		/* First, we write the modified entry
 		 * then we restore it, then we ACK */

@@ -23,6 +23,7 @@
 
 /* Includes
  * - System */
+#include <component/domain.h>
 #include <system/interrupts.h>
 #include <system/utils.h>
 #include <interrupts.h>
@@ -36,11 +37,6 @@
 #include <cpuid.h>
 #define __get_cpuid(Function, Registers) __cpuid(Function, Registers[0], Registers[1], Registers[2], Registers[3]);
 #endif
-
- /* Globals 
-  * Keep a copy of cpu information in the system for the boot cpu */
-static CpuInformation_t __CpuInformation = { 0 };
-static int __CpuInitialized = 0;
 
 /* Extern functions
  * We need access to these in order to implement
@@ -64,27 +60,42 @@ void
 CpuInitialize(void)
 {
 	// Variables
-	int CpuRegisters[4] = { 0 };
+	uint32_t CpuRegisters[4]    = { 0 };
+    char CpuVendor[16]          = { 0 };
+    char CpuBrand[64]           = { 0 };
+    int NumberOfCores           = 1;
+    uintptr_t CpuData[4];
 
 	// Has init already run?
-	if (__CpuInitialized != 1) {
+	if (GetCurrentDomain()->Cpu.PrimaryCore.State != CpuStateRunning) {
 	    __get_cpuid(0, CpuRegisters);
 
 		// Store cpu-id level
-		__CpuInformation.CpuIdLevel = CpuRegisters[0];
+		CpuData[CPU_DATA_MAXLEVEL] = CpuRegisters[0];
+        memcpy(&CpuVendor[0], &CpuRegisters[1], 12);
 
 		// Does it support retrieving features?
-		if (__CpuInformation.CpuIdLevel >= 1) {
+		if (CpuData[CPU_DATA_MAXLEVEL] >= 1) {
 	        __get_cpuid(1, CpuRegisters);
-			__CpuInformation.EcxFeatures = CpuRegisters[2];
-			__CpuInformation.EdxFeatures = CpuRegisters[3];
+			CpuData[CPU_DATA_FEATURES_ECX]  = CpuRegisters[2];
+			CpuData[CPU_DATA_FEATURES_EDX]  = CpuRegisters[3];
+            NumberOfCores                   = (CpuRegisters[1] >> 16) & 0xFF;
 		}
 
 		// Get extensions supported
 	    __get_cpuid(0x80000000, CpuRegisters);
 
-		// Store them
-		__CpuInformation.CpuIdExtensions = CpuRegisters[0];
+		// Extract the processor brand string if it's supported
+		CpuData[CPU_DATA_MAXEXTENDEDLEVEL] = CpuRegisters[0];
+        if (CpuData[CPU_DATA_MAXEXTENDEDLEVEL] >= 0x80000004) {
+            __get_cpuid(0x80000002, CpuRegisters); // First 16 bytes
+            memcpy(&CpuBrand[0], &CpuRegisters[0], 16);
+            __get_cpuid(0x80000003, CpuRegisters); // Middle 16 bytes
+            memcpy(&CpuBrand[16], &CpuRegisters[0], 16);
+            __get_cpuid(0x80000004, CpuRegisters); // Last 16 bytes
+            memcpy(&CpuBrand[32], &CpuRegisters[0], 16);
+        }
+        InitializeProcessor(&GetCurrentDomain()->Cpu, &CpuVendor[0], &CpuBrand[0], NumberOfCores, &CpuData[0]);
 	}
 
 	// Can we enable FPU?
@@ -113,14 +124,14 @@ CpuHasFeatures(Flags_t Ecx, Flags_t Edx)
 {
 	// Check ECX features
 	if (Ecx != 0) {
-		if ((__CpuInformation.EcxFeatures & Ecx) != Ecx) {
+		if ((GetCurrentDomain()->Cpu.Data[CPU_DATA_FEATURES_ECX] & Ecx) != Ecx) {
 			return OsError;
 		}
 	}
 
 	// Check EDX features
 	if (Edx != 0) {
-		if ((__CpuInformation.EdxFeatures & Edx) != Edx) {
+		if ((GetCurrentDomain()->Cpu.Data[CPU_DATA_FEATURES_EDX] & Edx) != Edx) {
 			return OsError;
 		}
 	}
@@ -192,7 +203,7 @@ CpuStall(
 	volatile uint64_t TimeOut = 0;
 	uint64_t Counter = 0;
 
-	if (!(__CpuInformation.EdxFeatures & CPUID_FEAT_EDX_TSC)) {
+	if (!(GetCurrentDomain()->Cpu.Data[CPU_DATA_FEATURES_EDX] & CPUID_FEAT_EDX_TSC)) {
 		LogFatal("TIMR", "DelayMs() was called, but no TSC support in CPU.");
 		CpuIdle();
 	}

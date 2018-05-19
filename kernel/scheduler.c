@@ -31,6 +31,7 @@
 
 /* Includes
  * - System */
+#include <component/domain.h>
 #include <system/thread.h>
 #include <system/interrupts.h>
 #include <system/utils.h>
@@ -44,38 +45,16 @@
 
 /* Globals
  * - State keeping variables */
-static Scheduler_t *Schedulers[MAX_SUPPORTED_CPUS];
 static SchedulerQueue_t IoQueue = { 0 };
-static int SchedulerInitialized = 0;
 
 /* SchedulerInitialize
- * Initializes state variables and global static resources. */
+ * Initializes the scheduler instance to default settings and parameters. */
 void
 SchedulerInitialize(void)
 {
-    // Initialize Globals
-    memset(&Schedulers[0], 0, sizeof(Schedulers));
-    IoQueue.Head = NULL;
-    IoQueue.Tail = NULL;
-    SchedulerInitialized = 1;
-}
-
-/* SchedulerCreate
- * Creates and initializes a scheduler for the given cpu-id. */
-void
-SchedulerCreate(
-    _In_ UUId_t Cpu)
-{
-	// Variables
-	Scheduler_t *Scheduler  = NULL;
-
-	// Allocate a new instance of the scheduler
-    Scheduler = (Scheduler_t*)kmalloc(sizeof(Scheduler_t));
-    memset(Scheduler, 0, sizeof(Scheduler_t));
-    
-    // Initialize members
-	CriticalSectionConstruct(&Scheduler->QueueLock, CRITICALSECTION_PLAIN);
-	Schedulers[Cpu] = Scheduler;
+    // Zero structure and initialize members
+    memset((void*)&GetCurrentProcessorCore()->Scheduler, 0, sizeof(MCoreScheduler_t));
+    CriticalSectionConstruct(&GetCurrentProcessorCore()->Scheduler.QueueLock, CRITICALSECTION_PLAIN);
 }
 
 /* SchedulerQueueAppend 
@@ -108,8 +87,8 @@ SchedulerQueueAppend(
  * Removes a single thread from the given queue. */
 void
 SchedulerQueueRemove(
-    _In_ SchedulerQueue_t *Queue,
-    _In_ MCoreThread_t *Thread)
+    _In_ SchedulerQueue_t*  Queue,
+    _In_ MCoreThread_t*     Thread)
 {
     // Variables
     MCoreThread_t   *Current = Queue->Head,
@@ -147,27 +126,36 @@ SchedulerQueueRemove(
     }
 }
 
+/* SchedulerGetFromCore
+ * Retrieves the scheduler that belongs to the given core id. */
+MCoreScheduler_t*
+SchedulerGetFromCore(
+    _In_ UUId_t             CoreId)
+{
+    return &GetProcessorCore(CoreId)->Scheduler;
+}
+
 /* SchedulerBoostThreads
  * Boosts all threads in the given scheduler to queue 0.
  * This is a method of avoiding intentional starvation by malicous
  * programs. */
 void
 SchedulerBoostThreads(
-    _In_ Scheduler_t *Scheduler)
+    _In_ MCoreScheduler_t*  Scheduler)
 {
-	// Variables
-	int i                   = 0;
-	
+    // Variables
+    int i                   = 0;
+    
     // Move all threads up into queue 0
     // but skip queue CRITICAL
-	for (i = 1; i < SCHEDULER_LEVEL_CRITICAL; i++) {
-		if (Scheduler->Queues[i].Head != NULL) {
+    for (i = 1; i < SCHEDULER_LEVEL_CRITICAL; i++) {
+        if (Scheduler->Queues[i].Head != NULL) {
             SchedulerQueueAppend(&Scheduler->Queues[0], 
                 Scheduler->Queues[i].Head, Scheduler->Queues[i].Tail);
             Scheduler->Queues[i].Head = NULL;
             Scheduler->Queues[i].Tail = NULL;
-		}
-	}
+        }
+    }
 }
 
 /* SchedulerThreadInitialize
@@ -175,8 +163,8 @@ SchedulerBoostThreads(
  * all the scheduler data for that thread. */
 void
 SchedulerThreadInitialize(
-    _In_ MCoreThread_t *Thread,
-    _In_ Flags_t Flags)
+    _In_ MCoreThread_t*     Thread,
+    _In_ Flags_t            Flags)
 {
     // Initialize members
     Thread->Link = NULL;
@@ -200,48 +188,46 @@ SchedulerThreadInitialize(
     }
 
     // Flag-Special-Case:
-	// If we are CPU bound
-	if (Flags & THREADING_CPUBOUND) {
-		Thread->CpuId   = CpuGetCurrentId();
-		Thread->Flags  |= THREADING_CPUBOUND;
-	}
-	else {
-		Thread->CpuId   = SCHEDULER_CPU_SELECT;
-	}
+    // If we are CPU bound
+    if (Flags & THREADING_CPUBOUND) {
+        Thread->CoreId  = CpuGetCurrentId();
+        Thread->Flags  |= THREADING_CPUBOUND;
+    }
+    else {
+        Thread->CoreId  = SCHEDULER_CPU_SELECT;
+    }
 }
 
 /* SchedulerThreadQueue
- * Queues up a thread for execution. */
+ * Queues up a new thread for execution on the either least-loaded core, or the specified
+ * core in the thread structure. */
 OsStatus_t
 SchedulerThreadQueue(
-    _In_ MCoreThread_t *Thread)
+    _In_ MCoreThread_t*     Thread)
 {
     // Variables
-    Scheduler_t *Scheduler  = NULL;
-	UUId_t CpuIndex         = 0;
-    int i                   = 0;
+    MCoreScheduler_t *Scheduler = &GetCurrentDomain()->Cpu.PrimaryCore.Scheduler;
+    UUId_t CoreId               = GetCurrentDomain()->Cpu.PrimaryCore.Id;
+    int i;
     
-	// Sanitize the cpu that thread needs to be bound to
-	if (Thread->CpuId == SCHEDULER_CPU_SELECT) {
-		while (Schedulers[i] != NULL) {
-			if (Schedulers[i]->ThreadCount < Schedulers[CpuIndex]->ThreadCount) {
-				CpuIndex = i;
-			}
-			i++;
-		}
-		Thread->CpuId   = CpuIndex;
-	}
-	else {
-		CpuIndex        = Thread->CpuId;
+    // Sanitize the cpu that thread needs to be bound to
+    if (Thread->CoreId == SCHEDULER_CPU_SELECT) {
+        for (i = 0; i < (GetCurrentDomain()->Cpu.NumberOfCores - 1); i++) {
+            if (GetCurrentDomain()->Cpu.ApplicationCores[i].Scheduler.ThreadCount < Scheduler->ThreadCount) {
+                Scheduler   = &GetCurrentDomain()->Cpu.ApplicationCores[i].Scheduler;
+                CoreId      = GetCurrentDomain()->Cpu.ApplicationCores[i].Id;
+            }
+        }
+        Thread->CoreId      = CoreId;
     }
-
-    // Shorthand access
-    Scheduler = Schedulers[CpuIndex];
+    else {
+        Scheduler           = SchedulerGetFromCore(Thread->CoreId);
+    }
 
     // Debug
     TRACE("Appending thread %u (%s) to queue %i", Thread->Id, Thread->Name, Thread->Queue);
 
-	// The modification of a queue is a locked operation
+    // The modification of a queue is a locked operation
     CriticalSectionEnter(&Scheduler->QueueLock);
     SchedulerQueueAppend(&Scheduler->Queues[Thread->Queue], Thread, Thread);
     Scheduler->ThreadCount++;
@@ -250,9 +236,9 @@ SchedulerThreadQueue(
     // Set thread active
     THREADING_SETSTATE(Thread->Flags, THREADING_ACTIVE);
 
-	// If the current cpu is idling, wake us up
-	if (ThreadingIsCurrentTaskIdle(Thread->CpuId) != 0) {
-        ThreadingWakeCpu(Thread->CpuId);
+    // If the current cpu is idling, wake us up
+    if (ThreadingIsCurrentTaskIdle(Thread->CoreId) != 0) {
+        ThreadingWakeCpu(Thread->CoreId);
     }
     return OsSuccess;
 }
@@ -261,24 +247,22 @@ SchedulerThreadQueue(
  * Disarms a thread from all queues and mark the thread inactive. */
 OsStatus_t
 SchedulerThreadDequeue(
-    _In_ MCoreThread_t *Thread)
+    _In_ MCoreThread_t*     Thread)
 {
     // Variables
-    Scheduler_t *Scheduler = NULL;
+    MCoreScheduler_t *Scheduler = NULL;
 
-	// Sanitize queue
-	if (Thread->Queue < 0) {
+    // Sanitize queue
+    if (Thread->Queue < 0) {
         return OsError;
     }
 
     // Debug
     TRACE("SchedulerThreadDequeue(Cpu %u, Thread %u, Queue %u)",
         Thread->CpuId, Thread->Id, Thread->Queue);
+    Scheduler = SchedulerGetFromCore(Thread->CoreId);
 
-    // Instantiate variables
-    Scheduler = Schedulers[Thread->CpuId];
-
-	// Locked operation
+    // Locked operation
     CriticalSectionEnter(&Scheduler->QueueLock);
     SchedulerQueueRemove(&Scheduler->Queues[Thread->Queue], Thread);
     Scheduler->ThreadCount--;
@@ -294,22 +278,21 @@ SchedulerThreadDequeue(
  * sleep-state results. SCHEDULER_SLEEP_OK or SCHEDULER_SLEEP_TIMEOUT. */
 int
 SchedulerThreadSleep(
-    _In_ uintptr_t* Handle,
-    _In_ size_t     Timeout)
+    _In_ uintptr_t*         Handle,
+    _In_ size_t             Timeout)
 {
     // Variables
-	MCoreThread_t *CurrentThread    = NULL;
-	IntStatus_t InterruptStatus     = 0;
+    MCoreThread_t *CurrentThread    = NULL;
+    IntStatus_t InterruptStatus     = 0;
     UUId_t CurrentCpu               = 0;
     
     // Instantiate values
-    CurrentCpu = CpuGetCurrentId();
-    CurrentThread = ThreadingGetCurrentThread(CurrentCpu);
+    CurrentCpu      = CpuGetCurrentId();
+    CurrentThread   = ThreadingGetCurrentThread(CurrentCpu);
     assert(CurrentThread != NULL);
     
     // Debug
-    TRACE("Adding thread %u to sleep queue on 0x%x", 
-        CurrentThread->Id, Handle);
+    TRACE("Adding thread %u to sleep queue on 0x%x", CurrentThread->Id, Handle);
     
     // Disable interrupts while doing this
     InterruptStatus = InterruptDisable();
@@ -342,16 +325,16 @@ SchedulerThreadSleep(
  * Finds a sleeping thread with the given thread id and wakes it. */
 OsStatus_t
 SchedulerThreadSignal(
-    _In_ MCoreThread_t *Thread)
+    _In_ MCoreThread_t*     Thread)
 {
-	// Variables
-	MCoreThread_t *Current = NULL;
+    // Variables
+    MCoreThread_t *Current = NULL;
 
     // Debug
     TRACE("SchedulerThreadSignal(Thread %u)", Thread->Id);
 
-	// Sanitize the io-queue
-	if (IoQueue.Head == NULL || Thread == NULL) {
+    // Sanitize the io-queue
+    if (IoQueue.Head == NULL || Thread == NULL) {
         return OsError;
     }
 
@@ -366,15 +349,15 @@ SchedulerThreadSignal(
         }
     }
 
-	// If found, remove from queue and queue
-	if (Current != NULL) {
+    // If found, remove from queue and queue
+    if (Current != NULL) {
         Current->Sleep.Timeout = 0;
         Current->Sleep.Handle = NULL;
         TimersGetSystemTick(&Current->Sleep.InterruptedAt);
         SchedulerQueueRemove(&IoQueue, Current);
-		return SchedulerThreadQueue(Current);
-	}
-	else {
+        return SchedulerThreadQueue(Current);
+    }
+    else {
         return OsError;
     }
 }
@@ -383,13 +366,13 @@ SchedulerThreadSignal(
  * Finds a sleeping thread with the given sleep-handle and wakes it. */
 OsStatus_t
 SchedulerHandleSignal(
-    _In_ uintptr_t *Handle)
+    _In_ uintptr_t*         Handle)
 {
-	// Variables
-	MCoreThread_t *Current = NULL;
+    // Variables
+    MCoreThread_t *Current = NULL;
 
-	// Sanitize the io-queue
-	if (IoQueue.Head == NULL || Handle == NULL) {
+    // Sanitize the io-queue
+    if (IoQueue.Head == NULL || Handle == NULL) {
         return OsError;
     }
 
@@ -404,16 +387,16 @@ SchedulerHandleSignal(
         }
     }
 
-	// If found, remove from queue and queue
-	if (Current != NULL) {
+    // If found, remove from queue and queue
+    if (Current != NULL) {
         Current->Sleep.Timeout  = 0;
         Current->Sleep.Handle   = NULL;
         Current->Sleep.TimeLeft = 0;
         TimersGetSystemTick(&Current->Sleep.InterruptedAt);
         SchedulerQueueRemove(&IoQueue, Current);
-		return SchedulerThreadQueue(Current);
-	}
-	else {
+        return SchedulerThreadQueue(Current);
+    }
+    else {
         return OsError;
     }
 }
@@ -422,13 +405,13 @@ SchedulerHandleSignal(
  * Finds any sleeping threads on the given handle and wakes them. */
 void
 SchedulerHandleSignalAll(
-    _In_ uintptr_t *Handle)
+    _In_ uintptr_t*         Handle)
 {
     while (1) {
-		if (SchedulerHandleSignal(Handle) == OsError) {
+        if (SchedulerHandleSignal(Handle) == OsError) {
             break;
         }
-	}
+    }
 }
 
 /* SchedulerTick
@@ -436,13 +419,13 @@ SchedulerHandleSignalAll(
  * on the tick. */
 void
 SchedulerTick(
-    _In_ size_t Milliseconds)
+    _In_ size_t             Milliseconds)
 {
-	// Variables
-	MCoreThread_t *Current = NULL;
+    // Variables
+    MCoreThread_t *Current = NULL;
 
-	// Sanitize the io-queue
-	if (IoQueue.Head == NULL) {
+    // Sanitize the io-queue
+    if (IoQueue.Head == NULL) {
         return;
     }
 
@@ -478,18 +461,17 @@ SchedulerTick(
  * to get the next thread that is to be run. */
 MCoreThread_t*
 SchedulerThreadSchedule(
-    _In_ UUId_t         Cpu,
     _In_ MCoreThread_t* Thread,
     _In_ int            Preemptive)
 {
     // Variables
-	MCoreThread_t *NextThread   = NULL;
-    Scheduler_t *Scheduler      = NULL;
-	size_t TimeSlice            = 0;
-	int i                       = 0;
+    MCoreScheduler_t *Scheduler = &GetCurrentProcessorCore()->Scheduler;
+    MCoreThread_t *NextThread   = NULL;
+    size_t TimeSlice            = 0;
+    int i                       = 0;
 
-	// Sanitize the scheduler status
-    if (SchedulerInitialized != 1 || Schedulers[Cpu] == NULL) {
+    // Sanitize the scheduler status
+    if (Scheduler->ThreadCount == 0) {
         return Thread;
     }
 
@@ -497,43 +479,40 @@ SchedulerThreadSchedule(
     TRACE("SchedulerThreadSchedule(Cpu %u, Thread 0x%x, Preemptive %i)", 
         Cpu, Thread, Preemptive);
 
-    // Instantiate pointers
-    Scheduler = Schedulers[Cpu];
+    // Handle the scheduled thread first
+    if (Thread != NULL) {
+        TimeSlice = Thread->TimeSlice;
 
-	// Handle the scheduled thread first
-	if (Thread != NULL) {
-		TimeSlice = Thread->TimeSlice;
-
-		// Did it yield itself?
-		if (Preemptive != 0) {
+        // Did it yield itself?
+        if (Preemptive != 0) {
             if (Thread->Queue < (SCHEDULER_LEVEL_CRITICAL - 1)) {
                 Thread->Queue++;
                 Thread->TimeSlice = (Thread->Queue * 2) 
                     + SCHEDULER_TIMESLICE_INITIAL;
             }
-		}
-		SchedulerThreadQueue(Thread);
-	}
-	else {
-		TimeSlice = SCHEDULER_TIMESLICE_INITIAL;
+        }
+        SchedulerThreadQueue(Thread);
+    }
+    else {
+        TimeSlice = SCHEDULER_TIMESLICE_INITIAL;
     }
 
-	// This is a locked operation
-	Scheduler->BoostTimer += TimeSlice;
-	if (Scheduler->BoostTimer >= SCHEDULER_BOOST) {
-		SchedulerBoostThreads(Scheduler);
-		Scheduler->BoostTimer = 0;
+    // This is a locked operation
+    Scheduler->BoostTimer += TimeSlice;
+    if (Scheduler->BoostTimer >= SCHEDULER_BOOST) {
+        SchedulerBoostThreads(Scheduler);
+        Scheduler->BoostTimer = 0;
     }
     
     // Get next thread
-	for (i = 0; i < SCHEDULER_LEVEL_COUNT; i++) {
-		if (Scheduler->Queues[i].Head != NULL) {
+    for (i = 0; i < SCHEDULER_LEVEL_COUNT; i++) {
+        if (Scheduler->Queues[i].Head != NULL) {
             NextThread = Scheduler->Queues[i].Head;
             NextThread->Queue = i;
             NextThread->TimeSlice = (i * 2) + SCHEDULER_TIMESLICE_INITIAL;
             SchedulerQueueRemove(&Scheduler->Queues[i], NextThread);
             break;
-		}
+        }
     }
     return NextThread;
 }

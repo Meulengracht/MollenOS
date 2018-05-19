@@ -313,14 +313,12 @@ void ApicClear(void)
  * before we try and initialize */
 void ApicInitialSetup(UUId_t Cpu)
 {
-	/* Variables for init */
+	// Variables
 	uint32_t Temp = 0;
 	int i = 0, j = 0;
 
-	/* Clear Apic */
+	// Clear apic state and hammer the ESR to 0
 	ApicClear();
-
-	/* Disable ESR */
 #if defined(i386) || defined(__i386__)
 	if (ApicIsIntegrated()) {
 		ApicWriteLocal(APIC_ESR, 0);
@@ -329,20 +327,14 @@ void ApicInitialSetup(UUId_t Cpu)
 		ApicWriteLocal(APIC_ESR, 0);
 	}
 #endif
+	ApicWriteLocal(APIC_PERF_MONITOR,   APIC_NMI_ROUTE);
 
-	/* Set perf monitor to NMI */
-	ApicWriteLocal(APIC_PERF_MONITOR, APIC_NMI_ROUTE);
-
-	/* Set destination format register to flat model */
-	ApicWriteLocal(APIC_DEST_FORMAT, 0xFFFFFFFF);
-
-	/* Set our cpu id */
-	ApicWriteLocal(APIC_LOGICAL_DEST, (ApicGetCpuMask(Cpu) << 24));
-
-	/* Set initial task priority to accept all */
+	// Set the destination to flat and compute a logical index
+	ApicWriteLocal(APIC_DEST_FORMAT,    0xFFFFFFFF);
+	ApicWriteLocal(APIC_LOGICAL_DEST,   APIC_DESTINATION(ApicComputeLogicalDestination(Cpu)));
 	ApicSetTaskPriority(0);
 
-	/* Clear interrupt registers ISR, IRR */
+	// Last thing is clear status and interrupt registers
 	for (i = 8 - 1; i >= 0; i--) {
 		Temp = ApicReadLocal(0x100 + i * 0x10);
 		for (j = 31; j >= 0; j--) {

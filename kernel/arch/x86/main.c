@@ -177,9 +177,7 @@ SystemFeaturesInitialize(
         if (CpuHasFeatures(0, CPUID_FEAT_EDX_APIC) == OsSuccess) {
             ApicRecalibrateTimer();
         }
-        //CpuSmpInit(); -- Disable till further notice, we need a fix for stall
+        CpuSmpInitialize();
     }
-
-    // Done
     return OsSuccess;
 }

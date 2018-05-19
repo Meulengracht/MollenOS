@@ -4,6 +4,7 @@
 # - arch sub-layer
 INCLUDES = -I../librt/include -Iacpica/include -Iinclude
 SOURCES = $(wildcard acpi/*.c) \
+		  $(wildcard components/*.c) \
 		  $(wildcard output/fonts/*.c) \
 		  $(wildcard output/*.c) \
 		  $(wildcard process/loaders/*.c) \

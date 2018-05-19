@@ -30,7 +30,32 @@
 
 /* Definitions 
  * Where in lower memory we want to keep trampoline code */
-#define TRAMPOLINE_CODE_MEM		0x5000
+#define MEMORY_LOCATION_TRAMPOLINE_CODE 0x8000
+#define CPUID_VENDOR_OLDAMD       "AMDisbetter!" /* early engineering samples of AMD K5 processor */
+#define CPUID_VENDOR_AMD          "AuthenticAMD"
+#define CPUID_VENDOR_INTEL        "GenuineIntel"
+#define CPUID_VENDOR_OLDTRANSMETA "TransmetaCPU"
+#define CPUID_VENDOR_TRANSMETA    "GenuineTMx86"
+#define CPUID_VENDOR_CYRIX        "CyrixInstead"
+#define CPUID_VENDOR_CENTAUR      "CentaurHauls"
+#define CPUID_VENDOR_NEXGEN       "NexGenDriven"
+#define CPUID_VENDOR_UMC          "UMC UMC UMC "
+#define CPUID_VENDOR_SIS          "SiS SiS SiS "
+#define CPUID_VENDOR_NSC          "Geode by NSC"
+#define CPUID_VENDOR_RISE         "RiseRiseRise"
+#define CPUID_VENDOR_VORTEX       "Vortex86 SoC"
+#define CPUID_VENDOR_VIA          "VIA VIA VIA "
+ 
+/* Vendor-strings from Virtual Machines.*/
+#define CPUID_VENDOR_VMWARE       "VMwareVMware"
+#define CPUID_VENDOR_XENHVM       "XenVMMXenVMM"
+#define CPUID_VENDOR_MICROSOFT_HV "Microsoft Hv"
+#define CPUID_VENDOR_PARALLELS    " lrpepyh vr"
+
+#define CPU_DATA_MAXLEVEL           0
+#define CPU_DATA_MAXEXTENDEDLEVEL   1
+#define CPU_DATA_FEATURES_ECX       2
+#define CPU_DATA_FEATURES_EDX       3
 
 /* Cpu Features 
  * Tells us which kind of support there is available
@@ -95,16 +120,6 @@ enum CpuFeatures{
 	CPUID_FEAT_EDX_IA64 = 1 << 30,
 	CPUID_FEAT_EDX_PBE = 1 << 31
 };
-
-/* Avoid querying information all the time
- * so store some so the rest of the layer can
- * access this information */
-typedef struct _CpuInformation {
-	reg_t CpuIdLevel;
-	reg_t CpuIdExtensions;
-	reg_t EcxFeatures;
-	reg_t EdxFeatures;
-} CpuInformation_t;
 
 /* CpuInitialize
  * Initializes the CPU and gathers available

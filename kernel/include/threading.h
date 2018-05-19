@@ -38,6 +38,9 @@
 #include <signal.h>
 #include <time.h>
 
+// Forward some structures we need
+typedef struct _MCoreAsh MCoreAsh_t;
+
 /* Define the thread entry point signature */
 #ifndef __THREADING_ENTRY
 #define __THREADING_ENTRY
@@ -136,7 +139,7 @@ typedef struct _MCoreThread {
     Collection_t                    *SignalQueue;
 
     // Scheduler Information
-    UUId_t                           CpuId;
+    UUId_t                           CoreId;
     MCoreThreadPriority_t            Priority;
     size_t                           TimeSlice;
     int                              Queue;
@@ -151,46 +154,46 @@ typedef struct _MCoreThread {
 
 /* ThreadingInitialize
  * Initializes static data and allocates resources. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 ThreadingInitialize(void);
 
 /* ThreadingEnable
  * Enables the threading system for the given cpu calling the function. */
-KERNELAPI
-OsStatus_t
-KERNELABI
-ThreadingEnable(
-    _In_ UUId_t Cpu);
+KERNELAPI OsStatus_t KERNELABI
+ThreadingEnable(void);
 
-/* Create a new thread with the given name,
- * entry point, arguments and flags, if name 
- * is NULL, a generic name will be generated 
- * Thread is started as soon as possible */
-__EXTERN UUId_t ThreadingCreateThread(const char *Name,
-    ThreadEntry_t Function, void *Arguments, Flags_t Flags);
+/* ThreadingCreateThread
+ * Creates a new thread with the given paramaters and it is immediately
+ * queued up for execution. */
+KERNELAPI UUId_t KERNELABI
+ThreadingCreateThread(
+    _In_ const char*    Name,
+    _In_ ThreadEntry_t  Function, 
+    _In_ void*          Arguments, 
+    _In_ Flags_t        Flags);
 
 /* ThreadingExitThread
  * Exits the current thread by marking it finished
  * and yielding control to scheduler */
-__EXTERN void ThreadingExitThread(int ExitCode);
+KERNELAPI void KERNELABI
+ThreadingExitThread(
+    _In_ int            ExitCode);
 
 /* ThreadingKillThread
  * Marks the thread with the given id for finished, and it will be cleaned up
  * on next switch unless specified. The given exitcode will be stored. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 ThreadingKillThread(
-    _In_ UUId_t ThreadId,
-    _In_ int    ExitCode,
-    _In_ int    TerminateInstantly);
+    _In_ UUId_t         ThreadId,
+    _In_ int            ExitCode,
+    _In_ int            TerminateInstantly);
 
 /* ThreadingJoinThread
  * Can be used to wait for a thread the return 
  * value of this function is the ret-code of the thread */
-__EXTERN int ThreadingJoinThread(UUId_t ThreadId);
+KERNELAPI int KERNELABI
+ThreadingJoinThread(
+    _In_ UUId_t         ThreadId);
 
 /* ThreadingSwitchLevel
  * Initializes non-kernel mode and marks the thread
@@ -199,83 +202,68 @@ KERNELAPI
 void
 KERNELABI
 ThreadingSwitchLevel(
-    _In_ void *AshInfo);
+    _In_ MCoreAsh_t*    Ash);
 
 /* ThreadingTerminateAshThreads
  * Marks all running threads that are not detached unless specified
  * for complete and to terminate on next switch, unless specified. 
  * Returns the number of threads not killed (0 if we terminate detached). */
-KERNELAPI
-int
-KERNELABI
+KERNELAPI int KERNELABI
 ThreadingTerminateAshThreads(
-    _In_ UUId_t AshId,
-    _In_ int    TerminateDetached,
-    _In_ int    TerminateInstantly);
+    _In_ UUId_t         AshId,
+    _In_ int            TerminateDetached,
+    _In_ int            TerminateInstantly);
 
 /* ThreadingIsEnabled
  * Returns 1 if the threading system has been
  * initialized, otherwise it returns 0 */
-KERNELAPI
-int 
-KERNELABI
+KERNELAPI int KERNELABI
 ThreadingIsEnabled(void);
 
 /* ThreadingIsCurrentTaskIdle
  * Is the given cpu running it's idle task? */
-KERNELAPI
-int
-KERNELABI
+KERNELAPI int KERNELABI
 ThreadingIsCurrentTaskIdle(
-    _In_ UUId_t Cpu);
+    _In_ UUId_t         CoreId);
 
 /* ThreadingGetCurrentMode
  * Returns the current run-mode for the current
  * thread on the current cpu */
-KERNELAPI
-Flags_t
-KERNELABI
+KERNELAPI Flags_t KERNELABI
 ThreadingGetCurrentMode(void);
 
 /* ThreadingGetCurrentThread
  * Retrieves the current thread on the given cpu
  * if there is any issues it returns NULL */
-KERNELAPI
-MCoreThread_t*
-KERNELABI
+KERNELAPI MCoreThread_t* KERNELABI
 ThreadingGetCurrentThread(
-    _In_ UUId_t Cpu);
+    _In_ UUId_t         CoreId);
 
 /* ThreadingGetCurrentThreadId
  * Retrives the current thread id on the current cpu
  * from the callers perspective */
-KERNELAPI
-UUId_t
-KERNELABI
+KERNELAPI UUId_t KERNELABI
 ThreadingGetCurrentThreadId(void);
 
 /* ThreadingGetThread
  * Lookup thread by the given thread-id, returns NULL if invalid */
-KERNELAPI
-MCoreThread_t*
-KERNELABI
+KERNELAPI MCoreThread_t* KERNELABI
 ThreadingGetThread(
-    _In_ UUId_t ThreadId);
+    _In_ UUId_t         ThreadId);
 
 /* ThreadingWakeCpu
  * Wake's the target cpu from an idle thread
  * by sending it an yield IPI */
-__EXTERN void ThreadingWakeCpu(UUId_t Cpu);
+KERNELAPI void KERNELABI
+ThreadingWakeCpu(
+    _In_ UUId_t         CoreId);
 
 /* ThreadingSwitch
  * This is the thread-switch function and must be 
  * be called from the below architecture to get the
  * next thread to run */
-KERNELAPI
-MCoreThread_t*
-KERNELABI
+KERNELAPI MCoreThread_t* KERNELABI
 ThreadingSwitch(
-    _In_ UUId_t         Cpu, 
     _In_ MCoreThread_t *Current, 
     _In_ int            PreEmptive,
     _InOut_ Context_t **Context);
@@ -283,43 +271,36 @@ ThreadingSwitch(
 /* ThreadingDebugPrint
  * Prints out debugging information about each thread
  * in the system, only active threads */
-__EXTERN void ThreadingDebugPrint(void);
+KERNELAPI void KERNELABI
+ThreadingDebugPrint(void);
 
 /* SignalReturn
  * Call upon returning from a signal, this will finish
  * the signal-call and enter a new signal if any is queued up */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 SignalReturn(void);
 
 /* Handle Signal 
  * This checks if the process has any waiting signals
  * and if it has, it executes the first in list */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 SignalHandle(
-	_In_ UUId_t ThreadId);
+    _In_ UUId_t         ThreadId);
 
 /* Create Signal 
  * Dispatches a signal to a thread in the system. If the thread is sleeping
  * and the signal is not masked, then it will be woken up. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 SignalCreate(
-    _In_ UUId_t     ThreadId,
-    _In_ int        Signal);
+    _In_ UUId_t         ThreadId,
+    _In_ int            Signal);
 
 /* SignalExecute
  * This function does preliminary checks before actually
  * dispatching the signal to the process */
-KERNELAPI
-void
-KERNELABI
+KERNELAPI void KERNELABI
 SignalExecute(
-    _In_ MCoreThread_t *Thread,
-    _In_ MCoreSignal_t *Signal);
+    _In_ MCoreThread_t* Thread,
+    _In_ MCoreSignal_t* Signal);
 
 #endif

@@ -354,7 +354,7 @@ _ThreadingSwitch(
 	}
 
 	// Get a new thread for us to enter
-	Thread      = ThreadingSwitch(Cpu, Thread, PreEmptive, &Context);
+	Thread      = ThreadingSwitch(Thread, PreEmptive, &Context);
     Key.Value   = (int)Thread->Id;
 	Threadx     = (x86Thread_t*)CollectionGetDataByKey(Threads, Key, 0);
 

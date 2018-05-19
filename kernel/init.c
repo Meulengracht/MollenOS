@@ -80,9 +80,7 @@ MCoreInitialize(
     memcpy(&GlobalBootInformation, BootInformation, sizeof(Multiboot_t));
     Crc32GenerateTable();
     InterruptInitialize();
-    SchedulerInitialize();
     LogInitialize();
-    // @todo
 
     // Print build/info-header
     PrintHeader(&GlobalBootInformation);
@@ -129,10 +127,10 @@ MCoreInitialize(
     // Now that we have an allocation system add all initializors
     // that need dynamic memory here
     ThreadingInitialize();
-    SchedulerCreate(0);
+    SchedulerInitialize();
+    ThreadingEnable();
     TimersInitialize();
     IoSpaceInitialize();
-    ThreadingEnable(0);
 
     // Run early ACPI initialization if available
     // we will need table access maybe

@@ -25,6 +25,7 @@
 
 /* Includes 
  * - System */
+#include <component/cpu.h>
 #include <system/interrupts.h>
 #include <system/thread.h>
 #include <system/utils.h>
@@ -35,7 +36,6 @@
 #include <threading.h>
 #include <scheduler.h>
 #include <debug.h>
-#include <arch.h>
 #include <heap.h>
 
 /* Includes
@@ -49,16 +49,12 @@
  * The function handler for cleanup */
 OsStatus_t ThreadingReap(void *UserData);
 
-/* Globals, we need a few variables to
- * keep track of running threads, idle threads
+/* Globals, we need a few variables to keep track of running threads, idle threads
  * and a thread resources lock */
 static CriticalSection_t ThreadGlobalLock;
-static MCoreThread_t    *GlbCurrentThreads[MAX_SUPPORTED_CPUS];
-static MCoreThread_t    *GlbIdleThreads[MAX_SUPPORTED_CPUS];
-
+static Collection_t Threads         = COLLECTION_INIT(KeyInteger);
 static UUId_t GlbThreadGcId         = 0;
 static _Atomic(UUId_t) GlbThreadId  = ATOMIC_VAR_INIT(1);
-static Collection_t *GlbThreads     = NULL;
 static int GlbThreadingEnabled      = 0;
 
 /* ThreadingInitialize
@@ -66,23 +62,45 @@ static int GlbThreadingEnabled      = 0;
 OsStatus_t
 ThreadingInitialize(void)
 {
-    // Variables
-    int i;
-
-    // Allocate resources
-    GlbThreads = CollectionCreate(KeyInteger);
-    GlbThreadGcId = GcRegister(ThreadingReap);
     CriticalSectionConstruct(&ThreadGlobalLock, CRITICALSECTION_PLAIN);
-
-    // Zero all current threads out, together with idle
-    for (i = 0; i < MAX_SUPPORTED_CPUS; i++) {
-        GlbCurrentThreads[i] = NULL;
-        GlbIdleThreads[i] = NULL;
-    }
-
     atomic_store(&GlbThreadId, 1);
-    GlbThreadingEnabled = 1;
+    GlbThreadGcId           = GcRegister(ThreadingReap);
+    GlbThreadingEnabled     = 1;
     return OsSuccess;
+}
+
+/* ThreadingEnable
+ * Enables the threading system for the given cpu calling the function. */
+OsStatus_t
+ThreadingEnable(void)
+{
+    // Variables
+    MCoreThread_t *Thread = &GetCurrentProcessorCore()->IdleThread;
+    DataKey_t Key;
+
+    // Initialize the idle thread instance
+    memset(Thread, 0, sizeof(MCoreThread_t));
+    
+    // Initialize members
+    Thread->Id          = atomic_fetch_add(&GlbThreadId, 1);
+    Thread->Name        = strdup("idle");
+    Thread->ParentId    = UUID_INVALID;
+    Thread->AshId       = UUID_INVALID;
+    Thread->Flags       = THREADING_KERNELMODE | THREADING_IDLE | THREADING_CPUBOUND;
+    SchedulerThreadInitialize(Thread, Thread->Flags);
+    Thread->CoreId      = CpuGetCurrentId();
+    Thread->Pipe        = PipeCreate(PIPE_DEFAULT_SIZE, 0);
+    Thread->SignalQueue = CollectionCreate(KeyInteger);
+    Key.Value           = (int)Thread->Id;
+
+    // Initialize arch-dependant members
+    Thread->AddressSpace = AddressSpaceCreate(ASPACE_TYPE_KERNEL);
+    if (ThreadingRegister(Thread) != OsSuccess) {
+        ERROR("Failed to register thread with system. Threading is not enabled.");
+        // @todo
+    }
+    GetCurrentProcessorCore()->CurrentThread = Thread;
+    return CollectionAppend(&Threads, CollectionCreateNode(Key, Thread));
 }
 
 /* ThreadingEntryPoint
@@ -91,80 +109,37 @@ ThreadingInitialize(void)
 void
 ThreadingEntryPoint(void)
 {
-	// Variables
-	MCoreThread_t *Thread 	= NULL;
-	UUId_t Cpu 				= 0;
+    // Variables
+    MCoreThread_t *Thread     = NULL;
+    UUId_t Cpu                 = 0;
 
-	// Debug
-	TRACE("ThreadingEntryPoint()");
+    // Debug
+    TRACE("ThreadingEntryPoint()");
 
-	// Initiate values
-	Cpu         = CpuGetCurrentId();
-	Thread      = ThreadingGetCurrentThread(Cpu);
+    // Initiate values
+    Cpu         = CpuGetCurrentId();
+    Thread      = ThreadingGetCurrentThread(Cpu);
     if (THREADING_RUNMODE(Thread->Flags) == THREADING_KERNELMODE
         || (Thread->Flags & THREADING_SWITCHMODE)) {
-	    Thread->Function(Thread->Arguments);
-	    Thread->Flags |= THREADING_FINISHED;
+        Thread->Function(Thread->Arguments);
+        Thread->Flags |= THREADING_FINISHED;
     }
     else {
         Thread->Contexts[THREADING_CONTEXT_LEVEL1] = ContextCreate(Thread->Flags, 
             THREADING_CONTEXT_LEVEL1, (uintptr_t)Thread->Function, 0, (uintptr_t)Thread->Arguments, 0);
         Thread->Contexts[THREADING_CONTEXT_SIGNAL1] = ContextCreate(Thread->Flags, 
             THREADING_CONTEXT_SIGNAL1, 0, 0, 0, 0);
-	    Thread->Flags |= THREADING_TRANSITION_USERMODE;
+        Thread->Flags |= THREADING_TRANSITION_USERMODE;
     }
 
-	// When we reach here thread is dones
-	ThreadingYield();
-	for (;;);
-}
-
-/* ThreadingEnable
- * Enables the threading system for the given cpu calling the function. */
-OsStatus_t
-ThreadingEnable(
-    _In_ UUId_t Cpu)
-{
-	// Variables
-	MCoreThread_t *Thread       = NULL;
-	DataKey_t Key;
-
-	// Allocate and initialize a new thread instance
-	Thread = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
-    memset(Thread, 0, sizeof(MCoreThread_t));
-    
-    // Initialize members
-	Thread->Id = atomic_fetch_add(&GlbThreadId, 1);
-	Thread->Name = strdup("idle");
-	Thread->ParentId = UUID_INVALID;
-	Thread->AshId = UUID_INVALID;
-    Thread->Flags = THREADING_KERNELMODE | THREADING_IDLE | THREADING_CPUBOUND;
-    SchedulerThreadInitialize(Thread, Thread->Flags);
-	Thread->CpuId = Cpu;
-
-	// Create a compipe
-	Thread->Pipe = PipeCreate(PIPE_DEFAULT_SIZE, 0);
-    Thread->SignalQueue = CollectionCreate(KeyInteger);
-
-	// Initialize arch-dependant members
-	Thread->AddressSpace = AddressSpaceCreate(ASPACE_TYPE_KERNEL);
-	if (ThreadingRegister(Thread) != OsSuccess) {
-        ERROR("Failed to register thread with system. Threading is not enabled.");
-        // @todo
-    }
-
-	// Acquire lock to modify the list
-	Key.Value = (int)Thread->Id;
-	GlbCurrentThreads[Cpu] = Thread;
-	GlbIdleThreads[Cpu] = Thread;
-	return CollectionAppend(GlbThreads, CollectionCreateNode(Key, Thread));
+    // When we reach here thread is dones
+    ThreadingYield();
+    for (;;);
 }
 
 /* ThreadingCreateThread
- * Create a new thread with the given name,
- * entry point, arguments and flags, if name 
- * is NULL, a generic name will be generated 
- * Thread is started as soon as possible */
+ * Creates a new thread with the given paramaters and it is immediately
+ * queued up for execution. */
 UUId_t
 ThreadingCreateThread(
     _In_ const char*    Name,
@@ -172,82 +147,82 @@ ThreadingCreateThread(
     _In_ void*          Arguments,
     _In_ Flags_t        Flags)
 {
-	// Variables
-	MCoreThread_t *Thread   = NULL;
+    // Variables
+    MCoreThread_t *Thread   = NULL;
     MCoreThread_t *Parent   = NULL;
     UUId_t Cpu              = 0;
-	char NameBuffer[16];
-	DataKey_t Key;
+    char NameBuffer[16];
+    DataKey_t Key;
     
     // Debug
     TRACE("ThreadingCreateThread(%s, 0x%x)", Name, Flags);
 
-	// Initialize variables
-	Key.Value   = (int)atomic_fetch_add(&GlbThreadId, 1);
-	Cpu         = CpuGetCurrentId();
-	Parent      = ThreadingGetCurrentThread(Cpu);
+    // Initialize variables
+    Key.Value   = (int)atomic_fetch_add(&GlbThreadId, 1);
+    Cpu         = CpuGetCurrentId();
+    Parent      = ThreadingGetCurrentThread(Cpu);
 
-	// Allocate a new thread instance and 
-	// zero out the allocated instance
-	Thread      = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
-	memset(Thread, 0, sizeof(MCoreThread_t));
+    // Allocate a new thread instance and 
+    // zero out the allocated instance
+    Thread      = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
+    memset(Thread, 0, sizeof(MCoreThread_t));
 
-	// Sanitize name, if NULL generate a new
-	// thread name of format 'Thread X'
-	if (Name == NULL) {
-		memset(&NameBuffer[0], 0, sizeof(NameBuffer));
-		sprintf(&NameBuffer[0], "Thread %i", Key.Value);
-		Thread->Name = strdup(&NameBuffer[0]);
-	}
-	else {
-		Thread->Name = strdup(Name);
-	}
+    // Sanitize name, if NULL generate a new
+    // thread name of format 'Thread X'
+    if (Name == NULL) {
+        memset(&NameBuffer[0], 0, sizeof(NameBuffer));
+        sprintf(&NameBuffer[0], "Thread %i", Key.Value);
+        Thread->Name = strdup(&NameBuffer[0]);
+    }
+    else {
+        Thread->Name = strdup(Name);
+    }
 
-	// Initialize some basic thread information 
-	// The only flags we want to copy for now are
-	// the running-mode
-	Thread->Id          = (UUId_t)Key.Value;
-	Thread->ParentId    = Parent->Id;
-	Thread->AshId       = Parent->AshId;
-	Thread->Function    = Function;
-	Thread->Arguments   = Arguments;
-	Thread->Flags       = Flags;
+    // Initialize some basic thread information 
+    // The only flags we want to copy for now are
+    // the running-mode
+    Thread->Id          = (UUId_t)Key.Value;
+    Thread->ParentId    = Parent->Id;
+    Thread->AshId       = Parent->AshId;
+    Thread->Function    = Function;
+    Thread->Arguments   = Arguments;
+    Thread->Flags       = Flags;
 
     // Setup initial scheduler information
     SchedulerThreadInitialize(Thread, Flags);
 
-	// Create communication members
-	Thread->Pipe        = PipeCreate(PIPE_DEFAULT_SIZE, 0);
+    // Create communication members
+    Thread->Pipe        = PipeCreate(PIPE_DEFAULT_SIZE, 0);
     Thread->SignalQueue = CollectionCreate(KeyInteger);
     Thread->ActiveSignal.Signal = -1;
 
-	// Flag-Special-Case
-	// If it's NOT a kernel thread
-	// we specify transition-mode
-	if (THREADING_RUNMODE(Flags) != THREADING_KERNELMODE && !(Flags & THREADING_INHERIT)) {
-		Thread->Flags |= THREADING_SWITCHMODE;
-	}
+    // Flag-Special-Case
+    // If it's NOT a kernel thread
+    // we specify transition-mode
+    if (THREADING_RUNMODE(Flags) != THREADING_KERNELMODE && !(Flags & THREADING_INHERIT)) {
+        Thread->Flags |= THREADING_SWITCHMODE;
+    }
 
-	// Flag-Special-Case
-	// Determine the address space we want
-	// to initialize for this thread
-	if (THREADING_RUNMODE(Flags) == THREADING_KERNELMODE) {
-		Thread->AddressSpace = AddressSpaceCreate(ASPACE_TYPE_INHERIT);
-	}
-	else {
-		Flags_t ASFlags = 0;
+    // Flag-Special-Case
+    // Determine the address space we want
+    // to initialize for this thread
+    if (THREADING_RUNMODE(Flags) == THREADING_KERNELMODE) {
+        Thread->AddressSpace = AddressSpaceCreate(ASPACE_TYPE_INHERIT);
+    }
+    else {
+        Flags_t ASFlags = 0;
 
-		if (THREADING_RUNMODE(Flags) == THREADING_DRIVERMODE) {
-			ASFlags |= ASPACE_TYPE_DRIVER;
-		}
-		else {
-			ASFlags |= ASPACE_TYPE_APPLICATION;
-		}
-		if (Flags & THREADING_INHERIT) {
-			ASFlags |= ASPACE_TYPE_INHERIT;
+        if (THREADING_RUNMODE(Flags) == THREADING_DRIVERMODE) {
+            ASFlags |= ASPACE_TYPE_DRIVER;
         }
-		Thread->AddressSpace = AddressSpaceCreate(ASFlags);
-	}
+        else {
+            ASFlags |= ASPACE_TYPE_APPLICATION;
+        }
+        if (Flags & THREADING_INHERIT) {
+            ASFlags |= ASPACE_TYPE_INHERIT;
+        }
+        Thread->AddressSpace = AddressSpaceCreate(ASFlags);
+    }
 
     // Create context's neccessary
     Thread->Contexts[THREADING_CONTEXT_LEVEL0] = 
@@ -259,14 +234,14 @@ ThreadingCreateThread(
         // @todo
     }
 
-	// Append it to list & scheduler
-	Key.Value = (int)Thread->Id;
-	CriticalSectionEnter(&ThreadGlobalLock);
-	CollectionAppend(GlbThreads, CollectionCreateNode(Key, Thread));
-	CriticalSectionLeave(&ThreadGlobalLock);
+    // Append it to list & scheduler
+    Key.Value = (int)Thread->Id;
+    CriticalSectionEnter(&ThreadGlobalLock);
+    CollectionAppend(&Threads, CollectionCreateNode(Key, Thread));
+    CriticalSectionLeave(&ThreadGlobalLock);
 
     SchedulerThreadQueue(Thread);
-	return Thread->Id;
+    return Thread->Id;
 }
 
 /* ThreadingCleanupThread
@@ -276,7 +251,7 @@ ThreadingCreateThread(
  * called from a seperate thread */
 void
 ThreadingCleanupThread(
-    _In_ MCoreThread_t *Thread)
+    _In_ MCoreThread_t* Thread)
 {
     // Variables
     CollectionItem_t *fNode = NULL;
@@ -284,7 +259,7 @@ ThreadingCleanupThread(
     // Make sure we are completely removed as reference
     // from the entire system
     SchedulerThreadDequeue(Thread);
-	ThreadingUnregister(Thread);
+    ThreadingUnregister(Thread);
 
     // Cleanup signals
     _foreach(fNode, Thread->SignalQueue) {
@@ -292,13 +267,13 @@ ThreadingCleanupThread(
     }
     CollectionDestroy(Thread->SignalQueue);
 
-	// Cleanup resources allocated by sub-systems
-	AddressSpaceDestroy(Thread->AddressSpace);
+    // Cleanup resources allocated by sub-systems
+    AddressSpaceDestroy(Thread->AddressSpace);
 
-	// Cleanup our allocated resources
-	PipeDestroy(Thread->Pipe);
-	kfree((void*)Thread->Name);
-	kfree(Thread);
+    // Cleanup our allocated resources
+    PipeDestroy(Thread->Pipe);
+    kfree((void*)Thread->Name);
+    kfree(Thread);
 }
 
 /* ThreadingExitThread
@@ -306,54 +281,52 @@ ThreadingCleanupThread(
  * and yielding control to scheduler */
 void
 ThreadingExitThread(
-    _In_ int ExitCode)
+    _In_ int            ExitCode)
 {
-	// Variables
-	MCoreThread_t *Thread   = NULL;
-	UUId_t Cpu              = 0;
+    // Variables
+    MCoreThread_t *Thread   = NULL;
+    UUId_t Cpu              = 0;
 
-	// Instantiate some values
-	Cpu     = CpuGetCurrentId();
+    // Instantiate some values
+    Cpu     = CpuGetCurrentId();
     Thread  = ThreadingGetCurrentThread(Cpu);
     assert(Thread != NULL);
 
-	// Update thread state
+    // Update thread state
     if (Thread->Flags & THREADING_CLEANUPASH) {
         ThreadingTerminateAshThreads(Thread->AshId, 0, 0);
     }
-	Thread->RetCode  = ExitCode;
+    Thread->RetCode  = ExitCode;
     Thread->Flags   |= THREADING_FINISHED;
 
     // Wake people waiting for us
-	SchedulerHandleSignalAll((uintptr_t*)Thread);
-	ThreadingYield();
+    SchedulerHandleSignalAll((uintptr_t*)Thread);
+    ThreadingYield();
 }
 
 /* ThreadingKillThread
  * Marks the thread with the given id for finished, and it will be cleaned up
  * on next switch unless specified. The given exitcode will be stored. */
-KERNELAPI
 OsStatus_t
-KERNELABI
 ThreadingKillThread(
-    _In_ UUId_t ThreadId,
-    _In_ int    ExitCode,
-    _In_ int    TerminateInstantly)
+    _In_ UUId_t         ThreadId,
+    _In_ int            ExitCode,
+    _In_ int            TerminateInstantly)
 {
-	// Variables
-	MCoreThread_t *Target = ThreadingGetThread(ThreadId);
+    // Variables
+    MCoreThread_t *Target = ThreadingGetThread(ThreadId);
 
-	// Security check
-	if (Target == NULL || (Target->Flags & THREADING_IDLE)) {
+    // Security check
+    if (Target == NULL || (Target->Flags & THREADING_IDLE)) {
         return OsError;
     }
 
     // Update thread state
-	Target->Flags   |= THREADING_FINISHED;
-	Target->RetCode  = ExitCode;
+    Target->Flags   |= THREADING_FINISHED;
+    Target->RetCode  = ExitCode;
 
     // Wake-up threads waiting with ThreadJoin
-	SchedulerHandleSignalAll((uintptr_t*)Target);
+    SchedulerHandleSignalAll((uintptr_t*)Target);
 
     // Should we instagib?
     if (TerminateInstantly) {
@@ -368,13 +341,16 @@ ThreadingKillThread(
 /* ThreadingJoinThread
  * Can be used to wait for a thread the return 
  * value of this function is the ret-code of the thread */
-int ThreadingJoinThread(UUId_t ThreadId) {
-	MCoreThread_t *Target = ThreadingGetThread(ThreadId);
-	if (Target == NULL) {
-		return -1;
+int
+ThreadingJoinThread(
+    _In_ UUId_t         ThreadId)
+{
+    MCoreThread_t *Target = ThreadingGetThread(ThreadId);
+    if (Target == NULL) {
+        return -1;
     }
-	SchedulerThreadSleep((uintptr_t*)Target, 0);
-	return Target->RetCode;
+    SchedulerThreadSleep((uintptr_t*)Target, 0);
+    return Target->RetCode;
 }
 
 /* ThreadingSwitchLevel
@@ -382,27 +358,26 @@ int ThreadingJoinThread(UUId_t ThreadId) {
  * for transitioning, there is no return from this function */
 void
 ThreadingSwitchLevel(
-    _In_ void *AshInfo)
+    _In_ MCoreAsh_t*    Ash)
 {
-	// Variables
-	MCoreThread_t *Thread   = ThreadingGetCurrentThread(CpuGetCurrentId());
-	MCoreAsh_t *Ash         = (MCoreAsh_t*)AshInfo;
+    // Variables
+    MCoreThread_t *Thread   = ThreadingGetCurrentThread(CpuGetCurrentId());
 
-	// Bind thread to process
-	Thread->AshId       = Ash->Id;
-	Thread->Function    = (ThreadEntry_t)Ash->Executable->EntryAddress;
+    // Bind thread to process
+    Thread->AshId       = Ash->Id;
+    Thread->Function    = (ThreadEntry_t)Ash->Executable->EntryAddress;
     Thread->Arguments   = NULL;
 
     // Argument when calling a new process is just NULL
-	Thread->Contexts[THREADING_CONTEXT_LEVEL1] = ContextCreate(Thread->Flags,
+    Thread->Contexts[THREADING_CONTEXT_LEVEL1] = ContextCreate(Thread->Flags,
         THREADING_CONTEXT_LEVEL1, (uintptr_t)Thread->Function, 0, 0, 0);
     Thread->Contexts[THREADING_CONTEXT_SIGNAL1] = ContextCreate(Thread->Flags,
         THREADING_CONTEXT_SIGNAL1, 0, 0, 0, 0);
-	Thread->Flags       |= THREADING_TRANSITION_USERMODE;
+    Thread->Flags       |= THREADING_TRANSITION_USERMODE;
 
-	// Safety-catch
-	ThreadingYield();
-	for (;;);
+    // Safety-catch
+    ThreadingYield();
+    for (;;);
 }
 
 /* ThreadingTerminateAshThreads
@@ -411,14 +386,14 @@ ThreadingSwitchLevel(
  * Returns the number of threads not killed (0 if we terminate detached). */
 int
 ThreadingTerminateAshThreads(
-    _In_ UUId_t AshId,
-    _In_ int    TerminateDetached,
-    _In_ int    TerminateInstantly)
+    _In_ UUId_t         AshId,
+    _In_ int            TerminateDetached,
+    _In_ int            TerminateInstantly)
 {
     int ThreadsNotKilled = 0;
-	foreach(tNode, GlbThreads) {
-		MCoreThread_t *Thread = (MCoreThread_t*)tNode->Data;
-		if (Thread->AshId == AshId) {
+    foreach(tNode, &Threads) {
+        MCoreThread_t *Thread = (MCoreThread_t*)tNode->Data;
+        if (Thread->AshId == AshId) {
             if ((Thread->Flags & THREADING_DETACHED) && !TerminateDetached) {
                 // If it's a detached thread calling this method we are killing ourselves
                 // and shouldn't increase
@@ -428,14 +403,14 @@ ThreadingTerminateAshThreads(
                 }
             }
             else {
-			    Thread->Flags   |= THREADING_FINISHED;
+                Thread->Flags   |= THREADING_FINISHED;
                 Thread->RetCode  = -1;
                 if (TerminateInstantly) {
                     // Is thread running on any cpu currently?
                 }
             }
-		}
-	}
+        }
+    }
     return ThreadsNotKilled;
 }
 
@@ -444,14 +419,9 @@ ThreadingTerminateAshThreads(
  * if there is any issues it returns NULL */
 MCoreThread_t*
 ThreadingGetCurrentThread(
-    _In_ UUId_t Cpu)
+    _In_ UUId_t         CoreId)
 {
-	// Sanitize data first
-	if (GlbThreadingEnabled != 1
-		|| GlbCurrentThreads[Cpu] == NULL) {
-		return NULL;
-	}
-	return GlbCurrentThreads[Cpu];
+    return GetProcessorCore(CoreId)->CurrentThread;
 }
 
 /* ThreadingGetCurrentThreadId
@@ -460,16 +430,10 @@ ThreadingGetCurrentThread(
 UUId_t
 ThreadingGetCurrentThreadId(void)
 {
-	UUId_t Cpu = CpuGetCurrentId();
-	if (GlbCurrentThreads[Cpu] == NULL) {
-		return Cpu;
-	}
-	if (GlbThreadingEnabled != 1) {
-		return 0;
-	}
-	else {
-		return ThreadingGetCurrentThread(Cpu)->Id;
-	}
+    if (GetCurrentProcessorCore()->CurrentThread == NULL) {
+        return 0;
+    }
+    return GetCurrentProcessorCore()->CurrentThread->Id;
 }
 
 /* ThreadingGetThread
@@ -477,16 +441,16 @@ ThreadingGetCurrentThreadId(void)
  * returns NULL if invalid */
 MCoreThread_t*
 ThreadingGetThread(
-    _In_ UUId_t ThreadId)
+    _In_ UUId_t         ThreadId)
 {
-	// Iterate thread nodes and find the correct
-	foreach(tNode, GlbThreads) {
-		MCoreThread_t *Thread = (MCoreThread_t*)tNode->Data;
-		if (Thread->Id == ThreadId) {
-			return Thread;
-		}
-	}
-	return NULL;
+    // Iterate thread nodes and find the correct
+    foreach(tNode, &Threads) {
+        MCoreThread_t *Thread = (MCoreThread_t*)tNode->Data;
+        if (Thread->Id == ThreadId) {
+            return Thread;
+        }
+    }
+    return NULL;
 }
 
 /* ThreadingIsEnabled
@@ -495,22 +459,22 @@ ThreadingGetThread(
 int 
 ThreadingIsEnabled(void)
 {
-	return GlbThreadingEnabled;
+    return GlbThreadingEnabled;
 }
 
 /* ThreadingIsCurrentTaskIdle
  * Is the given cpu running it's idle task? */
 int
 ThreadingIsCurrentTaskIdle(
-    _In_ UUId_t Cpu)
+    _In_ UUId_t         CoreId)
 {
-	if (ThreadingIsEnabled() == 1
-		&& ThreadingGetCurrentThread(Cpu)->Flags & THREADING_IDLE) {
-		return 1;
-	}
-	else {
-		return 0;
-	}
+    if (ThreadingIsEnabled() == 1
+        && ThreadingGetCurrentThread(CoreId)->Flags & THREADING_IDLE) {
+        return 1;
+    }
+    else {
+        return 0;
+    }
 }
 
 /* ThreadingGetCurrentMode
@@ -519,12 +483,12 @@ ThreadingIsCurrentTaskIdle(
 Flags_t
 ThreadingGetCurrentMode(void)
 {
-	if (ThreadingIsEnabled() == 1) {
-		return ThreadingGetCurrentThread(CpuGetCurrentId())->Flags & THREADING_MODEMASK;
-	}
-	else {
-		return 0;
-	}
+    if (ThreadingIsEnabled() == 1) {
+        return ThreadingGetCurrentThread(CpuGetCurrentId())->Flags & THREADING_MODEMASK;
+    }
+    else {
+        return 0;
+    }
 }
 
 /* ThreadingReapZombies
@@ -534,7 +498,7 @@ OsStatus_t
 ThreadingReap(
     _In_ void *UserData)
 {
-	// Instantiate the thread pointer
+    // Instantiate the thread pointer
     MCoreThread_t *Thread   = (MCoreThread_t*)UserData;
     DataKey_t Key;
 
@@ -546,14 +510,14 @@ ThreadingReap(
     // Locate and remove it from list of threads
     Key.Value = (int)Thread->Id;
     CriticalSectionEnter(&ThreadGlobalLock);
-    if (CollectionRemoveByKey(GlbThreads, Key) != OsSuccess) {
+    if (CollectionRemoveByKey(&Threads, Key) != OsSuccess) {
         // Failed to remove the node? it didn't exist?...
     }
     CriticalSectionLeave(&ThreadGlobalLock);
 
-	// Call the cleanup
-	ThreadingCleanupThread(Thread);
-	return OsSuccess;
+    // Call the cleanup
+    ThreadingCleanupThread(Thread);
+    return OsSuccess;
 }
 
 /* ThreadingDebugPrint
@@ -562,14 +526,14 @@ ThreadingReap(
 void
 ThreadingDebugPrint(void)
 {
-	foreach(i, GlbThreads) {
+    foreach(i, &Threads) {
         MCoreThread_t *Thread = (MCoreThread_t*)i->Data;
         if (THREADING_STATE(Thread->Flags) == THREADING_ACTIVE) {
             WRITELINE("Thread %u (%s) - Flags 0x%x, Queue %i, Timeslice %u, Cpu: %u",
                 Thread->Id, Thread->Name, Thread->Flags, Thread->Queue, 
-                Thread->TimeSlice, Thread->CpuId);
+                Thread->TimeSlice, Thread->CoreId);
         }
-	}
+    }
 }
 
 /* ThreadingSwitch
@@ -578,13 +542,12 @@ ThreadingDebugPrint(void)
  * next thread to run */
 MCoreThread_t*
 ThreadingSwitch(
-    _In_ UUId_t         Cpu, 
-    _In_ MCoreThread_t *Current, 
+    _In_ MCoreThread_t* Current, 
     _In_ int            PreEmptive,
-    _InOut_ Context_t **Context)
+    _InOut_ Context_t** Context)
 {
-	// Variables
-	MCoreThread_t *NextThread   = NULL;
+    // Variables
+    MCoreThread_t *NextThread   = NULL;
 
     // Sanitize current thread
     assert(Current != NULL);
@@ -592,53 +555,53 @@ ThreadingSwitch(
     // Store active context
     Current->ContextActive = *Context;
     
-	// Unless this one is done..
+    // Unless this one is done..
 GetNextThread:
-	if ((Current->Flags & THREADING_FINISHED) || (Current->Flags & THREADING_IDLE)
-		|| (Current->Flags & THREADING_TRANSITION_SLEEP))
-	{
+    if ((Current->Flags & THREADING_FINISHED) || (Current->Flags & THREADING_IDLE)
+        || (Current->Flags & THREADING_TRANSITION_SLEEP))
+    {
         // Handle the sleep flag
         if (Current->Flags & THREADING_TRANSITION_SLEEP) {
             Current->Flags &= ~(THREADING_TRANSITION_SLEEP);
         }
 
-		// If the thread is finished then add it to 
-		// garbagecollector
-		if (Current->Flags & THREADING_FINISHED) {
-			GcSignal(GlbThreadGcId, Current);
-		}
+        // If the thread is finished then add it to 
+        // garbagecollector
+        if (Current->Flags & THREADING_FINISHED) {
+            GcSignal(GlbThreadGcId, Current);
+        }
         
         // Don't schedule the current
-        NextThread = SchedulerThreadSchedule(Cpu, NULL, PreEmptive);
-	}
-	else {
-        NextThread = SchedulerThreadSchedule(Cpu, Current, PreEmptive);
-	}
-
-	// Sanitize if we need to active our idle thread
-	if (NextThread == NULL) {
-        NextThread = GlbIdleThreads[Cpu];
+        NextThread = SchedulerThreadSchedule(NULL, PreEmptive);
+    }
+    else {
+        NextThread = SchedulerThreadSchedule(Current, PreEmptive);
     }
 
-	// More sanity 
-	// If we have caught a finished thread that
-	// has been killed while scheduled, get a new
-	if (NextThread->Flags & THREADING_FINISHED) {
-		Current = NextThread;
-		goto GetNextThread;
-	}
+    // Sanitize if we need to active our idle thread
+    if (NextThread == NULL) {
+        NextThread = &GetCurrentProcessorCore()->IdleThread;
+    }
+
+    // More sanity 
+    // If we have caught a finished thread that
+    // has been killed while scheduled, get a new
+    if (NextThread->Flags & THREADING_FINISHED) {
+        Current = NextThread;
+        goto GetNextThread;
+    }
 
     // Handle level switch // thread startup
     if (NextThread->Flags & THREADING_TRANSITION_USERMODE) {
-		NextThread->Flags &= ~(THREADING_SWITCHMODE | THREADING_TRANSITION_USERMODE);
+        NextThread->Flags           &= ~(THREADING_SWITCHMODE | THREADING_TRANSITION_USERMODE);
         NextThread->ContextActive   = NextThread->Contexts[THREADING_CONTEXT_LEVEL1];
-	}
+    }
     if (NextThread->ContextActive == NULL) {
         NextThread->ContextActive   = NextThread->Contexts[THREADING_CONTEXT_LEVEL0];
     }
 
     // Update state of thread and cpu
-    *Context                        = NextThread->ContextActive;
-    GlbCurrentThreads[Cpu]          = NextThread;
-	return NextThread;
+    *Context                                    = NextThread->ContextActive;
+    GetCurrentProcessorCore()->CurrentThread    = NextThread;
+    return NextThread;
 }

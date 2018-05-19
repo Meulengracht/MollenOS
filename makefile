@@ -101,6 +101,7 @@ build_tools:
 	@$(MAKE) -s -C tools/rd -f makefile
 	@$(MAKE) -s -C tools/diskutility -f makefile
 	@$(MAKE) -s -C tools/revision -f makefile
+	@$(MAKE) -s -C tools/file2c -f makefile
 
 .PHONY: gen_revision_minor
 	@printf "%b" "\033[1;35mUpdating revision version (minor)\033[m\n"
@@ -197,6 +198,7 @@ clean:
 	@$(MAKE) -s -C tools/rd -f makefile clean
 	@$(MAKE) -s -C tools/diskutility -f makefile clean
 	@$(MAKE) -s -C tools/revision -f makefile clean
+	@$(MAKE) -s -C tools/file2c -f makefile clean
 	@rm -f initrd.mos
 	@rm -rf deploy
 	@rm -rf initrd

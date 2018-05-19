@@ -27,9 +27,6 @@
 
 BITS 16
 
-; Definitions
-
-
 ; ********************************
 ; CheckA20
 ; OUT: 
@@ -149,12 +146,14 @@ EnableA20:
 	; Save State
 	pushad
 
+%ifndef __BOOT_SILENCE
 	; Print
 	mov 	esi, szPrefix
 	call 	Print
 
 	mov 	esi, szA20Setup
 	call 	Print
+%endif
 
 	; Step 1, is it already enabled?
 	call 	CheckA20
@@ -178,19 +177,23 @@ EnableA20:
 	je 		.Done
 
 	.Error:
+%ifndef __BOOT_SILENCE
 		; Nooo :(
 		mov 	esi, szFailed
 		call 	Print
 
 		; Halt
 		call 	SystemsFail
+%endif
 		cli
 		hlt
 
 	.Done:
+%ifndef __BOOT_SILENCE
 		; Print
 		mov 	esi, szSuccess
 		call 	Print
+%endif
 
 		; Restore & Return
 		popad
@@ -200,7 +203,9 @@ EnableA20:
 ; Variables
 ; ********************************
 
+%ifndef __BOOT_SILENCE
 ; Strings - 0x0D (LineFeed), 0x0A (Carriage Return)
 szA20Setup 							db 		"Enabling A20 Gate", 0x00
+%endif
 
 %endif

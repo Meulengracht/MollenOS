@@ -28,31 +28,8 @@
 #include <os/osdefs.h>
 #include <arch.h>
 
-/* Local apic timer definitions */
-#define APIC_TIMER_DIVIDER_1	0xB
-#define APIC_TIMER_DIVIDER_16	0x3
-#define APIC_TIMER_DIVIDER_128	0xA
-#define APIC_TIMER_ONESHOT		0x0
-#define APIC_TIMER_PERIODIC		0x20000
-
-/* Helper definitions for the utility
- * and support functions */
-#define APIC_PRIORITY_MASK		0xFF
-#define APIC_NO_GSI				-1
-
-/* Local apic flags for some of the
- * below registers, this is also io-apic
- * entry flags */
-#define APIC_SMI_ROUTE			0x200
-#define APIC_NMI_ROUTE			0x400
-#define APIC_EXTINT_ROUTE		0x700
-#define APIC_ICR_BUSY			0x1000
-#define APIC_ACTIVE_LOW			0x2000
-#define APIC_LEVEL_TRIGGER		0x8000
-#define APIC_MASKED				0x10000
-
-/* This is the list of local apic
- * registers and their offsets */
+/* Local Apic Registers Definitions
+ * Register offsets from the LOCAL_APIC_BASE. */
 #define APIC_PROCESSOR_ID		0x20
 #define APIC_VERSION			0x30
 #define APIC_TASK_PRIORITY		0x80
@@ -72,6 +49,56 @@
 #define APIC_INITIAL_COUNT		0x380
 #define APIC_CURRENT_COUNT		0x390
 #define APIC_DIVIDE_REGISTER	0x3E0
+
+/* Interrupt Registers (Common) 
+ * Common bit definitions used by the Local Apic register to configure. */
+#define APIC_VECTOR(Vector)         (Vector & 0xFF)
+#define APIC_DELIVERY_MODE(Mode)    ((Mode & 0x7) << 8)
+#define APIC_DESTINATION_PHYSICAL   0
+#define APIC_DESTINATION_LOGICAL    (1 << 11)
+#define APIC_DELIVERY_BUSY          (1 << 12)
+#define APIC_LEVEL_ASSERT           (1 << 14)
+#define APIC_TRIGGER_EDGE           0
+#define APIC_TRIGGER_LEVEL          (1 << 15)
+#define APIC_DESTINATION(Dest)      ((Dest & 0x7F) << 24)
+#define APIC_BROADCAST              0xFF000000
+
+#define APIC_MODE_FIXED             0x0
+#define APIC_MODE_LOWEST_PRIORITY   0x1
+#define APIC_MODE_SMI               0x2
+#define APIC_MODE_NMI               0x4
+#define APIC_MODE_INIT              0x5
+#define APIC_MODE_SIPI              0x6
+#define APIC_MODE_EXTINT            0x7
+
+/* Interrupt Command Register (ICR)
+ * Bit definitions and numbers for the ICR register. */
+#define APIC_ICR_SH_NONE            0
+#define APIC_ICR_SH_SELF            (1 << 18)
+#define APIC_ICR_SH_ALL             (1 << 19)
+#define APIC_ICR_SH_ALL_OTHERS      (1 << 18) | (1 << 19)
+
+/* Local apic timer definitions */
+#define APIC_TIMER_DIVIDER_1	0xB
+#define APIC_TIMER_DIVIDER_16	0x3
+#define APIC_TIMER_DIVIDER_128	0xA
+#define APIC_TIMER_ONESHOT		0x0
+#define APIC_TIMER_PERIODIC		0x20000
+
+/* Helper definitions for the utility
+ * and support functions */
+#define APIC_PRIORITY_MASK		0xFF
+#define APIC_NO_GSI				-1
+
+/* Local apic flags for some of the
+ * below registers, this is also io-apic
+ * entry flags */
+#define APIC_SMI_ROUTE			0x200
+#define APIC_NMI_ROUTE			0x400
+#define APIC_EXTINT_ROUTE		0x700
+#define APIC_ACTIVE_LOW			0x2000
+#define APIC_LEVEL_TRIGGER		0x8000
+#define APIC_MASKED				0x10000
 
 /* This only is something we need to check on 
  * 32-bit processors, all 64 bit cpus must use
@@ -183,13 +210,24 @@ __EXTERN void ApicMaskGsi(int Gsi);
 
 /* ApicSendInterrupt
  * Sends an interrupt vector-request to a given cpu-id. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 ApicSendInterrupt(
-    _In_ InterruptTarget_t Type,
-    _In_ UUId_t Specific,
-    _In_ int Vector);
+    _In_ InterruptTarget_t  Type,
+    _In_ UUId_t             Specific,
+    _In_ int                Vector);
+
+/* ApicPerformIPI
+ * Sends an ipi request for the specified cpu */
+KERNELAPI OsStatus_t KERNELABI
+ApicPerformIPI(
+    _In_ UUId_t             CoreId);
+
+/* ApicPerformSIPI
+ * Sends an sipi request for the specified cpu, to start executing code at the given vector */
+KERNELAPI OsStatus_t KERNELABI
+ApicPerformSIPI(
+    _In_ UUId_t             CoreId,
+    _In_ uintptr_t          Address);
 
 /* This function derives an io-apic from
  * the given gsi index, by locating which
@@ -218,10 +256,10 @@ __EXTERN int ApicGetMaxLvt(void);
  * multicore */
 __EXTERN UUId_t ApicGetCpu(void);
 
-/* Creates the correct bit index for
- * the given cpu id, and converts the type
- * to uint, since thats what the apic needs */
-__EXTERN uint32_t ApicGetCpuMask(UUId_t Cpu);
+/* ApicComputeLogicalDestination
+ * Creates the correct bit index for the given cpu core */
+KERNELAPI uint32_t KERNELABI 
+ApicComputeLogicalDestination(UUId_t CoreId);
 
 /* Helper for updating the task priority register
  * this register helps us using Lowest-Priority

@@ -314,7 +314,10 @@
         "streambuf": "c",
         "*.txt": "c",
         "typeindex": "cpp",
-        "bufferpool.h": "c"
+        "bufferpool.h": "c",
+        "cpu.h": "c",
+        "domain.h": "c",
+        "*.tcc": "c"
     },
     "git.ignoreLimitWarning": true
 }
