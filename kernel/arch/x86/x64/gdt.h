@@ -146,15 +146,14 @@ __EXTERN
 void
 GdtInstall(void);
 
-/* GdtInstallTss
+/* TssInitialize
  * Helper for setting up a new task state segment for
  * the given cpu core, this should be done once per
  * core, and it will set default params for the TSS */
 __EXTERN
 void
-GdtInstallTss(
-    _In_ UUId_t Cpu,
-    _In_ int    Static);
+TssInitialize(
+    _In_ int    PrimaryCore);
 
 /* TssUpdateThreadStack
  * Updates the kernel/interrupt stack for the current
@@ -169,10 +168,8 @@ TssUpdateThreadStack(
 /* TssCreateStacks 
  * Create safe stacks for #NMI, #DF, #DBG, #SS and #MCE. These are then
  * used for certain interrupts to support nesting by providing safe-stacks. */
-__EXTERN
-void
-TssCreateStacks(
-    _In_ UUId_t     Cpu);
+KERNELAPI void KERNELABI
+TssCreateStacks(void);
 
 /* TssUpdateIo
  * Updates the io-map for the current runinng task, should

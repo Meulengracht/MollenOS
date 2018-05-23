@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2018, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,59 +26,85 @@
 /* Includes 
  * - Library */
 #include <os/osdefs.h>
+#include <criticalsection.h>
 #include <pipe.h>
 
-/* Definitions */
-typedef enum _LogTarget {
-	LogMemory,
-	LogConsole,
-	LogFile
-} LogTarget_t;
+#define LOG_INITIAL_SIZE        (1024 * 4)
+#define LOG_PREFFERED_SIZE      (1024 * 65)
 
-typedef enum _LogLevel {
-	LogLevel1,
-	LogLevel2,
-	LogLevel3
-} LogLevel_t;
+/* MCoreLogType
+ * */
+typedef enum _MCoreLogType {
+    LogTrace    = 0x99E600,
+    LogRaw      = 0x111111,
+    LogPipe     = 0xEE2244,
+    LogDebug    = 0x2ECC71,
+    LogWarning  = 0x9B59B6,
+    LogError    = 0xFF392B
+} MCoreLogType_t;
 
-/* Colors */
-#define LOG_COLOR_INFORMATION		0x2ECC71
-#define LOG_COLOR_DEBUG				0x9B59B6
-#define LOG_COLOR_ERROR				0xFF392B
-#define LOG_COLOR_DEFAULT			0x0
+/* MCoreLogLine
+ * */
+typedef struct _MCoreLogLine {
+    MCoreLogType_t      Type;
+    char                System[10]; // [TYPE  ]
+    char                Data[118]; // Message
+} MCoreLogLine_t;
 
-/* Default size to 4kb */
-#define LOG_INITIAL_SIZE			(1024 * 4)
-#define LOG_PREFFERED_SIZE			(1024 * 65)
+/* MCoreLog
+ * */
+typedef struct _MCoreLog {
+    uintptr_t*          StartOfData;
+    size_t              DataSize;
+    int                 NumberOfLines;
+    MCoreLogLine_t*     Lines;
+    CriticalSection_t   SyncObject;
+    
+    int                 LineIndex;
+    int                 RenderIndex;
+    int                 AllowRender;
 
-/* Log Types */
-#define LOG_TYPE_RAW				0x00
-#define LOG_TYPE_INFORMATION		0x01
-#define LOG_TYPE_DEBUG				0x02
-#define LOG_TYPE_FATAL				0x03
+    // Debug pipes
+    MCorePipe_t*        STDOUT;
+    MCorePipe_t*        STDERR;
+} MCoreLog_t;
 
 /* LogInitialize
  * Initializes loggin data-structures and global variables
  * by setting everything to sane value */
-KERNELAPI
-void
-KERNELABI
+KERNELAPI void KERNELABI
 LogInitialize(void);
 
-KERNELAPI void LogUpgrade(size_t Size);
-KERNELAPI void LogRedirect(LogTarget_t Output);
-KERNELAPI void LogFlush(LogTarget_t Output);
+/* LogInitializeFull
+ * Upgrades the log to a larger buffer, initializing pipes and installs the message thread. */
+KERNELAPI void KERNELABI
+LogInitializeFull(void);
 
-/* The log pipes */
-KERNELAPI MCorePipe_t *LogPipeStdout(void);
-KERNELAPI MCorePipe_t *LogPipeStderr(void);
-KERNELAPI void LogDumpPipe(MCorePipe_t *Pipe);
+/* LogSetRenderMode
+ * Enables or disables the log from rendering to the screen. This can be used at start to 
+ * indicate when rendering is available, and at end to disable kernel from modifying screen. */
+KERNELAPI void KERNELABI
+LogSetRenderMode(
+    _In_ int            Enable);
 
-/* The log functions */
-KERNELAPI void Log(__CONST char *Message, ...);
-KERNELAPI void LogRaw(__CONST char *Message, ...);
-KERNELAPI void LogInformation(__CONST char *System, __CONST char *Message, ...);
-KERNELAPI void LogDebug(__CONST char *System, __CONST char *Message, ...);
-KERNELAPI void LogFatal(__CONST char *System, __CONST char *Message, ...);
+/* LogAppendMessage
+ * Appends a new message of the given parameters to the global log object. If the buffer
+ * reaches the end wrap-around will happen. */
+KERNELAPI void KERNELABI
+LogAppendMessage(
+    _In_ MCoreLogType_t Type,
+    _In_ const char*    Header,
+    _In_ const char*    Message,
+    ...);
+
+/* LogPipeStdout
+ * The log pipe for stdout when no windowing system is running. */
+KERNELAPI MCorePipe_t* KERNELABI
+LogPipeStdout(void);
+
+/* LogPipeStderr
+ * The log pipe for stderr when no windowing system is running. */
+KERNELAPI MCorePipe_t* KERNELABI
+LogPipeStderr(void);
 
 #endif

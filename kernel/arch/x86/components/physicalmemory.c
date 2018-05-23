@@ -255,22 +255,16 @@ MmPhyiscalInit(
 
     // Mark default regions in use and special regions
     //  0x0000              || Used for catching null-pointers
-    //  0x4000 - 0x6000     || Used for memory region & Trampoline-code
+    //  0x4000 + 0x8000     || Used for memory region & Trampoline-code
     //  0x90000 - 0x9F000   || Kernel Stack
     //  0x100000 - KernelSize
     //  0x200000 - RamDiskSize
     //  0x300000 - ??       || Bitmap Space
-	MmMemoryMapSetBit(0);
-	MmMemoryMapSetBit(0x4000 / PAGE_SIZE); // What the hell is this used for
-	MmMemoryMapSetBit(0x5000 / PAGE_SIZE); // Trampoline code area
-	MmMemoryMapSetBit(0x9000 / PAGE_SIZE); // Memory map (not needed anymore??)
-	MmMemoryMapSetBit(0xA000 / PAGE_SIZE); // Used for vbe controller region (not needed anymore??)
-	MemoryBlocksUsed += 5;
-
+    MmAllocateRegion(0, 0x10000); // Reserve the lower area
 	MmAllocateRegion(0x90000, 0xF000);
-	MmAllocateRegion(MEMORY_LOCATION_KERNEL, BootInformation->KernelSize + PAGE_SIZE);
-	MmAllocateRegion(MEMORY_LOCATION_RAMDISK, BootInformation->RamdiskSize + PAGE_SIZE);
-	MmAllocateRegion(MEMORY_LOCATION_BITMAP, (MemoryBitmapSize + PAGE_SIZE));
+	MmAllocateRegion(MEMORY_LOCATION_KERNEL,    BootInformation->KernelSize + PAGE_SIZE);
+	MmAllocateRegion(MEMORY_LOCATION_RAMDISK,   BootInformation->RamdiskSize + PAGE_SIZE);
+	MmAllocateRegion(MEMORY_LOCATION_BITMAP,    (MemoryBitmapSize + PAGE_SIZE));
 
 	// Debug initial stats
 	MmMemoryDebugPrint();

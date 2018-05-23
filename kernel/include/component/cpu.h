@@ -45,6 +45,7 @@ typedef struct _SystemCpuCore {
     UUId_t              Id;
     SystemCpuState_t    State;
     int                 External;
+    uintptr_t           Data[4];
 
     // Static resources
     MCoreThread_t       IdleThread;
@@ -79,7 +80,7 @@ InitializeProcessor(
 
 /* RegisterApplicationCore
  * Registers a new cpu application core for the given cpu. The core count and the
- * application-core array must be initialized before-hand. This also allocates a 
+ * application-core will be initialized on first call to this function. This also allocates a 
  * new instance of the cpu-core. */
 KERNELAPI void KERNELABI
 RegisterApplicationCore(

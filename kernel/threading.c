@@ -421,6 +421,9 @@ MCoreThread_t*
 ThreadingGetCurrentThread(
     _In_ UUId_t         CoreId)
 {
+    if (ThreadingIsEnabled() == 0) {
+        return NULL;
+    }
     return GetProcessorCore(CoreId)->CurrentThread;
 }
 
@@ -430,7 +433,7 @@ ThreadingGetCurrentThread(
 UUId_t
 ThreadingGetCurrentThreadId(void)
 {
-    if (GetCurrentProcessorCore()->CurrentThread == NULL) {
+    if (ThreadingIsEnabled() == 0 || GetCurrentProcessorCore()->CurrentThread == NULL) {
         return 0;
     }
     return GetCurrentProcessorCore()->CurrentThread->Id;

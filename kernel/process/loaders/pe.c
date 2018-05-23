@@ -100,7 +100,7 @@ PeValidate(
 
     // Check magic for DOS
     if (DosHeader->Signature != MZ_MAGIC) {
-        LogFatal("PELD", "Invalid MZ Signature 0x%x", DosHeader->Signature);
+        ERROR("Invalid MZ Signature 0x%x", DosHeader->Signature);
         return PE_INVALID;
     }
 
@@ -116,7 +116,7 @@ PeValidate(
     // Validate the current build-target
     // we don't load arm modules for a x86
     if (BaseHeader->Machine != PE_CURRENT_MACHINE) {
-        ERROR("PELD", "The image as built for machine type 0x%x, "
+        ERROR("The image as built for machine type 0x%x, "
              "which is not the current machine type.", BaseHeader->Machine);
         return PE_INVALID;
     }
@@ -285,7 +285,7 @@ void PeHandleRelocations(MCorePeFile_t *PeFile,
 
         /* Sanitize the block size */
         if (BlockSize > BytesLeft) {
-            LogFatal("PELD", "Invalid relocation data: BlockSize > BytesLeft, bailing");
+            ERROR("Invalid relocation data: BlockSize > BytesLeft, bailing");
             break;
         }
 
@@ -297,7 +297,7 @@ void PeHandleRelocations(MCorePeFile_t *PeFile,
             NumRelocs = (BlockSize - 8) / sizeof(uint16_t);
         }
         else {
-            LogFatal("PELD", "Invalid relocation data: BlockSize == 0, bailing");
+            ERROR("Invalid relocation data: BlockSize == 0, bailing");
             break;
         }
 
@@ -331,11 +331,9 @@ void PeHandleRelocations(MCorePeFile_t *PeFile,
                 /* End of alignment */
             }
             else {
-                LogFatal("PEXE", "Implement support for reloc type: %u", Type);
+                ERROR("Implement support for reloc type: %u", Type);
                 for (;;);
             }
-
-            /* Next */
             RelocationEntryPtr++;
         }
 

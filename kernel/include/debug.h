@@ -48,7 +48,7 @@
  * These can be turned on per-source file by pre-defining
  * the __TRACE before inclusion */
 #if defined(__TRACE) && defined(__OSCONFIG_LOGGING_KTRACE)
-#define TRACE(...)					LogInformation(__MODULE, __VA_ARGS__)
+#define TRACE(...)					LogAppendMessage(LogTrace, __MODULE, __VA_ARGS__)
 #else
 #define TRACE(...)
 #endif
@@ -59,9 +59,9 @@
 #define FATAL_SCOPE_PROCESS			0x00000002
 #define FATAL_SCOPE_THREAD			0x00000003
 
-#define WRITELINE(...)              LogDebug(__MODULE, __VA_ARGS__)
-#define WARNING(...)				LogDebug(__MODULE, __VA_ARGS__)
-#define ERROR(...)					LogFatal(__MODULE, __VA_ARGS__)
+#define WRITELINE(...)              LogAppendMessage(LogDebug, __MODULE, __VA_ARGS__)
+#define WARNING(...)				LogAppendMessage(LogWarning, __MODULE, __VA_ARGS__)
+#define ERROR(...)					LogAppendMessage(LogError, __MODULE, __VA_ARGS__)
 #define FATAL(Scope, ...)			DebugPanic(Scope, NULL, __MODULE, __VA_ARGS__)
 #define NOTIMPLEMENTED(...)
 

@@ -25,6 +25,7 @@
 
 /* Includes
  * - System */
+#include <component/cpu.h>
 #include <system/addressspace.h>
 #include <system/video.h>
 #include <system/utils.h>
@@ -44,7 +45,6 @@
  * Needed for the virtual memory manager to keep
  * track of current directories */
 static PageMasterTable_t *KernelMasterTable = NULL;
-static PageMasterTable_t *MasterTables[MAX_SUPPORTED_CPUS];
 static Spinlock_t GlobalMemoryLock          = SPINLOCK_INIT;
 static uintptr_t ReservedMemoryPointer      = 0;
 
@@ -165,28 +165,29 @@ MmVirtualIdentityMapMemoryRange(
     }
 }
 
-/* MmVirtualSwitchPageDirectory
- * Switches page-directory for the current cpu
- * but the current cpu should be given as parameter
- * as well */
+/* UpdateVirtualAddressingSpace
+ * Switches page-directory for the current cpu instance */
 OsStatus_t
-MmVirtualSwitchPageDirectory(
-	_In_ UUId_t             Cpu, 
+UpdateVirtualAddressingSpace(
 	_In_ void*              PageDirectory, 
-	_In_ PhysicalAddress_t  Pdb) {
-	assert(PageDirectory != NULL);
-	MasterTables[Cpu] = (PageMasterTable_t*)PageDirectory;
+	_In_ PhysicalAddress_t  Pdb)
+{
+	assert(PageDirectory != NULL && Pdb != 0);
+
+    // Update current page-directory
+	GetCurrentProcessorCore()->Data[0] = (uintptr_t)PageDirectory;
 	memory_load_cr3(Pdb);
 	return OsSuccess;
 }
 
-/* MmVirtualGetCurrentDirectory
- * Retrieves the current page-directory for the given cpu */
-void*
-MmVirtualGetCurrentDirectory(
-	_In_ UUId_t Cpu) {
-	assert(Cpu < MAX_SUPPORTED_CPUS);
-	return (void*)MasterTables[Cpu];
+/* InitializeMemoryForApplicationCore
+ * Initializes the missing memory setup for the calling cpu */
+void
+InitializeMemoryForApplicationCore(void)
+{
+    // Set current page-directory to kernel
+    GetCurrentProcessorCore()->Data[0] = (uintptr_t)KernelMasterTable;
+    memory_load_cr3((uintptr_t)KernelMasterTable);
 }
 
 /* MmVirtualGetTable
@@ -212,7 +213,7 @@ MmVirtualGetTable(
 
     // No invalids allowed here
 	assert(PageMasterTable != NULL);
-	if (MasterTables[CpuGetCurrentId()] == PageMasterTable) {
+	if ((PageMasterTable_t*)GetCurrentProcessorCore()->Data[0] == PageMasterTable) {
 		IsCurrent = 1;
 	}
 	MutexLock(&PageMasterTable->Lock);
@@ -292,9 +293,10 @@ MmVirtualSetFlags(
 	// Determine page master directory 
 	// If we were given null, select the current
 	if (PageMasterTable == NULL) {
-		PageMasterTable = MasterTables[CpuGetCurrentId()];
+		PageMasterTable = (PageMasterTable_t*)GetCurrentProcessorCore()->Data[0];
+		IsCurrent = 1;
 	}
-	if (MasterTables[CpuGetCurrentId()] == PageMasterTable) {
+	else if ((PageMasterTable_t*)GetCurrentProcessorCore()->Data[0] == PageMasterTable) {
 		IsCurrent = 1;
 	}
 	assert(PageMasterTable != NULL);
@@ -331,7 +333,7 @@ MmVirtualGetFlags(
 	// Determine page master directory 
 	// If we were given null, select the current
 	if (PageMasterTable == NULL) {
-		PageMasterTable = MasterTables[CpuGetCurrentId()];
+		PageMasterTable = (PageMasterTable_t*)GetCurrentProcessorCore()->Data[0];
 	}
 	assert(PageMasterTable != NULL);
     Table = MmVirtualGetTable(PageMasterTable, vAddress, 0, 0, &Update);
@@ -371,9 +373,10 @@ MmVirtualMap(
 	// Determine page master directory 
 	// If we were given null, select the current
 	if (PageMasterTable == NULL) {
-		PageMasterTable = MasterTables[CpuGetCurrentId()];
+		PageMasterTable = (PageMasterTable_t*)GetCurrentProcessorCore()->Data[0];
+		IsCurrent = 1;
 	}
-	if (MasterTables[CpuGetCurrentId()] == PageMasterTable) {
+	else if ((PageMasterTable_t*)GetCurrentProcessorCore()->Data[0] == PageMasterTable) {
 		IsCurrent = 1;
 	}
 	assert(PageMasterTable != NULL);
@@ -427,9 +430,10 @@ MmVirtualUnmap(
 	// Determine page master directory 
 	// If we were given null, select the current
 	if (PageMasterTable == NULL) {
-		PageMasterTable = MasterTables[CpuGetCurrentId()];
+		PageMasterTable = (PageMasterTable_t*)GetCurrentProcessorCore()->Data[0];
+		IsCurrent = 1;
 	}
-	if (MasterTables[CpuGetCurrentId()] == PageMasterTable) {
+	else if ((PageMasterTable_t*)GetCurrentProcessorCore()->Data[0] == PageMasterTable) {
 		IsCurrent = 1;
 	}
 	assert(PageMasterTable != NULL);
@@ -485,7 +489,7 @@ MmVirtualGetMapping(
 	// Determine page master directory 
 	// If we were given null, select the current
 	if (PageMasterTable == NULL) {
-		PageMasterTable = MasterTables[CpuGetCurrentId()];
+		PageMasterTable = (PageMasterTable_t*)GetCurrentProcessorCore()->Data[0];
 	}
 	assert(PageMasterTable != NULL);
     Table = MmVirtualGetTable(PageMasterTable, Address, 0, 0, &Update);
@@ -517,8 +521,8 @@ MmVirtualClone(
     uintptr_t PhysicalAddress   = 0;
     uintptr_t MasterAddress     = 0;
     PageMasterTable_t *Created  = (PageMasterTable_t*)kmalloc_ap(sizeof(PageMasterTable_t), &MasterAddress);
-    PageMasterTable_t *Current  = MasterTables[CpuGetCurrentId()];
-
+    PageMasterTable_t *Current  = (PageMasterTable_t*)GetCurrentProcessorCore()->Data[0];
+    
     PageDirectoryTable_t *KernelDirectoryTable  = NULL;
     PageDirectoryTable_t *DirectoryTable        = NULL;
     PageDirectory_t *Directory                  = NULL;
@@ -808,7 +812,7 @@ MmVirtualInit(void)
 	VideoGetTerminal()->FrameBufferAddress = MEMORY_LOCATION_VIDEO;
 
 	// Update and switch page-directory for boot-cpu
-	MmVirtualSwitchPageDirectory(0, (void*)KernelMasterTable, (uintptr_t)KernelMasterTable);
+	UpdateVirtualAddressingSpace((void*)KernelMasterTable, (uintptr_t)KernelMasterTable);
 
 	// Setup kernel addressing space
 	KernelSpace.Flags                       = ASPACE_TYPE_KERNEL;

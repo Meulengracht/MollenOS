@@ -58,11 +58,11 @@ void
 PrintHeader(
     _In_ Multiboot_t *BootInformation)
 {
-    Log("MollenOS - Platform: %s - Version %i.%i.%i",
+    WRITELINE("MollenOS - Platform: %s - Version %i.%i.%i",
         ARCHITECTURE_NAME, REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD);
-    Log("Written by Philip Meulengracht, Copyright 2011-2018.");
-    Log("Bootloader - %s", (char*)(uintptr_t)BootInformation->BootLoaderName);
-    Log("%s build %s - %s\n", BUILD_SYSTEM, BUILD_DATE, BUILD_TIME);
+    WRITELINE("Written by Philip Meulengracht, Copyright 2011-2018.");
+    WRITELINE("Bootloader - %s", (char*)(uintptr_t)BootInformation->BootLoaderName);
+    WRITELINE("%s build %s - %s\n", BUILD_SYSTEM, BUILD_DATE, BUILD_TIME);
 }
 
 /* MCoreInitialize
@@ -112,11 +112,6 @@ MCoreInitialize(
     // Initialize our kernel heap
     HeapConstruct(HeapGetKernel(), MEMORY_LOCATION_HEAP, MEMORY_LOCATION_HEAP_END, 0);
 
-    // The first memory operation we will
-    // be performing is upgrading the log away
-    // from the static buffer
-    LogUpgrade(LOG_PREFFERED_SIZE);
-
     // Parse the ramdisk as early as possible, so right
     // after upgrading log and having heap
     if (ModulesInitialize(&GlobalBootInformation) != OsSuccess) {
@@ -143,6 +138,9 @@ MCoreInitialize(
         TRACE("Running SYSTEM_FEATURE_INTERRUPTS");
         SystemFeaturesInitialize(&GlobalBootInformation, SYSTEM_FEATURE_INTERRUPTS);
     }
+
+    // Don't spawn threads before after interrupts
+    LogInitializeFull();
 
     // Perform the full acpi initialization sequence
     if (AcpiAvailable() == ACPI_AVAILABLE) {

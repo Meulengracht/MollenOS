@@ -157,8 +157,8 @@ AddressSpaceDestroy(
 OsStatus_t
 AddressSpaceSwitch(
     _In_ AddressSpace_t *AddressSpace) {
-	return MmVirtualSwitchPageDirectory(CpuGetCurrentId(),
-		(void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], 
+	return UpdateVirtualAddressingSpace(
+        (void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], 
         AddressSpace->Data[ASPACE_DATA_CR3]);
 }
 

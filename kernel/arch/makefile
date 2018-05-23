@@ -2,7 +2,7 @@
 # Includes sub-libraries as
 # - acpica
 # - arch sub-layer
-INCLUDES = -I../../librt/include -I../acpica/include -I../include
+INCLUDES = -I../../librt/include -I../../librt/libacpi/include -I../include
 
 ifeq ($(VALI_ARCH),i386)
     INCLUDES += -Ix86 -Ix86/x32

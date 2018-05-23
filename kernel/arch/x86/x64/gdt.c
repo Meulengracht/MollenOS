@@ -23,6 +23,7 @@
 
 /* Includes
  * - System */
+#include <component/cpu.h>
 #include <memory.h>
 #include <arch.h>
 #include <heap.h>
@@ -30,15 +31,13 @@
 
 /* Includes
  * - Library */
+#include <assert.h>
 #include <stddef.h>
 #include <string.h>
 
 /* Externs
  * Provide access to some assembler functions */
-__EXTERN
-void
-TssInstall(
-    _In_ int GdtIndex);
+__EXTERN void TssInstall(int GdtIndex);
 
 /* Globals
  * Static storage as we have no memory allocator here */
@@ -113,40 +112,43 @@ GdtInitialize(void)
 
 	// Prepare gdt and tss for boot cpu
 	GdtInstall();
-	GdtInstallTss(0, 1);
+	TssInitialize(1);
 }
 
-/* GdtInstallTss
+/* TssInitialize
  * Helper for setting up a new task state segment for
  * the given cpu core, this should be done once per
  * core, and it will set default params for the TSS */
 void
-GdtInstallTss(
-    _In_ UUId_t Cpu,
-    _In_ int    Static)
+TssInitialize(
+    _In_ int    PrimaryCore)
 {
 	// Variables
 	uint64_t tBase  = 0;
 	uint32_t tLimit = 0;
 	int TssIndex    = __GblGdtIndex;
+    UUId_t CoreId   = GetCurrentProcessorCore()->Id;
 
 	// If we use the static allocator, it must be the boot cpu
-	if (Static) {
-		__TssDescriptors[Cpu] = &__BootTss;
+	if (PrimaryCore) {
+		__TssDescriptors[CoreId] = &__BootTss;
 	}
 	else {
-		__TssDescriptors[Cpu] = (TssDescriptor_t*)kmalloc(sizeof(TssDescriptor_t));
+		__TssDescriptors[CoreId] = (TssDescriptor_t*)kmalloc(sizeof(TssDescriptor_t));
 	}
 
 	// Initialize descriptor by zeroing and set default members
-	memset(__TssDescriptors[Cpu], 0, sizeof(TssDescriptor_t));
-	tBase   = (uint64_t)__TssDescriptors[Cpu];
+	memset(__TssDescriptors[CoreId], 0, sizeof(TssDescriptor_t));
+	tBase   = (uint64_t)__TssDescriptors[CoreId];
 	tLimit  = tBase + sizeof(TssDescriptor_t);
-    __TssDescriptors[Cpu]->IoMapBase = (uint16_t)offsetof(TssDescriptor_t, IoMap[0]);
+    __TssDescriptors[CoreId]->IoMapBase = (uint16_t)offsetof(TssDescriptor_t, IoMap[0]);
 
 	// Install TSS into table and hardware
 	GdtInstallDescriptor(tBase, tLimit, GDT_TSS_ENTRY, 0x00);
 	TssInstall(TssIndex);
+    if (PrimaryCore == 0) {
+        TssCreateStacks();
+    }
 }
 
 /* TssUpdateThreadStack
@@ -155,25 +157,24 @@ GdtInstallTss(
 void
 TssUpdateThreadStack(
     _In_ UUId_t     Cpu, 
-    _In_ uintptr_t  Stack) {
-    // Update stack pointer for ring0
+    _In_ uintptr_t  Stack)
+{
+    assert(__TssDescriptors[Cpu] != NULL);
 	__TssDescriptors[Cpu]->StackTable[0] = Stack;
 }
 
 /* TssCreateStacks 
  * Create safe stacks for #NMI, #DF, #DBG, #SS and #MCE. These are then
  * used for certain interrupts to support nesting by providing safe-stacks. */
-__EXTERN
 void
-TssCreateStacks(
-    _In_ UUId_t     Cpu)
+TssCreateStacks(void)
 {
     uint64_t Stacks = (uint64_t)kmalloc(PAGE_SIZE * 7);
     memset((void*)Stacks, 0, PAGE_SIZE * 7);
     Stacks          += PAGE_SIZE * 7;
 
     for (int i = 0; i < 7; i++) {
-        __TssDescriptors[Cpu]->InterruptTable[i] = Stacks;
+        __TssDescriptors[GetCurrentProcessorCore()->Id]->InterruptTable[i] = Stacks;
         Stacks -= PAGE_SIZE;
     }
 }
@@ -186,6 +187,7 @@ void
 TssUpdateIo(
     _In_ UUId_t Cpu,
     _In_ uint8_t *IoMap) {
+    assert(__TssDescriptors[Cpu] != NULL);
 	memcpy(&__TssDescriptors[Cpu]->IoMap[0], IoMap, GDT_IOMAP_SIZE);
 }
 
@@ -197,6 +199,7 @@ void
 TssEnableIo(
     _In_ UUId_t Cpu,
     _In_ uint16_t Port) {
+    assert(__TssDescriptors[Cpu] != NULL);
 	__TssDescriptors[Cpu]->IoMap[Port / 8] &= ~(1 << (Port % 8));
 }
 
@@ -208,5 +211,6 @@ void
 TssDisableIo(
     _In_ UUId_t Cpu,
     _In_ uint16_t Port) {
+    assert(__TssDescriptors[Cpu] != NULL);
 	__TssDescriptors[Cpu]->IoMap[Port / 8] |= (1 << (Port % 8));
 }

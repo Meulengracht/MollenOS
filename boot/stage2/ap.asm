@@ -49,8 +49,10 @@ FixCS:
 
 	; Setup stack
 	mov		ss, ax
-	mov		ax, word [wStackAddress]
+    mov     ax, word [wStackSize]
+	lock xadd word [wStackAddress], ax
 	mov		sp, ax
+    mov     bp, ax
 	xor 	ax, ax
     sti
 
@@ -88,7 +90,7 @@ Entry32:
 	mov 	gs, ax
 	mov 	ss, ax
 	mov 	es, ax
-	movzx 	esp, word [wStackAddress]
+	movzx 	esp, bp
 
 	; Setup Cpu
 %ifdef __amd64__
@@ -97,7 +99,8 @@ Entry32:
     jne     Skip64BitMode
 
 	; Enable PAE paging
-    mov     cr3, dword [dSystemPageDirectory]
+    mov     eax, dword [dSystemPageDirectory]
+    mov     cr3, eax
     mov     eax, cr4
     or      eax, 0x20
     mov     cr4, eax
@@ -139,7 +142,7 @@ Entry64:
 	mov 	gs, ax
 	mov 	ss, ax
 	mov 	es, ax
-	movzx 	rsp, word [wStackAddress]
+	movzx 	rsp, bp
 
     ; Setup Registers
 	xor 	rsi, rsi
@@ -158,6 +161,7 @@ EndOfStage64:
 ; **************************
 ; Variables
 ; **************************
-wStackAddress           dw  0x1000
-dSystemPageDirectory    dd  0 ; size - 8
-dKernelAddress          dd  0 ; size - 4
+wStackSize              dw  0x500
+wStackAddress           dw  0x1500  ; Base-stack must not be below 0x1000
+dSystemPageDirectory    dd  0       ; size - 8
+dKernelAddress          dd  0       ; size - 4

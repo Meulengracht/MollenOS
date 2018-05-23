@@ -132,25 +132,22 @@ DebugPanic(
 
 	// Lookup some variables
 	Cpu = CpuGetCurrentId();
-
-	// Redirect log
-	LogRedirect(LogConsole);
+	LogSetRenderMode(1);
 
 	// Format the debug information
 	va_start(Arguments, Message);
 	vsprintf(&MessageBuffer[0], Message, Arguments);
 	va_end(Arguments);
-	LogFatal(Module, &MessageBuffer[0]);
+	LogAppendMessage(LogError, Module, &MessageBuffer[0]);
 
 	// Stack trace
 	DebugStackTrace(Context, 8);
 
 	// Log cpu and threads
-	LogFatal(Module, "Thread %s - %u (Core %u)!",
+	LogAppendMessage(LogError, Module, "Thread %s - %u (Core %u)!",
 		ThreadingGetCurrentThread(Cpu)->Name, 
 		ThreadingGetCurrentThreadId(), Cpu);
 	ThreadingDebugPrint();
-    //LogDumpPipe(LogPipeStderr());
 
 	// Handle based on the scope of the fatality
 	if (FatalityScope == FATAL_SCOPE_KERNEL) {
@@ -271,11 +268,11 @@ DebugMemory(
 
 	// Output description if given.
 	if (Description != NULL) {
-		LogDebug(__MODULE, "%s:", Description);
+		TRACE("%s:", Description);
 	}
 
 	if (Length == 0) {
-		LogDebug(__MODULE, "ZERO LENGTH");
+		ERROR("ZERO LENGTH");
 		return OsError;
 	}
 
@@ -286,15 +283,15 @@ DebugMemory(
 		if ((i % 16) == 0) {
 			// Just don't print ASCII for the zeroth line.
 			if (i != 0) {
-				LogRaw("  %s\n", Buffer);
+				LogAppendMessage(LogRaw, "EMPT", "  %s\n", Buffer);
 			}
 
 			// Output the offset.
-			LogRaw("  %04x ", i);
+			LogAppendMessage(LogRaw, "EMPT", "  %04x ", i);
 		}
 
 		// Now the hex code for the specific character.
-		LogRaw(" %02x", pc[i]);
+		LogAppendMessage(LogRaw, "EMPT", " %02x", pc[i]);
 
 		// And store a printable ASCII character for later.
 		if ((pc[i] < 0x20) || (pc[i] > 0x7e)) {
@@ -308,12 +305,12 @@ DebugMemory(
 
 	// Pad out last line if not exactly 16 characters.
 	while ((i % 16) != 0) {
-		LogRaw("   ");
+		LogAppendMessage(LogRaw, "EMPT", "   ");
 		i++;
 	}
 
 	// And print the final ASCII bit.
-	LogRaw("  %s\n", Buffer);
+	LogAppendMessage(LogRaw, "EMPT", "  %s\n", Buffer);
 	return OsSuccess;
 }
 

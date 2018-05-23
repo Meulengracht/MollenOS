@@ -44,33 +44,21 @@ __EXTERN void enter_thread(Context_t *Regs);
  * apic timer is loaded by a configurable quantum
  * but should be calibrated as soon as a reliable timer
  * source is registered. */
-InterruptStatus_t ApicTimerHandler(void *Args)
+InterruptStatus_t
+ApicTimerHandler(
+    _In_ void*  Args)
 {
-	/* Variables we will need for loading
-	 * a new task */
-	Context_t *Regs = NULL;
-	UUId_t CurrCpu = ApicGetCpu();
+    // Variables
+	Context_t *Regs     = NULL;
+	UUId_t CurrCpu      = ApicGetCpu();
+	size_t TimeSlice    = 20;
+	int TaskPriority    = 0;
 
-	/* These will be assigned from the 
-	 * _switch function, but set them in
-	 * case threading is not initialized yet */
-	size_t TimeSlice = 20;
-	int TaskPriority = 0;
-
-	/* Increase timer_ticks for the current
-	 * cpu core, I'm not so sure we actually use this atm.. */
+    // Send EOI immediately
 	GlbTimerTicks[CurrCpu]++;
-
-	/* Before we do anything, send EOI so 
-	 * we don't forget :-) */
 	ApicSendEoi(0, INTERRUPT_LAPIC);
 
-	/* Switch Task, if there is no threading enabled yet
-	 * it should return the same structure as we give */
 	Regs = _ThreadingSwitch((Context_t*)Args, 1, &TimeSlice, &TaskPriority);
-
-	/* If we just got hold of idle task, well fuck it disable timer 
-	 * untill we get another task */
 	if (!ThreadingIsCurrentTaskIdle(CurrCpu)) {
 		ApicSetTaskPriority(61 - TaskPriority);
 		ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * TimeSlice);
@@ -79,8 +67,8 @@ InterruptStatus_t ApicTimerHandler(void *Args)
 		ApicSetTaskPriority(0);
 		ApicWriteLocal(APIC_INITIAL_COUNT, 0);
 	}
-	
-	/* Enter new thread */
+
+    // Enter new thread, no returning
 	enter_thread(Regs);
 	return InterruptHandled;
 }
@@ -88,7 +76,9 @@ InterruptStatus_t ApicTimerHandler(void *Args)
 /* The apic error handler interrupt
  * this occurs on errors, but i'm not really
  * sure yet what that entails, we leave it NA for now*/
-InterruptStatus_t ApicErrorHandler(void *Args)
+InterruptStatus_t
+ApicErrorHandler(
+    _In_ void*  Args)
 {
 	_CRT_UNUSED(Args);
 	return InterruptHandled;

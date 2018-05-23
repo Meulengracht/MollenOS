@@ -531,20 +531,20 @@ ExceptionEntry(
     if (IssueFixed == 0) {
         uintptr_t Base  = 0;
         char *Name      = NULL;
-        LogRedirect(LogConsole);
+        LogSetRenderMode(1);
 
         // Was it a page-fault?
         if (Address != __MASK) {
-            LogDebug(__MODULE, "CR2 Address: 0x%x", Address);
+            WRITELINE("CR2 Address: 0x%x", Address);
         }
 
         // Locate which module
         if (DebugGetModuleByAddress(CONTEXT_IP(Registers), &Base, &Name) == OsSuccess) {
             uintptr_t Diff = CONTEXT_IP(Registers) - Base;
-            LogDebug(__MODULE, "Faulty Address: 0x%x (%s)", Diff, Name);
+            WRITELINE("Faulty Address: 0x%x (%s)", Diff, Name);
         }
         else {
-            LogDebug(__MODULE, "Faulty Address: 0x%x", CONTEXT_IP(Registers));
+            WRITELINE("Faulty Address: 0x%x", CONTEXT_IP(Registers));
         }
 
         // Enter panic handler

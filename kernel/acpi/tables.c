@@ -61,7 +61,7 @@ AcpiEnumarateMADT(
 
                 // Register core with system if it's available
                 // @todo check with ProcessorId and find correct cpu
-                if (AcpiCpu->LapicFlags & 0x1) {
+                if (AcpiCpu->Id != LOBYTE(GetCurrentDomain()->Cpu.PrimaryCore.Id) && (AcpiCpu->LapicFlags & 0x1)) {
                     RegisterApplicationCore(&GetCurrentDomain()->Cpu, AcpiCpu->Id, CpuStateShutdown, 0);
                 }
 

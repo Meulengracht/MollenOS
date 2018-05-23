@@ -19,6 +19,7 @@ all: build deploy
 	@$(MAKE) -s -C libcrt -f makefile libsrv
 	@$(MAKE) -s -C libm -f makefile
 	@$(MAKE) -s -C libc -f makefile libc
+	@$(MAKE) -s -C libacpi -f makefile
 	@$(MAKE) -s -C libusb -f makefile
 	@$(MAKE) -s -C libcxx -f makefile
 
@@ -33,6 +34,7 @@ clean:
 	@$(MAKE) -s -C libm -f makefile clean
 	@$(MAKE) -s -C libds -f makefile clean
 	@$(MAKE) -s -C libc -f makefile clean
+	@$(MAKE) -s -C libacpi -f makefile clean
 	@$(MAKE) -s -C libusb -f makefile clean
 	@$(MAKE) -s -C libclang -f makefile clean
 	@$(MAKE) -s -C libcrt -f makefile clean

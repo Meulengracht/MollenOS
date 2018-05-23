@@ -125,7 +125,7 @@ SystemFeaturesInitialize(
     // Handle interrupt initialization
     if (Systems & SYSTEM_FEATURE_INTERRUPTS) {
 #if defined(amd64) || defined(__amd64__)
-        TssCreateStacks(0);
+        TssCreateStacks();
 #endif
         // Make sure we allocate all device interrupts
         // so system can't take control of them

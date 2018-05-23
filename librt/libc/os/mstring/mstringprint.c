@@ -36,7 +36,7 @@ MStringPrint(
     _In_ MString_t *String)
 {
 #ifdef LIBC_KERNEL
-	LogInformation("MSTR", "%s", (char*)String->Data);
+	LogAppendMessage(LogTrace, "MSTR", "%s", (char*)String->Data);
 #else
 	printf("%s\n", (char*)String->Data);
 #endif

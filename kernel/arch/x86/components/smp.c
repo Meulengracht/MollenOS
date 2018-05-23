@@ -22,43 +22,36 @@
  */
 #define __MODULE "SMP0"
 #define __TRACE
+#define __DIAGNOSE
 
 /* Includes 
  * - System */
 #include <system/interrupts.h>
 #include <system/utils.h>
-#include <acpi.h>
-#include <apic.h>
-#include <gdt.h>
-#include <thread.h>
-#include <scheduler.h>
-#include <interrupts.h>
 #include <memory.h>
 #include <debug.h>
+#include <apic.h>
+#include <gdt.h>
 #include <idt.h>
 #include <cpu.h>
 #include <string.h>
-#include <stdio.h>
-#include <ds/collection.h>
 
 /* Includes
  * - Components */
 #include <component/domain.h>
 #include <component/cpu.h>
 
-/* Externs */
-extern const char *__GlbTramplineCode;
+/* External boot-stage for the application cores to jump into
+ * kernel code and get initialized for execution. */
 extern const int __GlbTramplineCode_length;
-extern Collection_t *GlbAcpiNodes;
-extern UUId_t GlbBootstrapCpuId;
-volatile int GlbCpusBooted = 1;
+extern const char __GlbTramplineCode[];
 
-/* Entry for AP Cores */
-void SmpApEntry(void)
+/* SmpApplicationCoreEntry
+ * The entry point for other cpu cores to get ready for code execution. This is neccessary
+ * as the cores boot in 16 bit mode (64 bit for EFI?) */
+void
+SmpApplicationCoreEntry(void)
 {
-    // Variables
-	UUId_t Cpu;
-
 	// Disable interrupts and setup descriptors
 	InterruptDisable();
 	GdtInstall();
@@ -66,18 +59,13 @@ void SmpApEntry(void)
 
 	// Initialize CPU
 	CpuInitialize();
-	Cpu = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
 
 	// Initialize Memory
-	MmVirtualInstallPaging(Cpu);
+    InitializeMemoryForApplicationCore();
 	ApicInitAp();
 
     // Install the TSS before any multitasking
-	GdtInstallTss(Cpu, 0);
-#if defined(amd64) || defined(__amd64__)
-    TssCreateStacks(Cpu);
-#endif
-    InterruptEnable();
+	TssInitialize(0);
 
     // Register with system - no returning
     ActivateApplicationCore(GetCurrentProcessorCore());
@@ -88,19 +76,8 @@ void SmpApEntry(void)
  * and checks if the core booted. Otherwise it moves on to the next */
 void
 SmpBootCore(
-    _In_ void*  Data,
-    _In_ int    n,
-    _In_ void*  UserData)
+    _In_ SystemCpuCore_t* Core)
 {
-	// Variables
-	ACPI_MADT_LOCAL_APIC *Core  = (ACPI_MADT_LOCAL_APIC*)Data;
-	volatile int TargetCpuCount = GlbCpusBooted + 1;
-
-	// Dont boot bootstrap cpu or if we already have 8 cores running
-	if (GlbBootstrapCpuId == Core->Id || GlbCpusBooted > 7) {
-        return;
-    }
-    
 	// Perform the IPI
 	TRACE(" > Booting core %u", Core->Id);
 	if (ApicPerformIPI(Core->Id) != OsSuccess) {
@@ -117,7 +94,7 @@ SmpBootCore(
     // Stall - check if it booted, give it 200ms
     // If it didn't boot then send another SIPI and give up
     CpuStall(200);
-    if (GlbCpusBooted != TargetCpuCount) {
+    if (Core->State != CpuStateRunning) {
         if (ApicPerformSIPI(Core->Id, MEMORY_LOCATION_TRAMPOLINE_CODE) != OsSuccess) {
             ERROR("Failed to boot core %u (SIPI failed)", Core->Id);
             return;
@@ -132,12 +109,12 @@ void
 CpuSmpInitialize(void)
 {
     // Variables
-    uint32_t *CodePointer   = (uint32_t*)(__GlbTramplineCode + __GlbTramplineCode_length); 
-	uint32_t EntryCode      = (uint32_t)(uint32_t*)SmpApEntry;
-	DataKey_t Key;
+    uint32_t *CodePointer   = (uint32_t*)((uint8_t*)(&__GlbTramplineCode[0]) + __GlbTramplineCode_length); 
+	uint32_t EntryCode      = (uint32_t)(uint32_t*)SmpApplicationCoreEntry;
+    int i;
 
     // Debug
-    TRACE("CpuSmpInitialize()");
+    TRACE("CpuSmpInitialize(%i)", GetCurrentDomain()->Cpu.NumberOfCores);
 
     // Initialize variables
     *(CodePointer - 1) = EntryCode;
@@ -147,6 +124,11 @@ CpuSmpInitialize(void)
 	memcpy((void*)MEMORY_LOCATION_TRAMPOLINE_CODE, (char*)__GlbTramplineCode, __GlbTramplineCode_length);
 	
     // Boot all cores
-    Key.Value = ACPI_MADT_TYPE_LOCAL_APIC;
-	CollectionExecuteOnKey(GlbAcpiNodes, SmpBootCore, Key, NULL);
+    for (i = 0; i < (GetCurrentDomain()->Cpu.NumberOfCores - 1); i++) {
+        SmpBootCore(&GetCurrentDomain()->Cpu.ApplicationCores[i]);
+    }
+
+#ifdef __DIAGNOSE
+    for(;;);
+#endif
 }

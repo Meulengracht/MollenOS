@@ -68,16 +68,14 @@ ScSystemDebug(
 
     // Switch based on type
     if (Type == 0) {
-        LogInformation(Module, Message);
+        LogAppendMessage(LogTrace, Module, Message);
     }
     else if (Type == 1) {
-        LogDebug(Module, Message);
+        LogAppendMessage(LogDebug, Module, Message);
     }
     else {
-        LogFatal(Module, Message);
+        LogAppendMessage(LogError, Module, Message);
     }
-
-    // No more to be done
     return OsSuccess;
 }
 
@@ -1873,8 +1871,8 @@ ScTimersStop(
  *******************************************************************************/
 OsStatus_t ScEndBootSequence(void) {
     TRACE("Ending console session");
-    LogRedirect(LogFile);
-    return 0;
+    LogSetRenderMode(0);
+    return OsSuccess;
 }
 
 /* ScFlushHardwareCache

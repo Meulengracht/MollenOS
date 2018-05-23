@@ -137,11 +137,6 @@ VideoInitialize(void)
 			(VideoGetTerminal()->CursorLimitY / 2) - 260, 650, 520);
 #endif
 	}
-	
-	// Now we have a terminal, 
-	// Redirect the log
-	LogRedirect(LogConsole);
-
-	// Done - no errors
+    LogSetRenderMode(1);
 	return OsSuccess;
 }

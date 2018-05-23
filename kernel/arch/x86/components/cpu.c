@@ -20,6 +20,7 @@
  * - Contains some definitions and structures for helping around
  *   in the sub-layer system
  */
+#define __MODULE "CCPU"
 
 /* Includes
  * - System */
@@ -27,7 +28,7 @@
 #include <system/interrupts.h>
 #include <system/utils.h>
 #include <interrupts.h>
-#include <log.h>
+#include <debug.h>
 #include <cpu.h>
 
 #if defined(_MSC_VER) && !defined(__clang__)
@@ -37,6 +38,7 @@
 #include <cpuid.h>
 #define __get_cpuid(Function, Registers) __cpuid(Function, Registers[0], Registers[1], Registers[2], Registers[3]);
 #endif
+#define isspace(c) ((c >= 0x09 && c <= 0x0D) || (c == 0x20))
 
 /* Extern functions
  * We need access to these in order to implement
@@ -53,6 +55,30 @@ __EXTERN void CpuEnableAvx(void);
 __EXTERN void CpuEnableSse(void);
 __EXTERN void CpuEnableFpu(void);
 
+/* TrimWhitespaces
+ * Trims leading and trailing whitespaces in-place on the given string. This is neccessary
+ * because of how x86 cpu's store their brand string (with middle alignment?)..*/
+static char*
+TrimWhitespaces(char *str)
+{
+    // Variables
+    char *end;
+
+    // Trim leading space
+    while(isspace((unsigned char)*str)) str++;
+    if(*str == 0) {
+        return str; // All spaces?
+    }
+
+    // Trim trailing space
+    end = str + strlen(str) - 1;
+    while(end > str && isspace((unsigned char)*end)) end--;
+
+    // Write new null terminator
+    *(end+1) = 0;
+    return str;
+}
+
 /* CpuInitialize
  * Initializes the CPU and gathers available
  * information about it */
@@ -61,18 +87,21 @@ CpuInitialize(void)
 {
 	// Variables
 	uint32_t CpuRegisters[4]    = { 0 };
+    uintptr_t CpuData[4]        = { 0 };
     char CpuVendor[16]          = { 0 };
     char CpuBrand[64]           = { 0 };
+    char *BrandPointer          = &CpuBrand[0];
     int NumberOfCores           = 1;
-    uintptr_t CpuData[4];
 
 	// Has init already run?
 	if (GetCurrentDomain()->Cpu.PrimaryCore.State != CpuStateRunning) {
 	    __get_cpuid(0, CpuRegisters);
 
-		// Store cpu-id level
+		// Store cpu-id level and store the cpu vendor
 		CpuData[CPU_DATA_MAXLEVEL] = CpuRegisters[0];
-        memcpy(&CpuVendor[0], &CpuRegisters[1], 12);
+        memcpy(&CpuVendor[0], &CpuRegisters[1], 4);
+        memcpy(&CpuVendor[4], &CpuRegisters[3], 4);
+        memcpy(&CpuVendor[8], &CpuRegisters[2], 4);
 
 		// Does it support retrieving features?
 		if (CpuData[CPU_DATA_MAXLEVEL] >= 1) {
@@ -94,8 +123,9 @@ CpuInitialize(void)
             memcpy(&CpuBrand[16], &CpuRegisters[0], 16);
             __get_cpuid(0x80000004, CpuRegisters); // Last 16 bytes
             memcpy(&CpuBrand[32], &CpuRegisters[0], 16);
+            BrandPointer = TrimWhitespaces(BrandPointer);
         }
-        InitializeProcessor(&GetCurrentDomain()->Cpu, &CpuVendor[0], &CpuBrand[0], NumberOfCores, &CpuData[0]);
+        InitializeProcessor(&GetCurrentDomain()->Cpu, &CpuVendor[0], BrandPointer, NumberOfCores, &CpuData[0]);
 	}
 
 	// Can we enable FPU?
@@ -204,7 +234,7 @@ CpuStall(
 	uint64_t Counter = 0;
 
 	if (!(GetCurrentDomain()->Cpu.Data[CPU_DATA_FEATURES_EDX] & CPUID_FEAT_EDX_TSC)) {
-		LogFatal("TIMR", "DelayMs() was called, but no TSC support in CPU.");
+		FATAL(FATAL_SCOPE_KERNEL, "TIMR", "DelayMs() was called, but no TSC support in CPU.");
 		CpuIdle();
 	}
 

@@ -120,11 +120,9 @@ UINT32 AcpiRebootHandler(void)
 	ACPI_STATUS status = AcpiReset();
 
 	if (ACPI_FAILURE(status))
-		Log("Reboot is unsupported\n");
+		TRACE("Reboot is unsupported\n");
 	else
-		Log("Reboot is in progress...\n");
-
-	/* Safety Catch */
+		TRACE("Reboot is in progress...\n");
 	for (;;);
 }
 
@@ -255,7 +253,7 @@ ACPI_STATUS AcpiRunOscRequest(ACPI_HANDLE device, struct _acpi_osc *osc)
 
 	if (query_status)
 	{
-		Log("OSC Query Failed, Status Word: 0x%x\n", query_status);
+		TRACE("OSC Query Failed, Status Word: 0x%x\n", query_status);
 		status = AE_ERROR;
 		goto fail;
 	}

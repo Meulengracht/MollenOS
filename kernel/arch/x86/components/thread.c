@@ -126,8 +126,7 @@ ThreadingRegister(
 	    memset(&Thread86->IoMap[0], 0xFF, GDT_IOMAP_SIZE);
     }
 
-	// If its the first time we run, install
-	// the yield interrupt
+	// If its the first time we run, install the yield interrupt
 	if (ThreadsInitialized == 0) {
         Threads                     = CollectionCreate(KeyInteger);
         Interrupt.Vectors[0]        = INTERRUPT_YIELD;
@@ -298,7 +297,7 @@ ThreadingImpersonate(
 
     // Load resources
 	TssUpdateIo(Cpu, &SubContext->IoMap[0]);
-	MmVirtualSwitchPageDirectory(Cpu,
+	UpdateVirtualAddressingSpace(
 		(void*)Thread->AddressSpace->Data[ASPACE_DATA_PDPOINTER],
 		Thread->AddressSpace->Data[ASPACE_DATA_CR3]);
 }
@@ -317,19 +316,17 @@ _ThreadingSwitch(
 	// Variables
 	MCoreThread_t *Thread   = NULL;
 	x86Thread_t *Threadx    = NULL;
-	UUId_t Cpu              = 0;
+	UUId_t Cpu              = ApicGetCpu();
     DataKey_t Key;
 
-    // Sanitize the status of threading
-    // return default values
-	if (ThreadingIsEnabled() != 1) {
+    // Sanitize the status of threading - return default values
+	if (ThreadingIsEnabled() != 1 || ThreadingGetCurrentThread(Cpu) == NULL) {
         *TimeSlice      = 20;
         *TaskQueue      = 0;
 		return Context;
     }
 
 	// Instantiate variables
-	Cpu         = ApicGetCpu();
 	Thread      = ThreadingGetCurrentThread(Cpu);
     Key.Value   = (int)Thread->Id;
 	Threadx     = (x86Thread_t*)CollectionGetDataByKey(Threads, Key, 0);
@@ -363,7 +360,7 @@ _ThreadingSwitch(
 	*TaskQueue  = Thread->Queue;
 
 	// Load thread-specific resources
-	MmVirtualSwitchPageDirectory(Cpu, 
+	UpdateVirtualAddressingSpace( 
 		(void*)Thread->AddressSpace->Data[ASPACE_DATA_PDPOINTER], 
 		Thread->AddressSpace->Data[ASPACE_DATA_CR3]);
 	TssUpdateThreadStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);

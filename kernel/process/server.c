@@ -19,6 +19,7 @@
  * MollenOS MCore - Server & Process Management
  * - The process/server manager is known as Phoenix
  */
+#define __MODULE "SERV"
 
 /* Includes
 * - System */
@@ -29,8 +30,8 @@
 #include <threading.h>
 #include <semaphore.h>
 #include <scheduler.h>
+#include <debug.h>
 #include <heap.h>
-#include <log.h>
 
 /* Includes
 * - Library */
@@ -53,7 +54,7 @@ PhoenixCreateServer(
 	// Allocate and initiate new instance
 	Server = (MCoreServer_t*)kmalloc(sizeof(MCoreServer_t));
 	if (PhoenixInitializeAsh(&Server->Base, Path) != OsSuccess) {
-		LogFatal("SERV", "Failed to spawn server %s", MStringRaw(Path));
+		ERROR("Failed to spawn server %s", MStringRaw(Path));
 		kfree(Server);
 		return UUID_INVALID;
 	}
@@ -101,9 +102,6 @@ PhoenixGetServer(
 	if (Ash != NULL && Ash->Type != AshServer) {
 		return NULL;
 	}
-
-	// Return the result, but cast it to
-	// the process structure
 	return (MCoreServer_t*)Ash;
 }
 
@@ -120,8 +118,5 @@ PhoenixGetCurrentServer(void)
 	if (Ash != NULL && Ash->Type != AshServer) {
 		return NULL;
 	}
-
-	// Return the result, but cast it to
-	// the process structure
 	return (MCoreServer_t*)Ash;
 }

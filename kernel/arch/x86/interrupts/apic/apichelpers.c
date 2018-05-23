@@ -37,8 +37,6 @@
 
 /* Externs, we need access to a lot of different
  * things for these helper functions */
-__EXTERN volatile size_t GlbTimerTicks[64];
-__EXTERN volatile int GlbCpusBooted;
 __EXTERN uintptr_t GlbLocalApicBase;
 __EXTERN Collection_t *GlbIoApics;
 
@@ -246,12 +244,4 @@ UUId_t ApicGetCpu(void) {
 	else {
 		return (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
 	}
-}
-
-/* ApicPrintCpuTicks
- * Print ticks for all available cpus */
-void ApicPrintCpuTicks(void) {
-	for (int i = 0; i < GlbCpusBooted; i++) {
-		WRITELINE("Cpu %i Ticks: %u\n", i, GlbTimerTicks[i]);
-    }
 }

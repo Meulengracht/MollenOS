@@ -1,70 +1,64 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS MCore - Logging System
-*/
+ *
+ * Copyright 2011, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS Log Interface
+ * - Contains the shared kernel log interface for logging-usage
+ */
 
-/* Includes */
-#include <os/file.h>
 #include <system/video.h>
-#include <criticalsection.h>
+#include <threading.h>
 #include <heap.h>
 #include <log.h>
 
-/* CLib */
+#include <assert.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
 /* Globals */
-UUId_t GlbLogFileHandle = UUID_INVALID;
-BufferObject_t *GlbLogBuffer = NULL;
-char GlbLogStatic[LOG_INITIAL_SIZE];
-LogTarget_t GlbLogTarget = LogMemory;
-LogLevel_t GlbLogLevel = LogLevel1;
-size_t GlbLogSize = 0;
-CriticalSection_t GlbLogLock;
-char *GlbLog = NULL;
-int GlbLogIndex = 0;
-static MCorePipe_t *LogStdout = NULL;
-static MCorePipe_t *LogStderr = NULL;
+static MCoreLog_t LogObject                     = { 0 };
+static char StaticLogSpace[LOG_INITIAL_SIZE]    = { 0 };
+static UUId_t PipeThreads[2]                    = { 0 };
 
-/* LogPipeStdout
- * The log pipe for stdout when no windowing system is running. */
-MCorePipe_t *LogPipeStdout(void) {
-    return LogStdout;
-}
+/* LogPipeHandler
+ * The handler function that will get spawned twice to listen for new messages
+ * on the debug-pipes. */
+void
+LogPipeHandler(
+    _In_ void *PipeInstance)
+{
+    // Variables
+    MCorePipe_t *Pipe   = (MCorePipe_t*)PipeInstance;
+    unsigned int Worker = 0;
+    char MessageBuffer[256];
 
-/* LogPipeStderr
- * The log pipe for stderr when no windowing system is running. */
-MCorePipe_t *LogPipeStderr(void) {
-    return LogStderr;
-}
+    // Listen forever
+    while (1) {
+        memset((void*)MessageBuffer, 0, sizeof(MessageBuffer));
 
-void LogDumpPipe(MCorePipe_t *Pipe) {
-    if (Pipe == NULL || Pipe->Buffer == NULL) {
-        return;
+        // Get data
+        PipeConsumeAcquire(Pipe, &Worker);
+        PipeConsume(Pipe, (uint8_t*)&MessageBuffer[0], sizeof(MessageBuffer), Worker);
+        PipeConsumeCommit(Pipe, Worker);
+
+        // Print
+        LogAppendMessage(LogPipe, "PIPE", (const char*)&MessageBuffer[0]);
     }
-    for (int i = 0; i < PIPE_WORKERS; i++) {
-        if (Pipe->Workers[i].Registered) {
-            LogRaw((const char*)&Pipe->Buffer[Pipe->Workers[i].IndexData]);
-        }
-    } 
 }
 
 /* LogInitialize
@@ -73,478 +67,141 @@ void LogDumpPipe(MCorePipe_t *Pipe) {
 void
 LogInitialize(void)
 {
-	// Initialize global values
-	GlbLogTarget        = LogMemory;
-	GlbLogLevel         = LogLevel1;
-	GlbLogIndex         = 0;
-	GlbLogFileHandle    = UUID_INVALID;
-	GlbLogBuffer        = NULL;
-	GlbLog              = &GlbLogStatic[0];
-	GlbLogSize          = LOG_INITIAL_SIZE;
-
-	// Construct and clear
-	memset(GlbLog, 0, GlbLogSize);
-	CriticalSectionConstruct(&GlbLogLock, CRITICALSECTION_PLAIN);
-}
-
-/* Upgrades the log 
- * with a larger buffer */
-void LogUpgrade(size_t Size)
-{
-	/* Allocate */
-	char *nBuffer = (char*)kmalloc(Size);
-	memset(nBuffer, 0, Size);
-    memcpy(nBuffer, GlbLog, GlbLogIndex);
+    // Setup initial log space
+    LogObject.StartOfData   = (uintptr_t*)&StaticLogSpace[0];
+    LogObject.DataSize      = LOG_INITIAL_SIZE;
     
-	if (GlbLog != &GlbLogStatic[0])
-		kfree(GlbLog);
-	GlbLog = nBuffer;
-	GlbLogSize = Size;
-
-    // Create standard pipes
-    LogStdout = PipeCreate(0x1000, 0);
-    LogStderr = PipeCreate(0x1000, 0);
+    LogObject.Lines         = (MCoreLogLine_t*)&StaticLogSpace[0];
+    LogObject.NumberOfLines = LOG_INITIAL_SIZE / sizeof(MCoreLogLine_t);
+	CriticalSectionConstruct(&LogObject.SyncObject, CRITICALSECTION_PLAIN);
 }
 
-/* Switches target */
-void LogRedirect(LogTarget_t Output)
+/* LogInitializeFull
+ * Upgrades the log to a larger buffer, initializing pipes and installs the message thread. */
+void
+LogInitializeFull(void)
 {
-	if (GlbLogTarget == Output) {
-		return;
+    // Variables
+    void *UpgradeBuffer = NULL;
+
+    // Upgrade the buffer
+    UpgradeBuffer = kmalloc(LOG_PREFFERED_SIZE);
+    memset(UpgradeBuffer, 0, LOG_PREFFERED_SIZE);
+
+	CriticalSectionEnter(&LogObject.SyncObject);
+    memcpy(UpgradeBuffer, (const void*)LogObject.StartOfData, LogObject.DataSize);
+    LogObject.StartOfData   = (uintptr_t*)UpgradeBuffer;
+    LogObject.DataSize      = LOG_PREFFERED_SIZE;
+
+    LogObject.Lines         = (MCoreLogLine_t*)UpgradeBuffer;
+    LogObject.NumberOfLines = LOG_PREFFERED_SIZE / sizeof(MCoreLogLine_t);
+	CriticalSectionLeave(&LogObject.SyncObject);
+
+    // Create pipes
+    LogObject.STDOUT = PipeCreate(0x1000, 0);
+    LogObject.STDERR = PipeCreate(0x1000, 0);
+
+    // Create the threads that will echo the pipes
+    PipeThreads[0] = ThreadingCreateThread("LogPipe_STDOUT", LogPipeHandler, (void*)LogObject.STDOUT, 0);
+    PipeThreads[1] = ThreadingCreateThread("LogPipe_STDERR", LogPipeHandler, (void*)LogObject.STDERR, 0);
+}
+
+/* LogRenderMessages
+ * Makes sure RenderIndex catches up to the LineIndex by rendering all unrendered messages
+ * to the screen. */
+void
+LogRenderMessages(void)
+{
+    // Variables
+    MCoreLogLine_t *Line = NULL;
+
+	CriticalSectionEnter(&LogObject.SyncObject);
+    while (LogObject.RenderIndex != LogObject.LineIndex) {
+
+        // Get next line to be rendered
+        Line = &LogObject.Lines[LogObject.RenderIndex++];
+        if (LogObject.RenderIndex == LogObject.NumberOfLines) {
+            LogObject.RenderIndex = 0;
+        }
+
+        // Don't give raw any special handling
+        if (Line->Type == LogRaw) {
+            VideoGetTerminal()->FgColor = 0;
+            printf("%s", &Line->Data[0]);
+        }
+        else {
+            VideoGetTerminal()->FgColor = (uint32_t)Line->Type;
+            printf("%s", &Line->System[0]);
+            if (Line->Type != LogError) {
+                VideoGetTerminal()->FgColor = 0;
+            }
+            printf("%s\n", &Line->Data[0]);
+        }
     }
-	GlbLogTarget = Output;
-	LogFlush(Output);
+	CriticalSectionLeave(&LogObject.SyncObject);
 }
 
-/* Flushes the log */
-void LogFlush(LogTarget_t Output)
+/* LogSetRenderMode
+ * Enables or disables the log from rendering to the screen. This can be used at start to 
+ * indicate when rendering is available, and at end to disable kernel from modifying screen. */
+void
+LogSetRenderMode(
+    _In_ int            Enable)
 {
-	/* Valid flush targets are:
-	 * Console
-	 * File */
-	char TempBuffer[256];
-
-	/* If we are flushing to anything 
-	 * other than a file, and the logfile is 
-	 * opened, we close it */
-	if (GlbLogFileHandle != UUID_INVALID && Output != LogFile)  {
-		CloseFile(GlbLogFileHandle);
-		GlbLogFileHandle = UUID_INVALID;
-	}
-
-	/* Flush to console? */
-	if (Output == LogConsole)
-	{
-		/* Vars */
-		int Index = 0;
-
-		/* Iterate */
-		while (Index < GlbLogIndex)
-		{
-			/* Get header information */
-			char Type = GlbLog[Index];
-			char Length = GlbLog[Index + 1];
-
-			/* Zero buffer */
-			memset(TempBuffer, 0, 256);
-
-			/* What kind of line is this? */
-			if (Type == LOG_TYPE_RAW)
-			{
-				/* Copy data */
-				memcpy(TempBuffer, &GlbLog[Index + 2], (size_t)Length);
-
-				/* Flush it */
-				VideoGetTerminal()->FgColor = LOG_COLOR_DEFAULT;
-				printf("%s", (const char*)&TempBuffer[0]);
-
-				/* Increase */
-				Index += 2 + Length;
-			}
-			else 
-			{
-				/* We have two chunks to print */
-				char *StartPtr = &GlbLog[Index + 2];
-				char *StartMsgPtr = strchr(StartPtr, ' ');
-				int HeaderLen = (int)StartMsgPtr - (int)StartPtr;
-
-				/* Copy */
-				memcpy(TempBuffer, StartPtr, HeaderLen);
-
-				/* Select Color */
-				if (Type == LOG_TYPE_INFORMATION)
-					VideoGetTerminal()->FgColor = LOG_COLOR_INFORMATION;
-				else if (Type == LOG_TYPE_DEBUG)
-					VideoGetTerminal()->FgColor = LOG_COLOR_DEBUG;
-				else if (Type == LOG_TYPE_FATAL)
-					VideoGetTerminal()->FgColor = LOG_COLOR_ERROR;
-
-				/* Print header */
-				printf("[%s] ", (const char*)&TempBuffer[0]);
-
-				/* Clear */
-				memset(TempBuffer, 0, HeaderLen + 1);
-
-				/* Increament */
-				Index += 2 + HeaderLen + 1;
-
-				/* Copy data */
-				memcpy(TempBuffer, &GlbLog[Index], (size_t)Length);
-
-				/* Sanity */
-				if (Type != LOG_TYPE_FATAL)
-					VideoGetTerminal()->FgColor = LOG_COLOR_DEFAULT;
-
-				/* Finally, flush */
-				printf("%s", (const char*)&TempBuffer[0]);
-
-				/* Restore */
-				VideoGetTerminal()->FgColor = LOG_COLOR_DEFAULT;
-
-				/* Increase again */
-				Index += Length;
-			}
-		}
-	}
-	else if (Output == LogFile)
-	{
-		/* Temporary set to console */
-		GlbLogTarget = LogConsole;
-
-		/* Open log file 
-		 * But only if handle doesn't exist */
-		int Index = 0;
-		if (GlbLogFileHandle == UUID_INVALID)  {
-			FileSystemCode_t Code =
-				OpenFile("$sys/boot.txt",
-					__FILE_CREATE | __FILE_TRUNCATE,
-					__FILE_READ_ACCESS | __FILE_WRITE_ACCESS,
-					&GlbLogFileHandle);
-
-			if (Code != FsOk) {
-				LogFatal("SYST", "Failed to open/create system logfile: %u", Code);
-				return;
-			}
-
-			if (GlbLogBuffer == NULL) {
-				GlbLogBuffer = CreateBuffer(BUFSIZ);
-			}
-		}
-
-		/* Iterate */
-		while (Index < GlbLogIndex)
-		{
-			/* Get header information */
-			size_t BytesCopied = 0;
-			char Type = GlbLog[Index];
-			char Length = GlbLog[Index + 1];
-
-			/* Zero buffer */
-			memset(TempBuffer, 0, 256);
-
-			/* What kind of line is this? */
-			if (Type == LOG_TYPE_RAW) {
-				WriteBuffer(GlbLogBuffer,
-					(__CONST void*)&GlbLog[Index + 2],
-					(size_t)Length, &BytesCopied);
-				
-				/* Flush ? */
-				if (BytesCopied != (size_t)Length) {
-					WriteFile(GlbLogFileHandle, GlbLogBuffer, NULL);
-					WriteBuffer(GlbLogBuffer,
-						(__CONST void*)&GlbLog[Index + 2 + BytesCopied],
-						((size_t)Length) - BytesCopied, &BytesCopied);
-				}
-
-				/* Increase */
-				Index += 2 + Length;
-			}
-			else {
-				char HeaderBuffer[16];
-				char *StartPtr = &GlbLog[Index + 2];
-				char *StartMsgPtr = strchr(StartPtr, ' ');
-				int HeaderLen = (int)StartMsgPtr - (int)StartPtr;
-
-				/* Build header in HeaderBuffer */
-				memset(HeaderBuffer, 0, 16);
-				memcpy(TempBuffer, StartPtr, HeaderLen);
-				sprintf(HeaderBuffer, "[%s] ", TempBuffer);
-
-				/* Clear */
-				memset(TempBuffer, 0, HeaderLen + 1);
-				Index += 2 + HeaderLen + 1;
-				memcpy(TempBuffer, &GlbLog[Index], (size_t)Length);
-
-				/* Write */
-				WriteBuffer(GlbLogBuffer,
-					(__CONST void*)&HeaderBuffer[0],
-					strlen(&HeaderBuffer[0]), &BytesCopied);
-
-				/* Flush ? */
-				if (BytesCopied != strlen(&HeaderBuffer[0])) {
-					WriteFile(GlbLogFileHandle, GlbLogBuffer, NULL);
-					WriteBuffer(GlbLogBuffer,
-						(__CONST void*)&HeaderBuffer[BytesCopied],
-						strlen(&HeaderBuffer[0]) - BytesCopied, &BytesCopied);
-				}
-
-				/* Write again */
-				WriteBuffer(GlbLogBuffer,
-					(__CONST void*)&TempBuffer[0],
-					(size_t)Length, &BytesCopied);
-
-				/* Flush ? */
-				if (BytesCopied != (size_t)Length) {
-					WriteFile(GlbLogFileHandle, GlbLogBuffer, NULL);
-					WriteBuffer(GlbLogBuffer,
-						(__CONST void*)&TempBuffer[BytesCopied],
-						((size_t)Length) - BytesCopied, &BytesCopied);
-				}
-
-				/* Increase again */
-				Index += Length;
-			}
-		}
-
-		/* Done, flush */
-		FlushFile(GlbLogFileHandle);
-		GlbLogTarget = LogFile;
-	}
+    // Update status, flush log
+    LogObject.AllowRender = Enable;
+    if (Enable) {
+        LogRenderMessages();
+    }
 }
 
-/* Internal Log Print */
-void LogInternalPrint(int LogType, const char *Header, const char *Message)
+/* LogAppendMessage
+ * Appends a new message of the given parameters to the global log object. If the buffer
+ * reaches the end wrap-around will happen. */
+void
+LogAppendMessage(
+    _In_ MCoreLogType_t Type,
+    _In_ const char*    Header,
+    _In_ const char*    Message,
+    ...)
 {
-	/* Temporary format buffer 
-	 * used by fileprint */
-	char TempBuffer[256];
-	int HeaderLen = strlen(Header);
-	int MessageLen = strlen(Message);
+    // Variables
+    MCoreLogLine_t *Line = NULL;
+	va_list Arguments;
 
-	/* Acquire Lock */
-	CriticalSectionEnter(&GlbLogLock);
+    // Sanitize
+    assert(Header != NULL);
+    assert(Message != NULL);
 
-	/* Log it into memory - if we have room */
-	if (GlbLogIndex + MessageLen < (int)GlbLogSize)
-	{
-		/* Write header */
-		GlbLog[GlbLogIndex] = (char)LogType;
-		GlbLog[GlbLogIndex + 1] = (char)MessageLen;
+    // Get a new line object
+	CriticalSectionEnter(&LogObject.SyncObject);
+    Line = &LogObject.Lines[LogObject.LineIndex++];
+    if (LogObject.LineIndex == LogObject.NumberOfLines) {
+        LogObject.LineIndex = 0;
+    }
+	CriticalSectionLeave(&LogObject.SyncObject);
+    memset((void*)Line, 0, sizeof(MCoreLogLine_t));
+    Line->Type = Type;
+    snprintf(&Line->System[0], sizeof(Line->System), "[%s] ", Header);
+    
+	va_start(Arguments, Message);
+    vsnprintf(&Line->Data[0], sizeof(Line->Data) - 1, Message, Arguments);
+    va_end(Arguments);
 
-		/* Increase */
-		GlbLogIndex += 2;
-
-		if (LogType != LOG_TYPE_RAW)
-		{
-			/* Add Header */
-			memcpy(&GlbLog[GlbLogIndex], Header, HeaderLen);
-			GlbLogIndex += HeaderLen;
-
-			/* Add a space */
-			GlbLog[GlbLogIndex] = ' ';
-			GlbLogIndex++;
-		}
-
-		/* Add it */
-		memcpy(&GlbLog[GlbLogIndex], Message, MessageLen);
-		GlbLogIndex += MessageLen;
-
-		if (LogType != LOG_TYPE_RAW)
-		{
-			/* Add a newline */
-			GlbLog[GlbLogIndex] = '\n';
-			GlbLogIndex++;
-		}
-	}
-
-	/* Print it */
-	if (GlbLogTarget == LogConsole) 
-	{
-		/* Header first */
-		if (LogType != LOG_TYPE_RAW)
-		{
-			/* Select Color */
-			if (LogType == LOG_TYPE_INFORMATION)
-				VideoGetTerminal()->FgColor = LOG_COLOR_INFORMATION;
-			else if (LogType == LOG_TYPE_DEBUG)
-				VideoGetTerminal()->FgColor = LOG_COLOR_DEBUG;
-			else if (LogType == LOG_TYPE_FATAL)
-				VideoGetTerminal()->FgColor = LOG_COLOR_ERROR;
-
-			/* Print */
-			printf("[%s] ", Header);
-		}
-
-		/* Sanity */
-		if (LogType != LOG_TYPE_FATAL)
-			VideoGetTerminal()->FgColor = LOG_COLOR_DEFAULT;
-
-		/* Print */
-		if (LogType == LOG_TYPE_RAW)
-			printf("%s", Message);
-		else
-			printf("%s\n", Message);
-
-		/* Restore */
-		VideoGetTerminal()->FgColor = LOG_COLOR_DEFAULT;
-	}
-	else if (GlbLogTarget == LogFile) {
-		size_t BytesCopied = 0;
-		if (GlbLogFileHandle == UUID_INVALID) {
-			return;
-		}
-
-		/* Zero the buffer */
-		memset(TempBuffer, 0, sizeof(TempBuffer));
-
-		/* format it */
-		if (LogType == LOG_TYPE_RAW) {
-			memcpy(&TempBuffer[0], Message, MessageLen);
-		}
-		else {
-			sprintf(&TempBuffer[0], "[%s] %s\n", Header, Message);
-		}
-
-		/* Write again */
-		WriteBuffer(GlbLogBuffer,
-			(__CONST void*)&TempBuffer[0],
-			strlen((const char*)&TempBuffer[0]), &BytesCopied);
-
-		/* Flush ? */
-		if (BytesCopied != strlen((const char*)&TempBuffer[0])) {
-			WriteFile(GlbLogFileHandle, GlbLogBuffer, NULL);
-			WriteBuffer(GlbLogBuffer,
-				(__CONST void*)&TempBuffer[BytesCopied],
-				strlen((const char*)&TempBuffer[0]) - BytesCopied, &BytesCopied);
-		}
-	}
-
-	/* Release Lock */
-	CriticalSectionLeave(&GlbLogLock);
+    // Render messages
+    if (LogObject.AllowRender) {
+        LogRenderMessages();
+    }
 }
 
-/* Raw Log */
-void Log(const char *Message, ...)
-{
-	/* Output Buffer */
-	char oBuffer[256];
-	va_list ArgList;
-
-	/* Sanitize arguments */
-	if (Message == NULL) {
-		return;
-	}
-
-	/* Memset buffer */
-	memset(&oBuffer[0], 0, 256);
-
-	/* Format string */
-	va_start(ArgList, Message);
-	vsprintf(oBuffer, Message, ArgList);
-	va_end(ArgList);
-
-	/* Append newline */
-	strcat(oBuffer, "\n");
-
-	/* Print */
-	LogInternalPrint(LOG_TYPE_RAW, NULL, oBuffer);
+/* LogPipeStdout
+ * The log pipe for stdout when no windowing system is running. */
+MCorePipe_t *LogPipeStdout(void) {
+    return LogObject.STDOUT;
 }
 
-/* Raw Log */
-void LogRaw(const char *Message, ...)
-{
-	/* Output Buffer */
-	char oBuffer[256];
-	va_list ArgList;
-
-	/* Sanitize arguments */
-	if (Message == NULL) {
-		return;
-	}
-
-	/* Memset buffer */
-	memset(&oBuffer[0], 0, 256);
-
-	/* Format string */
-	va_start(ArgList, Message);
-	vsprintf(oBuffer, Message, ArgList);
-	va_end(ArgList);
-
-	/* Print */
-	LogInternalPrint(LOG_TYPE_RAW, NULL, oBuffer);
-}
-
-/* Output information to log */
-void LogInformation(const char *System, const char *Message, ...)
-{
-	/* Output Buffer */
-	char oBuffer[256];
-	va_list ArgList;
-
-	/* Sanitize arguments */
-	if (System == NULL
-		|| Message == NULL) {
-		return;
-	}
-
-	/* Memset buffer */
-	memset(&oBuffer[0], 0, 256);
-
-	/* Format string */
-	va_start(ArgList, Message);
-	vsprintf(oBuffer, Message, ArgList);
-	va_end(ArgList);
-
-	/* Print */
-	LogInternalPrint(LOG_TYPE_INFORMATION, System, oBuffer);
-}
-
-/* Output debug to log */
-void LogDebug(const char *System, const char *Message, ...)
-{
-	/* Output Buffer */
-	char oBuffer[256];
-	va_list ArgList;
-
-	/* Sanitize arguments */
-	if (System == NULL
-		|| Message == NULL) {
-		return;
-	}
-
-	/* Memset buffer */
-	memset(&oBuffer[0], 0, 256);
-
-	/* Format string */
-	va_start(ArgList, Message);
-	vsprintf(oBuffer, Message, ArgList);
-	va_end(ArgList);
-
-	/* Print */
-	LogInternalPrint(LOG_TYPE_DEBUG, System, oBuffer);
-}
-
-/* Output Error to log */
-void LogFatal(const char *System, const char *Message, ...)
-{
-	/* Output Buffer */
-	char oBuffer[256];
-	va_list ArgList;
-
-	/* Sanitize arguments */
-	if (System == NULL
-		|| Message == NULL) {
-		return;
-	}
-
-	/* Memset buffer */
-	memset(&oBuffer[0], 0, 256);
-
-	/* Format string */
-	va_start(ArgList, Message);
-	vsprintf(oBuffer, Message, ArgList);
-	va_end(ArgList);
-
-	/* Print */
-	LogInternalPrint(LOG_TYPE_FATAL, System, oBuffer);
+/* LogPipeStderr
+ * The log pipe for stderr when no windowing system is running. */
+MCorePipe_t *LogPipeStderr(void) {
+    return LogObject.STDERR;
 }
