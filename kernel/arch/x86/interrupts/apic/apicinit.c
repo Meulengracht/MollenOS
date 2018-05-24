@@ -576,9 +576,9 @@ ApicRecalibrateTimer(void)
     TRACE("ApicRecalibrateTimer()");
 
 	// Setup initial local apic timer registers
-	ApicWriteLocal(APIC_TIMER_VECTOR, INTERRUPT_LAPIC);
-	ApicWriteLocal(APIC_DIVIDE_REGISTER, APIC_TIMER_DIVIDER_1);
-	ApicWriteLocal(APIC_INITIAL_COUNT, 0xFFFFFFFF); // Set counter to max, it counts down
+	ApicWriteLocal(APIC_TIMER_VECTOR,       INTERRUPT_LAPIC);
+	ApicWriteLocal(APIC_DIVIDE_REGISTER,    APIC_TIMER_DIVIDER_1);
+	ApicWriteLocal(APIC_INITIAL_COUNT,      0xFFFFFFFF); // Set counter to max, it counts down
 
     // Sleep for 100 ms
     while (Tick < 100) {

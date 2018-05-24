@@ -142,28 +142,26 @@ ContextDump(
 	_In_ Context_t *Context)
 {
 	// Dump general registers
-	LogDebug(__MODULE, "RAX: 0x%llx, RBX 0x%llx, RCX 0x%llx, RDX 0x%llx",
+	WRITELINE("RAX: 0x%llx, RBX 0x%llx, RCX 0x%llx, RDX 0x%llx",
 		Context->Rax, Context->Rbx, Context->Rcx, Context->Rdx);
-	LogDebug(__MODULE, "R8: 0x%llx, R9 0x%llx, R10 0x%llx, R11 0x%llx",
+	WRITELINE("R8: 0x%llx, R9 0x%llx, R10 0x%llx, R11 0x%llx",
 		Context->R8, Context->R9, Context->R10, Context->R11);
-	LogDebug(__MODULE, "R12: 0x%llx, R13 0x%llx, R14 0x%llx, R15 0x%llx",
+	WRITELINE("R12: 0x%llx, R13 0x%llx, R14 0x%llx, R15 0x%llx",
 		Context->R12, Context->R13, Context->R14, Context->R15);
 
 	// Dump stack registers
-	LogDebug(__MODULE, "RSP 0x%llx (UserRSP 0x%llx), RBP 0x%llx, Flags 0x%llx",
+	WRITELINE("RSP 0x%llx (UserRSP 0x%llx), RBP 0x%llx, Flags 0x%llx",
         Context->Rsp, Context->UserRsp, Context->Rbp, Context->Rflags);
         
     // Dump copy registers
-	LogDebug(__MODULE, "RSI 0x%llx, RDI 0x%llx", Context->Rsi, Context->Rdi);
+	WRITELINE("RSI 0x%llx, RDI 0x%llx", Context->Rsi, Context->Rdi);
 
 	// Dump segments
-	LogDebug(__MODULE, "CS 0x%llx, DS 0x%llx, GS 0x%llx, ES 0x%llx, FS 0x%llx",
+	WRITELINE("CS 0x%llx, DS 0x%llx, GS 0x%llx, ES 0x%llx, FS 0x%llx",
 		Context->Cs, Context->Ds, Context->Gs, Context->Es, Context->Fs);
 
 	// Dump IRQ information
-	LogDebug(__MODULE, "IRQ 0x%llx, ErrorCode 0x%llx, UserSS 0x%llx",
+	WRITELINE("IRQ 0x%llx, ErrorCode 0x%llx, UserSS 0x%llx",
 		Context->Irq, Context->ErrorCode, Context->UserSs);
-
-	// Return 
 	return OsSuccess;
 }
