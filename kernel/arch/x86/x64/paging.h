@@ -25,7 +25,7 @@
 /* Includes 
  * - System */
 #include <os/osdefs.h>
-#include <mutex.h>
+#include <criticalsection.h>
 
 /* Paging Definitions
  * Defines paging structure sizes for the different hardware paging structures. */
@@ -70,9 +70,9 @@ PACKED_TYPESTRUCT(PageDirectoryTable, {
 /* Page Master Table Structure
  * Contains a table of page directory tables (level 4) */
 PACKED_TYPESTRUCT(PageMasterTable, {
-    uint64_t        pTables[ENTRIES_PER_PAGE];    // Seen by MMU
-    uint64_t        vTables[ENTRIES_PER_PAGE];    // Not seen by MMU
-    Mutex_t         Lock;
+    uint64_t            pTables[ENTRIES_PER_PAGE];    // Seen by MMU
+    uint64_t            vTables[ENTRIES_PER_PAGE];    // Not seen by MMU
+    CriticalSection_t   SyncObject;
 });
 
 

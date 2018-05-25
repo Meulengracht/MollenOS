@@ -392,19 +392,14 @@ InterruptRegister(
     
     // Unlock us
     CriticalSectionLeave(&TableLock);
-
-	// Trace
 	TRACE("Interrupt Id 0x%x", Entry->Id);
-
-    // Return the newly generated id
     return Entry->Id;
 Error:
     // Cleanup
+    CriticalSectionLeave(&TableLock);
     if (Entry != NULL) {
         kfree(Entry);
     }
-
-    // Return error
     return UUID_INVALID;
 }
 

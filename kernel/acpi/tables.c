@@ -28,6 +28,7 @@
 #include <acpiinterface.h>
 #include <heap.h>
 #include <debug.h>
+#include <assert.h>
 
 /* Globals 
  * - Global state keeping */
@@ -60,6 +61,7 @@ AcpiEnumarateMADT(
 				ACPI_MADT_LOCAL_APIC *AcpiCpu = (ACPI_MADT_LOCAL_APIC*)MadtEntry;
 
                 // Register core with system if it's available
+                assert(AcpiCpu->Id == AcpiCpu->ProcessorId);
                 if (AcpiCpu->Id != LOBYTE(GetCurrentDomain()->Cpu.PrimaryCore.Id) && (AcpiCpu->LapicFlags & 0x1)) {
                     RegisterApplicationCore(&GetCurrentDomain()->Cpu, AcpiCpu->Id, CpuStateShutdown, 0);
                 }

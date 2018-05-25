@@ -22,6 +22,7 @@
 
 /* Includes 
  * - System */
+#include <system/utils.h>
 #include <acpi.h>
 #include <apic.h>
 #include <thread.h>
@@ -50,7 +51,7 @@ ApicTimerHandler(
 {
     // Variables
 	Context_t *Regs     = NULL;
-	UUId_t CurrCpu      = ApicGetCpu();
+	UUId_t CurrCpu      = CpuGetCurrentId();
 	size_t TimeSlice    = 20;
 	int TaskPriority    = 0;
 

@@ -25,7 +25,7 @@
 /* Includes 
  * - System */
 #include <os/osdefs.h>
-#include <mutex.h>
+#include <criticalsection.h>
 
 /* Paging Definitions
  * Defines paging structure sizes for the different hardware paging structures. */
@@ -48,16 +48,16 @@
  * Denotes how the paging structure is for the X86-32
  * platform, this is different from X86-64 */
 PACKED_TYPESTRUCT(PageTable, {
-    uint32_t        Pages[ENTRIES_PER_PAGE];
+    uint32_t            Pages[ENTRIES_PER_PAGE];
 });
 
 /* Page Directory Structure
  * Denotes how the paging structure is for the X86-32
  * platform, this is different from X86-64 */
 PACKED_TYPESTRUCT(PageDirectory, {
-    uint32_t        pTables[ENTRIES_PER_PAGE];    // Seen by MMU
-    uint32_t        vTables[ENTRIES_PER_PAGE];    // Not seen by MMU
-    Mutex_t         Lock;                         // Not seen by MMU
+    uint32_t            pTables[ENTRIES_PER_PAGE];    // Seen by MMU
+    uint32_t            vTables[ENTRIES_PER_PAGE];    // Not seen by MMU
+    CriticalSection_t   SyncObject;                         // Not seen by MMU
 });
 
 

@@ -88,7 +88,6 @@ ThreadingEnable(void)
     Thread->AshId       = UUID_INVALID;
     Thread->Flags       = THREADING_KERNELMODE | THREADING_IDLE | THREADING_CPUBOUND;
     SchedulerThreadInitialize(Thread, Thread->Flags);
-    Thread->CoreId      = CpuGetCurrentId();
     Thread->Pipe        = PipeCreate(PIPE_DEFAULT_SIZE, 0);
     Thread->SignalQueue = CollectionCreate(KeyInteger);
     Key.Value           = (int)Thread->Id;
@@ -97,8 +96,10 @@ ThreadingEnable(void)
     Thread->AddressSpace = AddressSpaceCreate(ASPACE_TYPE_KERNEL);
     if (ThreadingRegister(Thread) != OsSuccess) {
         ERROR("Failed to register thread with system. Threading is not enabled.");
-        // @todo
+        CpuHalt();
     }
+
+    // Update active thread to new idle
     GetCurrentProcessorCore()->CurrentThread = Thread;
     return CollectionAppend(&Threads, CollectionCreateNode(Key, Thread));
 }

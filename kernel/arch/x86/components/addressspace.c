@@ -177,6 +177,7 @@ AddressSpaceGetCurrent(void)
 		return &KernelAddressSpace;
 	}
 	else {
+        assert(CurrentThread->AddressSpace != NULL);
 		return CurrentThread->AddressSpace;
 	}
 }
@@ -340,7 +341,7 @@ AddressSpaceUnmap(
             }
         }
         else {
-            WARNING("Freeing unmapped address 0x%x", (Address + (i * PAGE_SIZE)));
+            TRACE("Ignoring free on unmapped address 0x%x", (Address + (i * PAGE_SIZE)));
         }
 	}
 	return OsSuccess;

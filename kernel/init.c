@@ -25,6 +25,7 @@
  * - System */
 #include <revision.h>
 
+#include <component/domain.h>
 #include <system/setup.h>
 #include <system/iospace.h>
 #include <system/utils.h>
@@ -75,12 +76,14 @@ MCoreInitialize(
     Flags_t SystemsInitialized  = 0;
     Flags_t SystemsAvailable    = 0;
     
-    // Initialize all our static memory systems
-    // and global variables
+    // Initialize all our static memory systems and global variables
     memcpy(&GlobalBootInformation, BootInformation, sizeof(Multiboot_t));
     Crc32GenerateTable();
     InterruptInitialize();
     LogInitialize();
+    
+    // Initialize the domain
+    InitializePrimaryDomain();
 
     // Print build/info-header
     PrintHeader(&GlobalBootInformation);

@@ -20,13 +20,15 @@
  *  - Critical Sections implementation used interrupt-disabling
  *    and spinlocks for synchronized access
  */
+#define __MODULE "LOCK"
 
 /* Includes 
  * - System */
 #include <system/interrupts.h>
+#include <system/utils.h>
 #include <criticalsection.h>
 #include <interrupts.h>
-#include <threading.h>
+#include <debug.h>
 #include <heap.h>
 
 /* Includes
@@ -42,10 +44,10 @@ CriticalSectionCreate(
     // Variables
     CriticalSection_t *CSection = NULL;
 
-	// Initialize a new instance
-	CSection = (CriticalSection_t*)kmalloc(sizeof(CriticalSection_t));
-	CriticalSectionConstruct(CSection, Flags);
-	return CSection;
+    // Initialize a new instance
+    CSection = (CriticalSection_t*)kmalloc(sizeof(CriticalSection_t));
+    CriticalSectionConstruct(CSection, Flags);
+    return CSection;
 }
 
 /* CriticalSectionConstruct
@@ -56,11 +58,11 @@ CriticalSectionConstruct(
     _In_ int Flags)
 {
     // Initiate all members to default state
-	Section->Flags      = Flags;
-	Section->State      = 0;
-	Section->References = 0;
-	Section->Owner      = UUID_INVALID;
-	SpinlockReset(&Section->Lock);
+    Section->Flags      = Flags;
+    Section->State      = 0;
+    Section->References = 0;
+    Section->Owner      = UUID_INVALID;
+    SpinlockReset(&Section->Lock);
 }
 
 /* CriticalSectionDestroy
@@ -69,7 +71,7 @@ void
 CriticalSectionDestroy(
     _In_ CriticalSection_t *Section)
 {
-	_CRT_UNUSED(Section);
+    _CRT_UNUSED(Section);
 }
 
 /* CriticalSectionEnter
@@ -78,26 +80,31 @@ OsStatus_t
 CriticalSectionEnter(
     _In_ CriticalSection_t *Section)
 {
-	// Variables
-	IntStatus_t IrqState = 0;
+    // Variables
+    IntStatus_t IrqState = 0;
 
-	// If the section is reentrancy supported, check
+    // If the section is reentrancy supported, check
+    // Critical sections are not owned by threads but instead cpu's as only
+    // one cpu can own the lock at the time
     if (Section->References > 0 && (Section->Flags & CRITICALSECTION_REENTRANCY)) {
-        if (Section->Owner == ThreadingGetCurrentThreadId()) {
+        if (Section->Owner == CpuGetCurrentId()) {
             Section->References++;
-		    return OsSuccess;
+            return OsSuccess;
         }
+    }
+    else if (Section->References > 0 && Section->Owner == CpuGetCurrentId()) {
+        FATAL(FATAL_SCOPE_KERNEL, "Tried to relock a non-recursive lock 0x%x", Section);
     }
 
     // Disable interrupts before we try to acquire the lock
-	IrqState = InterruptDisable();
-	SpinlockAcquire(&Section->Lock);
+    IrqState = InterruptDisable();
+    SpinlockAcquire(&Section->Lock);
 
-	// Update lock
-	Section->Owner = ThreadingGetCurrentThreadId();
-	Section->References = 1;
-	Section->State = IrqState;
-	return OsSuccess;
+    // Update lock
+    Section->Owner      = CpuGetCurrentId();
+    Section->References = 1;
+    Section->State      = IrqState;
+    return OsSuccess;
 }
 
 /* CriticalSectionLeave
@@ -107,14 +114,14 @@ OsStatus_t
 CriticalSectionLeave(
     _In_ CriticalSection_t *Section)
 {
-	// Sanitize references
-	assert(Section->References > 0);
+    // Sanitize references
+    assert(Section->References > 0);
     
-	Section->References--;
-	if (Section->References == 0) {
-		Section->Owner = UUID_INVALID;
-		SpinlockRelease(&Section->Lock);
-		InterruptRestoreState(Section->State);
-	}
+    Section->References--;
+    if (Section->References == 0) {
+        Section->Owner = UUID_INVALID;
+        SpinlockRelease(&Section->Lock);
+        InterruptRestoreState(Section->State);
+    }
     return OsSuccess;
 }

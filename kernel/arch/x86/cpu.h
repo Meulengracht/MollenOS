@@ -121,27 +121,21 @@ enum CpuFeatures{
 	CPUID_FEAT_EDX_PBE = 1 << 31
 };
 
-/* CpuInitialize
- * Initializes the CPU and gathers available
- * information about it */
-KERNELAPI
-void
-KERNELABI
-CpuInitialize(void);
+/* CpuInitializeFeatures
+ * Initializes all onboard features on the running core. This can be extended features
+ * as SSE, MMX, FPU, AVX etc */
+KERNELAPI void KERNELABI
+CpuInitializeFeatures(void);
 
 /* CpuSmpInitialize
  * Initializes an SMP environment and boots the
  * available cores in the system */
-KERNELAPI
-void
-KERNELABI
+KERNELAPI void KERNELABI
 CpuSmpInitialize(void);
 
 /* CpuHasFeatures
  * Determines if the cpu has the requested features */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 CpuHasFeatures(Flags_t Ecx, Flags_t Edx);
 
 #endif // !_x86_CPU_H_

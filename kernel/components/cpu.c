@@ -35,35 +35,19 @@
  * We do not need to support more than 256 cpus because of APIC id's on the x86 arch. */
 static SystemCpuCore_t* CpuStorageTable[256] = { 0 };
 
-/* InitializeProcessor
- * Initializes the cpu of an domain with the given parameters. */
+/* RegisterPrimaryCore
+ * Registers the primary core for the given cpu. The core count and the
+ * application-core will be initialized on first call to this function. This also allocates a 
+ * new instance of the cpu-core. */
 void
-InitializeProcessor(
-    _In_ SystemCpu_t*       Cpu,
-    _In_ const char*        Vendor,
-    _In_ const char*        Brand,
-    _In_ int                NumberOfCores,
-    _In_ uintptr_t*         Data)
+RegisterPrimaryCore(
+    _In_ SystemCpu_t*       Cpu)
 {
     // Debug
-    TRACE("InitializeProcessor(%s, %s, %i)", Vendor, Brand, NumberOfCores);
+    TRACE("RegisterPrimaryCore(%s, %s, %i)", &Cpu->Vendor[0], &Cpu->Brand[0], Cpu->NumberOfCores);
+    assert(Cpu->PrimaryCore.Id < 256);
 
-    // Sanitize params
-    assert(Cpu != NULL);
-    assert(NumberOfCores > 0);
-    assert(Vendor != NULL);
-    assert(Brand != NULL);
-
-    // Initialize the cpu
-    memset((void*)Cpu, 0, sizeof(SystemCpu_t));
-    memcpy(&Cpu->Vendor[0], Vendor, strnlen(Vendor, 15));
-    memcpy(&Cpu->Brand[0],  Brand,  strnlen(Brand, 63));
-    memcpy(&Cpu->Data[0],   Data,   4 * sizeof(uintptr_t));
-    Cpu->NumberOfCores      = NumberOfCores;
-
-    // Initialize the primary core
-    Cpu->PrimaryCore.Id     = CpuGetCurrentId();
-    Cpu->PrimaryCore.State  = CpuStateRunning;
+    // Register in lookup table
     CpuStorageTable[Cpu->PrimaryCore.Id] = &Cpu->PrimaryCore;
 }
 
@@ -125,7 +109,7 @@ ActivateApplicationCore(
     InterruptEnable();
 
     // Debug
-    TRACE("Core %u is now active", GetCurrentProcessorCore()->Id);
+    TRACE("Core %u is now active", Core->Id);
 
     // Enter idle loop
 	while (1) {

@@ -72,7 +72,6 @@ ThreadingYieldHandler(
 {
     // Variables
 	Context_t *Regs     = NULL;
-	UUId_t CurrCpu      = ApicGetCpu();
 	size_t TimeSlice    = 20;
 	int TaskPriority    = 0;
 
@@ -85,7 +84,7 @@ ThreadingYieldHandler(
 
 	/* If we just got hold of idle task, well fuck it disable timer 
 	 * untill we get another task */
-	if (!ThreadingIsCurrentTaskIdle(CurrCpu)) {
+	if (!ThreadingIsCurrentTaskIdle(CpuGetCurrentId())) {
 		ApicSetTaskPriority(61 - TaskPriority);
 		ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * TimeSlice);
 	}
@@ -283,7 +282,7 @@ ThreadingImpersonate(
 
 	// Instantiate values
     Key.Value       = (int)Thread->Id;
-    Cpu             = ApicGetCpu();
+    Cpu             = CpuGetCurrentId();
     Current         = ThreadingGetCurrentThread(Cpu);
 	SubContext      = (x86Thread_t*)CollectionGetDataByKey(Threads, Key, 0);
     
@@ -316,7 +315,7 @@ _ThreadingSwitch(
 	// Variables
 	MCoreThread_t *Thread   = NULL;
 	x86Thread_t *Threadx    = NULL;
-	UUId_t Cpu              = ApicGetCpu();
+	UUId_t Cpu              = CpuGetCurrentId();
     DataKey_t Key;
 
     // Sanitize the status of threading - return default values

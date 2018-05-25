@@ -29,6 +29,7 @@
 #include <system/utils.h>
 #include <interrupts.h>
 #include <debug.h>
+#include <apic.h>
 #include <cpu.h>
 
 #if defined(_MSC_VER) && !defined(__clang__)
@@ -44,7 +45,6 @@
  * We need access to these in order to implement
  * the interface */
 __EXTERN volatile size_t GlbTimerTicks[64];
-__EXTERN UUId_t ApicGetCpu(void);
 
 /* Extern assembly functions
  * These utilities are located in boot.asm */
@@ -79,55 +79,72 @@ TrimWhitespaces(char *str)
     return str;
 }
 
-/* CpuInitialize
- * Initializes the CPU and gathers available
- * information about it */
-void 
-CpuInitialize(void)
+/* InitializeProcessor
+ * Initializes the cpu as much as neccessary for the system to be in a running state. This
+ * also initializes the primary core of the cpu structure. */
+void
+InitializeProcessor(
+    _In_ SystemCpu_t*       Cpu)
 {
 	// Variables
 	uint32_t CpuRegisters[4]    = { 0 };
-    uintptr_t CpuData[4]        = { 0 };
-    char CpuVendor[16]          = { 0 };
-    char CpuBrand[64]           = { 0 };
-    char *BrandPointer          = &CpuBrand[0];
-    int NumberOfCores           = 1;
+    char TemporaryBrand[64]     = { 0 };
+    char *BrandPointer          = &TemporaryBrand[0];
+    __get_cpuid(0, CpuRegisters);
+    
+    // Set default number of cores params
+    Cpu->NumberOfCores          = 1;
 
-	// Has init already run?
-	if (GetCurrentDomain()->Cpu.PrimaryCore.State != CpuStateRunning) {
-	    __get_cpuid(0, CpuRegisters);
+    // Initialize the default params of primary core
+    Cpu->PrimaryCore.Id         = 0;
+    Cpu->PrimaryCore.State      = CpuStateRunning;
+    Cpu->PrimaryCore.External   = 0;
 
-		// Store cpu-id level and store the cpu vendor
-		CpuData[CPU_DATA_MAXLEVEL] = CpuRegisters[0];
-        memcpy(&CpuVendor[0], &CpuRegisters[1], 4);
-        memcpy(&CpuVendor[4], &CpuRegisters[3], 4);
-        memcpy(&CpuVendor[8], &CpuRegisters[2], 4);
+    // Store cpu-id level and store the cpu vendor
+    Cpu->Data[CPU_DATA_MAXLEVEL] = CpuRegisters[0];
+    memcpy(&Cpu->Vendor[0], &CpuRegisters[1], 4);
+    memcpy(&Cpu->Vendor[4], &CpuRegisters[3], 4);
+    memcpy(&Cpu->Vendor[8], &CpuRegisters[2], 4);
 
-		// Does it support retrieving features?
-		if (CpuData[CPU_DATA_MAXLEVEL] >= 1) {
-	        __get_cpuid(1, CpuRegisters);
-			CpuData[CPU_DATA_FEATURES_ECX]  = CpuRegisters[2];
-			CpuData[CPU_DATA_FEATURES_EDX]  = CpuRegisters[3];
-            NumberOfCores                   = (CpuRegisters[1] >> 16) & 0xFF;
-		}
+    // Does it support retrieving features?
+    if (Cpu->Data[CPU_DATA_MAXLEVEL] >= 1) {
+        __get_cpuid(1, CpuRegisters);
+        Cpu->Data[CPU_DATA_FEATURES_ECX]    = CpuRegisters[2];
+        Cpu->Data[CPU_DATA_FEATURES_EDX]    = CpuRegisters[3];
+        Cpu->NumberOfCores                  = (CpuRegisters[1] >> 16) & 0xFF;
+        Cpu->PrimaryCore.Id                 = (CpuRegisters[1] >> 24) & 0xFF;
 
-		// Get extensions supported
-	    __get_cpuid(0x80000000, CpuRegisters);
-
-		// Extract the processor brand string if it's supported
-		CpuData[CPU_DATA_MAXEXTENDEDLEVEL] = CpuRegisters[0];
-        if (CpuData[CPU_DATA_MAXEXTENDEDLEVEL] >= 0x80000004) {
-            __get_cpuid(0x80000002, CpuRegisters); // First 16 bytes
-            memcpy(&CpuBrand[0], &CpuRegisters[0], 16);
-            __get_cpuid(0x80000003, CpuRegisters); // Middle 16 bytes
-            memcpy(&CpuBrand[16], &CpuRegisters[0], 16);
-            __get_cpuid(0x80000004, CpuRegisters); // Last 16 bytes
-            memcpy(&CpuBrand[32], &CpuRegisters[0], 16);
-            BrandPointer = TrimWhitespaces(BrandPointer);
+        // This can be reported as 0, which means we assume a single cpu
+        if (Cpu->NumberOfCores == 0) {
+            Cpu->NumberOfCores = 1;
         }
-        InitializeProcessor(&GetCurrentDomain()->Cpu, &CpuVendor[0], BrandPointer, NumberOfCores, &CpuData[0]);
-	}
+    }
 
+    // Get extensions supported
+    __get_cpuid(0x80000000, CpuRegisters);
+
+    // Extract the processor brand string if it's supported
+    Cpu->Data[CPU_DATA_MAXEXTENDEDLEVEL] = CpuRegisters[0];
+    if (Cpu->Data[CPU_DATA_MAXEXTENDEDLEVEL] >= 0x80000004) {
+        __get_cpuid(0x80000002, CpuRegisters); // First 16 bytes
+        memcpy(&TemporaryBrand[0], &CpuRegisters[0], 16);
+        __get_cpuid(0x80000003, CpuRegisters); // Middle 16 bytes
+        memcpy(&TemporaryBrand[16], &CpuRegisters[0], 16);
+        __get_cpuid(0x80000004, CpuRegisters); // Last 16 bytes
+        memcpy(&TemporaryBrand[32], &CpuRegisters[0], 16);
+        BrandPointer = TrimWhitespaces(BrandPointer);
+        memcpy(&Cpu->Brand[0], BrandPointer, strlen(BrandPointer));
+    }
+
+    CpuInitializeFeatures();
+}
+
+/* CpuInitializeFeatures
+ * Initializes all onboard features on the running core. This can be extended features
+ * as SSE, MMX, FPU, AVX etc */
+void
+CpuInitializeFeatures(void)
+{
 	// Can we enable FPU?
 	if (CpuHasFeatures(0, CPUID_FEAT_EDX_FPU) == OsSuccess) {
 		CpuEnableFpu();
@@ -165,8 +182,6 @@ CpuHasFeatures(Flags_t Ecx, Flags_t Edx)
 			return OsError;
 		}
 	}
-
-	// All requested features present
 	return OsSuccess;
 }
 
@@ -175,26 +190,25 @@ CpuHasFeatures(Flags_t Ecx, Flags_t Edx)
 UUId_t
 CpuGetCurrentId(void)
 {
-	// Get apic id
-	return ApicGetCpu();
+    if (ApicIsInitialized() == OsSuccess) {
+        return (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
+    }
+
+    // If the local apic is not initialized this is single-core old system
+    return GetCurrentDomain()->Cpu.PrimaryCore.Id;
 }
 
 /* CpuIdle
  * Enters idle mode for the current cpu */
 void
-CpuIdle(void)
-{
-	// Don't disable interrupts
-	// simply just wait for the next
+CpuIdle(void) {
 	__hlt();
 }
 
 /* CpuHalt
  * Halts the current cpu - rendering cpu useless */
 void
-CpuHalt(void)
-{
-	// Disable interrupts and idle
+CpuHalt(void) {
 	InterruptDisable();
 	__hlt();
 }
@@ -211,7 +225,8 @@ CpuGetTicks(void) {
 void
 CpuFlushInstructionCache(
     _In_Opt_ void*  Start, 
-    _In_Opt_ size_t Length) {
+    _In_Opt_ size_t Length) 
+{
     // Unused
     _CRT_UNUSED(Start);
     _CRT_UNUSED(Length);

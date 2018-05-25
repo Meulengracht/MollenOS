@@ -65,8 +65,6 @@ SystemInformationQuery(
     Information->MemoryOverview.UserDriverMemorySize    = MEMORY_LOCATION_RING3_IOSPACE_END - MEMORY_LOCATION_RING3_IOSPACE;
     Information->MemoryOverview.UserHeapStart           = MEMORY_LOCATION_RING3_HEAP;
     Information->MemoryOverview.UserHeapSize            = MEMORY_LOCATION_RING3_HEAP_END - MEMORY_LOCATION_RING3_HEAP;
-
-	// Done
 	return OsSuccess;
 }
 
@@ -108,7 +106,6 @@ SystemFeaturesInitialize(
     // Handle the system initialization, this should only
     // handle things that have absoultely no dependences at all
     if (Systems & SYSTEM_FEATURE_INITIALIZE) {
-        CpuInitialize();
         GdtInitialize();
         IdtInitialize();
         PicInitialize();

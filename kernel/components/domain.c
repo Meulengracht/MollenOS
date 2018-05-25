@@ -20,11 +20,28 @@
  *   of a system domain.
  */
 #include <component/domain.h>
+#include <component/cpu.h>
 
 /* Global storage
  * Global static storage/variables for managing domains. */
 static SystemDomain_t CurrentDomain = { { { 0 } } };
 static Collection_t Domains         = COLLECTION_INIT(KeyInteger);
+
+/* InitializePrimaryDomain
+ * Initializes the primary domain of the current machine. */
+void 
+InitializePrimaryDomain(void)
+{
+    // Initialize the processor of the machine
+    InitializeProcessor(&CurrentDomain.Cpu);
+    RegisterPrimaryCore(&CurrentDomain.Cpu);
+
+    // Initialize memory of the domain
+    // @todo
+
+    // Initialize the interrupt controller of the domain
+    // @todo
+}
 
 /* GetCurrentDomain
  * Retrieves a pointer for the current domain. The current domain

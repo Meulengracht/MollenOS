@@ -39,6 +39,11 @@ typedef struct _SystemDomain {
     SystemInterruptController_t InterruptController;
 } SystemDomain_t;
 
+/* InitializePrimaryDomain
+ * Initializes the primary domain of the current machine. */
+KERNELAPI void KERNELABI
+InitializePrimaryDomain(void);
+
 /* GetCurrentDomain
  * Retrieves a pointer for the current domain. The current domain
  * is the domain that the calling cpu is bound to. */

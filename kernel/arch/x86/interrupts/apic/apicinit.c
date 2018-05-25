@@ -24,6 +24,8 @@
 
 /* Includes 
  * - System */
+#include <component/domain.h>
+#include <component/cpu.h>
 #include <system/interrupts.h>
 #include <system/utils.h>
 #include <system/io.h>
@@ -48,7 +50,6 @@ size_t GlbTimerQuantum = APIC_DEFAULT_QUANTUM;
 volatile size_t GlbTimerTicks[64];
 Collection_t *GlbIoApics = NULL;
 uintptr_t GlbLocalApicBase = 0;
-UUId_t GlbBootstrapCpuId = 0;
 int GlbIoApicI8259Pin = 0;
 int GlbIoApicI8259Apic = 0;
 
@@ -67,27 +68,17 @@ __EXTERN InterruptStatus_t ApicTimerHandler(void *Args);
  * to locate LVT information in the ACPI tables
  * and if not it defaults to sane values defined in
  * the APIC spec */
-void ApicSetupLvt(UUId_t Cpu, int Lvt)
+void
+ApicSetupLvt(int Lvt)
 {
 	/* Variables for iteration */
 	CollectionItem_t *Node;
 	uint32_t Temp = 0;
 
-	/* Iterate */
-	_foreach(Node, GlbAcpiNodes) 
-	{
-		if (Node->Key.Value == ACPI_MADT_TYPE_LOCAL_APIC_NMI) 
-		{
-			/* Cast */
-			ACPI_MADT_LOCAL_APIC_NMI *ApicNmi =
-				(ACPI_MADT_LOCAL_APIC_NMI*)Node->Data;
-
-			/* Is it for us? */
-			if (ApicNmi->ProcessorId == 0xFF
-				|| ApicNmi->ProcessorId == Cpu)
-			{
-				/* Yay, now we want to extract the settings
-				 * given by ACPI and use them! */
+	_foreach(Node, GlbAcpiNodes) {
+		if (Node->Key.Value == ACPI_MADT_TYPE_LOCAL_APIC_NMI) {
+			ACPI_MADT_LOCAL_APIC_NMI *ApicNmi = (ACPI_MADT_LOCAL_APIC_NMI*)Node->Data;
+			if (ApicNmi->ProcessorId == 0xFF || ApicNmi->ProcessorId == CpuGetCurrentId()) {
 				if (ApicNmi->Lint == Lvt) {
 					Temp = APIC_NMI_ROUTE;
 					Temp |= (AcpiGetPolarityMode(ApicNmi->IntiFlags, 0) << 13);
@@ -115,7 +106,7 @@ void ApicSetupLvt(UUId_t Cpu, int Lvt)
 
 	/* Sanity, only BP gets LVT 
 	 * so if this cpu doesn't equal, mask the interrupt */
-	if (Cpu != GlbBootstrapCpuId) {
+	if (CpuGetCurrentId() != GetCurrentDomain()->Cpu.PrimaryCore.Id) {
 		Temp |= APIC_MASKED;
 	}
 
@@ -408,9 +399,9 @@ void
 ApicStartTimer(
     _In_ size_t Quantum)
 {
-	ApicWriteLocal(APIC_TIMER_VECTOR, APIC_TIMER_ONESHOT | INTERRUPT_LAPIC);
-	ApicWriteLocal(APIC_DIVIDE_REGISTER, APIC_TIMER_DIVIDER_1);
-	ApicWriteLocal(APIC_INITIAL_COUNT, Quantum);
+	ApicWriteLocal(APIC_TIMER_VECTOR,       APIC_TIMER_ONESHOT | INTERRUPT_LAPIC);
+	ApicWriteLocal(APIC_DIVIDE_REGISTER,    APIC_TIMER_DIVIDER_1);
+	ApicWriteLocal(APIC_INITIAL_COUNT,      Quantum);
 }
 
 /* ApicInitialize
@@ -465,10 +456,7 @@ ApicInitialize(void)
     WARNING("LAPIC address at 0x%x", OriginalApAddress);
     MmVirtualMap(NULL, OriginalApAddress, RemapTo, PAGE_CACHE_DISABLE);
     GlbLocalApicBase    = RemapTo + (OriginalApAddress & 0xFFF);
-
-	// Get the bootstrap processor id, and save it
 	BspApicId           = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
-	GlbBootstrapCpuId   = BspApicId;
 
 	// Do some initial shared Apic setup
 	// for this processor id
@@ -498,8 +486,8 @@ ApicInitialize(void)
 	ApicEnable();
 
 	// Setup LVT0 & LVT1
-	ApicSetupLvt(BspApicId, 0);
-	ApicSetupLvt(BspApicId, 1);
+	ApicSetupLvt(0);
+	ApicSetupLvt(1);
 
 	// Do the last shared setup code, which 
 	// sets up error registers 
@@ -531,35 +519,31 @@ ApicInitialize(void)
 	ApicSendEoi(0, 0);
 }
 
-/* Initialize the local APIC controller
- * on the ap cpu core. This 
- * code also sets up the local APIC timer
- * with a default Quantum */
-void ApicInitAp(void)
+/* ApicIsInitialized
+ * Returns OsSuccess if the local apic is initialized and memory mapped. */
+OsStatus_t
+ApicIsInitialized(void)
 {
-	/* Variables for AP setup */
-	UUId_t ApicApId = 0;
-	ApicApId = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
+    return (GlbLocalApicBase == 0) ? OsError : OsSuccess;
+}
 
-	/* Do some initial shared Apic setup
-	 * for this processor id */
-	ApicInitialSetup(ApicApId);
-
-	/* Actually enable APIC on the
-	 * ap processor, afterwards
-	 * we do some more setup */
+/* InitializeLocalApicForApplicationCore
+ * Enables the local apic and sets it's default state. Also initializes the 
+ * local apic timer, but does not start it. */
+void
+InitializeLocalApicForApplicationCore(void)
+{
+    // Perform inital preperations for the APIC
+	ApicInitialSetup(CpuGetCurrentId());
 	ApicEnable();
 
-	/* Setup LVT0 and LVT1 */
-	ApicSetupLvt(ApicApId, 0);
-	ApicSetupLvt(ApicApId, 1);
+    // Setup the LVT channels
+	ApicSetupLvt(0);
+	ApicSetupLvt(1);
 
-	/* Do the last shared setup code, which 
-	 * sets up error registers */
+    // Setup the ESR and disable timer
 	ApicSetupESR();
-
-	/* Start the timer to a defualt time-length */
-	ApicStartTimer(GlbTimerQuantum * 20);
+    ApicStartTimer(0);
 }
 
 /* ApicRecalibrateTimer

@@ -54,15 +54,13 @@ SmpApplicationCoreEntry(void)
 {
 	// Disable interrupts and setup descriptors
 	InterruptDisable();
+	CpuInitializeFeatures();
 	GdtInstall();
 	IdtInstall();
 
-	// Initialize CPU
-	CpuInitialize();
-
-	// Initialize Memory
+	// Initialize memory and the local apic (needs mappings)
     InitializeMemoryForApplicationCore();
-	ApicInitAp();
+	InitializeLocalApicForApplicationCore();
 
     // Install the TSS before any multitasking
 	TssInitialize(0);
@@ -91,7 +89,7 @@ SmpBootCore(
 		return;
     }
 
-    // Stall - check if it booted, give it 200ms
+    // Wait - check if it booted, give it 200ms
     // If it didn't boot then send another SIPI and give up
     CpuStall(200);
     if (Core->State != CpuStateRunning) {

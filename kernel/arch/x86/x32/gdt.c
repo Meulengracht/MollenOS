@@ -23,7 +23,7 @@
 
 /* Includes
  * - System */
-#include <component/cpu.h>
+#include <system/utils.h>
 #include <memory.h>
 #include <arch.h>
 #include <heap.h>
@@ -42,37 +42,34 @@ __EXTERN void TssInstall(int GdtIndex);
 /* Globals
  * Static storage as we have no memory allocator here */
 GdtObject_t __GdtTableObject; // Don't make static, used in asm
-static GdtDescriptor_t __GdtDescriptors[GDT_MAX_DESCRIPTORS];
-static TssDescriptor_t *__TssDescriptors[GDT_MAX_TSS];
-static TssDescriptor_t __BootTss;
-static int __GblGdtIndex = 0;
+static GdtDescriptor_t Descriptors[GDT_MAX_DESCRIPTORS]    = { 0 };
+static TssDescriptor_t *TssPointers[GDT_MAX_TSS]           = { 0 };
+static TssDescriptor_t BootTss                             = { 0 };
+static _Atomic(int) GdtIndicer                             = ATOMIC_VAR_INIT(0);
 
 /* GdtInstallDescriptor
  * Helper for installing a new gdt descriptor into
  * the descriptor table, a memory base, memory limit
  * access flags and a grandularity must be provided to
  * configurate the segment */
-void
+int
 GdtInstallDescriptor(
-    _In_ uint32_t Base, 
-    _In_ uint32_t Limit,
-    _In_ uint8_t Access, 
-    _In_ uint8_t Grandularity)
+    _In_ uint32_t       Base, 
+    _In_ uint32_t       Limit,
+    _In_ uint8_t        Access, 
+    _In_ uint8_t        Grandularity)
 {
-	// Prepare the entry by zeroing it
-	memset(&__GdtDescriptors[__GblGdtIndex], 0, sizeof(GdtDescriptor_t));
+    int GdtIndex = atomic_fetch_add(&GdtIndicer, 1);
 
 	// Fill descriptor
-	__GdtDescriptors[__GblGdtIndex].BaseLow = (uint16_t)(Base & 0xFFFF);
-	__GdtDescriptors[__GblGdtIndex].BaseMid = (uint8_t)((Base >> 16) & 0xFF);
-	__GdtDescriptors[__GblGdtIndex].BaseHigh = (uint8_t)((Base >> 24) & 0xFF);
-	__GdtDescriptors[__GblGdtIndex].LimitLow = (uint16_t)(Limit & 0xFFFF);
-	__GdtDescriptors[__GblGdtIndex].Flags = (uint8_t)((Limit >> 16) & 0x0F);
-	__GdtDescriptors[__GblGdtIndex].Flags |= (Grandularity & 0xF0);
-	__GdtDescriptors[__GblGdtIndex].Access = Access;
-
-	// Increase index so we know where to write next
-	__GblGdtIndex++;
+	Descriptors[GdtIndex].BaseLow       = (uint16_t)(Base & 0xFFFF);
+	Descriptors[GdtIndex].BaseMid       = (uint8_t)((Base >> 16) & 0xFF);
+	Descriptors[GdtIndex].BaseHigh      = (uint8_t)((Base >> 24) & 0xFF);
+	Descriptors[GdtIndex].LimitLow      = (uint16_t)(Limit & 0xFFFF);
+	Descriptors[GdtIndex].Flags         = (uint8_t)((Limit >> 16) & 0x0F);
+	Descriptors[GdtIndex].Flags         |= (Grandularity & 0xF0);
+	Descriptors[GdtIndex].Access        = Access;
+    return GdtIndex;
 }
 
 /* GdtInitialize
@@ -83,8 +80,7 @@ GdtInitialize(void)
 {
 	// Setup gdt-table object
 	__GdtTableObject.Limit  = (sizeof(GdtDescriptor_t) * GDT_MAX_DESCRIPTORS) - 1;
-	__GdtTableObject.Base   = (uint32_t)&__GdtDescriptors[0];
-	__GblGdtIndex           = 0;
+	__GdtTableObject.Base   = (uint32_t)&Descriptors[0];
 
 	// Install NULL descriptor
 	GdtInstallDescriptor(0, 0, 0, 0);
@@ -120,9 +116,6 @@ GdtInitialize(void)
 		(MEMORY_SEGMENT_EXTRA_SIZE - 1) / PAGE_SIZE,
 		GDT_RING3_DATA, GDT_GRANULARITY);
 
-	// Zero task descriptors
-	memset(&__TssDescriptors, 0, sizeof(__TssDescriptors));
-
 	// Prepare gdt and tss for boot cpu
 	GdtInstall();
 	TssInitialize(1);
@@ -139,39 +132,37 @@ TssInitialize(
 	// Variables
 	uint32_t tBase  = 0;
 	uint32_t tLimit = 0;
-	int TssIndex    = __GblGdtIndex;
-    UUId_t CoreId   = GetCurrentProcessorCore()->Id;
+    UUId_t CoreId   = CpuGetCurrentId();
 
 	// If we use the static allocator, it must be the boot cpu
 	if (PrimaryCore) {
-		__TssDescriptors[CoreId] = &__BootTss;
+		TssPointers[CoreId] = &BootTss;
 	}
 	else {
-		__TssDescriptors[CoreId] = (TssDescriptor_t*)kmalloc(sizeof(TssDescriptor_t));
+		TssPointers[CoreId] = (TssDescriptor_t*)kmalloc(sizeof(TssDescriptor_t));
 	}
 
 	// Initialize descriptor by zeroing and set default members
-	memset(__TssDescriptors[CoreId], 0, sizeof(TssDescriptor_t));
-	tBase   = (uint32_t)__TssDescriptors[CoreId];
+	memset(TssPointers[CoreId], 0, sizeof(TssDescriptor_t));
+	tBase   = (uint32_t)TssPointers[CoreId];
 	tLimit  = tBase + sizeof(TssDescriptor_t);
 
 	// Setup TSS initial ring0 stack information
 	// this will be filled out properly later by scheduler
-	__TssDescriptors[CoreId]->Ss0 = GDT_KDATA_SEGMENT;
-	__TssDescriptors[CoreId]->Ss2 = GDT_RING3_DATA + 0x03;
+	TssPointers[CoreId]->Ss0        = GDT_KDATA_SEGMENT;
+	TssPointers[CoreId]->Ss2        = GDT_RING3_DATA + 0x03;
 	
 	// Set initial segment information (Ring0)
-	__TssDescriptors[CoreId]->Cs = GDT_KCODE_SEGMENT + 0x03;
-	__TssDescriptors[CoreId]->Ss = GDT_KDATA_SEGMENT + 0x03;
-	__TssDescriptors[CoreId]->Ds = GDT_KDATA_SEGMENT + 0x03;
-	__TssDescriptors[CoreId]->Es = GDT_KDATA_SEGMENT + 0x03;
-	__TssDescriptors[CoreId]->Fs = GDT_KDATA_SEGMENT + 0x03;
-	__TssDescriptors[CoreId]->Gs = GDT_KDATA_SEGMENT + 0x03;
-    __TssDescriptors[CoreId]->IoMapBase = (uint16_t)offsetof(TssDescriptor_t, IoMap[0]);
+	TssPointers[CoreId]->Cs         = GDT_KCODE_SEGMENT + 0x03;
+	TssPointers[CoreId]->Ss         = GDT_KDATA_SEGMENT + 0x03;
+	TssPointers[CoreId]->Ds         = GDT_KDATA_SEGMENT + 0x03;
+	TssPointers[CoreId]->Es         = GDT_KDATA_SEGMENT + 0x03;
+	TssPointers[CoreId]->Fs         = GDT_KDATA_SEGMENT + 0x03;
+	TssPointers[CoreId]->Gs         = GDT_KDATA_SEGMENT + 0x03;
+    TssPointers[CoreId]->IoMapBase  = (uint16_t)offsetof(TssDescriptor_t, IoMap[0]);
 
 	// Install TSS into table and hardware
-	GdtInstallDescriptor(tBase, tLimit, GDT_TSS_ENTRY, 0x00);
-	TssInstall(TssIndex);
+	TssInstall(GdtInstallDescriptor(tBase, tLimit, GDT_TSS_ENTRY, 0x00));
 }
 
 /* TssUpdateThreadStack
@@ -182,8 +173,8 @@ TssUpdateThreadStack(
     _In_ UUId_t     Cpu, 
     _In_ uintptr_t  Stack)
 {
-    assert(__TssDescriptors[Cpu] != NULL);
-	__TssDescriptors[Cpu]->Esp0 = Stack;
+    assert(TssPointers[Cpu] != NULL);
+	TssPointers[Cpu]->Esp0 = Stack;
 }
 
 /* TssUpdateIo
@@ -194,8 +185,8 @@ void
 TssUpdateIo(
     _In_ UUId_t     Cpu,
     _In_ uint8_t*   IoMap) {
-    assert(__TssDescriptors[Cpu] != NULL);
-	memcpy(&__TssDescriptors[Cpu]->IoMap[0], IoMap, GDT_IOMAP_SIZE);
+    assert(TssPointers[Cpu] != NULL);
+	memcpy(&TssPointers[Cpu]->IoMap[0], IoMap, GDT_IOMAP_SIZE);
 }
 
 /* TssEnableIo
@@ -206,8 +197,8 @@ void
 TssEnableIo(
     _In_ UUId_t     Cpu,
     _In_ uint16_t   Port) {
-    assert(__TssDescriptors[Cpu] != NULL);
-	__TssDescriptors[Cpu]->IoMap[Port / 8] &= ~(1 << (Port % 8));
+    assert(TssPointers[Cpu] != NULL);
+	TssPointers[Cpu]->IoMap[Port / 8] &= ~(1 << (Port % 8));
 }
 
 /* TssDisableIo
@@ -218,6 +209,6 @@ void
 TssDisableIo(
     _In_ UUId_t     Cpu,
     _In_ uint16_t   Port) {
-    assert(__TssDescriptors[Cpu] != NULL);
-	__TssDescriptors[Cpu]->IoMap[Port / 8] |= (1 << (Port % 8));
+    assert(TssPointers[Cpu] != NULL);
+	TssPointers[Cpu]->IoMap[Port / 8] |= (1 << (Port % 8));
 }

@@ -86,15 +86,10 @@ HeapAllocateInternal(
     assert(Length > 0);
     assert((Heap->HeaderCurrent + Length) < Heap->BaseDataAddress);
 
-    // Allocate address, locked operation
-    MutexLock(&Heap->Lock);
-    ReturnAddress = Heap->HeaderCurrent;
-    Heap->HeaderCurrent += Length;
-    MutexUnlock(&Heap->Lock);
-
     // Sanitize that the header address is mapped, take into account
     // a physical memory page-boundary
-    ReturnAddressEnd = ReturnAddress + Length;
+    ReturnAddress       = atomic_fetch_add(&Heap->HeaderCurrent, Length);
+    ReturnAddressEnd    = ReturnAddress + Length;
     if (!AddressSpaceGetMapping(AddressSpaceGetCurrent(), ReturnAddress)) {
         AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &ReturnAddress, AddressSpaceGetPageSize(), MapFlags, __MASK);
     }
@@ -124,7 +119,7 @@ HeapBlockInsert(
     }
 
     // Select list to iterate, locked ops
-    MutexLock(&Heap->Lock);
+    CriticalSectionEnter(&Heap->SyncObject);
     if (Block->Flags & BLOCK_VERY_LARGE) {
         if (Heap->CustomBlocks == NULL) {
             Heap->CustomBlocks = Block;
@@ -155,7 +150,7 @@ HeapBlockInsert(
     Block->Link = NULL;
 
 Unlock:
-    MutexUnlock(&Heap->Lock);
+    CriticalSectionLeave(&Heap->SyncObject);
     return OsSuccess;
 }
 
@@ -269,7 +264,7 @@ HeapCreateBlock(
 
     // Can we pop on off from recycler?
     // The below operations must be locked
-    MutexLock(&Heap->Lock);
+    CriticalSectionEnter(&Heap->SyncObject);
     if (Heap->BlockRecycler != NULL) {
         hBlock = Heap->BlockRecycler;
         Heap->BlockRecycler = Heap->BlockRecycler->Link;
@@ -284,24 +279,23 @@ HeapCreateBlock(
     else {
         hNode = (HeapNode_t*)HeapAllocateInternal(Heap, sizeof(HeapNode_t));
     }
+    CriticalSectionLeave(&Heap->SyncObject);
 
     // Sanitize blocks
     assert(hBlock != NULL);
     assert(hNode != NULL);
 
-    BaseAddress = Heap->DataCurrent;
-    Heap->DataCurrent += Length;
-    MutexUnlock(&Heap->Lock);
+    BaseAddress = atomic_fetch_add(&Heap->DataCurrent, Length);
 
     // Initialize members to default values
     memset(hBlock, 0, sizeof(HeapBlock_t));
-    MutexConstruct(&hBlock->Lock);
+    CriticalSectionConstruct(&hBlock->SyncObject, CRITICALSECTION_PLAIN);
     hBlock->BaseAddress = BaseAddress;
-    hBlock->EndAddress = BaseAddress + Length - 1;
-    hBlock->BytesFree = Length;
-    hBlock->Flags = Flags;
-    hBlock->Nodes = hNode;
-    hBlock->Mask = Mask;
+    hBlock->EndAddress  = BaseAddress + Length - 1;
+    hBlock->BytesFree   = Length;
+    hBlock->Flags       = Flags;
+    hBlock->Nodes       = hNode;
+    hBlock->Mask        = Mask;
 
     // Initialize members of node to default
     memset(hNode, 0, sizeof(HeapNode_t));
@@ -310,8 +304,8 @@ HeapCreateBlock(
         Identifier == NULL ? strlen(GlbKernelUnknown) : strnlen(Identifier, HEAP_IDENTIFICATION_SIZE - 1));
     hNode->Identifier[HEAP_IDENTIFICATION_SIZE - 1] = '\0';
 #endif
-    hNode->Address = BaseAddress;
-    hNode->Length = Length;
+    hNode->Address  = BaseAddress;
+    hNode->Length   = Length;
     return hBlock;
 }
 
@@ -363,10 +357,9 @@ HeapAllocateSizeInBlock(
     uintptr_t ReturnAddress = 0;
 
     // Basic algorithm for finding a spot, locked operation
-    MutexLock(&Block->Lock);
+    CriticalSectionEnter(&Block->SyncObject);
     while (CurrNode) {
-        if (CurrNode->Flags & NODE_ALLOCATED
-            || CurrNode->Length < Length) {
+        if (CurrNode->Flags & NODE_ALLOCATED || CurrNode->Length < Length) {
             goto Skip;
         }
 
@@ -395,7 +388,7 @@ HeapAllocateSizeInBlock(
             }
 
             // Get a new node, heap locked operation
-            MutexLock(&Heap->Lock);
+            CriticalSectionEnter(&Heap->SyncObject);
             if (Heap->NodeRecycler != NULL) {
                 hNode = Heap->NodeRecycler;
                 Heap->NodeRecycler = Heap->NodeRecycler->Link;
@@ -406,7 +399,7 @@ HeapAllocateSizeInBlock(
 
             // Make sure it didn't fail
             assert(hNode != NULL);
-            MutexUnlock(&Heap->Lock);
+            CriticalSectionLeave(&Heap->SyncObject);
 
             // Initialize the node
             memset(hNode, 0, sizeof(HeapNode_t));
@@ -443,9 +436,7 @@ HeapAllocateSizeInBlock(
         PrevNode = CurrNode;
         CurrNode = CurrNode->Link;
     }
-
-    // Done
-    MutexUnlock(&Block->Lock);
+    CriticalSectionLeave(&Block->SyncObject);
     return ReturnAddress;
 }
 
@@ -514,7 +505,6 @@ HeapAllocate(
     }
 
     // Select the proper child list
-    MutexLock(&Heap->Lock);
     if (Flags & ALLOCATION_BIG) {
         CurrentBlock = Heap->CustomBlocks;
     }
@@ -524,7 +514,6 @@ HeapAllocate(
     else {
         CurrentBlock = Heap->Blocks;
     }
-    MutexUnlock(&Heap->Lock);
     while (CurrentBlock) {
         // Check which type of allocation is 
         // being made, we have three types: 
@@ -534,8 +523,7 @@ HeapAllocate(
 
         // Sanitize both that enough space is free 
         // but ALSO that the block has higher mask
-        if ((CurrentBlock->BytesFree < AdjustedSize)
-            || (CurrentBlock->Mask < Mask)) {
+        if ((CurrentBlock->BytesFree < AdjustedSize) || (CurrentBlock->Mask < Mask)) {
             goto Skip;
         }
 
@@ -546,9 +534,7 @@ HeapAllocate(
             break;
         }
     Skip:
-        MutexLock(&Heap->Lock);
         CurrentBlock = CurrentBlock->Link;
-        MutexUnlock(&Heap->Lock);
     }
 
     // Sanitize
@@ -585,7 +571,7 @@ HeapFreeAddressInNode(
     OsStatus_t Result       = OsError;
 
     // Basic algorithm for freeing
-    MutexLock(&Block->Lock);
+    CriticalSectionEnter(&Block->SyncObject);
     while (CurrNode != NULL) {
         uintptr_t aStart    = CurrNode->Address;
         uintptr_t aEnd      = CurrNode->Address + CurrNode->Length;
@@ -609,14 +595,14 @@ HeapFreeAddressInNode(
                 CurrNode->Link = NULL;
                 CurrNode->Address = 0;
                 CurrNode->Length = 0;
-                MutexLock(&Heap->Lock);
+                CriticalSectionEnter(&Heap->SyncObject);
                 if (Heap->NodeRecycler == NULL)
                     Heap->NodeRecycler = CurrNode;
                 else {
                     CurrNode->Link = Heap->NodeRecycler;
                     Heap->NodeRecycler = CurrNode;
                 }
-                MutexUnlock(&Heap->Lock);
+                CriticalSectionLeave(&Heap->SyncObject);
             }
             // Merge with our link
             else if (CurrNode->Link != NULL
@@ -636,7 +622,7 @@ HeapFreeAddressInNode(
                 CurrNode->Link = NULL;
                 CurrNode->Address = 0;
                 CurrNode->Length = 0;
-                MutexLock(&Heap->Lock);
+                CriticalSectionEnter(&Heap->SyncObject);
                 if (Heap->NodeRecycler == NULL) {
                     Heap->NodeRecycler = CurrNode;
                 }
@@ -644,7 +630,7 @@ HeapFreeAddressInNode(
                     CurrNode->Link = Heap->NodeRecycler;
                     Heap->NodeRecycler = CurrNode;
                 }
-                MutexUnlock(&Heap->Lock);
+                CriticalSectionLeave(&Heap->SyncObject);
             }
             break;
         }
@@ -653,9 +639,7 @@ HeapFreeAddressInNode(
         PrevNode = CurrNode;
         CurrNode = CurrNode->Link;
     }
-
-    // Unlock and return
-    MutexUnlock(&Block->Lock);
+    CriticalSectionLeave(&Block->SyncObject);
     return Result;
 }
 
@@ -721,7 +705,6 @@ HeapQueryAddressInNode(
                *PrevNode = NULL;
 
     // Iterate nodes in the block
-    MutexLock(&Block->Lock);
     while (CurrNode != NULL) {
         uintptr_t aStart    = CurrNode->Address;
         uintptr_t aEnd      = CurrNode->Address + CurrNode->Length;
@@ -731,9 +714,6 @@ HeapQueryAddressInNode(
         PrevNode = CurrNode;
         CurrNode = CurrNode->Link;
     }
-
-    // Unlock and return result
-    MutexUnlock(&Block->Lock);
     return CurrNode;
 }
 
@@ -831,11 +811,13 @@ HeapConstruct(
     memset(Heap, 0, sizeof(Heap_t));
 
     // Initialize members to default values
-    MutexConstruct(&Heap->Lock);
-    Heap->BaseHeaderAddress = Heap->HeaderCurrent = BaseAddress;
-    Heap->EndAddress = EndAddress;
-    Heap->BaseDataAddress = Heap->DataCurrent = BaseAddress + PercentageStep;
-    Heap->IsUser = UserHeap;
+    CriticalSectionConstruct(&Heap->SyncObject, CRITICALSECTION_PLAIN);
+    Heap->BaseHeaderAddress = BaseAddress;
+    Heap->EndAddress        = EndAddress;
+    Heap->BaseDataAddress   = BaseAddress + PercentageStep;
+    Heap->HeaderCurrent     = ATOMIC_VAR_INIT(BaseAddress);
+    Heap->DataCurrent       = ATOMIC_VAR_INIT(BaseAddress + PercentageStep);
+    Heap->IsUser            = UserHeap;
 
     // Create default blocks
     Heap->Blocks = HeapCreateBlock(Heap, IDENTIFIER HEAP_NORMAL_BLOCK, 
@@ -843,8 +825,6 @@ HeapConstruct(
     Heap->PageBlocks = HeapCreateBlock(Heap, IDENTIFIER HEAP_LARGE_BLOCK,
         __MASK, BLOCK_ALIGNED);
     Heap->CustomBlocks = NULL;
-
-    // No errors
     return OsSuccess;
 }
 

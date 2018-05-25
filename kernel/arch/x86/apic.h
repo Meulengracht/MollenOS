@@ -137,27 +137,31 @@ typedef struct _IoApic {
 
 /* ApicInitialize
  * Initialize the local APIC controller and install default interrupts. */
-KERNELAPI
-void
-KERNELABI
+KERNELAPI void KERNELABI
 ApicInitialize(void);
-__EXTERN void ApicInitAp(void);
+
+/* ApicIsInitialized
+ * Returns OsSuccess if the local apic is initialized and memory mapped. */
+KERNELAPI OsStatus_t KERNELABI
+ApicIsInitialized(void);
+
+/* InitializeLocalApicForApplicationCore
+ * Enables the local apic and sets it's default state. Also initializes the 
+ * local apic timer, but does not start it. */
+KERNELAPI void KERNELABI
+InitializeLocalApicForApplicationCore(void);
 
 /* ApicRecalibrateTimer
  * Recalibrates the the local apic timer, using an external timer source
  * to accurately have the local apic tick at 1ms */
-KERNELAPI
-void
-KERNELABI
+KERNELAPI void KERNELABI
 ApicRecalibrateTimer(void);
 
 /* ApicStartTimer
  * Reloads the local apic timer with a default
  * divisor and the timer set to the given quantum
  * the timer is immediately started */
-KERNELAPI
-void
-KERNELABI
+KERNELAPI void KERNELABI
 ApicStartTimer(
     _In_ size_t Quantum);
 
@@ -229,6 +233,11 @@ ApicPerformSIPI(
     _In_ UUId_t             CoreId,
     _In_ uintptr_t          Address);
 
+/* GetCoreIdentificationNumber
+ * Retrieves the local apic id for the calling cpu through available mechanisms. */
+KERNELAPI UUId_t KERNELABI
+GetCoreIdentificationNumber(void);
+
 /* This function derives an io-apic from
  * the given gsi index, by locating which
  * io-apic owns the gsi and returns it.
@@ -250,11 +259,6 @@ __EXTERN int ApicIsIntegrated(void);
  * onboard local apic chip, this is used 
  * for the ESR among others */
 __EXTERN int ApicGetMaxLvt(void);
-
-/* Retrieve the cpu id for the current cpu
- * can be used as an identifier when running
- * multicore */
-__EXTERN UUId_t ApicGetCpu(void);
 
 /* ApicComputeLogicalDestination
  * Creates the correct bit index for the given cpu core */

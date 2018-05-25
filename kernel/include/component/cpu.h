@@ -69,14 +69,19 @@ typedef struct _SystemCpu {
 } SystemCpu_t;
 
 /* InitializeProcessor
- * Initializes the cpu of an domain with the given parameters. */
+ * Initializes the cpu as much as neccessary for the system to be in a running state. This
+ * also initializes the primary core of the cpu structure. */
 KERNELAPI void KERNELABI
 InitializeProcessor(
-    _In_ SystemCpu_t*       Cpu,
-    _In_ const char*        Vendor,
-    _In_ const char*        Brand,
-    _In_ int                NumberOfCores,
-    _In_ uintptr_t*         Data);
+    _In_ SystemCpu_t*       Cpu);
+
+/* RegisterPrimaryCore
+ * Registers the primary core for the given cpu. The core count and the
+ * application-core will be initialized on first call to this function. This also allocates a 
+ * new instance of the cpu-core. */
+KERNELAPI void KERNELABI
+RegisterPrimaryCore(
+    _In_ SystemCpu_t*       Cpu);
 
 /* RegisterApplicationCore
  * Registers a new cpu application core for the given cpu. The core count and the

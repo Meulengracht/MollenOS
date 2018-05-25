@@ -37,7 +37,6 @@
 
 /* Externs, we need access to a lot of different
  * things for these helper functions */
-__EXTERN uintptr_t GlbLocalApicBase;
 __EXTERN Collection_t *GlbIoApics;
 
 /* Retrieves the version of the 
@@ -231,17 +230,5 @@ void ApicSendEoi(int Gsi, uint32_t Vector)
         
         // @todo, x2APIC requires a write of 0
 		ApicWriteLocal(APIC_INTERRUPT_ACK, 0);
-	}
-}
-
-/* Retrieve the cpu id for the current cpu
- * can be used as an identifier when running
- * multicore */
-UUId_t ApicGetCpu(void) {
-	if (GlbLocalApicBase == 0) {
-		return 0;
-	}
-	else {
-		return (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
 	}
 }
