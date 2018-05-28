@@ -113,10 +113,9 @@ typedef enum _MCoreThreadPriority {
     PriorityCritical
 } MCoreThreadPriority_t;
 
-/* The shared Thread structure used in MCore
- * it contains a <ThreadData> which points to 
- * architecture specific thread data, but rest
- * of the information here is shared in MCore */
+/* MCoreThread
+ * The representation of a thread in the system. Contains scheduling information,
+ * thread information and data for contexts and signals. */
 typedef struct _MCoreThread {
     UUId_t                           Id;
     const char*                      Name;

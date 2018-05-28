@@ -41,7 +41,7 @@
 
 /* Globals */
 static AddressSpace_t KernelAddressSpace    = { 0 };
-static UUId_t AddressSpaceIdGenerator       = 0;
+static _Atomic(int) AddressSpaceIdGenerator = ATOMIC_VAR_INIT(1);
 
 /* AddressSpaceInitialize
  * Initializes the Kernel Address Space. This only copies the data into a static global
@@ -55,7 +55,6 @@ AddressSpaceInitialize(
 
 	// Sanitize parameter
 	assert(KernelSpace != NULL);
-    AddressSpaceIdGenerator = 0;
 
 	// Copy data into our static storage
     for (i = 0; i < ASPACE_DATASIZE; i++) {
@@ -64,9 +63,9 @@ AddressSpaceInitialize(
 	KernelAddressSpace.Flags = KernelSpace->Flags;
 
 	// Setup reference and lock
-	SpinlockReset(&KernelAddressSpace.Lock);
-	KernelAddressSpace.References   = 1;
-    KernelAddressSpace.Id           = AddressSpaceIdGenerator++;
+	CriticalSectionConstruct(&KernelAddressSpace.SyncObject, CRITICALSECTION_REENTRANCY);
+	atomic_store(&KernelAddressSpace.References, 1);
+    KernelAddressSpace.Id           = atomic_fetch_add(&AddressSpaceIdGenerator, 1);
 	return OsSuccess;
 }
 
@@ -79,25 +78,19 @@ AddressSpaceCreate(
 {
 	// Variables
 	AddressSpace_t *AddressSpace    = NULL;
-	UUId_t CurrentCpu               = CpuGetCurrentId();
 
 	// If we want to create a new kernel address
 	// space we instead want to re-use the current 
 	// If kernel is specified, ignore rest 
 	if (Flags & ASPACE_TYPE_KERNEL) {
-		SpinlockAcquire(&KernelAddressSpace.Lock);
-		KernelAddressSpace.References++;
-		SpinlockRelease(&KernelAddressSpace.Lock);
+        atomic_fetch_add(&KernelAddressSpace.References, 1);
 		AddressSpace = &KernelAddressSpace;
 	}
 	else if (Flags == ASPACE_TYPE_INHERIT) {
 		// Inheritance is a bit different, we re-use again
 		// but instead of reusing the kernel, we reuse the current
-		MCoreThread_t *Current = ThreadingGetCurrentThread(CurrentCpu);
-		SpinlockAcquire(&Current->AddressSpace->Lock);
-		Current->AddressSpace->References++;
-		SpinlockRelease(&Current->AddressSpace->Lock);
-		AddressSpace = Current->AddressSpace;
+		AddressSpace    = AddressSpaceGetCurrent();
+        atomic_fetch_add(&AddressSpace->References, 1);
 	}
 	else if (Flags & (ASPACE_TYPE_APPLICATION | ASPACE_TYPE_DRIVER)) {
 		// This is the only case where we should create a 
@@ -106,18 +99,22 @@ AddressSpaceCreate(
         void *DirectoryPointer      = NULL;
 
 		// Allocate a new address space
-		AddressSpace                = (AddressSpace_t*)kmalloc(sizeof(AddressSpace_t));
+		AddressSpace        = (AddressSpace_t*)kmalloc(sizeof(AddressSpace_t));
+        memset((void*)AddressSpace, 0, sizeof(AddressSpace_t));
+        AddressSpace->Id    = atomic_fetch_add(&AddressSpaceIdGenerator, 1);
+		AddressSpace->Flags = Flags;
+		AddressSpace->References = 1;
+		CriticalSectionConstruct(&AddressSpace->SyncObject, CRITICALSECTION_REENTRANCY);
+
+        CriticalSectionEnter(&AddressSpaceGetCurrent()->SyncObject);
         MmVirtualClone((Flags & ASPACE_TYPE_INHERIT) ? 1 : 0, &DirectoryPointer, &DirectoryAddress);
+        CriticalSectionLeave(&AddressSpaceGetCurrent()->SyncObject);
         assert(DirectoryPointer != NULL);
         assert(DirectoryAddress != 0);
 
 		// Store new configuration into AS
-        AddressSpace->Id                            = AddressSpaceIdGenerator++;
-		AddressSpace->Flags                         = Flags;
         AddressSpace->Data[ASPACE_DATA_PDPOINTER]   = (uintptr_t)DirectoryPointer;
         AddressSpace->Data[ASPACE_DATA_CR3]         = DirectoryAddress;
-		AddressSpace->References                    = 1;
-		SpinlockReset(&AddressSpace->Lock);
 	}
 	else {
 		FATAL(FATAL_SCOPE_KERNEL, "Invalid flags parsed in AddressSpaceCreate 0x%x", Flags);
@@ -133,20 +130,15 @@ AddressSpaceDestroy(
     _In_ AddressSpace_t *AddressSpace)
 {
 	// Acquire lock on the address space
-	SpinlockAcquire(&AddressSpace->Lock);
-	AddressSpace->References--;
+    int References = atomic_fetch_sub(&AddressSpace->References, 1);
 
-	// In case that was the last reference
-	// cleanup the address space otherwise
+	// In case that was the last reference cleanup the address space otherwise
 	// just unlock
-	if (AddressSpace->References == 0) {
+	if ((References - 1) == 0) {
 		if (AddressSpace->Flags & (ASPACE_TYPE_APPLICATION | ASPACE_TYPE_DRIVER)) {
 			MmVirtualDestroy((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER]);
 		}
 		kfree(AddressSpace);
-	}
-	else {
-		SpinlockRelease(&AddressSpace->Lock);
 	}
 	return OsSuccess;
 }
@@ -169,8 +161,7 @@ AddressSpace_t*
 AddressSpaceGetCurrent(void)
 {
 	// Lookup current thread
-	MCoreThread_t *CurrentThread = 
-		ThreadingGetCurrentThread(CpuGetCurrentId());
+	MCoreThread_t *CurrentThread = ThreadingGetCurrentThread(CpuGetCurrentId());
 
 	// if no threads are active return the kernel address space
 	if (CurrentThread == NULL) {
@@ -229,6 +220,7 @@ AddressSpaceChangeProtection(
     PageCount           = DIVUP((Size + VirtualAddress & ATTRIBUTE_MASK), PAGE_SIZE);
 
     // Update pages with new protection
+    CriticalSectionEnter(&AddressSpace->SyncObject);
     for (i = 0; i < PageCount; i++) {
         uintptr_t Block = VirtualAddress + (i * PAGE_SIZE);
         if (PreviousFlags != NULL) {
@@ -239,6 +231,7 @@ AddressSpaceChangeProtection(
             break;
         }
     }
+    CriticalSectionLeave(&AddressSpace->SyncObject);
     return Result;
 }
 
@@ -258,6 +251,7 @@ AddressSpaceMap(
     // Variables
 	PhysicalAddress_t PhysicalBase  = 0;
     VirtualAddress_t VirtualBase    = 0;
+    OsStatus_t Status               = OsSuccess;
 	Flags_t AllocFlags              = 0;
 	int PageCount                   = 0;
 	int i;
@@ -267,6 +261,22 @@ AddressSpaceMap(
 
     // Calculate the number of pages of this allocation
     PageCount           = DIVUP(Size, PAGE_SIZE);
+    
+    // Make sure the address is not already mapped, this can happen when multiple
+    // cpu's allocate addresses that are alike at the same time
+    CriticalSectionEnter(&AddressSpace->SyncObject);
+    if (Flags & ASPACE_FLAG_SUPPLIEDVIRTUAL) {
+        PhysicalBase = MmVirtualGetMapping((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], *VirtualAddress);
+        if (PhysicalBase != 0) {
+            // The address is already mapped, ignore this
+            if (Flags & ASPACE_FLAG_VIRTUAL) {
+                if ((*PhysicalAddress & PAGE_MASK) != (PhysicalBase & PAGE_MASK)) {
+                    FATAL(FATAL_SCOPE_KERNEL, "Tried to remap fixed virtual address from different physical");
+                }
+            }
+            goto Cleanup;
+        }
+    }
 
     // Determine the memory mappings initially
     if (Flags & ASPACE_FLAG_VIRTUAL) {
@@ -315,10 +325,14 @@ AddressSpaceMap(
 		if (MmVirtualMap((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], 
             PhysicalPage, (VirtualBase + (i * PAGE_SIZE)), AllocFlags) != OsSuccess) {
             WARNING("Failed to map virtual 0x%x => physical 0x%x", (VirtualBase + (i * PAGE_SIZE)), PhysicalPage);
-			return OsError;
+			Status = OsError;
+            break;
 		}
 	}
-    return OsSuccess;
+    
+Cleanup:
+    CriticalSectionLeave(&AddressSpace->SyncObject);
+    return Status;
 }
 
 /* AddressSpaceUnmap
@@ -333,7 +347,11 @@ AddressSpaceUnmap(
 	int PageCount   = DIVUP(Size, PAGE_SIZE);
 	int i;
 
+    // Sanitize address space
+    assert(AddressSpace != NULL);
+
 	// Iterate page-count and unmap
+    CriticalSectionEnter(&AddressSpace->SyncObject);
 	for (i = 0; i < PageCount; i++) {
         if (MmVirtualGetMapping((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], (Address + (i * PAGE_SIZE))) != 0) {
             if (MmVirtualUnmap((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], (Address + (i * PAGE_SIZE))) != OsSuccess) {
@@ -344,6 +362,7 @@ AddressSpaceUnmap(
             TRACE("Ignoring free on unmapped address 0x%x", (Address + (i * PAGE_SIZE)));
         }
 	}
+    CriticalSectionLeave(&AddressSpace->SyncObject);
 	return OsSuccess;
 }
 
@@ -353,8 +372,17 @@ AddressSpaceUnmap(
 PhysicalAddress_t
 AddressSpaceGetMapping(
     _In_ AddressSpace_t*    AddressSpace, 
-    _In_ VirtualAddress_t   VirtualAddress) {
-	return MmVirtualGetMapping((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], VirtualAddress);
+    _In_ VirtualAddress_t   VirtualAddress)
+{
+    // Variables
+    PhysicalAddress_t MappedAddress = 0;
+
+    // Sanitize address space
+    assert(AddressSpace != NULL);
+    CriticalSectionEnter(&AddressSpace->SyncObject);
+	MappedAddress = MmVirtualGetMapping((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], VirtualAddress);
+    CriticalSectionLeave(&AddressSpace->SyncObject);
+    return MappedAddress;
 }
 
 /* AddressSpaceIsDirty
@@ -365,14 +393,21 @@ AddressSpaceIsDirty(
     _In_ AddressSpace_t*    AddressSpace,
     _In_ VirtualAddress_t   Address)
 {
-    Flags_t Flags = 0;
-    if (MmVirtualGetFlags((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], Address, &Flags) != OsSuccess) {
-        return OsError;
+    OsStatus_t Status   = OsSuccess;
+    Flags_t Flags       = 0;
+    
+    // Sanitize address space
+    assert(AddressSpace != NULL);
+
+    CriticalSectionEnter(&AddressSpace->SyncObject);
+    Status = MmVirtualGetFlags((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], Address, &Flags);
+    CriticalSectionLeave(&AddressSpace->SyncObject);
+
+    // Check the flags if status was ok
+    if (Status == OsSuccess && !(Flags & PAGE_DIRTY)) {
+        Status = OsError;
     }
-    if (Flags & PAGE_DIRTY) {
-        return OsSuccess;
-    }
-    return OsError;
+    return Status;
 }
 
 /* AddressSpaceGetPageSize

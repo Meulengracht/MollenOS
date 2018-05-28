@@ -159,7 +159,7 @@ ScProcessSpawn(
  * The exit-code for the process will be returned. */
 OsStatus_t
 ScProcessJoin(
-	_In_  UUId_t    ProcessId,
+    _In_  UUId_t    ProcessId,
     _In_  size_t    Timeout,
     _Out_ int*      ExitCode)
 {
@@ -959,7 +959,7 @@ ScMemoryRelease(
 OsStatus_t
 ScMemoryProtect(
     _In_  void*     MemoryPointer,
-	_In_  size_t    Length,
+    _In_  size_t    Length,
     _In_  Flags_t   Flags,
     _Out_ Flags_t*  PreviousFlags)
 {

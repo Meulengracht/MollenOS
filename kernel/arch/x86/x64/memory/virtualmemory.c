@@ -245,7 +245,6 @@ MmVirtualGetTable(
     int PdIndex     = PAGE_DIRECTORY_INDEX(VirtualAddress);
 
 	// Does page directroy table exist?
-	CriticalSectionEnter(&PageMasterTable->SyncObject);
 	if (!(PageMasterTable->pTables[PmIndex] & PAGE_PRESENT)) {
         if (!Create) {
             TRACE("Page directory table was not present in PML4");
@@ -294,7 +293,6 @@ MmVirtualGetTable(
 	assert(Table != NULL);
 
 Cleanup:
-	CriticalSectionLeave(&PageMasterTable->SyncObject);
 	return Table;
 }
 
@@ -319,10 +317,8 @@ MmVirtualSetFlags(
 
 	// Map it, make sure we mask the page address
 	// so we don't accidently set any flags
-	CriticalSectionEnter(&PageMasterTable->SyncObject);
 	Table->Pages[PAGE_TABLE_INDEX(vAddress)] &= PAGE_MASK;
     Table->Pages[PAGE_TABLE_INDEX(vAddress)] |= (Flags & ATTRIBUTE_MASK);
-    CriticalSectionLeave(&PageMasterTable->SyncObject);
 
 	// Last step is to invalidate the the address in the MMIO
 	if (IsCurrent) {
@@ -352,11 +348,9 @@ MmVirtualGetFlags(
 
 	// Map it, make sure we mask the page address
 	// so we don't accidently set any flags
-	CriticalSectionEnter(&PageMasterTable->SyncObject);
     if (Flags != NULL) {
         *Flags = Table->Pages[PAGE_TABLE_INDEX(vAddress)] & ATTRIBUTE_MASK;
     }
-	CriticalSectionLeave(&PageMasterTable->SyncObject);
 	return OsSuccess;
 }
 
@@ -439,8 +433,6 @@ MmVirtualUnmap(
 	}
 	else
 	{
-	    CriticalSectionEnter(&PageMasterTable->SyncObject);
-		
         // Ok, step one is to extract the physical page of this index
 		PhysicalAddress_t Physical = Table->Pages[PAGE_TABLE_INDEX(Address)];
 		Table->Pages[PAGE_TABLE_INDEX(Address)] = 0;
@@ -453,8 +445,6 @@ MmVirtualUnmap(
 		if (IsCurrent) {
 			memory_invalidate_addr(Address);
 		}
-
-	    CriticalSectionLeave(&PageMasterTable->SyncObject);
 	}
     return OsSuccess;
 }
@@ -481,9 +471,7 @@ MmVirtualGetMapping(
     }
 
 	// Get the address and return with proper offset
-	CriticalSectionEnter(&PageMasterTable->SyncObject);
 	Mapping = Table->Pages[PAGE_TABLE_INDEX(Address)];
-    CriticalSectionLeave(&PageMasterTable->SyncObject);
 
     // Make sure we still return 0 if the mapping is indeed 0
     if ((Mapping & PAGE_MASK) == 0 || !(Mapping & PAGE_PRESENT)) {
@@ -521,7 +509,6 @@ MmVirtualClone(
     int ApplicationRegion   = PAGE_DIRECTORY_POINTER_INDEX(MEMORY_LOCATION_RING3_CODE);
 	
     memset(Created, 0, sizeof(PageMasterTable_t));
-	CriticalSectionConstruct(&Created->SyncObject, CRITICALSECTION_REENTRANCY);
 
     // Get kernel PD[0]
     KernelDirectoryTable = (PageDirectoryTable_t*)KernelMasterTable->vTables[0];
@@ -761,9 +748,6 @@ MmVirtualInit(void)
     Directory->pTables[0]           = (uint64_t)Table1 | PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP;
     Directory->vTables[1]           = (uint64_t)Table2;
     Directory->pTables[1]           = (uint64_t)Table2 | PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP;
-
-	// Initialize locks
-	CriticalSectionConstruct(&KernelMasterTable->SyncObject, CRITICALSECTION_REENTRANCY);
 
 	// Pre-map heap region
 	TRACE("Mapping heap region to 0x%x", MEMORY_LOCATION_HEAP);

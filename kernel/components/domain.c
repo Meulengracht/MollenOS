@@ -24,7 +24,7 @@
 
 /* Global storage
  * Global static storage/variables for managing domains. */
-static SystemDomain_t CurrentDomain = { { { 0 } } };
+static SystemDomain_t PrimaryDomain = { { 0 }, { { 0 } }, { 0 } };
 static Collection_t Domains         = COLLECTION_INIT(KeyInteger);
 
 /* InitializePrimaryDomain
@@ -33,14 +33,17 @@ void
 InitializePrimaryDomain(void)
 {
     // Initialize the processor of the machine
-    InitializeProcessor(&CurrentDomain.Cpu);
-    RegisterPrimaryCore(&CurrentDomain.Cpu);
+    InitializeProcessor(&PrimaryDomain.Cpu);
+    RegisterPrimaryCore(&PrimaryDomain.Cpu);
 
     // Initialize memory of the domain
     // @todo
 
     // Initialize the interrupt controller of the domain
     // @todo
+
+    // Add to list of domains
+    CollectionAppend(&Domains, &PrimaryDomain.Header);
 }
 
 /* GetCurrentDomain
@@ -49,7 +52,7 @@ InitializePrimaryDomain(void)
 SystemDomain_t*
 GetCurrentDomain(void)
 {
-    return &CurrentDomain;
+    return &PrimaryDomain;
 }
 
 /* GetDomains

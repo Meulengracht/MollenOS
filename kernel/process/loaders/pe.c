@@ -205,9 +205,7 @@ PeHandleSections(
         PageFlags |= ASPACE_FLAG_SUPPLIEDVIRTUAL;
         for (j = 0; j < PageCount; j++) {
             uintptr_t Calculated = (uintptr_t)Destination + (j * AddressSpaceGetPageSize());
-            if (!AddressSpaceGetMapping(AddressSpaceGetCurrent(), Calculated)) {
-                AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &Calculated, AddressSpaceGetPageSize(), PageFlags, __MASK);
-            }
+            AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &Calculated, AddressSpaceGetPageSize(), PageFlags, __MASK);
         }
 
         // Store first code segment we encounter
@@ -790,10 +788,8 @@ PeLoadImage(
     // Copy sections to base address
     for (i = 0; i < DIVUP(SizeOfMetaData, AddressSpaceGetPageSize()); i++) {
         uintptr_t VirtualPage = PeInfo->VirtualAddress + (i * AddressSpaceGetPageSize());
-        if (!AddressSpaceGetMapping(AddressSpaceGetCurrent(), VirtualPage)) {
-            AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &VirtualPage,
-                AddressSpaceGetPageSize(), ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
-        }
+        AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &VirtualPage,
+            AddressSpaceGetPageSize(), ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
     }
     memcpy((void*)PeInfo->VirtualAddress, Buffer, SizeOfMetaData);
         

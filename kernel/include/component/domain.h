@@ -31,6 +31,7 @@
 #include "ic.h"
 
 typedef struct _SystemDomain {
+    CollectionItem_t            Header;
     SystemCpu_t                 Cpu;
 
     // Memory and Interrupt Controller must be sharable

@@ -90,12 +90,8 @@ HeapAllocateInternal(
     // a physical memory page-boundary
     ReturnAddress       = atomic_fetch_add(&Heap->HeaderCurrent, Length);
     ReturnAddressEnd    = ReturnAddress + Length;
-    if (!AddressSpaceGetMapping(AddressSpaceGetCurrent(), ReturnAddress)) {
-        AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &ReturnAddress, AddressSpaceGetPageSize(), MapFlags, __MASK);
-    }
-    if (!AddressSpaceGetMapping(AddressSpaceGetCurrent(), ReturnAddressEnd)) {
-        AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &ReturnAddressEnd, AddressSpaceGetPageSize(), MapFlags, __MASK);
-    }
+    AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &ReturnAddress, AddressSpaceGetPageSize(), MapFlags, __MASK);
+    AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &ReturnAddressEnd, AddressSpaceGetPageSize(), MapFlags, __MASK);
     return (uintptr_t*)ReturnAddress;
 }
 
@@ -463,10 +459,8 @@ HeapCommitPages(
     // Do the actual mapping
     for (; i < Pages; i++) {
         uintptr_t VirtualPage = Address + (i * AddressSpaceGetPageSize());
-        if (!AddressSpaceGetMapping(AddressSpaceGetCurrent(), VirtualPage)) {
-            AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &VirtualPage, 
-                AddressSpaceGetPageSize(), ASPACE_FLAG_SUPPLIEDVIRTUAL, Mask);
-        }
+        AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &VirtualPage, 
+            AddressSpaceGetPageSize(), ASPACE_FLAG_SUPPLIEDVIRTUAL, Mask);
     }
 }
 

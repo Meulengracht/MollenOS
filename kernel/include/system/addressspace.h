@@ -26,7 +26,7 @@
 /* Includes 
  * - Library */
 #include <os/osdefs.h>
-#include <os/spinlock.h>
+#include <criticalsection.h>
 
 /* AddressSpace Definitions
  * Definitions, bit definitions and magic constants for address spaces */
@@ -54,8 +54,8 @@
  * members of an addressing space */
 PACKED_TYPESTRUCT(AddressSpace, {
     UUId_t                  Id;
-    Spinlock_t              Lock;
-    int                     References;
+    CriticalSection_t       SyncObject;
+    _Atomic(int)            References;
     Flags_t                 Flags;
     
     uintptr_t               Data[ASPACE_DATASIZE];
@@ -64,54 +64,42 @@ PACKED_TYPESTRUCT(AddressSpace, {
 /* AddressSpaceInitialize
  * Initializes the Kernel Address Space. This only copies the data into a static global
  * storage, which means users should just pass something temporary structure */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 AddressSpaceInitialize(
     _In_ AddressSpace_t *KernelSpace);
 
 /* AddressSpaceCreate
  * Initialize a new address space, depending on what user is requesting we 
  * might recycle a already existing address space */
-KERNELAPI
-AddressSpace_t*
-KERNELABI
+KERNELAPI AddressSpace_t* KERNELABI
 AddressSpaceCreate(
     _In_ Flags_t Flags);
 
 /* AddressSpaceDestroy
  * Destroy and release all resources related to an address space, 
  * only if there is no more references */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 AddressSpaceDestroy(
     _In_ AddressSpace_t *AddressSpace);
 
 /* AddressSpaceSwitch
  * Switches the current address space out with the the address space provided 
  * for the current cpu */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 AddressSpaceSwitch(
     _In_ AddressSpace_t *AddressSpace);
 
 /* AddressSpaceGetCurrent
  * Returns the current address space if there is no active threads or threading
  * is not setup it returns the kernel address space */
-KERNELAPI
-AddressSpace_t*
-KERNELABI
+KERNELAPI AddressSpace_t* KERNELABI
 AddressSpaceGetCurrent(void);
 
 /* AddressSpaceChangeProtection
  * Changes the protection parameters for the given memory region.
  * The region must already be mapped and the size will be rounded up
  * to a multiple of the page-size. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 AddressSpaceChangeProtection(
     _In_        AddressSpace_t*     AddressSpace,
     _InOut_Opt_ VirtualAddress_t    VirtualAddress, 
@@ -123,9 +111,7 @@ AddressSpaceChangeProtection(
  * Maps the given virtual address into the given address space
  * uses the given physical pages instead of automatic allocation
  * It returns the start address of the allocated physical region */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 AddressSpaceMap(
     _In_        AddressSpace_t*     AddressSpace,
     _InOut_Opt_ PhysicalAddress_t*  PhysicalAddress, 
@@ -136,9 +122,7 @@ AddressSpaceMap(
 
 /* AddressSpaceUnmap
  * Unmaps a virtual memory region from an address space */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 AddressSpaceUnmap(
     _In_ AddressSpace_t*    AddressSpace, 
     _In_ VirtualAddress_t   Address, 
@@ -147,26 +131,20 @@ AddressSpaceUnmap(
 /* AddressSpaceGetMapping
  * Retrieves a physical mapping from an address space determined
  * by the virtual address given */
-KERNELAPI
-PhysicalAddress_t
-KERNELABI
+KERNELAPI PhysicalAddress_t KERNELABI
 AddressSpaceGetMapping(
     _In_ AddressSpace_t*    AddressSpace, 
     _In_ VirtualAddress_t   VirtualAddress);
 
 /* AddressSpaceGetPageSize
  * Retrieves the memory page-size used by the underlying architecture. */
-KERNELAPI
-size_t
-KERNELABI
+KERNELAPI size_t KERNELABI
 AddressSpaceGetPageSize(void);
 
 /* AddressSpaceIsDirty
  * Checks if the given virtual address is dirty (has been written data to). 
  * Returns OsSuccess if the address is dirty. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 AddressSpaceIsDirty(
     _In_ AddressSpace_t*    AddressSpace,
     _In_ VirtualAddress_t   Address);

@@ -44,7 +44,7 @@ RegisterPrimaryCore(
     _In_ SystemCpu_t*       Cpu)
 {
     // Debug
-    TRACE("RegisterPrimaryCore(%s, %s, %i)", &Cpu->Vendor[0], &Cpu->Brand[0], Cpu->NumberOfCores);
+    WARNING("RegisterPrimaryCore(%s, %s, %i)", &Cpu->Vendor[0], &Cpu->Brand[0], Cpu->NumberOfCores);
     assert(Cpu->PrimaryCore.Id < 256);
 
     // Register in lookup table
@@ -109,7 +109,7 @@ ActivateApplicationCore(
     InterruptEnable();
 
     // Debug
-    TRACE("Core %u is now active", Core->Id);
+    WARNING("Core %u is online", Core->Id);
 
     // Enter idle loop
 	while (1) {

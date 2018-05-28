@@ -22,7 +22,7 @@
  */
 #define __MODULE "SMP0"
 #define __TRACE
-#define __DIAGNOSE
+//#define __DIAGNOSE
 
 /* Includes 
  * - System */
