@@ -153,8 +153,7 @@ PipeProduce(
 
     while (DataProduced < Length) {
         CurrentReaderIndex = atomic_load(&Pipe->DataRead);
-        while (((CurrentWriterIndex - CurrentReaderIndex) < Pipe->Length)
-                && DataProduced < Length) {
+        while (((CurrentWriterIndex - CurrentReaderIndex) < Pipe->Length) && DataProduced < Length) {
             Pipe->Buffer[CurrentWriterIndex++ & (Pipe->Length - 1)] = Data[DataProduced++];
         }
         

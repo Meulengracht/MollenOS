@@ -31,6 +31,7 @@
 
 /* Critical Section Definitions
  * Magic constants, bit definitions and types. */
+#define CRITICALSECTION_INITIALIZE(Type)    { Type, UUID_INVALID, 0, 0, SPINLOCK_INIT }
 #define CRITICALSECTION_PLAIN           0x0
 #define CRITICALSECTION_REENTRANCY      0x1
 typedef struct _CriticalSection {
@@ -43,44 +44,34 @@ typedef struct _CriticalSection {
 
 /* CriticalSectionCreate
  * Instantiate a new critical section with allocation and resets it */
-KERNELAPI
-CriticalSection_t*
-KERNELABI
+KERNELAPI CriticalSection_t* KERNELABI
 CriticalSectionCreate(
-    _In_ int Flags);
+    _In_ int                Flags);
 
 /* CriticalSectionConstruct
  * Constructs an already allocated section by resetting it to default state. */
-KERNELAPI
-void
-KERNELABI
+KERNELAPI void KERNELABI
 CriticalSectionConstruct(
-    _In_ CriticalSection_t *Section,
-    _In_ int Flags);
+    _In_ CriticalSection_t* Section,
+    _In_ int                Flags);
 
 /* CriticalSectionDestroy
  * Cleans up the lock by freeing resources allocated. */
-KERNELAPI
-void
-KERNELABI
+KERNELAPI void KERNELABI
 CriticalSectionDestroy(
-    _In_ CriticalSection_t *Section);
+    _In_ CriticalSection_t* Section);
 
 /* CriticalSectionEnter
  * Enters the critical state, the call will block untill lock is granted. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 CriticalSectionEnter(
-    _In_ CriticalSection_t *Section);
+    _In_ CriticalSection_t* Section);
 
 /* CriticalSectionLeave
  * Leave a critical section. The lock is only released on reaching
  * 0 references. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 CriticalSectionLeave(
-    _In_ CriticalSection_t *Section);
+    _In_ CriticalSection_t* Section);
 
 #endif

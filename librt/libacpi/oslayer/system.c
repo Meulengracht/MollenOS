@@ -184,11 +184,7 @@ ACPI_THREAD_ID
 AcpiOsGetThreadId (
     void)
 {
-    // Sanitize current threading status
-    if (ThreadingIsEnabled() != 0) {
-        return (ACPI_THREAD_ID)ThreadingGetCurrentThreadId();
-    }
-    return (ACPI_THREAD_ID)0;
+    return (ACPI_THREAD_ID)ThreadingGetCurrentThreadId();
 }
 
 /******************************************************************************
@@ -250,7 +246,7 @@ void
 AcpiOsSleep (
     UINT64                  Milliseconds)
 {
-    if (ThreadingIsEnabled() != 0) {
+    if (ThreadingGetCurrentThread(CpuGetCurrentId()) != NULL) {
         SchedulerThreadSleep(NULL, (size_t)Milliseconds);
     }
     else {

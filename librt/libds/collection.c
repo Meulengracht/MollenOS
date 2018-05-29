@@ -25,12 +25,13 @@
 #include <ds/collection.h>
 #include <stddef.h>
 #include <string.h>
+#include <assert.h>
 
 /* CollectionCreate
  * Instantiates a new collection with the specified key-type. */
 Collection_t*
 CollectionCreate(
-    _In_ KeyType_t KeyType)
+    _In_ KeyType_t              KeyType)
 {
     // Allocate a new Collection structure
     Collection_t *Collection = (Collection_t*)dsalloc(sizeof(Collection_t));
@@ -45,15 +46,11 @@ CollectionCreate(
  * Clears the Collection of members, cleans up nodes. */
 OsStatus_t
 CollectionClear(
-    _In_ Collection_t *Collection)
+    _In_ Collection_t*          Collection)
 {
     // Variables
     CollectionItem_t *Node = NULL;
-
-    // Sanitize parameters
-    if (Collection == NULL) {
-        return OsError;
-    }
+    assert(Collection != NULL);
 
     // Get initial node and then
     // just iterate while destroying nodes
@@ -62,9 +59,6 @@ CollectionClear(
         CollectionDestroyNode(Collection, Node);
         Node = CollectionPopFront(Collection);
     }
-
-    // Free the Collection structure and we
-    // are done
     return OsSuccess;
 }
 
@@ -73,15 +67,11 @@ CollectionClear(
  * does also free all Collection elements and keys */
 OsStatus_t
 CollectionDestroy(
-    _In_ Collection_t *Collection)
+    _In_ Collection_t*          Collection)
 {
     // Variables
     CollectionItem_t *Node = NULL;
-
-    // Sanitize parameters
-    if (Collection == NULL) {
-        return OsError;
-    }
+    assert(Collection != NULL);
 
     // Get initial node and then
     // just iterate while destroying nodes
@@ -90,9 +80,6 @@ CollectionDestroy(
         CollectionDestroyNode(Collection, Node);
         Node = CollectionPopFront(Collection);
     }
-
-    // Free the Collection structure and we
-    // are done
     dsfree(Collection);
     return OsSuccess;
 }
@@ -101,28 +88,20 @@ CollectionDestroy(
  * Returns the length of the given Collection */
 size_t
 CollectionLength(
-    _In_ Collection_t *Collection)
+    _In_ Collection_t*          Collection)
 {
-    // Sanitize the parameters
-    if (Collection == NULL) {
-        return 0;
-    }
-    return Collection->Length;
+    assert(Collection != NULL);
+    return atomic_load(&Collection->Length);
 }
 
 /* CollectionBegin
  * Retrieves the starting element of the Collection */
 CollectionIterator_t*
 CollectionBegin(
-    _In_ Collection_t *Collection)
+    _In_ Collection_t*          Collection)
 {
-    // Sanitize the parameter
-    if (Collection == NULL) {
-        return NULL;
-    }
-    else {
-        return Collection->Headp;
-    }
+    assert(Collection != NULL);
+    return Collection->Head;
 }
 
 /* CollectionNext
@@ -130,15 +109,9 @@ CollectionBegin(
  * NULL when the end has been reached */
 CollectionIterator_t*
 CollectionNext(
-    _In_ CollectionIterator_t *It)
+    _In_ CollectionIterator_t*  It)
 {
-    // Sanitize the parameter
-    if (It == NULL) {
-        return NULL;
-    }
-    else {
-        return It->Link;
-    }
+    return (It == NULL) ? NULL : It->Link;
 }
 
 /* CollectionCreateNode
@@ -146,16 +119,15 @@ CollectionNext(
  * by CollectionAppend. If using an unsorted Collection set the sortkey == key */
 CollectionItem_t*
 CollectionCreateNode(
-    _In_ DataKey_t Key,
-    _In_ void *Data)
+    _In_ DataKey_t              Key,
+    _In_ void*                  Data)
 {
     // Allocate a new instance of the Collection-node
     CollectionItem_t *Node = (CollectionItem_t*)dsalloc(sizeof(CollectionItem_t));
     memset(Node, 0, sizeof(CollectionItem_t));
-
-    // Set data
-    Node->Key = Key;
-    Node->Data = Data;
+    Node->Key       = Key;
+    Node->Data      = Data;
+    Node->Dynamic   = true;
     return Node;
 }
 
@@ -163,9 +135,15 @@ CollectionCreateNode(
  * Cleans up a Collection node and frees all resources it had */
 OsStatus_t
 CollectionDestroyNode(
-    _In_ Collection_t *Collection,
-    _In_ CollectionItem_t *Node)
+    _In_ Collection_t*          Collection,
+    _In_ CollectionItem_t*      Node)
 {
+    assert(Collection != NULL);
+    assert(Node != NULL);
+    if (Node->Dynamic == false) {
+        return OsSuccess;
+    }
+
     // Behave different based on the type of key
     switch (Collection->KeyType) {
         case KeyPointer:
@@ -188,9 +166,9 @@ CollectionDestroyNode(
  * call CollectionInsert instead */
 OsStatus_t
 CollectionInsertAt(
-    _In_ Collection_t *Collection, 
-    _In_ CollectionItem_t *Node, 
-    _In_ int Position)
+    _In_ Collection_t*          Collection, 
+    _In_ CollectionItem_t*      Node, 
+    _In_ int                    Position)
 {
     // Sanitize parameters
     if (Collection == NULL || Node == NULL) {
@@ -209,31 +187,30 @@ CollectionInsertAt(
  * Collections, but is available for unsorted Collections aswell */
 OsStatus_t
 CollectionInsert(
-    _In_ Collection_t *Collection, 
-    _In_ CollectionItem_t *Node)
+    _In_ Collection_t*          Collection, 
+    _In_ CollectionItem_t*      Node)
 {
-    // Sanitize parameters
-    if (Collection == NULL || Node == NULL) {
-        return OsError;
-    }
-    
+    assert(Collection != NULL);
+    assert(Node != NULL);
+
+    // Set previous
+    Node->Prev = NULL;
+
     // In case the Collection is empty - no processing needed
-    if (Collection->Headp == NULL || Collection->Tailp == NULL) {
-        Collection->Tailp = Collection->Headp = Node;
-        Node->Link = NULL;
+    dslock(&Collection->SyncObject);
+    if (Collection->Head == NULL || Collection->Tail == NULL) {
+        Node->Link          = NULL;
+        Collection->Tail    = Node;
+        Collection->Head    = Node;
     }
     else {
         // Make the node point to head
-        Node->Link = Collection->Headp;
-        Collection->Headp->Prev = Node;
-        Collection->Headp = Node;
+        Node->Link              = Collection->Head;
+        Collection->Head->Prev  = Node;
+        Collection->Head        = Node;
     }
-
-    // Update previous link to NULL
-    Node->Prev = NULL;
-
-    // Collection just got larger!
-    Collection->Length++;
+    dsunlock(&Collection->SyncObject);
+    atomic_fetch_add(&Collection->Length, 1);
     return OsSuccess;
 }
 
@@ -242,81 +219,77 @@ CollectionInsert(
  * available for sorted Collections, it will simply redirect to CollectionInsert */
 OsStatus_t
 CollectionAppend(
-    _In_ Collection_t *Collection,
-    _In_ CollectionItem_t *Node)
+    _In_ Collection_t*          Collection,
+    _In_ CollectionItem_t*      Node)
 {
-    // Sanitize parameters
-    if (Collection == NULL || Node == NULL) {
-        return OsError;
-    }
+    assert(Collection != NULL);
+    assert(Node != NULL);
+
+    // Set eol
+    Node->Link = NULL;
 
     // In case of empty Collection just update head/tail
-    if (Collection->Headp == NULL || Collection->Tailp == NULL) {
-        Node->Prev = NULL;
-        Collection->Tailp = Collection->Headp = Node;
+    dslock(&Collection->SyncObject);
+    if (Collection->Head == NULL || Collection->Tail == NULL) {
+        Node->Prev          = NULL;
+        Collection->Tail    = Node;
+        Collection->Head    = Node;
     }
     else {
         // Append to tail
-        Collection->Tailp->Link = Node;
-        Node->Prev = Collection->Tailp;
-        Collection->Tailp = Node;
+        Node->Prev              = Collection->Tail;
+        Collection->Tail->Link  = Node;
+        Collection->Tail        = Node;
     }
-
-    // Always keep last link NULL
-    Node->Link = NULL;
-    Collection->Length++;
+    dsunlock(&Collection->SyncObject);
+    atomic_fetch_add(&Collection->Length, 1);
     return OsSuccess;
 }
 
-/* Collection pop functions, the either
- * remove an element from the back or
- * the front of the given Collection and return
- * the node */
+/* CollectionPopFront
+ * Removes and returns the first element in the collection. */
 CollectionItem_t*
 CollectionPopFront(
-    _In_ Collection_t *Collection)
+    _In_ Collection_t*          Collection)
 {
     // Variables
     CollectionItem_t *Current = NULL;
 
-    // Sanitize parameters
-    if (Collection == NULL || Collection->Headp == NULL) {
+    // Do some sanity checks on the state of the collection
+    assert(Collection != NULL);
+    if (Collection->Head == NULL) {
         return NULL;
     }
 
     // Manipulate the Collection to find the next pointer of the
     // node that comes before the one to be removed.
-    Current = Collection->Headp;
-
-    // Update head pointer
-    Collection->Headp = Current->Link;
+    dslock(&Collection->SyncObject);
+    Current             = Collection->Head;
+    Collection->Head    = Current->Link;
 
     // Set previous to null
-    if (Collection->Headp != NULL) {
-        Collection->Headp->Prev = NULL;
+    if (Collection->Head != NULL) {
+        Collection->Head->Prev = NULL;
     }
 
     // Update tail if necessary
-    if (Collection->Tailp == Current) {
-        Collection->Headp = Collection->Tailp = NULL;
+    if (Collection->Tail == Current) {
+        Collection->Head = Collection->Tail = NULL;
     }
+    dsunlock(&Collection->SyncObject);
+    atomic_fetch_sub(&Collection->Length, 1);
 
     // Reset its link (remove any Collection traces!)
     Current->Link = NULL;
     Current->Prev = NULL;
-
-    // Update length
-    Collection->Length--;
     return Current;
 }
 
-/* Collection pop functions, the either
- * remove an element from the back or
- * the front of the given Collection and return
- * the node */
+/* CollectionPopBack
+ * Removes and returns the last element in the collection. */
 CollectionItem_t*
 CollectionPopBack(
-    _In_ Collection_t *Collection)
+    _In_ Collection_t*          Collection)
 {
     _CRT_UNUSED(Collection);
     return NULL;
@@ -327,102 +300,84 @@ CollectionPopBack(
  * they return the Collection-node by either key data or index */
 CollectionItem_t*
 CollectionGetNodeByKey(
-    _In_ Collection_t *Collection,
-    _In_ DataKey_t Key, 
-    _In_ int n)
+    _In_ Collection_t*          Collection,
+    _In_ DataKey_t              Key, 
+    _In_ int                    n)
 {
     // Variables
-    CollectionItem_t *It, *Found = NULL;
-    int Counter = n;
+    CollectionItem_t *i     = NULL;
+    int Counter             = n;
 
-    // Sanitize parameters
-    if (Collection == NULL || Collection->Headp == NULL || Collection->Length == 0) {
+    // Do some sanity checks on the state of the collection
+    assert(Collection != NULL);
+    if (Collection->Head == NULL) {
         return NULL;
     }
 
     // Iterate each member in the given Collection and
     // match on the key
-    _foreach(It, Collection) {
-        if (!dsmatchkey(Collection->KeyType, It->Key, Key)) {
+    _foreach(i, Collection) {
+        if (!dsmatchkey(Collection->KeyType, i->Key, Key)) {
             if (Counter == 0) {
-                Found = It;
                 break;
             }
-            else {
-                Counter--;
-            }
+            Counter--;
         }
     }
-    return Found;
+    return Counter == 0 ? i : NULL;
 }
 
-/* These are the data-retriever functions 
- * they return the Collection-node by either key
- * node or index */
+/* CollectionGetDataByKey
+ * Finds the n-occurence of an element with the given key and returns
+ * the associated data with it */
 void*
 CollectionGetDataByKey(
-    _In_ Collection_t *Collection, 
-    _In_ DataKey_t Key, 
-    _In_ int n)
+    _In_ Collection_t*          Collection, 
+    _In_ DataKey_t              Key, 
+    _In_ int                    n)
 {
-    // Reuse our get-node function
     CollectionItem_t *Node = CollectionGetNodeByKey(Collection, Key, n);
-
-    // Sanitize the lookup
-    if (Node != NULL) {
-        return Node->Data;
-    }
-    else {
-        return NULL;
-    }
+    return (Node == NULL) ? NULL : Node->Data;
 }
 
-/* These functions execute a given function
- * on all relevant nodes (see names) */
+/* CollectionExecute(s)
+ * These functions execute a given function on all relevant nodes (see names) */
 void
 CollectionExecuteOnKey(
-    _In_ Collection_t *Collection, 
-    _In_ void(*Function)(void*, int, void*), 
-    _In_ DataKey_t Key, 
-    _In_ void *UserData)
+    _In_ Collection_t*          Collection, 
+    _In_ void                   (*Function)(void*, int, void*), 
+    _In_ DataKey_t              Key, 
+    _In_ void*                  UserData)
 {
     // Variables
-    CollectionItem_t *Node = NULL;
-    int Itr = 0;
-
-    // Sanitize parameters
-    if (Collection == NULL || Collection->Headp == NULL || Collection->Length == 0) {
-        return;
-    }
+    CollectionItem_t *Node  = NULL;
+    int i                   = 0;
+    assert(Collection != NULL);
 
     // Iterate the Collection and match key
     _foreach(Node, Collection) {
         if (!dsmatchkey(Collection->KeyType, Node->Key, Key)) {
-            Function(Node->Data, Itr++, UserData);
+            Function(Node->Data, i++, UserData);
         }
     }
 }
 
-/* These functions execute a given function
- * on all relevant nodes (see names) */
+/* CollectionExecute(s)
+ * These functions execute a given function on all relevant nodes (see names) */
 void
 CollectionExecuteAll(
-    _In_ Collection_t *Collection, 
-    _In_ void(*Function)(void*, int, void*), 
-    _In_ void *UserData)
+    _In_ Collection_t*          Collection, 
+    _In_ void                   (*Function)(void*, int, void*), 
+    _In_ void*                  UserData)
 {
     // Variables
-    CollectionItem_t *Node = NULL;
-    int Itr = 0;
-
-    // Sanitize the paramters
-    if (Collection == NULL || Collection->Headp == NULL || Collection->Length == 0) {
-        return;
-    }
+    CollectionItem_t *Node  = NULL;
+    int i                   = 0;
+    assert(Collection != NULL);
 
     // Iteate and execute function given
     _foreach(Node, Collection) {
-        Function(Node->Data, Itr++, UserData);
+        Function(Node->Data, i++, UserData);
     }
 }
 
@@ -430,34 +385,32 @@ CollectionExecuteAll(
  * This functions unlinks a node and returns the next node for usage */
 CollectionItem_t*
 CollectionUnlinkNode(
-    _In_ Collection_t*      Collection, 
-    _In_ CollectionItem_t*  Node)
+    _In_ Collection_t*          Collection, 
+    _In_ CollectionItem_t*      Node)
 {
-    // Sanitize parameters
-    if (Collection == NULL || Collection->Headp == NULL
-        || Node == NULL) {
-        return NULL;
-    }
+    assert(Collection != NULL);
+    assert(Node != NULL);
 
     // There are a few cases we need to handle
     // in order for this to be O(1)
+    dslock(&Collection->SyncObject);
     if (Node->Prev == NULL) {
         // Ok, so this means we are the
         // first node in the Collection. Do we have a link?
         if (Node->Link == NULL) {
             // We're the only link
             // but lets stil validate we're from this Collection
-            if (Collection->Headp == Node) {
-                Collection->Headp = Collection->Tailp = NULL;
-                Collection->Length--;
+            if (Collection->Head == Node) {
+                Collection->Head = Collection->Tail = NULL;
+                atomic_fetch_sub(&Collection->Length, 1);
             }
         }
         else {
             // We have a link this means we set headp to next
-            if (Collection->Headp == Node) {
-                Collection->Headp = Node->Link;
-                Collection->Headp->Prev = NULL;
-                Collection->Length--;
+            if (Collection->Head == Node) {
+                Collection->Head = Node->Link;
+                Collection->Head->Prev = NULL;
+                atomic_fetch_sub(&Collection->Length, 1);
             }
         }
     }
@@ -468,10 +421,10 @@ CollectionUnlinkNode(
         if (Node->Link == NULL) {
             // Ok, we are last element 
             // Update tail pointer to previous
-            if (Collection->Tailp == Node) {
-                Collection->Tailp = Node->Prev;
-                Collection->Tailp->Link = NULL;
-                Collection->Length--;
+            if (Collection->Tail == Node) {
+                Collection->Tail = Node->Prev;
+                Collection->Tail->Link = NULL;
+                atomic_fetch_sub(&Collection->Length, 1);
             }
         }
         else {
@@ -481,31 +434,22 @@ CollectionUnlinkNode(
             CollectionItem_t *Prev = Node->Prev;
             Prev->Link = Node->Link;
             Prev->Link->Prev = Prev;
-            Collection->Length--;
+            atomic_fetch_sub(&Collection->Length, 1);
         }
     }
-
-    // Return the next node
-    if (Node->Prev == NULL) {
-        return Collection->Headp;
-    }
-    else {
-        return Node->Link;
-    }
+    dsunlock(&Collection->SyncObject);
+    return (Node->Prev == NULL) ? Collection->Head : Node->Link;
 }
 
 /* CollectionRemove
- * These are the deletion functions 
- * and remove based on either node index or key */
+ * These are the deletion functions and remove based on either node index or key */
 OsStatus_t
 CollectionRemoveByNode(
-    _In_ Collection_t *Collection,
-    _In_ CollectionItem_t* Node)
+    _In_ Collection_t*          Collection,
+    _In_ CollectionItem_t*      Node)
 {
-    // Sanitize params
-    if (Collection == NULL || Node == NULL) {
-        return OsError;
-    }
+    assert(Collection != NULL);
+    assert(Node != NULL);
     CollectionUnlinkNode(Collection, Node);
 
     // Update links
@@ -515,12 +459,11 @@ CollectionRemoveByNode(
 }
 
 /* CollectionRemove
- * These are the deletion functions 
- * and remove based on either node index or key */
+ * These are the deletion functions and remove based on either node index or key */
 OsStatus_t
 CollectionRemoveByIndex(
-    _In_ Collection_t *Collection, 
-    _In_ int Index)
+    _In_ Collection_t*          Collection, 
+    _In_ int                    Index)
 {
     _CRT_UNUSED(Collection);
     _CRT_UNUSED(Index);
@@ -528,25 +471,18 @@ CollectionRemoveByIndex(
 }
 
 /* CollectionRemove
- * These are the deletion functions 
- * and remove based on either node index or key */
+ * These are the deletion functions and remove based on either node index or key */
 OsStatus_t
 CollectionRemoveByKey(
-    _In_ Collection_t *Collection, 
-    _In_ DataKey_t Key)
+    _In_ Collection_t*          Collection, 
+    _In_ DataKey_t              Key)
 {
     // Variables    
     CollectionItem_t *Node = NULL;
-
-    // Sanitize Collection
-    if (Collection == NULL) {
-        return OsError;
-    }
+    assert(Collection != NULL);
 
     // Lookup node
     Node = CollectionGetNodeByKey(Collection, Key, 0);
-
-    // If found, unlink it and destroy it
     if (Node != NULL) {
         if (CollectionRemoveByNode(Collection, Node) != OsSuccess
             || CollectionDestroyNode(Collection, Node) != OsSuccess) {
@@ -556,7 +492,5 @@ CollectionRemoveByKey(
             return OsSuccess;
         }
     }
-
-    // Node wasn't found
     return OsError;
 }

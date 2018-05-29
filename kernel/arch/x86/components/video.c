@@ -21,9 +21,9 @@
 
 /* Includes 
  * - System */
+#include <machine.h>
 #include <system/video.h>
 #include <system/io.h>
-#include <multiboot.h>
 #include <vbe.h>
 
 /* Includes
@@ -50,8 +50,7 @@ __EXTERN const uint16_t MCoreFontIndex[];
  * Initializes the X86 video sub-system and provides
  * boot-video interface for the entire OS */
 void 
-VbeInitialize(
-	_In_ Multiboot_t *BootInfo)
+VbeInitialize(void)
 {
 	// Zero out structure
 	memset(&__GlbVideoTerminal, 0, sizeof(__GlbVideoTerminal));
@@ -60,7 +59,7 @@ VbeInitialize(
 	SpinlockReset(&__GlbVideoTerminal.Lock);
 
 	// Which kind of mode has been enabled for us
-	switch (BootInfo->VbeMode) {
+	switch (GetMachine()->BootInformation.VbeMode) {
 
 		// Text-Mode (80x25)
 		case 0: {
@@ -109,7 +108,7 @@ VbeInitialize(
 		default:
 		{
 			// Get active VBE information structure
-			VbeMode_t *vbe = (VbeMode_t*)(uintptr_t)BootInfo->VbeModeInfo;
+			VbeMode_t *vbe = (VbeMode_t*)(uintptr_t)GetMachine()->BootInformation.VbeModeInfo;
 
 			// Copy information over
 			__GlbVideoTerminal.Type = VIDEO_GRAPHICS;

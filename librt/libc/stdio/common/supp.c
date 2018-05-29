@@ -100,6 +100,7 @@ thrd_t thrd_current(void) {
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <assert.h>
 #include <io.h>
 #include "../local.h"
 
@@ -112,7 +113,6 @@ thrd_t thrd_current(void) {
 static Collection_t IoObjects   = COLLECTION_INIT(KeyInteger);
 static int *FdBitmap            = NULL;
 static Spinlock_t BitmapLock;
-static Spinlock_t IoLock;
 FILE __GlbStdout, __GlbStdin, __GlbStderr;
 
 /* Prototypes
@@ -161,13 +161,12 @@ StdioInitialize(
     _In_ void *InheritanceBlock,
     _In_ size_t InheritanceBlockLength)
 {
-    // Initialize the list of io-objects
-    SpinlockReset(&IoLock);
+    // Initialize the locks
+    SpinlockReset(&BitmapLock);
 
     // Initialize the bitmap of fds
     FdBitmap = (int *)malloc(DIVUP(INTERNAL_MAXFILES, 8));
     memset(FdBitmap, 0, DIVUP(INTERNAL_MAXFILES, 8));
-    SpinlockReset(&BitmapLock);
 
     // Initialize the std handles
     memset(&__GlbStdout, 0, sizeof(FILE));
@@ -198,14 +197,20 @@ StdioInitialize(
     // Make sure all handles have been set for std
     if (get_ioinfo(STDOUT_FILENO) == NULL) {
         __GlbStdout._fd = StdioFdAllocate(STDOUT_FILENO, WX_PIPE | WX_TTY);
+        assert(__GlbStdout._fd != -1);
+
         StdioCreatePipeHandle(UUID_INVALID, PIPE_STDOUT, _IOWRT, get_ioinfo(STDOUT_FILENO));
     }
     if (get_ioinfo(STDIN_FILENO) == NULL) {
         __GlbStdin._fd = StdioFdAllocate(STDIN_FILENO, WX_PIPE | WX_TTY);
+        assert(__GlbStdin._fd != -1);
+
         StdioCreatePipeHandle(UUID_INVALID, PIPE_STDIN, _IOREAD, get_ioinfo(STDIN_FILENO));
     }
     if (get_ioinfo(STDERR_FILENO) == NULL) {
         __GlbStderr._fd = StdioFdAllocate(STDERR_FILENO, WX_PIPE | WX_TTY);
+        assert(__GlbStderr._fd != -1);
+
         StdioCreatePipeHandle(UUID_INVALID, PIPE_STDERR, _IOWRT, get_ioinfo(STDERR_FILENO));
     }
     
@@ -327,9 +332,7 @@ StdioFdAllocate(
     
         // Add to list
         Key.Value = result;
-        SpinlockAcquire(&IoLock);
         CollectionAppend(&IoObjects, CollectionCreateNode(Key, io));
-        SpinlockRelease(&IoLock);
     }
     return result;
 }
@@ -346,19 +349,16 @@ StdioFdFree(
 
     // Free any resources allocated by the fd
     Key.Value = fd;
-    SpinlockAcquire(&IoLock);
     fNode = CollectionGetNodeByKey(&IoObjects, Key, 0);
     if (fNode != NULL) {
         free(fNode->Data);
         CollectionRemoveByNode(&IoObjects, fNode);
         CollectionDestroyNode(&IoObjects, fNode);
     }
-    SpinlockRelease(&IoLock);
 
     // Set the given fd index to free
     SpinlockAcquire(&BitmapLock);
-    FdBitmap[fd / (8 * sizeof(int))] &=
-        ~(1 << (fd % (8 * sizeof(int))));
+    FdBitmap[fd / (8 * sizeof(int))] &= ~(1 << (fd % (8 * sizeof(int))));
     SpinlockRelease(&BitmapLock);
 }
 
@@ -374,9 +374,7 @@ StdioFdToHandle(
 
     // Free any resources allocated by the fd
     Key.Value = fd;
-    SpinlockAcquire(&IoLock);
     fNode = CollectionGetNodeByKey(&IoObjects, Key, 0);
-    SpinlockRelease(&IoLock);
     if (fNode != NULL) {
         return &((StdioObject_t*)fNode->Data)->handle;
     }
@@ -399,9 +397,7 @@ StdioFdInitialize(
 
     // Lookup node of the file descriptor
     Key.Value = fd;
-    SpinlockAcquire(&IoLock);
     fNode = CollectionGetNodeByKey(&IoObjects, Key, 0);
-    SpinlockRelease(&IoLock);
     
     // Node must exist
     if (fNode != NULL) {

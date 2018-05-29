@@ -32,9 +32,11 @@
 /* SystemCpuState
  * Represents the current state of the cpu.*/
 typedef enum _SystemCpuState {
-    CpuStateUnavailable,
-    CpuStateShutdown,
-    CpuStateRunning
+    CpuStateUnavailable     = 0x0,
+    CpuStateShutdown        = 0x1,
+    CpuStateRunning         = 0x2,
+
+    CpuStateInterruptActive = 0x10000
 } SystemCpuState_t;
 
 /* SystemCpuCore

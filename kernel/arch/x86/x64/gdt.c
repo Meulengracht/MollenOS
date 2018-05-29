@@ -42,7 +42,7 @@ __EXTERN void TssInstall(int GdtIndex);
 /* Globals
  * Static storage as we have no memory allocator here */
 GdtObject_t __GdtTableObject; // Don't make static, used in asm
-static GdtDescriptor_t Descriptors[GDT_MAX_DESCRIPTORS]    = { 0 };
+static GdtDescriptor_t Descriptors[GDT_MAX_DESCRIPTORS]    = { { 0 } };
 static TssDescriptor_t *TssPointers[GDT_MAX_TSS]           = { 0 };
 static TssDescriptor_t BootTss                             = { 0 };
 static _Atomic(int) GdtIndicer                             = ATOMIC_VAR_INIT(0);

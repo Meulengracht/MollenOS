@@ -21,11 +21,12 @@
  *   that is generic and can be shared/used by all systems
  */
 
-#define __MODULE		"INIF"
+#define __MODULE        "INIF"
 //#define __TRACE
 
 /* Includes 
  * - System */
+#include <component/cpu.h>
 #include <system/interrupts.h>
 #include <system/thread.h>
 #include <system/utils.h>
@@ -53,11 +54,9 @@ typedef struct _InterruptTableEntry {
 
 /* Globals
  * - State keeping variables */
-static InterruptTableEntry_t    InterruptTable[MAX_SUPPORTED_INTERRUPTS];
-static int                      InterruptActiveStatus[MAX_SUPPORTED_CPUS];
-static CriticalSection_t        TableLock;
-static int                      InterruptsInitialized = 0;
-static UUId_t                   InterruptIdGenerator = 0;
+static InterruptTableEntry_t    InterruptTable[MAX_SUPPORTED_INTERRUPTS]    = { { 0 } };
+static CriticalSection_t        InterruptTableSyncObject    = CRITICALSECTION_INITIALIZE(CRITICALSECTION_PLAIN);
+static _Atomic(UUId_t)          InterruptIdGenerator        = ATOMIC_VAR_INIT(0);
 
 /* AcpiGetPolarityMode
  * Returns whether or not the polarity is Active Low or Active High.
@@ -68,19 +67,19 @@ AcpiGetPolarityMode(
     _In_ int Source)
 {
     // Parse the different polarity flags
-	switch (IntiFlags & ACPI_MADT_POLARITY_MASK) {
-		case ACPI_MADT_POLARITY_CONFORMS: {
-			if (Source == (int)AcpiGbl_FADT.SciInterrupt)
-				return 1;
-			else
-				return 0;
-		} break;
-		case ACPI_MADT_POLARITY_ACTIVE_HIGH:
-			return 0;
-		case ACPI_MADT_POLARITY_ACTIVE_LOW:
-			return 1;
-	}
-	return 0;
+    switch (IntiFlags & ACPI_MADT_POLARITY_MASK) {
+        case ACPI_MADT_POLARITY_CONFORMS: {
+            if (Source == (int)AcpiGbl_FADT.SciInterrupt)
+                return 1;
+            else
+                return 0;
+        } break;
+        case ACPI_MADT_POLARITY_ACTIVE_HIGH:
+            return 0;
+        case ACPI_MADT_POLARITY_ACTIVE_LOW:
+            return 1;
+    }
+    return 0;
 }
 
 /* AcpiGetTriggerMode
@@ -91,20 +90,20 @@ AcpiGetTriggerMode(
     _In_ uint16_t IntiFlags,
     _In_ int Source)
 {
-	// Parse the different trigger mode flags
-	switch (IntiFlags & ACPI_MADT_TRIGGER_MASK) {
-		case ACPI_MADT_TRIGGER_CONFORMS: {
-			if (Source == (int)AcpiGbl_FADT.SciInterrupt)
-				return 1;
-			else
-				return 0;
-		} break;
-		case ACPI_MADT_TRIGGER_EDGE:
-			return 0;
-		case ACPI_MADT_TRIGGER_LEVEL:
-			return 1;
-	}
-	return 0;
+    // Parse the different trigger mode flags
+    switch (IntiFlags & ACPI_MADT_TRIGGER_MASK) {
+        case ACPI_MADT_TRIGGER_CONFORMS: {
+            if (Source == (int)AcpiGbl_FADT.SciInterrupt)
+                return 1;
+            else
+                return 0;
+        } break;
+        case ACPI_MADT_TRIGGER_EDGE:
+            return 0;
+        case ACPI_MADT_TRIGGER_LEVEL:
+            return 1;
+    }
+    return 0;
 }
 
 /* AcpiDeriveInterrupt
@@ -117,64 +116,64 @@ AcpiDeriveInterrupt(
     _In_  int       Pin,
     _Out_ Flags_t*  AcpiConform)
 {
-	// Variables
-	AcpiDevice_t *Dev = NULL;
-	DataKey_t iKey;
+    // Variables
+    AcpiDevice_t *Dev = NULL;
+    DataKey_t iKey;
 
-	// Calculate routing index
-	unsigned rIndex = (Device * 4) + (Pin - 1);
-	iKey.Value      = 0;
+    // Calculate routing index
+    unsigned rIndex = (Device * 4) + (Pin - 1);
+    iKey.Value      = 0;
 
-	// Trace
-	TRACE("AcpiDeriveInterrupt(Bus %u, Device %u, Pin %i)", Bus, Device, Pin);
+    // Trace
+    TRACE("AcpiDeriveInterrupt(Bus %u, Device %u, Pin %i)", Bus, Device, Pin);
 
-	// Start by checking if we can find the
-	// routings by checking the given device
-	Dev = AcpiDeviceLookupBusRoutings(Bus);
+    // Start by checking if we can find the
+    // routings by checking the given device
+    Dev = AcpiDeviceLookupBusRoutings(Bus);
 
-	// Make sure there was a bus device for it
-	if (Dev != NULL) {
-		TRACE("Found bus-device <%s>, accessing index %u", 
-			&Dev->HId[0], rIndex);
-		if (Dev->Routings->ActiveIrqs[rIndex] != INTERRUPT_NONE
-			&& Dev->Routings->InterruptEntries[rIndex] != NULL) {
-			PciRoutingEntry_t *RoutingEntry = NULL;
+    // Make sure there was a bus device for it
+    if (Dev != NULL) {
+        TRACE("Found bus-device <%s>, accessing index %u", 
+            &Dev->HId[0], rIndex);
+        if (Dev->Routings->ActiveIrqs[rIndex] != INTERRUPT_NONE
+            && Dev->Routings->InterruptEntries[rIndex] != NULL) {
+            PciRoutingEntry_t *RoutingEntry = NULL;
 
-			// Lookup entry in list
-			foreach(iNode, Dev->Routings->InterruptEntries[rIndex]) {
-				RoutingEntry = (PciRoutingEntry_t*)iNode->Data;
-				if (RoutingEntry->Irq == Dev->Routings->ActiveIrqs[rIndex]) {
-					break;
-				}
-			}
+            // Lookup entry in list
+            foreach(iNode, Dev->Routings->InterruptEntries[rIndex]) {
+                RoutingEntry = (PciRoutingEntry_t*)iNode->Data;
+                if (RoutingEntry->Irq == Dev->Routings->ActiveIrqs[rIndex]) {
+                    break;
+                }
+            }
 
-			// Update IRQ Information
-			*AcpiConform = __DEVICEMANAGER_ACPICONFORM_PRESENT;
-			if (RoutingEntry->Trigger == ACPI_LEVEL_SENSITIVE) {
-				*AcpiConform |= __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE;
-			}
+            // Update IRQ Information
+            *AcpiConform = __DEVICEMANAGER_ACPICONFORM_PRESENT;
+            if (RoutingEntry->Trigger == ACPI_LEVEL_SENSITIVE) {
+                *AcpiConform |= __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE;
+            }
 
-			if (RoutingEntry->Polarity == ACPI_ACTIVE_LOW) {
-				*AcpiConform |= __DEVICEMANAGER_ACPICONFORM_POLARITY;
-			}
+            if (RoutingEntry->Polarity == ACPI_ACTIVE_LOW) {
+                *AcpiConform |= __DEVICEMANAGER_ACPICONFORM_POLARITY;
+            }
 
-			if (RoutingEntry->Shareable != 0) {
-				*AcpiConform |= __DEVICEMANAGER_ACPICONFORM_SHAREABLE;
-			}
+            if (RoutingEntry->Shareable != 0) {
+                *AcpiConform |= __DEVICEMANAGER_ACPICONFORM_SHAREABLE;
+            }
 
-			if (RoutingEntry->Fixed != 0) {
-				*AcpiConform |= __DEVICEMANAGER_ACPICONFORM_FIXED;
-			}
+            if (RoutingEntry->Fixed != 0) {
+                *AcpiConform |= __DEVICEMANAGER_ACPICONFORM_FIXED;
+            }
 
-			// Return found interrupt
-			TRACE("Found interrupt %i", RoutingEntry->Irq);
-			return RoutingEntry->Irq;
-		}
-	}
+            // Return found interrupt
+            TRACE("Found interrupt %i", RoutingEntry->Irq);
+            return RoutingEntry->Irq;
+        }
+    }
 
-	// None found
-	TRACE("No interrupt found");
-	return INTERRUPT_NONE;
+    // None found
+    TRACE("No interrupt found");
+    return INTERRUPT_NONE;
 }
 
 /* InterruptIncreasePenalty 
@@ -184,8 +183,8 @@ InterruptIncreasePenalty(
     _In_ int Source)
 {
     // Sanitize the requested source bounds
-	if (Source < 0 || Source >= MAX_SUPPORTED_INTERRUPTS) {
-		return INTERRUPT_NONE;
+    if (Source < 0 || Source >= MAX_SUPPORTED_INTERRUPTS) {
+        return INTERRUPT_NONE;
     }
 
     // Done
@@ -200,8 +199,8 @@ InterruptDecreasePenalty(
     _In_ int Source)
 {
     // Sanitize the requested source bounds
-	if (Source < 0 || Source >= MAX_SUPPORTED_INTERRUPTS) {
-		return INTERRUPT_NONE;
+    if (Source < 0 || Source >= MAX_SUPPORTED_INTERRUPTS) {
+        return INTERRUPT_NONE;
     }
 
     // Done
@@ -216,9 +215,9 @@ int
 InterruptGetPenalty(
     _In_ int Source)
 {
-	// Sanitize the requested source bounds
-	if (Source < 0 || Source >= MAX_SUPPORTED_INTERRUPTS) {
-		return INTERRUPT_NONE;
+    // Sanitize the requested source bounds
+    if (Source < 0 || Source >= MAX_SUPPORTED_INTERRUPTS) {
+        return INTERRUPT_NONE;
     }
 
     // Sanitize that source is valid
@@ -227,8 +226,8 @@ InterruptGetPenalty(
         return INTERRUPT_NONE;
     }
 
-	// Finished
-	return InterruptTable[Source].Penalty;
+    // Finished
+    return InterruptTable[Source].Penalty;
 }
 
 /* InterruptGetLeastLoaded
@@ -236,10 +235,10 @@ InterruptGetPenalty(
  * Out of the given available interrupt sources. */
 int
 InterruptGetLeastLoaded(
-	_In_ int Irqs[],
-	_In_ int Count)
+    _In_ int Irqs[],
+    _In_ int Count)
 {
-	// Variables
+    // Variables
     int SelectedPenality = INTERRUPT_NONE;
     int SelectedIrq = INTERRUPT_NONE;
     int i;
@@ -247,21 +246,21 @@ InterruptGetLeastLoaded(
     // Debug
     TRACE("InterruptGetLeastLoaded(Count %i)", Count);
 
-	// Iterate all the available irqs
-	// that the device-supports
-	for (i = 0; i < Count; i++) {
-		if (Irqs[i] == INTERRUPT_NONE) {
-			break;
-		}
+    // Iterate all the available irqs
+    // that the device-supports
+    for (i = 0; i < Count; i++) {
+        if (Irqs[i] == INTERRUPT_NONE) {
+            break;
+        }
 
-		// Calculate count
-		int Penalty = InterruptGetPenalty(Irqs[i]);
+        // Calculate count
+        int Penalty = InterruptGetPenalty(Irqs[i]);
 
-		// Sanitize status, if -1
+        // Sanitize status, if -1
         // then its not usable
-		if (Penalty == INTERRUPT_NONE) {
-			continue;
-		}
+        if (Penalty == INTERRUPT_NONE) {
+            continue;
+        }
 
         // Store the lowest penalty
         if (SelectedIrq == INTERRUPT_NONE
@@ -269,25 +268,8 @@ InterruptGetLeastLoaded(
             SelectedIrq = Irqs[i];
             SelectedPenality = Penalty;
         }
-	}
-
-	// Done
-	return SelectedIrq;
-}
-
-/* InterruptInitialize
- * Initializes interrupt data-structures and global variables
- * by setting everything to sane value */
-void
-InterruptInitialize(void)
-{
-	// Initialize globals
-    memset((void*)&InterruptTable[0], 0, 
-        sizeof(InterruptTableEntry_t*) * MAX_SUPPORTED_INTERRUPTS);
-    memset((void*)&InterruptActiveStatus[0], 0, sizeof(InterruptActiveStatus));
-    CriticalSectionConstruct(&TableLock, CRITICALSECTION_PLAIN);
-	InterruptsInitialized = 1;
-    InterruptIdGenerator = 0;
+    }
+    return SelectedIrq;
 }
 
 /* InterruptRegister
@@ -300,31 +282,26 @@ InterruptRegister(
     _In_ MCoreInterrupt_t*  Interrupt,
     _In_ Flags_t            Flags)
 {
-	// Variables
-	MCoreInterruptDescriptor_t *Entry = NULL;
-	UUId_t TableIndex                 = 0;
-	UUId_t Id                         = 0;
+    // Variables
+    MCoreInterruptDescriptor_t *Entry = NULL;
+    UUId_t TableIndex                 = 0;
+    UUId_t Id                         = 0;
 
-	// Sanitize initialization status
-	assert(InterruptsInitialized == 1);
+    // Trace
+    TRACE("InterruptRegister(Line %i, Pin %i, Vector %i, Flags 0x%x)",
+        Interrupt->Line, Interrupt->Pin, Interrupt->Vectors[0], Flags);
 
-	// Trace
-	TRACE("InterruptRegister(Line %i, Pin %i, Vector %i, Flags 0x%x)",
-		Interrupt->Line, Interrupt->Pin, Interrupt->Vectors[0], Flags);
-
-	// Allocate a new entry for the table
-	Entry = (MCoreInterruptDescriptor_t*)kmalloc(sizeof(MCoreInterruptDescriptor_t));
+    // Allocate a new entry for the table
+    Entry = (MCoreInterruptDescriptor_t*)kmalloc(sizeof(MCoreInterruptDescriptor_t));
 
     // This is a locked procedure
-    CriticalSectionEnter(&TableLock);
-    Id              = InterruptIdGenerator++;
-    CriticalSectionLeave(&TableLock);
+    Id              = atomic_fetch_add(&InterruptIdGenerator, 1);
 
-	// Setup some initial information
+    // Setup some initial information
     Entry->Id       = (Id << 16);    
-	Entry->Ash      = UUID_INVALID;
-	Entry->Thread   = ThreadingGetCurrentThreadId();
-	Entry->Flags    = Flags;
+    Entry->Ash      = UUID_INVALID;
+    Entry->Thread   = ThreadingGetCurrentThreadId();
+    Entry->Flags    = Flags;
     Entry->Link     = NULL;
 
     // Clear out line if the interrupt is software
@@ -334,7 +311,7 @@ InterruptRegister(
 
     // Get process id?
     if (!(Flags & INTERRUPT_KERNEL)) {
-		Entry->Ash = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+        Entry->Ash = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
     }
 
     // Resolve the table index
@@ -347,22 +324,20 @@ InterruptRegister(
         Entry->Id |= TableIndex;
     }
 
-	// Trace
+    // Trace
     TRACE("Updated line %i:%i for index 0x%x", 
         Interrupt->Line, Interrupt->Pin, TableIndex);
 
-	// Copy interrupt information over
-	memcpy(&Entry->Interrupt, Interrupt, sizeof(MCoreInterrupt_t));
+    // Copy interrupt information over
+    memcpy(&Entry->Interrupt, Interrupt, sizeof(MCoreInterrupt_t));
     
-    // From here on out we must lock
-    CriticalSectionEnter(&TableLock);
-	
-	// Sanitize the sharable status first
-	if (Flags & INTERRUPT_NOTSHARABLE) {
-		if (InterruptTable[TableIndex].Descriptor != NULL) {
+    // Sanitize the sharable status first
+    CriticalSectionEnter(&InterruptTableSyncObject);
+    if (Flags & INTERRUPT_NOTSHARABLE) {
+        if (InterruptTable[TableIndex].Descriptor != NULL) {
             ERROR("Failed to install interrupt as it was not sharable");
             goto Error;
-		}
+        }
     }
     else if (InterruptTable[TableIndex].Sharable != 1
             && InterruptTable[TableIndex].Penalty > 0) {
@@ -371,12 +346,12 @@ InterruptRegister(
     }
     
     // Initialize the table entry?
-	if (InterruptTable[TableIndex].Descriptor == NULL) {
+    if (InterruptTable[TableIndex].Descriptor == NULL) {
         InterruptTable[TableIndex].Descriptor = Entry;
         InterruptTable[TableIndex].Penalty = 1;
         InterruptTable[TableIndex].Sharable = (Flags & INTERRUPT_NOTSHARABLE) ? 0 : 1;
-	}
-	else {
+    }
+    else {
         // Insert and increase penalty
         Entry->Link = InterruptTable[TableIndex].Descriptor;
         InterruptTable[TableIndex].Descriptor = Entry;
@@ -389,14 +364,13 @@ InterruptRegister(
     if (InterruptConfigure(Entry, 1) != OsSuccess) {
         ERROR("Failed to enable source %i", Entry->Source);
     }
+    CriticalSectionLeave(&InterruptTableSyncObject);
     
-    // Unlock us
-    CriticalSectionLeave(&TableLock);
-	TRACE("Interrupt Id 0x%x", Entry->Id);
+    TRACE("Interrupt Id 0x%x", Entry->Id);
     return Entry->Id;
 Error:
     // Cleanup
-    CriticalSectionLeave(&TableLock);
+    CriticalSectionLeave(&InterruptTableSyncObject);
     if (Entry != NULL) {
         kfree(Entry);
     }
@@ -411,24 +385,23 @@ OsStatus_t
 InterruptUnregister(
     _In_ UUId_t Source)
 {
-	// Variables
+    // Variables
     MCoreInterruptDescriptor_t  *Entry    = NULL, 
                                 *Previous = NULL;
-	OsStatus_t Result                     = OsError;
-	uint16_t TableIndex                   = LOWORD(Source);
-	int Found                             = 0;
+    OsStatus_t Result                     = OsError;
+    uint16_t TableIndex                   = LOWORD(Source);
+    int Found                             = 0;
 
-	// Sanitize parameter
-	if (TableIndex >= MAX_SUPPORTED_INTERRUPTS) {
-		return OsError;
+    // Sanitize parameter
+    if (TableIndex >= MAX_SUPPORTED_INTERRUPTS) {
+        return OsError;
     }
     
-	// Iterate handlers in that table index 
-	// and unlink the given entry
-    CriticalSectionEnter(&TableLock);
-	Entry = InterruptTable[TableIndex].Descriptor;
-	while (Entry != NULL) {
-		if (Entry->Id == Source) {
+    // Iterate handlers in that table index and unlink the given entry
+    CriticalSectionEnter(&InterruptTableSyncObject);
+    Entry = InterruptTable[TableIndex].Descriptor;
+    while (Entry != NULL) {
+        if (Entry->Id == Source) {
             if (!(Entry->Flags & INTERRUPT_KERNEL)) {
                 if (Entry->Ash != ThreadingGetCurrentThread(CpuGetCurrentId())->AshId) {
                     continue;
@@ -436,25 +409,25 @@ InterruptUnregister(
             }
 
             // Marked entry as found
-			Found = 1;
-			if (Previous == NULL) {
-				InterruptTable[TableIndex].Descriptor = Entry->Link;
-			}
-			else {
-				Previous->Link = Entry->Link;
-			}
-			break;
+            Found = 1;
+            if (Previous == NULL) {
+                InterruptTable[TableIndex].Descriptor = Entry->Link;
+            }
+            else {
+                Previous->Link = Entry->Link;
+            }
+            break;
         }
         
         // Next entry
-		Previous = Entry;
-		Entry = Entry->Link;
+        Previous = Entry;
+        Entry = Entry->Link;
     }
-    CriticalSectionLeave(&TableLock);
+    CriticalSectionLeave(&InterruptTableSyncObject);
 
-	// Sanitize if we were successfull
-	if (Found == 0) {
-		return OsError;
+    // Sanitize if we were successfull
+    if (Found == 0) {
+        return OsError;
     }
     
     // Decrease penalty
@@ -462,15 +435,15 @@ InterruptUnregister(
         InterruptDecreasePenalty(Entry->Source);
     }
 
-	// Entry is now unlinked, clean it up 
-	// mask the interrupt again if neccessary
-	if (Found == 1) {
+    // Entry is now unlinked, clean it up 
+    // mask the interrupt again if neccessary
+    if (Found == 1) {
         if (InterruptTable[Entry->Source].Penalty == 0) {
             InterruptConfigure(Entry, 0);
         }
         kfree(Entry);
-	}
-	return Result;
+    }
+    return Result;
 }
 
 /* InterruptGet
@@ -480,20 +453,20 @@ MCoreInterruptDescriptor_t*
 InterruptGet(
     _In_ UUId_t Source)
 {
-	// Variables
-	MCoreInterruptDescriptor_t *Iterator = NULL;
-	uint16_t TableIndex = LOWORD(Source);
+    // Variables
+    MCoreInterruptDescriptor_t *Iterator = NULL;
+    uint16_t TableIndex = LOWORD(Source);
 
-	// Iterate at the correct entry
-	Iterator = InterruptTable[TableIndex].Descriptor;
-	while (Iterator != NULL) {
-		if (Iterator->Id == Source) {
-			return Iterator;
-		}
-	}
+    // Iterate at the correct entry
+    Iterator = InterruptTable[TableIndex].Descriptor;
+    while (Iterator != NULL) {
+        if (Iterator->Id == Source) {
+            return Iterator;
+        }
+    }
 
-	// We didn't find it
-	return NULL;
+    // We didn't find it
+    return NULL;
 }
 
 /* InterruptGetIndex
@@ -514,7 +487,10 @@ InterruptSetActiveStatus(
     _In_ int Active)
 {
     // Update current cpu status
-    InterruptActiveStatus[CpuGetCurrentId()] = Active;
+    GetCurrentProcessorCore()->State &= ~(CpuStateInterruptActive);
+    if (Active) {
+        GetCurrentProcessorCore()->State |= CpuStateInterruptActive;
+    }
 }
 
 /* InterruptGetActiveStatus
@@ -523,7 +499,7 @@ InterruptSetActiveStatus(
 int
 InterruptGetActiveStatus(void)
 {
-    return InterruptActiveStatus[CpuGetCurrentId()];
+    return (GetCurrentProcessorCore()->State & CpuStateInterruptActive) == 0 ? 0 : 1;
 }
 
 /* InterruptHandle

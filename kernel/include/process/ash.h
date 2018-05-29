@@ -74,7 +74,6 @@ typedef struct _MCoreAsh {
     UUId_t               Id;
     UUId_t               Parent;
     MCoreAshType_t       Type;
-    CriticalSection_t    Lock;
 
     // The name of the Ash, this is usually
     // derived from the file that spawned it
@@ -109,9 +108,9 @@ typedef struct _MCoreAsh {
 /* MCoreAshFileMappingEvent
  * Descripes a file mapping access event. */
 typedef struct _MCoreAshFileMappingEvent {
-    MCoreAsh_t*             Ash;
-    uintptr_t               Address;
-    OsStatus_t              Result;
+    MCoreAsh_t*         Ash;
+    uintptr_t           Address;
+    OsStatus_t          Result;
 } MCoreAshFileMappingEvent_t;
 
 /* PhoenixInitializeAsh

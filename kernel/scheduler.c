@@ -45,7 +45,8 @@
 
 /* Globals
  * - State keeping variables */
-static SchedulerQueue_t IoQueue = { 0 };
+static CriticalSection_t IoQueueSyncObject  = CRITICALSECTION_INITIALIZE(CRITICALSECTION_PLAIN);
+static SchedulerQueue_t IoQueue             = { 0 };
 
 /* SchedulerInitialize
  * Initializes the scheduler instance to default settings and parameters. */
@@ -81,6 +82,62 @@ SchedulerQueueAppend(
 
     // Null end
     ThreadEnd->Link = NULL;
+}
+
+/* SchedulerQueueFind
+ * Returns OsSuccess if the function succesfully found the given thread handle. */
+OsStatus_t
+SchedulerQueueFind(
+    _In_ SchedulerQueue_t*  Queue,
+    _In_ MCoreThread_t*     Thread)
+{
+    // Variables
+    MCoreThread_t *i = NULL;
+
+    // Sanitize the io-queue
+    if (IoQueue.Head == NULL) {
+        return OsError;
+    }
+
+    // Iterate the queue
+    i = IoQueue.Head;
+    while (i) {
+        if (i == Thread) {
+            return OsSuccess;
+        }
+        else {
+            i = i->Link;
+        }
+    }
+    return OsError;
+}
+
+/* SchedulerQueueFindHandle
+ * Returns the thread that belongs to the given sleep handle. */
+MCoreThread_t*
+SchedulerQueueFindHandle(
+    _In_ SchedulerQueue_t*  Queue,
+    _In_ uintptr_t*         Handle)
+{
+    // Variables
+    MCoreThread_t *i = NULL;
+
+    // Sanitize the io-queue
+    if (IoQueue.Head == NULL) {
+        return NULL;
+    }
+
+    // Iterate the queue
+    i = IoQueue.Head;
+    while (i) {
+        if (i->Sleep.Handle == Handle) {
+            return i;
+        }
+        else {
+            i = i->Link;
+        }
+    }
+    return NULL;
 }
 
 /* SchedulerQueueRemove
@@ -262,12 +319,19 @@ SchedulerThreadDequeue(
         Thread->CpuId, Thread->Id, Thread->Queue);
     Scheduler = SchedulerGetFromCore(Thread->CoreId);
 
-    // Locked operation
-    CriticalSectionEnter(&Scheduler->QueueLock);
-    SchedulerQueueRemove(&Scheduler->Queues[Thread->Queue], Thread);
+    // Is the thread currently in sleep?
+    if ((Thread->Sleep.Handle != NULL || Thread->Sleep.TimeLeft > 0) && Thread->Sleep.Timeout != 1) {
+        CriticalSectionEnter(&IoQueueSyncObject);
+        SchedulerQueueRemove(&Scheduler->Queues[Thread->Queue], Thread);
+        CriticalSectionLeave(&IoQueueSyncObject);
+    }
+    else {
+        CriticalSectionEnter(&Scheduler->QueueLock);
+        SchedulerQueueRemove(&Scheduler->Queues[Thread->Queue], Thread);
+        CriticalSectionLeave(&Scheduler->QueueLock);
+    }
     Scheduler->ThreadCount--;
-    CriticalSectionLeave(&Scheduler->QueueLock);
-    
+
     // Set inactive
     THREADING_CLEARSTATE(Thread->Flags);
     return OsSuccess;
@@ -283,7 +347,6 @@ SchedulerThreadSleep(
 {
     // Variables
     MCoreThread_t *CurrentThread    = NULL;
-    IntStatus_t InterruptStatus     = 0;
     UUId_t CurrentCpu               = 0;
     
     // Instantiate values
@@ -295,7 +358,7 @@ SchedulerThreadSleep(
     TRACE("Adding thread %u to sleep queue on 0x%x", CurrentThread->Id, Handle);
     
     // Disable interrupts while doing this
-    InterruptStatus = InterruptDisable();
+    CriticalSectionEnter(&IoQueueSyncObject);
     SchedulerThreadDequeue(CurrentThread);
     CurrentThread->Flags |= THREADING_TRANSITION_SLEEP;
 
@@ -306,7 +369,7 @@ SchedulerThreadSleep(
 
     // Add to io-queue
     SchedulerQueueAppend(&IoQueue, CurrentThread, CurrentThread);
-    InterruptRestoreState(InterruptStatus);
+    CriticalSectionLeave(&IoQueueSyncObject);
     ThreadingYield();
 
     // Resolve sleep-state
@@ -327,35 +390,19 @@ OsStatus_t
 SchedulerThreadSignal(
     _In_ MCoreThread_t*     Thread)
 {
-    // Variables
-    MCoreThread_t *Current = NULL;
-
     // Debug
     TRACE("SchedulerThreadSignal(Thread %u)", Thread->Id);
-
-    // Sanitize the io-queue
-    if (IoQueue.Head == NULL || Thread == NULL) {
-        return OsError;
-    }
-
-    // Iterate the queue
-    Current = IoQueue.Head;
-    while (Current) {
-        if (Current == Thread) {
-            break;
-        }
-        else {
-            Current = Current->Link;
-        }
-    }
+    assert(Thread != NULL);
 
     // If found, remove from queue and queue
-    if (Current != NULL) {
-        Current->Sleep.Timeout = 0;
-        Current->Sleep.Handle = NULL;
-        TimersGetSystemTick(&Current->Sleep.InterruptedAt);
-        SchedulerQueueRemove(&IoQueue, Current);
-        return SchedulerThreadQueue(Current);
+    if (SchedulerQueueFind(&IoQueue, Thread) == OsSuccess) {
+        Thread->Sleep.Timeout = 0;
+        Thread->Sleep.Handle = NULL;
+        TimersGetSystemTick(&Thread->Sleep.InterruptedAt);
+        CriticalSectionEnter(&IoQueueSyncObject);
+        SchedulerQueueRemove(&IoQueue, Thread);
+        CriticalSectionLeave(&IoQueueSyncObject);
+        return SchedulerThreadQueue(Thread);
     }
     else {
         return OsError;
@@ -369,31 +416,15 @@ SchedulerHandleSignal(
     _In_ uintptr_t*         Handle)
 {
     // Variables
-    MCoreThread_t *Current = NULL;
-
-    // Sanitize the io-queue
-    if (IoQueue.Head == NULL || Handle == NULL) {
-        return OsError;
-    }
-
-    // Iterate the queue
-    Current = IoQueue.Head;
-    while (Current) {
-        if (Current->Sleep.Handle == Handle) {
-            break;
-        }
-        else {
-            Current = Current->Link;
-        }
-    }
-
-    // If found, remove from queue and queue
+    MCoreThread_t *Current = SchedulerQueueFindHandle(&IoQueue, Handle);
     if (Current != NULL) {
         Current->Sleep.Timeout  = 0;
         Current->Sleep.Handle   = NULL;
         Current->Sleep.TimeLeft = 0;
         TimersGetSystemTick(&Current->Sleep.InterruptedAt);
+        CriticalSectionEnter(&IoQueueSyncObject);
         SchedulerQueueRemove(&IoQueue, Current);
+        CriticalSectionLeave(&IoQueueSyncObject);
         return SchedulerThreadQueue(Current);
     }
     else {
@@ -433,6 +464,7 @@ SchedulerTick(
     TRACE("SchedulerTick()");
 
     // Iterate the queue
+    CriticalSectionEnter(&IoQueueSyncObject);
     Current = IoQueue.Head;
     while (Current) {
         if (Current->Sleep.TimeLeft != 0) {
@@ -454,6 +486,7 @@ SchedulerTick(
             Current = Current->Link;
         }
     }
+    CriticalSectionLeave(&IoQueueSyncObject);
 }
 
 /* SchedulerThreadSchedule 

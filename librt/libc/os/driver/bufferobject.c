@@ -31,7 +31,6 @@
 #define __TRACE
 #include <system/addressspace.h>
 #include <debug.h>
-#include <arch.h>
 #include <heap.h>
 #else
 #define __TRACE

@@ -34,9 +34,7 @@
 
 /* InterruptResolve 
  * Resolves the table index from the given interrupt settings. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 InterruptResolve(
     _InOut_ MCoreInterrupt_t *Interrupt,
     _In_ Flags_t Flags,
@@ -44,51 +42,37 @@ InterruptResolve(
 
 /* InterruptConfigure
  * Configures the given interrupt in the system */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 InterruptConfigure(
     _In_ MCoreInterruptDescriptor_t *Descriptor,
     _In_ int Enable);
 
 /* InterruptDisable
- * Disables interrupts and returns
- * the state before disabling */
-KERNELAPI
-IntStatus_t
-KERNELABI
+ * Disables interrupts and returns the state before disabling */
+KERNELAPI IntStatus_t KERNELABI
 InterruptDisable(void);
 
 /* InterruptEnable
- * Enables interrupts and returns 
- * the state before enabling */
-KERNELAPI
-IntStatus_t
-KERNELABI
+ * Enables interrupts and returns the state before enabling */
+KERNELAPI IntStatus_t KERNELABI
 InterruptEnable(void);
 
 /* InterruptRestoreState
  * Restores the interrupt-status to the given
  * state, that must have been saved from SaveState */
-KERNELAPI
-IntStatus_t
-KERNELABI
+KERNELAPI IntStatus_t KERNELABI
 InterruptRestoreState(
     _In_ IntStatus_t State);
 
 /* InterruptSaveState
  * Retrieves the current state of interrupts */
-KERNELAPI
-IntStatus_t
-KERNELABI
+KERNELAPI IntStatus_t KERNELABI
 InterruptSaveState(void);
 
 /* InterruptIsDisabled
  * Returns 1 if interrupts are currently
  * disabled or 0 if interrupts are enabled */
-KERNELAPI
-int
-KERNELABI
+KERNELAPI int KERNELABI
 InterruptIsDisabled(void);
 
 #endif //!_MCORE_SYSTEMINTS_H_

@@ -21,11 +21,11 @@
  */
 #include <component/domain.h>
 #include <component/cpu.h>
+#include <machine.h>
 
 /* Global storage
  * Global static storage/variables for managing domains. */
 static SystemDomain_t PrimaryDomain = { { 0 }, { { 0 } }, { 0 } };
-static Collection_t Domains         = COLLECTION_INIT(KeyInteger);
 
 /* InitializePrimaryDomain
  * Initializes the primary domain of the current machine. */
@@ -43,7 +43,7 @@ InitializePrimaryDomain(void)
     // @todo
 
     // Add to list of domains
-    CollectionAppend(&Domains, &PrimaryDomain.Header);
+    CollectionAppend(&GetMachine()->SystemDomains, &PrimaryDomain.Header);
 }
 
 /* GetCurrentDomain
@@ -60,5 +60,5 @@ GetCurrentDomain(void)
 Collection_t*
 GetDomains(void)
 {
-    return &Domains;
+    return &GetMachine()->SystemDomains;
 }

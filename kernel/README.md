@@ -2,9 +2,13 @@
 
 ## Structure
 
-- /acpica (Contains the ACPICA implementation)
+- /acpi (Contains the acpi implementation)
 - /arch (Contains implementations of different architectures / architecture specific code)
-- /common (Contains common files like datastructures, but they are migrating to LibDS)
+- /components (Contains the implementation of the system infrastructure)
 - /include (Contains include files for the kernel)
-- /msvc (Contains project files for Visual Studio)
-- /system (Contains all the upper-layer kernel systems that is common for all architectures)
+- /process (Contains the implementation of systems for userspace processes)
+- /synchronization (Contains synchronization primitives for concurrency protection)
+
+The base of this folder contains the remaining of the kernel systems. This includes debugging utilities, 
+utility systems and code for scheduler/threading/interrupts on a higher common level that can be shared
+on the different architectures.

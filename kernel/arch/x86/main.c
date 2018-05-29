@@ -103,16 +103,6 @@ SystemFeaturesInitialize(
     _In_ Multiboot_t *BootInformation,
     _In_ Flags_t Systems)
 {
-    // Handle the system initialization, this should only
-    // handle things that have absoultely no dependences at all
-    if (Systems & SYSTEM_FEATURE_INITIALIZE) {
-        GdtInitialize();
-        IdtInitialize();
-        PicInitialize();
-        VbeInitialize(BootInformation);
-        SmBiosInitialize(NULL);
-    }
-
     // Handle the memory initialization
     if (Systems & SYSTEM_FEATURE_MEMORY) {
         MmPhyiscalInit(BootInformation);

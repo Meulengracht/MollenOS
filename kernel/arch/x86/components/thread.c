@@ -59,8 +59,7 @@ __EXTERN void enter_thread(Context_t *Regs);
 
 /* Globals,
  * Keep track of whether or not init code has run */
-static Collection_t *Threads            = NULL;
-static int ThreadsInitialized           = 0;
+static int ThreadsInitialized = 0;
 
 /* The yield interrupt code for switching tasks
  * and is controlled by software interrupts, the yield interrupt
@@ -106,28 +105,25 @@ ThreadingRegister(
 {
 	// Variables
 	MCoreInterrupt_t Interrupt;
-	x86Thread_t *Thread86       = NULL;
     DataKey_t Key;
 
-	// Allocate a new thread context (x86) 
-	// and zero it out
+	// Allocate a new thread context (x86) and zero it out
     Key.Value           = (int)Thread->Id;
-	Thread86            = (x86Thread_t*)kmalloc(sizeof(x86Thread_t));
-	memset(Thread86, 0, sizeof(x86Thread_t));
-
-	// Allocate a new buffer for FPU operations  
-	// and zero out the buffer space
-	Thread86->FpuBuffer = kmalloc_a(0x1000);
-	memset(Thread86->FpuBuffer, 0, 0x1000);
-
-	// Disable all port-access
+    Thread->Data[THREAD_DATA_FLAGS]         = 0;
+    Thread->Data[THREAD_DATA_IOMAP]         = (uintptr_t)kmalloc(GDT_IOMAP_SIZE);
+	Thread->Data[THREAD_DATA_MATHBUFFER]    = (uintptr_t)kmalloc_a(0x1000);
+	memset((void*)Thread->Data[THREAD_DATA_MATHBUFFER], 0, 0x1000);
+    
+    // Disable all port-access
     if (THREADING_RUNMODE(Thread->Flags) != THREADING_KERNELMODE) {
-	    memset(&Thread86->IoMap[0], 0xFF, GDT_IOMAP_SIZE);
+	    memset((void*)Thread->Data[THREAD_DATA_IOMAP], 0xFF, GDT_IOMAP_SIZE);
+    }
+    else {
+	    memset((void*)Thread->Data[THREAD_DATA_IOMAP], 0, GDT_IOMAP_SIZE);
     }
 
 	// If its the first time we run, install the yield interrupt
 	if (ThreadsInitialized == 0) {
-        Threads                     = CollectionCreate(KeyInteger);
         Interrupt.Vectors[0]        = INTERRUPT_YIELD;
         Interrupt.Vectors[1]        = INTERRUPT_NONE;
 		Interrupt.Line              = INTERRUPT_NONE;
@@ -138,7 +134,7 @@ ThreadingRegister(
             | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
 		ThreadsInitialized          = 1;
 	}
-	return CollectionAppend(Threads, CollectionCreateNode(Key, Thread86));
+    return OsSuccess;
 }
 
 /* ThreadingUnregister
@@ -148,21 +144,9 @@ OsStatus_t
 ThreadingUnregister(
     _In_ MCoreThread_t *Thread)
 {
-	// Variables
-	x86Thread_t *tData = NULL;
-    DataKey_t Key;
-
-    // Get data from our list
-    Key.Value   = (int)Thread->Id; 
-    tData       =  (x86Thread_t*)CollectionGetDataByKey(Threads, Key, 0);
-    if (tData == NULL) {
-        return OsError;
-    }
-
     // Cleanup
-    CollectionRemoveByKey(Threads, Key);
-	kfree(tData->FpuBuffer);
-	kfree(tData);
+	kfree((void*)Thread->Data[THREAD_DATA_IOMAP]);
+	kfree((void*)Thread->Data[THREAD_DATA_MATHBUFFER]);
     return OsSuccess;
 }
 
@@ -173,29 +157,17 @@ OsStatus_t
 ThreadingFpuException(
     _In_ MCoreThread_t *Thread)
 {
-    // Variables
-    x86Thread_t *tData = NULL;
-    DataKey_t Key;
-
     // Clear the task-switch bit
     clear_ts();
 
-    // Get data from our list
-    Key.Value   = (int)Thread->Id; 
-    tData       =  (x86Thread_t*)CollectionGetDataByKey(Threads, Key, 0);
-    if (tData == NULL) {
-        ERROR("Thread data was not found for thread %u", Thread->Id);
-        return OsError;
-    }
-
-    if (!(tData->Flags & X86_THREAD_USEDFPU)) {
+    if (!(Thread->Data[THREAD_DATA_FLAGS] & X86_THREAD_USEDFPU)) {
         if (CpuHasFeatures(CPUID_FEAT_ECX_XSAVE | CPUID_FEAT_ECX_OSXSAVE, 0) == OsSuccess) {
-            load_fpu_extended(tData->FpuBuffer);
+            load_fpu_extended((uintptr_t*)Thread->Data[THREAD_DATA_MATHBUFFER]);
         }
         else {
-            load_fpu(tData->FpuBuffer);
+            load_fpu((uintptr_t*)Thread->Data[THREAD_DATA_MATHBUFFER]);
         }
-        tData->Flags |= X86_THREAD_USEDFPU;
+        Thread->Data[THREAD_DATA_FLAGS] |= X86_THREAD_USEDFPU;
         return OsSuccess;
     }
     return OsError;
@@ -209,23 +181,15 @@ ThreadingIoSet(
     _In_ uint16_t       Port,
     _In_ int            Enable)
 {
-    // Variables
-    x86Thread_t *tData = NULL;
-    DataKey_t Key;
-
-    // Get data from our list
-    Key.Value   = (int)Thread->Id; 
-    tData       =  (x86Thread_t*)CollectionGetDataByKey(Threads, Key, 0);
-    if (tData == NULL) {
-        return OsError;
-    }
+    // Cast the io-map to an uint8_t
+    uint8_t *IoMap = (uint8_t*)Thread->Data[THREAD_DATA_IOMAP];
 
     // Update thread's io-map
     if (Enable) {
-        tData->IoMap[Port / 8] &= ~(1 << (Port % 8));
+        IoMap[Port / 8] &= ~(1 << (Port % 8));
     }
     else {
-        tData->IoMap[Port / 8] |= (1 << (Port % 8));
+        IoMap[Port / 8] |= (1 << (Port % 8));
     }
     return OsSuccess;
 }
@@ -276,15 +240,11 @@ ThreadingImpersonate(
 {
     // Variables
     MCoreThread_t *Current  = NULL;
-	x86Thread_t *SubContext = NULL;
 	UUId_t Cpu              = 0;
-    DataKey_t Key;
 
 	// Instantiate values
-    Key.Value       = (int)Thread->Id;
     Cpu             = CpuGetCurrentId();
     Current         = ThreadingGetCurrentThread(Cpu);
-	SubContext      = (x86Thread_t*)CollectionGetDataByKey(Threads, Key, 0);
     
     // If we impersonate ourself, leave
     if (Current == Thread) {
@@ -295,7 +255,7 @@ ThreadingImpersonate(
     }
 
     // Load resources
-	TssUpdateIo(Cpu, &SubContext->IoMap[0]);
+	TssUpdateIo(Cpu, (uint8_t*)Thread->Data[THREAD_DATA_IOMAP]);
 	UpdateVirtualAddressingSpace(
 		(void*)Thread->AddressSpace->Data[ASPACE_DATA_PDPOINTER],
 		Thread->AddressSpace->Data[ASPACE_DATA_CR3]);
@@ -314,12 +274,10 @@ _ThreadingSwitch(
 {
 	// Variables
 	MCoreThread_t *Thread   = NULL;
-	x86Thread_t *Threadx    = NULL;
 	UUId_t Cpu              = CpuGetCurrentId();
-    DataKey_t Key;
 
     // Sanitize the status of threading - return default values
-	if (ThreadingIsEnabled() != 1 || ThreadingGetCurrentThread(Cpu) == NULL) {
+	if (ThreadingGetCurrentThread(Cpu) == NULL) {
         *TimeSlice      = 20;
         *TaskQueue      = 0;
 		return Context;
@@ -327,9 +285,7 @@ _ThreadingSwitch(
 
 	// Instantiate variables
 	Thread      = ThreadingGetCurrentThread(Cpu);
-    Key.Value   = (int)Thread->Id;
-	Threadx     = (x86Thread_t*)CollectionGetDataByKey(Threads, Key, 0);
-    assert(Thread != NULL && Threadx != NULL);
+    assert(Thread != NULL);
     
     // Sanitize impersonation status, don't schedule
     if (Thread->Flags & THREADING_IMPERSONATION) {
@@ -340,19 +296,17 @@ _ThreadingSwitch(
 
 	// Save FPU/MMX/SSE information if it's
 	// been used, otherwise skip this and save time
-	if (Threadx->Flags & X86_THREAD_USEDFPU) {
+	if (Thread->Data[THREAD_DATA_FLAGS] & X86_THREAD_USEDFPU) {
         if (CpuHasFeatures(CPUID_FEAT_ECX_XSAVE | CPUID_FEAT_ECX_OSXSAVE, 0) == OsSuccess) {
-            save_fpu_extended(Threadx->FpuBuffer);
+            save_fpu_extended((uintptr_t*)Thread->Data[THREAD_DATA_MATHBUFFER]);
         }
         else {
-            save_fpu(Threadx->FpuBuffer);
+            save_fpu((uintptr_t*)Thread->Data[THREAD_DATA_MATHBUFFER]);
         }
 	}
 
 	// Get a new thread for us to enter
 	Thread      = ThreadingSwitch(Thread, PreEmptive, &Context);
-    Key.Value   = (int)Thread->Id;
-	Threadx     = (x86Thread_t*)CollectionGetDataByKey(Threads, Key, 0);
 
 	// Update out's
 	*TimeSlice  = Thread->TimeSlice;
@@ -363,10 +317,10 @@ _ThreadingSwitch(
 		(void*)Thread->AddressSpace->Data[ASPACE_DATA_PDPOINTER], 
 		Thread->AddressSpace->Data[ASPACE_DATA_CR3]);
 	TssUpdateThreadStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
-	TssUpdateIo(Cpu, &Threadx->IoMap[0]);
+	TssUpdateIo(Cpu, (uint8_t*)Thread->Data[THREAD_DATA_IOMAP]);
 
     // Clear fpu flags and set task switch
-    Threadx->Flags &= ~X86_THREAD_USEDFPU;
+    Thread->Data[THREAD_DATA_FLAGS] &= ~X86_THREAD_USEDFPU;
 	set_ts();
 
     // Handle any signals pending for thread

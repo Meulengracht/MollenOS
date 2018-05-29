@@ -119,9 +119,7 @@ PhoenixStartupEntry(
  * prepares the ash-environment, at this point
  * it won't be completely running yet, it needs
  * its own thread for that. Returns 0 on success */
-KERNELAPI
 OsStatus_t
-KERNELABI
 PhoenixInitializeAsh(
     _InOut_ MCoreAsh_t* Ash, 
     _In_    MString_t*  Path)
@@ -237,7 +235,6 @@ PhoenixInitializeAsh(
     Ash->Id                 = PhoenixGetNextId();
     Ash->Parent             = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
     Ash->Type               = AshBase;
-    CriticalSectionConstruct(&Ash->Lock, CRITICALSECTION_PLAIN);
 
     // Split path, even if a / is not found
     // it won't fail, since -1 + 1 = 0, so we just copy the entire string
@@ -273,8 +270,7 @@ PhoenixStartupAsh(
 
     // Register ash
     PhoenixRegisterAsh(Ash);
-    ThreadingCreateThread(MStringRaw(Ash->Name),
-        PhoenixStartupEntry, Ash, THREADING_USERMODE);
+    ThreadingCreateThread(MStringRaw(Ash->Name), PhoenixStartupEntry, Ash, THREADING_USERMODE);
     return Ash->Id;
 }
 
@@ -302,20 +298,14 @@ PhoenixOpenAshPipe(
     // Make sure that a pipe on the given Port 
     // doesn't already exist!
     Key.Value = Port;
-    CriticalSectionEnter(&Ash->Lock);
     if (CollectionGetDataByKey(Ash->Pipes, Key, 0) != NULL) {
-        CriticalSectionLeave(&Ash->Lock);
         WARNING("The requested pipe already exists");
         return OsSuccess;
     }
-    CriticalSectionLeave(&Ash->Lock);
 
     // Create a new pipe and add it to list 
     Pipe = PipeCreate(PIPE_DEFAULT_SIZE, Flags);
-    
-    CriticalSectionEnter(&Ash->Lock);
     CollectionAppend(Ash->Pipes, CollectionCreateNode(Key, Pipe));
-    CriticalSectionLeave(&Ash->Lock);
 
     // Wake sleepers waiting for pipe creations
     SchedulerHandleSignalAll((uintptr_t*)Ash->Pipes);
@@ -373,18 +363,14 @@ PhoenixCloseAshPipe(
 
     // Lookup pipe
     Key.Value = Port;
-    CriticalSectionEnter(&Ash->Lock);
     Pipe = (MCorePipe_t*)CollectionGetDataByKey(Ash->Pipes, Key, 0);
-    CriticalSectionLeave(&Ash->Lock);
     if (Pipe == NULL) {
         return OsError;
     }
 
     // Cleanup pipe and remove node
     PipeDestroy(Pipe);
-    CriticalSectionEnter(&Ash->Lock);
-    CollectionRemoveByKey(Ash->Pipes, Key);
-    return CriticalSectionLeave(&Ash->Lock);
+    return CollectionRemoveByKey(Ash->Pipes, Key);
 }
 
 /* PhoenixGetAshPipe

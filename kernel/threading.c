@@ -51,21 +51,16 @@ OsStatus_t ThreadingReap(void *UserData);
 
 /* Globals, we need a few variables to keep track of running threads, idle threads
  * and a thread resources lock */
-static CriticalSection_t ThreadGlobalLock;
 static Collection_t Threads         = COLLECTION_INIT(KeyInteger);
-static UUId_t GlbThreadGcId         = 0;
+static UUId_t GlbThreadGcId         = UUID_INVALID;
 static _Atomic(UUId_t) GlbThreadId  = ATOMIC_VAR_INIT(1);
-static int GlbThreadingEnabled      = 0;
 
 /* ThreadingInitialize
  * Initializes static data and allocates resources. */
 OsStatus_t
 ThreadingInitialize(void)
 {
-    CriticalSectionConstruct(&ThreadGlobalLock, CRITICALSECTION_PLAIN);
-    atomic_store(&GlbThreadId, 1);
     GlbThreadGcId           = GcRegister(ThreadingReap);
-    GlbThreadingEnabled     = 1;
     return OsSuccess;
 }
 
@@ -91,6 +86,7 @@ ThreadingEnable(void)
     Thread->Pipe        = PipeCreate(PIPE_DEFAULT_SIZE, 0);
     Thread->SignalQueue = CollectionCreate(KeyInteger);
     Key.Value           = (int)Thread->Id;
+    COLLECTION_NODE_INIT(&Thread->CollectionHeader, Key);
 
     // Initialize arch-dependant members
     Thread->AddressSpace = AddressSpaceCreate(ASPACE_TYPE_KERNEL);
@@ -101,7 +97,7 @@ ThreadingEnable(void)
 
     // Update active thread to new idle
     GetCurrentProcessorCore()->CurrentThread = Thread;
-    return CollectionAppend(&Threads, CollectionCreateNode(Key, Thread));
+    return CollectionAppend(&Threads, &Thread->CollectionHeader);
 }
 
 /* ThreadingEntryPoint
@@ -120,8 +116,7 @@ ThreadingEntryPoint(void)
     // Initiate values
     Cpu         = CpuGetCurrentId();
     Thread      = ThreadingGetCurrentThread(Cpu);
-    if (THREADING_RUNMODE(Thread->Flags) == THREADING_KERNELMODE
-        || (Thread->Flags & THREADING_SWITCHMODE)) {
+    if (THREADING_RUNMODE(Thread->Flags) == THREADING_KERNELMODE || (Thread->Flags & THREADING_SWITCHMODE)) {
         Thread->Function(Thread->Arguments);
         Thread->Flags |= THREADING_FINISHED;
     }
@@ -188,6 +183,7 @@ ThreadingCreateThread(
     Thread->Function    = Function;
     Thread->Arguments   = Arguments;
     Thread->Flags       = Flags;
+    COLLECTION_NODE_INIT(&Thread->CollectionHeader, Key);
 
     // Setup initial scheduler information
     SchedulerThreadInitialize(Thread, Flags);
@@ -237,10 +233,7 @@ ThreadingCreateThread(
 
     // Append it to list & scheduler
     Key.Value = (int)Thread->Id;
-    CriticalSectionEnter(&ThreadGlobalLock);
-    CollectionAppend(&Threads, CollectionCreateNode(Key, Thread));
-    CriticalSectionLeave(&ThreadGlobalLock);
-
+    CollectionAppend(&Threads, &Thread->CollectionHeader);
     SchedulerThreadQueue(Thread);
     return Thread->Id;
 }
@@ -262,17 +255,15 @@ ThreadingCleanupThread(
     SchedulerThreadDequeue(Thread);
     ThreadingUnregister(Thread);
 
-    // Cleanup signals
+    // Cleanup lists and systems
     _foreach(fNode, Thread->SignalQueue) {
         kfree(fNode->Data);
     }
     CollectionDestroy(Thread->SignalQueue);
-
-    // Cleanup resources allocated by sub-systems
     AddressSpaceDestroy(Thread->AddressSpace);
-
-    // Cleanup our allocated resources
     PipeDestroy(Thread->Pipe);
+
+    // Free resources allocated
     kfree((void*)Thread->Name);
     kfree(Thread);
 }
@@ -393,7 +384,7 @@ ThreadingTerminateAshThreads(
 {
     int ThreadsNotKilled = 0;
     foreach(tNode, &Threads) {
-        MCoreThread_t *Thread = (MCoreThread_t*)tNode->Data;
+        MCoreThread_t *Thread = (MCoreThread_t*)tNode;
         if (Thread->AshId == AshId) {
             if ((Thread->Flags & THREADING_DETACHED) && !TerminateDetached) {
                 // If it's a detached thread calling this method we are killing ourselves
@@ -408,6 +399,7 @@ ThreadingTerminateAshThreads(
                 Thread->RetCode  = -1;
                 if (TerminateInstantly) {
                     // Is thread running on any cpu currently?
+                    // then send a yield to it @todo
                 }
             }
         }
@@ -422,9 +414,6 @@ MCoreThread_t*
 ThreadingGetCurrentThread(
     _In_ UUId_t         CoreId)
 {
-    if (ThreadingIsEnabled() == 0) {
-        return NULL;
-    }
     return GetProcessorCore(CoreId)->CurrentThread;
 }
 
@@ -434,7 +423,7 @@ ThreadingGetCurrentThread(
 UUId_t
 ThreadingGetCurrentThreadId(void)
 {
-    if (ThreadingIsEnabled() == 0 || GetCurrentProcessorCore()->CurrentThread == NULL) {
+    if (GetCurrentProcessorCore()->CurrentThread == NULL) {
         return 0;
     }
     return GetCurrentProcessorCore()->CurrentThread->Id;
@@ -449,21 +438,12 @@ ThreadingGetThread(
 {
     // Iterate thread nodes and find the correct
     foreach(tNode, &Threads) {
-        MCoreThread_t *Thread = (MCoreThread_t*)tNode->Data;
+        MCoreThread_t *Thread = (MCoreThread_t*)tNode;
         if (Thread->Id == ThreadId) {
             return Thread;
         }
     }
     return NULL;
-}
-
-/* ThreadingIsEnabled
- * Returns 1 if the threading system has been
- * initialized, otherwise it returns 0 */
-int 
-ThreadingIsEnabled(void)
-{
-    return GlbThreadingEnabled;
 }
 
 /* ThreadingIsCurrentTaskIdle
@@ -472,13 +452,10 @@ int
 ThreadingIsCurrentTaskIdle(
     _In_ UUId_t         CoreId)
 {
-    if (ThreadingIsEnabled() == 1
-        && ThreadingGetCurrentThread(CoreId)->Flags & THREADING_IDLE) {
-        return 1;
-    }
-    else {
+    if (ThreadingGetCurrentThread(CoreId) == NULL) {
         return 0;
     }
+    return (ThreadingGetCurrentThread(CoreId)->Flags & THREADING_IDLE) == 0 ? 0 : 1;
 }
 
 /* ThreadingGetCurrentMode
@@ -487,39 +464,28 @@ ThreadingIsCurrentTaskIdle(
 Flags_t
 ThreadingGetCurrentMode(void)
 {
-    if (ThreadingIsEnabled() == 1) {
-        return ThreadingGetCurrentThread(CpuGetCurrentId())->Flags & THREADING_MODEMASK;
+    if (ThreadingGetCurrentThread(CpuGetCurrentId()) == NULL) {
+        return THREADING_KERNELMODE;
     }
-    else {
-        return 0;
-    }
+    return ThreadingGetCurrentThread(CpuGetCurrentId())->Flags & THREADING_MODEMASK;
 }
 
 /* ThreadingReapZombies
- * Garbage-Collector function, it reaps and
- * cleans up all threads */
+ * Garbage-Collector function, it reaps and cleans up all threads */
 OsStatus_t
 ThreadingReap(
     _In_ void *UserData)
 {
     // Instantiate the thread pointer
-    MCoreThread_t *Thread   = (MCoreThread_t*)UserData;
+    MCoreThread_t *Thread = (MCoreThread_t*)UserData;
     DataKey_t Key;
-
-    // Sanity
     if (Thread == NULL) {
         return OsError;
     }
     
     // Locate and remove it from list of threads
     Key.Value = (int)Thread->Id;
-    CriticalSectionEnter(&ThreadGlobalLock);
-    if (CollectionRemoveByKey(&Threads, Key) != OsSuccess) {
-        // Failed to remove the node? it didn't exist?...
-    }
-    CriticalSectionLeave(&ThreadGlobalLock);
-
-    // Call the cleanup
+    CollectionRemoveByKey(&Threads, Key);
     ThreadingCleanupThread(Thread);
     return OsSuccess;
 }
@@ -531,7 +497,7 @@ void
 ThreadingDebugPrint(void)
 {
     foreach(i, &Threads) {
-        MCoreThread_t *Thread = (MCoreThread_t*)i->Data;
+        MCoreThread_t *Thread = (MCoreThread_t*)i;
         if (THREADING_STATE(Thread->Flags) == THREADING_ACTIVE) {
             WRITELINE("Thread %u (%s) - Flags 0x%x, Queue %i, Timeslice %u, Cpu: %u",
                 Thread->Id, Thread->Name, Thread->Flags, Thread->Queue, 

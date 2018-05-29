@@ -30,13 +30,14 @@ Userspace libraries planned for port in 2018
 
 - /boot (Contains bootloaders and anything boot-related)
 - /docs (Contains documentation about the project and the OS)
-- /install (Contains the deploy folder for installing the OS)
 - /kernel (Contains the MollenOS kernel source code)
 - /librt (Contains all support and runtime libraries needed for MollenOS)
 - /modules (Contains drivers for MollenOS)
-- /servers (Contains system services like the filemanager for MollenOS)
+- /services (Contains system services like the filemanager for MollenOS)
+- /toolchain (Contains tools for building the system toolchain)
 - /tools (Contains tools for building and manipulating)
 - /userspace (Contains software projects for the user-applications)
+- /resources (Contains the deploy folder for installing the OS)
 
 ## Core-Features
 
@@ -99,8 +100,7 @@ The run-time libraries used/implemented in mollenos are:
  - libc + libm (Contains the standard c library support for the c-language)
  - libcxx (Contains the standard c++ library runtime and support for the c++-language)
 
-The c++ runtime and support is a native port of the c++ runtime for clang and the itanium abi. All os support functions are available in
-the standard c library.
+The c++ runtime and support is a native port of the c++ runtime for clang and the itanium abi. All os support functions are available in the standard c library.
 
 ### Vioarr (Window Manager)
 

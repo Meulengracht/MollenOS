@@ -20,7 +20,7 @@
  * - Contains the shared kernel debugging interface and tools
  *   available for tracing and debugging
  */
-#define __MODULE		"DBGI"
+#define __MODULE        "DBGI"
 //#define __TRACE
 
 /* Includes
@@ -53,18 +53,18 @@ static struct MCorePageFaultHandler_t {
  * to this event handler */
 OsStatus_t
 DebugSingleStep(
-	_In_ Context_t *Context)
+    _In_ Context_t *Context)
 {
-	// Variables
+    // Variables
 
-	// Trace
-	TRACE("DebugSingleStep(IP 0x%x)", CONTEXT_IP(Context));
+    // Trace
+    TRACE("DebugSingleStep(IP 0x%x)", CONTEXT_IP(Context));
     // @todo
 
-	_CRT_UNUSED(Context);
+    _CRT_UNUSED(Context);
 
-	// Done
-	return OsSuccess;
+    // Done
+    return OsSuccess;
 }
 
 /* DebugBreakpoint
@@ -73,18 +73,18 @@ DebugSingleStep(
  * to this event handler */
 OsStatus_t
 DebugBreakpoint(
-	_In_ Context_t *Context)
+    _In_ Context_t *Context)
 {
-	// Variables
+    // Variables
 
-	// Trace
-	TRACE("DebugBreakpoint(IP 0x%x)", CONTEXT_IP(Context));
+    // Trace
+    TRACE("DebugBreakpoint(IP 0x%x)", CONTEXT_IP(Context));
     // @todo
 
-	_CRT_UNUSED(Context);
+    _CRT_UNUSED(Context);
 
-	// Done
-	return OsSuccess;
+    // Done
+    return OsSuccess;
 }
 
 /* DebugPageFault
@@ -93,11 +93,11 @@ DebugBreakpoint(
  * maps in the page and returns OsSuccess */
 OsStatus_t
 DebugPageFault(
-	_In_ Context_t* Context,
-	_In_ uintptr_t  Address)
+    _In_ Context_t* Context,
+    _In_ uintptr_t  Address)
 {
-	// Trace
-	TRACE("DebugPageFault(IP 0x%x, Address 0x%x)", CONTEXT_IP(Context), Address);
+    // Trace
+    TRACE("DebugPageFault(IP 0x%x, Address 0x%x)", CONTEXT_IP(Context), Address);
     for (int i = 0; i < 8; i++) {
         if (PageFaultHandlers[i].AreaHandler == NULL) {
             break;
@@ -117,75 +117,75 @@ DebugPageFault(
  * return again */
 OsStatus_t
 DebugPanic(
-	_In_ int            FatalityScope,
+    _In_ int            FatalityScope,
     _In_ Context_t*     Context,
-	_In_ const char*    Module,
-	_In_ const char*    Message, ...)
+    _In_ const char*    Module,
+    _In_ const char*    Message, ...)
 {
-	// Variables
-	char MessageBuffer[256];
-	va_list Arguments;
-	UUId_t Cpu;
+    // Variables
+    char MessageBuffer[256];
+    va_list Arguments;
+    UUId_t Cpu;
 
-	// Trace
-	TRACE("DebugPanic(Scope %i)", FatalityScope);
+    // Trace
+    TRACE("DebugPanic(Scope %i)", FatalityScope);
 
-	// Lookup some variables
-	Cpu = CpuGetCurrentId();
-	LogSetRenderMode(1);
+    // Lookup some variables
+    Cpu = CpuGetCurrentId();
+    LogSetRenderMode(1);
 
-	// Format the debug information
-	va_start(Arguments, Message);
-	vsprintf(&MessageBuffer[0], Message, Arguments);
-	va_end(Arguments);
-	LogAppendMessage(LogError, Module, &MessageBuffer[0]);
+    // Format the debug information
+    va_start(Arguments, Message);
+    vsprintf(&MessageBuffer[0], Message, Arguments);
+    va_end(Arguments);
+    LogAppendMessage(LogError, Module, &MessageBuffer[0]);
 
-	// Stack trace
-	DebugStackTrace(Context, 8);
+    // Stack trace
+    DebugStackTrace(Context, 8);
 
-	// Log cpu and threads
-	LogAppendMessage(LogError, Module, "Thread %s - %u (Core %u)!",
-		ThreadingGetCurrentThread(Cpu)->Name, 
-		ThreadingGetCurrentThreadId(), Cpu);
-	ThreadingDebugPrint();
+    // Log cpu and threads
+    LogAppendMessage(LogError, Module, "Thread %s - %u (Core %u)!",
+        ThreadingGetCurrentThread(Cpu)->Name, 
+        ThreadingGetCurrentThreadId(), Cpu);
+    ThreadingDebugPrint();
 
-	// Handle based on the scope of the fatality
-	if (FatalityScope == FATAL_SCOPE_KERNEL) {
-		CpuHalt();
-	}
-	else if (FatalityScope == FATAL_SCOPE_PROCESS) {
-        // @todo
-	}
-	else if (FatalityScope == FATAL_SCOPE_THREAD) {
-        // @todo
-	}
-	else {
-		ERROR("Encounted an unkown fatality scope %i", FatalityScope);
+    // Handle based on the scope of the fatality
+    if (FatalityScope == FATAL_SCOPE_KERNEL) {
         CpuHalt();
-	}
-	return OsSuccess;
+    }
+    else if (FatalityScope == FATAL_SCOPE_PROCESS) {
+        // @todo
+    }
+    else if (FatalityScope == FATAL_SCOPE_THREAD) {
+        // @todo
+    }
+    else {
+        ERROR("Encounted an unkown fatality scope %i", FatalityScope);
+        CpuHalt();
+    }
+    return OsSuccess;
 }
 
 /* DebugGetModuleByAddress
  * Retrieves the module (Executable) at the given address */
 OsStatus_t
 DebugGetModuleByAddress(
-	_In_  uintptr_t     Address,
-	_Out_ uintptr_t*    Base,
-	_Out_ char**        Name)
+    _In_  uintptr_t     Address,
+    _Out_ uintptr_t*    Base,
+    _Out_ char**        Name)
 {
-	// Validate that the address is within userspace
-	if (Address >= MEMORY_LOCATION_RING3_CODE && Address < MEMORY_LOCATION_RING3_CODE_END) {
-		MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
+    // Validate that the address is within userspace
+    if (Address >= MEMORY_LOCATION_RING3_CODE && Address < MEMORY_LOCATION_RING3_CODE_END) {
+        MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
 
-		// Sanitize whether or not a process was running
-		if (Ash != NULL && Ash->Executable != NULL) {
-			uintptr_t PmBase    = Ash->Executable->VirtualAddress;
-			char *PmName        = (char*)MStringRaw(Ash->Executable->Name);
+        // Sanitize whether or not a process was running
+        if (Ash != NULL && Ash->Executable != NULL) {
+            uintptr_t PmBase    = Ash->Executable->VirtualAddress;
+            char *PmName        = (char*)MStringRaw(Ash->Executable->Name);
 
             // Was it not main executable?
             if (Address > (Ash->Executable->CodeBase + Ash->Executable->CodeSize)) {
-			    // Iterate libraries to find the sinner
+                // Iterate libraries to find the sinner
                 if (Ash->Executable->LoadedLibraries != NULL) {
                     foreach(lNode, Ash->Executable->LoadedLibraries) {
                         MCorePeFile_t *Lib = (MCorePeFile_t*)lNode->Data;
@@ -197,17 +197,17 @@ DebugGetModuleByAddress(
                 }
             }
 
-			// Update out's
-			*Base = PmBase;
-			*Name = PmName;
-			return OsSuccess;
-		}
-	}
+            // Update out's
+            *Base = PmBase;
+            *Name = PmName;
+            return OsSuccess;
+        }
+    }
 
-	// Was not present
-	*Base = 0;
-	*Name = NULL;
-	return OsError;
+    // Was not present
+    *Base = 0;
+    *Name = NULL;
+    return OsError;
 }
 
 /* DebugStackTrace
@@ -216,13 +216,13 @@ DebugGetModuleByAddress(
 OsStatus_t
 DebugStackTrace(
     _In_ Context_t* Context,
-	_In_ size_t     MaxFrames)
+    _In_ size_t     MaxFrames)
 {
-	// Derive stack pointer from the argument
-	uintptr_t *StackPtr = NULL;
+    // Derive stack pointer from the argument
+    uintptr_t *StackPtr = NULL;
     uintptr_t StackLmt  = 0;
     uintptr_t PageMask  = ~(AddressSpaceGetPageSize() - 1);
-	size_t Itr          = MaxFrames;
+    size_t Itr          = MaxFrames;
 
     // Use local or given?
     if (Context == NULL) {
@@ -239,17 +239,17 @@ DebugStackTrace(
     }
 
     while (Itr && (uintptr_t)StackPtr < StackLmt) {
-		uintptr_t Value = StackPtr[0];
-		uintptr_t Base  = 0;
-		char *Name      = NULL;
+        uintptr_t Value = StackPtr[0];
+        uintptr_t Base  = 0;
+        char *Name      = NULL;
         if (DebugGetModuleByAddress(Value, &Base, &Name) == OsSuccess) {
-			uintptr_t Diff = Value - Base;
-			WRITELINE("%u - 0x%x (%s)", MaxFrames - Itr, Diff, Name);
+            uintptr_t Diff = Value - Base;
+            WRITELINE("%u - 0x%x (%s)", MaxFrames - Itr, Diff, Name);
             Itr--;
-		}
+        }
         StackPtr++;
     }
-	return OsSuccess;
+    return OsSuccess;
 }
 
 /* DebugMemory 
@@ -257,61 +257,61 @@ DebugStackTrace(
  * given address and length of memory dump */
 OsStatus_t
 DebugMemory(
-	_In_Opt_ const char*    Description,
-	_In_     void*          Address,
-	_In_     size_t         Length)
+    _In_Opt_ const char*    Description,
+    _In_     void*          Address,
+    _In_     size_t         Length)
 {
-	// Variables
-	uint8_t Buffer[17];
-	uint8_t *pc = (unsigned char*)Address;
-	size_t i;
+    // Variables
+    uint8_t Buffer[17];
+    uint8_t *pc = (unsigned char*)Address;
+    size_t i;
 
-	// Output description if given.
-	if (Description != NULL) {
-		TRACE("%s:", Description);
-	}
+    // Output description if given.
+    if (Description != NULL) {
+        TRACE("%s:", Description);
+    }
 
-	if (Length == 0) {
-		ERROR("ZERO LENGTH");
-		return OsError;
-	}
+    if (Length == 0) {
+        ERROR("ZERO LENGTH");
+        return OsError;
+    }
 
-	// Process every byte in the data.
-	for (i = 0; i < Length; i++) {
-		// Multiple of 16 means new line (with line offset).
+    // Process every byte in the data.
+    for (i = 0; i < Length; i++) {
+        // Multiple of 16 means new line (with line offset).
 
-		if ((i % 16) == 0) {
-			// Just don't print ASCII for the zeroth line.
-			if (i != 0) {
-				LogAppendMessage(LogRaw, "EMPT", "  %s\n", Buffer);
-			}
+        if ((i % 16) == 0) {
+            // Just don't print ASCII for the zeroth line.
+            if (i != 0) {
+                LogAppendMessage(LogRaw, "EMPT", "  %s\n", Buffer);
+            }
 
-			// Output the offset.
-			LogAppendMessage(LogRaw, "EMPT", "  %04x ", i);
-		}
+            // Output the offset.
+            LogAppendMessage(LogRaw, "EMPT", "  %04x ", i);
+        }
 
-		// Now the hex code for the specific character.
-		LogAppendMessage(LogRaw, "EMPT", " %02x", pc[i]);
+        // Now the hex code for the specific character.
+        LogAppendMessage(LogRaw, "EMPT", " %02x", pc[i]);
 
-		// And store a printable ASCII character for later.
-		if ((pc[i] < 0x20) || (pc[i] > 0x7e)) {
-			Buffer[i % 16] = '.';
-		}
-		else {
-			Buffer[i % 16] = pc[i];
-		}
-		Buffer[(i % 16) + 1] = '\0';
-	}
+        // And store a printable ASCII character for later.
+        if ((pc[i] < 0x20) || (pc[i] > 0x7e)) {
+            Buffer[i % 16] = '.';
+        }
+        else {
+            Buffer[i % 16] = pc[i];
+        }
+        Buffer[(i % 16) + 1] = '\0';
+    }
 
-	// Pad out last line if not exactly 16 characters.
-	while ((i % 16) != 0) {
-		LogAppendMessage(LogRaw, "EMPT", "   ");
-		i++;
-	}
+    // Pad out last line if not exactly 16 characters.
+    while ((i % 16) != 0) {
+        LogAppendMessage(LogRaw, "EMPT", "   ");
+        i++;
+    }
 
-	// And print the final ASCII bit.
-	LogAppendMessage(LogRaw, "EMPT", "  %s\n", Buffer);
-	return OsSuccess;
+    // And print the final ASCII bit.
+    LogAppendMessage(LogRaw, "EMPT", "  %s\n", Buffer);
+    return OsSuccess;
 }
 
 /* DebugPageFaultIoMemory 
@@ -460,43 +460,43 @@ DebugInstallPageFaultHandlers(void)
 /* Disassembles Memory */
 //char *get_instructions_at_mem(uintptr_t address)
 //{
-//	/* We debug 50 bytes of memory */
-//	int n;
-//	int num_instructions = 1; /* Debug, normal 50 */
-//	char *instructions = (char*)kmalloc(0x1000);
-//	uintptr_t pointer = address;
+//    /* We debug 50 bytes of memory */
+//    int n;
+//    int num_instructions = 1; /* Debug, normal 50 */
+//    char *instructions = (char*)kmalloc(0x1000);
+//    uintptr_t pointer = address;
 //
-//	/* Null */
-//	memset(instructions, 0, 0x1000);
+//    /* Null */
+//    memset(instructions, 0, 0x1000);
 //
-//	/* Do it! */
-//	for (n = 0; n < num_instructions; n++)
-//	{
-//		INSTRUCTION inst;
-//		char inst_str[64];
+//    /* Do it! */
+//    for (n = 0; n < num_instructions; n++)
+//    {
+//        INSTRUCTION inst;
+//        char inst_str[64];
 //
-//		/* Get instruction */
-//		get_instruction(&inst, (void*)pointer, MODE_32);
+//        /* Get instruction */
+//        get_instruction(&inst, (void*)pointer, MODE_32);
 //
-//		/* Translate */
-//		get_instruction_string(&inst, FORMAT_ATT, 0, inst_str, sizeof(inst_str));
+//        /* Translate */
+//        get_instruction_string(&inst, FORMAT_ATT, 0, inst_str, sizeof(inst_str));
 //
-//		/* Append to list */
-//		if (n == 0)
-//		{
-//			strcpy(instructions, inst_str);
-//			strcat(instructions, "\n");
-//		}
-//		else
-//		{
-//			strcat(instructions, inst_str);
-//			strcat(instructions, "\n");
-//		}
+//        /* Append to list */
+//        if (n == 0)
+//        {
+//            strcpy(instructions, inst_str);
+//            strcat(instructions, "\n");
+//        }
+//        else
+//        {
+//            strcat(instructions, inst_str);
+//            strcat(instructions, "\n");
+//        }
 //
-//		/* Increament Pointer */
-//		pointer += inst.length;
-//	}
+//        /* Increament Pointer */
+//        pointer += inst.length;
+//    }
 //
-//	return instructions;
+//    return instructions;
 //}
 

@@ -43,12 +43,12 @@ void
 RegisterPrimaryCore(
     _In_ SystemCpu_t*       Cpu)
 {
-    // Debug
-    WARNING("RegisterPrimaryCore(%s, %s, %i)", &Cpu->Vendor[0], &Cpu->Brand[0], Cpu->NumberOfCores);
-    assert(Cpu->PrimaryCore.Id < 256);
-
     // Register in lookup table
+    assert(Cpu->PrimaryCore.Id < 256);
     CpuStorageTable[Cpu->PrimaryCore.Id] = &Cpu->PrimaryCore;
+
+    // Prints now works that the table has been set
+    WARNING("RegisterPrimaryCore(%s, %s, %i)", &Cpu->Vendor[0], &Cpu->Brand[0], Cpu->NumberOfCores);
 }
 
 /* RegisterApplicationCore

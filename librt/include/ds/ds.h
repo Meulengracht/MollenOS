@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,26 +22,31 @@
 #ifndef _DATASTRUCTURES_H_
 #define _DATASTRUCTURES_H_
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
 
 /* The definition of a key
  * in generic data-structures this can be values or data */
 typedef union _DataKey {
-    int           Value;
-    void         *Pointer;
-    char         *String;
+    int     Value;
+    void*   Pointer;
+    char*   String;
 } DataKey_t;
 
 /* This enumeration denotes
- * the kind of key that is to be interpreted by the
- * data-structure */
+ * the kind of key that is to be interpreted by the data-structure */
 typedef enum _KeyType {
     KeyInteger,
     KeyPointer,
     KeyString
 } KeyType_t;
+
+/* SafeMemoryLock_t
+ * Custom implementation that is available for the different data-structures in
+ * the libds. */
+typedef struct _SafeMemoryLock {
+    atomic_bool     SyncObject;
+    unsigned        Flags;
+} SafeMemoryLock_t;
 
 /* dsalloc
  * Seperate portable memory allocator for data-structures */
@@ -57,9 +62,23 @@ void,
 dsfree(
     _In_ void *p));
 
+/* dslock
+ * Acquires the lock given, this is a blocking call and will wait untill
+ * the lock is acquired. */
+CRTDECL(
+void,
+dslock(
+    _In_ SafeMemoryLock_t *MemoryLock));
+
+/* dsunlock
+ * Releases the lock given and restores any previous flags. */
+CRTDECL(
+void,
+dsunlock(
+    _In_ SafeMemoryLock_t *MemoryLock));
+
 /* Helper Function 
- * Matches two keys based on the key type 
- * returns 0 if they are equal, or -1 if not */
+ * Matches two keys based on the key type returns 0 if they are equal, or -1 if not */
 CRTDECL(
 int,
 dsmatchkey(
@@ -68,9 +87,10 @@ dsmatchkey(
     _In_ DataKey_t Key2));
 
 /* Helper Function
- * Used by sorting, it compares to values
- * and returns 1 if 1 > 2, 0 if 1 == 2 and
- * -1 if 2 > 1 */
+ * Used by sorting, it compares to values and returns 
+ *  - 1 if 1 > 2, 
+ *  - 0 if 1 == 2 and
+ *  - -1 if 2 > 1 */
 CRTDECL(
 int,
 dssortkey(

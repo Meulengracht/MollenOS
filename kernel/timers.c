@@ -20,7 +20,7 @@
  * - Contains the timer interface system and its implementation
  *   keeps track of system timers
  */
-#define __MODULE		"TMIF"
+#define __MODULE        "TMIF"
 //#define __TRACE
 
 /* Includes 
@@ -39,36 +39,16 @@
 #include <stddef.h>
 
 /* Globals */
-static MCoreTimePerformanceOps_t PerformanceTimer;
-static CriticalSection_t TimerLock;
-static MCoreSystemTimer_t *GlbActiveSystemTimer = NULL;
-static Collection_t *GlbSystemTimers            = NULL;
-static Collection_t *GlbTimers                  = NULL;
-static UUId_t GlbTimerIds                       = 0;
-static int GlbTimersInitialized                 = 0;
-
-/* TimersInitialize
- * Initializes the timer sub-system that supports
- * registering of system timers and callback timers */
-void
-TimersInitialize(void)
-{
-	// Initialize all the globals 
-	// including lists etc
-    memset(&PerformanceTimer, 0, sizeof(MCoreTimePerformanceOps_t));
-	GlbActiveSystemTimer    = NULL;
-	GlbSystemTimers         = CollectionCreate(KeyInteger);
-	GlbTimers               = CollectionCreate(KeyInteger);
-    CriticalSectionConstruct(&TimerLock, CRITICALSECTION_PLAIN);
-	GlbTimersInitialized    = 1;
-	GlbTimerIds             = 0;
-}
+static MCoreTimePerformanceOps_t PerformanceTimer   = { 0 };
+static CriticalSection_t TimersSyncObject           = CRITICALSECTION_INITIALIZE(CRITICALSECTION_PLAIN);
+static MCoreSystemTimer_t *ActiveSystemTimer        = NULL;
+static Collection_t SystemTimers                    = COLLECTION_INIT(KeyInteger);
+static Collection_t Timers                          = COLLECTION_INIT(KeyInteger);
+static _Atomic(UUId_t) TimerIdGenerator             = ATOMIC_VAR_INIT(0);
 
 /* TimersStart 
  * Creates a new standard timer for the requesting process. */
-KERNELAPI
 UUId_t
-KERNELABI
 TimersStart(
     _In_ size_t         IntervalNs,
     _In_ int            Periodic,
@@ -85,7 +65,7 @@ TimersStart(
 
     // Allocate a new instance and initialize
     Timer = (MCoreTimer_t*)kmalloc(sizeof(MCoreTimer_t));
-    Timer->Id       = GlbTimerIds++;
+    Timer->Id       = atomic_fetch_add(&TimerIdGenerator, 1);
     Timer->AshId    = PhoenixGetCurrentAsh()->Id;
     Timer->Data     = Data;
     Timer->Interval = IntervalNs;
@@ -94,18 +74,14 @@ TimersStart(
     Key.Value       = (int)Timer->Id;
 
     // Add to list of timers
-    CriticalSectionEnter(&TimerLock);
-    CollectionAppend(GlbTimers, CollectionCreateNode(Key, Timer));
-    CriticalSectionLeave(&TimerLock);
+    CollectionAppend(&Timers, CollectionCreateNode(Key, Timer));
     return Timer->Id;
 }
 
 /* TimersStop
  * Destroys a existing standard timer, owner must be the requesting
  * process. Otherwise access fault. */
-KERNELAPI
 OsStatus_t
-KERNELABI
 TimersStop(
     _In_ UUId_t TimerId)
 {
@@ -113,21 +89,21 @@ TimersStop(
     OsStatus_t Result = OsError;
 
     // Now loop through timers registered
-    CriticalSectionEnter(&TimerLock);
-	foreach(tNode, GlbTimers) {
+    CriticalSectionEnter(&TimersSyncObject);
+    foreach(tNode, &Timers) {
         // Initiate pointer
         MCoreTimer_t *Timer = (MCoreTimer_t*)tNode->Data;
         
         // Does it match the id? + Owner must match
         if (Timer->Id == TimerId && Timer->AshId == PhoenixGetCurrentAsh()->Id) {
-			CollectionRemoveByNode(GlbTimers, tNode);
+            CollectionRemoveByNode(&Timers, tNode);
             kfree(Timer);
             kfree(tNode);
             Result = OsSuccess;
             break;
-		}
+        }
     }
-    CriticalSectionLeave(&TimerLock);
+    CriticalSectionLeave(&TimersSyncObject);
     return Result;
 }
 
@@ -136,37 +112,37 @@ TimersStop(
  * active timers registered, and decreases the total */
 void
 TimersTick(
-	_In_ size_t Tick)
+    _In_ size_t Tick)
 {
-	// Variables
-	CollectionItem_t *i = NULL;
-	size_t MilliTicks   = 0;
+    // Variables
+    CollectionItem_t *i = NULL;
+    size_t MilliTicks   = 0;
 
-	// Calculate how many milliseconds
-	MilliTicks = DIVUP(Tick, NSEC_PER_MSEC);
+    // Calculate how many milliseconds
+    MilliTicks = DIVUP(Tick, NSEC_PER_MSEC);
 
-	// Update scheduler with the milliticks
-	SchedulerTick(MilliTicks);
+    // Update scheduler with the milliticks
+    SchedulerTick(MilliTicks);
 
-	// Now loop through timers registered
-	_foreach(i, GlbTimers) {
+    // Now loop through timers registered
+    _foreach(i, &Timers) {
         // Initiate pointer
         MCoreTimer_t *Timer = (MCoreTimer_t*)i->Data;
         
         // Reduce
-		Timer->Current -= MIN(Timer->Current, Tick);
-		if (Timer->Current == 0) {
-			__KernelTimeoutDriver(Timer->AshId, Timer->Id, (void*)Timer->Data);
-			if (Timer->Periodic) {
-				Timer->Current = Timer->Interval;
-			}
-			else {
-				CollectionRemoveByNode(GlbTimers, i);
-				kfree(Timer);
-				kfree(i);
-			}
-		}
-	}
+        Timer->Current -= MIN(Timer->Current, Tick);
+        if (Timer->Current == 0) {
+            __KernelTimeoutDriver(Timer->AshId, Timer->Id, (void*)Timer->Data);
+            if (Timer->Periodic) {
+                Timer->Current = Timer->Interval;
+            }
+            else {
+                CollectionRemoveByNode(&Timers, i);
+                kfree(Timer);
+                kfree(i);
+            }
+        }
+    }
 }
 
 /* TimersRegistrate
@@ -175,54 +151,53 @@ TimersTick(
  * are available for time-keeping */
 OsStatus_t
 TimersRegisterSystemTimer(
-	_In_ UUId_t Source, 
-	_In_ size_t TickNs,
+    _In_ UUId_t Source, 
+    _In_ size_t TickNs,
     _In_ clock_t (*SystemTickHandler)(void))
 {
-	// Variables
-	MCoreInterruptDescriptor_t *Interrupt = NULL;
-	MCoreSystemTimer_t *SystemTimer = NULL;
-	DataKey_t tKey;
-	int Delta = abs(1000 - (int)TickNs);
+    // Variables
+    MCoreInterruptDescriptor_t *Interrupt = NULL;
+    MCoreSystemTimer_t *SystemTimer = NULL;
+    DataKey_t tKey;
+    int Delta = abs(1000 - (int)TickNs);
 
-	// Trace
-	TRACE("TimersRegisterSystemTimer()");
+    // Trace
+    TRACE("TimersRegisterSystemTimer()");
 
-	// Do some validation about the timer source 
-	// the only system timers we want are fast_interrupts
-	Interrupt = InterruptGet(Source);
-	if (Interrupt == NULL) {
-		TRACE("Interrupt was not found for source %u", Source);
-		return OsError;
-	}
+    // Do some validation about the timer source 
+    // the only system timers we want are fast_interrupts
+    Interrupt = InterruptGet(Source);
+    if (Interrupt == NULL) {
+        TRACE("Interrupt was not found for source %u", Source);
+        return OsError;
+    }
 
-	// Create a new instance of a system timer
-	SystemTimer = (MCoreSystemTimer_t*)kmalloc(sizeof(MCoreSystemTimer_t));
-	SystemTimer->Source = Source;
-	SystemTimer->Tick = TickNs;
-	SystemTimer->Ticks = 0;
+    // Create a new instance of a system timer
+    SystemTimer = (MCoreSystemTimer_t*)kmalloc(sizeof(MCoreSystemTimer_t));
+    SystemTimer->Source = Source;
+    SystemTimer->Tick = TickNs;
+    SystemTimer->Ticks = 0;
     SystemTimer->SystemTick = SystemTickHandler;
 
-	// Add the new timer to the list
-	tKey.Value = 0;
-	CollectionAppend(GlbSystemTimers, 
-        CollectionCreateNode(tKey, SystemTimer));
+    // Add the new timer to the list
+    tKey.Value = 0;
+    CollectionAppend(&SystemTimers, CollectionCreateNode(tKey, SystemTimer));
 
-	// Ok, for a system timer we want something optimum
-	// of 1 ms per interrupt
-	if (GlbActiveSystemTimer != NULL) {
-		int ActiveDelta = abs(1000 - GlbActiveSystemTimer->Tick);
-		if (ActiveDelta > Delta) {
-			GlbActiveSystemTimer = SystemTimer;
-		}
-	}
-	else {
-		GlbActiveSystemTimer = SystemTimer;
-	}
+    // Ok, for a system timer we want something optimum
+    // of 1 ms per interrupt
+    if (ActiveSystemTimer != NULL) {
+        int ActiveDelta = abs(1000 - ActiveSystemTimer->Tick);
+        if (ActiveDelta > Delta) {
+            ActiveSystemTimer = SystemTimer;
+        }
+    }
+    else {
+        ActiveSystemTimer = SystemTimer;
+    }
 
-	// Trace
-	TRACE("New system timer: %u", GlbActiveSystemTimer->Source);
-	return OsSuccess;
+    // Trace
+    TRACE("New system timer: %u", ActiveSystemTimer->Source);
+    return OsSuccess;
 }
 
 /* TimersRegisterPerformanceTimer
@@ -230,7 +205,7 @@ TimersRegisterSystemTimer(
  * from the system timer. */
 OsStatus_t
 TimersRegisterPerformanceTimer(
-	_In_ MCoreTimePerformanceOps_t *Operations)
+    _In_ MCoreTimePerformanceOps_t *Operations)
 {
     PerformanceTimer.ReadFrequency = Operations->ReadFrequency;
     PerformanceTimer.ReadTimer = Operations->ReadTimer;
@@ -242,7 +217,7 @@ TimersRegisterPerformanceTimer(
  * C library definitions of time. */
 OsStatus_t
 TimersRegisterClock(
-	_In_ void (*SystemTimeHandler)(struct tm *SystemTime))
+    _In_ void (*SystemTimeHandler)(struct tm *SystemTime))
 {
     PerformanceTimer.ReadSystemTime = SystemTimeHandler;
     return OsSuccess;
@@ -255,18 +230,18 @@ TimersRegisterClock(
  * timer-source */
 OsStatus_t
 TimersInterrupt(
-	_In_ UUId_t Source)
+    _In_ UUId_t Source)
 {
-	// Sanitize if the source is ok
-	if (GlbActiveSystemTimer != NULL) {
-		if (GlbActiveSystemTimer->Source == Source) {
-			TimersTick(GlbActiveSystemTimer->Tick);
-			return OsSuccess;
-		}
-	}
+    // Sanitize if the source is ok
+    if (ActiveSystemTimer != NULL) {
+        if (ActiveSystemTimer->Source == Source) {
+            TimersTick(ActiveSystemTimer->Tick);
+            return OsSuccess;
+        }
+    }
 
-	// Return error
-	return OsError;
+    // Return error
+    return OsError;
 }
 
 /* TimersGetSystemTime
@@ -291,12 +266,11 @@ TimersGetSystemTick(
     _Out_ clock_t *SystemTick)
 {
     // Sanitize
-    if (GlbActiveSystemTimer == NULL
-        || GlbActiveSystemTimer->SystemTick == NULL) {
+    if (ActiveSystemTimer == NULL || ActiveSystemTimer->SystemTick == NULL) {
         *SystemTick = 0;
         return OsError;
     }
-    *SystemTick = GlbActiveSystemTimer->SystemTick();
+    *SystemTick = ActiveSystemTimer->SystemTick();
     return OsSuccess;
 }
 
@@ -305,7 +279,7 @@ TimersGetSystemTick(
  * second, the value will never be 0 */
 OsStatus_t
 TimersQueryPerformanceFrequency(
-	_Out_ LargeInteger_t *Frequency)
+    _Out_ LargeInteger_t *Frequency)
 {
     if (PerformanceTimer.ReadFrequency == NULL) {
         return OsError;

@@ -10,8 +10,7 @@ SOURCES = $(wildcard acpi/*.c) \
 		  $(wildcard process/loaders/*.c) \
 		  $(wildcard process/*.c) \
 		  $(wildcard synchronization/*.c) \
-		  $(wildcard *.c) \
-		  init.c
+		  $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o)
 
 # --save-temps

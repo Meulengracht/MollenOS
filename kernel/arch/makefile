@@ -16,7 +16,6 @@ ifeq ($(VALI_ARCH),i386)
     ASSEMBLY = $(wildcard x86/x32/memory/*.s) \
 			   $(wildcard x86/x32/*.s)
 	ASFLAGS = -f win32 -Xvc
-	HPATH = x86/x32/arch.h
 else ifeq ($(VALI_ARCH),amd64)
 	INCLUDES += -Ix86 -Ix86/x64
 	SOURCES = $(wildcard x86/components/*.c) \
@@ -29,7 +28,6 @@ else ifeq ($(VALI_ARCH),amd64)
     ASSEMBLY = $(wildcard x86/x64/memory/*.s) \
 			   $(wildcard x86/x64/*.s)
 	ASFLAGS = -f win64 -Xvc
-	HPATH = x86/x64/arch.h
 else
 $(error VALI_ARCH is not set to a valid value)
 endif
@@ -43,7 +41,7 @@ all: header ../build/$(VALI_ARCH).lib
 
 .PHONY: header
 header:
-	cp $(HPATH) ../include/arch.h
+	cp x86/arch.h ../include/arch.h
 
 ../build/$(VALI_ARCH).lib: $(OBJECTS)
 	@printf "%b" "\033[0;36mCreating static library " $@ "\033[m\n"

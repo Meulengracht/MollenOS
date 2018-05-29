@@ -24,46 +24,41 @@
 #ifndef _MCORE_GARBAGECOLLECTOR_H_
 #define _MCORE_GARBAGECOLLECTOR_H_
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 
 /* Garbage Collector Definitions
  * Describes the prototype that can be registered */
 typedef OsStatus_t (*GcHandler_t)(void*);
 
+/* GcConstruct
+ * Constructs the gc data-systems, but does not start the actual collection */
+KERNELAPI void KERNELABI
+GcConstruct(void);
+
 /* GcInitialize
  * Initializes the garbage-collector system */
-KERNELAPI
-void
-KERNELABI
+KERNELAPI void KERNELABI
 GcInitialize(void);
 
 /* GcRegister
  * Registers a new gc-handler that will be run
  * when new work is available, returns the unique id
  * for the new handler */
-KERNELAPI
-UUId_t
-KERNELABI
+KERNELAPI UUId_t KERNELABI
 GcRegister(
-	_In_ GcHandler_t Handler);
+    _In_ GcHandler_t Handler);
 
 /* GcUnregister
  * Removes a previously registed handler by its id */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 GcUnregister(
-	_In_ UUId_t Handler);
+    _In_ UUId_t Handler);
 
 /* GcSignal
  * Signals new garbage for the specified handler */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 GcSignal(
-	_In_ UUId_t Handler,
-	_In_ void *Data);
+    _In_ UUId_t Handler,
+    _In_ void *Data);
 
 #endif //!_MCORE_GARBAGECOLLECTOR_H_

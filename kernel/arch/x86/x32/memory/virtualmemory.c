@@ -144,7 +144,7 @@ UpdateVirtualAddressingSpace(
 	assert(PageDirectory != NULL && Pdb != 0);
 
     // Update current page-directory
-	GetCurrentProcessorCore()->Data[0] = (uintptr_t)PageDirectory;
+	GetCurrentProcessorCore()->Data[CPUCORE_DATA_VIRTUAL_DIR] = (uintptr_t)PageDirectory;
 	memory_load_cr3(Pdb);
 	return OsSuccess;
 }
@@ -155,7 +155,7 @@ void
 InitializeMemoryForApplicationCore(void)
 {
     // Set current page-directory to kernel
-    GetCurrentProcessorCore()->Data[0] = (uintptr_t)KernelMasterTable;
+    GetCurrentProcessorCore()->Data[CPUCORE_DATA_VIRTUAL_DIR] = (uintptr_t)KernelMasterTable;
     memory_load_cr3((uintptr_t)KernelMasterTable);
     memory_set_paging(1);
 }
@@ -173,10 +173,10 @@ MmVirtualGetDirectory(
 	// Determine page directory 
 	// If we were given null, select the current
 	if (Directory == NULL) {
-		Directory = (PageDirectory_t*)GetCurrentProcessorCore()->Data[0];
+		Directory = (PageDirectory_t*)GetCurrentProcessorCore()->Data[CPUCORE_DATA_VIRTUAL_DIR];
         *IsCurrent = 1;
 	}
-	else if ((PageDirectory_t*)GetCurrentProcessorCore()->Data[0] == Directory) {
+	else if ((PageDirectory_t*)GetCurrentProcessorCore()->Data[CPUCORE_DATA_VIRTUAL_DIR] == Directory) {
 		*IsCurrent = 1;
 	}
 	assert(Directory != NULL);
@@ -426,7 +426,7 @@ MmVirtualClone(
     // Variables
     uintptr_t PhysicalAddress   = 0;
     PageDirectory_t *NewPd      = (PageDirectory_t*)kmalloc_ap(sizeof(PageDirectory_t), &PhysicalAddress);
-    PageDirectory_t *CurrPd     = (PageDirectory_t*)GetCurrentProcessorCore()->Data[0];
+    PageDirectory_t *CurrPd     = (PageDirectory_t*)GetCurrentProcessorCore()->Data[CPUCORE_DATA_VIRTUAL_DIR];
     PageDirectory_t *KernPd     = KernelMasterTable;
     int Itr;
 

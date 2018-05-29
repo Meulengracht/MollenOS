@@ -28,6 +28,7 @@
 
 /* Includes 
  * - Library */
+#include <assert.h>
 #include <stddef.h>
 
 /* Externs
@@ -42,10 +43,7 @@ OsStatus_t
 SpinlockReset(
 	_In_ Spinlock_t *Lock)
 {
-    // Sanitize
-	if (Lock == NULL) {
-		return OsError;
-	}
+    assert(Lock != NULL);
 	Lock->Value         = 0;
     Lock->References    = 0;
     Lock->Owner         = UUID_INVALID;
@@ -58,10 +56,7 @@ OsStatus_t
 SpinlockAcquire(
 	_In_ Spinlock_t *Lock)
 {
-	// Sanitize
-	if (Lock == NULL) {
-		return OsError;
-	}
+    assert(Lock != NULL);
 
     // Reentrancy
     if (Lock->Owner == thrd_current()) {
@@ -84,10 +79,7 @@ OsStatus_t
 SpinlockTryAcquire(
 	_In_ Spinlock_t *Lock)
 {
-	// Sanitize
-	if (Lock == NULL) {
-		return OsError;
-	}
+    assert(Lock != NULL);
 
     // Reentrancy
     if (Lock->Owner == thrd_current()) {
@@ -110,10 +102,7 @@ OsStatus_t
 SpinlockRelease(
 	_In_ Spinlock_t *Lock)
 {
-	// Sanitize
-	if (Lock == NULL) {
-		return OsError;
-	}
+    assert(Lock != NULL);
 
     // Reduce the number of references
     Lock->References--;

@@ -28,9 +28,14 @@
 #include <system/interrupts.h>
 #include <system/utils.h>
 #include <interrupts.h>
+#include <smbios.h>
 #include <debug.h>
 #include <apic.h>
 #include <cpu.h>
+#include <gdt.h>
+#include <idt.h>
+#include <pic.h>
+#include <vbe.h>
 
 #if defined(_MSC_VER) && !defined(__clang__)
 #include <intrin.h>
@@ -136,7 +141,15 @@ InitializeProcessor(
         memcpy(&Cpu->Brand[0], BrandPointer, strlen(BrandPointer));
     }
 
+    // Enable cpu features
     CpuInitializeFeatures();
+
+    // Initialize cpu systems
+    GdtInitialize();
+    IdtInitialize();
+    PicInitialize();
+    VbeInitialize();
+    SmBiosInitialize(NULL);
 }
 
 /* CpuInitializeFeatures

@@ -174,7 +174,7 @@ UpdateVirtualAddressingSpace(
 	assert(PageDirectory != NULL && Pdb != 0);
 
     // Update current page-directory
-	GetCurrentProcessorCore()->Data[0] = (uintptr_t)PageDirectory;
+	GetCurrentProcessorCore()->Data[CPUCORE_DATA_VIRTUAL_DIR] = (uintptr_t)PageDirectory;
 	memory_load_cr3(Pdb);
 	return OsSuccess;
 }
@@ -185,7 +185,7 @@ void
 InitializeMemoryForApplicationCore(void)
 {
     // Set current page-directory to kernel
-    GetCurrentProcessorCore()->Data[0] = (uintptr_t)KernelMasterTable;
+    GetCurrentProcessorCore()->Data[CPUCORE_DATA_VIRTUAL_DIR] = (uintptr_t)KernelMasterTable;
     memory_load_cr3((uintptr_t)KernelMasterTable);
 }
 
@@ -202,10 +202,10 @@ MmVirtualGetMasterTable(
 	// Determine page directory 
 	// If we were given null, select the current
 	if (MasterTable == NULL) {
-		MasterTable = (PageMasterTable_t*)GetCurrentProcessorCore()->Data[0];
+		MasterTable = (PageMasterTable_t*)GetCurrentProcessorCore()->Data[CPUCORE_DATA_VIRTUAL_DIR];
         *IsCurrent = 1;
 	}
-	else if ((PageMasterTable_t*)GetCurrentProcessorCore()->Data[0] == MasterTable) {
+	else if ((PageMasterTable_t*)GetCurrentProcessorCore()->Data[CPUCORE_DATA_VIRTUAL_DIR] == MasterTable) {
 		*IsCurrent = 1;
 	}
 	assert(MasterTable != NULL);
@@ -235,7 +235,7 @@ MmVirtualGetTable(
 
     // No invalids allowed here
 	assert(PageMasterTable != NULL);
-	if ((PageMasterTable_t*)GetCurrentProcessorCore()->Data[0] == PageMasterTable) {
+	if ((PageMasterTable_t*)GetCurrentProcessorCore()->Data[CPUCORE_DATA_VIRTUAL_DIR] == PageMasterTable) {
 		IsCurrent = 1;
 	}
 
@@ -492,7 +492,7 @@ MmVirtualClone(
     uintptr_t PhysicalAddress   = 0;
     uintptr_t MasterAddress     = 0;
     PageMasterTable_t *Created  = (PageMasterTable_t*)kmalloc_ap(sizeof(PageMasterTable_t), &MasterAddress);
-    PageMasterTable_t *Current  = (PageMasterTable_t*)GetCurrentProcessorCore()->Data[0];
+    PageMasterTable_t *Current  = (PageMasterTable_t*)GetCurrentProcessorCore()->Data[CPUCORE_DATA_VIRTUAL_DIR];
     
     PageDirectoryTable_t *KernelDirectoryTable  = NULL;
     PageDirectoryTable_t *DirectoryTable        = NULL;

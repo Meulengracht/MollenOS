@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,12 +19,11 @@
  * MollenOS - Generic Data Structures (Shared)
  */
 
-/* Includes 
- * - Library */
 #include <ds/ds.h>
 #include <string.h>
 
 #ifdef LIBC_KERNEL
+#include <system/interrupts.h>
 #include <heap.h>
 #else
 #include <stdlib.h>
@@ -53,6 +52,38 @@ dsfree(
 	kfree(p);
 #else
 	free(p);
+#endif
+}
+
+/* dslock
+ * Acquires the lock given, this is a blocking call and will wait untill
+ * the lock is acquired. */
+void
+dslock(
+    _In_ SafeMemoryLock_t *MemoryLock)
+{
+    bool locked = true;
+
+#ifdef LIBC_KERNEL
+    MemoryLock->Flags = InterruptDisable();
+#endif
+    while (1) {
+        bool val = atomic_exchange(&MemoryLock->SyncObject, locked);
+        if (val == false) {
+            break;
+        }
+    }
+}
+
+/* dsunlock
+ * Releases the lock given and restores any previous flags. */
+void
+dsunlock(
+    _In_ SafeMemoryLock_t *MemoryLock)
+{
+    atomic_exchange(&MemoryLock->SyncObject, false);
+#ifdef LIBC_KERNEL
+    InterruptRestoreState(MemoryLock->Flags);
 #endif
 }
 

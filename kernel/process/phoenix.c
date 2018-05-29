@@ -45,22 +45,14 @@
 
 /* Prototypes 
  * They are defined later down this file */
-int
-PhoenixEventHandler(
-    _In_Opt_ void *UserData,
-    _In_ MCoreEvent_t *Event);
-OsStatus_t
-PhoenixReapAsh(
-    _In_Opt_ void *UserData);
-OsStatus_t
-PhoenixFileHandler(
-    _In_Opt_ void *UserData);
+int PhoenixEventHandler(void *UserData, MCoreEvent_t *Event);
+OsStatus_t PhoenixReapAsh(void *UserData);
+OsStatus_t PhoenixFileHandler(void *UserData);
 
 /* Globals 
  * State-keeping and data-storage */
 static MCoreEventHandler_t *EventHandler    = NULL;
 static Collection_t *Processes              = NULL;
-static CriticalSection_t ProcessLock;
 static UUId_t *AliasMap                     = NULL;
 static UUId_t GcHandlerId                   = 0;
 static UUId_t GcFileHandleId                = 0;
@@ -74,28 +66,27 @@ CriticalSection_t LoaderLock;
 void
 PhoenixInitialize(void)
 {
-	// Variables
-	int i;
+    // Variables
+    int i;
 
-	// Debug
-	TRACE("Initializing environment and event handler");
+    // Debug
+    TRACE("Initializing environment and event handler");
 
-	// Initialize Globals
-	ProcessIdGenerator  = 1;
-	Processes           = CollectionCreate(KeyInteger);
+    // Initialize Globals
+    ProcessIdGenerator  = 1;
+    Processes           = CollectionCreate(KeyInteger);
     GcHandlerId         = GcRegister(PhoenixReapAsh);
     GcFileHandleId      = GcRegister(PhoenixFileHandler);
-    CriticalSectionConstruct(&ProcessLock, CRITICALSECTION_PLAIN);
     CriticalSectionConstruct(&LoaderLock, CRITICALSECTION_REENTRANCY);
 
-	// Initialize the global alias map
-	AliasMap = (UUId_t*)kmalloc(sizeof(UUId_t) * PHOENIX_MAX_ASHES);
-	for (i = 0; i < PHOENIX_MAX_ASHES; i++) {
-		AliasMap[i] = UUID_INVALID;
-	}
+    // Initialize the global alias map
+    AliasMap = (UUId_t*)kmalloc(sizeof(UUId_t) * PHOENIX_MAX_ASHES);
+    for (i = 0; i < PHOENIX_MAX_ASHES; i++) {
+        AliasMap[i] = UUID_INVALID;
+    }
 
-	// Create event handler
-	EventHandler = EventInit("phoenix", PhoenixEventHandler, NULL);
+    // Create event handler
+    EventHandler = EventInit("phoenix", PhoenixEventHandler, NULL);
 }
 
 /* PhoenixCreateRequest
@@ -103,7 +94,7 @@ PhoenixInitialize(void)
 void
 PhoenixCreateRequest(
     _In_ MCorePhoenixRequest_t *Request) {
-	EventCreate(EventHandler, &Request->Base);
+    EventCreate(EventHandler, &Request->Base);
 }
 
 /* PhoenixWaitRequest
@@ -112,7 +103,7 @@ void
 PhoenixWaitRequest(
     _In_ MCorePhoenixRequest_t *Request,
     _In_ size_t Timeout) {
-	EventWait(&Request->Base, Timeout);
+    EventWait(&Request->Base, Timeout);
 }
 
 /* PhoenixRegisterAlias
@@ -121,21 +112,21 @@ PhoenixWaitRequest(
  * will always refer the calling process */
 OsStatus_t
 PhoenixRegisterAlias(
-	_In_ MCoreAsh_t *Ash, 
-	_In_ UUId_t Alias)
+    _In_ MCoreAsh_t *Ash, 
+    _In_ UUId_t Alias)
 {
-	// Sanitize both the server and alias 
-	if (Ash == NULL || (Alias < PHOENIX_ALIAS_BASE) || 
+    // Sanitize both the server and alias 
+    if (Ash == NULL || (Alias < PHOENIX_ALIAS_BASE) || 
         AliasMap[Alias - PHOENIX_ALIAS_BASE] != UUID_INVALID) {
-		ERROR("Failed to register alias 0x%x for ash %u (0x%x - %u)",
-			Alias, (Ash == NULL ? UUID_INVALID : Ash->Id),
-			AliasMap[Alias - PHOENIX_ALIAS_BASE], Alias - PHOENIX_ALIAS_BASE);
-		return OsError;
-	}
+        ERROR("Failed to register alias 0x%x for ash %u (0x%x - %u)",
+            Alias, (Ash == NULL ? UUID_INVALID : Ash->Id),
+            AliasMap[Alias - PHOENIX_ALIAS_BASE], Alias - PHOENIX_ALIAS_BASE);
+        return OsError;
+    }
 
-	// Register
-	AliasMap[Alias - PHOENIX_ALIAS_BASE] = Ash->Id;
-	return OsSuccess;
+    // Register
+    AliasMap[Alias - PHOENIX_ALIAS_BASE] = Ash->Id;
+    return OsSuccess;
 }
 
 /* PhoenixUpdateAlias
@@ -146,7 +137,7 @@ PhoenixUpdateAlias(
     _InOut_ UUId_t *AshId)
 {
     if (*AshId >= PHOENIX_ALIAS_BASE
-		&& *AshId < (PHOENIX_ALIAS_BASE + PHOENIX_MAX_ASHES)) {
+        && *AshId < (PHOENIX_ALIAS_BASE + PHOENIX_MAX_ASHES)) {
         *AshId = AliasMap[*AshId - PHOENIX_ALIAS_BASE];
         return OsSuccess;
     }
@@ -214,10 +205,10 @@ PhoenixGetServerByDriver(
     _In_ DevInfo_t DeviceClass,
     _In_ DevInfo_t DeviceSubClass)
 {
-	foreach(pNode, Processes) {
-		MCoreAsh_t *Ash = (MCoreAsh_t*)pNode->Data;
-		if (Ash->Type == AshServer) {
-			MCoreServer_t *Server = (MCoreServer_t*)Ash;
+    foreach(pNode, Processes) {
+        MCoreAsh_t *Ash = (MCoreAsh_t*)pNode->Data;
+        if (Ash->Type == AshServer) {
+            MCoreServer_t *Server = (MCoreServer_t*)Ash;
 
             // Should we check vendor-id && device-id?
             if (VendorId != 0 && DeviceId != 0) {
@@ -234,9 +225,9 @@ PhoenixGetServerByDriver(
                     return Server;
                 }
             }
-		}
-	}
-	return NULL;
+        }
+    }
+    return NULL;
 }
 
 /* PhoenixRegisterAsh
@@ -247,13 +238,8 @@ PhoenixRegisterAsh(
 {
     // Variables
     DataKey_t Key;
-    
-	// Modifications to process-list are locked
-	Key.Value = (int)Ash->Id;
-    CriticalSectionEnter(&ProcessLock);
-	CollectionAppend(Processes, CollectionCreateNode(Key, Ash));
-    CriticalSectionLeave(&ProcessLock);
-    return OsSuccess;
+    Key.Value = (int)Ash->Id;
+    return CollectionAppend(Processes, CollectionCreateNode(Key, Ash));
 }
 
 /* PhoenixTerminateAsh
@@ -282,13 +268,11 @@ PhoenixTerminateAsh(
 
     // To modify list is locked operation
     Key.Value = (int)Ash->Id;
-    CriticalSectionEnter(&ProcessLock);
-	CollectionRemoveByKey(Processes, Key);
-    CriticalSectionLeave(&ProcessLock);
+    CollectionRemoveByKey(Processes, Key);
 
-	// Alert GC
-	SchedulerHandleSignalAll((uintptr_t*)Ash);
-	GcSignal(GcHandlerId, Ash);
+    // Alert GC
+    SchedulerHandleSignalAll((uintptr_t*)Ash);
+    GcSignal(GcHandlerId, Ash);
 }
 
 /* PhoenixReapAsh
@@ -299,21 +283,21 @@ OsStatus_t
 PhoenixReapAsh(
     _In_Opt_ void *UserData)
 {
-	// Instantiate the base-pointer
-	MCoreAsh_t *Ash = (MCoreAsh_t*)UserData;
+    // Instantiate the base-pointer
+    MCoreAsh_t *Ash = (MCoreAsh_t*)UserData;
 
-	// Clean up
-	if (Ash->Type == AshBase) {
-		PhoenixCleanupAsh(Ash);
-	}
-	else if (Ash->Type == AshProcess) {
-		PhoenixCleanupProcess((MCoreProcess_t*)Ash);
-	}
-	else {
-		//??
-		return OsError;
-	}
-	return OsSuccess;
+    // Clean up
+    if (Ash->Type == AshBase) {
+        PhoenixCleanupAsh(Ash);
+    }
+    else if (Ash->Type == AshProcess) {
+        PhoenixCleanupProcess((MCoreProcess_t*)Ash);
+    }
+    else {
+        //??
+        return OsError;
+    }
+    return OsSuccess;
 }
 
 /* PhoenixFileHandler
@@ -323,7 +307,7 @@ PhoenixFileHandler(
     _In_Opt_ void *UserData)
 {
     // Variables
-	MCoreAshFileMappingEvent_t *Event   = (MCoreAshFileMappingEvent_t*)UserData;
+    MCoreAshFileMappingEvent_t *Event   = (MCoreAshFileMappingEvent_t*)UserData;
     MCoreAshFileMapping_t *Mapping      = NULL;
     BufferObject_t TransferObject;
     LargeInteger_t Value;
@@ -380,56 +364,56 @@ PhoenixEventHandler(
     _In_Opt_ void *UserData,
     _In_ MCoreEvent_t *Event)
 {
-	// Variables
-	MCorePhoenixRequest_t *Request = NULL;
+    // Variables
+    MCorePhoenixRequest_t *Request = NULL;
 
-	// Unused
-	_CRT_UNUSED(UserData);
+    // Unused
+    _CRT_UNUSED(UserData);
 
-	// Instantiate pointers
-	Request = (MCorePhoenixRequest_t*)Event;
-	switch (Request->Base.Type) {
-		case AshSpawnProcess:
-		case AshSpawnServer: {
-			TRACE("Spawning %s", MStringRaw(Request->Path));
+    // Instantiate pointers
+    Request = (MCorePhoenixRequest_t*)Event;
+    switch (Request->Base.Type) {
+        case AshSpawnProcess:
+        case AshSpawnServer: {
+            TRACE("Spawning %s", MStringRaw(Request->Path));
 
-			if (Request->Base.Type == AshSpawnServer) {
-				Request->AshId = PhoenixCreateServer(Request->Path);
-			}
-			else {
-				Request->AshId = PhoenixCreateProcess(
+            if (Request->Base.Type == AshSpawnServer) {
+                Request->AshId = PhoenixCreateServer(Request->Path);
+            }
+            else {
+                Request->AshId = PhoenixCreateProcess(
                     Request->Path, &Request->StartupInformation);
-			}
+            }
 
-			// Sanitize result
-			if (Request->AshId != UUID_INVALID) {
+            // Sanitize result
+            if (Request->AshId != UUID_INVALID) {
                 Request->Base.State = EventOk;      
             }
-			else {
-				Request->Base.State = EventFailed;
+            else {
+                Request->Base.State = EventFailed;
             }
         } break;
         
-		case AshKill: {
-			MCoreAsh_t *Ash = PhoenixGetAsh(Request->AshId);
-			if (Ash != NULL) {
-				PhoenixTerminateAsh(Ash, 0, 1, 1);
-			}
-			else {
-				Request->Base.State = EventFailed;
-			}
-		} break;
+        case AshKill: {
+            MCoreAsh_t *Ash = PhoenixGetAsh(Request->AshId);
+            if (Ash != NULL) {
+                PhoenixTerminateAsh(Ash, 0, 1, 1);
+            }
+            else {
+                Request->Base.State = EventFailed;
+            }
+        } break;
 
-		default: {
-			ERROR("Unhandled Event %u", (size_t)Request->Base.Type);
-		} break;
-	}
+        default: {
+            ERROR("Unhandled Event %u", (size_t)Request->Base.Type);
+        } break;
+    }
 
-	// Handle cleanup
-	if (Request->Base.Cleanup != 0) {
-		if (Request->Path != NULL) {
-			MStringDestroy(Request->Path);
+    // Handle cleanup
+    if (Request->Base.Cleanup != 0) {
+        if (Request->Path != NULL) {
+            MStringDestroy(Request->Path);
         }
-	}
-	return 0;
+    }
+    return 0;
 }

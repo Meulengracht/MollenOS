@@ -42,68 +42,52 @@ typedef struct _MCoreTimePerformanceOps {
  * The timer structure, contains information about
  * the owner, the timeout and the type of timer. */
 typedef struct _MCoreTimer {
-    UUId_t               Id;
-    UUId_t               AshId;
-    __CONST void        *Data;
+    UUId_t              Id;
+    UUId_t              AshId;
+    const void*         Data;
 
-    size_t               Interval;
-    volatile size_t      Current;
-    int                  Periodic;
+    size_t              Interval;
+    volatile size_t     Current;
+    int                 Periodic;
 } MCoreTimer_t;
 
 /* MCoreSystemTimer
  * The system timer structure
  * Contains information related to the registered system timers */
 typedef struct _MCoreSystemTimer {
-	UUId_t					Source;
-	size_t					Tick;
-	size_t					Ticks;
-    clock_t                 (*SystemTick)(void);
+    UUId_t              Source;
+    size_t              Tick;
+    size_t              Ticks;
+    clock_t             (*SystemTick)(void);
 } MCoreSystemTimer_t;
-
-/* TimersInitialize
- * Initializes the timer sub-system that supports
- * registering of system timers and callback timers */
-KERNELAPI
-void
-KERNELABI
-TimersInitialize(void);
 
 /* TimersRegisterSystemTimer 
  * Registrates a interrupt timer source with the
  * timer management, which keeps track of which interrupts
  * are available for time-keeping */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 TimersRegisterSystemTimer(
-	_In_ UUId_t Source,
+    _In_ UUId_t Source,
     _In_ size_t TickNs,
     _In_ clock_t (*SystemTickHandler)(void));
 
 /* TimersRegisterPerformanceTimer
  * Registers a high performance timer that can be seperate
  * from the system timer. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 TimersRegisterPerformanceTimer(
-	_In_ MCoreTimePerformanceOps_t *Operations);
+    _In_ MCoreTimePerformanceOps_t *Operations);
 
 /* TimersRegisterClock
  * Registers a new time clock source. Must use the standard
  * C library definitions of time. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 TimersRegisterClock(
-	_In_ void (*SystemTimeHandler)(struct tm *SystemTime));
+    _In_ void (*SystemTimeHandler)(struct tm *SystemTime));
     
 /* TimersStart 
  * Creates a new standard timer for the requesting process. */
-KERNELAPI
-UUId_t
-KERNELABI
+KERNELAPI UUId_t KERNELABI
 TimersStart(
     _In_ size_t         IntervalNs,
     _In_ int            Periodic,
@@ -112,9 +96,7 @@ TimersStart(
 /* TimersStop
  * Destroys a existing standard timer, owner must be the requesting
  * process. Otherwise access fault. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 TimersStop(
     _In_ UUId_t TimerId);
 
@@ -123,45 +105,35 @@ TimersStop(
  * a new interrupt has occured from the given source. This allows
  * the timer-management system to tell us if that was the active
  * timer-source */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 TimersInterrupt(
     _In_ UUId_t Source);
 
 /* TimersGetSystemTime
  * Retrieves the system time. This is only ticking
  * if a system clock has been initialized. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 TimersGetSystemTime(
     _Out_ struct tm *SystemTime);
 
 /* TimersGetSystemTick 
  * Retrieves the system tick counter. This is only ticking
  * if a system timer has been initialized. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 TimersGetSystemTick(
     _Out_ clock_t *SystemTick);
 
 /* TimersQueryPerformanceFrequency
  * Returns how often the performance timer fires every
  * second, the value will never be 0 */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 TimersQueryPerformanceFrequency(
-	_Out_ LargeInteger_t *Frequency);
+    _Out_ LargeInteger_t *Frequency);
 
 /* TimersQueryPerformanceTick 
  * Retrieves the system performance tick counter. This is only ticking
  * if a system performance timer has been initialized. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 TimersQueryPerformanceTick(
     _Out_ LargeInteger_t *Value);
 

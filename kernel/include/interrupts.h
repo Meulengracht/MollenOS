@@ -53,14 +53,6 @@ typedef struct _MCoreInterruptDescriptor {
 	struct _MCoreInterruptDescriptor	*Link;
 } MCoreInterruptDescriptor_t;
 
-/* InterruptInitialize
- * Initializes interrupt data-structures and global variables
- * by setting everything to sane value */
-KERNELAPI
-void
-KERNELABI
-InterruptInitialize(void);
-
 /* InterruptRegister
  * Tries to allocate the given interrupt source
  * by the given descriptor and flags. On success

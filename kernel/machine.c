@@ -24,11 +24,10 @@
 /* Includes 
  * - System */
 #include <revision.h>
-
-#include <component/domain.h>
 #include <system/setup.h>
 #include <system/iospace.h>
 #include <system/utils.h>
+#include <machine.h>
 
 #include <acpiinterface.h>
 #include <garbagecollector.h>
@@ -51,7 +50,20 @@
 
 /* Globals
  * - Static state variables */
-static Multiboot_t GlobalBootInformation;
+static SystemMachine_t Machine = { 
+    { 0 }, { 0 }, { 0 },        // Strings
+    REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD,
+    { 0 },                      // BootInformation
+    COLLECTION_INIT(KeyInteger) // SystemDomains
+};
+
+/* GetMachine
+ * Retrieves a pointer for the machine structure. */
+SystemMachine_t*
+GetMachine(void)
+{
+    return &Machine;
+}
 
 /* PrintHeader
  * Print build information and os-versioning */
@@ -77,57 +89,48 @@ MCoreInitialize(
     Flags_t SystemsAvailable    = 0;
     
     // Initialize all our static memory systems and global variables
-    memcpy(&GlobalBootInformation, BootInformation, sizeof(Multiboot_t));
+    memcpy(&Machine.BootInformation, BootInformation, sizeof(Multiboot_t));
     Crc32GenerateTable();
-    InterruptInitialize();
     LogInitialize();
     
     // Initialize the domain
     InitializePrimaryDomain();
 
     // Print build/info-header
-    PrintHeader(&GlobalBootInformation);
+    PrintHeader(&Machine.BootInformation);
 
     // Query available systems
-    SystemFeaturesQuery(&GlobalBootInformation, &SystemsAvailable);
+    SystemFeaturesQuery(&Machine.BootInformation, &SystemsAvailable);
     TRACE("Supported features: 0x%x", SystemsAvailable);
-
-    // Initialize sublayer
-    if (SystemsAvailable & SYSTEM_FEATURE_INITIALIZE) {
-        TRACE("Running SYSTEM_FEATURE_INITIALIZE");
-        SystemFeaturesInitialize(&GlobalBootInformation, SYSTEM_FEATURE_INITIALIZE);
-    }
 
     // Initialize memory systems
     if (SystemsAvailable & SYSTEM_FEATURE_MEMORY) {
         TRACE("Running SYSTEM_FEATURE_MEMORY");
-        SystemFeaturesInitialize(&GlobalBootInformation, SYSTEM_FEATURE_MEMORY);
+        SystemFeaturesInitialize(&Machine.BootInformation, SYSTEM_FEATURE_MEMORY);
         DebugInstallPageFaultHandlers();
-    }
-
-    // Don't access video before after memory access
-    if (SystemsAvailable & SYSTEM_FEATURE_OUTPUT) {
-        TRACE("Running SYSTEM_FEATURE_OUTPUT");
-        SystemFeaturesInitialize(&GlobalBootInformation, SYSTEM_FEATURE_OUTPUT);
-        VideoInitialize();
     }
 
     // Initialize our kernel heap
     HeapConstruct(HeapGetKernel(), MEMORY_LOCATION_HEAP, MEMORY_LOCATION_HEAP_END, 0);
 
+    // Don't access video before after memory access
+    if (SystemsAvailable & SYSTEM_FEATURE_OUTPUT) {
+        VideoInitialize();
+    }
+
     // Parse the ramdisk as early as possible, so right
     // after upgrading log and having heap
-    if (ModulesInitialize(&GlobalBootInformation) != OsSuccess) {
+    if (ModulesInitialize(&Machine.BootInformation) != OsSuccess) {
         ERROR("Failed to read the ramdisk supplied with the OS.");
         CpuIdle();
     }
     
     // Now that we have an allocation system add all initializors
     // that need dynamic memory here
+    GcConstruct();
     ThreadingInitialize();
     SchedulerInitialize();
     ThreadingEnable();
-    TimersInitialize();
     IoSpaceInitialize();
 
     // Run early ACPI initialization if available
@@ -139,7 +142,7 @@ MCoreInitialize(
     // Initiate interrupt support now that systems are up and running
     if (SystemsAvailable & SYSTEM_FEATURE_INTERRUPTS) {
         TRACE("Running SYSTEM_FEATURE_INTERRUPTS");
-        SystemFeaturesInitialize(&GlobalBootInformation, SYSTEM_FEATURE_INTERRUPTS);
+        SystemFeaturesInitialize(&Machine.BootInformation, SYSTEM_FEATURE_INTERRUPTS);
     }
 
     // Don't spawn threads before after interrupts
@@ -162,7 +165,7 @@ MCoreInitialize(
     // Run system finalization before we spawn processes
     if (SystemsAvailable & SYSTEM_FEATURE_FINALIZE) {
         TRACE("Running SYSTEM_FEATURE_FINALIZE");
-        SystemFeaturesInitialize(&GlobalBootInformation, SYSTEM_FEATURE_FINALIZE);
+        SystemFeaturesInitialize(&Machine.BootInformation, SYSTEM_FEATURE_FINALIZE);
     }
 
     // Last step, boot up all available system servers

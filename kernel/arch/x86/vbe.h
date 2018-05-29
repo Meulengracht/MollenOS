@@ -27,10 +27,6 @@
  * - Library */
 #include <os/osdefs.h>
 
-/* Includes 
- * - System */
-#include <multiboot.h>
-
 /* Definitions 
  * This is primarily fixed memory addresses that
  * we will need to fall-back to in case no video */
@@ -79,9 +75,7 @@ PACKED_TYPESTRUCT(VbeMode, {
 /* VbeInitialize
  * Initializes the X86 video sub-system and provides
  * boot-video interface for the entire OS */
-__EXTERN
-void 
-VbeInitialize(
-	_In_ Multiboot_t *BootInfo);
+KERNELAPI void KERNELABI
+VbeInitialize(void);
 
 #endif // !_X86_VBE_H_
