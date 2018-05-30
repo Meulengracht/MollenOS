@@ -38,9 +38,7 @@
 #include <assert.h>
 
 /* Globals */
-static Collection_t *GlbSemaphores = NULL;
-static Spinlock_t SemaphoreLock;
-int GlbSemaphoreInit = 0;
+static Collection_t Semaphores = COLLECTION_INIT(KeyInteger);
 
 /* SemaphoreCreate
  * Initializes and allocates a new semaphore
@@ -76,21 +74,8 @@ SemaphoreCreateGlobal(
 	/* First of all, make sure there is no 
 	 * conflicting semaphores in system */
 	if (Identifier != NULL) {
-		if (GlbSemaphoreInit != 1) {
-			GlbSemaphores = CollectionCreate(KeyInteger);
-			GlbSemaphoreInit = 1;
-            SpinlockReset(&SemaphoreLock);
-		}
-
-		/* Hash the string */
-		hKey.Value = (int)MStringHash(Identifier);
-
-		/* Check list if exists */
-        SpinlockAcquire(&SemaphoreLock);
-		void *Exists = CollectionGetDataByKey(GlbSemaphores, hKey, 0);
-        SpinlockRelease(&SemaphoreLock);
-
-		/* Sanitize the lookup */
+		hKey.Value      = (int)MStringHash(Identifier);
+		void *Exists    = CollectionGetDataByKey(&Semaphores, hKey, 0);
 		if (Exists != NULL) {
 			return NULL;
 		}
@@ -103,9 +88,7 @@ SemaphoreCreateGlobal(
 
 	/* Add to system list of semaphores if global */
 	if (Identifier != NULL)  {
-        SpinlockAcquire(&SemaphoreLock);
-		CollectionAppend(GlbSemaphores, CollectionCreateNode(hKey, Semaphore));
-        SpinlockRelease(&SemaphoreLock);
+		CollectionAppend(&Semaphores, CollectionCreateNode(hKey, Semaphore));
 	}
 	return Semaphore;
 }
@@ -121,7 +104,7 @@ SemaphoreDestroy(
 	DataKey_t Key;
 	if (Semaphore->Hash != 0) {
 		Key.Value = (int)Semaphore->Hash;
-		CollectionRemoveByKey(GlbSemaphores, Key);
+		CollectionRemoveByKey(&Semaphores, Key);
 	}
 	SchedulerHandleSignalAll((uintptr_t*)Semaphore);
     if (Semaphore->Cleanup) {

@@ -58,7 +58,7 @@
                 "${workspaceRoot}/kernel/acpica/include",
                 "${workspaceRoot}/kernel/include",
                 "${workspaceRoot}/kernel/arch/x86",
-                "${workspaceRoot}/kernel/arch/x86/x32",
+                "${workspaceRoot}/kernel/arch/x86/x64",
                 "${workspaceRoot}/userspace/include",
                 "${workspaceRoot}/userspace/include/cxx",
                 "${workspaceRoot}/userspace/vioarr"

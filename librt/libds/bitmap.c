@@ -25,6 +25,7 @@
 #include <ds/bitmap.h>
 #include <string.h>
 #include <stddef.h>
+#include <assert.h>
 
 /* BitmapCreate
  * Creates a bitmap of the given size in bytes, the actual available
@@ -32,20 +33,16 @@
  * allocates neccessary resources */
 Bitmap_t*
 BitmapCreate(
-    _In_ size_t Size)
+    _In_ size_t     Size)
 {
     // Variables
     Bitmap_t *Bitmap = NULL;
     uintptr_t *Data = NULL;
-
-    // Sanitize parameters
-    if (Size == 0) {
-        return NULL;
-    }
+    assert(Size > 0);
 
     // Allocate a new bitmap and associated buffer
-    Bitmap = (Bitmap_t*)dsalloc(sizeof(Bitmap_t));
-    Data = (uintptr_t*)dsalloc(Size);
+    Bitmap  = (Bitmap_t*)dsalloc(sizeof(Bitmap_t));
+    Data    = (uintptr_t*)dsalloc(Size);
 
     // Construct the bitmap
     if (BitmapConstruct(Bitmap, Data, Size) != OsSuccess) {
@@ -56,8 +53,6 @@ BitmapCreate(
 
     // Flip cleanup
     Bitmap->Cleanup = 1;
-
-    // Done
     return Bitmap;
 }
 
@@ -67,23 +62,20 @@ BitmapCreate(
  * resources, and won't be cleaned up. */
 OsStatus_t
 BitmapConstruct(
-    _In_ Bitmap_t *Bitmap,
-    _In_ uintptr_t *Data,
-    _In_ size_t Size)
+    _In_ Bitmap_t*  Bitmap,
+    _In_ uintptr_t* Data,
+    _In_ size_t     Size)
 {
-    // Sanitize parameters
-    if (Bitmap == NULL || Data == NULL) {
-        return OsError;
-    }
+    assert(Bitmap != NULL);
+    assert(Data != NULL);
+    assert(Size > 0);
 
     // Fill in data
     memset(Data, 0, Size);
-    Bitmap->Data = Data;
+    Bitmap->Data        = Data;
     Bitmap->SizeInBytes = Size;
-    Bitmap->Cleanup = 0;
-    Bitmap->Capacity = (Size * 8);
-
-    // Done
+    Bitmap->Cleanup     = 0;
+    Bitmap->Capacity    = (Size * 8);
     return OsSuccess;
 }
 
@@ -91,20 +83,15 @@ BitmapConstruct(
  * Cleans up any resources allocated by the Create/Construct. */
 OsStatus_t
 BitmapDestroy(
-    _In_ Bitmap_t *Bitmap)
+    _In_ Bitmap_t*  Bitmap)
 {
-    // Sanitize parameters
-    if (Bitmap == NULL) {
-        return OsError;
-    }
+    assert(Bitmap != NULL);
 
     // Should we cleanup bitmap?
     if (Bitmap->Cleanup != 0) {
         dsfree((void*)Bitmap->Data);
         dsfree((void*)Bitmap);
     }
-
-    // Done
     return OsSuccess;
 }
 
@@ -112,20 +99,16 @@ BitmapDestroy(
  * Flips all bits to 1 at the given index, and for <Count> bits. */
 OsStatus_t
 BitmapSetBits(
-    _In_ Bitmap_t *Bitmap,
-    _In_ int Index,
-    _In_ int Count)
+    _In_ Bitmap_t*  Bitmap,
+    _In_ int        Index,
+    _In_ int        Count)
 {
     // Calculate the block index first
-    int BlockIndex = Index / (sizeof(uintptr_t) * 8);
+    int BlockIndex  = Index / (sizeof(uintptr_t) * 8);
     int BlockOffset = Index % (sizeof(uintptr_t) * 8);
-    int BitsLeft = Count;
+    int BitsLeft    = Count;
     int i, j;
-
-    // Sanitize parameters
-    if (Bitmap == NULL) {
-        return OsError;
-    }
+    assert(Bitmap != NULL);
 
     // Iterate the block and flip bits
     for (i = BlockIndex; 
@@ -142,8 +125,6 @@ BitmapSetBits(
             BlockOffset = 0;
         }
     }
-
-    // If we reach here, success
     return OsSuccess;
 }
 
@@ -151,20 +132,16 @@ BitmapSetBits(
  * Clears all bits from the given index, and for <Count> bits. */
 OsStatus_t
 BitmapClearBits(
-    _In_ Bitmap_t *Bitmap,
-    _In_ int Index,
-    _In_ int Count)
+    _In_ Bitmap_t*  Bitmap,
+    _In_ int        Index,
+    _In_ int        Count)
 {
     // Calculate the block index first
-    int BlockIndex = Index / (sizeof(uintptr_t) * 8);
+    int BlockIndex  = Index / (sizeof(uintptr_t) * 8);
     int BlockOffset = Index % (sizeof(uintptr_t) * 8);
-    int BitsLeft = Count;
+    int BitsLeft    = Count;
     int i, j;
-
-    // Sanitize parameters
-    if (Bitmap == NULL) {
-        return OsError;
-    }
+    assert(Bitmap != NULL);
 
     // Iterate the block and flip bits
     for (i = BlockIndex; 
@@ -181,8 +158,6 @@ BitmapClearBits(
             BlockOffset = 0;
         }
     }
-
-    // If we reach here, success
     return OsSuccess;
 }
 
@@ -191,20 +166,16 @@ BitmapClearBits(
  * function returns 1. Otherwise 0. */
 int
 BitmapAreBitsSet(
-    _In_ Bitmap_t *Bitmap,
-    _In_ int Index,
-    _In_ int Count)
+    _In_ Bitmap_t*  Bitmap,
+    _In_ int        Index,
+    _In_ int        Count)
 {
     // Calculate the block index first
-    int BlockIndex = Index / (sizeof(uintptr_t) * 8);
+    int BlockIndex  = Index / (sizeof(uintptr_t) * 8);
     int BlockOffset = Index % (sizeof(uintptr_t) * 8);
-    int BitsLeft = Count;
+    int BitsLeft    = Count;
     int i, j;
-
-    // Sanitize parameters
-    if (Bitmap == NULL) {
-        return OsError;
-    }
+    assert(Bitmap != NULL);
 
     // Iterate the block and flip bits
     for (i = BlockIndex; 
@@ -223,8 +194,6 @@ BitmapAreBitsSet(
             BlockOffset = 0;
         }
     }
-    
-    // If we reach here, success
     return 1;
 }
 
@@ -233,20 +202,16 @@ BitmapAreBitsSet(
  * function returns 1. Otherwise 0. */
 int
 BitmapAreBitsClear(
-    _In_ Bitmap_t *Bitmap,
-    _In_ int Index,
-    _In_ int Count)
+    _In_ Bitmap_t*  Bitmap,
+    _In_ int        Index,
+    _In_ int        Count)
 {
     // Calculate the block index first
-    int BlockIndex = Index / (sizeof(uintptr_t) * 8);
+    int BlockIndex  = Index / (sizeof(uintptr_t) * 8);
     int BlockOffset = Index % (sizeof(uintptr_t) * 8);
-    int BitsLeft = Count;
+    int BitsLeft    = Count;
     int i, j;
-
-    // Sanitize parameters
-    if (Bitmap == NULL) {
-        return OsError;
-    }
+    assert(Bitmap != NULL);
 
     // Iterate the block and flip bits
     for (i = BlockIndex; 
@@ -265,8 +230,6 @@ BitmapAreBitsClear(
             BlockOffset = 0;
         }
     }
-    
-    // If we reach here, success
     return 1;
 }
 
@@ -275,60 +238,59 @@ BitmapAreBitsClear(
  * Returns the index of the first free bit. Returns -1 on no free. */
 int
 BitmapFindBits(
-    _In_ Bitmap_t *Bitmap,
-    _In_ int Count)
+    _In_ Bitmap_t*  Bitmap,
+    _In_ int        Count)
 {
     // Variables
-    int StartBit = -1;
-	int i = 0, j = 0, k = 0;
+    int StartBit    = -1;
+    int i           = 0, j = 0, k = 0;
+    assert(Bitmap != NULL);
 
     // Iterate bits
     for (i = 0; i < (Bitmap->SizeInBytes / (sizeof(uintptr_t) * 8)); i++) {
-		// Quick test, if all is allocated, damn
-		if (Bitmap->Data[i] == __MASK) {
-			continue;
-		}
+        // Quick test, if all is allocated, damn
+        if (Bitmap->Data[i] == __MASK) {
+            continue;
+        }
 
-		// Test each bit in the value
-		for (j = 0; j < __BITS; j++) {
-			uintptr_t CurrentBit = 1 << j;
-			if (Bitmap->Data[i] & CurrentBit) {
-				continue;
-			}
+        // Test each bit in the value
+        for (j = 0; j < __BITS; j++) {
+            uintptr_t CurrentBit = 1 << j;
+            if (Bitmap->Data[i] & CurrentBit) {
+                continue;
+            }
 
-		    // Ok, now we have to incremently make sure
-			// enough consecutive bits are free
-			for (k = 0; k < Count; k++) {
-				// Make sure we are still in same block
-				if ((j + k) >= __BITS) {
-					int TempI = i + ((j + k) / __BITS);
-					int OffsetI = (j + k) % __BITS;
-					uintptr_t BlockBit = 1 << OffsetI;
-					if (Bitmap->Data[TempI] & BlockBit) {
-						break;
-					}
-				}
-				else {
-					uintptr_t BlockBit = 1 << (j + k);
-					if (Bitmap->Data[i] & BlockBit) {
-						break;
-					}
-				}
-			}
+            // Ok, now we have to incremently make sure
+            // enough consecutive bits are free
+            for (k = 0; k < Count; k++) {
+                // Make sure we are still in same block
+                if ((j + k) >= __BITS) {
+                    int TempI = i + ((j + k) / __BITS);
+                    int OffsetI = (j + k) % __BITS;
+                    uintptr_t BlockBit = 1 << OffsetI;
+                    if (Bitmap->Data[TempI] & BlockBit) {
+                        break;
+                    }
+                }
+                else {
+                    uintptr_t BlockBit = 1 << (j + k);
+                    if (Bitmap->Data[i] & BlockBit) {
+                        break;
+                    }
+                }
+            }
 
-			// If k == numblocks we've found free bits!
-			if (k == Count) {
-				StartBit = (int)(i * sizeof(uintptr_t) * 8 + j);
-				break;
-			}
-		}
+            // If k == numblocks we've found free bits!
+            if (k == Count) {
+                StartBit = (int)(i * sizeof(uintptr_t) * 8 + j);
+                break;
+            }
+        }
 
-		// Break out if we found start-bit
-		if (StartBit != -1) {
-			break;
+        // Break out if we found start-bit
+        if (StartBit != -1) {
+            break;
         }
     }
-    
-    // Done
     return StartBit;
 }

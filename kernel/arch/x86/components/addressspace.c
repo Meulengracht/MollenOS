@@ -208,6 +208,7 @@ AddressSpaceChangeProtection(
     _Out_       Flags_t*            PreviousFlags)
 {
     // Variables
+    AddressSpace_t *KernelSpace     = &KernelAddressSpace;
 	Flags_t ProtectionFlags         = AddressSpaceGetNativeFlags(Flags);
     OsStatus_t Result               = OsSuccess;
     int PageCount                   = 0;
@@ -221,6 +222,9 @@ AddressSpaceChangeProtection(
 
     // Update pages with new protection
     CriticalSectionEnter(&AddressSpace->SyncObject);
+    if (VirtualAddress < MEMORY_LOCATION_KERNEL_END && AddressSpace != KernelSpace) {
+        CriticalSectionEnter(&KernelSpace->SyncObject);
+    }
     for (i = 0; i < PageCount; i++) {
         uintptr_t Block = VirtualAddress + (i * PAGE_SIZE);
         if (PreviousFlags != NULL) {
@@ -230,6 +234,9 @@ AddressSpaceChangeProtection(
             Result = OsError;
             break;
         }
+    }
+    if (VirtualAddress < MEMORY_LOCATION_KERNEL_END && AddressSpace != KernelSpace) {
+        CriticalSectionLeave(&KernelSpace->SyncObject);
     }
     CriticalSectionLeave(&AddressSpace->SyncObject);
     return Result;
@@ -249,8 +256,10 @@ AddressSpaceMap(
     _In_        uintptr_t           Mask)
 {
     // Variables
+	PhysicalAddress_t ExistingBase  = 0;
 	PhysicalAddress_t PhysicalBase  = 0;
     VirtualAddress_t VirtualBase    = 0;
+    AddressSpace_t *KernelSpace     = &KernelAddressSpace;
     OsStatus_t Status               = OsSuccess;
 	Flags_t AllocFlags              = 0;
 	int PageCount                   = 0;
@@ -262,29 +271,13 @@ AddressSpaceMap(
     // Calculate the number of pages of this allocation
     PageCount           = DIVUP(Size, PAGE_SIZE);
     
-    // Make sure the address is not already mapped, this can happen when multiple
-    // cpu's allocate addresses that are alike at the same time
-    CriticalSectionEnter(&AddressSpace->SyncObject);
-    if (Flags & ASPACE_FLAG_SUPPLIEDVIRTUAL) {
-        PhysicalBase = MmVirtualGetMapping((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], *VirtualAddress);
-        if (PhysicalBase != 0) {
-            // The address is already mapped, ignore this
-            if (Flags & ASPACE_FLAG_VIRTUAL) {
-                if ((*PhysicalAddress & PAGE_MASK) != (PhysicalBase & PAGE_MASK)) {
-                    FATAL(FATAL_SCOPE_KERNEL, "Tried to remap fixed virtual address from different physical");
-                }
-            }
-            goto Cleanup;
-        }
-    }
-
     // Determine the memory mappings initially
     if (Flags & ASPACE_FLAG_VIRTUAL) {
         assert(PhysicalAddress != NULL);
         PhysicalBase        = (*PhysicalAddress & PAGE_MASK);
     }
     else if (Flags & ASPACE_FLAG_CONTIGIOUS) { // Allocate contigious physical? 
-        PhysicalBase = MmPhysicalAllocateBlock(Mask, PageCount);
+        PhysicalBase    = MmPhysicalAllocateBlock(Mask, PageCount);
         if (PhysicalAddress != NULL) {
             *PhysicalAddress = PhysicalBase;
         }
@@ -294,6 +287,7 @@ AddressSpaceMap(
             *PhysicalAddress = 0;
         }
     }
+
     if (Flags & ASPACE_FLAG_SUPPLIEDVIRTUAL) {
         assert(VirtualAddress != NULL);
         VirtualBase         = (*VirtualAddress & PAGE_MASK);
@@ -303,6 +297,33 @@ AddressSpaceMap(
         if (VirtualAddress != NULL) {
             *VirtualAddress = VirtualBase;
         }
+    }
+
+    // Make sure the address is not already mapped, this can happen when multiple
+    // cpu's allocate addresses that are alike at the same time
+    CriticalSectionEnter(&AddressSpace->SyncObject);
+
+    // If the address is in kernel region and we are not the kernel address-space
+    // we need to handle synchronization
+    if (VirtualBase < MEMORY_LOCATION_KERNEL_END && AddressSpace != KernelSpace) {
+        CriticalSectionEnter(&KernelSpace->SyncObject);
+    }
+    ExistingBase = MmVirtualGetMapping((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], VirtualBase);
+    if (ExistingBase != 0) {
+        // The address is already mapped, ignore this
+        if (Flags & ASPACE_FLAG_VIRTUAL) {
+            if ((*PhysicalAddress & PAGE_MASK) != (ExistingBase & PAGE_MASK)) {
+                FATAL(FATAL_SCOPE_KERNEL, "Tried to remap fixed virtual address from different physical");
+            }
+        }
+
+        // Cleanup the allocated blocks
+        if (!(Flags & ASPACE_FLAG_VIRTUAL) && Flags & ASPACE_FLAG_CONTIGIOUS) {
+            for (i = 0; i < PageCount; i++) {
+                MmPhysicalFreeBlock(PhysicalBase + (i * PAGE_SIZE));
+            }
+        }
+        goto Cleanup;
     }
 
     // Handle other flags
@@ -331,6 +352,9 @@ AddressSpaceMap(
 	}
     
 Cleanup:
+    if (VirtualBase < MEMORY_LOCATION_KERNEL_END && AddressSpace != KernelSpace) {
+        CriticalSectionLeave(&KernelSpace->SyncObject);
+    }
     CriticalSectionLeave(&AddressSpace->SyncObject);
     return Status;
 }
@@ -344,7 +368,8 @@ AddressSpaceUnmap(
     _In_ size_t             Size)
 {
 	// Variables
-	int PageCount   = DIVUP(Size, PAGE_SIZE);
+    AddressSpace_t *KernelSpace = &KernelAddressSpace;
+	int PageCount               = DIVUP(Size, PAGE_SIZE);
 	int i;
 
     // Sanitize address space
@@ -352,6 +377,9 @@ AddressSpaceUnmap(
 
 	// Iterate page-count and unmap
     CriticalSectionEnter(&AddressSpace->SyncObject);
+    if (Address < MEMORY_LOCATION_KERNEL_END && AddressSpace != KernelSpace) {
+        CriticalSectionEnter(&KernelSpace->SyncObject);
+    }
 	for (i = 0; i < PageCount; i++) {
         if (MmVirtualGetMapping((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], (Address + (i * PAGE_SIZE))) != 0) {
             if (MmVirtualUnmap((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], (Address + (i * PAGE_SIZE))) != OsSuccess) {
@@ -362,6 +390,9 @@ AddressSpaceUnmap(
             TRACE("Ignoring free on unmapped address 0x%x", (Address + (i * PAGE_SIZE)));
         }
 	}
+    if (Address < MEMORY_LOCATION_KERNEL_END && AddressSpace != KernelSpace) {
+        CriticalSectionLeave(&KernelSpace->SyncObject);
+    }
     CriticalSectionLeave(&AddressSpace->SyncObject);
 	return OsSuccess;
 }
@@ -374,15 +405,8 @@ AddressSpaceGetMapping(
     _In_ AddressSpace_t*    AddressSpace, 
     _In_ VirtualAddress_t   VirtualAddress)
 {
-    // Variables
-    PhysicalAddress_t MappedAddress = 0;
-
-    // Sanitize address space
     assert(AddressSpace != NULL);
-    CriticalSectionEnter(&AddressSpace->SyncObject);
-	MappedAddress = MmVirtualGetMapping((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], VirtualAddress);
-    CriticalSectionLeave(&AddressSpace->SyncObject);
-    return MappedAddress;
+    return MmVirtualGetMapping((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], VirtualAddress);
 }
 
 /* AddressSpaceIsDirty
@@ -398,10 +422,7 @@ AddressSpaceIsDirty(
     
     // Sanitize address space
     assert(AddressSpace != NULL);
-
-    CriticalSectionEnter(&AddressSpace->SyncObject);
     Status = MmVirtualGetFlags((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], Address, &Flags);
-    CriticalSectionLeave(&AddressSpace->SyncObject);
 
     // Check the flags if status was ok
     if (Status == OsSuccess && !(Flags & PAGE_DIRTY)) {

@@ -93,43 +93,32 @@ MmVirtualFillPageTable(
 	// Iterate through pages and map them
 	for (i = PAGE_TABLE_INDEX(vAddressStart), pAddress = pAddressStart, vAddress = vAddressStart;
 		i < ENTRIES_PER_PAGE; i++, pAddress += PAGE_SIZE, vAddress += PAGE_SIZE) {
-		uint32_t pEntry = pAddress | PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP | Flags;
+		uint32_t pEntry = pAddress | Flags;
 		pTable->Pages[PAGE_TABLE_INDEX(vAddress)] = pEntry;
 	}
 }
 
-/* MmVirtualIdentityMapMemoryRange
- * Identity maps not only a page-table or a region inside
- * it can identity map an entire memory region and create
- * page-table for the region automatically */
+/* MmVirtualMapMemoryRange
+ * Maps an entire region into the given page-directory and marks them present.
+ * They can then be used for either identity mapping or real mappings afterwards. */
 void 
-MmVirtualIdentityMapMemoryRange(
+MmVirtualMapMemoryRange(
 	_In_ PageDirectory_t*   PageDirectory,
-	_In_ PhysicalAddress_t  pAddressStart,
-	_In_ VirtualAddress_t   vAddressStart,
+	_In_ VirtualAddress_t   AddressStart,
 	_In_ uintptr_t          Length,
-	_In_ int                Fill, 
 	_In_ Flags_t            Flags)
 {
 	// Variables
 	unsigned i, k;
 
 	// Iterate the afflicted page-tables
-	for (i = PAGE_DIRECTORY_INDEX(vAddressStart), k = 0;
-		i < (PAGE_DIRECTORY_INDEX(vAddressStart + Length - 1) + 1);
+	for (i = PAGE_DIRECTORY_INDEX(AddressStart), k = 0;
+		i < (PAGE_DIRECTORY_INDEX(AddressStart + Length - 1) + 1);
 		i++, k++) {
 		PageTable_t *Table = MmVirtualCreatePageTable();
-		uintptr_t pAddress = pAddressStart + (k * TABLE_SPACE_SIZE);
-		uintptr_t vAddress = vAddressStart + (k * TABLE_SPACE_SIZE);
-
-		// Fill it with pages?
-		if (Fill != 0) {
-			MmVirtualFillPageTable(Table, pAddress, vAddress, Flags);
-		}
 
 		// Install the table into the given page-directory
-		PageDirectory->pTables[i] = (PhysicalAddress_t)Table 
-			| (PAGE_SYSTEM_MAP | PAGE_PRESENT | PAGE_WRITE | Flags);
+		PageDirectory->pTables[i] = (PhysicalAddress_t)Table | Flags;
 		PageDirectory->vTables[i] = (uintptr_t)Table;
 	}
 }
@@ -343,9 +332,7 @@ MmVirtualUnmap(
 	OsStatus_t Result           = OsSuccess;
 
 	// Does page table exist? 
-	// or is a system table, we can't unmap these!
-	if (!(Directory->pTables[PAGE_DIRECTORY_INDEX(Address)] & PAGE_PRESENT)
-		|| (Directory->pTables[PAGE_DIRECTORY_INDEX(Address)] & PAGE_SYSTEM_MAP)) {
+	if (!(Directory->pTables[PAGE_DIRECTORY_INDEX(Address)] & PAGE_PRESENT)) {
 		Result = OsError;
 		goto Leave;
 	}
@@ -573,7 +560,10 @@ MmVirtualInit(void)
 {
 	// Variables
 	AddressSpace_t KernelSpace;
-	PageTable_t *iTable = NULL;
+	PageTable_t *iTable             = NULL;
+    size_t BytesToMap               = 0;
+    PhysicalAddress_t PhysicalBase  = 0;
+    VirtualAddress_t VirtualBase    = 0;
 
 	// Trace information
 	TRACE("MmVirtualInit()");
@@ -581,36 +571,32 @@ MmVirtualInit(void)
 	// Initialize reserved pointer
 	atomic_store(&ReservedMemoryPointer, MEMORY_LOCATION_RESERVED);
 
-	// Allocate 3 pages for the kernel page directory
+	// Allocate 2 pages for the kernel page directory
 	// and reset it by zeroing it out
-	KernelMasterTable = (PageDirectory_t*)
-		MmPhysicalAllocateBlock(MEMORY_ALLOCATION_MASK, 3);
+	KernelMasterTable = (PageDirectory_t*)MmPhysicalAllocateBlock(MEMORY_ALLOCATION_MASK, 2);
 	memset((void*)KernelMasterTable, 0, sizeof(PageDirectory_t));
+    memset((void*)&KernelSpace, 0, sizeof(AddressSpace_t));
 
-	// Allocate initial page directory and
-	// identify map the page-directory
-	iTable = MmVirtualCreatePageTable();
-	MmVirtualFillPageTable(iTable, 0x1000, 0x1000, 0);
+	// Due to how it works with multiple cpu's, we need to make sure all shared
+    // tables already are mapped in the upper-most level of the page-directory
+    TRACE("Mapping the kernel region from 0x%x => 0x%x", MEMORY_LOCATION_KERNEL, MEMORY_LOCATION_KERNEL_END);
+	MmVirtualMapMemoryRange(KernelMasterTable, 0, MEMORY_LOCATION_KERNEL_END, 
+        PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP);
 
-	// Install the first page-table
-	KernelMasterTable->pTables[0] = (PhysicalAddress_t)iTable | PAGE_USER
-		| PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP;
-	KernelMasterTable->vTables[0] = (uintptr_t)iTable;
-	
-	// Pre-map heap region
-	TRACE("Mapping heap region to 0x%x", MEMORY_LOCATION_HEAP);
-	MmVirtualIdentityMapMemoryRange(KernelMasterTable, 0, MEMORY_LOCATION_HEAP,
-		(MEMORY_LOCATION_HEAP_END - MEMORY_LOCATION_HEAP), 0, 0);
-
-	// Pre-map video region
-	TRACE("Mapping video memory to 0x%x", MEMORY_LOCATION_VIDEO);
-	MmVirtualIdentityMapMemoryRange(KernelMasterTable, VideoGetTerminal()->FrameBufferAddress,
-		MEMORY_LOCATION_VIDEO, (VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height),
-		1, PAGE_USER);
-
-	// Install the page table at the reserved system
-	// memory, important! 
-	TRACE("Mapping reserved memory to 0x%x", MEMORY_LOCATION_RESERVED);
+    // Identity map some of the regions
+    // Kernel image region
+    // Kernel video region
+	MmVirtualFillPageTable((PageTable_t*)KernelMasterTable->vTables[0], 0x1000, 0x1000, PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP);
+    BytesToMap      = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
+    PhysicalBase    = VideoGetTerminal()->FrameBufferAddress;
+    VirtualBase     = MEMORY_LOCATION_VIDEO;
+    while (BytesToMap) {
+        iTable          = (PageTable_t*)KernelMasterTable->vTables[PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_VIDEO)];
+        MmVirtualFillPageTable(iTable, PhysicalBase, VirtualBase, PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP | PAGE_USER);
+        BytesToMap      -= MIN(BytesToMap, TABLE_SPACE_SIZE);
+        PhysicalBase    += TABLE_SPACE_SIZE;
+        VirtualBase     += TABLE_SPACE_SIZE;
+    }
 
 	// Update video address to the new
 	VideoGetTerminal()->FrameBufferAddress = MEMORY_LOCATION_VIDEO;

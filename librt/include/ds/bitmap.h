@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,18 +22,16 @@
 #ifndef _GENERIC_BITMAP_H_
 #define _GENERIC_BITMAP_H_
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 #include <ds/ds.h>
 
 /* Bitmap
  * Contains information about the bitmap and resources. */
 typedef struct _Bitmap {
-    int                  Cleanup;
-    size_t               SizeInBytes;
-    size_t               Capacity;
-	uintptr_t           *Data;
+    int         Cleanup;
+    size_t      SizeInBytes;
+    size_t      Capacity;
+	uintptr_t*  Data;
 } Bitmap_t;
 
 /* BitmapCreate
@@ -43,7 +41,7 @@ typedef struct _Bitmap {
 CRTDECL(
 Bitmap_t*,
 BitmapCreate(
-    _In_ size_t Size));
+    _In_ size_t     Size));
 
 /* BitmapConstruct
  * Creates a bitmap of the given size in bytes, the actual available
@@ -52,34 +50,34 @@ BitmapCreate(
 CRTDECL(
 OsStatus_t,
 BitmapConstruct(
-    _In_ Bitmap_t *Bitmap,
-    _In_ uintptr_t *Data,
-    _In_ size_t Size));
+    _In_ Bitmap_t*  Bitmap,
+    _In_ uintptr_t* Data,
+    _In_ size_t     Size));
 
 /* BitmapDestroy
  * Cleans up any resources allocated by the Create/Construct. */
 CRTDECL(
 OsStatus_t,
 BitmapDestroy(
-    _In_ Bitmap_t *Bitmap));
+    _In_ Bitmap_t*  Bitmap));
 
 /* BitmapSetBits
  * Flips all bits to 1 at the given index, and for <Count> bits. */
 CRTDECL(
 OsStatus_t,
 BitmapSetBits(
-    _In_ Bitmap_t *Bitmap,
-    _In_ int Index,
-    _In_ int Count));
+    _In_ Bitmap_t*  Bitmap,
+    _In_ int        Index,
+    _In_ int        Count));
 
 /* BitmapClearBits
  * Clears all bits from the given index, and for <Count> bits. */
 CRTDECL(
 OsStatus_t,
 BitmapClearBits(
-    _In_ Bitmap_t *Bitmap,
-    _In_ int Index,
-    _In_ int Count));
+    _In_ Bitmap_t*  Bitmap,
+    _In_ int        Index,
+    _In_ int        Count));
 
 /* BitmapAreBitsSet
  * If all bits are set from the given index, and for <Count> bits, then this
@@ -87,9 +85,9 @@ BitmapClearBits(
 CRTDECL(
 int,
 BitmapAreBitsSet(
-    _In_ Bitmap_t *Bitmap,
-    _In_ int Index,
-    _In_ int Count));
+    _In_ Bitmap_t*  Bitmap,
+    _In_ int        Index,
+    _In_ int        Count));
 
 /* BitmapAreBitsClear
  * If all bits are cleared from the given index, and for <Count> bits, then this
@@ -97,9 +95,9 @@ BitmapAreBitsSet(
 CRTDECL(
 int,
 BitmapAreBitsClear(
-    _In_ Bitmap_t *Bitmap,
-    _In_ int Index,
-    _In_ int Count));
+    _In_ Bitmap_t*  Bitmap,
+    _In_ int        Index,
+    _In_ int        Count));
 
 /* BitmapFindBits
  * Locates the requested number of consequtive free bits.
@@ -107,7 +105,7 @@ BitmapAreBitsClear(
 CRTDECL(
 int,
 BitmapFindBits(
-    _In_ Bitmap_t *Bitmap,
-    _In_ int Count));
+    _In_ Bitmap_t*  Bitmap,
+    _In_ int        Count));
 
 #endif //!_GENERIC_BITMAP_H_

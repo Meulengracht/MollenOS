@@ -60,33 +60,13 @@ PACKED_TYPESTRUCT(MCoreIoSpace, {
 });
 
 /* Globals 
- * We need to keep track of a few things
- * and keep a list of io-spaces in the system */
-static Spinlock_t __GlbIoSpaceLock  = SPINLOCK_INIT;
-static UUId_t __GlbIoSpaceId        = 1;
-static Collection_t *__GlbIoSpaces  = NULL;
-static int __GlbIoSpaceInitialized  = 0;
-
-/* IoSpaceInitialize
- * Initialize the Io Space manager so we 
- * can register io-spaces from drivers and the
- * bus code */
-void
-IoSpaceInitialize(void)
-{
-    // Debugging
-    TRACE("IoSpaceInitialize()");
-
-    // Initialize globals
-    __GlbIoSpaces = CollectionCreate(KeyInteger);
-    __GlbIoSpaceInitialized = 1;
-    __GlbIoSpaceId = 1;
-}
+ * We need to keep track of a few things and keep a list of io-spaces in the system */
+static Collection_t IoSpaces                = COLLECTION_INIT(KeyInteger);
+static _Atomic(UUId_t) IoSpaceIdGenerator   = 1;
 
 /* IoSpaceRegister
- * Registers an io-space with the io space manager 
- * and assigns the io-space a unique id for later
- * identification */
+ * Registers an io-space with the io space manager and assigns the io-space 
+ * a unique id for later identification */
 OsStatus_t
 IoSpaceRegister(
     _In_ DeviceIoSpace_t *IoSpace)
@@ -105,6 +85,7 @@ IoSpaceRegister(
     // Allocate a new system only copy of the io-space
     // as we don't want anyone to edit our copy
     SysCopy                 = (MCoreIoSpace_t*)kmalloc(sizeof(MCoreIoSpace_t));
+    IoSpace->Id             = SysCopy->Id = atomic_fetch_add(&IoSpaceIdGenerator, 1);
 
     // Initialize the system copy
     SysCopy->Owner          = UUID_INVALID;
@@ -114,11 +95,8 @@ IoSpaceRegister(
     SysCopy->Size           = IoSpace->Size;
 
     // Add to list
-    SpinlockAcquire(&__GlbIoSpaceLock);
-    IoSpace->Id             = SysCopy->Id = __GlbIoSpaceId++;
     Key.Value               = (int)SysCopy->Id;
-    CollectionAppend(__GlbIoSpaces, CollectionCreateNode(Key, (void*)SysCopy));
-    SpinlockRelease(&__GlbIoSpaceLock);
+    CollectionAppend(&IoSpaces, CollectionCreateNode(Key, (void*)SysCopy));
     return OsSuccess;
 }
 
@@ -141,13 +119,10 @@ IoSpaceAcquire(
 
     // Lookup the system copy to validate this
     // requested operation
-    Server = PhoenixGetCurrentServer();
-    Cpu = CpuGetCurrentId();
-    Key.Value = (int)IoSpace->Id;
-
-    SpinlockAcquire(&__GlbIoSpaceLock);
-    SysCopy = (MCoreIoSpace_t*)CollectionGetDataByKey(__GlbIoSpaces, Key, 0);
-    SpinlockRelease(&__GlbIoSpaceLock);
+    Server      = PhoenixGetCurrentServer();
+    Cpu         = CpuGetCurrentId();
+    Key.Value   = (int)IoSpace->Id;
+    SysCopy     = (MCoreIoSpace_t*)CollectionGetDataByKey(&IoSpaces, Key, 0);
 
     // Sanitize the system copy
     if (Server == NULL || SysCopy == NULL || SysCopy->Owner != UUID_INVALID) {
@@ -191,8 +166,7 @@ IoSpaceAcquire(
         }
     }
     else {
-        WARNING("Invalid Io-Space Type %u by Id %u",
-            SysCopy->Type, SysCopy->Id);
+        WARNING("Invalid Io-Space Type %u by Id %u", SysCopy->Type, SysCopy->Id);
     }
     return OsSuccess;
 }
@@ -216,13 +190,10 @@ IoSpaceRelease(
 
     // Lookup the system copy to validate this
     // requested operation 
-    Server = PhoenixGetCurrentServer();
-    Cpu = CpuGetCurrentId();
-    Key.Value = (int)IoSpace->Id;
-    
-    SpinlockAcquire(&__GlbIoSpaceLock);
-    SysCopy = (MCoreIoSpace_t*)CollectionGetDataByKey(__GlbIoSpaces, Key, 0);
-    SpinlockRelease(&__GlbIoSpaceLock);
+    Server      = PhoenixGetCurrentServer();
+    Cpu         = CpuGetCurrentId();
+    Key.Value   = (int)IoSpace->Id;
+    SysCopy     = (MCoreIoSpace_t*)CollectionGetDataByKey(&IoSpaces, Key, 0);
 
     // Sanitize the system copy and do
     // some security checks
@@ -260,8 +231,8 @@ IoSpaceRelease(
     }
 
     // Clear out some stuff
-    SysCopy->VirtualBase = IoSpace->VirtualBase = 0;
-    SysCopy->Owner = UUID_INVALID;
+    SysCopy->VirtualBase    = IoSpace->VirtualBase = 0;
+    SysCopy->Owner          = UUID_INVALID;
     return OsSuccess;
 }
 
@@ -274,7 +245,7 @@ IoSpaceDestroy(
     _In_ UUId_t IoSpace)
 {
     // Variables
-     MCoreIoSpace_t *SysCopy = NULL;
+    MCoreIoSpace_t *SysCopy = NULL;
     DataKey_t Key;
 
     // Debugging
@@ -282,21 +253,16 @@ IoSpaceDestroy(
 
     // Lookup the system copy to validate this
     // requested operation
-    Key.Value = (int)IoSpace;
-    SpinlockAcquire(&__GlbIoSpaceLock);
-    SysCopy = (MCoreIoSpace_t*)CollectionGetDataByKey(__GlbIoSpaces, Key, 0);
-    SpinlockRelease(&__GlbIoSpaceLock);
+    Key.Value   = (int)IoSpace;
+    SysCopy     = (MCoreIoSpace_t*)CollectionGetDataByKey(&IoSpaces, Key, 0);
 
     // Sanitize the system copy
     if (SysCopy == NULL || SysCopy->Owner != UUID_INVALID) {
         return OsError;
     }
 
-    // Remove from list and cleanup 
-    // the allocated resources
-    SpinlockAcquire(&__GlbIoSpaceLock);
-    CollectionRemoveByKey(__GlbIoSpaces, Key);
-    SpinlockRelease(&__GlbIoSpaceLock);
+    // Remove from list and cleanup the allocated resources
+    CollectionRemoveByKey(&IoSpaces, Key);
     kfree(SysCopy);
     return OsSuccess;
 }
@@ -314,8 +280,7 @@ IoSpaceValidate(
     UUId_t ProcessId = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
 
     // Debugging
-    TRACE("IoSpaceValidate(Process %u, Address 0x%x)",
-        ProcessId, Address);
+    TRACE("IoSpaceValidate(Process %u, Address 0x%x)", ProcessId, Address);
 
     // Sanitize the id
     if (ProcessId == UUID_INVALID) {
@@ -324,9 +289,8 @@ IoSpaceValidate(
     
     // Iterate and check each io-space
     // if anyone has this mapped in
-    foreach(ioNode, __GlbIoSpaces) {
-        MCoreIoSpace_t *IoSpace =
-            (MCoreIoSpace_t*)ioNode->Data;
+    foreach(ioNode, &IoSpaces) {
+        MCoreIoSpace_t *IoSpace = (MCoreIoSpace_t*)ioNode->Data;
 
         // Two things has to be true before the io-space
         // is valid, it has to belong to the right process

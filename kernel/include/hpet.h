@@ -101,7 +101,6 @@
 
 typedef struct _HpTimer {
 	UUId_t					 Interrupt;
-	Spinlock_t				 Lock;
 
 	int						 Present;
 	int						 Enabled;

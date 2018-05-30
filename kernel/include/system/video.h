@@ -24,18 +24,11 @@
 #ifndef _MCORE_SYSVIDEO_H_
 #define _MCORE_SYSVIDEO_H_
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
-#include <os/spinlock.h>
-
-/* Includes
- * - System */
 #include <os/contracts/video.h>
 
 PACKED_TYPESTRUCT(BootTerminal, {
 	Flags_t						Type;
-	Spinlock_t					Lock;
 	VideoDescriptor_t			Info;
 
     uintptr_t                   FrameBufferAddress;
@@ -62,23 +55,17 @@ PACKED_TYPESTRUCT(BootTerminal, {
 
 /* VideoGetTerminal
  * Retrieves the current terminal information */
-KERNELAPI
-BootTerminal_t*
-KERNELABI
+KERNELAPI BootTerminal_t* KERNELABI
 VideoGetTerminal(void);
 
 /* VideoClear
  * Clears the video framebuffer by initializing it to a default color. */
-KERNELAPI
-void
-KERNELABI
+KERNELAPI void KERNELABI
 VideoClear(void);
 
 /* VideoDrawPixel
  * Draws a pixel of the given color at the specifiedpixel-position */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 VideoDrawPixel(
 	_In_ unsigned X, 
 	_In_ unsigned Y, 
@@ -86,9 +73,7 @@ VideoDrawPixel(
 
 /* VideoDrawCharacter
  * Renders a character of the given color(s) at the specified pixel-position */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 VideoDrawCharacter(
 	_In_ unsigned X, 
 	_In_ unsigned Y, 
@@ -98,9 +83,7 @@ VideoDrawCharacter(
 
 /* VideoPutCharacter
  * Renders a character with default colors at the current terminal position */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 VideoPutCharacter(
 	_In_ int Character);
 

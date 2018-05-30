@@ -74,7 +74,6 @@ typedef struct _MCorePeFile {
     int                      NumberOfExportedFunctions;
     MCorePeExportFunction_t *ExportedFunctions;
     Collection_t            *LoadedLibraries;
-    Spinlock_t               LibraryLock;
 } MCorePeFile_t;
 
 /* PeValidate

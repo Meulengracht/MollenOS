@@ -55,9 +55,6 @@ VbeInitialize(void)
 	// Zero out structure
 	memset(&__GlbVideoTerminal, 0, sizeof(__GlbVideoTerminal));
 
-	// Initialize lock
-	SpinlockReset(&__GlbVideoTerminal.Lock);
-
 	// Which kind of mode has been enabled for us
 	switch (GetMachine()->BootInformation.VbeMode) {
 
@@ -290,9 +287,6 @@ OsStatus_t
 VesaPutCharacter(
 	_In_ int Character)
 {
-	// Acquire terminal lock
-	SpinlockAcquire(&__GlbVideoTerminal.Lock);
-
 	// The first step is to handle special
 	// case characters that we shouldn't print out
 	switch (Character) 
@@ -334,9 +328,6 @@ VesaPutCharacter(
 	if ((__GlbVideoTerminal.CursorY + MCoreFontHeight) >= __GlbVideoTerminal.CursorLimitY) {
 		VesaScroll(1);
 	}
-
-	// Release lock and return OK
-	SpinlockRelease(&__GlbVideoTerminal.Lock);
 	return OsSuccess;
 }
 
@@ -410,9 +401,6 @@ TextPutCharacter(
 	// Variables
 	uint16_t CursorLoc = 0;
 
-	// Acquire terminal lock
-	SpinlockAcquire(&__GlbVideoTerminal.Lock);
-
 	// Special case characters
 	// Backspace
 	if (Character == 0x08 && __GlbVideoTerminal.CursorX)
@@ -461,9 +449,6 @@ TextPutCharacter(
 	// Send the low byte.
 	IoWrite(IO_SOURCE_HARDWARE, 0x3D4, 1, 15);
 	IoWrite(IO_SOURCE_HARDWARE, 0x3D5, 1, (uint8_t)CursorLoc);
-
-	// Release lock and return
-	SpinlockRelease(&__GlbVideoTerminal.Lock);
 	return OsSuccess;
 }
 

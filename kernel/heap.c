@@ -74,8 +74,8 @@ static Heap_t GlbKernelHeap         = { { 0 }, 0 };
  * Allocates header-space. This function acquires the heap-lock. */
 uintptr_t*
 HeapAllocateInternal(
-    _In_ Heap_t *Heap,
-    _In_ size_t  Length)
+    _In_ Heap_t*        Heap,
+    _In_ size_t         Length)
 {
     // Variables
     uintptr_t ReturnAddressEnd  = 0;
@@ -95,45 +95,42 @@ HeapAllocateInternal(
     return (uintptr_t*)ReturnAddress;
 }
 
-/* HeapBlockInsert
+/* HeapBlockAppend
  * Appends a block onto the correct block-list in the heap. */
 OsStatus_t
-HeapBlockInsert(
-    _In_ Heap_t         *Heap,
-    _In_ HeapBlock_t    *Block)
+HeapBlockAppend(
+    _In_ Heap_t*        Heap,
+    _In_ HeapBlock_t*   Block)
 {
     // Variables
     HeapBlock_t *CurrentBlock = NULL;
 
     // Debug
-    TRACE("HeapBlockInsert()");
+    TRACE("HeapBlockAppend()");
+    assert(Heap != NULL);
+    assert(Block != NULL);
 
-    // Sanitize input
-    if (Block == NULL) {
-        ERROR("Invalid block, is null");
-        return OsError;
-    }
-
-    // Select list to iterate, locked ops
-    CriticalSectionEnter(&Heap->SyncObject);
+    // Select list to iterate, do not lock the list as we just
+    // append and not insert, this is harmless
+    Block->Link = NULL;
     if (Block->Flags & BLOCK_VERY_LARGE) {
         if (Heap->CustomBlocks == NULL) {
             Heap->CustomBlocks = Block;
-            goto Unlock;
+            goto ExitSub;
         }
         CurrentBlock = Heap->CustomBlocks;
     }
     else if (Block->Flags & BLOCK_ALIGNED) {
         if (Heap->PageBlocks == NULL) {
             Heap->PageBlocks = Block;
-            goto Unlock;
+            goto ExitSub;
         }
         CurrentBlock = Heap->PageBlocks;
     }
     else {
         if (Heap->Blocks == NULL) {
             Heap->Blocks = Block;
-            goto Unlock;
+            goto ExitSub;
         }
         CurrentBlock = Heap->Blocks;
     }
@@ -142,11 +139,9 @@ HeapBlockInsert(
     while (CurrentBlock->Link) {
         CurrentBlock = CurrentBlock->Link;
     }
-    CurrentBlock->Link = Block;
-    Block->Link = NULL;
+    CurrentBlock->Link  = Block;
 
-Unlock:
-    CriticalSectionLeave(&Heap->SyncObject);
+ExitSub:
     return OsSuccess;
 }
 
@@ -155,11 +150,11 @@ Unlock:
  * list, since we need to support multiple lists, reuse this */
 void
 HeapStatisticsCount(
-    _In_ HeapBlock_t    *Block,
-    _Out_ size_t        *BlockCounter,
-    _Out_ size_t        *NodeCounter,
-    _Out_ size_t        *NodesAllocated,
-    _Out_ size_t        *BytesAllocated)
+    _In_  HeapBlock_t*  Block,
+    _Out_ size_t*       BlockCounter,
+    _Out_ size_t*       NodeCounter,
+    _Out_ size_t*       NodesAllocated,
+    _Out_ size_t*       BytesAllocated)
 {
     while (Block) {
         HeapNode_t *CurrentNode = Block->Nodes;
@@ -179,7 +174,7 @@ HeapStatisticsCount(
  * and prints out different allocation stats of heap */
 void
 HeapStatisticsPrint(
-    _In_ Heap_t *Heap)
+    _In_ Heap_t*        Heap)
 {
     // Variables
     size_t StatNodeCount            = 0;
@@ -235,13 +230,13 @@ HeapStatisticsPrint(
  * it will allocate from the recycler if possible */
 HeapBlock_t*
 HeapCreateBlock(
-    _In_ Heap_t         *Heap, 
+    _In_ Heap_t*        Heap, 
 #ifdef HEAP_USE_IDENTIFICATION
-    _In_ __CONST char   *Identifier,
+    _In_ const char*    Identifier,
 #endif
-    _In_ size_t          Length,
-    _In_ uintptr_t       Mask,
-    _In_ Flags_t         Flags)
+    _In_ size_t         Length,
+    _In_ uintptr_t      Mask,
+    _In_ Flags_t        Flags)
 {
     // Variables
     HeapBlock_t *hBlock     = NULL;
@@ -258,24 +253,26 @@ HeapCreateBlock(
         return NULL;
     }
 
-    // Can we pop on off from recycler?
-    // The below operations must be locked
+    // Can we pop on off from recycler? The below operations must be locked
+    // and do not do any calls while holding the heap lock
     CriticalSectionEnter(&Heap->SyncObject);
     if (Heap->BlockRecycler != NULL) {
-        hBlock = Heap->BlockRecycler;
+        hBlock              = Heap->BlockRecycler;
         Heap->BlockRecycler = Heap->BlockRecycler->Link;
     }
-    else {
-        hBlock = (HeapBlock_t*)HeapAllocateInternal(Heap, sizeof(HeapBlock_t));
-    }
     if (Heap->NodeRecycler != NULL) {
-        hNode = Heap->NodeRecycler;
-        Heap->NodeRecycler = Heap->NodeRecycler->Link;
-    }
-    else {
-        hNode = (HeapNode_t*)HeapAllocateInternal(Heap, sizeof(HeapNode_t));
+        hNode               = Heap->NodeRecycler;
+        Heap->NodeRecycler  = Heap->NodeRecycler->Link;
     }
     CriticalSectionLeave(&Heap->SyncObject);
+
+    // Perform the internal allocations after releaseing lock
+    if (hBlock == NULL) {
+        hBlock = (HeapBlock_t*)HeapAllocateInternal(Heap, sizeof(HeapBlock_t));
+    }
+    if (hNode == NULL) {
+        hNode = (HeapNode_t*)HeapAllocateInternal(Heap, sizeof(HeapNode_t));
+    }
 
     // Sanitize blocks
     assert(hBlock != NULL);
@@ -310,13 +307,13 @@ HeapCreateBlock(
  * it also heavily depends on which kind of allocation is being made */
 OsStatus_t
 HeapExpand(
-    _In_ Heap_t         *Heap,
+    _In_ Heap_t*        Heap,
 #ifdef HEAP_USE_IDENTIFICATION
-    _In_ __CONST char   *Identifier,
+    _In_ const char*    Identifier,
 #endif
-    _In_ size_t          Length,
-    _In_ uintptr_t       Mask,
-    _In_ Flags_t         Flags)
+    _In_ size_t         Length,
+    _In_ uintptr_t      Mask,
+    _In_ Flags_t        Flags)
 {
     // Variables
     HeapBlock_t *hBlock = NULL;
@@ -331,7 +328,7 @@ HeapExpand(
     else {
         hBlock = HeapCreateBlock(Heap, IDENTIFIER HEAP_NORMAL_BLOCK, Mask, BLOCK_NORMAL);
     }
-    return HeapBlockInsert(Heap, hBlock);
+    return HeapBlockAppend(Heap, hBlock);
 }
 
 /* HeapAllocateSizeInBlock
@@ -339,13 +336,13 @@ HeapExpand(
  * 'sub'-allocates <size> in a given <block> from the heap */
 uintptr_t
 HeapAllocateSizeInBlock(
-    _In_ Heap_t         *Heap,
+    _In_ Heap_t*        Heap,
 #ifdef HEAP_USE_IDENTIFICATION
-    _In_ __CONST char   *Identifier,
+    _In_ const char*    Identifier,
 #endif
-    _In_ HeapBlock_t    *Block, 
-    _In_ size_t          Length,
-    _In_ size_t          Alignment)
+    _In_ HeapBlock_t*   Block, 
+    _In_ size_t         Length,
+    _In_ size_t         Alignment)
 {
     // Variables
     HeapNode_t *CurrNode    = Block->Nodes, 
@@ -386,16 +383,17 @@ HeapAllocateSizeInBlock(
             // Get a new node, heap locked operation
             CriticalSectionEnter(&Heap->SyncObject);
             if (Heap->NodeRecycler != NULL) {
-                hNode = Heap->NodeRecycler;
-                Heap->NodeRecycler = Heap->NodeRecycler->Link;
+                hNode               = Heap->NodeRecycler;
+                Heap->NodeRecycler  = Heap->NodeRecycler->Link;
             }
-            else {
+            CriticalSectionLeave(&Heap->SyncObject);
+
+            if (hNode == NULL) {
                 hNode = (HeapNode_t*)HeapAllocateInternal(Heap, sizeof(HeapNode_t));
             }
 
             // Make sure it didn't fail
             assert(hNode != NULL);
-            CriticalSectionLeave(&Heap->SyncObject);
 
             // Initialize the node
             memset(hNode, 0, sizeof(HeapNode_t));
@@ -441,9 +439,9 @@ HeapAllocateSizeInBlock(
  * are allocated, used by allocation flags */
 void
 HeapCommitPages(
-    _In_ uintptr_t  Address,
-    _In_ size_t     Size,
-    _In_ uintptr_t  Mask)
+    _In_ uintptr_t      Address,
+    _In_ size_t         Size,
+    _In_ uintptr_t      Mask)
 {
     // Variables
     uintptr_t PageMask = ~(AddressSpaceGetPageSize() - 1);
@@ -468,14 +466,14 @@ HeapCommitPages(
  * Finds a suitable block for allocation in the heap. Auto-expends if neccessary. */
 uintptr_t
 HeapAllocate(
-    _In_ Heap_t         *Heap,
+    _In_ Heap_t*        Heap,
 #ifdef HEAP_USE_IDENTIFICATION
-    _In_ __CONST char   *Identifier,
+    _In_ const char*    Identifier,
 #endif
-    _In_ size_t          Length, 
-    _In_ Flags_t         Flags,
-    _In_ size_t          Alignment,
-    _In_ uintptr_t       Mask)
+    _In_ size_t         Length, 
+    _In_ Flags_t        Flags,
+    _In_ size_t         Alignment,
+    _In_ uintptr_t      Mask)
 {
     // Variables
     HeapBlock_t *CurrentBlock   = NULL;
@@ -555,9 +553,9 @@ HeapAllocate(
  * as it supports merging with sibling nodes  */
 OsStatus_t
 HeapFreeAddressInNode(
-    _In_ Heap_t         *Heap,
-    _In_ HeapBlock_t    *Block,
-    _In_ uintptr_t       Address)
+    _In_ Heap_t*        Heap,
+    _In_ HeapBlock_t*   Block,
+    _In_ uintptr_t      Address)
 {
     // Variables
     HeapNode_t *CurrNode    = Block->Nodes, 
@@ -582,25 +580,24 @@ HeapFreeAddressInNode(
 
             // Try to merge with previous header
             if (PrevNode != NULL && !(PrevNode->Flags & NODE_ALLOCATED)) {
-                PrevNode->Length += CurrNode->Length;
-                PrevNode->Link = CurrNode->Link;
+                PrevNode->Length    += CurrNode->Length;
+                PrevNode->Link      = CurrNode->Link;
                 
                 // Recycle
-                CurrNode->Link = NULL;
-                CurrNode->Address = 0;
-                CurrNode->Length = 0;
+                CurrNode->Link      = NULL;
+                CurrNode->Address   = 0;
+                CurrNode->Length    = 0;
                 CriticalSectionEnter(&Heap->SyncObject);
                 if (Heap->NodeRecycler == NULL)
-                    Heap->NodeRecycler = CurrNode;
+                    Heap->NodeRecycler  = CurrNode;
                 else {
-                    CurrNode->Link = Heap->NodeRecycler;
-                    Heap->NodeRecycler = CurrNode;
+                    CurrNode->Link      = Heap->NodeRecycler;
+                    Heap->NodeRecycler  = CurrNode;
                 }
                 CriticalSectionLeave(&Heap->SyncObject);
             }
             // Merge with our link
-            else if (CurrNode->Link != NULL
-                && !(CurrNode->Flags & NODE_ALLOCATED)) {
+            else if (CurrNode->Link != NULL && !(CurrNode->Flags & NODE_ALLOCATED)) {
                 CurrNode->Link->Address = CurrNode->Address;
                 CurrNode->Link->Length += CurrNode->Length;
 
@@ -613,9 +610,9 @@ HeapFreeAddressInNode(
                 }
 
                 // Recycle header
-                CurrNode->Link = NULL;
-                CurrNode->Address = 0;
-                CurrNode->Length = 0;
+                CurrNode->Link      = NULL;
+                CurrNode->Address   = 0;
+                CurrNode->Length    = 0;
                 CriticalSectionEnter(&Heap->SyncObject);
                 if (Heap->NodeRecycler == NULL) {
                     Heap->NodeRecycler = CurrNode;
@@ -643,8 +640,8 @@ HeapFreeAddressInNode(
  * untill we convert it to a binary tree */
 HeapBlock_t*
 HeapFreeLocator(
-    _In_ HeapBlock_t    *List,
-    _In_ uintptr_t       Address)
+    _In_ HeapBlock_t*   List,
+    _In_ uintptr_t      Address)
 {
     // Variables
     HeapBlock_t *Block = List;
@@ -662,8 +659,8 @@ HeapFreeLocator(
  * Unallocates the header that contains the address. */
 OsStatus_t
 HeapFree(
-    _In_ Heap_t     *Heap,
-    _In_ uintptr_t   Address)
+    _In_ Heap_t*        Heap,
+    _In_ uintptr_t      Address)
 {
     // Variables
     HeapBlock_t *Block = NULL;
@@ -691,8 +688,8 @@ HeapFree(
  * that's used to find information about the node */
 HeapNode_t*
 HeapQueryAddressInNode(
-    HeapBlock_t     *Block,
-    uintptr_t        Address)
+    HeapBlock_t*        Block,
+    uintptr_t           Address)
 {
     // Variables
     HeapNode_t *CurrNode = Block->Nodes, 
@@ -715,8 +712,8 @@ HeapQueryAddressInNode(
  * Finds the appropriate block that should contain requested node */
 HeapNode_t*
 HeapQuery(
-    _In_ Heap_t     *Heap, 
-    _In_ uintptr_t   Address)
+    _In_ Heap_t*        Heap, 
+    _In_ uintptr_t      Address)
 {
     // Variables
     HeapBlock_t *CurrBlock = Heap->Blocks;
@@ -734,9 +731,9 @@ HeapQuery(
  * Queries memory information about the given heap. */
 OsStatus_t
 HeapQueryMemoryInformation(
-    _In_ Heap_t *Heap,
-    _Out_ size_t *BytesInUse,
-    _Out_ size_t *BlocksAllocated)
+    _In_  Heap_t*       Heap,
+    _Out_ size_t*       BytesInUse,
+    _Out_ size_t*       BlocksAllocated)
 {
     // Variables
     HeapBlock_t *CurrentBlock   = NULL, 
@@ -781,10 +778,10 @@ HeapQueryMemoryInformation(
  * or static. Use this for creating the system heap. */
 OsStatus_t
 HeapConstruct(
-    _In_ Heap_t     *Heap,
-    _In_ uintptr_t   BaseAddress,
-    _In_ uintptr_t   EndAddress,
-    _In_ int         UserHeap)
+    _In_ Heap_t*        Heap,
+    _In_ uintptr_t      BaseAddress,
+    _In_ uintptr_t      EndAddress,
+    _In_ int            UserHeap)
 {
     // Variables
 #ifdef HEAP_USE_IDENTIFICATION

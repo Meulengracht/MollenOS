@@ -24,37 +24,36 @@
 #include <ds/blbitmap.h>
 #include <stddef.h>
 #include <string.h>
+#include <assert.h>
 
 /* BlockBitmapCreate
  * Instantiate a new bitmap that keeps track of a
  * memory range between Start -> End with a given block size */
 BlockBitmap_t*
 BlockBitmapCreate(
-    _In_ uintptr_t  BlockStart, 
-    _In_ uintptr_t  BlockEnd, 
-    _In_ size_t     BlockSize)
+    _In_ uintptr_t      BlockStart, 
+    _In_ uintptr_t      BlockEnd, 
+    _In_ size_t         BlockSize)
 {
     // Variables
     BlockBitmap_t *Blockmap = NULL;
     size_t Bytes            = 0;
 
-	// Allocate a new instance
-	Blockmap = (BlockBitmap_t*)dsalloc(sizeof(BlockBitmap_t));
+    // Allocate a new instance
+    Blockmap = (BlockBitmap_t*)dsalloc(sizeof(BlockBitmap_t));
     memset(Blockmap, 0, sizeof(BlockBitmap_t));
 
     // Store initial members
-    Blockmap->BlockStart = BlockStart;
-    Blockmap->BlockEnd = BlockEnd;
-    Blockmap->BlockSize = BlockSize;
-	Blockmap->BlockCount = (BlockEnd - BlockSize) / BlockSize;
-	SpinlockReset(&Blockmap->Lock);
+    Blockmap->BlockStart    = BlockStart;
+    Blockmap->BlockEnd      = BlockEnd;
+    Blockmap->BlockSize     = BlockSize;
+    Blockmap->BlockCount    = (BlockEnd - BlockSize) / BlockSize;
 
-	// Now calculate blocks 
-	// and divide by how many bytes are required
-	Bytes = DIVUP((Blockmap->BlockCount + 1), 8);
+    // Now calculate blocks and divide by how many bytes are required
+    Bytes = DIVUP((Blockmap->BlockCount + 1), 8);
     BitmapConstruct(&Blockmap->Base, (uintptr_t*)dsalloc(Bytes), Bytes);
     Blockmap->Base.Cleanup = 1;
-	return Blockmap;
+    return Blockmap;
 }
 
 /* BlockBitmapDestroy
@@ -62,12 +61,9 @@ BlockBitmapCreate(
  * all resources associated with the bitmap */
 OsStatus_t
 BlockBitmapDestroy(
-    _In_ BlockBitmap_t *Blockmap)
+    _In_ BlockBitmap_t* Blockmap)
 {
-	// Sanitize the input
-	if (Blockmap == NULL) {
-        return OsError;
-    }
+    assert(Blockmap != NULL);
     return BitmapDestroy(&Blockmap->Base);
 }
 
@@ -76,27 +72,29 @@ BlockBitmapDestroy(
  * and returns the calculated block of the start of block allocated (continously) */
 uintptr_t
 BlockBitmapAllocate(
-    _In_ BlockBitmap_t *Blockmap,
-    _In_ size_t Size)
+    _In_ BlockBitmap_t* Blockmap,
+    _In_ size_t         Size)
 {
     // Variables
     uintptr_t Block = 0;
-	int BitCount    = 0;
+    int BitCount    = 0;
     int Index       = -1;
+    assert(Blockmap != NULL);
+    assert(Size > 0);
 
     // Calculate number of bits
     BitCount = DIVUP(Size, Blockmap->BlockSize);
 
-	// Locked operation
-    SpinlockAcquire(&Blockmap->Lock);
+    // Locked operation
+    dslock(&Blockmap->SyncObject);
     Index = BitmapFindBits(&Blockmap->Base, BitCount);
     if (Index != -1) {
         BitmapSetBits(&Blockmap->Base, Index, BitCount);
         Block = Blockmap->BlockStart + (uintptr_t)(Index * Blockmap->BlockSize);
         Blockmap->BlocksAllocated += BitCount;
-		Blockmap->NumAllocations++;
+        Blockmap->NumAllocations++;
     }
-    SpinlockRelease(&Blockmap->Lock);
+    dsunlock(&Blockmap->SyncObject);
     return Block;
 }
 
@@ -112,27 +110,28 @@ BlockBitmapFree(
     // Variables
     OsStatus_t Result   = OsError;
     int BitCount        = 0;
-	int Index           = -1;
+    int Index           = -1;
+    assert(Blockmap != NULL);
+    assert(Size > 0);
     
     // Calculate the index and number of bits
     Index       = (Block - Blockmap->BlockStart) / Blockmap->BlockSize;
     BitCount    = DIVUP(Size, Blockmap->BlockSize);
 
-	// Do some sanity checks on the calculated 
-	// values, they should be in bounds
-	if (Index < 0 || BitCount == 0
-		|| Index >= (int)Blockmap->BlockCount) {
-		return Result;
-	}
+    // Do some sanity checks on the calculated 
+    // values, they should be in bounds
+    if (Index < 0 || BitCount == 0 || Index >= (int)Blockmap->BlockCount) {
+        return Result;
+    }
 
-	// Locked operation to free bits
-    SpinlockAcquire(&Blockmap->Lock);
+    // Locked operation to free bits
+    dslock(&Blockmap->SyncObject);
     Result = BitmapClearBits(&Blockmap->Base, Index, BitCount);
     if (Result == OsSuccess) {
         Blockmap->BlocksAllocated -= BitCount;
         Blockmap->NumFrees++;
     }
-    SpinlockRelease(&Blockmap->Lock);
+    dsunlock(&Blockmap->SyncObject);
     return Result;
 }
 
@@ -141,23 +140,24 @@ BlockBitmapFree(
  * range of our bitmap and that it is either set or clear */
 OsStatus_t
 BlockBitmapValidateState(
-    _In_ BlockBitmap_t *Blockmap,
-    _In_ uintptr_t Block,
-    _In_ int Set)
+    _In_ BlockBitmap_t* Blockmap,
+    _In_ uintptr_t      Block,
+    _In_ int            Set)
 {
-	// Variables
-	int Index = -1;
+    // Variables
+    int Index = -1;
+    assert(Blockmap != NULL);
     
     // Calculate the index and number of bits
     Index = (Block - Blockmap->BlockStart) / Blockmap->BlockSize;
 
-	// Do some sanity checks on the calculated 
-	// values, they should be in bounds
-	if (Index < 0 || Index >= (int)Blockmap->BlockCount) {
-		return OsError;
-	}
+    // Do some sanity checks on the calculated 
+    // values, they should be in bounds
+    if (Index < 0 || Index >= (int)Blockmap->BlockCount) {
+        return OsError;
+    }
 
-	// Now we will check whether or not the bit has been set/clear
+    // Now we will check whether or not the bit has been set/clear
     if (Set) {
         return BitmapAreBitsSet(&Blockmap->Base, Index, 1) == 1 ? OsSuccess : OsError;
     }

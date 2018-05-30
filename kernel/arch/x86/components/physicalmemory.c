@@ -260,8 +260,8 @@ MmPhyiscalInit(
     //  0x100000 - KernelSize
     //  0x200000 - RamDiskSize
     //  0x300000 - ??       || Bitmap Space
-    MmAllocateRegion(0, 0x10000); // Reserve the lower area
-	MmAllocateRegion(0x90000, 0xF000);
+    MmAllocateRegion(0,         0x10000); // Reserve the lower area
+	MmAllocateRegion(0x90000,   0xF000);
 	MmAllocateRegion(MEMORY_LOCATION_KERNEL,    BootInformation->KernelSize + PAGE_SIZE);
 	MmAllocateRegion(MEMORY_LOCATION_RAMDISK,   BootInformation->RamdiskSize + PAGE_SIZE);
 	MmAllocateRegion(MEMORY_LOCATION_BITMAP,    (MemoryBitmapSize + PAGE_SIZE));

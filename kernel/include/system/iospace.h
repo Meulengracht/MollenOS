@@ -30,63 +30,44 @@
 #include <os/spinlock.h>
 #include <os/io.h>
 
-/* IoSpaceInitialize
- * Initialize the Io Space manager so we 
- * can register io-spaces from drivers and the
- * bus code */
-KERNELAPI
-void
-KERNELABI
-IoSpaceInitialize(void);
-
 /* IoSpaceRegister
  * Registers an io-space with the io space manager 
  * and assigns the io-space a unique id for later
  * identification */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 IoSpaceRegister(
-	_In_ DeviceIoSpace_t *IoSpace);
+    _In_ DeviceIoSpace_t *IoSpace);
 
 /* IoSpaceAcquire
  * Acquires the given memory space by mapping it in
  * the current drivers memory space if needed, and sets
  * a lock on the io-space */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 IoSpaceAcquire(
-	_In_ DeviceIoSpace_t *IoSpace);
+    _In_ DeviceIoSpace_t *IoSpace);
 
 /* IoSpaceRelease
  * Releases the given memory space by unmapping it from
  * the current drivers memory space if needed, and releases
  * the lock on the io-space */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 IoSpaceRelease(
-	_In_ DeviceIoSpace_t *IoSpace);
+    _In_ DeviceIoSpace_t *IoSpace);
 
 /* IoSpaceDestroy
  * Destroys the given io-space by its id, the id
  * has the be valid, and the target io-space HAS to 
  * un-acquired by any process, otherwise its not possible */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 IoSpaceDestroy(
-	_In_ UUId_t IoSpace);
+    _In_ UUId_t IoSpace);
 
 /* IoSpaceValidate
  * Tries to validate the given virtual address by 
  * checking if any process has an active io-space
  * that involves that virtual address */
-KERNELAPI
-uintptr_t
-KERNELABI
+KERNELAPI uintptr_t KERNELABI
 IoSpaceValidate(
-	_In_ uintptr_t Address);
+    _In_ uintptr_t Address);
 
 #endif //!_MCORE_IOSPACE_H_

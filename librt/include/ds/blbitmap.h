@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,18 +22,16 @@
 #ifndef _MOLLENOS_BLOCKBITMAP_H_
 #define _MOLLENOS_BLOCKBITMAP_H_
 
-/* Includes 
- * - C-Library */
 #include <os/osdefs.h>
-#include <os/spinlock.h>
 #include <ds/ds.h>
 #include <ds/bitmap.h>
 
 /* BlockBitmap_t
- *  */
+ * A specialized bitmap that deals in blocks instead of bits.
+ * This way it can be used for keeping track of memory regions in <BlockSize> */
 typedef struct _BlockBitmap {
     Bitmap_t            Base;
-    Spinlock_t          Lock;
+    SafeMemoryLock_t    SyncObject;
    
     // Block Information
     uintptr_t           BlockStart;
@@ -53,9 +51,9 @@ typedef struct _BlockBitmap {
 CRTDECL(
 BlockBitmap_t*,
 BlockBitmapCreate(
-    _In_ uintptr_t BlockStart, 
-    _In_ uintptr_t BlockEnd, 
-    _In_ size_t BlockSize));
+    _In_ uintptr_t      BlockStart, 
+    _In_ uintptr_t      BlockEnd, 
+    _In_ size_t         BlockSize));
 
 /* BlockBitmapDestroy
  * Destroys a block bitmap, and releases 
@@ -63,7 +61,7 @@ BlockBitmapCreate(
 CRTDECL(
 OsStatus_t,
 BlockBitmapDestroy(
-    _In_ BlockBitmap_t *Blockmap));
+    _In_ BlockBitmap_t* Blockmap));
 
 /* BlockBitmapAllocate
  * Allocates a number of bytes in the bitmap (rounded up in blocks)
@@ -71,8 +69,8 @@ BlockBitmapDestroy(
 CRTDECL(
 uintptr_t,
 BlockBitmapAllocate(
-    _In_ BlockBitmap_t *Blockmap,
-    _In_ size_t Size));
+    _In_ BlockBitmap_t* Blockmap,
+    _In_ size_t         Size));
 
 /* BlockBitmapFree
  * Deallocates a given block translated into offsets 
@@ -80,9 +78,9 @@ BlockBitmapAllocate(
 CRTDECL(
 OsStatus_t,
 BlockBitmapFree(
-    _In_ BlockBitmap_t *Blockmap,
-    _In_ uintptr_t Block,
-    _In_ size_t Size));
+    _In_ BlockBitmap_t* Blockmap,
+    _In_ uintptr_t      Block,
+    _In_ size_t         Size));
 
 /* BlockBitmapValidate
  * Validates the given block that it's within
@@ -90,8 +88,8 @@ BlockBitmapFree(
 CRTDECL(
 OsStatus_t,
 BlockBitmapValidateState(
-    _In_ BlockBitmap_t *Blockmap,
-    _In_ uintptr_t Block,
-    _In_ int Set));
+    _In_ BlockBitmap_t* Blockmap,
+    _In_ uintptr_t      Block,
+    _In_ int            Set));
 
 #endif //!_MOLLENOS_BLOCKBITMAP_H_

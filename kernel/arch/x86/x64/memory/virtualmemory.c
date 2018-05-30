@@ -722,10 +722,11 @@ MmVirtualInit(void)
 	// Initialize reserved pointer
 	atomic_store(&ReservedMemoryPointer, MEMORY_LOCATION_RESERVED);
 
-	// Allocate 3 pages for the kernel page directory
+	// Allocate 2 pages for the kernel page directory
 	// and reset it by zeroing it out
-	KernelMasterTable = (PageMasterTable_t*)MmPhysicalAllocateBlock(MEMORY_ALLOCATION_MASK, 3);
+	KernelMasterTable = (PageMasterTable_t*)MmPhysicalAllocateBlock(MEMORY_ALLOCATION_MASK, 2);
 	memset((void*)KernelMasterTable, 0, sizeof(PageMasterTable_t));
+    memset((void*)&KernelSpace, 0, sizeof(AddressSpace_t));
 
     // Allocate rest of resources
     DirectoryTable  = MmVirtualCreatePageDirectoryTable();
