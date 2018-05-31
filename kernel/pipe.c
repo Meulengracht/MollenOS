@@ -61,9 +61,6 @@ PipeConstruct(
     _In_ size_t         Size,
     _In_ Flags_t        Flags)
 {
-    // Variables
-    int i;
-
     // Update members
     memset((void*)Pipe,     0, sizeof(MCorePipe_t));
     memset((void*)Buffer,   0, sizeof(Size));
@@ -97,7 +94,6 @@ PipeProduceAcquire(
 {
     // Variables
     unsigned AcquiredWorker = 0;
-    int SleepResult         = SCHEDULER_SLEEP_OK;
 
     // Debug
     TRACE("PipeProduceAcquire(Length %u)", Length);
@@ -189,7 +185,6 @@ PipeConsumeAcquire(
 {
     // Variables
     unsigned AcquiredReader = 0;
-    int SleepResult         = SCHEDULER_SLEEP_OK;
 
     // Debug
     TRACE("PipeConsumeAcquire()");

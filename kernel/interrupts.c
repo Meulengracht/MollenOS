@@ -563,8 +563,7 @@ InterruptHandle(
                 // Send a interrupt-event to this
                 // and mark as handled, so we don't spit out errors
                 if (Entry->Flags & INTERRUPT_USERSPACE) {
-                    __KernelInterruptDriver(Entry->Ash, 
-                        Entry->Id, Entry->Interrupt.Data);
+                    __KernelInterruptDriver(Entry->Ash, Entry->Id, Entry->Interrupt.Data);
                 }
                 break;
             }
