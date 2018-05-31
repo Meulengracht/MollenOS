@@ -76,13 +76,9 @@ ThreadingYieldHandler(
 
     // Yield => start by sending eoi
 	ApicSendEoi(APIC_NO_GSI, INTERRUPT_YIELD);
-
-	/* Switch Task, if there is no threading enabled yet
-	 * it should return the same structure as we give */
 	Regs = _ThreadingSwitch((Context_t*)Context, 0, &TimeSlice, &TaskPriority);
 
-	/* If we just got hold of idle task, well fuck it disable timer 
-	 * untill we get another task */
+    // If we are idle task - disable timer untill we get woken up
 	if (!ThreadingIsCurrentTaskIdle(CpuGetCurrentId())) {
 		ApicSetTaskPriority(61 - TaskPriority);
 		ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * TimeSlice);
@@ -91,6 +87,8 @@ ThreadingYieldHandler(
 		ApicSetTaskPriority(0);
 		ApicWriteLocal(APIC_INITIAL_COUNT, 0);
 	}
+    
+    // Enter new thread, no returning
 	enter_thread(Regs);
 	return InterruptHandled;
 }

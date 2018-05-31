@@ -25,14 +25,9 @@
 #ifndef _MCORE_PIPE_H_
 #define _MCORE_PIPE_H_
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
-
-/* Includes 
- * - System */
+#include <atomicsection.h>
 #include <semaphore.h>
-#include <mutex.h>
 
 /* Customization of the pipe, these are some default
  * parameters for creation */
@@ -45,29 +40,30 @@
  * what equals to a ringbuffer, except it adds
  * read/write queues in order to block users */
 typedef struct _MCorePipe {
-    Flags_t                     Flags;
-    uint8_t                    *Buffer;
-    size_t                      Length;
-    Semaphore_t                 WriteQueue;
-    int                         WritersInQueue;
+    Flags_t         Flags;
+    uint8_t*        Buffer;
+    size_t          Length;
+    Semaphore_t     WriteQueue;
+    int             WritersInQueue;
 
-    _Atomic(unsigned)           DataWrite;
-    _Atomic(unsigned)           DataRead;
-    _Atomic(unsigned)           WriteWorker;
-    _Atomic(unsigned)           ReadWorker;
+    atomic_uint     DataWrite;
+    atomic_uint     DataRead;
+    atomic_uint     WriteWorker;
+    atomic_uint     ReadWorker;
     struct {
-        unsigned                IndexData;
-        unsigned                LengthData;
-        _Atomic(int)            Allocated;
-        _Atomic(int)            Registered;
+        AtomicSection_t SyncObject;
+        unsigned        IndexData;
+        unsigned        LengthData;
+        uint8_t         Flags;
     } Workers[PIPE_WORKERS];
 } MCorePipe_t;
 
+#define PIPE_WORKER_ALLOCATED   (1 << 0)
+#define PIPE_WORKER_REGISTERED  (1 << 1)
+
 /* PipeCreate
  * Initialise a new pipe of the given size and with the given flags */
-KERNELAPI
-MCorePipe_t*
-KERNELABI
+KERNELAPI MCorePipe_t* KERNELABI
 PipeCreate(
     _In_ size_t         Size, 
     _In_ Flags_t        Flags);
@@ -75,83 +71,67 @@ PipeCreate(
 /* PipeConstruct
  * Construct an already existing pipe by resetting the
  * pipe with the given parameters */
-KERNELAPI
-void
-KERNELABI
+KERNELAPI void KERNELABI
 PipeConstruct(
-    _In_ MCorePipe_t    *Pipe, 
-    _In_ uint8_t        *Buffer,
-    _In_ size_t          Size,
-    _In_ Flags_t         Flags);
+    _In_ MCorePipe_t*   Pipe, 
+    _In_ uint8_t*       Buffer,
+    _In_ size_t         Size,
+    _In_ Flags_t        Flags);
 
 /* PipeDestroy
  * Destroys a pipe and wakes up all sleeping threads, then
  * frees all resources allocated */
-KERNELAPI
-void
-KERNELABI
+KERNELAPI void KERNELABI
 PipeDestroy(
-    _In_ MCorePipe_t    *Pipe);
+    _In_ MCorePipe_t*   Pipe);
 
 /* PipeProduceAcquire
  * Acquires memory space in the pipe. The memory is not
  * visible at this point, stage 1 in the write-process. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 PipeProduceAcquire(
-    _In_ MCorePipe_t    *Pipe,
-    _In_ size_t          Length,
-    _Out_ unsigned      *Worker,
-    _Out_ unsigned      *Index);
+    _In_  MCorePipe_t*  Pipe,
+    _In_  size_t        Length,
+    _Out_ unsigned*     Worker,
+    _Out_ unsigned*     Index);
 
 /* PipeProduce
  * Produces data for the consumer by adding to allocated worker. */
-KERNELAPI
-size_t
-KERNELABI
+KERNELAPI size_t KERNELABI
 PipeProduce(
-    _In_ MCorePipe_t    *Pipe,
-    _In_ uint8_t        *Data,
-    _In_ size_t          Length,
-    _InOut_ unsigned    *Index);
+    _In_ MCorePipe_t*   Pipe,
+    _In_ uint8_t*       Data,
+    _In_ size_t         Length,
+    _InOut_ unsigned*   Index);
 
 /* PipeProduceCommit
  * Registers the data available and wakes up consumer. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 PipeProduceCommit(
-    _In_ MCorePipe_t    *Pipe,
-    _In_ unsigned        Worker);
+    _In_ MCorePipe_t*   Pipe,
+    _In_ unsigned       Worker);
 
 /* PipeConsumeAcquire
  * Acquires the next available worker. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 PipeConsumeAcquire(
-    _In_ MCorePipe_t    *Pipe,
-    _Out_ unsigned      *Worker);
+    _In_  MCorePipe_t*  Pipe,
+    _Out_ unsigned*     Worker);
 
 /* PipeConsume
  * Consumes data available from the given worker. */
-KERNELAPI
-size_t
-KERNELABI
+KERNELAPI size_t KERNELABI
 PipeConsume(
-    _In_ MCorePipe_t    *Pipe,
-    _In_ uint8_t        *Data,
-    _In_ size_t          Length,
-    _In_ unsigned        Worker);
+    _In_ MCorePipe_t*   Pipe,
+    _In_ uint8_t*       Data,
+    _In_ size_t         Length,
+    _In_ unsigned       Worker);
 
 /* PipeConsumeCommit
  * Registers the worker as available and wakes up producers. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 PipeConsumeCommit(
-    _In_ MCorePipe_t    *Pipe,
-    _In_ unsigned        Worker);
+    _In_ MCorePipe_t*   Pipe,
+    _In_ unsigned       Worker);
 
 #endif // !_MCORE_PIPE_H_

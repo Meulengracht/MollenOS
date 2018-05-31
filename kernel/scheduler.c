@@ -384,6 +384,52 @@ SchedulerThreadSleep(
     }
 }
 
+/* SchedulerAtomicThreadSleep
+ * Enters the current thread into sleep-queue. This is done by using a synchronized
+ * queueing by utilizing the the atomic section lock. */
+int
+SchedulerAtomicThreadSleep(
+    _In_ uintptr_t*         Handle,
+    _In_ AtomicSection_t*   Section)
+{
+    // Variables
+    MCoreThread_t *CurrentThread    = NULL;
+    UUId_t CurrentCpu               = 0;
+    
+    // Instantiate values
+    CurrentCpu      = CpuGetCurrentId();
+    CurrentThread   = ThreadingGetCurrentThread(CurrentCpu);
+    assert(CurrentThread != NULL);
+    
+    // Debug
+    TRACE("Adding thread %u to sleep queue on 0x%x", CurrentThread->Id, Handle);
+    SchedulerThreadDequeue(CurrentThread);
+    CurrentThread->Flags |= THREADING_TRANSITION_SLEEP;
+
+    // Update sleep-information
+    CurrentThread->Sleep.TimeLeft   = 0;
+    CurrentThread->Sleep.Timeout    = 0;
+    CurrentThread->Sleep.Handle     = Handle;
+
+    // Add to io-queue
+    CriticalSectionEnter(&IoQueueSyncObject);
+    SchedulerQueueAppend(&IoQueue, CurrentThread, CurrentThread);
+    CriticalSectionLeave(&IoQueueSyncObject);
+    AtomicSectionLeave(Section);
+    ThreadingYield();
+
+    // Resolve sleep-state
+    if (CurrentThread->Sleep.Timeout == 1) {
+        return SCHEDULER_SLEEP_TIMEOUT;
+    }
+    else if (CurrentThread->Sleep.TimeLeft != 0) {
+        return SCHEDULER_SLEEP_INTERRUPTED;        
+    }
+    else {
+        return SCHEDULER_SLEEP_OK;
+    }
+}
+
 /* SchedulerThreadSignal
  * Finds a sleeping thread with the given thread id and wakes it. */
 OsStatus_t

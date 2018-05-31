@@ -453,7 +453,7 @@ ApicInitialize(void)
 	}
 
     // Perform the remap
-    WARNING("LAPIC address at 0x%x", OriginalApAddress);
+    TRACE("LAPIC address at 0x%x", OriginalApAddress);
     MmVirtualMap(NULL, OriginalApAddress, RemapTo, PAGE_CACHE_DISABLE);
     GlbLocalApicBase    = RemapTo + (OriginalApAddress & 0xFFF);
 	BspApicId           = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;

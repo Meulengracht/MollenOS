@@ -58,8 +58,9 @@ ApicTimerHandler(
     // Send EOI immediately
 	GlbTimerTicks[CurrCpu]++;
 	ApicSendEoi(0, INTERRUPT_LAPIC);
-
 	Regs = _ThreadingSwitch((Context_t*)Args, 1, &TimeSlice, &TaskPriority);
+    
+    // If we are idle task - disable timer untill we get woken up
 	if (!ThreadingIsCurrentTaskIdle(CurrCpu)) {
 		ApicSetTaskPriority(61 - TaskPriority);
 		ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * TimeSlice);

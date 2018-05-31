@@ -43,8 +43,7 @@ uint32_t ApicReadLocal(size_t Register) {
 }
 
 /* Write to the local apic registers 
- * Reads and writes from and to the local apic
- * registers must always be 32 bit */
+ * Reads and writes from and to the local apic registers must always be 32 bit */
 void ApicWriteLocal(size_t Register, uint32_t Value) {
 	assert(GlbLocalApicBase != 0);
 

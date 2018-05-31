@@ -41,8 +41,7 @@ for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
 void
 ApicWaitForIcr(void)
 {
-	while (ApicReadLocal(APIC_ICR_LOW) & APIC_DELIVERY_BUSY)
-		;
+	while (ApicReadLocal(APIC_ICR_LOW) & APIC_DELIVERY_BUSY);
 }
 
 /* This syncs the arb-ids on cross of
@@ -100,12 +99,13 @@ ApicSendInterrupt(
     // Edge (Bit 15 = 0)
 	IpiLow |= APIC_VECTOR(Vector) | APIC_LEVEL_ASSERT | APIC_DESTINATION_PHYSICAL;
 
-	// Wait for ICR to clear
-	ApicWaitForIcr();
-
 	// Always write upper first, irq is sent when low is written
+    // Before sending interrupt, make sure ICR is not busy
+    // After sending interrupt, make sure ICR clears
+	ApicWaitForIcr();
 	ApicWriteLocal(APIC_ICR_HIGH,   IpiHigh);
 	ApicWriteLocal(APIC_ICR_LOW,    IpiLow);
+	ApicWaitForIcr();
     return OsSuccess;
 }
 

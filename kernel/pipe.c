@@ -45,8 +45,8 @@ PipeCreate(
 {
     // Allocate both a pipe and a 
     // buffer in kernel memory for the pipe data
-    MCorePipe_t *Pipe = (MCorePipe_t*)kmalloc(sizeof(MCorePipe_t));
-    Pipe->Buffer = (uint8_t*)kmalloc(Size);
+    MCorePipe_t *Pipe   = (MCorePipe_t*)kmalloc(sizeof(MCorePipe_t));
+    Pipe->Buffer        = (uint8_t*)kmalloc(Size);
     PipeConstruct(Pipe, Pipe->Buffer, Size, Flags);
     return Pipe;
 }
@@ -56,30 +56,20 @@ PipeCreate(
  * pipe with the given parameters */
 void
 PipeConstruct(
-    _In_ MCorePipe_t    *Pipe, 
-    _In_ uint8_t        *Buffer,
-    _In_ size_t          Size,
-    _In_ Flags_t         Flags)
+    _In_ MCorePipe_t*   Pipe, 
+    _In_ uint8_t*       Buffer,
+    _In_ size_t         Size,
+    _In_ Flags_t        Flags)
 {
     // Variables
     int i;
 
     // Update members
-    memset((void*)Buffer, 0, sizeof(Size));
+    memset((void*)Pipe,     0, sizeof(MCorePipe_t));
+    memset((void*)Buffer,   0, sizeof(Size));
     SemaphoreConstruct(&Pipe->WriteQueue, 0, 0);
-    Pipe->WritersInQueue    = 0;
-    Pipe->Length            = Size;
-    Pipe->Buffer            = Buffer;
-    Pipe->WriteWorker       = ATOMIC_VAR_INIT(0);
-    Pipe->ReadWorker        = ATOMIC_VAR_INIT(0);
-    Pipe->DataWrite         = ATOMIC_VAR_INIT(0);
-    Pipe->DataRead          = ATOMIC_VAR_INIT(0);
-    for (i = 0; i < PIPE_WORKERS; i++) {
-        Pipe->Workers[i].IndexData  = 0;
-        Pipe->Workers[i].LengthData = 0;
-        Pipe->Workers[i].Allocated  = ATOMIC_VAR_INIT(0);
-        Pipe->Workers[i].Registered = ATOMIC_VAR_INIT(0);
-    }
+    Pipe->Length    = Size;
+    Pipe->Buffer    = Buffer;
 }
 
 /* PipeDestroy
@@ -87,7 +77,7 @@ PipeConstruct(
  * frees all resources allocated */
 void
 PipeDestroy(
-    _In_ MCorePipe_t    *Pipe)
+    _In_ MCorePipe_t*   Pipe)
 {
     // Wake all up so no-one is left behind
     SchedulerHandleSignalAll((uintptr_t*)&Pipe->WriteQueue);
@@ -100,10 +90,10 @@ PipeDestroy(
  * visible at this point, stage 1 in the write-process. */
 OsStatus_t
 PipeProduceAcquire(
-    _In_ MCorePipe_t    *Pipe,
-    _In_ size_t          Length,
-    _Out_ unsigned      *Worker,
-    _Out_ unsigned      *Index)
+    _In_  MCorePipe_t*  Pipe,
+    _In_  size_t        Length,
+    _Out_ unsigned*     Worker,
+    _Out_ unsigned*     Index)
 {
     // Variables
     unsigned AcquiredWorker = 0;
@@ -115,13 +105,18 @@ PipeProduceAcquire(
     // Allocate a place in the pipe
     AcquiredWorker = atomic_fetch_add(&Pipe->WriteWorker, 1);
     AcquiredWorker &= PIPE_WORKERS_MASK;
-    while (atomic_exchange(&Pipe->Workers[AcquiredWorker].Allocated, 1) != 0) {
-        if (SleepResult == SCHEDULER_SLEEP_TIMEOUT) { // If we timedout on the 50 ms and still no trigger, assume long sleep
-            SchedulerThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredWorker], 0);
-        }
-        else {
-            SleepResult = SchedulerThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredWorker], 50);
-        }
+
+    // Don't interrupt us between this check and sleep
+    AtomicSectionEnter(&Pipe->Workers[AcquiredWorker].SyncObject);
+    if (Pipe->Workers[AcquiredWorker].Flags & PIPE_WORKER_ALLOCATED) {
+        SchedulerAtomicThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredWorker], 
+            &Pipe->Workers[AcquiredWorker].SyncObject);
+        Pipe->Workers[AcquiredWorker].Flags |= PIPE_WORKER_ALLOCATED;
+    }
+    else {
+        // all the atomic stuff is now done
+        Pipe->Workers[AcquiredWorker].Flags |= PIPE_WORKER_ALLOCATED;
+        AtomicSectionLeave(&Pipe->Workers[AcquiredWorker].SyncObject);
     }
 
     // Acquire space in the buffer
@@ -138,10 +133,10 @@ PipeProduceAcquire(
  * Produces data for the consumer by adding to allocated worker. */
 size_t
 PipeProduce(
-    _In_ MCorePipe_t    *Pipe,
-    _In_ uint8_t        *Data,
-    _In_ size_t          Length,
-    _InOut_ unsigned    *Index)
+    _In_ MCorePipe_t*   Pipe,
+    _In_ uint8_t*       Data,
+    _In_ size_t         Length,
+    _InOut_ unsigned*   Index)
 {
     // Variables
     unsigned CurrentReaderIndex     = 0;
@@ -171,15 +166,17 @@ PipeProduce(
  * Registers the data available and wakes up consumer. */
 OsStatus_t
 PipeProduceCommit(
-    _In_ MCorePipe_t    *Pipe,
-    _In_ unsigned        Worker)
+    _In_ MCorePipe_t*   Pipe,
+    _In_ unsigned       Worker)
 {
     // Debug
     TRACE("PipeProduceCommit(Worker %u)", Worker);
 
     // Register us and signal
-    atomic_store(&Pipe->Workers[Worker].Registered, 1);
+    AtomicSectionEnter(&Pipe->Workers[Worker].SyncObject);
+    Pipe->Workers[Worker].Flags |= PIPE_WORKER_REGISTERED;
     SchedulerHandleSignal((uintptr_t*)&Pipe->Workers[Worker]);
+    AtomicSectionLeave(&Pipe->Workers[Worker].SyncObject);
     return OsSuccess;
 }
 
@@ -187,8 +184,8 @@ PipeProduceCommit(
  * Acquires the next available worker. */
 OsStatus_t
 PipeConsumeAcquire(
-    _In_ MCorePipe_t    *Pipe,
-    _Out_ unsigned      *Worker)
+    _In_  MCorePipe_t*  Pipe,
+    _Out_ unsigned*     Worker)
 {
     // Variables
     unsigned AcquiredReader = 0;
@@ -200,15 +197,18 @@ PipeConsumeAcquire(
     // Allocate a place in the pipe
     AcquiredReader = atomic_fetch_add(&Pipe->ReadWorker, 1);
     AcquiredReader &= PIPE_WORKERS_MASK;
-    while (atomic_load(&Pipe->Workers[AcquiredReader].Registered) != 1) {
-        if (SleepResult == SCHEDULER_SLEEP_TIMEOUT) { // If we timedout on the 50 ms and still no trigger, assume long sleep
-            SchedulerThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredReader], 0);
-        }
-        else {
-            SleepResult = SchedulerThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredReader], 50);
-        }
+
+    // Don't interrupt us between this check and sleep
+    AtomicSectionEnter(&Pipe->Workers[AcquiredReader].SyncObject);
+    if (!(Pipe->Workers[AcquiredReader].Flags & PIPE_WORKER_REGISTERED)) {
+        SchedulerAtomicThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredReader], 
+            &Pipe->Workers[AcquiredReader].SyncObject);
     }
-    
+    else {
+        // all the atomic stuff is now done
+        AtomicSectionLeave(&Pipe->Workers[AcquiredReader].SyncObject);
+    }
+
     // Update outs
     *Worker = AcquiredReader;
     return OsSuccess;
@@ -218,10 +218,10 @@ PipeConsumeAcquire(
  * Consumes data available from the given worker. */
 size_t
 PipeConsume(
-    _In_ MCorePipe_t    *Pipe,
-    _In_ uint8_t        *Data,
-    _In_ size_t          Length,
-    _In_ unsigned        Worker)
+    _In_ MCorePipe_t*   Pipe,
+    _In_ uint8_t*       Data,
+    _In_ size_t         Length,
+    _In_ unsigned       Worker)
 {
     // Variables
     size_t DataConsumed = 0;
@@ -245,15 +245,16 @@ PipeConsume(
  * Registers the worker as available and wakes up producers. */
 OsStatus_t
 PipeConsumeCommit(
-    _In_ MCorePipe_t    *Pipe,
-    _In_ unsigned        Worker)
+    _In_ MCorePipe_t*   Pipe,
+    _In_ unsigned       Worker)
 {
     // Debug
     TRACE("PipeConsumeCommit(Worker %u)", Worker);
 
     // Register us and signal
-    atomic_store(&Pipe->Workers[Worker].Allocated, 0);
-    atomic_store(&Pipe->Workers[Worker].Registered, 0);
+    AtomicSectionEnter(&Pipe->Workers[Worker].SyncObject);
+    Pipe->Workers[Worker].Flags = 0;
     SchedulerHandleSignal((uintptr_t*)&Pipe->Workers[Worker]);
+    AtomicSectionLeave(&Pipe->Workers[Worker].SyncObject);
     return OsSuccess;
 }

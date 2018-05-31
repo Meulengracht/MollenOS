@@ -145,6 +145,31 @@ ExitSub:
     return OsSuccess;
 }
 
+/* HeapAllocateHeapNode
+ * Allocates a new heap node from either the recycler list or by using the
+ * internal allocator */
+HeapNode_t*
+HeapAllocateHeapNode(
+    _In_ Heap_t*        Heap)
+{
+    HeapNode_t *Node = NULL;
+
+    // Can we pop on off from recycler? The below operations must be locked
+    // and do not do any calls while holding the heap lock
+    CriticalSectionEnter(&Heap->SyncObject);
+    if (Heap->NodeRecycler != NULL) {
+        Node                = Heap->NodeRecycler;
+        Heap->NodeRecycler  = Heap->NodeRecycler->Link;
+    }
+    CriticalSectionLeave(&Heap->SyncObject);
+
+    // Perform the internal allocations after releaseing lock
+    if (Node == NULL) {
+        Node = (HeapNode_t*)HeapAllocateInternal(Heap, sizeof(HeapNode_t));
+    }
+    return Node;
+}
+
 /* HeapStatisticsCount
  * Helper function that enumerates a given block
  * list, since we need to support multiple lists, reuse this */
@@ -337,6 +362,7 @@ HeapExpand(
 uintptr_t
 HeapAllocateSizeInBlock(
     _In_ Heap_t*        Heap,
+    _In_ HeapNode_t*    Node,
 #ifdef HEAP_USE_IDENTIFICATION
     _In_ const char*    Identifier,
 #endif
@@ -345,9 +371,11 @@ HeapAllocateSizeInBlock(
     _In_ size_t         Alignment)
 {
     // Variables
-    HeapNode_t *CurrNode    = Block->Nodes, 
-               *PrevNode    = NULL;
+    HeapNode_t *CurrNode    = Block->Nodes; 
+    HeapNode_t *PrevNode    = NULL;
     uintptr_t ReturnAddress = 0;
+    assert(Heap != NULL);
+    assert(Node != NULL);
 
     // Basic algorithm for finding a spot, locked operation
     CriticalSectionEnter(&Block->SyncObject);
@@ -358,8 +386,7 @@ HeapAllocateSizeInBlock(
 
         // Allocate, two cases, either exact
         // match in size or we make a new header
-        if (CurrNode->Length == Length
-            || Block->Flags & BLOCK_VERY_LARGE) {
+        if (CurrNode->Length == Length || Block->Flags & BLOCK_VERY_LARGE) {
 #ifdef HEAP_USE_IDENTIFICATION
             memcpy(&CurrNode->Identifier[0], Identifier == NULL ? GlbKernelUnknown : Identifier,
                 Identifier == NULL ? strlen(GlbKernelUnknown) : strnlen(Identifier, HEAP_IDENTIFICATION_SIZE - 1));
@@ -372,57 +399,39 @@ HeapAllocateSizeInBlock(
             break;
         }
         else {
-            HeapNode_t *hNode = NULL;
-            if (Alignment != 0
-                && !ISALIGNED(CurrNode->Address, Alignment)) {
+            if (Alignment != 0 && !ISALIGNED(CurrNode->Address, Alignment)) {
                 if (CurrNode->Length < ALIGN(Length, Alignment, 1)) {
                     goto Skip;
                 }
             }
 
-            // Get a new node, heap locked operation
-            CriticalSectionEnter(&Heap->SyncObject);
-            if (Heap->NodeRecycler != NULL) {
-                hNode               = Heap->NodeRecycler;
-                Heap->NodeRecycler  = Heap->NodeRecycler->Link;
-            }
-            CriticalSectionLeave(&Heap->SyncObject);
-
-            if (hNode == NULL) {
-                hNode = (HeapNode_t*)HeapAllocateInternal(Heap, sizeof(HeapNode_t));
-            }
-
-            // Make sure it didn't fail
-            assert(hNode != NULL);
-
             // Initialize the node
-            memset(hNode, 0, sizeof(HeapNode_t));
+            memset(Node, 0, sizeof(HeapNode_t));
 #ifdef HEAP_USE_IDENTIFICATION
-            memcpy(&hNode->Identifier[0], Identifier == NULL ? GlbKernelUnknown : Identifier,
+            memcpy(&Node->Identifier[0], Identifier == NULL ? GlbKernelUnknown : Identifier,
                 Identifier == NULL ? strlen(GlbKernelUnknown) : strnlen(Identifier, HEAP_IDENTIFICATION_SIZE - 1));
-            hNode->Identifier[HEAP_IDENTIFICATION_SIZE - 1] = '\0';
+            Node->Identifier[HEAP_IDENTIFICATION_SIZE - 1] = '\0';
 #endif
-            hNode->Address = CurrNode->Address;
-            hNode->Flags = NODE_ALLOCATED;
-            hNode->Link = CurrNode;
+            Node->Address   = CurrNode->Address;
+            Node->Flags     = NODE_ALLOCATED;
+            Node->Link      = CurrNode;
 
             // Handle allocation alignment
-            if (Alignment != 0
-                && !ISALIGNED(hNode->Address, Alignment)) {
-                Length += Alignment - (hNode->Address % Alignment);
-                hNode->Length = Length;
-                ReturnAddress = ALIGN(hNode->Address, Alignment, 1);
+            if (Alignment != 0 && !ISALIGNED(Node->Address, Alignment)) {
+                Length += Alignment - (Node->Address % Alignment);
+                Node->Length = Length;
+                ReturnAddress = ALIGN(Node->Address, Alignment, 1);
             }
             else {
-                hNode->Length = Length;
-                ReturnAddress = hNode->Address;
+                Node->Length = Length;
+                ReturnAddress = Node->Address;
             }
-            CurrNode->Address = hNode->Address + Length;
+            CurrNode->Address = Node->Address + Length;
             CurrNode->Length -= Length;
 
             // Update links
-            if (PrevNode != NULL) PrevNode->Link = hNode;
-            else Block->Nodes = hNode;
+            if (PrevNode != NULL) PrevNode->Link = Node;
+            else Block->Nodes = Node;
             break;
         }
 
@@ -477,6 +486,7 @@ HeapAllocate(
 {
     // Variables
     HeapBlock_t *CurrentBlock   = NULL;
+    HeapNode_t *Node            = NULL;
     size_t AdjustedAlign        = Alignment;
     size_t AdjustedSize         = Length;
     uintptr_t RetVal            = 0;
@@ -506,21 +516,24 @@ HeapAllocate(
     else {
         CurrentBlock = Heap->Blocks;
     }
+
+    // Allocate a header for the allocation
+    Node = HeapAllocateHeapNode(Heap);
+
     while (CurrentBlock) {
-        // Check which type of allocation is 
-        // being made, we have three types: 
+        // Check which type of allocation is being made, we have three types: 
         // Standard-aligned allocations
         // Page-aligned allocations 
         // Custom allocations (large)
 
-        // Sanitize both that enough space is free 
-        // but ALSO that the block has higher mask
+        // Sanitize both that enough space is free but ALSO that the block 
+        // has higher mask
         if ((CurrentBlock->BytesFree < AdjustedSize) || (CurrentBlock->Mask < Mask)) {
             goto Skip;
         }
 
         // Try to make an allocation, if it fails it returns 0
-        RetVal = HeapAllocateSizeInBlock(Heap, IDENTIFIER CurrentBlock, 
+        RetVal = HeapAllocateSizeInBlock(Heap, Node, IDENTIFIER CurrentBlock, 
             AdjustedSize, AdjustedAlign);
         if (RetVal != 0) {
             break;
@@ -558,8 +571,9 @@ HeapFreeAddressInNode(
     _In_ uintptr_t      Address)
 {
     // Variables
-    HeapNode_t *CurrNode    = Block->Nodes, 
-               *PrevNode    = NULL;
+    HeapNode_t *CurrNode    = Block->Nodes;
+    HeapNode_t *PrevNode    = NULL;
+    HeapNode_t *RemoveNode  = NULL;
     OsStatus_t Result       = OsError;
 
     // Basic algorithm for freeing
@@ -569,9 +583,9 @@ HeapFreeAddressInNode(
         uintptr_t aEnd      = CurrNode->Address + CurrNode->Length;
 
         if (Address >= aStart && Address < aEnd) {
-            CurrNode->Flags = 0;
-            Block->BytesFree += CurrNode->Length;
-            Result = OsSuccess;
+            CurrNode->Flags     &= ~(NODE_ALLOCATED);
+            Block->BytesFree    += CurrNode->Length;
+            Result              = OsSuccess;
 
             // Can we merge?
             if (PrevNode == NULL && CurrNode->Link == NULL) {
@@ -582,19 +596,9 @@ HeapFreeAddressInNode(
             if (PrevNode != NULL && !(PrevNode->Flags & NODE_ALLOCATED)) {
                 PrevNode->Length    += CurrNode->Length;
                 PrevNode->Link      = CurrNode->Link;
-                
+
                 // Recycle
-                CurrNode->Link      = NULL;
-                CurrNode->Address   = 0;
-                CurrNode->Length    = 0;
-                CriticalSectionEnter(&Heap->SyncObject);
-                if (Heap->NodeRecycler == NULL)
-                    Heap->NodeRecycler  = CurrNode;
-                else {
-                    CurrNode->Link      = Heap->NodeRecycler;
-                    Heap->NodeRecycler  = CurrNode;
-                }
-                CriticalSectionLeave(&Heap->SyncObject);
+                RemoveNode          = CurrNode;
             }
             // Merge with our link
             else if (CurrNode->Link != NULL && !(CurrNode->Flags & NODE_ALLOCATED)) {
@@ -609,19 +613,8 @@ HeapFreeAddressInNode(
                     PrevNode->Link = CurrNode->Link;
                 }
 
-                // Recycle header
-                CurrNode->Link      = NULL;
-                CurrNode->Address   = 0;
-                CurrNode->Length    = 0;
-                CriticalSectionEnter(&Heap->SyncObject);
-                if (Heap->NodeRecycler == NULL) {
-                    Heap->NodeRecycler = CurrNode;
-                }
-                else {
-                    CurrNode->Link = Heap->NodeRecycler;
-                    Heap->NodeRecycler = CurrNode;
-                }
-                CriticalSectionLeave(&Heap->SyncObject);
+                // Recycle
+                RemoveNode = CurrNode;
             }
             break;
         }
@@ -631,6 +624,21 @@ HeapFreeAddressInNode(
         CurrNode = CurrNode->Link;
     }
     CriticalSectionLeave(&Block->SyncObject);
+
+    // Add node to the recycler
+    if (RemoveNode != NULL) {
+        RemoveNode->Link    = NULL;
+        RemoveNode->Length  = 0;
+        RemoveNode->Address = 0;
+        CriticalSectionEnter(&Heap->SyncObject);
+        if (Heap->NodeRecycler == NULL)
+            Heap->NodeRecycler  = RemoveNode;
+        else {
+            RemoveNode->Link    = Heap->NodeRecycler;
+            Heap->NodeRecycler  = RemoveNode;
+        }
+        CriticalSectionLeave(&Heap->SyncObject);
+    }
     return Result;
 }
 
@@ -646,8 +654,7 @@ HeapFreeLocator(
     // Variables
     HeapBlock_t *Block = List;
     while (Block) {
-        if (Block->BaseAddress <= Address
-            && Block->EndAddress > Address) {
+        if (Block->BaseAddress <= Address && Block->EndAddress > Address) {
             return Block;
         }
         Block = Block->Link;
@@ -880,23 +887,18 @@ HeapGetKernel(void)
  * <m> - (mask) a memory mask for allowing physical addresses that fit the mask. */
 void*
 kmalloc_base(
-    _In_ size_t      Length,
-    _In_ Flags_t     Flags,
-    _In_ size_t      Alignment,
-    _In_ uintptr_t   Mask,
-    _Out_ uintptr_t *PhysicalAddress)
+    _In_  size_t        Length,
+    _In_  Flags_t       Flags,
+    _In_  size_t        Alignment,
+    _In_  uintptr_t     Mask,
+    _Out_ uintptr_t*    PhysicalAddress)
 {
     // Variables
 #ifdef HEAP_USE_IDENTIFICATION
     const char *Identifier  = GlbKernelUnknown;
 #endif
     uintptr_t ReturnAddress = 0;
-
-    // Fail on 0 allocations
-    if (Length == 0) {
-        FATAL(FATAL_SCOPE_KERNEL, "Allocation of 0");
-        return NULL;
-    }
+    assert(Length > 0);
 
     // Perform the allocation
     ReturnAddress = HeapAllocate(HeapGetKernel(), IDENTIFIER Length, Flags, Alignment, Mask);

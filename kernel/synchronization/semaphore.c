@@ -34,6 +34,7 @@
 /* Includes
  * - Library */
 #include <ds/collection.h>
+#include <ds/mstring.h>
 #include <stddef.h>
 #include <assert.h>
 
@@ -45,8 +46,8 @@ static Collection_t Semaphores = COLLECTION_INIT(KeyInteger);
  * Semaphores use safe passages to avoid race-conditions */
 Semaphore_t*
 SemaphoreCreate(
-    _In_ int InitialValue,
-    _In_ int MaximumValue)
+    _In_ int        InitialValue,
+    _In_ int        MaximumValue)
 {
     // Variables
 	Semaphore_t *Semaphore = NULL;
@@ -64,9 +65,9 @@ SemaphoreCreate(
  * NULL if one already exists. */
 Semaphore_t*
 SemaphoreCreateGlobal(
-    _In_ MString_t  *Identifier, 
-    _In_ int         InitialValue,
-    _In_ int         MaximumValue)
+    _In_ MString_t* Identifier, 
+    _In_ int        InitialValue,
+    _In_ int        MaximumValue)
 {
 	/* Variables */
 	DataKey_t hKey;
@@ -98,7 +99,7 @@ SemaphoreCreateGlobal(
  * resources associated with it */
 void
 SemaphoreDestroy(
-    _In_ Semaphore_t *Semaphore)
+    _In_ Semaphore_t*   Semaphore)
 {
 	// Variables
 	DataKey_t Key;
@@ -117,9 +118,9 @@ SemaphoreDestroy(
  * it's value to the given initial value */
 void
 SemaphoreConstruct(
-    _In_ Semaphore_t    *Semaphore,
-    _In_ int             InitialValue,
-    _In_ int             MaximumValue)
+    _In_ Semaphore_t*   Semaphore,
+    _In_ int            InitialValue,
+    _In_ int            MaximumValue)
 {
 	// Sanitize values
 	assert(Semaphore != NULL);
@@ -127,11 +128,10 @@ SemaphoreConstruct(
     assert(MaximumValue >= InitialValue);
 
 	// Initiate members
+    memset((void*)Semaphore, 0, sizeof(Semaphore_t));
     Semaphore->MaxValue = MaximumValue;
-	Semaphore->Value = ATOMIC_VAR_INIT(InitialValue);
-	Semaphore->Creator = ThreadingGetCurrentThreadId();
-	Semaphore->Hash = 0;
-    Semaphore->Cleanup = 0;
+	Semaphore->Value    = InitialValue;
+	Semaphore->Creator  = ThreadingGetCurrentThreadId();
 }
 
 /* SemaphoreWait
@@ -139,25 +139,18 @@ SemaphoreConstruct(
  * Returns SCHEDULER_SLEEP_OK or SCHEDULER_SLEEP_TIMEOUT */
 int
 SemaphoreWait(
-    _In_ Semaphore_t    *Semaphore,
-    _In_ size_t          Timeout)
+    _In_ Semaphore_t*   Semaphore,
+    _In_ size_t         Timeout)
 {
-    // Variables
-    int UpdatedValue = 0;
-
-	// Decrease the value, and do the sanity check 
-	// if we should sleep for events
-    UpdatedValue = atomic_fetch_sub(&Semaphore->Value, 1);
-    
-    // Debug
-    TRACE("SemaphoreWait(Value %i)", UpdatedValue);
-	UpdatedValue--;
-	if (UpdatedValue < 0) {
-        if (SchedulerThreadSleep((uintptr_t*)Semaphore, Timeout) == SCHEDULER_SLEEP_TIMEOUT) {
-            atomic_fetch_add(&Semaphore->Value, 1);
+    AtomicSectionEnter(&Semaphore->SyncObject);
+	Semaphore->Value--;
+	if (Semaphore->Value < 0) {
+        if (SchedulerAtomicThreadSleep((uintptr_t*)Semaphore, &Semaphore->SyncObject) == SCHEDULER_SLEEP_TIMEOUT) {
+            Semaphore->Value++;
             return SCHEDULER_SLEEP_TIMEOUT;
         }
 	}
+    AtomicSectionLeave(&Semaphore->SyncObject);
     return SCHEDULER_SLEEP_OK;
 }
 
@@ -165,26 +158,26 @@ SemaphoreWait(
  * Signals the semaphore with the given value, default is 1 */
 void
 SemaphoreSignal(
-    _In_ Semaphore_t    *Semaphore,
-    _In_ int             Value)
+    _In_ Semaphore_t*   Semaphore,
+    _In_ int            Value)
 {
 	// Variables
-    int CurrentValue = atomic_load(&Semaphore->Value);
     int i;
 
     // Debug
-    TRACE("SemaphoreSignal(Value %i)", CurrentValue);
+    TRACE("SemaphoreSignal(Value %i)", Semaphore->Value);
 
     // assert not max
-    assert(CurrentValue != Semaphore->MaxValue);
+    AtomicSectionEnter(&Semaphore->SyncObject);
+    assert(Semaphore->Value != Semaphore->MaxValue);
     for (i = 0; i < Value; i++) {
-        CurrentValue = atomic_fetch_add(&Semaphore->Value, 1);
-        CurrentValue++;
-        if (CurrentValue <= 0) {
+        Semaphore->Value++;
+        if (Semaphore->Value <= 0) {
             SchedulerHandleSignal((uintptr_t*)Semaphore);
         }
-        if (CurrentValue == Semaphore->MaxValue) {
+        if (Semaphore->Value == Semaphore->MaxValue) {
             break;
         }
     }
+    AtomicSectionLeave(&Semaphore->SyncObject);
 }

@@ -37,6 +37,7 @@
 /* Includes
  * - System */
 #include <criticalsection.h>
+#include <atomicsection.h>
 #include <threading.h>
 
 /* Scheduler Definitions
@@ -103,6 +104,14 @@ KERNELAPI int KERNELABI
 SchedulerThreadSleep(
     _In_ uintptr_t*         Handle,
     _In_ size_t             Timeout);
+
+/* SchedulerAtomicThreadSleep
+ * Enters the current thread into sleep-queue. This is done by using a synchronized
+ * queueing by utilizing the the atomic section lock. */
+KERNELAPI int KERNELABI
+SchedulerAtomicThreadSleep(
+    _In_ uintptr_t*         Handle,
+    _In_ AtomicSection_t*   Section);
 
 /* SchedulerThreadSignal
  * Finds a sleeping thread with the given thread id and wakes it. */
