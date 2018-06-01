@@ -24,24 +24,98 @@
 
 CWindow::CWindow(CEntity *Parent, NVGcontext* VgContext, 
     const std::string &Title, int Width, int Height) : CEntity(Parent, VgContext) {
-    m_Title     = Title;
-    m_Width     = Width;
-    m_Height    = Height;
-    m_Active    = true;
+    m_Title             = Title;
+    m_Width             = Width;
+    m_Height            = Height;
+    m_Active            = false;
+    m_Streaming         = false;
+    m_Swap              = false;
+    m_Owner             = UUID_INVALID;
+    m_Format            = 0;
+    m_InternalFormat    = 0;
+    m_StreamWidth       = 0;
+    m_StreamHeight      = 0;
+    m_StreamBuffer      = nullptr;
 }
 
 CWindow::CWindow(NVGcontext* VgContext, const std::string &Title, int Width, int Height) 
     : CWindow(nullptr, VgContext, Title, Width, Height) { }
 
+CWindow::CWindow(CEntity *Parent, NVGcontext* VgContext)
+    : CWindow(Parent, VgContext, "New Window", 0, 0) { }
+
+CWindow::CWindow(NVGcontext* VgContext) 
+    : CWindow(nullptr, VgContext) { }
+
 CWindow::~CWindow() {
 }
 
+void CWindow::SetOwner(UUId_t Owner) {
+    m_Owner = Owner;
+}
+
+void CWindow::SetWidth(int Width) {
+    m_Width = Width;
+}
+
+void CWindow::SetHeight(int Height) {
+    m_Height = Height + (int)WINDOW_HEADER_HEIGHT;
+}
+
+void CWindow::SetTitle(const std::string &Title) {
+    m_Title = Title;
+}
+
+void CWindow::SetActive(bool Active) {
+    m_Active = Active;
+}
+
+void CWindow::SwapOnNextUpdate(bool Swap) {
+    m_Swap = Swap;
+}
+
+void CWindow::SetStreamingBufferFormat(GLenum Format, GLenum InternalFormat) {
+    m_Format            = m_Format;
+    m_InternalFormat    = m_InternalFormat;
+}
+
+void CWindow::SetStreamingBufferDimensions(int Width, int Height) {
+    m_StreamWidth       = Width;
+    m_StreamHeight      = Height;
+}
+
+void CWindow::SetStreamingBuffer(BufferObject_t *Buffer) {
+    m_StreamBuffer = Buffer;
+}
+
+void CWindow::SetStreaming(bool Enable) {
+    m_Streaming = Enable;
+
+    if (Enable) {
+        m_ResourceId = nvgCreateImageRGBA(m_VgContext, m_StreamWidth, m_StreamHeight, NVG_IMAGE_STREAMING, 0);
+        if (m_ResourceId == 0) {
+            m_Streaming = false;
+        }
+    }
+    else {
+        if (m_ResourceId != 0) {
+            nvgDeleteImage(m_VgContext, m_ResourceId);
+        }
+    }
+}
+
 void CWindow::Update(size_t MilliSeconds) {
+    if (m_Streaming && m_Swap) {
+        nvgUpdateImage(m_VgContext, m_ResourceId, 
+            (const uint8_t*)GetBufferData(m_StreamBuffer));
+        m_Swap = false;
+    }
 }
 
 void CWindow::Draw(NVGcontext* VgContext) {
     // Variables
 	NVGpaint ShadowPaint;
+    NVGpaint StreamPaint;
     float x = 0.0f, y = 0.0f;
 
 	// Window
@@ -58,6 +132,15 @@ void CWindow::Draw(NVGcontext* VgContext) {
 	nvgPathWinding(VgContext, NVG_HOLE);
 	nvgFillPaint(VgContext, ShadowPaint);
 	nvgFill(VgContext);
+
+    // Stream
+    if (m_Streaming) {
+        StreamPaint = nvgImagePattern(VgContext, x, y, m_StreamWidth, m_StreamHeight, 0.0f, m_ResourceId, 1.0f);
+        nvgBeginPath(VgContext);
+        nvgRect(VgContext, 0, 0, m_StreamWidth, m_StreamHeight);
+        nvgFillPaint(VgContext, StreamPaint);
+        nvgFill(VgContext);
+    }
 
     // Adjust y again to point at the top of the window
     y += (m_Height - WINDOW_HEADER_HEIGHT);

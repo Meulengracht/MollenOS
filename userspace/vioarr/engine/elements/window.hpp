@@ -22,6 +22,7 @@
  */
 #pragma once
 #include "../entity.hpp"
+#include <os/buffer.h>
 #include <string>
 
 // Window Settings
@@ -37,7 +38,23 @@ class CWindow : public CEntity {
 public:
     CWindow(CEntity *Parent, NVGcontext* VgContext, const std::string &Title, int Width, int Height);
     CWindow(NVGcontext* VgContext, const std::string &Title, int Width, int Height);
+    CWindow(CEntity *Parent, NVGcontext* VgContext);
+    CWindow(NVGcontext* VgContext);
     ~CWindow();
+
+    void SetOwner(UUId_t Owner);
+    void SetWidth(int Width);
+    void SetHeight(int Height);
+    void SetTitle(const std::string &Title);
+    void SetActive(bool Active);
+    void SwapOnNextUpdate(bool Swap);
+
+    void SetStreamingBufferFormat(GLenum Format, GLenum InternalFormat);
+    void SetStreamingBufferDimensions(int Width, int Height);
+    void SetStreamingBuffer(BufferObject_t *Buffer);
+    void SetStreaming(bool Enable);
+
+    UUId_t GetOwner() const { return m_Owner; }
 
 protected:
     // Override the inherited methods
@@ -45,8 +62,20 @@ protected:
     void Draw(NVGcontext* VgContext);
 
 private:
-    std::string m_Title;
-    int         m_Width;
-    int         m_Height;
-    bool        m_Active;
+    // Window information
+    UUId_t          m_Owner;
+    std::string     m_Title;
+    int             m_Width;
+    int             m_Height;
+    bool            m_Active;
+    bool            m_Streaming;
+    bool            m_Swap;
+
+    // Streaming support
+    int             m_ResourceId;
+    GLenum          m_Format;
+    GLenum          m_InternalFormat;
+    int             m_StreamWidth;
+    int             m_StreamHeight;
+    BufferObject_t* m_StreamBuffer;
 };

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2018, Philip Meulengracht
+ * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,14 +22,10 @@
  */
 #pragma once
 
-/* Includes
- * - Library */
 #include <cstdlib>
 #include <queue>
 #include <thread>
 
-/* Includes
- * - System */
 #if defined(_VIOARR_OSMESA)
 #include "graphics/opengl/osmesa/display_osmesa.hpp"
 #define DISPLAY_TYPE() CDisplayOsMesa()
@@ -39,20 +35,7 @@
 #endif
 #include "engine/veightengine.hpp"
 #include "utils/log_manager.hpp"
-
-class CVioarrEvent {
-public:
-    enum EVioarrEventType {
-        EventScreenChange,
-    };
-    CVioarrEvent(EVioarrEventType Type) {
-        _Type = Type;
-    }
-    ~CVioarrEvent() { }
-    EVioarrEventType GetType() { return _Type; }
-private:
-    EVioarrEventType _Type;
-};
+#include "events/event_window.hpp"
 
 class VioarrCompositor {
 public:
@@ -106,11 +89,29 @@ public:
                 Event = _EventQueue.front();
                 _EventQueue.pop();
             }
+
+            // Handle event
             switch (Event->GetType()) {
-                case CVioarrEvent::EventScreenChange: {
+                case CVioarrEvent::EventWindowCreated: {
+                    sEngine.GetRootEntity()->AddEntity(((CWindowCreatedEvent*)Event)->GetWindow());
+                } break;
+                case CVioarrEvent::EventWindowDestroy: {
+                    sEngine.GetRootEntity()->RemoveEntity(((CWindowDestroyEvent*)Event)->GetWindow());
+                    delete ((CWindowDestroyEvent*)Event)->GetWindow();
+                } break;
+                case CVioarrEvent::EventWindowUpdate: {
+                    ((CWindowUpdateEvent*)Event)->GetWindow()->SwapOnNextUpdate(true);
                 } break;
             }
             delete Event;
+
+            // Run updates
+            sEngine.Update(0);
+
+            // Update screen if there are no more events
+            if (_EventQueue.empty()) {
+                sEngine.Render();
+            }
         }
         return 0;
     }

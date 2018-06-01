@@ -20,27 +20,29 @@
  *  - The window compositor system and general window manager for
  *    MollenOS.
  */
+#pragma once
+#include "../entity.hpp"
+#include <string>
 
-#include "../engine/veightengine.hpp"
-#include "../engine/elements/sprite.hpp"
-#include "../engine/elements/window.hpp"
-#include "../engine/elements/accessbar.hpp"
-#include "vioarr.hpp"
+// AccessBar Settings
+// Adjustable access-bar layout settings
+#define ACCESSBAR_HEADER_HEIGHT             16
 
-CEntity *VioarrCompositor::CreateStandardScene()
-{
-    // Create a new root instance
-    CSprite *Background = new CSprite(sEngine.GetContext(), "$sys/themes/default/gfxbg.png", _Display->GetWidth(), _Display->GetHeight());
+#define ACESSBAR_FILL_COLOR_RGBA            229, 229, 232, 255
+#define ACCSSBAR_HEADER_RGBA                103, 103, 103, 255
 
-    // Create user interface
-    CAccessBar *AccessBar = new CAccessBar(sEngine.GetContext(), 150,  _Display->GetHeight());
-    Background->AddEntity(AccessBar);
+class CAccessBar : public CEntity {
+public:
+    CAccessBar(CEntity *Parent, NVGcontext* VgContext, int Width, int Height);
+    CAccessBar(NVGcontext* VgContext, int Width, int Height);
+    ~CAccessBar();
 
-    // Spawn test window
-    CWindow *Test = new CWindow(Background, sEngine.GetContext(), "Test", 450, 300);
-    Test->SetActive(true);
-    Test->Move(250, 200, 0);
+protected:
+    // Override the inherited methods
+    void Update(size_t MilliSeconds);
+    void Draw(NVGcontext* VgContext);
 
-    // Done
-    return Background;
-}
+private:
+    int         m_Width;
+    int         m_Height;
+};

@@ -144,6 +144,7 @@ typedef struct GLNVGshader GLNVGshader;
 struct GLNVGtexture {
 	int id;
 	GLuint tex;
+    GLuint pbo;
 	int width, height;
 	int type;
 	int flags;
@@ -753,6 +754,15 @@ static int glnvg__renderCreateTexture(void* uptr, int type, int w, int h, int im
 
 	if (tex == NULL) return 0;
 
+#if defined (NANOVG_GL2) || defined (NANOVG_GL3)
+    if (imageFlags & NVG_IMAGE_STREAMING) {
+        glGenBuffers(1, &tex->pbo);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, tex->pbo);
+        glBufferData(GL_PIXEL_UNPACK_BUFFER, w * h, data, GL_STREAM_DRAW);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+    }
+#endif
+
 #ifdef NANOVG_GLES2
 	// Check for non-power of 2.
 	if (glnvg__nearestPow2(w) != (unsigned int)w || glnvg__nearestPow2(h) != (unsigned int)h) {
@@ -864,6 +874,12 @@ static int glnvg__renderUpdateTexture(void* uptr, int image, int x, int y, int w
 	GLNVGtexture* tex = glnvg__findTexture(gl, image);
 
 	if (tex == NULL) return 0;
+
+#if defined (NANOVG_GL2) || defined (NANOVG_GL3)
+    if (tex->pbo != 0) {
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, tex->pbo);
+    }
+#endif
 	glnvg__bindTexture(gl, tex->tex);
 
 	glPixelStorei(GL_UNPACK_ALIGNMENT,1);
@@ -899,7 +915,11 @@ static int glnvg__renderUpdateTexture(void* uptr, int image, int x, int y, int w
 #endif
 
 	glnvg__bindTexture(gl, 0);
-
+#if defined (NANOVG_GL2) || defined (NANOVG_GL3)
+    if (tex->pbo != 0) {
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+    }
+#endif
 	return 1;
 }
 

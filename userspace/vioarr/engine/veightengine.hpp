@@ -54,15 +54,25 @@ public:
     void Initialize(CDisplay *Screen);
     void SetRootEntity(CEntity *Entity);
 
+    // **************************************
+    // Render Logic
     void Update(size_t MilliSeconds);
     void Render();
 
+    // **************************************
+    // Business Logic
+    Handle_t    GetExistingWindowForProcess(UUId_t ProcessId);
+    bool        IsWindowHandleValid(Handle_t WindowHandle);
+
+    // **************************************
     // Utilities
     float ClampToScreenAxisX(int Value);
     float ClampToScreenAxisY(int Value);
     float ClampMagnitudeToScreenAxisX(int Value);
     float ClampMagnitudeToScreenAxisY(int Value);
-    NVGcontext *GetContext() const;
+
+    NVGcontext* GetContext() const;
+    CEntity*    GetRootEntity() const;
 
 private:
     CDisplay*   m_Screen;

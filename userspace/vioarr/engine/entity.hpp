@@ -93,6 +93,7 @@ public:
     const float     GetX() const            { return m_vPosition.x; }
     const float     GetY() const            { return m_vPosition.y; }
     const float     GetZ() const            { return m_vPosition.z; }
+    const std::list<CEntity*> &GetChildren() const { return m_Children; }
 
 protected:
     // Overrideable methods

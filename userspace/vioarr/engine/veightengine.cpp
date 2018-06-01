@@ -84,6 +84,37 @@ void CVEightEngine::Render()
     m_Screen->Present();
 }
 
+// GetExistingWindowForProcess
+// Iterate through all root-entities and find if any of them are owned
+// by the given id
+Handle_t CVEightEngine::GetExistingWindowForProcess(UUId_t ProcessId) {
+    CWindow *WindowInstance = nullptr;
+    auto Elements = m_RootEntity.GetChildren();
+
+    for (auto i = Elements.begin(); i != Elements.end(); i++) {
+        CEntity *Element    = *i;
+        WindowInstance      = dynamic_cast<CWindow*>(Element);
+        if (WindowInstance != nullptr && WindowInstance->GetOwner() == ProcessId) {
+            return (Handle_t)WindowInstance;
+        }
+    }
+    return nullptr;
+}
+
+// IsWindowHandleValid
+// Iterates all root handles to find the given window handle, to validate it is not bogus
+bool CVEightEngine::IsWindowHandleValid(Handle_t WindowHandle) {
+    auto Elements = m_RootEntity.GetChildren();
+
+    for (auto i = Elements.begin(); i != Elements.end(); i++) {
+        CEntity *Element = *i;
+        if ((Handle_t)Element == WindowHandle) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // ClampToScreenAxisX
 // Clamps the given value to screen coordinates on the X axis
 // to the range of -1:1
@@ -120,4 +151,8 @@ float CVEightEngine::ClampMagnitudeToScreenAxisY(int Value) {
 
 NVGcontext *CVEightEngine::GetContext() const {
     return m_VgContext;
+}
+
+CEntity *CVEightEngine::GetRootEntity() const {
+    return m_RootEntity;
 }
