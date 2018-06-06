@@ -62,16 +62,6 @@ PACKED_TYPESTRUCT(BIOSMemoryRegion, {
 	uint64_t				Padding;
 });
 
-/* System reserved memory mappings
- * this is to faster/safer map in system
- * memory like ACPI/device memory etc etc */
-PACKED_TYPESTRUCT(SystemMemoryMapping, {
-	PhysicalAddress_t		pAddressStart;
-	VirtualAddress_t		vAddressStart;
-	size_t					Length;
-	int						Type;	//Type. 2 - ACPI
-});
-
 /* MmPhyiscalInit
  * This is the physical memory manager initializor
  * It reads the multiboot memory descriptor(s), initialies
@@ -128,6 +118,7 @@ MmVirtualDestroy(
  * Changes memory protection flags for the given virtual address */
 KERNELAPI OsStatus_t KERNELABI
 MmVirtualSetFlags(
+    _In_ void*              ParentPageDirectory,
 	_In_ void*              PageDirectory, 
 	_In_ VirtualAddress_t   vAddress, 
 	_In_ Flags_t            Flags);
@@ -136,6 +127,7 @@ MmVirtualSetFlags(
  * Retrieves memory protection flags for the given virtual address */
 KERNELAPI OsStatus_t KERNELABI
 MmVirtualGetFlags(
+    _In_ void*              ParentPageDirectory,
 	_In_ void*              PageDirectory, 
 	_In_ VirtualAddress_t   vAddress, 
 	_In_ Flags_t*           Flags);
@@ -146,6 +138,7 @@ MmVirtualGetFlags(
  * the Flags parameter. */
 KERNELAPI OsStatus_t KERNELABI
 MmVirtualMap(
+    _In_ void*              ParentPageDirectory,
 	_In_ void*              PageDirectory, 
 	_In_ PhysicalAddress_t  pAddress, 
 	_In_ VirtualAddress_t   vAddress, 
@@ -156,6 +149,7 @@ MmVirtualMap(
  * the mapping must be present */
 KERNELAPI OsStatus_t KERNELABI
 MmVirtualUnmap(
+    _In_ void*              ParentPageDirectory,
 	_In_ void*              PageDirectory, 
 	_In_ VirtualAddress_t   Address);
 
@@ -165,6 +159,7 @@ MmVirtualUnmap(
  * that is given */
 KERNELAPI PhysicalAddress_t KERNELABI
 MmVirtualGetMapping(
+    _In_ void*              ParentPageDirectory,
 	_In_ void*              PageDirectory, 
 	_In_ VirtualAddress_t   Address);
 

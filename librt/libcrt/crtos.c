@@ -19,18 +19,16 @@
  * MollenOS C Environment - Shared Routines
  */
 
-
-/* Includes 
- * - System */
-#include <os/window.h>
 #include <os/syscall.h>
 #include <os/process.h>
+#include <os/ipc/ipc.h>
 
 /* Includes 
  * - Library */
 #include "../libc/threads/tls.h"
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 #include <ctype.h>
 
 /* Extern

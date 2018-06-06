@@ -31,6 +31,7 @@
 #define GL_VIOARR_LOADER
 #include "../graphics/opengl/opengl_exts.hpp"
 #include "backend/nanovg_gl.h"
+#include "elements/window.hpp"
 
 CVEightEngine::CVEightEngine()
 {
@@ -89,7 +90,7 @@ void CVEightEngine::Render()
 // by the given id
 Handle_t CVEightEngine::GetExistingWindowForProcess(UUId_t ProcessId) {
     CWindow *WindowInstance = nullptr;
-    auto Elements = m_RootEntity.GetChildren();
+    auto Elements           = m_RootEntity->GetChildren();
 
     for (auto i = Elements.begin(); i != Elements.end(); i++) {
         CEntity *Element    = *i;
@@ -104,7 +105,7 @@ Handle_t CVEightEngine::GetExistingWindowForProcess(UUId_t ProcessId) {
 // IsWindowHandleValid
 // Iterates all root handles to find the given window handle, to validate it is not bogus
 bool CVEightEngine::IsWindowHandleValid(Handle_t WindowHandle) {
-    auto Elements = m_RootEntity.GetChildren();
+    auto Elements = m_RootEntity->GetChildren();
 
     for (auto i = Elements.begin(); i != Elements.end(); i++) {
         CEntity *Element = *i;

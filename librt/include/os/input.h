@@ -26,9 +26,10 @@
 
 /* Includes
  * - System */
-#include <os/window.h>
 #include <os/virtualkeycodes.h>
+#include <os/ipc/ipc.h>
 #include <os/osdefs.h>
+#include <os/window.h>
 
 /* The different types of input
  * that can be sent input messages
@@ -67,9 +68,7 @@ typedef struct _MInput {
  * type and flags. The event is either handled
  * by the window manager or proxied to the active
  * window */
-SERVICEAPI
-OsStatus_t
-SERVICEABI
+SERVICEAPI OsStatus_t SERVICEABI
 CreateInput(MInput_t *Input)
 {
 	// Variables
@@ -80,7 +79,7 @@ CreateInput(MInput_t *Input)
         __WINDOWMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __WINDOWMANAGER_NEWINPUT);
 	
 	// Setup rpc arguments
-	RPCSetArgument(&Request, 0, (__CONST void*)Input, sizeof(MInput_t));
+	RPCSetArgument(&Request, 0, (const void*)Input, sizeof(MInput_t));
 	return RPCEvent(&Request);
 }
 

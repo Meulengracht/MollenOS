@@ -20,11 +20,10 @@
  * - Contains the shared memory addressing space interface
  *   that all sub-layers / architectures must conform to
  */
+
 #ifndef _MCORE_ADDRESSSINGSPACE_H_
 #define _MCORE_ADDRESSSINGSPACE_H_
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 #include <criticalsection.h>
 
@@ -53,6 +52,7 @@
  * Denotes the must have and architecture specific
  * members of an addressing space */
 PACKED_TYPESTRUCT(AddressSpace, {
+    struct _AddressSpace*   Parent;
     UUId_t                  Id;
     CriticalSection_t       SyncObject;
     _Atomic(int)            References;

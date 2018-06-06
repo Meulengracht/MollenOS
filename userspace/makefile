@@ -9,7 +9,7 @@ export LIBRARIES = $(LLVM)/lib
 # Setup userspace environment
 # Always build test applications to make sure env is ok.
 .PHONY: all
-all: bin copy_headers copy_libraries build_zlib build_libpng build_libfreetype build_macia build_cpptest
+all: bin copy_headers copy_libraries build_zlib build_libpng build_libfreetype build_macia build_cpptest build_wintest
 
 # Build userspace applications, the order might be important.
 .PHONY: applications
@@ -58,6 +58,11 @@ build_cpptest:
 	@printf "%b" "\033[1;35mChecking if cpptest needs to be built\033[m\n"
 	@$(MAKE) -s -C cpptest -f makefile
 
+.PHONY: build_wintest
+build_wintest:
+	@printf "%b" "\033[1;35mChecking if wintest needs to be built\033[m\n"
+	@$(MAKE) -s -C wintest -f makefile
+
 .PHONY: build_macia
 build_macia:
 	@printf "%b" "\033[1;35mChecking if macia needs to be built\033[m\n"
@@ -95,6 +100,7 @@ build_vioarr_osmesa:
 clean:
 	@$(MAKE) -s -C mesa -f makefile clean
 	@$(MAKE) -s -C cpptest -f makefile clean
+	@$(MAKE) -s -C wintest -f makefile clean
 	@$(MAKE) -s -C vioarr -f makefile clean
 	@$(MAKE) -s -C libpng -f makefile clean
 	@$(MAKE) -s -C freetype -f makefile clean

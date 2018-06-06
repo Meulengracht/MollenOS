@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,11 +19,9 @@
  * MollenOS x86-64 Memory Definitions, Structures, Explanations
  */
 
-#ifndef _X86_64_PAGING_H_
-#define _X86_64_PAGING_H_
+#ifndef __X86_64_PAGING__
+#define __X86_64_PAGING__
 
-/* Includes 
- * - System */
 #include <os/osdefs.h>
 
 /* Paging Definitions
@@ -49,29 +47,29 @@
 /* Page Table Structure
  * Contains a table of pages (level 1) */
 PACKED_TYPESTRUCT(PageTable, {
-    uint64_t        Pages[ENTRIES_PER_PAGE];
+    _Atomic(uint64_t)   Pages[ENTRIES_PER_PAGE];
 });
 
 /* Page Directory Structure
  * Contains a table of page tables (level 2) */
 PACKED_TYPESTRUCT(PageDirectory, {
-    uint64_t        pTables[ENTRIES_PER_PAGE];    // Seen by MMU
-    uint64_t        vTables[ENTRIES_PER_PAGE];    // Not seen by MMU
+    _Atomic(uint64_t)   pTables[ENTRIES_PER_PAGE];    // Seen by MMU
+    uint64_t            vTables[ENTRIES_PER_PAGE];    // Not seen by MMU
 });
 
 /* Page Directory Table Structure
  * Contains a table of page directories (level 3) */
 PACKED_TYPESTRUCT(PageDirectoryTable, {
-    uint64_t        pTables[ENTRIES_PER_PAGE];    // Seen by MMU
-    uint64_t        vTables[ENTRIES_PER_PAGE];    // Not seen by MMU
+    _Atomic(uint64_t)   pTables[ENTRIES_PER_PAGE];    // Seen by MMU
+    uint64_t            vTables[ENTRIES_PER_PAGE];    // Not seen by MMU
 });
 
 /* Page Master Table Structure
  * Contains a table of page directory tables (level 4) */
 PACKED_TYPESTRUCT(PageMasterTable, {
-    uint64_t        pTables[ENTRIES_PER_PAGE];    // Seen by MMU
-    uint64_t        vTables[ENTRIES_PER_PAGE];    // Not seen by MMU
+    _Atomic(uint64_t)   pTables[ENTRIES_PER_PAGE];    // Seen by MMU
+    uint64_t            vTables[ENTRIES_PER_PAGE];    // Not seen by MMU
 });
 
 
-#endif //!_X86_64_PAGING_H_
+#endif //!__X86_32_PAGING__

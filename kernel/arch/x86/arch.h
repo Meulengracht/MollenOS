@@ -27,35 +27,35 @@
 #include <os/spinlock.h>
 
 #if defined(i386) || defined(__i386__)
-#define ARCHITECTURE_NAME           "x86-32"
-#define MAX_SUPPORTED_INTERRUPTS    256
-#define ALLOCATION_BLOCK_SIZE       0x1000 // 4kb
+#define ARCHITECTURE_NAME               "x86-32"
+#define MAX_SUPPORTED_INTERRUPTS        256
+#define ALLOCATION_BLOCK_SIZE           0x1000 // 4kb
 #elif defined(amd64) || defined(__amd64__)
-#define ARCHITECTURE_NAME           "x86-64"
-#define ALLOCATION_BLOCK_SIZE       0x100000 // 1 mb
+#define ARCHITECTURE_NAME               "x86-64"
+#define ALLOCATION_BLOCK_SIZE           0x100000 // 1 mb
 #else
 #error "Either i386 or amd64 must be defined for the x86 arch"
 #endif
-#define MAX_SUPPORTED_INTERRUPTS    256
+#define MAX_SUPPORTED_INTERRUPTS        256
 
 /* Cpu-Core (Data) Definitions
  * Definitions, bit definitions and magic constants for each cpu-core */
-#define CPUCORE_DATA_VIRTUAL_DIR    0
+#define CPUCORE_DATA_VIRTUAL_DIR        0
 
 /* AddressSpace (Data) Definitions
  * Definitions, bit definitions and magic constants for address spaces */
-#define ASPACE_DATA_CR3             0
-#define ASPACE_DATA_PDPOINTER       1
+#define ASPACE_DATA_CR3                 0
+#define ASPACE_DATA_PDPOINTER           1
 
 #ifndef GDT_IOMAP_SIZE
-#define GDT_IOMAP_SIZE              2048
+#define GDT_IOMAP_SIZE                  2048
 #endif
 
 /* Threading (Data) Definitions
  * Definitions, bit definitions and magic constants for threads */
-#define THREAD_DATA_FLAGS           0
-#define THREAD_DATA_IOMAP           1
-#define THREAD_DATA_MATHBUFFER      2
+#define THREAD_DATA_FLAGS               0
+#define THREAD_DATA_IOMAP               1
+#define THREAD_DATA_MATHBUFFER          2
 
 #if defined(i386) || defined(__i386__)
 /* Architecture Memory Layout

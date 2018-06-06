@@ -99,22 +99,28 @@ AddressSpaceCreate(
         void *DirectoryPointer      = NULL;
 
 		// Allocate a new address space
-		AddressSpace        = (AddressSpace_t*)kmalloc(sizeof(AddressSpace_t));
+		AddressSpace = (AddressSpace_t*)kmalloc(sizeof(AddressSpace_t));
         memset((void*)AddressSpace, 0, sizeof(AddressSpace_t));
-        AddressSpace->Id    = atomic_fetch_add(&AddressSpaceIdGenerator, 1);
-		AddressSpace->Flags = Flags;
+
+        AddressSpace->Id        = atomic_fetch_add(&AddressSpaceIdGenerator, 1);
+		AddressSpace->Flags     = Flags;
 		AddressSpace->References = 1;
 		CriticalSectionConstruct(&AddressSpace->SyncObject, CRITICALSECTION_REENTRANCY);
-
-        CriticalSectionEnter(&AddressSpaceGetCurrent()->SyncObject);
+        
+        // Parent must be the upper-most instance of the address-space
+        // of the process. Only to the point of not having kernel as parent
+        AddressSpace->Parent    = (AddressSpaceGetCurrent()->Parent != NULL) ? 
+            AddressSpaceGetCurrent()->Parent : AddressSpaceGetCurrent();
+        if (AddressSpace->Parent == &KernelAddressSpace) {
+            AddressSpace->Parent = NULL;
+        }
         MmVirtualClone((Flags & ASPACE_TYPE_INHERIT) ? 1 : 0, &DirectoryPointer, &DirectoryAddress);
-        CriticalSectionLeave(&AddressSpaceGetCurrent()->SyncObject);
         assert(DirectoryPointer != NULL);
         assert(DirectoryAddress != 0);
 
 		// Store new configuration into AS
-        AddressSpace->Data[ASPACE_DATA_PDPOINTER]   = (uintptr_t)DirectoryPointer;
-        AddressSpace->Data[ASPACE_DATA_CR3]         = DirectoryAddress;
+        AddressSpace->Data[ASPACE_DATA_PDPOINTER]       = (uintptr_t)DirectoryPointer;
+        AddressSpace->Data[ASPACE_DATA_CR3]             = DirectoryAddress;
 	}
 	else {
 		FATAL(FATAL_SCOPE_KERNEL, "Invalid flags parsed in AddressSpaceCreate 0x%x", Flags);
@@ -149,8 +155,7 @@ AddressSpaceDestroy(
 OsStatus_t
 AddressSpaceSwitch(
     _In_ AddressSpace_t *AddressSpace) {
-	return UpdateVirtualAddressingSpace(
-        (void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], 
+	return UpdateVirtualAddressingSpace((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], 
         AddressSpace->Data[ASPACE_DATA_CR3]);
 }
 
@@ -208,10 +213,11 @@ AddressSpaceChangeProtection(
     _Out_       Flags_t*            PreviousFlags)
 {
     // Variables
-    AddressSpace_t *KernelSpace     = &KernelAddressSpace;
-	Flags_t ProtectionFlags         = AddressSpaceGetNativeFlags(Flags);
-    OsStatus_t Result               = OsSuccess;
-    int PageCount                   = 0;
+	Flags_t ProtectionFlags = AddressSpaceGetNativeFlags(Flags);
+    OsStatus_t Result       = OsSuccess;
+    void *ParentPdp         = (void*)KernelAddressSpace.Data[ASPACE_DATA_PDPOINTER];
+    void *Pdp               = NULL;
+    int PageCount           = 0;
     int i;
 
     // Assert that address space is not null
@@ -219,26 +225,25 @@ AddressSpaceChangeProtection(
 
     // Calculate the number of pages of this allocation
     PageCount           = DIVUP((Size + VirtualAddress & ATTRIBUTE_MASK), PAGE_SIZE);
+    Pdp                 = (void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER];
+
+    // Get correct parent
+    if (VirtualAddress > MEMORY_LOCATION_KERNEL_END) { 
+        if (VirtualAddress < MEMORY_LOCATION_RING3_THREAD_START && AddressSpace->Parent != NULL) { 
+            ParentPdp = (void*)AddressSpace->Parent->Data[ASPACE_DATA_PDPOINTER];
+        }
+        else {
+            ParentPdp = NULL;
+        }
+    }
 
     // Update pages with new protection
-    CriticalSectionEnter(&AddressSpace->SyncObject);
-    if (VirtualAddress < MEMORY_LOCATION_KERNEL_END && AddressSpace != KernelSpace) {
-        CriticalSectionEnter(&KernelSpace->SyncObject);
-    }
     for (i = 0; i < PageCount; i++) {
         uintptr_t Block = VirtualAddress + (i * PAGE_SIZE);
-        if (PreviousFlags != NULL) {
-            MmVirtualGetFlags((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], Block, PreviousFlags);
-        }
-        if (MmVirtualSetFlags((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], Block, ProtectionFlags) != OsSuccess) {
-            Result = OsError;
-            break;
-        }
+        if (PreviousFlags != NULL)  { MmVirtualGetFlags(ParentPdp, Pdp, Block, PreviousFlags); }
+        Result          = MmVirtualSetFlags(ParentPdp, Pdp, Block, ProtectionFlags);
+        if (Result != OsSuccess)    { break; }
     }
-    if (VirtualAddress < MEMORY_LOCATION_KERNEL_END && AddressSpace != KernelSpace) {
-        CriticalSectionLeave(&KernelSpace->SyncObject);
-    }
-    CriticalSectionLeave(&AddressSpace->SyncObject);
     return Result;
 }
 
@@ -256,10 +261,10 @@ AddressSpaceMap(
     _In_        uintptr_t           Mask)
 {
     // Variables
-	PhysicalAddress_t ExistingBase  = 0;
 	PhysicalAddress_t PhysicalBase  = 0;
     VirtualAddress_t VirtualBase    = 0;
-    AddressSpace_t *KernelSpace     = &KernelAddressSpace;
+    void *ParentPdp                 = (void*)KernelAddressSpace.Data[ASPACE_DATA_PDPOINTER];
+    void *Pdp                       = NULL;
     OsStatus_t Status               = OsSuccess;
 	Flags_t AllocFlags              = 0;
 	int PageCount                   = 0;
@@ -270,6 +275,7 @@ AddressSpaceMap(
 
     // Calculate the number of pages of this allocation
     PageCount           = DIVUP(Size, PAGE_SIZE);
+    Pdp                 = (void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER];
     
     // Determine the memory mappings initially
     if (Flags & ASPACE_FLAG_VIRTUAL) {
@@ -299,38 +305,22 @@ AddressSpaceMap(
         }
     }
 
-    // Make sure the address is not already mapped, this can happen when multiple
-    // cpu's allocate addresses that are alike at the same time
-    CriticalSectionEnter(&AddressSpace->SyncObject);
-
-    // If the address is in kernel region and we are not the kernel address-space
-    // we need to handle synchronization
-    if (VirtualBase < MEMORY_LOCATION_KERNEL_END && AddressSpace != KernelSpace) {
-        CriticalSectionEnter(&KernelSpace->SyncObject);
-    }
-    ExistingBase = MmVirtualGetMapping((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], VirtualBase);
-    if (ExistingBase != 0) {
-        // The address is already mapped, ignore this
-        if (Flags & ASPACE_FLAG_VIRTUAL) {
-            if ((*PhysicalAddress & PAGE_MASK) != (ExistingBase & PAGE_MASK)) {
-                FATAL(FATAL_SCOPE_KERNEL, "Tried to remap fixed virtual address from different physical");
-            }
-        }
-
-        // Cleanup the allocated blocks
-        if (!(Flags & ASPACE_FLAG_VIRTUAL) && Flags & ASPACE_FLAG_CONTIGIOUS) {
-            for (i = 0; i < PageCount; i++) {
-                MmPhysicalFreeBlock(PhysicalBase + (i * PAGE_SIZE));
-            }
-        }
-        goto Cleanup;
-    }
-
     // Handle other flags
     AllocFlags = AddressSpaceGetNativeFlags(Flags);
 
+    // Get correct parent
+    if (VirtualBase > MEMORY_LOCATION_KERNEL_END) { 
+        if (VirtualBase < MEMORY_LOCATION_RING3_THREAD_START && AddressSpace->Parent != NULL) { 
+            ParentPdp = (void*)AddressSpace->Parent->Data[ASPACE_DATA_PDPOINTER];
+        }
+        else {
+            ParentPdp = NULL;
+        }
+    }
+
     // Iterate the number of pages to map 
 	for (i = 0; i < PageCount; i++) {
+        uintptr_t VirtualPage   = (VirtualBase + (i * PAGE_SIZE));
 		uintptr_t PhysicalPage  = 0;
         if ((Flags & ASPACE_FLAG_CONTIGIOUS) || (Flags & ASPACE_FLAG_VIRTUAL)) {
             PhysicalPage        = PhysicalBase + (i * PAGE_SIZE);
@@ -342,20 +332,17 @@ AddressSpaceMap(
             }
 		}
 
-		// Redirect call to our virtual page manager
-		if (MmVirtualMap((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], 
-            PhysicalPage, (VirtualBase + (i * PAGE_SIZE)), AllocFlags) != OsSuccess) {
-            WARNING("Failed to map virtual 0x%x => physical 0x%x", (VirtualBase + (i * PAGE_SIZE)), PhysicalPage);
-			Status = OsError;
-            break;
+		// The only reason this ever turns error if the mapping exists, in this case free the allocated
+        // resources if they are our allocations, and ignore
+		if (MmVirtualMap(ParentPdp, Pdp, PhysicalPage, VirtualPage, AllocFlags) != OsSuccess) {
+            if ((Flags & ASPACE_FLAG_CONTIGIOUS) && i != 0) {
+                FATAL(FATAL_SCOPE_KERNEL, "Remapping error with a contigious call");
+            }
+            if (!(Flags & ASPACE_FLAG_VIRTUAL)) {
+                MmPhysicalFreeBlock(PhysicalPage);
+            }
 		}
 	}
-    
-Cleanup:
-    if (VirtualBase < MEMORY_LOCATION_KERNEL_END && AddressSpace != KernelSpace) {
-        CriticalSectionLeave(&KernelSpace->SyncObject);
-    }
-    CriticalSectionLeave(&AddressSpace->SyncObject);
     return Status;
 }
 
@@ -368,21 +355,28 @@ AddressSpaceUnmap(
     _In_ size_t             Size)
 {
 	// Variables
-    AddressSpace_t *KernelSpace = &KernelAddressSpace;
-	int PageCount               = DIVUP(Size, PAGE_SIZE);
+    void *ParentPdp     = (void*)KernelAddressSpace.Data[ASPACE_DATA_PDPOINTER];
+    void *Pdp           = NULL;
+	int PageCount       = DIVUP(Size, PAGE_SIZE);
 	int i;
 
     // Sanitize address space
     assert(AddressSpace != NULL);
+    Pdp                 = (void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER];
 
-	// Iterate page-count and unmap
-    CriticalSectionEnter(&AddressSpace->SyncObject);
-    if (Address < MEMORY_LOCATION_KERNEL_END && AddressSpace != KernelSpace) {
-        CriticalSectionEnter(&KernelSpace->SyncObject);
+    // Get correct parent
+    if (Address > MEMORY_LOCATION_KERNEL_END) { 
+        if (Address < MEMORY_LOCATION_RING3_THREAD_START && AddressSpace->Parent != NULL) { 
+            ParentPdp = (void*)AddressSpace->Parent->Data[ASPACE_DATA_PDPOINTER];
+        }
+        else {
+            ParentPdp = NULL;
+        }
     }
+
 	for (i = 0; i < PageCount; i++) {
-        if (MmVirtualGetMapping((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], (Address + (i * PAGE_SIZE))) != 0) {
-            if (MmVirtualUnmap((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], (Address + (i * PAGE_SIZE))) != OsSuccess) {
+        if (MmVirtualGetMapping(ParentPdp, Pdp, (Address + (i * PAGE_SIZE))) != 0) {
+            if (MmVirtualUnmap(ParentPdp, Pdp, (Address + (i * PAGE_SIZE))) != OsSuccess) {
                 WARNING("Failed to unmap address 0x%x", (Address + (i * PAGE_SIZE)));
             }
         }
@@ -390,10 +384,6 @@ AddressSpaceUnmap(
             TRACE("Ignoring free on unmapped address 0x%x", (Address + (i * PAGE_SIZE)));
         }
 	}
-    if (Address < MEMORY_LOCATION_KERNEL_END && AddressSpace != KernelSpace) {
-        CriticalSectionLeave(&KernelSpace->SyncObject);
-    }
-    CriticalSectionLeave(&AddressSpace->SyncObject);
 	return OsSuccess;
 }
 
@@ -405,8 +395,23 @@ AddressSpaceGetMapping(
     _In_ AddressSpace_t*    AddressSpace, 
     _In_ VirtualAddress_t   VirtualAddress)
 {
+	// Variables
+    void *ParentPdp     = (void*)KernelAddressSpace.Data[ASPACE_DATA_PDPOINTER];
+    void *Pdp           = NULL;
+
     assert(AddressSpace != NULL);
-    return MmVirtualGetMapping((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], VirtualAddress);
+    Pdp = (void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER];
+
+    // Get correct parent
+    if (VirtualAddress > MEMORY_LOCATION_KERNEL_END) { 
+        if (VirtualAddress < MEMORY_LOCATION_RING3_THREAD_START && AddressSpace->Parent != NULL) { 
+            ParentPdp = (void*)AddressSpace->Parent->Data[ASPACE_DATA_PDPOINTER];
+        }
+        else {
+            ParentPdp = NULL;
+        }
+    }
+    return MmVirtualGetMapping(ParentPdp, Pdp, VirtualAddress);
 }
 
 /* AddressSpaceIsDirty
@@ -417,12 +422,26 @@ AddressSpaceIsDirty(
     _In_ AddressSpace_t*    AddressSpace,
     _In_ VirtualAddress_t   Address)
 {
+	// Variables
+    void *ParentPdp     = (void*)KernelAddressSpace.Data[ASPACE_DATA_PDPOINTER];
+    void *Pdp           = NULL;
     OsStatus_t Status   = OsSuccess;
     Flags_t Flags       = 0;
     
     // Sanitize address space
     assert(AddressSpace != NULL);
-    Status = MmVirtualGetFlags((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER], Address, &Flags);
+    Pdp     = (void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER];
+    
+    // Get correct parent
+    if (Address > MEMORY_LOCATION_KERNEL_END) { 
+        if (Address < MEMORY_LOCATION_RING3_THREAD_START && AddressSpace->Parent != NULL) { 
+            ParentPdp = (void*)AddressSpace->Parent->Data[ASPACE_DATA_PDPOINTER];
+        }
+        else {
+            ParentPdp = NULL;
+        }
+    }
+    Status  = MmVirtualGetFlags(ParentPdp, Pdp, Address, &Flags);
 
     // Check the flags if status was ok
     if (Status == OsSuccess && !(Flags & PAGE_DIRTY)) {

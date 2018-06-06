@@ -92,7 +92,8 @@ void CWindow::SetStreaming(bool Enable) {
     m_Streaming = Enable;
 
     if (Enable) {
-        m_ResourceId = nvgCreateImageRGBA(m_VgContext, m_StreamWidth, m_StreamHeight, NVG_IMAGE_STREAMING, 0);
+        m_ResourceId = nvgCreateImageRGBA(m_VgContext, m_StreamWidth, m_StreamHeight, 
+            NVG_IMAGE_STREAMING, (const uint8_t*)GetBufferData(m_StreamBuffer));
         if (m_ResourceId == 0) {
             m_Streaming = false;
         }

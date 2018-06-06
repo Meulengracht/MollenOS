@@ -144,7 +144,7 @@ void AcpiSetupIoApic(void *Data, int Nr, void *UserData)
 	TRACE("Initializing I/O Apic %u", IoApic->Id);
 
 	/* Relocate the IoApic */
-	MmVirtualMap(NULL, IoApic->Address, RemapTo, PAGE_CACHE_DISABLE);
+	MmVirtualMap(NULL, NULL, IoApic->Address, RemapTo, PAGE_CACHE_DISABLE);
 
 	/* Allocate Entry */
 	IoListEntry = (IoApic_t*)kmalloc(sizeof(IoApic_t));
@@ -454,7 +454,7 @@ ApicInitialize(void)
 
     // Perform the remap
     TRACE("LAPIC address at 0x%x", OriginalApAddress);
-    MmVirtualMap(NULL, OriginalApAddress, RemapTo, PAGE_CACHE_DISABLE);
+    MmVirtualMap(NULL, NULL, OriginalApAddress, RemapTo, PAGE_CACHE_DISABLE);
     GlbLocalApicBase    = RemapTo + (OriginalApAddress & 0xFFF);
 	BspApicId           = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
 

@@ -22,6 +22,8 @@
  */
 #pragma once
 
+#include <os/mollenos.h>
+#include <os/process.h>
 #include <cstdlib>
 #include <queue>
 #include <thread>
@@ -57,6 +59,7 @@ public:
     int Run() {
 
         // Initialize state
+        //std::chrono::time_point<std::chrono::system_clock> LastUpdate;
         _IsRunning      = true;
 
         // Create the display
@@ -75,12 +78,17 @@ public:
         sLog.Info("Initializing V8");
         sEngine.Initialize(_Display);
         sEngine.SetRootEntity(CreateStandardScene());
+        MollenOSEndBoot();
 
         // Initial render
         sEngine.Update(0);
         sEngine.Render();
 
+        // Spawn the test application
+        ProcessSpawn("$bin/wintest.app", NULL, 1);
+
         // Enter event loop
+        //LastUpdate = std::chrono::system_clock::now();
         while (_IsRunning) {
             CVioarrEvent *Event = nullptr;
             {
@@ -106,7 +114,8 @@ public:
             delete Event;
 
             // Run updates
-            sEngine.Update(0);
+            // auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - LastUpdate);
+            sEngine.Update(0 /*  milliseconds.count() */);
 
             // Update screen if there are no more events
             if (_EventQueue.empty()) {

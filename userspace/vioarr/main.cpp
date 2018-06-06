@@ -27,7 +27,7 @@
 #include "engine/elements/window.hpp"
 #include "events/event_window.hpp"
 
-bool ConvertSurfaceFormatToGLFormat(SurfaceFormat_t Format, GLenum &FormatResult, 
+bool ConvertSurfaceFormatToGLFormat(UISurfaceFormat_t Format, GLenum &FormatResult, 
     GLenum &InternalFormatResult, int &BytesPerPixel) {
     bool Success = true;
     switch (Format) {
@@ -45,7 +45,7 @@ bool ConvertSurfaceFormatToGLFormat(SurfaceFormat_t Format, GLenum &FormatResult
 } 
 
 Handle_t HandleCreateWindowRequest(MRemoteCallAddress_t *Process,
-    WindowParameters_t *Parameters, BufferObject_t *Buffer) {
+    UIWindowParameters_t *Parameters, BufferObject_t *Buffer) {
     CWindow *Window = nullptr;
     Handle_t Result = nullptr;
     GLenum Format, InternalFormat;
@@ -80,10 +80,11 @@ Handle_t HandleCreateWindowRequest(MRemoteCallAddress_t *Process,
     Window->SetOwner(Process->Process);
     Window->SetWidth(Parameters->Surface.Dimensions.w);
     Window->SetHeight(Parameters->Surface.Dimensions.h);
+    Window->Move(250, 200, 0);
 
     Window->SetStreamingBufferFormat(Format, InternalFormat);
     Window->SetStreamingBufferDimensions(Parameters->Surface.Dimensions.w, Parameters->Surface.Dimensions.h);
-    Window->SetStreamingBuffer(BufferObject);
+    Window->SetStreamingBuffer(Buffer);
 
     Window->SwapOnNextUpdate(true);
     Window->SetStreaming(true);
@@ -102,10 +103,10 @@ void MessageHandler() {
     while (IsRunning) {
         if (RPCListen(&Message, ArgumentBuffer) == OsSuccess) {
             if (Message.Function == __WINDOWMANAGER_CREATE) {
-                WindowParameters_t *Parameters  = nullptr;
-                BufferObject_t *BufferCopy      = nullptr;
-                BufferObject_t *Buffer          = nullptr;
-                Handle_t Result                 = nullptr;
+                UIWindowParameters_t *Parameters    = nullptr;
+                BufferObject_t *BufferCopy          = nullptr;
+                BufferObject_t *Buffer              = nullptr;
+                Handle_t Result                     = nullptr;
                 RPCCastArgumentToPointer(&Message.Arguments[0], (void**)&Parameters);
                 RPCCastArgumentToPointer(&Message.Arguments[1], (void**)&Buffer);
                 

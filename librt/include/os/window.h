@@ -28,7 +28,7 @@
 #include <os/osdefs.h>
 #include <os/ipc/ipc.h>
 #include <os/service.h>
-#include <os/buffer.h>
+#include <os/ui.h>
 
 /* These definitions are in-place to allow a custom
  * setting of the windowmanager, these are set to values
@@ -44,44 +44,13 @@
 #define __WINDOWMANAGER_QUERY               IPC_DECL_FUNCTION(3)
 #define __WINDOWMANAGER_NEWINPUT            IPC_DECL_FUNCTION(4)
 
-/* SurfaceFormat 
- * Describes the types of pixel formats that are available
- * for surfaces */
-typedef enum _MSurfaceFormat {
-    SurfaceRGBA,
-} SurfaceFormat_t;
-
-/* SurfaceDescriptor
- * Structure to represent a surface in a window and information 
- * about the buffer size */
-typedef struct _MSurfaceDescriptor {
-    Rect_t              Dimensions;
-    SurfaceFormat_t     Format;
-} SurfaceDescriptor_t;
-
-/* WindowParameters_t
- * Structure used by the the create window function call, the structure 
- * specifies creation details and flags about the window */
-typedef struct _MWindowParameters {
-    SurfaceDescriptor_t Surface;
-    unsigned            Flags;
-} WindowParameters_t;
-
-/* Structure returned by the window query
- * function, it describes the backbuffer details and the dimensions 
- * of the inner/outer region */
-typedef struct _MWindowDescriptor {
-    Rect_t              Dimensions;
-    SurfaceDescriptor_t Surface;
-} WindowDescriptor_t;
-
 /* CreateWindow 
  * Creates a window of the given dimensions and flags. The returned
  * value is the id of the newly created window. The handle is NULL on failure
  * or set to previous handle if a handle for this process already exists. */
 SERVICEAPI OsStatus_t SERVICEABI
 CreateWindow(
-    _In_  WindowParameters_t*   Params,
+    _In_  UIWindowParameters_t* Params,
     _In_  BufferObject_t*       SurfaceBuffer,
     _Out_ Handle_t*             Handle)
 {
@@ -93,7 +62,7 @@ CreateWindow(
         __WINDOWMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __WINDOWMANAGER_CREATE);
 
     // Setup rpc arguments
-    RPCSetArgument(&Request, 0, (const void*)Params,        sizeof(WindowParameters_t));
+    RPCSetArgument(&Request, 0, (const void*)Params,        sizeof(UIWindowParameters_t));
     RPCSetArgument(&Request, 1, (const void*)SurfaceBuffer, GetBufferObjectSize(SurfaceBuffer));
     RPCSetResult(&Request, (const void*)Handle, sizeof(Handle_t));
     return RPCExecute(&Request);
@@ -120,8 +89,8 @@ DestroyWindow(
  * and its surface, that can be used for direct pixel access */
 SERVICEAPI OsStatus_t SERVICEABI
 QueryWindow(
-    _In_  Handle_t              Handle, 
-    _Out_ WindowDescriptor_t*   Descriptor)
+    _In_  Handle_t                  Handle, 
+    _Out_ UISurfaceDescriptor_t*    Descriptor)
 {
     // Variables
     MRemoteCall_t Request;
@@ -132,7 +101,7 @@ QueryWindow(
 
     // Setup rpc arguments
     RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(Handle_t));
-    RPCSetResult(&Request, (const void*)Descriptor, sizeof(WindowDescriptor_t));
+    RPCSetResult(&Request, (const void*)Descriptor, sizeof(UISurfaceDescriptor_t));
     return RPCExecute(&Request);
 }
 

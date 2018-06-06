@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,11 +19,9 @@
  * MollenOS x86-32 Memory Definitions, Structures, Explanations
  */
 
-#ifndef _X86_32_PAGING_H_
-#define _X86_32_PAGING_H_
+#ifndef __X86_32_PAGING__
+#define __X86_32_PAGING__
 
-/* Includes 
- * - System */
 #include <os/osdefs.h>
 
 /* Paging Definitions
@@ -47,16 +45,15 @@
  * Denotes how the paging structure is for the X86-32
  * platform, this is different from X86-64 */
 PACKED_TYPESTRUCT(PageTable, {
-    uint32_t            Pages[ENTRIES_PER_PAGE];
+    _Atomic(uint32_t)   Pages[ENTRIES_PER_PAGE];
 });
 
 /* Page Directory Structure
  * Denotes how the paging structure is for the X86-32
  * platform, this is different from X86-64 */
 PACKED_TYPESTRUCT(PageDirectory, {
-    uint32_t            pTables[ENTRIES_PER_PAGE];    // Seen by MMU
+    _Atomic(uint32_t)   pTables[ENTRIES_PER_PAGE];    // Seen by MMU
     uint32_t            vTables[ENTRIES_PER_PAGE];    // Not seen by MMU
 });
 
-
-#endif //!_X86_32_PAGING_H_
+#endif //!__X86_32_PAGING__

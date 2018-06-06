@@ -24,8 +24,6 @@
 #ifndef _MOLLENOS_INTERFACE_H_
 #define _MOLLENOS_INTERFACE_H_
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
 #include <time.h>
 

@@ -93,8 +93,7 @@ MmVirtualFillPageTable(
 	// Iterate through pages and map them
 	for (i = PAGE_TABLE_INDEX(vAddressStart), pAddress = pAddressStart, vAddress = vAddressStart;
 		i < ENTRIES_PER_PAGE; i++, pAddress += PAGE_SIZE, vAddress += PAGE_SIZE) {
-		uint32_t pEntry = pAddress | Flags;
-		pTable->Pages[PAGE_TABLE_INDEX(vAddress)] = pEntry;
+        atomic_store(&pTable->Pages[PAGE_TABLE_INDEX(vAddress)], pAddress | Flags);
 	}
 }
 
@@ -118,7 +117,7 @@ MmVirtualMapMemoryRange(
 		PageTable_t *Table = MmVirtualCreatePageTable();
 
 		// Install the table into the given page-directory
-		PageDirectory->pTables[i] = (PhysicalAddress_t)Table | Flags;
+		atomic_store(&PageDirectory->pTables[i], (PhysicalAddress_t)Table | Flags);
 		PageDirectory->vTables[i] = (uintptr_t)Table;
 	}
 }
@@ -144,9 +143,11 @@ void
 InitializeMemoryForApplicationCore(void)
 {
     // Set current page-directory to kernel
-    GetCurrentProcessorCore()->Data[CPUCORE_DATA_VIRTUAL_DIR] = (uintptr_t)KernelMasterTable;
     memory_load_cr3((uintptr_t)KernelMasterTable);
     memory_set_paging(1);
+
+    // Set active now that we have memory mappings
+    GetCurrentProcessorCore()->Data[CPUCORE_DATA_VIRTUAL_DIR] = (uintptr_t)KernelMasterTable;
 }
 
 /* MmVirtualGetDirectory
@@ -176,17 +177,68 @@ MmVirtualGetDirectory(
  * Helper function to retrieve a table from the given directory. */
 PageTable_t*
 MmVirtualGetTable(
+    _In_ PageDirectory_t*   ParentPageDirectory,
     _In_ PageDirectory_t*   PageDirectory,
-    _In_ uintptr_t          Address)
+    _In_ uintptr_t          Address,
+    _In_ int                IsCurrent,
+    _In_ int                CreateIfMissing,
+    _In_ Flags_t            CreateFlags)
 {
     // Variables
-    PageTable_t *Table = NULL;
+    PageTable_t *Table  = NULL;
+    int PageTableIndex  = PAGE_DIRECTORY_INDEX(Address);
+    uint32_t ParentMapping;
+
+    // Load the entry from the table
+    ParentMapping = atomic_load(&PageDirectory->pTables[PageTableIndex]);
 
     // Sanitize PRESENT status
-	if (PageDirectory->pTables[PAGE_DIRECTORY_INDEX(Address)] & PAGE_PRESENT) {
-        Table = (PageTable_t*)PageDirectory->vTables[PAGE_DIRECTORY_INDEX(Address)];
+	if (ParentMapping & PAGE_PRESENT) {
+        Table = (PageTable_t*)PageDirectory->vTables[PageTableIndex];
 	    assert(Table != NULL);
 	}
+    else {
+        // Table not present, before attemping to create, sanitize parent
+SyncWithParent:
+        ParentMapping = 0;
+        if (ParentPageDirectory != NULL) {
+            ParentMapping = atomic_load(&ParentPageDirectory->pTables[PageTableIndex]);
+        }
+
+        // Check the parent-mapping
+        if (ParentMapping & PAGE_PRESENT) {
+            // Update our page-directory and reload
+            atomic_store(&PageDirectory->pTables[PageTableIndex], ParentMapping);
+            PageDirectory->vTables[PageTableIndex]  = ParentPageDirectory->vTables[PageTableIndex];
+            Table                                   = (PageTable_t*)PageDirectory->vTables[PageTableIndex];
+            assert(Table != NULL);
+        }
+        else if (CreateIfMissing) {
+            // Allocate, do a CAS and see if it works, if it fails retry our operation
+            uintptr_t TablePhysical;
+            Table = (PageTable_t*)kmalloc_ap(PAGE_SIZE, &TablePhysical);
+		    assert(Table != NULL);
+            memset((void*)Table, 0, sizeof(PageTable_t));
+
+            // Now perform the synchronization
+            TablePhysical |= PAGE_PRESENT | PAGE_WRITE | CreateFlags;
+            if (ParentPageDirectory != NULL && !atomic_compare_exchange_strong(
+                &ParentPageDirectory->pTables[PageTableIndex], &ParentMapping, TablePhysical)) {
+                // Start over as someone else beat us to the punch
+                kfree((void*)Table);
+                goto SyncWithParent;
+            }
+
+            // Update us
+            atomic_store(&PageDirectory->pTables[PageTableIndex], TablePhysical);
+            PageDirectory->vTables[PageTableIndex] = (uintptr_t)Table;
+        }
+
+		// Reload CR3 directory to force the MMIO to see our changes 
+		if (IsCurrent) {
+			memory_reload_cr3();
+		}
+    }
     return Table;
 }
 
@@ -194,24 +246,26 @@ MmVirtualGetTable(
  * Changes memory protection flags for the given virtual address */
 OsStatus_t
 MmVirtualSetFlags(
+    _In_ void*              ParentPageDirectory,
 	_In_ void*              PageDirectory, 
 	_In_ VirtualAddress_t   vAddress, 
 	_In_ Flags_t            Flags)
 {
 	// Variabes
-	int IsCurrent               = 0;
-	PageDirectory_t *Directory  = MmVirtualGetDirectory(PageDirectory, &IsCurrent);
-	PageTable_t *Table          = MmVirtualGetTable(Directory, vAddress);
+	int IsCurrent                       = 0;
+    PageDirectory_t *ParentDirectory    = (PageDirectory_t*)ParentPageDirectory;
+	PageDirectory_t *Directory          = MmVirtualGetDirectory(PageDirectory, &IsCurrent);
+	PageTable_t *Table                  = MmVirtualGetTable(ParentDirectory, Directory, vAddress, IsCurrent, 0, 0);
+    uint32_t Mapping;
 
 	// Does page table exist?
     if (Table == NULL) {
         return OsError;
     }
     
-	// Map it, make sure we mask the page address
-	// so we don't accidently set any flags
-	Table->Pages[PAGE_TABLE_INDEX(vAddress)] &= PAGE_MASK;
-    Table->Pages[PAGE_TABLE_INDEX(vAddress)] |= (Flags & ATTRIBUTE_MASK);
+	// Map it, make sure we mask the page address so we don't accidently set any flags
+    Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(vAddress)]);
+    atomic_store(&Table->Pages[PAGE_TABLE_INDEX(vAddress)], (Mapping & PAGE_MASK) | (Flags & ATTRIBUTE_MASK));
 
 	// Last step is to invalidate the the address in the MMIO
 	if (IsCurrent) {
@@ -224,97 +278,77 @@ MmVirtualSetFlags(
  * Retrieves memory protection flags for the given virtual address */
 OsStatus_t
 MmVirtualGetFlags(
+    _In_  void*             ParentPageDirectory,
 	_In_  void*             PageDirectory, 
 	_In_  VirtualAddress_t  vAddress, 
 	_Out_ Flags_t*          Flags)
 {
 	// Variabes
-	int IsCurrent               = 0;
-	PageDirectory_t *Directory  = MmVirtualGetDirectory(PageDirectory, &IsCurrent);
-	PageTable_t *Table          = MmVirtualGetTable(Directory, vAddress);
+	int IsCurrent                       = 0;
+    PageDirectory_t *ParentDirectory    = (PageDirectory_t*)ParentPageDirectory;
+	PageDirectory_t *Directory          = MmVirtualGetDirectory(PageDirectory, &IsCurrent);
+	PageTable_t *Table                  = MmVirtualGetTable(ParentDirectory, Directory, vAddress, IsCurrent, 0, 0);
 
 	// Does page table exist?
     if (Table == NULL) {
         return OsError;
     }
 
-	// Map it, make sure we mask the page address
-	// so we don't accidently set any flags
+	// Map it, make sure we mask the page address so we don't accidently set any flags
     if (Flags != NULL) {
-        *Flags = Table->Pages[PAGE_TABLE_INDEX(vAddress)] & ATTRIBUTE_MASK;
+        *Flags = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(vAddress)]) & ATTRIBUTE_MASK;
     }
 	return OsSuccess;
 }
 
 /* MmVirtualMap
- * Installs a new page-mapping in the given
- * page-directory. The type of mapping is controlled by
- * the Flags parameter. */
+ * Installs a new page-mapping in the given page-directory. The type of mapping 
+ * is controlled by the Flags parameter. */
 OsStatus_t
 MmVirtualMap(
+    _In_ void*              ParentPageDirectory,
 	_In_ void*              PageDirectory, 
 	_In_ PhysicalAddress_t  pAddress, 
 	_In_ VirtualAddress_t   vAddress, 
 	_In_ Flags_t            Flags)
 {
 	// Variabes
-	int IsCurrent               = 0;
-	PageDirectory_t *Directory  = MmVirtualGetDirectory(PageDirectory, &IsCurrent);
-	PageTable_t *Table          = NULL;
-	OsStatus_t Result           = OsSuccess;
+	int IsCurrent                       = 0;
+    PageDirectory_t *ParentDirectory    = (PageDirectory_t*)ParentPageDirectory;
+	PageDirectory_t *Directory          = NULL;
+	PageTable_t *Table                  = NULL;
+    uint32_t Mapping;
 
-	// Does page table exist? 
-	// If the page-table is not even mapped in we need to 
-	// do that beforehand
-	if (!(Directory->pTables[PAGE_DIRECTORY_INDEX(vAddress)] & PAGE_PRESENT)) {
-		uintptr_t Physical = 0;
-		Table = (PageTable_t*)kmalloc_ap(PAGE_SIZE, &Physical);
+    // Get correct directory and table
+    Directory   = MmVirtualGetDirectory(PageDirectory, &IsCurrent);
+    Table       = MmVirtualGetTable(ParentDirectory, Directory, vAddress, IsCurrent, 1, Flags);
+    assert(Table != NULL);
 
-		// Sanitize the newly allocated table
-		// and then initialize the table
-		assert(Table != NULL);
-		memset((void*)Table, 0, sizeof(PageTable_t));
+    // Make sure value is not mapped already, NEVER overwrite a mapping
+SyncTable:
+    Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(vAddress)]);
+    if (Mapping != 0) {
+        if (Flags & PAGE_VIRTUAL) {
+            if (Mapping != (pAddress & PAGE_MASK)) {
+                FATAL(FATAL_SCOPE_KERNEL, 
+                    "Tried to remap fixed virtual address 0x%x => 0x%x (Existing 0x%x)", 
+                    vAddress, pAddress, Mapping);
+            }
+        }
+        return OsError;
+    }
 
-		// Install it into our directory, now if the address
-		// we are mapping is user-accessible, we should add flags
-		Directory->pTables[PAGE_DIRECTORY_INDEX(vAddress)] =
-			Physical | PAGE_PRESENT | PAGE_WRITE | Flags;
-		Directory->vTables[PAGE_DIRECTORY_INDEX(vAddress)] =
-			(uintptr_t)Table;
+    // Perform the mapping in a weak context, fast operation
+    if (!atomic_compare_exchange_weak(&Table->Pages[PAGE_TABLE_INDEX(vAddress)], 
+        &Mapping, (pAddress & PAGE_MASK) | PAGE_PRESENT | PAGE_WRITE | Flags)) {
+        goto SyncTable;
+    }
 
-		// Reload CR3 directory to force 
-		// the MMIO to see our changes 
-		if (IsCurrent) {
-			memory_reload_cr3();
-		}
-	}
-	else {
-		Table = (PageTable_t*)Directory->vTables[PAGE_DIRECTORY_INDEX(vAddress)];
-	}
-
-	// Sanitize the table before we use it 
-	// otherwise we might fuck up
-	assert(Table != NULL);
-
-	// Sanitize that the index isn't already
-	// mapped in, thats a fatality
-	if (Table->Pages[PAGE_TABLE_INDEX(vAddress)] != 0) {
-		FATAL(FATAL_SCOPE_KERNEL, 
-			"Trying to remap virtual 0x%x to physical 0x%x (original mapping 0x%x)",
-			vAddress, pAddress, Table->Pages[PAGE_TABLE_INDEX(vAddress)]);
-	}
-
-	// Map it, make sure we mask the page address
-	// so we don't accidently set any flags
-	Table->Pages[PAGE_TABLE_INDEX(vAddress)] =
-		(pAddress & PAGE_MASK) | PAGE_PRESENT | PAGE_WRITE | Flags;
-
-	// Last step is to invalidate the 
-	// the address in the MMIO
+	// Last step is to invalidate the address in the MMIO
 	if (IsCurrent) {
 		memory_invalidate_addr(vAddress);
 	}
-	return Result;
+	return OsSuccess;
 }
 
 /* MmVirtualUnmap
@@ -322,55 +356,52 @@ MmVirtualMap(
  * the mapping must be present */
 OsStatus_t
 MmVirtualUnmap(
+    _In_ void*              ParentPageDirectory,
 	_In_ void*              PageDirectory, 
 	_In_ VirtualAddress_t   Address)
 {
 	// Variabes
-	int IsCurrent               = 0;
-	PageDirectory_t *Directory  = MmVirtualGetDirectory(PageDirectory, &IsCurrent);
-	PageTable_t *Table          = NULL;
-	OsStatus_t Result           = OsSuccess;
+	int IsCurrent                       = 0;
+    PageDirectory_t *ParentDirectory    = (PageDirectory_t*)ParentPageDirectory;
+	PageDirectory_t *Directory          = NULL;
+	PageTable_t *Table                  = NULL;
+    uint32_t Mapping;
 
-	// Does page table exist? 
-	if (!(Directory->pTables[PAGE_DIRECTORY_INDEX(Address)] & PAGE_PRESENT)) {
-		Result = OsError;
-		goto Leave;
-	}
-	Table = (PageTable_t*)Directory->vTables[PAGE_DIRECTORY_INDEX(Address)];
+    // Get correct directory and table
+    Directory   = MmVirtualGetDirectory(PageDirectory, &IsCurrent);
+    Table       = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0);
 
-	// Sanitize the page-index, if it's not mapped in
-	// then we are trying to unmap somethings that not even mapped
-	assert(Table->Pages[PAGE_TABLE_INDEX(Address)] != 0);
+    // Did the page-table exist?
+    if (Table == NULL) {
+        return OsError;
+    }
 
-	// System memory? Don't unmap, for gods sake
-	if (Table->Pages[PAGE_TABLE_INDEX(Address)] & PAGE_SYSTEM_MAP) {
-		Result = OsError;
-		goto Leave;
-	}
-	else
-	{
-		// Ok, step one is to extract the physical page of this index
-		PhysicalAddress_t Physical = Table->Pages[PAGE_TABLE_INDEX(Address)];
+    // Load the mapping
+SyncTable:
+    Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(Address)]);
+    if (Mapping & PAGE_PRESENT) {
+        if (!(Mapping & PAGE_SYSTEM_MAP)) {
+            // Present, not system map
+            // Perform the un-mapping in a weak context, fast operation
+            if (!atomic_compare_exchange_weak(&Table->Pages[PAGE_TABLE_INDEX(Address)], &Mapping, 0)) {
+                goto SyncTable;
+            }
 
-		// Clear the mapping out
-		Table->Pages[PAGE_TABLE_INDEX(Address)] = 0;
+            // Release memory, but don't if it is a virtual mapping, that means we 
+            // should not free the physical page
+            if (!(Mapping & PAGE_VIRTUAL)) {
+                MmPhysicalFreeBlock(Mapping & PAGE_MASK);
+            }
 
-		// Release memory, but don't if it 
-		// is a virtual mapping, that means we should not free
-		// the physical page
-		if (!(Physical & PAGE_VIRTUAL)) {
-			MmPhysicalFreeBlock(Physical & PAGE_MASK);
-		}
-
-		// Last step is to validate the page-mapping
-		// now this should be an IPC to all cpu's
-		if (IsCurrent) {
-			memory_invalidate_addr(Address);
-		}
-	}
-
-Leave:
-	return Result;
+            // Last step is to validate the page-mapping
+            // now this should be an IPC to all cpu's
+            if (IsCurrent) {
+                memory_invalidate_addr(Address);
+            }
+            return OsSuccess;
+        }
+    }
+    return OsError;
 }
 
 /* MmVirtualGetMapping
@@ -378,14 +409,20 @@ Leave:
  * virtual memory address given - from the page directory that is given */
 PhysicalAddress_t
 MmVirtualGetMapping(
+    _In_ void*              ParentPageDirectory,
 	_In_ void*              PageDirectory, 
 	_In_ VirtualAddress_t   Address)
 {
 	// Variabes
-	int IsCurrent               = 0;
-	PageDirectory_t *Directory  = MmVirtualGetDirectory(PageDirectory, &IsCurrent);
-	PageTable_t *Table          = MmVirtualGetTable(Directory, Address);
-	PhysicalAddress_t Mapping   = 0;
+	int IsCurrent                       = 0;
+    PageDirectory_t *ParentDirectory    = (PageDirectory_t*)ParentPageDirectory;
+	PageDirectory_t *Directory          = NULL;
+	PageTable_t *Table                  = NULL;
+	uint32_t Mapping;
+
+    // Get correct directory and table
+    Directory   = MmVirtualGetDirectory(PageDirectory, &IsCurrent);
+    Table       = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0);
 
 	// Does page table exist?
     if (Table == NULL) {
@@ -393,7 +430,7 @@ MmVirtualGetMapping(
     }
 
     // Get the address and return with proper offset
-	Mapping = Table->Pages[PAGE_TABLE_INDEX(Address)];
+	Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(Address)]);
 
     // Make sure we still return 0 if the mapping is indeed 0
     if ((Mapping & PAGE_MASK) == 0 || !(Mapping & PAGE_PRESENT)) {
@@ -415,7 +452,7 @@ MmVirtualClone(
     PageDirectory_t *NewPd      = (PageDirectory_t*)kmalloc_ap(sizeof(PageDirectory_t), &PhysicalAddress);
     PageDirectory_t *CurrPd     = (PageDirectory_t*)GetCurrentProcessorCore()->Data[CPUCORE_DATA_VIRTUAL_DIR];
     PageDirectory_t *KernPd     = KernelMasterTable;
-    int Itr;
+    int i;
 
     // Copy at max kernel directories up to MEMORY_SEGMENT_RING3_BASE
     int KernelRegion            = 0;
@@ -428,24 +465,33 @@ MmVirtualClone(
     memset(NewPd, 0, sizeof(PageDirectory_t));
 
     // Initialize base mappings
-    for (Itr = 0; Itr < ENTRIES_PER_PAGE; Itr++) {
-        // Sanitize if it's inside kernel region
-        if (Itr >= KernelRegion && Itr < KernelRegionEnd) {
-            NewPd->pTables[Itr] = KernPd->pTables[Itr];
-            NewPd->vTables[Itr] = KernPd->vTables[Itr];
+    for (i = 0; i < ENTRIES_PER_PAGE; i++) {
+        uint32_t KernelMapping, CurrentMapping;
+
+        // Sanitize stack region, never copy
+        if (i >= ThreadRegion && i <= ThreadRegionEnd) {
             continue;
         }
 
-        // Sanitize stack region, never copy
-        if (Itr >= ThreadRegion && Itr <= ThreadRegionEnd) {
+        // Sanitize if it's inside kernel region
+        if (i >= KernelRegion && i < KernelRegionEnd) {
+            // Update the physical table
+            KernelMapping = atomic_load(&KernPd->pTables[i]);
+            atomic_store(&NewPd->pTables[i], KernelMapping);
+
+            // Copy virtual
+            NewPd->vTables[i] = KernPd->vTables[i];
             continue;
         }
 
         // Inherit? We must mark that table inherited to avoid
         // it being freed again
-        if (Inherit && CurrPd->pTables[Itr]) {
-            NewPd->pTables[Itr] = CurrPd->pTables[Itr] | PAGE_INHERITED;
-            NewPd->vTables[Itr] = CurrPd->vTables[Itr];
+        if (Inherit) {
+            CurrentMapping = atomic_load(&CurrPd->pTables[i]);
+            if (CurrentMapping & PAGE_PRESENT) {
+                atomic_store(&NewPd->pTables[i], CurrentMapping | PAGE_INHERITED);
+                NewPd->vTables[i] = CurrPd->vTables[i];
+            }
         }
     }
 
@@ -468,77 +514,45 @@ MmVirtualDestroy(
 
     // Iterate page-mappings
     for (i = 0; i < ENTRIES_PER_PAGE; i++) {
-        if (Pd->pTables[i] == 0)
-            continue;
+        PageTable_t *Table;
+        uint32_t CurrentMapping;
 
-        // Is it a kernel page-table? Ignore it 
-        if (Pd->pTables[i] == KernPd->pTables[i])
+        // Do some initial checks on the virtual member to avoid atomics
+        // If it's empty or if it's a kernel page table ignore it
+        if (Pd->vTables[i] == 0 || Pd->vTables[i] == KernPd->vTables[i]) {
             continue;
+        }
 
-        // Is this an inherited page-table?
-        // We don't free our parents stuff
-        if (Pd->pTables[i] & PAGE_INHERITED)
+        // The rest of the checks we must load for
+        // Like skip our inherited tables
+        CurrentMapping = atomic_load(&Pd->pTables[i]);
+        if (CurrentMapping & PAGE_INHERITED) {
             continue;
-
-        // Ok, OUR user page-table, free everything in it
-        PageTable_t *Pt = (PageTable_t*)Pd->vTables[i];
+        }
+        Table = (PageTable_t*)Pd->vTables[i];
 
         // Iterate pages in table
         for (j = 0; j < ENTRIES_PER_PAGE; j++) {
-            if (Pt->Pages[j] & PAGE_VIRTUAL) {
+            CurrentMapping = atomic_load(&Table->Pages[j]);
+            if (CurrentMapping & PAGE_VIRTUAL) {
                 continue;
             }
 
             // If it has a mapping - free it
-            if ((Pt->Pages[j] & PAGE_MASK) != 0) {
-                if (MmPhysicalFreeBlock(Pt->Pages[j] & PAGE_MASK) != OsSuccess) {
-                    ERROR("Tried to free page %i (0x%x) , but was not allocated", j, Pt->Pages[j]);
+            if ((CurrentMapping & PAGE_MASK) != 0) {
+                if (MmPhysicalFreeBlock(CurrentMapping & PAGE_MASK) != OsSuccess) {
+                    ERROR("Tried to free page %i (0x%x) , but was not allocated", j, CurrentMapping);
                 }
             }
         }
 
         // Free the page-table
-        kfree(Pt);
+        kfree(Table);
     }
     
     // Free the page-directory
     kfree(Pd);
     return OsSuccess;
-}
-
-/* MmVirtualInitialMap
- * Maps a virtual memory address to a physical
- * memory address in a given page-directory
- * If page-directory is NULL, current directory
- * is used */
-void 
-MmVirtualInitialMap(
-	_In_ PhysicalAddress_t  pAddress, 
-	_In_ VirtualAddress_t   vAddress)
-{
-	// Variables
-	PageDirectory_t *Directory  = KernelMasterTable;
-	PageTable_t *Table          = NULL;
-
-	// If table is not present in directory
-	// we must allocate a new one and install it
-	if (!(Directory->pTables[PAGE_DIRECTORY_INDEX(vAddress)] & PAGE_PRESENT)) {
-		Table = MmVirtualCreatePageTable();
-		Directory->pTables[PAGE_DIRECTORY_INDEX(vAddress)] = (PhysicalAddress_t)Table
-			| PAGE_PRESENT | PAGE_WRITE;
-		Directory->vTables[PAGE_DIRECTORY_INDEX(vAddress)] = (PhysicalAddress_t)Table;
-	}
-	else {
-		Table = (PageTable_t*)Directory->vTables[PAGE_DIRECTORY_INDEX(vAddress)];
-	}
-
-	// Sanitize no previous mapping exists
-	assert(Table->Pages[PAGE_TABLE_INDEX(vAddress)] == 0
-		&& "Dont remap pages without freeing :(");
-
-	// Install the mapping
-	Table->Pages[PAGE_TABLE_INDEX(vAddress)] =
-		(pAddress & PAGE_MASK) | PAGE_PRESENT | PAGE_WRITE;
 }
 
 /* MmReserveMemory

@@ -506,7 +506,7 @@ ExceptionEntry(
 
         // Next step is to check whether or not the address is already
         // mapped, because then it's due to accessibility
-        if (MmVirtualGetMapping(NULL, Address) != 0) {
+        if (MmVirtualGetMapping(NULL, NULL, Address) != 0) {
             WARNING("Page fault at address 0x%x, but page is already mapped, invalid access. (User tried to access kernel memory ex).", Address);
         }
 
