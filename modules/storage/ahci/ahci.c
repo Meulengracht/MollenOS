@@ -36,13 +36,8 @@
 #include <stdlib.h>
 
 /* Prototypes */
-__EXTERN
-InterruptStatus_t
-OnFastInterrupt(
-    _In_Opt_ void *InterruptData);
-OsStatus_t
-AhciSetup(
-	_In_ AhciController_t *Controller);
+InterruptStatus_t OnFastInterrupt(void *InterruptData);
+OsStatus_t AhciSetup(AhciController_t *Controller);
 
 /* AhciControllerCreate
  * Registers a new controller with the AHCI driver */
@@ -329,21 +324,21 @@ AhciSetup(
 	}
 
 	// Indicate that system software is AHCI aware 
-	// by setting GHC.AE to �1�.
+	// by setting GHC.AE to 1.
 	Controller->Registers->GlobalHostControl |= AHCI_HOSTCONTROL_AE;
 
 	// Determine which ports are implemented by the HBA, by reading the PI register. 
 	// This bit map value will aid software in determining how many ports are 
 	// available and which port registers need to be initialized.
-	Controller->ValidPorts = Controller->Registers->PortsImplemented;
-	Controller->CommandSlotCount = AHCI_CAPABILITIES_NCS(Controller->Registers->Capabilities);
+	Controller->ValidPorts          = Controller->Registers->PortsImplemented;
+	Controller->CommandSlotCount    = AHCI_CAPABILITIES_NCS(Controller->Registers->Capabilities);
 
 	// Trace
 	TRACE("Ports Implemented 0x%x, Capabilities 0x%x",
 		Controller->Registers->PortsImplemented, Controller->Registers->Capabilities);
 
 	// Ensure that the controller is not in the running state by reading and 
-	// examining each implemented port�s PxCMD register
+	// examining each implemented ports PxCMD register
 	for (i = 0; i < AHCI_MAX_PORTS; i++) {
 		if (!(Controller->ValidPorts & AHCI_IMPLEMENTED_PORT(i))) {
 			continue;
@@ -360,7 +355,7 @@ AhciSetup(
 		}
 
 		// System software places a port into the idle state by clearing PxCMD.ST and 
-		// waiting for PxCMD.CR to return �0� when read
+		// waiting for PxCMD.CR to return 0 when read
 		Controller->Ports[i]->Registers->CommandAndStatus = 0;
 
 		// Next port
@@ -461,9 +456,9 @@ AhciSetup(
 	}
 
 	// To enable the HBA to generate interrupts, 
-	// system software must also set GHC.IE to a �1�
-	Controller->Registers->InterruptStatus = 0xFFFFFFFF;
-	Controller->Registers->GlobalHostControl |= AHCI_HOSTCONTROL_IE;
+	// system software must also set GHC.IE to a 1
+	Controller->Registers->InterruptStatus      = 0xFFFFFFFF;
+	Controller->Registers->GlobalHostControl   |= AHCI_HOSTCONTROL_IE;
 
 	// Debug
 	TRACE("Controller is up and running, enabling ports");
@@ -474,7 +469,5 @@ AhciSetup(
 			AhciPortSetupDevice(Controller, Controller->Ports[i]);
 		}
 	}
-
-	// Done - no errors!
 	return OsSuccess;
 }

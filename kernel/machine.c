@@ -47,14 +47,16 @@
 /* Includes
  * - Library */
 #include <stddef.h>
+#include <stdio.h>
 
 /* Globals
  * - Static state variables */
 static SystemMachine_t Machine = { 
-    { 0 }, { 0 }, { 0 },        // Strings
+    { 0 }, { 0 }, { 0 }, { 0 },     // Strings
     REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD,
-    { 0 },                      // BootInformation
-    COLLECTION_INIT(KeyInteger) // SystemDomains
+    { 0 }, NULL,                    // BootInformation, PrimaryDomain
+    COLLECTION_INIT(KeyInteger),    // SystemDomains
+    { 0 }, 0, 0, 0, 0               // Memory Map, Total Information
 };
 
 /* GetMachine
@@ -92,6 +94,12 @@ MCoreInitialize(
     memcpy(&Machine.BootInformation, BootInformation, sizeof(Multiboot_t));
     Crc32GenerateTable();
     LogInitialize();
+
+    // Setup strings
+    sprintf(&Machine.Architecture[0], "System: %s", ARCHITECTURE_NAME);
+    sprintf(&Machine.Bootloader[0], "Boot: %s", (char*)(uintptr_t)BootInformation->BootLoaderName);
+    sprintf(&Machine.Author[0], "Philip Meulengracht, Copyright 2011-2018.");
+    sprintf(&Machine.Date[0], "%s - %s", BUILD_DATE, BUILD_TIME);
     
     // Initialize the domain
     InitializePrimaryDomain();

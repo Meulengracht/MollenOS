@@ -6,7 +6,7 @@ INCLUDES = -I../../../librt/include -I../sata
 OBJECTS = $(SOURCES:.c=.o)
 
 CFLAGS = $(GCFLAGS) -D__DRIVER_IMPL $(INCLUDES)
-LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtModuleEntry /dll ../../../librt/build/libc.lib ../../../librt/build/libdrv.lib
+LFLAGS = /nodefaultlib /lldmap /subsystem:native /entry:__CrtModuleEntry /dll ../../../librt/build/libc.lib ../../../librt/build/libdrv.lib
 
 .PHONY: all
 all: ../../build/ahci.dll ../../build/ahci.mdrv

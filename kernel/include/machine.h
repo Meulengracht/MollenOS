@@ -32,18 +32,41 @@
 #include <component/cpu.h>
 #include <component/ic.h>
 
+typedef struct _SystemMemoryMap {
+    uintptr_t               UserCodeStart;
+    uintptr_t               UserCodeSize;
+    
+    uintptr_t               UserSharedMemoryStart;
+    uintptr_t               UserSharedMemorySize;
+    
+    uintptr_t               UserDriverMemoryStart;
+    uintptr_t               UserDriverMemorySize;
+    
+    uintptr_t               UserHeapStart;
+    uintptr_t               UserHeapSize;
+} SystemMemoryMap_t;
+
 typedef struct _SystemMachine {
     // System Information
-    char                    Architecture[16];
+    char                    Architecture[32];
+    char                    Bootloader[32];
     char                    Author[32];
-    char                    Date[16];
+    char                    Date[32];
     unsigned                VersionMajor;
     unsigned                VersionMinor;
     unsigned                VersionRevision;
     Multiboot_t             BootInformation;
 
     // Hardware information
+    SystemDomain_t*         PrimaryDomain;
     Collection_t            SystemDomains;
+    SystemMemoryMap_t       MemoryMap;
+
+    // Total information across domains
+    int                     NumberOfProcessors;
+    int                     NumberOfCores;
+    int                     NumberOfMemoryBlocks;
+    int                     MemoryGranularity;
 
 } SystemMachine_t;
 

@@ -533,28 +533,19 @@ void __MallocLibCEmpty(void)
 #else
 #include <os/osdefs.h>
 
-#ifndef DLMALLOC_EXPORT
 #ifdef MOLLENOS
-#define DLMALLOC_EXPORT _CRTIMP
-#else
-#define DLMALLOC_EXPORT extern
-#endif
-#endif
 
-#ifndef WIN32
-#if _WIN32 && !defined(MOLLENOS)
-#define WIN32 1
-#endif  /* _WIN32 */
-#ifdef _WIN32_WCE
-#define LACKS_FCNTL_H
-#define WIN32 1
-#endif /* _WIN32_WCE */
-#endif  /* WIN32 */
+// Define features
+#define USE_LOCKS               1
+#define HAVE_MMAP               1
+#define MMAP_CLEARS             0
+#define HAVE_MORECORE           0
+#define HAVE_MREMAP             0
+#define INSECURE                0
+// #define MSPACES 1
+#define ABORT_ON_ASSERT_FAILURE 1
+#define PROCEED_ON_ERROR        0
 
-#ifdef MOLLENOS
-#define USE_LOCKS 1
-#define HAVE_MMAP 1
-#define HAVE_MORECORE 0
 #define LACKS_UNISTD_H
 #define LACKS_TIME_H
 #define LACKS_SYS_PARAM_H
@@ -562,11 +553,28 @@ void __MallocLibCEmpty(void)
 #define LACKS_FCNTL_H
 #define LACKS_SYS_TYPES_H
 #define LACKS_SCHED_H
+
 #ifndef MALLOC_FAILURE_ACTION
 #define MALLOC_FAILURE_ACTION
-#endif /* MALLOC_FAILURE_ACTION */
-#define MMAP_CLEARS 0
 #endif
+
+#define DLMALLOC_EXPORT _CRTIMP
+#undef _WIN32
+#endif // MOLLENOS
+
+#ifndef DLMALLOC_EXPORT
+#define DLMALLOC_EXPORT extern
+#endif
+
+#ifndef WIN32
+#if _WIN32
+#define WIN32 1
+#endif  /* _WIN32 */
+#ifdef _WIN32_WCE
+#define LACKS_FCNTL_H
+#define WIN32 1
+#endif /* _WIN32_WCE */
+#endif  /* WIN32 */
 
 #ifdef WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -1693,12 +1701,12 @@ static FORCEINLINE void* mosdirect_mmap(size_t Size) {
 }
 
 /* This function supports releasing coalesed segments */
-static FORCEINLINE int win32munmap(void* Ptr, size_t Size) {
+static FORCEINLINE int mosmunmap(void* Ptr, size_t Size) {
 	return MemoryFree(Ptr, Size) == OsSuccess ? 0 : -1;
 }
 
 #define MMAP_DEFAULT(s)             mosmmap(s)
-#define MUNMAP_DEFAULT(a, s)        win32munmap((a), (s))
+#define MUNMAP_DEFAULT(a, s)        mosmunmap((a), (s))
 #define DIRECT_MMAP_DEFAULT(s)      mosdirect_mmap(s)
 #else
 #define MUNMAP_DEFAULT(a, s)  munmap((a), (s))

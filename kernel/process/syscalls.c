@@ -814,7 +814,7 @@ ScMemoryFree(
 
     // Sanitize the process we looked up
     // we want it to exist of course
-    if (Ash == NULL || Size == 0) {
+    if (Ash == NULL || Address == 0 || Size == 0) {
         return OsError;
     }
 
@@ -824,8 +824,6 @@ ScMemoryFree(
         ERROR("ScMemoryFree(Address 0x%x, Size 0x%x) was invalid", Address, Size);
         return OsError;
     }
-
-    // Return the result from unmap
     return AddressSpaceUnmap(AddressSpaceGetCurrent(), Address, Size);
 }
 
@@ -860,9 +858,9 @@ ScMemoryQuery(
  * is then accessible. The virtual address pointer is returned. */
 OsStatus_t
 ScMemoryAcquire(
-    _In_ uintptr_t PhysicalAddress,
-    _In_ size_t Size,
-    _Out_ uintptr_t *VirtualAddress)
+    _In_  uintptr_t     PhysicalAddress,
+    _In_  size_t        Size,
+    _Out_ uintptr_t*    VirtualAddress)
 {
     // Variables
     MCoreAsh_t *Ash = NULL;
@@ -883,8 +881,8 @@ ScMemoryAcquire(
 
     // Start out by allocating memory 
     // in target process's shared memory space
-    uintptr_t Shm = BlockBitmapAllocate(Ash->Shm, Size);
-    NumBlocks = DIVUP(Size, AddressSpaceGetPageSize());
+    uintptr_t Shm   = BlockBitmapAllocate(Ash->Shm, Size);
+    NumBlocks       = DIVUP(Size, AddressSpaceGetPageSize());
 
     // Sanity -> If we cross a page boundary
     if (((PhysicalAddress + Size) & PageMask) != (PhysicalAddress & PageMask)) {
@@ -900,15 +898,13 @@ ScMemoryAcquire(
     // Now we have to transfer our physical mappings 
     // to their new virtual
     for (i = 0; i < NumBlocks; i++) {
-        uintptr_t PhysicalPage = PhysicalAddress + (i * AddressSpaceGetPageSize());
-        uintptr_t VirtualPage = Shm + (i * AddressSpaceGetPageSize());
+        uintptr_t PhysicalPage  = PhysicalAddress + (i * AddressSpaceGetPageSize());
+        uintptr_t VirtualPage   = Shm + (i * AddressSpaceGetPageSize());
 
         // Map it directly into target process
         AddressSpaceMap(Ash->AddressSpace, &PhysicalPage, &VirtualPage, AddressSpaceGetPageSize(), 
             ASPACE_FLAG_APPLICATION | ASPACE_FLAG_VIRTUAL | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
     }
-
-    // Done
     return OsSuccess;
 }
 
@@ -1174,9 +1170,8 @@ ScDestroyFileMapping(
 ***********************/
 
 /* ScPipeOpen
- * Opens a new pipe for the calling Ash process
- * and allows communication to this port from other
- * processes */
+ * Opens a new pipe for the calling Ash process and allows 
+ * communication to this port from other processes */
 OsStatus_t
 ScPipeOpen(
     _In_ int        Port, 
@@ -1348,8 +1343,8 @@ ScRpcResponse(
     else {
         // Resolve the current running process
         // and the default pipe in the rpc
-        Ash = PhoenixGetAsh(ThreadingGetCurrentThread(CpuGetCurrentId())->AshId);
-        Pipe = PhoenixGetAshPipe(Ash, RemoteCall->From.Port);
+        Ash     = PhoenixGetAsh(ThreadingGetCurrentThread(CpuGetCurrentId())->AshId);
+        Pipe    = PhoenixGetAshPipe(Ash, RemoteCall->From.Port);
 
         // Sanitize the lookups
         if (Ash == NULL || Pipe == NULL) {
@@ -1383,8 +1378,7 @@ ScRpcResponse(
 }
 
 /* ScRpcExecute
- * Executes an IPC RPC request to the
- * given process and optionally waits for
+ * Executes an IPC RPC request to the given process and optionally waits for
  * a reply/response */
 OsStatus_t
 ScRpcExecute(

@@ -294,7 +294,7 @@ SchedulerThreadQueue(
     THREADING_SETSTATE(Thread->Flags, THREADING_ACTIVE);
 
     // If the current cpu is idling, wake us up
-    if (ThreadingIsCurrentTaskIdle(Thread->CoreId) != 0) {
+    if (ThreadingIsCurrentTaskIdle(Thread->CoreId)) {
         ThreadingWakeCpu(Thread->CoreId);
     }
     return OsSuccess;

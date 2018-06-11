@@ -500,8 +500,7 @@ VfsReadFile(
 	DataKey_t Key;
 
     // Debug
-    TRACE("ReadFile(Handle %u, Size %u)", 
-        Handle, GetBufferSize(BufferObject));
+    TRACE("ReadFile(Handle %u, Size %u)", Handle, GetBufferSize(BufferObject));
 
 	// Sanitize request parameters first
 	// Is handle valid?

@@ -34,6 +34,7 @@
 #include <debug.h>
 #include <heap.h>
 #include <arch.h>
+#include <apic.h>
 
 /* Includes
  * - Library */
@@ -41,11 +42,11 @@
 #include <stddef.h>
 #include <string.h>
 
-/* Globals 
- * Needed for the virtual memory manager to keep
- * track of current directories */
+/* Globals
+ * Needed for the virtual memory manager to keep track of current directories */
 static PageMasterTable_t *KernelMasterTable     = NULL;
 static _Atomic(uintptr_t) ReservedMemoryPointer = ATOMIC_VAR_INIT(0);
+static MemorySynchronizationObject_t SyncData   = { SPINLOCK_INIT, 0 };
 
 /* Extern acess to system mappings in the
  * physical memory manager */
@@ -75,6 +76,52 @@ CREATE_STRUCTURE_HELPER(PageDirectory_t, PageDirectory)
 /* MmVirtualCreatePageDirectoryTable
  * Creates and initializes a new empty page-directory-table */
 CREATE_STRUCTURE_HELPER(PageDirectoryTable_t, PageDirectoryTable)
+
+/* PageSynchronizationHandler
+ * Synchronizes the page address specified in the MemorySynchronization Object. */
+InterruptStatus_t
+PageSynchronizationHandler(
+    _In_ void*              Context)
+{
+    // Variables
+    AddressSpace_t *Current = AddressSpaceGetCurrent();
+
+    // Make sure the current address space is matching
+    if (Current->Parent == (AddressSpace_t*)SyncData.ParentPagingData || 
+        Current         == (AddressSpace_t*)SyncData.ParentPagingData) {
+        memory_invalidate_addr(SyncData.Address);
+    }
+    SyncData.CallsCompleted++;
+    return InterruptHandled;
+}
+
+/* MmVirtualSynchronizePage
+ * Synchronizes the page address across cores to make sure they have the
+ * latest revision of the page-table cached. */
+void
+MmVirtualSynchronizePage(
+    _In_ PageMasterTable_t* ParentDirectory,
+    _In_ uintptr_t          Address)
+{
+    // Multiple cores?
+    if (GetMachine()->NumberOfCores == 1) {
+        return;
+    }
+    assert(InterruptGetActiveStatus() == 0);
+    SpinlockAcquire(&SyncData.SyncObject);
+    
+    // Setup arguments
+    SyncData.ParentPagingData   = ParentDirectory;
+    SyncData.Address            = Address;
+    SyncData.CallsCompleted     = 0;
+
+    // Synchronize the page-tables
+    ApicSendInterrupt(InterruptAllButSelf, UUID_INVALID, INTERRUPT_SYNCHRONIZE_PAGE);
+    
+    // Wait for all cpu's to have handled this.
+    while(SyncData.CallsCompleted != (GetMachine()->NumberOfCores - 1));
+    SpinlockRelease(&SyncData.SyncObject);
+}
 
 /* MmVirtualFillPageTable
  * Identity maps a memory region inside the given
@@ -300,8 +347,8 @@ SyncPmlWithParent:
     // in shared access, which means multiple accesses to these instances will
     // be done. If there are ANY changes it must be with LOAD/MODIFY/CAS to make
     // sure changes are atomic. These changes does NOT need to be propegated upwards to parent
-SyncPdp:
     ParentMapping = atomic_load(&DirectoryTable->pTables[PdpIndex]);
+SyncPdp:
     if (ParentMapping & PAGE_PRESENT) {
         Directory = (PageDirectory_t*)DirectoryTable->vTables[PdpIndex];
         assert(Directory != NULL);
@@ -313,7 +360,8 @@ SyncPdp:
 
         // Adjust the physical pointer to include flags
         Physical |= PAGE_PRESENT | PAGE_WRITE | CreateFlags;
-        if (!atomic_compare_exchange_strong(&DirectoryTable->pTables[PdpIndex], &ParentMapping, Physical)) {
+        if (!atomic_compare_exchange_strong(&DirectoryTable->pTables[PdpIndex], 
+            &ParentMapping, Physical)) {
             // Start over as someone else beat us to the punch
             kfree((void*)Directory);
             goto SyncPdp;
@@ -329,8 +377,8 @@ SyncPdp:
         return NULL;
     }
 
-SyncPd:
     ParentMapping = atomic_load(&Directory->pTables[PdIndex]);
+SyncPd:
     if (ParentMapping & PAGE_PRESENT) {
         Table = (PageTable_t*)Directory->vTables[PdIndex];
         assert(Table != NULL);
@@ -342,7 +390,8 @@ SyncPd:
 
         // Adjust the physical pointer to include flags
         Physical |= PAGE_PRESENT | PAGE_WRITE | CreateFlags;
-        if (!atomic_compare_exchange_strong(&Directory->pTables[PdIndex], &ParentMapping, Physical)) {
+        if (!atomic_compare_exchange_strong(&Directory->pTables[PdIndex], 
+            &ParentMapping, Physical)) {
             // Start over as someone else beat us to the punch
             kfree((void*)Table);
             goto SyncPd;
@@ -386,6 +435,7 @@ MmVirtualSetFlags(
     atomic_store(&Table->Pages[PAGE_TABLE_INDEX(vAddress)], (Mapping & PAGE_MASK) | (Flags & ATTRIBUTE_MASK));
 
 	// Last step is to invalidate the the address in the MMIO
+    MmVirtualSynchronizePage(ParentTable, vAddress);
 	if (IsCurrent) {
 		memory_invalidate_addr(vAddress);
 	}
@@ -450,8 +500,8 @@ MmVirtualMap(
     assert(Table != NULL);
 
     // Make sure value is not mapped already, NEVER overwrite a mapping
-SyncTable:
     Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(vAddress)]);
+SyncTable:
     if (Mapping != 0) {
         if (Flags & PAGE_VIRTUAL) {
             if (Mapping != (pAddress & PAGE_MASK)) {
@@ -506,8 +556,8 @@ MmVirtualUnmap(
     }
 
     // Load the mapping
-SyncTable:
     Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(Address)]);
+SyncTable:
     if (Mapping & PAGE_PRESENT) {
         if (!(Mapping & PAGE_SYSTEM_MAP)) {
             // Present, not system map
@@ -524,6 +574,7 @@ SyncTable:
 
             // Last step is to validate the page-mapping
             // now this should be an IPC to all cpu's
+            MmVirtualSynchronizePage(ParentTable, Address);
             if (IsCurrent) {
                 memory_invalidate_addr(Address);
             }

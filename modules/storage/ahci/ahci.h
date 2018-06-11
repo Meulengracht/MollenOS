@@ -333,7 +333,6 @@ typedef struct _AhciPort {
 	int						 Id;
 	int						 Index;
 	int						 MultiplierIndex;
-	Spinlock_t				 Lock;
 
 	int						 Connected;
 

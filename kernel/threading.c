@@ -452,10 +452,8 @@ int
 ThreadingIsCurrentTaskIdle(
     _In_ UUId_t         CoreId)
 {
-    if (ThreadingGetCurrentThread(CoreId) == NULL) {
-        return 0;
-    }
-    return (ThreadingGetCurrentThread(CoreId)->Flags & THREADING_IDLE) == 0 ? 0 : 1;
+    SystemCpuCore_t *Core = GetProcessorCore(CoreId);
+    return (Core->CurrentThread == &Core->IdleThread) ? 1 : 0;
 }
 
 /* ThreadingGetCurrentMode

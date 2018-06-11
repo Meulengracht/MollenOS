@@ -180,11 +180,7 @@ ZeroBuffer(
 {
     // Reset buffer
     memset((void*)BufferObject->Virtual, 0, BufferObject->Length);
-
-    // Reset counters
     BufferObject->Position = 0;
-
-    // Done
     return OsSuccess;
 }
 

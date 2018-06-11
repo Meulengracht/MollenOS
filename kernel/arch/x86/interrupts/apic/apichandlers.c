@@ -40,14 +40,12 @@ __EXTERN size_t GlbTimerQuantum;
  * it loads the new task context */
 __EXTERN void enter_thread(Context_t *Regs);
 
-/* The primary interrupt code for switching tasks
- * and is controlled by the apic timer, initially the
- * apic timer is loaded by a configurable quantum
- * but should be calibrated as soon as a reliable timer
- * source is registered. */
+/* ApicTimerHandler
+ * The scheduler interrupt handler. The only functionality this handler has is
+ * to switch threads. */
 InterruptStatus_t
 ApicTimerHandler(
-    _In_ void*  Args)
+    _In_ void*  Context)
 {
     // Variables
 	Context_t *Regs     = NULL;
@@ -58,7 +56,7 @@ ApicTimerHandler(
     // Send EOI immediately
 	GlbTimerTicks[CurrCpu]++;
 	ApicSendEoi(0, INTERRUPT_LAPIC);
-	Regs = _ThreadingSwitch((Context_t*)Args, 1, &TimeSlice, &TaskPriority);
+	Regs = _ThreadingSwitch((Context_t*)Context, 1, &TimeSlice, &TaskPriority);
     
     // If we are idle task - disable timer untill we get woken up
 	if (!ThreadingIsCurrentTaskIdle(CurrCpu)) {
@@ -75,13 +73,13 @@ ApicTimerHandler(
 	return InterruptHandled;
 }
 
-/* The apic error handler interrupt
- * this occurs on errors, but i'm not really
- * sure yet what that entails, we leave it NA for now*/
+/* ApicErrorHandler
+ * Handles any internally errors that the apic encounters. Most of these
+ * don't have any resolution. */
 InterruptStatus_t
 ApicErrorHandler(
-    _In_ void*  Args)
+    _In_ void*  Context)
 {
-	_CRT_UNUSED(Args);
+	_CRT_UNUSED(Context);
 	return InterruptHandled;
 }

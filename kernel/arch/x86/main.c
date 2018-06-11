@@ -111,6 +111,7 @@ SystemFeaturesInitialize(
 
     // Handle interrupt initialization
     if (Systems & SYSTEM_FEATURE_INTERRUPTS) {
+        InitializeSoftwareInterrupts();
 #if defined(amd64) || defined(__amd64__)
         TssCreateStacks();
 #endif

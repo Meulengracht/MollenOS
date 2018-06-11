@@ -113,8 +113,7 @@ AhciCommandDispatch(
 	memset(CommandTable, 0, AHCI_COMMAND_TABLE_SIZE);
 
 	// Sanitizie packet lenghts
-	if (CommandLength > 64
-		|| AtapiCommandLength > 16) {
+	if (CommandLength > 64 || AtapiCommandLength > 16) {
 		ERROR("AHCI::Commands are exceeding the allowed length, FIS (%u), ATAPI (%u)",
 			CommandLength, AtapiCommandLength);
 		goto Error;
@@ -138,9 +137,9 @@ AhciCommandDispatch(
 		size_t TransferLength = MIN(AHCI_PRDT_MAX_LENGTH, BytesLeft);
 
 		// Set buffer information and transfer sizes
-		Prdt->DataBaseAddress = LODWORD(BufferPointer);
-		Prdt->DataBaseAddressUpper = (sizeof(void*) > 4) ? HIDWORD(BufferPointer) : 0;
-		Prdt->Descriptor = (TransferLength - 1); // N - 1
+		Prdt->DataBaseAddress       = LODWORD(BufferPointer);
+		Prdt->DataBaseAddressUpper  = (sizeof(void*) > 4) ? HIDWORD(BufferPointer) : 0;
+		Prdt->Descriptor            = (TransferLength - 1); // N - 1
 
 		// Trace
 		TRACE("PRDT %u, Address 0x%x, Length 0x%x",
@@ -282,15 +281,15 @@ AhciCommandRegisterFIS(
 	else if (Transaction->Device->AddressingMode == 1
 		|| Transaction->Device->AddressingMode == 2) {
 		// Set LBA 28 parameters
-		Fis.SectorNo = LOBYTE(SectorLBA);
-		Fis.CylinderLow = (uint8_t)((SectorLBA >> 8) & 0xFF);
-		Fis.CylinderHigh = (uint8_t)((SectorLBA >> 16) & 0xFF);
-		Fis.SectorNoExtended = (uint8_t)((SectorLBA >> 24) & 0xFF);
+		Fis.SectorNo            = LOBYTE(SectorLBA);
+		Fis.CylinderLow         = (uint8_t)((SectorLBA >> 8) & 0xFF);
+		Fis.CylinderHigh        = (uint8_t)((SectorLBA >> 16) & 0xFF);
+		Fis.SectorNoExtended    = (uint8_t)((SectorLBA >> 24) & 0xFF);
 
 		// If it's an LBA48, set LBA48 params as well
 		if (Transaction->Device->AddressingMode == 2) {
-			Fis.CylinderLowExtended = (uint8_t)((SectorLBA >> 32) & 0xFF);
-			Fis.CylinderHighExtended = (uint8_t)((SectorLBA >> 40) & 0xFF);
+			Fis.CylinderLowExtended     = (uint8_t)((SectorLBA >> 32) & 0xFF);
+			Fis.CylinderHighExtended    = (uint8_t)((SectorLBA >> 40) & 0xFF);
 
 			// Count is 16 bit here
 			Fis.Count = LOWORD(Transaction->SectorCount);

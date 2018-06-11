@@ -97,6 +97,7 @@ public:
                 Event = _EventQueue.front();
                 _EventQueue.pop();
             }
+            sLog.Info("processing event");
 
             // Handle event
             switch (Event->GetType()) {

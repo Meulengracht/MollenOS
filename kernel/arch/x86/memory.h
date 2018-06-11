@@ -24,8 +24,10 @@
 
 /* Includes 
  * - System */
+#include <os/spinlock.h>
 #include <os/osdefs.h>
 #include <multiboot.h>
+#include <machine.h>
 #include <paging.h>
 
 /* Shared PT/Page Definitions */
@@ -52,8 +54,7 @@
 #define PAGE_VIRTUAL			0x800
 
 /* Memory Map Structure 
- * This is the structure passed to us by
- * the mBoot bootloader */
+ * This is the structure passed to us by the mBoot bootloader */
 PACKED_TYPESTRUCT(BIOSMemoryRegion, {
 	uint64_t				Address;
 	uint64_t				Size;
@@ -61,6 +62,15 @@ PACKED_TYPESTRUCT(BIOSMemoryRegion, {
 	uint32_t				Nil;
 	uint64_t				Padding;
 });
+
+/* MemorySynchronizationObject
+ * Used to synchronize paging structures across all cpu cores. */
+typedef struct _MemorySynchronizationObject {
+    Spinlock_t      SyncObject; // Non irq lock
+    volatile int    CallsCompleted;
+    void*           ParentPagingData;
+    uintptr_t       Address;
+} MemorySynchronizationObject_t;
 
 /* MmPhyiscalInit
  * This is the physical memory manager initializor
@@ -182,5 +192,11 @@ UpdateVirtualAddressingSpace(
  * Initializes the missing memory setup for the calling cpu */
 KERNELAPI void KERNELABI
 InitializeMemoryForApplicationCore(void);
+
+/* PageSynchronizationHandler
+ * Synchronizes the page address specified in the MemorySynchronization Object. */
+KERNELAPI InterruptStatus_t KERNELABI
+PageSynchronizationHandler(
+    _In_ void*              Context);
 
 #endif // !_X86_MEMORY_H_

@@ -78,10 +78,11 @@ SmpBootCore(
 {
 	// Perform the IPI
 	TRACE(" > Booting core %u", Core->Id);
-	if (ApicPerformIPI(Core->Id) != OsSuccess) {
+	if (ApicPerformIPI(Core->Id, 1) != OsSuccess) {
 		ERROR("Failed to boot core %u (IPI failed)", Core->Id);
 		return;
 	}
+    // ApicPerformIPI(Core->Id, 0); is needed on older cpus
 
     // Perform the SIPI - some cpu's require two SIPI's
 	if (ApicPerformSIPI(Core->Id, MEMORY_LOCATION_TRAMPOLINE_CODE) != OsSuccess) {

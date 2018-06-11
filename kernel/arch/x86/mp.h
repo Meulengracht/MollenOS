@@ -64,17 +64,13 @@ PACKED_TYPESTRUCT(MpConfigurationTable, {
 /* MpInitialize
  * Searches known memory places where the mp-tables can exist, returns 
  * OsSuccess if they exist - otherwise OsError */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 MpInitialize(void);
 
 /* MpGetLocalApicAddress
  * Retrieve the local apic address from the mp tables. The mp tables must be initialized
  * with MpInitialize */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 MpGetLocalApicAddress(
     _Out_ uintptr_t*    Address);
 

@@ -24,8 +24,8 @@
 
 // Globals
 // State keeping for a single window
-static BufferObject_t *WindowBuffer = NULL;
-static Handle_t WindowHandle        = NULL;
+static BufferObject_t *ProgramWindowBuffer = NULL;
+static Handle_t ProgramWindowHandle        = NULL;
 
 
 /* UiParametersSetDefault
@@ -41,8 +41,8 @@ UiParametersSetDefault(
     
     Descriptor->Surface.Dimensions.x    = -1;
     Descriptor->Surface.Dimensions.y    = -1;
-    Descriptor->Surface.Dimensions.w    = 300;
-    Descriptor->Surface.Dimensions.h    = 450;
+    Descriptor->Surface.Dimensions.w    = 450;
+    Descriptor->Surface.Dimensions.h    = 300;
 }
 
 /* UiRegisterWindow
@@ -70,9 +70,10 @@ UiRegisterWindow(
     if (*WindowBuffer == NULL) {
         return OsError;
     }
+    ProgramWindowBuffer = *WindowBuffer;
 
     // Create the window
-    return CreateWindow(Descriptor, *WindowBuffer, &WindowHandle);
+    return CreateWindow(Descriptor, *WindowBuffer, &ProgramWindowHandle);
 }
 
 /* UiUnregisterWindow
@@ -81,10 +82,10 @@ UiRegisterWindow(
 OsStatus_t
 UiUnregisterWindow(void)
 {
-    if (WindowHandle == NULL) {
+    if (ProgramWindowHandle == NULL) {
         return OsError;
     }
-    return DestroyWindow(WindowHandle);
+    return DestroyWindow(ProgramWindowHandle);
 }
 
 /* UiSwapBackbuffer
@@ -92,8 +93,8 @@ UiUnregisterWindow(void)
 OsStatus_t
 UiSwapBackbuffer(void)
 {
-    if (WindowHandle == NULL) {
+    if (ProgramWindowHandle == NULL) {
         return OsError;
     }
-    return SwapWindowBackbuffer(WindowHandle);
+    return SwapWindowBackbuffer(ProgramWindowHandle);
 }

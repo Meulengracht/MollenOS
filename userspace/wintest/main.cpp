@@ -73,4 +73,5 @@ void BasicWindowingTests() {
  *******************************************/
 int main(int argc, char **argv) {
     BasicWindowingTests();
+    return 0;
 }

@@ -141,15 +141,22 @@
 /* Special addresses must be between 0x11000000 -> 0x11001000 */
 #define MEMORY_LOCATION_SIGNAL_RET          0x110000DE    /* Signal Ret Addr */
 
-/* Architecture Locked Interrupts */
-#define INTERRUPT_LAPIC                     0xF0
-
+// Hardware interrupt vectors (0x90 - 0xF0)
 #define INTERRUPT_PHYSICAL_BASE             0x90
 #define INTERRUPT_PHYSICAL_END              0xF0
 
+// Software interrupt vectors (0x20 - 0x90)
+// Synchronization calls
+#define INTERRUPT_SYNCHRONIZE_PAGE          0x70
+#define INTERRUPT_PANIC                     0x71
 #define INTERRUPT_SPURIOUS                  0x7F
+
+// System calls
 #define INTERRUPT_SYSCALL                   0x80
 #define INTERRUPT_YIELD                     0x81
+
+// Priveliged software calls
 #define INTERRUPT_LVTERROR                  0x82
+#define INTERRUPT_LAPIC                     0xF0
 
 #endif // !_MCORE_X86_ARCH_

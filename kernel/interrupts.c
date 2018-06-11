@@ -292,10 +292,8 @@ InterruptRegister(
         Interrupt->Line, Interrupt->Pin, Interrupt->Vectors[0], Flags);
 
     // Allocate a new entry for the table
-    Entry = (MCoreInterruptDescriptor_t*)kmalloc(sizeof(MCoreInterruptDescriptor_t));
-
-    // This is a locked procedure
-    Id              = atomic_fetch_add(&InterruptIdGenerator, 1);
+    Entry   = (MCoreInterruptDescriptor_t*)kmalloc(sizeof(MCoreInterruptDescriptor_t));
+    Id      = atomic_fetch_add(&InterruptIdGenerator, 1);
 
     // Setup some initial information
     Entry->Id       = (Id << 16);    

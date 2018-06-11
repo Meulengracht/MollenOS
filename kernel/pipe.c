@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,6 +35,7 @@
  * - Library */
 #include <stddef.h>
 #include <string.h>
+#include <assert.h>
 
 /* PipeCreate
  * Initialise a new pipe of the given size and with the given flags */
@@ -94,25 +95,46 @@ PipeProduceAcquire(
 {
     // Variables
     unsigned AcquiredWorker = 0;
+    uint8_t Flags;
 
     // Debug
     TRACE("PipeProduceAcquire(Length %u)", Length);
 
     // Allocate a place in the pipe
-    AcquiredWorker = atomic_fetch_add(&Pipe->WriteWorker, 1);
+    AcquiredWorker  = atomic_fetch_add(&Pipe->WriteWorker, 1);
     AcquiredWorker &= PIPE_WORKERS_MASK;
 
-    // Don't interrupt us between this check and sleep
-    AtomicSectionEnter(&Pipe->Workers[AcquiredWorker].SyncObject);
-    if (Pipe->Workers[AcquiredWorker].Flags & PIPE_WORKER_ALLOCATED) {
-        SchedulerAtomicThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredWorker], 
-            &Pipe->Workers[AcquiredWorker].SyncObject);
-        Pipe->Workers[AcquiredWorker].Flags |= PIPE_WORKER_ALLOCATED;
+    Flags           = atomic_load(&Pipe->Workers[AcquiredWorker].Flags);
+SyncWithWorker:
+    assert((Flags & PIPE_WORKER_PRODUCER_WAITING) == 0); // find solution @todo
+
+    // Is it allocated?
+    if (Flags & PIPE_WORKER_ALLOCATED) {
+        uint8_t UpdatedFlags = Flags | PIPE_WORKER_PRODUCER_WAITING;
+        if (!atomic_compare_exchange_weak(&Pipe->Workers[AcquiredWorker].Flags, 
+            &Flags, UpdatedFlags)) {
+            goto SyncWithWorker;
+        }
+        SchedulerThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredWorker], 0);
+
+        // Sync flags and tell we are not waiting anymore
+        Flags = atomic_load(&Pipe->Workers[AcquiredWorker].Flags);
+SyncFlags:
+        assert((Flags & PIPE_WORKER_PRODUCER_WAITING) != 0);
+
+        UpdatedFlags = Flags & ~(PIPE_WORKER_PRODUCER_WAITING);
+        UpdatedFlags |= PIPE_WORKER_ALLOCATED;
+        if (!atomic_compare_exchange_weak(&Pipe->Workers[AcquiredWorker].Flags,
+            &Flags, UpdatedFlags)) {
+            goto SyncFlags;
+        }
     }
     else {
-        // all the atomic stuff is now done
-        Pipe->Workers[AcquiredWorker].Flags |= PIPE_WORKER_ALLOCATED;
-        AtomicSectionLeave(&Pipe->Workers[AcquiredWorker].SyncObject);
+        uint8_t UpdatedFlags = Flags | PIPE_WORKER_ALLOCATED;
+        if (!atomic_compare_exchange_weak(&Pipe->Workers[AcquiredWorker].Flags, 
+            &Flags, UpdatedFlags)) {
+            goto SyncWithWorker;
+        }
     }
 
     // Acquire space in the buffer
@@ -165,14 +187,26 @@ PipeProduceCommit(
     _In_ MCorePipe_t*   Pipe,
     _In_ unsigned       Worker)
 {
+    // Variables
+    uint8_t Flags, UpdatedFlags;
+
     // Debug
     TRACE("PipeProduceCommit(Worker %u)", Worker);
 
     // Register us and signal
-    AtomicSectionEnter(&Pipe->Workers[Worker].SyncObject);
-    Pipe->Workers[Worker].Flags |= PIPE_WORKER_REGISTERED;
-    SchedulerHandleSignal((uintptr_t*)&Pipe->Workers[Worker]);
-    AtomicSectionLeave(&Pipe->Workers[Worker].SyncObject);
+    Flags           = atomic_load(&Pipe->Workers[Worker].Flags);
+SyncWithWorker:
+    UpdatedFlags    = Flags | PIPE_WORKER_REGISTERED;
+    if (!atomic_compare_exchange_weak(&Pipe->Workers[Worker].Flags, 
+        &Flags, UpdatedFlags)) {
+        goto SyncWithWorker;
+    }
+
+    // Wake any waiting thread
+    if (Flags & PIPE_WORKER_CONSUMER_WAITING) {
+        while (SchedulerHandleSignal((uintptr_t*)&Pipe->Workers[Worker]) == OsError);
+    }
+    WARNING("Produce, Done, %u", Flags);
     return OsSuccess;
 }
 
@@ -185,6 +219,7 @@ PipeConsumeAcquire(
 {
     // Variables
     unsigned AcquiredReader = 0;
+    uint8_t Flags;
 
     // Debug
     TRACE("PipeConsumeAcquire()");
@@ -193,15 +228,30 @@ PipeConsumeAcquire(
     AcquiredReader = atomic_fetch_add(&Pipe->ReadWorker, 1);
     AcquiredReader &= PIPE_WORKERS_MASK;
 
-    // Don't interrupt us between this check and sleep
-    AtomicSectionEnter(&Pipe->Workers[AcquiredReader].SyncObject);
-    if (!(Pipe->Workers[AcquiredReader].Flags & PIPE_WORKER_REGISTERED)) {
-        SchedulerAtomicThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredReader], 
-            &Pipe->Workers[AcquiredReader].SyncObject);
-    }
-    else {
-        // all the atomic stuff is now done
-        AtomicSectionLeave(&Pipe->Workers[AcquiredReader].SyncObject);
+    Flags           = atomic_load(&Pipe->Workers[AcquiredReader].Flags);
+SyncWithWorker:
+    assert((Flags & PIPE_WORKER_CONSUMER_WAITING) == 0); // find solution @todo
+
+    // Is the entry registered?
+    if (!(Flags & PIPE_WORKER_REGISTERED)) {
+        uint8_t UpdatedFlags = Flags | PIPE_WORKER_CONSUMER_WAITING;
+        if (!atomic_compare_exchange_weak(&Pipe->Workers[AcquiredReader].Flags, 
+            &Flags, UpdatedFlags)) {
+            goto SyncWithWorker;
+        }
+        SchedulerThreadSleep((uintptr_t*)&Pipe->Workers[AcquiredReader], 0);
+
+        // Sync flags and tell we are not waiting anymore
+        Flags = atomic_load(&Pipe->Workers[AcquiredReader].Flags);
+        WARNING("Consume, Awake, %u", Flags);
+SyncFlags:
+        assert((Flags & PIPE_WORKER_CONSUMER_WAITING) != 0);
+
+        UpdatedFlags = Flags & ~(PIPE_WORKER_CONSUMER_WAITING);
+        if (!atomic_compare_exchange_weak(&Pipe->Workers[AcquiredReader].Flags,
+            &Flags, UpdatedFlags)) {
+            goto SyncFlags;
+        }
     }
 
     // Update outs
@@ -243,13 +293,24 @@ PipeConsumeCommit(
     _In_ MCorePipe_t*   Pipe,
     _In_ unsigned       Worker)
 {
+    // Variables
+    uint8_t Flags, UpdatedFlags;
+
     // Debug
     TRACE("PipeConsumeCommit(Worker %u)", Worker);
 
     // Register us and signal
-    AtomicSectionEnter(&Pipe->Workers[Worker].SyncObject);
-    Pipe->Workers[Worker].Flags = 0;
-    SchedulerHandleSignal((uintptr_t*)&Pipe->Workers[Worker]);
-    AtomicSectionLeave(&Pipe->Workers[Worker].SyncObject);
+    Flags           = atomic_load(&Pipe->Workers[Worker].Flags);
+SyncWithWorker:
+    UpdatedFlags    = Flags & ~(PIPE_WORKER_ALLOCATED | PIPE_WORKER_REGISTERED);
+    if (!atomic_compare_exchange_weak(&Pipe->Workers[Worker].Flags, 
+        &Flags, UpdatedFlags)) {
+        goto SyncWithWorker;
+    }
+
+    // Wake any waiting thread
+    if (Flags & PIPE_WORKER_PRODUCER_WAITING) {
+        while (SchedulerHandleSignal((uintptr_t*)&Pipe->Workers[Worker]) == OsError);
+    }
     return OsSuccess;
 }

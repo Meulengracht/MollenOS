@@ -93,7 +93,7 @@ void CWindow::SetStreaming(bool Enable) {
 
     if (Enable) {
         m_ResourceId = nvgCreateImageRGBA(m_VgContext, m_StreamWidth, m_StreamHeight, 
-            NVG_IMAGE_STREAMING, (const uint8_t*)GetBufferData(m_StreamBuffer));
+            0, (const uint8_t*)GetBufferData(m_StreamBuffer));
         if (m_ResourceId == 0) {
             m_Streaming = false;
         }
@@ -107,8 +107,7 @@ void CWindow::SetStreaming(bool Enable) {
 
 void CWindow::Update(size_t MilliSeconds) {
     if (m_Streaming && m_Swap) {
-        nvgUpdateImage(m_VgContext, m_ResourceId, 
-            (const uint8_t*)GetBufferData(m_StreamBuffer));
+        nvgUpdateImage(m_VgContext, m_ResourceId, (const uint8_t*)GetBufferData(m_StreamBuffer));
         m_Swap = false;
     }
 }
@@ -119,12 +118,6 @@ void CWindow::Draw(NVGcontext* VgContext) {
     NVGpaint StreamPaint;
     float x = 0.0f, y = 0.0f;
 
-	// Window
-	nvgBeginPath(VgContext);
-	nvgRoundedRect(VgContext, x, y, m_Width, m_Height, WINDOW_CORNER_RADIUS);
-	nvgFillColor(VgContext, nvgRGBA(WINDOW_FILL_COLOR_RGBA));
-	nvgFill(VgContext);
-
 	// Drop shadow
 	ShadowPaint = nvgBoxGradient(VgContext, x, y + 2.0f, m_Width, m_Height, WINDOW_CORNER_RADIUS * 2, 10, nvgRGBA(0, 0, 0, 128), nvgRGBA(0, 0, 0, 0));
 	nvgBeginPath(VgContext);
@@ -134,11 +127,18 @@ void CWindow::Draw(NVGcontext* VgContext) {
 	nvgFillPaint(VgContext, ShadowPaint);
 	nvgFill(VgContext);
 
+	// Window
+	nvgBeginPath(VgContext);
+	nvgRoundedRect(VgContext, x, y, m_Width, m_Height, WINDOW_CORNER_RADIUS);
+	nvgFillColor(VgContext, nvgRGBA(WINDOW_FILL_COLOR_RGBA));
+	nvgFill(VgContext);
+
     // Stream
     if (m_Streaming) {
-        StreamPaint = nvgImagePattern(VgContext, x, y, m_StreamWidth, m_StreamHeight, 0.0f, m_ResourceId, 1.0f);
+        StreamPaint = nvgImagePattern(VgContext, x, y, m_StreamWidth, 
+            m_StreamHeight, 0.0f, m_ResourceId, 1.0f);
         nvgBeginPath(VgContext);
-        nvgRect(VgContext, 0, 0, m_StreamWidth, m_StreamHeight);
+        nvgRect(VgContext, x, y, m_StreamWidth, m_StreamHeight);
         nvgFillPaint(VgContext, StreamPaint);
         nvgFill(VgContext);
     }

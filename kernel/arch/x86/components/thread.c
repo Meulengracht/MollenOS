@@ -57,14 +57,8 @@ __EXTERN void clear_ts(void);
 __EXTERN void _yield(void);
 __EXTERN void enter_thread(Context_t *Regs);
 
-/* Globals,
- * Keep track of whether or not init code has run */
-static int ThreadsInitialized = 0;
-
-/* The yield interrupt code for switching tasks
- * and is controlled by software interrupts, the yield interrupt
- * also like the apic switch need to reload the apic timer as it
- * controlls the primary switch */
+/* ThreadingYieldHandler
+ * Software interrupt handler for the yield command. Emulates a regular timer interrupt. */
 InterruptStatus_t
 ThreadingYieldHandler(
     _In_ void *Context)
@@ -102,7 +96,6 @@ ThreadingRegister(
     _In_ MCoreThread_t *Thread)
 {
 	// Variables
-	MCoreInterrupt_t Interrupt;
     DataKey_t Key;
 
 	// Allocate a new thread context (x86) and zero it out
@@ -119,19 +112,6 @@ ThreadingRegister(
     else {
 	    memset((void*)Thread->Data[THREAD_DATA_IOMAP], 0, GDT_IOMAP_SIZE);
     }
-
-	// If its the first time we run, install the yield interrupt
-	if (ThreadsInitialized == 0) {
-        Interrupt.Vectors[0]        = INTERRUPT_YIELD;
-        Interrupt.Vectors[1]        = INTERRUPT_NONE;
-		Interrupt.Line              = INTERRUPT_NONE;
-		Interrupt.Pin               = INTERRUPT_NONE;
-        Interrupt.FastHandler       = ThreadingYieldHandler;
-		Interrupt.Data              = NULL;
-        InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
-            | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
-		ThreadsInitialized          = 1;
-	}
     return OsSuccess;
 }
 

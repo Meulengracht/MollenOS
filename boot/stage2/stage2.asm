@@ -417,7 +417,7 @@ EndOfStage64:
 ; ****************************
 
 ; Strings - 0x0D (LineFeed), 0x0A (Carriage Return)
-szBootloaderName				db 		"mBoot Version 1.0.0, Author: Philip Meulengracht", 0x00
+szBootloaderName				db 		"mBoot Version 1.0.0-dev", 0x00
 szWelcome0 						db 		"                ***********************************************", 0x0D, 0x0A, 0x00
 szWelcome1						db 		"                * MollenOS Stage 2 Bootloader (Version 1.0.0) *", 0x0D, 0x0A, 0x00
 szWelcome2						db 		"                * Author: Philip Meulengracht                 *", 0x0D, 0x0A, 0x00
@@ -425,8 +425,8 @@ szWelcome3 						db 		"                *****************************************
 szPrefix 						db 		"                   - ", 0x00
 szSuccess						db 		" [OK]", 0x0D, 0x0A, 0x00
 szFailed						db 		" [FAIL]", 0x0D, 0x0A, 0x00
-szLoadingKernel					db 		"Loading MollenOS Kernel", 0x00
-szLoadingRamDisk				db 		"Loading MollenOS RamDisk", 0x00
+szLoadingKernel					db 		"Loading System Kernel", 0x00
+szLoadingRamDisk				db 		"Loading System Ramdisk", 0x00
 szFinishBootMsg 				db 		"Finishing Boot Sequence", 0x0D, 0x0A, 0x00
 
 szKernel						db 		"MCORE   MOS"

@@ -152,16 +152,13 @@ RPCSetArgument(
 
 /* RPCSetResult
  * Installs a result buffer that will be filled with the response from the RPC request */
-SERVICEAPI 
-void
-SERVICEABI
+SERVICEAPI void SERVICEABI
 RPCSetResult(
     _In_ MRemoteCall_t* RemoteCall,
     _In_ const void*    Data, 
     _In_ size_t         Length)
 {
-    // Always a buffer element as we need
-    // a target to copy the data into
+    // Always a buffer element as we need a target to copy the data into
     RemoteCall->Result.Type         = ARGUMENT_BUFFER;
     RemoteCall->Result.Data.Buffer  = Data;
     RemoteCall->Result.Length       = Length;

@@ -27,6 +27,7 @@
 /* Includes
  * - Library */
 #include <signal.h>
+#include <assert.h>
 
 /* PipeOpen
  * Opens a new communication pipe on the given
@@ -36,10 +37,7 @@ OsStatus_t
 PipeOpen(
     _In_ int Port)
 {
-	// Sanitize input
-	if (Port < 0) {
-		return OsError;
-	}
+    assert(Port >= 0);
 	return Syscall_PipeOpen(Port, 0);
 }
 
@@ -51,10 +49,7 @@ OsStatus_t
 PipeClose(
     _In_ int Port)
 {
-	// Sanitize input
-	if (Port < 0) {
-		return OsError;
-	}
+    assert(Port >= 0);
 	return Syscall_PipeClose(Port);
 }
 
@@ -69,9 +64,9 @@ PipeRead(
     _In_ size_t Length)
 {
 	// Sanitize input
-	if (Port < 0 || Buffer == NULL || Length == 0) {
-		return OsError;
-	}
+    assert(Port >= 0);
+    assert(Buffer != NULL);
+    assert(Length > 0);
 	return Syscall_PipeRead(Port, Buffer, Length);
 }
 
@@ -83,11 +78,12 @@ PipeSend(
     _In_ UUId_t ProcessId,
     _In_ int    Port,
     _In_ void*  Buffer,
-    _In_ size_t Length) {
+    _In_ size_t Length)
+{
 	// Sanitize input
-	if (Port < 0 || Buffer == NULL || Length == 0) {
-		return OsError;
-	}
+    assert(Port >= 0);
+    assert(Buffer != NULL);
+    assert(Length > 0);
 	return Syscall_PipeSend(ProcessId, Port, Buffer, Length);
 }
 
@@ -103,9 +99,8 @@ PipeReceive(
     if (ProcessId == UUID_INVALID) {
         return PipeRead(Port, Buffer, Length);
     }
-    // Sanitize input
-	if (Port < 0 || Buffer == NULL || Length == 0) {
-		return OsError;
-	}
+    assert(Port >= 0);
+    assert(Buffer != NULL);
+    assert(Length > 0);
 	return Syscall_PipeReceive(ProcessId, Port, Buffer, Length);
 }

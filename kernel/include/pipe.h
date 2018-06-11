@@ -33,7 +33,7 @@
  * parameters for creation */
 #define PIPE_DEFAULT_SIZE           32768
 #define PIPE_WORKERS                512
-#define PIPE_WORKERS_MASK           PIPE_WORKERS - 1
+#define PIPE_WORKERS_MASK           (PIPE_WORKERS - 1)
 
 /* MCorePipe
  * The pipe structure, it basically contains
@@ -51,15 +51,16 @@ typedef struct _MCorePipe {
     atomic_uint     WriteWorker;
     atomic_uint     ReadWorker;
     struct {
-        AtomicSection_t SyncObject;
         unsigned        IndexData;
         unsigned        LengthData;
-        uint8_t         Flags;
+        atomic_uchar    Flags;
     } Workers[PIPE_WORKERS];
 } MCorePipe_t;
 
-#define PIPE_WORKER_ALLOCATED   (1 << 0)
-#define PIPE_WORKER_REGISTERED  (1 << 1)
+#define PIPE_WORKER_ALLOCATED           (1 << 0)
+#define PIPE_WORKER_REGISTERED          (1 << 1)
+#define PIPE_WORKER_PRODUCER_WAITING    (1 << 2)
+#define PIPE_WORKER_CONSUMER_WAITING    (1 << 3)
 
 /* PipeCreate
  * Initialise a new pipe of the given size and with the given flags */

@@ -35,15 +35,20 @@ InitializePrimaryDomain(void)
     // Initialize the processor of the machine
     InitializeProcessor(&PrimaryDomain.Cpu);
     RegisterPrimaryCore(&PrimaryDomain.Cpu);
+    
+    // Update initial cpu stats in machine
+    GetMachine()->NumberOfProcessors    = 1;
+    GetMachine()->NumberOfCores         = 1;
+
+    // Add to list of domains
+    GetMachine()->PrimaryDomain = &PrimaryDomain;
+    CollectionAppend(&GetMachine()->SystemDomains, &PrimaryDomain.Header);
 
     // Initialize memory of the domain
     // @todo
 
     // Initialize the interrupt controller of the domain
     // @todo
-
-    // Add to list of domains
-    CollectionAppend(&GetMachine()->SystemDomains, &PrimaryDomain.Header);
 }
 
 /* GetCurrentDomain

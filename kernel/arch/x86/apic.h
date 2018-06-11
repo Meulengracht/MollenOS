@@ -165,6 +165,11 @@ KERNELAPI void KERNELABI
 ApicStartTimer(
     _In_ size_t Quantum);
 
+/* InitializeSoftwareInterrupts
+ * Initializes all the default software interrupt gates. */
+KERNELAPI void KERNELABI
+InitializeSoftwareInterrupts(void);
+
 /* Reads from the local apic registers 
  * Reads and writes from and to the local apic
  * registers must always be 32 bit */
@@ -224,7 +229,8 @@ ApicSendInterrupt(
  * Sends an ipi request for the specified cpu */
 KERNELAPI OsStatus_t KERNELABI
 ApicPerformIPI(
-    _In_ UUId_t             CoreId);
+    _In_ UUId_t             CoreId,
+    _In_ int                Assert);
 
 /* ApicPerformSIPI
  * Sends an sipi request for the specified cpu, to start executing code at the given vector */
@@ -274,5 +280,19 @@ __EXTERN void ApicSetTaskPriority(uint32_t Priority);
 /* Retrives the current task priority
  * for the current cpu */
 __EXTERN uint32_t ApicGetTaskPriority(void);
+
+/* ApicTimerHandler
+ * The scheduler interrupt handler. The only functionality this handler has is
+ * to switch threads. */
+KERNELAPI InterruptStatus_t KERNELABI
+ApicTimerHandler(
+    _In_ void*  Context);
+
+/* ApicErrorHandler
+ * Handles any internally errors that the apic encounters. Most of these
+ * don't have any resolution. */
+KERNELAPI InterruptStatus_t KERNELABI
+ApicErrorHandler(
+    _In_ void*  Context);
 
 #endif //!__APIC_H__

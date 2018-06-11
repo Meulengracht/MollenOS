@@ -26,6 +26,7 @@
 #include <component/cpu.h>
 #include <system/interrupts.h>
 #include <system/utils.h>
+#include <machine.h>
 #include <assert.h>
 #include <string.h>
 #include <debug.h>
@@ -101,6 +102,7 @@ ActivateApplicationCore(
     _In_ SystemCpuCore_t*   Core)
 {
     // Notify everyone that we are running
+    GetMachine()->NumberOfCores++;
     Core->State = CpuStateRunning;
 
     // Create the idle-thread and scheduler for the core

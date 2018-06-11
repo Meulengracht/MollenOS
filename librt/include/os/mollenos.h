@@ -210,9 +210,7 @@ CRTDECL(OsStatus_t, DestroyFileMapping(void *MemoryPointer));
 /* __get_reserved
  * Read and write the magic tls thread-specific
  * pointer, we need to take into account the compiler here */
-SERVICEAPI
-size_t
-SERVICEABI
+SERVICEAPI size_t SERVICEABI
 __get_reserved(size_t Index) {
 	TLS_VALUE Value = 0;
 	size_t Offset   = (Index * sizeof(TLS_VALUE));
@@ -223,9 +221,7 @@ __get_reserved(size_t Index) {
 /* __set_reserved
  * Read and write the magic tls thread-specific
  * pointer, we need to take into account the compiler here */
-SERVICEAPI
-void
-SERVICEABI
+SERVICEAPI void SERVICEABI
 __set_reserved(size_t Index, TLS_VALUE Value) {
 	size_t Offset = (Index * sizeof(TLS_VALUE));
 	TLS_WRITE;

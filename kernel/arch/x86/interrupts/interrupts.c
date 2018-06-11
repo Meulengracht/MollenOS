@@ -74,6 +74,44 @@ __EXTERN void enter_thread(Context_t *Regs);
  * These are for external access to some of the ACPI information */
 __EXTERN Collection_t *GlbAcpiNodes;
 
+/* InitializeSoftwareInterrupts
+ * Initializes all the default software interrupt gates. */
+void
+InitializeSoftwareInterrupts(void)
+{
+    // Variables
+	MCoreInterrupt_t Interrupt;
+    Interrupt.Data              = NULL;
+    Interrupt.Vectors[1]        = INTERRUPT_NONE;
+    Interrupt.Line              = INTERRUPT_NONE;
+    Interrupt.Pin               = INTERRUPT_NONE;
+    
+    // Yield interrupt
+    Interrupt.Vectors[0]        = INTERRUPT_YIELD;
+    Interrupt.FastHandler       = ThreadingYieldHandler;
+    InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
+        | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
+
+    // Page synchronization interrupt
+    Interrupt.Vectors[0]        = INTERRUPT_SYNCHRONIZE_PAGE;
+    Interrupt.FastHandler       = PageSynchronizationHandler;
+    InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
+        | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
+	
+    // Install local apic handlers
+	// - LVT Error handler
+	Interrupt.Vectors[0]        = INTERRUPT_LVTERROR;
+	Interrupt.FastHandler       = ApicErrorHandler;
+    InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
+        | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
+	
+	// - Timer handler
+    Interrupt.Vectors[0]        = INTERRUPT_LAPIC;
+	Interrupt.FastHandler       = ApicTimerHandler;
+    InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
+        | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
+}
+
 /* InterruptGetApicConfiguration
  * Determines the correct APIC flags for the io-apic entry
  * from the interrupt structure */

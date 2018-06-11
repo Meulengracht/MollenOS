@@ -36,17 +36,21 @@
 #define X86_THREAD_EFLAGS			0x202
 #define X86_THREAD_SINGLESTEP		0x100
 
+/* ThreadingYieldHandler
+ * Software interrupt handler for the yield command. Emulates a regular timer interrupt. */
+KERNELAPI InterruptStatus_t KERNELABI
+ThreadingYieldHandler(
+    _In_ void*          Context);
+
 /* _ThreadingSwitch
  * This function loads a new task from the scheduler, it
  * implements the task-switching functionality, which MCore leaves
  * up to the underlying architecture */
-KERNELAPI
-Context_t*
-KERNELABI
+KERNELAPI Context_t* KERNELABI
 _ThreadingSwitch(
-    _In_ Context_t  *Context,
-    _In_ int         PreEmptive,
-    _Out_ size_t    *TimeSlice,
-    _Out_ int       *TaskQueue);
+    _In_  Context_t*    Context,
+    _In_  int           PreEmptive,
+    _Out_ size_t*       TimeSlice,
+    _Out_ int*          TaskQueue);
 
 #endif // !_MCORE_THREAD_H_

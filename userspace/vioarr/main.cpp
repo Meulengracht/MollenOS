@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2018, Philip Meulengracht
+ * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,7 +42,7 @@ bool ConvertSurfaceFormatToGLFormat(UISurfaceFormat_t Format, GLenum &FormatResu
         } break;
     }
     return Success;
-} 
+}
 
 Handle_t HandleCreateWindowRequest(MRemoteCallAddress_t *Process,
     UIWindowParameters_t *Parameters, BufferObject_t *Buffer) {
@@ -55,6 +55,7 @@ Handle_t HandleCreateWindowRequest(MRemoteCallAddress_t *Process,
     // one as we don't want a process to flood us
     Result = sEngine.GetExistingWindowForProcess(Process->Process);
     if (Result != nullptr) {
+        sLog.Warning("Tried to create a second process window");
         return Result;
     }
 
@@ -62,18 +63,22 @@ Handle_t HandleCreateWindowRequest(MRemoteCallAddress_t *Process,
     // the sizes, surface-type and buffer-size
     if (Parameters->Surface.Dimensions.w < 0 || Parameters->Surface.Dimensions.h < 0
         || !ConvertSurfaceFormatToGLFormat(Parameters->Surface.Format, Format, InternalFormat, BytesPerPixel)) {
+        sLog.Warning("Invalid window parameters");
         return nullptr;
     }
 
     // Validate the size of the buffer before acquiring it
     if (GetBufferSize(Buffer) < (Parameters->Surface.Dimensions.w * Parameters->Surface.Dimensions.h * BytesPerPixel)) {
+        sLog.Warning("Invalid window buffer size");
         return nullptr;
     }
 
     // Last step is to acquire the buffer and make sure we have access to it
     if (AcquireBuffer(Buffer) != OsSuccess) {
+        sLog.Warning("Failed to acquire the window buffer");
         return nullptr;
     }
+    ZeroBuffer(Buffer);
 
     // Everything is ok, create the window, set elements up and queue up for render
     Window = new CWindow(sEngine.GetContext());
@@ -114,7 +119,7 @@ void MessageHandler() {
                 BufferCopy = (BufferObject_t*)::malloc(GetBufferObjectSize(Buffer));
                 memcpy((void*)BufferCopy, Buffer, GetBufferObjectSize(Buffer));
                 Result = HandleCreateWindowRequest(&Message.From, Parameters, BufferCopy);
-                RPCRespond(&Message, Result, sizeof(Result));
+                RPCRespond(&Message, &Result, sizeof(Result));
             }
             if (Message.Function == __WINDOWMANAGER_DESTROY) {
                 Handle_t Pointer = (Handle_t)Message.Arguments[0].Data.Value;

@@ -58,12 +58,6 @@ int GlbIoApicI8259Apic = 0;
 extern void _rdmsr(size_t Register, uint64_t *Value);
 extern Collection_t *GlbAcpiNodes;
 
-/* Handlers, they are defined in ApicHandlers.c
- * but are installed by the boot setup apic func */
-__EXTERN InterruptStatus_t ApicErrorHandler(void *Args);
-__EXTERN InterruptStatus_t ApicSpuriousHandler(void *Args);
-__EXTERN InterruptStatus_t ApicTimerHandler(void *Args);
-
 /* Setup LVT0/1 for the given cpu, it tries
  * to locate LVT information in the ACPI tables
  * and if not it defaults to sane values defined in
@@ -410,7 +404,6 @@ void
 ApicInitialize(void)
 {
 	// Variables
-	MCoreInterrupt_t IrqInformation;
 	ACPI_TABLE_HEADER *Header       = NULL;
 	uint32_t TemporaryValue         = 0;
 	UUId_t BspApicId                = 0;
@@ -461,24 +454,6 @@ ApicInitialize(void)
 	// Do some initial shared Apic setup
 	// for this processor id
 	ApicInitialSetup(BspApicId);
-
-    // Prepare some irq information
-	IrqInformation.Data         = NULL;
-	IrqInformation.Line         = INTERRUPT_NONE;
-    IrqInformation.Pin          = INTERRUPT_NONE;
-    IrqInformation.Vectors[1]   = INTERRUPT_NONE;
-
-	// Install Apic Handlers 
-	// - LVT Error handler
-	// - Timer handler
-	IrqInformation.Vectors[0]   = INTERRUPT_LVTERROR;
-	IrqInformation.FastHandler  = ApicErrorHandler;
-    InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFT 
-        | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
-	IrqInformation.Vectors[0]   = INTERRUPT_LAPIC;
-	IrqInformation.FastHandler  = ApicTimerHandler;
-    InterruptRegister(&IrqInformation, INTERRUPT_KERNEL | INTERRUPT_SOFT 
-        | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
 
 	// Actually enable APIC on the
 	// boot processor, afterwards
