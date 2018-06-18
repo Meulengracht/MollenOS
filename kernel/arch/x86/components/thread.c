@@ -81,6 +81,9 @@ ThreadingYieldHandler(
 		ApicSetTaskPriority(0);
 		ApicWriteLocal(APIC_INITIAL_COUNT, 0);
 	}
+
+    // Manually update interrupt status
+    InterruptSetActiveStatus(0);
     
     // Enter new thread, no returning
 	enter_thread(Regs);

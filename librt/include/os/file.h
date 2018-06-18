@@ -156,7 +156,7 @@ RegisterDisk(
 
 	// Initialize RPC
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_REGISTERDISK);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_REGISTERDISK);
 	RPCSetArgument(&Request, 0, (const void*)&Device, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (const void*)&Flags, sizeof(Flags_t));
 	return RPCEvent(&Request);
@@ -177,7 +177,7 @@ UnregisterDisk(
 
 	// Initialize RPC
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_UNREGISTERDISK);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_UNREGISTERDISK);
 	RPCSetArgument(&Request, 0, (const void*)&Device, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (const void*)&Flags, sizeof(Flags_t));
 	return RPCEvent(&Request);
@@ -196,7 +196,7 @@ QueryDiskByPath(
 	MRemoteCall_t Request;
 
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_QUERYDISKBYPATH);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_QUERYDISKBYPATH);
 	RPCSetArgument(&Request, 0, (const void*)Path, strlen(Path) + 1);
 	RPCSetResult(&Request, (const void*)StorageDescriptor, sizeof(vStorageDescriptor_t));
 	return RPCExecute(&Request);
@@ -215,7 +215,7 @@ QueryDiskByHandle(
 	MRemoteCall_t Request;
     
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_QUERYDISKBYHANDLE);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_QUERYDISKBYHANDLE);
 	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
 	RPCSetResult(&Request, (const void*)StorageDescriptor, sizeof(vStorageDescriptor_t));
 	return RPCExecute(&Request);
@@ -240,7 +240,7 @@ OpenDirectory(
 
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_OPENDIRECTORY);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_OPENDIRECTORY);
 	RPCSetArgument(&Request, 0, (const void*)Path, strlen(Path) + 1);
 	RPCSetArgument(&Request, 1, (const void*)&Options, sizeof(Flags_t));
 	RPCSetArgument(&Request, 2, (const void*)&Access, sizeof(Flags_t));
@@ -270,7 +270,7 @@ CloseDirectory(
 
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_CLOSEDIRECTORY);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_CLOSEDIRECTORY);
 	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
 	RPCSetResult(&Request, (const void*)&Result, sizeof(FileSystemCode_t));
 
@@ -296,7 +296,7 @@ ReadDirectory(
 
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_READDIRECTORY);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_READDIRECTORY);
 	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
 	RPCSetResult(&Request, (const void*)DirectoryEntry, sizeof(ReadDirectoryPackage_t));
 
@@ -323,7 +323,7 @@ SeekDirectory(
 
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_SEEKDIRECTORY);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_SEEKDIRECTORY);
 	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (const void*)&Index, sizeof(int));
 	RPCSetResult(&Request, (const void*)&Result, sizeof(FileSystemCode_t));
@@ -354,7 +354,7 @@ OpenFile(
 
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_OPENFILE);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_OPENFILE);
 	RPCSetArgument(&Request, 0, (const void*)Path, strlen(Path) + 1);
 	RPCSetArgument(&Request, 1, (const void*)&Options, sizeof(Flags_t));
 	RPCSetArgument(&Request, 2, (const void*)&Access, sizeof(Flags_t));
@@ -384,7 +384,7 @@ CloseFile(
 
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_CLOSEFILE);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_CLOSEFILE);
 	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
 	RPCSetResult(&Request, (const void*)&Result, sizeof(FileSystemCode_t));
 
@@ -411,7 +411,7 @@ DeletePath(
 
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_DELETEPATH);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_DELETEPATH);
 	RPCSetArgument(&Request, 0, (const void*)Path, strlen(Path) + 1);
 	RPCSetArgument(&Request, 1, (const void*)&Flags, sizeof(Flags_t));
 	RPCSetResult(&Request, (const void*)&Result, sizeof(FileSystemCode_t));
@@ -441,7 +441,7 @@ ReadFile(
 
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_READFILE);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_READFILE);
 	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (const void*)BufferObject, GetBufferObjectSize(BufferObject));
 	RPCSetResult(&Request, (const void*)&Package, sizeof(RWFilePackage_t));
@@ -480,7 +480,7 @@ WriteFile(
 
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_WRITEFILE);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_WRITEFILE);
 	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (const void*)BufferObject, GetBufferObjectSize(BufferObject));
 	RPCSetResult(&Request, (const void*)&Package, sizeof(RWFilePackage_t));
@@ -517,7 +517,7 @@ SeekFile(
 
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_SEEKFILE);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_SEEKFILE);
 	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (const void*)&SeekLo, sizeof(uint32_t));
 	RPCSetArgument(&Request, 2, (const void*)&SeekHi, sizeof(uint32_t));
@@ -545,7 +545,7 @@ FlushFile(
 
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_FLUSHFILE);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_FLUSHFILE);
 	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
 	RPCSetResult(&Request, (const void*)&Result, sizeof(FileSystemCode_t));
 
@@ -574,7 +574,7 @@ MoveFile(
 
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_MOVEFILE);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_MOVEFILE);
 	RPCSetArgument(&Request, 0, (const void*)Source, strlen(Source) + 1);
 	RPCSetArgument(&Request, 1, (const void*)Destination, strlen(Destination) + 1);
 	RPCSetArgument(&Request, 2, (const void*)&Copy, sizeof(int));
@@ -605,7 +605,7 @@ GetFilePosition(
 
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_GETPOSITION);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_GETPOSITION);
 	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
 	RPCSetResult(&Request, (const void*)&Package, sizeof(QueryFileValuePackage_t));
 	
@@ -643,7 +643,7 @@ GetFileOptions(
 
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_GETOPTIONS);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_GETOPTIONS);
 	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
 	RPCSetResult(&Request, (const void*)&Package, sizeof(QueryFileOptionsPackage_t));
 	
@@ -677,7 +677,7 @@ SetFileOptions(
 
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_SETOPTIONS);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_SETOPTIONS);
 	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (const void*)&Options, sizeof(Flags_t));
 	RPCSetArgument(&Request, 2, (const void*)&Access, sizeof(Flags_t));
@@ -708,7 +708,7 @@ GetFileSize(
 
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_GETSIZE);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_GETSIZE);
 	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
 	RPCSetResult(&Request, (const void*)&Package, sizeof(QueryFileValuePackage_t));
 
@@ -749,7 +749,7 @@ GetFilePath(
 
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_GETPATH);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_GETPATH);
 	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
 	RPCSetResult(&Request, (const void*)&Buffer[0], _MAXPATH);
 
@@ -778,7 +778,7 @@ GetFileStatsByPath(
 
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_GETSTATSBYPATH);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_GETSTATSBYPATH);
 	RPCSetArgument(&Request, 0, (const void*)Path, strlen(Path) + 1);
 	RPCSetResult(&Request, (const void*)&FileDescriptor, sizeof(vFileDescriptor_t));
 	return RPCExecute(&Request);
@@ -799,7 +799,7 @@ GetFileStatsByHandle(
 
 	// Initialize the request
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __FILEMANAGER_GETSTATSBYHANDLE);
+        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_GETSTATSBYHANDLE);
 	RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
 	RPCSetResult(&Request, (const void*)&FileDescriptor, sizeof(vFileDescriptor_t));
 	return RPCExecute(&Request);

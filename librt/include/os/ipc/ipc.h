@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,19 +23,17 @@
  * - Pipe routines
  */
 
-#ifndef _IPC_INTERFACE_H_
-#define _IPC_INTERFACE_H_
+#ifndef __IPC_INTERFACE__
+#define __IPC_INTERFACE__
 
-/* Includes
- * - C-Library */
 #include <os/osdefs.h>
 
 /* IPC Declaration definitions that can
  * be used by the different IPC systems */
-#define IPC_DECL_FUNCTION(FunctionNo)			(int)FunctionNo
-#define IPC_DECL_EVENT(EventNo)					(int)(0x100 + EventNo)
-#define IPC_MAX_ARGUMENTS						5
-#define IPC_MAX_MESSAGELENGTH                   2048
+#define IPC_DECL_FUNCTION(FunctionNo)   (int)FunctionNo
+#define IPC_DECL_EVENT(EventNo)         (int)(0x100 + EventNo)
+#define IPC_MAX_ARGUMENTS               5
+#define IPC_MAX_MESSAGELENGTH           2048
 
 /* Predefined system pipe-ports that should not
  * be used by user pipes. Trying to open new pipes
@@ -43,23 +41,20 @@
 #define PIPE_STDOUT                     0
 #define PIPE_STDIN                      1
 #define PIPE_STDERR                     2
-#define PIPE_RPCOUT						3
-#define PIPE_RPCIN						4
+#define PIPE_REMOTECALL                 3
 
 /* Predefined system events that is common for
  * all userspace applications, these primarily consists
  * of input and/or window events */
-#define EVENT_INPUT						IPC_DECL_EVENT(0)
+#define EVENT_INPUT                     IPC_DECL_EVENT(0)
 
 /* Argument type definitions 
  * Used by both RPC and Event argument systems */
-#define ARGUMENT_NOTUSED				0
-#define ARGUMENT_BUFFER					1
-#define ARGUMENT_REGISTER				2
+#define ARGUMENT_NOTUSED                0
+#define ARGUMENT_BUFFER                 1
+#define ARGUMENT_REGISTER               2
 
-/* Include 
- * - Systems */
 #include <os/ipc/rpc.h>
 #include <os/ipc/pipe.h>
 
-#endif //!_IPC_INTERFACE_H_
+#endif //!__IPC_INTERFACE__

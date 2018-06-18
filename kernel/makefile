@@ -10,6 +10,7 @@ SOURCES = $(wildcard acpi/*.c) \
 		  $(wildcard process/loaders/*.c) \
 		  $(wildcard process/*.c) \
 		  $(wildcard synchronization/*.c) \
+		  $(wildcard tests/*.c) \
 		  $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o)
 

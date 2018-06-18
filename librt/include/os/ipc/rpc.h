@@ -21,23 +21,21 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _RPC_INTERFACE_H_
-#define _RPC_INTERFACE_H_
+#ifndef __RPC_INTERFACE__
+#define __RPC_INTERFACE__
 
-#ifndef _IPC_INTERFACE_H_
+#ifndef __IPC_INTERFACE__
 #error "You must include ipc.h and not this directly"
 #endif
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
 #include <string.h>
+#include <assert.h>
 
 /* MRemoteCallAddress
  * A mailbox address for a remote call procedure. A remote call
  * always include both a From and To address. */
 PACKED_TYPESTRUCT(MRemoteCallAddress, {
-    uint8_t                 Type;
     UUId_t                  Process;
     int                     Port;
 });
@@ -75,9 +73,7 @@ _CODE_BEGIN
 
 /* RPCInitialize 
  * Initializes a new RPC message of the given type and length */
-SERVICEAPI
-void
-SERVICEABI
+SERVICEAPI void SERVICEABI
 RPCInitialize(
     _In_ MRemoteCall_t* RemoteCall,
     _In_ UUId_t         Target,
@@ -93,31 +89,22 @@ RPCInitialize(
     // Setup from/to as much as possible
     RemoteCall->To.Process  = Target;
     RemoteCall->To.Port     = Port;
-    RemoteCall->From.Port   = PIPE_RPCIN;
 }
 
 /* RPCSetArgument
  * Adds a new argument for the RPC request at the given argument index. 
  * It's not possible to override a current argument */
-SERVICEAPI
-void
-SERVICEABI
+SERVICEAPI void SERVICEABI
 RPCSetArgument(
     _In_ MRemoteCall_t* RemoteCall,
     _In_ int            Index, 
     _In_ const void*    Data, 
     _In_ size_t         Length)
 {
-    // Sanitize the index and the current argument
-    if (Index >= IPC_MAX_ARGUMENTS || Index < 0 
-        || RemoteCall->Arguments[Index].Type != ARGUMENT_NOTUSED) {
-        return;
-    }
-    
-    // We must have room for the argument
-    if ((RemoteCall->DataLength + Length) > IPC_MAX_MESSAGELENGTH || Length == 0) {
-        return;
-    }
+    // Sanitize input parameters
+    assert((RemoteCall->DataLength + Length) <= IPC_MAX_MESSAGELENGTH);
+    assert((Index >= 0 && Index < IPC_MAX_ARGUMENTS) && Length > 0);
+    assert(RemoteCall->Arguments[Index].Type == ARGUMENT_NOTUSED);
 
     // Determine the type of argument
 #if __BITS == 64
@@ -167,9 +154,7 @@ RPCSetResult(
 /* RPCGetStringArgument
  * Casts the argument index to a string safely and handling cases where string
  * fits entirely into the register argument. */
-SERVICEAPI 
-const char*
-SERVICEABI
+SERVICEAPI const char* SERVICEABI
 RPCGetStringArgument(
     _In_ MRemoteCall_t* RemoteCall,
     _In_ int            Index)
@@ -189,9 +174,7 @@ RPCGetStringArgument(
 /* RPCCastArgumentToPointer
  * Casts the argument to a pointer safely and handling cases where data
  * fits entirely into the register argument. */
-SERVICEAPI 
-OsStatus_t
-SERVICEABI
+SERVICEAPI OsStatus_t SERVICEABI
 RPCCastArgumentToPointer(
     _In_  MRemoteCallArgument_t*    Argument,
     _Out_ void**                    DataOut)
@@ -245,4 +228,4 @@ RPCRespond(
     _In_ size_t         Length));
 _CODE_END
 
-#endif //!_RPC_INTERFACE_H_
+#endif //!__RPC_INTERFACE__

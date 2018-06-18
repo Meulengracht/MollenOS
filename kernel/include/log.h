@@ -20,11 +20,9 @@
  * - Contains the shared kernel log interface for logging-usage
  */
 
-#ifndef _MCORE_LOG_H_
-#define _MCORE_LOG_H_
+#ifndef __LOGGING_INTERFACE__
+#define __LOGGING_INTERFACE__
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 #include <criticalsection.h>
 #include <pipe.h>
@@ -65,8 +63,8 @@ typedef struct _MCoreLog {
     int                 AllowRender;
 
     // Debug pipes
-    MCorePipe_t*        STDOUT;
-    MCorePipe_t*        STDERR;
+    SystemPipe_t*       STDOUT;
+    SystemPipe_t*       STDERR;
 } MCoreLog_t;
 
 /* LogInitialize
@@ -99,12 +97,12 @@ LogAppendMessage(
 
 /* LogPipeStdout
  * The log pipe for stdout when no windowing system is running. */
-KERNELAPI MCorePipe_t* KERNELABI
+KERNELAPI SystemPipe_t* KERNELABI
 LogPipeStdout(void);
 
 /* LogPipeStderr
  * The log pipe for stderr when no windowing system is running. */
-KERNELAPI MCorePipe_t* KERNELABI
+KERNELAPI SystemPipe_t* KERNELABI
 LogPipeStderr(void);
 
-#endif
+#endif // !__LOGGING_INTERFACE__

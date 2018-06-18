@@ -57,7 +57,7 @@ UsbHubGetPortStatus(
 
     // Initialize RPC
     RPCInitialize(&Request, __USBMANAGER_TARGET, 
-        __USBHUB_INTERFACE_VERSION, PIPE_RPCOUT, __USBMANAGER_PORTEVENT);
+        __USBHUB_INTERFACE_VERSION, PIPE_REMOTECALL, __USBMANAGER_PORTEVENT);
 
     // Setup arguments
     RPCSetArgument(&Request, 0, (const void*)&DeviceId, sizeof(UUId_t));

@@ -181,12 +181,12 @@ OnQuery(_In_ MContractType_t QueryType,
 
 		// Write the descriptor back
 		if (Device != NULL) {
-			return PipeSend(Queryee, ResponsePort,
+			return SendPipe(Queryee, ResponsePort,
 				(void*)&Device->Descriptor, sizeof(DiskDescriptor_t));
 		}
 		else {
 			OsStatus_t Result = OsError;
-			return PipeSend(Queryee, ResponsePort,
+			return SendPipe(Queryee, ResponsePort,
 				(void*)&Result, sizeof(OsStatus_t));
 		}
 
@@ -220,7 +220,7 @@ OnQuery(_In_ MContractType_t QueryType,
 			&& Operation->Direction == __DISK_OPERATION_READ) {
 			if (AhciReadSectors(Transaction, Operation->AbsSector) != OsSuccess) {
 				OsStatus_t Result = OsError;
-				return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
+				return SendPipe(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
 			}
 			else {
 				return OsSuccess;
@@ -230,7 +230,7 @@ OnQuery(_In_ MContractType_t QueryType,
 			&& Operation->Direction == __DISK_OPERATION_WRITE) {
 			if (AhciWriteSectors(Transaction, Operation->AbsSector) != OsSuccess) {
 				OsStatus_t Result = OsError;
-				return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
+				return SendPipe(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
 			}
 			else {
 				return OsSuccess;
@@ -238,7 +238,7 @@ OnQuery(_In_ MContractType_t QueryType,
 		}
 		else {
 			OsStatus_t Result = OsError;
-			return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
+			return SendPipe(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
 		}
 
 	} break;

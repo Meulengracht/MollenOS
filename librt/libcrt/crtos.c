@@ -198,9 +198,8 @@ __CrtInitialize(
         ParseCommandLine(&StartupArgumentBuffer[0], Arguments);
     }
 
-    // Initialize default comm pipes
-    PipeOpen(PIPE_RPCOUT);
-    PipeOpen(PIPE_RPCIN);
+    // Initialize default comm pipe
+    OpenPipe(PIPE_REMOTECALL, PIPE_STRUCTURED);
 
 	// Initialize C/CPP constructors as the last step
     __cxa_runinitializers(__CrtCxxInitialize, __CrtCxxFinalize, __CrtAttachTlsBlock);

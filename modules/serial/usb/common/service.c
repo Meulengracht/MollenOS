@@ -109,7 +109,7 @@ OnQuery(
     Device      = (UUId_t)Arg0->Data.Value;
     Controller  = UsbManagerGetController(Device);
     if (Controller == NULL) {
-        return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
+        return SendPipe(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
     }
 
     switch (QueryFunction) {
@@ -127,7 +127,7 @@ OnQuery(
             ResPackage.Id               = Transfer->Id;
             ResPackage.BytesTransferred = 0;
             if (ResPackage.Status != TransferQueued) {
-                return PipeSend(Queryee, ResponsePort, (void*)&ResPackage, sizeof(UsbTransferResult_t));
+                return SendPipe(Queryee, ResponsePort, (void*)&ResPackage, sizeof(UsbTransferResult_t));
             }
             else {
                 return OsSuccess;
@@ -152,7 +152,7 @@ OnQuery(
             }
             ResPackage.Id               = Transfer->Id;
             ResPackage.BytesTransferred = 0;
-            return PipeSend(Queryee, ResponsePort, (void*)&ResPackage, sizeof(UsbTransferResult_t));
+            return SendPipe(Queryee, ResponsePort, (void*)&ResPackage, sizeof(UsbTransferResult_t));
         } break;
 
         // Dequeue Transfer
@@ -179,7 +179,7 @@ OnQuery(
             }
 
             // Send back package
-            return PipeSend(Queryee, ResponsePort, (void*)&Status, sizeof(UsbTransferStatus_t));
+            return SendPipe(Queryee, ResponsePort, (void*)&Status, sizeof(UsbTransferStatus_t));
         } break;
 
         // Reset port
@@ -191,7 +191,7 @@ OnQuery(
         case __USBHOST_QUERYPORT: {
             UsbHcPortDescriptor_t Descriptor;
             HciPortGetStatus(Controller, (int)Arg1->Data.Value, &Descriptor);
-            return PipeSend(Queryee, ResponsePort, (void*)&Descriptor, sizeof(UsbHcPortDescriptor_t));
+            return SendPipe(Queryee, ResponsePort, (void*)&Descriptor, sizeof(UsbHcPortDescriptor_t));
         } break;
         
         // Reset endpoint toggles
@@ -209,5 +209,5 @@ OnQuery(
 
     // Dunno, fall-through case
     // Return status response
-    return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
+    return SendPipe(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
 }

@@ -36,7 +36,6 @@
 
 /* Includes
  * - System */
-#include <criticalsection.h>
 #include <atomicsection.h>
 #include <threading.h>
 
@@ -57,18 +56,18 @@
 /* MCoreSchedulerQueue
  * Represents a queue level in the scheduler. */
 typedef struct _MCoreSchedulerQueue {
-    MCoreThread_t               *Head;
-    MCoreThread_t               *Tail;
+    MCoreThread_t*      Head;
+    MCoreThread_t*      Tail;
+    AtomicSection_t     SyncObject;
 } SchedulerQueue_t;
 
 /* MCoreScheduler
  * The core scheduler, contains information needed
  * to keep track of active threads and priority queues. */
 typedef struct _MCoreScheduler {
-    SchedulerQueue_t            Queues[SCHEDULER_LEVEL_COUNT];
-    size_t                      BoostTimer;
-    int                         ThreadCount;
-    CriticalSection_t           QueueLock;
+    SchedulerQueue_t    Queues[SCHEDULER_LEVEL_COUNT];
+    size_t              BoostTimer;
+    int                 ThreadCount;
 } MCoreScheduler_t;
 
 /* SchedulerInitialize
@@ -89,13 +88,15 @@ SchedulerThreadInitialize(
  * core in the thread structure. */
 KERNELAPI OsStatus_t KERNELABI
 SchedulerThreadQueue(
-    _In_ MCoreThread_t*     Thread);
+    _In_ MCoreThread_t*     Thread,
+    _In_ int                SuppressSynchronization);
 
 /* SchedulerThreadDequeue
  * Disarms a thread from all queues and mark the thread inactive. */
 KERNELAPI OsStatus_t KERNELABI
 SchedulerThreadDequeue(
-    _In_ MCoreThread_t*     Thread);
+    _In_ MCoreThread_t*     Thread,
+    _In_ int                AppendToSleepQueue);
 
 /* SchedulerThreadSleep
  * Enters the current thread into sleep-queue. Can return different
@@ -111,6 +112,7 @@ SchedulerThreadSleep(
 KERNELAPI int KERNELABI
 SchedulerAtomicThreadSleep(
     _In_ uintptr_t*         Handle,
+    _In_ size_t             Timeout,
     _In_ AtomicSection_t*   Section);
 
 /* SchedulerThreadSignal

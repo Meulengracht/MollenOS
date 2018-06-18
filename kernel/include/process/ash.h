@@ -23,8 +23,6 @@
 #ifndef _MCORE_ASH_H_
 #define _MCORE_ASH_H_
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 #include <ds/blbitmap.h>
 #include <ds/mstring.h>
@@ -35,7 +33,6 @@
 #include <system/addressspace.h>
 #include <process/pe.h>
 #include <criticalsection.h>
-#include <mutex.h>
 #include <pipe.h>
 
 /* Settings for ashes in the system, they
@@ -118,9 +115,7 @@ typedef struct _MCoreAshFileMappingEvent {
  * prepares the ash-environment, at this point
  * it won't be completely running yet, it needs
  * its own thread for that. Returns 0 on success */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 PhoenixInitializeAsh(
     _InOut_ MCoreAsh_t  *Ash, 
     _In_ MString_t      *Path);
@@ -129,18 +124,14 @@ PhoenixInitializeAsh(
  * This is a wrapper for starting up a base Ash
  * and uses <PhoenixInitializeAsh> to setup the env
  * and do validation before starting */
-KERNELAPI
-UUId_t
-KERNELABI
+KERNELAPI UUId_t KERNELABI
 PhoenixStartupAsh(
     _In_ MString_t *Path);
 
 /* PhoenixStartupEntry
  * This is the standard ash-boot function
  * which simply sets up the ash and jumps to userland */
-KERNELAPI
-void
-KERNELABI
+KERNELAPI void KERNELABI
 PhoenixStartupEntry(
     _In_ void *BasePointer);
 
@@ -151,20 +142,16 @@ KERNELAPI void PhoenixFinishAsh(MCoreAsh_t *Ash);
 
 /* PhoenixOpenAshPipe
  * Creates a new communication pipe available for use. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 PhoenixOpenAshPipe(
-    _In_ MCoreAsh_t  *Ash, 
-    _In_ int          Port, 
-    _In_ Flags_t      Flags);
+    _In_ MCoreAsh_t*    Ash, 
+    _In_ int            Port, 
+    _In_ int            Type);
 
 /* PhoenixWaitAshPipe
  * Waits for a pipe to be opened on the given
  * ash instance. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 PhoenixWaitAshPipe(
     _In_ MCoreAsh_t *Ash, 
     _In_ int         Port);
@@ -173,9 +160,7 @@ PhoenixWaitAshPipe(
  * Closes the pipe for the given Ash, and cleansup
  * resources allocated by the pipe. This shutsdown
  * any communication on the port */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 PhoenixCloseAshPipe(
     _In_ MCoreAsh_t *Ash, 
     _In_ int         Port);
@@ -183,9 +168,7 @@ PhoenixCloseAshPipe(
 /* PhoenixGetAshPipe
  * Retrieves an existing pipe instance for the given ash
  * and port-id. If it doesn't exist, returns NULL. */
-KERNELAPI
-MCorePipe_t*
-KERNELABI
+KERNELAPI SystemPipe_t* KERNELABI
 PhoenixGetAshPipe(
     _In_ MCoreAsh_t     *Ash, 
     _In_ int             Port);
@@ -194,18 +177,14 @@ PhoenixGetAshPipe(
  * Cleans up a given Ash, freeing all it's allocated resources
  * and unloads it's executables, memory space is not cleaned up
  * must be done by external thread */
-KERNELAPI
-void
-KERNELABI
+KERNELAPI void KERNELABI
 PhoenixCleanupAsh(
     _In_ MCoreAsh_t *Ash);
 
 /* PhoenixTerminateAsh
  * This marks an ash for termination by taking it out
  * of rotation and adding it to the cleanup list */
-KERNELAPI
-void
-KERNELABI
+KERNELAPI void KERNELABI
 PhoenixTerminateAsh(
     _In_ MCoreAsh_t*    Ash,
     _In_ int            ExitCode,
@@ -214,33 +193,25 @@ PhoenixTerminateAsh(
 
 /* PhoenixFileMappingEvent
  * Signals a new file-mapping access event to the phoenix process system. */
-KERNELAPI
-void
-KERNELABI
+KERNELAPI void KERNELABI
 PhoenixFileMappingEvent(
     _In_ MCoreAshFileMappingEvent_t* Event);
 
 /* PhoenixGetAsh
  * This function looks up a ash structure by the given id */
-KERNELAPI
-MCoreAsh_t*
-KERNELABI
+KERNELAPI MCoreAsh_t* KERNELABI
 PhoenixGetAsh(
     _In_ UUId_t AshId);
 
 /* PhoenixGetCurrentAsh
  * Retrives the current ash for the running thread */
-KERNELAPI 
-MCoreAsh_t*
-KERNELABI
+KERNELAPI MCoreAsh_t* KERNELABI
 PhoenixGetCurrentAsh(void);
 
 /* PhoenixGetAshByName
  * This function looks up a ash structure by the given name */
-KERNELAPI
-MCoreAsh_t*
-KERNELABI
+KERNELAPI MCoreAsh_t* KERNELABI
 PhoenixGetAshByName(
-    _In_ __CONST char *Name);
+    _In_ const char *Name);
 
 #endif //!_MCORE_ASH_H_

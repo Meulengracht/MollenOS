@@ -83,7 +83,7 @@ ThreadingEnable(void)
     Thread->AshId       = UUID_INVALID;
     Thread->Flags       = THREADING_KERNELMODE | THREADING_IDLE | THREADING_CPUBOUND;
     SchedulerThreadInitialize(Thread, Thread->Flags);
-    Thread->Pipe        = PipeCreate(PIPE_DEFAULT_SIZE, 0);
+    Thread->Pipe        = CreateSystemPipe(0, 6); // 64 entries, 4kb
     Thread->SignalQueue = CollectionCreate(KeyInteger);
     Key.Value           = (int)Thread->Id;
     COLLECTION_NODE_INIT(&Thread->CollectionHeader, Key);
@@ -189,7 +189,7 @@ ThreadingCreateThread(
     SchedulerThreadInitialize(Thread, Flags);
 
     // Create communication members
-    Thread->Pipe        = PipeCreate(PIPE_DEFAULT_SIZE, 0);
+    Thread->Pipe        = CreateSystemPipe(0, 6); // 64 entries, 4kb
     Thread->SignalQueue = CollectionCreate(KeyInteger);
     Thread->ActiveSignal.Signal = -1;
 
@@ -234,7 +234,7 @@ ThreadingCreateThread(
     // Append it to list & scheduler
     Key.Value = (int)Thread->Id;
     CollectionAppend(&Threads, &Thread->CollectionHeader);
-    SchedulerThreadQueue(Thread);
+    SchedulerThreadQueue(Thread, 0);
     return Thread->Id;
 }
 
@@ -252,7 +252,7 @@ ThreadingCleanupThread(
 
     // Make sure we are completely removed as reference
     // from the entire system
-    SchedulerThreadDequeue(Thread);
+    SchedulerThreadDequeue(Thread, 0);
     ThreadingUnregister(Thread);
 
     // Cleanup lists and systems
@@ -261,7 +261,7 @@ ThreadingCleanupThread(
     }
     CollectionDestroy(Thread->SignalQueue);
     AddressSpaceDestroy(Thread->AddressSpace);
-    PipeDestroy(Thread->Pipe);
+    DestroySystemPipe(Thread->Pipe);
 
     // Free resources allocated
     kfree((void*)Thread->Name);
@@ -530,6 +530,7 @@ GetNextThread:
     {
         // Handle the sleep flag
         if (Current->Flags & THREADING_TRANSITION_SLEEP) {
+            SchedulerThreadDequeue(Current, 1);
             Current->Flags &= ~(THREADING_TRANSITION_SLEEP);
         }
 

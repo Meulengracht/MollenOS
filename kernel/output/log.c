@@ -43,18 +43,23 @@ LogPipeHandler(
     _In_ void *PipeInstance)
 {
     // Variables
-    MCorePipe_t *Pipe   = (MCorePipe_t*)PipeInstance;
-    unsigned int Worker = 0;
+    SystemPipe_t *Pipe = (SystemPipe_t*)PipeInstance;
     char MessageBuffer[256];
+    int i;
 
     // Listen forever
     while (1) {
+        // Reset buffer
         memset((void*)MessageBuffer, 0, sizeof(MessageBuffer));
+        i = 0;
 
-        // Get data
-        PipeConsumeAcquire(Pipe, &Worker);
-        PipeConsume(Pipe, (uint8_t*)&MessageBuffer[0], sizeof(MessageBuffer), Worker);
-        PipeConsumeCommit(Pipe, Worker);
+        // Read untill newline
+        while (1) {
+            ReadSystemPipe(Pipe, (uint8_t*)&MessageBuffer[i++], 1);
+            if (MessageBuffer[i] == '\n') {
+                break;
+            }
+        }
 
         // Print
         LogAppendMessage(LogPipe, "PIPE", (const char*)&MessageBuffer[0]);
@@ -97,9 +102,9 @@ LogInitializeFull(void)
     LogObject.NumberOfLines = LOG_PREFFERED_SIZE / sizeof(MCoreLogLine_t);
 	CriticalSectionLeave(&LogObject.SyncObject);
 
-    // Create pipes
-    LogObject.STDOUT = PipeCreate(0x1000, 0);
-    LogObject.STDERR = PipeCreate(0x1000, 0);
+    // Create 4kb pipes
+    LogObject.STDOUT = CreateSystemPipe(0, 6); // 1 << 6, 64 entries, 1 << 12 is 4kb
+    LogObject.STDERR = CreateSystemPipe(0, 6); // 1 << 6, 64 entries, 1 << 12 is 4kb
 
     // Create the threads that will echo the pipes
     PipeThreads[0] = ThreadingCreateThread("LogPipe_STDOUT", LogPipeHandler, (void*)LogObject.STDOUT, 0);
@@ -196,12 +201,12 @@ LogAppendMessage(
 
 /* LogPipeStdout
  * The log pipe for stdout when no windowing system is running. */
-MCorePipe_t *LogPipeStdout(void) {
+SystemPipe_t *LogPipeStdout(void) {
     return LogObject.STDOUT;
 }
 
 /* LogPipeStderr
  * The log pipe for stderr when no windowing system is running. */
-MCorePipe_t *LogPipeStderr(void) {
+SystemPipe_t *LogPipeStderr(void) {
     return LogObject.STDERR;
 }

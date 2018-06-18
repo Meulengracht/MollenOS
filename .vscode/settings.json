@@ -317,7 +317,9 @@
         "bufferpool.h": "c",
         "cpu.h": "c",
         "domain.h": "c",
-        "*.tcc": "c"
+        "*.tcc": "c",
+        "atomicsection.h": "c",
+        "semaphore_slim.h": "c"
     },
     "git.ignoreLimitWarning": true,
     "terminal.integrated.shell.windows": "C:\\Windows\\sysnative\\bash.exe"

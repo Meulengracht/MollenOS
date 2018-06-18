@@ -19,8 +19,6 @@
  * MollenOS Pipe Communication Interface
  */
 
-/* Includes
- * - System */
 #include <os/syscall.h>
 #include <os/ipc/pipe.h>
 
@@ -29,25 +27,24 @@
 #include <signal.h>
 #include <assert.h>
 
-/* PipeOpen
- * Opens a new communication pipe on the given
- * port for this process, if one already exists
- * SIGPIPE is signaled */
+/* OpenPipe
+ * Opens a new communication pipe on the given port for this process, 
+ * if one already exists SIGPIPE is signaled */
 OsStatus_t
-PipeOpen(
-    _In_ int Port)
+OpenPipe(
+    _In_ int    Port, 
+    _In_ int    Type)
 {
     assert(Port >= 0);
-	return Syscall_PipeOpen(Port, 0);
+	return Syscall_PipeOpen(Port, Type);
 }
 
-/* PipeClose
- * Closes an existing communication pipe on the given
- * port for this process, if one doesn't exists
- * SIGPIPE is signaled */
+/* ClosePipe
+ * Closes an existing communication pipe on the given port for this process, 
+ * if one doesn't exists SIGPIPE is signaled */
 OsStatus_t
-PipeClose(
-    _In_ int Port)
+ClosePipe(
+    _In_ int    Port)
 {
     assert(Port >= 0);
 	return Syscall_PipeClose(Port);
@@ -58,7 +55,7 @@ PipeClose(
  * a message from the message queue, otherwise it returns 0
  * and fills the structures with information about the message */
 OsStatus_t
-PipeRead(
+ReadPipe(
     _In_ int    Port,
     _In_ void*  Buffer,
     _In_ size_t Length)
@@ -74,7 +71,7 @@ PipeRead(
  * The send and recieve calls can actually be used for reading extern pipes
  * and send to external pipes */
 OsStatus_t
-PipeSend(
+SendPipe(
     _In_ UUId_t ProcessId,
     _In_ int    Port,
     _In_ void*  Buffer,
@@ -91,13 +88,14 @@ PipeSend(
  * The send and recieve calls can actually be used for reading extern pipes
  * and send to external pipes */
 OsStatus_t
-PipeReceive(
+ReceivePipe(
     _In_ UUId_t ProcessId,
     _In_ int    Port,
     _In_ void*  Buffer,
-    _In_ size_t Length) {
+    _In_ size_t Length)
+{
     if (ProcessId == UUID_INVALID) {
-        return PipeRead(Port, Buffer, Length);
+        return ReadPipe(Port, Buffer, Length);
     }
     assert(Port >= 0);
     assert(Buffer != NULL);

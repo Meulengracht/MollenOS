@@ -156,7 +156,7 @@ RegisterDevice(
 
 	// Initialize RPC
 	RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
-        __DEVICEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __DEVICEMANAGER_REGISTERDEVICE);
+        __DEVICEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __DEVICEMANAGER_REGISTERDEVICE);
 	RPCSetArgument(&Request, 0, (const void*)&Parent, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (const void*)Device, Device->Length);
     RPCSetArgument(&Request, 2, (const void*)&Flags, sizeof(Flags_t));
@@ -197,7 +197,7 @@ UnregisterDevice(
 
 	// Initialize RPC
 	RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
-        __DEVICEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __DEVICEMANAGER_UNREGISTERDEVICE);
+        __DEVICEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __DEVICEMANAGER_UNREGISTERDEVICE);
 	RPCSetArgument(&Request, 0, (__CONST void*)&DeviceId, sizeof(UUId_t));
     RPCSetResult(&Request, (__CONST void*)&Result, sizeof(OsStatus_t));
 	if (RPCExecute(&Request) != OsSuccess) {
@@ -232,7 +232,7 @@ IoctlDevice(
 
 	// Initialize RPC
 	RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
-        __DEVICEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __DEVICEMANAGER_IOCTLDEVICE);
+        __DEVICEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __DEVICEMANAGER_IOCTLDEVICE);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (__CONST void*)&Command, sizeof(Flags_t));
 	RPCSetArgument(&Request, 2, (__CONST void*)&Flags, sizeof(Flags_t));
@@ -282,7 +282,7 @@ IoctlDeviceEx(
 
 	// Initialize RPC
 	RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
-        __DEVICEMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __DEVICEMANAGER_IOCTLDEVICE);
+        __DEVICEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __DEVICEMANAGER_IOCTLDEVICE);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
 	RPCSetArgument(&Request, 1, (__CONST void*)&Select, sizeof(Flags_t));
 	RPCSetArgument(&Request, 2, (__CONST void*)&Register, sizeof(Flags_t));

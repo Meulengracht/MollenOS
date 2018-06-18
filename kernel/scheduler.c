@@ -45,8 +45,7 @@
 
 /* Globals
  * - State keeping variables */
-static CriticalSection_t IoQueueSyncObject  = CRITICALSECTION_INITIALIZE(CRITICALSECTION_PLAIN);
-static SchedulerQueue_t IoQueue             = { 0 };
+static SchedulerQueue_t IoQueue             = { 0, 0, { 0 } };
 
 /* SchedulerInitialize
  * Initializes the scheduler instance to default settings and parameters. */
@@ -55,7 +54,6 @@ SchedulerInitialize(void)
 {
     // Zero structure and initialize members
     memset((void*)&GetCurrentProcessorCore()->Scheduler, 0, sizeof(MCoreScheduler_t));
-    CriticalSectionConstruct(&GetCurrentProcessorCore()->Scheduler.QueueLock, CRITICALSECTION_PLAIN);
 }
 
 /* SchedulerQueueAppend 
@@ -68,26 +66,26 @@ SchedulerQueueAppend(
 {
     // Variables
     MCoreThread_t *AppendTo = NULL;
+
+    // Null end
+    ThreadEnd->Link = NULL;
     
     // Get the tail pointer of the queue to append
     AppendTo = Queue->Tail;
     if (AppendTo == NULL) {
-        Queue->Head = ThreadStart;
-        Queue->Tail = ThreadEnd;
+        Queue->Head     = ThreadStart;
+        Queue->Tail     = ThreadEnd;
     }
     else {
-        AppendTo->Link = ThreadStart;
-        Queue->Tail = ThreadEnd;
+        AppendTo->Link  = ThreadStart;
+        Queue->Tail     = ThreadEnd;
     }
-
-    // Null end
-    ThreadEnd->Link = NULL;
 }
 
-/* SchedulerQueueFind
- * Returns OsSuccess if the function succesfully found the given thread handle. */
+/* FindThreadInQueue
+ * Returns OsSuccess if the function succesfully found the given thread in the queue. */
 OsStatus_t
-SchedulerQueueFind(
+FindThreadInQueue(
     _In_ SchedulerQueue_t*  Queue,
     _In_ MCoreThread_t*     Thread)
 {
@@ -105,17 +103,43 @@ SchedulerQueueFind(
         if (i == Thread) {
             return OsSuccess;
         }
-        else {
-            i = i->Link;
-        }
+        i = i->Link;
     }
     return OsError;
 }
 
-/* SchedulerQueueFindHandle
- * Returns the thread that belongs to the given sleep handle. */
+/* IsThreadSleeping
+ * Returns OsSuccess if the function succesfully found the given thread handle. This function skips threads
+ * already marked for wakeup. */
+OsStatus_t
+IsThreadSleeping(
+    _In_ SchedulerQueue_t*  Queue,
+    _In_ MCoreThread_t*     Thread)
+{
+    // Variables
+    MCoreThread_t *i = NULL;
+
+    // Sanitize the io-queue
+    if (IoQueue.Head == NULL) {
+        return OsError;
+    }
+
+    // Iterate the queue
+    i = IoQueue.Head;
+    while (i) {
+        if (i == Thread) {
+            return i->Sleep.InterruptedAt ? OsError : OsSuccess;
+        }
+        i = i->Link;
+    }
+    return OsError;
+}
+
+/* GetThreadSleepingByHandle
+ * Returns the thread that belongs to the given sleep handle. This function skips threads
+ * already marked for wakeup. */
 MCoreThread_t*
-SchedulerQueueFindHandle(
+GetThreadSleepingByHandle(
     _In_ SchedulerQueue_t*  Queue,
     _In_ uintptr_t*         Handle)
 {
@@ -130,12 +154,32 @@ SchedulerQueueFindHandle(
     // Iterate the queue
     i = IoQueue.Head;
     while (i) {
-        if (i->Sleep.Handle == Handle) {
+        if (i->Sleep.InterruptedAt == 0) {
+            if (i->Sleep.Handle == Handle) {
+                return i;
+            }
+        }
+        i = i->Link;
+    }
+    return NULL;
+}
+
+/* GetThreadReadyForExecution
+ * Return if found the given thread that's ready for execution. */
+MCoreThread_t*
+GetThreadReadyForExecution(
+    _In_ UUId_t             CoreId)
+{
+    // Variables
+    MCoreThread_t *i = NULL;
+
+    // Iterate the queue
+    i = IoQueue.Head;
+    while (i) {
+        if (i->CoreId == CoreId && i->Sleep.InterruptedAt) {
             return i;
         }
-        else {
-            i = i->Link;
-        }
+        i = i->Link;
     }
     return NULL;
 }
@@ -152,34 +196,46 @@ SchedulerQueueRemove(
                     *Previous = NULL;
 
     // Find the remove-target and unlink
+    AtomicSectionEnter(&Queue->SyncObject);
     while (Current) {
         if (Current == Thread) {
             // Two cases, previous is NULL, or not
-            if (Previous == NULL) {
-                Queue->Head = Current->Link;
-            }
-            else {
-                Previous->Link = Current->Link;
-            }
+            if (Previous == NULL)   Queue->Head     = Current->Link;
+            else                    Previous->Link  = Current->Link;
 
-            // Update tail pointer as-well
+            // Were we also the tail pointer?
             if (Queue->Tail == Current) {
-                if (Previous == NULL) {
-                    Queue->Tail = Current->Link;
-                }
-                else {
-                    Queue->Tail = Previous;
-                }
+                if (Previous == NULL)   Queue->Tail = Current->Link;
+                else                    Queue->Tail = Previous;
             }
+            break;
+        }
+        Previous    = Current;
+        Current     = Current->Link;
+    }
+    AtomicSectionLeave(&Queue->SyncObject);
+}
 
-            // Done
-            Current->Link = NULL;
-            return;
-        }
-        else {
-            Previous = Current;
-            Current = Current->Link;
-        }
+/* SchedulerSynchronizeCore
+ * Synchronizes the thread to the core by waking the target core up if neccessary. */
+void
+SchedulerSynchronizeCore(
+    _In_ MCoreThread_t*     Thread,
+    _In_ int                SuppressSynchronization)
+{
+    volatile SystemCpuState_t *State;
+    // If the current cpu is idling, wake us up
+    if (Thread->CoreId != CpuGetCurrentId()) {
+        State = (volatile SystemCpuState_t*)&GetProcessorCore(Thread->CoreId)->State;
+        while (*State & CpuStateInterruptActive);
+    }
+    else if (SuppressSynchronization) {
+        return;
+    }
+
+    // Perform synchronization
+    if (ThreadingIsCurrentTaskIdle(Thread->CoreId)) {
+        ThreadingWakeCpu(Thread->CoreId);
     }
 }
 
@@ -203,8 +259,7 @@ SchedulerBoostThreads(
     // Variables
     int i                   = 0;
     
-    // Move all threads up into queue 0
-    // but skip queue CRITICAL
+    // Move all threads up into queue 0 but skip queue CRITICAL
     for (i = 1; i < SCHEDULER_LEVEL_CRITICAL; i++) {
         if (Scheduler->Queues[i].Head != NULL) {
             SchedulerQueueAppend(&Scheduler->Queues[0], 
@@ -260,7 +315,8 @@ SchedulerThreadInitialize(
  * core in the thread structure. */
 OsStatus_t
 SchedulerThreadQueue(
-    _In_ MCoreThread_t*     Thread)
+    _In_ MCoreThread_t*     Thread,
+    _In_ int                SuppressSynchronization)
 {
     // Variables
     MCoreScheduler_t *Scheduler = &GetCurrentDomain()->Cpu.PrimaryCore.Scheduler;
@@ -285,18 +341,12 @@ SchedulerThreadQueue(
     TRACE("Appending thread %u (%s) to queue %i", Thread->Id, Thread->Name, Thread->Queue);
 
     // The modification of a queue is a locked operation
-    CriticalSectionEnter(&Scheduler->QueueLock);
     SchedulerQueueAppend(&Scheduler->Queues[Thread->Queue], Thread, Thread);
     Scheduler->ThreadCount++;
-    CriticalSectionLeave(&Scheduler->QueueLock);
     
     // Set thread active
     THREADING_SETSTATE(Thread->Flags, THREADING_ACTIVE);
-
-    // If the current cpu is idling, wake us up
-    if (ThreadingIsCurrentTaskIdle(Thread->CoreId)) {
-        ThreadingWakeCpu(Thread->CoreId);
-    }
+    SchedulerSynchronizeCore(Thread, SuppressSynchronization);
     return OsSuccess;
 }
 
@@ -304,33 +354,32 @@ SchedulerThreadQueue(
  * Disarms a thread from all queues and mark the thread inactive. */
 OsStatus_t
 SchedulerThreadDequeue(
-    _In_ MCoreThread_t*     Thread)
+    _In_ MCoreThread_t*     Thread,
+    _In_ int                AppendToSleepQueue)
 {
     // Variables
     MCoreScheduler_t *Scheduler = NULL;
-
-    // Sanitize queue
-    if (Thread->Queue < 0) {
-        return OsError;
-    }
-
+    assert(Thread != NULL);
+    assert(Thread->Queue >= 0);
+    
     // Debug
     TRACE("SchedulerThreadDequeue(Cpu %u, Thread %u, Queue %u)",
-        Thread->CpuId, Thread->Id, Thread->Queue);
-    Scheduler = SchedulerGetFromCore(Thread->CoreId);
+        Thread->CoreId, Thread->Id, Thread->Queue);
 
-    // Is the thread currently in sleep?
-    if ((Thread->Sleep.Handle != NULL || Thread->Sleep.TimeLeft > 0) && Thread->Sleep.Timeout != 1) {
-        CriticalSectionEnter(&IoQueueSyncObject);
+    Scheduler = SchedulerGetFromCore(Thread->CoreId);
+    if (FindThreadInQueue(&Scheduler->Queues[Thread->Queue], Thread) == OsSuccess) {
         SchedulerQueueRemove(&Scheduler->Queues[Thread->Queue], Thread);
-        CriticalSectionLeave(&IoQueueSyncObject);
+        Scheduler->ThreadCount--;
     }
-    else {
-        CriticalSectionEnter(&Scheduler->QueueLock);
-        SchedulerQueueRemove(&Scheduler->Queues[Thread->Queue], Thread);
-        CriticalSectionLeave(&Scheduler->QueueLock);
+    else if (FindThreadInQueue(&IoQueue, Thread) == OsSuccess) {
+        SchedulerQueueRemove(&IoQueue, Thread);
+        Scheduler->ThreadCount--;
     }
-    Scheduler->ThreadCount--;
+
+    // Combine this dequeue-queue for sleep method
+    if (AppendToSleepQueue) {
+        SchedulerQueueAppend(&IoQueue, Thread, Thread);
+    }
 
     // Set inactive
     THREADING_CLEARSTATE(Thread->Flags);
@@ -357,19 +406,12 @@ SchedulerThreadSleep(
     // Debug
     TRACE("Adding thread %u to sleep queue on 0x%x", CurrentThread->Id, Handle);
     
-    // Disable interrupts while doing this
-    CriticalSectionEnter(&IoQueueSyncObject);
-    SchedulerThreadDequeue(CurrentThread);
-    CurrentThread->Flags |= THREADING_TRANSITION_SLEEP;
-
     // Update sleep-information
-    CurrentThread->Sleep.TimeLeft   = Timeout;
-    CurrentThread->Sleep.Timeout    = 0;
-    CurrentThread->Sleep.Handle     = Handle;
-
-    // Add to io-queue
-    SchedulerQueueAppend(&IoQueue, CurrentThread, CurrentThread);
-    CriticalSectionLeave(&IoQueueSyncObject);
+    CurrentThread->Sleep.TimeLeft       = Timeout;
+    CurrentThread->Sleep.Timeout        = 0;
+    CurrentThread->Sleep.Handle         = Handle;
+    CurrentThread->Sleep.InterruptedAt  = 0;
+    CurrentThread->Flags |= THREADING_TRANSITION_SLEEP;
     ThreadingYield();
 
     // Resolve sleep-state
@@ -390,6 +432,7 @@ SchedulerThreadSleep(
 int
 SchedulerAtomicThreadSleep(
     _In_ uintptr_t*         Handle,
+    _In_ size_t             Timeout,
     _In_ AtomicSection_t*   Section)
 {
     // Variables
@@ -403,18 +446,13 @@ SchedulerAtomicThreadSleep(
     
     // Debug
     TRACE("Adding thread %u to sleep queue on 0x%x", CurrentThread->Id, Handle);
-    SchedulerThreadDequeue(CurrentThread);
-    CurrentThread->Flags |= THREADING_TRANSITION_SLEEP;
-
+    
     // Update sleep-information
-    CurrentThread->Sleep.TimeLeft   = 0;
-    CurrentThread->Sleep.Timeout    = 0;
-    CurrentThread->Sleep.Handle     = Handle;
-
-    // Add to io-queue
-    CriticalSectionEnter(&IoQueueSyncObject);
-    SchedulerQueueAppend(&IoQueue, CurrentThread, CurrentThread);
-    CriticalSectionLeave(&IoQueueSyncObject);
+    CurrentThread->Sleep.TimeLeft       = Timeout;
+    CurrentThread->Sleep.Timeout        = 0;
+    CurrentThread->Sleep.Handle         = Handle;
+    CurrentThread->Sleep.InterruptedAt  = 0;
+    CurrentThread->Flags |= THREADING_TRANSITION_SLEEP;
     AtomicSectionLeave(Section);
     ThreadingYield();
 
@@ -441,14 +479,10 @@ SchedulerThreadSignal(
     assert(Thread != NULL);
 
     // If found, remove from queue and queue
-    if (SchedulerQueueFind(&IoQueue, Thread) == OsSuccess) {
-        Thread->Sleep.Timeout = 0;
-        Thread->Sleep.Handle = NULL;
+    if (IsThreadSleeping(&IoQueue, Thread) == OsSuccess) {
         TimersGetSystemTick(&Thread->Sleep.InterruptedAt);
-        CriticalSectionEnter(&IoQueueSyncObject);
-        SchedulerQueueRemove(&IoQueue, Thread);
-        CriticalSectionLeave(&IoQueueSyncObject);
-        return SchedulerThreadQueue(Thread);
+        SchedulerSynchronizeCore(Thread, 0);
+        return OsSuccess;
     }
     else {
         return OsError;
@@ -462,16 +496,15 @@ SchedulerHandleSignal(
     _In_ uintptr_t*         Handle)
 {
     // Variables
-    MCoreThread_t *Current = SchedulerQueueFindHandle(&IoQueue, Handle);
+    MCoreThread_t *Current = GetThreadSleepingByHandle(&IoQueue, Handle);
+    
+    // Debug
+    TRACE("SchedulerHandleSignal(Handle 0x%x)", Handle);
+
     if (Current != NULL) {
-        Current->Sleep.Timeout  = 0;
-        Current->Sleep.Handle   = NULL;
-        Current->Sleep.TimeLeft = 0;
         TimersGetSystemTick(&Current->Sleep.InterruptedAt);
-        CriticalSectionEnter(&IoQueueSyncObject);
-        SchedulerQueueRemove(&IoQueue, Current);
-        CriticalSectionLeave(&IoQueueSyncObject);
-        return SchedulerThreadQueue(Current);
+        SchedulerSynchronizeCore(Current, 0);
+        return OsSuccess;
     }
     else {
         return OsError;
@@ -506,33 +539,39 @@ SchedulerTick(
         return;
     }
 
-    // Debug
-    TRACE("SchedulerTick()");
-
     // Iterate the queue
-    CriticalSectionEnter(&IoQueueSyncObject);
     Current = IoQueue.Head;
     while (Current) {
-        if (Current->Sleep.TimeLeft != 0) {
+        if ((Current->Sleep.InterruptedAt == 0) && (Current->Sleep.TimeLeft != 0)) {
             Current->Sleep.TimeLeft -= MIN(Milliseconds, Current->Sleep.TimeLeft);
             if (Current->Sleep.TimeLeft == 0) {
-                MCoreThread_t *Next = Current->Link;
                 if (Current->Sleep.Handle != NULL) {
                     Current->Sleep.Timeout = 1;
                 }
-                SchedulerQueueRemove(&IoQueue, Current);
-                SchedulerThreadQueue(Current);
-                Current = Next;
-            }
-            else {
-                Current = Current->Link;
+                TimersGetSystemTick(&Current->Sleep.InterruptedAt);
+                SchedulerSynchronizeCore(Current, 0);
             }
         }
-        else {
-            Current = Current->Link;
-        }
+        Current = Current->Link;
     }
-    CriticalSectionLeave(&IoQueueSyncObject);
+}
+
+/* SchedulerRequeueSleepers
+ * Requeues any of the sleeper threads that match the scheduler for the calling core */
+void
+SchedulerRequeueSleepers(
+    _In_ MCoreScheduler_t*  Scheduler)
+{
+    // Variables
+    MCoreThread_t *Thread = GetThreadReadyForExecution(CpuGetCurrentId());
+
+    while (Thread != NULL) {
+        SchedulerQueueRemove(&IoQueue, Thread);
+        SchedulerThreadQueue(Thread, 1);
+        
+        // Get next
+        Thread = GetThreadReadyForExecution(CpuGetCurrentId());
+    }
 }
 
 /* SchedulerThreadSchedule 
@@ -549,14 +588,17 @@ SchedulerThreadSchedule(
     size_t TimeSlice            = 0;
     int i                       = 0;
 
+    TRACE("SchedulerThreadSchedule()");
+
+    // Requeue threads in sleep-queue that have been waken up
+    if (IoQueue.Head != NULL) {
+        SchedulerRequeueSleepers(Scheduler);
+    }
+
     // Sanitize the scheduler status
     if (Scheduler->ThreadCount == 0) {
         return Thread;
     }
-
-    // Debug
-    TRACE("SchedulerThreadSchedule(Cpu %u, Thread 0x%x, Preemptive %i)", 
-        Cpu, Thread, Preemptive);
 
     // Handle the scheduled thread first
     if (Thread != NULL) {
@@ -566,17 +608,16 @@ SchedulerThreadSchedule(
         if (Preemptive != 0) {
             if (Thread->Queue < (SCHEDULER_LEVEL_CRITICAL - 1)) {
                 Thread->Queue++;
-                Thread->TimeSlice = (Thread->Queue * 2) 
-                    + SCHEDULER_TIMESLICE_INITIAL;
+                Thread->TimeSlice = (Thread->Queue * 2) + SCHEDULER_TIMESLICE_INITIAL;
             }
         }
-        SchedulerThreadQueue(Thread);
+        SchedulerThreadQueue(Thread, 1);
     }
     else {
         TimeSlice = SCHEDULER_TIMESLICE_INITIAL;
     }
 
-    // This is a locked operation
+    // Handle the boost timer
     Scheduler->BoostTimer += TimeSlice;
     if (Scheduler->BoostTimer >= SCHEDULER_BOOST) {
         SchedulerBoostThreads(Scheduler);

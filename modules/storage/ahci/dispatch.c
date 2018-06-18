@@ -351,7 +351,7 @@ AhciCommandFinish(
 		AhciManagerCreateDeviceCallback(Transaction->Device);
 	}
 	else {
-        PipeSend(Transaction->Requester, Transaction->Pipe, (void*)&Status, sizeof(OsStatus_t));
+        SendPipe(Transaction->Requester, Transaction->Pipe, (void*)&Status, sizeof(OsStatus_t));
 	}
 	free(Transaction);
 	return Status;

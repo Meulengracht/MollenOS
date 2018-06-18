@@ -27,7 +27,6 @@
 /* Includes 
  * - System */
 #include <system/addressspace.h>
-#include <mutex.h>
 #include <pipe.h>
 
 /* Includes 
@@ -129,7 +128,7 @@ typedef struct _MCoreThread {
     Context_t*              ContextActive;
     uintptr_t               Data[THREADING_CONFIGDATA_COUNT];
 
-    MCorePipe_t*            Pipe;
+    SystemPipe_t*           Pipe;
     AddressSpace_t*         AddressSpace;
 
     ThreadEntry_t           Function;

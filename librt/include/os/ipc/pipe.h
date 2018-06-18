@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,42 +19,61 @@
  * MollenOS Pipe Communication Interface
  */
 
-#ifndef _MOLLENOS_PIPE_H_
-#define _MOLLENOS_PIPE_H_
+#ifndef __PIPE_INTERFACE__
+#define __PIPE_INTERFACE__
 
-/* Do a kernel guard as similar functions
- * exists in kernel but for kernel stuff */
-#ifndef _KAPI
-
-/* Includes 
- * - System */
 #include <os/osdefs.h>
 
+#define PIPE_RAW            0   // Raw data passing
+#define PIPE_STRUCTURED     1   // This should always be used when there are multiple readers or producers
+
 _CODE_BEGIN
-/* Pipe - Open
- * Opens a new communication pipe on the given
- * port for this process, if one already exists
- * SIGPIPE is signaled */
-CRTDECL(OsStatus_t, PipeOpen(int Port));
+/* OpenPipe
+ * Opens a new communication pipe on the given port for this process, 
+ * if one already exists SIGPIPE is signaled */
+CRTDECL(
+OsStatus_t,
+OpenPipe(
+    _In_ int    Port, 
+    _In_ int    Type));
 
-/* Pipe - Close
- * Closes an existing communication pipe on the given
- * port for this process, if one doesn't exists
- * SIGPIPE is signaled */
-CRTDECL(OsStatus_t, PipeClose(int Port));
+/* ClosePipe
+ * Closes an existing communication pipe on the given port for this process, 
+ * if one doesn't exists SIGPIPE is signaled */
+CRTDECL(
+OsStatus_t,
+ClosePipe(
+    _In_ int    Port));
 
-/* Pipe - Read
+/* ReadPipe
  * This returns -1 if something went wrong reading
  * a message from the message queue, otherwise it returns 0
  * and fills the structures with information about the message */
-CRTDECL(OsStatus_t, PipeRead(int Port, void *Buffer, size_t Length));
+CRTDECL(
+OsStatus_t,
+ReadPipe(
+    _In_ int    Port,
+    _In_ void*  Buffer,
+    _In_ size_t Length));
 
 /* Pipe send + recieve
  * The send and recieve calls can actually be used for reading extern pipes
  * and send to external pipes */
-CRTDECL(OsStatus_t, PipeSend(UUId_t ProcessId, int Port, void *Buffer, size_t Length));
-CRTDECL(OsStatus_t, PipeReceive(UUId_t ProcessId, int Port, void *Buffer, size_t Length));
+CRTDECL(
+OsStatus_t,
+SendPipe(
+    _In_ UUId_t ProcessId,
+    _In_ int    Port,
+    _In_ void*  Buffer,
+    _In_ size_t Length));
+
+CRTDECL(
+OsStatus_t,
+ReceivePipe(
+    _In_ UUId_t ProcessId,
+    _In_ int    Port,
+    _In_ void*  Buffer,
+    _In_ size_t Length));
 _CODE_END
 
-#endif //!KERNEL_API
-#endif //!_MOLLENOS_PIPE_H_
+#endif //!__PIPE_INTERFACE__

@@ -63,7 +63,7 @@ int _close(int fd)
     else if (object->handle.InheritationType == STDIO_HANDLE_PIPE) {
         // if it has read caps then we have an issue, close pipe
         if (object->exflag & EF_CLOSE) {
-            PipeClose(object->handle.InheritationData.Pipe.Port);
+            ClosePipe(object->handle.InheritationData.Pipe.Port);
         }
         else {
             result = 0;

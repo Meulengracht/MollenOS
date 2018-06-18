@@ -76,7 +76,7 @@ CreateInput(MInput_t *Input)
 	
 	// Initialize rpc request
 	RPCInitialize(&Request, __WINDOWMANAGER_TARGET, 
-        __WINDOWMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __WINDOWMANAGER_NEWINPUT);
+        __WINDOWMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __WINDOWMANAGER_NEWINPUT);
 	
 	// Setup rpc arguments
 	RPCSetArgument(&Request, 0, (const void*)Input, sizeof(MInput_t));

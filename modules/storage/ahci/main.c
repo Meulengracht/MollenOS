@@ -232,12 +232,12 @@ OnQuery(_In_     MContractType_t        QueryType,
             // Lookup device
             Device = AhciManagerGetDevice(DiskId);
             if (Device != NULL) {
-                return PipeSend(Queryee, ResponsePort,
+                return SendPipe(Queryee, ResponsePort,
                     (void*)&Device->Descriptor, sizeof(StorageDescriptor_t));
             }
             else {
                 memset((void*)&NullDescriptor, 0, sizeof(StorageDescriptor_t));
-                return PipeSend(Queryee, ResponsePort,
+                return SendPipe(Queryee, ResponsePort,
                     (void*)&NullDescriptor, sizeof(StorageDescriptor_t));
             }
 
@@ -253,7 +253,7 @@ OnQuery(_In_     MContractType_t        QueryType,
             AhciDevice_t *Device            = AhciManagerGetDevice(DiskId);
             OsStatus_t OpsStatus            = OsError;
             if (Device == NULL) {
-                return PipeSend(Queryee, ResponsePort, (void*)&OpsStatus, sizeof(OsStatus_t));
+                return SendPipe(Queryee, ResponsePort, (void*)&OpsStatus, sizeof(OsStatus_t));
             }
 
             // Create a new transaction
@@ -275,7 +275,7 @@ OnQuery(_In_     MContractType_t        QueryType,
 
             // Only return immediately if there was an error
             if (OpsStatus != OsSuccess) {
-                return PipeSend(Queryee, ResponsePort, (void*)&OpsStatus, sizeof(OsStatus_t));
+                return SendPipe(Queryee, ResponsePort, (void*)&OpsStatus, sizeof(OsStatus_t));
             }
             else {
                 return OsSuccess;

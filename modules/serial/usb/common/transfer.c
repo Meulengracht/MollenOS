@@ -92,7 +92,7 @@ UsbManagerSendNotification(
         Result.BytesTransferred += Transfer->BytesTransferred[2];
 
         Result.Status           = Transfer->Status;
-        PipeSend(Transfer->Requester, Transfer->ResponsePort, (void*)&Result, sizeof(UsbTransferResult_t));
+        SendPipe(Transfer->Requester, Transfer->ResponsePort, (void*)&Result, sizeof(UsbTransferResult_t));
     }
     else {
         // Send interrupt

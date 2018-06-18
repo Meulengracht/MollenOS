@@ -146,7 +146,7 @@ void StdioCreatePipeHandle(UUId_t ProcessId, int Port, int Oflags, StdioObject_t
     Object->handle.InheritationData.Pipe.ProcessId = ProcessId;
     Object->handle.InheritationData.Pipe.Port = Port;
     if (Oflags & _IOREAD) {
-        if (PipeOpen(Port) != OsSuccess) {
+        if (OpenPipe(Port, PIPE_RAW) != OsSuccess) {
             // what
         }
         Object->exflag |= EF_CLOSE;
@@ -506,7 +506,7 @@ StdioReadInternal(
         return StdioHandleReadFile(Handle, Buffer, Length, BytesRead);
     }
     else if (Handle->InheritationType == STDIO_HANDLE_PIPE) {
-        if (PipeReceive(Handle->InheritationData.Pipe.ProcessId, 
+        if (ReceivePipe(Handle->InheritationData.Pipe.ProcessId, 
             Handle->InheritationData.Pipe.Port, Buffer, Length) == OsSuccess) {
             *BytesRead = Length;
             return OsSuccess;
@@ -573,7 +573,7 @@ StdioWriteInternal(
         return StdioHandleWriteFile(Handle, Buffer, Length, BytesWritten);
     }
     else if (Handle->InheritationType == STDIO_HANDLE_PIPE) {
-        if (PipeSend(Handle->InheritationData.Pipe.ProcessId, 
+        if (SendPipe(Handle->InheritationData.Pipe.ProcessId, 
             Handle->InheritationData.Pipe.Port, Buffer, Length) == OsSuccess) {
             *BytesWritten = Length;
             return OsSuccess;

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,122 +17,184 @@
  *
  *
  * MollenOS Pipe Interface
- *  - Builds on principle of a ringbuffer and a multiple-producer
- *    multiple-consumer queue. The queue is completely lock-less but
- *    not wait-less. This is by design.
+ *  - This is a ported version of the unbounded queue specified in the folly
+ *    repository of the facebook code. I wrote a C version based on C++ algorithm
+ *    used in the mentioned project. Supported pipe-modes implemented are:
+ *      - Bounded MPMC / MPSC / SPMC
+ *      - Unbounded MPMC / MPSC / SPMC
+ *      - Bounded SPSC
  */
 
-#ifndef _MCORE_PIPE_H_
-#define _MCORE_PIPE_H_
+#ifndef __SYSTEM_PIPE__
+#define __SYSTEM_PIPE__
 
 #include <os/osdefs.h>
 #include <atomicsection.h>
-#include <semaphore.h>
+#include <semaphore_slim.h>
 
-/* Customization of the pipe, these are some default
- * parameters for creation */
-#define PIPE_DEFAULT_SIZE           32768
-#define PIPE_WORKERS                512
-#define PIPE_WORKERS_MASK           (PIPE_WORKERS - 1)
+#define PIPE_DEFAULT_ENTRYCOUNT     8 // Logarithmic base of 2 value of workers
 
-/* MCorePipe
- * The pipe structure, it basically contains
- * what equals to a ringbuffer, except it adds
- * read/write queues in order to block users */
-typedef struct _MCorePipe {
-    Flags_t         Flags;
-    uint8_t*        Buffer;
-    size_t          Length;
-    Semaphore_t     WriteQueue;
-    int             WritersInQueue;
+// Default configuration if passing 0 is
+// Single Producer, Single Consumer, Bounded
+// Unbounded can only be used when the queue is not configured as SPSC
+#define PIPE_MULTIPLE_PRODUCERS     (1 << 0)
+#define PIPE_MULTIPLE_CONSUMERS     (1 << 1)
+#define PIPE_UNBOUNDED              (1 << 2)
 
-    atomic_uint     DataWrite;
-    atomic_uint     DataRead;
-    atomic_uint     WriteWorker;
-    atomic_uint     ReadWorker;
-    struct {
-        unsigned        IndexData;
-        unsigned        LengthData;
-        atomic_uchar    Flags;
-    } Workers[PIPE_WORKERS];
-} MCorePipe_t;
+#define PIPE_MPMC                   (PIPE_MULTIPLE_PRODUCERS | PIPE_MULTIPLE_CONSUMERS)
 
-#define PIPE_WORKER_ALLOCATED           (1 << 0)
-#define PIPE_WORKER_REGISTERED          (1 << 1)
-#define PIPE_WORKER_PRODUCER_WAITING    (1 << 2)
-#define PIPE_WORKER_CONSUMER_WAITING    (1 << 3)
+/* SystemPipeEntry
+ * A system pipe entry is an available item for read and write. */
+typedef struct _SystemPipeEntry {
+    SlimSemaphore_t         SyncObject;
+    unsigned int            SegmentBufferIndex;
+    unsigned int            SegmentBufferCurrentIndex;
+    uint16_t                Length;
+} SystemPipeEntry_t;
 
-/* PipeCreate
- * Initialise a new pipe of the given size and with the given flags */
-KERNELAPI MCorePipe_t* KERNELABI
-PipeCreate(
-    _In_ size_t         Size, 
-    _In_ Flags_t        Flags);
+/* SystemPipeSegmentBuffer
+ * A contigious ring-buffer that supports deferred read/write allocations instead of
+ * only traditional ring-buffer read/write. */
+typedef struct _SystemPipeSegmentBuffer {
+    uint8_t*                Pointer;
+    size_t                  Size;           // Must be a power of 2.
+    size_t                  TransferLimit;
+    SlimSemaphore_t         ReadQueue;
+    SlimSemaphore_t         WriteQueue;
+    atomic_int              Credit;
+    atomic_int              Debit;
 
-/* PipeConstruct
- * Construct an already existing pipe by resetting the
- * pipe with the given parameters */
+    // In a traditional ringbuffer we just need read/write pointers
+    // and they MUST be SPSC queues for data integrity
+    atomic_uint             ReadPointer;
+    atomic_uint             WritePointer;
+} SystemPipeSegmentBuffer_t;
+
+/* SystemPipeSegment
+ * A system pipe segment is a collection of entries with a minimum base. */
+typedef struct _SystemPipeSegment {
+    SystemPipeSegmentBuffer_t           Buffer;
+    unsigned int                        TicketBase;
+    atomic_int                          References;
+    SystemPipeEntry_t*                  Entries;
+    _Atomic(struct _SystemPipeSegment*) Link;
+} SystemPipeSegment_t;
+
+/* SystemPipeProducer
+ * A producer for a system pipe, describes the current producer state. */
+typedef struct _SystemPipeProducer {
+    _Atomic(SystemPipeSegment_t*)   Tail;
+    atomic_uint                     Ticket;
+} SystemPipeProducer_t;
+
+/* SystemPipeConsumer
+ * A consumer for a system pipe, describes the current consumer state. */
+typedef struct _SystemPipeConsumer {
+    _Atomic(SystemPipeSegment_t*)   Head;
+    atomic_uint                     Ticket;
+} SystemPipeConsumer_t;
+
+/* SystemPipeUserState
+ * State structure used when reading or writing for queues that support
+ * more functionality than SPSC. */
+typedef struct _SystemPipeUserState {
+    SystemPipeSegment_t*            Segment;
+    SystemPipeEntry_t*              Entry;
+    int                             Advance;
+} SystemPipeUserState_t;
+
+/* SystemPipe
+ * A system pipe is the prefered way of communcation between processes.
+ * It contains a number of segments, which in turn contains entries that can be used. */
+typedef struct _SystemPipe {
+    Flags_t                 Configuration;
+    size_t                  Stride;
+    size_t                  SegmentLgSize;
+    SlimSemaphore_t         ProductionQueue;
+    atomic_int              Credit;
+    size_t                  TransferLimit;
+
+    SystemPipeConsumer_t    ConsumerState;
+    SystemPipeProducer_t    ProducerState;
+} SystemPipe_t;
+
+/* CreateSystemPipe
+ * Initialise a new pipe instance with the given configuration and initializes it. */
+KERNELAPI SystemPipe_t* KERNELABI
+CreateSystemPipe(
+    _In_ Flags_t                Configuration,
+    _In_ size_t                 SegmentLgSize);
+
+/* ConstructSystemPipe
+ * Construct an already existing pipe by initializing the pipe with the given configuration. */
 KERNELAPI void KERNELABI
-PipeConstruct(
-    _In_ MCorePipe_t*   Pipe, 
-    _In_ uint8_t*       Buffer,
-    _In_ size_t         Size,
-    _In_ Flags_t        Flags);
+ConstructSystemPipe(
+    _In_ SystemPipe_t*          Pipe,
+    _In_ Flags_t                Configuration,
+    _In_ size_t                 SegmentLgSize);
 
-/* PipeDestroy
- * Destroys a pipe and wakes up all sleeping threads, then
- * frees all resources allocated */
+/* DestroySystemPipe
+ * Destroys a pipe and wakes up all sleeping threads, then frees all resources allocated */
 KERNELAPI void KERNELABI
-PipeDestroy(
-    _In_ MCorePipe_t*   Pipe);
+DestroySystemPipe(
+    _In_ SystemPipe_t*              Pipe);
 
-/* PipeProduceAcquire
- * Acquires memory space in the pipe. The memory is not
- * visible at this point, stage 1 in the write-process. */
-KERNELAPI OsStatus_t KERNELABI
-PipeProduceAcquire(
-    _In_  MCorePipe_t*  Pipe,
-    _In_  size_t        Length,
-    _Out_ unsigned*     Worker,
-    _Out_ unsigned*     Index);
-
-/* PipeProduce
- * Produces data for the consumer by adding to allocated worker. */
+/* ReadSystemPipe
+ * Performs raw reading that can only be used on pipes opened in SPSC mode. */
 KERNELAPI size_t KERNELABI
-PipeProduce(
-    _In_ MCorePipe_t*   Pipe,
-    _In_ uint8_t*       Data,
-    _In_ size_t         Length,
-    _InOut_ unsigned*   Index);
+ReadSystemPipe(
+    _In_ SystemPipe_t*              Pipe,
+    _In_ uint8_t*                   Data,
+    _In_ size_t                     Length);
 
-/* PipeProduceCommit
- * Registers the data available and wakes up consumer. */
-KERNELAPI OsStatus_t KERNELABI
-PipeProduceCommit(
-    _In_ MCorePipe_t*   Pipe,
-    _In_ unsigned       Worker);
-
-/* PipeConsumeAcquire
- * Acquires the next available worker. */
-KERNELAPI OsStatus_t KERNELABI
-PipeConsumeAcquire(
-    _In_  MCorePipe_t*  Pipe,
-    _Out_ unsigned*     Worker);
-
-/* PipeConsume
- * Consumes data available from the given worker. */
+/* WriteSystemPipe
+ * Performs raw writing that can only be used on pipes opened in SPSC mode. */
 KERNELAPI size_t KERNELABI
-PipeConsume(
-    _In_ MCorePipe_t*   Pipe,
-    _In_ uint8_t*       Data,
-    _In_ size_t         Length,
-    _In_ unsigned       Worker);
+WriteSystemPipe(
+    _In_ SystemPipe_t*              Pipe,
+    _In_ const uint8_t*             Data,
+    _In_ size_t                     Length);
 
-/* PipeConsumeCommit
- * Registers the worker as available and wakes up producers. */
+/* AcquireSystemPipeProduction
+ * Acquires a new spot in the system pipe for data production. */
 KERNELAPI OsStatus_t KERNELABI
-PipeConsumeCommit(
-    _In_ MCorePipe_t*   Pipe,
-    _In_ unsigned       Worker);
+AcquireSystemPipeProduction(
+    _In_  SystemPipe_t*             Pipe,
+    _In_  size_t                    Length,
+    _Out_ SystemPipeUserState_t*    State);
 
-#endif // !_MCORE_PIPE_H_
+/* WriteSystemPipeProduction
+ * Writes data into the production spot acquired. This spot is not marked
+ * active before the amount of data written is equal to specfied in Acquire. */
+KERNELAPI size_t KERNELABI
+WriteSystemPipeProduction(
+    _In_ SystemPipeUserState_t*     State,
+    _In_ const uint8_t*             Data,
+    _In_ size_t                     Length);
+
+/* AcquireSystemPipeConsumption
+ * Consumes a new production spot in the system pipe. If none are available it will
+ * block untill a new entry is available. */
+KERNELAPI OsStatus_t KERNELABI
+AcquireSystemPipeConsumption(
+    _In_  SystemPipe_t*             Pipe,
+    _Out_ size_t*                   Length,
+    _Out_ SystemPipeUserState_t*    State);
+
+/* ReadSystemPipeConsumption
+ * Reads data into the provided buffer from production spot acquired. */
+KERNELAPI size_t KERNELABI
+ReadSystemPipeConsumption(
+    _In_ SystemPipeUserState_t*     State,
+    _In_ uint8_t*                   Data,
+    _In_ size_t                     Length);
+
+/* FinalizeSystemPipeConsumption
+ * Finalizes the consume-process by performing maintience tasks that were assigned
+ * for the given entry consumed. */
+KERNELAPI void KERNELABI
+FinalizeSystemPipeConsumption(
+    _In_ SystemPipe_t*          Pipe,
+    _In_ SystemPipeUserState_t* State);
+
+#endif // !__SYSTEM_PIPE__

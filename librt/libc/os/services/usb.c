@@ -37,7 +37,7 @@ UsbQueryControllerCount(
 
 	// Initialize RPC
 	RPCInitialize(&Request, __USBMANAGER_TARGET, 
-        __USBMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __USBMANAGER_QUERYCONTROLLERCOUNT);
+        __USBMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __USBMANAGER_QUERYCONTROLLERCOUNT);
 
     // No arguments, set result buffer
     RPCSetResult(&Request, (__CONST void*)ControllerCount, sizeof(int));
@@ -57,7 +57,7 @@ UsbQueryController(
 
 	// Initialize RPC
 	RPCInitialize(&Request, __USBMANAGER_TARGET, 
-        __USBMANAGER_INTERFACE_VERSION, PIPE_RPCOUT, __USBMANAGER_QUERYCONTROLLER);
+        __USBMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __USBMANAGER_QUERYCONTROLLER);
 
     // Set arguments
     RPCSetArgument(&Request, 0, (__CONST void*)&Index, sizeof(int));

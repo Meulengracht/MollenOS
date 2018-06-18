@@ -17,15 +17,13 @@
  *
  *
  * MollenOS Synchronization
- * - Semaphores implementation, used safe passages known as
- *   critical sections in MCore
+ * - Counting semaphores implementation, using safe passages known as
+ *   atomic sections in the operating system to synchronize in a kernel env
  */
 
 #ifndef _MCORE_SEMAPHORE_H_
 #define _MCORE_SEMAPHORE_H_
 
-/* Includes 
- * - Systems */
 #include <os/osdefs.h>
 #include <atomicsection.h>
 #include <ds/mstring.h>
@@ -86,7 +84,7 @@ SemaphoreWait(
 
 /* SemaphoreSignal
  * Signals the semaphore with the given value, default is 1 */
-KERNELAPI void KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 SemaphoreSignal(
     _In_ Semaphore_t*   Semaphore,
     _In_ int            Value);

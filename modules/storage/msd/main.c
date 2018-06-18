@@ -196,12 +196,12 @@ OnQuery(
 
             // Write the descriptor back
             if (Device != NULL) {
-                return PipeSend(Queryee, ResponsePort,
+                return SendPipe(Queryee, ResponsePort,
                     (void*)&Device->Descriptor, sizeof(StorageDescriptor_t));
             }
             else {
                 memset((void*)&NullDescriptor, 0, sizeof(StorageDescriptor_t));
-                return PipeSend(Queryee, ResponsePort,
+                return SendPipe(Queryee, ResponsePort,
                     (void*)&NullDescriptor, sizeof(StorageDescriptor_t));
             }
         } break;
@@ -225,11 +225,11 @@ OnQuery(
                 if (MsdReadSectors(Device, Operation->AbsSector, Operation->PhysicalBuffer, 
                     Operation->SectorCount * Device->Descriptor.SectorSize, NULL) != OsSuccess) {
                     OsStatus_t Result = OsError;
-                    return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
+                    return SendPipe(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
                 }
                 else {
                     OsStatus_t Result = OsSuccess;
-                    return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
+                    return SendPipe(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
                 }
             }
             else if (Device != NULL
@@ -237,16 +237,16 @@ OnQuery(
                 if (MsdWriteSectors(Device, Operation->AbsSector, Operation->PhysicalBuffer, 
                     Operation->SectorCount * Device->Descriptor.SectorSize, NULL) != OsSuccess) {
                     OsStatus_t Result = OsError;
-                    return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
+                    return SendPipe(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
                 }
                 else {
                     OsStatus_t Result = OsSuccess;
-                    return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
+                    return SendPipe(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
                 }
             }
             else {
                 OsStatus_t Result = OsError;
-                return PipeSend(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
+                return SendPipe(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
             }
         } break;
 

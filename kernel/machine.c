@@ -18,7 +18,7 @@
  *
  * MollenOS Common Entry Point
  */
-#define __MODULE "INIT"
+#define __MODULE "MACH"
 #define __TRACE
 
 /* Includes 
@@ -48,6 +48,10 @@
  * - Library */
 #include <stddef.h>
 #include <stdio.h>
+
+#ifdef __OSCONFIG_TEST_KERNEL
+extern void TestSynchronization(void *Unused);
+#endif
 
 /* Globals
  * - Static state variables */
@@ -175,10 +179,14 @@ MCoreInitialize(
         SystemFeaturesInitialize(&Machine.BootInformation, SYSTEM_FEATURE_FINALIZE);
     }
 
+#ifdef __OSCONFIG_TEST_KERNEL
+    ThreadingCreateThread("TestSynchronization", TestSynchronization, NULL, 0);
+#else
     // Last step, boot up all available system servers
     // like device-managers, vfs, etc
     ModulesRunServers();
-    
+#endif
+
     // Enter idle loop.
     WARNING("End of initialization");
     while (1) {

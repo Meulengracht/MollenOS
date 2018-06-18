@@ -245,8 +245,7 @@ TimersInterrupt(
 }
 
 /* TimersGetSystemTime
- * Retrieves the system time. This is only ticking
- * if a system clock has been initialized. */
+ * Retrieves the system time. This is only ticking if a system clock has been initialized. */
 OsStatus_t
 TimersGetSystemTime(
     _Out_ struct tm *SystemTime)
@@ -259,15 +258,15 @@ TimersGetSystemTime(
 }
 
 /* TimersGetSystemTick 
- * Retrieves the system tick counter. This is only ticking
- * if a system timer has been initialized. */
+ * Retrieves the system tick counter. This is only ticking if a system timer has been initialized. 
+ * Otherwise the GetSystemTick will always return 1. */
 OsStatus_t
 TimersGetSystemTick(
     _Out_ clock_t *SystemTick)
 {
     // Sanitize
     if (ActiveSystemTimer == NULL || ActiveSystemTimer->SystemTick == NULL) {
-        *SystemTick = 0;
+        *SystemTick = 1;
         return OsError;
     }
     *SystemTick = ActiveSystemTimer->SystemTick();

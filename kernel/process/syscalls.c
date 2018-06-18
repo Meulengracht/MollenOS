@@ -1174,9 +1174,9 @@ ScDestroyFileMapping(
  * communication to this port from other processes */
 OsStatus_t
 ScPipeOpen(
-    _In_ int        Port, 
-    _In_ Flags_t    Flags) {
-    return PhoenixOpenAshPipe(PhoenixGetCurrentAsh(), Port, Flags);
+    _In_ int            Port, 
+    _In_ int            Type) {
+    return PhoenixOpenAshPipe(PhoenixGetCurrentAsh(), Port, Type);
 }
 
 /* ScPipeClose
@@ -1184,7 +1184,7 @@ ScPipeOpen(
  * shutdowns any communication on that port */
 OsStatus_t
 ScPipeClose(
-    _In_ int Port) {
+    _In_ int            Port) {
     return PhoenixCloseAshPipe(PhoenixGetCurrentAsh(), Port);
 }
 
@@ -1192,61 +1192,56 @@ ScPipeClose(
  * Reads the requested number of bytes from the system-pipe. */
 OsStatus_t
 ScPipeRead(
-    _In_ int        Port,
-    _In_ uint8_t*   Container,
-    _In_ size_t     Length)
+    _In_ int            Port,
+    _In_ uint8_t*       Container,
+    _In_ size_t         Length)
 {
     // Variables
-    MCorePipe_t *Pipe   = NULL;
-    unsigned PipeWorker = 0;
-
-    // Lookup the pipe for the given port
-    if (Port == -1) {
-        Pipe = ThreadingGetCurrentThread(CpuGetCurrentId())->Pipe;
-    }
-    else {
-        Pipe = PhoenixGetAshPipe(PhoenixGetCurrentAsh(), Port);
-    }
-
-    // Sanitize the pipe
-    if (Pipe == NULL) {
-        ERROR("Trying to read from non-existing pipe %i", Port);
-        return OsError;
-    }
+    SystemPipe_t *Pipe  = NULL;
 
     // Sanitize parameters
     if (Length == 0) {
         return OsSuccess;
     }
 
-    // Debug
-    PipeConsumeAcquire(Pipe, &PipeWorker);
-    PipeConsume(Pipe, Container, Length, PipeWorker);
-    return PipeConsumeCommit(Pipe, PipeWorker);
+    // Lookup the pipe for the given port
+    // A port of -1 means a thread-localized response pipe
+    if (Port == -1) {   Pipe = ThreadingGetCurrentThread(CpuGetCurrentId())->Pipe; }
+    else {              Pipe = PhoenixGetAshPipe(PhoenixGetCurrentAsh(), Port); }
+
+    if (Pipe == NULL) {
+        ERROR("Trying to read from non-existing pipe %i", Port);
+        return OsError;
+    }
+
+    ReadSystemPipe(Pipe, Container, Length);
+    return OsSuccess;
 }
 
 /* ScPipeWrite
  * Writes the requested number of bytes to the system-pipe. */
 OsStatus_t
 ScPipeWrite(
-    _In_ UUId_t      AshId,
-    _In_ int         Port,
-    _In_ uint8_t    *Message,
-    _In_ size_t      Length)
+    _In_ UUId_t         ProcessId,
+    _In_ int            Port,
+    _In_ uint8_t*       Message,
+    _In_ size_t         Length)
 {
     // Variables
-    MCorePipe_t *Pipe   = NULL;
-    unsigned PipeWorker = 0;
-    unsigned PipeIndex  = 0;
+    MCoreThread_t *Thread   = NULL;
+    SystemPipe_t *Pipe      = NULL;
 
     // Sanitize parameters
     if (Message == NULL || Length == 0) {
-        ERROR("Invalid paramters for pipe-write");
         return OsError;
     }
 
-    // Look for system pipe?
-    if (AshId == UUID_INVALID) {
+    // Try to lookup thread
+    Thread = ThreadingGetThread(ProcessId);
+
+    // Are we looking for a system out pipe? (std) then the
+    // process id (target) will be set as invalid
+    if (ProcessId == UUID_INVALID) {
         if (Port == PIPE_STDOUT || Port == PIPE_STDERR) {
             if (Port == PIPE_STDOUT) {
                 Pipe = LogPipeStdout();
@@ -1260,65 +1255,49 @@ ScPipeWrite(
             return OsError;
         }
     }
-    // Look for thread pipe?
-    else if (Port == -1 && ThreadingGetThread(AshId) != NULL) {
-        Pipe = ThreadingGetThread(AshId)->Pipe;
-    }
-    // Look for normal pipe?
-    else {
-        Pipe = PhoenixGetAshPipe(PhoenixGetAsh(AshId), Port);
-    }
-
-    // Sanitize the pipe
+    else if (Port == -1 && Thread != NULL) { Pipe = Thread->Pipe; }
+    else { Pipe = PhoenixGetAshPipe(PhoenixGetAsh(ProcessId), Port); }
     if (Pipe == NULL) {
         ERROR("Invalid pipe %i", Port);
         return OsError;
     }
-    
-    // Debug
-    PipeProduceAcquire(Pipe, Length, &PipeWorker, &PipeIndex);
-    PipeProduce(Pipe, Message, Length, &PipeIndex);
-    return PipeProduceCommit(Pipe, PipeWorker);
+
+    WriteSystemPipe(Pipe, Message, Length);
+    return OsSuccess;
 }
 
 /* ScPipeReceive
  * Receives the requested number of bytes to the system-pipe. */
 OsStatus_t
 ScPipeReceive(
-    _In_ UUId_t      AshId,
-    _In_ int         Port,
-    _In_ uint8_t    *Message,
-    _In_ size_t      Length)
+    _In_ UUId_t         ProcessId,
+    _In_ int            Port,
+    _In_ uint8_t*       Message,
+    _In_ size_t         Length)
 {
     // Variables
-    MCorePipe_t *Pipe   = NULL;
-    unsigned PipeWorker = 0;
+    MCoreThread_t *Thread   = NULL;
+    SystemPipe_t *Pipe      = NULL;
 
     // Sanitize parameters
-    if (Message == NULL || Length == 0 || AshId == UUID_INVALID) {
-        ERROR("Invalid paramters for pipe-recieve");
+    if (Message == NULL || Length == 0 || ProcessId == UUID_INVALID) {
+        ERROR("Invalid paramters for pipe-receive");
         return OsError;
     }
 
-    // Check for thread pipe if Port == -1
-    if (Port == -1 && ThreadingGetThread(AshId) != NULL) {
-        Pipe = ThreadingGetThread(AshId)->Pipe;
-    }
-    // Otherwise normal pipe
-    else {
-        Pipe = PhoenixGetAshPipe(PhoenixGetAsh(AshId), Port);
-    }
+    // Try to lookup thread
+    Thread = ThreadingGetThread(ProcessId);
 
-    // Sanitize the pipe
+    // Check for thread pipe if Port == -1
+    if (Port == -1 && Thread != NULL) { Pipe = Thread->Pipe; }
+    else { Pipe = PhoenixGetAshPipe(PhoenixGetAsh(ProcessId), Port); }
     if (Pipe == NULL) {
         ERROR("Invalid pipe %i", Port);
         return OsError;
     }
-    
-    // Debug
-    PipeConsumeAcquire(Pipe, &PipeWorker);
-    PipeConsume(Pipe, Message, Length, PipeWorker);
-    return PipeConsumeCommit(Pipe, PipeWorker);
+
+    ReadSystemPipe(Pipe, Message, Length);
+    return OsSuccess;
 }
 
 /* ScRpcResponse
@@ -1326,55 +1305,39 @@ ScPipeReceive(
  * by polling the default pipe for a rpc-response */
 OsStatus_t
 ScRpcResponse(
-    _In_ MRemoteCall_t *RemoteCall)
+    _In_ MRemoteCall_t* RemoteCall)
 {
     // Variables
-    MCoreAsh_t *Ash     = NULL;
-    MCorePipe_t *Pipe   = NULL;
+    SystemPipe_t *Pipe  = ThreadingGetCurrentThread(CpuGetCurrentId())->Pipe;
     size_t ToRead       = RemoteCall->Result.Length;
-    unsigned PipeWorker = 0;
     
-    // There can be a special case where 
-    // Sender == PHOENIX_NO_ASH 
-    // Use the builtin thread pipe
-    if (RemoteCall->From.Type == 1) {
-        Pipe = ThreadingGetCurrentThread(CpuGetCurrentId())->Pipe;
+    // Sanitize the lookups
+    if (Pipe == NULL) {
+        ERROR("Process lookup failed for process 0x%x:%i", 
+            ThreadingGetCurrentThread(CpuGetCurrentId())->AshId, RemoteCall->From.Port);
+        return OsError;
     }
-    else {
-        // Resolve the current running process
-        // and the default pipe in the rpc
-        Ash     = PhoenixGetAsh(ThreadingGetCurrentThread(CpuGetCurrentId())->AshId);
-        Pipe    = PhoenixGetAshPipe(Ash, RemoteCall->From.Port);
-
-        // Sanitize the lookups
-        if (Ash == NULL || Pipe == NULL) {
-            ERROR("Process lookup failed for process 0x%x:%i", 
-                ThreadingGetCurrentThread(CpuGetCurrentId())->AshId, RemoteCall->From.Port);
-            return OsError;
-        }
-        else if (RemoteCall->Result.Type == ARGUMENT_NOTUSED) {
-            ERROR("RemoteCall: To(%u:%u:%i), From(%u:%u:%i)",
-                RemoteCall->To.Type, RemoteCall->To.Process, RemoteCall->To.Port,
-                RemoteCall->From.Type, RemoteCall->From.Process, RemoteCall->From.Port);
-            ERROR("RemoteCall: Version(%i), Function(%i), DataLength(%u)",
-                RemoteCall->Version, RemoteCall->Function, RemoteCall->DataLength);
-            ERROR("RemoteCall: Arg0(%u:0x%x:%u), Arg0(%u:0x%x:%u), Arg0(%u:0x%x:%u)",
-                RemoteCall->Arguments[0].Type, RemoteCall->Arguments[0].Data.Value, RemoteCall->Arguments[0].Length,
-                RemoteCall->Arguments[1].Type, RemoteCall->Arguments[1].Data.Value, RemoteCall->Arguments[1].Length,
-                RemoteCall->Arguments[2].Type, RemoteCall->Arguments[2].Data.Value, RemoteCall->Arguments[2].Length);
-            ERROR("RemoteCall: Arg0(%u:0x%x:%u), Arg0(%u:0x%x:%u), Result(%u:0x%x:%u)",
-                RemoteCall->Arguments[3].Type, RemoteCall->Arguments[3].Data.Value, RemoteCall->Arguments[3].Length,
-                RemoteCall->Arguments[4].Type, RemoteCall->Arguments[4].Data.Value, RemoteCall->Arguments[4].Length,
-                RemoteCall->Result.Type, RemoteCall->Result.Data.Value, RemoteCall->Result.Length);
-            ERROR("No result expected but used result-executer.");
-            return OsError;
-        }
+    else if (RemoteCall->Result.Type == ARGUMENT_NOTUSED) {
+        ERROR("RemoteCall: To(%u:%i), From(%u:%i)",
+            RemoteCall->To.Process, RemoteCall->To.Port,
+            RemoteCall->From.Process, RemoteCall->From.Port);
+        ERROR("RemoteCall: Version(%i), Function(%i), DataLength(%u)",
+            RemoteCall->Version, RemoteCall->Function, RemoteCall->DataLength);
+        ERROR("RemoteCall: Arg0(%u:0x%x:%u), Arg0(%u:0x%x:%u), Arg0(%u:0x%x:%u)",
+            RemoteCall->Arguments[0].Type, RemoteCall->Arguments[0].Data.Value, RemoteCall->Arguments[0].Length,
+            RemoteCall->Arguments[1].Type, RemoteCall->Arguments[1].Data.Value, RemoteCall->Arguments[1].Length,
+            RemoteCall->Arguments[2].Type, RemoteCall->Arguments[2].Data.Value, RemoteCall->Arguments[2].Length);
+        ERROR("RemoteCall: Arg0(%u:0x%x:%u), Arg0(%u:0x%x:%u), Result(%u:0x%x:%u)",
+            RemoteCall->Arguments[3].Type, RemoteCall->Arguments[3].Data.Value, RemoteCall->Arguments[3].Length,
+            RemoteCall->Arguments[4].Type, RemoteCall->Arguments[4].Data.Value, RemoteCall->Arguments[4].Length,
+            RemoteCall->Result.Type, RemoteCall->Result.Data.Value, RemoteCall->Result.Length);
+        ERROR("No result expected but used result-executer.");
+        return OsError;
     }
 
     // Read the data into the response-buffer
-    PipeConsumeAcquire(Pipe, &PipeWorker);
-    PipeConsume(Pipe, (uint8_t*)RemoteCall->Result.Data.Buffer, ToRead, PipeWorker);
-    return PipeConsumeCommit(Pipe, PipeWorker);
+    ReadSystemPipe(Pipe, (uint8_t*)RemoteCall->Result.Data.Buffer, ToRead);
+    return OsSuccess;
 }
 
 /* ScRpcExecute
@@ -1382,19 +1345,19 @@ ScRpcResponse(
  * a reply/response */
 OsStatus_t
 ScRpcExecute(
-    _In_ MRemoteCall_t *RemoteCall,
+    _In_ MRemoteCall_t* RemoteCall,
     _In_ int            Async)
 {
     // Variables
-    MCorePipe_t *Pipe   = NULL;
+    SystemPipeUserState_t State;
+    SystemPipe_t *Pipe  = NULL;
     MCoreAsh_t *Ash     = NULL;
     size_t TotalLength  = sizeof(MRemoteCall_t);
-    unsigned PipeWorker = 0;
-    unsigned PipeIndex  = 0;
     int i               = 0;
 
     // Trace
-    TRACE("%s: ScRpcExecute(Target 0x%x, Message %i, Async %i)", MStringRaw(PhoenixGetCurrentAsh()->Name), 
+    TRACE("%s: ScRpcExecute(Target 0x%x, Message %i, Async %i)", 
+        MStringRaw(PhoenixGetCurrentAsh()->Name), 
         RemoteCall->To.Process, RemoteCall->Function, Async);
     
     // Start out by resolving both the
@@ -1410,11 +1373,8 @@ ScRpcExecute(
     }
 
     // Install Sender
-    RemoteCall->From.Process  = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
-    if (RemoteCall->From.Port == -1 || RemoteCall->From.Process == UUID_INVALID) { // Kernel Thread
-        RemoteCall->From.Type = 1;
-        RemoteCall->From.Process = ThreadingGetCurrentThreadId();
-    }
+    RemoteCall->From.Process    = ThreadingGetCurrentThreadId();
+    RemoteCall->From.Port       = -1;
 
     // Calculate how much data to be comitted
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
@@ -1424,23 +1384,21 @@ ScRpcExecute(
     }
 
     // Setup producer access
-    PipeProduceAcquire(Pipe, TotalLength, &PipeWorker, &PipeIndex);
-    PipeProduce(Pipe, (uint8_t*)RemoteCall, sizeof(MRemoteCall_t), &PipeIndex);
+    AcquireSystemPipeProduction(Pipe, TotalLength, &State);
+    WriteSystemPipeProduction(&State, (const uint8_t*)RemoteCall, sizeof(MRemoteCall_t));
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
         if (RemoteCall->Arguments[i].Type == ARGUMENT_BUFFER) {
-            PipeProduce(Pipe, (uint8_t*)RemoteCall->Arguments[i].Data.Buffer,
-                RemoteCall->Arguments[i].Length, &PipeIndex);
+            WriteSystemPipeProduction(&State, 
+                (const uint8_t*)RemoteCall->Arguments[i].Data.Buffer,
+                RemoteCall->Arguments[i].Length);
         }
     }
-    PipeProduceCommit(Pipe, PipeWorker);
 
     // Async request? Because if yes, don't
     // wait for response
     if (Async) {
         return OsSuccess;
     }
-
-    // Ok, wait for response
     return ScRpcResponse(RemoteCall);
 }
 
@@ -1448,16 +1406,17 @@ ScRpcExecute(
  * Listens for a new rpc-message on the default rpc-pipe. */
 OsStatus_t
 ScRpcListen(
-    _In_ int             Port,
-    _In_ MRemoteCall_t  *RemoteCall,
-    _In_ uint8_t        *ArgumentBuffer)
+    _In_ int            Port,
+    _In_ MRemoteCall_t* RemoteCall,
+    _In_ uint8_t*       ArgumentBuffer)
 {
     // Variables
-    MCorePipe_t *Pipe       = NULL;
+    SystemPipeUserState_t State;
+    SystemPipe_t *Pipe      = NULL;
     MCoreAsh_t *Ash         = NULL;
     uint8_t *BufferPointer  = ArgumentBuffer;
-    unsigned PipeWorker     = 0;
-    int i                   = 0;
+    size_t Length;
+    int i;
 
     // Trace
     TRACE("%s: ScRpcListen(Port %i)", MStringRaw(PhoenixGetCurrentAsh()->Name), Port);
@@ -1468,73 +1427,63 @@ ScRpcListen(
     Pipe                    = PhoenixGetAshPipe(Ash, Port);
 
     // Start consuming
-    PipeConsumeAcquire(Pipe, &PipeWorker);
-    PipeConsume(Pipe, (uint8_t*)RemoteCall, sizeof(MRemoteCall_t), PipeWorker);
+    AcquireSystemPipeConsumption(Pipe, &Length, &State);
+    ReadSystemPipeConsumption(&State, (uint8_t*)RemoteCall, sizeof(MRemoteCall_t));
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
         if (RemoteCall->Arguments[i].Type == ARGUMENT_BUFFER) {
             RemoteCall->Arguments[i].Data.Buffer = (const void*)BufferPointer;
-            PipeConsume(Pipe, BufferPointer, RemoteCall->Arguments[i].Length, PipeWorker);
+            ReadSystemPipeConsumption(&State, BufferPointer, RemoteCall->Arguments[i].Length);
             BufferPointer += RemoteCall->Arguments[i].Length;
         }
     }
-    return PipeConsumeCommit(Pipe, PipeWorker);
+    FinalizeSystemPipeConsumption(Pipe, &State);
+    return OsSuccess;
 }
 
 /* ScRpcRespond
- * */
+ * A wrapper for sending an RPC response to the calling thread. Each thread has each it's response
+ * channel to avoid any concurrency issues. */
 OsStatus_t
 ScRpcRespond(
     _In_ MRemoteCall_t* RemoteCall,
-    _In_ const void*    Buffer, 
+    _In_ const uint8_t* Buffer, 
     _In_ size_t         Length)
 {
     // Variables
-    MCorePipe_t *Pipe       = NULL;
-    MCoreAsh_t *Ash         = NULL;
-    unsigned PipeWorker     = 0;
-    unsigned PipeIndex      = 0;
+    MCoreThread_t *Thread   = ThreadingGetThread(RemoteCall->From.Process);
+    SystemPipe_t *Pipe      = NULL;
 
-    // There can be a special case where 
-    // Sender == PHOENIX_NO_ASH 
-    // Use the builtin thread pipe
-    if (RemoteCall->From.Type == 1) {
-        Pipe    = ThreadingGetThread(RemoteCall->From.Process)->Pipe;
-    }
-    else {
-        // Resolve the current running process
-        // and the default pipe in the rpc
-        Ash     = PhoenixGetAsh(RemoteCall->From.Process);
-        Pipe    = PhoenixGetAshPipe(Ash, RemoteCall->From.Port);
-
-        // Sanitize the lookups
-        if (Ash == NULL || Pipe == NULL) {
-            ERROR("Process lookup failed for process 0x%x:%i", 
-                RemoteCall->From.Process, RemoteCall->From.Port);
-            return OsError;
-        }
-        else if (RemoteCall->Result.Type == ARGUMENT_NOTUSED) {
-            ERROR("RemoteCall: To(%u:%u:%i), From(%u:%u:%i)",
-                RemoteCall->To.Type, RemoteCall->To.Process, RemoteCall->To.Port,
-                RemoteCall->From.Type, RemoteCall->From.Process, RemoteCall->From.Port);
-            ERROR("RemoteCall: Version(%i), Function(%i), DataLength(%u)",
-                RemoteCall->Version, RemoteCall->Function, RemoteCall->DataLength);
-            ERROR("RemoteCall: Arg0(%u:0x%x:%u), Arg0(%u:0x%x:%u), Arg0(%u:0x%x:%u)",
-                RemoteCall->Arguments[0].Type, RemoteCall->Arguments[0].Data.Value, RemoteCall->Arguments[0].Length,
-                RemoteCall->Arguments[1].Type, RemoteCall->Arguments[1].Data.Value, RemoteCall->Arguments[1].Length,
-                RemoteCall->Arguments[2].Type, RemoteCall->Arguments[2].Data.Value, RemoteCall->Arguments[2].Length);
-            ERROR("RemoteCall: Arg0(%u:0x%x:%u), Arg0(%u:0x%x:%u), Result(%u:0x%x:%u)",
-                RemoteCall->Arguments[3].Type, RemoteCall->Arguments[3].Data.Value, RemoteCall->Arguments[3].Length,
-                RemoteCall->Arguments[4].Type, RemoteCall->Arguments[4].Data.Value, RemoteCall->Arguments[4].Length,
-                RemoteCall->Result.Type, RemoteCall->Result.Data.Value, RemoteCall->Result.Length);
-            ERROR("No result expected but used result-executer.");
-            return OsError;
-        }
+    // Sanitize thread still exists
+    if (Thread != NULL) {
+        Pipe = Thread->Pipe;
     }
 
-    // Setup producer access
-    PipeProduceAcquire(Pipe, Length, &PipeWorker, &PipeIndex);
-    PipeProduce(Pipe, (uint8_t*)Buffer, Length, &PipeIndex);
-    return PipeProduceCommit(Pipe, PipeWorker);
+    // Sanitize the lookups
+    if (Thread == NULL || Pipe == NULL) {
+        ERROR("Process lookup failed for process 0x%x:%i", 
+            RemoteCall->From.Process, RemoteCall->From.Port);
+        return OsError;
+    }
+    else if (RemoteCall->Result.Type == ARGUMENT_NOTUSED) {
+        ERROR("RemoteCall: To(%u:%i), From(%u:%i)",
+            RemoteCall->To.Process, RemoteCall->To.Port,
+            RemoteCall->From.Process, RemoteCall->From.Port);
+        ERROR("RemoteCall: Version(%i), Function(%i), DataLength(%u)",
+            RemoteCall->Version, RemoteCall->Function, RemoteCall->DataLength);
+        ERROR("RemoteCall: Arg0(%u:0x%x:%u), Arg0(%u:0x%x:%u), Arg0(%u:0x%x:%u)",
+            RemoteCall->Arguments[0].Type, RemoteCall->Arguments[0].Data.Value, RemoteCall->Arguments[0].Length,
+            RemoteCall->Arguments[1].Type, RemoteCall->Arguments[1].Data.Value, RemoteCall->Arguments[1].Length,
+            RemoteCall->Arguments[2].Type, RemoteCall->Arguments[2].Data.Value, RemoteCall->Arguments[2].Length);
+        ERROR("RemoteCall: Arg0(%u:0x%x:%u), Arg0(%u:0x%x:%u), Result(%u:0x%x:%u)",
+            RemoteCall->Arguments[3].Type, RemoteCall->Arguments[3].Data.Value, RemoteCall->Arguments[3].Length,
+            RemoteCall->Arguments[4].Type, RemoteCall->Arguments[4].Data.Value, RemoteCall->Arguments[4].Length,
+            RemoteCall->Result.Type, RemoteCall->Result.Data.Value, RemoteCall->Result.Length);
+        ERROR("No result expected but used result-executer.");
+        return OsError;
+    }
+
+    WriteSystemPipe(Pipe, Buffer, Length);
+    return OsSuccess;
 }
 
 /***********************
@@ -1800,11 +1749,11 @@ ScLoadDriver(
     }
 
     // Initialize the base of a new message, always protocol version 1
-    RPCInitialize(&RemoteCall, Server->Base.Id, 1, PIPE_RPCOUT, __DRIVER_REGISTERINSTANCE);
+    RPCInitialize(&RemoteCall, Server->Base.Id, 1, PIPE_REMOTECALL, __DRIVER_REGISTERINSTANCE);
     RPCSetArgument(&RemoteCall, 0, Device, Length);
 
     // Make sure the server has opened it's comm-pipe
-    PhoenixWaitAshPipe(&Server->Base, PIPE_RPCOUT);
+    PhoenixWaitAshPipe(&Server->Base, PIPE_REMOTECALL);
     return ScRpcExecute(&RemoteCall, 1);
 }
 

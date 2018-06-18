@@ -20,7 +20,7 @@
  * - Counting semaphores implementation, using safe passages known as
  *   atomic sections in the operating system to synchronize in a kernel env
  */
-#define __MODULE "SEM0"
+#define __MODULE "SEM1"
 //#define __TRACE
 #ifdef __TRACE
 #define __STRICT_ASSERT(x) assert(x)
@@ -30,98 +30,33 @@
 
 #include <system/thread.h>
 #include <system/utils.h>
+#include <semaphore_slim.h>
 #include <scheduler.h>
-#include <semaphore.h>
 #include <debug.h>
 #include <heap.h>
 
-#include <ds/collection.h>
 #include <stddef.h>
 #include <assert.h>
 
-/* Globals */
-static Collection_t Semaphores = COLLECTION_INIT(KeyInteger);
-
-/* SemaphoreCreate
- * Initializes and allocates a new semaphore
- * Semaphores use safe passages to avoid race-conditions */
-Semaphore_t*
-SemaphoreCreate(
-    _In_ int        InitialValue,
-    _In_ int        MaximumValue)
-{
-    // Variables
-	Semaphore_t *Semaphore = NULL;
-
-    // Initialize the new instance
-	Semaphore = (Semaphore_t*)kmalloc(sizeof(Semaphore_t));
-	SemaphoreConstruct(Semaphore, InitialValue, MaximumValue);
-    Semaphore->Cleanup = 1;
-	return Semaphore;
-}
-
-/* SemaphoreCreateGlobal
- * Creates a global semaphore, identified by it's name
- * and makes sure only one can exist at the time. Returns
- * NULL if one already exists. */
-Semaphore_t*
-SemaphoreCreateGlobal(
-    _In_ MString_t* Identifier, 
-    _In_ int        InitialValue,
-    _In_ int        MaximumValue)
-{
-	/* Variables */
-	DataKey_t hKey;
-
-	/* First of all, make sure there is no 
-	 * conflicting semaphores in system */
-	if (Identifier != NULL) {
-		hKey.Value      = (int)MStringHash(Identifier);
-		void *Exists    = CollectionGetDataByKey(&Semaphores, hKey, 0);
-		if (Exists != NULL) {
-			return NULL;
-		}
-	}
-
-	/* Allocate a new semaphore */
-	Semaphore_t *Semaphore = (Semaphore_t*)kmalloc(sizeof(Semaphore_t));
-	SemaphoreConstruct(Semaphore, InitialValue, MaximumValue);
-	Semaphore->Hash = MStringHash(Identifier);
-
-	/* Add to system list of semaphores if global */
-	if (Identifier != NULL)  {
-		CollectionAppend(&Semaphores, CollectionCreateNode(hKey, Semaphore));
-	}
-	return Semaphore;
-}
-
-/* SemaphoreDestroy
- * Destroys and frees a semaphore, releasing any
- * resources associated with it */
+/* SlimSemaphoreDestroy
+ * Cleans up the semaphore, waking up all sleeper threads
+ * to not have dead threads. */
 void
-SemaphoreDestroy(
-    _In_ Semaphore_t*   Semaphore)
+SlimSemaphoreDestroy(
+    _In_ SlimSemaphore_t*   Semaphore)
 {
-	// Variables
-	DataKey_t Key;
-	if (Semaphore->Hash != 0) {
-		Key.Value = (int)Semaphore->Hash;
-		CollectionRemoveByKey(&Semaphores, Key);
-	}
+    // Wakeup threads
 	SchedulerHandleSignalAll((uintptr_t*)Semaphore);
-    if (Semaphore->Cleanup) {
-	    kfree(Semaphore);
-    }
 }
 
-/* SemaphoreConstruct
+/* SlimSemaphoreConstruct
  * Constructs an already allocated semaphore and resets
  * it's value to the given initial value */
 void
-SemaphoreConstruct(
-    _In_ Semaphore_t*   Semaphore,
-    _In_ int            InitialValue,
-    _In_ int            MaximumValue)
+SlimSemaphoreConstruct(
+    _In_ SlimSemaphore_t*   Semaphore,
+    _In_ int                InitialValue,
+    _In_ int                MaximumValue)
 {
 	// Sanitize values
 	assert(Semaphore != NULL);
@@ -129,19 +64,18 @@ SemaphoreConstruct(
     assert(MaximumValue >= InitialValue);
 
 	// Initiate members
-    memset((void*)Semaphore, 0, sizeof(Semaphore_t));
+    memset((void*)Semaphore, 0, sizeof(SlimSemaphore_t));
     Semaphore->MaxValue = MaximumValue;
 	Semaphore->Value    = InitialValue;
-	Semaphore->Creator  = ThreadingGetCurrentThreadId();
 }
 
-/* SemaphoreWait
+/* SlimSemaphoreWait
  * Waits for the semaphore signal with the optional time-out.
  * Returns SCHEDULER_SLEEP_OK or SCHEDULER_SLEEP_TIMEOUT */
 int
-SemaphoreWait(
-    _In_ Semaphore_t*   Semaphore,
-    _In_ size_t         Timeout)
+SlimSemaphoreWait(
+    _In_ SlimSemaphore_t*   Semaphore,
+    _In_ size_t             Timeout)
 {
     AtomicSectionEnter(&Semaphore->SyncObject);
 	Semaphore->Value--;
@@ -158,12 +92,12 @@ SemaphoreWait(
     return SCHEDULER_SLEEP_OK;
 }
 
-/* SemaphoreSignal
+/* SlimSemaphoreSignal
  * Signals the semaphore with the given value, default is 1 */
 OsStatus_t
-SemaphoreSignal(
-    _In_ Semaphore_t*   Semaphore,
-    _In_ int            Value)
+SlimSemaphoreSignal(
+    _In_ SlimSemaphore_t*   Semaphore,
+    _In_ int                Value)
 {
 	// Variables
     OsStatus_t Status = OsError;

@@ -278,12 +278,12 @@ PhoenixStartupAsh(
  * Creates a new communication pipe available for use. */
 OsStatus_t
 PhoenixOpenAshPipe(
-    _In_ MCoreAsh_t  *Ash, 
-    _In_ int          Port, 
-    _In_ Flags_t      Flags)
+    _In_ MCoreAsh_t*    Ash, 
+    _In_ int            Port, 
+    _In_ int            Type)
 {
     // Variables
-    MCorePipe_t *Pipe = NULL;
+    SystemPipe_t *Pipe = NULL;
     DataKey_t Key;
 
     // Debug
@@ -304,7 +304,12 @@ PhoenixOpenAshPipe(
     }
 
     // Create a new pipe and add it to list 
-    Pipe = PipeCreate(PIPE_DEFAULT_SIZE, Flags);
+    if (Type == PIPE_RAW) {
+        Pipe = CreateSystemPipe(0, PIPE_DEFAULT_ENTRYCOUNT);
+    }
+    else {
+        Pipe = CreateSystemPipe(PIPE_MPMC, PIPE_DEFAULT_ENTRYCOUNT);
+    }
     CollectionAppend(Ash->Pipes, CollectionCreateNode(Key, Pipe));
 
     // Wake sleepers waiting for pipe creations
@@ -353,7 +358,7 @@ PhoenixCloseAshPipe(
     _In_ int         Port)
 {
     // Variables
-    MCorePipe_t *Pipe = NULL;
+    SystemPipe_t *Pipe = NULL;
     DataKey_t Key;
 
     // Sanitize input
@@ -363,20 +368,20 @@ PhoenixCloseAshPipe(
 
     // Lookup pipe
     Key.Value = Port;
-    Pipe = (MCorePipe_t*)CollectionGetDataByKey(Ash->Pipes, Key, 0);
+    Pipe = (SystemPipe_t*)CollectionGetDataByKey(Ash->Pipes, Key, 0);
     if (Pipe == NULL) {
         return OsError;
     }
 
     // Cleanup pipe and remove node
-    PipeDestroy(Pipe);
+    DestroySystemPipe(Pipe);
     return CollectionRemoveByKey(Ash->Pipes, Key);
 }
 
 /* PhoenixGetAshPipe
  * Retrieves an existing pipe instance for the given ash
  * and port-id. If it doesn't exist, returns NULL. */
-MCorePipe_t*
+SystemPipe_t*
 PhoenixGetAshPipe(
     _In_ MCoreAsh_t     *Ash, 
     _In_ int             Port)
@@ -391,7 +396,7 @@ PhoenixGetAshPipe(
 
     // Perform the lookup
     Key.Value = Port;
-    return (MCorePipe_t*)CollectionGetDataByKey(Ash->Pipes, Key, 0);
+    return (SystemPipe_t*)CollectionGetDataByKey(Ash->Pipes, Key, 0);
 }
 
 /* PhoenixGetCurrentAsh
@@ -434,7 +439,7 @@ PhoenixCleanupAsh(
 
     // Cleanup pipes
     _foreach(Node, Ash->Pipes) {
-        PipeDestroy((MCorePipe_t*)Node->Data);
+        DestroySystemPipe((SystemPipe_t*)Node->Data);
     }
     CollectionDestroy(Ash->Pipes);
 
