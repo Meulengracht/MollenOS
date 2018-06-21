@@ -22,14 +22,10 @@
 #ifndef _MCORE_EVENTS_H_
 #define _MCORE_EVENTS_H_
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 #include <ds/collection.h>
-
-/* Includes
- * - System */
-#include <semaphore.h>
+#include <ds/mstring.h>
+#include <semaphore_slim.h>
 
 /* This describes the current state
  * of an event, this means the sender
@@ -54,7 +50,7 @@ typedef struct _MCoreEvent {
     UUId_t              Owner;
     Enum_t              Type;
     EventState_t        State;
-    Semaphore_t         Queue;
+    SlimSemaphore_t     Queue;
     int                 Cleanup;
 } MCoreEvent_t;
 
@@ -68,11 +64,11 @@ typedef int (*EventCallback)(void*, MCoreEvent_t*);
  * The event handler keeps track of 
  * events and locks */
 typedef struct _MCoreEventHandler {
+    SlimSemaphore_t     Lock;
     MString_t           *Name;
     UUId_t               ThreadId;
     int                  Running;
     Collection_t        *Events;
-    Semaphore_t         *Lock;
     EventCallback        Callback;
     void                *UserData;
 } MCoreEventHandler_t;

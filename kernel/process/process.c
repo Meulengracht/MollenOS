@@ -21,21 +21,15 @@
 #define __MODULE "PCIF"
 #define __TRACE
 
-/* Includes 
- * - System */
 #include <process/process.h>
 #include <process/phoenix.h>
 #include <garbagecollector.h>
 #include <threading.h>
-#include <semaphore.h>
 #include <scheduler.h>
 #include <debug.h>
 #include <heap.h>
 
-/* Includes
- * - Library */
 #include <ds/mstring.h>
-#include <stddef.h>
 #include <string.h>
 
 /* PhoenixCreateProcess

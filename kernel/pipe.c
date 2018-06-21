@@ -191,6 +191,43 @@ GetSystemPipeConsumerTicket(
 
 /////////////////////////////////////////////////////////////////////////
 // System Pipe Buffer Code
+static inline size_t
+CalculateBytesAvailableForWriting(
+    _In_ SystemPipeSegmentBuffer_t* Buffer,
+    _In_ size_t                     ReadIndex,
+    _In_ size_t                     WriteIndex)
+{
+    // Handle wrap-around
+    if (ReadIndex > WriteIndex) {
+        if (ReadIndex >= (UINT_MAX - Buffer->Size)) {
+            return (ReadIndex & (Buffer->Size - 1)) - (WriteIndex & (Buffer->Size - 1));
+        }
+        else {
+            return 0; // Overcommitted
+        }
+    }
+    return Buffer->Size - (WriteIndex - ReadIndex);
+}
+
+static inline size_t
+CalculateBytesAvailableForReading(
+    _In_ SystemPipeSegmentBuffer_t* Buffer,
+    _In_ size_t                     ReadIndex,
+    _In_ size_t                     WriteIndex)
+{
+    // Handle wrap-around
+    if (ReadIndex > WriteIndex) {
+        if (ReadIndex >= (UINT_MAX - Buffer->Size)) {
+            return (Buffer->Size - (ReadIndex & (Buffer->Size - 1))) + 
+                (WriteIndex & (Buffer->Size - 1)) - 1;
+        }
+        else {
+            return 0; // Overcommitted
+        }
+    }
+    return WriteIndex - ReadIndex;
+}
+
 static void
 InitializeSegmentBuffer(
     _In_ SystemPipe_t*              Pipe,
@@ -205,13 +242,57 @@ InitializeSegmentBuffer(
     SlimSemaphoreConstruct(&Buffer->WriteQueue, 0, 0);
 }
 
+/////////////////////////////////////////////////////////////////////////
+// System Pipe Structured Buffer Code
 static unsigned int
 AcquireSegmentBufferSpace(
+    _In_ SystemPipe_t*              Pipe,
     _In_ SystemPipeSegmentBuffer_t* Buffer,
     _In_ size_t                     Length)
 {
-    //WithdrawFromVault(&Buffer->Vault, (int)Length);
-    return atomic_fetch_add(&Buffer->WritePointer, Length);
+    // Variables
+    size_t BytesAvailable;
+    size_t ReadIndex;
+    size_t WriteIndex;
+
+    // Make sure we write all the bytes
+    while (1) {
+        WriteIndex      = atomic_load(&Buffer->WritePointer);
+        ReadIndex       = atomic_load(&Buffer->ReadCommitted);
+        BytesAvailable  = MIN(
+            CalculateBytesAvailableForWriting(Buffer, ReadIndex, WriteIndex), Length);
+        if (BytesAvailable != Length) {
+            SlimSemaphoreWait(&Buffer->WriteQueue, 0);
+            continue; // Start over
+        }
+
+        // Synchronize with other producers
+        if (Pipe->Configuration & PIPE_MULTIPLE_PRODUCERS) {
+            while (BytesAvailable == Length) {
+                size_t NewWritePointer  = WriteIndex + BytesAvailable;
+                if (atomic_compare_exchange_weak(&Buffer->WritePointer, &WriteIndex, NewWritePointer)) {
+                    break;
+                }
+                ReadIndex       = atomic_load(&Buffer->ReadCommitted);
+                BytesAvailable  = MIN(
+                    CalculateBytesAvailableForWriting(Buffer, ReadIndex, WriteIndex), Length);
+            }
+
+            // Did we end up overcomitting?
+            if (BytesAvailable != Length) {
+                continue; // Start write loop all over
+            }
+        }
+        else {
+            atomic_store_explicit(&Buffer->WritePointer, WriteIndex + BytesAvailable, memory_order_relaxed);
+        }
+
+        // Break us out here
+        if (BytesAvailable == Length) {
+            break;
+        }
+    }
+    return WriteIndex;
 }
 
 static void
@@ -248,24 +329,6 @@ ReadSegmentBufferSpace(
 
 /////////////////////////////////////////////////////////////////////////
 // System Pipe Raw Buffer Code
-static inline size_t
-CalculateBytesAvailableForWriting(
-    _In_ SystemPipeSegmentBuffer_t* Buffer,
-    _In_ size_t                     ReadIndex,
-    _In_ size_t                     WriteIndex)
-{
-    // Handle wrap-around
-    if (ReadIndex > WriteIndex) {
-        if (ReadIndex >= (UINT_MAX - Buffer->Size)) {
-            return (ReadIndex & (Buffer->Size - 1)) - (WriteIndex & (Buffer->Size - 1));
-        }
-        else {
-            return 0; // Overcommitted
-        }
-    }
-    return Buffer->Size - (WriteIndex - ReadIndex);
-}
-
 static void
 WriteRawSegmentBuffer(
     _In_ SystemPipe_t*              Pipe,
@@ -304,13 +367,10 @@ WriteRawSegmentBuffer(
                 BytesAvailable  = MIN(
                     CalculateBytesAvailableForWriting(Buffer, ReadIndex, WriteIndex),
                     Length - BytesWritten);
-                BytesCommitted  = BytesAvailable;
             }
 
-            // Did we end up overcomitting? Undo the entire allocation
-            if (!BytesAvailable && BytesCommitted != 0) {
-                atomic_fetch_sub(&Buffer->WritePointer, BytesCommitted);
-                continue; // Start write loop all over
+            if (!BytesAvailable) {
+                continue; // Start over as we ran out
             }
 
             // Wait for our turn
@@ -331,25 +391,6 @@ WriteRawSegmentBuffer(
         atomic_fetch_add(&Buffer->WriteCommitted, BytesCommitted);
         SlimSemaphoreSignal(&Buffer->ReadQueue, 1);
     }
-}
-
-static inline size_t
-CalculateBytesAvailableForReading(
-    _In_ SystemPipeSegmentBuffer_t* Buffer,
-    _In_ size_t                     ReadIndex,
-    _In_ size_t                     WriteIndex)
-{
-    // Handle wrap-around
-    if (ReadIndex > WriteIndex) {
-        if (ReadIndex >= (UINT_MAX - Buffer->Size)) {
-            return (Buffer->Size - (ReadIndex & (Buffer->Size - 1))) + 
-                (WriteIndex & (Buffer->Size - 1)) - 1;
-        }
-        else {
-            return 0; // Overcommitted
-        }
-    }
-    return WriteIndex - ReadIndex;
 }
 
 static void
@@ -391,13 +432,10 @@ ReadRawSegmentBuffer(
                 BytesAvailable  = MIN(
                     CalculateBytesAvailableForReading(Buffer, ReadIndex, WriteIndex), 
                     Length - BytesRead);
-                BytesCommitted  = BytesAvailable;
             }
 
-            // Did we end up overcomitting? Undo the entire allocation
-            if (!BytesAvailable && BytesCommitted != 0) {
-                atomic_fetch_sub(&Buffer->ReadPointer, BytesCommitted);
-                continue; // Start write loop all over
+            if (!BytesAvailable) {
+                continue; // Start over as we ran out
             }
 
             // Wait for our turn
@@ -446,18 +484,19 @@ EndRetrievingSegmentEntryData(
     _In_ SystemPipeEntry_t*     Entry)
 {
     // Add credit and reduce references to segment
-    atomic_fetch_add(&Segment->Buffer.ReadPointer, Entry->Length);
-    //DepositToVault(&Segment->Buffer.Vault, (int)Entry->Length);
+    atomic_fetch_add(&Segment->Buffer.ReadCommitted, Entry->Length);
     atomic_fetch_sub(&Segment->References, 1);
+    SlimSemaphoreSignal(&Segment->Buffer.WriteQueue, 1);
 }
 
 static SystemPipeEntry_t*
 AcquireSegmentEntry(
-    _In_ SystemPipeSegment_t*   Segment,
-    _In_ unsigned int           Index,
-    _In_ size_t                 Length)
+    _In_ SystemPipe_t*              Pipe,
+    _In_ SystemPipeSegment_t*       Segment,
+    _In_ unsigned int               Index,
+    _In_ size_t                     Length)
 {
-    unsigned int AcquiredIndex = AcquireSegmentBufferSpace(&Segment->Buffer, Length);
+    unsigned int AcquiredIndex = AcquireSegmentBufferSpace(Pipe, &Segment->Buffer, Length);
     Segment->Entries[Index].SegmentBufferIndex = AcquiredIndex;
     Segment->Entries[Index].SegmentBufferCurrentIndex = AcquiredIndex;
     Segment->Entries[Index].Length = Length;
@@ -466,7 +505,8 @@ AcquireSegmentEntry(
 
 static void
 MarkSegmentEntryComplete(
-    _In_ SystemPipeEntry_t* Entry)
+    _In_ SystemPipeSegmentBuffer_t* Buffer,
+    _In_ SystemPipeEntry_t*         Entry)
 {
     Entry->SegmentBufferCurrentIndex = Entry->SegmentBufferIndex;
     SlimSemaphoreSignal(&Entry->SyncObject, 1);
@@ -713,7 +753,7 @@ AcquireSystemPipeProduction(
         if (Pipe->Configuration & PIPE_MULTIPLE_PRODUCERS) {
             Segment = FindSystemPipeSegment(Pipe, Segment, Ticket);
         }
-        Entry = AcquireSegmentEntry(Segment, TICKET_INDEX(Pipe, Ticket), Length);
+        Entry = AcquireSegmentEntry(Pipe, Segment, TICKET_INDEX(Pipe, Ticket), Length);
 
         // Perform post-operations, they include making sure
         // we perform our maintience duties, like securing new segments
@@ -727,7 +767,7 @@ AcquireSystemPipeProduction(
     }
     else {
         WithdrawProductionCredit(Pipe);
-        Entry = AcquireSegmentEntry(Segment, TICKET_INDEX(Pipe, Ticket), Length);
+        Entry = AcquireSegmentEntry(Pipe, Segment, TICKET_INDEX(Pipe, Ticket), Length);
     }
 
     // Update state
@@ -757,7 +797,7 @@ WriteSystemPipeProduction(
         WriteSegmentBufferSpace(&State->Segment->Buffer, Data, BytesAvailable, 
             &State->Entry->SegmentBufferCurrentIndex);
         if (State->Entry->Length == (State->Entry->SegmentBufferCurrentIndex - State->Entry->SegmentBufferIndex)) {
-            MarkSegmentEntryComplete(State->Entry);
+            MarkSegmentEntryComplete(&State->Segment->Buffer, State->Entry);
         }
     }
     return BytesAvailable;
@@ -898,6 +938,7 @@ FinalizeSystemPipeConsumption(
 {
     assert(Pipe != NULL);
     assert(State != NULL);
+
     EndRetrievingSegmentEntryData(State->Segment, State->Entry);
     if (Pipe->Configuration & PIPE_UNBOUNDED) {
         if (State->Advance) {

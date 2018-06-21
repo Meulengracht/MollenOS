@@ -27,7 +27,7 @@
  * - System */
 #include <garbagecollector.h>
 #include <criticalsection.h>
-#include <semaphore.h>
+#include <semaphore_slim.h>
 #include <threading.h>
 #include <debug.h>
 
@@ -42,7 +42,7 @@ void GcWorker(void *Args);
 
 /* Globals 
  * Needed for state-keeping */
-static Semaphore_t *GlbGcEventLock  = NULL;
+static SlimSemaphore_t GlbGcEventLock;
 static Collection_t GcHandlers      = COLLECTION_INIT(KeyInteger);
 static Collection_t GcEvents        = COLLECTION_INIT(KeyInteger);
 static _Atomic(UUId_t) GcIdGenerator= ATOMIC_VAR_INIT(0);
@@ -53,7 +53,7 @@ void
 GcConstruct(void)
 {
     // Create data-structures
-    GlbGcEventLock = SemaphoreCreate(0, 1000);
+    SlimSemaphoreConstruct(&GlbGcEventLock, 0, 1000);
 }
 
 /* GcInitialize
@@ -118,7 +118,7 @@ GcSignal(
 
     // Create a new event
     CollectionAppend(&GcEvents, CollectionCreateNode(Key, Data));
-    SemaphoreSignal(GlbGcEventLock, 1);
+    SlimSemaphoreSignal(&GlbGcEventLock, 1);
     return OsSuccess;
 }
 
@@ -139,7 +139,7 @@ GcWorker(
     // Run as long as the OS runs
     while (Run) {
         // Wait for next event
-        SemaphoreWait(GlbGcEventLock, 0);
+        SlimSemaphoreWait(&GlbGcEventLock, 0);
         eNode = CollectionPopFront(&GcEvents);
 
         // Sanitize the node

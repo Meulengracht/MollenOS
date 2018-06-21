@@ -79,6 +79,11 @@ SlimSemaphoreWait(
     int Status  = SCHEDULER_SLEEP_OK;
     int Initial = Value + 1;
 
+    // If the value we got is higher than 0 - we are good to go
+    if (Value >= 0) {
+        return SCHEDULER_SLEEP_OK;
+    }
+
     while (Value < Initial) {
         Status = SchedulerAtomicThreadSleep(&Semaphore->Value, Value, 0);
         if (Status != SCHEDULER_SLEEP_SYNC_FAILED) {

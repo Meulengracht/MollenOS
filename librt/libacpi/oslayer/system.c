@@ -44,10 +44,8 @@ ACPI_MODULE_NAME("oslayer_system")
 /* Definitions 
  * Global state variables */
 static UUId_t AcpiGbl_InterruptId[32] = { UUID_INVALID };
-extern ACPI_OS_SEMAPHORE_INFO AcpiGbl_Semaphores[ACPI_OS_MAX_SEMAPHORES];
 extern void *AcpiGbl_RedirectionTarget;
 extern char AcpiGbl_OutputBuffer[512];
-extern int AcpiGbl_DebugTimeout;
 
 /******************************************************************************
  *
@@ -65,11 +63,9 @@ AcpiOsInitialize (
     void)
 {
     // Initialize globals
-    memset(&AcpiGbl_Semaphores[0], 0, sizeof(AcpiGbl_Semaphores));
     memset(&AcpiGbl_OutputBuffer[0], 0, sizeof(AcpiGbl_OutputBuffer));
     memset(&AcpiGbl_InterruptId[0], -1, sizeof(AcpiGbl_InterruptId));
     AcpiGbl_RedirectionTarget = NULL;
-    AcpiGbl_DebugTimeout = 0;
     return AE_OK;
 }
 

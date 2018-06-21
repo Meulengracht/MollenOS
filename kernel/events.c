@@ -19,92 +19,66 @@
 * MollenOS MCore - Generic Event System
 */
 
-/* Includes */
-#include <scheduler.h>
+#include <ds/collection.h>
+#include <threading.h>
 #include <events.h>
 #include <heap.h>
-#include <log.h>
-
-/* Library */
-#include <stddef.h>
-#include <ds/collection.h>
 
 /* Prototypes */
 void EventHandlerInternal(void *Args);
 
 /* Event Init/Destruct
- * Starts or stops handling events
- * with the given callback */
-MCoreEventHandler_t *EventInit(const char *Name, EventCallback Callback, void *Data)
+ * Starts or stops handling events with the given callback */
+MCoreEventHandler_t*
+EventInit(
+    const char *Name,
+    EventCallback Callback,
+    void *Data)
 {
     /* Allocate a new instance */
     MCoreEventHandler_t *EventHandler = 
         (MCoreEventHandler_t*)kmalloc(sizeof(MCoreEventHandler_t));
 
-    /* Allocate lock etc */
-    EventHandler->Name = MStringCreate((void*)Name, StrUTF8);
-    EventHandler->Events = CollectionCreate(KeyInteger);
-    EventHandler->Lock = SemaphoreCreate(0, 1000);
+    EventHandler->Name      = MStringCreate((void*)Name, StrUTF8);
+    EventHandler->Events    = CollectionCreate(KeyInteger);
+    SlimSemaphoreConstruct(&EventHandler->Lock, 0, 1000);
     
-    /* Save stuff */
-    EventHandler->Callback = Callback;
-    EventHandler->UserData = Data;
-
-    /* Activate us! */
-    EventHandler->Running = 1;
-
-    /* Start a thread bound to this
-     * instance */
-    EventHandler->ThreadId = ThreadingCreateThread((char*)Name, 
+    EventHandler->Callback  = Callback;
+    EventHandler->UserData  = Data;
+    EventHandler->Running   = 1;
+    EventHandler->ThreadId  = ThreadingCreateThread((char*)Name, 
         EventHandlerInternal, EventHandler, 0);
-
-    /* Done! */
     return EventHandler;
 }
 
 /* Event Init/Destruct
- * Starts or stops handling events
- * with the given callback */
+ * Starts or stops handling events with the given callback */
 void EventDestruct(MCoreEventHandler_t *EventHandler)
 {
-    /* Variables */
+    // Variables
     CollectionItem_t *eNode = NULL;
 
     /* Step 1. Stop thread 
      * We do this by setting it's running
-     * status to 0, and signaling it to wakeup 
-     * this will cause it to stop */
+     * status to 0, and signaling it to wakeup this will cause it to stop */
     EventHandler->Running = 0;
-    SemaphoreSignal(EventHandler->Lock, 1);
-
-    /* Stop 2. Cleanup */
+    SlimSemaphoreSignal(&EventHandler->Lock, 1);
     MStringDestroy(EventHandler->Name);
-    SemaphoreDestroy(EventHandler->Lock);
+    SlimSemaphoreDestroy(&EventHandler->Lock);
     
-    /* Go through list and wakeup
-     * everything that's in it, 
+    /* Go through list and wakeup everything that's in it, 
      * plus we set all events to cancelled */
-    _foreach(eNode, EventHandler->Events)
-    {
-        /* Cast */
+    _foreach(eNode, EventHandler->Events) {
         MCoreEvent_t *Event = (MCoreEvent_t*)eNode->Data;
-
-        /* Update status */
-        Event->State = EventCancelled;
-
-        /* Wakeup sleepers */
-        SchedulerHandleSignalAll((uintptr_t*)Event);
+        Event->State        = EventCancelled;
+        SlimSemaphoreDestroy(&Event->Queue);
     }
-
-    /* Lastly, destroy list 
-     * and cleanup the event handler */
     CollectionDestroy(EventHandler->Events);
     kfree(EventHandler);
 }
 
 /* Event Handler 
- * This is the 'shared' function
- * that makes sure to redirect the 
+ * This is the 'shared' function that makes sure to redirect the 
  * event to the user-specifed callback */
 void EventHandlerInternal(void *Args)
 {
@@ -116,29 +90,22 @@ void EventHandlerInternal(void *Args)
     /* Start the while loop */
     while (EventHandler->Running) {
         // Wait for next event
-        SemaphoreWait(EventHandler->Lock, 0);
-
-        /* Sanitize our running status 
-         * before doing anything else */
-        if (!EventHandler->Running)
+        SlimSemaphoreWait(&EventHandler->Lock, 0);
+        if (!EventHandler->Running) {
             break;
+        }
 
-        /* Pop from event queue */
+        
         eNode = CollectionPopFront(EventHandler->Events);
-
-        /* Sanity */
-        if (eNode == NULL)
+        if (eNode == NULL) {
             continue;
+        }
 
-        /* Cast */
         Event = (MCoreEvent_t*)eNode->Data;
-
-        /* Cleanup */
         kfree(eNode);
-
-        /* Sanity */
-        if (Event == NULL)
+        if (Event == NULL) {
             continue;
+        }
 
         /* Make sure event hasn't been cancelled 
          * before we process it */
@@ -146,20 +113,16 @@ void EventHandlerInternal(void *Args)
             Event->State = EventInProgress;
             EventHandler->Callback(EventHandler->UserData, Event);
         }
-        SemaphoreSignal(&Event->Queue, 1);
+        SlimSemaphoreSignal(&Event->Queue, 1);
         if (Event->Cleanup != 0) {
             kfree(Event);
-        }    
+        }
     }
-
-    // Cleanup 
     EventDestruct(EventHandler);
 }
 
 /* Event Create
- * Queues up a new event for the
- * event handler to process
- * Asynchronous operation */
+ * Queues up a new event for the event handler to process asynchronous operation */
 void EventCreate(MCoreEventHandler_t *EventHandler, MCoreEvent_t *Event)
 {
     /* DataKey for list */
@@ -171,31 +134,24 @@ void EventCreate(MCoreEventHandler_t *EventHandler, MCoreEvent_t *Event)
     Event->State = EventPending;
 
     /* Reset the semaphore */
-    SemaphoreConstruct(&Event->Queue, 0, 1000);
+    SlimSemaphoreConstruct(&Event->Queue, 0, 1000);
     CollectionAppend(EventHandler->Events, CollectionCreateNode(Key, Event));
-    SemaphoreSignal(EventHandler->Lock, 1);
+    SlimSemaphoreSignal(&EventHandler->Lock, 1);
 }
 
 /* Event Wait
- * Waits for a specific event
- * to either complete, fail or
- * be cancelled */
+ * Waits for a specific event to either complete, fail or be cancelled */
 void EventWait(MCoreEvent_t *Event, size_t Timeout)
 {
-    SemaphoreWait(&Event->Queue, Timeout);
+    SlimSemaphoreWait(&Event->Queue, Timeout);
 }
 
 /* Event Cancel
- * Cancels a specific event,
- * event might not be cancelled
- * immediately */
+ * Cancels a specific event, event might not be cancelled immediately */
 void EventCancel(MCoreEvent_t *Event)
 {
-    /* Sanity, make sure request hasn't completed */
-    if (Event->State != EventPending
-        && Event->State != EventInProgress)
-        return;
-
-    /* Update status to cancelled */
+    if (Event->State != EventPending && Event->State != EventInProgress) {
+        return;  
+    }
     Event->State = EventCancelled;
 }

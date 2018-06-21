@@ -21,22 +21,16 @@
  */
 #define __MODULE "SERV"
 
-/* Includes
-* - System */
 #include <system/thread.h>
 #include <system/utils.h>
 #include <process/server.h>
 #include <garbagecollector.h>
 #include <threading.h>
-#include <semaphore.h>
 #include <scheduler.h>
 #include <debug.h>
 #include <heap.h>
 
-/* Includes
-* - Library */
 #include <ds/mstring.h>
-#include <stddef.h>
 #include <string.h>
 
 /* PhoenixCreateServer
