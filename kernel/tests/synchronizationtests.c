@@ -40,16 +40,11 @@ void
 TestWorkerConsumer(void* Context)
 {
     // Variables
-    SystemPipeUserState_t State;
     MRemoteCall_t Message;
-
     SystemPipe_t *CommPipe  = (SystemPipe_t*)Context;
-    size_t Length;
 
     while (SynchronizationTestActive) {
-        AcquireSystemPipeConsumption(CommPipe, &Length, &State);
-        ReadSystemPipeConsumption(&State, (uint8_t*)&Message, Length);
-        FinalizeSystemPipeConsumption(CommPipe, &State);
+        ReadSystemPipe(CommPipe, (uint8_t*)&Message, sizeof(MRemoteCall_t));
         SynchronizationConsumes++;
     }
     TRACE(" > Exiting consumer, final count %u", SynchronizationConsumes);
@@ -61,15 +56,13 @@ void
 TestWorkerProducer(void* Context)
 {
     // Variables
-    SystemPipeUserState_t State;
     MRemoteCall_t Message;
     
     SystemPipe_t *CommPipe  = (SystemPipe_t*)Context;
     int Id                  = atomic_fetch_add(&SynchronizationId, 1);
 
     while (SynchronizationTestActive) {
-        AcquireSystemPipeProduction(CommPipe, sizeof(MRemoteCall_t), &State);
-        WriteSystemPipeProduction(&State, (const uint8_t*)&Message, sizeof(MRemoteCall_t));
+        WriteSystemPipe(CommPipe, (uint8_t*)&Message, sizeof(MRemoteCall_t));
         SynchronizationProduces[Id]++;
     }
     TRACE(" > Exiting producer, final count %u", SynchronizationProduces[Id]);
@@ -90,7 +83,8 @@ TestSynchronization(void *Unused)
     TRACE("TestSynchronization()");
 
     // Create the communication pipe of a default sizes with MPMC configuration 
-    CommPipe = CreateSystemPipe(PIPE_MPMC, PIPE_DEFAULT_ENTRYCOUNT);
+    CommPipe = CreateSystemPipe(PIPE_MULTIPLE_PRODUCERS, PIPE_DEFAULT_ENTRYCOUNT);
+    //CommPipe = CreateSystemPipe(PIPE_MPMC | PIPE_STRUCTURED_BUFFER, PIPE_DEFAULT_ENTRYCOUNT);
     assert(CommPipe != NULL);
     SynchronizationTestActive = 1;
 
@@ -109,6 +103,10 @@ TestSynchronization(void *Unused)
         SchedulerThreadSleep(NULL, 10 * 1000);
         Timeout -= (10 * 1000);
         TRACE(" > Consumes %u / Produces %u : %u", SynchronizationConsumes, SynchronizationProduces[0], SynchronizationProduces[1]);
+        TRACE(" > Buffer R/W: (%u/%u), CR/CW: (%u/%u), ReadQueue %i, WriteQueue %i ", 
+            atomic_load(&CommPipe->ConsumerState.Head->Buffer.ReadPointer),     atomic_load(&CommPipe->ConsumerState.Head->Buffer.WritePointer),
+            atomic_load(&CommPipe->ConsumerState.Head->Buffer.ReadCommitted),   atomic_load(&CommPipe->ConsumerState.Head->Buffer.WriteCommitted),
+            atomic_load(&CommPipe->ConsumerState.Head->Buffer.ReadQueue.Value), atomic_load(&CommPipe->ConsumerState.Head->Buffer.WriteQueue.Value));
     }
     SynchronizationTestActive = 0;
 }

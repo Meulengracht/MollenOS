@@ -33,7 +33,6 @@
 #include <semaphore_slim.h>
 #include <scheduler.h>
 #include <debug.h>
-#include <heap.h>
 
 #include <stddef.h>
 #include <assert.h>
@@ -46,7 +45,7 @@ SlimSemaphoreDestroy(
     _In_ SlimSemaphore_t*   Semaphore)
 {
     // Wakeup threads
-	SchedulerHandleSignalAll((uintptr_t*)Semaphore);
+	SchedulerHandleSignalAll((uintptr_t*)&Semaphore->Value);
 }
 
 /* SlimSemaphoreConstruct
@@ -64,9 +63,8 @@ SlimSemaphoreConstruct(
     assert(MaximumValue >= InitialValue);
 
 	// Initiate members
-    memset((void*)Semaphore, 0, sizeof(SlimSemaphore_t));
     Semaphore->MaxValue = MaximumValue;
-	Semaphore->Value    = InitialValue;
+	Semaphore->Value    = ATOMIC_VAR_INIT(InitialValue);
 }
 
 /* SlimSemaphoreWait
@@ -77,19 +75,18 @@ SlimSemaphoreWait(
     _In_ SlimSemaphore_t*   Semaphore,
     _In_ size_t             Timeout)
 {
-    AtomicSectionEnter(&Semaphore->SyncObject);
-	Semaphore->Value--;
-	if (Semaphore->Value < 0) {
-        int SleepStatus = SchedulerAtomicThreadSleep(
-            (uintptr_t*)Semaphore, Timeout, &Semaphore->SyncObject);
-        if (SleepStatus == SCHEDULER_SLEEP_TIMEOUT) {
-            Semaphore->Value++;
-            return SCHEDULER_SLEEP_TIMEOUT;
+    int Value   = atomic_fetch_sub(&Semaphore->Value, 1) - 1;
+    int Status  = SCHEDULER_SLEEP_OK;
+    int Initial = Value + 1;
+
+    while (Value < Initial) {
+        Status = SchedulerAtomicThreadSleep(&Semaphore->Value, Value, 0);
+        if (Status != SCHEDULER_SLEEP_SYNC_FAILED) {
+            break;
         }
-        return SCHEDULER_SLEEP_OK;
-	}
-    AtomicSectionLeave(&Semaphore->SyncObject);
-    return SCHEDULER_SLEEP_OK;
+        Value = atomic_load_explicit(&Semaphore->Value, memory_order_acquire);
+    }
+    return Status;
 }
 
 /* SlimSemaphoreSignal
@@ -101,26 +98,30 @@ SlimSemaphoreSignal(
 {
 	// Variables
     OsStatus_t Status = OsError;
+    int CurrentValue;
     int i;
 
     // Debug
     TRACE("SemaphoreSignal(Value %i)", Semaphore->Value);
 
     // assert not max
-    AtomicSectionEnter(&Semaphore->SyncObject);
-    __STRICT_ASSERT((Semaphore->Value + Value) > Semaphore->MaxValue);
-    if ((Semaphore->Value + Value) <= Semaphore->MaxValue) {
+    CurrentValue = atomic_load(&Semaphore->Value);
+    __STRICT_ASSERT((CurrentValue + Value) > Semaphore->MaxValue);
+    if ((CurrentValue + Value) <= Semaphore->MaxValue) {
         for (i = 0; i < Value; i++) {
-            Semaphore->Value++;
-            if (Semaphore->Value <= 0) {
-                SchedulerHandleSignal((uintptr_t*)Semaphore);
+            while ((CurrentValue + 1) <= Semaphore->MaxValue) {
+                if (!atomic_compare_exchange_weak(&Semaphore->Value, &CurrentValue, CurrentValue + 1)) {
+                    break;
+                }
+                CurrentValue = atomic_load(&Semaphore->Value);
             }
-            if (Semaphore->Value == Semaphore->MaxValue) {
-                break;
+
+            // Ok everything is ok, wake stuff up
+            if (CurrentValue <= 0) {
+                SchedulerHandleSignal((uintptr_t*)&Semaphore->Value);
             }
         }
         Status = OsSuccess;
     }
-    AtomicSectionLeave(&Semaphore->SyncObject);
     return Status;
 }

@@ -52,6 +52,7 @@
 #define SCHEDULER_SLEEP_OK              0
 #define SCHEDULER_SLEEP_TIMEOUT         1
 #define SCHEDULER_SLEEP_INTERRUPTED     2
+#define SCHEDULER_SLEEP_SYNC_FAILED     3
 
 /* MCoreSchedulerQueue
  * Represents a queue level in the scheduler. */
@@ -95,8 +96,7 @@ SchedulerThreadQueue(
  * Disarms a thread from all queues and mark the thread inactive. */
 KERNELAPI OsStatus_t KERNELABI
 SchedulerThreadDequeue(
-    _In_ MCoreThread_t*     Thread,
-    _In_ int                AppendToSleepQueue);
+    _In_ MCoreThread_t*     Thread);
 
 /* SchedulerThreadSleep
  * Enters the current thread into sleep-queue. Can return different
@@ -108,12 +108,13 @@ SchedulerThreadSleep(
 
 /* SchedulerAtomicThreadSleep
  * Enters the current thread into sleep-queue. This is done by using a synchronized
- * queueing by utilizing the the atomic section lock. */
+ * queueing by utilizing the atomic memory compares. If the value has changed before going
+ * to sleep, it will return SCHEDULER_SLEEP_SYNC_FAILED. */
 KERNELAPI int KERNELABI
 SchedulerAtomicThreadSleep(
-    _In_ uintptr_t*         Handle,
-    _In_ size_t             Timeout,
-    _In_ AtomicSection_t*   Section);
+    _In_ atomic_int*        Object,
+    _In_ int                ExpectedValue,
+    _In_ size_t             Timeout);
 
 /* SchedulerThreadSignal
  * Finds a sleeping thread with the given thread id and wakes it. */

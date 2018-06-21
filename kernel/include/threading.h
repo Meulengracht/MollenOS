@@ -24,16 +24,11 @@
 #ifndef _MCORE_THREADING_H_
 #define _MCORE_THREADING_H_
 
-/* Includes 
- * - System */
-#include <system/addressspace.h>
-#include <pipe.h>
-
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 #include <os/context.h>
 #include <ds/collection.h>
+#include <system/addressspace.h>
+#include <pipe.h>
 #include <signal.h>
 #include <time.h>
 
@@ -72,10 +67,11 @@ typedef void(*ThreadEntry_t)(void*);
  * The next two bits determine the current state of the thread
  * 0 = Inactive
  * 1 = Active
- * 2 = Reserved
+ * 2 = Blocked
  * 3 = Reserved */
 #define THREADING_INACTIVE              0x00000000
 #define THREADING_ACTIVE                0x00000001
+#define THREADING_BLOCKED               0x00000002
 #define THREADING_STATEMASK             0x00000018
 #define THREADING_STATE(Flags)          ((Flags & THREADING_STATEMASK) >> 3)
 #define THREADING_SETSTATE(Flags, State) (Flags |= (State << 3))

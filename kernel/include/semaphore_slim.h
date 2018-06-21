@@ -32,8 +32,7 @@
  * a semaphore structure where memory needs to be kept to a minmimum.
  * Integrated usage only. No destruction for this. */
 typedef struct _SlimSemaphore {
-    AtomicSection_t     SyncObject;
-	int                 Value;
+	atomic_int          Value;
     int                 MaxValue;
 } SlimSemaphore_t;
 

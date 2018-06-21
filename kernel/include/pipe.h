@@ -31,15 +31,17 @@
 #include <os/osdefs.h>
 #include <atomicsection.h>
 #include <semaphore_slim.h>
+#include <vaultlock.h>
 
 #define PIPE_DEFAULT_ENTRYCOUNT     8 // Logarithmic base of 2 value of workers
 
 // Default configuration if passing 0 is
-// Single Producer, Single Consumer, Bounded
+// Single Producer, Single Consumer, Bounded, Raw
 // Unbounded can only be used when the queue is not configured as SPSC
 #define PIPE_MULTIPLE_PRODUCERS     (1 << 0)
 #define PIPE_MULTIPLE_CONSUMERS     (1 << 1)
 #define PIPE_UNBOUNDED              (1 << 2)
+#define PIPE_STRUCTURED_BUFFER      (1 << 3)
 
 #define PIPE_MPMC                   (PIPE_MULTIPLE_PRODUCERS | PIPE_MULTIPLE_CONSUMERS)
 
@@ -58,16 +60,13 @@ typedef struct _SystemPipeEntry {
 typedef struct _SystemPipeSegmentBuffer {
     uint8_t*                Pointer;
     size_t                  Size;           // Must be a power of 2.
-    size_t                  TransferLimit;
     SlimSemaphore_t         ReadQueue;
     SlimSemaphore_t         WriteQueue;
-    atomic_int              Credit;
-    atomic_int              Debit;
 
-    // In a traditional ringbuffer we just need read/write pointers
-    // and they MUST be SPSC queues for data integrity
     atomic_uint             ReadPointer;
+    atomic_uint             ReadCommitted;
     atomic_uint             WritePointer;
+    atomic_uint             WriteCommitted;
 } SystemPipeSegmentBuffer_t;
 
 /* SystemPipeSegment
@@ -113,6 +112,7 @@ typedef struct _SystemPipe {
     SlimSemaphore_t         ProductionQueue;
     atomic_int              Credit;
     size_t                  TransferLimit;
+    VaultLock_t             Vault;
 
     SystemPipeConsumer_t    ConsumerState;
     SystemPipeProducer_t    ProducerState;

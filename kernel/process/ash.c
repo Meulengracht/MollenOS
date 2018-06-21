@@ -308,7 +308,7 @@ PhoenixOpenAshPipe(
         Pipe = CreateSystemPipe(0, PIPE_DEFAULT_ENTRYCOUNT);
     }
     else {
-        Pipe = CreateSystemPipe(PIPE_MPMC, PIPE_DEFAULT_ENTRYCOUNT);
+        Pipe = CreateSystemPipe(PIPE_MPMC | PIPE_STRUCTURED_BUFFER, PIPE_DEFAULT_ENTRYCOUNT);
     }
     CollectionAppend(Ash->Pipes, CollectionCreateNode(Key, Pipe));
 

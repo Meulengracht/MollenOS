@@ -252,7 +252,7 @@ ThreadingCleanupThread(
 
     // Make sure we are completely removed as reference
     // from the entire system
-    SchedulerThreadDequeue(Thread, 0);
+    SchedulerThreadDequeue(Thread);
     ThreadingUnregister(Thread);
 
     // Cleanup lists and systems
@@ -528,10 +528,12 @@ GetNextThread:
     if ((Current->Flags & THREADING_FINISHED) || (Current->Flags & THREADING_IDLE)
         || (Current->Flags & THREADING_TRANSITION_SLEEP))
     {
+        THREADING_CLEARSTATE(Current->Flags);
+
         // Handle the sleep flag
         if (Current->Flags & THREADING_TRANSITION_SLEEP) {
-            SchedulerThreadDequeue(Current, 1);
             Current->Flags &= ~(THREADING_TRANSITION_SLEEP);
+            THREADING_SETSTATE(Current->Flags, THREADING_BLOCKED);
         }
 
         // If the thread is finished then add it to 

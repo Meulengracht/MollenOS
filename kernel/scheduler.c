@@ -72,14 +72,9 @@ SchedulerQueueAppend(
     
     // Get the tail pointer of the queue to append
     AppendTo = Queue->Tail;
-    if (AppendTo == NULL) {
-        Queue->Head     = ThreadStart;
-        Queue->Tail     = ThreadEnd;
-    }
-    else {
-        AppendTo->Link  = ThreadStart;
-        Queue->Tail     = ThreadEnd;
-    }
+    if (AppendTo == NULL) { Queue->Head = ThreadStart; }
+    else { AppendTo->Link  = ThreadStart; }
+    Queue->Tail = ThreadEnd;
 }
 
 /* FindThreadInQueue
@@ -162,6 +157,42 @@ GetThreadSleepingByHandle(
         i = i->Link;
     }
     return NULL;
+}
+
+/* AddToSleepQueueAndSleep 
+ * Appends the given thread to the sleep queue and goes to sleep immediately. */
+static OsStatus_t
+AddToSleepQueueAndSleep(
+    _In_ MCoreThread_t*     Thread,
+    _In_ atomic_int*        Object,
+    _In_ int                ExpectedValue)
+{
+    // Variables
+    MCoreThread_t *AppendTo = NULL;
+
+    // Null end
+    AtomicSectionEnter(&IoQueue.SyncObject);
+    Thread->Link    = NULL;
+    AppendTo        = IoQueue.Tail;
+
+    // Append us 
+    if (AppendTo == NULL) { IoQueue.Head    = Thread; }
+    else {                  AppendTo->Link  = Thread; }
+    IoQueue.Tail    = Thread;
+    
+    // Verify integrity
+    if (Object != NULL && !atomic_compare_exchange_strong(Object, &ExpectedValue, ExpectedValue)) {
+        // Remove us again
+        if (AppendTo == NULL)   { IoQueue.Head = NULL; IoQueue.Tail = NULL; }
+        else                    { IoQueue.Tail = AppendTo; AppendTo->Link = NULL; }
+
+        AtomicSectionLeave(&IoQueue.SyncObject);
+        return OsError;
+    }
+    Thread->Flags  |= THREADING_TRANSITION_SLEEP;
+    AtomicSectionLeave(&IoQueue.SyncObject);
+    ThreadingYield();
+    return OsSuccess;
 }
 
 /* GetThreadReadyForExecution
@@ -345,6 +376,7 @@ SchedulerThreadQueue(
     Scheduler->ThreadCount++;
     
     // Set thread active
+    THREADING_CLEARSTATE(Thread->Flags);
     THREADING_SETSTATE(Thread->Flags, THREADING_ACTIVE);
     SchedulerSynchronizeCore(Thread, SuppressSynchronization);
     return OsSuccess;
@@ -354,11 +386,11 @@ SchedulerThreadQueue(
  * Disarms a thread from all queues and mark the thread inactive. */
 OsStatus_t
 SchedulerThreadDequeue(
-    _In_ MCoreThread_t*     Thread,
-    _In_ int                AppendToSleepQueue)
+    _In_ MCoreThread_t*     Thread)
 {
     // Variables
     MCoreScheduler_t *Scheduler = NULL;
+    int Found = 0;
     assert(Thread != NULL);
     assert(Thread->Queue >= 0);
     
@@ -369,16 +401,14 @@ SchedulerThreadDequeue(
     Scheduler = SchedulerGetFromCore(Thread->CoreId);
     if (FindThreadInQueue(&Scheduler->Queues[Thread->Queue], Thread) == OsSuccess) {
         SchedulerQueueRemove(&Scheduler->Queues[Thread->Queue], Thread);
-        Scheduler->ThreadCount--;
+        Found = 1;
     }
-    else if (FindThreadInQueue(&IoQueue, Thread) == OsSuccess) {
+    if (FindThreadInQueue(&IoQueue, Thread) == OsSuccess) {
         SchedulerQueueRemove(&IoQueue, Thread);
-        Scheduler->ThreadCount--;
+        Found = 1;
     }
-
-    // Combine this dequeue-queue for sleep method
-    if (AppendToSleepQueue) {
-        SchedulerQueueAppend(&IoQueue, Thread, Thread);
+    if (Found) {
+        Scheduler->ThreadCount--;
     }
 
     // Set inactive
@@ -411,8 +441,7 @@ SchedulerThreadSleep(
     CurrentThread->Sleep.Timeout        = 0;
     CurrentThread->Sleep.Handle         = Handle;
     CurrentThread->Sleep.InterruptedAt  = 0;
-    CurrentThread->Flags |= THREADING_TRANSITION_SLEEP;
-    ThreadingYield();
+    AddToSleepQueueAndSleep(CurrentThread, NULL, 0);
 
     // Resolve sleep-state
     if (CurrentThread->Sleep.Timeout == 1) {
@@ -428,12 +457,13 @@ SchedulerThreadSleep(
 
 /* SchedulerAtomicThreadSleep
  * Enters the current thread into sleep-queue. This is done by using a synchronized
- * queueing by utilizing the the atomic section lock. */
+ * queueing by utilizing the atomic memory compares. If the value has changed before going
+ * to sleep, it will return SCHEDULER_SLEEP_SYNC_FAILED. */
 int
 SchedulerAtomicThreadSleep(
-    _In_ uintptr_t*         Handle,
-    _In_ size_t             Timeout,
-    _In_ AtomicSection_t*   Section)
+    _In_ atomic_int*        Object,
+    _In_ int                ExpectedValue,
+    _In_ size_t             Timeout)
 {
     // Variables
     MCoreThread_t *CurrentThread    = NULL;
@@ -450,11 +480,11 @@ SchedulerAtomicThreadSleep(
     // Update sleep-information
     CurrentThread->Sleep.TimeLeft       = Timeout;
     CurrentThread->Sleep.Timeout        = 0;
-    CurrentThread->Sleep.Handle         = Handle;
+    CurrentThread->Sleep.Handle         = (uintptr_t*)Object;
     CurrentThread->Sleep.InterruptedAt  = 0;
-    CurrentThread->Flags |= THREADING_TRANSITION_SLEEP;
-    AtomicSectionLeave(Section);
-    ThreadingYield();
+    if (AddToSleepQueueAndSleep(CurrentThread, Object, ExpectedValue) != OsSuccess) {
+        return SCHEDULER_SLEEP_SYNC_FAILED;
+    }
 
     // Resolve sleep-state
     if (CurrentThread->Sleep.Timeout == 1) {

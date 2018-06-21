@@ -143,18 +143,15 @@ SemaphoreWait(
     _In_ Semaphore_t*   Semaphore,
     _In_ size_t         Timeout)
 {
-    AtomicSectionEnter(&Semaphore->SyncObject);
 	Semaphore->Value--;
 	if (Semaphore->Value < 0) {
-        int SleepStatus = SchedulerAtomicThreadSleep(
-            (uintptr_t*)Semaphore, Timeout, &Semaphore->SyncObject);
+        int SleepStatus = SchedulerThreadSleep((uintptr_t*)Semaphore, Timeout);
         if (SleepStatus == SCHEDULER_SLEEP_TIMEOUT) {
             Semaphore->Value++;
             return SCHEDULER_SLEEP_TIMEOUT;
         }
         return SCHEDULER_SLEEP_OK;
 	}
-    AtomicSectionLeave(&Semaphore->SyncObject);
     return SCHEDULER_SLEEP_OK;
 }
 
@@ -179,10 +176,10 @@ SemaphoreSignal(
         for (i = 0; i < Value; i++) {
             Semaphore->Value++;
             if (Semaphore->Value <= 0) {
-                SchedulerHandleSignal((uintptr_t*)Semaphore);
-            }
-            if (Semaphore->Value == Semaphore->MaxValue) {
-                break;
+                do {
+                    Status = SchedulerHandleSignal((uintptr_t*)Semaphore);
+                }
+                while (Status != OsSuccess);
             }
         }
         Status = OsSuccess;
