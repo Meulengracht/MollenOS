@@ -76,6 +76,7 @@ TestSynchronization(void *Unused)
     // Variables
     SystemPipe_t *CommPipe;
     UUId_t Threads[3];
+    int ConsumerTicket;
     int Timeout;
     _CRT_UNUSED(Unused);
 
@@ -83,12 +84,12 @@ TestSynchronization(void *Unused)
     TRACE("TestSynchronization()");
 
     // Create the communication pipe of a default sizes with MPMC configuration 
-    CommPipe = CreateSystemPipe(PIPE_MULTIPLE_PRODUCERS, PIPE_DEFAULT_ENTRYCOUNT);
-    //CommPipe = CreateSystemPipe(PIPE_MPMC | PIPE_STRUCTURED_BUFFER, PIPE_DEFAULT_ENTRYCOUNT);
+    //CommPipe = CreateSystemPipe(PIPE_MULTIPLE_PRODUCERS, PIPE_DEFAULT_ENTRYCOUNT);
+    CommPipe = CreateSystemPipe(PIPE_MULTIPLE_PRODUCERS | PIPE_STRUCTURED_BUFFER, PIPE_DEFAULT_ENTRYCOUNT);
     assert(CommPipe != NULL);
     SynchronizationTestActive = 1;
 
-    // Start two threads, let them run for a few minutes to allow a thorough testing
+    // Start three threads, let them run for a few minutes to allow a thorough testing
     // of the pipes.
     Threads[0] = ThreadingCreateThread("Test_Consumer", TestWorkerConsumer, CommPipe, 0);
     Threads[1] = ThreadingCreateThread("Test_Producer", TestWorkerProducer, CommPipe, 0);
@@ -107,6 +108,11 @@ TestSynchronization(void *Unused)
             atomic_load(&CommPipe->ConsumerState.Head->Buffer.ReadPointer),     atomic_load(&CommPipe->ConsumerState.Head->Buffer.WritePointer),
             atomic_load(&CommPipe->ConsumerState.Head->Buffer.ReadCommitted),   atomic_load(&CommPipe->ConsumerState.Head->Buffer.WriteCommitted),
             atomic_load(&CommPipe->ConsumerState.Head->Buffer.ReadQueue.Value), atomic_load(&CommPipe->ConsumerState.Head->Buffer.WriteQueue.Value));
+        ConsumerTicket = (atomic_load(&CommPipe->ConsumerState.Ticket) - 1) & 0xFF;
+        TRACE(" > Consumer Ticket Status: (Ticket %u) - (ReadQueue %i, ProductionQueue %i) %u", ConsumerTicket,
+            atomic_load(&CommPipe->ConsumerState.Head->Entries[ConsumerTicket].SyncObject.Value),
+            atomic_load(&CommPipe->ConsumerState.Head->ProductionQueue.Value),
+            CommPipe->ConsumerState.Head->Entries[ConsumerTicket].Length);
     }
     SynchronizationTestActive = 0;
 }

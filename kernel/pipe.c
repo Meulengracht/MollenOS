@@ -17,9 +17,7 @@
  *
  *
  * MollenOS Pipe Interface
- *  - This is a ported version of the unbounded queue specified in the folly
- *    repository of the facebook code. I wrote a C version based on C++ algorithm
- *    used in the mentioned project. Supported pipe-modes implemented are:
+ *  - This multi-interface queue is a lock-less thread-safe implementation of pipe-modes:
  *      - Bounded MPMC / MPSC / SPMC
  *      - Unbounded MPMC / MPSC / SPMC
  *      - Bounded SPSC
@@ -50,8 +48,8 @@ static void CreateSegment(
  * Initialise a new pipe instance with the given configuration and initializes it. */
 SystemPipe_t*
 CreateSystemPipe(
-    _In_ Flags_t                Configuration,
-    _In_ size_t                 SegmentLgSize)
+    _In_ Flags_t                    Configuration,
+    _In_ size_t                     SegmentLgSize)
 {
     // Variables
     SystemPipe_t *Pipe;
@@ -64,9 +62,9 @@ CreateSystemPipe(
  * Construct an already existing pipe by initializing the pipe with the given configuration. */
 void
 ConstructSystemPipe(
-    _In_ SystemPipe_t*          Pipe,
-    _In_ Flags_t                Configuration,
-    _In_ size_t                 SegmentLgSize)
+    _In_ SystemPipe_t*              Pipe,
+    _In_ Flags_t                    Configuration,
+    _In_ size_t                     SegmentLgSize)
 {
     // Variables
     SystemPipeSegment_t *Segment;
@@ -81,12 +79,8 @@ ConstructSystemPipe(
 
     // Stride is the multiplier we apply for the index of the segment
     // this is not used in bounded conditions or SPSC conditions
-    Pipe->Stride            = ((Configuration & PIPE_MPMC) == 0 || 
-        ((Configuration & PIPE_UNBOUNDED) == 0)|| SegmentLgSize <= 1) ? 1 : 27;
-    Pipe->TransferLimit     = ((Configuration & PIPE_MPMC) == 0 || 
-        ((Configuration & PIPE_UNBOUNDED) == 0)|| SegmentLgSize <= 1) ? 1 : (TICKETS_PER_SEGMENT(Pipe) / 10);
-    SlimSemaphoreConstruct(&Pipe->ProductionQueue, 0, 0);
-    atomic_store(&Pipe->Credit, TICKETS_PER_SEGMENT(Pipe));
+    Pipe->Stride            = ((Configuration & PIPE_MPMC) != PIPE_MPMC || 
+        ((Configuration & PIPE_UNBOUNDED) == 0) || SegmentLgSize <= 1) ? 1 : 27;
 
     // Initialize first segment
     CreateSegment(Pipe, &Segment, 0);
@@ -98,7 +92,7 @@ ConstructSystemPipe(
  * Destroys a pipe and wakes up all sleeping threads, then frees all resources allocated */
 void
 DestroySystemPipe(
-    _In_ SystemPipe_t*      Pipe)
+    _In_ SystemPipe_t*              Pipe)
 {
     // @todo pipe synchronization with threads waiting
     // for data in pipe.
@@ -109,15 +103,15 @@ DestroySystemPipe(
 // System Pipe Helpers Code
 static inline SystemPipeSegment_t*
 GetSystemPipeHead(
-    _In_ SystemPipe_t*   Pipe)
+    _In_ SystemPipe_t*              Pipe)
 {
     return atomic_load_explicit(&Pipe->ConsumerState.Head, memory_order_acquire);
 }
 
 static inline void
 SetSystemPipeHead(
-    _In_ SystemPipe_t*          Pipe,
-    _In_ SystemPipeSegment_t*   Segment)
+    _In_ SystemPipe_t*              Pipe,
+    _In_ SystemPipeSegment_t*       Segment)
 {
     assert((Pipe->Configuration & PIPE_MULTIPLE_CONSUMERS) == 0);
     atomic_store_explicit(&Pipe->ConsumerState.Head, Segment, memory_order_relaxed);
@@ -125,15 +119,15 @@ SetSystemPipeHead(
 
 static inline SystemPipeSegment_t*
 GetSystemPipeTail(
-    _In_ SystemPipe_t*   Pipe)
+    _In_ SystemPipe_t*              Pipe)
 {
     return atomic_load_explicit(&Pipe->ProducerState.Tail, memory_order_acquire);
 }
 
 static inline void
 SetSystemPipeTail(
-    _In_ SystemPipe_t*          Pipe,
-    _In_ SystemPipeSegment_t*   Segment)
+    _In_ SystemPipe_t*              Pipe,
+    _In_ SystemPipeSegment_t*       Segment)
 {
     assert((Pipe->Configuration & PIPE_MPMC) == 0);
     atomic_store_explicit(&Pipe->ProducerState.Tail, Segment, memory_order_release);
@@ -141,9 +135,9 @@ SetSystemPipeTail(
 
 static inline _Bool
 SwapSystemPipeTail(
-    _In_ SystemPipe_t*          Pipe,
-    _In_ SystemPipeSegment_t**  Segment,
-    _In_ SystemPipeSegment_t*   Next)
+    _In_ SystemPipe_t*              Pipe,
+    _In_ SystemPipeSegment_t**      Segment,
+    _In_ SystemPipeSegment_t*       Next)
 {
     assert((Pipe->Configuration & PIPE_MPMC) != 0);
     return atomic_compare_exchange_strong_explicit(&Pipe->ProducerState.Tail, 
@@ -152,9 +146,9 @@ SwapSystemPipeTail(
 
 static inline _Bool
 SwapSystemPipeHead(
-    _In_ SystemPipe_t*          Pipe,
-    _In_ SystemPipeSegment_t**  Segment,
-    _In_ SystemPipeSegment_t*   Next)
+    _In_ SystemPipe_t*              Pipe,
+    _In_ SystemPipeSegment_t**      Segment,
+    _In_ SystemPipeSegment_t*       Next)
 {
     assert(Pipe->Configuration & PIPE_MULTIPLE_CONSUMERS);
     return atomic_compare_exchange_strong_explicit(&Pipe->ConsumerState.Head, 
@@ -163,28 +157,28 @@ SwapSystemPipeHead(
 
 static inline unsigned int
 GetSystemPipeProducerTicket(
-    _In_ SystemPipe_t*   Pipe)
+    _In_ SystemPipe_t*              Pipe)
 {
     if (Pipe->Configuration & PIPE_MULTIPLE_PRODUCERS) {
-        return atomic_fetch_add_explicit(&Pipe->ProducerState.Ticket, 1, memory_order_acq_rel);
+        return atomic_fetch_add(&Pipe->ProducerState.Ticket, 1);
     }
     else {
-        unsigned int Ticket = atomic_load_explicit(&Pipe->ProducerState.Ticket, memory_order_acquire);
-        atomic_store_explicit(&Pipe->ProducerState.Ticket, Ticket + 1, memory_order_release);
+        unsigned int Ticket = atomic_load(&Pipe->ProducerState.Ticket);
+        atomic_store(&Pipe->ProducerState.Ticket, Ticket + 1);
         return Ticket;
     }
 }
 
 static inline unsigned int
 GetSystemPipeConsumerTicket(
-    _In_ SystemPipe_t*   Pipe)
+    _In_ SystemPipe_t*              Pipe)
 {
     if (Pipe->Configuration & PIPE_MULTIPLE_PRODUCERS) {
-        return atomic_fetch_add_explicit(&Pipe->ConsumerState.Ticket, 1, memory_order_acq_rel);
+        return atomic_fetch_add(&Pipe->ConsumerState.Ticket, 1);
     }
     else {
-        unsigned int Ticket = atomic_load_explicit(&Pipe->ConsumerState.Ticket, memory_order_acquire);
-        atomic_store_explicit(&Pipe->ConsumerState.Ticket, Ticket + 1, memory_order_release);
+        unsigned int Ticket = atomic_load(&Pipe->ConsumerState.Ticket);
+        atomic_store(&Pipe->ConsumerState.Ticket, Ticket + 1);
         return Ticket;
     }
 }
@@ -240,6 +234,15 @@ InitializeSegmentBuffer(
     Buffer->Pointer     = (uint8_t*)kmalloc(Buffer->Size);
     SlimSemaphoreConstruct(&Buffer->ReadQueue, 0, 0);
     SlimSemaphoreConstruct(&Buffer->WriteQueue, 0, 0);
+}
+
+static void
+DestroySegmentBuffer(
+    _In_ SystemPipeSegmentBuffer_t* Buffer)
+{
+    SlimSemaphoreDestroy(&Buffer->ReadQueue);
+    SlimSemaphoreDestroy(&Buffer->WriteQueue);
+    kfree(Buffer->Pointer);
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -462,52 +465,65 @@ ReadRawSegmentBuffer(
 // System Pipe Entry Code
 static void
 InitializeSegmentEntry(
-    _In_ SystemPipeEntry_t* Entry)
+    _In_ SystemPipeEntry_t*         Entry)
 {
     SlimSemaphoreConstruct(&Entry->SyncObject, 0, 1);
 }
 
 static SystemPipeEntry_t*
-StartRetrievingSegmentEntryData(
-    _In_ SystemPipeSegment_t*   Segment,
-    _In_ unsigned int           Index)
+GetSegmentEntryForReading(
+    _In_ SystemPipeSegment_t*       Segment,
+    _In_ unsigned int               Index)
 {
-    // Synchronize
-    atomic_fetch_add(&Segment->References, 1);
     SlimSemaphoreWait(&Segment->Entries[Index].SyncObject, 0);
     return &Segment->Entries[Index];
 }
 
 static void
-EndRetrievingSegmentEntryData(
-    _In_ SystemPipeSegment_t*   Segment,
-    _In_ SystemPipeEntry_t*     Entry)
+SetSegmentEntryWriteable(
+    _In_ SystemPipe_t*              Pipe,
+    _In_ SystemPipeSegment_t*       Segment,
+    _In_ SystemPipeEntry_t*         Entry)
 {
-    // Add credit and reduce references to segment
+    // Mark buffer read and free, and wakeup writers
     atomic_fetch_add(&Segment->Buffer.ReadCommitted, Entry->Length);
-    atomic_fetch_sub(&Segment->References, 1);
     SlimSemaphoreSignal(&Segment->Buffer.WriteQueue, 1);
+
+    // No need to signal if we are unbounded, we don't reuse spots
+    if (!(Pipe->Configuration & PIPE_UNBOUNDED)) {
+        Entry->Length = 0;
+        SlimSemaphoreSignal(&Segment->ProductionQueue, 1);
+    }
+    atomic_fetch_sub(&Segment->References, 1);
 }
 
 static SystemPipeEntry_t*
-AcquireSegmentEntry(
+GetSegmentEntryForWriting(
     _In_ SystemPipe_t*              Pipe,
     _In_ SystemPipeSegment_t*       Segment,
     _In_ unsigned int               Index,
     _In_ size_t                     Length)
 {
-    unsigned int AcquiredIndex = AcquireSegmentBufferSpace(Pipe, &Segment->Buffer, Length);
-    Segment->Entries[Index].SegmentBufferIndex = AcquiredIndex;
-    Segment->Entries[Index].SegmentBufferCurrentIndex = AcquiredIndex;
-    Segment->Entries[Index].Length = Length;
+    // Variables
+    unsigned int AcquiredIndex;
+
+    // Gain access to the entry, and then gain buffer space
+    atomic_fetch_add(&Segment->References, 1);
+    AcquiredIndex = AcquireSegmentBufferSpace(Pipe, &Segment->Buffer, Length);
+
+    // Setup rest of entry
+    Segment->Entries[Index].SegmentBufferIndex          = AcquiredIndex;
+    Segment->Entries[Index].SegmentBufferCurrentIndex   = AcquiredIndex;
+    Segment->Entries[Index].Length                      = Length;
     return &Segment->Entries[Index];
 }
 
 static void
-MarkSegmentEntryComplete(
-    _In_ SystemPipeSegmentBuffer_t* Buffer,
+SetSegmentEntryReadable(
     _In_ SystemPipeEntry_t*         Entry)
 {
+    // Reset current index so it's available for the reader to use
+    // and change state of entry to <Unwriteable> <Readable>
     Entry->SegmentBufferCurrentIndex = Entry->SegmentBufferIndex;
     SlimSemaphoreSignal(&Entry->SyncObject, 1);
 }
@@ -516,9 +532,9 @@ MarkSegmentEntryComplete(
 // System Pipe Segment Code
 static void
 CreateSegment(
-    _In_ SystemPipe_t*          Pipe,
-    _In_ SystemPipeSegment_t**  Segment,
-    _In_ unsigned int           TicketBase)
+    _In_ SystemPipe_t*              Pipe,
+    _In_ SystemPipeSegment_t**      Segment,
+    _In_ unsigned int               TicketBase)
 {
     // Variables
     SystemPipeSegment_t* Pointer;
@@ -527,15 +543,18 @@ CreateSegment(
 
     // Perform the allocation
     if (Pipe->Configuration & PIPE_STRUCTURED_BUFFER) {
-        BytesToAllocate += sizeof(SystemPipeEntry_t) * TICKETS_PER_SEGMENT(Pipe);
+        BytesToAllocate += (sizeof(SystemPipeEntry_t) * TICKETS_PER_SEGMENT(Pipe));
     }
     Pointer         = (SystemPipeSegment_t*)kmalloc(BytesToAllocate);
     assert(Pointer != NULL);
-    memset((void*)Pointer, 0, sizeof(SystemPipeSegment_t));
+    memset((void*)Pointer, 0, BytesToAllocate);
 
     InitializeSegmentBuffer(Pipe, &Pointer->Buffer);
     Pointer->TicketBase     = TicketBase;
     if (Pipe->Configuration & PIPE_STRUCTURED_BUFFER) {
+        int ProductionQueueMax = TICKETS_PER_SEGMENT(Pipe);
+        ProductionQueueMax -= (ProductionQueueMax / 10);
+        SlimSemaphoreConstruct(&Pointer->ProductionQueue, ProductionQueueMax, ProductionQueueMax);
         Pointer->Entries    = (SystemPipeEntry_t*)((uint8_t*)Pointer + sizeof(SystemPipeSegment_t));
         for (i = 0; i < TICKETS_PER_SEGMENT(Pipe); i++) {
             InitializeSegmentEntry(&Pointer->Entries[i]);
@@ -544,17 +563,25 @@ CreateSegment(
     *Segment = Pointer;
 }
 
+static void
+DestroySegment(
+    _In_ SystemPipeSegment_t*       Segment)
+{
+    DestroySegmentBuffer(&Segment->Buffer);
+    kfree(Segment);
+}
+
 static SystemPipeSegment_t*
 GetNextSegment(
-    _In_ SystemPipeSegment_t*   Segment)
+    _In_ SystemPipeSegment_t*       Segment)
 {
     return atomic_load_explicit(&Segment->Link, memory_order_acquire);
 }
 
 static _Bool
 SetNextSegment(
-    _In_ SystemPipeSegment_t*   Segment,
-    _In_ SystemPipeSegment_t*   Next)
+    _In_ SystemPipeSegment_t*       Segment,
+    _In_ SystemPipeSegment_t*       Next)
 {
     SystemPipeSegment_t* Expected = NULL;
     return atomic_compare_exchange_strong_explicit(&Segment->Link, &Expected, Next,
@@ -563,19 +590,18 @@ SetNextSegment(
 
 static void
 ReclaimSegment(
-    _In_ SystemPipeSegment_t*   Segment)
+    _In_ SystemPipeSegment_t*       Segment)
 {
-    int References = atomic_fetch_sub(&Segment->References, 1);
-    if (References == 1) {
-        // No longer any threads are using this
-        kfree(Segment);
+    int References = atomic_fetch_sub(&Segment->References, 1) - 1;
+    if (References == 0) {
+        DestroySegment(Segment);
     }
 }
 
 static SystemPipeSegment_t*
 CreateNextSystemPipeSegment(
-    _In_ SystemPipe_t*          Pipe,
-    _In_ SystemPipeSegment_t*   Segment)
+    _In_ SystemPipe_t*              Pipe,
+    _In_ SystemPipeSegment_t*       Segment)
 {
     SystemPipeSegment_t *Next;
     CreateSegment(Pipe, &Next, Segment->TicketBase + TICKETS_PER_SEGMENT(Pipe));
@@ -588,9 +614,9 @@ CreateNextSystemPipeSegment(
 
 static SystemPipeSegment_t*
 GetNextSystemPipeSegment(
-    _In_ SystemPipe_t*          Pipe,
-    _In_ SystemPipeSegment_t*   Segment,
-    _In_ unsigned int           Ticket)
+    _In_ SystemPipe_t*              Pipe,
+    _In_ SystemPipeSegment_t*       Segment,
+    _In_ unsigned int               Ticket)
 {
     SystemPipeSegment_t *Next = GetNextSegment(Segment);
     if (Next == NULL) {
@@ -605,9 +631,9 @@ GetNextSystemPipeSegment(
 
 static SystemPipeSegment_t*
 FindSystemPipeSegment(
-    _In_ SystemPipe_t*          Pipe,
-    _In_ SystemPipeSegment_t*   Segment,
-    _In_ unsigned int           Ticket)
+    _In_ SystemPipe_t*              Pipe,
+    _In_ SystemPipeSegment_t*       Segment,
+    _In_ unsigned int               Ticket)
 {
     while (Ticket >= (Segment->TicketBase + TICKETS_PER_SEGMENT(Pipe))) {
         Segment = GetNextSystemPipeSegment(Pipe, Segment, Ticket);
@@ -686,8 +712,8 @@ WriteSystemPipe(
 // System Pipe Producer Helper Implementations
 static void
 AdvanceSystemPipeProductionToTail(
-    _In_ SystemPipe_t*          Pipe,
-    _In_ unsigned int           Ticket)
+    _In_ SystemPipe_t*              Pipe,
+    _In_ unsigned int               Ticket)
 {
     SystemPipeSegment_t *Tail = GetSystemPipeTail(Pipe);
     while (Tail->TicketBase < Ticket) {
@@ -703,8 +729,8 @@ AdvanceSystemPipeProductionToTail(
 
 static void 
 AdvanceSystemPipeProducer(
-    _In_ SystemPipe_t*          Pipe,
-    _In_ SystemPipeSegment_t*   Segment)
+    _In_ SystemPipe_t*              Pipe,
+    _In_ SystemPipeSegment_t*       Segment)
 {
     if ((Pipe->Configuration & PIPE_MPMC) == 0) {
         SystemPipeSegment_t *Next = GetNextSegment(Segment);
@@ -714,17 +740,6 @@ AdvanceSystemPipeProducer(
     else {
         unsigned int Ticket = Segment->TicketBase + TICKETS_PER_SEGMENT(Pipe);
         AdvanceSystemPipeProductionToTail(Pipe, Ticket);
-    }
-}
-
-// Handle the cost of the production
-static void
-WithdrawProductionCredit(
-    _In_ SystemPipe_t*          Pipe)
-{
-    int InitialCredit = atomic_fetch_sub(&Pipe->Credit, 1);
-    if ((InitialCredit - 1) < Pipe->TransferLimit) {
-        SlimSemaphoreWait(&Pipe->ProductionQueue, 0);
     }
 }
 
@@ -745,15 +760,17 @@ AcquireSystemPipeProduction(
     unsigned int Ticket;
     assert(Pipe != NULL);
     assert(Length > 0 && Length < UINT16_MAX);
+    assert(Pipe->Configuration & PIPE_STRUCTURED_BUFFER);
 
     // Get tail for production
     Segment = GetSystemPipeTail(Pipe);
-    Ticket  = GetSystemPipeProducerTicket(Pipe);
+
     if (Pipe->Configuration & PIPE_UNBOUNDED) {
+        Ticket = GetSystemPipeProducerTicket(Pipe);
         if (Pipe->Configuration & PIPE_MULTIPLE_PRODUCERS) {
             Segment = FindSystemPipeSegment(Pipe, Segment, Ticket);
         }
-        Entry = AcquireSegmentEntry(Pipe, Segment, TICKET_INDEX(Pipe, Ticket), Length);
+        Entry = GetSegmentEntryForWriting(Pipe, Segment, TICKET_INDEX(Pipe, Ticket), Length);
 
         // Perform post-operations, they include making sure
         // we perform our maintience duties, like securing new segments
@@ -766,14 +783,16 @@ AcquireSystemPipeProduction(
         }
     }
     else {
-        WithdrawProductionCredit(Pipe);
-        Entry = AcquireSegmentEntry(Pipe, Segment, TICKET_INDEX(Pipe, Ticket), Length);
+        // Wait for a spot in production before acquiring a ticket
+        SlimSemaphoreWait(&Segment->ProductionQueue, 0);
+        Ticket  = GetSystemPipeProducerTicket(Pipe);
+        Entry   = GetSegmentEntryForWriting(Pipe, Segment, TICKET_INDEX(Pipe, Ticket), Length);
     }
 
     // Update state
     if (State != NULL) {
         State->Advance  = 0;
-        State->Entry    = Entry;
+        State->Index    = TICKET_INDEX(Pipe, Ticket);
         State->Segment  = Segment;
     }
     return OsSuccess;
@@ -784,20 +803,21 @@ AcquireSystemPipeProduction(
  * active before the amount of data written is equal to specfied in Acquire. */
 size_t
 WriteSystemPipeProduction(
-    _In_ SystemPipeUserState_t* State,
-    _In_ const uint8_t*         Data,
-    _In_ size_t                 Length)
+    _In_ SystemPipeUserState_t*     State,
+    _In_ const uint8_t*             Data,
+    _In_ size_t                     Length)
 {
     // Variables
-    size_t BytesWritten   = (State->Entry->SegmentBufferCurrentIndex - State->Entry->SegmentBufferIndex);
-    size_t BytesAvailable = MIN(Length, State->Entry->Length - BytesWritten);
+    SystemPipeEntry_t *Entry    = &State->Segment->Entries[State->Index];
+    size_t BytesWritten         = (Entry->SegmentBufferCurrentIndex - Entry->SegmentBufferIndex);
+    size_t BytesAvailable       = MIN(Length, Entry->Length - BytesWritten);
     assert(Data != NULL);
 
     if (BytesAvailable > 0) {
         WriteSegmentBufferSpace(&State->Segment->Buffer, Data, BytesAvailable, 
-            &State->Entry->SegmentBufferCurrentIndex);
-        if (State->Entry->Length == (State->Entry->SegmentBufferCurrentIndex - State->Entry->SegmentBufferIndex)) {
-            MarkSegmentEntryComplete(&State->Segment->Buffer, State->Entry);
+            &Entry->SegmentBufferCurrentIndex);
+        if (Entry->Length == (Entry->SegmentBufferCurrentIndex - Entry->SegmentBufferIndex)) {
+            SetSegmentEntryReadable(Entry);
         }
     }
     return BytesAvailable;
@@ -807,8 +827,8 @@ WriteSystemPipeProduction(
 // System Pipe Consumer Helper Implementations
 static void
 AdvanceSystemPipeConsumptionToHead(
-    _In_ SystemPipe_t*          Pipe,
-    _In_ unsigned int           Ticket)
+    _In_ SystemPipe_t*              Pipe,
+    _In_ unsigned int               Ticket)
 {
     SystemPipeSegment_t *Head;
 
@@ -836,8 +856,8 @@ AdvanceSystemPipeConsumptionToHead(
 
 static void 
 AdvanceSystemPipeConsumer(
-    _In_ SystemPipe_t*          Pipe,
-    _In_ SystemPipeSegment_t*   Segment)
+    _In_ SystemPipe_t*              Pipe,
+    _In_ SystemPipeSegment_t*       Segment)
 {
     if ((Pipe->Configuration & PIPE_MPMC) == 0) {
         SystemPipeSegment_t *Next;
@@ -855,16 +875,6 @@ AdvanceSystemPipeConsumer(
     }
 }
 
-static void
-DepositProductionCredit(
-    _In_  SystemPipe_t*         Pipe)
-{
-    int InitialCredit = atomic_fetch_add(&Pipe->Credit, 1);
-    if ((InitialCredit + 1) >= Pipe->TransferLimit) {
-        SlimSemaphoreSignal(&Pipe->ProductionQueue, 1);
-    }
-}
-
 /////////////////////////////////////////////////////////////////////////
 // System Pipe Consume Implementations
 
@@ -879,9 +889,11 @@ AcquireSystemPipeConsumption(
 {
     // Variables
     SystemPipeSegment_t *Segment;
+    SystemPipeEntry_t *Entry;
     unsigned int Ticket;
     assert(Pipe != NULL);
     assert(State != NULL);
+    assert(Pipe->Configuration & PIPE_STRUCTURED_BUFFER);
 
     // Get head for consumption
     Segment         = GetSystemPipeHead(Pipe);
@@ -892,7 +904,7 @@ AcquireSystemPipeConsumption(
         if (Pipe->Configuration & PIPE_MULTIPLE_CONSUMERS) {
             Segment = FindSystemPipeSegment(Pipe, Segment, Ticket);
         }
-        State->Entry = StartRetrievingSegmentEntryData(Segment, TICKET_INDEX(Pipe, Ticket));
+        Entry = GetSegmentEntryForReading(Segment, TICKET_INDEX(Pipe, Ticket));
 
         // Perform post-operations, they include making sure
         // we perform our maintience duties, like advancing the consumer
@@ -901,10 +913,12 @@ AcquireSystemPipeConsumption(
         }
     }
     else {
-        State->Entry = StartRetrievingSegmentEntryData(Segment, TICKET_INDEX(Pipe, Ticket));
+        Entry = GetSegmentEntryForReading(Segment, TICKET_INDEX(Pipe, Ticket));
     }
+
     State->Segment  = Segment;
-    *Length         = State->Entry->Length;
+    State->Index    = TICKET_INDEX(Pipe, Ticket);
+    *Length         = Entry->Length;
     return OsSuccess;
 }
 
@@ -912,18 +926,19 @@ AcquireSystemPipeConsumption(
  * Reads data into the provided buffer from production spot acquired. */
 size_t
 ReadSystemPipeConsumption(
-    _In_ SystemPipeUserState_t* State,
-    _In_ uint8_t*               Data,
-    _In_ size_t                 Length)
+    _In_ SystemPipeUserState_t*     State,
+    _In_ uint8_t*                   Data,
+    _In_ size_t                     Length)
 {
     // Variables
-    size_t BytesRead   = (State->Entry->SegmentBufferCurrentIndex - State->Entry->SegmentBufferIndex);
-    size_t BytesAvailable = MIN(Length, State->Entry->Length - BytesRead);
+    SystemPipeEntry_t *Entry    = &State->Segment->Entries[State->Index];
+    size_t BytesRead            = (Entry->SegmentBufferCurrentIndex - Entry->SegmentBufferIndex);
+    size_t BytesAvailable       = MIN(Length, Entry->Length - BytesRead);
     assert(Data != NULL);
 
     if (BytesAvailable > 0) {
         ReadSegmentBufferSpace(&State->Segment->Buffer, Data, BytesAvailable, 
-            &State->Entry->SegmentBufferCurrentIndex);
+            &Entry->SegmentBufferCurrentIndex);
     }
     return BytesAvailable;
 }
@@ -933,19 +948,16 @@ ReadSystemPipeConsumption(
  * for the given entry consumed. */
 void
 FinalizeSystemPipeConsumption(
-    _In_ SystemPipe_t*          Pipe,
-    _In_ SystemPipeUserState_t* State)
+    _In_ SystemPipe_t*              Pipe,
+    _In_ SystemPipeUserState_t*     State)
 {
     assert(Pipe != NULL);
     assert(State != NULL);
 
-    EndRetrievingSegmentEntryData(State->Segment, State->Entry);
+    SetSegmentEntryWriteable(Pipe, State->Segment, &State->Segment->Entries[State->Index]);
     if (Pipe->Configuration & PIPE_UNBOUNDED) {
         if (State->Advance) {
             AdvanceSystemPipeConsumer(Pipe, State->Segment);
         }
-    }
-    else {
-        DepositProductionCredit(Pipe);
     }
 }

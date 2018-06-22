@@ -17,9 +17,7 @@
  *
  *
  * MollenOS Pipe Interface
- *  - This is a ported version of the unbounded queue specified in the folly
- *    repository of the facebook code. I wrote a C version based on C++ algorithm
- *    used in the mentioned project. Supported pipe-modes implemented are:
+ *  - This multi-interface queue is a lock-less thread-safe implementation of pipe-modes:
  *      - Bounded MPMC / MPSC / SPMC
  *      - Unbounded MPMC / MPSC / SPMC
  *      - Bounded SPSC
@@ -29,9 +27,7 @@
 #define __SYSTEM_PIPE__
 
 #include <os/osdefs.h>
-#include <atomicsection.h>
 #include <semaphore_slim.h>
-#include <vaultlock.h>
 
 #define PIPE_DEFAULT_ENTRYCOUNT     8 // Logarithmic base of 2 value of workers
 
@@ -73,6 +69,7 @@ typedef struct _SystemPipeSegmentBuffer {
  * A system pipe segment is a collection of entries with a minimum base. */
 typedef struct _SystemPipeSegment {
     SystemPipeSegmentBuffer_t           Buffer;
+    SlimSemaphore_t                     ProductionQueue;
     unsigned int                        TicketBase;
     atomic_int                          References;
     SystemPipeEntry_t*                  Entries;
@@ -98,7 +95,7 @@ typedef struct _SystemPipeConsumer {
  * more functionality than SPSC. */
 typedef struct _SystemPipeUserState {
     SystemPipeSegment_t*            Segment;
-    SystemPipeEntry_t*              Entry;
+    unsigned int                    Index;
     int                             Advance;
 } SystemPipeUserState_t;
 
@@ -109,10 +106,6 @@ typedef struct _SystemPipe {
     Flags_t                 Configuration;
     size_t                  Stride;
     size_t                  SegmentLgSize;
-    SlimSemaphore_t         ProductionQueue;
-    atomic_int              Credit;
-    size_t                  TransferLimit;
-    VaultLock_t             Vault;
 
     SystemPipeConsumer_t    ConsumerState;
     SystemPipeProducer_t    ProducerState;
@@ -122,16 +115,16 @@ typedef struct _SystemPipe {
  * Initialise a new pipe instance with the given configuration and initializes it. */
 KERNELAPI SystemPipe_t* KERNELABI
 CreateSystemPipe(
-    _In_ Flags_t                Configuration,
-    _In_ size_t                 SegmentLgSize);
+    _In_ Flags_t                    Configuration,
+    _In_ size_t                     SegmentLgSize);
 
 /* ConstructSystemPipe
  * Construct an already existing pipe by initializing the pipe with the given configuration. */
 KERNELAPI void KERNELABI
 ConstructSystemPipe(
-    _In_ SystemPipe_t*          Pipe,
-    _In_ Flags_t                Configuration,
-    _In_ size_t                 SegmentLgSize);
+    _In_ SystemPipe_t*              Pipe,
+    _In_ Flags_t                    Configuration,
+    _In_ size_t                     SegmentLgSize);
 
 /* DestroySystemPipe
  * Destroys a pipe and wakes up all sleeping threads, then frees all resources allocated */
@@ -194,7 +187,7 @@ ReadSystemPipeConsumption(
  * for the given entry consumed. */
 KERNELAPI void KERNELABI
 FinalizeSystemPipeConsumption(
-    _In_ SystemPipe_t*          Pipe,
-    _In_ SystemPipeUserState_t* State);
+    _In_ SystemPipe_t*              Pipe,
+    _In_ SystemPipeUserState_t*     State);
 
 #endif // !__SYSTEM_PIPE__

@@ -115,14 +115,13 @@ SlimSemaphoreSignal(
     if ((CurrentValue + Value) <= Semaphore->MaxValue) {
         for (i = 0; i < Value; i++) {
             while ((CurrentValue + 1) <= Semaphore->MaxValue) {
-                if (!atomic_compare_exchange_weak(&Semaphore->Value, &CurrentValue, CurrentValue + 1)) {
+                if (atomic_compare_exchange_weak(&Semaphore->Value, &CurrentValue, CurrentValue + 1)) {
                     break;
                 }
-                CurrentValue = atomic_load(&Semaphore->Value);
             }
 
             // Ok everything is ok, wake stuff up
-            if (CurrentValue <= 0) {
+            if (CurrentValue < 0) {
                 SchedulerHandleSignal((uintptr_t*)&Semaphore->Value);
             }
         }

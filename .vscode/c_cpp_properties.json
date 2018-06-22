@@ -48,7 +48,8 @@
                 "limitSymbolsToIncludedHeaders": true,
                 "databaseFilename": ""
             },
-            "intelliSenseMode": "clang-x64"
+            "intelliSenseMode": "clang-x64",
+            "compileCommands": "${workspaceFolder}/toolchain/llvm/tools/clang/test/Index/compile_commands.json"
         },
         {
             "name": "MollenOS-amd64",
