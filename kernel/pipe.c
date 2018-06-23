@@ -247,6 +247,45 @@ DestroySegmentBuffer(
 
 /////////////////////////////////////////////////////////////////////////
 // System Pipe Structured Buffer Code
+static void
+GetSegmentProductionSpot(
+    _In_ SystemPipe_t*              Pipe,
+    _In_ SystemPipeSegment_t*       Segment)
+{
+    // Variables
+    int ProductionSpots;
+
+    atomic_fetch_add(&Segment->References, 1);
+    while (1) {
+        ProductionSpots = atomic_load(&Segment->ProductionSpots);
+        if (!ProductionSpots) {
+            SlimSemaphoreWait(&Segment->ProductionQueue, 0);
+            continue; // Start over
+        }
+
+        // Synchronize with other producers
+        if (Pipe->Configuration & PIPE_MULTIPLE_PRODUCERS) {
+            while (ProductionSpots) {
+                if (atomic_compare_exchange_weak(&Segment->ProductionSpots, 
+                    &ProductionSpots, ProductionSpots - 1)) {
+                    break;
+                }
+            }
+
+            // Did we end up overcomitting?
+            if (!ProductionSpots) {
+                continue; // Start write loop all over
+            }
+            break;
+        }
+        else {
+            // No sweat
+            atomic_store_explicit(&Segment->ProductionSpots, ProductionSpots - 1, memory_order_relaxed);
+            break;
+        }
+    }
+}
+
 static unsigned int
 AcquireSegmentBufferSpace(
     _In_ SystemPipe_t*              Pipe,
@@ -492,6 +531,7 @@ SetSegmentEntryWriteable(
     // No need to signal if we are unbounded, we don't reuse spots
     if (!(Pipe->Configuration & PIPE_UNBOUNDED)) {
         Entry->Length = 0;
+        atomic_fetch_add(&Segment->ProductionSpots, 1);
         SlimSemaphoreSignal(&Segment->ProductionQueue, 1);
     }
     atomic_fetch_sub(&Segment->References, 1);
@@ -508,7 +548,6 @@ GetSegmentEntryForWriting(
     unsigned int AcquiredIndex;
 
     // Gain access to the entry, and then gain buffer space
-    atomic_fetch_add(&Segment->References, 1);
     AcquiredIndex = AcquireSegmentBufferSpace(Pipe, &Segment->Buffer, Length);
 
     // Setup rest of entry
@@ -549,13 +588,12 @@ CreateSegment(
     assert(Pointer != NULL);
     memset((void*)Pointer, 0, BytesToAllocate);
 
+    SlimSemaphoreConstruct(&Pointer->ProductionQueue, 0, 0);
     InitializeSegmentBuffer(Pipe, &Pointer->Buffer);
     Pointer->TicketBase     = TicketBase;
     if (Pipe->Configuration & PIPE_STRUCTURED_BUFFER) {
-        int ProductionQueueMax = TICKETS_PER_SEGMENT(Pipe);
-        ProductionQueueMax -= (ProductionQueueMax / 10);
-        SlimSemaphoreConstruct(&Pointer->ProductionQueue, ProductionQueueMax, ProductionQueueMax);
-        Pointer->Entries    = (SystemPipeEntry_t*)((uint8_t*)Pointer + sizeof(SystemPipeSegment_t));
+        Pointer->ProductionSpots    = ATOMIC_VAR_INIT(TICKETS_PER_SEGMENT(Pipe));
+        Pointer->Entries            = (SystemPipeEntry_t*)((uint8_t*)Pointer + sizeof(SystemPipeSegment_t));
         for (i = 0; i < TICKETS_PER_SEGMENT(Pipe); i++) {
             InitializeSegmentEntry(&Pointer->Entries[i]);
         }
@@ -784,7 +822,7 @@ AcquireSystemPipeProduction(
     }
     else {
         // Wait for a spot in production before acquiring a ticket
-        SlimSemaphoreWait(&Segment->ProductionQueue, 0);
+        GetSegmentProductionSpot(Pipe, Segment);
         Ticket  = GetSystemPipeProducerTicket(Pipe);
         Entry   = GetSegmentEntryForWriting(Pipe, Segment, TICKET_INDEX(Pipe, Ticket), Length);
     }
@@ -811,6 +849,7 @@ WriteSystemPipeProduction(
     SystemPipeEntry_t *Entry    = &State->Segment->Entries[State->Index];
     size_t BytesWritten         = (Entry->SegmentBufferCurrentIndex - Entry->SegmentBufferIndex);
     size_t BytesAvailable       = MIN(Length, Entry->Length - BytesWritten);
+    assert(Entry->SegmentBufferCurrentIndex >= Entry->SegmentBufferIndex);
     assert(Data != NULL);
 
     if (BytesAvailable > 0) {

@@ -109,9 +109,10 @@ TestSynchronization(void *Unused)
             atomic_load(&CommPipe->ConsumerState.Head->Buffer.ReadCommitted),   atomic_load(&CommPipe->ConsumerState.Head->Buffer.WriteCommitted),
             atomic_load(&CommPipe->ConsumerState.Head->Buffer.ReadQueue.Value), atomic_load(&CommPipe->ConsumerState.Head->Buffer.WriteQueue.Value));
         ConsumerTicket = (atomic_load(&CommPipe->ConsumerState.Ticket) - 1) & 0xFF;
-        TRACE(" > Consumer Ticket Status: (Ticket %u) - (ReadQueue %i, ProductionQueue %i) %u", ConsumerTicket,
+        TRACE(" > Consumer Ticket Status: (Ticket %u) - (ReadQueue %i, ProductionQueue %i) %u, %u", ConsumerTicket,
             atomic_load(&CommPipe->ConsumerState.Head->Entries[ConsumerTicket].SyncObject.Value),
             atomic_load(&CommPipe->ConsumerState.Head->ProductionQueue.Value),
+            atomic_load(&CommPipe->ConsumerState.Head->ProductionSpots),
             CommPipe->ConsumerState.Head->Entries[ConsumerTicket].Length);
     }
     SynchronizationTestActive = 0;

@@ -69,6 +69,7 @@ typedef struct _SystemPipeSegmentBuffer {
  * A system pipe segment is a collection of entries with a minimum base. */
 typedef struct _SystemPipeSegment {
     SystemPipeSegmentBuffer_t           Buffer;
+    atomic_int                          ProductionSpots;
     SlimSemaphore_t                     ProductionQueue;
     unsigned int                        TicketBase;
     atomic_int                          References;
