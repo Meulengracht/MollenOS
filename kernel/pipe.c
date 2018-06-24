@@ -846,11 +846,19 @@ WriteSystemPipeProduction(
     _In_ size_t                     Length)
 {
     // Variables
-    SystemPipeEntry_t *Entry    = &State->Segment->Entries[State->Index];
-    size_t BytesWritten         = (Entry->SegmentBufferCurrentIndex - Entry->SegmentBufferIndex);
-    size_t BytesAvailable       = MIN(Length, Entry->Length - BytesWritten);
-    assert(Entry->SegmentBufferCurrentIndex >= Entry->SegmentBufferIndex);
+    SystemPipeEntry_t *Entry = &State->Segment->Entries[State->Index];
+    size_t BytesAvailable;
+    size_t BytesWritten;
     assert(Data != NULL);
+
+    // Calculate correct number of bytes available
+    if (Entry->SegmentBufferCurrentIndex < Entry->SegmentBufferIndex) {
+        BytesWritten = (UINT_MAX - Entry->SegmentBufferIndex) + Entry->SegmentBufferCurrentIndex;
+    }
+    else {
+        BytesWritten = Entry->SegmentBufferCurrentIndex - Entry->SegmentBufferIndex;
+    }
+    BytesAvailable = MIN(Length, Entry->Length - BytesWritten);
 
     if (BytesAvailable > 0) {
         WriteSegmentBufferSpace(&State->Segment->Buffer, Data, BytesAvailable, 
@@ -970,10 +978,19 @@ ReadSystemPipeConsumption(
     _In_ size_t                     Length)
 {
     // Variables
-    SystemPipeEntry_t *Entry    = &State->Segment->Entries[State->Index];
-    size_t BytesRead            = (Entry->SegmentBufferCurrentIndex - Entry->SegmentBufferIndex);
-    size_t BytesAvailable       = MIN(Length, Entry->Length - BytesRead);
+    SystemPipeEntry_t *Entry = &State->Segment->Entries[State->Index];
+    size_t BytesAvailable;
+    size_t BytesRead;
     assert(Data != NULL);
+
+    // Calculate correct number of bytes available
+    if (Entry->SegmentBufferCurrentIndex < Entry->SegmentBufferIndex) {
+        BytesRead = (UINT_MAX - Entry->SegmentBufferIndex) + Entry->SegmentBufferCurrentIndex;
+    }
+    else {
+        BytesRead = Entry->SegmentBufferCurrentIndex - Entry->SegmentBufferIndex;
+    }
+    BytesAvailable = MIN(Length, Entry->Length - BytesRead);
 
     if (BytesAvailable > 0) {
         ReadSegmentBufferSpace(&State->Segment->Buffer, Data, BytesAvailable, 
