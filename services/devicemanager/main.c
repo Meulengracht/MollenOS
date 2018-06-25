@@ -112,7 +112,7 @@ OnEvent(
             }
             
             // Write the result back to the caller
-            RPCRespond(Message, &Result, sizeof(UUId_t));
+            RPCRespond(&Message->From, &Result, sizeof(UUId_t));
         } break;
 
         // Unregisters a device from the system, and 
@@ -153,7 +153,7 @@ OnEvent(
             }
 
             // Write back response
-            RPCRespond(Message, &Result, sizeof(OsStatus_t));
+            RPCRespond(&Message->From, &Result, sizeof(OsStatus_t));
         } break;
 
         // Registers a driver for the given device 
@@ -174,7 +174,7 @@ OnEvent(
             }
 
             // Write the result back to the caller
-            RPCRespond(Message, &Result, sizeof(UUId_t));
+            RPCRespond(&Message->From, &Result, sizeof(UUId_t));
         } break;
 
         // For now this function is un-implemented
@@ -204,10 +204,10 @@ OnEvent(
                     &Message->Arguments[4].Data.Value : Message->Arguments[4].Data.Buffer,
                     Message->Arguments[4].Length,
                     ResponseBuffer, Message->Result.Length) == OsSuccess) {
-                RPCRespond(Message, ResponseBuffer, Message->Result.Length);
+                RPCRespond(&Message->From, ResponseBuffer, Message->Result.Length);
             }
             else {
-                RPCRespond(Message, NullPointer, sizeof(void*));
+                RPCRespond(&Message->From, NullPointer, sizeof(void*));
             }
 
             // Cleanup

@@ -47,14 +47,11 @@
  * Describes the ahci-transaction object and contains
  * information about the buffer and the requester */
 typedef struct _AhciTransaction {
-	UUId_t						 Requester;
-	int							 Pipe;
-	
-	uintptr_t					 Address;
-	size_t						 SectorCount;
-
-	AhciDevice_t				*Device;
-	int							 Slot;
+    MRemoteCallAddress_t        ResponseAddress;
+	uintptr_t			        Address;
+	size_t				        SectorCount;
+	AhciDevice_t*               Device;
+	int						    Slot;
 } AhciTransaction_t;
 
 /* AhciManagerInitialize

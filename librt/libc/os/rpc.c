@@ -92,10 +92,11 @@ RPCListen(
  * a result when there is going to be one */ 
 OsStatus_t 
 RPCRespond(
-	_In_ MRemoteCall_t *RemoteCall,
-	_In_ __CONST void  *Buffer, 
-	_In_ size_t         Length) {
-	return Syscall_RemoteCallRespond(RemoteCall, (void*)Buffer, Length);
+    _In_ MRemoteCallAddress_t*  RemoteAddress,
+    _In_ const void*            Buffer, 
+    _In_ size_t                 Length)
+{
+	return Syscall_RemoteCallRespond(RemoteAddress, (void*)Buffer, Length);
 }
 
 #endif

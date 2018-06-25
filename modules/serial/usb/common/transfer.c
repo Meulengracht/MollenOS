@@ -44,8 +44,7 @@ static UUId_t __GlbTransferId   = 0;
 UsbManagerTransfer_t*
 UsbManagerCreateTransfer(
     _In_ UsbTransfer_t*         Transfer,
-    _In_ UUId_t                 Requester,
-    _In_ int                    ResponsePort,
+    _In_ MRemoteCallAddress_t*  Address,
     _In_ UUId_t                 Device)
 {
     // Variables
@@ -57,8 +56,7 @@ UsbManagerCreateTransfer(
 
     // Copy information over
     memcpy(&UsbTransfer->Transfer, Transfer, sizeof(UsbTransfer_t));
-    UsbTransfer->Requester      = Requester;
-    UsbTransfer->ResponsePort   = ResponsePort;
+    memcpy(&UsbTransfer->ResponseAddress, Address, sizeof(MRemoteCallAddress_t));
     UsbTransfer->DeviceId       = Device;
     UsbTransfer->Id             = __GlbTransferId++;
     UsbTransfer->Status         = TransferNotProcessed;
@@ -82,22 +80,22 @@ UsbManagerSendNotification(
 
     // If notification has been sent on control/bulk do not send again
     if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
-        if ((Transfer->Flags & TransferFlagNotified) || Transfer->Requester == UUID_INVALID) {
+        if ((Transfer->Flags & TransferFlagNotified)) {
             return;
         }
-        Transfer->Flags |= TransferFlagNotified;
+        Transfer->Flags         |= TransferFlagNotified;
         Result.Id               = Transfer->Id;
         Result.BytesTransferred = Transfer->BytesTransferred[0];
         Result.BytesTransferred += Transfer->BytesTransferred[1];
         Result.BytesTransferred += Transfer->BytesTransferred[2];
 
         Result.Status           = Transfer->Status;
-        SendPipe(Transfer->Requester, Transfer->ResponsePort, (void*)&Result, sizeof(UsbTransferResult_t));
+        RPCRespond(&Transfer->ResponseAddress, (void*)&Result, sizeof(UsbTransferResult_t));
     }
     else {
         // Send interrupt
         InterruptDriver(
-            Transfer->Requester,                        // Process
+            Transfer->ResponseAddress.Process,          // Process
             (size_t)Transfer->Transfer.PeriodicData,    // Data pointer 
             Transfer->Status,                           // Status of transfer
             Transfer->CurrentDataIndex, 0);             // Data offset (not used in isoc)

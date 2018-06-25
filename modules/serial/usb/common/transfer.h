@@ -48,8 +48,7 @@ typedef enum _UsbManagerTransferFlags {
  * in order to execute a callback for the requester */
 typedef struct _UsbManagerTransfer {
     UsbTransfer_t               Transfer;
-    UUId_t                      Requester;
-    int                         ResponsePort;
+    MRemoteCallAddress_t        ResponseAddress;
 
     // Transfer Metadata
     UUId_t                      Id;
@@ -73,8 +72,7 @@ __EXTERN
 UsbManagerTransfer_t*
 UsbManagerCreateTransfer(
     _In_ UsbTransfer_t*         Transfer,
-    _In_ UUId_t                 Requester,
-    _In_ int                    ResponsePort,
+    _In_ MRemoteCallAddress_t*  Address,
     _In_ UUId_t                 Device);
 
 /* UsbManagerSendNotification

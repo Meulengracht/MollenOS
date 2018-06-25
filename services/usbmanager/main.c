@@ -81,7 +81,7 @@ OnEvent(
 
 		case __USBMANAGER_QUERYCONTROLLERCOUNT: {
             int ControllerCount = UsbCoreGetControllerCount();
-            return RPCRespond(Message, &ControllerCount, sizeof(int));
+            return RPCRespond(&Message->From, &ControllerCount, sizeof(int));
 		} break;
 
         case __USBMANAGER_QUERYCONTROLLER: {
@@ -92,7 +92,7 @@ OnEvent(
                 memcpy(&HcController.Device, &Controller->Device, sizeof(MCoreDevice_t));
                 HcController.Type = Controller->Type;
             }
-            return RPCRespond(Message, &HcController, sizeof(UsbHcController_t));
+            return RPCRespond(&Message->From, &HcController, sizeof(UsbHcController_t));
         } break;
 
 		case __USBMANAGER_PORTEVENT: {

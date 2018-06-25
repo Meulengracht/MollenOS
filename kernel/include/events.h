@@ -73,11 +73,19 @@ typedef struct _MCoreEventHandler {
     void                *UserData;
 } MCoreEventHandler_t;
 
-/* Event Init/Destruct 
- * Starts or stops handling events 
- * with the given callback */
-KERNELAPI MCoreEventHandler_t *EventInit(const char *Name, EventCallback Callback, void *Data);
-KERNELAPI void EventDestruct(MCoreEventHandler_t *EventHandler);
+/* InitializeEventLoop
+ * Starts or stops handling events with the given callback */
+KERNELAPI MCoreEventHandler_t* KERNELABI
+InitializeEventLoop(
+    _In_ const char*            Name,
+    _In_ EventCallback          Callback,
+    _In_ void*                  Data);
+
+/* DestroyEventLoop
+ * Cancels the current event loop and destroys all resources allocated. */
+KERNELAPI void KERNELABI
+DestroyEventLoop(
+    _In_ MCoreEventHandler_t*   EventHandler);
 
 /* Event Create 
  * Queues up a new event for the

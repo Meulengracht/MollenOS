@@ -201,13 +201,13 @@ OnUnregister(
  * this driver for data, this will correspond to the query
  * function that is defined in the contract */
 OsStatus_t 
-OnQuery(_In_     MContractType_t        QueryType, 
-		_In_     int                    QueryFunction, 
-		_In_Opt_ MRemoteCallArgument_t* Arg0,
-		_In_Opt_ MRemoteCallArgument_t* Arg1,
-		_In_Opt_ MRemoteCallArgument_t* Arg2, 
-		_In_     UUId_t                 Queryee, 
-		_In_     int                    ResponsePort)
+OnQuery(
+	_In_     MContractType_t        QueryType, 
+	_In_     int                    QueryFunction, 
+	_In_Opt_ MRemoteCallArgument_t* Arg0,
+	_In_Opt_ MRemoteCallArgument_t* Arg1,
+	_In_Opt_ MRemoteCallArgument_t* Arg2,
+    _In_     MRemoteCallAddress_t*  Address)
 {
 	// Unused params
 	_CRT_UNUSED(Arg2);
@@ -232,13 +232,11 @@ OnQuery(_In_     MContractType_t        QueryType,
             // Lookup device
             Device = AhciManagerGetDevice(DiskId);
             if (Device != NULL) {
-                return SendPipe(Queryee, ResponsePort,
-                    (void*)&Device->Descriptor, sizeof(StorageDescriptor_t));
+                return RPCRespond(Address, (void*)&Device->Descriptor, sizeof(StorageDescriptor_t));
             }
             else {
                 memset((void*)&NullDescriptor, 0, sizeof(StorageDescriptor_t));
-                return SendPipe(Queryee, ResponsePort,
-                    (void*)&NullDescriptor, sizeof(StorageDescriptor_t));
+                return RPCRespond(Address, (void*)&NullDescriptor, sizeof(StorageDescriptor_t));
             }
 
         } break;
@@ -253,14 +251,13 @@ OnQuery(_In_     MContractType_t        QueryType,
             AhciDevice_t *Device            = AhciManagerGetDevice(DiskId);
             OsStatus_t OpsStatus            = OsError;
             if (Device == NULL) {
-                return SendPipe(Queryee, ResponsePort, (void*)&OpsStatus, sizeof(OsStatus_t));
+                return RPCRespond(Address, (void*)&OpsStatus, sizeof(OsStatus_t));
             }
 
             // Create a new transaction
             AhciTransaction_t *Transaction  = (AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
             memset((void*)Transaction, 0, sizeof(AhciTransaction_t));
-            Transaction->Requester      = Queryee;
-            Transaction->Pipe           = ResponsePort;
+            memcpy((void*)&Transaction->ResponseAddress, Address, sizeof(MRemoteCallAddress_t));
             Transaction->Address        = Operation->PhysicalBuffer;
             Transaction->SectorCount    = Operation->SectorCount;
             Transaction->Device         = Device;
@@ -275,7 +272,7 @@ OnQuery(_In_     MContractType_t        QueryType,
 
             // Only return immediately if there was an error
             if (OpsStatus != OsSuccess) {
-                return SendPipe(Queryee, ResponsePort, (void*)&OpsStatus, sizeof(OsStatus_t));
+                return RPCRespond(Address, (void*)&OpsStatus, sizeof(OsStatus_t));
             }
             else {
                 return OsSuccess;

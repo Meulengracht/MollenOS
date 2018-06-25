@@ -86,7 +86,7 @@ PhoenixInitialize(void)
     }
 
     // Create event handler
-    EventHandler = EventInit("phoenix", PhoenixEventHandler, NULL);
+    EventHandler = InitializeEventLoop("phoenix", PhoenixEventHandler, NULL);
 }
 
 /* PhoenixCreateRequest

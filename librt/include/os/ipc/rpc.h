@@ -37,6 +37,7 @@
  * always include both a From and To address. */
 PACKED_TYPESTRUCT(MRemoteCallAddress, {
     UUId_t                  Process;
+    UUId_t                  Thread;
     int                     Port;
 });
 
@@ -223,9 +224,9 @@ RPCEvent(
 CRTDECL( 
 OsStatus_t,
 RPCRespond(
-    _In_ MRemoteCall_t *RemoteCall,
-    _In_ __CONST void  *Buffer, 
-    _In_ size_t         Length));
+    _In_ MRemoteCallAddress_t*  RemoteAddress,
+    _In_ const void*            Buffer, 
+    _In_ size_t                 Length));
 _CODE_END
 
 #endif //!__RPC_INTERFACE__

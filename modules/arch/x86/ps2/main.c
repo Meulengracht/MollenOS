@@ -403,13 +403,13 @@ OsStatus_t OnUnregister(MCoreDevice_t *Device)
  * this driver for data, this will correspond to the query
  * function that is defined in the contract */
 OsStatus_t 
-OnQuery(_In_ MContractType_t QueryType, 
-		_In_ int QueryFunction, 
-		_In_Opt_ MRemoteCallArgument_t *Arg0,
-		_In_Opt_ MRemoteCallArgument_t *Arg1,
-		_In_Opt_ MRemoteCallArgument_t *Arg2, 
-		_In_ UUId_t Queryee, 
-		_In_ int ResponsePort)
+OnQuery(
+	_In_     MContractType_t        QueryType, 
+	_In_     int                    QueryFunction, 
+	_In_Opt_ MRemoteCallArgument_t* Arg0,
+	_In_Opt_ MRemoteCallArgument_t* Arg1,
+	_In_Opt_ MRemoteCallArgument_t* Arg2,
+    _In_     MRemoteCallAddress_t*  Address)
 {
 	// You can't query the ps-2 driver
 	_CRT_UNUSED(QueryType);
@@ -417,7 +417,6 @@ OnQuery(_In_ MContractType_t QueryType,
 	_CRT_UNUSED(Arg0);
 	_CRT_UNUSED(Arg1);
 	_CRT_UNUSED(Arg2);
-	_CRT_UNUSED(Queryee);
-	_CRT_UNUSED(ResponsePort);
+	_CRT_UNUSED(Address);
 	return OsSuccess;
 }

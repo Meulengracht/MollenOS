@@ -278,7 +278,7 @@ OnEvent(
 				(Flags_t)Message->Arguments[1].Data.Value,
 				(Flags_t)Message->Arguments[2].Data.Value,
 				&Package.Handle);
-			Result          = RPCRespond(Message, (const void*)&Package, sizeof(OpenFilePackage_t));
+			Result          = RPCRespond(&Message->From, (const void*)&Package, sizeof(OpenFilePackage_t));
 		} break;
 
 		// Closes the given file-handle, but does not necessarily
@@ -288,7 +288,7 @@ OnEvent(
             Code    = VfsCloseFile(
                 Message->From.Process, 
                 (UUId_t)Message->Arguments[0].Data.Value);
-			Result  = RPCRespond(Message, (const void*)&Code, sizeof(FileSystemCode_t));
+			Result  = RPCRespond(&Message->From, (const void*)&Code, sizeof(FileSystemCode_t));
 		} break;
 
 		// Reads the requested number of bytes into the given buffer
@@ -301,7 +301,7 @@ OnEvent(
 				(BufferObject_t*)Message->Arguments[1].Data.Buffer,
 				&Package.Index,
 				&Package.ActualSize);
-			Result = RPCRespond(Message, (const void*)&Package, sizeof(RWFilePackage_t));
+			Result = RPCRespond(&Message->From, (const void*)&Package, sizeof(RWFilePackage_t));
 		} break;
 
 		// Writes the requested number of bytes from the given buffer
@@ -313,7 +313,7 @@ OnEvent(
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(BufferObject_t*)Message->Arguments[1].Data.Buffer,
 				&Package.ActualSize);
-			Result = RPCRespond(Message, (const void*)&Package, sizeof(RWFilePackage_t));
+			Result = RPCRespond(&Message->From, (const void*)&Package, sizeof(RWFilePackage_t));
 		} break;
 
 		// Sets the file-pointer for the given handle to the
@@ -325,7 +325,7 @@ OnEvent(
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(uint32_t)Message->Arguments[1].Data.Value,
 				(uint32_t)Message->Arguments[2].Data.Value);
-			Result = RPCRespond(Message, (const void*)&Code, sizeof(FileSystemCode_t));
+			Result = RPCRespond(&Message->From, (const void*)&Code, sizeof(FileSystemCode_t));
 		} break;
 
 		// Flushes the internal file buffers and ensures there are
@@ -333,7 +333,7 @@ OnEvent(
 		case __FILEMANAGER_FLUSHFILE: {
 			FileSystemCode_t Code = VfsFlushFile(Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value);
-			Result = RPCRespond(Message, (const void*)&Code, sizeof(FileSystemCode_t));
+			Result = RPCRespond(&Message->From, (const void*)&Code, sizeof(FileSystemCode_t));
 		} break;
 
 	    // Moves or copies a given file path to the destination path
@@ -345,7 +345,7 @@ OnEvent(
 				RPCGetStringArgument(Message, 0),
 				RPCGetStringArgument(Message, 1),
 				(int)Message->Arguments[2].Data.Value);
-			Result = RPCRespond(Message, (const void*)&Code, sizeof(FileSystemCode_t));
+			Result = RPCRespond(&Message->From, (const void*)&Code, sizeof(FileSystemCode_t));
 		} break;
 
 		// Queries the current file position that the given handle
@@ -357,7 +357,7 @@ OnEvent(
                 Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				&Package);
-			Result = RPCRespond(Message, (const void*)&Package, sizeof(QueryFileValuePackage_t));
+			Result = RPCRespond(&Message->From, (const void*)&Package, sizeof(QueryFileValuePackage_t));
 		} break;
 
 		// Queries the current file options and file access flags
@@ -368,7 +368,7 @@ OnEvent(
                 Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				&Package);
-			Result = RPCRespond(Message, (const void*)&Package, sizeof(QueryFileOptionsPackage_t));
+			Result = RPCRespond(&Message->From, (const void*)&Package, sizeof(QueryFileOptionsPackage_t));
 		} break;
 
 		// Attempts to modify the current option and or access flags
@@ -379,7 +379,7 @@ OnEvent(
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(Flags_t)Message->Arguments[1].Data.Value,
 				(Flags_t)Message->Arguments[2].Data.Value);
-			Result = RPCRespond(Message, (const void*)&Result, sizeof(OsStatus_t));
+			Result = RPCRespond(&Message->From, (const void*)&Result, sizeof(OsStatus_t));
 		} break;
 
 		// Queries the current file size that the given handle
@@ -391,17 +391,17 @@ OnEvent(
                 Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				&Package);
-			Result = RPCRespond(Message, (const void*)&Package, sizeof(QueryFileValuePackage_t));
+			Result = RPCRespond(&Message->From, (const void*)&Package, sizeof(QueryFileValuePackage_t));
 		} break;
 
         // Retrieve the full canonical path of the given file-handle.
         case __FILEMANAGER_GETPATH: {
             MString_t *FilePath = NULL;
             if (VfsGetFilePath(Message->From.Process, (UUId_t)Message->Arguments[0].Data.Value, &FilePath) != OsSuccess) {
-                Result = RPCRespond(Message, FilePath, sizeof(MString_t*));
+                Result = RPCRespond(&Message->From, FilePath, sizeof(MString_t*));
             }
             else {
-                Result = RPCRespond(Message, MStringRaw(FilePath), MStringSize(FilePath));
+                Result = RPCRespond(&Message->From, MStringRaw(FilePath), MStringSize(FilePath));
             }
         } break;
 
@@ -415,7 +415,7 @@ OnEvent(
 		case __FILEMANAGER_DELETEPATH: {
 			FileSystemCode_t Code = VfsDeletePath(Message->From.Process,
 				RPCGetStringArgument(Message, 0), (Flags_t)Message->Arguments[1].Data.Value);
-			Result = RPCRespond(Message, (const void*)&Code, sizeof(FileSystemCode_t));
+			Result = RPCRespond(&Message->From, (const void*)&Code, sizeof(FileSystemCode_t));
 		} break;
 
         // @todo
@@ -434,11 +434,11 @@ OnEvent(
 		case __FILEMANAGER_PATHRESOLVE: {
 			MString_t *Resolved = VfsPathResolveEnvironment((EnvironmentPath_t)Message->Arguments[0].Data.Value);
 			if (Resolved != NULL) {
-				Result = RPCRespond(Message, MStringRaw(Resolved), MStringSize(Resolved));
+				Result = RPCRespond(&Message->From, MStringRaw(Resolved), MStringSize(Resolved));
                 free(Resolved);
 			}
 			else {
-				Result = RPCRespond(Message, Resolved, sizeof(void*));
+				Result = RPCRespond(&Message->From, Resolved, sizeof(void*));
 			}
 		} break;
 
@@ -447,11 +447,11 @@ OnEvent(
 		case __FILEMANAGER_PATHCANONICALIZE: {
 			MString_t *Resolved = VfsPathCanonicalize(RPCGetStringArgument(Message, 0));
 			if (Resolved != NULL) {
-				Result = RPCRespond(Message, MStringRaw(Resolved), MStringSize(Resolved));
+				Result = RPCRespond(&Message->From, MStringRaw(Resolved), MStringSize(Resolved));
                 free(Resolved);
 			}
 			else {
-				Result = RPCRespond(Message, Resolved, sizeof(void*));
+				Result = RPCRespond(&Message->From, Resolved, sizeof(void*));
 			}
 		} break;
 

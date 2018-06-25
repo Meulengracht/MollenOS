@@ -357,6 +357,11 @@ SchedulerThreadQueue(
     // Sanitize the cpu that thread needs to be bound to
     if (Thread->CoreId == SCHEDULER_CPU_SELECT) {
         for (i = 0; i < (GetCurrentDomain()->Cpu.NumberOfCores - 1); i++) {
+            // Skip cores not booted yet, their scheduler is not initialized
+            if (GetCurrentDomain()->Cpu.ApplicationCores[i].State != CpuStateRunning) {
+                continue;
+            }
+
             if (GetCurrentDomain()->Cpu.ApplicationCores[i].Scheduler.ThreadCount < Scheduler->ThreadCount) {
                 Scheduler   = &GetCurrentDomain()->Cpu.ApplicationCores[i].Scheduler;
                 CoreId      = GetCurrentDomain()->Cpu.ApplicationCores[i].Id;

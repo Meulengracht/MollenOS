@@ -347,11 +347,11 @@ AhciCommandFinish(
 	AhciPortReleaseCommandSlot(Transaction->Device->Port, Transaction->Slot);
 
 	// If this was an internal request we need to notify manager
-	if (Transaction->Requester == UUID_INVALID) {
+	if (Transaction->ResponseAddress.Thread == UUID_INVALID) {
 		AhciManagerCreateDeviceCallback(Transaction->Device);
 	}
 	else {
-        SendPipe(Transaction->Requester, Transaction->Pipe, (void*)&Status, sizeof(OsStatus_t));
+        RPCRespond(&Transaction->ResponseAddress, (void*)&Status, sizeof(OsStatus_t));
 	}
 	free(Transaction);
 	return Status;

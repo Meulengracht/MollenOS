@@ -148,7 +148,7 @@ AhciManagerCreateDevice(
 	Device->SectorSize          = sizeof(ATAIdentify_t);
 
 	// Initiate the transaction
-	Transaction->Requester      = UUID_INVALID;
+	Transaction->ResponseAddress.Thread = UUID_INVALID;
 	Transaction->Address        = GetBufferAddress(Buffer);
 	Transaction->SectorCount    = 1;
 	Transaction->Device         = Device;

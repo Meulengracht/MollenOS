@@ -88,13 +88,12 @@ OnUnregister(
  * function that is defined in the contract */
 OsStatus_t 
 OnQuery(
-    _In_        MContractType_t         QueryType, 
-    _In_        int                     QueryFunction, 
-    _In_Opt_    MRemoteCallArgument_t*  Arg0,
-    _In_Opt_    MRemoteCallArgument_t*  Arg1,
-    _In_Opt_    MRemoteCallArgument_t*  Arg2, 
-    _In_        UUId_t                  Queryee,
-    _In_        int                     ResponsePort)
+	_In_     MContractType_t        QueryType, 
+	_In_     int                    QueryFunction, 
+	_In_Opt_ MRemoteCallArgument_t* Arg0,
+	_In_Opt_ MRemoteCallArgument_t* Arg1,
+	_In_Opt_ MRemoteCallArgument_t* Arg2,
+    _In_     MRemoteCallAddress_t*  Address)
 {
     // Variables
     UsbManagerController_t *Controller  = NULL;
@@ -109,7 +108,7 @@ OnQuery(
     Device      = (UUId_t)Arg0->Data.Value;
     Controller  = UsbManagerGetController(Device);
     if (Controller == NULL) {
-        return SendPipe(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
+        return RPCRespond(Address, (void*)&Result, sizeof(OsStatus_t));
     }
 
     switch (QueryFunction) {
@@ -120,14 +119,14 @@ OnQuery(
 
             // Create and setup new transfer
             Transfer                    = UsbManagerCreateTransfer(
-                (UsbTransfer_t*)Arg1->Data.Buffer, Queryee, ResponsePort, Device);
+                (UsbTransfer_t*)Arg1->Data.Buffer, Address, Device);
             
             // Queue the periodic transfer
             ResPackage.Status           = HciQueueTransferGeneric(Transfer);
             ResPackage.Id               = Transfer->Id;
             ResPackage.BytesTransferred = 0;
             if (ResPackage.Status != TransferQueued) {
-                return SendPipe(Queryee, ResponsePort, (void*)&ResPackage, sizeof(UsbTransferResult_t));
+                return RPCRespond(Address, (void*)&ResPackage, sizeof(UsbTransferResult_t));
             }
             else {
                 return OsSuccess;
@@ -141,7 +140,7 @@ OnQuery(
 
             // Create and setup new transfer
             Transfer                    = UsbManagerCreateTransfer(
-                (UsbTransfer_t*)Arg1->Data.Buffer, Queryee, ResponsePort, Device);
+                (UsbTransfer_t*)Arg1->Data.Buffer, Address, Device);
 
             // Queue the periodic transfer
             if (Transfer->Transfer.Type == IsochronousTransfer) {
@@ -152,7 +151,7 @@ OnQuery(
             }
             ResPackage.Id               = Transfer->Id;
             ResPackage.BytesTransferred = 0;
-            return SendPipe(Queryee, ResponsePort, (void*)&ResPackage, sizeof(UsbTransferResult_t));
+            return RPCRespond(Address, (void*)&ResPackage, sizeof(UsbTransferResult_t));
         } break;
 
         // Dequeue Transfer
@@ -179,7 +178,7 @@ OnQuery(
             }
 
             // Send back package
-            return SendPipe(Queryee, ResponsePort, (void*)&Status, sizeof(UsbTransferStatus_t));
+            return RPCRespond(Address, (void*)&Status, sizeof(UsbTransferStatus_t));
         } break;
 
         // Reset port
@@ -191,7 +190,7 @@ OnQuery(
         case __USBHOST_QUERYPORT: {
             UsbHcPortDescriptor_t Descriptor;
             HciPortGetStatus(Controller, (int)Arg1->Data.Value, &Descriptor);
-            return SendPipe(Queryee, ResponsePort, (void*)&Descriptor, sizeof(UsbHcPortDescriptor_t));
+            return RPCRespond(Address, (void*)&Descriptor, sizeof(UsbHcPortDescriptor_t));
         } break;
         
         // Reset endpoint toggles
@@ -209,5 +208,5 @@ OnQuery(
 
     // Dunno, fall-through case
     // Return status response
-    return SendPipe(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
+    return RPCRespond(Address, (void*)&Result, sizeof(OsStatus_t));
 }

@@ -18,27 +18,28 @@
 *
 * MollenOS MCore - Generic Event System
 */
+#define __MODULE "EVNT"
 
 #include <ds/collection.h>
 #include <threading.h>
 #include <events.h>
+#include <debug.h>
 #include <heap.h>
 
 /* Prototypes */
 void EventHandlerInternal(void *Args);
 
-/* Event Init/Destruct
+/* InitializeEventLoop
  * Starts or stops handling events with the given callback */
 MCoreEventHandler_t*
-EventInit(
-    const char *Name,
-    EventCallback Callback,
-    void *Data)
+InitializeEventLoop(
+    _In_ const char*            Name,
+    _In_ EventCallback          Callback,
+    _In_ void*                  Data)
 {
-    /* Allocate a new instance */
-    MCoreEventHandler_t *EventHandler = 
-        (MCoreEventHandler_t*)kmalloc(sizeof(MCoreEventHandler_t));
+    MCoreEventHandler_t *EventHandler;
 
+    EventHandler = (MCoreEventHandler_t*)kmalloc(sizeof(MCoreEventHandler_t));
     EventHandler->Name      = MStringCreate((void*)Name, StrUTF8);
     EventHandler->Events    = CollectionCreate(KeyInteger);
     SlimSemaphoreConstruct(&EventHandler->Lock, 0, 1000);
@@ -51,29 +52,29 @@ EventInit(
     return EventHandler;
 }
 
-/* Event Init/Destruct
- * Starts or stops handling events with the given callback */
-void EventDestruct(MCoreEventHandler_t *EventHandler)
+/* DestroyEventLoop
+ * Cancels the current event loop and destroys all resources allocated. */
+void
+DestroyEventLoop(
+    _In_ MCoreEventHandler_t*   EventHandler)
 {
     // Variables
-    CollectionItem_t *eNode = NULL;
+    CollectionItem_t *eNode;
 
-    /* Step 1. Stop thread 
-     * We do this by setting it's running
-     * status to 0, and signaling it to wakeup this will cause it to stop */
+    // Set running to 0 and wake up waiters
     EventHandler->Running = 0;
-    SlimSemaphoreSignal(&EventHandler->Lock, 1);
-    MStringDestroy(EventHandler->Name);
     SlimSemaphoreDestroy(&EventHandler->Lock);
     
-    /* Go through list and wakeup everything that's in it, 
-     * plus we set all events to cancelled */
+    // Cancel all events
     _foreach(eNode, EventHandler->Events) {
         MCoreEvent_t *Event = (MCoreEvent_t*)eNode->Data;
         Event->State        = EventCancelled;
         SlimSemaphoreDestroy(&Event->Queue);
     }
+
+    // Destroy resources
     CollectionDestroy(EventHandler->Events);
+    MStringDestroy(EventHandler->Name);
     kfree(EventHandler);
 }
 
@@ -84,17 +85,15 @@ void EventHandlerInternal(void *Args)
 {
     /* Get the event-handler for this thread */
     MCoreEventHandler_t *EventHandler = (MCoreEventHandler_t*)Args;
-    MCoreEvent_t *Event = NULL;
-    CollectionItem_t *eNode = NULL;
+    CollectionItem_t *eNode;
+    MCoreEvent_t *Event;
 
-    /* Start the while loop */
     while (EventHandler->Running) {
         // Wait for next event
         SlimSemaphoreWait(&EventHandler->Lock, 0);
         if (!EventHandler->Running) {
             break;
         }
-
         
         eNode = CollectionPopFront(EventHandler->Events);
         if (eNode == NULL) {
@@ -107,8 +106,6 @@ void EventHandlerInternal(void *Args)
             continue;
         }
 
-        /* Make sure event hasn't been cancelled 
-         * before we process it */
         if (Event->State != EventCancelled) {
             Event->State = EventInProgress;
             EventHandler->Callback(EventHandler->UserData, Event);
@@ -118,22 +115,21 @@ void EventHandlerInternal(void *Args)
             kfree(Event);
         }
     }
-    EventDestruct(EventHandler);
+    DestroyEventLoop(EventHandler);
 }
 
 /* Event Create
  * Queues up a new event for the event handler to process asynchronous operation */
-void EventCreate(MCoreEventHandler_t *EventHandler, MCoreEvent_t *Event)
+void
+EventCreate(
+    _In_ MCoreEventHandler_t*   EventHandler,
+    _In_ MCoreEvent_t*          Event)
 {
-    /* DataKey for list */
     DataKey_t Key;
     Key.Value = 0;
 
-    /* Get owner and save it to request */
     Event->Owner = ThreadingGetCurrentThreadId();
     Event->State = EventPending;
-
-    /* Reset the semaphore */
     SlimSemaphoreConstruct(&Event->Queue, 0, 1000);
     CollectionAppend(EventHandler->Events, CollectionCreateNode(Key, Event));
     SlimSemaphoreSignal(&EventHandler->Lock, 1);
