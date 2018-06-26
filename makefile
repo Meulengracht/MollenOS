@@ -37,7 +37,7 @@ config_flags =
 
 # OS Configuration
 config_flags += -D__OSCONFIG_DISABLE_SIGNALLING # Kernel fault on all hardware signals
-#config_flags += -D__OSCONFIG_LOGGING_KTRACE # Kernel Tracing
+config_flags += -D__OSCONFIG_LOGGING_KTRACE # Kernel Tracing
 #config_flags += -D__OSCONFIG_ENABLE_MULTIPROCESSORS # Use all cores
 #config_flags += -D__OSCONFIG_PROCESS_SINGLELOAD # No simuoultanous process loading
 config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE # Use a full debug console on height

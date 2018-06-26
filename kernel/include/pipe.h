@@ -38,6 +38,7 @@
 #define PIPE_MULTIPLE_CONSUMERS     (1 << 1)
 #define PIPE_UNBOUNDED              (1 << 2)
 #define PIPE_STRUCTURED_BUFFER      (1 << 3)
+#define PIPE_NOBLOCK                (1 << 4)
 
 #define PIPE_MPMC                   (PIPE_MULTIPLE_PRODUCERS | PIPE_MULTIPLE_CONSUMERS)
 

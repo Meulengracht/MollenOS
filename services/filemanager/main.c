@@ -19,7 +19,7 @@
  * MollenOS - File Manager Service
  * - Handles all file related services and disk services
  */
-#define __TRACE
+//#define __TRACE
 
 /* Includes
  * - System */

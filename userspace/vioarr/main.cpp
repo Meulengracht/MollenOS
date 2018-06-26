@@ -119,7 +119,7 @@ void MessageHandler() {
                 BufferCopy = (BufferObject_t*)::malloc(GetBufferObjectSize(Buffer));
                 memcpy((void*)BufferCopy, Buffer, GetBufferObjectSize(Buffer));
                 Result = HandleCreateWindowRequest(&Message.From, Parameters, BufferCopy);
-                RPCRespond(&Message, &Result, sizeof(Result));
+                RPCRespond(&Message.From, &Result, sizeof(Result));
             }
             if (Message.Function == __WINDOWMANAGER_DESTROY) {
                 Handle_t Pointer = (Handle_t)Message.Arguments[0].Data.Value;

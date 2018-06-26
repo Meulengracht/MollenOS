@@ -47,7 +47,6 @@ OsStatus_t
 RPCExecute(
 	_In_ MRemoteCall_t *RemoteCall)
 {
-	RemoteCall->From.Port = -1;
 	return ScRpcExecute(RemoteCall, 0);
 }
 

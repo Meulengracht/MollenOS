@@ -203,7 +203,7 @@ PhoenixInitializeAsh(
             FsResult = OsError;
             goto FileCleanup;
         }
-        Ash->Path       = MStringCreate(fPath, StrUTF8);
+        Ash->Path = MStringCreate(fPath, StrUTF8);
 
         // Cleanup
     FileCleanup:

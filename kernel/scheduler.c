@@ -165,7 +165,7 @@ static OsStatus_t
 AddToSleepQueueAndSleep(
     _In_ MCoreThread_t*     Thread,
     _In_ atomic_int*        Object,
-    _In_ int                ExpectedValue)
+    _In_ int*               ExpectedValue)
 {
     // Variables
     MCoreThread_t *AppendTo = NULL;
@@ -181,7 +181,7 @@ AddToSleepQueueAndSleep(
     IoQueue.Tail    = Thread;
     
     // Verify integrity
-    if (Object != NULL && !atomic_compare_exchange_strong(Object, &ExpectedValue, ExpectedValue)) {
+    if (Object != NULL && !atomic_compare_exchange_strong(Object, ExpectedValue, *ExpectedValue)) {
         // Remove us again
         if (AppendTo == NULL)   { IoQueue.Head = NULL; IoQueue.Tail = NULL; }
         else                    { IoQueue.Tail = AppendTo; AppendTo->Link = NULL; }
@@ -446,7 +446,7 @@ SchedulerThreadSleep(
     CurrentThread->Sleep.Timeout        = 0;
     CurrentThread->Sleep.Handle         = Handle;
     CurrentThread->Sleep.InterruptedAt  = 0;
-    AddToSleepQueueAndSleep(CurrentThread, NULL, 0);
+    AddToSleepQueueAndSleep(CurrentThread, NULL, NULL);
 
     // Resolve sleep-state
     if (CurrentThread->Sleep.Timeout == 1) {
@@ -467,7 +467,7 @@ SchedulerThreadSleep(
 int
 SchedulerAtomicThreadSleep(
     _In_ atomic_int*        Object,
-    _In_ int                ExpectedValue,
+    _In_ int*               ExpectedValue,
     _In_ size_t             Timeout)
 {
     // Variables

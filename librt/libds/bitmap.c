@@ -112,16 +112,13 @@ BitmapSetBits(
 
     // Iterate the block and flip bits
     for (i = BlockIndex; 
-         i < (Bitmap->SizeInBytes / (sizeof(uintptr_t) * 8)) && BitsLeft > 0; 
-         i++) {
-        for (j = BlockOffset; 
-             j < (sizeof(uintptr_t) * 8) && BitsLeft > 0; 
-             j++, BitsLeft--) {
+         i < (Bitmap->SizeInBytes / sizeof(uintptr_t)) && BitsLeft > 0; i++) {
+        for (j = BlockOffset; j < __BITS && BitsLeft > 0; j++, BitsLeft--) {
             Bitmap->Data[i] |= (1 << j);
         }
 
         // Reset block offset
-        if (BitsLeft != 0) {
+        if (j == __BITS) {
             BlockOffset = 0;
         }
     }
@@ -145,16 +142,13 @@ BitmapClearBits(
 
     // Iterate the block and flip bits
     for (i = BlockIndex; 
-         i < (Bitmap->SizeInBytes / (sizeof(uintptr_t) * 8)) && BitsLeft > 0; 
-         i++) {
-        for (j = BlockOffset; 
-             j < (sizeof(uintptr_t) * 8) && BitsLeft > 0; 
-             j++, BitsLeft--) {
+         i < (Bitmap->SizeInBytes / sizeof(uintptr_t)) && BitsLeft > 0; i++) {
+        for (j = BlockOffset; j < __BITS && BitsLeft > 0; j++, BitsLeft--) {
             Bitmap->Data[i] &= ~(1 << j);
         }
 
         // Reset block offset
-        if (BitsLeft != 0) {
+        if (j == __BITS) {
             BlockOffset = 0;
         }
     }
@@ -179,18 +173,15 @@ BitmapAreBitsSet(
 
     // Iterate the block and flip bits
     for (i = BlockIndex; 
-         i < (Bitmap->SizeInBytes / (sizeof(uintptr_t) * 8)) && BitsLeft > 0; 
-         i++) {
-        for (j = BlockOffset; 
-             j < (sizeof(uintptr_t) * 8) && BitsLeft > 0; 
-             j++, BitsLeft--) {
+         i < (Bitmap->SizeInBytes / sizeof(uintptr_t)) && BitsLeft > 0; i++) {
+        for (j = BlockOffset; j < __BITS && BitsLeft > 0; j++, BitsLeft--) {
             if (!(Bitmap->Data[i] & (1 << j))) {
                 return 0;
             }
         }
 
         // Reset block offset
-        if (BitsLeft != 0) {
+        if (j == __BITS) {
             BlockOffset = 0;
         }
     }
@@ -215,18 +206,15 @@ BitmapAreBitsClear(
 
     // Iterate the block and flip bits
     for (i = BlockIndex; 
-         i < (Bitmap->SizeInBytes / (sizeof(uintptr_t) * 8)) && BitsLeft > 0; 
-         i++) {
-        for (j = BlockOffset; 
-             j < (sizeof(uintptr_t) * 8) && BitsLeft > 0; 
-             j++, BitsLeft--) {
+         i < (Bitmap->SizeInBytes / sizeof(uintptr_t)) && BitsLeft > 0; i++) {
+        for (j = BlockOffset; j < __BITS && BitsLeft > 0; j++, BitsLeft--) {
             if (Bitmap->Data[i] & (1 << j)) {
                 return 0;
             }
         }
 
         // Reset block offset
-        if (BitsLeft != 0) {
+        if (j == __BITS) {
             BlockOffset = 0;
         }
     }
@@ -242,12 +230,12 @@ BitmapFindBits(
     _In_ int        Count)
 {
     // Variables
-    int StartBit    = -1;
-    int i           = 0, j = 0, k = 0;
+    int StartBit = -1;
+    int i, j, k;
     assert(Bitmap != NULL);
 
     // Iterate bits
-    for (i = 0; i < (Bitmap->SizeInBytes / (sizeof(uintptr_t) * 8)); i++) {
+    for (i = 0; i < (Bitmap->SizeInBytes / sizeof(uintptr_t)); i++) {
         // Quick test, if all is allocated, damn
         if (Bitmap->Data[i] == __MASK) {
             continue;
@@ -265,16 +253,14 @@ BitmapFindBits(
             for (k = 0; k < Count; k++) {
                 // Make sure we are still in same block
                 if ((j + k) >= __BITS) {
-                    int TempI = i + ((j + k) / __BITS);
+                    int TempI   = i + ((j + k) / __BITS);
                     int OffsetI = (j + k) % __BITS;
-                    uintptr_t BlockBit = 1 << OffsetI;
-                    if (Bitmap->Data[TempI] & BlockBit) {
+                    if (Bitmap->Data[TempI] & (1 << OffsetI)) {
                         break;
                     }
                 }
                 else {
-                    uintptr_t BlockBit = 1 << (j + k);
-                    if (Bitmap->Data[i] & BlockBit) {
+                    if (Bitmap->Data[i] & (1 << (j + k))) {
                         break;
                     }
                 }
@@ -282,7 +268,7 @@ BitmapFindBits(
 
             // If k == numblocks we've found free bits!
             if (k == Count) {
-                StartBit = (int)(i * sizeof(uintptr_t) * 8 + j);
+                StartBit = (int)(i * (sizeof(uintptr_t) * 8) + j);
                 break;
             }
         }

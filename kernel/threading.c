@@ -251,7 +251,9 @@ ThreadingCleanupThread(
     CollectionItem_t *fNode = NULL;
 
     // Make sure we are completely removed as reference
-    // from the entire system
+    // from the entire system. We also signal all waiters for this
+    // thread again before continueing just in case
+    SchedulerHandleSignalAll((uintptr_t*)Thread);
     SchedulerThreadDequeue(Thread);
     ThreadingUnregister(Thread);
 
@@ -325,7 +327,14 @@ ThreadingKillThread(
         if (ThreadId == ThreadingGetCurrentThreadId()) {
             ThreadingYield();
         }
-        // @todo
+        else {
+            // Wake-up the thread if it's sleeping, this will cause a 
+            // switch if nothing is running and terminate it
+            if (SchedulerThreadSignal(Target) != OsSuccess) {
+                // More drastic measures are neccessary here, this means someone else
+                // has it in queue or it's currently running on another core
+            }
+        }
     }
     return OsSuccess;
 }

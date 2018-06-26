@@ -113,7 +113,7 @@ SchedulerThreadSleep(
 KERNELAPI int KERNELABI
 SchedulerAtomicThreadSleep(
     _In_ atomic_int*        Object,
-    _In_ int                ExpectedValue,
+    _In_ int*               ExpectedValue,
     _In_ size_t             Timeout);
 
 /* SchedulerThreadSignal

@@ -77,7 +77,7 @@ build_vioarr_soft:
 build_llvm:
 	mkdir -p llvm_out
 	cd llvm_out && cmake -G "Unix Makefiles" -DCMAKE_INSTALL_PREFIX=$(LLVM) -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../llvm/cmake/platforms/Vali.cmake ../llvm
-	cd llvm_out && make -j3 && make install
+	cd llvm_out && make && make install
 	@cp llvm_out/bin/*.lib lib/
 	@mv lib/*.dll bin/
 

@@ -371,7 +371,7 @@ ReadSegmentBufferSpace(
 
 /////////////////////////////////////////////////////////////////////////
 // System Pipe Raw Buffer Code
-static void
+static size_t
 WriteRawSegmentBuffer(
     _In_ SystemPipe_t*              Pipe,
     _In_ SystemPipeSegmentBuffer_t* Buffer,
@@ -394,6 +394,9 @@ WriteRawSegmentBuffer(
             Length - BytesWritten);
         BytesCommitted  = BytesAvailable;
         if (!BytesAvailable) {
+            if (Pipe->Configuration & PIPE_NOBLOCK) {
+                break;
+            }
             SlimSemaphoreWait(&Buffer->WriteQueue, 0);
             continue; // Start over
         }
@@ -433,9 +436,10 @@ WriteRawSegmentBuffer(
         atomic_fetch_add(&Buffer->WriteCommitted, BytesCommitted);
         SlimSemaphoreSignal(&Buffer->ReadQueue, 1);
     }
+    return BytesWritten;
 }
 
-static void
+static size_t
 ReadRawSegmentBuffer(
     _In_ SystemPipe_t*              Pipe,
     _In_ SystemPipeSegmentBuffer_t* Buffer,
@@ -459,6 +463,9 @@ ReadRawSegmentBuffer(
             Length - BytesRead);
         BytesCommitted  = BytesAvailable;
         if (!BytesAvailable) {
+            if (Pipe->Configuration & PIPE_NOBLOCK) {
+                break;
+            }
             SlimSemaphoreWait(&Buffer->ReadQueue, 0);
             continue; // Start over
         }
@@ -497,7 +504,14 @@ ReadRawSegmentBuffer(
         }
         atomic_fetch_add(&Buffer->ReadCommitted, BytesCommitted);
         SlimSemaphoreSignal(&Buffer->WriteQueue, 1);
+
+        // If it was possible read bytes, return. With raw bytes we allow
+        // the reader to read less, however never allow to read 0
+        if (BytesRead > 0) {
+            break;
+        }
     }
+    return BytesRead;
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -704,14 +718,12 @@ ReadSystemPipe(
     
     // Handle raw/structured differently
     if (!(Pipe->Configuration & PIPE_STRUCTURED_BUFFER)) {
-        ReadRawSegmentBuffer(Pipe, &Segment->Buffer, Data, Length);
+        Length = ReadRawSegmentBuffer(Pipe, &Segment->Buffer, Data, Length);
     }
     else {
-        size_t LengthInEntry;
-        AcquireSystemPipeConsumption(Pipe, &LengthInEntry, &State);
-        ReadSystemPipeConsumption(&State, Data, LengthInEntry);
+        AcquireSystemPipeConsumption(Pipe, &Length, &State);
+        ReadSystemPipeConsumption(&State, Data, Length);
         FinalizeSystemPipeConsumption(Pipe, &State);
-        Length = LengthInEntry;
     }
     return Length;
 }
@@ -737,7 +749,7 @@ WriteSystemPipe(
 
     // Handle raw/structured differently
     if (!(Pipe->Configuration & PIPE_STRUCTURED_BUFFER)) {
-        WriteRawSegmentBuffer(Pipe, &Segment->Buffer, Data, Length);
+        Length = WriteRawSegmentBuffer(Pipe, &Segment->Buffer, Data, Length);
     }
     else {
         AcquireSystemPipeProduction(Pipe, Length, &State);

@@ -48,19 +48,19 @@ void BasicWindowingTests() {
 
     // Perform a window fill of color R
     BufferFill((const char*)GetBufferData(WindowBuffer), 
-        0xFF0000, GetBufferSize(WindowBuffer));
+        0xFFFF0000, GetBufferSize(WindowBuffer));
     UiSwapBackbuffer();
     std::this_thread::sleep_for(std::chrono::seconds(5));
 
     // Perform a window fill of color G
     BufferFill((const char*)GetBufferData(WindowBuffer), 
-        0x00FF00, GetBufferSize(WindowBuffer));
+        0xFF00FF00, GetBufferSize(WindowBuffer));
     UiSwapBackbuffer();
     std::this_thread::sleep_for(std::chrono::seconds(5));
 
     // Perform a window fill of color B
     BufferFill((const char*)GetBufferData(WindowBuffer), 
-        0x0000FF, GetBufferSize(WindowBuffer));
+        0xFF0000FF, GetBufferSize(WindowBuffer));
     UiSwapBackbuffer();
     std::this_thread::sleep_for(std::chrono::seconds(5));
 

@@ -50,7 +50,7 @@
 #include <stdio.h>
 
 #ifdef __OSCONFIG_TEST_KERNEL
-extern void TestSynchronization(void *Unused);
+extern void StartTestingPhase(void);
 #endif
 
 /* Globals
@@ -180,7 +180,7 @@ MCoreInitialize(
     }
 
 #ifdef __OSCONFIG_TEST_KERNEL
-    ThreadingCreateThread("TestSynchronization", TestSynchronization, NULL, 0);
+    StartTestingPhase();
 #else
     // Last step, boot up all available system servers
     // like device-managers, vfs, etc

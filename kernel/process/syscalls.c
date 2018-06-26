@@ -749,8 +749,6 @@ ScMemoryAllocate(
     // Now do the allocation in the user-bitmap 
     // since memory is managed in userspace for speed
     AllocatedAddress = BlockBitmapAllocate(Ash->Heap, Size);
-
-    // Sanitize the returned address
     if (AllocatedAddress == 0) {
         return OsError;
     }
@@ -864,48 +862,23 @@ ScMemoryAcquire(
 {
     // Variables
     MCoreAsh_t *Ash = NULL;
-    size_t NumBlocks = 0, i = 0;
-    uintptr_t PageMask = ~(AddressSpaceGetPageSize() - 1);
-
-    // Assumptions:
-    // PhysicalAddress is page aligned
-    // Size is page-aligned
+    uintptr_t Shm;
 
     // Locate the current running process
     Ash = PhoenixGetCurrentAsh();
-
-    // Sanity
     if (Ash == NULL || PhysicalAddress == 0 || Size == 0) {
         return OsError;
     }
 
     // Start out by allocating memory 
     // in target process's shared memory space
-    uintptr_t Shm   = BlockBitmapAllocate(Ash->Shm, Size);
-    NumBlocks       = DIVUP(Size, AddressSpaceGetPageSize());
-
-    // Sanity -> If we cross a page boundary
-    if (((PhysicalAddress + Size) & PageMask) != (PhysicalAddress & PageMask)) {
-        NumBlocks++;
+    Shm = BlockBitmapAllocate(Ash->Shm, Size);
+    if (Shm == 0) {
+        return OsError;
     }
-
-    // Sanitize the memory allocation
-    assert(Shm != 0);
-
-    // Update out
     *VirtualAddress = Shm + (PhysicalAddress & (AddressSpaceGetPageSize() - 1));
-
-    // Now we have to transfer our physical mappings 
-    // to their new virtual
-    for (i = 0; i < NumBlocks; i++) {
-        uintptr_t PhysicalPage  = PhysicalAddress + (i * AddressSpaceGetPageSize());
-        uintptr_t VirtualPage   = Shm + (i * AddressSpaceGetPageSize());
-
-        // Map it directly into target process
-        AddressSpaceMap(Ash->AddressSpace, &PhysicalPage, &VirtualPage, AddressSpaceGetPageSize(), 
-            ASPACE_FLAG_APPLICATION | ASPACE_FLAG_VIRTUAL | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
-    }
-    return OsSuccess;
+    return AddressSpaceMap(Ash->AddressSpace, &PhysicalAddress, &Shm, Size, 
+        ASPACE_FLAG_APPLICATION | ASPACE_FLAG_VIRTUAL | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
 }
 
 /* ScMemoryRelease
@@ -1080,7 +1053,7 @@ ScCreateFileMapping(
 
     // Start out by allocating memory
     // in target process's shared memory space
-    BaseAddress             = BlockBitmapAllocate(Ash->Shm, Parameters->Size + (Parameters->Offset % AddressSpaceGetPageSize()));
+    BaseAddress = BlockBitmapAllocate(Ash->Shm, Parameters->Size + (Parameters->Offset % AddressSpaceGetPageSize()));
     if (BaseAddress == 0) {
         return OsError;
     }
@@ -1294,12 +1267,14 @@ ScRpcResponse(
 {
     // Variables
     SystemPipe_t *Pipe  = ThreadingGetCurrentThread(CpuGetCurrentId())->Pipe;
-    size_t ToRead       = RemoteCall->Result.Length;
     assert(Pipe != NULL);
-    assert(ToRead > 0);
+    assert(RemoteCall != NULL);
+    assert(RemoteCall->Result.Length > 0);
 
-    // Read the data into the response-buffer
-    ReadSystemPipe(Pipe, (uint8_t*)RemoteCall->Result.Data.Buffer, ToRead);
+    // Read up to <Length> bytes, this results in the next 1 .. Length
+    // being read from the raw-pipe.
+    ReadSystemPipe(Pipe, (uint8_t*)RemoteCall->Result.Data.Buffer, 
+        RemoteCall->Result.Length);
     return OsSuccess;
 }
 
@@ -1864,8 +1839,6 @@ ScCreateDisplayFramebuffer(void) {
     uintptr_t FbPhysical    = VideoGetTerminal()->FrameBufferAddressPhysical;
     uintptr_t FbVirtual     = 0;
     size_t FbSize           = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
-    uintptr_t FbVirtualItr  = 0;
-    uintptr_t FbPhysicalItr = 0;
 
     // Sanitize
     if (PhoenixGetCurrentAsh() == NULL) {
@@ -1873,17 +1846,16 @@ ScCreateDisplayFramebuffer(void) {
     }
 
     // Allocate the neccessary size
-    FbVirtual               =  BlockBitmapAllocate(PhoenixGetCurrentAsh()->Shm, FbSize);
+    FbVirtual = BlockBitmapAllocate(PhoenixGetCurrentAsh()->Shm, FbSize);
     if (FbVirtual == 0) {
         return NULL;
     }
 
-    // Map the virtual region to the physical region
-    for (FbVirtualItr = FbVirtual, FbPhysicalItr = FbPhysical; 
-        FbVirtualItr < (FbVirtual + FbSize); 
-        FbVirtualItr += AddressSpaceGetPageSize(), FbPhysicalItr += AddressSpaceGetPageSize()) {
-        AddressSpaceMap(AddressSpaceGetCurrent(), &FbPhysicalItr, &FbVirtualItr, AddressSpaceGetPageSize(), 
-            ASPACE_FLAG_APPLICATION | ASPACE_FLAG_NOCACHE | ASPACE_FLAG_SUPPLIEDVIRTUAL | ASPACE_FLAG_VIRTUAL, __MASK);
+    if (AddressSpaceMap(AddressSpaceGetCurrent(), &FbPhysical, &FbVirtual, FbSize, 
+        ASPACE_FLAG_APPLICATION | ASPACE_FLAG_NOCACHE | ASPACE_FLAG_SUPPLIEDVIRTUAL | 
+        ASPACE_FLAG_VIRTUAL, __MASK) != OsSuccess) {
+        // What? @todo
+        ERROR("Failed to map the display buffer");
     }
     return (void*)FbVirtual;
 }

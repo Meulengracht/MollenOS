@@ -75,21 +75,22 @@ SlimSemaphoreWait(
     _In_ SlimSemaphore_t*   Semaphore,
     _In_ size_t             Timeout)
 {
-    int Value   = atomic_fetch_sub(&Semaphore->Value, 1) - 1;
-    int Status  = SCHEDULER_SLEEP_OK;
-    int Initial = Value + 1;
+    // Variables
+    int Value = atomic_fetch_sub(&Semaphore->Value, 1) - 1;
+    int Status;
 
-    // If the value we got is higher than 0 - we are good to go
-    if (Value >= 0) {
-        return SCHEDULER_SLEEP_OK;
-    }
+    while (1) {
+        if (Value >= 0) {
+            Status = SCHEDULER_SLEEP_OK;
+            break;
+        }
 
-    while (Value < Initial) {
-        Status = SchedulerAtomicThreadSleep(&Semaphore->Value, Value, 0);
+        // Go to sleep atomically, check return value, if there was sync
+        // issues try again
+        Status = SchedulerAtomicThreadSleep(&Semaphore->Value, &Value, 0);
         if (Status != SCHEDULER_SLEEP_SYNC_FAILED) {
             break;
         }
-        Value = atomic_load_explicit(&Semaphore->Value, memory_order_acquire);
     }
     return Status;
 }
@@ -119,11 +120,7 @@ SlimSemaphoreSignal(
                     break;
                 }
             }
-
-            // Ok everything is ok, wake stuff up
-            if (CurrentValue < 0) {
-                SchedulerHandleSignal((uintptr_t*)&Semaphore->Value);
-            }
+            SchedulerHandleSignal((uintptr_t*)&Semaphore->Value);
         }
         Status = OsSuccess;
     }

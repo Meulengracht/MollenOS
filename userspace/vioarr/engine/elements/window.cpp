@@ -36,6 +36,7 @@ CWindow::CWindow(CEntity *Parent, NVGcontext* VgContext,
     m_StreamWidth       = 0;
     m_StreamHeight      = 0;
     m_StreamBuffer      = nullptr;
+    m_ResourceId        = 0;
 }
 
 CWindow::CWindow(NVGcontext* VgContext, const std::string &Title, int Width, int Height) 
@@ -48,6 +49,9 @@ CWindow::CWindow(NVGcontext* VgContext)
     : CWindow(nullptr, VgContext) { }
 
 CWindow::~CWindow() {
+    if (m_ResourceId != 0) {
+        nvgDeleteImage(m_VgContext, m_ResourceId);
+    }
 }
 
 void CWindow::SetOwner(UUId_t Owner) {
@@ -101,6 +105,7 @@ void CWindow::SetStreaming(bool Enable) {
     else {
         if (m_ResourceId != 0) {
             nvgDeleteImage(m_VgContext, m_ResourceId);
+            m_ResourceId = 0;
         }
     }
 }
