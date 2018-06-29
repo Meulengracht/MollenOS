@@ -712,7 +712,6 @@ PeLoadImage(
     size_t SizeOfMetaData               = 0;
     PeDataDirectory_t *DirectoryPtr     = NULL;
     MCorePeFile_t *PeInfo               = NULL;
-    int i;
 
 #ifdef __OSCONFIG_PROCESS_SINGLELOAD
     CriticalSectionEnter(&LoaderLock);
@@ -782,10 +781,10 @@ PeLoadImage(
     }
 
     // Copy sections to base address
-    for (i = 0; i < DIVUP(SizeOfMetaData, AddressSpaceGetPageSize()); i++) {
-        uintptr_t VirtualPage = PeInfo->VirtualAddress + (i * AddressSpaceGetPageSize());
-        AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &VirtualPage,
-            AddressSpaceGetPageSize(), ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
+    if (AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &PeInfo->VirtualAddress,
+        SizeOfMetaData, ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK)) {
+        // Whatthe
+        FATAL(FATAL_SCOPE_KERNEL, "Failed to map pe's metadata, out of memory?");
     }
     memcpy((void*)PeInfo->VirtualAddress, Buffer, SizeOfMetaData);
         

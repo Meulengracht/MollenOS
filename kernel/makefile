@@ -16,7 +16,7 @@ OBJECTS = $(SOURCES:.c=.o)
 
 # --save-temps
 CFLAGS = $(GCFLAGS) -mno-sse -D_KAPI -DUNICODE -DLIBC_KERNEL -D_KRNL_DLL $(INCLUDES)
-LFLAGS = /nodefaultlib /subsystem:native /entry:kentry /fixed /base:"0x100000" /manifest:no /lldmap ../librt/build/libcrt.lib ../librt/build/libclang.lib ../librt/build/libk.lib ../librt/build/libdsk.lib ../librt/build/libacpi.lib build/$(VALI_ARCH).lib
+LFLAGS = $(GLFLAGS) /entry:kentry /fixed /base:"0x100000" /manifest:no /lldmap ../librt/build/libcrt.lib ../librt/build/libclang.lib ../librt/build/libk.lib ../librt/build/libdsk.lib ../librt/build/libacpi.lib build/$(VALI_ARCH).lib
 
 .PHONY: all
 all: build arch build/syskrnl.mos

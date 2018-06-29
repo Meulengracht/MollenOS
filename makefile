@@ -55,8 +55,8 @@ config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE # Use a full debug console on heig
 # -Xclang -flto-visibility-public-std makes sure to generate cxx-abi stuff without __imp_ 
 # -std=c11 enables c11 support for C compilation 0;35
 # -gdwarf enables dwarf debugging generation, should be used ... -fexceptions -fcxx-exceptions
-disable_warnings = -Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function
-shared_flags = -U_WIN32 -fms-extensions -Wall -nostdlib -nostdinc -O3 -DMOLLENOS
+disable_warnings = -Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function -Wno-atomic-alignment
+shared_flags = -U_WIN32 -fms-extensions -Wall -nostdlib -nostdinc -O3 -DMOLLENOS -Xclang -flto-visibility-public-std
 
 # Kernel + Kernel environment compilation flags
 export ASFLAGS = -f bin -D$(VALI_ARCH) -D__$(VALI_ARCH)__

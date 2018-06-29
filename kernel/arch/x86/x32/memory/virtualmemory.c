@@ -86,7 +86,7 @@ MmVirtualSynchronizePage(
         return;
     }
     assert(InterruptGetActiveStatus() == 0);
-    SpinlockAcquire(&SyncData.SyncObject);
+    AtomicSectionEnter(&SyncData.SyncObject);
     
     // Setup arguments
     SyncData.ParentPagingData   = ParentDirectory;
@@ -98,7 +98,7 @@ MmVirtualSynchronizePage(
     
     // Wait for all cpu's to have handled this.
     while(SyncData.CallsCompleted != (GetMachine()->NumberOfCores - 1));
-    SpinlockRelease(&SyncData.SyncObject);
+    AtomicSectionLeave(&SyncData.SyncObject);
 }
 
 /* MmVirtualCreatePageTable
@@ -254,7 +254,7 @@ SyncWithParent:
         // Check the parent-mapping
         if (ParentMapping & PAGE_PRESENT) {
             // Update our page-directory and reload
-            atomic_store(&PageDirectory->pTables[PageTableIndex], ParentMapping);
+            atomic_store(&PageDirectory->pTables[PageTableIndex], ParentMapping | PAGE_INHERITED);
             PageDirectory->vTables[PageTableIndex]  = ParentPageDirectory->vTables[PageTableIndex];
             Table                                   = (PageTable_t*)PageDirectory->vTables[PageTableIndex];
             assert(Table != NULL);
@@ -275,7 +275,8 @@ SyncWithParent:
                 goto SyncWithParent;
             }
 
-            // Update us
+            // Update us and mark our copy as INHERITED
+            TablePhysical |= PAGE_INHERITED;
             atomic_store(&PageDirectory->pTables[PageTableIndex], TablePhysical);
             PageDirectory->vTables[PageTableIndex] = (uintptr_t)Table;
         }
@@ -364,6 +365,7 @@ MmVirtualMap(
     PageDirectory_t *ParentDirectory    = (PageDirectory_t*)ParentPageDirectory;
 	PageDirectory_t *Directory          = NULL;
 	PageTable_t *Table                  = NULL;
+    OsStatus_t Status                   = OsSuccess;
     uint32_t Mapping;
 
     // Get correct directory and table
@@ -382,7 +384,8 @@ SyncTable:
                     vAddress, pAddress, Mapping);
             }
         }
-        return OsError;
+        Status = OsError;
+        goto LeaveFunction;
     }
 
     // Perform the mapping in a weak context, fast operation
@@ -392,6 +395,7 @@ SyncTable:
     }
 
 	// Last step is to invalidate the address in the MMIO
+LeaveFunction:
 	if (IsCurrent) {
 		memory_invalidate_addr(vAddress);
 	}

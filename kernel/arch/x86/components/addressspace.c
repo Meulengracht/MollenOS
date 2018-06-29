@@ -114,6 +114,10 @@ AddressSpaceCreate(
         if (AddressSpace->Parent == &KernelAddressSpace) {
             AddressSpace->Parent = NULL;
         }
+        else if (AddressSpace->Parent != NULL) {
+            atomic_fetch_add(&AddressSpace->Parent->References, 1);
+        }
+
         MmVirtualClone((Flags & ASPACE_TYPE_INHERIT) ? 1 : 0, &DirectoryPointer, &DirectoryAddress);
         assert(DirectoryPointer != NULL);
         assert(DirectoryAddress != 0);
@@ -136,17 +140,19 @@ AddressSpaceDestroy(
     _In_ AddressSpace_t *AddressSpace)
 {
 	// Acquire lock on the address space
-    int References = atomic_fetch_sub(&AddressSpace->References, 1);
+    int References = atomic_fetch_sub(&AddressSpace->References, 1) - 1;
 
 	// In case that was the last reference cleanup the address space otherwise
 	// just unlock
-	if ((References - 1) == 0) {
+	if (References == 0) {
 		if (AddressSpace->Flags & (ASPACE_TYPE_APPLICATION | ASPACE_TYPE_DRIVER)) {
 			MmVirtualDestroy((void*)AddressSpace->Data[ASPACE_DATA_PDPOINTER]);
 		}
 		kfree(AddressSpace);
 	}
-	return OsSuccess;
+
+    // Reduce a reference to our parent as-well if we have one
+	return (AddressSpace->Parent == NULL) ? OsSuccess : AddressSpaceDestroy(AddressSpace->Parent);
 }
 
 /* AddressSpaceSwitch
@@ -338,8 +344,15 @@ AddressSpaceMap(
             if ((Flags & ASPACE_FLAG_CONTIGIOUS) && i != 0) {
                 FATAL(FATAL_SCOPE_KERNEL, "Remapping error with a contigious call");
             }
+
+            // Never unmap fixed-physical pages, this is important
             if (!(Flags & ASPACE_FLAG_VIRTUAL)) {
                 MmPhysicalFreeBlock(PhysicalPage);
+            }
+
+            // In case of <already-mapped> we might want to update the reference
+            if (PhysicalAddress != NULL && *PhysicalAddress == PhysicalPage) {
+                *PhysicalAddress = MmVirtualGetMapping(ParentPdp, Pdp, VirtualPage);
             }
 		}
 	}

@@ -1,4 +1,4 @@
-/*===----------------------- clzerointrin.h - CLZERO ----------------------===
+/*===---- pconfigintrin.h - X86 platform configuration ---------------------===
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -20,31 +20,31 @@
  *
  *===-----------------------------------------------------------------------===
  */
+
 #if !defined __X86INTRIN_H && !defined __IMMINTRIN_H
-#error "Never use <clzerointrin.h> directly; include <x86intrin.h> instead."
+#error "Never use <pconfigintrin.h> directly; include <x86intrin.h> instead."
 #endif
 
-#ifndef __CLZEROINTRIN_H
-#define __CLZEROINTRIN_H
+#ifndef __PCONFIGINTRIN_H
+#define __PCONFIGINTRIN_H
+
+#define __PCONFIG_KEY_PROGRAM 0x00000001
 
 /* Define the default attributes for the functions in this file. */
 #define __DEFAULT_FN_ATTRS \
-  __attribute__((__always_inline__, __nodebug__,  __target__("clzero")))
+  __attribute__((__always_inline__, __nodebug__,  __target__("pconfig")))
 
-/// Loads the cache line address and zero's out the cacheline
-///
-/// \headerfile <clzerointrin.h>
-///
-/// This intrinsic corresponds to the <c> CLZERO </c> instruction.
-///
-/// \param __line
-///    A pointer to a cacheline which needs to be zeroed out.
-static __inline__ void __DEFAULT_FN_ATTRS
-_mm_clzero (void * __line)
+static __inline unsigned int __DEFAULT_FN_ATTRS
+_pconfig_u32(unsigned int __leaf, __SIZE_TYPE__ __d[])
 {
-  __builtin_ia32_clzero ((void *)__line);
+  unsigned int __result;
+  __asm__ ("pconfig"
+           : "=a" (__result), "=b" (__d[0]), "=c" (__d[1]), "=d" (__d[2])
+           : "a" (__leaf), "b" (__d[0]), "c" (__d[1]), "d" (__d[2])
+           : "cc");
+  return __result;
 }
 
-#undef __DEFAULT_FN_ATTRS 
+#undef __DEFAULT_FN_ATTRS
 
-#endif /* __CLZEROINTRIN_H */
+#endif

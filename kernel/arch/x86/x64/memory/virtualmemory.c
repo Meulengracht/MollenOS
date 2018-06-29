@@ -108,7 +108,7 @@ MmVirtualSynchronizePage(
         return;
     }
     assert(InterruptGetActiveStatus() == 0);
-    SpinlockAcquire(&SyncData.SyncObject);
+    AtomicSectionEnter(&SyncData.SyncObject);
     
     // Setup arguments
     SyncData.ParentPagingData   = ParentDirectory;
@@ -120,7 +120,7 @@ MmVirtualSynchronizePage(
     
     // Wait for all cpu's to have handled this.
     while(SyncData.CallsCompleted != (GetMachine()->NumberOfCores - 1));
-    SpinlockRelease(&SyncData.SyncObject);
+    AtomicSectionLeave(&SyncData.SyncObject);
 }
 
 /* MmVirtualFillPageTable
@@ -309,7 +309,7 @@ SyncPmlWithParent:
         // Check the parent-mapping
         if (ParentMapping & PAGE_PRESENT) {
             // Update our page-directory and reload
-            atomic_store(&PageMasterTable->pTables[PmIndex], ParentMapping);
+            atomic_store(&PageMasterTable->pTables[PmIndex], ParentMapping | PAGE_INHERITED);
             PageMasterTable->vTables[PmIndex]   = ParentPageMasterTable->vTables[PmIndex];
             DirectoryTable                      = (PageDirectoryTable_t*)PageMasterTable->vTables[PmIndex];
             assert(DirectoryTable != NULL);
@@ -330,7 +330,8 @@ SyncPmlWithParent:
                 goto SyncPmlWithParent;
             }
 
-            // Update us
+            // Update us and mark our copy inherited
+            Physical |= PAGE_INHERITED;
             atomic_store(&PageMasterTable->pTables[PmIndex], Physical);
             PageMasterTable->vTables[PmIndex]   = (uintptr_t)Table;
             *Update                             = IsCurrent;
