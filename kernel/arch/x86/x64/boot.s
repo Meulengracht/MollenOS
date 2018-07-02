@@ -30,6 +30,7 @@ global CpuEnableXSave
 global CpuEnableAvx
 global CpuEnableSse
 global CpuEnableFpu
+global CpuEnableGpe
 
 ; No matter what, this is booted by multiboot, and thus
 ; We can assume the state when this point is reached.
@@ -93,4 +94,11 @@ CpuEnableFpu:
 	mov cr0, rax
 
 	finit
+	ret
+
+; Assembly routine to enable global page support
+CpuEnableGpe:
+	mov rax, cr4
+	bts rax, 7		; Set Operating System Support for Page Global Enable (Bit 7)
+	mov cr4, rax
 	ret

@@ -58,6 +58,7 @@ __EXTERN void __hlt(void);
 __EXTERN void CpuEnableXSave(void);
 __EXTERN void CpuEnableAvx(void);
 __EXTERN void CpuEnableSse(void);
+__EXTERN void CpuEnableGpe(void);
 __EXTERN void CpuEnableFpu(void);
 
 /* TrimWhitespaces
@@ -158,6 +159,12 @@ InitializeProcessor(
 void
 CpuInitializeFeatures(void)
 {
+    // Can we use global pages? We will use this for kernel mappings
+    // to speed up refill performance
+    if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
+        CpuEnableGpe();
+    }
+
 	// Can we enable FPU?
 	if (CpuHasFeatures(0, CPUID_FEAT_EDX_FPU) == OsSuccess) {
 		CpuEnableFpu();

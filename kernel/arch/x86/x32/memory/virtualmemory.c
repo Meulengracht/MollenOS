@@ -33,6 +33,7 @@
 #include <heap.h>
 #include <arch.h>
 #include <apic.h>
+#include <cpu.h>
 
 /* Includes
  * - Library */
@@ -312,14 +313,17 @@ MmVirtualSetFlags(
     
 	// Map it, make sure we mask the page address so we don't accidently set any flags
     Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(vAddress)]);
-    atomic_store(&Table->Pages[PAGE_TABLE_INDEX(vAddress)], (Mapping & PAGE_MASK) | (Flags & ATTRIBUTE_MASK));
+    if (!(Mapping & PAGE_SYSTEM_MAP)) {
+        atomic_store(&Table->Pages[PAGE_TABLE_INDEX(vAddress)], (Mapping & PAGE_MASK) | (Flags & ATTRIBUTE_MASK));
 
-	// Last step is to invalidate the the address in the MMIO
-    MmVirtualSynchronizePage(ParentDirectory, vAddress);
-	if (IsCurrent) {
-		memory_invalidate_addr(vAddress);
-	}
-	return OsSuccess;
+        // Synchronize with cpus
+        MmVirtualSynchronizePage(ParentDirectory, vAddress);
+        if (IsCurrent) {
+            memory_invalidate_addr(vAddress);
+        }
+	    return OsSuccess;
+    }
+    return OsError;
 }
 
 /* MmVirtualGetFlags
@@ -367,6 +371,13 @@ MmVirtualMap(
 	PageTable_t *Table                  = NULL;
     OsStatus_t Status                   = OsSuccess;
     uint32_t Mapping;
+
+    // For kernel mappings we would like to mark the mappings global
+    if (vAddress < MEMORY_LOCATION_KERNEL_END) {
+        if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
+            Flags |= PAGE_GLOBAL;
+        }  
+    }
 
     // Get correct directory and table
     Directory   = MmVirtualGetDirectory(PageDirectory, &IsCurrent);
@@ -631,12 +642,19 @@ MmVirtualInit(void)
     size_t BytesToMap               = 0;
     PhysicalAddress_t PhysicalBase  = 0;
     VirtualAddress_t VirtualBase    = 0;
+    Flags_t KernelPageFlags         = 0;
 
 	// Trace information
 	TRACE("MmVirtualInit()");
 
 	// Initialize reserved pointer
 	atomic_store(&ReservedMemoryPointer, MEMORY_LOCATION_RESERVED);
+
+    // Can we use global pages for kernel table?
+    if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
+        KernelPageFlags |= PAGE_GLOBAL;
+    }
+    KernelPageFlags |= PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP;
 
 	// Allocate 2 pages for the kernel page directory
 	// and reset it by zeroing it out
@@ -647,19 +665,18 @@ MmVirtualInit(void)
 	// Due to how it works with multiple cpu's, we need to make sure all shared
     // tables already are mapped in the upper-most level of the page-directory
     TRACE("Mapping the kernel region from 0x%x => 0x%x", MEMORY_LOCATION_KERNEL, MEMORY_LOCATION_KERNEL_END);
-	MmVirtualMapMemoryRange(KernelMasterTable, 0, MEMORY_LOCATION_KERNEL_END, 
-        PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP);
+	MmVirtualMapMemoryRange(KernelMasterTable, 0, MEMORY_LOCATION_KERNEL_END, KernelPageFlags);
 
     // Identity map some of the regions
     // Kernel image region
     // Kernel video region
-	MmVirtualFillPageTable((PageTable_t*)KernelMasterTable->vTables[0], 0x1000, 0x1000, PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP);
+	MmVirtualFillPageTable((PageTable_t*)KernelMasterTable->vTables[0], 0x1000, 0x1000, KernelPageFlags);
     BytesToMap      = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
     PhysicalBase    = VideoGetTerminal()->FrameBufferAddress;
     VirtualBase     = MEMORY_LOCATION_VIDEO;
     while (BytesToMap) {
         iTable          = (PageTable_t*)KernelMasterTable->vTables[PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_VIDEO)];
-        MmVirtualFillPageTable(iTable, PhysicalBase, VirtualBase, PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP | PAGE_USER);
+        MmVirtualFillPageTable(iTable, PhysicalBase, VirtualBase, KernelPageFlags | PAGE_USER); // @todo is PAGE_USER neccessary?
         BytesToMap      -= MIN(BytesToMap, TABLE_SPACE_SIZE);
         PhysicalBase    += TABLE_SPACE_SIZE;
         VirtualBase     += TABLE_SPACE_SIZE;

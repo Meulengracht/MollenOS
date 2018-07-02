@@ -35,6 +35,7 @@
 #include <heap.h>
 #include <arch.h>
 #include <apic.h>
+#include <cpu.h>
 
 /* Includes
  * - Library */
@@ -433,14 +434,17 @@ MmVirtualSetFlags(
 
 	// Map it, make sure we mask the page address so we don't accidently set any flags
     Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(vAddress)]);
-    atomic_store(&Table->Pages[PAGE_TABLE_INDEX(vAddress)], (Mapping & PAGE_MASK) | (Flags & ATTRIBUTE_MASK));
+    if (!(Mapping & PAGE_SYSTEM_MAP)) {
+        atomic_store(&Table->Pages[PAGE_TABLE_INDEX(vAddress)], (Mapping & PAGE_MASK) | (Flags & ATTRIBUTE_MASK));
 
-	// Last step is to invalidate the the address in the MMIO
-    MmVirtualSynchronizePage(ParentTable, vAddress);
-	if (IsCurrent) {
-		memory_invalidate_addr(vAddress);
-	}
-	return OsSuccess;
+        // Last step is to invalidate the the address in the MMIO
+        MmVirtualSynchronizePage(ParentTable, vAddress);
+        if (IsCurrent) {
+            memory_invalidate_addr(vAddress);
+        }
+        return OsSuccess;
+    }
+    return OsError;
 }
 
 /* MmVirtualGetFlags
@@ -494,6 +498,13 @@ MmVirtualMap(
 	PageMasterTable_t* MasterTable  = NULL;
 	PageTable_t *Table              = NULL;
     uint64_t Mapping;
+
+    // For kernel mappings we would like to mark the mappings global
+    if (vAddress < MEMORY_LOCATION_KERNEL_END) {
+        if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
+            Flags |= PAGE_GLOBAL;
+        }  
+    }
 
     // Retrieve both the current master-table and do a table lookup (safe)
     MasterTable = MmVirtualGetMasterTable(PageDirectory, &IsCurrent);
@@ -826,6 +837,7 @@ MmVirtualInit(void)
     PageDirectory_t *Directory              = NULL;
 	PageTable_t *Table1                     = NULL;
 	PageTable_t *Table2                     = NULL;
+    Flags_t KernelPageFlags                 = 0;
 
 	AddressSpace_t KernelSpace;
 
@@ -834,6 +846,12 @@ MmVirtualInit(void)
 
 	// Initialize reserved pointer
 	atomic_store(&ReservedMemoryPointer, MEMORY_LOCATION_RESERVED);
+
+    // Can we use global pages for kernel table?
+    if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
+        KernelPageFlags |= PAGE_GLOBAL;
+    }
+    KernelPageFlags |= PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP;
 
 	// Allocate 2 pages for the kernel page directory
 	// and reset it by zeroing it out
@@ -846,8 +864,8 @@ MmVirtualInit(void)
     Directory       = MmVirtualCreatePageDirectory();
     Table1          = MmVirtualCreatePageTable();
     Table2          = MmVirtualCreatePageTable();
-	MmVirtualFillPageTable(Table1, 0x1000, 0x1000, PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP);
-	MmVirtualFillPageTable(Table2, TABLE_SPACE_SIZE, TABLE_SPACE_SIZE, PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP);
+	MmVirtualFillPageTable(Table1, 0x1000, 0x1000, KernelPageFlags);
+	MmVirtualFillPageTable(Table2, TABLE_SPACE_SIZE, TABLE_SPACE_SIZE, KernelPageFlags);
 
     // Create the structure
     // PML4[0] => PDP
@@ -855,24 +873,24 @@ MmVirtualInit(void)
     // PD[0] => PT1
     // PD[1] => PT2
     KernelMasterTable->vTables[0]   = (uint64_t)DirectoryTable;
-    atomic_store(&KernelMasterTable->pTables[0], (uint64_t)DirectoryTable | PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP);
+    atomic_store(&KernelMasterTable->pTables[0], (uint64_t)DirectoryTable | KernelPageFlags);
     DirectoryTable->vTables[0]      = (uint64_t)Directory;
-    atomic_store(&DirectoryTable->pTables[0], (uint64_t)Directory | PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP);
+    atomic_store(&DirectoryTable->pTables[0], (uint64_t)Directory | KernelPageFlags);
     Directory->vTables[0]           = (uint64_t)Table1;
-    atomic_store(&Directory->pTables[0], (uint64_t)Table1 | PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP);
+    atomic_store(&Directory->pTables[0], (uint64_t)Table1 | KernelPageFlags);
     Directory->vTables[1]           = (uint64_t)Table2;
-    atomic_store(&Directory->pTables[1], (uint64_t)Table2 | PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP);
+    atomic_store(&Directory->pTables[1], (uint64_t)Table2 | KernelPageFlags);
 
 	// Pre-map heap region
 	TRACE("Mapping heap region to 0x%x", MEMORY_LOCATION_HEAP);
 	MmVirtualIdentityMapMemoryRange(KernelMasterTable, 0, MEMORY_LOCATION_HEAP,
-		(MEMORY_LOCATION_HEAP_END - MEMORY_LOCATION_HEAP), 0, PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP);
+		(MEMORY_LOCATION_HEAP_END - MEMORY_LOCATION_HEAP), 0, KernelPageFlags);
 
 	// Pre-map video region
 	TRACE("Mapping video memory to 0x%x", MEMORY_LOCATION_VIDEO);
 	MmVirtualIdentityMapMemoryRange(KernelMasterTable, VideoGetTerminal()->FrameBufferAddress,
 		MEMORY_LOCATION_VIDEO, (VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height),
-		1, PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP | PAGE_USER);
+		1, KernelPageFlags | PAGE_USER); // @todo is PAGE_USER neccessary?
 
 	// Install the page table at the reserved system
 	// memory, important! 

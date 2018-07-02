@@ -748,7 +748,7 @@ ScMemoryAllocate(
     
     // Now do the allocation in the user-bitmap 
     // since memory is managed in userspace for speed
-    AllocatedAddress = BlockBitmapAllocate(Ash->Heap, Size);
+    AllocatedAddress = AllocateBlocksInBlockmap(Ash->Heap, __MASK, Size);
     if (AllocatedAddress == 0) {
         return OsError;
     }
@@ -778,7 +778,7 @@ ScMemoryAllocate(
         // Do the actual mapping
         if (AddressSpaceMap(AddressSpaceGetCurrent(), PhysicalAddress, &AllocatedAddress, 
             Size, ExtendedFlags, __MASK) != OsSuccess) {
-            BlockBitmapFree(Ash->Heap, AllocatedAddress, Size);
+            ReleaseBlockmapRegion(Ash->Heap, AllocatedAddress, Size);
             *VirtualAddress = 0;
             return OsError;
         }
@@ -818,7 +818,7 @@ ScMemoryFree(
 
     // Now do the deallocation in the user-bitmap 
     // since memory is managed in userspace for speed
-    if (BlockBitmapFree(Ash->Heap, Address, Size) != OsSuccess) {
+    if (ReleaseBlockmapRegion(Ash->Heap, Address, Size) != OsSuccess) {
         ERROR("ScMemoryFree(Address 0x%x, Size 0x%x) was invalid", Address, Size);
         return OsError;
     }
@@ -872,7 +872,7 @@ ScMemoryAcquire(
 
     // Start out by allocating memory 
     // in target process's shared memory space
-    Shm = BlockBitmapAllocate(Ash->Shm, Size);
+    Shm = AllocateBlocksInBlockmap(Ash->Shm, __MASK, Size);
     if (Shm == 0) {
         return OsError;
     }
@@ -918,7 +918,7 @@ ScMemoryRelease(
     }
 
     // Free it in bitmap
-    BlockBitmapFree(Ash->Shm, VirtualAddress, Size);
+    ReleaseBlockmapRegion(Ash->Shm, VirtualAddress, Size);
     return OsSuccess;
 }
 
@@ -1053,7 +1053,7 @@ ScCreateFileMapping(
 
     // Start out by allocating memory
     // in target process's shared memory space
-    BaseAddress = BlockBitmapAllocate(Ash->Shm, Parameters->Size + (Parameters->Offset % AddressSpaceGetPageSize()));
+    BaseAddress = AllocateBlocksInBlockmap(Ash->Shm, __MASK, Parameters->Size + (Parameters->Offset % AddressSpaceGetPageSize()));
     if (BaseAddress == 0) {
         return OsError;
     }
@@ -1131,7 +1131,7 @@ ScDestroyFileMapping(
             AddressSpaceUnmap(AddressSpaceGetCurrent(), ItrAddress, AddressSpaceGetPageSize());
         }
     }
-    BlockBitmapFree(Ash->Shm, Mapping->VirtualBase, Mapping->Length);
+    ReleaseBlockmapRegion(Ash->Shm, Mapping->VirtualBase, Mapping->Length);
 
     // Cleanup
     kfree(Mapping);
@@ -1846,7 +1846,7 @@ ScCreateDisplayFramebuffer(void) {
     }
 
     // Allocate the neccessary size
-    FbVirtual = BlockBitmapAllocate(PhoenixGetCurrentAsh()->Shm, FbSize);
+    FbVirtual = AllocateBlocksInBlockmap(PhoenixGetCurrentAsh()->Shm, __MASK, FbSize);
     if (FbVirtual == 0) {
         return NULL;
     }

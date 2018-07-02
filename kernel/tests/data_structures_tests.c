@@ -41,20 +41,20 @@ TestDataStructures(void *Unused)
 
 
     // Create the bitmap
-    Bitmap = BlockBitmapCreate(0, 10000, 1);
+    CreateBlockmap(0, 0, 10000, 1, &Bitmap);
     TRACE(" > Allocating 1000 blocks, then allocating 300 more");
-    Allocation = BlockBitmapAllocate(Bitmap, 1000);
-    Allocation1 = BlockBitmapAllocate(Bitmap, 300);
+    Allocation = AllocateBlocksInBlockmap(Bitmap, __MASK, 1000);
+    Allocation1 = AllocateBlocksInBlockmap(Bitmap, __MASK, 300);
     TRACE(" > Allocation (1000) => %u", Allocation);
     TRACE(" > Allocation (300) => %u", Allocation1);
     TRACE(" > Freeing the 300, reallocing 120, then freeing 1000 and allocating 3000");
-    BlockBitmapFree(Bitmap, Allocation1, 300);
-    Allocation1 = BlockBitmapAllocate(Bitmap, 120);
-    BlockBitmapFree(Bitmap, Allocation, 1000);
-    Allocation = BlockBitmapAllocate(Bitmap, 3000);
+    ReleaseBlockmapRegion(Bitmap, Allocation1, 300);
+    Allocation1 = AllocateBlocksInBlockmap(Bitmap, __MASK, 120);
+    ReleaseBlockmapRegion(Bitmap, Allocation, 1000);
+    Allocation = AllocateBlocksInBlockmap(Bitmap, __MASK, 3000);
     TRACE(" > Allocation (120) => %u", Allocation1);
     TRACE(" > Allocation (3000) => %u", Allocation);
-    BlockBitmapFree(Bitmap, Allocation, 3000);
-    BlockBitmapFree(Bitmap, Allocation1, 120);
-    BlockBitmapDestroy(Bitmap);
+    ReleaseBlockmapRegion(Bitmap, Allocation, 3000);
+    ReleaseBlockmapRegion(Bitmap, Allocation1, 120);
+    DestroyBlockmap(Bitmap);
 }

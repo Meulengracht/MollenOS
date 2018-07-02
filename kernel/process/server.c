@@ -57,9 +57,9 @@ PhoenixCreateServer(
     SystemInformationQuery(&SystemInformation);
 
 	// Initialize the server io-space memory
-	Server->DriverMemory = BlockBitmapCreate(SystemInformation.MemoryOverview.UserDriverMemoryStart,
+	CreateBlockmap(0, SystemInformation.MemoryOverview.UserDriverMemoryStart,
 		SystemInformation.MemoryOverview.UserDriverMemoryStart + SystemInformation.MemoryOverview.UserDriverMemorySize, 
-        SystemInformation.AllocationGranularity);
+        SystemInformation.AllocationGranularity, &Server->DriverMemory);
 
 	// Register ash
 	Server->Base.Type = AshServer;
@@ -79,7 +79,7 @@ PhoenixCleanupServer(
     _In_ MCoreServer_t *Server)
 {
     // Destroy memory bitmap and do base cleanup
-	BlockBitmapDestroy(Server->DriverMemory);
+	DestroyBlockmap(Server->DriverMemory);
 	PhoenixCleanupAsh((MCoreAsh_t*)Server);
 }
 

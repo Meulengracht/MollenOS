@@ -52,11 +52,11 @@
  * Denotes the must have and architecture specific
  * members of an addressing space */
 PACKED_TYPESTRUCT(AddressSpace, {
-    struct _AddressSpace*   Parent;
-    UUId_t                  Id;
     CriticalSection_t       SyncObject;
+    UUId_t                  Id;
     _Atomic(int)            References;
     Flags_t                 Flags;
+    struct _AddressSpace*   Parent;
     
     uintptr_t               Data[ASPACE_DATASIZE];
 });

@@ -30,6 +30,7 @@ global _CpuEnableXSave
 global _CpuEnableAvx
 global _CpuEnableSse
 global _CpuEnableFpu
+global _CpuEnableGpe
 
 ; No matter what, this is booted by multiboot, and thus
 ; We can assume the state when this point is reached.
@@ -70,26 +71,33 @@ _CpuEnableXSave:
 ; Assembly routine to enable avx support
 _CpuEnableAvx:
 	mov eax, cr4
-	bts eax, 14		;Set Operating System Support for Advanced Vector Extensions (Bit 14)
+	bts eax, 14		; Set Operating System Support for Advanced Vector Extensions (Bit 14)
 	mov cr4, eax
 	ret 
 
 ; Assembly routine to enable sse support
 _CpuEnableSse:
 	mov eax, cr4
-	bts eax, 9		;Set Operating System Support for FXSAVE and FXSTOR instructions (Bit 9)
-	bts eax, 10		;Set Operating System Support for Unmasked SIMD Floating-Point Exceptions (Bit 10)
+	bts eax, 9		; Set Operating System Support for FXSAVE and FXSTOR instructions (Bit 9)
+	bts eax, 10		; Set Operating System Support for Unmasked SIMD Floating-Point Exceptions (Bit 10)
 	mov cr4, eax
 	ret 
 
 ; Assembly routine to enable fpu support
 _CpuEnableFpu:
 	mov eax, cr0
-	bts eax, 1		;Set Monitor co-processor (Bit 1)
-	btr eax, 2		;Clear Emulation (Bit 2)
-	bts eax, 5		;Set Native Exception (Bit 5)
-	btr eax, 3		;Clear TS
+	bts eax, 1		; Set Monitor co-processor (Bit 1)
+	btr eax, 2		; Clear Emulation (Bit 2)
+	bts eax, 5		; Set Native Exception (Bit 5)
+	btr eax, 3		; Clear TS
 	mov cr0, eax
 
 	finit
-	ret 
+	ret
+
+; Assembly routine to enable global page support
+_CpuEnableGpe:
+	mov eax, cr4
+	bts eax, 7		; Set Operating System Support for Page Global Enable (Bit 7)
+	mov cr4, eax
+	ret

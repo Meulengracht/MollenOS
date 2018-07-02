@@ -150,6 +150,7 @@ build_bootloader:
 install_shared:
 	mkdir -p deploy/hdd
 	mkdir -p deploy/hdd/shared
+	mkdir -p deploy/hdd/shared/bin
 	mkdir -p deploy/hdd/system
 	cp -a resources/system/. deploy/hdd/system/
 	cp -a resources/shared/. deploy/hdd/shared/

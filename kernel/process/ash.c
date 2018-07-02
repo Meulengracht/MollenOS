@@ -90,12 +90,12 @@ PhoenixFinishAsh(
 
     // Initialize the memory bitmaps
     TRACE("Creating bitmaps");
-    Ash->Heap   = BlockBitmapCreate(SystemInformation.MemoryOverview.UserHeapStart, 
+    CreateBlockmap(0, SystemInformation.MemoryOverview.UserHeapStart, 
         SystemInformation.MemoryOverview.UserHeapStart + SystemInformation.MemoryOverview.UserHeapSize, 
-        SystemInformation.AllocationGranularity);
-    Ash->Shm    = BlockBitmapCreate(SystemInformation.MemoryOverview.UserSharedMemoryStart, 
+        SystemInformation.AllocationGranularity, &Ash->Heap);
+    CreateBlockmap(0, SystemInformation.MemoryOverview.UserSharedMemoryStart, 
         SystemInformation.MemoryOverview.UserSharedMemoryStart + SystemInformation.MemoryOverview.UserSharedMemorySize, 
-        SystemInformation.AllocationGranularity);
+        SystemInformation.AllocationGranularity, &Ash->Shm);
 }
 
 /* PhoenixStartupEntry
@@ -450,8 +450,8 @@ PhoenixCleanupAsh(
     CollectionDestroy(Ash->FileMappings);
 
     // Cleanup memory
-    BlockBitmapDestroy(Ash->Shm);
-    BlockBitmapDestroy(Ash->Heap);
+    DestroyBlockmap(Ash->Shm);
+    DestroyBlockmap(Ash->Heap);
     PeUnloadImage(Ash->Executable);
     kfree(Ash);
 }

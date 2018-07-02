@@ -19,66 +19,103 @@
  * MollenOS MCore - Generic Block Bitmap Implementation
  */
 
-/* Includes 
- * - Library */
 #include <ds/blbitmap.h>
 #include <stddef.h>
 #include <string.h>
 #include <assert.h>
 
-/* BlockBitmapCreate
- * Instantiate a new bitmap that keeps track of a
- * memory range between Start -> End with a given block size */
-BlockBitmap_t*
-BlockBitmapCreate(
-    _In_ uintptr_t      BlockStart, 
-    _In_ uintptr_t      BlockEnd, 
-    _In_ size_t         BlockSize)
+/* GetBytesNeccessaryForBlockmap
+ * Calculates the number of bytes neccessary for the allocation parameters. */
+size_t
+GetBytesNeccessaryForBlockmap(
+    _In_ uintptr_t          BlockStart, 
+    _In_ uintptr_t          BlockEnd, 
+    _In_ size_t             BlockSize)
+{
+    size_t BlockCount = (BlockEnd - BlockSize) / BlockSize;
+    return DIVUP((BlockCount + 1), 8); // We can have 8 blocks per byte
+}
+
+/* CreateBlockmap
+ * Creates a new blockmap of with the given configuration and returns a pointer to a newly
+ * allocated blockmap. Also returns an error code. */
+OsStatus_t
+CreateBlockmap(
+    _In_  Flags_t           Configuration,
+    _In_  uintptr_t         BlockStart, 
+    _In_  uintptr_t         BlockEnd, 
+    _In_  size_t            BlockSize,
+    _Out_ BlockBitmap_t**   Blockmap)
 {
     // Variables
-    BlockBitmap_t *Blockmap = NULL;
-    size_t Bytes            = 0;
+    BlockBitmap_t *Pointer  = NULL;
+    void *Buffer            = NULL;
 
-    // Allocate a new instance
-    Blockmap = (BlockBitmap_t*)dsalloc(sizeof(BlockBitmap_t));
-    memset(Blockmap, 0, sizeof(BlockBitmap_t));
+    Pointer = (BlockBitmap_t*)dsalloc(sizeof(BlockBitmap_t));
+    Buffer  = dsalloc(GetBytesNeccessaryForBlockmap(BlockStart, BlockEnd, BlockSize));
+    ConstructBlockmap(Pointer, Buffer, Configuration, BlockStart, BlockEnd, BlockSize);
+
+    // Update user-provided pointer
+    Pointer->Base.Cleanup = 1;
+    *Blockmap = Pointer;
+    return OsSuccess;;
+}
+
+/* ConstructBlockmap
+ * Instantiates a static instance of a block bitmap. The buffer used for the bit storage
+ * must also be provided and should be of at-least GetBytesNeccessaryForBlockmap(<Params>). */
+OsStatus_t
+ConstructBlockmap(
+    _In_ BlockBitmap_t*     Blockmap,
+    _In_ void*              Buffer,
+    _In_ Flags_t            Configuration,
+    _In_ uintptr_t          BlockStart, 
+    _In_ uintptr_t          BlockEnd, 
+    _In_ size_t             BlockSize)
+{
+    assert(Blockmap != NULL);
+    assert(Buffer != NULL);
 
     // Store initial members
+    memset(Blockmap, 0, sizeof(BlockBitmap_t));
     Blockmap->BlockStart    = BlockStart;
     Blockmap->BlockEnd      = BlockEnd;
     Blockmap->BlockSize     = BlockSize;
     Blockmap->BlockCount    = (BlockEnd - BlockSize) / BlockSize;
+    BitmapConstruct(&Blockmap->Base, (uintptr_t*)Buffer, DIVUP((Blockmap->BlockCount + 1), 8));
 
-    // Now calculate blocks and divide by how many bytes are required
-    Bytes = DIVUP((Blockmap->BlockCount + 1), 8);
-    BitmapConstruct(&Blockmap->Base, (uintptr_t*)dsalloc(Bytes), Bytes);
-    Blockmap->Base.Cleanup = 1;
-    return Blockmap;
+    // Handle configuration parameters
+    if (Configuration & BLOCKMAP_ALLRESERVED) {
+        memset(Buffer, 0xFF, DIVUP((Blockmap->BlockCount + 1), 8));
+        Blockmap->BlocksAllocated = Blockmap->BlockCount;
+    }
+    return OsSuccess;
 }
 
-/* BlockBitmapDestroy
- * Destroys a block bitmap, and releases 
- * all resources associated with the bitmap */
+/* DestroyBlockmap
+ * Destroys a block bitmap, and releases all resources associated with the bitmap */
 OsStatus_t
-BlockBitmapDestroy(
+DestroyBlockmap(
     _In_ BlockBitmap_t* Blockmap)
 {
     assert(Blockmap != NULL);
     return BitmapDestroy(&Blockmap->Base);
 }
 
-/* BlockBitmapAllocate
+/* AllocateBlocksInBlockmap
  * Allocates a number of bytes in the bitmap (rounded up in blocks)
  * and returns the calculated block of the start of block allocated (continously) */
 uintptr_t
-BlockBitmapAllocate(
+AllocateBlocksInBlockmap(
     _In_ BlockBitmap_t* Blockmap,
+    _In_ size_t         AllocationMask,
     _In_ size_t         Size)
 {
     // Variables
     uintptr_t Block = 0;
-    int BitCount    = 0;
-    int Index       = -1;
+    size_t BitCount;
+    int Index;
+    
     assert(Blockmap != NULL);
     assert(Size > 0);
 
@@ -98,19 +135,53 @@ BlockBitmapAllocate(
     return Block;
 }
 
-/* BlockBitmapFree
- * Deallocates a given block translated into offsets 
- * into the given bitmap, and frees them in the bitmap */
+/* ReserveBlockmapRegion
+ * Reserves a region of the blockmap. This sets the given region to allocated. The
+ * region and size must be within boundaries of the blockmap. */
 OsStatus_t
-BlockBitmapFree(
+ReserveBlockmapRegion(
     _In_ BlockBitmap_t* Blockmap,
     _In_ uintptr_t      Block,
     _In_ size_t         Size)
 {
     // Variables
-    OsStatus_t Result   = OsError;
-    int BitCount        = 0;
-    int Index           = -1;
+    OsStatus_t Status;
+    int BitCount;
+    int Index;
+
+    // Sanitize the bounds
+    assert(Blockmap != NULL);
+    assert(Size > 0);
+    if ((Block + Size) > Blockmap->BlockEnd) {
+        return OsError;
+    }
+
+    // Calculate number of bits that we need to set, also calculate
+    // the start bit
+    Index       = (Block - Blockmap->BlockStart) / Blockmap->BlockSize;
+    BitCount    = DIVUP(Size, Blockmap->BlockSize);
+
+    // Locked operation
+    dslock(&Blockmap->SyncObject);
+    Status = BitmapSetBits(&Blockmap->Base, Index, BitCount);
+    dsunlock(&Blockmap->SyncObject);
+    return Status;
+}
+
+/* ReleaseBlockmapRegion
+ * Deallocates a given block translated into offsets 
+ * into the given bitmap, and frees them in the bitmap */
+OsStatus_t
+ReleaseBlockmapRegion(
+    _In_ BlockBitmap_t* Blockmap,
+    _In_ uintptr_t      Block,
+    _In_ size_t         Size)
+{
+    // Variables
+    OsStatus_t Result = OsError;
+    int BitCount;
+    int Index;
+
     assert(Blockmap != NULL);
     assert(Size > 0);
     
@@ -145,7 +216,7 @@ BlockBitmapValidateState(
     _In_ int            Set)
 {
     // Variables
-    int Index = -1;
+    int Index;
     assert(Blockmap != NULL);
     
     // Calculate the index and number of bits

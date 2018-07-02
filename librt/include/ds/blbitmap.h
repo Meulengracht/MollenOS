@@ -19,15 +19,17 @@
  * MollenOS MCore - Generic Block Bitmap Implementation
  */
 
-#ifndef _MOLLENOS_BLOCKBITMAP_H_
-#define _MOLLENOS_BLOCKBITMAP_H_
+#ifndef __BLOCK_BITMAP__
+#define __BLOCK_BITMAP__
 
 #include <os/osdefs.h>
 #include <ds/ds.h>
 #include <ds/bitmap.h>
 
+#define BLOCKMAP_ALLRESERVED            (1 << 0) // Set all to allocated initially
+
 /* BlockBitmap_t
- * A specialized bitmap that deals in blocks instead of bits.
+ * A specialized bitmap that returns memory blocks instead of frames.
  * This way it can be used for keeping track of memory regions in <BlockSize> */
 typedef struct _BlockBitmap {
     Bitmap_t            Base;
@@ -40,44 +42,78 @@ typedef struct _BlockBitmap {
     size_t              BlockCount;
 
     // Statistics
-    int                 BlocksAllocated;
-    int                 NumAllocations;
-    int                 NumFrees;
+    size_t              BlocksAllocated;
+    size_t              NumAllocations;
+    size_t              NumFrees;
 } BlockBitmap_t;
 
-/* BlockBitmapCreate
- * Instantiate a new bitmap that keeps track of a
- * block range between Start -> End with a given block size */
-CRTDECL(
-BlockBitmap_t*,
-BlockBitmapCreate(
-    _In_ uintptr_t      BlockStart, 
-    _In_ uintptr_t      BlockEnd, 
-    _In_ size_t         BlockSize));
-
-/* BlockBitmapDestroy
- * Destroys a block bitmap, and releases 
- * all resources associated with the bitmap */
+/* CreateBlockmap
+ * Creates a new blockmap of with the given configuration and returns a pointer to a newly
+ * allocated blockmap. Also returns an error code. */
 CRTDECL(
 OsStatus_t,
-BlockBitmapDestroy(
+CreateBlockmap(
+    _In_  Flags_t           Configuration,
+    _In_  uintptr_t         BlockStart, 
+    _In_  uintptr_t         BlockEnd, 
+    _In_  size_t            BlockSize,
+    _Out_ BlockBitmap_t**   Blockmap));
+
+/* ConstructBlockmap
+ * Instantiates a static instance of a block bitmap. The buffer used for the bit storage
+ * must also be provided and should be of at-least GetBytesNeccessaryForBlockmap(<Params>). */
+CRTDECL(
+OsStatus_t,
+ConstructBlockmap(
+    _In_ BlockBitmap_t*     Blockmap,
+    _In_ void*              Buffer,
+    _In_ Flags_t            Configuration,
+    _In_ uintptr_t          BlockStart, 
+    _In_ uintptr_t          BlockEnd, 
+    _In_ size_t             BlockSize));
+
+/* DestroyBlockmap
+ * Destroys a block bitmap, and releases all resources associated with the bitmap */
+CRTDECL(
+OsStatus_t,
+DestroyBlockmap(
     _In_ BlockBitmap_t* Blockmap));
 
-/* BlockBitmapAllocate
+/* GetBytesNeccessaryForBlockmap
+ * Calculates the number of bytes neccessary for the allocation parameters. */
+CRTDECL(
+size_t,
+GetBytesNeccessaryForBlockmap(
+    _In_ uintptr_t          BlockStart, 
+    _In_ uintptr_t          BlockEnd, 
+    _In_ size_t             BlockSize));
+
+/* AllocateBlocksInBlockmap
  * Allocates a number of bytes in the bitmap (rounded up in blocks)
  * and returns the calculated block of the start of block allocated (continously) */
 CRTDECL(
 uintptr_t,
-BlockBitmapAllocate(
+AllocateBlocksInBlockmap(
     _In_ BlockBitmap_t* Blockmap,
+    _In_ size_t         AllocationMask,
     _In_ size_t         Size));
 
-/* BlockBitmapFree
+/* ReserveBlockmapRegion
+ * Reserves a region of the blockmap. This sets the given region to allocated. The
+ * region and size must be within boundaries of the blockmap. */
+CRTDECL(
+OsStatus_t,
+ReserveBlockmapRegion(
+    _In_ BlockBitmap_t* Blockmap,
+    _In_ uintptr_t      Block,
+    _In_ size_t         Size));
+
+/* ReleaseBlockmapRegion
  * Deallocates a given block translated into offsets 
  * into the given bitmap, and frees them in the bitmap */
 CRTDECL(
 OsStatus_t,
-BlockBitmapFree(
+ReleaseBlockmapRegion(
     _In_ BlockBitmap_t* Blockmap,
     _In_ uintptr_t      Block,
     _In_ size_t         Size));
@@ -92,4 +128,4 @@ BlockBitmapValidateState(
     _In_ uintptr_t      Block,
     _In_ int            Set));
 
-#endif //!_MOLLENOS_BLOCKBITMAP_H_
+#endif //!__BLOCK_BITMAP__

@@ -152,7 +152,7 @@ IoSpaceAcquire(
         // Ok, so when we map it in and reserver space
         // for it, its important we set it with its offset
         SysCopy->VirtualBase = IoSpace->VirtualBase = 
-            BlockBitmapAllocate(Server->DriverMemory, PageCount * PAGE_SIZE)
+            AllocateBlocksInBlockmap(Server->DriverMemory, __MASK, PageCount * PAGE_SIZE)
                 + (SysCopy->PhysicalBase & ATTRIBUTE_MASK);
 
         // Debugging
@@ -216,7 +216,7 @@ IoSpaceRelease(
             PageCount, SysCopy->VirtualBase);
 
         // Unmap them
-        BlockBitmapFree(Server->DriverMemory, SysCopy->VirtualBase,
+        ReleaseBlockmapRegion(Server->DriverMemory, SysCopy->VirtualBase,
             PageCount * PAGE_SIZE);
 
         // Should free pages
