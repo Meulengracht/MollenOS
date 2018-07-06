@@ -50,7 +50,7 @@ extern uint64_t memory_get_cr3(void);
                                             assert(Instance != NULL); \
                                             memset((void*)Instance, 0, sizeof(Type)); \
                                             return Instance; }
-
+#define GET_TABLE_HELPER(MasterTable, Address) ((PageTable_t*)((PageDirectory_t*)((PageDirectoryTable_t*)MasterTable->vTables[PAGE_LEVEL_4_INDEX(Address)])->vTables[PAGE_DIRECTORY_POINTER_INDEX(Address)])->vTables[PAGE_DIRECTORY_INDEX(Address)])
 
 
 /* MmVirtualCreatePageTable
@@ -84,6 +84,58 @@ MmVirtualFillPageTable(
 		i < ENTRIES_PER_PAGE; i++, PhysicalEntry += PAGE_SIZE, VirtualEntry += PAGE_SIZE) {
         atomic_store(&Table->Pages[PAGE_TABLE_INDEX(VirtualEntry)], PhysicalEntry | Flags);
 	}
+}
+
+
+/* MmVirtualMapMemoryRange
+ * Maps an entire region into the given page-directory and marks them present.
+ * They can then be used for either identity mapping or real mappings afterwards. */
+void 
+MmVirtualMapMemoryRange(
+	_In_ PageMasterTable_t* MasterTable,
+	_In_ VirtualAddress_t   AddressStart,
+	_In_ uintptr_t          Length,
+	_In_ Flags_t            Flags)
+{
+	// Variables
+    PageDirectoryTable_t *DirectoryTable;
+    PageDirectory_t *Directory;
+	unsigned i, j, k;
+
+    // Iterate all the neccessary page-directory tables
+    for (i = PAGE_LEVEL_4_INDEX(AddressStart); 
+         i < (PAGE_LEVEL_4_INDEX(AddressStart + Length - 1) + 1); i++)
+    {
+        if (MasterTable->vTables[i] == 0) {
+            MasterTable->vTables[i] = (uintptr_t)MmVirtualCreatePageDirectoryTable();
+            atomic_store_explicit(&MasterTable->pTables[i], MasterTable->vTables[i] | Flags, 
+                memory_order_relaxed);
+        }
+        DirectoryTable = (PageDirectoryTable_t*)MasterTable->vTables[i];
+
+        // Iterate all the neccessary page-directories
+        for (j = PAGE_DIRECTORY_POINTER_INDEX(AddressStart);
+             j < (PAGE_DIRECTORY_POINTER_INDEX(AddressStart + Length - 1) + 1); j++)
+        {
+            if (DirectoryTable->vTables[j] == 0) {
+                DirectoryTable->vTables[j] = (uintptr_t)MmVirtualCreatePageDirectory();
+                atomic_store_explicit(&DirectoryTable->pTables[j], DirectoryTable->vTables[j] | Flags, 
+                    memory_order_relaxed);
+            }
+            Directory = (PageDirectory_t*)DirectoryTable->vTables[j];
+
+            // Iterate all the page-tables that will be needed
+            for (k = PAGE_DIRECTORY_INDEX(AddressStart); 
+                 k < (PAGE_DIRECTORY_INDEX(AddressStart + Length - 1) + 1); k++)
+            {
+                if (Directory->vTables[k] == 0) {
+                    Directory->vTables[k] = (uintptr_t)MmVirtualCreatePageTable();
+                    atomic_store_explicit(&Directory->pTables[k], Directory->vTables[k] | Flags, 
+                        memory_order_relaxed);
+                }
+            }
+        }
+    }
 }
 
 /* MmVirtualIdentityMapMemoryRange
@@ -773,11 +825,8 @@ InitializeVirtualSpace(
     _In_ SystemMemorySpace_t*   SystemMemorySpace)
 {
 	// Variables
-	PageDirectoryTable_t *DirectoryTable    = NULL;
-    PageDirectory_t *Directory              = NULL;
-	PageTable_t *Table1                     = NULL;
-	PageTable_t *Table2                     = NULL;
     PageMasterTable_t *iDirectory;
+	PageTable_t *iTable;
     Flags_t KernelPageFlags = 0;
     uintptr_t iPhysical;
 
@@ -793,42 +842,35 @@ InitializeVirtualSpace(
 	// Allocate 2 pages for the kernel page directory
 	// and reset it by zeroing it out
     if (GetCurrentProcessorCore() == &GetMachine()->Processor.PrimaryCore) {
-        iDirectory = (PageMasterTable_t*)AllocateSystemMemory(sizeof(PageMasterTable_t), MEMORY_ALLOCATION_MASK, 0);
+        size_t BytesToMap               = 0;
+        PhysicalAddress_t PhysicalBase  = 0;
+        VirtualAddress_t VirtualBase    = 0;
+
+        iDirectory = (PageMasterTable_t*)AllocateSystemMemory(
+            sizeof(PageMasterTable_t), MEMORY_ALLOCATION_MASK, 0);
         memset((void*)iDirectory, 0, sizeof(PageMasterTable_t));
         iPhysical = (uintptr_t)iDirectory;
 
-        // Allocate rest of resources
-        DirectoryTable  = MmVirtualCreatePageDirectoryTable();
-        Directory       = MmVirtualCreatePageDirectory();
-        Table1          = MmVirtualCreatePageTable();
-        Table2          = MmVirtualCreatePageTable();
-        MmVirtualFillPageTable(Table1, 0x1000, 0x1000, KernelPageFlags);
-        MmVirtualFillPageTable(Table2, TABLE_SPACE_SIZE, TABLE_SPACE_SIZE, KernelPageFlags);
+        // Due to how it works with multiple cpu's, we need to make sure all shared
+        // tables already are mapped in the upper-most level of the page-directory
+        TRACE("Mapping the kernel region from 0x%x => 0x%x", MEMORY_LOCATION_KERNEL, MEMORY_LOCATION_KERNEL_END);
+        MmVirtualMapMemoryRange(iDirectory, 0, MEMORY_LOCATION_KERNEL_END, KernelPageFlags);
 
-        // Create the structure
-        // PML4[0] => PDP
-        // PDP[0] => PD
-        // PD[0] => PT1
-        // PD[1] => PT2
-        iDirectory->vTables[0]   = (uint64_t)DirectoryTable;
-        atomic_store(&iDirectory->pTables[0], (uint64_t)DirectoryTable | KernelPageFlags);
-        DirectoryTable->vTables[0]      = (uint64_t)Directory;
-        atomic_store(&DirectoryTable->pTables[0], (uint64_t)Directory | KernelPageFlags);
-        Directory->vTables[0]           = (uint64_t)Table1;
-        atomic_store(&Directory->pTables[0], (uint64_t)Table1 | KernelPageFlags);
-        Directory->vTables[1]           = (uint64_t)Table2;
-        atomic_store(&Directory->pTables[1], (uint64_t)Table2 | KernelPageFlags);
-
-        // Pre-map heap region
-        TRACE("Mapping heap region to 0x%x", MEMORY_LOCATION_HEAP);
-        MmVirtualIdentityMapMemoryRange(iDirectory, 0, MEMORY_LOCATION_HEAP,
-            (MEMORY_LOCATION_HEAP_END - MEMORY_LOCATION_HEAP), 0, KernelPageFlags);
-
-        // Pre-map video region
-        TRACE("Mapping video memory to 0x%x", MEMORY_LOCATION_VIDEO);
-        MmVirtualIdentityMapMemoryRange(iDirectory, VideoGetTerminal()->FrameBufferAddress,
-            MEMORY_LOCATION_VIDEO, (VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height),
-            1, KernelPageFlags | PAGE_USER); // @todo is PAGE_USER neccessary?
+        // Identity map some of the regions
+        // Kernel image region
+        // Kernel video region
+        MmVirtualFillPageTable(GET_TABLE_HELPER(iDirectory, (uint64_t)0), 0x1000, 0x1000, KernelPageFlags);
+        MmVirtualFillPageTable(GET_TABLE_HELPER(iDirectory, (uint64_t)TABLE_SPACE_SIZE), TABLE_SPACE_SIZE, TABLE_SPACE_SIZE, KernelPageFlags);
+        BytesToMap      = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
+        PhysicalBase    = VideoGetTerminal()->FrameBufferAddress;
+        VirtualBase     = MEMORY_LOCATION_VIDEO;
+        while (BytesToMap) {
+            iTable          = GET_TABLE_HELPER(iDirectory, VirtualBase);
+            MmVirtualFillPageTable(iTable, PhysicalBase, VirtualBase, KernelPageFlags | PAGE_USER); // @todo is PAGE_USER neccessary?
+            BytesToMap      -= MIN(BytesToMap, TABLE_SPACE_SIZE);
+            PhysicalBase    += TABLE_SPACE_SIZE;
+            VirtualBase     += TABLE_SPACE_SIZE;
+        }
 
         // Update video address to the new
         VideoGetTerminal()->FrameBufferAddress = MEMORY_LOCATION_VIDEO;

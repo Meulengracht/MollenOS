@@ -97,12 +97,11 @@ MmVirtualMapMemoryRange(
 	_In_ Flags_t            Flags)
 {
 	// Variables
-	unsigned i, k;
+	unsigned i;
 
 	// Iterate the afflicted page-tables
-	for (i = PAGE_DIRECTORY_INDEX(AddressStart), k = 0;
-		i < (PAGE_DIRECTORY_INDEX(AddressStart + Length - 1) + 1);
-		i++, k++) {
+	for (i = PAGE_DIRECTORY_INDEX(AddressStart);
+		i < (PAGE_DIRECTORY_INDEX(AddressStart + Length - 1) + 1); i++) {
 		PageTable_t *Table = MmVirtualCreatePageTable();
 
 		// Install the table into the given page-directory
@@ -596,7 +595,7 @@ InitializeVirtualSpace(
         // Allocate 2 pages for the kernel page directory
         // and reset it by zeroing it out
         iDirectory = (PageDirectory_t*)AllocateSystemMemory(
-            sizeof(PageDirectory_t), MEMORY_ALLOCATION_MASK, MEMORY_DOMAIN);
+            sizeof(PageDirectory_t), MEMORY_ALLOCATION_MASK, 0);
         memset((void*)iDirectory, 0, sizeof(PageDirectory_t));
         iPhysical = (uintptr_t)iDirectory;
 
@@ -613,7 +612,7 @@ InitializeVirtualSpace(
         PhysicalBase    = VideoGetTerminal()->FrameBufferAddress;
         VirtualBase     = MEMORY_LOCATION_VIDEO;
         while (BytesToMap) {
-            iTable          = (PageTable_t*)iDirectory->vTables[PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_VIDEO)];
+            iTable          = (PageTable_t*)iDirectory->vTables[PAGE_DIRECTORY_INDEX(VirtualBase)];
             MmVirtualFillPageTable(iTable, PhysicalBase, VirtualBase, KernelPageFlags | PAGE_USER); // @todo is PAGE_USER neccessary?
             BytesToMap      -= MIN(BytesToMap, TABLE_SPACE_SIZE);
             PhysicalBase    += TABLE_SPACE_SIZE;
