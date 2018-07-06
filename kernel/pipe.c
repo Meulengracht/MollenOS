@@ -293,9 +293,9 @@ AcquireSegmentBufferSpace(
     _In_ size_t                     Length)
 {
     // Variables
+    unsigned int ReadIndex;
+    unsigned int WriteIndex;
     size_t BytesAvailable;
-    size_t ReadIndex;
-    size_t WriteIndex;
 
     // Make sure we write all the bytes
     while (1) {
@@ -379,11 +379,11 @@ WriteRawSegmentBuffer(
     _In_ size_t                     Length)
 {
     // Variables
+    unsigned int ReadIndex;
+    unsigned int WriteIndex;
     size_t BytesWritten = 0;
     size_t BytesAvailable;
     size_t BytesCommitted;
-    size_t ReadIndex;
-    size_t WriteIndex;
 
     // Make sure we write all the bytes
     while (BytesWritten < Length) {
@@ -447,11 +447,11 @@ ReadRawSegmentBuffer(
     _In_ size_t                     Length)
 {
     // Variables
+    unsigned int ReadIndex;
+    unsigned int WriteIndex;
     size_t BytesAvailable   = 0;
     size_t BytesRead        = 0;
     size_t BytesCommitted;
-    size_t ReadIndex;
-    size_t WriteIndex;
     
     // Make sure there are bytes to read
     while (BytesRead < Length) {

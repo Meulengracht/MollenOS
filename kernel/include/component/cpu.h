@@ -23,9 +23,8 @@
 #ifndef __COMPONENT_CPU__
 #define __COMPONENT_CPU__
 
-/* Includes
- * - System */
 #include <os/osdefs.h>
+#include <memoryspace.h>
 #include <threading.h>
 #include <scheduler.h>
 
@@ -47,7 +46,6 @@ typedef struct _SystemCpuCore {
     UUId_t              Id;
     SystemCpuState_t    State;
     int                 External;
-    uintptr_t           Data[4];
 
     // Static resources
     MCoreThread_t       IdleThread;
@@ -63,27 +61,22 @@ typedef struct _SystemCpuCore {
 typedef struct _SystemCpu {
     char                Vendor[16];     // zero terminated string
     char                Brand[64];      // zero terminated string
-    int                 NumberOfCores;  // always minimum 1
     uintptr_t           Data[4];        // data available for usage
+    int                 NumberOfCores;  // always minimum 1
 
     SystemCpuCore_t     PrimaryCore;
     SystemCpuCore_t*    ApplicationCores;
+    
+    struct _SystemCpu*  Link;
 } SystemCpu_t;
 
-/* InitializeProcessor
- * Initializes the cpu as much as neccessary for the system to be in a running state. This
- * also initializes the primary core of the cpu structure. */
-KERNELAPI void KERNELABI
-InitializeProcessor(
-    _In_ SystemCpu_t*       Cpu);
-
-/* RegisterPrimaryCore
+/* RegisterStaticCore
  * Registers the primary core for the given cpu. The core count and the
  * application-core will be initialized on first call to this function. This also allocates a 
  * new instance of the cpu-core. */
 KERNELAPI void KERNELABI
-RegisterPrimaryCore(
-    _In_ SystemCpu_t*       Cpu);
+RegisterStaticCore(
+    _In_ SystemCpuCore_t*   Core);
 
 /* RegisterApplicationCore
  * Registers a new cpu application core for the given cpu. The core count and the

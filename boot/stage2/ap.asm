@@ -119,6 +119,13 @@ Entry32:
 %endif
 
 Skip64BitMode:
+	; Enable paging
+    mov     eax, dword [dSystemPageDirectory]
+    mov     cr3, eax
+    mov     eax, cr0
+    or      eax, 0x80000000
+    mov     cr0, eax
+
 	; Setup Registers
 	xor 	esi, esi
 	xor 	edi, edi

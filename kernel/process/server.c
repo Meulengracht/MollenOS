@@ -27,6 +27,7 @@
 #include <garbagecollector.h>
 #include <threading.h>
 #include <scheduler.h>
+#include <machine.h>
 #include <debug.h>
 #include <heap.h>
 
@@ -42,7 +43,6 @@ PhoenixCreateServer(
 	_In_ MString_t *Path)
 {
 	// Variables
-    SystemInformation_t SystemInformation;
 	MCoreServer_t *Server = NULL;
 
 	// Allocate and initiate new instance
@@ -53,13 +53,10 @@ PhoenixCreateServer(
 		return UUID_INVALID;
 	}
 
-    // Get memory information
-    SystemInformationQuery(&SystemInformation);
-
 	// Initialize the server io-space memory
-	CreateBlockmap(0, SystemInformation.MemoryOverview.UserDriverMemoryStart,
-		SystemInformation.MemoryOverview.UserDriverMemoryStart + SystemInformation.MemoryOverview.UserDriverMemorySize, 
-        SystemInformation.AllocationGranularity, &Server->DriverMemory);
+	CreateBlockmap(0, GetMachine()->MemoryMap.UserIoMemory.Start,
+		GetMachine()->MemoryMap.UserIoMemory.Start + GetMachine()->MemoryMap.UserIoMemory.Length, 
+        GetMachine()->MemoryGranularity, &Server->DriverMemory);
 
 	// Register ash
 	Server->Base.Type = AshServer;

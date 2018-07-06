@@ -29,13 +29,12 @@
 #define __MODULE "SCHE"
 //#define __TRACE
 
-/* Includes
- * - System */
 #include <component/domain.h>
 #include <system/thread.h>
 #include <system/interrupts.h>
 #include <system/utils.h>
 #include <scheduler.h>
+#include <machine.h>
 #include <timers.h>
 #include <debug.h>
 #include <arch.h>
@@ -350,21 +349,33 @@ SchedulerThreadQueue(
     _In_ int                SuppressSynchronization)
 {
     // Variables
-    MCoreScheduler_t *Scheduler = &GetCurrentDomain()->Cpu.PrimaryCore.Scheduler;
-    UUId_t CoreId               = GetCurrentDomain()->Cpu.PrimaryCore.Id;
+    SystemDomain_t *Domain      = GetCurrentDomain();
+    SystemCpu_t *CoreGroup      = &GetMachine()->Processor;
+    MCoreScheduler_t *Scheduler;
+    UUId_t CoreId;
     int i;
+
+    // Select the default core range
+    if (Domain != NULL) {
+        // Use the core range from our domain
+        CoreGroup   = &Domain->CoreGroup;
+    }
+
+    // Get initial state
+    Scheduler   = &CoreGroup->PrimaryCore.Scheduler;
+    CoreId      = CoreGroup->PrimaryCore.Id;
     
     // Sanitize the cpu that thread needs to be bound to
     if (Thread->CoreId == SCHEDULER_CPU_SELECT) {
-        for (i = 0; i < (GetCurrentDomain()->Cpu.NumberOfCores - 1); i++) {
+        for (i = 0; i < (CoreGroup->NumberOfCores - 1); i++) {
             // Skip cores not booted yet, their scheduler is not initialized
-            if (GetCurrentDomain()->Cpu.ApplicationCores[i].State != CpuStateRunning) {
+            if (CoreGroup->ApplicationCores[i].State != CpuStateRunning) {
                 continue;
             }
 
-            if (GetCurrentDomain()->Cpu.ApplicationCores[i].Scheduler.ThreadCount < Scheduler->ThreadCount) {
-                Scheduler   = &GetCurrentDomain()->Cpu.ApplicationCores[i].Scheduler;
-                CoreId      = GetCurrentDomain()->Cpu.ApplicationCores[i].Id;
+            if (CoreGroup->ApplicationCores[i].Scheduler.ThreadCount < Scheduler->ThreadCount) {
+                Scheduler   = &CoreGroup->ApplicationCores[i].Scheduler;
+                CoreId      = CoreGroup->ApplicationCores[i].Id;
             }
         }
         Thread->CoreId      = CoreId;

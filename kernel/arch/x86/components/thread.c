@@ -237,9 +237,7 @@ ThreadingImpersonate(
 
     // Load resources
 	TssUpdateIo(Cpu, (uint8_t*)Thread->Data[THREAD_DATA_IOMAP]);
-	UpdateVirtualAddressingSpace(
-		(void*)Thread->AddressSpace->Data[ASPACE_DATA_PDPOINTER],
-		Thread->AddressSpace->Data[ASPACE_DATA_CR3]);
+    SwitchSystemMemorySpace(Thread->MemorySpace);
 }
 
 /* _ThreadingSwitch
@@ -294,9 +292,7 @@ _ThreadingSwitch(
 	*TaskQueue  = Thread->Queue;
 
 	// Load thread-specific resources
-	UpdateVirtualAddressingSpace( 
-		(void*)Thread->AddressSpace->Data[ASPACE_DATA_PDPOINTER], 
-		Thread->AddressSpace->Data[ASPACE_DATA_CR3]);
+    SwitchSystemMemorySpace(Thread->MemorySpace);
 	TssUpdateThreadStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
 	TssUpdateIo(Cpu, (uint8_t*)Thread->Data[THREAD_DATA_IOMAP]);
 

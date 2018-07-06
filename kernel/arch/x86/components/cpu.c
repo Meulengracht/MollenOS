@@ -22,12 +22,10 @@
  */
 #define __MODULE "CCPU"
 
-/* Includes
- * - System */
-#include <component/domain.h>
 #include <system/interrupts.h>
 #include <system/utils.h>
 #include <interrupts.h>
+#include <machine.h>
 #include <smbios.h>
 #include <debug.h>
 #include <apic.h>
@@ -153,6 +151,20 @@ InitializeProcessor(
     SmBiosInitialize(NULL);
 }
 
+/* SetMachineUmaMode (@arch)
+ * Sets the current machine into UMA mode which means there are no domains. This must
+ * be implemented by the architecture to allow a arch-specific setup of the UMA topology. */
+void
+SetMachineUmaMode(void)
+{
+    // Determine the state of the pc. 
+    // Are MP tables present?
+    // Do we need to use the PIC instead of the APIC?
+    
+    WARNING("SetMachineUmaMode::end for now");
+    for(;;);
+}
+
 /* CpuInitializeFeatures
  * Initializes all onboard features on the running core. This can be extended features
  * as SSE, MMX, FPU, AVX etc */
@@ -189,16 +201,16 @@ CpuInitializeFeatures(void)
 OsStatus_t
 CpuHasFeatures(Flags_t Ecx, Flags_t Edx)
 {
-	// Check ECX features
+	// Check ECX features @todo multiple cpus
 	if (Ecx != 0) {
-		if ((GetCurrentDomain()->Cpu.Data[CPU_DATA_FEATURES_ECX] & Ecx) != Ecx) {
+		if ((GetMachine()->Processor.Data[CPU_DATA_FEATURES_ECX] & Ecx) != Ecx) {
 			return OsError;
 		}
 	}
 
-	// Check EDX features
+	// Check EDX features @todo multiple cpus
 	if (Edx != 0) {
-		if ((GetCurrentDomain()->Cpu.Data[CPU_DATA_FEATURES_EDX] & Edx) != Edx) {
+		if ((GetMachine()->Processor.Data[CPU_DATA_FEATURES_EDX] & Edx) != Edx) {
 			return OsError;
 		}
 	}
@@ -215,7 +227,8 @@ CpuGetCurrentId(void)
     }
 
     // If the local apic is not initialized this is single-core old system
-    return GetCurrentDomain()->Cpu.PrimaryCore.Id;
+    // OR we are still in startup phase and thus we just return the boot-core
+    return GetMachine()->Processor.PrimaryCore.Id;
 }
 
 /* CpuIdle
@@ -268,7 +281,7 @@ CpuStall(
 	volatile uint64_t TimeOut = 0;
 	uint64_t Counter = 0;
 
-	if (!(GetCurrentDomain()->Cpu.Data[CPU_DATA_FEATURES_EDX] & CPUID_FEAT_EDX_TSC)) {
+	if (!(GetMachine()->Processor.Data[CPU_DATA_FEATURES_EDX] & CPUID_FEAT_EDX_TSC)) {
 		FATAL(FATAL_SCOPE_KERNEL, "TIMR", "DelayMs() was called, but no TSC support in CPU.");
 		CpuIdle();
 	}

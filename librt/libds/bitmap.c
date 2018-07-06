@@ -96,8 +96,9 @@ BitmapDestroy(
 }
 
 /* BitmapSetBits
- * Flips all bits to 1 at the given index, and for <Count> bits. */
-OsStatus_t
+ * Flips all bits to 1 at the given index, and for <Count> bits. Returns the 
+ * actual number of bits set in this iteration. */
+int
 BitmapSetBits(
     _In_ Bitmap_t*  Bitmap,
     _In_ int        Index,
@@ -107,52 +108,59 @@ BitmapSetBits(
     int BlockIndex  = Index / (sizeof(uintptr_t) * 8);
     int BlockOffset = Index % (sizeof(uintptr_t) * 8);
     int BitsLeft    = Count;
+    int BitsSet     = 0;
+    int NumberOfObjects;
     int i, j;
     assert(Bitmap != NULL);
 
-    // Iterate the block and flip bits
-    for (i = BlockIndex; 
-         i < (Bitmap->SizeInBytes / sizeof(uintptr_t)) && BitsLeft > 0; i++) {
-        for (j = BlockOffset; j < __BITS && BitsLeft > 0; j++, BitsLeft--) {
-            Bitmap->Data[i] |= (1 << j);
-        }
+    // Get maximum number of iterations
+    NumberOfObjects = Bitmap->SizeInBytes / sizeof(uintptr_t);
 
-        // Reset block offset
-        if (j == __BITS) {
-            BlockOffset = 0;
+    // Iterate the block and flip bits
+    for (i = BlockIndex; (i < NumberOfObjects) && (BitsLeft > 0); i++) {
+        for (j = BlockOffset; (j < __BITS) && (BitsLeft > 0); j++, BitsLeft--) {
+            if (!(Bitmap->Data[i] & (1 << j))) {
+                Bitmap->Data[i] |= (1 << j);
+                BitsSet++;
+            }
         }
+        BlockOffset = 0;
     }
-    return OsSuccess;
+    return BitsSet;
 }
 
 /* BitmapClearBits
- * Clears all bits from the given index, and for <Count> bits. */
-OsStatus_t
+ * Clears all bits from the given index, and for <Count> bits. Returns the number
+ * of bits cleared in this iteration. */
+int
 BitmapClearBits(
     _In_ Bitmap_t*  Bitmap,
     _In_ int        Index,
     _In_ int        Count)
 {
     // Calculate the block index first
-    int BlockIndex  = Index / (sizeof(uintptr_t) * 8);
-    int BlockOffset = Index % (sizeof(uintptr_t) * 8);
+    int BlockIndex  = Index / __BITS;
+    int BlockOffset = Index % __BITS;
     int BitsLeft    = Count;
+    int BitsCleared = 0;
+    int NumberOfObjects;
     int i, j;
     assert(Bitmap != NULL);
 
-    // Iterate the block and flip bits
-    for (i = BlockIndex; 
-         i < (Bitmap->SizeInBytes / sizeof(uintptr_t)) && BitsLeft > 0; i++) {
-        for (j = BlockOffset; j < __BITS && BitsLeft > 0; j++, BitsLeft--) {
-            Bitmap->Data[i] &= ~(1 << j);
-        }
+    // Get maximum number of iterations
+    NumberOfObjects = Bitmap->SizeInBytes / sizeof(uintptr_t);
 
-        // Reset block offset
-        if (j == __BITS) {
-            BlockOffset = 0;
+    // Iterate the block and flip bits
+    for (i = BlockIndex; (i < NumberOfObjects) && (BitsLeft > 0); i++) {
+        for (j = BlockOffset; (j < __BITS) && (BitsLeft > 0); j++, BitsLeft--) {
+            if (Bitmap->Data[i] & (1 << j)) {
+                Bitmap->Data[i] &= ~(1 << j);
+                BitsCleared++;
+            }
         }
+        BlockOffset = 0;
     }
-    return OsSuccess;
+    return BitsCleared;
 }
 
 /* BitmapAreBitsSet

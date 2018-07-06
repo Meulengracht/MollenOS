@@ -106,6 +106,24 @@ AcpiGetTriggerMode(
     return 0;
 }
 
+/* ConvertAcpiFlagsToConformFlags
+ * Converts acpi interrupt flags to the system interrupt conform flags. */
+Flags_t
+ConvertAcpiFlagsToConformFlags(
+    _In_ uint16_t           IntiFlags,
+    _In_ int                Source)
+{
+    Flags_t ConformFlags = 0;
+
+    if (AcpiGetPolarityMode(IntiFlags, Source) == 1) {
+        ConformFlags |= __DEVICEMANAGER_ACPICONFORM_POLARITY;
+    }
+    if (AcpiGetTriggerMode(IntiFlags, Source) == 1) {
+        ConformFlags |= __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE;
+    }
+    return ConformFlags;
+}
+
 /* AcpiDeriveInterrupt
  * Derives an interrupt by consulting the bus of the device, 
  * and spits out flags in AcpiConform and returns irq */
@@ -545,7 +563,7 @@ InterruptHandle(
 
             // Impersonate the target thread
             // and call the fast handler
-            if (Current->AddressSpace != Target->AddressSpace) {
+            if (Current->MemorySpace != Target->MemorySpace) {
                 Current = Target;
                 ThreadingImpersonate(Target);
             }
@@ -572,7 +590,7 @@ InterruptHandle(
     }
 
     // We might have to restore context
-    if (Start->AddressSpace != Current->AddressSpace) {
+    if (Start->MemorySpace != Current->MemorySpace) {
         ThreadingImpersonate(Start);
     }
 

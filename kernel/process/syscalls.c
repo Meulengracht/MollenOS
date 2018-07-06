@@ -33,10 +33,10 @@
 #include <threading.h>
 #include <scheduler.h>
 #include <interrupts.h>
+#include <machine.h>
 #include <timers.h>
 #include <video.h>
 #include <debug.h>
-#include <arch.h>
 #include <heap.h>
 #include <log.h>
 
@@ -88,9 +88,9 @@ ScSystemDebug(
  * and the given arguments, returns UUID_INVALID on failure */
 UUId_t
 ScProcessSpawn(
-    _In_ __CONST char                           *Path,
-    _In_ __CONST ProcessStartupInformation_t    *StartupInformation,
-    _In_ int                                     Asynchronous)
+    _In_ const char*                            Path,
+    _In_ const ProcessStartupInformation_t*     StartupInformation,
+    _In_ int                                    Asynchronous)
 {
     // Variables
     MCorePhoenixRequest_t *Request  = NULL;
@@ -735,13 +735,10 @@ ScMemoryAllocate(
 {
     // Variables
     uintptr_t AllocatedAddress  = 0;
-    MCoreAsh_t *Ash             = NULL;
+    MCoreAsh_t *Ash;
 
     // Locate the current running process
     Ash = PhoenixGetCurrentAsh();
-
-    // Sanitize the process we looked up
-    // we want it to exist of course
     if (Ash == NULL || Size == 0) {
         return OsError;
     }
@@ -762,22 +759,22 @@ ScMemoryAllocate(
     // Handle flags
     // If the commit flag is not given the flags won't be applied
     if (Flags & MEMORY_COMMIT) {
-        int ExtendedFlags = ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL;
+        int ExtendedFlags = MAPPING_USERSPACE | MAPPING_FIXED;
 
         // Build extensions
         if (Flags & MEMORY_CONTIGIOUS) {
-            ExtendedFlags |= ASPACE_FLAG_CONTIGIOUS;
+            ExtendedFlags |= MAPPING_CONTIGIOUS;
         }
         if (Flags & MEMORY_UNCHACHEABLE) {
-            ExtendedFlags |= ASPACE_FLAG_NOCACHE;
+            ExtendedFlags |= MAPPING_NOCACHE;
         }
         if (Flags & MEMORY_LOWFIRST) {
             // Handle mask
         }
 
         // Do the actual mapping
-        if (AddressSpaceMap(AddressSpaceGetCurrent(), PhysicalAddress, &AllocatedAddress, 
-            Size, ExtendedFlags, __MASK) != OsSuccess) {
+        if (CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), 
+            PhysicalAddress, &AllocatedAddress, Size, ExtendedFlags, __MASK) != OsSuccess) {
             ReleaseBlockmapRegion(Ash->Heap, AllocatedAddress, Size);
             *VirtualAddress = 0;
             return OsError;
@@ -809,9 +806,6 @@ ScMemoryFree(
 
     // Locate the current running process
     Ash = PhoenixGetCurrentAsh();
-
-    // Sanitize the process we looked up
-    // we want it to exist of course
     if (Ash == NULL || Address == 0 || Size == 0) {
         return OsError;
     }
@@ -822,7 +816,7 @@ ScMemoryFree(
         ERROR("ScMemoryFree(Address 0x%x, Size 0x%x) was invalid", Address, Size);
         return OsError;
     }
-    return AddressSpaceUnmap(AddressSpaceGetCurrent(), Address, Size);
+    return RemoveSystemMemoryMapping(GetCurrentSystemMemorySpace(), Address, Size);
 }
 
 /* Queries information about a chunk of memory 
@@ -832,19 +826,11 @@ OsStatus_t
 ScMemoryQuery(
     _Out_ MemoryDescriptor_t *Descriptor)
 {
-    // Variables
-    SystemInformation_t SystemInfo;
-
-    // Query information
-    if (SystemInformationQuery(&SystemInfo) != OsSuccess) {
-        return OsError;
-    }
-
     // Copy relevant data over
-    Descriptor->AllocationGranularityBytes = SystemInfo.AllocationGranularity;
-    Descriptor->PageSizeBytes   = AddressSpaceGetPageSize();
-    Descriptor->PagesTotal      = SystemInfo.PagesTotal;
-    Descriptor->PagesUsed       = SystemInfo.PagesAllocated;
+    Descriptor->AllocationGranularityBytes = GetMachine()->MemoryGranularity;
+    Descriptor->PageSizeBytes   = GetSystemMemoryPageSize();
+    Descriptor->PagesTotal      = GetMachine()->PhysicalMemory.BlockCount;
+    Descriptor->PagesUsed       = GetMachine()->PhysicalMemory.BlocksAllocated;
 
     // Return no error, should never fail
     return OsSuccess;
@@ -872,13 +858,13 @@ ScMemoryAcquire(
 
     // Start out by allocating memory 
     // in target process's shared memory space
-    Shm = AllocateBlocksInBlockmap(Ash->Shm, __MASK, Size);
+    Shm = AllocateBlocksInBlockmap(Ash->Heap, __MASK, Size);
     if (Shm == 0) {
         return OsError;
     }
-    *VirtualAddress = Shm + (PhysicalAddress & (AddressSpaceGetPageSize() - 1));
-    return AddressSpaceMap(Ash->AddressSpace, &PhysicalAddress, &Shm, Size, 
-        ASPACE_FLAG_APPLICATION | ASPACE_FLAG_VIRTUAL | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
+    *VirtualAddress = Shm + (PhysicalAddress & (GetSystemMemoryPageSize() - 1));
+    return CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), &PhysicalAddress, &Shm, 
+        Size, MAPPING_USERSPACE | MAPPING_FIXED | MAPPING_VIRTUAL, __MASK);
 }
 
 /* ScMemoryRelease
@@ -891,7 +877,7 @@ ScMemoryRelease(
 {
     // Variables
     MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
-    uintptr_t PageMask = ~(AddressSpaceGetPageSize() - 1);
+    uintptr_t PageMask = ~(GetSystemMemoryPageSize() - 1);
     size_t NumBlocks, i;
 
     // Assumptions:
@@ -904,7 +890,7 @@ ScMemoryRelease(
     }
 
     // Calculate the number of blocks
-    NumBlocks = DIVUP(Size, AddressSpaceGetPageSize());
+    NumBlocks = DIVUP(Size, GetSystemMemoryPageSize());
 
     // Sanity -> If we cross a page boundary
     if (((VirtualAddress + Size) & PageMask) != (VirtualAddress & PageMask)) {
@@ -913,12 +899,12 @@ ScMemoryRelease(
 
     // Iterate through allocated pages and free them
     for (i = 0; i < NumBlocks; i++) {
-        AddressSpaceUnmap(Ash->AddressSpace, 
-            VirtualAddress + (i * AddressSpaceGetPageSize()), AddressSpaceGetPageSize());
+        RemoveSystemMemoryMapping(GetCurrentSystemMemorySpace(), 
+            VirtualAddress + (i * GetSystemMemoryPageSize()), GetSystemMemoryPageSize());
     }
 
     // Free it in bitmap
-    ReleaseBlockmapRegion(Ash->Shm, VirtualAddress, Size);
+    ReleaseBlockmapRegion(Ash->Heap, VirtualAddress, Size);
     return OsSuccess;
 }
 
@@ -940,8 +926,8 @@ ScMemoryProtect(
 
     // We must force the application flag as it will remove
     // the user-accessibility if we allow it to change
-    return AddressSpaceChangeProtection(AddressSpaceGetCurrent(), 
-        AddressStart, Length, Flags | ASPACE_FLAG_APPLICATION, PreviousFlags);
+    return ChangeSystemMemorySpaceProtection(GetCurrentSystemMemorySpace(), 
+        AddressStart, Length, Flags | MAPPING_USERSPACE, PreviousFlags);
 }
 
 /*******************************************************************************
@@ -1053,7 +1039,7 @@ ScCreateFileMapping(
 
     // Start out by allocating memory
     // in target process's shared memory space
-    BaseAddress = AllocateBlocksInBlockmap(Ash->Shm, __MASK, Parameters->Size + (Parameters->Offset % AddressSpaceGetPageSize()));
+    BaseAddress = AllocateBlocksInBlockmap(Ash->Heap, __MASK, Parameters->Size + (Parameters->Offset % GetSystemMemoryPageSize()));
     if (BaseAddress == 0) {
         return OsError;
     }
@@ -1064,8 +1050,8 @@ ScCreateFileMapping(
     Mapping->FileHandle     = Parameters->FileHandle;
     Mapping->VirtualBase    = BaseAddress;
     Mapping->Flags          = (Flags_t)Parameters->Flags;
-    Mapping->FileBlock      = (Parameters->Offset / AddressSpaceGetPageSize()) * AddressSpaceGetPageSize();
-    Mapping->BlockOffset    = (Parameters->Offset % AddressSpaceGetPageSize());
+    Mapping->FileBlock      = (Parameters->Offset / GetSystemMemoryPageSize()) * GetSystemMemoryPageSize();
+    Mapping->BlockOffset    = (Parameters->Offset % GetSystemMemoryPageSize());
     Mapping->Length         = Parameters->Size + Mapping->BlockOffset;
     Key.Value               = 0;
     CollectionAppend(Ash->FileMappings, CollectionCreateNode(Key, Mapping));
@@ -1111,14 +1097,16 @@ ScDestroyFileMapping(
     // Unmap all mappings done
     for (uintptr_t ItrAddress = Mapping->VirtualBase; 
         ItrAddress < (Mapping->VirtualBase + Mapping->Length); 
-        ItrAddress += AddressSpaceGetPageSize()) {
+        ItrAddress += GetSystemMemoryPageSize()) {
         
         // Check if page should be flushed to disk
-        if (AddressSpaceIsDirty(AddressSpaceGetCurrent(), ItrAddress) == OsSuccess) {
+        if (IsSystemMemoryPageDirty(GetCurrentSystemMemorySpace(), ItrAddress) == OsSuccess) {
             Value.QuadPart          = Mapping->FileBlock + (ItrAddress - Mapping->VirtualBase);
+            
+            // Fishy fishy @todo
             TransferObject.Virtual  = (const char*)ItrAddress;
-            TransferObject.Physical = AddressSpaceGetMapping(AddressSpaceGetCurrent(), ItrAddress) & (AddressSpaceGetPageSize() - 1);
-            TransferObject.Capacity = TransferObject.Length = AddressSpaceGetPageSize();
+            TransferObject.Physical = GetSystemMemoryMapping(GetCurrentSystemMemorySpace(), ItrAddress);
+            TransferObject.Capacity = TransferObject.Length = GetSystemMemoryPageSize();
             TransferObject.Position = 0;
             if (SeekFile(Mapping->FileHandle, Value.u.LowPart, Value.u.HighPart) != FsOk ||
                 WriteFile(Mapping->FileHandle, &TransferObject, NULL) != FsOk) {
@@ -1127,11 +1115,11 @@ ScDestroyFileMapping(
         }
 
         // Unmap and cleanup
-        if (AddressSpaceGetMapping(AddressSpaceGetCurrent(), ItrAddress) != 0) {
-            AddressSpaceUnmap(AddressSpaceGetCurrent(), ItrAddress, AddressSpaceGetPageSize());
+        if (GetSystemMemoryMapping(GetCurrentSystemMemorySpace(), ItrAddress) != 0) {
+            RemoveSystemMemoryMapping(GetCurrentSystemMemorySpace(), ItrAddress, GetSystemMemoryPageSize());
         }
     }
-    ReleaseBlockmapRegion(Ash->Shm, Mapping->VirtualBase, Mapping->Length);
+    ReleaseBlockmapRegion(Ash->Heap, Mapping->VirtualBase, Mapping->Length);
 
     // Cleanup
     kfree(Mapping);
@@ -1846,14 +1834,13 @@ ScCreateDisplayFramebuffer(void) {
     }
 
     // Allocate the neccessary size
-    FbVirtual = AllocateBlocksInBlockmap(PhoenixGetCurrentAsh()->Shm, __MASK, FbSize);
+    FbVirtual = AllocateBlocksInBlockmap(PhoenixGetCurrentAsh()->Heap, __MASK, FbSize);
     if (FbVirtual == 0) {
         return NULL;
     }
 
-    if (AddressSpaceMap(AddressSpaceGetCurrent(), &FbPhysical, &FbVirtual, FbSize, 
-        ASPACE_FLAG_APPLICATION | ASPACE_FLAG_NOCACHE | ASPACE_FLAG_SUPPLIEDVIRTUAL | 
-        ASPACE_FLAG_VIRTUAL, __MASK) != OsSuccess) {
+    if (CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), &FbPhysical, &FbVirtual,
+        FbSize, MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_FIXED | MAPPING_VIRTUAL, __MASK) != OsSuccess) {
         // What? @todo
         ERROR("Failed to map the display buffer");
     }

@@ -16,6 +16,7 @@
             "defines": [
                 "__STDC_VERSION__=201112L",
                 "__IDE",
+                "__clang__",
                 "MOLLENOS",
                 "i386",
                 "__i386__",
@@ -38,7 +39,10 @@
                 "_HAVE_LONG_DOUBLE",
                 "_LDBL_EQ_DBL",
                 "_VIOARR_OPENGL",
-                "NANOVG_GL3_IMPLEMENTATION"
+                "NANOVG_GL3_IMPLEMENTATION",
+                "__OSCONFIG_HAS_MMIO",
+                "__OSCONFIG_HAS_VIDEO",
+                "__OSCONFIG_ACPI_SUPPORT"
             ],
             "browse": {
                 "path": [
@@ -67,10 +71,12 @@
             "defines": [
                 "__STDC_VERSION__=201112L",
                 "__IDE",
+                "__clang__",
                 "MOLLENOS",
                 "amd64",
                 "__amd64__",
                 "UNICODE",
+                "_USE_64BIT_TIME_T",
                 "__need_size_t",
                 "__INT_MAX__=2147483647",
                 "__INT64_TYPE__=long long",
@@ -88,7 +94,10 @@
                 "_LDBL_EQ_DBL",
                 "_HAVE_LONG_DOUBLE",
                 "_VIOARR_OPENGL",
-                "NANOVG_GL3_IMPLEMENTATION"
+                "NANOVG_GL3_IMPLEMENTATION",
+                "__OSCONFIG_HAS_MMIO",
+                "__OSCONFIG_HAS_VIDEO",
+                "__OSCONFIG_ACPI_SUPPORT"
             ],
             "browse": {
                 "path": [

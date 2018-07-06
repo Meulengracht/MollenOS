@@ -23,13 +23,58 @@
 #ifndef __COMPONENT_INTERRUPT_CONTROLLER__
 #define __COMPONENT_INTERRUPT_CONTROLLER__
 
-/* Includes
- * - System */
 #include <os/osdefs.h>
 
+typedef struct _SystemInterruptOverride {
+    Flags_t     OverrideFlags;
+    int         SourceLine;
+    int         DestinationLine;
+} SystemInterruptOverride_t;
+
 typedef struct _SystemInterruptController {
-    int     Id;
-    int     NumberOfInterruptLines;
+    UUId_t      Id;
+    int         InterruptLineBase;
+    int         NumberOfInterruptLines;
+    uintptr_t   MemoryAddress;
+    uintptr_t   Data[4];
+
+    struct _SystemInterruptController* Link;
 } SystemInterruptController_t;
+
+/* CreateInterruptController
+ * Creates a new interrupt controller with the given configuration and registers
+ * with the system. */
+KERNELAPI OsStatus_t KERNELABI
+CreateInterruptController(
+    _In_ UUId_t     Id,
+    _In_ int        InterruptLineBase,
+    _In_ int        NumberOfInterrupts,
+    _In_ uintptr_t  BaseAddress);
+
+/* CreateInterruptOverrides
+ * Initializes the overrides with the given number of entries. */
+KERNELAPI OsStatus_t KERNELABI
+CreateInterruptOverrides(
+    _In_ int        NumberOfInterruptOverrides);
+
+/* RegisterInterruptOverride
+ * Registers a new override in a free entry. If the entries are filled it returns OsError. */
+KERNELAPI OsStatus_t KERNELABI
+RegisterInterruptOverride(
+    _In_ int        SourceInterruptLine,
+    _In_ int        DestinationInterruptLine,
+    _In_ Flags_t    InterruptFlags);
+
+/* GetPinOffsetByLine
+ * Retrieves the correct physical pin used by the given interrupt line. */
+KERNELAPI int KERNELABI
+GetPinOffsetByLine(
+    _In_ int        InterruptLine);
+
+/* GetInterruptControllerByLine
+ * Retrieves the correct interrupt controller by identifying which line belongs to it. */
+KERNELAPI SystemInterruptController_t* KERNELABI
+GetInterruptControllerByLine(
+    _In_ int        InterruptLine);
 
 #endif // !__COMPONENT_INTERRUPT_CONTROLLER__

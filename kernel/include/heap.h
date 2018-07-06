@@ -35,8 +35,6 @@
 #ifndef _MCORE_HEAP_H_
 #define _MCORE_HEAP_H_
 
-/* Includes
- * - System */
 #include <os/osdefs.h>
 #include <criticalsection.h>
 

@@ -23,9 +23,8 @@
 #ifndef __APIC_H__
 #define __APIC_H__
 
-/* Includes 
- * - System */
 #include <os/osdefs.h>
+#include <component/ic.h>
 #include <arch.h>
 
 /* Local Apic Registers Definitions
@@ -124,16 +123,11 @@ typedef enum _InterruptTarget {
     InterruptAllButSelf
 } InterruptTarget_t;
 
-/* The struture of an io-apic entry in
- * the apic code, we keep track of id,
- * version and gsi information */
-typedef struct _IoApic {
-	int					Id;
-	int					Version;
-	int					GsiStart;
-	int					PinCount;
-	volatile uintptr_t	BaseAddress;
-} IoApic_t;
+typedef enum _SystemInterruptMode {
+    InterruptModePic,
+    InterruptModeApic,
+    InterruptModeApicX2
+} SystemInterruptMode_t;
 
 /* ApicInitialize
  * Initialize the local APIC controller and install default interrupts. */
@@ -144,6 +138,11 @@ ApicInitialize(void);
  * Returns OsSuccess if the local apic is initialized and memory mapped. */
 KERNELAPI OsStatus_t KERNELABI
 ApicIsInitialized(void);
+
+/* GetApicInterruptMode
+ * Returns the current system interrupt mode. This is determined by ApicInitialize(). */
+KERNELAPI SystemInterruptMode_t KERNELABI
+GetApicInterruptMode(void);
 
 /* InitializeLocalApicForApplicationCore
  * Enables the local apic and sets it's default state. Also initializes the 
@@ -183,22 +182,22 @@ __EXTERN void ApicWriteLocal(size_t Register, uint32_t Value);
 /* Read from io-apic registers
  * Reads and writes from and to the io apic
  * registers must always be 32 bit */
-__EXTERN uint32_t ApicIoRead(IoApic_t *IoApic, uint32_t Register);
+__EXTERN uint32_t ApicIoRead(SystemInterruptController_t *IoApic, uint32_t Register);
 
 /* Write to the io-apic registers
  * Reads and writes from and to the io apic
  * registers must always be 32 bit */
-__EXTERN void ApicIoWrite(IoApic_t *IoApic, uint32_t Register, uint32_t Data);
+__EXTERN void ApicIoWrite(SystemInterruptController_t *IoApic, uint32_t Register, uint32_t Data);
 
 /* Reads interrupt data from the io-apic
  * interrupt register. It reads the data from
  * the given Pin (io-apic entry) offset. */
-__EXTERN uint64_t ApicReadIoEntry(IoApic_t *IoApic, int Pin);
+__EXTERN uint64_t ApicReadIoEntry(SystemInterruptController_t *IoApic, int Pin);
 
 /* Writes interrupt data to the io-apic
  * interrupt register. It writes the data to
  * the given Pin (io-apic entry) offset. */
-__EXTERN void ApicWriteIoEntry(IoApic_t *IoApic, int Pin, uint64_t Data);
+__EXTERN void ApicWriteIoEntry(SystemInterruptController_t *IoApic, int Pin, uint64_t Data);
 
 /* Sends end of interrupt to the local
  * apic chip, and enables for a new interrupt
@@ -243,18 +242,6 @@ ApicPerformSIPI(
  * Retrieves the local apic id for the calling cpu through available mechanisms. */
 KERNELAPI UUId_t KERNELABI
 GetCoreIdentificationNumber(void);
-
-/* This function derives an io-apic from
- * the given gsi index, by locating which
- * io-apic owns the gsi and returns it.
- * Returns NULL if gsi is invalid */
-__EXTERN IoApic_t *ApicGetIoFromGsi(int Gsi);
-
-/* Calculates the pin from the 
- * given gsi, it tries to locate the
- * relevenat io-apic, if not found 
- * it returns -1, otherwise the pin */
-__EXTERN int ApicGetPinFromGsi(int Gsi);
 
 /* This only is something we need to check on 
  * 32-bit processors, all 64 bit cpus must use

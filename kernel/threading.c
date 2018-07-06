@@ -32,6 +32,7 @@
 
 #include <garbagecollector.h>
 #include <process/phoenix.h>
+#include <memoryspace.h>
 #include <interrupts.h>
 #include <threading.h>
 #include <scheduler.h>
@@ -89,7 +90,7 @@ ThreadingEnable(void)
     COLLECTION_NODE_INIT(&Thread->CollectionHeader, Key);
 
     // Initialize arch-dependant members
-    Thread->AddressSpace = AddressSpaceCreate(ASPACE_TYPE_KERNEL);
+    Thread->MemorySpace = GetCurrentSystemMemorySpace();
     if (ThreadingRegister(Thread) != OsSuccess) {
         ERROR("Failed to register thread with system. Threading is not enabled.");
         CpuHalt();
@@ -204,21 +205,21 @@ ThreadingCreateThread(
     // Determine the address space we want
     // to initialize for this thread
     if (THREADING_RUNMODE(Flags) == THREADING_KERNELMODE) {
-        Thread->AddressSpace = AddressSpaceCreate(ASPACE_TYPE_INHERIT);
+        Thread->MemorySpace = CreateSystemMemorySpace(MEMORY_SPACE_INHERIT);
     }
     else {
         Flags_t ASFlags = 0;
 
         if (THREADING_RUNMODE(Flags) == THREADING_DRIVERMODE) {
-            ASFlags |= ASPACE_TYPE_DRIVER;
+            ASFlags |= MEMORY_SPACE_SERVICE;
         }
         else {
-            ASFlags |= ASPACE_TYPE_APPLICATION;
+            ASFlags |= MEMORY_SPACE_APPLICATION;
         }
         if (Flags & THREADING_INHERIT) {
-            ASFlags |= ASPACE_TYPE_INHERIT;
+            ASFlags |= MEMORY_SPACE_INHERIT;
         }
-        Thread->AddressSpace = AddressSpaceCreate(ASFlags);
+        Thread->MemorySpace = CreateSystemMemorySpace(ASFlags);
     }
 
     // Create context's neccessary
@@ -262,7 +263,7 @@ ThreadingCleanupThread(
         kfree(fNode->Data);
     }
     CollectionDestroy(Thread->SignalQueue);
-    AddressSpaceDestroy(Thread->AddressSpace);
+    ReleaseSystemMemorySpace(Thread->MemorySpace);
     DestroySystemPipe(Thread->Pipe);
 
     // Free resources allocated

@@ -23,7 +23,7 @@
 
 /* Includes 
  * - System */
-#include <system/addressspace.h>
+#include <memoryspace.h>
 #include <modules/modules.h>
 #include <os/file.h>
 #include <process/ash.h>
@@ -178,8 +178,9 @@ PeHandleSections(
     // Variables
     PeSectionHeader_t *Section  = (PeSectionHeader_t*)SectionAddress;
     uintptr_t CurrentAddress    = PeFile->VirtualAddress;
+    OsStatus_t Status;
     char SectionName[PE_SECTION_NAME_LENGTH + 1];
-    int i, j;
+    int i;
 
     // Debug
     TRACE("PeHandleSections(Library %s, Address 0x%x, AddressOfSections 0x%x, SectionCount %i)",
@@ -191,9 +192,9 @@ PeHandleSections(
         // Calculate pointers, we need two of them, one that
         // points to data in file, and one that points to where
         // in memory we want to copy data to
+        uintptr_t VirtualDestination = PeFile->VirtualAddress + Section->VirtualAddress;
         uint8_t *FileBuffer     = (uint8_t*)(Data + Section->RawAddress);
-        uint8_t *Destination    = (uint8_t*)(PeFile->VirtualAddress + Section->VirtualAddress);
-        int PageCount           = DIVUP(MAX(Section->RawSize, Section->VirtualSize), AddressSpaceGetPageSize());
+        uint8_t *Destination    = (uint8_t*)VirtualDestination;
 
         // Make a local copy of the name, just in case
         // we need to do some debug print
@@ -201,11 +202,12 @@ PeHandleSections(
         SectionName[8]          = 0;
 
         // Iterate pages and map them in our memory space
-        Flags_t PageFlags = (UserSpace == 1) ? ASPACE_FLAG_APPLICATION : 0;
-        PageFlags |= ASPACE_FLAG_SUPPLIEDVIRTUAL;
-        for (j = 0; j < PageCount; j++) {
-            uintptr_t Calculated = (uintptr_t)Destination + (j * AddressSpaceGetPageSize());
-            AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &Calculated, AddressSpaceGetPageSize(), PageFlags, __MASK);
+        Flags_t PageFlags = (UserSpace == 1) ? MAPPING_USERSPACE : 0;
+        PageFlags |= MAPPING_FIXED;
+        Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &VirtualDestination,
+            MAX(Section->RawSize, Section->VirtualSize), PageFlags, __MASK);
+        if (Status != OsSuccess) {
+            ERROR("Failed to map in PE section at 0x%x", Destination);
         }
 
         // Store first code segment we encounter
@@ -243,8 +245,8 @@ PeHandleSections(
 
     // Return a page-aligned address that points to the
     // next free relocation address
-    if (CurrentAddress % AddressSpaceGetPageSize()) {
-        CurrentAddress += (AddressSpaceGetPageSize() - (CurrentAddress % AddressSpaceGetPageSize()));
+    if (CurrentAddress % GetSystemMemoryPageSize()) {
+        CurrentAddress += (GetSystemMemoryPageSize() - (CurrentAddress % GetSystemMemoryPageSize()));
     }
     return CurrentAddress;
 }
@@ -781,13 +783,13 @@ PeLoadImage(
     }
 
     // Copy sections to base address
-    if (AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &PeInfo->VirtualAddress,
-        SizeOfMetaData, ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK)) {
+    if (CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &PeInfo->VirtualAddress,
+        SizeOfMetaData, MAPPING_USERSPACE | MAPPING_FIXED, __MASK) != OsSuccess) {
         // Whatthe
         FATAL(FATAL_SCOPE_KERNEL, "Failed to map pe's metadata, out of memory?");
     }
     memcpy((void*)PeInfo->VirtualAddress, Buffer, SizeOfMetaData);
-        
+    
     // Now we want to handle all the directories
     // and sections in the image, start out by handling
     // the sections, then parse all directories

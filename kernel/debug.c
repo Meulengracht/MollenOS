@@ -25,7 +25,7 @@
 
 /* Includes
  * - System */
-#include <system/addressspace.h>
+#include <memoryspace.h>
 #include <system/iospace.h>
 #include <system/utils.h>
 #include <process/phoenix.h>
@@ -221,13 +221,13 @@ DebugStackTrace(
     // Derive stack pointer from the argument
     uintptr_t *StackPtr = NULL;
     uintptr_t StackLmt  = 0;
-    uintptr_t PageMask  = ~(AddressSpaceGetPageSize() - 1);
+    uintptr_t PageMask  = ~(GetSystemMemoryPageSize() - 1);
     size_t Itr          = MaxFrames;
 
     // Use local or given?
     if (Context == NULL) {
         StackPtr = (uintptr_t*)&MaxFrames;
-        StackLmt = ((uintptr_t)StackPtr & PageMask) + AddressSpaceGetPageSize();
+        StackLmt = ((uintptr_t)StackPtr & PageMask) + GetSystemMemoryPageSize();
     }
     else if (CONTEXT_USERSP(Context) != 0) {
         StackPtr = (uintptr_t*)CONTEXT_USERSP(Context);
@@ -235,7 +235,7 @@ DebugStackTrace(
     }
     else {
         StackPtr = (uintptr_t*)CONTEXT_SP(Context);
-        StackLmt = (CONTEXT_SP(Context) & PageMask) + AddressSpaceGetPageSize();
+        StackLmt = (CONTEXT_SP(Context) & PageMask) + GetSystemMemoryPageSize();
     }
 
     while (Itr && (uintptr_t)StackPtr < StackLmt) {
@@ -327,9 +327,9 @@ DebugPageFaultIoMemory(
     // Sanitize
     if (Physical != 0) {
         // Try to map it in and return the result
-        return AddressSpaceMap(AddressSpaceGetCurrent(), &Physical, &Address, AddressSpaceGetPageSize(),
-            ASPACE_FLAG_NOCACHE | ASPACE_FLAG_APPLICATION | ASPACE_FLAG_VIRTUAL 
-            | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
+        return CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), &Physical, &Address, 
+            GetSystemMemoryPageSize(), MAPPING_USERSPACE | MAPPING_NOCACHE | 
+            MAPPING_FIXED | MAPPING_VIRTUAL, __MASK);
     }
     return OsError;
 }
@@ -343,8 +343,8 @@ DebugPageFaultKernelHeapMemory(
 {
     if (HeapValidateAddress(HeapGetKernel(), Address) == OsSuccess) {
         // Try to map it in and return the result
-        return AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &Address, 
-            AddressSpaceGetPageSize(), ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
+        return CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &Address, 
+            GetSystemMemoryPageSize(), MAPPING_FIXED, __MASK);
     }
     return OsError;
 }
@@ -362,8 +362,8 @@ DebugPageFaultProcessHeapMemory(
     if (Ash != NULL) {
         if (BlockBitmapValidateState(Ash->Heap, Address, 1) == OsSuccess) {
             // Try to map it in and return the result
-            return AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &Address, 
-                AddressSpaceGetPageSize(), ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
+            return CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &Address, 
+                GetSystemMemoryPageSize(), MAPPING_USERSPACE | MAPPING_FIXED, __MASK);
         }
     }
     return OsSuccess;
@@ -399,13 +399,6 @@ DebugPageFaultProcessSharedMemory(
                 return Result;
             }
         }
-
-        // Validate through the bitmap to make sure
-        if (BlockBitmapValidateState(Ash->Shm, Address, 1) == OsSuccess) {
-            // Try to map it in and return the result
-            return AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &Address, AddressSpaceGetPageSize(), 
-                ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
-        }
     }
     return OsError;
 }
@@ -418,42 +411,38 @@ DebugPageFaultThreadMemory(
     _In_ uintptr_t  Address)
 {
     // Try to map it in and return the result
-    return AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &Address, 
-                AddressSpaceGetPageSize(), ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
+    return CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &Address, 
+                GetSystemMemoryPageSize(), MAPPING_USERSPACE | MAPPING_FIXED, __MASK);
 }
 
 /* DebugInstallPageFaultHandlers
  * Install page-fault handlers. Should be called as soon as memory setup phase is done */
 OsStatus_t
-DebugInstallPageFaultHandlers(void)
+DebugInstallPageFaultHandlers(
+	_In_ SystemMemoryMap_t*	MemoryMap)
 {
     // Debug
     TRACE("DebugInstallPageFaultHandlers()");
 
     // Io memory handler
-    PageFaultHandlers[0].AreaStart      = MEMORY_LOCATION_RING3_IOSPACE;
-    PageFaultHandlers[0].AreaEnd        = MEMORY_LOCATION_RING3_IOSPACE_END;
+    PageFaultHandlers[0].AreaStart      = MemoryMap->UserIoMemory.Start;
+    PageFaultHandlers[0].AreaEnd        = MemoryMap->UserIoMemory.Start + MemoryMap->UserIoMemory.Length;
     PageFaultHandlers[0].AreaHandler    = DebugPageFaultIoMemory;
 
     // Heap memory handler
-    PageFaultHandlers[1].AreaStart      = MEMORY_LOCATION_HEAP;
-    PageFaultHandlers[1].AreaEnd        = MEMORY_LOCATION_HEAP_END;
+    PageFaultHandlers[1].AreaStart      = MemoryMap->SystemHeap.Start;
+    PageFaultHandlers[1].AreaEnd        = MemoryMap->SystemHeap.Start + MemoryMap->SystemHeap.Length;
     PageFaultHandlers[1].AreaHandler    = DebugPageFaultKernelHeapMemory;
 
     // Process heap memory handler
-    PageFaultHandlers[2].AreaStart      = MEMORY_LOCATION_RING3_HEAP;
-    PageFaultHandlers[2].AreaEnd        = MEMORY_LOCATION_RING3_HEAP_END;
+    PageFaultHandlers[2].AreaStart      = MemoryMap->UserHeap.Start;
+    PageFaultHandlers[2].AreaEnd        = MemoryMap->UserHeap.Start + MemoryMap->UserHeap.Length;
     PageFaultHandlers[2].AreaHandler    = DebugPageFaultProcessHeapMemory;
 
-    // Process shared memory handler
-    PageFaultHandlers[3].AreaStart      = MEMORY_LOCATION_RING3_SHM;
-    PageFaultHandlers[3].AreaEnd        = MEMORY_LOCATION_RING3_SHM_END;
-    PageFaultHandlers[3].AreaHandler    = DebugPageFaultProcessSharedMemory;
-
     // Thread-specific memory handler
-    PageFaultHandlers[4].AreaStart      = MEMORY_LOCATION_RING3_THREAD_START;
-    PageFaultHandlers[4].AreaEnd        = MEMORY_LOCATION_RING3_THREAD_END;
-    PageFaultHandlers[4].AreaHandler    = DebugPageFaultThreadMemory;
+    PageFaultHandlers[3].AreaStart      = MemoryMap->ThreadArea.Start;
+    PageFaultHandlers[3].AreaEnd        = MemoryMap->ThreadArea.Start + MemoryMap->ThreadArea.Length;
+    PageFaultHandlers[3].AreaHandler    = DebugPageFaultThreadMemory;
     return OsSuccess;
 }
 

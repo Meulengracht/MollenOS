@@ -19,6 +19,7 @@
  * MollenOS x86 Advanced Programmable Interrupt Controller Driver
  *  - Ipi and synchronization utility functions
  */
+
 #include <system/interrupts.h>
 #include <system/utils.h>
 #include <assert.h>
@@ -82,7 +83,7 @@ ApicSendInterrupt(
     UUId_t CpuId        = UUID_INVALID;
     IntStatus_t InterruptStatus;
     OsStatus_t Status;
-
+    
     // Get cpu-id of us
     CpuId = CpuGetCurrentId();
     if (Type == InterruptSpecific && Specific == CpuId) {

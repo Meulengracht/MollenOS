@@ -20,35 +20,20 @@
  *   of a system domain.
  */
 #include <component/domain.h>
-#include <component/cpu.h>
+#include <system/utils.h>
 #include <machine.h>
 
-/* Global storage
- * Global static storage/variables for managing domains. */
-static SystemDomain_t PrimaryDomain = { { 0 }, { { 0 } }, { 0 } };
-
-/* InitializePrimaryDomain
- * Initializes the primary domain of the current machine. */
-void 
-InitializePrimaryDomain(void)
+/* CreateNumaDomain
+ * Creates a new domain with the given parameters and configuration. */
+OsStatus_t
+CreateNumaDomain(
+    _In_  UUId_t            DomainId,
+    _In_  int               NumberOfCores,
+    _In_  uintptr_t         MemoryRangeStart, 
+    _In_  uintptr_t         MemoryRangeLength,
+    _Out_ SystemDomain_t**  Domain)
 {
-    // Initialize the processor of the machine
-    InitializeProcessor(&PrimaryDomain.Cpu);
-    RegisterPrimaryCore(&PrimaryDomain.Cpu);
-    
-    // Update initial cpu stats in machine
-    GetMachine()->NumberOfProcessors    = 1;
-    GetMachine()->NumberOfCores         = 1;
-
-    // Add to list of domains
-    GetMachine()->PrimaryDomain = &PrimaryDomain;
-    CollectionAppend(&GetMachine()->SystemDomains, &PrimaryDomain.Header);
-
-    // Initialize memory of the domain
-    // @todo
-
-    // Initialize the interrupt controller of the domain
-    // @todo
+    return OsSuccess;
 }
 
 /* GetCurrentDomain
@@ -57,7 +42,7 @@ InitializePrimaryDomain(void)
 SystemDomain_t*
 GetCurrentDomain(void)
 {
-    return &PrimaryDomain;
+    return NULL;
 }
 
 /* GetDomains

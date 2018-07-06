@@ -47,6 +47,12 @@ typedef struct _BlockBitmap {
     size_t              NumFrees;
 } BlockBitmap_t;
 
+typedef struct _BlockBitmapSegment {
+    BlockBitmap_t*      Source;
+    uintptr_t           SegmentStart;
+    uintptr_t           SegmentSize;
+} BlockBitmapSegment_t;
+
 /* CreateBlockmap
  * Creates a new blockmap of with the given configuration and returns a pointer to a newly
  * allocated blockmap. Also returns an error code. */

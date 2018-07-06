@@ -28,6 +28,8 @@
  * - System */
 #include <system/interrupts.h>
 #include <system/utils.h>
+#include <memoryspace.h>
+#include <machine.h>
 #include <memory.h>
 #include <debug.h>
 #include <apic.h>
@@ -48,7 +50,8 @@ extern const char __GlbTramplineCode[];
 
 /* SmpApplicationCoreEntry
  * The entry point for other cpu cores to get ready for code execution. This is neccessary
- * as the cores boot in 16 bit mode (64 bit for EFI?) */
+ * as the cores boot in 16 bit mode (64 bit for EFI?). The state we expect the core in is that
+ * it has paging enabled in the same address space as boot-core. */
 void
 SmpApplicationCoreEntry(void)
 {
@@ -58,8 +61,8 @@ SmpApplicationCoreEntry(void)
 	GdtInstall();
 	IdtInstall();
 
-	// Initialize memory and the local apic (needs mappings)
-    InitializeMemoryForApplicationCore();
+    // Switch into NUMA memory space if any, otherwise nothing happens
+    SwitchSystemMemorySpace(GetCurrentSystemMemorySpace());
 	InitializeLocalApicForApplicationCore();
 
     // Install the TSS before any multitasking
@@ -69,12 +72,12 @@ SmpApplicationCoreEntry(void)
     ActivateApplicationCore(GetCurrentProcessorCore());
 }
 
-/* SmpBootCore
- * Handles the booting of the given cpu core. It performs the sequence IPI-SIPI(-SIPI)
- * and checks if the core booted. Otherwise it moves on to the next */
+/* StartApplicationCore (@arch)
+ * Initializes and starts the cpu core given. This is called by the kernel if it detects multiple
+ * cores in the processor. */
 void
-SmpBootCore(
-    _In_ SystemCpuCore_t* Core)
+StartApplicationCore(
+    _In_ SystemCpuCore_t*   Core)
 {
 	// Perform the IPI
 	TRACE(" > Booting core %u", Core->Id);
@@ -110,24 +113,14 @@ CpuSmpInitialize(void)
     // Variables
     uint32_t *CodePointer   = (uint32_t*)((uint8_t*)(&__GlbTramplineCode[0]) + __GlbTramplineCode_length); 
 	uint32_t EntryCode      = (uint32_t)(uint32_t*)SmpApplicationCoreEntry;
-    int i;
 
     // Debug
-    TRACE("CpuSmpInitialize(%i)", GetCurrentDomain()->Cpu.NumberOfCores);
+    TRACE("CpuSmpInitialize(%i)", GetMachine()->Processor.NumberOfCores);
 
     // Initialize variables
     *(CodePointer - 1) = EntryCode;
-    *(CodePointer - 2) = AddressSpaceGetCurrent()->Data[ASPACE_DATA_CR3];
+    *(CodePointer - 2) = GetCurrentSystemMemorySpace()->Data[MEMORY_SPACE_CR3];
 
     // Initialize the trampoline code in memory
 	memcpy((void*)MEMORY_LOCATION_TRAMPOLINE_CODE, (char*)__GlbTramplineCode, __GlbTramplineCode_length);
-	
-    // Boot all cores
-    for (i = 0; i < (GetCurrentDomain()->Cpu.NumberOfCores - 1); i++) {
-        SmpBootCore(&GetCurrentDomain()->Cpu.ApplicationCores[i]);
-    }
-
-#ifdef __DIAGNOSE
-    for(;;);
-#endif
 }

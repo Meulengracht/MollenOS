@@ -36,20 +36,17 @@
  * We do not need to support more than 256 cpus because of APIC id's on the x86 arch. */
 static SystemCpuCore_t* CpuStorageTable[256] = { 0 };
 
-/* RegisterPrimaryCore
+/* RegisterStaticCore
  * Registers the primary core for the given cpu. The core count and the
  * application-core will be initialized on first call to this function. This also allocates a 
  * new instance of the cpu-core. */
 void
-RegisterPrimaryCore(
-    _In_ SystemCpu_t*       Cpu)
+RegisterStaticCore(
+    _In_ SystemCpuCore_t*   Core)
 {
     // Register in lookup table
-    assert(Cpu->PrimaryCore.Id < 256);
-    CpuStorageTable[Cpu->PrimaryCore.Id] = &Cpu->PrimaryCore;
-
-    // Prints now works that the table has been set
-    WARNING("RegisterPrimaryCore(%s, %s, %i)", &Cpu->Vendor[0], &Cpu->Brand[0], Cpu->NumberOfCores);
+    assert(Core->Id < 256);
+    CpuStorageTable[Core->Id] = Core;
 }
 
 /* RegisterApplicationCore
@@ -101,14 +98,25 @@ void
 ActivateApplicationCore(
     _In_ SystemCpuCore_t*   Core)
 {
+    SystemDomain_t *Domain;
+
     // Notify everyone that we are running
-    GetMachine()->NumberOfCores++;
+    GetMachine()->NumberOfActiveCores++;
     Core->State = CpuStateRunning;
 
     // Create the idle-thread and scheduler for the core
 	SchedulerInitialize();
 	ThreadingEnable();
     InterruptEnable();
+
+    // Bootup rest of cores in this domain if we are the primary core of
+    // this domain. Then our job is simple
+    Domain = GetCurrentDomain();
+    if (Domain != NULL && GetCurrentProcessorCore() == &Domain->CoreGroup.PrimaryCore) {
+        for (int i = 0; i < (Domain->CoreGroup.NumberOfCores - 1); i++) {
+            StartApplicationCore(&Domain->CoreGroup.ApplicationCores[i]);
+        }
+    }
 
     // Debug
     WARNING("Core %u is online", Core->Id);

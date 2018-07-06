@@ -43,59 +43,6 @@
 OsStatus_t
 TimersDiscover(void);
 
-/* SystemInformationQuery 
- * Queries information about the running system
- * and the underlying architecture */
-OsStatus_t
-SystemInformationQuery(
-	_Out_ SystemInformation_t *Information)
-{
-	// Copy memory information
-	if (MmPhysicalQuery(&Information->PagesTotal, &Information->PagesAllocated) != OsSuccess) {
-		return OsError;
-	}
-
-    // Fill in memory overview
-    Information->AllocationGranularity                  = ALLOCATION_BLOCK_SIZE;
-    Information->MemoryOverview.UserCodeStart           = MEMORY_LOCATION_RING3_CODE;
-    Information->MemoryOverview.UserCodeSize            = MEMORY_LOCATION_RING3_CODE_END - MEMORY_LOCATION_RING3_CODE;
-    Information->MemoryOverview.UserSharedMemoryStart   = MEMORY_LOCATION_RING3_SHM;
-    Information->MemoryOverview.UserSharedMemorySize    = MEMORY_LOCATION_RING3_SHM_END - MEMORY_LOCATION_RING3_SHM;
-    Information->MemoryOverview.UserDriverMemoryStart   = MEMORY_LOCATION_RING3_IOSPACE;
-    Information->MemoryOverview.UserDriverMemorySize    = MEMORY_LOCATION_RING3_IOSPACE_END - MEMORY_LOCATION_RING3_IOSPACE;
-    Information->MemoryOverview.UserHeapStart           = MEMORY_LOCATION_RING3_HEAP;
-    Information->MemoryOverview.UserHeapSize            = MEMORY_LOCATION_RING3_HEAP_END - MEMORY_LOCATION_RING3_HEAP;
-	return OsSuccess;
-}
-
-/* SystemFeaturesQuery
- * Called by the kernel to get which systems we support */
-OsStatus_t
-SystemFeaturesQuery(
-    _In_ Multiboot_t *BootInformation,
-    _Out_ Flags_t *SystemsSupported)
-{
-    // Variables
-    Flags_t Features = 0;
-
-    // Of course we support software features
-    Features |= SYSTEM_FEATURE_INITIALIZE;
-    Features |= SYSTEM_FEATURE_FINALIZE;
-
-    // Memory features
-    Features |= SYSTEM_FEATURE_MEMORY;
-
-    // Output features
-    Features |= SYSTEM_FEATURE_OUTPUT;
-
-    // Hardware features
-    Features |= SYSTEM_FEATURE_INTERRUPTS;
-
-    // Done
-    *SystemsSupported = Features;
-    return OsSuccess;
-}
-
 /* SystemFeaturesInitialize
  * Called by the kernel to initialize a supported system */
 OsStatus_t
@@ -103,12 +50,6 @@ SystemFeaturesInitialize(
     _In_ Multiboot_t *BootInformation,
     _In_ Flags_t Systems)
 {
-    // Handle the memory initialization
-    if (Systems & SYSTEM_FEATURE_MEMORY) {
-        MmPhyiscalInit(BootInformation);
-        MmVirtualInit();
-    }
-
     // Handle interrupt initialization
     if (Systems & SYSTEM_FEATURE_INTERRUPTS) {
         InitializeSoftwareInterrupts();

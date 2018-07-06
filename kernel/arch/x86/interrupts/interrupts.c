@@ -57,22 +57,16 @@ OsStatus_t
 ThreadingFpuException(
     _In_ MCoreThread_t *Thread);
 
-/* Internal definitons and helper contants */
 #define EFLAGS_INTERRUPT_FLAG        (1 << 9)
 #define APIC_FLAGS_DEFAULT            0x7F00000000000000
 #define NUM_ISA_INTERRUPTS			16
 
-/* Externs 
- * Extern assembly functions */
-__EXTERN void __cli(void);
-__EXTERN void __sti(void);
-__EXTERN reg_t __getflags(void);
-__EXTERN reg_t __getcr2(void);
-__EXTERN void enter_thread(Context_t *Regs);
-
-/* Externs 
- * These are for external access to some of the ACPI information */
-__EXTERN Collection_t *GlbAcpiNodes;
+// extern assembly functions
+extern void     __cli(void);
+extern void     __sti(void);
+extern reg_t    __getflags(void);
+extern reg_t    __getcr2(void);
+extern void     enter_thread(Context_t *Regs);
 
 /* InitializeSoftwareInterrupts
  * Initializes all the default software interrupt gates. */
@@ -121,25 +115,34 @@ InterruptGetApicConfiguration(
 {
     // Variables
     uint64_t ApicFlags = APIC_FLAGS_DEFAULT;
-    
-    // Trace
+
     TRACE("InterruptDetermine()");
 
     // Case 1 - ISA Interrupts 
     // - In most cases are Edge-Triggered, Active-High
-    if (Interrupt->Line < NUM_ISA_INTERRUPTS
-        && Interrupt->Pin == INTERRUPT_NONE) {
+    if (Interrupt->Line < NUM_ISA_INTERRUPTS && Interrupt->Pin == INTERRUPT_NONE) {
         int Enabled, LevelTriggered;
         PicGetConfiguration(Interrupt->Line, &Enabled, &LevelTriggered);
         ApicFlags |= 0x100;                    // Lowest Priority
         ApicFlags |= 0x800;                    // Logical Destination Mode
+        
+        // Configure as level triggered if requested by interrupt flags
+        // Ignore polarity mode as that is automatically treated as active low
+        // when trigger is set to level
+        if (Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE) {
+            if (LevelTriggered != 1) {
+                PicConfigureLine(Interrupt->Line, -1, 1);
+                LevelTriggered = 1;
+            }
+        }
+
         if (LevelTriggered == 1) {
-            TRACE(" - ISA Peripheral Interrupt (Active-Low, Level-Triggered)");
+            TRACE(" > isa peripheral interrupt (active-low, level-triggered)");
             ApicFlags |= APIC_ACTIVE_LOW;            // Set Polarity
             ApicFlags |= APIC_LEVEL_TRIGGER;        // Set Trigger Mode
         }
         else {
-            TRACE(" - ISA Interrupt (Active-High, Edge-Triggered)");
+            TRACE(" > isa interrupt (active-high, edge-triggered)");
         }
     }
     
@@ -147,7 +150,7 @@ InterruptGetApicConfiguration(
     // - Must be Level Triggered Low-Active
     else if (Interrupt->Line >= NUM_ISA_INTERRUPTS
             && Interrupt->Pin == INTERRUPT_NONE) {
-        TRACE(" - PCI Interrupt (Active-Low, Level-Triggered)");
+        TRACE(" > pci interrupt (active-low, level-triggered)");
         ApicFlags |= 0x100;                        // Lowest Priority
         ApicFlags |= 0x800;                        // Logical Destination Mode
         ApicFlags |= APIC_ACTIVE_LOW;            // Set Polarity
@@ -159,12 +162,12 @@ InterruptGetApicConfiguration(
     else if (Interrupt->Pin != INTERRUPT_NONE) {
         // If no routing exists use the pci interrupt line
         if (!(Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_PRESENT)) {
-            TRACE(" - PCI Interrupt (Active-Low, Level-Triggered)");
+            TRACE(" > pci interrupt (active-low, level-triggered)");
             ApicFlags |= 0x100;                    // Lowest Priority
             ApicFlags |= 0x800;                    // Logical Destination Mode
         }
         else {
-            TRACE(" - PCI Interrupt (Pin-Configured - 0x%x)", Interrupt->AcpiConform);
+            TRACE(" > pci interrupt (pin-configured - 0x%x)", Interrupt->AcpiConform);
             ApicFlags |= 0x100;                    // Lowest Priority
             ApicFlags |= 0x800;                    // Logical Destination Mode
 
@@ -184,8 +187,6 @@ InterruptGetApicConfiguration(
             }
         }
     }
-
-    // Done
     return ApicFlags;
 }
 
@@ -231,14 +232,10 @@ InterruptResolve(
     if (Interrupt->Line != INTERRUPT_NONE) {
         // Now lookup in ACPI overrides if we should
         // change the global source
-        foreach(iNode, GlbAcpiNodes) {
-            if (iNode->Key.Value == ACPI_MADT_TYPE_INTERRUPT_OVERRIDE) {
-                ACPI_MADT_INTERRUPT_OVERRIDE *IoEntry =
-                    (ACPI_MADT_INTERRUPT_OVERRIDE*)iNode->Data;
-                if ((int)IoEntry->SourceIrq == Interrupt->Line) {
-                    Interrupt->Line = IoEntry->GlobalIrq;
-                    break;
-                }
+        for (int i = 0; i < GetMachine()->NumberOfOverrides; i++) {
+            if (GetMachine()->Overrides[i].SourceLine == Interrupt->Line) {
+                Interrupt->Line         = GetMachine()->Overrides[i].DestinationLine;
+                Interrupt->AcpiConform  = GetMachine()->Overrides[i].OverrideFlags;
             }
         }
     }
@@ -293,8 +290,8 @@ InterruptConfigure(
     _In_ int                            Enable)
 {
     // Variables
+    SystemInterruptController_t *Ic = NULL;
     uint64_t ApicFlags      = APIC_FLAGS_DEFAULT;
-    IoApic_t *IoApic        = NULL;
     UUId_t TableIndex       = 0;
     union {
         struct {
@@ -338,13 +335,13 @@ InterruptConfigure(
 
 UpdateEntry:
     // If Apic Entry is located, we need to adjust
-    IoApic = ApicGetIoFromGsi(Descriptor->Source);
-    if (IoApic != NULL) {
+    Ic = GetInterruptControllerByLine(Descriptor->Source);
+    if (Ic != NULL) {
         if (Enable == 0) {
-            ApicWriteIoEntry(IoApic, Descriptor->Source, APIC_MASKED);
+            ApicWriteIoEntry(Ic, Descriptor->Source, APIC_MASKED);
         }
         else {
-            ApicExisting.Full = ApicReadIoEntry(IoApic, Descriptor->Source);
+            ApicExisting.Full = ApicReadIoEntry(Ic, Descriptor->Source);
 
             // Sanity, we can't just override the existing interrupt vector
             // so if it's already installed, we modify the table-index
@@ -359,7 +356,7 @@ UpdateEntry:
             else {
                 // Unmask the irq in the io-apic
                 TRACE("Installing source %i => 0x%x", Descriptor->Source, LODWORD(ApicFlags));
-                ApicWriteIoEntry(IoApic, Descriptor->Source, ApicFlags);
+                ApicWriteIoEntry(Ic, Descriptor->Source, ApicFlags);
             }
         }
     }
@@ -544,7 +541,7 @@ ExceptionEntry(
 
         // Next step is to check whether or not the address is already
         // mapped, because then it's due to accessibility
-        if (MmVirtualGetMapping(NULL, NULL, Address) != 0) {
+        if (GetSystemMemoryMapping(GetCurrentSystemMemorySpace(), Address) != 0) {
             WARNING("Page fault at address 0x%x, but page is already mapped, invalid access. (User tried to access kernel memory ex).", Address);
         }
 

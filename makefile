@@ -29,7 +29,13 @@ endif
 # MollenOS Configuration, comment in or out for specific features
 config_flags = 
 
+# Hardware Configuration
+config_flags += -D__OSCONFIG_HAS_MMIO
+config_flags += -D__OSCONFIG_HAS_VIDEO
+#config_flags += -D__OSCONFIG_HAS_UART
+
 # ACPI Configuration flags
+config_flags += -D__OSCONFIG_ACPI_SUPPORT
 #config_flags += -D__OSCONFIG_ACPIDEBUG
 #config_flags += -D__OSCONFIG_ACPIDEBUGGER
 #config_flags += -D__OSCONFIG_ACPIDEBUGMUTEXES

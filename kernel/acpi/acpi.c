@@ -77,7 +77,7 @@ static OsiSetupEntry_t OsiSetupEntries[OSI_STRING_ENTRIES_MAX] =
 
 /* ACPICA Stuff */
 extern void AcpiUtConvertStringToUuid(char*, UINT8*);
-extern AcpiEcdt_t __GlbECDT;
+extern AcpiEcdt_t EmbeddedController;
 
 /* Global ACPI Information */
 char *sb_uuid_str = "0811B06E-4A27-44F9-8D60-3CBBC22E7B48";
@@ -411,29 +411,22 @@ AcpiInitialize(void)
 	ACPI_STATUS Status;
 
 	// Install the OSI strings that we respond to
-	TRACE("Installing OSI Interface");
+	TRACE(" > initializing osi interface, windows/vali");
 	Status = AcpiInstallInterfaceHandler(AcpiOsi);
     AcpiOsiSetup("Windows 2009");
     AcpiOsiSetup("Windows 2013");
-    AcpiOsiSetup("MollenOS");
+    AcpiOsiSetup("Vali 2018");
 	AcpiOsiInstall();
 
-	// Copy the root table list to dynamic memory
-    TRACE("Reallocating Tables");
-	Status = AcpiReallocateRootTable();
-	if (ACPI_FAILURE(Status)) {
-		FATAL(FATAL_SCOPE_KERNEL, "Failed AcpiReallocateRootTable, %u!", Status);
-	}
-
 	// Create the ACPI namespace from ACPI tables
-	TRACE("Loading Tables");
+	TRACE(" > loading acpi tables");
 	Status = AcpiLoadTables();
 	if (ACPI_FAILURE(Status)) {
 		FATAL(FATAL_SCOPE_KERNEL, "Failed LoadTables, %u!", Status);
 	}
 
 	// Initialize the ACPI hardware
-	TRACE("Enabling Subsystems");
+	TRACE(" > enabling acpi");
 	Status = AcpiEnableSubsystem(ACPI_FULL_INITIALIZATION);
 	if (ACPI_FAILURE(Status)) {
 		FATAL(FATAL_SCOPE_KERNEL, "Failed AcpiEnableSubsystem, %u!", Status);
@@ -441,7 +434,7 @@ AcpiInitialize(void)
 	
     // Handles must be installed after enabling subsystems, but before
     // initializing all acpi-objects 
-	TRACE("Installing Event Handlers");
+	TRACE(" > setup acpi handlers");
 	AcpiInstallNotifyHandler(ACPI_ROOT_OBJECT, ACPI_SYSTEM_NOTIFY, AcpiBusNotifyHandler, NULL);
     AcpiInstallGlobalEventHandler(AcpiEventHandler, NULL);
 	//AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, acpi_shutdown, NULL);
@@ -449,16 +442,16 @@ AcpiInitialize(void)
 	//ACPI_BUTTON_TYPE_LID
     
 	// Probe for EC here
-	if (__GlbECDT.Handle != NULL) {
+	if (EmbeddedController.Handle != NULL) {
 		// Retrieve handle and initialize handlers
-		Status = AcpiGetHandle(ACPI_ROOT_OBJECT, &__GlbECDT.NsPath[0], &__GlbECDT.Handle);
+		Status = AcpiGetHandle(ACPI_ROOT_OBJECT, &EmbeddedController.NsPath[0], &EmbeddedController.Handle);
 		if (ACPI_SUCCESS(Status)){
 			
 		}
 	}
 
 	// Complete the ACPI namespace object initialization
-	TRACE("Initializing Objects");
+	TRACE(" > initializing acpi namespace");
 	Status = AcpiInitializeObjects(ACPI_FULL_INITIALIZATION);
 	if (ACPI_FAILURE(Status)){
 		FATAL(FATAL_SCOPE_KERNEL, "Failed AcpiInitializeObjects, %u!", Status);

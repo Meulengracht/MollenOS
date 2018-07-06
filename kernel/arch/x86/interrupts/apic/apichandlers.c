@@ -20,15 +20,12 @@
  * - Interrupt Handlers specific for the APIC
  */
 
-/* Includes 
- * - System */
 #include <system/utils.h>
-#include <acpi.h>
-#include <apic.h>
-#include <thread.h>
 #include <threading.h>
 #include <interrupts.h>
-#include <log.h>
+#include <thread.h>
+#include <acpi.h>
+#include <apic.h>
 
 /* Externs 
  * We need access to a few of the variables

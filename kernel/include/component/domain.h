@@ -23,27 +23,32 @@
 #ifndef __COMPONENT_DOMAIN__
 #define __COMPONENT_DOMAIN__
 
-/* Includes
- * - System */
 #include <os/osdefs.h>
 #include <ds/collection.h>
 #include "cpu.h"
-#include "ic.h"
+#include "memory.h"
 
+// NUMA domains always have their own number of cores and
+// their own memory region. They can access all memory but
+// there is penalty to not accessing local memory instead of 
+// accessing foreign memory.
 typedef struct _SystemDomain {
     CollectionItem_t            Header;
-    SystemCpu_t                 Cpu;
-
-    // Memory and Interrupt Controller must be sharable
-    // between domains in this representation.
-    // Memory
-    SystemInterruptController_t InterruptController;
+    UUId_t                      Id;
+    SystemCpu_t                 CoreGroup;
+    SystemMemory_t              Memory;
+    SystemMemorySpace_t         SystemSpace;
 } SystemDomain_t;
 
-/* InitializePrimaryDomain
- * Initializes the primary domain of the current machine. */
-KERNELAPI void KERNELABI
-InitializePrimaryDomain(void);
+/* CreateNumaDomain
+ * Creates a new domain with the given parameters and configuration. */
+KERNELAPI OsStatus_t KERNELABI
+CreateNumaDomain(
+    _In_  UUId_t            DomainId,
+    _In_  int               NumberOfCores,
+    _In_  uintptr_t         MemoryRangeStart, 
+    _In_  uintptr_t         MemoryRangeLength,
+    _Out_ SystemDomain_t**  Domain);
 
 /* GetCurrentDomain
  * Retrieves a pointer for the current domain. The current domain

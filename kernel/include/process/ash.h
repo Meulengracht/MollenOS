@@ -28,9 +28,7 @@
 #include <ds/mstring.h>
 #include <ds/collection.h>
 
-/* Includes
- * - System */
-#include <system/addressspace.h>
+#include <memoryspace.h>
 #include <process/pe.h>
 #include <criticalsection.h>
 #include <pipe.h>
@@ -64,42 +62,33 @@ typedef struct _MCoreAshFileMapping {
 * basic information shared across all ashes
 * Whether it's a process or a server */
 typedef struct _MCoreAsh {
-    // Ids related to this Ash,
-    // both it's own id, it's main thread
-    // and it's parent ash
-    UUId_t               MainThread;
-    UUId_t               Id;
-    UUId_t               Parent;
-    MCoreAshType_t       Type;
+    UUId_t                  MainThread;
+    UUId_t                  Id;
+    UUId_t                  Parent;
+    MCoreAshType_t          Type;
 
     // The name of the Ash, this is usually
     // derived from the file that spawned it
-    MString_t           *Name;
-    MString_t           *Path;
-    Collection_t        *Pipes;
-    Collection_t        *FileMappings;
+    MString_t*              Name;
+    MString_t*              Path;
+    Collection_t*           Pipes;
+    Collection_t*           FileMappings;
 
     // Memory management and information,
     // Ashes run in their own space, and have their
     // own bitmap allocators
-    AddressSpace_t      *AddressSpace;
-    BlockBitmap_t       *Heap;
-    BlockBitmap_t       *Shm;
-
-    // Signal support for Ashes
-    uintptr_t            SignalHandler;
+    SystemMemorySpace_t*    MemorySpace;
+    BlockBitmap_t*          Heap;
+    uintptr_t               SignalHandler;
 
     // Below is everything related to
     // the startup and the executable information
     // that the Ash has
-    MCorePeFile_t       *Executable;
-    uintptr_t            NextLoadingAddress;
-    uint8_t             *FileBuffer;
-    size_t               FileBufferLength;
-
-    // This is the return/code
-    // that gets set upon ash-exit
-    int                  Code;
+    MCorePeFile_t*          Executable;
+    uintptr_t               NextLoadingAddress;
+    uint8_t*                FileBuffer;
+    size_t                  FileBufferLength;
+    int                     Code;
 } MCoreAsh_t;
 
 /* MCoreAshFileMappingEvent

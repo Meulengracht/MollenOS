@@ -320,21 +320,23 @@ PhoenixFileHandler(
         Mapping = (MCoreAshFileMapping_t*)Node->Data;
         if (ISINRANGE(Event->Address, Mapping->VirtualBase, (Mapping->VirtualBase + Mapping->Length) - 1)) {
             uintptr_t Block         = 0;
-            uintptr_t Address       = Event->Address & (AddressSpaceGetPageSize() - 1);
-            Flags_t MappingFlags    = ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL;
+            Flags_t MappingFlags    = MAPPING_USERSPACE | MAPPING_FIXED;
             size_t BytesIndex       = 0;
             size_t BytesRead        = 0;
             if (!(Mapping->Flags & FILE_MAPPING_WRITE)) {
-                MappingFlags |= ASPACE_FLAG_READONLY;
+                MappingFlags |= MAPPING_READONLY;
             }
             if (Mapping->Flags & FILE_MAPPING_EXECUTE) {
-                MappingFlags |= ASPACE_FLAG_EXECUTABLE;
+                MappingFlags |= MAPPING_EXECUTABLE;
             }
             Value.QuadPart = Mapping->FileBlock + (Event->Address - Mapping->VirtualBase);
-            AddressSpaceMap(Event->Ash->AddressSpace, &Block, (VirtualAddress_t*)Address, AddressSpaceGetPageSize(), MappingFlags, __MASK);
-            TransferObject.Virtual  = (const char*)Address;
+            CreateSystemMemorySpaceMapping(Event->Ash->MemorySpace, &Block, &Event->Address, 
+                GetSystemMemoryPageSize(), MappingFlags, __MASK);
+
+            // @todo this is extremely fishy
+            TransferObject.Virtual  = (const char*)(Event->Address & ~(GetSystemMemoryPageSize() - 1));
             TransferObject.Physical = Block;
-            TransferObject.Capacity = TransferObject.Length = AddressSpaceGetPageSize();
+            TransferObject.Capacity = TransferObject.Length = GetSystemMemoryPageSize();
             TransferObject.Position = 0;
             if (SeekFile(Mapping->FileHandle, Value.u.LowPart, Value.u.HighPart) == FsOk && 
                 ReadFile(Mapping->FileHandle, &TransferObject, &BytesIndex, &BytesRead) == FsOk) {

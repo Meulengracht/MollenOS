@@ -36,7 +36,7 @@
 
 /* Includes 
  * - System */
-#include <system/addressspace.h>
+#include <memoryspace.h>
 #include <debug.h>
 #include <arch.h>
 #include <heap.h>
@@ -78,9 +78,10 @@ HeapAllocateInternal(
     _In_ size_t         Length)
 {
     // Variables
-    uintptr_t ReturnAddressEnd  = 0;
-    uintptr_t ReturnAddress     = 0;
-    Flags_t MapFlags            = ((Heap->IsUser == 1) ? ASPACE_FLAG_APPLICATION : 0) | ASPACE_FLAG_SUPPLIEDVIRTUAL;
+    uintptr_t ReturnAddressEnd;
+    uintptr_t ReturnAddress;
+    Flags_t MapFlags = ((Heap->IsUser == 1) ? MAPPING_USERSPACE : 0) | MAPPING_FIXED;
+    OsStatus_t Status;
 
     // Sanitize the size, and memory status
     assert(Length > 0);
@@ -90,8 +91,10 @@ HeapAllocateInternal(
     // a physical memory page-boundary
     ReturnAddress       = atomic_fetch_add(&Heap->HeaderCurrent, Length);
     ReturnAddressEnd    = ReturnAddress + Length;
-    AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &ReturnAddress, AddressSpaceGetPageSize(), MapFlags, __MASK);
-    AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &ReturnAddressEnd, AddressSpaceGetPageSize(), MapFlags, __MASK);
+    Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &ReturnAddress,
+        GetSystemMemoryPageSize(), MapFlags, __MASK);
+    Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &ReturnAddressEnd,
+        GetSystemMemoryPageSize(), MapFlags, __MASK);
     return (uintptr_t*)ReturnAddress;
 }
 
@@ -443,34 +446,6 @@ HeapAllocateSizeInBlock(
     return ReturnAddress;
 }
 
-/* HeapCommitPages
- * Helper for mapping in pages as soon as they
- * are allocated, used by allocation flags */
-void
-HeapCommitPages(
-    _In_ uintptr_t      Address,
-    _In_ size_t         Size,
-    _In_ uintptr_t      Mask)
-{
-    // Variables
-    uintptr_t PageMask = ~(AddressSpaceGetPageSize() - 1);
-    size_t Pages    = DIVUP(Size, AddressSpaceGetPageSize());
-    size_t i        = 0;
-
-    // Sanitize the page boundary
-    // Do we step across page boundary?
-    if ((Address & PageMask) != ((Address + Size - 1) & PageMask)) {
-        Pages++;
-    }
-
-    // Do the actual mapping
-    for (; i < Pages; i++) {
-        uintptr_t VirtualPage = Address + (i * AddressSpaceGetPageSize());
-        AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &VirtualPage, 
-            AddressSpaceGetPageSize(), ASPACE_FLAG_SUPPLIEDVIRTUAL, Mask);
-    }
-}
-
 /* HeapAllocate
  * Finds a suitable block for allocation in the heap. Auto-expends if neccessary. */
 uintptr_t
@@ -496,14 +471,14 @@ HeapAllocate(
     // we want to use our normal blocks for smaller allocations 
     // and the page-aligned for larger ones 
     if (ALLOCISNORMAL(Flags) && Length >= HEAP_NORMAL_BLOCK) {
-        AdjustedSize = ALIGN(Length, AddressSpaceGetPageSize(), 1);
+        AdjustedSize = ALIGN(Length, GetSystemMemoryPageSize(), 1);
         Flags |= ALLOCATION_PAGEALIGN;
     }
     if (ALLOCISNOTBIG(Flags) && AdjustedSize >= HEAP_LARGE_BLOCK) {
         Flags |= ALLOCATION_BIG;
     }
-    if (ALLOCISPAGE(Flags) && !ISALIGNED(AdjustedSize, AddressSpaceGetPageSize())) {
-        AdjustedSize = ALIGN(AdjustedSize, AddressSpaceGetPageSize(), 1);
+    if (ALLOCISPAGE(Flags) && !ISALIGNED(AdjustedSize, GetSystemMemoryPageSize())) {
+        AdjustedSize = ALIGN(AdjustedSize, GetSystemMemoryPageSize(), 1);
     }
 
     // Select the proper child list
@@ -546,7 +521,8 @@ HeapAllocate(
     // If return value is not 0 it means our allocation was made!
     if (RetVal != 0) {
         if (Flags & ALLOCATION_COMMIT) {
-            HeapCommitPages(RetVal, AdjustedSize, Mask);
+            CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &RetVal, 
+                AdjustedSize, MAPPING_FIXED, Mask);
         }
         if (Flags & ALLOCATION_ZERO) {
             memset((void*)RetVal, 0, Length);
@@ -910,14 +886,14 @@ kmalloc_base(
     }
 
     // Check alignment
-    if ((Flags & ALLOCATION_PAGEALIGN) && ((ReturnAddress & (AddressSpaceGetPageSize() - 1)) != 0)) {
+    if ((Flags & ALLOCATION_PAGEALIGN) && ((ReturnAddress & (GetSystemMemoryPageSize() - 1)) != 0)) {
         FATAL(FATAL_SCOPE_KERNEL, "Allocation result 0x%x (alignment failed)", ReturnAddress);
         return NULL;
     } 
 
     // Lookup physical
     if (PhysicalAddress != NULL) {
-        *PhysicalAddress =  AddressSpaceGetMapping(AddressSpaceGetCurrent(), ReturnAddress);
+        *PhysicalAddress = GetSystemMemoryMapping(GetCurrentSystemMemorySpace(), ReturnAddress);
     }
     return (void*)ReturnAddress;
 }

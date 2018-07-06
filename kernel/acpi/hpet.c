@@ -24,7 +24,7 @@
 
 /* Includes
  * - System */
-#include <system/addressspace.h>
+#include <memoryspace.h>
 #include <interrupts.h>
 #include <timers.h>
 #include <debug.h>
@@ -376,6 +376,7 @@ HpInitialize(
         HpReadFrequency, HpReadMainCounter, NULL
     };
     int Legacy = 0, FoundPeriodic = 0;
+    OsStatus_t Status;
     reg32_t TempValue;
     int i, NumTimers;
 
@@ -389,9 +390,10 @@ HpInitialize(
     HpetController.TickMinimum = Table->MinimumTick;
 
     // Map the address
-    if (AddressSpaceMap(AddressSpaceGetCurrent(), 
-        &HpetController.BaseAddress, &HpetController.BaseAddress, 0x1000, 
-        ASPACE_FLAG_VIRTUAL | ASPACE_FLAG_NOCACHE, __MASK) != OsSuccess) {
+    Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), 
+        &HpetController.BaseAddress, &HpetController.BaseAddress, GetSystemMemoryPageSize(),
+        MAPPING_VIRTUAL | MAPPING_NOCACHE | MAPPING_DMA, __MASK);
+    if (Status != OsSuccess) {
         ERROR("Failed to map address for hpet.");
         return OsError;
     }

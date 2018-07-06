@@ -27,7 +27,7 @@
 #include <os/osdefs.h>
 #include <os/context.h>
 #include <ds/collection.h>
-#include <system/addressspace.h>
+#include <memoryspace.h>
 #include <pipe.h>
 #include <signal.h>
 #include <time.h>
@@ -125,7 +125,7 @@ typedef struct _MCoreThread {
     uintptr_t               Data[THREADING_CONFIGDATA_COUNT];
 
     SystemPipe_t*           Pipe;
-    AddressSpace_t*         AddressSpace;
+    SystemMemorySpace_t*    MemorySpace;
 
     ThreadEntry_t           Function;
     void*                   Arguments;

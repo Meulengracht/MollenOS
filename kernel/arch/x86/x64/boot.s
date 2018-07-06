@@ -22,7 +22,7 @@ bits 64
 segment .text
 
 ; Extern main function in C-code
-extern MCoreInitialize
+extern InitializeMachine
 
 ; Publics in this file
 global kentry
@@ -48,7 +48,7 @@ kentry:
 
 	;Now call the init function
     sub rsp, 0x20
-	call MCoreInitialize
+	call InitializeMachine
 	mov rax, 0x000000000000DEAD
 
 	.idle:

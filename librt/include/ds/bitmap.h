@@ -62,18 +62,20 @@ BitmapDestroy(
     _In_ Bitmap_t*  Bitmap));
 
 /* BitmapSetBits
- * Flips all bits to 1 at the given index, and for <Count> bits. */
+ * Flips all bits to 1 at the given index, and for <Count> bits. Returns the 
+ * actual number of bits set in this iteration. */
 CRTDECL(
-OsStatus_t,
+int,
 BitmapSetBits(
     _In_ Bitmap_t*  Bitmap,
     _In_ int        Index,
     _In_ int        Count));
 
 /* BitmapClearBits
- * Clears all bits from the given index, and for <Count> bits. */
+ * Clears all bits from the given index, and for <Count> bits. Returns the number
+ * of bits cleared in this iteration. */
 CRTDECL(
-OsStatus_t,
+int,
 BitmapClearBits(
     _In_ Bitmap_t*  Bitmap,
     _In_ int        Index,

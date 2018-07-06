@@ -31,34 +31,8 @@
 
 /* Setup Systems Definitions 
  * Contains bit definitions and magic constants */
-#define SYSTEM_FEATURE_INITIALIZE       0x00000001
-#define SYSTEM_FEATURE_OUTPUT           0x00000002
-#define SYSTEM_FEATURE_MEMORY           0x00000004
-#define SYSTEM_FEATURE_TOPOLOGY         0x00000008 // Hardware Topology
 #define SYSTEM_FEATURE_FINALIZE         0x00000010
-
 #define SYSTEM_FEATURE_INTERRUPTS       0x00000020
-#define SYSTEM_FEATURE_ACPI             0x00000040
-#define SYSTEM_FEATURE_THREADING        0x00000080
-#define SYSTEM_FEATURE_TIMERS           0x00000100
-
-
-/* MCoreInitialize
- * Callable by the architecture layer to initialize the kernel */
-KERNELAPI
-void
-KERNELABI
-MCoreInitialize(
-	_In_ Multiboot_t *BootInformation);
-
-/* SystemFeaturesQuery
- * Called by the kernel to get which systems we support */
-KERNELAPI
-OsStatus_t
-KERNELABI
-SystemFeaturesQuery(
-    _In_ Multiboot_t *BootInformation,
-    _Out_ Flags_t *SystemsSupported);
 
 /* SystemFeaturesInitialize
  * Called by the kernel to initialize a supported system */

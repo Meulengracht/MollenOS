@@ -20,15 +20,9 @@
  * - IO Helpers, primarily just for read/write
  */
 
-/* Includes 
- * - System */
+#include <assert.h>
 #include <apic.h>
 #include <acpi.h>
-
-/* Includes 
- * - C-Library */
-#include <assert.h>
-#include <stddef.h>
 
 /* Externs we need for functions here, all
  * the i/o functions needs the base address */
@@ -56,35 +50,35 @@ void ApicWriteLocal(size_t Register, uint32_t Value) {
 /* Set the io-apic register selctor
  * Reads and writes from and to the io apic
  * registers must always be 32 bit */
-void ApicSetIoRegister(IoApic_t *IoApic, uint32_t Register) {
-	(*(volatile uint32_t*)(IoApic->BaseAddress)) = Register;
+void ApicSetIoRegister(SystemInterruptController_t *IoApic, uint32_t Register) {
+	(*(volatile uint32_t*)(IoApic->MemoryAddress)) = Register;
 	MemoryBarrier();
 }
 
 /* Read from io-apic registers
  * Reads and writes from and to the io apic registers must always be 32 bit */
-uint32_t ApicIoRead(IoApic_t *IoApic, uint32_t Register) {
+uint32_t ApicIoRead(SystemInterruptController_t *IoApic, uint32_t Register) {
 	assert(IoApic != NULL);
 
 	// Select the given register and read the register
 	ApicSetIoRegister(IoApic, Register);
-	return *((volatile uint32_t*)(IoApic->BaseAddress + 0x10));
+	return *((volatile uint32_t*)(IoApic->MemoryAddress + 0x10));
 }
 
 /* Write to the io-apic registers
  * Reads and writes from and to the io apic registers must always be 32 bit */
-void ApicIoWrite(IoApic_t *IoApic, uint32_t Register, uint32_t Data) {
+void ApicIoWrite(SystemInterruptController_t *IoApic, uint32_t Register, uint32_t Data) {
 	assert(IoApic != NULL);
 
 	// Write the value, then re-read it to ensure memory synchronization
 	ApicSetIoRegister(IoApic, Register);
-	*((volatile uint32_t*)(IoApic->BaseAddress + 0x10)) = Data;
-	Data = (*(volatile uint32_t*)(IoApic->BaseAddress + 0x10));
+	*((volatile uint32_t*)(IoApic->MemoryAddress + 0x10)) = Data;
+	Data = (*(volatile uint32_t*)(IoApic->MemoryAddress + 0x10));
 }
 
 /* Writes interrupt data to the io-apic interrupt register. It writes the data to
  * the given Pin (io-apic entry) offset. */
-void ApicWriteIoEntry(IoApic_t *IoApic, int Pin, uint64_t Data)
+void ApicWriteIoEntry(SystemInterruptController_t *IoApic, int Pin, uint64_t Data)
 {
 	// Union this for easier 
 	// memory access becuase we do 32 bit accesses
@@ -109,7 +103,7 @@ void ApicWriteIoEntry(IoApic_t *IoApic, int Pin, uint64_t Data)
 /* Reads interrupt data from the io-apic
  * interrupt register. It reads the data from
  * the given Pin (io-apic entry) offset. */
-uint64_t ApicReadIoEntry(IoApic_t *IoApic, int Pin)
+uint64_t ApicReadIoEntry(SystemInterruptController_t *IoApic, int Pin)
 {
 	/* Union this for easier 
 	 * memory access becuase we do 32 bit accesses */

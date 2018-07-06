@@ -22,7 +22,7 @@ bits 32
 segment .text
 
 ; Extern main function in C-code
-extern _MCoreInitialize
+extern _InitializeMachine
 
 ; Publics in this file
 global _kentry
@@ -47,7 +47,7 @@ _kentry:
 	push ebx
 
 	;Now call the init function
-	call _MCoreInitialize
+	call _InitializeMachine
 	mov eax, 0x0000DEAD
 
 	.idle:

@@ -26,147 +26,329 @@
 #include <component/domain.h>
 #include <component/cpu.h>
 #include <acpiinterface.h>
+#include <machine.h>
 #include <heap.h>
 #include <debug.h>
 #include <assert.h>
 
 /* Globals 
  * - Global state keeping */
-AcpiEcdt_t __GlbECDT;
-Collection_t *GlbAcpiNodes = NULL;
-int GlbAcpiAvailable = ACPI_NOT_AVAILABLE;
-static ACPI_TABLE_DESC TableArray[ACPI_MAX_INIT_TABLES];
+static int AcpiStatus           = ACPI_NOT_AVAILABLE;
+AcpiEcdt_t EmbeddedController   = { 0 };
 
-/* AcpiEnumarateMADT
- * Enumerates the MADT entries for hardware information. This relates closely
- * to the system topology and it's configuration */
-void
-AcpiEnumarateMADT(
-    _In_ void*  MadtStart, 
-    _In_ void*  MadtEnd)
+/* RegisterDomainCore
+ * Registers a new core with the system for the given domain. Provides an override 
+ * to support X2 entries that probably will appear. */
+OsStatus_t
+RegisterDomainCore(
+    _In_ SystemDomain_t*    Domain,
+    _In_ UUId_t             CoreId,
+    _In_ int                Override)
 {
-	// Variables
-	ACPI_SUBTABLE_HEADER *MadtEntry = NULL;
-	DataKey_t Key;
+    if (CoreId != Domain->CoreGroup.PrimaryCore.Id) {
+        //RegisterApplicationCore(Domain, CoreId, CpuStateShutdown, 0);
+    }
+    else {
 
-	for (MadtEntry = (ACPI_SUBTABLE_HEADER*)MadtStart; (void *)MadtEntry < MadtEnd;) {
-		// Avoid an infinite loop if we hit a bogus entry.
-		if (MadtEntry->Length < sizeof(ACPI_SUBTABLE_HEADER)) {
+    }
+    return OsSuccess;
+}
+
+/* GetSystemDomainCountFromSRAT
+ * Uses the SRAT table to get the number of domains present in the system. */
+int
+GetSystemDomainCountFromSRAT(
+    _In_ void*              SratTableStart,
+    _In_ void*              SratTableEnd)
+{
+    // Variables
+    ACPI_SUBTABLE_HEADER *SratEntry = NULL;
+    int HighestDomainId = -1;
+
+    for (SratEntry = (ACPI_SUBTABLE_HEADER*)SratTableStart; (void *)SratEntry < SratTableEnd;) {
+        // Avoid an infinite loop if we hit a bogus entry.
+        if (SratEntry->Length < sizeof(ACPI_SUBTABLE_HEADER)) {
+            break;
+        }
+
+        switch (SratEntry->Type) {
+            case ACPI_SRAT_TYPE_CPU_AFFINITY: {
+                ACPI_SRAT_CPU_AFFINITY *CpuAffinity = (ACPI_SRAT_CPU_AFFINITY*)SratEntry;
+                if (CpuAffinity->Flags & ACPI_SRAT_CPU_USE_AFFINITY) {
+                    // Calculate the 32 bit domain
+                    uint32_t Domain = (uint32_t)CpuAffinity->ProximityDomainHi[2] << 24;
+                    Domain             |= (uint32_t)CpuAffinity->ProximityDomainHi[1] << 16;
+                    Domain             |= (uint32_t)CpuAffinity->ProximityDomainHi[0] << 8;
+                    Domain            |= CpuAffinity->ProximityDomainLo;
+                    if ((int)Domain > HighestDomainId) {
+                        HighestDomainId = (int)Domain;
+                    }
+                }
+            } break;
+
+            default: {
+            } break;
+        }
+        SratEntry = (ACPI_SUBTABLE_HEADER*)
+            ACPI_ADD_PTR(ACPI_SUBTABLE_HEADER, SratEntry, SratEntry->Length);
+    }
+    return HighestDomainId + 1;
+}
+
+/* GetSystemDomainMetricsFromSRAT
+ * Uses the SRAT table to retrieve information about the given domain id. */
+void
+GetSystemDomainMetricsFromSRAT(
+    _In_  void*             SratTableStart,
+    _In_  void*             SratTableEnd,
+    _In_  uint32_t          DomainId,
+    _Out_ int*              NumberOfCores,
+    _Out_ uintptr_t*        MemoryRangeStart,
+    _Out_ size_t*           MemoryRangeLength)
+{
+    // Variables
+    ACPI_SUBTABLE_HEADER *SratEntry = NULL;
+
+    for (SratEntry = (ACPI_SUBTABLE_HEADER*)SratTableStart; (void *)SratEntry < SratTableEnd;) {
+        // Avoid an infinite loop if we hit a bogus entry.
+        if (SratEntry->Length < sizeof(ACPI_SUBTABLE_HEADER)) {
             return;
         }
 
-		switch (MadtEntry->Type) {
-			case ACPI_MADT_TYPE_LOCAL_APIC: {
-                // Cast to correct MADT structure
-				ACPI_MADT_LOCAL_APIC *AcpiCpu = (ACPI_MADT_LOCAL_APIC*)MadtEntry;
-
-                // Register core with system if it's available
-                assert(AcpiCpu->Id == AcpiCpu->ProcessorId);
-                if (AcpiCpu->Id != LOBYTE(GetCurrentDomain()->Cpu.PrimaryCore.Id) && (AcpiCpu->LapicFlags & 0x1)) {
-                    RegisterApplicationCore(&GetCurrentDomain()->Cpu, AcpiCpu->Id, CpuStateShutdown, 0);
+        switch (SratEntry->Type) {
+            case ACPI_SRAT_TYPE_CPU_AFFINITY: {
+                ACPI_SRAT_CPU_AFFINITY *CpuAffinity = (ACPI_SRAT_CPU_AFFINITY*)SratEntry;
+                if (CpuAffinity->Flags & ACPI_SRAT_CPU_USE_AFFINITY) {
+                    // Calculate the 32 bit domain
+                    uint32_t Domain = (uint32_t)CpuAffinity->ProximityDomainHi[2] << 24;
+                    Domain             |= (uint32_t)CpuAffinity->ProximityDomainHi[1] << 16;
+                    Domain             |= (uint32_t)CpuAffinity->ProximityDomainHi[0] << 8;
+                    Domain            |= CpuAffinity->ProximityDomainLo;
+                    TRACE("Cpu %u => Domain %u", CpuAffinity->ApicId, Domain);
                 }
+            } break;
 
-                // Debug
-				TRACE("Found CPU: %u:%u (%s)", AcpiCpu->ProcessorId, AcpiCpu->Id, 
-                    (AcpiCpu->LapicFlags & 0x1) ? "Active" : "Inactive");
-			} break;
+            case ACPI_SRAT_TYPE_MEMORY_AFFINITY: {
+                ACPI_SRAT_MEM_AFFINITY *MemoryAffinity = (ACPI_SRAT_MEM_AFFINITY*)SratEntry;
+                if (MemoryAffinity->Flags & ACPI_SRAT_MEM_ENABLED) {
+                    uint32_t Domain = MemoryAffinity->ProximityDomain;
+                    TRACE("Memory 0x%x => Domain %u", LODWORD(MemoryAffinity->BaseAddress), Domain);
 
-		/* IO Apic */
-		case ACPI_MADT_TYPE_IO_APIC:
-		{
-			/* Alocate a new structure */
-			ACPI_MADT_IO_APIC *IoNode = 
-				(ACPI_MADT_IO_APIC*)kmalloc(sizeof(ACPI_MADT_IO_APIC));
+                    // ACPI_SRAT_MEM_HOT_PLUGGABLE
+                    // ACPI_SRAT_MEM_NON_VOLATILE
+                }
+            } break;
 
-			/* Cast to correct structure */
-			ACPI_MADT_IO_APIC *AcpiIoApic = (ACPI_MADT_IO_APIC*)MadtEntry;
+            case ACPI_SRAT_TYPE_X2APIC_CPU_AFFINITY: {
+                ACPI_SRAT_X2APIC_CPU_AFFINITY *CpuAffinity = (ACPI_SRAT_X2APIC_CPU_AFFINITY*)SratEntry;
+                if (CpuAffinity->Flags & ACPI_SRAT_CPU_USE_AFFINITY) {
+                    uint32_t Domain = CpuAffinity->ProximityDomain;
+                    TRACE("Cpu %u => Domain %u", CpuAffinity->ApicId, Domain);
+                    
+                }
+            } break;
 
-			/* Now we have it allocated aswell, copy info */
-			memcpy(IoNode, AcpiIoApic, sizeof(ACPI_MADT_IO_APIC));
+            default: {
+            } break;
+        }
 
-			/* Insert it into list */
-			Key.Value = ACPI_MADT_TYPE_IO_APIC;
-			CollectionAppend(GlbAcpiNodes, CollectionCreateNode(Key, IoNode));
-
-			/* Debug */
-			TRACE("Found IO-APIC: %u", AcpiIoApic->Id);
-		} break;
-
-		/* Interrupt Overrides */
-		case ACPI_MADT_TYPE_INTERRUPT_OVERRIDE:
-		{
-			/* Allocate a new structure */
-			ACPI_MADT_INTERRUPT_OVERRIDE *OverrideNode =
-				(ACPI_MADT_INTERRUPT_OVERRIDE*)kmalloc(sizeof(ACPI_MADT_INTERRUPT_OVERRIDE));
-
-			/* Cast to correct structure */
-			ACPI_MADT_INTERRUPT_OVERRIDE *AcpiOverrideNode = 
-				(ACPI_MADT_INTERRUPT_OVERRIDE*)MadtEntry;
-
-			/* Now we have it allocated aswell, copy info */
-			memcpy(OverrideNode, AcpiOverrideNode, sizeof(ACPI_MADT_INTERRUPT_OVERRIDE));
-
-			/* Insert it into list */
-			Key.Value = ACPI_MADT_TYPE_INTERRUPT_OVERRIDE;
-			CollectionAppend(GlbAcpiNodes, CollectionCreateNode(Key, OverrideNode));
-
-		} break;
-
-		/* Local APIC NMI Configuration */
-		case ACPI_MADT_TYPE_LOCAL_APIC_NMI:
-		{
-			/* Allocate a new structure */
-			ACPI_MADT_LOCAL_APIC_NMI *NmiNode = 
-				(ACPI_MADT_LOCAL_APIC_NMI*)kmalloc(sizeof(ACPI_MADT_LOCAL_APIC_NMI));
-
-			/* Cast to correct structure */
-			ACPI_MADT_LOCAL_APIC_NMI *ApinNmi = (ACPI_MADT_LOCAL_APIC_NMI*)MadtEntry;
-
-			/* Now we have it allocated aswell, copy info */
-			memcpy(NmiNode, ApinNmi, sizeof(ACPI_MADT_LOCAL_APIC_NMI));
-
-			/* Insert it into list */
-			Key.Value = ACPI_MADT_TYPE_LOCAL_APIC_NMI;
-			CollectionAppend(GlbAcpiNodes, CollectionCreateNode(Key, NmiNode));
-
-		} break;
-
-		default:
-			WARNING("Found unhandled <madt> type %u", MadtEntry->Type);
-			break;
-		}
-		MadtEntry = (ACPI_SUBTABLE_HEADER*)
-			ACPI_ADD_PTR(ACPI_SUBTABLE_HEADER, MadtEntry, MadtEntry->Length);
-	}
+        SratEntry = (ACPI_SUBTABLE_HEADER*)
+            ACPI_ADD_PTR(ACPI_SUBTABLE_HEADER, SratEntry, SratEntry->Length);
+    }
 }
 
-/* Enumerate SRAT Entries */
-void AcpiEnumerateSRAT(void *SratStart, void *SratEnd)
+/* EnumerateSystemCoresForDomainSRAT
+ * Uses the SRAT table to register cores for the given domain. It will ignore all other
+ * entries as memory has been setup for the domain at this point. */
+void
+EnumerateSystemCoresForDomainSRAT(
+    _In_  void*             SratTableStart,
+    _In_  void*             SratTableEnd,
+    _In_ SystemDomain_t*    Domain)
 {
-	_CRT_UNUSED(SratStart);
-	_CRT_UNUSED(SratEnd);
+    // Variables
+    ACPI_SUBTABLE_HEADER *SratEntry = NULL;
+
+    for (SratEntry = (ACPI_SUBTABLE_HEADER*)SratTableStart; (void *)SratEntry < SratTableEnd;) {
+        // Avoid an infinite loop if we hit a bogus entry.
+        if (SratEntry->Length < sizeof(ACPI_SUBTABLE_HEADER)) {
+            return;
+        }
+
+        switch (SratEntry->Type) {
+            case ACPI_SRAT_TYPE_CPU_AFFINITY: {
+                ACPI_SRAT_CPU_AFFINITY *CpuAffinity = (ACPI_SRAT_CPU_AFFINITY*)SratEntry;
+                if (CpuAffinity->Flags & ACPI_SRAT_CPU_USE_AFFINITY) {
+                    // Calculate the 32 bit domain
+                    uint32_t DomainId = (uint32_t)CpuAffinity->ProximityDomainHi[2] << 24;
+                    DomainId         |= (uint32_t)CpuAffinity->ProximityDomainHi[1] << 16;
+                    DomainId         |= (uint32_t)CpuAffinity->ProximityDomainHi[0] << 8;
+                    DomainId         |= CpuAffinity->ProximityDomainLo;
+                    if (Domain->Id == DomainId) {
+                        if (RegisterDomainCore(Domain, CpuAffinity->ApicId, 0) != OsSuccess) {
+                            ERROR("Failed to register domain core %u", CpuAffinity->ApicId);
+                        }
+                    }
+                }
+            } break;
+
+            case ACPI_SRAT_TYPE_X2APIC_CPU_AFFINITY: {
+                ACPI_SRAT_X2APIC_CPU_AFFINITY *CpuAffinity = (ACPI_SRAT_X2APIC_CPU_AFFINITY*)SratEntry;
+                if (CpuAffinity->Flags & ACPI_SRAT_CPU_USE_AFFINITY) {
+                    uint32_t DomainId = CpuAffinity->ProximityDomain;
+                    if (Domain->Id == DomainId) {
+                        if (RegisterDomainCore(Domain, CpuAffinity->ApicId, 1) != OsSuccess) {
+                            ERROR("Failed to register domain core %u", CpuAffinity->ApicId);
+                        }
+                    }
+                }
+            } break;
+
+            default: {
+            } break;
+        }
+        SratEntry = (ACPI_SUBTABLE_HEADER*)
+            ACPI_ADD_PTR(ACPI_SUBTABLE_HEADER, SratEntry, SratEntry->Length);
+    }
+}
+
+/* EnumerateSystemCoresMADT
+ * Uses the SRAT table to register cores for the uma machine. It will ignore all other
+ * entries as as that will be enumerated in next iteration. */
+void
+EnumerateSystemCoresMADT(
+    _In_ void*              MadtTableStart,
+    _In_ void*              MadtTableEnd)
+{
+    // Variables
+    ACPI_SUBTABLE_HEADER *MadtEntry = NULL;
+
+    for (MadtEntry = (ACPI_SUBTABLE_HEADER*)MadtTableStart; (void*)MadtEntry < MadtTableEnd;) {
+        // Avoid an infinite loop if we hit a bogus entry.
+        if (MadtEntry->Length < sizeof(ACPI_SUBTABLE_HEADER)) {
+            break;
+        }
+
+        switch (MadtEntry->Type) {
+            case ACPI_MADT_TYPE_LOCAL_APIC: {
+                // Cast to correct MADT structure
+                ACPI_MADT_LOCAL_APIC *AcpiCpu = (ACPI_MADT_LOCAL_APIC*)MadtEntry;
+                if (AcpiCpu->LapicFlags & 0x1) {
+                    TRACE(" > core %u available and active", AcpiCpu->Id);
+                    if (AcpiCpu->Id != GetMachine()->Processor.PrimaryCore.Id) {
+                        RegisterApplicationCore(&GetMachine()->Processor, AcpiCpu->Id, CpuStateShutdown, 0);
+                    }
+                }
+            } break;
+            case ACPI_MADT_TYPE_LOCAL_X2APIC: {
+                ACPI_MADT_LOCAL_X2APIC *AcpiCpu = (ACPI_MADT_LOCAL_X2APIC*)MadtEntry;
+                if (AcpiCpu->LapicFlags & 0x1) {
+                    TRACE(" > core %u available for xapic2", AcpiCpu->LocalApicId);
+                    //@todo
+                }
+            } break;
+
+            default: {
+            } break;
+        }
+        MadtEntry = (ACPI_SUBTABLE_HEADER*)
+            ACPI_ADD_PTR(ACPI_SUBTABLE_HEADER, MadtEntry, MadtEntry->Length);
+    }
+}
+
+/* EnumerateSystemInterruptOverrides
+ * Retrieves the count of system interrupt overrides as that must be done before
+ * enumerating them. */
+int
+EnumerateSystemInterruptOverrides(
+    _In_ void*              MadtTableStart,
+    _In_ void*              MadtTableEnd)
+{
+    // Variables
+    ACPI_SUBTABLE_HEADER *MadtEntry = NULL;
+    int OverrideCount = 0;
+
+    for (MadtEntry = (ACPI_SUBTABLE_HEADER*)MadtTableStart; (void *)MadtEntry < MadtTableEnd;) {
+        // Avoid an infinite loop if we hit a bogus entry.
+        if (MadtEntry->Length < sizeof(ACPI_SUBTABLE_HEADER)) {
+            break;
+        }
+
+        switch (MadtEntry->Type) {
+            case ACPI_MADT_TYPE_INTERRUPT_OVERRIDE: {
+                OverrideCount++;
+            } break;
+
+            default:
+                break;
+        }
+        MadtEntry = (ACPI_SUBTABLE_HEADER*)
+            ACPI_ADD_PTR(ACPI_SUBTABLE_HEADER, MadtEntry, MadtEntry->Length);
+    }
+    return OverrideCount;
+}
+
+/* EnumerateSystemHardwareMADT
+ * Enumerates the MADT entries for hardware information. This relates closely
+ * to the system topology and it's configuration. */
+void
+EnumerateSystemHardwareMADT(
+    _In_ void*              MadtTableStart,
+    _In_ void*              MadtTableEnd)
+{
+    // Variables
+    ACPI_SUBTABLE_HEADER *MadtEntry = NULL;
+
+    for (MadtEntry = (ACPI_SUBTABLE_HEADER*)MadtTableStart; (void *)MadtEntry < MadtTableEnd;) {
+        // Avoid an infinite loop if we hit a bogus entry.
+        if (MadtEntry->Length < sizeof(ACPI_SUBTABLE_HEADER)) {
+            return;
+        }
+
+        switch (MadtEntry->Type) {
+            case ACPI_MADT_TYPE_IO_APIC: {
+                ACPI_MADT_IO_APIC *IoApic = (ACPI_MADT_IO_APIC*)MadtEntry;
+                TRACE(" > io-apic: %u", IoApic->Id);
+                if (CreateInterruptController(IoApic->Id, (int)IoApic->GlobalIrqBase, 24, IoApic->Address) != OsSuccess) {
+                    ERROR("Failed to register interrupt-controller");   
+                }
+            } break;
+
+            case ACPI_MADT_TYPE_INTERRUPT_OVERRIDE: {
+                ACPI_MADT_INTERRUPT_OVERRIDE *Override = (ACPI_MADT_INTERRUPT_OVERRIDE*)MadtEntry;
+                if (RegisterInterruptOverride(Override->SourceIrq, Override->GlobalIrq, Override->IntiFlags) != OsSuccess) {
+                    ERROR("Failed to register interrupt-override");
+                }
+            } break;
+
+            default:
+                break;
+        }
+        MadtEntry = (ACPI_SUBTABLE_HEADER*)
+            ACPI_ADD_PTR(ACPI_SUBTABLE_HEADER, MadtEntry, MadtEntry->Length);
+    }
 }
 
 /* Enumerate the ECDT 
  * We need this to fully initialize ACPI if it needs to be available. */
 void
 AcpiEnumerateECDT(
-	_In_ void *TableStart,
-	_In_ void *TableEnd)
+    _In_ void *TableStart,
+    _In_ void *TableEnd)
 {
-	// Variables
-	ACPI_TABLE_ECDT *EcdtTable = NULL;
+    // Variables
+    ACPI_TABLE_ECDT *EcdtTable = NULL;
 
-	// Initialize pointers
-	EcdtTable = (ACPI_TABLE_ECDT*)TableStart;
+    // Initialize pointers
+    EcdtTable = (ACPI_TABLE_ECDT*)TableStart;
 
-	// Store the most relevant data
-	__GlbECDT.Handle = ACPI_ROOT_OBJECT;
-	__GlbECDT.Gpe = EcdtTable->Gpe;
-	__GlbECDT.UId = EcdtTable->Uid;
-	memcpy(&__GlbECDT.CommandAddress, &EcdtTable->Control, sizeof(ACPI_GENERIC_ADDRESS));
-	memcpy(&__GlbECDT.DataAddress, &EcdtTable->Data, sizeof(ACPI_GENERIC_ADDRESS));
-	memcpy(&__GlbECDT.NsPath[0], &EcdtTable->Id[0], strlen((const char*	)&EcdtTable->Id[0]));
+    // Store the most relevant data
+    EmbeddedController.Handle   = ACPI_ROOT_OBJECT;
+    EmbeddedController.Gpe      = EcdtTable->Gpe;
+    EmbeddedController.UId      = EcdtTable->Uid;
+    memcpy(&EmbeddedController.CommandAddress,  &EcdtTable->Control,    sizeof(ACPI_GENERIC_ADDRESS));
+    memcpy(&EmbeddedController.DataAddress,     &EcdtTable->Data,       sizeof(ACPI_GENERIC_ADDRESS));
+    memcpy(&EmbeddedController.NsPath[0],       &EcdtTable->Id[0],      strlen((const char*)&EcdtTable->Id[0]));
 }
 
 /* AcpiInitializeEarly
@@ -174,97 +356,126 @@ AcpiEnumerateECDT(
 OsStatus_t
 AcpiInitializeEarly(void)
 {
-	// Variables
-	ACPI_TABLE_HEADER *Header = NULL;
-	ACPI_STATUS Status = 0;
-	
-	// Initialize variables
-	memset(&__GlbECDT, 0, sizeof(AcpiEcdt_t));
-    
-    // Call
-	TRACE("AcpiInitializeEarly()");
-    Status = AcpiInitializeSubsystem();
-    
-	// Sanity 
-	// If this fails there is no ACPI on the system
-	if (ACPI_FAILURE(Status)) {
-		ERROR("Failed to initialize early ACPI access, "
-            "probably no ACPI available (%u)", Status);
-		GlbAcpiAvailable = ACPI_NOT_AVAILABLE;
-		return OsError;
-	}
+    // Variables
+    ACPI_TABLE_HEADER *Header   = NULL;
+    OsStatus_t Result           = OsSuccess;
+    ACPI_STATUS Status;
 
-	// Do the early table enumeration
-	Status = AcpiInitializeTables((ACPI_TABLE_DESC*)&TableArray, ACPI_MAX_INIT_TABLES, TRUE);
-	if (ACPI_FAILURE(Status)) {
-		ERROR("Failed to initialize early ACPI access,"
-			"probably no ACPI available (%u)", Status);
-		GlbAcpiAvailable = ACPI_NOT_AVAILABLE;
-		return OsError;
-	}
-	else {
-		GlbAcpiAvailable = ACPI_AVAILABLE;
+    // Perform the initial setup of ACPICA
+    Status = AcpiInitializeSubsystem();
+    if (ACPI_FAILURE(Status)) {
+        ERROR(" > acpi is not available (acpi disabled %u)", Status);
+        AcpiStatus = ACPI_NOT_AVAILABLE;
+        return OsError;
     }
 
-	// Allocate ACPI node list
-	GlbAcpiNodes = CollectionCreate(KeyInteger);
+    // Do the early table enumeration
+    Status = AcpiInitializeTables(NULL, ACPI_MAX_INIT_TABLES, TRUE);
+    if (ACPI_FAILURE(Status)) {
+        ERROR(" > failed to obtain acpi tables (acpi disabled %u)", Status);
+        AcpiStatus = ACPI_NOT_AVAILABLE;
+        return OsError;
+    }
+    else {
+        AcpiStatus = ACPI_AVAILABLE;
+    }
 
-	// Check for MADT presence and enumerate
-	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 0, &Header))) {
-		ACPI_TABLE_MADT *MadtTable = NULL;
-		TRACE("Enumerating the MADT Table");
-		MadtTable = (ACPI_TABLE_MADT*)Header;
-		AcpiEnumarateMADT((void*)((uintptr_t)MadtTable + sizeof(ACPI_TABLE_MADT)),
-            (void*)((uintptr_t)MadtTable + MadtTable->Header.Length));
+    // Check for MADT presence and enumerate
+    if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 0, &Header))) {
+        ACPI_TABLE_MADT *MadtTable  = (ACPI_TABLE_MADT*)Header;
+        void *MadtTableStart        = (void*)((uintptr_t)MadtTable + sizeof(ACPI_TABLE_MADT));
+        void *MadtTableEnd          = (void*)((uintptr_t)MadtTable + MadtTable->Header.Length);
+        int NumberOfDomains         = 0;
+        TRACE(" > gathering system hardware information (MADT)");
 
-        // Cleanup table when we are done with it as we are using
-        // static pointers and reallocating later
-        AcpiPutTable(Header);
-	}
+        // If the MADT table is present we can check for multiple processors
+        // before doing this we check for presence of multiple domains
+        if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SRAT, 0, &Header))) {
+            ACPI_TABLE_SRAT *SratTable  = (ACPI_TABLE_SRAT*)Header;
+            void *SratTableStart        = (void*)((uintptr_t)SratTable + sizeof(ACPI_TABLE_SRAT));
+            void *SratTableEnd          = (void*)((uintptr_t)SratTable + SratTable->Header.Length);
+            
+            TRACE(" > gathering system topology information (SRAT)");
 
-	// Check for SRAT presence and enumerate
-	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SRAT, 0, &Header))) {
-		ACPI_TABLE_SRAT *SratTable = NULL;
-		TRACE("Enumerating the SRAT Table");
-		SratTable = (ACPI_TABLE_SRAT*)Header;
-		AcpiEnumerateSRAT((void*)((uintptr_t)SratTable + sizeof(ACPI_TABLE_SRAT)),
-            (void*)((uintptr_t)SratTable + SratTable->Header.Length));
-        
-        // Cleanup table when we are done with it as we are using
-        // static pointers and reaollcating later
-        AcpiPutTable(Header);
-	}
+            // Get number of domains
+            NumberOfDomains = GetSystemDomainCountFromSRAT(SratTableStart, SratTableEnd);
+            if (NumberOfDomains > 1) {
+                TRACE(" > number of domains %i", NumberOfDomains);
+                for (int i = 0; i < NumberOfDomains; i++) {
+                    SystemDomain_t *Domain;
+                    uintptr_t MemoryStart   = 0;
+                    size_t MemoryLength     = 0;
+                    int NumberOfCores       = 0;
+                    GetSystemDomainMetricsFromSRAT(SratTableStart, SratTableEnd,
+                        (uint32_t)i, &NumberOfCores, &MemoryStart, &MemoryLength);
+                    WARNING("end for now");
+                    for(;;);
 
-	// Check for SRAT presence and enumerate
-	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_ECDT, 0, &Header))) {
-		ACPI_TABLE_ECDT *EcdtTable = NULL;
-		TRACE("Enumerating the ECDT Table");
-		EcdtTable = (ACPI_TABLE_ECDT*)Header;
-		//AcpiEnumerateECDT((void*)((uintptr_t)EcdtTable + sizeof(ACPI_TABLE_ECDT)),
+                    // Validate not empty domain
+                    if (NumberOfCores != 0) {
+                        // Create the domain, then enumerate the cores for that domain
+                        CreateNumaDomain((UUId_t)i, NumberOfCores, MemoryStart, MemoryLength, &Domain);
+                        EnumerateSystemCoresForDomainSRAT(SratTableStart, SratTableEnd, Domain);
+                    }
+                }
+            }
+
+            // Cleanup
+            AcpiPutTable((ACPI_TABLE_HEADER*)SratTable);
+        }
+
+        // Did we find multiple domains?
+        if (NumberOfDomains <= 1) {
+            // No domains present, system is UMA
+            // Use the MADT to enumerate system cores
+            TRACE(" > uma/acpi system, single domain");
+            EnumerateSystemCoresMADT(MadtTableStart, MadtTableEnd);
+        }
+
+        // Handle system interrupt overrides
+        NumberOfDomains = EnumerateSystemInterruptOverrides(MadtTableStart, MadtTableEnd);
+        if (NumberOfDomains > 0) {
+            CreateInterruptOverrides(NumberOfDomains);
+        }
+
+        // Now enumerate the present hardware as now know where they go
+        EnumerateSystemHardwareMADT(MadtTableStart, MadtTableEnd);
+        AcpiPutTable((ACPI_TABLE_HEADER*)MadtTable);
+    }
+    else {
+        Result = OsError;
+    }
+
+    // Check for ECDT presence and enumerate
+    if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_ECDT, 0, &Header))) {
+        ACPI_TABLE_ECDT *EcdtTable = NULL;
+        TRACE("Enumerating the ECDT Table");
+        EcdtTable = (ACPI_TABLE_ECDT*)Header;
+        //AcpiEnumerateECDT((void*)((uintptr_t)EcdtTable + sizeof(ACPI_TABLE_ECDT)),
         //    (void*)((uintptr_t)EcdtTable + EcdtTable->Header.Length));
         
         // Cleanup table when we are done with it as we are using
         // static pointers and reaollcating later
         AcpiPutTable(Header);
-	}
+    }
 
     // Check for SBST presence and enumerate
     // @todo
-	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SBST, 0, &Header))) {
-		ACPI_TABLE_SBST *BattTable = NULL;
-		TRACE("Parsing the SBST Table");
+    if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_SBST, 0, &Header))) {
+        ACPI_TABLE_SBST *BattTable = NULL;
+        TRACE("Parsing the SBST Table");
         BattTable = (ACPI_TABLE_SBST*)Header;
         
         // Cleanup table when we are done with it as we are using
         // static pointers and reaollcating later
         AcpiPutTable(Header);
-	}
-    return OsSuccess;
+    }
+    return Result;
 }
 
 /* This returns 0 if ACPI is not available
  * on the system, or 1 if acpi is available */
 int AcpiAvailable(void)
 {
-	return GlbAcpiAvailable;
+    return AcpiStatus;
 }

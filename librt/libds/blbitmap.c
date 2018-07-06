@@ -32,7 +32,7 @@ GetBytesNeccessaryForBlockmap(
     _In_ uintptr_t          BlockEnd, 
     _In_ size_t             BlockSize)
 {
-    size_t BlockCount = (BlockEnd - BlockSize) / BlockSize;
+    size_t BlockCount = (BlockEnd - BlockStart) / BlockSize;
     return DIVUP((BlockCount + 1), 8); // We can have 8 blocks per byte
 }
 
@@ -81,12 +81,12 @@ ConstructBlockmap(
     Blockmap->BlockStart    = BlockStart;
     Blockmap->BlockEnd      = BlockEnd;
     Blockmap->BlockSize     = BlockSize;
-    Blockmap->BlockCount    = (BlockEnd - BlockSize) / BlockSize;
+    Blockmap->BlockCount    = (BlockEnd - BlockStart) / BlockSize;
     BitmapConstruct(&Blockmap->Base, (uintptr_t*)Buffer, DIVUP((Blockmap->BlockCount + 1), 8));
 
     // Handle configuration parameters
     if (Configuration & BLOCKMAP_ALLRESERVED) {
-        memset(Buffer, 0xFF, DIVUP((Blockmap->BlockCount + 1), 8));
+        memset(Buffer, 0xFF, DIVUP(Blockmap->BlockCount, 8));
         Blockmap->BlocksAllocated = Blockmap->BlockCount;
     }
     return OsSuccess;
@@ -145,7 +145,6 @@ ReserveBlockmapRegion(
     _In_ size_t         Size)
 {
     // Variables
-    OsStatus_t Status;
     int BitCount;
     int Index;
 
@@ -163,9 +162,13 @@ ReserveBlockmapRegion(
 
     // Locked operation
     dslock(&Blockmap->SyncObject);
-    Status = BitmapSetBits(&Blockmap->Base, Index, BitCount);
+    BitCount = BitmapSetBits(&Blockmap->Base, Index, BitCount);
+    if (BitCount != 0) {
+        Blockmap->BlocksAllocated += BitCount;
+        Blockmap->NumAllocations++;
+    }
     dsunlock(&Blockmap->SyncObject);
-    return Status;
+    return OsSuccess;
 }
 
 /* ReleaseBlockmapRegion
@@ -178,7 +181,6 @@ ReleaseBlockmapRegion(
     _In_ size_t         Size)
 {
     // Variables
-    OsStatus_t Result = OsError;
     int BitCount;
     int Index;
 
@@ -192,18 +194,18 @@ ReleaseBlockmapRegion(
     // Do some sanity checks on the calculated 
     // values, they should be in bounds
     if (Index < 0 || BitCount == 0 || Index >= (int)Blockmap->BlockCount) {
-        return Result;
+        return OsError;
     }
 
     // Locked operation to free bits
     dslock(&Blockmap->SyncObject);
-    Result = BitmapClearBits(&Blockmap->Base, Index, BitCount);
-    if (Result == OsSuccess) {
+    BitCount = BitmapClearBits(&Blockmap->Base, Index, BitCount);
+    if (BitCount != 0) {
         Blockmap->BlocksAllocated -= BitCount;
         Blockmap->NumFrees++;
     }
     dsunlock(&Blockmap->SyncObject);
-    return Result;
+    return OsSuccess;
 }
 
 /* BlockBitmapValidate

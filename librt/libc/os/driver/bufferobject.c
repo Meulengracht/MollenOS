@@ -29,7 +29,7 @@
 #ifdef LIBC_KERNEL
 #define __MODULE        "IOBF"
 #define __TRACE
-#include <system/addressspace.h>
+#include <memoryspace.h>
 #include <debug.h>
 #include <heap.h>
 #else
@@ -65,11 +65,11 @@ CreateBuffer(
     // Since we need this support in both kernel and
     // library space - two versions below
 #ifdef LIBC_KERNEL
-    size_t Capacity = DIVUP(Length, AddressSpaceGetPageSize()) * AddressSpaceGetPageSize();
+    size_t Capacity = DIVUP(Length, GetSystemMemoryPageSize()) * GetSystemMemoryPageSize();
     Buffer = (BufferObject_t*)kmalloc(sizeof(BufferObject_t));
-    if (AddressSpaceMap(AddressSpaceGetCurrent(), 
+    if (CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), 
         (PhysicalAddress_t*)&Buffer->Physical, (VirtualAddress_t*)&Buffer->Virtual,
-        Length, ASPACE_FLAG_CONTIGIOUS, __MASK) != OsSuccess) {
+        Length, MAPPING_CONTIGIOUS | MAPPING_DMA, __MASK) != OsSuccess) {
         FATAL(FATAL_SCOPE_KERNEL, "Failed to allocate buffer-object space.");
         return NULL;
     }

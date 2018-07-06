@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@
 
 /* Includes
  * - (OS) System */
-#include <system/addressspace.h>
+#include <memoryspace.h>
 #include <system/utils.h>
 #include <debug.h>
 #include <heap.h>
@@ -95,21 +95,21 @@ AcpiOsMapMemory(
     // Variables
     PhysicalAddress_t Physical  = (PhysicalAddress_t)Where;
     VirtualAddress_t Result     = 0;
-    size_t AdjustedLength       = Length + (Where & (AddressSpaceGetPageSize() - 1));
+    size_t AdjustedLength       = Length + (Where & (GetSystemMemoryPageSize() - 1));
 
     // We have everything below 4mb identity mapped
     if (Where >= 0x1000 && Where < 0x400000) {
         return (void*)Where;
     }
-    if (AddressSpaceMap(AddressSpaceGetCurrent(), &Physical, &Result, AdjustedLength, 
-        ASPACE_FLAG_NOCACHE | ASPACE_FLAG_VIRTUAL, __MASK) != OsSuccess) {
+    if (CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), &Physical, &Result, 
+        AdjustedLength, MAPPING_NOCACHE | MAPPING_VIRTUAL | MAPPING_DMA, __MASK) != OsSuccess) {
         // Uhh
         ERROR("Failed to map physical memory 0x%x", Where);
         return NULL;
     }
 
     // Readjust pointer to correct offset
-    Result += Where & (AddressSpaceGetPageSize() - 1);
+    Result += Where & (GetSystemMemoryPageSize() - 1);
     return (void*)Result;
 }
 
@@ -133,13 +133,14 @@ AcpiOsUnmapMemory(
 {
     // Variables
     VirtualAddress_t Address = (VirtualAddress_t)LogicalAddress;
-    size_t AdjustedLength    = Size + (Address & (AddressSpaceGetPageSize() - 1));
+    size_t AdjustedLength    = Size + (Address & (GetSystemMemoryPageSize() - 1));
 
     // We have everything below 4mb identity mapped
     if (Address >= 0x1000 && Address < 0x400000) {
         return;
     }
-    else if (AddressSpaceUnmap(AddressSpaceGetCurrent(), Address, AdjustedLength) != OsSuccess) {
+    else if (RemoveSystemMemoryMapping(GetCurrentSystemMemorySpace(), 
+             Address, AdjustedLength) != OsSuccess) {
         ERROR("Failed to unmap memory 0x%x", Address);
     }
 }
@@ -161,8 +162,8 @@ AcpiOsGetPhysicalAddress(
     void                    *LogicalAddress,
     ACPI_PHYSICAL_ADDRESS   *PhysicalAddress)
 {
-    PhysicalAddress_t Result = AddressSpaceGetMapping(
-        AddressSpaceGetCurrent(), (VirtualAddress_t)LogicalAddress);
+    PhysicalAddress_t Result = GetSystemMemoryMapping(
+        GetCurrentSystemMemorySpace(), (VirtualAddress_t)LogicalAddress);
     if (Result != 0) {
         *PhysicalAddress = (ACPI_PHYSICAL_ADDRESS)Result;
         return AE_OK;

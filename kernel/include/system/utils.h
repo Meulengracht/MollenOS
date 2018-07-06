@@ -24,55 +24,10 @@
 #ifndef _MCORE_UTILS_H_
 #define _MCORE_UTILS_H_
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 #include <os/spinlock.h>
 #include <os/context.h>
 #include <time.h>
-
-typedef struct _SystemMemoryOverview {
-    uintptr_t               UserCodeStart;
-    uintptr_t               UserCodeSize;
-    
-    uintptr_t               UserSharedMemoryStart;
-    uintptr_t               UserSharedMemorySize;
-    
-    uintptr_t               UserDriverMemoryStart;
-    uintptr_t               UserDriverMemorySize;
-    
-    uintptr_t               UserHeapStart;
-    uintptr_t               UserHeapSize;
-} SystemMemoryOverview_t;
-
-/* System Information structure
- * Contains information related to the OS and the system
- * like Cpu, Memory, Architecture etc */
-typedef struct _SystemInformation {
-
-    // Architecture
-    char                    Architecture[16];
-    char                    Author[32];
-    char                    Date[16];
-    unsigned                VersionMajor;
-    unsigned                VersionMinor;
-    unsigned                VersionRevision;
-
-    // Cpu
-    int                     NumberOfCores;
-
-    // Memory
-    SystemMemoryOverview_t  MemoryOverview;
-    size_t                  AllocationGranularity;
-    size_t                  PagesTotal;
-    size_t                  PagesAllocated;
-} SystemInformation_t;
-
-/* SystemInformationQuery 
- * Queries information about the running system and the underlying architecture */
-KERNELAPI OsStatus_t KERNELABI
-SystemInformationQuery(
-    _Out_ SystemInformation_t *Information);
 
 /* ContextDump 
  * Dumps the contents of the given context for debugging */

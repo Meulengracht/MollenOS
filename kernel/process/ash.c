@@ -32,6 +32,7 @@
 #include <modules/modules.h>
 #include <scheduler.h>
 #include <threading.h>
+#include <machine.h>
 #include <debug.h>
 #include <heap.h>
 
@@ -47,7 +48,6 @@ PhoenixFinishAsh(
     _In_ MCoreAsh_t *Ash)
 {
     // Variables
-    SystemInformation_t SystemInformation;
     UUId_t CurrentCpu       = CpuGetCurrentId();
     MCoreThread_t *Thread   = ThreadingGetCurrentThread(CurrentCpu);
     uintptr_t BaseAddress   = 0;
@@ -62,18 +62,15 @@ PhoenixFinishAsh(
         LoadedFromInitRD = 1;
     }
 
-    // Get memory information
-    SystemInformationQuery(&SystemInformation);
-
     // Update currently running thread
     Ash->MainThread         = Thread->Id;
     Thread->AshId           = Ash->Id;
 
     // Store current address space
-    Ash->AddressSpace       = AddressSpaceGetCurrent();
+    Ash->MemorySpace       = GetCurrentSystemMemorySpace();
 
     // Setup base address for code data
-    BaseAddress             = SystemInformation.MemoryOverview.UserCodeStart;
+    BaseAddress             = GetMachine()->MemoryMap.UserCode.Start;
 
     // Load Executable
     TRACE("Loading PE-image into memory (buffer 0x%x, size %u)", 
@@ -89,13 +86,9 @@ PhoenixFinishAsh(
     Ash->FileBuffer = NULL;
 
     // Initialize the memory bitmaps
-    TRACE("Creating bitmaps");
-    CreateBlockmap(0, SystemInformation.MemoryOverview.UserHeapStart, 
-        SystemInformation.MemoryOverview.UserHeapStart + SystemInformation.MemoryOverview.UserHeapSize, 
-        SystemInformation.AllocationGranularity, &Ash->Heap);
-    CreateBlockmap(0, SystemInformation.MemoryOverview.UserSharedMemoryStart, 
-        SystemInformation.MemoryOverview.UserSharedMemoryStart + SystemInformation.MemoryOverview.UserSharedMemorySize, 
-        SystemInformation.AllocationGranularity, &Ash->Shm);
+    CreateBlockmap(0, GetMachine()->MemoryMap.UserHeap.Start, 
+        GetMachine()->MemoryMap.UserHeap.Start + GetMachine()->MemoryMap.UserHeap.Length, 
+        GetMachine()->MemoryGranularity, &Ash->Heap);
 }
 
 /* PhoenixStartupEntry
@@ -450,7 +443,6 @@ PhoenixCleanupAsh(
     CollectionDestroy(Ash->FileMappings);
 
     // Cleanup memory
-    DestroyBlockmap(Ash->Shm);
     DestroyBlockmap(Ash->Heap);
     PeUnloadImage(Ash->Executable);
     kfree(Ash);

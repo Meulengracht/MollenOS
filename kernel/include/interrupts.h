@@ -54,140 +54,112 @@ typedef struct _MCoreInterruptDescriptor {
 } MCoreInterruptDescriptor_t;
 
 /* InterruptRegister
- * Tries to allocate the given interrupt source
- * by the given descriptor and flags. On success
- * it returns the id of the irq, and on failure it
- * returns UUID_INVALID */
-KERNELAPI
-UUId_t
-KERNELABI
+ * Tries to allocate the given interrupt source by the given descriptor and flags. On success
+ * it returns the id of the irq, and on failure it returns UUID_INVALID */
+KERNELAPI UUId_t KERNELABI
 InterruptRegister(
-    _In_ MCoreInterrupt_t *Interrupt,
-    _In_ Flags_t Flags);
+    _In_ MCoreInterrupt_t*  Interrupt,
+    _In_ Flags_t            Flags);
 
 /* InterruptUnregister 
- * Unregisters the interrupt from the system and removes
- * any resources that was associated with that interrupt 
- * also masks the interrupt if it was the only user */
-KERNELAPI
-OsStatus_t
-KERNELABI
+ * Unregisters the interrupt from the system and removes any resources that was associated 
+ * with that interrupt also masks the interrupt if it was the only user */
+KERNELAPI OsStatus_t KERNELABI
 InterruptUnregister(
-    _In_ UUId_t Source);
+    _In_ UUId_t             Source);
 
 /* InterruptGet
- * Retrieves the given interrupt source information
- * as a MCoreInterruptDescriptor_t */
-KERNELAPI
-MCoreInterruptDescriptor_t*
-KERNELABI
+ * Retrieves the given interrupt source information as a MCoreInterruptDescriptor_t */
+KERNELAPI MCoreInterruptDescriptor_t* KERNELABI
 InterruptGet(
-   _In_ UUId_t Source);
+   _In_ UUId_t              Source);
 
 /* InterruptGetIndex
- * Retrieves the given interrupt source information
- * as a MCoreInterruptDescriptor_t */
-KERNELAPI
-MCoreInterruptDescriptor_t*
-KERNELABI
+ * Retrieves the given interrupt source information as a MCoreInterruptDescriptor_t */
+KERNELAPI MCoreInterruptDescriptor_t* KERNELABI
 InterruptGetIndex(
-   _In_ UUId_t TableIndex);
+   _In_ UUId_t              TableIndex);
 
 /* InterruptSetActiveStatus
- * Set's the current status for the calling cpu to
- * interrupt-active state */
-KERNELAPI
-void
-KERNELABI
+ * Set's the current status for the calling cpu to interrupt-active state */
+KERNELAPI void KERNELABI
 InterruptSetActiveStatus(
-    _In_ int Active);
+    _In_ int                Active);
 
 /* InterruptGetActiveStatus
- * Get's the current status for the calling cpu to
- * interrupt-active state */
-KERNELAPI
-int
-KERNELABI
+ * Get's the current status for the calling cpu to interrupt-active state */
+KERNELAPI int KERNELABI
 InterruptGetActiveStatus(void);
 
 /* InterruptHandle
  * Handles an interrupt by invoking the registered handlers
  * on the given table-index. */
-KERNELAPI
-InterruptStatus_t
-KERNELABI
+KERNELAPI InterruptStatus_t KERNELABI
 InterruptHandle(
-    _In_ Context_t *Context,
-    _In_ int TableIndex,
-    _Out_ int *Source);
+    _In_  Context_t*        Context,
+    _In_  int               TableIndex,
+    _Out_ int*              Source);
 
 /* InterruptIncreasePenalty 
- * Increases the penalty for an interrupt source. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+ * Increases the penalty for an interrupt source. This affects how the system allocates
+ * interrupts when load balancing */
+KERNELAPI OsStatus_t KERNELABI
 InterruptIncreasePenalty(
-    _In_ int Source);
+    _In_ int                Source);
 
 /* InterruptDecreasePenalty 
- * Decreases the penalty for an interrupt source. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+ * Decreases the penalty for an interrupt source. This affects how the system allocates
+ * interrupts when load balancing */
+KERNELAPI OsStatus_t KERNELABI
 InterruptDecreasePenalty(
-    _In_ int Source);
+    _In_ int                Source);
 
 /* InterruptGetPenalty
- * Retrieves the penalty for an interrupt source. 
- * If INTERRUPT_NONE is returned the source is unavailable. */
-KERNELAPI
-int
-KERNELABI
+ * Retrieves the penalty for an interrupt source. If INTERRUPT_NONE is returned the source is unavailable. */
+KERNELAPI int KERNELABI
 InterruptGetPenalty(
-    _In_ int Source);
+    _In_ int                Source);
 
 /* InterruptGetLeastLoaded
  * Allocates the least used sharable irq
  * most useful for MSI devices */
-KERNELAPI
-int
-KERNELABI
+KERNELAPI int KERNELABI
 InterruptGetLeastLoaded(
-	_In_ int Irqs[],
-	_In_ int Count);
+	_In_ int                Irqs[],
+	_In_ int                Count);
 
 /* AcpiGetPolarityMode
  * Returns whether or not the polarity is Active Low or Active High.
  * For Active Low = 1, Active High = 0 */
-KERNELAPI
-int
-KERNELABI
+KERNELAPI int KERNELABI
 AcpiGetPolarityMode(
-    _In_ uint16_t IntiFlags,
-    _In_ int Source);
+    _In_ uint16_t           IntiFlags,
+    _In_ int                Source);
 
 /* AcpiGetTriggerMode
  * Returns whether or not the trigger mode of the interrup is level or edge.
  * For Level = 1, Edge = 0 */
-KERNELAPI
-int
-KERNELABI
+KERNELAPI int KERNELABI
 AcpiGetTriggerMode(
-    _In_ uint16_t IntiFlags,
-    _In_ int Source);
+    _In_ uint16_t           IntiFlags,
+    _In_ int                Source);
+
+/* ConvertAcpiFlagsToConformFlags
+ * Converts acpi interrupt flags to the system interrupt conform flags. */
+KERNELAPI Flags_t KERNELABI
+ConvertAcpiFlagsToConformFlags(
+    _In_ uint16_t           IntiFlags,
+    _In_ int                Source);
 
 /* AcpiDeriveInterrupt
- * Derives an interrupt by consulting
- * the bus of the device, and spits out flags in
+ * Derives an interrupt by consulting the bus of the device, and spits out flags in
  * AcpiConform and returns irq */
-KERNELAPI
-int
-KERNELABI
+KERNELAPI int KERNELABI
 AcpiDeriveInterrupt(
-    _In_ DevInfo_t Bus, 
-    _In_ DevInfo_t Device,
-    _In_ int Pin,
-    _Out_ Flags_t *AcpiConform);
+    _In_  DevInfo_t         Bus, 
+    _In_  DevInfo_t         Device,
+    _In_  int               Pin,
+    _Out_ Flags_t*          AcpiConform);
 
 /* __KernelInterruptDriver
  * Call this to send an interrupt into user-space

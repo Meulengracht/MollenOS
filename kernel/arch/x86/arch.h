@@ -38,14 +38,10 @@
 #endif
 #define MAX_SUPPORTED_INTERRUPTS        256
 
-/* Cpu-Core (Data) Definitions
- * Definitions, bit definitions and magic constants for each cpu-core */
-#define CPUCORE_DATA_VIRTUAL_DIR        0
-
-/* AddressSpace (Data) Definitions
+/* MemorySpace (Data) Definitions
  * Definitions, bit definitions and magic constants for address spaces */
-#define ASPACE_DATA_CR3                 0
-#define ASPACE_DATA_PDPOINTER           1
+#define MEMORY_SPACE_CR3                0
+#define MEMORY_SPACE_DIRECTORY          1
 
 #ifndef GDT_IOMAP_SIZE
 #define GDT_IOMAP_SIZE                  2048
@@ -79,9 +75,7 @@
 #define MEMORY_LOCATION_RING3_CODE          0x20000000    /* Base for ring3 code */
 #define MEMORY_LOCATION_RING3_CODE_END      0x30000000    /* Base for ring3 code */
 #define MEMORY_LOCATION_RING3_HEAP          0x30000000    /* Base for ring3 heap */
-#define MEMORY_LOCATION_RING3_HEAP_END      0xA0000000
-#define MEMORY_LOCATION_RING3_SHM           0xA0000000    /* Base for ring3 shm */
-#define MEMORY_LOCATION_RING3_SHM_END       0xB0000000
+#define MEMORY_LOCATION_RING3_HEAP_END      0xB0000000
 #define MEMORY_LOCATION_RING3_IOSPACE       0xB0000000    /* Base for ring3 io-space (1gb) */
 #define MEMORY_LOCATION_RING3_IOSPACE_END   0xF0000000
 
@@ -122,12 +116,10 @@
 // Every gigabyte in 1mb page blocks is then 512 bytes
 #define MEMORY_LOCATION_RING3_CODE          0x200000000
 #define MEMORY_LOCATION_RING3_CODE_END      0x300000000     // 4gb code space
-#define MEMORY_LOCATION_RING3_SHM           0x300000000     // 20gb shared memory space
-#define MEMORY_LOCATION_RING3_SHM_END       0x800000000
-#define MEMORY_LOCATION_RING3_IOSPACE       0x800000000     // 16gb io memory space
-#define MEMORY_LOCATION_RING3_IOSPACE_END   0x1000000000
-#define MEMORY_LOCATION_RING3_HEAP          0x1000000000    // xxgb heap memory space
-#define MEMORY_LOCATION_RING3_HEAP_END      0x1100000000    // xxgb heap memory space
+#define MEMORY_LOCATION_RING3_IOSPACE       0x300000000     // 16gb io memory space
+#define MEMORY_LOCATION_RING3_IOSPACE_END   0x700000000
+#define MEMORY_LOCATION_RING3_HEAP          0x700000000     // xxgb heap memory space
+#define MEMORY_LOCATION_RING3_HEAP_END      0x800000000     // xxgb heap memory space
 //#define MEMORY_LOCATION_RING3_HEAP_END    0xFFFFFFFFFFFFFFFF
 
 #define MEMORY_SEGMENT_SIGSTACK_BASE        MEMORY_LOCATION_RING3_STACK_START

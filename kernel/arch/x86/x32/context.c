@@ -94,8 +94,8 @@ ContextCreate(
         }
 
         // Map in the context
-        AddressSpaceMap(AddressSpaceGetCurrent(), NULL, &ContextAddress, PAGE_SIZE,
-            ASPACE_FLAG_APPLICATION | ASPACE_FLAG_SUPPLIEDVIRTUAL, __MASK);
+		CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &ContextAddress,
+			PAGE_SIZE, MAPPING_USERSPACE | MAPPING_FIXED, __MASK);
     }
 	else {
 		FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%i)", ContextType);
