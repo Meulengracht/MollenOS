@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,23 +21,19 @@
 #define __MODULE        "PELD"
 //#define __TRACE
 
-/* Includes 
- * - System */
 #include <memoryspace.h>
 #include <modules/modules.h>
-#include <os/file.h>
 #include <process/ash.h>
 #include <process/pe.h>
 #include <debug.h>
 #include <heap.h>
-#include <log.h>
 
-/* Includes
- * - Library */
 #include <assert.h>
 #include <stdio.h>
-#include <stddef.h>
 #include <string.h>
+
+// Prototypes
+OsStatus_t LoadFile(const char* Path, char** FullPath, void** Data, size_t* Length);
 
 //#define __OSCONFIG_PROCESS_SINGLELOAD
 #ifdef __OSCONFIG_PROCESS_SINGLELOAD
@@ -561,6 +557,7 @@ PeResolveLibrary(
     // Variables
     MCorePeFile_t *ExportParent = Parent;
     MCorePeFile_t *Exports      = NULL;
+    OsStatus_t Status;
 
     // Sanitize the parent, because the parent will
     // be null when it's the root module
@@ -588,62 +585,25 @@ PeResolveLibrary(
 
     // Sanitize the exports, if its null we have to resolve the library
     if (Exports == NULL) {
-        BufferObject_t *BufferObject = NULL;
-        UUId_t fHandle = UUID_INVALID;
-        MCorePeFile_t *Library = NULL;
-        uint8_t *fBuffer = NULL;
-        size_t fRead = 0, fIndex = 0;
-        size_t fSize = 0;
+        MCorePeFile_t *Library;
+        uint8_t *fBuffer;
+        size_t fSize;
 
         // Open the file
         // We have a special case here that it might
         // be from the ramdisk we are loading
         if (ExportParent->UsingInitRD) {
             TRACE("Loading from ramdisk (%s)", MStringRaw(LibraryName));
-            if (ModulesQueryPath(LibraryName, (void**)&fBuffer, &fSize) != OsSuccess) {
-                ERROR("Failed to load library %s", MStringRaw(LibraryName));
-                for (;;);
-            }
+            Status = ModulesQueryPath(LibraryName, (void**)&fBuffer, &fSize);
         }
         else {
-            // Variables
-            FileSystemCode_t FsCode = FsOk;
-            LargeInteger_t QueriedSize;
+            TRACE("Loading from filesystem (%s)", MStringRaw(LibraryName));
+            Status = LoadFile(MStringRaw(LibraryName), NULL, (void**)&fBuffer, &fSize);
+        }
 
-            // Open the file as read-only
-            FsCode = OpenFile(MStringRaw(LibraryName), __FILE_MUSTEXIST, __FILE_READ_ACCESS, &fHandle);
-            if (FsCode != FsOk) {
-                ERROR("Invalid path given: %s", MStringRaw(LibraryName));
-                for (;;);
-            }
-
-            // Allocate buffer large enough to read entire file
-            QueriedSize.QuadPart = 0;
-            if (GetFileSize(fHandle, &QueriedSize.u.LowPart, NULL) != OsSuccess) {
-                ERROR("Failed to retrieve the file size");
-                for (;;);
-            }
-            fSize = (size_t)QueriedSize.QuadPart;
-            BufferObject    = CreateBuffer(fSize);
-            fBuffer         = (uint8_t*)kmalloc(fSize);
-
-            // Sanitize allocations
-            if (BufferObject == NULL || fBuffer == NULL) {
-                ERROR("Failed to allocate resources for file-loading");
-                for(;;);
-            }
-
-            // Read file and copy path
-            FsCode          = ReadFile(fHandle, BufferObject, &fIndex, &fRead);
-            if (FsCode != FsOk) {
-                ERROR("Failed to read file, code %i", FsCode);
-                for(;;);
-            }
-            ReadBuffer(BufferObject, (const void*)fBuffer, fRead, NULL);
-
-            // Cleanup
-            DestroyBuffer(BufferObject);
-            CloseFile(fHandle);
+        if (Status != OsSuccess) {
+            ERROR("Failed to load library %s", MStringRaw(LibraryName));
+            for (;;);
         }
 
         // After retrieving the data we can now

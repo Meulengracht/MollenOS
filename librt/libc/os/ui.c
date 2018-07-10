@@ -24,9 +24,8 @@
 
 // Globals
 // State keeping for a single window
-static BufferObject_t *ProgramWindowBuffer = NULL;
-static Handle_t ProgramWindowHandle        = NULL;
-
+static DmaBuffer_t *ProgramWindowBuffer = NULL;
+static Handle_t ProgramWindowHandle     = NULL;
 
 /* UiParametersSetDefault
  * Set(s) default window parameters for the given window param structure. */
@@ -51,7 +50,7 @@ UiParametersSetDefault(
 OsStatus_t
 UiRegisterWindow(
     _In_  UIWindowParameters_t* Descriptor,
-    _Out_ BufferObject_t**      WindowBuffer)
+    _Out_ DmaBuffer_t**         WindowBuffer)
 {
     // Variables
     size_t BytesNeccessary = 0;
@@ -66,14 +65,14 @@ UiRegisterWindow(
     BytesNeccessary = Descriptor->Surface.Dimensions.w * Descriptor->Surface.Dimensions.h * 4;
 
     // Create the buffer object
-    *WindowBuffer = CreateBuffer(BytesNeccessary);
+    *WindowBuffer = CreateBuffer(UUID_INVALID, BytesNeccessary);
     if (*WindowBuffer == NULL) {
         return OsError;
     }
     ProgramWindowBuffer = *WindowBuffer;
 
     // Create the window
-    return CreateWindow(Descriptor, *WindowBuffer, &ProgramWindowHandle);
+    return CreateWindow(Descriptor, GetBufferHandle(ProgramWindowBuffer), &ProgramWindowHandle);
 }
 
 /* UiUnregisterWindow

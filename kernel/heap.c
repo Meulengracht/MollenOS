@@ -886,7 +886,7 @@ kmalloc_base(
     }
 
     // Check alignment
-    if ((Flags & ALLOCATION_PAGEALIGN) && ((ReturnAddress & (GetSystemMemoryPageSize() - 1)) != 0)) {
+    if ((Flags & ALLOCATION_PAGEALIGN) && (ReturnAddress % GetSystemMemoryPageSize()) != 0) {
         FATAL(FATAL_SCOPE_KERNEL, "Allocation result 0x%x (alignment failed)", ReturnAddress);
         return NULL;
     } 

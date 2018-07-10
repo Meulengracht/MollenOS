@@ -121,7 +121,7 @@ RegisterContract(
 	// Initialize static RPC variables like
 	// type of RPC, pipe and version
 	RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
-        __DEVICEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __DEVICEMANAGER_REGISTERCONTRACT);
+        __DEVICEMANAGER_INTERFACE_VERSION, __DEVICEMANAGER_REGISTERCONTRACT);
 	RPCSetArgument(&Request, 0, (const void*)Contract, sizeof(MContract_t));
 	RPCSetResult(&Request, &ContractId, sizeof(UUId_t));
 	Result = RPCExecute(&Request);
@@ -172,7 +172,7 @@ QueryContract(
 	// Initialize static RPC variables like
 	// type of RPC, pipe and version
 	RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
-        __DEVICEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __DEVICEMANAGER_QUERYCONTRACT);
+        __DEVICEMANAGER_INTERFACE_VERSION, __DEVICEMANAGER_QUERYCONTRACT);
 	RPCSetArgument(&Request, 0, (const void*)&Type, sizeof(MContractType_t));
 	RPCSetArgument(&Request, 1, (const void*)&Function, sizeof(int));
 

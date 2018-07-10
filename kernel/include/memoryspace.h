@@ -45,14 +45,15 @@
 #define MAPPING_EXECUTABLE              0x00000008  // Memory can be executed
 #define MAPPING_ISDIRTY                 0x00000010  // Memory that has been marked poluted/written to
 
-#define MAPPING_VIRTUAL                 0x00010000  // (Physical) Mapping is supplied
-#define MAPPING_CONTIGIOUS              0x00020000  // (Physical) Mapping must be continous
-#define MAPPING_DOMAIN                  0x00040000  // (Physical) Mapping must be domain local
+#define MAPPING_PROVIDED                0x00010000  // (Physical) Mapping is supplied
+#define MAPPING_PERSISTENT              0x00020000  // (Physical) Mapping should not be freed when mapping is removed
+#define MAPPING_CONTIGIOUS              0x00040000  // (Physical) Mapping must be continous
+#define MAPPING_DOMAIN                  0x00080000  // (Physical) Mapping must be domain local
 #define MAPPING_PMODE_MASK              0x000F0000
 
 #define MAPPING_FIXED                   0x10000000  // (Virtual) Mapping is supplied
 #define MAPPING_PROCESS                 0x20000000  // (Virtual) Mapping is process specific
-#define MAPPING_DMA                     0x40000000  // (Virtual) Mapping is done in priority memory
+#define MAPPING_KERNEL                  0x40000000  // (Virtual) Mapping is done in priority memory
 #define MAPPING_LEGACY                  0x80000000  // (Virtual) Mapping is for legacy memory devices
 #define MAPPING_VMODE_MASK              0xF0000000
 
@@ -64,9 +65,8 @@ typedef struct _SystemMemorySpace {
     UUId_t                      Id;
     _Atomic(int)                References;
     Flags_t                     Flags;
-    struct _SystemMemorySpace*  Parent;
-    
     uintptr_t                   Data[MEMORY_DATACOUNT];
+    struct _SystemMemorySpace*  Parent;
 } SystemMemorySpace_t;
 
 /* InitializeSystemMemorySpace

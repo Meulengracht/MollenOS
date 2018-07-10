@@ -51,7 +51,7 @@
 SERVICEAPI OsStatus_t SERVICEABI
 CreateWindow(
     _In_  UIWindowParameters_t* Params,
-    _In_  BufferObject_t*       SurfaceBuffer,
+    _In_  UUId_t                BufferHandle,
     _Out_ Handle_t*             Handle)
 {
     // Variables
@@ -59,11 +59,11 @@ CreateWindow(
 
     // Initialize rpc request
     RPCInitialize(&Request, __WINDOWMANAGER_TARGET, 
-        __WINDOWMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __WINDOWMANAGER_CREATE);
+        __WINDOWMANAGER_INTERFACE_VERSION, __WINDOWMANAGER_CREATE);
 
     // Setup rpc arguments
     RPCSetArgument(&Request, 0, (const void*)Params,        sizeof(UIWindowParameters_t));
-    RPCSetArgument(&Request, 1, (const void*)SurfaceBuffer, GetBufferObjectSize(SurfaceBuffer));
+    RPCSetArgument(&Request, 1, (const void*)&BufferHandle, sizeof(UUId_t));
     RPCSetResult(&Request, (const void*)Handle, sizeof(Handle_t));
     return RPCExecute(&Request);
 }
@@ -79,7 +79,7 @@ DestroyWindow(
 
     // Initialize rpc request
     RPCInitialize(&Request, __WINDOWMANAGER_TARGET, 
-        __WINDOWMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __WINDOWMANAGER_DESTROY);
+        __WINDOWMANAGER_INTERFACE_VERSION, __WINDOWMANAGER_DESTROY);
     RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(Handle_t));
     return RPCEvent(&Request);
 }
@@ -97,7 +97,7 @@ QueryWindow(
 
     // Initialize rpc request
     RPCInitialize(&Request, __WINDOWMANAGER_TARGET, 
-        __WINDOWMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __WINDOWMANAGER_QUERY);
+        __WINDOWMANAGER_INTERFACE_VERSION, __WINDOWMANAGER_QUERY);
 
     // Setup rpc arguments
     RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(Handle_t));
@@ -117,7 +117,7 @@ SwapWindowBackbuffer(
 
     // Initialize rpc request
     RPCInitialize(&Request, __WINDOWMANAGER_TARGET, 
-        __WINDOWMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __WINDOWMANAGER_SWAPBUFFER);
+        __WINDOWMANAGER_INTERFACE_VERSION, __WINDOWMANAGER_SWAPBUFFER);
     
     // Setup rpc arguments
     RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(Handle_t));

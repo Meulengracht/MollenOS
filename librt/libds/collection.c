@@ -42,6 +42,17 @@ CollectionCreate(
     return Collection;
 }
 
+/* CollectionConstruct
+ * Instantiates a new static Collection with the given attribs and keytype */
+void
+CollectionConstruct(
+    _In_ Collection_t*          Collection,
+    _In_ KeyType_t              KeyType)
+{
+    memset(Collection, 0, sizeof(Collection_t));
+    Collection->KeyType = KeyType;
+}
+
 /* CollectionClear
  * Clears the Collection of members, cleans up nodes. */
 OsStatus_t

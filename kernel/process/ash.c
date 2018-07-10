@@ -23,9 +23,6 @@
 #define __MODULE "ASH1"
 //#define __TRACE
 
-/* Includes 
- * - System */
-#include <os/file.h>
 #include <system/thread.h>
 #include <system/utils.h>
 #include <process/phoenix.h>
@@ -36,9 +33,8 @@
 #include <debug.h>
 #include <heap.h>
 
-/* Includes
- * - Library */
-#include <stddef.h>
+// Prototypes
+OsStatus_t LoadFile(const char* Path, char** FullPath, void** Data, size_t* Length);
 
 /* This is the finalizor function for starting
  * up a new base Ash, it finishes setting up the environment
@@ -118,11 +114,10 @@ PhoenixInitializeAsh(
     _In_    MString_t*  Path)
 { 
     // Variables
-    BufferObject_t *BufferObject    = NULL;
-    UUId_t fHandle                  = UUID_INVALID;
-    uint8_t *fBuffer                = NULL;
-    char *fPath                     = NULL;
-    size_t fSize = 0, fRead = 0, fIndex = 0;
+    OsStatus_t Status;
+    uint8_t *fBuffer;
+    size_t fSize;
+    char *fPath;
     int Index = 0, ShouldFree = 0;
 
     // Sanitize inputs
@@ -138,81 +133,26 @@ PhoenixInitializeAsh(
     memset(Ash, 0, sizeof(MCoreAsh_t));
 
     // Open File 
-    // We have a special case here
-    // in case we are loading from RD
-    if (MStringFindCString(Path, "rd:/") != -1) { 
-        Ash->Path = MStringCreate((void*)MStringRaw(Path), StrUTF8);
-        if (ModulesQueryPath(Path, (void**)&fBuffer, &fSize) != OsSuccess) {
-            ERROR("Failed to locate module/file in ramdisk.");
-            return OsError;
-        }
+    // We have a special case here in case we are loading from RD
+    if (MStringFindCString(Path, "rd:/") != -1) {
+        TRACE("Loading from ramdisk (%s)", MStringRaw(Path));
+        Status      = ModulesQueryPath(Path, (void**)&fBuffer, &fSize);
+        fPath       = (char*)MStringRaw(Path);
     }
     else {
-        // Variables
-        FileSystemCode_t FsCode = FsOk;
-        OsStatus_t FsResult     = OsSuccess;
-        LargeInteger_t QueriedSize;
-
-        // Open the file as read-only
-        FsCode = OpenFile(MStringRaw(Path), __FILE_MUSTEXIST, __FILE_READ_ACCESS, &fHandle);
-        if (FsCode != FsOk) {
-            ERROR("Invalid path given: %s", MStringRaw(Path));
-            return OsError;
-        }
-
-        // Allocate buffer large enough to read entire file
-        QueriedSize.QuadPart = 0;
-        if (GetFileSize(fHandle, &QueriedSize.u.LowPart, NULL) != OsSuccess) {
-            ERROR("Failed to retrieve the file size");
-            FsResult = OsError;
-            goto FileCleanup;
-        }
-        fSize           = (size_t)QueriedSize.QuadPart;
-        BufferObject    = CreateBuffer(fSize);
-        fBuffer         = (uint8_t*)kmalloc(fSize);
-        fPath           = (char*)kmalloc(_MAXPATH);
-
-        // Sanitize allocations
-        if (BufferObject == NULL || fBuffer == NULL || fPath == NULL) {
-            ERROR("Failed to allocate resources for file-loading");
-            FsResult = OsError;
-            goto FileCleanup;
-        }
-        memset(fPath, 0, _MAXPATH);
-
-        // Set that we should free the buffer again
-        ShouldFree      = 1;
-
-        // Read file and copy path
-        FsCode          = ReadFile(fHandle, BufferObject, &fIndex, &fRead);
-        if (FsCode != FsOk) {
-            ERROR("Failed to read file, code %i", FsCode);
-            FsResult = OsError;
-            goto FileCleanup;
-        }
-        ReadBuffer(BufferObject, (const void*)fBuffer, fRead, NULL);
-        if (GetFilePath(fHandle, fPath, _MAXPATH) != OsSuccess) {
-            ERROR("Failed to query file handle for full path");
-            FsResult = OsError;
-            goto FileCleanup;
-        }
-        Ash->Path = MStringCreate(fPath, StrUTF8);
-
-        // Cleanup
-    FileCleanup:
-        if (BufferObject != NULL) {
-            DestroyBuffer(BufferObject);
-        }
-        if (fPath != NULL) {
-            kfree(fPath);
-        }
-        CloseFile(fHandle);
-        if (FsResult != OsSuccess) {
-            if (fBuffer != NULL) {
-                kfree(fBuffer);
-            }
-            return FsResult;
-        }
+        TRACE("Loading from filesystem (%s)", MStringRaw(LibraryName));
+        Status      = LoadFile(MStringRaw(Path), &fPath, (void**)&fBuffer, &fSize);
+        ShouldFree  = 1;
+    }
+    
+    if (Status != OsSuccess) {
+        ERROR("Failed to load file %s", MStringRaw(Path));
+        return OsError;
+    }
+    
+    Ash->Path = MStringCreate(fPath, StrUTF8);
+    if (ShouldFree == 1) {
+        kfree((void*)fPath);
     }
 
     // Validate the pe-file buffer

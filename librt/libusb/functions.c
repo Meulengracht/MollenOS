@@ -22,25 +22,19 @@
  */
 //#define __TRACE
 
-/* Includes 
- * - System */
 #include <os/contracts/usbhost.h>
 #include <os/bufferpool.h>
 #include <os/driver.h>
 #include <os/usb.h>
 #include <os/utils.h>
-
-/* Includes
- * - Library */
 #include <threads.h>
 #include <stdlib.h>
-#include <stddef.h>
 #include <string.h>
 
 /* Globals
  * State-keeping variables for libusb */
 static const size_t LIBUSB_SHAREDBUFFER_SIZE    = 0x2000;
-static BufferObject_t *__LibUsbBuffer           = NULL;
+static DmaBuffer_t *__LibUsbBuffer              = NULL;
 static BufferPool_t *__LibUsbBufferPool         = NULL;
 
 /* UsbInitialize
@@ -48,7 +42,7 @@ static BufferPool_t *__LibUsbBufferPool         = NULL;
  * functions that require a shared buffer-pool. */
 OsStatus_t
 UsbInitialize(void) {
-    __LibUsbBuffer = CreateBuffer(LIBUSB_SHAREDBUFFER_SIZE);
+    __LibUsbBuffer = CreateBuffer(UUID_INVALID, LIBUSB_SHAREDBUFFER_SIZE);
     return BufferPoolCreate(__LibUsbBuffer, &__LibUsbBufferPool);
 }
 

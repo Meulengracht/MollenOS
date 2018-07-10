@@ -236,7 +236,7 @@ tls_create(
     Tls->seed   = 1;
 
     // Setup a local transfer buffer for stdio operations
-    Tls->transfer_buffer = CreateBuffer(BUFSIZ);
+    Tls->transfer_buffer = CreateBuffer(UUID_INVALID, BUFSIZ);
     return OsSuccess;
 }
 

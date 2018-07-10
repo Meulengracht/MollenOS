@@ -21,16 +21,10 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-/* Includes
- * - System */
 #include <os/contracts/filesystem.h>
 #include <os/mollenos.h>
 #include <os/syscall.h>
-
-/* Includes
- * - Library */
 #include <string.h>
-#include <stddef.h>
 
 /* SetWorkingDirectory
  * Performs changes to the current working directory by canonicalizing the 
@@ -63,7 +57,8 @@ SetWorkingDirectory(
 OsStatus_t
 GetWorkingDirectory(
     _In_ char*  PathBuffer, 
-    _In_ size_t MaxLength) {
+    _In_ size_t MaxLength)
+{
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
@@ -76,7 +71,8 @@ OsStatus_t
 GetWorkingDirectoryOfApplication(
     _In_ UUId_t ProcessId,
     _In_ char*  PathBuffer,
-    _In_ size_t MaxLength) {
+    _In_ size_t MaxLength)
+{
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
@@ -88,7 +84,8 @@ GetWorkingDirectoryOfApplication(
 OsStatus_t
 GetAssemblyDirectory(
     _In_ char*  PathBuffer, 
-    _In_ size_t MaxLength) {
+    _In_ size_t MaxLength)
+{
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}

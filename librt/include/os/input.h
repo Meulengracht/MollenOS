@@ -24,8 +24,6 @@
 #ifndef _INPUT_INTERFACE_H_
 #define _INPUT_INTERFACE_H_
 
-/* Includes
- * - System */
 #include <os/virtualkeycodes.h>
 #include <os/ipc/ipc.h>
 #include <os/osdefs.h>
@@ -75,10 +73,7 @@ CreateInput(MInput_t *Input)
 	MRemoteCall_t Request;
 	
 	// Initialize rpc request
-	RPCInitialize(&Request, __WINDOWMANAGER_TARGET, 
-        __WINDOWMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __WINDOWMANAGER_NEWINPUT);
-	
-	// Setup rpc arguments
+	RPCInitialize(&Request, __WINDOWMANAGER_TARGET, __WINDOWMANAGER_INTERFACE_VERSION, __WINDOWMANAGER_NEWINPUT);
 	RPCSetArgument(&Request, 0, (const void*)Input, sizeof(MInput_t));
 	return RPCEvent(&Request);
 }

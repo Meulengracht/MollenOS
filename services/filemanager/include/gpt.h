@@ -24,8 +24,6 @@
 #ifndef _DISK_LAYOUT_GPT_H_
 #define _DISK_LAYOUT_GPT_H_
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
 
 /* GPT Definitions 
@@ -73,6 +71,6 @@ typedef struct _GptPartitionEntry {
 /* GptEnumerate 
  * Enumerates a given disk with GPT data layout 
  * and automatically creates new filesystem objects */
-__EXTERN OsStatus_t GptEnumerate(FileSystemDisk_t *Disk, BufferObject_t *Buffer);
+__EXTERN OsStatus_t GptEnumerate(FileSystemDisk_t *Disk, DmaBuffer_t *Buffer);
 
 #endif //!_DISK_LAYOUT_GPT_H_

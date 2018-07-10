@@ -21,16 +21,11 @@
  */
 //#define __TRACE
 
-/* Includes
- * - System */
+#include <ds/collection.h>
 #include <os/file.h>
 #include <os/utils.h>
 #include "include/vfs.h"
-
-/* Includes
- * - C-Library */
 #include <stdlib.h>
-#include <stddef.h>
 #include <string.h>
 #include <ctype.h>
 
@@ -78,8 +73,7 @@ UUId_t GlbFileId                        = 0;
 int GlbInitialized                      = 0;
 
 /* The disk id array, contains id's in the
- * range of __FILEMANAGER_MAXDISKS/2 as half
- * of them are reserved for rm/st */
+ * range of __FILEMANAGER_MAXDISKS/2 as half of them are reserved for rm/st */
 int GlbDiskIds[__FILEMANAGER_MAXDISKS];
 
 /* VfsGetOpenFiles / VfsGetOpenHandles
@@ -298,7 +292,8 @@ OnEvent(
 			Package.Code = VfsReadFile(
                 Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
-				(BufferObject_t*)Message->Arguments[1].Data.Buffer,
+				(UUId_t)Message->Arguments[1].Data.Value,
+				Message->Arguments[2].Data.Value,
 				&Package.Index,
 				&Package.ActualSize);
 			Result = RPCRespond(&Message->From, (const void*)&Package, sizeof(RWFilePackage_t));
@@ -311,7 +306,8 @@ OnEvent(
 			Package.Code = VfsWriteFile(
                 Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
-				(BufferObject_t*)Message->Arguments[1].Data.Buffer,
+				(UUId_t)Message->Arguments[1].Data.Value,
+				Message->Arguments[2].Data.Value,
 				&Package.ActualSize);
 			Result = RPCRespond(&Message->From, (const void*)&Package, sizeof(RWFilePackage_t));
 		} break;

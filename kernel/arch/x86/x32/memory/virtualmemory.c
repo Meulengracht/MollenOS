@@ -252,6 +252,13 @@ SetVirtualPageAttributes(
         return OsError;
     }
  
+    // For kernel mappings we would like to mark the mappings global
+    if (Address < MEMORY_LOCATION_KERNEL_END) {
+        if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
+            ConvertedFlags |= PAGE_GLOBAL;
+        }  
+    }
+
 	// Map it, make sure we mask the page address so we don't accidently set any flags
     Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(Address)]);
     if (!(Mapping & PAGE_SYSTEM_MAP)) {
@@ -336,7 +343,7 @@ SetVirtualPageMapping(
     Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX((vAddress & PAGE_MASK))]);
 SyncTable:
     if (Mapping != 0) {
-        if (ConvertedFlags & PAGE_VIRTUAL) {
+        if (ConvertedFlags & PAGE_PERSISTENT) {
             if (Mapping != (pAddress & PAGE_MASK)) {
                 FATAL(FATAL_SCOPE_KERNEL, 
                     "Tried to remap fixed virtual address 0x%x => 0x%x (Existing 0x%x)", 
@@ -383,6 +390,12 @@ ClearVirtualPageMapping(
     if (Table == NULL) {
         return OsError;
     }
+    
+    // For kernel mappings we would like to mark the page free if it's
+    // in the kernel reserved region
+    if (Address >= MEMORY_LOCATION_RESERVED && Address < MEMORY_LOCATION_KERNEL_END) {
+        ClearKernelMemoryAllocation(Address, PAGE_SIZE);
+    }
 
     // Load the mapping
     Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(Address)]);
@@ -397,7 +410,7 @@ SyncTable:
 
             // Release memory, but don't if it is a virtual mapping, that means we 
             // should not free the physical page
-            if (!(Mapping & PAGE_VIRTUAL)) {
+            if (!(Mapping & PAGE_PERSISTENT)) {
                 FreeSystemMemory(Mapping & PAGE_MASK, PAGE_SIZE);
             }
 
@@ -542,7 +555,7 @@ DestroyVirtualSpace(
         Table = (PageTable_t*)Pd->vTables[i];
         for (j = 0; j < ENTRIES_PER_PAGE; j++) {
             CurrentMapping = atomic_load_explicit(&Table->Pages[j], memory_order_relaxed);
-            if (CurrentMapping & PAGE_VIRTUAL) {
+            if (CurrentMapping & PAGE_PERSISTENT) {
                 continue;
             }
 

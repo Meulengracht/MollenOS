@@ -392,7 +392,7 @@ HpInitialize(
     // Map the address
     Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), 
         &HpetController.BaseAddress, &HpetController.BaseAddress, GetSystemMemoryPageSize(),
-        MAPPING_VIRTUAL | MAPPING_NOCACHE | MAPPING_DMA, __MASK);
+        MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_NOCACHE | MAPPING_KERNEL, __MASK);
     if (Status != OsSuccess) {
         ERROR("Failed to map address for hpet.");
         return OsError;

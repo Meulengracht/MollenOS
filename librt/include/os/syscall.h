@@ -91,9 +91,10 @@ _CODE_END
 #define Syscall_MemoryAllocate(Size, Flags, Virtual, Physical) (OsStatus_t)syscall4(41, SCPARAM(Size), SCPARAM(Flags), SCPARAM(Virtual), SCPARAM(Physical))
 #define Syscall_MemoryFree(Pointer, Size) (OsStatus_t)syscall2(42, SCPARAM(Pointer), SCPARAM(Size))
 #define Syscall_MemoryQuery(MemoryInformation) (OsStatus_t)syscall1(43, SCPARAM(MemoryInformation))
-#define Syscall_MemoryAcquire(Physical, Size, Virtual) (OsStatus_t)syscall3(44, SCPARAM(Physical), SCPARAM(Size), SCPARAM(Virtual))
-#define Syscall_MemoryRelease(Virtual, Size) (OsStatus_t)syscall2(45, SCPARAM(Virtual), SCPARAM(Size))
-#define Syscall_MemoryProtect(MemoryPointer, Length, Flags, PreviousFlags) (OsStatus_t)syscall4(46, SCPARAM(MemoryPointer), SCPARAM(Length), SCPARAM(Flags), SCPARAM(PreviousFlags))
+#define Syscall_MemoryProtect(MemoryPointer, Length, Flags, PreviousFlags) (OsStatus_t)syscall4(44, SCPARAM(MemoryPointer), SCPARAM(Length), SCPARAM(Flags), SCPARAM(PreviousFlags))
+#define Syscall_CreateBuffer(Flags, Size, DmaBufferPointer) (OsStatus_t)syscall3(45, SCPARAM(Flags), SCPARAM(Size), SCPARAM(DmaBufferPointer))
+#define Syscall_AcquireBuffer(Handle, DmaBufferPointer) (OsStatus_t)syscall2(46, SCPARAM(Handle), SCPARAM(DmaBufferPointer))
+#define Syscall_QueryBuffer(Handle, DmaOut, CapacityOut) (OsStatus_t)syscall3(47, SCPARAM(Handle), SCPARAM(DmaOut), SCPARAM(CapacityOut))
 
 /* Operating support system calls
  * - Operating support related system call definitions */
@@ -102,6 +103,7 @@ _CODE_END
 #define Syscall_GetAssemblyDirectory(Buffer, MaxLength) (OsStatus_t)syscall2(53, SCPARAM(Buffer), SCPARAM(MaxLength))
 #define Syscall_CreateFileMapping(MappingParameters, MemoryPointer) (OsStatus_t)syscall2(54, SCPARAM(MappingParameters), SCPARAM(MemoryPointer))
 #define Syscall_DestroyFileMapping(MemoryPointer) (OsStatus_t)syscall1(55, SCPARAM(MemoryPointer))
+#define Syscall_DestroyHandle(Handle) (OsStatus_t)syscall1(56, SCPARAM(Handle))
 
 /* Communication system calls
  * - Communication related system call definitions */

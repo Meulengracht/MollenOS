@@ -151,7 +151,7 @@ ParseIoApic(
     Original = Controller->MemoryAddress;
     CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(),
         &Original, &Updated, GetSystemMemoryPageSize(), 
-        MAPPING_NOCACHE | MAPPING_DMA | MAPPING_VIRTUAL, __MASK);
+        MAPPING_NOCACHE | MAPPING_KERNEL | MAPPING_PERSISTENT | MAPPING_PROVIDED, __MASK);
     Controller->MemoryAddress = Updated + (Original & 0xFFF);
 
     /* Maximum Redirection Entry - RO. This field contains the entry number (0 being the lowest
@@ -443,7 +443,7 @@ ApicInitialize(void)
     TRACE(" > local apic at 0x%x", OriginalApAddress);
     CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(),
         &OriginalApAddress, &UpdatedApAddress, GetSystemMemoryPageSize(), 
-        MAPPING_NOCACHE | MAPPING_DMA | MAPPING_VIRTUAL, __MASK);
+        MAPPING_NOCACHE | MAPPING_KERNEL | MAPPING_PERSISTENT | MAPPING_PROVIDED, __MASK);
     GlbLocalApicBase    = UpdatedApAddress + (OriginalApAddress & 0xFFF);
     BspApicId           = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
 

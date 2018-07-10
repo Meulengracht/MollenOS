@@ -21,13 +21,9 @@
  */
 //#define __TRACE
 
-/* Includes
- * - System */
 #include <os/utils.h>
 #include "mfs.h"
 
-/* Includes
- * - Library */
 #include <stdlib.h>
 #include <string.h>
 
@@ -193,11 +189,12 @@ FsCloseHandle(
  * file handle and outputs the number of bytes actually read */
 FileSystemCode_t
 FsReadFile(
-	_In_  FileSystemDescriptor_t*   Descriptor,
-	_In_  FileSystemFileHandle_t*   Handle,
-	_In_  BufferObject_t*           BufferObject,
-	_Out_ size_t*                   BytesAt,
-	_Out_ size_t*                   BytesRead)
+    _In_  FileSystemDescriptor_t*   Descriptor,
+    _In_  FileSystemFileHandle_t*   Handle,
+    _In_  DmaBuffer_t*              BufferObject,
+    _In_  size_t                    Length,
+    _Out_ size_t*                   BytesAt,
+    _Out_ size_t*                   BytesRead)
 {
 	// Variables
 	MfsFileInstance_t *fInstance    = NULL;
@@ -211,7 +208,7 @@ FsReadFile(
 
 	// Trace
 	TRACE("FsReadFile(Id 0x%x, Position %u, Length %u)",
-		Handle->Id, LODWORD(Handle->Position), GetBufferSize(BufferObject));
+		Handle->Id, LODWORD(Handle->Position), Length);
 
 	// Instantiate the pointers
 	Mfs             = (MfsInstance_t*)Descriptor->ExtensionData;
@@ -220,9 +217,9 @@ FsReadFile(
 
 	// Instantiate some of the contents
 	BucketSizeBytes = Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize;
-	DataPointer     = GetBufferAddress(BufferObject);
+	DataPointer     = GetBufferDma(BufferObject);
 	Position        = Handle->Position;
-	BytesToRead     = GetBufferSize(BufferObject);
+	BytesToRead     = Length;
 	*BytesRead      = 0;
 	*BytesAt        = __MASK;
 
@@ -287,9 +284,9 @@ FsReadFile(
 			LODWORD(Sector), SectorIndex, SectorCount, LODWORD(SectorOffset), ByteCount);
 
 		// If there is less than one sector left - break
-		if ((Descriptor->Disk.Descriptor.SectorSize + *BytesRead) > GetBufferCapacity(BufferObject)) {
+		if ((Descriptor->Disk.Descriptor.SectorSize + *BytesRead) > GetBufferSize(BufferObject)) {
 			WARNING("Ran out of buffer space, BytesRead %u, BytesLeft %u, Capacity %u",
-				*BytesRead, BytesToRead, GetBufferCapacity(BufferObject));
+				*BytesRead, BytesToRead, GetBufferSize(BufferObject));
 			break;
 		}
 
@@ -350,10 +347,11 @@ FsReadFile(
  * file handle and outputs the number of bytes actually written */
 FileSystemCode_t
 FsWriteFile(
-	_In_  FileSystemDescriptor_t*   Descriptor,
-	_In_  FileSystemFileHandle_t*   Handle,
-	_In_  BufferObject_t*           BufferObject,
-	_Out_ size_t*                   BytesWritten)
+    _In_  FileSystemDescriptor_t*   Descriptor,
+    _In_  FileSystemFileHandle_t*   Handle,
+    _In_  DmaBuffer_t*              BufferObject,
+    _In_  size_t                    Length,
+    _Out_ size_t*                   BytesWritten)
 {
 	// Variables
 	MfsFileInstance_t *fInstance    = NULL;
@@ -366,7 +364,7 @@ FsWriteFile(
 
 	// Trace
 	TRACE("FsWriteFile(Id 0x%x, Position %u, Length %u)",
-		Handle->Id, LODWORD(Handle->Position), GetBufferSize(BufferObject));
+		Handle->Id, LODWORD(Handle->Position), Length);
 
 	// Instantiate the pointers
 	Mfs             = (MfsInstance_t*)Descriptor->ExtensionData;
@@ -376,7 +374,7 @@ FsWriteFile(
 	// Instantiate some of the variables
 	BucketSizeBytes = Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize;
 	Position        = Handle->Position;
-	BytesToWrite    = GetBufferSize(BufferObject);
+	BytesToWrite    = Length;
 	*BytesWritten   = 0;
 
 	// Make sure record has enough disk-space allocated for 
@@ -437,14 +435,6 @@ FsWriteFile(
 		}
 	}
 	
-	// Figure out the sector that we need to modify
-	// Then figure out if we need to modify a full sector or a partial
-	// sector.
-	if (AcquireBuffer(BufferObject) != OsSuccess) {
-		ERROR("Failed to acquire the buffer for writing");
-		return FsInvalidParameters;
-	}
-
 	// Write in a loop to make sure we write all requested bytes
 	while (BytesToWrite) {
 		// Calculate which bucket, then the sector offset
@@ -550,11 +540,6 @@ FsWriteFile(
 			// Update bucket boundary
 			fInstance->BucketByteBoundary += (Link.Length * BucketSizeBytes);
 		}
-	}
-
-	// Release buffer
-	if (ReleaseBuffer(BufferObject) != OsSuccess) {
-		ERROR("Failed to release the buffer");
 	}
 
 	// Update file position
@@ -856,7 +841,7 @@ FsInitialize(
 	// Variables
 	MasterRecord_t *MasterRecord    = NULL;
 	BootRecord_t *BootRecord        = NULL;
-	BufferObject_t *Buffer          = NULL;
+	DmaBuffer_t *Buffer          	= NULL;
 	MfsInstance_t *Mfs              = NULL;
 	uint8_t *bMap                   = NULL;
 	uint64_t BytesRead              = 0;
@@ -867,7 +852,7 @@ FsInitialize(
 	TRACE("FsInitialize()");
 
 	// Create a generic transferbuffer for us to use
-	Buffer = CreateBuffer(Descriptor->Disk.Descriptor.SectorSize);
+	Buffer = CreateBuffer(UUID_INVALID, Descriptor->Disk.Descriptor.SectorSize);
 
 	// Read the boot-sector
 	if (MfsReadSectors(Descriptor, Buffer, 0, 1) != OsSuccess) {
@@ -880,7 +865,7 @@ FsInitialize(
 	Descriptor->ExtensionData   = (uintptr_t*)Mfs;
 
 	// Instantiate the boot-record pointer
-	BootRecord                  = (BootRecord_t*)GetBufferData(Buffer);
+	BootRecord                  = (BootRecord_t*)GetBufferDataPointer(Buffer);
 
 	// Process the boot-record
 	if (BootRecord->Magic != MFS_BOOTRECORD_MAGIC) {
@@ -912,7 +897,7 @@ FsInitialize(
 	}
 
 	// Instantiate the master-record pointer
-	MasterRecord                    = (MasterRecord_t*)GetBufferData(Buffer);
+	MasterRecord                    = (MasterRecord_t*)GetBufferDataPointer(Buffer);
 
 	// Process the master-record
 	if (MasterRecord->Magic != MFS_BOOTRECORD_MAGIC) {
@@ -931,7 +916,7 @@ FsInitialize(
 	DestroyBuffer(Buffer);
 
 	// Allocate a new in the size of a bucket
-	Buffer                          = CreateBuffer(Mfs->SectorsPerBucket 
+	Buffer                          = CreateBuffer(UUID_INVALID, Mfs->SectorsPerBucket 
 		* Descriptor->Disk.Descriptor.SectorSize * MFS_ROOTSIZE);
 	Mfs->TransferBuffer             = Buffer;
 
@@ -948,7 +933,7 @@ FsInitialize(
 	BytesLeft   = Mfs->MasterRecord.MapSize;
     BytesRead   = 0;
 	i           = 0;
-    imax        = DIVUP(BytesLeft, (Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize)); //GetBufferCapacity(Buffer)
+    imax        = DIVUP(BytesLeft, (Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize)); //GetBufferSize(Buffer)
 	while (BytesLeft) {
 		// Variables
 		uint64_t MapSector = Mfs->MasterRecord.MapSector + (i * Mfs->SectorsPerBucket);

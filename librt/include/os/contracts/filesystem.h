@@ -24,15 +24,11 @@
 #ifndef _CONTRACT_FILESYSTEM_INTERFACE_H_
 #define _CONTRACT_FILESYSTEM_INTERFACE_H_
 
-/* Includes 
- * - System */
 #include <os/contracts/storage.h>
 #include <os/buffer.h>
 #include <os/driver.h>
 #include <os/osdefs.h>
 
-/* Includes
- * - File System */
 #include <os/file/definitions.h>
 #include <os/file/file.h>
 #include <os/file/path.h>
@@ -41,26 +37,26 @@
  * This is define the interface between user (filemanager)
  * and the implementer (the filesystem) */
 #ifdef __FILEMANAGER_IMPL
-#define __FSAPI					typedef
-#define __FSDECL(Function)		(*Function##_t)
+#define __FSAPI                     typedef
+#define __FSDECL(Function)          (*Function##_t)
 #else
-#define __FSAPI					CRTEXPORT
-#define __FSDECL(Function)		Function
+#define __FSAPI                     CRTEXPORT
+#define __FSDECL(Function)          Function
 #endif
 
 /* FileSystem definitions 
  * Used the describe the various possible flags for
  * the given filesystem */
-#define __FILESYSTEM_BOOT				0x00000001
+#define __FILESYSTEM_BOOT           0x00000001
 
 /* FileSystem Disk structure
  * Keeps information about the disk target and the
  * general information about the disk (geometry, string data) */
 PACKED_TYPESTRUCT(FileSystemDisk, {
-	UUId_t					Driver;
-	UUId_t					Device;
-	Flags_t					Flags;
-	StorageDescriptor_t		Descriptor;
+    UUId_t                      Driver;
+    UUId_t                      Device;
+    Flags_t                     Flags;
+    StorageDescriptor_t         Descriptor;
 });
 
 /* The filesystem descriptor structure 
@@ -68,11 +64,11 @@ PACKED_TYPESTRUCT(FileSystemDisk, {
  * and holds a copy of the disk information to provide
  * disk access and information */
 PACKED_TYPESTRUCT(FileSystemDescriptor, {
-	Flags_t					 Flags;
-	FileSystemDisk_t		 Disk;
-	uint64_t				 SectorStart;
-	uint64_t				 SectorCount;
-	uintptr_t				*ExtensionData;
+    Flags_t                     Flags;
+    FileSystemDisk_t            Disk;
+    uint64_t                    SectorStart;
+    uint64_t                    SectorCount;
+    uintptr_t*                  ExtensionData;
 });
 
 /* FsInitialize 
@@ -81,7 +77,7 @@ PACKED_TYPESTRUCT(FileSystemDescriptor, {
 __FSAPI
 OsStatus_t
 __FSDECL(FsInitialize)(
-	_InOut_ FileSystemDescriptor_t *Descriptor);
+    _In_ FileSystemDescriptor_t*    Descriptor);
 
 /* FsDestroy 
  * Destroys the given filesystem descriptor and cleans
@@ -89,8 +85,8 @@ __FSDECL(FsInitialize)(
 __FSAPI
 OsStatus_t
 __FSDECL(FsDestroy)(
-	_InOut_ FileSystemDescriptor_t *Descriptor,
-	_In_ Flags_t UnmountFlags);
+    _In_ FileSystemDescriptor_t*    Descriptor,
+    _In_ Flags_t                    UnmountFlags);
 
 /* FsOpenFile 
  * Opens a new link to a file and allocates resources
@@ -98,9 +94,9 @@ __FSDECL(FsDestroy)(
 __FSAPI
 FileSystemCode_t 
 __FSDECL(FsOpenFile)(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_Out_ FileSystemFile_t *File,
-	_In_ MString_t *Path);
+    _In_ FileSystemDescriptor_t*    Descriptor,
+    _In_ FileSystemFile_t*          File,
+    _In_ MString_t*                 Path);
 
 /* FsCreateFile 
  * Creates a new link to a file and allocates resources
@@ -108,10 +104,10 @@ __FSDECL(FsOpenFile)(
 __FSAPI
 FileSystemCode_t 
 __FSDECL(FsCreateFile)(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_Out_ FileSystemFile_t *File,
-	_In_ MString_t *Path,
-	_In_ Flags_t Options);
+    _In_ FileSystemDescriptor_t*    Descriptor,
+    _In_ FileSystemFile_t*          File,
+    _In_ MString_t*                 Path,
+    _In_ Flags_t                    Options);
 
 /* FsCloseFile 
  * Closes the given file-link and frees all resources
@@ -120,8 +116,8 @@ __FSDECL(FsCreateFile)(
 __FSAPI
 FileSystemCode_t
 __FSDECL(FsCloseFile)(
-	_In_ FileSystemDescriptor_t *Descriptor, 
-	_In_ FileSystemFile_t *File);
+    _In_ FileSystemDescriptor_t*    Descriptor, 
+    _In_ FileSystemFile_t*          File);
 
 /* FsChangeFileSize 
  * Either expands or shrinks the allocated space for the given
@@ -129,9 +125,9 @@ __FSDECL(FsCloseFile)(
 __FSAPI
 FileSystemCode_t
 __FSDECL(FsChangeFileSize)(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ FileSystemFile_t *Handle,
-	_In_ uint64_t Size);
+    _In_ FileSystemDescriptor_t*    Descriptor,
+    _In_ FileSystemFile_t*          Handle,
+    _In_ uint64_t                   Size);
 
 /* FsOpenHandle 
  * Opens a new handle to a file, this allows various
@@ -141,8 +137,8 @@ __FSDECL(FsChangeFileSize)(
 __FSAPI
 FileSystemCode_t
 __FSDECL(FsOpenHandle)(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ FileSystemFileHandle_t *Handle);
+    _In_ FileSystemDescriptor_t*    Descriptor,
+    _In_ FileSystemFileHandle_t*    Handle);
 
 /* FsCloseHandle 
  * Closes the file handle and cleans up any resources allocated
@@ -150,8 +146,8 @@ __FSDECL(FsOpenHandle)(
 __FSAPI
 FileSystemCode_t
 __FSDECL(FsCloseHandle)(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ FileSystemFileHandle_t *Handle);
+    _In_ FileSystemDescriptor_t*    Descriptor,
+    _In_ FileSystemFileHandle_t*    Handle);
 
 /* FsReadFile 
  * Reads the requested number of bytes from the given
@@ -159,11 +155,12 @@ __FSDECL(FsCloseHandle)(
 __FSAPI
 FileSystemCode_t
 __FSDECL(FsReadFile)(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ FileSystemFileHandle_t *Handle,
-	_Out_ BufferObject_t *BufferObject,
-	_Out_ size_t *BytesAt,
-	_Out_ size_t *BytesRead);
+    _In_  FileSystemDescriptor_t*   Descriptor,
+    _In_  FileSystemFileHandle_t*   Handle,
+    _In_  DmaBuffer_t*              BufferObject,
+    _In_  size_t                    Length,
+    _Out_ size_t*                   BytesAt,
+    _Out_ size_t*                   BytesRead);
 
 /* FsWriteFile 
  * Writes the requested number of bytes to the given
@@ -171,10 +168,11 @@ __FSDECL(FsReadFile)(
 __FSAPI
 FileSystemCode_t
 __FSDECL(FsWriteFile)(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ FileSystemFileHandle_t *Handle,
-	_In_ BufferObject_t *BufferObject,
-	_Out_ size_t *BytesWritten);
+    _In_  FileSystemDescriptor_t*   Descriptor,
+    _In_  FileSystemFileHandle_t*   Handle,
+    _In_  DmaBuffer_t*              BufferObject,
+    _In_  size_t                    Length,
+    _Out_ size_t*                   BytesWritten);
 
 /* FsSeekFile 
  * Seeks in the given file-handle to the absolute position
@@ -183,9 +181,9 @@ __FSDECL(FsWriteFile)(
 __FSAPI
 FileSystemCode_t
 __FSDECL(FsSeekFile)(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ FileSystemFileHandle_t *Handle,
-	_In_ uint64_t AbsolutePosition);
+    _In_ FileSystemDescriptor_t*    Descriptor,
+    _In_ FileSystemFileHandle_t*    Handle,
+    _In_ uint64_t                   AbsolutePosition);
 
 /* DeletePath 
  * Deletes the path specified, if it's a directory
@@ -193,9 +191,9 @@ __FSDECL(FsSeekFile)(
 __FSAPI
 FileSystemCode_t
 __FSDECL(FsDeletePath)(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ MString_t*              Path,
-    _In_ int                     Recursive);
+    _In_ FileSystemDescriptor_t*    Descriptor,
+    _In_ MString_t*                 Path,
+    _In_ int                        Recursive);
 
 /* FsQueryFile 
  * Queries the given file handle for information, the kind of
@@ -203,10 +201,10 @@ __FSDECL(FsDeletePath)(
 __FSAPI
 FileSystemCode_t
 __FSDECL(FsQueryFile)(
-	_In_ FileSystemDescriptor_t *Descriptor,
-	_In_ FileSystemFileHandle_t *Handle,
-	_In_ int Function,
-	_Out_ void *Buffer,
-	_In_ size_t MaxLength);
+    _In_ FileSystemDescriptor_t*    Descriptor,
+    _In_ FileSystemFileHandle_t*    Handle,
+    _In_ int                        Function,
+    _In_ void*                      Buffer,
+    _In_ size_t                     MaxLength);
 
 #endif //!_CONTRACT_FILESYSTEM_INTERFACE_H_

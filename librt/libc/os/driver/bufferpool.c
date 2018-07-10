@@ -22,8 +22,6 @@
  */
 //#define __TRACE
 
-/* Includes
- * - Library */
 #include <os/bufferpool.h>
 #include <os/osdefs.h>
 #include <os/utils.h>
@@ -32,8 +30,8 @@
 #include <stddef.h>
 
 typedef struct _BufferPool {
-    BufferObject_t*             Buffer;
-    BytePool_t*                 Pool;
+    DmaBuffer_t*    Buffer;
+    BytePool_t*     Pool;
 } BufferPool_t;
 
 /* BufferPoolCreate
@@ -41,15 +39,13 @@ typedef struct _BufferPool {
  * This allows sub-allocations from a buffer-object. */
 OsStatus_t
 BufferPoolCreate(
-    _In_  BufferObject_t*   Buffer,
+    _In_  DmaBuffer_t*      Buffer,
     _Out_ BufferPool_t**    Pool)
 {
     // Allocate the pool
     *Pool           = (BufferPool_t*)malloc(sizeof(BufferPool_t));
     (*Pool)->Buffer = Buffer;
-
-    // Initiate the pool
-    return bpool((void*)GetBufferData(Buffer), GetBufferCapacity(Buffer), &(*Pool)->Pool);
+    return bpool((void*)GetBufferDataPointer(Buffer), GetBufferSize(Buffer), &(*Pool)->Pool);
 }
 
 /* BufferPoolDestroy
@@ -57,7 +53,7 @@ BufferPoolCreate(
  * allocated. This does not destroy the buffer-object. */
 OsStatus_t
 BufferPoolDestroy(
-    _In_ BufferPool_t *Pool)
+    _In_ BufferPool_t*      Pool)
 {
     // Cleanup structure
     free(Pool->Pool);
@@ -71,10 +67,10 @@ BufferPoolDestroy(
  * corresponding physical address for hardware. */
 OsStatus_t
 BufferPoolAllocate(
-    _In_  BufferPool_t* Pool,
-    _In_  size_t        Size,
-    _Out_ uintptr_t**   VirtualPointer,
-    _Out_ uintptr_t*    PhysicalAddress)
+    _In_  BufferPool_t*     Pool,
+    _In_  size_t            Size,
+    _Out_ uintptr_t**       VirtualPointer,
+    _Out_ uintptr_t*        PhysicalAddress)
 {
     // Variables
     void *Allocation = NULL;
@@ -91,8 +87,8 @@ BufferPoolAllocate(
 
     // Calculate the addresses and update out's
     *VirtualPointer     = (uintptr_t*)Allocation;
-    *PhysicalAddress    = GetBufferAddress(Pool->Buffer) 
-        + ((uintptr_t)Allocation - (uintptr_t)GetBufferData(Pool->Buffer));
+    *PhysicalAddress    = GetBufferDma(Pool->Buffer) 
+        + ((uintptr_t)Allocation - (uintptr_t)GetBufferDataPointer(Pool->Buffer));
     TRACE(" > Virtual address 0x%x => Physical address 0x%x", (uintptr_t*)Allocation, *PhysicalAddress);
     return OsSuccess;
 }

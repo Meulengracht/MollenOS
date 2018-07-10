@@ -24,13 +24,9 @@
 #ifndef _BUFFERPOOL_INTERFACE_H_
 #define _BUFFERPOOL_INTERFACE_H_
 
-/* Includes
- * - System */
 #include <os/buffer.h>
 #include <os/osdefs.h>
 
-/* BufferPool 
- * */
 typedef struct _BufferPool BufferPool_t;
 
 _CODE_BEGIN
@@ -40,8 +36,8 @@ _CODE_BEGIN
 CRTDECL(
 OsStatus_t,
 BufferPoolCreate(
-    _In_ BufferObject_t *Buffer,
-    _Out_ BufferPool_t **Pool));
+    _In_  DmaBuffer_t*      Buffer,
+    _Out_ BufferPool_t**    Pool));
 
 /* BufferPoolDestroy
  * Cleans up the buffer-pool and deallocates resources previously
@@ -49,7 +45,7 @@ BufferPoolCreate(
 CRTDECL(
 OsStatus_t,
 BufferPoolDestroy(
-    _In_ BufferPool_t *Pool));
+    _In_ BufferPool_t*      Pool));
 
 /* BufferPoolAllocate
  * Allocates the requested size and outputs two addresses. The
@@ -58,20 +54,19 @@ BufferPoolDestroy(
 CRTDECL(
 OsStatus_t,
 BufferPoolAllocate(
-    _In_ BufferPool_t *Pool,
-    _In_ size_t Size,
-    _Out_ uintptr_t **VirtualPointer,
-    _Out_ uintptr_t *PhysicalAddress));
+    _In_ BufferPool_t*      Pool,
+    _In_ size_t             Size,
+    _Out_ uintptr_t**       VirtualPointer,
+    _Out_ uintptr_t*        PhysicalAddress));
 
 /* BufferPoolFree
  * Frees previously allocations made by the buffer-pool. The virtual
  * address must be the one passed back. */
 CRTDECL(
-OsStatus_t
-,
+OsStatus_t,
 BufferPoolFree(
-    _In_ BufferPool_t *Pool,
-    _In_ uintptr_t *VirtualPointer));
+    _In_ BufferPool_t*      Pool,
+    _In_ uintptr_t*         VirtualPointer));
 _CODE_END
 
 #endif //!_BUFFERPOOL_INTERFACE_H_

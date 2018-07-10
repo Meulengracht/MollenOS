@@ -132,7 +132,7 @@ InterruptDriver(
 	UUId_t NoId = UUID_INVALID;
 
 	// Initialze RPC
-	RPCInitialize(&Request, Driver, 1, PIPE_REMOTECALL, __DRIVER_INTERRUPT);
+	RPCInitialize(&Request, Driver, 1, __DRIVER_INTERRUPT);
 	RPCSetArgument(&Request, 0, (__CONST void*)&NoId, sizeof(UUId_t));
     RPCSetArgument(&Request, 1, (__CONST void*)&Argument0, sizeof(size_t));
     RPCSetArgument(&Request, 2, (__CONST void*)&Argument1, sizeof(size_t));
@@ -167,7 +167,7 @@ QueryDriver(
 
 	// Initialize static RPC variables like
 	// type of RPC, pipe and version
-	RPCInitialize(&Request, Contract->DriverId, Contract->Version, PIPE_REMOTECALL, __DRIVER_QUERY);
+	RPCInitialize(&Request, Contract->DriverId, Contract->Version, __DRIVER_QUERY);
 	RPCSetArgument(&Request, 0, (const void*)&Contract->Type, sizeof(MContractType_t));
 	RPCSetArgument(&Request, 1, (const void*)&Function, sizeof(int));
 	RPCSetResult(&Request, ResultBuffer, ResultLength);

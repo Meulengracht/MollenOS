@@ -66,6 +66,14 @@ Collection_t*,
 CollectionCreate(
     _In_ KeyType_t              KeyType));
     
+/* CollectionConstruct
+ * Instantiates a new static Collection with the given attribs and keytype */
+CRTDECL(
+void,
+CollectionConstruct(
+    _In_ Collection_t*          Collection,
+    _In_ KeyType_t              KeyType));
+
 /* CollectionClear
  * Clears the Collection of members, cleans up nodes. */
 CRTDECL(

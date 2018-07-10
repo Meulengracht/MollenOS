@@ -29,7 +29,6 @@ COMMON_INCS = -I../include
 
 LIBK_SRCS = $(wildcard os/mstring/*.c) \
 			os/synchronization/spinlock.c \
-			os/driver/bufferobject.c \
 			os/rpc.c \
 			locale/locale.c \
 			stdlib/itoa.c \

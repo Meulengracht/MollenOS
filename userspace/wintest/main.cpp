@@ -39,7 +39,7 @@ void BufferFill(const char *Buffer, uint32_t Color, size_t Size) {
  *******************************************/
 void BasicWindowingTests() {
     UIWindowParameters_t WindowParameters   = { { { 0 } } };
-    BufferObject_t *WindowBuffer            = NULL;
+    DmaBuffer_t *WindowBuffer               = NULL;
     UiParametersSetDefault(&WindowParameters);
 
     // Register the window as initial step
@@ -47,19 +47,19 @@ void BasicWindowingTests() {
     std::this_thread::sleep_for(std::chrono::seconds(5));
 
     // Perform a window fill of color R
-    BufferFill((const char*)GetBufferData(WindowBuffer), 
+    BufferFill((const char*)GetBufferDataPointer(WindowBuffer), 
         0xFFFF0000, GetBufferSize(WindowBuffer));
     UiSwapBackbuffer();
     std::this_thread::sleep_for(std::chrono::seconds(5));
 
     // Perform a window fill of color G
-    BufferFill((const char*)GetBufferData(WindowBuffer), 
+    BufferFill((const char*)GetBufferDataPointer(WindowBuffer), 
         0xFF00FF00, GetBufferSize(WindowBuffer));
     UiSwapBackbuffer();
     std::this_thread::sleep_for(std::chrono::seconds(5));
 
     // Perform a window fill of color B
-    BufferFill((const char*)GetBufferData(WindowBuffer), 
+    BufferFill((const char*)GetBufferDataPointer(WindowBuffer), 
         0xFF0000FF, GetBufferSize(WindowBuffer));
     UiSwapBackbuffer();
     std::this_thread::sleep_for(std::chrono::seconds(5));

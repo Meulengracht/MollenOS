@@ -78,8 +78,7 @@ SERVICEAPI void SERVICEABI
 RPCInitialize(
     _In_ MRemoteCall_t* RemoteCall,
     _In_ UUId_t         Target,
-    _In_ int            Version, 
-    _In_ int            Port, 
+    _In_ int            Version,
     _In_ int            Function)
 {
     // Initialize structure
@@ -89,7 +88,7 @@ RPCInitialize(
 
     // Setup from/to as much as possible
     RemoteCall->To.Process  = Target;
-    RemoteCall->To.Port     = Port;
+    RemoteCall->To.Port     = PIPE_REMOTECALL;
 }
 
 /* RPCSetArgument

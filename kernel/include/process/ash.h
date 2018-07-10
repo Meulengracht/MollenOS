@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,30 +28,28 @@
 #include <ds/mstring.h>
 #include <ds/collection.h>
 
+#include <criticalsection.h>
+#include <memorybuffer.h>
 #include <memoryspace.h>
 #include <process/pe.h>
-#include <criticalsection.h>
 #include <pipe.h>
 
-/* Settings for ashes in the system, they
- * should not really be tinkered with, these are
- * just some arbitrary sizes that are good enough */
 #define ASH_STACK_INIT          0x1000
 #define ASH_STACK_MAX           (4 << 20)
 
-/* This is the different types of ashes
- * that exists in MollenOS */
+// Types of processes that can be created.
 typedef enum _MCoreAshType {
     AshBase,
     AshServer,
     AshProcess
 } MCoreAshType_t;
 
-/* This is the different types of ashes
- * that exists in MollenOS */
+// File Mapping Support
+// Provides file-mapping support for processes.
 typedef struct _MCoreAshFileMapping {
+    CollectionItem_t    Header;
+    DmaBuffer_t         BufferObject;
     UUId_t              FileHandle;
-    uintptr_t           VirtualBase;
     uint64_t            FileBlock;
     uint64_t            BlockOffset;
     size_t              Length;

@@ -64,7 +64,7 @@ CRTDECL(
 OsStatus_t,
 UiRegisterWindow(
     _In_  UIWindowParameters_t* Descriptor,
-    _Out_ BufferObject_t**      WindowBuffer));
+    _Out_ DmaBuffer_t**         WindowBuffer));
 
 /* UiUnregisterWindow
  * Unregisters and destroys the current active window for the application.

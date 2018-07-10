@@ -49,7 +49,7 @@ PathResolveEnvironment(
 
     // Initialize rpc and execute
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_PATHRESOLVE);
+        __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_PATHRESOLVE);
 	RPCSetArgument(&Request, 0, (__CONST void*)&Base, sizeof(EnvironmentPath_t));
 	RPCSetResult(&Request, (__CONST void*)Buffer, MaxLength);
 	return RPCExecute(&Request);
@@ -71,7 +71,7 @@ PathCanonicalize(
 
     // Initialize rpc and execute
 	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_PATHCANONICALIZE);
+        __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_PATHCANONICALIZE);
 	RPCSetArgument(&Request, 0, (__CONST void*)Path, strlen(Path));
 	RPCSetResult(&Request, (__CONST void*)Buffer, MaxLength);
 	return RPCExecute(&Request);

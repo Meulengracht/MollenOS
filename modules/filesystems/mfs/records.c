@@ -21,13 +21,8 @@
  */
 //#define __TRACE
 
-/* Includes
- * - System */
 #include <os/utils.h>
 #include "mfs.h"
-
-/* Includes
- * - Library */
 #include <stdlib.h>
 #include <string.h>
 
@@ -127,7 +122,7 @@ MfsLocateRecord(
 
 		// Iterate the number of records in a bucket
 		// A record spans two sectors
-		Record = (FileRecord_t*)GetBufferData(Mfs->TransferBuffer);
+		Record = (FileRecord_t*)GetBufferDataPointer(Mfs->TransferBuffer);
 		for (i = 0; i < ((Mfs->SectorsPerBucket * Link.Length) / 2); i++) {
 			// Variables
 			MString_t *Filename = NULL;
@@ -279,7 +274,7 @@ MfsLocateFreeRecord(
 
 		// Iterate the number of records in a bucket
 		// A record spans two sectors
-		Record = (FileRecord_t*)GetBufferData(Mfs->TransferBuffer);
+		Record = (FileRecord_t*)GetBufferDataPointer(Mfs->TransferBuffer);
 		for (i = 0; i < ((Mfs->SectorsPerBucket * Link.Length) / 2); i++) {
 			// Variables
 			MString_t *Filename = NULL;

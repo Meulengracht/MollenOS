@@ -438,19 +438,20 @@ StdioHandleReadFile(
     // than just reading the entire thing at once. When? Who knows, but in our case anything
     // more than 5 transfers is useless
     if (Length >= (OriginalSize * 5)) {
-        BufferObject_t *TransferBuffer  = CreateBuffer(Length);
-		size_t BytesReadFs              = 0, BytesIndex = 0;
         FileSystemCode_t FsCode         = FsOk;
+        DmaBuffer_t *TransferBuffer     = CreateBuffer(UUID_INVALID, Length);
+		size_t BytesReadFs              = 0, BytesIndex = 0;
 
-        FsCode = ReadFile(Handle->InheritationData.FileHandle, TransferBuffer, &BytesIndex, &BytesReadFs);
+        FsCode = ReadFile(Handle->InheritationData.FileHandle, GetBufferHandle(TransferBuffer), Length, &BytesIndex, &BytesReadFs);
         if (_fval(FsCode) || BytesReadFs == 0) {
+            DestroyBuffer(TransferBuffer);
             if (BytesReadFs == 0) {
                 *BytesRead = 0;
                 return OsSuccess;
             }
             return OsError;
         }
-        ChangeBufferSize(TransferBuffer, GetBufferCapacity(TransferBuffer));
+
 		SeekBuffer(TransferBuffer, BytesIndex);
         ReadBuffer(TransferBuffer, (const void*)Pointer, BytesReadFs, NULL);
         DestroyBuffer(TransferBuffer);
@@ -464,17 +465,14 @@ StdioHandleReadFile(
 		size_t ChunkSize        = MIN(OriginalSize, BytesLeft);
 		size_t BytesReadFs      = 0, BytesIndex = 0;
 
-        // Change buffer size if the requested read is less than capacity
-		ChangeBufferSize(tls_current()->transfer_buffer, ChunkSize);
-
         // Perform the read
-        FsCode = ReadFile(Handle->InheritationData.FileHandle, tls_current()->transfer_buffer, &BytesIndex, &BytesReadFs);
+        FsCode = ReadFile(Handle->InheritationData.FileHandle, GetBufferHandle(tls_current()->transfer_buffer), 
+            ChunkSize, &BytesIndex, &BytesReadFs);
         if (_fval(FsCode) || BytesReadFs == 0) {
 			break;
 		}
         
         // Seek to the valid buffer index, then read the byte count
-        ChangeBufferSize(tls_current()->transfer_buffer, GetBufferCapacity(tls_current()->transfer_buffer));
 		SeekBuffer(tls_current()->transfer_buffer, BytesIndex);
         ReadBuffer(tls_current()->transfer_buffer, (const void*)Pointer, BytesReadFs, NULL);
 		SeekBuffer(tls_current()->transfer_buffer, 0);
@@ -487,7 +485,7 @@ StdioHandleReadFile(
 
     // Restore transfer buffer
     *BytesRead = BytesReadTotal;
-	return ChangeBufferSize(tls_current()->transfer_buffer, OriginalSize);
+	return OsSuccess;
 }
 
 /* StdioReadInternal
@@ -537,10 +535,11 @@ StdioHandleWriteFile(
 	while (BytesLeft > 0) {
 		size_t ChunkSize = MIN(OriginalSize, BytesLeft);
 		size_t BytesWrittenLocal = 0;
-		ChangeBufferSize(tls_current()->transfer_buffer, ChunkSize);
-        WriteBuffer(tls_current()->transfer_buffer, (const void *)Pointer, ChunkSize, &BytesWrittenLocal);
+        
         SeekBuffer(tls_current()->transfer_buffer, 0); // Rewind buffer
-		if (WriteFile(Handle->InheritationData.FileHandle, tls_current()->transfer_buffer, &BytesWrittenLocal) != FsOk) {
+        WriteBuffer(tls_current()->transfer_buffer, (const void *)Pointer, ChunkSize, &BytesWrittenLocal);
+		if (WriteFile(Handle->InheritationData.FileHandle, GetBufferHandle(tls_current()->transfer_buffer), 
+            ChunkSize, &BytesWrittenLocal) != FsOk) {
 			break;
 		}
 		if (BytesWrittenLocal == 0) {
@@ -552,7 +551,6 @@ StdioHandleWriteFile(
 	}
 
 	// Restore our transfer buffer and return
-    ChangeBufferSize(tls_current()->transfer_buffer, OriginalSize);
     *BytesWritten = BytesWrittenTotal;
 	return OsSuccess;
 }

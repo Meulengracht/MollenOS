@@ -21,17 +21,12 @@
  */
 //#define __TRACE
 
-/* Includes 
- * - System */
 #include <os/contracts/filesystem.h>
 #include <os/sessions.h>
 #include <os/file.h>
 #include <os/process.h>
 #include <os/utils.h>
 #include "include/vfs.h"
-
-/* Includes
- * - C-Library */
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -47,8 +42,7 @@ OsStatus_t
 VfsResolveQueueEvent(void)
 {
 	MRemoteCall_t Rpc;
-	RPCInitialize(&Rpc, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, PIPE_REMOTECALL, __FILEMANAGER_RESOLVEQUEUE);
+	RPCInitialize(&Rpc, __FILEMANAGER_TARGET, __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_RESOLVEQUEUE);
 	return RPCEvent(&Rpc);
 }
 

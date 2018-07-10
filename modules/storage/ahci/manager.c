@@ -23,16 +23,10 @@
  */
 //#define __TRACE
 
-/* Includes
- * - System */
 #include <os/file.h>
 #include <os/mollenos.h>
 #include <os/utils.h>
 #include "manager.h"
-
-/* Includes
- * - Library */
-#include <stddef.h>
 #include <stdlib.h>
 
 /* Globals
@@ -116,7 +110,7 @@ AhciManagerCreateDevice(
 {
 	// Structures
 	AhciTransaction_t *Transaction  = NULL;
-	BufferObject_t *Buffer          = NULL;
+	DmaBuffer_t *Buffer          	= NULL;
 	AhciDevice_t *Device            = NULL;
 
 	// First of all, is this a port multiplier? 
@@ -135,7 +129,7 @@ AhciManagerCreateDevice(
 	// Allocate data-structures
 	Transaction                 = (AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
 	Device                      = (AhciDevice_t*)malloc(sizeof(AhciDevice_t));
-	Buffer                      = CreateBuffer(sizeof(ATAIdentify_t));
+	Buffer                      = CreateBuffer(UUID_INVALID, sizeof(ATAIdentify_t));
 
 	// Initiate a new device structure
 	Device->Controller          = Controller;
@@ -149,7 +143,7 @@ AhciManagerCreateDevice(
 
 	// Initiate the transaction
 	Transaction->ResponseAddress.Thread = UUID_INVALID;
-	Transaction->Address        = GetBufferAddress(Buffer);
+	Transaction->Address        = GetBufferDma(Buffer);
 	Transaction->SectorCount    = 1;
 	Transaction->Device         = Device;
 	return AhciCommandRegisterFIS(Transaction, AtaPIOIdentifyDevice, 0, 0, 0);
@@ -167,7 +161,7 @@ AhciManagerCreateDeviceCallback(
 	DataKey_t Key;
 
 	// Instantiate pointer
-	DeviceInformation = (ATAIdentify_t*)GetBufferData(Device->Buffer);
+	DeviceInformation = (ATAIdentify_t*)GetBufferDataPointer(Device->Buffer);
 
 	// Flip the data in the strings as it's inverted
 	AhciStringFlip(DeviceInformation->SerialNo, 20);

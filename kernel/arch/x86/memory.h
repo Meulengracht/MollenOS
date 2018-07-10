@@ -49,7 +49,7 @@
 /* MollenOS PT/Page Definitions */
 #define PAGE_SYSTEM_MAP         0x200
 #define PAGE_INHERITED          0x400
-#define PAGE_VIRTUAL            0x800
+#define PAGE_PERSISTENT         0x800
 
 /* Memory Map Structure 
  * This is the structure passed to us by the mBoot bootloader */
@@ -88,18 +88,17 @@ SynchronizeVirtualPage(
     _In_ SystemMemorySpace_t*   SystemMemorySpace,
     _In_ uintptr_t              Address);
 
-/* MmReserveMemory
- * Reserves memory for system use - should be allocated
- * from a fixed memory region that won't interfere with
- * general usage */
-KERNELAPI VirtualAddress_t* KERNELABI
-MmReserveMemory(
-    _In_ int                Pages);
-
 /* PageSynchronizationHandler
  * Synchronizes the page address specified in the MemorySynchronization Object. */
 KERNELAPI InterruptStatus_t KERNELABI
 PageSynchronizationHandler(
     _In_ void*              Context);
+
+/* ClearKernelMemoryAllocation
+ * Clears the kernel memory allocation at the given address and size. */
+KERNELAPI OsStatus_t KERNELABI
+ClearKernelMemoryAllocation(
+    _In_ uintptr_t              Address,
+    _In_ size_t                 Size);
 
 #endif // !_X86_MEMORY_H_

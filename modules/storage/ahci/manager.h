@@ -25,13 +25,8 @@
 #ifndef _AHCI_MANAGER_H_
 #define _AHCI_MANAGER_H_
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 #include <ds/collection.h>
-
-/* Includes
- * - System */
 #include <os/buffer.h>
 #include "ahci.h"
 

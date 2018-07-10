@@ -20,15 +20,13 @@
  * - Handles all file related services and disk services
  */
 
-/* Includes
- * - System */
 #include "../include/vfs.h"
 #include "../include/gpt.h"
 
 /* GptEnumerate
  * Enumerates a given disk with GPT data layout
  * and automatically creates new filesystem objects */
-OsStatus_t GptEnumerate(FileSystemDisk_t *Disk, BufferObject_t *Buffer)
+OsStatus_t GptEnumerate(FileSystemDisk_t *Disk, DmaBuffer_t *Buffer)
 {
 	_CRT_UNUSED(Disk);
 	_CRT_UNUSED(Buffer);

@@ -20,166 +20,84 @@
  * - This header describes the base buffer-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
+#define __TRACE
 
-/* Includes
- * - System */
 #include <os/buffer.h>
-#include "private.h"
-
-#ifdef LIBC_KERNEL
-#define __MODULE        "IOBF"
-#define __TRACE
-#include <memoryspace.h>
-#include <debug.h>
-#include <heap.h>
-#else
-#define __TRACE
 #include <os/mollenos.h>
 #include <os/syscall.h>
 #include <os/utils.h>
-#endif
-
-/* Includes
- * - Library */
 #include <assert.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
 /* CreateBuffer 
  * Creates a new buffer object with the given size, 
  * this allows hardware drivers to interact with the buffer */
-BufferObject_t *
+DmaBuffer_t*
 CreateBuffer(
-    _In_ size_t Length)
+    _In_ UUId_t                 FromHandle,
+    _In_ size_t                 Length)
 {
-    // Variables
-    BufferObject_t *Buffer = NULL;
-    OsStatus_t Result;
+    DmaBuffer_t *Buffer = NULL;
 
     // Make sure the length is positive
     if (Length == 0) {
         return NULL;
     }
 
-    // Since we need this support in both kernel and
-    // library space - two versions below
-#ifdef LIBC_KERNEL
-    size_t Capacity = DIVUP(Length, GetSystemMemoryPageSize()) * GetSystemMemoryPageSize();
-    Buffer = (BufferObject_t*)kmalloc(sizeof(BufferObject_t));
-    if (CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), 
-        (PhysicalAddress_t*)&Buffer->Physical, (VirtualAddress_t*)&Buffer->Virtual,
-        Length, MAPPING_CONTIGIOUS | MAPPING_DMA, __MASK) != OsSuccess) {
-        FATAL(FATAL_SCOPE_KERNEL, "Failed to allocate buffer-object space.");
-        return NULL;
+    Buffer = (DmaBuffer_t*)malloc(sizeof(DmaBuffer_t));
+    memset((void*)Buffer, 0, sizeof(Buffer));
+    if (FromHandle != UUID_INVALID) {
+        if (Syscall_AcquireBuffer(FromHandle, Buffer) != OsSuccess) {
+            free(Buffer);
+            return NULL;
+        }
     }
-    Buffer->Capacity = Capacity;
-    memset((void*)Buffer->Virtual, 0, Buffer->Capacity);
-    Result = OsSuccess;
-#else
-    Buffer = (BufferObject_t*)malloc(sizeof(BufferObject_t));
-    Result = MemoryAllocate(NULL, Length, MEMORY_COMMIT 
-        | MEMORY_CONTIGIOUS | MEMORY_LOWFIRST | MEMORY_CLEAN,
-        (void**)&Buffer->Virtual, &Buffer->Physical);
-    Buffer->Capacity = DIVUP(Length, 0x1000) * 0x1000;
-    assert(Buffer->Physical < 0xFFFFFFFF); // When we reach this => improve this
-
-    // Sanitize the result and
-    // return the newly created object
-    if (Result != OsSuccess) {
-        free(Buffer);
-        return NULL;
+    else {
+        if (Syscall_CreateBuffer(0, Length, Buffer) != OsSuccess) {
+            free(Buffer);
+            return NULL;
+        }
     }
-#endif
-
-    // Set rest of variables and return
-    Buffer->Length = Length;
-    Buffer->Position = 0;
     return Buffer;
 }
 
-/* DestroyBuffer 
+/* DestroyBuffer
  * Destroys the given buffer object and release resources
  * allocated with the CreateBuffer function */
 OsStatus_t
 DestroyBuffer(
-    _In_ BufferObject_t *BufferObject)
+    _In_ DmaBuffer_t*           BufferObject)
 {
-    // Variables
-    OsStatus_t Result;
+    OsStatus_t Status;
 
     // Sanitize the parameter
     if (BufferObject == NULL) {
         return OsError;
     }
 
-    // Depending on os-version or user-version
-#ifdef LIBC_KERNEL
-    // Just free buffers
-    kfree((void*)BufferObject->Virtual);
-    kfree(BufferObject);
-    Result = OsSuccess;
-#else
-    // Call memory services
-    Result = MemoryFree((void*)BufferObject->Virtual, BufferObject->Length);
+    // First step is to unmap the virtual space
+    if (BufferObject->Address != 0) {
+        Status = MemoryFree((void*)BufferObject->Address, BufferObject->Capacity);
+        if (Status != OsSuccess) {
+            return OsError;
+        }
+    }
+
+    // Cleanup the handle
+    Status = Syscall_DestroyHandle(BufferObject->Handle);
     free(BufferObject);
-#endif
-
-    // Done
-    return Result;
-}
-
-/* AcquireBuffer
- * Acquires the buffer for access in this addressing space
- * It's impossible to access the data by normal means before calling this */
-OsStatus_t
-AcquireBuffer(
-    _In_ BufferObject_t *BufferObject)
-{
-    // Sanitize
-    if (BufferObject == NULL) {
-        return OsError;
-    }
-
-#ifndef LIBC_KERNEL
-    // Map in address space
-    // Two params (Physical -> Capacity)
-    return Syscall_MemoryAcquire(BufferObject->Physical, 
-        BufferObject->Capacity, &BufferObject->Virtual);
-#else
-    return OsError;
-#endif
-}
-
-/* ReleaseBuffer 
- * Releases the buffer access and frees resources needed for accessing 
- * this buffer */
-OsStatus_t
-ReleaseBuffer(
-    _In_ BufferObject_t *BufferObject)
-{
-    // Sanitize
-    if (BufferObject == NULL) {
-        return OsError;
-    }
-
-#ifndef LIBC_KERNEL
-    // Unmap from addressing space
-    // Two params (Physical -> Capacity)
-    return Syscall_MemoryRelease(BufferObject->Virtual, BufferObject->Capacity);
-#else
-return OsError;
-#endif
+    return Status;
 }
 
 /* ZeroBuffer 
  * Clears the entire buffer and resets the internal indexes */
 OsStatus_t
 ZeroBuffer(
-    _In_ BufferObject_t *BufferObject)
+    _In_ DmaBuffer_t*           BufferObject)
 {
     // Reset buffer
-    memset((void*)BufferObject->Virtual, 0, BufferObject->Length);
+    memset((void*)BufferObject->Address, 0, BufferObject->Capacity);
     BufferObject->Position = 0;
     return OsSuccess;
 }
@@ -189,11 +107,11 @@ ZeroBuffer(
  * in the buffer */
 OsStatus_t
 SeekBuffer(
-    _In_ BufferObject_t *BufferObject,
-    _In_ size_t Position)
+    _In_ DmaBuffer_t*           BufferObject,
+    _In_ size_t                 Position)
 {
     // Sanitize parameters
-    if (BufferObject == NULL || BufferObject->Length < Position) {
+    if (BufferObject == NULL || BufferObject->Capacity < Position) {
         return OsError;
     }
 
@@ -203,13 +121,12 @@ SeekBuffer(
 }
 
 /* ReadBuffer 
- * Reads <BytesToWrite> into the given user-buffer
- * from the given buffer-object. It uses indexed reads, so
- * the read will be from the current position */
-OsStatus_t 
+ * Reads <BytesToWrite> into the given user-buffer from the given buffer-object. 
+ * It performs indexed reads, so the read will be from the current position */
+OsStatus_t
 ReadBuffer(
-    _In_      BufferObject_t*   BufferObject, 
-    _Out_     const void*       Buffer, 
+    _In_      DmaBuffer_t*      BufferObject,
+    _Out_     const void*       Buffer,
     _In_      size_t            BytesToRead,
     _Out_Opt_ size_t*           BytesRead)
 {
@@ -230,12 +147,12 @@ ReadBuffer(
     }
 
     // Normalize and read
-    BytesNormalized = MIN(BytesToRead, BufferObject->Length - BufferObject->Position);
+    BytesNormalized = MIN(BytesToRead, BufferObject->Capacity - BufferObject->Position);
     if (BytesNormalized == 0) {
         WARNING("ReadBuffer::BytesNormalized == 0");
         return OsError;
     }
-    memcpy((void*)Buffer, (BufferObject->Virtual + BufferObject->Position), BytesNormalized);
+    memcpy((void*)Buffer, (const void*)(BufferObject->Address + BufferObject->Position), BytesNormalized);
 
     // Increase position
     BufferObject->Position += BytesNormalized;
@@ -248,15 +165,14 @@ ReadBuffer(
 }
 
 /* WriteBuffer 
- * Writes <BytesToWrite> into the allocated buffer-object
- * from the given user-buffer. It uses indexed writes, so
- * the next write will be appended to the current position */
-OsStatus_t 
+ * Writes <BytesToWrite> into the allocated buffer-object from the given user-buffer. 
+ * It performs indexed writes, so the next write will be appended to the current position */
+OsStatus_t
 WriteBuffer(
-    _In_ BufferObject_t *BufferObject, 
-    _In_ __CONST void *Buffer, 
-    _In_ size_t BytesToWrite,
-    _Out_Opt_ size_t *BytesWritten)
+    _In_      DmaBuffer_t*      BufferObject,
+    _In_      const void*       Buffer,
+    _In_      size_t            BytesToWrite,
+    _Out_Opt_ size_t*           BytesWritten)
 {
     // Variables
     size_t BytesNormalized = 0;
@@ -275,12 +191,12 @@ WriteBuffer(
     }
 
     // Normalize and write
-    BytesNormalized = MIN(BytesToWrite, BufferObject->Length - BufferObject->Position);
+    BytesNormalized = MIN(BytesToWrite, BufferObject->Capacity - BufferObject->Position);
     if (BytesNormalized == 0) {
         WARNING("WriteBuffer::BytesNormalized == 0");
         return OsError;
     }
-    memcpy((void*)(BufferObject->Virtual + BufferObject->Position), Buffer, BytesNormalized);
+    memcpy((void*)(BufferObject->Address + BufferObject->Position), Buffer, BytesNormalized);
 
     // Increase position
     BufferObject->Position += BytesNormalized;
@@ -298,8 +214,8 @@ WriteBuffer(
  * The number of bytes transferred is set as output */
 OsStatus_t
 CombineBuffer(
-    _Out_     BufferObject_t*   Destination,
-    _In_      BufferObject_t*   Source,
+    _In_      DmaBuffer_t*      Destination,
+    _In_      DmaBuffer_t*      Source,
     _In_      size_t            BytesToTransfer,
     _Out_Opt_ size_t*           BytesTransferred)
 {
@@ -321,15 +237,15 @@ CombineBuffer(
 
     // Normalize and write
     BytesNormalized = MIN(BytesToTransfer, 
-        MIN(Destination->Length - Destination->Position, Source->Length - Source->Position));
+        MIN(Destination->Capacity - Destination->Position, Source->Capacity - Source->Position));
     if (BytesNormalized == 0) {
-        WARNING("CombineBuffer::Source(Position %u, Length %u)", Source->Position, Source->Length);
-        WARNING("CombineBuffer::Destination(Position %u, Length %u)", Destination->Position, Destination->Length);
+        WARNING("CombineBuffer::Source(Position %u, Length %u)", Source->Position, Source->Capacity);
+        WARNING("CombineBuffer::Destination(Position %u, Length %u)", Destination->Position, Destination->Capacity);
         WARNING("CombineBuffer::BytesNormalized == 0");
         return OsError;
     }
-    memcpy((void*)(Destination->Virtual + Destination->Position), 
-        (Source->Virtual + Source->Position), BytesNormalized);
+    memcpy((void*)(Destination->Address + Destination->Position), 
+        (const void*)(Source->Address + Source->Position), BytesNormalized);
 
     // Increase positions
     Destination->Position += BytesNormalized;
@@ -342,95 +258,41 @@ CombineBuffer(
     return OsSuccess;
 }
 
-/* GetBufferSize
- * Retrieves the current size of the given buffer, note that the capacity
- * and current size of the buffer may differ because of the current subsystem */
+/* GetBufferHandle
+ * Retrieves the handle of the dma buffer for other processes to use. */
+UUId_t
+GetBufferHandle(
+    _In_ DmaBuffer_t*           BufferObject)
+{
+    return (BufferObject != NULL) ? BufferObject->Handle : UUID_INVALID;
+}
+
+/* GetBufferSize 
+ * Retrieves the size of the dma buffer. This might vary from the length given in
+ * creation of the buffer as it may change it for performance reasons. */
 size_t
 GetBufferSize(
-    _In_ BufferObject_t *BufferObject)
+    _In_ DmaBuffer_t*           BufferObject)
 {
-    // Sanitize
-    if (BufferObject == NULL) {
-        return 0;
-    }
-
-    // Return the buffer length
-    return BufferObject->Length;
+    return (BufferObject != NULL) ? BufferObject->Capacity : 0;
 }
 
-/* ChangeBufferSize
- * Changes the current size of the buffer, but may only be changed within the
- * limits of the capacity of the buffer. This operation resets position */
-OsStatus_t
-ChangeBufferSize(
-    _In_ BufferObject_t *BufferObject,
-    _In_ size_t Size)
-{
-    // Sanitize
-    if (BufferObject == NULL || (BufferObject->Capacity < Size)) {
-        return OsError;
-    }
-
-    // Update the new size and reset position
-    BufferObject->Length = Size;
-    BufferObject->Position = 0;
-    return OsSuccess;
-}
-
-/* GetBufferCapacity
- * Retrieves the capacity of the given buffer-object */
-size_t
-GetBufferCapacity(
-    _In_ BufferObject_t *BufferObject)
-{
-    // Sanitize
-    if (BufferObject == NULL) {
-        return 0;
-    }
-
-    // Return the buffer capacity
-    return BufferObject->Capacity;
-}
-
-/* GetBufferObjectSize
- * Retrieves the size of the buffer-object structure as it can be dynamic
- * in size due to the memory regions it allocates */
-size_t
-GetBufferObjectSize(
-    _In_ BufferObject_t *BufferObject)
-{
-    // Sanitize parameters
-    if (BufferObject == NULL) {
-        return 0;
-    }
-
-    // Return the size of the structure
-    return sizeof(BufferObject_t);
-}
-
-/* GetBufferData
- * Returns a pointer to the raw data currently in the buffer */
-uintptr_t*
-GetBufferData(
-    _In_ BufferObject_t *BufferObject)
-{
-    // Sanitize
-    if (BufferObject == NULL) {
-        return NULL;
-    }
-    return (uintptr_t*)BufferObject->Virtual;
-}
-
-/* GetBufferAddress
- * Returns the physical address of the buffer in memory. This address
- * is not accessible by normal means. */
+/* GetBufferDma
+ * Retrieves the dma address of the memory buffer. This address cannot be used
+ * for accessing memory, but instead is a pointer to the physical memory. */
 uintptr_t
-GetBufferAddress(
-    _In_ BufferObject_t *BufferObject)
+GetBufferDma(
+    _In_ DmaBuffer_t*           BufferObject)
 {
-    // Sanitize
-    if (BufferObject == NULL) {
-        return 0;
-    }
-    return BufferObject->Physical;
+    return (BufferObject != NULL) ? BufferObject->Dma : 0;
+}
+
+/* GetBufferDataPointer
+ * Retrieves the data pointer to the physical memory. This can be used to access
+ * the physical memory as this pointer is mapped to the dma. */
+void*
+GetBufferDataPointer(
+    _In_ DmaBuffer_t*           BufferObject)
+{
+    return (BufferObject != NULL) ? (void*)BufferObject->Address : NULL;
 }

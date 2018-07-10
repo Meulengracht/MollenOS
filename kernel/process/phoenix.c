@@ -22,8 +22,6 @@
 #define __MODULE "PCIF"
 #define __TRACE
 
-/* Includes 
- * - System */
 #include <system/utils.h>
 #include <process/phoenix.h>
 #include <process/process.h>
@@ -31,16 +29,13 @@
 #include <garbagecollector.h>
 #include <scheduler.h>
 #include <threading.h>
+#include <machine.h>
 #include <debug.h>
 #include <heap.h>
 
-/* Includes
- * - Library */
-#include "../../../librt/libc/os/driver/private.h"
 #include <ds/collection.h>
 #include <ds/mstring.h>
 #include <os/file.h>
-#include <stddef.h>
 #include <string.h>
 
 /* Prototypes 
@@ -309,7 +304,6 @@ PhoenixFileHandler(
     // Variables
     MCoreAshFileMappingEvent_t *Event   = (MCoreAshFileMappingEvent_t*)UserData;
     MCoreAshFileMapping_t *Mapping      = NULL;
-    BufferObject_t TransferObject;
     LargeInteger_t Value;
 
     // Set default response
@@ -318,28 +312,36 @@ PhoenixFileHandler(
     // Iterate file-mappings
     foreach(Node, Event->Ash->FileMappings) {
         Mapping = (MCoreAshFileMapping_t*)Node->Data;
-        if (ISINRANGE(Event->Address, Mapping->VirtualBase, (Mapping->VirtualBase + Mapping->Length) - 1)) {
-            uintptr_t Block         = 0;
-            Flags_t MappingFlags    = MAPPING_USERSPACE | MAPPING_FIXED;
+        if (ISINRANGE(Event->Address, Mapping->BufferObject.Address, (Mapping->BufferObject.Address + Mapping->Length) - 1)) {
+            Flags_t MappingFlags    = MAPPING_USERSPACE | MAPPING_FIXED | MAPPING_PROVIDED;
             size_t BytesIndex       = 0;
             size_t BytesRead        = 0;
+            size_t Offset;
             if (!(Mapping->Flags & FILE_MAPPING_WRITE)) {
                 MappingFlags |= MAPPING_READONLY;
             }
             if (Mapping->Flags & FILE_MAPPING_EXECUTE) {
                 MappingFlags |= MAPPING_EXECUTABLE;
             }
-            Value.QuadPart = Mapping->FileBlock + (Event->Address - Mapping->VirtualBase);
-            CreateSystemMemorySpaceMapping(Event->Ash->MemorySpace, &Block, &Event->Address, 
-                GetSystemMemoryPageSize(), MappingFlags, __MASK);
 
-            // @todo this is extremely fishy
-            TransferObject.Virtual  = (const char*)(Event->Address & ~(GetSystemMemoryPageSize() - 1));
-            TransferObject.Physical = Block;
-            TransferObject.Capacity = TransferObject.Length = GetSystemMemoryPageSize();
-            TransferObject.Position = 0;
+            // Allocate a page for this transfer
+            Mapping->BufferObject.Dma = AllocateSystemMemory(GetSystemMemoryPageSize(), __MASK, MEMORY_DOMAIN);
+            if (Mapping->BufferObject.Dma == 0) {
+                return OsSuccess;
+            }
+
+            // Calculate the file offset, but it has to be page-aligned
+            Offset          = (Event->Address - Mapping->BufferObject.Address);
+            Offset         -= Offset % GetSystemMemoryPageSize();
+
+            // Create the mapping
+            Value.QuadPart  = Mapping->FileBlock + Offset; // File offset in page-aligned blocks
+            Event->Result = CreateSystemMemorySpaceMapping(Event->Ash->MemorySpace, 
+                &Mapping->BufferObject.Dma, &Event->Address, GetSystemMemoryPageSize(), MappingFlags, __MASK);
+
+            // Seek to the file offset, then perform the read of one-page size
             if (SeekFile(Mapping->FileHandle, Value.u.LowPart, Value.u.HighPart) == FsOk && 
-                ReadFile(Mapping->FileHandle, &TransferObject, &BytesIndex, &BytesRead) == FsOk) {
+                ReadFile(Mapping->FileHandle, Mapping->BufferObject.Handle, GetSystemMemoryPageSize(), &BytesIndex, &BytesRead) == FsOk) {
                 Event->Result = OsSuccess;
             }
         }

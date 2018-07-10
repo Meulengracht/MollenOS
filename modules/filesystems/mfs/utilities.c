@@ -20,13 +20,8 @@
  *  - Contains the implementation of the MFS driver for mollenos
  */
 
-/* Includes
- * - System */
 #include <os/utils.h>
 #include "mfs.h"
-
-/* Includes
- * - Library */
 #include <stdlib.h>
 #include <string.h>
 
@@ -36,7 +31,7 @@
 OsStatus_t
 MfsReadSectors(
 	_In_ FileSystemDescriptor_t*    Descriptor, 
-	_In_ BufferObject_t*            Buffer,
+	_In_ DmaBuffer_t*            	Buffer,
 	_In_ uint64_t                   Sector,
 	_In_ size_t                     Count)
 {
@@ -46,8 +41,7 @@ MfsReadSectors(
 	// Calculate the absolute sector
 	AbsoluteSector = Descriptor->SectorStart + Sector;
 	return StorageRead(Descriptor->Disk.Driver,
-		Descriptor->Disk.Device, AbsoluteSector, 
-		GetBufferAddress(Buffer), Count);
+		Descriptor->Disk.Device, AbsoluteSector, GetBufferDma(Buffer), Count);
 }
 
 /* MfsWriteSectors 
@@ -56,7 +50,7 @@ MfsReadSectors(
 OsStatus_t
 MfsWriteSectors(
 	_In_ FileSystemDescriptor_t*    Descriptor,
-	_In_ BufferObject_t*            Buffer,
+	_In_ DmaBuffer_t*               Buffer,
 	_In_ uint64_t                   Sector,
 	_In_ size_t                     Count)
 {
@@ -66,8 +60,7 @@ MfsWriteSectors(
 	// Calculate the absolute sector
 	AbsoluteSector = Descriptor->SectorStart + Sector;
 	return StorageWrite(Descriptor->Disk.Driver,
-		Descriptor->Disk.Device, AbsoluteSector,
-		GetBufferAddress(Buffer), Count);
+		Descriptor->Disk.Device, AbsoluteSector, GetBufferDma(Buffer), Count);
 }
 
 /* MfsUpdateMasterRecord
@@ -433,7 +426,7 @@ MfsUpdateRecord(
 	}
 	
 	// Fast-forward to the correct entry
-	Record = (FileRecord_t*)GetBufferData(Mfs->TransferBuffer);
+	Record = (FileRecord_t*)GetBufferDataPointer(Mfs->TransferBuffer);
 	for (i = 0; i < Handle->DirectoryIndex; i++) {
 		Record++;
 	}

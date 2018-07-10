@@ -102,7 +102,7 @@ AcpiOsMapMemory(
         return (void*)Where;
     }
     if (CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), &Physical, &Result, 
-        AdjustedLength, MAPPING_NOCACHE | MAPPING_VIRTUAL | MAPPING_DMA, __MASK) != OsSuccess) {
+        AdjustedLength, MAPPING_NOCACHE | MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_KERNEL, __MASK) != OsSuccess) {
         // Uhh
         ERROR("Failed to map physical memory 0x%x", Where);
         return NULL;

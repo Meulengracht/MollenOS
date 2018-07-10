@@ -388,7 +388,7 @@ typedef struct _AhciDevice {
 
 	AhciController_t			*Controller;
 	AhciPort_t					*Port;
-	BufferObject_t				*Buffer;
+	DmaBuffer_t*				Buffer;
 	int							 Index;
 
 	int							 Type;				// 0 -> ATA, 1 -> ATAPI

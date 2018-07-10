@@ -100,11 +100,21 @@ MmVirtualMapMemoryRange(
 	// Variables
     PageDirectoryTable_t *DirectoryTable;
     PageDirectory_t *Directory;
-	unsigned i, j, k;
+	unsigned i, j, je, k, ke;
+
+    // Get indices, need them to make decisions
+    int PmStart     = PAGE_LEVEL_4_INDEX(AddressStart);
+    int PmEnd       = PAGE_LEVEL_4_INDEX(AddressStart + Length - 1) + 1;
+
+    int PdpStart    = PAGE_DIRECTORY_POINTER_INDEX(AddressStart);
+    int PdpEnd      = PAGE_DIRECTORY_POINTER_INDEX(AddressStart + Length - 1) + 1;
+
+    int PdStart     = PAGE_DIRECTORY_INDEX(AddressStart);
+    int PdEnd       = PAGE_DIRECTORY_INDEX(AddressStart + Length - 1) + 1;
 
     // Iterate all the neccessary page-directory tables
-    for (i = PAGE_LEVEL_4_INDEX(AddressStart); 
-         i < (PAGE_LEVEL_4_INDEX(AddressStart + Length - 1) + 1); i++)
+    // @todo the indices are not correct for sub pml4
+    for (i = PmStart; i < PmEnd; i++)
     {
         if (MasterTable->vTables[i] == 0) {
             MasterTable->vTables[i] = (uintptr_t)MmVirtualCreatePageDirectoryTable();
@@ -114,8 +124,9 @@ MmVirtualMapMemoryRange(
         DirectoryTable = (PageDirectoryTable_t*)MasterTable->vTables[i];
 
         // Iterate all the neccessary page-directories
-        for (j = PAGE_DIRECTORY_POINTER_INDEX(AddressStart);
-             j < (PAGE_DIRECTORY_POINTER_INDEX(AddressStart + Length - 1) + 1); j++)
+        j   = (i == PmStart) ? PdpStart : 0;
+        je  = ((i + 1) == PmEnd) ? PdpEnd : ENTRIES_PER_PAGE;
+        for (; j < je; j++)
         {
             if (DirectoryTable->vTables[j] == 0) {
                 DirectoryTable->vTables[j] = (uintptr_t)MmVirtualCreatePageDirectory();
@@ -125,85 +136,15 @@ MmVirtualMapMemoryRange(
             Directory = (PageDirectory_t*)DirectoryTable->vTables[j];
 
             // Iterate all the page-tables that will be needed
-            for (k = PAGE_DIRECTORY_INDEX(AddressStart); 
-                 k < (PAGE_DIRECTORY_INDEX(AddressStart + Length - 1) + 1); k++)
+            k   = (j == PdpStart) ? PdStart : 0;
+            ke  = ((j + 1) == PdpEnd) ? PdEnd : ENTRIES_PER_PAGE;
+            for (; k < ke; k++)
             {
                 if (Directory->vTables[k] == 0) {
                     Directory->vTables[k] = (uintptr_t)MmVirtualCreatePageTable();
                     atomic_store_explicit(&Directory->pTables[k], Directory->vTables[k] | Flags, 
                         memory_order_relaxed);
                 }
-            }
-        }
-    }
-}
-
-/* MmVirtualIdentityMapMemoryRange
- * Identity maps not only a page-table or a region inside
- * it can identity map an entire memory region and create
- * page-table for the region automatically */
-void 
-MmVirtualIdentityMapMemoryRange(
-	_In_ PageMasterTable_t* PageMaster,
-	_In_ PhysicalAddress_t  PhysicalAddressStart, 
-	_In_ VirtualAddress_t   VirtualAddressStart, 
-	_In_ uintptr_t          Length, 
-	_In_ int                Fill, 
-	_In_ Flags_t            Flags)
-{
-	// Variables
-    PhysicalAddress_t PhysicalAddress       = PhysicalAddressStart;
-    VirtualAddress_t VirtualAddress         = VirtualAddressStart;
-    PageDirectoryTable_t *DirectoryTable    = NULL;
-    PageDirectory_t *Directory              = NULL;
-    PageTable_t *Table                      = NULL;
-    uint64_t Mapping;
-
-    // Must be page-table aligned
-    assert((PhysicalAddressStart % TABLE_SPACE_SIZE) == 0);
-    assert((VirtualAddressStart % TABLE_SPACE_SIZE) == 0);
-
-    // Determine start + end PML4 Index
-    int PmIndexStart    = PAGE_LEVEL_4_INDEX(VirtualAddress);
-    int PmIndexEnd      = PAGE_LEVEL_4_INDEX(VirtualAddress + Length - 1) + 1;
-    for (int PmIndex = PmIndexStart; PmIndex < PmIndexEnd; PmIndex++) {
-        // Sanitize existance/mapping
-        if (!PageMaster->vTables[PmIndex]) {
-            Mapping                         = (uint64_t)MmVirtualCreatePageDirectoryTable();
-            PageMaster->vTables[PmIndex]    = Mapping;
-            atomic_store(&PageMaster->pTables[PmIndex], Mapping | Flags);
-        }
-        DirectoryTable = (PageDirectoryTable_t*)PageMaster->vTables[PmIndex];
-
-        // Determine start + end of the page directory pointer index
-        int PdpIndexStart   = PAGE_DIRECTORY_POINTER_INDEX(VirtualAddress);
-        int PdpIndexEnd     = PAGE_DIRECTORY_POINTER_INDEX(VirtualAddress + Length - 1) + 1;
-        for (int PdpIndex = PdpIndexStart; PdpIndex < PdpIndexEnd; PdpIndex++) {
-            // Sanitize existance/mapping
-            if (!DirectoryTable->vTables[PdpIndex]) {
-                Mapping                             = (uint64_t)MmVirtualCreatePageDirectory();
-                DirectoryTable->vTables[PdpIndex]   = Mapping;
-                atomic_store(&DirectoryTable->pTables[PdpIndex], Mapping | Flags);
-            }
-            Directory = (PageDirectory_t*)DirectoryTable->vTables[PdpIndex];
-
-            int PdIndexStart    = PAGE_DIRECTORY_INDEX(VirtualAddress);
-            int PdIndexEnd      = PAGE_DIRECTORY_INDEX(VirtualAddress + Length - 1) + 1;
-            for (int PdIndex = PdIndexStart; PdIndex < PdIndexEnd; PdIndex++) {
-                // Sanitize existance/mapping
-                if (!Directory->vTables[PdIndex]) {
-                    Mapping                     = (uint64_t)MmVirtualCreatePageTable();
-                    Directory->vTables[PdIndex] = Mapping;
-                    atomic_store(&Directory->pTables[PdIndex], Mapping | Flags);
-                }
-                Table = (PageTable_t*)Directory->vTables[PdIndex];
-
-                // Fill with mappings?
-                if (Fill) {
-                    MmVirtualFillPageTable(Table, PhysicalAddress, VirtualAddress, Flags);
-                }
-                PhysicalAddress += TABLE_SPACE_SIZE;
-                VirtualAddress  += TABLE_SPACE_SIZE;
             }
         }
     }
@@ -423,6 +364,13 @@ SetVirtualPageAttributes(
         return OsError;
     }
 
+    // For kernel mappings we would like to mark the mappings global
+    if (Address < MEMORY_LOCATION_KERNEL_END) {
+        if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
+            ConvertedFlags |= PAGE_GLOBAL;
+        }  
+    }
+
 	// Map it, make sure we mask the page address so we don't accidently set any flags
     Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(Address)]);
     if (!(Mapping & PAGE_SYSTEM_MAP)) {
@@ -511,7 +459,7 @@ SetVirtualPageMapping(
     Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX((vAddress & PAGE_MASK))]);
 SyncTable:
     if (Mapping != 0) {
-        if (ConvertedFlags & PAGE_VIRTUAL) {
+        if (ConvertedFlags & PAGE_PERSISTENT) {
             if (Mapping != (pAddress & PAGE_MASK)) {
                 FATAL(FATAL_SCOPE_KERNEL, 
                     "Tried to remap fixed virtual address 0x%x => 0x%x (Existing 0x%x)", 
@@ -563,6 +511,12 @@ ClearVirtualPageMapping(
     if (Table == NULL) {
         return OsError;
     }
+    
+    // For kernel mappings we would like to mark the page free if it's
+    // in the kernel reserved region
+    if (Address >= MEMORY_LOCATION_RESERVED && Address < MEMORY_LOCATION_KERNEL_END) {
+        ClearKernelMemoryAllocation(Address, PAGE_SIZE);
+    }
 
     // Load the mapping
     Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(Address)]);
@@ -577,7 +531,7 @@ SyncTable:
 
             // Release memory, but don't if it is a virtual mapping, that means we 
             // should not free the physical page
-            if (!(Mapping & PAGE_VIRTUAL)) {
+            if (!(Mapping & PAGE_PERSISTENT)) {
                 FreeSystemMemory(Mapping & PAGE_MASK, PAGE_SIZE);
             }
 
@@ -728,7 +682,7 @@ MmVirtualDestroyPageTable(
     // Handle PT[0..511] normally
     for (int Index = 0; Index < ENTRIES_PER_PAGE; Index++) {
         Mapping = atomic_load_explicit(&PageTable->Pages[Index], memory_order_relaxed);
-        if (Mapping & (PAGE_SYSTEM_MAP | PAGE_INHERITED | PAGE_VIRTUAL)) {
+        if (Mapping & (PAGE_SYSTEM_MAP | PAGE_INHERITED | PAGE_PERSISTENT)) {
             continue;
         }
 

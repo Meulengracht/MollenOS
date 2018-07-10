@@ -187,8 +187,7 @@ ChangeSystemMemorySpaceProtection(
     _Out_       Flags_t*                PreviousFlags)
 {
     // Variables
-    OsStatus_t Status   = OsSuccess;
-    size_t FlagsMask    = GetSystemMemoryPageSize() - 1;
+    OsStatus_t Status = OsSuccess;
     int PageCount;
     int i;
 
@@ -196,7 +195,7 @@ ChangeSystemMemorySpaceProtection(
     assert(SystemMemorySpace != NULL);
 
     // Calculate the number of pages of this allocation
-    PageCount = DIVUP((Size + (VirtualAddress & FlagsMask)), GetSystemMemoryPageSize());
+    PageCount = DIVUP((Size + (VirtualAddress % GetSystemMemoryPageSize())), GetSystemMemoryPageSize());
 
     // Update the given pointer with previous flags, only flags from
     // the first page will be returned, so if flags vary this will be hidden.
@@ -230,7 +229,7 @@ ResolvePhysicalMemorySpaceAddress(
     uintptr_t PhysicalBase = 0;
 
     switch (Flags & MAPPING_PMODE_MASK) {
-        case MAPPING_VIRTUAL: {
+        case MAPPING_PROVIDED: {
             assert(PhysicalAddress != NULL);
             PhysicalBase = *PhysicalAddress;
         } break;
@@ -317,7 +316,7 @@ CreateSystemMemorySpaceMapping(
         uintptr_t VirtualPage   = (VirtualBase + (i * GetSystemMemoryPageSize()));
 		uintptr_t PhysicalPage  = 0;
         
-        if (PhysicalBase != 0 || (Flags & MAPPING_VIRTUAL)) {
+        if (PhysicalBase != 0 || (Flags & MAPPING_PROVIDED)) {
             PhysicalPage        = PhysicalBase + (i * GetSystemMemoryPageSize());
         }
 		else {
@@ -336,7 +335,7 @@ CreateSystemMemorySpaceMapping(
             }
 
             // Never unmap fixed-physical pages, this is important
-            if (!(Flags & MAPPING_VIRTUAL)) {
+            if (!(Flags & MAPPING_PROVIDED)) {
                 FreeSystemMemory(PhysicalPage, GetSystemMemoryPageSize());
             }
 

@@ -30,9 +30,9 @@
 #include <apic.h>
 
 // Global static storage for the memory
-static _Atomic(uintptr_t) ReservedMemoryPointer = ATOMIC_VAR_INIT(MEMORY_LOCATION_RESERVED);
-static MemorySynchronizationObject_t SyncData   = { SPINLOCK_INIT, 0 };
-static size_t BlockmapBytes                     = 0;
+static BlockBitmap_t                    KernelMemory    = { 0 };
+static MemorySynchronizationObject_t    SyncData        = { SPINLOCK_INIT, 0 };
+static size_t                           BlockmapBytes   = 0;
 extern void memory_invalidate_addr(uintptr_t pda);
 
 /* MmMemoryDebugPrint
@@ -59,6 +59,7 @@ InitializeSystemMemory(
     // Variables
     BIOSMemoryRegion_t *RegionPointer = NULL;
     uintptr_t MemorySize;
+    size_t BytesOccupied = 0;
     int i;
 
     // Initialize
@@ -72,6 +73,7 @@ InitializeSystemMemory(
     ConstructBlockmap(Memory, (void*)MEMORY_LOCATION_BITMAP, 
         BLOCKMAP_ALLRESERVED, 0, MemorySize, PAGE_SIZE);
     BlockmapBytes = GetBytesNeccessaryForBlockmap(0, MemorySize, PAGE_SIZE);
+    BytesOccupied += BlockmapBytes + PAGE_SIZE;
 
     // Free regions given to us by memory map
     for (i = 0; i < (int)BootInformation->MemoryMapLength; i++) {
@@ -81,6 +83,11 @@ InitializeSystemMemory(
         }
         RegionPointer++;
     }
+
+    // Initialize the kernel memory region
+    ConstructBlockmap(&KernelMemory, (void*)(MEMORY_LOCATION_BITMAP + (BlockmapBytes + PAGE_SIZE)), 
+        0, MEMORY_LOCATION_RESERVED, MEMORY_LOCATION_KERNEL_END, PAGE_SIZE);
+    BytesOccupied += GetBytesNeccessaryForBlockmap(MEMORY_LOCATION_RESERVED, MEMORY_LOCATION_KERNEL_END, PAGE_SIZE) + PAGE_SIZE;
 
     // Mark default regions in use and special regions
     //  0x0000              || Used for catching null-pointers
@@ -93,7 +100,7 @@ InitializeSystemMemory(
     ReserveBlockmapRegion(Memory, 0x90000,                  0xF000);
     ReserveBlockmapRegion(Memory, MEMORY_LOCATION_KERNEL,   BootInformation->KernelSize + PAGE_SIZE);
     ReserveBlockmapRegion(Memory, MEMORY_LOCATION_RAMDISK,  BootInformation->RamdiskSize + PAGE_SIZE);
-    ReserveBlockmapRegion(Memory, MEMORY_LOCATION_BITMAP,   (BlockmapBytes + PAGE_SIZE));
+    ReserveBlockmapRegion(Memory, MEMORY_LOCATION_BITMAP,   BytesOccupied);
 
     // Fill in rest of data
     *MemoryGranularity      = PAGE_SIZE;
@@ -133,8 +140,8 @@ ConvertSystemSpaceToPaging(Flags_t Flags)
 	if (Flags & MAPPING_NOCACHE) {
 		NativeFlags |= PAGE_CACHE_DISABLE;
 	}
-	if (Flags & MAPPING_VIRTUAL) {
-		NativeFlags |= PAGE_VIRTUAL;
+	if (Flags & MAPPING_PERSISTENT) {
+		NativeFlags |= PAGE_PERSISTENT;
 	}
     if (!(Flags & MAPPING_READONLY)) {
         NativeFlags |= PAGE_WRITE;
@@ -165,24 +172,13 @@ ConvertPagingToSystemSpace(Flags_t Flags)
     if (Flags & PAGE_CACHE_DISABLE) {
         GenericFlags |= MAPPING_NOCACHE;
     }
-    if (Flags & PAGE_VIRTUAL) {
-        GenericFlags |= MAPPING_VIRTUAL;
+    if (Flags & PAGE_PERSISTENT) {
+        GenericFlags |= MAPPING_PERSISTENT;
     }
     if (Flags & PAGE_DIRTY) {
         GenericFlags |= MAPPING_ISDIRTY;
     }
     return GenericFlags;
-}
-
-/* MmReserveMemory
- * Reserves memory for system use - should be allocated
- * from a fixed memory region that won't interfere with
- * general usage */
-VirtualAddress_t*
-MmReserveMemory(
-	_In_ int Pages)
-{
-	return (VirtualAddress_t*)atomic_fetch_add(&ReservedMemoryPointer, (PAGE_SIZE * Pages));
 }
 
 /* PageSynchronizationHandler
@@ -260,8 +256,8 @@ ResolveVirtualSpaceAddress(
     _CRT_UNUSED(SystemMemorySpace);
     _CRT_UNUSED(PhysicalBase);
 
-    if (Flags & MAPPING_DMA) {
-        *VirtualBase = (VirtualAddress_t)MmReserveMemory(DIVUP(Size, PAGE_SIZE));
+    if (Flags & MAPPING_KERNEL) {
+        *VirtualBase = AllocateBlocksInBlockmap(&KernelMemory, __MASK, Size);
         return OsSuccess;
     }
     else if (Flags & MAPPING_LEGACY) {
@@ -269,4 +265,14 @@ ResolveVirtualSpaceAddress(
         FATAL(FATAL_SCOPE_KERNEL, "Tried to allocate ISA DMA memory");
     }
     return OsError;
+}
+
+/* ClearKernelMemoryAllocation
+ * Clears the kernel memory allocation at the given address and size. */
+OsStatus_t
+ClearKernelMemoryAllocation(
+    _In_ uintptr_t              Address,
+    _In_ size_t                 Size)
+{
+    return ReleaseBlockmapRegion(&KernelMemory, Address, Size);
 }

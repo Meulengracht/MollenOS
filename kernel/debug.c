@@ -329,7 +329,7 @@ DebugPageFaultIoMemory(
         // Try to map it in and return the result
         return CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), &Physical, &Address, 
             GetSystemMemoryPageSize(), MAPPING_USERSPACE | MAPPING_NOCACHE | 
-            MAPPING_FIXED | MAPPING_VIRTUAL, __MASK);
+            MAPPING_FIXED | MAPPING_PROVIDED | MAPPING_PERSISTENT, __MASK); // @todo MAPPING_PERSISTENT?
     }
     return OsError;
 }
@@ -349,6 +349,41 @@ DebugPageFaultKernelHeapMemory(
     return OsError;
 }
 
+/* DebugPageFaultFileMappings
+ * Checks for memory access that was file mapped related and valid */
+OsStatus_t
+DebugPageFaultFileMappings(
+    _In_ Context_t* Context,
+    _In_ uintptr_t  Address)
+{
+    // Variables
+    MCoreAshFileMappingEvent_t *Event   = NULL;
+    MCoreAshFileMapping_t *Mapping      = NULL;
+    MCoreAsh_t *Ash                     = PhoenixGetCurrentAsh();
+
+    if (Ash != NULL) {
+        // Iterate file-mappings
+        foreach(Node, Ash->FileMappings) {
+            Mapping = (MCoreAshFileMapping_t*)Node->Data;
+            if (ISINRANGE(Address, Mapping->BufferObject.Address, (Mapping->BufferObject.Address + Mapping->Length) - 1)) {
+                // Oh, woah, file-mapping
+                Event = (MCoreAshFileMappingEvent_t*)kmalloc(sizeof(MCoreAshFileMappingEvent_t));
+                Event->Ash      = Ash;
+                Event->Address  = Address;
+
+                PhoenixFileMappingEvent(Event);
+                SchedulerThreadSleep((uintptr_t*)Event, 0);
+                if (Event->Result != OsSuccess) {
+                    // what? @todo
+                }
+                kfree(Event);
+                return OsSuccess; // Indicate event was handled
+            }
+        }
+    }
+    return OsError;
+}
+
 /* DebugPageFaultProcessHeapMemory
  * Checks for memory access that was (process) heap related and valid */
 OsStatus_t
@@ -360,6 +395,10 @@ DebugPageFaultProcessHeapMemory(
     MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
 
     if (Ash != NULL) {
+        if (DebugPageFaultFileMappings(Context, Address) == OsSuccess) {
+            return OsSuccess;
+        }
+
         if (BlockBitmapValidateState(Ash->Heap, Address, 1) == OsSuccess) {
             // Try to map it in and return the result
             return CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &Address, 
@@ -367,40 +406,6 @@ DebugPageFaultProcessHeapMemory(
         }
     }
     return OsSuccess;
-}
-
-/* DebugPageFaultProcessSharedMemory
- * Checks for memory access that was io-space related and valid */
-OsStatus_t
-DebugPageFaultProcessSharedMemory(
-    _In_ Context_t* Context,
-    _In_ uintptr_t  Address)
-{
-    // Variables
-    MCoreAshFileMappingEvent_t *Event   = NULL;
-    MCoreAshFileMapping_t *Mapping      = NULL;
-    MCoreAsh_t *Ash                     = PhoenixGetCurrentAsh();
-    OsStatus_t Result                   = OsSuccess;
-
-    if (Ash != NULL) {
-        // Iterate file-mappings
-        foreach(Node, Ash->FileMappings) {
-            Mapping = (MCoreAshFileMapping_t*)Node->Data;
-            if (ISINRANGE(Address, Mapping->VirtualBase, (Mapping->VirtualBase + Mapping->Length) - 1)) {
-                // Oh, woah, file-mapping
-                Event = (MCoreAshFileMappingEvent_t*)kmalloc(sizeof(MCoreAshFileMappingEvent_t));
-                Event->Ash = Ash;
-                Event->Address = Address;
-    
-                PhoenixFileMappingEvent(Event);
-                SchedulerThreadSleep((uintptr_t*)Event, 0);
-                Result = Event->Result;
-                kfree(Event);
-                return Result;
-            }
-        }
-    }
-    return OsError;
 }
 
 /* DebugPageFaultThreadMemory

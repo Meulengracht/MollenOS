@@ -24,14 +24,9 @@
 #ifndef _DISK_LAYOUT_MBR_H_
 #define _DISK_LAYOUT_MBR_H_
 
-/* Includes 
- * - System */
+#include <os/osdefs.h>
 #include <os/contracts/filesystem.h>
 #include <os/buffer.h>
-
-/* Includes
- * - Library */
-#include <os/osdefs.h>
 
 /* MBR Definitions 
  * Primarily magic constants and flags for headers */
@@ -71,6 +66,6 @@ PACKED_TYPESTRUCT(MasterBootRecord, {
 /* MbrEnumerate 
  * Enumerates a given disk with MBR data layout 
  * and automatically creates new filesystem objects */
-__EXTERN OsStatus_t MbrEnumerate(FileSystemDisk_t *Disk, BufferObject_t *Buffer);
+__EXTERN OsStatus_t MbrEnumerate(FileSystemDisk_t *Disk, DmaBuffer_t *Buffer);
 
 #endif //!_DISK_LAYOUT_MBR_H_

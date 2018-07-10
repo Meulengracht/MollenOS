@@ -308,7 +308,5 @@ MString_t *MStringCreate(void *Data, MStringType_t DataType)
 	else {
 		MStringNull(String);
 	}
-
-	/* Done */
 	return String;
 }
