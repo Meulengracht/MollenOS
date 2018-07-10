@@ -56,4 +56,6 @@ PACKED_TYPESTRUCT(PageDirectory, {
     uint32_t            vTables[ENTRIES_PER_PAGE];    // Not seen by MMU
 });
 
+#define PAGE_MASTER_LEVEL PageDirectory_t
+
 #endif //!__X86_32_PAGING__

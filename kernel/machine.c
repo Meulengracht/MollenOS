@@ -42,7 +42,6 @@
 #include <debug.h>
 #include <arch.h>
 #include <heap.h>
-#include <log.h>
 
 /* Includes
  * - Library */

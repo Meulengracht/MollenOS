@@ -39,10 +39,7 @@
 /* Extern assembly functions that are
  * implemented in _paging.asm */
 extern void memory_set_paging(int enable);
-extern void memory_load_cr3(uintptr_t pda);
 extern void memory_reload_cr3(void);
-extern void memory_invalidate_addr(uintptr_t pda);
-extern uint32_t memory_get_cr3(void);
 
 /* MmVirtualCreatePageTable
  * Creates and initializes a new empty page-table */
@@ -110,26 +107,10 @@ MmVirtualMapMemoryRange(
 	}
 }
 
-/* SwitchVirtualSpace
- * Updates the currently active memory space for the calling core. */
-OsStatus_t
-SwitchVirtualSpace(
-    SystemMemorySpace_t*        SystemMemorySpace)
-{
-    // Variables
-    assert(SystemMemorySpace != NULL);
-    assert(SystemMemorySpace->Data[MEMORY_SPACE_CR3] != 0);
-    assert(SystemMemorySpace->Data[MEMORY_SPACE_DIRECTORY] != 0);
-
-    // Update current page-directory
-	memory_load_cr3(SystemMemorySpace->Data[MEMORY_SPACE_CR3]);
-	return OsSuccess;
-}
-
-/* MmVirtualGetDirectory
+/* MmVirtualGetMasterTable
  * Helper function to retrieve the current active directory. */
 PageDirectory_t*
-MmVirtualGetDirectory(
+MmVirtualGetMasterTable(
     _In_  SystemMemorySpace_t*  MemorySpace,
     _In_  VirtualAddress_t      Address,
     _Out_ PageDirectory_t**     ParentDirectory,
@@ -166,7 +147,8 @@ MmVirtualGetTable(
     _In_ uintptr_t          Address,
     _In_ int                IsCurrent,
     _In_ int                CreateIfMissing,
-    _In_ Flags_t            CreateFlags)
+    _In_ Flags_t            CreateFlags,
+    _Out_ int*              Update)
 {
     // Variables
     PageTable_t *Table  = NULL;
@@ -174,7 +156,8 @@ MmVirtualGetTable(
     uint32_t ParentMapping;
 
     // Load the entry from the table
-    ParentMapping = atomic_load(&PageDirectory->pTables[PageTableIndex]);
+    ParentMapping   = atomic_load(&PageDirectory->pTables[PageTableIndex]);
+    *Update         = 0; // Not used on x32, only 64
 
     // Sanitize PRESENT status
 	if (ParentMapping & PAGE_PRESENT) {
@@ -225,238 +208,6 @@ SyncWithParent:
 		}
     }
     return Table;
-}
-
-/* SetVirtualPageAttributes
- * Changes memory protection flags for the given virtual address */
-OsStatus_t
-SetVirtualPageAttributes(
-	_In_ SystemMemorySpace_t*   MemorySpace,
-	_In_ VirtualAddress_t       Address,
-    _In_ Flags_t                Flags)
-{
-	// Variabes
-    PageDirectory_t *ParentDirectory;
-	PageDirectory_t *Directory;
-	PageTable_t *Table;
-    uint32_t Mapping;
-    Flags_t ConvertedFlags;
-	int IsCurrent;
-
-    Directory       = MmVirtualGetDirectory(MemorySpace, Address, &ParentDirectory, &IsCurrent);
-    Table           = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0);
-    ConvertedFlags  = ConvertSystemSpaceToPaging(Flags);
-
-	// Does page table exist?
-    if (Table == NULL) {
-        return OsError;
-    }
- 
-    // For kernel mappings we would like to mark the mappings global
-    if (Address < MEMORY_LOCATION_KERNEL_END) {
-        if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
-            ConvertedFlags |= PAGE_GLOBAL;
-        }  
-    }
-
-	// Map it, make sure we mask the page address so we don't accidently set any flags
-    Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(Address)]);
-    if (!(Mapping & PAGE_SYSTEM_MAP)) {
-        atomic_store(&Table->Pages[PAGE_TABLE_INDEX(Address)], (Mapping & PAGE_MASK) | ConvertedFlags);
-
-        // Synchronize with cpus
-        SynchronizeVirtualPage(MemorySpace, Address);
-        if (IsCurrent) {
-            memory_invalidate_addr(Address);
-        }
-	    return OsSuccess;
-    }
-    return OsError;
-}
-
-/* GetVirtualPageAttributes
- * Retrieves memory protection flags for the given virtual address */
-OsStatus_t
-GetVirtualPageAttributes(
-	_In_  SystemMemorySpace_t*  MemorySpace,
-	_In_  VirtualAddress_t      Address,
-	_Out_ Flags_t*              Flags)
-{
-	// Variabes
-    PageDirectory_t *ParentDirectory;
-	PageDirectory_t *Directory;
-	PageTable_t *Table;
-	int IsCurrent;
-    Flags_t OriginalFlags;
-
-    Directory   = MmVirtualGetDirectory(MemorySpace, Address, &ParentDirectory, &IsCurrent);
-    Table       = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0);
-
-	// Does page table exist?
-    if (Table == NULL) {
-        return OsError;
-    }
-
-	// Map it, make sure we mask the page address so we don't accidently set any flags
-    if (Flags != NULL) {
-        OriginalFlags   = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(Address)]) & ATTRIBUTE_MASK;
-        *Flags          = ConvertPagingToSystemSpace(OriginalFlags);
-    }
-	return OsSuccess;
-}
-
-/* SetVirtualPageMapping
- * Installs a new page-mapping in the given page-directory. The type of mapping 
- * is controlled by the Flags parameter. */
-OsStatus_t
-SetVirtualPageMapping(
-	_In_ SystemMemorySpace_t*   MemorySpace,
-	_In_ PhysicalAddress_t      pAddress,
-	_In_ VirtualAddress_t       vAddress,
-	_In_ Flags_t                Flags)
-{
-	// Variabes
-    PageDirectory_t *ParentDirectory;
-	PageDirectory_t *Directory;
-	PageTable_t *Table;
-    uint32_t Mapping;
-    Flags_t ConvertedFlags;
-	int IsCurrent;
-
-    OsStatus_t Status = OsSuccess;
-
-    Directory       = MmVirtualGetDirectory(MemorySpace, (vAddress & PAGE_MASK), &ParentDirectory, &IsCurrent);
-    Table           = MmVirtualGetTable(ParentDirectory, Directory, (vAddress & PAGE_MASK), IsCurrent, 1, Flags);
-    ConvertedFlags  = ConvertSystemSpaceToPaging(Flags);
-
-    // For kernel mappings we would like to mark the mappings global
-    if (vAddress < MEMORY_LOCATION_KERNEL_END) {
-        if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
-            ConvertedFlags |= PAGE_GLOBAL;
-        }  
-    }
-
-    // If table is null creation failed
-    assert(Table != NULL);
-
-    // Make sure value is not mapped already, NEVER overwrite a mapping
-    Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX((vAddress & PAGE_MASK))]);
-SyncTable:
-    if (Mapping != 0) {
-        if (ConvertedFlags & PAGE_PERSISTENT) {
-            if (Mapping != (pAddress & PAGE_MASK)) {
-                FATAL(FATAL_SCOPE_KERNEL, 
-                    "Tried to remap fixed virtual address 0x%x => 0x%x (Existing 0x%x)", 
-                    vAddress, pAddress, Mapping);
-            }
-        }
-        Status = OsError;
-        goto LeaveFunction;
-    }
-
-    // Perform the mapping in a weak context, fast operation
-    if (!atomic_compare_exchange_weak(&Table->Pages[PAGE_TABLE_INDEX((vAddress & PAGE_MASK))], 
-        &Mapping, (pAddress & PAGE_MASK) | ConvertedFlags)) {
-        goto SyncTable;
-    }
-
-	// Last step is to invalidate the address in the MMIO
-LeaveFunction:
-	if (IsCurrent) {
-		memory_invalidate_addr((vAddress & PAGE_MASK));
-	}
-	return OsSuccess;
-}
-
-/* ClearVirtualPageMapping
- * Unmaps a previous mapping from the given page-directory
- * the mapping must be present */
-OsStatus_t
-ClearVirtualPageMapping(
-    _In_ SystemMemorySpace_t*   MemorySpace,
-    _In_ VirtualAddress_t       Address)
-{
-	// Variabes
-    PageDirectory_t *ParentDirectory;
-	PageDirectory_t *Directory;
-	PageTable_t *Table;
-    uint32_t Mapping;
-	int IsCurrent;
-
-    Directory   = MmVirtualGetDirectory(MemorySpace, Address, &ParentDirectory, &IsCurrent);
-    Table       = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0);
- 
-    // Did the page-table exist?
-    if (Table == NULL) {
-        return OsError;
-    }
-    
-    // For kernel mappings we would like to mark the page free if it's
-    // in the kernel reserved region
-    if (Address >= MEMORY_LOCATION_RESERVED && Address < MEMORY_LOCATION_KERNEL_END) {
-        ClearKernelMemoryAllocation(Address, PAGE_SIZE);
-    }
-
-    // Load the mapping
-    Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(Address)]);
-SyncTable:
-    if (Mapping & PAGE_PRESENT) {
-        if (!(Mapping & PAGE_SYSTEM_MAP)) {
-            // Present, not system map
-            // Perform the un-mapping in a weak context, fast operation
-            if (!atomic_compare_exchange_weak(&Table->Pages[PAGE_TABLE_INDEX(Address)], &Mapping, 0)) {
-                goto SyncTable;
-            }
-
-            // Release memory, but don't if it is a virtual mapping, that means we 
-            // should not free the physical page
-            if (!(Mapping & PAGE_PERSISTENT)) {
-                FreeSystemMemory(Mapping & PAGE_MASK, PAGE_SIZE);
-            }
-
-            // Last step is to validate the page-mapping
-            // now this should be an IPC to all cpu's
-            SynchronizeVirtualPage(MemorySpace, Address);
-            if (IsCurrent) {
-                memory_invalidate_addr(Address);
-            }
-            return OsSuccess;
-        }
-    }
-    return OsError;
-}
-
-/* GetVirtualPageMapping
- * Retrieves the physical address mapping of the
- * virtual memory address given - from the page directory that is given */
-uintptr_t
-GetVirtualPageMapping(
-    _In_ SystemMemorySpace_t*   MemorySpace,
-    _In_ VirtualAddress_t       Address)
-{
-	// Variabes
-    PageDirectory_t *ParentDirectory;
-	PageDirectory_t *Directory;
-	PageTable_t *Table;
-    uint32_t Mapping;
-	int IsCurrent;
-
-    Directory   = MmVirtualGetDirectory(MemorySpace, Address, &ParentDirectory, &IsCurrent);
-    Table       = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0);
- 
-	// Does page table exist?
-    if (Table == NULL) {
-        return 0;
-    }
-
-    // Get the address and return with proper offset
-	Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(Address)]);
-
-    // Make sure we still return 0 if the mapping is indeed 0
-    if ((Mapping & PAGE_MASK) == 0 || !(Mapping & PAGE_PRESENT)) {
-        return 0;
-    }
-	return ((Mapping & PAGE_MASK) + (Address & ATTRIBUTE_MASK));
 }
 
 /* CloneVirtualSpace
