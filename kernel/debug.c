@@ -23,21 +23,15 @@
 #define __MODULE        "DBGI"
 //#define __TRACE
 
-/* Includes
- * - System */
 #include <memoryspace.h>
 #include <system/iospace.h>
 #include <system/utils.h>
 #include <process/phoenix.h>
 #include <scheduler.h>
-#include <debug.h>
-#include <arch.h>
-#include <heap.h>
-
-/* Includes
- * - Library */
 #include <stdio.h>
-#include <stddef.h>
+#include <debug.h>
+#include <heap.h>
+#include <arch.h>
 
 /* Page-fault handlers for different page-fault areas. 
  * Static storage to only allow a maximum handlers. */

@@ -35,12 +35,10 @@
 #include <system/utils.h>
 #include <scheduler.h>
 #include <machine.h>
+#include <assert.h>
 #include <timers.h>
 #include <debug.h>
-#include <arch.h>
 #include <heap.h>
-
-#include <assert.h>
 
 /* Globals
  * - State keeping variables */

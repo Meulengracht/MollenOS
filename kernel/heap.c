@@ -34,19 +34,12 @@
 #define __MODULE "HEAP"
 //#define __TRACE
 
-/* Includes 
- * - System */
 #include <memoryspace.h>
-#include <debug.h>
-#include <arch.h>
-#include <heap.h>
-
-/* Includes 
- * - Library */
 #include <assert.h>
-#include <stddef.h>
 #include <string.h>
 #include <stdio.h>
+#include <debug.h>
+#include <heap.h>
 
 /* These are internal allocation flags
  * and get applied based on size for optimization */
@@ -941,105 +934,4 @@ kfree(
     _In_ void *Pointer) {
     assert(Pointer != NULL);
     HeapFree(HeapGetKernel(), (uintptr_t)Pointer);
-}
-
-/**************************************/
-/******** Heap Testing Suite  *********/
-/**************************************/
-void heap_test(void)
-{
-    /* Do some debugging */
-    uintptr_t phys1 = 0, phys2 = 0, i = 0;
-    void *res1, *res2, *res3, *res4, *res5, *res6;
-
-    HeapStatisticsPrint(&GlbKernelHeap);
-
-    printf(" >> Performing small allocs & frees (a few)\n");
-    res1 = kmalloc(0x30);
-    res2 = kmalloc(0x50);
-    res3 = kmalloc(0x130);
-    res4 = kmalloc(0x180);
-    res5 = kmalloc(0x600);
-    res6 = kmalloc(0x3000);
-
-    HeapStatisticsPrint(&GlbKernelHeap);
-
-    printf(" Alloc1 (0x30): 0x%x, Alloc2 (0x50): 0x%x, Alloc3 (0x130): 0x%x, Alloc4 (0x180): 0x%x\n",
-        (uintptr_t)res1, (uintptr_t)res2, (uintptr_t)res3, (uintptr_t)res4);
-    printf(" Alloc5 (0x600): 0x%x, Alloc6 (0x3000): 0x%x\n", (uintptr_t)res5, (uintptr_t)res6);
-
-    printf(" Freeing Alloc5, 2 & 3...\n");
-    kfree(res5);
-    kfree(res2);
-    kfree(res3);
-
-    HeapStatisticsPrint(&GlbKernelHeap);
-
-    printf(" Re-allocing 5, 2 & 3\n");
-    res2 = kmalloc(0x90);
-    res3 = kmalloc(0x20);
-    res5 = kmalloc(0x320);
-
-    printf(" Alloc2 (0x90): 0x%x, Alloc3 (0x20): 0x%x, Alloc5 (0x320): 0x%x\n", (uintptr_t)res2, (uintptr_t)res3, (uintptr_t)res5);
-    printf(" Freeing all...\n");
-
-    kfree(res1);
-    kfree(res2);
-    kfree(res3);
-    kfree(res4);
-    kfree(res5);
-    kfree(res6);
-
-    HeapStatisticsPrint(&GlbKernelHeap);
-
-    printf(" Making special allocations (aligned & aligned /w phys)\n");
-    res1 = kmalloc_a(0x30);
-    res2 = kmalloc_a(0x210);
-    res3 = kmalloc_a(0x900);
-    res4 = kmalloc_a(0x4500);
-
-    res5 = kmalloc_ap(0x32, &phys1);
-    res6 = kmalloc_ap(0x1000, &phys2);
-
-    printf(" Alloc1 (0x30): 0x%x, Alloc2 (0x210): 0x%x, Alloc3 (0x900): 0x%x, Alloc4 (0x4500): 0x%x\n",
-        (uintptr_t)res1, (uintptr_t)res2, (uintptr_t)res3, (uintptr_t)res4);
-    printf(" Alloc5 (0x32): 0x%x, Alloc6 (0x1000): 0x%x\n", (uintptr_t)res5, (uintptr_t)res6);
-    printf(" Alloc5 Physical: 0x%x, Alloc6 Physical: 0x%x\n", phys1, phys2);
-
-    printf(" Freeing all...\n");
-    kfree(res1);
-    kfree(res2);
-    kfree(res3);
-    kfree(res4);
-    kfree(res5);
-    kfree(res6);
-
-    HeapStatisticsPrint(&GlbKernelHeap);
-
-    printf(" >> Performing allocations (150)\n");
-    
-    for (i = 0; i < 50; i++)
-    {
-        kmalloc(0x50);
-        kmalloc(0x180);
-        kmalloc(0x3000);
-    }
-
-    HeapStatisticsPrint(&GlbKernelHeap);
-    
-    printf(" >> Performing allocs & frees (150)\n");
-    for (i = 0; i < 50; i++)
-    {
-        void* r1 = kmalloc(0x30);
-        void* r2 = kmalloc(0x130);
-        void* r3 = kmalloc(0x600);
-
-        kfree(r1);
-        kfree(r2);
-        kfree(r3);
-    }
-    
-    //Done
-    printf(" >> Memory benchmarks are done!\n");
-
 }

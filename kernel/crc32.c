@@ -20,12 +20,9 @@
  *  - Implemented using lookup tables for speed
  */
 
-/* Includes
- * - Library */
 #include <crc32.h>
 
-/* Static Storage
- * Used for keeping the crc-32 table */
+// Static storage for the crc-table
 static uint32_t CrcTable[256] = { 0 };
 
 /* Crc32GenerateTable
@@ -33,11 +30,9 @@ static uint32_t CrcTable[256] = { 0 };
 void
 Crc32GenerateTable(void)
 {
-    // Variables
     register uint32_t CrcAccumulator;
     register int i, j;
 
-    // Iterate and fill the table
     for (i=0;  i < 256; i++) {
         CrcAccumulator = ((uint32_t) i << 24);
         for (j = 0;  j < 8;  j++) {
@@ -61,10 +56,8 @@ Crc32Generate(
     _In_ uint8_t *DataPointer, 
     _In_ size_t DataSize)
 {
-    // Variables
     register size_t i, j;
 
-    // Iterate each byte and accumulate crc
     for (j = 0; j < DataSize; j++) {
         i = ((int) (CrcAccumulator >> 24) ^ *DataPointer++) & 0xFF;
         CrcAccumulator = (CrcAccumulator << 8) ^ CrcTable[i];

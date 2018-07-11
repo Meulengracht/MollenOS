@@ -51,7 +51,7 @@ config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE # Use a full debug console on heig
 #config_flags += -D__OSCONFIG_DISABLE_EHCI # Disable usb 2.0 support, run only in usb 1.1
 #config_flags += -D__OSCONFIG_EHCI_ALLOW_64BIT # Allow the EHCI driver to utilize 64 bit dma buffers
 #config_flags += -D__OSCONFIG_DISABLE_VIOARR # Disable auto starting the windowing system
-#config_flags += -D__OSCONFIG_TEST_KERNEL
+#config_flags += -D__OSCONFIG_TEST_KERNEL # Enable testing mode of the operating system
 
 # Before building llvm, one must export $(INCLUDES) to point at the include directory (full path)
 # Before building llvm, one must export $(LIBRARIES) to point at the lib directory (full path)

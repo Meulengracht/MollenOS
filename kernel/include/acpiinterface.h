@@ -22,13 +22,8 @@
 #ifndef __ACPI_INTERFACE_H__
 #define __ACPI_INTERFACE_H__
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 #include <ds/collection.h>
-
-/* Includes 
- * - System */
 #include <acpi.h>
 
 /* ACPICA Definitions 
@@ -136,59 +131,56 @@ PACKED_TYPESTRUCT(PciRoutings, {
  * ACPI Device Power information. This is needed in
  * order to control the power levels and states. */
 PACKED_TYPESTRUCT(AcpiDevicePower, {
-    ACPI_HANDLE              GpeHandle;
-    UINT32                   GpeBit;
-    UINT32                   LowestWakeState; // Lowest state capable of wake
+    ACPI_HANDLE             GpeHandle;
+    UINT32                  GpeBit;
+    UINT32                  LowestWakeState; // Lowest state capable of wake
     
-    UINT32                   PowerResourceCount;
-    ACPI_OBJECT             *PowerResources[APCI_MAX_PRW_RESOURCES];
+    UINT32                  PowerResourceCount;
+    ACPI_OBJECT*            PowerResources[APCI_MAX_PRW_RESOURCES];
 });
 
 /* AcpiDevice 
  * Generic ACPI device representation in MCore.
  * Contains all information neccessary to use the device. */
 PACKED_TYPESTRUCT(AcpiDevice, {
-    ACPI_HANDLE              Handle;
-    ACPI_HANDLE              Parent;
-    char                     Name[128];
-    int                      Type;
+    CollectionItem_t            Header;
+    ACPI_HANDLE                 Handle;
+    ACPI_HANDLE                 Parent;
+    char                        Name[128];
+    int                         Type;
     
-    char                     HId[16];
-    char                     UId[16];
-    char                     BusId[8];
-    ACPI_PNP_DEVICE_ID_LIST *CId;
+    char                        HId[16];
+    char                        UId[16];
+    char                        BusId[8];
+    ACPI_PNP_DEVICE_ID_LIST*    CId;
     
-    ACPI_PCI_ID              PciLocation;
-    int                      GlobalBus;
+    ACPI_PCI_ID                 PciLocation;
+    int                         GlobalBus;
     
-    size_t                   Features; // Supported namespace functions
-    size_t                   FeaturesEx; // Type features
-    size_t                   Status;
-    uint64_t                 Address;
+    size_t                      Features;   // Supported namespace functions
+    size_t                      FeaturesEx; // Type features
+    size_t                      Status;
+    uint64_t                    Address;
 
     // Feature data
-    PciRoutings_t           *Routings;
-    AcpiDevicePower_t        PowerSettings;
+    PciRoutings_t*              Routings;
+    AcpiDevicePower_t           PowerSettings;
 });
 
 /* AcpiInitializeEarly
  * Initializes Early Access and enumerates the APIC Table */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 AcpiInitializeEarly(void);
 
 /* Initializes the full access and functionality
- * of ACPICA / ACPI and allows for scanning of 
- * ACPI devices */
-__EXTERN void AcpiInitialize(void);
+ * of ACPICA / ACPI and allows for scanning of ACPI devices */
+KERNELAPI void KERNELABI
+AcpiInitialize(void);
 
 /* AcpiDevicesScan
  * Scan the ACPI namespace for devices and irq-routings, 
  * this is very neccessary for getting correct irqs */
-KERNELAPI
-ACPI_STATUS
-KERNELABI
+KERNELAPI ACPI_STATUS KERNELABI
 AcpiDevicesScan(void);
 
 /* This returns ACPI_NOT_AVAILABLE if ACPI is not available
@@ -197,34 +189,26 @@ __EXTERN int AcpiAvailable(void);
 
 /* AcpiDeviceLookupBusRoutings
  * lookup a bridge device for the given bus that contains pci routings */
-KERNELAPI
-AcpiDevice_t*
-KERNELABI
+KERNELAPI AcpiDevice_t* KERNELABI
 AcpiDeviceLookupBusRoutings(
-    _In_ int Bus);
+    _In_ int                Bus);
 
 /* AcpiDeviceAttachData
  * Stores custom context data for an individual acpi-device handle */
-KERNELAPI
-ACPI_STATUS
-KERNELABI
+KERNELAPI ACPI_STATUS KERNELABI
 AcpiDeviceAttachData(
-	_In_ AcpiDevice_t *Device,
-	_In_ int Type);
+	_In_ AcpiDevice_t*      Device,
+	_In_ int                Type);
 
 /* AcpiDeviceGetStatus
  * Retrieves the status of the device by querying the _STA method. */
-KERNELAPI
-ACPI_STATUS
-KERNELABI
+KERNELAPI ACPI_STATUS KERNELABI
 AcpiDeviceGetStatus(
 	_InOut_ AcpiDevice_t* Device);
 
 /* AcpiDeviceGetBusAndSegment
  * Retrieves the initial location on the bus for the device */
-KERNELAPI
-ACPI_STATUS
-KERNELABI
+KERNELAPI ACPI_STATUS KERNELABI
 AcpiDeviceGetBusAndSegment(
     _InOut_ AcpiDevice_t* Device);
 
@@ -234,18 +218,14 @@ __EXTERN ACPI_STATUS AcpiDeviceGetFeatures(AcpiDevice_t *Device);
 /* AcpiDeviceGetIrqRoutings
  * Utilizies ACPICA to retrieve all the irq-routings from
  * the ssdt information. */
-KERNELAPI
-ACPI_STATUS
-KERNELABI
+KERNELAPI ACPI_STATUS KERNELABI
 AcpiDeviceGetIrqRoutings(
 	_In_ AcpiDevice_t *Device);
 
 /* AcpiDeviceGetHWInfo
  * Retrieves acpi-hardware information like Status, Address
  * CId's, HId, UId, CLS etc */
-KERNELAPI
-ACPI_STATUS
-KERNELABI
+KERNELAPI ACPI_STATUS KERNELABI
 AcpiDeviceGetHWInfo(
     _InOut_ AcpiDevice_t *Device,
     _In_ ACPI_HANDLE ParentHandle,
@@ -253,9 +233,7 @@ AcpiDeviceGetHWInfo(
 
 /* AcpiDeviceParsePower
  * Parses and validates the _PRW feature of a GPE device. */
-KERNELAPI
-ACPI_STATUS
-KERNELABI
+KERNELAPI ACPI_STATUS KERNELABI
 AcpiDeviceParsePower(
     _InOut_ AcpiDevice_t *Device);
 

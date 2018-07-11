@@ -18,7 +18,7 @@
  *
  * MollenOS Memory Space Interface
  * - Implementation of virtual memory address spaces. This underlying
- *   hardware must support the __OSCONFIG_HAS_MMIO defibne to use this.
+ *   hardware must support the __OSCONFIG_HAS_MMIO define to use this.
  */
 #define __MODULE "MSPC"
 

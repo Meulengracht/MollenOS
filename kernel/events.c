@@ -26,7 +26,7 @@
 #include <debug.h>
 #include <heap.h>
 
-/* Prototypes */
+// Prototypes for events
 void EventHandlerInternal(void *Args);
 
 /* InitializeEventLoop

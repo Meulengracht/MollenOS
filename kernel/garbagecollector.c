@@ -23,21 +23,14 @@
 #define __MODULE "GCIF"
 #define __TRACE
 
-/* Includes
- * - System */
+#include <ds/collection.h>
 #include <garbagecollector.h>
 #include <criticalsection.h>
 #include <semaphore_slim.h>
 #include <threading.h>
 #include <debug.h>
 
-/* Includes
- * - Library */
-#include <ds/collection.h>
-#include <stddef.h>
-
-/* Prototypes 
- * Defines the GC worker thread */
+// Prototype for the worker thread
 void GcWorker(void *Args);
 
 /* Globals 

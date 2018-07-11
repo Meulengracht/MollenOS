@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2015, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,20 +22,16 @@
 #define __MODULE "DSIF"
 #define __TRACE
 
-/* Includes 
- * - System */
 #include <acpiinterface.h>
 #include <debug.h>
 #include <hpet.h>
 #include <heap.h>
 
-/* Includes
- * - Library */
-#include <stddef.h>
+extern ACPI_STATUS AcpiHwDerivePciId(ACPI_PCI_ID *PciId, ACPI_HANDLE RootPciDevice, ACPI_HANDLE PciRegion);
 
-/* Globals */
-Collection_t *GlbPciAcpiDevices = NULL;
-int GlbBusCounter               = 0;
+// Static storage for the pci-acpi mappings
+static Collection_t PciToAcpiDevices    = COLLECTION_INIT(KeyInteger);
+static int          BusCounter          = 0;
 
 /* AcpiDeviceLookupBusRoutings
  * lookup a bridge device for the given bus that contains pci routings */
@@ -50,11 +46,8 @@ AcpiDeviceLookupBusRoutings(
 
     // Loop through buses
     while (1) {
-        Key.Value = ACPI_BUS_ROOT_BRIDGE;
-        Dev = (AcpiDevice_t*)CollectionGetDataByKey(GlbPciAcpiDevices, Key, Index);
-
-        // Sanity, if this returns
-        // null we are out of data
+        Key.Value   = ACPI_BUS_ROOT_BRIDGE;
+        Dev         = (AcpiDevice_t*)CollectionGetNodeByKey(&PciToAcpiDevices, Key, Index);
         if (Dev == NULL) {
             break;
         }
@@ -63,12 +56,8 @@ AcpiDeviceLookupBusRoutings(
         if (Dev->GlobalBus == Bus && Dev->Routings != NULL) {
             return Dev;
         }
-
-        // Next bus
         Index++;
     }
-
-    // Not found
     return NULL;
 }
 
@@ -92,9 +81,9 @@ AcpiDeviceCreate(
     memset(Device, 0, sizeof(AcpiDevice_t));
 
     // Store initial members
-    Device->Handle = Handle;
-    Device->Parent = Parent;
-    Device->Type = Type; 
+    Device->Handle  = Handle;
+    Device->Parent  = Parent;
+    Device->Type    = Type; 
 
     // Lookup identifiers, supported features and the bus-numbers
     Status = AcpiDeviceGetBusId(Device, Type);
@@ -111,9 +100,9 @@ AcpiDeviceCreate(
     }
 
     // Get the name, if it fails set to (null)
-    Buffer.Length = 128;
-    Buffer.Pointer = &Device->Name[0];
-    Status = AcpiGetName(Handle, ACPI_FULL_PATHNAME, &Buffer);
+    Buffer.Length   = 128;
+    Buffer.Pointer  = &Device->Name[0];
+    Status          = AcpiGetName(Handle, ACPI_FULL_PATHNAME, &Buffer);
     if (ACPI_FAILURE(Status)) {
         memset(&Device->Name[0], 0, 128);
         strcpy(&Device->Name[0], "(null)");
@@ -153,8 +142,8 @@ AcpiDeviceCreate(
 
     // Convert the address field to device-location
     if (Device->Features & ACPI_FEATURE_ADR) {
-        Device->PciLocation.Device = ACPI_HIWORD(ACPI_LODWORD(Device->Address));
-        Device->PciLocation.Function = ACPI_LOWORD(ACPI_LODWORD(Device->Address));
+        Device->PciLocation.Device      = ACPI_HIWORD(ACPI_LODWORD(Device->Address));
+        Device->PciLocation.Function    = ACPI_LOWORD(ACPI_LODWORD(Device->Address));
         if (Device->PciLocation.Device > 31) {
             Device->PciLocation.Device = 0;
         }
@@ -194,9 +183,8 @@ AcpiDeviceCreate(
         Status = AcpiHwDerivePciId(&Device->PciLocation, Device->Handle, NULL);
         
         // Store correct bus-nr
-        Device->Type = ACPI_BUS_ROOT_BRIDGE;
-        Device->GlobalBus = GlbBusCounter;
-        GlbBusCounter++;
+        Device->Type        = ACPI_BUS_ROOT_BRIDGE;
+        Device->GlobalBus   = BusCounter++;
     }
     else {
         Device->Type = Type;
@@ -227,8 +215,8 @@ AcpiDeviceCreate(
     }
 
     // Add the device to device-list
-    Key.Value = Device->Type;
-    return CollectionAppend(GlbPciAcpiDevices, CollectionCreateNode(Key, Device));
+    Device->Header.Key.Value = Device->Type;
+    return CollectionAppend(&PciToAcpiDevices, &Device->Header);
 }
 
 /* AcpiDeviceInstallFixed 
@@ -307,7 +295,6 @@ AcpiDevicesScan(void)
     TRACE("AcpiDevicesScan()");
     
     // Initialize list and fixed objects
-    GlbPciAcpiDevices = CollectionCreate(KeyInteger);
     if (AcpiGbl_FADT.Flags & ACPI_FADT_POWER_BUTTON) {
         TRACE("Initializing power button");
         if (AcpiDeviceCreate(NULL, ACPI_ROOT_OBJECT, ACPI_BUS_TYPE_POWER) != OsSuccess) {

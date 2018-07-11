@@ -37,16 +37,12 @@
 #include <scheduler.h>
 #include <threading.h>
 #include <timers.h>
+#include <stdio.h>
 #include <crc32.h>
 #include <video.h>
 #include <debug.h>
 #include <arch.h>
 #include <heap.h>
-
-/* Includes
- * - Library */
-#include <stddef.h>
-#include <stdio.h>
 
 #ifdef __OSCONFIG_TEST_KERNEL
 extern void StartTestingPhase(void);
@@ -260,7 +256,7 @@ StopAndShowError:
 #ifdef __OSCONFIG_HAS_VIDEO
     Status = VideoInitialize();
 #elif __OSCONFIG_HAS_UART
-
+    // Status = UartInitialize();
 #else
 #warning "No way of outputting errors to user on this platform."
 #endif
