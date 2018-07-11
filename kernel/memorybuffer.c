@@ -68,7 +68,7 @@ CreateMemoryBuffer(
             }
 
             Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), &DmaAddress, 
-                &Virtual, Capacity, MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_PROCESS, __MASK);
+                &Virtual, Capacity, MAPPING_USERSPACE | MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_PROCESS, __MASK);
             if (Status != OsSuccess) {
                 FreeSystemMemory(DmaAddress, Capacity);
                 return Status;

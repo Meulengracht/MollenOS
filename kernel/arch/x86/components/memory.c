@@ -111,6 +111,7 @@ InitializeSystemMemory(
     ReserveBlockmapRegion(Memory, MEMORY_LOCATION_KERNEL,   BootInformation->KernelSize + PAGE_SIZE);
     ReserveBlockmapRegion(Memory, MEMORY_LOCATION_RAMDISK,  BootInformation->RamdiskSize + PAGE_SIZE);
     ReserveBlockmapRegion(Memory, MEMORY_LOCATION_BITMAP,   BytesOccupied);
+    BlockmapBytes = BytesOccupied;
 
     // Fill in rest of data
     *MemoryGranularity      = PAGE_SIZE;
@@ -150,15 +151,15 @@ ConvertSystemSpaceToPaging(Flags_t Flags)
 	if (Flags & MAPPING_NOCACHE) {
 		NativeFlags |= PAGE_CACHE_DISABLE;
 	}
-	if (Flags & MAPPING_PERSISTENT) {
-		NativeFlags |= PAGE_PERSISTENT;
-	}
     if (!(Flags & MAPPING_READONLY)) {
         NativeFlags |= PAGE_WRITE;
     }
     if (Flags & MAPPING_ISDIRTY) {
         NativeFlags |= PAGE_DIRTY;
     }
+	if (Flags & MAPPING_PERSISTENT) {
+		NativeFlags |= PAGE_PERSISTENT;
+	}
     return NativeFlags;
 }
 
@@ -319,9 +320,9 @@ SetVirtualPageAttributes(
     Flags_t ConvertedFlags;
 	int IsCurrent, Update;
 
-    Directory       = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
-    Table           = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0, &Update);
     ConvertedFlags  = ConvertSystemSpaceToPaging(Flags);
+    Directory       = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
+    Table           = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, ConvertedFlags, &Update);
 
 	// Does page table exist?
     if (Table == NULL) {
@@ -401,9 +402,9 @@ SetVirtualPageMapping(
 
     OsStatus_t Status = OsSuccess;
 
-    Directory       = MmVirtualGetMasterTable(MemorySpace, (vAddress & PAGE_MASK), &ParentDirectory, &IsCurrent);
-    Table           = MmVirtualGetTable(ParentDirectory, Directory, (vAddress & PAGE_MASK), IsCurrent, 1, Flags, &Update);
     ConvertedFlags  = ConvertSystemSpaceToPaging(Flags);
+    Directory       = MmVirtualGetMasterTable(MemorySpace, (vAddress & PAGE_MASK), &ParentDirectory, &IsCurrent);
+    Table           = MmVirtualGetTable(ParentDirectory, Directory, (vAddress & PAGE_MASK), IsCurrent, 1, ConvertedFlags, &Update);
 
     // For kernel mappings we would like to mark the mappings global
     if (vAddress < MEMORY_LOCATION_KERNEL_END) {

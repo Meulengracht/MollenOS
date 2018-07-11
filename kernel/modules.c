@@ -21,8 +21,7 @@
 #define __MODULE "MODS"
 //#define __TRACE
 
-/* Includes 
- * - System */
+#include <ds/collection.h>
 #include <system/interrupts.h>
 #include <process/phoenix.h>
 #include <modules/modules.h>
@@ -30,12 +29,6 @@
 #include <debug.h>
 #include <crc32.h>
 #include <heap.h>
-#include <log.h>
-
-/* Includes
- * - Library */
-#include <ds/collection.h>
-#include <stddef.h>
 
 /* Private definitions that are local to this file */
 #define LIST_MODULE             1

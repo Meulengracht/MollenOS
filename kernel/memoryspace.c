@@ -226,7 +226,7 @@ ResolvePhysicalMemorySpaceAddress(
     _In_ Flags_t            Flags)
 {
     // Variables
-    uintptr_t PhysicalBase = 0;
+    uintptr_t PhysicalBase  = 0;
 
     switch (Flags & MAPPING_PMODE_MASK) {
         case MAPPING_PROVIDED: {

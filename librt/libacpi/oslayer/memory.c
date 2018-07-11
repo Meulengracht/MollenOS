@@ -95,7 +95,8 @@ AcpiOsMapMemory(
     // Variables
     PhysicalAddress_t Physical  = (PhysicalAddress_t)Where;
     VirtualAddress_t Result     = 0;
-    size_t AdjustedLength       = Length + (Where & (GetSystemMemoryPageSize() - 1));
+    size_t Offset               = Physical % GetSystemMemoryPageSize();
+    size_t AdjustedLength       = Length + Offset;
 
     // We have everything below 4mb identity mapped
     if (Where >= 0x1000 && Where < 0x400000) {
@@ -107,10 +108,7 @@ AcpiOsMapMemory(
         ERROR("Failed to map physical memory 0x%x", Where);
         return NULL;
     }
-
-    // Readjust pointer to correct offset
-    Result += Where & (GetSystemMemoryPageSize() - 1);
-    return (void*)Result;
+    return (void*)(Result + Offset);
 }
 
 /******************************************************************************

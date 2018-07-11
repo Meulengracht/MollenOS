@@ -329,7 +329,7 @@ DebugPageFaultIoMemory(
         // Try to map it in and return the result
         return CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), &Physical, &Address, 
             GetSystemMemoryPageSize(), MAPPING_USERSPACE | MAPPING_NOCACHE | 
-            MAPPING_FIXED | MAPPING_PROVIDED | MAPPING_PERSISTENT, __MASK); // @todo MAPPING_PERSISTENT?
+            MAPPING_FIXED | MAPPING_PROVIDED | MAPPING_PERSISTENT, __MASK);
     }
     return OsError;
 }

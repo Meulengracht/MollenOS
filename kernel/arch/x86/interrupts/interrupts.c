@@ -56,6 +56,7 @@
 OsStatus_t
 ThreadingFpuException(
     _In_ MCoreThread_t *Thread);
+extern OsStatus_t GetVirtualPageAttributes(SystemMemorySpace_t*, VirtualAddress_t, Flags_t*);
 
 #define EFLAGS_INTERRUPT_FLAG        (1 << 9)
 #define APIC_FLAGS_DEFAULT            0x7F00000000000000
@@ -542,7 +543,8 @@ ExceptionEntry(
         // Next step is to check whether or not the address is already
         // mapped, because then it's due to accessibility
         if (GetSystemMemoryMapping(GetCurrentSystemMemorySpace(), Address) != 0) {
-            WARNING("Page fault at address 0x%x, but page is already mapped, invalid access. (User tried to access kernel memory ex).", Address);
+            WARNING("Page fault at address 0x%x, mapping exists: 0x%x, invalid access. (%u, User tried to access kernel memory ex).", 
+                Address, GetSystemMemoryMapping(GetCurrentSystemMemorySpace(), Address), Registers->ErrorCode);
         }
 
         // Final step is to see if kernel can handle the 

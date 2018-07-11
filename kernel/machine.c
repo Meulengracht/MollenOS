@@ -218,7 +218,7 @@ InitializeMachine(
     }
 
     // Initialize interrupt systems
-    TRACE("Running SYSTEM_FEATURE_INTERRUPTS");
+    TRACE("SYSTEM_FEATURE_INTERRUPTS");
     Status = SystemFeaturesInitialize(&Machine.BootInformation, SYSTEM_FEATURE_INTERRUPTS);
     if (Status != OsSuccess) {
         ERROR("Failed to initialize interrupts for system.");
@@ -242,18 +242,13 @@ InitializeMachine(
     GcInitialize();
     PhoenixInitialize();
     
-    TRACE("Running SYSTEM_FEATURE_FINALIZE");
+    TRACE("SYSTEM_FEATURE_FINALIZE");
     Status = SystemFeaturesInitialize(&Machine.BootInformation, SYSTEM_FEATURE_FINALIZE);
     EnableMultiProcessoringMode();
 
 #ifdef __OSCONFIG_TEST_KERNEL
     StartTestingPhase();
 #else
-    // Last step, boot up all available system servers
-    // like device-managers, vfs, etc
-    WARNING("end for now");
-    for(;;);
-
     ModulesRunServers();
 #endif
 

@@ -38,6 +38,7 @@
 
 /* Extern assembly functions that are
  * implemented in _paging.asm */
+extern OsStatus_t SwitchVirtualSpace(SystemMemorySpace_t*);
 extern void memory_set_paging(int enable);
 extern void memory_reload_cr3(void);
 
@@ -119,10 +120,8 @@ MmVirtualGetMasterTable(
     // Variables
     PageDirectory_t *Directory  = (PageDirectory_t*)MemorySpace->Data[MEMORY_SPACE_DIRECTORY];
     PageDirectory_t *Parent     = NULL;
-    PageDirectory_t *Current    = (PageDirectory_t*)GetCurrentSystemMemorySpace()->Data[MEMORY_SPACE_DIRECTORY];
 
 	assert(Directory != NULL);
-    assert(Current != NULL);
 
     // If there is no parent then we ignore it as we don't have to synchronize with kernel directory.
     // We always have the shared page-tables mapped. The address must be below the thread-specific space
@@ -133,7 +132,7 @@ MmVirtualGetMasterTable(
     }
 
     // Update the provided pointers
-    *IsCurrent          = (Directory == Current) ? 1 : 0;
+    *IsCurrent          = (MemorySpace == GetCurrentSystemMemorySpace()) ? 1 : 0;
     *ParentDirectory    = Parent;
     return Directory;
 }
@@ -188,7 +187,7 @@ SyncWithParent:
             memset((void*)Table, 0, sizeof(PageTable_t));
 
             // Now perform the synchronization
-            TablePhysical |= PAGE_PRESENT | PAGE_WRITE | CreateFlags;
+            TablePhysical |= CreateFlags;
             if (ParentPageDirectory != NULL && !atomic_compare_exchange_strong(
                 &ParentPageDirectory->pTables[PageTableIndex], &ParentMapping, TablePhysical)) {
                 // Start over as someone else beat us to the punch

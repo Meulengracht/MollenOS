@@ -36,6 +36,8 @@
 #include <apic.h>
 #include <cpu.h>
 
+extern OsStatus_t SwitchVirtualSpace(SystemMemorySpace_t*);
+
 // Function helpers for repeating functions where it pays off
 // to have them seperate
 #define CREATE_STRUCTURE_HELPER(Type, Name) Type* MmVirtualCreate##Name(void) { \
@@ -155,10 +157,8 @@ MmVirtualGetMasterTable(
     // Variables
     PageMasterTable_t *Directory    = (PageMasterTable_t*)MemorySpace->Data[MEMORY_SPACE_DIRECTORY];
     PageMasterTable_t *Parent       = NULL;
-    PageMasterTable_t *Current      = (PageMasterTable_t*)GetCurrentSystemMemorySpace()->Data[MEMORY_SPACE_DIRECTORY];
 
 	assert(Directory != NULL);
-    assert(Current != NULL);
 
     // If there is no parent then we ignore it as we don't have to synchronize with kernel directory.
     // We always have the shared page-tables mapped. The address must be below the thread-specific space
@@ -169,7 +169,7 @@ MmVirtualGetMasterTable(
     }
 
     // Update the provided pointers
-    *IsCurrent          = (Directory == Current) ? 1 : 0;
+    *IsCurrent          = (MemorySpace == GetCurrentSystemMemorySpace()) ? 1 : 0;
     *ParentDirectory    = Parent;
     return Directory;
 }

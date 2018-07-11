@@ -723,7 +723,7 @@ PeLoadImage(
     }
 
     // Allocate a new pe image file structure
-    PeInfo                  = (MCorePeFile_t*)kmalloc(sizeof(MCorePeFile_t));
+    PeInfo = (MCorePeFile_t*)kmalloc(sizeof(MCorePeFile_t));
     memset(PeInfo, 0, sizeof(MCorePeFile_t));
 
     // Fill initial members
@@ -754,8 +754,7 @@ PeLoadImage(
     // and sections in the image, start out by handling
     // the sections, then parse all directories
     TRACE("Handling sections, relocations and exports");
-    *BaseAddress = PeHandleSections(PeInfo, Buffer, 
-        SectionAddress, BaseHeader->NumSections, 1);
+    *BaseAddress = PeHandleSections(PeInfo, Buffer, SectionAddress, BaseHeader->NumSections, 1);
     PeHandleRelocations(PeInfo, &DirectoryPtr[PE_SECTION_BASE_RELOCATION], ImageBase);
     PeHandleExports(PeInfo, &DirectoryPtr[PE_SECTION_EXPORT]);
 

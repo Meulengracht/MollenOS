@@ -22,19 +22,13 @@
  */
 #define __TRACE
 
-/* Includes 
- * - System */
 #include <os/contracts/usbdevice.h>
 #include <os/device.h>
 #include <os/usb.h>
 #include <os/utils.h>
 #include "manager.h"
-
-/* Includes
- * - Library */
 #include <threads.h>
 #include <stdlib.h>
-#include <stddef.h>
 
 /* String Table
  * Usb class string table for basic device identification. */
