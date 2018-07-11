@@ -22,8 +22,6 @@
  */
 #define __TRACE
 
-/* Includes
- * - System */
 #include <os/service.h>
 #include <os/sessions.h>
 #include <os/process.h>

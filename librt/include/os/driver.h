@@ -23,12 +23,7 @@
 #ifndef _DRIVER_SDK_H_
 #define _DRIVER_SDK_H_
 
-/* Includes
- * - C-Library */
 #include <os/osdefs.h>
-
-/* Includes
- * - System */
 #include <os/contracts/base.h>
 #include <os/interrupt.h>
 #include <os/device.h>
@@ -68,7 +63,7 @@ OnUnload(void);
 __EXTERN 
 OsStatus_t 
 OnRegister(
-	_In_ MCoreDevice_t *Device);
+	_In_ MCoreDevice_t*				Device);
 
 /* OnUnregister
  * Is called when the device-manager wants to unload
@@ -76,7 +71,7 @@ OnRegister(
 __EXTERN 
 OsStatus_t 
 OnUnregister(
-	_In_ MCoreDevice_t *Device);
+	_In_ MCoreDevice_t*				Device);
 
 /* OnInterrupt
  * Is called by external services to indicate an external interrupt.
@@ -84,10 +79,10 @@ OnUnregister(
 __EXTERN 
 InterruptStatus_t 
 OnInterrupt(
-    _In_Opt_ void *InterruptData,
-    _In_Opt_ size_t Arg0,
-    _In_Opt_ size_t Arg1,
-    _In_Opt_ size_t Arg2);
+    _In_Opt_ void*					InterruptData,
+    _In_Opt_ size_t 				Arg0,
+    _In_Opt_ size_t 				Arg1,
+    _In_Opt_ size_t 				Arg2);
 
 /* OnTimeout
  * Is called when one of the registered timer-handles
@@ -96,8 +91,8 @@ OnInterrupt(
 __EXTERN 
 OsStatus_t
 OnTimeout(
-	_In_ UUId_t Timer,
-	_In_ void *Data);
+	_In_ UUId_t 					Timer,
+	_In_ void*						Data);
 
 /* OnQuery
  * Occurs when an external process or server quries
@@ -133,11 +128,11 @@ InterruptDriver(
 
 	// Initialze RPC
 	RPCInitialize(&Request, Driver, 1, __DRIVER_INTERRUPT);
-	RPCSetArgument(&Request, 0, (__CONST void*)&NoId, sizeof(UUId_t));
-    RPCSetArgument(&Request, 1, (__CONST void*)&Argument0, sizeof(size_t));
-    RPCSetArgument(&Request, 2, (__CONST void*)&Argument1, sizeof(size_t));
-    RPCSetArgument(&Request, 3, (__CONST void*)&Argument2, sizeof(size_t));
-    RPCSetArgument(&Request, 4, (__CONST void*)&Argument3, sizeof(size_t));
+	RPCSetArgument(&Request, 0, (const void*)&NoId, sizeof(UUId_t));
+    RPCSetArgument(&Request, 1, (const void*)&Argument0, sizeof(size_t));
+    RPCSetArgument(&Request, 2, (const void*)&Argument1, sizeof(size_t));
+    RPCSetArgument(&Request, 3, (const void*)&Argument2, sizeof(size_t));
+    RPCSetArgument(&Request, 4, (const void*)&Argument3, sizeof(size_t));
 
 	// Send
 	return RPCEvent(&Request);

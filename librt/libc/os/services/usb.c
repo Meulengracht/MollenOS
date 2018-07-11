@@ -21,8 +21,6 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-/* Includes
- * - System */
 #include <os/contracts/usbhost.h>
 #include <os/usb.h>
 

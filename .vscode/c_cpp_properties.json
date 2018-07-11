@@ -9,6 +9,7 @@
                 "${workspaceRoot}/kernel/include",
                 "${workspaceRoot}/kernel/arch/x86",
                 "${workspaceRoot}/kernel/arch/x86/x32",
+                "${workspaceRoot}/services/devicemanager/arch/x86",
                 "${workspaceRoot}/userspace/include",
                 "${workspaceRoot}/userspace/include/cxx",
                 "${workspaceRoot}/userspace/vioarr"
@@ -64,6 +65,7 @@
                 "${workspaceRoot}/kernel/include",
                 "${workspaceRoot}/kernel/arch/x86",
                 "${workspaceRoot}/kernel/arch/x86/x64",
+                "${workspaceRoot}/services/devicemanager/arch/x86",
                 "${workspaceRoot}/userspace/include",
                 "${workspaceRoot}/userspace/include/cxx",
                 "${workspaceRoot}/userspace/vioarr"

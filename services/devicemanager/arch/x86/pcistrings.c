@@ -21,14 +21,16 @@
  *   available in the system
  */
 
-/* Includes 
- * - Library */
-#include <stdint.h>
+#include <os/osdefs.h>
 
 /* PciToString
  * Converts the given class, subclass and interface into
  * descriptive string to give the pci-entry a description */
-const char *PciToString(uint8_t Class, uint8_t SubClass, uint8_t Interface)
+const char*
+PciToString(
+	_In_ uint8_t Class,
+	_In_ uint8_t SubClass,
+	_In_ uint8_t Interface)
 {
 	switch (Class)
 	{

@@ -24,135 +24,80 @@
 #ifndef _CONTRACT_INTERFACE_H_
 #define _CONTRACT_INTERFACE_H_
 
-/* Includes 
- * - System */
 #include <os/device.h>
 #include <os/osdefs.h>
 
-/* Includes
- * - Library */
-#include <stddef.h>
-#include <string.h>
-
 /* Contract definitions, related to some limits
  * that is bound to the contract structure */
-#define CONTRACT_MAX_NAME			64
+#define CONTRACT_MAX_NAME           64
 
 /* The available types of contracts 
  * and denotes the type of device that 
  * is bound to the contract */
 typedef enum _MContractType {
-	ContractUnknown,
-	ContractController,
-	ContractInput,
-	ContractStorage
+    ContractUnknown,
+    ContractController,
+    ContractInput,
+    ContractStorage
 } MContractType_t;
 
 /* The available contract status's that
  * a contract can be in */
 typedef enum _MContractState {
-	ContractIdle,
-	ContractActive,
-	ContractInactive
+    ContractIdle,
+    ContractActive,
+    ContractInactive
 } MContractState_t;
 
 /* The base of a contract, it contains
  * information related to the driver that
  * controls a device */
 PACKED_TYPESTRUCT(MContract, {
-	UUId_t				ContractId;
-	UUId_t				DriverId;
-	UUId_t				DeviceId;
-	MContractType_t		Type;
-	int					Version;
-	MContractState_t	State;
-	char				Name[CONTRACT_MAX_NAME];
+    UUId_t              ContractId;
+    UUId_t              DriverId;
+    UUId_t              DeviceId;
+    MContractType_t     Type;
+    int                 Version;
+    MContractState_t    State;
+    char                Name[CONTRACT_MAX_NAME];
 });
 
 /* InitializeContract
- * Helper function to initialize an instance of 
- * the contract structure */
-SERVICEAPI
-void
-SERVICEABI
+ * Helper function to initialize an instance of the contract structure */
+SERVICEAPI void SERVICEABI
 InitializeContract(
-	_In_ MContract_t *Contract, 
-	_In_ UUId_t Device, 
-	_In_ int Version, 
-	_In_ MContractType_t Type, 
-	_In_ __CONST char *ContractName)
+    _In_ MContract_t*       Contract, 
+    _In_ UUId_t             Device, 
+    _In_ int                Version, 
+    _In_ MContractType_t    Type, 
+    _In_ const char*        ContractName)
 {
-	// Reset structure to 0
-	memset(Contract, 0, sizeof(MContract_t));
+    // Reset structure to 0
+    memset(Contract, 0, sizeof(MContract_t));
 
-	// Initialize basic state
-	Contract->DriverId = UUID_INVALID;
-	Contract->DeviceId = Device;
-	Contract->Version = Version;
-	Contract->Type = Type;
+    // Initialize basic state
+    Contract->DriverId = UUID_INVALID;
+    Contract->DeviceId = Device;
+    Contract->Version = Version;
+    Contract->Type = Type;
 
-	// Initialize name
-	memcpy(&Contract->Name[0], ContractName, 
-		MIN(CONTRACT_MAX_NAME - 1, strlen(ContractName)));
+    // Initialize name
+    memcpy(&Contract->Name[0], ContractName, MIN(CONTRACT_MAX_NAME - 1, strlen(ContractName)));
 }
 
 /* RegisterContract 
  * Registers the given contact with the device-manager to let
  * the manager know we are handling this device, and what kind
  * of functionality the device supports */
-#ifdef __DEVICEMANAGER_IMPL
-__DEVAPI
-OsStatus_t
+CRTDECL(
+OsStatus_t,
 RegisterContract(
-	_In_ MContract_t *Contract,
-	_Out_ UUId_t *Id);
-#else
-SERVICEAPI
-OsStatus_t
-SERVICEABI
-RegisterContract(
-	_In_ MContract_t *Contract)
-{
-	// Variables
-	MRemoteCall_t Request;
-	OsStatus_t Result = OsSuccess;
-	UUId_t ContractId = UUID_INVALID;
-
-	// Initialize static RPC variables like
-	// type of RPC, pipe and version
-	RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
-        __DEVICEMANAGER_INTERFACE_VERSION, __DEVICEMANAGER_REGISTERCONTRACT);
-	RPCSetArgument(&Request, 0, (const void*)Contract, sizeof(MContract_t));
-	RPCSetResult(&Request, &ContractId, sizeof(UUId_t));
-	Result = RPCExecute(&Request);
-
-	// Update the contract-id
-	Contract->ContractId = ContractId;
-	return Result;
-}
-#endif
+    _In_ MContract_t *Contract));
 
 /* QueryContract 
- * Handles the generic query function, by resolving
- * the correct driver and asking for data */
-#ifdef __DEVICEMANAGER_IMPL
-__EXTERN
-OsStatus_t 
-QueryContract(
-	_In_ MContractType_t Type, 
-	_In_ int Function,
-	_In_Opt_ __CONST void *Arg0,
-	_In_Opt_ size_t Length0,
-	_In_Opt_ __CONST void *Arg1,
-	_In_Opt_ size_t Length1,
-	_In_Opt_ __CONST void *Arg2,
-	_In_Opt_ size_t Length2,
-	_Out_Opt_ __CONST void *ResultBuffer,
-	_In_Opt_ size_t ResultLength);
-#else
-SERVICEAPI
-OsStatus_t
-SERVICEABI
+ * Handles the generic query function, by resolving the correct driver and asking for data */
+CRTDECL(
+OsStatus_t,
 QueryContract(
     _In_      MContractType_t   Type, 
     _In_      int               Function,
@@ -163,46 +108,6 @@ QueryContract(
     _In_Opt_  const void*       Arg2,
     _In_Opt_  size_t            Length2,
     _Out_Opt_ const void*       ResultBuffer,
-    _In_Opt_  size_t            ResultLength)
-{
-	// Variables
-	MRemoteCall_t Request;
-	OsStatus_t Result = OsSuccess;
-
-	// Initialize static RPC variables like
-	// type of RPC, pipe and version
-	RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
-        __DEVICEMANAGER_INTERFACE_VERSION, __DEVICEMANAGER_QUERYCONTRACT);
-	RPCSetArgument(&Request, 0, (const void*)&Type, sizeof(MContractType_t));
-	RPCSetArgument(&Request, 1, (const void*)&Function, sizeof(int));
-
-	// Handle arguments
-	if (Arg0 != NULL && Length0 != 0) {
-		RPCSetArgument(&Request, 2, Arg0, Length0);
-	}
-	if (Arg1 != NULL && Length1 != 0) {
-		RPCSetArgument(&Request, 3, Arg1, Length1);
-	}
-	if (Arg2 != NULL && Length2 != 0) {
-		RPCSetArgument(&Request, 4, Arg2, Length2);
-	}
-
-	// Handle result - if none is given we must always
-	// get a osstatus - we also execute the rpc here
-	if (ResultBuffer != NULL && ResultLength != 0) {
-		RPCSetResult(&Request, ResultBuffer, ResultLength);
-		return RPCExecute(&Request);
-	}
-	else {
-		RPCSetResult(&Request, &Result, sizeof(OsStatus_t));
-		if (RPCExecute(&Request) != OsSuccess) {
-			return OsError;
-		}
-		else {
-			return Result;
-		}
-	}
-}
-#endif
+    _In_Opt_  size_t            ResultLength));
 
 #endif //!_CONTRACT_INTERFACE_H_

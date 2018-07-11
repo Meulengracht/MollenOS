@@ -16,7 +16,7 @@ endif
 
 OBJECTS = $(SOURCES:.c=.o)
 
-CFLAGS = $(GCFLAGS) -Wno-address-of-packed-member -D__SERVICE_IMPL -D__DEVICEMANAGER_IMPL $(INCLUDES)
+CFLAGS = $(GCFLAGS) -Wno-address-of-packed-member -D__SERVICE_IMPL $(INCLUDES)
 LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtServiceEntry /dll ../../librt/build/libsrv.lib ../../librt/build/libc.lib
 
 .PHONY: all

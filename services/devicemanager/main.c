@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,33 +17,27 @@
  *
  *
  * MollenOS MCore - Device Manager
- * - Initialization + Event Mechanism
+ * - Implementation of the device manager in the operating system.
+ *   Keeps track of devices, their loaded drivers and bus management.
  */
 //#define __TRACE
 
-/* Includes
- * - System */
-#include <os/contracts/base.h>
+#include "devicemanager.h"
 #include <os/driver.h>
 #include <os/utils.h>
 #include <ds/collection.h>
 #include <bus.h>
-
-/* Includes
- * - Library */
 #include <assert.h>
 #include <stdlib.h>
-#include <stddef.h>
 #include <string.h>
 #include <ctype.h>
 
 /* Globals 
  * Keep track of all devices and contracts */
-static Collection_t *__GlbContracts = NULL;
-static Collection_t *__GlbDevices   = NULL;
-static UUId_t GlbDeviceIdGen        = 0, GlbDriverIdGen = 0;
-static int GlbInitialized           = 0;
-static int GlbRun                   = 0;
+static Collection_t Contracts       = COLLECTION_INIT(KeyInteger);
+static Collection_t Devices         = COLLECTION_INIT(KeyInteger);
+static UUId_t DeviceIdGenerator     = 0;
+static UUId_t ContractIdGenerator   = 0;
 
 /* OnLoad
  * The entry-point of a server, this is called
@@ -51,20 +45,10 @@ static int GlbRun                   = 0;
 OsStatus_t
 OnLoad(void)
 {
-    // Setup list
-    __GlbDevices = CollectionCreate(KeyInteger);
-    __GlbContracts = CollectionCreate(KeyInteger);
-
-    // Init variables
-    GlbDeviceIdGen = 0;
-    GlbDriverIdGen = 0;
-    GlbInitialized = 1;
-    GlbRun = 1;
-
     // Register us with server manager
-    RegisterService(__DEVICEMANAGER_TARGET);
-
-    // Enumerate bus controllers/devices */
+    if (RegisterService(__DEVICEMANAGER_TARGET) != OsSuccess) {
+        return OsError; // Only one instance of devicemanager is allowed
+    }
     return BusEnumerate();
 }
 
@@ -74,6 +58,7 @@ OnLoad(void)
 OsStatus_t
 OnUnload(void)
 {
+    // N/A not supposed to happen
     return OsSuccess;
 }
 
@@ -101,18 +86,16 @@ OnEvent(
             
             // Extract variables
             ParentDeviceId  = (UUId_t)Message->Arguments[0].Data.Value;
-            Device          = (MCoreDevice_t*)Message->Arguments[1].Data.Buffer;
+            RPCCastArgumentToPointer(&Message->Arguments[1], (void**)&Device);
             DeviceFlags     = (Flags_t)Message->Arguments[2].Data.Value;
 
             // Sanitize buffer
             if (Device != NULL) {
-                if (RegisterDevice(ParentDeviceId, Device, NULL, DeviceFlags, &Result) != OsSuccess) {
+                if (DmRegisterDevice(ParentDeviceId, Device, NULL, DeviceFlags, &Result) != OsSuccess) {
                     Result = UUID_INVALID;
                 }
             }
-            
-            // Write the result back to the caller
-            RPCRespond(&Message->From, &Result, sizeof(UUId_t));
+            return RPCRespond(&Message->From, &Result, sizeof(UUId_t));
         } break;
 
         // Unregisters a device from the system, and 
@@ -132,28 +115,26 @@ OnEvent(
         // What do?
         case __DEVICEMANAGER_IOCTLDEVICE: {
             // Extract argumenters
-            MCoreDevice_t *Device = NULL;
-            OsStatus_t Result = OsError;
+            MCoreDevice_t *Device   = NULL;
+            OsStatus_t Result       = OsError;
             DataKey_t Key;
 
             // Lookup device
             Key.Value   = (int)Message->Arguments[0].Data.Value;
-            Device      = CollectionGetDataByKey(__GlbDevices, Key, 0);
+            Device      = CollectionGetDataByKey(&Devices, Key, 0);
 
             // Sanitizie
             if (Device != NULL) {
                 if ((Message->Arguments[1].Data.Value & 0xFFFF) == __DEVICEMANAGER_IOCTL_BUS) {
-                    Result = IoctlDevice(Device, Message->Arguments[2].Data.Value);
+                    Result = DmIoctlDevice(Device, Message->Arguments[2].Data.Value);
                 }
                 else if ((Message->Arguments[1].Data.Value & 0xFFFF) == __DEVICEMANAGER_IOCTL_EXT) {
-                    Result = IoctlDeviceEx(Device, Message->Arguments[1].Data.Value,
+                    Result = DmIoctlDeviceEx(Device, Message->Arguments[1].Data.Value,
                         Message->Arguments[2].Data.Value, Message->Arguments[3].Data.Value,
                         Message->Arguments[4].Data.Value);
                 }
             }
-
-            // Write back response
-            RPCRespond(&Message->From, &Result, sizeof(OsStatus_t));
+            return RPCRespond(&Message->From, &Result, sizeof(OsStatus_t));
         } break;
 
         // Registers a driver for the given device 
@@ -169,12 +150,10 @@ OnEvent(
 
             // Evaluate request, but don't free
             // the allocated contract storage, we need it
-            if (RegisterContract(Contract, &Result) != OsSuccess) {
+            if (DmRegisterContract(Contract, &Result) != OsSuccess) {
                 Result = UUID_INVALID;
             }
-
-            // Write the result back to the caller
-            RPCRespond(&Message->From, &Result, sizeof(UUId_t));
+            return RPCRespond(&Message->From, &Result, sizeof(UUId_t));
         } break;
 
         // For now this function is un-implemented
@@ -192,7 +171,7 @@ OnEvent(
             void *NullPointer = NULL;
 
             // Query contract
-            if (QueryContract((MContractType_t)Message->Arguments[0].Data.Value, 
+            if (DmQueryContract((MContractType_t)Message->Arguments[0].Data.Value, 
                     (int)Message->Arguments[1].Data.Value,
                     (Message->Arguments[2].Type == ARGUMENT_REGISTER) ?
                     &Message->Arguments[2].Data.Value : Message->Arguments[2].Data.Buffer,
@@ -221,16 +200,16 @@ OnEvent(
     return OsSuccess;
 }
 
-/* RegisterDevice
- * Allows registering of a new device in the device-manager, and automatically queries
- * for a driver for the new device */
+/* DmRegisterDevice
+ * Allows registering of a new device in the
+ * device-manager, and automatically queries for a driver for the new device */
 OsStatus_t
-RegisterDevice(
-    _In_  UUId_t            Parent,
-    _In_  MCoreDevice_t*    Device, 
-    _In_  const char*       Name,
-    _In_  Flags_t           Flags,
-    _Out_ UUId_t*           Id)
+DmRegisterDevice(
+	_In_  UUId_t                Parent,
+	_In_  MCoreDevice_t*        Device, 
+	_In_  const char*           Name,
+	_In_  Flags_t               Flags,
+	_Out_ UUId_t*               Id)
 {
     // Variables
     MCoreDevice_t *CopyDevice = NULL;
@@ -252,13 +231,13 @@ RegisterDevice(
         GlbDeviceIdGen, &Device->Name[0], Device->Length);
 
     // Generate id and update out
-    *Id = Device->Id    = GlbDeviceIdGen++;
+    *Id = Device->Id    = DeviceIdGenerator++;
     Key.Value           = (int)Device->Id;
 
     // Allocate our own copy of the device
     CopyDevice          = (MCoreDevice_t*)malloc(Device->Length);
     memcpy(CopyDevice, Device, Device->Length);
-    CollectionAppend(__GlbDevices, CollectionCreateNode(Key, CopyDevice));
+    CollectionAppend(&Devices, CollectionCreateNode(Key, CopyDevice));
 
     // Now, we want to try to find a driver
     // for the new device
@@ -271,14 +250,14 @@ RegisterDevice(
     return OsSuccess;
 }
 
-/* RegisterContract
+/* DmRegisterContract
  * Registers the given contact with the device-manager to let
  * the manager know we are handling this device, and what kind
  * of functionality the device supports */
 OsStatus_t
-RegisterContract(
-    _In_  MContract_t*  Contract,
-    _Out_ UUId_t*       Id)
+DmRegisterContract(
+    _In_  MContract_t*          Contract,
+    _Out_ UUId_t*               Id)
 {
     // Variables
     MContract_t *CopyContract = NULL;
@@ -294,28 +273,28 @@ RegisterContract(
 
     // Lookup device
     Key.Value = (int)Contract->DeviceId;
-    if (CollectionGetDataByKey(__GlbDevices, Key, 0) == NULL) {
+    if (CollectionGetDataByKey(&Devices, Key, 0) == NULL) {
         ERROR("Device id %u was not registered with the device manager",
             Contract->DeviceId);
         return OsError;
     }
 
     // Update contract id
-    *Id                     = GlbDriverIdGen++;
+    *Id                     = ContractIdGenerator++;
     Contract->ContractId    = *Id;
     Key.Value               = (int)*Id;
 
     // Allocate our own copy of the contract
     CopyContract = (MContract_t*)malloc(sizeof(MContract_t));
     memcpy(CopyContract, Contract, sizeof(MContract_t));
-    return CollectionAppend(__GlbContracts, CollectionCreateNode(Key, CopyContract));
+    return CollectionAppend(&Contracts, CollectionCreateNode(Key, CopyContract));
 }
 
-/* HandleQuery
+/* DmQueryContract
  * Handles the generic query function, by resolving
  * the correct driver and asking for data */
 OsStatus_t 
-QueryContract(
+DmQueryContract(
     _In_      MContractType_t   Type, 
     _In_      int               Function,
     _In_Opt_  const void*       Arg0,
@@ -329,7 +308,7 @@ QueryContract(
 {
     // Iterate driver list and find a contract that
     // matches the request
-    foreach(cNode, __GlbContracts) {
+    foreach(cNode, &Contracts) {
         MContract_t *Contract = (MContract_t*)cNode->Data;
         if (Contract->Type == Type) {
             return QueryDriver(Contract, Function, 

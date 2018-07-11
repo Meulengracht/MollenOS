@@ -24,22 +24,11 @@
 #ifndef _DEVICE_INTERFACE_H_
 #define _DEVICE_INTERFACE_H_
 
-/* Includes
- * - C-Library */
 #include <os/osdefs.h>
 #include <os/ipc/ipc.h>
-#include <os/io.h>
-#include <os/service.h>
 #include <os/interrupt.h>
-#include <stddef.h>
-
-/* The export macro, and is only set by the
- * the actual implementation of the devicemanager */
-#ifdef __DEVICEMANAGER_IMPL
-#define __DEVAPI __EXTERN
-#else
-#define __DEVAPI static __CRT_INLINE
-#endif
+#include <os/service.h>
+#include <os/io.h>
 
 /* These definitions are in-place to allow a custom
  * setting of the device-manager, these are set to values
@@ -123,188 +112,46 @@ PACKED_TYPESTRUCT(MCoreDevice, {
 	DevInfo_t					Function;
 });
 
-/* Device Registering
+/* RegisterDevice
  * Allows registering of a new device in the
  * device-manager, and automatically queries for a driver for the new device */
-#ifdef __DEVICEMANAGER_IMPL
-__DEVAPI
-OsStatus_t
-SERVICEABI
-RegisterDevice(
-	_In_ UUId_t Parent,
-	_In_ MCoreDevice_t *Device, 
-	_In_ __CONST char *Name,
-	_In_ Flags_t Flags,
-	_Out_ UUId_t *Id);
-#else
-__DEVAPI
-UUId_t
-SERVICEABI
+CRTDECL(
+UUId_t,
 RegisterDevice(
 	_In_    UUId_t          Parent,
 	_InOut_ MCoreDevice_t*  Device, 
-	_In_    Flags_t         Flags)
-{
-	// Variables
-	MRemoteCall_t Request;
-    UUId_t Result = UUID_INVALID;
-    
-    // Sanitize
-    if (Device == NULL || (Device->Length < sizeof(MCoreDevice_t))) {
-        return UUID_INVALID;
-    }
+	_In_    Flags_t         Flags));
 
-	// Initialize RPC
-	RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
-        __DEVICEMANAGER_INTERFACE_VERSION, __DEVICEMANAGER_REGISTERDEVICE);
-	RPCSetArgument(&Request, 0, (const void*)&Parent, sizeof(UUId_t));
-	RPCSetArgument(&Request, 1, (const void*)Device, Device->Length);
-    RPCSetArgument(&Request, 2, (const void*)&Flags, sizeof(Flags_t));
-    
-    // Result
-    RPCSetResult(&Request, (const void*)&Result, sizeof(UUId_t));
-	
-	// Execute RPC
-	if (RPCExecute(&Request) != OsSuccess) {
-        return UUID_INVALID;
-    }
-    else {
-        Device->Id = Result;
-        return Result;
-    }
-}
-#endif
-
-/* Device Unregistering
+/* UnregisterDevice
  * Allows removal of a device in the device-manager, and automatically 
  * unloads drivers for the removed device */
-#ifdef __DEVICEMANAGER_IMPL
-__DEVAPI
-OsStatus_t
-SERVICEABI
+CRTDECL(
+OsStatus_t,
 UnregisterDevice(
-	_In_ UUId_t DeviceId);
-#else
-__DEVAPI
-OsStatus_t
-SERVICEABI
-UnregisterDevice(
-	_In_ UUId_t DeviceId)
-{
-	// Variables
-	MRemoteCall_t Request;
-    OsStatus_t Result = OsSuccess;
+	_In_ UUId_t DeviceId));
 
-	// Initialize RPC
-	RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
-        __DEVICEMANAGER_INTERFACE_VERSION, __DEVICEMANAGER_UNREGISTERDEVICE);
-	RPCSetArgument(&Request, 0, (__CONST void*)&DeviceId, sizeof(UUId_t));
-    RPCSetResult(&Request, (__CONST void*)&Result, sizeof(OsStatus_t));
-	if (RPCExecute(&Request) != OsSuccess) {
-        return OsError;
-    }
-    return Result;
-}
-#endif
-
-/* Device I/O Control
+/* IoctlDevice
  * Allows manipulation of a given device to either disable
  * or enable, or configure the device */
-#ifdef __DEVICEMANAGER_IMPL
-__DEVAPI
-OsStatus_t
-SERVICEABI
-IoctlDevice(
-	_In_ MCoreDevice_t *Device,
-	_In_ Flags_t Flags);
-#else
-__DEVAPI
-OsStatus_t
-SERVICEABI
+CRTDECL(
+OsStatus_t,
 IoctlDevice(
 	_In_ UUId_t Device,
 	_In_ Flags_t Command,
-	_In_ Flags_t Flags)
-{
-	// Variables
-	MRemoteCall_t Request;
-	OsStatus_t Result = OsSuccess;
+	_In_ Flags_t Flags));
 
-	// Initialize RPC
-	RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
-        __DEVICEMANAGER_INTERFACE_VERSION, __DEVICEMANAGER_IOCTLDEVICE);
-	RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
-	RPCSetArgument(&Request, 1, (__CONST void*)&Command, sizeof(Flags_t));
-	RPCSetArgument(&Request, 2, (__CONST void*)&Flags, sizeof(Flags_t));
-	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(OsStatus_t));
-	
-	// Execute RPC
-	RPCExecute(&Request);
-	return Result;
-}
-#endif
-
-/* Device I/O Control (Extended)
+/* IoctlDeviceEx
  * Allows manipulation of a given device to either disable
  * or enable, or configure the device.
  * <Direction> = 0 (Read), 1 (Write) */
-#ifdef __DEVICEMANAGER_IMPL
-__DEVAPI
-Flags_t
-SERVICEABI
-IoctlDeviceEx(
-	_In_ MCoreDevice_t *Device,
-	_In_ Flags_t Parameters,
-	_In_ Flags_t Register,
-	_In_ Flags_t Value,
-	_In_ size_t Width);
-#else
-__DEVAPI
-OsStatus_t
-SERVICEABI
+CRTDECL(
+OsStatus_t,
 IoctlDeviceEx(
 	_In_ UUId_t Device,
 	_In_ int Direction,
 	_In_ Flags_t Register,
 	_InOut_ Flags_t *Value,
-	_In_ size_t Width)
-{
-	// Variables
-	MRemoteCall_t Request;
-	Flags_t Result = 0;
-	Flags_t Select = 0;
-
-	// Build selection
-	Select = __DEVICEMANAGER_IOCTL_EXT;
-	if (Direction == 0) {
-		Select |= __DEVICEMANAGER_IOCTL_EXT_READ;
-	}
-
-	// Initialize RPC
-	RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
-        __DEVICEMANAGER_INTERFACE_VERSION, __DEVICEMANAGER_IOCTLDEVICE);
-	RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
-	RPCSetArgument(&Request, 1, (__CONST void*)&Select, sizeof(Flags_t));
-	RPCSetArgument(&Request, 2, (__CONST void*)&Register, sizeof(Flags_t));
-	RPCSetArgument(&Request, 3, (__CONST void*)Value, sizeof(Flags_t));
-	RPCSetArgument(&Request, 4, (__CONST void*)&Width, sizeof(size_t));
-	RPCSetResult(&Request, (__CONST void*)&Result, sizeof(Flags_t));
-	
-	// Execute RPC
-	RPCExecute(&Request);
-
-	// Handle return
-	if (Direction == 0 && Value != NULL) {
-		*Value = Result;
-	}
-	else {
-		return (OsStatus_t)Result;
-	}
-
-	// Read, discard value
-	return OsSuccess;
-}
-#endif
+	_In_ size_t Width));
 
 /* InstallDriver 
  * Tries to find a suitable driver for the given device

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2015, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,11 +21,9 @@
  *   available in the system
  */
 
-#ifndef _BUS_H_
-#define _BUS_H_
+#ifndef __X86_BUS_INTERFACE__
+#define __X86_BUS_INTERFACE__
 
-/* Includes 
- * - System */
 #include <os/osdefs.h>
 #include <ds/collection.h>
 #include <os/device.h>
@@ -233,7 +231,11 @@ __EXTERN uint8_t PciReadHeaderType(PciBus_t *BusIo,
 /* PciToString
  * Converts the given class, subclass and interface into
  * descriptive string to give the pci-entry a description */
-__EXTERN const char *PciToString(uint8_t Class, 
-    uint8_t SubClass, uint8_t Interface);
+__EXTERN
+const char*
+PciToString(
+	_In_ uint8_t Class,
+	_In_ uint8_t SubClass,
+	_In_ uint8_t Interface);
 
-#endif //!_BUS_H_
+#endif //!__X86_BUS_INTERFACE__

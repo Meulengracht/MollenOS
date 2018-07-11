@@ -74,7 +74,6 @@ AcpiDeviceCreate(
     AcpiDevice_t *Device = NULL;
     ACPI_BUFFER Buffer = { 0 };
     ACPI_STATUS Status;
-    DataKey_t Key;
 
     // Allocate a new instance
     Device = (AcpiDevice_t*)kmalloc(sizeof(AcpiDevice_t));

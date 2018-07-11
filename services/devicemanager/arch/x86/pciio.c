@@ -21,19 +21,19 @@
  *   available in the system
  */
 
-/* Includes 
- * - System */
 #include "bus.h"
-
-/* Includes
- * - Library */
 #include <stddef.h>
 
-/* PCI I/O Helper
- * This function calculates the correct offset
- * based upon the pci bus type */
-size_t PciCalculateOffset(PciBus_t *Io,
-	DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register) {
+/* PciCalculateOffset
+ * This function calculates the correct offset based upon the pci bus type */
+size_t
+PciCalculateOffset(
+	_In_ PciBus_t*	Io,
+	_In_ DevInfo_t 	Bus,
+	_In_ DevInfo_t 	Device,
+	_In_ DevInfo_t 	Function,
+	_In_ size_t 	Register)
+{
 	if (Io->IsExtended) {
 		return (size_t)((Bus << 20) | (Device << 15) | (Function << 12) | Register);
 	}

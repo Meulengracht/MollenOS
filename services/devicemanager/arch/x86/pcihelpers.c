@@ -21,15 +21,12 @@
  *   available in the system
  */
 
-/* Includes 
- * - System */
 #include "bus.h"
 
 /* PciReadVendorId
  * Reads the vendor id at given bus/device/function location */
 uint16_t PciReadVendorId(PciBus_t *BusIo, DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function)
 {
-	/* Get the dword and parse the vendor and device ID */
 	return PciRead16(BusIo, Bus, Device, Function, 0);
 }
 
@@ -82,7 +79,6 @@ uint8_t PciReadHeaderType(PciBus_t *BusIo, DevInfo_t Bus, DevInfo_t Device, DevI
 	uint16_t Vendor = PciReadVendorId(BusIo, Bus, Device, Function);
 
 	if (Vendor && Vendor != 0xFFFF) {
-		/* Valid device! Okay, so read the base_class */
 		uint32_t offset = PciRead32(BusIo, Bus, Device, Function, 0x0C);
 		return (uint8_t)((offset >> 16) & 0xFF);
 	}
