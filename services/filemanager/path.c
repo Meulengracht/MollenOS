@@ -21,14 +21,9 @@
  */
 //#define __TRACE
 
-/* Includes 
- * - System */
 #include "include/vfs.h"
 #include <os/mollenos.h>
 #include <os/utils.h>
-
-/* Includes
- * - C-Library */
 #include <strings.h>
 #include <string.h>
 #include <ctype.h>

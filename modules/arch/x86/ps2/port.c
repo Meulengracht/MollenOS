@@ -20,23 +20,18 @@
  * http://wiki.osdev.org/PS2
  */
 
-/* Includes 
- * - System */
-#include <threads.h>
 #include <os/utils.h>
-#include "ps2.h"
-
-/* Includes
- * - Library */
-#include <stddef.h>
+#include <threads.h>
 #include <string.h>
 #include <stdlib.h>
+#include "ps2.h"
 
 /* PS2InterfaceTest
  * Performs an interface test on the given port*/
-OsStatus_t PS2InterfaceTest(int Port)
+OsStatus_t
+PS2InterfaceTest(
+    _In_ int        Port)
 {
-    // Variables
     uint8_t Response = 0;
 
     // Send command based on port
@@ -46,19 +41,16 @@ OsStatus_t PS2InterfaceTest(int Port)
     else {
         PS2SendCommand(PS2_INTERFACETEST_PORT2);
     }
-
-    // Wait for ACK
     Response = PS2ReadData(0);
-
-    // Sanitize the response byte
     return (Response == PS2_INTERFACETEST_OK) ? OsSuccess : OsError;
 }
 
 /* PS2ResetPort
  * Resets the given port and tests for a reset-ok */
-OsStatus_t PS2ResetPort(int Index)
+OsStatus_t
+PS2ResetPort(
+    _In_ int        Index)
 {
-    // Variables
     uint8_t Response = 0;
 
     // Select the correct port
@@ -86,10 +78,12 @@ OsStatus_t PS2ResetPort(int Index)
 /* PS2IdentifyPort
  * Identifies the device currently connected to the
  * given port index, if fails it returns 0xFFFFFFFF */
-DevInfo_t PS2IdentifyPort(int Index)
+DevInfo_t
+PS2IdentifyPort(
+    _In_ int        Index)
 {
-    // Variables
-    uint8_t Response = 0, ResponseExtra = 0;
+    uint8_t ResponseExtra   = 0;
+    uint8_t Response        = 0;
 
     // Select correct port
     if (Index != 0) {
@@ -101,10 +95,7 @@ DevInfo_t PS2IdentifyPort(int Index)
         return 0xFFFFFFFF;
     }
 
-    // Wait for ACK
     Response = PS2ReadData(0);
-
-    // Sanitize result
     if (Response != PS2_ACK) {
         return 0xFFFFFFFF;
     }
@@ -119,10 +110,7 @@ DevInfo_t PS2IdentifyPort(int Index)
         return 0xFFFFFFFF;
     }
 
-    // Wait for ACK
     Response = PS2ReadData(0);
-
-    // Sanitize result
     if (Response != PS2_ACK) {
         return 0xFFFFFFFF;
     }
@@ -139,8 +127,6 @@ GetResponse:
     if (ResponseExtra == 0xFF) {
         ResponseExtra = 0;
     }
-
-    // Combine bytes
     return (Response << 8) | ResponseExtra;
 }
 
@@ -148,7 +134,7 @@ GetResponse:
  * Shortcut function for registering a new device */
 OsStatus_t
 PS2RegisterDevice(
-    _In_ PS2Port_t *Port) 
+    _In_ PS2Port_t* Port) 
 {
     // Static Variables
     MCoreDevice_t Device = { 0 };
@@ -159,13 +145,13 @@ PS2RegisterDevice(
     Device.DeviceId = 0x0030;
 
     // Invalidate generics
-    Device.Class = 0xFF0F;
+    Device.Class    = 0xFF0F;
     Device.Subclass = 0xFF0F;
 
     // Initialize the irq structure
-    Device.Interrupt.Pin = INTERRUPT_NONE;
-    Device.Interrupt.Vectors[0] = INTERRUPT_NONE;
-    Device.Interrupt.AcpiConform = 0;
+    Device.Interrupt.Pin            = INTERRUPT_NONE;
+    Device.Interrupt.Vectors[0]     = INTERRUPT_NONE;
+    Device.Interrupt.AcpiConform    = 0;
 
     // Select source from port index
     if (Port->Index == 0) {
@@ -189,14 +175,15 @@ PS2RegisterDevice(
 
 /* PS2PortWrite 
  * Writes the given data-byte to the ps2-port */
-OsStatus_t PS2PortWrite(PS2Port_t *Port, uint8_t Value)
+OsStatus_t
+PS2PortWrite(
+    _In_ PS2Port_t* Port,
+    _In_ uint8_t    Value)
 {
     // Select port 2 if neccessary
     if (Port->Index != 0) {
         PS2SendCommand(PS2_SELECT_PORT2);
     }
-
-    // Write the data
     return PS2WriteData(Value);
 }
 
@@ -204,190 +191,144 @@ OsStatus_t PS2PortWrite(PS2Port_t *Port, uint8_t Value)
  * Queues the given command up for the given port
  * if a response is needed for the previous commnad
  * Set command = PS2_RESPONSE_COMMAND and pointer to response buffer */
-OsStatus_t PS2PortQueueCommand(PS2Port_t *Port, uint8_t Command, uint8_t *Response)
+OsStatus_t
+PS2PortQueueCommand(
+    _In_ PS2Port_t* Port,
+    _In_ uint8_t    Command,
+    _In_ uint8_t*   Response)
 {
-    // Variables
-    PS2Command_t *pCommand = NULL;
-    OsStatus_t Result = OsSuccess;
-    int Execute = 0;
-    int i;
+    PS2Command_t *pCommand  = NULL;
+    OsStatus_t Result       = OsSuccess;
+    int NextQueueIndex      = Port->QueueIndex % PS2_MAXCOMMANDS;
 
     // Find a free command spot for the queue
-FindCommand:
-    for (i = 0; i < PS2_MAXCOMMANDS; i++) {
-        if (Port->Commands[i].InUse == 0) {
-            pCommand = &Port->Commands[i];
-            if (Port->CommandIndex == -1) {
-                Port->CommandIndex = i;
-                Execute = 1;
-            }
-            break;
-        }
+    while (Port->Commands[NextQueueIndex].InUse != 0) {
+        thrd_sleepex(10);
     }
 
-    // Did we find one? Or try again?
-    if (pCommand == NULL) {
-        thrd_sleepex(10);
-        goto FindCommand;
-    }
+    pCommand        = &Port->Commands[NextQueueIndex];
+    pCommand->InUse = 1;
+    Port->QueueIndex++;
 
     // Initiate the packet data
-    pCommand->Executed = 0;
-    pCommand->Step = 0;
-    pCommand->Command = Command;
-    pCommand->Response = Response;
-    pCommand->InUse = 1;
+    pCommand->Executed      = 0;
+    pCommand->RetryCount    = 0;
+    pCommand->Command       = Command;
+    pCommand->Response      = Response;
 
     // Is the queue already running?
     // Otherwise start it by sending the command
-    if (Execute == 1) {
-        Result = PS2PortWrite(Port, Command);
+    if (Port->CurrentCommand == NULL) {
+        Port->CurrentCommand    = pCommand;
+        Result                  = PS2PortWrite(Port, Command);
     }
 
     // Asynchronously? Or do we need response?
     if (Response != NULL) {
-        while (pCommand->Executed != 2) thrd_sleepex(10);
+        while (pCommand->Executed != 2) {
+            thrd_sleepex(10);
+        }
     }
-
-    // Queued successfully 
     return Result;
 }
 
-/* PS2PortFinishCommand 
- * Finalizes the current command and executes
- * the next command in queue (if any). */
-OsStatus_t PS2PortFinishCommand(PS2Port_t *Port, uint8_t Result)
+/* PS2PortExecuteNextCommand
+ * Finds and executes the next ready command, we do it in round-robin fashion so
+ * that we execute commands in order they were queued up in. */
+OsStatus_t
+PS2PortExecuteNextCommand(
+    _In_ PS2Port_t* Port)
 {
-    // Variables
-    int Start = Port->CommandIndex + 1;
-    int i;
+    OsStatus_t Status       = OsSuccess;
+    int NextExecutionIndex  = (Port->ExecutionIndex + 1) % PS2_MAXCOMMANDS;
 
-    // Always handle ACK's first
-    if (Result == PS2_ACK_COMMAND && Port->CommandIndex != -1) {
-        Port->Commands[Port->CommandIndex].Executed = 1;
-
-        // Does it need a response byte as-well?
-        // Otherwise we can handle it directly now
-        if (Port->Commands[Port->CommandIndex].Response == NULL) {
-            Port->Commands[Port->CommandIndex].InUse = 0;
-
-            // Find next queued command from current position
-            for (i = Start; i < PS2_MAXCOMMANDS; i++) {
-                if (Port->Commands[i].InUse == 1) {
-                    Port->CommandIndex = i;
-                    PS2PortWrite(Port, Port->Commands[Port->CommandIndex].Command);
-                    break;
-                }
-                else {
-                    Port->CommandIndex = PS2_NO_COMMAND;
-                }
-            }
-
-            // Find next queued command from start
-            if (i == PS2_MAXCOMMANDS) {
-                for (i = 0; i < Start; i++) {
-                    if (Port->Commands[i].InUse == 1) {
-                        Port->CommandIndex = i;
-                        PS2PortWrite(Port, Port->Commands[Port->CommandIndex].Command);
-                        break;
-                    }
-                    else {
-                        Port->CommandIndex = PS2_NO_COMMAND;
-                    }
-                }
-            }
-        }
-        return OsSuccess;
+    // Increase the index for execution
+    if (Port->Commands[NextExecutionIndex].InUse != 0) {
+        Port->CurrentCommand    = &Port->Commands[NextExecutionIndex];
+        Status                  = PS2PortWrite(Port, Port->CurrentCommand->Command);
+        Port->ExecutionIndex++;
     }
-    else if (Result == PS2_RESEND_COMMAND
-        && Port->CommandIndex != -1) {
-        Port->Commands[Port->CommandIndex].Step++;
-        if (Port->Commands[Port->CommandIndex].Step != 3) {
-            PS2PortWrite(Port, Port->Commands[Port->CommandIndex].Command);
-        }
-        else {
-            Port->Commands[Port->CommandIndex].Executed = 2;
-            Port->Commands[Port->CommandIndex].InUse = 0;
+    return Status;
+}
 
-            // Find next queued command from current position
-            for (i = Start; i < PS2_MAXCOMMANDS; i++) {
-                if (Port->Commands[i].InUse == 1) {
-                    Port->CommandIndex = i;
-                    PS2PortWrite(Port, Port->Commands[Port->CommandIndex].Command);
-                    break;
-                }
-                else {
-                    Port->CommandIndex = PS2_NO_COMMAND;
-                }
-            }
-
-            // Find next queued command from start
-            if (i == PS2_MAXCOMMANDS) {
-                for (i = 0; i < Start; i++) {
-                    if (Port->Commands[i].InUse == 1) {
-                        Port->CommandIndex = i;
-                        PS2PortWrite(Port, Port->Commands[Port->CommandIndex].Command);
-                        break;
-                    }
-                    else {
-                        Port->CommandIndex = PS2_NO_COMMAND;
-                    }
-                }
-            }
-        }
-        return OsSuccess;
-    }
-    else if (Port->CommandIndex != -1) {
-        Port->Commands[Port->CommandIndex].Executed = 2;
-        Port->Commands[Port->CommandIndex].InUse = 0;
-
-        // Sanitize whether or not there should be a response
-        if (Port->Commands[Port->CommandIndex].Response != NULL) {
-            *(Port->Commands[Port->CommandIndex].Response) = Result;
-        }
-
-        // Find next queued command from current position
-        for (i = Start; i < PS2_MAXCOMMANDS; i++) {
-            if (Port->Commands[i].InUse == 1) {
-                Port->CommandIndex = i;
-                PS2PortWrite(Port, Port->Commands[Port->CommandIndex].Command);
-                break;
-            }
-            else {
-                Port->CommandIndex = PS2_NO_COMMAND;
-            }
-        }
-
-        // Find next queued command from start
-        if (i == PS2_MAXCOMMANDS) {
-            for (i = 0; i < Start; i++) {
-                if (Port->Commands[i].InUse == 1) {
-                    Port->CommandIndex = i;
-                    PS2PortWrite(Port, Port->Commands[Port->CommandIndex].Command);
-                    break;
-                }
-                else {
-                    Port->CommandIndex = PS2_NO_COMMAND;
-                }
-            }
-        }
-        return OsSuccess;
-    }
-    else {
+/* PS2PortFinishCommand 
+ * Finalizes the current command and executes the next command in queue (if any). */
+OsStatus_t
+PS2PortFinishCommand(
+    _In_ PS2Port_t* Port,
+    _In_ uint8_t    Result)
+{
+    // Is there any command active? Otherwise ignore everything here
+    if (Port->CurrentCommand == NULL) {
         return OsError;
     }
+
+    // OK we have a command active, sometimes we can get a resend, so handle
+    // that first. Unless this is the result byte, just ignore
+    if (Result == PS2_RESEND_COMMAND && Port->CurrentCommand->Executed == 0) {
+        if (Port->CurrentCommand->RetryCount < PS2_MAX_RETRIES) {
+            Port->CurrentCommand->RetryCount++;
+            PS2PortWrite(Port, Port->CurrentCommand->Command);
+            return OsSuccess;
+        }
+        
+        // Otherwise treat this as failed command
+        if (Port->CurrentCommand->Response != NULL) {
+            *(Port->CurrentCommand->Response) = 0xFF;
+        }
+        Port->CurrentCommand->Executed = 2;
+        Port->CurrentCommand = NULL;
+        PS2PortExecuteNextCommand(Port);
+        return OsSuccess;
+    }
+
+    // If we reach here we have to see if we need to fetch a 
+    // result byte as well. Then just return. Only if the command succeeded tho!
+    if (Port->CurrentCommand->Response != NULL && Port->CurrentCommand->Executed == 0) {
+        // This was the result of the command stage, however if the command stage fails
+        // then we need to treat this like a failed command
+        if (Result == PS2_ACK_COMMAND) {
+            Port->CurrentCommand->Executed = 1;
+            return OsSuccess;
+        }
+        
+        if (Port->CurrentCommand->Response != NULL) {
+            *(Port->CurrentCommand->Response) = 0xFF;
+        }
+        Port->CurrentCommand->Executed = 2;
+        Port->CurrentCommand = NULL;
+        PS2PortExecuteNextCommand(Port);
+        return OsSuccess;
+    }
+
+    // Ok, this is ether a command result, or a data result, either way we don't care
+    // we just have to mark things correctly
+    if (Port->CurrentCommand->Executed == 0) {
+        // Command result, what the hell should we do? Do we care?
+        Port->CurrentCommand->Executed = 1;
+    }
+    else {
+        *(Port->CurrentCommand->Response) = Result;
+        Port->CurrentCommand->Executed = 2;
+    }
+
+    // Go to next command
+    PS2PortExecuteNextCommand(Port);
+    return OsSuccess;
 }
 
 /* PS2PortInitialize
- * Initializes the given port and tries
- * to identify the device on the port */
-OsStatus_t PS2PortInitialize(PS2Port_t *Port)
+ * Initializes the given port and tries to identify the device on the port */
+OsStatus_t
+PS2PortInitialize(
+    _In_ PS2Port_t* Port)
 {
-    // Variables
     uint8_t Temp = 0;
 
     // Initialize some variables for the port
-    Port->CommandIndex = PS2_NO_COMMAND;
+    Port->CurrentCommand    = NULL;
+    Port->ExecutionIndex    = 0;
+    Port->QueueIndex        = 0;
 
     // Start out by doing an interface
     // test on the given port
@@ -437,7 +378,5 @@ OsStatus_t PS2PortInitialize(PS2Port_t *Port)
     if (Port->Signature != 0xFFFFFFFF) {
         Port->Connected = 1;
     }
-
-    // Lastly register device on port
     return PS2RegisterDevice(Port);
 }

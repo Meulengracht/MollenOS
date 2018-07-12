@@ -15,9 +15,12 @@ SOURCES = $(wildcard acpi/*.c) \
 		  $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o)
 
+# Setup dependencies for the kernel object
+DEPENDENCIES = ../librt/build/libcrt.lib ../librt/build/libclang.lib ../librt/build/libk.lib ../librt/build/libdsk.lib ../librt/build/libacpi.lib build/$(VALI_ARCH).lib
+
 # --save-temps
 CFLAGS = $(GCFLAGS) -mno-sse -D_KAPI -DUNICODE -DLIBC_KERNEL -D_KRNL_DLL $(INCLUDES)
-LFLAGS = $(GLFLAGS) /entry:kentry /fixed /base:"0x100000" /manifest:no /lldmap ../librt/build/libcrt.lib ../librt/build/libclang.lib ../librt/build/libk.lib ../librt/build/libdsk.lib ../librt/build/libacpi.lib build/$(VALI_ARCH).lib
+LFLAGS = $(GLFLAGS) /entry:kentry /fixed /base:"0x100000" /manifest:no /lldmap $(DEPENDENCIES)
 
 .PHONY: all
 all: build arch build/syskrnl.mos
@@ -29,7 +32,7 @@ build:
 arch:
 	$(MAKE) -C arch -f makefile
 
-build/syskrnl.mos: $(OBJECTS)
+build/syskrnl.mos: $(OBJECTS) $(DEPENDENCIES)
 	@printf "%b" "\033[0;36mCreating kernel executable " $@ "\033[m\n"
 	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 	

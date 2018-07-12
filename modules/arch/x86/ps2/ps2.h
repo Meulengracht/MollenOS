@@ -23,109 +23,106 @@
 #ifndef _DRIVER_PS2_CONTROLLER_H_
 #define _DRIVER_PS2_CONTROLLER_H_
 
-/* Includes 
- * - System */
 #include <os/contracts/base.h>
+#include <os/interrupt.h>
 #include <os/osdefs.h>
 #include <os/io.h>
-#include <os/interrupt.h>
 
 /* Io-space for accessing the PS2
  * Spans over 2 bytes from 0x60 & 0x64 */
-#define PS2_IO_DATA_BASE			0x60
-#define PS2_IO_STATUS_BASE			0x64
-#define PS2_IO_LENGTH				0x01
+#define PS2_IO_DATA_BASE            0x60
+#define PS2_IO_STATUS_BASE        	0x64
+#define PS2_IO_LENGTH            	0x01
 
-#define PS2_REGISTER_DATA			0x00
-#define PS2_REGISTER_STATUS			0x00
-#define PS2_REGISTER_COMMAND		0x00
+#define PS2_REGISTER_DATA          	0x00
+#define PS2_REGISTER_STATUS        	0x00
+#define PS2_REGISTER_COMMAND        0x00
 
 /* Some standard definitons for the PS2 controller 
  * like port count etc */
-#define PS2_MAXPORTS				2
-#define PS2_MAXCOMMANDS				4
+#define PS2_MAXPORTS                2
+#define PS2_MAXCOMMANDS           	4
+#define PS2_MAX_RETRIES             3
 
 /* Status definitons from reading the status
  * register in the PS2-Controller */
-#define PS2_STATUS_OUTPUT_FULL		0x1
-#define PS2_STATUS_INPUT_FULL		0x2
+#define PS2_STATUS_OUTPUT_FULL    	0x1
+#define PS2_STATUS_INPUT_FULL     	0x2
 
-/* Command Stuff */
-#define PS2_GET_CONFIGURATION		0x20
-#define PS2_SET_CONFIGURATION		0x60
-#define PS2_INTERFACETEST_PORT1		0xAB
-#define PS2_INTERFACETEST_PORT2		0xA9
-#define PS2_SELFTEST				0xAA
-#define PS2_SELECT_PORT2			0xD4
-#define PS2_ACK						0xFA
-#define PS2_RESET_PORT				0xFF
-#define PS2_ENABLE_SCANNING			0xF4
-#define PS2_DISABLE_SCANNING		0xF5
-#define PS2_IDENTIFY_PORT			0xF2
+#define PS2_GET_CONFIGURATION       0x20
+#define PS2_SET_CONFIGURATION       0x60
+#define PS2_INTERFACETEST_PORT1     0xAB
+#define PS2_INTERFACETEST_PORT2     0xA9
+#define PS2_SELFTEST                0xAA
+#define PS2_SELECT_PORT2            0xD4
+#define PS2_ACK                     0xFA
+#define PS2_RESET_PORT              0xFF
+#define PS2_ENABLE_SCANNING         0xF4
+#define PS2_DISABLE_SCANNING        0xF5
+#define PS2_IDENTIFY_PORT           0xF2
 
-#define PS2_SELFTEST_OK				0x55
-#define PS2_INTERFACETEST_OK		0x00
+#define PS2_SELFTEST_OK             0x55
+#define PS2_INTERFACETEST_OK        0x00
 
-#define PS2_DISABLE_PORT1			0xAD
-#define PS2_ENABLE_PORT1			0xAE
+#define PS2_DISABLE_PORT1           0xAD
+#define PS2_ENABLE_PORT1            0xAE
 
-#define PS2_DISABLE_PORT2			0xA7
-#define PS2_ENABLE_PORT2			0xA8
+#define PS2_DISABLE_PORT2           0xA7
+#define PS2_ENABLE_PORT2            0xA8
 
 /* Configuration definitions used by the above
  * commands to read/write the configuration of the PS 2 */
-#define PS2_CONFIG_PORT1_IRQ		0x01
-#define PS2_CONFIG_PORT2_IRQ		0x02
-#define PS2_CONFIG_POST				0x04
-#define PS2_CONFIG_PORT1_DISABLED	0x10
-#define PS2_CONFIG_PORT2_DISABLED	0x20
-#define PS2_CONFIG_TRANSLATION		0x40		/* First PS/2 port translation (1 = enabled, 0 = disabled) */
+#define PS2_CONFIG_PORT1_IRQ        0x01
+#define PS2_CONFIG_PORT2_IRQ        0x02
+#define PS2_CONFIG_POST             0x04
+#define PS2_CONFIG_PORT1_DISABLED   0x10
+#define PS2_CONFIG_PORT2_DISABLED   0x20
+#define PS2_CONFIG_TRANSLATION   	0x40        /* First PS/2 port translation (1 = enabled, 0 = disabled) */
 
 /* The IRQ lines the PS2 Controller uses, it's 
  * an ISA line so it's fixed */
-#define PS2_PORT1_IRQ				0x01
-#define PS2_PORT2_IRQ				0x0C
+#define PS2_PORT1_IRQ           	0x01
+#define PS2_PORT2_IRQ              	0x0C
 
 /* Command stack definitions */
-#define PS2_NO_COMMAND				-1
-#define PS2_RESEND_COMMAND			0xFE
-#define PS2_ACK_COMMAND				0xFA
+#define PS2_NO_COMMAND            	-1
+#define PS2_RESEND_COMMAND       	0xFE
+#define PS2_ACK_COMMAND           	0xFA
 
-/* The PS2 command stack structure
- * This represents a ps2-device command that
- * can be queued and executed */
+/* PS2Command
+ * This represents a ps2-device command that can be queued and executed */
 typedef struct _PS2Command {
-	volatile int			InUse;
-	volatile int			Executed;
-	int						Step;
-	uint8_t					Command;
-	uint8_t					*Response;
+    volatile int            InUse;
+    volatile int            Executed;
+    int                  	RetryCount;
+    uint8_t                	Command;
+    uint8_t*                Response;
 } PS2Command_t;
 
-/* The PS2 Controller Port driver structure
- * contains information about port status and
- * the current device */
+/* PS2Port
+ * contains information about port status and the current device */
 typedef struct _PS2Port {
-	int						Index;
-	MContract_t				Contract;
-	MCoreInterrupt_t		Interrupt;
-	
-	PS2Command_t			Commands[PS2_MAXCOMMANDS];
-	int						CommandIndex;
+    int                   	Index;
+    MContract_t            	Contract;
+    MCoreInterrupt_t        Interrupt;
+    
+    PS2Command_t            Commands[PS2_MAXCOMMANDS];
+    PS2Command_t*           CurrentCommand;
+    int                     ExecutionIndex;
+    int                     QueueIndex;
 
-	int						Connected;
-	int						Enabled;
-	DevInfo_t				Signature;
+    int                		Connected;
+    int                 	Enabled;
+    DevInfo_t             	Signature;
 } PS2Port_t;
 
-/* The PS2 Controller driver structure
- * contains all driver information and chip
- * current status information */
+/* PS2Controller
+ * contains all driver information and chip current status information */
 typedef struct _PS2Controller {
-	MContract_t				Controller;
-	DeviceIoSpace_t			DataSpace;
-	DeviceIoSpace_t			CommandSpace;
-	PS2Port_t				Ports[PS2_MAXPORTS];
+    MContract_t            	Controller;
+    DeviceIoSpace_t       	DataSpace;
+    DeviceIoSpace_t       	CommandSpace;
+    PS2Port_t            	Ports[PS2_MAXPORTS];
 } PS2Controller_t;
 
 /* PS2PortInitialize
@@ -138,7 +135,7 @@ __EXTERN OsStatus_t PS2PortInitialize(PS2Port_t *Port);
  * if a response is needed for the previous commnad
  * Set command = PS2_RESPONSE_COMMAND and pointer to response buffer */
 __EXTERN OsStatus_t PS2PortQueueCommand(PS2Port_t *Port,
-	uint8_t Command, uint8_t *Response);
+    uint8_t Command, uint8_t *Response);
 
 /* PS2PortFinishCommand 
  * Finalizes the current command and executes

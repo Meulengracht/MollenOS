@@ -31,8 +31,7 @@
 #include <string.h>
 #include <ctype.h>
 
-/* Globals
- * to keep track of state */
+// Static storage
 static int GlbInitHasRun = 0;
 
 /* VfsResolveQueueEvent

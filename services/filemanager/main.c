@@ -60,81 +60,69 @@ static const char *FunctionNames[] = {
     "NormalizePath"
 };
 
-/* Globals 
- * - State variables */
-static Collection_t *GlbResolveQueue    = NULL;
-static Collection_t *GlbFileSystems     = NULL;
-static Collection_t *GlbOpenHandles     = NULL;
-static Collection_t *GlbOpenFiles       = NULL;
-static Collection_t *GlbModules         = NULL;
-static Collection_t *GlbDisks           = NULL;
-UUId_t GlbFileSystemId                  = 0;
-UUId_t GlbFileId                        = 0;
-int GlbInitialized                      = 0;
+// Static storage for the filemanager
+static int 			DiskTable[__FILEMANAGER_MAXDISKS] = { 0 };
+static Collection_t ResolveQueue	= COLLECTION_INIT(KeyInteger);
+static Collection_t FileSystems 	= COLLECTION_INIT(KeyInteger);
+static Collection_t OpenHandles 	= COLLECTION_INIT(KeyInteger);
+static Collection_t OpenFiles   	= COLLECTION_INIT(KeyInteger);
+static Collection_t Modules     	= COLLECTION_INIT(KeyInteger);
+static Collection_t Disks       	= COLLECTION_INIT(KeyInteger);
 
-/* The disk id array, contains id's in the
- * range of __FILEMANAGER_MAXDISKS/2 as half of them are reserved for rm/st */
-int GlbDiskIds[__FILEMANAGER_MAXDISKS];
+static UUId_t 		FileSystemIdGenerator 	= 0;
+static UUId_t 		FileIdGenerator         = 0;
 
 /* VfsGetOpenFiles / VfsGetOpenHandles
- * Retrieves the list of open files /handles and allows
- * access and manipulation of the list */
+ * Retrieves the list of open files /handles and allows access and manipulation of the list */
 Collection_t*
 VfsGetOpenFiles(void) {
-	return GlbOpenFiles;
+	return &OpenFiles;
 }
 
 /* VfsGetOpenFiles / VfsGetOpenHandles
- * Retrieves the list of open files /handles and allows
- * access and manipulation of the list */
+ * Retrieves the list of open files /handles and allows access and manipulation of the list */
 Collection_t*
 VfsGetOpenHandles(void) {
-	return GlbOpenHandles;
+	return &OpenHandles;
 }
 
 /* VfsGetModules
- * Retrieves a list of all the currently loaded
- * modules, provides access for manipulation */
+ * Retrieves a list of all the currently loaded modules, provides access for manipulation */
 Collection_t*
 VfsGetModules(void) {
-	return GlbModules;
+	return &Modules;
 }
 
 /* VfsGetDisks
- * Retrieves a list of all the currently registered
- * disks, provides access for manipulation */
+ * Retrieves a list of all the currently registered disks, provides access for manipulation */
 Collection_t*
 VfsGetDisks(void) {
-	return GlbDisks;
+	return &Disks;
 }
 
 /* VfsGetFileSystems
- * Retrieves a list of all the current filesystems
- * and provides access for manipulation */
+ * Retrieves a list of all the current filesystems and provides access for manipulation */
 Collection_t*
 VfsGetFileSystems(void) {
-	return GlbFileSystems;
+	return &FileSystems;
 }
 
 /* VfsGetResolverQueue
- * Retrieves a list of all the current filesystems
- * that needs to be resolved, and is scheduled */
+ * Retrieves a list of all the current filesystems that needs to be resolved, and is scheduled */
 Collection_t*
 VfsGetResolverQueue(void) {
-	return GlbResolveQueue;
+	return &ResolveQueue;
 }
 
 /* VfsIdentifierFileGet
- * Retrieves a new identifier for a file-handle that
- * is system-wide unique */
+ * Retrieves a new identifier for a file-handle that is system-wide unique */
 UUId_t
 VfsIdentifierFileGet(void) {
-	return GlbFileId++;
+	return FileIdGenerator++;
 }
 
 /* VfsIdentifierAllocate 
- * Allocates a free identifier index for the
- * given disk, it varies based upon disk type */
+ * Allocates a free identifier index for the given disk, it varies based upon disk type */
 UUId_t
 VfsIdentifierAllocate(
     _In_ FileSystemDisk_t *Disk)
@@ -153,8 +141,8 @@ VfsIdentifierAllocate(
 
 	// Now iterate the range for the type of disk
 	for (i = ArrayStartIndex; i < ArrayEndIndex; i++) {
-		if (GlbDiskIds[i] == 0) {
-			GlbDiskIds[i] = 1;
+		if (DiskTable[i] == 0) {
+			DiskTable[i] = 1;
 			return (UUId_t)(i - ArrayStartIndex);
 		}
 	}
@@ -173,7 +161,7 @@ VfsIdentifierFree(
 		ArrayIndex += __FILEMANAGER_MAXDISKS / 2;
 	}
 	if (ArrayIndex < __FILEMANAGER_MAXDISKS) {
-		GlbDiskIds[ArrayIndex] = 0;
+		DiskTable[ArrayIndex] = 0;
 		return OsSuccess;
 	}
 	else {
@@ -187,23 +175,8 @@ VfsIdentifierFree(
 OsStatus_t
 OnLoad(void)
 {
-	// Initialize lists
-	GlbResolveQueue = CollectionCreate(KeyInteger);
-	GlbFileSystems  = CollectionCreate(KeyInteger);
-	GlbOpenHandles  = CollectionCreate(KeyInteger);
-	GlbOpenFiles    = CollectionCreate(KeyInteger);
-	GlbModules      = CollectionCreate(KeyInteger);
-	GlbDisks        = CollectionCreate(KeyInteger);
-
-	// Initialize variables
-	memset(&GlbDiskIds[0], 0, sizeof(int) * __FILEMANAGER_MAXDISKS);
-	GlbFileSystemId = 0;
-	GlbFileId       = 0;
-	GlbInitialized  = 1;
-
-	// Register us with server manager
-	RegisterService(__FILEMANAGER_TARGET);
-	return OsSuccess;
+	// Register us with os
+	return RegisterService(__FILEMANAGER_TARGET);
 }
 
 /* OnUnload
@@ -238,8 +211,7 @@ OnEvent(
 		// and and parses the disk-system for a MBR
 		// or a GPT table 
 		case __FILEMANAGER_REGISTERDISK: {
-			Result = VfsRegisterDisk(
-                Message->From.Process,
+			Result = VfsRegisterDisk(Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(Flags_t)Message->Arguments[1].Data.Value);
 		} break;
@@ -266,31 +238,28 @@ OnEvent(
 		// the given <Access> and <Options> flags.
 		case __FILEMANAGER_OPENFILE: {
 			OpenFilePackage_t Package;
-			Package.Code    = VfsOpenFile(
-                Message->From.Process,
+			Package.Code    = VfsOpenFile(Message->From.Process,
 				RPCGetStringArgument(Message, 0),
 				(Flags_t)Message->Arguments[1].Data.Value,
 				(Flags_t)Message->Arguments[2].Data.Value,
 				&Package.Handle);
-			Result          = RPCRespond(&Message->From, (const void*)&Package, sizeof(OpenFilePackage_t));
+			Result = RPCRespond(&Message->From, (const void*)&Package, sizeof(OpenFilePackage_t));
 		} break;
 
 		// Closes the given file-handle, but does not necessarily
 		// close the link to the file.
 		case __FILEMANAGER_CLOSEFILE: {
 			FileSystemCode_t Code = FsOk;
-            Code    = VfsCloseFile(
-                Message->From.Process, 
+            Code   = VfsCloseFile(Message->From.Process, 
                 (UUId_t)Message->Arguments[0].Data.Value);
-			Result  = RPCRespond(&Message->From, (const void*)&Code, sizeof(FileSystemCode_t));
+			Result = RPCRespond(&Message->From, (const void*)&Code, sizeof(FileSystemCode_t));
 		} break;
 
 		// Reads the requested number of bytes into the given buffer
 		// from the current position in the file-handle
 		case __FILEMANAGER_READFILE: {
 			RWFilePackage_t Package;
-			Package.Code = VfsReadFile(
-                Message->From.Process,
+			Package.Code = VfsReadFile(Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(UUId_t)Message->Arguments[1].Data.Value,
 				Message->Arguments[2].Data.Value,
@@ -303,8 +272,7 @@ OnEvent(
 		// into the current position in the file-handle
 		case __FILEMANAGER_WRITEFILE: {
 			RWFilePackage_t Package;
-			Package.Code = VfsWriteFile(
-                Message->From.Process,
+			Package.Code = VfsWriteFile(Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(UUId_t)Message->Arguments[1].Data.Value,
 				Message->Arguments[2].Data.Value,
@@ -316,8 +284,7 @@ OnEvent(
 		// values given, the position is absolute and must
 		// be within range of the file size
 		case __FILEMANAGER_SEEKFILE: {
-			FileSystemCode_t Code = VfsSeekFile(
-                Message->From.Process,
+			FileSystemCode_t Code = VfsSeekFile(Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(uint32_t)Message->Arguments[1].Data.Value,
 				(uint32_t)Message->Arguments[2].Data.Value);
@@ -336,8 +303,7 @@ OnEvent(
 	    // this can also be used for renamining if the dest/source paths
 	    // match (except for filename/directoryname)
 		case __FILEMANAGER_MOVEFILE: {
-			FileSystemCode_t Code = VfsMoveFile(
-                Message->From.Process,
+			FileSystemCode_t Code = VfsMoveFile(Message->From.Process,
 				RPCGetStringArgument(Message, 0),
 				RPCGetStringArgument(Message, 1),
 				(int)Message->Arguments[2].Data.Value);
@@ -349,8 +315,7 @@ OnEvent(
 		// value is optional and should only be checked for large files
 		case __FILEMANAGER_GETPOSITION: {
 			QueryFileValuePackage_t Package;
-			Result = VfsGetFilePosition(
-                Message->From.Process,
+			Result = VfsGetFilePosition(Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				&Package);
 			Result = RPCRespond(&Message->From, (const void*)&Package, sizeof(QueryFileValuePackage_t));
@@ -360,8 +325,7 @@ OnEvent(
 		// for the given file handle
 		case __FILEMANAGER_GETOPTIONS: {
 			QueryFileOptionsPackage_t Package;
-			Result = VfsGetFileOptions(
-                Message->From.Process,
+			Result = VfsGetFileOptions(Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				&Package);
 			Result = RPCRespond(&Message->From, (const void*)&Package, sizeof(QueryFileOptionsPackage_t));
@@ -370,8 +334,7 @@ OnEvent(
 		// Attempts to modify the current option and or access flags
 		// for the given file handle as specified by <Options> and <Access>
 		case __FILEMANAGER_SETOPTIONS: {
-			Result = VfsSetFileOptions(
-                Message->From.Process,
+			Result = VfsSetFileOptions(Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				(Flags_t)Message->Arguments[1].Data.Value,
 				(Flags_t)Message->Arguments[2].Data.Value);
@@ -383,8 +346,7 @@ OnEvent(
 		// value is optional and should only be checked for large files
 		case __FILEMANAGER_GETSIZE: {
 			QueryFileValuePackage_t Package;
-			Result = VfsGetFileSize(
-                Message->From.Process,
+			Result = VfsGetFileSize(Message->From.Process,
 				(UUId_t)Message->Arguments[0].Data.Value,
 				&Package);
 			Result = RPCRespond(&Message->From, (const void*)&Package, sizeof(QueryFileValuePackage_t));

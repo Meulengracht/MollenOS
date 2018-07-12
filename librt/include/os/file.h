@@ -24,13 +24,7 @@
 #ifndef _FILE_INTERFACE_H_
 #define _FILE_INTERFACE_H_
 
-/* Includes
- * - Library */
 #include <os/mollenos.h>
-#include <stddef.h>
-
-/* Includes
- * - System */
 #include <os/file/definitions.h>
 #include <os/service.h>
 #include <os/buffer.h>

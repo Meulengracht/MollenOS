@@ -21,41 +21,30 @@
  */
 //#define __TRACE
 
-/* Includes 
- * - System */
 #include <os/input.h>
 #include <os/utils.h>
 #include "keyboard.h"
-
-/* Includes
- * - Library */
-#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 
 /* PS2KeyboardInterrupt 
- * Handles the ps2-keyboard interrupt and extracts the
- * data for processing - fast interrupt */
+ * Handles the ps2-keyboard interrupt and extracts the data for processing - fast interrupt */
 InterruptStatus_t
 PS2KeyboardInterrupt(
-    _In_ void *InterruptData)
+    _In_ void*		InterruptData)
 {
-	/* Initialize the keyboard pointer */
 	PS2Keyboard_t *Kybd = (PS2Keyboard_t*)InterruptData;
+	VKey Result 		= VK_INVALID;
+	uint8_t Scancode 	= 0;
 	MInput_t Input;
-	VKey Result = VK_INVALID;
-	uint8_t Scancode = 0;
 
-	/* Read the scancode */
+	// Get the scancode, and potentielly handle it as command data
 	Scancode = PS2ReadData(1);
-
-	/* Handle any out-standing commands first */
 	if (PS2PortFinishCommand(Kybd->Port, Scancode) == OsSuccess) {
 		return InterruptHandled;
 	}
 
-	/* Handle stuff depending on scancode
-	 * and translation status */
+	// Perform scancode-translation
 	if (Kybd->ScancodeSet == 1) {
 		TRACE("PS2-Keyboard: Scancode set 1");
 	}
@@ -87,25 +76,22 @@ PS2KeyboardInterrupt(
 		Kybd->Buffer = 0;
 		Kybd->Flags = 0;
 	}
-
-	/* Yay! */
 	return InterruptHandled;
 }
 
 /* PS2KeyboardGetScancode
  * Retrieves the current scancode-set for the keyboard */
-OsStatus_t PS2KeyboardGetScancode(PS2Keyboard_t *Kybd, int *ResultSet)
+OsStatus_t
+PS2KeyboardGetScancode(
+	_In_  PS2Keyboard_t*	Kybd,
+	_Out_ int*				ResultSet)
 {
-	/* Variables */
 	uint8_t Response = 0;
-
-	/* Write the command to get scancode set */
-	if (PS2PortQueueCommand(Kybd->Port, PS2_KEYBOARD_SCANCODE, NULL) != OsSuccess
-		|| PS2PortQueueCommand(Kybd->Port, 0, &Response) != OsSuccess) {
+	if (PS2PortQueueCommand(Kybd->Port, PS2_KEYBOARD_SCANCODE, &Response) != OsSuccess) {
 		return OsError;
 	}
 
-	/* Wuhu! -> Bit 6 is set in case its translation */
+	// Bit 6 is set in case its translation
 	*ResultSet = (int)(Response & 0xF);
 	if (Response >= 0xF0) {
 		return OsError;
@@ -117,9 +103,11 @@ OsStatus_t PS2KeyboardGetScancode(PS2Keyboard_t *Kybd, int *ResultSet)
 
 /* PS2KeyboardSetScancode
  * Updates the current scancode-set for the keyboard */
-OsStatus_t PS2KeyboardSetScancode(PS2Keyboard_t *Kybd, uint8_t RequestSet, int *ResultSet)
+OsStatus_t PS2KeyboardSetScancode(
+	_In_  PS2Keyboard_t* 	Kybd,
+	_In_  uint8_t 			RequestSet,
+	_Out_ int*				ResultSet)
 {
-	/* Write the command to set scancode set */
 	if (PS2PortQueueCommand(Kybd->Port, PS2_KEYBOARD_SCANCODE, NULL) != OsSuccess
 		|| PS2PortQueueCommand(Kybd->Port, RequestSet, NULL) != OsSuccess) {
 		return OsError;
@@ -132,17 +120,19 @@ OsStatus_t PS2KeyboardSetScancode(PS2Keyboard_t *Kybd, uint8_t RequestSet, int *
 
 /* PS2KeyboardSetTypematics
  * Updates the current typematics for the keyboard */
-OsStatus_t PS2KeyboardSetTypematics(PS2Keyboard_t *Kybd,
-	uint8_t TypematicRepeat, uint8_t Delay)
+OsStatus_t
+PS2KeyboardSetTypematics(
+	_In_ PS2Keyboard_t*	Kybd,
+	_In_ uint8_t 		TypematicRepeat,
+	_In_ uint8_t 		Delay)
 {
-	/* Variables */
 	uint8_t Format = 0;
 
-	/* Build the data-packet */
+	// Build the data-packet
 	Format |= TypematicRepeat;
 	Format |= Delay;
 
-	/* Write the command to get scancode set */
+	// Write the command to get scancode set
 	if (PS2PortQueueCommand(Kybd->Port, PS2_KEYBOARD_TYPEMATIC, NULL) != OsSuccess
 		|| PS2PortQueueCommand(Kybd->Port, Format, NULL) != OsSuccess) {
 		return OsError;
@@ -154,18 +144,21 @@ OsStatus_t PS2KeyboardSetTypematics(PS2Keyboard_t *Kybd,
 
 /* PS2KeyboardSetLEDs
  * Updates the LED statuses for the ps2 keyboard */
-OsStatus_t PS2KeyboardSetLEDs(PS2Keyboard_t *Kybd,
-	int Scroll, int Number, int Caps)
+OsStatus_t
+PS2KeyboardSetLEDs(
+	_In_ PS2Keyboard_t*	Kybd,
+	_In_ int 			Scroll,
+	_In_ int 			Number,
+	_In_ int 			Caps)
 {
-	/* Variables */
 	uint8_t Format = 0;
 
-	/* Build the data-packet */
+	// Build the data-packet
 	Format |= ((uint8_t)(Scroll & 0x1) << 0);
 	Format |= ((uint8_t)(Number & 0x1) << 1);
 	Format |= ((uint8_t)(Caps & 0x1) << 2);
 
-	/* Write the command to get scancode set */
+	// Write the command to get scancode set
 	if (PS2PortQueueCommand(Kybd->Port, PS2_KEYBOARD_SETLEDS, NULL) != OsSuccess
 		|| PS2PortQueueCommand(Kybd->Port, Format, NULL) != OsSuccess) {
 		return OsError;
@@ -176,97 +169,81 @@ OsStatus_t PS2KeyboardSetLEDs(PS2Keyboard_t *Kybd,
 }
 
 /* PS2KeyboardInitialize 
- * Initializes an instance of an ps2-keyboard on
- * the given PS2-Controller port */
-OsStatus_t PS2KeyboardInitialize(PS2Port_t *Port, int Translation)
+ * Initializes an instance of an ps2-keyboard on the given PS2-Controller port */
+OsStatus_t
+PS2KeyboardInitialize(
+	_In_ PS2Port_t*	Port,
+	_In_ int 		Translation)
 {
-	/* Variables for initializing */
 	PS2Keyboard_t *Kybd = NULL; 
 
-	/* Allocate a new instance of the ps2 mouse */
 	Kybd = (PS2Keyboard_t*)malloc(sizeof(PS2Keyboard_t));
 	memset(Kybd, 0, sizeof(PS2Keyboard_t));
 
-	/* Initialize stuff */
-	Kybd->Port = Port;
+	// Initialize keyboard defaults
+	Kybd->Port 				= Port;
+	Kybd->Translation 		= Translation;
+	Kybd->TypematicRepeat 	= PS2_REPEATS_PERSEC(16);
+	Kybd->TypematicDelay 	= PS2_DELAY_500MS;
+	Kybd->ScancodeSet 		= 2;
 
-	/* Initialize keyboard defaults */
-	Kybd->Translation = Translation;
-	Kybd->TypematicRepeat = PS2_REPEATS_PERSEC(16);
-	Kybd->TypematicDelay = PS2_DELAY_500MS;
-	Kybd->ScancodeSet = 2;
-
-	/* Start out by initializing the contract */
+	// Start out by initializing the contract
 	InitializeContract(&Port->Contract, Port->Contract.DeviceId, 1,
 		ContractInput, "PS2 Keyboard Interface");
 
-	/* Initialize the interrupt descriptor */
+	// Initialize the interrupt descriptor
 	Port->Interrupt.AcpiConform = 0;
-	Port->Interrupt.Pin = INTERRUPT_NONE;
-	Port->Interrupt.Vectors[0] = INTERRUPT_NONE;
-	
-	/* Select interrupt source */
+	Port->Interrupt.Pin 		= INTERRUPT_NONE;
+	Port->Interrupt.Vectors[0] 	= INTERRUPT_NONE;
 	if (Port->Index == 0) {
-		Port->Interrupt.Line = PS2_PORT1_IRQ;
+		Port->Interrupt.Line 	= PS2_PORT1_IRQ;
 	}
 	else {
-		Port->Interrupt.Line = PS2_PORT2_IRQ;
+		Port->Interrupt.Line 	= PS2_PORT2_IRQ;
 	}
-
-	/* Setup fast-handler */
 	Port->Interrupt.FastHandler = PS2KeyboardInterrupt;
-	Port->Interrupt.Data = Kybd;
+	Port->Interrupt.Data 		= Kybd;
 
-	/* Register our contract for this device */
+	// Register our contract for this device
 	if (RegisterContract(&Port->Contract) != OsSuccess) {
 		ERROR("PS2-Keyboard: failed to install contract");
 		return OsError;
 	}
-
-	/* Register the interrupt for this mouse */
 	Kybd->Irq = RegisterInterruptSource(&Port->Interrupt, INTERRUPT_NOTSHARABLE);
 
-	/* Reset keyboard LEDs status */
+	// Reset keyboard LEDs status
 	if (PS2KeyboardSetLEDs(Kybd, 0, 0, 0) != OsSuccess) {
 		ERROR("PS2-Keyboard: failed to reset LEDs");
 	}
 
-	/* Update typematics to preffered settings */
+	// Update typematics to preffered settings
 	if (PS2KeyboardSetTypematics(Kybd,
 			Kybd->TypematicRepeat, Kybd->TypematicDelay) != OsSuccess) {
 		WARNING("PS2-Keyboard: failed to set typematic settings");
 	}
 	
-	/* Select our preffered scancode set */
+	// Select our preffered scancode set
 	if (PS2KeyboardSetScancode(Kybd, 2, &Kybd->ScancodeSet) != OsSuccess) {
 		WARNING("PS2-Keyboard: failed to select scancodeset 2 (%i)",
 			Kybd->ScancodeSet);
 	}
-
-	/* Last step is to enable scanning for our port */
 	return PS2PortQueueCommand(Port, PS2_ENABLE_SCANNING, NULL);
 }
 
 /* PS2KeyboardCleanup 
- * Cleans up the ps2-keyboard instance on the
- * given PS2-Controller port */
-OsStatus_t PS2KeyboardCleanup(PS2Port_t *Port)
+ * Cleans up the ps2-keyboard instance on the given PS2-Controller port */
+OsStatus_t
+PS2KeyboardCleanup(
+	_In_ PS2Port_t*	Port)
 {
-	/* Initialize the keyboard pointer */
 	PS2Keyboard_t *Kybd = (PS2Keyboard_t*)Port->Interrupt.Data;
-
-	/* Disable scanning */
+	
+	// Send the disable command before removing device
 	PS2PortQueueCommand(Port, PS2_DISABLE_SCANNING, NULL);
-
-	/* Uninstall interrupt */
 	UnregisterInterruptSource(Kybd->Irq);
 
-	/* Free the keyboard structure */
+	// Cleanup resources
 	free(Kybd);
-
-	/* Set port connected = 0 */
 	Port->Signature = 0;
-
-	/* Done! */
 	return OsSuccess;
 }

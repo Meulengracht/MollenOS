@@ -55,13 +55,15 @@ LIBC_SRCS = $(wildcard ctype/*.c) \
 LIBK_OBJECTS = $(ASM_SRCS:.s=.ko) $(COMMON_SRCS:.c=.ko) $(LIBK_SRCS:.c=.ko)
 LIBC_OBJECTS = $(ASM_SRCS:.s=.o) $(COMMON_SRCS:.c=.o) $(LIBC_SRCS:.c=.o)
 
+LIBC_DEPENDENCIES = ../build/libcrt.lib ../build/libclang.lib ../build/libm.lib ../build/libds.lib
+
 # Setup flags and stuff each for individual build  $(subst ../,,$(ASM_SRCS))
 ifeq ($(MAKECMDGOALS),libk)
 	CFLAGS = $(GCFLAGS) -mno-sse -D__OSLIB_C_IMPLEMENTATION -DLIBC_KERNEL -D_KRNL_DLL $(COMMON_INCS) $(LIBK_INCS)
 	LFLAGS = /lib
 else
 	CFLAGS = $(GCFLAGS) -D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAREDLIBRARY $(math_flags) -DCRTDLL $(COMMON_INCS)
-	LFLAGS = $(GLFLAGS) /def:libc.def /dll /entry:__CrtLibraryEntry /lldmap ../build/libcrt.lib ../build/libclang.lib ../build/libm.lib ../build/libds.lib
+	LFLAGS = $(GLFLAGS) /def:libc.def /dll /entry:__CrtLibraryEntry /lldmap $(LIBC_DEPENDENCIES)
 endif
 
 # libk-target
@@ -76,7 +78,7 @@ libc: ../build/libc.dll
 	@printf "%b" "\033[0;36mCreating static library " $@ "\033[m\n"
 	@$(LD) $(LFLAGS) $(LIBK_OBJECTS) /out:$@
 
-../build/libc.dll: $(LIBC_OBJECTS)
+../build/libc.dll: $(LIBC_OBJECTS) $(LIBC_DEPENDENCIES)
 	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
 	@$(LD) $(LFLAGS) $(LIBC_OBJECTS) /out:$@
 
