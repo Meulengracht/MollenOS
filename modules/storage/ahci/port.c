@@ -23,16 +23,10 @@
  */
 //#define __TRACE
 
-/* Includes
- * - System */
 #include <os/mollenos.h>
 #include <os/utils.h>
 #include "manager.h"
-
-/* Includes
- * - Library */
 #include <threads.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <assert.h>
 
@@ -227,7 +221,7 @@ AhciPortReset(
 
     // When PxSCTL.DET is set to 1h, the HBA shall reset PxTFD.STS to 7Fh and 
     // shall reset PxSSTS.DET to 0h. When PxSCTL.DET is set to 0h, upon receiving a 
-    // COMINIT from the attached device, PxTFD.STS.BSY shall be set to �1� by the HBA.
+    // COMINIT from the attached device, PxTFD.STS.BSY shall be set to 1 by the HBA.
     return OsSuccess;
 }
 
@@ -244,8 +238,7 @@ AhciPortSetupDevice(
     // Detect present ports using
     // PxTFD.STS.BSY = 0, PxTFD.STS.DRQ = 0, and PxSSTS.DET = 3
     if (Port->Registers->TaskFileData & (AHCI_PORT_TFD_BSY | AHCI_PORT_TFD_DRQ)
-        || (AHCI_PORT_STSS_DET(Port->Registers->AtaStatus) 
-            != AHCI_PORT_SSTS_DET_ENABLED)) {
+        || (AHCI_PORT_STSS_DET(Port->Registers->AtaStatus) != AHCI_PORT_SSTS_DET_ENABLED)) {
         return OsError;
     }
 
@@ -296,8 +289,8 @@ AhciPortAcquireCommandSlot(
  * Deallocates a previously allocated command slot */
 void
 AhciPortReleaseCommandSlot(
-    _In_ AhciPort_t*    Port, 
-    _In_ int            Slot)
+    _In_ AhciPort_t*        Port, 
+    _In_ int                Slot)
 {
     Port->SlotStatus &= ~(1 << Slot);
 }
@@ -306,8 +299,8 @@ AhciPortReleaseCommandSlot(
  * Starts a command slot on the given port */
 void
 AhciPortStartCommandSlot(
-    _In_ AhciPort_t*    Port, 
-    _In_ int            Slot)
+    _In_ AhciPort_t*        Port, 
+    _In_ int                Slot)
 {
     // Set slot to active
     Port->Registers->CommandIssue |= (1 << Slot);

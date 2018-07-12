@@ -23,19 +23,13 @@
  */
 //#define __TRACE
 
-/* Includes
- * - System */
 #include <os/mollenos.h>
 #include <os/utils.h>
+#include <threads.h>
+#include <stdlib.h>
 #include "ahci.h"
 
-/* Includes
- * - Library */
-#include <threads.h>
-#include <stddef.h>
-#include <stdlib.h>
-
-/* Prototypes */
+// Prototypes
 InterruptStatus_t OnFastInterrupt(void *InterruptData);
 OsStatus_t AhciSetup(AhciController_t *Controller);
 
@@ -43,19 +37,17 @@ OsStatus_t AhciSetup(AhciController_t *Controller);
  * Registers a new controller with the AHCI driver */
 AhciController_t*
 AhciControllerCreate(
-	_In_ MCoreDevice_t *Device)
+	_In_ MCoreDevice_t*		Device)
 {
 	// Variables
-	AhciController_t *Controller = NULL;
-	DeviceIoSpace_t *IoBase = NULL;
+	AhciController_t *Controller 	= NULL;
+	DeviceIoSpace_t *IoBase 		= NULL;
 	int i;
 
 	// Allocate a new instance of the controller
 	Controller = (AhciController_t*)malloc(sizeof(AhciController_t));
 	memset(Controller, 0, sizeof(AhciController_t));
 	memcpy(&Controller->Device, Device, Device->Length);
-
-	// Fill in some basic stuff needed for init
 	Controller->Contract.DeviceId = Controller->Device.Id;
 	SpinlockReset(&Controller->Lock);
 
@@ -146,7 +138,7 @@ AhciControllerCreate(
  * any resources related to it */
 OsStatus_t
 AhciControllerDestroy(
-	_In_ AhciController_t *Controller)
+	_In_ AhciController_t*	Controller)
 {
 	// Variables
 	int i;
@@ -185,8 +177,6 @@ AhciControllerDestroy(
 
 	// Free the controller structure
 	free(Controller);
-
-	// Cleanup done
 	return OsSuccess;
 }
 
@@ -194,40 +184,36 @@ AhciControllerDestroy(
  * Resets the entire HBA Controller and all ports */
 OsStatus_t
 AhciReset(
-	_In_ AhciController_t *Controller)
+	_In_ AhciController_t*	Controller)
 {
 	// Variables
 	int Hung = 0;
 	int i;
 
-	// Software may reset the entire HBA by setting GHC.HR to �1�.
+	// Software may reset the entire HBA by setting GHC.HR to 1.
 	Controller->Registers->GlobalHostControl |= AHCI_HOSTCONTROL_HR;
 	MemoryBarrier();
 
-	// The bit shall be cleared to �0� by the HBA when the reset is complete. 
-	// If the HBA has not cleared GHC.HR to �0� within 1 second of 
-	// software setting GHC.HR to �1�, the HBA is in a hung or locked state.
+	// The bit shall be cleared to 0 by the HBA when the reset is complete. 
+	// If the HBA has not cleared GHC.HR to 0 within 1 second of 
+	// software setting GHC.HR to 1, the HBA is in a hung or locked state.
 	WaitForConditionWithFault(Hung, 
 		((Controller->Registers->GlobalHostControl & AHCI_HOSTCONTROL_HR) == 0), 10, 200);
-
-	// Sanity 
-	// Did the reset succeed?
 	if (Hung) {
 		return OsError;
 	}
 
-	// If the HBA supports staggered spin-up, the PxCMD.SUD bit will be reset to �0�; 
+	// If the HBA supports staggered spin-up, the PxCMD.SUD bit will be reset to 0; 
 	// software is responsible for setting the PxCMD.SUD and PxSCTL.DET fields 
 	// appropriately such that communication can be established on the Serial ATA link. 
 	// If the HBA does not support staggered spin-up, the HBA reset shall cause 
 	// a COMRESET to be sent on the port.
 
-	// Indicate that system software is AHCI aware
-	// by setting GHC.AE to �1�.
+	// Indicate that system software is AHCI aware by setting GHC.AE to 1.
 	Controller->Registers->GlobalHostControl |= AHCI_HOSTCONTROL_AE;
 
 	// Ensure that the controller is not in the running state by reading and
-	// examining each implemented port�s PxCMD register
+	// examining each implemented ports PxCMD register
 	for (i = 0; i < AHCI_MAX_PORTS; i++) {
 		if (!(Controller->ValidPorts & AHCI_IMPLEMENTED_PORT(i))) {
 			continue;
@@ -241,11 +227,9 @@ AhciReset(
 		}
 
 		// System software places a port into the idle state by clearing PxCMD.ST and
-		// waiting for PxCMD.CR to return �0� when read 
+		// waiting for PxCMD.CR to return 0 when read 
 		Controller->Ports[i]->Registers->CommandAndStatus = 0;
 	}
-
-	// Flush writes, just in case
 	MemoryBarrier();
 
 	// Software should wait at least 500 milliseconds for port idle to occur
@@ -264,8 +248,6 @@ AhciReset(
 			}
 		}
 	}
-
-	// No errors 
 	return OsSuccess;
 }
 
@@ -273,26 +255,26 @@ AhciReset(
  * Takes control of the HBA from BIOS */
 OsStatus_t
 AhciTakeOwnership(
-	_In_ AhciController_t *Controller)
+	_In_ AhciController_t*	Controller)
 {
 	// Variables
 	int Hung = 0;
 
-	// Step 1. Sets the OS Ownership (BOHC.OOS) bit to �1�.
+	// Step 1. Sets the OS Ownership (BOHC.OOS) bit to 1.
 	Controller->Registers->OSControlAndStatus |= AHCI_CONTROLSTATUS_OOS;
 	MemoryBarrier();
 
 	// Wait 25 ms, to determine how long time BIOS needs to release
 	thrd_sleepex(25);
 
-	// If the BIOS Busy (BOHC.BB) has been set to �1� within 25 milliseconds, 
+	// If the BIOS Busy (BOHC.BB) has been set to 1 within 25 milliseconds, 
 	// then the OS driver shall provide the BIOS a minimum of two seconds 
 	// for finishing outstanding commands on the HBA.
 	if (Controller->Registers->OSControlAndStatus & AHCI_CONTROLSTATUS_BB) {
 		thrd_sleepex(2000);
 	}
 
-	// Step 2. Spin on the BIOS Ownership (BOHC.BOS) bit, waiting for it to be cleared to �0�.
+	// Step 2. Spin on the BIOS Ownership (BOHC.BOS) bit, waiting for it to be cleared to 0.
 	WaitForConditionWithFault(Hung, 
 		((Controller->Registers->OSControlAndStatus & AHCI_CONTROLSTATUS_BOS) == 0), 10, 25);
 
@@ -311,7 +293,7 @@ AhciTakeOwnership(
  * resets the controller so it's ready for use */
 OsStatus_t
 AhciSetup(
-	_In_ AhciController_t *Controller)
+	_In_ AhciController_t*	Controller)
 {
 	// Variables
 	int FullResetRequired = 0, PortItr = 0;
@@ -361,12 +343,8 @@ AhciSetup(
 		// Next port
 		PortItr++;
 	}
-
-	// Save the number of ports
-	Controller->PortCount = PortItr;
-
-	// Flush writes, just in case
 	MemoryBarrier();
+	Controller->PortCount = PortItr;
 
 	// Trace
 	TRACE("Ports initializing: %i", PortItr);

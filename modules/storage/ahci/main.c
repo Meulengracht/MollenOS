@@ -23,22 +23,15 @@
  */
 //#define __TRACE
 
-/* Includes 
- * - System */
 #include <os/contracts/storage.h>
 #include <os/mollenos.h>
 #include <os/utils.h>
 #include "manager.h"
-
-/* Includes
- * - Library */
-#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 
-/* Globals
- * State-tracking variables */
-static Collection_t *GlbControllers = NULL;
+// Static storage for the driver
+static Collection_t Controllers = COLLECTION_INIT(KeyInteger);
 
 /* OnFastInterrupt
  * Is called for the sole purpose to determine if this source
@@ -47,7 +40,6 @@ InterruptStatus_t
 OnFastInterrupt(
     _In_Opt_ void*  InterruptData)
 {
-	// Variables
 	AhciController_t *Controller    = NULL;
 	reg32_t InterruptStatus         = 0;
     int i;
@@ -85,7 +77,6 @@ OnInterrupt(
     _In_Opt_ size_t Arg1,
     _In_Opt_ size_t Arg2)
 {
-    // Variables
 	AhciController_t *Controller = NULL;
 	reg32_t InterruptStatus;
     int i;
@@ -117,8 +108,7 @@ HandleInterrupt:
 
 /* OnTimeout
  * Is called when one of the registered timer-handles
- * times-out. A new timeout event is generated and passed
- * on to the below handler */
+ * times-out. A new timeout event is generated and passed on to the below handler */
 OsStatus_t
 OnTimeout(
 	_In_ UUId_t Timer,
@@ -130,12 +120,10 @@ OnTimeout(
 }
 
 /* OnLoad
- * The entry-point of a driver, this is called
- * as soon as the driver is loaded in the system */
+ * The entry-point of a driver, this is called as soon as the driver is loaded in the system */
 OsStatus_t
 OnLoad(void)
 {
-	GlbControllers = CollectionCreate(KeyInteger);
 	return AhciManagerInitialize();
 }
 
@@ -145,10 +133,10 @@ OnLoad(void)
 OsStatus_t
 OnUnload(void)
 {
-	foreach(cNode, GlbControllers) {
+	foreach(cNode, &Controllers) {
 		AhciControllerDestroy((AhciController_t*)cNode->Data);
 	}
-	CollectionDestroy(GlbControllers);
+	CollectionClear(&Controllers);
 	return AhciManagerDestroy();
 }
 
@@ -171,7 +159,7 @@ OnRegister(
 
 	// Use the device-id as key
 	Key.Value = (int)Device->Id;
-	return CollectionAppend(GlbControllers, CollectionCreateNode(Key, Controller));
+	return CollectionAppend(&Controllers, CollectionCreateNode(Key, Controller));
 }
 
 /* OnUnregister
@@ -188,11 +176,11 @@ OnUnregister(
 	// Set the key to the id of the device to find
 	// the bound controller
 	Key.Value   = (int)Device->Id;
-	Controller  = (AhciController_t*)CollectionGetDataByKey(GlbControllers, Key, 0);
+	Controller  = (AhciController_t*)CollectionGetDataByKey(&Controllers, Key, 0);
 	if (Controller == NULL) {
 		return OsError;
 	}
-	CollectionRemoveByKey(GlbControllers, Key);
+	CollectionRemoveByKey(&Controllers, Key);
 	return AhciControllerDestroy(Controller);
 }
 

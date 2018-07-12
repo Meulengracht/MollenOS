@@ -22,15 +22,9 @@
  *	- Power Management
  */
 
-/* Includes
- * - System */
 #include <os/mollenos.h>
 #include <os/utils.h>
 #include "manager.h"
-
-/* Includes
- * - Library */
-#include <stddef.h>
 #include <stdlib.h>
 
 /* AhciReadSectors 
@@ -42,7 +36,6 @@ AhciReadSectors(
 	_In_ AhciTransaction_t* Transaction, 
 	_In_ uint64_t           SectorLBA)
 {
-	// Variables
 	ATACommandType_t Command;
 
 	// Sanitize bounds
@@ -73,8 +66,6 @@ AhciReadSectors(
 			Command = AtaPIORead; // LBA28
 		}
 	}
-
-	// Dispatch the command
 	return AhciCommandRegisterFIS(Transaction, Command, SectorLBA, 0, 0);
 }
 
@@ -87,7 +78,6 @@ AhciWriteSectors(
 	_In_ AhciTransaction_t* Transaction,
 	_In_ uint64_t           SectorLBA)
 {
-	// Variables
 	ATACommandType_t Command;
 
 	// Sanitize bounds
@@ -118,7 +108,5 @@ AhciWriteSectors(
 			Command = AtaPIOWrite;	// LBA28
 		}
 	}
-
-	// Dispatch the command
 	return AhciCommandRegisterFIS(Transaction, Command, SectorLBA, 0, 0);
 }

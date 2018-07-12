@@ -23,24 +23,18 @@
  */
 //#define __TRACE
 
-/* Includes
- * - System */
 #include <os/mollenos.h>
 #include <os/utils.h>
 #include "manager.h"
-
-/* Includes
- * - Library */
 #include <threads.h>
-#include <stddef.h>
 #include <stdlib.h>
 
 /* AhciDumpCurrentState
  * Dumps the registers and state of the controller and given port */
 void
 AhciDumpCurrentState(
-	_In_ AhciController_t *Controller, 
-	_In_ AhciPort_t *Port)
+	_In_ AhciController_t*	Controller, 
+	_In_ AhciPort_t*		Port)
 {
 	// When trace is disabled
 	_CRT_UNUSED(Controller);
@@ -79,13 +73,12 @@ AhciCommandDispatch(
 	_In_ void*              AtapiCommand, 
     _In_ size_t             AtapiCommandLength)
 {
-	// Variables
 	AHCICommandTable_t *CommandTable = NULL;
-	size_t BytesLeft = Transaction->SectorCount * Transaction->Device->SectorSize;
+	size_t BytesLeft 		= Transaction->SectorCount * Transaction->Device->SectorSize;
 	uintptr_t BufferPointer = 0;
 	CollectionItem_t *tNode = NULL;
+	int PrdtIndex 			= 0;
 	DataKey_t Key;
-	int PrdtIndex = 0;
 
 	// Trace
 	TRACE("AhciCommandDispatch(Port %u, Flags 0x%x, Length %u, TransferSize 0x%x)",
@@ -206,9 +199,8 @@ OsStatus_t
 AhciVerifyRegisterFIS(
 	_In_ AhciTransaction_t *Transaction)
 {
-	// Variables
-	AHCIFis_t *Fis = NULL;
-	size_t Offset = Transaction->Slot * AHCI_RECIEVED_FIS_SIZE;
+	AHCIFis_t *Fis 	= NULL;
+	size_t Offset 	= Transaction->Slot * AHCI_RECIEVED_FIS_SIZE;
 
 	// Get a pointer to the FIS
 	Fis = (AHCIFis_t*)((uint8_t*)Transaction->Device->Port->RecievedFisTable + Offset);
@@ -232,9 +224,6 @@ AhciVerifyRegisterFIS(
 			Transaction->Device->Port->Id, (size_t)Fis->RegisterD2H.Error);
 		return OsError;
 	}
-
-	// If we reach here, all checks has been 
-	// passed succesfully, and we return no err
 	return OsSuccess;
 }
 
@@ -248,7 +237,6 @@ AhciCommandRegisterFIS(
 	_In_ int                Device, 
 	_In_ int                Write)
 {
-	// Variables
 	FISRegisterH2D_t Fis;
 	OsStatus_t Status;
 	Flags_t Flags;
@@ -336,7 +324,6 @@ OsStatus_t
 AhciCommandFinish(
 	_In_ AhciTransaction_t *Transaction)
 {
-	// Variables
 	OsStatus_t Status = OsError;
 
 	// Trace
