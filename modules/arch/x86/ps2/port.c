@@ -240,13 +240,18 @@ PS2PortExecuteNextCommand(
     _In_ PS2Port_t* Port)
 {
     OsStatus_t Status       = OsSuccess;
+    int ExecutionIndex      = Port->ExecutionIndex % PS2_MAXCOMMANDS;
     int NextExecutionIndex  = (Port->ExecutionIndex + 1) % PS2_MAXCOMMANDS;
+
+    // Set the current index to not in-use anymore
+    Port->CurrentCommand                    = NULL;
+    Port->Commands[ExecutionIndex].InUse    = 0;
 
     // Increase the index for execution
     if (Port->Commands[NextExecutionIndex].InUse != 0) {
-        Port->CurrentCommand    = &Port->Commands[NextExecutionIndex];
-        Status                  = PS2PortWrite(Port, Port->CurrentCommand->Command);
         Port->ExecutionIndex++;
+        Port->CurrentCommand    = &Port->Commands[NextExecutionIndex];
+        Status                  = PS2PortWrite(Port, Port->Commands[NextExecutionIndex].Command);
     }
     return Status;
 }
@@ -262,7 +267,7 @@ PS2PortFinishCommand(
     if (Port->CurrentCommand == NULL) {
         return OsError;
     }
-
+    
     // OK we have a command active, sometimes we can get a resend, so handle
     // that first. Unless this is the result byte, just ignore
     if (Result == PS2_RESEND_COMMAND && Port->CurrentCommand->Executed == 0) {
@@ -277,11 +282,10 @@ PS2PortFinishCommand(
             *(Port->CurrentCommand->Response) = 0xFF;
         }
         Port->CurrentCommand->Executed = 2;
-        Port->CurrentCommand = NULL;
         PS2PortExecuteNextCommand(Port);
         return OsSuccess;
     }
-
+    
     // If we reach here we have to see if we need to fetch a 
     // result byte as well. Then just return. Only if the command succeeded tho!
     if (Port->CurrentCommand->Response != NULL && Port->CurrentCommand->Executed == 0) {
@@ -292,11 +296,8 @@ PS2PortFinishCommand(
             return OsSuccess;
         }
         
-        if (Port->CurrentCommand->Response != NULL) {
-            *(Port->CurrentCommand->Response) = 0xFF;
-        }
+        *(Port->CurrentCommand->Response) = 0xFF;
         Port->CurrentCommand->Executed = 2;
-        Port->CurrentCommand = NULL;
         PS2PortExecuteNextCommand(Port);
         return OsSuccess;
     }
@@ -308,7 +309,9 @@ PS2PortFinishCommand(
         Port->CurrentCommand->Executed = 1;
     }
     else {
-        *(Port->CurrentCommand->Response) = Result;
+        if (Port->CurrentCommand->Response != NULL) {
+            *(Port->CurrentCommand->Response) = Result;
+        }
         Port->CurrentCommand->Executed = 2;
     }
 

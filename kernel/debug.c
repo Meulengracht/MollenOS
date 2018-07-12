@@ -117,6 +117,7 @@ DebugPanic(
     _In_ const char*    Message, ...)
 {
     // Variables
+    MCoreThread_t *CurrentThread;
     char MessageBuffer[256];
     va_list Arguments;
     UUId_t Cpu;
@@ -134,14 +135,19 @@ DebugPanic(
     va_end(Arguments);
     LogAppendMessage(LogError, Module, &MessageBuffer[0]);
 
+    // Log cpu and threads
+    CurrentThread = ThreadingGetCurrentThread(Cpu);
+    if (CurrentThread != NULL) {
+        LogAppendMessage(LogError, Module, "Thread %s - %u (Core %u)!",
+            CurrentThread->Name, CurrentThread->Id, Cpu);
+        if (CurrentThread->Flags & THREADING_IMPERSONATION) {
+            // how should we do this
+        }
+    }
+    ThreadingDebugPrint();
+
     // Stack trace
     DebugStackTrace(Context, 8);
-
-    // Log cpu and threads
-    LogAppendMessage(LogError, Module, "Thread %s - %u (Core %u)!",
-        ThreadingGetCurrentThread(Cpu)->Name, 
-        ThreadingGetCurrentThreadId(), Cpu);
-    ThreadingDebugPrint();
 
     // Handle based on the scope of the fatality
     if (FatalityScope == FATAL_SCOPE_KERNEL) {
