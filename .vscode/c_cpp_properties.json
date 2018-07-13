@@ -116,7 +116,8 @@
             },
             "intelliSenseMode": "clang-x64",
             "cStandard": "c11",
-            "cppStandard": "c++17"
+            "cppStandard": "c++17",
+            "compileCommands": "${workspaceFolder}/userspace/llvm_out/compile_commands.json"
         }
     ],
     "version": 4

@@ -28,7 +28,8 @@
 #include "events/event_window.hpp"
 
 bool ConvertSurfaceFormatToGLFormat(UISurfaceFormat_t Format, GLenum &FormatResult, 
-    GLenum &InternalFormatResult, int &BytesPerPixel) {
+    GLenum &InternalFormatResult, int &BytesPerPixel)
+{
     bool Success = true;
     switch (Format) {
         case SurfaceRGBA: {
@@ -45,7 +46,9 @@ bool ConvertSurfaceFormatToGLFormat(UISurfaceFormat_t Format, GLenum &FormatResu
 }
 
 Handle_t HandleCreateWindowRequest(MRemoteCallAddress_t *Process,
-    UIWindowParameters_t *Parameters, BufferObject_t *Buffer) {
+    UIWindowParameters_t *Parameters, UUId_t BufferHandle)
+{
+    DmaBuffer_t *Buffer = nullptr;
     CWindow *Window = nullptr;
     Handle_t Result = nullptr;
     GLenum Format, InternalFormat;
@@ -67,15 +70,16 @@ Handle_t HandleCreateWindowRequest(MRemoteCallAddress_t *Process,
         return nullptr;
     }
 
+    // Inherit the buffer
+    if (BufferHandle == UUID_INVALID) {
+        sLog.Warning("Invalid window buffer handle");
+        return nullptr;
+    }
+    Buffer = CreateBuffer(BufferHandle, 0);
+
     // Validate the size of the buffer before acquiring it
     if (GetBufferSize(Buffer) < (Parameters->Surface.Dimensions.w * Parameters->Surface.Dimensions.h * BytesPerPixel)) {
         sLog.Warning("Invalid window buffer size");
-        return nullptr;
-    }
-
-    // Last step is to acquire the buffer and make sure we have access to it
-    if (AcquireBuffer(Buffer) != OsSuccess) {
-        sLog.Warning("Failed to acquire the window buffer");
         return nullptr;
     }
     ZeroBuffer(Buffer);
@@ -98,7 +102,8 @@ Handle_t HandleCreateWindowRequest(MRemoteCallAddress_t *Process,
     return (Handle_t)Window;
 }
 
-void MessageHandler() {
+void MessageHandler()
+{
     char *ArgumentBuffer    = NULL;
     bool IsRunning          = true;
     MRemoteCall_t Message;
@@ -109,16 +114,13 @@ void MessageHandler() {
         if (RPCListen(&Message, ArgumentBuffer) == OsSuccess) {
             if (Message.Function == __WINDOWMANAGER_CREATE) {
                 UIWindowParameters_t *Parameters    = nullptr;
-                BufferObject_t *BufferCopy          = nullptr;
-                BufferObject_t *Buffer              = nullptr;
                 Handle_t Result                     = nullptr;
+                UUId_t BufferHandle;
+
+                // Get arguments
                 RPCCastArgumentToPointer(&Message.Arguments[0], (void**)&Parameters);
-                RPCCastArgumentToPointer(&Message.Arguments[1], (void**)&Buffer);
-                
-                // Create a copy of the buffer-object first
-                BufferCopy = (BufferObject_t*)::malloc(GetBufferObjectSize(Buffer));
-                memcpy((void*)BufferCopy, Buffer, GetBufferObjectSize(Buffer));
-                Result = HandleCreateWindowRequest(&Message.From, Parameters, BufferCopy);
+                BufferHandle    = (UUId_t)Message.Arguments[0].Data.Value;
+                Result          = HandleCreateWindowRequest(&Message.From, Parameters, BufferHandle);
                 RPCRespond(&Message.From, &Result, sizeof(Result));
             }
             if (Message.Function == __WINDOWMANAGER_DESTROY) {

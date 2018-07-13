@@ -52,6 +52,9 @@ CWindow::~CWindow() {
     if (m_ResourceId != 0) {
         nvgDeleteImage(m_VgContext, m_ResourceId);
     }
+    if (m_StreamBuffer != nullptr) {
+        DestroyBuffer(m_StreamBuffer);
+    }
 }
 
 void CWindow::SetOwner(UUId_t Owner) {
@@ -84,11 +87,11 @@ void CWindow::SetStreamingBufferFormat(GLenum Format, GLenum InternalFormat) {
 }
 
 void CWindow::SetStreamingBufferDimensions(int Width, int Height) {
-    m_StreamWidth       = Width;
-    m_StreamHeight      = Height;
+    m_StreamWidth   = Width;
+    m_StreamHeight  = Height;
 }
 
-void CWindow::SetStreamingBuffer(BufferObject_t *Buffer) {
+void CWindow::SetStreamingBuffer(DmaBuffer_t *Buffer) {
     m_StreamBuffer = Buffer;
 }
 

@@ -19,6 +19,7 @@
  * MollenOS X86 PS2 Controller (Controller) Driver
  * http://wiki.osdev.org/PS2
  */
+//#define __TRACE
 
 #include <os/utils.h>
 #include <threads.h>
@@ -288,27 +289,23 @@ PS2PortFinishCommand(
     
     // If we reach here we have to see if we need to fetch a 
     // result byte as well. Then just return. Only if the command succeeded tho!
-    if (Port->CurrentCommand->Response != NULL && Port->CurrentCommand->Executed == 0) {
-        // This was the result of the command stage, however if the command stage fails
-        // then we need to treat this like a failed command
-        if (Result == PS2_ACK_COMMAND) {
-            Port->CurrentCommand->Executed = 1;
-            return OsSuccess;
-        }
-        
-        *(Port->CurrentCommand->Response) = 0xFF;
-        Port->CurrentCommand->Executed = 2;
-        PS2PortExecuteNextCommand(Port);
-        return OsSuccess;
-    }
-
-    // Ok, this is ether a command result, or a data result, either way we don't care
-    // we just have to mark things correctly
     if (Port->CurrentCommand->Executed == 0) {
-        // Command result, what the hell should we do? Do we care?
-        Port->CurrentCommand->Executed = 1;
+        if (Port->CurrentCommand->Response != NULL) {
+            // This was the result of the command stage, however if the command stage fails
+            // then we need to treat this like a failed command
+            if (Result == PS2_ACK_COMMAND) {
+                Port->CurrentCommand->Executed = 1;
+                return OsSuccess;
+            }
+            *(Port->CurrentCommand->Response) = 0xFF;
+            Port->CurrentCommand->Executed = 2;
+        }
+        else {
+            // Command result, what the hell should we do? Do we care?
+            Port->CurrentCommand->Executed = 1;
+        }
     }
-    else {
+    else if (Port->CurrentCommand->Executed == 1) {
         if (Port->CurrentCommand->Response != NULL) {
             *(Port->CurrentCommand->Response) = Result;
         }

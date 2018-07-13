@@ -322,7 +322,10 @@
         "semaphore_slim.h": "c",
         "memoryspace.h": "c",
         "machine.h": "c",
-        "simd": "cpp"
+        "simd": "cpp",
+        "compare": "cpp",
+        "cuchar": "cpp",
+        "cstdint": "cpp"
     },
     "git.ignoreLimitWarning": true,
     "terminal.integrated.shell.windows": "C:\\Windows\\sysnative\\bash.exe"

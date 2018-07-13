@@ -51,7 +51,7 @@ public:
 
     void SetStreamingBufferFormat(GLenum Format, GLenum InternalFormat);
     void SetStreamingBufferDimensions(int Width, int Height);
-    void SetStreamingBuffer(BufferObject_t *Buffer);
+    void SetStreamingBuffer(DmaBuffer_t *Buffer);
     void SetStreaming(bool Enable);
 
     UUId_t GetOwner() const { return m_Owner; }
@@ -77,5 +77,5 @@ private:
     GLenum          m_InternalFormat;
     int             m_StreamWidth;
     int             m_StreamHeight;
-    BufferObject_t* m_StreamBuffer;
+    DmaBuffer_t*    m_StreamBuffer;
 };

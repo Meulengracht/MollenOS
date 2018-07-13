@@ -73,10 +73,12 @@ build_vioarr_soft:
 	@printf "%b" "\033[1;35mChecking if vioarr needs to be built\033[m\n"
 	@$(MAKE) -s -C vioarr -f makefile
 
-.PHONY: build_llvm
-build_llvm:
+llvm_out:
 	mkdir -p llvm_out
 	cd llvm_out && cmake -G "Unix Makefiles" -DCMAKE_INSTALL_PREFIX=$(LLVM) -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../llvm/cmake/platforms/Vali.cmake ../llvm
+
+.PHONY: build_llvm
+build_llvm: llvm_out
 	cd llvm_out && make && make install
 	@cp llvm_out/bin/*.lib lib/
 	@mv lib/*.dll bin/
