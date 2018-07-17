@@ -3,6 +3,9 @@
 # - libc
 ASM_SRCS = $(wildcard arch/$(VALI_ARCH)/*.s)
 
+# Include all the definitions for os
+include ../../config/common.mk
+
 # Setup architecture specific flags and paths
 ifeq ($(VALI_ARCH), i386)
 	math_flags = -D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL

@@ -33,11 +33,11 @@
 #include <stdlib.h>
 #include "local.h"
 
-/* _write
+/* write
  * This is the ANSI C version of fwrite */
-int _write(
+int write(
 	_In_ int fd, 
-	_In_ void *buffer, 
+	_In_ const void *buffer, 
 	_In_ unsigned int length)
 {
 	// Variables
@@ -53,7 +53,7 @@ int _write(
 
 	// If appending, go to EOF
 	if (Info->wxflag & WX_APPEND) {
-		_lseek(fd, 0, SEEK_END);
+		lseek(fd, 0, SEEK_END);
 	}
 
 	// If we aren't in text mode, raw write the data
@@ -137,7 +137,7 @@ size_t fwrite(
 			}
 
 			// Write buffer to stream
-			if (_write(stream->_fd, (void*)vptr, pcnt) <= 0) {
+			if (write(stream->_fd, vptr, pcnt) <= 0) {
 				stream->_flag |= _IOERR;
 				break;
 			}

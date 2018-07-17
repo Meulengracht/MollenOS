@@ -20,13 +20,9 @@
  * - Closes a given file-handle and cleans up
  */
 
-/* Includes
- * - System */
 #include <os/file.h>
 #include <os/syscall.h>
 
-/* Includes 
- * - Library */
 #include <io.h>
 #include <stdio.h>
 #include <errno.h>
@@ -34,9 +30,9 @@
 #include <stdlib.h>
 #include "local.h"
 
-/* _close
+/* close
  * This is ANSI C close function and works with filedescriptors */
-int _close(int fd)
+int close(int fd)
 {
 	// Variables
 	StdioObject_t *object   = NULL;
@@ -99,7 +95,7 @@ int fclose(FILE *stream)
 
 	// Call underlying close and never
     // unlock the file as underlying stream is closed
-	r = _close(stream->_fd);
+	r = close(stream->_fd);
 	free(stream);
 	return ((r == -1) || (flag & _IOERR) ? EOF : 0);
 }

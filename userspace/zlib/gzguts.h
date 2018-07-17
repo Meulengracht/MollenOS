@@ -45,7 +45,7 @@
 #  define WIDECHAR
 #endif
 
-#if defined(WINAPI_FAMILY) || defined(MOLLENOS)
+#if defined(WINAPI_FAMILY)
 #  define open _open
 #  define read _read
 #  define write _write

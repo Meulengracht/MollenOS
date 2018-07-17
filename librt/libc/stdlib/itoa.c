@@ -6,9 +6,9 @@
 /*
  * @implemented
  */
-char *i64toa(__int64 value, char *string, int radix)
+char *i64toa(int64_t value, char *string, int radix)
 {
-    unsigned long long val;
+    uint64_t val;
     int negative;
     char buffer[65];
     char *pos;
@@ -46,9 +46,9 @@ char *i64toa(__int64 value, char *string, int radix)
 /*
  * @implemented
  */
-int i64toa_s(__int64 value, char *str, size_t size, int radix)
+int i64toa_s(int64_t value, char *str, size_t size, int radix)
 {
-    unsigned __int64 val;
+    uint64_t val;
     unsigned int digit;
     int is_negative;
     char buffer[65], *pos;
@@ -124,7 +124,7 @@ int i64toa_s(__int64 value, char *str, size_t size, int radix)
 /*
  * @implemented
  */
-char *ui64toa(unsigned __int64 value, char *string, int radix)
+char *ui64toa(uint64_t value, char *string, int radix)
 {
     char buffer[65];
     char *pos;
@@ -150,7 +150,7 @@ char *ui64toa(unsigned __int64 value, char *string, int radix)
 /*
  * @implemented
  */
-int ui64toa_s(unsigned __int64 value, char *str, size_t size, int radix)
+int ui64toa_s(uint64_t value, char *str, size_t size, int radix)
 {
     char buffer[65], *pos;
     int digit;

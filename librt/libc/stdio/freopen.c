@@ -19,13 +19,9 @@
  * MollenOS C Library - Reopen file-handle
  */
 
-/* Includes
- * - System */
 #include <os/file.h>
 #include <os/syscall.h>
 
-/* Includes 
- * - Library */
 #include <io.h>
 #include <stdio.h>
 #include <errno.h>
@@ -60,13 +56,13 @@ FILE *freopen(
 	// we must open a new file
 	if (filename != NULL) {
 		// Close
-		_close(stream->_fd);
+		close(stream->_fd);
 
 		// Split flags
 		_fflags(mode, &open_flags, &stream_flags);
 
 		// Open and validate result
-		fd = _open(filename, open_flags, _S_IREAD | _S_IWRITE);
+		fd = open(filename, open_flags, S_IREAD | S_IWRITE);
 		if (fd == -1) {
 			return NULL;
 		}

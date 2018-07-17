@@ -2,6 +2,9 @@
 .PHONY: all
 all: build build/stage1.sys build/stage2.sys build/ap.sys
 
+# Include all the definitions for os
+include ../config/common.mk
+
 build:
 	@mkdir -p $@
 	

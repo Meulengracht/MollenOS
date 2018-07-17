@@ -20,16 +20,14 @@
  * - File size change implementation
  */
 
-/* Includes
- * - System */
 #include <os/file.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <io.h>
 
-/* _chsize
+/* chsize
  * Changes the size of a file-descriptor or truncates a file. */
-int _chsize(
+int chsize(
     _In_ int    fd,
     _In_ long   size)
 {

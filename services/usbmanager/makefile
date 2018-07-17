@@ -1,5 +1,9 @@
 # Makefile for building the mollenos usbmanager service
 # The usbmanager service takes care of all active usbdevices and controllers
+
+# Include all the definitions for os
+include ../../config/common.mk
+
 INCLUDES = -I../../librt/include -Iinclude
 SOURCES = $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o)

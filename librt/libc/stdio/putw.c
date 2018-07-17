@@ -30,7 +30,7 @@ int putw(
     int len;
 
     _lock_file(file);
-    len = _write(file->_fd, &val, sizeof(val));
+    len = write(file->_fd, &val, sizeof(val));
     if (len == sizeof(val))
     {
         _unlock_file(file);

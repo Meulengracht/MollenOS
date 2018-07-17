@@ -276,7 +276,7 @@
 #if defined(__GNUC__) && !defined(__INTEL_COMPILER) && !defined(MOLLENOS)
 #include "acgcc.h"
 
-#elif defined(_MSC_VER) || defined(MOLLENOS)
+#elif defined(_MSC_VER)
 #include "acmsvc.h"
 
 #elif defined(__INTEL_COMPILER)

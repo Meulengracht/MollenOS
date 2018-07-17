@@ -1,4 +1,8 @@
 # Makefile for building a generic userspace application or library
+
+# Include all the definitions for os
+include ../../config/common.mk
+
 INCLUDES = -I../include/cxx -I../include
 SOURCES = $(wildcard ./*.c)
 OBJECTS = $(SOURCES:.c=.o)

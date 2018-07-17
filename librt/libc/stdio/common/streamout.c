@@ -65,12 +65,12 @@ enum
 };
 
 #define va_arg_f(argptr, flags) \
-    (flags & FLAG_INT64) ? va_arg(argptr, __int64) : \
+    (flags & FLAG_INT64) ? va_arg(argptr, int64_t) : \
     (flags & FLAG_SHORT) ? (short)va_arg(argptr, int) : \
     va_arg(argptr, int)
 
 #define va_arg_fu(argptr, flags) \
-    (flags & FLAG_INT64) ? va_arg(argptr, unsigned __int64) : \
+    (flags & FLAG_INT64) ? va_arg(argptr, uint64_t) : \
     (flags & FLAG_SHORT) ? (unsigned short)va_arg(argptr, int) : \
     va_arg(argptr, unsigned int)
 
@@ -564,11 +564,11 @@ int streamout(
 
             case _T('d'):
             case _T('i'):
-                val64 = (__int64)va_arg_f(argptr, flags);
+                val64 = (int64_t)va_arg_f(argptr, flags);
 
-                if ((__int64)val64 < 0)
+                if ((int64_t)val64 < 0)
                 {
-                    val64 = -(__int64)val64;
+                    val64 = -(int64_t)val64;
                     prefix = _T("-");
                 }
                 else if (flags & FLAG_FORCE_SIGN)

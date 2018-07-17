@@ -20,21 +20,17 @@
  * - Deletes the file specified by the path
  */
 
-/* Includes
- * - System */
 #include <os/file.h>
 #include <os/syscall.h>
 
-/* Includes 
- * - Library */
 #include <io.h>
 #include <stdio.h>
 #include <errno.h>
 
-/* _unlink
+/* unlink
  * The is the ANSI C file 
  * deletion method and is shared by the 'modern' */
-int _unlink(
+int unlink(
 	_In_ const char *path) {
 	if (path == NULL) {
 		_set_errno(EINVAL);
@@ -46,5 +42,5 @@ int _unlink(
 /* remove
  * Deletes either a file or a directory specified by the path. */
 int remove(const char * filename) {
-	return _unlink(filename);
+	return unlink(filename);
 }

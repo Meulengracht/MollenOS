@@ -1,4 +1,8 @@
 # Makefile for building a generic userspace application or library
+
+# Include all the definitions for os
+include ../../config/common.mk
+
 INCLUDES = -I../include/cxx -I../include -Iinclude
 SOURCES = src/autofit/autofit.c \
 		  src/base/ftbase.c \

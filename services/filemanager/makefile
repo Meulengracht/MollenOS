@@ -1,5 +1,9 @@
 # Makefile for building the mollenos filemanager service
 # The filemanager service takes care of all opened files and file-requests
+
+# Include all the definitions for os
+include ../../config/common.mk
+
 INCLUDES = -I../../librt/include -Iinclude
 SOURCES = $(wildcard layouts/*.c) \
 		  $(wildcard *.c)

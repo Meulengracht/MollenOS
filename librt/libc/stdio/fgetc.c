@@ -64,7 +64,7 @@ int _filbuf(
 		int r;
 		
 		// Read a single byte
-		if ((r = _read(file->_fd, &c, 1)) != 1) {
+		if ((r = read(file->_fd, &c, 1)) != 1) {
 			file->_flag |= (r == 0) ? _IOEOF : _IOERR;
 			_unlock_file(file);
 			return EOF;
@@ -76,7 +76,7 @@ int _filbuf(
 	}
 	else {
 		// Now actually fill the buffer
-		file->_cnt = _read(file->_fd, file->_base, file->_bufsiz);
+		file->_cnt = read(file->_fd, file->_base, file->_bufsiz);
 
 		// If it failed, we are either at end of file or encounted
 		// a real error

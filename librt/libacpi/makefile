@@ -2,6 +2,10 @@
 # Includes sub-libraries as
 # - acpica
 # - arch sub-layer
+
+# Include all the definitions for os
+include ../../config/common.mk
+
 INCLUDES = -I../../kernel/include -I../include -Iinclude
 SOURCES = $(wildcard common/*.c) \
 		  $(wildcard debugger/*.c) \

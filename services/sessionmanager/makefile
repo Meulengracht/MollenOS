@@ -1,5 +1,9 @@
 # Makefile for building the mollenos sessionmanager service
 # The sessionmanager service takes care of all active users
+
+# Include all the definitions for os
+include ../../config/common.mk
+
 INCLUDES = -I../../librt/include -Iinclude
 SOURCES = $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o)

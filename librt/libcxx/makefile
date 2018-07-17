@@ -1,5 +1,9 @@
 # Makefile for building the standard c++abi runtime-libraries for userspace
 # This will produce the file libcxxabi.lib
+
+# Include all the definitions for os
+include ../../config/common.mk
+
 INCLUDES = -Icxx/include -I../include -Iabi/include/
 
 INT_SOURCES = ../libcrt/crtos.c ../libcrt/crtcoff.c

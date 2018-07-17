@@ -19,14 +19,10 @@
  * MollenOS C Library - File Opening & File Creation
  */
 
-/* Includes
- * - System */
 #include <os/utils.h>
 #include <os/file.h>
 #include <os/syscall.h>
 
-/* Includes 
- * - Library */
 #include <io.h>
 #include <stdio.h>
 #include <errno.h>
@@ -43,31 +39,31 @@ unsigned split_oflags(
     int         wxflags = 0;
     unsigned unsupp; // until we support everything
 
-    if (oflags & _O_APPEND)              wxflags |= WX_APPEND;
-    if (oflags & _O_BINARY)              {/* Nothing to do */}
-    else if (oflags & _O_TEXT)           wxflags |= WX_TEXT;
-    else if (oflags & _O_WTEXT)          wxflags |= WX_TEXT;
-    else if (oflags & _O_U16TEXT)        wxflags |= WX_TEXT;
-    else if (oflags & _O_U8TEXT)         wxflags |= WX_TEXT;
+    if (oflags & O_APPEND)               wxflags |= WX_APPEND;
+    if (oflags & O_BINARY)               {/* Nothing to do */}
+    else if (oflags & O_TEXT)            wxflags |= WX_TEXT;
+    else if (oflags & O_WTEXT)           wxflags |= WX_TEXT;
+    else if (oflags & O_U16TEXT)         wxflags |= WX_TEXT;
+    else if (oflags & O_U8TEXT)          wxflags |= WX_TEXT;
     else                                 wxflags |= WX_TEXT; // default to TEXT
-    if (oflags & _O_NOINHERIT)           wxflags |= WX_DONTINHERIT;
+    if (oflags & O_NOINHERIT)            wxflags |= WX_DONTINHERIT;
 
     if ((unsupp = oflags & ~(
-                    _O_BINARY|_O_TEXT|_O_APPEND|
-                    _O_TRUNC|_O_EXCL|_O_CREAT|
-                    _O_RDWR|_O_WRONLY|_O_TEMPORARY|
-                    _O_NOINHERIT|
-                    _O_SEQUENTIAL|_O_RANDOM|_O_SHORT_LIVED|
-                    _O_WTEXT|_O_U16TEXT|_O_U8TEXT
+                    O_BINARY|O_TEXT|O_APPEND|
+                    O_TRUNC|O_EXCL|O_CREAT|
+                    O_RDWR|O_WRONLY|O_TEMPORARY|
+                    O_NOINHERIT|
+                    O_SEQUENTIAL|O_RANDOM|O_SHORT_LIVED|
+                    O_WTEXT|O_U16TEXT|O_U8TEXT
                     ))) {
 		TRACE(":unsupported oflags 0x%x\n", unsupp);
 	}
     return wxflags;
 }
 
-/* _open
+/* open
  * ANSII Version of the fopen. Handles flags and creation flags. */
-int _open(
+int open(
 	_In_ __CONST char *file, 
 	_In_ int flags,
 	...)
@@ -87,7 +83,7 @@ int _open(
 	}
 
 	// Extract pmode flags
-	if (flags & _O_CREAT) {
+	if (flags & O_CREAT) {
 		va_start(ap, flags);
 		pmode = va_arg(ap, int);
 		va_end(ap);
@@ -101,13 +97,13 @@ int _open(
 	if (!_fval(Code)) {
 		fd = StdioFdAllocate(-1, wxflags);
         StdioCreateFileHandle(Handle, get_ioinfo(fd));
-		if (flags & _O_WTEXT) {
+		if (flags & O_WTEXT) {
 			get_ioinfo(fd)->exflag |= EF_UTF16|EF_UNK_UNICODE;		
 		}
-		else if (flags & _O_U16TEXT) {
+		else if (flags & O_U16TEXT) {
 			get_ioinfo(fd)->exflag |= EF_UTF16;
 		}
-		else if (flags & _O_U8TEXT) {
+		else if (flags & O_U8TEXT) {
 			get_ioinfo(fd)->exflag |= EF_UTF8;
 		}
 	}
@@ -115,8 +111,6 @@ int _open(
 		CloseFile(Handle);
 		_fval(Code);
 	}
-
-	// Done, return fd
 	return fd;
 }
 
@@ -180,7 +174,7 @@ FILE *fopen(
 	_fflags(mode, &open_flags, &stream_flags);
 
 	// Open file as file-descriptor
-	fd = _open(filename, open_flags, _S_IREAD | _S_IWRITE);
+	fd = open(filename, open_flags, S_IREAD | S_IWRITE);
 	if (fd == -1) {
 		return NULL;
 	}

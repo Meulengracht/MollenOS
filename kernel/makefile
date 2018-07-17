@@ -2,6 +2,10 @@
 # Includes sub-libraries as
 # - acpica
 # - arch sub-layer
+
+# Include all the definitions for os
+include ../config/common.mk
+
 INCLUDES = -I../librt/include -I../librt/libacpi/include -Iinclude
 SOURCES = $(wildcard acpi/*.c) \
 		  $(wildcard components/*.c) \

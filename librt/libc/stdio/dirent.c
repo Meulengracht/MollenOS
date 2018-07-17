@@ -20,17 +20,15 @@
  * - Directory functionality implementation
  */
 
-/* Includes
- * - System */
 #include <os/file.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <io.h>
 
-/* _opendir
+/* opendir
  * Opens or creates a new directory and returns a handle to it. */
 int
-_opendir(
+opendir(
     _In_  const char*   path,
     _In_  int           flags,
     _Out_ struct DIR**  handle)
@@ -47,9 +45,9 @@ _opendir(
     }
 
     // Convert open flags
-    if (flags & _O_CREAT) {
+    if (flags & O_CREAT) {
         OpenFlags |= __DIRECTORY_CREATE;
-        if (flags & _O_EXCL) {
+        if (flags & O_EXCL) {
             OpenFlags |= __DIRECTORY_FAILONEXIST;
         }
     }
@@ -71,10 +69,10 @@ _opendir(
     return 0;
 }
 
-/* _closedir
+/* closedir
  * Closes a directory handle. Releases any resources and frees the handle. */
 int
-_closedir(
+closedir(
     _In_ struct DIR *handle)
 {
     // Variables
@@ -95,11 +93,11 @@ _closedir(
     return 0;
 }
 
-/* _readdir
+/* readdir
  * Reads a directory entry at the current index and increases the current index
  * for the directory handle. */
 int
-_readdir(
+readdir(
     _In_ struct DIR*    handle, 
     _In_ struct DIRENT* entry)
 {

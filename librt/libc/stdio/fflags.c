@@ -19,14 +19,10 @@
  * MollenOS C Library - OS-File Utilities
  */
 
-/* Includes
- * - System */
 #include <os/utils.h>
 #include <os/file.h>
 #include <os/syscall.h>
 
-/* Includes 
- * - Library */
 #include <io.h>
 #include <stdio.h>
 #include <errno.h>
@@ -52,17 +48,17 @@ int _fflags(
 	switch (*mode++) {
 		case 'R':
 		case 'r':
-			*open_flags = plus ? _O_RDWR : _O_RDONLY;
+			*open_flags = plus ? O_RDWR : O_RDONLY;
 			*stream_flags = plus ? _IORW : _IOREAD;
 			break;
 		case 'W':
 		case 'w':
-			*open_flags = _O_CREAT | _O_TRUNC | (plus ? _O_RDWR : _O_WRONLY);
+			*open_flags = O_CREAT | O_TRUNC | (plus ? O_RDWR : O_WRONLY);
 			*stream_flags = plus ? _IORW : _IOWRT;
 			break;
 		case 'A':
 		case 'a':
-			*open_flags = _O_CREAT | _O_APPEND | (plus ? _O_RDWR : _O_WRONLY);
+			*open_flags = O_CREAT | O_APPEND | (plus ? O_RDWR : O_WRONLY);
 			*stream_flags = plus ? _IORW : _IOWRT;
 			break;
 		default:
@@ -76,18 +72,18 @@ int _fflags(
 		switch (*mode++) {
 			case 'B':
 			case 'b':
-				*open_flags |= _O_BINARY;
-				*open_flags &= ~_O_TEXT;
+				*open_flags |= O_BINARY;
+				*open_flags &= ~O_TEXT;
 				break;
 			case 't':
-				*open_flags |= _O_TEXT;
-				*open_flags &= ~_O_BINARY;
+				*open_flags |= O_TEXT;
+				*open_flags &= ~O_BINARY;
 				break;
 			case 'D':
-				*open_flags |= _O_TEMPORARY;
+				*open_flags |= O_TEMPORARY;
 				break;
 			case 'T':
-				*open_flags |= _O_SHORT_LIVED;
+				*open_flags |= O_SHORT_LIVED;
 				break;
 			case 'c':
 				*stream_flags |= _IOCOMMIT;
@@ -96,7 +92,7 @@ int _fflags(
 				*stream_flags &= ~_IOCOMMIT;
 				break;
 			case 'N':
-				*open_flags |= _O_NOINHERIT;
+				*open_flags |= O_NOINHERIT;
 				break;
 			case '+':
 			case ' ':
@@ -136,17 +132,17 @@ int _fflags(
 
 		if (!strncasecmp(utf8, mode, sizeof(utf8) / sizeof(utf8[0])))
 		{
-			*open_flags |= _O_U8TEXT;
+			*open_flags |= O_U8TEXT;
 			mode += sizeof(utf8) / sizeof(utf8[0]);
 		}
 		else if (!strncasecmp(utf16le, mode, sizeof(utf16le) / sizeof(utf16le[0])))
 		{
-			*open_flags |= _O_U16TEXT;
+			*open_flags |= O_U16TEXT;
 			mode += sizeof(utf16le) / sizeof(utf16le[0]);
 		}
 		else if (!strncasecmp(unicode, mode, sizeof(unicode) / sizeof(unicode[0])))
 		{
-			*open_flags |= _O_WTEXT;
+			*open_flags |= O_WTEXT;
 			mode += sizeof(unicode) / sizeof(unicode[0]);
 		}
 		else {
@@ -176,10 +172,10 @@ Flags_t _faccess(
 	Flags_t mFlags = __FILE_READ_ACCESS;
 
 	// Convert to access flags
-	if (oflags & _O_WRONLY) {
+	if (oflags & O_WRONLY) {
 		mFlags = __FILE_WRITE_ACCESS;
 	}
-	if (oflags & _O_RDWR) {
+	if (oflags & O_RDWR) {
 		mFlags |= __FILE_READ_ACCESS | __FILE_WRITE_ACCESS;
 	}
 	return mFlags;
@@ -194,19 +190,19 @@ Flags_t _fopts(
 	Flags_t mFlags = 0;
 
 	// Take care of opening flags
-	if (oflags & _O_CREAT) {
+	if (oflags & O_CREAT) {
 		mFlags |= __FILE_CREATE;
 	}
-	if (oflags & _O_TRUNC) {
+	if (oflags & O_TRUNC) {
 		mFlags |= __FILE_TRUNCATE;
 	}
-	if (oflags & _O_EXCL) {
+	if (oflags & O_EXCL) {
 		mFlags |= __FILE_FAILONEXIST;
 	}
-	if (oflags & _O_TEMPORARY) {
+	if (oflags & O_TEMPORARY) {
 		mFlags |= __FILE_TEMPORARY;
 	}
-	if (oflags & _O_BINARY) {
+	if (oflags & O_BINARY) {
 		mFlags |= __FILE_BINARY;
 	}
 	return mFlags;

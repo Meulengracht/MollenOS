@@ -1,82 +1,13 @@
 # Primary make-file for building and preparing the OS image
 # Required tools for building
-# - nasm assembler
-# - clang cross-compiler (requires cmake, svn, libelf)
-# - monodevelop
-# - python + (sudo apt-get install python-pip libyaml-dev) + (sudo pip install prettytable Mako pyaml dateutils --upgrade) + scons
+# - make gcc g++ nasm mono-complete libelf1 libelf-dev libffi6 libffi-dev flex bison python
+# - cmake 3.8+
+# - llvm/lld/clang toolchain and cross-compiler
+# - clang cross-compiler
+# - python + (sudo apt-get install python-pip libyaml-dev) + (sudo pip install prettytable Mako pyaml dateutils --upgrade)
 # Required environmental stuff:
 # - CROSS=/path/to/cross/home
 #
-export CC = $(CROSS)/bin/clang
-export CXX = $(CROSS)/bin/clang++
-export LD = $(CROSS)/bin/lld-link
-export LIB = $(CROSS)/bin/llvm-lib
-export AS = nasm
-
-# Check for architecture
-ifeq ($(VALI_ARCH), i386)
-	build_target = target_i386
-	arch_flags = -m32 -Di386 -D__i386__ --target=i386-pc-win32-itanium-coff 
-	link_flags = /machine:X86
-else ifeq ($(VALI_ARCH), amd64)
-	build_target = target_amd64
-	arch_flags = -m64 -Damd64 -D__x86_64__ --target=amd64-pc-win32-itanium-coff -fdwarf-exceptions
-	link_flags = /machine:X64
-else
-$(error VALI_ARCH is not set to a valid value)
-endif
-
-# MollenOS Configuration, comment in or out for specific features
-config_flags = 
-
-# Hardware Configuration
-config_flags += -D__OSCONFIG_HAS_MMIO
-config_flags += -D__OSCONFIG_HAS_VIDEO
-#config_flags += -D__OSCONFIG_HAS_UART
-
-# ACPI Configuration flags
-config_flags += -D__OSCONFIG_ACPI_SUPPORT
-#config_flags += -D__OSCONFIG_ACPIDEBUG
-#config_flags += -D__OSCONFIG_ACPIDEBUGGER
-#config_flags += -D__OSCONFIG_ACPIDEBUGMUTEXES
-#config_flags += -D__OSCONFIG_REDUCEDHARDWARE
-
-# OS Configuration
-config_flags += -D__OSCONFIG_DISABLE_SIGNALLING # Kernel fault on all hardware signals
-#config_flags += -D__OSCONFIG_LOGGING_KTRACE # Kernel Tracing
-#config_flags += -D__OSCONFIG_ENABLE_MULTIPROCESSORS # Use all cores
-#config_flags += -D__OSCONFIG_PROCESS_SINGLELOAD # No simuoultanous process loading
-config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE # Use a full debug console on height
-#config_flags += -D__OSCONFIG_NODRIVERS # Don't load drivers, run it without for debug
-#config_flags += -D__OSCONFIG_DISABLE_EHCI # Disable usb 2.0 support, run only in usb 1.1
-#config_flags += -D__OSCONFIG_EHCI_ALLOW_64BIT # Allow the EHCI driver to utilize 64 bit dma buffers
-#config_flags += -D__OSCONFIG_DISABLE_VIOARR # Disable auto starting the windowing system
-#config_flags += -D__OSCONFIG_TEST_KERNEL # Enable testing mode of the operating system
-
-# Before building llvm, one must export $(INCLUDES) to point at the include directory (full path)
-# Before building llvm, one must export $(LIBRARIES) to point at the lib directory (full path)
-# One must also specify $(CROSS) as per default
-#cmake -G "Unix Makefiles" -DCMAKE_INSTALL_PREFIX=$LLVM -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../llvm/cmake/platforms/Vali.cmake ../llvm
-
-# -Xclang -flto-visibility-public-std makes sure to generate cxx-abi stuff without __imp_ 
-# -std=c11 enables c11 support for C compilation 0;35
-# -gdwarf enables dwarf debugging generation, should be used ... -fexceptions -fcxx-exceptions
-disable_warnings = -Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function -Wno-atomic-alignment
-shared_flags = -U_WIN32 -fms-extensions -Wall -nostdlib -nostdinc -O3 -DMOLLENOS -Xclang -flto-visibility-public-std
-
-# Kernel + Kernel environment compilation flags
-export ASFLAGS = -f bin -D$(VALI_ARCH) -D__$(VALI_ARCH)__
-export GCFLAGS = $(shared_flags) $(arch_flags) -ffreestanding $(disable_warnings) $(config_flags)
-export GCXXFLAGS = -std=c++17 -ffreestanding $(shared_flags) $(arch_flags) $(disable_warnings) $(config_flags)
-
-# Shared link flags for everything. /debug:dwarf
-export GLFLAGS = /nodefaultlib $(link_flags) /subsystem:native
-
-# Userspace environment compilation flags
-export GUCFLAGS = $(shared_flags) $(arch_flags) $(disable_warnings) $(config_flags)
-export GUCXXFLAGS = -std=c++17 $(shared_flags) $(arch_flags) $(disable_warnings) $(config_flags)
-export GUCLIBRARIES = ../lib/libcrt.lib ../lib/libclang.lib ../lib/libc.lib ../lib/libunwind.lib ../lib/libm.lib
-export GUCXXLIBRARIES = ../lib/libcxx.lib ../lib/libclang.lib ../lib/libc.lib ../lib/libunwind.lib ../lib/libm.lib
 
 .PHONY: all
 all: build_tools gen_revision build_bootloader build_libraries build_kernel build_drivers setup_userspace build_initrd
@@ -128,10 +59,6 @@ setup_userspace:
 .PHONY: build_userspace
 build_userspace:
 	@$(MAKE) -s -C userspace -f makefile applications
-
-.PHONY: build_vioarr
-build_vioarr:
-	@$(MAKE) -s -C userspace -f makefile build_vioarr_osmesa
 
 .PHONY: build_kernel
 build_kernel:

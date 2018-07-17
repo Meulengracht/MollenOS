@@ -24,8 +24,6 @@
 #ifndef _ACPI_INTEFACE_H_
 #define _ACPI_INTEFACE_H_
 
-/* Includes
- * - System */
 #include <os/osdefs.h>
 
 /* Values for description table header signatures for tables defined in this

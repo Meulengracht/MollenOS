@@ -1,6 +1,9 @@
 # Makefile for building the standard c-library math for userspace
 #
 
+# Include all the definitions for os
+include ../../config/common.mk
+
 ASM_SRCS = $(wildcard $(VALI_ARCH)/*.s)
 ARCH_SRCS = $(wildcard $(VALI_ARCH)/*.c)
 SOURCES = $(wildcard *.c)

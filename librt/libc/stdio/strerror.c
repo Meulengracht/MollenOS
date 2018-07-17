@@ -32,14 +32,9 @@ __EXTERN const char** _errstrings;
  * to a string representation */
 char *strerror(int errnum)
 {
-	/* Sanitize upper bound */
 	if (errnum >= _MAX_ERRNO)
 		return (char*)_errstrings[126];
-
-	/* Sanitize lower bound */
 	if (errnum < 0)
 		return (char*)_errstrings[0];
-
-	/* Yay */
 	return (char*)_errstrings[errnum];
 }

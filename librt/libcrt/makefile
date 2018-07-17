@@ -1,6 +1,9 @@
 # Makefile for building the standard c runtime-libraries for userspace
 # This will produce the file libcrt.lib, libsrv.lib, libdrv.lib
 
+# Include all the definitions for os
+include ../../config/common.mk
+
 INCLUDES = -I../include
 
 C_SRCS_ALL = $(wildcard vscrt/*.c) \

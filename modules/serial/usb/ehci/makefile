@@ -1,5 +1,9 @@
 # Makefile for building a module dll that can be loaded by MollenOS
 # Valid for drivers
+
+# Include all the definitions for os
+include ../../../../config/common.mk
+
 SOURCES = $(wildcard ../common/*.c) \
 		  $(wildcard structures/*.c) \
 		  $(wildcard *.c)

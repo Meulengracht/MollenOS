@@ -51,7 +51,7 @@ _flsbuf(
         /* We can, check if there is something to write */
         count = (int)(stream->_ptr - stream->_base);
         if (count > 0)
-            written = _write(stream->_fd, stream->_base, count);
+            written = write(stream->_fd, stream->_base, count);
         else
             written = 0;
 
@@ -63,7 +63,7 @@ _flsbuf(
     else {
         /* There is no buffer, write the char directly */
         count = sizeof(TCHAR);
-        written = _write(stream->_fd, &ch, sizeof(TCHAR));
+        written = write(stream->_fd, &ch, sizeof(TCHAR));
     }
 
     /* Check for failure */

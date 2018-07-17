@@ -27,9 +27,9 @@
 #include <errno.h>
 #include <io.h>
 
-/* _link
+/* link
  * Creates a new symbolic or hard-link from a path to a new path. */
-int _link(
+int link(
     _In_ const char*    from, 
     _In_ const char*    to, 
     _In_ int            symbolic)

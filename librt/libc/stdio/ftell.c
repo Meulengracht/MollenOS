@@ -20,35 +20,31 @@
  * - Returns the current value of the position indicator of the stream.
  */
 
-/* Includes
- * - System */
 #include <os/file.h>
 #include <os/syscall.h>
 
-/* Includes 
- * - Library */
 #include <io.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include "local.h"
 
-/* _tell 
+/* tell 
  * Returns the current value of the position indicator of the stream.
  * ANSII Version of ftell */
-long _tell(
+long tell(
 	_In_ int fd)
 {
-	return _lseek(fd, 0, SEEK_CUR);
+	return lseek(fd, 0, SEEK_CUR);
 }
 
-/* _telli64 
+/* telli64 
  * Returns the current value of the position indicator of the stream.
  * ANSII Version of ftelli64 */
-long long _telli64(
+long long telli64(
 	_In_ int fd)
 {
-	return _lseeki64(fd, 0, SEEK_CUR);
+	return lseeki64(fd, 0, SEEK_CUR);
 }
 
 /* ftelli64
@@ -63,7 +59,7 @@ long long ftelli64(
 	_lock_file(stream);
 
 	// Get initial position
-	pos = _telli64(stream->_fd);
+	pos = telli64(stream->_fd);
 	if (pos == -1) {
 		_unlock_file(stream);
 		return -1;
@@ -89,7 +85,7 @@ long long ftelli64(
 		else if (!stream->_cnt) {
 			// Empty buffer
 		}
-		else if (_lseeki64(stream->_fd, 0, SEEK_END) == pos) {
+		else if (lseeki64(stream->_fd, 0, SEEK_END) == pos) {
 			int i;
 
 			// Adjust for buffer count
@@ -108,7 +104,7 @@ long long ftelli64(
 			char *p;
 
 			// Restore stream cursor in case we seeked to end
-			if (_lseeki64(stream->_fd, pos, SEEK_SET) != pos) {
+			if (lseeki64(stream->_fd, pos, SEEK_SET) != pos) {
 				_unlock_file(stream);
 				return -1;
 			}

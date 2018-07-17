@@ -1,5 +1,9 @@
 # Makefile for building the mollenos devicemanager service
 # The devicemanager service takes care of devices present in system
+
+# Include all the definitions for os
+include ../../config/common.mk
+
 INCLUDES = -I../../librt/include
 SOURCES = main.c
 

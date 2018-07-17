@@ -20,8 +20,6 @@
  * - Sets the position indicator associated with the stream to a new position.
  */
 
-/* Includes 
- * - Library */
 #include <io.h>
 #include <stdio.h>
 #include "local.h"
@@ -53,7 +51,7 @@ int fsetpos(
 	}
 
 	// Now actually set the position
-	ret = (_lseeki64(stream->_fd, *pos, SEEK_SET) == -1) ? -1 : 0;
+	ret = (lseeki64(stream->_fd, *pos, SEEK_SET) == -1) ? -1 : 0;
 
 	// Unlock and return
 	_unlock_file(stream);

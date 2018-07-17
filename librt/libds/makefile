@@ -2,6 +2,9 @@
 # - libds
 # - libdsk
 
+# Include all the definitions for os
+include ../../config/common.mk
+
 # Setup architecture specific flags and paths
 ifeq ($(VALI_ARCH), i386)
 	KERNEL_INCLUDES = -I../../kernel/include \

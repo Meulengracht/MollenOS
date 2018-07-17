@@ -1,5 +1,9 @@
 # Makefile for building the standard c-libraries for both userspace and kernel
 # - libusb
+
+# Include all the definitions for os
+include ../../config/common.mk
+
 ASFLAGS = -f win32 -Xvc
 INCLUDES = -I../include
 

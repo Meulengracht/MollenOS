@@ -20,7 +20,6 @@
  * - Read current stream pointer
  */
 
-/* Includes */
 #include <stdio.h>
 
 /* fgetpos

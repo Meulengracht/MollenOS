@@ -692,7 +692,7 @@ os_flush_buffer(
         int cnt = file->_ptr - file->_base;
 
         // Flush them
-        if (cnt > 0 && _write(file->_fd, file->_base, cnt) != cnt) {
+        if (cnt > 0 && write(file->_fd, file->_base, cnt) != cnt) {
             file->_flag |= _IOERR;
             return OsError;
         }

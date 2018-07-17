@@ -22,8 +22,6 @@
  *   them in the block of memory specified by ptr.
  */
 
-/* Includes 
- * - Library */
 #include <io.h>
 #include <stdio.h>
 #include <errno.h>
@@ -261,14 +259,14 @@ _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
     return BytesRead * 2;
 }
 
-/* _read
+/* read
  * returns the number of bytes read, which might be less than 
  * count if there are fewer than count bytes left in the file or if the file 
  * was opened in text mode, in which case each carriage return–line feed 
  * (CR-LF) pair is replaced with a single linefeed character. 
  * Only the single linefeed character is counted in the return value. 
  * The replacement does not affect the file pointer. */
-int _read(
+int read(
 	_In_ int fd, 
 	_In_ void *buffer, 
 	_In_ unsigned int len)
@@ -422,8 +420,6 @@ int _read(
 	else {
 		return -1;
 	}
-
-	// Done
 	return (int)BytesRead;
 }
 
@@ -483,7 +479,7 @@ size_t fread(
 		int i;
 		if (!stream->_cnt && rcnt < BUFSIZ 
 			&& (stream->_flag & (_IOMYBUF | _USERBUF))) {
-			stream->_cnt = _read(stream->_fd, stream->_base, stream->_bufsiz);
+			stream->_cnt = read(stream->_fd, stream->_base, stream->_bufsiz);
 			stream->_ptr = stream->_base;
 			i = (stream->_cnt < rcnt) ? stream->_cnt : rcnt;
 
@@ -501,13 +497,13 @@ size_t fread(
 			}
 		}
 		else if (rcnt > INT_MAX) {
-			i = _read(stream->_fd, vptr, INT_MAX);
+			i = read(stream->_fd, vptr, INT_MAX);
 		}
 		else if (rcnt < BUFSIZ) {
-			i = _read(stream->_fd, vptr, rcnt);
+			i = read(stream->_fd, vptr, rcnt);
 		}
 		else {
-			i = _read(stream->_fd, vptr, rcnt - BUFSIZ / 2);
+			i = read(stream->_fd, vptr, rcnt - BUFSIZ / 2);
 		}
 
 		// Update iterators

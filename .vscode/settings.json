@@ -325,7 +325,8 @@
         "simd": "cpp",
         "compare": "cpp",
         "cuchar": "cpp",
-        "cstdint": "cpp"
+        "cstdint": "cpp",
+        "mtypes.h": "c"
     },
     "git.ignoreLimitWarning": true,
     "terminal.integrated.shell.windows": "C:\\Windows\\sysnative\\bash.exe"
