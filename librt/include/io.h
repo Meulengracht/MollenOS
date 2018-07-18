@@ -93,6 +93,7 @@ CRTDECL(long long,  telli64(int fd));
 CRTDECL(int,        chsize(int fd, long size));
 
 // directory interface
+CRTDECL(int,        mkdir(const char *path, int mode));
 CRTDECL(int,        opendir(const char *path, int flags, struct DIR **handle));
 CRTDECL(int,        closedir(struct DIR *handle));
 CRTDECL(int,        readdir(struct DIR *handle, struct DIRENT *entry));

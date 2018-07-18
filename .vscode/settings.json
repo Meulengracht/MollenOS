@@ -326,7 +326,10 @@
         "compare": "cpp",
         "cuchar": "cpp",
         "cstdint": "cpp",
-        "mtypes.h": "c"
+        "mtypes.h": "c",
+        "nir_spirv.h": "c",
+        "intrin.h": "c",
+        "os.h": "c"
     },
     "git.ignoreLimitWarning": true,
     "terminal.integrated.shell.windows": "C:\\Windows\\sysnative\\bash.exe"

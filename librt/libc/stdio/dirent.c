@@ -25,6 +25,35 @@
 #include <errno.h>
 #include <io.h>
 
+/* mkdir
+ * Creates a new directory for the entire path. */
+int
+mkdir(
+    _In_ const char*    path,
+    _In_ int            mode)
+{
+    // Variables
+    FileSystemCode_t Code   = FsOk;
+    Flags_t OpenFlags       = __DIRECTORY_CREATE | __DIRECTORY_FAILONEXIST;
+    UUId_t FileHandle       = UUID_INVALID;
+    _CRT_UNUSED(mode);
+
+    // Validate the input
+    if (path == NULL) {
+        _set_errno(EINVAL);
+        return -1;
+    }
+
+    // Invoke service
+    Code = OpenDirectory(path, OpenFlags, 
+        __FILE_READ_ACCESS | __FILE_WRITE_ACCESS, &FileHandle);
+    if (_fval(Code) == -1) {
+        return -1;
+    }
+    Code = CloseDirectory(FileHandle);
+    return _fval(Code);
+}
+
 /* opendir
  * Opens or creates a new directory and returns a handle to it. */
 int
