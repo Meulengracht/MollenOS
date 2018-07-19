@@ -57,8 +57,6 @@ typedef struct _SystemPipeEntry {
 typedef struct _SystemPipeSegmentBuffer {
     uint8_t*                Pointer;
     size_t                  Size;           // Must be a power of 2.
-    SlimSemaphore_t         ReadQueue;
-    SlimSemaphore_t         WriteQueue;
 
     atomic_uint             ReadPointer;
     atomic_uint             ReadCommitted;
@@ -71,7 +69,6 @@ typedef struct _SystemPipeSegmentBuffer {
 typedef struct _SystemPipeSegment {
     SystemPipeSegmentBuffer_t           Buffer;
     atomic_int                          ProductionSpots;
-    SlimSemaphore_t                     ProductionQueue;
     unsigned int                        TicketBase;
     atomic_int                          References;
     SystemPipeEntry_t*                  Entries;

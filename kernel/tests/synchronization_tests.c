@@ -29,43 +29,121 @@
 #include <pipe.h>
 #include <heap.h>
 
-static volatile int SynchronizationTestActive   = 0;
-static int SynchronizationConsumes              = 0;
-static int SynchronizationProduces[2]           = { 0 };
-static atomic_int SynchronizationId             = ATOMIC_VAR_INIT(0);
+// Pipe indices
+#define TEST_CONSUMER    0
+#define TEST_PRODUCER    1
 
-/* TestWorkerConsumer
+// Configuration Flags
+#define SYNCHRONIZATION_TEST_DUBLEX         0x1
+#define SYNCHRONIZATION_TEST_CONSUMER       0x2
+
+struct SynchTestPackage {
+    Flags_t         Configuration;
+    SystemPipe_t*   Pipes[2];
+    int             Consumptions[2];
+    int             Productions[2];
+};
+
+static atomic_int ConsumptionId = ATOMIC_VAR_INIT(0);
+static atomic_int ProductionId  = ATOMIC_VAR_INIT(0);
+
+/* ConsumeWorker
  * The consumer thread for performing piping operations. */
 void
-TestWorkerConsumer(void* Context)
+ConsumeWorker(void* Context)
 {
     // Variables
+    struct SynchTestPackage *Package = (struct SynchTestPackage*)Context;
+    int Id = atomic_fetch_add(&ConsumptionId, 1);
     MRemoteCall_t Message;
-    SystemPipe_t *CommPipe  = (SystemPipe_t*)Context;
 
-    while (SynchronizationTestActive) {
-        ReadSystemPipe(CommPipe, (uint8_t*)&Message, sizeof(MRemoteCall_t));
-        SynchronizationConsumes++;
+    while (1) {
+        ReadSystemPipe(Package->Pipes[TEST_CONSUMER], (uint8_t*)&Message, sizeof(MRemoteCall_t));
+        Package->Consumptions[Id]++;
+        WriteSystemPipe(Package->Pipes[TEST_PRODUCER], (uint8_t*)&Message, sizeof(MRemoteCall_t));
     }
-    TRACE(" > Exiting consumer, final count %u", SynchronizationConsumes);
 }
 
-/* TestWorkerProducer
- * The producer thread for performing piping operations. */
+/* ProduceWorker
+ * The consumer thread for performing piping operations. */
 void
-TestWorkerProducer(void* Context)
+ProduceWorker(void* Context)
 {
     // Variables
+    struct SynchTestPackage *Package = (struct SynchTestPackage*)Context;
+    int Id = atomic_fetch_add(&ProductionId, 1);
     MRemoteCall_t Message;
-    
-    SystemPipe_t *CommPipe  = (SystemPipe_t*)Context;
-    int Id                  = atomic_fetch_add(&SynchronizationId, 1);
 
-    while (SynchronizationTestActive) {
-        WriteSystemPipe(CommPipe, (uint8_t*)&Message, sizeof(MRemoteCall_t));
-        SynchronizationProduces[Id]++;
+    while (1) {
+        WriteSystemPipe(Package->Pipes[TEST_CONSUMER], (uint8_t*)&Message, sizeof(MRemoteCall_t));
+        Package->Productions[Id]++;
+        ReadSystemPipe(Package->Pipes[TEST_PRODUCER], (uint8_t*)&Message, sizeof(MRemoteCall_t));
     }
-    TRACE(" > Exiting producer, final count %u", SynchronizationProduces[Id]);
+}
+
+/* WaitForSynchronizationTest
+ * Waits for the synchronization test to run for <timeout> in <steps>.
+ * Prints debug information every step time. */
+void
+WaitForSynchronizationTest(
+    _In_ struct SynchTestPackage*   Package,
+    _In_ UUId_t*                    Threads,
+    _In_ int                        NumberOfThreads, 
+    _In_ size_t                     Timeout,
+    _In_ size_t                     Step)
+{
+    size_t TimeLeft = Timeout;
+    int i;
+
+    // Run the test in steps
+    while (TimeLeft > 0) {
+        int NumberOfConsumes;
+        int NumberOfProduces;
+
+        SchedulerThreadSleep(NULL, Step);
+        TimeLeft -= Step;
+
+        // Debug the number of iterations done by each worker
+        if (NumberOfThreads == 4) {
+            TRACE(" > Consumes %u : %u / Produces %u : %u", Package->Consumptions[0],
+                Package->Consumptions[1], Package->Productions[0], Package->Productions[1]);
+        }
+        else if (NumberOfThreads == 3) {
+            TRACE(" > Consumes %u / Produces %u : %u", Package->Consumptions[0],
+                Package->Productions[0], Package->Productions[1]);
+        }
+        else {
+            TRACE(" > Consumes %u / Produces %u", Package->Consumptions[0], Package->Productions[0]);
+        }
+
+        // Debug data for consumer pipe
+        TRACE(" > consumer pipe: buffer r/w: (%u/%u), cr/cw: (%u/%u)", 
+            atomic_load(&Package->Pipes[TEST_CONSUMER]->ConsumerState.Head->Buffer.ReadPointer),
+            atomic_load(&Package->Pipes[TEST_CONSUMER]->ConsumerState.Head->Buffer.WritePointer),
+            atomic_load(&Package->Pipes[TEST_CONSUMER]->ConsumerState.Head->Buffer.ReadCommitted),
+            atomic_load(&Package->Pipes[TEST_CONSUMER]->ConsumerState.Head->Buffer.WriteCommitted));
+        
+        // Debug data for producer pipe
+        TRACE(" > producer pipe: buffer r/w: (%u/%u), cr/cw: (%u/%u)", 
+            atomic_load(&Package->Pipes[TEST_PRODUCER]->ConsumerState.Head->Buffer.ReadPointer),
+            atomic_load(&Package->Pipes[TEST_PRODUCER]->ConsumerState.Head->Buffer.WritePointer),
+            atomic_load(&Package->Pipes[TEST_PRODUCER]->ConsumerState.Head->Buffer.ReadCommitted),
+            atomic_load(&Package->Pipes[TEST_PRODUCER]->ConsumerState.Head->Buffer.WriteCommitted));
+    }
+
+    // Cleanup by killing threads and freeing pipes
+    TRACE(" > killing threads");
+    for (i = 0; i < NumberOfThreads; i++) {
+        if (ThreadingKillThread(Threads[i], 0, 1) != OsSuccess) {
+            WARNING(" > failed to kill thread %u", Threads[i]);
+        }
+    }
+    
+    TRACE(" > cleaning up");
+    DestroySystemPipe(Package->Pipes[TEST_CONSUMER]);
+    if (Package->Configuration & SYNCHRONIZATION_TEST_DUBLEX) {
+        DestroySystemPipe(Package->Pipes[TEST_PRODUCER]);
+    }
 }
 
 /* TestSynchronization
@@ -74,46 +152,36 @@ void
 TestSynchronization(void *Unused)
 {
     // Variables
-    SystemPipe_t *CommPipe;
-    UUId_t Threads[3];
-    int ConsumerTicket;
-    int Timeout;
+    struct SynchTestPackage *Package;
+    UUId_t Threads[4];
     _CRT_UNUSED(Unused);
 
     // Debug
     TRACE("TestSynchronization()");
 
-    // Create the communication pipe of a default sizes with MPMC configuration 
-    //CommPipe = CreateSystemPipe(PIPE_MULTIPLE_PRODUCERS, PIPE_DEFAULT_ENTRYCOUNT);
-    CommPipe = CreateSystemPipe(PIPE_MULTIPLE_PRODUCERS | PIPE_STRUCTURED_BUFFER, PIPE_DEFAULT_ENTRYCOUNT);
-    assert(CommPipe != NULL);
-    SynchronizationTestActive = 1;
+    // Allocate the packages on heap, stack is not OK
+    Package = (struct SynchTestPackage*)kmalloc(sizeof(struct SynchTestPackage));
+    memset((void*)Package, 0, sizeof(struct SynchTestPackage));
 
-    // Start three threads, let them run for a few minutes to allow a thorough testing
-    // of the pipes.
-    Threads[0] = ThreadingCreateThread("Test_Consumer", TestWorkerConsumer, CommPipe, 0);
-    Threads[1] = ThreadingCreateThread("Test_Producer", TestWorkerProducer, CommPipe, 0);
-    Threads[2] = ThreadingCreateThread("Test_Producer", TestWorkerProducer, CommPipe, 0);
-    assert(Threads[0] != UUID_INVALID);
-    assert(Threads[1] != UUID_INVALID);
-    assert(Threads[2] != UUID_INVALID);
+    /////////////////////////////////////////////////////////////////////////////////
+    // Test 1
+    // Test the basic raw pipe communication with a dublex connection, SPSC mode
+    /////////////////////////////////////////////////////////////////////////////////
+    TRACE(" > running configuration (RAW, SPSC, DUBLEX)");
 
-    TRACE(" > Waiting 2 minutes before terminating threads");
-    Timeout = 120 * 1000;
-    while (Timeout > 0) {
-        SchedulerThreadSleep(NULL, 10 * 1000);
-        Timeout -= (10 * 1000);
-        TRACE(" > Consumes %u / Produces %u : %u", SynchronizationConsumes, SynchronizationProduces[0], SynchronizationProduces[1]);
-        TRACE(" > Buffer R/W: (%u/%u), CR/CW: (%u/%u), ReadQueue %i, WriteQueue %i ", 
-            atomic_load(&CommPipe->ConsumerState.Head->Buffer.ReadPointer),     atomic_load(&CommPipe->ConsumerState.Head->Buffer.WritePointer),
-            atomic_load(&CommPipe->ConsumerState.Head->Buffer.ReadCommitted),   atomic_load(&CommPipe->ConsumerState.Head->Buffer.WriteCommitted),
-            atomic_load(&CommPipe->ConsumerState.Head->Buffer.ReadQueue.Value), atomic_load(&CommPipe->ConsumerState.Head->Buffer.WriteQueue.Value));
-        ConsumerTicket = (atomic_load(&CommPipe->ConsumerState.Ticket) - 1) & 0xFF;
-        TRACE(" > Consumer Ticket Status: (Ticket %u) - (ReadQueue %i, ProductionQueue %i) %u, %u", ConsumerTicket,
-            atomic_load(&CommPipe->ConsumerState.Head->Entries[ConsumerTicket].SyncObject.Value),
-            atomic_load(&CommPipe->ConsumerState.Head->ProductionQueue.Value),
-            atomic_load(&CommPipe->ConsumerState.Head->ProductionSpots),
-            CommPipe->ConsumerState.Head->Entries[ConsumerTicket].Length);
-    }
-    SynchronizationTestActive = 0;
+    // Setup package
+    Package->Configuration                  = SYNCHRONIZATION_TEST_DUBLEX;
+    Package->Pipes[TEST_CONSUMER]           = CreateSystemPipe(0, 6);
+    Package->Pipes[TEST_PRODUCER]           = CreateSystemPipe(0, 6);
+
+    // Check pipes
+    assert(Package->Pipes[TEST_CONSUMER] != NULL);
+    assert(Package->Pipes[TEST_PRODUCER] != NULL);
+
+    // Spawn threads
+    Threads[TEST_CONSUMER] = ThreadingCreateThread("Test_Consumer", ConsumeWorker, Package, 0);
+    Threads[TEST_PRODUCER] = ThreadingCreateThread("Test_Producer", ProduceWorker, Package, 0);
+    assert(Threads[TEST_CONSUMER] != UUID_INVALID);
+    assert(Threads[TEST_PRODUCER] != UUID_INVALID);
+    WaitForSynchronizationTest(Package, Threads, 2, 120 * 1000, 10 * 1000);
 }

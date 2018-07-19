@@ -21,11 +21,14 @@
  *   that is not bound to any specific virtual memory area but instead are bound
  *   to fixed physical addreses.
  */
+#define __MODULE "MBUF"
+//#define __TRACE
 
 #include <process/phoenix.h>
 #include <memorybuffer.h>
 #include <machine.h>
 #include <handle.h>
+#include <debug.h>
 #include <heap.h>
 
 /* CreateMemoryBuffer 
@@ -50,12 +53,14 @@ CreateMemoryBuffer(
         case MEMORY_BUFFER_KERNEL: {
             DmaAddress  = AllocateSystemMemory(Capacity, __MASK, MEMORY_DOMAIN);
             if (DmaAddress == 0) {
+                ERROR("Failed to allocate system memory");
                 return OsError;
             }
 
             Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), &DmaAddress, 
                 &Virtual, Capacity, MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_KERNEL, __MASK);
             if (Status != OsSuccess) {
+                ERROR("Failed to map system memory");
                 FreeSystemMemory(DmaAddress, Capacity);
                 return Status;
             }
@@ -64,12 +69,14 @@ CreateMemoryBuffer(
         case MEMORY_BUFFER_DEFAULT: {
             DmaAddress  = AllocateSystemMemory(Capacity, __MASK, MEMORY_DOMAIN);
             if (DmaAddress == 0) {
+                ERROR("Failed to allocate system memory");
                 return OsError;
             }
 
             Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), &DmaAddress, 
                 &Virtual, Capacity, MAPPING_USERSPACE | MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_PROCESS, __MASK);
             if (Status != OsSuccess) {
+                ERROR("Failed to map system memory");
                 FreeSystemMemory(DmaAddress, Capacity);
                 return Status;
             }
@@ -80,11 +87,13 @@ CreateMemoryBuffer(
             assert(CurrentProcess != NULL);
             Virtual = AllocateBlocksInBlockmap(CurrentProcess->Heap, __MASK, Size);
             if (Virtual == 0) {
+                ERROR("Failed to allocate heap memory");
                 return OsError;
             }
         } break;
 
         default: {
+            ERROR("Unknown memory buffer option");
             return OsError;
         } break;
     }
@@ -121,6 +130,7 @@ AcquireMemoryBuffer(
     // and adding a reference
     SystemBuffer = AcquireHandle(Handle);
     if (SystemBuffer == NULL) {
+        ERROR("Invalid memory buffer handle");
         return OsError;
     }
 
@@ -128,6 +138,7 @@ AcquireMemoryBuffer(
     Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), &SystemBuffer->Physical, 
         &Virtual, SystemBuffer->Capacity, MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_PROCESS, __MASK);
     if (Status != OsSuccess) {
+        ERROR("Failed to map process memory");
         return Status;
     }
 

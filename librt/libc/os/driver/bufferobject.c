@@ -40,8 +40,9 @@ CreateBuffer(
 {
     DmaBuffer_t *Buffer = NULL;
 
-    // Make sure the length is positive
-    if (Length == 0) {
+    // Make sure the length is positive if we are requesting
+    // to create a new buffer
+    if (FromHandle == UUID_INVALID && Length == 0) {
         return NULL;
     }
 

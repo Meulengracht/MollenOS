@@ -1,4 +1,8 @@
 # Makefile for building a generic userspace application
+
+# Include all the definitions for os
+include ../../config/common.mk
+
 ASFLAGS = -f win32 -Xvc
 INCLUDES = -I../include/cxx -I../include -I. -Igraphics
 NVG_SOURCES = engine/backend/nanovg.c

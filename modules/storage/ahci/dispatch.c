@@ -139,8 +139,8 @@ AhciCommandDispatch(
 			PrdtIndex, Prdt->DataBaseAddress, Prdt->Descriptor);
 
 		// Adjust counters
-		BufferPointer += TransferLength;
-		BytesLeft -= TransferLength;
+		BufferPointer 	+= TransferLength;
+		BytesLeft 		-= TransferLength;
 		PrdtIndex++;
 
 		// If this is the last PRDT packet, set IOC
@@ -264,7 +264,7 @@ AhciCommandRegisterFIS(
 		// Set CHS params
 
 		// Set count
-		Fis.Count = LOBYTE(Transaction->SectorCount);
+		Fis.Count = MAX(Transaction->SectorCount, UINT8_MAX); 
 	}
 	else if (Transaction->Device->AddressingMode == 1
 		|| Transaction->Device->AddressingMode == 2) {
@@ -280,11 +280,11 @@ AhciCommandRegisterFIS(
 			Fis.CylinderHighExtended    = (uint8_t)((SectorLBA >> 40) & 0xFF);
 
 			// Count is 16 bit here
-			Fis.Count = LOWORD(Transaction->SectorCount);
+			Fis.Count = MAX(Transaction->SectorCount, UINT16_MAX);
 		}
 		else {
 			// Count is 8 bit in lba28
-			Fis.Count = LOBYTE(Transaction->SectorCount);
+			Fis.Count = MAX(Transaction->SectorCount, UINT8_MAX);
 		}
 	}
 

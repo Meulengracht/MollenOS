@@ -100,7 +100,7 @@ void CWindow::SetStreaming(bool Enable) {
 
     if (Enable) {
         m_ResourceId = nvgCreateImageRGBA(m_VgContext, m_StreamWidth, m_StreamHeight, 
-            0, (const uint8_t*)GetBufferData(m_StreamBuffer));
+            0, (const uint8_t*)GetBufferDataPointer(m_StreamBuffer));
         if (m_ResourceId == 0) {
             m_Streaming = false;
         }
@@ -115,7 +115,7 @@ void CWindow::SetStreaming(bool Enable) {
 
 void CWindow::Update(size_t MilliSeconds) {
     if (m_Streaming && m_Swap) {
-        nvgUpdateImage(m_VgContext, m_ResourceId, (const uint8_t*)GetBufferData(m_StreamBuffer));
+        nvgUpdateImage(m_VgContext, m_ResourceId, (const uint8_t*)GetBufferDataPointer(m_StreamBuffer));
         m_Swap = false;
     }
 }

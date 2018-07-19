@@ -117,7 +117,7 @@ ScPipeWrite(
 }
 
 /* ScPipeReceive
- * Receives the requested number of bytes to the system-pipe. */
+ * Receives the requested number of bytes from the system-pipe. */
 OsStatus_t
 ScPipeReceive(
     _In_ UUId_t         ProcessId,

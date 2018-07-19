@@ -64,30 +64,30 @@ ThreadingYieldHandler(
     _In_ void *Context)
 {
     // Variables
-	Context_t *Regs     = NULL;
-	size_t TimeSlice    = 20;
-	int TaskPriority    = 0;
+    Context_t *Regs     = NULL;
+    size_t TimeSlice    = 20;
+    int TaskPriority    = 0;
 
     // Yield => start by sending eoi
-	ApicSendEoi(APIC_NO_GSI, INTERRUPT_YIELD);
-	Regs = _ThreadingSwitch((Context_t*)Context, 0, &TimeSlice, &TaskPriority);
+    ApicSendEoi(APIC_NO_GSI, INTERRUPT_YIELD);
+    Regs = _ThreadingSwitch((Context_t*)Context, 0, &TimeSlice, &TaskPriority);
 
     // If we are idle task - disable timer untill we get woken up
-	if (!ThreadingIsCurrentTaskIdle(CpuGetCurrentId())) {
-		ApicSetTaskPriority(61 - TaskPriority);
-		ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * TimeSlice);
-	}
-	else {
-		ApicSetTaskPriority(0);
-		ApicWriteLocal(APIC_INITIAL_COUNT, 0);
-	}
+    if (!ThreadingIsCurrentTaskIdle(CpuGetCurrentId())) {
+        ApicSetTaskPriority(61 - TaskPriority);
+        ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * TimeSlice);
+    }
+    else {
+        ApicSetTaskPriority(0);
+        ApicWriteLocal(APIC_INITIAL_COUNT, 0);
+    }
 
     // Manually update interrupt status
     InterruptSetActiveStatus(0);
     
     // Enter new thread, no returning
-	enter_thread(Regs);
-	return InterruptHandled;
+    enter_thread(Regs);
+    return InterruptHandled;
 }
 
 /* ThreadingRegister
@@ -98,22 +98,22 @@ OsStatus_t
 ThreadingRegister(
     _In_ MCoreThread_t *Thread)
 {
-	// Variables
+    // Variables
     DataKey_t Key;
 
-	// Allocate a new thread context (x86) and zero it out
+    // Allocate a new thread context (x86) and zero it out
     Key.Value           = (int)Thread->Id;
     Thread->Data[THREAD_DATA_FLAGS]         = 0;
     Thread->Data[THREAD_DATA_IOMAP]         = (uintptr_t)kmalloc(GDT_IOMAP_SIZE);
-	Thread->Data[THREAD_DATA_MATHBUFFER]    = (uintptr_t)kmalloc_a(0x1000);
-	memset((void*)Thread->Data[THREAD_DATA_MATHBUFFER], 0, 0x1000);
+    Thread->Data[THREAD_DATA_MATHBUFFER]    = (uintptr_t)kmalloc_a(0x1000);
+    memset((void*)Thread->Data[THREAD_DATA_MATHBUFFER], 0, 0x1000);
     
     // Disable all port-access
     if (THREADING_RUNMODE(Thread->Flags) != THREADING_KERNELMODE) {
-	    memset((void*)Thread->Data[THREAD_DATA_IOMAP], 0xFF, GDT_IOMAP_SIZE);
+        memset((void*)Thread->Data[THREAD_DATA_IOMAP], 0xFF, GDT_IOMAP_SIZE);
     }
     else {
-	    memset((void*)Thread->Data[THREAD_DATA_IOMAP], 0, GDT_IOMAP_SIZE);
+        memset((void*)Thread->Data[THREAD_DATA_IOMAP], 0, GDT_IOMAP_SIZE);
     }
     return OsSuccess;
 }
@@ -126,8 +126,8 @@ ThreadingUnregister(
     _In_ MCoreThread_t *Thread)
 {
     // Cleanup
-	kfree((void*)Thread->Data[THREAD_DATA_IOMAP]);
-	kfree((void*)Thread->Data[THREAD_DATA_MATHBUFFER]);
+    kfree((void*)Thread->Data[THREAD_DATA_IOMAP]);
+    kfree((void*)Thread->Data[THREAD_DATA_MATHBUFFER]);
     return OsSuccess;
 }
 
@@ -181,14 +181,14 @@ ThreadingIoSet(
 void
 ThreadingWakeCpu(
     _In_ UUId_t Cpu) {
-	ApicSendInterrupt(InterruptSpecific, Cpu, INTERRUPT_YIELD);
+    ApicSendInterrupt(InterruptSpecific, Cpu, INTERRUPT_YIELD);
 }
 
 /* ThreadingYield
  * Yields the current thread control to the scheduler */
 void
 ThreadingYield(void) {
-	_yield();
+    _yield();
 }
 
 /* ThreadingSignalDispatch
@@ -196,19 +196,19 @@ ThreadingYield(void) {
  * does not return. */
 OsStatus_t
 ThreadingSignalDispatch(
-	_In_ MCoreThread_t *Thread)
+    _In_ MCoreThread_t *Thread)
 {
-	// Variables
+    // Variables
     MCoreAsh_t *Process     = PhoenixGetAsh(Thread->AshId);
 
-	// Now we can enter the signal context 
-	// handler, we cannot return from this function
+    // Now we can enter the signal context 
+    // handler, we cannot return from this function
     Thread->Contexts[THREADING_CONTEXT_SIGNAL1] = ContextCreate(Thread->Flags,
         THREADING_CONTEXT_SIGNAL1, Process->SignalHandler,
         MEMORY_LOCATION_SIGNAL_RET, Thread->ActiveSignal.Signal, 0);
     TssUpdateThreadStack(CpuGetCurrentId(), (uintptr_t)Thread->Contexts[THREADING_CONTEXT_SIGNAL0]);
     enter_thread(Thread->Contexts[THREADING_CONTEXT_SIGNAL1]);
-	return OsSuccess;
+    return OsSuccess;
 }
 
 /* ThreadingImpersonate
@@ -221,9 +221,9 @@ ThreadingImpersonate(
 {
     // Variables
     MCoreThread_t *Current  = NULL;
-	UUId_t Cpu              = 0;
+    UUId_t Cpu              = 0;
 
-	// Instantiate values
+    // Instantiate values
     Cpu             = CpuGetCurrentId();
     Current         = ThreadingGetCurrentThread(Cpu);
     
@@ -236,7 +236,7 @@ ThreadingImpersonate(
     }
 
     // Load resources
-	TssUpdateIo(Cpu, (uint8_t*)Thread->Data[THREAD_DATA_IOMAP]);
+    TssUpdateIo(Cpu, (uint8_t*)Thread->Data[THREAD_DATA_IOMAP]);
     SwitchSystemMemorySpace(Thread->MemorySpace);
 }
 
@@ -251,19 +251,19 @@ _ThreadingSwitch(
     _Out_ size_t    *TimeSlice,
     _Out_ int       *TaskQueue)
 {
-	// Variables
-	MCoreThread_t *Thread   = NULL;
-	UUId_t Cpu              = CpuGetCurrentId();
+    // Variables
+    MCoreThread_t *Thread   = NULL;
+    UUId_t Cpu              = CpuGetCurrentId();
 
     // Sanitize the status of threading - return default values
-	if (ThreadingGetCurrentThread(Cpu) == NULL) {
+    if (ThreadingGetCurrentThread(Cpu) == NULL) {
         *TimeSlice      = 20;
         *TaskQueue      = 0;
-		return Context;
+        return Context;
     }
 
-	// Instantiate variables
-	Thread      = ThreadingGetCurrentThread(Cpu);
+    // Instantiate variables
+    Thread      = ThreadingGetCurrentThread(Cpu);
     assert(Thread != NULL);
     
     // Sanitize impersonation status, don't schedule
@@ -273,34 +273,34 @@ _ThreadingSwitch(
         return Context;
     }
 
-	// Save FPU/MMX/SSE information if it's
-	// been used, otherwise skip this and save time
-	if (Thread->Data[THREAD_DATA_FLAGS] & X86_THREAD_USEDFPU) {
+    // Save FPU/MMX/SSE information if it's
+    // been used, otherwise skip this and save time
+    if (Thread->Data[THREAD_DATA_FLAGS] & X86_THREAD_USEDFPU) {
         if (CpuHasFeatures(CPUID_FEAT_ECX_XSAVE | CPUID_FEAT_ECX_OSXSAVE, 0) == OsSuccess) {
             save_fpu_extended((uintptr_t*)Thread->Data[THREAD_DATA_MATHBUFFER]);
         }
         else {
             save_fpu((uintptr_t*)Thread->Data[THREAD_DATA_MATHBUFFER]);
         }
-	}
+    }
 
-	// Get a new thread for us to enter
-	Thread      = ThreadingSwitch(Thread, PreEmptive, &Context);
+    // Get a new thread for us to enter
+    Thread      = ThreadingSwitch(Thread, PreEmptive, &Context);
 
-	// Update out's
-	*TimeSlice  = Thread->TimeSlice;
-	*TaskQueue  = Thread->Queue;
+    // Update out's
+    *TimeSlice  = Thread->TimeSlice;
+    *TaskQueue  = Thread->Queue;
 
-	// Load thread-specific resources
+    // Load thread-specific resources
     SwitchSystemMemorySpace(Thread->MemorySpace);
-	TssUpdateThreadStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
-	TssUpdateIo(Cpu, (uint8_t*)Thread->Data[THREAD_DATA_IOMAP]);
+    TssUpdateThreadStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
+    TssUpdateIo(Cpu, (uint8_t*)Thread->Data[THREAD_DATA_IOMAP]);
 
     // Clear fpu flags and set task switch
     Thread->Data[THREAD_DATA_FLAGS] &= ~X86_THREAD_USEDFPU;
-	set_ts();
+    set_ts();
 
     // Handle any signals pending for thread
-	SignalHandle(Thread->Id);
+    SignalHandle(Thread->Id);
     return Context;
 }

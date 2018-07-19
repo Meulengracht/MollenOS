@@ -232,16 +232,12 @@ InitializeSegmentBuffer(
     // entries we thus have 32kb buffer, 256 entries we have 64kb.
     Buffer->Size        = (1 << (Pipe->SegmentLgSize * 2));
     Buffer->Pointer     = (uint8_t*)kmalloc(Buffer->Size);
-    SlimSemaphoreConstruct(&Buffer->ReadQueue, 0, 0);
-    SlimSemaphoreConstruct(&Buffer->WriteQueue, 0, 0);
 }
 
 static void
 DestroySegmentBuffer(
     _In_ SystemPipeSegmentBuffer_t* Buffer)
 {
-    SlimSemaphoreDestroy(&Buffer->ReadQueue);
-    SlimSemaphoreDestroy(&Buffer->WriteQueue);
     kfree(Buffer->Pointer);
 }
 
@@ -259,7 +255,7 @@ GetSegmentProductionSpot(
     while (1) {
         ProductionSpots = atomic_load(&Segment->ProductionSpots);
         if (!ProductionSpots) {
-            SlimSemaphoreWait(&Segment->ProductionQueue, 0);
+            SchedulerAtomicThreadSleep(&Segment->ProductionSpots, &ProductionSpots, 0);
             continue; // Start over
         }
 
@@ -304,7 +300,7 @@ AcquireSegmentBufferSpace(
         BytesAvailable  = MIN(
             CalculateBytesAvailableForWriting(Buffer, ReadIndex, WriteIndex), Length);
         if (BytesAvailable != Length) {
-            SlimSemaphoreWait(&Buffer->WriteQueue, 0);
+            SchedulerAtomicThreadSleep((atomic_int*)&Buffer->ReadCommitted, (int*)&ReadIndex, 0);
             continue; // Start over
         }
 
@@ -397,7 +393,7 @@ WriteRawSegmentBuffer(
             if (Pipe->Configuration & PIPE_NOBLOCK) {
                 break;
             }
-            SlimSemaphoreWait(&Buffer->WriteQueue, 0);
+            SchedulerAtomicThreadSleep((atomic_int*)&Buffer->ReadCommitted, (int*)&ReadIndex, 0);
             continue; // Start over
         }
 
@@ -434,7 +430,7 @@ WriteRawSegmentBuffer(
             Buffer->Pointer[(WriteIndex++ & (Buffer->Size - 1))] = Data[BytesWritten++];
         }
         atomic_fetch_add(&Buffer->WriteCommitted, BytesCommitted);
-        SlimSemaphoreSignal(&Buffer->ReadQueue, 1);
+        SchedulerHandleSignal((uintptr_t*)&Buffer->WriteCommitted);
     }
     return BytesWritten;
 }
@@ -466,7 +462,7 @@ ReadRawSegmentBuffer(
             if (Pipe->Configuration & PIPE_NOBLOCK) {
                 break;
             }
-            SlimSemaphoreWait(&Buffer->ReadQueue, 0);
+            SchedulerAtomicThreadSleep((atomic_int*)&Buffer->WriteCommitted, (int*)&WriteIndex, 0);
             continue; // Start over
         }
 
@@ -503,7 +499,7 @@ ReadRawSegmentBuffer(
             Data[BytesRead++] = Buffer->Pointer[(ReadIndex++ & (Buffer->Size - 1))];
         }
         atomic_fetch_add(&Buffer->ReadCommitted, BytesCommitted);
-        SlimSemaphoreSignal(&Buffer->WriteQueue, 1);
+        SchedulerHandleSignal((uintptr_t*)&Buffer->ReadCommitted);
 
         // If it was possible read bytes, return. With raw bytes we allow
         // the reader to read less, however never allow to read 0
@@ -540,13 +536,13 @@ SetSegmentEntryWriteable(
 {
     // Mark buffer read and free, and wakeup writers
     atomic_fetch_add(&Segment->Buffer.ReadCommitted, Entry->Length);
-    SlimSemaphoreSignal(&Segment->Buffer.WriteQueue, 1);
+    SchedulerHandleSignal((uintptr_t*)&Segment->Buffer.ReadCommitted);
 
     // No need to signal if we are unbounded, we don't reuse spots
     if (!(Pipe->Configuration & PIPE_UNBOUNDED)) {
         Entry->Length = 0;
         atomic_fetch_add(&Segment->ProductionSpots, 1);
-        SlimSemaphoreSignal(&Segment->ProductionQueue, 1);
+        SchedulerHandleSignal((uintptr_t*)&Segment->ProductionSpots);
     }
     atomic_fetch_sub(&Segment->References, 1);
 }
@@ -602,7 +598,6 @@ CreateSegment(
     assert(Pointer != NULL);
     memset((void*)Pointer, 0, BytesToAllocate);
 
-    SlimSemaphoreConstruct(&Pointer->ProductionQueue, 0, 0);
     InitializeSegmentBuffer(Pipe, &Pointer->Buffer);
     Pointer->TicketBase     = TicketBase;
     if (Pipe->Configuration & PIPE_STRUCTURED_BUFFER) {

@@ -610,8 +610,12 @@ SchedulerRequeueSleepers(
     MCoreThread_t *Thread = GetThreadReadyForExecution(CpuGetCurrentId());
 
     while (Thread != NULL) {
+        // Remove from sleeper queue and requeue them, however never
+        // requeue idle threads if they used sleep
         SchedulerQueueRemove(&IoQueue, Thread);
-        SchedulerThreadQueue(Thread, 1);
+        if (!(Thread->Flags & THREADING_IDLE)) {
+            SchedulerThreadQueue(Thread, 1);
+        }
         
         // Get next
         Thread = GetThreadReadyForExecution(CpuGetCurrentId());

@@ -45,32 +45,32 @@ ApicTimerHandler(
     _In_ void*  Context)
 {
     // Variables
-	Context_t *Regs     = NULL;
-	UUId_t CurrCpu      = CpuGetCurrentId();
-	size_t TimeSlice    = 20;
-	int TaskPriority    = 0;
+    Context_t *Regs     = NULL;
+    UUId_t CurrCpu      = CpuGetCurrentId();
+    size_t TimeSlice    = 20;
+    int TaskPriority    = 0;
 
     // Send EOI immediately
-	GlbTimerTicks[CurrCpu]++;
-	ApicSendEoi(0, INTERRUPT_LAPIC);
-	Regs = _ThreadingSwitch((Context_t*)Context, 1, &TimeSlice, &TaskPriority);
+    GlbTimerTicks[CurrCpu]++;
+    ApicSendEoi(0, INTERRUPT_LAPIC);
+    Regs = _ThreadingSwitch((Context_t*)Context, 1, &TimeSlice, &TaskPriority);
     
     // If we are idle task - disable timer untill we get woken up
-	if (!ThreadingIsCurrentTaskIdle(CurrCpu)) {
-		ApicSetTaskPriority(61 - TaskPriority);
-		ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * TimeSlice);
-	}
-	else {
-		ApicSetTaskPriority(0);
-		ApicWriteLocal(APIC_INITIAL_COUNT, 0);
-	}
+    if (!ThreadingIsCurrentTaskIdle(CurrCpu)) {
+        ApicSetTaskPriority(61 - TaskPriority);
+        ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * TimeSlice);
+    }
+    else {
+        ApicSetTaskPriority(0);
+        ApicWriteLocal(APIC_INITIAL_COUNT, 0);
+    }
 
     // Manually update interrupt status
     InterruptSetActiveStatus(0);
     
     // Enter new thread, no returning
-	enter_thread(Regs);
-	return InterruptHandled;
+    enter_thread(Regs);
+    return InterruptHandled;
 }
 
 /* ApicErrorHandler
@@ -80,6 +80,6 @@ InterruptStatus_t
 ApicErrorHandler(
     _In_ void*  Context)
 {
-	_CRT_UNUSED(Context);
-	return InterruptHandled;
+    _CRT_UNUSED(Context);
+    return InterruptHandled;
 }

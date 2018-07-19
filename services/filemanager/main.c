@@ -263,8 +263,7 @@ OnEvent(
                 (UUId_t)Message->Arguments[0].Data.Value,
                 (UUId_t)Message->Arguments[1].Data.Value,
                 Message->Arguments[2].Data.Value,
-                &Package.Index,
-                &Package.ActualSize);
+                &Package.Index, &Package.ActualSize);
             Result = RPCRespond(&Message->From, (const void*)&Package, sizeof(RWFilePackage_t));
         } break;
 
