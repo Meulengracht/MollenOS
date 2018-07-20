@@ -48,7 +48,7 @@
 
 /* Prototypes
  * The function handler for cleanup */
-OsStatus_t ThreadingReap(void *UserData);
+OsStatus_t ThreadingReap(void *Context);
 
 /* Globals, we need a few variables to keep track of running threads, idle threads
  * and a thread resources lock */
@@ -119,7 +119,7 @@ ThreadingEntryPoint(void)
     Thread      = ThreadingGetCurrentThread(Cpu);
     if (THREADING_RUNMODE(Thread->Flags) == THREADING_KERNELMODE || (Thread->Flags & THREADING_SWITCHMODE)) {
         Thread->Function(Thread->Arguments);
-        Thread->Flags |= THREADING_FINISHED;
+        ThreadingExitThread(0);
     }
     else {
         Thread->Contexts[THREADING_CONTEXT_LEVEL1] = ContextCreate(Thread->Flags, 
@@ -127,10 +127,8 @@ ThreadingEntryPoint(void)
         Thread->Contexts[THREADING_CONTEXT_SIGNAL1] = ContextCreate(Thread->Flags, 
             THREADING_CONTEXT_SIGNAL1, 0, 0, 0, 0);
         Thread->Flags |= THREADING_TRANSITION_USERMODE;
+        ThreadingYield();
     }
-
-    // When we reach here thread is dones
-    ThreadingYield();
     for (;;);
 }
 
@@ -239,6 +237,27 @@ ThreadingCreateThread(
     return Thread->Id;
 }
 
+/* ThreadingDetachThread
+ * Detaches a running thread by marking it without parent, this will make
+ * sure it runs untill it kills itself. */
+OsStatus_t
+ThreadingDetachThread(
+    _In_  UUId_t        ThreadId)
+{
+    MCoreThread_t *Thread   = ThreadingGetCurrentThread(CpuGetCurrentId());
+    MCoreThread_t *Target   = ThreadingGetThread(ThreadId);
+    UUId_t PId              = Thread->AshId;
+
+    // Perform security checks
+    if (Target == NULL || Target->AshId != PId) {
+        return OsError;
+    }
+    
+    // Perform the detach
+    Target->ParentId = UUID_INVALID;
+    return OsSuccess;
+}
+
 /* ThreadingCleanupThread
  * Cleans up a thread and all it's resources, the
  * address space is not cleaned up untill all threads
@@ -249,7 +268,8 @@ ThreadingCleanupThread(
     _In_ MCoreThread_t* Thread)
 {
     // Variables
-    CollectionItem_t *fNode = NULL;
+    CollectionItem_t *fNode;
+    int i;
 
     // Make sure we are completely removed as reference
     // from the entire system. We also signal all waiters for this
@@ -258,13 +278,24 @@ ThreadingCleanupThread(
     SchedulerThreadDequeue(Thread);
     ThreadingUnregister(Thread);
 
-    // Cleanup lists and systems
     _foreach(fNode, Thread->SignalQueue) {
         kfree(fNode->Data);
     }
     CollectionDestroy(Thread->SignalQueue);
+    
+    for (i = 0; i < THREADING_NUMCONTEXTS; i++) {
+        if (Thread->Contexts[i] != NULL) {
+            kfree(Thread->Contexts[i]);
+        }
+    }
+
     ReleaseSystemMemorySpace(Thread->MemorySpace);
     DestroySystemPipe(Thread->Pipe);
+
+    // Remove a reference to the process
+    if (Thread->AshId != UUID_INVALID) {
+        // @todo
+    }
 
     // Free resources allocated
     kfree((void*)Thread->Name);
@@ -278,19 +309,24 @@ void
 ThreadingExitThread(
     _In_ int            ExitCode)
 {
-    // Variables
-    MCoreThread_t *Thread   = NULL;
-    UUId_t Cpu              = 0;
+    CollectionItem_t *Node;
+    MCoreThread_t *Thread;
+    UUId_t Cpu;
 
     // Instantiate some values
     Cpu     = CpuGetCurrentId();
     Thread  = ThreadingGetCurrentThread(Cpu);
     assert(Thread != NULL);
 
-    // Update thread state
-    if (Thread->Flags & THREADING_CLEANUPASH) {
-        ThreadingTerminateAshThreads(Thread->AshId, 0, 0);
+    // Kill all children we have running around
+    _foreach(Node, &Threads) {
+        MCoreThread_t *Child = (MCoreThread_t*)Node;
+        if (Child->ParentId == Thread->Id) {
+            ThreadingKillThread(Thread->Id, ExitCode, 0);
+        }
     }
+
+    // Update thread state
     Thread->RetCode  = ExitCode;
     Thread->Flags   |= THREADING_FINISHED;
 
@@ -334,6 +370,7 @@ ThreadingKillThread(
             if (SchedulerThreadSignal(Target) != OsSuccess) {
                 // More drastic measures are neccessary here, this means someone else
                 // has it in queue or it's currently running on another core
+                ThreadingWakeCpu(Target->CoreId);
             }
         }
     }
@@ -371,11 +408,11 @@ ThreadingSwitchLevel(
     Thread->Arguments   = NULL;
 
     // Argument when calling a new process is just NULL
-    Thread->Contexts[THREADING_CONTEXT_LEVEL1] = ContextCreate(Thread->Flags,
+    Thread->Contexts[THREADING_CONTEXT_LEVEL1]  = ContextCreate(Thread->Flags,
         THREADING_CONTEXT_LEVEL1, (uintptr_t)Thread->Function, 0, 0, 0);
     Thread->Contexts[THREADING_CONTEXT_SIGNAL1] = ContextCreate(Thread->Flags,
         THREADING_CONTEXT_SIGNAL1, 0, 0, 0, 0);
-    Thread->Flags       |= THREADING_TRANSITION_USERMODE;
+    Thread->Flags |= THREADING_TRANSITION_USERMODE;
 
     // Safety-catch
     ThreadingYield();
@@ -396,21 +433,15 @@ ThreadingTerminateAshThreads(
     foreach(tNode, &Threads) {
         MCoreThread_t *Thread = (MCoreThread_t*)tNode;
         if (Thread->AshId == AshId) {
-            if ((Thread->Flags & THREADING_DETACHED) && !TerminateDetached) {
+            if ((Thread->ParentId == UUID_INVALID) && !TerminateDetached) {
                 // If it's a detached thread calling this method we are killing ourselves
                 // and shouldn't increase
                 if (Thread->Id != ThreadingGetCurrentThreadId()) {
-                    Thread->Flags |= THREADING_CLEANUPASH;
                     ThreadsNotKilled++;
                 }
             }
             else {
-                Thread->Flags   |= THREADING_FINISHED;
-                Thread->RetCode  = -1;
-                if (TerminateInstantly) {
-                    // Is thread running on any cpu currently?
-                    // then send a yield to it @todo
-                }
+                ThreadingKillThread(Thread->Id, 0, TerminateInstantly);
             }
         }
     }
@@ -482,18 +513,15 @@ ThreadingGetCurrentMode(void)
  * Garbage-Collector function, it reaps and cleans up all threads */
 OsStatus_t
 ThreadingReap(
-    _In_ void *UserData)
+    _In_ void*          Context)
 {
-    // Instantiate the thread pointer
-    MCoreThread_t *Thread = (MCoreThread_t*)UserData;
-    DataKey_t Key;
+    MCoreThread_t *Thread = (MCoreThread_t*)Context;
     if (Thread == NULL) {
         return OsError;
     }
-    
-    // Locate and remove it from list of threads
-    Key.Value = (int)Thread->Id;
-    CollectionRemoveByKey(&Threads, Key);
+    CollectionRemoveByNode(&Threads, &Thread->CollectionHeader);
+
+    // Cleanup the thread
     ThreadingCleanupThread(Thread);
     return OsSuccess;
 }

@@ -61,6 +61,7 @@ PhoenixFinishAsh(
     // Update currently running thread
     Ash->MainThread         = Thread->Id;
     Thread->AshId           = Ash->Id;
+    Thread->ParentId        = UUID_INVALID;
 
     // Store current address space
     Ash->MemorySpace       = GetCurrentSystemMemorySpace();
@@ -168,6 +169,7 @@ PhoenixInitializeAsh(
     Ash->Id                 = PhoenixGetNextId();
     Ash->Parent             = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
     Ash->Type               = AshBase;
+    atomic_store_explicit(&Ash->References, 1, memory_order_relaxed);
 
     // Split path, even if a / is not found
     // it won't fail, since -1 + 1 = 0, so we just copy the entire string

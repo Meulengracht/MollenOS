@@ -102,7 +102,9 @@ CreateSystemMemorySpace(
         if (MemorySpace->Parent == GetSystemMemorySpace()) {
             MemorySpace->Parent = NULL;
         }
-        else if (MemorySpace->Parent != NULL) {
+        
+        // Add a reference to our parent, we need it
+        if (MemorySpace->Parent != NULL) {
             atomic_fetch_add(&MemorySpace->Parent->References, 1);
         }
         CloneVirtualSpace(MemorySpace->Parent, MemorySpace, (Flags & MEMORY_SPACE_INHERIT) ? 1 : 0);

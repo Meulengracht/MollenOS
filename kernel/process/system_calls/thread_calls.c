@@ -85,19 +85,7 @@ OsStatus_t
 ScThreadDetach(
     _In_  UUId_t    ThreadId)
 {
-    // Variables
-    MCoreThread_t *Thread   = ThreadingGetCurrentThread(CpuGetCurrentId());
-    MCoreThread_t *Target   = ThreadingGetThread(ThreadId);
-    UUId_t PId              = Thread->AshId;
-
-    // Perform security checks
-    if (Target == NULL || Target->AshId != PId) {
-        return OsError;
-    }
-    
-    // Perform the detach
-    Target->Flags |= THREADING_DETACHED;
-    return OsSuccess;
+    return ThreadingDetachThread(ThreadId);
 }
 
 /* ScThreadSignal

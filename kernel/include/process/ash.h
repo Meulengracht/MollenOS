@@ -64,17 +64,16 @@ typedef struct _MCoreAsh {
     UUId_t                  Id;
     UUId_t                  Parent;
     MCoreAshType_t          Type;
+    atomic_int              References;
 
-    // The name of the Ash, this is usually
-    // derived from the file that spawned it
+    // The name of the Ash, this is usually derived from the file that spawned it
     MString_t*              Name;
     MString_t*              Path;
     Collection_t*           Pipes;
     Collection_t*           FileMappings;
 
     // Memory management and information,
-    // Ashes run in their own space, and have their
-    // own bitmap allocators
+    // Ashes run in their own space, and have their own bitmap allocators
     SystemMemorySpace_t*    MemorySpace;
     BlockBitmap_t*          Heap;
     uintptr_t               SignalHandler;

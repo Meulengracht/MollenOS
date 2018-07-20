@@ -85,8 +85,6 @@ typedef void(*ThreadEntry_t)(void*);
 #define THREADING_INHERIT               0x00000100
 #define THREADING_FINISHED              0x00000200
 #define THREADING_IMPERSONATION         0x00000400
-#define THREADING_DETACHED              0x00000800
-#define THREADING_CLEANUPASH            0x00001000
 
 #define THREADING_TRANSITION_USERMODE   0x10000000
 #define THREADING_TRANSITION_SLEEP      0x20000000
@@ -192,6 +190,13 @@ ThreadingKillThread(
 KERNELAPI int KERNELABI
 ThreadingJoinThread(
     _In_ UUId_t         ThreadId);
+
+/* ThreadingDetachThread
+ * Detaches a running thread by marking it without parent, this will make
+ * sure it runs untill it kills itself. */
+KERNELAPI OsStatus_t KERNELABI
+ThreadingDetachThread(
+    _In_  UUId_t        ThreadId);
 
 /* ThreadingSwitchLevel
  * Initializes non-kernel mode and marks the thread

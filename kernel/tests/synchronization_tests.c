@@ -60,7 +60,9 @@ ConsumeWorker(void* Context)
     while (1) {
         ReadSystemPipe(Package->Pipes[TEST_CONSUMER], (uint8_t*)&Message, sizeof(MRemoteCall_t));
         Package->Consumptions[Id]++;
-        WriteSystemPipe(Package->Pipes[TEST_PRODUCER], (uint8_t*)&Message, sizeof(MRemoteCall_t));
+        if (Package->Configuration & SYNCHRONIZATION_TEST_DUBLEX) {
+            WriteSystemPipe(Package->Pipes[TEST_PRODUCER], (uint8_t*)&Message, sizeof(MRemoteCall_t));
+        }
     }
 }
 
@@ -77,7 +79,9 @@ ProduceWorker(void* Context)
     while (1) {
         WriteSystemPipe(Package->Pipes[TEST_CONSUMER], (uint8_t*)&Message, sizeof(MRemoteCall_t));
         Package->Productions[Id]++;
-        ReadSystemPipe(Package->Pipes[TEST_PRODUCER], (uint8_t*)&Message, sizeof(MRemoteCall_t));
+        if (Package->Configuration & SYNCHRONIZATION_TEST_DUBLEX) {
+            ReadSystemPipe(Package->Pipes[TEST_PRODUCER], (uint8_t*)&Message, sizeof(MRemoteCall_t));
+        }
     }
 }
 
@@ -97,38 +101,37 @@ WaitForSynchronizationTest(
 
     // Run the test in steps
     while (TimeLeft > 0) {
-        int NumberOfConsumes;
-        int NumberOfProduces;
-
         SchedulerThreadSleep(NULL, Step);
         TimeLeft -= Step;
 
         // Debug the number of iterations done by each worker
         if (NumberOfThreads == 4) {
-            TRACE(" > Consumes %u : %u / Produces %u : %u", Package->Consumptions[0],
+            TRACE(" > consumes %u : %u / produces %u : %u", Package->Consumptions[0],
                 Package->Consumptions[1], Package->Productions[0], Package->Productions[1]);
         }
         else if (NumberOfThreads == 3) {
-            TRACE(" > Consumes %u / Produces %u : %u", Package->Consumptions[0],
+            TRACE(" > consumes %u / produces %u : %u", Package->Consumptions[0],
                 Package->Productions[0], Package->Productions[1]);
         }
         else {
-            TRACE(" > Consumes %u / Produces %u", Package->Consumptions[0], Package->Productions[0]);
+            TRACE(" > consumes %u / produces %u", Package->Consumptions[0], Package->Productions[0]);
         }
 
-        // Debug data for consumer pipe
+        // Debug data for simplex pipe
         TRACE(" > consumer pipe: buffer r/w: (%u/%u), cr/cw: (%u/%u)", 
             atomic_load(&Package->Pipes[TEST_CONSUMER]->ConsumerState.Head->Buffer.ReadPointer),
             atomic_load(&Package->Pipes[TEST_CONSUMER]->ConsumerState.Head->Buffer.WritePointer),
             atomic_load(&Package->Pipes[TEST_CONSUMER]->ConsumerState.Head->Buffer.ReadCommitted),
             atomic_load(&Package->Pipes[TEST_CONSUMER]->ConsumerState.Head->Buffer.WriteCommitted));
         
-        // Debug data for producer pipe
-        TRACE(" > producer pipe: buffer r/w: (%u/%u), cr/cw: (%u/%u)", 
-            atomic_load(&Package->Pipes[TEST_PRODUCER]->ConsumerState.Head->Buffer.ReadPointer),
-            atomic_load(&Package->Pipes[TEST_PRODUCER]->ConsumerState.Head->Buffer.WritePointer),
-            atomic_load(&Package->Pipes[TEST_PRODUCER]->ConsumerState.Head->Buffer.ReadCommitted),
-            atomic_load(&Package->Pipes[TEST_PRODUCER]->ConsumerState.Head->Buffer.WriteCommitted));
+        // Debug data for dublex pipe
+        if (Package->Configuration & SYNCHRONIZATION_TEST_DUBLEX) {
+            TRACE(" > producer pipe: buffer r/w: (%u/%u), cr/cw: (%u/%u)", 
+                atomic_load(&Package->Pipes[TEST_PRODUCER]->ConsumerState.Head->Buffer.ReadPointer),
+                atomic_load(&Package->Pipes[TEST_PRODUCER]->ConsumerState.Head->Buffer.WritePointer),
+                atomic_load(&Package->Pipes[TEST_PRODUCER]->ConsumerState.Head->Buffer.ReadCommitted),
+                atomic_load(&Package->Pipes[TEST_PRODUCER]->ConsumerState.Head->Buffer.WriteCommitted));
+        }
     }
 
     // Cleanup by killing threads and freeing pipes
@@ -144,6 +147,9 @@ WaitForSynchronizationTest(
     if (Package->Configuration & SYNCHRONIZATION_TEST_DUBLEX) {
         DestroySystemPipe(Package->Pipes[TEST_PRODUCER]);
     }
+    atomic_store_explicit(&ConsumptionId, 0, memory_order_relaxed);
+    atomic_store_explicit(&ProductionId, 0, memory_order_relaxed);
+    memset((void*)Package, 0, sizeof(struct SynchTestPackage));
 }
 
 /* TestSynchronization
@@ -170,18 +176,80 @@ TestSynchronization(void *Unused)
     TRACE(" > running configuration (RAW, SPSC, DUBLEX)");
 
     // Setup package
-    Package->Configuration                  = SYNCHRONIZATION_TEST_DUBLEX;
-    Package->Pipes[TEST_CONSUMER]           = CreateSystemPipe(0, 6);
-    Package->Pipes[TEST_PRODUCER]           = CreateSystemPipe(0, 6);
+    Package->Configuration          = SYNCHRONIZATION_TEST_DUBLEX;
+    Package->Pipes[TEST_CONSUMER]   = CreateSystemPipe(0, 6);
+    Package->Pipes[TEST_PRODUCER]   = CreateSystemPipe(0, 6);
 
     // Check pipes
     assert(Package->Pipes[TEST_CONSUMER] != NULL);
     assert(Package->Pipes[TEST_PRODUCER] != NULL);
 
     // Spawn threads
-    Threads[TEST_CONSUMER] = ThreadingCreateThread("Test_Consumer", ConsumeWorker, Package, 0);
-    Threads[TEST_PRODUCER] = ThreadingCreateThread("Test_Producer", ProduceWorker, Package, 0);
-    assert(Threads[TEST_CONSUMER] != UUID_INVALID);
-    assert(Threads[TEST_PRODUCER] != UUID_INVALID);
+    Threads[0] = ThreadingCreateThread("Test_Consumer", ConsumeWorker, Package, 0);
+    Threads[1] = ThreadingCreateThread("Test_Producer", ProduceWorker, Package, 0);
+    assert(Threads[0] != UUID_INVALID);
+    assert(Threads[1] != UUID_INVALID);
+    WaitForSynchronizationTest(Package, Threads, 2, 120 * 1000, 10 * 1000);
+
+    /////////////////////////////////////////////////////////////////////////////////
+    // Test 2
+    // Test the basic raw pipe communication with a simplex connection, SPSC mode
+    /////////////////////////////////////////////////////////////////////////////////
+    TRACE(" > running configuration (RAW, SPSC, SIMPLEX)");
+
+    // Setup package
+    Package->Configuration          = 0;
+    Package->Pipes[TEST_CONSUMER]   = CreateSystemPipe(0, 6);
+
+    // Check pipes
+    assert(Package->Pipes[TEST_CONSUMER] != NULL);
+
+    // Spawn threads
+    Threads[0] = ThreadingCreateThread("Test_Consumer", ConsumeWorker, Package, 0);
+    Threads[1] = ThreadingCreateThread("Test_Producer", ProduceWorker, Package, 0);
+    assert(Threads[0] != UUID_INVALID);
+    assert(Threads[1] != UUID_INVALID);
+    WaitForSynchronizationTest(Package, Threads, 2, 120 * 1000, 10 * 1000);
+
+    /////////////////////////////////////////////////////////////////////////////////
+    // Test 3
+    // Test the structured pipe communication with a dublex connection, SPSC mode
+    /////////////////////////////////////////////////////////////////////////////////
+    TRACE(" > running configuration (STRUCTURED, SPSC, DUBLEX)");
+
+    // Setup package
+    Package->Configuration          = SYNCHRONIZATION_TEST_DUBLEX;
+    Package->Pipes[TEST_CONSUMER]   = CreateSystemPipe(PIPE_STRUCTURED_BUFFER, PIPE_DEFAULT_ENTRYCOUNT);
+    Package->Pipes[TEST_PRODUCER]   = CreateSystemPipe(PIPE_STRUCTURED_BUFFER, PIPE_DEFAULT_ENTRYCOUNT);
+
+    // Check pipes
+    assert(Package->Pipes[TEST_CONSUMER] != NULL);
+    assert(Package->Pipes[TEST_PRODUCER] != NULL);
+
+    // Spawn threads
+    Threads[0] = ThreadingCreateThread("Test_Consumer", ConsumeWorker, Package, 0);
+    Threads[1] = ThreadingCreateThread("Test_Producer", ProduceWorker, Package, 0);
+    assert(Threads[0] != UUID_INVALID);
+    assert(Threads[1] != UUID_INVALID);
+    WaitForSynchronizationTest(Package, Threads, 2, 120 * 1000, 10 * 1000);
+
+    /////////////////////////////////////////////////////////////////////////////////
+    // Test 4
+    // Test the structured pipe communication with a simplex connection, SPSC mode
+    /////////////////////////////////////////////////////////////////////////////////
+    TRACE(" > running configuration (STRUCTURED, SPSC, SIMPLEX)");
+
+    // Setup package
+    Package->Configuration          = 0;
+    Package->Pipes[TEST_CONSUMER]   = CreateSystemPipe(PIPE_STRUCTURED_BUFFER, PIPE_DEFAULT_ENTRYCOUNT);
+
+    // Check pipes
+    assert(Package->Pipes[TEST_CONSUMER] != NULL);
+
+    // Spawn threads
+    Threads[0] = ThreadingCreateThread("Test_Consumer", ConsumeWorker, Package, 0);
+    Threads[1] = ThreadingCreateThread("Test_Producer", ProduceWorker, Package, 0);
+    assert(Threads[0] != UUID_INVALID);
+    assert(Threads[1] != UUID_INVALID);
     WaitForSynchronizationTest(Package, Threads, 2, 120 * 1000, 10 * 1000);
 }
