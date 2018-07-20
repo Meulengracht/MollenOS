@@ -23,8 +23,6 @@
 #ifndef __OS_PEIMAGE__
 #define __OS_PEIMAGE__
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
 
 /* Magic Constants used for data integrity */
@@ -63,7 +61,7 @@
 #define PE_ATTRIBUTE_DLL                    0x2000
 
 /* Available architectures for a PE-file. Which at the
- * moment only means 32 and 64 bit archs untill 128 some day comes :-) */
+ * moment only means 32 and 64 bit archs */
 #define PE_ARCHITECTURE_32                  0x10B
 #define PE_ARCHITECTURE_64                  0x20B
 

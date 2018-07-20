@@ -22,7 +22,7 @@ ASFLAGS = -f bin -D$(VALI_ARCH) -D__$(VALI_ARCH)__
 GCFLAGS = $(shared_flags) $(arch_flags) -ffreestanding $(disable_warnings) $(config_flags)
 GCXXFLAGS = -std=c++17 -ffreestanding $(shared_flags) $(arch_flags) $(disable_warnings) $(config_flags)
 
-# Shared link flags for everything. /debug:dwarf
+# Shared link flags for everything. /debug:dwarf /ignore:4217
 GLFLAGS = /nodefaultlib /machine:X64 /subsystem:native
 
 # Userspace environment compilation flags

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
  *
  * MollenOS Service - Session Manager
  * - Contains the implementation of the session-manager which keeps track
- *   of all users on the device.
+ *   of all users and their running applications.
  */
 #define __TRACE
 
@@ -86,7 +86,8 @@ OnEvent(
             }
         } break;
         case __SESSIONMANAGER_LOGIN: {
-
+            // if error give a fake delay of 1 << min(attempt_num, 31) if the first 5 attempts are wrong
+            // reset on login_success
         } break;
         case __SESSIONMANAGER_LOGOUT: {
 
