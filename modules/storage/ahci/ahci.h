@@ -476,4 +476,9 @@ AhciDeviceIdentify(
     _In_ AhciController_t*  Controller, 
     _In_ AhciPort_t*        Port);
 
+/* PrintTaskDataErrorString
+ * Converts the error of the task data to a user-readable string and prints it out. */
+__EXTERN void
+PrintTaskDataErrorString(uint8_t TaskDataError);
+
 #endif //!_AHCI_H_

@@ -40,24 +40,22 @@ InterruptStatus_t
 OnFastInterrupt(
     _In_Opt_ void*  InterruptData)
 {
-	AhciController_t *Controller    = NULL;
-	reg32_t InterruptStatus         = 0;
+	AhciController_t *Controller;
+	reg32_t InterruptStatus;
     int i;
 
 	// Instantiate the pointer
 	Controller      = (AhciController_t*)InterruptData;
     InterruptStatus = Controller->Registers->InterruptStatus;
-
-	// Was the interrupt even from this controller?
-	if (!InterruptStatus) {
-		return InterruptNotHandled;
-	}
+    if (!InterruptStatus) {
+        return InterruptNotHandled;
+    }
 
     // Save the status to port that made it and clear
     for (i = 0; i < AHCI_MAX_PORTS; i++) {
 		if (Controller->Ports[i] != NULL && ((InterruptStatus & (1 << i)) != 0)) {
 			Controller->Ports[i]->InterruptStatus              |= Controller->Ports[i]->Registers->InterruptStatus;
-	        Controller->Ports[i]->Registers->InterruptStatus    = InterruptStatus;
+	        Controller->Ports[i]->Registers->InterruptStatus    = Controller->Ports[i]->Registers->InterruptStatus;
 		}
     }
 

@@ -193,6 +193,22 @@ Error:
 	return OsError;
 }
 
+/* PrintTaskDataErrorString
+ * Converts the error of the task data to a user-readable string and prints it out. */
+void
+PrintTaskDataErrorString(uint8_t TaskDataError)
+{
+	if (TaskDataError & ATA_ERR_DEV_EOM) {
+		ERROR("AHCI::Transmission Error, Invalid LBA(sector) range given, end of media.");
+	}
+	else if (TaskDataError & ATA_ERR_DEV_IDNF) {
+		ERROR("AHCI::Transmission Error, Invalid sector range given.");
+	}
+	else {
+		ERROR("AHCI::Transmission Error, error 0x%x", TaskDataError);
+	}
+}
+
 /* AhciVerifyRegisterFIS
  * Verifies a recieved fis result on a port/slot */
 OsStatus_t
@@ -207,14 +223,7 @@ AhciVerifyRegisterFIS(
 
 	// Is the error bit set?
 	if (Fis->RegisterD2H.Status & ATA_STS_DEV_ERROR) {
-		if (Fis->RegisterD2H.Error & ATA_ERR_DEV_EOM) {
-			ERROR("AHCI::Port (%i): Transmission Error, Invalid LBA(sector) range given, end of media.",
-				Transaction->Device->Port->Id, (size_t)Fis->RegisterD2H.Error);
-		}
-		else {
-			ERROR("AHCI::Port (%i): Transmission Error, error 0x%x",
-				Transaction->Device->Port->Id, (size_t)Fis->RegisterD2H.Error);
-		}
+		PrintTaskDataErrorString(Fis->RegisterD2H.Error & ATA_ERR_DEV_EOM);
 		return OsError;
 	}
 
@@ -264,7 +273,7 @@ AhciCommandRegisterFIS(
 		// Set CHS params
 
 		// Set count
-		Fis.Count = MAX(Transaction->SectorCount, UINT8_MAX); 
+		Fis.Count = MIN(Transaction->SectorCount, UINT8_MAX); 
 	}
 	else if (Transaction->Device->AddressingMode == 1
 		|| Transaction->Device->AddressingMode == 2) {
@@ -280,11 +289,11 @@ AhciCommandRegisterFIS(
 			Fis.CylinderHighExtended    = (uint8_t)((SectorLBA >> 40) & 0xFF);
 
 			// Count is 16 bit here
-			Fis.Count = MAX(Transaction->SectorCount, UINT16_MAX);
+			Fis.Count = MIN(Transaction->SectorCount, UINT16_MAX);
 		}
 		else {
 			// Count is 8 bit in lba28
-			Fis.Count = MAX(Transaction->SectorCount, UINT8_MAX);
+			Fis.Count = MIN(Transaction->SectorCount, UINT8_MAX);
 		}
 	}
 

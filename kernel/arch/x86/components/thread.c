@@ -262,17 +262,10 @@ _ThreadingSwitch(
         return Context;
     }
 
-    // Instantiate variables
     Thread      = ThreadingGetCurrentThread(Cpu);
     assert(Thread != NULL);
+    assert(!(Thread->Flags & THREADING_IMPERSONATION));
     
-    // Sanitize impersonation status, don't schedule
-    if (Thread->Flags & THREADING_IMPERSONATION) {
-        *TimeSlice      = Thread->TimeSlice;
-        *TaskQueue      = Thread->Queue;
-        return Context;
-    }
-
     // Save FPU/MMX/SSE information if it's
     // been used, otherwise skip this and save time
     if (Thread->Data[THREAD_DATA_FLAGS] & X86_THREAD_USEDFPU) {
@@ -287,7 +280,6 @@ _ThreadingSwitch(
     // Get a new thread for us to enter
     Thread      = ThreadingSwitch(Thread, PreEmptive, &Context);
 
-    // Update out's
     *TimeSlice  = Thread->TimeSlice;
     *TaskQueue  = Thread->Queue;
 

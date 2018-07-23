@@ -239,8 +239,6 @@ TimersInterrupt(
             return OsSuccess;
         }
     }
-
-    // Return error
     return OsError;
 }
 

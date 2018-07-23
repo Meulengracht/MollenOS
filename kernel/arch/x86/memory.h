@@ -50,6 +50,7 @@
 #define PAGE_SYSTEM_MAP         0x200
 #define PAGE_INHERITED          0x400
 #define PAGE_PERSISTENT         0x800
+#define PAGE_NX                 0x8000000000000000 // amd64 + nx cpuid must be set
 
 /* Memory Map Structure 
  * This is the structure passed to us by the mBoot bootloader */

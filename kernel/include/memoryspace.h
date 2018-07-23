@@ -67,6 +67,7 @@ typedef struct _SystemMemorySpace {
     Flags_t                     Flags;
     uintptr_t                   Data[MEMORY_DATACOUNT];
     struct _SystemMemorySpace*  Parent;
+    //blockmap                  spaces[max-spaces]
 } SystemMemorySpace_t;
 
 /* InitializeSystemMemorySpace

@@ -3,12 +3,12 @@
 #ifndef _REVISION_H_
 #define _REVISION_H_
 
-#define BUILD_DATE "20 July 2018"
-#define BUILD_TIME "14:29:10"
+#define BUILD_DATE "23 July 2018"
+#define BUILD_TIME "14:14:47"
 #define BUILD_SYSTEM "clang"
 
 #define REVISION_MAJOR 0
 #define REVISION_MINOR 4
-#define REVISION_BUILD 8480
+#define REVISION_BUILD 8519
 
 #endif //!_REVISION_H_

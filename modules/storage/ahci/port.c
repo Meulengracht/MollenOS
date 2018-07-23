@@ -332,16 +332,21 @@ HandleInterrupt:
     Port->InterruptStatus   = 0;
     
     // Check for errors status's
-    if (Port->InterruptStatus & (AHCI_PORT_IE_TFEE | AHCI_PORT_IE_HBFE 
+    if (InterruptStatus & (AHCI_PORT_IE_TFEE | AHCI_PORT_IE_HBFE 
         | AHCI_PORT_IE_HBDE | AHCI_PORT_IE_IFE | AHCI_PORT_IE_INFE)) {
-        ERROR("AHCI::Port ERROR %i, CMD: 0x%x, CI 0x%x, IE: 0x%x, IS 0x%x, TFD: 0x%x", Port->Id,
-            Port->Registers->CommandAndStatus, Port->Registers->CommandIssue,
-            Port->Registers->InterruptEnable, Port->InterruptStatus,
-            Port->Registers->TaskFileData);
+        if (InterruptStatus & AHCI_PORT_IE_TFEE) {
+		    PrintTaskDataErrorString(HIBYTE(Port->Registers->TaskFileData));
+        }
+        else {
+            ERROR("AHCI::Port ERROR %i, CMD: 0x%x, CI 0x%x, IE: 0x%x, IS 0x%x, TFD: 0x%x", Port->Id,
+                Port->Registers->CommandAndStatus, Port->Registers->CommandIssue,
+                Port->Registers->InterruptEnable, InterruptStatus,
+                Port->Registers->TaskFileData);
+        }
     }
 
     // Check for hot-plugs
-    if (Port->InterruptStatus & AHCI_PORT_IE_PCE) {
+    if (InterruptStatus & AHCI_PORT_IE_PCE) {
         // Determine whether or not there is a device connected
         // Detect present ports using
         // PxTFD.STS.BSY = 0, PxTFD.STS.DRQ = 0, and PxSSTS.DET = 3

@@ -23,7 +23,7 @@
  * - ISA Interrupts should be routed to boot-processor without lowest-prio?
  */
 #define __MODULE        "IRQS"
-//#define __TRACE
+#define __TRACE
 
 /* Includes 
  * - System */
@@ -117,7 +117,7 @@ InterruptGetApicConfiguration(
     // Variables
     uint64_t ApicFlags = APIC_FLAGS_DEFAULT;
 
-    TRACE("InterruptDetermine()");
+    TRACE("InterruptDetermine(%i:%i)", Interrupt->Line, Interrupt->Pin);
 
     // Case 1 - ISA Interrupts 
     // - In most cases are Edge-Triggered, Active-High
@@ -139,7 +139,7 @@ InterruptGetApicConfiguration(
 
         if (LevelTriggered == 1) {
             TRACE(" > isa peripheral interrupt (active-low, level-triggered)");
-            ApicFlags |= APIC_ACTIVE_LOW;            // Set Polarity
+            ApicFlags |= APIC_ACTIVE_LOW;           // Set Polarity
             ApicFlags |= APIC_LEVEL_TRIGGER;        // Set Trigger Mode
         }
         else {
@@ -149,13 +149,12 @@ InterruptGetApicConfiguration(
     
     // Case 2 - PCI Interrupts (No-Pin) 
     // - Must be Level Triggered Low-Active
-    else if (Interrupt->Line >= NUM_ISA_INTERRUPTS
-            && Interrupt->Pin == INTERRUPT_NONE) {
+    else if (Interrupt->Line >= NUM_ISA_INTERRUPTS && Interrupt->Pin == INTERRUPT_NONE) {
         TRACE(" > pci interrupt (active-low, level-triggered)");
-        ApicFlags |= 0x100;                        // Lowest Priority
-        ApicFlags |= 0x800;                        // Logical Destination Mode
-        ApicFlags |= APIC_ACTIVE_LOW;            // Set Polarity
-        ApicFlags |= APIC_LEVEL_TRIGGER;        // Set Trigger Mode
+        ApicFlags |= 0x100;                         // Lowest Priority
+        ApicFlags |= 0x800;                         // Logical Destination Mode
+        ApicFlags |= APIC_ACTIVE_LOW;               // Set Polarity
+        ApicFlags |= APIC_LEVEL_TRIGGER;            // Set Trigger Mode
     }
 
     // Case 3 - PCI Interrupts (Pin) 
@@ -164,13 +163,13 @@ InterruptGetApicConfiguration(
         // If no routing exists use the pci interrupt line
         if (!(Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_PRESENT)) {
             TRACE(" > pci interrupt (active-low, level-triggered)");
-            ApicFlags |= 0x100;                    // Lowest Priority
-            ApicFlags |= 0x800;                    // Logical Destination Mode
+            ApicFlags |= 0x100;                     // Lowest Priority
+            ApicFlags |= 0x800;                     // Logical Destination Mode
         }
         else {
             TRACE(" > pci interrupt (pin-configured - 0x%x)", Interrupt->AcpiConform);
-            ApicFlags |= 0x100;                    // Lowest Priority
-            ApicFlags |= 0x800;                    // Logical Destination Mode
+            ApicFlags |= 0x100;                     // Lowest Priority
+            ApicFlags |= 0x800;                     // Logical Destination Mode
 
             // Both trigger and polarity is either fixed or set by the
             // information we extracted earlier
@@ -181,6 +180,7 @@ InterruptGetApicConfiguration(
             else {
                 if (Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE) {
                     ApicFlags |= APIC_LEVEL_TRIGGER;
+                    PicConfigureLine(Interrupt->Line, -1, 1);
                 }
                 if (Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_POLARITY) {
                     ApicFlags |= APIC_ACTIVE_LOW;

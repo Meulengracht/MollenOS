@@ -252,6 +252,8 @@ SchedulerSynchronizeCore(
     _In_ int                SuppressSynchronization)
 {
     volatile SystemCpuState_t *State;
+    TRACE("SchedulerSynchronizeCore(%u, %i)", Thread->CoreId, SuppressSynchronization);
+
     // If the current cpu is idling, wake us up
     if (Thread->CoreId != CpuGetCurrentId()) {
         State = (volatile SystemCpuState_t*)&GetProcessorCore(Thread->CoreId)->State;

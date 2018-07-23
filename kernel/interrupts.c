@@ -422,8 +422,8 @@ InterruptHandle(
             // Impersonate the target thread
             // and call the fast handler
             if (Current->MemorySpace != Target->MemorySpace) {
-                Current = Target;
                 ThreadingImpersonate(Target);
+                Current = Target;
             }
             Result = Entry->Interrupt.FastHandler(Entry->Interrupt.Data);
 
@@ -432,6 +432,7 @@ InterruptHandle(
             // - Register interrupt, might be a system timer
             // - Queue the processing handler if any
             if (Result == InterruptHandled) {
+                ThreadingImpersonate(Start);
                 TimersInterrupt(Entry->Id);
 
                 // Send a interrupt-event to this
@@ -439,6 +440,9 @@ InterruptHandle(
                 if (Entry->Flags & INTERRUPT_USERSPACE) {
                     __KernelInterruptDriver(Entry->Ash, Entry->Id, Entry->Interrupt.Data);
                 }
+
+                // Update state to avoid a new impersionation
+                Current = Start;
                 break;
             }
         }

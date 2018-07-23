@@ -72,11 +72,9 @@ void IdtInstallDescriptor(int IntNum, uintptr_t Base,
  * and shared exception handlers */
 void IdtInitialize(void)
 {
-	/* Setup the IDT */
 	Idtptr.Limit = (sizeof(IdtEntry_t) * IDT_DESCRIPTORS) - 1;
 	Idtptr.Base = (uint32_t)&IdtDescriptors[0];
-
-	/* Null out entries */
+	
 	memset(&IdtDescriptors[0], 0, sizeof(IdtDescriptors));
 
 	/* Install default entries */
@@ -85,8 +83,6 @@ void IdtInitialize(void)
 	/* Override default gate with syscall */
 	IdtInstallDescriptor(INTERRUPT_SYSCALL, (uintptr_t)syscall_entry, 
 		GDT_KCODE_SEGMENT, IDT_RING3 | IDT_PRESENT | IDT_TRAP_GATE32);
-
-	/* Reload GDT */
 	IdtInstall();
 }
 
