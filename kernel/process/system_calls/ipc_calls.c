@@ -180,11 +180,6 @@ ScRpcExecute(
     size_t TotalLength  = sizeof(MRemoteCall_t);
     int i               = 0;
 
-    // Trace
-    TRACE("%s: ScRpcExecute(Target 0x%x, Message %i, Async %i)", 
-        MStringRaw(PhoenixGetCurrentAsh()->Name), 
-        RemoteCall->To.Process, RemoteCall->Function, Async);
-    
     // Start out by resolving both the process and pipe
     Ash     = PhoenixGetAsh(RemoteCall->To.Process);
     Pipe    = PhoenixGetAshPipe(Ash, RemoteCall->To.Port);
@@ -201,6 +196,10 @@ ScRpcExecute(
         return OsError;
     }
 
+    // Trace
+    TRACE("ScRpcExecute(Target %s, Message %i, Async %i)", 
+        MStringRaw(Ash->Name), RemoteCall->Function, Async);
+    
     // Install Sender
     Thread = ThreadingGetCurrentThread(CpuGetCurrentId());
     RemoteCall->From.Process    = Thread->AshId;

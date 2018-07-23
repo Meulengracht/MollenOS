@@ -37,6 +37,12 @@
 #define MEMORY_SPACE_APPLICATION        0x00000002
 #define MEMORY_SPACE_SERVICE            0x00000004
 
+/* SystemMemorySpace (Spaces) Definitions
+ * Definitions, bit definitions and magic constants for memory spaces */
+#define MEMORY_SPACE_KERNEL_HEAP        0
+#define MEMORY_SPACE_APPLICATION_HEAP   1
+#define MEMORY_SPACE_IOSPACE            2
+
 /* SystemMemorySpace (Flags) Definitions
  * Definitions, bit definitions and magic constants for memory spaces */
 #define MAPPING_USERSPACE               0x00000001  // Userspace mapping

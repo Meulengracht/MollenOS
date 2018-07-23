@@ -131,6 +131,7 @@ AhciManagerCreateDevice(
     // Important!
     Device->AddressingMode      = 1;
     Device->SectorSize          = sizeof(ATAIdentify_t);
+    Device->Type                = (Port->Registers->Signature == SATA_SIGNATURE_ATAPI) ? 1 : 0;
 
     // Initiate the transaction
     Transaction->ResponseAddress.Thread = UUID_INVALID;
@@ -159,12 +160,6 @@ AhciManagerCreateDeviceCallback(
 
     // Trace
     TRACE("AhciManagerCreateDeviceCallback(%s)", &DeviceInformation->ModelNo[0]);
-    if (Device->Port->Registers->Signature == SATA_SIGNATURE_ATAPI) {
-        Device->Type = 1;
-    }
-    else {
-        Device->Type = 0;
-    }
 
     // Set capabilities
     if (DeviceInformation->Capabilities0 & (1 << 0)) {
@@ -196,8 +191,7 @@ AhciManagerCreateDeviceCallback(
         Device->SectorSize *= (DeviceInformation->SectorSize & 0xF);
     }
 
-    // Now, get the number of sectors for
-    // this particular disk
+    // Now, get the number of sectors for this particular disk
     if (DeviceInformation->SectorCountLBA48 != 0) {
         Device->SectorsLBA = DeviceInformation->SectorCountLBA48;
     }
@@ -220,7 +214,7 @@ AhciManagerCreateDeviceCallback(
     memcpy(&Device->Descriptor.Serial[0], (const void*)&DeviceInformation->SerialNo[0], 20);
 
     // Add disk to list
-    Key.Value                       = (int)Device->Descriptor.Device;
+    Key.Value = (int)Device->Descriptor.Device;
     CollectionAppend(&Disks, CollectionCreateNode(Key, Device));
     return RegisterDisk(Device->Descriptor.Device, Device->Descriptor.Flags);
 }
