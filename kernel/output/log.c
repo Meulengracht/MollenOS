@@ -55,13 +55,13 @@ LogPipeHandler(
 
         // Read untill newline
         while (1) {
-            ReadSystemPipe(Pipe, (uint8_t*)&MessageBuffer[i++], 1);
+            ReadSystemPipe(Pipe, (uint8_t*)&MessageBuffer[i], 1);
             if (MessageBuffer[i] == '\n') {
+                MessageBuffer[i] = '\0'; // Skip newlines, automatically added
                 break;
             }
+            i++;
         }
-
-        // Print
         LogAppendMessage(LogPipe, "PIPE", (const char*)&MessageBuffer[0]);
     }
 }
@@ -107,8 +107,8 @@ LogInitializeFull(void)
     LogObject.STDERR = CreateSystemPipe(0, 6); // 1 << 6, 64 entries, 1 << 12 is 4kb
 
     // Create the threads that will echo the pipes
-    PipeThreads[0] = ThreadingCreateThread("LogPipe_STDOUT", LogPipeHandler, (void*)LogObject.STDOUT, 0);
-    PipeThreads[1] = ThreadingCreateThread("LogPipe_STDERR", LogPipeHandler, (void*)LogObject.STDERR, 0);
+    PipeThreads[0] = ThreadingCreateThread("log-stdout", LogPipeHandler, (void*)LogObject.STDOUT, 0);
+    PipeThreads[1] = ThreadingCreateThread("log-stderr", LogPipeHandler, (void*)LogObject.STDERR, 0);
 }
 
 /* LogRenderMessages

@@ -95,11 +95,9 @@ ScPipeWrite(
     if (ProcessId == UUID_INVALID) {
         if (Port == PIPE_STDOUT || Port == PIPE_STDERR) {
             if (Port == PIPE_STDOUT) {
-                WARNING(" > stdout");
                 Pipe = LogPipeStdout();
             }
             else if (Port == PIPE_STDERR) {
-                WARNING(" > stderr");
                 Pipe = LogPipeStderr();
             }
         }

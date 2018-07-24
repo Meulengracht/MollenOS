@@ -416,5 +416,6 @@ OnEvent(
         default: {
         } break;
     }
+    TRACE(" >> filemanager: eof");
     return Result;
 }

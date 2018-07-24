@@ -335,7 +335,7 @@ AhciCommandFinish(
     OsStatus_t Status = OsError;
 
     // Trace
-    TRACE("AhciCommandFinish()");
+    WARNING("AhciCommandFinish()");
 
     // Verify the command execution
     Status = AhciVerifyRegisterFIS(Transaction);

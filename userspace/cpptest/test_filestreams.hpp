@@ -33,14 +33,16 @@ public:
         std::ofstream fs_out;
         std::ifstream fs_in;
         std::string line;
-        TestLog(">> Testing writing text to a file");
+        TestLog(">> creating file example.txt");
         fs_out.open("example.txt");
         if (fs_out.is_open()) {
+            TestLog(">> testing writing text to a file");
             fs_out << "Writing this to a file.\n";
+            TestLog(">> closing");
             fs_out.close();
         }
         else {
-            TestLog(">> Failed to open file for writing");
+            TestLog(">> failed to open file for writing");
             Errors++;
         }
         TestLog(">> Testing reading text back from same file");

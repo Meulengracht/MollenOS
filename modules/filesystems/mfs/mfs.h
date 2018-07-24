@@ -29,12 +29,7 @@
 #ifndef _MFS_H_
 #define _MFS_H_
 
-/* Includes
- * - System */
 #include <os/contracts/filesystem.h>
-
-/* Includes
- * - Library */
 #include <os/osdefs.h>
 #include <ds/mstring.h>
 

@@ -82,6 +82,6 @@ int main(int argc, char **argv) {
     RUN_TEST_SUITE(ErrorCounter, FileStreamTests);
 
     // Run libm test
-    libm_main(argc, argv);
+    //libm_main(argc, argv);
     return ErrorCounter;
 }

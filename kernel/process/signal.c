@@ -107,8 +107,8 @@ SignalCreate(
 
 	// Create a new signal instance for process.
 	Sig = (MCoreSignal_t*)kmalloc(sizeof(MCoreSignal_t));
-    Sig->Ignorable = GlbSignalIsDeadly[Signal];
-	Sig->Signal = Signal;
+    Sig->Ignorable 	= GlbSignalIsDeadly[Signal];
+	Sig->Signal 	= Signal;
 
 	// Add to signal-list
 	sKey.Value = Signal;
@@ -147,15 +147,12 @@ OsStatus_t
 SignalHandle(
 	_In_ UUId_t ThreadId)
 {
-	// Variables
 	MCoreThread_t *Thread   = NULL;
 	MCoreSignal_t *Signal   = NULL;
 	CollectionItem_t *sNode = NULL;
 	
 	// Lookup variables
 	Thread                  = ThreadingGetThread(ThreadId);
-
-	// Sanitize, we might not have an Ash
 	if (Thread == NULL) {
 		return OsError;
 	}
@@ -176,8 +173,6 @@ SignalHandle(
 		CollectionDestroyNode(Thread->SignalQueue, sNode);
 		SignalExecute(Thread, Signal);
 	}
-
-	// No more signals
 	return OsSuccess;
 }
 
