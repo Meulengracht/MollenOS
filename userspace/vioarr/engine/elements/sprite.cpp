@@ -21,6 +21,7 @@
  */
 
 #include "sprite.hpp"
+#include "../../utils/log_manager.hpp"
 
 CSprite::CSprite(CEntity *Parent, NVGcontext* VgContext, 
     const std::string &Path, int Width, int Height) : CEntity(Parent, VgContext) {

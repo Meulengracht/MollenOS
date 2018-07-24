@@ -33,7 +33,7 @@ CEntity *VioarrCompositor::CreateStandardScene()
     CSprite *Background = new CSprite(sEngine.GetContext(), "$sys/themes/default/gfxbg.png", _Display->GetWidth(), _Display->GetHeight());
 
     // Create user interface
-    CAccessBar *AccessBar = new CAccessBar(sEngine.GetContext(), 150,  _Display->GetHeight());
+    CAccessBar *AccessBar = new CAccessBar(sEngine.GetContext(), 150, _Display->GetHeight());
     Background->AddEntity(AccessBar);
 
     // Spawn test window

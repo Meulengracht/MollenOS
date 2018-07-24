@@ -27,8 +27,6 @@
 #include "entity.hpp"
 #include <algorithm>
 
-#define NANOVG_GL3_IMPLEMENTATION
-#define GL_VIOARR_LOADER
 #include "../graphics/opengl/opengl_exts.hpp"
 #include "backend/nanovg_gl.h"
 #include "elements/window.hpp"

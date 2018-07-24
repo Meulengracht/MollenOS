@@ -69,6 +69,7 @@ typedef struct _MemorySynchronizationObject {
     volatile int    CallsCompleted;
     void*           ParentPagingData;
     uintptr_t       Address;
+    size_t          Length;
 } MemorySynchronizationObject_t;
 
 /* ConvertSystemSpaceToPaging
@@ -81,13 +82,14 @@ ConvertSystemSpaceToPaging(Flags_t Flags);
 KERNELAPI Flags_t KERNELABI
 ConvertPagingToSystemSpace(Flags_t Flags);
 
-/* SynchronizeVirtualPage
+/* SynchronizePageRegion
  * Synchronizes the page address across cores to make sure they have the
  * latest revision of the page-table cached. */
 KERNELAPI void KERNELABI
-SynchronizeVirtualPage(
+SynchronizePageRegion(
     _In_ SystemMemorySpace_t*   SystemMemorySpace,
-    _In_ uintptr_t              Address);
+    _In_ uintptr_t              Address,
+    _In_ size_t                 Length);
 
 /* PageSynchronizationHandler
  * Synchronizes the page address specified in the MemorySynchronization Object. */

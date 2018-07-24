@@ -23,14 +23,10 @@
  */
 #pragma once
 
-/* Includes
- * - OpenGL */
 #include <os/contracts/video.h>
 #include <GL/osmesa.h>
 #include <GL/gl.h>
 
-/* Includes
- * - Project */
 #include "utils/log_manager.hpp"
 #include "display.hpp"
 #include <cstdlib>

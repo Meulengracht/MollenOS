@@ -548,7 +548,6 @@ SchedulerHandleSignal(
     TRACE("SchedulerHandleSignal(Handle 0x%x)", Handle);
 
     if (Current != NULL) {
-        //WARNING(" > signal %s", Current->Name);
         TimersGetSystemTick(&Current->Sleep.InterruptedAt);
         SchedulerSynchronizeCore(Current, 0);
         return OsSuccess;
@@ -685,6 +684,5 @@ SchedulerThreadSchedule(
             break;
         }
     }
-    //WARNING(" > next is %s", NextThread == NULL ? "none" : NextThread->Name);
     return NextThread;
 }

@@ -307,8 +307,6 @@ typedef struct GLNVGcontext GLNVGcontext;
 #define glGetProgramiv sOpenGL.glGetProgramiv
 #define glGetShaderInfoLog sOpenGL.glGetShaderInfoLog
 #define glGetProgramInfoLog sOpenGL.glGetProgramInfoLog
-#include <os/utils.h>
-#define printf WARNING
 #endif
 
 static int glnvg__maxi(int a, int b) { return a > b ? a : b; }

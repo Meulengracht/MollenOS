@@ -208,19 +208,22 @@ PageSynchronizationHandler(
     if (SyncData.ParentPagingData == NULL ||
         Current->Parent == (SystemMemorySpace_t*)SyncData.ParentPagingData || 
         Current         == (SystemMemorySpace_t*)SyncData.ParentPagingData) {
-        memory_invalidate_addr(SyncData.Address);
+        for (uintptr_t i = 0; i < SyncData.Length; i += PAGE_SIZE) {
+            memory_invalidate_addr(SyncData.Address + i);
+        }
     }
     SyncData.CallsCompleted++;
     return InterruptHandled;
 }
 
-/* SynchronizeVirtualPage
+/* SynchronizePageRegion
  * Synchronizes the page address across cores to make sure they have the
  * latest revision of the page-table cached. */
 void
-SynchronizeVirtualPage(
+SynchronizePageRegion(
     _In_ SystemMemorySpace_t*   SystemMemorySpace,
-    _In_ uintptr_t              Address)
+    _In_ uintptr_t              Address,
+    _In_ size_t                 Length)
 {
     // Multiple cores?
     if (GetMachine()->NumberOfActiveCores <= 1) {
@@ -340,9 +343,6 @@ SetVirtualPageAttributes(
     Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(Address)]);
     if (!(Mapping & PAGE_SYSTEM_MAP)) {
         atomic_store(&Table->Pages[PAGE_TABLE_INDEX(Address)], (Mapping & PAGE_MASK) | ConvertedFlags);
-
-        // Synchronize with cpus
-        SynchronizeVirtualPage(MemorySpace, Address);
         if (IsCurrent) {
             memory_invalidate_addr(Address);
         }
@@ -493,10 +493,7 @@ SyncTable:
             if (!(Mapping & PAGE_PERSISTENT)) {
                 FreeSystemMemory(Mapping & PAGE_MASK, PAGE_SIZE);
             }
-
-            // Last step is to validate the page-mapping
-            // now this should be an IPC to all cpu's
-            SynchronizeVirtualPage(MemorySpace, Address);
+            
             if (IsCurrent) {
                 memory_invalidate_addr(Address);
             }

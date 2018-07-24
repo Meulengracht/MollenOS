@@ -29,7 +29,7 @@
 #include <string.h>
 #include <ctype.h>
 
-/* Events function string table */
+#ifdef __TRACE
 static const char *FunctionNames[] = {
     "RegisterDisk",
     "UnregisterDisk",
@@ -59,6 +59,7 @@ static const char *FunctionNames[] = {
     "ResolvePath",
     "NormalizePath"
 };
+#endif
 
 // Static storage for the filemanager
 static int       	DiskTable[__FILEMANAGER_MAXDISKS] = { 0 };

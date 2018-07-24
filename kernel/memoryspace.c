@@ -33,18 +33,19 @@
 #include <heap.h>
 
 // External functions, must be implemented in arch layer
-extern OsStatus_t InitializeVirtualSpace(SystemMemorySpace_t*);
-extern OsStatus_t CloneVirtualSpace(SystemMemorySpace_t*, SystemMemorySpace_t*, int);
-extern OsStatus_t DestroyVirtualSpace(SystemMemorySpace_t*);
-extern OsStatus_t SwitchVirtualSpace(SystemMemorySpace_t*);
-extern OsStatus_t ResolveVirtualSpaceAddress(SystemMemorySpace_t*, size_t, Flags_t, VirtualAddress_t*, PhysicalAddress_t*);
+extern OsStatus_t   InitializeVirtualSpace(SystemMemorySpace_t*);
+extern OsStatus_t   CloneVirtualSpace(SystemMemorySpace_t*, SystemMemorySpace_t*, int);
+extern OsStatus_t   DestroyVirtualSpace(SystemMemorySpace_t*);
+extern OsStatus_t   SwitchVirtualSpace(SystemMemorySpace_t*);
+extern OsStatus_t   ResolveVirtualSpaceAddress(SystemMemorySpace_t*, size_t, Flags_t, VirtualAddress_t*, PhysicalAddress_t*);
 
-extern OsStatus_t GetVirtualPageAttributes(SystemMemorySpace_t*, VirtualAddress_t, Flags_t*);
-extern OsStatus_t SetVirtualPageAttributes(SystemMemorySpace_t*, VirtualAddress_t, Flags_t);
+extern OsStatus_t   GetVirtualPageAttributes(SystemMemorySpace_t*, VirtualAddress_t, Flags_t*);
+extern OsStatus_t   SetVirtualPageAttributes(SystemMemorySpace_t*, VirtualAddress_t, Flags_t);
 
-extern uintptr_t GetVirtualPageMapping(SystemMemorySpace_t*, VirtualAddress_t);
-extern OsStatus_t SetVirtualPageMapping(SystemMemorySpace_t*, PhysicalAddress_t, VirtualAddress_t, Flags_t);
-extern OsStatus_t ClearVirtualPageMapping(SystemMemorySpace_t*, VirtualAddress_t);
+extern uintptr_t    GetVirtualPageMapping(SystemMemorySpace_t*, VirtualAddress_t);
+extern OsStatus_t   SetVirtualPageMapping(SystemMemorySpace_t*, PhysicalAddress_t, VirtualAddress_t, Flags_t);
+extern OsStatus_t   ClearVirtualPageMapping(SystemMemorySpace_t*, VirtualAddress_t);
+extern void         SynchronizePageRegion(SystemMemorySpace_t*, uintptr_t, size_t);
 
 // Global static storage
 static _Atomic(int) AddressSpaceIdGenerator = ATOMIC_VAR_INIT(1);
@@ -214,6 +215,7 @@ ChangeSystemMemorySpaceProtection(
             break;
         }
     }
+    SynchronizePageRegion(SystemMemorySpace, VirtualAddress, Size);
     return Status;
 }
 
@@ -378,6 +380,7 @@ RemoveSystemMemoryMapping(
             TRACE("Ignoring free on unmapped address 0x%x", VirtualPage);
         }
 	}
+    SynchronizePageRegion(SystemMemorySpace, Address, Size);
 	return OsSuccess;
 }
 

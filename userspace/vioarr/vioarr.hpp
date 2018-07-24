@@ -60,7 +60,7 @@ public:
 
         // Initialize state
         //std::chrono::time_point<std::chrono::system_clock> LastUpdate;
-        _IsRunning      = true;
+        _IsRunning = true;
 
         // Create the display
         sLog.Info("Creating display");

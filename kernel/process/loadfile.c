@@ -91,7 +91,7 @@ LoadFile(
         CloseFile(fHandle);
         return OsError;
     }
-    memcpy((void*)fBuffer, (const void*)TransferBuffer.Address, fRead);
+    memcpy(fBuffer, (const void*)TransferBuffer.Address, fRead);
 
     // Update outs
     *Data   = fBuffer;
