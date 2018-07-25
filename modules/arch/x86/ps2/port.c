@@ -298,6 +298,11 @@ PS2PortFinishCommand(
                 Port->CurrentCommand->State = PS2Free;
                 // Go to next command
             }
+            else {
+                Port->CurrentCommand->Command   = PS2_FAILED_COMMAND;
+                Port->CurrentCommand->State     = PS2Free;
+                // Go to next command
+            }
         } break;
 
         case PS2WaitingResponse: {
