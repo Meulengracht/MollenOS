@@ -85,18 +85,23 @@
 #define PS2_PORT2_IRQ              	0x0C
 
 /* Command stack definitions */
-#define PS2_NO_COMMAND            	-1
+#define PS2_FAILED_COMMAND          0xFF
 #define PS2_RESEND_COMMAND       	0xFE
 #define PS2_ACK_COMMAND           	0xFA
+
+typedef enum _PS2CommandState {
+    PS2Free             = 0,
+    PS2InQueue          = 1,
+    PS2WaitingResponse  = 2
+} PS2CommandState_t;
 
 /* PS2Command
  * This represents a ps2-device command that can be queued and executed */
 typedef struct _PS2Command {
-    volatile int            InUse;
-    volatile int            Executed;
-    int                  	RetryCount;
-    uint8_t                	Command;
-    uint8_t*                Response;
+    volatile PS2CommandState_t  State;
+    int                  	    RetryCount;
+    uint8_t                	    Command;
+    uint8_t*                    Response;
 } PS2Command_t;
 
 /* PS2Port

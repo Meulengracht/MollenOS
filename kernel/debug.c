@@ -170,24 +170,23 @@ DebugPanic(
  * Retrieves the module (Executable) at the given address */
 OsStatus_t
 DebugGetModuleByAddress(
+    _In_  MCoreAsh_t*   Process,
     _In_  uintptr_t     Address,
     _Out_ uintptr_t*    Base,
     _Out_ char**        Name)
 {
     // Validate that the address is within userspace
     if (Address >= MEMORY_LOCATION_RING3_CODE && Address < MEMORY_LOCATION_RING3_CODE_END) {
-        MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
-
         // Sanitize whether or not a process was running
-        if (Ash != NULL && Ash->Executable != NULL) {
-            uintptr_t PmBase    = Ash->Executable->VirtualAddress;
-            char *PmName        = (char*)MStringRaw(Ash->Executable->Name);
+        if (Process != NULL && Process->Executable != NULL) {
+            uintptr_t PmBase    = Process->Executable->VirtualAddress;
+            char *PmName        = (char*)MStringRaw(Process->Executable->Name);
 
             // Was it not main executable?
-            if (Address > (Ash->Executable->CodeBase + Ash->Executable->CodeSize)) {
+            if (Address > (Process->Executable->CodeBase + Process->Executable->CodeSize)) {
                 // Iterate libraries to find the sinner
-                if (Ash->Executable->LoadedLibraries != NULL) {
-                    foreach(lNode, Ash->Executable->LoadedLibraries) {
+                if (Process->Executable->LoadedLibraries != NULL) {
+                    foreach(lNode, Process->Executable->LoadedLibraries) {
                         MCorePeFile_t *Lib = (MCorePeFile_t*)lNode->Data;
                         if (Address >= Lib->CodeBase && Address < (Lib->CodeBase + Lib->CodeSize)) {
                             PmName = (char*)MStringRaw(Lib->Name);
@@ -242,7 +241,7 @@ DebugStackTrace(
         uintptr_t Value = StackPtr[0];
         uintptr_t Base  = 0;
         char *Name      = NULL;
-        if (DebugGetModuleByAddress(Value, &Base, &Name) == OsSuccess) {
+        if (DebugGetModuleByAddress(PhoenixGetCurrentAsh(), Value, &Base, &Name) == OsSuccess) {
             uintptr_t Diff = Value - Base;
             WRITELINE("%u - 0x%x (%s)", MaxFrames - Itr, Diff, Name);
             Itr--;

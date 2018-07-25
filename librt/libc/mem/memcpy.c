@@ -19,8 +19,6 @@
 * MollenOS - Optimized memory copy
 */
 
-/* Includes 
- * - Library */
 #include <string.h>
 #include <stdint.h>
 #include <internal/_string.h>
@@ -174,20 +172,17 @@ void *memcpy_select(void *Destination, const void *Source, size_t Count) {
     // Choose between SSE2, SSE, MMX and base
     if (CpuFeatEdx & CPUID_FEAT_EDX_SSE2) {
 		__GlbMemCpyInstance = memcpy_sse2;
-		return memcpy_sse2(Destination, Source, Count);
 	}
 	else if (CpuFeatEdx & CPUID_FEAT_EDX_SSE) {
 		__GlbMemCpyInstance = memcpy_sse;
-		return memcpy_sse(Destination, Source, Count);
 	}
 	else if (CpuFeatEdx & CPUID_FEAT_EDX_MMX) {
 		__GlbMemCpyInstance = memcpy_mmx;
-		return memcpy_mmx(Destination, Source, Count);
 	}
 	else {
 		__GlbMemCpyInstance = memcpy_base;
-		return memcpy_base(Destination, Source, Count);
 	}
+	return __GlbMemCpyInstance(Destination, Source, Count);
 }
 
 #if defined(_MSC_VER) && !defined(__clang__)

@@ -21,14 +21,9 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-/* Includes
- * - System */
 #include <os/binarysemaphore.h>
 #include <os/threadpool.h>
 #include <os/utils.h>
-
-/* Includes
- * - Library */
 #include <stdlib.h>
 #include <signal.h>
 

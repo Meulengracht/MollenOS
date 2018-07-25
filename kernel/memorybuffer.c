@@ -136,7 +136,8 @@ AcquireMemoryBuffer(
 
     // Map it in to make sure we can do it
     Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), &SystemBuffer->Physical, 
-        &Virtual, SystemBuffer->Capacity, MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_PROCESS, __MASK);
+        &Virtual, SystemBuffer->Capacity, MAPPING_USERSPACE | 
+        MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_PROCESS, __MASK);
     if (Status != OsSuccess) {
         ERROR("Failed to map process memory");
         return Status;

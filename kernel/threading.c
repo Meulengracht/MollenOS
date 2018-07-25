@@ -552,31 +552,19 @@ ThreadingSwitch(
     _In_ int            PreEmptive,
     _InOut_ Context_t** Context)
 {
-    // Variables
-    MCoreThread_t *NextThread   = NULL;
+    SystemCpuCore_t *Core;
+    MCoreThread_t *NextThread;
 
     // Sanitize current thread
     assert(Current != NULL);
 
-    // Store active context
-    Current->ContextActive = *Context;
-    
-    // Unless this one is done..
+    Core                    = GetCurrentProcessorCore();
+    Current->ContextActive  = *Context;
 GetNextThread:
-    if ((Current->Flags & THREADING_FINISHED) || (Current->Flags & THREADING_IDLE)
-        || (Current->Flags & THREADING_TRANSITION_SLEEP))
-    {
-        THREADING_CLEARSTATE(Current->Flags);
-
-        // Handle the sleep flag
-        if (Current->Flags & THREADING_TRANSITION_SLEEP) {
-            Current->Flags &= ~(THREADING_TRANSITION_SLEEP);
-            THREADING_SETSTATE(Current->Flags, THREADING_BLOCKED);
-        }
-
-        // If the thread is finished then add it to 
-        // garbagecollector
+    if (Current->Flags & (THREADING_FINISHED | THREADING_IDLE)) {
+        // If the thread is finished then add it to garbagecollector
         if (Current->Flags & THREADING_FINISHED) {
+            THREADING_CLEARSTATE(Current->Flags);
             GcSignal(GlbThreadGcId, Current);
         }
         
@@ -587,15 +575,13 @@ GetNextThread:
         NextThread = SchedulerThreadSchedule(Current, PreEmptive);
     }
 
-    // Sanitize if we need to active our idle thread
+    // Sanitize if we need to active our idle thread, otherwise
+    // do a final check that we haven't just gotten ahold of a thread
+    // marked for finish
     if (NextThread == NULL) {
-        NextThread = &GetCurrentProcessorCore()->IdleThread;
+        NextThread = &Core->IdleThread;
     }
-
-    // More sanity 
-    // If we have caught a finished thread that
-    // has been killed while scheduled, get a new
-    if (NextThread->Flags & THREADING_FINISHED) {
+    else if (NextThread->Flags & THREADING_FINISHED) {
         Current = NextThread;
         goto GetNextThread;
     }
@@ -609,8 +595,7 @@ GetNextThread:
         NextThread->ContextActive   = NextThread->Contexts[THREADING_CONTEXT_LEVEL0];
     }
 
-    // Update state of thread and cpu
-    *Context                                    = NextThread->ContextActive;
-    GetCurrentProcessorCore()->CurrentThread    = NextThread;
+    Core->CurrentThread = NextThread;
+    *Context            = NextThread->ContextActive;
     return NextThread;
 }

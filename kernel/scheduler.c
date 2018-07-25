@@ -33,10 +33,12 @@
 #include <system/thread.h>
 #include <system/interrupts.h>
 #include <system/utils.h>
+#include <process/phoenix.h>
 #include <scheduler.h>
 #include <machine.h>
 #include <assert.h>
 #include <timers.h>
+#include <string.h>
 #include <debug.h>
 #include <heap.h>
 
@@ -81,10 +83,7 @@ FindThreadInQueue(
     _In_ SchedulerQueue_t*  Queue,
     _In_ MCoreThread_t*     Thread)
 {
-    // Variables
-    MCoreThread_t *i = NULL;
-
-    // Sanitize the io-queue
+    MCoreThread_t *i;
     if (IoQueue.Head == NULL) {
         return OsError;
     }
@@ -164,7 +163,6 @@ AddToSleepQueueAndSleep(
     _In_ atomic_int*        Object,
     _In_ int*               ExpectedValue)
 {
-    // Variables
     MCoreThread_t *AppendTo = NULL;
 
     // Null end
@@ -186,7 +184,11 @@ AddToSleepQueueAndSleep(
         AtomicSectionLeave(&IoQueue.SyncObject);
         return OsError;
     }
-    Thread->Flags  |= THREADING_TRANSITION_SLEEP;
+
+    // Clear thread state, set skip on requeue
+    THREADING_CLEARSTATE(Thread->Flags);
+    Thread->Flags |= THREADING_SKIP_REQUEUE;
+
     AtomicSectionLeave(&IoQueue.SyncObject);
     ThreadingYield();
     return OsSuccess;
@@ -198,11 +200,7 @@ MCoreThread_t*
 GetThreadReadyForExecution(
     _In_ UUId_t             CoreId)
 {
-    // Variables
-    MCoreThread_t *i = NULL;
-
-    // Iterate the queue
-    i = IoQueue.Head;
+    MCoreThread_t *i = IoQueue.Head;
     while (i) {
         if (i->CoreId == CoreId && i->Sleep.InterruptedAt) {
             return i;
@@ -652,16 +650,21 @@ SchedulerThreadSchedule(
 
     // Handle the scheduled thread first
     if (Thread != NULL) {
-        TimeSlice = Thread->TimeSlice;
+        if (!(Thread->Flags & THREADING_SKIP_REQUEUE)) {
+            TimeSlice = Thread->TimeSlice;
 
-        // Did it yield itself?
-        if (Preemptive != 0) {
-            if (Thread->Queue < (SCHEDULER_LEVEL_CRITICAL - 1)) {
-                Thread->Queue++;
-                Thread->TimeSlice = (Thread->Queue * 2) + SCHEDULER_TIMESLICE_INITIAL;
+            // Did it yield itself?
+            if (Preemptive != 0) {
+                if (Thread->Queue < (SCHEDULER_LEVEL_CRITICAL - 1)) {
+                    Thread->Queue++;
+                    Thread->TimeSlice = (Thread->Queue * 2) + SCHEDULER_TIMESLICE_INITIAL;
+                }
             }
+            SchedulerThreadQueue(Thread, 1);      
         }
-        SchedulerThreadQueue(Thread, 1);
+        else {
+            Thread->Flags &= ~(THREADING_SKIP_REQUEUE); // Clear the requeue flag
+        }
     }
     else {
         TimeSlice = SCHEDULER_TIMESLICE_INITIAL;

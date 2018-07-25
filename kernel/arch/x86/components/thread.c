@@ -63,12 +63,12 @@ InterruptStatus_t
 ThreadingYieldHandler(
     _In_ void *Context)
 {
-    // Variables
-    Context_t *Regs     = NULL;
-    size_t TimeSlice    = 20;
-    int TaskPriority    = 0;
+    Context_t *Regs;
+    size_t TimeSlice;
+    int TaskPriority;
 
-    // Yield => start by sending eoi
+    // Yield => start by sending eoi. It is never certain that we actually return
+    // to this function due to how signals are working
     ApicSendEoi(APIC_NO_GSI, INTERRUPT_YIELD);
     Regs = _ThreadingSwitch((Context_t*)Context, 0, &TimeSlice, &TaskPriority);
 
@@ -98,11 +98,7 @@ OsStatus_t
 ThreadingRegister(
     _In_ MCoreThread_t *Thread)
 {
-    // Variables
-    DataKey_t Key;
-
     // Allocate a new thread context (x86) and zero it out
-    Key.Value           = (int)Thread->Id;
     Thread->Data[THREAD_DATA_FLAGS]         = 0;
     Thread->Data[THREAD_DATA_IOMAP]         = (uintptr_t)kmalloc(GDT_IOMAP_SIZE);
     Thread->Data[THREAD_DATA_MATHBUFFER]    = (uintptr_t)kmalloc_a(0x1000);
@@ -180,14 +176,16 @@ ThreadingIoSet(
  * by sending it an yield IPI */
 void
 ThreadingWakeCpu(
-    _In_ UUId_t Cpu) {
+    _In_ UUId_t Cpu)
+{
     ApicSendInterrupt(InterruptSpecific, Cpu, INTERRUPT_YIELD);
 }
 
 /* ThreadingYield
  * Yields the current thread control to the scheduler */
 void
-ThreadingYield(void) {
+ThreadingYield(void)
+{
     _yield();
 }
 
@@ -198,7 +196,6 @@ OsStatus_t
 ThreadingSignalDispatch(
     _In_ MCoreThread_t *Thread)
 {
-    // Variables
     MCoreAsh_t *Process     = PhoenixGetAsh(Thread->AshId);
 
     // Now we can enter the signal context 
@@ -219,9 +216,8 @@ void
 ThreadingImpersonate(
     _In_ MCoreThread_t *Thread)
 {
-    // Variables
-    MCoreThread_t *Current  = NULL;
-    UUId_t Cpu              = 0;
+    MCoreThread_t *Current;
+    UUId_t Cpu;
 
     // Instantiate values
     Cpu             = CpuGetCurrentId();
@@ -252,18 +248,15 @@ _ThreadingSwitch(
     _Out_ int       *TaskQueue)
 {
     // Variables
-    MCoreThread_t *Thread   = NULL;
     UUId_t Cpu              = CpuGetCurrentId();
+    MCoreThread_t *Thread   = ThreadingGetCurrentThread(Cpu);
 
     // Sanitize the status of threading - return default values
-    if (ThreadingGetCurrentThread(Cpu) == NULL) {
+    if (Thread == NULL) {
         *TimeSlice      = 20;
         *TaskQueue      = 0;
         return Context;
     }
-
-    Thread      = ThreadingGetCurrentThread(Cpu);
-    assert(Thread != NULL);
     assert(!(Thread->Flags & THREADING_IMPERSONATION));
     
     // Save FPU/MMX/SSE information if it's
@@ -279,18 +272,15 @@ _ThreadingSwitch(
 
     // Get a new thread for us to enter
     Thread      = ThreadingSwitch(Thread, PreEmptive, &Context);
-
     *TimeSlice  = Thread->TimeSlice;
     *TaskQueue  = Thread->Queue;
+    Thread->Data[THREAD_DATA_FLAGS] &= ~X86_THREAD_USEDFPU; // Clear the FPU used flag
 
     // Load thread-specific resources
     SwitchSystemMemorySpace(Thread->MemorySpace);
     TssUpdateThreadStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
     TssUpdateIo(Cpu, (uint8_t*)Thread->Data[THREAD_DATA_IOMAP]);
-
-    // Clear fpu flags and set task switch
-    Thread->Data[THREAD_DATA_FLAGS] &= ~X86_THREAD_USEDFPU;
-    set_ts();
+    set_ts(); // Set task switch bit so we get faults on fpu instructions
 
     // Handle any signals pending for thread
     SignalHandle(Thread->Id);

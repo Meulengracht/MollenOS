@@ -30,12 +30,7 @@
 #ifndef _MCORE_SCHEDULER_H_
 #define _MCORE_SCHEDULER_H_
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
-
-/* Includes
- * - System */
 #include <atomicsection.h>
 #include <threading.h>
 

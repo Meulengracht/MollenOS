@@ -169,12 +169,10 @@ AhciCommandDispatch(
     // Set the port multiplier
     Transaction->Device->Port->CommandList->Headers[Transaction->Slot].Flags
         |= (DISPATCH_MULTIPLIER(Flags) << 12);
-
-    // Setup key and sort key
-    Key.Value   = Transaction->Slot;
+    Key.Value = Transaction->Slot;
 
     // Add transaction to list
-    tNode       = CollectionCreateNode(Key, Transaction);
+    tNode = CollectionCreateNode(Key, Transaction);
     CollectionAppend(Transaction->Device->Port->Transactions, tNode);
     TRACE("Enabling command on slot %u", Transaction->Slot);
 
@@ -335,7 +333,7 @@ AhciCommandFinish(
     OsStatus_t Status = OsError;
 
     // Trace
-    WARNING("AhciCommandFinish()");
+    TRACE("AhciCommandFinish()");
 
     // Verify the command execution
     Status = AhciVerifyRegisterFIS(Transaction);

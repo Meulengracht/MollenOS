@@ -534,9 +534,8 @@ ExceptionEntry(
             Thread      = ThreadingGetCurrentThread(Cpu);
             Registers   = Thread->ActiveSignal.Context;
             TssUpdateThreadStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
-
-            // Complete signal handling
-            SignalReturn();
+            SignalReturn();                 // Complete signal handling
+            InterruptSetActiveStatus(0);    // Clear interrupt status before leaving
             enter_thread(Registers);
         }
 
@@ -576,7 +575,7 @@ ExceptionEntry(
         }
 
         // Locate which module
-        if (DebugGetModuleByAddress(CONTEXT_IP(Registers), &Base, &Name) == OsSuccess) {
+        if (DebugGetModuleByAddress(PhoenixGetCurrentAsh(), CONTEXT_IP(Registers), &Base, &Name) == OsSuccess) {
             uintptr_t Diff = CONTEXT_IP(Registers) - Base;
             WRITELINE("Faulty Address: 0x%x (%s)", Diff, Name);
         }

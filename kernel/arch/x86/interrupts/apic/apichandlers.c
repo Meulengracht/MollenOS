@@ -44,15 +44,15 @@ InterruptStatus_t
 ApicTimerHandler(
     _In_ void*  Context)
 {
-    // Variables
-    Context_t *Regs     = NULL;
-    UUId_t CurrCpu      = CpuGetCurrentId();
-    size_t TimeSlice    = 20;
-    int TaskPriority    = 0;
+    Context_t *Regs;
+    size_t TimeSlice;
+    int TaskPriority;
+    UUId_t CurrCpu = CpuGetCurrentId();
 
-    // Send EOI immediately
+    // Yield => start by sending eoi. It is never certain that we actually return
+    // to this function due to how signals are working
     GlbTimerTicks[CurrCpu]++;
-    ApicSendEoi(0, INTERRUPT_LAPIC);
+    ApicSendEoi(APIC_NO_GSI, INTERRUPT_LAPIC);
     Regs = _ThreadingSwitch((Context_t*)Context, 1, &TimeSlice, &TaskPriority);
     
     // If we are idle task - disable timer untill we get woken up

@@ -188,6 +188,30 @@ PS2PortWrite(
     return PS2WriteData(Value);
 }
 
+/* PS2PortWaitForState
+ * Waits for the port to enter the given state. The function can return OsError
+ * if the state is not reached in a seconds time. */
+OsStatus_t
+PS2PortWaitForState(
+    _In_ PS2Command_t*      Command,
+    _In_ PS2CommandState_t  State)
+{
+    volatile PS2CommandState_t *ActiveState;
+    int Timeout = 1000;
+
+    ActiveState = (volatile PS2CommandState_t*)&Command->State;
+    while (*ActiveState != State && Timeout > 0) {
+        thrd_sleepex(10);
+        Timeout -= 10;
+    }
+    if (Timeout == 0) {
+        WARNING("PS2-Command state timeout (%i != %i), command %u", 
+            *ActiveState, State, Command->Command);
+        return OsError;
+    }
+    return OsSuccess;
+}
+
 /* PS2PortQueueCommand 
  * Queues the given command up for the given port
  * if a response is needed for the previous commnad
@@ -200,19 +224,16 @@ PS2PortQueueCommand(
 {
     PS2Command_t *pCommand  = NULL;
     OsStatus_t Result       = OsSuccess;
-    int NextQueueIndex      = Port->QueueIndex % PS2_MAXCOMMANDS;
+    pCommand                = &Port->Commands[Port->QueueIndex % PS2_MAXCOMMANDS];
 
     // Find a free command spot for the queue
-    while (Port->Commands[NextQueueIndex].InUse != 0) {
-        thrd_sleepex(10);
+    if (PS2PortWaitForState(pCommand, PS2Free) != OsSuccess) {
+        return OsError;
     }
-
-    pCommand        = &Port->Commands[NextQueueIndex];
-    pCommand->InUse = 1;
     Port->QueueIndex++;
 
     // Initiate the packet data
-    pCommand->Executed      = 0;
+    pCommand->State         = PS2InQueue;
     pCommand->RetryCount    = 0;
     pCommand->Command       = Command;
     pCommand->Response      = Response;
@@ -223,14 +244,7 @@ PS2PortQueueCommand(
         Port->CurrentCommand    = pCommand;
         Result                  = PS2PortWrite(Port, Command);
     }
-
-    // Asynchronously? Or do we need response?
-    if (Response != NULL) {
-        while (pCommand->Executed != 2) {
-            thrd_sleepex(10);
-        }
-    }
-    return Result;
+    return PS2PortWaitForState(pCommand, PS2Free);
 }
 
 /* PS2PortExecuteNextCommand
@@ -240,21 +254,16 @@ OsStatus_t
 PS2PortExecuteNextCommand(
     _In_ PS2Port_t* Port)
 {
-    OsStatus_t Status       = OsSuccess;
-    int ExecutionIndex      = Port->ExecutionIndex % PS2_MAXCOMMANDS;
     int NextExecutionIndex  = (Port->ExecutionIndex + 1) % PS2_MAXCOMMANDS;
-
-    // Set the current index to not in-use anymore
-    Port->CurrentCommand                    = NULL;
-    Port->Commands[ExecutionIndex].InUse    = 0;
+    Port->CurrentCommand    = NULL;
 
     // Increase the index for execution
-    if (Port->Commands[NextExecutionIndex].InUse != 0) {
+    if (Port->Commands[NextExecutionIndex].State == PS2InQueue) {
         Port->ExecutionIndex++;
-        Port->CurrentCommand    = &Port->Commands[NextExecutionIndex];
-        Status                  = PS2PortWrite(Port, Port->Commands[NextExecutionIndex].Command);
+        Port->CurrentCommand = &Port->Commands[NextExecutionIndex];
+        PS2PortWrite(Port, Port->Commands[NextExecutionIndex].Command);
     }
-    return Status;
+    return OsSuccess;
 }
 
 /* PS2PortFinishCommand 
@@ -268,53 +277,40 @@ PS2PortFinishCommand(
     if (Port->CurrentCommand == NULL) {
         return OsError;
     }
-    
-    // OK we have a command active, sometimes we can get a resend, so handle
-    // that first. Unless this is the result byte, just ignore
-    if (Result == PS2_RESEND_COMMAND && Port->CurrentCommand->Executed == 0) {
-        if (Port->CurrentCommand->RetryCount < PS2_MAX_RETRIES) {
-            Port->CurrentCommand->RetryCount++;
-            PS2PortWrite(Port, Port->CurrentCommand->Command);
-            return OsSuccess;
-        }
-        
-        // Otherwise treat this as failed command
-        if (Port->CurrentCommand->Response != NULL) {
-            *(Port->CurrentCommand->Response) = 0xFF;
-        }
-        Port->CurrentCommand->Executed = 2;
-        PS2PortExecuteNextCommand(Port);
-        return OsSuccess;
-    }
-    
-    // If we reach here we have to see if we need to fetch a 
-    // result byte as well. Then just return. Only if the command succeeded tho!
-    if (Port->CurrentCommand->Executed == 0) {
-        if (Port->CurrentCommand->Response != NULL) {
-            // This was the result of the command stage, however if the command stage fails
-            // then we need to treat this like a failed command
-            if (Result == PS2_ACK_COMMAND) {
-                Port->CurrentCommand->Executed = 1;
-                return OsSuccess;
-            }
-            *(Port->CurrentCommand->Response) = 0xFF;
-            Port->CurrentCommand->Executed = 2;
-        }
-        else {
-            // Command result, what the hell should we do? Do we care?
-            Port->CurrentCommand->Executed = 1;
-        }
-    }
-    else if (Port->CurrentCommand->Executed == 1) {
-        if (Port->CurrentCommand->Response != NULL) {
-            *(Port->CurrentCommand->Response) = Result;
-        }
-        Port->CurrentCommand->Executed = 2;
-    }
 
-    // Go to next command
-    PS2PortExecuteNextCommand(Port);
-    return OsSuccess;
+    switch (Port->CurrentCommand->State) {
+        case PS2InQueue: {
+            if (Result == PS2_RESEND_COMMAND) {
+                if (Port->CurrentCommand->RetryCount < PS2_MAX_RETRIES) {
+                    Port->CurrentCommand->RetryCount++;
+                    PS2PortWrite(Port, Port->CurrentCommand->Command);
+                    return OsSuccess;
+                }
+                Port->CurrentCommand->Command   = PS2_FAILED_COMMAND;
+                Port->CurrentCommand->State     = PS2Free;
+                // Go to next command
+            }
+            else if (Result == PS2_ACK_COMMAND) {
+                if (Port->CurrentCommand->Response != NULL) {
+                    Port->CurrentCommand->State = PS2WaitingResponse;
+                    return OsSuccess;
+                }
+                Port->CurrentCommand->State = PS2Free;
+                // Go to next command
+            }
+        } break;
+
+        case PS2WaitingResponse: {
+            *(Port->CurrentCommand->Response)   = Result;
+            Port->CurrentCommand->State         = PS2Free;
+        } break;
+
+        // Reached on PS2Free, should not happen
+        default: {
+
+        } break;
+    }
+    return PS2PortExecuteNextCommand(Port);
 }
 
 /* PS2PortInitialize

@@ -24,6 +24,7 @@
 #include <os/osdefs.h>
 #include <process/phoenix.h>
 #include <system/utils.h>
+#include <scheduler.h>
 #include <threading.h>
 #include <debug.h>
 #include <pipe.h>
@@ -291,7 +292,6 @@ ScRpcRespond(
         ERROR("Thread %u did not exist", RemoteAddress->Thread);
         return OsError;
     }
-
     WriteSystemPipe(Pipe, Buffer, Length);
     return OsSuccess;
 }

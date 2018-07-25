@@ -71,7 +71,6 @@ typedef void(*ThreadEntry_t)(void*);
  * 3 = Reserved */
 #define THREADING_INACTIVE              0x00000000
 #define THREADING_ACTIVE                0x00000001
-#define THREADING_BLOCKED               0x00000002
 #define THREADING_STATEMASK             0x00000018
 #define THREADING_STATE(Flags)          ((Flags & THREADING_STATEMASK) >> 3)
 #define THREADING_SETSTATE(Flags, State) (Flags |= (State << 3))
@@ -87,7 +86,7 @@ typedef void(*ThreadEntry_t)(void*);
 #define THREADING_IMPERSONATION         0x00000400
 
 #define THREADING_TRANSITION_USERMODE   0x10000000
-#define THREADING_TRANSITION_SLEEP      0x20000000
+#define THREADING_SKIP_REQUEUE          0x20000000
 
 /* A Signal Entry 
  * This is used to describe a signal 

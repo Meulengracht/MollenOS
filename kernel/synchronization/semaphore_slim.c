@@ -87,7 +87,7 @@ SlimSemaphoreWait(
 
         // Go to sleep atomically, check return value, if there was sync
         // issues try again
-        Status = SchedulerAtomicThreadSleep(&Semaphore->Value, &Value, 0);
+        Status = SchedulerAtomicThreadSleep(&Semaphore->Value, &Value, Timeout);
         if (Status != SCHEDULER_SLEEP_SYNC_FAILED) {
             break;
         }

@@ -115,7 +115,7 @@ SignalCreate(
 	CollectionAppend(Target->SignalQueue, CollectionCreateNode(sKey, Sig));
 
     // Wake up thread if neccessary
-    if (THREADING_STATE(Target->Flags) == THREADING_INACTIVE) {
+    if (THREADING_STATE(Target->Flags) != THREADING_ACTIVE) {
         SchedulerThreadSignal(Target);
     }
     return OsSuccess;
@@ -147,12 +147,12 @@ OsStatus_t
 SignalHandle(
 	_In_ UUId_t ThreadId)
 {
-	MCoreThread_t *Thread   = NULL;
-	MCoreSignal_t *Signal   = NULL;
-	CollectionItem_t *sNode = NULL;
+	CollectionItem_t *sNode;
+	MCoreThread_t *Thread;
+	MCoreSignal_t *Signal;
 	
 	// Lookup variables
-	Thread                  = ThreadingGetThread(ThreadId);
+	Thread = ThreadingGetThread(ThreadId);
 	if (Thread == NULL) {
 		return OsError;
 	}
@@ -163,8 +163,6 @@ SignalHandle(
 	if (Thread->ActiveSignal.Signal != -1) {
 		return OsError;
 	}
-
-	// Ok.. pop off first signal
 	sNode = CollectionPopFront(Thread->SignalQueue);
 
 	// Sanitize the node, no more signals?
@@ -184,7 +182,6 @@ SignalExecute(
     _In_ MCoreThread_t *Thread,
     _In_ MCoreSignal_t *Signal)
 {
-    // Variables
     MCoreAsh_t *Process = NULL;
 
     // Debug

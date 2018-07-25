@@ -500,9 +500,9 @@ FsWriteFile(
 		}
 
 		// Increase the pointers and decrease with bytes read
-		*BytesWritten += ByteCount;
-		Position += ByteCount;
-		BytesToWrite -= ByteCount;
+		*BytesWritten 	+= ByteCount;
+		Position 		+= ByteCount;
+		BytesToWrite 	-= ByteCount;
 
 		// Do we need to switch bucket?
 		// We do if the position we have read to equals end of bucket
@@ -511,8 +511,7 @@ FsWriteFile(
 			MapRecord_t Link;
 
 			// We have to lookup the link for current bucket
-			if (MfsGetBucketLink(Descriptor,
-				fInstance->DataBucketPosition, &Link) != OsSuccess) {
+			if (MfsGetBucketLink(Descriptor, fInstance->DataBucketPosition, &Link) != OsSuccess) {
 				ERROR("Failed to get link for bucket %u", fInstance->DataBucketPosition);
 				Result = FsDiskError;
 				break;

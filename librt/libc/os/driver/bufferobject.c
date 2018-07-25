@@ -47,7 +47,7 @@ CreateBuffer(
     }
 
     Buffer = (DmaBuffer_t*)malloc(sizeof(DmaBuffer_t));
-    memset((void*)Buffer, 0, sizeof(Buffer));
+    memset((void*)Buffer, 0, sizeof(DmaBuffer_t));
     if (FromHandle != UUID_INVALID) {
         if (Syscall_AcquireBuffer(FromHandle, Buffer) != OsSuccess) {
             free(Buffer);
@@ -115,8 +115,6 @@ SeekBuffer(
     if (BufferObject == NULL || BufferObject->Capacity < Position) {
         return OsError;
     }
-
-    // Update position
     BufferObject->Position = Position;
     return OsSuccess;
 }
@@ -249,10 +247,8 @@ CombineBuffer(
         (const void*)(Source->Address + Source->Position), BytesNormalized);
 
     // Increase positions
-    Destination->Position += BytesNormalized;
-    Source->Position += BytesNormalized;
-
-    // Update out
+    Destination->Position   += BytesNormalized;
+    Source->Position        += BytesNormalized;
     if (BytesTransferred != NULL) {
         *BytesTransferred = BytesNormalized;
     }
