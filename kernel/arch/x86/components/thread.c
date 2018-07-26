@@ -100,17 +100,8 @@ ThreadingRegister(
 {
     // Allocate a new thread context (x86) and zero it out
     Thread->Data[THREAD_DATA_FLAGS]         = 0;
-    Thread->Data[THREAD_DATA_IOMAP]         = (uintptr_t)kmalloc(GDT_IOMAP_SIZE);
     Thread->Data[THREAD_DATA_MATHBUFFER]    = (uintptr_t)kmalloc_a(0x1000);
     memset((void*)Thread->Data[THREAD_DATA_MATHBUFFER], 0, 0x1000);
-    
-    // Disable all port-access
-    if (THREADING_RUNMODE(Thread->Flags) != THREADING_KERNELMODE) {
-        memset((void*)Thread->Data[THREAD_DATA_IOMAP], 0xFF, GDT_IOMAP_SIZE);
-    }
-    else {
-        memset((void*)Thread->Data[THREAD_DATA_IOMAP], 0, GDT_IOMAP_SIZE);
-    }
     return OsSuccess;
 }
 
@@ -122,7 +113,6 @@ ThreadingUnregister(
     _In_ MCoreThread_t *Thread)
 {
     // Cleanup
-    kfree((void*)Thread->Data[THREAD_DATA_IOMAP]);
     kfree((void*)Thread->Data[THREAD_DATA_MATHBUFFER]);
     return OsSuccess;
 }
@@ -148,27 +138,6 @@ ThreadingFpuException(
         return OsSuccess;
     }
     return OsError;
-}
-
-/* ThreadingIoSet
- * Set's the io status of the given thread. */
-OsStatus_t
-ThreadingIoSet(
-    _In_ MCoreThread_t *Thread,
-    _In_ uint16_t       Port,
-    _In_ int            Enable)
-{
-    // Cast the io-map to an uint8_t
-    uint8_t *IoMap = (uint8_t*)Thread->Data[THREAD_DATA_IOMAP];
-
-    // Update thread's io-map
-    if (Enable) {
-        IoMap[Port / 8] &= ~(1 << (Port % 8));
-    }
-    else {
-        IoMap[Port / 8] |= (1 << (Port % 8));
-    }
-    return OsSuccess;
 }
 
 /* ThreadingWakeCpu
@@ -232,7 +201,7 @@ ThreadingImpersonate(
     }
 
     // Load resources
-    TssUpdateIo(Cpu, (uint8_t*)Thread->Data[THREAD_DATA_IOMAP]);
+    TssUpdateIo(Cpu, (uint8_t*)Thread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
     SwitchSystemMemorySpace(Thread->MemorySpace);
 }
 
@@ -279,7 +248,7 @@ _ThreadingSwitch(
     // Load thread-specific resources
     SwitchSystemMemorySpace(Thread->MemorySpace);
     TssUpdateThreadStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
-    TssUpdateIo(Cpu, (uint8_t*)Thread->Data[THREAD_DATA_IOMAP]);
+    TssUpdateIo(Cpu, (uint8_t*)Thread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
     set_ts(); // Set task switch bit so we get faults on fpu instructions
 
     // Handle any signals pending for thread

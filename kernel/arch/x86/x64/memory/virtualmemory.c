@@ -35,6 +35,7 @@
 #include <arch.h>
 #include <apic.h>
 #include <cpu.h>
+#include <gdt.h>
 
 extern OsStatus_t SwitchVirtualSpace(SystemMemorySpace_t*);
 
@@ -399,6 +400,17 @@ CloneVirtualSpace(
     // Update the configuration data for the memory space
 	MemorySpace->Data[MEMORY_SPACE_CR3]       = MasterAddress;
 	MemorySpace->Data[MEMORY_SPACE_DIRECTORY] = (uintptr_t)PageMasterTable;
+
+    // Create new resources for the happy new parent :-)
+    if (MemorySpaceParent == NULL) {
+        MemorySpace->Data[MEMORY_SPACE_IOMAP] = (uintptr_t)kmalloc(GDT_IOMAP_SIZE);
+        if (MemorySpace->Flags & (MEMORY_SPACE_APPLICATION | MEMORY_SPACE_SERVICE)) {
+            memset((void*)MemorySpace->Data[MEMORY_SPACE_IOMAP], 0xFF, GDT_IOMAP_SIZE);
+        }
+        else {
+            memset((void*)MemorySpace->Data[MEMORY_SPACE_IOMAP], 0, GDT_IOMAP_SIZE);
+        }
+    }
     return OsSuccess;
 }
 
@@ -486,7 +498,6 @@ OsStatus_t
 DestroyVirtualSpace(
     _In_ SystemMemorySpace_t*   SystemMemorySpace)
 {
-    // Variables
     PageMasterTable_t *Current = (PageMasterTable_t*)SystemMemorySpace->Data[MEMORY_SPACE_DIRECTORY];
     uint64_t Mapping;
 
@@ -497,9 +508,12 @@ DestroyVirtualSpace(
             MmVirtualDestroyPageDirectoryTable((PageDirectoryTable_t*)Current->vTables[PmIndex]);
         }
     }
-
-    // Done with page-master table, free it
     kfree(Current);
+
+    // Free the resources allocated specifically for this
+    if (SystemMemorySpace->Parent == NULL) {
+        kfree((void*)SystemMemorySpace->Data[MEMORY_SPACE_IOMAP]);
+    }
     return OsSuccess;
 }
 
@@ -564,6 +578,7 @@ InitializeVirtualSpace(
         // Update the configuration data for the memory space
         SystemMemorySpace->Data[MEMORY_SPACE_CR3]       = iPhysical;
         SystemMemorySpace->Data[MEMORY_SPACE_DIRECTORY] = (uintptr_t)iDirectory;
+        SystemMemorySpace->Data[MEMORY_SPACE_IOMAP]     = TssGetBootIoSpace();
         
         // Update and switch page-directory for the calling core
         SwitchVirtualSpace(SystemMemorySpace);

@@ -221,7 +221,7 @@ FsReadFile(
 	Position        = Handle->Position;
 	BytesToRead     = Length;
 	*BytesRead      = 0;
-	*BytesAt        = __MASK;
+	*BytesAt        = Handle->Position % Descriptor->Disk.Descriptor.SectorSize;
 
 	// Sanitize the amount of bytes we want
 	// to read, cap it at bytes available
@@ -242,17 +242,12 @@ FsReadFile(
 		// Calculate which bucket, then the sector offset
 		// Then calculate how many sectors of the bucket we need to read
 		uint64_t Sector         = MFS_GETSECTOR(Mfs, fInstance->DataBucketPosition);
-		uint64_t SectorOffset   = (Position - fInstance->BucketByteBoundary) % Descriptor->Disk.Descriptor.SectorSize;
+		uint64_t SectorOffset   = Position % Descriptor->Disk.Descriptor.SectorSize;
 		size_t SectorIndex      = (size_t)((Position - fInstance->BucketByteBoundary) / Descriptor->Disk.Descriptor.SectorSize);
 		size_t SectorsLeft      = MFS_GETSECTOR(Mfs, fInstance->DataBucketLength) - SectorIndex;
 		size_t SectorCount      = 0;
         size_t ByteCount        = 0;
 		
-		// Update the data-offset
-		if (*BytesAt == __MASK) {
-			*BytesAt            = (size_t)SectorOffset;
-		}
-
         // Debug counter values
         TRACE(">> Physical Pointer: 0x%x, File Position %u, BytesToRead %u",
             DataPointer, LODWORD(Position), BytesToRead);

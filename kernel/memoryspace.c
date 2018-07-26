@@ -74,8 +74,8 @@ SystemMemorySpace_t*
 CreateSystemMemorySpace(
     _In_ Flags_t                Flags)
 {
-	// Variables
 	SystemMemorySpace_t *MemorySpace = NULL;
+    int i;
 
 	// If we want to create a new kernel address
 	// space we instead want to re-use the current 
@@ -95,7 +95,7 @@ CreateSystemMemorySpace(
 		MemorySpace->Flags      = Flags;
 		MemorySpace->References = 1;
 		CriticalSectionConstruct(&MemorySpace->SyncObject, CRITICALSECTION_REENTRANCY);
-        
+
         // Parent must be the upper-most instance of the address-space
         // of the process. Only to the point of not having kernel as parent
         MemorySpace->Parent    = (GetCurrentSystemMemorySpace()->Parent != NULL) ? 
@@ -104,9 +104,13 @@ CreateSystemMemorySpace(
             MemorySpace->Parent = NULL;
         }
         
-        // Add a reference to our parent, we need it
+        // If we have a parent, both add a new reference to the parent
+        // and also copy all its members. 
         if (MemorySpace->Parent != NULL) {
             atomic_fetch_add(&MemorySpace->Parent->References, 1);
+            for (i = 0; i < MEMORY_DATACOUNT; i++) {
+                MemorySpace->Data[i] = MemorySpace->Parent->Data[i];
+            }
         }
         CloneVirtualSpace(MemorySpace->Parent, MemorySpace, (Flags & MEMORY_SPACE_INHERIT) ? 1 : 0);
 	}

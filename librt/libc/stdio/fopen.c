@@ -64,11 +64,10 @@ unsigned split_oflags(
 /* open
  * ANSII Version of the fopen. Handles flags and creation flags. */
 int open(
-	_In_ __CONST char *file, 
-	_In_ int flags,
+	_In_ const char*	file,
+	_In_ int 			flags,
 	...)
 {
-	// Variables
 	FileSystemCode_t Code = 0;
 	UUId_t Handle;
 	int wxflags = 0;

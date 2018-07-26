@@ -25,6 +25,7 @@
 #include <os/threadpool.h>
 #include <os/utils.h>
 #include <stdlib.h>
+#include <string.h>
 #include <signal.h>
 
 /* ThreadPoolJob (Private)

@@ -21,19 +21,13 @@
  * - Task State Segment 
  */
 
-/* Includes
- * - System */
 #include <system/utils.h>
 #include <memory.h>
+#include <assert.h>
+#include <string.h>
 #include <arch.h>
 #include <heap.h>
 #include <gdt.h>
-
-/* Includes
- * - Library */
-#include <assert.h>
-#include <stddef.h>
-#include <string.h>
 
 /* Externs
  * Provide access to some assembler functions */
@@ -175,6 +169,14 @@ TssUpdateThreadStack(
 {
     assert(TssPointers[Cpu] != NULL);
 	TssPointers[Cpu]->Esp0 = Stack;
+}
+
+/* TssGetBootIoSpace
+ * Retrieves the boot-io bitmap space for the kernel threads. */
+uintptr_t
+TssGetBootIoSpace(void)
+{
+	return (uintptr_t)&TssPointers[CpuGetCurrentId()]->IoMap[0];
 }
 
 /* TssUpdateIo

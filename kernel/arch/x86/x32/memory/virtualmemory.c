@@ -35,6 +35,7 @@
 #include <heap.h>
 #include <arch.h>
 #include <cpu.h>
+#include <gdt.h>
 
 /* Extern assembly functions that are
  * implemented in _paging.asm */
@@ -270,6 +271,17 @@ CloneVirtualSpace(
     // Update the configuration data for the memory space
 	MemorySpace->Data[MEMORY_SPACE_CR3]       = PhysicalAddress;
 	MemorySpace->Data[MEMORY_SPACE_DIRECTORY] = (uintptr_t)PageDirectory;
+
+    // Create new resources for the happy new parent :-)
+    if (MemorySpaceParent == NULL) {
+        MemorySpace->Data[MEMORY_SPACE_IOMAP] = (uintptr_t)kmalloc(GDT_IOMAP_SIZE);
+        if (MemorySpace->Flags & (MEMORY_SPACE_APPLICATION | MEMORY_SPACE_SERVICE)) {
+            memset((void*)MemorySpace->Data[MEMORY_SPACE_IOMAP], 0xFF, GDT_IOMAP_SIZE);
+        }
+        else {
+            memset((void*)MemorySpace->Data[MEMORY_SPACE_IOMAP], 0, GDT_IOMAP_SIZE);
+        }
+    }
     return OsSuccess;
 }
 
@@ -279,7 +291,6 @@ OsStatus_t
 DestroyVirtualSpace(
     _In_ SystemMemorySpace_t*   SystemMemorySpace)
 {
-    // Variables
     PageDirectory_t *Pd = (PageDirectory_t*)SystemMemorySpace->Data[MEMORY_SPACE_DIRECTORY];
     int i, j;
 
@@ -316,13 +327,14 @@ DestroyVirtualSpace(
                 }
             }
         }
-
-        // Free the page-table
         kfree(Table);
     }
-    
-    // Free the page-directory
     kfree(Pd);
+
+    // Free the resources allocated specifically for this
+    if (SystemMemorySpace->Parent == NULL) {
+        kfree((void*)SystemMemorySpace->Data[MEMORY_SPACE_IOMAP]);
+    }
     return OsSuccess;
 }
 
@@ -388,6 +400,7 @@ InitializeVirtualSpace(
         // Update the configuration data for the memory space
         SystemMemorySpace->Data[MEMORY_SPACE_CR3]       = iPhysical;
         SystemMemorySpace->Data[MEMORY_SPACE_DIRECTORY] = (uintptr_t)iDirectory;
+        SystemMemorySpace->Data[MEMORY_SPACE_IOMAP]     = TssGetBootIoSpace();
 
         // Update and switch page-directory for the calling core
         SwitchVirtualSpace(SystemMemorySpace);

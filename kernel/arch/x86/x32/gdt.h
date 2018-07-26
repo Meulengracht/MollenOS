@@ -24,8 +24,6 @@
 #ifndef _GDT_H_
 #define _GDT_H_
 
-/* Includes
- * - System */
 #include <os/osdefs.h>
 
 /* Customization of TSS and GDT entry limits
@@ -155,41 +153,41 @@ PACKED_TYPESTRUCT(TssDescriptor, {
 /* GdtInitialize
  * Initialize the gdt table with the 5 default
  * descriptors for kernel/user mode data/code segments */
-__EXTERN
-void
+KERNELAPI void KERNELABI
 GdtInitialize(void);
 
 /* GdtInstall
  * This installs the current gdt-object in the
  * gdt register for the calling cpu, use to setup gdt */
-__EXTERN
-void
+KERNELAPI void KERNELABI
 GdtInstall(void);
 
 /* TssInitialize
  * Helper for setting up a new task state segment for
  * the given cpu core, this should be done once per
  * core, and it will set default params for the TSS */
-__EXTERN
-void
+KERNELAPI void KERNELABI
 TssInitialize(
     _In_ int    PrimaryCore);
 
 /* TssUpdateThreadStack
  * Updates the kernel/interrupt stack for the current
  * cpu tss entry, this should be updated at each task-switch */
-__EXTERN
-void
+KERNELAPI void KERNELABI
 TssUpdateThreadStack(
     _In_ UUId_t     Cpu, 
     _In_ uintptr_t  Stack);
+
+/* TssGetBootIoSpace
+ * Retrieves the boot-io bitmap space for the kernel threads. */
+KERNELAPI uintptr_t KERNELABI
+TssGetBootIoSpace(void);
 
 /* TssUpdateIo
  * Updates the io-map for the current runinng task, should
  * be updated each time there is a task-switch to reflect
  * io-privs. Iomap given must be length GDT_IOMAP_SIZE */
-__EXTERN
-void
+KERNELAPI void KERNELABI
 TssUpdateIo(
     _In_ UUId_t     Cpu,
     _In_ uint8_t*   IoMap);
@@ -198,8 +196,7 @@ TssUpdateIo(
  * Enables the given port in the given io-map, also updates
  * the change into the current tss for the given cpu to 
  * reflect the port-ownership instantly */
-__EXTERN
-void
+KERNELAPI void KERNELABI
 TssEnableIo(
     _In_ UUId_t     Cpu,
     _In_ uint16_t   Port);
@@ -208,8 +205,7 @@ TssEnableIo(
  * Disables the given port in the given io-map, also updates
  * the change into the current tss for the given cpu to 
  * reflect the port-ownership instantly */
-__EXTERN
-void
+KERNELAPI void KERNELABI
 TssDisableIo(
     _In_ UUId_t     Cpu,
     _In_ uint16_t   Port);

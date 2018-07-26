@@ -438,9 +438,9 @@ StdioHandleReadFile(
     // than just reading the entire thing at once. When? Who knows, but in our case anything
     // more than 5 transfers is useless
     if (Length >= (OriginalSize * 5)) {
-        FileSystemCode_t FsCode         = FsOk;
         DmaBuffer_t *TransferBuffer     = CreateBuffer(UUID_INVALID, Length);
 		size_t BytesReadFs              = 0, BytesIndex = 0;
+        FileSystemCode_t FsCode;
 
         FsCode = ReadFile(Handle->InheritationData.FileHandle, GetBufferHandle(TransferBuffer), Length, &BytesIndex, &BytesReadFs);
         if (_fval(FsCode) || BytesReadFs == 0) {
@@ -453,7 +453,7 @@ StdioHandleReadFile(
         }
 
 		SeekBuffer(TransferBuffer, BytesIndex);
-        ReadBuffer(TransferBuffer, (const void*)Pointer, BytesReadFs, NULL);
+        ReadBuffer(TransferBuffer, (const void*)Buffer, BytesReadFs, NULL);
         DestroyBuffer(TransferBuffer);
         *BytesRead = BytesReadFs;
         return OsSuccess;

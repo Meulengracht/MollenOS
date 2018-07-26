@@ -535,3 +535,24 @@ GetVirtualPageMapping(
     }
 	return ((Mapping & PAGE_MASK) + (Address & ATTRIBUTE_MASK));
 }
+
+/* SetIoSpaceAccess
+ * Set's the io status of the given memory space. */
+OsStatus_t
+SetIoSpaceAccess(
+    _In_ SystemMemorySpace_t*   MemorySpace,
+    _In_ uint16_t               Port,
+    _In_ int                    Enable)
+{
+    // Cast the io-map to an uint8_t
+    uint8_t *IoMap = (uint8_t*)MemorySpace->Data[MEMORY_SPACE_IOMAP];
+
+    // Update thread's io-map
+    if (Enable) {
+        IoMap[Port / 8] &= ~(1 << (Port % 8));
+    }
+    else {
+        IoMap[Port / 8] |= (1 << (Port % 8));
+    }
+    return OsSuccess;
+}

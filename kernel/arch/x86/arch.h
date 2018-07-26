@@ -42,6 +42,7 @@
  * Definitions, bit definitions and magic constants for address spaces */
 #define MEMORY_SPACE_CR3                0
 #define MEMORY_SPACE_DIRECTORY          1
+#define MEMORY_SPACE_IOMAP              2
 
 #ifndef GDT_IOMAP_SIZE
 #define GDT_IOMAP_SIZE                  2048
@@ -50,8 +51,7 @@
 /* Threading (Data) Definitions
  * Definitions, bit definitions and magic constants for threads */
 #define THREAD_DATA_FLAGS               0
-#define THREAD_DATA_IOMAP               1
-#define THREAD_DATA_MATHBUFFER          2
+#define THREAD_DATA_MATHBUFFER          1
 
 #if defined(i386) || defined(__i386__)
 /* Architecture Memory Layout

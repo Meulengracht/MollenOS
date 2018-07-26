@@ -24,7 +24,6 @@
 #ifndef _X86_THREAD_H_
 #define _X86_THREAD_H_
 
-/* Includes */
 #include <arch.h>
 #include <os/osdefs.h>
 

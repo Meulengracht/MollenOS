@@ -23,8 +23,7 @@
 #define __MODULE        "DVIO"
 //#define __TRACE
 
-/* Includes 
- * - System */
+#include <ds/collection.h>
 #include <system/iospace.h>
 #include <system/utils.h>
 #include <process/server.h>
@@ -33,19 +32,6 @@
 #include <arch.h>
 #include <heap.h>
 #include <gdt.h>
-
-/* Includes
- * - Library */
-#include <ds/collection.h>
-#include <stddef.h>
-
-/* ThreadingIoSet
- * Set's the io status of the given thread. */
-OsStatus_t
-ThreadingIoSet(
-    _In_ MCoreThread_t *Thread,
-    _In_ uint16_t       Port,
-    _In_ int            Enable);
 
 /* Represents an io-space in MollenOS, they represent
  * some kind of communication between hardware and software
@@ -159,9 +145,8 @@ IoSpaceAcquire(
         TRACE("Allocated virtual address 0x%x for region", IoSpace->VirtualBase);
     }
     else if (SysCopy->Type == IO_SPACE_IO) {
-        MCoreThread_t *Thread = ThreadingGetCurrentThread(Cpu);
         for (size_t i = 0; i < SysCopy->Size; i++) {
-            ThreadingIoSet(Thread, ((uint16_t)(SysCopy->PhysicalBase + i)), 1);
+            SetIoSpaceAccess(GetCurrentSystemMemorySpace(), ((uint16_t)(SysCopy->PhysicalBase + i)), 1);
             TssEnableIo(Cpu, ((uint16_t)(SysCopy->PhysicalBase + i)));
         }
     }
@@ -225,7 +210,7 @@ IoSpaceRelease(
     else if (SysCopy->Type == IO_SPACE_IO) {
         MCoreThread_t *Thread = ThreadingGetCurrentThread(Cpu);
         for (size_t i = 0; i < SysCopy->Size; i++) {
-            ThreadingIoSet(Thread, ((uint16_t)(SysCopy->PhysicalBase + i)), 0);
+            SetIoSpaceAccess(GetCurrentSystemMemorySpace(), ((uint16_t)(SysCopy->PhysicalBase + i)), 0);
             TssDisableIo(Cpu, ((uint16_t)(SysCopy->PhysicalBase + i)));
         }
     }

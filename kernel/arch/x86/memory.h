@@ -104,4 +104,12 @@ ClearKernelMemoryAllocation(
     _In_ uintptr_t              Address,
     _In_ size_t                 Size);
 
+/* SetIoSpaceAccess
+ * Set's the io status of the given memory space. */
+KERNELAPI OsStatus_t KERNELABI
+SetIoSpaceAccess(
+    _In_ SystemMemorySpace_t*   MemorySpace,
+    _In_ uint16_t               Port,
+    _In_ int                    Enable);
+
 #endif // !_X86_MEMORY_H_

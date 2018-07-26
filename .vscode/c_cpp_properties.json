@@ -43,6 +43,7 @@
                 "_LDBL_EQ_DBL",
                 "_VIOARR_OPENGL",
                 "NANOVG_GL3_IMPLEMENTATION",
+                "STB_IMAGE_IMPLEMENTATION",
                 "__OSCONFIG_HAS_MMIO",
                 "__OSCONFIG_HAS_VIDEO",
                 "__OSCONFIG_ACPI_SUPPORT"
@@ -102,6 +103,7 @@
                 "_HAVE_LONG_DOUBLE",
                 "_VIOARR_OPENGL",
                 "NANOVG_GL3_IMPLEMENTATION",
+                "STB_IMAGE_IMPLEMENTATION",
                 "__OSCONFIG_HAS_MMIO",
                 "__OSCONFIG_HAS_VIDEO",
                 "__OSCONFIG_ACPI_SUPPORT"
