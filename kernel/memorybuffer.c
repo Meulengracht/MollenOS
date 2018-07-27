@@ -51,7 +51,7 @@ CreateMemoryBuffer(
     Capacity    = DIVUP(Size, GetSystemMemoryPageSize()) * GetSystemMemoryPageSize();
     switch (MEMORY_BUFFER_TYPE(Flags)) {
         case MEMORY_BUFFER_KERNEL: {
-            DmaAddress  = AllocateSystemMemory(Capacity, __MASK, MEMORY_DOMAIN);
+            DmaAddress = AllocateSystemMemory(Capacity, __MASK, MEMORY_DOMAIN);
             if (DmaAddress == 0) {
                 ERROR("Failed to allocate system memory");
                 return OsError;
@@ -67,7 +67,7 @@ CreateMemoryBuffer(
         } break;
 
         case MEMORY_BUFFER_DEFAULT: {
-            DmaAddress  = AllocateSystemMemory(Capacity, __MASK, MEMORY_DOMAIN);
+            DmaAddress = AllocateSystemMemory(Capacity, __MASK, MEMORY_DOMAIN);
             if (DmaAddress == 0) {
                 ERROR("Failed to allocate system memory");
                 return OsError;
@@ -130,7 +130,7 @@ AcquireMemoryBuffer(
     // and adding a reference
     SystemBuffer = AcquireHandle(Handle);
     if (SystemBuffer == NULL) {
-        ERROR("Invalid memory buffer handle");
+        ERROR("Invalid memory buffer handle 0x%x", Handle);
         return OsError;
     }
 

@@ -165,6 +165,14 @@ IsSystemMemoryPageDirty(
     _In_ SystemMemorySpace_t*   SystemMemorySpace,
     _In_ VirtualAddress_t       Address);
 
+/* IsSystemMemoryPresent
+ * Checks if the given virtual address is present. Returns success if the page
+ * at the address has a mapping. */
+KERNELAPI OsStatus_t KERNELABI
+IsSystemMemoryPresent(
+    _In_ SystemMemorySpace_t*   SystemMemorySpace,
+    _In_ VirtualAddress_t       Address);
+
 /* GetSystemMemoryPageSize
  * Retrieves the memory page-size used by the underlying architecture. */
 KERNELAPI size_t KERNELABI

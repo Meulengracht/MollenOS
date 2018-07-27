@@ -79,7 +79,7 @@ llvm_out:
 
 .PHONY: build_llvm
 build_llvm: llvm_out
-	cd llvm_out && make && make install
+	cd llvm_out && make -j3 && make install
 	@cp llvm_out/bin/*.lib lib/
 	@mv lib/*.dll bin/
 

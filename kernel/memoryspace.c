@@ -201,14 +201,17 @@ ChangeSystemMemorySpaceProtection(
     // Assert that address space is not null
     assert(SystemMemorySpace != NULL);
 
-    // Calculate the number of pages of this allocation
-    PageCount = DIVUP((Size + (VirtualAddress % GetSystemMemoryPageSize())), GetSystemMemoryPageSize());
-
     // Update the given pointer with previous flags, only flags from
     // the first page will be returned, so if flags vary this will be hidden.
     if (PreviousFlags != NULL) {
         Status = GetVirtualPageAttributes(SystemMemorySpace, VirtualAddress, PreviousFlags);
+        if (Size == 0) {
+            return OsSuccess;
+        }
     }
+
+    // Calculate the number of pages of this allocation
+    PageCount = DIVUP((Size + (VirtualAddress % GetSystemMemoryPageSize())), GetSystemMemoryPageSize());
 
     // Update pages with new protection
     for (i = 0; i < PageCount; i++) {
@@ -418,6 +421,29 @@ IsSystemMemoryPageDirty(
 
     // Check the flags if status was ok
     if (Status == OsSuccess && !(Flags & MAPPING_ISDIRTY)) {
+        Status = OsError;
+    }
+    return Status;
+}
+
+/* IsSystemMemoryPresent
+ * Checks if the given virtual address is present. Returns success if the page
+ * at the address has a mapping. */
+OsStatus_t
+IsSystemMemoryPresent(
+    _In_ SystemMemorySpace_t*   SystemMemorySpace,
+    _In_ VirtualAddress_t       Address)
+{
+	// Variables
+    OsStatus_t Status   = OsSuccess;
+    Flags_t Flags       = 0;
+    
+    // Sanitize address space
+    assert(SystemMemorySpace != NULL);
+    Status = GetVirtualPageAttributes(SystemMemorySpace, Address, &Flags);
+
+    // Check the flags if status was ok
+    if (Status == OsSuccess && !(Flags & MAPPING_EXECUTABLE)) {
         Status = OsError;
     }
     return Status;

@@ -155,8 +155,7 @@ void StdioCreatePipeHandle(UUId_t ProcessId, int Port, int Oflags, StdioObject_t
 
 /* StdioInitialize
  * Initializes default handles and resources */
-_CRTIMP
-void
+_CRTIMP void
 StdioInitialize(
     _In_ void *InheritanceBlock,
     _In_ size_t InheritanceBlockLength)

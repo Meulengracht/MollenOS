@@ -119,7 +119,7 @@ void MessageHandler()
 
                 // Get arguments
                 RPCCastArgumentToPointer(&Message.Arguments[0], (void**)&Parameters);
-                BufferHandle    = (UUId_t)Message.Arguments[0].Data.Value;
+                BufferHandle    = (UUId_t)Message.Arguments[1].Data.Value;
                 Result          = HandleCreateWindowRequest(&Message.From, Parameters, BufferHandle);
                 RPCRespond(&Message.From, &Result, sizeof(Result));
             }

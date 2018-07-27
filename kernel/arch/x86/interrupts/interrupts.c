@@ -548,7 +548,7 @@ ExceptionEntry(
 
         // Final step is to see if kernel can handle the 
         // unallocated address
-        else if (DebugPageFault(Registers, Address) == OsSuccess) {
+        if (DebugPageFault(Registers, Address) == OsSuccess) {
             IssueFixed = 1;
         }
         else {

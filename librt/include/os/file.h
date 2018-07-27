@@ -419,9 +419,9 @@ ReadFile(
 
     // Execute the request 
     if (RPCExecute(&Request) != OsSuccess) {
-        Package.ActualSize     = 0;
-        Package.Index         = 0;
-        Package.Code         = FsInvalidParameters;
+        Package.ActualSize  = 0;
+        Package.Index       = 0;
+        Package.Code        = FsInvalidParameters;
     }
 
     // Update out's

@@ -277,6 +277,16 @@ MfsSetBucketLink(
     _In_ MapRecord_t*               Link,
     _In_ int                        UpdateLength);
 
+/* MfsSwitchToNextBucketLink
+ * Retrieves the next bucket link, marks it active and updates the file-instance. Returns FsPathNotFound
+ * when end-of-chain. */
+__EXTERN
+FileSystemCode_t
+MfsSwitchToNextBucketLink(
+    _In_ FileSystemDescriptor_t*    Descriptor,
+    _In_ MfsFileInstance_t*      	fInstance,
+    _In_ size_t                     BucketSizeBytes);
+
 /* MfsZeroBucket
  * Wipes the given bucket and count with zero values
  * useful for clearing clusters of sectors */
