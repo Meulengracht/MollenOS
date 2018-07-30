@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2018, Philip Meulengracht
+ * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@
 #include "sprite.hpp"
 #include "../../utils/log_manager.hpp"
 
-CSprite::CSprite(CEntity *Parent, NVGcontext* VgContext, 
+CSprite::CSprite(CEntity* Parent, NVGcontext* VgContext, 
     const std::string &Path, int Width, int Height) : CEntity(Parent, VgContext) {
     m_ResourceId = nvgCreateImage(VgContext, Path.c_str(), NVG_IMAGE_FLIPY);
     assert(m_ResourceId != 0);

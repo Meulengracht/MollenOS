@@ -9,7 +9,7 @@ NVG_SOURCES = engine/backend/nanovg.c
 SHARED_SOURCES = $(wildcard engine/elements/*.cpp) \
 				 $(wildcard engine/*.cpp) \
 				 $(wildcard scenes/*.cpp) \
-				 main.cpp
+				 $(wildcard *.cpp)
 
 OSMESA_ASM = graphics/opengl/osmesa/display_osmesa_$(VALI_ARCH).s
 OSMESA_OBJECTS = $(OSMESA_ASM:.s=.o) $(NVG_SOURCES:.c=.o) $(SHARED_SOURCES:.cpp=.o)

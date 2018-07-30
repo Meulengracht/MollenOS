@@ -37,27 +37,27 @@ class CEntity;
 
 class CVEightEngine {
 public:
-	static CVEightEngine& GetInstance() {
-		// Guaranteed to be destroyed.
-		// Is instantiated on first use
-		static CVEightEngine _Instance;
-		return _Instance;
-	}
+    static CVEightEngine& GetInstance() {
+        // Guaranteed to be destroyed.
+        // Is instantiated on first use
+        static CVEightEngine _Instance;
+        return _Instance;
+    }
 private:
-	CVEightEngine();
+    CVEightEngine();
     ~CVEightEngine();
 
 public:
-	CVEightEngine(CVEightEngine const&) = delete;
-	void operator=(CVEightEngine const&) = delete;
+    CVEightEngine(CVEightEngine const&) = delete;
+    void operator=(CVEightEngine const&) = delete;
 
-    void Initialize(CDisplay *Screen);
-    void SetRootEntity(CEntity *Entity);
+    void        Initialize(CDisplay *Screen);
+    void        SetRootEntity(CEntity *Entity);
 
     // **************************************
     // Render Logic
-    void Update(size_t MilliSeconds);
-    void Render();
+    void        Update(size_t MilliSeconds);
+    void        Render();
 
     // **************************************
     // Business Logic
@@ -66,10 +66,10 @@ public:
 
     // **************************************
     // Utilities
-    float ClampToScreenAxisX(int Value);
-    float ClampToScreenAxisY(int Value);
-    float ClampMagnitudeToScreenAxisX(int Value);
-    float ClampMagnitudeToScreenAxisY(int Value);
+    float       ClampToScreenAxisX(int Value);
+    float       ClampToScreenAxisY(int Value);
+    float       ClampMagnitudeToScreenAxisX(int Value);
+    float       ClampMagnitudeToScreenAxisY(int Value);
 
     NVGcontext* GetContext() const;
     CEntity*    GetRootEntity() const;
@@ -78,7 +78,7 @@ private:
     CDisplay*   m_Screen;
     CEntity*    m_RootEntity;
     float       m_PixelRatio;
-    NVGcontext* m_VgContext; 
+    NVGcontext* m_VgContext;
 };
 
 // Shorthand for the vioarr

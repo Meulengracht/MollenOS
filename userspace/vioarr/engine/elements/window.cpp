@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2018, Philip Meulengracht
+ * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@
  */
 #include "window.hpp"
 
-CWindow::CWindow(CEntity *Parent, NVGcontext* VgContext, 
+CWindow::CWindow(CEntity* Parent, NVGcontext* VgContext, 
     const std::string &Title, int Width, int Height) : CEntity(Parent, VgContext) {
     m_Title             = Title;
     m_Width             = Width;
@@ -42,7 +42,7 @@ CWindow::CWindow(CEntity *Parent, NVGcontext* VgContext,
 CWindow::CWindow(NVGcontext* VgContext, const std::string &Title, int Width, int Height) 
     : CWindow(nullptr, VgContext, Title, Width, Height) { }
 
-CWindow::CWindow(CEntity *Parent, NVGcontext* VgContext)
+CWindow::CWindow(CEntity* Parent, NVGcontext* VgContext)
     : CWindow(Parent, VgContext, "New Window", 0, 0) { }
 
 CWindow::CWindow(NVGcontext* VgContext) 
@@ -91,7 +91,7 @@ void CWindow::SetStreamingBufferDimensions(int Width, int Height) {
     m_StreamHeight  = Height;
 }
 
-void CWindow::SetStreamingBuffer(DmaBuffer_t *Buffer) {
+void CWindow::SetStreamingBuffer(DmaBuffer_t* Buffer) {
     m_StreamBuffer = Buffer;
 }
 

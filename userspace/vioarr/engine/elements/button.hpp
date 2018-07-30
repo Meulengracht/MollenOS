@@ -23,19 +23,33 @@
 #include "../entity.hpp"
 #include <string>
 
-class CSprite : public CEntity {
+class CButton : public CEntity {
 public:
-    CSprite(CEntity* Parent, NVGcontext* VgContext, const std::string &Path, int Width, int Height);
-    CSprite(NVGcontext* VgContext, const std::string &Path, int Width, int Height);
-    ~CSprite();
+    enum EButtonState {
+        ButtonStateNormal       = 0,
+        ButtonStateHovering,
+        ButtonStateActive,
+        ButtonStateDisabled,
+
+        ButtonStateCount
+    };
+
+public:
+    CButton(CEntity* Parent, NVGcontext* VgContext, int Width, int Height);
+    CButton(NVGcontext* VgContext, int Width, int Height);
+    ~CButton();
+
+    void    SetButtonStateIcon(const EButtonState State, const std::string& IconPath);
+    void    SetState(EButtonState State);
 
 protected:
     // Override the inherited methods
-    void Update(size_t MilliSeconds);
-    void Draw(NVGcontext* VgContext);
+    void    Update(size_t MilliSeconds);
+    void    Draw(NVGcontext* VgContext);
 
 private:
-    int m_ResourceId;
-    int m_Width;
-    int m_Height;
+    int             m_ResourceIds[ButtonStateCount];
+    int             m_Width;
+    int             m_Height;
+    EButtonState    m_ActiveState;
 };

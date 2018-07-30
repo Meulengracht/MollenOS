@@ -47,6 +47,7 @@ void CVEightEngine::Initialize(CDisplay *Screen) {
     m_Screen = Screen;
 
     // Initialize the viewport
+    sLog.Info("Creating nvg context");
     glViewport(0, 0, Screen->GetWidth(), Screen->GetHeight());
     m_PixelRatio = (float)Screen->GetWidth() / (float)Screen->GetHeight();
 #ifdef QUALITY_MSAA
@@ -55,6 +56,11 @@ void CVEightEngine::Initialize(CDisplay *Screen) {
 	m_VgContext = nvgCreateGL3(NVG_ANTIALIAS | NVG_STENCIL_STROKES | NVG_DEBUG);
 #endif
     assert(m_VgContext != nullptr);
+
+    // Load fonts
+    sLog.Info("Loading fonts");
+    nvgCreateFont(m_VgContext, "sans-normal", "$sys/fonts/DejaVuSans.ttf");
+    nvgCreateFont(m_VgContext, "sans-light", "$sys/fonts/DejaVuSans-ExtraLight.ttf");
 }
 
 void CVEightEngine::SetRootEntity(CEntity *Entity) {

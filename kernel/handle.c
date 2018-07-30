@@ -114,6 +114,7 @@ DestroyHandle(
     _In_ UUId_t             Handle)
 {
     SystemHandle_t *Instance;
+    OsStatus_t Status = OsSuccess;
     DataKey_t Key;
     int References;
 
@@ -127,7 +128,8 @@ DestroyHandle(
     References = atomic_fetch_sub(&Instance->References, 1) - 1;
     if (References == 0) {
         CollectionRemoveByNode(&Handles, &Instance->Header);
-        return HandleDestructors[Instance->Type](Instance->Resource);
+        Status = HandleDestructors[Instance->Type](Instance->Resource);
+        kfree(Instance);
     }
-    return OsSuccess;
+    return Status;
 }

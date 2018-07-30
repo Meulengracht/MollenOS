@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2018, Philip Meulengracht
+ * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -36,9 +36,9 @@
 
 class CWindow : public CEntity {
 public:
-    CWindow(CEntity *Parent, NVGcontext* VgContext, const std::string &Title, int Width, int Height);
+    CWindow(CEntity* Parent, NVGcontext* VgContext, const std::string &Title, int Width, int Height);
     CWindow(NVGcontext* VgContext, const std::string &Title, int Width, int Height);
-    CWindow(CEntity *Parent, NVGcontext* VgContext);
+    CWindow(CEntity* Parent, NVGcontext* VgContext);
     CWindow(NVGcontext* VgContext);
     ~CWindow();
 
@@ -51,7 +51,7 @@ public:
 
     void SetStreamingBufferFormat(GLenum Format, GLenum InternalFormat);
     void SetStreamingBufferDimensions(int Width, int Height);
-    void SetStreamingBuffer(DmaBuffer_t *Buffer);
+    void SetStreamingBuffer(DmaBuffer_t* Buffer);
     void SetStreaming(bool Enable);
 
     UUId_t GetOwner() const { return m_Owner; }

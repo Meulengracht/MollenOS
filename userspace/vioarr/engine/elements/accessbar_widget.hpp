@@ -22,20 +22,19 @@
  */
 #pragma once
 #include "../entity.hpp"
+#include <functional>
 #include <string>
 
-// AccessBar Settings
-// Adjustable access-bar layout settings
-#define ACCESSBAR_HEADER_HEIGHT             16
-
-#define ACCESSBAR_FILL_COLOR_RGBA           229, 229, 232, 255
-#define ACCESSBAR_HEADER_RGBA               103, 103, 103, 255
-
-class CAccessBar : public CEntity {
+class CAccessBarWidget : public CEntity {
 public:
-    CAccessBar(CEntity* Parent, NVGcontext* VgContext, int Width, int Height);
-    CAccessBar(NVGcontext* VgContext, int Width, int Height);
-    ~CAccessBar();
+    CAccessBarWidget(CEntity* Parent, NVGcontext* VgContext, int Width, int Height);
+    CAccessBarWidget(NVGcontext* VgContext, int Width, int Height);
+    ~CAccessBarWidget();
+
+    void        SetWidgetText(std::string& Text);
+    void        SetWidgetIcon(std::string& IconPath);
+    void        SetWidgetEntity(CEntity* Entity);
+    void        SetWidgetFunction(std::function<void(CEntity*)>& Function);
 
 protected:
     // Override the inherited methods
@@ -43,6 +42,9 @@ protected:
     void        Draw(NVGcontext* VgContext);
 
 private:
-    int         m_Width;
-    int         m_Height;
+    int                             m_Width;
+    int                             m_Height;
+    CEntity*                        m_Entity;
+    std::function<void(CEntity*)>   m_Callback;
+    std::string                     m_Text;
 };

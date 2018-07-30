@@ -23,11 +23,16 @@
 #include "../entity.hpp"
 #include <string>
 
-class CSprite : public CEntity {
+class CLabel : public CEntity {
 public:
-    CSprite(CEntity* Parent, NVGcontext* VgContext, const std::string &Path, int Width, int Height);
-    CSprite(NVGcontext* VgContext, const std::string &Path, int Width, int Height);
-    ~CSprite();
+    CLabel(CEntity* Parent, NVGcontext* VgContext);
+    CLabel(NVGcontext* VgContext);
+    ~CLabel();
+
+    void SetText(const std::string& Text);
+    void SetFont(const std::string& Font);
+    void SetFontSize(float Size);
+    void SetFontColor(NVGcolor Color);
 
 protected:
     // Override the inherited methods
@@ -35,7 +40,8 @@ protected:
     void Draw(NVGcontext* VgContext);
 
 private:
-    int m_ResourceId;
-    int m_Width;
-    int m_Height;
+    float       m_Size;
+    NVGcolor    m_Color;
+    std::string m_Text;
+    std::string m_Font;
 };

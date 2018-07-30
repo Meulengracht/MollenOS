@@ -539,13 +539,6 @@ ExceptionEntry(
             enter_thread(Registers);
         }
 
-        // Next step is to check whether or not the address is already
-        // mapped, because then it's due to accessibility
-        if (GetSystemMemoryMapping(GetCurrentSystemMemorySpace(), Address) != 0) {
-            WARNING("Page fault at address 0x%x, mapping exists: 0x%x, invalid access. (%u, User tried to access kernel memory ex).", 
-                Address, GetSystemMemoryMapping(GetCurrentSystemMemorySpace(), Address), Registers->ErrorCode);
-        }
-
         // Final step is to see if kernel can handle the 
         // unallocated address
         if (DebugPageFault(Registers, Address) == OsSuccess) {
@@ -571,7 +564,7 @@ ExceptionEntry(
 
         // Was it a page-fault?
         if (Address != __MASK) {
-            WRITELINE("CR2 Address: 0x%x", Address);
+            WRITELINE("page-fault address: 0x%x, error-code 0x%x", Address, Registers->ErrorCode);
         }
 
         // Locate which module
