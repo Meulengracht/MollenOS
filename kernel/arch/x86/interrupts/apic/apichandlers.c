@@ -42,12 +42,14 @@ __EXTERN void enter_thread(Context_t *Regs);
  * to switch threads. */
 InterruptStatus_t
 ApicTimerHandler(
-    _In_ void*  Context)
+    _In_ FastInterruptResources_t*  NotUsed,
+    _In_ void*                      Context)
 {
     Context_t *Regs;
     size_t TimeSlice;
     int TaskPriority;
     UUId_t CurrCpu = CpuGetCurrentId();
+    _CRT_UNUSED(NotUsed);
 
     // Yield => start by sending eoi. It is never certain that we actually return
     // to this function due to how signals are working
@@ -78,8 +80,10 @@ ApicTimerHandler(
  * don't have any resolution. */
 InterruptStatus_t
 ApicErrorHandler(
-    _In_ void*  Context)
+    _In_ FastInterruptResources_t*  NotUsed,
+    _In_ void*                      Context)
 {
     _CRT_UNUSED(Context);
+    _CRT_UNUSED(NotUsed);
     return InterruptHandled;
 }

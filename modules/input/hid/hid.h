@@ -22,16 +22,11 @@
 #ifndef __USB_HID_H__
 #define __USB_HID_H__
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
-
-/* Includes
- * - Interfaces */
-#include <os/input.h>
 #include <os/contracts/base.h>
 #include <os/contracts/usbhost.h>
 #include <os/contracts/usbdevice.h>
+#include <os/input.h>
 
 /* HID Class Definitions 
  * Contains generic magic constants and definitions */
@@ -207,7 +202,7 @@ typedef struct _UsbHidReportInputItem {
  * Each of these items describe some form of physical input. */
 typedef struct _UsbHidReportCollectionItem {
     int                                 CollectionType;
-    MInputType_t                        InputType;
+    DeviceInputType_t                   InputType;
     void                               *ItemPointer;
     UsbHidReportGlobalStats_t           Stats;
     struct _UsbHidReportCollectionItem *Link;

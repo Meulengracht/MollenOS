@@ -44,8 +44,8 @@ PS2ReadStatus(void)
  * Waits for the given flag to clear by doing a number of iterations giving a fake-delay */
 OsStatus_t
 PS2Wait(
-	_In_ uint8_t 	Flags,
-	_In_ int 		Negate)
+    _In_ uint8_t     Flags,
+    _In_ int         Negate)
 {
     // Wait for up to 1000 iterations
     for (int i = 0; i < 1000; i++) {
@@ -67,7 +67,7 @@ PS2Wait(
  * Reads a byte from the PS2 controller data port */
 uint8_t
 PS2ReadData(
-	_In_ int 		Dummy)
+    _In_ int         Dummy)
 {
     // Only wait for input to be full in case
     // we don't do dummy reads
@@ -76,17 +76,14 @@ PS2ReadData(
             return 0xFF;
         }
     }
-
-    // Retrieve the data from data io space
-    return (uint8_t)ReadIoSpace(&GlbController->DataSpace,
-        PS2_REGISTER_DATA, 1);
+    return (uint8_t)ReadIoSpace(&GlbController->DataSpace, PS2_REGISTER_DATA, 1);
 }
 
 /* PS2WriteData
  * Writes a data byte to the PS2 controller data port */
 OsStatus_t
 PS2WriteData(
-	_In_ uint8_t 	Value)
+    _In_ uint8_t     Value)
 {
     // Sanitize buffer status
     if (PS2Wait(PS2_STATUS_INPUT_FULL, 0) != OsSuccess) {
@@ -102,7 +99,7 @@ PS2WriteData(
  * Writes the given command to the ps2-controller */
 void
 PS2SendCommand(
-	_In_ uint8_t 	Command)
+    _In_ uint8_t     Command)
 {
     // Wait for flag to clear, then write data
     PS2Wait(PS2_STATUS_INPUT_FULL, 0);
@@ -113,8 +110,8 @@ PS2SendCommand(
  * Updates the enable/disable status of the port */
 OsStatus_t
 PS2SetScanning(
-	_In_ int 		Index,
-	_In_ uint8_t 	Status)
+    _In_ int         Index,
+    _In_ uint8_t     Status)
 {
     // Always select port if neccessary
     if (Index != 0) {
@@ -133,16 +130,16 @@ PS2SetScanning(
 OsStatus_t
 PS2SelfTest(void)
 {
-    uint8_t Temp 	= 0;
-    int i 			= 0;
+    uint8_t Temp     = 0;
+    int i             = 0;
 
     // Iterate through 5 tries
     for (; i < 5; i++) {
         PS2SendCommand(PS2_SELFTEST);
         Temp = PS2ReadData(0);
         if (Temp == PS2_SELFTEST_OK) {
-			break;
-		}
+            break;
+        }
     }
     return (i == 5) ? OsError : OsSuccess;
 }
@@ -152,8 +149,8 @@ PS2SelfTest(void)
 OsStatus_t
 PS2Initialize(void)
 {
-    OsStatus_t Status 	= OsSuccess;
-    uint8_t Temp 		= 0;
+    OsStatus_t Status     = OsSuccess;
+    uint8_t Temp         = 0;
     int i;
 
     // Dummy reads, empty it's buffer
@@ -214,16 +211,23 @@ PS2Initialize(void)
  * interrupt return OsSuccess, otherwise the interrupt won't be acknowledged */
 InterruptStatus_t
 OnInterrupt(
-    _In_Opt_ void*	InterruptData,
+    _In_Opt_ void*    InterruptData,
     _In_Opt_ size_t Arg0,
     _In_Opt_ size_t Arg1,
     _In_Opt_ size_t Arg2)
 {
-    // No further processing is needed
-    _CRT_UNUSED(InterruptData);
+    PS2Port_t* Port = (PS2Port_t*)InterruptData;
     _CRT_UNUSED(Arg0);
     _CRT_UNUSED(Arg1);
     _CRT_UNUSED(Arg2);
+
+    if (Port->Signature == 0xAB41 || Port->Signature == 0xABC1 ||
+        Port->Signature == 0xAB83) {
+        return PS2KeyboardInterrupt(Port);
+    }
+    else if (Port->Signature != 0xFFFFFFFF) {
+        return PS2MouseInterrupt(Port);
+    }
     return InterruptHandled;
 }
 
@@ -232,8 +236,8 @@ OnInterrupt(
  * times-out. A new timeout event is generated and passed on to the below handler */ 
 OsStatus_t
 OnTimeout(
-    _In_ UUId_t 	Timer,
-    _In_ void*		Data)
+    _In_ UUId_t     Timer,
+    _In_ void*        Data)
 {
     _CRT_UNUSED(Timer);
     _CRT_UNUSED(Data);
@@ -252,13 +256,13 @@ OnLoad(void)
 
     // Create the io-spaces, again we have to create
     // the io-space ourselves 
-    GlbController->DataSpace.Type 			= IO_SPACE_IO;
-    GlbController->DataSpace.PhysicalBase 	= PS2_IO_DATA_BASE;
-    GlbController->DataSpace.Size 			= PS2_IO_LENGTH;
+    GlbController->DataSpace.Type             = IO_SPACE_IO;
+    GlbController->DataSpace.PhysicalBase     = PS2_IO_DATA_BASE;
+    GlbController->DataSpace.Size             = PS2_IO_LENGTH;
 
-    GlbController->CommandSpace.Type 		= IO_SPACE_IO;
+    GlbController->CommandSpace.Type         = IO_SPACE_IO;
     GlbController->CommandSpace.PhysicalBase = PS2_IO_STATUS_BASE;
-    GlbController->CommandSpace.Size 		= PS2_IO_LENGTH;
+    GlbController->CommandSpace.Size         = PS2_IO_LENGTH;
 
     // Create both the io-spaces in system
     if (CreateIoSpace(&GlbController->DataSpace) != OsSuccess
@@ -295,8 +299,6 @@ OnUnload(void)
         ReleaseIoSpace(&GlbController->DataSpace);
         DestroyIoSpace(GlbController->DataSpace.Id);
     }
-
-    // Free up allocated resources
     free(GlbController);
     return OsSuccess;
 }
@@ -306,11 +308,11 @@ OnUnload(void)
  * instance of this driver for the given device */
 OsStatus_t
 OnRegister(
-	_In_ MCoreDevice_t*	Device)
+    _In_ MCoreDevice_t*    Device)
 {
     // Variables
-    OsStatus_t Result 	= OsSuccess;
-    PS2Port_t *Port 	= NULL;
+    OsStatus_t Result     = OsSuccess;
+    PS2Port_t *Port;
 
     // First register call is the ps2-controller
     // all sequent calls here is ps2-devices 
@@ -335,13 +337,13 @@ OnRegister(
     // - What kind of device?
     if (Port->Signature == 0xAB41
         || Port->Signature == 0xABC1) { // MF2 Keyboard Translation
-        Result = PS2KeyboardInitialize(Port, 1);
+        Result = PS2KeyboardInitialize(GlbController, Port->Index, 1);
     }
     else if (Port->Signature == 0xAB83) { // MF2 Keyboard
-        Result = PS2KeyboardInitialize(Port, 0);
+        Result = PS2KeyboardInitialize(GlbController, Port->Index, 0);
     }
     else if (Port->Signature != 0xFFFFFFFF) {
-        Result = PS2MouseInitialize(Port);
+        Result = PS2MouseInitialize(GlbController, Port->Index);
     }
     else {
         Result = OsError;
@@ -354,11 +356,11 @@ OnRegister(
  * an instance of this driver from the system */
 OsStatus_t
 OnUnregister(
-	_In_ MCoreDevice_t*	Device)
+    _In_ MCoreDevice_t*    Device)
 {
     // Variables
-    OsStatus_t Result = OsSuccess;
-    PS2Port_t *Port = NULL;
+    OsStatus_t Result = OsError;
+    PS2Port_t *Port;
 
     // Select port from device-id
     if (GlbController->Ports[0].Contract.DeviceId == Device->Id) {
@@ -371,20 +373,16 @@ OnUnregister(
         return OsError;    // Probably the controller itself
     }
 
-    // Ok .. It's an device
-    // - What kind of device? 
+    // Handle device destruction
     if (Port->Signature == 0xAB41
-        || Port->Signature == 0xABC1) {
-        Result = PS2KeyboardCleanup(Port); // MF2 Keyboard Translation
+        || Port->Signature == 0xABC1) { // MF2 Keyboard Translation
+        Result = PS2KeyboardCleanup(GlbController, Port->Index);
     }
     else if (Port->Signature == 0xAB83) { // MF2 Keyboard
-        Result = PS2KeyboardCleanup(Port);
+        Result = PS2KeyboardCleanup(GlbController, Port->Index);
     }
     else if (Port->Signature != 0xFFFFFFFF) {
-        Result = PS2MouseCleanup(Port);
-    }
-    else {
-        Result = OsError;
+        Result = PS2MouseCleanup(GlbController, Port->Index);
     }
     return Result;
 }

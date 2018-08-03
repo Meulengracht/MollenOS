@@ -28,8 +28,6 @@
 #error "You must include filesystem.h and not this directly"
 #endif
 
-/* Includes
- * - Library */
 #include <ds/mstring.h>
 #include <os/osdefs.h>
 

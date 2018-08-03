@@ -23,227 +23,302 @@
 
 #include <os/input.h>
 #include <os/utils.h>
-#include "keyboard.h"
 #include <string.h>
 #include <stdlib.h>
+#include "keyboard.h"
+#include "../ps2.h"
 
-/* PS2KeyboardInterrupt 
+// Scancode sets
+OsStatus_t ScancodeSet2ToVKey(SystemKey_t* KeyState, uint8_t Scancode);
+
+/* PS2KeyboardHandleModifiers
+ * Handles special modifiers that should be applied instead of notified. */
+OsStatus_t
+PS2KeyboardHandleModifiers(
+    _In_ PS2Port_t*                 Port,
+    _In_ SystemKey_t*               Key)
+{
+    uint16_t Flags = (uint16_t)PS2_KEYBOARD_DATA_STATE_HI(Port) << 8;
+    Flags |= PS2_KEYBOARD_DATA_STATE_LO(Port);
+
+    // Handle modifiers
+    switch (Key->KeyCode) {
+        case VK_LSHIFT: {
+            Flags |= KEY_MODIFIER_LSHIFT;
+            if (Key->Flags & KEY_MODIFIER_RELEASED) {
+                Flags &= ~(KEY_MODIFIER_LSHIFT);
+            }
+        } break;
+        case VK_RSHIFT: {
+            Flags |= KEY_MODIFIER_RSHIFT;
+            if (Key->Flags & KEY_MODIFIER_RELEASED) {
+                Flags &= ~(KEY_MODIFIER_RSHIFT);
+            }
+        } break;
+        
+        case VK_LCONTROL: {
+            Flags |= KEY_MODIFIER_LCTRL;
+            if (Key->Flags & KEY_MODIFIER_RELEASED) {
+                Flags &= ~(KEY_MODIFIER_LCTRL);
+            }
+        } break;
+        case VK_RCONTROL: {
+            Flags |= KEY_MODIFIER_RCTRL;
+            if (Key->Flags & KEY_MODIFIER_RELEASED) {
+                Flags &= ~(KEY_MODIFIER_RCTRL);
+            }
+        } break;
+        
+        case VK_LALT: {
+            Flags |= KEY_MODIFIER_LALT;
+            if (Key->Flags & KEY_MODIFIER_RELEASED) {
+                Flags &= ~(KEY_MODIFIER_LALT);
+            }
+        } break;
+        case VK_RALT: {
+            Flags |= KEY_MODIFIER_RALT;
+            if (Key->Flags & KEY_MODIFIER_RELEASED) {
+                Flags &= ~(KEY_MODIFIER_RALT);
+            }
+        } break;
+
+        case VK_SCROLL: {
+            Flags |= KEY_MODIFIER_SCROLLLOCK;
+            if (Key->Flags & KEY_MODIFIER_RELEASED) {
+                Flags &= ~(KEY_MODIFIER_SCROLLLOCK);
+            }
+        } break;
+        case VK_NUMLOCK: {
+            Flags |= KEY_MODIFIER_NUMLOCK;
+            if (Key->Flags & KEY_MODIFIER_RELEASED) {
+                Flags &= ~(KEY_MODIFIER_NUMLOCK);
+            }
+        } break;
+        case VK_CAPSLOCK: {
+            Flags |= KEY_MODIFIER_CAPSLOCK;
+            if (Key->Flags & KEY_MODIFIER_RELEASED) {
+                Flags &= ~(KEY_MODIFIER_CAPSLOCK);
+            }
+        } break;
+
+        default:
+            return OsSuccess;
+    }
+
+    // Update the state flags
+    Key->Flags                      |= Flags;
+    PS2_KEYBOARD_DATA_STATE_LO(Port) = LOBYTE(Flags);
+    PS2_KEYBOARD_DATA_STATE_HI(Port) = HIBYTE(Flags);
+    return OsError;
+}
+
+/* PS2KeyboardFastInterrupt 
  * Handles the ps2-keyboard interrupt and extracts the data for processing - fast interrupt */
 InterruptStatus_t
-PS2KeyboardInterrupt(
-    _In_ void*		InterruptData)
+PS2KeyboardFastInterrupt(
+    _In_ FastInterruptResources_t*  InterruptTable,
+    _In_ void*                      Unused)
 {
-	PS2Keyboard_t *Kybd = (PS2Keyboard_t*)InterruptData;
-	VKey Result 		= VK_INVALID;
-	uint8_t Scancode 	= 0;
-	MInput_t Input;
+    DeviceIo_t* IoSpace     = INTERRUPT_IOSPACE(InterruptTable, 0);
+    PS2Port_t* Port         = INTERRUPT_RESOURCE(InterruptTable, 0);
+    uint8_t DataRecieved    = (uint8_t)InterruptTable->ReadIoSpace(IoSpace, PS2_REGISTER_DATA, 1);
+    PS2Command_t* Command   = &Port->ActiveCommand;
 
-	// Get the scancode, and potentielly handle it as command data
-	Scancode = PS2ReadData(1);
-	if (PS2PortFinishCommand(Kybd->Port, Scancode) == OsSuccess) {
-		return InterruptHandled;
-	}
+    if (Command->State != PS2Free) {
+        Command->Buffer[Command->SyncObject] = DataRecieved;
+        Command->SyncObject++;
+        return InterruptHandled;
+    }
+    else {
+        Port->ResponseBuffer[Port->ResponseWriteIndex++] = DataRecieved;
+        if (Port->ResponseWriteIndex == PS2_RINGBUFFER_SIZE) {
+            Port->ResponseWriteIndex = 0; // Start over
+        }
 
-	// Perform scancode-translation
-	if (Kybd->ScancodeSet == 1) {
-		TRACE("PS2-Keyboard: Scancode set 1");
-	}
-	else if (Kybd->ScancodeSet == 2) {
-		Result = ScancodeSet2ToVKey(Scancode, &Kybd->Buffer, &Kybd->Flags);
-	}
+        // Determine if it is an actual scancode or extension code
+        if (DataRecieved != PS2_CODE_EXTENDED && DataRecieved != PS2_CODE_RELEASED) {
+            return InterruptHandled;
+        }
+    }
+    return InterruptHandledStop;
+}
 
-	/* Now, if it's not VK_INVALID 
-	 * we would like to send a new input package */
-	if (Result != VK_INVALID) {
-		TRACE("KEY: 0x%x", Result);
+/* PS2KeyboardInterrupt 
+ * Handles the ps2-keyboard interrupt and processes the captured data */
+InterruptStatus_t
+PS2KeyboardInterrupt(
+    _In_ PS2Port_t*                 Port)
+{
+    OsStatus_t Status = OsError;
+    SystemKey_t Key;
 
-		Input.Type = InputKeyboard;
-		Input.Scancode = Kybd->Buffer;
-		Input.Key = Result;
+    // Perform scancode-translation
+    while (Status == OsError) {
+        uint8_t Scancode = Port->ResponseBuffer[Port->ResponseReadIndex++];
+        if (PS2_KEYBOARD_DATA_SCANCODESET(Port) == 1) {
+            ERROR("PS2-Keyboard: Scancode set 1");
+            break;
+        }
+        else if (PS2_KEYBOARD_DATA_SCANCODESET(Port) == 2) {
+            Status = ScancodeSet2ToVKey(&Key, Scancode);
+        }
+    }
 
-		/* Determine flags */
-		if (Kybd->Flags & PS2_KEY_RELEASED) {
-			Input.Flags = INPUT_BUTTON_RELEASED;
-		}
-		else {
-			Input.Flags = INPUT_BUTTON_CLICKED;
-		}
-
-		/* Create input */
-		CreateInput(&Input);
-
-		/* Reset buffer and flags */
-		Kybd->Buffer = 0;
-		Kybd->Flags = 0;
-	}
-	return InterruptHandled;
+    // If the key was an actual key and not modifier, remove our flags and send
+    if (PS2KeyboardHandleModifiers(Port, &Key) == OsSuccess) {
+        Key.Flags &= ~(KEY_MODIFIER_EXTENDED);
+        Status = WriteSystemKey(&Key);
+    }
+    return InterruptHandled;
 }
 
 /* PS2KeyboardGetScancode
  * Retrieves the current scancode-set for the keyboard */
 OsStatus_t
 PS2KeyboardGetScancode(
-	_In_  PS2Keyboard_t*	Kybd,
-	_Out_ int*				ResultSet)
+    _In_  PS2Port_t*                Port,
+    _Out_ uint8_t*                  ResultSet)
 {
-	uint8_t Response = 0;
-	if (PS2PortQueueCommand(Kybd->Port, PS2_KEYBOARD_SCANCODE, &Response) != OsSuccess) {
-		return OsError;
-	}
+    uint8_t Response = 0;
+    if (PS2PortExecuteCommand(Port, PS2_KEYBOARD_SCANCODE, &Response) != OsSuccess) {
+        return OsError;
+    }
 
-	// Bit 6 is set in case its translation
-	*ResultSet = (int)(Response & 0xF);
-	if (Response >= 0xF0) {
-		return OsError;
-	}
-	else {
-		return OsSuccess;
-	}
+    // Bit 6 is set in case its translation
+    *ResultSet = Response & 0xF;
+    if (Response >= 0xF0) {
+        return OsError;
+    }
+    else {
+        return OsSuccess;
+    }
 }
 
 /* PS2KeyboardSetScancode
  * Updates the current scancode-set for the keyboard */
 OsStatus_t PS2KeyboardSetScancode(
-	_In_  PS2Keyboard_t* 	Kybd,
-	_In_  uint8_t 			RequestSet,
-	_Out_ int*				ResultSet)
+    _In_ PS2Port_t*                 Port,
+    _In_ uint8_t                    RequestSet)
 {
-	if (PS2PortQueueCommand(Kybd->Port, PS2_KEYBOARD_SCANCODE, NULL) != OsSuccess
-		|| PS2PortQueueCommand(Kybd->Port, RequestSet, NULL) != OsSuccess) {
-		return OsError;
-	}
-	else {
-		*ResultSet = (int)RequestSet;
-		return OsSuccess;
-	}
+    if (PS2PortExecuteCommand(Port, PS2_KEYBOARD_SCANCODE, NULL)  != OsSuccess || 
+        PS2PortExecuteCommand(Port, RequestSet, NULL)             != OsSuccess) {
+        return OsError;
+    }
+    else {
+        PS2_KEYBOARD_DATA_SCANCODESET(Port) = RequestSet;
+        return OsSuccess;
+    }
 }
 
 /* PS2KeyboardSetTypematics
  * Updates the current typematics for the keyboard */
 OsStatus_t
 PS2KeyboardSetTypematics(
-	_In_ PS2Keyboard_t*	Kybd,
-	_In_ uint8_t 		TypematicRepeat,
-	_In_ uint8_t 		Delay)
+    _In_ PS2Port_t*                 Port)
 {
-	uint8_t Format = 0;
+    uint8_t Format = 0;
 
-	// Build the data-packet
-	Format |= TypematicRepeat;
-	Format |= Delay;
+    // Build the data-packet
+    Format |= PS2_KEYBOARD_DATA_REPEAT(Port);
+    Format |= PS2_KEYBOARD_DATA_DELAY(Port);
 
-	// Write the command to get scancode set
-	if (PS2PortQueueCommand(Kybd->Port, PS2_KEYBOARD_TYPEMATIC, NULL) != OsSuccess
-		|| PS2PortQueueCommand(Kybd->Port, Format, NULL) != OsSuccess) {
-		return OsError;
-	}
-	else {
-		return OsSuccess;
-	}
+    // Write the command to get scancode set
+    if (PS2PortExecuteCommand(Port, PS2_KEYBOARD_TYPEMATIC, NULL) != OsSuccess || 
+        PS2PortExecuteCommand(Port, Format, NULL)                 != OsSuccess) {
+        return OsError;
+    }
+    else {
+        return OsSuccess;
+    }
 }
 
 /* PS2KeyboardSetLEDs
  * Updates the LED statuses for the ps2 keyboard */
 OsStatus_t
 PS2KeyboardSetLEDs(
-	_In_ PS2Keyboard_t*	Kybd,
-	_In_ int 			Scroll,
-	_In_ int 			Number,
-	_In_ int 			Caps)
+    _In_ PS2Port_t*                 Port,
+    _In_ int                        Scroll,
+    _In_ int                        Number,
+    _In_ int                        Caps)
 {
-	uint8_t Format = 0;
+    uint8_t Format = 0;
 
-	// Build the data-packet
-	Format |= ((uint8_t)(Scroll & 0x1) << 0);
-	Format |= ((uint8_t)(Number & 0x1) << 1);
-	Format |= ((uint8_t)(Caps & 0x1) << 2);
+    // Build the data-packet
+    Format |= ((uint8_t)(Scroll & 0x1) << 0);
+    Format |= ((uint8_t)(Number & 0x1) << 1);
+    Format |= ((uint8_t)(Caps & 0x1) << 2);
 
-	// Write the command to get scancode set
-	if (PS2PortQueueCommand(Kybd->Port, PS2_KEYBOARD_SETLEDS, NULL) != OsSuccess
-		|| PS2PortQueueCommand(Kybd->Port, Format, NULL) != OsSuccess) {
-		return OsError;
-	}
-	else {
-		return OsSuccess;
-	}
+    // Write the command to get scancode set
+    if (PS2PortExecuteCommand(Port, PS2_KEYBOARD_SETLEDS, NULL)   != OsSuccess || 
+        PS2PortExecuteCommand(Port, Format, NULL)                 != OsSuccess) {
+        return OsError;
+    }
+    else {
+        return OsSuccess;
+    }
 }
 
 /* PS2KeyboardInitialize 
  * Initializes an instance of an ps2-keyboard on the given PS2-Controller port */
 OsStatus_t
 PS2KeyboardInitialize(
-	_In_ PS2Port_t*	Port,
-	_In_ int 		Translation)
+    _In_ PS2Controller_t*           Controller,
+    _In_ int                        Port,
+    _In_ int                        Translation)
 {
-	PS2Keyboard_t *Kybd = NULL; 
+    PS2Port_t *Instance = &Controller->Ports[Port];
 
-	Kybd = (PS2Keyboard_t*)malloc(sizeof(PS2Keyboard_t));
-	memset(Kybd, 0, sizeof(PS2Keyboard_t));
+    // Initialize keyboard defaults
+    PS2_KEYBOARD_DATA_XLATION(Instance)     = (uint8_t)Translation;
+    PS2_KEYBOARD_DATA_SCANCODESET(Instance) = 2;
+    PS2_KEYBOARD_DATA_REPEAT(Instance)      = PS2_REPEATS_PERSEC(16);
+    PS2_KEYBOARD_DATA_DELAY(Instance)       = PS2_DELAY_500MS;
 
-	// Initialize keyboard defaults
-	Kybd->Port 				= Port;
-	Kybd->Translation 		= Translation;
-	Kybd->TypematicRepeat 	= PS2_REPEATS_PERSEC(16);
-	Kybd->TypematicDelay 	= PS2_DELAY_500MS;
-	Kybd->ScancodeSet 		= 2;
+    // Start out by initializing the contract
+    InitializeContract(&Instance->Contract, Instance->Contract.DeviceId, 1,
+        ContractInput, "PS2 Keyboard Interface");
 
-	// Start out by initializing the contract
-	InitializeContract(&Port->Contract, Port->Contract.DeviceId, 1,
-		ContractInput, "PS2 Keyboard Interface");
+    // Register our contract for this device
+    if (RegisterContract(&Instance->Contract) != OsSuccess) {
+        ERROR("PS2-Keyboard: failed to install contract");
+        return OsError;
+    }
+    
+    // Initialize interrupt
+    RegisterFastInterruptIoResource(&Instance->Interrupt, &Controller->DataSpace);
+    RegisterFastInterruptHandler(&Instance->Interrupt, PS2KeyboardFastInterrupt);
+    Instance->InterruptId = RegisterInterruptSource(&Instance->Interrupt, INTERRUPT_NOTSHARABLE);;
 
-	// Initialize the interrupt descriptor
-	Port->Interrupt.AcpiConform = 0;
-	Port->Interrupt.Pin 		= INTERRUPT_NONE;
-	Port->Interrupt.Vectors[0] 	= INTERRUPT_NONE;
-	if (Port->Index == 0) {
-		Port->Interrupt.Line 	= PS2_PORT1_IRQ;
-	}
-	else {
-		Port->Interrupt.Line 	= PS2_PORT2_IRQ;
-	}
-	Port->Interrupt.FastHandler = PS2KeyboardInterrupt;
-	Port->Interrupt.Data 		= Kybd;
+    // Reset keyboard LEDs status
+    if (PS2KeyboardSetLEDs(Instance, 0, 0, 0) != OsSuccess) {
+        ERROR("PS2-Keyboard: failed to reset LEDs");
+    }
 
-	// Register our contract for this device
-	if (RegisterContract(&Port->Contract) != OsSuccess) {
-		ERROR("PS2-Keyboard: failed to install contract");
-		return OsError;
-	}
-	Kybd->Irq = RegisterInterruptSource(&Port->Interrupt, INTERRUPT_NOTSHARABLE);
-
-	// Reset keyboard LEDs status
-	if (PS2KeyboardSetLEDs(Kybd, 0, 0, 0) != OsSuccess) {
-		ERROR("PS2-Keyboard: failed to reset LEDs");
-	}
-
-	// Update typematics to preffered settings
-	if (PS2KeyboardSetTypematics(Kybd,
-			Kybd->TypematicRepeat, Kybd->TypematicDelay) != OsSuccess) {
-		WARNING("PS2-Keyboard: failed to set typematic settings");
-	}
-	
-	// Select our preffered scancode set
-	if (PS2KeyboardSetScancode(Kybd, 2, &Kybd->ScancodeSet) != OsSuccess) {
-		WARNING("PS2-Keyboard: failed to select scancodeset 2 (%i)",
-			Kybd->ScancodeSet);
-	}
-	return PS2PortQueueCommand(Port, PS2_ENABLE_SCANNING, NULL);
+    // Update typematics to preffered settings
+    if (PS2KeyboardSetTypematics(Instance) != OsSuccess) {
+        WARNING("PS2-Keyboard: failed to set typematic settings");
+    }
+    
+    // Select our preffered scancode set
+    if (PS2KeyboardSetScancode(Instance, 2) != OsSuccess) {
+        WARNING("PS2-Keyboard: failed to select scancodeset 2 (%u)", 
+            PS2_KEYBOARD_DATA_SCANCODESET(Instance));
+    }
+    return PS2PortExecuteCommand(Instance, PS2_ENABLE_SCANNING, NULL);
 }
 
 /* PS2KeyboardCleanup 
  * Cleans up the ps2-keyboard instance on the given PS2-Controller port */
 OsStatus_t
 PS2KeyboardCleanup(
-	_In_ PS2Port_t*	Port)
+    _In_ PS2Controller_t*           Controller,
+    _In_ int                        Port)
 {
-	PS2Keyboard_t *Kybd = (PS2Keyboard_t*)Port->Interrupt.Data;
-	
-	// Send the disable command before removing device
-	PS2PortQueueCommand(Port, PS2_DISABLE_SCANNING, NULL);
-	UnregisterInterruptSource(Kybd->Irq);
+    PS2Port_t *Instance = &Controller->Ports[Port];
 
-	// Cleanup resources
-	free(Kybd);
-	Port->Signature = 0;
-	return OsSuccess;
+    // Try to disable the device before cleaning up
+    PS2PortExecuteCommand(Instance, PS2_DISABLE_SCANNING, NULL);
+    UnregisterInterruptSource(Instance->InterruptId);
+    Instance->Signature = 0xFFFFFFFF;
+    return OsSuccess;
 }

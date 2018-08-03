@@ -60,7 +60,7 @@ extern OsStatus_t GetVirtualPageAttributes(SystemMemorySpace_t*, VirtualAddress_
 
 #define EFLAGS_INTERRUPT_FLAG        (1 << 9)
 #define APIC_FLAGS_DEFAULT            0x7F00000000000000
-#define NUM_ISA_INTERRUPTS			16
+#define NUM_ISA_INTERRUPTS            16
 
 // extern assembly functions
 extern void     __cli(void);
@@ -74,35 +74,33 @@ extern void     enter_thread(Context_t *Regs);
 void
 InitializeSoftwareInterrupts(void)
 {
-    // Variables
-	MCoreInterrupt_t Interrupt;
-    Interrupt.Data              = NULL;
-    Interrupt.Vectors[1]        = INTERRUPT_NONE;
-    Interrupt.Line              = INTERRUPT_NONE;
-    Interrupt.Pin               = INTERRUPT_NONE;
+    DeviceInterrupt_t Interrupt = { { 0 } };
+    Interrupt.Vectors[1]            = INTERRUPT_NONE;
+    Interrupt.Line                  = INTERRUPT_NONE;
+    Interrupt.Pin                   = INTERRUPT_NONE;
     
     // Yield interrupt
-    Interrupt.Vectors[0]        = INTERRUPT_YIELD;
-    Interrupt.FastHandler       = ThreadingYieldHandler;
+    Interrupt.Vectors[0]            = INTERRUPT_YIELD;
+    Interrupt.FastInterrupt.Handler = ThreadingYieldHandler;
     InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
         | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
 
     // Page synchronization interrupt
-    Interrupt.Vectors[0]        = INTERRUPT_SYNCHRONIZE_PAGE;
-    Interrupt.FastHandler       = PageSynchronizationHandler;
+    Interrupt.Vectors[0]            = INTERRUPT_SYNCHRONIZE_PAGE;
+    Interrupt.FastInterrupt.Handler = PageSynchronizationHandler;
     InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
         | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
-	
+    
     // Install local apic handlers
-	// - LVT Error handler
-	Interrupt.Vectors[0]        = INTERRUPT_LVTERROR;
-	Interrupt.FastHandler       = ApicErrorHandler;
+    // - LVT Error handler
+    Interrupt.Vectors[0]            = INTERRUPT_LVTERROR;
+    Interrupt.FastInterrupt.Handler = ApicErrorHandler;
     InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
         | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
-	
-	// - Timer handler
-    Interrupt.Vectors[0]        = INTERRUPT_LAPIC;
-	Interrupt.FastHandler       = ApicTimerHandler;
+    
+    // - Timer handler
+    Interrupt.Vectors[0]            = INTERRUPT_LAPIC;
+    Interrupt.FastInterrupt.Handler = ApicTimerHandler;
     InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
         | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
 }
@@ -112,9 +110,8 @@ InitializeSoftwareInterrupts(void)
  * from the interrupt structure */
 uint64_t
 InterruptGetApicConfiguration(
-    _In_ MCoreInterrupt_t *Interrupt)
+    _In_ DeviceInterrupt_t* Interrupt)
 {
-    // Variables
     uint64_t ApicFlags = APIC_FLAGS_DEFAULT;
 
     TRACE("InterruptDetermine(%i:%i)", Interrupt->Line, Interrupt->Pin);
@@ -195,7 +192,7 @@ InterruptGetApicConfiguration(
  * Resolves the table index from the given interrupt settings. */
 OsStatus_t
 InterruptResolve(
-    _In_    MCoreInterrupt_t*   Interrupt,
+    _In_    DeviceInterrupt_t*  Interrupt,
     _In_    Flags_t             Flags,
     _Out_   UUId_t*             TableIndex)
 {
@@ -287,10 +284,9 @@ InterruptResolve(
  * Configures the given interrupt in the system */
 OsStatus_t
 InterruptConfigure(
-    _In_ MCoreInterruptDescriptor_t*    Descriptor,
-    _In_ int                            Enable)
+    _In_ SystemInterrupt_t* Descriptor,
+    _In_ int                Enable)
 {
-    // Variables
     SystemInterruptController_t *Ic = NULL;
     uint64_t ApicFlags      = APIC_FLAGS_DEFAULT;
     UUId_t TableIndex       = 0;
@@ -375,7 +371,6 @@ void
 InterruptEntry(
     _In_ Context_t *Registers)
 {
-    // Variables
     InterruptStatus_t Result    = InterruptNotHandled;
     int TableIndex              = (int)Registers->Irq + 32;
     int Gsi                     = APIC_NO_GSI;
@@ -385,7 +380,7 @@ InterruptEntry(
 
     // Sanitize the result of the
     // irq-handling - all irqs must be handled
-    if (Result != InterruptHandled 
+    if (Result == InterruptNotHandled 
         && InterruptGetIndex(TableIndex) == NULL) {
         // Unhandled interrupts are only ok if spurious
         // LAPIC, Interrupt 7 and 15
@@ -411,7 +406,6 @@ ExceptionSignal(
     _In_ Context_t  *Registers,
     _In_ int         Signal)
 {
-    // Variables
     MCoreThread_t *Thread   = NULL;
     MCoreAsh_t *Process     = NULL;
     UUId_t Cpu              = CpuGetCurrentId();
@@ -447,7 +441,6 @@ void
 ExceptionEntry(
     _In_ Context_t *Registers)
 {
-    // Variables
     MCoreThread_t *Thread   = NULL;
     uintptr_t Address       = __MASK;
     int IssueFixed          = 0;
@@ -585,35 +578,21 @@ ExceptionEntry(
 }
 
 /* InterruptDisable
- * Disables interrupts and returns
- * the state before disabling */
+ * Disables interrupts and returns the state before disabling */
 IntStatus_t
 InterruptDisable(void)
 {
-    // Variables
-    IntStatus_t CurrentState;
-
-    // Save status
-    CurrentState = InterruptSaveState();
-
-    // Disable interrupts and return
+    IntStatus_t CurrentState = InterruptSaveState();
     __cli();
     return CurrentState;
 }
 
 /* InterruptEnable
- * Enables interrupts and returns 
- * the state before enabling */
+ * Enables interrupts and returns the state before enabling */
 IntStatus_t
 InterruptEnable(void)
 {
-    // Variables
-    IntStatus_t CurrentState;
-
-    // Save current status
-    CurrentState = InterruptSaveState();
-
-    // Enable interrupts and return
+    IntStatus_t CurrentState = InterruptSaveState();
     __sti();
     return CurrentState;
 }
@@ -647,11 +626,9 @@ InterruptSaveState(void)
 }
 
 /* InterruptIsDisabled
- * Returns 1 if interrupts are currently
- * disabled or 0 if interrupts are enabled */
+ * Returns 1 if interrupts are currently disabled or 0 if interrupts are enabled */
 int
 InterruptIsDisabled(void)
 {
-    /* Just negate this state */
     return !InterruptSaveState();
 }

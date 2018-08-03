@@ -19,16 +19,10 @@
  * MollenOS MCore - Human Input Device Driver (Generic)
  */
 
-/* Includes
- * - System */
 #include <os/utils.h>
 #include <os/usb.h>
-#include "hid.h"
-
-/* Includes
- * - Library */
 #include <stdlib.h>
-#include <stddef.h>
+#include "hid.h"
 
 /* HidGetDescriptor
  * Retrieves the HID descriptor from the usb-device. */

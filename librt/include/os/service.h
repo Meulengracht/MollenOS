@@ -24,16 +24,11 @@
 #ifndef _SERVICE_H_
 #define _SERVICE_H_
 
-/* Includes
- * - System */
 #include <os/ipc/ipc.h>
 #include <os/osdefs.h>
 
-/* Service base definitions, includes things
- * like the base server-target */
 #define __SERVICE_TARGET(Index)             ((UUId_t)0x8000 + Index)
 
-/* MollenOS possible Service targets */
 #define __DEVICEMANAGER_TARGET              __SERVICE_TARGET(0)
 #define __FILEMANAGER_TARGET                __SERVICE_TARGET(1)
 #define __WINDOWMANAGER_TARGET              __SERVICE_TARGET(2)
@@ -45,7 +40,8 @@ _CODE_BEGIN
  * Registers a service on the current alias, allowing
  * other applications and frameworks to send commands
  * and function requests */
-CRTDECL(OsStatus_t, RegisterService(UUId_t Alias));
+CRTDECL(OsStatus_t,
+RegisterService(UUId_t Alias));
 
 /* OnLoad/OnUnload/OnEvent
  * The entry-point of a service, this is called

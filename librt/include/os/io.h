@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,62 +21,108 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _IO_INTEFACE_H_
-#define _IO_INTEFACE_H_
+#ifndef __DEVICEIO_INTERFACE_H__
+#define __DEVICEIO_INTERFACE_H__
 
-/* Includes
- * - C-Library */
 #include <os/osdefs.h>
 
-/* The two different kinds of io-spaces that are
- * currently supported in MollenOS, to get which
- * kind of io-space check with IoSpace->Type */
-#define IO_SPACE_INVALID        0x00
-#define IO_SPACE_IO             0x01
-#define IO_SPACE_MMIO           0x02
+typedef enum _DeviceIoType {
+    DeviceIoInvalid     = 0,
+    DeviceIoMemoryBased,            // Usually device memory range
+    DeviceIoPortBased,              // Usually a port range
+    DeviceIoPinBased                // Usually a port/pin combination
+} DeviceIoType_t;
 
-/* Represents an io-space in MollenOS, they represent
- * some kind of communication between hardware and software
- * by either port or mmio */
-typedef struct _DeviceIoSpace {
-    UUId_t                        Id;
-    int                            Type;
-    uintptr_t                        PhysicalBase;
-    uintptr_t                        VirtualBase;
-    size_t                        Size;
-} DeviceIoSpace_t;
+// Represents a device io communcation space
+// that can be used by a driver to communcate with its physical device.
+typedef struct _DeviceIo {
+    UUId_t              Id;
+    DeviceIoType_t      Type;
+    union {
+        struct {
+            uintptr_t   PhysicalBase;
+            uintptr_t   VirtualBase;
+            size_t      Length;
+        } Memory;
+        struct {
+            uint16_t    Base;
+            size_t      Length;
+        } Port;
+        struct {
+            uint16_t    Port;
+            uint8_t     Pin;
+        } Pin;
+    } Access;
+} DeviceIo_t;
 
 _CODE_BEGIN
-/* Creates a new io-space and registers it with
- * the operation system, returns OsSuccess if it's 
- * a valid io-space */
-CRTDECL(OsStatus_t, CreateIoSpace(DeviceIoSpace_t *IoSpace));
+/* CreateDeviceMemoryIo
+ * Registers a new device memory io with the operating system. If this memory range
+ * overlaps any existing io range, this request will be denied by the system. */
+CRTDECL(OsStatus_t,
+CreateDeviceMemoryIo(
+    _In_ DeviceIo_t*    IoSpace,
+    _In_ uintptr_t      PhysicalBase,
+    _In_ uintptr_t      VirtualBase,
+    _In_ size_t         Length));
 
-/* Tries to claim a given io-space, only one driver
- * can claim a single io-space at a time, to avoid
- * two drivers using the same device */
-CRTDECL(OsStatus_t, AcquireIoSpace(DeviceIoSpace_t *IoSpace));
+/* CreateDevicePortIo
+ * Registers a new device port io with the operating system. If this port io range
+ * overlaps any existing range, this request will be denied by the system. */
+CRTDECL(OsStatus_t,
+CreateDevicePortIo(
+    _In_ DeviceIo_t*    IoSpace,
+    _In_ uint16_t       Port,
+    _In_ size_t         Length));
 
-/* Tries to release a given io-space, only one driver
- * can claim a single io-space at a time, to avoid
- * two drivers using the same device */
-CRTDECL(OsStatus_t, ReleaseIoSpace(DeviceIoSpace_t *IoSpace));
+/* CreateDevicePinIo
+ * Registers a new device port/pin io with the operating system. If this port/pin
+ * overlaps any existing port/pin, this request will be denied by the system. */
+CRTDECL(OsStatus_t,
+CreateDevicePinIo(
+    _In_ DeviceIo_t*    IoSpace,
+    _In_ uint16_t       Port,
+    _In_ uint8_t        Pin));
 
-/* Destroys the io-space with the given id and removes
- * it from the io-manage in the operation system, it
- * can only be removed if its not already acquired */
-CRTDECL(OsStatus_t, DestroyIoSpace(UUId_t IoSpace));
+/* DestroyDeviceIo
+ * Unregisters a device-io with the operating system, releasing all resources
+ * associated and disabling the io range for use. */
+CRTDECL(OsStatus_t,
+DestroyDeviceIo(
+    _In_ DeviceIo_t*    IoSpace));
 
-/* Read data from the given io-space at <offset> with 
- * the given <length>, the offset and length must be below 
- * the size of the io-space */
-CRTDECL(size_t, ReadIoSpace(DeviceIoSpace_t *IoSpace, size_t Offset, size_t Length));
+/* AcquireDeviceIo
+ * Tries to claim a given io-space, only one driver can claim a single io-space 
+ * at a time, to avoid two drivers using the same device */
+CRTDECL(OsStatus_t,
+AcquireDeviceIo(
+    _In_ DeviceIo_t*    IoSpace));
 
-/* Write data from the given io-space at <offset> with 
- * the given <length>, the offset and length must be below 
- * the size of the io-space */
-CRTDECL(void, WriteIoSpace(DeviceIoSpace_t *IoSpace, 
-    size_t Offset, size_t Value, size_t Length));
+/* ReleaseDeviceIo
+ * Tries to release a given io-space, only one driver can claim a single io-space 
+ * at a time, to avoid two drivers using the same device */
+CRTDECL(OsStatus_t,
+ReleaseDeviceIo(
+    _In_ DeviceIo_t*    IoSpace));
+
+/* ReadDeviceIo
+ * Read data from the given io-space at <offset> with the given <length>, 
+ * the offset and length must be below the size of the io-space */
+CRTDECL(size_t,
+ReadDeviceIo(
+    _In_ DeviceIo_t*    IoSpace,
+    _In_ size_t         Offset,
+    _In_ size_t         Length));
+
+/* WriteDeviceIo
+ * Write data from the given io-space at <offset> with the given <length>, 
+ * the offset and length must be below the size of the io-space */
+CRTDECL(OsStatus_t,
+WriteDeviceIo(
+    _In_ DeviceIo_t*    IoSpace,
+    _In_ size_t         Offset,
+    _In_ size_t         Value,
+    _In_ size_t         Length));
 _CODE_END
 
-#endif //!_IO_INTEFACE_H_
+#endif //!__DEVICEIO_INTERFACE_H__

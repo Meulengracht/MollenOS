@@ -22,57 +22,47 @@
  */
 //#define __TRACE
 
-/* Includes 
- * - System */
+#include <ds/collection.h>
 #include <os/mollenos.h>
 #include <os/timers.h>
 #include <os/utils.h>
+#include <threads.h>
+#include <string.h>
+#include <stdlib.h>
 
 #include "../common/manager.h"
 #include "ohci.h"
-
-/* Includes
- * - Library */
-#include <ds/collection.h>
-#include <threads.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
 
 /* OnFastInterrupt
  * Is called for the sole purpose to determine if this source
  * has invoked an irq. If it has, silence and return (Handled) */
 InterruptStatus_t
 OnFastInterrupt(
-    _In_Opt_ void *InterruptData)
+    _In_ FastInterruptResources_t*  InterruptTable,
+    _In_ void*                      NotUsed)
 {
     // Variables
-    OhciController_t *Controller = NULL;
+    OhciRegisters_t* Registers      = (OhciRegisters_t*)INTERRUPT_IOSPACE(InterruptTable, 0)->VirtualBase;
+    OhciController_t* Controller    = INTERRUPT_RESOURCE(InterruptTable, 0);
+    OhciHCCA_t* Hcca                = INTERRUPT_RESOURCE(InterruptTable, 1);
     reg32_t InterruptStatus;
-
-    // Instantiate the pointer
-    Controller = (OhciController_t*)InterruptData;
+    _CRT_UNUSED(NotUsed);
 
     // There are two cases where it might be, just to be sure
     // we don't miss an interrupt, if the HeadDone is set or the
     // intr is set
-    if (Controller->Hcca->HeadDone != 0) {
+    if (Hcca->HeadDone != 0) {
         InterruptStatus = OHCI_PROCESS_EVENT;
         // If halted bit is set, get rest of interrupt
-        if (Controller->Hcca->HeadDone & 0x1) {
-            InterruptStatus |= (Controller->Registers->HcInterruptStatus
-                & Controller->Registers->HcInterruptEnable);
+        if (Hcca->HeadDone & 0x1) {
+            InterruptStatus |= (Registers->HcInterruptStatus & Registers->HcInterruptEnable);
         }
     }
     else {
         // Was it this Controller that made the interrupt?
         // We only want the interrupts we have set as enabled
-        InterruptStatus = (Controller->Registers->HcInterruptStatus
-            & Controller->Registers->HcInterruptEnable);
+        InterruptStatus = (Registers->HcInterruptStatus & Registers->HcInterruptEnable);
     }
-
-    // Trace
-    TRACE("Interrupt - Status 0x%x", InterruptStatus);
 
     // Was the interrupt even from this controller?
     if (!InterruptStatus) {
@@ -82,19 +72,20 @@ OnFastInterrupt(
     // Process Checks first
     // This happens if a transaction has completed
     if (InterruptStatus & OHCI_PROCESS_EVENT) {
-        //reg32_t TdAddress = (Controller->Hcca->HeadDone & ~(0x00000001));
-        Controller->Hcca->HeadDone          = 0;
+        //reg32_t TdAddress = (Hcca->HeadDone & ~(0x00000001));
+        Hcca->HeadDone = 0;
     }
 
-    // Stage 1 of the linking/unlinking event
+    // Stage 1 of the linking/unlinking event, disable queues untill
+    // after the actual unlink/link event
     if (InterruptStatus & OHCI_SOF_EVENT) {
-        UsbManagerScheduleTransfers(&Controller->Base);
-        Controller->Registers->HcInterruptDisable = OHCI_SOF_EVENT;
+        Registers->HcControl           &= ~(OHCI_CONTROL_ALL_ACTIVE);
+        Registers->HcInterruptDisable   = OHCI_SOF_EVENT;
     }
 
     // Store interrupts, acknowledge and return
-    Controller->Base.InterruptStatus        |= InterruptStatus;
-    Controller->Registers->HcInterruptStatus = InterruptStatus;
+    Controller->Base.InterruptStatus   |= InterruptStatus;
+    Registers->HcInterruptStatus        = InterruptStatus;
     return InterruptHandled;
 }
 
@@ -151,6 +142,8 @@ ProcessInterrupt:
 
     // Stage 2 of an linking/unlinking event
     if (InterruptStatus & OHCI_SOF_EVENT) {
+        UsbManagerScheduleTransfers(&Controller->Base);
+        Controller->Registers->HcControl |= Controller->QueuesActive;
         UsbManagerProcessTransfers(&Controller->Base);
     }
 

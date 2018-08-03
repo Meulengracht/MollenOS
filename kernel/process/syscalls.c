@@ -23,8 +23,9 @@
 #include <os/osdefs.h>
 #include <os/mollenos.h>
 #include <os/contracts/video.h>
-#include <os/buffer.h>
 #include <process/phoenix.h>
+#include <os/buffer.h>
+#include <os/input.h>
 #include <time.h>
 
 // System system calls
@@ -110,14 +111,16 @@ OsStatus_t  ScAcpiQueryStatus(AcpiDescriptor_t* AcpiDescriptor);
 OsStatus_t  ScAcpiQueryTableHeader(const char* Signature, ACPI_TABLE_HEADER* Header);
 OsStatus_t  ScAcpiQueryTable(const char* Signature, ACPI_TABLE_HEADER* Table);
 OsStatus_t  ScAcpiQueryInterrupt(DevInfo_t Bus, DevInfo_t Device, int Pin, int* Interrupt, Flags_t* AcpiConform);
-OsStatus_t  ScIoSpaceRegister(DeviceIoSpace_t* IoSpace);
-OsStatus_t  ScIoSpaceAcquire(DeviceIoSpace_t* IoSpace);
-OsStatus_t  ScIoSpaceRelease(DeviceIoSpace_t* IoSpace);
-OsStatus_t  ScIoSpaceDestroy(UUId_t IoSpace);
+OsStatus_t  ScIoSpaceRegister(DeviceIo_t* IoSpace);
+OsStatus_t  ScIoSpaceAcquire(DeviceIo_t* IoSpace);
+OsStatus_t  ScIoSpaceRelease(DeviceIo_t* IoSpace);
+OsStatus_t  ScIoSpaceDestroy(DeviceIo_t* IoSpace);
 OsStatus_t  ScRegisterAliasId(UUId_t Alias);
 OsStatus_t  ScLoadDriver(MCoreDevice_t* Device, size_t Length);
-UUId_t      ScRegisterInterrupt(MCoreInterrupt_t* Interrupt, Flags_t Flags);
+UUId_t      ScRegisterInterrupt(DeviceInterrupt_t* Interrupt, Flags_t Flags);
 OsStatus_t  ScUnregisterInterrupt(UUId_t Source);
+OsStatus_t  ScKeyEvent(SystemKey_t* Key);
+OsStatus_t  ScInputEvent(SystemInput_t* Input);
 UUId_t      ScTimersStart(size_t Interval, int Periodic, const void* Data);
 OsStatus_t  ScTimersStop(UUId_t TimerId);
 

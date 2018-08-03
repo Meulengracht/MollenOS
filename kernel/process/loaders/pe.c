@@ -191,17 +191,25 @@ PeHandleSections(
         uintptr_t VirtualDestination = PeFile->VirtualAddress + Section->VirtualAddress;
         uint8_t *FileBuffer     = (uint8_t*)(Data + Section->RawAddress);
         uint8_t *Destination    = (uint8_t*)VirtualDestination;
+        Flags_t PageFlags       = (UserSpace == 1) ? MAPPING_USERSPACE : 0;
+        size_t SectionSize      = MAX(Section->RawSize, Section->VirtualSize);
 
         // Make a local copy of the name, just in case
         // we need to do some debug print
         memcpy(&SectionName[0], &Section->Name[0], 8);
         SectionName[8]          = 0;
 
+        // Handle page flags for this section
+        if (Section->Flags & PE_SECTION_EXECUTE) {
+            PageFlags |= MAPPING_EXECUTABLE;
+        }
+        if (!(Section->Flags & PE_SECTION_WRITE)) {
+            PageFlags |= MAPPING_READONLY;
+        }
+
         // Iterate pages and map them in our memory space
-        Flags_t PageFlags = (UserSpace == 1) ? MAPPING_USERSPACE : 0;
-        PageFlags |= MAPPING_FIXED;
-        Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &VirtualDestination,
-            MAX(Section->RawSize, Section->VirtualSize), PageFlags, __MASK);
+        Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, 
+            &VirtualDestination, SectionSize, PageFlags | MAPPING_FIXED, __MASK);
         if (Status != OsSuccess) {
             ERROR("Failed to map in PE section at 0x%x", Destination);
         }
@@ -234,8 +242,7 @@ PeHandleSections(
         }
 
         // Update address and seciton
-        CurrentAddress = (PeFile->VirtualAddress + Section->VirtualAddress
-            + MAX(Section->RawSize, Section->VirtualSize));
+        CurrentAddress = (PeFile->VirtualAddress + Section->VirtualAddress + SectionSize);
         Section++;
     }
 

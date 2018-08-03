@@ -61,11 +61,13 @@ __EXTERN void enter_thread(Context_t *Regs);
  * Software interrupt handler for the yield command. Emulates a regular timer interrupt. */
 InterruptStatus_t
 ThreadingYieldHandler(
-    _In_ void *Context)
+    _In_ FastInterruptResources_t*  NotUsed,
+    _In_ void*                      Context)
 {
     Context_t *Regs;
     size_t TimeSlice;
     int TaskPriority;
+    _CRT_UNUSED(NotUsed);
 
     // Yield => start by sending eoi. It is never certain that we actually return
     // to this function due to how signals are working

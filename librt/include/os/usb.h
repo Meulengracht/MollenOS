@@ -24,12 +24,7 @@
 #ifndef _USB_INTERFACE_H_
 #define _USB_INTERFACE_H_
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
-
-/* Includes
- * - System */
 #include <os/usb/definitions.h>
 #include <os/bufferpool.h>
 #include <os/device.h>

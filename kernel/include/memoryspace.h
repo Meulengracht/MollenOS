@@ -136,7 +136,20 @@ KERNELAPI OsStatus_t KERNELABI
 CreateSystemMemorySpaceMapping(
     _In_        SystemMemorySpace_t*    SystemMemorySpace,
     _InOut_Opt_ PhysicalAddress_t*      PhysicalAddress, 
-    _InOut_Opt_ VirtualAddress_t*       VirtualAddress, 
+    _InOut_Opt_ VirtualAddress_t*       VirtualAddress,
+    _In_        size_t                  Size, 
+    _In_        Flags_t                 Flags,
+    _In_        uintptr_t               Mask);
+
+/* CloneSystemMemorySpaceMapping
+ * Clones a region of memory mappings into the address space provided. The new mapping
+ * will automatically be marked PERSISTANT and PROVIDED. */
+KERNELAPI OsStatus_t KERNELABI
+CloneSystemMemorySpaceMapping(
+    _In_        SystemMemorySpace_t*    SourceSpace,
+    _In_        SystemMemorySpace_t*    DestinationSpace,
+    _In_        VirtualAddress_t        SourceAddress,
+    _InOut_Opt_ VirtualAddress_t*       DestinationAddress,
     _In_        size_t                  Size, 
     _In_        Flags_t                 Flags,
     _In_        uintptr_t               Mask);

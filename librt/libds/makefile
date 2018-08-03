@@ -26,12 +26,8 @@ SOURCES = $(COMMON_SOURCES) support/ds.c
 OBJECTS = $(SOURCES:.c=.o)
 
 # Setup flags and stuff each for individual build  $(subst ../,,$(ASM_SRCS))
-ifeq ($(MAKECMDGOALS), libdsk)
-	CFLAGS = $(GCFLAGS) -mno-sse -D_KRNL_DLL $(COMMON_INCLUDES) $(KERNEL_INCLUDES)
-else
-	CFLAGS = $(GCFLAGS) -D_KRNL_DLL $(COMMON_INCLUDES)
-endif
-
+KERNEL_CFLAGS = $(GCFLAGS) -mno-sse -D_KRNL_DLL $(COMMON_INCLUDES) $(KERNEL_INCLUDES)
+NORMAL_CFLAGS = $(GCFLAGS) -D_KRNL_DLL $(COMMON_INCLUDES)
 LFLAGS = /lib
 
 # default-target
@@ -40,6 +36,10 @@ libdsk: ../build/libdsk.lib
 
 .PHONY: libds
 libds: ../build/libds.lib
+
+# tidy-target
+.PHONY: tidy
+tidy: $(KERNEL_OBJECTS) $(OBJECTS)
 
 ../build/libds.lib: $(OBJECTS)
 	@printf "%b" "\033[0;36mCreating static library " $@ "\033[m\n"

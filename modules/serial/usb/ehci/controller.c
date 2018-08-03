@@ -38,7 +38,7 @@
 /* Prototypes 
  * This is to keep the create/destroy at the top of the source file */
 OsStatus_t          EhciSetup(EhciController_t *Controller);
-InterruptStatus_t   OnFastInterrupt(void *InterruptData);
+InterruptStatus_t   OnFastInterrupt(FastInterruptResources_t*, void*);
 
 /* HciControllerCreate 
  * Initializes and creates a new Hci Controller instance
@@ -49,7 +49,7 @@ HciControllerCreate(
 {
     // Variables
     EhciController_t *Controller    = NULL;
-    DeviceIoSpace_t *IoBase         = NULL;
+    DeviceIo_t *IoBase              = NULL;
     int i;
 
     // Allocate a new instance of the controller
@@ -109,8 +109,10 @@ HciControllerCreate(
         (IoBase->VirtualBase + Controller->CapRegisters->Length);
 
     // Initialize the interrupt settings
-    Controller->Base.Device.Interrupt.FastHandler   = OnFastInterrupt;
-    Controller->Base.Device.Interrupt.Data          = Controller;
+    RegisterFastInterruptHandler(&Controller->Base.Device.Interrupt, OnFastInterrupt);
+    RegisterFastInterruptIoResource(&Controller->Base.Device.Interrupt, IoBase);
+    RegisterFastInterruptMemoryResource(&Controller->Base.Device.Interrupt, Controller, sizeof(EhciController_t), 0);
+    
     if (RegisterContract(&Controller->Base.Contract) != OsSuccess) {
         ERROR("Failed to register contract for ehci-controller");
         ReleaseIoSpace(Controller->Base.IoBase);
@@ -120,6 +122,7 @@ HciControllerCreate(
     }
 
     // Register interrupt
+    RegisterInterruptContext(&Controller->Base.Device.Interrupt, Controller);
     Controller->Base.Interrupt  = RegisterInterruptSource(
         &Controller->Base.Device.Interrupt, INTERRUPT_USERSPACE);
 

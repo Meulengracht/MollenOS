@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -91,11 +91,12 @@ thrd_t thrd_current(void) {
 
 #else
 #define __TRACE
-#include <os/input.h>
-#include <os/file.h>
-#include <os/ipc/ipc.h>
-#include <os/utils.h>
 #include <ds/collection.h>
+#include <os/ipc/ipc.h>
+#include <os/syscall.h>
+#include <os/input.h>
+#include <os/utils.h>
+#include <os/file.h>
 #include "../../threads/tls.h"
 #include <stdio.h>
 #include <errno.h>
@@ -487,23 +488,91 @@ StdioHandleReadFile(
 	return OsSuccess;
 }
 
+/* WriteSystemInput
+ * Notifies the operating system of new input, this input is written to the system's
+ * standard input, which is then sent to the window-manager if present. */
+OsStatus_t
+WriteSystemInput(
+    _In_ SystemInput_t* Input)
+{
+    assert(Input != NULL);
+    return Syscall_InputEvent(Input);
+}
+
+/* WriteSystemKey
+ * Notifies the operating system of new key-event, this key is written to the system's
+ * standard input, which is then sent to the window-manager if present. */
+OsStatus_t
+WriteSystemKey(
+    _In_ SystemKey_t*   Key)
+{
+    assert(Key != NULL);
+    return Syscall_KeyEvent(Key);
+}
+
+extern OsStatus_t GetKeyFromSystemKeyEnUs(SystemKey_t* Key);
+
+/* TranslateSystemKey
+ * Performs the translation on the keycode in the system key structure. This fills
+ * in the <KeyUnicode> and <KeyAscii> members by translation of the active keymap. */
+OsStatus_t
+TranslateSystemKey(
+    _In_ SystemKey_t* Key)
+{
+    if (Key->KeyCode != VK_INVALID) {
+        return GetKeyFromSystemKeyEnUs(Key);
+    }
+    return OsError;
+}
+
+/* ReadSystemKey
+ * Reads a system key from the process's stdin handle. This returns
+ * the raw system key with no processing performed on the key. */
+OsStatus_t
+ReadSystemKey(
+    _In_ SystemKey_t*   Key)
+{
+    StdioHandle_t *Handle = StdioFdToHandle(STDIN_FILENO);
+    if (Handle->InheritationType == STDIO_HANDLE_FILE) {
+        return StdioHandleReadFile(Handle, (char*)&Key, sizeof(SystemKey_t), NULL);
+    }
+    else {
+        return ReceivePipe(Handle->InheritationData.Pipe.ProcessId, 
+            Handle->InheritationData.Pipe.Port, &Key, sizeof(SystemKey_t));
+    }
+}
+
 /* StdioReadInternal
  * Internal read wrapper for file-reading */
 OsStatus_t
 StdioReadInternal(
-    _In_  int       fd, 
-    _In_  char*     Buffer, 
-    _In_  size_t    Length,
-    _Out_ size_t*   BytesRead)
+    _In_  int           fd, 
+    _In_  char*         Buffer, 
+    _In_  size_t        Length,
+    _Out_ size_t*       BytesRead)
 {
     // Variables
     StdioHandle_t *Handle   = StdioFdToHandle(fd);
+    SystemKey_t Key;
 
     if (Handle->InheritationType == STDIO_HANDLE_FILE) {
         return StdioHandleReadFile(Handle, Buffer, Length, BytesRead);
     }
     else if (Handle->InheritationType == STDIO_HANDLE_PIPE) {
-        if (ReceivePipe(Handle->InheritationData.Pipe.ProcessId, 
+        if (fd == STDIN_FILENO) {
+            while (Length--) { // @todo handle wide?
+                if (ReadSystemKey(&Key) != OsSuccess) {
+                    break;   
+                }
+
+                // Perform key translation
+                TranslateSystemKey(&Key);
+                *Buffer++ = (char)Key.KeyAscii;
+                (*BytesRead)++;
+            }
+            return OsSuccess;
+        }
+        else if (ReceivePipe(Handle->InheritationData.Pipe.ProcessId, 
             Handle->InheritationData.Pipe.Port, Buffer, Length) == OsSuccess) {
             *BytesRead = Length;
             return OsSuccess;

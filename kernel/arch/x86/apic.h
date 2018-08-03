@@ -24,6 +24,7 @@
 #define __APIC_H__
 
 #include <os/osdefs.h>
+#include <os/interrupt.h>
 #include <component/ic.h>
 #include <arch.h>
 
@@ -273,13 +274,15 @@ __EXTERN uint32_t ApicGetTaskPriority(void);
  * to switch threads. */
 KERNELAPI InterruptStatus_t KERNELABI
 ApicTimerHandler(
-    _In_ void*  Context);
+    _In_ FastInterruptResources_t*  NotUsed,
+    _In_ void*                      Context);
 
 /* ApicErrorHandler
  * Handles any internally errors that the apic encounters. Most of these
  * don't have any resolution. */
 KERNELAPI InterruptStatus_t KERNELABI
 ApicErrorHandler(
-    _In_ void*  Context);
+    _In_ FastInterruptResources_t*  NotUsed,
+    _In_ void*                      Context);
 
 #endif //!__APIC_H__

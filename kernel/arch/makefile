@@ -43,6 +43,9 @@ LFLAGS = /lib
 .PHONY: all
 all: header ../build/$(VALI_ARCH).lib
 
+.PHONY: tidy
+tidy: $(OBJECTS)
+
 .PHONY: header
 header:
 	cp x86/arch.h ../include/arch.h

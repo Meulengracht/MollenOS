@@ -42,7 +42,6 @@
 #define __WINDOWMANAGER_DESTROY             IPC_DECL_FUNCTION(1)
 #define __WINDOWMANAGER_SWAPBUFFER          IPC_DECL_FUNCTION(2)
 #define __WINDOWMANAGER_QUERY               IPC_DECL_FUNCTION(3)
-#define __WINDOWMANAGER_NEWINPUT            IPC_DECL_FUNCTION(4)
 
 /* CreateWindow 
  * Creates a window of the given dimensions and flags. The returned

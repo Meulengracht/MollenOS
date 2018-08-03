@@ -52,12 +52,13 @@ public:
 
 private:
     // Functions
-    void                        SpawnMessageHandler();
+    void                        SpawnInputHandlers();
     CEntity*                    CreateStandardScene();
 
     // Resources
     CDisplay*                   _Display;
     std::thread*                _MessageThread;
+    std::thread*                _InputThread;
     std::condition_variable     _EventSignal;
     std::queue<CVioarrEvent*>   _EventQueue;
     std::mutex                  _EventMutex;

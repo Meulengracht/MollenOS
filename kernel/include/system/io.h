@@ -23,9 +23,8 @@
 #ifndef _MCORE_IO_H_
 #define _MCORE_IO_H_
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
+#include <memoryspace.h>
 
 /* Io Systems Definitions 
  * Contains bit definitions and magic constants */
@@ -35,9 +34,7 @@
 /* IoRead 
  * Reads a value from the given data source. Accepted values in
  * width are 1, 2, 4 or 8. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 IoRead(
     _In_ int        Source,
     _In_ uintptr_t  Address,
@@ -47,9 +44,7 @@ IoRead(
 /* IoWrite 
  * Writes a value to the given data source. Accepted values in
  * width are 1, 2, 4 or 8. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 IoWrite(
     _In_ int        Source,
     _In_ uintptr_t  Address,
@@ -59,9 +54,7 @@ IoWrite(
 /* PciRead
  * Reads a value from the given pci address. Accepted values in
  * width are 1, 2, 4 or 8. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 PciRead(
     _In_ unsigned   Bus,
     _In_ unsigned   Slot,
@@ -73,9 +66,7 @@ PciRead(
 /* PciWrite
  * Writes a value to the given pci address. Accepted values in
  * width are 1, 2, 4 or 8. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 PciWrite(
     _In_ unsigned   Bus,
     _In_ unsigned   Slot,
@@ -83,5 +74,14 @@ PciWrite(
     _In_ unsigned   Register,
     _In_ size_t     Width,
     _In_ size_t     Value);
+
+/* SetIoSpaceAccess
+ * Set's the io status of the given memory space. */
+KERNELAPI OsStatus_t KERNELABI
+SetIoSpaceAccess(
+    _In_ UUId_t                     CoreId,
+    _In_ SystemMemorySpace_t*       MemorySpace,
+    _In_ uint16_t                   Port,
+    _In_ int                        Enable);
 
 #endif //!_MCORE_IO_H_

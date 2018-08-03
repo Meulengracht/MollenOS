@@ -154,7 +154,7 @@ OhciQhLink(
         // Enable?
         if (!(Controller->Registers->HcCommandStatus & OHCI_COMMAND_CONTROL_FILLED)) {
             OhciReloadAsynchronous(Controller, ControlTransfer);
-            Controller->Registers->HcControl        |= OHCI_CONTROL_CONTROL_ACTIVE;
+            Controller->QueuesActive |= OHCI_CONTROL_CONTROL_ACTIVE;
         }
     }
     else if (Type == BulkTransfer) {
@@ -174,7 +174,7 @@ OhciQhLink(
         // Enable?
         if (!(Controller->Registers->HcCommandStatus & OHCI_COMMAND_BULK_FILLED)) {
             OhciReloadAsynchronous(Controller, BulkTransfer);
-            Controller->Registers->HcControl        |= OHCI_CONTROL_BULK_ACTIVE;
+            Controller->QueuesActive |= OHCI_CONTROL_BULK_ACTIVE;
         }
     }
 }

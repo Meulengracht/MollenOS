@@ -38,30 +38,33 @@ static Collection_t Controllers = COLLECTION_INIT(KeyInteger);
  * has invoked an irq. If it has, silence and return (Handled) */
 InterruptStatus_t
 OnFastInterrupt(
-    _In_Opt_ void*  InterruptData)
+    _In_ FastInterruptResources_t*  InterruptTable,
+    _In_ void*                      Reserved)
 {
-	AhciController_t *Controller;
+    AhciInterruptResource_t* Resource = INTERRUPT_RESOURCE(InterruptTable, 0);
+	AHCIGenericRegisters_t* Registers = (AHCIGenericRegisters_t*)INTERRUPT_IOSPACE(InterruptTable, 0)->VirtualBase;
 	reg32_t InterruptStatus;
     int i;
+    _CRT_UNUSED(Reserved);
 
-	// Instantiate the pointer
-	Controller      = (AhciController_t*)InterruptData;
-    InterruptStatus = Controller->Registers->InterruptStatus;
+    // Skip processing immediately if the interrupt was not for us
+    InterruptStatus = Registers->InterruptStatus;
     if (!InterruptStatus) {
         return InterruptNotHandled;
     }
 
     // Save the status to port that made it and clear
     for (i = 0; i < AHCI_MAX_PORTS; i++) {
-		if (Controller->Ports[i] != NULL && ((InterruptStatus & (1 << i)) != 0)) {
-			Controller->Ports[i]->InterruptStatus              |= Controller->Ports[i]->Registers->InterruptStatus;
-	        Controller->Ports[i]->Registers->InterruptStatus    = Controller->Ports[i]->Registers->InterruptStatus;
+		if ((InterruptStatus & (1 << i)) != 0) {
+            AHCIPortRegisters_t* PortRegister   = (AHCIPortRegisters_t*)((uintptr_t)Registers + AHCI_REGISTER_PORTBASE(i));
+			Resource->PortInterruptStatus[i]   |= PortRegister->InterruptStatus;
+	        PortRegister->InterruptStatus       = PortRegister->InterruptStatus;
 		}
     }
 
 	// Write clear interrupt register and return
-    Controller->Registers->InterruptStatus   = InterruptStatus;
-    Controller->InterruptStatus             |= InterruptStatus;
+    Registers->InterruptStatus              = InterruptStatus;
+    Resource->ControllerInterruptStatus    |= InterruptStatus;
 	return InterruptHandled;
 }
 
@@ -83,11 +86,11 @@ OnInterrupt(
     _CRT_UNUSED(Arg0);
     _CRT_UNUSED(Arg1);
     _CRT_UNUSED(Arg2);
-	Controller                  = (AhciController_t*)InterruptData;
+	Controller = (AhciController_t*)InterruptData;
 
 HandleInterrupt:
-    InterruptStatus             = Controller->InterruptStatus;
-    Controller->InterruptStatus = 0;
+    InterruptStatus = Controller->InterruptResource.ControllerInterruptStatus;
+    Controller->InterruptResource.ControllerInterruptStatus = 0;
     
     // Iterate the port-map and check if the interrupt
 	// came from that port
@@ -98,7 +101,7 @@ HandleInterrupt:
     }
     
     // Re-handle?
-    if (Controller->InterruptStatus != 0) {
+    if (Controller->InterruptResource.ControllerInterruptStatus != 0) {
         goto HandleInterrupt;
     }
 	return InterruptHandled;

@@ -21,11 +21,11 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
-#include <os/osdefs.h>
 #include <process/phoenix.h>
 #include <system/utils.h>
 #include <scheduler.h>
 #include <threading.h>
+#include <machine.h>
 #include <debug.h>
 #include <pipe.h>
 
@@ -94,12 +94,15 @@ ScPipeWrite(
     // Are we looking for a system out pipe? (std) then the
     // process id (target) will be set as invalid
     if (ProcessId == UUID_INVALID) {
-        if (Port == PIPE_STDOUT || Port == PIPE_STDERR) {
+        if (Port == PIPE_STDOUT || Port == PIPE_STDERR || Port == PIPE_STDIN) {
             if (Port == PIPE_STDOUT) {
                 Pipe = LogPipeStdout();
             }
             else if (Port == PIPE_STDERR) {
                 Pipe = LogPipeStderr();
+            }
+            else if (Port == PIPE_STDIN) {
+                Pipe = GetMachine()->StdInput;
             }
         }
         else {

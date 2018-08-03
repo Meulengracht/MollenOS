@@ -23,53 +23,38 @@
 #ifndef _DRIVER_PS2_KEYBOARD_H_
 #define _DRIVER_PS2_KEYBOARD_H_
 
-/* Includes 
- * - System */
-#include <os/virtualkeycodes.h>
-#include <os/osdefs.h>
-#include "../ps2.h"
+#include <os/input.h>
 
-/* PS2 Keyboard definitions, useful commands and
- * ps2 keyboard ids (device ids really) */
-#define PS2_KEYBOARD_SETLEDS		0xED
-#define PS2_KEYBOARD_SCANCODE		0xF0
-#define PS2_KEYBOARD_TYPEMATIC		0xF3
-#define PS2_KEYBOARD_SETDEFAULT		0xF6
+// PS2 keyboard specific commands
+#define PS2_KEYBOARD_SETLEDS                0xED
+#define PS2_KEYBOARD_SCANCODE               0xF0
+#define PS2_KEYBOARD_TYPEMATIC              0xF3
+#define PS2_KEYBOARD_SETDEFAULT             0xF6
 
-#define PS2_KEYBOARD_ECHO			0xEE
+#define PS2_CODE_EXTENDED                   0xE0
+#define PS2_CODE_RELEASED                   0xF0
+#define PS2_KEYBOARD_ECHO                   0xEE
 
-/* Typematic definitions for setting the different
- * typematic-support bits */
-#define PS2_REPEATS_PERSEC(Hz)		(0x1F - (Hz - 2))
-#define PS2_DELAY_250MS				0
-#define PS2_DELAY_500MS				0x20
-#define PS2_DELAY_750MS				0x40
-#define PS2_DELAY_1000MS			0x60
+#define PS2_REPEATS_PERSEC(Hz)              (0x1F - (Hz - 2))
+#define PS2_DELAY_250MS                     0
+#define PS2_DELAY_500MS                     0x20
+#define PS2_DELAY_750MS                     0x40
+#define PS2_DELAY_1000MS                    0x60
+#define KEY_MODIFIER_EXTENDED               0x8000
 
-/* Buffer flags definitions
- * Used to define any special behaviour when reaidng
- * data from the irq */
-#define PS2_KEY_EXTENDED			0x1
-#define PS2_KEY_RELEASED			0x2
-
-/* The PS2-keyboard driver structure
- * contains current settings for the connected
- * ps2 keyboard and its features */
-typedef struct _PS2Keyboard {
-	PS2Port_t			*Port;
-	UUId_t				Irq;
-	int					Translation;
-	int					ScancodeSet;
-
-	unsigned			Flags;
-	unsigned			Buffer;
-	uint8_t				TypematicRepeat;
-	uint8_t				TypematicDelay;
-} PS2Keyboard_t;
+#define PS2_KEYBOARD_DATA_XLATION(Port)     (Port)->DeviceData[0]
+#define PS2_KEYBOARD_DATA_SCANCODESET(Port) (Port)->DeviceData[1]
+#define PS2_KEYBOARD_DATA_REPEAT(Port)      (Port)->DeviceData[2]
+#define PS2_KEYBOARD_DATA_DELAY(Port)       (Port)->DeviceData[3]
+#define PS2_KEYBOARD_DATA_STATE_LO(Port)    (Port)->DeviceData[4]
+#define PS2_KEYBOARD_DATA_STATE_HI(Port)    (Port)->DeviceData[5]
 
 /* ScancodeSet2ToVKey
  * Converts a scancode 2 key to the standard-defined
  * virtual key-layout */
-__EXTERN VKey ScancodeSet2ToVKey(uint8_t Scancode, unsigned *Buffer, unsigned *Flags);
+__EXTERN OsStatus_t 
+ScancodeSet2ToVKey(
+    _In_ SystemKey_t*   KeyState,
+    _In_ uint8_t        Scancode);
 
 #endif //!_DRIVER_PS2_KEYBOARD_H_

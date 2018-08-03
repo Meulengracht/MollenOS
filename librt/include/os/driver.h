@@ -46,38 +46,33 @@
 /* OnLoad
  * The entry-point of a driver, this is called
  * as soon as the driver is loaded in the system */
-__EXTERN 
-OsStatus_t 
+__EXTERN OsStatus_t
 OnLoad(void);
 
 /* OnUnload
  * This is called when the driver is being unloaded
  * and should free all resources allocated by the system */
-__EXTERN 
-OsStatus_t 
+__EXTERN OsStatus_t
 OnUnload(void);
 
 /* OnRegister
  * Is called when the device-manager registers a new
  * instance of this driver for the given device */
-__EXTERN 
-OsStatus_t 
+__EXTERN OsStatus_t
 OnRegister(
 	_In_ MCoreDevice_t*				Device);
 
 /* OnUnregister
  * Is called when the device-manager wants to unload
  * an instance of this driver from the system */
-__EXTERN 
-OsStatus_t 
+__EXTERN OsStatus_t
 OnUnregister(
 	_In_ MCoreDevice_t*				Device);
 
 /* OnInterrupt
  * Is called by external services to indicate an external interrupt.
  * This is to actually process the device interrupt */
-__EXTERN 
-InterruptStatus_t 
+__EXTERN InterruptStatus_t
 OnInterrupt(
     _In_Opt_ void*					InterruptData,
     _In_Opt_ size_t 				Arg0,
@@ -88,8 +83,7 @@ OnInterrupt(
  * Is called when one of the registered timer-handles
  * times-out. A new timeout event is generated and passed
  * on to the below handler */
-__EXTERN 
-OsStatus_t
+__EXTERN OsStatus_t
 OnTimeout(
 	_In_ UUId_t 					Timer,
 	_In_ void*						Data);
@@ -98,8 +92,7 @@ OnTimeout(
  * Occurs when an external process or server quries
  * this driver for data, this will correspond to the query
  * function that is defined in the contract */
-__EXTERN 
-OsStatus_t 
+__EXTERN OsStatus_t
 OnQuery(
 	_In_     MContractType_t        QueryType, 
 	_In_     int                    QueryFunction, 
@@ -112,9 +105,7 @@ OnQuery(
 
 /* InterruptDriver
  * Call this to send an interrupt into user-space */
-SERVICEAPI
-OsStatus_t
-SERVICEABI
+SERVICEAPI OsStatus_t SERVICEABI
 InterruptDriver(
 	_In_ UUId_t Driver,
     _In_ size_t Argument0,
@@ -142,9 +133,7 @@ InterruptDriver(
  * Occurs when an external process or server quries
  * this driver for data, this will correspond to the query
  * function that is defined in the contract */
-SERVICEAPI
-OsStatus_t
-SERVICEABI
+SERVICEAPI OsStatus_t SERVICEABI
 QueryDriver(
 	_In_      MContract_t*  Contract, 
 	_In_      int           Function, 

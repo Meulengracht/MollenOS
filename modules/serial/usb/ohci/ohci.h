@@ -298,6 +298,7 @@ typedef struct _OhciController {
     UsbManagerController_t  Base;
 
     // Transactions
+    reg32_t                 QueuesActive;
     int                     TransactionsWaitingControl;
     int                     TransactionsWaitingBulk;
 

@@ -29,6 +29,14 @@ LFLAGS = $(GLFLAGS) /entry:kentry /fixed /base:"0x100000" /manifest:no /lldmap $
 .PHONY: all
 all: build arch build/syskrnl.mos
 
+# Static code analysis targets that do not link, but only compile
+.PHONY: tidy
+tidy: tidy_arch $(OBJECTS)
+
+.PHONY: tidy_arch
+tidy_arch:
+	$(MAKE) -C arch -f makefile tidy
+
 build:
 	@mkdir -p $@
 

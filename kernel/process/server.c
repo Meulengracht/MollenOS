@@ -53,11 +53,6 @@ PhoenixCreateServer(
 		return UUID_INVALID;
 	}
 
-	// Initialize the server io-space memory
-	CreateBlockmap(0, GetMachine()->MemoryMap.UserIoMemory.Start,
-		GetMachine()->MemoryMap.UserIoMemory.Start + GetMachine()->MemoryMap.UserIoMemory.Length, 
-        GetMachine()->MemoryGranularity, &Server->DriverMemory);
-
 	// Register ash
 	Server->Base.Type = AshServer;
 	PhoenixRegisterAsh(&Server->Base);
@@ -66,18 +61,6 @@ PhoenixCreateServer(
 	ThreadingCreateThread(MStringRaw(Server->Base.Name),
 		PhoenixStartupEntry, Server, THREADING_DRIVERMODE);
 	return Server->Base.Id;
-}
-
-/* PhoenixCleanupServer
- * Cleans up all the server-specific resources allocated
- * this this AshServer, and afterwards call the base-cleanup */
-void
-PhoenixCleanupServer(
-    _In_ MCoreServer_t *Server)
-{
-    // Destroy memory bitmap and do base cleanup
-	DestroyBlockmap(Server->DriverMemory);
-	PhoenixCleanupAsh((MCoreAsh_t*)Server);
 }
 
 /* PhoenixGetServer

@@ -325,11 +325,11 @@ AhciPortInterruptHandler(
     // Check interrupt services 
     // Cold port detect, recieved fis etc
     TRACE("AhciPortInterruptHandler(Port %i, Interrupt Status 0x%x)",
-        Port->Id, Port->InterruptStatus);
+        Port->Id, Controller->InterruptResource.PortInterruptStatus[Port->Id]);
 
 HandleInterrupt:
-    InterruptStatus         = Port->InterruptStatus;
-    Port->InterruptStatus   = 0;
+    InterruptStatus = Controller->InterruptResource.PortInterruptStatus[Port->Id];
+    Controller->InterruptResource.PortInterruptStatus[Port->Id] = 0;
     
     // Check for errors status's
     if (InterruptStatus & (AHCI_PORT_IE_TFEE | AHCI_PORT_IE_HBFE 
@@ -392,7 +392,7 @@ HandleInterrupt:
     }
 
     // Re-handle?
-    if (Port->InterruptStatus != 0) {
+    if (Controller->InterruptResource.PortInterruptStatus[Port->Id] != 0) {
         goto HandleInterrupt;
     }
 }

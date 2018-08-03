@@ -38,7 +38,7 @@
 /* Prototypes 
  * This is to keep the create/destroy at the top of the source file */
 OsStatus_t          OhciSetup(OhciController_t *Controller);
-InterruptStatus_t   OnFastInterrupt(void *InterruptData);
+InterruptStatus_t   OnFastInterrupt(FastInterruptResources_t*, void*);
 
 /* HciControllerCreate 
  * Initializes and creates a new Hci Controller instance
@@ -49,7 +49,7 @@ HciControllerCreate(
 {
     // Variables
     OhciController_t *Controller    = NULL;
-    DeviceIoSpace_t *IoBase         = NULL;
+    DeviceIo_t *IoBase              = NULL;
     int i;
 
     // Allocate a new instance of the controller
@@ -96,6 +96,16 @@ HciControllerCreate(
         Controller->Base.IoBase = IoBase;
     }
 
+    // Allocate the HCCA-space in low memory as controllers
+    // have issues with higher memory (<2GB)
+    if (MemoryAllocate(NULL, 0x1000, MEMORY_CLEAN | MEMORY_COMMIT
+        | MEMORY_LOWFIRST | MEMORY_UNCHACHEABLE, (void**)&Controller->Hcca, 
+        (uintptr_t*)&Controller->HccaPhysical) != OsSuccess) {
+        ERROR("Failed to allocate space for HCCA");
+        free(Controller);
+        return NULL;
+    }
+
     // Start out by initializing the contract
     InitializeContract(&Controller->Base.Contract, Controller->Base.Contract.DeviceId, 1,
         ContractController, "OHCI Controller Interface");
@@ -109,8 +119,10 @@ HciControllerCreate(
     Controller->Registers->HcInterruptDisable       = OHCI_MASTER_INTERRUPT;
 
     // Initialize the interrupt settings
-    Controller->Base.Device.Interrupt.FastHandler   = OnFastInterrupt;
-    Controller->Base.Device.Interrupt.Data          = Controller;
+    RegisterFastInterruptHandler(&Controller->Base.Device.Interrupt, OnFastInterrupt);
+    RegisterFastInterruptIoResource(&Controller->Base.Device.Interrupt, IoBase);
+    RegisterFastInterruptMemoryResource(&Controller->Base.Device.Interrupt, Controller, sizeof(OhciController_t), 0);
+    RegisterFastInterruptMemoryResource(&Controller->Base.Device.Interrupt, Controller->Hcca, 0x1000, INTERRUPT_RESOURCE_DISABLE_CACHE);
 
     // Register contract before interrupt
     if (RegisterContract(&Controller->Base.Contract) != OsSuccess) {
@@ -122,6 +134,7 @@ HciControllerCreate(
     }
 
     // Register interrupt
+    RegisterInterruptContext(&Controller->Base.Device.Interrupt, Controller);
     Controller->Base.Interrupt = RegisterInterruptSource(
         &Controller->Base.Device.Interrupt, INTERRUPT_USERSPACE);
 
@@ -345,6 +358,7 @@ OhciReset(
     Temporary                               |= OHCI_CONTROL_ISOC_ACTIVE;
     Temporary                               |= OHCI_CONTROL_REMOTEWAKE;
     Controller->Registers->HcControl        = Temporary;
+    Controller->QueuesActive                = OHCI_CONTROL_PERIODIC_ACTIVE | OHCI_CONTROL_ISOC_ACTIVE;
     TRACE(" > Wrote control to controller");
     return OsSuccess;
 }
@@ -356,29 +370,14 @@ OsStatus_t
 OhciSetup(
     _In_ OhciController_t*          Controller)
 {
-    // Variables
-    void *VirtualPointer        = NULL;
-    uintptr_t PhysicalAddress   = 0;
-    reg32_t Temporary           = 0;
+    reg32_t Temporary;
     int i;
 
     // Trace
     TRACE("OhciSetup()");
 
-    // Allocate the HCCA-space in low memory as controllers
-    // have issues with higher memory (<2GB)
-    if (MemoryAllocate(NULL, 0x1000, MEMORY_CLEAN | MEMORY_COMMIT
-        | MEMORY_LOWFIRST | MEMORY_UNCHACHEABLE, &VirtualPointer, &PhysicalAddress) != OsSuccess) {
-        ERROR("Failed to allocate space for HCCA");
-        return OsError;
-    }
-
-    // Cast the pointer to hcca
-    Controller->HccaPhysical    = LODWORD(PhysicalAddress);
-    Controller->Hcca            = (OhciHCCA_t*)VirtualPointer;
-
     // Retrieve the revision of the controller, we support 0x10 && 0x11
-    Temporary                   = (Controller->Registers->HcRevision & 0xFF);
+    Temporary = (Controller->Registers->HcRevision & 0xFF);
     if (Temporary != OHCI_REVISION1 && Temporary != OHCI_REVISION11) {
         ERROR("Invalid OHCI Revision (0x%x)", Temporary);
         return OsError;

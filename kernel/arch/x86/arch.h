@@ -57,10 +57,9 @@
 /* Architecture Memory Layout
  * This gives you an idea how memory layout is on the x86-32 platform in MollenOS 
  * 0x0               =>             0x10000000 (Kernel Memory Space 256 mb)
- * 0x10000000        =>             0xB0000000 (Application Memory Space 2.5gb) 
- * 0xB0000000        =>             0xF0000000 (Driver Io Memory Space, 1gb)
- * 0xF0000000        =>             0xFF000000 (Empty)
- * 0xFF000000        =>             0xFFFFFFFF (Application Stack Space, 16mb) 
+ * 0x10000000        =>             0xF0000000 (Application Memory Space 3.5gb)
+ * 0xF0000000        =>             0xFF000000 (Thread specific storage 240 mb)
+ * 0xFF000000        =>             0xFFFFFFFF (Thread specific stack 16mb)
  */
 #define MEMORY_LOCATION_KERNEL              0x100000     /* Kernel Image Space: 1024 kB */
 #define MEMORY_LOCATION_RAMDISK             0x200000     /* RamDisk Image Space: 1024 kB */
@@ -73,11 +72,9 @@
 #define MEMORY_SEGMENT_RING0_LIMIT          0xFFFFFFFF
 
 #define MEMORY_LOCATION_RING3_CODE          0x20000000    /* Base for ring3 code */
-#define MEMORY_LOCATION_RING3_CODE_END      0x30000000    /* Base for ring3 code */
+#define MEMORY_LOCATION_RING3_CODE_END      0x30000000
 #define MEMORY_LOCATION_RING3_HEAP          0x30000000    /* Base for ring3 heap */
-#define MEMORY_LOCATION_RING3_HEAP_END      0xB0000000
-#define MEMORY_LOCATION_RING3_IOSPACE       0xB0000000    /* Base for ring3 io-space (1gb) */
-#define MEMORY_LOCATION_RING3_IOSPACE_END   0xF0000000
+#define MEMORY_LOCATION_RING3_HEAP_END      0xF0000000
 
 #define MEMORY_LOCATION_RING3_THREAD_START  0xFF000000
 #define MEMORY_LOCATION_RING3_STACK_START   0xFFFE0000
@@ -93,9 +90,8 @@
 /* Architecture Memory Layout
  * This gives you an idea how memory layout is on the x86-64 platform in MollenOS 
  * 0x0              =>          0x10000000  (Kernel Memory Space 256 mb)
- * 0x10000000       =>          0xFF000000  (Empty 3.5gb)
+ * 0x10000000       =>          0xFF000000  (Empty 3.7gb)
  * 0xFF000000       =>          0xFFFFFFFF  (Application Stack Space, 16mb)
- * 0x100000000      =>          0x1FFFFFFFF (Driver Memory Space - 4.0gb)
  * 0x200000000      =>          0xFFFFFFFFFFFFFFFF (Application Memory Space - terabytes)
  */
 #define MEMORY_LOCATION_KERNEL              0x100000     /* Kernel Image Space: 1024 kB */
@@ -116,10 +112,8 @@
 // Every gigabyte in 1mb page blocks is then 512 bytes
 #define MEMORY_LOCATION_RING3_CODE          0x200000000
 #define MEMORY_LOCATION_RING3_CODE_END      0x300000000     // 4gb code space
-#define MEMORY_LOCATION_RING3_IOSPACE       0x300000000     // 16gb io memory space
-#define MEMORY_LOCATION_RING3_IOSPACE_END   0x700000000
-#define MEMORY_LOCATION_RING3_HEAP          0x700000000     // xxgb heap memory space
-#define MEMORY_LOCATION_RING3_HEAP_END      0x800000000     // xxgb heap memory space
+#define MEMORY_LOCATION_RING3_HEAP          0x300000000
+#define MEMORY_LOCATION_RING3_HEAP_END      0x700000000     // xxgb heap memory space
 //#define MEMORY_LOCATION_RING3_HEAP_END    0xFFFFFFFFFFFFFFFF
 
 #define MEMORY_SEGMENT_SIGSTACK_BASE        MEMORY_LOCATION_RING3_STACK_START

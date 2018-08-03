@@ -27,6 +27,7 @@
 #include <os/osdefs.h>
 #include <ds/blbitmap.h>
 #include <multiboot.h>
+#include <pipe.h>
 
 // Components
 #include <component/domain.h>
@@ -54,6 +55,7 @@ typedef struct _SystemMachine {
     SystemInterruptController_t* InterruptController;
     int                         NumberOfOverrides;
     SystemInterruptOverride_t*  Overrides;
+    SystemPipe_t*               StdInput;
 
     // Total information across domains
     size_t                      NumberOfProcessors;
