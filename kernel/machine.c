@@ -25,7 +25,6 @@
  * - System */
 #include <revision.h>
 #include <system/setup.h>
-#include <system/iospace.h>
 #include <system/utils.h>
 #include <machine.h>
 

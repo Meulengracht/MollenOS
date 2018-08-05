@@ -147,11 +147,26 @@ PS2SelfTest(void)
 /* PS2Initialize 
  * Initializes the controller and initializes the attached ports */
 OsStatus_t
-PS2Initialize(void)
+PS2Initialize(
+    _In_ MCoreDevice_t*    Device)
 {
-    OsStatus_t Status     = OsSuccess;
-    uint8_t Temp         = 0;
+    OsStatus_t Status = OsSuccess;
+    uint8_t Temp;
     int i;
+
+    // Store a copy of the device
+    memcpy(&GlbController->Device, Device, sizeof(MCoreDevice_t));
+
+    // No problem, last thing is to acquire the
+    // io-spaces, and just return that as result
+    if (AcquireDeviceIo(&GlbController->Device.IoSpaces[0]) != OsSuccess || 
+        AcquireDeviceIo(&GlbController->Device.IoSpaces[1]) != OsSuccess) {
+        return OsError;
+    }
+
+    // Initialize the ps2-contract
+    InitializeContract(&GlbController->Controller, UUID_INVALID, 1,
+        ContractController, "PS2 Controller Interface");
 
     // Dummy reads, empty it's buffer
     PS2ReadData(1);
@@ -253,34 +268,8 @@ OnLoad(void)
     // Allocate a new instance of the ps2-data
     GlbController = (PS2Controller_t*)malloc(sizeof(PS2Controller_t));
     memset(GlbController, 0, sizeof(PS2Controller_t));
-
-    // Create the io-spaces, again we have to create
-    // the io-space ourselves 
-    GlbController->DataSpace.Type             = IO_SPACE_IO;
-    GlbController->DataSpace.PhysicalBase     = PS2_IO_DATA_BASE;
-    GlbController->DataSpace.Size             = PS2_IO_LENGTH;
-
-    GlbController->CommandSpace.Type         = IO_SPACE_IO;
-    GlbController->CommandSpace.PhysicalBase = PS2_IO_STATUS_BASE;
-    GlbController->CommandSpace.Size         = PS2_IO_LENGTH;
-
-    // Create both the io-spaces in system
-    if (CreateIoSpace(&GlbController->DataSpace) != OsSuccess
-        || CreateIoSpace(&GlbController->CommandSpace) != OsSuccess) {
-        return OsError;
-    }
-
-    // No problem, last thing is to acquire the
-    // io-spaces, and just return that as result
-    if (AcquireIoSpace(&GlbController->DataSpace) != OsSuccess
-        || AcquireIoSpace(&GlbController->CommandSpace) != OsSuccess) {
-        return OsError;
-    }
-
-    // Initialize the ps2-contract
-    InitializeContract(&GlbController->Controller, UUID_INVALID, 1,
-        ContractController, "PS2 Controller Interface");
-    return PS2Initialize();
+    GlbController->Controller.DeviceId = UUID_INVALID;
+    return OsSuccess;
 }
 
 /* OnUnload
@@ -291,13 +280,11 @@ OnUnload(void)
 {
     // Destroy the io-spaces we created
     if (GlbController->CommandSpace.Id != 0) {
-        ReleaseIoSpace(&GlbController->CommandSpace);
-        DestroyIoSpace(GlbController->CommandSpace.Id);
+        ReleaseDeviceIo(&GlbController->CommandSpace);
     }
 
     if (GlbController->DataSpace.Id != 0) {
-        ReleaseIoSpace(&GlbController->DataSpace);
-        DestroyIoSpace(GlbController->DataSpace.Id);
+        ReleaseDeviceIo(&GlbController->DataSpace);
     }
     free(GlbController);
     return OsSuccess;
@@ -310,15 +297,15 @@ OsStatus_t
 OnRegister(
     _In_ MCoreDevice_t*    Device)
 {
-    // Variables
-    OsStatus_t Result     = OsSuccess;
+    OsStatus_t Result = OsSuccess;
     PS2Port_t *Port;
 
-    // First register call is the ps2-controller
-    // all sequent calls here is ps2-devices 
+    // First register call is the ps2-controller and all sequent calls here is ps2-devices 
     // So install the contract as soon as it arrives
     if (GlbController->Controller.DeviceId == UUID_INVALID) {
         GlbController->Controller.DeviceId = Device->Id;
+        return PS2Initialize(Device);
+        
         return RegisterContract(&GlbController->Controller);
     }
 

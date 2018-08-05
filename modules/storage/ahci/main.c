@@ -41,8 +41,8 @@ OnFastInterrupt(
     _In_ FastInterruptResources_t*  InterruptTable,
     _In_ void*                      Reserved)
 {
-    AhciInterruptResource_t* Resource = INTERRUPT_RESOURCE(InterruptTable, 0);
-	AHCIGenericRegisters_t* Registers = (AHCIGenericRegisters_t*)INTERRUPT_IOSPACE(InterruptTable, 0)->VirtualBase;
+    AhciInterruptResource_t* Resource = (AhciInterruptResource_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
+	AHCIGenericRegisters_t* Registers = (AHCIGenericRegisters_t*)INTERRUPT_IOSPACE(InterruptTable, 0)->Access.Memory.VirtualBase;
 	reg32_t InterruptStatus;
     int i;
     _CRT_UNUSED(Reserved);

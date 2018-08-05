@@ -60,7 +60,6 @@ RegisterApplicationCore(
     _In_ SystemCpuState_t   InitialState,
     _In_ int                External)
 {
-    // Variables
     int i;
 
     // Sanitize params

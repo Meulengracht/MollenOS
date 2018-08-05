@@ -29,7 +29,6 @@
 #include <system/io.h>
 #include <memoryspace.h>
 #include <deviceio.h>
-#include <memory.h>
 #include <debug.h>
 #include <heap.h>
 
@@ -226,7 +225,6 @@ CreateKernelSystemDeviceIo(
     switch (SystemIo->Io.Type) {
         case DeviceIoMemoryBased: {
             uintptr_t BaseAddress   = SystemIo->Io.Access.Memory.PhysicalBase;
-            uintptr_t MappedAddress;
             size_t PageSize         = GetSystemMemoryPageSize();
             size_t Length           = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
             OsStatus_t Status       = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(),

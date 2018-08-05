@@ -52,12 +52,12 @@ tidy: $(KERNEL_OBJECTS) $(OBJECTS)
 %.o : %.c
 	@mkdir -p $(dir $@)
 	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
-	@$(CC) -c $(CFLAGS) -o $@ $<
+	@$(CC) -c $(NORMAL_CFLAGS) -o $@ $<
 
 %.ko : %.c
 	@mkdir -p $(dir $@)
 	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
-	@$(CC) -c $(CFLAGS) -o $@ $<
+	@$(CC) -c $(KERNEL_CFLAGS) -o $@ $<
 
 .PHONY: clean
 clean:

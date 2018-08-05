@@ -444,7 +444,7 @@ LeaveFunction:
         }
         memory_invalidate_addr((vAddress & PAGE_MASK));
     }
-    return OsSuccess;
+    return Status;
 }
 
 /* ClearVirtualPageMapping

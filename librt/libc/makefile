@@ -98,7 +98,7 @@ tidy: $(LIBK_OBJECTS) $(LIBC_OBJECTS)
 
 %.o : %.c
 	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
-	@$(CC) -c $(LIBK_CFLAGS) -o $@ $<
+	@$(CC) -c $(LIBC_CFLAGS) -o $@ $<
 
 %.o : %.s
 	@printf "%b" "\033[0;32mAssembling source object " $< "\033[m\n"

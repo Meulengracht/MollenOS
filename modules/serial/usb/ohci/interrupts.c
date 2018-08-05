@@ -42,9 +42,9 @@ OnFastInterrupt(
     _In_ void*                      NotUsed)
 {
     // Variables
-    OhciRegisters_t* Registers      = (OhciRegisters_t*)INTERRUPT_IOSPACE(InterruptTable, 0)->VirtualBase;
-    OhciController_t* Controller    = INTERRUPT_RESOURCE(InterruptTable, 0);
-    OhciHCCA_t* Hcca                = INTERRUPT_RESOURCE(InterruptTable, 1);
+    OhciRegisters_t* Registers      = (OhciRegisters_t*)INTERRUPT_IOSPACE(InterruptTable, 0)->Access.Memory.VirtualBase;
+    OhciController_t* Controller    = (OhciController_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
+    OhciHCCA_t* Hcca                = (OhciHCCA_t*)INTERRUPT_RESOURCE(InterruptTable, 1);
     reg32_t InterruptStatus;
     _CRT_UNUSED(NotUsed);
 

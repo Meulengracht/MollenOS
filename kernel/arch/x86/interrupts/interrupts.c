@@ -407,18 +407,16 @@ ExceptionSignal(
     _In_ int         Signal)
 {
     MCoreThread_t *Thread   = NULL;
-    MCoreAsh_t *Process     = NULL;
     UUId_t Cpu              = CpuGetCurrentId();
 
     // Debug
     TRACE("ExceptionSignal(Signal %i)", Signal);
 
     // Sanitize if user-process
-    Process = PhoenixGetCurrentAsh();
 #ifdef __OSCONFIG_DISABLE_SIGNALLING
     if (Signal >= 0) {
 #else
-    if (Process == NULL) {
+    if (PhoenixGetCurrentAsh() == NULL) {
 #endif
         return OsError;
     }

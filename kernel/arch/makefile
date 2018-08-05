@@ -44,7 +44,7 @@ LFLAGS = /lib
 all: header ../build/$(VALI_ARCH).lib
 
 .PHONY: tidy
-tidy: $(OBJECTS)
+tidy: header $(OBJECTS)
 
 .PHONY: header
 header:

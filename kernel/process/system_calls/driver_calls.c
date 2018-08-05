@@ -23,10 +23,10 @@
 
 #include <process/phoenix.h>
 #include <process/server.h>
-#include <system/iospace.h>
 #include <modules/modules.h>
 #include <acpiinterface.h>
 #include <interrupts.h>
+#include <deviceio.h>
 #include <os/input.h>
 #include <os/acpi.h>
 #include <machine.h>

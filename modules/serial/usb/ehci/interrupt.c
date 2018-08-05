@@ -22,19 +22,12 @@
  */
 //#define __TRACE
 
-/* Includes 
- * - System */
 #include <os/mollenos.h>
 #include <os/utils.h>
-
-#include "../common/manager.h"
-#include "ehci.h"
-
-/* Includes
- * - Library */
-#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include "../common/manager.h"
+#include "ehci.h"
 
 /* OnFastInterrupt
  * Is called for the sole purpose to determine if this source
@@ -46,8 +39,8 @@ OnFastInterrupt(
 {
     // Variables
     EchiOperationalRegisters_t* Registers;
-    EhciController_t* Controller = INTERRUPT_RESOURCE(InterruptTable, 0);
-    uintptr_t RegisterAddress = INTERRUPT_IOSPACE(InterruptTable, 0)->VirtualBase;
+    EhciController_t* Controller = (EhciController_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
+    uintptr_t RegisterAddress = INTERRUPT_IOSPACE(InterruptTable, 0)->Access.Memory.VirtualBase;
     reg32_t InterruptStatus;
     _CRT_UNUSED(NotUsed);
 

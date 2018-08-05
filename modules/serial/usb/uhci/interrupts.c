@@ -38,7 +38,7 @@ OnFastInterrupt(
     _In_ void*                      NotUsed)
 {
     // Variables
-    UhciController_t *Controller    = INTERRUPT_RESOURCE(InterruptTable, 0);
+    UhciController_t *Controller    = (UhciController_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
     DeviceIo_t* IoSpace             = INTERRUPT_IOSPACE(InterruptTable, 0);
     uint16_t InterruptStatus;
     _CRT_UNUSED(NotUsed);
@@ -51,7 +51,7 @@ OnFastInterrupt(
     Controller->Base.InterruptStatus |= InterruptStatus;
 
     // Clear interrupt bits
-    InterruptTable->WriteIoSpace(IoSpace, UHCI_REGISTER_STATUS, InterruptTable, 2);
+    InterruptTable->WriteIoSpace(IoSpace, UHCI_REGISTER_STATUS, InterruptStatus, 2);
     return InterruptHandled;
 }
 

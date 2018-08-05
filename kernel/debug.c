@@ -23,11 +23,11 @@
 #define __MODULE        "DBGI"
 //#define __TRACE
 
-#include <memoryspace.h>
-#include <system/iospace.h>
-#include <system/utils.h>
 #include <process/phoenix.h>
+#include <system/utils.h>
+#include <memoryspace.h>
 #include <scheduler.h>
+#include <deviceio.h>
 #include <stdio.h>
 #include <debug.h>
 #include <heap.h>

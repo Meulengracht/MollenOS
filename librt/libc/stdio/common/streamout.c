@@ -283,7 +283,7 @@ streamout_astring(FILE *stream, const char *string, size_t count)
         if ((len = mbtowc(&chr, string, MB_CUR_MAX)) < 1) break;
         string += len;
 #else
-        chr = *string++;
+        chr = *(string++);
 #endif
         if (streamout_char(stream, chr) == 0) return -1;
         written++;

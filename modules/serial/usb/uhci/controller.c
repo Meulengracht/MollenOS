@@ -108,8 +108,7 @@ HciControllerCreate(
     // Get I/O Base, and for UHCI it'll be the first address we encounter
     // of type IO
     for (i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
-        if (Controller->Base.Device.IoSpaces[i].Size != 0
-            && Controller->Base.Device.IoSpaces[i].Type == IO_SPACE_IO) {
+        if (Controller->Base.Device.IoSpaces[i].Type == DeviceIoPortBased) {
             TRACE(" > found io-space at bar %i", i);
             IoBase = &Controller->Base.Device.IoSpaces[i];
             break;
@@ -119,12 +118,6 @@ HciControllerCreate(
     // Sanitize that we found the io-space
     if (IoBase == NULL) {
         ERROR("No memory space found for uhci-controller");
-        for (i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
-            ERROR("Io-Space (Type %u, Physical 0x%x, Size 0x%x)",
-                Controller->Base.Device.IoSpaces[i].Type, 
-                Controller->Base.Device.IoSpaces[i].PhysicalBase, 
-                Controller->Base.Device.IoSpaces[i].Size);
-        }
         free(Controller);
         return NULL;
     }
@@ -134,7 +127,7 @@ HciControllerCreate(
         IoBase->Type, IoBase->PhysicalBase, IoBase->Size);
 
     // Acquire the io-space
-    if (CreateIoSpace(IoBase) != OsSuccess || AcquireIoSpace(IoBase) != OsSuccess) {
+    if (AcquireDeviceIo(IoBase) != OsSuccess) {
         ERROR("Failed to create and acquire the io-space for uhci-controller");
         free(Controller);
         return NULL;
@@ -151,13 +144,12 @@ HciControllerCreate(
     // Initialize the interrupt settings
     RegisterFastInterruptHandler(&Controller->Base.Device.Interrupt, OnFastInterrupt);
     RegisterFastInterruptIoResource(&Controller->Base.Device.Interrupt, IoBase);
-    RegisterFastInterruptMemoryResource(&Controller->Base.Device.Interrupt, Controller, sizeof(UhciController_t), 0);
+    RegisterFastInterruptMemoryResource(&Controller->Base.Device.Interrupt, (uintptr_t)Controller, sizeof(UhciController_t), 0);
 
     // Register contract before interrupt
     if (RegisterContract(&Controller->Base.Contract) != OsSuccess) {
         ERROR("Failed to register contract for uhci-controller");
-        ReleaseIoSpace(Controller->Base.IoBase);
-        DestroyIoSpace(Controller->Base.IoBase->Id);
+        ReleaseDeviceIo(Controller->Base.IoBase);
         free(Controller);
         return NULL;
     }
@@ -173,8 +165,7 @@ HciControllerCreate(
             | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OsSuccess) {
         ERROR("Failed to enable the uhci-controller");
         UnregisterInterruptSource(Controller->Base.Interrupt);
-        ReleaseIoSpace(Controller->Base.IoBase);
-        DestroyIoSpace(Controller->Base.IoBase->Id);
+        ReleaseDeviceIo(Controller->Base.IoBase);
         free(Controller);
         return NULL;
     }
@@ -220,8 +211,7 @@ HciControllerDestroy(
     UnregisterInterruptSource(Controller->Interrupt);
 
     // Release the io-space
-    ReleaseIoSpace(Controller->IoBase);
-    DestroyIoSpace(Controller->IoBase->Id);
+    ReleaseDeviceIo(Controller->IoBase);
 
     // Clean up allocated lists
     CollectionDestroy(Controller->TransactionList);

@@ -63,7 +63,6 @@ CRTDECL(OsStatus_t,
 CreateDeviceMemoryIo(
     _In_ DeviceIo_t*    IoSpace,
     _In_ uintptr_t      PhysicalBase,
-    _In_ uintptr_t      VirtualBase,
     _In_ size_t         Length));
 
 /* CreateDevicePortIo

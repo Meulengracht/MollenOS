@@ -50,6 +50,7 @@ HciControllerCreate(
     // Variables
     OhciController_t *Controller    = NULL;
     DeviceIo_t *IoBase              = NULL;
+    uintptr_t HccaPhysical;
     int i;
 
     // Allocate a new instance of the controller
@@ -67,8 +68,7 @@ HciControllerCreate(
     // Get I/O Base, and for OHCI it'll be the first address we encounter
     // of type MMIO
     for (i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
-        if (Controller->Base.Device.IoSpaces[i].Size != 0
-            && Controller->Base.Device.IoSpaces[i].Type == IO_SPACE_MMIO) {
+        if (Controller->Base.Device.IoSpaces[i].Type == DeviceIoMemoryBased) {
             IoBase = &Controller->Base.Device.IoSpaces[i];
             break;
         }
@@ -86,7 +86,7 @@ HciControllerCreate(
         IoBase->Type, IoBase->PhysicalBase, IoBase->Size);
 
     // Acquire the io-space
-    if (CreateIoSpace(IoBase) != OsSuccess || AcquireIoSpace(IoBase) != OsSuccess) {
+    if (AcquireDeviceIo(IoBase) != OsSuccess) {
         ERROR("Failed to create and acquire the io-space for ohci-controller");
         free(Controller);
         return NULL;
@@ -99,12 +99,12 @@ HciControllerCreate(
     // Allocate the HCCA-space in low memory as controllers
     // have issues with higher memory (<2GB)
     if (MemoryAllocate(NULL, 0x1000, MEMORY_CLEAN | MEMORY_COMMIT
-        | MEMORY_LOWFIRST | MEMORY_UNCHACHEABLE, (void**)&Controller->Hcca, 
-        (uintptr_t*)&Controller->HccaPhysical) != OsSuccess) {
+        | MEMORY_LOWFIRST | MEMORY_UNCHACHEABLE, (void**)&Controller->Hcca, &HccaPhysical) != OsSuccess) {
         ERROR("Failed to allocate space for HCCA");
         free(Controller);
         return NULL;
     }
+    Controller->HccaPhysical = HccaPhysical;
 
     // Start out by initializing the contract
     InitializeContract(&Controller->Base.Contract, Controller->Base.Contract.DeviceId, 1,
@@ -114,21 +114,20 @@ HciControllerCreate(
     TRACE("Io-Space was assigned virtual address 0x%x", IoBase->VirtualBase);
 
     // Instantiate the register-access and disable interrupts on device
-    Controller->Registers                           = (OhciRegisters_t*)IoBase->VirtualBase;
+    Controller->Registers                           = (OhciRegisters_t*)IoBase->Access.Memory.VirtualBase;
     Controller->Registers->HcInterruptEnable        = 0;
     Controller->Registers->HcInterruptDisable       = OHCI_MASTER_INTERRUPT;
 
     // Initialize the interrupt settings
     RegisterFastInterruptHandler(&Controller->Base.Device.Interrupt, OnFastInterrupt);
     RegisterFastInterruptIoResource(&Controller->Base.Device.Interrupt, IoBase);
-    RegisterFastInterruptMemoryResource(&Controller->Base.Device.Interrupt, Controller, sizeof(OhciController_t), 0);
-    RegisterFastInterruptMemoryResource(&Controller->Base.Device.Interrupt, Controller->Hcca, 0x1000, INTERRUPT_RESOURCE_DISABLE_CACHE);
+    RegisterFastInterruptMemoryResource(&Controller->Base.Device.Interrupt, (uintptr_t)Controller, sizeof(OhciController_t), 0);
+    RegisterFastInterruptMemoryResource(&Controller->Base.Device.Interrupt, (uintptr_t)Controller->Hcca, 0x1000, INTERRUPT_RESOURCE_DISABLE_CACHE);
 
     // Register contract before interrupt
     if (RegisterContract(&Controller->Base.Contract) != OsSuccess) {
         ERROR("Failed to register contract for ohci-controller");
-        ReleaseIoSpace(Controller->Base.IoBase);
-        DestroyIoSpace(Controller->Base.IoBase->Id);
+        ReleaseDeviceIo(Controller->Base.IoBase);
         free(Controller);
         return NULL;
     }
@@ -144,8 +143,7 @@ HciControllerCreate(
             | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OsSuccess) {
         ERROR("Failed to enable the ohci-controller");
         UnregisterInterruptSource(Controller->Base.Interrupt);
-        ReleaseIoSpace(Controller->Base.IoBase);
-        DestroyIoSpace(Controller->Base.IoBase->Id);
+        ReleaseDeviceIo(Controller->Base.IoBase);
         free(Controller);
         return NULL;
     }
@@ -183,8 +181,7 @@ HciControllerDestroy(
     UnregisterInterruptSource(Controller->Interrupt);
 
     // Release the io-space
-    ReleaseIoSpace(Controller->IoBase);
-    DestroyIoSpace(Controller->IoBase->Id);
+    ReleaseDeviceIo(Controller->IoBase);
 
     // Free the list of endpoints
     CollectionDestroy(Controller->Endpoints);

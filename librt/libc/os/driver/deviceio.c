@@ -41,13 +41,12 @@ OsStatus_t
 CreateDeviceMemoryIo(
     _In_ DeviceIo_t*    IoSpace,
     _In_ uintptr_t      PhysicalBase,
-    _In_ uintptr_t      VirtualBase,
     _In_ size_t         Length)
 {
     assert(IoSpace != NULL);
     IoSpace->Type                       = DeviceIoMemoryBased;
     IoSpace->Access.Memory.PhysicalBase = PhysicalBase;
-    IoSpace->Access.Memory.VirtualBase  = VirtualBase;
+    IoSpace->Access.Memory.VirtualBase  = 0;
     IoSpace->Access.Memory.Length       = Length;
     return Syscall_IoSpaceRegister(IoSpace);
 }

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -58,21 +58,6 @@ DevInfo_t PciToDevClass(uint32_t Class, uint32_t SubClass) {
  * Helper to construct the sub-class from available pci-information */
 DevInfo_t PciToDevSubClass(uint32_t Interface) {
     return ((Interface & 0xFFFF) << 16 | 0);
-}
-
-/* PciSetIoSpace
- * Helper function to construct a new io-space that uses static memory */
-void
-PciSetIoSpace(
-    _In_ MCoreDevice_t* Device, 
-    _In_ int            Index, 
-    _In_ int            Type, 
-    _In_ uintptr_t      Base, 
-    _In_ size_t         Length)
-{
-    Device->IoSpaces[Index].Type = Type;
-    Device->IoSpaces[Index].PhysicalBase = Base;
-    Device->IoSpaces[Index].Size = Length;
 }
 
 /* PciValidateBarSize
@@ -133,8 +118,7 @@ PciReadBars(
             Space32 = 0;
         }
 
-        // Which kind of io-space is it,
-        // if bit 0 is set, it's io and not mmio 
+        // Which kind of io-space is it, if bit 0 is set, it's io and not mmio 
         if (Space32 & 0x1) {
             // Update mask to reflect IO space
             Mask64  = 0xFFFC;
@@ -144,7 +128,7 @@ PciReadBars(
             // Correctly update the size of the io
             Size64 = PciValidateBarSize(Space64, Size64, Mask64);
             if (Space64 != 0 && Size64 != 0) {
-                PciSetIoSpace(Device, i, IO_SPACE_IO, (uintptr_t)Space64, (size_t)Size64);
+                CreateDevicePortIo(&Device->IoSpaces[i], LOWORD(Space64), (size_t)Size64);
             }
         }
         // Ok, its memory, but is it 64 bit or 32 bit? 
@@ -175,7 +159,7 @@ PciReadBars(
             // Correct the size and validate
             Size64 = PciValidateBarSize(Space64, Size64, Mask64);
             if (Space64 != 0 && Size64 != 0) {
-                PciSetIoSpace(Device, i, IO_SPACE_MMIO, (uintptr_t)Space64, (size_t)Size64);
+                CreateDeviceMemoryIo(&Device->IoSpaces[i], (uintptr_t)Space64, (size_t)Size64);
             }
         }
         else {
@@ -186,7 +170,7 @@ PciReadBars(
             // Correct the size and validate
             Size64 = PciValidateBarSize(Space64, Size64, Mask64);
             if (Space64 != 0 && Size64 != 0) {
-                PciSetIoSpace(Device, i, IO_SPACE_MMIO, (uintptr_t)Space64, (size_t)Size64);
+                CreateDeviceMemoryIo(&Device->IoSpaces[i], (uintptr_t)Space64, (size_t)Size64);
             }
         }
     }
@@ -417,19 +401,19 @@ PciCreateDeviceFromPci(
     if (PciDevice->Header->Class == PCI_CLASS_STORAGE
         && PciDevice->Header->Subclass == PCI_STORAGE_SUBCLASS_IDE) {
         if ((PciDevice->Header->Interface & 0x1) == 0) {
-            if (Device.IoSpaces[0].Type == IO_SPACE_INVALID) {
-                PciSetIoSpace(&Device, 0, IO_SPACE_IO, 0x1F0, 8);
+            if (Device.IoSpaces[0].Type == DeviceIoInvalid) {
+                CreateDevicePortIo(&Device.IoSpaces[0], 0x1F0, 8);
             }
-            if (Device.IoSpaces[1].Type == IO_SPACE_INVALID) {
-                PciSetIoSpace(&Device, 1, IO_SPACE_IO, 0x3F6, 4);
+            if (Device.IoSpaces[1].Type == DeviceIoInvalid) {
+                CreateDevicePortIo(&Device.IoSpaces[1], 0x3F6, 4);
             }
         }
         if ((PciDevice->Header->Interface & 0x4) == 0) {
-            if (Device.IoSpaces[2].Type == IO_SPACE_INVALID) {
-                PciSetIoSpace(&Device, 2, IO_SPACE_IO, 0x170, 8);
+            if (Device.IoSpaces[2].Type == DeviceIoInvalid) {
+                CreateDevicePortIo(&Device.IoSpaces[2], 0x170, 8);
             }
-            if (Device.IoSpaces[3].Type == IO_SPACE_INVALID) {
-                PciSetIoSpace(&Device, 3, IO_SPACE_IO, 0x376, 4);
+            if (Device.IoSpaces[3].Type == DeviceIoInvalid) {
+                CreateDevicePortIo(&Device.IoSpaces[3], 0x376, 4);
             }
         }
     }
@@ -464,27 +448,52 @@ PciInstallDriverCallback(
  * Loads a fixed driver for the vendorid/deviceid */
 OsStatus_t
 BusInstallFixed(
-    _In_ DevInfo_t      DeviceId,
+    _In_ MCoreDevice_t* Device,
     _In_ const char*    Name)
 {
-    // Variables
-    MCoreDevice_t Device = { 0 };
-
     // Set some magic constants
-    Device.Length   = sizeof(MCoreDevice_t);
-    Device.VendorId = PCI_FIXED_VENDORID;
-    Device.DeviceId = DeviceId;
+    Device->Length   = sizeof(MCoreDevice_t);
+    Device->VendorId = PCI_FIXED_VENDORID;
 
     // Set more magic constants to ignore class and subclass
-    Device.Class    = 0xFF0F;
-    Device.Subclass = 0xFF0F;
+    Device->Class    = 0xFF0F;
+    Device->Subclass = 0xFF0F;
 
     // Invalidate irqs, this must be set by fixed drivers
-    Device.Interrupt.Pin            = INTERRUPT_NONE;
-    Device.Interrupt.Line           = INTERRUPT_NONE;
-    Device.Interrupt.Vectors[0]     = INTERRUPT_NONE;
-    Device.Interrupt.AcpiConform    = 0;
-    return DmRegisterDevice(UUID_INVALID, &Device, Name,  __DEVICEMANAGER_REGISTER_LOADDRIVER, &Device.Id);
+    Device->Interrupt.Pin            = INTERRUPT_NONE;
+    Device->Interrupt.Line           = INTERRUPT_NONE;
+    Device->Interrupt.Vectors[0]     = INTERRUPT_NONE;
+    Device->Interrupt.AcpiConform    = 0;
+    return DmRegisterDevice(UUID_INVALID, Device, Name,  __DEVICEMANAGER_REGISTER_LOADDRIVER, &Device->Id);
+}
+
+/* BusRegisterPS2Controller
+ * Loads a fixed driver for the vendorid/deviceid */
+OsStatus_t
+BusRegisterPS2Controller(void)
+{
+    MCoreDevice_t Device = { 0 };
+    OsStatus_t Status;
+
+    // Set default ps2 device settings
+    Device.DeviceId = PCI_PS2_DEVICEID;
+
+    // Register io-spaces for the ps2 controller, it has two ports
+    // Data port - 0x60
+    // Status/Command port - 0x64
+    // one byte each
+    Status = CreateDevicePortIo(&Device.IoSpaces[0], 0x60, 1);
+    if (Status != OsSuccess) {
+        ERROR(" > failed to initialize ps2 data io space");
+        return OsError;
+    }
+
+    Status = CreateDevicePortIo(&Device.IoSpaces[1], 0x64, 1);
+    if (Status != OsSuccess) {
+        ERROR(" > failed to initialize ps2 command/status io space");
+        return OsError;
+    }
+    return BusInstallFixed(&Device, "PS/2 Controller");
 }
 
 /* BusEnumerate
@@ -493,20 +502,17 @@ BusInstallFixed(
 OsStatus_t
 BusEnumerate(void)
 {
-    // Variables
     ACPI_TABLE_MCFG *McfgTable  = NULL;
     ACPI_TABLE_HEADER *Header   = NULL;
     AcpiDescriptor_t Acpi       = { 0 };
+    OsStatus_t Status;
     int Function;
 
-    // Initialize the root bridge element
     __GlbRoot = (PciDevice_t*)malloc(sizeof(PciDevice_t));
     memset(__GlbRoot, 0, sizeof(PciDevice_t));
 
     // Initialize a flat list of devices
-    __GlbPciDevices = CollectionCreate(KeyInteger);
-
-    // Initiate root-bridge
+    __GlbPciDevices     = CollectionCreate(KeyInteger);
     __GlbRoot->Children = CollectionCreate(KeyInteger);
     __GlbRoot->IsBridge = 1;
 
@@ -526,13 +532,13 @@ BusEnumerate(void)
 
         // Check for PS2 controller presence
         if (Acpi.BootFlags & ACPI_IA_8042 || Acpi.BootFlags == 0) {
-            BusInstallFixed(PCI_PS2_DEVICEID, "PS/2 Controller");
+            BusRegisterPS2Controller();
         }
     }
     else {
         // We can pretty much assume all 8042 devices
         // are present in system, like PS2, etc
-        BusInstallFixed(PCI_PS2_DEVICEID, "PS/2 Controller");
+        BusRegisterPS2Controller();
     }
 
     // If the mcfg table is present we have pci-e controllers onboard.
@@ -545,9 +551,10 @@ BusEnumerate(void)
             PciBus_t *Bus = (PciBus_t*)malloc(sizeof(PciBus_t));
             memset(Bus, 0, sizeof(PciBus_t));
 
-            Bus->IoSpace.Type           = IO_SPACE_MMIO;
-            Bus->IoSpace.PhysicalBase   = (uintptr_t)Entry->BaseAddress;
-            Bus->IoSpace.Size           = (1024 * 1024 * 256);
+            if (CreateDeviceMemoryIo(&Bus->IoSpace, (uintptr_t)Entry->BaseAddress, (1024 * 1024 * 256)) != OsSuccess) {
+                ERROR(" > failed to create pcie address space");
+                return OsError;
+            }
 
             // PCIe memory spaces spand up to 256 mb
             Bus->IsExtended     = 1;
@@ -572,16 +579,18 @@ BusEnumerate(void)
         Bus->BusEnd         = 7;
         
         // PCI buses use io
-        Bus->IoSpace.Type           = IO_SPACE_IO;
-        Bus->IoSpace.PhysicalBase   = PCI_IO_BASE;
-        Bus->IoSpace.Size           = PCI_IO_LENGTH;
-        
-        if (CreateIoSpace(&Bus->IoSpace) != OsSuccess
-            || AcquireIoSpace(&Bus->IoSpace) != OsSuccess) {
-            ERROR("Failed to initialize bus io");
-            for (;;);
+        Status = CreateDevicePortIo(&Bus->IoSpace, PCI_IO_BASE, PCI_IO_LENGTH);
+        if (Status != OsSuccess) {
+            ERROR(" > failed to initialize pci io space");
+            return OsError;
         }
-        
+
+        Status = AcquireDeviceIo(&Bus->IoSpace);
+        if (Status != OsSuccess) {
+            ERROR(" > failed to acquire pci io space");
+            return OsError;
+        }
+
         // We can check whether or not it's a multi-function
         // root-bridge, in that case there are multiple buses
         if (!(PciReadHeaderType(Bus, 0, 0, 0) & 0x80)) {
@@ -595,9 +604,6 @@ BusEnumerate(void)
             }
         }
     }
-
-    // Now, that the bus is enumerated, we can
-    // iterate the found devices and load drivers
     CollectionExecuteAll(__GlbRoot->Children, PciInstallDriverCallback, NULL);
     return OsSuccess;
 }

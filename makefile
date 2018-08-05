@@ -9,6 +9,9 @@
 # - CROSS=/path/to/cross/home
 #
 
+# Include all the definitions for os
+include config/common.mk
+
 .PHONY: all
 all: build_tools gen_revision build_bootloader build_libraries build_kernel build_drivers setup_userspace build_initrd
 
@@ -84,16 +87,16 @@ build_bootloader:
 # these targets do not build anything, and we only clang-tidy our os-code
 .PHONY: tidy_kernel
 tidy_kernel:
-	@$(MAKE) -s -C kernel -f makefile tidy
+	@$(ANALYZER) $(MAKE) -s -C kernel -f makefile tidy
 
 .PHONY: tidy_drivers
 tidy_drivers:
-	@$(MAKE) -s -C services -f makefile tidy
-	@$(MAKE) -s -C modules -f makefile tidy
+	@$(ANALYZER) $(MAKE) -s -C services -f makefile tidy
+	@$(ANALYZER) $(MAKE) -s -C modules -f makefile tidy
 
 .PHONY: tidy_libraries
 tidy_libraries:
-	@$(MAKE) -s -C librt -f makefile tidy
+	@$(ANALYZER) $(MAKE) -s -C librt -f makefile tidy
 
 # Build the deploy directory, which contains the primary (system) drive
 # structure, system folder, default binaries etc

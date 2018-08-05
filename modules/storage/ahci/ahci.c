@@ -54,8 +54,7 @@ AhciControllerCreate(
     // Get I/O Base, and for AHCI there might be between 1-5
     // IO-spaces filled, so we always, ALWAYS go for the last one
     for (i = __DEVICEMANAGER_MAX_IOSPACES - 1; i >= 0; i--) {
-        if (Controller->Device.IoSpaces[i].Size != 0
-            && Controller->Device.IoSpaces[i].Type == IO_SPACE_MMIO) {
+        if (Controller->Device.IoSpaces[i].Type == DeviceIoMemoryBased) {
             IoBase = &Controller->Device.IoSpaces[i];
             break;
         }
@@ -73,7 +72,7 @@ AhciControllerCreate(
         IoBase->Type, IoBase->PhysicalBase, IoBase->Size);
 
     // Acquire the io-space
-    if (CreateIoSpace(IoBase) != OsSuccess || AcquireIoSpace(IoBase) != OsSuccess) {
+    if (AcquireDeviceIo(IoBase) != OsSuccess) {
         ERROR("Failed to create and acquire the io-space for ahci-controller");
         free(Controller);
         return NULL;
@@ -88,10 +87,10 @@ AhciControllerCreate(
         ContractController, "AHCI Controller Interface");
 
     // Trace
-    TRACE("Io-Space was assigned virtual address 0x%x", IoBase->VirtualBase);
+    TRACE("Io-Space was assigned virtual address 0x%x", IoBase->Access.Memory.VirtualBase);
 
     // Instantiate the register-access
-    Controller->Registers = (AHCIGenericRegisters_t*)IoBase->VirtualBase;
+    Controller->Registers = (AHCIGenericRegisters_t*)IoBase->Access.Memory.VirtualBase;
 
     // Initialize the interrupt settings
     RegisterFastInterruptHandler(&Controller->Device.Interrupt, OnFastInterrupt);
@@ -102,8 +101,7 @@ AhciControllerCreate(
     // Register contract before interrupt
     if (RegisterContract(&Controller->Contract) != OsSuccess) {
         ERROR("Failed to register contract for ahci-controller");
-        ReleaseIoSpace(Controller->IoBase);
-        DestroyIoSpace(Controller->IoBase->Id);
+        ReleaseDeviceIo(Controller->IoBase);
         free(Controller);
         return NULL;
     }
@@ -118,8 +116,7 @@ AhciControllerCreate(
             | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OsSuccess) {
         ERROR("Failed to enable the ahci-controller");
         UnregisterInterruptSource(Controller->InterruptId);
-        ReleaseIoSpace(Controller->IoBase);
-        DestroyIoSpace(Controller->IoBase->Id);
+        ReleaseDeviceIo(Controller->IoBase);
         free(Controller);
         return NULL;
     }
@@ -169,15 +166,9 @@ AhciControllerDestroy(
             MemoryFree(Controller->FisBase, 256 * Controller->PortCount);
         }
     }
+    UnregisterInterruptSource(Controller->InterruptId);
+    ReleaseDeviceIo(Controller->IoBase);
 
-    // Unregister the interrupt
-    UnregisterInterruptSource(Controller->Interrupt);
-
-    // Release the io-space
-    ReleaseIoSpace(Controller->IoBase);
-    DestroyIoSpace(Controller->IoBase->Id);
-
-    // Free the controller structure
     free(Controller);
     return OsSuccess;
 }

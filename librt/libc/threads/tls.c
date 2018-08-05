@@ -21,24 +21,18 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-/* Includes 
- * - System */
 #include <os/mollenos.h>
 #include <os/syscall.h>
 #include <os/spinlock.h>
 #include <ds/collection.h>
-
-/* Includes
- * - Library */
-#include "../../libc/locale/setlocale.h"
 #include <threads.h>
-#include <crtdefs.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <assert.h>
-#include <errno.h>
 #include <string.h>
+#include <stdio.h>
+#include <errno.h>
+#include "../../libc/locale/setlocale.h"
+#include "tls.h"
 
 #define TLS_MAX_KEYS			64
 

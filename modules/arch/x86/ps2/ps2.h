@@ -129,9 +129,8 @@ typedef struct _PS2Port {
 /* PS2Controller
  * contains all driver information and chip current status information */
 typedef struct _PS2Controller {
+    MCoreDevice_t   Device;
     MContract_t     Controller;
-    DeviceIo_t      DataSpace;
-    DeviceIo_t      CommandSpace;
     PS2Port_t       Ports[PS2_MAXPORTS];
 } PS2Controller_t;
 

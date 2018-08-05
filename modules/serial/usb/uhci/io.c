@@ -22,8 +22,6 @@
  */
 //#define __TRACE
 
-/* Includes
- * - System */
 #include <os/utils.h>
 #include "uhci.h"
 
@@ -35,7 +33,7 @@ UhciRead16(
 	_In_ uint16_t           Register)
 {
 	// Wrapper for reading the io-space
-	return LOWORD(ReadIoSpace(Controller->Base.IoBase, Register, 2));
+	return LOWORD(ReadDeviceIo(Controller->Base.IoBase, Register, 2));
 }
 
 /* UhciRead32
@@ -46,7 +44,7 @@ UhciRead32(
 	_In_ uint16_t           Register)
 {
 	// Wrapper for reading the io-space
-	return LODWORD(ReadIoSpace(Controller->Base.IoBase, Register, 4));
+	return LODWORD(ReadDeviceIo(Controller->Base.IoBase, Register, 4));
 }
 
 /* UhciWrite8
@@ -58,7 +56,7 @@ UhciWrite8(
 	_In_ uint8_t            Value)
 {
 	// Wrapper for writing to the io-space
-	WriteIoSpace(Controller->Base.IoBase, Register, Value, 1);
+	WriteDeviceIo(Controller->Base.IoBase, Register, Value, 1);
 }
 
 /* UhciWrite16
@@ -70,7 +68,7 @@ UhciWrite16(
 	_In_ uint16_t           Value)
 { 
 	// Wrapper for writing to the io-space
-	WriteIoSpace(Controller->Base.IoBase, Register, Value, 2);
+	WriteDeviceIo(Controller->Base.IoBase, Register, Value, 2);
 }
 
 /* UhciWrite32
@@ -82,5 +80,5 @@ UhciWrite32(
 	_In_ uint32_t           Value)
 {
 	// Wrapper for writing to the io-space
-	WriteIoSpace(Controller->Base.IoBase, Register, Value, 4);
+	WriteDeviceIo(Controller->Base.IoBase, Register, Value, 4);
 }
