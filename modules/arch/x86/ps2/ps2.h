@@ -28,12 +28,7 @@
 #include <os/osdefs.h>
 #include <os/io.h>
 
-/* Io-space for accessing the PS2
- * Spans over 2 bytes from 0x60 & 0x64 */
-#define PS2_IO_DATA_BASE            0x60
-#define PS2_IO_STATUS_BASE          0x64
-#define PS2_IO_LENGTH               0x01
-
+// Register offsets
 #define PS2_REGISTER_DATA           0x00
 #define PS2_REGISTER_STATUS         0x00
 #define PS2_REGISTER_COMMAND        0x00
@@ -131,6 +126,9 @@ typedef struct _PS2Port {
 typedef struct _PS2Controller {
     MCoreDevice_t   Device;
     MContract_t     Controller;
+    DeviceIo_t*     Command;
+    DeviceIo_t*     Data;
+
     PS2Port_t       Ports[PS2_MAXPORTS];
 } PS2Controller_t;
 

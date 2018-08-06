@@ -120,7 +120,7 @@ PS2KeyboardFastInterrupt(
     _In_ void*                      Unused)
 {
     DeviceIo_t* IoSpace     = INTERRUPT_IOSPACE(InterruptTable, 0);
-    PS2Port_t* Port         = INTERRUPT_RESOURCE(InterruptTable, 0);
+    PS2Port_t* Port         = (PS2Port_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
     uint8_t DataRecieved    = (uint8_t)InterruptTable->ReadIoSpace(IoSpace, PS2_REGISTER_DATA, 1);
     PS2Command_t* Command   = &Port->ActiveCommand;
 
@@ -285,7 +285,7 @@ PS2KeyboardInitialize(
     }
     
     // Initialize interrupt
-    RegisterFastInterruptIoResource(&Instance->Interrupt, &Controller->DataSpace);
+    RegisterFastInterruptIoResource(&Instance->Interrupt, Controller->Data);
     RegisterFastInterruptHandler(&Instance->Interrupt, PS2KeyboardFastInterrupt);
     Instance->InterruptId = RegisterInterruptSource(&Instance->Interrupt, INTERRUPT_NOTSHARABLE);;
 

@@ -43,7 +43,6 @@ RegisterSystemDeviceIo(
     _In_ DeviceIo_t*    IoSpace)
 {
     SystemDeviceIo_t* SystemIo;
-    DataKey_t Key;
 
     // Debugging
     TRACE("RegisterSystemDeviceIo(Type %u)", IoSpace->Type);
@@ -57,11 +56,12 @@ RegisterSystemDeviceIo(
     SystemIo    = (SystemDeviceIo_t*)kmalloc(sizeof(SystemDeviceIo_t));
     memset(SystemIo, 0, sizeof(SystemDeviceIo_t));
     SystemIo->Owner = UUID_INVALID;
+
     IoSpace->Id     = atomic_fetch_add(&IoSpaceIdGenerator, 1);
-    memcpy(&SystemIo->Io, IoSpace, sizeof(SystemDeviceIo_t));
+    memcpy(&SystemIo->Io, IoSpace, sizeof(DeviceIo_t));
 
     // Add to list
-    Key.Value = (int)IoSpace->Id;
+    SystemIo->Header.Key.Value  = (int)IoSpace->Id;
     return CollectionAppend(&IoSpaces, &SystemIo->Header);
 }
 
@@ -113,9 +113,9 @@ AcquireSystemDeviceIo(
     // Sanitize the system copy
     if (Server == NULL || SystemIo == NULL || SystemIo->Owner != UUID_INVALID) {
         if (Server == NULL) {
-            ERROR("Non-server process tried to acquire io-space");
+            ERROR(" > non-server process tried to acquire io-space");
         }
-        ERROR("Failed to find the requested io-space, id %u", IoSpace->Id);
+        ERROR(" > failed to find the requested io-space, id %u", IoSpace->Id);
         return OsError;
     }
     SystemIo->Owner = ThreadingGetCurrentThread(Cpu)->AshId;
@@ -144,6 +144,7 @@ AcquireSystemDeviceIo(
             for (size_t i = 0; i < SystemIo->Io.Access.Port.Length; i++) {
                 SetIoSpaceAccess(Cpu, GetCurrentSystemMemorySpace(), ((uint16_t)(SystemIo->Io.Access.Port.Base + i)), 1);
             }
+            return OsSuccess;
         } break;
 
         default:

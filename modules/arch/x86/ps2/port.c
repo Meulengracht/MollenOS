@@ -317,7 +317,7 @@ PS2PortInitialize(
     }
 
     // Initialize interrupt resources
-    RegisterFastInterruptMemoryResource(&Port->Interrupt, Port, sizeof(PS2Port_t), 0);
+    RegisterFastInterruptMemoryResource(&Port->Interrupt, (uintptr_t)Port, sizeof(PS2Port_t), 0);
     RegisterInterruptContext(&Port->Interrupt, Port);
 
     // Start out by doing an interface

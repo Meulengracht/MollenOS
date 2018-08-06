@@ -22,7 +22,7 @@
  */
 
 #define __MODULE        "INIF"
-//#define __TRACE
+#define __TRACE
 
 #include <os/interrupt.h>
 #include <component/cpu.h>
@@ -50,6 +50,18 @@ static InterruptTableEntry_t    InterruptTable[MAX_SUPPORTED_INTERRUPTS]    = { 
 static CriticalSection_t        InterruptTableSyncObject    = CRITICALSECTION_INITIALIZE(CRITICALSECTION_PLAIN);
 static _Atomic(UUId_t)          InterruptIdGenerator        = ATOMIC_VAR_INIT(0);
 static FastInterruptResources_t FastInterruptTable          = { 0 };
+
+
+/* InitializeInterruptTable
+ * Initializes the static system interrupt table. This must be done before any driver interrupts
+ * as they will rely on the system function table that gets passed along. */
+void
+InitializeInterruptTable()
+{
+    FastInterruptTable.Trace        = NULL;
+    FastInterruptTable.ReadIoSpace  = ReadDeviceIo;
+    FastInterruptTable.WriteIoSpace = WriteDeviceIo;
+}
 
 /* InterruptIncreasePenalty 
  * Increases the penalty for an interrupt source. */
@@ -278,7 +290,7 @@ InterruptResolveResources(
     // Calculate metrics we need to create the mappings
     Offset      = ((uintptr_t)Source->Handler) % GetSystemMemoryPageSize();
     Length      = GetSystemMemoryPageSize() + Offset;
-    PageFlags   = MAPPING_EXECUTABLE | MAPPING_READONLY;
+    PageFlags   = MAPPING_EXECUTABLE | MAPPING_READONLY | MAPPING_KERNEL;
     Status      = CloneSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), GetCurrentSystemMemorySpace(),
         (VirtualAddress_t)Source->Handler, &Virtual, Length, PageFlags, __MASK);
     if (Status != OsSuccess) {
@@ -290,15 +302,18 @@ InterruptResolveResources(
     TRACE(" > remapped irq-handler to 0x%x from 0x%x", Virtual, (uintptr_t)Source->Handler);
     Destination->Handler = (InterruptHandler_t)Virtual;
 
+    TRACE(" > remapping io-resources");
     if (InterruptResolveIoResources(Interrupt) != OsSuccess) {
         ERROR(" > failed to remap interrupt io resources");
         return OsError;
     }
 
+    TRACE(" > remapping memory-resources");
     if (InterruptResolveMemoryResources(Interrupt) != OsSuccess) {
         ERROR(" > failed to remap interrupt memory resources");
         return OsError;
     }
+    CpuHalt();
     return OsSuccess;
 }
 

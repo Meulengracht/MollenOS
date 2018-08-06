@@ -21,11 +21,9 @@
 #define __MODULE "MACH"
 #define __TRACE
 
-/* Includes 
- * - System */
-#include <revision.h>
-#include <system/setup.h>
+#include <system/interrupts.h>
 #include <system/utils.h>
+#include <revision.h>
 #include <machine.h>
 
 #include <acpiinterface.h>
@@ -199,22 +197,13 @@ InitializeMachine(
         CpuIdle();
     }
 
-    SchedulerInitialize();
     Status = ThreadingEnable();
     if (Status != OsSuccess) {
         ERROR("Failed to enable threading for boot core.");
         CpuIdle();
     }
 
-    // Parse the initrd that was passed to the OS
-    Status = ModulesInitialize(&Machine.BootInformation);
-    if (Status != OsSuccess) {
-        ERROR(" > no ramdisk provided, operating system will enter debug mode");
-    }
-
-    // Initialize interrupt systems
-    TRACE("SYSTEM_FEATURE_INTERRUPTS");
-    Status = SystemFeaturesInitialize(&Machine.BootInformation, SYSTEM_FEATURE_INTERRUPTS);
+    Status = InterruptInitialize();
     if (Status != OsSuccess) {
         ERROR("Failed to initialize interrupts for system.");
         CpuIdle();
@@ -232,24 +221,32 @@ InitializeMachine(
     }
 #endif
 
-    // Initialize all subsystems that spawn threads
-    // as almost everything is up and running at this point
+    // Initialize process and usermode systems
     GcInitialize();
     PhoenixInitialize();
-    
-    TRACE("SYSTEM_FEATURE_FINALIZE");
-    Status = SystemFeaturesInitialize(&Machine.BootInformation, SYSTEM_FEATURE_FINALIZE);
+
+    // Last step is to enable timers that kickstart all other threads
+    Status = InitializeSystemTimers();
+    if (Status != OsSuccess) {
+        ERROR("Failed to initialize timers for system.");
+        CpuHalt();
+    }
 #ifdef __OSCONFIG_ENABLE_MULTIPROCESSORS
     EnableMultiProcessoringMode();
 #endif
 
+    // Either of three things happen, testing phase can begin, we can enter
+    // debug console or last option is normal operation.
 #ifdef __OSCONFIG_TEST_KERNEL
     StartTestingPhase();
 #else
+    Status = ModulesInitialize(&Machine.BootInformation);
+    if (Status != OsSuccess) {
+        ERROR(" > no ramdisk provided, operating system will enter debug mode");
+    }
+
     ModulesRunServers();
 #endif
-
-    // Enter idle loop.
     WARNING("End of initialization");
     goto IdleProcessor;
 

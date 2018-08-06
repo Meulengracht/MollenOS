@@ -27,6 +27,11 @@
 #include <os/osdefs.h>
 #include <interrupts.h>
 
+/* InterruptInitialize
+ * Initialize interrupts in the base system. */
+KERNELAPI OsStatus_t KERNELABI
+InterruptInitialize(void);
+
 /* InterruptResolve 
  * Resolves the table index from the given interrupt settings. */
 KERNELAPI OsStatus_t KERNELABI

@@ -44,6 +44,7 @@ RegisterFastInterruptIoResource(
     for (int i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
         if (Interrupt->FastInterrupt.IoResources[i] == NULL) {
             Interrupt->FastInterrupt.IoResources[i] = IoSpace;
+            break;
         }
     }
 }
@@ -62,6 +63,7 @@ RegisterFastInterruptMemoryResource(
             Interrupt->FastInterrupt.MemoryResources[i].Address = Address;
             Interrupt->FastInterrupt.MemoryResources[i].Length  = Length;
             Interrupt->FastInterrupt.MemoryResources[i].Flags   = Flags;
+            break;
         }
     }
 }

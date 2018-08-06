@@ -25,30 +25,25 @@
 #define __MODULE        "IRQS"
 #define __TRACE
 
-/* Includes 
- * - System */
 #include <system/interrupts.h>
 #include <system/thread.h>
 #include <system/utils.h>
-
+#include <ds/collection.h>
 #include <process/phoenix.h>
 #include <acpiinterface.h>
 #include <interrupts.h>
 #include <threading.h>
 #include <memory.h>
 #include <thread.h>
+#include <assert.h>
+#include <stdio.h>
 #include <debug.h>
 #include <heap.h>
 #include <apic.h>
+#include <cpu.h>
 #include <gdt.h>
 #include <idt.h>
 #include <pic.h>
-
-/* Includes
- * - Library */
-#include <ds/collection.h>
-#include <assert.h>
-#include <stdio.h>
 
 /* ThreadingFpuException
  * Handles the fpu exception that might get triggered
@@ -250,8 +245,7 @@ InterruptResolve(
         // Bit      3: 0 = Destination is ONE CPU, 1 = Destination is Group
         // Bit      2: Destination Mode (1 Logical, 0 Physical)
         // Bits 00-01: X
-        Interrupt->MsiAddress = 0xFEE00000 | (0x0007F0000) 
-            | (0x8 | 0x4);
+        Interrupt->MsiAddress = 0xFEE00000 | (0x0007F0000) | 0x8 | 0x4;
 
         // Message Data Register Format
         // Bits 31-16: Reserved
@@ -629,4 +623,44 @@ int
 InterruptIsDisabled(void)
 {
     return !InterruptSaveState();
+}
+
+/* InterruptInitialize
+ * Initialize interrupts in the base system. */
+OsStatus_t
+InterruptInitialize(void)
+{
+    InitializeSoftwareInterrupts();
+#if defined(amd64) || defined(__amd64__)
+    TssCreateStacks();
+#endif
+
+    // Make sure we allocate all device interrupts
+    // so system can't take control of them
+    InterruptIncreasePenalty(0);    // PIT
+    InterruptIncreasePenalty(1);    // PS/2
+    InterruptIncreasePenalty(2);    // PIT / Cascade
+    InterruptIncreasePenalty(3);    // COM 2/4
+    InterruptIncreasePenalty(4);    // COM 1/3
+    InterruptIncreasePenalty(5);    // LPT2
+    InterruptIncreasePenalty(6);    // Floppy
+    InterruptIncreasePenalty(7);    // LPT1 / Spurious
+    InterruptIncreasePenalty(8);    // CMOS
+    InterruptIncreasePenalty(12);   // PS/2
+    InterruptIncreasePenalty(13);   // FPU
+    InterruptIncreasePenalty(14);   // IDE
+    InterruptIncreasePenalty(15);   // IDE / Spurious
+    
+    // Initialize APIC?
+    if (CpuHasFeatures(0, CPUID_FEAT_EDX_APIC) == OsSuccess) {
+        ApicInitialize();
+    }
+    else {
+        ERROR(" > cpu does not have a local apic. This model is too old and not supported.");
+        return OsError;
+    }
+
+    // Load the trampoline code in to memory
+    CpuSmpInitialize();
+    return OsSuccess;
 }

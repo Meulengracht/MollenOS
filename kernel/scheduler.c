@@ -42,18 +42,7 @@
 #include <debug.h>
 #include <heap.h>
 
-/* Globals
- * - State keeping variables */
 static SchedulerQueue_t IoQueue             = { 0, 0, { 0 } };
-
-/* SchedulerInitialize
- * Initializes the scheduler instance to default settings and parameters. */
-void
-SchedulerInitialize(void)
-{
-    // Zero structure and initialize members
-    memset((void*)&GetCurrentProcessorCore()->Scheduler, 0, sizeof(MCoreScheduler_t));
-}
 
 /* SchedulerQueueAppend 
  * Appends a single thread or a list of threads to the given queue. */

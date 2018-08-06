@@ -89,6 +89,11 @@ KERNELAPI void KERNELABI
 StartApplicationCore(
     _In_ SystemCpuCore_t*   Core);
 
+/* InitializeSystemTimers (@arch)
+ * Register and start all neccessary system timers for the operating system to run. */
+KERNELAPI OsStatus_t KERNELABI
+InitializeSystemTimers(void);
+
 /* InitializeSystemMemory (@arch)
  * Initializes the entire system memory range, selecting ranges that should
  * be reserved and those that are free for system use. */

@@ -415,6 +415,7 @@ CloneSystemMemorySpaceMapping(
         uintptr_t VirtualPage   = (VirtualBase + (i * GetSystemMemoryPageSize()));
         uintptr_t PhysicalPage  = GetSystemMemoryMapping(SourceSpace, SourceAddress + (i * GetSystemMemoryPageSize()));
 
+        WARNING(" > mapping 0x%x (phys) to 0x%x (virt)", PhysicalPage, VirtualPage);
         Status = SetVirtualPageMapping(DestinationSpace, PhysicalPage, VirtualPage, 
             Flags | MAPPING_PERSISTENT | MAPPING_PROVIDED);
         // The only reason this ever turns error if the mapping exists, in this case free the allocated
