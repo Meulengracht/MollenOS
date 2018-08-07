@@ -52,6 +52,7 @@
 #define MAPPING_ISDIRTY                 0x00000010  // Memory that has been marked poluted/written to
 #define MAPPING_PERSISTENT              0x00000020  // Memory should not be freed when mapping is removed
 #define MAPPING_DOMAIN                  0x00000040  // Memory allocated for mapping must be domain local
+#define MAPPING_LOWFIRST                0x00000080  // Memory resources should be allocated by low-addresses first
 
 #define MAPPING_PROVIDED                0x00010000  // (Physical) Mapping is supplied
 #define MAPPING_CONTIGIOUS              0x00020000  // (Physical) Mapping must be continous

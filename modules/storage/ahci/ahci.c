@@ -307,8 +307,8 @@ AhciSetup(
     Controller->CommandSlotCount    = AHCI_CAPABILITIES_NCS(Controller->Registers->Capabilities);
 
     // Trace
-    TRACE("Ports Implemented 0x%x, Capabilities 0x%x",
-        Controller->Registers->PortsImplemented, Controller->Registers->Capabilities);
+    TRACE("Port Validity Bitmap 0x%x, Capabilities 0x%x",
+        Controller->ValidPorts, Controller->Registers->Capabilities);
 
     // Ensure that the controller is not in the running state by reading and 
     // examining each implemented ports PxCMD register
@@ -335,7 +335,7 @@ AhciSetup(
     Controller->PortCount = ActivePortCount;
 
     // Trace
-    TRACE("Ports active: %i", ActivePortCount);
+    TRACE("Ports Implemented: %i", ActivePortCount);
 
     // Software should wait at least 500 milliseconds for port idle to occur
     thrd_sleepex(650);

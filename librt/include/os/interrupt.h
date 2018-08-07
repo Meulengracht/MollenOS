@@ -77,8 +77,7 @@ typedef struct _FastInterruptResources {
 #define INTERRUPT_IOSPACE(Resources, Index)     Resources->ResourceTable->IoResources[Index]
 #define INTERRUPT_RESOURCE(Resources, Index)    Resources->ResourceTable->MemoryResources[Index].Address
 
-/* Interrupt allocation flags, interrupts are initially
- * always shareable */
+// Interrupt register options
 #define INTERRUPT_SOFT                  0x00000001  // Interrupt is not triggered by a hardware line
 #define INTERRUPT_VECTOR                0x00000002  // Interrupt can be either values set in the Vector
 #define INTERRUPT_MSI                   0x00000004  // Interrupt uses MSI to deliver

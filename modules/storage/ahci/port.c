@@ -21,7 +21,7 @@
  *    - Port Multiplier Support
  *    - Power Management
  */
-#define __TRACE
+//#define __TRACE
 
 #include <os/mollenos.h>
 #include <os/utils.h>
@@ -54,9 +54,9 @@ AhciPortCreate(
     memset(AhciPort, 0, sizeof(AhciPort_t));
 
     // Set port id and index
-    AhciPort->Id            = Port;
-    AhciPort->Index         = Index;
-    AhciPort->Registers     = (AHCIPortRegisters_t*)((uintptr_t)Controller->Registers + AHCI_REGISTER_PORTBASE(Port));
+    AhciPort->Id            = Port;     // Sequential port number
+    AhciPort->Index         = Index;    // Index in validity map
+    AhciPort->Registers     = (AHCIPortRegisters_t*)((uintptr_t)Controller->Registers + AHCI_REGISTER_PORTBASE(Index)); // @todo port nr or bit index?
     AhciPort->Transactions  = CollectionCreate(KeyInteger);
     return AhciPort;
 }
@@ -68,7 +68,6 @@ AhciPortInitialize(
     _In_  AhciController_t* Controller, 
     _Out_ AhciPort_t*       Port)
 {
-    // Variables
     uintptr_t CommandTablePointerPhysical   = 0;
     uintptr_t PhysicalAddress               = 0;
     uint8_t *CommandTablePointer            = NULL;
@@ -153,7 +152,6 @@ AhciPortCleanup(
     _In_  AhciController_t* Controller, 
     _Out_ AhciPort_t*       Port)
 {
-    // Variables
     CollectionItem_t *pNode;
 
     // Null out the port-entry in the controller
@@ -180,7 +178,6 @@ AhciPortReset(
     _In_ AhciController_t*  Controller, 
     _In_ AhciPort_t*        Port)
 {
-    // Variables
     reg32_t Control;
 
     // Unused parameters
@@ -251,7 +248,6 @@ AhciPortAcquireCommandSlot(
     _In_  AhciPort_t*       Port,
     _Out_ int*              Index)
 {
-    // Variables
     reg32_t AtaActive = Port->Registers->AtaActive;
     OsStatus_t Status = OsError;
     int i;
@@ -307,7 +303,6 @@ AhciPortInterruptHandler(
     _In_ AhciController_t*  Controller, 
     _In_ AhciPort_t*        Port)
 {
-    // Variables
     AhciTransaction_t *Transaction;
     reg32_t InterruptStatus;
     reg32_t DoneCommands;

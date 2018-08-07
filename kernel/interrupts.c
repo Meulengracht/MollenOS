@@ -22,7 +22,7 @@
  */
 
 #define __MODULE        "INIF"
-#define __TRACE
+//#define __TRACE
 
 #include <os/interrupt.h>
 #include <component/cpu.h>

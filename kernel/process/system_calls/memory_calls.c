@@ -75,7 +75,7 @@ ScMemoryAllocate(
             ExtendedFlags |= MAPPING_NOCACHE;
         }
         if (Flags & MEMORY_LOWFIRST) {
-            // Handle mask
+            ExtendedFlags |= MAPPING_LOWFIRST;
         }
 
         // Do the actual mapping

@@ -23,7 +23,7 @@
  * - ISA Interrupts should be routed to boot-processor without lowest-prio?
  */
 #define __MODULE        "IRQS"
-#define __TRACE
+//#define __TRACE
 
 #include <system/interrupts.h>
 #include <system/thread.h>
@@ -357,10 +357,9 @@ UpdateEntry:
     return OsSuccess;
 }
 
-/* InterruptEntryInterruptEntry
- * The common entry point for interrupts, all
- * non-exceptions will enter here, lookup a handler
- * and execute the code */
+/* InterruptEntry
+ * The common entry point for interrupts, all non-exceptions will enter here, 
+ * lookup a handler and execute the code */
 void
 InterruptEntry(
     _In_ Context_t *Registers)

@@ -129,12 +129,9 @@ VideoInitialize(void)
 
 	// Draw boot terminal if we have graphics
 	if (VideoGetTerminal()->Type == VIDEO_GRAPHICS) {
-#ifdef __OSCONFIG_FULLDEBUGCONSOLE
+#ifdef __OSCONFIG_DEBUGCONSOLE
 		VideoDrawBootTerminal((VideoGetTerminal()->CursorLimitX / 2) - 325, 0, 
 			650, VideoGetTerminal()->Info.Height);
-#else
-		VideoDrawBootTerminal((VideoGetTerminal()->CursorLimitX / 2) - 325,
-			(VideoGetTerminal()->CursorLimitY / 2) - 260, 650, 520);
 #endif
 	}
     LogSetRenderMode(1);
