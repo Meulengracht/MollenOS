@@ -21,6 +21,7 @@
  *    MollenOS.
  */
 
+#include <os/virtualkeycodes.h>
 #include <os/service.h>
 #include <os/window.h>
 #include "vioarr.hpp"
@@ -102,6 +103,21 @@ Handle_t HandleCreateWindowRequest(MRemoteCallAddress_t *Process,
     return (Handle_t)Window;
 }
 
+void InputHandler()
+{
+    bool IsRunning = true;
+    SystemKey_t Key;
+
+    while (IsRunning) {
+        if (ReadSystemKey(&Key) == OsSuccess) {
+            if (Key.KeyCode == VK_F1) {
+                // Spawn the test application
+                ProcessSpawn("$bin/wintest.app", NULL, 1);
+            }
+        }
+    }
+}
+
 void MessageHandler()
 {
     char *ArgumentBuffer    = NULL;
@@ -138,16 +154,14 @@ void MessageHandler()
             if (Message.Function == __WINDOWMANAGER_QUERY) {
                 
             }
-            if (Message.Function == __WINDOWMANAGER_NEWINPUT) {
-                
-            }
         }
     }
 }
 
 // Spawn the message handler for compositor
-void VioarrCompositor::SpawnMessageHandler() {
-    _MessageThread = new std::thread(MessageHandler);
+void VioarrCompositor::SpawnInputHandlers() {
+    _MessageThread  = new std::thread(MessageHandler);
+    _InputThread    = new std::thread(InputHandler);
 }
 
 int main(int argc, char **argv) {

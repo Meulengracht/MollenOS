@@ -61,7 +61,7 @@ static _Atomic(UUId_t) GlbThreadId  = ATOMIC_VAR_INIT(1);
 OsStatus_t
 ThreadingInitialize(void)
 {
-    GlbThreadGcId           = GcRegister(ThreadingReap);
+    GlbThreadGcId = GcRegister(ThreadingReap);
     return OsSuccess;
 }
 

@@ -93,7 +93,8 @@ typedef enum {
 
 typedef enum {
     InterruptNotHandled,
-    InterruptHandled
+    InterruptHandled,       // Handled, notify process
+    InterruptHandledStop,   // Handled, do not notify process
 } InterruptStatus_t;
 
 /* Define the standard os

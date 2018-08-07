@@ -82,7 +82,7 @@ void
 HidCollectionCreateChild(
     _In_ UsbHidReportCollection_t *Collection, 
     _In_ UsbHidReportGlobalStats_t *Stats,
-    _In_ MInputType_t InputType, 
+    _In_ DeviceInputType_t InputType, 
     _In_ int CollectionType, 
     _In_ void *Item)
 {
@@ -269,7 +269,7 @@ HidParseReportDescriptor(
     _In_ size_t DescriptorLength)
 {
     // Variables
-    MInputType_t CurrentType = InputUnknown;
+    DeviceInputType_t CurrentType = DeviceInputPointer;
     size_t i = 0, j = 0, Depth = 0;
     size_t LongestReport = 0;
     size_t BitOffset = 0;
@@ -476,19 +476,19 @@ HidParseReportDescriptor(
                         // Determine the kind of input device
                         if (Packet == HID_REPORT_USAGE_POINTER
                             || Packet == HID_REPORT_USAGE_MOUSE) {
-                            CurrentType = InputMouse;
+                            CurrentType = DeviceInputPointer;
                         }
                         else if (Packet == HID_REPORT_USAGE_KEYBOARD) {
-                            CurrentType = InputKeyboard;
+                            CurrentType = DeviceInputKeyboard;
                         }
                         else if (Packet == HID_REPORT_USAGE_KEYPAD) {
-                            CurrentType = InputKeypad;
+                            CurrentType = DeviceInputKeypad;
                         }
                         else if (Packet == HID_REPORT_USAGE_JOYSTICK) {
-                            CurrentType = InputJoystick;
+                            CurrentType = DeviceInputJoystick;
                         }
                         else if (Packet == HID_REPORT_USAGE_GAMEPAD) {
-                            CurrentType = InputGamePad;
+                            CurrentType = DeviceInputGamePad;
                         }
 
                         // There can be multiple usages for an descriptor
@@ -600,7 +600,7 @@ HidParseReportInput(
     size_t i, Offset, Length, Usage;
 
     // Static buffers
-    MInput_t InputData = { 0 };
+    SystemInput_t InputData = { 0 };
 
     // Cast the input-item from the ItemPointer
     InputItem = (UsbHidReportInputItem_t*)CollectionItem->ItemPointer;
@@ -683,15 +683,15 @@ HidParseReportInput(
                             char *DebugAxis = NULL;
                             if (Usage == HID_REPORT_USAGE_X_AXIS) {
                                 DebugAxis = "X";
-                                InputData.xRelative = (int32_t)Relative;
+                                InputData.RelativeX = (int16_t)(Relative & 0xFFFF);
                             }
                             else if (Usage == HID_REPORT_USAGE_Y_AXIS) {
                                 DebugAxis = "Y";
-                                InputData.xRelative = (int32_t)Relative;
+                                InputData.RelativeY = (int16_t)(Relative & 0xFFFF);
                             }
                             else { // HID_REPORT_USAGE_Z_AXIS
                                 DebugAxis = "Z";
-                                InputData.xRelative = (int32_t)Relative;
+                                InputData.RelativeZ = (int16_t)(Relative & 0xFFFF);
                             }
                             
                             // Debug
@@ -729,17 +729,17 @@ HidParseReportInput(
                 // Possible types are: Keyboard, keypad, mouse, gamepad or joystick
                 switch (CollectionItem->InputType) {
                     // Mouse button event
-                    case InputMouse: {
+                    case DeviceInputPointer: {
 
                     } break;
 
                     // Gamepad button event
-                    case InputGamePad: {
+                    case DeviceInputGamePad: {
 
                     } break;
 
                     // Joystick button event
-                    case InputJoystick: {
+                    case DeviceInputJoystick: {
 
                     } break;
 
@@ -766,11 +766,7 @@ HidParseReportInput(
     }
     
     // Create a new input report
-    if (InputData.xRelative != 0 ||
-        InputData.yRelative != 0 ||
-        InputData.zRelative != 0) {
-        CreateInput(&InputData);
-    }
+    // @todo
 
     // Buttons @todo
 }

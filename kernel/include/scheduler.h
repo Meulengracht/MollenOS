@@ -66,11 +66,6 @@ typedef struct _MCoreScheduler {
     int                 ThreadCount;
 } MCoreScheduler_t;
 
-/* SchedulerInitialize
- * Initializes the scheduler instance to default settings and parameters. */
-KERNELAPI void KERNELABI
-SchedulerInitialize(void);
-
 /* SchedulerThreadInitialize
  * Can be called by the creation of a new thread to initalize
  * all the scheduler data for that thread. */

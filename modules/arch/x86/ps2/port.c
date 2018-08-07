@@ -193,16 +193,24 @@ PS2PortWrite(
  * if the state is not reached in a seconds time. */
 OsStatus_t
 PS2PortWaitForState(
+    _In_ PS2Port_t*         Port,
     _In_ PS2Command_t*      Command,
     _In_ PS2CommandState_t  State)
 {
-    volatile PS2CommandState_t *ActiveState;
+    volatile PS2CommandState_t* ActiveState;
+    volatile uint8_t* SyncObject;
     int Timeout = 1000;
 
     ActiveState = (volatile PS2CommandState_t*)&Command->State;
+    SyncObject  = &Command->SyncObject;
     while (*ActiveState != State && Timeout > 0) {
         thrd_sleepex(10);
         Timeout -= 10;
+
+        // If it returns OsSuccess all done
+        if (PS2PortFinishCommand(Port) == OsSuccess) {
+            break;
+        }
     }
     if (Timeout == 0) {
         WARNING("PS2-Command state timeout (%i != %i), command %u", 
@@ -212,102 +220,73 @@ PS2PortWaitForState(
     return OsSuccess;
 }
 
-/* PS2PortQueueCommand 
- * Queues the given command up for the given port
- * if a response is needed for the previous commnad
- * Set command = PS2_RESPONSE_COMMAND and pointer to response buffer */
+/* PS2PortExecuteCommand 
+ * Executes the given ps2 command, handles both retries and commands that
+ * require response. */
 OsStatus_t
-PS2PortQueueCommand(
+PS2PortExecuteCommand(
     _In_ PS2Port_t* Port,
     _In_ uint8_t    Command,
     _In_ uint8_t*   Response)
 {
-    PS2Command_t *pCommand  = NULL;
+    PS2Command_t *pCommand  = &Port->ActiveCommand;
     OsStatus_t Result       = OsSuccess;
-    pCommand                = &Port->Commands[Port->QueueIndex % PS2_MAXCOMMANDS];
-
-    // Find a free command spot for the queue
-    if (PS2PortWaitForState(pCommand, PS2Free) != OsSuccess) {
-        return OsError;
-    }
-    Port->QueueIndex++;
 
     // Initiate the packet data
     pCommand->State         = PS2InQueue;
     pCommand->RetryCount    = 0;
     pCommand->Command       = Command;
     pCommand->Response      = Response;
-
-    // Is the queue already running?
-    // Otherwise start it by sending the command
-    if (Port->CurrentCommand == NULL) {
-        Port->CurrentCommand    = pCommand;
-        Result                  = PS2PortWrite(Port, Command);
-    }
-    return PS2PortWaitForState(pCommand, PS2Free);
-}
-
-/* PS2PortExecuteNextCommand
- * Finds and executes the next ready command, we do it in round-robin fashion so
- * that we execute commands in order they were queued up in. */
-OsStatus_t
-PS2PortExecuteNextCommand(
-    _In_ PS2Port_t* Port)
-{
-    int NextExecutionIndex  = (Port->ExecutionIndex + 1) % PS2_MAXCOMMANDS;
-    Port->CurrentCommand    = NULL;
-
-    // Increase the index for execution
-    if (Port->Commands[NextExecutionIndex].State == PS2InQueue) {
-        Port->ExecutionIndex++;
-        Port->CurrentCommand = &Port->Commands[NextExecutionIndex];
-        PS2PortWrite(Port, Port->Commands[NextExecutionIndex].Command);
-    }
-    return OsSuccess;
+    pCommand->SyncObject    = 0;
+    Result                  = PS2PortWrite(Port, Command);
+    return PS2PortWaitForState(Port, pCommand, PS2Free);
 }
 
 /* PS2PortFinishCommand 
  * Finalizes the current command and executes the next command in queue (if any). */
 OsStatus_t
 PS2PortFinishCommand(
-    _In_ PS2Port_t* Port,
-    _In_ uint8_t    Result)
+    _In_ PS2Port_t*                 Port)
 {
-    // Is there any command active? Otherwise ignore everything here
-    if (Port->CurrentCommand == NULL) {
-        return OsError;
-    }
-
-    switch (Port->CurrentCommand->State) {
+    PS2Command_t *pCommand  = &Port->ActiveCommand;
+    switch (pCommand->State) {
         case PS2InQueue: {
-            if (Result == PS2_RESEND_COMMAND) {
-                if (Port->CurrentCommand->RetryCount < PS2_MAX_RETRIES) {
-                    Port->CurrentCommand->RetryCount++;
-                    PS2PortWrite(Port, Port->CurrentCommand->Command);
-                    return OsSuccess;
+            if (pCommand->SyncObject == 0) {
+                return OsError;
+            }
+
+            if (pCommand->Buffer[0] == PS2_RESEND_COMMAND) {
+                if (pCommand->RetryCount < PS2_MAX_RETRIES) {
+                    pCommand->RetryCount++;
+                    pCommand->SyncObject = 0; // Reset
+                    PS2PortWrite(Port, pCommand->Command);
+                    return OsError;
                 }
-                Port->CurrentCommand->Command   = PS2_FAILED_COMMAND;
-                Port->CurrentCommand->State     = PS2Free;
+                pCommand->Command   = PS2_FAILED_COMMAND;
+                pCommand->State     = PS2Free;
                 // Go to next command
             }
-            else if (Result == PS2_ACK_COMMAND) {
-                if (Port->CurrentCommand->Response != NULL) {
-                    Port->CurrentCommand->State = PS2WaitingResponse;
-                    return OsSuccess;
+            else if (pCommand->Buffer[0] == PS2_ACK_COMMAND) {
+                if (pCommand->Response != NULL) {
+                    pCommand->State = PS2WaitingResponse;
+                    return OsError;
                 }
-                Port->CurrentCommand->State = PS2Free;
+                pCommand->State = PS2Free;
                 // Go to next command
             }
             else {
-                Port->CurrentCommand->Command   = PS2_FAILED_COMMAND;
-                Port->CurrentCommand->State     = PS2Free;
+                pCommand->Command   = PS2_FAILED_COMMAND;
+                pCommand->State     = PS2Free;
                 // Go to next command
             }
         } break;
 
         case PS2WaitingResponse: {
-            *(Port->CurrentCommand->Response)   = Result;
-            Port->CurrentCommand->State         = PS2Free;
+            if (pCommand->SyncObject == 1) {
+                return OsError;
+            }
+            *(pCommand->Response)   = pCommand->Buffer[1];
+            pCommand->State         = PS2Free;
         } break;
 
         // Reached on PS2Free, should not happen
@@ -315,7 +294,7 @@ PS2PortFinishCommand(
 
         } break;
     }
-    return PS2PortExecuteNextCommand(Port);
+    return OsSuccess;
 }
 
 /* PS2PortInitialize
@@ -324,12 +303,22 @@ OsStatus_t
 PS2PortInitialize(
     _In_ PS2Port_t* Port)
 {
-    uint8_t Temp = 0;
+    uint8_t Temp;
 
     // Initialize some variables for the port
-    Port->CurrentCommand    = NULL;
-    Port->ExecutionIndex    = 0;
-    Port->QueueIndex        = 0;
+    Port->Interrupt.AcpiConform = 0;
+    Port->Interrupt.Pin         = INTERRUPT_NONE;
+    Port->Interrupt.Vectors[0]  = INTERRUPT_NONE;
+    if (Port->Index == 0) {
+        Port->Interrupt.Line = PS2_PORT1_IRQ;
+    }
+    else {
+        Port->Interrupt.Line = PS2_PORT2_IRQ;
+    }
+
+    // Initialize interrupt resources
+    RegisterFastInterruptMemoryResource(&Port->Interrupt, (uintptr_t)Port, sizeof(PS2Port_t), 0);
+    RegisterInterruptContext(&Port->Interrupt, Port);
 
     // Start out by doing an interface
     // test on the given port
@@ -355,9 +344,7 @@ PS2PortInitialize(
     if (Temp & (1 << (4 + Port->Index))) {
         return OsError; 
     }
-
-    // Enable IRQ
-    Temp |= (1 << Port->Index);
+    Temp |= (1 << Port->Index); // Enable IRQ
 
     // Write back the configuration
     PS2SendCommand(PS2_SET_CONFIGURATION);
@@ -371,8 +358,6 @@ PS2PortInitialize(
         ERROR("PS2-Port (%i): Failed port reset", Port->Index);
         return OsError;
     }
-
-    // Identify type of device on port
     Port->Signature = PS2IdentifyPort(Port->Index);
     
     // If the signature is ok - device present

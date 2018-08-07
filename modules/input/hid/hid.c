@@ -20,15 +20,10 @@
  */
 //#define __TRACE
 
-/* Includes
- * - System */
 #include <os/utils.h>
 #include <os/usb.h>
-#include "hid.h"
-
-/* Includes
- * - Library */
 #include <stdlib.h>
+#include "hid.h"
 
 /* HidDeviceCreate
  * Initializes a new hid-device from the given usb-device */

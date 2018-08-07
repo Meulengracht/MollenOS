@@ -50,21 +50,21 @@ typedef struct _UsbManagerEndpoint {
  * Describes a generic controller with information needed
  * in order for the manager to function */
 typedef struct _UsbManagerController {
-    UUId_t                  Id;
-    UsbControllerType_t     Type;
-    MCoreDevice_t           Device;
-    MContract_t             Contract;
+    UUId_t              Id;
+    UsbControllerType_t Type;
+    MCoreDevice_t       Device;
+    MContract_t         Contract;
 
-    UUId_t                  Interrupt;
-    reg32_t                 InterruptStatus;
-    size_t                  PortCount;
+    UUId_t              Interrupt;
+    reg32_t             InterruptStatus;
+    size_t              PortCount;
     
-    DeviceIoSpace_t*        IoBase;
-    UsbScheduler_t*         Scheduler;
+    DeviceIo_t*         IoBase;
+    UsbScheduler_t*     Scheduler;
 
-    Collection_t*           Endpoints;
-    Collection_t*           TransactionList;
-    Spinlock_t              Lock;
+    Collection_t*       Endpoints;
+    Collection_t*       TransactionList;
+    Spinlock_t          Lock;
 } UsbManagerController_t;
 
 #define USB_OUT_OF_RESOURCES       (void*)0

@@ -20,68 +20,60 @@
  * - Contains a glue layer to access hardware-io functionality
  *   that all sub-layers / architectures must conform to
  */
-#ifndef _MCORE_IO_H_
-#define _MCORE_IO_H_
+#ifndef __SYSTEM_IO_INTEFACE_H__
+#define __SYSTEM_IO_INTEFACE_H__
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
+#include <memoryspace.h>
+#include <deviceio.h>
 
-/* Io Systems Definitions 
- * Contains bit definitions and magic constants */
-#define IO_SOURCE_MEMORY            0
-#define IO_SOURCE_HARDWARE          1
+/* ReadDirectIo 
+ * Reads a value from the given raw io source. Accepted values in width are 1, 2, 4 or 8. */
+KERNELAPI OsStatus_t KERNELABI
+ReadDirectIo(
+    _In_  DeviceIoType_t            Type,
+    _In_  uintptr_t                 Address,
+    _In_  size_t                    Width,
+    _Out_ size_t*                   Value);
 
-/* IoRead 
- * Reads a value from the given data source. Accepted values in
- * width are 1, 2, 4 or 8. */
-KERNELAPI
-OsStatus_t
-KERNELABI
-IoRead(
-    _In_ int        Source,
-    _In_ uintptr_t  Address,
-    _In_ size_t     Width,
-    _Out_ size_t   *Value);
+/* WriteDirectIo 
+ * Writes a value to the given raw io source. Accepted values in width are 1, 2, 4 or 8. */
+KERNELAPI OsStatus_t KERNELABI
+WriteDirectIo(
+    _In_ DeviceIoType_t             Type,
+    _In_ uintptr_t                  Address,
+    _In_ size_t                     Width,
+    _In_ size_t                     Value);
 
-/* IoWrite 
- * Writes a value to the given data source. Accepted values in
- * width are 1, 2, 4 or 8. */
-KERNELAPI
-OsStatus_t
-KERNELABI
-IoWrite(
-    _In_ int        Source,
-    _In_ uintptr_t  Address,
-    _In_ size_t     Width,
-    _In_ size_t     Value);
+/* ReadDirectPci
+ * Reads a value from the given pci address. Accepted values in width are 1, 2, 4 or 8. */
+KERNELAPI OsStatus_t KERNELABI
+ReadDirectPci(
+    _In_  unsigned                  Bus,
+    _In_  unsigned                  Slot,
+    _In_  unsigned                  Function,
+    _In_  unsigned                  Register,
+    _In_  size_t                    Width,
+    _Out_ size_t*                   Value);
 
-/* PciRead
- * Reads a value from the given pci address. Accepted values in
- * width are 1, 2, 4 or 8. */
-KERNELAPI
-OsStatus_t
-KERNELABI
-PciRead(
-    _In_ unsigned   Bus,
-    _In_ unsigned   Slot,
-    _In_ unsigned   Function,
-    _In_ unsigned   Register,
-    _In_ size_t     Width,
-    _Out_ size_t   *Value);
+/* WriteDirectPci
+ * Writes a value to the given pci address. Accepted values in width are 1, 2, 4 or 8. */
+KERNELAPI OsStatus_t KERNELABI
+WriteDirectPci(
+    _In_ unsigned                   Bus,
+    _In_ unsigned                   Slot,
+    _In_ unsigned                   Function,
+    _In_ unsigned                   Register,
+    _In_ size_t                     Width,
+    _In_ size_t                     Value);
 
-/* PciWrite
- * Writes a value to the given pci address. Accepted values in
- * width are 1, 2, 4 or 8. */
-KERNELAPI
-OsStatus_t
-KERNELABI
-PciWrite(
-    _In_ unsigned   Bus,
-    _In_ unsigned   Slot,
-    _In_ unsigned   Function,
-    _In_ unsigned   Register,
-    _In_ size_t     Width,
-    _In_ size_t     Value);
+/* SetDirectIoAccess
+ * Set's the io status of the given memory space. */
+KERNELAPI OsStatus_t KERNELABI
+SetDirectIoAccess(
+    _In_ UUId_t                     CoreId,
+    _In_ SystemMemorySpace_t*       MemorySpace,
+    _In_ uint16_t                   Port,
+    _In_ int                        Enable);
 
-#endif //!_MCORE_IO_H_
+#endif //!__SYSTEM_IO_INTEFACE_H__

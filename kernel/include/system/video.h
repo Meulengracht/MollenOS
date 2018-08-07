@@ -49,8 +49,8 @@ PACKED_TYPESTRUCT(BootTerminal, {
 /* Video Type Definitions
  * Currently only two kind of video types needs
  * to be supported for boot - textmode or lfbmode */
-#define VIDEO_NONE				0x00000000
-#define VIDEO_TEXT				0x00000001
+#define VIDEO_NONE				0x00000000  // @todo rename uart
+#define VIDEO_TEXT				0x00000001  // @todo rename tty
 #define VIDEO_GRAPHICS			0x00000002
 
 /* VideoGetTerminal

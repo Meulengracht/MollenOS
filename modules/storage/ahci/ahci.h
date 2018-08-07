@@ -63,7 +63,7 @@ PACKED_ATYPESTRUCT(volatile, AHCIGenericRegisters, {
     reg32_t                CcControl;           // Coalescing Control
     reg32_t                CcPorts;             // Coalescing Ports
     
-    reg32_t                EmLocation;          //Enclosure Management Location
+    reg32_t                EmLocation;          // Enclosure Management Location
     reg32_t                EmControl;           // Enclosure Management Control
     
     reg32_t                CapabilitiesExtended;
@@ -319,8 +319,7 @@ PACKED_ATYPESTRUCT(volatile, AHCIFis, {
 #define AHCI_PORT_SERR_CLEARALL             0x3FF783
 
 /* The AHCI Controller Port 
- * Contains all memory structures neccessary
- * for port transactions */
+ * Contains all memory structures neccessary for port transactions */
 typedef struct _AhciPort {
     int                     Id;
     int                     Index;
@@ -335,16 +334,21 @@ typedef struct _AhciPort {
     void*                   CommandTable;
 
     // Status of command slots
-    // There can be max 32 slots,
-    // so we use a 32 bit unsigned
+    // There can be max 32 slots, so we use a 32 bit unsigned
     uint32_t                SlotStatus;
-    reg32_t                 InterruptStatus;
 
     // Transactions for this port 
-    // Keeps track of active transfers. 
-    // Key -> Slot, SubKey -> Multiplier
+    // Keeps track of active transfers. Key -> Slot, SubKey -> Multiplier
     Collection_t*           Transactions;
 } AhciPort_t;
+
+/* AhciInterruptResource
+ * The shared interrupt resource that is used to store data from the fast interrupt
+ * into process interrupt. */
+typedef struct _AhciInterruptResource {
+    reg32_t                 ControllerInterruptStatus;
+    reg32_t                 PortInterruptStatus[AHCI_MAX_PORTS];
+} AhciInterruptResource_t;
 
 /* The AHCI Controller 
  * It contains all information neccessary 
@@ -352,11 +356,11 @@ typedef struct _AhciPort {
 typedef struct _AhciController {
     MCoreDevice_t           Device;
     MContract_t             Contract;
-    UUId_t                  Interrupt;
+    AhciInterruptResource_t InterruptResource;
+    UUId_t                  InterruptId;
     Spinlock_t              Lock;
-    reg32_t                 InterruptStatus;
 
-    DeviceIoSpace_t*        IoBase;
+    DeviceIo_t*             IoBase;
     AHCIGenericRegisters_t* Registers;
 
     AhciPort_t*             Ports[AHCI_MAX_PORTS];

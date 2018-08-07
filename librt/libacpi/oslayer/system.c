@@ -110,7 +110,7 @@ AcpiOsInstallInterruptHandler (
     void                    *Context)
 {
     // Variables
-    MCoreInterrupt_t ACPIInterrupt;
+    DeviceInterrupt_t ACPIInterrupt;
 
     // Sanitize param
     if (InterruptNumber >= 32) {
@@ -118,13 +118,13 @@ AcpiOsInstallInterruptHandler (
     }
     
     // Setup interrupt
-    memset(&ACPIInterrupt, 0, sizeof(MCoreInterrupt_t));
-	ACPIInterrupt.Data = Context;
-	ACPIInterrupt.Line = InterruptNumber;
-	ACPIInterrupt.Pin = INTERRUPT_NONE;
-	ACPIInterrupt.Vectors[0] = InterruptNumber;
-	ACPIInterrupt.Vectors[1] = INTERRUPT_NONE;
-    ACPIInterrupt.FastHandler = (InterruptHandler_t)ServiceRoutine;
+    memset(&ACPIInterrupt, 0, sizeof(DeviceInterrupt_t));
+    ACPIInterrupt.FastInterrupt.Handler = (InterruptHandler_t)ServiceRoutine;
+	ACPIInterrupt.Context               = Context;
+	ACPIInterrupt.Line                  = InterruptNumber;
+	ACPIInterrupt.Pin                   = INTERRUPT_NONE;
+	ACPIInterrupt.Vectors[0]            = InterruptNumber;
+	ACPIInterrupt.Vectors[1]            = INTERRUPT_NONE;
 
 	// Install it
     AcpiGbl_InterruptId[InterruptNumber] = InterruptRegister(&ACPIInterrupt, INTERRUPT_KERNEL);

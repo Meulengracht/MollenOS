@@ -23,14 +23,17 @@
 
 #include <process/phoenix.h>
 #include <process/server.h>
-#include <system/iospace.h>
 #include <modules/modules.h>
 #include <acpiinterface.h>
 #include <interrupts.h>
+#include <deviceio.h>
+#include <os/input.h>
 #include <os/acpi.h>
+#include <machine.h>
 #include <timers.h>
 #include <debug.h>
 #include <heap.h>
+#include <pipe.h>
 
 // Externs
 extern OsStatus_t ScRpcExecute(MRemoteCall_t* RemoteCall, int Async);
@@ -124,12 +127,9 @@ ScAcpiQueryInterrupt(
  * or atleast dummy-implementation */
 OsStatus_t
 ScIoSpaceRegister(
-    _In_ DeviceIoSpace_t*   IoSpace)
+    _In_ DeviceIo_t*        IoSpace)
 {
-    if (IoSpace == NULL) {
-        return OsError;
-    }
-    return IoSpaceRegister(IoSpace);
+    return RegisterSystemDeviceIo(IoSpace);
 }
 
 /* ScIoSpaceAcquire
@@ -138,12 +138,9 @@ ScIoSpaceRegister(
  * two drivers using the same device */
 OsStatus_t
 ScIoSpaceAcquire(
-    _In_ DeviceIoSpace_t*   IoSpace)
+    _In_ DeviceIo_t*        IoSpace)
 {
-    if (IoSpace == NULL) {
-        return OsError;
-    }
-    return IoSpaceAcquire(IoSpace);
+    return AcquireSystemDeviceIo(IoSpace);
 }
 
 /* ScIoSpaceRelease
@@ -152,9 +149,9 @@ ScIoSpaceAcquire(
  * two drivers using the same device */
 OsStatus_t
 ScIoSpaceRelease(
-    _In_ DeviceIoSpace_t*   IoSpace)
+    _In_ DeviceIo_t*        IoSpace)
 {
-    return IoSpaceRelease(IoSpace);
+    return ReleaseSystemDeviceIo(IoSpace);
 }
 
 /* ScIoSpaceDestroy
@@ -163,9 +160,9 @@ ScIoSpaceRelease(
  * can only be removed if its not already acquired */
 OsStatus_t
 ScIoSpaceDestroy(
-    _In_ UUId_t             IoSpace)
+    _In_ DeviceIo_t*        IoSpace)
 {
-    return IoSpaceDestroy(IoSpace);
+    return DestroySystemDeviceIo(IoSpace);
 }
 
 /* Allows a server to register an alias for its 
@@ -269,7 +266,7 @@ ScLoadDriver(
  * can be called by the event-system */
 UUId_t
 ScRegisterInterrupt(
-    _In_ MCoreInterrupt_t*  Interrupt,
+    _In_ DeviceInterrupt_t* Interrupt,
     _In_ Flags_t            Flags)
 {
     if (Interrupt == NULL
@@ -287,6 +284,28 @@ ScUnregisterInterrupt(
     _In_ UUId_t             Source)
 {
     return InterruptUnregister(Source);
+}
+
+/* ScKeyEvent
+ * Handles key notification by redirecting them to the standard input in the system. */
+OsStatus_t
+ScKeyEvent(
+    _In_ SystemKey_t*       Key)
+{
+    if (GetMachine()->StdInput != NULL) {
+        return WriteSystemPipe(GetMachine()->StdInput, (const uint8_t*)Key, sizeof(SystemKey_t));
+    }
+    return OsSuccess;
+}
+
+/* ScInputEvent
+ * Handles input notification by redirecting them to the window manager input. */
+OsStatus_t
+ScInputEvent(
+    _In_ SystemInput_t*     Input)
+{
+    // @todo
+    return OsError;
 }
 
 /* ScTimersStart

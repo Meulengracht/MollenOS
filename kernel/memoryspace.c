@@ -37,7 +37,7 @@ extern OsStatus_t   InitializeVirtualSpace(SystemMemorySpace_t*);
 extern OsStatus_t   CloneVirtualSpace(SystemMemorySpace_t*, SystemMemorySpace_t*, int);
 extern OsStatus_t   DestroyVirtualSpace(SystemMemorySpace_t*);
 extern OsStatus_t   SwitchVirtualSpace(SystemMemorySpace_t*);
-extern OsStatus_t   ResolveVirtualSpaceAddress(SystemMemorySpace_t*, size_t, Flags_t, VirtualAddress_t*, PhysicalAddress_t*);
+extern OsStatus_t   ResolveVirtualSpaceAddress(SystemMemorySpace_t*, size_t, Flags_t, VirtualAddress_t*);
 
 extern OsStatus_t   GetVirtualPageAttributes(SystemMemorySpace_t*, VirtualAddress_t, Flags_t*);
 extern OsStatus_t   SetVirtualPageAttributes(SystemMemorySpace_t*, VirtualAddress_t, Flags_t);
@@ -57,14 +57,14 @@ OsStatus_t
 InitializeSystemMemorySpace(
     _In_ SystemMemorySpace_t*   SystemMemorySpace)
 {
-	// Setup reference and lock
+    // Setup reference and lock
     SystemMemorySpace->Parent   = NULL;
     SystemMemorySpace->Id       = atomic_fetch_add(&AddressSpaceIdGenerator, 1);
-	CriticalSectionConstruct(&SystemMemorySpace->SyncObject, CRITICALSECTION_REENTRANCY);
-	atomic_store(&SystemMemorySpace->References, 1);
+    CriticalSectionConstruct(&SystemMemorySpace->SyncObject, CRITICALSECTION_REENTRANCY);
+    atomic_store(&SystemMemorySpace->References, 1);
 
     // Let the architecture initialize further
-	return InitializeVirtualSpace(SystemMemorySpace);
+    return InitializeVirtualSpace(SystemMemorySpace);
 }
 
 /* CreateSystemMemorySpace
@@ -74,27 +74,27 @@ SystemMemorySpace_t*
 CreateSystemMemorySpace(
     _In_ Flags_t                Flags)
 {
-	SystemMemorySpace_t *MemorySpace = NULL;
+    SystemMemorySpace_t *MemorySpace = NULL;
     int i;
 
-	// If we want to create a new kernel address
-	// space we instead want to re-use the current 
-	// If kernel is specified, ignore rest 
-	if (Flags == MEMORY_SPACE_INHERIT) {
-		// Inheritance is a bit different, we re-use again
-		// but instead of reusing the kernel, we reuse the current
-		MemorySpace = GetCurrentSystemMemorySpace();
+    // If we want to create a new kernel address
+    // space we instead want to re-use the current 
+    // If kernel is specified, ignore rest 
+    if (Flags == MEMORY_SPACE_INHERIT) {
+        // Inheritance is a bit different, we re-use again
+        // but instead of reusing the kernel, we reuse the current
+        MemorySpace = GetCurrentSystemMemorySpace();
         atomic_fetch_add(&MemorySpace->References, 1);
-	}
-	else if (Flags & (MEMORY_SPACE_APPLICATION | MEMORY_SPACE_SERVICE)) {
-		// Allocate a new address space
-		MemorySpace = (SystemMemorySpace_t*)kmalloc(sizeof(SystemMemorySpace_t));
+    }
+    else if (Flags & (MEMORY_SPACE_APPLICATION | MEMORY_SPACE_SERVICE)) {
+        // Allocate a new address space
+        MemorySpace = (SystemMemorySpace_t*)kmalloc(sizeof(SystemMemorySpace_t));
         memset((void*)MemorySpace, 0, sizeof(SystemMemorySpace_t));
 
         MemorySpace->Id         = atomic_fetch_add(&AddressSpaceIdGenerator, 1);
-		MemorySpace->Flags      = Flags;
-		MemorySpace->References = 1;
-		CriticalSectionConstruct(&MemorySpace->SyncObject, CRITICALSECTION_REENTRANCY);
+        MemorySpace->Flags      = Flags;
+        MemorySpace->References = 1;
+        CriticalSectionConstruct(&MemorySpace->SyncObject, CRITICALSECTION_REENTRANCY);
 
         // Parent must be the upper-most instance of the address-space
         // of the process. Only to the point of not having kernel as parent
@@ -113,11 +113,11 @@ CreateSystemMemorySpace(
             }
         }
         CloneVirtualSpace(MemorySpace->Parent, MemorySpace, (Flags & MEMORY_SPACE_INHERIT) ? 1 : 0);
-	}
-	else {
-		FATAL(FATAL_SCOPE_KERNEL, "Invalid flags parsed in CreateSystemMemorySpace 0x%x", Flags);
-	}
-	return MemorySpace;
+    }
+    else {
+        FATAL(FATAL_SCOPE_KERNEL, "Invalid flags parsed in CreateSystemMemorySpace 0x%x", Flags);
+    }
+    return MemorySpace;
 }
 
 /* ReleaseSystemMemorySpace
@@ -127,20 +127,20 @@ OsStatus_t
 ReleaseSystemMemorySpace(
     _In_ SystemMemorySpace_t*   SystemMemorySpace)
 {
-	// Acquire lock on the address space
+    // Acquire lock on the address space
     int References = atomic_fetch_sub(&SystemMemorySpace->References, 1) - 1;
 
-	// In case that was the last reference cleanup the address space otherwise
-	// just unlock
-	if (References == 0) {
-		if (SystemMemorySpace->Flags & (MEMORY_SPACE_APPLICATION | MEMORY_SPACE_SERVICE)) {
-			DestroyVirtualSpace(SystemMemorySpace);
-		}
-		kfree(SystemMemorySpace);
-	}
+    // In case that was the last reference cleanup the address space otherwise
+    // just unlock
+    if (References == 0) {
+        if (SystemMemorySpace->Flags & (MEMORY_SPACE_APPLICATION | MEMORY_SPACE_SERVICE)) {
+            DestroyVirtualSpace(SystemMemorySpace);
+        }
+        kfree(SystemMemorySpace);
+    }
 
     // Reduce a reference to our parent as-well if we have one
-	return (SystemMemorySpace->Parent == NULL) ? OsSuccess : ReleaseSystemMemorySpace(SystemMemorySpace->Parent);
+    return (SystemMemorySpace->Parent == NULL) ? OsSuccess : ReleaseSystemMemorySpace(SystemMemorySpace->Parent);
 }
 
 /* SwitchSystemMemorySpace
@@ -150,7 +150,7 @@ OsStatus_t
 SwitchSystemMemorySpace(
     _In_ SystemMemorySpace_t*   SystemMemorySpace)
 {
-	return SwitchVirtualSpace(SystemMemorySpace);
+    return SwitchVirtualSpace(SystemMemorySpace);
 }
 
 /* GetCurrentSystemMemorySpace
@@ -159,17 +159,17 @@ SwitchSystemMemorySpace(
 SystemMemorySpace_t*
 GetCurrentSystemMemorySpace(void)
 {
-	// Lookup current thread
-	MCoreThread_t *CurrentThread = ThreadingGetCurrentThread(CpuGetCurrentId());
+    // Lookup current thread
+    MCoreThread_t *CurrentThread = ThreadingGetCurrentThread(CpuGetCurrentId());
 
-	// if no threads are active return the kernel address space
-	if (CurrentThread == NULL) {
-		return GetSystemMemorySpace();
-	}
-	else {
+    // if no threads are active return the kernel address space
+    if (CurrentThread == NULL) {
+        return GetSystemMemorySpace();
+    }
+    else {
         assert(CurrentThread->MemorySpace != NULL);
-		return CurrentThread->MemorySpace;
-	}
+        return CurrentThread->MemorySpace;
+    }
 }
 
 /* GetSystemMemorySpace
@@ -231,36 +231,58 @@ ChangeSystemMemorySpaceProtection(
  * based on the mapping flags. */
 PhysicalAddress_t
 ResolvePhysicalMemorySpaceAddress(
-    _In_ PhysicalAddress_t* PhysicalAddress,
-    _In_ size_t             Size,
-    _In_ uintptr_t          Mask,
-    _In_ Flags_t            Flags)
+    _In_ size_t                 Size,
+    _In_ uintptr_t              Mask,
+    _In_ Flags_t                Flags)
 {
-    // Variables
-    uintptr_t PhysicalBase  = 0;
-
+    uintptr_t PhysicalBase = 0;
     switch (Flags & MAPPING_PMODE_MASK) {
-        case MAPPING_PROVIDED: {
-            assert(PhysicalAddress != NULL);
-            PhysicalBase = *PhysicalAddress;
+        case MAPPING_CONTIGIOUS: {
+            Flags_t PhysicalMemoryFlags = (Flags & MAPPING_DOMAIN) ? MEMORY_DOMAIN : 0;
+            PhysicalBase                = AllocateSystemMemory(Size, Mask, PhysicalMemoryFlags);
+            if (PhysicalBase == 0) {
+                ERROR(" > failed to allocate contiguous memory, soon out of memory!");
+                break;
+            }
         } break;
 
-        case MAPPING_CONTIGIOUS: {
-            if (Flags & MAPPING_DOMAIN) {
-                PhysicalBase = AllocateSystemMemory(Size, Mask, MEMORY_DOMAIN);
+        default:
+            break;
+    }
+    return PhysicalBase;
+}
+
+/* ResolveVirtualSystemMemorySpaceAddress
+ * Resolves the virtual memory address that shuld be used for mapping the
+ * requested memory. */
+VirtualAddress_t
+ResolveVirtualSystemMemorySpaceAddress(
+    _In_ SystemMemorySpace_t*   SystemMemorySpace,
+    _In_ size_t                 Size,
+    _In_ uintptr_t              Mask,
+    _In_ Flags_t                Flags)
+{
+    VirtualAddress_t VirtualBase = 0;
+    switch (Flags & MAPPING_VMODE_MASK) {
+        case MAPPING_PROCESS: {
+            MCoreAsh_t *CurrentProcess = PhoenixGetCurrentAsh();
+            assert(CurrentProcess != NULL);
+            VirtualBase = AllocateBlocksInBlockmap(CurrentProcess->Heap, Mask, Size);
+            if (VirtualBase == 0) {
+                ERROR("Ran out of memory for allocation 0x%x (heap)", Size);
+                break;
             }
-            else {
-                PhysicalBase = AllocateSystemMemory(Size, Mask, 0);
-            }
-        }; // Fall through to default case
+        } break;
 
         default: {
-            if (PhysicalAddress != NULL) {
-                *PhysicalAddress = PhysicalBase;
+            // Let the platfrom resolve these
+            OsStatus_t Status = ResolveVirtualSpaceAddress(SystemMemorySpace, Size, Flags, &VirtualBase);
+            if (Status == OsSuccess) {
+                break;
             }
         } break;
     }
-    return PhysicalBase;
+    return VirtualBase;
 }
 
 /* CreateSystemMemorySpaceMapping
@@ -276,71 +298,66 @@ CreateSystemMemorySpaceMapping(
     _In_        Flags_t                 Flags,
     _In_        uintptr_t               Mask)
 {
-    // Variables
-	PhysicalAddress_t PhysicalBase  = 0;
-    VirtualAddress_t VirtualBase    = 0;
+    PhysicalAddress_t PhysicalBase;
+    VirtualAddress_t VirtualBase;
     OsStatus_t Status               = OsSuccess;
-	int PageCount                   = DIVUP(Size, GetSystemMemoryPageSize());
-	int i;
-
-    // Assert that address space is not null
+    int PageCount                   = DIVUP(Size, GetSystemMemoryPageSize());
+    int i;
     assert(SystemMemorySpace != NULL);
 
-    PhysicalBase = ResolvePhysicalMemorySpaceAddress(PhysicalAddress, Size, Mask, Flags);
-    switch (Flags & MAPPING_VMODE_MASK) {
-        case MAPPING_FIXED: {
-            assert(VirtualAddress != NULL);
-            VirtualBase = *VirtualAddress;
-        } break;
+    // Get the physical address base, however it can turn out to be 0. This simply
+    // means we handle it one at the time in the mapping process
+    if (Flags & MAPPING_PROVIDED) { 
+        assert(PhysicalAddress != NULL);
+        PhysicalBase = *PhysicalAddress;
+    }
+    else {
+        PhysicalBase = ResolvePhysicalMemorySpaceAddress(Size, Mask, Flags);
+        if (PhysicalAddress != NULL) {
+            *PhysicalAddress = __MASK; // Reset it and update on first map
+        }
+    }
 
-        case MAPPING_PROCESS: {
-            MCoreAsh_t *CurrentProcess = PhoenixGetCurrentAsh();
-            assert(CurrentProcess != NULL);
-            VirtualBase = AllocateBlocksInBlockmap(CurrentProcess->Heap, __MASK, Size);
-            if (VirtualBase == 0) {
-                ERROR("Ran out of memory for allocation 0x%x (heap)", Size);
-                return OsError;
-            }
-            if (VirtualAddress != NULL) {
-                *VirtualAddress = VirtualBase;
-            }
-        } break;
-
-        default: {
-            // Let the platfrom resolve these
-            Status = ResolveVirtualSpaceAddress(SystemMemorySpace, Size, Flags, &VirtualBase, &PhysicalBase);
-            if (Status == OsSuccess) {
-                if (VirtualAddress != NULL) {
-                    *VirtualAddress = VirtualBase;
-                }
-                if (PhysicalAddress != NULL && *PhysicalAddress != PhysicalBase) {
-                    *PhysicalAddress = PhysicalBase;
-                }
-                break;
-            }
-            FATAL(FATAL_SCOPE_KERNEL, "Invalid memory mode specified 0x%x", Flags);
-        } break;
+    // Get the virtual address space, this however may not end up as 0 if it the mapping
+    // is not provided already.
+    if (Flags & MAPPING_FIXED) {
+        assert(VirtualAddress != NULL);
+        VirtualBase = *VirtualAddress;
+    }
+    else {
+        VirtualBase = ResolveVirtualSystemMemorySpaceAddress(SystemMemorySpace, Size, Mask, Flags);
+        if (VirtualBase == 0) {
+            ERROR(" > failed to allocate virtual memory for the mapping");
+            return OsError;
+        }
+        if (VirtualAddress != NULL) {
+            *VirtualAddress = VirtualBase;
+        }
     }
 
     // Iterate the number of pages to map 
-	for (i = 0; i < PageCount; i++) {
+    for (i = 0; i < PageCount; i++) {
         uintptr_t VirtualPage   = (VirtualBase + (i * GetSystemMemoryPageSize()));
-		uintptr_t PhysicalPage  = 0;
+        uintptr_t PhysicalPage  = 0;
         
+        // Either use the pre-allocated/pre-provided memory base, otherwise allocate
+        // one-by-one on the fly
         if (PhysicalBase != 0 || (Flags & MAPPING_PROVIDED)) {
-            PhysicalPage        = PhysicalBase + (i * GetSystemMemoryPageSize());
+            PhysicalPage = PhysicalBase + (i * GetSystemMemoryPageSize());
         }
-		else {
-			PhysicalPage        = AllocateSystemMemory(GetSystemMemoryPageSize(), Mask, 0);  // MAPPING_DOMAIN
-            if (PhysicalAddress != NULL && *PhysicalAddress == 0) {
-                *PhysicalAddress = PhysicalPage;
-            }
-		}
+        else {
+            PhysicalPage = AllocateSystemMemory(GetSystemMemoryPageSize(), Mask, 0);  // MAPPING_DOMAIN
+        }
+
+        // Update the physical base
+        if (PhysicalAddress != NULL && *PhysicalAddress == __MASK) {
+            *PhysicalAddress = PhysicalPage;
+        }
 
         Status = SetVirtualPageMapping(SystemMemorySpace, PhysicalPage, VirtualPage, Flags);
-		// The only reason this ever turns error if the mapping exists, in this case free the allocated
+        // The only reason this ever turns error if the mapping exists, in this case free the allocated
         // resources if they are our allocations, and ignore
-		if (Status != OsSuccess) {
+        if (Status != OsSuccess) {
             if ((Flags & MAPPING_CONTIGIOUS) && i != 0) {
                 FATAL(FATAL_SCOPE_KERNEL, "Remapping error with a contigious call");
             }
@@ -354,8 +371,63 @@ CreateSystemMemorySpaceMapping(
             if (PhysicalAddress != NULL && *PhysicalAddress == PhysicalPage) {
                 *PhysicalAddress = GetVirtualPageMapping(SystemMemorySpace, VirtualPage);
             }
-		}
-	}
+        }
+    }
+    return Status;
+}
+
+/* CloneSystemMemorySpaceMapping
+ * Clones a region of memory mappings into the address space provided. The new mapping
+ * will automatically be marked PERSISTANT and PROVIDED. */
+OsStatus_t
+CloneSystemMemorySpaceMapping(
+    _In_        SystemMemorySpace_t*    SourceSpace,
+    _In_        SystemMemorySpace_t*    DestinationSpace,
+    _In_        VirtualAddress_t        SourceAddress,
+    _InOut_Opt_ VirtualAddress_t*       DestinationAddress,
+    _In_        size_t                  Size, 
+    _In_        Flags_t                 Flags,
+    _In_        uintptr_t               Mask)
+{
+    VirtualAddress_t VirtualBase;
+    OsStatus_t Status               = OsSuccess;
+    int PageCount                   = DIVUP(Size, GetSystemMemoryPageSize());
+    int i;
+    assert(SourceSpace != NULL);
+    assert(DestinationSpace != NULL);
+
+    // Get the virtual address space, this however may not end up as 0 if it the mapping
+    // is not provided already.
+    if (Flags & MAPPING_FIXED) {
+        assert(DestinationAddress != NULL);
+        VirtualBase = *DestinationAddress;
+    }
+    else {
+        VirtualBase = ResolveVirtualSystemMemorySpaceAddress(DestinationSpace, Size, Mask, 
+            Flags | MAPPING_PERSISTENT | MAPPING_PROVIDED);
+        if (VirtualBase == 0) {
+            ERROR(" > failed to allocate virtual memory for the mapping");
+            return OsError;
+        }
+        if (DestinationAddress != NULL) {
+            *DestinationAddress = VirtualBase;
+        }
+    }
+
+    // Iterate the number of pages to map 
+    for (i = 0; i < PageCount; i++) {
+        uintptr_t VirtualPage   = (VirtualBase + (i * GetSystemMemoryPageSize()));
+        uintptr_t PhysicalPage  = GetSystemMemoryMapping(SourceSpace, SourceAddress + (i * GetSystemMemoryPageSize()));
+        
+        Status = SetVirtualPageMapping(DestinationSpace, PhysicalPage, VirtualPage, 
+            Flags | MAPPING_PERSISTENT | MAPPING_PROVIDED);
+        // The only reason this ever turns error if the mapping exists, in this case free the allocated
+        // resources if they are our allocations, and ignore
+        if (Status != OsSuccess) {
+            ERROR(" > failed to create virtual mapping for a clone mapping");
+            break;
+        }
+    }
     return Status;
 }
 
@@ -367,15 +439,14 @@ RemoveSystemMemoryMapping(
     _In_ VirtualAddress_t       Address, 
     _In_ size_t                 Size)
 {
-	// Variables
     OsStatus_t Status;
-	int PageCount = DIVUP(Size, GetSystemMemoryPageSize());
-	int i;
+    int PageCount = DIVUP(Size, GetSystemMemoryPageSize());
+    int i;
 
     // Sanitize address space
     assert(SystemMemorySpace != NULL);
 
-	for (i = 0; i < PageCount; i++) {
+    for (i = 0; i < PageCount; i++) {
         uintptr_t VirtualPage = Address + (i * GetSystemMemoryPageSize());
         if (GetVirtualPageMapping(SystemMemorySpace, VirtualPage) != 0) {
             Status = ClearVirtualPageMapping(SystemMemorySpace, VirtualPage);
@@ -386,9 +457,9 @@ RemoveSystemMemoryMapping(
         else {
             TRACE("Ignoring free on unmapped address 0x%x", VirtualPage);
         }
-	}
+    }
     SynchronizePageRegion(SystemMemorySpace, Address, Size);
-	return OsSuccess;
+    return OsSuccess;
 }
 
 /* GetSystemMemoryMapping
@@ -411,7 +482,7 @@ IsSystemMemoryPageDirty(
     _In_ SystemMemorySpace_t*   SystemMemorySpace,
     _In_ VirtualAddress_t       Address)
 {
-	// Variables
+    // Variables
     OsStatus_t Status   = OsSuccess;
     Flags_t Flags       = 0;
     
@@ -434,7 +505,7 @@ IsSystemMemoryPresent(
     _In_ SystemMemorySpace_t*   SystemMemorySpace,
     _In_ VirtualAddress_t       Address)
 {
-	// Variables
+    // Variables
     OsStatus_t Status   = OsSuccess;
     Flags_t Flags       = 0;
     

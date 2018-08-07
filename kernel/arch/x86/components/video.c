@@ -443,12 +443,12 @@ TextPutCharacter(
 		+ __GlbVideoTerminal.CursorX);
 
 	// Send the high byte.
-	IoWrite(IO_SOURCE_HARDWARE, 0x3D4, 1, 14);
-	IoWrite(IO_SOURCE_HARDWARE, 0x3D5, 1, (uint8_t)(CursorLoc >> 8));
+	WriteDirectIo(DeviceIoPortBased, 0x3D4, 1, 14);
+	WriteDirectIo(DeviceIoPortBased, 0x3D5, 1, (uint8_t)(CursorLoc >> 8));
 
 	// Send the low byte.
-	IoWrite(IO_SOURCE_HARDWARE, 0x3D4, 1, 15);
-	IoWrite(IO_SOURCE_HARDWARE, 0x3D5, 1, (uint8_t)CursorLoc);
+	WriteDirectIo(DeviceIoPortBased, 0x3D4, 1, 15);
+	WriteDirectIo(DeviceIoPortBased, 0x3D5, 1, (uint8_t)CursorLoc);
 	return OsSuccess;
 }
 

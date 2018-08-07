@@ -32,7 +32,6 @@
 // Number of tls entries
 #define TLS_NUMBER_ENTRIES          64
 
-_CODE_BEGIN
 /* Thread Local Storage
  * This is the structure that exists seperately for each running
  * thread, and can be retrieved with TLSGetCurrent() which returns
@@ -64,6 +63,7 @@ PACKED_TYPESTRUCT(thread_storage, {
 #endif
 });
 
+_CODE_BEGIN
 /* tls_current 
  * Retrieves the local storage space for the current thread */
 CRTDECL(thread_storage_t*, tls_current(void));

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,28 +24,28 @@
 #ifndef _MCORE_SYSTEMINTS_H_
 #define _MCORE_SYSTEMINTS_H_
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
-
-/* Includes
- * - System */
 #include <interrupts.h>
+
+/* InterruptInitialize
+ * Initialize interrupts in the base system. */
+KERNELAPI OsStatus_t KERNELABI
+InterruptInitialize(void);
 
 /* InterruptResolve 
  * Resolves the table index from the given interrupt settings. */
 KERNELAPI OsStatus_t KERNELABI
 InterruptResolve(
-    _InOut_ MCoreInterrupt_t *Interrupt,
-    _In_ Flags_t Flags,
-    _Out_ UUId_t *TableIndex);
+    _In_  DeviceInterrupt_t*    Interrupt,
+    _In_  Flags_t               Flags,
+    _Out_ UUId_t*               TableIndex);
 
 /* InterruptConfigure
  * Configures the given interrupt in the system */
 KERNELAPI OsStatus_t KERNELABI
 InterruptConfigure(
-    _In_ MCoreInterruptDescriptor_t *Descriptor,
-    _In_ int Enable);
+    _In_ SystemInterrupt_t*     Descriptor,
+    _In_ int                    Enable);
 
 /* InterruptDisable
  * Disables interrupts and returns the state before disabling */
@@ -62,7 +62,7 @@ InterruptEnable(void);
  * state, that must have been saved from SaveState */
 KERNELAPI IntStatus_t KERNELABI
 InterruptRestoreState(
-    _In_ IntStatus_t State);
+    _In_ IntStatus_t            State);
 
 /* InterruptSaveState
  * Retrieves the current state of interrupts */

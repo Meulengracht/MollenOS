@@ -21,6 +21,7 @@
 #define __MODULE "PMEM"
 #define __TRACE
 
+#include <system/interrupts.h>
 #include <ds/blbitmap.h>
 #include <multiboot.h>
 #include <assert.h>
@@ -29,6 +30,7 @@
 #include <arch.h>
 #include <apic.h>
 #include <cpu.h>
+#include <gdt.h>
 
 // Interface to the arch-specific
 extern PAGE_MASTER_LEVEL* MmVirtualGetMasterTable(SystemMemorySpace_t* MemorySpace, VirtualAddress_t Address,
@@ -126,9 +128,6 @@ InitializeSystemMemory(
     MemoryMap->UserHeap.Start       = MEMORY_LOCATION_RING3_HEAP;
     MemoryMap->UserHeap.Length      = MEMORY_LOCATION_RING3_HEAP_END - MEMORY_LOCATION_RING3_HEAP;
     
-    MemoryMap->UserIoMemory.Start   = MEMORY_LOCATION_RING3_IOSPACE;
-    MemoryMap->UserIoMemory.Length  = MEMORY_LOCATION_RING3_IOSPACE_END - MEMORY_LOCATION_RING3_IOSPACE;
-
     MemoryMap->ThreadArea.Start     = MEMORY_LOCATION_RING3_THREAD_START;
     MemoryMap->ThreadArea.Length    = MEMORY_LOCATION_RING3_THREAD_END - MEMORY_LOCATION_RING3_THREAD_START;
 
@@ -146,20 +145,20 @@ ConvertSystemSpaceToPaging(Flags_t Flags)
     Flags_t NativeFlags = PAGE_PRESENT;
 
     if (Flags & MAPPING_USERSPACE) {
-		NativeFlags |= PAGE_USER;
-	}
-	if (Flags & MAPPING_NOCACHE) {
-		NativeFlags |= PAGE_CACHE_DISABLE;
-	}
+        NativeFlags |= PAGE_USER;
+    }
+    if (Flags & MAPPING_NOCACHE) {
+        NativeFlags |= PAGE_CACHE_DISABLE;
+    }
     if (!(Flags & MAPPING_READONLY)) {
         NativeFlags |= PAGE_WRITE;
     }
     if (Flags & MAPPING_ISDIRTY) {
         NativeFlags |= PAGE_DIRTY;
     }
-	if (Flags & MAPPING_PERSISTENT) {
-		NativeFlags |= PAGE_PERSISTENT;
-	}
+    if (Flags & MAPPING_PERSISTENT) {
+        NativeFlags |= PAGE_PERSISTENT;
+    }
     return NativeFlags;
 }
 
@@ -196,10 +195,13 @@ ConvertPagingToSystemSpace(Flags_t Flags)
  * Synchronizes the page address specified in the MemorySynchronization Object. */
 InterruptStatus_t
 PageSynchronizationHandler(
-    _In_ void*              Context)
+    _In_ FastInterruptResources_t*  NotUsed,
+    _In_ void*                      Context)
 {
     // Variables
     SystemMemorySpace_t *Current = GetCurrentSystemMemorySpace();
+    _CRT_UNUSED(NotUsed);
+    _CRT_UNUSED(Context);
 
     // Make sure the current address space is matching
     // If NULL => everyone must update
@@ -225,12 +227,17 @@ SynchronizePageRegion(
     _In_ uintptr_t              Address,
     _In_ size_t                 Length)
 {
-    // Multiple cores?
+    IntStatus_t Status;
+
+    // Skip this entire step if there is no multiple cores active
     if (GetMachine()->NumberOfActiveCores <= 1) {
         return;
     }
     assert(InterruptGetActiveStatus() == 0);
-    AtomicSectionEnter(&SyncData.SyncObject);
+
+    // Get the lock before disabling interrupts
+    SpinlockAcquire(&SyncData.SyncObject);
+    Status = InterruptDisable();
     
     // Setup arguments
     if (Address < MEMORY_LOCATION_KERNEL_END) {
@@ -252,7 +259,10 @@ SynchronizePageRegion(
     
     // Wait for all cpu's to have handled this.
     while(SyncData.CallsCompleted != (GetMachine()->NumberOfActiveCores - 1));
-    AtomicSectionLeave(&SyncData.SyncObject);
+
+    // Release lock before enabling interrupts to avoid a schedule before we've released.
+    SpinlockRelease(&SyncData.SyncObject);
+    InterruptRestoreState(Status);
 }
 
 /* ResolveVirtualSpaceAddress
@@ -263,12 +273,10 @@ ResolveVirtualSpaceAddress(
     _In_  SystemMemorySpace_t*  SystemMemorySpace,
     _In_  size_t                Size,
     _In_  Flags_t               Flags,
-    _Out_ VirtualAddress_t*     VirtualBase,
-    _Out_ PhysicalAddress_t*    PhysicalBase)
+    _Out_ VirtualAddress_t*     VirtualBase)
 {
     // unused
     _CRT_UNUSED(SystemMemorySpace);
-    _CRT_UNUSED(PhysicalBase);
 
     if (Flags & MAPPING_KERNEL) {
         *VirtualBase = AllocateBlocksInBlockmap(&KernelMemory, __MASK, Size);
@@ -303,31 +311,31 @@ SwitchVirtualSpace(
     assert(SystemMemorySpace->Data[MEMORY_SPACE_DIRECTORY] != 0);
 
     // Update current page-directory
-	memory_load_cr3(SystemMemorySpace->Data[MEMORY_SPACE_CR3]);
-	return OsSuccess;
+    memory_load_cr3(SystemMemorySpace->Data[MEMORY_SPACE_CR3]);
+    return OsSuccess;
 }
 
 /* SetVirtualPageAttributes
  * Changes memory protection flags for the given virtual address */
 OsStatus_t
 SetVirtualPageAttributes(
-	_In_ SystemMemorySpace_t*   MemorySpace,
-	_In_ VirtualAddress_t       Address,
+    _In_ SystemMemorySpace_t*   MemorySpace,
+    _In_ VirtualAddress_t       Address,
     _In_ Flags_t                Flags)
 {
-	// Variabes
+    // Variabes
     PAGE_MASTER_LEVEL *ParentDirectory;
-	PAGE_MASTER_LEVEL *Directory;
-	PageTable_t *Table;
+    PAGE_MASTER_LEVEL *Directory;
+    PageTable_t *Table;
     uint32_t Mapping;
     Flags_t ConvertedFlags;
-	int IsCurrent, Update;
+    int IsCurrent, Update;
 
     ConvertedFlags  = ConvertSystemSpaceToPaging(Flags);
     Directory       = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
     Table           = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, ConvertedFlags, &Update);
 
-	// Does page table exist?
+    // Does page table exist?
     if (Table == NULL) {
         return OsError;
     }
@@ -339,14 +347,14 @@ SetVirtualPageAttributes(
         }  
     }
 
-	// Map it, make sure we mask the page address so we don't accidently set any flags
+    // Map it, make sure we mask the page address so we don't accidently set any flags
     Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(Address)]);
     if (!(Mapping & PAGE_SYSTEM_MAP)) {
         atomic_store(&Table->Pages[PAGE_TABLE_INDEX(Address)], (Mapping & PAGE_MASK) | ConvertedFlags);
         if (IsCurrent) {
             memory_invalidate_addr(Address);
         }
-	    return OsSuccess;
+        return OsSuccess;
     }
     return OsError;
 }
@@ -355,31 +363,31 @@ SetVirtualPageAttributes(
  * Retrieves memory protection flags for the given virtual address */
 OsStatus_t
 GetVirtualPageAttributes(
-	_In_  SystemMemorySpace_t*  MemorySpace,
-	_In_  VirtualAddress_t      Address,
-	_Out_ Flags_t*              Flags)
+    _In_  SystemMemorySpace_t*  MemorySpace,
+    _In_  VirtualAddress_t      Address,
+    _Out_ Flags_t*              Flags)
 {
-	// Variabes
+    // Variabes
     PAGE_MASTER_LEVEL *ParentDirectory;
-	PAGE_MASTER_LEVEL *Directory;
-	PageTable_t *Table;
-	int IsCurrent, Update;
+    PAGE_MASTER_LEVEL *Directory;
+    PageTable_t *Table;
+    int IsCurrent, Update;
     Flags_t OriginalFlags;
 
     Directory   = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
     Table       = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0, &Update);
 
-	// Does page table exist?
+    // Does page table exist?
     if (Table == NULL) {
         return OsError;
     }
 
-	// Map it, make sure we mask the page address so we don't accidently set any flags
+    // Map it, make sure we mask the page address so we don't accidently set any flags
     if (Flags != NULL) {
         OriginalFlags   = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(Address)]) & ATTRIBUTE_MASK;
         *Flags          = ConvertPagingToSystemSpace(OriginalFlags);
     }
-	return OsSuccess;
+    return OsSuccess;
 }
 
 /* SetVirtualPageMapping
@@ -387,18 +395,18 @@ GetVirtualPageAttributes(
  * is controlled by the Flags parameter. */
 OsStatus_t
 SetVirtualPageMapping(
-	_In_ SystemMemorySpace_t*   MemorySpace,
-	_In_ PhysicalAddress_t      pAddress,
-	_In_ VirtualAddress_t       vAddress,
-	_In_ Flags_t                Flags)
+    _In_ SystemMemorySpace_t*   MemorySpace,
+    _In_ PhysicalAddress_t      pAddress,
+    _In_ VirtualAddress_t       vAddress,
+    _In_ Flags_t                Flags)
 {
-	// Variabes
+    // Variabes
     PAGE_MASTER_LEVEL *ParentDirectory;
-	PAGE_MASTER_LEVEL *Directory;
-	PageTable_t *Table;
+    PAGE_MASTER_LEVEL *Directory;
+    PageTable_t *Table;
     uint32_t Mapping;
     Flags_t ConvertedFlags;
-	int IsCurrent, Update;
+    int IsCurrent, Update;
 
     OsStatus_t Status = OsSuccess;
 
@@ -437,15 +445,15 @@ SyncTable:
         goto SyncTable;
     }
 
-	// Last step is to invalidate the address in the MMIO
+    // Last step is to invalidate the address in the MMIO
 LeaveFunction:
-	if (IsCurrent || Update) {
+    if (IsCurrent || Update) {
         if (Update) {
             memory_reload_cr3();
         }
         memory_invalidate_addr((vAddress & PAGE_MASK));
-	}
-	return OsSuccess;
+    }
+    return Status;
 }
 
 /* ClearVirtualPageMapping
@@ -456,12 +464,12 @@ ClearVirtualPageMapping(
     _In_ SystemMemorySpace_t*   MemorySpace,
     _In_ VirtualAddress_t       Address)
 {
-	// Variabes
+    // Variabes
     PAGE_MASTER_LEVEL *ParentDirectory;
-	PAGE_MASTER_LEVEL *Directory;
-	PageTable_t *Table;
+    PAGE_MASTER_LEVEL *Directory;
+    PageTable_t *Table;
     uint32_t Mapping;
-	int IsCurrent, Update;
+    int IsCurrent, Update;
 
     Directory   = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
     Table       = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0, &Update);
@@ -511,48 +519,51 @@ GetVirtualPageMapping(
     _In_ SystemMemorySpace_t*   MemorySpace,
     _In_ VirtualAddress_t       Address)
 {
-	// Variabes
+    // Variabes
     PAGE_MASTER_LEVEL *ParentDirectory;
-	PAGE_MASTER_LEVEL *Directory;
-	PageTable_t *Table;
+    PAGE_MASTER_LEVEL *Directory;
+    PageTable_t *Table;
     uint32_t Mapping;
-	int IsCurrent, Update;
+    int IsCurrent, Update;
 
     Directory   = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
     Table       = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0, &Update);
  
-	// Does page table exist?
+    // Does page table exist?
     if (Table == NULL) {
         return 0;
     }
 
     // Get the address and return with proper offset
-	Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(Address)]);
+    Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(Address)]);
 
     // Make sure we still return 0 if the mapping is indeed 0
     if ((Mapping & PAGE_MASK) == 0 || !(Mapping & PAGE_PRESENT)) {
         return 0;
     }
-	return ((Mapping & PAGE_MASK) + (Address & ATTRIBUTE_MASK));
+    return ((Mapping & PAGE_MASK) + (Address & ATTRIBUTE_MASK));
 }
 
-/* SetIoSpaceAccess
+/* SetDirectIoAccess
  * Set's the io status of the given memory space. */
 OsStatus_t
-SetIoSpaceAccess(
-    _In_ SystemMemorySpace_t*   MemorySpace,
-    _In_ uint16_t               Port,
-    _In_ int                    Enable)
+SetDirectIoAccess(
+    _In_ UUId_t                     CoreId,
+    _In_ SystemMemorySpace_t*       MemorySpace,
+    _In_ uint16_t                   Port,
+    _In_ int                        Enable)
 {
     // Cast the io-map to an uint8_t
     uint8_t *IoMap = (uint8_t*)MemorySpace->Data[MEMORY_SPACE_IOMAP];
 
-    // Update thread's io-map
+    // Update thread's io-map and the active access
     if (Enable) {
         IoMap[Port / 8] &= ~(1 << (Port % 8));
+        TssEnableIo(CoreId, Port);
     }
     else {
         IoMap[Port / 8] |= (1 << (Port % 8));
+        TssDisableIo(CoreId, Port);
     }
     return OsSuccess;
 }

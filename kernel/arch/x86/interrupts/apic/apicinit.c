@@ -409,8 +409,8 @@ ApicInitialize(void)
     // Step 1. Disable IMCR if present (to-do..) 
     // But the bit that tells us if IMCR is present
     // is located in the MP tables
-    IoWrite(IO_SOURCE_HARDWARE, 0x22, 1, 0x70);
-    IoWrite(IO_SOURCE_HARDWARE, 0x23, 1, 0x1);
+    WriteDirectIo(DeviceIoPortBased, 0x22, 1, 0x70);
+    WriteDirectIo(DeviceIoPortBased, 0x23, 1, 0x1);
 
     // Clear out the global timer-tick counter
     // we don't want any values in it previously :-)

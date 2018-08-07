@@ -171,11 +171,14 @@ HpReadMainCounter(
  * HPET Interrupt handler */
 InterruptStatus_t
 HpInterrupt(
-    _In_Opt_ void *InterruptData)
+    _In_ FastInterruptResources_t*  NotUsed,
+    _In_ void*                      Context)
 {
     // Variables
     reg32_t InterruptStatus = 0;
     int i                   = 0;
+    _CRT_UNUSED(NotUsed);
+    _CRT_UNUSED(Context);
 
     // Initiate values
     HpRead(HPET_REGISTER_INTSTATUS, &InterruptStatus);
@@ -261,12 +264,12 @@ HpComparatorStart(
     _In_ int        Periodic)
 {
     // Variables
-    MCoreInterrupt_t HpetInterrupt;
+    DeviceInterrupt_t HpetInterrupt;
     LargeInteger_t Now;
-    HpTimer_t *Timer    = &HpetController.Timers[Index];
-    uint64_t Delta      = 0;
-    reg32_t TempValue   = 0;
+    uint64_t Delta;
+    reg32_t TempValue;
     int i, j;
+    HpTimer_t *Timer = &HpetController.Timers[Index];
 
     // Debug
     TRACE("HpComparatorStart(%i, %u, %i)", Index, LODWORD(Frequency), Periodic);
@@ -286,11 +289,11 @@ HpComparatorStart(
     // Allocate interrupt for timer?
     if (Timer->Irq == INTERRUPT_NONE) {
         // Setup interrupt
-        memset(&HpetInterrupt, 0, sizeof(MCoreInterrupt_t));
-        HpetInterrupt.Data          = Timer;
-        HpetInterrupt.Line          = INTERRUPT_NONE;
-        HpetInterrupt.Pin           = INTERRUPT_NONE;
-        HpetInterrupt.FastHandler   = HpInterrupt;
+        memset(&HpetInterrupt, 0, sizeof(DeviceInterrupt_t));
+        HpetInterrupt.FastInterrupt.Handler     = HpInterrupt;
+        HpetInterrupt.Context                   = Timer;
+        HpetInterrupt.Line                      = INTERRUPT_NONE;
+        HpetInterrupt.Pin                       = INTERRUPT_NONE;
         TRACE(" > Gathering interrupts from irq-map 0x%x", Timer->InterruptMap);
 
         // From the interrupt map, calculate possible int's

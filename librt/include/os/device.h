@@ -33,135 +33,128 @@
 /* These definitions are in-place to allow a custom
  * setting of the device-manager, these are set to values
  * where in theory it should never be needed to have more */
-#define __DEVICEMANAGER_INTERFACE_VERSION		1
+#define __DEVICEMANAGER_INTERFACE_VERSION           1
 
-#define __DEVICEMANAGER_NAMEBUFFER_LENGTH		128
-#define __DEVICEMANAGER_MAX_IOSPACES			6
-#define __DEVICEMANAGER_IOSPACE_END				-1
+#define __DEVICEMANAGER_NAMEBUFFER_LENGTH           128
+#define __DEVICEMANAGER_MAX_IOSPACES                6
+#define __DEVICEMANAGER_IOSPACE_END                 (int)-1
 
 /* MCoreDevice ACPI Conform flags
  * This is essentially some bonus information that is
  * needed when registering interrupts */
-#define __DEVICEMANAGER_ACPICONFORM_PRESENT		0x00000001
-#define __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE	0x00000002
-#define __DEVICEMANAGER_ACPICONFORM_POLARITY	0x00000004
-#define __DEVICEMANAGER_ACPICONFORM_SHAREABLE	0x00000008
-#define __DEVICEMANAGER_ACPICONFORM_FIXED		0x00000010
+#define __DEVICEMANAGER_ACPICONFORM_PRESENT         0x00000001
+#define __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE     0x00000002
+#define __DEVICEMANAGER_ACPICONFORM_POLARITY        0x00000004
+#define __DEVICEMANAGER_ACPICONFORM_SHAREABLE       0x00000008
+#define __DEVICEMANAGER_ACPICONFORM_FIXED           0x00000010
 
 /* MCoreDevice Register Flags
  * Flags related to registering of new devices */
-#define __DEVICEMANAGER_REGISTER_LOADDRIVER		0x00000001
+#define __DEVICEMANAGER_REGISTER_LOADDRIVER         0x00000001
 
 /* MCoreDevice IoCtrl Flags
  * Flags related to registering of new devices */
-#define __DEVICEMANAGER_IOCTL_BUS				0x00000000
-#define __DEVICEMANAGER_IOCTL_EXT				0x00000001
+#define __DEVICEMANAGER_IOCTL_BUS                   0x00000000
+#define __DEVICEMANAGER_IOCTL_EXT                   0x00000001
 
 // Ioctl-Bus Specific Flags
-#define __DEVICEMANAGER_IOCTL_ENABLE			0x00000001
-#define __DEVICEMANAGER_IOCTL_IO_ENABLE			0x00000002
-#define __DEVICEMANAGER_IOCTL_MMIO_ENABLE		0x00000004
-#define __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE	0x00000008
-#define __DEVICEMANAGER_IOCTL_FASTBTB_ENABLE	0x00000010  // Fast Back-To-Back
+#define __DEVICEMANAGER_IOCTL_ENABLE                0x00000001
+#define __DEVICEMANAGER_IOCTL_IO_ENABLE             0x00000002
+#define __DEVICEMANAGER_IOCTL_MMIO_ENABLE           0x00000004
+#define __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE      0x00000008
+#define __DEVICEMANAGER_IOCTL_FASTBTB_ENABLE        0x00000010  // Fast Back-To-Back
 
 // Ioctl-Ext Specific Flags
-#define __DEVICEMANAGER_IOCTL_EXT_WRITE			0x00000000
-#define __DEVICEMANAGER_IOCTL_EXT_READ			0x80000000
+#define __DEVICEMANAGER_IOCTL_EXT_WRITE             0x00000000
+#define __DEVICEMANAGER_IOCTL_EXT_READ              0x80000000
 
 /* These are the different IPC functions supported
  * by the devicemanager, note that some of them might
  * be changed in the different versions, and/or new
  * functions will be added */
-#define __DEVICEMANAGER_REGISTERDEVICE			IPC_DECL_FUNCTION(0)
-#define __DEVICEMANAGER_UNREGISTERDEVICE		IPC_DECL_FUNCTION(1)
-#define __DEVICEMANAGER_QUERYDEVICE				IPC_DECL_FUNCTION(2)
-#define __DEVICEMANAGER_IOCTLDEVICE				IPC_DECL_FUNCTION(3)
+#define __DEVICEMANAGER_REGISTERDEVICE              IPC_DECL_FUNCTION(0)
+#define __DEVICEMANAGER_UNREGISTERDEVICE            IPC_DECL_FUNCTION(1)
+#define __DEVICEMANAGER_QUERYDEVICE                 IPC_DECL_FUNCTION(2)
+#define __DEVICEMANAGER_IOCTLDEVICE                 IPC_DECL_FUNCTION(3)
 
-#define __DEVICEMANAGER_REGISTERCONTRACT		IPC_DECL_FUNCTION(4)
-#define __DEVICEMANAGER_UNREGISTERCONTRACT		IPC_DECL_FUNCTION(5)
-#define __DEVICEMANAGER_QUERYCONTRACT			IPC_DECL_FUNCTION(6)
+#define __DEVICEMANAGER_REGISTERCONTRACT            IPC_DECL_FUNCTION(4)
+#define __DEVICEMANAGER_UNREGISTERCONTRACT          IPC_DECL_FUNCTION(5)
+#define __DEVICEMANAGER_QUERYCONTRACT               IPC_DECL_FUNCTION(6)
 
 /* This is the base device structure definition
  * and is passed on to all drivers on their initialization
  * to give them an overview and description of their device 
  * and functions to read/write directly to the device */
 PACKED_TYPESTRUCT(MCoreDevice, {
-	UUId_t						Id;
-    char						Name[__DEVICEMANAGER_NAMEBUFFER_LENGTH];
-    size_t                      Length;
+    UUId_t              Id;
+    char                Name[__DEVICEMANAGER_NAMEBUFFER_LENGTH];
+    size_t              Length;
 
-	// Device Information
-	// This is used both by the devicemanager
-	// and by the driver to match
-	DevInfo_t					VendorId;
-	DevInfo_t					DeviceId;
-	DevInfo_t					Class;
-	DevInfo_t					Subclass;
+    // Device Information
+    // This is used both by the devicemanager and by the driver to match
+    DevInfo_t           VendorId;
+    DevInfo_t           DeviceId;
+    DevInfo_t           Class;
+    DevInfo_t           Subclass;
 
-	// Interrupt and I/O Space information
-	MCoreInterrupt_t			Interrupt;
-	DeviceIoSpace_t				IoSpaces[__DEVICEMANAGER_MAX_IOSPACES];
+    // Interrupt and I/O Space information
+    DeviceInterrupt_t   Interrupt;
+    DeviceIo_t          IoSpaces[__DEVICEMANAGER_MAX_IOSPACES];
 
-	// Device Bus Information 
-	// This describes the location on
-	// the bus, and these informations
-	// can be used to control the bus-device
-	DevInfo_t					Segment;
-	DevInfo_t					Bus;
-	DevInfo_t					Slot;
-	DevInfo_t					Function;
+    // Device Bus Information 
+    // This describes the location on the bus, and these informations
+    // can be used to control the bus-device
+    DevInfo_t           Segment;
+    DevInfo_t           Bus;
+    DevInfo_t           Slot;
+    DevInfo_t           Function;
 });
 
 /* RegisterDevice
  * Allows registering of a new device in the
  * device-manager, and automatically queries for a driver for the new device */
-CRTDECL(
-UUId_t,
+CRTDECL(UUId_t,
 RegisterDevice(
-	_In_    UUId_t          Parent,
-	_InOut_ MCoreDevice_t*  Device, 
-	_In_    Flags_t         Flags));
+    _In_ UUId_t          Parent,
+    _In_ MCoreDevice_t*  Device, 
+    _In_ Flags_t         Flags));
 
 /* UnregisterDevice
  * Allows removal of a device in the device-manager, and automatically 
  * unloads drivers for the removed device */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 UnregisterDevice(
-	_In_ UUId_t DeviceId));
+    _In_ UUId_t         DeviceId));
 
 /* IoctlDevice
  * Allows manipulation of a given device to either disable
  * or enable, or configure the device */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 IoctlDevice(
-	_In_ UUId_t Device,
-	_In_ Flags_t Command,
-	_In_ Flags_t Flags));
+    _In_ UUId_t         Device,
+    _In_ Flags_t        Command,
+    _In_ Flags_t        Flags));
 
 /* IoctlDeviceEx
  * Allows manipulation of a given device to either disable
  * or enable, or configure the device.
  * <Direction> = 0 (Read), 1 (Write) */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 IoctlDeviceEx(
-	_In_ UUId_t Device,
-	_In_ int Direction,
-	_In_ Flags_t Register,
-	_InOut_ Flags_t *Value,
-	_In_ size_t Width));
+    _In_    UUId_t      Device,
+    _In_    int         Direction,
+    _In_    Flags_t     Register,
+    _InOut_ Flags_t*    Value,
+    _In_    size_t      Width));
 
 /* InstallDriver 
  * Tries to find a suitable driver for the given device
  * by searching storage-medias for the vendorid/deviceid 
  * combination or the class/subclass combination if specific
  * is not found */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 InstallDriver(
-	_In_ MCoreDevice_t *Device,
-	_In_ size_t Length));
+    _In_ MCoreDevice_t* Device,
+    _In_ size_t         Length));
 
 #endif //!_DEVICE_INTERFACE_H_

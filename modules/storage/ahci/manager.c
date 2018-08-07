@@ -30,8 +30,8 @@
 #include "manager.h"
 
 // Static storage for the disk manager
-static Collection_t Disks             = COLLECTION_INIT(KeyInteger);
-static UUId_t         DiskIdGenerator = 0;
+static Collection_t Disks               = COLLECTION_INIT(KeyInteger);
+static UUId_t       DiskIdGenerator     = 0;
 
 /* AHCIStringFlip 
  * Flips a string returned by an ahci command so it's readable */
@@ -101,7 +101,7 @@ AhciManagerCreateDevice(
     _In_ AhciPort_t*        Port)
 {
     AhciTransaction_t *Transaction  = NULL;
-    DmaBuffer_t *Buffer              = NULL;
+    DmaBuffer_t *Buffer             = NULL;
     AhciDevice_t *Device            = NULL;
 
     // First of all, is this a port multiplier? 

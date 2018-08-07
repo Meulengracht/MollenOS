@@ -85,76 +85,74 @@
  * It describes a device on the pci-bus, the resources
  * its command register, status and its system bars */
 PACKED_TYPESTRUCT(PciNativeHeader, {
-    uint16_t                VendorId; /* 0x00 */
-    uint16_t                DeviceId; /* 0x02 */
-    uint16_t                Command;  /* 0x04 */
-    uint16_t                Status;   /* 0x06 */
-    uint8_t                 Revision; /* 0x08 */
-    uint8_t                 Interface;/* 0x09 */
-    uint8_t                 Subclass; /* 0x0A */
-    uint8_t                 Class;    /* 0x0B */
-    uint8_t                 CacheLineSize;/* 0x0C */
-    uint8_t                 LatencyTimer; /* 0x0D */
-    uint8_t                 HeaderType;   /* 0x0E */
-    uint8_t                 Bist;     /* 0x0F */
-    uint32_t                Bar0;     /* 0x10 */
-    uint32_t                Bar1;     /* 0x14 */
-    uint32_t                Bar2;     /* 0x18 */
-    uint32_t                Bar3;     /* 0x1C */
-    uint32_t                Bar4;     /* 0x20 */
-    uint32_t                Bar5;     /* 0x24 */
-    uint32_t                CardbusCISPtr;/* 0x28 */
-    uint16_t                SubSystemVendorId;/* 0x2C */
-    uint16_t                SubSystemId;  /* 0x2E */
-    uint32_t                ExpansionRomBaseAddr;/* 0x30 */
-    uint32_t                Reserved0;    /* 0x34 */
-    uint32_t                Reserved1;    /* 0x38 */
-    uint8_t                 InterruptLine;/* 0x3C */
-    uint8_t                 InterruptPin; /* 0x3D */
-    uint8_t                 MinGrant;     /* 0x3E */
-    uint8_t                 MaxLatency;   /* 0x3F */
+    uint16_t        VendorId; /* 0x00 */
+    uint16_t        DeviceId; /* 0x02 */
+    uint16_t        Command;  /* 0x04 */
+    uint16_t        Status;   /* 0x06 */
+    uint8_t         Revision; /* 0x08 */
+    uint8_t         Interface;/* 0x09 */
+    uint8_t         Subclass; /* 0x0A */
+    uint8_t         Class;    /* 0x0B */
+    uint8_t         CacheLineSize;/* 0x0C */
+    uint8_t         LatencyTimer; /* 0x0D */
+    uint8_t         HeaderType;   /* 0x0E */
+    uint8_t         Bist;     /* 0x0F */
+    uint32_t        Bar0;     /* 0x10 */
+    uint32_t        Bar1;     /* 0x14 */
+    uint32_t        Bar2;     /* 0x18 */
+    uint32_t        Bar3;     /* 0x1C */
+    uint32_t        Bar4;     /* 0x20 */
+    uint32_t        Bar5;     /* 0x24 */
+    uint32_t        CardbusCISPtr;/* 0x28 */
+    uint16_t        SubSystemVendorId;/* 0x2C */
+    uint16_t        SubSystemId;  /* 0x2E */
+    uint32_t        ExpansionRomBaseAddr;/* 0x30 */
+    uint32_t        Reserved0;    /* 0x34 */
+    uint32_t        Reserved1;    /* 0x38 */
+    uint8_t         InterruptLine;/* 0x3C */
+    uint8_t         InterruptPin; /* 0x3D */
+    uint8_t         MinGrant;     /* 0x3E */
+    uint8_t         MaxLatency;   /* 0x3F */
 });
 
 /* The PCI bus header, this is used
  * by the bus code, and is not related to any hardware structure. 
  * This keeps track of the bus's in the system and their io space */
 typedef struct _PciBus {
-    DeviceIoSpace_t         IoSpace;
-    int                     IsExtended;
-    int                     Segment;
-    int                     BusStart;
-    int                     BusEnd;
+    DeviceIo_t      IoSpace;
+    int             IsExtended;
+    int             Segment;
+    int             BusStart;
+    int             BusEnd;
 } PciBus_t;
 
 /* PCI Device header
  * Represents a device on the pci-bus, keeps information
  * about location, children, and a parent device/controller */
 typedef struct _PciDevice {
-    struct _PciDevice       *Parent;
-    PciBus_t                *BusIo;
-    int                      IsBridge;
+    struct _PciDevice*  Parent;
+    PciBus_t*           BusIo;
+    int                 IsBridge;
 
-    DevInfo_t                Bus;
-    DevInfo_t                Slot;
-    DevInfo_t                Function;
-    Flags_t                  AcpiConform;
+    DevInfo_t           Bus;
+    DevInfo_t           Slot;
+    DevInfo_t           Function;
+    Flags_t             AcpiConform;
 
-    PciNativeHeader_t       *Header;
-    Collection_t            *Children;
+    PciNativeHeader_t*  Header;
+    Collection_t*       Children;
 } PciDevice_t;
 
 /* BusEnumerate
  * Enumerates the pci-bus, on newer pcs its possbile for 
  * devices exists on TWO different busses. PCI and PCI Express. */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 BusEnumerate(void);
 
 /* PciRead32
  * Reads a 32 bit value from the pci-bus
  * at the specified location bus, slot, function and register */
-__EXTERN
-uint32_t
+__EXTERN uint32_t
 PciRead32(
     _In_ PciBus_t *Io,
     _In_ DevInfo_t Bus, 
@@ -234,8 +232,8 @@ __EXTERN uint8_t PciReadHeaderType(PciBus_t *BusIo,
 __EXTERN
 const char*
 PciToString(
-	_In_ uint8_t Class,
-	_In_ uint8_t SubClass,
-	_In_ uint8_t Interface);
+    _In_ uint8_t Class,
+    _In_ uint8_t SubClass,
+    _In_ uint8_t Interface);
 
 #endif //!__X86_BUS_INTERFACE__

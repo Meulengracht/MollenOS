@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
 {
 	// Variables
 	struct dirent *dp = NULL;
-	char filename_qfd[100];
+	char *filename_buffer;
 	char *dataptr = NULL;
 	FILE *out = NULL;
 	DIR *dfd = NULL;
@@ -305,13 +305,14 @@ int main(int argc, char *argv[])
 
     // Iterate entries
     printf("Generating ramdisk entries\n");
+    filename_buffer = malloc(512);
 	while ((dp = readdir(dfd)) != NULL) {
 		struct stat stbuf;
 
 		// Build path string
-		sprintf(filename_qfd, "initrd/%s", dp->d_name);
-		if (stat(filename_qfd, &stbuf) == -1) {
-			printf("Unable to stat file: %s\n", filename_qfd);
+		sprintf(filename_buffer, "initrd/%s", dp->d_name);
+		if (stat(filename_buffer, &stbuf) == -1) {
+			printf("Unable to stat file: %s\n", filename_buffer);
 			continue;
 		}
 
@@ -331,7 +332,7 @@ int main(int argc, char *argv[])
 			}
 
 			// Is it a driver? check if file exists with .drvm extension
-			FILE *drvdata = GetDriver(&filename_qfd[0]);
+			FILE *drvdata = GetDriver(filename_buffer);
 			FILE *entry = NULL;
 			char *name = NULL;
 			uint32_t type = drvdata == NULL ? 0x1 : 0x4;
@@ -411,7 +412,7 @@ int main(int argc, char *argv[])
             rddataheader.Flags = dflags;
 
 			// Load file data
-			entry = fopen(&filename_qfd[0], "rb+");
+			entry = fopen(filename_buffer, "rb+");
 			fseek(entry, 0, SEEK_END);
 			fsize = ftell(entry);
 			dataptr = malloc(fsize);

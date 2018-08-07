@@ -24,41 +24,48 @@
 #ifndef _MCORE_INTERRUPTS_H_
 #define _MCORE_INTERRUPTS_H_
 
-/* Includes
- * - Driver System */
 #include <os/interrupt.h>
 #include <os/driver.h>
-
-/* Includes 
- * - System */
 #include <os/ipc/ipc.h>
 #include <os/osdefs.h>
 #include <os/context.h>
 
 /* Special flags that are available only
  * in kernel context for special interrupts */
-#define INTERRUPT_KERNEL				0x10000000
+#define INTERRUPT_KERNEL                0x10000000
 #define INTERRUPT_CONTEXT               0x20000000
 
-/* MCoreInterruptDescriptor
+/* SystemInterrupt
  * The kernel interrupt descriptor structure. Contains
  * all information neccessary to store registered interrupts. */
-typedef struct _MCoreInterruptDescriptor {
-	MCoreInterrupt_t					Interrupt;
-	UUId_t								Id;
-	UUId_t								Ash;
-	UUId_t								Thread;
-	Flags_t								Flags;
-	int									Source;
-	struct _MCoreInterruptDescriptor	*Link;
-} MCoreInterruptDescriptor_t;
+typedef struct _SystemInterrupt {
+    DeviceInterrupt_t               Interrupt;
+    FastInterruptResourceTable_t    KernelResources;
+    UUId_t                          Id;
+    UUId_t                          Ash;
+    UUId_t                          Thread;
+    Flags_t                         Flags;
+    int                             Source;
+    struct _SystemInterrupt*        Link;
+} SystemInterrupt_t;
+
+/* InitializeInterruptTable
+ * Initializes the static system interrupt table. This must be done before any driver interrupts
+ * as they will rely on the system function table that gets passed along. */
+KERNELAPI void KERNELABI
+InitializeInterruptTable(void);
+
+/* FastInterruptResources_t
+ * Retrieves the system fast interrupt resource table to pass to process interrupt handlers. */
+KERNELAPI FastInterruptResources_t* KERNELABI
+GetFastInterruptTable(void);
 
 /* InterruptRegister
  * Tries to allocate the given interrupt source by the given descriptor and flags. On success
  * it returns the id of the irq, and on failure it returns UUID_INVALID */
 KERNELAPI UUId_t KERNELABI
 InterruptRegister(
-    _In_ MCoreInterrupt_t*  Interrupt,
+    _In_ DeviceInterrupt_t* Interrupt,
     _In_ Flags_t            Flags);
 
 /* InterruptUnregister 
@@ -69,14 +76,14 @@ InterruptUnregister(
     _In_ UUId_t             Source);
 
 /* InterruptGet
- * Retrieves the given interrupt source information as a MCoreInterruptDescriptor_t */
-KERNELAPI MCoreInterruptDescriptor_t* KERNELABI
+ * Retrieves the given interrupt source information as a SystemInterrupt_t */
+KERNELAPI SystemInterrupt_t* KERNELABI
 InterruptGet(
    _In_ UUId_t              Source);
 
 /* InterruptGetIndex
- * Retrieves the given interrupt source information as a MCoreInterruptDescriptor_t */
-KERNELAPI MCoreInterruptDescriptor_t* KERNELABI
+ * Retrieves the given interrupt source information as a SystemInterrupt_t */
+KERNELAPI SystemInterrupt_t* KERNELABI
 InterruptGetIndex(
    _In_ UUId_t              TableIndex);
 
@@ -125,8 +132,8 @@ InterruptGetPenalty(
  * most useful for MSI devices */
 KERNELAPI int KERNELABI
 InterruptGetLeastLoaded(
-	_In_ int                Irqs[],
-	_In_ int                Count);
+    _In_ int                Irqs[],
+    _In_ int                Count);
 
 /* AcpiGetPolarityMode
  * Returns whether or not the polarity is Active Low or Active High.
@@ -165,61 +172,48 @@ AcpiDeriveInterrupt(
  * Call this to send an interrupt into user-space
  * the driver must acknowledge the interrupt once its handled
  * to unmask the interrupt-line again */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 ScRpcExecute(
-	_In_ MRemoteCall_t *Rpc,
-	_In_ int Async);
+    _In_ MRemoteCall_t*     Rpc,
+    _In_ int                Async);
 
-SERVICEAPI
-OsStatus_t
-SERVICEABI
+SERVICEAPI OsStatus_t SERVICEABI
 __KernelInterruptDriver(
-	_In_ UUId_t Ash, 
-	_In_ UUId_t Id,
-	_In_ void *Data)
+    _In_ UUId_t             Ash, 
+    _In_ UUId_t             Id,
+    _In_ void*              Data)
 {
-	// Variables
     MRemoteCall_t Request;
     size_t Zero = 0;
 
-	// Initialze RPC
-	RPCInitialize(&Request, Ash, 1, __DRIVER_INTERRUPT);
-	RPCSetArgument(&Request, 0, (const void*)&Id, sizeof(UUId_t));
+    RPCInitialize(&Request, Ash, 1, __DRIVER_INTERRUPT);
+    RPCSetArgument(&Request, 0, (const void*)&Id, sizeof(UUId_t));
     RPCSetArgument(&Request, 1, (const void*)&Data, sizeof(void*));
     RPCSetArgument(&Request, 2, (const void*)&Zero, sizeof(size_t));
     RPCSetArgument(&Request, 3, (const void*)&Zero, sizeof(size_t));
     RPCSetArgument(&Request, 4, (const void*)&Zero, sizeof(size_t));
-
-	// Send
-	return ScRpcExecute(&Request, 1);
+    return ScRpcExecute(&Request, 1);
 }
 
 /* __KernelTimeoutDriver
  * Call this to send an timeout into userspace. The driver is
  * then informed about a timer-interval that elapsed. */
-SERVICEAPI
-OsStatus_t
-SERVICEABI
+SERVICEAPI OsStatus_t SERVICEABI
 __KernelTimeoutDriver(
-	_In_ UUId_t Ash, 
-	_In_ UUId_t TimerId,
-	_In_ void *TimerData)
+    _In_ UUId_t             Ash, 
+    _In_ UUId_t             TimerId,
+    _In_ void*              TimerData)
 {
-	// Variables
     MRemoteCall_t Request;
     size_t Zero = 0;
 
-	// Initialze RPC
-	RPCInitialize(&Request, Ash, 1, __DRIVER_TIMEOUT);
-	RPCSetArgument(&Request, 0, (const void*)&TimerId, sizeof(UUId_t));
+    RPCInitialize(&Request, Ash, 1, __DRIVER_TIMEOUT);
+    RPCSetArgument(&Request, 0, (const void*)&TimerId, sizeof(UUId_t));
     RPCSetArgument(&Request, 1, (const void*)&TimerData, sizeof(void*));
     RPCSetArgument(&Request, 2, (const void*)&Zero, sizeof(size_t));
     RPCSetArgument(&Request, 3, (const void*)&Zero, sizeof(size_t));
     RPCSetArgument(&Request, 4, (const void*)&Zero, sizeof(size_t));
-
-	// Send
-	return ScRpcExecute(&Request, 1);
+    return ScRpcExecute(&Request, 1);
 }
 
 #endif //!_MCORE_INTERRUPTS_H_

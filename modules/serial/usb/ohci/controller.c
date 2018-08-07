@@ -38,7 +38,7 @@
 /* Prototypes 
  * This is to keep the create/destroy at the top of the source file */
 OsStatus_t          OhciSetup(OhciController_t *Controller);
-InterruptStatus_t   OnFastInterrupt(void *InterruptData);
+InterruptStatus_t   OnFastInterrupt(FastInterruptResources_t*, void*);
 
 /* HciControllerCreate 
  * Initializes and creates a new Hci Controller instance
@@ -49,7 +49,8 @@ HciControllerCreate(
 {
     // Variables
     OhciController_t *Controller    = NULL;
-    DeviceIoSpace_t *IoBase         = NULL;
+    DeviceIo_t *IoBase              = NULL;
+    uintptr_t HccaPhysical;
     int i;
 
     // Allocate a new instance of the controller
@@ -67,8 +68,7 @@ HciControllerCreate(
     // Get I/O Base, and for OHCI it'll be the first address we encounter
     // of type MMIO
     for (i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
-        if (Controller->Base.Device.IoSpaces[i].Size != 0
-            && Controller->Base.Device.IoSpaces[i].Type == IO_SPACE_MMIO) {
+        if (Controller->Base.Device.IoSpaces[i].Type == DeviceIoMemoryBased) {
             IoBase = &Controller->Base.Device.IoSpaces[i];
             break;
         }
@@ -86,7 +86,7 @@ HciControllerCreate(
         IoBase->Type, IoBase->PhysicalBase, IoBase->Size);
 
     // Acquire the io-space
-    if (CreateIoSpace(IoBase) != OsSuccess || AcquireIoSpace(IoBase) != OsSuccess) {
+    if (AcquireDeviceIo(IoBase) != OsSuccess) {
         ERROR("Failed to create and acquire the io-space for ohci-controller");
         free(Controller);
         return NULL;
@@ -96,6 +96,16 @@ HciControllerCreate(
         Controller->Base.IoBase = IoBase;
     }
 
+    // Allocate the HCCA-space in low memory as controllers
+    // have issues with higher memory (<2GB)
+    if (MemoryAllocate(NULL, 0x1000, MEMORY_CLEAN | MEMORY_COMMIT
+        | MEMORY_LOWFIRST | MEMORY_UNCHACHEABLE, (void**)&Controller->Hcca, &HccaPhysical) != OsSuccess) {
+        ERROR("Failed to allocate space for HCCA");
+        free(Controller);
+        return NULL;
+    }
+    Controller->HccaPhysical = HccaPhysical;
+
     // Start out by initializing the contract
     InitializeContract(&Controller->Base.Contract, Controller->Base.Contract.DeviceId, 1,
         ContractController, "OHCI Controller Interface");
@@ -104,24 +114,26 @@ HciControllerCreate(
     TRACE("Io-Space was assigned virtual address 0x%x", IoBase->VirtualBase);
 
     // Instantiate the register-access and disable interrupts on device
-    Controller->Registers                           = (OhciRegisters_t*)IoBase->VirtualBase;
+    Controller->Registers                           = (OhciRegisters_t*)IoBase->Access.Memory.VirtualBase;
     Controller->Registers->HcInterruptEnable        = 0;
     Controller->Registers->HcInterruptDisable       = OHCI_MASTER_INTERRUPT;
 
     // Initialize the interrupt settings
-    Controller->Base.Device.Interrupt.FastHandler   = OnFastInterrupt;
-    Controller->Base.Device.Interrupt.Data          = Controller;
+    RegisterFastInterruptHandler(&Controller->Base.Device.Interrupt, OnFastInterrupt);
+    RegisterFastInterruptIoResource(&Controller->Base.Device.Interrupt, IoBase);
+    RegisterFastInterruptMemoryResource(&Controller->Base.Device.Interrupt, (uintptr_t)Controller, sizeof(OhciController_t), 0);
+    RegisterFastInterruptMemoryResource(&Controller->Base.Device.Interrupt, (uintptr_t)Controller->Hcca, 0x1000, INTERRUPT_RESOURCE_DISABLE_CACHE);
 
     // Register contract before interrupt
     if (RegisterContract(&Controller->Base.Contract) != OsSuccess) {
         ERROR("Failed to register contract for ohci-controller");
-        ReleaseIoSpace(Controller->Base.IoBase);
-        DestroyIoSpace(Controller->Base.IoBase->Id);
+        ReleaseDeviceIo(Controller->Base.IoBase);
         free(Controller);
         return NULL;
     }
 
     // Register interrupt
+    RegisterInterruptContext(&Controller->Base.Device.Interrupt, Controller);
     Controller->Base.Interrupt = RegisterInterruptSource(
         &Controller->Base.Device.Interrupt, INTERRUPT_USERSPACE);
 
@@ -131,8 +143,7 @@ HciControllerCreate(
             | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OsSuccess) {
         ERROR("Failed to enable the ohci-controller");
         UnregisterInterruptSource(Controller->Base.Interrupt);
-        ReleaseIoSpace(Controller->Base.IoBase);
-        DestroyIoSpace(Controller->Base.IoBase->Id);
+        ReleaseDeviceIo(Controller->Base.IoBase);
         free(Controller);
         return NULL;
     }
@@ -170,8 +181,7 @@ HciControllerDestroy(
     UnregisterInterruptSource(Controller->Interrupt);
 
     // Release the io-space
-    ReleaseIoSpace(Controller->IoBase);
-    DestroyIoSpace(Controller->IoBase->Id);
+    ReleaseDeviceIo(Controller->IoBase);
 
     // Free the list of endpoints
     CollectionDestroy(Controller->Endpoints);
@@ -345,6 +355,7 @@ OhciReset(
     Temporary                               |= OHCI_CONTROL_ISOC_ACTIVE;
     Temporary                               |= OHCI_CONTROL_REMOTEWAKE;
     Controller->Registers->HcControl        = Temporary;
+    Controller->QueuesActive                = OHCI_CONTROL_PERIODIC_ACTIVE | OHCI_CONTROL_ISOC_ACTIVE;
     TRACE(" > Wrote control to controller");
     return OsSuccess;
 }
@@ -356,29 +367,14 @@ OsStatus_t
 OhciSetup(
     _In_ OhciController_t*          Controller)
 {
-    // Variables
-    void *VirtualPointer        = NULL;
-    uintptr_t PhysicalAddress   = 0;
-    reg32_t Temporary           = 0;
+    reg32_t Temporary;
     int i;
 
     // Trace
     TRACE("OhciSetup()");
 
-    // Allocate the HCCA-space in low memory as controllers
-    // have issues with higher memory (<2GB)
-    if (MemoryAllocate(NULL, 0x1000, MEMORY_CLEAN | MEMORY_COMMIT
-        | MEMORY_LOWFIRST | MEMORY_UNCHACHEABLE, &VirtualPointer, &PhysicalAddress) != OsSuccess) {
-        ERROR("Failed to allocate space for HCCA");
-        return OsError;
-    }
-
-    // Cast the pointer to hcca
-    Controller->HccaPhysical    = LODWORD(PhysicalAddress);
-    Controller->Hcca            = (OhciHCCA_t*)VirtualPointer;
-
     // Retrieve the revision of the controller, we support 0x10 && 0x11
-    Temporary                   = (Controller->Registers->HcRevision & 0xFF);
+    Temporary = (Controller->Registers->HcRevision & 0xFF);
     if (Temporary != OHCI_REVISION1 && Temporary != OHCI_REVISION11) {
         ERROR("Invalid OHCI Revision (0x%x)", Temporary);
         return OsError;

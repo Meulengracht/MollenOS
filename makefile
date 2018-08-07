@@ -9,8 +9,14 @@
 # - CROSS=/path/to/cross/home
 #
 
+# Include all the definitions for os
+include config/common.mk
+
 .PHONY: all
 all: build_tools gen_revision build_bootloader build_libraries build_kernel build_drivers setup_userspace build_initrd
+
+.PHONY: tidy
+tidy: tidy_libraries tidy_kernel
 
 #kernel/git_revision.c: .git/HEAD .git/index
 #    echo "const char *gitversion = \"$(shell git rev-parse HEAD)\";" > $@
@@ -76,6 +82,21 @@ build_libraries:
 .PHONY: build_bootloader
 build_bootloader:
 	@$(MAKE) -s -C boot -f makefile
+
+# Tidy targets for static code analysis using tool like clang-tidy
+# these targets do not build anything, and we only clang-tidy our os-code
+.PHONY: tidy_kernel
+tidy_kernel:
+	@$(ANALYZER) $(MAKE) -s -C kernel -f makefile tidy
+
+.PHONY: tidy_drivers
+tidy_drivers:
+	@$(ANALYZER) $(MAKE) -s -C services -f makefile tidy
+	@$(ANALYZER) $(MAKE) -s -C modules -f makefile tidy
+
+.PHONY: tidy_libraries
+tidy_libraries:
+	@$(ANALYZER) $(MAKE) -s -C librt -f makefile tidy
 
 # Build the deploy directory, which contains the primary (system) drive
 # structure, system folder, default binaries etc

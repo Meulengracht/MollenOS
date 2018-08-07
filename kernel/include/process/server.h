@@ -23,12 +23,7 @@
 #ifndef _MCORE_SERVER_H_
 #define _MCORE_SERVER_H_
 
-/* Includes
-* - C-Library */
 #include <os/osdefs.h>
-
-/* Includes 
- * - System */
 #include <process/phoenix.h>
 #include <ds/blbitmap.h>
 
@@ -38,7 +33,6 @@
  * memory segment to allow for device memory */
 typedef struct _MCoreServer {
     MCoreAsh_t           Base;
-    BlockBitmap_t       *DriverMemory;
 
     DevInfo_t            VendorId;
     DevInfo_t            DeviceId;
@@ -55,15 +49,6 @@ UUId_t
 KERNELABI
 PhoenixCreateServer(
 	_In_ MString_t *Path);
-
-/* PhoenixCleanupServer
- * Cleans up all the server-specific resources allocated
- * this this AshServer, and afterwards call the base-cleanup */
-KERNELAPI
-void
-KERNELABI
-PhoenixCleanupServer(
-    _In_ MCoreServer_t *Server);
 
 /* PhoenixGetServer
  * This function looks up a server structure by id */

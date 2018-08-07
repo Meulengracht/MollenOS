@@ -123,7 +123,7 @@ HciTransactionFinalize(
     if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
         // Check if the link of the QH is eol
         reg32_t Status  = OhciCtrl->Registers->HcCommandStatus;
-        reg32_t Control = OhciCtrl->Registers->HcControl;
+        reg32_t Control = OhciCtrl->QueuesActive;
         if ((Status & OHCI_COMMAND_CONTROL_FILLED) == 0) {
             if (OhciCtrl->TransactionsWaitingControl != 0) {
                 // Conditions for control fulfilled
@@ -153,7 +153,7 @@ HciTransactionFinalize(
 
         // Update
         OhciCtrl->Registers->HcCommandStatus    = Status;
-        OhciCtrl->Registers->HcControl          = Control;
+        OhciCtrl->QueuesActive                  = Control;
     }
 
     // Don't unlink asynchronous transfers

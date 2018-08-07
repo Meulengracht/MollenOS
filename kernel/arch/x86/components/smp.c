@@ -22,10 +22,7 @@
  */
 #define __MODULE "SMP0"
 #define __TRACE
-//#define __DIAGNOSE
 
-/* Includes 
- * - System */
 #include <system/interrupts.h>
 #include <system/utils.h>
 #include <memoryspace.h>
@@ -37,16 +34,13 @@
 #include <idt.h>
 #include <cpu.h>
 #include <string.h>
-
-/* Includes
- * - Components */
 #include <component/domain.h>
 #include <component/cpu.h>
 
 /* External boot-stage for the application cores to jump into
  * kernel code and get initialized for execution. */
-extern const int __GlbTramplineCode_length;
-extern const char __GlbTramplineCode[];
+extern const int    __GlbTramplineCode_length;
+extern const char   __GlbTramplineCode[];
 
 /* SmpApplicationCoreEntry
  * The entry point for other cpu cores to get ready for code execution. This is neccessary
@@ -105,8 +99,7 @@ StartApplicationCore(
 }
 
 /* CpuSmpInitialize
- * Initializes an SMP environment and boots the
- * available cores in the system */
+ * Initializes an SMP environment and boots the available cores in the system */
 void
 CpuSmpInitialize(void)
 {

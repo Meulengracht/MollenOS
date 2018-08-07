@@ -23,7 +23,7 @@
 #define _X86_MEMORY_H_
 
 #include <os/osdefs.h>
-#include <atomicsection.h>
+#include <os/spinlock.h>
 #include <multiboot.h>
 #include <machine.h>
 #include <paging.h>
@@ -65,7 +65,7 @@ PACKED_TYPESTRUCT(BIOSMemoryRegion, {
 /* MemorySynchronizationObject
  * Used to synchronize paging structures across all cpu cores. */
 typedef struct _MemorySynchronizationObject {
-    AtomicSection_t SyncObject;
+    Spinlock_t      SyncObject;
     volatile int    CallsCompleted;
     void*           ParentPagingData;
     uintptr_t       Address;
@@ -87,29 +87,22 @@ ConvertPagingToSystemSpace(Flags_t Flags);
  * latest revision of the page-table cached. */
 KERNELAPI void KERNELABI
 SynchronizePageRegion(
-    _In_ SystemMemorySpace_t*   SystemMemorySpace,
-    _In_ uintptr_t              Address,
-    _In_ size_t                 Length);
+    _In_ SystemMemorySpace_t*       SystemMemorySpace,
+    _In_ uintptr_t                  Address,
+    _In_ size_t                     Length);
 
 /* PageSynchronizationHandler
  * Synchronizes the page address specified in the MemorySynchronization Object. */
 KERNELAPI InterruptStatus_t KERNELABI
 PageSynchronizationHandler(
-    _In_ void*              Context);
+    _In_ FastInterruptResources_t*  NotUsed,
+    _In_ void*                      Context);
 
 /* ClearKernelMemoryAllocation
  * Clears the kernel memory allocation at the given address and size. */
 KERNELAPI OsStatus_t KERNELABI
 ClearKernelMemoryAllocation(
-    _In_ uintptr_t              Address,
-    _In_ size_t                 Size);
-
-/* SetIoSpaceAccess
- * Set's the io status of the given memory space. */
-KERNELAPI OsStatus_t KERNELABI
-SetIoSpaceAccess(
-    _In_ SystemMemorySpace_t*   MemorySpace,
-    _In_ uint16_t               Port,
-    _In_ int                    Enable);
+    _In_ uintptr_t                  Address,
+    _In_ size_t                     Size);
 
 #endif // !_X86_MEMORY_H_

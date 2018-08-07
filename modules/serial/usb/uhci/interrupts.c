@@ -22,45 +22,36 @@
  */
 //#define __TRACE
 
-/* Includes 
- * - System */
 #include <os/mollenos.h>
 #include <os/utils.h>
-
-#include "../common/manager.h"
-#include "uhci.h"
-
-/* Includes
- * - Library */
-#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include "../common/manager.h"
+#include "uhci.h"
 
 /* OnFastInterrupt
  * Is called for the sole purpose to determine if this source
  * has invoked an irq. If it has, silence and return (Handled) */
 InterruptStatus_t
 OnFastInterrupt(
-    _In_Opt_ void *InterruptData)
+    _In_ FastInterruptResources_t*  InterruptTable,
+    _In_ void*                      NotUsed)
 {
     // Variables
-    UhciController_t *Controller = NULL;
+    UhciController_t *Controller    = (UhciController_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
+    DeviceIo_t* IoSpace             = INTERRUPT_IOSPACE(InterruptTable, 0);
     uint16_t InterruptStatus;
+    _CRT_UNUSED(NotUsed);
 
-    // Instantiate the pointer
-    Controller      = (UhciController_t*)InterruptData;
-    InterruptStatus = UhciRead16(Controller, UHCI_REGISTER_STATUS);
-    
     // Was the interrupt even from this controller?
+    InterruptStatus = LOWORD(InterruptTable->ReadIoSpace(IoSpace, UHCI_REGISTER_STATUS, 2));
     if (!(InterruptStatus & UHCI_STATUS_INTMASK)) {
         return InterruptNotHandled;
     }
-    
-    // Save interrupt bits
     Controller->Base.InterruptStatus |= InterruptStatus;
 
     // Clear interrupt bits
-    UhciWrite16(Controller, UHCI_REGISTER_STATUS, InterruptStatus);
+    InterruptTable->WriteIoSpace(IoSpace, UHCI_REGISTER_STATUS, InterruptStatus, 2);
     return InterruptHandled;
 }
 

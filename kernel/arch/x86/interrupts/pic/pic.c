@@ -39,11 +39,11 @@ PicGetElcr(_Out_ uint16_t *Elcr)
     size_t Storage      = 0;
 
     // Read registers and combine values
-    if (IoRead(IO_SOURCE_HARDWARE, PIC_PORT_ELCR + 1, 1, &Storage) != OsSuccess) {
+    if (ReadDirectIo(DeviceIoPortBased, PIC_PORT_ELCR + 1, 1, &Storage) != OsSuccess) {
         return OsError;
     }
     Status = (Storage & 0xFF) << 8;
-    if (IoRead(IO_SOURCE_HARDWARE, PIC_PORT_ELCR, 1, &Storage) != OsSuccess) {
+    if (ReadDirectIo(DeviceIoPortBased, PIC_PORT_ELCR, 1, &Storage) != OsSuccess) {
         return OsError;
     }
     Status |= (Storage & 0xFF);
@@ -64,30 +64,30 @@ PicInitialize(void)
     size_t Storage      = 0;
 
     // Initialize controller 1
-    IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_PRIMARY + PIC_REGISTER_ICW1, 1,    PIC_ICW1_SELECT | PIC_ICW1_ICW4); // Enable
-    IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_PRIMARY + PIC_REGISTER_ICW2, 1,    0x20); // Remap primary PIC to 0x20 - 0x28
-    IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_PRIMARY + PIC_REGISTER_ICW3, 1,    PIC_ICW3_CASCADE); // Cascade mode
-    IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_PRIMARY + PIC_REGISTER_ICW4, 1,    PIC_ICW4_MICROPC); // Enable i86 mode
+    WriteDirectIo(DeviceIoPortBased, PIC_PORT_PRIMARY + PIC_REGISTER_ICW1, 1,    PIC_ICW1_SELECT | PIC_ICW1_ICW4); // Enable
+    WriteDirectIo(DeviceIoPortBased, PIC_PORT_PRIMARY + PIC_REGISTER_ICW2, 1,    0x20); // Remap primary PIC to 0x20 - 0x28
+    WriteDirectIo(DeviceIoPortBased, PIC_PORT_PRIMARY + PIC_REGISTER_ICW3, 1,    PIC_ICW3_CASCADE); // Cascade mode
+    WriteDirectIo(DeviceIoPortBased, PIC_PORT_PRIMARY + PIC_REGISTER_ICW4, 1,    PIC_ICW4_MICROPC); // Enable i86 mode
 
     // Initialize controller 2
-    IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_SECONDARY + PIC_REGISTER_ICW1, 1,  PIC_ICW1_SELECT | PIC_ICW1_ICW4); // Enable
-    IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_SECONDARY + PIC_REGISTER_ICW2, 1,  0x28); // Remap Secondary PIC to 0x28 - 0x30
-    IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_SECONDARY + PIC_REGISTER_ICW3, 1,  PIC_ICW3_SLAVE); // Slave mode
-    IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_SECONDARY + PIC_REGISTER_ICW4, 1,  PIC_ICW4_MICROPC); // Enable i86 mode
+    WriteDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY + PIC_REGISTER_ICW1, 1,  PIC_ICW1_SELECT | PIC_ICW1_ICW4); // Enable
+    WriteDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY + PIC_REGISTER_ICW2, 1,  0x28); // Remap Secondary PIC to 0x28 - 0x30
+    WriteDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY + PIC_REGISTER_ICW3, 1,  PIC_ICW3_SLAVE); // Slave mode
+    WriteDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY + PIC_REGISTER_ICW4, 1,  PIC_ICW4_MICROPC); // Enable i86 mode
 
     // Mask out controllers IMR
-	IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_PRIMARY + PIC_REGISTER_IMR,   1, 0xFF); // except for cascade? (0xFB)
-    IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, 0xFF);
+	WriteDirectIo(DeviceIoPortBased, PIC_PORT_PRIMARY + PIC_REGISTER_IMR,   1, 0xFF); // except for cascade? (0xFB)
+    WriteDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, 0xFF);
 
     // Setup OCW's
-    IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_PRIMARY,   1, 0x20);
-    IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_SECONDARY, 1, 0x20);
+    WriteDirectIo(DeviceIoPortBased, PIC_PORT_PRIMARY,   1, 0x20);
+    WriteDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY, 1, 0x20);
     
     // Clear out any outstanding ISR's
-    IoRead(IO_SOURCE_HARDWARE, PIC_PORT_PRIMARY, 1, &Storage);
-    IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_PRIMARY, 1, 0x08 | 0x03);
-    IoRead(IO_SOURCE_HARDWARE, PIC_PORT_SECONDARY, 1, &Storage);
-    IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_SECONDARY, 1, 0x08 | 0x03);
+    ReadDirectIo(DeviceIoPortBased, PIC_PORT_PRIMARY, 1, &Storage);
+    WriteDirectIo(DeviceIoPortBased, PIC_PORT_PRIMARY, 1, 0x08 | 0x03);
+    ReadDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY, 1, &Storage);
+    WriteDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY, 1, 0x08 | 0x03);
     
     // Initialize the ELCR if present
     // We do this by verifying irq 0, 1, 2, 8 and 13 are edge triggered
@@ -128,32 +128,32 @@ PicConfigureLine(
             Status &= ~(PIC_ELCR_MASK(Irq));
         }
         if (Irq >= 8) {
-            IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_ELCR + 1, 1, Status >> 8);
+            WriteDirectIo(DeviceIoPortBased, PIC_PORT_ELCR + 1, 1, Status >> 8);
         }
         else {
-            IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_ELCR, 1, Status & 0xff);
+            WriteDirectIo(DeviceIoPortBased, PIC_PORT_ELCR, 1, Status & 0xff);
         }
     }
 
     // Determine whether or not mask/unmask
     if (Enable == 0) {
         if (Irq >= 8) {
-            IoRead(IO_SOURCE_HARDWARE, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, &Mask);
-            IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, Mask | (1 << (Irq - 8)));
+            ReadDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, &Mask);
+            WriteDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, Mask | (1 << (Irq - 8)));
         }
         else {
-            IoRead(IO_SOURCE_HARDWARE, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1, &Mask);
-            IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1,  Mask | (1 << Irq));
+            ReadDirectIo(DeviceIoPortBased, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1, &Mask);
+            WriteDirectIo(DeviceIoPortBased, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1,  Mask | (1 << Irq));
         }
     }
     else {
         if (Irq >= 8) {
-            IoRead(IO_SOURCE_HARDWARE, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, &Mask);
-            IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, Mask & ~(1 << (Irq - 8)));
+            ReadDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, &Mask);
+            WriteDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, Mask & ~(1 << (Irq - 8)));
         }
         else {
-            IoRead(IO_SOURCE_HARDWARE, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1, &Mask);
-            IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1,  Mask & ~(1 << Irq));
+            ReadDirectIo(DeviceIoPortBased, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1, &Mask);
+            WriteDirectIo(DeviceIoPortBased, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1,  Mask & ~(1 << Irq));
         }
     }
 }
@@ -185,11 +185,11 @@ PicGetConfiguration(
 
     // Determine whether or not mask/unmask
     if (Irq >= 8) {
-        IoRead(IO_SOURCE_HARDWARE, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, &Mask);
+        ReadDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, &Mask);
         Irq -= 8;
     }
     else {
-        IoRead(IO_SOURCE_HARDWARE, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1, &Mask);
+        ReadDirectIo(DeviceIoPortBased, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1, &Mask);
     }
     *Enabled = (Mask & (1 << Irq)) == 0 ? 1 : 0;
 }
@@ -201,7 +201,7 @@ PicSendEoi(
     _In_ int Irq)
 {
 	if(Irq >= 8) {
-        IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_SECONDARY, 1, 0x20);
+        WriteDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY, 1, 0x20);
     }
-    IoWrite(IO_SOURCE_HARDWARE, PIC_PORT_PRIMARY, 1, 0x20);
+    WriteDirectIo(DeviceIoPortBased, PIC_PORT_PRIMARY, 1, 0x20);
 }

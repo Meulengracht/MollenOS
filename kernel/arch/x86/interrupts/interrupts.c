@@ -23,32 +23,27 @@
  * - ISA Interrupts should be routed to boot-processor without lowest-prio?
  */
 #define __MODULE        "IRQS"
-#define __TRACE
+//#define __TRACE
 
-/* Includes 
- * - System */
 #include <system/interrupts.h>
 #include <system/thread.h>
 #include <system/utils.h>
-
+#include <ds/collection.h>
 #include <process/phoenix.h>
 #include <acpiinterface.h>
 #include <interrupts.h>
 #include <threading.h>
 #include <memory.h>
 #include <thread.h>
+#include <assert.h>
+#include <stdio.h>
 #include <debug.h>
 #include <heap.h>
 #include <apic.h>
+#include <cpu.h>
 #include <gdt.h>
 #include <idt.h>
 #include <pic.h>
-
-/* Includes
- * - Library */
-#include <ds/collection.h>
-#include <assert.h>
-#include <stdio.h>
 
 /* ThreadingFpuException
  * Handles the fpu exception that might get triggered
@@ -60,7 +55,7 @@ extern OsStatus_t GetVirtualPageAttributes(SystemMemorySpace_t*, VirtualAddress_
 
 #define EFLAGS_INTERRUPT_FLAG        (1 << 9)
 #define APIC_FLAGS_DEFAULT            0x7F00000000000000
-#define NUM_ISA_INTERRUPTS			16
+#define NUM_ISA_INTERRUPTS            16
 
 // extern assembly functions
 extern void     __cli(void);
@@ -74,35 +69,33 @@ extern void     enter_thread(Context_t *Regs);
 void
 InitializeSoftwareInterrupts(void)
 {
-    // Variables
-	MCoreInterrupt_t Interrupt;
-    Interrupt.Data              = NULL;
-    Interrupt.Vectors[1]        = INTERRUPT_NONE;
-    Interrupt.Line              = INTERRUPT_NONE;
-    Interrupt.Pin               = INTERRUPT_NONE;
+    DeviceInterrupt_t Interrupt = { { 0 } };
+    Interrupt.Vectors[1]            = INTERRUPT_NONE;
+    Interrupt.Line                  = INTERRUPT_NONE;
+    Interrupt.Pin                   = INTERRUPT_NONE;
     
     // Yield interrupt
-    Interrupt.Vectors[0]        = INTERRUPT_YIELD;
-    Interrupt.FastHandler       = ThreadingYieldHandler;
+    Interrupt.Vectors[0]            = INTERRUPT_YIELD;
+    Interrupt.FastInterrupt.Handler = ThreadingYieldHandler;
     InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
         | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
 
     // Page synchronization interrupt
-    Interrupt.Vectors[0]        = INTERRUPT_SYNCHRONIZE_PAGE;
-    Interrupt.FastHandler       = PageSynchronizationHandler;
+    Interrupt.Vectors[0]            = INTERRUPT_SYNCHRONIZE_PAGE;
+    Interrupt.FastInterrupt.Handler = PageSynchronizationHandler;
     InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
         | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
-	
+    
     // Install local apic handlers
-	// - LVT Error handler
-	Interrupt.Vectors[0]        = INTERRUPT_LVTERROR;
-	Interrupt.FastHandler       = ApicErrorHandler;
+    // - LVT Error handler
+    Interrupt.Vectors[0]            = INTERRUPT_LVTERROR;
+    Interrupt.FastInterrupt.Handler = ApicErrorHandler;
     InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
         | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
-	
-	// - Timer handler
-    Interrupt.Vectors[0]        = INTERRUPT_LAPIC;
-	Interrupt.FastHandler       = ApicTimerHandler;
+    
+    // - Timer handler
+    Interrupt.Vectors[0]            = INTERRUPT_LAPIC;
+    Interrupt.FastInterrupt.Handler = ApicTimerHandler;
     InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
         | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
 }
@@ -112,9 +105,8 @@ InitializeSoftwareInterrupts(void)
  * from the interrupt structure */
 uint64_t
 InterruptGetApicConfiguration(
-    _In_ MCoreInterrupt_t *Interrupt)
+    _In_ DeviceInterrupt_t* Interrupt)
 {
-    // Variables
     uint64_t ApicFlags = APIC_FLAGS_DEFAULT;
 
     TRACE("InterruptDetermine(%i:%i)", Interrupt->Line, Interrupt->Pin);
@@ -195,7 +187,7 @@ InterruptGetApicConfiguration(
  * Resolves the table index from the given interrupt settings. */
 OsStatus_t
 InterruptResolve(
-    _In_    MCoreInterrupt_t*   Interrupt,
+    _In_    DeviceInterrupt_t*  Interrupt,
     _In_    Flags_t             Flags,
     _Out_   UUId_t*             TableIndex)
 {
@@ -253,8 +245,7 @@ InterruptResolve(
         // Bit      3: 0 = Destination is ONE CPU, 1 = Destination is Group
         // Bit      2: Destination Mode (1 Logical, 0 Physical)
         // Bits 00-01: X
-        Interrupt->MsiAddress = 0xFEE00000 | (0x0007F0000) 
-            | (0x8 | 0x4);
+        Interrupt->MsiAddress = 0xFEE00000 | (0x0007F0000) | 0x8 | 0x4;
 
         // Message Data Register Format
         // Bits 31-16: Reserved
@@ -287,10 +278,9 @@ InterruptResolve(
  * Configures the given interrupt in the system */
 OsStatus_t
 InterruptConfigure(
-    _In_ MCoreInterruptDescriptor_t*    Descriptor,
-    _In_ int                            Enable)
+    _In_ SystemInterrupt_t* Descriptor,
+    _In_ int                Enable)
 {
-    // Variables
     SystemInterruptController_t *Ic = NULL;
     uint64_t ApicFlags      = APIC_FLAGS_DEFAULT;
     UUId_t TableIndex       = 0;
@@ -306,8 +296,8 @@ InterruptConfigure(
     TRACE("InterruptConfigure(Id 0x%x, Enable %i)", Descriptor->Id, Enable);
 
     // Is this a software interrupt? Don't install
-    if (Descriptor->Flags & INTERRUPT_SOFT
-        || Descriptor->Interrupt.Line == INTERRUPT_NONE) {
+    if (Descriptor->Flags & INTERRUPT_SOFT || 
+        Descriptor->Interrupt.Line == INTERRUPT_NONE) {
         return OsSuccess;
     }
 
@@ -317,9 +307,9 @@ InterruptConfigure(
     }
 
     // Determine the kind of apic configuration
-    TableIndex = (Descriptor->Id & 0xFF);
-    ApicFlags = InterruptGetApicConfiguration(&Descriptor->Interrupt);
-    ApicFlags |= TableIndex;
+    TableIndex  = (Descriptor->Id & 0xFF);
+    ApicFlags   = InterruptGetApicConfiguration(&Descriptor->Interrupt);
+    ApicFlags  |= TableIndex;
 
     // Trace
     TRACE("Calculated flags for interrupt: 0x%x (TableIndex %u)", LODWORD(ApicFlags), TableIndex);
@@ -367,15 +357,13 @@ UpdateEntry:
     return OsSuccess;
 }
 
-/* InterruptEntryInterruptEntry
- * The common entry point for interrupts, all
- * non-exceptions will enter here, lookup a handler
- * and execute the code */
+/* InterruptEntry
+ * The common entry point for interrupts, all non-exceptions will enter here, 
+ * lookup a handler and execute the code */
 void
 InterruptEntry(
     _In_ Context_t *Registers)
 {
-    // Variables
     InterruptStatus_t Result    = InterruptNotHandled;
     int TableIndex              = (int)Registers->Irq + 32;
     int Gsi                     = APIC_NO_GSI;
@@ -385,7 +373,7 @@ InterruptEntry(
 
     // Sanitize the result of the
     // irq-handling - all irqs must be handled
-    if (Result != InterruptHandled 
+    if (Result == InterruptNotHandled 
         && InterruptGetIndex(TableIndex) == NULL) {
         // Unhandled interrupts are only ok if spurious
         // LAPIC, Interrupt 7 and 15
@@ -411,20 +399,17 @@ ExceptionSignal(
     _In_ Context_t  *Registers,
     _In_ int         Signal)
 {
-    // Variables
     MCoreThread_t *Thread   = NULL;
-    MCoreAsh_t *Process     = NULL;
     UUId_t Cpu              = CpuGetCurrentId();
 
     // Debug
     TRACE("ExceptionSignal(Signal %i)", Signal);
 
     // Sanitize if user-process
-    Process = PhoenixGetCurrentAsh();
 #ifdef __OSCONFIG_DISABLE_SIGNALLING
     if (Signal >= 0) {
 #else
-    if (Process == NULL) {
+    if (PhoenixGetCurrentAsh() == NULL) {
 #endif
         return OsError;
     }
@@ -447,7 +432,6 @@ void
 ExceptionEntry(
     _In_ Context_t *Registers)
 {
-    // Variables
     MCoreThread_t *Thread   = NULL;
     uintptr_t Address       = __MASK;
     int IssueFixed          = 0;
@@ -585,35 +569,21 @@ ExceptionEntry(
 }
 
 /* InterruptDisable
- * Disables interrupts and returns
- * the state before disabling */
+ * Disables interrupts and returns the state before disabling */
 IntStatus_t
 InterruptDisable(void)
 {
-    // Variables
-    IntStatus_t CurrentState;
-
-    // Save status
-    CurrentState = InterruptSaveState();
-
-    // Disable interrupts and return
+    IntStatus_t CurrentState = InterruptSaveState();
     __cli();
     return CurrentState;
 }
 
 /* InterruptEnable
- * Enables interrupts and returns 
- * the state before enabling */
+ * Enables interrupts and returns the state before enabling */
 IntStatus_t
 InterruptEnable(void)
 {
-    // Variables
-    IntStatus_t CurrentState;
-
-    // Save current status
-    CurrentState = InterruptSaveState();
-
-    // Enable interrupts and return
+    IntStatus_t CurrentState = InterruptSaveState();
     __sti();
     return CurrentState;
 }
@@ -647,11 +617,49 @@ InterruptSaveState(void)
 }
 
 /* InterruptIsDisabled
- * Returns 1 if interrupts are currently
- * disabled or 0 if interrupts are enabled */
+ * Returns 1 if interrupts are currently disabled or 0 if interrupts are enabled */
 int
 InterruptIsDisabled(void)
 {
-    /* Just negate this state */
     return !InterruptSaveState();
+}
+
+/* InterruptInitialize
+ * Initialize interrupts in the base system. */
+OsStatus_t
+InterruptInitialize(void)
+{
+    InitializeSoftwareInterrupts();
+#if defined(amd64) || defined(__amd64__)
+    TssCreateStacks();
+#endif
+
+    // Make sure we allocate all device interrupts
+    // so system can't take control of them
+    InterruptIncreasePenalty(0);    // PIT
+    InterruptIncreasePenalty(1);    // PS/2
+    InterruptIncreasePenalty(2);    // PIT / Cascade
+    InterruptIncreasePenalty(3);    // COM 2/4
+    InterruptIncreasePenalty(4);    // COM 1/3
+    InterruptIncreasePenalty(5);    // LPT2
+    InterruptIncreasePenalty(6);    // Floppy
+    InterruptIncreasePenalty(7);    // LPT1 / Spurious
+    InterruptIncreasePenalty(8);    // CMOS
+    InterruptIncreasePenalty(12);   // PS/2
+    InterruptIncreasePenalty(13);   // FPU
+    InterruptIncreasePenalty(14);   // IDE
+    InterruptIncreasePenalty(15);   // IDE / Spurious
+    
+    // Initialize APIC?
+    if (CpuHasFeatures(0, CPUID_FEAT_EDX_APIC) == OsSuccess) {
+        ApicInitialize();
+    }
+    else {
+        ERROR(" > cpu does not have a local apic. This model is too old and not supported.");
+        return OsError;
+    }
+
+    // Load the trampoline code in to memory
+    CpuSmpInitialize();
+    return OsSuccess;
 }

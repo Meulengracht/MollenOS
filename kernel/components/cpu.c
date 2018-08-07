@@ -60,7 +60,6 @@ RegisterApplicationCore(
     _In_ SystemCpuState_t   InitialState,
     _In_ int                External)
 {
-    // Variables
     int i;
 
     // Sanitize params
@@ -99,14 +98,18 @@ ActivateApplicationCore(
     _In_ SystemCpuCore_t*   Core)
 {
     SystemDomain_t *Domain;
+    OsStatus_t Status;
 
     // Notify everyone that we are running
     GetMachine()->NumberOfActiveCores++;
     Core->State = CpuStateRunning;
 
     // Create the idle-thread and scheduler for the core
-	SchedulerInitialize();
-	ThreadingEnable();
+	Status = ThreadingEnable();
+    if (Status != OsSuccess) {
+        ERROR("Failed to enable threading for application core %u.", Core->Id);
+        CpuIdle();
+    }
     InterruptEnable();
 
     // Bootup rest of cores in this domain if we are the primary core of
@@ -118,10 +121,8 @@ ActivateApplicationCore(
         }
     }
 
-    // Debug
-    WARNING("Core %u is online", Core->Id);
-
     // Enter idle loop
+    WARNING("Core %u is online", Core->Id);
 	while (1) {
 		CpuIdle();
     }

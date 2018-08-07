@@ -24,8 +24,6 @@
 #ifndef _BINARYSEMAPHORE_INTERFACE_H_
 #define _BINARYSEMAPHORE_INTERFACE_H_
 
-/* Includes
- * - System */
 #include <os/osdefs.h>
 #include <threads.h>
 

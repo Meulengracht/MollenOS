@@ -20,8 +20,6 @@
  * https://wiki.osdev.org/Symmetric_Multiprocessing#Finding_information_using_MP_Table
  */
 
-/* Includes
- * - System */
 #include <mp.h>
 #include <string.h>
 
@@ -54,7 +52,7 @@ OsStatus_t
 MpInitialize(void)
 {
    uintptr_t *i = NULL;
-   SEARCH_AREA(0, 0x400) // Search the lower 1k
+   //SEARCH_AREA(0, 0x400) // Search the lower 1k @todo map in the lower k
    SEARCH_AREA(EBDA_START, EBDA_START + EBDA_SEARCH_SZ)
    SEARCH_AREA(BASE_START, BASE_START + BASE_SEARCH_SZ)
    SEARCH_AREA(ROM_START, ROM_END)

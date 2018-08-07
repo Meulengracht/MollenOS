@@ -18,8 +18,8 @@
  *
  * MollenOS MCore - Advanced Host Controller Interface Driver
  * TODO:
- *	- Port Multiplier Support
- *	- Power Management
+ *    - Port Multiplier Support
+ *    - Power Management
  */
 //#define __TRACE
 
@@ -38,31 +38,34 @@ static Collection_t Controllers = COLLECTION_INIT(KeyInteger);
  * has invoked an irq. If it has, silence and return (Handled) */
 InterruptStatus_t
 OnFastInterrupt(
-    _In_Opt_ void*  InterruptData)
+    _In_ FastInterruptResources_t*  InterruptTable,
+    _In_ void*                      Reserved)
 {
-	AhciController_t *Controller;
-	reg32_t InterruptStatus;
+    AhciInterruptResource_t* Resource = (AhciInterruptResource_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
+    AHCIGenericRegisters_t* Registers = (AHCIGenericRegisters_t*)INTERRUPT_IOSPACE(InterruptTable, 0)->Access.Memory.VirtualBase;
+    reg32_t InterruptStatus;
     int i;
+    _CRT_UNUSED(Reserved);
 
-	// Instantiate the pointer
-	Controller      = (AhciController_t*)InterruptData;
-    InterruptStatus = Controller->Registers->InterruptStatus;
+    // Skip processing immediately if the interrupt was not for us
+    InterruptStatus = Registers->InterruptStatus;
     if (!InterruptStatus) {
         return InterruptNotHandled;
     }
 
     // Save the status to port that made it and clear
     for (i = 0; i < AHCI_MAX_PORTS; i++) {
-		if (Controller->Ports[i] != NULL && ((InterruptStatus & (1 << i)) != 0)) {
-			Controller->Ports[i]->InterruptStatus              |= Controller->Ports[i]->Registers->InterruptStatus;
-	        Controller->Ports[i]->Registers->InterruptStatus    = Controller->Ports[i]->Registers->InterruptStatus;
-		}
+        if ((InterruptStatus & (1 << i)) != 0) {
+            AHCIPortRegisters_t* PortRegister   = (AHCIPortRegisters_t*)((uintptr_t)Registers + AHCI_REGISTER_PORTBASE(i));
+            Resource->PortInterruptStatus[i]   |= PortRegister->InterruptStatus;
+            PortRegister->InterruptStatus       = PortRegister->InterruptStatus;
+        }
     }
 
-	// Write clear interrupt register and return
-    Controller->Registers->InterruptStatus   = InterruptStatus;
-    Controller->InterruptStatus             |= InterruptStatus;
-	return InterruptHandled;
+    // Write clear interrupt register and return
+    Registers->InterruptStatus              = InterruptStatus;
+    Resource->ControllerInterruptStatus    |= InterruptStatus;
+    return InterruptHandled;
 }
 
 /* OnInterrupt
@@ -75,33 +78,33 @@ OnInterrupt(
     _In_Opt_ size_t Arg1,
     _In_Opt_ size_t Arg2)
 {
-	AhciController_t *Controller = NULL;
-	reg32_t InterruptStatus;
+    AhciController_t *Controller = NULL;
+    reg32_t InterruptStatus;
     int i;
 
     // Unused
     _CRT_UNUSED(Arg0);
     _CRT_UNUSED(Arg1);
     _CRT_UNUSED(Arg2);
-	Controller                  = (AhciController_t*)InterruptData;
+    Controller = (AhciController_t*)InterruptData;
 
 HandleInterrupt:
-    InterruptStatus             = Controller->InterruptStatus;
-    Controller->InterruptStatus = 0;
+    InterruptStatus = Controller->InterruptResource.ControllerInterruptStatus;
+    Controller->InterruptResource.ControllerInterruptStatus = 0;
     
     // Iterate the port-map and check if the interrupt
-	// came from that port
-	for (i = 0; i < AHCI_MAX_PORTS; i++) {
-		if (Controller->Ports[i] != NULL && ((InterruptStatus & (1 << i)) != 0)) {
-			AhciPortInterruptHandler(Controller, Controller->Ports[i]);
-		}
+    // came from that port
+    for (i = 0; i < AHCI_MAX_PORTS; i++) {
+        if (Controller->Ports[i] != NULL && ((InterruptStatus & (1 << i)) != 0)) {
+            AhciPortInterruptHandler(Controller, Controller->Ports[i]);
+        }
     }
     
     // Re-handle?
-    if (Controller->InterruptStatus != 0) {
+    if (Controller->InterruptResource.ControllerInterruptStatus != 0) {
         goto HandleInterrupt;
     }
-	return InterruptHandled;
+    return InterruptHandled;
 }
 
 /* OnTimeout
@@ -109,12 +112,12 @@ HandleInterrupt:
  * times-out. A new timeout event is generated and passed on to the below handler */
 OsStatus_t
 OnTimeout(
-	_In_ UUId_t Timer,
-	_In_ void *Data)
+    _In_ UUId_t Timer,
+    _In_ void *Data)
 {
-	_CRT_UNUSED(Timer);
-	_CRT_UNUSED(Data);
-	return OsSuccess;
+    _CRT_UNUSED(Timer);
+    _CRT_UNUSED(Data);
+    return OsSuccess;
 }
 
 /* OnLoad
@@ -122,7 +125,7 @@ OnTimeout(
 OsStatus_t
 OnLoad(void)
 {
-	return AhciManagerInitialize();
+    return AhciManagerInitialize();
 }
 
 /* OnUnload
@@ -131,11 +134,11 @@ OnLoad(void)
 OsStatus_t
 OnUnload(void)
 {
-	foreach(cNode, &Controllers) {
-		AhciControllerDestroy((AhciController_t*)cNode->Data);
-	}
-	CollectionClear(&Controllers);
-	return AhciManagerDestroy();
+    foreach(cNode, &Controllers) {
+        AhciControllerDestroy((AhciController_t*)cNode->Data);
+    }
+    CollectionClear(&Controllers);
+    return AhciManagerDestroy();
 }
 
 /* OnRegister
@@ -145,19 +148,18 @@ OsStatus_t
 OnRegister(
     _In_ MCoreDevice_t*                 Device)
 {
-	// Variables
-	AhciController_t *Controller = NULL;
-	DataKey_t Key;
-	
-	// Register the new controller
-	Controller = AhciControllerCreate(Device);
-	if (Controller == NULL) {
-		return OsError;
-	}
+    AhciController_t *Controller = NULL;
+    DataKey_t Key;
+    
+    // Register the new controller
+    Controller = AhciControllerCreate(Device);
+    if (Controller == NULL) {
+        return OsError;
+    }
 
-	// Use the device-id as key
-	Key.Value = (int)Device->Id;
-	return CollectionAppend(&Controllers, CollectionCreateNode(Key, Controller));
+    // Use the device-id as key
+    Key.Value = (int)Device->Id;
+    return CollectionAppend(&Controllers, CollectionCreateNode(Key, Controller));
 }
 
 /* OnUnregister
@@ -167,19 +169,19 @@ OsStatus_t
 OnUnregister(
     _In_ MCoreDevice_t*                 Device)
 {
-	// Variables
-	AhciController_t *Controller = NULL;
-	DataKey_t Key;
+    // Variables
+    AhciController_t *Controller = NULL;
+    DataKey_t Key;
 
-	// Set the key to the id of the device to find
-	// the bound controller
-	Key.Value   = (int)Device->Id;
-	Controller  = (AhciController_t*)CollectionGetDataByKey(&Controllers, Key, 0);
-	if (Controller == NULL) {
-		return OsError;
-	}
-	CollectionRemoveByKey(&Controllers, Key);
-	return AhciControllerDestroy(Controller);
+    // Set the key to the id of the device to find
+    // the bound controller
+    Key.Value   = (int)Device->Id;
+    Controller  = (AhciController_t*)CollectionGetDataByKey(&Controllers, Key, 0);
+    if (Controller == NULL) {
+        return OsError;
+    }
+    CollectionRemoveByKey(&Controllers, Key);
+    return AhciControllerDestroy(Controller);
 }
 
 /* OnQuery
@@ -188,27 +190,27 @@ OnUnregister(
  * function that is defined in the contract */
 OsStatus_t 
 OnQuery(
-	_In_     MContractType_t        QueryType, 
-	_In_     int                    QueryFunction, 
-	_In_Opt_ MRemoteCallArgument_t* Arg0,
-	_In_Opt_ MRemoteCallArgument_t* Arg1,
-	_In_Opt_ MRemoteCallArgument_t* Arg2,
+    _In_     MContractType_t        QueryType, 
+    _In_     int                    QueryFunction, 
+    _In_Opt_ MRemoteCallArgument_t* Arg0,
+    _In_Opt_ MRemoteCallArgument_t* Arg1,
+    _In_Opt_ MRemoteCallArgument_t* Arg2,
     _In_     MRemoteCallAddress_t*  Address)
 {
-	// Unused params
-	_CRT_UNUSED(Arg2);
+    // Unused params
+    _CRT_UNUSED(Arg2);
 
-	// Sanitize the QueryType
-	if (QueryType != ContractStorage) {
-		return OsError;
-	}
+    // Sanitize the QueryType
+    if (QueryType != ContractStorage) {
+        return OsError;
+    }
 
     TRACE("Ahci.OnQuery(%i)", QueryFunction);
 
-	// Which kind of function has been invoked?
-	switch (QueryFunction) {
-		// Query stats about a disk identifier in the form of
-		// a StorageDescriptor
+    // Which kind of function has been invoked?
+    switch (QueryFunction) {
+        // Query stats about a disk identifier in the form of
+        // a StorageDescriptor
         case __STORAGE_QUERY_STAT: {
             // Get parameters
             AhciDevice_t *Device    = NULL;
@@ -266,9 +268,9 @@ OnQuery(
 
         } break;
 
-            // Other cases not supported
+        // Other cases not supported
         default: {
             return OsError;
         }
-	}
+    }
 }

@@ -93,8 +93,7 @@ thrd_equal(
 
 /* thrd_current
  * Returns the identifier of the calling thread. */
-_CRTIMP
-thrd_t
+_CRTIMP thrd_t
 thrd_current(void);
 
 /* thrd_sleep

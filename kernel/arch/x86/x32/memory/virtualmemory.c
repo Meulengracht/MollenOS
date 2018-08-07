@@ -408,7 +408,7 @@ InitializeVirtualSpace(
     }
     else {
         // Create a new page directory but copy all kernel mappings to the domain specific memory
-        iDirectory = (PageDirectory_t*)kmalloc_ap(sizeof(PageDirectory_t), &iPhysical);
+        //iDirectory = (PageDirectory_t*)kmalloc_ap(sizeof(PageDirectory_t), &iPhysical);
         NOTIMPLEMENTED("Implement initialization of other-domain virtaul spaces");
     }
     return OsSuccess;

@@ -24,101 +24,79 @@
 #include <os/utils.h>
 #include <string.h>
 #include <stdlib.h>
+#include "../ps2.h"
 #include "mouse.h"
 
-/* PS2MouseInterrupt 
+/* PS2MouseFastInterrupt 
  * Handles the ps2-mouse interrupt and extracts the data for processing - fast interrupt */
 InterruptStatus_t
-PS2MouseInterrupt(
-    _In_ void*        InterruptData)
+PS2MouseFastInterrupt(
+    _In_ FastInterruptResources_t*  InterruptTable,
+    _In_ void*                      NotUsed)
 {
-    PS2Mouse_t *Mouse     = (PS2Mouse_t*)InterruptData;
-    uint8_t Data         = 0;
-    int Flush             = 0;
-    MInput_t Input;
+    DeviceIo_t* IoSpace     = INTERRUPT_IOSPACE(InterruptTable, 0);
+    PS2Port_t* Port         = (PS2Port_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
+    uint8_t DataRecieved    = (uint8_t)InterruptTable->ReadIoSpace(IoSpace, PS2_REGISTER_DATA, 1);
+    uint8_t BreakAtBytes    = PS2_MOUSE_DATA_MODE(Port) == 0 ? 3 : 4;
+    PS2Command_t* Command   = &Port->ActiveCommand;
 
-    // Get the scancode, and potentielly handle it as command data
-    Data = PS2ReadData(1);
-    if (PS2PortFinishCommand(Mouse->Port, Data) == OsSuccess) {
+    if (Command->State != PS2Free) {
+        Command->Buffer[Command->SyncObject] = DataRecieved;
+        Command->SyncObject++;
         return InterruptHandled;
     }
-
-    // Now, we keep track of the number of bytes that enter
-    // the system, as it only sends one byte at the time
-    // but we need multiple
-    switch (Mouse->Index) {
-        case 0:
-        case 1: {
-            Mouse->Buffer[Mouse->Index] = Data;
-            Mouse->Index++;
-        } break;
-
-        case 2: {
-            Mouse->Buffer[Mouse->Index] = Data;
-            Mouse->Index++;
-
-            // Are we done?
-            if (Mouse->Mode == 0) {
-                Mouse->Index = 0;
-                Flush = 1;
+    else {
+        Port->ResponseBuffer[Port->ResponseWriteIndex++] = DataRecieved;
+        if (!(Port->ResponseWriteIndex % BreakAtBytes)) {
+            if (Port->ResponseWriteIndex == PS2_RINGBUFFER_SIZE) {
+                Port->ResponseWriteIndex = 0; // Start over
             }
-        } break;
-
-        case 3: {
-            Mouse->Buffer[Mouse->Index] = Data;
-            Mouse->Index     = 0;
-            Flush             = 1;
-        } break;
-
-        default: 
-            break;
-    }
-
-    // If flush is set, then write it
-    if (Flush != 0) {
-        uint8_t Buttons = 0;
-        int RelX         = 0;
-        int RelY         = 0;
-        int RelZ         = 0;
-
-        // Update relative x and y
-        RelX = (int)(Mouse->Buffer[1] - ((Mouse->Buffer[0] << 4) & 0x100));
-        RelY = (int)(Mouse->Buffer[2] - ((Mouse->Buffer[0] << 3) & 0x100));
-
-        // Get status of L-R-M buttons
-        Buttons = Mouse->Buffer[0] & 0x7;
-
-        // Check extended data modes
-        if (Mouse->Mode == 1) {
-            RelZ = (int)(char)Mouse->Buffer[3];
+            return InterruptHandled;
         }
-        else if (Mouse->Mode == 2) {
-            // 4 bit signed value
-            RelZ = (int)(char)(Mouse->Buffer[3] & 0xF);
-            if (Mouse->Buffer[3] & PS2_MOUSE_4BTN) {
-                Buttons |= 0x8;
-            }
-            if (Mouse->Buffer[3] & PS2_MOUSE_5BTN) {
-                Buttons |= 0x10;
-            }
-        }
-
-        /* Store a state of buttons */
-        Mouse->Buttons = Buttons;
-
-        /* Create a new input event */
-        Input.Type = InputMouse;
-        Input.Flags = INPUT_KEYS_PACKED;
-        Input.Key = (VKey)Buttons;
-
-        /* Set stuff */
-        Input.xRelative = RelX;
-        Input.yRelative = RelY;
-        Input.zRelative = RelZ;
-
-        /* Register input */
-        CreateInput(&Input);
     }
+    return InterruptHandledStop;
+}
+
+/* PS2MouseInterrupt 
+ * Handles the ps2-mouse interrupt and processes the captured data */
+InterruptStatus_t
+PS2MouseInterrupt(
+    _In_ PS2Port_t*                 Port)
+{
+    SystemInput_t Input;
+    uint8_t BytesRequired = PS2_MOUSE_DATA_MODE(Port) == 0 ? 3 : 4;
+
+    // Set initial
+    Input.Type  = DeviceInputPointer;
+    Input.Flags = 0;
+
+    // Update relative x and y
+    Input.RelativeX = (int16_t)(Port->ResponseBuffer[Port->ResponseReadIndex + 1] - ((Port->ResponseBuffer[Port->ResponseReadIndex] << 4) & 0x100));
+    Input.RelativeY = (int16_t)(Port->ResponseBuffer[Port->ResponseReadIndex + 2] - ((Port->ResponseBuffer[Port->ResponseReadIndex] << 3) & 0x100));
+    Input.Buttons   = Port->ResponseBuffer[0] & 0x7; // L-M-R buttons
+
+    // Check extended data modes
+    if (PS2_MOUSE_DATA_MODE(Port) == 1) {
+        Input.RelativeZ = (int16_t)(char)Port->ResponseBuffer[Port->ResponseReadIndex + 3];
+    }
+    else if (PS2_MOUSE_DATA_MODE(Port) == 2) {
+        // 4 bit signed value
+        Input.RelativeZ = (int16_t)(char)(Port->ResponseBuffer[Port->ResponseReadIndex + 3] & 0xF);
+        if (Port->ResponseBuffer[Port->ResponseReadIndex + 3] & PS2_MOUSE_4BTN) {
+            Input.Buttons |= 0x8;
+        }
+        if (Port->ResponseBuffer[Port->ResponseReadIndex + 3] & PS2_MOUSE_5BTN) {
+            Input.Buttons |= 0x10;
+        }
+    }
+    else {
+        Input.RelativeZ = 0;
+    }
+    Port->ResponseReadIndex += BytesRequired;
+    if (Port->ResponseReadIndex == PS2_RINGBUFFER_SIZE) {
+        Port->ResponseReadIndex = 0;
+    }
+    WriteSystemInput(&Input);
     return InterruptHandled;
 }
 
@@ -126,11 +104,11 @@ PS2MouseInterrupt(
  * Updates the sampling rate for the mouse driver */
 OsStatus_t
 PS2SetSampling(
-    _In_ PS2Mouse_t*    Mouse,
-    _In_ uint8_t        Sampling)
+    _In_ PS2Port_t*                 Port,
+    _In_ uint8_t                    Sampling)
 {
-    if (PS2PortQueueCommand(Mouse->Port, PS2_MOUSE_SETSAMPLE, NULL) != OsSuccess || 
-        PS2PortQueueCommand(Mouse->Port, Sampling, NULL)            != OsSuccess) {
+    if (PS2PortExecuteCommand(Port, PS2_MOUSE_SETSAMPLE, NULL) != OsSuccess || 
+        PS2PortExecuteCommand(Port, Sampling, NULL)            != OsSuccess) {
         return OsError;
     }
     return OsSuccess;
@@ -141,16 +119,16 @@ PS2SetSampling(
  * pass the EnableScroll wheel before calling this */
 OsStatus_t
 PS2EnableExtensions(
-    _In_ PS2Mouse_t*    Mouse)
+    _In_ PS2Port_t*                 Port)
 {
     uint8_t MouseId = 0;
 
-    if (PS2SetSampling(Mouse, 200)  != OsSuccess || 
-        PS2SetSampling(Mouse, 200)  != OsSuccess || 
-        PS2SetSampling(Mouse, 80)   != OsSuccess) {
+    if (PS2SetSampling(Port, 200)  != OsSuccess || 
+        PS2SetSampling(Port, 200)  != OsSuccess || 
+        PS2SetSampling(Port, 80)   != OsSuccess) {
         return OsError;
     }
-    if (PS2PortQueueCommand(Mouse->Port, PS2_MOUSE_GETID, &MouseId) != OsSuccess) {
+    if (PS2PortExecuteCommand(Port, PS2_MOUSE_GETID, &MouseId) != OsSuccess) {
         return OsError;
     }
 
@@ -167,17 +145,17 @@ PS2EnableExtensions(
  * the 'unlock' sequence of 200-100-80 sample */
 OsStatus_t
 PS2EnableScroll(
-    _In_ PS2Mouse_t*    Mouse)
+    _In_ PS2Port_t*                 Port)
 {
     uint8_t MouseId = 0;
 
-    if (PS2SetSampling(Mouse, 200)  != OsSuccess || 
-        PS2SetSampling(Mouse, 100)  != OsSuccess || 
-        PS2SetSampling(Mouse, 80)   != OsSuccess) {
+    if (PS2SetSampling(Port, 200)  != OsSuccess || 
+        PS2SetSampling(Port, 100)  != OsSuccess || 
+        PS2SetSampling(Port, 80)   != OsSuccess) {
         return OsError;
     }
 
-    if (PS2PortQueueCommand(Mouse->Port, PS2_MOUSE_GETID, &MouseId) != OsSuccess) {
+    if (PS2PortExecuteCommand(Port, PS2_MOUSE_GETID, &MouseId) != OsSuccess) {
         return OsError;
     }
 
@@ -193,71 +171,58 @@ PS2EnableScroll(
  * Initializes an instance of an ps2-mouse on the given PS2-Controller port */
 OsStatus_t
 PS2MouseInitialize(
-    _In_ PS2Port_t*        Port)
+    _In_ PS2Controller_t*           Controller,
+    _In_ int                        Port)
 {
-    PS2Mouse_t *Mouse = NULL;
+    PS2Port_t *Instance = &Controller->Ports[Port];
 
-    Mouse = (PS2Mouse_t*)malloc(sizeof(PS2Mouse_t));
-    memset(Mouse, 0, sizeof(PS2Mouse_t));
-
-    Mouse->Sampling = 100;
-    Mouse->Port     = Port;
+    // Set initial mouse sampling
+    PS2_MOUSE_DATA_SAMPLING(Instance)   = 100;
+    PS2_MOUSE_DATA_MODE(Instance)       = 0;
 
     // Start out by initializing the contract
-    InitializeContract(&Port->Contract, Port->Contract.DeviceId, 1,
-        ContractInput, "PS2 Mouse Interface");
-
-    // Initialize the interrupt descriptor
-    Port->Interrupt.AcpiConform = 0;
-    Port->Interrupt.Pin         = INTERRUPT_NONE;
-    Port->Interrupt.Vectors[0]  = INTERRUPT_NONE;
-    if (Port->Index == 0) {
-        Port->Interrupt.Line = PS2_PORT1_IRQ;
-    }
-    else {
-        Port->Interrupt.Line = PS2_PORT2_IRQ;
-    }
-    Port->Interrupt.FastHandler = PS2MouseInterrupt;
-    Port->Interrupt.Data        = Mouse;
-
+    InitializeContract(&Instance->Contract, 
+        Instance->Contract.DeviceId, 1, ContractInput, "PS2 Mouse Interface");
+        
     // Register our contract for this device
-    if (RegisterContract(&Port->Contract) != OsSuccess) {
+    if (RegisterContract(&Instance->Contract) != OsSuccess) {
         ERROR("PS2-Mouse: failed to install contract");
         return OsError;
     }
-    Mouse->Irq = RegisterInterruptSource(&Port->Interrupt, INTERRUPT_NOTSHARABLE);
+
+    // Initialize interrupt
+    RegisterFastInterruptIoResource(&Instance->Interrupt, Controller->Data);
+    RegisterFastInterruptHandler(&Instance->Interrupt, PS2MouseFastInterrupt);
+    Instance->InterruptId = RegisterInterruptSource(&Instance->Interrupt, INTERRUPT_USERSPACE | INTERRUPT_NOTSHARABLE);
 
     // The mouse is in default state at this point
-    // since all ports suffer a reset - We want to test
-    // if the mouse is a 4-byte mouse
-    if (PS2EnableScroll(Mouse) == OsSuccess) {
-        Mouse->Mode = 1;
-        if (PS2EnableExtensions(Mouse) == OsSuccess) {
-            Mouse->Mode = 2;
+    // since all ports suffer a reset - We want to test if the mouse is a 4-byte mouse
+    if (PS2EnableScroll(Instance) == OsSuccess) {
+        PS2_MOUSE_DATA_MODE(Instance) = 1;
+        if (PS2EnableExtensions(Instance) == OsSuccess) {
+            PS2_MOUSE_DATA_MODE(Instance) = 2;
         }
     }
 
     // Update sampling to 60, no need for faster updates
-    if (PS2SetSampling(Mouse, 60) == OsSuccess) {
-        Mouse->Sampling = 60;
+    if (PS2SetSampling(Instance, 60) == OsSuccess) {
+        PS2_MOUSE_DATA_SAMPLING(&Controller->Ports[Port]) = 100;
     }
-    return PS2PortQueueCommand(Port, PS2_ENABLE_SCANNING, NULL);
+    return PS2PortExecuteCommand(Instance, PS2_ENABLE_SCANNING, NULL);
 }
 
 /* PS2MouseCleanup 
  * Cleans up the ps2-mouse instance on the given PS2-Controller port */
 OsStatus_t
 PS2MouseCleanup(
-    _In_ PS2Port_t*        Port)
+    _In_ PS2Controller_t*           Controller,
+    _In_ int                        Port)
 {
-    PS2Mouse_t *Mouse = (PS2Mouse_t*)Port->Interrupt.Data;
+    PS2Port_t *Instance = &Controller->Ports[Port];
 
     // Try to disable the device before cleaning up
-    PS2PortQueueCommand(Port, PS2_DISABLE_SCANNING, NULL);
-    UnregisterInterruptSource(Mouse->Irq);
-
-    // Cleanup
-    free(Mouse);
-    Port->Signature = 0;
+    PS2PortExecuteCommand(Instance, PS2_DISABLE_SCANNING, NULL);
+    UnregisterInterruptSource(Instance->InterruptId);
+    Instance->Signature = 0xFFFFFFFF;
     return OsSuccess;
 }

@@ -38,7 +38,7 @@
 /* Prototypes 
  * This is to keep the create/destroy at the top of the source file */
 OsStatus_t          EhciSetup(EhciController_t *Controller);
-InterruptStatus_t   OnFastInterrupt(void *InterruptData);
+InterruptStatus_t   OnFastInterrupt(FastInterruptResources_t*, void*);
 
 /* HciControllerCreate 
  * Initializes and creates a new Hci Controller instance
@@ -49,7 +49,7 @@ HciControllerCreate(
 {
     // Variables
     EhciController_t *Controller    = NULL;
-    DeviceIoSpace_t *IoBase         = NULL;
+    DeviceIo_t *IoBase              = NULL;
     int i;
 
     // Allocate a new instance of the controller
@@ -67,8 +67,7 @@ HciControllerCreate(
     // Get I/O Base, and for EHCI it'll be the first address we encounter
     // of type MMIO
     for (i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
-        if (Controller->Base.Device.IoSpaces[i].Size != 0
-            && Controller->Base.Device.IoSpaces[i].Type == IO_SPACE_MMIO) {
+        if (Controller->Base.Device.IoSpaces[i].Type == DeviceIoMemoryBased) {
             IoBase = &Controller->Base.Device.IoSpaces[i];
             break;
         }
@@ -86,7 +85,7 @@ HciControllerCreate(
         IoBase->Type, IoBase->PhysicalBase, IoBase->Size);
 
     // Acquire the io-space
-    if (CreateIoSpace(IoBase) != OsSuccess || AcquireIoSpace(IoBase) != OsSuccess) {
+    if (AcquireDeviceIo(IoBase) != OsSuccess) {
         ERROR("Failed to create and acquire the io-space for ehci-controller");
         free(Controller);
         return NULL;
@@ -101,25 +100,27 @@ HciControllerCreate(
         ContractController, "EHCI Controller Interface");
 
     // Trace
-    TRACE("Io-Space was assigned virtual address 0x%x", IoBase->VirtualBase);
+    TRACE("Io-Space was assigned virtual address 0x%x", IoBase->Access.Memory.VirtualBase);
 
     // Instantiate the register-access
-    Controller->CapRegisters    = (EchiCapabilityRegisters_t*)IoBase->VirtualBase;
+    Controller->CapRegisters    = (EchiCapabilityRegisters_t*)IoBase->Access.Memory.VirtualBase;
     Controller->OpRegisters     = (EchiOperationalRegisters_t*)
-        (IoBase->VirtualBase + Controller->CapRegisters->Length);
+        (IoBase->Access.Memory.VirtualBase + Controller->CapRegisters->Length);
 
     // Initialize the interrupt settings
-    Controller->Base.Device.Interrupt.FastHandler   = OnFastInterrupt;
-    Controller->Base.Device.Interrupt.Data          = Controller;
+    RegisterFastInterruptHandler(&Controller->Base.Device.Interrupt, OnFastInterrupt);
+    RegisterFastInterruptIoResource(&Controller->Base.Device.Interrupt, IoBase);
+    RegisterFastInterruptMemoryResource(&Controller->Base.Device.Interrupt, (uintptr_t)Controller, sizeof(EhciController_t), 0);
+    
     if (RegisterContract(&Controller->Base.Contract) != OsSuccess) {
         ERROR("Failed to register contract for ehci-controller");
-        ReleaseIoSpace(Controller->Base.IoBase);
-        DestroyIoSpace(Controller->Base.IoBase->Id);
+        ReleaseDeviceIo(Controller->Base.IoBase);
         free(Controller);
         return NULL;
     }
 
     // Register interrupt
+    RegisterInterruptContext(&Controller->Base.Device.Interrupt, Controller);
     Controller->Base.Interrupt  = RegisterInterruptSource(
         &Controller->Base.Device.Interrupt, INTERRUPT_USERSPACE);
 
@@ -129,8 +130,7 @@ HciControllerCreate(
             | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OsSuccess) {
         ERROR("Failed to enable the ehci-controller");
         UnregisterInterruptSource(Controller->Base.Interrupt);
-        ReleaseIoSpace(Controller->Base.IoBase);
-        DestroyIoSpace(Controller->Base.IoBase->Id);
+        ReleaseDeviceIo(Controller->Base.IoBase);
         free(Controller);
         return NULL;
     }
@@ -163,8 +163,7 @@ HciControllerDestroy(
     UnregisterInterruptSource(Controller->Interrupt);
 
     // Release the io-space
-    ReleaseIoSpace(Controller->IoBase);
-    DestroyIoSpace(Controller->IoBase->Id);
+    ReleaseDeviceIo(Controller->IoBase);
 
     // Free the list of endpoints
     CollectionDestroy(Controller->TransactionList);

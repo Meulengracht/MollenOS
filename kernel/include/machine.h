@@ -27,6 +27,7 @@
 #include <os/osdefs.h>
 #include <ds/blbitmap.h>
 #include <multiboot.h>
+#include <pipe.h>
 
 // Components
 #include <component/domain.h>
@@ -54,6 +55,7 @@ typedef struct _SystemMachine {
     SystemInterruptController_t* InterruptController;
     int                         NumberOfOverrides;
     SystemInterruptOverride_t*  Overrides;
+    SystemPipe_t*               StdInput;
 
     // Total information across domains
     size_t                      NumberOfProcessors;
@@ -86,6 +88,11 @@ InitializeProcessor(
 KERNELAPI void KERNELABI
 StartApplicationCore(
     _In_ SystemCpuCore_t*   Core);
+
+/* InitializeSystemTimers (@arch)
+ * Register and start all neccessary system timers for the operating system to run. */
+KERNELAPI OsStatus_t KERNELABI
+InitializeSystemTimers(void);
 
 /* InitializeSystemMemory (@arch)
  * Initializes the entire system memory range, selecting ranges that should

@@ -28,8 +28,6 @@
 #error "You must include filesystem.h and not this directly"
 #endif
 
-/* Includes
- * - System */
 #include <os/osdefs.h>
 #include <os/file.h>
 
@@ -40,19 +38,19 @@ SERVICEAPI
 OsStatus_t
 SERVICEABI
 PathResolveEnvironment(
-	_In_  EnvironmentPath_t Base,
-	_Out_ char*             Buffer,
-	_In_  size_t            MaxLength)
+    _In_  EnvironmentPath_t Base,
+    _Out_ char*             Buffer,
+    _In_  size_t            MaxLength)
 {
-	// Variables
-	MRemoteCall_t Request;
+    // Variables
+    MRemoteCall_t Request;
 
     // Initialize rpc and execute
-	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
+    RPCInitialize(&Request, __FILEMANAGER_TARGET, 
         __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_PATHRESOLVE);
-	RPCSetArgument(&Request, 0, (__CONST void*)&Base, sizeof(EnvironmentPath_t));
-	RPCSetResult(&Request, (__CONST void*)Buffer, MaxLength);
-	return RPCExecute(&Request);
+    RPCSetArgument(&Request, 0, (__CONST void*)&Base, sizeof(EnvironmentPath_t));
+    RPCSetResult(&Request, (__CONST void*)Buffer, MaxLength);
+    return RPCExecute(&Request);
 }
 
 /* PathCanonicalize
@@ -62,19 +60,19 @@ SERVICEAPI
 OsStatus_t
 SERVICEABI
 PathCanonicalize(
-	_In_  const char*       Path,
-	_Out_ char*             Buffer,
-	_In_  size_t            MaxLength)
+    _In_  const char*       Path,
+    _Out_ char*             Buffer,
+    _In_  size_t            MaxLength)
 {
-	// Variables
-	MRemoteCall_t Request;
+    // Variables
+    MRemoteCall_t Request;
 
     // Initialize rpc and execute
-	RPCInitialize(&Request, __FILEMANAGER_TARGET, 
+    RPCInitialize(&Request, __FILEMANAGER_TARGET, 
         __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_PATHCANONICALIZE);
-	RPCSetArgument(&Request, 0, (__CONST void*)Path, strlen(Path));
-	RPCSetResult(&Request, (__CONST void*)Buffer, MaxLength);
-	return RPCExecute(&Request);
+    RPCSetArgument(&Request, 0, (__CONST void*)Path, strlen(Path));
+    RPCSetResult(&Request, (__CONST void*)Buffer, MaxLength);
+    return RPCExecute(&Request);
 }
 
 #endif //!_PATH_INTERFACE_H_

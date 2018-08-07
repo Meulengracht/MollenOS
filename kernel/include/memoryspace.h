@@ -52,6 +52,7 @@
 #define MAPPING_ISDIRTY                 0x00000010  // Memory that has been marked poluted/written to
 #define MAPPING_PERSISTENT              0x00000020  // Memory should not be freed when mapping is removed
 #define MAPPING_DOMAIN                  0x00000040  // Memory allocated for mapping must be domain local
+#define MAPPING_LOWFIRST                0x00000080  // Memory resources should be allocated by low-addresses first
 
 #define MAPPING_PROVIDED                0x00010000  // (Physical) Mapping is supplied
 #define MAPPING_CONTIGIOUS              0x00020000  // (Physical) Mapping must be continous
@@ -136,7 +137,20 @@ KERNELAPI OsStatus_t KERNELABI
 CreateSystemMemorySpaceMapping(
     _In_        SystemMemorySpace_t*    SystemMemorySpace,
     _InOut_Opt_ PhysicalAddress_t*      PhysicalAddress, 
-    _InOut_Opt_ VirtualAddress_t*       VirtualAddress, 
+    _InOut_Opt_ VirtualAddress_t*       VirtualAddress,
+    _In_        size_t                  Size, 
+    _In_        Flags_t                 Flags,
+    _In_        uintptr_t               Mask);
+
+/* CloneSystemMemorySpaceMapping
+ * Clones a region of memory mappings into the address space provided. The new mapping
+ * will automatically be marked PERSISTANT and PROVIDED. */
+KERNELAPI OsStatus_t KERNELABI
+CloneSystemMemorySpaceMapping(
+    _In_        SystemMemorySpace_t*    SourceSpace,
+    _In_        SystemMemorySpace_t*    DestinationSpace,
+    _In_        VirtualAddress_t        SourceAddress,
+    _InOut_Opt_ VirtualAddress_t*       DestinationAddress,
     _In_        size_t                  Size, 
     _In_        Flags_t                 Flags,
     _In_        uintptr_t               Mask);

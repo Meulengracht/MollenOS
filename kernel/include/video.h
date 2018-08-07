@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Video Interface (Boot)
+ * MollenOS Output Interface (Boot)
  * - Contains the shared kernel video functionality
  *   and structures that is primarily used by MCore
  */
@@ -24,8 +24,6 @@
 #ifndef _MCORE_VIDEO_H_
 #define _MCORE_VIDEO_H_
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 #include <os/spinlock.h>
 #include <os/contracts/video.h>
@@ -33,17 +31,13 @@
 /* VideoInitialize
  * Initializes boot-video environment untill a more
  * complete driver can take-over the screen */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 VideoInitialize(void);
 
 /* VideoQuery
  * Renders a character with default colors
  * at the current terminal position */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 VideoQuery(
 	_Out_ VideoDescriptor_t *Descriptor);
 

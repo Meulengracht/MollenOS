@@ -18,6 +18,7 @@ CXX = $(CROSS)/bin/clang++
 LD = $(CROSS)/bin/lld-link
 LIB = $(CROSS)/bin/llvm-lib
 AS = nasm
+ANALYZER = scan-build --use-cc=$(CC) --use-c++=$(CXX)
 
 # Setup project paths
 mkfile_path = $(abspath $(lastword $(MAKEFILE_LIST)))
@@ -39,10 +40,10 @@ config_flags =
 
 # OS Configuration
 config_flags += -D__OSCONFIG_DISABLE_SIGNALLING # Kernel fault on all hardware signals
-#config_flags += -D__OSCONFIG_LOGGING_KTRACE # Kernel Tracing
-#config_flags += -D__OSCONFIG_ENABLE_MULTIPROCESSORS # Use all cores
+config_flags += -D__OSCONFIG_LOGGING_KTRACE # Kernel Tracing
+config_flags += -D__OSCONFIG_ENABLE_MULTIPROCESSORS # Use all cores
 #config_flags += -D__OSCONFIG_PROCESS_SINGLELOAD # No simuoultanous process loading
-config_flags += -D__OSCONFIG_FULLDEBUGCONSOLE # Use a full debug console on height
+config_flags += -D__OSCONFIG_DEBUGCONSOLE # Enable debug console on startup instead of splash
 #config_flags += -D__OSCONFIG_NODRIVERS # Don't load drivers, run it without for debug
 #config_flags += -D__OSCONFIG_DISABLE_EHCI # Disable usb 2.0 support, run only in usb 1.1
 #config_flags += -D__OSCONFIG_EHCI_ALLOW_64BIT # Allow the EHCI driver to utilize 64 bit dma buffers

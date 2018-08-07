@@ -329,8 +329,12 @@
         "mtypes.h": "c",
         "nir_spirv.h": "c",
         "intrin.h": "c",
-        "os.h": "c"
+        "os.h": "c",
+        "iospace.h": "c",
+        "deviceio.h": "c"
     },
     "git.ignoreLimitWarning": true,
-    "terminal.integrated.shell.windows": "C:\\Windows\\sysnative\\bash.exe"
+    "terminal.integrated.shell.windows": "C:\\Windows\\sysnative\\bash.exe",
+    "editor.detectIndentation": false,
+    "code-runner.runInTerminal": true
 }

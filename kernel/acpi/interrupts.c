@@ -25,6 +25,7 @@
 
 #include <acpiinterface.h>
 #include <interrupts.h>
+#include <assert.h>
 #include <debug.h>
 
 /* AcpiGetPolarityMode
@@ -133,6 +134,7 @@ AcpiDeriveInterrupt(
                     break;
                 }
             }
+            assert(RoutingEntry != NULL);
 
             // Update IRQ Information
             *AcpiConform = __DEVICEMANAGER_ACPICONFORM_PRESENT;

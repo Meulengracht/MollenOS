@@ -151,13 +151,13 @@ TimersTick(
  * are available for time-keeping */
 OsStatus_t
 TimersRegisterSystemTimer(
-    _In_ UUId_t Source, 
-    _In_ size_t TickNs,
-    _In_ clock_t (*SystemTickHandler)(void))
+    _In_ UUId_t     Source, 
+    _In_ size_t     TickNs,
+    _In_ clock_t    (*SystemTickHandler)(void))
 {
     // Variables
-    MCoreInterruptDescriptor_t *Interrupt = NULL;
-    MCoreSystemTimer_t *SystemTimer = NULL;
+    MCoreSystemTimer_t* SystemTimer;
+    SystemInterrupt_t* Interrupt;
     DataKey_t tKey;
     int Delta = abs(1000 - (int)TickNs);
 
@@ -174,9 +174,9 @@ TimersRegisterSystemTimer(
 
     // Create a new instance of a system timer
     SystemTimer = (MCoreSystemTimer_t*)kmalloc(sizeof(MCoreSystemTimer_t));
-    SystemTimer->Source = Source;
-    SystemTimer->Tick = TickNs;
-    SystemTimer->Ticks = 0;
+    SystemTimer->Source     = Source;
+    SystemTimer->Tick       = TickNs;
+    SystemTimer->Ticks      = 0;
     SystemTimer->SystemTick = SystemTickHandler;
 
     // Add the new timer to the list

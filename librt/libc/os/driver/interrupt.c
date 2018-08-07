@@ -21,10 +21,62 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-/* Includes
- * - System */
 #include <os/driver.h>
 #include <os/syscall.h>
+
+/* RegisterFastInterruptHandler
+ * Registers a fast interrupt handler associated with the interrupt. */
+void
+RegisterFastInterruptHandler(
+    _In_ DeviceInterrupt_t* Interrupt,
+    _In_ InterruptHandler_t Handler)
+{
+    Interrupt->FastInterrupt.Handler = Handler;
+}
+
+/* RegisterFastInterruptIoResource
+ * Registers the given device io resource with the fast-interrupt. */
+void
+RegisterFastInterruptIoResource(
+    _In_ DeviceInterrupt_t* Interrupt,
+    _In_ DeviceIo_t*        IoSpace)
+{
+    for (int i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
+        if (Interrupt->FastInterrupt.IoResources[i] == NULL) {
+            Interrupt->FastInterrupt.IoResources[i] = IoSpace;
+            break;
+        }
+    }
+}
+
+/* RegisterFastInterruptMemoryResource
+ * Registers the given memory resource with the fast-interrupt. */
+void
+RegisterFastInterruptMemoryResource(
+    _In_ DeviceInterrupt_t* Interrupt,
+    _In_ uintptr_t          Address,
+    _In_ size_t             Length,
+    _In_ Flags_t            Flags)
+{
+    for (int i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
+        if (Interrupt->FastInterrupt.MemoryResources[i].Address == 0) {
+            Interrupt->FastInterrupt.MemoryResources[i].Address = Address;
+            Interrupt->FastInterrupt.MemoryResources[i].Length  = Length;
+            Interrupt->FastInterrupt.MemoryResources[i].Flags   = Flags;
+            break;
+        }
+    }
+}
+
+/* RegisterInterruptContext
+ * Sets the context pointer that should be attached to any OnInterrupt events. */
+void
+RegisterInterruptContext(
+    _In_ DeviceInterrupt_t* Interrupt,
+    _In_ void*              Context)
+{
+    Interrupt->Context = Context;
+}
 
 /* RegisterInterruptSource 
  * Allocates the given interrupt source for use by
@@ -33,8 +85,8 @@
  * can be called by the event-system */
 UUId_t
 RegisterInterruptSource(
-    _In_ MCoreInterrupt_t *Interrupt,
-    _In_ Flags_t Flags)
+    _In_ DeviceInterrupt_t* Interrupt,
+    _In_ Flags_t            Flags)
 {
 	// Sanitize input
 	if (Interrupt == NULL) {
@@ -48,7 +100,7 @@ RegisterInterruptSource(
  * all events of OnInterrupt */
 OsStatus_t
 UnregisterInterruptSource(
-    _In_ UUId_t Source)
+    _In_ UUId_t             Source)
 {
 	// Sanitize input
 	if (Source == UUID_INVALID) {

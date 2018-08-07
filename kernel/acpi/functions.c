@@ -514,11 +514,11 @@ AcpiDeviceIrqRoutingCallback(
             // Set initial members
             PciRoutingEntry_t *RoutingEntry = 
                 (PciRoutingEntry_t*)kmalloc(sizeof(PciRoutingEntry_t));
-            RoutingEntry->AcType = ACPI_RESOURCE_TYPE_IRQ;
-            RoutingEntry->Polarity = Irq->Polarity;
-            RoutingEntry->Trigger = Irq->Triggering;
-            RoutingEntry->Shareable = Irq->Sharable;
-            RoutingEntry->Irq = Irq->Interrupts[i];
+            RoutingEntry->AcType        = ACPI_RESOURCE_TYPE_IRQ;
+            RoutingEntry->Polarity      = Irq->Polarity;
+            RoutingEntry->Trigger       = Irq->Triggering;
+            RoutingEntry->Shareable     = Irq->Sharable;
+            RoutingEntry->Irq           = Irq->Interrupts[i];
 
             // Are we just finding the active irq?
             if (IrqResource->Gathering == 0) {
@@ -559,11 +559,11 @@ AcpiDeviceIrqRoutingCallback(
             // Set initial members
             PciRoutingEntry_t *RoutingEntry = 
                 (PciRoutingEntry_t*)kmalloc(sizeof(PciRoutingEntry_t));
-            RoutingEntry->AcType = ACPI_RESOURCE_TYPE_EXTENDED_IRQ;
-            RoutingEntry->Polarity = Irq->Polarity;
-            RoutingEntry->Trigger = Irq->Triggering;
-            RoutingEntry->Shareable = Irq->Sharable;
-            RoutingEntry->Irq = Irq->Interrupts[i];
+            RoutingEntry->AcType        = ACPI_RESOURCE_TYPE_EXTENDED_IRQ;
+            RoutingEntry->Polarity      = Irq->Polarity;
+            RoutingEntry->Trigger       = Irq->Triggering;
+            RoutingEntry->Shareable     = Irq->Sharable;
+            RoutingEntry->Irq           = Irq->Interrupts[i];
 
             // Are we just finding the active irq?
             if (IrqResource->Gathering == 0) {

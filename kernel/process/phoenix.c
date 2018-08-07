@@ -289,8 +289,7 @@ PhoenixReapAsh(
         PhoenixCleanupProcess((MCoreProcess_t*)Ash);
     }
     else {
-        //??
-        return OsError;
+        PhoenixCleanupAsh(Ash);
     }
     return OsSuccess;
 }

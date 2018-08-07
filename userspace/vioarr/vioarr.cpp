@@ -50,7 +50,7 @@ int VioarrCompositor::Run()
 
     // Spawn message handler
     sLog.Info("Spawning message handler");
-    SpawnMessageHandler();
+    SpawnInputHandlers();
 
     // Initialize V8 Engine
     sLog.Info("Initializing V8");
@@ -61,9 +61,6 @@ int VioarrCompositor::Run()
     // Initial render
     sEngine.Update(0);
     sEngine.Render();
-
-    // Spawn the test application
-    ProcessSpawn("$bin/wintest.app", NULL, 1);
 
     // Enter event loop
     //LastUpdate = std::chrono::system_clock::now();

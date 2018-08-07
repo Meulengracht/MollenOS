@@ -22,39 +22,31 @@
  */
 //#define __TRACE
 
-/* Includes 
- * - System */
 #include <os/mollenos.h>
 #include <os/utils.h>
-
-#include "../common/manager.h"
-#include "ehci.h"
-
-/* Includes
- * - Library */
-#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include "../common/manager.h"
+#include "ehci.h"
 
 /* OnFastInterrupt
  * Is called for the sole purpose to determine if this source
  * has invoked an irq. If it has, silence and return (Handled) */
 InterruptStatus_t
 OnFastInterrupt(
-    _In_Opt_ void *InterruptData)
+    _In_ FastInterruptResources_t*  InterruptTable,
+    _In_ void*                      NotUsed)
 {
     // Variables
-    EhciController_t *Controller    = NULL;
+    EchiOperationalRegisters_t* Registers;
+    EhciController_t* Controller = (EhciController_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
+    uintptr_t RegisterAddress = INTERRUPT_IOSPACE(InterruptTable, 0)->Access.Memory.VirtualBase;
     reg32_t InterruptStatus;
+    _CRT_UNUSED(NotUsed);
 
-    // Instantiate the pointer
-    Controller                      = (EhciController_t*)InterruptData;
-
-    // Calculate the kinds of interrupts this controller accepts
-    InterruptStatus = (Controller->OpRegisters->UsbStatus & Controller->OpRegisters->UsbIntr);
-
-    // Trace
-    TRACE("EHCI-Interrupt - Status 0x%x", InterruptStatus);
+    RegisterAddress    += ((EchiCapabilityRegisters_t*)RegisterAddress)->Length;
+    Registers           = (EchiOperationalRegisters_t*)RegisterAddress;
+    InterruptStatus     = (Registers->UsbStatus & Registers->UsbIntr);
 
     // Was the interrupt even from this controller?
     if (!InterruptStatus) {
@@ -62,8 +54,8 @@ OnFastInterrupt(
     }
 
     // Acknowledge the interrupt by clearing
-    Controller->OpRegisters->UsbStatus  = InterruptStatus;
-    Controller->Base.InterruptStatus    |= InterruptStatus;
+    Registers->UsbStatus                = InterruptStatus;
+    Controller->Base.InterruptStatus   |= InterruptStatus;
     return InterruptHandled;
 }
 

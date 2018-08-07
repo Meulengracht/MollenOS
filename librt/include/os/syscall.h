@@ -153,6 +153,8 @@ _CODE_END
  * - Interrupt related system call definitions */
 #define Syscall_InterruptAdd(Descriptor, Flags) (UUId_t)syscall2(101, SCPARAM(Descriptor), SCPARAM(Flags))
 #define Syscall_InterruptRemove(InterruptId) (OsStatus_t)syscall1(102, SCPARAM(InterruptId))
+#define Syscall_KeyEvent(SystemKey) (OsStatus_t)syscall1(103, SCPARAM(SystemKey))
+#define Syscall_InputEvent(SystemInput) (OsStatus_t)syscall1(104, SCPARAM(SystemInput))
 #define Syscall_TimerCreate(Interval, Periodic, Context) (UUId_t)syscall3(105, SCPARAM(Interval), SCPARAM(Periodic), SCPARAM(Context))
 #define Syscall_TimerStop(TimerId) (OsStatus_t)syscall1(106, SCPARAM(TimerId))
 

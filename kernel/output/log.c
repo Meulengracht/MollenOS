@@ -22,15 +22,14 @@
 
 #include <system/video.h>
 #include <threading.h>
-#include <heap.h>
-#include <log.h>
-
+#include <machine.h>
 #include <assert.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+#include <heap.h>
+#include <log.h>
 
-/* Globals */
 static MCoreLog_t LogObject                     = { 0 };
 static char StaticLogSpace[LOG_INITIAL_SIZE]    = { 0 };
 static UUId_t PipeThreads[2]                    = { 0 };
@@ -103,8 +102,9 @@ LogInitializeFull(void)
 	CriticalSectionLeave(&LogObject.SyncObject);
 
     // Create 4kb pipes
-    LogObject.STDOUT = CreateSystemPipe(0, 6); // 1 << 6, 64 entries, 1 << 12 is 4kb
-    LogObject.STDERR = CreateSystemPipe(0, 6); // 1 << 6, 64 entries, 1 << 12 is 4kb
+    LogObject.STDOUT        = CreateSystemPipe(0, 6); // 1 << 6, 64 entries, 1 << 12 is 4kb
+    LogObject.STDERR        = CreateSystemPipe(0, 6); // 1 << 6, 64 entries, 1 << 12 is 4kb
+    GetMachine()->StdInput  = CreateSystemPipe(0, 6); // 1 << 6, 64 entries, 1 << 12 is 4kb
 
     // Create the threads that will echo the pipes
     PipeThreads[0] = ThreadingCreateThread("log-stdout", LogPipeHandler, (void*)LogObject.STDOUT, 0);

@@ -43,6 +43,7 @@ LIBC_SRCS = $(wildcard ctype/*.c) \
 			$(wildcard getopt/*.c) \
 			$(wildcard locale/*.c) \
 			$(wildcard signal/*.c) \
+			$(wildcard stdio/keymaps/*.c) \
 			$(wildcard stdio/*.c) \
 			$(wildcard stdlib/*.c) \
 			$(wildcard stdlib/mb/*.c) \
@@ -61,13 +62,11 @@ LIBC_OBJECTS = $(ASM_SRCS:.s=.o) $(COMMON_SRCS:.c=.o) $(LIBC_SRCS:.c=.o)
 LIBC_DEPENDENCIES = ../build/libcrt.lib ../build/libclang.lib ../build/libm.lib ../build/libds.lib
 
 # Setup flags and stuff each for individual build  $(subst ../,,$(ASM_SRCS))
-ifeq ($(MAKECMDGOALS),libk)
-	CFLAGS = $(GCFLAGS) -mno-sse -D__OSLIB_C_IMPLEMENTATION -DLIBC_KERNEL -D_KRNL_DLL $(COMMON_INCS) $(LIBK_INCS)
-	LFLAGS = /lib
-else
-	CFLAGS = $(GCFLAGS) -D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAREDLIBRARY $(math_flags) -DCRTDLL $(COMMON_INCS)
-	LFLAGS = $(GLFLAGS) /def:libc.def /dll /entry:__CrtLibraryEntry /lldmap $(LIBC_DEPENDENCIES)
-endif
+LIBK_CFLAGS = $(GCFLAGS) -mno-sse -D__OSLIB_C_IMPLEMENTATION -DLIBC_KERNEL -D_KRNL_DLL $(COMMON_INCS) $(LIBK_INCS)
+LIBK_LFLAGS = /lib
+
+LIBC_CFLAGS = $(GCFLAGS) -D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAREDLIBRARY $(math_flags) -DCRTDLL $(COMMON_INCS)
+LIBC_LFLAGS = $(GLFLAGS) /def:libc.def /dll /entry:__CrtLibraryEntry /lldmap $(LIBC_DEPENDENCIES)
 
 # libk-target
 .PHONY: libk
@@ -77,17 +76,21 @@ libk: ../build/libk.lib
 .PHONY: libc
 libc: ../build/libc.dll
 
+# tidy-target
+.PHONY: tidy
+tidy: $(LIBK_OBJECTS) $(LIBC_OBJECTS)
+
 ../build/libk.lib: $(LIBK_OBJECTS)
 	@printf "%b" "\033[0;36mCreating static library " $@ "\033[m\n"
-	@$(LD) $(LFLAGS) $(LIBK_OBJECTS) /out:$@
+	@$(LD) $(LIBK_LFLAGS) $(LIBK_OBJECTS) /out:$@
 
 ../build/libc.dll: $(LIBC_OBJECTS) $(LIBC_DEPENDENCIES)
 	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
-	@$(LD) $(LFLAGS) $(LIBC_OBJECTS) /out:$@
+	@$(LD) $(LIBC_LFLAGS) $(LIBC_OBJECTS) /out:$@
 
 %.ko : %.c
 	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
-	@$(CC) -c $(CFLAGS) -o $@ $<
+	@$(CC) -c $(LIBK_CFLAGS) -o $@ $<
 
 %.ko : %.s
 	@printf "%b" "\033[0;32mAssembling source object " $< "\033[m\n"
@@ -95,7 +98,7 @@ libc: ../build/libc.dll
 
 %.o : %.c
 	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
-	@$(CC) -c $(CFLAGS) -o $@ $<
+	@$(CC) -c $(LIBC_CFLAGS) -o $@ $<
 
 %.o : %.s
 	@printf "%b" "\033[0;32mAssembling source object " $< "\033[m\n"
