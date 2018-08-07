@@ -96,11 +96,9 @@ PS2MouseInterrupt(
     if (Port->ResponseReadIndex == PS2_RINGBUFFER_SIZE) {
         Port->ResponseReadIndex = 0;
     }
-
     WriteSystemInput(&Input);
     return InterruptHandled;
 }
-
 
 /* PS2SetSampling
  * Updates the sampling rate for the mouse driver */
@@ -195,7 +193,7 @@ PS2MouseInitialize(
     // Initialize interrupt
     RegisterFastInterruptIoResource(&Instance->Interrupt, Controller->Data);
     RegisterFastInterruptHandler(&Instance->Interrupt, PS2MouseFastInterrupt);
-    Instance->InterruptId = RegisterInterruptSource(&Instance->Interrupt, INTERRUPT_NOTSHARABLE);
+    Instance->InterruptId = RegisterInterruptSource(&Instance->Interrupt, INTERRUPT_USERSPACE | INTERRUPT_NOTSHARABLE);
 
     // The mouse is in default state at this point
     // since all ports suffer a reset - We want to test if the mouse is a 4-byte mouse

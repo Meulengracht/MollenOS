@@ -21,7 +21,7 @@
  *    - Port Multiplier Support
  *    - Power Management
  */
-//#define __TRACE
+#define __TRACE
 
 #include <os/file.h>
 #include <os/mollenos.h>

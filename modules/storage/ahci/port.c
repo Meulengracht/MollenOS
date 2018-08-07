@@ -21,7 +21,7 @@
  *    - Port Multiplier Support
  *    - Power Management
  */
-//#define __TRACE
+#define __TRACE
 
 #include <os/mollenos.h>
 #include <os/utils.h>
@@ -38,7 +38,6 @@ AhciPortCreate(
     _In_ int                Port, 
     _In_ int                Index)
 {
-    // Varaibles
     AhciPort_t *AhciPort = NULL;
 
     // Sanitize the port, don't create an already existing
@@ -55,15 +54,10 @@ AhciPortCreate(
     memset(AhciPort, 0, sizeof(AhciPort_t));
 
     // Set port id and index
-    AhciPort->Id    = Port;
-    AhciPort->Index = Index;
-
-    // Instantiate the register pointer
-    AhciPort->Registers = (AHCIPortRegisters_t*)
-        ((uint8_t*)Controller->Registers + AHCI_REGISTER_PORTBASE(Port));
-
-    // Create the transaction list and we're done!
-    AhciPort->Transactions = CollectionCreate(KeyInteger);
+    AhciPort->Id            = Port;
+    AhciPort->Index         = Index;
+    AhciPort->Registers     = (AHCIPortRegisters_t*)((uintptr_t)Controller->Registers + AHCI_REGISTER_PORTBASE(Port));
+    AhciPort->Transactions  = CollectionCreate(KeyInteger);
     return AhciPort;
 }
 
@@ -80,8 +74,7 @@ AhciPortInitialize(
     uint8_t *CommandTablePointer            = NULL;
     int i;
 
-    // Initialize memory structures 
-    // Both RecievedFIS and PRDT
+    // Initialize memory structures - both RecievedFIS and PRDT
     Port->CommandList   = (AHCICommandList_t*)
         ((uint8_t*)Controller->CommandListBase + (1024 * Port->Id));
     Port->CommandTable  = (void*)((uint8_t*)Controller->CommandTableBase 
@@ -316,7 +309,7 @@ AhciPortInterruptHandler(
 {
     // Variables
     AhciTransaction_t *Transaction;
-	reg32_t InterruptStatus;
+    reg32_t InterruptStatus;
     reg32_t DoneCommands;
     CollectionItem_t *tNode;
     DataKey_t Key;
@@ -325,17 +318,17 @@ AhciPortInterruptHandler(
     // Check interrupt services 
     // Cold port detect, recieved fis etc
     TRACE("AhciPortInterruptHandler(Port %i, Interrupt Status 0x%x)",
-        Port->Id, Controller->InterruptResource.PortInterruptStatus[Port->Id]);
+        Port->Id, Controller->InterruptResource.PortInterruptStatus[Port->Index]);
 
 HandleInterrupt:
-    InterruptStatus = Controller->InterruptResource.PortInterruptStatus[Port->Id];
-    Controller->InterruptResource.PortInterruptStatus[Port->Id] = 0;
+    InterruptStatus = Controller->InterruptResource.PortInterruptStatus[Port->Index];
+    Controller->InterruptResource.PortInterruptStatus[Port->Index] = 0;
     
     // Check for errors status's
     if (InterruptStatus & (AHCI_PORT_IE_TFEE | AHCI_PORT_IE_HBFE 
         | AHCI_PORT_IE_HBDE | AHCI_PORT_IE_IFE | AHCI_PORT_IE_INFE)) {
         if (InterruptStatus & AHCI_PORT_IE_TFEE) {
-		    PrintTaskDataErrorString(HIBYTE(Port->Registers->TaskFileData));
+            PrintTaskDataErrorString(HIBYTE(Port->Registers->TaskFileData));
         }
         else {
             ERROR("AHCI::Port ERROR %i, CMD: 0x%x, CI 0x%x, IE: 0x%x, IS 0x%x, TFD: 0x%x", Port->Id,
@@ -392,7 +385,7 @@ HandleInterrupt:
     }
 
     // Re-handle?
-    if (Controller->InterruptResource.PortInterruptStatus[Port->Id] != 0) {
+    if (Controller->InterruptResource.PortInterruptStatus[Port->Index] != 0) {
         goto HandleInterrupt;
     }
 }

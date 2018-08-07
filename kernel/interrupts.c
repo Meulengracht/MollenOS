@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -44,24 +44,9 @@ typedef struct _InterruptTableEntry {
     int                 Sharable;
 } InterruptTableEntry_t;
 
-/* Globals
- * - State keeping variables */
 static InterruptTableEntry_t    InterruptTable[MAX_SUPPORTED_INTERRUPTS]    = { { 0 } };
 static CriticalSection_t        InterruptTableSyncObject    = CRITICALSECTION_INITIALIZE(CRITICALSECTION_PLAIN);
 static _Atomic(UUId_t)          InterruptIdGenerator        = ATOMIC_VAR_INIT(0);
-static FastInterruptResources_t FastInterruptTable          = { 0 };
-
-
-/* InitializeInterruptTable
- * Initializes the static system interrupt table. This must be done before any driver interrupts
- * as they will rely on the system function table that gets passed along. */
-void
-InitializeInterruptTable()
-{
-    FastInterruptTable.Trace        = NULL;
-    FastInterruptTable.ReadIoSpace  = ReadDeviceIo;
-    FastInterruptTable.WriteIoSpace = WriteDeviceIo;
-}
 
 /* InterruptIncreasePenalty 
  * Increases the penalty for an interrupt source. */
@@ -136,8 +121,7 @@ InterruptGetLeastLoaded(
         // Calculate count
         int Penalty = InterruptGetPenalty(Irqs[i]);
 
-        // Sanitize status, if -1
-        // then its not usable
+        // Sanitize status, if -1 then its not usable
         if (Penalty == INTERRUPT_NONE) {
             continue;
         }
@@ -313,7 +297,7 @@ InterruptResolveResources(
         ERROR(" > failed to remap interrupt memory resources");
         return OsError;
     }
-    CpuHalt();
+    
     return OsSuccess;
 }
 
@@ -605,7 +589,7 @@ InterruptHandle(
     while (Entry != NULL) {
         if (Entry->Flags & INTERRUPT_KERNEL) {
             void* Data  = (Entry->Flags & INTERRUPT_CONTEXT) != 0 ? (void*)Context : Entry->Interrupt.Context;
-            Result      = Entry->Interrupt.FastInterrupt.Handler(&FastInterruptTable, Data);
+            Result      = Entry->Interrupt.FastInterrupt.Handler(GetFastInterruptTable(), Data);
             if (Result != InterruptNotHandled) {
                 *Source = Entry->Source;
                 break;
@@ -613,8 +597,8 @@ InterruptHandle(
         }
         else {
             // Use the fast-handler initially
-            FastInterruptTable.ResourceTable = &Entry->KernelResources;
-            Result = Entry->KernelResources.Handler(&FastInterruptTable, NULL);
+            GetFastInterruptTable()->ResourceTable = &Entry->KernelResources;
+            Result = Entry->KernelResources.Handler(GetFastInterruptTable(), NULL);
             if (Result != InterruptNotHandled) {
                 if (Result == InterruptHandled && (Entry->Flags & INTERRUPT_USERSPACE)) {
                     __KernelInterruptDriver(Entry->Ash, Entry->Id, Entry->Interrupt.Context);

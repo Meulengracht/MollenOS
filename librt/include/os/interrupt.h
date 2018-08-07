@@ -70,7 +70,6 @@ typedef struct _FastInterruptResources {
     FastInterruptResourceTable_t*   ResourceTable;
 
     // System Functions
-    void                            (*Trace)(const char*, ...);
     size_t                          (*ReadIoSpace)(DeviceIo_t*, size_t Offset, size_t Length);
     OsStatus_t                      (*WriteIoSpace)(DeviceIo_t*, size_t Offset, size_t Value, size_t Length);
 } FastInterruptResources_t;

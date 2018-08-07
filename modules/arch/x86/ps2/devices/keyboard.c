@@ -287,7 +287,7 @@ PS2KeyboardInitialize(
     // Initialize interrupt
     RegisterFastInterruptIoResource(&Instance->Interrupt, Controller->Data);
     RegisterFastInterruptHandler(&Instance->Interrupt, PS2KeyboardFastInterrupt);
-    Instance->InterruptId = RegisterInterruptSource(&Instance->Interrupt, INTERRUPT_NOTSHARABLE);;
+    Instance->InterruptId = RegisterInterruptSource(&Instance->Interrupt, INTERRUPT_USERSPACE | INTERRUPT_NOTSHARABLE);
 
     // Reset keyboard LEDs status
     if (PS2KeyboardSetLEDs(Instance, 0, 0, 0) != OsSuccess) {

@@ -142,7 +142,7 @@ AcquireSystemDeviceIo(
 
         case DeviceIoPortBased: {
             for (size_t i = 0; i < SystemIo->Io.Access.Port.Length; i++) {
-                SetIoSpaceAccess(Cpu, GetCurrentSystemMemorySpace(), ((uint16_t)(SystemIo->Io.Access.Port.Base + i)), 1);
+                SetDirectIoAccess(Cpu, GetCurrentSystemMemorySpace(), ((uint16_t)(SystemIo->Io.Access.Port.Base + i)), 1);
             }
             return OsSuccess;
         } break;
@@ -192,7 +192,7 @@ ReleaseSystemDeviceIo(
 
         case DeviceIoPortBased: {
             for (size_t i = 0; i < SystemIo->Io.Access.Port.Length; i++) {
-                SetIoSpaceAccess(Cpu, GetCurrentSystemMemorySpace(), ((uint16_t)(SystemIo->Io.Access.Port.Base + i)), 0);
+                SetDirectIoAccess(Cpu, GetCurrentSystemMemorySpace(), ((uint16_t)(SystemIo->Io.Access.Port.Base + i)), 0);
             }
         } break;
 

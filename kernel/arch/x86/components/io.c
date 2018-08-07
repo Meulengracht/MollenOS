@@ -22,31 +22,28 @@
  */
 #define __MODULE "IOLL"
 
-/* Includes 
- * - System */
 #include <system/io.h>
 #include <debug.h>
 #include <arch.h>
 #include <pci.h>
 
-/* Includes
- * - Library */
-#include <stddef.h>
-
-__EXTERN uint8_t inb(uint16_t port);
-__EXTERN uint16_t inw(uint16_t port);
-__EXTERN uint32_t inl(uint16_t port);
-__EXTERN void outb(uint16_t port, uint8_t data);
-__EXTERN void outw(uint16_t port, uint16_t data);
-__EXTERN void outl(uint16_t port, uint32_t data);
+extern uint8_t  inb(uint16_t port);
+extern uint16_t inw(uint16_t port);
+extern uint32_t inl(uint16_t port);
+extern void     outb(uint16_t port, uint8_t data);
+extern void     outw(uint16_t port, uint16_t data);
+extern void     outl(uint16_t port, uint32_t data);
 
 /* PCI I/O Helper
- * This function calculates the correct offset
- * based upon the pci bus type */
-size_t PciCalculateOffset(int IsExtended,
-	DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register)
+ * This function calculates the correct offset based upon the pci bus type */
+size_t
+PciCalculateOffset(
+    _In_ int                IsExtended,
+	_In_ DevInfo_t          Bus,
+    _In_ DevInfo_t          Device,
+    _In_ DevInfo_t          Function,
+    _In_ size_t             Register)
 {
-	/* PCI Express? */
 	if (IsExtended) {
 		return (size_t)((Bus << 20) | (Device << 15) | (Function << 12) | Register);
 	}
@@ -57,9 +54,14 @@ size_t PciCalculateOffset(int IsExtended,
 }
 
 /* PciRead32
- * Reads a 32 bit value from the pci-bus
- * at the specified location bus, device, function and register */
-uint32_t PciRead32(DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register)
+ * Reads a 32 bit value from the pci-bus at the specified location bus, device, 
+ * function and register */
+uint32_t
+PciRead32(
+    _In_ DevInfo_t          Bus,
+    _In_ DevInfo_t          Device,
+    _In_ DevInfo_t          Function,
+    _In_ size_t             Register)
 {
 	outl(X86_PCI_SELECT, PciCalculateOffset(0, Bus, Device, Function, Register));
 	return inl(X86_PCI_DATA);
@@ -68,7 +70,12 @@ uint32_t PciRead32(DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t R
 /* PciRead16
  * Reads a 16 bit value from the pci-bus
  * at the specified location bus, device, function and register */
-uint16_t PciRead16(DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register)
+uint16_t
+PciRead16(
+    _In_ DevInfo_t          Bus,
+    _In_ DevInfo_t          Device,
+    _In_ DevInfo_t          Function,
+    _In_ size_t             Register)
 {
 	outl(X86_PCI_SELECT, PciCalculateOffset(0, Bus, Device, Function, Register));
 	return inw(X86_PCI_DATA + (Register & 0x02));
@@ -77,7 +84,12 @@ uint16_t PciRead16(DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t R
 /* PciRead8
  * Reads a 8 bit value from the pci-bus
  * at the specified location bus, device, function and register */
-uint8_t PciRead8(DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Register)
+uint8_t
+PciRead8(
+    _In_ DevInfo_t          Bus,
+    _In_ DevInfo_t          Device,
+    _In_ DevInfo_t          Function,
+    _In_ size_t             Register)
 {
 	outl(X86_PCI_SELECT, PciCalculateOffset(0, Bus, Device, Function, Register));
 	return inb(X86_PCI_DATA + (Register & 0x03));
@@ -86,8 +98,13 @@ uint8_t PciRead8(DevInfo_t Bus, DevInfo_t Device, DevInfo_t Function, size_t Reg
 /* PciWrite32
  * Writes a 32 bit value to the pci-bus
  * at the specified location bus, device, function and register */
-void PciWrite32(DevInfo_t Bus, DevInfo_t Device,
-	DevInfo_t Function, size_t Register, uint32_t Value)
+void
+PciWrite32(
+    _In_ DevInfo_t          Bus,
+    _In_ DevInfo_t          Device,
+	_In_ DevInfo_t          Function,
+    _In_ size_t             Register,
+    _In_ uint32_t           Value)
 {
 	outl(X86_PCI_SELECT, PciCalculateOffset(0, Bus, Device, Function, Register));
 	outl(X86_PCI_DATA, Value);
@@ -96,8 +113,13 @@ void PciWrite32(DevInfo_t Bus, DevInfo_t Device,
 /* PciWrite16
  * Writes a 16 bit value to the pci-bus
  * at the specified location bus, device, function and register */
-void PciWrite16(DevInfo_t Bus, DevInfo_t Device, 
-	DevInfo_t Function, size_t Register, uint16_t Value)
+void
+PciWrite16(
+    _In_ DevInfo_t          Bus,
+    _In_ DevInfo_t          Device, 
+	_In_ DevInfo_t          Function,
+    _In_ size_t             Register,
+    _In_ uint16_t           Value)
 {
 	outl(X86_PCI_SELECT, PciCalculateOffset(0, Bus, Device, Function, Register));
 	outw(X86_PCI_DATA + (Register & 0x02), Value);
@@ -106,154 +128,107 @@ void PciWrite16(DevInfo_t Bus, DevInfo_t Device,
 /* PciWrite8
  * Writes a 8 bit value to the pci-bus
  * at the specified location bus, device, function and register */
-void PciWrite8(DevInfo_t Bus, DevInfo_t Device, 
-	DevInfo_t Function, size_t Register, uint8_t Value)
+void PciWrite8(
+    _In_ DevInfo_t          Bus,
+    _In_ DevInfo_t          Device, 
+	_In_ DevInfo_t          Function,
+    _In_ size_t             Register,
+    _In_ uint8_t            Value)
 {
 	outl(X86_PCI_SELECT, PciCalculateOffset(0, Bus, Device, Function, Register));
 	outw(X86_PCI_DATA + (Register & 0x03), Value);
 }
 
-/* IoRead 
- * Reads a value from the given data source. Accepted values in
- * width are 1, 2, 4 or 8. */
+/* ReadDirectIo 
+ * Reads a value from the given raw io source. Accepted values in width are 1, 2, 4 or 8. */
 OsStatus_t
-IoRead(
-    _In_ int        Source,
-    _In_ uintptr_t  Address,
-    _In_ size_t     Width,
-    _Out_ size_t   *Value)
+ReadDirectIo(
+    _In_  DeviceIoType_t    Type,
+    _In_  uintptr_t         Address,
+    _In_  size_t            Width,
+    _Out_ size_t*           Value)
 {
-    // Handle source-type
-    if (Source == IO_SOURCE_MEMORY) {
-        FATAL(FATAL_SCOPE_KERNEL, "IoRead(MEMORY)");
-        if (Width == 1) {
-
-        }
-        else if (Width == 2) {
-
-        }
-        else if (Width == 4) {
-
-        }
+    switch (Type) {
+        case DeviceIoPortBased: {
+            if (Width == 1) {
+                *Value = ((size_t)inb((uint16_t)Address) & 0xFF);
+            }
+            else if (Width == 2) {
+                *Value = ((size_t)inw((uint16_t)Address) & 0xFFFF);
+            }
+            else if (Width == 4) {
+                *Value = ((size_t)inl((uint16_t)Address) & 0xFFFFFFFF);
+            }
 #if __BITS == 64
-        else if (Width == 8) {
-
-        }
+            else if (Width == 8) {
+                uint64_t Temporary = inl((uint16_t)Address + 4);
+                Temporary <<= 32;
+                Temporary |= inl((uint16_t)Address);
+                *Value = Temporary;
+            }
 #endif
-        else {
-            // Invalid width
-            ERROR("(IoRead) Invalid width %u", Width);
-            return OsError;
-        }
-        return OsSuccess;
-    }
-    else if (Source == IO_SOURCE_HARDWARE) {
-        if (Width == 1) {
-            *Value = ((size_t)inb((uint16_t)Address) & 0xFF);
-        }
-        else if (Width == 2) {
-            *Value = ((size_t)inw((uint16_t)Address) & 0xFFFF);
-        }
-        else if (Width == 4) {
-            *Value = ((size_t)inl((uint16_t)Address) & 0xFFFFFFFF);
-        }
-#if __BITS == 64
-        else if (Width == 8) {
-            size_t Temporary = inl((uint16_t)Address + 4);
-            Temporary <<= 32;
-            Temporary |= inl((uint16_t)Address);
-            *Value = Temporary;
-        }
-#endif
-        else {
-            // Invalid width
-            ERROR("(IoRead) Invalid width %u", Width);
-            return OsError;
-        }
-        return OsSuccess;
-    }
+            else {
+                ERROR(" > invalid port width %u for reading", Width);
+                return OsError;
+            }
+        } break;
 
-    // Invalid source
-    ERROR("(IoRead) Invalid source");
-    return OsError;
+        default: {
+            FATAL(FATAL_SCOPE_KERNEL, " > invalid direct io read type %u", Type);
+        } break;
+    }
+    return OsSuccess;
 }
 
-/* IoWrite 
- * Writes a value to the given data source. Accepted values in
- * width are 1, 2, 4 or 8. */
+/* WriteDirectIo 
+ * Writes a value to the given raw io source. Accepted values in width are 1, 2, 4 or 8. */
 OsStatus_t
-IoWrite(
-    _In_ int        Source,
-    _In_ uintptr_t  Address,
-    _In_ size_t     Width,
-    _In_ size_t     Value)
+WriteDirectIo(
+    _In_ DeviceIoType_t     Type,
+    _In_ uintptr_t          Address,
+    _In_ size_t             Width,
+    _In_ size_t             Value)
 {
-    // Handle source-type
-    if (Source == IO_SOURCE_MEMORY) {
-        FATAL(FATAL_SCOPE_KERNEL, "IoWrite(MEMORY)");
-        if (Width == 1) {
-            
-        }
-        else if (Width == 2) {
-            
-        }
-        else if (Width == 4) {
-            
-        }
-#if __BITS == 64
-        else if (Width == 8) {
+    switch (Type) {
+        case DeviceIoPortBased: {
+            if (Width == 1) {
+                outb((uint16_t)Address, (uint8_t)(Value & 0xFF));
+            }
+            else if (Width == 2) {
+                outw((uint16_t)Address, (uint16_t)(Value & 0xFFFF));
+            }
+            else if (Width == 4) {
+                outl((uint16_t)Address, (uint32_t)(Value & 0xFFFFFFFF));
+            }
+    #if __BITS == 64
+            else if (Width == 8) {
+                outl((uint16_t)Address + 4, HIDWORD(Value));
+                outl((uint16_t)Address, LODWORD(Value));
+            }
+    #endif
+            else {
+                ERROR(" > invalid port width %u for writing", Width);
+                return OsError;
+            }
+        } break;
 
-        }
-#endif
-        else {
-            // Invalid width
-            ERROR("(IoWrite) Invalid width %u", Width);
-            return OsError;
-        }
-        return OsSuccess;
+        default: {
+            FATAL(FATAL_SCOPE_KERNEL, " > invalid direct io write type %u", Type);
+        } break;
     }
-    else if (Source == IO_SOURCE_HARDWARE) {
-        if (Width == 1) {
-            outb((uint16_t)Address, (uint8_t)(Value & 0xFF));
-        }
-        else if (Width == 2) {
-            outw((uint16_t)Address, (uint16_t)(Value & 0xFFFF));
-        }
-        else if (Width == 4) {
-            outl((uint16_t)Address, (uint32_t)(Value & 0xFFFFFFFF));
-        }
-#if __BITS == 64
-        else if (Width == 8) {
-            outl((uint16_t)Address + 4, HIDWORD(Value));
-            outl((uint16_t)Address, LODWORD(Value));
-        }
-#endif
-        else {
-            // Invalid width
-            ERROR("(IoWrite) Invalid width %u", Width);
-            return OsError;
-        }
-        return OsSuccess;
-    }
-
-    // Invalid source
-    ERROR("(IoWrite) Invalid source");
-    return OsError;
+    return OsSuccess;
 }
 
-/* PciRead
- * Reads a value from the given pci address. Accepted values in
- * width are 1, 2, 4 or 8. */
-KERNELAPI
+/* ReadDirectPci
+ * Reads a value from the given pci address. Accepted values in width are 1, 2, 4 or 8. */
 OsStatus_t
-KERNELABI
-PciRead(
-    _In_ unsigned   Bus,
-    _In_ unsigned   Slot,
-    _In_ unsigned   Function,
-    _In_ unsigned   Register,
-    _In_ size_t     Width,
-    _Out_ size_t   *Value)
+ReadDirectPci(
+    _In_  unsigned          Bus,
+    _In_  unsigned          Slot,
+    _In_  unsigned          Function,
+    _In_  unsigned          Register,
+    _In_  size_t            Width,
+    _Out_ size_t*           Value)
 {
     // Make sure width is of correct values
     if (Width == 1) {
@@ -272,13 +247,10 @@ PciRead(
     return OsSuccess;
 }
 
-/* PciWrite
- * Writes a value to the given pci address. Accepted values in
- * width are 1, 2, 4 or 8. */
-KERNELAPI
+/* WriteDirectPci
+ * Writes a value to the given pci address. Accepted values in width are 1, 2, 4 or 8. */
 OsStatus_t
-KERNELABI
-PciWrite(
+WriteDirectPci(
     _In_ unsigned   Bus,
     _In_ unsigned   Slot,
     _In_ unsigned   Function,

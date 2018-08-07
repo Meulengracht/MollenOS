@@ -296,8 +296,8 @@ InterruptConfigure(
     TRACE("InterruptConfigure(Id 0x%x, Enable %i)", Descriptor->Id, Enable);
 
     // Is this a software interrupt? Don't install
-    if (Descriptor->Flags & INTERRUPT_SOFT
-        || Descriptor->Interrupt.Line == INTERRUPT_NONE) {
+    if (Descriptor->Flags & INTERRUPT_SOFT || 
+        Descriptor->Interrupt.Line == INTERRUPT_NONE) {
         return OsSuccess;
     }
 
@@ -307,9 +307,9 @@ InterruptConfigure(
     }
 
     // Determine the kind of apic configuration
-    TableIndex = (Descriptor->Id & 0xFF);
-    ApicFlags = InterruptGetApicConfiguration(&Descriptor->Interrupt);
-    ApicFlags |= TableIndex;
+    TableIndex  = (Descriptor->Id & 0xFF);
+    ApicFlags   = InterruptGetApicConfiguration(&Descriptor->Interrupt);
+    ApicFlags  |= TableIndex;
 
     // Trace
     TRACE("Calculated flags for interrupt: 0x%x (TableIndex %u)", LODWORD(ApicFlags), TableIndex);

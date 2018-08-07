@@ -49,6 +49,17 @@ typedef struct _SystemInterrupt {
     struct _SystemInterrupt*        Link;
 } SystemInterrupt_t;
 
+/* InitializeInterruptTable
+ * Initializes the static system interrupt table. This must be done before any driver interrupts
+ * as they will rely on the system function table that gets passed along. */
+KERNELAPI void KERNELABI
+InitializeInterruptTable(void);
+
+/* FastInterruptResources_t
+ * Retrieves the system fast interrupt resource table to pass to process interrupt handlers. */
+KERNELAPI FastInterruptResources_t* KERNELABI
+GetFastInterruptTable(void);
+
 /* InterruptRegister
  * Tries to allocate the given interrupt source by the given descriptor and flags. On success
  * it returns the id of the irq, and on failure it returns UUID_INVALID */

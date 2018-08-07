@@ -203,6 +203,7 @@ InitializeMachine(
         CpuIdle();
     }
 
+    InitializeInterruptTable();
     Status = InterruptInitialize();
     if (Status != OsSuccess) {
         ERROR("Failed to initialize interrupts for system.");

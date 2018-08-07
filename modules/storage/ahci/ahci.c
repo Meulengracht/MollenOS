@@ -69,7 +69,7 @@ AhciControllerCreate(
 
     // Trace
     TRACE("Found Io-Space (Type %u, Physical 0x%x, Size 0x%x)",
-        IoBase->Type, IoBase->PhysicalBase, IoBase->Size);
+        IoBase->Type, IoBase->Access.Memory.PhysicalBase, IoBase->Access.Memory.Length);
 
     // Acquire the io-space
     if (AcquireDeviceIo(IoBase) != OsSuccess) {
@@ -77,10 +77,7 @@ AhciControllerCreate(
         free(Controller);
         return NULL;
     }
-    else {
-        // Store information
-        Controller->IoBase = IoBase;
-    }
+    Controller->IoBase = IoBase;
 
     // Start out by initializing the contract
     InitializeContract(&Controller->Contract, Controller->Contract.DeviceId, 1,
@@ -107,6 +104,7 @@ AhciControllerCreate(
     }
 
     // Register interrupt
+    TRACE(" > ahci interrupt line is %u", Controller->Device.Interrupt.Line);
     RegisterInterruptContext(&Controller->Device.Interrupt, Controller);
     Controller->InterruptId = RegisterInterruptSource(&Controller->Device.Interrupt, INTERRUPT_USERSPACE);
 
@@ -139,7 +137,6 @@ OsStatus_t
 AhciControllerDestroy(
     _In_ AhciController_t*    Controller)
 {
-    // Variables
     int i;
 
     // First step is to clear out all ports
@@ -289,7 +286,8 @@ AhciSetup(
     _In_ AhciController_t*    Controller)
 {
     // Variables
-    int FullResetRequired = 0, PortItr = 0;
+    int FullResetRequired   = 0;
+    int ActivePortCount     = 0;
     int i;
 
     // Take ownership of the controller
@@ -320,7 +318,7 @@ AhciSetup(
         }
 
         // Create a new port
-        Controller->Ports[i] = AhciPortCreate(Controller, PortItr, i);
+        Controller->Ports[i] = AhciPortCreate(Controller, ActivePortCount++, i);
 
         // If PxCMD.ST, PxCMD.CR, PxCMD.FRE and PxCMD.FR 
         // are all cleared, the port is in an idle state
@@ -332,15 +330,12 @@ AhciSetup(
         // System software places a port into the idle state by clearing PxCMD.ST and 
         // waiting for PxCMD.CR to return 0 when read
         Controller->Ports[i]->Registers->CommandAndStatus = 0;
-
-        // Next port
-        PortItr++;
     }
     MemoryBarrier();
-    Controller->PortCount = PortItr;
+    Controller->PortCount = ActivePortCount;
 
     // Trace
-    TRACE("Ports initializing: %i", PortItr);
+    TRACE("Ports active: %i", ActivePortCount);
 
     // Software should wait at least 500 milliseconds for port idle to occur
     thrd_sleepex(650);
@@ -348,10 +343,8 @@ AhciSetup(
     // Now we iterate through and see what happened
     for (i = 0; i < AHCI_MAX_PORTS; i++) {
         if (Controller->Ports[i] != NULL) {
-            if ((Controller->Ports[i]->Registers->CommandAndStatus
-                & (AHCI_PORT_CR | AHCI_PORT_FR))) {
-                // Port did not go idle 
-                // Attempt a port reset
+            if ((Controller->Ports[i]->Registers->CommandAndStatus & (AHCI_PORT_CR | AHCI_PORT_FR))) {
+                // Port did not go idle - Attempt a port reset
                 if (AhciPortReset(Controller, Controller->Ports[i]) != OsSuccess) {
                     FullResetRequired = 1;
                     break;
@@ -372,13 +365,13 @@ AhciSetup(
 
     // Allocate some shared resources, especially 
     // command lists as we need 1K * portcount
-    if (MemoryAllocate(NULL, 1024 * PortItr, MEMORY_LOWFIRST | MEMORY_CONTIGIOUS
+    if (MemoryAllocate(NULL, 1024 * ActivePortCount, MEMORY_LOWFIRST | MEMORY_CONTIGIOUS
         | MEMORY_CLEAN | MEMORY_COMMIT, &Controller->CommandListBase,
         &Controller->CommandListBasePhysical) != OsSuccess) {
         ERROR("AHCI::Failed to allocate memory for the command list.");
         return OsError;
     }
-    if (MemoryAllocate(NULL, (AHCI_COMMAND_TABLE_SIZE * 32) * PortItr, 
+    if (MemoryAllocate(NULL, (AHCI_COMMAND_TABLE_SIZE * 32) * ActivePortCount, 
         MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN 
         | MEMORY_COMMIT, &Controller->CommandTableBase,
         &Controller->CommandTableBasePhysical) != OsSuccess) {
@@ -389,15 +382,15 @@ AhciSetup(
     // Trace allocations
     TRACE("Command List memory at 0x%x (Physical 0x%x), size 0x%x",
         Controller->CommandListBase, Controller->CommandListBasePhysical,
-        1024 * PortItr);
+        1024 * ActivePortCount);
     TRACE("Command Table memory at 0x%x (Physical 0x%x), size 0x%x",
         Controller->CommandTableBase, Controller->CommandTableBasePhysical,
-        (AHCI_COMMAND_TABLE_SIZE * 32) * PortItr);
+        (AHCI_COMMAND_TABLE_SIZE * 32) * ActivePortCount);
     
     // We have to take into account FIS based switching here, 
     // if it's supported we need 4K
     if (Controller->Registers->Capabilities & AHCI_CAPABILITIES_FBSS) {
-        if (MemoryAllocate(NULL, 0x1000 * PortItr,
+        if (MemoryAllocate(NULL, 0x1000 * ActivePortCount,
             MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN
             | MEMORY_COMMIT, &Controller->FisBase,
             &Controller->FisBasePhysical) != OsSuccess) {
@@ -406,7 +399,7 @@ AhciSetup(
         }
     }
     else {
-        if (MemoryAllocate(NULL, 256 * PortItr,
+        if (MemoryAllocate(NULL, 256 * ActivePortCount,
             MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN
             | MEMORY_COMMIT, &Controller->FisBase,
             &Controller->FisBasePhysical) != OsSuccess) {
@@ -417,7 +410,7 @@ AhciSetup(
 
     TRACE("FIS-Area memory at 0x%x (Physical 0x%x), size 0x%x",
         Controller->FisBase, Controller->FisBasePhysical,
-        (AHCI_COMMAND_TABLE_SIZE * 32) * PortItr);
+        (AHCI_COMMAND_TABLE_SIZE * 32) * ActivePortCount);
 
     // For each implemented port, system software shall allocate memory
     for (i = 0; i < AHCI_MAX_PORTS; i++) {
@@ -431,12 +424,10 @@ AhciSetup(
     Controller->Registers->InterruptStatus      = 0xFFFFFFFF;
     Controller->Registers->GlobalHostControl   |= AHCI_HOSTCONTROL_IE;
 
-    // Debug
-    TRACE("Controller is up and running, enabling ports");
-
     // Enumerate ports and devices
     for (i = 0; i < AHCI_MAX_PORTS; i++) {
         if (Controller->Ports[i] != NULL) {
+            TRACE(" > initializing port %i (index %i)", Controller->Ports[i]->Id, Controller->Ports[i]->Index);
             AhciPortSetupDevice(Controller, Controller->Ports[i]);
         }
     }

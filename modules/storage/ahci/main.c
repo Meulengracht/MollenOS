@@ -87,7 +87,7 @@ OnInterrupt(
     _CRT_UNUSED(Arg1);
     _CRT_UNUSED(Arg2);
 	Controller = (AhciController_t*)InterruptData;
-
+    
 HandleInterrupt:
     InterruptStatus = Controller->InterruptResource.ControllerInterruptStatus;
     Controller->InterruptResource.ControllerInterruptStatus = 0;

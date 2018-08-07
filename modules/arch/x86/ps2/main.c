@@ -205,7 +205,7 @@ PS2Initialize(
 
     // Perform Self Test
     if (Status != OsSuccess || PS2SelfTest() != OsSuccess) {
-        ERROR("PS2 Controller failed to initialize, giving up");
+        ERROR(" > failed to initialize ps2 controller, giving up");
         return OsError;
     }
 
@@ -215,7 +215,7 @@ PS2Initialize(
         if (Ps2Controller->Ports[i].Enabled == 1) {
             Status = PS2PortInitialize(&Ps2Controller->Ports[i]);
             if (Status != OsSuccess) {
-                ERROR("PS2 Controller failed to initialize port %i", i);
+                ERROR(" > failed to setup ps2 port %i", i);
             }
         }
     }
@@ -227,7 +227,7 @@ PS2Initialize(
  * interrupt return OsSuccess, otherwise the interrupt won't be acknowledged */
 InterruptStatus_t
 OnInterrupt(
-    _In_Opt_ void*    InterruptData,
+    _In_Opt_ void*  InterruptData,
     _In_Opt_ size_t Arg0,
     _In_Opt_ size_t Arg1,
     _In_Opt_ size_t Arg2)
@@ -320,15 +320,23 @@ OnRegister(
 
     // Ok .. It's a new device 
     // - What kind of device?
-    if (Port->Signature == 0xAB41
-        || Port->Signature == 0xABC1) { // MF2 Keyboard Translation
+    if (Port->Signature == 0xAB41 || Port->Signature == 0xABC1) { // MF2 Keyboard Translation
         Result = PS2KeyboardInitialize(Ps2Controller, Port->Index, 1);
+        if (Result != OsSuccess) {
+            ERROR(" > failed to initalize ps2-keyboard");
+        }
     }
     else if (Port->Signature == 0xAB83) { // MF2 Keyboard
         Result = PS2KeyboardInitialize(Ps2Controller, Port->Index, 0);
+        if (Result != OsSuccess) {
+            ERROR(" > failed to initalize ps2-keyboard");
+        }
     }
     else if (Port->Signature != 0xFFFFFFFF) {
         Result = PS2MouseInitialize(Ps2Controller, Port->Index);
+        if (Result != OsSuccess) {
+            ERROR(" > failed to initalize ps2-mouse");
+        }
     }
     else {
         Result = OsError;

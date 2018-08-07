@@ -21,6 +21,7 @@
 #define __MODULE "PMEM"
 #define __TRACE
 
+#include <system/interrupts.h>
 #include <ds/blbitmap.h>
 #include <multiboot.h>
 #include <assert.h>
@@ -226,12 +227,17 @@ SynchronizePageRegion(
     _In_ uintptr_t              Address,
     _In_ size_t                 Length)
 {
-    // Multiple cores?
+    IntStatus_t Status;
+
+    // Skip this entire step if there is no multiple cores active
     if (GetMachine()->NumberOfActiveCores <= 1) {
         return;
     }
     assert(InterruptGetActiveStatus() == 0);
-    AtomicSectionEnter(&SyncData.SyncObject);
+
+    // Get the lock before disabling interrupts
+    SpinlockAcquire(&SyncData.SyncObject);
+    Status = InterruptDisable();
     
     // Setup arguments
     if (Address < MEMORY_LOCATION_KERNEL_END) {
@@ -253,7 +259,10 @@ SynchronizePageRegion(
     
     // Wait for all cpu's to have handled this.
     while(SyncData.CallsCompleted != (GetMachine()->NumberOfActiveCores - 1));
-    AtomicSectionLeave(&SyncData.SyncObject);
+
+    // Release lock before enabling interrupts to avoid a schedule before we've released.
+    SpinlockRelease(&SyncData.SyncObject);
+    InterruptRestoreState(Status);
 }
 
 /* ResolveVirtualSpaceAddress
@@ -535,10 +544,10 @@ GetVirtualPageMapping(
     return ((Mapping & PAGE_MASK) + (Address & ATTRIBUTE_MASK));
 }
 
-/* SetIoSpaceAccess
+/* SetDirectIoAccess
  * Set's the io status of the given memory space. */
 OsStatus_t
-SetIoSpaceAccess(
+SetDirectIoAccess(
     _In_ UUId_t                     CoreId,
     _In_ SystemMemorySpace_t*       MemorySpace,
     _In_ uint16_t                   Port,

@@ -25,7 +25,7 @@
 #define _MCORE_IOSPACE_H_
 
 #include <os/osdefs.h>
-#include <os/spinlock.h>
+#include <ds/collection.h>
 #include <os/io.h>
 
 // Operating system version of the DeviceIo

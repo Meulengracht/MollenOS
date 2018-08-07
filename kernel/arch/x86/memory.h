@@ -23,7 +23,7 @@
 #define _X86_MEMORY_H_
 
 #include <os/osdefs.h>
-#include <atomicsection.h>
+#include <os/spinlock.h>
 #include <multiboot.h>
 #include <machine.h>
 #include <paging.h>
@@ -65,7 +65,7 @@ PACKED_TYPESTRUCT(BIOSMemoryRegion, {
 /* MemorySynchronizationObject
  * Used to synchronize paging structures across all cpu cores. */
 typedef struct _MemorySynchronizationObject {
-    AtomicSection_t SyncObject;
+    Spinlock_t      SyncObject;
     volatile int    CallsCompleted;
     void*           ParentPagingData;
     uintptr_t       Address;

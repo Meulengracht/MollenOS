@@ -53,14 +53,14 @@ CmosRead(
 	uint8_t Tmp     = 0;
 	
 	// Keep NMI if disabled
-    IoRead(IO_SOURCE_HARDWARE, CMOS_IO_BASE + CMOS_IO_SELECT, 1, &Storage);
+    ReadDirectIo(DeviceIoPortBased, CMOS_IO_BASE + CMOS_IO_SELECT, 1, &Storage);
     Storage     &= CMOS_NMI_BIT;
     Tmp         = Storage & 0xFF;
 
 	// Select Register (but do not change NMI)
-	IoWrite(IO_SOURCE_HARDWARE, CMOS_IO_BASE + CMOS_IO_SELECT, 1, 
+	WriteDirectIo(DeviceIoPortBased, CMOS_IO_BASE + CMOS_IO_SELECT, 1, 
         (Tmp | (Register & CMOS_ALLBITS_NONMI)));
-    IoRead(IO_SOURCE_HARDWARE, CMOS_IO_BASE + CMOS_IO_DATA, 1, &Storage);
+    ReadDirectIo(DeviceIoPortBased, CMOS_IO_BASE + CMOS_IO_DATA, 1, &Storage);
     Tmp         = Storage & 0xFF;
 	return Tmp;
 }
@@ -78,14 +78,14 @@ CmosWrite(
 	uint8_t Tmp     = 0;
 
 	// Keep NMI if disabled
-    IoRead(IO_SOURCE_HARDWARE, CMOS_IO_BASE + CMOS_IO_SELECT, 1, &Storage);
+    ReadDirectIo(DeviceIoPortBased, CMOS_IO_BASE + CMOS_IO_SELECT, 1, &Storage);
     Storage     &= CMOS_NMI_BIT;
     Tmp         = Storage & 0xFF;
 
 	// Select Register (but do not change NMI)
-	IoWrite(IO_SOURCE_HARDWARE, CMOS_IO_BASE + CMOS_IO_SELECT, 1,
+	WriteDirectIo(DeviceIoPortBased, CMOS_IO_BASE + CMOS_IO_SELECT, 1,
 		(Tmp | (Register & CMOS_ALLBITS_NONMI)));
-	IoWrite(IO_SOURCE_HARDWARE, CMOS_IO_BASE + CMOS_IO_DATA, 1, Data);
+	WriteDirectIo(DeviceIoPortBased, CMOS_IO_BASE + CMOS_IO_DATA, 1, Data);
 }
 
 /* CmosGetTicks

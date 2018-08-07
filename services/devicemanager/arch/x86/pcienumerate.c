@@ -632,6 +632,7 @@ DmIoctlDevice(
 
     // Sanitize
     if (PciDevice == NULL) {
+        ERROR(" > failed to locate pci-device for ioctl");
         return OsError;
     }
 
@@ -697,6 +698,7 @@ DmIoctlDeviceEx(
 
     // Sanitize
     if (PciDevice == NULL) {
+        ERROR(" > failed to locate pci-device for ioctl");
         return OsError;
     }
 

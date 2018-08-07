@@ -314,7 +314,7 @@ CreateSystemMemorySpaceMapping(
     else {
         PhysicalBase = ResolvePhysicalMemorySpaceAddress(Size, Mask, Flags);
         if (PhysicalAddress != NULL) {
-            *PhysicalAddress = 0; // Reset it and update on first map
+            *PhysicalAddress = __MASK; // Reset it and update on first map
         }
     }
 
@@ -340,14 +340,18 @@ CreateSystemMemorySpaceMapping(
         uintptr_t VirtualPage   = (VirtualBase + (i * GetSystemMemoryPageSize()));
         uintptr_t PhysicalPage  = 0;
         
+        // Either use the pre-allocated/pre-provided memory base, otherwise allocate
+        // one-by-one on the fly
         if (PhysicalBase != 0 || (Flags & MAPPING_PROVIDED)) {
-            PhysicalPage        = PhysicalBase + (i * GetSystemMemoryPageSize());
+            PhysicalPage = PhysicalBase + (i * GetSystemMemoryPageSize());
         }
         else {
-            PhysicalPage        = AllocateSystemMemory(GetSystemMemoryPageSize(), Mask, 0);  // MAPPING_DOMAIN
-            if (PhysicalAddress != NULL && *PhysicalAddress == 0) {
-                *PhysicalAddress = PhysicalPage;
-            }
+            PhysicalPage = AllocateSystemMemory(GetSystemMemoryPageSize(), Mask, 0);  // MAPPING_DOMAIN
+        }
+
+        // Update the physical base
+        if (PhysicalAddress != NULL && *PhysicalAddress == __MASK) {
+            *PhysicalAddress = PhysicalPage;
         }
 
         Status = SetVirtualPageMapping(SystemMemorySpace, PhysicalPage, VirtualPage, Flags);
@@ -414,8 +418,7 @@ CloneSystemMemorySpaceMapping(
     for (i = 0; i < PageCount; i++) {
         uintptr_t VirtualPage   = (VirtualBase + (i * GetSystemMemoryPageSize()));
         uintptr_t PhysicalPage  = GetSystemMemoryMapping(SourceSpace, SourceAddress + (i * GetSystemMemoryPageSize()));
-
-        WARNING(" > mapping 0x%x (phys) to 0x%x (virt)", PhysicalPage, VirtualPage);
+        
         Status = SetVirtualPageMapping(DestinationSpace, PhysicalPage, VirtualPage, 
             Flags | MAPPING_PERSISTENT | MAPPING_PROVIDED);
         // The only reason this ever turns error if the mapping exists, in this case free the allocated
