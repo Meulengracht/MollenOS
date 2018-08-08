@@ -43,7 +43,7 @@ PS2MouseFastInterrupt(
     if (Command->State != PS2Free) {
         Command->Buffer[Command->SyncObject] = DataRecieved;
         Command->SyncObject++;
-        return InterruptHandled;
+        return InterruptHandledStop;
     }
     else {
         Port->ResponseBuffer[Port->ResponseWriteIndex++] = DataRecieved;
@@ -208,6 +208,8 @@ PS2MouseInitialize(
     if (PS2SetSampling(Instance, 60) == OsSuccess) {
         PS2_MOUSE_DATA_SAMPLING(&Controller->Ports[Port]) = 100;
     }
+
+    Instance->State = PortStateActive;
     return PS2PortExecuteCommand(Instance, PS2_ENABLE_SCANNING, NULL);
 }
 
@@ -223,6 +225,8 @@ PS2MouseCleanup(
     // Try to disable the device before cleaning up
     PS2PortExecuteCommand(Instance, PS2_DISABLE_SCANNING, NULL);
     UnregisterInterruptSource(Instance->InterruptId);
+
     Instance->Signature = 0xFFFFFFFF;
+    Instance->State     = PortStateConnected;
     return OsSuccess;
 }

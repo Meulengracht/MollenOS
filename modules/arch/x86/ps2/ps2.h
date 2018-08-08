@@ -101,6 +101,13 @@ typedef struct _PS2Command {
     uint8_t*                    Response;
 } PS2Command_t;
 
+typedef enum _PS2PortState {
+    PortStateDisabled,
+    PortStateEnabled,
+    PortStateConnected,
+    PortStateActive
+} PS2PortState_t;
+
 /* PS2Port
  * contains information about port status and the current device */
 typedef struct _PS2Port {
@@ -109,9 +116,7 @@ typedef struct _PS2Port {
     DeviceInterrupt_t   Interrupt;
     UUId_t              InterruptId;
     PS2Command_t        ActiveCommand;
-    
-    int                 Connected;
-    int                 Enabled;
+    PS2PortState_t      State;
     DevInfo_t           Signature;
 
     // Device state information

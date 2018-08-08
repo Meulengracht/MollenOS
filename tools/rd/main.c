@@ -14,6 +14,28 @@
 #define PACKED_TYPESTRUCT(name, body) typedef struct __attribute__((packed)) _##name body name##_t
 #define POLYNOMIAL 0x04c11db7L      // Standard CRC-32 ppolynomial
 
+PACKED_TYPESTRUCT(BitmapFileHeader, {
+    uint16_t bfType;  //specifies the file type
+    uint32_t bfSize;  //specifies the size in bytes of the bitmap file
+    uint16_t bfReserved1;  //reserved; must be 0
+    uint16_t bfReserved2;  //reserved; must be 0
+    uint32_t bfOffBits;  //species the offset in bytes from the bitmapfileheader to the bitmap bits
+});
+
+PACKED_TYPESTRUCT(BitmapInfoHeader, {
+    uint32_t biSize;  //specifies the number of bytes required by the struct
+    uint32_t biWidth;  //specifies width in pixels
+    uint32_t biHeight;  //species height in pixels
+    uint16_t biPlanes; //specifies the number of color planes, must be 1
+    uint16_t biBitCount; //specifies the number of bit per pixel
+    uint32_t biCompression;//spcifies the type of compression
+    uint32_t biSizeImage;  //size of image in bytes
+    long biXPelsPerMeter;  //number of pixels per meter in x axis
+    long biYPelsPerMeter;  //number of pixels per meter in y axis
+    uint32_t biClrUsed;  //number of colors used by th ebitmap
+    uint32_t biClrImportant;  //number of colors that are important
+});
+
 /* MCoreRamDiskHeader
  * The ramdisk header, this is present in the 
  * first few bytes of the ramdisk image, members
@@ -217,6 +239,82 @@ int GetNextLine(FILE *handle, char **tokens, int *count)
 	return result;
 }
 
+int GetBitmapData(char *in, char **out, long *pixelcount)
+{
+    BitmapFileHeader_t *FileHeader = (BitmapFileHeader_t*)in;
+    BitmapInfoHeader_t *InfoHeader;
+    uint8_t *pointer = (uint8_t*)in;
+    uint32_t i;
+
+    // Verify header
+    if (FileHeader->bfType != 0x4D42) {
+        printf("invalid bmp header value 0x%x\n", FileHeader->bfType);
+        return 1;
+    }
+
+    pointer    += sizeof(BitmapFileHeader_t);
+    InfoHeader  = (BitmapInfoHeader_t*)pointer;
+    pointer     = (uint8_t*)in + FileHeader->bfOffBits;
+
+    // Pointer is now pointing at bitmap data
+    (*out)          = (char*)malloc(InfoHeader->biSizeImage);
+    (*pixelcount)   = 0;
+    
+    //swap the r and b values to get RGB (bitmap is BGR)
+    for (i = 0; i < InfoHeader->biSizeImage; i += 3) // fixed semicolon
+    {
+        uint8_t temp = pointer[i];
+        pointer[i] = pointer[i + 2];
+        pointer[i + 2] = temp;
+        (*pixelcount)++;
+    }
+    return 0;
+}
+
+// Performs run length compression on the data buffer, only really
+// useful on bmp images
+char *PerformRLE(char *data, long length, long *new_length)
+{
+    long data_length_needed = sizeof(BitmapFileHeader_t) + sizeof(BitmapInfoHeader_t);
+    char *pixeldata;
+    char *rledata;
+    uint32_t *rlepointer;
+    long pixelcount;
+    long i, counter;
+
+    if (GetBitmapData(data, &pixeldata, &pixelcount)) {
+        printf("failed to parse the bmp image\n");
+        return NULL;
+    }
+
+    // Bitmaps are RGB, we extend this to ARGB
+    uint32_t last_value = 0xdeadbeef;
+    for (i = 0; i < pixelcount; i++) {
+        uint32_t value = ((uint32_t)pixeldata[(i * 3) + 2] << 16) | ((uint32_t)pixeldata[(i * 3) + 1] << 8) | pixeldata[(i * 3)];
+        if (last_value != value || (i + 1) == pixelcount) {
+            data_length_needed += 8; // 4 bytes count, 4 bytes value
+            last_value          = value;
+        }
+    }
+
+    // Allocate the data now that we know the required length
+    rledata     = (char*)malloc(data_length_needed);
+    rlepointer  = (uint32_t*)rledata;
+    counter     = 1;
+    last_value  = 0xFF000000 | ((long)pixeldata[2] << 16) | ((long)pixeldata[1] << 8) | pixeldata[0];
+    for (i = 1; i < pixelcount; i++) {
+        long value = 0xFF000000 | ((long)pixeldata[(i * 3) + 2] << 16) | ((long)pixeldata[(i * 3) + 1] << 8) | pixeldata[(i * 3)];
+        if (last_value != value || (i + 1) == pixelcount) {
+            *(rlepointer++) = (uint32_t)counter;
+            *(rlepointer++) = last_value;
+            counter         = 0;
+            last_value      = value;
+        }
+    }
+    *new_length = data_length_needed;
+    return rledata;
+}
+
 // main
 int main(int argc, char *argv[])
 {
@@ -325,9 +423,9 @@ int main(int argc, char *argv[])
             MCoreRamDiskEntry_t rdentry = { { 0 }, 0 };
             MCoreRamDiskModuleHeader_t rddataheader = { 0 };
             
-            // Skip everything that is not dll's
+            // Skip everything that is not dll's or .bmp's
             char *dot = strrchr(dp->d_name, '.');
-			if (!dot || strcmp(dot, ".dll")) {
+			if (!dot || (strcmp(dot, ".dll") && strcmp(dot, ".bmp"))) {
 				continue;
 			}
 
@@ -405,24 +503,29 @@ int main(int argc, char *argv[])
             }
             
             // Update rest of header
-            rddataheader.VendorId = vendorid;
-            rddataheader.DeviceId = deviceid;
-            rddataheader.DeviceType = dclass;
-            rddataheader.DeviceSubType = dsubclass;
-            rddataheader.Flags = dflags;
+            rddataheader.VendorId       = vendorid;
+            rddataheader.DeviceId       = deviceid;
+            rddataheader.DeviceType     = dclass;
+            rddataheader.DeviceSubType  = dsubclass;
+            rddataheader.Flags          = dflags;
 
 			// Load file data
-			entry = fopen(filename_buffer, "rb+");
-			fseek(entry, 0, SEEK_END);
-			fsize = ftell(entry);
-			dataptr = malloc(fsize);
-			rewind(entry);
-			fread(dataptr, 1, fsize, entry);
+            entry = fopen(filename_buffer, "rb+");
+            fseek(entry, 0, SEEK_END);
+            fsize = ftell(entry);
+            dataptr = malloc(fsize);
+            rewind(entry);
+            fread(dataptr, 1, fsize, entry);
             fclose(entry);
+
+            // Bmp is the only supported image form, which we automatically run RLE on
+            if (!strcmp(dot, ".bmp")) {
+
+            }
             
 			// Write data header
-            rddataheader.LengthOfData = fsize;
-            rddataheader.Crc32OfData = Crc32Generate(-1, (uint8_t*)dataptr, fsize);
+            rddataheader.LengthOfData   = fsize;
+            rddataheader.Crc32OfData    = Crc32Generate(-1, (uint8_t*)dataptr, fsize);
 			fwrite(&rddataheader, sizeof(MCoreRamDiskModuleHeader_t), 1, out);
 
 			// Write file data

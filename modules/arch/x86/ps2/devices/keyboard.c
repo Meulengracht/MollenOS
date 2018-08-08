@@ -127,7 +127,7 @@ PS2KeyboardFastInterrupt(
     if (Command->State != PS2Free) {
         Command->Buffer[Command->SyncObject] = DataRecieved;
         Command->SyncObject++;
-        return InterruptHandled;
+        return InterruptHandledStop;
     }
     else {
         Port->ResponseBuffer[Port->ResponseWriteIndex++] = DataRecieved;
@@ -149,25 +149,30 @@ InterruptStatus_t
 PS2KeyboardInterrupt(
     _In_ PS2Port_t*                 Port)
 {
-    OsStatus_t Status = OsError;
+    OsStatus_t Status   = OsError;
+    uint8_t ScancodeSet = PS2_KEYBOARD_DATA_SCANCODESET(Port);
     SystemKey_t Key;
 
     // Perform scancode-translation
     while (Status == OsError) {
         uint8_t Scancode = Port->ResponseBuffer[Port->ResponseReadIndex++];
-        if (PS2_KEYBOARD_DATA_SCANCODESET(Port) == 1) {
+        if (Port->ResponseReadIndex == PS2_RINGBUFFER_SIZE) {
+            Port->ResponseReadIndex = 0; // Start over
+        }
+
+        if (ScancodeSet == 1) {
             ERROR("PS2-Keyboard: Scancode set 1");
             break;
         }
-        else if (PS2_KEYBOARD_DATA_SCANCODESET(Port) == 2) {
+        else if (ScancodeSet == 2) {
             Status = ScancodeSet2ToVKey(&Key, Scancode);
         }
     }
 
     // If the key was an actual key and not modifier, remove our flags and send
     if (PS2KeyboardHandleModifiers(Port, &Key) == OsSuccess) {
-        Key.Flags &= ~(KEY_MODIFIER_EXTENDED);
-        Status = WriteSystemKey(&Key);
+        Key.Flags  &= ~(KEY_MODIFIER_EXTENDED);
+        Status      = WriteSystemKey(&Key);
     }
     return InterruptHandled;
 }
@@ -304,6 +309,8 @@ PS2KeyboardInitialize(
         WARNING("PS2-Keyboard: failed to select scancodeset 2 (%u)", 
             PS2_KEYBOARD_DATA_SCANCODESET(Instance));
     }
+
+    Instance->State = PortStateActive;
     return PS2PortExecuteCommand(Instance, PS2_ENABLE_SCANNING, NULL);
 }
 
@@ -319,6 +326,8 @@ PS2KeyboardCleanup(
     // Try to disable the device before cleaning up
     PS2PortExecuteCommand(Instance, PS2_DISABLE_SCANNING, NULL);
     UnregisterInterruptSource(Instance->InterruptId);
+
     Instance->Signature = 0xFFFFFFFF;
+    Instance->State     = PortStateConnected;
     return OsSuccess;
 }

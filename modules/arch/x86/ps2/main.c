@@ -66,8 +66,7 @@ uint8_t
 PS2ReadData(
     _In_ int         Dummy)
 {
-    // Only wait for input to be full in case
-    // we don't do dummy reads
+    // Only wait for input to be full in case we don't do dummy reads
     if (Dummy == 0) {
         if (PS2Wait(PS2_STATUS_OUTPUT_FULL, 1) == OsError) {
             return 0xFF;
@@ -97,7 +96,9 @@ PS2SendCommand(
     _In_ uint8_t     Command)
 {
     // Wait for flag to clear, then write data
-    PS2Wait(PS2_STATUS_INPUT_FULL, 0);
+    if (PS2Wait(PS2_STATUS_INPUT_FULL, 0) != OsSuccess) {
+        ERROR(" > input buffer full flags never cleared");
+    }
     WriteDeviceIo(Ps2Controller->Command, PS2_REGISTER_COMMAND, Command, 1);
 }
 
@@ -184,20 +185,16 @@ PS2Initialize(
     PS2SendCommand(PS2_GET_CONFIGURATION);
     Temp = PS2ReadData(0);
 
-    // Discover port status 
-    // both ports should be disabled
-    Ps2Controller->Ports[0].Enabled = 1;
-    if (!(Temp & PS2_CONFIG_PORT2_DISABLED)) {
-        Ps2Controller->Ports[1].Enabled = 0;
-    }
-    else {
+    // Discover port status - initially both ports should be disabled
+    Ps2Controller->Ports[0].State = PortStateEnabled;
+    Ps2Controller->Ports[1].State = PortStateDisabled;
+    if (Temp & PS2_CONFIG_PORT2_DISABLED) {
         // This simply means we should test channel 2
-        Ps2Controller->Ports[1].Enabled = 1;
+        Ps2Controller->Ports[1].State = PortStateEnabled;
     }
 
     // Clear all irqs and translations
-    Temp &= ~(PS2_CONFIG_PORT1_IRQ | PS2_CONFIG_PORT2_IRQ
-        | PS2_CONFIG_TRANSLATION);
+    Temp &= ~(PS2_CONFIG_PORT1_IRQ | PS2_CONFIG_PORT2_IRQ | PS2_CONFIG_TRANSLATION);
 
     // Write back the configuration
     PS2SendCommand(PS2_SET_CONFIGURATION);
@@ -212,7 +209,7 @@ PS2Initialize(
     // Initialize the ports
     for (i = 0; i < PS2_MAXPORTS; i++) {
         Ps2Controller->Ports[i].Index = i;
-        if (Ps2Controller->Ports[i].Enabled == 1) {
+        if (Ps2Controller->Ports[1].State == PortStateEnabled) {
             Status = PS2PortInitialize(&Ps2Controller->Ports[i]);
             if (Status != OsSuccess) {
                 ERROR(" > failed to setup ps2 port %i", i);

@@ -65,15 +65,12 @@ PS2ResetPort(
 
     // Check the response byte
     // Two results are ok, AA and FA
-    if (Response == PS2_SELFTEST
-        || Response == PS2_ACK) {
-        Response = PS2ReadData(1);
-        Response = PS2ReadData(1);
+    if (Response == PS2_SELFTEST || Response == PS2_ACK) {
+        Response = PS2ReadData(0); // We can recieve up to 3 bytes
+        Response = PS2ReadData(0); // so don't ignore anything, but ignore errors
         return OsSuccess;
     }
-    else {
-        return OsError;
-    }
+    return OsError;
 }
 
 /* PS2IdentifyPort
@@ -93,11 +90,13 @@ PS2IdentifyPort(
 
     // Disable scanning when identifying
     if (PS2WriteData(PS2_DISABLE_SCANNING) != OsSuccess) {
+        ERROR(" > failed to disable scanning for port %i", Index);
         return 0xFFFFFFFF;
     }
 
     Response = PS2ReadData(0);
     if (Response != PS2_ACK) {
+        ERROR(" > failed to disable scanning for port %i, response 0x%x", Index, Response);
         return 0xFFFFFFFF;
     }
 
@@ -108,11 +107,13 @@ PS2IdentifyPort(
 
     // Send the identify command
     if (PS2WriteData(PS2_IDENTIFY_PORT) != OsSuccess) {
+        ERROR(" > failed to identify port %i", Index);
         return 0xFFFFFFFF;
     }
 
     Response = PS2ReadData(0);
     if (Response != PS2_ACK) {
+        ERROR(" > failed to identify port %i, response 0x%x", Index, Response);
         return 0xFFFFFFFF;
     }
 
@@ -305,6 +306,8 @@ PS2PortInitialize(
 {
     uint8_t Temp;
 
+    TRACE(" > initializing ps2 port %i", Port->Index);
+
     // Initialize some variables for the port
     Port->Interrupt.AcpiConform = 0;
     Port->Interrupt.Pin         = INTERRUPT_NONE;
@@ -323,7 +326,7 @@ PS2PortInitialize(
     // Start out by doing an interface
     // test on the given port
     if (PS2InterfaceTest(Port->Index) != OsSuccess) {
-        ERROR("PS2-Port (%i): Failed interface test", Port->Index);
+        ERROR(" > ps2-port %i failed interface test", Port->Index);
         return OsError;
     }
 
@@ -349,20 +352,22 @@ PS2PortInitialize(
     // Write back the configuration
     PS2SendCommand(PS2_SET_CONFIGURATION);
     if (PS2WriteData(Temp) != OsSuccess) {
-        ERROR("PS2-Port (%i): Failed to update configuration", Port->Index);
+        ERROR(" > ps2-port %i failed to update configuration", Port->Index);
         return OsError;
     }
 
     // Reset the port
     if (PS2ResetPort(Port->Index) != OsSuccess) {
-        ERROR("PS2-Port (%i): Failed port reset", Port->Index);
+        ERROR(" > ps2-port %i failed port reset", Port->Index);
         return OsError;
     }
     Port->Signature = PS2IdentifyPort(Port->Index);
+    TRACE(" > ps2-port %i device signature 0x%x", Port->Index, Port->Signature);
     
     // If the signature is ok - device present
     if (Port->Signature != 0xFFFFFFFF) {
-        Port->Connected = 1;
+        Port->State = PortStateConnected;
+        return PS2RegisterDevice(Port);
     }
-    return PS2RegisterDevice(Port);
+    return OsSuccess;
 }

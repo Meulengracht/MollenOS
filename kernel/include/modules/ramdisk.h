@@ -18,11 +18,10 @@
  *
  * MollenOS MCore - MollenOS RamDisk Header
  */
-#ifndef _RAMDISK_H_
-#define _RAMDISK_H_
 
-/* Includes
- * - C-Library */
+#ifndef __RAMDISK_H__
+#define __RAMDISK_H__
+
 #include <os/osdefs.h>
 
 /* Definitions for the MollenOS ramdisk
@@ -86,4 +85,4 @@ PACKED_TYPESTRUCT(MCoreRamDiskModuleHeader, {
     uint32_t    DeviceSubType;
 });
 
-#endif //!_RAMDISK_H_
+#endif //!__RAMDISK_H__

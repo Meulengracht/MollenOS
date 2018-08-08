@@ -149,12 +149,12 @@ InitializeMachine(
     }
 
 #ifdef __OSCONFIG_HAS_MMIO
+    DebugInstallPageFaultHandlers(&Machine.MemoryMap);
     Status = InitializeSystemMemorySpace(&Machine.SystemSpace);
     if (Status != OsSuccess) {
         ERROR("Failed to initalize system memory space");
         goto StopAndShowError;
     }
-    DebugInstallPageFaultHandlers(&Machine.MemoryMap);
 #else
 #error "Kernel does not support non-mmio platforms"
 #endif
