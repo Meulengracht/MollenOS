@@ -27,7 +27,6 @@
 
 #include "../graphics/opengl/opengl_exts.hpp"
 #include "backend/nanovg_gl.h"
-#include "elements/window.hpp"
 
 CVEightEngine::CVEightEngine()
 {

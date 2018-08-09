@@ -21,17 +21,13 @@
  */
 #pragma once
 
-/* Includes
- * - OpenGL */
 #include <GL/gl.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-
-/* Includes
- * - System */
 #include "graphics/display.hpp"
 #include "backend/nanovg.h"
+#include "elements/window.hpp"
 
 class CEntity;
 

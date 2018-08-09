@@ -27,21 +27,32 @@
 #include <stdlib.h>
 #include "ps2.h"
 
+/* SendPS2PortCommand
+ * Sends a ps2-port command and waits for the response byte to land. */
+uint8_t
+SendPS2PortCommand(
+    _In_ int        Index,
+    _In_ uint8_t    Command)
+{
+    // Select the correct port
+    if (Index != 0) {
+        PS2SendCommand(PS2_SELECT_PORT2);
+    }
+    
+    // Perform the self-test
+    PS2WriteData(PS2_RESET_PORT);
+    return PS2ReadData(0);
+}
+
 /* PS2InterfaceTest
  * Performs an interface test on the given port*/
 OsStatus_t
 PS2InterfaceTest(
-    _In_ int        Port)
+    _In_ int        Index)
 {
-    uint8_t Response = 0;
+    uint8_t Response;
+    PS2SendCommand(Index == 0 ? PS2_INTERFACETEST_PORT1 : PS2_INTERFACETEST_PORT2);
 
-    // Send command based on port
-    if (Port == 0) {
-        PS2SendCommand(PS2_INTERFACETEST_PORT1);
-    }
-    else {
-        PS2SendCommand(PS2_INTERFACETEST_PORT2);
-    }
     Response = PS2ReadData(0);
     return (Response == PS2_INTERFACETEST_OK) ? OsSuccess : OsError;
 }
@@ -52,16 +63,7 @@ OsStatus_t
 PS2ResetPort(
     _In_ int        Index)
 {
-    uint8_t Response = 0;
-
-    // Select the correct port
-    if (Index != 0) {
-        PS2SendCommand(PS2_SELECT_PORT2);
-    }
-    
-    // Perform the self-test
-    PS2WriteData(PS2_RESET_PORT);
-    Response = PS2ReadData(0);
+    uint8_t Response = SendPS2PortCommand(Index, PS2_RESET_PORT);
 
     // Check the response byte
     // Two results are ok, AA and FA
@@ -83,35 +85,15 @@ PS2IdentifyPort(
     uint8_t ResponseExtra   = 0;
     uint8_t Response        = 0;
 
-    // Select correct port
-    if (Index != 0) {
-        PS2SendCommand(PS2_SELECT_PORT2);
-    }
-
-    // Disable scanning when identifying
-    if (PS2WriteData(PS2_DISABLE_SCANNING) != OsSuccess) {
-        ERROR(" > failed to disable scanning for port %i", Index);
-        return 0xFFFFFFFF;
-    }
-
-    Response = PS2ReadData(0);
+    Response = SendPS2PortCommand(Index, PS2_DISABLE_SCANNING);
     if (Response != PS2_ACK) {
         ERROR(" > failed to disable scanning for port %i, response 0x%x", Index, Response);
         return 0xFFFFFFFF;
     }
+    Response = PS2ReadData(0); // We can recieve up to 3 bytes
+    Response = PS2ReadData(0); // so don't ignore anything, but ignore errors
 
-    // Select correct port
-    if (Index != 0) {
-        PS2SendCommand(PS2_SELECT_PORT2);
-    }
-
-    // Send the identify command
-    if (PS2WriteData(PS2_IDENTIFY_PORT) != OsSuccess) {
-        ERROR(" > failed to identify port %i", Index);
-        return 0xFFFFFFFF;
-    }
-
-    Response = PS2ReadData(0);
+    Response = SendPS2PortCommand(Index, PS2_IDENTIFY_PORT);
     if (Response != PS2_ACK) {
         ERROR(" > failed to identify port %i, response 0x%x", Index, Response);
         return 0xFFFFFFFF;
@@ -331,19 +313,13 @@ PS2PortInitialize(
     }
 
     // Select the correct port
-    if (Port->Index == 0) {
-        PS2SendCommand(PS2_ENABLE_PORT1);
-    }
-    else {
-        PS2SendCommand(PS2_ENABLE_PORT2);
-    }
+    PS2SendCommand(Port->Index == 0 ? PS2_ENABLE_PORT1 : PS2_ENABLE_PORT2);
 
     // Get controller configuration
     PS2SendCommand(PS2_GET_CONFIGURATION);
     Temp = PS2ReadData(0);
 
-    // Check if the port is enabled
-    // Otherwise return error
+    // Check if the port is enabled - otherwise return error
     if (Temp & (1 << (4 + Port->Index))) {
         return OsError; 
     }

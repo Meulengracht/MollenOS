@@ -23,6 +23,7 @@
 #include <os/contracts/base.h>
 #include <os/mollenos.h>
 #include <os/utils.h>
+#include <threads.h>
 #include <string.h>
 #include <stdlib.h>
 #include "ps2.h"
@@ -37,27 +38,38 @@ PS2ReadStatus(void)
     return (uint8_t)ReadDeviceIo(Ps2Controller->Command, PS2_REGISTER_STATUS, 1);
 }
 
-/* PS2Wait
- * Waits for the given flag to clear by doing a number of iterations giving a fake-delay */
+/* WaitForPs2StatusFlagsSet
+ * Waits for the given flag to set in the ps2-controller status register */
 OsStatus_t
-PS2Wait(
-    _In_ uint8_t     Flags,
-    _In_ int         Negate)
+WaitForPs2StatusFlagsSet(
+    _In_ uint8_t     Flags)
 {
-    // Wait for up to 1000 iterations
-    for (int i = 0; i < 1000; i++) {
-        if (Negate == 1) {
-            if (PS2ReadStatus() & Flags) {
-                return OsSuccess;
-            }
+    int Timeout = 100; // 100 ms
+    while (Timeout > 0) {
+        if (PS2ReadStatus() & Flags) {
+            return OsSuccess;
         }
-        else {
-            if (!(PS2ReadStatus() & Flags)) {
-                return OsSuccess;
-            }
-        }    
+        thrd_sleepex(5);
+        Timeout -= 5;
     }
-    return OsError; // If we reach here - it never cleared
+    return OsError; // If we reach here - it never set
+}
+
+/* WaitForPs2StatusFlagsClear
+ * Waits for the given flag to clear in the ps2-controller status register */
+OsStatus_t
+WaitForPs2StatusFlagsClear(
+    _In_ uint8_t     Flags)
+{
+    int Timeout = 100; // 100 ms
+    while (Timeout > 0) {
+        if (!(PS2ReadStatus() & Flags)) {
+            return OsSuccess;
+        }
+        thrd_sleepex(5);
+        Timeout -= 5;
+    }
+    return OsError; // If we reach here - it never set
 }
 
 /* PS2ReadData
@@ -68,7 +80,7 @@ PS2ReadData(
 {
     // Only wait for input to be full in case we don't do dummy reads
     if (Dummy == 0) {
-        if (PS2Wait(PS2_STATUS_OUTPUT_FULL, 1) == OsError) {
+        if (WaitForPs2StatusFlagsSet(PS2_STATUS_OUTPUT_FULL) == OsError) {
             return 0xFF;
         }
     }
@@ -81,8 +93,7 @@ OsStatus_t
 PS2WriteData(
     _In_ uint8_t     Value)
 {
-    // Sanitize buffer status
-    if (PS2Wait(PS2_STATUS_INPUT_FULL, 0) != OsSuccess) {
+    if (WaitForPs2StatusFlagsClear(PS2_STATUS_INPUT_FULL) != OsSuccess) {
         return OsError;
     }
     WriteDeviceIo(Ps2Controller->Data, PS2_REGISTER_DATA, Value, 1);
@@ -90,13 +101,13 @@ PS2WriteData(
 }
 
 /* PS2SendCommand
- * Writes the given command to the ps2-controller */
+ * Writes the command byte to the ps2-controller */
 void
 PS2SendCommand(
     _In_ uint8_t     Command)
 {
     // Wait for flag to clear, then write data
-    if (PS2Wait(PS2_STATUS_INPUT_FULL, 0) != OsSuccess) {
+    if (WaitForPs2StatusFlagsClear(PS2_STATUS_INPUT_FULL) != OsSuccess) {
         ERROR(" > input buffer full flags never cleared");
     }
     WriteDeviceIo(Ps2Controller->Command, PS2_REGISTER_COMMAND, Command, 1);
@@ -114,8 +125,8 @@ PS2SetScanning(
         PS2SendCommand(PS2_SELECT_PORT2);
     }
 
-    // Set sample rate to given value
-    if (PS2WriteData(Status) != OsSuccess || PS2ReadData(0) != PS2_ACK) {
+    if (PS2WriteData(Status)    != OsSuccess || 
+        PS2ReadData(0)          != PS2_ACK) {
         return OsError;
     }
     return OsSuccess;
@@ -170,28 +181,22 @@ PS2Initialize(
     Ps2Controller->Command  = &Ps2Controller->Device.IoSpaces[1];
     RegisterContract(&Ps2Controller->Controller);
 
-    // Dummy reads, empty it's buffer
-    PS2ReadData(1);
-    PS2ReadData(1);
-
     // Disable Devices
     PS2SendCommand(PS2_DISABLE_PORT1);
     PS2SendCommand(PS2_DISABLE_PORT2);
 
-    // Make sure it's empty, now devices cant fill it
+    // Dummy reads, empty it's buffer
+    PS2ReadData(1);
     PS2ReadData(1);
 
     // Get Controller Configuration
     PS2SendCommand(PS2_GET_CONFIGURATION);
     Temp = PS2ReadData(0);
 
-    // Discover port status - initially both ports should be disabled
+    // Discover port status - initially both ports should be enabled
+    // we will detect this later on
     Ps2Controller->Ports[0].State = PortStateEnabled;
-    Ps2Controller->Ports[1].State = PortStateDisabled;
-    if (Temp & PS2_CONFIG_PORT2_DISABLED) {
-        // This simply means we should test channel 2
-        Ps2Controller->Ports[1].State = PortStateEnabled;
-    }
+    Ps2Controller->Ports[1].State = PortStateEnabled;
 
     // Clear all irqs and translations
     Temp &= ~(PS2_CONFIG_PORT1_IRQ | PS2_CONFIG_PORT2_IRQ | PS2_CONFIG_TRANSLATION);
@@ -208,12 +213,11 @@ PS2Initialize(
 
     // Initialize the ports
     for (i = 0; i < PS2_MAXPORTS; i++) {
-        Ps2Controller->Ports[i].Index = i;
-        if (Ps2Controller->Ports[1].State == PortStateEnabled) {
-            Status = PS2PortInitialize(&Ps2Controller->Ports[i]);
-            if (Status != OsSuccess) {
-                ERROR(" > failed to setup ps2 port %i", i);
-            }
+        Ps2Controller->Ports[i].Index   = i;
+        Status = PS2PortInitialize(&Ps2Controller->Ports[i]);
+        if (Status != OsSuccess) {
+            WARNING(" > port %i is in disabled state", i);
+            Ps2Controller->Ports[i].State = PortStateDisabled;
         }
     }
     return OsSuccess;

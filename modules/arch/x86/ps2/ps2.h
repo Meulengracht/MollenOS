@@ -140,7 +140,9 @@ typedef struct _PS2Controller {
 /* PS2PortInitialize
  * Initializes the given port and tries 
  * to identify the device on the port */
-__EXTERN OsStatus_t PS2PortInitialize(PS2Port_t *Port);
+__EXTERN OsStatus_t
+PS2PortInitialize(
+    PS2Port_t*                      Port);
 
 /* PS2PortExecuteCommand 
  * Executes the given ps2 command, handles both retries and commands that
