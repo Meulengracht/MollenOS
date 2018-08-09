@@ -90,8 +90,9 @@ SystemTime(
  * if a system timer has been initialized. */
 OsStatus_t
 SystemTick(
-	_Out_ clock_t *clock) {
-    return Syscall_SystemTick(clock);
+    _In_  int       TickBase,
+	_Out_ clock_t*  Clock) {
+    return Syscall_SystemTick(TickBase, Clock);
 }
 
 /* QueryPerformanceFrequency

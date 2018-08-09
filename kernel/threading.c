@@ -23,8 +23,6 @@
 #define __MODULE "MTIF"
 //#define __TRACE
 
-/* Includes 
- * - System */
 #include <component/cpu.h>
 #include <system/interrupts.h>
 #include <system/thread.h>
@@ -36,11 +34,10 @@
 #include <interrupts.h>
 #include <threading.h>
 #include <scheduler.h>
+#include <timers.h>
 #include <debug.h>
 #include <heap.h>
 
-/* Includes
- * - Library */
 #include <ds/collection.h>
 #include <assert.h>
 #include <string.h>
@@ -50,8 +47,6 @@
  * The function handler for cleanup */
 OsStatus_t ThreadingReap(void *Context);
 
-/* Globals, we need a few variables to keep track of running threads, idle threads
- * and a thread resources lock */
 static Collection_t Threads         = COLLECTION_INIT(KeyInteger);
 static UUId_t GlbThreadGcId         = UUID_INVALID;
 static _Atomic(UUId_t) GlbThreadId  = ATOMIC_VAR_INIT(1);
@@ -183,6 +178,7 @@ ThreadingCreateThread(
     Thread->Arguments   = Arguments;
     Thread->Flags       = Flags;
     COLLECTION_NODE_INIT(&Thread->CollectionHeader, Key);
+    TimersGetSystemTick(&Thread->StartedAt);
 
     // Setup initial scheduler information
     SchedulerThreadInitialize(Thread, Flags);

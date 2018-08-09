@@ -37,7 +37,7 @@
 // The main program loop
 int VioarrCompositor::Run()
 {
-    //std::chrono::time_point<std::chrono::system_clock> LastUpdate;
+    //std::chrono::time_point<std::chrono::steady_clock> LastUpdate;
     _IsRunning = true;
 
     // Create the display
@@ -63,7 +63,7 @@ int VioarrCompositor::Run()
     sEngine.Render();
 
     // Enter event loop
-    //LastUpdate = std::chrono::system_clock::now();
+    //LastUpdate = std::chrono::steady_clock::now();
     while (_IsRunning) {
         CVioarrEvent *Event = nullptr;
         {
@@ -90,14 +90,14 @@ int VioarrCompositor::Run()
         delete Event;
 
         // Run updates
-        // auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - LastUpdate);
+        // auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - LastUpdate);
         sEngine.Update(0 /*  milliseconds.count() */);
 
         // Update screen if there are no more events
         if (_EventQueue.empty()) {
             sEngine.Render();
         }
-        // LastUpdate = std::chrono::system_clock::now();
+        // LastUpdate = std::chrono::steady_clock::now();
     }
     return 0;
 }

@@ -120,6 +120,7 @@ typedef struct _MCoreThread {
     Context_t*              Contexts[THREADING_NUMCONTEXTS];
     Context_t*              ContextActive;
     uintptr_t               Data[THREADING_CONFIGDATA_COUNT];
+    clock_t                 StartedAt;
 
     SystemPipe_t*           Pipe;
     SystemMemorySpace_t*    MemorySpace;

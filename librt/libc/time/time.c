@@ -19,8 +19,6 @@
  * MollenOS C Library - Get Time
  */
 
-/* Includes 
- * - Library */
 #include <os/mollenos.h>
 #include <time.h>
 #include <stddef.h>

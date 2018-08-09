@@ -23,22 +23,16 @@
 #define __MODULE        "TMIF"
 //#define __TRACE
 
-/* Includes 
- * - System */
+#include <ds/collection.h>
 #include <process/ash.h>
 #include <interrupts.h>
 #include <scheduler.h>
+#include <machine.h>
 #include <timers.h>
+#include <stdlib.h>
 #include <debug.h>
 #include <heap.h>
 
-/* Includes
- * - Library */
-#include <ds/collection.h>
-#include <stdlib.h>
-#include <stddef.h>
-
-/* Globals */
 static MCoreTimePerformanceOps_t PerformanceTimer   = { 0 };
 static CriticalSection_t TimersSyncObject           = CRITICALSECTION_INITIALIZE(CRITICALSECTION_PLAIN);
 static MCoreSystemTimer_t *ActiveSystemTimer        = NULL;
@@ -114,9 +108,8 @@ void
 TimersTick(
     _In_ size_t Tick)
 {
-    // Variables
-    CollectionItem_t *i = NULL;
-    size_t MilliTicks   = 0;
+    CollectionItem_t *i;
+    size_t MilliTicks;
 
     // Calculate how many milliseconds
     MilliTicks = DIVUP(Tick, NSEC_PER_MSEC);

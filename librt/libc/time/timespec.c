@@ -40,6 +40,8 @@ timespec_get(
     _In_ struct timespec *ts,
     _In_ int base)
 {
+    clock_t tick = 0;
+
     // Sanitize input
     if (ts == NULL) {
         return -1;
@@ -48,27 +50,22 @@ timespec_get(
     // Update based on type
     switch (base) {
         case TIME_UTC: {
-            ts->tv_sec = time(NULL);
+            ts->tv_sec  = time(NULL);
             ts->tv_nsec = 0;
-        } break;    
+        } break;
         case TIME_TAI: {
             // @todo
         } break;
-        case TIME_MONOTONIC: {
-            clock_t cc = clock();
-            ts->tv_sec = cc / CLOCKS_PER_SEC;
-            ts->tv_nsec = (cc % CLOCKS_PER_SEC) * NSEC_PER_MSEC;
-        } break;
-        case TIME_PROCESS: {
-            // @todo
-        } break;
+        case TIME_MONOTONIC:
+        case TIME_PROCESS:
         case TIME_THREAD: {
-            // @todo
+            SystemTick(base, &tick);
+            ts->tv_sec  = tick / CLOCKS_PER_SEC;
+            ts->tv_nsec = (tick % CLOCKS_PER_SEC) * NSEC_PER_MSEC;
         } break;
 
-        default: {
-            return -1;
-        }
+        default:
+            break;
     }
     return 0;
 }

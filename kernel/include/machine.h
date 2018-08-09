@@ -27,6 +27,7 @@
 #include <os/osdefs.h>
 #include <ds/blbitmap.h>
 #include <multiboot.h>
+#include <time.h>
 #include <pipe.h>
 
 // Components

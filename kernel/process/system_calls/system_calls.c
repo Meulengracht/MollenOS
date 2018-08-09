@@ -28,6 +28,7 @@
 #include <system/video.h>
 #include <system/utils.h>
 #include <memoryspace.h>
+#include <threading.h>
 #include <timers.h>
 #include <video.h>
 #include <debug.h>
@@ -105,13 +106,35 @@ ScSystemTime(
  * if a system timer has been initialized. */
 OsStatus_t
 ScSystemTick(
-    _Out_ clock_t *SystemTick)
+    _In_  int       TickBase,
+    _Out_ clock_t*  SystemTick)
 {
-    // Sanitize input
     if (SystemTick == NULL) {
         return OsError;
     }
-    return TimersGetSystemTick(SystemTick);
+
+    switch (TickBase) {
+        case TIME_MONOTONIC: {
+            return TimersGetSystemTick(SystemTick);
+        } break;
+        case TIME_PROCESS: {
+            MCoreAsh_t* Process = PhoenixGetCurrentAsh();
+            if (Process != NULL) {
+                *SystemTick = Process->StartedAt;
+            }
+        } break;
+        case TIME_THREAD: {
+            MCoreThread_t* Thread = ThreadingGetCurrentThread(CpuGetCurrentId());
+            if (Thread != NULL) {
+                *SystemTick = Thread->StartedAt;
+            }
+        } break;
+
+        default: {
+            *SystemTick = 0;
+        } break;
+    }
+    return OsSuccess;
 }
 
 /* ScPerformanceFrequency

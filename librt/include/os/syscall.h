@@ -123,7 +123,7 @@ _CODE_END
 #define Syscall_SystemStart() (OsStatus_t)syscall0(71)
 #define Syscall_FlushHardwareCache(CacheType, AddressStart, Length) (OsStatus_t)syscall3(72, SCPARAM(CacheType), SCPARAM(AddressStart), SCPARAM(Length))
 #define Syscall_SystemQuery() (OsStatus_t)syscall0(73)
-#define Syscall_SystemTick(Tick) (OsStatus_t)syscall1(74, SCPARAM(Tick))
+#define Syscall_SystemTick(Base, Tick) (OsStatus_t)syscall2(74, SCPARAM(Base), SCPARAM(Tick))
 #define Syscall_SystemPerformanceFrequency(Frequency) (OsStatus_t)syscall1(75, SCPARAM(Frequency))
 #define Syscall_SystemPerformanceTime(Value) (OsStatus_t)syscall1(76, SCPARAM(Value))
 #define Syscall_SystemTime(Time) (OsStatus_t)syscall1(77, SCPARAM(Time))

@@ -65,6 +65,7 @@ typedef struct _MCoreAsh {
     UUId_t                  Parent;
     MCoreAshType_t          Type;
     atomic_int              References;
+    clock_t                 StartedAt;
 
     // The name of the Ash, this is usually derived from the file that spawned it
     MString_t*              Name;

@@ -30,6 +30,7 @@
 #include <scheduler.h>
 #include <threading.h>
 #include <machine.h>
+#include <timers.h>
 #include <debug.h>
 #include <heap.h>
 
@@ -62,6 +63,7 @@ PhoenixFinishAsh(
     Ash->MainThread         = Thread->Id;
     Thread->AshId           = Ash->Id;
     Thread->ParentId        = UUID_INVALID;
+    TimersGetSystemTick(&Thread->StartedAt);
 
     // Store current address space
     Ash->MemorySpace       = GetCurrentSystemMemorySpace();

@@ -108,7 +108,8 @@ SystemTime(
 CRTDECL(
 OsStatus_t,
 SystemTick(
-	_Out_ clock_t *clock));
+    _In_  int       TickBase,
+	_Out_ clock_t*  Clock));
 
 /* QueryPerformanceFrequency
  * Returns how often the performance timer fires every

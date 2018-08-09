@@ -23,8 +23,6 @@
 #ifndef __STDC_TIME__
 #define __STDC_TIME__
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
 #include <locale.h>
 
@@ -52,8 +50,6 @@ typedef __SIZE_TYPE__ clock_t;
 #endif
 #endif
 
-/* Time Definitions
- * Definitions, prototypes and typedefs. */
 #define CLOCKS_PER_SEC      1000
 #define TIME_UTC            0 // The epoch for this clock is 1970-01-01 00:00:00 in Coordinated Universal Time (UTC)
 #define TIME_TAI            1 // The epoch for this clock is 1970-01-01 00:00:00 in International Atomic Time (TAI)

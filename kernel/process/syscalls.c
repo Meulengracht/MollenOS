@@ -34,7 +34,7 @@ OsStatus_t  ScEndBootSequence(void);
 OsStatus_t  ScFlushHardwareCache(int Cache, void* Start, size_t Length);
 int         ScEnvironmentQuery(void);
 OsStatus_t  ScSystemTime(struct tm *SystemTime);
-OsStatus_t  ScSystemTick(clock_t *SystemTick);
+OsStatus_t  ScSystemTick(int TickBase, clock_t *SystemTick);
 OsStatus_t  ScPerformanceFrequency(LargeInteger_t *Frequency);
 OsStatus_t  ScPerformanceTick(LargeInteger_t *Value);
 OsStatus_t  ScQueryDisplayInformation(VideoDescriptor_t *Descriptor);
