@@ -20,15 +20,13 @@
  *  - The window compositor system and general window manager for
  *    MollenOS.
  */
-
-#include <os/process.h>
 #include <os/service.h>
 #include <os/window.h>
-#include <os/input.h>
-#include <stdio.h>
 #include "vioarr.hpp"
 #include "engine/elements/window.hpp"
 #include "events/event_window.hpp"
+
+extern void InputHandler();
 
 bool ConvertSurfaceFormatToGLFormat(UISurfaceFormat_t Format, GLenum &FormatResult, 
     GLenum &InternalFormatResult, int &BytesPerPixel)
@@ -103,34 +101,6 @@ Handle_t HandleCreateWindowRequest(MRemoteCallAddress_t *Process,
     Window->SetActive(true);
     sVioarr.QueueEvent(new CWindowCreatedEvent(Window));
     return (Handle_t)Window;
-}
-
-void SpawnApplication(const char* Path, const char* Arguments)
-{
-    ProcessStartupInformation_t StartupInformation;
-    InitializeStartupInformation(&StartupInformation);
-
-    // Set arguments
-    if (Arguments != NULL) {
-        StartupInformation.ArgumentPointer = Arguments;
-        StartupInformation.ArgumentLength = strlen(Arguments);
-    }
-    ProcessSpawnEx(Path, &StartupInformation, 1);
-}
-
-void InputHandler()
-{
-    bool IsRunning = true;
-    SystemKey_t Key;
-
-    while (IsRunning) {
-        if (ReadSystemKey(&Key) == OsSuccess) {
-            if (Key.KeyCode == VK_F1) {
-                // Spawn the test application
-                SpawnApplication("$bin/wintest.app", NULL);
-            }
-        }
-    }
 }
 
 void MessageHandler()

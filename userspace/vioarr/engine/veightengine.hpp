@@ -63,6 +63,7 @@ public:
     // Business Logic
     Handle_t    GetExistingWindowForProcess(UUId_t ProcessId);
     bool        IsWindowHandleValid(Handle_t WindowHandle);
+    CEntity*    GetActiveWindow();
 
     // **************************************
     // Utilities
