@@ -21,15 +21,18 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _PROCESS_INTERFACE_H_
-#define _PROCESS_INTERFACE_H_
+#ifndef __PROCESS_INTERFACE_H__
+#define __PROCESS_INTERFACE_H__
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
 #include <os/pe.h>
 
 #define PROCESS_MAXMODULES          128
+
+#define PROCESS_INHERIT_STDOUT      0x00000001
+#define PROCESS_INHERIT_STDIN       0x00000002
+#define PROCESS_INHERIT_STDERR      0x00000004
+#define PROCESS_INHERIT_ALL         (PROCESS_INHERIT_STDOUT | PROCESS_INHERIT_STDIN | PROCESS_INHERIT_STDERR)
 
 /* ProcessStartupInformation
  * Contains information about the process startup. Can be queried
@@ -39,11 +42,23 @@ typedef struct _ProcessStartupInformation {
     size_t          ArgumentLength;
     const char*     InheritanceBlockPointer;
     size_t          InheritanceBlockLength;
-    int             InheritStdHandles;
+
+    Flags_t         InheritFlags;
+    int             StdOutHandle;
+    int             StdInHandle;
+    int             StdErrHandle;
+
     size_t          MemoryLimit;
 } ProcessStartupInformation_t;
 
 _CODE_BEGIN
+/* InitializeStartupInformation
+ * Resets all values of the startup information structure to default values. */
+CRTDECL(
+void,
+InitializeStartupInformation(
+	_In_ ProcessStartupInformation_t* StartupInformation));
+
 /* ProcessSpawn
  * Spawns a new process by the given path and optionally the given parameters are passed 
  * returns UUID_INVALID in case of failure unless Asynchronous is set

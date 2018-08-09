@@ -20,10 +20,8 @@
  */
 
 #include <os/syscall.h>
+#include <os/ipc/ipc.h>
 #include <os/ipc/pipe.h>
-
-/* Includes
- * - Library */
 #include <signal.h>
 #include <assert.h>
 
@@ -94,11 +92,12 @@ ReceivePipe(
     _In_ void*  Buffer,
     _In_ size_t Length)
 {
-    if (ProcessId == UUID_INVALID) {
-        return ReadPipe(Port, Buffer, Length);
-    }
     assert(Port >= 0);
     assert(Buffer != NULL);
     assert(Length > 0);
+    
+    if (ProcessId == UUID_INVALID && Port != PIPE_STDIN) {
+        return ReadPipe(Port, Buffer, Length);
+    }
 	return Syscall_PipeReceive(ProcessId, Port, Buffer, Length);
 }

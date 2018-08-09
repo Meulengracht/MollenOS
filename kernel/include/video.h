@@ -25,7 +25,6 @@
 #define _MCORE_VIDEO_H_
 
 #include <os/osdefs.h>
-#include <os/spinlock.h>
 #include <os/contracts/video.h>
 
 /* VideoInitialize
@@ -33,6 +32,12 @@
  * complete driver can take-over the screen */
 KERNELAPI OsStatus_t KERNELABI
 VideoInitialize(void);
+
+/* VideoDebugMode
+ * Initializes boot-video environment untill a more
+ * complete driver can take-over the screen */
+KERNELAPI OsStatus_t KERNELABI
+VideoDebugMode(void);
 
 /* VideoQuery
  * Renders a character with default colors

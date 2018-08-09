@@ -23,10 +23,9 @@
 #ifndef __STDIO_SUPPORT_H__
 #define __STDIO_SUPPORT_H__
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
 #include <os/spinlock.h>
+#include <os/process.h>
 
 #ifndef _IOCOMMIT
 #define _IOCOMMIT 0x4000
@@ -95,7 +94,7 @@ __EXTERN int _flswbuf(int ch, FILE *stream);
  * Used internally by the c library to manage open file handles */
 __EXTERN int StdioFdAllocate(int fd, int flag);
 __EXTERN void StdioCreateFileHandle(UUId_t FileHandle, StdioObject_t *Object);
-__EXTERN void StdioCreatePipeHandle(UUId_t ProcessId, int Port, int Oflags, StdioObject_t *Object);
+__EXTERN OsStatus_t StdioCreatePipeHandle(UUId_t ProcessId, int Port, int Oflags, StdioObject_t *Object);
 __EXTERN OsStatus_t StdioFdInitialize(_In_ FILE *file, _In_ int fd, _In_ unsigned stream_flags);
 __EXTERN void StdioFdFree(_In_ int fd);
 __EXTERN StdioHandle_t* StdioFdToHandle(_In_ int fd);
@@ -103,12 +102,9 @@ __EXTERN StdioHandle_t* StdioFdToHandle(_In_ int fd);
 /* StdioCreateInheritanceBlock
  * Creates a block of data containing all the stdio handles that
  * can be inherited. */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 StdioCreateInheritanceBlock(
-    _In_  int       InheritStdHandles,
-    _Out_ void**    InheritanceBlock,
-    _Out_ size_t*   BlockSize);
+	_In_ ProcessStartupInformation_t* StartupInformation);
 
 /* StdioReadInternal
  * Internal read wrapper for file-reading */

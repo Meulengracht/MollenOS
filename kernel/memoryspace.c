@@ -355,21 +355,25 @@ CreateSystemMemorySpaceMapping(
         }
 
         Status = SetVirtualPageMapping(SystemMemorySpace, PhysicalPage, VirtualPage, Flags);
-        // The only reason this ever turns error if the mapping exists, in this case free the allocated
-        // resources if they are our allocations, and ignore
         if (Status != OsSuccess) {
-            if ((Flags & MAPPING_CONTIGIOUS) && i != 0) {
-                FATAL(FATAL_SCOPE_KERNEL, "Remapping error with a contigious call");
-            }
+            if (Status == OsExists) {
+                if ((Flags & MAPPING_CONTIGIOUS) && i != 0) {
+                    FATAL(FATAL_SCOPE_KERNEL, "Remapping error with a contigious call");
+                }
 
-            // Never unmap fixed-physical pages, this is important
-            if (!(Flags & MAPPING_PROVIDED)) {
-                FreeSystemMemory(PhysicalPage, GetSystemMemoryPageSize());
-            }
+                // Never unmap fixed-physical pages, this is important
+                if (!(Flags & MAPPING_PROVIDED)) {
+                    FreeSystemMemory(PhysicalPage, GetSystemMemoryPageSize());
+                }
 
-            // In case of <already-mapped> we might want to update the reference
-            if (PhysicalAddress != NULL && *PhysicalAddress == PhysicalPage) {
-                *PhysicalAddress = GetVirtualPageMapping(SystemMemorySpace, VirtualPage);
+                // In case of <already-mapped> we might want to update the reference
+                if (PhysicalAddress != NULL && *PhysicalAddress == PhysicalPage) {
+                    *PhysicalAddress = GetVirtualPageMapping(SystemMemorySpace, VirtualPage);
+                }
+                Status = OsSuccess;
+            }
+            else {
+                break;
             }
         }
     }

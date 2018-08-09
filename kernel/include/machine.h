@@ -56,6 +56,7 @@ typedef struct _SystemMachine {
     int                         NumberOfOverrides;
     SystemInterruptOverride_t*  Overrides;
     SystemPipe_t*               StdInput;
+    SystemPipe_t*               WmInput;
 
     // Total information across domains
     size_t                      NumberOfProcessors;

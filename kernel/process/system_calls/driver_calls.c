@@ -304,8 +304,10 @@ OsStatus_t
 ScInputEvent(
     _In_ SystemInput_t*     Input)
 {
-    // @todo
-    return OsError;
+    if (GetMachine()->WmInput != NULL) {
+        return WriteSystemPipe(GetMachine()->WmInput, (const uint8_t*)Input, sizeof(SystemInput_t));
+    }
+    return OsSuccess;
 }
 
 /* ScTimersStart

@@ -52,7 +52,7 @@ static SystemMachine_t Machine = {
     REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD,
     { 0 }, { { 0 } }, { 0 }, { 0 },     // BootInformation, Processor, MemorySpace, PhysicalMemory
     { { 0 } }, COLLECTION_INIT(KeyInteger), // Memory Map, SystemDomains
-    NULL, 0, NULL, NULL,                // InterruptControllers
+    NULL, 0, NULL, NULL, NULL,          // InterruptControllers
     0, 0, 0, 0                          // Total Information
 };
 
@@ -240,6 +240,8 @@ InitializeMachine(
     // debug console or last option is normal operation.
 #ifdef __OSCONFIG_TEST_KERNEL
     StartTestingPhase();
+#elif __OSCONFIG_DEBUGMODE
+    VideoDebugMode();
 #else
     Status = ModulesInitialize(&Machine.BootInformation);
     if (Status != OsSuccess) {

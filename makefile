@@ -117,7 +117,8 @@ install_shared:
 	cp librt/build/*.dll deploy/hdd/shared/bin/
 	cp librt/deploy/*.lib deploy/hdd/shared/lib/
 	cp librt/deploy/*.dll deploy/hdd/shared/bin/
-	cp userspace/bin/* deploy/hdd/shared/bin/ 2>/dev/null || :
+	cp userspace/bin/*.app deploy/hdd/shared/bin/ 2>/dev/null || :
+	cp userspace/bin/*.dll deploy/hdd/shared/bin/ 2>/dev/null || :
 	#cp userspace/lib/* deploy/hdd/shared/lib/ 2>/dev/null || :
 	#cp userspace/include/* deploy/hdd/shared/include/ 2>/dev/null || :
 

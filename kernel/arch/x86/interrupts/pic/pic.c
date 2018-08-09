@@ -20,19 +20,16 @@
  *
  */
 
-/* Includes 
- * - System */
 #include <system/io.h>
 #include <pic.h>
 
-/* Globals
- * State keeping variables. We need to keep track of some things. */
 static int GlbElcrInitialized = 0;
 
 /* PicGetElcr 
  * Retrieves the elcr status register(s). */
 OsStatus_t
-PicGetElcr(_Out_ uint16_t *Elcr)
+PicGetElcr(
+    _Out_ uint16_t* Elcr)
 {
     // Variables
     uint16_t Status     = 0;
@@ -110,9 +107,9 @@ PicInitialize(void)
  * specified on ELCR systems. */
 void
 PicConfigureLine(
-    _In_ int Irq,
-    _In_ int Enable,
-    _In_ int LevelTriggered)
+    _In_ int        Irq,
+    _In_ int        Enable,
+    _In_ int        LevelTriggered)
 {
     // Variables
     uint16_t Status     = 0;
@@ -136,24 +133,26 @@ PicConfigureLine(
     }
 
     // Determine whether or not mask/unmask
-    if (Enable == 0) {
-        if (Irq >= 8) {
-            ReadDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, &Mask);
-            WriteDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, Mask | (1 << (Irq - 8)));
+    if (Enable != -1) {
+        if (Enable == 0) {
+            if (Irq >= 8) {
+                ReadDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, &Mask);
+                WriteDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, Mask | (1 << (Irq - 8)));
+            }
+            else {
+                ReadDirectIo(DeviceIoPortBased, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1, &Mask);
+                WriteDirectIo(DeviceIoPortBased, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1,  Mask | (1 << Irq));
+            }
         }
         else {
-            ReadDirectIo(DeviceIoPortBased, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1, &Mask);
-            WriteDirectIo(DeviceIoPortBased, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1,  Mask | (1 << Irq));
-        }
-    }
-    else {
-        if (Irq >= 8) {
-            ReadDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, &Mask);
-            WriteDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, Mask & ~(1 << (Irq - 8)));
-        }
-        else {
-            ReadDirectIo(DeviceIoPortBased, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1, &Mask);
-            WriteDirectIo(DeviceIoPortBased, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1,  Mask & ~(1 << Irq));
+            if (Irq >= 8) {
+                ReadDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, &Mask);
+                WriteDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY + PIC_REGISTER_IMR, 1, Mask & ~(1 << (Irq - 8)));
+            }
+            else {
+                ReadDirectIo(DeviceIoPortBased, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1, &Mask);
+                WriteDirectIo(DeviceIoPortBased, PIC_PORT_PRIMARY + PIC_REGISTER_IMR, 1,  Mask & ~(1 << Irq));
+            }
         }
     }
 }
@@ -163,9 +162,9 @@ PicConfigureLine(
  * its current status. */
 void
 PicGetConfiguration(
-    _In_ int Irq,
-    _Out_ int *Enabled,
-    _Out_ int *LevelTriggered)
+    _In_  int       Irq,
+    _Out_ int*      Enabled,
+    _Out_ int*      LevelTriggered)
 {
     // Variables
     uint16_t Status     = 0;
@@ -198,7 +197,7 @@ PicGetConfiguration(
  * Signals end of interrupt service for the appropriate pic chip */
 void
 PicSendEoi(
-    _In_ int Irq)
+    _In_ int        Irq)
 {
 	if(Irq >= 8) {
         WriteDirectIo(DeviceIoPortBased, PIC_PORT_SECONDARY, 1, 0x20);

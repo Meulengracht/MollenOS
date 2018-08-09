@@ -21,19 +21,27 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-/* Includes 
- * - System */
 #include <os/process.h>
 #include <os/syscall.h>
-
-/* Includes
- * - Library */
-#include <errno.h>
-#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <stdio.h>
 #include "../stdio/local.h"
+
+/* InitializeStartupInformation
+ * Resets all values of the startup information structure to default values. */
+void
+InitializeStartupInformation(
+	_In_ ProcessStartupInformation_t* StartupInformation)
+{
+    memset(StartupInformation, 0, sizeof(ProcessStartupInformation_t));
+
+    // Reset handles
+    StartupInformation->StdOutHandle    = -1;
+    StartupInformation->StdInHandle     = -1;
+    StartupInformation->StdErrHandle    = -1;
+}
 
 /* ProcessSpawn
  * Spawns a new process by the given path and optionally the given parameters are passed 
@@ -45,7 +53,6 @@ ProcessSpawn(
 	_In_Opt_ const char*    Arguments,
 	_In_     int            Asynchronous)
 {
-    // Variables
     ProcessStartupInformation_t StartupInformation;
 
 	// Sanitize parameters
@@ -54,8 +61,8 @@ ProcessSpawn(
 	}
 
     // Setup information block
-    memset(&StartupInformation, 0, sizeof(ProcessStartupInformation_t));
-    StartupInformation.InheritStdHandles = 1;
+    InitializeStartupInformation(&StartupInformation);
+    StartupInformation.InheritFlags = PROCESS_INHERIT_ALL;
     if (Arguments != NULL) {
         StartupInformation.ArgumentPointer = Arguments;
         StartupInformation.ArgumentLength = strlen(Arguments);
@@ -71,11 +78,11 @@ UUId_t
 ProcessSpawnEx(
 	_In_ const char*                        Path,
 	_In_ const ProcessStartupInformation_t* StartupInformation,
-	_In_ int                                Asynchronous) {
-    OsStatus_t Cleanup  = StdioCreateInheritanceBlock(StartupInformation->InheritStdHandles, 
-        (void**)&StartupInformation->InheritanceBlockPointer, (size_t*)&StartupInformation->InheritanceBlockLength);
+	_In_ int                                Asynchronous)
+{
+    OsStatus_t Cleanup  = StdioCreateInheritanceBlock((ProcessStartupInformation_t*)StartupInformation);
 	UUId_t Result       = Syscall_ProcessSpawn(Path, StartupInformation, Asynchronous);
-    if (Cleanup == OsSuccess) {
+    if (Cleanup == OsSuccess && StartupInformation->InheritanceBlockPointer != NULL) {
         free((void*)StartupInformation->InheritanceBlockPointer);
     }
     return Result;
@@ -88,7 +95,8 @@ OsStatus_t
 ProcessJoin(
 	_In_  UUId_t    ProcessId,
     _In_  size_t    Timeout,
-    _Out_ int*      ExitCode) {
+    _Out_ int*      ExitCode)
+{
 	if (ProcessId == UUID_INVALID || ExitCode == NULL) {
         _set_errno(EINVAL);
 		return OsError;
@@ -100,7 +108,8 @@ ProcessJoin(
  * Terminates the process with the given id */
 OsStatus_t 
 ProcessKill(
-	_In_ UUId_t Process) {
+	_In_ UUId_t Process)
+{
 	if (Process == UUID_INVALID) {
 		return OsError;
 	}

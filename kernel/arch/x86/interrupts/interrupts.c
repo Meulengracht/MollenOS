@@ -48,9 +48,7 @@
 /* ThreadingFpuException
  * Handles the fpu exception that might get triggered
  * when performing any float/double instructions. */
-OsStatus_t
-ThreadingFpuException(
-    _In_ MCoreThread_t *Thread);
+extern OsStatus_t ThreadingFpuException(MCoreThread_t *Thread);
 extern OsStatus_t GetVirtualPageAttributes(SystemMemorySpace_t*, VirtualAddress_t, Flags_t*);
 
 #define EFLAGS_INTERRUPT_FLAG        (1 << 9)
@@ -123,10 +121,7 @@ InterruptGetApicConfiguration(
         // Ignore polarity mode as that is automatically treated as active low
         // when trigger is set to level
         if (Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE) {
-            if (LevelTriggered != 1) {
-                PicConfigureLine(Interrupt->Line, -1, 1);
-                LevelTriggered = 1;
-            }
+            LevelTriggered = 1;
         }
 
         if (LevelTriggered == 1) {
@@ -172,7 +167,6 @@ InterruptGetApicConfiguration(
             else {
                 if (Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_TRIGGERMODE) {
                     ApicFlags |= APIC_LEVEL_TRIGGER;
-                    PicConfigureLine(Interrupt->Line, -1, 1);
                 }
                 if (Interrupt->AcpiConform & __DEVICEMANAGER_ACPICONFORM_POLARITY) {
                     ApicFlags |= APIC_ACTIVE_LOW;
@@ -320,39 +314,44 @@ InterruptConfigure(
         // ISA Interrupts can be level triggered
         // so make sure we configure it for level triggering
         if (ApicFlags & APIC_LEVEL_TRIGGER) {
-            PicConfigureLine(Descriptor->Source, 0, 1);
+            PicConfigureLine(Descriptor->Source, -1, 1);
         }
     }
 
 UpdateEntry:
-    // If Apic Entry is located, we need to adjust
-    Ic = GetInterruptControllerByLine(Descriptor->Source);
-    if (Ic != NULL) {
-        if (Enable == 0) {
-            ApicWriteIoEntry(Ic, Descriptor->Source, APIC_MASKED);
-        }
-        else {
-            ApicExisting.Full = ApicReadIoEntry(Ic, Descriptor->Source);
-
-            // Sanity, we can't just override the existing interrupt vector
-            // so if it's already installed, we modify the table-index
-            if (!(ApicExisting.Parts.Lo & APIC_MASKED)) {
-                UUId_t ExistingIndex = LOBYTE(LOWORD(ApicExisting.Parts.Lo));
-                if (ExistingIndex != TableIndex) {
-                    FATAL(FATAL_SCOPE_KERNEL, 
-                        "Table index for already installed interrupt: %u", 
-                        TableIndex);
-                }
-            }
-            else {
-                // Unmask the irq in the io-apic
-                TRACE("Installing source %i => 0x%x", Descriptor->Source, LODWORD(ApicFlags));
-                ApicWriteIoEntry(Ic, Descriptor->Source, ApicFlags);
-            }
-        }
+    if (GetApicInterruptMode() == InterruptModePic) {
+        PicConfigureLine(Descriptor->Source, Enable, -1);
     }
     else {
-        ERROR("Failed to derive io-apic for source %i", Descriptor->Source);
+        // If Apic Entry is located, we need to adjust
+        Ic = GetInterruptControllerByLine(Descriptor->Source);
+        if (Ic != NULL) {
+            if (Enable == 0) {
+                ApicWriteIoEntry(Ic, Descriptor->Source, APIC_MASKED);
+            }
+            else {
+                ApicExisting.Full = ApicReadIoEntry(Ic, Descriptor->Source);
+
+                // Sanity, we can't just override the existing interrupt vector
+                // so if it's already installed, we modify the table-index
+                if (!(ApicExisting.Parts.Lo & APIC_MASKED)) {
+                    UUId_t ExistingIndex = LOBYTE(LOWORD(ApicExisting.Parts.Lo));
+                    if (ExistingIndex != TableIndex) {
+                        FATAL(FATAL_SCOPE_KERNEL, "Table index for already installed interrupt: %u", 
+                            TableIndex);
+                    }
+                }
+                else {
+                    // Unmask the irq in the io-apic
+                    TRACE("Installing source %i => 0x%x", Descriptor->Source, LODWORD(ApicFlags));
+                    ApicWriteIoEntry(Ic, Descriptor->Source, ApicFlags);
+                }
+            }
+        }
+        else {
+            ERROR("Failed to derive io-apic for source %i", Descriptor->Source);
+            return OsError;
+        }
     }
     return OsSuccess;
 }
@@ -549,6 +548,7 @@ ExceptionEntry(
         // Was it a page-fault?
         if (Address != __MASK) {
             WRITELINE("page-fault address: 0x%x, error-code 0x%x", Address, Registers->ErrorCode);
+            WRITELINE("existing mapping for address: 0x%x", GetSystemMemoryMapping(GetCurrentSystemMemorySpace(), Address));
         }
 
         // Locate which module

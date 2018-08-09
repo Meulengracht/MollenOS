@@ -258,8 +258,8 @@ uintptr_t   GlbSyscallTable[111] = {
      * - Interrupt Support */
     DefineSyscall(ScRegisterInterrupt),
     DefineSyscall(ScUnregisterInterrupt),
-    DefineSyscall(NoOperation),
-    DefineSyscall(NoOperation),
+    DefineSyscall(ScKeyEvent),
+    DefineSyscall(ScInputEvent),
     DefineSyscall(ScTimersStart),
     DefineSyscall(ScTimersStop),
     DefineSyscall(NoOperation),

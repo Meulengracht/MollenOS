@@ -87,8 +87,9 @@ typedef void*                       Handle_t;
 /* This definies various possible results
  * from certain os-operations */
 typedef enum {
-    OsSuccess,
-    OsError
+    OsSuccess   = 0,
+    OsError,            // Error - Generic
+    OsExists            // Error - Already exists
 } OsStatus_t;
 
 typedef enum {

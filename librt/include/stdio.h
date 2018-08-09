@@ -23,8 +23,6 @@
 #ifndef __STDC_STDIO__
 #define __STDC_STDIO__
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 #define __need_wint_t
 #include <stddef.h>
@@ -114,57 +112,33 @@ CRTDECL(FILE*,                      getstdfile(int n));
 /*******************************
  *       File Access           *
  *******************************/
-_CRTIMP OsStatus_t _lock_file(
-	_In_ FILE * stream);
-_CRTIMP OsStatus_t _unlock_file(
-	_In_ FILE * stream);
-_CRTIMP int _fflags(
-	_In_ __CONST char *mode, 
-	_In_ int *open_flags, 
-	_In_ int *stream_flags);
-_CRTIMP int fclose(
-	_In_ FILE * stream);
-_CRTIMP FILE *fopen(
-	_In_ __CONST char * filename, 
-	_In_ __CONST char * mode);
-_CRTIMP FILE *fdopen(
-	_In_ int fd, 
-	_In_ __CONST char *mode);
-_CRTIMP FILE *freopen(
-	_In_ __CONST char * filename, 
-	_In_ __CONST char * mode, 
-	_In_ FILE * stream);
-_CRTIMP int remove(
-	_In_ __CONST char * filename);
-_CRTIMP int rename(
-	_In_ __CONST char * oldname, 
-	_In_ __CONST char * newname);
-_CRTIMP FILE *tmpfile(void);
-_CRTIMP char *tmpnam(
-	_In_ char * str);
-_CRTIMP int fflush(
-	_In_ FILE * stream);
-_CRTIMP void setbuf(
-    _In_ FILE* file, 
-    _In_ char *buf);
-_CRTIMP int setvbuf(
-    _In_ FILE* file, 
-    _In_ char *buf, 
-    _In_ int mode, 
-    _In_ size_t size);
-CRTDECL(int, fileno(FILE * stream));
+CRTDECL(OsStatus_t, _lock_file(FILE * stream));
+CRTDECL(OsStatus_t, _unlock_file(FILE * stream));
+CRTDECL(int,        _fflags(const char *mode, int *open_flags, int *stream_flags));
+CRTDECL(int,        fclose(FILE * stream));
+CRTDECL(FILE*,      fopen(const char * filename, const char * mode));
+CRTDECL(FILE*,      fdopen(int fd, const char *mode));
+CRTDECL(FILE*,      freopen(const char * filename, const char * mode, FILE * stream));
+CRTDECL(int,        remove(const char * filename));
+CRTDECL(int,        rename(const char * oldname, const char * newname));
+CRTDECL(FILE*,      tmpfile(void));
+CRTDECL(char*,      tmpnam(char * str));
+CRTDECL(int,        fflush(FILE * stream));
+CRTDECL(void,       setbuf(FILE* file, char *buf));
+CRTDECL(int,        setvbuf(FILE* file, char *buf, int mode, size_t size));
+CRTDECL(int,        fileno(FILE * stream));
 
 /*******************************
  *       Formatted IO          *
  *******************************/
-CRTDECL(int, printf(const char *format, ...));
-CRTDECL(int, vprintf(const char *format, va_list argptr));
-CRTDECL(int, sprintf(char *buffer, const char *format, ...));
-CRTDECL(int, snprintf(char *str, size_t size, const char *format, ...));
-CRTDECL(int, vsprintf(char *buffer, const char *format, va_list argptr));
-CRTDECL(int, vsnprintf(char *str, size_t size, const char *format, va_list ap));
-CRTDECL(int, asprintf(char **ret, const char *format, ...));
-CRTDECL(int, vasprintf(char **ret, const char *format, va_list ap));
+CRTDECL(int,        printf(const char *format, ...));
+CRTDECL(int,        vprintf(const char *format, va_list argptr));
+CRTDECL(int,        sprintf(char *buffer, const char *format, ...));
+CRTDECL(int,        snprintf(char *str, size_t size, const char *format, ...));
+CRTDECL(int,        vsprintf(char *buffer, const char *format, va_list argptr));
+CRTDECL(int,        vsnprintf(char *str, size_t size, const char *format, va_list ap));
+CRTDECL(int,        asprintf(char **ret, const char *format, ...));
+CRTDECL(int,        vasprintf(char **ret, const char *format, va_list ap));
 
 _CRTIMP int scanf(
     _In_ const char *format, 
@@ -177,8 +151,8 @@ _CRTIMP int sscanf(
     _In_ const char *format, 
     ...);
 _CRTIMP int swscanf(
-    _In_ __CONST wchar_t *str, 
-    _In_ __CONST wchar_t *format, 
+    _In_ const wchar_t *str, 
+    _In_ const wchar_t *format, 
     ...);
 
 _CRTIMP int vscanf(
@@ -206,58 +180,58 @@ _CRTIMP int vswscanf(
 
 _CRTIMP int fprintf(
     _In_ FILE *file, 
-    _In_ __CONST char *format,
+    _In_ const char *format,
     ...);
 _CRTIMP int vfprintf(
     _In_ FILE *file, 
-    _In_ __CONST char *format, 
+    _In_ const char *format, 
     _In_ va_list argptr);
 _CRTIMP int fscanf(
     _In_ FILE *file, 
-    _In_ __CONST char *format, 
+    _In_ const char *format, 
     ...);
 _CRTIMP int fwscanf(
     _In_ FILE *file, 
-    _In_ __CONST wchar_t *format, 
+    _In_ const wchar_t *format, 
     ...);
 
 _CRTIMP int wprintf(
-    _In_ __CONST wchar_t *format, 
+    _In_ const wchar_t *format, 
     ...);
 _CRTIMP int vwprintf(
-    _In_ __CONST wchar_t *format, 
+    _In_ const wchar_t *format, 
     _In_ va_list valist);
 _CRTIMP int swprintf(
     _In_ wchar_t *restrict buffer,
     _In_ size_t len,
-    _In_ __CONST wchar_t *restrict format,
+    _In_ const wchar_t *restrict format,
     ...);
 _CRTIMP int swnprintf(
     _In_ wchar_t *buffer,
     _In_ size_t count,
-    _In_ __CONST wchar_t *format,
+    _In_ const wchar_t *format,
 	...);
 _CRTIMP int vswprintf(
     _In_ wchar_t *buffer,
-    _In_ __CONST wchar_t *format,
+    _In_ const wchar_t *format,
 	_In_ va_list argptr);
 
 _CRTIMP int vfwprintf(
     _In_ FILE* file, 
-    _In_ __CONST wchar_t *format, 
+    _In_ const wchar_t *format, 
 	_In_ va_list argptr);
 _CRTIMP int fwprintf(
     _In_ FILE* file, 
-    _In_ __CONST wchar_t *format, 
+    _In_ const wchar_t *format, 
     ...);
 
 _CRTIMP int streamout(
     _In_ FILE *stream, 
-    _In_ __CONST char *format, 
+    _In_ const char *format, 
     _In_ va_list argptr);
 _CRTIMP int wstreamout(
     _In_ FILE *stream, 
-    _In_ __CONST wchar_t *format, 
+    _In_ const wchar_t *format, 
     _In_ va_list argptr);
 
 /*******************************
@@ -277,7 +251,7 @@ _CRTIMP int putc(
 _CRTIMP char *gets(
     _In_ char *buf);
 _CRTIMP int puts(
-    _In_ __CONST char *s);
+    _In_ const char *s);
 
 _CRTIMP int fgetchar(void);
 _CRTIMP int fputchar(
@@ -286,7 +260,7 @@ _CRTIMP int fputc(
 	_In_ int character,
 	_In_ FILE* file);
 _CRTIMP int fputs(
-	_In_ __CONST char *s, 
+	_In_ const char *s, 
     _In_ FILE* file);
 _CRTIMP int fgetc(
 	_In_ FILE *file);
@@ -316,7 +290,7 @@ CRTDECL(wint_t, putwc(
 _CRTIMP wint_t putwch(
     _In_ wchar_t character);
 _CRTIMP int putws(
-    _In_ __CONST wchar_t *s);
+    _In_ const wchar_t *s);
 _CRTIMP wchar_t* getws(
     _In_ wchar_t* buf);
 CRTDECL(int, fwide(
@@ -357,7 +331,7 @@ _CRTIMP size_t fread(
 	_In_ size_t count, 
 	_In_ FILE *stream);
 _CRTIMP size_t fwrite(
-	_In_ __CONST void *vptr,
+	_In_ const void *vptr,
 	_In_ size_t size,
 	_In_ size_t count,
 	_In_ FILE *stream);
@@ -370,7 +344,7 @@ _CRTIMP int fgetpos(
 	_Out_ fpos_t *pos);
 _CRTIMP int fsetpos(
 	_In_ FILE *stream, 
-	_In_ __CONST fpos_t *pos);
+	_In_ const fpos_t *pos);
 _CRTIMP int fseek(
 	_In_ FILE *stream, 
 	_In_ long int offset, 
@@ -403,9 +377,9 @@ _CRTIMP void clearerr(
 _CRTIMP int ferror(
 	_In_ FILE* file);
 _CRTIMP void perror(
-    _In_ __CONST char * str);
+    _In_ const char * str);
 _CRTIMP void wperror(
-	_In_ __CONST wchar_t *str);
+	_In_ const wchar_t *str);
 _CODE_END
 
 #endif //!__STDC_STDIO__

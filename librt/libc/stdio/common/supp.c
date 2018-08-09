@@ -127,38 +127,39 @@ void
 StdioCloneHandle(StdioHandle_t *Handle, StdioHandle_t *Original) {
     Handle->InheritationType = Original->InheritationType;
     
-    Handle->InheritationData.FileHandle = Original->InheritationData.FileHandle;
+    Handle->InheritationData.FileHandle     = Original->InheritationData.FileHandle;
     Handle->InheritationData.Pipe.ProcessId = Original->InheritationData.Pipe.ProcessId;
-    Handle->InheritationData.Pipe.Port = Original->InheritationData.Pipe.Port;
+    Handle->InheritationData.Pipe.Port      = Original->InheritationData.Pipe.Port;
 }
 
 /* StdioCreateFileHandle 
  * Initializes the handle as a file handle in the stdio object */ 
 void StdioCreateFileHandle(UUId_t FileHandle, StdioObject_t *Object) {
-    Object->handle.InheritationType = STDIO_HANDLE_FILE;
-    Object->handle.InheritationData.FileHandle = FileHandle;
+    Object->handle.InheritationType             = STDIO_HANDLE_FILE;
+    Object->handle.InheritationData.FileHandle  = FileHandle;
     Object->exflag |= EF_CLOSE;
 }
 
 /* StdioCreateFileHandle 
  * Initializes the handle as a pipe handle in the stdio object */ 
-void StdioCreatePipeHandle(UUId_t ProcessId, int Port, int Oflags, StdioObject_t *Object) {
-    Object->handle.InheritationType = STDIO_HANDLE_PIPE;
-    Object->handle.InheritationData.Pipe.ProcessId = ProcessId;
-    Object->handle.InheritationData.Pipe.Port = Port;
+OsStatus_t StdioCreatePipeHandle(UUId_t ProcessId, int Port, int Oflags, StdioObject_t *Object) {
+    Object->handle.InheritationType                 = STDIO_HANDLE_PIPE;
+    Object->handle.InheritationData.Pipe.ProcessId  = ProcessId;
+    Object->handle.InheritationData.Pipe.Port       = Port;
     if (Oflags & _IOREAD) {
         if (OpenPipe(Port, PIPE_RAW) != OsSuccess) {
-            // what
+            return OsError;
         }
         Object->exflag |= EF_CLOSE;
     }
+    return OsSuccess;
 }
 
 /* StdioInitialize
  * Initializes default handles and resources */
 _CRTIMP void
 StdioInitialize(
-    _In_ void *InheritanceBlock,
+    _In_ void*  InheritanceBlock,
     _In_ size_t InheritanceBlockLength)
 {
     // Initialize the locks
@@ -223,8 +224,7 @@ StdioInitialize(
 /* StdioCleanup
  * Flushes all files open to disk, and then frees any resources 
  * allocated to the open file handles. */
-_CRTIMP
-void
+_CRTIMP void
 StdioCleanup(void) {
     // Flush all file buffers and close handles
     _flushall();
@@ -232,33 +232,74 @@ StdioCleanup(void) {
 }
 
 /* StdioCreateInheritanceBlock
- * Creates a block of data containing all the stdio handles that
- * can be inherited. */
+ * Creates a block of data containing all the stdio handles that can be inherited. */
 OsStatus_t
 StdioCreateInheritanceBlock(
-    _In_  int       InheritStdHandles,
-    _Out_ void**    InheritanceBlock,
-    _Out_ size_t*   BlockSize)
+	_In_ ProcessStartupInformation_t* StartupInformation)
 {
-    // Variables
     StdioObject_t *BlockPointer = NULL;
+    size_t NumberOfObjects      = 0;
+
+    // Calculate the number of objects
+    NumberOfObjects = CollectionLength(&IoObjects);
+
+    // Handle the stdout inheritation reductions
+    if (!(StartupInformation->InheritFlags & PROCESS_INHERIT_STDOUT)) {
+        NumberOfObjects--;
+    }
+    else if (StartupInformation->StdOutHandle != -1) {
+        // We asked to inheirt stdout, however we gave a custom stdout, so fix this
+        StartupInformation->InheritFlags &= ~(PROCESS_INHERIT_STDOUT);
+        NumberOfObjects--;
+    }
+
+    if (!(StartupInformation->InheritFlags & PROCESS_INHERIT_STDIN)) {
+        NumberOfObjects--;
+    }
+    else if (StartupInformation->StdInHandle != -1) {
+        // We asked to inheirt stdin, however we gave a custom stdin, so fix this
+        StartupInformation->InheritFlags &= ~(PROCESS_INHERIT_STDIN);
+        NumberOfObjects--;
+    }
+
+    if (!(StartupInformation->InheritFlags & PROCESS_INHERIT_STDERR)) {
+        NumberOfObjects--;
+    }
+    else if (StartupInformation->StdErrHandle != -1) {
+        // We asked to inheirt stderr, however we gave a custom stderr, so fix this
+        StartupInformation->InheritFlags &= ~(PROCESS_INHERIT_STDERR);
+        NumberOfObjects--;
+    }
+
+    if (NumberOfObjects == 0) {
+        return OsSuccess; // Nothing to inherit
+    }
 
     // Allocate a block big enough
-    *BlockSize = CollectionLength(&IoObjects) * sizeof(StdioObject_t);
-    if (CollectionLength(&IoObjects) <= 3 && !InheritStdHandles) {
-        return OsError;
-    }
-    *InheritanceBlock = malloc(*BlockSize);
-    BlockPointer = (StdioObject_t*)*InheritanceBlock;
+    StartupInformation->InheritanceBlockLength  = NumberOfObjects * sizeof(StdioObject_t);
+    StartupInformation->InheritanceBlockPointer = malloc(NumberOfObjects * sizeof(StdioObject_t));
+    BlockPointer = (StdioObject_t*)StartupInformation->InheritanceBlockPointer;
 
     // Iterate all stdio-objects and copy
     LOCK_FILES();
     foreach(Node, &IoObjects) {
         StdioObject_t *Object = (StdioObject_t*)Node->Data;
-        if (!InheritStdHandles && Object->fd < 3) {
-            continue;
+        if (Object->fd < 3 && !(StartupInformation->InheritFlags & (1 << Object->fd))) {
+            continue; // Don't inherit
         }
         memcpy(BlockPointer, Object, sizeof(StdioObject_t));
+
+        // Check for this fd to be equal to one of the custom handles
+        // if it is equal, we need to update the fd of the handle to our reserved
+        if (Object->fd == StartupInformation->StdOutHandle) {
+            BlockPointer->fd = STDOUT_FILENO;
+        }
+        if (Object->fd == StartupInformation->StdInHandle) {
+            BlockPointer->fd = STDIN_FILENO;
+        }
+        if (Object->fd == StartupInformation->StdErrHandle) {
+            BlockPointer->fd = STDERR_FILENO;
+        }
         BlockPointer++;
     }
     UNLOCK_FILES();
@@ -534,11 +575,11 @@ ReadSystemKey(
 {
     StdioHandle_t *Handle = StdioFdToHandle(STDIN_FILENO);
     if (Handle->InheritationType == STDIO_HANDLE_FILE) {
-        return StdioHandleReadFile(Handle, (char*)&Key, sizeof(SystemKey_t), NULL);
+        return StdioHandleReadFile(Handle, (char*)Key, sizeof(SystemKey_t), NULL);
     }
     else {
         return ReceivePipe(Handle->InheritationData.Pipe.ProcessId, 
-            Handle->InheritationData.Pipe.Port, &Key, sizeof(SystemKey_t));
+            Handle->InheritationData.Pipe.Port, Key, sizeof(SystemKey_t));
     }
 }
 

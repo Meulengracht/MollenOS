@@ -435,7 +435,7 @@ SyncTable:
                     vAddress, pAddress, Mapping);
             }
         }
-        Status = OsError;
+        Status = OsExists;
         goto LeaveFunction;
     }
 

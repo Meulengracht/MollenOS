@@ -19,6 +19,7 @@
  * MollenOS C Library - File Opening & File Creation
  */
 
+#include <os/ipc/pipe.h>
 #include <os/utils.h>
 #include <os/file.h>
 #include <os/syscall.h>
@@ -110,6 +111,31 @@ int open(
 		CloseFile(Handle);
 		_fval(Code);
 	}
+	return fd;
+}
+
+/* pipe
+ * Create a pipe by using a file-descriptor as a handle. These pipes are then inherited
+ * by sub-processes. */
+int pipe(void)
+{
+	OsStatus_t Status;
+    int fd;
+
+	// Allocate a file descriptor first, but since the lower numbers of pipes
+    // usually are reserved, we add 64 as a base
+    fd = StdioFdAllocate(-1, WX_PIPE);
+    if (fd == -1) {
+        _set_errno(ENOENT);
+        return -1;
+    }
+
+    Status = StdioCreatePipeHandle(ProcessGetCurrentId(), fd + 64, _IOREAD | _IOWRT, get_ioinfo(fd));
+    if (Status == OsError) {
+        StdioFdFree(fd);
+        _set_errno(ENOENT);
+        return -1;
+    }
 	return fd;
 }
 

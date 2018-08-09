@@ -203,9 +203,10 @@ PeHandleSections(
         if (Section->Flags & PE_SECTION_EXECUTE) {
             PageFlags |= MAPPING_EXECUTABLE;
         }
-        if (!(Section->Flags & PE_SECTION_WRITE)) {
-            PageFlags |= MAPPING_READONLY;
-        }
+        // @todo missing some cases i think
+        //if (!(Section->Flags & PE_SECTION_WRITE)) {
+        //    PageFlags |= MAPPING_READONLY;
+        //}
 
         // Iterate pages and map them in our memory space
         Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, 

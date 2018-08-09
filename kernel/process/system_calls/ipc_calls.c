@@ -21,6 +21,7 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
+#include <os/input.h>
 #include <process/phoenix.h>
 #include <system/utils.h>
 #include <scheduler.h>
@@ -35,8 +36,22 @@
 OsStatus_t
 ScPipeOpen(
     _In_ int            Port, 
-    _In_ int            Type) {
-    return PhoenixOpenAshPipe(PhoenixGetCurrentAsh(), Port, Type);
+    _In_ int            Type)
+{
+    MCoreAsh_t* Process = PhoenixGetCurrentAsh();
+    OsStatus_t Status   = OsError;
+
+    if (Process != NULL) {
+        UUId_t Alias = Process->Id;
+        PhoenixUpdateAlias(&Alias);
+        Status = PhoenixOpenAshPipe(Process, Port, Type);
+
+        // Update the registered wm-input pipe that should recieve input events from cursor etc
+        if (Status == OsSuccess && Alias == __WINDOWMANAGER_TARGET && Port == PIPE_WMEVENTS) {
+            GetMachine()->WmInput = PhoenixGetAshPipe(Process, PIPE_WMEVENTS);
+        }
+    }
+    return Status;
 }
 
 /* ScPipeClose
@@ -44,8 +59,22 @@ ScPipeOpen(
  * shutdowns any communication on that port */
 OsStatus_t
 ScPipeClose(
-    _In_ int            Port) {
-    return PhoenixCloseAshPipe(PhoenixGetCurrentAsh(), Port);
+    _In_ int            Port)
+{
+    MCoreAsh_t* Process = PhoenixGetCurrentAsh();
+    OsStatus_t Status   = OsError;
+
+    if (Process != NULL) {
+        UUId_t Alias = Process->Id;
+        PhoenixUpdateAlias(&Alias);
+        Status = PhoenixCloseAshPipe(Process, Port);
+        
+        // Disable the window manager input event pipe
+        if (Status == OsSuccess && Alias == __WINDOWMANAGER_TARGET && Port == PIPE_WMEVENTS) {
+            GetMachine()->WmInput = NULL;
+        }
+    }
+    return Status;
 }
 
 /* ScPipeRead
@@ -94,15 +123,12 @@ ScPipeWrite(
     // Are we looking for a system out pipe? (std) then the
     // process id (target) will be set as invalid
     if (ProcessId == UUID_INVALID) {
-        if (Port == PIPE_STDOUT || Port == PIPE_STDERR || Port == PIPE_STDIN) {
+        if (Port == PIPE_STDOUT || Port == PIPE_STDERR) {
             if (Port == PIPE_STDOUT) {
                 Pipe = LogPipeStdout();
             }
             else if (Port == PIPE_STDERR) {
                 Pipe = LogPipeStderr();
-            }
-            else if (Port == PIPE_STDIN) {
-                Pipe = GetMachine()->StdInput;
             }
         }
         else {
@@ -129,16 +155,24 @@ ScPipeReceive(
     _In_ uint8_t*       Message,
     _In_ size_t         Length)
 {
-    // Variables
-    SystemPipe_t *Pipe      = NULL;
+    SystemPipe_t *Pipe = NULL;
 
     // Sanitize parameters
-    if (Message == NULL || Length == 0 || ProcessId == UUID_INVALID) {
+    if (Message == NULL || Length == 0) {
         ERROR("Invalid paramters for pipe-receive");
         return OsError;
     }
 
-    Pipe = PhoenixGetAshPipe(PhoenixGetAsh(ProcessId), Port);
+    // Handle special case, system-stdin
+    if (ProcessId == UUID_INVALID) {
+        if (Port == PIPE_STDIN) {
+            Pipe = GetMachine()->StdInput;
+        }
+    }
+    else {
+        Pipe = PhoenixGetAshPipe(PhoenixGetAsh(ProcessId), Port);
+    }
+
     if (Pipe == NULL) {
         ERROR("Invalid pipe %i", Port);
         return OsError;

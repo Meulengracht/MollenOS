@@ -32,7 +32,7 @@ lib_path = $(userspace_path)/lib
 # MollenOS Configuration, comment in or out for specific features
 config_flags = 
 
-# ACPI Configuration flags
+# ACPI Configuration
 #config_flags += -D__OSCONFIG_ACPIDEBUG
 #config_flags += -D__OSCONFIG_ACPIDEBUGGER
 #config_flags += -D__OSCONFIG_ACPIDEBUGMUTEXES
@@ -44,11 +44,14 @@ config_flags += -D__OSCONFIG_LOGGING_KTRACE # Kernel Tracing
 config_flags += -D__OSCONFIG_ENABLE_MULTIPROCESSORS # Use all cores
 #config_flags += -D__OSCONFIG_PROCESS_SINGLELOAD # No simuoultanous process loading
 config_flags += -D__OSCONFIG_DEBUGCONSOLE # Enable debug console on startup instead of splash
+#config_flags += -D__OSCONFIG_DEBUGMODE # Enable debug mode, this enables the debug terminal
+#config_flags += -D__OSCONFIG_RUN_CPPTESTS # Enables user-mode testing programs for the c/c++ suite.
+#config_flags += -D__OSCONFIG_TEST_KERNEL # Enable kernel-mode testing suites of the operating system
+
+# Driver Configuration
 #config_flags += -D__OSCONFIG_NODRIVERS # Don't load drivers, run it without for debug
 #config_flags += -D__OSCONFIG_DISABLE_EHCI # Disable usb 2.0 support, run only in usb 1.1
 #config_flags += -D__OSCONFIG_EHCI_ALLOW_64BIT # Allow the EHCI driver to utilize 64 bit dma buffers
-#config_flags += -D__OSCONFIG_DISABLE_VIOARR # Disable auto starting the windowing system
-#config_flags += -D__OSCONFIG_TEST_KERNEL # Enable testing mode of the operating system
 
 # Include correct arch file
 include $(dir $(mkfile_path))/$(VALI_ARCH)/rules.mk

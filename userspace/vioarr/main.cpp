@@ -21,9 +21,11 @@
  *    MollenOS.
  */
 
-#include <os/virtualkeycodes.h>
+#include <os/process.h>
 #include <os/service.h>
 #include <os/window.h>
+#include <os/input.h>
+#include <stdio.h>
 #include "vioarr.hpp"
 #include "engine/elements/window.hpp"
 #include "events/event_window.hpp"
@@ -103,6 +105,19 @@ Handle_t HandleCreateWindowRequest(MRemoteCallAddress_t *Process,
     return (Handle_t)Window;
 }
 
+void SpawnApplication(const char* Path, const char* Arguments)
+{
+    ProcessStartupInformation_t StartupInformation;
+    InitializeStartupInformation(&StartupInformation);
+
+    // Set arguments
+    if (Arguments != NULL) {
+        StartupInformation.ArgumentPointer = Arguments;
+        StartupInformation.ArgumentLength = strlen(Arguments);
+    }
+    ProcessSpawnEx(Path, &StartupInformation, 1);
+}
+
 void InputHandler()
 {
     bool IsRunning = true;
@@ -112,7 +127,7 @@ void InputHandler()
         if (ReadSystemKey(&Key) == OsSuccess) {
             if (Key.KeyCode == VK_F1) {
                 // Spawn the test application
-                ProcessSpawn("$bin/wintest.app", NULL, 1);
+                SpawnApplication("$bin/wintest.app", NULL);
             }
         }
     }

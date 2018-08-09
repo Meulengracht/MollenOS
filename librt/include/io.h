@@ -82,6 +82,7 @@ CRTDECL(Flags_t,    _fopts(int oflags));
 CRTDECL(int,        _fval(int ocode));
 
 // file interface
+CRTDECL(int,        pipe(void));
 CRTDECL(int,        open(const char *file, int flags, ...));
 CRTDECL(int,        close(int fd));
 CRTDECL(int,        read(int fd, void *buffer, unsigned int len));

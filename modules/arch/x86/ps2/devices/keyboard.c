@@ -38,8 +38,8 @@ PS2KeyboardHandleModifiers(
     _In_ PS2Port_t*                 Port,
     _In_ SystemKey_t*               Key)
 {
-    uint16_t Flags = (uint16_t)PS2_KEYBOARD_DATA_STATE_HI(Port) << 8;
-    Flags |= PS2_KEYBOARD_DATA_STATE_LO(Port);
+    uint16_t Flags  = (uint16_t)PS2_KEYBOARD_DATA_STATE_HI(Port) << 8;
+    Flags          |= PS2_KEYBOARD_DATA_STATE_LO(Port);
 
     // Handle modifiers
     switch (Key->KeyCode) {

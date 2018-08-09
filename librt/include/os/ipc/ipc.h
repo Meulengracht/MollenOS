@@ -42,11 +42,7 @@
 #define PIPE_STDIN                      1
 #define PIPE_STDERR                     2
 #define PIPE_REMOTECALL                 3
-
-/* Predefined system events that is common for
- * all userspace applications, these primarily consists
- * of input and/or window events */
-#define EVENT_INPUT                     IPC_DECL_EVENT(0)
+#define PIPE_WMEVENTS                   4
 
 /* Argument type definitions 
  * Used by both RPC and Event argument systems */

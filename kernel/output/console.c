@@ -19,17 +19,11 @@
  * MollenOS Video Device
  */
 
-/* Includes
- * - System */
 #include <system/video.h>
-#include <video.h>
-#include <log.h>
-
-/* Includes
- * - Library */
 #include <string.h>
+#include <video.h>
 #include <math.h>
-#include <stddef.h>
+#include <log.h>
 
 /* Globals
  * Window title for boot console */
@@ -136,4 +130,13 @@ VideoInitialize(void)
 	}
     LogSetRenderMode(1);
 	return OsSuccess;
+}
+
+/* VideoDebugMode
+ * Initializes boot-video environment untill a more
+ * complete driver can take-over the screen */
+OsStatus_t
+VideoDebugMode(void)
+{
+    return OsError;
 }
