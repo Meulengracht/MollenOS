@@ -25,6 +25,24 @@
 #include <os/input.h>
 #include <string.h>
 #include "vioarr.hpp"
+#include "events/event_dialog.hpp"
+
+// Callbacks for the diffferent shortcuts
+void ShortcutApplicationSearch();
+
+static struct {
+    uint16_t        Flags;
+    uint8_t         KeyCode;
+    void            (*Callback)();
+} SystemShortcuts[] = {
+    { KEY_MODIFIER_LALT | KEY_MODIFIER_RELEASED, VK_F, ShortcutApplicationSearch },
+    { 0, 0, NULL }
+};
+
+void ShortcutApplicationSearch()
+{
+    sVioarr.QueueEvent(new CDialogApplicationSearch());
+}
 
 void SpawnApplication(const char* Path, const char* Arguments)
 {
@@ -41,19 +59,30 @@ void SpawnApplication(const char* Path, const char* Arguments)
 
 bool HandleShortcut(SystemKey_t* Key)
 {
-
+    int Index = 0;
+    while (SystemShortcuts[Index].KeyCode != 0) {
+        if (Key->Flags      == SystemShortcuts[Index].Flags && 
+            Key->KeyCode    == SystemShortcuts[Index].KeyCode) {
+            // Shortcut has been matched, invoke event
+            SystemShortcuts[Index].Callback();
+            return true;
+        }
+        Index++;
+    }
+    return false;
 }
 
 bool HandleFunctionKeys(SystemKey_t* Key)
 {
-    if (Key.KeyCode == VK_F1) {
-        // Spawn the test application
-        SpawnApplication("$bin/wintest.app", NULL);
-        return true;
-    }
-    else if (Key.KeyCode == VK_F2) {
-        // Spawn the terminal application
-        SpawnApplication("$bin/terminal.app", NULL);
+    if (Key->KeyCode >= VK_F1 && Key->KeyCode <= VK_F24) {
+        if (Key->KeyCode == VK_F1) {
+            // Spawn the test application
+            SpawnApplication("$bin/wintest.app", NULL);
+        }
+        else if (Key->KeyCode == VK_F2) {
+            // Spawn the terminal application
+            SpawnApplication("$bin/terminal.app", NULL);
+        }
         return true;
     }
     return false;

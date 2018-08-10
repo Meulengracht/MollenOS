@@ -33,10 +33,10 @@
 #include <interrupts.h>
 #include <scheduler.h>
 #include <threading.h>
+#include <console.h>
 #include <timers.h>
 #include <stdio.h>
 #include <crc32.h>
-#include <video.h>
 #include <debug.h>
 #include <arch.h>
 #include <heap.h>
@@ -166,16 +166,11 @@ InitializeMachine(
         goto StopAndShowError;
     }
 
-#ifdef __OSCONFIG_HAS_VIDEO
-    Status = VideoInitialize();
+    Status = InitializeConsole();
     if (Status != OsSuccess) {
-        // @todo how the hell do we deal with this
+        ERROR("Failed to initialize output for system.");
+        CpuHalt();
     }
-#elif __OSCONFIG_HAS_UART
-    // Status = UartInitialize();
-#else
-#warning "No way of outputting to user on this platform."
-#endif
 
     // Build system topology by enumerating the SRAT table if present.
     // If ACPI is not present or the SRAT is missing the system is running in UMA
@@ -241,7 +236,7 @@ InitializeMachine(
 #ifdef __OSCONFIG_TEST_KERNEL
     StartTestingPhase();
 #elif __OSCONFIG_DEBUGMODE
-    VideoDebugMode();
+    EnableSystemDebugConsole();
 #else
     Status = ModulesInitialize(&Machine.BootInformation);
     if (Status != OsSuccess) {
@@ -254,13 +249,11 @@ InitializeMachine(
     goto IdleProcessor;
 
 StopAndShowError:
-#ifdef __OSCONFIG_HAS_VIDEO
-    Status = VideoInitialize();
-#elif __OSCONFIG_HAS_UART
-    // Status = UartInitialize();
-#else
-#warning "No way of outputting errors to user on this platform."
-#endif
+    Status = InitializeConsole();
+    if (Status != OsSuccess) {
+        ERROR("Failed to initialize output for system.");
+        CpuHalt();
+    }
 
 IdleProcessor:
     while (1) {

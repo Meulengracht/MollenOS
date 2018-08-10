@@ -27,6 +27,7 @@
 
 #include "../graphics/opengl/opengl_exts.hpp"
 #include "backend/nanovg_gl.h"
+#include "elements/window.hpp"
 
 CVEightEngine::CVEightEngine()
 {
@@ -115,25 +116,6 @@ bool CVEightEngine::IsWindowHandleValid(Handle_t WindowHandle) {
         }
     }
     return false;
-}
-
-// GetActiveWindow
-// Retrieves the active window by iterating to last element of type CWindow
-CEntity* CVEightEngine::GetActiveWindow()
-{
-    // @todo have a pointer to this instead of searching
-    CWindow *WindowInstance = nullptr;
-    CWindow *Found          = nullptr;
-    auto Elements           = m_RootEntity->GetChildren();
-
-    for (auto i = Elements.begin(); i != Elements.end(); i++) {
-        CEntity *Element    = *i;
-        WindowInstance      = dynamic_cast<CWindow*>(Element);
-        if (WindowInstance != nullptr) {
-            Found = WindowInstance;
-        }
-    }
-    return Found;
 }
 
 // ClampToScreenAxisX

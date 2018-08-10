@@ -38,7 +38,7 @@ build_initrd:
 	@cp services/build/*.mdrv initrd/
 	@cp modules/build/*.dll initrd/
 	@cp modules/build/*.mdrv initrd/
-	#cp resources/initrd/* initrd/
+	#@cp resources/initrd/* initrd/
 
 .PHONY: build_tools
 build_tools:

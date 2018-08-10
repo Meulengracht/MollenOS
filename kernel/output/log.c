@@ -20,7 +20,7 @@
  * - Contains the shared kernel log interface for logging-usage
  */
 
-#include <system/video.h>
+#include <system/output.h>
 #include <threading.h>
 #include <machine.h>
 #include <assert.h>

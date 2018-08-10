@@ -86,6 +86,10 @@ int VioarrCompositor::Run()
             case CVioarrEvent::EventWindowUpdate: {
                 ((CWindowUpdateEvent*)Event)->GetWindow()->SwapOnNextUpdate(true);
             } break;
+
+            case CVioarrEvent::EventDialogCreate: {
+
+            } break;
         }
         delete Event;
 

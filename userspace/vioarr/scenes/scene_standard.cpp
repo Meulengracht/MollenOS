@@ -40,7 +40,5 @@ CEntity *VioarrCompositor::CreateStandardScene()
     //CWindow *Test = new CWindow(Background, sEngine.GetContext(), "Test", 450, 300);
     //Test->SetActive(true);
     //Test->Move(250, 200, 0);
-
-    // Done
     return Background;
 }

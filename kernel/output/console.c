@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2016, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,14 +19,12 @@
  * MollenOS Video Device
  */
 
-#include <system/video.h>
+#include <system/output.h>
 #include <string.h>
-#include <video.h>
+#include <console.h>
 #include <math.h>
 #include <log.h>
 
-/* Globals
- * Window title for boot console */
 const char *GlbBootVideoWindowTitle = "Startup Debug Console";
 
 /* VideoDrawLine
@@ -112,31 +110,39 @@ VideoQuery(
 	return OsSuccess;
 }
 
-/* VideoInitialize
- * Initializes boot-video environment untill a more
- * complete driver can take-over the screen */
+/* InitializeConsole
+ * Initializes the output environment. This enables either visual representation
+ * and debugging of the kernel and enables a serial debugger. */
 OsStatus_t 
-VideoInitialize(void)
+InitializeConsole(void)
 {
-    // Clear video
-    VideoClear();
+    OsStatus_t Status;
 
-	// Draw boot terminal if we have graphics
-	if (VideoGetTerminal()->Type == VIDEO_GRAPHICS) {
+    // Initialize the serial interface if any
+#ifdef __OSCONFIG_HAS_UART
+    Status = InitializeSerialOutput();
+#endif
+
+    // Initialize visual representation by framebuffer
+#ifdef __OSCONFIG_HAS_VIDEO
+    Status = InitializeFramebufferOutput();
+    if (Status == OsSuccess) {
+        VideoClear();
 #ifdef __OSCONFIG_DEBUGCONSOLE
 		VideoDrawBootTerminal((VideoGetTerminal()->CursorLimitX / 2) - 325, 0, 
 			650, VideoGetTerminal()->Info.Height);
 #endif
-	}
+    }
+#endif
     LogSetRenderMode(1);
 	return OsSuccess;
 }
 
-/* VideoDebugMode
- * Initializes boot-video environment untill a more
- * complete driver can take-over the screen */
+/* EnableSystemDebugConsole
+ * Enters the debug console mode. This allows to inspect the system state and much of
+ * the information available to the system. */
 OsStatus_t
-VideoDebugMode(void)
+EnableSystemDebugConsole(void)
 {
     return OsError;
 }

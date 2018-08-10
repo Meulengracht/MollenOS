@@ -21,21 +21,25 @@
  *    MollenOS.
  */
 #pragma once
+#include "event.hpp"
 
-class CVioarrEvent {
+class CDialogCreateBase : public CVioarrEvent {
 public:
-    enum EVioarrEventType {
-        EventWindowCreated,
-        EventWindowDestroy,
-        EventWindowUpdate,
-
-        EventDialogCreate
+    enum EDialogType {
+        DialogApplicationSearch
     };
-    CVioarrEvent(EVioarrEventType Type) {
-        _Type = Type;
+
+    CDialogCreateBase(EDialogType Type) : CVioarrEvent(EventDialogCreate) {
+        m_Type = Type;
     }
-    ~CVioarrEvent() { }
-    EVioarrEventType GetType() { return _Type; }
+    ~CDialogCreateBase() { }
+
 private:
-    EVioarrEventType _Type;
+    EDialogType m_Type;
+};
+
+class CDialogApplicationSearch : public CDialogCreateBase {
+public:
+    CDialogApplicationSearch() : CDialogCreateBase(EDialogType::DialogApplicationSearch) { }
+    ~CDialogApplicationSearch() { }
 };

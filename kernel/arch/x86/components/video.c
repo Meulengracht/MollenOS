@@ -19,16 +19,11 @@
  * MollenOS x86-32 Boot-Video Component
  */
 
-/* Includes 
- * - System */
 #include <machine.h>
-#include <system/video.h>
+#include <system/output.h>
 #include <system/io.h>
-#include <vbe.h>
-
-/* Includes
- * - Library */
 #include <string.h>
+#include <vbe.h>
 
 /* Globals 
  * We need to keep track of boot-video in this system */
@@ -134,9 +129,7 @@ VbeInitialize(void)
 
 /* VideoClear
  * Clears the video framebuffer by initializing it to a default color. */
-KERNELAPI
 void
-KERNELABI
 VideoClear(void)
 {
     // Variables
@@ -484,8 +477,6 @@ VideoDrawPixel(
 	case VIDEO_NONE:
 		return OsError;
 	}
-
-	// Uh?
 	return OsError;
 }
 
@@ -516,8 +507,6 @@ VideoDrawCharacter(
 	case VIDEO_NONE:
 		return OsError;
 	}
-
-	// Uh?
 	return OsError;
 }
 
@@ -544,7 +533,23 @@ VideoPutCharacter(
 	case VIDEO_NONE:
 		return OsError;
 	}
-
-	// Uh?
 	return OsError;
+}
+
+/* InitializeSerialOutput (@arch)
+ * Initializes the serial output for the operating system. This is the output that is
+ * always active if a serial port is present. */
+OsStatus_t
+InitializeSerialOutput(void)
+{
+    return OsSuccess;
+}
+
+/* InitializeFramebufferOutput (@arch)
+ * Initializes the video framebuffer of the operating system. This enables visual rendering
+ * of the operating system debug console. */
+OsStatus_t
+InitializeFramebufferOutput(void)
+{
+    return OsSuccess;
 }

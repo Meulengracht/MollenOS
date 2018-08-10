@@ -27,7 +27,6 @@
 #include <glm/gtc/type_ptr.hpp>
 #include "graphics/display.hpp"
 #include "backend/nanovg.h"
-#include "elements/window.hpp"
 
 class CEntity;
 
@@ -59,7 +58,6 @@ public:
     // Business Logic
     Handle_t    GetExistingWindowForProcess(UUId_t ProcessId);
     bool        IsWindowHandleValid(Handle_t WindowHandle);
-    CEntity*    GetActiveWindow();
 
     // **************************************
     // Utilities

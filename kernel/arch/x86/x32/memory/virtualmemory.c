@@ -25,7 +25,7 @@
 
 #include <component/cpu.h>
 #include <memoryspace.h>
-#include <system/video.h>
+#include <system/output.h>
 #include <system/utils.h>
 #include <threading.h>
 #include <machine.h>

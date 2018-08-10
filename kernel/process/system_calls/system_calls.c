@@ -23,14 +23,13 @@
 
 #include <os/osdefs.h>
 #include <os/mollenos.h>
-#include <os/contracts/video.h>
 #include <process/phoenix.h>
-#include <system/video.h>
+#include <system/output.h>
 #include <system/utils.h>
 #include <memoryspace.h>
 #include <threading.h>
 #include <timers.h>
-#include <video.h>
+#include <console.h>
 #include <debug.h>
 
 /* ScSystemDebug 

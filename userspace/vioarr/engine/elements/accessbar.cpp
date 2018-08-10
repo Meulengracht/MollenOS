@@ -33,14 +33,14 @@ CAccessBar::CAccessBar(CEntity *Parent, NVGcontext* VgContext, int Width, int He
     m_Width     = Width;
     m_Height    = Height;
 
-    // Create buttons
-    auto SettingsButton     = new CButton(VgContext, 32, 32);
-    auto ShutdownButton     = new CButton(VgContext, 32, 32);
-    auto ApplicationsButton = new CButton(VgContext, 16, 16);
+    // Create resources
+    auto UserIcon           = new CSprite(this, VgContext, "$sys/themes/default/user64.png", 64, 64);
+    
+    auto SettingsButton     = new CButton(this, VgContext, 32, 32);
+    auto ShutdownButton     = new CButton(this, VgContext, 32, 32);
+    auto ApplicationsButton = new CButton(this, VgContext, 16, 16);
 
-    auto ApplicationsLabel  = new CLabel(VgContext);
-
-    auto UserIcon = new CSprite(VgContext, "$sys/themes/default/user64.png", 64, 64);
+    auto ApplicationsLabel  = new CLabel(this, VgContext);
 
     ShutdownButton->SetButtonStateIcon(CButton::ButtonStateNormal, "$sys/themes/default/power32.png");
     ShutdownButton->Move(20, 8, 0);
@@ -52,18 +52,12 @@ CAccessBar::CAccessBar(CEntity *Parent, NVGcontext* VgContext, int Width, int He
     ApplicationsButton->Move(Width - 16 - 16, m_Height - 162, 0);
 
     ApplicationsLabel->SetText("Applications");
+    ApplicationsLabel->SetFont("sans-light");
     ApplicationsLabel->SetFontSize(18.0f);
     ApplicationsLabel->SetFontColor(nvgRGBA(ACCESSBAR_HEADER_RGBA));
     ApplicationsLabel->Move(14.0f, m_Height - 159, 0);
 
     UserIcon->Move((Width / 2) - 32, (m_Height - (16 + 64)), 0);
-
-    // Add icons to our children
-    this->AddEntity(UserIcon);
-    this->AddEntity(SettingsButton);
-    this->AddEntity(ShutdownButton);
-    this->AddEntity(ApplicationsButton);
-    this->AddEntity(ApplicationsLabel);
 }
 
 CAccessBar::CAccessBar(NVGcontext* VgContext, int Width, int Height) 
