@@ -24,6 +24,8 @@
 #include <os/mollenos.h>
 #include <os/process.h>
 #include "vioarr.hpp"
+#include "events/event_window.hpp"
+#include "utils/log_manager.hpp"
 
 #if defined(_VIOARR_OSMESA)
 #include "graphics/opengl/osmesa/display_osmesa.hpp"
@@ -55,7 +57,7 @@ int VioarrCompositor::Run()
     // Initialize V8 Engine
     sLog.Info("Initializing V8");
     sEngine.Initialize(_Display);
-    sEngine.SetRootEntity(CreateStandardScene());
+    sEngine.AddScene(CreateDesktopScene());
     MollenOSEndBoot();
 
     // Initial render
@@ -77,10 +79,10 @@ int VioarrCompositor::Run()
         // Handle event
         switch (Event->GetType()) {
             case CVioarrEvent::EventWindowCreated: {
-                sEngine.GetRootEntity()->AddEntity(((CWindowCreatedEvent*)Event)->GetWindow());
+                sEngine.GetActiveScene()->AddWindow(((CWindowCreatedEvent*)Event)->GetWindow());
             } break;
             case CVioarrEvent::EventWindowDestroy: {
-                sEngine.GetRootEntity()->RemoveEntity(((CWindowDestroyEvent*)Event)->GetWindow());
+                sEngine.GetActiveScene()->RemoveWindow(((CWindowDestroyEvent*)Event)->GetWindow());
                 delete ((CWindowDestroyEvent*)Event)->GetWindow();
             } break;
             case CVioarrEvent::EventWindowUpdate: {

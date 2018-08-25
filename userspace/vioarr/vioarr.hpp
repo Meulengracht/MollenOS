@@ -23,11 +23,10 @@
 #pragma once
 
 #include <cstdlib>
-#include <queue>
 #include <thread>
+#include <queue>
+#include "engine/scene.hpp"
 #include "engine/veightengine.hpp"
-#include "utils/log_manager.hpp"
-#include "events/event_window.hpp"
 
 class VioarrCompositor {
 public:
@@ -44,16 +43,13 @@ public:
 	VioarrCompositor(VioarrCompositor const&) = delete;
 	void operator=(VioarrCompositor const&) = delete;
 
-    // The main program loop
     int                         Run();
-
-    // Queues a new event up
     void                        QueueEvent(CVioarrEvent *Event);
 
 private:
     // Functions
     void                        SpawnInputHandlers();
-    CEntity*                    CreateStandardScene();
+    CScene*                     CreateDesktopScene();
 
     // Resources
     CDisplay*                   _Display;

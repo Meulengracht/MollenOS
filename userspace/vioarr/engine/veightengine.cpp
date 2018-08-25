@@ -31,17 +31,18 @@
 
 CVEightEngine::CVEightEngine()
 {
-    // Null members
     m_Screen        = nullptr;
-    m_RootEntity    = nullptr;
     m_VgContext     = nullptr;
+    m_ActiveScene   = nullptr;
 }
 
-CVEightEngine::~CVEightEngine() {
+CVEightEngine::~CVEightEngine()
+{
     nvgDeleteGL3(m_VgContext);
 }
 
-void CVEightEngine::Initialize(CDisplay *Screen) {
+void CVEightEngine::Initialize(CDisplay *Screen)
+{
     m_Screen = Screen;
 
     // Initialize the viewport
@@ -61,13 +62,10 @@ void CVEightEngine::Initialize(CDisplay *Screen) {
     nvgCreateFont(m_VgContext, "sans-light", "$sys/fonts/DejaVuSans-ExtraLight.ttf");
 }
 
-void CVEightEngine::SetRootEntity(CEntity *Entity) {
-    m_RootEntity = Entity;
-}
-
-void CVEightEngine::Update(size_t MilliSeconds) {
-    if (m_RootEntity != nullptr) {
-        m_RootEntity->PreProcess(MilliSeconds);
+void CVEightEngine::Update(size_t MilliSeconds)
+{
+    if (m_ActiveScene != nullptr) {
+        m_ActiveScene->Update(MilliSeconds);
     }
 }
 
@@ -78,8 +76,8 @@ void CVEightEngine::Render()
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     
     nvgBeginFrame(m_VgContext, m_Screen->GetWidth(), m_Screen->GetHeight(), m_PixelRatio);
-    if (m_RootEntity != nullptr) {
-        m_RootEntity->Render(m_VgContext);
+    if (m_ActiveScene != nullptr) {
+        m_ActiveScene->Render(m_VgContext);
     }
     nvgEndFrame(m_VgContext);
     
@@ -87,10 +85,41 @@ void CVEightEngine::Render()
     m_Screen->Present();
 }
 
+void CVEightEngine::AddScene(CScene* Scene)
+{
+    auto Position = std::find(m_Scenes.begin(), m_Scenes.end(), Scene);
+    if (Position == m_Scenes.end()) {
+        m_Scenes.push_back(Scene);
+
+        // Initialize the index to 0
+        if (m_ActiveScene == nullptr) {
+            m_ActiveScene = Scene;
+        }
+    }
+}
+
+bool CVEightEngine::RemoveScene(CScene* Scene)
+{
+    auto Position = std::find(m_Scenes.begin(), m_Scenes.end(), Scene);
+    if (Position != m_Scenes.end()) {
+        m_Scenes.erase(Position);
+        
+        // Validate active scene
+        CScene* Next = m_ActiveScene;
+        if (m_ActiveScene == Scene) {
+            auto it     = m_Scenes.first();
+            Next        = (it != m_Scenes.end()) ? *it : nullptr;
+        }
+        m_ActiveScene = Next;
+        delete Scene;
+    }
+}
+
 // GetExistingWindowForProcess
 // Iterate through all root-entities and find if any of them are owned
 // by the given id
-Handle_t CVEightEngine::GetExistingWindowForProcess(UUId_t ProcessId) {
+Handle_t CVEightEngine::GetExistingWindowForProcess(UUId_t ProcessId)
+{
     CWindow *WindowInstance = nullptr;
     auto Elements           = m_RootEntity->GetChildren();
 
@@ -106,7 +135,8 @@ Handle_t CVEightEngine::GetExistingWindowForProcess(UUId_t ProcessId) {
 
 // IsWindowHandleValid
 // Iterates all root handles to find the given window handle, to validate it is not bogus
-bool CVEightEngine::IsWindowHandleValid(Handle_t WindowHandle) {
+bool CVEightEngine::IsWindowHandleValid(Handle_t WindowHandle)
+{
     auto Elements = m_RootEntity->GetChildren();
 
     for (auto i = Elements.begin(); i != Elements.end(); i++) {
@@ -141,21 +171,25 @@ float CVEightEngine::ClampToScreenAxisY(int Value)
 // ClampMagnitudeToScreenAxisX
 // Clamps the given value to screen coordinates on the Y axis
 // to the range of 0:2
-float CVEightEngine::ClampMagnitudeToScreenAxisX(int Value) {
+float CVEightEngine::ClampMagnitudeToScreenAxisX(int Value)
+{
     return (Value * 2.0f) / (float)m_Screen->GetWidth();
 }
 
 // ClampMagnitudeToScreenAxisY
 // Clamps the given value to screen coordinates on the Y axis
 // to the range of 0:2
-float CVEightEngine::ClampMagnitudeToScreenAxisY(int Value) {
+float CVEightEngine::ClampMagnitudeToScreenAxisY(int Value)
+{
     return (Value * 2.0f) / (float)m_Screen->GetHeight();
 }
 
-NVGcontext *CVEightEngine::GetContext() const {
+NVGcontext *CVEightEngine::GetContext() const
+{
     return m_VgContext;
 }
 
-CEntity *CVEightEngine::GetRootEntity() const {
-    return m_RootEntity;
+CScene* CVEightEngine::GetActiveScene() const
+{
+    return m_ActiveScene;
 }

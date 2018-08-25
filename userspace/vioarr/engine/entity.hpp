@@ -20,9 +20,11 @@
  *  - The Vioarr V8 Graphics Engine.
  */
 #pragma once
+
+#include <os/input.h>
+#include <list>
 #include "veightengine.hpp"
 #include "backend/nanovg.h"
-#include <list>
 
 class CEntity {
 public:
@@ -82,6 +84,9 @@ public:
         m_vPosition.y = Y;
         m_vPosition.z = Z;
     }
+
+    // Input handling
+    virtual void    HandleKeyEvent(SystemKey_t* Key) { }
     
     // Setters
     void            SetX(float X)           { m_vPosition.x = X; }
@@ -97,8 +102,8 @@ public:
 
 protected:
     // Overrideable methods
-    virtual void    Update(size_t MilliSeconds) { };
-    virtual void    Draw(NVGcontext* VgContext) { };
+    virtual void    Update(size_t MilliSeconds) { }
+    virtual void    Draw(NVGcontext* VgContext) { }
 
     CEntity*            m_Parent;
     NVGcontext*         m_VgContext;

@@ -28,7 +28,7 @@
 #include "graphics/display.hpp"
 #include "backend/nanovg.h"
 
-class CEntity;
+class CScene;
 
 class CVEightEngine {
 public:
@@ -46,34 +46,36 @@ public:
     CVEightEngine(CVEightEngine const&) = delete;
     void operator=(CVEightEngine const&) = delete;
 
-    void        Initialize(CDisplay *Screen);
-    void        SetRootEntity(CEntity *Entity);
+    void                Initialize(CDisplay *Screen);
 
     // **************************************
     // Render Logic
-    void        Update(size_t MilliSeconds);
-    void        Render();
+    void                Update(size_t MilliSeconds);
+    void                Render();
 
     // **************************************
     // Business Logic
-    Handle_t    GetExistingWindowForProcess(UUId_t ProcessId);
-    bool        IsWindowHandleValid(Handle_t WindowHandle);
+    void                AddScene(CScene* Scene);
+    bool                RemoveScene(CScene* Scene);
+    Handle_t            GetExistingWindowForProcess(UUId_t ProcessId);
+    bool                IsWindowHandleValid(Handle_t WindowHandle);
 
     // **************************************
     // Utilities
-    float       ClampToScreenAxisX(int Value);
-    float       ClampToScreenAxisY(int Value);
-    float       ClampMagnitudeToScreenAxisX(int Value);
-    float       ClampMagnitudeToScreenAxisY(int Value);
+    float               ClampToScreenAxisX(int Value);
+    float               ClampToScreenAxisY(int Value);
+    float               ClampMagnitudeToScreenAxisX(int Value);
+    float               ClampMagnitudeToScreenAxisY(int Value);
 
-    NVGcontext* GetContext() const;
-    CEntity*    GetRootEntity() const;
+    NVGcontext*         GetContext() const;
+    CScene*             GetActiveScene() const;
 
 private:
-    CDisplay*   m_Screen;
-    CEntity*    m_RootEntity;
-    float       m_PixelRatio;
-    NVGcontext* m_VgContext;
+    CDisplay*           m_Screen;
+    std::list<CScene*>  m_Scenes;
+    CScene*             m_ActiveScene;
+    float               m_PixelRatio;
+    NVGcontext*         m_VgContext;
 };
 
 // Shorthand for the vioarr

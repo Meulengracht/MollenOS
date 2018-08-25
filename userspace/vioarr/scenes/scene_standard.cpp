@@ -27,7 +27,7 @@
 #include "../engine/elements/accessbar.hpp"
 #include "vioarr.hpp"
 
-CEntity *VioarrCompositor::CreateStandardScene()
+CScene *VioarrCompositor::CreateDesktopScene()
 {
     // Create a new root instance
     CSprite *Background = new CSprite(sEngine.GetContext(), "$sys/themes/default/gfxbg.png", _Display->GetWidth(), _Display->GetHeight());
@@ -35,10 +35,6 @@ CEntity *VioarrCompositor::CreateStandardScene()
     // Create user interface
     CAccessBar *AccessBar = new CAccessBar(sEngine.GetContext(), 150, _Display->GetHeight());
     Background->AddEntity(AccessBar);
-
-    // Spawn test window
-    //CWindow *Test = new CWindow(Background, sEngine.GetContext(), "Test", 450, 300);
-    //Test->SetActive(true);
-    //Test->Move(250, 200, 0);
-    return Background;
+    
+    return new CScene(Background);
 }
