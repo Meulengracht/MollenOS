@@ -25,6 +25,7 @@
 #include <cstdlib>
 #include <thread>
 #include <queue>
+#include "engine/event.hpp"
 #include "engine/scene.hpp"
 #include "engine/veightengine.hpp"
 
@@ -43,25 +44,29 @@ public:
 	VioarrCompositor(VioarrCompositor const&) = delete;
 	void operator=(VioarrCompositor const&) = delete;
 
-    int                         Run();
-    void                        QueueEvent(CVioarrEvent *Event);
+    int                             Run();
+    void                            QueueEvent(CVioarrEventBase* Event);
 
 private:
     // Functions
-    void                        SpawnInputHandlers();
-    CScene*                     CreateDesktopScene();
+    void                            SpawnInputHandlers();
+    CScene*                         CreateDesktopScene();
+    void                            ProcessEvent(CVioarrEventBase* Event);
 
     // Resources
-    CDisplay*                   _Display;
-    std::thread*                _MessageThread;
-    std::thread*                _InputThread;
-    std::condition_variable     _EventSignal;
-    std::queue<CVioarrEvent*>   _EventQueue;
-    std::mutex                  _EventMutex;
+    CDisplay*                       _Display;
+    std::thread*                    _MessageThread;
+    std::thread*                    _InputThread;
+    std::condition_variable         _EventSignal;
+    std::queue<CVioarrEventBase*>   _EventQueue;
+    std::mutex                      _EventMutex;
 
     // State tracking
-    bool                        _IsRunning;
+    bool                            _IsRunning;
 };
 
 // Shorthand for the vioarr
 #define sVioarr VioarrCompositor::GetInstance()
+
+// Vioarr event type definitions
+typedef CVioarrEvent<CVioarrEventBase::EventUpdate> CEventUpdate;

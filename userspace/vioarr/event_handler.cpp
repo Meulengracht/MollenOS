@@ -20,26 +20,28 @@
  *  - The window compositor system and general window manager for
  *    MollenOS.
  */
-#pragma once
-#include "event.hpp"
 
-class CDialogCreateBase : public CVioarrEvent {
-public:
-    enum EDialogType {
-        DialogApplicationSearch
-    };
+#include "vioarr.hpp"
 
-    CDialogCreateBase(EDialogType Type) : CVioarrEvent(EventDialogCreate) {
-        m_Type = Type;
+void VioarrCompositor::ProcessEvent(CVioarrEventBase* Event)
+{
+    switch (Event->GetType()) {
+        case CVioarrEvent::EventWindowCreated: {
+            sEngine.GetActiveScene()->AddWindow(Event->GetData<CEntity*>());
+        } break;
+        case CVioarrEvent::EventWindowDestroy: {
+            sEngine.GetActiveScene()->RemoveWindow(Event->GetData<CEntity*>());
+        } break;
+
+        case CVioarrEvent::EventPriorityCreated: {
+            sEngine.GetActiveScene()->AddPriority(Event->GetData<CEntity*>());
+        } break;
+        case CVioarrEvent::EventPriorityDestroyed: {
+            sEngine.GetActiveScene()->RemovePriority(Event->GetData<CEntity*>());
+        } break;
+
+        // Skip handling of rest
+        default:
+            break;
     }
-    ~CDialogCreateBase() { }
-
-private:
-    EDialogType m_Type;
-};
-
-class CDialogApplicationSearch : public CDialogCreateBase {
-public:
-    CDialogApplicationSearch() : CDialogCreateBase(EDialogType::DialogApplicationSearch) { }
-    ~CDialogApplicationSearch() { }
-};
+}

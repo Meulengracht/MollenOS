@@ -47,6 +47,7 @@ public:
         auto Position = std::find(m_WindowLayer.begin(), m_WindowLayer.end(), Window);
         if (Position != m_WindowLayer.end()) {
             m_WindowLayer.erase(Position);
+            delete Window;
             return true;
         }
         return false;
@@ -64,6 +65,7 @@ public:
         auto Position = std::find(m_PriorityLayer.begin(), m_PriorityLayer.end(), Priority);
         if (Position != m_PriorityLayer.end()) {
             m_PriorityLayer.erase(Position);
+            delete Priority;
             return true;
         }
         return false;

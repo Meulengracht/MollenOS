@@ -21,38 +21,41 @@
  *    MollenOS.
  */
 #pragma once
-#include "../engine/elements/window.hpp"
-#include "event.hpp"
 
-class CWindowCreatedEvent : public CVioarrEvent {
+class CVioarrEventBase {
 public:
-    CWindowCreatedEvent(CWindow *Window) : CVioarrEvent(EventWindowCreated) {
-        m_Window = Window;
-    }
-    ~CWindowCreatedEvent() { }
-    CWindow *GetWindow() const { return m_Window; }
+    enum EEventType {
+        EventUpdate,
+
+        EventWindowCreated,
+        EventWindowDestroy,
+
+        EventPriorityCreated,
+        EventPriorityDestroyed
+    };
+
+public:
+    CVioarrEventBase(EEventType Type) : m_Type(Type) { }
+    virtual ~CVioarrEventBase() { }
+
+    template<class T>
+    T*              GetData() { return static_cast<T*>(GetDataPointer())}
+    EEventType      GetType() { return m_Type; }
+
+protected:
+    virtual void*   GetDataPointer() = 0;
+
 private:
-    CWindow *m_Window;
+   const EEventType m_Type;
 };
 
-class CWindowUpdateEvent : public CVioarrEvent {
+template<class T, typename... Args>
+class CVioarrEvent : public CVioarrEventBase {
 public:
-    CWindowUpdateEvent(CWindow *Window) : CVioarrEvent(EventWindowUpdate) {
-        m_Window = Window;
-    }
-    ~CWindowUpdateEvent() { }
-    CWindow *GetWindow() const { return m_Window; }
-private:
-    CWindow *m_Window;
-};
+    CVioarrEvent(EEventType type, Args... args) 
+        : CVioarrEventBase(type), m_Data(args...) { }
 
-class CWindowDestroyEvent : public CVioarrEvent {
-public:
-    CWindowDestroyEvent(CWindow *Window) : CVioarrEvent(EventWindowDestroy) {
-        m_Window = Window;
-    }
-    ~CWindowDestroyEvent() { }
-    CWindow *GetWindow() const { return m_Window; }
 private:
-    CWindow *m_Window;
+    void*   GetDataPointer() override { return &m_Data; }
+    T       m_Data;
 };

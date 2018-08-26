@@ -7,6 +7,7 @@ ASFLAGS = -f win32 -Xvc
 INCLUDES = -I../include/cxx -I../include -I. -Igraphics
 NVG_SOURCES = engine/backend/nanovg.c
 SHARED_SOURCES = $(wildcard engine/elements/*.cpp) \
+				 $(wildcard engine/dialogs/*.cpp) \
 				 $(wildcard engine/*.cpp) \
 				 $(wildcard scenes/*.cpp) \
 				 $(wildcard *.cpp)

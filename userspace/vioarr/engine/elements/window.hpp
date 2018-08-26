@@ -22,6 +22,7 @@
  */
 #pragma once
 #include "../entity.hpp"
+#include "../event.hpp"
 #include <os/buffer.h>
 #include <string>
 
@@ -54,6 +55,9 @@ public:
     void SetStreamingBuffer(DmaBuffer_t* Buffer);
     void SetStreaming(bool Enable);
 
+    // Override inheritted methods
+    void HandleKeyEvent(SystemKey_t* Key);
+
     UUId_t GetOwner() const { return m_Owner; }
 
 protected:
@@ -79,3 +83,7 @@ private:
     int             m_StreamHeight;
     DmaBuffer_t*    m_StreamBuffer;
 };
+
+// Window event type definitions
+typedef CVioarrEvent<CVioarrEventBase::EventWindowCreated, CWindow*> CEventWindowCreated;
+typedef CVioarrEvent<CVioarrEventBase::EventWindowDestroy, CWindow*> CEventWindowDestroyed;

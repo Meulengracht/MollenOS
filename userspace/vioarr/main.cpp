@@ -24,7 +24,6 @@
 #include <os/window.h>
 #include "vioarr.hpp"
 #include "engine/elements/window.hpp"
-#include "events/event_window.hpp"
 
 extern void InputHandler();
 
@@ -133,7 +132,8 @@ void MessageHandler()
             if (Message.Function == __WINDOWMANAGER_SWAPBUFFER) {
                 Handle_t Pointer = (Handle_t)Message.Arguments[0].Data.Value;
                 if (sEngine.IsWindowHandleValid(Pointer)) {
-                    sVioarr.QueueEvent(new CWindowUpdateEvent((CWindow*)Pointer));
+                    ((CWindow*)Pointer)->SwapOnNextUpdate(true);
+                    sVioarr.QueueEvent(new CEventUpdate());
                 }
             }
             if (Message.Function == __WINDOWMANAGER_QUERY) {

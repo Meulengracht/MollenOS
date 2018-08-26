@@ -16,26 +16,17 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - Vioarr Window Compositor System
- *  - The window compositor system and general window manager for
- *    MollenOS.
+ * MollenOS - Vioarr Engine System (V8)
+ *  - The Vioarr V8 Graphics Engine.
  */
 #pragma once
 
-class CVioarrEvent {
-public:
-    enum EVioarrEventType {
-        EventWindowCreated,
-        EventWindowDestroy,
-        EventWindowUpdate,
+#include "../entity.hpp"
 
-        EventDialogCreate
-    };
-    CVioarrEvent(EVioarrEventType Type) {
-        _Type = Type;
-    }
-    ~CVioarrEvent() { }
-    EVioarrEventType GetType() { return _Type; }
-private:
-    EVioarrEventType _Type;
+class CDialogPowerMenu : public CEntity {
+
 };
+
+// Dialog event type definitions
+typedef CVioarrEvent<CVioarrEventBase::EventPriorityCreated, CEntity*> CEventDialogSpawn;
+typedef CVioarrEvent<CVioarrEventBase::EventPriorityDestroyed, CEntity*> CEventDialogDestroy;

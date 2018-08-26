@@ -113,6 +113,10 @@ void CWindow::SetStreaming(bool Enable) {
     }
 }
 
+void CWindow::HandleKeyEvent(SystemKey_t* Key) {
+    // Redirect to process
+}
+
 void CWindow::Update(size_t MilliSeconds) {
     if (m_Streaming && m_Swap) {
         nvgUpdateImage(m_VgContext, m_ResourceId, (const uint8_t*)GetBufferDataPointer(m_StreamBuffer));

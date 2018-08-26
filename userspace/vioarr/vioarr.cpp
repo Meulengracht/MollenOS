@@ -24,7 +24,7 @@
 #include <os/mollenos.h>
 #include <os/process.h>
 #include "vioarr.hpp"
-#include "events/event_window.hpp"
+#include "engine/event.hpp"
 #include "utils/log_manager.hpp"
 
 #if defined(_VIOARR_OSMESA)
@@ -67,32 +67,15 @@ int VioarrCompositor::Run()
     // Enter event loop
     //LastUpdate = std::chrono::steady_clock::now();
     while (_IsRunning) {
-        CVioarrEvent *Event = nullptr;
+        CVioarrEventBase *Event = nullptr;
         {
             std::unique_lock<std::mutex> _eventlock(_EventMutex);
             while (_EventQueue.empty()) _EventSignal.wait(_eventlock);
             Event = _EventQueue.front();
             _EventQueue.pop();
         }
-        sLog.Info("processing event");
-
-        // Handle event
-        switch (Event->GetType()) {
-            case CVioarrEvent::EventWindowCreated: {
-                sEngine.GetActiveScene()->AddWindow(((CWindowCreatedEvent*)Event)->GetWindow());
-            } break;
-            case CVioarrEvent::EventWindowDestroy: {
-                sEngine.GetActiveScene()->RemoveWindow(((CWindowDestroyEvent*)Event)->GetWindow());
-                delete ((CWindowDestroyEvent*)Event)->GetWindow();
-            } break;
-            case CVioarrEvent::EventWindowUpdate: {
-                ((CWindowUpdateEvent*)Event)->GetWindow()->SwapOnNextUpdate(true);
-            } break;
-
-            case CVioarrEvent::EventDialogCreate: {
-
-            } break;
-        }
+        
+        ProcessEvent(Event);
         delete Event;
 
         // Run updates
@@ -109,7 +92,7 @@ int VioarrCompositor::Run()
 }
 
 // Queues a new event up
-void VioarrCompositor::QueueEvent(CVioarrEvent *Event)
+void VioarrCompositor::QueueEvent(CVioarrEventBase* Event)
 {
     std::unique_lock<std::mutex> _eventlock(_EventMutex);
     _EventQueue.push(Event);

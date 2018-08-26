@@ -25,7 +25,6 @@
 #include <os/input.h>
 #include <string.h>
 #include "vioarr.hpp"
-#include "events/event_dialog.hpp"
 
 // Callbacks for the diffferent shortcuts
 void ShortcutApplicationSearch();
@@ -41,7 +40,7 @@ static struct {
 
 void ShortcutApplicationSearch()
 {
-    sVioarr.QueueEvent(new CDialogApplicationSearch());
+    //sVioarr.QueueEvent(new CDialogApplicationSearch());
 }
 
 void SpawnApplication(const char* Path, const char* Arguments)
@@ -105,10 +104,7 @@ void InputHandler()
 
             // Redirect if not handled
             if (!Handled) {
-                //CEntity* Window = sEngine.GetActiveWindow();
-                //if (CEntity != nullptr) {
-                    // SendPipe(Window->GetOwner(), Window->GetStdInput(), &Key, sizeof(SystemKey_t));
-                //}
+                sEngine.GetActiveScene()->ProxyKeyEvent(&Key);
             }
         }
     }
