@@ -170,26 +170,28 @@ StdioInitialize(
     memset(FdBitmap, 0, DIVUP(INTERNAL_MAXFILES, 8));
 
     // Initialize the std handles
-    memset(&__GlbStdout, 0, sizeof(FILE));
-    memset(&__GlbStdin, 0, sizeof(FILE));
-    memset(&__GlbStderr, 0, sizeof(FILE));
+    memset(&__GlbStdout,    0, sizeof(FILE));
+    memset(&__GlbStdin,     0, sizeof(FILE));
+    memset(&__GlbStderr,    0, sizeof(FILE));
 
     // Handle inheritance
     if (InheritanceBlock != NULL) {
-        StdioObject_t *ObjectPointer = (void*)InheritanceBlock;
-        size_t BytesLeft = InheritanceBlockLength;
+        StdioObject_t *ObjectPointer    = (StdioObject_t*)InheritanceBlock;
+        size_t BytesLeft                = InheritanceBlockLength;
         while (BytesLeft >= sizeof(StdioObject_t)) {
             int fd = StdioFdAllocate(ObjectPointer->fd, ObjectPointer->wxflag);
-            if (fd == STDOUT_FILENO) {
-                __GlbStdout._fd = fd;
+            if (fd != -1) {
+                if (fd == STDOUT_FILENO) {
+                    __GlbStdout._fd = fd;
+                }
+                else if (fd == STDIN_FILENO) {
+                    __GlbStdin._fd = fd;
+                }
+                else if (fd == STDERR_FILENO) {
+                    __GlbStderr._fd = fd;
+                }
+                StdioCloneHandle(&get_ioinfo(fd)->handle, &ObjectPointer->handle);
             }
-            else if (fd == STDIN_FILENO) {
-                __GlbStdin._fd = fd;
-            }
-            else if (fd == STDERR_FILENO) {
-                __GlbStderr._fd = fd;
-            }
-            StdioCloneHandle(&get_ioinfo(fd)->handle, &ObjectPointer->handle);
             BytesLeft -= sizeof(StdioObject_t);
             ObjectPointer++;
         }
@@ -216,9 +218,9 @@ StdioInitialize(
     }
     
     // Initialize them
-    StdioFdInitialize(&__GlbStdout, __GlbStdout._fd, _IOWRT);
-    StdioFdInitialize(&__GlbStdin, __GlbStdin._fd, _IOREAD);
-    StdioFdInitialize(&__GlbStderr, __GlbStderr._fd, _IOWRT);
+    StdioFdInitialize(&__GlbStdout, __GlbStdout._fd,    _IOWRT);
+    StdioFdInitialize(&__GlbStdin,  __GlbStdin._fd,     _IOREAD);
+    StdioFdInitialize(&__GlbStderr, __GlbStderr._fd,    _IOWRT);
 }
 
 /* StdioCleanup

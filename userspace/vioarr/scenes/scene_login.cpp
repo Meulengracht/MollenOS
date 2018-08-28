@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2011 - 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,27 +21,12 @@
  *    MollenOS.
  */
 
+#include "../engine/veightengine.hpp"
+#include "../engine/elements/sprite.hpp"
 #include "vioarr.hpp"
 
-void VioarrCompositor::ProcessEvent(CVioarrEventBase* Event)
+CScene *VioarrCompositor::CreateLoginScene()
 {
-    switch (Event->GetType()) {
-        case CVioarrEvent::EventWindowCreated: {
-            sEngine.GetActiveScene()->AddWindow(Event->GetData<CEntity*>());
-        } break;
-        case CVioarrEvent::EventWindowDestroy: {
-            sEngine.GetActiveScene()->RemoveWindow(Event->GetData<CEntity*>());
-        } break;
-
-        case CVioarrEvent::EventPriorityCreated: {
-            sEngine.GetActiveScene()->AddPriority(Event->GetData<CEntity*>());
-        } break;
-        case CVioarrEvent::EventPriorityDestroyed: {
-            sEngine.GetActiveScene()->RemovePriority(Event->GetData<CEntity*>());
-        } break;
-
-        // Skip handling of rest
-        default:
-            break;
-    }
+    CSprite *Background = new CSprite(sEngine.GetContext(), "$sys/themes/default/bg.png", _Display->GetWidth(), _Display->GetHeight());
+    return new CScene(Background);
 }

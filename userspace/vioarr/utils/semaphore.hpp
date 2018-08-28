@@ -20,20 +20,27 @@
  *  - The window compositor system and general window manager for
  *    MollenOS.
  */
+#pragma once
 
-#include "../engine/veightengine.hpp"
-#include "../engine/elements/sprite.hpp"
-#include "../engine/elements/accessbar.hpp"
-#include "vioarr.hpp"
+#include <condition_variable>
+#include <mutex>
 
-CScene *VioarrCompositor::CreateDesktopScene()
-{
-    // Create a new root instance
-    CSprite *Background = new CSprite(sEngine.GetContext(), "$sys/themes/default/gfxbg.png", _Display->GetWidth(), _Display->GetHeight());
+class CSemaphore {
+public:
+    CSemaphore()    = default;
+    ~CSemaphore()   = default;
 
-    // Create user interface
-    CAccessBar *AccessBar = new CAccessBar(sEngine.GetContext(), 150, _Display->GetHeight());
-    Background->AddEntity(AccessBar);
-    
-    return new CScene(Background);
-}
+    void Signal() {
+        std::unique_lock<std::mutex> l(m_mtx);
+        m_cnd.notify_one();
+    }
+
+    void Wait() {
+        std::unique_lock<std::mutex> l(m_mtx);
+        m_cnd.wait(l);
+    }
+
+private:
+    std::mutex              m_mtx;
+    std::condition_variable m_cnd;
+};

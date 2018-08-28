@@ -22,8 +22,9 @@
  */
 #include <os/service.h>
 #include <os/window.h>
-#include "vioarr.hpp"
 #include "engine/elements/window.hpp"
+#include "utils/log_manager.hpp"
+#include "vioarr.hpp"
 
 extern void InputHandler();
 
@@ -97,8 +98,10 @@ Handle_t HandleCreateWindowRequest(MRemoteCallAddress_t *Process,
 
     Window->SwapOnNextUpdate(true);
     Window->SetStreaming(true);
-    Window->SetActive(true);
-    sVioarr.QueueEvent(new CWindowCreatedEvent(Window));
+
+    // Add the window and redraw
+    sEngine.GetActiveScene()->Add(Window);
+    sVioarr.UpdateNotify();
     return (Handle_t)Window;
 }
 
@@ -126,14 +129,15 @@ void MessageHandler()
             if (Message.Function == __WINDOWMANAGER_DESTROY) {
                 Handle_t Pointer = (Handle_t)Message.Arguments[0].Data.Value;
                 if (sEngine.IsWindowHandleValid(Pointer)) {
-                    sVioarr.QueueEvent(new CWindowDestroyEvent((CWindow*)Pointer));
+                    sEngine.GetActiveScene()->Remove(static_cast<CEntity*>(Pointer));
+                    sVioarr.UpdateNotify();
                 }
             }
             if (Message.Function == __WINDOWMANAGER_SWAPBUFFER) {
                 Handle_t Pointer = (Handle_t)Message.Arguments[0].Data.Value;
                 if (sEngine.IsWindowHandleValid(Pointer)) {
                     ((CWindow*)Pointer)->SwapOnNextUpdate(true);
-                    sVioarr.QueueEvent(new CEventUpdate());
+                    sVioarr.UpdateNotify();
                 }
             }
             if (Message.Function == __WINDOWMANAGER_QUERY) {

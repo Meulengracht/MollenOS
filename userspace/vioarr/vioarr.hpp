@@ -24,10 +24,9 @@
 
 #include <cstdlib>
 #include <thread>
-#include <queue>
-#include "engine/event.hpp"
 #include "engine/scene.hpp"
 #include "engine/veightengine.hpp"
+#include "utils/semaphore.hpp"
 
 class VioarrCompositor {
 public:
@@ -38,28 +37,26 @@ public:
 		return _Instance;
 	}
 private:
-	VioarrCompositor() {}                     // Constructor? (the {} brackets) are needed here.
+	VioarrCompositor() = default;
 
 public:
 	VioarrCompositor(VioarrCompositor const&) = delete;
 	void operator=(VioarrCompositor const&) = delete;
 
     int                             Run();
-    void                            QueueEvent(CVioarrEventBase* Event);
+    void                            UpdateNotify();
 
 private:
     // Functions
     void                            SpawnInputHandlers();
+    CScene*                         CreateLoginScene();
     CScene*                         CreateDesktopScene();
-    void                            ProcessEvent(CVioarrEventBase* Event);
 
     // Resources
     CDisplay*                       _Display;
     std::thread*                    _MessageThread;
     std::thread*                    _InputThread;
-    std::condition_variable         _EventSignal;
-    std::queue<CVioarrEventBase*>   _EventQueue;
-    std::mutex                      _EventMutex;
+    CSemaphore                      _Signal;
 
     // State tracking
     bool                            _IsRunning;
@@ -67,6 +64,3 @@ private:
 
 // Shorthand for the vioarr
 #define sVioarr VioarrCompositor::GetInstance()
-
-// Vioarr event type definitions
-typedef CVioarrEvent<CVioarrEventBase::EventUpdate> CEventUpdate;

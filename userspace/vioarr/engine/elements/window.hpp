@@ -22,7 +22,6 @@
  */
 #pragma once
 #include "../entity.hpp"
-#include "../event.hpp"
 #include <os/buffer.h>
 #include <string>
 
@@ -43,11 +42,9 @@ public:
     CWindow(NVGcontext* VgContext);
     ~CWindow();
 
-    void SetOwner(UUId_t Owner);
     void SetWidth(int Width);
     void SetHeight(int Height);
     void SetTitle(const std::string &Title);
-    void SetActive(bool Active);
     void SwapOnNextUpdate(bool Swap);
 
     void SetStreamingBufferFormat(GLenum Format, GLenum InternalFormat);
@@ -58,8 +55,6 @@ public:
     // Override inheritted methods
     void HandleKeyEvent(SystemKey_t* Key);
 
-    UUId_t GetOwner() const { return m_Owner; }
-
 protected:
     // Override the inherited methods
     void Update(size_t MilliSeconds);
@@ -67,11 +62,9 @@ protected:
 
 private:
     // Window information
-    UUId_t          m_Owner;
     std::string     m_Title;
     int             m_Width;
     int             m_Height;
-    bool            m_Active;
     bool            m_Streaming;
     bool            m_Swap;
 
@@ -83,7 +76,3 @@ private:
     int             m_StreamHeight;
     DmaBuffer_t*    m_StreamBuffer;
 };
-
-// Window event type definitions
-typedef CVioarrEvent<CVioarrEventBase::EventWindowCreated, CWindow*> CEventWindowCreated;
-typedef CVioarrEvent<CVioarrEventBase::EventWindowDestroy, CWindow*> CEventWindowDestroyed;

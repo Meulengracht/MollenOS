@@ -22,41 +22,48 @@
 #pragma once
 
 #include <os/input.h>
+#include <functional>
 #include <list>
 #include "veightengine.hpp"
 #include "backend/nanovg.h"
 
 class CEntity {
-public:
+protected:
     CEntity(CEntity *Parent, NVGcontext* VgContext, const glm::vec3 &Position) {
         m_Parent        = Parent;
         if (m_Parent != nullptr) {
             m_Parent->AddEntity(this);
         }
 
-        m_VgContext     = VgContext;
-        m_vPosition     = Position;
+        m_VgContext             = VgContext;
+        m_vPosition             = Position;
+        m_Owner                 = UUID_INVALID;
+        m_Active                = false;
     }
     CEntity(CEntity *Parent, NVGcontext* VgContext)
         : CEntity(Parent, VgContext, glm::vec3(0.0f, 0.0f, 0.0f)) { }
     CEntity(NVGcontext* VgContext) 
         : CEntity(nullptr, VgContext) { }
+    CEntity(CEntity const&)     = default;
+    CEntity& operator=(CEntity&) = default;
+
+public:
     virtual ~CEntity() { m_Children.remove_if([](CEntity* Element) { delete Element; return true; });  }
 
-    void            AddEntity(CEntity *Entity) {
+public:
+    void                AddEntity(CEntity *Entity) {
         auto Position = std::find(m_Children.begin(), m_Children.end(), Entity);
         if (Position == m_Children.end()) {
             m_Children.push_back(Entity);
-            m_Children.sort([](const CEntity *lh, const CEntity *rh) { return lh->GetZ() < rh->GetZ(); }); // true == first first, false == second first
         }
     }
-    void            RemoveEntity(CEntity *Entity) {
+    void                RemoveEntity(CEntity *Entity) {
         auto Position = std::find(m_Children.begin(), m_Children.end(), Entity);
         if (Position != m_Children.end()) {
             m_Children.erase(Position);
         }
     }
-    void            Render(NVGcontext* VgContext) {
+    void                Render(NVGcontext* VgContext) {
         nvgSave(VgContext);
         nvgTranslate(VgContext, m_vPosition.x, m_vPosition.y);
         Draw(VgContext);
@@ -66,7 +73,7 @@ public:
         nvgRestore(VgContext);
     }
 
-    void            PreProcess(size_t MilliSeconds) {
+    void                PreProcess(size_t MilliSeconds) {
         Update(MilliSeconds);
         for (auto itr = m_Children.begin(); itr != m_Children.end(); itr++) {
             (*itr)->PreProcess(MilliSeconds);
@@ -74,31 +81,36 @@ public:
     }
 
     // Positioning
-    void            Move(float X, float Y, float Z) {
+    void                Move(float X, float Y, float Z) {
         m_vPosition.x += X;
         m_vPosition.y += Y;
         m_vPosition.z += Z;
     }
-    void            SetPosition(float X, float Y, float Z) {
+    void                SetPosition(float X, float Y, float Z) {
         m_vPosition.x = X;
         m_vPosition.y = Y;
         m_vPosition.z = Z;
     }
 
     // Input handling
-    virtual void    HandleKeyEvent(SystemKey_t* Key) { }
+    virtual void        HandleKeyEvent(SystemKey_t* Key) { }
     
     // Setters
-    void            SetX(float X)           { m_vPosition.x = X; }
-    void            SetY(float Y)           { m_vPosition.y = Y; }
-    void            SetZ(float Z)           { m_vPosition.y = Z; }
+    void                SetX(float X)           { m_vPosition.x = X; }
+    void                SetY(float Y)           { m_vPosition.y = Y; }
+    void                SetZ(float Z)           { m_vPosition.y = Z; }
+    void                SetActive(bool Active)  { m_Active = Active; }
+    void                SetOwner(UUId_t Owner)  { m_Owner = Owner; }
 
     // Getters
-    const glm::vec3 &GetPosition() const    { return m_vPosition; }
-    const float     GetX() const            { return m_vPosition.x; }
-    const float     GetY() const            { return m_vPosition.y; }
-    const float     GetZ() const            { return m_vPosition.z; }
-    const std::list<CEntity*> &GetChildren() const { return m_Children; }
+    const glm::vec3&    GetPosition() const     { return m_vPosition; }
+    float               GetX() const            { return m_vPosition.x; }
+    float               GetY() const            { return m_vPosition.y; }
+    float               GetZ() const            { return m_vPosition.z; }
+    UUId_t              GetOwner() const        { return m_Owner; }
+    bool                IsPriority() const      { return m_Priority; }
+
+    const std::list<CEntity*>& GetChildren() const { return m_Children; }
 
 protected:
     // Overrideable methods
@@ -109,4 +121,33 @@ protected:
     NVGcontext*         m_VgContext;
     glm::vec3           m_vPosition;
     std::list<CEntity*> m_Children;
+    bool                m_Active;
+    UUId_t              m_Owner;
+    bool                m_Priority;
+};
+
+class CPriorityEntity : public CEntity {
+public:
+    enum EPriorityBehaviour {
+        DeleteOnFocusLost   = 0x1,
+        DeleteOnEscape      = 0x2
+    };
+
+protected:
+    CPriorityEntity(CEntity *Parent, NVGcontext* VgContext, const glm::vec3 &Position, EPriorityBehaviour Behaviour)
+        : CEntity(Parent, VgContext, Position), m_Behaviour(Behaviour), m_Priority(true) { }
+    CPriorityEntity(CEntity *Parent, NVGcontext* VgContext, EPriorityBehaviour Behaviour)
+        : CPriorityEntity(Parent, VgContext, glm::vec3(0.0f, 0.0f, 0.0f), Behaviour) { }
+    CPriorityEntity(NVGcontext* VgContext, EPriorityBehaviour Behaviour) 
+        : CPriorityEntity(nullptr, VgContext, Behaviour) { }
+    CPriorityEntity(CPriorityEntity const&)         = default;
+    CPriorityEntity& operator=(CPriorityEntity&)    = default;
+
+public:
+    virtual ~CPriorityEntity() = default;
+
+    bool HasBehaviour(EPriorityBehaviour Behaviour) const { return (m_Behaviour & Behaviour) != 0; }
+
+private:
+    EPriorityBehaviour m_Behaviour;
 };

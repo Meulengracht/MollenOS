@@ -14,6 +14,7 @@
                 "${workspaceRoot}/modules/storage/scsi",
                 "${workspaceRoot}/userspace/include",
                 "${workspaceRoot}/userspace/include/cxx",
+                "${workspaceRoot}/userspace/mesa/include",
                 "${workspaceRoot}/userspace/vioarr"
             ],
             "defines": [
@@ -73,6 +74,7 @@
                 "${workspaceRoot}/modules/storage/scsi",
                 "${workspaceRoot}/userspace/include",
                 "${workspaceRoot}/userspace/include/cxx",
+                "${workspaceRoot}/userspace/mesa/include",
                 "${workspaceRoot}/userspace/vioarr"
             ],
             "defines": [

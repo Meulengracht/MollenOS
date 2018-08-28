@@ -54,7 +54,7 @@ CAccessBar::CAccessBar(CEntity *Parent, NVGcontext* VgContext, int Width, int He
     ApplicationsLabel->SetText("Applications");
     ApplicationsLabel->SetFont("sans-light");
     ApplicationsLabel->SetFontSize(18.0f);
-    ApplicationsLabel->SetFontColor(nvgRGBA(ACCESSBAR_HEADER_RGBA));
+    ApplicationsLabel->SetFontColor(nvgRGBA(0, 0, 0, 255));
     ApplicationsLabel->Move(14.0f, m_Height - 159, 0);
 
     UserIcon->Move((Width / 2) - 32, (m_Height - (16 + 64)), 0);

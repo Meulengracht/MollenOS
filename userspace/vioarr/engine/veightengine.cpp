@@ -20,14 +20,14 @@
  *  - The Vioarr V8 Graphics Engine.
  */
 
+#include <algorithm>
 #include "utils/log_manager.hpp"
 #include "veightengine.hpp"
 #include "entity.hpp"
-#include <algorithm>
-
 #include "../graphics/opengl/opengl_exts.hpp"
 #include "backend/nanovg_gl.h"
 #include "elements/window.hpp"
+#include "scene.hpp"
 
 CVEightEngine::CVEightEngine()
 {
@@ -107,12 +107,14 @@ bool CVEightEngine::RemoveScene(CScene* Scene)
         // Validate active scene
         CScene* Next = m_ActiveScene;
         if (m_ActiveScene == Scene) {
-            auto it     = m_Scenes.first();
+            auto it     = m_Scenes.begin();
             Next        = (it != m_Scenes.end()) ? *it : nullptr;
         }
         m_ActiveScene = Next;
         delete Scene;
+        return true;
     }
+    return false;
 }
 
 // GetExistingWindowForProcess
@@ -120,14 +122,10 @@ bool CVEightEngine::RemoveScene(CScene* Scene)
 // by the given id
 Handle_t CVEightEngine::GetExistingWindowForProcess(UUId_t ProcessId)
 {
-    CWindow *WindowInstance = nullptr;
-    auto Elements           = m_RootEntity->GetChildren();
-
-    for (auto i = Elements.begin(); i != Elements.end(); i++) {
-        CEntity *Element    = *i;
-        WindowInstance      = dynamic_cast<CWindow*>(Element);
-        if (WindowInstance != nullptr && WindowInstance->GetOwner() == ProcessId) {
-            return (Handle_t)WindowInstance;
+    for (auto s : m_Scenes) {
+        auto Entity = s->GetEntityWithOwner(ProcessId);
+        if (Entity != nullptr) {
+            return (Handle_t)Entity;
         }
     }
     return nullptr;
@@ -137,15 +135,23 @@ Handle_t CVEightEngine::GetExistingWindowForProcess(UUId_t ProcessId)
 // Iterates all root handles to find the given window handle, to validate it is not bogus
 bool CVEightEngine::IsWindowHandleValid(Handle_t WindowHandle)
 {
-    auto Elements = m_RootEntity->GetChildren();
-
-    for (auto i = Elements.begin(); i != Elements.end(); i++) {
-        CEntity *Element = *i;
-        if ((Handle_t)Element == WindowHandle) {
+    for (auto s : m_Scenes) {
+        if (s->HasEntity(static_cast<CEntity*>(WindowHandle))) {
             return true;
         }
     }
     return false;
+}
+
+
+float CVEightEngine::GetScreenCenterX()
+{
+    return m_Screen->GetWidth() / 2.0f;
+}
+
+float CVEightEngine::GetScreenCenterY()
+{
+    return m_Screen->GetHeight() / 2.0f;
 }
 
 // ClampToScreenAxisX

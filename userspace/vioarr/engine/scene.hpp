@@ -21,81 +21,145 @@
  */
 #pragma once
 
+#include <memory>
 #include <list>
 #include "entity.hpp"
 
 class CScene {
 public:
-    CScene(CEntity* RootLayer) : m_RootLayer(RootLayer), m_TopmostEntity(nullptr) {}
+    CScene(CEntity* RootLayer) : m_TopmostEntity(nullptr) {
+        m_RootLayer.reset(RootLayer);
+    }
     ~CScene() {
-        m_WindowLayer.remove_if([](CEntity* Element) { delete Element; return true; });
-        m_PriorityLayer.remove_if([](CEntity* Element) { delete Element; return true; });
-        if (m_RootLayer != nullptr) {
-            delete m_RootLayer;
-        }
+        m_EntityLayer.clear();
+        m_PriorityLayer.clear();
     }
 
-    void                AddWindow(CEntity* Window) {
-        auto Position = std::find(m_WindowLayer.begin(), m_WindowLayer.end(), Window);
-        if (Position == m_WindowLayer.end()) {
-            m_WindowLayer.push_back(Window);
-            m_WindowLayer.sort([](const CEntity *lh, const CEntity *rh) { return lh->GetZ() < rh->GetZ(); }); // true == first first, false == second first
-        }
+    void                Add(CEntity* Entity) {
+        m_EntityLayer.push_back(std::unique_ptr<CEntity>(Entity));
+        SetActive(Entity);
     }
 
-    bool                RemoveWindow(CEntity* Window) {
-        auto Position = std::find(m_WindowLayer.begin(), m_WindowLayer.end(), Window);
-        if (Position != m_WindowLayer.end()) {
-            m_WindowLayer.erase(Position);
-            delete Window;
-            return true;
+    bool                Remove(CEntity* Entity) {
+        auto i = m_EntityLayer.begin();
+        while (i != m_EntityLayer.end()) {
+            if (i->get() == Entity) {
+                m_EntityLayer.erase(i);
+                UpdateNextActive(Entity);
+                return true;
+            }
+            i++;
         }
         return false;
     }
 
-    void                AddPriority(CEntity* Prioity) {
-        auto Position = std::find(m_PriorityLayer.begin(), m_PriorityLayer.end(), Priority);
-        if (Position == m_PriorityLayer.end()) {
-            m_PriorityLayer.push_back(Priority);
-            m_PriorityLayer.sort([](const CEntity *lh, const CEntity *rh) { return lh->GetZ() < rh->GetZ(); }); // true == first first, false == second first
+    void                MoveToFront(CEntity* Entity) {
+        auto i = m_EntityLayer.begin();
+        while (i != m_EntityLayer.end()) {
+            if (i->get() == Entity) {
+                break;
+            }
+            i++;
         }
+        m_EntityLayer.splice(m_EntityLayer.end(), m_EntityLayer, i);
+        SetActive(Entity);
     }
 
-    bool                RemovePriority(CEntity* Priority) {
-        auto Position = std::find(m_PriorityLayer.begin(), m_PriorityLayer.end(), Priority);
-        if (Position != m_PriorityLayer.end()) {
-            m_PriorityLayer.erase(Position);
-            delete Priority;
-            return true;
+    CEntity*            GetEntityWithOwner(UUId_t Owner) {
+        for (auto& e : m_EntityLayer) {
+            if (e->GetOwner() == Owner) {
+                return e.get();
+            }
+        }
+        return nullptr;
+    }
+
+    bool                HasEntity(CEntity* Entity) {
+        for (auto& e : m_EntityLayer) {
+            if (e.get() == Entity) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void                AddPriority(CPriorityEntity* Priority) {
+        // Remove all entities that die upon lost focus
+        m_PriorityLayer.remove_if([](std::unique_ptr<CPriorityEntity> const& e) { return e->HasBehaviour(CPriorityEntity::DeleteOnFocusLost); });
+        m_PriorityLayer.push_back(std::unique_ptr<CPriorityEntity>(Priority));
+        SetPriorityActive(Priority);
+    }
+
+    bool                RemovePriority(CPriorityEntity* Priority) {
+        auto i = m_PriorityLayer.begin();
+        while (i != m_PriorityLayer.end()) {
+            if (i->get() == Priority) {
+                m_PriorityLayer.erase(i);
+                UpdateNextActive(Priority);
+                return true;
+            }
+            i++;
         }
         return false;
     }
 
     void                ProxyKeyEvent(SystemKey_t* Key) {
         if (m_TopmostEntity != nullptr) {
+            if (Key->KeyCode == VK_ESCAPE && m_TopmostEntity->IsPriority()) {
+                CPriorityEntity* Entity = static_cast<CPriorityEntity*>(m_TopmostEntity);
+                if (m_TopmostEntity->HasBehaviour(CPriorityEntity::DeleteOnEscape)) {
+                    RemovePriority(Entity);
+                    return;
+                }
+            }
             m_TopmostEntity->HandleKeyEvent(Key);
         }
     }
 
     void                Update(size_t MilliSeconds) {
-        if (m_RootLayer != nullptr) {
-            m_RootLayer->PreProcess(MilliSeconds);
-        }
-        for (auto e : m_WindowLayer) { e->PreProcess(MilliSeconds); }
-        for (auto e : m_PriorityLayer) { e->PreProcess(MilliSeconds); }
+        if (m_RootLayer)                { m_RootLayer->PreProcess(MilliSeconds); }
+        for (auto& e : m_EntityLayer)   { e->PreProcess(MilliSeconds); }
+        for (auto& e : m_PriorityLayer) { e->PreProcess(MilliSeconds); }
     }
 
     void                Render(NVGcontext* VgContext) {
-        if (m_RootLayer != nullptr) {
-            m_RootLayer->Render(VgContext);
-        }
-        for (auto e : m_WindowLayer) { e->Render(VgContext); }
-        for (auto e : m_PriorityLayer) { e->Render(VgContext); }
+        if (m_RootLayer)                { m_RootLayer->Render(VgContext); }
+        for (auto& e : m_EntityLayer)   { e->Render(VgContext); }
+        for (auto& e : m_PriorityLayer) { e->Render(VgContext); }
     }
 
 private:
-    CEntity*            m_RootLayer;
-    std::list<CEntity*> m_WindowLayer;
-    std::list<CEntity*> m_PriorityLayer;
-    CEntity*            m_TopmostEntity;
+    void                SetActive(CEntity* Entity) {
+        for (auto& e : m_EntityLayer) { 
+            e->SetActive(false);
+        }
+        Entity->SetActive(true);
+        m_TopmostEntity = Entity;
+    }
+
+    void                SetPriorityActive(CPriorityEntity* Entity) {
+        // ? for (auto& e : m_EntityLayer) { e->SetActive(false); }
+        for (auto& e : m_PriorityLayer) { e->SetActive(false); }
+        Entity->SetActive(true);
+        m_TopmostEntity = Entity;
+    }
+
+    void                UpdateNextActive(CEntity* Removed) {
+        if (Removed != m_TopmostEntity) {
+            return;
+        }
+
+        // Do we have any priorities that should get shown?
+        if (m_PriorityLayer.size() != 0) {
+            SetPriorityActive(m_PriorityLayer.back().get());
+        }
+        else if (m_EntityLayer.size() != 0) {
+            SetActive(m_EntityLayer.back().get());
+        }
+    }
+
+    std::unique_ptr<CEntity>                    m_RootLayer;
+    std::list<std::unique_ptr<CEntity>>         m_EntityLayer;
+    std::list<std::unique_ptr<CPriorityEntity>> m_PriorityLayer;
+    CEntity*                                    m_TopmostEntity;
 };

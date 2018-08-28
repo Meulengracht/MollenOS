@@ -40,7 +40,7 @@ SendPS2PortCommand(
     }
     
     // Perform the self-test
-    PS2WriteData(PS2_RESET_PORT);
+    PS2WriteData(Command);
     return PS2ReadData(0);
 }
 
@@ -90,8 +90,6 @@ PS2IdentifyPort(
         ERROR(" > failed to disable scanning for port %i, response 0x%x", Index, Response);
         return 0xFFFFFFFF;
     }
-    Response = PS2ReadData(0); // We can recieve up to 3 bytes
-    Response = PS2ReadData(0); // so don't ignore anything, but ignore errors
 
     Response = SendPS2PortCommand(Index, PS2_IDENTIFY_PORT);
     if (Response != PS2_ACK) {

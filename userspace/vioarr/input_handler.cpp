@@ -26,6 +26,9 @@
 #include <string.h>
 #include "vioarr.hpp"
 
+#include "engine/dialogs/dialog_appsearch.hpp"
+#include "utils/log_manager.hpp"
+
 // Callbacks for the diffferent shortcuts
 void ShortcutApplicationSearch();
 
@@ -40,7 +43,9 @@ static struct {
 
 void ShortcutApplicationSearch()
 {
-    //sVioarr.QueueEvent(new CDialogApplicationSearch());
+    auto Dialog = new CDialogApplicationSearch(sEngine.GetContext());
+    sEngine.GetActiveScene()->AddPriority(Dialog);
+    sVioarr.UpdateNotify();
 }
 
 void SpawnApplication(const char* Path, const char* Arguments)
@@ -50,8 +55,8 @@ void SpawnApplication(const char* Path, const char* Arguments)
 
     // Set arguments
     if (Arguments != NULL) {
-        StartupInformation.ArgumentPointer = Arguments;
-        StartupInformation.ArgumentLength = strlen(Arguments);
+        StartupInformation.ArgumentPointer  = Arguments;
+        StartupInformation.ArgumentLength   = strlen(Arguments);
     }
     ProcessSpawnEx(Path, &StartupInformation, 1);
 }

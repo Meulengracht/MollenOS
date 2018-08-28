@@ -27,10 +27,8 @@ CWindow::CWindow(CEntity* Parent, NVGcontext* VgContext,
     m_Title             = Title;
     m_Width             = Width;
     m_Height            = Height;
-    m_Active            = false;
     m_Streaming         = false;
     m_Swap              = false;
-    m_Owner             = UUID_INVALID;
     m_Format            = 0;
     m_InternalFormat    = 0;
     m_StreamWidth       = 0;
@@ -57,10 +55,6 @@ CWindow::~CWindow() {
     }
 }
 
-void CWindow::SetOwner(UUId_t Owner) {
-    m_Owner = Owner;
-}
-
 void CWindow::SetWidth(int Width) {
     m_Width = Width;
 }
@@ -71,10 +65,6 @@ void CWindow::SetHeight(int Height) {
 
 void CWindow::SetTitle(const std::string &Title) {
     m_Title = Title;
-}
-
-void CWindow::SetActive(bool Active) {
-    m_Active = Active;
 }
 
 void CWindow::SwapOnNextUpdate(bool Swap) {
@@ -125,7 +115,6 @@ void CWindow::Update(size_t MilliSeconds) {
 }
 
 void CWindow::Draw(NVGcontext* VgContext) {
-    // Variables
 	NVGpaint ShadowPaint;
     NVGpaint StreamPaint;
     float x = 0.0f, y = 0.0f;

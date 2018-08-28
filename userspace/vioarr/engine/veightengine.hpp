@@ -21,6 +21,7 @@
  */
 #pragma once
 
+#include <list>
 #include <GL/gl.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -66,6 +67,8 @@ public:
     float               ClampToScreenAxisY(int Value);
     float               ClampMagnitudeToScreenAxisX(int Value);
     float               ClampMagnitudeToScreenAxisY(int Value);
+    float               GetScreenCenterX();
+    float               GetScreenCenterY();
 
     NVGcontext*         GetContext() const;
     CScene*             GetActiveScene() const;

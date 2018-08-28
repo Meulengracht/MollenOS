@@ -23,9 +23,8 @@
 
 #include <os/mollenos.h>
 #include <os/process.h>
-#include "vioarr.hpp"
-#include "engine/event.hpp"
 #include "utils/log_manager.hpp"
+#include "vioarr.hpp"
 
 #if defined(_VIOARR_OSMESA)
 #include "graphics/opengl/osmesa/display_osmesa.hpp"
@@ -50,7 +49,7 @@ int VioarrCompositor::Run()
         return -2;
     }
 
-    // Spawn message handler
+    // Spawn handlers
     sLog.Info("Spawning message handler");
     SpawnInputHandlers();
 
@@ -67,34 +66,18 @@ int VioarrCompositor::Run()
     // Enter event loop
     //LastUpdate = std::chrono::steady_clock::now();
     while (_IsRunning) {
-        CVioarrEventBase *Event = nullptr;
-        {
-            std::unique_lock<std::mutex> _eventlock(_EventMutex);
-            while (_EventQueue.empty()) _EventSignal.wait(_eventlock);
-            Event = _EventQueue.front();
-            _EventQueue.pop();
-        }
+        _Signal.Wait();
         
-        ProcessEvent(Event);
-        delete Event;
-
         // Run updates
         // auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - LastUpdate);
         sEngine.Update(0 /*  milliseconds.count() */);
-
-        // Update screen if there are no more events
-        if (_EventQueue.empty()) {
-            sEngine.Render();
-        }
+        sEngine.Render();
         // LastUpdate = std::chrono::steady_clock::now();
     }
     return 0;
 }
 
-// Queues a new event up
-void VioarrCompositor::QueueEvent(CVioarrEventBase* Event)
+void VioarrCompositor::UpdateNotify()
 {
-    std::unique_lock<std::mutex> _eventlock(_EventMutex);
-    _EventQueue.push(Event);
-    _EventSignal.notify_one();
+    _Signal.Signal();
 }

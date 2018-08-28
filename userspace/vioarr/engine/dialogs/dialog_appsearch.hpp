@@ -22,11 +22,22 @@
 #pragma once
 
 #include "../entity.hpp"
+#include "../elements/suggestionbox.hpp"
 
-class CDialogPowerMenu : public CEntity {
+class CDialogApplicationSearch : public CPriorityEntity {
+public:
+    CDialogApplicationSearch(CEntity* Parent, NVGcontext* VgContext);
+    CDialogApplicationSearch(NVGcontext* VgContext);
+    ~CDialogApplicationSearch();
 
+    // Override the input method
+    void HandleKeyEvent(SystemKey_t* Key);
+
+protected:
+    // Override the inherited methods
+    void Update(size_t MilliSeconds);
+    void Draw(NVGcontext* VgContext);
+
+private:
+    CSuggestionBox* m_SuggestionBox;
 };
-
-// Dialog event type definitions
-typedef CVioarrEvent<CVioarrEventBase::EventPriorityCreated, CEntity*> CEventDialogSpawn;
-typedef CVioarrEvent<CVioarrEventBase::EventPriorityDestroyed, CEntity*> CEventDialogDestroy;
