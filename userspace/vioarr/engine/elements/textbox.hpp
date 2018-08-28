@@ -44,8 +44,12 @@ protected:
 private:
     std::stringstream   m_InputBuffer;
     std::string         m_PlaceholderText;
-    std::string         m_LastUpdated;
     int                 m_Width;
     int                 m_Height;
-    bool                m_HasIcon;
+    bool                m_IsPassword;
+    char                m_PasswordCharacter;
+
+    std::string         m_LastText;
+    nvgRGBA             m_LastColor;
+    float               m_OffsetX;
 };

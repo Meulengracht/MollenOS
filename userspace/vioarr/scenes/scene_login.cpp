@@ -25,8 +25,14 @@
 #include "../engine/elements/sprite.hpp"
 #include "vioarr.hpp"
 
-CScene *VioarrCompositor::CreateLoginScene()
+CScene* VioarrCompositor::CreateLoginScene()
 {
-    CSprite *Background = new CSprite(sEngine.GetContext(), "$sys/themes/default/bg.png", _Display->GetWidth(), _Display->GetHeight());
+    // Create resources
+    CSprite* Background = new CSprite(sEngine.GetContext(), "$sys/themes/default/bg.png", _Display->GetWidth(), _Display->GetHeight());
+    CDialogLogin* Login = new CDialogLogin(sEngine.GetContext());
+    
+    // Build tree
+    Background->AddEntity(Login);
+    
     return new CScene(Background);
 }

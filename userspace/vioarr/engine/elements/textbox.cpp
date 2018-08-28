@@ -30,10 +30,10 @@
 #define BOX_TEXT_COLOR              0, 0, 0, 255
 
 CTextBox::CTextBox(CEntity* Parent, NVGcontext* VgContext, int Width, int Height) 
-    : CEntity(Parent, VgContext), m_PlaceholderText("Search"), m_Width(Width), 
-      m_Height(Height), m_HasIcon(false)
-{
-}
+    : CEntity(Parent, VgContext), 
+      m_PlaceholderText(""), m_LastText(""), m_Width(Width), 
+      m_Height(Height), m_OffsetX(4.0f), m_IsPassword(false), 
+      m_PasswordCharacter('*') { }
 
 CTextBox::CTextBox(NVGcontext* VgContext, int Width, int Height) 
     : CTextBox(nullptr, VgContext, Width, Height) { }
@@ -41,32 +41,44 @@ CTextBox::CTextBox(NVGcontext* VgContext, int Width, int Height)
 CTextBox::~CTextBox() { }
 
 void CTextBox::SetPlaceholderText(const std::string& Text) {
-    m_PlaceholderText = Text;
+    m_PlaceholderText   = Text;
+    m_LastText          = Text;
+    m_LastColor         = nvgRGBA(BOX_TEXT_PLACEHOLDER_COLOR);
 }
 
 void CTextBox::Add(char Character) {
     m_InputBuffer << Character;
+    m_LastColor = nvgRGBA(BOX_TEXT_COLOR);
+
+    if (m_IsPassword) {
+        m_LastText = std::string(m_InputBuffer.tellg(), m_PasswordCharacter);
+    }
+    else {
+        m_LastText  = m_InputBuffer.str();
+    }
 }
+
 void CTextBox::Remove() {
     if (m_InputBuffer.tellg() > 0) {
         m_InputBuffer.seekp(-1, m_InputBuffer.cur);
+    }
+
+    if (m_InputBuffer.tellg() == 0) {
+        m_LastText  = m_PlaceholderText;
+        m_LastColor = nvgRGBA(BOX_TEXT_PLACEHOLDER_COLOR);
     }
 }
 
 void SetIcon(const std::string& IconPath) {
     auto SearchIcon = new CSprite(this, VgContext, IconPath, 16, 16);
     SearchIcon->Move(4.0f, 4.0f, 0.0f);
-    m_HasIcon = true;
-}
-
-void SetPlaceholderText(const std::string& Text) {
-
+    m_OffsetX = 24.0f;
 }
 
 void SetPasswordField(bool HideText, char PassCharacter = '*') {
-
+    m_IsPassword        = HideText;
+    m_PasswordCharacter = PassCharacter;
 }
-
 
 // Override the inherited methods
 void CTextBox::Update(size_t MilliSeconds) {
@@ -90,13 +102,6 @@ void CTextBox::Draw(NVGcontext* VgContext) {
     nvgFontSize(VgContext,  14.0f);
     nvgFontFace(VgContext,  "sans-normal");
 	nvgTextAlign(VgContext, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE);
-    if (m_InputBuffer.tellg() > 0) {
-        m_LastUpdated = m_InputBuffer.str();
-	    nvgFillColor(VgContext, nvgRGBA(BOX_TEXT_COLOR));
-        nvgText(VgContext, 24.0f, 8.0f, m_LastUpdated.c_str(), NULL);
-    }
-    else {
-	    nvgFillColor(VgContext, nvgRGBA(BOX_TEXT_PLACEHOLDER_COLOR));
-        nvgText(VgContext, 24.0f, 8.0f, m_PlaceholderText.c_str(), NULL);
-    }
+    nvgFillColor(VgContext, m_LastColor);
+    nvgText(VgContext, m_OffsetX, 8.0f, m_LastText.c_str(), NULL);
 }
