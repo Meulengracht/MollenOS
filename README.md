@@ -1,8 +1,8 @@
 
 # About MollenOS
 
-[![Build Status](http://ec2-35-157-236-132.eu-central-1.compute.amazonaws.com/app/rest/builds/buildType:(id:ValiOS_I386_Build)/statusIcon)](http://ec2-35-157-236-132.eu-central-1.compute.amazonaws.com/project.html?projectId=ValiOS&branch_ValiOS=__all_branches__)
-[![Build Status](http://ec2-35-157-236-132.eu-central-1.compute.amazonaws.com/app/rest/builds/buildType:(id:ValiOS_Amd64_Build)/statusIcon)](http://ec2-35-157-236-132.eu-central-1.compute.amazonaws.com/project.html?projectId=ValiOS&branch_ValiOS=__all_branches__)
+[![Build Status](http://www.mollenos.com/teamcity/app/rest/builds/buildType:(id:ValiOS_I386_Build)/statusIcon)](http://www.mollenos.com/teamcity/project.html?projectId=ValiOS&branch_ValiOS=__all_branches__)
+[![Build Status](http://www.mollenos.com/teamcity/app/rest/builds/buildType:(id:ValiOS_Amd64_Build)/statusIcon)](http://www.mollenos.com/teamcity/project.html?projectId=ValiOS&branch_ValiOS=__all_branches__)
 
 ## The Goal
 
