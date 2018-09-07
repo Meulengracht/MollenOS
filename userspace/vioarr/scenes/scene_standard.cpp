@@ -24,16 +24,21 @@
 #include "../engine/veightengine.hpp"
 #include "../engine/elements/sprite.hpp"
 #include "../engine/elements/accessbar.hpp"
+#include "../engine/scene.hpp"
 #include "vioarr.hpp"
 
 CScene *VioarrCompositor::CreateDesktopScene()
 {
+    CScene* Scene;
+
     // Create a new root instance
-    CSprite *Background = new CSprite(sEngine.GetContext(), "$sys/themes/default/gfxbg.png", _Display->GetWidth(), _Display->GetHeight());
+    CSprite *Background = new CSprite(sEngine.GetContext(), "$sys/themes/default/logo.png", 512, 128);
+    Background->Move(sEngine.GetScreenCenterX() - 256.0f, sEngine.GetScreenCenterY() - 64.0f, 0.0f);
+    Scene = new CScene(Background);
 
     // Create user interface
-    CAccessBar *AccessBar = new CAccessBar(sEngine.GetContext(), 150, _Display->GetHeight());
-    Background->AddEntity(AccessBar);
+    CAccessBar *AccessBar = new CAccessBar(sEngine.GetContext(), _Display->GetWidth(), _Display->GetHeight());
+    Scene->Add(AccessBar);
     
-    return new CScene(Background);
+    return Scene;
 }

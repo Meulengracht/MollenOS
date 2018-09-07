@@ -3,11 +3,6 @@ https://www.iconfinder.com/Wahib
 
 Icons:
 settings32.png
-power16.png
-power24.png
-power32.png
-power48.png
-power64.png
 reboot16.png
 reboot24.png
 reboot32.png

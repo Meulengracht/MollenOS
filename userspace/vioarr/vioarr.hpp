@@ -24,9 +24,10 @@
 
 #include <cstdlib>
 #include <thread>
-#include "engine/scene.hpp"
-#include "engine/veightengine.hpp"
 #include "utils/semaphore.hpp"
+
+class CScene;
+class CDisplay;
 
 class VioarrCompositor {
 public:

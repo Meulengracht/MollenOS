@@ -109,32 +109,28 @@ TimersTick(
     _In_ size_t Tick)
 {
     CollectionItem_t *i;
-    size_t MilliTicks;
+    size_t MilliTicks = DIVUP(Tick, NSEC_PER_MSEC);
 
-    // Calculate how many milliseconds
-    MilliTicks = DIVUP(Tick, NSEC_PER_MSEC);
-
-    // Update scheduler with the milliticks
+    // Update scheduler ticks, handle timers
     SchedulerTick(MilliTicks);
+    _foreach_nolink(i, &Timers) {
+        MCoreTimer_t *Timer  = (MCoreTimer_t*)i->Data;
+        Timer->Current      -= MIN(Timer->Current, Tick);
 
-    // Now loop through timers registered
-    _foreach(i, &Timers) {
-        // Initiate pointer
-        MCoreTimer_t *Timer = (MCoreTimer_t*)i->Data;
-        
-        // Reduce
-        Timer->Current -= MIN(Timer->Current, Tick);
         if (Timer->Current == 0) {
             __KernelTimeoutDriver(Timer->AshId, Timer->Id, (void*)Timer->Data);
             if (Timer->Periodic) {
                 Timer->Current = Timer->Interval;
             }
             else {
-                CollectionRemoveByNode(&Timers, i);
+                CollectionItem_t* Temp = i;
+                i = CollectionUnlinkNode(&Timers, Temp);
                 kfree(Timer);
-                kfree(i);
+                kfree(Temp);
+                continue;
             }
         }
+        i = CollectionNext(i);
     }
 }
 

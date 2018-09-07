@@ -38,10 +38,6 @@ CSprite::~CSprite() {
     nvgDeleteImage(m_VgContext, m_ResourceId);
 }
 
-// Override the inherited methods
-void CSprite::Update(size_t MilliSeconds) {
-}
-
 void CSprite::Draw(NVGcontext* VgContext) {
     NVGpaint imgPaint = nvgImagePattern(VgContext, 0.0f, 0.0f, m_Width, m_Height, 0.0f, m_ResourceId, 1.0f);
     nvgBeginPath(VgContext);

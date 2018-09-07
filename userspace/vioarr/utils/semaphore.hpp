@@ -40,6 +40,11 @@ public:
         m_cnd.wait(l);
     }
 
+    void WaitFor(std::chrono::milliseconds mils) {
+        std::unique_lock<std::mutex> l(m_mtx);
+        m_cnd.wait_for(l, mils);
+    }
+
 private:
     std::mutex              m_mtx;
     std::condition_variable m_cnd;

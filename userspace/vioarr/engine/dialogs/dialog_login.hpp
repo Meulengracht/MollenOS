@@ -31,7 +31,7 @@ public:
     ~CDialogLogin();
 
     // Override the input method
-    void HandleKeyEvent(SystemKey_t* Key);
+    //void HandleKeyEvent(SystemKey_t* Key);
 
 protected:
     // Override the inherited methods

@@ -107,19 +107,14 @@ public:
         if (m_TopmostEntity != nullptr) {
             if (Key->KeyCode == VK_ESCAPE && m_TopmostEntity->IsPriority()) {
                 CPriorityEntity* Entity = static_cast<CPriorityEntity*>(m_TopmostEntity);
-                if (m_TopmostEntity->HasBehaviour(CPriorityEntity::DeleteOnEscape)) {
+                if (Entity->HasBehaviour(CPriorityEntity::DeleteOnEscape)) {
                     RemovePriority(Entity);
+                    Invalidate();
                     return;
                 }
             }
             m_TopmostEntity->HandleKeyEvent(Key);
         }
-    }
-
-    void                Update(size_t MilliSeconds) {
-        if (m_RootLayer)                { m_RootLayer->PreProcess(MilliSeconds); }
-        for (auto& e : m_EntityLayer)   { e->PreProcess(MilliSeconds); }
-        for (auto& e : m_PriorityLayer) { e->PreProcess(MilliSeconds); }
     }
 
     void                Render(NVGcontext* VgContext) {
@@ -156,6 +151,10 @@ private:
         else if (m_EntityLayer.size() != 0) {
             SetActive(m_EntityLayer.back().get());
         }
+    }
+
+    void                Invalidate() {
+        sVioarr.UpdateNotify();
     }
 
     std::unique_ptr<CEntity>                    m_RootLayer;

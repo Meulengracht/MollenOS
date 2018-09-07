@@ -23,8 +23,10 @@
 
 #include <os/mollenos.h>
 #include <os/process.h>
-#include "utils/log_manager.hpp"
 #include "vioarr.hpp"
+#include "engine/scene.hpp"
+#include "engine/veightengine.hpp"
+#include "utils/log_manager.hpp"
 
 #if defined(_VIOARR_OSMESA)
 #include "graphics/opengl/osmesa/display_osmesa.hpp"
@@ -59,18 +61,13 @@ int VioarrCompositor::Run()
     sEngine.AddScene(CreateDesktopScene());
     MollenOSEndBoot();
 
-    // Initial render
-    sEngine.Update(0);
-    sEngine.Render();
-
     // Enter event loop
+    sEngine.Render();
     //LastUpdate = std::chrono::steady_clock::now();
     while (_IsRunning) {
         _Signal.Wait();
-        
-        // Run updates
-        // auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - LastUpdate);
-        sEngine.Update(0 /*  milliseconds.count() */);
+
+        // auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - LastUpdate); /*  milliseconds.count() */
         sEngine.Render();
         // LastUpdate = std::chrono::steady_clock::now();
     }

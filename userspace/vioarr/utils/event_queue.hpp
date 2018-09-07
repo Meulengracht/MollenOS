@@ -21,30 +21,43 @@
  *    MollenOS.
  */
 #pragma once
-#include "../entity.hpp"
+
 #include <functional>
-#include <string>
+#include <thread>
+#include <list>
+#include "semaphore.hpp"
 
-class CAccessBarWidget : public CEntity {
+class CEventQueue {
+    struct CEvent {
+        std::function<void()>   Fn;
+        std::size_t             TimeLeft;
+        std::size_t             Period;
+    };
+
 public:
-    CAccessBarWidget(CEntity* Parent, NVGcontext* VgContext, int Width, int Height);
-    CAccessBarWidget(NVGcontext* VgContext, int Width, int Height);
-    ~CAccessBarWidget();
+	static CEventQueue& GetInstance() {
+		// Guaranteed to be destroyed.
+		// Is instantiated on first use
+		static CEventQueue _Instance;
+		return _Instance;
+	}
+private:
+	CEventQueue() = default;
 
-    void        SetWidgetText(std::string& Text);
-    void        SetWidgetIcon(std::string& IconPath);
-    void        SetWidgetEntity(CEntity* Entity);
-    void        SetWidgetFunction(std::function<void(CEntity*)>& Function);
+public:
+	CEventQueue(CEventQueue const&)     = delete;
+	void operator=(CEventQueue const&)  = delete;
 
-protected:
-    // Override the inherited methods
-    void        Update(size_t MilliSeconds);
-    void        Draw(NVGcontext* VgContext);
+    void AddPeriodic(std::function<void()> Fn, std::size_t Period);
 
 private:
-    int                             m_Width;
-    int                             m_Height;
-    CEntity*                        m_Entity;
-    std::function<void(CEntity*)>   m_Callback;
-    std::string                     m_Text;
+    void EventLoop();
+
+private:
+    std::thread*        m_Thread;
+    std::list<CEvent*>  m_Events;
+    CSemaphore          m_Semaphore;
 };
+
+// Shorthand for the vioarr
+#define sEvents CEventQueue::GetInstance()

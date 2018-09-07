@@ -48,6 +48,11 @@ CDialogApplicationSearch::~CDialogApplicationSearch() { }
 
 void CDialogApplicationSearch::HandleKeyEvent(SystemKey_t* Key)
 {
+    // Skip released keys
+    if (Key->Flags & KEY_MODIFIER_RELEASED) {
+        return;
+    }
+
     if (Key->KeyCode == VK_BACK) {
         m_SuggestionBox->Remove();
     }
@@ -58,6 +63,7 @@ void CDialogApplicationSearch::HandleKeyEvent(SystemKey_t* Key)
         }
         m_SuggestionBox->Add((char)(Key->KeyAscii & 0xFF));
     }
+    Invalidate();
 }
 
 void CDialogApplicationSearch::Update(size_t MilliSeconds)

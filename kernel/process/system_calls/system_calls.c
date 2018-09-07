@@ -112,28 +112,25 @@ ScSystemTick(
         return OsError;
     }
 
-    switch (TickBase) {
-        case TIME_MONOTONIC: {
-            return TimersGetSystemTick(SystemTick);
-        } break;
-        case TIME_PROCESS: {
+    if (TimersGetSystemTick(SystemTick) == OsSuccess) {
+        if (TickBase == TIME_PROCESS) {
             MCoreAsh_t* Process = PhoenixGetCurrentAsh();
             if (Process != NULL) {
-                *SystemTick = Process->StartedAt;
+                *SystemTick -= Process->StartedAt;
             }
-        } break;
-        case TIME_THREAD: {
+        }
+        else if (TickBase == TIME_THREAD) {
             MCoreThread_t* Thread = ThreadingGetCurrentThread(CpuGetCurrentId());
             if (Thread != NULL) {
-                *SystemTick = Thread->StartedAt;
+                *SystemTick -= Thread->StartedAt;
             }
-        } break;
-
-        default: {
-            *SystemTick = 0;
-        } break;
+        }
+        return OsSuccess;
     }
-    return OsSuccess;
+
+    // Default the result to 0 to indicate unsupported
+    *SystemTick = 0;
+    return OsError;
 }
 
 /* ScPerformanceFrequency

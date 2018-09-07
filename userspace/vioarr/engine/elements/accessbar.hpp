@@ -37,10 +37,15 @@ public:
     CAccessBar(NVGcontext* VgContext, int Width, int Height);
     ~CAccessBar();
 
+    void Update();
+
 protected:
     // Override the inherited methods
-    void        Update(size_t MilliSeconds);
     void        Draw(NVGcontext* VgContext);
+
+private:
+    float       GetSideBarElementSlotX(int Index);
+    float       GetSideBarElementSlotY(int Index);
 
 private:
     int         m_Width;

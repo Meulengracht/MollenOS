@@ -51,7 +51,6 @@ public:
 
     // **************************************
     // Render Logic
-    void                Update(size_t MilliSeconds);
     void                Render();
 
     // **************************************

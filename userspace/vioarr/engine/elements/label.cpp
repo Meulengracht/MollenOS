@@ -53,10 +53,6 @@ void CLabel::SetFontColor(NVGcolor Color)
     m_Color = Color;
 }
 
-// Override the inherited methods
-void CLabel::Update(size_t MilliSeconds) {
-}
-
 void CLabel::Draw(NVGcontext* VgContext) {
     nvgFontSize(VgContext,  m_Size);
 	nvgFontFace(VgContext,  m_Font.c_str());

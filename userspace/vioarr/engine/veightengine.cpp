@@ -62,13 +62,6 @@ void CVEightEngine::Initialize(CDisplay *Screen)
     nvgCreateFont(m_VgContext, "sans-light", "$sys/fonts/DejaVuSans-ExtraLight.ttf");
 }
 
-void CVEightEngine::Update(size_t MilliSeconds)
-{
-    if (m_ActiveScene != nullptr) {
-        m_ActiveScene->Update(MilliSeconds);
-    }
-}
-
 void CVEightEngine::Render()
 {
     // Initialize screen

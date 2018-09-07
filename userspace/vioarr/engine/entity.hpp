@@ -24,8 +24,9 @@
 #include <os/input.h>
 #include <functional>
 #include <list>
-#include "veightengine.hpp"
 #include "backend/nanovg.h"
+#include "veightengine.hpp"
+#include "../vioarr.hpp"
 
 class CEntity {
 protected:
@@ -73,13 +74,6 @@ public:
         nvgRestore(VgContext);
     }
 
-    void                PreProcess(size_t MilliSeconds) {
-        Update(MilliSeconds);
-        for (auto itr = m_Children.begin(); itr != m_Children.end(); itr++) {
-            (*itr)->PreProcess(MilliSeconds);
-        }
-    }
-
     // Positioning
     void                Move(float X, float Y, float Z) {
         m_vPosition.x += X;
@@ -93,13 +87,30 @@ public:
     }
 
     // Input handling
-    virtual void        HandleKeyEvent(SystemKey_t* Key) { }
-    
+    virtual void        HandleKeyEvent(SystemKey_t* Key) { 
+        for (auto itr = m_Children.begin(); itr != m_Children.end(); itr++) {
+            if ((*itr)->IsActive()) {
+                (*itr)->HandleKeyEvent(Key);
+            }
+        }
+    }
+
+    // State Changes
+    void                SetActive(bool Active)  {
+        // Make sure we set all children inactive in that case
+        if (!Active) {
+            for (auto itr = m_Children.begin(); itr != m_Children.end(); itr++) {
+                (*itr)->SetActive(Active);
+            }
+        }
+        OnActivationChange(Active);
+        m_Active = Active;
+    }
+
     // Setters
     void                SetX(float X)           { m_vPosition.x = X; }
     void                SetY(float Y)           { m_vPosition.y = Y; }
     void                SetZ(float Z)           { m_vPosition.y = Z; }
-    void                SetActive(bool Active)  { m_Active = Active; }
     void                SetOwner(UUId_t Owner)  { m_Owner = Owner; }
 
     // Getters
@@ -109,14 +120,18 @@ public:
     float               GetZ() const            { return m_vPosition.z; }
     UUId_t              GetOwner() const        { return m_Owner; }
     bool                IsPriority() const      { return m_Priority; }
-
-    const std::list<CEntity*>& GetChildren() const { return m_Children; }
+    bool                IsActive() const        { return m_Active; }
 
 protected:
     // Overrideable methods
-    virtual void    Update(size_t MilliSeconds) { }
-    virtual void    Draw(NVGcontext* VgContext) { }
+    virtual void    Draw(NVGcontext* VgContext)     { }
+    virtual void    OnActivationChange(bool Active) { }
 
+    // Inheritabled methods
+    void Invalidate() {
+        sVioarr.UpdateNotify();
+    }
+    
     CEntity*            m_Parent;
     NVGcontext*         m_VgContext;
     glm::vec3           m_vPosition;
@@ -134,20 +149,20 @@ public:
     };
 
 protected:
-    CPriorityEntity(CEntity *Parent, NVGcontext* VgContext, const glm::vec3 &Position, EPriorityBehaviour Behaviour)
-        : CEntity(Parent, VgContext, Position), m_Behaviour(Behaviour), m_Priority(true) { }
-    CPriorityEntity(CEntity *Parent, NVGcontext* VgContext, EPriorityBehaviour Behaviour)
+    CPriorityEntity(CEntity *Parent, NVGcontext* VgContext, const glm::vec3 &Position, unsigned int Behaviour)
+        : CEntity(Parent, VgContext, Position), m_Behaviour(Behaviour) { m_Priority = true; }
+    CPriorityEntity(CEntity *Parent, NVGcontext* VgContext, unsigned int Behaviour)
         : CPriorityEntity(Parent, VgContext, glm::vec3(0.0f, 0.0f, 0.0f), Behaviour) { }
-    CPriorityEntity(NVGcontext* VgContext, EPriorityBehaviour Behaviour) 
+    CPriorityEntity(NVGcontext* VgContext, unsigned int Behaviour) 
         : CPriorityEntity(nullptr, VgContext, Behaviour) { }
     CPriorityEntity(CPriorityEntity const&)         = default;
     CPriorityEntity& operator=(CPriorityEntity&)    = default;
-
+    
 public:
     virtual ~CPriorityEntity() = default;
 
-    bool HasBehaviour(EPriorityBehaviour Behaviour) const { return (m_Behaviour & Behaviour) != 0; }
+    bool HasBehaviour(unsigned int Behaviour) const { return (m_Behaviour & Behaviour) != 0; }
 
 private:
-    EPriorityBehaviour m_Behaviour;
+    unsigned int m_Behaviour;
 };

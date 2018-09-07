@@ -28,7 +28,6 @@ CWindow::CWindow(CEntity* Parent, NVGcontext* VgContext,
     m_Width             = Width;
     m_Height            = Height;
     m_Streaming         = false;
-    m_Swap              = false;
     m_Format            = 0;
     m_InternalFormat    = 0;
     m_StreamWidth       = 0;
@@ -67,10 +66,6 @@ void CWindow::SetTitle(const std::string &Title) {
     m_Title = Title;
 }
 
-void CWindow::SwapOnNextUpdate(bool Swap) {
-    m_Swap = Swap;
-}
-
 void CWindow::SetStreamingBufferFormat(GLenum Format, GLenum InternalFormat) {
     m_Format            = m_Format;
     m_InternalFormat    = m_InternalFormat;
@@ -107,10 +102,9 @@ void CWindow::HandleKeyEvent(SystemKey_t* Key) {
     // Redirect to process
 }
 
-void CWindow::Update(size_t MilliSeconds) {
-    if (m_Streaming && m_Swap) {
+void CWindow::Update() {
+    if (m_Streaming) {
         nvgUpdateImage(m_VgContext, m_ResourceId, (const uint8_t*)GetBufferDataPointer(m_StreamBuffer));
-        m_Swap = false;
     }
 }
 

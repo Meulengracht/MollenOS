@@ -45,19 +45,18 @@ public:
     void SetWidth(int Width);
     void SetHeight(int Height);
     void SetTitle(const std::string &Title);
-    void SwapOnNextUpdate(bool Swap);
 
     void SetStreamingBufferFormat(GLenum Format, GLenum InternalFormat);
     void SetStreamingBufferDimensions(int Width, int Height);
     void SetStreamingBuffer(DmaBuffer_t* Buffer);
     void SetStreaming(bool Enable);
+    void Update();
 
     // Override inheritted methods
     void HandleKeyEvent(SystemKey_t* Key);
 
 protected:
     // Override the inherited methods
-    void Update(size_t MilliSeconds);
     void Draw(NVGcontext* VgContext);
 
 private:
@@ -66,7 +65,6 @@ private:
     int             m_Width;
     int             m_Height;
     bool            m_Streaming;
-    bool            m_Swap;
 
     // Streaming support
     int             m_ResourceId;

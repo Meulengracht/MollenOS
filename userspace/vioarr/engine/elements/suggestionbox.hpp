@@ -36,7 +36,6 @@ public:
 
 protected:
     // Override the inherited methods
-    void Update(size_t MilliSeconds);
     void Draw(NVGcontext* VgContext);
 
 private:

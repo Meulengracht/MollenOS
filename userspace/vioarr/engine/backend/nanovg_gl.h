@@ -1235,7 +1235,7 @@ static void glnvg__renderFlush(void* uptr)
 		//glEnable(GL_CULL_FACE);
 		//glCullFace(GL_BACK);
 		glFrontFace(GL_CCW);
-		glEnable(GL_BLEND);
+        glEnable(GL_BLEND);
 		glDisable(GL_DEPTH_TEST);
 		glDisable(GL_SCISSOR_TEST);
 		glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);

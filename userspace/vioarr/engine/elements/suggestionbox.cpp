@@ -48,15 +48,13 @@ void CSuggestionBox::SetPlaceholderText(const std::string& Text) {
 
 void CSuggestionBox::Add(char Character) {
     m_InputBuffer << Character;
+    m_LastUpdated = m_InputBuffer.str();
 }
 void CSuggestionBox::Remove() {
     if (m_InputBuffer.tellg() > 0) {
         m_InputBuffer.seekp(-1, m_InputBuffer.cur);
     }
-}
-
-// Override the inherited methods
-void CSuggestionBox::Update(size_t MilliSeconds) {
+    m_LastUpdated = m_InputBuffer.str();
 }
 
 void CSuggestionBox::Draw(NVGcontext* VgContext) {
@@ -77,8 +75,7 @@ void CSuggestionBox::Draw(NVGcontext* VgContext) {
     nvgFontSize(VgContext,  14.0f);
     nvgFontFace(VgContext,  "sans-normal");
 	nvgTextAlign(VgContext, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE);
-    if (m_InputBuffer.tellg() > 0) {
-        m_LastUpdated = m_InputBuffer.str();
+    if (m_LastUpdated.length() > 0) {
 	    nvgFillColor(VgContext, nvgRGBA(BOX_TEXT_COLOR));
         nvgText(VgContext, 24.0f, 8.0f, m_LastUpdated.c_str(), NULL);
     }

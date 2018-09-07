@@ -23,16 +23,21 @@
 
 #include "../engine/veightengine.hpp"
 #include "../engine/elements/sprite.hpp"
+#include "../engine/dialogs/dialog_login.hpp"
+#include "../engine/scene.hpp"
 #include "vioarr.hpp"
 
 CScene* VioarrCompositor::CreateLoginScene()
 {
+    CScene* Scene;
+
     // Create resources
-    CSprite* Background = new CSprite(sEngine.GetContext(), "$sys/themes/default/bg.png", _Display->GetWidth(), _Display->GetHeight());
+    CSprite *Background = new CSprite(sEngine.GetContext(), "$sys/themes/default/logo.png", 512, 128);
+    Background->Move(_Display->GetWidth() - 512.0f, 0.0f, 0.0f);
+    Scene = new CScene(Background);
+
     CDialogLogin* Login = new CDialogLogin(sEngine.GetContext());
+    Scene->AddPriority(Login);
     
-    // Build tree
-    Background->AddEntity(Login);
-    
-    return new CScene(Background);
+    return Scene;
 }

@@ -20,7 +20,7 @@
  *  - The Vioarr V8 Graphics Engine.
  */
 
-#include "suggestionbox.hpp"
+#include "textbox.hpp"
 #include "sprite.hpp"
 
 #define BOX_BORDER_COLOR            103, 103, 103, 255
@@ -31,9 +31,9 @@
 
 CTextBox::CTextBox(CEntity* Parent, NVGcontext* VgContext, int Width, int Height) 
     : CEntity(Parent, VgContext), 
-      m_PlaceholderText(""), m_LastText(""), m_Width(Width), 
-      m_Height(Height), m_OffsetX(4.0f), m_IsPassword(false), 
-      m_PasswordCharacter('*') { }
+      m_PlaceholderText(""), m_Width(Width), 
+      m_Height(Height), m_IsPassword(false), 
+      m_PasswordCharacter('*'), m_LastText(""), m_OffsetX(4.0f) { }
 
 CTextBox::CTextBox(NVGcontext* VgContext, int Width, int Height) 
     : CTextBox(nullptr, VgContext, Width, Height) { }
@@ -69,19 +69,15 @@ void CTextBox::Remove() {
     }
 }
 
-void SetIcon(const std::string& IconPath) {
-    auto SearchIcon = new CSprite(this, VgContext, IconPath, 16, 16);
+void CTextBox::SetIcon(const std::string& IconPath) {
+    auto SearchIcon = new CSprite(this, m_VgContext, IconPath, 16, 16);
     SearchIcon->Move(4.0f, 4.0f, 0.0f);
     m_OffsetX = 24.0f;
 }
 
-void SetPasswordField(bool HideText, char PassCharacter = '*') {
+void CTextBox::SetPasswordField(bool HideText, char PassCharacter) {
     m_IsPassword        = HideText;
     m_PasswordCharacter = PassCharacter;
-}
-
-// Override the inherited methods
-void CTextBox::Update(size_t MilliSeconds) {
 }
 
 void CTextBox::Draw(NVGcontext* VgContext) {

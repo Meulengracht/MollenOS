@@ -57,10 +57,6 @@ void CButton::SetState(EButtonState State)
     m_ActiveState = State;
 }
 
-// Override the inherited methods
-void CButton::Update(size_t MilliSeconds) {
-}
-
 void CButton::Draw(NVGcontext* VgContext) {
     if (m_ResourceIds[m_ActiveState] == 0) {
         return;

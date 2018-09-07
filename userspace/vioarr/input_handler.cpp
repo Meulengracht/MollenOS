@@ -26,6 +26,7 @@
 #include <string.h>
 #include "vioarr.hpp"
 
+#include "engine/scene.hpp"
 #include "engine/dialogs/dialog_appsearch.hpp"
 #include "utils/log_manager.hpp"
 

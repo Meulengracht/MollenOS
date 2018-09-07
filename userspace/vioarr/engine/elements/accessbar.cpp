@@ -21,43 +21,42 @@
  *    MollenOS.
  */
 
-#include "accessbar_widget.hpp"
 #include "accessbar.hpp"
 #include "button.hpp"
 #include "sprite.hpp"
 #include "label.hpp"
 
+#define RGBA_ACCESSBAR_TOP              103, 103, 103, 127
+#define RGBA_ACCESSBAR_SIDE             103, 103, 103, 127
+constexpr float ACCESSBAR_USER_RADIUS   = 64.0f;
+constexpr int ACCESSBAR_TOP_HEIGHT      = 20;
+constexpr int ACCESSBAR_SIDE_WIDTH      = 40;
+
 CAccessBar::CAccessBar(CEntity *Parent, NVGcontext* VgContext, int Width, int Height) 
-    : CEntity(Parent, VgContext)
+    : CEntity(Parent, VgContext), m_Width(Width), m_Height(Height)
 {
-    m_Width     = Width;
-    m_Height    = Height;
-
     // Create resources
-    auto UserIcon           = new CSprite(this, VgContext, "$sys/themes/default/user64.png", 64, 64);
-    
-    auto SettingsButton     = new CButton(this, VgContext, 32, 32);
-    auto ShutdownButton     = new CButton(this, VgContext, 32, 32);
-    auto ApplicationsButton = new CButton(this, VgContext, 16, 16);
+    auto UserIcon           = new CSprite(this, VgContext, "$sys/themes/default/user32.png", 32, 32);
+    UserIcon->Move(Width - 32 - 8, Height - 32 - 8, 0);
 
-    auto ApplicationsLabel  = new CLabel(this, VgContext);
+    auto ShutdownButton     = new CButton(this, VgContext, 16, 16);
+    ShutdownButton->SetButtonStateIcon(CButton::ButtonStateNormal, "$sys/themes/default/power16.png");
+    ShutdownButton->Move(4.0f, Height - 18, 0);
 
-    ShutdownButton->SetButtonStateIcon(CButton::ButtonStateNormal, "$sys/themes/default/power32.png");
-    ShutdownButton->Move(20, 8, 0);
+    //auto SettingsButton     = new CButton(this, VgContext, 32, 32);
+    //SettingsButton->SetButtonStateIcon(CButton::ButtonStateNormal, "$sys/themes/default/settings32.png");
+    //SettingsButton->Move(Width - 32 - 20, 8, 0);
 
-    SettingsButton->SetButtonStateIcon(CButton::ButtonStateNormal, "$sys/themes/default/settings32.png");
-    SettingsButton->Move(Width - 32 - 20, 8, 0);
+    auto ApplicationsButton = new CButton(this, VgContext, 32, 32);
+    ApplicationsButton->SetButtonStateIcon(CButton::ButtonStateNormal, "$sys/themes/default/apps32.png");
+    ApplicationsButton->Move(GetSideBarElementSlotX(0), m_Height - 110, 0.0f);
 
-    ApplicationsButton->SetButtonStateIcon(CButton::ButtonStateNormal, "$sys/themes/default/apps16.png");
-    ApplicationsButton->Move(Width - 16 - 16, m_Height - 162, 0);
-
-    ApplicationsLabel->SetText("Applications");
-    ApplicationsLabel->SetFont("sans-light");
-    ApplicationsLabel->SetFontSize(18.0f);
-    ApplicationsLabel->SetFontColor(nvgRGBA(0, 0, 0, 255));
-    ApplicationsLabel->Move(14.0f, m_Height - 159, 0);
-
-    UserIcon->Move((Width / 2) - 32, (m_Height - (16 + 64)), 0);
+    auto DateTimeLabel  = new CLabel(this, VgContext);
+    DateTimeLabel->SetFont("sans-normal");
+    DateTimeLabel->SetFontSize(14.0f);
+    DateTimeLabel->SetFontColor(nvgRGBA(255, 255, 255, 255));
+    DateTimeLabel->Move(28.0f, Height - 14, 0.0f);
+    DateTimeLabel->SetText("13:37 Wed 24");
 }
 
 CAccessBar::CAccessBar(NVGcontext* VgContext, int Width, int Height) 
@@ -66,50 +65,36 @@ CAccessBar::CAccessBar(NVGcontext* VgContext, int Width, int Height)
 CAccessBar::~CAccessBar() {
 }
 
-void CAccessBar::Update(size_t MilliSeconds) {
+float CAccessBar::GetSideBarElementSlotX(int Index)
+{
+    return (float)(m_Width - ACCESSBAR_SIDE_WIDTH + 4);
+}
+
+float CAccessBar::GetSideBarElementSlotY(int Index)
+{
+    return (float)m_Height - ((ACCESSBAR_USER_RADIUS * 1.8f) + 40.0f + (36.0f * Index));
+}
+
+void CAccessBar::Update() {
+    // Update the date and time
 }
 
 void CAccessBar::Draw(NVGcontext* VgContext) {
-	//NVGpaint ShadowPaint;
-    float x = 0.0f, y = 0.0f;
-
-    // Use the fill color to fill the entirety
+    // Draw from 0, (height - bar_height) to width, (height - bar_height)
 	nvgBeginPath(VgContext);
-	nvgRect(VgContext, 0.0f, 0.0f, m_Width, m_Height);
+	nvgRect(VgContext, 0.0f, (m_Height - ACCESSBAR_TOP_HEIGHT), m_Width, (m_Height - ACCESSBAR_TOP_HEIGHT));
+	nvgFillColor(VgContext, nvgRGBA(RGBA_ACCESSBAR_TOP));
+	nvgFill(VgContext);
+
+    // Draw from width - bar_width, 0, to width - bar_height, height
+	nvgBeginPath(VgContext);
+	nvgRect(VgContext, (m_Width - ACCESSBAR_SIDE_WIDTH), 0, (m_Width - ACCESSBAR_SIDE_WIDTH), m_Height);
+	nvgFillColor(VgContext, nvgRGBA(RGBA_ACCESSBAR_SIDE));
+	nvgFill(VgContext);
+
+    // Draw a quarter circle
+	nvgBeginPath(VgContext);
+    nvgCircle(VgContext, m_Width, m_Height, ACCESSBAR_USER_RADIUS);
 	nvgFillColor(VgContext, nvgRGBA(ACCESSBAR_FILL_COLOR_RGBA));
 	nvgFill(VgContext);
-
-    // Draw the lower divider
-    nvgBeginPath(VgContext);
-    nvgMoveTo(VgContext, 8.0f, 48.0f);
-    nvgLineTo(VgContext, (m_Width - 8), 48.0f);
-    nvgMoveTo(VgContext, (m_Width / 2.0f), 40.0f);
-    nvgLineTo(VgContext, (m_Width / 2.0f), 8.0f);
-    nvgStrokeWidth(VgContext, 1.0f);
-    nvgStrokeColor(VgContext, nvgRGBA(ACCESSBAR_HEADER_RGBA));
-    nvgStroke(VgContext);
-
-    // Draw the upper divider
-    nvgBeginPath(VgContext);
-    nvgMoveTo(VgContext, 8.0f, (m_Height - 160.0f - 8.0f));
-    nvgLineTo(VgContext, (m_Width - 8), (m_Height - 160.0f - 8.0f));
-    nvgStrokeWidth(VgContext, 1.0f);
-    nvgStrokeColor(VgContext, nvgRGBA(ACCESSBAR_HEADER_RGBA));
-    nvgStroke(VgContext);
-
-    // First 16 pixels + (icon_height / 2) are colored with
-    // the same color as the title bar of windows
-    y += (m_Height - (ACCESSBAR_HEADER_HEIGHT + 32));
-	nvgBeginPath(VgContext);
-	nvgRect(VgContext, x, y, m_Width, ACCESSBAR_HEADER_HEIGHT + 32);
-	nvgFillColor(VgContext, nvgRGBA(ACCESSBAR_HEADER_RGBA));
-	nvgFill(VgContext);
-
-    // Drop shadow for the header
-	//ShadowPaint = nvgBoxGradient(VgContext, x, y + 2.0f, m_Width, ACCESSBAR_HEADER_HEIGHT + 32, 0, 10, nvgRGBA(0, 0, 0, 128), nvgRGBA(0, 0, 0, 0));
-	//nvgBeginPath(VgContext);
-	//nvgRect(VgContext, x, y, m_Width, ACCESSBAR_HEADER_HEIGHT + 32);
-	//nvgPathWinding(VgContext, NVG_HOLE);
-	//nvgFillPaint(VgContext, ShadowPaint);
-	//nvgFill(VgContext);
 }

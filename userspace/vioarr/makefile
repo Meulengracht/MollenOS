@@ -10,6 +10,7 @@ SHARED_SOURCES = $(wildcard engine/elements/*.cpp) \
 				 $(wildcard engine/dialogs/*.cpp) \
 				 $(wildcard engine/*.cpp) \
 				 $(wildcard scenes/*.cpp) \
+				 $(wildcard utils/*.cpp) \
 				 $(wildcard *.cpp)
 
 OSMESA_ASM = graphics/opengl/osmesa/display_osmesa_$(VALI_ARCH).s

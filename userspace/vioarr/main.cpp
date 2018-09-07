@@ -23,6 +23,7 @@
 #include <os/service.h>
 #include <os/window.h>
 #include "engine/elements/window.hpp"
+#include "engine/scene.hpp"
 #include "utils/log_manager.hpp"
 #include "vioarr.hpp"
 
@@ -95,9 +96,8 @@ Handle_t HandleCreateWindowRequest(MRemoteCallAddress_t *Process,
     Window->SetStreamingBufferFormat(Format, InternalFormat);
     Window->SetStreamingBufferDimensions(Parameters->Surface.Dimensions.w, Parameters->Surface.Dimensions.h);
     Window->SetStreamingBuffer(Buffer);
-
-    Window->SwapOnNextUpdate(true);
     Window->SetStreaming(true);
+    Window->Update();
 
     // Add the window and redraw
     sEngine.GetActiveScene()->Add(Window);
@@ -136,7 +136,8 @@ void MessageHandler()
             if (Message.Function == __WINDOWMANAGER_SWAPBUFFER) {
                 Handle_t Pointer = (Handle_t)Message.Arguments[0].Data.Value;
                 if (sEngine.IsWindowHandleValid(Pointer)) {
-                    ((CWindow*)Pointer)->SwapOnNextUpdate(true);
+                    auto Window = static_cast<CWindow*>(Pointer);
+                    Window->Update();
                     sVioarr.UpdateNotify();
                 }
             }
@@ -149,8 +150,8 @@ void MessageHandler()
 
 // Spawn the message handler for compositor
 void VioarrCompositor::SpawnInputHandlers() {
-    _MessageThread  = new std::thread(MessageHandler);
-    _InputThread    = new std::thread(InputHandler);
+    _MessageThread      = new std::thread(MessageHandler);
+    _InputThread        = new std::thread(InputHandler);
 }
 
 int main(int argc, char **argv) {

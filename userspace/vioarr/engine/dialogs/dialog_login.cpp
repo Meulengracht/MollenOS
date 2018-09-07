@@ -55,20 +55,6 @@ CDialogLogin::CDialogLogin(NVGcontext* VgContext)
 
 CDialogLogin::~CDialogLogin() { }
 
-void CDialogLogin::HandleKeyEvent(SystemKey_t* Key)
-{
-    if (Key->KeyCode == VK_BACK) {
-        m_SuggestionBox->Remove();
-    }
-    else {
-        // Translate the system key
-        if (TranslateSystemKey(Key) != OsSuccess) {
-            return;
-        }
-        m_SuggestionBox->Add((char)(Key->KeyAscii & 0xFF));
-    }
-}
-
 void CDialogLogin::Update(size_t MilliSeconds)
 {
 
