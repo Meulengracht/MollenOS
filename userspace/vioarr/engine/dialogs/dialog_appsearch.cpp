@@ -66,11 +66,6 @@ void CDialogApplicationSearch::HandleKeyEvent(SystemKey_t* Key)
     Invalidate();
 }
 
-void CDialogApplicationSearch::Update(size_t MilliSeconds)
-{
-
-}
-
 void CDialogApplicationSearch::Draw(NVGcontext* VgContext)
 {
 	NVGpaint ShadowPaint;

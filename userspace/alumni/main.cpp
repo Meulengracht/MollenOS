@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2016, Philip Meulengracht
+* Copyright 2018, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -17,35 +17,25 @@
 *
 *
 * MollenOS Terminal Implementation
-* - Project Alumnious (First C++ Project)
+* - Project Alumnious
 */
 
-/* Alumnious Includes */
-#include "Terminal/Terminal.h"
+#include <os/ui.h>
+#include <chrono>
+#include <thread>
+#include "surfaces/surface_vali.hpp"
+#include "terminal.hpp"
 
-/* Entry Point */
-int main(int argc, char* argv[])
-{
-	/* Start out by initializing console-env */
-	Terminal *Term = new Terminal();
+int main(int argc, char **argv) {
+    CSurfaceRect TerminalArea(450, 300);
+    Terminal Term(new CValiSurface(TerminalArea));
 
-	/* Setup console stuff */
-	Term->SetSize(80, 25);
-	Term->SetFont("$sys/Fonts/DejaVuSansMono.ttf", 12);
-	Term->SetTextColor(255, 255, 255, 255);
-	Term->SetBackgroundColor(0, 0, 0, 255);
+	Term.SetFont("$sys/Fonts/DejaVuSansMono.ttf", 12);
+	Term.SetTextColor(255, 255, 255, 255);
+	Term.SetBackgroundColor(0, 0, 0, 255);
 
-	/* Print header? maybe? */
-	Term->PrintLine("MollenOS System Terminal %s\n", "V0.01-dev");
-
-	/* Enter while loop */
-	while (Term->IsAlive()) {
-		Term->NewCommand();
+	Term.PrintLine("MollenOS System Terminal %s\n", "V0.01-dev");
+	while (Term.IsAlive()) {
+		Term.NewCommand();
 	}
-
-	/* Ok, exit time, cleanup */
-	delete Term;
-
-	/* Exit normally */
-	return 0;
 }

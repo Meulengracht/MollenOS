@@ -55,11 +55,6 @@ CDialogLogin::CDialogLogin(NVGcontext* VgContext)
 
 CDialogLogin::~CDialogLogin() { }
 
-void CDialogLogin::Update(size_t MilliSeconds)
-{
-
-}
-
 void CDialogLogin::Draw(NVGcontext* VgContext)
 {
 	NVGpaint ShadowPaint;

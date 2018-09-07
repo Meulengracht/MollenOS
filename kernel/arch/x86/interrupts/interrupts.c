@@ -547,6 +547,9 @@ ExceptionEntry(
 
         // Was it a page-fault?
         if (Address != __MASK) {
+            // Bit 1 - present status 
+            // Bit 2 - write access
+            // Bit 4 - user/kernel
             WRITELINE("page-fault address: 0x%x, error-code 0x%x", Address, Registers->ErrorCode);
             WRITELINE("existing mapping for address: 0x%x", GetSystemMemoryMapping(GetCurrentSystemMemorySpace(), Address));
         }

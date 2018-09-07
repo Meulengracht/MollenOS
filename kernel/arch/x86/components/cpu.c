@@ -282,7 +282,7 @@ CpuStall(
 	uint64_t Counter = 0;
 
 	if (!(GetMachine()->Processor.Data[CPU_DATA_FEATURES_EDX] & CPUID_FEAT_EDX_TSC)) {
-		FATAL(FATAL_SCOPE_KERNEL, "TIMR", "DelayMs() was called, but no TSC support in CPU.");
+		FATAL(FATAL_SCOPE_KERNEL, "DelayMs() was called, but no TSC support in CPU.");
 		CpuIdle();
 	}
 

@@ -554,8 +554,18 @@ ThreadingSwitch(
     // Sanitize current thread
     assert(Current != NULL);
 
-    Core                    = GetCurrentProcessorCore();
-    Current->ContextActive  = *Context;
+    Core                            = GetCurrentProcessorCore();
+    Current->ContextActive          = *Context;
+
+    // Perform thread stuck detection
+    if (PreEmptive && Current->ContextActive != NULL && !(Current->Flags & THREADING_IDLE)) {
+        if (Current->LastInstructionPointer == CONTEXT_IP(Current->ContextActive)) {
+            FATAL(FATAL_SCOPE_KERNEL, " > detected thread %s stuck at instruction 0x%x\n", 
+                Current->Name, CONTEXT_IP(Current->ContextActive));
+        }
+        Current->LastInstructionPointer = CONTEXT_IP(Current->ContextActive);
+    }
+
 GetNextThread:
     if (Current->Flags & (THREADING_FINISHED | THREADING_IDLE)) {
         // If the thread is finished then add it to garbagecollector

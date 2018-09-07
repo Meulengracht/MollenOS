@@ -17,32 +17,21 @@
 *
 *
 * MollenOS Terminal Implementation
-* - Project Alumnious (First C++ Project)
+* - Project Alumnious
 */
+#pragma once
 
-#ifndef _ALUMNIOUS_TERMINAL_H_
-#define _ALUMNIOUS_TERMINAL_H_
-
-/* Includes */
 #include <cstddef>
 #include <cstdlib>
 #include <cstdio>
-
-/* System Includes */
-#ifdef MOLLENOS
-#include "MollenOS/Surface.h"
-#endif
-
-/* LibFreeType
-* We use that for font-rendering */
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_OUTLINE_H
 #include FT_STROKER_H
 #include FT_GLYPH_H
 #include FT_TRUETYPE_IDS_H
+#include "surfaces/surface.hpp"
 
-/* Cached glyph information */
 typedef struct FontGlyph 
 {
 	int Stored;
@@ -59,8 +48,6 @@ typedef struct FontGlyph
 
 } FontGlyph_t;
 
-/* The structure used to hold internal 
- * font information */
 struct TerminalFont 
 {
 	/* Freetype2 maintains all sorts of useful info itself */
@@ -103,32 +90,21 @@ struct TerminalFont
 	int Hinting;
 };
 
-/* Class */
 class Terminal
 {
 public:
-	Terminal();
+	Terminal(CSurface* Surface);
 	~Terminal();
 
-	/* New Command - Prints the command
-	 * character and preps for new input */
 	void NewCommand();
-
-	/* Print raw messages to the terminal,
-	 * this could be a header or a warning message */
 	void PrintLine(const char *Message, ...);
 
-	/* Terminal Customization functions 
-	 * Use this for setting font, colors
-	 * size etc */
 	bool SetSize(int Columns, int Rows);
 	bool SetHistorySize(int NumLines);
 	bool SetFont(const char *FontPath, int SizePt);
 	bool SetTextColor(uint8_t r, uint8_t b, uint8_t g, uint8_t a);
 	bool SetBackgroundColor(uint8_t r, uint8_t b, uint8_t g, uint8_t a);
 
-	/* Get whether or not the terminal has been...
-	 * - TERMINATED! */
 	bool IsAlive() { return m_bIsAlive; }
 
 private:
@@ -223,6 +199,3 @@ private:
 	uint8_t m_cBgR, m_cBgG, m_cBgB, m_cBgA;
 	uint8_t m_cFgR, m_cFgG, m_cFgB, m_cFgA;
 };
-
-
-#endif //!_ALUMNIOUS_TERMINAL_H_

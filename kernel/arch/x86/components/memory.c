@@ -553,17 +553,20 @@ SetDirectIoAccess(
     _In_ uint16_t                   Port,
     _In_ int                        Enable)
 {
-    // Cast the io-map to an uint8_t
     uint8_t *IoMap = (uint8_t*)MemorySpace->Data[MEMORY_SPACE_IOMAP];
 
     // Update thread's io-map and the active access
     if (Enable) {
         IoMap[Port / 8] &= ~(1 << (Port % 8));
-        TssEnableIo(CoreId, Port);
+        if (CoreId == CpuGetCurrentId()) {
+            TssEnableIo(CoreId, Port);
+        }
     }
     else {
         IoMap[Port / 8] |= (1 << (Port % 8));
-        TssDisableIo(CoreId, Port);
+        if (CoreId == CpuGetCurrentId()) {
+            TssDisableIo(CoreId, Port);
+        }
     }
     return OsSuccess;
 }

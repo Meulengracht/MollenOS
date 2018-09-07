@@ -139,6 +139,7 @@ typedef struct _MCoreThread {
     MCoreThreadPriority_t   Priority;
     size_t                  TimeSlice;
     int                     Queue;
+    uintptr_t               LastInstructionPointer;
     struct {
         uintptr_t*          Handle;
         int                 Timeout;
