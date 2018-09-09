@@ -20,28 +20,24 @@
  * - The terminal emulator implementation for Vali. Built on manual rendering and
  *   using freetype as the font renderer.
  */
-#pragma once
 
-#include <os/ui.h>
-#include "surface.hpp"
+#include "terminal_interpreter.hpp"
 
-class CValiSurface : public CSurface
+CTerminalInterpreter::CTerminalInterpreter(CTerminal& Terminal)
+    : m_Terminal(Terminal)
 {
-public:
-    CValiSurface(CSurfaceRect& Dimensions);
-    ~CValiSurface();
 
-    void        Clear(uint32_t Color, CSurfaceRect& Area) override;
-    void        Resize(int Width, int Height) override;
-    void        Invalidate() override;
-    uint8_t*    GetDataPointer(int OffsetX = 0, int OffsetY = 0) override;
-    
-    // Color helpers
-    uint32_t GetBlendedColor(uint8_t RA, uint8_t GA, uint8_t BA, uint8_t AA,
-        uint8_t RB, uint8_t GB, uint8_t BB, uint8_t AB, uint8_t A) override;
-    uint32_t GetColor(uint8_t R, uint8_t G, uint8_t B, uint8_t A) override;
+}
 
-private:
-    UIWindowParameters_t    m_WindowParameters;
-    DmaBuffer_t*            m_WindowBuffer;
-};
+CTerminalInterpreter::RegisterCommand(const std::string& Command, std::function<bool(const std::vector<std::string>&)> Fn)
+{
+
+}
+
+CTerminalInterpreter::Run()
+{
+    while (true)
+    {
+
+    }
+}

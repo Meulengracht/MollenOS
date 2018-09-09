@@ -20,22 +20,22 @@
 * - Project Alumnious
 */
 
-#include <os/ui.h>
-#include <chrono>
-#include <thread>
 #include "surfaces/surface_vali.hpp"
+#include "terminal_interpreter.hpp"
 #include "terminal.hpp"
 
 int main(int argc, char **argv) {
-    CSurfaceRect TerminalArea(450, 300);
-    Terminal Term(new CValiSurface(TerminalArea));
+    CSurfaceRect            TerminalArea(450, 300);
+    CValiSurface            Surface(TerminalArea);
+    CTerminal               Terminal(Surface);
+    CTerminalInterpreter    Interpreter(Terminal);
 
-	Term.SetFont("$sys/Fonts/DejaVuSansMono.ttf", 12);
-	Term.SetTextColor(255, 255, 255, 255);
-	Term.SetBackgroundColor(0, 0, 0, 255);
+    Interpreter.RegisterCommand("help", [](const std::vector<std::string>&) { return true; });
 
-	Term.PrintLine("MollenOS System Terminal %s\n", "V0.01-dev");
-	while (Term.IsAlive()) {
-		Term.NewCommand();
-	}
+	Terminal.SetFont("$sys/Fonts/DejaVuSansMono.ttf", 12);
+	Terminal.SetTextColor(255, 255, 255, 255);
+	Terminal.SetBackgroundColor(0, 0, 0, 255);
+
+	Terminal.Print("MollenOS System Terminal %s\n", "V0.01-dev");
+	return Interpreter.Run();
 }
