@@ -21,23 +21,91 @@
  *   using freetype as the font renderer.
  */
 
+#include <stringstream>
+#include <os/input.h>
 #include "terminal_interpreter.hpp"
 
 CTerminalInterpreter::CTerminalInterpreter(CTerminal& Terminal)
-    : m_Terminal(Terminal)
+    : m_Terminal(Terminal), m_Alive(true)
 {
-
 }
 
-CTerminalInterpreter::RegisterCommand(const std::string& Command, std::function<bool(const std::vector<std::string>&)> Fn)
+void CTerminalInterpreter::RegisterCommand(const std::string& Command, const std::string& Description, std::function<bool(const std::vector<std::string>&)> Fn)
 {
-
+    m_Commands.push_back(std::make_unique<CTerminalCommand>(Command, Description, Fn));
 }
 
-CTerminalInterpreter::Run()
+bool CTerminalInterpreter::Interpret(const std::string& String, std::string& ClosestMatch)
 {
-    while (true)
-    {
+    std::stringstream                   Stream(String);
+    std::istream_iterator<std::string>  Begin(Stream);
+    std::istream_iterator<std::string>  End;
+    std::vector<std::string>            Tokens(Begin, End);
+    int ShortestDistance = String.size();
 
+    // Get command and remove from array
+    std::string CommandString = Tokens[0];
+    Tokens.erase(Tokens.begin());
+
+    // Clear out any empty arguments
+    Tokens.erase(std::remove_if(Tokens.begin(), Tokens.end(),
+        [](std::string const& Token) { return Token.size() == 0; }), Tokens.end());
+
+    for (auto& Command : m_Commands) {
+        int Distance = Command(CommandString, Tokens);
+        if (Distance == 0) {
+            return true;
+        }
+        else if (Distance < ShortestDistance) {
+            ShortestDistance    = Distance;
+            ClosestMatch        = Command.GetCommandText();
+        }
     }
+    return false;
+}
+
+int CTerminalInterpreter::Run()
+{
+    char* CurrentPath = (char*)std::malloc(_MAXPATH);
+    std::string ClosestString = "";
+    SystemKey_t Key;
+
+    std::memset(CurrentPath, 0, _MAXPATH);
+    GetWorkingDirectory(CurrentPath, _MAXPATH);
+
+    while (m_Alive) {
+        m_Terminal.Print("[%s | %s | 09/12/2018 - 13:00]\n", CurrentPath, "Philip");
+        m_Terminal.Print("$ ");
+
+        while (true) {
+            if (ReadSystemKey(&Key) == OsSuccess) {
+                if (Key.KeyCode == VK_BACK) {
+                    m_Terminal.RemoveLastInput();
+                }
+                else if (Key.KeyCode == VK_ENTER) {
+                    m_Terminal.NewLine();
+                    if (!Interpret(m_Terminal.ClearInput(), ClosestString)) {
+                        m_Terminal.Print("Command did not exist, did you mean %s?\n", ClosestString.c_str());
+                    }
+                    break;
+                }
+                else if (Key.KeyCode == VK_UP) {
+
+                }
+                else if (Key.KeyCode == VK_DOWN) {
+                    
+                }
+                else if (Key.KeyCode == VK_LEFT) {
+                    
+                }
+                else if (Key.KeyCode == VK_RIGHT) {
+                    
+                }
+                else if (TranslateSystemKey(&Key) == OsSuccess) {
+                    m_Terminal.AddInput(Key.KeyAscii & 0xFF);
+                }
+            }
+        }
+    }
+    return 0;
 }

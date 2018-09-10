@@ -77,25 +77,16 @@ namespace {
         }
         return false;
     }
-
-    unsigned int AlphaBlend(unsigned int ColorA, unsigned int ColorB, unsigned int Alpha)
-    {
-        unsigned int Rb1 = ((0x100 - Alpha) * (ColorA & 0xFF00FF)) >> 8;
-        unsigned int Rb2 = (Alpha * (ColorB & 0xFF00FF)) >> 8;
-        unsigned int G1  = ((0x100 - Alpha) * (ColorA & 0x00FF00)) >> 8;
-        unsigned int G2  = (Alpha * (ColorB & 0x00FF00)) >> 8;
-        return ((Rb1 | Rb2) & 0xFF00FF) + ((G1 | G2) & 0x00FF00);
-    }
 }
 
-CTerminalFont::CTerminalFont(FT_Library FTLibrary, const std::string& FontPath, std::size_t InitialPixelSize)
-    : m_FreeType(FTLibrary)
+CTerminalFont::CTerminalFont(CTerminalFreeType& FreeType, CTerminalRenderer& Renderer, const std::string& FontPath, std::size_t InitialPixelSize)
+    : m_FreeType(FreeType), m_Renderer(Renderer)
 {
     FT_CharMap CmFound  = 0;
     bool Status         = LoadFile(FontPath, &m_Source, &m_SourceLength);
     assert(Status);
 
-    Status = FT_New_Memory_Face(m_FreeType, (FT_Byte*)DataBuffer, m_SourceLength, 0, &m_Face) == 0;
+    Status = FT_New_Memory_Face(m_FreeType.GetLibrary(), (FT_Byte*)DataBuffer, m_SourceLength, 0, &m_Face) == 0;
     assert(Status);
 
     // Build the character map
@@ -114,8 +105,7 @@ CTerminalFont::CTerminalFont(FT_Library FTLibrary, const std::string& FontPath, 
     if (CmFound) {
         FT_Set_Charmap(m_Face, CmFound);
     }
-
-    SetColors(0xFFFFFFFF, 0xFF000000); // Default is white on black
+    
     Status = SetSize(InitialPixelSize);
     assert(Status);
 }
@@ -126,10 +116,9 @@ CTerminalFont::~CTerminalFont()
     free(m_Source);
 }
 
-void CTerminalFont::SetColors(uint32_t TextColor, uint32_t BackgroundColor)
+void CTerminalFont::SetColor(uint8_t R, uint8_t G, uint8_t B, uint8_t A)
 {
-    m_FgColor = TextColor;
-    m_BgColor = BackgroundColor;
+    m_BgR = R; m_BgG = G; m_BgB = B; m_BgA = A;
 }
 
 bool CTerminalFont::SetSize(std::size_t PixelSize)
@@ -145,7 +134,7 @@ bool CTerminalFont::SetSize(std::size_t PixelSize)
         FT_Fixed Scale      = m_Face->size->metrics.y_scale;
         m_Ascent            = FT_CEIL(FT_MulFix(m_Face->ascender, Scale));
         m_Descent           = FT_CEIL(FT_MulFix(m_Face->descender, Scale));
-        m_Height            = Ascent - Descent + /* baseline */ 1;
+        m_Height            = m_Ascent - m_Descent + /* baseline */ 1;
         m_LineSkip          = FT_CEIL(FT_MulFix(m_Face->height, Scale));
         m_UnderlineOffset   = FT_FLOOR(FT_MulFix(m_Face->underline_position, Scale));
         m_UnderlineHeight   = FT_FLOOR(FT_MulFix(m_Face->underline_thickness, Scale));
@@ -171,7 +160,7 @@ bool CTerminalFont::SetSize(std::size_t PixelSize)
         m_Ascent            = m_Face->available_sizes[PixelSize].height;
         m_Descent           = 0;
         m_Height            = m_Face->available_sizes[PixelSize].height;
-        m_LineSkip          = FT_CEIL(Ascent);
+        m_LineSkip          = FT_CEIL(m_Ascent);
         m_UnderlineOffset   = FT_FLOOR(m_Face->underline_position);
         m_UnderlineHeight   = FT_FLOOR(m_Face->underline_thickness);
     }
@@ -202,10 +191,11 @@ bool CTerminalFont::SetSize(std::size_t PixelSize)
     return true;
 }
 
-int CTerminalFont::RenderCharacter(unsigned long Character, uint32_t* AtPointer, std::size_t Stride)
+int CTerminalFont::RenderCharacter(int X, int Y, unsigned long Character)
 {
     FT_Long UseKerning      = FT_HAS_KERNING(m_Face) && m_Kerning;
     FT_Bitmap* Current;
+    FontGlyph_t* Glyph;
     FT_Error Status;
     int IndentX             = 0;
     int Width;
@@ -237,25 +227,8 @@ int CTerminalFont::RenderCharacter(unsigned long Character, uint32_t* AtPointer,
     }
 
     // Render to the pointer
-    uint32_t* Pointer = (AtPointer + IndentX);
-    for (int Row = 0; Row < Current->rows; Row++) {
-        if ((Row + Glyph->yOffset) < 0) { // don't render in negative y
-            continue;
-        }
-
-        uint8_t* Source = Current->buffer + (Row * Current->pitch);
-        for (int Column = 0; Column < Width; --Column) {
-            uint8_t Alpha = *Source++;
-            if (Alpha == 0) {
-                Pointer[Column] = m_BgColor;
-            }
-            else {
-                // Pointer[Column] = m_FgColor; if CACHED_BITMAP
-                Pointer[Column] = AlphaBlend(m_BgColor, m_FgColor, Alpha);
-            }
-        }
-        Pointer = (uint8_t*)Pointer + Stride; 
-    }
+    m_Renderer.SetColor(m_BgR, m_BgG, m_BgB, m_BgA);
+    m_Renderer.RenderBitmap(X + IndentX, Y, Width, Current->rows, Current->buffer, Current->pitch);
 
     // Advance, and handle bold style if neccassary
     IndentX += Glyph->Advance;

@@ -30,16 +30,14 @@
 #define UNICODE_BOM_NATIVE  0xFEFF
 #define UNICODE_BOM_SWAPPED 0xFFFE
 
-CTerminal::CTerminal(CSurface& Surface, , uint8_t BgR, uint8_t BgG, uint8_t m_BgB)
-    : m_Surface(Surface), m_Font(nullptr)
+CTerminal::CTerminal(CTerminalFont& Font, uint8_t BgR, uint8_t BgG, uint8_t m_BgB)
+    : m_Font(Font)
 {
     bool Status;
 
     m_CmdStart[0] = '$';
     m_CmdStart[1] = ' ';
     m_CmdStart[2] = '\0';
-    Status = FT_Init_FreeType(&m_FreeType) == 0;
-    assert(Status);
 
     m_BgR = BgR;
     m_BgG = BgG;
@@ -79,10 +77,6 @@ Terminal::~Terminal()
 
     if (m_Font != nullptr) {
         delete m_Font;
-    }
-
-    if (m_FreeType != NULL) {
-        FT_Done_FreeType(m_FreeType);
     }
 }
 
@@ -275,15 +269,6 @@ void Terminal::HistoryNext()
     m_iCursorPositionX = m_iLineStartX;
     m_iCursorPositionY = m_iLineStartY;
     AddText(m_pCurrentLine);
-}
-
-void Terminal::SetFont(const std::string& FontPath, std::size_t PixelSize)
-{
-    if (m_Font != nullptr) {
-        delete m_Font;
-    }
-    m_Font = new CTerminalFont(m_FreeType, FontPath, PixelSize);
-    m_Font->SetColors(m_Surface.GetColor(255, 255, 255, 255), m_Surface.GetColor(m_BgR, m_BgG, m_BgB, 255));
 }
 
 void Terminal::SetTextColor(uint8_t r, uint8_t b, uint8_t g, uint8_t a)

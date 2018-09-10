@@ -22,20 +22,23 @@
 
 #include "surfaces/surface_vali.hpp"
 #include "terminal_interpreter.hpp"
+#include "terminal_renderer.hpp"
+#include "terminal_font.hpp"
 #include "terminal.hpp"
 
 int main(int argc, char **argv) {
+    CTerminalFreeType       FreeType;
     CSurfaceRect            TerminalArea(450, 300);
     CValiSurface            Surface(TerminalArea);
-    CTerminal               Terminal(Surface);
+    CTerminalRenderer       Renderer(Surface);
+    CTerminalFont           Font(FreeType, Renderer, "$sys/Fonts/DejaVuSansMono.ttf", 12);
+    CTerminal               Terminal(Font);
     CTerminalInterpreter    Interpreter(Terminal);
 
-    Interpreter.RegisterCommand("help", [](const std::vector<std::string>&) { return true; });
-
-	Terminal.SetFont("$sys/Fonts/DejaVuSansMono.ttf", 12);
-	Terminal.SetTextColor(255, 255, 255, 255);
-	Terminal.SetBackgroundColor(0, 0, 0, 255);
+    Interpreter.RegisterCommand("cd", "Change the working directory", [](const std::vector<std::string>&) { return true; });
+    Interpreter.RegisterCommand("ls", "Lists the contents of the current working directory", [](const std::vector<std::string>&) { return true; });
 
 	Terminal.Print("MollenOS System Terminal %s\n", "V0.01-dev");
+    
 	return Interpreter.Run();
 }

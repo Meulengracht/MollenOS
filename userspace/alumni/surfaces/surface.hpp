@@ -53,6 +53,7 @@ public:
     virtual void        Resize(int Width, int Height) = 0;
     virtual void        Invalidate() = 0;
     virtual uint8_t*    GetDataPointer(int OffsetX, int OffsetY);
+    virtual std::size_t GetStride() = 0;
     
     // Color helpers
     virtual uint32_t GetBlendedColor(uint8_t RA, uint8_t GA, uint8_t BA, uint8_t AA,

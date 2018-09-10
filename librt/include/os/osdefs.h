@@ -24,8 +24,6 @@
 #ifndef _OS_DEFITIONS_H_
 #define _OS_DEFITIONS_H_
 
-/* Includes
- * - Library */
 #include <crtdefs.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -51,7 +49,6 @@
 typedef uint32_t                    reg32_t;
 typedef uint64_t                    reg64_t;
 
-/* Variable Width */
 #if defined(i386) || defined(__i386__)
 #define __BITS                      32
 #define __MASK                      0xFFFFFFFF
@@ -152,12 +149,7 @@ static inline int LastSetBit(size_t Value)
     return bIndex;
 }
 
-/* The max-path we support in the OS
- * for file-paths, in MollenOS we support
- * rather long paths */
 #define _MAXPATH            512
-
-/* Utils Definitions */
 #define MIN(a,b)                                (((a)<(b))?(a):(b))
 #define MAX(a,b)                                (((a)>(b))?(a):(b))
 #define ISINRANGE(val, min, max)                (((val) >= (min)) && ((val) <= (max)))

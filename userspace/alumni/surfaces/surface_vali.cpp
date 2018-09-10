@@ -69,6 +69,10 @@ uint8_t* CValiSurface::GetDataPointer(int OffsetX = 0, int OffsetY = 0) {
     return Pointer;
 }
 
+std::size_t CValiSurface::GetStride() {
+    return GetDimensions().Width() * 4;
+}
+
 // Color helpers
 uint32_t GetBlendedColor(uint8_t RA, uint8_t GA, uint8_t BA, uint8_t AA,
     uint8_t RB, uint8_t GB, uint8_t BB, uint8_t AB, uint8_t A)

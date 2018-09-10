@@ -24,41 +24,48 @@
 
 #include <cstddef>
 #include <cstdlib>
-#include "terminal_font.hpp"
 
-class CSurface;
+class CTerminalFont;
 
 class CTerminal
 {
 public:
-    CTerminal(CSurface& Surface, uint8_t BgR, uint8_t BgG, uint8_t BgB);
+    CTerminal(CTerminalFont& Font, uint8_t BgR, uint8_t BgG, uint8_t BgB);
     ~CTerminal();
 
     void Print(const char *Message, ...);
-
     bool SetHistorySize(int NumLines);
-    void SetFont(const std::string& FontPath, std::size_t PixelSize);
-    void SetTextColor(uint8_t r, uint8_t b, uint8_t g, uint8_t a);
+
+    // Input manipulation
+    void NewLine();
+    std::string ClearInput();
+    void RemoveLastInput();
+    void AddInput(int Character);
+    
+    // History manipulation
+    void HistoryPrevious();
+    void HistoryNext();
+
+    // Cursor manipulation
+    void MoveCursorUp();
+    void MoveCursorDown();
+    void MoveCursorLeft();
+    void MoveCursorRight();
+    void HideCursor();
+    void ShowCursor();
 
 private:
     void AddTextBuffer(char *Message, ...); // Add text to buffer
     void AddText(char *Message, ...); // Renders the text
-    void HistoryPrevious();
-    void HistoryNext();
-    void NewLine();
     void InsertChar(char Character);
     int RemoveChar(int Position);
-    void ShowCursor();
-    void HideCursor();
     void RenderText(int AtX, int AtY, const char *Text);
     void ScrollText(int Lines);
     void ClearFrom(int Column, int Row);
     void AddCharacter(char Character);
 
 private:
-    FT_Library      m_FreeType;
-    CSurface&       m_Surface;
-    CTerminalFont*  m_Font;
+    CTerminalFont& m_Font;
 
     char**  m_History;
     int     m_HistorySize;

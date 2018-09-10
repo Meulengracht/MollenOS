@@ -23,12 +23,9 @@
 #pragma once
 
 #include <string>
-#include <ft2build.h>
-#include FT_FREETYPE_H
-#include FT_OUTLINE_H
-#include FT_STROKER_H
-#include FT_GLYPH_H
-#include FT_TRUETYPE_IDS_H
+#include "terminal_freetype.hpp"
+
+class CTerminalRenderer;
 
 typedef struct FontGlyph {
     int             Stored;
@@ -44,15 +41,15 @@ typedef struct FontGlyph {
     unsigned long   Cached;
 } FontGlyph_t;
 
-class CTerminalFont 
+class CTerminalFont
 {
 public:
-    CTerminalFont(FT_Library FTLibrary, const std::string& FontPath, std::size_t InitialPixelSize);
+    CTerminalFont(CTerminalFreeType& FreeType, CTerminalRenderer& Renderer, const std::string& FontPath, std::size_t InitialPixelSize);
     ~CTerminalFont();
 
-    void    SetColors(uint32_t TextColor, uint32_t BackgroundColor);
     bool    SetSize(std::size_t PixelSize);
-    int     RenderCharacter(unsigned long Character, uint32_t* AtPointer, std::size_t Stride);
+    int     RenderCharacter(int X, int Y, unsigned long Character);
+    void    SetColor(uint8_t R, uint8_t G, uint8_t B, uint8_t A);
 
 private:
     FT_Error    LoadGlyph(unsigned long Character, FontGlyph_t* Cached, int Want);
@@ -61,12 +58,11 @@ private:
     void        FlushCache();
 
 private:
-    FT_Library      m_FreeType;
-    FT_Face         m_Face;
-    FontGlyph_t*    m_Current;
-    FontGlyph_t     m_Cache[257]; /* 257 is a prime */
-    uint32_t        m_FgColor;
-    uint32_t        m_BgColor;
+    CTerminalFreeType&  m_FreeType;
+    CTerminalRenderer&  m_Renderer;
+    FT_Face             m_Face;
+    FontGlyph_t*        m_Current;
+    FontGlyph_t         m_Cache[257]; /* 257 is a prime */
 
     int         m_FontHeight;
     int         m_FontWidth;
@@ -75,6 +71,7 @@ private:
     int         m_Descent;
     int         m_LineSkip;
     std::size_t m_FontSizeFamily;
+    uint8_t     m_BgR, m_BgG, m_BgB, m_BgA;
 
     int     m_FaceStyle;
     int     m_Style;

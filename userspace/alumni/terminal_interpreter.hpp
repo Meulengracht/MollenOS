@@ -25,6 +25,7 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include <memory>
 #include <list>
 
 class CTerminal;
@@ -34,6 +35,43 @@ class CTerminalInterpreter {
     public:
         CTerminalCommand(const std::string& Command, const std::string& Description, std::function<bool(const std::vector<std::string>&)> Fn)
             : m_Command(Command), m_Description(Description), m_Function(Fn) { }
+
+        int operator()(const std::string& Command, const std::vector<std::string>& Arguments) {
+            int Result = GetCommandDistance(Command);
+            if (!Result) {
+                Fn(Arguments);
+            }
+            return Result;
+        }
+
+        std::string& GetCommandText() const { return m_Command; }
+
+    private:
+        int GetCommandDistance(const std::string& Command)
+        {
+            std::size_t n = m_Command.size(), m = Command.Count.size();
+            if (n == 0) { return m; }
+            if (m == 0) { return n; }
+
+            std::size_t* d = new std::size_t[n * m];
+            memset(d, 0, sizeof(std::size_t) * n * m);
+
+            for (size_t i = 1, im = 0; i < m; ++i, ++im) {
+                for (size_t j = 1, jn = 0; j < n; ++j, ++jn) {
+                    if (s[jn] == t[im]) {
+                        d[(i * n) + j] = d[((i - 1) * n) + (j - 1)];
+                    }
+                    else {
+                        d[(i * n) + j] = min(d[(i - 1) * n + j] + 1,        /* A deletion. */
+                                         min(d[i * n + (j - 1)] + 1,        /* An insertion. */
+                                         d[(i - 1) * n + (j - 1)] + 1));    /* A substitution. */
+                    }
+                }
+            }
+            int r = (int)(d[n * m - 1]);
+            delete [] d;
+            return r;
+        }
 
     private:
         std::string m_Command;
@@ -52,6 +90,7 @@ private:
     bool Interpret(const std::string& String);
 
 private:
-    CTerminal&                      m_Terminal;
-    std::list<CTerminalCommand*>    m_Commands;
+    CTerminal&                                      m_Terminal;
+    std::list<std::unique_ptr<CTerminalCommand>>    m_Commands;
+    bool                                            m_Alive;
 };
