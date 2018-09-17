@@ -31,11 +31,10 @@ int main(int argc, char **argv) {
     CSurfaceRect            TerminalArea(450, 300);
     CValiSurface            Surface(TerminalArea);
     CTerminalRenderer       Renderer(Surface);
-    CTerminalFont           Font(FreeType, "$sys/Fonts/DejaVuSansMono.ttf", 12);
-#if 0
+    CTerminalFont           Font(FreeType, "$sys/fonts/DejaVuSansMono.ttf", 12);
     CTerminal               Terminal(Renderer, Font, 25, 80);
     CTerminalInterpreter    Interpreter(Terminal);
-
+#if 0
     Interpreter.RegisterCommand("cd", "Change the working directory", [](const std::vector<std::string>&) { return true; });
     Interpreter.RegisterCommand("ls", "Lists the contents of the current working directory", [](const std::vector<std::string>&) { return true; });
 

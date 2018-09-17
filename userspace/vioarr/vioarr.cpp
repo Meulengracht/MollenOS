@@ -41,13 +41,13 @@
 int VioarrCompositor::Run()
 {
     //std::chrono::time_point<std::chrono::steady_clock> LastUpdate;
-    _IsRunning = true;
+    m_IsRunning = true;
 
     // Create the display
     sLog.Info("Creating display");
-    _Display = new DISPLAY_TYPE();
-    if (!_Display->Initialize()) {
-        delete _Display;
+    m_Display = new DISPLAY_TYPE();
+    if (!m_Display->Initialize()) {
+        delete m_Display;
         return -2;
     }
 
@@ -57,24 +57,36 @@ int VioarrCompositor::Run()
 
     // Initialize V8 Engine
     sLog.Info("Initializing V8");
-    sEngine.Initialize(_Display);
+    sEngine.Initialize(m_Display);
     sEngine.AddScene(CreateDesktopScene());
     MollenOSEndBoot();
 
     // Enter event loop
     sEngine.Render();
-    //LastUpdate = std::chrono::steady_clock::now();
-    while (_IsRunning) {
-        _Signal.Wait();
+    while (m_IsRunning) {
+        m_Signal.Wait();
 
-        // auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - LastUpdate); /*  milliseconds.count() */
-        sEngine.Render();
+        GetRenderLock();
         // LastUpdate = std::chrono::steady_clock::now();
+        sEngine.Render();
+        // auto render_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - LastUpdate); /*  milliseconds.count() */
+        // auto fps = 1000.0f / render_time_ms;
+        ReleaseRenderLock();
     }
     return 0;
 }
 
 void VioarrCompositor::UpdateNotify()
 {
-    _Signal.Signal();
+    m_Signal.Signal();
+}
+
+void VioarrCompositor::GetRenderLock()
+{
+    m_RenderLock.lock();
+}
+
+void VioarrCompositor::ReleaseRenderLock()
+{
+    m_RenderLock.unlock();
 }

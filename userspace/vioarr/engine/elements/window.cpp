@@ -106,7 +106,9 @@ void CWindow::HandleKeyEvent(SystemKey_t* Key) {
 
 void CWindow::Update() {
     if (m_Streaming) {
+        sVioarr.GetRenderLock();
         nvgUpdateImage(m_VgContext, m_ResourceId, (const uint8_t*)GetBufferDataPointer(m_StreamBuffer));
+        sVioarr.ReleaseRenderLock();
     }
 }
 

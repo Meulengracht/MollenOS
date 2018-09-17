@@ -119,7 +119,7 @@ void MessageHandler()
             Block = 0;
 
             if (Message.Function == __WINDOWMANAGER_CREATE) {
-                UIWindowParameters_t *Parameters    = nullptr;
+                UIWindowParameters_t* Parameters    = nullptr;
                 Handle_t Result                     = nullptr;
                 UUId_t BufferHandle;
 
@@ -155,8 +155,8 @@ void MessageHandler()
 
 // Spawn the message handler for compositor
 void VioarrCompositor::SpawnInputHandlers() {
-    _MessageThread      = new std::thread(MessageHandler);
-    _InputThread        = new std::thread(InputHandler);
+    m_MessageThread = new std::thread(MessageHandler);
+    m_InputThread   = new std::thread(InputHandler);
 }
 
 int main(int argc, char **argv) {

@@ -44,23 +44,24 @@ public:
 	VioarrCompositor(VioarrCompositor const&) = delete;
 	void operator=(VioarrCompositor const&) = delete;
 
-    int                             Run();
-    void                            UpdateNotify();
+    int     Run();
+    void    UpdateNotify();
+
+    void    GetRenderLock();
+    void    ReleaseRenderLock();
 
 private:
-    // Functions
-    void                            SpawnInputHandlers();
-    CScene*                         CreateLoginScene();
-    CScene*                         CreateDesktopScene();
+    void    SpawnInputHandlers();
+    CScene* CreateLoginScene();
+    CScene* CreateDesktopScene();
 
-    // Resources
-    CDisplay*                       _Display;
-    std::thread*                    _MessageThread;
-    std::thread*                    _InputThread;
-    CSemaphore                      _Signal;
-
-    // State tracking
-    bool                            _IsRunning;
+private:
+    std::mutex      m_RenderLock;
+    CDisplay*       m_Display;
+    std::thread*    m_MessageThread;
+    std::thread*    m_InputThread;
+    CSemaphore      m_Signal;
+    bool            m_IsRunning;
 };
 
 // Shorthand for the vioarr

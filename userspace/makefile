@@ -1,10 +1,10 @@
 # Makefile for building all applications and userspace related
 #
 
-# Setup environment
-LLVM = $(shell pwd)
-INCLUDES = $(LLVM)/include
-LIBRARIES = $(LLVM)/lib
+# Setup environment for the LLVM build
+export LLVM = $(shell pwd)
+export VALI_INCLUDES = $(LLVM)/include
+export VALI_LIBRARIES = $(LLVM)/lib
 
 # Setup userspace environment
 # Always build test applications to make sure env is ok.
@@ -95,8 +95,8 @@ build_mesa:
 .PHONY: build_glm
 build_glm:
 	@printf "%b" "\033[1;35mInstalling GLM\033[m\n"
-	@cp -r glm/glm/. $(INCLUDES)/glm
-	@rm $(INCLUDES)/glm/CMakeLists.txt
+	@cp -r glm/glm/. $(VALI_INCLUDES)/glm
+	@rm $(VALI_INCLUDES)/glm/CMakeLists.txt
 
 .PHONY: build_vioarr_osmesa
 build_vioarr_osmesa:
