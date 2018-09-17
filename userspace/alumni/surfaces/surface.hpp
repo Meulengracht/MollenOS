@@ -23,6 +23,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
 
 class CSurfaceRect {
 public:
@@ -32,6 +33,7 @@ public:
         : CSurfaceRect(0, 0, Width, Height) { }
     CSurfaceRect()
         : CSurfaceRect(0, 0) { }
+    ~CSurfaceRect() = default;
 
     int GetX() const { return m_X; }
     int GetY() const { return m_Y; }
@@ -45,15 +47,15 @@ private:
 class CSurface
 {
 public:
-    CSurface(CSurfaceRect& Dimensions) 
+    CSurface(CSurfaceRect& Dimensions)
         : m_Dimensions(Dimensions) { }
-    ~CSurface() = default;
+    virtual ~CSurface() = default;
 
-    virtual void        Clear(uint32_t Color, CSurfaceRect& Area) = 0;
+    virtual void        Clear(uint32_t Color, const CSurfaceRect& Area) = 0;
     virtual void        Resize(int Width, int Height) = 0;
     virtual void        Invalidate() = 0;
-    virtual uint8_t*    GetDataPointer(int OffsetX, int OffsetY);
-    virtual std::size_t GetStride() = 0;
+    virtual uint8_t*    GetDataPointer(int OffsetX, int OffsetY) = 0;
+    virtual size_t      GetStride() = 0;
     
     // Color helpers
     virtual uint32_t GetBlendedColor(uint8_t RA, uint8_t GA, uint8_t BA, uint8_t AA,

@@ -31,8 +31,9 @@ int main(int argc, char **argv) {
     CSurfaceRect            TerminalArea(450, 300);
     CValiSurface            Surface(TerminalArea);
     CTerminalRenderer       Renderer(Surface);
-    CTerminalFont           Font(FreeType, Renderer, "$sys/Fonts/DejaVuSansMono.ttf", 12);
-    CTerminal               Terminal(Font);
+    CTerminalFont           Font(FreeType, "$sys/Fonts/DejaVuSansMono.ttf", 12);
+#if 0
+    CTerminal               Terminal(Renderer, Font, 25, 80);
     CTerminalInterpreter    Interpreter(Terminal);
 
     Interpreter.RegisterCommand("cd", "Change the working directory", [](const std::vector<std::string>&) { return true; });
@@ -41,4 +42,7 @@ int main(int argc, char **argv) {
 	Terminal.Print("MollenOS System Terminal %s\n", "V0.01-dev");
     
 	return Interpreter.Run();
+#endif
+    while (true) ;
+    return 0;
 }

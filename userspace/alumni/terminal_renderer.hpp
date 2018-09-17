@@ -22,15 +22,28 @@
  */
 #pragma once
 
+#include <string>
+
 class CSurface;
+class CTerminalFont;
 
 class CTerminalRenderer {
 public:
     CTerminalRenderer(CSurface& Surface);
     ~CTerminalRenderer() = default;
 
-    void SetColor(uint8_t R, uint8_t G, uint8_t B, uint8_t A);
-    void RenderBitmap(int X, int Y, int Columns, int Rows, uint8_t* Bitmap, std::size_t Pitch);
+    void RenderClear(int X, int Y, int Width, int Height);
+    int RenderText(int X, int Y, CTerminalFont& Font, const std::string& Text);
+    int RenderCharacter(int X, int Y, CTerminalFont& Font, char Character);
+    void Invalidate();
+
+    void SetForegroundColor(uint8_t R, uint8_t G, uint8_t B, uint8_t A);
+    void SetForegroundColor(uint32_t Color);
+    void SetBackgroundColor(uint8_t R, uint8_t G, uint8_t B, uint8_t A);
+    void SetBackgroundColor(uint32_t Color);
+    
+    uint32_t GetForegroundColor() const { return m_ForegroundColor; }
+    uint32_t GetBackgroundColor() const { return m_BackgroundColor; }
 
 private:
     CSurface&   m_Surface;

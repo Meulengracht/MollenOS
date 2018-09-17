@@ -21,8 +21,9 @@
  *   using freetype as the font renderer.
  */
 
-#include "terminal_renderer.hpp"
 #include "surfaces/surface.hpp"
+#include "terminal_renderer.hpp"
+#include "terminal_font.hpp"
 
 namespace {
     unsigned int AlphaBlend(unsigned int ColorA, unsigned int ColorB, unsigned int Alpha)
@@ -40,29 +41,74 @@ CTerminalRenderer::CTerminalRenderer(CSurface& Surface)
       m_BackgroundColor(Surface.GetColor(0, 0, 0, 255)),
       m_ForegroundColor(Surface.GetColor(255, 255, 255, 255))
 {
+    m_Surface.Clear(m_BackgroundColor, m_Surface.GetDimensions());
 }
 
-void CTerminalRenderer::SetColor(uint8_t R, uint8_t G, uint8_t B, uint8_t A)
+void CTerminalRenderer::RenderClear(int X, int Y, int Width, int Height)
 {
-    m_ForegroundColor = Surface.GetColor(R, G, B, A);
+    CSurfaceRect Area(X, Y, 
+        (Width == -1) ? m_Surface.GetDimensions().GetWidth() : Width, 
+        (Height == -1) ? m_Surface.GetDimensions().GetHeight() : Height);
+    m_Surface.Clear(m_BackgroundColor, Area);
 }
 
-void CTerminalRenderer::RenderBitmap(int X, int Y, int Columns, int Rows, uint8_t* Bitmap, std::size_t Pitch)
+int CTerminalRenderer::RenderText(int X, int Y, CTerminalFont& Font, const std::string& Text)
 {
-    uint32_t* Pointer   = (uint32_t*)m_Surface.GetDataPointer(X, Y);
-    uint8_t* Source     = Bitmap;
-    for (int Row = 0; Row < Rows; Row++) {
-        for (int Column = 0; Column < Columns; Column++) { // @todo might need to be reverse
-            uint8_t Alpha = Source[Column];
-            if (Alpha == 0) {
-                Pointer[Column] = m_BackgroundColor;
-            }
-            else {
-                // Pointer[Column] = m_FgColor; if CACHED_BITMAP
-                Pointer[Column] = AlphaBlend(m_BackgroundColor, m_ForegroundColor, Alpha);
-            }
-        }
-        Pointer = (uint8_t*)Pointer + Surface.GetStride();
-        Source  += Pitch;
+    int Advance = X;
+    for (int i = 0; i < Text.length(); i++) {
+        char Character = Text[i];
+        Advance += RenderCharacter(Advance, Y, Font, Character);
     }
+    return Advance;
+}
+
+int CTerminalRenderer::RenderCharacter(int X, int Y, CTerminalFont& Font, char Character)
+{
+    FontCharacter_t CharInfo;
+
+    if (Font.GetCharacterBitmap(Character, CharInfo)) {
+        uint32_t* Pointer   = (uint32_t*)m_Surface.GetDataPointer(X + CharInfo.Indent, Y);
+        uint8_t* Source     = CharInfo.Bitmap;
+        for (int Row = 0; Row < CharInfo.Height; Row++) {
+            for (int Column = 0; Column < CharInfo.Width; Column++) { // @todo might need to be reverse
+                uint8_t Alpha = Source[Column];
+                if (Alpha == 0) {
+                    Pointer[Column] = m_BackgroundColor;
+                }
+                else {
+                    // Pointer[Column] = m_FgColor; if CACHED_BITMAP
+                    Pointer[Column] = AlphaBlend(m_BackgroundColor, m_ForegroundColor, Alpha);
+                }
+            }
+            Pointer = (uint32_t*)((uint8_t*)Pointer + m_Surface.GetStride());
+            Source  += CharInfo.Pitch;
+        }
+        return CharInfo.Indent + CharInfo.Advance;
+    }
+    return 0;
+}
+
+void CTerminalRenderer::Invalidate()
+{
+    m_Surface.Invalidate();
+}
+
+void CTerminalRenderer::SetForegroundColor(uint8_t R, uint8_t G, uint8_t B, uint8_t A)
+{
+    m_ForegroundColor = m_Surface.GetColor(R, G, B, A);
+}
+
+void CTerminalRenderer::SetForegroundColor(uint32_t Color)
+{
+    m_ForegroundColor = Color;
+}
+
+void CTerminalRenderer::SetBackgroundColor(uint8_t R, uint8_t G, uint8_t B, uint8_t A)
+{
+    m_BackgroundColor = m_Surface.GetColor(R, G, B, A);
+}
+
+void CTerminalRenderer::SetBackgroundColor(uint32_t Color)
+{
+    m_BackgroundColor = Color;
 }

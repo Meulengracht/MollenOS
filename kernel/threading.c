@@ -558,6 +558,7 @@ ThreadingSwitch(
     Current->ContextActive          = *Context;
 
     // Perform thread stuck detection
+#if 0
     if (PreEmptive && Current->ContextActive != NULL && !(Current->Flags & THREADING_IDLE)) {
         if (Current->LastInstructionPointer == CONTEXT_IP(Current->ContextActive)) {
             FATAL(FATAL_SCOPE_KERNEL, " > detected thread %s stuck at instruction 0x%x\n", 
@@ -565,6 +566,7 @@ ThreadingSwitch(
         }
         Current->LastInstructionPointer = CONTEXT_IP(Current->ContextActive);
     }
+#endif
 
 GetNextThread:
     if (Current->Flags & (THREADING_FINISHED | THREADING_IDLE)) {

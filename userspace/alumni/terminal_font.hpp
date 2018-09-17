@@ -41,15 +41,27 @@ typedef struct FontGlyph {
     unsigned long   Cached;
 } FontGlyph_t;
 
+typedef struct FontCharacter {
+    uint8_t*    Bitmap;
+    int         Pitch;
+
+    int         Width;
+    int         Height;
+
+    int         Indent;
+    int         Advance;
+} FontCharacter_t;
+
 class CTerminalFont
 {
 public:
-    CTerminalFont(CTerminalFreeType& FreeType, CTerminalRenderer& Renderer, const std::string& FontPath, std::size_t InitialPixelSize);
+    CTerminalFont(CTerminalFreeType& FreeType, const std::string& FontPath, std::size_t InitialPixelSize);
     ~CTerminalFont();
 
     bool    SetSize(std::size_t PixelSize);
-    int     RenderCharacter(int X, int Y, unsigned long Character);
-    void    SetColor(uint8_t R, uint8_t G, uint8_t B, uint8_t A);
+    int     GetFontHeight() const { return m_Height; }
+    bool    GetCharacterBitmap(unsigned long Character, FontCharacter_t& Information);
+    void    ResetPrevious();
 
 private:
     FT_Error    LoadGlyph(unsigned long Character, FontGlyph_t* Cached, int Want);
@@ -59,19 +71,15 @@ private:
 
 private:
     CTerminalFreeType&  m_FreeType;
-    CTerminalRenderer&  m_Renderer;
     FT_Face             m_Face;
     FontGlyph_t*        m_Current;
     FontGlyph_t         m_Cache[257]; /* 257 is a prime */
 
-    int         m_FontHeight;
-    int         m_FontWidth;
     int         m_Height;
     int         m_Ascent;
     int         m_Descent;
     int         m_LineSkip;
     std::size_t m_FontSizeFamily;
-    uint8_t     m_BgR, m_BgG, m_BgB, m_BgA;
 
     int     m_FaceStyle;
     int     m_Style;

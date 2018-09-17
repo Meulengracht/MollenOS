@@ -20,6 +20,8 @@
  *  - The window compositor system and general window manager for
  *    MollenOS.
  */
+
+#include <os/ipc/ipc.h>
 #include "window.hpp"
 
 CWindow::CWindow(CEntity* Parent, NVGcontext* VgContext, 
@@ -99,7 +101,7 @@ void CWindow::SetStreaming(bool Enable) {
 }
 
 void CWindow::HandleKeyEvent(SystemKey_t* Key) {
-    // Redirect to process
+    SendPipe(m_Owner, PIPE_STDIN, (void*)Key, sizeof(SystemKey_t));
 }
 
 void CWindow::Update() {

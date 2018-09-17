@@ -29,16 +29,8 @@
 
 CScene *VioarrCompositor::CreateDesktopScene()
 {
-    CScene* Scene;
-
-    // Create a new root instance
-    CSprite *Background = new CSprite(sEngine.GetContext(), "$sys/themes/default/logo.png", 512, 128);
+    CAccessBar *AccessBar   = new CAccessBar(sEngine.GetContext(), _Display->GetWidth(), _Display->GetHeight());
+    CSprite *Background     = new CSprite(AccessBar, sEngine.GetContext(), "$sys/themes/default/logo.png", 512, 128);
     Background->Move(sEngine.GetScreenCenterX() - 256.0f, sEngine.GetScreenCenterY() - 64.0f, 0.0f);
-    Scene = new CScene(Background);
-
-    // Create user interface
-    CAccessBar *AccessBar = new CAccessBar(sEngine.GetContext(), _Display->GetWidth(), _Display->GetHeight());
-    Scene->Add(AccessBar);
-    
-    return Scene;
+    return new CScene(AccessBar);
 }

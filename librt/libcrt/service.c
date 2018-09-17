@@ -79,7 +79,7 @@ void __CrtServiceEntry(void)
 
     // Initialize the server event loop
     while (IsRunning) {
-        if (RPCListen(&Message) == OsSuccess) {
+        if (RPCListen(&Message, ArgumentBuffer, 1) == OsSuccess) {
             MRemoteCall_t *RpcCopy = (MRemoteCall_t*)malloc(sizeof(MRemoteCall_t));
             memcpy(RpcCopy, &Message, sizeof(MRemoteCall_t));
             ThreadPoolAddWork(ThreadPool, __CrtHandleEvent, RpcCopy);
@@ -99,7 +99,7 @@ void __CrtServiceEntry(void)
     // Initialize the server event loop
     ArgumentBuffer = (char*)malloc(IPC_MAX_MESSAGELENGTH);
     while (IsRunning) {
-        if (RPCListen(&Message, ArgumentBuffer) == OsSuccess) {
+        if (RPCListen(&Message, ArgumentBuffer, 1) == OsSuccess) {
             OnEvent(&Message);
         }
     }

@@ -13,21 +13,21 @@ $(error CROSS is not set)
 endif
 
 # Setup project tools
-CC = $(CROSS)/bin/clang
-CXX = $(CROSS)/bin/clang++
-LD = $(CROSS)/bin/lld-link
-LIB = $(CROSS)/bin/llvm-lib
-AS = nasm
-ANALYZER = scan-build --use-cc=$(CC) --use-c++=$(CXX)
+CC := $(CROSS)/bin/clang
+CXX := $(CROSS)/bin/clang++
+LD := $(CROSS)/bin/lld-link
+LIB := $(CROSS)/bin/llvm-lib
+AS := nasm
+ANALYZER := scan-build --use-cc=$(CC) --use-c++=$(CXX)
 
 # Setup project paths
-mkfile_path = $(abspath $(lastword $(MAKEFILE_LIST)))
-config_path = $(abspath $(dir $(mkfile_path))/../)
-workspace_path = $(abspath $(config_path)/../)
-arch_path = $(abspath $(workspace_path)/kernel/arch/$(VALI_ARCH))
-userspace_path = $(abspath $(workspace_path)/userspace)
-include_path = $(userspace_path)/include
-lib_path = $(userspace_path)/lib
+mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
+config_path := $(abspath $(dir $(mkfile_path)))
+workspace_path := $(abspath $(config_path)/../)
+arch_path := $(abspath $(workspace_path)/kernel/arch/$(VALI_ARCH))
+userspace_path := $(abspath $(workspace_path)/userspace)
+include_path := $(userspace_path)/include
+lib_path := $(userspace_path)/lib
 
 # MollenOS Configuration, comment in or out for specific features
 config_flags = 

@@ -31,6 +31,7 @@
 #include FT_TRUETYPE_IDS_H
 
 class CTerminalFreeType {
+public:
     CTerminalFreeType() {
         bool Status = FT_Init_FreeType(&m_FreeType) == 0;
         assert(Status);

@@ -58,7 +58,7 @@
 namespace {
     static bool LoadFile(const std::string& Path, void** Buffer, std::size_t* Length)
     {
-        FILE *file = fopen(FontPath.c_str(), "rab");
+        FILE *file = fopen(Path.c_str(), "rab");
         if (file != nullptr) {
             *Length = ftell(file);
             if (*Length != 0) {
@@ -79,14 +79,14 @@ namespace {
     }
 }
 
-CTerminalFont::CTerminalFont(CTerminalFreeType& FreeType, CTerminalRenderer& Renderer, const std::string& FontPath, std::size_t InitialPixelSize)
-    : m_FreeType(FreeType), m_Renderer(Renderer)
+CTerminalFont::CTerminalFont(CTerminalFreeType& FreeType, const std::string& FontPath, std::size_t InitialPixelSize)
+    : m_FreeType(FreeType)
 {
     FT_CharMap CmFound  = 0;
     bool Status         = LoadFile(FontPath, &m_Source, &m_SourceLength);
     assert(Status);
 
-    Status = FT_New_Memory_Face(m_FreeType.GetLibrary(), (FT_Byte*)DataBuffer, m_SourceLength, 0, &m_Face) == 0;
+    Status = FT_New_Memory_Face(m_FreeType.GetLibrary(), (FT_Byte*)m_Source, m_SourceLength, 0, &m_Face) == 0;
     assert(Status);
 
     // Build the character map
@@ -114,11 +114,6 @@ CTerminalFont::~CTerminalFont()
 {
     FlushCache();
     free(m_Source);
-}
-
-void CTerminalFont::SetColor(uint8_t R, uint8_t G, uint8_t B, uint8_t A)
-{
-    m_BgR = R; m_BgG = G; m_BgB = B; m_BgA = A;
 }
 
 bool CTerminalFont::SetSize(std::size_t PixelSize)
@@ -165,21 +160,21 @@ bool CTerminalFont::SetSize(std::size_t PixelSize)
         m_UnderlineHeight   = FT_FLOOR(m_Face->underline_thickness);
     }
 
-    if (UnderlineHeight < 1) {
-        UnderlineHeight = 1;
+    if (m_UnderlineHeight < 1) {
+        m_UnderlineHeight = 1;
     }
 
     // Initialize the font face style
-    FaceStyle = TTF_STYLE_NORMAL;
+    m_FaceStyle = TTF_STYLE_NORMAL;
     if (m_Face->style_flags & FT_STYLE_FLAG_BOLD) {
-        FaceStyle |= TTF_STYLE_BOLD;
+        m_FaceStyle |= TTF_STYLE_BOLD;
     }
     if (m_Face->style_flags & FT_STYLE_FLAG_ITALIC) {
-        FaceStyle |= TTF_STYLE_ITALIC;
+        m_FaceStyle |= TTF_STYLE_ITALIC;
     }
 
     // Update stored settings
-    m_Style         = FaceStyle;
+    m_Style         = m_FaceStyle;
     m_Outline       = 0;
     m_Kerning       = 1;
     m_GlyphOverhang = m_Face->size->metrics.y_ppem / 10;
@@ -187,11 +182,10 @@ bool CTerminalFont::SetSize(std::size_t PixelSize)
     // x offset = cos(((90.0-12)/360)*2*M_PI), or 12 degree angle
     m_GlyphItalics  = 0.207f;
     m_GlyphItalics  *= m_Face->height;
-    m_FontHeight    = Height;
     return true;
 }
 
-int CTerminalFont::RenderCharacter(int X, int Y, unsigned long Character)
+bool CTerminalFont::GetCharacterBitmap(unsigned long Character, FontCharacter_t& Information)
 {
     FT_Long UseKerning      = FT_HAS_KERNING(m_Face) && m_Kerning;
     FT_Bitmap* Current;
@@ -202,7 +196,7 @@ int CTerminalFont::RenderCharacter(int X, int Y, unsigned long Character)
 
     Status = FindGlyph(Character, CACHED_METRICS | CACHED_PIXMAP);
     if (Status) {
-        return 0;
+        return false;
     }
     Glyph   = m_Current;
     Current = &Glyph->Pixmap; // Use Bitmap if CACHED_BITMAP is set
@@ -220,35 +214,37 @@ int CTerminalFont::RenderCharacter(int X, int Y, unsigned long Character)
         FT_Get_Kerning(m_Face, m_PreviousIndex, Glyph->Index, FT_KERNING_DEFAULT, &Delta);
         IndentX += Delta.x >> 6;
     }
+    IndentX += Glyph->MinX;
 
-    // Compensate for wrap around bug with negative minx's
-    if (Glyph->MinX < 0) {
-        IndentX -= Glyph->MinX;
-    }
-
-    // Render to the pointer
-    m_Renderer.SetColor(m_BgR, m_BgG, m_BgB, m_BgA);
-    m_Renderer.RenderBitmap(X + IndentX, Y, Width, Current->rows, Current->buffer, Current->pitch);
-
-    // Advance, and handle bold style if neccassary
-    IndentX += Glyph->Advance;
+    // Update the members
+    Information.Bitmap  = Current->buffer;
+    Information.Pitch   = Current->pitch;
+    Information.Width   = Width;
+    Information.Height  = Current->rows;
+    Information.Indent  = IndentX;
+    Information.Advance = Glyph->Advance;
     if (TTF_HANDLE_STYLE_BOLD(this)) {
-        IndentX += m_GlyphOverhang;
+        Information.Advance += m_GlyphOverhang;
     }
     m_PreviousIndex = Glyph->Index;
-    return IndentX;
+    return true;
 
     /* Handle the underline style 
-    if (TTF_HANDLE_STYLE_UNDERLINE(font)) {
+    if (TTF_HANDLE_STYLE_UNDERLINE(this)) {
         row = TTF_underline_top_row(font);
         TTF_drawLine_Solid(font, textbuf, row);
     } */
 
     /* Handle the strikethrough style
-    if (TTF_HANDLE_STYLE_STRIKETHROUGH(font)) {
+    if (TTF_HANDLE_STYLE_STRIKETHROUGH(this)) {
         row = TTF_strikethrough_top_row(font);
         TTF_drawLine_Solid(font, textbuf, row);
     }  */
+}
+
+void CTerminalFont::ResetPrevious()
+{
+    m_PreviousIndex = 0;
 }
 
 void CTerminalFont::FlushGlyph(FontGlyph_t* Glyph)
@@ -290,10 +286,10 @@ FT_Error CTerminalFont::LoadGlyph(unsigned long Character, FontGlyph_t* Cached, 
 
     // Look up the character index, we will need it later
     if (!Cached->Index) {
-        Cached->Index = FT_Get_Char_Index(Face, Character);
+        Cached->Index = FT_Get_Char_Index(m_Face, Character);
     }
 
-    Status = FT_Load_Glyph(Face, Cached->Index, FT_LOAD_DEFAULT | Hinting);
+    Status = FT_Load_Glyph(m_Face, Cached->Index, FT_LOAD_DEFAULT | m_Hinting);
     if (Status) {
         return Status;
     }
@@ -310,7 +306,7 @@ FT_Error CTerminalFont::LoadGlyph(unsigned long Character, FontGlyph_t* Cached, 
             Cached->MaxX    = FT_CEIL(Metrics->horiBearingX + Metrics->width);
             Cached->MaxY    = FT_FLOOR(Metrics->horiBearingY);
             Cached->MinY    = Cached->MaxY - FT_CEIL(Metrics->height);
-            Cached->yOffset = Ascent - Cached->MaxY;
+            Cached->yOffset = m_Ascent - Cached->MaxY;
             Cached->Advance = FT_CEIL(Metrics->horiAdvance);
         }
         else {
@@ -322,17 +318,17 @@ FT_Error CTerminalFont::LoadGlyph(unsigned long Character, FontGlyph_t* Cached, 
             Cached->MinX    = FT_FLOOR(Metrics->horiBearingX);
             Cached->MaxX    = FT_CEIL(Metrics->horiBearingX + Metrics->width);
             Cached->MaxY    = FT_FLOOR(Metrics->horiBearingY);
-            Cached->MinY    = Cached->MaxY - FT_CEIL(m_Face->available_sizes[FontSizeFamily].height);
+            Cached->MinY    = Cached->MaxY - FT_CEIL(m_Face->available_sizes[m_FontSizeFamily].height);
             Cached->yOffset = 0;
             Cached->Advance = FT_CEIL(Metrics->horiAdvance);
         }
 
         // Adjust for bold and italic text
-        if (TTF_HANDLE_STYLE_BOLD(Font)) {
-            Cached->MaxX += GlyphOverhang;
+        if (TTF_HANDLE_STYLE_BOLD(this)) {
+            Cached->MaxX += m_GlyphOverhang;
         }
-        if (TTF_HANDLE_STYLE_ITALIC(Font)) {
-            Cached->MaxX += (int)ceilf(GlyphItalics);
+        if (TTF_HANDLE_STYLE_ITALIC(this)) {
+            Cached->MaxX += (int)ceilf(m_GlyphItalics);
         }
         Cached->Stored |= CACHED_METRICS;
     }
@@ -347,28 +343,28 @@ FT_Error CTerminalFont::LoadGlyph(unsigned long Character, FontGlyph_t* Cached, 
         FT_Bitmap *Destination;
 
         // Handle the italic style
-        if (TTF_HANDLE_STYLE_ITALIC(Font))  {
+        if (TTF_HANDLE_STYLE_ITALIC(this))  {
             FT_Matrix Shear;
 
             // Initialize shearing for glyph
             Shear.xx = 1 << 16;
-            Shear.xy = (int)(GlyphItalics * (1 << 16)) / Height;
+            Shear.xy = (int)(m_GlyphItalics * (1 << 16)) / m_Height;
             Shear.yx = 0;
             Shear.yy = 1 << 16;
             FT_Outline_Transform(Outline, &Shear);
         }
 
         // Handle outline rendering
-        if ((Outline > 0) && Glyph->format != FT_GLYPH_FORMAT_BITMAP) {
+        if ((m_Outline > 0) && Glyph->format != FT_GLYPH_FORMAT_BITMAP) {
             FT_Stroker Stroker;
             FT_Get_Glyph(Glyph, &BitmapGlyph);
-            Status = FT_Stroker_New(m_pFreeType, &Stroker);
+            Status = FT_Stroker_New(m_FreeType.GetLibrary(), &Stroker);
             if (Status) {
                 return Status;
             }
 
             // Stroke the glyph, and clenaup the stroker
-            FT_Stroker_Set(Stroker, Outline * 64, FT_STROKER_LINECAP_ROUND, FT_STROKER_LINEJOIN_ROUND, 0);
+            FT_Stroker_Set(Stroker, m_Outline * 64, FT_STROKER_LINECAP_ROUND, FT_STROKER_LINEJOIN_ROUND, 0);
             FT_Glyph_Stroke(&BitmapGlyph, Stroker, 1 /* delete the original glyph */);
             FT_Stroker_Done(Stroker);
             
@@ -419,14 +415,14 @@ FT_Error CTerminalFont::LoadGlyph(unsigned long Character, FontGlyph_t* Cached, 
 
         // Adjust for bold and italic text
         int Bump = 0;
-        if (TTF_HANDLE_STYLE_BOLD(Font)) {
-            Bump += GlyphOverhang;
+        if (TTF_HANDLE_STYLE_BOLD(this)) {
+            Bump += m_GlyphOverhang;
         }
-        if (TTF_HANDLE_STYLE_ITALIC(Font)) {
-            Bump += (int)ceilf(GlyphItalics);
+        if (TTF_HANDLE_STYLE_ITALIC(this)) {
+            Bump += (int)ceilf(m_GlyphItalics);
         }
-        Destination->pitch += bump;
-        Destination->width += bump;
+        Destination->pitch += Bump;
+        Destination->width += Bump;
 
         if (Destination->rows != 0) {
             Destination->buffer = (unsigned char*)malloc(Destination->pitch * Destination->rows);
@@ -554,7 +550,7 @@ FT_Error CTerminalFont::LoadGlyph(unsigned long Character, FontGlyph_t* Cached, 
         }
 
         // Handle the bold style
-        if (TTF_HANDLE_STYLE_BOLD(Font))  {
+        if (TTF_HANDLE_STYLE_BOLD(this))  {
             uint8_t* Pixmap;
             int Row;
             int Col;
@@ -564,7 +560,7 @@ FT_Error CTerminalFont::LoadGlyph(unsigned long Character, FontGlyph_t* Cached, 
             // The pixmap is a little hard, we have to add and clamp
             for (Row = Destination->rows - 1; Row >= 0; --Row) {
                 Pixmap = (uint8_t*)Destination->buffer + Row * Destination->pitch;
-                for (Offset = 1; Offset <= GlyphOverhang; ++Offset) {
+                for (Offset = 1; Offset <= m_GlyphOverhang; ++Offset) {
                     for (Col = Destination->width - 1; Col > 0; --Col) {
                         if (Mono) {
                             Pixmap[Col] |= Pixmap[Col - 1];

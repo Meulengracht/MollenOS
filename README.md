@@ -86,7 +86,9 @@ Showcase of MollenOS to get an idea of how the userspace will be once it's finis
 
 ### Usage
 
-![The mesa/llvmpipe/gallium port for the OS running](docs/images/opengl.png)
+![The mesa/llvmpipe/gallium port for the OS running](docs/images/gfx1.png)
+![The mesa/llvmpipe/gallium port for the OS running](docs/images/gfx2.png)
+![The mesa/llvmpipe/gallium port for the OS running](docs/images/gfx4.png)
 
 ## Implementations & Essential Software
 

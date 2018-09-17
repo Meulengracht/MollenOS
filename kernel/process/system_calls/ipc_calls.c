@@ -276,7 +276,8 @@ OsStatus_t
 ScRpcListen(
     _In_ int            Port,
     _In_ MRemoteCall_t* RemoteCall,
-    _In_ uint8_t*       ArgumentBuffer)
+    _In_ uint8_t*       ArgumentBuffer,
+    _In_ int            Block)
 {
     // Variables
     SystemPipeUserState_t State;
@@ -294,8 +295,11 @@ ScRpcListen(
     Ash     = PhoenixGetCurrentAsh();
     Pipe    = PhoenixGetAshPipe(Ash, Port);
 
-    // Start consuming
-    AcquireSystemPipeConsumption(Pipe, &Length, &State);
+    // Start consuming, if block is not set check for any messages first
+    if (AcquireSystemPipeConsumption(Pipe, Block, &Length, &State) != OsSuccess) {
+        return OsError;
+    }
+    
     ReadSystemPipeConsumption(&State, (uint8_t*)RemoteCall, sizeof(MRemoteCall_t));
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
         if (RemoteCall->Arguments[i].Type == ARGUMENT_BUFFER) {

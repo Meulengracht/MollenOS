@@ -31,15 +31,16 @@
 class CEntity {
 protected:
     CEntity(CEntity *Parent, NVGcontext* VgContext, const glm::vec3 &Position) {
-        m_Parent        = Parent;
+        m_Parent = Parent;
         if (m_Parent != nullptr) {
             m_Parent->AddEntity(this);
         }
 
-        m_VgContext             = VgContext;
-        m_vPosition             = Position;
-        m_Owner                 = UUID_INVALID;
-        m_Active                = false;
+        m_VgContext = VgContext;
+        m_vPosition = Position;
+        m_Owner     = UUID_INVALID;
+        m_Active    = false;
+        m_Visible   = true;
     }
     CEntity(CEntity *Parent, NVGcontext* VgContext)
         : CEntity(Parent, VgContext, glm::vec3(0.0f, 0.0f, 0.0f)) { }
@@ -65,6 +66,10 @@ public:
         }
     }
     void                Render(NVGcontext* VgContext) {
+        if (!m_Visible) {
+            return;
+        }
+
         nvgSave(VgContext);
         nvgTranslate(VgContext, m_vPosition.x, m_vPosition.y);
         Draw(VgContext);
@@ -112,6 +117,7 @@ public:
     void                SetY(float Y)           { m_vPosition.y = Y; }
     void                SetZ(float Z)           { m_vPosition.y = Z; }
     void                SetOwner(UUId_t Owner)  { m_Owner = Owner; }
+    void                SetVisible(bool Show)   { m_Visible = Visible; }
 
     // Getters
     const glm::vec3&    GetPosition() const     { return m_vPosition; }
@@ -121,6 +127,7 @@ public:
     UUId_t              GetOwner() const        { return m_Owner; }
     bool                IsPriority() const      { return m_Priority; }
     bool                IsActive() const        { return m_Active; }
+    bool                IsVisible() const       { return m_Visible; }
 
 protected:
     // Overrideable methods
@@ -137,6 +144,7 @@ protected:
     glm::vec3           m_vPosition;
     std::list<CEntity*> m_Children;
     bool                m_Active;
+    bool                m_Visible;
     UUId_t              m_Owner;
     bool                m_Priority;
 };

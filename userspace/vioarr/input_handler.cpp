@@ -86,7 +86,7 @@ bool HandleFunctionKeys(SystemKey_t* Key)
         }
         else if (Key->KeyCode == VK_F2) {
             // Spawn the terminal application
-            SpawnApplication("$bin/terminal.app", NULL);
+            SpawnApplication("$bin/alumni.app", NULL);
         }
         return true;
     }

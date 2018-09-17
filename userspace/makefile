@@ -2,14 +2,14 @@
 #
 
 # Setup environment
-export LLVM = $(shell pwd)
-export INCLUDES = $(LLVM)/include
-export LIBRARIES = $(LLVM)/lib
+LLVM = $(shell pwd)
+INCLUDES = $(LLVM)/include
+LIBRARIES = $(LLVM)/lib
 
 # Setup userspace environment
 # Always build test applications to make sure env is ok.
 .PHONY: all
-all: bin copy_headers copy_libraries build_zlib build_libpng build_libfreetype build_macia build_cpptest build_wintest
+all: bin copy_headers copy_libraries build_zlib build_libpng build_libfreetype build_macia build_cpptest build_wintest build_alumni
 
 # Build userspace applications, the order might be important.
 .PHONY: applications
@@ -63,6 +63,11 @@ build_wintest:
 	@printf "%b" "\033[1;35mChecking if wintest needs to be built\033[m\n"
 	@$(MAKE) -s -C wintest -f makefile
 
+.PHONY: build_alumni
+build_alumni:
+	@printf "%b" "\033[1;35mChecking if alumni needs to be built\033[m\n"
+	@$(MAKE) -s -C alumni -f makefile
+
 .PHONY: build_macia
 build_macia:
 	@printf "%b" "\033[1;35mChecking if macia needs to be built\033[m\n"
@@ -108,6 +113,7 @@ clean:
 	@$(MAKE) -s -C freetype -f makefile clean
 	@$(MAKE) -s -C zlib -f makefile clean
 	@$(MAKE) -s -C macia -f makefile clean
+	@$(MAKE) -s -C alumni -f makefile clean
 	@rm -rf bin
 	@rm -rf include
 	@rm -rf lib

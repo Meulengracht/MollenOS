@@ -31,11 +31,11 @@ public:
     CValiSurface(CSurfaceRect& Dimensions);
     ~CValiSurface();
 
-    void        Clear(uint32_t Color, CSurfaceRect& Area) override;
+    void        Clear(uint32_t Color, const CSurfaceRect& Area) override;
     void        Resize(int Width, int Height) override;
     void        Invalidate() override;
     uint8_t*    GetDataPointer(int OffsetX = 0, int OffsetY = 0) override;
-    std::size_t GetStride() override;
+    size_t      GetStride() override;
     
     // Color helpers
     uint32_t GetBlendedColor(uint8_t RA, uint8_t GA, uint8_t BA, uint8_t AA,

@@ -22,6 +22,7 @@
 #define __TRACE
 
 #include <system/interrupts.h>
+#include <system/utils.h>
 #include <ds/blbitmap.h>
 #include <multiboot.h>
 #include <assert.h>

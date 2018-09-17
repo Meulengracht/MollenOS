@@ -21,13 +21,18 @@
  *   using freetype as the font renderer.
  */
 
-#include <stringstream>
+#include <sstream>
 #include <os/input.h>
+#include <os/mollenos.h>
+#include "terminal.hpp"
 #include "terminal_interpreter.hpp"
 
 CTerminalInterpreter::CTerminalInterpreter(CTerminal& Terminal)
     : m_Terminal(Terminal), m_Alive(true)
 {
+    // Register inbuilt commands
+    RegisterCommand("help", "Lists all registered terminal commands", std::bind(&CTerminalInterpreter::Help, this, std::placeholders::_1));
+    RegisterCommand("exit", "Quits the terminal", std::bind(&CTerminalInterpreter::Exit, this, std::placeholders::_1));
 }
 
 void CTerminalInterpreter::RegisterCommand(const std::string& Command, const std::string& Description, std::function<bool(const std::vector<std::string>&)> Fn)
@@ -52,13 +57,13 @@ bool CTerminalInterpreter::Interpret(const std::string& String, std::string& Clo
         [](std::string const& Token) { return Token.size() == 0; }), Tokens.end());
 
     for (auto& Command : m_Commands) {
-        int Distance = Command(CommandString, Tokens);
+        int Distance = Command->operator()(CommandString, Tokens);
         if (Distance == 0) {
             return true;
         }
         else if (Distance < ShortestDistance) {
             ShortestDistance    = Distance;
-            ClosestMatch        = Command.GetCommandText();
+            ClosestMatch        = Command->GetCommandText();
         }
     }
     return false;
@@ -80,32 +85,46 @@ int CTerminalInterpreter::Run()
         while (true) {
             if (ReadSystemKey(&Key) == OsSuccess) {
                 if (Key.KeyCode == VK_BACK) {
-                    m_Terminal.RemoveLastInput();
+                    m_Terminal.RemoveInput();
                 }
                 else if (Key.KeyCode == VK_ENTER) {
-                    m_Terminal.NewLine();
-                    if (!Interpret(m_Terminal.ClearInput(), ClosestString)) {
+                    std::string Input = m_Terminal.ClearInput(true);
+                    if (!Interpret(Input, ClosestString)) {
                         m_Terminal.Print("Command did not exist, did you mean %s?\n", ClosestString.c_str());
                     }
                     break;
                 }
                 else if (Key.KeyCode == VK_UP) {
-
+                    m_Terminal.HistoryPrevious();
                 }
                 else if (Key.KeyCode == VK_DOWN) {
-                    
+                    m_Terminal.HistoryNext();
                 }
                 else if (Key.KeyCode == VK_LEFT) {
-                    
+                    m_Terminal.MoveCursorLeft();
                 }
                 else if (Key.KeyCode == VK_RIGHT) {
-                    
+                    m_Terminal.MoveCursorRight();
                 }
                 else if (TranslateSystemKey(&Key) == OsSuccess) {
-                    m_Terminal.AddInput(Key.KeyAscii & 0xFF);
+                    m_Terminal.AddInput(Key.KeyAscii);
                 }
             }
         }
     }
     return 0;
+}
+
+bool CTerminalInterpreter::Help(const std::vector<std::string>& Arguments)
+{
+    for (auto& Command : m_Commands) {
+        m_Terminal.Print("%s - %s\n", Command->GetCommandText().c_str(), Command->GetDescription().c_str());
+    }
+    return true;
+}
+
+bool CTerminalInterpreter::Exit(const std::vector<std::string>& Arguments)
+{
+    m_Alive = false;
+    return true;
 }

@@ -1,32 +1,36 @@
 /* This is the prototype source code file for Macia
  * Test various stuff, Macia is purely object oriented.
+ * This is a comment block
  */
-//#use System;
+import System;
 
-/* Test this is Macia comment */
-const string MyVar = "Hey";
+namespace Test {
+    // Global variables must be packed in namespaces
+    readonly string MyVar = "Hey";
 
-object Program {
+    object Program {
 
-	/* Variables */
-	string privstr = "This Is Private";
+        // Example for a private string with public getter and setter
+        string teststr = "This Is Public" { get: GetTestString; set: SetTestString }
 
-	/* An example method that will run in it's own 
-         * thread */
-	//[Async, NoReturn]
-	func ProcessWork() {
-	
-	}
+        // Example for a private string
+        string veryprivatestr = "This is very private";
 
-	/* Main method */
-	func Main() {
-		int test = 0;
-		int newint = 122352;
-		/* Test variables in function */
-		string test2 = "local test string";
+        // Example for an asynchronous method
+        [Async, NoReturn]
+        func ProcessWork() {
+        
+        }
+        
+        // The entry point of any application in macia is Program.Main
+        func Main() {
+            int test = 0;
+            int newint = 122352;
+            string test2 = "local test string";
 
-		test = 1252352 * (25 + 57) / 2 + newint * 2;
-	}
+            test = 1252352 * (25 + 57) / 2 + newint * 2;
+        }
 
-	func Sec() { }
+        func Sec() { }
+    }
 }

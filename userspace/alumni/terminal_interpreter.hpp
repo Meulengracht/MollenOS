@@ -39,17 +39,18 @@ class CTerminalInterpreter {
         int operator()(const std::string& Command, const std::vector<std::string>& Arguments) {
             int Result = GetCommandDistance(Command);
             if (!Result) {
-                Fn(Arguments);
+                m_Function(Arguments);
             }
             return Result;
         }
 
-        std::string& GetCommandText() const { return m_Command; }
+        const std::string& GetCommandText() const { return m_Command; }
+        const std::string& GetDescription() const { return m_Description; }
 
     private:
         int GetCommandDistance(const std::string& Command)
         {
-            std::size_t n = m_Command.size(), m = Command.Count.size();
+            std::size_t n = m_Command.size(), m = Command.size();
             if (n == 0) { return m; }
             if (m == 0) { return n; }
 
@@ -58,12 +59,12 @@ class CTerminalInterpreter {
 
             for (size_t i = 1, im = 0; i < m; ++i, ++im) {
                 for (size_t j = 1, jn = 0; j < n; ++j, ++jn) {
-                    if (s[jn] == t[im]) {
+                    if (m_Command[jn] == Command[im]) {
                         d[(i * n) + j] = d[((i - 1) * n) + (j - 1)];
                     }
                     else {
-                        d[(i * n) + j] = min(d[(i - 1) * n + j] + 1,        /* A deletion. */
-                                         min(d[i * n + (j - 1)] + 1,        /* An insertion. */
+                        d[(i * n) + j] = std::min(d[(i - 1) * n + j] + 1,   /* A deletion. */
+                                         std::min(d[i * n + (j - 1)] + 1,   /* An insertion. */
                                          d[(i - 1) * n + (j - 1)] + 1));    /* A substitution. */
                     }
                 }
@@ -87,7 +88,9 @@ public:
     int     Run();
 
 private:
-    bool Interpret(const std::string& String);
+    bool Interpret(const std::string& String, std::string& ClosestMatch);
+    bool Help(const std::vector<std::string>& Arguments);
+    bool Exit(const std::vector<std::string>& Arguments);
 
 private:
     CTerminal&                                      m_Terminal;

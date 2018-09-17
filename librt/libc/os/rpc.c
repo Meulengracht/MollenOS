@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,18 +19,11 @@
  * MollenOS Inter-Process Communication Interface
  */
 
-/* Includes
- * - System */
 #include <os/syscall.h>
 #include <os/ipc/ipc.h>
-
-/* Includes
- * - Library */
 #include <stdlib.h>
 #include <signal.h>
 
-/* This is for both a kernel solution and a userspace
- * solution of IPC can co-exist */
 #ifdef LIBC_KERNEL
 __EXTERN
 OsStatus_t 
@@ -38,11 +31,6 @@ ScRpcExecute(
 	_In_ MRemoteCall_t *RemoteCall,
 	_In_ int            Asynchronous);
 
-/* RPCExecute/RPCEvent
- * To get a reply from the RPC request, the user
- * must use RPCExecute, this will automatically wait
- * for a reply, whereas RPCEvent will send the request
- * and not block/wait for reply */
 OsStatus_t
 RPCExecute(
 	_In_ MRemoteCall_t *RemoteCall)
@@ -59,7 +47,8 @@ RPCExecute(
  * and not block/wait for reply */
 OsStatus_t 
 RPCExecute(
-	_In_ MRemoteCall_t *RemoteCall) {
+	_In_ MRemoteCall_t*         RemoteCall)
+{
     return Syscall_RemoteCall(RemoteCall, 0);
 }
 
@@ -70,7 +59,8 @@ RPCExecute(
  * and not block/wait for reply */
 OsStatus_t 
 RPCEvent(
-	_In_ MRemoteCall_t *RemoteCall) {
+	_In_ MRemoteCall_t*         RemoteCall)
+{
     return Syscall_RemoteCall(RemoteCall, 1);
 }
 
@@ -80,15 +70,17 @@ RPCEvent(
  * an argument, set InUse to 0 */
 OsStatus_t 
 RPCListen(
-	_In_ MRemoteCall_t  *Message,
-    _In_ void           *ArgumentBuffer) {
-    return Syscall_RemoteCallWait(PIPE_REMOTECALL, Message, ArgumentBuffer);
+	_In_ MRemoteCall_t*         Message,
+    _In_ void*                  ArgumentBuffer,
+    _In_ int                    Block)
+{
+    return Syscall_RemoteCallWait(PIPE_REMOTECALL, Message, ArgumentBuffer, Block);
 }
 
 /* RPCRespond
  * This is a wrapper to return a respond message/buffer to the
  * sender of the message, it's good practice to always wait for
- * a result when there is going to be one */ 
+ * a result when there is going to be one */
 OsStatus_t 
 RPCRespond(
     _In_ MRemoteCallAddress_t*  RemoteAddress,

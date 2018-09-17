@@ -21,8 +21,7 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-/* Includes
- * - Library */
+#include <os/mollenos.h>
 #include <time.h>
 
 /* timespec_get
@@ -37,8 +36,8 @@
  *    resolution of the system clock*/
 int
 timespec_get(
-    _In_ struct timespec *ts,
-    _In_ int base)
+    _In_ struct timespec*   ts,
+    _In_ int                base)
 {
     clock_t tick = 0;
 
@@ -75,9 +74,9 @@ timespec_get(
  * is stored in static storage provided by user. */
 void
 timespec_diff(
-    _In_ __CONST struct timespec *start,
-    _In_ __CONST struct timespec *stop,
-    _In_ struct timespec *result)
+    _In_ const struct timespec* start,
+    _In_ const struct timespec* stop,
+    _In_ struct timespec*       result)
 {
     if ((stop->tv_nsec - start->tv_nsec) < 0) {
         result->tv_sec = stop->tv_sec - start->tv_sec - 1;
@@ -86,6 +85,4 @@ timespec_diff(
         result->tv_sec = stop->tv_sec - start->tv_sec;
         result->tv_nsec = stop->tv_nsec - start->tv_nsec;
     }
-
-    return;
 }

@@ -22,24 +22,57 @@
  */
 #pragma once
 
-#include <cstddef>
-#include <cstdlib>
+#include <memory>
+#include <vector>
+#include <string>
+#include <list>
 
+class CTerminalRenderer;
 class CTerminalFont;
 
 class CTerminal
 {
+private:
+    class CTerminalLine {
+    public:
+        CTerminalLine(CTerminalRenderer& Renderer, CTerminalFont& Font, int Row, int Capacity);
+        ~CTerminalLine() = default;
+
+        void Reset();
+        bool AddInput(int Character);
+        bool RemoveInput();
+        bool AddCharacter(int Character);
+        void Update();
+
+        void SetText(const std::string& Text);
+        void HideCursor();
+        void ShowCursor();
+
+        const std::string& GetText() const { return m_Text; }
+        std::string GetInput() const { return m_Text.substr(m_InputOffset); }
+
+    private:
+        CTerminalRenderer&  m_Renderer;
+        CTerminalFont&      m_Font;
+        
+        std::string m_Text;
+        int         m_TextLength;
+        int         m_Row;
+        int         m_Capacity;
+        int         m_Cursor;
+        int         m_InputOffset;
+        bool        m_ShowCursor;
+    };
+
 public:
-    CTerminal(CTerminalFont& Font, uint8_t BgR, uint8_t BgG, uint8_t BgB);
+    CTerminal(CTerminalRenderer& Renderer, CTerminalFont& Font, int Rows, int Columns);
     ~CTerminal();
 
-    void Print(const char *Message, ...);
-    bool SetHistorySize(int NumLines);
+    void Print(const char *Format, ...);
 
     // Input manipulation
-    void NewLine();
-    std::string ClearInput();
-    void RemoveLastInput();
+    std::string ClearInput(bool Newline);
+    void RemoveInput();
     void AddInput(int Character);
     
     // History manipulation
@@ -47,43 +80,19 @@ public:
     void HistoryNext();
 
     // Cursor manipulation
-    void MoveCursorUp();
-    void MoveCursorDown();
     void MoveCursorLeft();
     void MoveCursorRight();
-    void HideCursor();
-    void ShowCursor();
 
 private:
-    void AddTextBuffer(char *Message, ...); // Add text to buffer
-    void AddText(char *Message, ...); // Renders the text
-    void InsertChar(char Character);
-    int RemoveChar(int Position);
-    void RenderText(int AtX, int AtY, const char *Text);
-    void ScrollText(int Lines);
-    void ClearFrom(int Column, int Row);
-    void AddCharacter(char Character);
+    void FinishCurrentLine();
+    void ScrollToLine(bool ClearInput);
 
 private:
-    CTerminalFont& m_Font;
+    int             m_Rows;
+    int             m_Columns;
 
-    char**  m_History;
-    int     m_HistorySize;
-    int     m_HistoryIndex;
-
-    char**  m_Buffer;
-    int     m_BufferSize;
-
-    char*   m_CurrentLine;
-    int     m_LineStartX;
-    int     m_LineStartY;
-    int     m_LinePos;
-
-    char    m_CmdStart[3];
-    int     m_Columns;
-    int     m_Rows;
-    int     m_CursorPositionX;
-    int     m_CursorPositionY;
-    
-    uint8_t m_BgR, m_BgG, m_BgB;
+    std::vector<std::string>                    m_History;
+    int                                         m_HistoryIndex;
+    std::vector<std::unique_ptr<CTerminalLine>> m_Lines;
+    int                                         m_LineIndex;
 };

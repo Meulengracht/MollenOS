@@ -195,33 +195,30 @@ RPCCastArgumentToPointer(
  * Call this to wait for a new RPC message, it automatically
  * reads the message, and all the arguments. To avoid freeing
  * an argument, set InUse to 0 */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 RPCListen(
-    _In_ MRemoteCall_t  *Message,
-    _In_ void           *ArgumentBuffer));
+    _In_ MRemoteCall_t*         Message,
+    _In_ void*                  ArgumentBuffer,
+    _In_ int                    Block));
 
 /* RPCExecute/RPCEvent
  * To get a reply from the RPC request, the user
  * must use RPCExecute, this will automatically wait
  * for a reply, whereas RPCEvent will send the request
  * and not block/wait for reply */
-CRTDECL( 
-OsStatus_t,
+CRTDECL(OsStatus_t,
 RPCExecute(
-    _In_ MRemoteCall_t *RemoteCall));
+    _In_ MRemoteCall_t*         RemoteCall));
 
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 RPCEvent(
-    _In_ MRemoteCall_t *RemoteCall));
+    _In_ MRemoteCall_t*         RemoteCall));
 
 /* RPCRespond
  * This is a wrapper to return a respond message/buffer to the
  * sender of the message, it's good practice to always wait for
  * a result when there is going to be one */
-CRTDECL( 
-OsStatus_t,
+CRTDECL(OsStatus_t,
 RPCRespond(
     _In_ MRemoteCallAddress_t*  RemoteAddress,
     _In_ const void*            Buffer, 
