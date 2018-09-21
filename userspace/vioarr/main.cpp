@@ -91,7 +91,7 @@ Handle_t HandleCreateWindowRequest(MRemoteCallAddress_t *Process,
     Window->SetOwner(Process->Process);
     Window->SetWidth(Parameters->Surface.Dimensions.w);
     Window->SetHeight(Parameters->Surface.Dimensions.h);
-    Window->Move(250, 200, 0);
+    Window->SetPosition(250, 200, 0);
 
     Window->SetStreamingBufferFormat(Format, InternalFormat);
     Window->SetStreamingBufferDimensions(Parameters->Surface.Dimensions.w, Parameters->Surface.Dimensions.h);

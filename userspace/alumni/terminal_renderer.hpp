@@ -32,6 +32,9 @@ public:
     CTerminalRenderer(CSurface& Surface);
     ~CTerminalRenderer() = default;
 
+    int CalculateTextLength(CTerminalFont& Font, const std::string& Text);
+    int GetLengthOfCharacter(CTerminalFont& Font, char Character);
+
     void RenderClear(int X, int Y, int Width, int Height);
     int RenderText(int X, int Y, CTerminalFont& Font, const std::string& Text);
     int RenderCharacter(int X, int Y, CTerminalFont& Font, char Character);

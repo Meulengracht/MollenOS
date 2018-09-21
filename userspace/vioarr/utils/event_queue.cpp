@@ -23,12 +23,13 @@
 
 #include "event_queue.hpp"
 
+CEventQueue::CEventQueue()
+{
+    m_Thread = new std::thread(std::bind(&CEventQueue::EventLoop, this));
+}
+
 void CEventQueue::AddPeriodic(std::function<void()> Fn, std::size_t Period)
 {
-    if (m_Thread == nullptr) {
-        m_Thread = new std::thread(&CEventQueue::EventLoop, this);
-    }
-
     CEvent* Event   = new CEvent;
     Event->Fn       = Fn;
     Event->Period   = Period;

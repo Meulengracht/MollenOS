@@ -29,6 +29,7 @@
 
 class CTerminalRenderer;
 class CTerminalFont;
+class CSurfaceRect;
 
 class CTerminal
 {
@@ -65,7 +66,7 @@ private:
     };
 
 public:
-    CTerminal(CTerminalRenderer& Renderer, CTerminalFont& Font, int Rows, int Columns);
+    CTerminal(CSurfaceRect& Area, CTerminalRenderer& Renderer, CTerminalFont& Font);
     ~CTerminal();
 
     void Print(const char *Format, ...);
@@ -88,9 +89,7 @@ private:
     void ScrollToLine(bool ClearInput);
 
 private:
-    int             m_Rows;
-    int             m_Columns;
-
+    int                                         m_Rows;
     std::vector<std::string>                    m_History;
     int                                         m_HistoryIndex;
     std::vector<std::unique_ptr<CTerminalLine>> m_Lines;

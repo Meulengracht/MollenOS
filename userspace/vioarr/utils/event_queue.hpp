@@ -42,7 +42,7 @@ public:
 		return _Instance;
 	}
 private:
-	CEventQueue() = default;
+	CEventQueue();
 
 public:
 	CEventQueue(CEventQueue const&)     = delete;

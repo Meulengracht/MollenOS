@@ -24,17 +24,21 @@
 #include <cassert>
 #include <cctype>
 #include <cmath>
+#include "surfaces/surface.hpp"
 #include "terminal.hpp"
 #include "terminal_font.hpp"
 #include "terminal_renderer.hpp"
 
 CTerminal::CTerminalLine::CTerminalLine(CTerminalRenderer& Renderer, CTerminalFont& Font, int Row, int Capacity)
-    : m_Renderer(Renderer), m_Font(Font), m_Row(Row), m_Capacity(Capacity), m_ShowCursor(false)
+    : m_Renderer(Renderer), m_Font(Font), m_Row(Row), m_Capacity(Capacity)
 {
+    Reset();
 }
 
 void CTerminal::CTerminalLine::Reset()
 {
+    m_ShowCursor    = false;
+    m_TextLength    = 0;
     m_InputOffset   = 0;
     m_Cursor        = 0;
     m_Text.clear();
@@ -45,13 +49,14 @@ bool CTerminal::CTerminalLine::AddCharacter(int Character)
     char Buf = (char)Character & 0xFF;
 
     // Handle \r \t \n? 
-    if (m_Text.length() < m_Capacity - 1) {
+    if ((m_TextLength + m_Renderer.GetLengthOfCharacter(m_Font, Buf)) < m_Capacity) {
         if (m_Cursor == m_Text.length()) {
             m_Text.push_back(Character);
         }
         else {
             m_Text.insert(m_Cursor, &Buf, 1);
         }
+        m_TextLength = m_Renderer.CalculateTextLength(m_Font, m_Text);
         m_InputOffset++;
         m_Cursor++;
         return true;
@@ -61,18 +66,17 @@ bool CTerminal::CTerminalLine::AddCharacter(int Character)
 
 bool CTerminal::CTerminalLine::AddInput(int Character)
 {
-    int ModifiedCursor  = m_Cursor - m_InputOffset;
-    char Buf            = (char)Character & 0xFF;
+    char Buf = (char)Character & 0xFF;
 
     // Handle \r \t \n? 
-    if (m_Text.length() < m_Capacity - 1) {
-        if (ModifiedCursor == m_Text.length()) {
+    if ((m_TextLength + m_Renderer.GetLengthOfCharacter(m_Font, Buf)) < m_Capacity) {
+        if (m_Cursor == m_Text.length()) {
             m_Text.push_back(Character);
         }
         else {
-            m_Text.insert(ModifiedCursor, &Buf, 1);
+            m_Text.insert(m_Cursor, &Buf, 1);
         }
-        m_InputOffset++;
+        m_TextLength = m_Renderer.CalculateTextLength(m_Font, m_Text);
         m_Cursor++;
         return true;
     }
@@ -83,7 +87,8 @@ bool CTerminal::CTerminalLine::RemoveInput()
 {
     int ModifiedCursor = m_Cursor - m_InputOffset;
     if (ModifiedCursor != 0) {
-        m_Text.erase(ModifiedCursor - 1, 1);
+        m_Text.erase(m_Cursor - 1, 1);
+        m_TextLength = m_Renderer.CalculateTextLength(m_Font, m_Text);
         m_Cursor--;
         return true;
     }
@@ -92,12 +97,12 @@ bool CTerminal::CTerminalLine::RemoveInput()
 
 void CTerminal::CTerminalLine::Update()
 {
-    m_Renderer.RenderClear(0, m_Row * m_Font.GetFontHeight(), -1, m_Font.GetFontHeight());
-    m_TextLength = m_Renderer.RenderText(0, m_Row * m_Font.GetFontHeight(), m_Font, m_Text);
+    m_Renderer.RenderClear(0, (m_Row * m_Font.GetFontHeight()) + 2, -1, m_Font.GetFontHeight());
+    m_TextLength = m_Renderer.RenderText(0, (m_Row * m_Font.GetFontHeight()) + 2, m_Font, m_Text);
     if (m_ShowCursor) {
         uint32_t ExistingColor = m_Renderer.GetBackgroundColor();
         m_Renderer.SetBackgroundColor(255, 255, 255, 255);
-        m_Renderer.RenderCharacter(m_TextLength, m_Row * m_Font.GetFontHeight(), m_Font, ' ');
+        m_Renderer.RenderCharacter(m_TextLength, (m_Row * m_Font.GetFontHeight()) + 2, m_Font, '_');
         m_Renderer.SetBackgroundColor(ExistingColor);
     }
     m_Renderer.Invalidate();
@@ -120,11 +125,11 @@ void CTerminal::CTerminalLine::ShowCursor()
     m_ShowCursor = true;
 }
 
-CTerminal::CTerminal(CTerminalRenderer& Renderer, CTerminalFont& Font, int Rows, int Columns)
-    : m_Rows(Rows), m_Columns(Columns)
+CTerminal::CTerminal(CSurfaceRect& Area, CTerminalRenderer& Renderer, CTerminalFont& Font)
+    : m_Rows(Area.GetHeight() / Font.GetFontHeight())
 {
-    for (int i = 0; i < Rows; i++) {
-        m_Lines.push_back(std::make_unique<CTerminalLine>(Renderer, Font, i, Columns));
+    for (int i = 0; i < m_Rows; i++) {
+        m_Lines.push_back(std::make_unique<CTerminalLine>(Renderer, Font, i, Area.GetWidth()));
     }
 }
 
@@ -137,6 +142,7 @@ void CTerminal::AddInput(int Character)
     if (!m_Lines[m_LineIndex]->AddInput(Character)) {
         // uh todo, we should skip to next line
     }
+    m_Lines[m_LineIndex]->Update();
 }
 
 void CTerminal::RemoveInput()
@@ -144,6 +150,7 @@ void CTerminal::RemoveInput()
     if (!m_Lines[m_LineIndex]->RemoveInput()) {
         // uh todo, we should skip to prev line
     }
+    m_Lines[m_LineIndex]->Update();
 }
 
 std::string CTerminal::ClearInput(bool Newline)
@@ -199,8 +206,8 @@ void CTerminal::ScrollToLine(bool ClearInput)
 void CTerminal::HistoryNext()
 {
     // History must be longer than the number of rows - 1
-    if (m_History.size()    >= m_Rows &&
-        m_HistoryIndex      < m_History.size()) {
+    if (m_History.size()        >= (size_t)m_Rows &&
+        (size_t)m_HistoryIndex  < m_History.size()) {
         m_HistoryIndex++;
         ScrollToLine(false);
     }
@@ -209,7 +216,7 @@ void CTerminal::HistoryNext()
 void CTerminal::HistoryPrevious()
 {
     // History must be longer than the number of rows - 1
-    if (m_History.size()    >= m_Rows &&
+    if (m_History.size()    >= (size_t)m_Rows &&
         m_HistoryIndex      >= m_Rows) {
         m_HistoryIndex--;
         ScrollToLine(false);
@@ -225,7 +232,7 @@ void CTerminal::Print(const char *Format, ...)
     vsnprintf(StringBuffer, sizeof(StringBuffer) - 1, Format, Arguments);
     va_end(Arguments);
 
-    for (int i = 0; i < strlen(StringBuffer); i++) {
+    for (size_t i = 0; i < strlen(StringBuffer); i++) {
         if (StringBuffer[i] == '\n') {
             FinishCurrentLine();
         }

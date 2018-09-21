@@ -48,7 +48,8 @@ typedef struct FontCharacter {
     int         Width;
     int         Height;
 
-    int         Indent;
+    int         IndentX;
+    int         IndentY;
     int         Advance;
 } FontCharacter_t;
 
@@ -59,7 +60,7 @@ public:
     ~CTerminalFont();
 
     bool    SetSize(std::size_t PixelSize);
-    int     GetFontHeight() const { return m_Height; }
+    int     GetFontHeight() const { return m_LineSkip; }
     bool    GetCharacterBitmap(unsigned long Character, FontCharacter_t& Information);
     void    ResetPrevious();
 

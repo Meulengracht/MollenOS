@@ -37,7 +37,10 @@ public:
 
     void                Add(CEntity* Entity) {
         m_EntityLayer.push_back(std::unique_ptr<CEntity>(Entity));
-        SetActive(Entity);
+        if (m_PriorityLayer.size() == 0) {
+            SetActive(Entity);
+        }
+        Invalidate();
     }
 
     bool                Remove(CEntity* Entity) {
@@ -46,6 +49,7 @@ public:
             if (i->get() == Entity) {
                 m_EntityLayer.erase(i);
                 UpdateNextActive(Entity);
+                Invalidate();
                 return true;
             }
             i++;
@@ -63,6 +67,7 @@ public:
         }
         m_EntityLayer.splice(m_EntityLayer.end(), m_EntityLayer, i);
         SetActive(Entity);
+        Invalidate();
     }
 
     CEntity*            GetEntityWithOwner(UUId_t Owner) {
@@ -88,6 +93,7 @@ public:
         m_PriorityLayer.remove_if([](std::unique_ptr<CPriorityEntity> const& e) { return e->HasBehaviour(CPriorityEntity::DeleteOnFocusLost); });
         m_PriorityLayer.push_back(std::unique_ptr<CPriorityEntity>(Priority));
         SetPriorityActive(Priority);
+        Invalidate();
     }
 
     bool                RemovePriority(CPriorityEntity* Priority) {
@@ -96,6 +102,7 @@ public:
             if (i->get() == Priority) {
                 m_PriorityLayer.erase(i);
                 UpdateNextActive(Priority);
+                Invalidate();
                 return true;
             }
             i++;

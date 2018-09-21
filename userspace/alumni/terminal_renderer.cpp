@@ -55,11 +55,32 @@ void CTerminalRenderer::RenderClear(int X, int Y, int Width, int Height)
 int CTerminalRenderer::RenderText(int X, int Y, CTerminalFont& Font, const std::string& Text)
 {
     int Advance = X;
-    for (int i = 0; i < Text.length(); i++) {
+    for (size_t i = 0; i < Text.length(); i++) {
         char Character = Text[i];
         Advance += RenderCharacter(Advance, Y, Font, Character);
     }
     return Advance;
+}
+
+int CTerminalRenderer::CalculateTextLength(CTerminalFont& Font, const std::string& Text)
+{
+    int Advance = 0;
+    if (Text.length() != 0) {
+        for (size_t i = 0; i < Text.length(); i++) {
+            char Character = Text[i];
+            Advance += GetLengthOfCharacter(Font, Character);
+        }
+    }
+    return Advance;
+}
+
+int CTerminalRenderer::GetLengthOfCharacter(CTerminalFont& Font, char Character)
+{
+    FontCharacter_t CharInfo;
+    if (Font.GetCharacterBitmap(Character, CharInfo)) {
+        return CharInfo.IndentX + CharInfo.Advance;
+    }
+    return 0;
 }
 
 int CTerminalRenderer::RenderCharacter(int X, int Y, CTerminalFont& Font, char Character)
@@ -67,13 +88,16 @@ int CTerminalRenderer::RenderCharacter(int X, int Y, CTerminalFont& Font, char C
     FontCharacter_t CharInfo;
 
     if (Font.GetCharacterBitmap(Character, CharInfo)) {
-        uint32_t* Pointer   = (uint32_t*)m_Surface.GetDataPointer(X + CharInfo.Indent, Y);
+        uint32_t* Pointer   = (uint32_t*)m_Surface.GetDataPointer(X + CharInfo.IndentX, Y + CharInfo.IndentY);
         uint8_t* Source     = CharInfo.Bitmap;
         for (int Row = 0; Row < CharInfo.Height; Row++) {
             for (int Column = 0; Column < CharInfo.Width; Column++) { // @todo might need to be reverse
                 uint8_t Alpha = Source[Column];
                 if (Alpha == 0) {
                     Pointer[Column] = m_BackgroundColor;
+                }
+                else if (Alpha == 255) {
+                    Pointer[Column] = m_ForegroundColor;
                 }
                 else {
                     // Pointer[Column] = m_FgColor; if CACHED_BITMAP
@@ -83,7 +107,7 @@ int CTerminalRenderer::RenderCharacter(int X, int Y, CTerminalFont& Font, char C
             Pointer = (uint32_t*)((uint8_t*)Pointer + m_Surface.GetStride());
             Source  += CharInfo.Pitch;
         }
-        return CharInfo.Indent + CharInfo.Advance;
+        return CharInfo.IndentX + CharInfo.Advance;
     }
     return 0;
 }

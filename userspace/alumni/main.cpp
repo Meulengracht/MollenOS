@@ -21,27 +21,32 @@
 */
 
 #include "surfaces/surface_vali.hpp"
-#include "terminal_interpreter.hpp"
+#include "interpreters/terminal_interpreter_vali.hpp"
 #include "terminal_renderer.hpp"
 #include "terminal_font.hpp"
 #include "terminal.hpp"
+#include <os/input.h>
 
 int main(int argc, char **argv) {
-    CTerminalFreeType       FreeType;
-    CSurfaceRect            TerminalArea(450, 300);
-    CValiSurface            Surface(TerminalArea);
-    CTerminalRenderer       Renderer(Surface);
-    CTerminalFont           Font(FreeType, "$sys/fonts/DejaVuSansMono.ttf", 12);
-    CTerminal               Terminal(Renderer, Font, 25, 80);
-    CTerminalInterpreter    Interpreter(Terminal);
-#if 0
+    CTerminalFreeType           FreeType;
+    CSurfaceRect                TerminalArea(450, 300);
+    CValiSurface                Surface(TerminalArea);
+    CTerminalRenderer           Renderer(Surface);
+    CTerminalFont               Font(FreeType, "$sys/fonts/DejaVuSansMono.ttf", 11);
+    CTerminal                   Terminal(TerminalArea, Renderer, Font);
+    CValiTerminalInterpreter    Interpreter(Terminal);
+    SystemKey_t                 Key;
+
     Interpreter.RegisterCommand("cd", "Change the working directory", [](const std::vector<std::string>&) { return true; });
     Interpreter.RegisterCommand("ls", "Lists the contents of the current working directory", [](const std::vector<std::string>&) { return true; });
 
 	Terminal.Print("MollenOS System Terminal %s\n", "V0.01-dev");
     
-	return Interpreter.Run();
-#endif
-    while (true) ;
+    // Enter main loop
+	while (true) {
+        if (ReadSystemKey(&Key) == OsSuccess) {
+            Interpreter.HandleKeyCode(Key.KeyCode, Key.Flags);
+        }
+    }
     return 0;
 }

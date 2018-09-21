@@ -1071,10 +1071,10 @@ static void glnvg__fill(GLNVGcontext* gl, GLNVGcall* call)
 
 	glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_KEEP, GL_INCR_WRAP);
 	glStencilOpSeparate(GL_BACK, GL_KEEP, GL_KEEP, GL_DECR_WRAP);
-	glDisable(GL_CULL_FACE);
+	//glDisable(GL_CULL_FACE); @todo reenable
 	for (i = 0; i < npaths; i++)
 		glDrawArrays(GL_TRIANGLE_FAN, paths[i].fillOffset, paths[i].fillCount);
-	glEnable(GL_CULL_FACE);
+	//glEnable(GL_CULL_FACE); @todo reenable
 
 	// Draw anti-aliased pixels
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
@@ -1232,8 +1232,8 @@ static void glnvg__renderFlush(void* uptr)
 		// Setup require GL state.
 		glUseProgram(gl->shader.prog);
 
-		//glEnable(GL_CULL_FACE);
-		//glCullFace(GL_BACK);
+		glDisable(GL_CULL_FACE); // @todo reenable
+		//glCullFace(GL_BACK); @todo reenable
 		glFrontFace(GL_CCW);
         glEnable(GL_BLEND);
 		glDisable(GL_DEPTH_TEST);
@@ -1299,7 +1299,7 @@ static void glnvg__renderFlush(void* uptr)
 #if defined NANOVG_GL3
 		glBindVertexArray(0);
 #endif
-		glDisable(GL_CULL_FACE);
+		//glDisable(GL_CULL_FACE); @todo reenable
 			glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glUseProgram(0);
 		glnvg__bindTexture(gl, 0);

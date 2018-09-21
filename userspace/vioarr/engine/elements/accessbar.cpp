@@ -21,10 +21,12 @@
  *    MollenOS.
  */
 
+#include "utils/event_queue.hpp"
 #include "accessbar.hpp"
 #include "button.hpp"
 #include "sprite.hpp"
 #include "label.hpp"
+#include <ctime>
 
 #define RGBA_ACCESSBAR_TOP              103, 103, 103, 127
 #define RGBA_ACCESSBAR_SIDE             103, 103, 103, 127
@@ -37,32 +39,31 @@ CAccessBar::CAccessBar(CEntity *Parent, NVGcontext* VgContext, int Width, int He
 {
     // Create resources
     auto UserIcon           = new CSprite(this, VgContext, "$sys/themes/default/user32.png", 32, 32);
-    UserIcon->Move(Width - 32 - 8, Height - 32 - 8, 0);
+    UserIcon->SetPosition(Width - 32 - 8, Height - 32 - 8, 0);
 
     auto ShutdownButton     = new CButton(this, VgContext, 16, 16);
     ShutdownButton->SetButtonStateIcon(CButton::ButtonStateNormal, "$sys/themes/default/power16.png");
-    ShutdownButton->Move(4.0f, Height - 18, 0);
-
-    //auto SettingsButton     = new CButton(this, VgContext, 32, 32);
-    //SettingsButton->SetButtonStateIcon(CButton::ButtonStateNormal, "$sys/themes/default/settings32.png");
-    //SettingsButton->Move(Width - 32 - 20, 8, 0);
+    ShutdownButton->SetPosition(4.0f, Height - 18, 0);
 
     auto ApplicationsButton = new CButton(this, VgContext, 32, 32);
     ApplicationsButton->SetButtonStateIcon(CButton::ButtonStateNormal, "$sys/themes/default/apps32.png");
-    ApplicationsButton->Move(GetSideBarElementSlotX(0), m_Height - 110, 0.0f);
+    ApplicationsButton->SetPosition(GetSideBarElementSlotX(0), m_Height - 110, 0.0f);
 
-    auto DateTimeLabel  = new CLabel(this, VgContext);
-    DateTimeLabel->SetFont("sans-normal");
-    DateTimeLabel->SetFontSize(14.0f);
-    DateTimeLabel->SetFontColor(nvgRGBA(255, 255, 255, 255));
-    DateTimeLabel->Move(28.0f, Height - 14, 0.0f);
-    DateTimeLabel->SetText("13:37 Wed 24");
+    m_DateTime = new CLabel(this, VgContext);
+    m_DateTime->SetFont("sans-normal");
+    m_DateTime->SetFontSize(14.0f);
+    m_DateTime->SetFontColor(nvgRGBA(255, 255, 255, 255));
+    m_DateTime->SetPosition(28.0f, Height - 14, 0.0f);
+    Update(false);
+
+    sEvents.AddPeriodic([this]() { Update(true); }, 60000);
 }
 
 CAccessBar::CAccessBar(NVGcontext* VgContext, int Width, int Height) 
     : CAccessBar(nullptr, VgContext, Width, Height) { }
 
 CAccessBar::~CAccessBar() {
+    delete m_DateTime;
 }
 
 float CAccessBar::GetSideBarElementSlotX(int Index)
@@ -75,8 +76,18 @@ float CAccessBar::GetSideBarElementSlotY(int Index)
     return (float)m_Height - ((ACCESSBAR_USER_RADIUS * 1.8f) + 40.0f + (36.0f * Index));
 }
 
-void CAccessBar::Update() {
-    // Update the date and time
+void CAccessBar::Update(bool Redraw) {
+    time_t      now = std::time(0);
+    struct tm*  tstruct;
+    char        TimeBuffer[32] = { 0 };
+
+    tstruct = localtime(&now);
+    strftime(&TimeBuffer[0], sizeof(TimeBuffer), "%H:%M %a %e", tstruct);
+    m_DateTime->SetText(std::string(&TimeBuffer[0]));
+    
+    if (Redraw) {
+        Invalidate();
+    }
 }
 
 void CAccessBar::Draw(NVGcontext* VgContext) {

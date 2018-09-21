@@ -33,11 +33,11 @@ CDialogApplicationSearch::CDialogApplicationSearch(CEntity* Parent, NVGcontext* 
 {
     // Create resources neccessary for the dialog, we need a textbox and
     // a dynamic label, default size of window is 450px x 100px
-    Move(sEngine.GetScreenCenterX() - (DIALOG_WIDTH / 2.0f), sEngine.GetScreenCenterY() - (DIALOG_HEIGHT / 2.0f), 0.0f);
+    SetPosition(sEngine.GetScreenCenterX() - (DIALOG_WIDTH / 2.0f), sEngine.GetScreenCenterY() - (DIALOG_HEIGHT / 2.0f), 0.0f);
     
     // Offset the suggestionbox to the middle
     m_SuggestionBox = new CSuggestionBox(this, VgContext, DIALOG_WIDTH - 20, 24); // 16 + 8 (4 padding)
-    m_SuggestionBox->Move(10.0f, 18.0f, 0.0f);
+    m_SuggestionBox->SetPosition(10.0f, 18.0f, 0.0f);
     m_SuggestionBox->SetPlaceholderText("Find Application");
 }
 

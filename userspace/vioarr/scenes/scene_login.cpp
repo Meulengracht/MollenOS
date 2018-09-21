@@ -33,7 +33,7 @@ CScene* VioarrCompositor::CreateLoginScene()
 
     // Create resources
     CSprite *Background = new CSprite(sEngine.GetContext(), "$sys/themes/default/logo.png", 512, 128);
-    Background->Move(_Display->GetWidth() - 512.0f, 0.0f, 0.0f);
+    Background->SetPosition(m_Display->GetWidth() - 512.0f, 0.0f, 0.0f);
     Scene = new CScene(Background);
 
     CDialogLogin* Login = new CDialogLogin(sEngine.GetContext());

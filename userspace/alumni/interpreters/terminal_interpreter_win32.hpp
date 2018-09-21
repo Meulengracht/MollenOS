@@ -22,28 +22,13 @@
  */
 #pragma once
 
-#include <string>
-#include <ft2build.h>
-#include FT_FREETYPE_H
-#include FT_OUTLINE_H
-#include FT_STROKER_H
-#include FT_GLYPH_H
-#include FT_TRUETYPE_IDS_H
-#include <cassert>
+#include "terminal_interpreter.hpp"
 
-class CTerminalFreeType {
+class CWin32TerminalInterpreter : public CTerminalInterpreter {
 public:
-    CTerminalFreeType() {
-        bool Status = FT_Init_FreeType(&m_FreeType) == 0;
-        assert(Status);
-    }
+    CWin32TerminalInterpreter(CTerminal& Terminal);
+    ~CWin32TerminalInterpreter() = default;
 
-    ~CTerminalFreeType() {
-        FT_Done_FreeType(m_FreeType);
-    }
-
-    FT_Library GetLibrary() const { return m_FreeType; }
-
-private:
-    FT_Library m_FreeType;
+    bool HandleKeyCode(unsigned int KeyCode, unsigned int Flags) override;
+    void PrintCommandHeader() override;
 };

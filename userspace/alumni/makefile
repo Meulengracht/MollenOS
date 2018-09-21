@@ -3,8 +3,10 @@
 include ../../config/common.mk
 
 APP_NAME := alumni
-APP_SOURCES_CXX := surfaces/surface_vali.cpp \
-			      $(wildcard *.cpp)
+APP_SOURCES_CXX := interpreters/terminal_interpreter_vali.cpp \
+				   interpreters/terminal_interpreter.cpp \
+				   surfaces/surface_vali.cpp \
+			       $(wildcard *.cpp)
 
 LFLAGS := $(lib_path)/libfreetype.lib
 

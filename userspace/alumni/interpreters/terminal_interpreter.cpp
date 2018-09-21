@@ -22,13 +22,11 @@
  */
 
 #include <sstream>
-#include <os/input.h>
-#include <os/mollenos.h>
-#include "terminal.hpp"
+#include "../terminal.hpp"
 #include "terminal_interpreter.hpp"
 
 CTerminalInterpreter::CTerminalInterpreter(CTerminal& Terminal)
-    : m_Terminal(Terminal), m_Alive(true)
+    : m_Terminal(Terminal), m_Alive(true), m_ClosestMatch("")
 {
     // Register inbuilt commands
     RegisterCommand("help", "Lists all registered terminal commands", std::bind(&CTerminalInterpreter::Help, this, std::placeholders::_1));
@@ -40,13 +38,17 @@ void CTerminalInterpreter::RegisterCommand(const std::string& Command, const std
     m_Commands.push_back(std::make_unique<CTerminalCommand>(Command, Description, Fn));
 }
 
-bool CTerminalInterpreter::Interpret(const std::string& String, std::string& ClosestMatch)
+bool CTerminalInterpreter::Interpret(const std::string& String)
 {
     std::stringstream                   Stream(String);
     std::istream_iterator<std::string>  Begin(Stream);
     std::istream_iterator<std::string>  End;
     std::vector<std::string>            Tokens(Begin, End);
-    int ShortestDistance = String.size();
+    int ShortestDistance    = String.size();
+    m_ClosestMatch          = "";
+    if (String.size() == 0) {
+        return false;
+    }
 
     // Get command and remove from array
     std::string CommandString = Tokens[0];
@@ -63,56 +65,10 @@ bool CTerminalInterpreter::Interpret(const std::string& String, std::string& Clo
         }
         else if (Distance < ShortestDistance) {
             ShortestDistance    = Distance;
-            ClosestMatch        = Command->GetCommandText();
+            m_ClosestMatch      = Command->GetCommandText();
         }
     }
     return false;
-}
-
-int CTerminalInterpreter::Run()
-{
-    char* CurrentPath = (char*)std::malloc(_MAXPATH);
-    std::string ClosestString = "";
-    SystemKey_t Key;
-
-    std::memset(CurrentPath, 0, _MAXPATH);
-    GetWorkingDirectory(CurrentPath, _MAXPATH);
-
-    while (m_Alive) {
-        m_Terminal.Print("[%s | %s | 09/12/2018 - 13:00]\n", CurrentPath, "Philip");
-        m_Terminal.Print("$ ");
-
-        while (true) {
-            if (ReadSystemKey(&Key) == OsSuccess) {
-                if (Key.KeyCode == VK_BACK) {
-                    m_Terminal.RemoveInput();
-                }
-                else if (Key.KeyCode == VK_ENTER) {
-                    std::string Input = m_Terminal.ClearInput(true);
-                    if (!Interpret(Input, ClosestString)) {
-                        m_Terminal.Print("Command did not exist, did you mean %s?\n", ClosestString.c_str());
-                    }
-                    break;
-                }
-                else if (Key.KeyCode == VK_UP) {
-                    m_Terminal.HistoryPrevious();
-                }
-                else if (Key.KeyCode == VK_DOWN) {
-                    m_Terminal.HistoryNext();
-                }
-                else if (Key.KeyCode == VK_LEFT) {
-                    m_Terminal.MoveCursorLeft();
-                }
-                else if (Key.KeyCode == VK_RIGHT) {
-                    m_Terminal.MoveCursorRight();
-                }
-                else if (TranslateSystemKey(&Key) == OsSuccess) {
-                    m_Terminal.AddInput(Key.KeyAscii);
-                }
-            }
-        }
-    }
-    return 0;
 }
 
 bool CTerminalInterpreter::Help(const std::vector<std::string>& Arguments)
@@ -125,6 +81,6 @@ bool CTerminalInterpreter::Help(const std::vector<std::string>& Arguments)
 
 bool CTerminalInterpreter::Exit(const std::vector<std::string>& Arguments)
 {
-    m_Alive = false;
+    exit(0);
     return true;
 }

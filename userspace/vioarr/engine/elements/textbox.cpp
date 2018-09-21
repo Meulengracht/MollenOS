@@ -71,7 +71,7 @@ void CTextBox::Remove() {
 
 void CTextBox::SetIcon(const std::string& IconPath) {
     auto SearchIcon = new CSprite(this, m_VgContext, IconPath, 16, 16);
-    SearchIcon->Move(4.0f, 4.0f, 0.0f);
+    SearchIcon->SetPosition(4.0f, 4.0f, 0.0f);
     m_OffsetX = 24.0f;
 }
 

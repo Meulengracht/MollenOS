@@ -24,6 +24,8 @@
 #include "../entity.hpp"
 #include <string>
 
+class CLabel;
+
 // AccessBar Settings
 // Adjustable access-bar layout settings
 #define ACCESSBAR_HEADER_HEIGHT             16
@@ -37,8 +39,6 @@ public:
     CAccessBar(NVGcontext* VgContext, int Width, int Height);
     ~CAccessBar();
 
-    void Update();
-
 protected:
     // Override the inherited methods
     void        Draw(NVGcontext* VgContext);
@@ -46,8 +46,10 @@ protected:
 private:
     float       GetSideBarElementSlotX(int Index);
     float       GetSideBarElementSlotY(int Index);
+    void        Update(bool Redraw);
 
 private:
     int         m_Width;
     int         m_Height;
+    CLabel*     m_DateTime;
 };

@@ -46,7 +46,6 @@ void ShortcutApplicationSearch()
 {
     auto Dialog = new CDialogApplicationSearch(sEngine.GetContext());
     sEngine.GetActiveScene()->AddPriority(Dialog);
-    sVioarr.UpdateNotify();
 }
 
 void SpawnApplication(const char* Path, const char* Arguments)

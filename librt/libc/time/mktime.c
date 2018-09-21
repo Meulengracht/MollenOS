@@ -47,12 +47,10 @@ ANSI C requires <<mktime>>.
 <<mktime>> requires no supporting OS subroutines.
 */
 
-/* Includes */
 #include <stdlib.h>
 #include <time.h>
 #include "local.h"
 
-/* Externs */
 extern int _daylight;
 
 #define _SEC_IN_MINUTE 60L

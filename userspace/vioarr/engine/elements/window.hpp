@@ -25,6 +25,8 @@
 #include <os/buffer.h>
 #include <string>
 
+class CLabel;
+
 // Window Settings
 // Adjustable window layout settings
 #define WINDOW_CORNER_RADIUS                5.0f
@@ -65,6 +67,7 @@ private:
     int             m_Width;
     int             m_Height;
     bool            m_Streaming;
+    CLabel*         m_TitleLabel;
 
     // Streaming support
     int             m_ResourceId;

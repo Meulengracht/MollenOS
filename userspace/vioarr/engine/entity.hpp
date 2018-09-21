@@ -117,7 +117,7 @@ public:
     void                SetY(float Y)           { m_vPosition.y = Y; }
     void                SetZ(float Z)           { m_vPosition.y = Z; }
     void                SetOwner(UUId_t Owner)  { m_Owner = Owner; }
-    void                SetVisible(bool Show)   { m_Visible = Visible; }
+    void                SetVisible(bool Show)   { m_Visible = Show; }
 
     // Getters
     const glm::vec3&    GetPosition() const     { return m_vPosition; }

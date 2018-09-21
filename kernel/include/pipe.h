@@ -170,7 +170,6 @@ WriteSystemPipeProduction(
 KERNELAPI OsStatus_t KERNELABI
 AcquireSystemPipeConsumption(
     _In_  SystemPipe_t*             Pipe,
-    _In_  int                       Block,
     _Out_ size_t*                   Length,
     _Out_ SystemPipeUserState_t*    State);
 

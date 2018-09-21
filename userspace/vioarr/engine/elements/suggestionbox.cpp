@@ -34,7 +34,7 @@ CSuggestionBox::CSuggestionBox(CEntity* Parent, NVGcontext* VgContext, int Width
 {
     // Create icon resource
     auto SearchIcon = new CSprite(this, VgContext, "$sys/themes/default/search16.png", 16, 16);
-    SearchIcon->Move(4.0f, 4.0f, 0.0f);
+    SearchIcon->SetPosition(4.0f, 4.0f, 0.0f);
 }
 
 CSuggestionBox::CSuggestionBox(NVGcontext* VgContext, int Width, int Height) 

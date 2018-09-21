@@ -23,9 +23,11 @@
 
 #include <os/ipc/ipc.h>
 #include "window.hpp"
+#include "label.hpp"
 
-CWindow::CWindow(CEntity* Parent, NVGcontext* VgContext, 
-    const std::string &Title, int Width, int Height) : CEntity(Parent, VgContext) {
+CWindow::CWindow(CEntity* Parent, NVGcontext* VgContext, const std::string &Title, int Width, int Height) 
+    : CEntity(Parent, VgContext)
+{
     m_Title             = Title;
     m_Width             = Width;
     m_Height            = Height;
@@ -36,13 +38,21 @@ CWindow::CWindow(CEntity* Parent, NVGcontext* VgContext,
     m_StreamHeight      = 0;
     m_StreamBuffer      = nullptr;
     m_ResourceId        = 0;
+
+    m_TitleLabel = new CLabel(this, VgContext);
+    m_TitleLabel->SetText(Title);
+    m_TitleLabel->SetTextAlignment(CLabel::AlignCenter, CLabel::AlignMiddle);
+    m_TitleLabel->SetFont("sans-normal");
+    m_TitleLabel->SetFontSize(14.0f);
+    m_TitleLabel->SetFontColor(nvgRGBA(255, 255, 255, 255));
+    m_TitleLabel->SetPosition(m_Width / 2.0f, m_Height - (WINDOW_HEADER_HEIGHT / 2.0f), 0.0f);
 }
 
 CWindow::CWindow(NVGcontext* VgContext, const std::string &Title, int Width, int Height) 
     : CWindow(nullptr, VgContext, Title, Width, Height) { }
 
 CWindow::CWindow(CEntity* Parent, NVGcontext* VgContext)
-    : CWindow(Parent, VgContext, "New Window", 0, 0) { }
+    : CWindow(Parent, VgContext, "Untitled Window", 450, 300) { }
 
 CWindow::CWindow(NVGcontext* VgContext) 
     : CWindow(nullptr, VgContext) { }
@@ -54,14 +64,17 @@ CWindow::~CWindow() {
     if (m_StreamBuffer != nullptr) {
         DestroyBuffer(m_StreamBuffer);
     }
+    delete m_TitleLabel;
 }
 
 void CWindow::SetWidth(int Width) {
     m_Width = Width;
+    m_TitleLabel->SetPosition(m_Width / 2.0f, m_Height - (WINDOW_HEADER_HEIGHT / 2.0f), 0.0f);
 }
 
 void CWindow::SetHeight(int Height) {
     m_Height = Height + (int)WINDOW_HEADER_HEIGHT;
+    m_TitleLabel->SetPosition(m_Width / 2.0f, m_Height - (WINDOW_HEADER_HEIGHT / 2.0f), 0.0f);
 }
 
 void CWindow::SetTitle(const std::string &Title) {
@@ -150,23 +163,4 @@ void CWindow::Draw(NVGcontext* VgContext) {
 	nvgRoundedRectVarying(VgContext, x, y, m_Width, WINDOW_HEADER_HEIGHT, 0.0f, 0.0f, WINDOW_CORNER_RADIUS - 1, WINDOW_CORNER_RADIUS - 1);
 	nvgFillColor(VgContext, m_Active ? nvgRGBA(WINDOW_HEADER_ACTIVE_RGBA) : nvgRGBA(WINDOW_HEADER_INACTIVE_RGBA));
 	nvgFill(VgContext);
-	
-    // Text
-    //nvgBeginPath(vg);
-	//nvgMoveTo(vg, x+0.5f, y+0.5f+30);
-	//nvgLineTo(vg, x+0.5f+w-1, y+0.5f+30);
-	//nvgStrokeColor(vg, nvgRGBA(0,0,0,32));
-	//nvgStroke(vg);
-
-	//nvgFontSize(vg, 18.0f);
-	//nvgFontFace(vg, "sans-bold");
-	//nvgTextAlign(vg,NVG_ALIGN_CENTER|NVG_ALIGN_MIDDLE);
-
-	//nvgFontBlur(vg,2);
-	//nvgFillColor(vg, nvgRGBA(0,0,0,128));
-	//nvgText(vg, x+w/2,y+16+1, title, NULL);
-
-	//nvgFontBlur(vg,0);
-	//nvgFillColor(vg, nvgRGBA(220,220,220,160));
-	//nvgText(vg, x+w/2,y+16, title, NULL);
 }

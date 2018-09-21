@@ -58,8 +58,9 @@
 namespace {
     static bool LoadFile(const std::string& Path, void** Buffer, std::size_t* Length)
     {
-        FILE *file = fopen(Path.c_str(), "rab");
+        FILE *file = fopen(Path.c_str(), "rb");
         if (file != nullptr) {
+            fseek(file, 0, SEEK_END);
             *Length = ftell(file);
             if (*Length != 0) {
                 rewind(file);
@@ -215,21 +216,8 @@ bool CTerminalFont::GetCharacterBitmap(unsigned long Character, FontCharacter_t&
         IndentX += Delta.x >> 6;
     }
     IndentX += Glyph->MinX;
-
-    // Update the members
-    Information.Bitmap  = Current->buffer;
-    Information.Pitch   = Current->pitch;
-    Information.Width   = Width;
-    Information.Height  = Current->rows;
-    Information.Indent  = IndentX;
-    Information.Advance = Glyph->Advance;
-    if (TTF_HANDLE_STYLE_BOLD(this)) {
-        Information.Advance += m_GlyphOverhang;
-    }
-    m_PreviousIndex = Glyph->Index;
-    return true;
-
-    /* Handle the underline style 
+    
+    /* Handle the underline style
     if (TTF_HANDLE_STYLE_UNDERLINE(this)) {
         row = TTF_underline_top_row(font);
         TTF_drawLine_Solid(font, textbuf, row);
@@ -240,6 +228,21 @@ bool CTerminalFont::GetCharacterBitmap(unsigned long Character, FontCharacter_t&
         row = TTF_strikethrough_top_row(font);
         TTF_drawLine_Solid(font, textbuf, row);
     }  */
+
+    // Update the members
+    Information.Bitmap  = Current->buffer;
+    Information.Pitch   = Current->pitch;
+    Information.Width   = Width;
+    Information.Height  = Current->rows;
+    Information.IndentX = IndentX;
+    Information.IndentY = Glyph->yOffset;
+    Information.Advance = Glyph->Advance;
+    if (TTF_HANDLE_STYLE_BOLD(this)) {
+        Information.Advance += m_GlyphOverhang;
+    }
+    m_PreviousIndex = Glyph->Index;
+    return true;
+
 }
 
 void CTerminalFont::ResetPrevious()

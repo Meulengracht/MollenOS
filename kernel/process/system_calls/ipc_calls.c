@@ -290,16 +290,11 @@ ScRpcListen(
     // Trace
     TRACE("%s: ScRpcListen(Port %i)", MStringRaw(PhoenixGetCurrentAsh()->Name), Port);
     
-    // Start out by resolving both the
-    // process and pipe
+    // Start out by resolving both the process and pipe
     Ash     = PhoenixGetCurrentAsh();
     Pipe    = PhoenixGetAshPipe(Ash, Port);
 
-    // Start consuming, if block is not set check for any messages first
-    if (AcquireSystemPipeConsumption(Pipe, Block, &Length, &State) != OsSuccess) {
-        return OsError;
-    }
-    
+    AcquireSystemPipeConsumption(Pipe, &Length, &State);
     ReadSystemPipeConsumption(&State, (uint8_t*)RemoteCall, sizeof(MRemoteCall_t));
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
         if (RemoteCall->Arguments[i].Type == ARGUMENT_BUFFER) {

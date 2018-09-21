@@ -20,16 +20,31 @@
  *  - The Vioarr V8 Graphics Engine.
  */
 #pragma once
+
 #include "../entity.hpp"
 #include <string>
 
 class CLabel : public CEntity {
+public:
+    enum HorizontalAlignment {
+        AlignLeft,
+        AlignCenter,
+        AlignRight
+    };
+
+    enum VerticalAlignment {
+        AlignTop,
+        AlignMiddle,
+        AlignBottom
+    };
+
 public:
     CLabel(CEntity* Parent, NVGcontext* VgContext);
     CLabel(NVGcontext* VgContext);
     ~CLabel();
 
     void SetText(const std::string& Text);
+    void SetTextAlignment(HorizontalAlignment HzAlignment, VerticalAlignment VzAlignment);
     void SetFont(const std::string& Font);
     void SetFontSize(float Size);
     void SetFontColor(NVGcolor Color);
@@ -39,6 +54,7 @@ protected:
     void Draw(NVGcontext* VgContext);
 
 private:
+    int         m_Alignment;
     float       m_Size;
     NVGcolor    m_Color;
     std::string m_Text;

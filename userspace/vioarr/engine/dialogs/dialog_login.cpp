@@ -33,18 +33,18 @@ CDialogLogin::CDialogLogin(CEntity* Parent, NVGcontext* VgContext)
 {
     // Create resources neccessary for the dialog, we need a textbox and
     // a dynamic label, default size of window is 450px x 100px
-    Move(sEngine.GetScreenCenterX() - (DIALOG_WIDTH / 2.0f), sEngine.GetScreenCenterY() - (DIALOG_HEIGHT / 2.0f), 0.0f);
+    SetPosition(sEngine.GetScreenCenterX() - (DIALOG_WIDTH / 2.0f), sEngine.GetScreenCenterY() - (DIALOG_HEIGHT / 2.0f), 0.0f);
     
     // Offset the suggestionbox to the middle
     m_Username = new CTextBox(this, VgContext, DIALOG_WIDTH - 40, 24); // 16 + 8 (4 padding)
     m_Password = new CTextBox(this, VgContext, DIALOG_WIDTH - 40, 24); // 16 + 8 (4 padding)
 
-    m_Username->Move(20.0f, DIALOG_HEIGHT - 54.0f, 0.0f);
+    m_Username->SetPosition(20.0f, DIALOG_HEIGHT - 54.0f, 0.0f);
     m_Username->SetIcon("$sys/themes/default/user16.png");
     m_Username->SetPlaceholderText("Username");
     m_Username->SetActive(true);                // Username textbox is active default
 
-    m_Password->Move(20.0f, DIALOG_HEIGHT - 88.0f, 0.0f);
+    m_Password->SetPosition(20.0f, DIALOG_HEIGHT - 88.0f, 0.0f);
     m_Password->SetIcon("$sys/themes/default/lock16.png");
     m_Password->SetPlaceholderText("Password");
     m_Password->SetPasswordField(true);

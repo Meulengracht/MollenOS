@@ -522,17 +522,9 @@ InitializeSegmentEntry(
 static SystemPipeEntry_t*
 GetSegmentEntryForReading(
     _In_ SystemPipeSegment_t*       Segment,
-    _In_ unsigned int               Index,
-    _In_ int                        Block)
+    _In_ unsigned int               Index)
 {
-    if (!Block) {
-        if (SlimSemaphoreWait(&Segment->Entries[Index].SyncObject, 1) == SCHEDULER_SLEEP_TIMEOUT) {
-            return NULL;
-        }
-    }
-    else {
-        SlimSemaphoreWait(&Segment->Entries[Index].SyncObject, 0);
-    }
+    SlimSemaphoreWait(&Segment->Entries[Index].SyncObject, 0);
     return &Segment->Entries[Index];
 }
 
@@ -724,9 +716,7 @@ ReadSystemPipe(
         Length = ReadRawSegmentBuffer(Pipe, &Segment->Buffer, Data, Length);
     }
     else {
-        if (AcquireSystemPipeConsumption(Pipe, 1, &Length, &State) != OsSuccess) {
-            return 0;
-        }
+        AcquireSystemPipeConsumption(Pipe, &Length, &State);
         ReadSystemPipeConsumption(&State, Data, Length);
         FinalizeSystemPipeConsumption(Pipe, &State);
     }
@@ -948,11 +938,9 @@ AdvanceSystemPipeConsumer(
 OsStatus_t
 AcquireSystemPipeConsumption(
     _In_  SystemPipe_t*             Pipe,
-    _In_  int                       Block,
     _Out_ size_t*                   Length,
     _Out_ SystemPipeUserState_t*    State)
 {
-    // Variables
     SystemPipeSegment_t *Segment;
     SystemPipeEntry_t *Entry;
     unsigned int Ticket;
@@ -969,10 +957,7 @@ AcquireSystemPipeConsumption(
         if (Pipe->Configuration & PIPE_MULTIPLE_CONSUMERS) {
             Segment = FindSystemPipeSegment(Pipe, Segment, Ticket);
         }
-        Entry = GetSegmentEntryForReading(Segment, TICKET_INDEX(Pipe, Ticket), Block);
-        if (Entry == NULL) {
-            return OsError;
-        }
+        Entry = GetSegmentEntryForReading(Segment, TICKET_INDEX(Pipe, Ticket));
 
         // Perform post-operations, they include making sure
         // we perform our maintience duties, like advancing the consumer
@@ -981,10 +966,7 @@ AcquireSystemPipeConsumption(
         }
     }
     else {
-        Entry = GetSegmentEntryForReading(Segment, TICKET_INDEX(Pipe, Ticket), Block);
-        if (Entry == NULL) {
-            return OsError;
-        }
+        Entry = GetSegmentEntryForReading(Segment, TICKET_INDEX(Pipe, Ticket));
     }
 
     State->Segment  = Segment;

@@ -23,6 +23,8 @@
 #pragma once
 
 #include <functional>
+#include <algorithm>
+#include <iterator>
 #include <string>
 #include <vector>
 #include <memory>
@@ -84,16 +86,20 @@ public:
     CTerminalInterpreter(CTerminal& Terminal);
     ~CTerminalInterpreter() = default;
 
-    void    RegisterCommand(const std::string& Command, const std::string& Description, std::function<bool(const std::vector<std::string>&)> Fn);
-    int     Run();
+    void                RegisterCommand(const std::string& Command, const std::string& Description, std::function<bool(const std::vector<std::string>&)> Fn);
+    virtual bool        HandleKeyCode(unsigned int KeyCode, unsigned int Flags) = 0;
+    virtual void        PrintCommandHeader() = 0;
 
-private:
-    bool Interpret(const std::string& String, std::string& ClosestMatch);
+    const std::string&  GetClosestMatch() const { return m_ClosestMatch; }
+
+protected:
+    bool Interpret(const std::string& String);
     bool Help(const std::vector<std::string>& Arguments);
     bool Exit(const std::vector<std::string>& Arguments);
 
-private:
+protected:
     CTerminal&                                      m_Terminal;
     std::list<std::unique_ptr<CTerminalCommand>>    m_Commands;
     bool                                            m_Alive;
+    std::string                                     m_ClosestMatch;
 };
