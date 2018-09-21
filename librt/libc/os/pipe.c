@@ -95,8 +95,7 @@ ReceivePipe(
     assert(Port >= 0);
     assert(Buffer != NULL);
     assert(Length > 0);
-    
-    if (ProcessId == UUID_INVALID && Port != PIPE_STDIN) {
+    if (ProcessId == UUID_INVALID) {
         return ReadPipe(Port, Buffer, Length);
     }
 	return Syscall_PipeReceive(ProcessId, Port, Buffer, Length);

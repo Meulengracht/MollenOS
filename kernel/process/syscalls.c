@@ -85,7 +85,7 @@ OsStatus_t  ScPipeWrite(UUId_t ProcessId, int Port, uint8_t* Message, size_t Len
 OsStatus_t  ScPipeReceive(UUId_t ProcessId, int Port, uint8_t* Message, size_t Length);
 OsStatus_t  ScRpcResponse(MRemoteCall_t* RemoteCall);
 OsStatus_t  ScRpcExecute(MRemoteCall_t* RemoteCall, int Async);
-OsStatus_t  ScRpcListen(int Port, MRemoteCall_t* RemoteCall, uint8_t* ArgumentBuffer, int Block);
+OsStatus_t  ScRpcListen(int Port, MRemoteCall_t* RemoteCall, uint8_t* ArgumentBuffer);
 OsStatus_t  ScRpcRespond(MRemoteCallAddress_t* RemoteAddress, const uint8_t* Buffer, size_t Length);
 
 // Memory system calls

@@ -108,16 +108,13 @@ void MessageHandler()
 {
     char *ArgumentBuffer    = NULL;
     bool IsRunning          = true;
-    int Block               = 0;
     MRemoteCall_t Message;
 
     // Listen for messages
     ArgumentBuffer = (char*)::malloc(IPC_MAX_MESSAGELENGTH);
     while (IsRunning) {
         // Keep processing messages untill no more
-        while (RPCListen(&Message, ArgumentBuffer, Block) == OsSuccess) {
-            Block = 0;
-
+        if (RPCListen(&Message, ArgumentBuffer, Block) == OsSuccess) {
             if (Message.Function == __WINDOWMANAGER_CREATE) {
                 UIWindowParameters_t* Parameters    = nullptr;
                 Handle_t Result                     = nullptr;
@@ -145,11 +142,8 @@ void MessageHandler()
             if (Message.Function == __WINDOWMANAGER_QUERY) {
                 
             }
+            sVioarr.UpdateNotify();
         }
-
-        // We ended up here, block untill further messages appear and put in a render-request
-        sVioarr.UpdateNotify();
-        Block = 1;
     }
 }
 

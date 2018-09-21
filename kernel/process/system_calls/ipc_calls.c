@@ -85,10 +85,7 @@ ScPipeRead(
     _In_ uint8_t*       Container,
     _In_ size_t         Length)
 {
-    // Variables
-    SystemPipe_t *Pipe  = NULL;
-
-    // Sanitize parameters
+    SystemPipe_t *Pipe;
     if (Length == 0) {
         return OsSuccess;
     }
@@ -98,7 +95,6 @@ ScPipeRead(
         ERROR("Trying to read from non-existing pipe %i", Port);
         return OsError;
     }
-
     ReadSystemPipe(Pipe, Container, Length);
     return OsSuccess;
 }
@@ -112,10 +108,7 @@ ScPipeWrite(
     _In_ uint8_t*       Message,
     _In_ size_t         Length)
 {
-    // Variables
-    SystemPipe_t *Pipe      = NULL;
-
-    // Sanitize parameters
+    SystemPipe_t *Pipe = NULL;
     if (Message == NULL || Length == 0) {
         return OsError;
     }
@@ -155,9 +148,7 @@ ScPipeReceive(
     _In_ uint8_t*       Message,
     _In_ size_t         Length)
 {
-    SystemPipe_t *Pipe = NULL;
-
-    // Sanitize parameters
+    SystemPipe_t *Pipe;
     if (Message == NULL || Length == 0) {
         ERROR("Invalid paramters for pipe-receive");
         return OsError;
@@ -165,9 +156,7 @@ ScPipeReceive(
 
     // Handle special case, system-stdin
     if (ProcessId == UUID_INVALID) {
-        if (Port == PIPE_STDIN) {
-            Pipe = GetMachine()->StdInput;
-        }
+        return ScPipeRead(Port, Message, Length);
     }
     else {
         Pipe = PhoenixGetAshPipe(PhoenixGetAsh(ProcessId), Port);
@@ -177,7 +166,6 @@ ScPipeReceive(
         ERROR("Invalid pipe %i", Port);
         return OsError;
     }
-
     ReadSystemPipe(Pipe, Message, Length);
     return OsSuccess;
 }
@@ -276,8 +264,7 @@ OsStatus_t
 ScRpcListen(
     _In_ int            Port,
     _In_ MRemoteCall_t* RemoteCall,
-    _In_ uint8_t*       ArgumentBuffer,
-    _In_ int            Block)
+    _In_ uint8_t*       ArgumentBuffer)
 {
     // Variables
     SystemPipeUserState_t State;

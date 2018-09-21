@@ -71,10 +71,9 @@ RPCEvent(
 OsStatus_t 
 RPCListen(
 	_In_ MRemoteCall_t*         Message,
-    _In_ void*                  ArgumentBuffer,
-    _In_ int                    Block)
+    _In_ void*                  ArgumentBuffer)
 {
-    return Syscall_RemoteCallWait(PIPE_REMOTECALL, Message, ArgumentBuffer, Block);
+    return Syscall_RemoteCallWait(PIPE_REMOTECALL, Message, ArgumentBuffer);
 }
 
 /* RPCRespond

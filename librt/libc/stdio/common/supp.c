@@ -114,7 +114,7 @@ thrd_t thrd_current(void) {
 static Collection_t IoObjects   = COLLECTION_INIT(KeyInteger);
 static int *FdBitmap            = NULL;
 static Spinlock_t BitmapLock;
-FILE __GlbStdout, __GlbStdin, __GlbStderr;
+static FILE __GlbStdout = { 0 }, __GlbStdin = { 0 }, __GlbStderr = { 0 };
 
 /* Prototypes
  * Forward-declare these */
@@ -153,84 +153,6 @@ OsStatus_t StdioCreatePipeHandle(UUId_t ProcessId, int Port, int Oflags, StdioOb
         Object->exflag |= EF_CLOSE;
     }
     return OsSuccess;
-}
-
-/* StdioInitialize
- * Initializes default handles and resources */
-_CRTIMP void
-StdioInitialize(
-    _In_ void*  InheritanceBlock,
-    _In_ size_t InheritanceBlockLength)
-{
-    // Initialize the locks
-    SpinlockReset(&BitmapLock);
-
-    // Initialize the bitmap of fds
-    FdBitmap = (int *)malloc(DIVUP(INTERNAL_MAXFILES, 8));
-    memset(FdBitmap, 0, DIVUP(INTERNAL_MAXFILES, 8));
-
-    // Initialize the std handles
-    memset(&__GlbStdout,    0, sizeof(FILE));
-    memset(&__GlbStdin,     0, sizeof(FILE));
-    memset(&__GlbStderr,    0, sizeof(FILE));
-
-    // Handle inheritance
-    if (InheritanceBlock != NULL) {
-        StdioObject_t *ObjectPointer    = (StdioObject_t*)InheritanceBlock;
-        size_t BytesLeft                = InheritanceBlockLength;
-        while (BytesLeft >= sizeof(StdioObject_t)) {
-            int fd = StdioFdAllocate(ObjectPointer->fd, ObjectPointer->wxflag);
-            if (fd != -1) {
-                if (fd == STDOUT_FILENO) {
-                    __GlbStdout._fd = fd;
-                }
-                else if (fd == STDIN_FILENO) {
-                    __GlbStdin._fd = fd;
-                }
-                else if (fd == STDERR_FILENO) {
-                    __GlbStderr._fd = fd;
-                }
-                StdioCloneHandle(&get_ioinfo(fd)->handle, &ObjectPointer->handle);
-            }
-            BytesLeft -= sizeof(StdioObject_t);
-            ObjectPointer++;
-        }
-    }
-    
-    // Make sure all handles have been set for std
-    if (get_ioinfo(STDOUT_FILENO) == NULL) {
-        __GlbStdout._fd = StdioFdAllocate(STDOUT_FILENO, WX_PIPE | WX_TTY);
-        assert(__GlbStdout._fd != -1);
-
-        StdioCreatePipeHandle(UUID_INVALID, PIPE_STDOUT, _IOWRT, get_ioinfo(STDOUT_FILENO));
-    }
-    if (get_ioinfo(STDIN_FILENO) == NULL) {
-        __GlbStdin._fd = StdioFdAllocate(STDIN_FILENO, WX_PIPE | WX_TTY);
-        assert(__GlbStdin._fd != -1);
-
-        StdioCreatePipeHandle(UUID_INVALID, PIPE_STDIN, _IOREAD, get_ioinfo(STDIN_FILENO));
-    }
-    if (get_ioinfo(STDERR_FILENO) == NULL) {
-        __GlbStderr._fd = StdioFdAllocate(STDERR_FILENO, WX_PIPE | WX_TTY);
-        assert(__GlbStderr._fd != -1);
-
-        StdioCreatePipeHandle(UUID_INVALID, PIPE_STDERR, _IOWRT, get_ioinfo(STDERR_FILENO));
-    }
-    
-    // Initialize them
-    StdioFdInitialize(&__GlbStdout, __GlbStdout._fd,    _IOWRT);
-    StdioFdInitialize(&__GlbStdin,  __GlbStdin._fd,     _IOREAD);
-    StdioFdInitialize(&__GlbStderr, __GlbStderr._fd,    _IOWRT);
-}
-
-/* StdioCleanup
- * Flushes all files open to disk, and then frees any resources 
- * allocated to the open file handles. */
-_CRTIMP void
-StdioCleanup(void) {
-    // Flush all file buffers and close handles
-    _flushall();
-    _fcloseall();
 }
 
 /* StdioCreateInheritanceBlock
@@ -273,7 +195,7 @@ StdioCreateInheritanceBlock(
         NumberOfObjects--;
     }
 
-    if (NumberOfObjects == 0) {
+    if (NumberOfObjects == 0 || StartupInformation->InheritFlags == PROCESS_INHERIT_NONE) {
         return OsSuccess; // Nothing to inherit
     }
 
@@ -288,6 +210,9 @@ StdioCreateInheritanceBlock(
         StdioObject_t *Object = (StdioObject_t*)Node->Data;
         if (Object->fd < 3 && !(StartupInformation->InheritFlags & (1 << Object->fd))) {
             continue; // Don't inherit
+        }
+        if (Object->fd >= 3 && !(StartupInformation->InheritFlags & PROCESS_INHERIT_FILES)) {
+            continue;
         }
         memcpy(BlockPointer, Object, sizeof(StdioObject_t));
 
@@ -306,6 +231,97 @@ StdioCreateInheritanceBlock(
     }
     UNLOCK_FILES();
     return OsSuccess;
+}
+
+/* StdioInheritObject
+ * Inherits the given object that's been parsed from an inheritance block */
+static void
+StdioInheritObject(
+    _In_ StdioObject_t* Object)
+{
+    int fd = StdioFdAllocate(Object->fd, Object->wxflag);
+    if (fd != -1) {
+        if (fd == STDOUT_FILENO) {
+            __GlbStdout._fd = fd;
+        }
+        else if (fd == STDIN_FILENO) {
+            __GlbStdin._fd = fd;
+        }
+        else if (fd == STDERR_FILENO) {
+            __GlbStderr._fd = fd;
+        }
+        StdioCloneHandle(&get_ioinfo(fd)->handle, &Object->handle);
+    }
+}
+
+/* StdioParseInheritanceBlock
+ * Parses the inheritance block for stdio-objects that should be inheritted from the spawner. */
+static void 
+StdioParseInheritanceBlock(
+    _In_ void*  InheritanceBlock,
+    _In_ size_t InheritanceBlockLength)
+{
+    // Handle inheritance
+    if (InheritanceBlock != NULL) {
+        StdioObject_t *ObjectPointer    = (StdioObject_t*)InheritanceBlock;
+        size_t BytesLeft                = InheritanceBlockLength;
+        while (BytesLeft >= sizeof(StdioObject_t)) {
+            StdioInheritObject(ObjectPointer);
+            BytesLeft -= sizeof(StdioObject_t);
+            ObjectPointer++;
+        }
+    }
+    
+    // Make sure all default handles have been set for std
+    if (get_ioinfo(STDOUT_FILENO) == NULL) {
+        __GlbStdout._fd = StdioFdAllocate(STDOUT_FILENO, WX_PIPE | WX_TTY);
+        assert(__GlbStdout._fd != -1);
+
+        StdioCreatePipeHandle(UUID_INVALID, PIPE_STDOUT, _IOWRT, get_ioinfo(STDOUT_FILENO));
+    }
+    if (get_ioinfo(STDIN_FILENO) == NULL) {
+        __GlbStdin._fd = StdioFdAllocate(STDIN_FILENO, WX_PIPE | WX_TTY);
+        assert(__GlbStdin._fd != -1);
+
+        StdioCreatePipeHandle(UUID_INVALID, PIPE_STDIN, _IOREAD, get_ioinfo(STDIN_FILENO));
+    }
+    if (get_ioinfo(STDERR_FILENO) == NULL) {
+        __GlbStderr._fd = StdioFdAllocate(STDERR_FILENO, WX_PIPE | WX_TTY);
+        assert(__GlbStderr._fd != -1);
+
+        StdioCreatePipeHandle(UUID_INVALID, PIPE_STDERR, _IOWRT, get_ioinfo(STDERR_FILENO));
+    }
+    StdioFdInitialize(&__GlbStdout, __GlbStdout._fd,    _IOWRT);
+    StdioFdInitialize(&__GlbStdin,  __GlbStdin._fd,     _IOREAD);
+    StdioFdInitialize(&__GlbStderr, __GlbStderr._fd,    _IOWRT);
+}
+
+/* StdioInitialize
+ * Initializes default handles and resources */
+_CRTIMP void
+StdioInitialize(
+    _In_ void*  InheritanceBlock,
+    _In_ size_t InheritanceBlockLength)
+{
+    // Initialize the locks
+    SpinlockReset(&BitmapLock);
+
+    // Initialize the bitmap of fds
+    FdBitmap = (int *)malloc(DIVUP(INTERNAL_MAXFILES, 8));
+    memset(FdBitmap, 0, DIVUP(INTERNAL_MAXFILES, 8));
+
+    StdioParseInheritanceBlock(InheritanceBlock, InheritanceBlockLength);
+}
+
+/* StdioCleanup
+ * Flushes all files open to disk, and then frees any resources 
+ * allocated to the open file handles. */
+_CRTIMP void
+StdioCleanup(void)
+{
+    // Flush all file buffers and close handles
+    _flushall();
+    _fcloseall();
 }
 
 /* StdioFdValid
@@ -675,7 +691,6 @@ StdioWriteInternal(
     _In_  size_t    Length,
     _Out_ size_t*   BytesWritten)
 {
-    // Variables
     StdioHandle_t *Handle   = StdioFdToHandle(fd);
 
     if (Handle->InheritationType == STDIO_HANDLE_FILE) {
@@ -794,12 +809,10 @@ FILE* getstdfile(int n) {
  * the buffer to initial state */
 OsStatus_t
 os_flush_buffer(
-    FILE *file)
+    _In_ FILE* file)
 {
-    if ((file->_flag & (_IOREAD | _IOWRT)) == _IOWRT && file->_flag & (_IOMYBUF | _USERBUF))
-    {
-
-        // Calculate the number of bytes to write
+    if ((file->_flag & (_IOREAD | _IOWRT)) == _IOWRT && 
+        file->_flag & (_IOMYBUF | _USERBUF)) {
         int cnt = file->_ptr - file->_base;
 
         // Flush them
@@ -812,12 +825,9 @@ os_flush_buffer(
         if (file->_flag & _IORW) {
             file->_flag &= ~_IOWRT;
         }
-
-        // Reset buffer pointer/pos
         file->_ptr = file->_base;
         file->_cnt = 0;
     }
-
     return OsSuccess;
 }
 
@@ -842,13 +852,15 @@ os_flush_all_buffers(
         }
     }
     UNLOCK_FILES();
-
     return num_flushed;
 }
 
 /* get_ioinfo
  * Retrieves the io-object that is bound to the given file descriptor. */
-StdioObject_t* get_ioinfo(int fd) {
+StdioObject_t*
+get_ioinfo(
+    _In_ int fd)
+{
     DataKey_t Key;
     Key.Value = fd;
     return (StdioObject_t*)CollectionGetDataByKey(&IoObjects, Key, 0);
