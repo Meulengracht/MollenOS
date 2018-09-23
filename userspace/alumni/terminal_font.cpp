@@ -278,10 +278,10 @@ void CTerminalFont::FlushCache()
 
 FT_Error CTerminalFont::LoadGlyph(unsigned long Character, FontGlyph_t* Cached, int Want)
 {
-    FT_Error Status     = 0;
-    FT_GlyphSlot Glyph;
-    FT_Glyph_Metrics* Metrics;
-    FT_Outline* Outline;
+    FT_Error            Status = 0;
+    FT_GlyphSlot        Glyph;
+    FT_Glyph_Metrics*   Metrics;
+    FT_Outline*         Outline;
 
     if (!m_Face) {
         return FT_Err_Invalid_Handle;

@@ -172,10 +172,18 @@ OsStatus_t
 ScRegisterAliasId(
     _In_ UUId_t             Alias)
 {
-    // Debug
-    TRACE("ScRegisterAliasId(Server %s, Alias 0x%X)",
-        MStringRaw(PhoenixGetCurrentAsh()->Name), Alias);
-    return PhoenixRegisterAlias(PhoenixGetCurrentAsh(), Alias);
+    MCoreAsh_t* Process = PhoenixGetCurrentAsh();
+    TRACE("ScRegisterAliasId(Server %s, Alias 0x%X)", MStringRaw(Process->Name), Alias);
+    
+    // Update the registered sys pipe that should recieve input events from cursor etc
+    if (PhoenixRegisterAlias(Process, Alias) == OsSuccess) {
+        if (Alias == __WINDOWMANAGER_TARGET) {
+            GetMachine()->StdInput  = PhoenixGetAshPipe(Process, PIPE_STDIN);
+            GetMachine()->WmInput   = PhoenixGetAshPipe(Process, PIPE_WMEVENTS);
+        }
+        return OsSuccess;
+    }
+    return OsError;
 }
 
 /* ScLoadDriver

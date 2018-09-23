@@ -104,7 +104,6 @@ LogInitializeFull(void)
     // Create 4kb pipes
     LogObject.STDOUT        = CreateSystemPipe(0, 6); // 1 << 6, 64 entries, 1 << 12 is 4kb
     LogObject.STDERR        = CreateSystemPipe(0, 6); // 1 << 6, 64 entries, 1 << 12 is 4kb
-    GetMachine()->StdInput  = CreateSystemPipe(0, 6); // 1 << 6, 64 entries, 1 << 12 is 4kb
 
     // Create the threads that will echo the pipes
     PipeThreads[0] = ThreadingCreateThread("log-stdout", LogPipeHandler, (void*)LogObject.STDOUT, 0);

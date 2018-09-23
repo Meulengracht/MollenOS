@@ -142,7 +142,7 @@ void StdioCreateFileHandle(UUId_t FileHandle, StdioObject_t *Object) {
 
 /* StdioCreateFileHandle 
  * Initializes the handle as a pipe handle in the stdio object */ 
-OsStatus_t StdioCreatePipeHandle(UUId_t ProcessId, int Port, int Oflags, StdioObject_t *Object) {
+OsStatus_t StdioCreatePipeHandle(UUId_t ProcessId, int Port, int Oflags, StdioObject_t* Object) {
     Object->handle.InheritationType                 = STDIO_HANDLE_PIPE;
     Object->handle.InheritationData.Pipe.ProcessId  = ProcessId;
     Object->handle.InheritationData.Pipe.Port       = Port;

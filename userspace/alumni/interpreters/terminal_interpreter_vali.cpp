@@ -49,6 +49,11 @@ void CValiTerminalInterpreter::UpdateWorkingDirectory()
 bool CValiTerminalInterpreter::HandleKeyCode(unsigned int KeyCode, unsigned int Flags)
 {
     SystemKey_t Key;
+
+    // Don't respond to released events
+    if (Flags & KEY_MODIFIER_RELEASED) {
+        return false;
+    }
     Key.KeyCode = KeyCode;
     Key.Flags   = Flags;
 

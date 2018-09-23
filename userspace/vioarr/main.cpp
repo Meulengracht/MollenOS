@@ -114,7 +114,7 @@ void MessageHandler()
     ArgumentBuffer = (char*)::malloc(IPC_MAX_MESSAGELENGTH);
     while (IsRunning) {
         // Keep processing messages untill no more
-        if (RPCListen(&Message, ArgumentBuffer, Block) == OsSuccess) {
+        if (RPCListen(&Message, ArgumentBuffer) == OsSuccess) {
             if (Message.Function == __WINDOWMANAGER_CREATE) {
                 UIWindowParameters_t* Parameters    = nullptr;
                 Handle_t Result                     = nullptr;

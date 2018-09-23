@@ -62,7 +62,7 @@ ProcessSpawn(
 
     // Setup information block
     InitializeStartupInformation(&StartupInformation);
-    StartupInformation.InheritFlags = PROCESS_INHERIT_ALL;
+    StartupInformation.InheritFlags = PROCESS_INHERIT_NONE;
     if (Arguments != NULL) {
         StartupInformation.ArgumentPointer = Arguments;
         StartupInformation.ArgumentLength = strlen(Arguments);

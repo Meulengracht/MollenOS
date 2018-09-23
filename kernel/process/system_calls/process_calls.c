@@ -64,7 +64,7 @@ ScProcessSpawn(
         Request->StartupInformation.ArgumentLength = 
             StartupInformation->ArgumentLength;
         Request->StartupInformation.ArgumentPointer = 
-            (__CONST char*)kmalloc(StartupInformation->ArgumentLength);
+            (const char*)kmalloc(StartupInformation->ArgumentLength);
         memcpy((void*)Request->StartupInformation.ArgumentPointer,
             StartupInformation->ArgumentPointer, 
             StartupInformation->ArgumentLength);
@@ -74,7 +74,7 @@ ScProcessSpawn(
         Request->StartupInformation.InheritanceBlockLength = 
             StartupInformation->InheritanceBlockLength;
         Request->StartupInformation.InheritanceBlockPointer = 
-            (__CONST char*)kmalloc(StartupInformation->InheritanceBlockLength);
+            (const char*)kmalloc(StartupInformation->InheritanceBlockLength);
         memcpy((void*)Request->StartupInformation.InheritanceBlockPointer,
             StartupInformation->InheritanceBlockPointer, 
             StartupInformation->InheritanceBlockLength);
@@ -246,10 +246,7 @@ OsStatus_t
 ScProcessGetStartupInformation(
     _InOut_ ProcessStartupInformation_t *StartupInformation)
 {
-    // Variables
     MCoreProcess_t *Process = NULL;
-
-    // Sanitize parameters
     if (StartupInformation == NULL) {
         return OsError;
     }
@@ -265,13 +262,15 @@ ScProcessGetStartupInformation(
         if (StartupInformation->ArgumentPointer != NULL) {
             memcpy((void*)StartupInformation->ArgumentPointer, 
                 Process->StartupInformation.ArgumentPointer,
-                MIN(StartupInformation->ArgumentLength, 
-                    Process->StartupInformation.ArgumentLength));
+                MIN(StartupInformation->ArgumentLength, Process->StartupInformation.ArgumentLength));
+            StartupInformation->ArgumentLength = MIN(StartupInformation->ArgumentLength, Process->StartupInformation.ArgumentLength);
         }
         else {
-            StartupInformation->ArgumentLength = 
-                Process->StartupInformation.ArgumentLength;
+            StartupInformation->ArgumentLength = Process->StartupInformation.ArgumentLength;
         }
+    }
+    else {
+        StartupInformation->ArgumentLength = 0;
     }
     if (Process->StartupInformation.InheritanceBlockPointer != NULL) {
         if (StartupInformation->InheritanceBlockPointer != NULL) {
@@ -282,11 +281,12 @@ ScProcessGetStartupInformation(
             StartupInformation->InheritanceBlockLength = BytesToCopy;
         }
         else {
-            StartupInformation->InheritanceBlockLength = 0;
+            StartupInformation->InheritanceBlockLength = Process->StartupInformation.InheritanceBlockLength;
         }
     }
-
-    // Done
+    else {
+        StartupInformation->InheritanceBlockLength = 0;
+    }
     return OsSuccess;
 }
 

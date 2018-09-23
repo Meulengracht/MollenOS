@@ -67,7 +67,6 @@ void
 UnEscapeQuotes(
     _InOut_ char *Arg)
 {
-	/* Placeholder */
 	char *LastChar = NULL;
 
 	while (*Arg) {
@@ -94,7 +93,6 @@ ParseCommandLine(
     _In_ char *CmdLine,
     _In_ char **ArgBuffer)
 {
-	/* Variables */
 	char *BufPtr;
 	char *lastp = NULL;
 	int ArgCount, LastArgC;
@@ -164,7 +162,7 @@ __CrtInitialize(
 {
     // Variables
     ProcessStartupInformation_t StartupInformation;
-	char **Arguments            = NULL;
+	char**                      Arguments = NULL;
 
     // Initialize the TLS System
 	tls_create(Tls);
@@ -193,9 +191,14 @@ __CrtInitialize(
 
     // Handle process arguments
     if (ArgumentCount != NULL) {
-        *ArgumentCount  = ParseCommandLine(&StartupArgumentBuffer[0], NULL);
-        Arguments       = (char**)calloc(sizeof(char*), (*ArgumentCount) + 1);
-        ParseCommandLine(&StartupArgumentBuffer[0], Arguments);
+        if (StartupInformation.ArgumentLength != 0) {
+            *ArgumentCount  = ParseCommandLine(&StartupArgumentBuffer[0], NULL);
+            Arguments       = (char**)calloc(sizeof(char*), (*ArgumentCount) + 1);
+            ParseCommandLine(&StartupArgumentBuffer[0], Arguments);
+        }
+        else {
+            *ArgumentCount = 0;
+        }
     }
 
     // Initialize default comm pipe

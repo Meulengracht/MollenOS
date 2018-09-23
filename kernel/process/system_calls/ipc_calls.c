@@ -39,19 +39,10 @@ ScPipeOpen(
     _In_ int            Type)
 {
     MCoreAsh_t* Process = PhoenixGetCurrentAsh();
-    OsStatus_t Status   = OsError;
-
     if (Process != NULL) {
-        UUId_t Alias = Process->Id;
-        PhoenixUpdateAlias(&Alias);
-        Status = PhoenixOpenAshPipe(Process, Port, Type);
-
-        // Update the registered wm-input pipe that should recieve input events from cursor etc
-        if (Status == OsSuccess && Alias == __WINDOWMANAGER_TARGET && Port == PIPE_WMEVENTS) {
-            GetMachine()->WmInput = PhoenixGetAshPipe(Process, PIPE_WMEVENTS);
-        }
+        return PhoenixOpenAshPipe(Process, Port, Type);
     }
-    return Status;
+    return OsError;
 }
 
 /* ScPipeClose
@@ -69,6 +60,11 @@ ScPipeClose(
         PhoenixUpdateAlias(&Alias);
         Status = PhoenixCloseAshPipe(Process, Port);
         
+        // Disable the window manager input event pipe
+        if (Status == OsSuccess && Alias == __WINDOWMANAGER_TARGET && Port == PIPE_STDIN) {
+            GetMachine()->StdInput = NULL;
+        }
+
         // Disable the window manager input event pipe
         if (Status == OsSuccess && Alias == __WINDOWMANAGER_TARGET && Port == PIPE_WMEVENTS) {
             GetMachine()->WmInput = NULL;
@@ -92,7 +88,8 @@ ScPipeRead(
 
     Pipe = PhoenixGetAshPipe(PhoenixGetCurrentAsh(), Port);
     if (Pipe == NULL) {
-        ERROR("Trying to read from non-existing pipe %i", Port);
+        ERROR("Process %s trying to read from non-existing pipe %i", MStringRaw(PhoenixGetCurrentAsh()->Name), Port);
+        for(;;);
         return OsError;
     }
     ReadSystemPipe(Pipe, Container, Length);

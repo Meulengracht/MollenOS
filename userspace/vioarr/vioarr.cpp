@@ -59,16 +59,16 @@ int VioarrCompositor::Run()
     sLog.Info("Initializing V8");
     sEngine.Initialize(m_Display);
     sEngine.AddScene(CreateDesktopScene());
-    MollenOSEndBoot();
+    //MollenOSEndBoot();
 
     // Enter event loop
-    sEngine.Render();
+    //sEngine.Render();
     while (m_IsRunning) {
         m_Signal.Wait();
 
         GetRenderLock();
         // LastUpdate = std::chrono::steady_clock::now();
-        sEngine.Render();
+        //sEngine.Render();
         // auto render_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - LastUpdate); /*  milliseconds.count() */
         // auto fps = 1000.0f / render_time_ms;
         ReleaseRenderLock();
