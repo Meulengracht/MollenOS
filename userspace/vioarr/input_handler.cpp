@@ -79,13 +79,15 @@ bool HandleShortcut(SystemKey_t* Key)
 bool HandleFunctionKeys(SystemKey_t* Key)
 {
     if (Key->KeyCode >= VK_F1 && Key->KeyCode <= VK_F24) {
-        if (Key->KeyCode == VK_F1) {
-            // Spawn the test application
-            SpawnApplication("$bin/wintest.app", NULL);
-        }
-        else if (Key->KeyCode == VK_F2) {
-            // Spawn the terminal application
-            SpawnApplication("$bin/alumni.app", NULL);
+        if (Key->Flags & KEY_MODIFIER_RELEASED) {
+            if (Key->KeyCode == VK_F1) {
+                // Spawn the test application
+                SpawnApplication("$bin/wintest.app", NULL);
+            }
+            else if (Key->KeyCode == VK_F2) {
+                // Spawn the terminal application
+                SpawnApplication("$bin/alumni.app", NULL);
+            }
         }
         return true;
     }

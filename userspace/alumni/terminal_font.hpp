@@ -60,7 +60,8 @@ public:
     ~CTerminalFont();
 
     bool    SetSize(std::size_t PixelSize);
-    int     GetFontHeight() const { return m_LineSkip; }
+    int     GetFontHeight() const { return m_Height; }
+    int     GetLineSkip() const { return m_LineSkip; }
     bool    GetCharacterBitmap(unsigned long Character, FontCharacter_t& Information);
     void    ResetPrevious();
 
@@ -93,6 +94,4 @@ private:
     float       m_GlyphItalics;
     int         m_UnderlineOffset;
     int         m_UnderlineHeight;
-    void*       m_Source;
-    std::size_t m_SourceLength;
 };

@@ -33,14 +33,12 @@
  * Sets the position indicator associated with the stream to a new position. 
  * ANSII Version of fseeki64. */
 long long lseeki64(
-	_In_ int fd, 
-	_In_ long long offset, 
-	_In_ int whence)
+	_In_ int        fd, 
+	_In_ long long  offset, 
+	_In_ int        whence)
 {
-	// Variables
 	long long Position = 0;
 
-	// Sanitize parameters
 	if (whence < 0 || whence > 2) {
 		_set_errno(EINVAL);
 		return -1;
@@ -60,9 +58,9 @@ long long lseeki64(
  * Sets the position indicator associated with the stream to a new position. 
  * ANSII Version of fseek. */
 long lseek(
-	_In_ int fd,
-	_In_ long offset,
-	_In_ int whence)
+	_In_ int        fd,
+	_In_ long       offset,
+	_In_ int        whence)
 {
 	return (long)lseeki64(fd, offset, whence);
 }
@@ -70,17 +68,14 @@ long lseek(
 /* fseeki64
  * Sets the position indicator associated with the stream to a new position. */
 int fseeki64(
-	_In_ FILE *file, 
-	_In_ long long offset, 
-	_In_ int whence)
+	_In_ FILE*      file, 
+	_In_ long long  offset, 
+	_In_ int        whence)
 {
-	// Variables
 	int ret;
 
 	// Lock access to stream
 	_lock_file(file);
-
-	// Flush output if needed
 	if (file->_flag & _IOWRT) {
 		os_flush_buffer(file);
 	}
@@ -99,12 +94,9 @@ int fseeki64(
 	if (file->_flag & _IORW) {
 		file->_flag &= ~(_IOREAD | _IOWRT);
 	}
-
-	// Clear end of file flag
 	file->_flag &= ~_IOEOF;
 	ret = (lseeki64(file->_fd, offset, whence) == -1) ? -1 : 0;
 
-	// Unlock and return
 	_unlock_file(file);
 	return ret;
 }

@@ -33,7 +33,7 @@ int main(int argc, char **argv) {
     CSurfaceRect                TerminalArea(450, 300);
     CValiSurface                Surface(TerminalArea);
     CTerminalRenderer           Renderer(Surface);
-    CTerminalFont               Font(FreeType, "$sys/fonts/DejaVuSansMono.ttf", 11);
+    CTerminalFont               Font(FreeType, "$sys/fonts/DejaVuSansMono.ttf", 12);
     CTerminal                   Terminal(TerminalArea, Renderer, Font);
     CValiTerminalInterpreter    Interpreter(Terminal);
     SystemKey_t                 Key;
@@ -44,8 +44,7 @@ int main(int argc, char **argv) {
 	Terminal.Print("MollenOS System Terminal %s\n", "V0.01-dev");
     Interpreter.PrintCommandHeader();
     
-    // Enter main loop
-	while (true) {
+	while (Interpreter.IsAlive()) {
         if (ReadSystemKey(&Key) == OsSuccess) {
             Interpreter.HandleKeyCode(Key.KeyCode, Key.Flags);
         }

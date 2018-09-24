@@ -48,7 +48,7 @@ bool CTerminal::CTerminalLine::AddCharacter(int Character)
 {
     char Buf = (char)Character & 0xFF;
 
-    // Handle \r \t \n? 
+    // Handle \r \t \n?
     if ((m_TextLength + m_Renderer.GetLengthOfCharacter(m_Font, Buf)) < m_Capacity) {
         if (m_Cursor == m_Text.length()) {
             m_Text.push_back(Character);
@@ -68,7 +68,7 @@ bool CTerminal::CTerminalLine::AddInput(int Character)
 {
     char Buf = (char)Character & 0xFF;
 
-    // Handle \r \t \n? 
+    // Handle \r \t \n?
     if ((m_TextLength + m_Renderer.GetLengthOfCharacter(m_Font, Buf)) < m_Capacity) {
         if (m_Cursor == m_Text.length()) {
             m_Text.push_back(Character);
@@ -115,6 +115,14 @@ void CTerminal::CTerminalLine::SetText(const std::string& Text)
     m_Cursor    = Text.length();
 }
 
+std::string CTerminal::CTerminalLine::GetInput()
+{
+    if (m_Text.length() > m_InputOffset) {
+        return m_Text.substr(m_InputOffset);
+    }
+    return "";
+}
+
 void CTerminal::CTerminalLine::HideCursor()
 {
     m_ShowCursor = false;
@@ -126,7 +134,7 @@ void CTerminal::CTerminalLine::ShowCursor()
 }
 
 CTerminal::CTerminal(CSurfaceRect& Area, CTerminalRenderer& Renderer, CTerminalFont& Font)
-    : m_Rows(Area.GetHeight() / Font.GetFontHeight())
+    : m_Rows((Area.GetHeight() / Font.GetFontHeight()) - 1), m_HistoryIndex(0), m_LineIndex(0)
 {
     for (int i = 0; i < m_Rows; i++) {
         m_Lines.push_back(std::make_unique<CTerminalLine>(Renderer, Font, i, Area.GetWidth()));
@@ -134,6 +142,7 @@ CTerminal::CTerminal(CSurfaceRect& Area, CTerminalRenderer& Renderer, CTerminalF
 }
 
 CTerminal::~CTerminal() {
+    m_History.clear();
     m_Lines.clear();
 }
 

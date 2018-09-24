@@ -32,7 +32,7 @@ namespace {
         unsigned int Rb2 = (Alpha * (ColorB & 0xFF00FF)) >> 8;
         unsigned int G1  = ((0x100 - Alpha) * (ColorA & 0x00FF00)) >> 8;
         unsigned int G2  = (Alpha * (ColorB & 0x00FF00)) >> 8;
-        return ((Rb1 | Rb2) & 0xFF00FF) + ((G1 | G2) & 0x00FF00);
+        return ((Rb1 | Rb2) & 0xFF00FF) + ((G1 | G2) & 0x00FF00) | 0xFF000000;
     }
 }
 

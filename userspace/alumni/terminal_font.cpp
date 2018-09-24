@@ -55,42 +55,17 @@
 #define CACHED_BITMAP   0x01
 #define CACHED_PIXMAP   0x02
 
-namespace {
-    static bool LoadFile(const std::string& Path, void** Buffer, std::size_t* Length)
-    {
-        FILE *file = fopen(Path.c_str(), "rb");
-        if (file != nullptr) {
-            fseek(file, 0, SEEK_END);
-            *Length = ftell(file);
-            if (*Length != 0) {
-                rewind(file);
-                *Buffer = malloc(*Length);
-                if (*Buffer != nullptr) {
-                    std::size_t BytesRead = fread(*Buffer, 1, *Length, file);
-                    if (BytesRead == *Length) {
-                        fclose(file);
-                        return true;
-                    }
-                    free(*Buffer);
-                }
-            }
-            fclose(file);
-        }
-        return false;
-    }
-}
-
 CTerminalFont::CTerminalFont(CTerminalFreeType& FreeType, const std::string& FontPath, std::size_t InitialPixelSize)
-    : m_FreeType(FreeType)
+    : m_FreeType(FreeType), m_Current(nullptr), m_Height(0), m_Ascent(0), m_Descent(0), m_LineSkip(0), m_FontSizeFamily(0),
+      m_FaceStyle(0), m_Style(0), m_Outline(0), m_Kerning(0), m_Hinting(0), m_PreviousIndex(0), m_GlyphOverhang(0),
+      m_GlyphItalics(0), m_UnderlineOffset(0), m_UnderlineHeight(0)
 {
     FT_CharMap CmFound  = 0;
-    bool Status         = LoadFile(FontPath, &m_Source, &m_SourceLength);
-    assert(Status);
-
-    Status = FT_New_Memory_Face(m_FreeType.GetLibrary(), (FT_Byte*)m_Source, m_SourceLength, 0, &m_Face) == 0;
+    bool Status         = FT_New_Face(m_FreeType.GetLibrary(), FontPath.c_str(), 0, &m_Face) == FT_Err_Ok;
     assert(Status);
 
     // Build the character map
+    memset(&m_Cache[0], 0, sizeof(m_Cache));
     for (int i = 0; i < m_Face->num_charmaps; i++) {
         FT_CharMap Cm = m_Face->charmaps[i];
         if ((Cm->platform_id == 3 && Cm->encoding_id == 1) ||   // Windows Unicode
@@ -114,7 +89,7 @@ CTerminalFont::CTerminalFont(CTerminalFreeType& FreeType, const std::string& Fon
 CTerminalFont::~CTerminalFont()
 {
     FlushCache();
-    free(m_Source);
+    FT_Done_Face(m_Face);
 }
 
 bool CTerminalFont::SetSize(std::size_t PixelSize)

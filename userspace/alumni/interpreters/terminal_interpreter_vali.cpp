@@ -61,7 +61,8 @@ bool CValiTerminalInterpreter::HandleKeyCode(unsigned int KeyCode, unsigned int 
         m_Terminal.RemoveInput();
     }
     else if (KeyCode == VK_ENTER) {
-        if (!Interpret(m_Terminal.ClearInput(true))) {
+        std::string Input = m_Terminal.ClearInput(true);
+        if (!Interpret(Input)) {
             if (GetClosestMatch().length() != 0) {
                 m_Terminal.Print("Command did not exist, did you mean %s?\n", GetClosestMatch().c_str());
             }

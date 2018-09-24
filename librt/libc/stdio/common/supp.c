@@ -159,7 +159,7 @@ OsStatus_t StdioCreatePipeHandle(UUId_t ProcessId, int Port, int Oflags, StdioOb
  * Creates a block of data containing all the stdio handles that can be inherited. */
 OsStatus_t
 StdioCreateInheritanceBlock(
-	_In_ ProcessStartupInformation_t* StartupInformation)
+    _In_ ProcessStartupInformation_t* StartupInformation)
 {
     StdioObject_t *BlockPointer = NULL;
     size_t NumberOfObjects      = 0;
@@ -489,16 +489,16 @@ StdioHandleReadFile(
     _In_  size_t         Length,
     _Out_ size_t*        BytesRead)
 {
-	uint8_t *Pointer        = (uint8_t*)Buffer;
-	size_t BytesReadTotal   = 0, BytesLeft = (size_t)Length;
-	size_t OriginalSize     = GetBufferSize(tls_current()->transfer_buffer);
+    uint8_t *Pointer        = (uint8_t*)Buffer;
+    size_t BytesReadTotal   = 0, BytesLeft = (size_t)Length;
+    size_t OriginalSize     = GetBufferSize(tls_current()->transfer_buffer);
 
     // There is a time when reading more than a couple of times is considerably slower
     // than just reading the entire thing at once. When? Who knows, but in our case anything
     // more than 5 transfers is useless
     if (Length >= (OriginalSize * 5)) {
         DmaBuffer_t *TransferBuffer     = CreateBuffer(UUID_INVALID, Length);
-		size_t BytesReadFs              = 0, BytesIndex = 0;
+        size_t BytesReadFs              = 0, BytesIndex = 0;
         FileSystemCode_t FsCode;
 
         FsCode = ReadFile(Handle->InheritationData.FileHandle, GetBufferHandle(TransferBuffer), Length, &BytesIndex, &BytesReadFs);
@@ -511,7 +511,7 @@ StdioHandleReadFile(
             return OsError;
         }
 
-		SeekBuffer(TransferBuffer, BytesIndex);
+        SeekBuffer(TransferBuffer, BytesIndex);
         ReadBuffer(TransferBuffer, (const void*)Buffer, BytesReadFs, NULL);
         DestroyBuffer(TransferBuffer);
         *BytesRead = BytesReadFs;
@@ -519,32 +519,32 @@ StdioHandleReadFile(
     }
     
     // Keep reading chunks untill we've read all requested
-	while (BytesLeft > 0) {
+    while (BytesLeft > 0) {
         FileSystemCode_t FsCode = FsOk;
-		size_t ChunkSize        = MIN(OriginalSize, BytesLeft);
-		size_t BytesReadFs      = 0, BytesIndex = 0;
+        size_t ChunkSize        = MIN(OriginalSize, BytesLeft);
+        size_t BytesReadFs      = 0, BytesIndex = 0;
 
         // Perform the read
         FsCode = ReadFile(Handle->InheritationData.FileHandle, GetBufferHandle(tls_current()->transfer_buffer), 
             ChunkSize, &BytesIndex, &BytesReadFs);
         if (_fval(FsCode) || BytesReadFs == 0) {
-			break;
-		}
+            break;
+        }
         
         // Seek to the valid buffer index, then read the byte count
-		SeekBuffer(tls_current()->transfer_buffer, BytesIndex);
+        SeekBuffer(tls_current()->transfer_buffer, BytesIndex);
         ReadBuffer(tls_current()->transfer_buffer, (const void*)Pointer, BytesReadFs, NULL);
-		SeekBuffer(tls_current()->transfer_buffer, 0);
+        SeekBuffer(tls_current()->transfer_buffer, 0);
 
         // Update indices
-		BytesLeft       -= BytesReadFs;
-		BytesReadTotal  += BytesReadFs;
-		Pointer         += BytesReadFs;
-	}
+        BytesLeft       -= BytesReadFs;
+        BytesReadTotal  += BytesReadFs;
+        Pointer         += BytesReadFs;
+    }
 
     // Restore transfer buffer
     *BytesRead = BytesReadTotal;
-	return OsSuccess;
+    return OsSuccess;
 }
 
 /* WriteSystemInput
@@ -641,7 +641,7 @@ StdioReadInternal(
     }
     else {
         _set_errno(EBADF);
-		return OsError;
+        return OsError;
     }
 }
 
@@ -654,32 +654,32 @@ StdioHandleWriteFile(
     _In_  size_t         Length,
     _Out_ size_t*        BytesWritten)
 {
-	size_t BytesWrittenTotal = 0, BytesLeft = (size_t)Length;
-	size_t OriginalSize = GetBufferSize(tls_current()->transfer_buffer);
+    size_t BytesWrittenTotal = 0, BytesLeft = (size_t)Length;
+    size_t OriginalSize = GetBufferSize(tls_current()->transfer_buffer);
     uint8_t *Pointer = (uint8_t*)Buffer;
 
     // Keep writing chunks untill we've read all requested
-	while (BytesLeft > 0) {
-		size_t ChunkSize = MIN(OriginalSize, BytesLeft);
-		size_t BytesWrittenLocal = 0;
+    while (BytesLeft > 0) {
+        size_t ChunkSize = MIN(OriginalSize, BytesLeft);
+        size_t BytesWrittenLocal = 0;
         
         SeekBuffer(tls_current()->transfer_buffer, 0); // Rewind buffer
         WriteBuffer(tls_current()->transfer_buffer, (const void *)Pointer, ChunkSize, &BytesWrittenLocal);
-		if (WriteFile(Handle->InheritationData.FileHandle, GetBufferHandle(tls_current()->transfer_buffer), 
+        if (WriteFile(Handle->InheritationData.FileHandle, GetBufferHandle(tls_current()->transfer_buffer), 
             ChunkSize, &BytesWrittenLocal) != FsOk) {
-			break;
-		}
-		if (BytesWrittenLocal == 0) {
-			break;
-		}
-		BytesWrittenTotal += BytesWrittenLocal;
-		BytesLeft -= BytesWrittenLocal;
-		Pointer += BytesWrittenLocal;
-	}
+            break;
+        }
+        if (BytesWrittenLocal == 0) {
+            break;
+        }
+        BytesWrittenTotal += BytesWrittenLocal;
+        BytesLeft -= BytesWrittenLocal;
+        Pointer += BytesWrittenLocal;
+    }
 
-	// Restore our transfer buffer and return
+    // Restore our transfer buffer and return
     *BytesWritten = BytesWrittenTotal;
-	return OsSuccess;
+    return OsSuccess;
 }
 
 /* StdioWriteInternal
@@ -707,7 +707,7 @@ StdioWriteInternal(
     }
     else {
         _set_errno(EBADF);
-		return OsError;
+        return OsError;
     }
 }
 
@@ -720,16 +720,14 @@ StdioHandleSeekFile(
     _In_  int               Origin,
     _Out_ long long*        Position)
 {
-    // Variables
     LargeInteger_t SeekFinal;
 
     // If we search from SEEK_SET, just build offset directly
-	if (Origin != SEEK_SET) {
-		// Start calculation of corrected offsets
+    if (Origin != SEEK_SET) {
         LargeInteger_t FileInitial;
 
-		// Adjust for seek origin
-		if (Origin == SEEK_CUR) {
+        // Adjust for seek origin
+        if (Origin == SEEK_CUR) {
             if (GetFilePosition(Handle->InheritationData.FileHandle, &FileInitial.u.LowPart, &FileInitial.u.HighPart) != OsSuccess) {
                 return OsError;
             }
@@ -738,26 +736,26 @@ StdioHandleSeekFile(
                 _set_errno(EOVERFLOW);
                 return OsError;
             }
-		}
-		else {
+        }
+        else {
             if (GetFileSize(Handle->InheritationData.FileHandle, &FileInitial.u.LowPart, &FileInitial.u.HighPart) != OsSuccess) {
                 return OsError;
             }
-		}
+        }
         SeekFinal.QuadPart = FileInitial.QuadPart + Offset;
-	}
+    }
     else {
         SeekFinal.QuadPart = Offset;
     }
 
-	// Now perform the seek
-	if (_fval(SeekFile(Handle->InheritationData.FileHandle, SeekFinal.u.LowPart, SeekFinal.u.HighPart))) {
-		return OsError;
-	}
-	else {
+    // Now perform the seek
+    if (_fval(SeekFile(Handle->InheritationData.FileHandle, SeekFinal.u.LowPart, SeekFinal.u.HighPart))) {
+        return OsError;
+    }
+    else {
         *Position = SeekFinal.QuadPart;
-		return OsSuccess;
-	}
+        return OsSuccess;
+    }
 }
 
 /* StdioSeekInternal
@@ -769,7 +767,6 @@ StdioSeekInternal(
     _In_  int           Origin,
     _Out_ long long*    Position)
 {
-    // Variables
     StdioHandle_t *Handle   = StdioFdToHandle(fd);
 
     if (Handle->InheritationType == STDIO_HANDLE_FILE) {
@@ -781,7 +778,7 @@ StdioSeekInternal(
     }
     else {
         _set_errno(EBADF);
-		return OsError;
+        return OsError;
     }
 }
 

@@ -100,7 +100,7 @@ void CWindow::SetStreaming(bool Enable) {
 
     if (Enable) {
         m_ResourceId = nvgCreateImageRGBA(m_VgContext, m_StreamWidth, m_StreamHeight, 
-            0, (const uint8_t*)GetBufferDataPointer(m_StreamBuffer));
+            NVG_IMAGE_FLIPY, (const uint8_t*)GetBufferDataPointer(m_StreamBuffer));
         if (m_ResourceId == 0) {
             m_Streaming = false;
         }

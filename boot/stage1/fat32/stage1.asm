@@ -1,6 +1,6 @@
-﻿; MollenOS
+﻿; ValiOS
 ;
-; Copyright 2011 - 2016, Philip Meulengracht
+; Copyright 2016, Philip Meulengracht
 ;
 ; This program is free software : you can redistribute it and / or modify
 ; it under the terms of the GNU General Public License as published by
@@ -15,7 +15,7 @@
 ; You should have received a copy of the GNU General Public License
 ; along with this program.If not, see <http://www.gnu.org/licenses/>.
 ;
-; Mollen-OS Stage 1 Bootloader - FAT32 
+; ValiOS Stage 1 Bootloader - FAT32 
 ; Version 1.0
 ; *******************************************************
 ; Memory Map:
@@ -43,7 +43,7 @@ nop
 ; *************************
 ; FAT Boot Parameter Block
 ; *************************
-szOemName					db		"MollenOS"
+szOemName					db		"Vali  OS"
 wBytesPerSector				dw		0
 bSectorsPerCluster			db		0
 wReservedSectors			dw		0

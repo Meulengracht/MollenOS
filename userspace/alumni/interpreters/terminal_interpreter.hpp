@@ -50,31 +50,7 @@ class CTerminalInterpreter {
         const std::string& GetDescription() const { return m_Description; }
 
     private:
-        int GetCommandDistance(const std::string& Command)
-        {
-            std::size_t n = m_Command.size(), m = Command.size();
-            if (n == 0) { return m; }
-            if (m == 0) { return n; }
-
-            std::size_t* d = new std::size_t[n * m];
-            memset(d, 0, sizeof(std::size_t) * n * m);
-
-            for (size_t i = 1, im = 0; i < m; ++i, ++im) {
-                for (size_t j = 1, jn = 0; j < n; ++j, ++jn) {
-                    if (m_Command[jn] == Command[im]) {
-                        d[(i * n) + j] = d[((i - 1) * n) + (j - 1)];
-                    }
-                    else {
-                        d[(i * n) + j] = std::min(d[(i - 1) * n + j] + 1,   /* A deletion. */
-                                         std::min(d[i * n + (j - 1)] + 1,   /* An insertion. */
-                                         d[(i - 1) * n + (j - 1)] + 1));    /* A substitution. */
-                    }
-                }
-            }
-            int r = (int)(d[n * m - 1]);
-            delete [] d;
-            return r;
-        }
+        int GetCommandDistance(const std::string& Command);
 
     private:
         std::string m_Command;
@@ -91,8 +67,11 @@ public:
     virtual void        PrintCommandHeader() = 0;
 
     const std::string&  GetClosestMatch() const { return m_ClosestMatch; }
+    bool                IsAlive() const { return m_Alive; }
 
 protected:
+    std::vector<std::string> SplitCommandString(const std::string& String);
+    
     bool Interpret(const std::string& String);
     bool Help(const std::vector<std::string>& Arguments);
     bool Exit(const std::vector<std::string>& Arguments);

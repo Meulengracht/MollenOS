@@ -49,8 +49,8 @@ private:
         void HideCursor();
         void ShowCursor();
 
+        std::string GetInput();
         const std::string& GetText() const { return m_Text; }
-        std::string GetInput() const { return m_Text.substr(m_InputOffset); }
 
     private:
         CTerminalRenderer&  m_Renderer;

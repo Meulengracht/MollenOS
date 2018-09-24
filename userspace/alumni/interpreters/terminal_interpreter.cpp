@@ -22,8 +22,37 @@
  */
 
 #include <sstream>
+#include <numeric>
 #include "../terminal.hpp"
 #include "terminal_interpreter.hpp"
+
+int CTerminalInterpreter::CTerminalCommand::GetCommandDistance(const std::string& Command)
+{
+	int s1len = m_Command.size();
+	int s2len = Command.size();
+	
+	auto column_start   = (decltype(s1len))1;
+	auto column         = new decltype(s1len)[s1len + 1];
+	std::iota(column + column_start - 1, column + s1len + 1, column_start - 1);
+	
+	for (auto x = column_start; x <= s2len; x++) {
+		column[0] = x;
+		auto last_diagonal = x - column_start;
+		for (auto y = column_start; y <= s1len; y++) {
+			auto old_diagonal = column[y];
+			auto possibilities = {
+				column[y] + 1,
+				column[y - 1] + 1,
+				last_diagonal + (m_Command[y - 1] == Command[x - 1]? 0 : 1)
+			};
+			column[y] = std::min(possibilities);
+			last_diagonal = old_diagonal;
+		}
+	}
+	auto result = column[s1len];
+	delete[] column;
+	return result;
+}
 
 CTerminalInterpreter::CTerminalInterpreter(CTerminal& Terminal)
     : m_Terminal(Terminal), m_Alive(true), m_ClosestMatch("")
@@ -38,25 +67,38 @@ void CTerminalInterpreter::RegisterCommand(const std::string& Command, const std
     m_Commands.push_back(std::make_unique<CTerminalCommand>(Command, Description, Fn));
 }
 
+std::vector<std::string> CTerminalInterpreter::SplitCommandString(const std::string& String)
+{
+    std::vector<std::string>    Tokens;
+    std::string                 Token = "";
+    for (int i = 0; i < String.size(); i++) {
+        if (String[i] == ' ') {
+            if (Token != "") {
+                Tokens.push_back(Token);
+            }
+            Token = "";
+            continue;
+        }
+        Token.push_back(String[i]);
+    }
+    if (Token != "") {
+        Tokens.push_back(Token);
+    }
+    return Tokens;
+}
+
 bool CTerminalInterpreter::Interpret(const std::string& String)
 {
-    std::stringstream                   Stream(String);
-    std::istream_iterator<std::string>  Begin(Stream);
-    std::istream_iterator<std::string>  End;
-    std::vector<std::string>            Tokens(Begin, End);
-    int ShortestDistance    = String.size();
-    m_ClosestMatch          = "";
+    int ShortestDistance = String.size();
+    m_ClosestMatch = "";
     if (String.size() == 0) {
         return false;
     }
-
+    
     // Get command and remove from array
-    std::string CommandString = Tokens[0];
+    std::vector<std::string> Tokens = SplitCommandString(String);
+    std::string CommandString       = Tokens[0];
     Tokens.erase(Tokens.begin());
-
-    // Clear out any empty arguments
-    Tokens.erase(std::remove_if(Tokens.begin(), Tokens.end(),
-        [](std::string const& Token) { return Token.size() == 0; }), Tokens.end());
 
     for (auto& Command : m_Commands) {
         int Distance = Command->operator()(CommandString, Tokens);
@@ -81,6 +123,6 @@ bool CTerminalInterpreter::Help(const std::vector<std::string>& Arguments)
 
 bool CTerminalInterpreter::Exit(const std::vector<std::string>& Arguments)
 {
-    exit(0);
+    m_Alive = false;
     return true;
 }
