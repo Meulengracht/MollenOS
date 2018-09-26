@@ -20,8 +20,6 @@
  *  - Implements Collection and queue functionality
  */
 
-/* Includes 
- * - Library */
 #include <ds/collection.h>
 #include <stddef.h>
 #include <string.h>
@@ -59,7 +57,6 @@ OsStatus_t
 CollectionClear(
     _In_ Collection_t*          Collection)
 {
-    // Variables
     CollectionItem_t *Node = NULL;
     assert(Collection != NULL);
 
@@ -80,7 +77,6 @@ OsStatus_t
 CollectionDestroy(
     _In_ Collection_t*          Collection)
 {
-    // Variables
     CollectionItem_t *Node = NULL;
     assert(Collection != NULL);
 

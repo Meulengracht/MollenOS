@@ -128,6 +128,39 @@ ActivateApplicationCore(
     }
 }
 
+/* EnableMultiProcessoringMode
+ * If multiple cores are present this will boot them up. If multiple domains are present
+ * it will boot all primary cores in each domain, then boot up rest of cores in our own domain. */
+void
+EnableMultiProcessoringMode(void)
+{
+    SystemDomain_t *CurrentDomain = GetCurrentDomain();
+    SystemDomain_t *Domain;
+    int i;
+
+    // Boot all cores in our own domain, then boot the initial core
+    // for all the other domains, they will boot up their own domains.
+    foreach (DomainNode, GetDomains()) {
+        Domain = (SystemDomain_t*)DomainNode->Data;
+        if (Domain != CurrentDomain) {
+            StartApplicationCore(&Domain->CoreGroup.PrimaryCore);
+        }
+    }
+
+    if (CurrentDomain != NULL) {
+        // Don't ever include ourself
+        for (i = 0; i < (CurrentDomain->CoreGroup.NumberOfCores - 1); i++) {
+            StartApplicationCore(&CurrentDomain->CoreGroup.ApplicationCores[i]);
+        }
+    }
+    else {
+        // No domains in system - boot all cores except ourself
+        for (i = 0; i < (GetMachine()->Processor.NumberOfCores - 1); i++) {
+            StartApplicationCore(&GetMachine()->Processor.ApplicationCores[i]);
+        }
+    }
+}
+
 /* GetProcessorCore
  * Retrieves the cpu core from the given core-id. */
 SystemCpuCore_t*

@@ -30,7 +30,7 @@
 #include "terminal_renderer.hpp"
 
 CTerminal::CTerminalLine::CTerminalLine(CTerminalRenderer& Renderer, CTerminalFont& Font, int Row, int Capacity)
-    : m_Renderer(Renderer), m_Font(Font), m_Row(Row), m_Capacity(Capacity)
+    : m_Renderer(Renderer), m_Font(Font), m_Row(Row), m_Capacity(Capacity - 6)
 {
     Reset();
 }
@@ -98,7 +98,7 @@ bool CTerminal::CTerminalLine::RemoveInput()
 void CTerminal::CTerminalLine::Update()
 {
     m_Renderer.RenderClear(0, (m_Row * m_Font.GetFontHeight()) + 2, -1, m_Font.GetFontHeight());
-    m_TextLength = m_Renderer.RenderText(0, (m_Row * m_Font.GetFontHeight()) + 2, m_Font, m_Text);
+    m_TextLength = m_Renderer.RenderText(3, (m_Row * m_Font.GetFontHeight()) + 2, m_Font, m_Text);
     if (m_ShowCursor) {
         uint32_t ExistingColor = m_Renderer.GetBackgroundColor();
         m_Renderer.SetBackgroundColor(255, 255, 255, 255);

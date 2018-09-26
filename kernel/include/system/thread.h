@@ -24,8 +24,6 @@
 #ifndef _MCORE_SYSTHREADS_H_
 #define _MCORE_SYSTHREADS_H_
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 #include <os/context.h>
 
@@ -35,9 +33,7 @@ typedef struct _MCoreThread MCoreThread_t;
  * Initializes a new arch-specific thread context
  * for the given threading flags, also initializes
  * the yield interrupt handler first time its called */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 ThreadingRegister(
     _In_ MCoreThread_t *Thread);
 
@@ -45,43 +41,26 @@ ThreadingRegister(
  * This function switches the current runtime-context
  * out with the given thread context, this should only
  * be used as a temporary way of impersonating another thread */
-KERNELAPI
-void
-KERNELABI
+KERNELAPI void KERNELABI
 ThreadingImpersonate(
     _In_ MCoreThread_t *Thread);
 
 /* ThreadingUnregister
  * Unregisters the thread from the system and cleans up any 
  * resources allocated by ThreadingRegister */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 ThreadingUnregister(
     _In_ MCoreThread_t *Thread);
 
-/* ThreadingWakeCpu
- * Wake's the target cpu from an idle thread
- * by sending it an yield IPI */
-KERNELAPI
-void
-KERNELABI
-ThreadingWakeCpu(
-    _In_ UUId_t Cpu);
-
 /* ThreadingYield
  * Yields the current thread control to the scheduler */
-KERNELAPI
-void
-KERNELABI
+KERNELAPI void KERNELABI
 ThreadingYield(void);
 
 /* ThreadingSignalDispatch
  * Dispatches a signal to the given thread. This function
  * does not return. */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 ThreadingSignalDispatch(
 	_In_ MCoreThread_t *Thread);
 
@@ -89,9 +68,7 @@ ThreadingSignalDispatch(
  * Stack manipulation / setup of stacks for given
  * threading. We need functions that create a new kernel
  * stack and user/driver stack. Pass threading flags */
-KERNELAPI
-Context_t*
-KERNELABI
+KERNELAPI Context_t* KERNELABI
 ContextCreate(
     _In_ Flags_t    ThreadFlags,
     _In_ int        ContextType,

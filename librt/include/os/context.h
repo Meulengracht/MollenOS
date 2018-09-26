@@ -24,8 +24,6 @@
 #ifndef __CONTEXT_INTERFACE_H__
 #define __CONTEXT_INTERFACE_H__
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
 
 /* The context depends on the current running 

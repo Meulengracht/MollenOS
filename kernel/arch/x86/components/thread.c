@@ -21,11 +21,8 @@
  */
 #define __MODULE "XTIF"
 
-/* Includes 
- * - System */
 #include <system/thread.h>
 #include <system/utils.h>
-
 #include <threading.h>
 #include <process/phoenix.h>
 #include <interrupts.h>
@@ -37,8 +34,6 @@
 #include <gdt.h>
 #include <cpu.h>
 
-/* Includes
- * - Library */
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
@@ -56,6 +51,19 @@ __EXTERN void set_ts(void);
 __EXTERN void clear_ts(void);
 __EXTERN void _yield(void);
 __EXTERN void enter_thread(Context_t *Regs);
+
+/* ThreadingHaltHandler
+ * Software interrupt handler for the halt command. cli/hlt combo */
+InterruptStatus_t
+ThreadingHaltHandler(
+    _In_ FastInterruptResources_t*  NotUsed,
+    _In_ void*                      Context)
+{
+    _CRT_UNUSED(NotUsed);
+    _CRT_UNUSED(Context);
+    CpuHalt();
+    return InterruptHandled;
+}
 
 /* ThreadingYieldHandler
  * Software interrupt handler for the yield command. Emulates a regular timer interrupt. */
@@ -140,16 +148,6 @@ ThreadingFpuException(
         return OsSuccess;
     }
     return OsError;
-}
-
-/* ThreadingWakeCpu
- * Wake's the target cpu from an idle thread
- * by sending it an yield IPI */
-void
-ThreadingWakeCpu(
-    _In_ UUId_t Cpu)
-{
-    ApicSendInterrupt(InterruptSpecific, Cpu, INTERRUPT_YIELD);
 }
 
 /* ThreadingYield

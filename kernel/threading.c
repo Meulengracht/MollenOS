@@ -366,7 +366,7 @@ ThreadingKillThread(
             if (SchedulerThreadSignal(Target) != OsSuccess) {
                 // More drastic measures are neccessary here, this means someone else
                 // has it in queue or it's currently running on another core
-                ThreadingWakeCpu(Target->CoreId);
+                InterruptProcessorCore(Target->CoreId, CpuInterruptYield);
             }
         }
     }

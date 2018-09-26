@@ -252,7 +252,7 @@ SchedulerSynchronizeCore(
 
     // Perform synchronization
     if (ThreadingIsCurrentTaskIdle(Thread->CoreId)) {
-        ThreadingWakeCpu(Thread->CoreId);
+        InterruptProcessorCore(Thread->CoreId, CpuInterruptYield);
     }
 }
 

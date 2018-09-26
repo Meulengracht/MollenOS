@@ -244,12 +244,6 @@ KERNELAPI MCoreThread_t* KERNELABI
 ThreadingGetThread(
     _In_ UUId_t         ThreadId);
 
-/* ThreadingWakeCpu
- * Wake's the target cpu from an idle thread by sending it an yield IPI */
-KERNELAPI void KERNELABI
-ThreadingWakeCpu(
-    _In_ UUId_t         CoreId);
-
 /* ThreadingSwitch
  * This is the thread-switch function and must be be called from the below architecture 
  * to get the next thread to run */

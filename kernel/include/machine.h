@@ -77,20 +77,6 @@ GetMachine(void);
 KERNELAPI void KERNELABI
 SetMachineUmaMode(void);
 
-/* InitializeProcessor (@arch)
- * Initializes the cpu as much as neccessary for the system to be in a running state. This
- * also initializes the primary core of the cpu structure. */
-KERNELAPI void KERNELABI
-InitializeProcessor(
-    _In_ SystemCpu_t*       Cpu);
-
-/* StartApplicationCore (@arch)
- * Initializes and starts the cpu core given. This is called by the kernel if it detects multiple
- * cores in the processor. */
-KERNELAPI void KERNELABI
-StartApplicationCore(
-    _In_ SystemCpuCore_t*   Core);
-
 /* InitializeSystemTimers (@arch)
  * Register and start all neccessary system timers for the operating system to run. */
 KERNELAPI OsStatus_t KERNELABI

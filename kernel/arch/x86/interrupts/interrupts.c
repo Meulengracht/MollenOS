@@ -78,6 +78,12 @@ InitializeSoftwareInterrupts(void)
     InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
         | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
 
+    // Halt interrupt
+    Interrupt.Vectors[0]            = INTERRUPT_HALT;
+    Interrupt.FastInterrupt.Handler = ThreadingHaltHandler;
+    InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
+        | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
+
     // Page synchronization interrupt
     Interrupt.Vectors[0]            = INTERRUPT_SYNCHRONIZE_PAGE;
     Interrupt.FastInterrupt.Handler = PageSynchronizationHandler;

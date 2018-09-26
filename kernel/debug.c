@@ -28,6 +28,7 @@
 #include <memoryspace.h>
 #include <scheduler.h>
 #include <deviceio.h>
+#include <machine.h>
 #include <stdio.h>
 #include <debug.h>
 #include <heap.h>
@@ -87,8 +88,8 @@ DebugBreakpoint(
  * maps in the page and returns OsSuccess */
 OsStatus_t
 DebugPageFault(
-    _In_ Context_t* Context,
-    _In_ uintptr_t  Address)
+    _In_ Context_t*     Context,
+    _In_ uintptr_t      Address)
 {
     // Trace
     TRACE("DebugPageFault(IP 0x%x, Address 0x%x)", CONTEXT_IP(Context), Address);
@@ -105,6 +106,25 @@ DebugPageFault(
     return OsError;
 }
 
+/* DebugHaltAllProcessorCores
+ * Halts all processor cores present in the processor. */
+OsStatus_t
+DebugHaltAllProcessorCores(
+    _In_ UUId_t         ExcludeId,
+    _In_ SystemCpu_t*   Processor)
+{
+    if (ExcludeId != Processor->PrimaryCore.Id) {
+        InterruptProcessorCore(Processor->PrimaryCore.Id, CpuInterruptHalt);
+    }
+
+    for (int i = 0; i < Processor->NumberOfCores - 1; i++) {
+        if (ExcludeId != Processor->ApplicationCores[i].Id) {
+            InterruptProcessorCore(Processor->ApplicationCores[i].Id, CpuInterruptHalt);
+        }
+    }
+    return OsSuccess;
+}
+
 /* DebugPanic
  * Kernel panic function - Call this to enter panic mode
  * and disrupt normal functioning. This function does not
@@ -116,30 +136,39 @@ DebugPanic(
     _In_ const char*    Module,
     _In_ const char*    Message, ...)
 {
-    // Variables
     MCoreThread_t *CurrentThread;
     char MessageBuffer[256];
     va_list Arguments;
-    UUId_t Cpu;
+    UUId_t CoreId;
 
-    // Trace
     TRACE("DebugPanic(Scope %i)", FatalityScope);
 
-    // Lookup some variables
-    Cpu = CpuGetCurrentId();
-    LogSetRenderMode(1);
+    // Disable all other cores in system if the fault is kernel scope
+    CoreId = CpuGetCurrentId();
+    if (FatalityScope == FATAL_SCOPE_KERNEL) {
+        if (CollectionLength(&GetMachine()->SystemDomains) != 0) {
+            foreach(NumaNode, &GetMachine()->SystemDomains) {
+                SystemDomain_t* Domain = (SystemDomain_t*)NumaNode;
+                DebugHaltAllProcessorCores(CoreId, &Domain->CoreGroup);
+            }
+        }
+        else {
+            DebugHaltAllProcessorCores(CoreId, &GetMachine()->Processor);
+        }
+    }
 
     // Format the debug information
     va_start(Arguments, Message);
     vsprintf(&MessageBuffer[0], Message, Arguments);
     va_end(Arguments);
+    LogSetRenderMode(1);
     LogAppendMessage(LogError, Module, &MessageBuffer[0]);
 
     // Log cpu and threads
-    CurrentThread = ThreadingGetCurrentThread(Cpu);
+    CurrentThread = ThreadingGetCurrentThread(CoreId);
     if (CurrentThread != NULL) {
         LogAppendMessage(LogError, Module, "Thread %s - %u (Core %u)!",
-            CurrentThread->Name, CurrentThread->Id, Cpu);
+            CurrentThread->Name, CurrentThread->Id, CoreId);
         if (CurrentThread->Flags & THREADING_IMPERSONATION) {
             // how should we do this
         }

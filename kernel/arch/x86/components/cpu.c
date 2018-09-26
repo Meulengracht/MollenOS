@@ -165,6 +165,22 @@ SetMachineUmaMode(void)
     for(;;);
 }
 
+/* InterruptProcessorCore (@arch) 
+ * Interrupts the given core with a specified reason, how the reason is handled is 
+ * implementation specific. */
+void
+InterruptProcessorCore(
+    _In_ UUId_t                     CoreId,
+    _In_ SystemCpuInterruptReason_t Reason)
+{
+    if (Reason == CpuInterruptHalt) {
+        ApicSendInterrupt(InterruptSpecific, CoreId, INTERRUPT_HALT);
+    }
+    else if (Reason == CpuInterruptYield) {
+        ApicSendInterrupt(InterruptSpecific, CoreId, INTERRUPT_YIELD);
+    }
+}
+
 /* CpuInitializeFeatures
  * Initializes all onboard features on the running core. This can be extended features
  * as SSE, MMX, FPU, AVX etc */

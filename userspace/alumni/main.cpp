@@ -40,8 +40,6 @@ int main(int argc, char **argv) {
 
     Interpreter.RegisterCommand("cd", "Change the working directory", [](const std::vector<std::string>&) { return true; });
     Interpreter.RegisterCommand("ls", "Lists the contents of the current working directory", [](const std::vector<std::string>&) { return true; });
-
-	Terminal.Print("MollenOS System Terminal %s\n", "V0.01-dev");
     Interpreter.PrintCommandHeader();
     
 	while (Interpreter.IsAlive()) {

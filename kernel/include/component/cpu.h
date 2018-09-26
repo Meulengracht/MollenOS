@@ -38,6 +38,11 @@ typedef enum _SystemCpuState {
     CpuStateInterruptActive = 0x10000
 } SystemCpuState_t;
 
+typedef enum _SystemCpuInterruptReason {
+    CpuInterruptHalt,
+    CpuInterruptYield
+} SystemCpuInterruptReason_t;
+
 /* SystemCpuCore
  * Structure that encapsulates everything a core needs to keep
  * it's data and current state. This contains information about
@@ -69,6 +74,12 @@ typedef struct _SystemCpu {
     
     struct _SystemCpu*  Link;
 } SystemCpu_t;
+
+/* EnableMultiProcessoringMode
+ * If multiple cores are present this will boot them up. If multiple domains are present
+ * it will boot all primary cores in each domain, then boot up rest of cores in our own domain. */
+KERNELAPI void KERNELABI
+EnableMultiProcessoringMode(void);
 
 /* RegisterStaticCore
  * Registers the primary core for the given cpu. The core count and the
@@ -106,5 +117,27 @@ GetProcessorCore(
  * Retrieves the cpu core that belongs to calling cpu core. */
 KERNELAPI SystemCpuCore_t* KERNELABI
 GetCurrentProcessorCore(void);
+
+/* InitializeProcessor (@arch)
+ * Initializes the cpu as much as neccessary for the system to be in a running state. This
+ * also initializes the primary core of the cpu structure. */
+KERNELAPI void KERNELABI
+InitializeProcessor(
+    _In_ SystemCpu_t*       Cpu);
+
+/* StartApplicationCore (@arch)
+ * Initializes and starts the cpu core given. This is called by the kernel if it detects multiple
+ * cores in the processor. */
+KERNELAPI void KERNELABI
+StartApplicationCore(
+    _In_ SystemCpuCore_t*   Core);
+
+/* InterruptProcessorCore (@arch) 
+ * Interrupts the given core with a specified reason, how the reason is handled is 
+ * implementation specific. */
+KERNELAPI void KERNELABI
+InterruptProcessorCore(
+    _In_ UUId_t                     CoreId,
+    _In_ SystemCpuInterruptReason_t Reason);
 
 #endif // !__COMPONENT_CPU__

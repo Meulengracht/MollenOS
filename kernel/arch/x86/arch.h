@@ -140,6 +140,7 @@
 // System calls
 #define INTERRUPT_SYSCALL                   0x80
 #define INTERRUPT_YIELD                     0x81
+#define INTERRUPT_HALT                      0x82
 
 // Priveliged software calls
 #define INTERRUPT_LVTERROR                  0x82

@@ -89,6 +89,6 @@ bool CValiTerminalInterpreter::HandleKeyCode(unsigned int KeyCode, unsigned int 
 
 void CValiTerminalInterpreter::PrintCommandHeader()
 {
-    m_Terminal.Print("[%s | %s | 09/12/2018 - 13:00]\n", m_Profile.c_str(), m_CurrentDirectory.c_str());
+    m_Terminal.Print("[ %s | %s ]\n", m_Profile.c_str(), m_CurrentDirectory.c_str());
     m_Terminal.Print("$ ");
 }
