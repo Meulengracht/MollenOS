@@ -143,7 +143,7 @@
 #define INTERRUPT_HALT                      0x82
 
 // Priveliged software calls
-#define INTERRUPT_LVTERROR                  0x82
+#define INTERRUPT_LVTERROR                  0x83
 #define INTERRUPT_LAPIC                     0xF0
 
 #endif // !_MCORE_X86_ARCH_

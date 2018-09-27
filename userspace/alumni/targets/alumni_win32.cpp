@@ -24,8 +24,9 @@
 #include <chrono>
 #include <thread>
 #include <sstream>
+#include "../terminal_interpreter.hpp"
 #include "../terminal.hpp"
-#include "terminal_interpreter_win32.hpp"
+#include "alumni_win32.hpp"
 #include <windows.h>
 
 namespace {
@@ -40,39 +41,54 @@ namespace {
     }
 }
 
-CWin32TerminalInterpreter::CWin32TerminalInterpreter(CTerminal& Terminal)
-    : CTerminalInterpreter(Terminal)
+CWin32Alumni::CWin32Alumni(std::unique_ptr<CTerminal> Terminal, std::unique_ptr<CTerminalInterpreter> Interpreter)
+    : CAlumni(std::move(Terminal), std::move(Interpreter))
 {
 }
 
-bool CWin32TerminalInterpreter::HandleKeyCode(unsigned int KeyCode, unsigned int Flags)
+bool CWin32Alumni::HandleKeyCode(unsigned int KeyCode, unsigned int Flags)
 {
     int Character;
     if (KeyCode == VK_RETURN) {
-        if (!Interpret(m_Terminal.ClearInput(true))) {
-            if (GetClosestMatch().length() != 0) {
-                m_Terminal.Print("Command did not exist, did you mean %s?\n", GetClosestMatch().c_str());
+        if (!m_Interpreter->Interpret(m_Terminal->ClearInput(true))) {
+            if (m_Interpreter->GetClosestMatch().length() != 0) {
+                m_Terminal->Print("Command did not exist, did you mean %s?\n", m_Interpreter->GetClosestMatch().c_str());
             }
         }
         PrintCommandHeader();
     }
     else if (KeyCode == VK_BACK) {
-        m_Terminal.RemoveInput();
+        m_Terminal->RemoveInput();
     }
     else if (KeyCode == VK_LEFT) {
-        m_Terminal.MoveCursorLeft();
+        m_Terminal->MoveCursorLeft();
     }
     else if (KeyCode == VK_RIGHT) {
-        m_Terminal.MoveCursorRight();
+        m_Terminal->MoveCursorRight();
     }
     else if (Vk2Ascii(KeyCode, (Flags >> 16) & 0xFF, &Character) != 0) {
-        m_Terminal.AddInput(Character);
+        m_Terminal->AddInput(Character);
     }
     return true;
 }
 
-void CWin32TerminalInterpreter::PrintCommandHeader()
+void CWin32Alumni::PrintCommandHeader()
 {
-    m_Terminal.Print("[%s | %s | 09/12/2018 - 13:00]\n", "Philip", "n/a");
-    m_Terminal.Print("$ ");
+    m_Terminal->Print("[%s | %s | 09/12/2018 - 13:00]\n", "Philip", "n/a");
+    m_Terminal->Print("$ ");
+}
+
+bool CWin32Alumni::CommandResolver(const std::string&, const std::vector<std::string>&)
+{
+    return false;
+}
+
+bool CWin32Alumni::ListDirectory(const std::vector<std::string>&)
+{
+    return false;
+}
+
+bool CWin32Alumni::ChangeDirectory(const std::vector<std::string>&)
+{
+    return false;
 }

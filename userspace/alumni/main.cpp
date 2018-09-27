@@ -21,30 +21,29 @@
  *   using freetype as the font renderer.
  */
 
+#include "targets/alumni_vali.hpp"
 #include "surfaces/surface_vali.hpp"
-#include "interpreters/terminal_interpreter_vali.hpp"
+#include "terminal_interpreter.hpp"
 #include "terminal_renderer.hpp"
 #include "terminal_font.hpp"
 #include "terminal.hpp"
 #include <os/input.h>
 
 int main(int argc, char **argv) {
-    CTerminalFreeType           FreeType;
-    CSurfaceRect                TerminalArea(450, 300);
-    CValiSurface                Surface(TerminalArea);
-    CTerminalRenderer           Renderer(Surface);
-    CTerminalFont               Font(FreeType, "$sys/fonts/DejaVuSansMono.ttf", 12);
-    CTerminal                   Terminal(TerminalArea, Renderer, Font);
-    CValiTerminalInterpreter    Interpreter(Terminal);
-    SystemKey_t                 Key;
+    std::unique_ptr<CTerminalFreeType>          FreeType(new CTerminalFreeType());
+    CSurfaceRect                                TerminalArea(450, 300);
+    std::unique_ptr<CSurface>                   Surface(new CValiSurface(TerminalArea));
+    std::shared_ptr<CTerminalRenderer>          Renderer(new CTerminalRenderer(std::move(Surface)));
+    std::shared_ptr<CTerminalFont>              Font(new CTerminalFont(std::move(FreeType), "$sys/fonts/DejaVuSansMono.ttf", 12));
+    std::unique_ptr<CTerminal>                  Terminal(new CTerminal(TerminalArea, Renderer, Font));
+    std::unique_ptr<CTerminalInterpreter>       Interpreter(new CTerminalInterpreter());
+    std::unique_ptr<CValiAlumni>                Alumni(new CValiAlumni(std::move(Terminal), std::move(Interpreter)));
+    SystemKey_t                                 Key;
 
-    Interpreter.RegisterCommand("cd", "Change the working directory", [](const std::vector<std::string>&) { return true; });
-    Interpreter.RegisterCommand("ls", "Lists the contents of the current working directory", [](const std::vector<std::string>&) { return true; });
-    Interpreter.PrintCommandHeader();
-    
-	while (Interpreter.IsAlive()) {
+    Alumni->PrintCommandHeader();
+	while (Alumni->IsAlive()) {
         if (ReadSystemKey(&Key) == OsSuccess) {
-            Interpreter.HandleKeyCode(Key.KeyCode, Key.Flags);
+            Alumni->HandleKeyCode(Key.KeyCode, Key.Flags);
         }
     }
     return 0;

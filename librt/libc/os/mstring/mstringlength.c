@@ -22,8 +22,6 @@
  *    to UTF-8.
  */
 
-/* Includes 
- * - System */
 #include "mstringprivate.h"
 
 /* MStringLength

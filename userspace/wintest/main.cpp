@@ -63,9 +63,6 @@ void BasicWindowingTests() {
         0xFF0000FF, GetBufferSize(WindowBuffer));
     UiSwapBackbuffer();
     std::this_thread::sleep_for(std::chrono::seconds(5));
-
-    // Destroy window and cleanup
-    UiUnregisterWindow();
 }
 
 /*******************************************

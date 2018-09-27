@@ -29,7 +29,7 @@
 #include "terminal_font.hpp"
 #include "terminal_renderer.hpp"
 
-CTerminal::CTerminalLine::CTerminalLine(CTerminalRenderer& Renderer, CTerminalFont& Font, int Row, int Capacity)
+CTerminal::CTerminalLine::CTerminalLine(std::shared_ptr<CTerminalRenderer> Renderer, std::shared_ptr<CTerminalFont> Font, int Row, int Capacity)
     : m_Renderer(Renderer), m_Font(Font), m_Row(Row), m_Capacity(Capacity - 6)
 {
     Reset();
@@ -46,17 +46,18 @@ void CTerminal::CTerminalLine::Reset()
 
 bool CTerminal::CTerminalLine::AddCharacter(int Character)
 {
-    char Buf = (char)Character & 0xFF;
+    char Buf            = (char)Character & 0xFF;
+    int CharacterLength = m_Renderer->GetLengthOfCharacter(m_Font, Buf);
 
     // Handle \r \t \n?
-    if ((m_TextLength + m_Renderer.GetLengthOfCharacter(m_Font, Buf)) < m_Capacity) {
+    if ((m_TextLength + CharacterLength) < m_Capacity) {
         if (m_Cursor == m_Text.length()) {
             m_Text.push_back(Character);
         }
         else {
             m_Text.insert(m_Cursor, &Buf, 1);
         }
-        m_TextLength = m_Renderer.CalculateTextLength(m_Font, m_Text);
+        m_TextLength += CharacterLength;
         m_InputOffset++;
         m_Cursor++;
         return true;
@@ -66,17 +67,18 @@ bool CTerminal::CTerminalLine::AddCharacter(int Character)
 
 bool CTerminal::CTerminalLine::AddInput(int Character)
 {
-    char Buf = (char)Character & 0xFF;
+    char Buf            = (char)Character & 0xFF;
+    int CharacterLength = m_Renderer->GetLengthOfCharacter(m_Font, Buf);
 
     // Handle \r \t \n?
-    if ((m_TextLength + m_Renderer.GetLengthOfCharacter(m_Font, Buf)) < m_Capacity) {
+    if ((m_TextLength + CharacterLength) < m_Capacity) {
         if (m_Cursor == m_Text.length()) {
             m_Text.push_back(Character);
         }
         else {
             m_Text.insert(m_Cursor, &Buf, 1);
         }
-        m_TextLength = m_Renderer.CalculateTextLength(m_Font, m_Text);
+        m_TextLength += CharacterLength;
         m_Cursor++;
         return true;
     }
@@ -88,7 +90,7 @@ bool CTerminal::CTerminalLine::RemoveInput()
     int ModifiedCursor = m_Cursor - m_InputOffset;
     if (ModifiedCursor != 0) {
         m_Text.erase(m_Cursor - 1, 1);
-        m_TextLength = m_Renderer.CalculateTextLength(m_Font, m_Text);
+        m_TextLength = m_Renderer->CalculateTextLength(m_Font, m_Text);
         m_Cursor--;
         return true;
     }
@@ -97,15 +99,14 @@ bool CTerminal::CTerminalLine::RemoveInput()
 
 void CTerminal::CTerminalLine::Update()
 {
-    m_Renderer.RenderClear(0, (m_Row * m_Font.GetFontHeight()) + 2, -1, m_Font.GetFontHeight());
-    m_TextLength = m_Renderer.RenderText(3, (m_Row * m_Font.GetFontHeight()) + 2, m_Font, m_Text);
+    m_Renderer->RenderClear(0, (m_Row * m_Font->GetFontHeight()) + 2, -1, m_Font->GetFontHeight());
+    m_TextLength = m_Renderer->RenderText(3, (m_Row * m_Font->GetFontHeight()) + 2, m_Font, m_Text);
     if (m_ShowCursor) {
-        uint32_t ExistingColor = m_Renderer.GetBackgroundColor();
-        m_Renderer.SetBackgroundColor(255, 255, 255, 255);
-        m_Renderer.RenderCharacter(m_TextLength, (m_Row * m_Font.GetFontHeight()) + 2, m_Font, '_');
-        m_Renderer.SetBackgroundColor(ExistingColor);
+        uint32_t ExistingColor = m_Renderer->GetBackgroundColor();
+        m_Renderer->SetBackgroundColor(255, 255, 255, 255);
+        m_Renderer->RenderCharacter(m_TextLength, (m_Row * m_Font->GetFontHeight()) + 2, m_Font, '_');
+        m_Renderer->SetBackgroundColor(ExistingColor);
     }
-    m_Renderer.Invalidate();
 }
 
 void CTerminal::CTerminalLine::SetText(const std::string& Text)
@@ -117,7 +118,7 @@ void CTerminal::CTerminalLine::SetText(const std::string& Text)
 
 std::string CTerminal::CTerminalLine::GetInput()
 {
-    if (m_Text.length() > m_InputOffset) {
+    if ((int)m_Text.length() > m_InputOffset) {
         return m_Text.substr(m_InputOffset);
     }
     return "";
@@ -133,8 +134,9 @@ void CTerminal::CTerminalLine::ShowCursor()
     m_ShowCursor = true;
 }
 
-CTerminal::CTerminal(CSurfaceRect& Area, CTerminalRenderer& Renderer, CTerminalFont& Font)
-    : m_Rows((Area.GetHeight() / Font.GetFontHeight()) - 1), m_HistoryIndex(0), m_LineIndex(0)
+CTerminal::CTerminal(CSurfaceRect& Area, std::shared_ptr<CTerminalRenderer> Renderer, std::shared_ptr<CTerminalFont> Font)
+    : m_Renderer(Renderer), m_Font(Font), m_Rows((Area.GetHeight() / Font->GetFontHeight()) - 1), 
+      m_HistoryIndex(0), m_LineIndex(0)
 {
     for (int i = 0; i < m_Rows; i++) {
         m_Lines.push_back(std::make_unique<CTerminalLine>(Renderer, Font, i, Area.GetWidth()));
@@ -150,16 +152,20 @@ void CTerminal::AddInput(int Character)
 {
     if (!m_Lines[m_LineIndex]->AddInput(Character)) {
         // uh todo, we should skip to next line
+        return;
     }
     m_Lines[m_LineIndex]->Update();
+    m_Renderer->Invalidate();
 }
 
 void CTerminal::RemoveInput()
 {
     if (!m_Lines[m_LineIndex]->RemoveInput()) {
         // uh todo, we should skip to prev line
+        return;
     }
     m_Lines[m_LineIndex]->Update();
+    m_Renderer->Invalidate();
 }
 
 std::string CTerminal::ClearInput(bool Newline)
@@ -172,6 +178,7 @@ std::string CTerminal::ClearInput(bool Newline)
         m_Lines[m_LineIndex]->Reset();
         m_Lines[m_LineIndex]->Update();
     }
+    m_Renderer->Invalidate();
     return Input;
 }
 
@@ -219,6 +226,7 @@ void CTerminal::HistoryNext()
         (size_t)m_HistoryIndex  < m_History.size()) {
         m_HistoryIndex++;
         ScrollToLine(false);
+        m_Renderer->Invalidate();
     }
 }
 
@@ -229,6 +237,7 @@ void CTerminal::HistoryPrevious()
         m_HistoryIndex      >= m_Rows) {
         m_HistoryIndex--;
         ScrollToLine(false);
+        m_Renderer->Invalidate();
     }
 }
 
@@ -248,10 +257,12 @@ void CTerminal::Print(const char *Format, ...)
         else {
             if (!m_Lines[m_LineIndex]->AddCharacter(StringBuffer[i])) {
                 FinishCurrentLine();
+                i--;
             }
         }
     }
     m_Lines[m_LineIndex]->Update();
+    m_Renderer->Invalidate();
 }
 
 void CTerminal::MoveCursorLeft()

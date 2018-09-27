@@ -34,44 +34,36 @@
 /* PathResolveEnvironment
  * Resolves the given env-path identifier to a string
  * that can be used to locate files. */
-SERVICEAPI
-OsStatus_t
-SERVICEABI
+SERVICEAPI OsStatus_t SERVICEABI
 PathResolveEnvironment(
     _In_  EnvironmentPath_t Base,
     _Out_ char*             Buffer,
     _In_  size_t            MaxLength)
 {
-    // Variables
     MRemoteCall_t Request;
 
-    // Initialize rpc and execute
     RPCInitialize(&Request, __FILEMANAGER_TARGET, 
         __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_PATHRESOLVE);
-    RPCSetArgument(&Request, 0, (__CONST void*)&Base, sizeof(EnvironmentPath_t));
-    RPCSetResult(&Request, (__CONST void*)Buffer, MaxLength);
+    RPCSetArgument(&Request, 0, (const void*)&Base, sizeof(EnvironmentPath_t));
+    RPCSetResult(&Request, (const void*)Buffer, MaxLength);
     return RPCExecute(&Request);
 }
 
 /* PathCanonicalize
  * Canonicalizes the path by removing extra characters
  * and resolving all identifiers in path */
-SERVICEAPI
-OsStatus_t
-SERVICEABI
+SERVICEAPI OsStatus_t SERVICEABI
 PathCanonicalize(
     _In_  const char*       Path,
     _Out_ char*             Buffer,
     _In_  size_t            MaxLength)
 {
-    // Variables
     MRemoteCall_t Request;
 
-    // Initialize rpc and execute
     RPCInitialize(&Request, __FILEMANAGER_TARGET, 
         __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_PATHCANONICALIZE);
-    RPCSetArgument(&Request, 0, (__CONST void*)Path, strlen(Path));
-    RPCSetResult(&Request, (__CONST void*)Buffer, MaxLength);
+    RPCSetArgument(&Request, 0, (const void*)Path, strlen(Path) + 1);
+    RPCSetResult(&Request, (const void*)Buffer, MaxLength);
     return RPCExecute(&Request);
 }
 

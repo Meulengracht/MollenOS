@@ -55,13 +55,13 @@
 #define CACHED_BITMAP   0x01
 #define CACHED_PIXMAP   0x02
 
-CTerminalFont::CTerminalFont(CTerminalFreeType& FreeType, const std::string& FontPath, std::size_t InitialPixelSize)
-    : m_FreeType(FreeType), m_Current(nullptr), m_Height(0), m_Ascent(0), m_Descent(0), m_LineSkip(0), m_FontSizeFamily(0),
+CTerminalFont::CTerminalFont(std::unique_ptr<CTerminalFreeType> FreeType, const std::string& FontPath, std::size_t InitialPixelSize)
+    : m_FreeType(std::move(FreeType)), m_Current(nullptr), m_Height(0), m_Ascent(0), m_Descent(0), m_LineSkip(0), m_FontSizeFamily(0),
       m_FaceStyle(0), m_Style(0), m_Outline(0), m_Kerning(0), m_Hinting(0), m_PreviousIndex(0), m_GlyphOverhang(0),
       m_GlyphItalics(0), m_UnderlineOffset(0), m_UnderlineHeight(0)
 {
     FT_CharMap CmFound  = 0;
-    bool Status         = FT_New_Face(m_FreeType.GetLibrary(), FontPath.c_str(), 0, &m_Face) == FT_Err_Ok;
+    bool Status         = FT_New_Face(m_FreeType->GetLibrary(), FontPath.c_str(), 0, &m_Face) == FT_Err_Ok;
     assert(Status);
 
     // Build the character map
@@ -336,7 +336,7 @@ FT_Error CTerminalFont::LoadGlyph(unsigned long Character, FontGlyph_t* Cached, 
         if ((m_Outline > 0) && Glyph->format != FT_GLYPH_FORMAT_BITMAP) {
             FT_Stroker Stroker;
             FT_Get_Glyph(Glyph, &BitmapGlyph);
-            Status = FT_Stroker_New(m_FreeType.GetLibrary(), &Stroker);
+            Status = FT_Stroker_New(m_FreeType->GetLibrary(), &Stroker);
             if (Status) {
                 return Status;
             }

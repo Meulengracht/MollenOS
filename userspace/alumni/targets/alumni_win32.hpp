@@ -22,18 +22,18 @@
  */
 #pragma once
 
-#include "terminal_interpreter.hpp"
+#include "alumni.hpp"
 
-class CValiTerminalInterpreter : public CTerminalInterpreter {
+class CWin32Alumni : public CAlumni {
 public:
-    CValiTerminalInterpreter(CTerminal& Terminal);
-    ~CValiTerminalInterpreter() = default;
+    CWin32Alumni(std::unique_ptr<CTerminal> Terminal, std::unique_ptr<CTerminalInterpreter> Interpreter);
+    ~CWin32Alumni() = default;
 
     bool HandleKeyCode(unsigned int KeyCode, unsigned int Flags) override;
     void PrintCommandHeader() override;
-    void UpdateWorkingDirectory();
-
-private:
-    std::string m_Profile;
-    std::string m_CurrentDirectory;
+    
+protected:
+    bool CommandResolver(const std::string&, const std::vector<std::string>&) override;
+    bool ListDirectory(const std::vector<std::string>&) override;
+    bool ChangeDirectory(const std::vector<std::string>&) override;
 };

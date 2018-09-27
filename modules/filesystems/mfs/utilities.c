@@ -484,7 +484,7 @@ MfsUpdateRecord(
         // extra updates otherwise they share
         if (Action == MFS_ACTION_CREATE) {
             Record->Flags = MFS_FILERECORD_INUSE;
-            memcpy(&Record->Name[0], MStringRaw(Handle->Name), MStringSize(Handle->Name));
+            memcpy(&Record->Name[0], MStringRaw(Handle->Name), MStringSize(Handle->Name) + 1);
             memset(&Record->Integrated[0], 0, 512);
         }
 

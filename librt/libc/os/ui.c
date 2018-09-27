@@ -21,6 +21,7 @@
  */
 #include <os/window.h>
 #include <assert.h>
+#include <stdlib.h>
 
 // Globals
 // State keeping for a single window
@@ -44,6 +45,17 @@ UiParametersSetDefault(
     Descriptor->Surface.Dimensions.h    = 300;
 }
 
+/* UiUnregisterWindow
+ * Unregisters and destroys the current active window for the application.
+ * If none are registered, OsError is returned. */
+void
+UiUnregisterWindow(void)
+{
+    if (ProgramWindowHandle != NULL) {
+        DestroyWindow(ProgramWindowHandle);
+    }
+}
+
 /* UiRegisterWindow
  * Registers a new window with the window manage with the given 
  * configuration. If the configuration is invalid, OsError is returned. */
@@ -52,7 +64,7 @@ UiRegisterWindow(
     _In_  UIWindowParameters_t* Descriptor,
     _Out_ DmaBuffer_t**         WindowBuffer)
 {
-    // Variables
+    OsStatus_t Status;
     size_t BytesNeccessary = 0;
 
     // Sanitize parameters
@@ -72,19 +84,11 @@ UiRegisterWindow(
     ProgramWindowBuffer = *WindowBuffer;
 
     // Create the window
-    return CreateWindow(Descriptor, GetBufferHandle(ProgramWindowBuffer), &ProgramWindowHandle);
-}
-
-/* UiUnregisterWindow
- * Unregisters and destroys the current active window for the application.
- * If none are registered, OsError is returned. */
-OsStatus_t
-UiUnregisterWindow(void)
-{
-    if (ProgramWindowHandle == NULL) {
-        return OsError;
+    Status = CreateWindow(Descriptor, GetBufferHandle(ProgramWindowBuffer), &ProgramWindowHandle);
+    if (Status == OsSuccess) {
+        atexit(UiUnregisterWindow);
     }
-    return DestroyWindow(ProgramWindowHandle);
+    return Status;
 }
 
 /* UiSwapBackbuffer

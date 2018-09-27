@@ -165,8 +165,10 @@ VfsPathCanonicalize(
 			i += 2;
 			continue;
 		}
-		else if (Path[i] == '.' && Path[i + 1] == '.'
-			&& (Path[i + 2] == '/' || Path[i + 2] == '\\')) {
+        else if (Path[i] == '.' && Path[i + 1] == '\0') {
+            break;
+        }
+		else if (Path[i] == '.' && Path[i + 1] == '.' && (Path[i + 2] == '/' || Path[i + 2] == '\\' || Path[i + 2] == '\0')) {
 			int Index = MStringFindReverse(AbsPath, '/');
 			if (MStringGetCharAt(AbsPath, Index - 1) != ':') {
 				MString_t *Modified = MStringSubString(AbsPath, 0, Index);
@@ -188,5 +190,8 @@ VfsPathCanonicalize(
 	// Replace dublicate // with /
 	//MStringReplace(AbsPath, "//", "/");
     TRACE("=> %s", MStringRaw(AbsPath));
+
+    // Always.. ALWAYS end with a / if the last token is a directory
+
 	return AbsPath;
 }

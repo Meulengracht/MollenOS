@@ -3,8 +3,8 @@
 include ../../config/common.mk
 
 APP_NAME := alumni
-APP_SOURCES_CXX := interpreters/terminal_interpreter_vali.cpp \
-				   interpreters/terminal_interpreter.cpp \
+APP_SOURCES_CXX := targets/alumni.cpp \
+				   targets/alumni_vali.cpp \
 				   surfaces/surface_vali.cpp \
 			       $(wildcard *.cpp)
 

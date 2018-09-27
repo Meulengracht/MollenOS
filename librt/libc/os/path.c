@@ -33,22 +33,24 @@ OsStatus_t
 SetWorkingDirectory(
     _In_ const char *Path)
 {
-    // Variables
 	char TempBuffer[_MAXPATH];
-
 	if (Path == NULL) {
 		return OsError;
 	}
-
-    // Make sure the path is valid by asking filemanager
 	memset(&TempBuffer[0], 0, _MAXPATH);
-    if (Syscall_GetWorkingDirectory(UUID_INVALID, &TempBuffer[0], _MAXPATH) != OsSuccess) {
+
+    if (strstr(Path, ":/") != NULL || strstr(Path, ":\\") != NULL) {
+        memcpy(&TempBuffer[0], Path, strlen(Path));
+    }
+    else {
+        if (Syscall_GetWorkingDirectory(UUID_INVALID, &TempBuffer[0], _MAXPATH) != OsSuccess) {
+            return OsError;
+        }
+        strcat(&TempBuffer[0], Path);
+    }
+    if (PathCanonicalize(&TempBuffer[0], &TempBuffer[0], _MAXPATH) != OsSuccess) {
         return OsError;
     }
-    strcat(&TempBuffer[0], Path);
-	if (PathCanonicalize(&TempBuffer[0], &TempBuffer[0], _MAXPATH) != OsSuccess) {
-		return OsError;
-	}
 	return Syscall_SetWorkingDirectory(&TempBuffer[0]);
 }
 

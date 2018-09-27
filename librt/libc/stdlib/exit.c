@@ -20,8 +20,6 @@
  * - Definitions, prototypes and information needed.
  */
 
-/* Include
- * - Library */
 #include <stdlib.h>
 
 #ifndef LIBC_KERNEL
@@ -40,12 +38,14 @@ __EXTERN int __cxa_atexit(void (*Function)(void*), void *Argument, void *Dso);
 __EXTERN void *__dso_handle;
 int
 atexit(
-    _In_ void (*Function)(void)) {
+    _In_ void (*Function)(void))
+{
     return __cxa_atexit((void (*)(void*))Function, NULL, __dso_handle);
 }
 void
 exit(
-    _In_ int Status) {
+    _In_ int Status)
+{
     __CrtCallExitHandlers(Status, 0, 1, 1);
 	_Exit(Status);
 }
@@ -54,7 +54,8 @@ __EXTERN void __CppFinit(void);
 __EXTERN void StdioCleanup(void);
 void
 exit(
-    _In_ int Status) {
+    _In_ int Status)
+{
 	StdioCleanup();
 	__CppFinit();
 	_Exit(Status);

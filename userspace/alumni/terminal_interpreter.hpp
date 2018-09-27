@@ -59,26 +59,21 @@ class CTerminalInterpreter {
     };
 
 public:
-    CTerminalInterpreter(CTerminal& Terminal);
+    CTerminalInterpreter();
     ~CTerminalInterpreter() = default;
 
+    bool                Interpret(const std::string& String);
+    void                SetCommandResolver(std::function<bool(const std::string&, const std::vector<std::string>&)> Resolver);
     void                RegisterCommand(const std::string& Command, const std::string& Description, std::function<bool(const std::vector<std::string>&)> Fn);
-    virtual bool        HandleKeyCode(unsigned int KeyCode, unsigned int Flags) = 0;
-    virtual void        PrintCommandHeader() = 0;
-
-    const std::string&  GetClosestMatch() const { return m_ClosestMatch; }
-    bool                IsAlive() const { return m_Alive; }
-
-protected:
-    std::vector<std::string> SplitCommandString(const std::string& String);
     
-    bool Interpret(const std::string& String);
-    bool Help(const std::vector<std::string>& Arguments);
-    bool Exit(const std::vector<std::string>& Arguments);
+    const std::string&  GetClosestMatch() const { return m_ClosestMatch; }
+    const std::list<std::unique_ptr<CTerminalCommand>>& GetCommands() const { return m_Commands; }
 
-protected:
-    CTerminal&                                      m_Terminal;
+private:
+    std::vector<std::string>    SplitCommandString(const std::string& String);
+
+private:
     std::list<std::unique_ptr<CTerminalCommand>>    m_Commands;
-    bool                                            m_Alive;
     std::string                                     m_ClosestMatch;
+    std::function<bool(const std::string&, const std::vector<std::string>&)> m_Resolver;
 };

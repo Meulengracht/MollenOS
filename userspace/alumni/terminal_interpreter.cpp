@@ -23,7 +23,7 @@
 
 #include <sstream>
 #include <numeric>
-#include "../terminal.hpp"
+#include "terminal.hpp"
 #include "terminal_interpreter.hpp"
 
 int CTerminalInterpreter::CTerminalCommand::GetCommandDistance(const std::string& Command)
@@ -54,12 +54,9 @@ int CTerminalInterpreter::CTerminalCommand::GetCommandDistance(const std::string
 	return result;
 }
 
-CTerminalInterpreter::CTerminalInterpreter(CTerminal& Terminal)
-    : m_Terminal(Terminal), m_Alive(true), m_ClosestMatch("")
+CTerminalInterpreter::CTerminalInterpreter()
+    : m_ClosestMatch("")
 {
-    // Register inbuilt commands
-    RegisterCommand("help", "Lists all registered terminal commands", std::bind(&CTerminalInterpreter::Help, this, std::placeholders::_1));
-    RegisterCommand("exit", "Quits the terminal", std::bind(&CTerminalInterpreter::Exit, this, std::placeholders::_1));
 }
 
 void CTerminalInterpreter::RegisterCommand(const std::string& Command, const std::string& Description, std::function<bool(const std::vector<std::string>&)> Fn)
@@ -71,7 +68,7 @@ std::vector<std::string> CTerminalInterpreter::SplitCommandString(const std::str
 {
     std::vector<std::string>    Tokens;
     std::string                 Token = "";
-    for (int i = 0; i < String.size(); i++) {
+    for (size_t i = 0; i < String.size(); i++) {
         if (String[i] == ' ') {
             if (Token != "") {
                 Tokens.push_back(Token);
@@ -113,16 +110,7 @@ bool CTerminalInterpreter::Interpret(const std::string& String)
     return false;
 }
 
-bool CTerminalInterpreter::Help(const std::vector<std::string>& Arguments)
+void CTerminalInterpreter::SetCommandResolver(std::function<bool(const std::string&, const std::vector<std::string>&)> Resolver)
 {
-    for (auto& Command : m_Commands) {
-        m_Terminal.Print("%s - %s\n", Command->GetCommandText().c_str(), Command->GetDescription().c_str());
-    }
-    return true;
-}
-
-bool CTerminalInterpreter::Exit(const std::vector<std::string>& Arguments)
-{
-    m_Alive = false;
-    return true;
+    m_Resolver = Resolver;
 }

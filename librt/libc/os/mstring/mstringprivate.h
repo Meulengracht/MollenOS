@@ -109,15 +109,11 @@
  
   */
 
-/* C-Library */
 #include <os/osdefs.h>
 #include <stddef.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdio.h>
-
-/* Includes 
- * - System */
 #include <ds/mstring.h>
 
 /* This is the block size that mstring allocates with
@@ -130,14 +126,9 @@
  * before next string expansion */
 typedef struct _MString
 {
-	/* String Data
-	 * As UTF8 */
-	void *Data;
-	
-	/* Length(s) */
-	size_t Length;
-	size_t MaxLength;
-
+	void*       Data;
+	size_t      Length;
+	size_t      MaxLength;
 } MString_t;
 
 /* Converts a single char (ASCII, UTF16, UTF32) to UTF8 

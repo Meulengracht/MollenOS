@@ -36,7 +36,6 @@ CValiSurface::CValiSurface(CSurfaceRect& Dimensions)
 }
 
 CValiSurface::~CValiSurface() {
-    UiUnregisterWindow();
 }
 
 void CValiSurface::Clear(uint32_t Color, const CSurfaceRect& Area)

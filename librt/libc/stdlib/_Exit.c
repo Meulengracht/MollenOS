@@ -20,8 +20,6 @@
  * - Definitions, prototypes and information needed.
  */
 
-/* Includes 
- * - System */
 #include <os/syscall.h>
 
 /* _Exit
@@ -29,8 +27,8 @@
  * And it never returns this function */
 void
 _Exit(
-    _In_ int Status) {
-	// Call for terminate and then yield.
+    _In_ int Status)
+{
     Syscall_ProcessExit(Status);
     Syscall_ThreadYield();
 	for (;;);

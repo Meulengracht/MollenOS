@@ -22,8 +22,6 @@
  *    to UTF-8.
  */
 
-/* Includes
-* - System */
 #include "mstringprivate.h"
 
 /* MStringRaw
@@ -32,5 +30,9 @@ const char*
 MStringRaw(
     _In_ MString_t *String)
 {
-	return (const char*)String->Data;
+    uint8_t* StringPtr = (uint8_t*)String->Data;
+    if (String->Length < String->MaxLength) {
+        StringPtr[String->Length] = '\0';
+    }
+	return (const char*)StringPtr;
 }

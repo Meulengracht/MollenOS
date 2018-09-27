@@ -196,7 +196,7 @@ ScProcessGetCurrentName(const char *Buffer, size_t MaxLength) {
         return OsError;
     }
     memset((void*)Buffer, 0, MaxLength);
-    memcpy((void*)Buffer, MStringRaw(Process->Name), MIN(MStringSize(Process->Name), MaxLength));
+    memcpy((void*)Buffer, MStringRaw(Process->Name), MIN(MStringSize(Process->Name) + 1, MaxLength));
     return OsSuccess;
 }
 

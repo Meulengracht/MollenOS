@@ -22,6 +22,7 @@
  */
 #pragma once
 
+#include <memory>
 #include <string>
 #include "terminal_freetype.hpp"
 
@@ -56,7 +57,7 @@ typedef struct FontCharacter {
 class CTerminalFont
 {
 public:
-    CTerminalFont(CTerminalFreeType& FreeType, const std::string& FontPath, std::size_t InitialPixelSize);
+    CTerminalFont(std::unique_ptr<CTerminalFreeType> FreeType, const std::string& FontPath, std::size_t InitialPixelSize);
     ~CTerminalFont();
 
     bool    SetSize(std::size_t PixelSize);
@@ -72,10 +73,11 @@ private:
     void        FlushCache();
 
 private:
-    CTerminalFreeType&  m_FreeType;
-    FT_Face             m_Face;
-    FontGlyph_t*        m_Current;
-    FontGlyph_t         m_Cache[257]; /* 257 is a prime */
+    std::unique_ptr<CTerminalFreeType>  m_FreeType;
+    FT_Face                             m_Face;
+    
+    FontGlyph_t* m_Current;
+    FontGlyph_t  m_Cache[257]; /* 257 is a prime */
 
     int         m_Height;
     int         m_Ascent;

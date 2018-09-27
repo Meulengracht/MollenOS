@@ -36,25 +36,26 @@ namespace {
     }
 }
 
-CTerminalRenderer::CTerminalRenderer(CSurface& Surface)
-    : m_Surface(Surface),
-      m_BackgroundColor(Surface.GetColor(0, 0, 0, 255)),
-      m_ForegroundColor(Surface.GetColor(255, 255, 255, 255))
+CTerminalRenderer::CTerminalRenderer(std::unique_ptr<CSurface> Surface)
+    : m_Surface(std::move(Surface)),
+      m_BackgroundColor(m_Surface->GetColor(0, 0, 0, 255)),
+      m_ForegroundColor(m_Surface->GetColor(255, 255, 255, 255))
 {
-    m_Surface.Clear(m_BackgroundColor, m_Surface.GetDimensions());
+    m_Surface->Clear(m_BackgroundColor, m_Surface->GetDimensions());
 }
 
 void CTerminalRenderer::RenderClear(int X, int Y, int Width, int Height)
 {
     CSurfaceRect Area(X, Y, 
-        (Width == -1) ? m_Surface.GetDimensions().GetWidth() : Width, 
-        (Height == -1) ? m_Surface.GetDimensions().GetHeight() : Height);
-    m_Surface.Clear(m_BackgroundColor, Area);
+        (Width == -1) ? m_Surface->GetDimensions().GetWidth() : Width, 
+        (Height == -1) ? m_Surface->GetDimensions().GetHeight() : Height);
+    m_Surface->Clear(m_BackgroundColor, Area);
 }
 
-int CTerminalRenderer::RenderText(int X, int Y, CTerminalFont& Font, const std::string& Text)
+int CTerminalRenderer::RenderText(int X, int Y, const std::shared_ptr<CTerminalFont>& Font, const std::string& Text)
 {
     int Advance = X;
+    Font->ResetPrevious();
     for (size_t i = 0; i < Text.length(); i++) {
         char Character = Text[i];
         Advance += RenderCharacter(Advance, Y, Font, Character);
@@ -62,10 +63,11 @@ int CTerminalRenderer::RenderText(int X, int Y, CTerminalFont& Font, const std::
     return Advance;
 }
 
-int CTerminalRenderer::CalculateTextLength(CTerminalFont& Font, const std::string& Text)
+int CTerminalRenderer::CalculateTextLength(const std::shared_ptr<CTerminalFont>& Font, const std::string& Text)
 {
     int Advance = 0;
     if (Text.length() != 0) {
+        Font->ResetPrevious();
         for (size_t i = 0; i < Text.length(); i++) {
             char Character = Text[i];
             Advance += GetLengthOfCharacter(Font, Character);
@@ -74,21 +76,21 @@ int CTerminalRenderer::CalculateTextLength(CTerminalFont& Font, const std::strin
     return Advance;
 }
 
-int CTerminalRenderer::GetLengthOfCharacter(CTerminalFont& Font, char Character)
+int CTerminalRenderer::GetLengthOfCharacter(const std::shared_ptr<CTerminalFont>& Font, char Character)
 {
     FontCharacter_t CharInfo;
-    if (Font.GetCharacterBitmap(Character, CharInfo)) {
+    if (Font->GetCharacterBitmap(Character, CharInfo)) {
         return CharInfo.IndentX + CharInfo.Advance;
     }
     return 0;
 }
 
-int CTerminalRenderer::RenderCharacter(int X, int Y, CTerminalFont& Font, char Character)
+int CTerminalRenderer::RenderCharacter(int X, int Y, const std::shared_ptr<CTerminalFont>& Font, char Character)
 {
     FontCharacter_t CharInfo;
 
-    if (Font.GetCharacterBitmap(Character, CharInfo)) {
-        uint32_t* Pointer   = (uint32_t*)m_Surface.GetDataPointer(X + CharInfo.IndentX, Y + CharInfo.IndentY);
+    if (Font->GetCharacterBitmap(Character, CharInfo)) {
+        uint32_t* Pointer   = (uint32_t*)m_Surface->GetDataPointer(X + CharInfo.IndentX, Y + CharInfo.IndentY);
         uint8_t* Source     = CharInfo.Bitmap;
         for (int Row = 0; Row < CharInfo.Height; Row++) {
             for (int Column = 0; Column < CharInfo.Width; Column++) { // @todo might need to be reverse
@@ -104,7 +106,7 @@ int CTerminalRenderer::RenderCharacter(int X, int Y, CTerminalFont& Font, char C
                     Pointer[Column] = AlphaBlend(m_BackgroundColor, m_ForegroundColor, Alpha);
                 }
             }
-            Pointer = (uint32_t*)((uint8_t*)Pointer + m_Surface.GetStride());
+            Pointer = (uint32_t*)((uint8_t*)Pointer + m_Surface->GetStride());
             Source  += CharInfo.Pitch;
         }
         return CharInfo.IndentX + CharInfo.Advance;
@@ -114,12 +116,12 @@ int CTerminalRenderer::RenderCharacter(int X, int Y, CTerminalFont& Font, char C
 
 void CTerminalRenderer::Invalidate()
 {
-    m_Surface.Invalidate();
+    m_Surface->Invalidate();
 }
 
 void CTerminalRenderer::SetForegroundColor(uint8_t R, uint8_t G, uint8_t B, uint8_t A)
 {
-    m_ForegroundColor = m_Surface.GetColor(R, G, B, A);
+    m_ForegroundColor = m_Surface->GetColor(R, G, B, A);
 }
 
 void CTerminalRenderer::SetForegroundColor(uint32_t Color)
@@ -129,7 +131,7 @@ void CTerminalRenderer::SetForegroundColor(uint32_t Color)
 
 void CTerminalRenderer::SetBackgroundColor(uint8_t R, uint8_t G, uint8_t B, uint8_t A)
 {
-    m_BackgroundColor = m_Surface.GetColor(R, G, B, A);
+    m_BackgroundColor = m_Surface->GetColor(R, G, B, A);
 }
 
 void CTerminalRenderer::SetBackgroundColor(uint32_t Color)

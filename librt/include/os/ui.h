@@ -66,13 +66,6 @@ UiRegisterWindow(
     _In_  UIWindowParameters_t* Descriptor,
     _Out_ DmaBuffer_t**         WindowBuffer));
 
-/* UiUnregisterWindow
- * Unregisters and destroys the current active window for the application.
- * If none are registered, OsError is returned. */
-CRTDECL(
-OsStatus_t,
-UiUnregisterWindow(void));
-
 /* UiSwapBackbuffer
  * Presents the current backbuffer and rendering all changes made to the window. */
 CRTDECL(

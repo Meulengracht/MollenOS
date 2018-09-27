@@ -68,22 +68,23 @@ PhoenixCreateProcess(
 	// Handle startup information
 	if (StartupInformation->ArgumentPointer != NULL 
         && StartupInformation->ArgumentLength != 0) {
-        ArgumentBuffer = (char*)kmalloc(MStringSize(Process->Base.Path) + 1 + StartupInformation->ArgumentLength);
+        ArgumentBuffer = (char*)kmalloc(MStringSize(Process->Base.Path) + 1 + StartupInformation->ArgumentLength + 1);
         memcpy(ArgumentBuffer, MStringRaw(Process->Base.Path), MStringSize(Process->Base.Path));
         ArgumentBuffer[MStringSize(Process->Base.Path)] = ' ';
         memcpy(ArgumentBuffer + MStringSize(Process->Base.Path) + 1,
             StartupInformation->ArgumentPointer, StartupInformation->ArgumentLength);
+        ArgumentBuffer[MStringSize(Process->Base.Path) + 1 + StartupInformation->ArgumentLength] = '\0';
         kfree((void*)StartupInformation->ArgumentPointer);
 
         StartupInformation->ArgumentPointer = ArgumentBuffer;
-        StartupInformation->ArgumentLength = MStringSize(Process->Base.Path) + 1 + StartupInformation->ArgumentLength;
+        StartupInformation->ArgumentLength  = MStringSize(Process->Base.Path) + 1 + StartupInformation->ArgumentLength + 1;
 	}
 	else {
-        ArgumentBuffer = (char*)kmalloc(MStringSize(Process->Base.Path));
-        memcpy(ArgumentBuffer, MStringRaw(Process->Base.Path), MStringSize(Process->Base.Path));
+        ArgumentBuffer = (char*)kmalloc(MStringSize(Process->Base.Path) + 1);
+        memcpy(ArgumentBuffer, MStringRaw(Process->Base.Path), MStringSize(Process->Base.Path) + 1);
 
         StartupInformation->ArgumentPointer = ArgumentBuffer;
-        StartupInformation->ArgumentLength = MStringSize(Process->Base.Path);
+        StartupInformation->ArgumentLength  = MStringSize(Process->Base.Path) + 1;
     }
 
     // Debug

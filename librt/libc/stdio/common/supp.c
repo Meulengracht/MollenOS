@@ -211,7 +211,8 @@ StdioCreateInheritanceBlock(
         if (Object->fd < 3 && !(StartupInformation->InheritFlags & (1 << Object->fd))) {
             continue; // Don't inherit
         }
-        if (Object->fd >= 3 && !(StartupInformation->InheritFlags & PROCESS_INHERIT_FILES)) {
+        if (Object->fd >= 3 && !(StartupInformation->InheritFlags & PROCESS_INHERIT_FILES) &&
+            (Object->fd != StartupInformation->StdOutHandle || Object->fd != StartupInformation->StdInHandle || Object->fd != StartupInformation->StdErrHandle)) {
             continue;
         }
         memcpy(BlockPointer, Object, sizeof(StdioObject_t));

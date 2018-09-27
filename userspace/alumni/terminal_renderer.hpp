@@ -22,6 +22,7 @@
  */
 #pragma once
 
+#include <memory>
 #include <string>
 
 class CSurface;
@@ -29,15 +30,15 @@ class CTerminalFont;
 
 class CTerminalRenderer {
 public:
-    CTerminalRenderer(CSurface& Surface);
+    CTerminalRenderer(std::unique_ptr<CSurface> Surface);
     ~CTerminalRenderer() = default;
 
-    int CalculateTextLength(CTerminalFont& Font, const std::string& Text);
-    int GetLengthOfCharacter(CTerminalFont& Font, char Character);
+    int CalculateTextLength(const std::shared_ptr<CTerminalFont>& Font, const std::string& Text);
+    int GetLengthOfCharacter(const std::shared_ptr<CTerminalFont>& Font, char Character);
 
     void RenderClear(int X, int Y, int Width, int Height);
-    int RenderText(int X, int Y, CTerminalFont& Font, const std::string& Text);
-    int RenderCharacter(int X, int Y, CTerminalFont& Font, char Character);
+    int RenderText(int X, int Y, const std::shared_ptr<CTerminalFont>& Font, const std::string& Text);
+    int RenderCharacter(int X, int Y, const std::shared_ptr<CTerminalFont>&Font, char Character);
     void Invalidate();
 
     void SetForegroundColor(uint8_t R, uint8_t G, uint8_t B, uint8_t A);
@@ -49,7 +50,7 @@ public:
     uint32_t GetBackgroundColor() const { return m_BackgroundColor; }
 
 private:
-    CSurface&   m_Surface;
-    uint32_t    m_BackgroundColor;
-    uint32_t    m_ForegroundColor;
+    std::unique_ptr<CSurface>   m_Surface;
+    uint32_t                    m_BackgroundColor;
+    uint32_t                    m_ForegroundColor;
 };

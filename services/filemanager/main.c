@@ -359,7 +359,7 @@ OnEvent(
                 Result = RPCRespond(&Message->From, FilePath, sizeof(MString_t*));
             }
             else {
-                Result = RPCRespond(&Message->From, MStringRaw(FilePath), MStringSize(FilePath));
+                Result = RPCRespond(&Message->From, MStringRaw(FilePath), MStringSize(FilePath) + 1);
             }
         } break;
 
@@ -378,12 +378,16 @@ OnEvent(
 
         // @todo
         case __FILEMANAGER_OPENDIRECTORY: {
+            // OpenFilePackage_t
         } break;
         case __FILEMANAGER_CLOSEDIRECTORY: {
+            // FileSystemCode_t
         } break;
         case __FILEMANAGER_READDIRECTORY: {
+            // ReadDirectoryPackage_t
         } break;
         case __FILEMANAGER_SEEKDIRECTORY: {
+            // FileSystemCode_t
         } break;
 
         // Resolves a special environment path for
@@ -392,7 +396,7 @@ OnEvent(
         case __FILEMANAGER_PATHRESOLVE: {
             MString_t *Resolved = VfsPathResolveEnvironment((EnvironmentPath_t)Message->Arguments[0].Data.Value);
             if (Resolved != NULL) {
-                Result = RPCRespond(&Message->From, MStringRaw(Resolved), MStringSize(Resolved));
+                Result = RPCRespond(&Message->From, MStringRaw(Resolved), MStringSize(Resolved) + 1);
                 free(Resolved);
             }
             else {
@@ -405,7 +409,7 @@ OnEvent(
         case __FILEMANAGER_PATHCANONICALIZE: {
             MString_t *Resolved = VfsPathCanonicalize(RPCGetStringArgument(Message, 0));
             if (Resolved != NULL) {
-                Result = RPCRespond(&Message->From, MStringRaw(Resolved), MStringSize(Resolved));
+                Result = RPCRespond(&Message->From, MStringRaw(Resolved), MStringSize(Resolved) + 1);
                 free(Resolved);
             }
             else {

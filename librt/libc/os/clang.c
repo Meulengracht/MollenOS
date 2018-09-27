@@ -247,7 +247,6 @@ __CrtCallExitHandlers(
     _In_ int DoAtExit,
     _In_ int CleanupCrt)
 {
-    // Variables
     RTExitFunctionList_t **ListPointer = NULL;
 
     // Initialize list pointer

@@ -36,7 +36,7 @@ class CTerminal
 private:
     class CTerminalLine {
     public:
-        CTerminalLine(CTerminalRenderer& Renderer, CTerminalFont& Font, int Row, int Capacity);
+        CTerminalLine(std::shared_ptr<CTerminalRenderer> Renderer, std::shared_ptr<CTerminalFont> Font, int Row, int Capacity);
         ~CTerminalLine() = default;
 
         void Reset();
@@ -53,8 +53,8 @@ private:
         const std::string& GetText() const { return m_Text; }
 
     private:
-        CTerminalRenderer&  m_Renderer;
-        CTerminalFont&      m_Font;
+        std::shared_ptr<CTerminalRenderer>  m_Renderer;
+        std::shared_ptr<CTerminalFont>      m_Font;
         
         std::string m_Text;
         int         m_TextLength;
@@ -66,7 +66,7 @@ private:
     };
 
 public:
-    CTerminal(CSurfaceRect& Area, CTerminalRenderer& Renderer, CTerminalFont& Font);
+    CTerminal(CSurfaceRect& Area, std::shared_ptr<CTerminalRenderer> Renderer, std::shared_ptr<CTerminalFont> Font);
     ~CTerminal();
 
     void Print(const char *Format, ...);
@@ -89,6 +89,8 @@ private:
     void ScrollToLine(bool ClearInput);
 
 private:
+    std::shared_ptr<CTerminalRenderer>          m_Renderer;
+    std::shared_ptr<CTerminalFont>              m_Font;
     int                                         m_Rows;
     std::vector<std::string>                    m_History;
     int                                         m_HistoryIndex;
