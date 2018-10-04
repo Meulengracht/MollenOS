@@ -81,8 +81,6 @@ typedef void*                       Handle_t;
 #define HANDLE_INVALID              (Handle_t)0
 #define HANDLE_GLOBAL               (Handle_t)1
 
-/* This definies various possible results
- * from certain os-operations */
 typedef enum {
     OsSuccess   = 0,
     OsError,            // Error - Generic
@@ -95,16 +93,6 @@ typedef enum {
     InterruptHandledStop,   // Handled, do not notify process
 } InterruptStatus_t;
 
-/* Define the standard os
- * rectangle used for ui operations */
-typedef struct _mRectangle {
-    int x, y;
-    int w, h;
-} Rect_t;
-
-/* 64 Bit Integer
- * The parts can be accessed in both unsigned and
- * signed methods, but the quad-part is signed */
 typedef union _LargeInteger {
     struct {
         uint32_t        LowPart;
@@ -116,6 +104,18 @@ typedef union _LargeInteger {
     } u;
     int64_t             QuadPart;
 } LargeInteger_t;
+
+typedef union _LargeUInteger {
+    struct {
+        uint32_t        LowPart;
+        int32_t         HighPart;
+    } s;
+    struct {
+        uint32_t        LowPart;
+        uint32_t        HighPart;
+    } u;
+    uint64_t            QuadPart;
+} LargeUInteger_t;
 
 /* Helper function, retrieves the first 
  * set bit in a set of bits */

@@ -71,7 +71,6 @@ MString_t*
 VfsPathResolveEnvironment(
     _In_ EnvironmentPath_t Base)
 {
-	// Variables
 	MString_t *ResolvedPath = NULL;
 	CollectionItem_t *fNode = NULL;
 	int pIndex              = (int)Base;
@@ -104,7 +103,6 @@ MString_t*
 VfsPathCanonicalize(
     _In_ const char*        Path)
 {
-	// Variables
 	CollectionItem_t *fNode = NULL;
 	MString_t *AbsPath      = NULL;
 	int i                   = 0;
@@ -170,28 +168,26 @@ VfsPathCanonicalize(
         }
 		else if (Path[i] == '.' && Path[i + 1] == '.' && (Path[i + 2] == '/' || Path[i + 2] == '\\' || Path[i + 2] == '\0')) {
 			int Index = MStringFindReverse(AbsPath, '/');
-			if (MStringGetCharAt(AbsPath, Index - 1) != ':') {
-				MString_t *Modified = MStringSubString(AbsPath, 0, Index);
+            if (Index != MSTRING_NOT_FOUND) {
+				MString_t *Modified = MStringSubString(AbsPath, 0, Index + 1); // Include the '/'
 				MStringDestroy(AbsPath);
 				AbsPath = Modified;
-			}
+            }
 		}
 		else {
-			if (Path[i] == '\\') {
-				MStringAppendCharacter(AbsPath, '/');
-			}
+            // Don't double add '/'
+            if (Path[i] == '\\' || Path[i] == '/') {
+                int Index = MStringFindReverse(AbsPath, '/');
+                if ((Index + 1) != MStringLength(AbsPath)) {
+                    MStringAppendCharacter(AbsPath, '/');
+                }
+            }
 			else {
 				MStringAppendCharacter(AbsPath, Path[i]);
 			}
 		}
 		i++;
 	}
-
-	// Replace dublicate // with /
-	//MStringReplace(AbsPath, "//", "/");
     TRACE("=> %s", MStringRaw(AbsPath));
-
-    // Always.. ALWAYS end with a / if the last token is a directory
-
 	return AbsPath;
 }

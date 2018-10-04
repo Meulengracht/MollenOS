@@ -26,12 +26,14 @@
 #include <os/osdefs.h>
 #include <os/buffer.h>
 
-/* UISurfaceFormat 
- * Describes the types of pixel formats that are available
- * for surfaces */
 typedef enum _UiSurfaceFormat {
     SurfaceRGBA,
 } UISurfaceFormat_t;
+
+typedef struct _UiRectangle {
+    int x, y;
+    int w, h;
+} Rect_t;
 
 /* UISurfaceDescriptor
  * Structure to represent a surface in a window and information 

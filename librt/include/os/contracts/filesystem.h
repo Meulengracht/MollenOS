@@ -45,8 +45,7 @@
 #endif
 
 /* FileSystem definitions 
- * Used the describe the various possible flags for
- * the given filesystem */
+ * Used the describe the various possible flags for the given filesystem */
 #define __FILESYSTEM_BOOT           0x00000001
 
 /* FileSystem Disk structure
@@ -74,137 +73,112 @@ PACKED_TYPESTRUCT(FileSystemDescriptor, {
 /* FsInitialize 
  * Initializes a new instance of the file system
  * and allocates resources for the given descriptor */
-__FSAPI
-OsStatus_t
+__FSAPI OsStatus_t
 __FSDECL(FsInitialize)(
     _In_ FileSystemDescriptor_t*    Descriptor);
 
 /* FsDestroy 
  * Destroys the given filesystem descriptor and cleans
  * up any resources allocated by the filesystem instance */
-__FSAPI
-OsStatus_t
+__FSAPI OsStatus_t
 __FSDECL(FsDestroy)(
     _In_ FileSystemDescriptor_t*    Descriptor,
     _In_ Flags_t                    UnmountFlags);
 
-/* FsOpenFile 
- * Opens a new link to a file and allocates resources
- * for a new open-file in the system */
-__FSAPI
-FileSystemCode_t 
-__FSDECL(FsOpenFile)(
-    _In_ FileSystemDescriptor_t*    Descriptor,
-    _In_ FileSystemFile_t*          File,
-    _In_ MString_t*                 Path);
+/* FsOpenEntry 
+ * Fills the entry structure with information needed to access and manipulate the given path.
+ * The entry can be any given type, file, directory, link etc. */
+__FSAPI FileSystemCode_t
+__FSDECL(FsOpenEntry)(
+    _In_  FileSystemDescriptor_t*   FileSystem,
+    _In_  MString_t*                Path,
+    _Out_ FileSystemEntry_t**       BaseEntry);
 
-/* FsCreateFile 
- * Creates a new link to a file and allocates resources
- * for a new open-file in the system */
-__FSAPI
-FileSystemCode_t 
-__FSDECL(FsCreateFile)(
-    _In_ FileSystemDescriptor_t*    Descriptor,
-    _In_ FileSystemFile_t*          File,
-    _In_ MString_t*                 Path,
-    _In_ Flags_t                    Options);
+/* FsCreatePath 
+ * Creates the path specified and fills the entry structure with similar information as
+ * FsOpenEntry. This function (if success) acts like FsOpenEntry. The entry type is specified
+ * by options and can be any type. */
+__FSAPI FileSystemCode_t
+__FSDECL(FsCreatePath)(
+    _In_  FileSystemDescriptor_t*   FileSystem,
+    _In_  MString_t*                Path,
+    _In_  Flags_t                   Options,
+    _Out_ FileSystemEntry_t**       BaseEntry);
 
-/* FsCloseFile 
- * Closes the given file-link and frees all resources
- * this is only invoked once all handles has been closed
- * to that file link, or the file-system is unmounted */
-__FSAPI
-FileSystemCode_t
-__FSDECL(FsCloseFile)(
-    _In_ FileSystemDescriptor_t*    Descriptor, 
-    _In_ FileSystemFile_t*          File);
+/* FsCloseEntry 
+ * Releases resources allocated in the Open/Create function. If entry was opened in
+ * exclusive access this is now released. */
+__FSAPI FileSystemCode_t
+__FSDECL(FsCloseEntry)(
+    _In_ FileSystemDescriptor_t*    FileSystem,
+    _In_ FileSystemEntry_t*         BaseEntry);
 
-/* FsChangeFileSize 
- * Either expands or shrinks the allocated space for the given
- * file-handle to the requested size. */
-__FSAPI
-FileSystemCode_t
-__FSDECL(FsChangeFileSize)(
-    _In_ FileSystemDescriptor_t*    Descriptor,
-    _In_ FileSystemFile_t*          Handle,
-    _In_ uint64_t                   Size);
+/* FsDeleteEntry 
+ * Deletes the entry specified. If the entry is a directory it must be opened in
+ * exclusive access to lock all subentries. Otherwise this can result in zombie handles. 
+ * This also acts as a FsCloseHandle and FsCloseEntry. */
+__FSAPI FileSystemCode_t
+__FSDECL(FsDeleteEntry)(
+    _In_ FileSystemDescriptor_t*    FileSystem,
+    _In_ FileSystemEntryHandle_t*   BaseHandle);
 
 /* FsOpenHandle 
- * Opens a new handle to a file, this allows various
- * interactions with the base file, like read and write.
- * Neccessary resources and initialization of the Handle
+ * Opens a new handle to a entry, this allows various interactions with the base entry, 
+ * like read and write. Neccessary resources and initialization of the Handle
  * should be done here too */
-__FSAPI
-FileSystemCode_t
+__FSAPI FileSystemCode_t
 __FSDECL(FsOpenHandle)(
-    _In_ FileSystemDescriptor_t*    Descriptor,
-    _In_ FileSystemFileHandle_t*    Handle);
+    _In_  FileSystemDescriptor_t*   FileSystem,
+    _In_  FileSystemEntry_t*        BaseEntry,
+    _Out_ FileSystemEntryHandle_t** BaseHandle);
 
 /* FsCloseHandle 
- * Closes the file handle and cleans up any resources allocated
- * by the OpenHandle equivelent. Renders the handle useless */
-__FSAPI
-FileSystemCode_t
+ * Closes the entry handle and cleans up any resources allocated by the FsOpenHandle equivelent. 
+ * Handle is not released by this function but should be cleaned up. */
+__FSAPI FileSystemCode_t
 __FSDECL(FsCloseHandle)(
-    _In_ FileSystemDescriptor_t*    Descriptor,
-    _In_ FileSystemFileHandle_t*    Handle);
+    _In_ FileSystemDescriptor_t*    FileSystem,
+    _In_ FileSystemEntryHandle_t*   BaseHandle);
 
-/* FsReadFile 
- * Reads the requested number of bytes from the given
- * file handle and outputs the number of bytes actually read */
-__FSAPI
-FileSystemCode_t
-__FSDECL(FsReadFile)(
-    _In_  FileSystemDescriptor_t*   Descriptor,
-    _In_  FileSystemFileHandle_t*   Handle,
+/* FsReadEntry 
+ * Reads the requested number of units from the entry handle into the supplied buffer. This
+ * can be handled differently based on the type of entry. */
+__FSAPI FileSystemCode_t
+__FSDECL(FsReadEntry)(
+    _In_  FileSystemDescriptor_t*   FileSystem,
+    _In_  FileSystemEntryHandle_t*  BaseHandle,
     _In_  DmaBuffer_t*              BufferObject,
-    _In_  size_t                    Length,
-    _Out_ size_t*                   BytesAt,
-    _Out_ size_t*                   BytesRead);
+    _In_  size_t                    UnitCount,
+    _Out_ size_t*                   UnitsAt,
+    _Out_ size_t*                   UnitsRead);
 
-/* FsWriteFile 
+/* FsWriteEntry
  * Writes the requested number of bytes to the given
  * file handle and outputs the number of bytes actually written */
-__FSAPI
-FileSystemCode_t
-__FSDECL(FsWriteFile)(
-    _In_  FileSystemDescriptor_t*   Descriptor,
-    _In_  FileSystemFileHandle_t*   Handle,
+__FSAPI FileSystemCode_t
+__FSDECL(FsWriteEntry)(
+    _In_  FileSystemDescriptor_t*   FileSystem,
+    _In_  FileSystemEntryHandle_t*  BaseHandle,
     _In_  DmaBuffer_t*              BufferObject,
     _In_  size_t                    Length,
     _Out_ size_t*                   BytesWritten);
 
-/* FsSeekFile 
- * Seeks in the given file-handle to the absolute position
- * given, must be within boundaries otherwise a seek won't
- * take a place */
-__FSAPI
-FileSystemCode_t
-__FSDECL(FsSeekFile)(
-    _In_ FileSystemDescriptor_t*    Descriptor,
-    _In_ FileSystemFileHandle_t*    Handle,
+/* FsSeekInEntry 
+ * Seeks in the given entry-handle to the absolute position
+ * given, must be within boundaries otherwise a seek won't take a place */
+__FSAPI FileSystemCode_t
+__FSDECL(FsSeekInEntry)(
+    _In_ FileSystemDescriptor_t*    FileSystem,
+    _In_ FileSystemEntryHandle_t*   BaseHandle,
     _In_ uint64_t                   AbsolutePosition);
 
-/* DeletePath 
- * Deletes the path specified, if it's a directory
- * the recursive variable must be set to 1. */
-__FSAPI
-FileSystemCode_t
-__FSDECL(FsDeletePath)(
-    _In_ FileSystemDescriptor_t*    Descriptor,
-    _In_ MString_t*                 Path,
-    _In_ int                        Recursive);
-
-/* FsQueryFile 
- * Queries the given file handle for information, the kind of
- * information queried is determined by the function */
-__FSAPI
-FileSystemCode_t
-__FSDECL(FsQueryFile)(
-    _In_ FileSystemDescriptor_t*    Descriptor,
-    _In_ FileSystemFileHandle_t*    Handle,
-    _In_ int                        Function,
-    _In_ void*                      Buffer,
-    _In_ size_t                     MaxLength);
+/* FsChangeFileSize
+ * Either expands or shrinks the allocated space for the given
+ * file-handle to the requested size. */
+__FSAPI FileSystemCode_t
+__FSDECL(FsChangeFileSize)(
+    _In_ FileSystemDescriptor_t*    FileSystem,
+    _In_ FileSystemEntry_t*         BaseEntry,
+    _In_ uint64_t                   Size);
 
 #endif //!_CONTRACT_FILESYSTEM_INTERFACE_H_

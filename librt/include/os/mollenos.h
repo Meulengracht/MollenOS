@@ -172,27 +172,29 @@ typedef struct _vStorageDescriptor {
 #define FILE_MAPPING_WRITE      0x00000002
 #define FILE_MAPPING_EXECUTE    0x00000004
 
-#define FILE_FLAG_DIRECTORY     0x000000001
+#define FILE_FLAG_FILE          0x00000000
+#define FILE_FLAG_DIRECTORY     0x00000001
+#define FILE_FLAG_LINK          0x00000002
 
-#define FILE_PERMISSION_READ    0x000000001
-#define FILE_PERMISSION_WRITE   0x000000002
-#define FILE_PERMISSION_EXECUTE 0x000000004
-typedef struct _vFileDescriptor {
+#define FILE_PERMISSION_READ    0x00000001
+#define FILE_PERMISSION_WRITE   0x00000002
+#define FILE_PERMISSION_EXECUTE 0x00000004
+typedef struct _OsFileDescriptor {
     long                Id;
     long                StorageId;
     Flags_t             Flags;
     Flags_t             Permissions;
-    LargeInteger_t      Size;
+    LargeUInteger_t     Size;
     struct timespec     CreatedAt;
     struct timespec     ModifiedAt;
     struct timespec     AccessedAt;
-} vFileDescriptor_t;
+} OsFileDescriptor_t;
 
 CRTDECL(OsStatus_t, GetFilePathFromFd(int FileDescriptor, char *PathBuffer, size_t MaxLength));
 CRTDECL(OsStatus_t, GetStorageInformationFromPath(const char *Path, vStorageDescriptor_t *Information));
 CRTDECL(OsStatus_t, GetStorageInformationFromFd(int FileDescriptor, vStorageDescriptor_t *Information));
-CRTDECL(OsStatus_t, GetFileInformationFromPath(const char *Path, vFileDescriptor_t *Information));
-CRTDECL(OsStatus_t, GetFileInformationFromFd(int FileDescriptor, vFileDescriptor_t *Information));
+CRTDECL(OsStatus_t, GetFileInformationFromPath(const char *Path, OsFileDescriptor_t *Information));
+CRTDECL(OsStatus_t, GetFileInformationFromFd(int FileDescriptor, OsFileDescriptor_t *Information));
 CRTDECL(OsStatus_t, CreateFileMapping(int FileDescriptor, int Flags, uint64_t Offset, size_t Size, void **MemoryPointer));
 CRTDECL(OsStatus_t, DestroyFileMapping(void *MemoryPointer));
 

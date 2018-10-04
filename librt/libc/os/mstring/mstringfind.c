@@ -19,8 +19,6 @@
  * MollenOS MCore - String Format
  */
 
-/* Includes 
- * - System */
 #include "mstringprivate.h"
 
 /* Find first occurence of the given character in the given string. 
@@ -28,93 +26,52 @@
  * returns the index if found, otherwise MSTRING_NOT_FOUND */
 int MStringFind(MString_t *String, mchar_t Character)
 {
-	/* Loop vars */
-	char *DataPtr = (char*)String->Data;
-	int Result = 0;
-	int i = 0;
+	char *StringPtr;
+	int Result      = 0;
+	int i           = 0;
 
-	/* Sanitize parameters */
-	if (String->Data == NULL
-		|| String->Length == 0) {
+	if (String == NULL || String->Data == NULL || String->Length == 0) {
 		return MSTRING_NOT_FOUND;
 	}
+	StringPtr = (char*)String->Data;
 
-	/* Iterate */
-	while (DataPtr[i]) {
-
-		/* Get next character in 
-		 * our string */
-		mchar_t NextCharacter =
-			Utf8GetNextCharacterInString(DataPtr, &i);
-
-		/* Sanitize that 
-		 * we haven't reached end or error */
+	while (i < String->Length) {
+		mchar_t NextCharacter = Utf8GetNextCharacterInString(StringPtr, &i);
 		if (NextCharacter == MSTRING_EOS) {
 			return MSTRING_NOT_FOUND;
 		}
-
-		/* Sanitize if we actually
-		 * have found the character */
 		if (NextCharacter == Character) {
 			return Result;
 		}
-
-		/* Othewise, keep searching */
 		Result++;
 	}
-
-	/* No entry */
 	return MSTRING_NOT_FOUND;
 }
 
 /* Find last occurence of the given character in the given string. 
  * The character given to this function should be UTF8
  * returns the index if found, otherwise MSTRING_NOT_FOUND */
-int MStringFindReverse(MString_t *String, mchar_t Character)
+int MStringFindReverse(MString_t* String, mchar_t Character)
 {
-	/* Loop vars */
-	int Result = 0, LastOccurrence = MSTRING_NOT_FOUND;
-	char *DataPtr = NULL;
-	int i = 0;
+	char *StringPtr;
+	int LastOccurrence  = MSTRING_NOT_FOUND;
+	int Result          = 0;
+	int i               = 0;
 
-	/* Sanitize string */
-	if (String == NULL) {
+	if (String == NULL || String->Data == NULL || String->Length == 0) {
 		return LastOccurrence;
 	}
+	StringPtr = (char*)String->Data;
 
-	/* Initiate the pointer */
-	DataPtr = (char*)String->Data;
-
-	/* Sanitize parameters */
-	if (String->Data == NULL
-		|| String->Length == 0) {
-		return LastOccurrence;
-	}
-	
-	/* Iterate */
-	while (DataPtr[i]) {
-
-		/* Get next character in
-		 * our string */
-		mchar_t NextCharacter =
-			Utf8GetNextCharacterInString(DataPtr, &i);
-
-		/* Sanitize that
-		 * we haven't reached end or error */
+	while (i < String->Length) {
+		mchar_t NextCharacter = Utf8GetNextCharacterInString(StringPtr, &i);
 		if (NextCharacter == MSTRING_EOS) {
 			return MSTRING_NOT_FOUND;
 		}
-
-		/* Sanitize if we actually
-		 * have found the character */
 		if (NextCharacter == Character) {
 			LastOccurrence = Result;
 		}
-
-		/* Othewise, keep searching */
 		Result++;
 	}
-
-	/* No entry */
 	return LastOccurrence;
 }

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,10 +32,7 @@ mkdir(
     _In_ const char*    path,
     _In_ int            mode)
 {
-    // Variables
-    FileSystemCode_t Code   = FsOk;
-    Flags_t OpenFlags       = __DIRECTORY_CREATE | __DIRECTORY_FAILONEXIST;
-    UUId_t FileHandle       = UUID_INVALID;
+    int fd;
     _CRT_UNUSED(mode);
 
     // Validate the input
@@ -44,14 +41,12 @@ mkdir(
         return -1;
     }
 
-    // Invoke service
-    Code = OpenDirectory(path, OpenFlags, 
-        __FILE_READ_ACCESS | __FILE_WRITE_ACCESS, &FileHandle);
-    if (_fval(Code) == -1) {
-        return -1;
+    fd = open(path, O_CREAT | O_EXCL | O_RDWR | O_RECURS | O_DIR, 0);
+    if (fd != -1) {
+        close(fd);
+        fd = 0;
     }
-    Code = CloseDirectory(FileHandle);
-    return _fval(Code);
+    return fd;
 }
 
 /* opendir
@@ -62,39 +57,15 @@ opendir(
     _In_  int           flags,
     _Out_ struct DIR**  handle)
 {
-    // Variables
-    FileSystemCode_t Code   = FsOk;
-    Flags_t OpenFlags       = 0;
-    UUId_t FileHandle       = UUID_INVALID;
-
-    // Validate the input
-    if (path == NULL || handle == NULL) {
-        _set_errno(EINVAL);
-        return -1;
-    }
-
-    // Convert open flags
-    if (flags & O_CREAT) {
-        OpenFlags |= __DIRECTORY_CREATE;
-        if (flags & O_EXCL) {
-            OpenFlags |= __DIRECTORY_FAILONEXIST;
-        }
-    }
-    else {
-        OpenFlags |= __DIRECTORY_MUSTEXIST;
-    }
-
-    // Invoke service
-    Code = OpenDirectory(path, OpenFlags, 
-        __FILE_READ_ACCESS | __FILE_WRITE_ACCESS, &FileHandle);
-    if (_fval(Code) == -1) {
+    int fd = open(path, flags, 0);
+    if (fd != -1) {
         return -1;
     }
 
     // Setup out
     *handle = (struct DIR*)malloc(sizeof(struct DIR));
-    (*handle)->d_handle = FileHandle;
-    (*handle)->d_index  = -1;
+    (*handle)->d_handle = fd;
+    (*handle)->d_index  = 0;
     return 0;
 }
 
@@ -104,22 +75,15 @@ int
 closedir(
     _In_ struct DIR *handle)
 {
-    // Variables
-    FileSystemCode_t Code   = FsOk;
-
-    // Validate the input
-    if (handle == NULL) {
-        _set_errno(EINVAL);
+    if (handle != NULL) {
+        if (close(handle->d_handle) != -1) {
+            free(handle);
+            return 0;
+        }
         return -1;
     }
-
-    // Invoke service
-    Code = CloseDirectory(handle->d_handle);
-    if (_fval(Code) == -1) {
-        return -1;
-    }
-    free(handle);
-    return 0;
+    _set_errno(EINVAL);
+    return -1;
 }
 
 /* readdir
@@ -130,26 +94,15 @@ readdir(
     _In_ struct DIR*    handle, 
     _In_ struct DIRENT* entry)
 {
-    // Variables
-    ReadDirectoryPackage_t DirEntry;
-    FileSystemCode_t Code   = FsOk;
-
-    // Validate the input
-    if (handle == NULL || entry == NULL) {
-        _set_errno(EINVAL);
+    if (handle != NULL && entry != NULL) {
+        int bytes_read = read(handle->d_handle, (void*)entry, sizeof(struct DIRENT));
+        if (bytes_read == sizeof(struct DIRENT)) {
+            handle->d_index++;
+            return 0;
+        }
+        _set_errno(ENODATA);
         return -1;
     }
-
-    // Invoke service
-    Code = ReadDirectory(handle->d_handle, &DirEntry);
-    if (_fval(Code) == -1) {
-        return -1;
-    }
-
-    // Convert to c structure
-    handle->d_index++;
-    memset(entry, 0, sizeof(struct DIRENT));
-    entry->d_type = DirEntry.FileInformation.Flags;
-    memcpy(entry->d_name, &DirEntry.FileName[0], strlen(&DirEntry.FileName[0]));
-    return 0;
+    _set_errno(EINVAL);
+    return -1;
 }

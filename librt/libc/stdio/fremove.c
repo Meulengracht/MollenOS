@@ -36,7 +36,7 @@ int unlink(
 		_set_errno(EINVAL);
 		return EOF;
 	}
-	return _fval(DeletePath(path, __FILE_DELETE_RECURSIVE));
+	return _fval(DeletePath(path, 0));
 }
 
 /* remove

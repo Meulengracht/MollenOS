@@ -57,23 +57,22 @@ typedef enum _FileSystemType {
  * by each filesystem module, also contains
  * the number of references the individual module */
 typedef struct _FileSystemModule {
-    FileSystemType_t                Type;
-    int                                References;
-    Handle_t                        Handle;
+    FileSystemType_t    Type;
+    int                 References;
+    Handle_t            Handle;
 
-    FsInitialize_t                    Initialize;
-    FsDestroy_t                        Destroy;
-    FsOpenFile_t                    OpenFile;
-    FsCreateFile_t                    CreateFile;
-    FsCloseFile_t                    CloseFile;
-    FsOpenHandle_t                    OpenHandle;
-    FsCloseHandle_t                    CloseHandle;
-    FsReadFile_t                    ReadFile;
-    FsWriteFile_t                    WriteFile;
-    FsSeekFile_t                    SeekFile;
-    FsChangeFileSize_t                ChangeFileSize;
-    FsDeletePath_t                    DeletePath;
-    FsQueryFile_t                    QueryFile;
+    FsInitialize_t      Initialize;
+    FsDestroy_t         Destroy;
+    FsOpenEntry_t       OpenEntry;
+    FsCreatePath_t      CreatePath;
+    FsCloseEntry_t      CloseEntry;
+    FsDeleteEntry_t     DeleteEntry;
+    FsChangeFileSize_t  ChangeFileSize;
+    FsOpenHandle_t      OpenHandle;
+    FsCloseHandle_t     CloseHandle;
+    FsReadEntry_t       ReadEntry;
+    FsWriteEntry_t      WriteEntry;
+    FsSeekInEntry_t     SeekInEntry;
 } FileSystemModule_t;
 
 /* VFS FileSystem structure
@@ -81,19 +80,18 @@ typedef struct _FileSystemModule {
  * and contains everything related to a filesystem 
  * represented in MCore */
 typedef struct _FileSystem {
-    UUId_t                            Id;
-    FileSystemType_t                Type;
-    MString_t                        *Identifier;
-    FileSystemDescriptor_t            Descriptor;
-    FileSystemModule_t                *Module;
+    UUId_t                      Id;
+    FileSystemType_t            Type;
+    MString_t*                  Identifier;
+    FileSystemDescriptor_t      Descriptor;
+    FileSystemModule_t*         Module;
 } FileSystem_t;
 
 /* DiskRegisterFileSystem 
  * Registers a new filesystem of the given type, on
  * the given disk with the given position on the disk 
  * and assigns it an identifier */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 DiskRegisterFileSystem(
     _In_ FileSystemDisk_t*  Disk,
     _In_ uint64_t           Sector,
@@ -156,19 +154,19 @@ __EXTERN UUId_t VfsIdentifierFileGet(void);
 /* VfsGetOpenFiles / VfsGetOpenHandles
  * Retrieves the list of open files /handles and allows
  * access and manipulation of the list */
-__EXTERN Collection_t *VfsGetOpenFiles(void);
-__EXTERN Collection_t *VfsGetOpenHandles(void);
+__EXTERN Collection_t* VfsGetOpenFiles(void);
+__EXTERN Collection_t* VfsGetOpenHandles(void);
 
 /* VfsIdentifierAllocate 
  * Allocates a free identifier index for the
  * given disk, it varies based upon disk type */
-__EXTERN UUId_t SERVICEABI
+__EXTERN UUId_t
 VfsIdentifierAllocate(
     _In_ FileSystemDisk_t*          Disk);
 
 /* VfsIdentifierFree 
  * Frees a given disk identifier index */
-__EXTERN OsStatus_t SERVICEABI
+__EXTERN OsStatus_t
 VfsIdentifierFree(
     _In_ FileSystemDisk_t*          Disk,
     _In_ UUId_t                     Id);
@@ -177,7 +175,7 @@ VfsIdentifierFree(
  * Registers a disk with the file-manager and it will
  * automatically be parsed (MBR, GPT, etc), and all filesystems
  * on the disk will be brought online */
-__EXTERN  OsStatus_t SERVICEABI
+__EXTERN  OsStatus_t
 VfsRegisterDisk(
     _In_ UUId_t                     Driver,
     _In_ UUId_t                     Device,
@@ -186,46 +184,44 @@ VfsRegisterDisk(
 /* VfsUnregisterDisk
  * Unregisters a disk from the system, and brings any filesystems
  * registered on this disk offline */
-__EXTERN OsStatus_t SERVICEABI
+__EXTERN OsStatus_t
 VfsUnregisterDisk(
     _In_ UUId_t                     Device, 
     _In_ Flags_t                    Flags);
 
-/* VfsOpenFile
+/* VfsOpenEntry
  * Opens or creates the given file path based on
- * the given <Access> and <Options> flags. See the
- * top of this file */
-__EXTERN  FileSystemCode_t SERVICEABI
-VfsOpenFile(
+ * the given <Access> and <Options> flags. See the top of this file */
+__EXTERN FileSystemCode_t
+VfsOpenEntry(
     _In_  UUId_t                    Requester,
     _In_  const char*               Path, 
     _In_  Flags_t                   Options, 
     _In_  Flags_t                   Access,
-    _Out_ UUId_t*                   Handle);
+    _Out_ UUId_t*                   FileId);
 
-/* VfsCloseFile
+/* VfsCloseEntry
  * Closes the given file-handle, but does not necessarily
  * close the link to the file. Returns the result */
-__EXTERN FileSystemCode_t SERVICEABI
-VfsCloseFile(
-    _In_ UUId_t                     Requester, 
+__EXTERN FileSystemCode_t
+VfsCloseEntry(
+    _In_ UUId_t                     Requester,
     _In_ UUId_t                     Handle);
 
 /* VfsDeletePath
- * Deletes the given file path
- * the caller must make sure there is no other references
+ * Deletes the given path the caller must make sure there is no other references
  * to the file - otherwise delete fails */
-__EXTERN FileSystemCode_t SERVICEABI
+__EXTERN FileSystemCode_t
 VfsDeletePath(
     _In_ UUId_t                     Requester, 
     _In_ const char*                Path,
     _In_ Flags_t                    Options);
 
-/* VfsReadFile
+/* VfsReadEntry
  * Reads the requested number of bytes into the given buffer
- * from the current position in the file-handle */
-__EXTERN FileSystemCode_t SERVICEABI
-VfsReadFile(
+ * from the current position in the handle filehandle */
+__EXTERN FileSystemCode_t
+VfsReadEntry(
     _In_  UUId_t                    Requester,
     _In_  UUId_t                    Handle,
     _In_  UUId_t                    BufferHandle,
@@ -233,23 +229,21 @@ VfsReadFile(
     _Out_ size_t*                   BytesIndex,
     _Out_ size_t*                   BytesRead);
 
-/* VfsWriteFile
+/* VsfWriteEntry
  * Writes the requested number of bytes from the given buffer
- * into the current position in the file-handle */
-__EXTERN FileSystemCode_t SERVICEABI
-VfsWriteFile(
+ * into the current position in the filehandle */
+__EXTERN FileSystemCode_t
+VsfWriteEntry(
     _In_  UUId_t                    Requester,
     _In_  UUId_t                    Handle,
     _In_  UUId_t                    BufferHandle,
     _In_  size_t                    Length,
     _Out_ size_t*                   BytesWritten);
 
-/* VfsSeekFile
- * Sets the file-pointer for the given handle to the
- * values given, the position is absolute and must
- * be within range of the file size */
-__EXTERN FileSystemCode_t SERVICEABI
-VfsSeekFile(
+/* VfsSeekInEntry
+ * Seeks in the given file entry handle. Seeks to the absolute position given. */
+__EXTERN FileSystemCode_t
+VfsSeekInEntry(
     _In_ UUId_t                     Requester,
     _In_ UUId_t                     Handle, 
     _In_ uint32_t                   SeekLo, 
@@ -258,81 +252,96 @@ VfsSeekFile(
 /* VfsFlushFile
  * Flushes the internal file buffers and ensures there are
  * no pending file operations for the given file handle */
-__EXTERN FileSystemCode_t SERVICEABI
+__EXTERN FileSystemCode_t
 VfsFlushFile(
     _In_ UUId_t                     Requester, 
     _In_ UUId_t                     Handle);
 
-/* VfsMoveFile
+/* VfsMoveEntry
  * Moves or copies a given file path to the destination path
  * this can also be used for renamining if the dest/source paths
  * match (except for filename/directoryname) */
-__EXTERN FileSystemCode_t SERVICEABI
-VfsMoveFile(
+__EXTERN FileSystemCode_t
+VfsMoveEntry(
     _In_ UUId_t                     Requester,
     _In_ const char*                Source, 
     _In_ const char*                Destination,
     _In_ int                        Copy);
 
-/* VfsGetFilePosition 
- * Queries the current file position that the given handle
- * is at, it returns as two separate unsigned values, the upper
- * value is optional and should only be checked for large files */
-__EXTERN OsStatus_t SERVICEABI
-VfsGetFilePosition(
+/* VfsGetEntryPosition 
+ * Queries the current entry position that the given handle
+ * is at, it returns as two seperate unsigned values, the upper
+ * value is optional and should only be checked for large entries */
+__EXTERN OsStatus_t
+VfsGetEntryPosition(
     _In_  UUId_t                    Requester,
     _In_  UUId_t                    Handle,
     _Out_ QueryFileValuePackage_t*  Result);
 
-/* VfsGetFileOptions 
- * Queries the current file options and file access flags
- * for the given file handle */
-__EXTERN OsStatus_t SERVICEABI
-VfsGetFileOptions(
+/* VfsGetEntryOptions
+ * Queries the current entry options and entry access flags for the given file handle */
+__EXTERN OsStatus_t
+VfsGetEntryOptions(
     _In_  UUId_t                        Requester,
     _In_  UUId_t                        Handle,
     _Out_ QueryFileOptionsPackage_t*    Result);
 
-/* VfsSetFileOptions 
+/* VfsSetEntryOptions 
  * Attempts to modify the current option and or access flags
- * for the given file handle as specified by <Options> and <Access> */
-__EXTERN OsStatus_t SERVICEABI
-VfsSetFileOptions(
+ * for the given entry handle as specified by <Options> and <Access> */
+__EXTERN OsStatus_t
+VfsSetEntryOptions(
     _In_ UUId_t                     Requester,
     _In_ UUId_t                     Handle,
     _In_ Flags_t                    Options,
     _In_ Flags_t                    Access);
 
-/* VfsGetFileSize 
- * Queries the current file size that the given handle
- * has, it returns as two separate unsigned values, the upper
- * value is optional and should only be checked for large files */
-__EXTERN OsStatus_t SERVICEABI
-VfsGetFileSize(
+/* VfsGetEntrySize 
+ * Queries the current file-entry size that the given handle
+ * has, it returns as two seperate unsigned values, the upper
+ * value is optional and should only be checked for large entries */
+__EXTERN OsStatus_t
+VfsGetEntrySize(
     _In_  UUId_t                    Requester,
     _In_  UUId_t                    Handle,
     _Out_ QueryFileValuePackage_t*  Result);
 
-/* VfsGetFilePath 
- * Queries the full path of a file that the given handle
+/* VfsGetEntryPath 
+ * Queries the full path of a file-entry that the given handle
  * has, it returns it as a UTF8 string with max length of _MAXPATH */
-__EXTERN OsStatus_t SERVICEABI
-VfsGetFilePath(
+__EXTERN OsStatus_t
+VfsGetEntryPath(
     _In_  UUId_t                    Requester,
     _In_  UUId_t                    Handle,
     _Out_ MString_t**               Path);
 
+/* VfsQueryEntryPath
+ * Queries information about the filesystem entry through its full path. */
+__EXTERN OsStatus_t
+VfsQueryEntryPath(
+    _In_ UUId_t                     Requester,
+    _In_ const char*                Path,
+    _In_ OsFileDescriptor_t*        Information);
+
+/* VfsQueryEntryHandle
+ * Queries informatino about the filesystem entry through its handle. */
+__EXTERN OsStatus_t
+VfsQueryEntryHandle(
+    _In_ UUId_t                     Requester,
+    _In_ UUId_t                     Handle,
+    _In_ OsFileDescriptor_t*        Information);
+
 /* VfsPathResolveEnvironment
  * Resolves the given env-path identifier to a string
  * that can be used to locate files. */
-__EXTERN MString_t* SERVICEABI
+__EXTERN MString_t*
 VfsPathResolveEnvironment(
     _In_ EnvironmentPath_t          Base);
 
 /* VfsPathCanonicalize
  * Canonicalizes the path by removing extra characters
  * and resolving all identifiers in path */
-__EXTERN MString_t* SERVICEABI
+__EXTERN MString_t*
 VfsPathCanonicalize(
     _In_ const char*                Path);
 

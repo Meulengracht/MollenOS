@@ -19,89 +19,69 @@
  * MollenOS MCore - String Format
  */
 
-/* Includes 
- * - System */
 #include "mstringprivate.h"
 
-/* Substring - build substring from the given mstring
- * starting at Index with the Length. If the length is -1
- * it takes the rest of string */
-MString_t *MStringSubString(MString_t *String, int Index, int Length)
+/* MStringSubString
+ * Build substring from the given mstring starting at Index with the Length. 
+ * If the length is -1 it takes the rest of string */
+MString_t*
+MStringSubString(
+    _In_ MString_t* String,
+    _In_ int        Index,
+    _In_ int        Length)
 {
-	/* Variables needed for the
-	* string operation */
-	MString_t *SubString = NULL;
-	size_t DataLength = 0, DataAllocLength = 0;
-	char *sPtr = NULL;
+    MString_t*  SubString;
+    char*       StringPtr;
+    size_t      DataAllocLength;
+    size_t      DataLength = 0;
 
-	/* Indices for enumeration of 
-	 * the relevant data bytes */
-	int cIndex = 0, i = 0, lasti = 0, starti = -1;
+    int cIndex = 0, i = 0;
+    int StartIndex = -1;
+    int LastIndex;
 
-	/* Sanitize the parameters */
-	if (String->Data == NULL
-		|| String->Length == 0) {
-		return NULL;
-	}
-	
-	/* Santize the index/length given 
-	 * to make sure we don't hit bad lengths */
-	if (Index > (int)String->Length
-		|| ((((Index + Length) > (int)String->Length)) && Length != -1)) {
-		return NULL;
-	}
+    if (String == NULL || String->Data == NULL || String->Length == 0) {
+        return NULL;
+    }
+    
+    // Santize the index/length given 
+    // to make sure we don't hit bad lengths
+    if (Index > (int)String->Length || ((((Index + Length) > (int)String->Length)) && Length != -1)) {
+        return NULL;
+    }
+    StringPtr = (char*)String->Data;
 
-	/* Set data pointer to source */
-	sPtr = (char*)String->Data;
+    // Count how many bytes we actually need to copy
+    // from the start-index, save start index
+    while (i < String->Length) {
+        LastIndex = i; // Store the byte-index
+        if (Utf8GetNextCharacterInString(StringPtr, &i) == MSTRING_EOS) {
+            break;
+        }
 
-	/* Count how many bytes we actually need to copy
-	 * from the start-index, save start index */
-	while (sPtr[i])
-	{
-		/* Save position so we can calculate
-		 * how many bytes we need to copy */
-		lasti = i;
+        // Sanitize that we have entered
+        // the index to record from, and make sure to record the start index 
+        if (cIndex >= Index && (Length == -1 || (cIndex < (Index + Length)))) {
+            if (StartIndex == -1) {
+                StartIndex = LastIndex;
+            }
+            DataLength += (i - LastIndex);
+        }
+        cIndex++;
+    }
 
-		/* Get next character, make sure to check for errors */
-		if (Utf8GetNextCharacterInString(sPtr, &i) == MSTRING_EOS) {
-			break;
-		}
+    if (DataLength == 0) {
+        return NULL;
+    }
 
-		/* Sanitize that we have entered
-		 * the index to record from, and make sure
-		 * to record the start index */
-		if (cIndex >= Index
-			&& (Length == -1 || (cIndex < (Index + Length)))) {
-			if (starti == -1) {
-				starti = lasti;
-			}
-			DataLength += (i - lasti);
-		}
+    // Create the actual substring copy
+    SubString       = (MString_t*)dsalloc(sizeof(MString_t));
+    DataAllocLength = DIVUP((DataLength + 1), MSTRING_BLOCK_SIZE) * MSTRING_BLOCK_SIZE;
 
-		/* Increase */
-		cIndex++;
-	}
+    SubString->Data         = dsalloc(DataAllocLength);
+    SubString->Length       = DataLength;
+    SubString->MaxLength    = DataAllocLength;
 
-	/* Allocate a new instance of mstring */
-	SubString = (MString_t*)dsalloc(sizeof(MString_t));
-
-	/* Calculate Length 
-	 * add an extra byte for null terminator */
-	DataAllocLength = DIVUP((DataLength + 1), MSTRING_BLOCK_SIZE) * MSTRING_BLOCK_SIZE;
-
-	/* Set */
-	SubString->Data = dsalloc(DataAllocLength);
-	SubString->Length = DataLength;
-	SubString->MaxLength = DataAllocLength;
-
-	/* Zero it */
-	memset(SubString->Data, 0, DataAllocLength);
-
-	/* Now copy data over, we know start index
-	 * and also the length of the data to copy */
-	memcpy(SubString->Data, 
-		((uint8_t*)String->Data + starti), DataLength);
-
-	/* Done! */
-	return SubString;
+    memset(SubString->Data, 0, DataAllocLength);
+    memcpy(SubString->Data, ((uint8_t*)String->Data + StartIndex), DataLength);
+    return SubString;
 }

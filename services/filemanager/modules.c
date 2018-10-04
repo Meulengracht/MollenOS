@@ -94,54 +94,52 @@ VfsResolveFileSystem(
 	// - FsOpenFile
 	// - FsCreateFile
 	// - FsCloseFile
+	// - FsDeletePath
+	// - FsChangeFileSize
 	// - FsOpenHandle
 	// - FsCloseHandle
 	// - FsReadFile
 	// - FsWriteFile
 	// - FsSeekFile
-	// - FsChangeFileSize
-	// - FsDeletePath
-	// - FsQueryFile 
 	Module->Initialize = (FsInitialize_t)
 		SharedObjectGetFunction(Module->Handle, "FsInitialize");
 	Module->Destroy = (FsDestroy_t)
 		SharedObjectGetFunction(Module->Handle, "FsDestroy");
-	Module->OpenFile = (FsOpenFile_t)
-		SharedObjectGetFunction(Module->Handle, "FsOpenFile");
-	Module->CreateFile = (FsCreateFile_t)
-		SharedObjectGetFunction(Module->Handle, "FsCreateFile");
-	Module->CloseFile = (FsCloseFile_t)
-		SharedObjectGetFunction(Module->Handle, "FsCloseFile");
+	Module->OpenEntry = (FsOpenEntry_t)
+		SharedObjectGetFunction(Module->Handle, "FsOpenEntry");
+	Module->CreatePath = (FsCreatePath_t)
+		SharedObjectGetFunction(Module->Handle, "FsCreatePath");
+	Module->CloseEntry = (FsCloseEntry_t)
+		SharedObjectGetFunction(Module->Handle, "FsCloseEntry");
+	Module->DeleteEntry = (FsDeleteEntry_t)
+		SharedObjectGetFunction(Module->Handle, "FsDeleteEntry");
+	Module->ChangeFileSize = (FsChangeFileSize_t)
+		SharedObjectGetFunction(Module->Handle, "FsChangeFileSize");
 	Module->OpenHandle = (FsOpenHandle_t)
 		SharedObjectGetFunction(Module->Handle, "FsOpenHandle");
 	Module->CloseHandle = (FsCloseHandle_t)
 		SharedObjectGetFunction(Module->Handle, "FsCloseHandle");
-	Module->ReadFile = (FsReadFile_t)
-		SharedObjectGetFunction(Module->Handle, "FsReadFile");
-	Module->WriteFile = (FsWriteFile_t)
-		SharedObjectGetFunction(Module->Handle, "FsWriteFile");
-	Module->SeekFile = (FsSeekFile_t)
-		SharedObjectGetFunction(Module->Handle, "FsSeekFile");
-	Module->ChangeFileSize = (FsChangeFileSize_t)
-		SharedObjectGetFunction(Module->Handle, "FsChangeFileSize");
-	Module->DeletePath = (FsDeletePath_t)
-		SharedObjectGetFunction(Module->Handle, "FsDeletePath");
-	Module->QueryFile = (FsQueryFile_t)
-		SharedObjectGetFunction(Module->Handle, "FsQueryFile");
+	Module->ReadEntry = (FsReadEntry_t)
+		SharedObjectGetFunction(Module->Handle, "FsReadEntry");
+	Module->WriteEntry = (FsWriteEntry_t)
+		SharedObjectGetFunction(Module->Handle, "FsWriteEntry");
+	Module->SeekInEntry = (FsSeekInEntry_t)
+		SharedObjectGetFunction(Module->Handle, "FsSeekInEntry");
 
 	// Sanitize functions
-	if (Module->Initialize == NULL
-		|| Module->Destroy == NULL
-		|| Module->OpenFile == NULL
-		|| Module->CreateFile == NULL
-		|| Module->CloseFile == NULL
-		|| Module->OpenHandle == NULL
-		|| Module->CloseHandle == NULL
-		|| Module->ReadFile == NULL
-		|| Module->WriteFile == NULL
-		|| Module->SeekFile == NULL
-		|| Module->DeletePath == NULL
-		|| Module->QueryFile == NULL) {
+	if (Module->Initialize == NULL || 
+        Module->Destroy == NULL ||
+        Module->OpenEntry == NULL ||
+        Module->CreatePath == NULL ||
+        Module->CloseEntry == NULL ||
+        Module->DeleteEntry == NULL ||
+        Module->ChangeFileSize == NULL ||
+        Module->OpenHandle == NULL ||
+        Module->CloseHandle == NULL ||
+        Module->ReadEntry == NULL ||
+        Module->WriteEntry == NULL ||
+        Module->SeekInEntry == NULL)
+    {
 		SharedObjectUnload(Module->Handle);
 		free(Module);
 		return NULL;

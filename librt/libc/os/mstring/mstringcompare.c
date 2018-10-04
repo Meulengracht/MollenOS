@@ -19,63 +19,60 @@
  * MollenOS MCore - String Format
  */
 
-/* Includes 
- * - System */
 #include "mstringprivate.h"
 
-/* Compare two strings with either case-ignore or not. 
- * Returns MSTRING_FULL_MATCH if they are equal, or
- * MSTRING_PARTIAL_MATCH if they contain same text 
- * but one of the strings are longer. Returns MSTRING_NO_MATCH
- * if not match */
-int MStringCompare(MString_t *String1, MString_t *String2, int IgnoreCase)
+/* MStringCompare
+ * Compare two strings with either case-insensitivity or not. 
+ * Returns 
+ *   - MSTRING_FULL_MATCH           If they are equal
+ *   - MSTRING_PARTIAL_MATCH        If they contain same text but one of the strings are longer
+ *   - MSTRING_NO_MATCH             If they don't match */
+int
+MStringCompare(
+    _In_ MString_t* String1,
+    _In_ MString_t* String2,
+    _In_ int        IgnoreCase)
 {
-	/* If ignore case we use IsAlpha on their 
-	 * asses and then tolower
-	 * Loop vars */
-	char *DataPtr1 = (char*)String1->Data;
-	char *DataPtr2 = (char*)String2->Data;
-	int i1 = 0, i2 = 0;
+    char *StringPtr1;
+    char *StringPtr2;
+    int i1 = 0;
+    int i2 = 0;
 
-	/* Iterate */
-	while (DataPtr1[i1] && DataPtr2[i2])
-	{
-		/* Get characters */
-		mchar_t First =
-			Utf8GetNextCharacterInString(DataPtr1, &i1);
-		mchar_t Second =
-			Utf8GetNextCharacterInString(DataPtr2, &i2);
+    if (String1 == NULL || String1->Data == NULL || String1->Length == 0 ||
+        String2 == NULL || String2->Data == NULL || String2->Length == 0) {
+        return MSTRING_NO_MATCH;
+    }
+    StringPtr1 = (char*)String1->Data;
+    StringPtr2 = (char*)String2->Data;
 
-		/* Sanitize the characters since we might
-		 * have gotten either end or error */
-		if (First == MSTRING_EOS
-			|| Second == MSTRING_EOS) {
-			return MSTRING_PARTIAL_MATCH;
-		}
+    while ((i1 < String1->Length) && (i2 < String2->Length)) {
+        mchar_t First   = Utf8GetNextCharacterInString(StringPtr1, &i1);
+        mchar_t Second  = Utf8GetNextCharacterInString(StringPtr2, &i2);
+        if (First == MSTRING_EOS || Second == MSTRING_EOS) {
+            return MSTRING_PARTIAL_MATCH;
+        }
 
-		/* Ignore case? - Only on ASCII alpha-chars 
-		 * because they are the only ones we can convert
-		 * easily without any help lookup tables */
-		if (IgnoreCase) {
-			if (First < 0x80 && isalpha(First))
-				First = tolower((uint8_t)First);
-			if (Second < 0x80 && isalpha(Second))
-				Second = tolower((uint8_t)Second);
-		}
+        // We only support case-insensitivity on ascii characters
+        if (IgnoreCase) {
+            if (First < 0x80 && isalpha(First)) {
+                First = tolower((uint8_t)First);
+            }
+            if (Second < 0x80 && isalpha(Second)) {
+                Second = tolower((uint8_t)Second);
+            }
+        }
 
-		/* Lets see */
-		if (First != Second)
-			return MSTRING_NO_MATCH;
-	}
+        if (First != Second) {
+            return MSTRING_NO_MATCH;
+        }
+    }
 
-	/* Sanity */
-	if (DataPtr1[i1] != DataPtr2[i2])
-		return MSTRING_NO_MATCH;
+    if (StringPtr1[i1] != StringPtr2[i2]) {
+        return MSTRING_NO_MATCH;
+    }
 
-	/* Sanity - Length */
-	if (strlen(String1->Data) != strlen(String2->Data))
-		return MSTRING_PARTIAL_MATCH;
-
-	/* Done - Equal */
-	return MSTRING_FULL_MATCH;
+    if (String1->Length != String2->Length) {
+        return MSTRING_PARTIAL_MATCH;
+    }
+    return MSTRING_FULL_MATCH;
 }

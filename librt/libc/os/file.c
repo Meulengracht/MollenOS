@@ -84,8 +84,8 @@ GetStorageInformationFromFd(
  * does not exist or is invalid the descriptor is zeroed out. */
 OsStatus_t
 GetFileInformationFromPath(
-    _In_ const char*        Path,
-    _In_ vFileDescriptor_t* Information)
+    _In_ const char*            Path,
+    _In_ OsFileDescriptor_t*    Information)
 {
     if (Information == NULL || Path == NULL) {
         return OsError;
@@ -98,8 +98,8 @@ GetFileInformationFromPath(
  * does not exist or is invalid the descriptor is zeroed out. */
 OsStatus_t
 GetFileInformationFromFd(
-    _In_ int                FileDescriptor,
-    _In_ vFileDescriptor_t* Information)
+    _In_ int                    FileDescriptor,
+    _In_ OsFileDescriptor_t*    Information)
 {
     // Variables
     StdioHandle_t *FileHandle = StdioFdToHandle(FileDescriptor);

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,6 +35,8 @@
 #define O_CREAT         0x0100  /* create and open */
 #define O_TRUNC         0x0200  /* open and truncate */
 #define O_EXCL          0x0400  /* open only if doesn't already exist */
+#define O_RECURS        0x0800  /* create missing path compononents */
+#define O_DIR           0x1000  /* create as a directory */
 
 /* O_TEXT files have <cr><lf> sequences translated to <lf> on read()'s,
  ** and <lf> sequences translated to <cr><lf> on write()'s
@@ -64,15 +66,13 @@
 #define O_SEQUENTIAL    0x0020  /* file access is primarily sequential */
 #define O_RANDOM        0x0010  /* file access is primarily random */
 
-/* Directory handling support. 
- * Structures contain basic information about the directory
- * and it's entries. */
 struct DIR {
-    UUId_t d_handle;
-    int    d_index;
+    int d_handle;
+    int d_index;
 };
 struct DIRENT {
-    Flags_t d_type;
+    Flags_t d_options;
+    Flags_t d_perms;
     char    d_name[256];
 };
 

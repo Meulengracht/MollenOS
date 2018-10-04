@@ -28,38 +28,34 @@
 #error "You must include filesystem.h and not this directly"
 #endif
 
+#include <os/mollenos.h>
 #include <ds/mstring.h>
-#include <os/osdefs.h>
 
-/* The shared file structure
- * Used as a file-definition by the filemanager
- * and the loaded filesystem modules */
-PACKED_TYPESTRUCT(FileSystemFile, {
-	MString_t				*Path;
-	MString_t				*Name;
-	size_t					 Hash;
-	UUId_t					 IsLocked;
-	int						 References;
-	uint64_t				 Size;
-	uintptr_t				*System;
-	uintptr_t				*ExtensionData;
+/* The shared filesystem entry structure
+ * Used as a file-definition by the filemanager and the loaded filesystem modules */
+PACKED_TYPESTRUCT(FileSystemEntry, {
+    OsFileDescriptor_t      Descriptor;
+    MString_t*              Path;
+    MString_t*              Name;
+    size_t                  Hash;
+    UUId_t                  IsLocked;
+    int                     References;
+    uintptr_t*              System;
 });
 
-/* This is the per-handle file instance
+/* This is the per-handle entry instance
  * structure, so multiple handles can be opened
- * on just a single file, it refers to a file structure */
-PACKED_TYPESTRUCT(FileSystemFileHandle, {
-	UUId_t					 Id;
-	UUId_t					 Owner;
-	Flags_t					 Access;
-	Flags_t					 Options;
-	Flags_t					 LastOperation;
-	uint64_t				 Position;
-	void					*OutBuffer;
-	size_t					 OutBufferPosition;
-
-	FileSystemFile_t		*File;
-	uintptr_t				*ExtensionData;
+ * on just a single entry, it refers to a entry structure */
+PACKED_TYPESTRUCT(FileSystemEntryHandle, {
+    FileSystemEntry_t*  Entry;
+    UUId_t              Id;
+    UUId_t              Owner;
+    Flags_t             Access;
+    Flags_t             Options;
+    Flags_t             LastOperation;
+    uint64_t            Position;
+    void*               OutBuffer;
+    size_t              OutBufferPosition;
 });
 
 #endif //!_FILE_STRUCTURES_INTERFACE_H_
