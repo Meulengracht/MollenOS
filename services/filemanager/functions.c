@@ -20,7 +20,7 @@
  * - Handles all file related services and disk services
  * - ToDo Buffering is not ported to BufferObjects yet
  */
-//#define __TRACE
+#define __TRACE
 
 #include <os/file.h>
 #include <os/mollenos.h>
@@ -124,7 +124,7 @@ VfsOpenHandleInternal(
 
     TRACE("VfsOpenHandleInternal()");
 
-    Code        = Filesystem->Module->OpenHandle(&Filesystem->Descriptor, Entry, Handle);
+    Code = Filesystem->Module->OpenHandle(&Filesystem->Descriptor, Entry, Handle);
     if (Code != FsOk) {
         ERROR("Failed to initiate a new entry-handle, code %i", Code);
         return Code;
@@ -257,7 +257,7 @@ VfsOpenInternal(
                     Entry->Path         = MStringCreate((void*)MStringRaw(Path), StrUTF8);
                     Entry->Hash         = MStringHash(Path);
                     Entry->IsLocked     = UUID_INVALID;
-                    Entry->References   = 1;
+                    Entry->References   = 0;
 
                     // Take care of truncation flag if file was not newly created. The entry type
                     // must equal to file otherwise we will ignore the flag
@@ -432,26 +432,25 @@ VfsCloseEntry(
     // Call the filesystem close-handle to cleanup
     Fs      = (FileSystem_t*)EntryHandle->Entry->System;
     Code    = Fs->Module->CloseHandle(&Fs->Descriptor, EntryHandle);
+    if (Code != FsOk) {
+        return Code;
+    }
+    CollectionRemoveByNode(VfsGetOpenHandles(), Node);
+    free(Node);
 
     // Take care of any entry cleanup / reduction
-    Key.Value = (int)Entry->Hash;
     Entry->References--;
     if (Entry->IsLocked == Requester) {
         Entry->IsLocked = UUID_INVALID;
     }
 
     // Last reference?
-    // Cleanup the file in case of no refs 
-    if (Entry->References <= 0) {
-        CollectionItem_t *pNode = CollectionGetNodeByKey(VfsGetOpenFiles(), Key, 0);
-        Code                    = Fs->Module->CloseEntry(&Fs->Descriptor, Entry);
-        if (pNode != NULL) {
-            CollectionRemoveByNode(VfsGetOpenFiles(), pNode);
-            free(pNode);
-        }
+    // Cleanup the file in case of no refs
+    if (Entry->References == 0) {
+        Key.Value = (int)Entry->Hash;
+        CollectionRemoveByKey(VfsGetOpenFiles(), Key);
+        Code = Fs->Module->CloseEntry(&Fs->Descriptor, Entry);
     }
-    CollectionRemoveByNode(VfsGetOpenHandles(), Node);
-    free(Node);
     return Code;
 }
 
@@ -541,11 +540,6 @@ VfsReadEntry(
         Code = VfsFlushFile(Requester, Handle);
     }
 
-    if (EntryHandle->Position == EntryHandle->Entry->Descriptor.Size.QuadPart) {
-        *BytesRead = 0;
-        return FsOk;
-    }
-
     // Acquire the buffer for reading
     Buffer = CreateBuffer(BufferHandle, 0);
     if (Buffer == NULL) {
@@ -579,6 +573,8 @@ VsfWriteEntry(
     FileSystem_t* Fs;
     DmaBuffer_t* Buffer;
 
+    TRACE("VsfWriteEntry(Length %u)", Length);
+
     if (BufferHandle == UUID_INVALID || Length == 0) {
         ERROR("Buffer/length is invalid.");
         return FsInvalidParameters;
@@ -606,6 +602,9 @@ VsfWriteEntry(
     if (Code == FsOk) {
         EntryHandle->LastOperation  = __FILE_OPERATION_WRITE;
         EntryHandle->Position       += *BytesWritten;
+        if (EntryHandle->Position > EntryHandle->Entry->Descriptor.Size.QuadPart) {
+            EntryHandle->Entry->Descriptor.Size.QuadPart = EntryHandle->Position;
+        }
     }
     DestroyBuffer(Buffer);
     return Code;

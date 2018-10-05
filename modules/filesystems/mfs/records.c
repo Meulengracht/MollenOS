@@ -43,7 +43,13 @@ MfsExtractToken(
     // can pretty much assume this was the last token
     // unless that StrIndex == Last character
     if (StrIndex == MSTRING_NOT_FOUND || StrIndex == (int)(MStringLength(Path) - 1)) {
-        *Token          = MStringCreate((void*)MStringRaw(Path), StrUTF8);
+        if (StrIndex == (int)(MStringLength(Path) - 1)) {
+            *Token = MStringSubString(Path, 0, StrIndex);
+        }
+        else {
+            *Token = MStringCreate((void*)MStringRaw(Path), StrUTF8);
+        }
+        
         *RemainingPath  = NULL;
         return OsSuccess;
     }
@@ -374,7 +380,8 @@ MfsCreateRecord(
 {
     FileSystemCode_t Result;
 
-    TRACE("MfsCreateRecord(Bucket %u, Path %s)", BucketOfDirectory, MStringRaw(Path));
+    TRACE("MfsCreateRecord(Bucket %u, Path %s, Flags %u)", 
+        BucketOfDirectory, MStringRaw(Path), Flags);
 
     // Locate a free entry, and make sure file does not exist 
     Result = MfsLocateFreeRecord(FileSystem, BucketOfDirectory, Entry, Path);
@@ -387,7 +394,9 @@ MfsCreateRecord(
     }
 
     // Initialize the new file record
-    Entry->StartBucket    = MFS_ENDOFCHAIN;
-    Entry->NativeFlags    = Flags | MFS_FILERECORD_INUSE;
+    Entry->AllocatedSize    = 0;
+    Entry->StartBucket      = MFS_ENDOFCHAIN;
+    Entry->StartLength      = 0;
+    Entry->NativeFlags      = Flags | MFS_FILERECORD_INUSE;
     return MfsUpdateRecord(FileSystem, Entry, MFS_ACTION_CREATE);
 }

@@ -52,15 +52,22 @@ long long telli64(
 long long ftelli64(
 	_In_ FILE *stream)
 {
-	// Variables
-	long long pos;
-	
-	// Lock access
-	_lock_file(stream);
+    StdioObject_t*  Object;
+	long long       Position;
 
-	// Get initial position
-	pos = telli64(stream->_fd);
-	if (pos == -1) {
+    assert(stream != NULL);
+
+	_lock_file(stream);
+    
+	Object = get_ioinfo(stream->_fd);
+    if (Object == NULL) {
+		_unlock_file(stream);
+        _set_errno(EBADFD);
+        return -1;
+    }
+
+	Position = telli64(stream->_fd);
+	if (Position == -1) {
 		_unlock_file(stream);
 		return -1;
 	}
@@ -69,15 +76,15 @@ long long ftelli64(
 	if (stream->_flag & (_IOMYBUF | _USERBUF)) {
 		if (stream->_flag & _IOWRT) {
 			// Add the calculated difference in position
-			pos += stream->_ptr - stream->_base;
+			Position += stream->_ptr - stream->_base;
 
 			// Extra special case in case of text stream
-			if (get_ioinfo(stream->_fd)->wxflag & WX_TEXT) {
+			if (Object->wxflag & WX_TEXT) {
 				char *p;
 
 				for (p = stream->_base; p < stream->_ptr; p++) {
 					if (*p == '\n') {
-						pos++;
+						Position++;
 					}
 				}
 			}
@@ -85,17 +92,17 @@ long long ftelli64(
 		else if (!stream->_cnt) {
 			// Empty buffer
 		}
-		else if (lseeki64(stream->_fd, 0, SEEK_END) == pos) {
+		else if (lseeki64(stream->_fd, 0, SEEK_END) == Position) {
 			int i;
 
 			// Adjust for buffer count
-			pos -= stream->_cnt;
+			Position -= stream->_cnt;
 
 			// Special case for text streams again
-			if (get_ioinfo(stream->_fd)->wxflag & WX_TEXT) {
+			if (Object->wxflag & WX_TEXT) {
 				for (i = 0; i < stream->_cnt; i++) {
 					if (stream->_ptr[i] == '\n') {
-						pos--;
+						Position--;
 					}
 				}
 			}
@@ -104,33 +111,31 @@ long long ftelli64(
 			char *p;
 
 			// Restore stream cursor in case we seeked to end
-			if (lseeki64(stream->_fd, pos, SEEK_SET) != pos) {
+			if (lseeki64(stream->_fd, Position, SEEK_SET) != Position) {
 				_unlock_file(stream);
 				return -1;
 			}
 
 			// Again adjust for the buffer
-			pos -= stream->_bufsiz;
-			pos += stream->_ptr - stream->_base;
+			Position -= stream->_bufsiz;
+			Position += stream->_ptr - stream->_base;
 
 			// And lastly, special text case
-			if (get_ioinfo(stream->_fd)->wxflag & WX_TEXT) {
-				if (get_ioinfo(stream->_fd)->wxflag & WX_READNL) {
-					pos--;
+			if (Object->wxflag & WX_TEXT) {
+				if (Object->wxflag & WX_READNL) {
+					Position--;
 				}
 
 				for (p = stream->_base; p < stream->_ptr; p++) {
 					if (*p == '\n') {
-						pos++;
+						Position++;
 					}
 				}
 			}
 		}
 	}
-
-	// Unlock and return the modified position
 	_unlock_file(stream);
-	return pos;
+	return Position;
 }
 
 /* ftello
@@ -146,13 +151,8 @@ off_t ftello(
 long ftell(
 	_In_ FILE *stream)
 {
-	// Variables
-	off_t rOffset;
-	rOffset = ftello(stream);
-
-	// Overflow check
-	if ((long)rOffset != rOffset)
-	{
+	off_t rOffset = ftello(stream);
+	if ((long)rOffset != rOffset) {
 		_set_errno(EOVERFLOW);
 		return -1L;
 	}

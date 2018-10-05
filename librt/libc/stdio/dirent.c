@@ -19,7 +19,9 @@
  * MollenOS - C Standard Library
  * - Directory functionality implementation
  */
+#define __TRACE
 
+#include <os/utils.h>
 #include <os/file.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -58,7 +60,7 @@ opendir(
     _Out_ struct DIR**  handle)
 {
     int fd = open(path, flags, 0);
-    if (fd != -1) {
+    if (fd == -1) {
         return -1;
     }
 
@@ -96,6 +98,7 @@ readdir(
 {
     if (handle != NULL && entry != NULL) {
         int bytes_read = read(handle->d_handle, (void*)entry, sizeof(struct DIRENT));
+        TRACE("readdir::bytes_read %i", bytes_read);
         if (bytes_read == sizeof(struct DIRENT)) {
             handle->d_index++;
             return 0;

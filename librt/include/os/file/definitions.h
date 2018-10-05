@@ -44,7 +44,7 @@ typedef enum _EnvironmentPath {
 	PathRoot,
 	PathSystemDirectory,
 
-	/* Shared Directories */
+	// Common paths
 	PathCommonBin,
 	PathCommonDocuments,
 	PathCommonInclude,

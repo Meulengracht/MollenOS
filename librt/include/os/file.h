@@ -117,6 +117,7 @@ PACKED_TYPESTRUCT(QueryFileOptionsPackage, {
 #define __FILE_VOLATILE                         0x00000400
 #define __FILE_TEMPORARY                        0x00000800
 #define __FILE_DIRECTORY                        0x00001000
+#define __FILE_LINK                             0x00002000
 
 /* RegisterDisk
  * Registers a disk with the file-manager and it will

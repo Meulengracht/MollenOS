@@ -127,19 +127,14 @@ VfsResolveFileSystem(
 		SharedObjectGetFunction(Module->Handle, "FsSeekInEntry");
 
 	// Sanitize functions
-	if (Module->Initialize == NULL || 
-        Module->Destroy == NULL ||
-        Module->OpenEntry == NULL ||
-        Module->CreatePath == NULL ||
-        Module->CloseEntry == NULL ||
-        Module->DeleteEntry == NULL ||
-        Module->ChangeFileSize == NULL ||
-        Module->OpenHandle == NULL ||
-        Module->CloseHandle == NULL ||
-        Module->ReadEntry == NULL ||
-        Module->WriteEntry == NULL ||
-        Module->SeekInEntry == NULL)
+	if (Module->Initialize == NULL || Module->Destroy == NULL ||
+        Module->OpenEntry == NULL || Module->CreatePath == NULL ||
+        Module->CloseEntry == NULL || Module->DeleteEntry == NULL ||
+        Module->ChangeFileSize == NULL || Module->OpenHandle == NULL ||
+        Module->CloseHandle == NULL || Module->ReadEntry == NULL ||
+        Module->WriteEntry == NULL || Module->SeekInEntry == NULL)
     {
+	    ERROR("Missing functions in module table");
 		SharedObjectUnload(Module->Handle);
 		free(Module);
 		return NULL;

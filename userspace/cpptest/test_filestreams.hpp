@@ -23,40 +23,106 @@
 #pragma once
 #include <iostream>
 #include <fstream>
+#include <cstdio>
+#include <io.h>
 #include "test.hpp"
 
 class FileStreamTests : public OSTest {
 public:
     FileStreamTests() : OSTest("FileStreamTests") { }
-    int RunTests() {
-        int Errors = 0;
+
+    int TestFileCreation()
+    {
         std::ofstream fs_out;
+        TestLog(">> TestFileCreation()");
+
+        fs_out.open("my_output.txt");
+        if (fs_out.is_open()) {
+            fs_out.close();
+            return 0;
+        }
+        TestLog(">> failed to create file");
+        return 1;
+    }
+
+    int TestFileWrite()
+    {
+        std::ofstream fs_out;
+        TestLog(">> TestFileWrite()");
+
+        fs_out.open("my_output.txt");
+        if (fs_out.is_open()) {
+            fs_out << "Writing this to a file.\n";
+            fs_out.close();
+            return 0;
+        }
+        TestLog(">> failed to open or create file");
+        return 1;
+    }
+
+    int TestFileRead()
+    {
         std::ifstream fs_in;
         std::string line;
-        TestLog(">> creating file example.txt");
-        fs_out.open("example.txt");
-        if (fs_out.is_open()) {
-            TestLog(">> testing writing text to a file");
-            fs_out << "Writing this to a file.\n";
-            TestLog(">> closing");
-            fs_out.close();
-        }
-        else {
-            TestLog(">> failed to open file for writing");
-            Errors++;
-        }
-        TestLog(">> Testing reading text back from same file");
-        fs_in.open("example.txt");
+
+        TestLog(">> TestFileRead()");
+        fs_in.open("my_output.txt");
         if (fs_in.is_open()) {
             while (getline(fs_in, line) ) {
                 TestLog(line);
             }
             fs_in.close();
+            return 0;
         }
-        else {
-            TestLog(">> Failed to open file for reading");
-            Errors++;
+        TestLog(">> failed to open file");
+        return 1;
+    }
+
+    int TestFileDeletion()
+    {
+        TestLog(">> TestFileDeletion()");
+        if (remove("my_output.txt")) {
+            TestLog(">> failed to remove file");
+            return 1;
         }
+        return 0;
+    }
+
+    int TestDirectoryIteration()
+    {
+        struct DIR* directory;
+        struct DIRENT direntry;
+        TestLog(">> TestDirectoryIteration()");
+
+        if (opendir("$sys", O_RDONLY, &directory)) {
+            TestLog(">> failed to open directory");
+            return 1;
+        }
+
+        while (readdir(directory, &direntry) != -1) {
+            TestLog(std::string(&direntry.d_name[0]));
+        }
+
+        if (closedir(directory)) {
+            TestLog(">> failed to close directory");
+            return 1;
+        }
+        return 0;
+    }
+
+    int RunTests() {
+        int Errors = 0;
+
+        // File tests
+        Errors += TestFileCreation();
+        Errors += TestFileWrite();
+        Errors += TestFileRead();
+        Errors += TestFileDeletion();
+
+        // Directory tests
+        Errors += TestDirectoryIteration();
+        // Directory creation
+        // Directory deletion
         return Errors;
     }
 };

@@ -23,24 +23,31 @@
 #include <wchar.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 #include "../stdlib/mb/mbctype.h"
 #include "local.h"
 
-wint_t fgetwc(
-    _In_ FILE *file)
+wint_t fgetwc(FILE *stream)
 {
-    wint_t ret;
-    int ch;
+	StdioObject_t*  Object;
+    wint_t          Result;
+    int             ch;
 
-    _lock_file(file);
-    if ((get_ioinfo(file->_fd)->exflag & (EF_UTF8 | EF_UTF16)) 
-        || !(get_ioinfo(file->_fd)->wxflag & WX_TEXT)) {
+    _lock_file(stream);
+    Object = get_ioinfo(stream->_fd);
+    if (Object == NULL) {
+        _unlock_file(stream);
+        _set_errno(EBADFD);
+        return (wint_t)-1;
+    }
+
+    if ((Object->exflag & (EF_UTF8 | EF_UTF16)) || !(Object->wxflag & WX_TEXT)) {
         
         char *p;
-        for (p = (char *)&ret; (wint_t *)p < &ret + 1; p++) {
-            ch = fgetc(file);
+        for (p = (char *)&Result; (wint_t *)p < &Result + 1; p++) {
+            ch = fgetc(stream);
             if (ch == EOF) {
-                ret = WEOF;
+                Result = WEOF;
                 break;
             }
             *p = (char)ch;
@@ -51,11 +58,11 @@ wint_t fgetwc(
         char mbs[MB_LEN_MAX];
         int len = 0;
 
-        ch = fgetc(file);
+        ch = fgetc(stream);
         if (ch != EOF) {
             mbs[0] = (char)ch;
             if (_issjis1((unsigned char)mbs[0])) {
-                ch = fgetc(file);
+                ch = fgetc(stream);
                 if (ch != EOF)
                 {
                     mbs[1] = (char)ch;
@@ -67,9 +74,9 @@ wint_t fgetwc(
             }
         }
 
-        if (!len || mbtowc((wchar_t*)&ret, mbs, len) == -1)
-            ret = WEOF;
+        if (!len || mbtowc((wchar_t*)&Result, mbs, len) == -1)
+            Result = WEOF;
     }
-    _unlock_file(file);
-    return ret;
+    _unlock_file(stream);
+    return Result;
 }

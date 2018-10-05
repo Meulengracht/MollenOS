@@ -32,8 +32,7 @@
 
 /* GetUtf8CharacterLength
  * Derives how many bytes the UTF8 character is */
-static int 
-GetUtf8CharacterLength(char ch)
+static int GetUtf8CharacterLength(char ch)
 {
     if((ch&0xf8) == 0xf0)
         return 4;
@@ -46,15 +45,18 @@ GetUtf8CharacterLength(char ch)
 
 /* _ReadUtf8
  * Reads an UTF8 character from the given file descriptor */
-static int 
-_ReadUtf8(int fd, wchar_t *buf, unsigned int count)
+static int _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
 {
-	// Variables
     char min_buf[5], *readbuf, lookahead;
-    size_t readbuf_size, pos=0, BytesRead = 1, char_len, i, j;
+    size_t readbuf_size, pos = 0, BytesRead = 1, char_len, i, j;
 	StdioObject_t *fdinfo = get_ioinfo(fd);
 	long long noppos;
 	
+    if (fdinfo == NULL) {
+        _set_errno(EBADFD);
+        return -1;
+    }
+
     // make the buffer big enough to hold at least one character
     // read bytes have to fit to output and lookahead buffers
     count /= 2;
@@ -266,18 +268,20 @@ _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
  * (CR-LF) pair is replaced with a single linefeed character. 
  * Only the single linefeed character is counted in the return value. 
  * The replacement does not affect the file pointer. */
-int read(
-	_In_ int fd, 
-	_In_ void *buffer, 
-	_In_ unsigned int len)
+int read(int fd, void* buffer, unsigned int len)
 {
-	// Variables
-	size_t BytesRead, Utf16;
-	char *BufferCursor = (char *)buffer;
-	StdioObject_t *fdinfo = get_ioinfo(fd);
-	long long pos;
+	StdioObject_t*  fdinfo          = get_ioinfo(fd);
+	char*           BufferCursor    = (char*)buffer;
+	size_t          BytesRead;
+	size_t          Utf16;
+	long long       pos;
 
-	// Sanitize parameters
+    if (fdinfo == NULL) {
+        _set_errno(EBADFD);
+        return -1;
+    }
+
+    // Predetermine if we are eof or zero read
 	if (len == 0 || (fdinfo->wxflag & WX_ATEOF)) {
 		return 0;
 	}
@@ -295,10 +299,8 @@ int read(
 	}
 
 	// Now do the actual read of either binary or UTF16
-	if (fdinfo->lookahead[0] != '\n' 
-		|| StdioReadInternal(fd, BufferCursor, len, &BytesRead) == OsSuccess) {
-		
-		// Always check lookahead
+	if (fdinfo->lookahead[0] != '\n' ||
+        StdioReadInternal(fd, BufferCursor, len, &BytesRead) == OsSuccess) {
 		if (fdinfo->lookahead[0] != '\n') {
 			BufferCursor[0] = fdinfo->lookahead[0];
 			fdinfo->lookahead[0] = '\n';
@@ -427,18 +429,12 @@ int read(
  * Reads an array of count elements, 
  * each one with a size of size bytes, from the stream and stores 
  * them in the block of memory specified by ptr. */
-size_t fread(
-	_In_ void *vptr, 
-	_In_ size_t size, 
-	_In_ size_t count, 
-	_In_ FILE *stream)
+size_t fread(void *vptr, size_t size, size_t count, FILE *stream)
 {
-	// Variables
 	size_t rcnt = size * count;
 	size_t cread = 0;
 	size_t pread = 0;
 
-	// Sanitize parameters
 	if (!rcnt) {
 		return 0;
 	}

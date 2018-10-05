@@ -53,14 +53,17 @@ FsReadFromFile(
     *BytesRead      = 0;
     *BytesAt        = Handle->Base.Position % FileSystem->Disk.Descriptor.SectorSize;
 
-    // Sanitize the amount of bytes we want
-    // to read, cap it at bytes available
+    // Sanitize the amount of bytes we want to read, cap it at bytes available
     if ((Position + BytesToRead) > Entry->Base.Descriptor.Size.QuadPart) {
+        if (Position == Entry->Base.Descriptor.Size.QuadPart) {
+            return FsOk;
+        }
         BytesToRead = (size_t)(Entry->Base.Descriptor.Size.QuadPart - Position);
     }
 
     // Debug counter values
-    TRACE(" > dma: 0x%x, fpos %u, bytes-total %u, bytes-at %u", DataPointer, LODWORD(Position), BytesToRead, *BytesAt);
+    TRACE(" > dma: 0x%x, fpos %u, bytes-total %u, bytes-at %u", DataPointer, 
+        LODWORD(Position), BytesToRead, *BytesAt);
 
     // Read the current sector, update index to where data starts
     // Keep reading consecutive after that untill all bytes requested have
@@ -165,7 +168,7 @@ FsWriteToFile(
     size_t              BytesToWrite    = Length;
 
     TRACE("FsWriteEntry(Id 0x%x, Position %u, Length %u)",
-        Handle->Base.Id, LODWORD(Handle->Base.Position), Length);
+        Handle->Base.Id, LODWORD(Position), Length);
 
     *BytesWritten   = 0;
     Result          = MfsEnsureRecordSpace(FileSystem, Entry, Position + BytesToWrite);
@@ -229,7 +232,8 @@ FsWriteToFile(
             if (MfsReadSectors(FileSystem, Mfs->TransferBuffer, Sector, SectorCount) != OsSuccess) {
                 ERROR("Failed to read sector %u for combination step", 
                     LODWORD(Sector));
-                return FsDiskError;
+                Result = FsDiskError;
+                break;
             }
         }
 
@@ -245,14 +249,13 @@ FsWriteToFile(
         }
 
         // Increase the pointers and decrease with bytes read
-        *BytesWritten     += ByteCount;
-        Position         += ByteCount;
-        BytesToWrite     -= ByteCount;
+        Position        += ByteCount;
+        *BytesWritten   += ByteCount;
+        BytesToWrite    -= ByteCount;
 
         // Do we need to switch bucket?
         // We do if the position we have read to equals end of bucket
-        if (Position == (Handle->BucketByteBoundary
-            + (Handle->DataBucketLength * BucketSizeBytes))) {
+        if (Position == (Handle->BucketByteBoundary + (Handle->DataBucketLength * BucketSizeBytes))) {
             MapRecord_t Link;
 
             // We have to lookup the link for current bucket
@@ -279,13 +282,8 @@ FsWriteToFile(
         }
     }
 
-    // Update metrics of the handles
-    if (Handle->Base.Position > Entry->Base.Descriptor.Size.QuadPart) {
-        Entry->Base.Descriptor.Size.QuadPart = Handle->Base.Position;
-    }
     // entry->modified = now
-    Entry->ActionOnClose    = MFS_ACTION_UPDATE;
-    Handle->Base.Position   = Position;
+    Entry->ActionOnClose = MFS_ACTION_UPDATE;
     return Result;
 }
 
@@ -306,15 +304,13 @@ FsSeekInFile(
     TRACE("FsSeekInFile(Id 0x%x, Position 0x%x)", Handle->Base.Id, LODWORD(AbsolutePosition));
 
     // Sanitize seeking bounds
-    if ((AbsolutePosition > Entry->Base.Descriptor.Size.QuadPart) || 
-        Entry->Base.Descriptor.Size.QuadPart == 0) {
+    if ((AbsolutePosition > Entry->Base.Descriptor.Size.QuadPart)) {
         return FsInvalidParameters;
     }
 
     // Step 1, if the new position is in
     // initial bucket, we need to do no actual seeking
-    InitialBucketMax                    = (Entry->StartLength * 
-        (Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize));
+    InitialBucketMax = (Entry->StartLength * (Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize));
     if (AbsolutePosition < InitialBucketMax) {
         Handle->DataBucketPosition   = Entry->StartBucket;
         Handle->DataBucketLength     = Entry->StartLength;
@@ -400,32 +396,34 @@ FsChangeFileSize(
     _In_ FileSystemEntry_t*         BaseEntry,
     _In_ uint64_t                   Size)
 {
-    MfsEntry_t* Entry = (MfsEntry_t*)BaseEntry;
+    MfsEntry_t*         Entry   = (MfsEntry_t*)BaseEntry;
+    FileSystemCode_t    Code    = FsOk;
 
-    // Trace
-    TRACE("FsChangeFileSize(Name %s, Size 0x%x)",
-        MStringRaw(Entry->Base.Name), LODWORD(Size));
+    TRACE("FsChangeFileSize(Name %s, Size 0x%x)", MStringRaw(Entry->Base.Name), LODWORD(Size));
 
     // Handle a special case of 0
     if (Size == 0) {
         // Free all buckets allocated
-        if (MfsFreeBuckets(FileSystem, Entry->StartBucket,
-            Entry->StartLength) != OsSuccess) {
+        if (MfsFreeBuckets(FileSystem, Entry->StartBucket, Entry->StartLength) != OsSuccess) {
             ERROR("Failed to free the buckets at start 0x%x, length 0x%x",
                 Entry->StartBucket, Entry->StartLength);
-            return FsDiskError;
+            Code = FsDiskError;
         }
-        Entry->AllocatedSize = 0;
-        Entry->StartBucket   = MFS_ENDOFCHAIN;
-        Entry->StartLength   = 0;
+
+        if (Code == FsOk) {
+            Entry->AllocatedSize = 0;
+            Entry->StartBucket   = MFS_ENDOFCHAIN;
+            Entry->StartLength   = 0;
+        }
     }
     else {
-        // MfsEnsureRecordSpace ? 
+        Code = MfsEnsureRecordSpace(FileSystem, Entry, Size);
     }
 
-    // Update metrics
-    // entry->modified = now
-    Entry->Base.Descriptor.Size.QuadPart    = Size;
-    Entry->ActionOnClose                    = MFS_ACTION_UPDATE;
-    return FsOk;
+    if (Code == FsOk) {
+        // entry->modified = now
+        Entry->Base.Descriptor.Size.QuadPart    = Size;
+        Entry->ActionOnClose                    = MFS_ACTION_UPDATE;
+    }
+    return Code;
 }

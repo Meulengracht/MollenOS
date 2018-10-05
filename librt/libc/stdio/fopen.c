@@ -33,12 +33,10 @@
 
 /* split_oflags
  * Generates WX flags from the stdc opening flags */
-unsigned split_oflags(
-	_In_ unsigned oflags)
+unsigned split_oflags(unsigned oflags)
 {
-	// Variables
     int         wxflags = 0;
-    unsigned unsupp; // until we support everything
+    unsigned    unsupp; // until we support everything
 
     if (oflags & O_APPEND)               wxflags |= WX_APPEND;
     if (oflags & O_BINARY)               {/* Nothing to do */}
@@ -57,61 +55,63 @@ unsigned split_oflags(
                     O_SEQUENTIAL|O_RANDOM|O_SHORT_LIVED|
                     O_WTEXT|O_U16TEXT|O_U8TEXT
                     ))) {
-		TRACE(":unsupported oflags 0x%x\n", unsupp);
-	}
+        TRACE(":unsupported oflags 0x%x\n", unsupp);
+    }
     return wxflags;
 }
 
 /* open
  * ANSII Version of the fopen. Handles flags and creation flags. */
-int open(
-	_In_ const char*	file,
-	_In_ int 			flags,
-	...)
+int open(const char* file, int flags, ...)
 {
-	FileSystemCode_t Code = 0;
-	UUId_t Handle;
-	int wxflags = 0;
-	int pmode = 0;
-	int fd = -1;
-	va_list ap;
+    StdioObject_t*      Object;
+    UUId_t              Handle;
+    FileSystemCode_t    Code;
+    int                 wxflags;
+    int                 pmode = 0;
+    int                 fd = -1;
+    va_list             ap;
 
-	// Sanitize input
-	if (file == NULL) {
-		_set_errno(EINVAL);
-		return -1;
-	}
+    if (file == NULL) {
+        _set_errno(EINVAL);
+        return -1;
+    }
 
-	// Extract pmode flags
-	if (flags & O_CREAT) {
-		va_start(ap, flags);
-		pmode = va_arg(ap, int);
-		va_end(ap);
-	}
+    // Extract pmode flags
+    if (flags & O_CREAT) {
+        va_start(ap, flags);
+        pmode = va_arg(ap, int);
+        va_end(ap);
+    }
+    wxflags = split_oflags((unsigned int)flags);
 
-	// Generate WX flags
-	wxflags = split_oflags((unsigned int)flags);
-
-	// Invoke os service
-	Code = OpenFile(file, _fopts(flags), _faccess(flags), &Handle);
-	if (!_fval(Code)) {
-		fd = StdioFdAllocate(-1, wxflags);
-        StdioCreateFileHandle(Handle, get_ioinfo(fd));
-		if (flags & O_WTEXT) {
-			get_ioinfo(fd)->exflag |= EF_UTF16|EF_UNK_UNICODE;		
-		}
-		else if (flags & O_U16TEXT) {
-			get_ioinfo(fd)->exflag |= EF_UTF16;
-		}
-		else if (flags & O_U8TEXT) {
-			get_ioinfo(fd)->exflag |= EF_UTF8;
-		}
-	}
-	else {
-		CloseFile(Handle);
-		_fval(Code);
-	}
-	return fd;
+    // Invoke os service
+    Code = OpenFile(file, _fopts(flags), _faccess(flags), &Handle);
+    if (!_fval(Code)) {
+        fd = StdioFdAllocate(-1, wxflags);
+        if (fd != -1) {
+            Object = get_ioinfo(fd);
+            StdioCreateFileHandle(Handle, Object);
+            if (flags & O_WTEXT) {
+                Object->exflag |= EF_UTF16|EF_UNK_UNICODE;        
+            }
+            else if (flags & O_U16TEXT) {
+                Object->exflag |= EF_UTF16;
+            }
+            else if (flags & O_U8TEXT) {
+                Object->exflag |= EF_UTF8;
+            }
+        }
+        else {
+            _set_errno(ENOENT); 
+            CloseFile(Handle);
+        }
+    }
+    else {
+        _set_errno(EACCES);
+        CloseFile(Handle);
+    }
+    return fd;
 }
 
 /* pipe
@@ -119,10 +119,10 @@ int open(
  * by sub-processes. */
 int pipe(void)
 {
-	OsStatus_t Status;
-    int fd;
+    OsStatus_t  Status;
+    int         fd;
 
-	// Allocate a file descriptor first, but since the lower numbers of pipes
+    // Allocate a file descriptor first, but since the lower numbers of pipes
     // usually are reserved, we add 64 as a base
     fd = StdioFdAllocate(-1, WX_PIPE);
     if (fd == -1) {
@@ -136,74 +136,61 @@ int pipe(void)
         _set_errno(ENOENT);
         return -1;
     }
-	return fd;
+    return fd;
 }
 
 /* Information 
-"r"	read: Open file for input operations. The file must exist.
-"w"	write: Create an empty file for output operations. If a file with the same name already exists, its contents are discarded and the file is treated as a new empty file.
-"a"	append: Open file for output at the end of a file. Output operations always write data at the end of the file, expanding it. 
-	Repositioning operations (fseek, fsetpos, rewind) are ignored. The file is created if it does not exist.
+"r"    read: Open file for input operations. The file must exist.
+"w"    write: Create an empty file for output operations. If a file with the same name already exists, its contents are discarded and the file is treated as a new empty file.
+"a"    append: Open file for output at the end of a file. Output operations always write data at the end of the file, expanding it. 
+    Repositioning operations (fseek, fsetpos, rewind) are ignored. The file is created if it does not exist.
 "r+" read/update: Open a file for update (both for input and output). The file must exist.
 "w+" write/update: Create an empty file and open it for update (both for input and output). If a file with the same name already exists its contents are discarded and the file is treated as a new empty file.
 "a+" append/update: Open a file for update (both for input and output) with all output operations writing data at the end of the file. 
-	 Repositioning operations (fseek, fsetpos, rewind) affects the next input operations, but output operations move the position back to the end of file. The file is created if it does not exist.
+     Repositioning operations (fseek, fsetpos, rewind) affects the next input operations, but output operations move the position back to the end of file. The file is created if it does not exist.
 */
-FILE *fdopen(int fd, __CONST char *mode)
+FILE* fdopen(int fd, const char *mode)
 {
-	// Variables
-	int open_flags, stream_flags;
-	FILE *stream;
+    int open_flags, stream_flags;
+    FILE *stream;
 
-	// Sanitize parameters
-	if (fd < 0 || mode == NULL) {
-		_set_errno(EINVAL);
-		return NULL;
-	}
+    if (fd < 0 || mode == NULL) {
+        _set_errno(EINVAL);
+        return NULL;
+    }
+    _fflags(mode, &open_flags, &stream_flags);
 
-	// Split flags
-	_fflags(mode, &open_flags, &stream_flags);
-
-	// Allocate a new file instance 
-	// and reset the structure
-	stream = (FILE*)malloc(sizeof(FILE));
-	memset(stream, 0, sizeof(FILE));
-	
-	// Initialize a handle
-	if (StdioFdInitialize(stream, fd, stream_flags) != OsSuccess) {
-		free(stream);
-		return NULL;
-	}
-	return stream;
+    // Allocate a new file instance and reset the structure
+    stream = (FILE*)malloc(sizeof(FILE));
+    memset(stream, 0, sizeof(FILE));
+    
+    // Initialize a handle
+    if (StdioFdInitialize(stream, fd, stream_flags) != OsSuccess) {
+        free(stream);
+        return NULL;
+    }
+    return stream;
 }
 
 /* fopen
  * Opens the file whose name is specified in the parameter filename 
  * and associates it with a stream that can be identified in future 
  * operations by the FILE pointer returned. */
-FILE *fopen(
-	_In_ __CONST char * filename, 
-	_In_ __CONST char * mode)
+FILE *fopen(const char* filename, const char* mode)
 {
-	// Variables
-	int open_flags, stream_flags;
-	int fd = 0;
+    int open_flags, stream_flags;
+    int fd = 0;
 
-	// Sanitize parameters
-	if (filename == NULL || mode == NULL) {
-		_set_errno(EINVAL);
-		return NULL;
-	}
+    if (filename == NULL || mode == NULL) {
+        _set_errno(EINVAL);
+        return NULL;
+    }
+    _fflags(mode, &open_flags, &stream_flags);
 
-	// Split flags
-	_fflags(mode, &open_flags, &stream_flags);
-
-	// Open file as file-descriptor
-	fd = open(filename, open_flags, S_IREAD | S_IWRITE);
-	if (fd == -1) {
-		return NULL;
-	}
-
-	// Upgrade the fd to a file-stream
-	return fdopen(fd, mode);
+    // Open file as file-descriptor
+    fd = open(filename, open_flags, S_IREAD | S_IWRITE);
+    if (fd == -1) {
+        return NULL;
+    }
+    return fdopen(fd, mode);
 }

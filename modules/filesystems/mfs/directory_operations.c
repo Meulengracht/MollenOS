@@ -19,7 +19,7 @@
  * MollenOS General File System (MFS) Driver
  *  - Contains the implementation of the MFS driver for mollenos
  */
-//#define __TRACE
+#define __TRACE
 
 #include <os/utils.h>
 #include <threads.h>
@@ -43,28 +43,32 @@ FsReadFromDirectory(
     MfsInstance_t*      Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
     FileSystemCode_t    Result          = FsOk;
     size_t              BytesToRead     = Length;
+    uint64_t            Position        = Handle->Base.Position;
     struct DIRENT*      CurrentEntry    = (struct DIRENT*)GetBufferDataPointer(BufferObject);
 
     TRACE("FsReadFromDirectory(Id 0x%x, Position %u, Length %u)",
-        Handle->Base.Id, LODWORD(Handle->Base.Position), Length);
+        Handle->Base.Id, LODWORD(Position), Length);
 
     *BytesRead      = 0;
     *BytesAt        = 0;
+    Position        /= sizeof(struct DIRENT);
+    Position        *= sizeof(FileRecord_t);
 
     if ((Length % sizeof(struct DIRENT)) != 0) {
         return FsInvalidParameters;
     }
     
-    TRACE(" > dma: 0x%x, fpos %u, bytes-total %u, bytes-at %u", 
-        DataPointer, LODWORD(Position), BytesToRead, *BytesAt);
+    TRACE(" > dma: fpos %u, bytes-total %u, bytes-at %u", LODWORD(Position), BytesToRead, *BytesAt);
 
     while (BytesToRead) {
         uint64_t    Sector      = MFS_GETSECTOR(Mfs, Handle->DataBucketPosition);
         size_t      Count       = MFS_GETSECTOR(Mfs, Handle->DataBucketLength);
-        size_t      Offset      = Handle->Base.Position - Handle->BucketByteBoundary;
+        size_t      Offset      = Position - Handle->BucketByteBoundary;
         uint8_t*    Data        = (uint8_t*)GetBufferDataPointer(Mfs->TransferBuffer);
         size_t      BucketSize  = Count * FileSystem->Disk.Descriptor.SectorSize;
-        
+        TRACE("read_metrics:: sector %u, count %u, offset %u, bucket-size %u",
+            LODWORD(Sector), Count, Offset, BucketSize);
+
         if (BucketSize > Offset) {
             // The code here is simple because we assume we can fit entire bucket at any time
             if (MfsReadSectors(FileSystem, Mfs->TransferBuffer, Sector, Count) != OsSuccess) {
@@ -75,18 +79,23 @@ FsReadFromDirectory(
 
             // Which position are we in?
             for (FileRecord_t* RecordPtr = (FileRecord_t*)(Data + Offset); (Offset < BucketSize) && BytesToRead; 
-                RecordPtr++, CurrentEntry++, Offset += sizeof(FileRecord_t), 
-                Handle->Base.Position += sizeof(FileRecord_t), BytesToRead -= sizeof(struct DIRENT)) {
-                // Convert file record
-                MfsFileRecordFlagsToVfsFlags(RecordPtr, &CurrentEntry->d_options, &CurrentEntry->d_perms);
-                memcpy(&CurrentEntry->d_name[0], &RecordPtr->Name[0], 
-                    MIN(sizeof(CurrentEntry->d_name), sizeof(RecordPtr->Name)));
+                RecordPtr++, Offset += sizeof(FileRecord_t), Position += sizeof(FileRecord_t)) {
+                if (RecordPtr->Flags & MFS_FILERECORD_INUSE) {
+                    TRACE("Gathering entry %s", &RecordPtr->Name[0]);
+                    MfsFileRecordFlagsToVfsFlags(RecordPtr, &CurrentEntry->d_options, &CurrentEntry->d_perms);
+                    memcpy(&CurrentEntry->d_name[0], &RecordPtr->Name[0], 
+                        MIN(sizeof(CurrentEntry->d_name), sizeof(RecordPtr->Name)));
+                    BytesToRead -= sizeof(struct DIRENT);
+                    CurrentEntry++;
+                }
             }
         }
         
         // Do we need to switch bucket?
         // We do if the position we have read to equals end of bucket
-        if (Handle->Base.Position == (Handle->BucketByteBoundary + BucketSize)) {
+        if (Position == (Handle->BucketByteBoundary + BucketSize)) {
+            TRACE("read_metrics::position %u, limit %u", LODWORD(Position), 
+                LODWORD(Handle->BucketByteBoundary + BucketSize));
             Result = MfsSwitchToNextBucketLink(FileSystem, Handle, BucketSize);
             if (Result == FsPathNotFound || Result != FsOk) {
                 if (Result == FsPathNotFound) {
@@ -96,6 +105,8 @@ FsReadFromDirectory(
             }
         }
     }
+    *BytesRead = (Length - BytesToRead);
+    TRACE("read_metrics::result %u", Result);
     return Result;
 }
 
@@ -115,7 +126,7 @@ FsSeekInDirectory(
     uint64_t            ActualPosition  = AbsolutePosition * sizeof(struct DIRENT);
 
     // Trace
-    TRACE("FsSeekInDirectory(Id 0x%x, Position 0x%x)", Handle->Id, LODWORD(AbsolutePosition));
+    TRACE("FsSeekInDirectory(Id 0x%x, Position 0x%x)", Handle->Base.Id, LODWORD(AbsolutePosition));
 
     // Sanitize seeking bounds
     if (Entry->Base.Descriptor.Size.QuadPart == 0) {

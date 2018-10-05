@@ -19,6 +19,7 @@
  * MollenOS - General File System (MFS) Driver
  *  - Contains the implementation of the MFS driver for mollenos
  */
+#define __TRACE
 
 #include <os/utils.h>
 #include "mfs.h"
@@ -189,7 +190,7 @@ MfsAllocateBuckets(
     size_t          Counter         = BucketCount;
     MapRecord_t     Record;
 
-    TRACE("MfsAllocateBuckets(Bucket %u, Link %u)", Bucket, Link->Link);
+    TRACE("MfsAllocateBuckets(FreeAt %u, Count %u)", Bucket, BucketCount);
 
     RecordResult->Link      = Mfs->MasterRecord.FreeBucket;
     RecordResult->Length    = 0;
@@ -365,10 +366,10 @@ MfsVfsFlagsToFileRecordFlags(
 {
     Flags_t NativeFlags = 0;
 
-    if (Flags & FILE_FLAG_DIRECTORY) {
+    if (Flags & __FILE_DIRECTORY) {
         NativeFlags |= MFS_FILERECORD_DIRECTORY;
     }
-    else if (Flags & FILE_FLAG_LINK) {
+    else if (Flags & __FILE_DIRECTORY) {
         NativeFlags |= MFS_FILERECORD_LINK;
     }
     return NativeFlags;
@@ -502,6 +503,7 @@ MfsEnsureRecordSpace(
 {
     MfsInstance_t*      Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
     size_t              BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize;
+    TRACE("MfsEnsureRecordSpace(%u)", LODWORD(SpaceRequired));
 
     if (SpaceRequired > Entry->AllocatedSize) {
         // Calculate the number of sectors, then number of buckets

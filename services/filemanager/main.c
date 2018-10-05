@@ -52,10 +52,6 @@ static const char *FunctionNames[] = {
     "GetFileStatsByPath",
     "GetFileStatsByHandle",
     "DeletePath",
-    "OpenDirectory",
-    "CloseDirectory",
-    "ReadDirectory",
-    "SeekDirectory",
     "ResolvePath",
     "NormalizePath"
 };
@@ -400,6 +396,5 @@ OnEvent(
         default: {
         } break;
     }
-    TRACE(" >> filemanager: eof");
     return Result;
 }

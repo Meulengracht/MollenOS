@@ -19,30 +19,24 @@
  * MollenOS C Library - Write to file-handles
  */
 
-/* Includes
- * - System */
 #include <os/file.h>
 #include <os/syscall.h>
-
-/* Includes 
- * - Library */
-#include <io.h>
+#include <os/utils.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include <io.h>
 #include "local.h"
 
 /* write
  * This is the ANSI C version of fwrite */
-int write(
-	_In_ int fd, 
-	_In_ const void *buffer, 
-	_In_ unsigned int length)
+int write(int fd, const void* buffer, unsigned int length)
 {
-	// Variables
 	StdioObject_t *Info = get_ioinfo(fd);
 	size_t BytesWritten = 0;
+
+    WARNING("write::%u", length);
 
 	// Don't write uneven bytes in case of UTF8/16
 	if (((Info->exflag & EF_UTF8) 
@@ -69,11 +63,7 @@ int write(
 
 /* The fwrite
 * writes to a file handle */
-size_t fwrite(
-	_In_ __CONST void *vptr,
-	_In_ size_t size,
-	_In_ size_t count,
-	_In_ FILE *stream)
+size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
 {
 	// Variables
 	size_t wrcnt = size * count;
@@ -85,6 +75,7 @@ size_t fwrite(
 	}
 
 	// lock stream access
+    WARNING("fwrite::0x%x", stream);
 	_lock_file(stream);
 
 	// Write the bytes in a loop in case we can't

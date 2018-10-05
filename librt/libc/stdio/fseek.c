@@ -37,7 +37,13 @@ long long lseeki64(
 	_In_ long long  offset, 
 	_In_ int        whence)
 {
-	long long Position = 0;
+    StdioObject_t*  Object      = get_ioinfo(fd);
+	long long       Position    = 0;
+
+    if (Object == NULL) {
+        _set_errno(EBADFD);
+        return -1;
+    }
 
 	if (whence < 0 || whence > 2) {
 		_set_errno(EINVAL);
@@ -49,7 +55,7 @@ long long lseeki64(
 		return -1L;
 	}
 	else {
-		get_ioinfo(fd)->wxflag &= ~(WX_ATEOF|WX_READEOF);
+		Object->wxflag &= ~(WX_ATEOF|WX_READEOF);
 		return Position;
 	}
 }

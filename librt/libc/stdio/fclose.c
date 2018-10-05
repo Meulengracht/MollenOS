@@ -22,6 +22,7 @@
 
 #include <os/file.h>
 #include <os/syscall.h>
+#include <os/utils.h>
 
 #include <io.h>
 #include <stdio.h>
@@ -34,48 +35,41 @@
  * This is ANSI C close function and works with filedescriptors */
 int close(int fd)
 {
-	// Variables
-	StdioObject_t *object   = NULL;
-	int result              = -1;
+	StdioObject_t*  Object;
+	int             Result = 0;
 
 	// Retrieve handle
-	object = get_ioinfo(fd);
-	if (object == NULL) {
-		return result;
+	Object = get_ioinfo(fd);
+	if (Object == NULL) {
+        _set_errno(EBADFD);
+		return -1;
 	}
-
+    
     // File or pipe?
-    if (object->handle.InheritationType == STDIO_HANDLE_FILE) {
-        if (object->exflag & EF_CLOSE) {
-            result = (int)CloseFile(object->handle.InheritationData.FileHandle);
-            if (_fval(result)) {
-                result = -1;
+    if (Object->handle.InheritationType == STDIO_HANDLE_FILE) {
+        if (Object->exflag & EF_CLOSE) {
+            Result = (int)CloseFile(Object->handle.InheritationData.FileHandle);
+            if (_fval(Result)) {
+                Result = -1;
             }
         }
-        else {
-            result = 0;
-        }
     }
-    else if (object->handle.InheritationType == STDIO_HANDLE_PIPE) {
+    else if (Object->handle.InheritationType == STDIO_HANDLE_PIPE) {
         // if it has read caps then we have an issue, close pipe
-        if (object->exflag & EF_CLOSE) {
-            ClosePipe(object->handle.InheritationData.Pipe.Port);
-        }
-        else {
-            result = 0;
+        if (Object->exflag & EF_CLOSE) {
+            if (ClosePipe(Object->handle.InheritationData.Pipe.Port) != OsSuccess) {
+                Result = -1;
+            }
         }
     }
-
-    // Cleanup and return
     StdioFdFree(fd);
-    return result;
+    return Result;
 }
 
 /* fclose
  * Closes a file handle and frees resources associated */
 int fclose(FILE *stream)
 {
-	// Variables
 	int r, flag;
 
     // Flush file before anything

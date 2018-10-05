@@ -19,7 +19,7 @@
  * MollenOS General File System (MFS) Driver
  *  - Contains the implementation of the MFS driver for mollenos
  */
-//#define __TRACE
+#define __TRACE
 
 #include <os/utils.h>
 #include <threads.h>
@@ -98,6 +98,7 @@ FsCloseEntry(
     FileSystemCode_t Code   = FsOk;
     MfsEntry_t* Entry       = (MfsEntry_t*)BaseEntry;
     
+    TRACE("FsCloseEntry(%i)", Entry->ActionOnClose);
     if (Entry->ActionOnClose) {
         Code = MfsUpdateRecord(FileSystem, Entry, Entry->ActionOnClose);
     }
@@ -187,6 +188,7 @@ FsReadEntry(
     _Out_ size_t*                   UnitsRead)
 {
     MfsEntryHandle_t* Handle = (MfsEntryHandle_t*)BaseHandle;
+    TRACE("FsReadEntry(flags 0x%x, length %u)", Handle->Base.Entry->Descriptor.Flags, UnitCount);
     if (Handle->Base.Entry->Descriptor.Flags & FILE_FLAG_DIRECTORY) {
         return FsReadFromDirectory(FileSystem, Handle, BufferObject, UnitCount, UnitsAt, UnitsRead);
     }
@@ -207,6 +209,7 @@ FsWriteEntry(
     _Out_ size_t*                   BytesWritten)
 {
     MfsEntryHandle_t* Handle = (MfsEntryHandle_t*)BaseHandle;
+    TRACE("FsWriteEntry(flags 0x%x, length %u)", Handle->Base.Entry->Descriptor.Flags, Length);
     if (!(Handle->Base.Entry->Descriptor.Flags & FILE_FLAG_DIRECTORY)) {
         return FsWriteToFile(FileSystem, Handle, BufferObject, Length, BytesWritten);
     }

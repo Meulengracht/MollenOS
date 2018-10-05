@@ -491,7 +491,7 @@ StdioHandleReadFile(
     _Out_ size_t*        BytesRead)
 {
     uint8_t *Pointer        = (uint8_t*)Buffer;
-    size_t BytesReadTotal   = 0, BytesLeft = (size_t)Length;
+    size_t BytesReadTotal   = 0, BytesLeft = Length;
     size_t OriginalSize     = GetBufferSize(tls_current()->transfer_buffer);
 
     // There is a time when reading more than a couple of times is considerably slower
@@ -721,7 +721,9 @@ StdioHandleSeekFile(
     _In_  int               Origin,
     _Out_ long long*        Position)
 {
-    LargeInteger_t SeekFinal;
+    FileSystemCode_t    FsStatus;
+    LargeInteger_t      SeekFinal;
+    OsStatus_t          Status;
 
     // If we search from SEEK_SET, just build offset directly
     if (Origin != SEEK_SET) {
@@ -729,17 +731,23 @@ StdioHandleSeekFile(
 
         // Adjust for seek origin
         if (Origin == SEEK_CUR) {
-            if (GetFilePosition(Handle->InheritationData.FileHandle, &FileInitial.u.LowPart, &FileInitial.u.HighPart) != OsSuccess) {
+            Status = GetFilePosition(Handle->InheritationData.FileHandle, &FileInitial.u.LowPart, &FileInitial.u.HighPart);
+            if (Status != OsSuccess) {
+                ERROR("failed to get file position");
                 return OsError;
             }
+
             // Sanitize for overflow
             if ((size_t)FileInitial.QuadPart != FileInitial.QuadPart) {
+                ERROR("file-offset-overflow");
                 _set_errno(EOVERFLOW);
                 return OsError;
             }
         }
         else {
-            if (GetFileSize(Handle->InheritationData.FileHandle, &FileInitial.u.LowPart, &FileInitial.u.HighPart) != OsSuccess) {
+            Status = GetFileSize(Handle->InheritationData.FileHandle, &FileInitial.u.LowPart, &FileInitial.u.HighPart);
+            if (Status != OsSuccess) {
+                ERROR("failed to get file size");
                 return OsError;
             }
         }
@@ -750,13 +758,13 @@ StdioHandleSeekFile(
     }
 
     // Now perform the seek
-    if (_fval(SeekFile(Handle->InheritationData.FileHandle, SeekFinal.u.LowPart, SeekFinal.u.HighPart))) {
-        return OsError;
-    }
-    else {
+    FsStatus = SeekFile(Handle->InheritationData.FileHandle, SeekFinal.u.LowPart, SeekFinal.u.HighPart);
+    if (!_fval((int)FsStatus)) {
         *Position = SeekFinal.QuadPart;
         return OsSuccess;
     }
+    TRACE("stdio::fseek::fail %u", FsStatus);
+    return OsError;
 }
 
 /* StdioSeekInternal
