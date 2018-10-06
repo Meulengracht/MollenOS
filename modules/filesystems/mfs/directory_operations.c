@@ -51,6 +51,9 @@ FsReadFromDirectory(
 
     *BytesRead      = 0;
     *BytesAt        = 0;
+
+    // Readjust the stored position since its stored in units of DIRENT, however we
+    // iterate in units of MfsRecords
     Position        /= sizeof(struct DIRENT);
     Position        *= sizeof(FileRecord_t);
 
@@ -105,6 +108,14 @@ FsReadFromDirectory(
             }
         }
     }
+    
+    // Readjust the position to the current position, but it has to be in units
+    // of DIRENT instead of MfsRecords, and then readjust again for the number of
+    // bytes read, since they are added to position in the vfs layer
+    Position                /= sizeof(FileRecord_t);
+    Position                *= sizeof(struct DIRENT);
+    Handle->Base.Position   = Position - (Length - BytesToRead);
+    
     *BytesRead = (Length - BytesToRead);
     TRACE("read_metrics::result %u", Result);
     return Result;

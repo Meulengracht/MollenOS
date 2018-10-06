@@ -148,6 +148,7 @@ std::vector<std::string> CValiAlumni::GetDirectoryContents(const std::string& Pa
         while (readdir(dir, &dp) != -1) {
             Entries.push_back(std::string(&dp.d_name[0]));
         }
+        closedir(dir);
     }
     return Entries;
 }
