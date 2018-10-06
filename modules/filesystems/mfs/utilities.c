@@ -19,7 +19,7 @@
  * MollenOS - General File System (MFS) Driver
  *  - Contains the implementation of the MFS driver for mollenos
  */
-#define __TRACE
+//#define __TRACE
 
 #include <os/utils.h>
 #include "mfs.h"
@@ -293,8 +293,7 @@ MfsFreeBuckets(
 
     TRACE("MfsFreeBuckets(Bucket %u, Length %u)", StartBucket, StartLength);
 
-    // Sanitize params
-    if (StartBucket == MFS_ENDOFCHAIN || StartLength == 0) {
+    if (StartLength == 0) {
         return OsError;
     }
 
@@ -307,9 +306,9 @@ MfsFreeBuckets(
     Record.Link = StartBucket;
 
     // Start by iterating to the last bucket
-    PreviousBucket      = MFS_ENDOFCHAIN;
+    PreviousBucket = MFS_ENDOFCHAIN;
     while (Record.Link != MFS_ENDOFCHAIN) {
-        PreviousBucket  = Record.Link;
+        PreviousBucket = Record.Link;
         if (MfsGetBucketLink(FileSystem, Record.Link, &Record) != OsSuccess) {
             ERROR("Failed to retrieve the next bucket-link");
             return OsError;
@@ -317,8 +316,7 @@ MfsFreeBuckets(
     }
 
     // If there was no allocated buckets to start with then do nothing
-    if (PreviousBucket == MFS_ENDOFCHAIN) {
-        // Update record
+    if (PreviousBucket != MFS_ENDOFCHAIN) {
         Record.Link = Mfs->MasterRecord.FreeBucket;
 
         // Ok, so now update the pointer to free list

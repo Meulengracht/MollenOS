@@ -36,8 +36,6 @@ int write(int fd, const void* buffer, unsigned int length)
 	StdioObject_t *Info = get_ioinfo(fd);
 	size_t BytesWritten = 0;
 
-    WARNING("write::%u", length);
-
 	// Don't write uneven bytes in case of UTF8/16
 	if (((Info->exflag & EF_UTF8) 
 		|| (Info->exflag & EF_UTF16)) && (length & 1)) {
@@ -75,7 +73,6 @@ size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
 	}
 
 	// lock stream access
-    WARNING("fwrite::0x%x", stream);
 	_lock_file(stream);
 
 	// Write the bytes in a loop in case we can't

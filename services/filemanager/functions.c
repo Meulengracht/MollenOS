@@ -20,7 +20,7 @@
  * - Handles all file related services and disk services
  * - ToDo Buffering is not ported to BufferObjects yet
  */
-#define __TRACE
+//#define __TRACE
 
 #include <os/file.h>
 #include <os/mollenos.h>

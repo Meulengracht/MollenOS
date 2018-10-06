@@ -19,7 +19,7 @@
  * MollenOS General File System (MFS) Driver
  *  - Contains the implementation of the MFS driver for mollenos
  */
-#define __TRACE
+//#define __TRACE
 
 #include <os/utils.h>
 #include <threads.h>
@@ -117,7 +117,6 @@ FsReadFromDirectory(
     Handle->Base.Position   = Position - (Length - BytesToRead);
     
     *BytesRead = (Length - BytesToRead);
-    TRACE("read_metrics::result %u", Result);
     return Result;
 }
 

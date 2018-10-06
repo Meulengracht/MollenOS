@@ -403,11 +403,14 @@ FsChangeFileSize(
 
     // Handle a special case of 0
     if (Size == 0) {
-        // Free all buckets allocated
-        if (MfsFreeBuckets(FileSystem, Entry->StartBucket, Entry->StartLength) != OsSuccess) {
-            ERROR("Failed to free the buckets at start 0x%x, length 0x%x",
-                Entry->StartBucket, Entry->StartLength);
-            Code = FsDiskError;
+        // Free all buckets allocated, if any are allocated
+        if (Entry->StartBucket != MFS_ENDOFCHAIN) {
+            OsStatus_t Status = MfsFreeBuckets(FileSystem, Entry->StartBucket, Entry->StartLength);
+            if (Status != OsSuccess) {
+                ERROR("Failed to free the buckets at start 0x%x, length 0x%x. when truncating",
+                    Entry->StartBucket, Entry->StartLength);
+                Code = FsDiskError;
+            }
         }
 
         if (Code == FsOk) {
