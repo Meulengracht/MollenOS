@@ -94,7 +94,7 @@ public:
         struct DIRENT direntry;
         TestLog(">> TestDirectoryIteration()");
 
-        if (opendir("$sys", O_RDONLY, &directory)) {
+        if (opendir("$sys/../", O_RDONLY, &directory)) {
             TestLog(">> failed to open directory");
             return 1;
         }

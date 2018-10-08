@@ -125,12 +125,12 @@ PACKED_TYPESTRUCT(DateTimeRecord, {
 /* The file-versioning structure
  * Contains a copy of a file somewhere in time (36 Bytes) */
 PACKED_TYPESTRUCT(VersionRecord, {
-    DateTimeRecord_t    Timestamp;        // 0x00 - Timestamp of this version
+    DateTimeRecord_t    Timestamp;      // 0x00 - Timestamp of this version
     uint32_t            StartBucket;    // 0x08 - First data bucket
     uint32_t            StartLength;    // 0x0C - Length of first data bucket
-    uint64_t            Size;            // 0x10 - Size of data (Set size if sparse)
-    uint64_t            AllocatedSize;    // 0x18 - Actual size allocated
-    uint32_t            SparseMap;        // 0x20 - Bucket of sparse-map
+    uint64_t            Size;           // 0x10 - Size of data (Set size if sparse)
+    uint64_t            AllocatedSize;  // 0x18 - Actual size allocated
+    uint32_t            SparseMap;      // 0x20 - Bucket of sparse-map
 });
 
 /* The file-record structure
@@ -220,11 +220,10 @@ typedef struct _MfsInstance {
     uint64_t                BucketCount;
     size_t                  BucketsPerSectorInMap;
 
-    // Cached map
+    // Cached resources
     uint32_t*               BucketMap;
-
-    // Keep a cached copy of master-record
     MasterRecord_t          MasterRecord;
+    FileRecord_t            RootRecord;
 } MfsInstance_t;
 
 /* MfsReadSectors 

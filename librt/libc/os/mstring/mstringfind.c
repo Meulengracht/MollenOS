@@ -21,14 +21,14 @@
 
 #include "mstringprivate.h"
 
-/* Find first occurence of the given character in the given string. 
- * The character given to this function should be UTF8
- * returns the index if found, otherwise MSTRING_NOT_FOUND */
-int MStringFind(MString_t *String, mchar_t Character)
+/* MStringFind
+ * Retrieves the index of the first occurence of the given character. Optionally a start-index
+ * can be given to set the start position of the search. */
+int MStringFind(MString_t *String, mchar_t Character, int StartIndex)
 {
-	char *StringPtr;
-	int Result      = 0;
-	int i           = 0;
+	char*   StringPtr;
+	int     Index   = 0;
+	int     i       = 0;
 
 	if (String == NULL || String->Data == NULL || String->Length == 0) {
 		return MSTRING_NOT_FOUND;
@@ -40,38 +40,42 @@ int MStringFind(MString_t *String, mchar_t Character)
 		if (NextCharacter == MSTRING_EOS) {
 			return MSTRING_NOT_FOUND;
 		}
-		if (NextCharacter == Character) {
-			return Result;
+		if (NextCharacter == Character && Index >= StartIndex) {
+			return Index;
 		}
-		Result++;
+		Index++;
 	}
 	return MSTRING_NOT_FOUND;
 }
 
-/* Find last occurence of the given character in the given string. 
- * The character given to this function should be UTF8
- * returns the index if found, otherwise MSTRING_NOT_FOUND */
-int MStringFindReverse(MString_t* String, mchar_t Character)
+/* MStringFindReverse
+ * Retrieves the index of the first occurence of the given character. Optionally a start-index
+ * can be given to set the start position of the search. */
+int MStringFindReverse(MString_t* String, mchar_t Character, int StartIndex)
 {
-	char *StringPtr;
-	int LastOccurrence  = MSTRING_NOT_FOUND;
-	int Result          = 0;
-	int i               = 0;
+	char*   StringPtr;
+	int     LastOccurrence  = MSTRING_NOT_FOUND;
+	int     Index           = 0;
+	int     i               = 0;
 
 	if (String == NULL || String->Data == NULL || String->Length == 0) {
 		return LastOccurrence;
 	}
 	StringPtr = (char*)String->Data;
 
+    if (StartIndex == 0) {
+        StartIndex = String->Length;
+    }
+
 	while (i < String->Length) {
 		mchar_t NextCharacter = Utf8GetNextCharacterInString(StringPtr, &i);
 		if (NextCharacter == MSTRING_EOS) {
 			return MSTRING_NOT_FOUND;
 		}
-		if (NextCharacter == Character) {
-			LastOccurrence = Result;
+		if (NextCharacter == Character && Index < StartIndex) {
+			LastOccurrence = Index;
 		}
-		Result++;
+		Index++;
 	}
 	return LastOccurrence;
 }

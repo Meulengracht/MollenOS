@@ -204,7 +204,7 @@ ModulesQueryPath(
     }
 
     // Build the token we are looking for
-    Index = MStringFindReverse(Path, '/');
+    Index = MStringFindReverse(Path, '/', 0);
     if (Index != MSTRING_NOT_FOUND) {
         Token = MStringSubString(Path, Index + 1, -1);
     }

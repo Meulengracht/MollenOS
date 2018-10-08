@@ -52,7 +52,7 @@ VfsGetFileSystemFromPath(
 
     // To open a new file we need to find the correct
     // filesystem identifier and seperate it from it's absolute path
-    Index = MStringFind(Path, ':');
+    Index = MStringFind(Path, ':', 0);
     if (Index == MSTRING_NOT_FOUND) {
         return NULL;
     }

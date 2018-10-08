@@ -28,10 +28,14 @@
 #include <string.h>
 #include <ctype.h>
 
+#define IS_IDENTIFIER(StringPointer)    ((StringPointer)[0] == '$' && (StringPointer)[1] != '(')
+#define IS_VARIABLE(StringPointer)      ((StringPointer)[0] == '$' && (StringPointer)[1] == '(')
+#define IS_SEPERATOR(StringPointer)     ((StringPointer)[0] == '/' || (StringPointer)[0] == '\\')
+
 /* Globals 
  * These are default static environment strings 
  * that can be resolved from an enum array */
-const char *GlbEnvironmentalPaths[PathEnvironmentCount] = {
+static const char *EnvironmentalPaths[PathEnvironmentCount] = {
     // System paths
 	":/",
 	":/system/",
@@ -55,12 +59,12 @@ const char *GlbEnvironmentalPaths[PathEnvironmentCount] = {
 /* These are the default fixed identifiers that can
  * be used in paths to denote access, mostly these
  * identifers must be preceeding the rest of the path */
-struct {
+static struct VfsIdentifier {
 	const char*         Identifier;
 	EnvironmentPath_t   Resolve;
-} GlbIdentifers[] = {
-	{ "sys", PathSystemDirectory },
-	{ "bin", PathCommonBin },
+} VfsIdentifiers[] = {
+	{ "sys/", PathSystemDirectory },
+	{ "bin/", PathCommonBin },
 	{ NULL, PathSystemDirectory }
 };
 
@@ -92,8 +96,37 @@ VfsPathResolveEnvironment(
 	}
 
 	// Now append the special paths and return it
-	MStringAppendCharacters(ResolvedPath, GlbEnvironmentalPaths[pIndex], StrUTF8);
+	MStringAppendCharacters(ResolvedPath, EnvironmentalPaths[pIndex], StrUTF8);
 	return ResolvedPath;
+}
+
+/* VfsExpandIdentifier
+ * Expands the given identifier into the string passed. This append the character to the end of the string. 
+ * If an identifier is not present in the beginning of the string, it is invalid. */
+OsStatus_t
+VfsExpandIdentifier(
+    _In_ MString_t*     TargetString,
+    _In_ const char*    Identifier)
+{
+	CollectionItem_t*   Node    = NULL;
+    int                 j       = 0;
+    while (VfsIdentifiers[j].Identifier != NULL) { // Iterate all possible identifiers
+        struct VfsIdentifier* VfsIdent = &VfsIdentifiers[j];
+        size_t IdentifierLength = strlen(VfsIdent->Identifier);
+        if (!strncasecmp(VfsIdent->Identifier, (const char*)&Identifier[1], IdentifierLength)) {
+            _foreach(Node, VfsGetFileSystems()) { // Resolve filesystem
+                FileSystem_t *Fs = (FileSystem_t*)Node->Data;
+                if (Fs->Descriptor.Flags & __FILESYSTEM_BOOT) {
+                    MStringAppendString(TargetString, Fs->Identifier);
+                    break;
+                }
+            }
+            MStringAppendCharacters(TargetString, EnvironmentalPaths[VfsIdent->Resolve], StrUTF8);
+            return OsSuccess;
+        }
+        j++;
+    }
+    return OsError;
 }
 
 /* VfsPathCanonicalize
@@ -103,81 +136,80 @@ MString_t*
 VfsPathCanonicalize(
     _In_ const char*        Path)
 {
-	CollectionItem_t *fNode = NULL;
-	MString_t *AbsPath      = NULL;
-	int i                   = 0;
+	MString_t*  AbsPath;
+	int         i = 0;
 
-    // Debug
     TRACE("VfsPathCanonicalize(%s)", Path);
-
-    // Create result string
-    AbsPath = MStringCreate(NULL, StrUTF8);
 
 	// Iterate all characters and build a new string
 	// containing the canonicalized path simoultanously
+    AbsPath = MStringCreate(NULL, StrUTF8);
 	while (Path[i]) {
-		if (Path[i] == '/' && i == 0) { // Always skip initial '/'
+		if (IS_SEPERATOR(&Path[i]) && i == 0) { // Always skip initial '/'
 			i++;
 			continue;
 		}
 
-		// Special Case 1 - Identifier
-		if (Path[i] == '$') {
-			int j = 0;
-			while (GlbIdentifers[j].Identifier != NULL) { // Iterate all possible identifiers
-                size_t IdentifierLength = strlen(GlbIdentifers[j].Identifier);
-				if (!strncasecmp(GlbIdentifers[j].Identifier, (const char*)&Path[i + 1], IdentifierLength)) {
-					_foreach(fNode, VfsGetFileSystems()) { // Resolve filesystem
-						FileSystem_t *Fs = (FileSystem_t*)fNode->Data;
-						if (Fs->Descriptor.Flags & __FILESYSTEM_BOOT) {
-							MStringAppendString(AbsPath, Fs->Identifier);
-							break;
-						}
-					}
-
-					// Resolve identifier 
-					MStringAppendCharacters(AbsPath, 
-						GlbEnvironmentalPaths[GlbIdentifers[j].Resolve], StrUTF8);
-					i += strlen(GlbIdentifers[j].Identifier) + 1; // skip $
-
-					// Is the next char a '/'? If so skip 
-					if (Path[i] == '/' || Path[i] == '\\') {
-						i++;
-					}
-					break;
-				}
-                j++;
-			}
-
-			// Did we find what we looked for?
-			if (GlbIdentifers[j].Identifier != NULL) {
-				continue;
-			}
+		// Special case 1 - Identifier
+		if (IS_IDENTIFIER(&Path[i])) {
+            /* OsStatus_t Status = */ VfsExpandIdentifier(AbsPath, &Path[i]);
+            while (!IS_SEPERATOR(&Path[i])) {
+                i++;
+            }
+            i++; // Skip seperator
+            continue;
 		}
 
-		// Special Case 2, 3 and 4
-		// 2 - If it's ./ or .\ ignore it
-		// 3 - If it's ../ or ..\ go back 
-		// 4 - Normal case, copy
-		if (Path[i] == '.' && (Path[i + 1] == '/' || Path[i + 1] == '\\')) {
+        // Special case 2 - variables
+        if (IS_VARIABLE(&Path[i])) {
+            // VfsExpandVariable();
+            while (Path[i] != ')') {
+                i++;
+            }
+            i++; // Skip the paranthesis
+            if (IS_SEPERATOR(&Path[i])) {
+                i++; // skip seperator as well
+            }
+            continue;
+        }
+
+		// Special case 3, 4 and 5
+		// 3 - If it's ./ or .\ ignore it
+		// 4 - If it's ../ or ..\ go back 
+		// 5 - Normal case, copy
+		if (Path[i] == '.' && IS_SEPERATOR(&Path[i + 1])) {
 			i += 2;
 			continue;
 		}
         else if (Path[i] == '.' && Path[i + 1] == '\0') {
             break;
         }
-		else if (Path[i] == '.' && Path[i + 1] == '.' && (Path[i + 2] == '/' || Path[i + 2] == '\\' || Path[i + 2] == '\0')) {
-			int Index = MStringFindReverse(AbsPath, '/');
+		else if (Path[i] == '.' && Path[i + 1] == '.' && (IS_SEPERATOR(&Path[i + 2]) || Path[i + 2] == '\0')) {
+            int Index = 0;
+            while (Index != MSTRING_NOT_FOUND) {
+                Index = MStringFindReverse(AbsPath, '/', 0);
+                if (Index == (MStringLength(AbsPath) - 1) && 
+                    MStringGetCharAt(AbsPath, Index - 1) != ':') {
+                    MString_t* Modified = MStringSubString(AbsPath, 0, Index);
+                    MStringDestroy(AbsPath);
+                    AbsPath = Modified;
+                }
+                else {
+                    break;
+                }
+            }
+            
             if (Index != MSTRING_NOT_FOUND) {
-				MString_t *Modified = MStringSubString(AbsPath, 0, Index + 1); // Include the '/'
+                TRACE("Going back in %s", MStringRaw(AbsPath));
+				MString_t* Modified = MStringSubString(AbsPath, 0, Index + 1); // Include the '/'
 				MStringDestroy(AbsPath);
 				AbsPath = Modified;
             }
 		}
 		else {
             // Don't double add '/'
-            if (Path[i] == '\\' || Path[i] == '/') {
-                int Index = MStringFindReverse(AbsPath, '/');
+            if (IS_SEPERATOR(&Path[i])) {
+                int Index = MStringFindReverse(AbsPath, '/', 0);
                 if ((Index + 1) != MStringLength(AbsPath)) {
                     MStringAppendCharacter(AbsPath, '/');
                 }

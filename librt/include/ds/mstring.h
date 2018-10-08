@@ -69,11 +69,11 @@ CRTDECL(void, MStringAppendInt64(MString_t* String, int64_t Value));
 CRTDECL(void, MStringAppendUInt64(MString_t* String, uint64_t Value));
 CRTDECL(void, MStringAppendHex64(MString_t* String, uint64_t Value));
 
-/* Find first/last occurence of the given character in the given string. 
- * The character given to this function should be UTF8
- * returns the index if found, otherwise MSTRING_NOT_FOUND */
-CRTDECL(int, MStringFind(MString_t* String, mchar_t Character));
-CRTDECL(int, MStringFindReverse(MString_t* String, mchar_t Character));
+/* MStringFind/MStringFindReverse
+ * Retrieves the index of the first occurence of the given character. Optionally a start-index
+ * can be given to set the start position of the search. */
+CRTDECL(int, MStringFind(MString_t* String, mchar_t Character, int StartIndex));
+CRTDECL(int, MStringFindReverse(MString_t* String, mchar_t Character, int StartIndex));
 CRTDECL(int, MStringFindCString(MString_t* String, const char* Chars));
 
 /* Get character at the given index and 

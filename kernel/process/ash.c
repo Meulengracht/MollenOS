@@ -175,7 +175,7 @@ PhoenixInitializeAsh(
 
     // Split path, even if a / is not found
     // it won't fail, since -1 + 1 = 0, so we just copy the entire string
-    Index                   = MStringFindReverse(Ash->Path, '/');
+    Index                   = MStringFindReverse(Ash->Path, '/', 0);
     Ash->Name               = MStringSubString(Ash->Path, Index + 1, -1);
 
     // Store members and initialize members

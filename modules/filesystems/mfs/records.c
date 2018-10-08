@@ -37,25 +37,29 @@ MfsExtractToken(
 {
     // Step 1 is to extract the next token we searching for in this directory
     // we do also detect if that is the last token
-    int StrIndex = MStringFind(Path, '/');
+    int StrIndex    = MStringFind(Path, '/', 0);
+    int StrLength   = MStringLength(Path);
 
     // So, if StrIndex is MSTRING_NOT_FOUND now, we
     // can pretty much assume this was the last token
     // unless that StrIndex == Last character
-    if (StrIndex == MSTRING_NOT_FOUND || StrIndex == (int)(MStringLength(Path) - 1)) {
-        if (StrIndex == (int)(MStringLength(Path) - 1)) {
+    if (StrIndex == MSTRING_NOT_FOUND || StrIndex == (int)(StrLength - 1)) {
+        if (StrIndex == (int)(StrLength - 1) && StrIndex != 0) {
             *Token = MStringSubString(Path, 0, StrIndex);
         }
-        else {
+        else if (StrIndex != 0) {
             *Token = MStringCreate((void*)MStringRaw(Path), StrUTF8);
         }
+        else {
+            *Token = NULL;
+        }
         
-        *RemainingPath  = NULL;
+        *RemainingPath = NULL;
         return OsSuccess;
     }
 
     *Token          = MStringSubString(Path, 0, StrIndex);
-    *RemainingPath  = MStringSubString(Path, StrIndex + 1, (MStringLength(Path) - (StrIndex + 1)));
+    *RemainingPath  = MStringSubString(Path, StrIndex + 1, (StrLength - (StrIndex + 1)));
     return OsSuccess;
 }
 
@@ -79,11 +83,20 @@ MfsLocateRecord(
     size_t              i;
 
     TRACE("MfsLocateRecord(Directory-Bucket %u, Path %s)", BucketOfDirectory, MStringRaw(Path));
-    
-    // Get next token
-    MfsExtractToken(Path, &Remaining, &Token);
-    if (Remaining == NULL) {
-        IsEndOfPath = 1;
+
+    if (MStringLength(Path) != 0) {
+        MfsExtractToken(Path, &Remaining, &Token);
+        if (Remaining == NULL) {
+            IsEndOfPath = 1;
+            if (Token == NULL) {
+                MfsFileRecordToVfsFile(FileSystem, &Mfs->RootRecord, Entry);
+                return FsOk;
+            }
+        }
+    }
+    else {
+        MfsFileRecordToVfsFile(FileSystem, &Mfs->RootRecord, Entry);
+        return FsOk;
     }
 
     // Iterate untill we reach end of folder

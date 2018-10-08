@@ -23,6 +23,7 @@
  */
 
 #include "mstringprivate.h"
+#include <assert.h>
 
 /* MStringLength
  * Get's the number of characters in a mstring and not the actual byte length. */
@@ -30,7 +31,7 @@ size_t
 MStringLength(
     _In_ MString_t *String)
 {
-	// Sanitize input
+    assert(String != NULL);
 	if (String->Data == NULL || String->Length == 0) {
         return 0;
     }
@@ -43,7 +44,7 @@ size_t
 MStringSize(
     _In_ MString_t *String)
 {
-	// Sanitize input
+    assert(String != NULL);
 	if (String->Data == NULL || String->Length == 0) {
         return 0;
     }

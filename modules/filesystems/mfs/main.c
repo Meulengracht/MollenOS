@@ -27,6 +27,8 @@
 #include <string.h>
 #include "mfs.h"
 
+static const char* RootEntryName = "<root>";
+
 // File specific operation handlers
 FileSystemCode_t FsReadFromFile(FileSystemDescriptor_t*, MfsEntryHandle_t* , DmaBuffer_t*, size_t, size_t*, size_t*);
 FileSystemCode_t FsWriteToFile(FileSystemDescriptor_t*, MfsEntryHandle_t*, DmaBuffer_t*, size_t, size_t*);
@@ -274,14 +276,28 @@ FsDestroy(
     return OsSuccess;
 }
 
+/* FsInitializeRootRecord
+ * Initializes the root record of the mfs. The root record does not have usual file descriptor
+ * so fake it. */
+void
+FsInitializeRootRecord(
+    _In_ MfsInstance_t*             FileSystem)
+{
+    memset(&FileSystem->RootRecord, 0, sizeof(FileRecord_t));
+    memcpy(&FileSystem->RootRecord.Name[0], RootEntryName, strlen(RootEntryName));
+    
+    FileSystem->RootRecord.Flags = MFS_FILERECORD_INUSE | MFS_FILERECORD_LOCKED | 
+        MFS_FILERECORD_SYSTEM | MFS_FILERECORD_DIRECTORY;
+    FileSystem->RootRecord.StartBucket = FileSystem->MasterRecord.RootIndex;
+    FileSystem->RootRecord.StartLength = MFS_ROOTSIZE;
+}
+
 /* FsInitialize 
- * Initializes a new instance of the file system
- * and allocates resources for the given descriptor */
+ * Initializes a new instance of the file system and allocates resources for the given descriptor */
 OsStatus_t
 FsInitialize(
     _In_ FileSystemDescriptor_t*    Descriptor)
 {
-    // Variables
     MasterRecord_t *MasterRecord    = NULL;
     BootRecord_t *BootRecord        = NULL;
     DmaBuffer_t *Buffer              = NULL;
@@ -291,7 +307,6 @@ FsInitialize(
     uint64_t BytesLeft              = 0;
     size_t i, imax;
 
-    // Trace
     TRACE("FsInitialize()");
 
     // Create a generic transferbuffer for us to use
@@ -302,12 +317,8 @@ FsInitialize(
         ERROR("Failed to read mfs boot-sector record");
         goto Error;
     }
-
-    // Allocate a new instance of mfs
     Mfs                         = (MfsInstance_t*)malloc(sizeof(MfsInstance_t));
     Descriptor->ExtensionData   = (uintptr_t*)Mfs;
-
-    // Instantiate the boot-record pointer
     BootRecord                  = (BootRecord_t*)GetBufferDataPointer(Buffer);
 
     // Process the boot-record
@@ -316,8 +327,6 @@ FsInitialize(
             BootRecord->Magic, MFS_BOOTRECORD_MAGIC);
         goto Error;
     }
-
-    // Trace
     TRACE("Fs-Version: %u", BootRecord->Version);
 
     // Store some data from the boot-record
@@ -328,19 +337,17 @@ FsInitialize(
     Mfs->SectorsPerBucket           = BootRecord->SectorsPerBucket;
 
     // Calculate where our map sector is
-    Mfs->BucketCount                = Descriptor->SectorCount / Mfs->SectorsPerBucket;
+    Mfs->BucketCount = Descriptor->SectorCount / Mfs->SectorsPerBucket;
     
     // Bucket entries are 64 bit (8 bytes) in map
-    Mfs->BucketsPerSectorInMap      = Descriptor->Disk.Descriptor.SectorSize / 8;
+    Mfs->BucketsPerSectorInMap = Descriptor->Disk.Descriptor.SectorSize / 8;
 
     // Read the master-record
     if (MfsReadSectors(Descriptor, Buffer, Mfs->MasterRecordSector, 1) != OsSuccess) {
         ERROR("Failed to read mfs master-sector record");
         goto Error;
     }
-
-    // Instantiate the master-record pointer
-    MasterRecord                    = (MasterRecord_t*)GetBufferDataPointer(Buffer);
+    MasterRecord = (MasterRecord_t*)GetBufferDataPointer(Buffer);
 
     // Process the master-record
     if (MasterRecord->Magic != MFS_BOOTRECORD_MAGIC) {
@@ -348,25 +355,15 @@ FsInitialize(
             MasterRecord->Magic, MFS_BOOTRECORD_MAGIC);
         goto Error;
     }
-
-    // Trace
     TRACE("Partition-name: %s", &MasterRecord->PartitionName[0]);
-
-    // Copy the master-record data
     memcpy(&Mfs->MasterRecord, MasterRecord, sizeof(MasterRecord_t));
-
-    // Cleanup the transfer buffer
     DestroyBuffer(Buffer);
 
-    // Allocate a new in the size of a bucket
-    Buffer                          = CreateBuffer(UUID_INVALID, Mfs->SectorsPerBucket 
+    Buffer              = CreateBuffer(UUID_INVALID, Mfs->SectorsPerBucket 
         * Descriptor->Disk.Descriptor.SectorSize * MFS_ROOTSIZE);
-    Mfs->TransferBuffer             = Buffer;
+    Mfs->TransferBuffer = Buffer;
+    Mfs->BucketMap      = (uint32_t*)malloc((size_t)Mfs->MasterRecord.MapSize);
 
-    // Allocate a buffer for the map
-    Mfs->BucketMap = (uint32_t*)malloc((size_t)Mfs->MasterRecord.MapSize);
-
-    // Trace
     TRACE("Caching bucket-map (Sector %u - Size %u Bytes)",
         LODWORD(Mfs->MasterRecord.MapSector),
         LODWORD(Mfs->MasterRecord.MapSize));
@@ -378,10 +375,9 @@ FsInitialize(
     i           = 0;
     imax        = DIVUP(BytesLeft, (Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize)); //GetBufferSize(Buffer)
     while (BytesLeft) {
-        // Variables
-        uint64_t MapSector = Mfs->MasterRecord.MapSector + (i * Mfs->SectorsPerBucket);
+        uint64_t MapSector  = Mfs->MasterRecord.MapSector + (i * Mfs->SectorsPerBucket);
         size_t TransferSize = MIN((Mfs->SectorsPerBucket * Descriptor->Disk.Descriptor.SectorSize), (size_t)BytesLeft);
-        size_t SectorCount = DIVUP(TransferSize, Descriptor->Disk.Descriptor.SectorSize);
+        size_t SectorCount  = DIVUP(TransferSize, Descriptor->Disk.Descriptor.SectorSize);
 
         // Read sectors
         if (MfsReadSectors(Descriptor, Buffer, MapSector, SectorCount) != OsSuccess) {
@@ -400,20 +396,14 @@ FsInitialize(
             WARNING("Cached %u/%u bytes of sector-map", LODWORD(BytesRead), LODWORD(Mfs->MasterRecord.MapSize));
         }
     }
-
-    // Update the structure
+    FsInitializeRootRecord(Mfs);
     return OsSuccess;
 
 Error:
-    // Cleanup mfs
     if (Mfs != NULL) {
         free(Mfs);
     }
-
-    // Clear extension data
     Descriptor->ExtensionData = NULL;
-
-    // Cleanup the transfer buffer
     DestroyBuffer(Buffer);
     return OsError;
 }

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2016, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,80 +19,67 @@
  * MollenOS MCore - String Format
  */
 
-/* Includes 
- * - System */
 #include "mstringprivate.h"
+#include <assert.h>
 
-/* Append MString to MString 
- * This appends the given String
- * the destination string */
-void MStringAppendString(MString_t *Destination, MString_t *String)
+void
+MStringAppendString(
+    _In_ MString_t*     Destination,
+    _In_ MString_t*     String)
 {
-	/* Luckily this is UTF8 */
-	size_t NewLength = Destination->Length + String->Length;
-	uint8_t *BufPtr = NULL;
+    uint8_t *StringPtr;
+    size_t NewLength;
 
-	/* Sanitize if destination has 
-	 * enough space for both buffers */
-	if (NewLength >= Destination->MaxLength) {
-		MStringResize(Destination, NewLength);
-	}
+    assert(Destination != NULL);
+    assert(String != NULL);
 
-	/* Cast the pointer */
-	BufPtr = (uint8_t*)Destination->Data;
+    NewLength = Destination->Length + String->Length;
 
-	/* Copy */
-	memcpy(BufPtr + Destination->Length, String->Data, String->Length);
+    // Sanitize if destination has enough space for both buffers
+    if (NewLength >= Destination->MaxLength) {
+        MStringResize(Destination, NewLength);
+    }
 
-	/* Set a null terminator */
-	BufPtr[NewLength] = '\0';
-
-	/* Update Length */
-	Destination->Length = NewLength;
+    StringPtr = (uint8_t*)Destination->Data;
+    memcpy(StringPtr + Destination->Length, String->Data, String->Length);
+    StringPtr[NewLength] = '\0';
+    Destination->Length = NewLength;
 }
 
-/* Append Character to a given string 
- * the character is assumed to be either 
- * ASCII, UTF16 or UTF32 and NOT utf8 */
-void MStringAppendCharacter(MString_t *String, mchar_t Character)
+void
+MStringAppendCharacter(
+    _In_ MString_t*     String,
+    _In_ mchar_t        Character)
 {
-	/* Variables needed for addition */
-	size_t NewLength = String->Length + Utf8ByteSizeOfCharacterInUtf8(Character);
-	uint8_t *BufPtr = NULL;
-	size_t cLen = 0;
-	int Itr = 0;
+    uint8_t*    StringPtr;
+    size_t      NewLength;
+    size_t      ExtraLength = 0;
+    int         i           = 0;
 
-	/* Sanitize the length of our storage */ 
-	if (NewLength >= String->MaxLength) {
-		MStringResize(String, NewLength);
-	}
+    assert(String != NULL);
 
-	/* Cast */
-	BufPtr = (uint8_t*)String->Data;
-	Itr = String->Length;
+    NewLength = String->Length + Utf8ByteSizeOfCharacterInUtf8(Character);
+    if (NewLength >= String->MaxLength) {
+        MStringResize(String, NewLength);
+    }
+    StringPtr   = (uint8_t*)String->Data;
+    i           = String->Length;
 
-	/* Append */
-	Utf8ConvertCharacterToUtf8(Character, (void*)&BufPtr[Itr], &cLen);
-
-	/* Null-terminate */
-	BufPtr[Itr + cLen] = '\0';
-
-	/* Done? */
-	String->Length += cLen;
+    Utf8ConvertCharacterToUtf8(Character, (void*)&StringPtr[i], &ExtraLength);
+    StringPtr[i + ExtraLength] = '\0';
+    String->Length += ExtraLength;
 }
 
-/* Appends raw string data to a 
- * given mstring, you must indicate what format
- * the raw string is of so it converts correctly. */
-void MStringAppendCharacters(MString_t *String, const char *Characters, MStringType_t DataType)
+void
+MStringAppendCharacters(
+    _In_ MString_t*     String,
+    _In_ const char*    Characters,
+    _In_ MStringType_t  DataType)
 {
-	/* Proxy the data by 
-	 * converting it to a mstring */
-	MString_t *Proxy = MStringCreate((void*)Characters, DataType);
+    assert(String != NULL);
+    assert(Characters != NULL);
 
-	/* Now we can easily append them */
-	MStringAppendString(String, Proxy);
-
-	/* Cleanup */
-	MStringDestroy(Proxy);
+    MString_t* Proxy = MStringCreate((void*)Characters, DataType);
+    MStringAppendString(String, Proxy);
+    MStringDestroy(Proxy);
 }

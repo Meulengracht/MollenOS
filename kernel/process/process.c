@@ -61,7 +61,7 @@ PhoenixCreateProcess(
 	// Split path and setup working directory
 	// but also base directory for the exe 
 	Process->Base.Type = AshProcess;
-	Index = MStringFindReverse(Process->Base.Path, '/');
+	Index = MStringFindReverse(Process->Base.Path, '/', 0);
 	Process->WorkingDirectory = MStringSubString(Process->Base.Path, 0, Index);
 	Process->BaseDirectory = MStringSubString(Process->Base.Path, 0, Index);
 

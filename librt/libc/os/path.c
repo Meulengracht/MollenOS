@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,8 +33,10 @@ OsStatus_t
 SetWorkingDirectory(
     _In_ const char *Path)
 {
-	char TempBuffer[_MAXPATH];
-	if (Path == NULL) {
+    OsFileDescriptor_t  FileInfo;
+	char                TempBuffer[_MAXPATH];
+
+	if (Path == NULL || strlen(Path) == 0) {
 		return OsError;
 	}
 	memset(&TempBuffer[0], 0, _MAXPATH);
@@ -48,10 +50,18 @@ SetWorkingDirectory(
         }
         strcat(&TempBuffer[0], Path);
     }
-    if (PathCanonicalize(&TempBuffer[0], &TempBuffer[0], _MAXPATH) != OsSuccess) {
-        return OsError;
+    
+    if (PathCanonicalize(&TempBuffer[0], &TempBuffer[0], _MAXPATH) == OsSuccess) {
+        if (GetFileInformationFromPath(&TempBuffer[0], &FileInfo) == OsSuccess &&
+            FileInfo.Flags & FILE_FLAG_DIRECTORY) {
+            size_t CurrentLength = strlen(&TempBuffer[0]);
+            if (TempBuffer[CurrentLength - 1] != '/') {
+                TempBuffer[CurrentLength - 1] = '/';
+            }
+            return Syscall_SetWorkingDirectory(&TempBuffer[0]);
+        }
     }
-	return Syscall_SetWorkingDirectory(&TempBuffer[0]);
+    return OsError;
 }
 
 /* GetWorkingDirectory
@@ -101,7 +111,6 @@ GetUserDirectory(
     _In_ char*  PathBuffer, 
     _In_ size_t MaxLength)
 {
-    // Quick validation before passing on
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
@@ -115,7 +124,6 @@ GetUserCacheDirectory(
     _In_ char*  PathBuffer, 
     _In_ size_t MaxLength)
 {
-    // Quick validation before passing on
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
@@ -129,7 +137,6 @@ GetApplicationDirectory(
     _In_ char*  PathBuffer, 
     _In_ size_t MaxLength)
 {
-    // Quick validation before passing on
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
@@ -143,7 +150,6 @@ GetApplicationTemporaryDirectory(
     _In_ char*  PathBuffer, 
     _In_ size_t MaxLength)
 {
-    // Quick validation before passing on
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
