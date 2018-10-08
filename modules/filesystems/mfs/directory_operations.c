@@ -62,6 +62,11 @@ FsReadFromDirectory(
     }
     
     TRACE(" > dma: fpos %u, bytes-total %u, bytes-at %u", LODWORD(Position), BytesToRead, *BytesAt);
+    TRACE(" > dma: databucket-pos %u, databucket-len %u, databucket-bound %u", 
+        LODWORD(Handle->DataBucketPosition), LODWORD(Handle->DataBucketLength), 
+        LODWORD(Handle->BucketByteBoundary));
+    TRACE(" > sec %u, count %u, offset %u", LODWORD(MFS_GETSECTOR(Mfs, Handle->DataBucketPosition)), 
+        LODWORD(MFS_GETSECTOR(Mfs, Handle->DataBucketLength)), LODWORD(Position - Handle->BucketByteBoundary));
 
     while (BytesToRead) {
         uint64_t    Sector      = MFS_GETSECTOR(Mfs, Handle->DataBucketPosition);
@@ -99,7 +104,7 @@ FsReadFromDirectory(
         if (Position == (Handle->BucketByteBoundary + BucketSize)) {
             TRACE("read_metrics::position %u, limit %u", LODWORD(Position), 
                 LODWORD(Handle->BucketByteBoundary + BucketSize));
-            Result = MfsSwitchToNextBucketLink(FileSystem, Handle, BucketSize);
+            Result = MfsSwitchToNextBucketLink(FileSystem, Handle, Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize);
             if (Result == FsPathNotFound || Result != FsOk) {
                 if (Result == FsPathNotFound) {
                     Result = FsOk;

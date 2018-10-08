@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,9 +28,11 @@
 #include <string.h>
 #include <ctype.h>
 
+#define IS_SEPERATOR(StringPointer)     ((StringPointer)[0] == '/' || (StringPointer)[0] == '\\')
+#define IS_EOL(StringPointer)           ((StringPointer)[0] == '\0')
+
 #define IS_IDENTIFIER(StringPointer)    ((StringPointer)[0] == '$' && (StringPointer)[1] != '(')
 #define IS_VARIABLE(StringPointer)      ((StringPointer)[0] == '$' && (StringPointer)[1] == '(')
-#define IS_SEPERATOR(StringPointer)     ((StringPointer)[0] == '/' || (StringPointer)[0] == '\\')
 
 /* Globals 
  * These are default static environment strings 
@@ -63,8 +65,8 @@ static struct VfsIdentifier {
 	const char*         Identifier;
 	EnvironmentPath_t   Resolve;
 } VfsIdentifiers[] = {
-	{ "sys/", PathSystemDirectory },
-	{ "bin/", PathCommonBin },
+	{ "sys", PathSystemDirectory },
+	{ "bin", PathCommonBin },
 	{ NULL, PathSystemDirectory }
 };
 
@@ -153,10 +155,12 @@ VfsPathCanonicalize(
 		// Special case 1 - Identifier
 		if (IS_IDENTIFIER(&Path[i])) {
             /* OsStatus_t Status = */ VfsExpandIdentifier(AbsPath, &Path[i]);
-            while (!IS_SEPERATOR(&Path[i])) {
+            while (!IS_EOL(&Path[i]) && !IS_SEPERATOR(&Path[i])) {
                 i++;
             }
-            i++; // Skip seperator
+            if (IS_SEPERATOR(&Path[i])) {
+                i++; // Skip seperator
+            }
             continue;
 		}
 

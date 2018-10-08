@@ -168,7 +168,7 @@ bool CValiAlumni::ListDirectory(const std::vector<std::string>& Arguments)
 
     auto DirectoryEntries = GetDirectoryContents(m_CurrentDirectory);
     for (auto Entry : DirectoryEntries) {
-        Line += Entry;
+        Line += Entry + " ";
     }
 
     m_Terminal->Print("%s\n", Line.c_str());

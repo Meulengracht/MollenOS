@@ -56,7 +56,7 @@ SetWorkingDirectory(
             FileInfo.Flags & FILE_FLAG_DIRECTORY) {
             size_t CurrentLength = strlen(&TempBuffer[0]);
             if (TempBuffer[CurrentLength - 1] != '/') {
-                TempBuffer[CurrentLength - 1] = '/';
+                TempBuffer[CurrentLength] = '/';
             }
             return Syscall_SetWorkingDirectory(&TempBuffer[0]);
         }
