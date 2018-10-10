@@ -21,19 +21,26 @@
  *   using freetype as the font renderer.
  */
 
-#include <io.h>
-#include <os/input.h>
 #include <os/mollenos.h>
 #include <os/process.h>
 #include <os/ipc/ipc.h>
+#include <os/input.h>
+#include <io.h>
 #include "../terminal_interpreter.hpp"
 #include "../terminal.hpp"
 #include "alumni_vali.hpp"
 
+namespace {
+    static bool EndsWith(const std::string& String, const std::string& Suffix)
+    {
+        return String.size() >= Suffix.size() && 0 == String.compare(String.size() - Suffix.size(), Suffix.size(), Suffix);
+    }
+}
+
 CValiAlumni::CValiAlumni(std::unique_ptr<CTerminal> Terminal, std::unique_ptr<CTerminalInterpreter> Interpreter)
     : CAlumni(std::move(Terminal), std::move(Interpreter)), m_Profile("Philip"), m_CurrentDirectory("n/a"),
       m_StdoutThread(std::bind(&CValiAlumni::StdoutListener, this)), m_StderrThread(std::bind(&CValiAlumni::StderrListener, this)),
-      m_Stdout(-1), m_Stderr(-1), m_Application(UUID_INVALID)
+      m_RunThread(nullptr), m_Stdout(-1), m_Stderr(-1), m_Application(UUID_INVALID)
 {
     UpdateWorkingDirectory();
 }
@@ -74,6 +81,7 @@ bool CValiAlumni::HandleKeyCode(unsigned int KeyCode, unsigned int Flags)
 
     if (KeyCode == VK_BACK) {
         m_Terminal->RemoveInput();
+        m_Terminal->Invalidate();
     }
     else if (KeyCode == VK_ENTER) {
         std::string Input = m_Terminal->ClearInput(true);
@@ -86,18 +94,23 @@ bool CValiAlumni::HandleKeyCode(unsigned int KeyCode, unsigned int Flags)
     }
     else if (KeyCode == VK_UP) {
         m_Terminal->HistoryPrevious();
+        m_Terminal->Invalidate();
     }
     else if (KeyCode == VK_DOWN) {
         m_Terminal->HistoryNext();
+        m_Terminal->Invalidate();
     }
     else if (KeyCode == VK_LEFT) {
         m_Terminal->MoveCursorLeft();
+        m_Terminal->Invalidate();
     }
     else if (KeyCode == VK_RIGHT) {
         m_Terminal->MoveCursorRight();
+        m_Terminal->Invalidate();
     }
     else if (TranslateSystemKey(&Key) == OsSuccess) {
         m_Terminal->AddInput(Key.KeyAscii);
+        m_Terminal->Invalidate();
     }
     return true;
 }
@@ -106,9 +119,10 @@ void CValiAlumni::PrintCommandHeader()
 {
     m_Terminal->Print("[ %s | %s ]\n", m_Profile.c_str(), m_CurrentDirectory.c_str());
     m_Terminal->Print("$ ");
+    m_Terminal->Invalidate();
 }
 
-int CValiAlumni::ExecuteProgram(const std::string& Program, const std::vector<std::string>& Arguments)
+void CValiAlumni::ExecuteProgram(const std::string& Program, const std::vector<std::string>& Arguments)
 {
     ProcessStartupInformation_t StartupInformation;
     InitializeStartupInformation(&StartupInformation);
@@ -133,9 +147,7 @@ int CValiAlumni::ExecuteProgram(const std::string& Program, const std::vector<st
     if (m_Application != UUID_INVALID) {
         int ExitCode = 0;
         ProcessJoin(m_Application, 0, &ExitCode);
-        return ExitCode;
     }
-    return -1;
 }
 
 std::vector<std::string> CValiAlumni::GetDirectoryContents(const std::string& Path)
@@ -153,9 +165,57 @@ std::vector<std::string> CValiAlumni::GetDirectoryContents(const std::string& Pa
     return Entries;
 }
 
-bool CValiAlumni::CommandResolver(const std::string&, const std::vector<std::string>&)
+bool CValiAlumni::IsProgramPathValid(const std::string& Path)
 {
+    OsFileDescriptor_t Stats = { 0 };
+
+    m_Terminal->Print("CValiAlumni::IsProgramPathValid(%s)\n", Path.c_str());
+    if (GetFileInformationFromPath(Path.c_str(), &Stats) == FsOk) {
+        if (!(Stats.Flags & FILE_FLAG_DIRECTORY) && (Stats.Permissions & FILE_PERMISSION_EXECUTE)) {
+            return true;
+        }
+        m_Terminal->Print("%s: not an executable file 0x%x\n", Path.c_str(), FileInfo.Permissions);
+    }
+    else {
+        m_Terminal->Print("%s: invalid file\n", Path.c_str());
+    }
     return false;
+}
+
+bool CValiAlumni::CommandResolver(const std::string& Command, const std::vector<std::string>& Arguments)
+{
+    std::string ProgramName = Command;
+    std::string ProgramPath = "";
+
+    if (!EndsWith(ProgramName, ".app")) {
+        ProgramName += ".app";
+    }
+
+    // Guess the path of requested application, right now only working
+    // directory and $bin is supported. Should we support apps that don't have .app? ...
+    ProgramPath = "$bin/" + ProgramName;
+    if (!IsProgramPathValid(ProgramPath)) {
+        char TempBuffer[_MAXPATH] = { 0 };
+        if (GetWorkingDirectory(&TempBuffer[0], _MAXPATH) == OsSuccess) {
+            std::string CwdPath(&TempBuffer[0]);
+            ProgramPath = CwdPath + "/" + ProgramName;
+            if (!IsProgramPathValid(ProgramPath)) {
+                return false;
+            }
+        }
+        else {
+            return false;
+        }
+    }
+    m_Terminal->Print("Executing(%s)\n", ProgramPath.c_str());
+
+    if (m_RunThread != nullptr) {
+        delete m_RunThread;
+        m_RunThread = nullptr;
+    }
+    //std::vector<std::string> ProgramArguments = Arguments;
+    //m_RunThread = new std::thread([this, ProgramPath, ProgramArguments]() { ExecuteProgram(ProgramPath, ProgramArguments) });
+    return true;
 }
 
 bool CValiAlumni::ListDirectory(const std::vector<std::string>& Arguments)
@@ -204,6 +264,7 @@ void CValiAlumni::StdoutListener()
         std::memset(&ReadBuffer[0], 0, sizeof(ReadBuffer));
         read(m_Stdout, &ReadBuffer[0], sizeof(ReadBuffer));
         m_Terminal->Print(&ReadBuffer[0]);
+        m_Terminal->Invalidate();
     }
 }
 
@@ -221,5 +282,6 @@ void CValiAlumni::StderrListener()
         std::memset(&ReadBuffer[0], 0, sizeof(ReadBuffer));
         read(m_Stderr, &ReadBuffer[0], sizeof(ReadBuffer));
         m_Terminal->Print(&ReadBuffer[0]);
+        m_Terminal->Invalidate();
     }
 }

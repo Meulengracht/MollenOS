@@ -827,34 +827,27 @@ VfsGetEntryPath(
 
 /* VfsQueryEntryPath
  * Queries information about the filesystem entry through its full path. */
-OsStatus_t
+FileSystemCode_t
 VfsQueryEntryPath(
     _In_ UUId_t                     Requester,
     _In_ const char*                Path,
     _In_ OsFileDescriptor_t*        Information)
 {
-    FileSystemEntryHandle_t *EntryHandle = NULL;
     FileSystemCode_t Code;
     UUId_t Handle;
 
     Code = VfsOpenEntry(Requester, Path, __FILE_READ_ACCESS, __FILE_READ_SHARE, &Handle);
-    if (Code != FsOk) {
-        return OsError;
+    if (Code == FsOk) {
+        Code = VfsQueryEntryHandle(Requester, Handle, Information);
+        // No reason to check on the code, the assumption is it always go ok
+        Code = VfsCloseEntry(Requester, Handle);
     }
-
-    Code = VfsIsHandleValid(Requester, Handle, 0, &EntryHandle);
-    if (Code != FsOk) {
-        return OsError;
-    }
-    memcpy((void*)Information, (const void*)&EntryHandle->Entry->Descriptor, sizeof(OsFileDescriptor_t));
-    
-    Code = VfsCloseEntry(Requester, Handle);
-    return OsSuccess;
+    return Code;
 }
 
 /* VfsQueryEntryHandle
  * Queries informatino about the filesystem entry through its handle. */
-OsStatus_t
+FileSystemCode_t
 VfsQueryEntryHandle(
     _In_ UUId_t                     Requester,
     _In_ UUId_t                     Handle,
@@ -864,9 +857,8 @@ VfsQueryEntryHandle(
     FileSystemCode_t Code;
 
     Code = VfsIsHandleValid(Requester, Handle, 0, &EntryHandle);
-    if (Code != FsOk) {
-        return OsError;
+    if (Code == FsOk) {
+        memcpy((void*)Information, (const void*)&EntryHandle->Entry->Descriptor, sizeof(OsFileDescriptor_t));
     }
-    memcpy((void*)Information, (const void*)&EntryHandle->Entry->Descriptor, sizeof(OsFileDescriptor_t));
-    return OsSuccess;
+    return Code;
 }

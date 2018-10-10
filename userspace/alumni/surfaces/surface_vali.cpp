@@ -38,7 +38,7 @@ CValiSurface::CValiSurface(CSurfaceRect& Dimensions)
 CValiSurface::~CValiSurface() {
 }
 
-void CValiSurface::Clear(uint32_t Color, const CSurfaceRect& Area)
+void CValiSurface::Clear(uint32_t Color, const CSurfaceRect& Area, bool InvalidateScreen)
 {
     // Get the relevant data pointer
     uint8_t* Pointer    = GetDataPointer(Area.GetX(), Area.GetY());
@@ -50,7 +50,10 @@ void CValiSurface::Clear(uint32_t Color, const CSurfaceRect& Area)
         }
         Pointer += Stride;
     }
-    Invalidate();
+
+    if (InvalidateScreen) {
+        Invalidate();
+    }
 }
 
 void CValiSurface::Resize(int Width, int Height) {

@@ -30,8 +30,9 @@
 #define _MFS_H_
 
 #include <os/contracts/filesystem.h>
-#include <os/osdefs.h>
+#include <os/mollenos.h>
 #include <ds/mstring.h>
+#include <os/file.h>
 
 /* MFS Definitions and Utilities
  * Contains magic constant values and utility macros for conversion */

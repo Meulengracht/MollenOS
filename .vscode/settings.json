@@ -331,7 +331,8 @@
         "intrin.h": "c",
         "os.h": "c",
         "iospace.h": "c",
-        "deviceio.h": "c"
+        "deviceio.h": "c",
+        "mstring.h": "c"
     },
     "git.ignoreLimitWarning": true,
     "terminal.integrated.shell.windows": "C:\\Windows\\sysnative\\bash.exe",

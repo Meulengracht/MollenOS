@@ -25,11 +25,9 @@
 #define _FILE_INTERFACE_H_
 
 #include <os/mollenos.h>
-#include <os/file/definitions.h>
 #include <os/service.h>
 #include <os/buffer.h>
 #include <os/ipc/ipc.h>
-#include <ds/mstring.h>
 
 /* This is the options structure used exclusively
  * for multi-params readback from the ipc operations */
@@ -56,6 +54,10 @@ PACKED_TYPESTRUCT(QueryFileOptionsPackage, {
     FileSystemCode_t    Code;
     Flags_t             Options;
     Flags_t             Access;
+});
+PACKED_TYPESTRUCT(QueryFileStatsPackage, {
+    FileSystemCode_t    Code;
+    OsFileDescriptor_t  Descriptor;
 });
 
 /* These definitions are in-place to allow a custom
@@ -597,38 +599,80 @@ GetFilePath(
 /* GetFileStatsByPath 
  * Queries file information by the given path. If the path is invalid
  * or doesn't exist the information is zeroed out. */
-SERVICEAPI OsStatus_t SERVICEABI
+SERVICEAPI FileSystemCode_t SERVICEABI
 GetFileStatsByPath(
-    _In_  const char*           Path,
-    _Out_ OsFileDescriptor_t*   FileDescriptor)
+    _In_ const char*            Path,
+    _In_ OsFileDescriptor_t*    FileDescriptor)
 {
-    // Variables
-    MRemoteCall_t Request;
+    QueryFileStatsPackage_t Package;
+    MRemoteCall_t           Request;
+    FileSystemCode_t        Status = FsInvalidParameters;
 
-    // Initialize the request
-    RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_GETSTATSBYPATH);
+    RPCInitialize(&Request, __FILEMANAGER_TARGET, __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_GETSTATSBYPATH);
     RPCSetArgument(&Request, 0, (const void*)Path, strlen(Path) + 1);
-    RPCSetResult(&Request, (const void*)&FileDescriptor, sizeof(OsFileDescriptor_t));
-    return RPCExecute(&Request);
+    RPCSetResult(&Request, (const void*)&Package, sizeof(QueryFileStatsPackage_t));
+    
+    if (RPCExecute(&Request) == OsSuccess) {
+        Status = Package.Code;
+        memcpy((void*)FileDescriptor, &Package.Descriptor, sizeof(OsFileDescriptor_t));
+    }
+    return Status;
 }
 
 /* GetFileStatsByHandle 
  * Queries file information by the given file handle. If the handle is invalid
  * or doesn't exist the information is zeroed out. */
-SERVICEAPI OsStatus_t SERVICEABI
+SERVICEAPI FileSystemCode_t SERVICEABI
 GetFileStatsByHandle(
-    _In_  UUId_t                Handle,
-    _Out_ OsFileDescriptor_t*   FileDescriptor)
+    _In_ UUId_t                 Handle,
+    _In_ OsFileDescriptor_t*    FileDescriptor)
 {
-    // Variables
-    MRemoteCall_t Request;
+    QueryFileStatsPackage_t Package;
+    MRemoteCall_t           Request;
+    FileSystemCode_t        Status = FsInvalidParameters;
 
-    // Initialize the request
-    RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_GETSTATSBYHANDLE);
+    RPCInitialize(&Request, __FILEMANAGER_TARGET, __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_GETSTATSBYHANDLE);
     RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
     RPCSetResult(&Request, (const void*)&FileDescriptor, sizeof(OsFileDescriptor_t));
+    
+    if (RPCExecute(&Request) == OsSuccess) {
+        Status = Package.Code;
+        memcpy((void*)FileDescriptor, &Package.Descriptor, sizeof(OsFileDescriptor_t));
+    }
+    return Status;
+}
+
+/* PathResolveEnvironment
+ * Resolves the given env-path identifier to a string that can be used to locate files. */
+SERVICEAPI OsStatus_t SERVICEABI
+PathResolveEnvironment(
+    _In_  EnvironmentPath_t Base,
+    _Out_ char*             Buffer,
+    _In_  size_t            MaxLength)
+{
+    MRemoteCall_t Request;
+
+    RPCInitialize(&Request, __FILEMANAGER_TARGET, 
+        __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_PATHRESOLVE);
+    RPCSetArgument(&Request, 0, (const void*)&Base, sizeof(EnvironmentPath_t));
+    RPCSetResult(&Request, (const void*)Buffer, MaxLength);
+    return RPCExecute(&Request);
+}
+
+/* PathCanonicalize
+ * Canonicalizes the path by removing extra characters and resolving all identifiers in path */
+SERVICEAPI OsStatus_t SERVICEABI
+PathCanonicalize(
+    _In_  const char*       Path,
+    _Out_ char*             Buffer,
+    _In_  size_t            MaxLength)
+{
+    MRemoteCall_t Request;
+
+    RPCInitialize(&Request, __FILEMANAGER_TARGET, 
+        __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_PATHCANONICALIZE);
+    RPCSetArgument(&Request, 0, (const void*)Path, strlen(Path) + 1);
+    RPCSetResult(&Request, (const void*)Buffer, MaxLength);
     return RPCExecute(&Request);
 }
 

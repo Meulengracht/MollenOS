@@ -24,6 +24,7 @@
 #include <os/contracts/filesystem.h>
 #include <os/mollenos.h>
 #include <os/syscall.h>
+#include <os/file.h>
 #include <string.h>
 
 /* SetWorkingDirectory
@@ -52,7 +53,7 @@ SetWorkingDirectory(
     }
     
     if (PathCanonicalize(&TempBuffer[0], &TempBuffer[0], _MAXPATH) == OsSuccess) {
-        if (GetFileInformationFromPath(&TempBuffer[0], &FileInfo) == OsSuccess &&
+        if (GetFileInformationFromPath(&TempBuffer[0], &FileInfo) == FsOk &&
             FileInfo.Flags & FILE_FLAG_DIRECTORY) {
             size_t CurrentLength = strlen(&TempBuffer[0]);
             if (TempBuffer[CurrentLength - 1] != '/') {

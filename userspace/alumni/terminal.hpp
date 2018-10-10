@@ -32,7 +32,7 @@ class CTerminalFont;
 class CSurfaceRect;
 
 class CTerminal
-{
+{    
 private:
     class CTerminalLine {
     public:
@@ -70,6 +70,7 @@ public:
     ~CTerminal();
 
     void Print(const char *Format, ...);
+    void Invalidate();
 
     // Input manipulation
     std::string ClearInput(bool Newline);
@@ -96,4 +97,5 @@ private:
     int                                         m_HistoryIndex;
     std::vector<std::unique_ptr<CTerminalLine>> m_Lines;
     int                                         m_LineIndex;
+    char*                                       m_PrintBuffer;
 };

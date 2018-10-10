@@ -51,7 +51,7 @@ public:
         : m_Dimensions(Dimensions) { }
     virtual ~CSurface() = default;
 
-    virtual void        Clear(uint32_t Color, const CSurfaceRect& Area) = 0;
+    virtual void        Clear(uint32_t Color, const CSurfaceRect& Area, bool InvalidateScreen) = 0;
     virtual void        Resize(int Width, int Height) = 0;
     virtual void        Invalidate() = 0;
     virtual uint8_t*    GetDataPointer(int OffsetX, int OffsetY) = 0;

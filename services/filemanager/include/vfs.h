@@ -24,11 +24,13 @@
 #ifndef _VFS_INTERFACE_H_
 #define _VFS_INTERFACE_H_
 
-#include <os/osdefs.h>
 #include <os/contracts/filesystem.h>
-#include <os/buffer.h>
 #include <os/sharedobject.h>
 #include <ds/collection.h>
+#include <os/mollenos.h>
+#include <os/buffer.h>
+#include <ds/mstring.h>
+#include <os/file.h>
 
 /* VFS Definitions 
  * - General identifiers can be used in paths */
@@ -317,7 +319,7 @@ VfsGetEntryPath(
 
 /* VfsQueryEntryPath
  * Queries information about the filesystem entry through its full path. */
-__EXTERN OsStatus_t
+__EXTERN FileSystemCode_t
 VfsQueryEntryPath(
     _In_ UUId_t                     Requester,
     _In_ const char*                Path,
@@ -325,7 +327,7 @@ VfsQueryEntryPath(
 
 /* VfsQueryEntryHandle
  * Queries informatino about the filesystem entry through its handle. */
-__EXTERN OsStatus_t
+__EXTERN FileSystemCode_t
 VfsQueryEntryHandle(
     _In_ UUId_t                     Requester,
     _In_ UUId_t                     Handle,

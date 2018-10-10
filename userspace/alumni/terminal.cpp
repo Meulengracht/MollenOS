@@ -29,6 +29,8 @@
 #include "terminal_font.hpp"
 #include "terminal_renderer.hpp"
 
+const int PRINTBUFFER_SIZE = 4096;
+
 CTerminal::CTerminalLine::CTerminalLine(std::shared_ptr<CTerminalRenderer> Renderer, std::shared_ptr<CTerminalFont> Font, int Row, int Capacity)
     : m_Renderer(Renderer), m_Font(Font), m_Row(Row), m_Capacity(Capacity - 6)
 {
@@ -138,12 +140,14 @@ CTerminal::CTerminal(CSurfaceRect& Area, std::shared_ptr<CTerminalRenderer> Rend
     : m_Renderer(Renderer), m_Font(Font), m_Rows((Area.GetHeight() / Font->GetFontHeight()) - 1), 
       m_HistoryIndex(0), m_LineIndex(0)
 {
+    m_PrintBuffer = (char*)std::malloc(4096);
     for (int i = 0; i < m_Rows; i++) {
         m_Lines.push_back(std::make_unique<CTerminalLine>(Renderer, Font, i, Area.GetWidth()));
     }
 }
 
 CTerminal::~CTerminal() {
+    std::free(m_PrintBuffer);
     m_History.clear();
     m_Lines.clear();
 }
@@ -155,7 +159,6 @@ void CTerminal::AddInput(int Character)
         return;
     }
     m_Lines[m_LineIndex]->Update();
-    m_Renderer->Invalidate();
 }
 
 void CTerminal::RemoveInput()
@@ -165,7 +168,6 @@ void CTerminal::RemoveInput()
         return;
     }
     m_Lines[m_LineIndex]->Update();
-    m_Renderer->Invalidate();
 }
 
 std::string CTerminal::ClearInput(bool Newline)
@@ -178,7 +180,6 @@ std::string CTerminal::ClearInput(bool Newline)
         m_Lines[m_LineIndex]->Reset();
         m_Lines[m_LineIndex]->Update();
     }
-    m_Renderer->Invalidate();
     return Input;
 }
 
@@ -226,7 +227,6 @@ void CTerminal::HistoryNext()
         (size_t)m_HistoryIndex  < m_History.size()) {
         m_HistoryIndex++;
         ScrollToLine(false);
-        m_Renderer->Invalidate();
     }
 }
 
@@ -237,31 +237,33 @@ void CTerminal::HistoryPrevious()
         m_HistoryIndex      >= m_Rows) {
         m_HistoryIndex--;
         ScrollToLine(false);
-        m_Renderer->Invalidate();
     }
 }
 
 void CTerminal::Print(const char *Format, ...)
 {
-    char StringBuffer[256] = { 0 };
     va_list Arguments;
 
     va_start(Arguments, Format);
-    vsnprintf(StringBuffer, sizeof(StringBuffer) - 1, Format, Arguments);
+    vsnprintf(m_PrintBuffer, PRINTBUFFER_SIZE, Format, Arguments);
     va_end(Arguments);
 
-    for (size_t i = 0; i < strlen(StringBuffer); i++) {
-        if (StringBuffer[i] == '\n') {
+    for (size_t i = 0; i < PRINTBUFFER_SIZE && m_PrintBuffer[i]; i++) {
+        if (m_PrintBuffer[i] == '\n') {
             FinishCurrentLine();
         }
         else {
-            if (!m_Lines[m_LineIndex]->AddCharacter(StringBuffer[i])) {
+            if (!m_Lines[m_LineIndex]->AddCharacter(m_PrintBuffer[i])) {
                 FinishCurrentLine();
                 i--;
             }
         }
     }
     m_Lines[m_LineIndex]->Update();
+}
+
+void CTerminal::Invalidate()
+{
     m_Renderer->Invalidate();
 }
 

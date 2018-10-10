@@ -345,18 +345,18 @@ OnEvent(
 
         // Queries information about a file-system entry through its full path
         case __FILEMANAGER_GETSTATSBYPATH: {
-            OsFileDescriptor_t EntryInformation = { 0 };
-            Result = VfsQueryEntryPath(Message->From.Process, RPCGetStringArgument(Message, 0), 
-                &EntryInformation);
-            Result = RPCRespond(&Message->From, &EntryInformation, sizeof(OsFileDescriptor_t));
+            QueryFileStatsPackage_t StatsPackage = { 0 };
+            StatsPackage.Code = VfsQueryEntryPath(Message->From.Process, RPCGetStringArgument(Message, 0), 
+                &StatsPackage.Descriptor);
+            Result = RPCRespond(&Message->From, &StatsPackage, sizeof(QueryFileStatsPackage_t));
         } break;
         
         // Queries information about a file-system entry through its handle
         case __FILEMANAGER_GETSTATSBYHANDLE: {
-            OsFileDescriptor_t EntryInformation = { 0 };
-            Result = VfsQueryEntryHandle(Message->From.Process, (UUId_t)Message->Arguments[0].Data.Value, 
-                &EntryInformation);
-            Result = RPCRespond(&Message->From, &EntryInformation, sizeof(OsFileDescriptor_t));
+            QueryFileStatsPackage_t StatsPackage = { 0 };
+            StatsPackage.Code = VfsQueryEntryHandle(Message->From.Process, (UUId_t)Message->Arguments[0].Data.Value, 
+                &StatsPackage.Descriptor);
+            Result = RPCRespond(&Message->From, &StatsPackage, sizeof(QueryFileStatsPackage_t));
         } break;
 
         // Deletes the given path, the path can both be file or directory.

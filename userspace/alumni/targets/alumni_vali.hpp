@@ -42,8 +42,10 @@ protected:
 
 private:
     std::vector<std::string> GetDirectoryContents(const std::string& Path);
-    int  ExecuteProgram(const std::string&, const std::vector<std::string>&);
+    void ExecuteProgram(const std::string&, const std::vector<std::string>&);
+    bool IsProgramPathValid(const std::string&);
     void UpdateWorkingDirectory();
+    
     void StdoutListener();
     void StderrListener();
 
@@ -51,9 +53,11 @@ private:
     std::string m_Profile;
     std::string m_CurrentDirectory;
 
-    std::thread m_StdoutThread;
-    std::thread m_StderrThread;
-    int         m_Stdout;
-    int         m_Stderr;
-    UUId_t      m_Application;
+    std::thread     m_StdoutThread;
+    std::thread     m_StderrThread;
+    std::thread*    m_RunThread;
+    
+    int     m_Stdout;
+    int     m_Stderr;
+    UUId_t  m_Application;
 };

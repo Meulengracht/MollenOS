@@ -107,7 +107,7 @@ bool CTerminalInterpreter::Interpret(const std::string& String)
             m_ClosestMatch      = Command->GetCommandText();
         }
     }
-    return false;
+    return m_Resolver(CommandString, Tokens);
 }
 
 void CTerminalInterpreter::SetCommandResolver(std::function<bool(const std::string&, const std::vector<std::string>&)> Resolver)

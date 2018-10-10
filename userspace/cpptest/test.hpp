@@ -27,14 +27,21 @@
 
 class OSTest {
 public:
-    OSTest(const std::string &SuiteName) {
+    OSTest(const char* SuiteName) {
         TestLog(SuiteName);
     }
     virtual int RunTests() = 0;
 
 protected:
-    void TestLog(const std::string &Message) {
-        TRACE(Message.c_str());
+    void TestLog(const char* Format, ...) {
+        char    Buffer[256] = { 0 };
+        va_list Arguments;
+
+        va_start(Arguments, Format);
+        vsnprintf(&Buffer[0], sizeof(Buffer) - 1, Format, Arguments);
+        va_end(Arguments);
+
+        TRACE(&Buffer[0]);
     }
 };
 

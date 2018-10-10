@@ -27,11 +27,7 @@
 #include <os/contracts/storage.h>
 #include <os/buffer.h>
 #include <os/driver.h>
-#include <os/osdefs.h>
-
-#include <os/file/definitions.h>
-#include <os/file/file.h>
-#include <os/file/path.h>
+#include <os/mollenos.h>
 
 /* FileSystem Export 
  * This is define the interface between user (filemanager)
@@ -43,6 +39,8 @@
 #define __FSAPI                     CRTEXPORT
 #define __FSDECL(Function)          Function
 #endif
+
+typedef struct _MString MString_t;
 
 /* FileSystem definitions 
  * Used the describe the various possible flags for the given filesystem */
@@ -68,6 +66,33 @@ PACKED_TYPESTRUCT(FileSystemDescriptor, {
     uint64_t                    SectorStart;
     uint64_t                    SectorCount;
     uintptr_t*                  ExtensionData;
+});
+
+/* The shared filesystem entry structure
+ * Used as a file-definition by the filemanager and the loaded filesystem modules */
+PACKED_TYPESTRUCT(FileSystemEntry, {
+    OsFileDescriptor_t      Descriptor;
+    MString_t*              Path;
+    MString_t*              Name;
+    size_t                  Hash;
+    UUId_t                  IsLocked;
+    int                     References;
+    uintptr_t*              System;
+});
+
+/* This is the per-handle entry instance
+ * structure, so multiple handles can be opened
+ * on just a single entry, it refers to a entry structure */
+PACKED_TYPESTRUCT(FileSystemEntryHandle, {
+    FileSystemEntry_t*  Entry;
+    UUId_t              Id;
+    UUId_t              Owner;
+    Flags_t             Access;
+    Flags_t             Options;
+    Flags_t             LastOperation;
+    uint64_t            Position;
+    void*               OutBuffer;
+    size_t              OutBufferPosition;
 });
 
 /* FsInitialize 

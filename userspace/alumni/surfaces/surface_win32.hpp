@@ -33,7 +33,7 @@ public:
 
     void        SetHwnd(HWND hWnd);
 
-    void        Clear(uint32_t Color, const CSurfaceRect& Area) override;
+    void        Clear(uint32_t Color, const CSurfaceRect& Area, bool InvalidateScreen) override;
     void        Resize(int Width, int Height) override;
     void        Invalidate() override;
     uint8_t*    GetDataPointer(int OffsetX = 0, int OffsetY = 0) override;

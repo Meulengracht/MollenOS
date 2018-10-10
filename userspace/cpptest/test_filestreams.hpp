@@ -21,6 +21,8 @@
  *    the stability and integrity of the operating system.
  */
 #pragma once
+
+#include <os/mollenos.h>
 #include <iostream>
 #include <fstream>
 #include <cstdio>
@@ -69,7 +71,7 @@ public:
         fs_in.open("my_output.txt");
         if (fs_in.is_open()) {
             while (getline(fs_in, line) ) {
-                TestLog(line);
+                TestLog(line.c_str());
             }
             fs_in.close();
             return 0;
@@ -88,6 +90,27 @@ public:
         return 0;
     }
 
+    int TestFileStats()
+    {
+        OsFileDescriptor_t  Stats;
+        FileSystemCode_t    Status;
+
+        TestLog(">> TestFileStats()");
+        Status = GetFileInformationFromPath("macia.app", &Stats);
+        if (Status != FsOk) {
+            TestLog(" >> failed to stat macia.app");
+            return 1;
+        }
+        TestLog(">> macia: %u - %u", Stats.Flags, Stats.Permissions);
+        
+        Status = GetFileInformationFromPath("maccccc.app", &Stats);
+        if (Status == FsOk) {
+            TestLog(" >> failed to fail on stat with macccc.app");
+            return 1;
+        }
+        return 0;
+    }
+
     int TestDirectoryIteration()
     {
         struct DIR* directory;
@@ -100,7 +123,7 @@ public:
         }
 
         while (readdir(directory, &direntry) != -1) {
-            TestLog(std::string(&direntry.d_name[0]));
+            TestLog(&direntry.d_name[0]);
         }
 
         if (closedir(directory)) {
@@ -118,6 +141,7 @@ public:
         Errors += TestFileWrite();
         Errors += TestFileRead();
         Errors += TestFileDeletion();
+        Errors += TestFileStats();
 
         // Directory tests
         Errors += TestDirectoryIteration();

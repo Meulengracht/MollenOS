@@ -41,7 +41,7 @@ void CWin32Surface::SetHwnd(HWND hWnd)
     m_hWnd = hWnd;
 }
 
-void CWin32Surface::Clear(uint32_t Color, const CSurfaceRect& Area)
+void CWin32Surface::Clear(uint32_t Color, const CSurfaceRect& Area, bool InvalidateScreen)
 {
     // Get the relevant data pointer
     uint8_t* Pointer    = GetDataPointer(Area.GetX(), Area.GetY());
@@ -53,7 +53,10 @@ void CWin32Surface::Clear(uint32_t Color, const CSurfaceRect& Area)
         }
         Pointer += Stride;
     }
-    Invalidate();
+
+    if (InvalidateScreen) {
+        Invalidate();
+    }
 }
 
 void CWin32Surface::Resize(int Width, int Height) {

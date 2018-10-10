@@ -41,7 +41,7 @@ CTerminalRenderer::CTerminalRenderer(std::unique_ptr<CSurface> Surface)
       m_BackgroundColor(m_Surface->GetColor(0, 0, 0, 255)),
       m_ForegroundColor(m_Surface->GetColor(255, 255, 255, 255))
 {
-    m_Surface->Clear(m_BackgroundColor, m_Surface->GetDimensions());
+    m_Surface->Clear(m_BackgroundColor, m_Surface->GetDimensions(), true);
 }
 
 void CTerminalRenderer::RenderClear(int X, int Y, int Width, int Height)
@@ -49,7 +49,7 @@ void CTerminalRenderer::RenderClear(int X, int Y, int Width, int Height)
     CSurfaceRect Area(X, Y, 
         (Width == -1) ? m_Surface->GetDimensions().GetWidth() : Width, 
         (Height == -1) ? m_Surface->GetDimensions().GetHeight() : Height);
-    m_Surface->Clear(m_BackgroundColor, Area);
+    m_Surface->Clear(m_BackgroundColor, Area, false);
 }
 
 int CTerminalRenderer::RenderText(int X, int Y, const std::shared_ptr<CTerminalFont>& Font, const std::string& Text)
