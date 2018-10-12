@@ -22,6 +22,7 @@
  */
 #pragma once
 
+#include <mutex>
 #include <memory>
 #include <vector>
 #include <string>
@@ -98,4 +99,5 @@ private:
     std::vector<std::unique_ptr<CTerminalLine>> m_Lines;
     int                                         m_LineIndex;
     char*                                       m_PrintBuffer;
+    std::mutex                                  m_PrintLock;
 };

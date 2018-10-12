@@ -39,8 +39,8 @@ namespace {
 
 CValiAlumni::CValiAlumni(std::unique_ptr<CTerminal> Terminal, std::unique_ptr<CTerminalInterpreter> Interpreter)
     : CAlumni(std::move(Terminal), std::move(Interpreter)), m_Profile("Philip"), m_CurrentDirectory("n/a"),
-      m_StdoutThread(std::bind(&CValiAlumni::StdoutListener, this)), m_StderrThread(std::bind(&CValiAlumni::StderrListener, this)),
-      m_RunThread(nullptr), m_Stdout(-1), m_Stderr(-1), m_Application(UUID_INVALID)
+      m_Stdout(-1), m_Stderr(-1), m_Application(UUID_INVALID), m_StdoutThread(std::bind(&CValiAlumni::StdoutListener, this)), 
+      m_StderrThread(std::bind(&CValiAlumni::StderrListener, this)), m_RunThread(nullptr)
 {
     UpdateWorkingDirectory();
 }
@@ -156,9 +156,7 @@ bool CValiAlumni::ExecuteProgram(const std::string& Program, const std::vector<s
     StartupInformation.InheritFlags = PROCESS_INHERIT_STDOUT | PROCESS_INHERIT_STDERR;
     StartupInformation.StdOutHandle = m_Stdout;
     StartupInformation.StdErrHandle = m_Stderr;
-    m_Terminal->Print("%s: stdout %i, stderr %i\n", Program.c_str(), m_Stdout, m_Stderr);
     m_Application = ProcessSpawnEx(Program.c_str(), &StartupInformation, 0);
-    m_Terminal->Print("%s: id %u (inherrited bytes %u)\n", Program.c_str(), m_Application, StartupInformation.InheritanceBlockLength);
     if (m_Application != UUID_INVALID) {
         if (m_RunThread != nullptr) {
             delete m_RunThread;
@@ -195,9 +193,6 @@ bool CValiAlumni::IsProgramPathValid(const std::string& Path)
         }
         m_Terminal->Print("%s: not an executable file 0x%x\n", Path.c_str(), Stats.Permissions);
     }
-    else {
-        m_Terminal->Print("%s: invalid file\n", Path.c_str());
-    }
     return false;
 }
 
@@ -219,6 +214,7 @@ bool CValiAlumni::CommandResolver(const std::string& Command, const std::vector<
             std::string CwdPath(&TempBuffer[0]);
             ProgramPath = CwdPath + "/" + ProgramName;
             if (!IsProgramPathValid(ProgramPath)) {
+                m_Terminal->Print("%s: not a valid command\n", Command.c_str());
                 return false;
             }
         }
@@ -268,6 +264,7 @@ void CValiAlumni::StdoutListener()
     m_Stdout = pipe();
     if (m_Stdout == -1) {
         m_Terminal->Print("FAILED TO CREATE STDOUT\n");
+        m_Terminal->Invalidate();
         return;
     }
 
@@ -286,6 +283,7 @@ void CValiAlumni::StderrListener()
     m_Stderr = pipe();
     if (m_Stderr == -1) {
         m_Terminal->Print("FAILED TO CREATE STDERR\n");
+        m_Terminal->Invalidate();
         return;
     }
 

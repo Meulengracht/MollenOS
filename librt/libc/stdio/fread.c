@@ -256,8 +256,6 @@ static int _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
     if (readbuf != &min_buf[0]) {
 		free(readbuf);
 	}
-
-	// Done, return number of bytes read
     return BytesRead * 2;
 }
 

@@ -57,6 +57,7 @@ ProcessSpawn(
 
 	// Sanitize parameters
 	if (Path == NULL) {
+        _set_errno(EINVAL);
 		return UUID_INVALID;
 	}
 
@@ -111,6 +112,7 @@ ProcessKill(
 	_In_ UUId_t Process)
 {
 	if (Process == UUID_INVALID) {
+        _set_errno(EINVAL);
 		return OsError;
 	}
 	return Syscall_ProcessKill(Process);

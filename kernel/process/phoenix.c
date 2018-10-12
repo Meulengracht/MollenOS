@@ -153,7 +153,6 @@ MCoreAsh_t*
 PhoenixGetAsh(
     _In_ UUId_t AshId)
 {
-    // Variables
     CollectionItem_t *Node  = NULL;
     MCoreAsh_t *Result      = NULL;
     UUId_t CurrentCpu       = UUID_INVALID;
@@ -173,8 +172,6 @@ PhoenixGetAsh(
     if (AshId == UUID_INVALID) {
         return NULL;
     }
-
-    // Now we can sanitize the extra stuff, like alias
     PhoenixUpdateAlias(&AshId);
 
     // Iterate the list for ash-id
@@ -185,8 +182,6 @@ PhoenixGetAsh(
             break;
         }
     }
-
-    // We didn't find it
     return Result;
 }
 
@@ -247,21 +242,16 @@ PhoenixTerminateAsh(
     _In_ int            TerminateDetachedThreads,
     _In_ int            TerminateInstantly)
 {
-    // Variables
-    int LeftoverThreads = 0;
-    DataKey_t Key;
+    int         LeftoverThreads = 0;
+    DataKey_t   Key;
 
     // Update it's return code
     Ash->Code = ExitCode;
 
-    // Kill it's threads
-    LeftoverThreads = ThreadingTerminateAshThreads(Ash->Id, 
-        TerminateDetachedThreads, TerminateInstantly);
+    LeftoverThreads = ThreadingTerminateAshThreads(Ash->Id, TerminateDetachedThreads, TerminateInstantly);
     if (LeftoverThreads != 0) {
         return;
     }
-
-    // To modify list is locked operation
     Key.Value = (int)Ash->Id;
     CollectionRemoveByKey(Processes, Key);
 
@@ -278,10 +268,7 @@ OsStatus_t
 PhoenixReapAsh(
     _In_Opt_ void *UserData)
 {
-    // Instantiate the base-pointer
     MCoreAsh_t *Ash = (MCoreAsh_t*)UserData;
-
-    // Clean up
     if (Ash->Type == AshBase) {
         PhoenixCleanupAsh(Ash);
     }

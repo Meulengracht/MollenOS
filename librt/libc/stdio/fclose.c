@@ -70,14 +70,16 @@ int close(int fd)
  * Closes a file handle and frees resources associated */
 int fclose(FILE *stream)
 {
-	int r, flag;
+	int r, flag, fd;
 
-    // Flush file before anything
+    assert(stream != NULL);
+    
 	_lock_file(stream);
 	if (stream->_flag & _IOWRT) {
 		fflush(stream);
 	}
-	flag = stream->_flag;
+	flag    = stream->_flag;
+    fd      = stream->_fd;
 
 	// Flush and free associated buffers
 	if (stream->_tmpfname != NULL) {
@@ -89,7 +91,15 @@ int fclose(FILE *stream)
 
 	// Call underlying close and never
     // unlock the file as underlying stream is closed
-	r = close(stream->_fd);
-	free(stream);
+	r = close(fd);
+    
+    // Never free the standard handles, so handle that here
+    if (stream != stdout && stream != stdin && stream != stderr) {
+        free(stream);
+    }
+    else {
+        memset(stream, 0, sizeof(FILE));
+        stream->_fd = fd;
+    }
 	return ((r == -1) || (flag & _IOERR) ? EOF : 0);
 }

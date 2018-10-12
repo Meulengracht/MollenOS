@@ -242,6 +242,7 @@ void CTerminal::HistoryPrevious()
 
 void CTerminal::Print(const char *Format, ...)
 {
+    std::unique_lock<std::mutex> LockedSection(m_PrintLock);
     va_list Arguments;
 
     va_start(Arguments, Format);

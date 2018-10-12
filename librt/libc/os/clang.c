@@ -20,17 +20,14 @@
  */
 #define __TRACE
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
 #include <os/spinlock.h>
 #include <os/process.h>
 #include <os/utils.h>
-
-#include <math.h>
 #include <threads.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <math.h>
 #include "../threads/tls.h"
 
 /* CRT Definitions
@@ -252,8 +249,7 @@ __CrtCallExitHandlers(
     // Initialize list pointer
     ListPointer = ((Quick == 0) ? &ExitFunctions : &ExitFunctionsQuick);
 
-    // Do this in a while loop to handle recursive
-    // calls to Exit
+    // Do this in a while loop to handle recursive calls to Exit
     while (1) {
         RTExitFunctionList_t *Current = NULL;
         SpinlockAcquire(&ExitFunctionsLock);

@@ -108,9 +108,8 @@ ScProcessJoin(
     _In_  size_t    Timeout,
     _Out_ int*      ExitCode)
 {
-    // Variables
-    MCoreAsh_t *Process = PhoenixGetAsh(ProcessId);
-    int SleepResult     = 0;
+    MCoreAsh_t* Process     = PhoenixGetAsh(ProcessId);
+    int         SleepResult;
     
     if (Process == NULL) {
         return OsError;
@@ -151,19 +150,15 @@ ScProcessKill(
 }
 
 /* ScProcessExit
- * Kills the entire process and all non-detached threads that
- * has been spawned by the process. */
+ * Kills the entire process and all non-detached threads that has been spawned by the process. */
 OsStatus_t
 ScProcessExit(
     _In_ int ExitCode)
 {
-    // Variables
-    MCoreAsh_t *Process     = PhoenixGetCurrentAsh();
+    MCoreAsh_t *Process = PhoenixGetCurrentAsh();
     if (Process == NULL) {
         return OsError;
     }
-    
-    // Debug
     WARNING("Process %s terminated with code %i", MStringRaw(Process->Name), ExitCode);
 
     // Terminate ash and current thread

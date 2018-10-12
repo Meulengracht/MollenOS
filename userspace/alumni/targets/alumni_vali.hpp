@@ -54,11 +54,11 @@ private:
     std::string m_Profile;
     std::string m_CurrentDirectory;
 
-    std::thread     m_StdoutThread;
-    std::thread     m_StderrThread;
-    std::thread*    m_RunThread;
-    
     int     m_Stdout;
     int     m_Stderr;
     UUId_t  m_Application;
+
+    std::thread     m_StdoutThread;
+    std::thread     m_StderrThread;
+    std::thread*    m_RunThread;
 };

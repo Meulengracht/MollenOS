@@ -39,8 +39,10 @@ public:
         TestLog("TestSpawnProcess(%s)", Path.c_str());
         UUId_t ProcessId = ProcessSpawn(Path.c_str(), nullptr, 0);
         if (ProcessId != UUID_INVALID) {
+            int ExitCode = 0;
             TestLog(">> process id = %u", ProcessId);
-
+            ProcessJoin(ProcessId, 0, &ExitCode);
+            TestLog(">> process exitted with code = %i", ExitCode);
         }
         else {
             TestLog(">> failed to spawn process");

@@ -109,9 +109,6 @@ thrd_t thrd_current(void) {
 #define LOCK_FILES() do { } while(0)
 #define UNLOCK_FILES() do { } while(0)
 
-int _flushall(void);
-int _fcloseall(void);
-
 static Collection_t IoObjects   = COLLECTION_INIT(KeyInteger);
 static int*         FdBitmap    = NULL;
 static FILE         __GlbStdout = { 0 }, __GlbStdin = { 0 }, __GlbStderr = { 0 };
@@ -321,6 +318,30 @@ StdioParseInheritanceBlock(
     StdioFdInitialize(&__GlbStderr, __GlbStderr._fd,    _IOWRT);
 }
 
+/* StdioCloseAllHandles
+ * Flushes and closes all opened file handles that are not inheritted. */
+static int
+StdioCloseAllHandles(void)
+{
+    StdioObject_t*  Object;
+    int             FilesClosed = 0;
+    FILE*           File;
+
+    LOCK_FILES();
+    while (CollectionBegin(&IoObjects) != NULL) {
+        CollectionItem_t* Node = CollectionBegin(&IoObjects);
+        Object  = (StdioObject_t*)Node->Data;
+        File    = (FILE*)Object->file;
+        if (!(Object->wxflag & WX_INHERITTED) && File != NULL) {
+            if (!fclose(File)) {
+                FilesClosed++;
+            }
+        }
+    }
+    UNLOCK_FILES();
+    return FilesClosed;
+}
+
 /* StdioInitialize
  * Initializes default handles and resources */
 _CRTIMP void
@@ -345,8 +366,8 @@ _CRTIMP void
 StdioCleanup(void)
 {
     // Flush all file buffers and close handles
-    _flushall();
-    _fcloseall();
+    os_flush_all_buffers(_IOWRT | _IOREAD);
+    StdioCloseAllHandles();
 }
 
 /* StdioFdValid
@@ -427,23 +448,29 @@ void
 StdioFdFree(
     _In_ int fd)
 {
-    // Variables
-    CollectionItem_t *fNode = NULL;
-    DataKey_t Key;
+    int         Block;
+    int         Offset;
+    DataKey_t   Key;
+    void*       Object;
 
-    // Free any resources allocated by the fd
-    Key.Value = fd;
-    fNode = CollectionGetNodeByKey(&IoObjects, Key, 0);
-    if (fNode != NULL) {
-        free(fNode->Data);
-        CollectionRemoveByNode(&IoObjects, fNode);
-        CollectionDestroyNode(&IoObjects, fNode);
+    Key.Value   = fd;
+    Object      = CollectionGetDataByKey(&IoObjects, Key, 0);
+    if (Object != NULL) {
+        if (CollectionRemoveByKey(&IoObjects, Key) != OsSuccess) {
+            ERROR(" > failed to remove io object for fd %i, it may not exist", fd);
+        }
+        free(Object);
     }
 
-    // Set the given fd index to free
-    SpinlockAcquire(&BitmapLock);
-    FdBitmap[fd / (8 * sizeof(int))] &= ~(1 << (fd % (8 * sizeof(int))));
-    SpinlockRelease(&BitmapLock);
+    if (fd > STDERR_FILENO) {
+        Block   = fd / (8 * sizeof(int));
+        Offset  = fd % (8 * sizeof(int));
+
+        // Set the given fd index to free
+        SpinlockAcquire(&BitmapLock);
+        FdBitmap[Block] &= ~(1 << Offset);
+        SpinlockRelease(&BitmapLock);
+    }
 }
 
 /* StdioFdToHandle
@@ -817,7 +844,8 @@ StdioSeekInternal(
 
 /* getstdfile
  * Retrieves a standard io stream handle */
-FILE* getstdfile(int n) {
+FILE* getstdfile(int n)
+{
     switch (n) {
         case STDOUT_FILENO: {
             return &__GlbStdout;
@@ -867,22 +895,21 @@ int
 os_flush_all_buffers(
     _In_ int mask)
 {
-    int num_flushed = 0;
-    FILE *file;
+    StdioObject_t*  Object;
+    int             FilesFlushes = 0;
+    FILE*           File;
 
-    // Iterate list of open files
     LOCK_FILES();
-    foreach(fNode, &IoObjects) {
-        file = (FILE*)(((StdioObject_t*)fNode->Data)->file);
-
-        // Does file match the given mask?
-        if (file->_flag & mask) {
-            fflush(file);
-            num_flushed++;
+    foreach(Node, &IoObjects) {
+        Object  = (StdioObject_t*)Node->Data;
+        File    = (FILE*)Object->file;
+        if (File != NULL && (File->_flag & mask)) {
+            fflush(File);
+            FilesFlushes++;
         }
     }
     UNLOCK_FILES();
-    return num_flushed;
+    return FilesFlushes;
 }
 
 /* get_ioinfo
@@ -896,35 +923,10 @@ get_ioinfo(
     return (StdioObject_t*)CollectionGetDataByKey(&IoObjects, Key, 0);
 }
 
-/* _fcloseall
- * Closes all open streams in this process-scope. */
-int
-_fcloseall(void)
-{
-    int num_closed = 0;
-    FILE *file;
-
-    LOCK_FILES();
-    foreach(fNode, &IoObjects) {
-        file = (FILE*)(((StdioObject_t*)fNode->Data)->file);
-        if (!fclose(file)) {
-            num_closed++;
-        }
-    }
-    UNLOCK_FILES();
-    return num_closed;
-}
-
 /* isatty
  * Returns non-zero if the given file-descriptor points to a tty. */
 int isatty(int fd) {
     return get_ioinfo(fd)->wxflag & WX_TTY;
-}
-
-/* _flushall
- * Flushes all open streams in this process-scope. */
-int _flushall(void) {
-    return os_flush_all_buffers(_IOWRT | _IOREAD);
 }
 
 /* os_alloc_buffer
@@ -987,13 +989,10 @@ void
 remove_std_buffer(
     _In_ FILE *file)
 {
-    // Flush it first
     os_flush_buffer(file);
-
-    // Remove buffer
-    file->_ptr = file->_base = NULL;
-    file->_bufsiz = file->_cnt = 0;
-    file->_flag &= ~_USERBUF;
+    file->_ptr      = file->_base = NULL;
+    file->_bufsiz   = file->_cnt = 0;
+    file->_flag     &= ~_USERBUF;
 }
 
 /* _lock_file

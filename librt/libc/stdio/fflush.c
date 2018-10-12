@@ -25,7 +25,6 @@
 int fflush(
 	_In_ FILE *file)
 {
-    // Variables
 	OsStatus_t Result = OsSuccess;
 
 	// If fflush is called with NULL argument

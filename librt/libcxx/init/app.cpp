@@ -19,16 +19,11 @@
  * MollenOS C++ Library - Entry Points
  */
 
-/* Includes 
- * - Library */
 #include "../../libc/threads/tls.h"
 #include <stddef.h>
 #include <stdlib.h>
 #include <ctype.h>
 
-/* Extern
- * - C/C++ Initialization
- * - C/C++ Cleanup */
 extern "C" {
     extern int      main(int argc, char **argv, char **envp);
     extern char**   __CrtInitialize(thread_storage_t* Tls, int StartupInfoEnabled, int* ArgumentCount);
