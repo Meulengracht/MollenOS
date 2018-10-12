@@ -18,17 +18,15 @@
  *
  * MollenOS C Library - OS-File Utilities
  */
+//#define __TRACE
 
 #include <os/utils.h>
 #include <os/file.h>
-#include <os/syscall.h>
-
-#include <io.h>
-#include <stdio.h>
-#include <errno.h>
-#include <string.h>
 #include <strings.h>
-#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+#include <stdio.h>
+#include <io.h>
 #include "local.h"
 
 int
@@ -38,6 +36,7 @@ _fflags(
     _Out_ int*          stream_flags)
 {
     int plus = strchr(mode, '+') != NULL;
+    TRACE("_fflags(%s)", mode);
 
     // Skip leading whitespaces
     while (*mode == ' ') {
@@ -188,6 +187,7 @@ _fopts(
     _In_ int            oflags)
 {
     Flags_t mFlags = 0;
+    TRACE("_fopts(0x%x)", oflags);
 
     // Take care of opening flags
     if (oflags & O_CREAT) {

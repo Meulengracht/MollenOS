@@ -19,72 +19,43 @@
  * Macia - Compiler Suite
  */
 
-/* Includes */
-#include <cstdio>
-#include <cstdlib>
-
-/* Suite Includes */
+#include <iostream>
+#include <fstream>
 #include "lexer/scanner.h"
 #include "parser/parser.h"
 #include "generator/generator.h"
 #include "interpreter/interpreter.h"
 
+// Supported arguments
+// -o        outfile 
+// -r        run / interpret
+// [ files ] the files to be compiled
+
 int main(int argc, char* argv[])
 {
-	/* Variables we will need
-	 * for build */
+    std::ifstream fs_in;
 	Interpreter *vm = NULL;
 	Generator *ilgen = NULL;
 	Scanner *scrambler = NULL;
 	Parser *parser = NULL;
-	char *fileData = NULL;
-	FILE *source = NULL;
-	unsigned size = 0;
-	unsigned bread = 0;
 
-	/* So, welcome! */
 #ifdef DIAGNOSE
-	printf("Macia Compiler %s - 2016 August Build\n", VERSION);
-	printf(" - Author: %s\n\n", AUTHOR);
+	printf("macia-lang compiler %s - 2018 oct 12\n", VERSION);
+	printf(" > author: %s\n\n", AUTHOR);
 #endif
 
-	/* Step 1. Read file */
-	source = fopen("test.mc", "r+b");
+    // Sanitize input parameters
+    if (argc == 1) {
+        printf(" > invalid number of arguments\n");
+        return -1;
+    }
 
-	/* Sanity */
-	if (source == NULL) {
-		printf("Failed to open %s\n", "test.mc");
-		return -1;
-	}
-
-	/* Get size before allocation of
-	 * data array */
-	fseek(source, 0, SEEK_END);
-	size = (unsigned)ftell(source);
-	fseek(source, 0, SEEK_SET);
-
-	/* Allocata a new array */
-	fileData = (char*)malloc(size);
-
-	/* Read entire file */
-	if ((bread = (unsigned)fread(fileData, 1, size, source)) != size) {
-		printf("Failed to read file; read %u, expected %u\n", bread, size);
-		goto Cleanup;
-	}
-
-	/* Cleanup file handle */
-	fclose(source);
-	source = NULL;
-
-	/* Create a new scanner */
 	scrambler = new Scanner();
 
 #ifdef DIAGNOSE
-	printf(" - Scanning (flength = %u)\n", size);
+	printf(" - Scanning (flength = %u)\n", 0);
 #endif
-
-	/* Scan our file */
-	if (scrambler->Scan(fileData, size)) {
+	if (scrambler->Scan(NULL, 0)) {
 		printf("Failed to scramble file\n");
 		goto Cleanup;
 	}
@@ -93,10 +64,7 @@ int main(int argc, char* argv[])
 	printf(" - Parsing (elements = %u)\n", (unsigned)scrambler->GetElements().size());
 #endif
 
-	/* Setup the parser */
 	parser = new Parser(scrambler->GetElements());
-
-	/* Scan our file */
 	if (parser->Parse()) {
 		printf("Failed to parse file\n");
 		goto Cleanup;
@@ -106,29 +74,19 @@ int main(int argc, char* argv[])
 	printf(" - Generating IL (Bytecode)\n");
 #endif
 
-	/* Create the IL Generator */
 	ilgen = new Generator(parser->GetProgram());
-
-	/* Generate IL */
 	if (ilgen->Generate()) {
 		printf("Failed to create bytecode from the AST\n");
 		goto Cleanup;
 	}
-
-	/* Save the IL code as an object file */
 	ilgen->SaveAs("test.mo");
 
 #ifdef DIAGNOSE
 	printf(" - Executing the code\n");
 #endif
 
-	/* Create the interpreter instance */
 	vm = new Interpreter(ilgen->GetPool());
-
-	/* Run the code */
 	printf("The interpreter finished with result %i\n", vm->Execute());
-
-	/* Cleanup the interpreter */
 	delete vm;
 
 Cleanup:
@@ -136,7 +94,6 @@ Cleanup:
 	printf(" - Cleaning up & exitting\n");
 #endif
 
-	/* Cleanup all our stuff */
 	if (ilgen != NULL) {
 		delete ilgen;
 	}
@@ -148,17 +105,6 @@ Cleanup:
 	if (scrambler != NULL) {
 		delete scrambler;
 	}
-
-	if (fileData != NULL) {
-		free(fileData);
-	}
-
-	if (source != NULL) {
-		fclose(source);
-	}
-
-	for (;;);
-
 	return 0;
 }
 

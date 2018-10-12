@@ -237,6 +237,7 @@ VfsOpenInternal(
             // Let the module do the rest
             Code = Filesystem->Module->OpenEntry(&Filesystem->Descriptor, SubPath, &Entry);
             if (Code == FsPathNotFound && (Options & (__FILE_CREATE | __FILE_CREATE_RECURSIVE))) {
+                TRACE("File was not found, but options are to create 0x%x", Options);
                 Code    = Filesystem->Module->CreatePath(&Filesystem->Descriptor, SubPath, Options, &Entry);
                 Created = 1;
             }
@@ -489,8 +490,7 @@ VfsDeletePath(
     }
 
     // First step is to open the path in exclusive mode
-    Code = VfsOpenEntry(Requester, Path, __FILE_MUSTEXIST | __FILE_VOLATILE, 
-        __FILE_READ_ACCESS | __FILE_WRITE_ACCESS, &Handle);
+    Code = VfsOpenEntry(Requester, Path, __FILE_VOLATILE, __FILE_READ_ACCESS | __FILE_WRITE_ACCESS, &Handle);
     if (Code == FsOk) {
         Code = VfsIsHandleValid(Requester, Handle, 0, &EntryHandle);
         if (Code != FsOk) {
@@ -836,7 +836,7 @@ VfsQueryEntryPath(
     FileSystemCode_t Code;
     UUId_t Handle;
 
-    Code = VfsOpenEntry(Requester, Path, __FILE_READ_ACCESS, __FILE_READ_SHARE, &Handle);
+    Code = VfsOpenEntry(Requester, Path, 0, __FILE_READ_ACCESS | __FILE_READ_SHARE, &Handle);
     if (Code == FsOk) {
         Code = VfsQueryEntryHandle(Requester, Handle, Information);
         // No reason to check on the code, the assumption is it always go ok

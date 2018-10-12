@@ -109,22 +109,19 @@ thrd_t thrd_current(void) {
 #define LOCK_FILES() do { } while(0)
 #define UNLOCK_FILES() do { } while(0)
 
-/* Globals
- * Used to keep state of all io-objects */
-static Collection_t IoObjects   = COLLECTION_INIT(KeyInteger);
-static int *FdBitmap            = NULL;
-static Spinlock_t BitmapLock;
-static FILE __GlbStdout = { 0 }, __GlbStdin = { 0 }, __GlbStderr = { 0 };
-
-/* Prototypes
- * Forward-declare these */
 int _flushall(void);
 int _fcloseall(void);
+
+static Collection_t IoObjects   = COLLECTION_INIT(KeyInteger);
+static int*         FdBitmap    = NULL;
+static FILE         __GlbStdout = { 0 }, __GlbStdin = { 0 }, __GlbStderr = { 0 };
+static Spinlock_t   BitmapLock;
 
 /* StdioCloneHandle 
  * Allocates and initializes a new stdio handle. */
 void
-StdioCloneHandle(StdioHandle_t *Handle, StdioHandle_t *Original) {
+StdioCloneHandle(StdioHandle_t *Handle, StdioHandle_t *Original)
+{
     Handle->InheritationType = Original->InheritationType;
     
     Handle->InheritationData.FileHandle     = Original->InheritationData.FileHandle;
@@ -134,7 +131,8 @@ StdioCloneHandle(StdioHandle_t *Handle, StdioHandle_t *Original) {
 
 /* StdioCreateFileHandle 
  * Initializes the handle as a file handle in the stdio object */ 
-void StdioCreateFileHandle(UUId_t FileHandle, StdioObject_t *Object) {
+void StdioCreateFileHandle(UUId_t FileHandle, StdioObject_t *Object)
+{
     Object->handle.InheritationType             = STDIO_HANDLE_FILE;
     Object->handle.InheritationData.FileHandle  = FileHandle;
     Object->exflag |= EF_CLOSE;
@@ -142,7 +140,8 @@ void StdioCreateFileHandle(UUId_t FileHandle, StdioObject_t *Object) {
 
 /* StdioCreateFileHandle 
  * Initializes the handle as a pipe handle in the stdio object */ 
-OsStatus_t StdioCreatePipeHandle(UUId_t ProcessId, int Port, int Oflags, StdioObject_t* Object) {
+OsStatus_t StdioCreatePipeHandle(UUId_t ProcessId, int Port, int Oflags, StdioObject_t* Object)
+{
     Object->handle.InheritationType                 = STDIO_HANDLE_PIPE;
     Object->handle.InheritationData.Pipe.ProcessId  = ProcessId;
     Object->handle.InheritationData.Pipe.Port       = Port;
@@ -155,82 +154,104 @@ OsStatus_t StdioCreatePipeHandle(UUId_t ProcessId, int Port, int Oflags, StdioOb
     return OsSuccess;
 }
 
+/* StdioIsHandleInheritable
+ * Returns whether or not the handle should be inheritted by sub-processes based on the requested
+ * startup information and the handle settings. */
+static OsStatus_t
+StdioIsHandleInheritable(
+    _In_ ProcessStartupInformation_t*   StartupInformation,
+    _In_ StdioObject_t*                 Object)
+{
+    OsStatus_t Status = OsSuccess;
+
+    if (Object->wxflag & WX_DONTINHERIT) {
+        Status = OsError;
+    }
+
+    // If we didn't request to inherit one of the handles, then we don't account it
+    // for being the one requested.
+    if (Object->fd == StartupInformation->StdOutHandle && 
+        !(StartupInformation->InheritFlags & PROCESS_INHERIT_STDOUT)) {
+        Status = OsError;
+    }
+    else if (Object->fd == StartupInformation->StdInHandle && 
+        !(StartupInformation->InheritFlags & PROCESS_INHERIT_STDIN)) {
+        Status = OsError;
+    }
+    else if (Object->fd == StartupInformation->StdErrHandle && 
+        !(StartupInformation->InheritFlags & PROCESS_INHERIT_STDERR)) {
+        Status = OsError;
+    }
+    else if (!(StartupInformation->InheritFlags & PROCESS_INHERIT_FILES)) {
+        if (Object->fd != StartupInformation->StdOutHandle &&
+            Object->fd != StartupInformation->StdInHandle &&
+            Object->fd != StartupInformation->StdErrHandle) {
+            Status = OsError;
+        }
+    }
+    return Status;
+}
+
+/* StdioGetNumberOfInheritableHandles 
+ * Retrieves the count of inheritable filedescriptor handles. This includes both pipes and files. */
+static size_t
+StdioGetNumberOfInheritableHandles(
+    _In_ ProcessStartupInformation_t* StartupInformation)
+{
+    size_t NumberOfFiles = 0;
+    LOCK_FILES();
+    foreach(Node, &IoObjects) {
+        StdioObject_t* Object = (StdioObject_t*)Node->Data;
+        if (StdioIsHandleInheritable(StartupInformation, Object) == OsSuccess) {
+            NumberOfFiles++;
+        }
+    }
+    UNLOCK_FILES();
+    return NumberOfFiles;
+}
+
 /* StdioCreateInheritanceBlock
  * Creates a block of data containing all the stdio handles that can be inherited. */
-OsStatus_t
+static OsStatus_t
 StdioCreateInheritanceBlock(
     _In_ ProcessStartupInformation_t* StartupInformation)
 {
-    StdioObject_t *BlockPointer = NULL;
-    size_t NumberOfObjects      = 0;
+    StdioObject_t*  BlockPointer    = NULL;
+    size_t          NumberOfObjects = 0;
 
-    // Calculate the number of objects
-    NumberOfObjects = CollectionLength(&IoObjects);
+    assert(StartupInformation != NULL);
 
-    // Handle the stdout inheritation reductions
-    if (!(StartupInformation->InheritFlags & PROCESS_INHERIT_STDOUT)) {
-        NumberOfObjects--;
+    if (StartupInformation->InheritFlags == PROCESS_INHERIT_NONE) {
+        return OsSuccess;
     }
-    else if (StartupInformation->StdOutHandle != -1) {
-        // We asked to inheirt stdout, however we gave a custom stdout, so fix this
-        StartupInformation->InheritFlags &= ~(PROCESS_INHERIT_STDOUT);
-        NumberOfObjects--;
-    }
+    
+    NumberOfObjects = StdioGetNumberOfInheritableHandles(StartupInformation);
+    if (NumberOfObjects != 0) {
+        StartupInformation->InheritanceBlockLength  = NumberOfObjects * sizeof(StdioObject_t);
+        StartupInformation->InheritanceBlockPointer = malloc(NumberOfObjects * sizeof(StdioObject_t));
+        BlockPointer = (StdioObject_t*)StartupInformation->InheritanceBlockPointer;
 
-    if (!(StartupInformation->InheritFlags & PROCESS_INHERIT_STDIN)) {
-        NumberOfObjects--;
-    }
-    else if (StartupInformation->StdInHandle != -1) {
-        // We asked to inheirt stdin, however we gave a custom stdin, so fix this
-        StartupInformation->InheritFlags &= ~(PROCESS_INHERIT_STDIN);
-        NumberOfObjects--;
-    }
-
-    if (!(StartupInformation->InheritFlags & PROCESS_INHERIT_STDERR)) {
-        NumberOfObjects--;
-    }
-    else if (StartupInformation->StdErrHandle != -1) {
-        // We asked to inheirt stderr, however we gave a custom stderr, so fix this
-        StartupInformation->InheritFlags &= ~(PROCESS_INHERIT_STDERR);
-        NumberOfObjects--;
-    }
-
-    if (NumberOfObjects == 0 || StartupInformation->InheritFlags == PROCESS_INHERIT_NONE) {
-        return OsSuccess; // Nothing to inherit
-    }
-
-    // Allocate a block big enough
-    StartupInformation->InheritanceBlockLength  = NumberOfObjects * sizeof(StdioObject_t);
-    StartupInformation->InheritanceBlockPointer = malloc(NumberOfObjects * sizeof(StdioObject_t));
-    BlockPointer = (StdioObject_t*)StartupInformation->InheritanceBlockPointer;
-
-    // Iterate all stdio-objects and copy
-    LOCK_FILES();
-    foreach(Node, &IoObjects) {
-        StdioObject_t *Object = (StdioObject_t*)Node->Data;
-        if (Object->fd < 3 && !(StartupInformation->InheritFlags & (1 << Object->fd))) {
-            continue; // Don't inherit
+        LOCK_FILES();
+        foreach(Node, &IoObjects) {
+            StdioObject_t* Object = (StdioObject_t*)Node->Data;
+            if (StdioIsHandleInheritable(StartupInformation, Object) == OsSuccess) {
+                memcpy(BlockPointer, Object, sizeof(StdioObject_t));
+                // Check for this fd to be equal to one of the custom handles
+                // if it is equal, we need to update the fd of the handle to our reserved
+                if (Object->fd == StartupInformation->StdOutHandle) {
+                    BlockPointer->fd = STDOUT_FILENO;
+                }
+                if (Object->fd == StartupInformation->StdInHandle) {
+                    BlockPointer->fd = STDIN_FILENO;
+                }
+                if (Object->fd == StartupInformation->StdErrHandle) {
+                    BlockPointer->fd = STDERR_FILENO;
+                }
+                BlockPointer++;
+            }
         }
-        if (Object->fd >= 3 && !(StartupInformation->InheritFlags & PROCESS_INHERIT_FILES) &&
-            (Object->fd != StartupInformation->StdOutHandle || Object->fd != StartupInformation->StdInHandle || Object->fd != StartupInformation->StdErrHandle)) {
-            continue;
-        }
-        memcpy(BlockPointer, Object, sizeof(StdioObject_t));
-
-        // Check for this fd to be equal to one of the custom handles
-        // if it is equal, we need to update the fd of the handle to our reserved
-        if (Object->fd == StartupInformation->StdOutHandle) {
-            BlockPointer->fd = STDOUT_FILENO;
-        }
-        if (Object->fd == StartupInformation->StdInHandle) {
-            BlockPointer->fd = STDIN_FILENO;
-        }
-        if (Object->fd == StartupInformation->StdErrHandle) {
-            BlockPointer->fd = STDERR_FILENO;
-        }
-        BlockPointer++;
+        UNLOCK_FILES();
     }
-    UNLOCK_FILES();
     return OsSuccess;
 }
 
@@ -240,7 +261,7 @@ static void
 StdioInheritObject(
     _In_ StdioObject_t* Object)
 {
-    int fd = StdioFdAllocate(Object->fd, Object->wxflag);
+    int fd = StdioFdAllocate(Object->fd, Object->wxflag | WX_INHERITTED);
     if (fd != -1) {
         if (fd == STDOUT_FILENO) {
             __GlbStdout._fd = fd;
@@ -252,6 +273,9 @@ StdioInheritObject(
             __GlbStderr._fd = fd;
         }
         StdioCloneHandle(&get_ioinfo(fd)->handle, &Object->handle);
+    }
+    else {
+        WARNING(" > failed to inherit fd %i", Object->fd);
     }
 }
 

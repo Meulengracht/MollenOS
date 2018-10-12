@@ -38,16 +38,16 @@ LoadFile(
     _Out_ void**        Data,
     _Out_ size_t*       Length)
 {
-    FileSystemCode_t FsCode     = FsOk;
-    DmaBuffer_t TransferBuffer  = { 0 };
-    LargeInteger_t QueriedSize  = { { 0 } };
-    UUId_t fHandle              = UUID_INVALID;
-    void *fBuffer;
+    FileSystemCode_t    FsCode;
+    UUId_t              fHandle;
+    DmaBuffer_t         TransferBuffer  = { 0 };
+    LargeInteger_t      QueriedSize     = { { 0 } };
+    void*               fBuffer         = NULL;
     size_t fRead = 0, fIndex = 0;
     size_t fSize = 0;
 
     // Open the file as read-only
-    FsCode = OpenFile(Path, __FILE_MUSTEXIST, __FILE_READ_ACCESS, &fHandle);
+    FsCode = OpenFile(Path, 0, __FILE_READ_ACCESS, &fHandle);
     if (FsCode != FsOk) {
         ERROR("Invalid path given: %s", Path);
         return OsError;
@@ -71,36 +71,36 @@ LoadFile(
     }
 
     fSize = (size_t)QueriedSize.QuadPart;
-    if (CreateMemoryBuffer(MEMORY_BUFFER_KERNEL, fSize, &TransferBuffer) != OsSuccess) {
-        ERROR("Failed to create a memory buffer");
-        CloseFile(fHandle);
-        return OsError;
-    }
-    
-    fBuffer = kmalloc(fSize);
-    if (fBuffer == NULL) {
-        ERROR("Failed to allocate resources for file-loading");
-        CloseFile(fHandle);
-        return OsError;
-    }
+    if (fSize != 0) {
+        if (CreateMemoryBuffer(MEMORY_BUFFER_KERNEL, fSize, &TransferBuffer) != OsSuccess) {
+            ERROR("Failed to create a memory buffer");
+            CloseFile(fHandle);
+            return OsError;
+        }
+        
+        fBuffer = kmalloc(fSize);
+        if (fBuffer == NULL) {
+            ERROR("Failed to allocate resources for file-loading");
+            CloseFile(fHandle);
+            return OsError;
+        }
 
-    FsCode = ReadFile(fHandle, TransferBuffer.Handle, fSize, &fIndex, &fRead);
-    if (FsCode != FsOk) {
-        ERROR("Failed to read file, code %i", FsCode);
-        kfree(fBuffer);
-        CloseFile(fHandle);
-        return OsError;
-    }
-    memcpy(fBuffer, (const void*)TransferBuffer.Address, fRead);
+        FsCode = ReadFile(fHandle, TransferBuffer.Handle, fSize, &fIndex, &fRead);
+        if (FsCode != FsOk) {
+            ERROR("Failed to read file, code %i", FsCode);
+            kfree(fBuffer);
+            CloseFile(fHandle);
+            return OsError;
+        }
+        memcpy(fBuffer, (const void*)TransferBuffer.Address, fRead);
 
-    // Update outs
+        // Cleanup by removing the memory mappings and freeing the
+        // physical space allocated.
+        RemoveSystemMemoryMapping(GetCurrentSystemMemorySpace(), TransferBuffer.Address, TransferBuffer.Capacity);
+        DestroyHandle(TransferBuffer.Handle);
+    }
+    CloseFile(fHandle);
     *Data   = fBuffer;
     *Length = fSize;
-
-    // Cleanup by removing the memory mappings and freeing the
-    // physical space allocated.
-    RemoveSystemMemoryMapping(GetCurrentSystemMemorySpace(), TransferBuffer.Address, TransferBuffer.Capacity);
-    DestroyHandle(TransferBuffer.Handle);
-    CloseFile(fHandle);
     return OsSuccess;
 }

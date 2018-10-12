@@ -42,6 +42,7 @@
 #define WX_APPEND           0x20
 #define WX_TTY              0x40
 #define WX_TEXT             0x80
+#define WX_INHERITTED       0x100
 
 /* values for exflag - it's used differently in msvcr90.dll*/
 #define EF_UTF8             0x01

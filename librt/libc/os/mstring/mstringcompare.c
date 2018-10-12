@@ -33,10 +33,10 @@ MStringCompare(
     _In_ MString_t* String2,
     _In_ int        IgnoreCase)
 {
-    char *StringPtr1;
-    char *StringPtr2;
-    int i1 = 0;
-    int i2 = 0;
+    char*   StringPtr1;
+    char*   StringPtr2;
+    int     i1 = 0;
+    int     i2 = 0;
 
     if (String1 == NULL || String1->Data == NULL || String1->Length == 0 ||
         String2 == NULL || String2->Data == NULL || String2->Length == 0) {

@@ -148,7 +148,8 @@ PhoenixInitializeAsh(
         ShouldFree  = 1;
     }
     
-    if (Status != OsSuccess) {
+    // Verify the status of the loading, and the validty of the file
+    if (Status != OsSuccess && fBuffer != NULL && fSize != 0) {
         ERROR("Failed to load file %s", MStringRaw(Path));
         return OsError;
     }

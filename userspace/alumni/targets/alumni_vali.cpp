@@ -117,12 +117,24 @@ bool CValiAlumni::HandleKeyCode(unsigned int KeyCode, unsigned int Flags)
 
 void CValiAlumni::PrintCommandHeader()
 {
-    m_Terminal->Print("[ %s | %s ]\n", m_Profile.c_str(), m_CurrentDirectory.c_str());
-    m_Terminal->Print("$ ");
+    // Dont print the command header if an application is running
+    if (m_Application == UUID_INVALID) {
+        m_Terminal->Print("[ %s | %s ]\n", m_Profile.c_str(), m_CurrentDirectory.c_str());
+        m_Terminal->Print("$ ");
+    }
     m_Terminal->Invalidate();
 }
 
-void CValiAlumni::ExecuteProgram(const std::string& Program, const std::vector<std::string>& Arguments)
+void CValiAlumni::WaitForProcess()
+{
+    int ExitCode = 0;
+    ProcessJoin(m_Application, 0, &ExitCode);
+    m_Terminal->Print("process exitted with code %i\n", ExitCode);
+    m_Application = UUID_INVALID;
+    PrintCommandHeader();
+}
+
+bool CValiAlumni::ExecuteProgram(const std::string& Program, const std::vector<std::string>& Arguments)
 {
     ProcessStartupInformation_t StartupInformation;
     InitializeStartupInformation(&StartupInformation);
@@ -141,13 +153,21 @@ void CValiAlumni::ExecuteProgram(const std::string& Program, const std::vector<s
     }
 
     // Set inheritation
+    StartupInformation.InheritFlags = PROCESS_INHERIT_STDOUT | PROCESS_INHERIT_STDERR;
     StartupInformation.StdOutHandle = m_Stdout;
     StartupInformation.StdErrHandle = m_Stderr;
-    m_Application = ProcessSpawnEx(Program.c_str(), &StartupInformation, 1);
+    m_Terminal->Print("%s: stdout %i, stderr %i\n", Program.c_str(), m_Stdout, m_Stderr);
+    m_Application = ProcessSpawnEx(Program.c_str(), &StartupInformation, 0);
+    m_Terminal->Print("%s: id %u (inherrited bytes %u)\n", Program.c_str(), m_Application, StartupInformation.InheritanceBlockLength);
     if (m_Application != UUID_INVALID) {
-        int ExitCode = 0;
-        ProcessJoin(m_Application, 0, &ExitCode);
+        if (m_RunThread != nullptr) {
+            delete m_RunThread;
+            m_RunThread = nullptr;
+        }
+        m_RunThread = new std::thread(&CValiAlumni::WaitForProcess, this);
+        return true;
     }
+    return false;
 }
 
 std::vector<std::string> CValiAlumni::GetDirectoryContents(const std::string& Path)
@@ -169,12 +189,11 @@ bool CValiAlumni::IsProgramPathValid(const std::string& Path)
 {
     OsFileDescriptor_t Stats = { 0 };
 
-    m_Terminal->Print("CValiAlumni::IsProgramPathValid(%s)\n", Path.c_str());
     if (GetFileInformationFromPath(Path.c_str(), &Stats) == FsOk) {
         if (!(Stats.Flags & FILE_FLAG_DIRECTORY) && (Stats.Permissions & FILE_PERMISSION_EXECUTE)) {
             return true;
         }
-        m_Terminal->Print("%s: not an executable file 0x%x\n", Path.c_str(), FileInfo.Permissions);
+        m_Terminal->Print("%s: not an executable file 0x%x\n", Path.c_str(), Stats.Permissions);
     }
     else {
         m_Terminal->Print("%s: invalid file\n", Path.c_str());
@@ -207,15 +226,7 @@ bool CValiAlumni::CommandResolver(const std::string& Command, const std::vector<
             return false;
         }
     }
-    m_Terminal->Print("Executing(%s)\n", ProgramPath.c_str());
-
-    if (m_RunThread != nullptr) {
-        delete m_RunThread;
-        m_RunThread = nullptr;
-    }
-    //std::vector<std::string> ProgramArguments = Arguments;
-    //m_RunThread = new std::thread([this, ProgramPath, ProgramArguments]() { ExecuteProgram(ProgramPath, ProgramArguments) });
-    return true;
+    return ExecuteProgram(ProgramPath, Arguments);
 }
 
 bool CValiAlumni::ListDirectory(const std::vector<std::string>& Arguments)

@@ -22,7 +22,6 @@
 */
 #pragma once
 
-/* Includes */
 #include <cstring>
 #include <cstdlib>
 

@@ -609,7 +609,7 @@ PeResolveLibrary(
             Status = LoadFile(MStringRaw(LibraryName), NULL, (void**)&fBuffer, &fSize);
         }
 
-        if (Status != OsSuccess) {
+        if (Status != OsSuccess && fBuffer != NULL && fSize != 0) {
             ERROR("Failed to load library %s", MStringRaw(LibraryName));
             for (;;);
         }

@@ -140,7 +140,7 @@ MfsLocateRecord(
             TRACE("Matching token %s == %s: %i", MStringRaw(Token), MStringRaw(Filename), CompareResult);
             MStringDestroy(Filename);
 
-            if (CompareResult != MSTRING_NO_MATCH) {
+            if (CompareResult == MSTRING_FULL_MATCH) {
                 // Two cases, if we are not at end of given path, then this
                 // entry must be a directory and it must have data
                 if (IsEndOfPath == 0) {
@@ -277,7 +277,7 @@ MfsLocateFreeRecord(
             TRACE("Matching token %s == %s: %i", MStringRaw(Token), MStringRaw(Filename), CompareResult);
             MStringDestroy(Filename);
 
-            if (CompareResult != MSTRING_NO_MATCH) {
+            if (CompareResult == MSTRING_FULL_MATCH) {
                 if (!IsEndOfPath) {
                     if (!(Record->Flags & MFS_FILERECORD_DIRECTORY)) {
                         Result = FsPathIsNotDirectory;

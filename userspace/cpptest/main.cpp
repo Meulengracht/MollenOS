@@ -21,11 +21,10 @@
  *    the stability and integrity of the operating system.
  */
 
-/* Includes
- * - Tests */
 #include "test.hpp"
 #include "test_constreams.hpp"
 #include "test_filestreams.hpp"
+#include "test_processes.hpp"
 #include "test_so.hpp"
 #include <thread>
 #include <png.h>
@@ -80,6 +79,7 @@ int main(int argc, char **argv) {
     RUN_TEST_SUITE(ErrorCounter, ConsoleStreamTests);
     RUN_TEST_SUITE(ErrorCounter, SharedObjectTests);
     RUN_TEST_SUITE(ErrorCounter, FileStreamTests);
+    RUN_TEST_SUITE(ErrorCounter, ProcessTests);
 
     // Run libm test
     //libm_main(argc, argv);

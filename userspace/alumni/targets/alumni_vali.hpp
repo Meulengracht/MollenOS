@@ -42,9 +42,10 @@ protected:
 
 private:
     std::vector<std::string> GetDirectoryContents(const std::string& Path);
-    void ExecuteProgram(const std::string&, const std::vector<std::string>&);
+    bool ExecuteProgram(const std::string&, const std::vector<std::string>&);
     bool IsProgramPathValid(const std::string&);
     void UpdateWorkingDirectory();
+    void WaitForProcess();
     
     void StdoutListener();
     void StderrListener();

@@ -38,9 +38,9 @@ InitializeStartupInformation(
     memset(StartupInformation, 0, sizeof(ProcessStartupInformation_t));
 
     // Reset handles
-    StartupInformation->StdOutHandle    = -1;
-    StartupInformation->StdInHandle     = -1;
-    StartupInformation->StdErrHandle    = -1;
+    StartupInformation->StdOutHandle    = STDOUT_FILENO;
+    StartupInformation->StdInHandle     = STDIN_FILENO;
+    StartupInformation->StdErrHandle    = STDERR_FILENO;
 }
 
 /* ProcessSpawn
