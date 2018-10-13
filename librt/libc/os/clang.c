@@ -359,10 +359,7 @@ CRTDECL(void, __cxa_runinitializers(
  * Initializes thread storage runtime for all loaded modules */
 CRTDECL(void, __cxa_threadinitialize(void))
 {
-    // Initialize math
     fpreset();
-
-    // Get modules available
     if (ProcessGetModuleEntryPoints(ModuleList) == OsSuccess) {
         for (int i = 0; i < PROCESS_MAXMODULES; i++) {
             if (ModuleList[i] == NULL) {
@@ -371,8 +368,6 @@ CRTDECL(void, __cxa_threadinitialize(void))
             ((void (*)(int))ModuleList[i])(DLL_ACTION_THREADATTACH);
         }
     }
-
-    // __CrtAttachTlsBlock for primary application
     PrimaryApplicationTlsAttach();
 }
 

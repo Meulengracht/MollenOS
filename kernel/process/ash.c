@@ -324,15 +324,11 @@ PhoenixGetAshPipe(
     _In_ MCoreAsh_t     *Ash, 
     _In_ int             Port)
 {
-    // Variables
     DataKey_t Key;
-
-    // Sanitize input
     if (Ash == NULL || Port < 0) {
         return NULL;
     }
-
-    // Perform the lookup
+    
     Key.Value = Port;
     return (SystemPipe_t*)CollectionGetDataByKey(Ash->Pipes, Key, 0);
 }
@@ -342,11 +338,7 @@ PhoenixGetAshPipe(
 MCoreAsh_t*
 PhoenixGetCurrentAsh(void)
 {
-    // Variables
-    UUId_t CurrentCpu = UUID_INVALID;
-
-    // Get the ID
-    CurrentCpu = CpuGetCurrentId();
+    UUId_t CurrentCpu = CpuGetCurrentId();
     if (ThreadingGetCurrentThread(CurrentCpu) != NULL) {
         if (ThreadingGetCurrentThread(CurrentCpu)->AshId != UUID_INVALID) {
             return PhoenixGetAsh(ThreadingGetCurrentThread(CurrentCpu)->AshId);

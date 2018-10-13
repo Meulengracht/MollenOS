@@ -21,27 +21,18 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-/* Includes 
- * - System */
 #include <os/syscall.h>
-#include "tls.h"
-
-/* Includes
- * - Library */
 #include <threads.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <signal.h>
+#include "tls.h"
 
-/* __cxa_threadinitialize
- * Initializes thread storage runtime for all loaded modules */
 CRTDECL(void, __cxa_threadinitialize(void));
 
-/* ThreadPackage (Private)
- * Startup-package, used internally for starting threads */
 typedef struct _ThreadPackage {
-    thrd_start_t         Entry;
-    void                *Data;
+    thrd_start_t    Entry;
+    void*           Data;
 } ThreadPackage_t;
 
 /* thrd_initialize
@@ -50,18 +41,16 @@ void
 thrd_initialize(
     _In_ void *Data)
 {
-    // Variables (and TLS)
-    thread_storage_t        Tls;
-    ThreadPackage_t *Tp      = NULL;
-    int ExitCode             = 0;
+    thread_storage_t    Tls;
+    ThreadPackage_t*    Tp;
+    int                 ExitCode;
 
-    // Initialize TLS and package pointer
     tls_create(&Tls);
     __cxa_threadinitialize();
-    Tp                      = (ThreadPackage_t*)Data;
-    ExitCode                = Tp->Entry(Tp->Data);
+    
+    Tp          = (ThreadPackage_t*)Data;
+    ExitCode    = Tp->Entry(Tp->Data);
 
-    // Cleanup and call threadexit
     free(Tp);
     thrd_exit(ExitCode);
 }
@@ -92,7 +81,6 @@ thrd_create(
     _In_  thrd_start_t  func,
     _In_  void*         arg)
 {
-    // Variables
     ThreadPackage_t *Tp = NULL;
     thrd_t Result       = UUID_INVALID;
 
@@ -101,10 +89,8 @@ thrd_create(
     if (Tp == NULL) {
         return thrd_nomem;
     }
-
-    // Initialize and run thread
-    Tp->Entry = func;
-    Tp->Data = arg;
+    Tp->Entry   = func;
+    Tp->Data    = arg;
 
     // Redirect to operating system to handle rest
     Result = (thrd_t)Syscall_ThreadCreate((thrd_start_t)thrd_initialize, Tp, 0);
@@ -213,7 +199,6 @@ _Noreturn void
 thrd_exit(
     _In_ int res)
 {
-    // Perform cleanup of TLS
     tls_cleanup(thrd_current());
     tls_destroy(tls_current());
     Syscall_ThreadExit(res);
@@ -230,7 +215,6 @@ thrd_join(
     _In_ thrd_t thr,
     _Out_ int *res)
 {
-    // The syscall actually does most of the work
     if (Syscall_ThreadJoin(thr, res) == OsSuccess) {
         return thrd_success;
     }
@@ -257,8 +241,7 @@ thrd_detach(
 int
 thrd_signal(
     _In_ thrd_t thr,
-    _In_ int sig)
+    _In_ int    sig)
 {
-    // Simply redirect
     return Syscall_ThreadSignal(thr, sig);
 }

@@ -159,6 +159,7 @@ bool CValiAlumni::ExecuteProgram(const std::string& Program, const std::vector<s
     m_Application = ProcessSpawnEx(Program.c_str(), &StartupInformation, 0);
     if (m_Application != UUID_INVALID) {
         if (m_RunThread != nullptr) {
+            m_RunThread->join();
             delete m_RunThread;
             m_RunThread = nullptr;
         }

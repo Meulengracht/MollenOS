@@ -238,9 +238,8 @@ tls_create(
  * Destroys a thread-storage space should be called by thread crt */
 OsStatus_t
 tls_destroy(
-    _In_ thread_storage_t *Tls)
+    _In_ thread_storage_t*  Tls)
 {
-    // Cleanup the transfer buffer if allocated
     if (Tls->transfer_buffer != NULL) {
         DestroyBuffer(Tls->transfer_buffer);
     }

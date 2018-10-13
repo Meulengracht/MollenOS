@@ -23,6 +23,7 @@
 
 #include <os/process.h>
 #include <os/syscall.h>
+#include <os/utils.h>
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>

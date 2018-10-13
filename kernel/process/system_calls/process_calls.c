@@ -173,13 +173,14 @@ ScProcessExit(
  * Retrieves the current process identifier. */
 OsStatus_t 
 ScProcessGetCurrentId(
-    UUId_t *ProcessId)
+    _In_ UUId_t* ProcessId)
 {
     MCoreAsh_t *Process = PhoenixGetCurrentAsh();
-    if (ProcessId == NULL || Process == NULL) {
+    if (Process == NULL || ProcessId == NULL) {
         return OsError;
     }
-    return Process->Id;
+    *ProcessId = Process->Id;
+    return OsSuccess;
 }
 
 /* ScProcessGetCurrentName

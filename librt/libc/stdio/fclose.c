@@ -46,19 +46,21 @@ int close(int fd)
 	}
     
     // File or pipe?
-    if (Object->handle.InheritationType == STDIO_HANDLE_FILE) {
-        if (Object->exflag & EF_CLOSE) {
-            Result = (int)CloseFile(Object->handle.InheritationData.FileHandle);
-            if (_fval(Result)) {
-                Result = -1;
+    if (!(Object->wxflag & WX_INHERITTED)) {
+        if (Object->handle.InheritationType == STDIO_HANDLE_FILE) {
+            if (Object->exflag & EF_CLOSE) {
+                Result = (int)CloseFile(Object->handle.InheritationData.FileHandle);
+                if (_fval(Result)) {
+                    Result = -1;
+                }
             }
         }
-    }
-    else if (Object->handle.InheritationType == STDIO_HANDLE_PIPE) {
-        // if it has read caps then we have an issue, close pipe
-        if (Object->exflag & EF_CLOSE) {
-            if (ClosePipe(Object->handle.InheritationData.Pipe.Port) != OsSuccess) {
-                Result = -1;
+        else if (Object->handle.InheritationType == STDIO_HANDLE_PIPE) {
+            // if it has read caps then we have an issue, close pipe
+            if (Object->exflag & EF_CLOSE) {
+                if (ClosePipe(Object->handle.InheritationData.Pipe.Port) != OsSuccess) {
+                    Result = -1;
+                }
             }
         }
     }

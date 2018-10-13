@@ -27,6 +27,7 @@
 #include <iostream>
 #include <fstream>
 #include <cstdio>
+#include <thread>
 #include <io.h>
 #include "test.hpp"
 
@@ -37,7 +38,15 @@ public:
     int TestSpawnProcess(const std::string& Path)
     {
         TestLog("TestSpawnProcess(%s)", Path.c_str());
-        UUId_t ProcessId = ProcessSpawn(Path.c_str(), nullptr, 0);
+
+        ProcessStartupInformation_t StartupInformation;
+        InitializeStartupInformation(&StartupInformation);
+    
+        // Set inheritation
+        TestLog(">> process stdout handle = %i", m_Stdout);
+        StartupInformation.InheritFlags = PROCESS_INHERIT_STDOUT;
+        StartupInformation.StdOutHandle = m_Stdout;
+        UUId_t ProcessId = ProcessSpawnEx(Path.c_str(), &StartupInformation, 0);
         if (ProcessId != UUID_INVALID) {
             int ExitCode = 0;
             TestLog(">> process id = %u", ProcessId);
@@ -65,10 +74,31 @@ public:
         return 0;
     }
 
+    void StdoutListener()
+    {
+        char ReadBuffer[256];
+        if (m_Stdout == -1) {
+            TestLog("FAILED TO CREATE STDOUT\n");
+            return;
+        }
+
+        while (true) {
+            std::memset(&ReadBuffer[0], 0, sizeof(ReadBuffer));
+            read(m_Stdout, &ReadBuffer[0], sizeof(ReadBuffer));
+            TestLog("stdout: %s", &ReadBuffer[0]);
+        }
+    }
+
     int RunTests() {
-        int Errors = 0;
+        int Errors  = 0;
+        m_Stdout    = pipe();
+        std::thread stdout_listener(&ProcessTests::StdoutListener, this);
+
         Errors += TestSpawnProcess("macia.app");
         Errors += TestSpawnInvalidProcess();
         return Errors;
     }
+
+private:
+    int m_Stdout;
 };

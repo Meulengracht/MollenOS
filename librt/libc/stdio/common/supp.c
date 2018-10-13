@@ -128,7 +128,8 @@ StdioCloneHandle(StdioHandle_t *Handle, StdioHandle_t *Original)
 
 /* StdioCreateFileHandle 
  * Initializes the handle as a file handle in the stdio object */ 
-void StdioCreateFileHandle(UUId_t FileHandle, StdioObject_t *Object)
+void
+StdioCreateFileHandle(UUId_t FileHandle, StdioObject_t *Object)
 {
     Object->handle.InheritationType             = STDIO_HANDLE_FILE;
     Object->handle.InheritationData.FileHandle  = FileHandle;
@@ -137,7 +138,8 @@ void StdioCreateFileHandle(UUId_t FileHandle, StdioObject_t *Object)
 
 /* StdioCreateFileHandle 
  * Initializes the handle as a pipe handle in the stdio object */ 
-OsStatus_t StdioCreatePipeHandle(UUId_t ProcessId, int Port, int Oflags, StdioObject_t* Object)
+OsStatus_t
+StdioCreatePipeHandle(UUId_t ProcessId, int Port, int Oflags, StdioObject_t* Object)
 {
     Object->handle.InheritationType                 = STDIO_HANDLE_PIPE;
     Object->handle.InheritationData.Pipe.ProcessId  = ProcessId;
@@ -233,6 +235,7 @@ StdioCreateInheritanceBlock(
             StdioObject_t* Object = (StdioObject_t*)Node->Data;
             if (StdioIsHandleInheritable(StartupInformation, Object) == OsSuccess) {
                 memcpy(BlockPointer, Object, sizeof(StdioObject_t));
+                
                 // Check for this fd to be equal to one of the custom handles
                 // if it is equal, we need to update the fd of the handle to our reserved
                 if (Object->fd == StartupInformation->StdOutHandle) {
@@ -293,7 +296,7 @@ StdioParseInheritanceBlock(
             ObjectPointer++;
         }
     }
-    
+
     // Make sure all default handles have been set for std
     if (get_ioinfo(STDOUT_FILENO) == NULL) {
         __GlbStdout._fd = StdioFdAllocate(STDOUT_FILENO, WX_PIPE | WX_TTY);
@@ -332,7 +335,7 @@ StdioCloseAllHandles(void)
         CollectionItem_t* Node = CollectionBegin(&IoObjects);
         Object  = (StdioObject_t*)Node->Data;
         File    = (FILE*)Object->file;
-        if (!(Object->wxflag & WX_INHERITTED) && File != NULL) {
+        if (File != NULL) {
             if (!fclose(File)) {
                 FilesClosed++;
             }
@@ -384,7 +387,6 @@ StdioFdAllocate(
     _In_ int fd,
     _In_ int flag)
 {
-    // Variables
     StdioObject_t *io   = NULL;
     int result          = -1;
     DataKey_t Key;
@@ -498,27 +500,25 @@ StdioFdToHandle(
  * Initializes a FILE stream object with the given file descriptor */
 OsStatus_t
 StdioFdInitialize(
-    _In_ FILE *file, 
-    _In_ int fd,
-    _In_ unsigned stream_flags)
+    _In_ FILE*      file, 
+    _In_ int        fd,
+    _In_ unsigned   stream_flags)
 {
-    // Variables
-    CollectionItem_t *fNode = NULL;
-    DataKey_t Key;
+    StdioObject_t*      Object;
+    CollectionItem_t*   Node;
+    DataKey_t           Key;
 
-    // Lookup node of the file descriptor
-    Key.Value = fd;
-    fNode = CollectionGetNodeByKey(&IoObjects, Key, 0);
-    
-    // Node must exist
-    if (fNode != NULL) {
-        if (((StdioObject_t*)fNode->Data)->wxflag & WX_OPEN) {
-            file->_ptr = file->_base = NULL;
-            file->_cnt = 0;
-            file->_fd = fd;
-            file->_flag = stream_flags;
+    Key.Value   = fd;
+    Node        = CollectionGetNodeByKey(&IoObjects, Key, 0);
+    if (Node != NULL) {
+        Object = (StdioObject_t*)Node->Data;
+        if (Object->wxflag & WX_OPEN) {
+            file->_ptr      = file->_base = NULL;
+            file->_cnt      = 0;
+            file->_fd       = fd;
+            file->_flag     = stream_flags;
             file->_tmpfname = NULL;
-            ((StdioObject_t*)fNode->Data)->file = file;
+            Object->file    = file;
             return OsSuccess;
         }
         else {
