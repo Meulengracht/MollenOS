@@ -147,8 +147,6 @@ ParseCommandLine(
 	if (ArgBuffer) {
 		ArgBuffer[ArgCount] = NULL;
 	}
-
-	/* Done! */
 	return ArgCount;
 }
 
@@ -160,11 +158,10 @@ __CrtInitialize(
     _In_  int               StartupInfoEnabled,
     _Out_ int*              ArgumentCount)
 {
-    // Variables
     ProcessStartupInformation_t StartupInformation;
 	char**                      Arguments = NULL;
 
-    // Initialize the TLS System
+    // Initialize primary tls routine
 	tls_create(Tls);
 	tls_initialize();
 

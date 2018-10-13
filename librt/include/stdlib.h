@@ -22,20 +22,13 @@
 #ifndef __STDLIB_INC__
 #define __STDLIB_INC__
 
-/* Includes
- * Library */
 #include <os/osdefs.h>
 #include <locale.h>
 #include <wchar.h>
 
-/* Termination codes that must be defined in 
- * stdlib.h by the ISO C standard */
 #define EXIT_FAILURE    -1
 #define EXIT_SUCCESS    0
 
-/* Size_t is also defined here because of 
- * the ISO C standard, it tells us it must be
- * defined in stdlib */
 #ifndef _SIZE_T_DEFINED
 #define _SIZE_T_DEFINED
 #undef size_t
@@ -52,9 +45,6 @@
 #endif
 #endif
 
-/* NULL is also defined here because of 
- * the ISO C standard, it tells us it must be
- * defined in stdlib */
 #ifndef _NULL_DEFINED
 #define _NULL_DEFINED
 #ifndef NULL
@@ -66,9 +56,6 @@
 #endif
 #endif
 
-/* This is the maximum value that can be returned 
- * by the random function, but is guaranteed to be
- * higher than 32767 */
 #ifndef RAND_MAX
 #define RAND_MAX 65535
 #endif
@@ -81,9 +68,6 @@
 #endif
 #define MB_CUR_MAX 10 //__locale_mb_cur_max()
 
-/* Define the division structures that are used 
- * by div, ldiv and lldiv. The mentioned functions
- * return these structures as result */
 #ifndef _DIV_T_DEFINED
 #define _DIV_T_DEFINED
 typedef struct _div_t {
@@ -112,21 +96,15 @@ typedef struct _imaxdiv_t {
 
 _CODE_BEGIN
 /* String Conversion functions 
- * Allows the extraction of integer, floats
- * and doubles from strings */
+ * Allows the extraction of integer, floats and doubles from strings */
 CRTDECL(double,             atof(const char*));
 CRTDECL(float,              atoff(const char*));
 CRTDECL(int,                atoi(const char*));
 CRTDECL(long int,           atol(const char*));
 
-/* C++11 Added functions, to support 
- * 64 bit integers and 80/128 bit doubles */
+/* C++11 Added functions, to support 64 bit integers and 80/128 bit doubles */
 CRTDECL(long long,          atoll(const char*));
 CRTDECL(long double,        atold(const char*));
-
-/* Same as above, but these allow to specify an 
- * endpoint in the string, and allows the specification
- * of a decimal-base to use for the conversion */
 CRTDECL(float,              strtof(const char* __restrict, char ** __restrict));
 CRTDECL(float,              strtof_l(const char *__restrict, char **__restrict, locale_t));
 CRTDECL(double,             strtod(const char* __restrict, char ** __restrict));
@@ -167,8 +145,8 @@ CRTDECL(void,               free(void *ptr));
 /* Environment functions, primarily functions
  * related to system env setup and exit functionality */
 _CRTIMP_NORETURN(void abort(void));
-_CRTIMP char *getenv(__CONST char*);
-_CRTIMP int system(__CONST char*);
+_CRTIMP char *getenv(const char*);
+_CRTIMP int system(const char*);
 
 /* These are the different exit functions, they 
  * all do the same, but have different procedures

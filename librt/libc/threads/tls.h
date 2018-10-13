@@ -85,7 +85,8 @@ CRTDECL(OsStatus_t,        tls_destroy(thread_storage_t *Tls));
 /* tls_cleanup
  * Destroys the TLS for the specific thread
  * by freeing resources and calling c11 destructors. */
-CRTDECL(OsStatus_t,        tls_cleanup(thrd_t thr));
+CRTDECL(void, tls_cleanup(_In_ thrd_t thr, _In_ void* DsoHandle, _In_ int ExitCode));
+CRTDECL(void, tls_cleanup_quick(_In_ thrd_t thr, _In_ void* DsoHandle, _In_ int ExitCode));
 _CODE_END
 
 #endif //!__STDC_TLS__

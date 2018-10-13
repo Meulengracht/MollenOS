@@ -199,7 +199,7 @@ _Noreturn void
 thrd_exit(
     _In_ int res)
 {
-    tls_cleanup(thrd_current());
+    tls_cleanup(thrd_current(), NULL, res);
     tls_destroy(tls_current());
     Syscall_ThreadExit(res);
     for(;;);
