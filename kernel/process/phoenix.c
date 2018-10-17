@@ -38,14 +38,10 @@
 #include <os/file.h>
 #include <string.h>
 
-/* Prototypes 
- * They are defined later down this file */
-int PhoenixEventHandler(void *UserData, MCoreEvent_t *Event);
-OsStatus_t PhoenixReapAsh(void *UserData);
-OsStatus_t PhoenixFileHandler(void *UserData);
+int         PhoenixEventHandler(void *UserData, MCoreEvent_t *Event);
+OsStatus_t  PhoenixReapAsh(void *UserData);
+OsStatus_t  PhoenixFileHandler(void *UserData);
 
-/* Globals 
- * State-keeping and data-storage */
 static MCoreEventHandler_t *EventHandler    = NULL;
 static Collection_t *Processes              = NULL;
 static UUId_t *AliasMap                     = NULL;
@@ -233,8 +229,7 @@ PhoenixRegisterAsh(
 }
 
 /* PhoenixTerminateAsh
- * This marks an ash for termination by taking it out
- * of rotation and adding it to the cleanup list */
+ * This marks an ash for termination by taking it out of rotation and adding it to the cleanup list */
 void
 PhoenixTerminateAsh(
     _In_ MCoreAsh_t*    Ash,
@@ -242,16 +237,12 @@ PhoenixTerminateAsh(
     _In_ int            TerminateDetachedThreads,
     _In_ int            TerminateInstantly)
 {
-    int         LeftoverThreads = 0;
     DataKey_t   Key;
 
     // Update it's return code
     Ash->Code = ExitCode;
+    ThreadingTerminateThread(Ash->MainThread, ExitCode, 1);
 
-    LeftoverThreads = ThreadingTerminateAshThreads(Ash->Id, TerminateDetachedThreads, TerminateInstantly);
-    if (LeftoverThreads != 0) {
-        return;
-    }
     Key.Value = (int)Ash->Id;
     CollectionRemoveByKey(Processes, Key);
 
@@ -387,7 +378,7 @@ PhoenixEventHandler(
         case AshKill: {
             MCoreAsh_t *Ash = PhoenixGetAsh(Request->AshId);
             if (Ash != NULL) {
-                PhoenixTerminateAsh(Ash, 0, 1, 1);
+                ThreadingTerminateThread(Ash->MainThread, 0, 1);
             }
             else {
                 Request->Base.State = EventFailed;

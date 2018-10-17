@@ -26,6 +26,7 @@
 #include "test_filestreams.hpp"
 #include "test_processes.hpp"
 #include "test_so.hpp"
+#include <cstdlib>
 #include <thread>
 #include <png.h>
 
@@ -38,6 +39,11 @@ thread_local std::thread::id thread_id;
 void thread_function() {
     thread_id = std::this_thread::get_id();
     TRACE("Thread id of new thread: %u", thread_id);
+}
+
+void RunMeAtExit()
+{
+    TRACE("I was run at exit!");
 }
 
 int TestThreading() {
@@ -72,6 +78,7 @@ int main(int argc, char **argv) {
     int ErrorCounter = 0;
 
     // Run tests that must be in source files
+    atexit(RunMeAtExit);
     ErrorCounter += TestThreading();
     ErrorCounter += TestGlobalInitialization();
    

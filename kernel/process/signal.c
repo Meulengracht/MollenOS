@@ -21,20 +21,14 @@
 #define __MODULE "SIG0"
 //#define __TRACE
 
-/* Includes 
- * - System */
 #include <process/phoenix.h>
 #include <system/thread.h>
 #include <system/utils.h>
 #include <threading.h>
 #include <scheduler.h>
+#include <string.h>
 #include <debug.h>
 #include <heap.h>
-
-/* Includes
- * - Library */
-#include <stddef.h>
-#include <string.h>
 
 /* Globals 
  * Keep track of signal-consequences */
@@ -115,7 +109,7 @@ SignalCreate(
 	CollectionAppend(Target->SignalQueue, CollectionCreateNode(sKey, Sig));
 
     // Wake up thread if neccessary
-    if (THREADING_STATE(Target->Flags) != THREADING_ACTIVE) {
+    if (Target->State != ThreadStateActive) {
         SchedulerThreadSignal(Target);
     }
     return OsSuccess;
@@ -199,7 +193,7 @@ SignalExecute(
 	if (Process->SignalHandler == 0) {
 		char Action = GlbSignalIsDeadly[Signal->Signal];
 		if (Action == 1 || Action == 2) {
-			PhoenixTerminateAsh(Process, Signal->Signal, 1, 1);
+            ThreadingTerminateThread(Process->MainThread, Signal->Signal, 1);
 		}
         kfree(Signal);
 		return;

@@ -42,24 +42,21 @@ UUId_t
 PhoenixCreateServer(
 	_In_ MString_t *Path)
 {
-	// Variables
-	MCoreServer_t *Server = NULL;
+	MCoreServer_t*  Server;
+    UUId_t          ThreadId;
 
-	// Allocate and initiate new instance
 	Server = (MCoreServer_t*)kmalloc(sizeof(MCoreServer_t));
 	if (PhoenixInitializeAsh(&Server->Base, Path) != OsSuccess) {
 		ERROR("Failed to spawn server %s", MStringRaw(Path));
 		kfree(Server);
 		return UUID_INVALID;
 	}
-
-	// Register ash
 	Server->Base.Type = AshServer;
 	PhoenixRegisterAsh(&Server->Base);
 
     // Create the loader
-	ThreadingCreateThread(MStringRaw(Server->Base.Name),
-		PhoenixStartupEntry, Server, THREADING_DRIVERMODE);
+	ThreadId = ThreadingCreateThread(MStringRaw(Server->Base.Name), PhoenixStartupEntry, Server, THREADING_DRIVERMODE);
+    ThreadingDetachThread(ThreadId);
 	return Server->Base.Id;
 }
 
@@ -69,10 +66,7 @@ MCoreServer_t*
 PhoenixGetServer(
 	_In_ UUId_t ServerId)
 {
-	// Use the default ash-lookup
 	MCoreAsh_t *Ash = PhoenixGetAsh(ServerId);
-
-	// Do a null check and type-check
 	if (Ash != NULL && Ash->Type != AshServer) {
 		return NULL;
 	}
@@ -85,10 +79,7 @@ PhoenixGetServer(
 MCoreServer_t*
 PhoenixGetCurrentServer(void)
 {
-	// Use the default get current
 	MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
-
-	// Do a null check and type-check
 	if (Ash != NULL && Ash->Type != AshServer) {
 		return NULL;
 	}

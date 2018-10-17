@@ -124,8 +124,8 @@ __CrtCallExitHandlers(
     // Cleanup crt if asked
     if (CleanupCrt != 0) {
         StdioCleanup();
-        tls_destroy(tls_current());
     }
+    tls_destroy(tls_current());
 }
 
 /* __cxa_runinitializers 

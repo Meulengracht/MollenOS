@@ -43,13 +43,11 @@
 #include <string.h>
 #include <stdio.h>
 
-/* Prototypes
- * The function handler for cleanup */
 OsStatus_t ThreadingReap(void *Context);
 
-static Collection_t Threads         = COLLECTION_INIT(KeyInteger);
-static UUId_t GlbThreadGcId         = UUID_INVALID;
-static _Atomic(UUId_t) GlbThreadId  = ATOMIC_VAR_INIT(1);
+static Collection_t     Threads         = COLLECTION_INIT(KeyInteger);
+static UUId_t           GlbThreadGcId   = UUID_INVALID;
+static _Atomic(UUId_t)  GlbThreadId     = ATOMIC_VAR_INIT(1);
 
 /* ThreadingInitialize
  * Initializes static data and allocates resources. */
@@ -65,19 +63,18 @@ ThreadingInitialize(void)
 OsStatus_t
 ThreadingEnable(void)
 {
-    // Variables
-    MCoreThread_t *Thread = &GetCurrentProcessorCore()->IdleThread;
+    MCoreThread_t* Thread = &GetCurrentProcessorCore()->IdleThread;
     DataKey_t Key;
 
-    // Initialize the idle thread instance
     memset(Thread, 0, sizeof(MCoreThread_t));
     
-    // Initialize members
     Thread->Id          = atomic_fetch_add(&GlbThreadId, 1);
     Thread->Name        = strdup("idle");
     Thread->ParentId    = UUID_INVALID;
     Thread->AshId       = UUID_INVALID;
     Thread->Flags       = THREADING_KERNELMODE | THREADING_IDLE | THREADING_CPUBOUND;
+    Thread->State       = ThreadStateActive;
+
     SchedulerThreadInitialize(Thread, Thread->Flags);
     Thread->Pipe        = CreateSystemPipe(0, 6); // 64 entries, 4kb
     Thread->SignalQueue = CollectionCreate(KeyInteger);
@@ -90,8 +87,6 @@ ThreadingEnable(void)
         ERROR("Failed to register thread with system. Threading is not enabled.");
         CpuHalt();
     }
-
-    // Update active thread to new idle
     GetCurrentProcessorCore()->CurrentThread = Thread;
     return CollectionAppend(&Threads, &Thread->CollectionHeader);
 }
@@ -102,19 +97,16 @@ ThreadingEnable(void)
 void
 ThreadingEntryPoint(void)
 {
-    // Variables
-    MCoreThread_t *Thread     = NULL;
-    UUId_t Cpu                 = 0;
+    MCoreThread_t*  Thread;
+    UUId_t          CoreId;
 
-    // Debug
     TRACE("ThreadingEntryPoint()");
 
-    // Initiate values
-    Cpu         = CpuGetCurrentId();
-    Thread      = ThreadingGetCurrentThread(Cpu);
+    CoreId  = CpuGetCurrentId();
+    Thread  = ThreadingGetCurrentThread(CoreId);
     if (THREADING_RUNMODE(Thread->Flags) == THREADING_KERNELMODE || (Thread->Flags & THREADING_SWITCHMODE)) {
         Thread->Function(Thread->Arguments);
-        ThreadingExitThread(0);
+        ThreadingTerminateThread(Thread->Id, 0, 1);
     }
     else {
         Thread->Contexts[THREADING_CONTEXT_LEVEL1] = ContextCreate(Thread->Flags, 
@@ -137,31 +129,25 @@ ThreadingCreateThread(
     _In_ void*          Arguments,
     _In_ Flags_t        Flags)
 {
-    // Variables
-    MCoreThread_t *Thread   = NULL;
-    MCoreThread_t *Parent   = NULL;
-    UUId_t Cpu              = 0;
-    char NameBuffer[16];
-    DataKey_t Key;
-    
-    // Debug
+    MCoreThread_t*  Thread;
+    MCoreThread_t*  Parent;
+    UUId_t          Cpu;
+    char            NameBuffer[16];
+    DataKey_t       Key;
+
     TRACE("ThreadingCreateThread(%s, 0x%x)", Name, Flags);
 
-    // Initialize variables
     Key.Value   = (int)atomic_fetch_add(&GlbThreadId, 1);
     Cpu         = CpuGetCurrentId();
     Parent      = ThreadingGetCurrentThread(Cpu);
 
-    // Allocate a new thread instance and 
-    // zero out the allocated instance
     Thread      = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
     memset(Thread, 0, sizeof(MCoreThread_t));
 
-    // Sanitize name, if NULL generate a new
-    // thread name of format 'Thread X'
+    // Sanitize name, if NULL generate a new thread name of format 'Thread X'
     if (Name == NULL) {
         memset(&NameBuffer[0], 0, sizeof(NameBuffer));
-        sprintf(&NameBuffer[0], "Thread %i", Key.Value);
+        sprintf(&NameBuffer[0], "thread %i", Key.Value);
         Thread->Name = strdup(&NameBuffer[0]);
     }
     else {
@@ -177,6 +163,7 @@ ThreadingCreateThread(
     Thread->Function    = Function;
     Thread->Arguments   = Arguments;
     Thread->Flags       = Flags;
+    Thread->State       = ThreadStateActive;
     COLLECTION_NODE_INIT(&Thread->CollectionHeader, Key);
     TimersGetSystemTick(&Thread->StartedAt);
 
@@ -233,49 +220,27 @@ ThreadingCreateThread(
     return Thread->Id;
 }
 
-/* ThreadingDetachThread
- * Detaches a running thread by marking it without parent, this will make
- * sure it runs untill it kills itself. */
-OsStatus_t
-ThreadingDetachThread(
-    _In_  UUId_t        ThreadId)
-{
-    MCoreThread_t *Thread   = ThreadingGetCurrentThread(CpuGetCurrentId());
-    MCoreThread_t *Target   = ThreadingGetThread(ThreadId);
-    UUId_t PId              = Thread->AshId;
-
-    // Perform security checks
-    if (Target == NULL || Target->AshId != PId) {
-        return OsError;
-    }
-    
-    // Perform the detach
-    Target->ParentId = UUID_INVALID;
-    return OsSuccess;
-}
-
 /* ThreadingCleanupThread
- * Cleans up a thread and all it's resources, the
- * address space is not cleaned up untill all threads
- * in the given space has been shut down. Must be
- * called from a seperate thread */
+ * Cleans up the thread resources allocated both during creation and runtime. */
 void
 ThreadingCleanupThread(
     _In_ MCoreThread_t* Thread)
 {
-    // Variables
-    CollectionItem_t *fNode;
-    int i;
+    CollectionItem_t*   Node;
+    int                 i;
+
+    assert(Thread != NULL);
+    assert(Thread->State == ThreadStateCleanup);
 
     // Make sure we are completely removed as reference
     // from the entire system. We also signal all waiters for this
     // thread again before continueing just in case
-    SchedulerHandleSignalAll((uintptr_t*)Thread);
     SchedulerThreadDequeue(Thread);
     ThreadingUnregister(Thread);
+    SchedulerHandleSignalAll((uintptr_t*)Thread);
 
-    _foreach(fNode, Thread->SignalQueue) {
-        kfree(fNode->Data);
+    _foreach(Node, Thread->SignalQueue) {
+        kfree(Node->Data);
     }
     CollectionDestroy(Thread->SignalQueue);
     
@@ -284,108 +249,90 @@ ThreadingCleanupThread(
             kfree(Thread->Contexts[i]);
         }
     }
-
     ReleaseSystemMemorySpace(Thread->MemorySpace);
     DestroySystemPipe(Thread->Pipe);
 
     // Remove a reference to the process
     if (Thread->AshId != UUID_INVALID) {
-        // @todo
+        // @todo DestroyHandle
     }
-
-    // Free resources allocated
     kfree((void*)Thread->Name);
     kfree(Thread);
 }
 
-/* ThreadingExitThread
- * Exits the current thread by marking it finished
- * and yielding control to scheduler */
-void
-ThreadingExitThread(
-    _In_ int            ExitCode)
+/* ThreadingDetachThread
+ * Detaches a running thread by marking it without parent, this will make
+ * sure it runs untill it kills itself. */
+OsStatus_t
+ThreadingDetachThread(
+    _In_  UUId_t        ThreadId)
 {
-    CollectionItem_t *Node;
-    MCoreThread_t *Thread;
-    UUId_t Cpu;
-
-    // Instantiate some values
-    Cpu     = CpuGetCurrentId();
-    Thread  = ThreadingGetCurrentThread(Cpu);
-    assert(Thread != NULL);
-
-    // Kill all children we have running around
-    _foreach(Node, &Threads) {
-        MCoreThread_t *Child = (MCoreThread_t*)Node;
-        if (Child->ParentId == Thread->Id) {
-            ThreadingKillThread(Thread->Id, ExitCode, 0);
-        }
+    MCoreThread_t*  Thread  = ThreadingGetCurrentThread(CpuGetCurrentId());
+    MCoreThread_t*  Target  = ThreadingGetThread(ThreadId);
+    UUId_t          PId     = Thread->AshId;
+    if (Target == NULL || Target->AshId != PId) {
+        return OsError;
     }
-
-    // Update thread state
-    Thread->RetCode  = ExitCode;
-    Thread->Flags   |= THREADING_FINISHED;
-
-    // Wake people waiting for us
-    SchedulerHandleSignalAll((uintptr_t*)Thread);
-    ThreadingYield();
+    Target->ParentId = UUID_INVALID;
+    return OsSuccess;
 }
 
-/* ThreadingKillThread
+/* ThreadingTerminateThread
  * Marks the thread with the given id for finished, and it will be cleaned up
  * on next switch unless specified. The given exitcode will be stored. */
 OsStatus_t
-ThreadingKillThread(
+ThreadingTerminateThread(
     _In_ UUId_t         ThreadId,
     _In_ int            ExitCode,
-    _In_ int            TerminateInstantly)
+    _In_ int            TerminateChildren)
 {
-    // Variables
-    MCoreThread_t *Target = ThreadingGetThread(ThreadId);
+    CollectionItem_t*   Node;
+    MCoreThread_t*      Target = ThreadingGetThread(ThreadId);
 
-    // Security check
     if (Target == NULL || (Target->Flags & THREADING_IDLE)) {
-        return OsError;
+        return OsError; // Never, ever kill system idle threads
     }
 
-    // Update thread state
-    Target->Flags   |= THREADING_FINISHED;
-    Target->RetCode  = ExitCode;
-
-    // Wake-up threads waiting with ThreadJoin
-    SchedulerHandleSignalAll((uintptr_t*)Target);
-
-    // Should we instagib?
-    if (TerminateInstantly) {
-        if (ThreadId == ThreadingGetCurrentThreadId()) {
-            ThreadingYield();
-        }
-        else {
-            // Wake-up the thread if it's sleeping, this will cause a 
-            // switch if nothing is running and terminate it
-            if (SchedulerThreadSignal(Target) != OsSuccess) {
-                // More drastic measures are neccessary here, this means someone else
-                // has it in queue or it's currently running on another core
-                InterruptProcessorCore(Target->CoreId, CpuInterruptYield);
+    if (TerminateChildren) {
+        _foreach(Node, &Threads) {
+            MCoreThread_t *Child = (MCoreThread_t*)Node;
+            if (Child->ParentId == ThreadId) {
+                ThreadingTerminateThread(Child->Id, ExitCode, 1);
             }
         }
     }
+
+    // If the thread we are trying to kill is not this one, and is sleeping
+    // we must wake it up, it will be cleaned on next schedule
+    if (ThreadId != ThreadingGetCurrentThreadId()) {
+        SchedulerThreadSignal(Target);
+    }
+
+    // Update exit code, signal people waiting for the thread
+    Target->RetCode = ExitCode;
+    SchedulerHandleSignalAll((uintptr_t*)Target);
+
+    // Lastly, mark this one for cleanup
+    Target->State = (Target->ParentId == UUID_INVALID) ? ThreadStateCleanup : ThreadStateFinished;
     return OsSuccess;
 }
 
 /* ThreadingJoinThread
- * Can be used to wait for a thread the return 
- * value of this function is the ret-code of the thread */
+ * Can be used to wait for a thread the return value of this function is the exit code of the thread */
 int
 ThreadingJoinThread(
     _In_ UUId_t         ThreadId)
 {
-    MCoreThread_t *Target = ThreadingGetThread(ThreadId);
-    if (Target == NULL) {
-        return -1;
+    MCoreThread_t* Target = ThreadingGetThread(ThreadId);
+    if (Target != NULL && Target->ParentId != UUID_INVALID) {
+        if (Target->State == ThreadStateActive || Target->State == ThreadStateBlocked) {
+            SchedulerThreadSleep((uintptr_t*)Target, 0);
+        }
+        Target->State = ThreadStateCleanup;
+        GcSignal(GlbThreadGcId, Target);
+        return Target->RetCode;
     }
-    SchedulerThreadSleep((uintptr_t*)Target, 0);
-    return Target->RetCode;
+    return -1;
 }
 
 /* ThreadingSwitchLevel
@@ -395,8 +342,7 @@ void
 ThreadingSwitchLevel(
     _In_ MCoreAsh_t*    Ash)
 {
-    // Variables
-    MCoreThread_t *Thread   = ThreadingGetCurrentThread(CpuGetCurrentId());
+    MCoreThread_t *Thread = ThreadingGetCurrentThread(CpuGetCurrentId());
 
     // Bind thread to process
     Thread->AshId       = Ash->Id;
@@ -410,38 +356,8 @@ ThreadingSwitchLevel(
         THREADING_CONTEXT_SIGNAL1, 0, 0, 0, 0);
     Thread->Flags |= THREADING_TRANSITION_USERMODE;
 
-    // Safety-catch
     ThreadingYield();
     for (;;);
-}
-
-/* ThreadingTerminateAshThreads
- * Marks all running threads that are not detached unless specified
- * for complete and to terminate on next switch, unless specified. 
- * Returns the number of threads not killed (0 if we terminate detached). */
-int
-ThreadingTerminateAshThreads(
-    _In_ UUId_t         AshId,
-    _In_ int            TerminateDetached,
-    _In_ int            TerminateInstantly)
-{
-    int ThreadsNotKilled = 0;
-    foreach(tNode, &Threads) {
-        MCoreThread_t *Thread = (MCoreThread_t*)tNode;
-        if (Thread->AshId == AshId) {
-            if ((Thread->ParentId == UUID_INVALID) && !TerminateDetached) {
-                // If it's a detached thread calling this method we are killing ourselves
-                // and shouldn't increase
-                if (Thread->Id != ThreadingGetCurrentThreadId()) {
-                    ThreadsNotKilled++;
-                }
-            }
-            else {
-                ThreadingKillThread(Thread->Id, 0, TerminateInstantly);
-            }
-        }
-    }
-    return ThreadsNotKilled;
 }
 
 /* ThreadingGetCurrentThread
@@ -467,15 +383,13 @@ ThreadingGetCurrentThreadId(void)
 }
 
 /* ThreadingGetThread
- * Lookup thread by the given thread-id, 
- * returns NULL if invalid */
+ * Lookup thread by the given thread-id, returns NULL if invalid */
 MCoreThread_t*
 ThreadingGetThread(
     _In_ UUId_t         ThreadId)
 {
-    // Iterate thread nodes and find the correct
-    foreach(tNode, &Threads) {
-        MCoreThread_t *Thread = (MCoreThread_t*)tNode;
+    foreach(Node, &Threads) {
+        MCoreThread_t *Thread = (MCoreThread_t*)Node;
         if (Thread->Id == ThreadId) {
             return Thread;
         }
@@ -511,14 +425,14 @@ OsStatus_t
 ThreadingReap(
     _In_ void*          Context)
 {
-    MCoreThread_t *Thread = (MCoreThread_t*)Context;
-    if (Thread == NULL) {
-        return OsError;
+    foreach(i, &Threads) {
+        if ((void*)i == Context) {
+            MCoreThread_t* Thread = (MCoreThread_t*)i;
+            CollectionRemoveByNode(&Threads, &Thread->CollectionHeader);
+            ThreadingCleanupThread(Thread);
+            break;
+        }
     }
-    CollectionRemoveByNode(&Threads, &Thread->CollectionHeader);
-
-    // Cleanup the thread
-    ThreadingCleanupThread(Thread);
     return OsSuccess;
 }
 
@@ -530,7 +444,7 @@ ThreadingDebugPrint(void)
 {
     foreach(i, &Threads) {
         MCoreThread_t *Thread = (MCoreThread_t*)i;
-        if (THREADING_STATE(Thread->Flags) == THREADING_ACTIVE) {
+        if (Thread->State == ThreadStateActive) {
             WRITELINE("Thread %u (%s) - Flags 0x%x, Queue %i, Timeslice %u, Cpu: %u",
                 Thread->Id, Thread->Name, Thread->Flags, Thread->Queue, 
                 Thread->TimeSlice, Thread->CoreId);
@@ -548,14 +462,13 @@ ThreadingSwitch(
     _In_ int            PreEmptive,
     _InOut_ Context_t** Context)
 {
-    SystemCpuCore_t *Core;
-    MCoreThread_t *NextThread;
+    SystemCpuCore_t*    Core;
+    MCoreThread_t*      NextThread;
 
-    // Sanitize current thread
     assert(Current != NULL);
 
-    Core                            = GetCurrentProcessorCore();
-    Current->ContextActive          = *Context;
+    Core                    = GetCurrentProcessorCore();
+    Current->ContextActive  = *Context;
 
     // Perform thread stuck detection
 #if 0
@@ -569,14 +482,12 @@ ThreadingSwitch(
 #endif
 
 GetNextThread:
-    if (Current->Flags & (THREADING_FINISHED | THREADING_IDLE)) {
+    if ((Current->Flags & THREADING_IDLE) || Current->State == ThreadStateFinished ||
+        Current->State == ThreadStateCleanup) {
         // If the thread is finished then add it to garbagecollector
-        if (Current->Flags & THREADING_FINISHED) {
-            THREADING_CLEARSTATE(Current->Flags);
+        if (Current->State == ThreadStateCleanup) {
             GcSignal(GlbThreadGcId, Current);
         }
-        
-        // Don't schedule the current
         NextThread = SchedulerThreadSchedule(NULL, PreEmptive);
     }
     else {
@@ -589,7 +500,7 @@ GetNextThread:
     if (NextThread == NULL) {
         NextThread = &Core->IdleThread;
     }
-    else if (NextThread->Flags & THREADING_FINISHED) {
+    else if (NextThread->State == ThreadStateFinished || NextThread->State == ThreadStateCleanup) {
         Current = NextThread;
         goto GetNextThread;
     }

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2015, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +19,9 @@
  * MollenOS MCore Threading Interface
  * - Handles all common threading across architectures
  *   and implements systems like signaling, synchronization and rpc
+ * 
+ * - Threads are only ever cleaned up if they are in the Cleanup State, to reach this state
+ *   someone must have either called Join or Detach (+ reach exit) on the thread
  */
 
 #ifndef _MCORE_THREADING_H_
@@ -64,42 +67,29 @@ typedef void(*ThreadEntry_t)(void*);
 #define THREADING_RUNMODE(Flags)        (Flags & THREADING_MODEMASK)
 
 /* MCoreThread::Flags Bit Definitions 
- * The next two bits determine the current state of the thread
- * 0 = Inactive
- * 1 = Active
- * 2 = Blocked
- * 3 = Reserved */
-#define THREADING_INACTIVE              0x00000000
-#define THREADING_ACTIVE                0x00000001
-#define THREADING_STATEMASK             0x00000018
-#define THREADING_STATE(Flags)          ((Flags & THREADING_STATEMASK) >> 3)
-#define THREADING_SETSTATE(Flags, State) (Flags |= (State << 3))
-#define THREADING_CLEARSTATE(Flags)     (Flags &= ~(THREADING_STATEMASK))
-
-/* MCoreThread::Flags Bit Definitions 
  * The rest of the bits denode special other run-modes */
-#define THREADING_CPUBOUND              0x00000020
-#define THREADING_SYSTEMTHREAD          0x00000040
-#define THREADING_IDLE                  0x00000080
-#define THREADING_INHERIT               0x00000100
-#define THREADING_FINISHED              0x00000200
-#define THREADING_IMPERSONATION         0x00000400
+#define THREADING_CPUBOUND              0x00000008
+#define THREADING_SYSTEMTHREAD          0x00000010
+#define THREADING_IDLE                  0x00000020
+#define THREADING_INHERIT               0x00000040
+#define THREADING_IMPERSONATION         0x00000080
 
 #define THREADING_TRANSITION_USERMODE   0x10000000
 #define THREADING_SKIP_REQUEUE          0x20000000
 
-/* A Signal Entry 
- * This is used to describe a signal 
- * that is waiting for execution */
 typedef struct _MCoreSignal {
-    int                 Ignorable;
-    int                 Signal;
-    Context_t          *Context;
+    int         Ignorable;
+    int         Signal;
+    Context_t*  Context;
 } MCoreSignal_t;
 
-/* The different possible threading priorities 
- * Normal is the default thread-priority, and Critical
- * should only be used by the system */
+typedef enum _SystemThreadState {
+    ThreadStateActive,
+    ThreadStateBlocked,
+    ThreadStateFinished,
+    ThreadStateCleanup
+} SystemThreadState_t;
+
 typedef enum _MCoreThreadPriority {
     PriorityLow,
     PriorityNormal,
@@ -117,6 +107,8 @@ typedef struct _MCoreThread {
     UUId_t                  ParentId;
     UUId_t                  AshId;
     Flags_t                 Flags;
+    SystemThreadState_t     State;
+
     Context_t*              Contexts[THREADING_NUMCONTEXTS];
     Context_t*              ContextActive;
     uintptr_t               Data[THREADING_CONFIGDATA_COUNT];
@@ -169,21 +161,14 @@ ThreadingCreateThread(
     _In_ void*          Arguments, 
     _In_ Flags_t        Flags);
 
-/* ThreadingExitThread
- * Exits the current thread by marking it finished
- * and yielding control to scheduler */
-KERNELAPI void KERNELABI
-ThreadingExitThread(
-    _In_ int            ExitCode);
-
-/* ThreadingKillThread
+/* ThreadingTerminateThread
  * Marks the thread with the given id for finished, and it will be cleaned up
  * on next switch unless specified. The given exitcode will be stored. */
 KERNELAPI OsStatus_t KERNELABI
-ThreadingKillThread(
+ThreadingTerminateThread(
     _In_ UUId_t         ThreadId,
     _In_ int            ExitCode,
-    _In_ int            TerminateInstantly);
+    _In_ int            TerminateChildren);
 
 /* ThreadingJoinThread
  * Can be used to wait for a thread the return 
@@ -205,16 +190,6 @@ ThreadingDetachThread(
 KERNELAPI void KERNELABI
 ThreadingSwitchLevel(
     _In_ MCoreAsh_t*    Ash);
-
-/* ThreadingTerminateAshThreads
- * Marks all running threads that are not detached unless specified
- * for complete and to terminate on next switch, unless specified. 
- * Returns the number of threads not killed (0 if we terminate detached). */
-KERNELAPI int KERNELABI
-ThreadingTerminateAshThreads(
-    _In_ UUId_t         AshId,
-    _In_ int            TerminateDetached,
-    _In_ int            TerminateInstantly);
 
 /* ThreadingIsCurrentTaskIdle
  * Is the given cpu running it's idle task? */

@@ -175,7 +175,7 @@ AddToSleepQueueAndSleep(
     }
 
     // Clear thread state, set skip on requeue
-    THREADING_CLEARSTATE(Thread->Flags);
+    Thread->State = ThreadStateBlocked;
     Thread->Flags |= THREADING_SKIP_REQUEUE;
 
     AtomicSectionLeave(&IoQueue.SyncObject);
@@ -379,8 +379,7 @@ SchedulerThreadQueue(
     Scheduler->ThreadCount++;
     
     // Set thread active
-    THREADING_CLEARSTATE(Thread->Flags);
-    THREADING_SETSTATE(Thread->Flags, THREADING_ACTIVE);
+    Thread->State = ThreadStateActive;
     SchedulerSynchronizeCore(Thread, SuppressSynchronization);
     return OsSuccess;
 }
@@ -413,9 +412,7 @@ SchedulerThreadDequeue(
     if (Found) {
         Scheduler->ThreadCount--;
     }
-
-    // Set inactive
-    THREADING_CLEARSTATE(Thread->Flags);
+    Thread->State = ThreadStateBlocked;
     return OsSuccess;
 }
 
@@ -507,7 +504,6 @@ OsStatus_t
 SchedulerThreadSignal(
     _In_ MCoreThread_t*     Thread)
 {
-    // Debug
     TRACE("SchedulerThreadSignal(Thread %u)", Thread->Id);
     assert(Thread != NULL);
 

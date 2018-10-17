@@ -42,31 +42,30 @@ PhoenixCreateProcess(
     _In_ MString_t                   *Path,
     _In_ ProcessStartupInformation_t *StartupInformation)
 {
-	// Variables
-	MCoreProcess_t *Process = NULL;
-    char *ArgumentBuffer    = NULL;
-	int Index               = 0;
+    MCoreProcess_t* Process;
+    char*           ArgumentBuffer;
+    int             Index;
+    UUId_t          ThreadId;
 
-    // Debug
     TRACE("PhoenixCreateProcess()");
 
-	// Initiate a new instance
-	Process = (MCoreProcess_t*)kmalloc(sizeof(MCoreProcess_t));
-	if (PhoenixInitializeAsh(&Process->Base, Path) != OsSuccess) {
+    // Initiate a new instance
+    Process = (MCoreProcess_t*)kmalloc(sizeof(MCoreProcess_t));
+    if (PhoenixInitializeAsh(&Process->Base, Path) != OsSuccess) {
         ERROR("Failed to initialize the base process");
-		kfree(Process);
-		return UUID_INVALID;
-	}
+        kfree(Process);
+        return UUID_INVALID;
+    }
 
-	// Split path and setup working directory
-	// but also base directory for the exe 
-	Process->Base.Type = AshProcess;
-	Index = MStringFindReverse(Process->Base.Path, '/', 0);
-	Process->WorkingDirectory = MStringSubString(Process->Base.Path, 0, Index);
-	Process->BaseDirectory = MStringSubString(Process->Base.Path, 0, Index);
+    // Split path and setup working directory
+    // but also base directory for the exe 
+    Process->Base.Type = AshProcess;
+    Index = MStringFindReverse(Process->Base.Path, '/', 0);
+    Process->WorkingDirectory = MStringSubString(Process->Base.Path, 0, Index);
+    Process->BaseDirectory = MStringSubString(Process->Base.Path, 0, Index);
 
-	// Handle startup information
-	if (StartupInformation->ArgumentPointer != NULL 
+    // Handle startup information
+    if (StartupInformation->ArgumentPointer != NULL 
         && StartupInformation->ArgumentLength != 0) {
         ArgumentBuffer = (char*)kmalloc(MStringSize(Process->Base.Path) + 1 + StartupInformation->ArgumentLength + 1);
         memcpy(ArgumentBuffer, MStringRaw(Process->Base.Path), MStringSize(Process->Base.Path));
@@ -78,8 +77,8 @@ PhoenixCreateProcess(
 
         StartupInformation->ArgumentPointer = ArgumentBuffer;
         StartupInformation->ArgumentLength  = MStringSize(Process->Base.Path) + 1 + StartupInformation->ArgumentLength + 1;
-	}
-	else {
+    }
+    else {
         ArgumentBuffer = (char*)kmalloc(MStringSize(Process->Base.Path) + 1);
         memcpy(ArgumentBuffer, MStringRaw(Process->Base.Path), MStringSize(Process->Base.Path) + 1);
 
@@ -103,10 +102,12 @@ PhoenixCreateProcess(
     memcpy(&Process->StartupInformation, 
         StartupInformation, sizeof(ProcessStartupInformation_t));
 
-	// Register ash and spawn it
-	PhoenixRegisterAsh(&Process->Base);
-	ThreadingCreateThread((char*)MStringRaw(Process->Base.Name), PhoenixStartupEntry, Process, THREADING_USERMODE);
-	return Process->Base.Id;
+    // Register ash and spawn it
+    PhoenixRegisterAsh(&Process->Base);
+    ThreadId = ThreadingCreateThread((char*)MStringRaw(Process->Base.Name), PhoenixStartupEntry, Process, THREADING_USERMODE);
+    assert(ThreadId != UUID_INVALID);
+    ThreadingDetachThread(ThreadId);
+    return Process->Base.Id;
 }
 
 /* PhoenixCleanupProcess
@@ -116,32 +117,28 @@ void
 PhoenixCleanupProcess(
     _In_ MCoreProcess_t *Process)
 {
-	// Cleanup resources
     if (Process->StartupInformation.ArgumentPointer != NULL) {
-	    kfree((void*)Process->StartupInformation.ArgumentPointer);
+        kfree((void*)Process->StartupInformation.ArgumentPointer);
     }
     if (Process->StartupInformation.InheritanceBlockPointer != NULL) {
         kfree((void*)Process->StartupInformation.InheritanceBlockPointer);
     }
-	MStringDestroy(Process->WorkingDirectory);
-	MStringDestroy(Process->BaseDirectory);
-
-    // Base cleanup
-	PhoenixCleanupAsh(&Process->Base);
+    MStringDestroy(Process->WorkingDirectory);
+    MStringDestroy(Process->BaseDirectory);
+    PhoenixCleanupAsh(&Process->Base);
 }
 
 /* PhoenixGetProcess
  * This function looks up a server structure by id */
 MCoreProcess_t*
 PhoenixGetProcess(
-	_In_ UUId_t ProcessId)
+    _In_ UUId_t ProcessId)
 {
-	// Use the default ash-lookup
-	MCoreAsh_t *Ash = PhoenixGetAsh(ProcessId);
-	if (Ash != NULL && Ash->Type != AshProcess) {
-		return NULL;
-	}
-	return (MCoreProcess_t*)Ash;
+    MCoreAsh_t *Ash = PhoenixGetAsh(ProcessId);
+    if (Ash != NULL && Ash->Type != AshProcess) {
+        return NULL;
+    }
+    return (MCoreProcess_t*)Ash;
 }
 
 /* PhoenixGetCurrentProcess
@@ -150,12 +147,11 @@ PhoenixGetProcess(
 MCoreProcess_t*
 PhoenixGetCurrentProcess(void)
 {
-	// Use the default get current
-	MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
-	if (Ash != NULL && Ash->Type != AshProcess) {
-		return NULL;
-	}
-	return (MCoreProcess_t*)Ash;
+    MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
+    if (Ash != NULL && Ash->Type != AshProcess) {
+        return NULL;
+    }
+    return (MCoreProcess_t*)Ash;
 }
 
 /* PhoenixGetWorkingDirectory
@@ -166,13 +162,13 @@ MString_t*
 PhoenixGetWorkingDirectory(
     _In_ UUId_t ProcessId)
 {
-	MCoreProcess_t *Process = PhoenixGetProcess(ProcessId);
-	if (Process != NULL) {
-		return Process->WorkingDirectory;
-	}
-	else {
-		return NULL;
-	}
+    MCoreProcess_t *Process = PhoenixGetProcess(ProcessId);
+    if (Process != NULL) {
+        return Process->WorkingDirectory;
+    }
+    else {
+        return NULL;
+    }
 }
 
 /* PhoenixGetBaseDirectory
@@ -183,11 +179,11 @@ MString_t*
 PhoenixGetBaseDirectory(
     _In_ UUId_t ProcessId)
 {
-	MCoreProcess_t *Process = PhoenixGetProcess(ProcessId);
-	if (Process != NULL) {
-		return Process->BaseDirectory;
-	}
-	else {
-		return NULL;
-	}
+    MCoreProcess_t *Process = PhoenixGetProcess(ProcessId);
+    if (Process != NULL) {
+        return Process->BaseDirectory;
+    }
+    else {
+        return NULL;
+    }
 }

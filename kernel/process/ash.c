@@ -31,6 +31,7 @@
 #include <threading.h>
 #include <machine.h>
 #include <timers.h>
+#include <assert.h>
 #include <debug.h>
 #include <heap.h>
 
@@ -189,26 +190,26 @@ PhoenixInitializeAsh(
 }
 
 /* PhoenixStartupAsh
- * This is a wrapper for starting up a base Ash
- * and uses <PhoenixInitializeAsh> to setup the env
+ * This is a wrapper for starting up a base Ash and uses <PhoenixInitializeAsh> to setup the env
  * and do validation before starting */
 UUId_t
 PhoenixStartupAsh(
     _In_ MString_t *Path)
 {
-    // Variables
-    MCoreAsh_t *Ash = NULL;
-
-    // Allocate and initialize instance
+    MCoreAsh_t* Ash;
+    UUId_t      ThreadId;
+    
     Ash = (MCoreAsh_t*)kmalloc(sizeof(MCoreAsh_t));
     if (PhoenixInitializeAsh(Ash, Path) != OsSuccess) {
         kfree(Ash);
         return UUID_INVALID;
     }
-
-    // Register ash
     PhoenixRegisterAsh(Ash);
-    ThreadingCreateThread(MStringRaw(Ash->Name), PhoenixStartupEntry, Ash, THREADING_USERMODE);
+
+    ThreadId = ThreadingCreateThread(MStringRaw(Ash->Name), PhoenixStartupEntry, Ash, THREADING_USERMODE);
+    assert(ThreadId != UUID_INVALID);
+
+    ThreadingDetachThread(ThreadId);
     return Ash->Id;
 }
 

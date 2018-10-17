@@ -22,8 +22,10 @@
 //#define __TRACE
 
 #include <os/osdefs.h>
+#include <system/utils.h>
 #include <process/phoenix.h>
 #include <process/process.h>
+#include <threading.h>
 #include <scheduler.h>
 #include <debug.h>
 #include <heap.h>
@@ -108,7 +110,7 @@ ScProcessJoin(
     _In_  size_t    Timeout,
     _Out_ int*      ExitCode)
 {
-    MCoreAsh_t* Process     = PhoenixGetAsh(ProcessId);
+    MCoreAsh_t* Process = PhoenixGetAsh(ProcessId);
     int         SleepResult;
     
     if (Process == NULL) {
@@ -155,17 +157,21 @@ OsStatus_t
 ScProcessExit(
     _In_ int ExitCode)
 {
-    MCoreAsh_t *Process = PhoenixGetCurrentAsh();
+    MCoreThread_t*  Thread  = ThreadingGetCurrentThread(CpuGetCurrentId());
+    MCoreAsh_t*     Process = PhoenixGetCurrentAsh();
     if (Process == NULL) {
         return OsError;
     }
     WARNING("Process %s terminated with code %i", MStringRaw(Process->Name), ExitCode);
 
-    // Terminate ash and current thread
-    PhoenixTerminateAsh(Process, ExitCode, 0, 1);
-    ThreadingKillThread(ThreadingGetCurrentThreadId(), ExitCode, 1);
-    
-    // @unreachable
+    // Are we detached? Then call only thread cleanup
+    Process->Code = ExitCode;
+    if (Thread->ParentId == UUID_INVALID) {
+        ThreadingTerminateThread(Thread->Id, ExitCode, 1);
+    }
+    else {
+        ThreadingTerminateThread(Process->MainThread, ExitCode, 1);
+    }
     return OsSuccess;
 }
 
@@ -186,7 +192,8 @@ ScProcessGetCurrentId(
 /* ScProcessGetCurrentName
  * Retreieves the current process name */
 OsStatus_t
-ScProcessGetCurrentName(const char *Buffer, size_t MaxLength) {
+ScProcessGetCurrentName(const char *Buffer, size_t MaxLength)
+{
     MCoreAsh_t *Process = PhoenixGetCurrentAsh();
     if (Process == NULL) {
         return OsError;
@@ -202,11 +209,7 @@ OsStatus_t
 ScProcessSignal(
     _In_ uintptr_t Handler) 
 {
-    // Process
-    MCoreAsh_t *Process = NULL;
-
-    // Get current process
-    Process = PhoenixGetCurrentAsh();
+    MCoreAsh_t* Process = PhoenixGetCurrentAsh();
     if (Process == NULL) {
         return OsError;
     }
@@ -223,16 +226,10 @@ ScProcessRaise(
     _In_ UUId_t ProcessId, 
     _In_ int    Signal)
 {
-    // Variables
-    MCoreProcess_t *Process = NULL;
-
-    // Lookup process
-    Process = PhoenixGetProcess(ProcessId);
+    MCoreProcess_t* Process = PhoenixGetProcess(ProcessId);
     if (Process == NULL) {
         return OsError;
     }
-
-    // Create the signal
     return SignalCreate(Process->Base.MainThread, Signal);
 }
 
@@ -240,20 +237,18 @@ ScProcessRaise(
  * Retrieves information passed about process startup. */
 OsStatus_t
 ScProcessGetStartupInformation(
-    _InOut_ ProcessStartupInformation_t *StartupInformation)
+    _In_ ProcessStartupInformation_t* StartupInformation)
 {
-    MCoreProcess_t *Process = NULL;
+    MCoreProcess_t* Process;
     if (StartupInformation == NULL) {
         return OsError;
     }
 
-    // Find process
     Process = PhoenixGetCurrentProcess();
     if (Process == NULL) {
         return OsError;
     }
 
-    // Update outs
     if (Process->StartupInformation.ArgumentPointer != NULL) {
         if (StartupInformation->ArgumentPointer != NULL) {
             memcpy((void*)StartupInformation->ArgumentPointer, 
@@ -293,16 +288,10 @@ OsStatus_t
 ScProcessGetModuleHandles(
     _In_ Handle_t ModuleList[PROCESS_MAXMODULES])
 {
-    // Variables
-    MCoreAsh_t *Process = NULL;
-
-    // Get current process
-    Process = PhoenixGetCurrentAsh();
+    MCoreAsh_t* Process = PhoenixGetCurrentAsh();
     if (Process == NULL) {
         return OsError;
     }
-
-    // Redirect call to executable interface
     return PeGetModuleHandles(Process->Executable, ModuleList);
 }
 
@@ -312,15 +301,9 @@ OsStatus_t
 ScProcessGetModuleEntryPoints(
     _In_ Handle_t ModuleList[PROCESS_MAXMODULES])
 {
-    // Variables
-    MCoreAsh_t *Process = NULL;
-
-    // Get current process
-    Process = PhoenixGetCurrentAsh();
+    MCoreAsh_t* Process = PhoenixGetCurrentAsh();
     if (Process == NULL) {
         return OsError;
     }
-
-    // Redirect call to executable interface
     return PeGetModuleEntryPoints(Process->Executable, ModuleList);
 }

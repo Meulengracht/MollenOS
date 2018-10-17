@@ -160,10 +160,8 @@ __CrtInitialize(
 {
     ProcessStartupInformation_t StartupInformation;
 	char**                      Arguments = NULL;
-
-    // Initialize primary tls routine
+    
 	tls_create(Tls);
-	tls_initialize();
 
     // Get startup information
     memset(&StartupInformation, 0, sizeof(ProcessStartupInformation_t));

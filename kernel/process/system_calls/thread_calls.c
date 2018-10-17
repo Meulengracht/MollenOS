@@ -37,8 +37,8 @@ UUId_t
 ScThreadCreate(
     _In_ ThreadEntry_t      Entry, 
     _In_ void*              Data, 
-    _In_ Flags_t            Flags) {
-    // Sanitize parameters
+    _In_ Flags_t            Flags)
+{
     if (Entry == NULL) {
         return UUID_INVALID;
     }
@@ -49,9 +49,9 @@ ScThreadCreate(
  * Exits the current thread and instantly yields control to scheduler */
 OsStatus_t
 ScThreadExit(
-    _In_ int ExitCode) {
-    ThreadingExitThread(ExitCode);
-    return OsSuccess;
+    _In_ int ExitCode)
+{
+    return ThreadingTerminateThread(ThreadingGetCurrentThreadId(), ExitCode, 1);
 }
 
 /* ScThreadJoin
@@ -62,15 +62,14 @@ ScThreadJoin(
     _In_  UUId_t    ThreadId,
     _Out_ int*      ExitCode)
 {
-    // Variables
-    UUId_t PId      = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
-    int ResultCode  = 0;
-
-    // Perform security checks
-    if (ThreadingGetThread(ThreadId) == NULL
-        || ThreadingGetThread(ThreadId)->AshId != PId) {
+    int     ResultCode      = 0;
+    UUId_t  PId             = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+    MCoreThread_t*  Thread  = ThreadingGetThread(ThreadId);
+    
+    if (Thread == NULL || Thread->AshId != PId) {
         return OsError;
     }
+
     ResultCode = ThreadingJoinThread(ThreadId);
     if (ExitCode != NULL) {
         *ExitCode = ResultCode;
@@ -95,12 +94,11 @@ ScThreadSignal(
     _In_ UUId_t     ThreadId,
     _In_ int        SignalCode)
 {
-    // Variables
-    UUId_t PId = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+    UUId_t          PId     = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+    MCoreThread_t*  Thread  = ThreadingGetThread(ThreadId);
 
     // Perform security checks
-    if (ThreadingGetThread(ThreadId) == NULL
-        || ThreadingGetThread(ThreadId)->AshId != PId) {
+    if (Thread == NULL || Thread->AshId != PId) {
         ERROR("Thread does not belong to same process");
         return OsError;
     }
@@ -114,7 +112,6 @@ ScThreadSleep(
     _In_  time_t    Milliseconds,
     _Out_ time_t*   MillisecondsSlept)
 {
-    // Variables
     clock_t Start   = 0;
     clock_t End     = 0;
     
@@ -154,9 +151,8 @@ ScThreadYield(void) {
 OsStatus_t
 ScThreadSetCurrentName(const char *ThreadName) 
 {
-    // Variables
-    MCoreThread_t *Thread       = ThreadingGetCurrentThread(CpuGetCurrentId());
-    const char *PreviousName    = NULL;
+    MCoreThread_t*  Thread          = ThreadingGetCurrentThread(CpuGetCurrentId());
+    const char*     PreviousName    = NULL;
 
     if (Thread == NULL || ThreadName == NULL) {
         return OsError;
@@ -172,8 +168,7 @@ ScThreadSetCurrentName(const char *ThreadName)
 OsStatus_t
 ScThreadGetCurrentName(char *ThreadNameBuffer, size_t MaxLength)
 {
-    // Variables
-    MCoreThread_t *Thread       = ThreadingGetCurrentThread(CpuGetCurrentId());
+    MCoreThread_t* Thread = ThreadingGetCurrentThread(CpuGetCurrentId());
 
     if (Thread == NULL || ThreadNameBuffer == NULL) {
         return OsError;
