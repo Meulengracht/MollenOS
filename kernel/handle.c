@@ -28,11 +28,13 @@
 
 // Include all the systems that we have to cleanup
 #include <memorybuffer.h>
+#include <phoenix/process.h>
 
 static Collection_t         Handles                             = COLLECTION_INIT(KeyInteger);
 static _Atomic(UUId_t)      IdGenerator                         = 1;
 static HandleDestructorFn   HandleDestructors[HandleTypeCount]  = {
-    DestroyMemoryBuffer
+    DestroyMemoryBuffer,
+    DestroyProcess
 };
 
 /* CreateHandle

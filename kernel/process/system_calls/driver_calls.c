@@ -172,7 +172,7 @@ OsStatus_t
 ScRegisterAliasId(
     _In_ UUId_t             Alias)
 {
-    MCoreAsh_t* Process = PhoenixGetCurrentAsh();
+    MCoreAsh_t* Process = GetCurrentProcess();
     TRACE("ScRegisterAliasId(Server %s, Alias 0x%X)", MStringRaw(Process->Name), Alias);
     
     // Update the registered sys pipe that should recieve input events from cursor etc
@@ -213,8 +213,7 @@ ScLoadDriver(
 
     // First of all, if a server has already been spawned
     // for the specific driver, then call it's RegisterInstance
-    Server = PhoenixGetServerByDriver(
-        Device->VendorId, Device->DeviceId,
+    Server = GetServiceByIdentification(Device->VendorId, Device->DeviceId,
         Device->Class, Device->Subclass);
 
     // Sanitize the lookup 

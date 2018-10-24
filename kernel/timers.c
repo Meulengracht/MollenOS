@@ -53,14 +53,14 @@ TimersStart(
     DataKey_t Key;
 
     // Sanity
-    if (PhoenixGetCurrentAsh() == NULL) {
+    if (GetCurrentProcess() == NULL) {
         return UUID_INVALID;
     }
 
     // Allocate a new instance and initialize
     Timer = (MCoreTimer_t*)kmalloc(sizeof(MCoreTimer_t));
     Timer->Id       = atomic_fetch_add(&TimerIdGenerator, 1);
-    Timer->AshId    = PhoenixGetCurrentAsh()->Id;
+    Timer->AshId    = GetCurrentProcess()->Id;
     Timer->Data     = Data;
     Timer->Interval = IntervalNs;
     Timer->Current  = 0;
@@ -89,7 +89,7 @@ TimersStop(
         MCoreTimer_t *Timer = (MCoreTimer_t*)tNode->Data;
         
         // Does it match the id? + Owner must match
-        if (Timer->Id == TimerId && Timer->AshId == PhoenixGetCurrentAsh()->Id) {
+        if (Timer->Id == TimerId && Timer->AshId == GetCurrentProcess()->Id) {
             CollectionRemoveByNode(&Timers, tNode);
             kfree(Timer);
             kfree(tNode);

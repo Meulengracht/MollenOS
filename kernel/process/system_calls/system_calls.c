@@ -114,7 +114,7 @@ ScSystemTick(
 
     if (TimersGetSystemTick(SystemTick) == OsSuccess) {
         if (TickBase == TIME_PROCESS) {
-            MCoreAsh_t* Process = PhoenixGetCurrentAsh();
+            MCoreAsh_t* Process = GetCurrentProcess();
             if (Process != NULL) {
                 *SystemTick -= Process->StartedAt;
             }
@@ -182,12 +182,12 @@ ScCreateDisplayFramebuffer(void) {
     size_t FbSize           = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
 
     // Sanitize
-    if (PhoenixGetCurrentAsh() == NULL) {
+    if (GetCurrentProcess() == NULL) {
         return NULL;
     }
 
     // Allocate the neccessary size
-    FbVirtual = AllocateBlocksInBlockmap(PhoenixGetCurrentAsh()->Heap, __MASK, FbSize);
+    FbVirtual = AllocateBlocksInBlockmap(GetCurrentProcess()->Heap, __MASK, FbSize);
     if (FbVirtual == 0) {
         return NULL;
     }

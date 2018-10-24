@@ -124,7 +124,7 @@ ScCreateFileMapping(
 {
     // Variables
     MCoreAshFileMapping_t *Mapping;
-    MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
+    MCoreAsh_t *Ash = GetCurrentProcess();
     size_t AdjustedSize = Parameters->Size + (Parameters->Offset % GetSystemMemoryPageSize());
 
     // Sanity
@@ -168,7 +168,7 @@ ScDestroyFileMapping(
     MCoreAshFileMapping_t *Mapping;
     CollectionItem_t *Node;
     LargeInteger_t Value;
-    MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
+    MCoreAsh_t *Ash = GetCurrentProcess();
 
     // Only processes are allowed to call this
     if (Ash == NULL) {

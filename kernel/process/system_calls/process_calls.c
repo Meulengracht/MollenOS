@@ -110,8 +110,8 @@ ScProcessJoin(
     _In_  size_t    Timeout,
     _Out_ int*      ExitCode)
 {
-    MCoreAsh_t* Process = PhoenixGetAsh(ProcessId);
-    int         SleepResult;
+    SystemProcess_t*    Process = GetProcess(ProcessId);
+    int                 SleepResult;
     
     if (Process == NULL) {
         return OsError;
@@ -158,7 +158,7 @@ ScProcessExit(
     _In_ int ExitCode)
 {
     MCoreThread_t*  Thread  = ThreadingGetCurrentThread(CpuGetCurrentId());
-    MCoreAsh_t*     Process = PhoenixGetCurrentAsh();
+    MCoreAsh_t*     Process = GetCurrentProcess();
     if (Process == NULL) {
         return OsError;
     }
@@ -181,7 +181,7 @@ OsStatus_t
 ScProcessGetCurrentId(
     _In_ UUId_t* ProcessId)
 {
-    MCoreAsh_t *Process = PhoenixGetCurrentAsh();
+    MCoreAsh_t *Process = GetCurrentProcess();
     if (Process == NULL || ProcessId == NULL) {
         return OsError;
     }
@@ -194,7 +194,7 @@ ScProcessGetCurrentId(
 OsStatus_t
 ScProcessGetCurrentName(const char *Buffer, size_t MaxLength)
 {
-    MCoreAsh_t *Process = PhoenixGetCurrentAsh();
+    MCoreAsh_t *Process = GetCurrentProcess();
     if (Process == NULL) {
         return OsError;
     }
@@ -209,7 +209,7 @@ OsStatus_t
 ScProcessSignal(
     _In_ uintptr_t Handler) 
 {
-    MCoreAsh_t* Process = PhoenixGetCurrentAsh();
+    MCoreAsh_t* Process = GetCurrentProcess();
     if (Process == NULL) {
         return OsError;
     }
@@ -288,7 +288,7 @@ OsStatus_t
 ScProcessGetModuleHandles(
     _In_ Handle_t ModuleList[PROCESS_MAXMODULES])
 {
-    MCoreAsh_t* Process = PhoenixGetCurrentAsh();
+    MCoreAsh_t* Process = GetCurrentProcess();
     if (Process == NULL) {
         return OsError;
     }
@@ -301,7 +301,7 @@ OsStatus_t
 ScProcessGetModuleEntryPoints(
     _In_ Handle_t ModuleList[PROCESS_MAXMODULES])
 {
-    MCoreAsh_t* Process = PhoenixGetCurrentAsh();
+    MCoreAsh_t* Process = GetCurrentProcess();
     if (Process == NULL) {
         return OsError;
     }

@@ -34,7 +34,7 @@ ScSharedObjectLoad(
     _In_  const char*   SharedObject)
 {
     // Variables
-    MCoreAsh_t *Process     = PhoenixGetCurrentAsh();
+    MCoreAsh_t *Process     = GetCurrentProcess();
     MString_t *Path         = NULL;
     uintptr_t BaseAddress   = 0;
     Handle_t Handle         = HANDLE_INVALID;
@@ -80,7 +80,7 @@ ScSharedObjectGetFunction(
     // If the handle is the handle_global, search all loaded
     // libraries for the symbol
     if (Handle == HANDLE_GLOBAL) {
-        MCoreAsh_t *Process = PhoenixGetCurrentAsh();
+        MCoreAsh_t *Process = GetCurrentProcess();
         uintptr_t Address   = 0;
         if (Process != NULL) {
             Address = PeResolveFunction(Process->Executable, Function);
@@ -107,7 +107,7 @@ ScSharedObjectUnload(
     _In_  Handle_t  Handle)
 {
     // Variables
-    MCoreAsh_t *Process = PhoenixGetCurrentAsh();
+    MCoreAsh_t *Process = GetCurrentProcess();
     if (Process == NULL || Handle == HANDLE_INVALID) {
         return OsError;
     }

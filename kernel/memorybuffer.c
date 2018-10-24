@@ -83,7 +83,7 @@ CreateMemoryBuffer(
         } break;
 
         case MEMORY_BUFFER_FILEMAPPING: {
-            MCoreAsh_t *CurrentProcess = PhoenixGetCurrentAsh();
+            MCoreAsh_t *CurrentProcess = GetCurrentProcess();
             assert(CurrentProcess != NULL);
             Virtual = AllocateBlocksInBlockmap(CurrentProcess->Heap, __MASK, Size);
             if (Virtual == 0) {

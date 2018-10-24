@@ -270,7 +270,7 @@ DebugStackTrace(
         uintptr_t Value = StackPtr[0];
         uintptr_t Base  = 0;
         char *Name      = NULL;
-        if (DebugGetModuleByAddress(PhoenixGetCurrentAsh(), Value, &Base, &Name) == OsSuccess) {
+        if (DebugGetModuleByAddress(GetCurrentProcess(), Value, &Base, &Name) == OsSuccess) {
             uintptr_t Diff = Value - Base;
             WRITELINE("%u - 0x%x (%s)", MaxFrames - Itr, Diff, Name);
             Itr--;
@@ -367,7 +367,7 @@ DebugPageFaultFileMappings(
     // Variables
     MCoreAshFileMappingEvent_t *Event   = NULL;
     MCoreAshFileMapping_t *Mapping      = NULL;
-    MCoreAsh_t *Ash                     = PhoenixGetCurrentAsh();
+    MCoreAsh_t *Ash                     = GetCurrentProcess();
 
     if (Ash != NULL) {
         // Iterate file-mappings
@@ -399,7 +399,7 @@ DebugPageFaultProcessHeapMemory(
     _In_ Context_t* Context,
     _In_ uintptr_t  Address)
 {
-    MCoreAsh_t *Ash     = PhoenixGetCurrentAsh();
+    MCoreAsh_t *Ash     = GetCurrentProcess();
     Flags_t PageFlags   = MAPPING_USERSPACE | MAPPING_FIXED;
 
     if (Ash != NULL) {

@@ -38,7 +38,7 @@ ScPipeOpen(
     _In_ int            Port, 
     _In_ int            Type)
 {
-    MCoreAsh_t* Process = PhoenixGetCurrentAsh();
+    MCoreAsh_t* Process = GetCurrentProcess();
     if (Process != NULL) {
         return PhoenixOpenAshPipe(Process, Port, Type);
     }
@@ -52,7 +52,7 @@ OsStatus_t
 ScPipeClose(
     _In_ int            Port)
 {
-    MCoreAsh_t* Process = PhoenixGetCurrentAsh();
+    MCoreAsh_t* Process = GetCurrentProcess();
     OsStatus_t Status   = OsError;
 
     if (Process != NULL) {
@@ -86,9 +86,9 @@ ScPipeRead(
         return OsSuccess;
     }
 
-    Pipe = PhoenixGetAshPipe(PhoenixGetCurrentAsh(), Port);
+    Pipe = PhoenixGetAshPipe(GetCurrentProcess(), Port);
     if (Pipe == NULL) {
-        ERROR("Process %s trying to read from non-existing pipe %i", MStringRaw(PhoenixGetCurrentAsh()->Name), Port);
+        ERROR("Process %s trying to read from non-existing pipe %i", MStringRaw(GetCurrentProcess()->Name), Port);
         for(;;);
         return OsError;
     }
@@ -126,7 +126,7 @@ ScPipeWrite(
             return OsError;
         }
     }
-    else { Pipe = PhoenixGetAshPipe(PhoenixGetAsh(ProcessId), Port); }
+    else { Pipe = PhoenixGetAshPipe(GetProcess(ProcessId), Port); }
     if (Pipe == NULL) {
         ERROR("Invalid pipe %i", Port);
         return OsError;
@@ -156,7 +156,7 @@ ScPipeReceive(
         return ScPipeRead(Port, Message, Length);
     }
     else {
-        Pipe = PhoenixGetAshPipe(PhoenixGetAsh(ProcessId), Port);
+        Pipe = PhoenixGetAshPipe(GetProcess(ProcessId), Port);
     }
 
     if (Pipe == NULL) {
@@ -204,7 +204,7 @@ ScRpcExecute(
     int i               = 0;
 
     // Start out by resolving both the process and pipe
-    Ash     = PhoenixGetAsh(RemoteCall->To.Process);
+    Ash     = GetProcess(RemoteCall->To.Process);
     Pipe    = PhoenixGetAshPipe(Ash, RemoteCall->To.Port);
 
     // Sanitize the lookups
@@ -272,10 +272,10 @@ ScRpcListen(
     int i;
 
     // Trace
-    TRACE("%s: ScRpcListen(Port %i)", MStringRaw(PhoenixGetCurrentAsh()->Name), Port);
+    TRACE("%s: ScRpcListen(Port %i)", MStringRaw(GetCurrentProcess()->Name), Port);
     
     // Start out by resolving both the process and pipe
-    Ash     = PhoenixGetCurrentAsh();
+    Ash     = GetCurrentProcess();
     Pipe    = PhoenixGetAshPipe(Ash, Port);
 
     AcquireSystemPipeConsumption(Pipe, &Length, &State);

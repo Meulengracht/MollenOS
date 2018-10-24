@@ -24,9 +24,9 @@
 #define __MODULE        "INIF"
 //#define __TRACE
 
-#include <os/interrupt.h>
 #include <component/cpu.h>
 #include <criticalsection.h>
+#include <os/interrupt.h>
 #include <system/utils.h>
 #include <memoryspace.h>
 #include <interrupts.h>

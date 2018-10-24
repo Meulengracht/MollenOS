@@ -39,15 +39,21 @@
 #define SCHEDULER_LEVEL_LOW             59
 #define SCHEDULER_LEVEL_CRITICAL        60
 #define SCHEDULER_LEVEL_COUNT           61
+
 #define SCHEDULER_TIMESLICE_INITIAL     10
 #define SCHEDULER_BOOST                 3000
 
 #define SCHEDULER_CPU_SELECT            0xFF
+
 #define SCHEDULER_TIMEOUT_INFINITE      0
 #define SCHEDULER_SLEEP_OK              0
 #define SCHEDULER_SLEEP_TIMEOUT         1
 #define SCHEDULER_SLEEP_INTERRUPTED     2
 #define SCHEDULER_SLEEP_SYNC_FAILED     3
+
+#define SCHEDULER_FLAG_BLOCKED          0x1
+#define SCHEDULER_FLAG_REQUEUE          0x2
+#define SCHEDULER_FLAG_BOUND            0x4
 
 /* MCoreSchedulerQueue
  * Represents a queue level in the scheduler. */
@@ -81,12 +87,6 @@ KERNELAPI OsStatus_t KERNELABI
 SchedulerThreadQueue(
     _In_ MCoreThread_t*     Thread,
     _In_ int                SuppressSynchronization);
-
-/* SchedulerThreadDequeue
- * Disarms a thread from all queues and mark the thread inactive. */
-KERNELAPI OsStatus_t KERNELABI
-SchedulerThreadDequeue(
-    _In_ MCoreThread_t*     Thread);
 
 /* SchedulerThreadSleep
  * Enters the current thread into sleep-queue. Can return different

@@ -265,7 +265,7 @@ ResolveVirtualSystemMemorySpaceAddress(
     VirtualAddress_t VirtualBase = 0;
     switch (Flags & MAPPING_VMODE_MASK) {
         case MAPPING_PROCESS: {
-            MCoreAsh_t *CurrentProcess = PhoenixGetCurrentAsh();
+            MCoreAsh_t *CurrentProcess = GetCurrentProcess();
             assert(CurrentProcess != NULL);
             VirtualBase = AllocateBlocksInBlockmap(CurrentProcess->Heap, Mask, Size);
             if (VirtualBase == 0) {

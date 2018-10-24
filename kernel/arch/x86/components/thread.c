@@ -21,13 +21,14 @@
  */
 #define __MODULE "XTIF"
 
+#include <process/process.h>
 #include <system/thread.h>
 #include <system/utils.h>
 #include <threading.h>
-#include <process/phoenix.h>
 #include <interrupts.h>
 #include <thread.h>
 #include <memory.h>
+#include <handle.h>
 #include <debug.h>
 #include <heap.h>
 #include <apic.h>
@@ -122,7 +123,6 @@ OsStatus_t
 ThreadingUnregister(
     _In_ MCoreThread_t *Thread)
 {
-    // Cleanup
     kfree((void*)Thread->Data[THREAD_DATA_MATHBUFFER]);
     return OsSuccess;
 }
@@ -163,9 +163,10 @@ ThreadingYield(void)
  * does not return. */
 OsStatus_t
 ThreadingSignalDispatch(
-    _In_ MCoreThread_t *Thread)
+    _In_ MCoreThread_t* Thread)
 {
-    MCoreAsh_t *Process     = PhoenixGetAsh(Thread->AshId);
+    SystemProcess_t* Process = (SystemProcess_t*)LookupHandle(Thread->ProcessHandle);
+    assert(Process != NULL);
 
     // Now we can enter the signal context 
     // handler, we cannot return from this function

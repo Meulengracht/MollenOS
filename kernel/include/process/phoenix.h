@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,116 +16,88 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Server & Process Management
- * - The process/server manager is known as Phoenix
+ * Alias & Process Management
+ * - The implementation of phoenix is responsible for managing alias's, handle
+ *   file events and creating/destroying processes.
  */
+#ifndef __VALI_PHOENIX_H__
+#define __VALI_PHOENIX_H__
 
-#ifndef _MCORE_PHOENIX_H_
-#define _MCORE_PHOENIX_H_
-
-/* Includes
- * - Library */
 #include <os/osdefs.h>
-#include <os/process.h>
+#include <memorybuffer.h>
 
-/* Includes
- * - System */
-#include <process/ash.h>
-#include <threading.h>
-#include <events.h>
+typedef struct _SystemProcess SystemProcess_t;
+typedef struct _MString MString_t;
 
-/* Definitions for special identifiers
- * these can be used to lookup special ashes/processes */
-#define PHOENIX_MAX_ASHES		512
+#define PHOENIX_MAX_ALIASES     32
 #define PHOENIX_ALIAS_BASE		0x8000
 
-/* The type of action that are supported
- * by Phoenix, each of these actions support
- * different parameters as well, especially 
- * the spawn command */
-typedef enum _PhoenixRequestType {
-	AshSpawnProcess,
-	AshSpawnServer,
-	AshPing,
-	AshKill,
-	AshQuery
-} PhoenixRequestType_t;
+// File Mapping Support
+// Provides file-mapping support for processes.
+typedef struct _MCoreAshFileMapping {
+    CollectionItem_t    Header;
+    DmaBuffer_t         BufferObject;
+    UUId_t              FileHandle;
+    uint64_t            FileBlock;
+    uint64_t            BlockOffset;
+    size_t              Length;
+    Flags_t             Flags;
+} MCoreAshFileMapping_t;
 
-/* The Phoenix request structure, it builds
- * on the event system we have created, using
- * it as an base, and then supports parameters
- * for requests in PhoneixRequestType */
-typedef struct _MCorePhoenixRequest {
-	MCoreEvent_t                 Base;
-    ProcessStartupInformation_t  StartupInformation;
-    MString_t                   *Path;
-    
+/* MCoreAshFileMappingEvent
+ * Descripes a file mapping access event. */
+typedef struct _MCoreAshFileMappingEvent {
+    SystemProcess_t*    Process;
+    uintptr_t           Address;
+    OsStatus_t          Result;
+} MCoreAshFileMappingEvent_t;
 
-	// This is a combined parameter, for some
-	// actions it acts as a return, other times it
-	// is the parameter for an action
-	UUId_t                       AshId;
-} MCorePhoenixRequest_t;
+/* InitializePhoenix
+ * Initializes the process and server manager. Keeps track of registered
+ * alias's and handles file mapped events. */
+KERNELAPI void KERNELABI
+InitializePhoenix(void);
 
-/* PhoenixInitialize
- * Initialize the Phoenix environment and 
- * start the event-handler loop, it handles all requests 
- * and nothing happens if it isn't started */
-KERNELAPI
-void
-KERNELABI
-PhoenixInitialize(void);
+/* CreateService
+ * Creates a new service by the service identification, this in turns call CreateProcess. */
+KERNELAPI OsStatus_t KERNELABI
+CreateService(
+    _In_  MString_t*    Path,
+    _In_  DevInfo_t     VendorId,
+    _In_  DevInfo_t     DeviceId,
+    _In_  DevInfo_t     DeviceClass,
+    _In_  DevInfo_t     DeviceSubClass,
+    _Out_ UUId_t*       Handle);
 
-/* PhoenixCreateRequest
- * Creates and queues up a new request for the process-manager. */
-KERNELAPI
-void
-KERNELABI
-PhoenixCreateRequest(
-    _In_ MCorePhoenixRequest_t *Request);
-
-/* PhoenixWaitRequest
- * Wait for a request to finish. A timeout can be specified. */
-KERNELAPI
-void
-KERNELABI
-PhoenixWaitRequest(
-    _In_ MCorePhoenixRequest_t *Request,
-    _In_ size_t Timeout);
-
-/* PhoenixRegisterAlias
+/* SetProcessAlias
  * Allows a server to register an alias for its id
  * which means that id (must be above SERVER_ALIAS_BASE)
  * will always refer the calling process */
-KERNELAPI
-OsStatus_t
-KERNELABI
-PhoenixRegisterAlias(
-	_In_ MCoreAsh_t *Ash, 
+KERNELAPI OsStatus_t KERNELABI
+SetProcessAlias(
+    _In_ UUId_t Handle,
     _In_ UUId_t Alias);
-    
-/* PhoenixUpdateAlias
+
+/* GetProcessHandleByAlias
  * Checks if the given process-id has an registered alias.
  * If it has, the given process-id will be overwritten. */
-KERNELAPI
-OsStatus_t
-KERNELABI
-PhoenixUpdateAlias(
-    _InOut_ UUId_t *AshId);
+KERNELAPI OsStatus_t KERNELABI
+GetProcessHandleByAlias(
+    _InOut_ UUId_t*     Alias);
 
-/* PhoenixRegisterAsh
- * Registers a new ash by adding it to the process-list */
-KERNELAPI
-OsStatus_t
-KERNELABI
-PhoenixRegisterAsh(
-    _In_ MCoreAsh_t *Ash);
-    
-/* PhoenixGetNextId 
- * Retrieves the next process-id. */
-KERNELAPI
-UUId_t
-KERNELABI
-PhoenixGetNextId(void);
+/* GetServiceByIdentification
+ * Retrieves a running service by driver-information to avoid spawning multiple services */
+KERNELAPI SystemProcess_t* KERNELABI
+GetServiceByIdentification(
+    _In_ DevInfo_t VendorId,
+    _In_ DevInfo_t DeviceId,
+    _In_ DevInfo_t DeviceClass,
+    _In_ DevInfo_t DeviceSubClass);
 
-#endif //!_MCORE_PHOENIX_H_
+/* PhoenixFileMappingEvent
+ * Signals a new file-mapping access event to the phoenix process system. */
+KERNELAPI void KERNELABI
+PhoenixFileMappingEvent(
+    _In_ MCoreAshFileMappingEvent_t* Event);
+
+#endif //!__VALI_PHOENIX_H__

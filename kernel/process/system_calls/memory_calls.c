@@ -44,7 +44,7 @@ ScMemoryAllocate(
     MCoreAsh_t *Ash;
 
     // Locate the current running process
-    Ash = PhoenixGetCurrentAsh();
+    Ash = GetCurrentProcess();
     if (Ash == NULL || Size == 0) {
         return OsError;
     }
@@ -111,7 +111,7 @@ ScMemoryFree(
     MCoreAsh_t *Ash = NULL;
 
     // Locate the current running process
-    Ash = PhoenixGetCurrentAsh();
+    Ash = GetCurrentProcess();
     if (Ash == NULL || Address == 0 || Size == 0) {
         return OsError;
     }

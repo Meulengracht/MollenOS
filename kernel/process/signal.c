@@ -82,8 +82,8 @@ SignalCreate(
     _In_ int        Signal)
 {
 	// Variables
-	MCoreThread_t *Target   = ThreadingGetThread(ThreadId);
-	MCoreSignal_t *Sig      = NULL;
+	MCoreThread_t*  Target   = ThreadingGetThread(ThreadId);
+	SystemSignal_t* Sig      = NULL;
 	DataKey_t sKey;
 
     // Debug
@@ -100,7 +100,7 @@ SignalCreate(
     }
 
 	// Create a new signal instance for process.
-	Sig = (MCoreSignal_t*)kmalloc(sizeof(MCoreSignal_t));
+	Sig = (SystemSignal_t*)kmalloc(sizeof(SystemSignal_t));
     Sig->Ignorable 	= GlbSignalIsDeadly[Signal];
 	Sig->Signal 	= Signal;
 
@@ -143,7 +143,7 @@ SignalHandle(
 {
 	CollectionItem_t *sNode;
 	MCoreThread_t *Thread;
-	MCoreSignal_t *Signal;
+	SystemSignal_t *Signal;
 	
 	// Lookup variables
 	Thread = ThreadingGetThread(ThreadId);
@@ -161,7 +161,7 @@ SignalHandle(
 
 	// Sanitize the node, no more signals?
 	if (sNode != NULL) {
-		Signal = (MCoreSignal_t*)sNode->Data;
+		Signal = (SystemSignal_t*)sNode->Data;
 		CollectionDestroyNode(Thread->SignalQueue, sNode);
 		SignalExecute(Thread, Signal);
 	}
@@ -174,15 +174,13 @@ SignalHandle(
 void
 SignalExecute(
     _In_ MCoreThread_t *Thread,
-    _In_ MCoreSignal_t *Signal)
+    _In_ SystemSignal_t *Signal)
 {
-    MCoreAsh_t *Process = NULL;
-
-    // Debug
+    SystemProcess_t* Process;
     TRACE("SignalExecute(Thread %u, Signal %i)", Thread->Id, Signal->Signal);
 
     // Instantiate the process
-    Process = PhoenixGetAsh(Thread->AshId);
+    Process = Thread->Process;
     if (Process == NULL) {
         kfree(Signal);
         return;
@@ -200,7 +198,7 @@ SignalExecute(
 	}
 
 	// Update active and dispatch
-    memcpy(&Thread->ActiveSignal, Signal, sizeof(MCoreSignal_t));
+    memcpy(&Thread->ActiveSignal, Signal, sizeof(SystemSignal_t));
     Thread->ActiveSignal.Context = Thread->ContextActive;
 
     // Cleanup signal and dispatch

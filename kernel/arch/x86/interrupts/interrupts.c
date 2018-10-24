@@ -29,7 +29,7 @@
 #include <system/thread.h>
 #include <system/utils.h>
 #include <ds/collection.h>
-#include <process/phoenix.h>
+#include <process/process.h>
 #include <acpiinterface.h>
 #include <interrupts.h>
 #include <threading.h>
@@ -414,7 +414,7 @@ ExceptionSignal(
 #ifdef __OSCONFIG_DISABLE_SIGNALLING
     if (Signal >= 0) {
 #else
-    if (PhoenixGetCurrentAsh() == NULL) {
+    if (GetCurrentProcess() == NULL) {
 #endif
         return OsError;
     }
@@ -561,7 +561,7 @@ ExceptionEntry(
         }
 
         // Locate which module
-        if (DebugGetModuleByAddress(PhoenixGetCurrentAsh(), CONTEXT_IP(Registers), &Base, &Name) == OsSuccess) {
+        if (DebugGetModuleByAddress(GetCurrentProcess(), CONTEXT_IP(Registers), &Base, &Name) == OsSuccess) {
             uintptr_t Diff = CONTEXT_IP(Registers) - Base;
             WRITELINE("Faulty Address: 0x%x (%s)", Diff, Name);
         }
