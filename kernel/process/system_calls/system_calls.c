@@ -23,7 +23,7 @@
 
 #include <os/osdefs.h>
 #include <os/mollenos.h>
-#include <process/phoenix.h>
+#include <process/process.h>
 #include <system/output.h>
 #include <system/utils.h>
 #include <memoryspace.h>
@@ -114,7 +114,7 @@ ScSystemTick(
 
     if (TimersGetSystemTick(SystemTick) == OsSuccess) {
         if (TickBase == TIME_PROCESS) {
-            MCoreAsh_t* Process = GetCurrentProcess();
+            SystemProcess_t* Process = GetCurrentProcess();
             if (Process != NULL) {
                 *SystemTick -= Process->StartedAt;
             }

@@ -127,8 +127,7 @@ InterruptGetLeastLoaded(
         }
 
         // Store the lowest penalty
-        if (SelectedIrq == INTERRUPT_NONE
-            || Penalty < SelectedPenality) {
+        if (SelectedIrq == INTERRUPT_NONE || Penalty < SelectedPenality) {
             SelectedIrq = Irqs[i];
             SelectedPenality = Penalty;
         }

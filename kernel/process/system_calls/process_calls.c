@@ -132,23 +132,13 @@ OsStatus_t
 ScProcessKill(
     _In_ UUId_t ProcessId)
 {
-    // Variables
-    MCorePhoenixRequest_t Request;
+    SystemProcess_t* Process = GetProcess(ProcessId);
 
-    // Initialize the request
-    memset(&Request, 0, sizeof(MCorePhoenixRequest_t));
-    Request.Base.Type = AshKill;
-    Request.AshId = ProcessId;
 
-    // Create and wait with 1 second timeout
-    PhoenixCreateRequest(&Request);
-    PhoenixWaitRequest(&Request, 1000);
-    if (Request.Base.State == EventOk) {
-        return OsSuccess;
-    }
-    else {
-        return OsError;
-    }
+
+
+
+    
 }
 
 /* ScProcessExit
@@ -157,8 +147,8 @@ OsStatus_t
 ScProcessExit(
     _In_ int ExitCode)
 {
-    MCoreThread_t*  Thread  = ThreadingGetCurrentThread(CpuGetCurrentId());
-    MCoreAsh_t*     Process = GetCurrentProcess();
+    MCoreThread_t*      Thread  = ThreadingGetCurrentThread(CpuGetCurrentId());
+    SystemProcess_t*    Process = GetCurrentProcess();
     if (Process == NULL) {
         return OsError;
     }
@@ -166,11 +156,11 @@ ScProcessExit(
 
     // Are we detached? Then call only thread cleanup
     Process->Code = ExitCode;
-    if (Thread->ParentId == UUID_INVALID) {
+    if (Thread->ParentThreadId == UUID_INVALID) {
         ThreadingTerminateThread(Thread->Id, ExitCode, 1);
     }
     else {
-        ThreadingTerminateThread(Process->MainThread, ExitCode, 1);
+        ThreadingTerminateThread(Process->MainThreadId, ExitCode, 1);
     }
     return OsSuccess;
 }
@@ -181,11 +171,7 @@ OsStatus_t
 ScProcessGetCurrentId(
     _In_ UUId_t* ProcessId)
 {
-    MCoreAsh_t *Process = GetCurrentProcess();
-    if (Process == NULL || ProcessId == NULL) {
-        return OsError;
-    }
-    *ProcessId = Process->Id;
+    *ProcessId = ThreadingGetCurrentThread(CpuGetCurrentId())->ProcessHandle;
     return OsSuccess;
 }
 
@@ -194,7 +180,7 @@ ScProcessGetCurrentId(
 OsStatus_t
 ScProcessGetCurrentName(const char *Buffer, size_t MaxLength)
 {
-    MCoreAsh_t *Process = GetCurrentProcess();
+    SystemProcess_t* Process = GetCurrentProcess();
     if (Process == NULL) {
         return OsError;
     }
@@ -209,11 +195,10 @@ OsStatus_t
 ScProcessSignal(
     _In_ uintptr_t Handler) 
 {
-    MCoreAsh_t* Process = GetCurrentProcess();
+    SystemProcess_t* Process = GetCurrentProcess();
     if (Process == NULL) {
         return OsError;
     }
-
     Process->SignalHandler = Handler;
     return OsSuccess;
 }
@@ -226,11 +211,11 @@ ScProcessRaise(
     _In_ UUId_t ProcessId, 
     _In_ int    Signal)
 {
-    MCoreProcess_t* Process = PhoenixGetProcess(ProcessId);
+    SystemProcess_t* Process = PhoenixGetProcess(ProcessId);
     if (Process == NULL) {
         return OsError;
     }
-    return SignalCreate(Process->Base.MainThread, Signal);
+    return SignalCreate(Process->MainThreadId, Signal);
 }
 
 /* ScProcessGetStartupInformation
@@ -239,7 +224,7 @@ OsStatus_t
 ScProcessGetStartupInformation(
     _In_ ProcessStartupInformation_t* StartupInformation)
 {
-    MCoreProcess_t* Process;
+    SystemProcess_t* Process;
     if (StartupInformation == NULL) {
         return OsError;
     }
@@ -288,7 +273,7 @@ OsStatus_t
 ScProcessGetModuleHandles(
     _In_ Handle_t ModuleList[PROCESS_MAXMODULES])
 {
-    MCoreAsh_t* Process = GetCurrentProcess();
+    SystemProcess_t* Process = GetCurrentProcess();
     if (Process == NULL) {
         return OsError;
     }
@@ -301,7 +286,7 @@ OsStatus_t
 ScProcessGetModuleEntryPoints(
     _In_ Handle_t ModuleList[PROCESS_MAXMODULES])
 {
-    MCoreAsh_t* Process = GetCurrentProcess();
+    SystemProcess_t* Process = GetCurrentProcess();
     if (Process == NULL) {
         return OsError;
     }

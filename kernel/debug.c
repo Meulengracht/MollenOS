@@ -199,10 +199,10 @@ DebugPanic(
  * Retrieves the module (Executable) at the given address */
 OsStatus_t
 DebugGetModuleByAddress(
-    _In_  MCoreAsh_t*   Process,
-    _In_  uintptr_t     Address,
-    _Out_ uintptr_t*    Base,
-    _Out_ char**        Name)
+    _In_  SystemProcess_t*  Process,
+    _In_  uintptr_t         Address,
+    _Out_ uintptr_t*        Base,
+    _Out_ char**            Name)
 {
     // Validate that the address is within userspace
     if (Address >= MEMORY_LOCATION_RING3_CODE && Address < MEMORY_LOCATION_RING3_CODE_END) {
@@ -364,19 +364,18 @@ DebugPageFaultFileMappings(
     _In_ Context_t* Context,
     _In_ uintptr_t  Address)
 {
-    // Variables
-    MCoreAshFileMappingEvent_t *Event   = NULL;
-    MCoreAshFileMapping_t *Mapping      = NULL;
-    MCoreAsh_t *Ash                     = GetCurrentProcess();
+    MCoreAshFileMappingEvent_t* Event;
+    MCoreAshFileMapping_t*      Mapping;
+    SystemProcess_t*            Process = GetCurrentProcess();
 
-    if (Ash != NULL) {
+    if (Process != NULL) {
         // Iterate file-mappings
-        foreach(Node, Ash->FileMappings) {
+        foreach(Node, Process->FileMappings) {
             Mapping = (MCoreAshFileMapping_t*)Node->Data;
             if (ISINRANGE(Address, Mapping->BufferObject.Address, (Mapping->BufferObject.Address + Mapping->Length) - 1)) {
                 // Oh, woah, file-mapping
                 Event = (MCoreAshFileMappingEvent_t*)kmalloc(sizeof(MCoreAshFileMappingEvent_t));
-                Event->Ash      = Ash;
+                Event->Process  = Process;
                 Event->Address  = Address;
 
                 PhoenixFileMappingEvent(Event);
@@ -399,16 +398,16 @@ DebugPageFaultProcessHeapMemory(
     _In_ Context_t* Context,
     _In_ uintptr_t  Address)
 {
-    MCoreAsh_t *Ash     = GetCurrentProcess();
-    Flags_t PageFlags   = MAPPING_USERSPACE | MAPPING_FIXED;
+    SystemProcess_t*    Process     = GetCurrentProcess();
+    Flags_t             PageFlags   = MAPPING_USERSPACE | MAPPING_FIXED;
 
-    if (Ash != NULL) {
+    if (Process != NULL) {
         if (DebugPageFaultFileMappings(Context, Address) == OsSuccess) {
             return OsSuccess;
         }
 
         // If the mapping is a heap address we need to check for device-io mapping
-        if (BlockBitmapValidateState(Ash->Heap, Address, 1) == OsSuccess) {
+        if (BlockBitmapValidateState(Process->Heap, Address, 1) == OsSuccess) {
             uintptr_t ExistingPhysical = ValidateDeviceIoMemoryAddress(Address);
             if (ExistingPhysical != 0) {
                 return CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), &ExistingPhysical, &Address, 

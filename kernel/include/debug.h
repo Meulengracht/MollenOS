@@ -34,8 +34,7 @@
 #include <component/memory.h>
 #include <log.h>
 
-// Forward declarations
-typedef struct _MCoreAsh MCoreAsh_t;
+typedef struct _SystemProcess SystemProcess_t;
 
 /* Sanitize the module definition, must be 
  * present to identify the source-code that include this */
@@ -110,10 +109,10 @@ DebugPanic(
  * Retrieves the module (Executable) at the given address */
 KERNELAPI OsStatus_t KERNELABI
 DebugGetModuleByAddress(
-    _In_  MCoreAsh_t*   Process,
-    _In_  uintptr_t     Address, 
-    _Out_ uintptr_t*    Base, 
-    _Out_ char**        Name);
+    _In_  SystemProcess_t*  Process,
+    _In_  uintptr_t         Address, 
+    _Out_ uintptr_t*        Base, 
+    _Out_ char**            Name);
 
 /* DebugStackTrace
  * Performs a verbose stack trace in the current context 
