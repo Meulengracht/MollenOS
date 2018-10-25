@@ -5352,7 +5352,7 @@ def main():
   agl_glyphs, agl_values = adobe_glyph_values()
   dict = StringNode( "", 0 )
 
-  for g in range( len( agl_glyphs ) ):
+  for g in enumerate(agl_glyphs):
     dict.add( agl_glyphs[g], ast.literal_eval( "0x" + agl_values[g] ) )
 
   dict       = dict.optimize()
