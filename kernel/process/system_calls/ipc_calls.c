@@ -21,11 +21,14 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
-#include <os/input.h>
 #include <process/phoenix.h>
+#include <process/process.h>
+#include <process/pipe.h>
 #include <system/utils.h>
+#include <ds/mstring.h>
 #include <scheduler.h>
 #include <threading.h>
+#include <os/input.h>
 #include <machine.h>
 #include <debug.h>
 #include <pipe.h>
@@ -38,9 +41,9 @@ ScPipeOpen(
     _In_ int            Port, 
     _In_ int            Type)
 {
-    MCoreAsh_t* Process = GetCurrentProcess();
+    SystemProcess_t* Process = GetCurrentProcess();
     if (Process != NULL) {
-        return PhoenixOpenAshPipe(Process, Port, Type);
+        return CreateProcessPipe(Process, Port, Type);
     }
     return OsError;
 }
@@ -52,21 +55,21 @@ OsStatus_t
 ScPipeClose(
     _In_ int            Port)
 {
-    MCoreAsh_t* Process = GetCurrentProcess();
-    OsStatus_t Status   = OsError;
+    UUId_t              ProcessHandle = ThreadingGetCurrentThread(CpuGetCurrentId())->ProcessHandle;
+    SystemProcess_t*    Process = GetCurrentProcess();
+    OsStatus_t          Status  = OsError;
+    OsStatus_t          IsWm    = IsProcessAlias(ProcessHandle, __WINDOWMANAGER_TARGET);
 
     if (Process != NULL) {
-        UUId_t Alias = Process->Id;
-        PhoenixUpdateAlias(&Alias);
-        Status = PhoenixCloseAshPipe(Process, Port);
+        Status = DestroyProcessPipe(Process, Port);
         
         // Disable the window manager input event pipe
-        if (Status == OsSuccess && Alias == __WINDOWMANAGER_TARGET && Port == PIPE_STDIN) {
+        if (Status == OsSuccess && IsWm == OsSuccess && Port == PIPE_STDIN) {
             GetMachine()->StdInput = NULL;
         }
 
         // Disable the window manager input event pipe
-        if (Status == OsSuccess && Alias == __WINDOWMANAGER_TARGET && Port == PIPE_WMEVENTS) {
+        if (Status == OsSuccess && IsWm == OsSuccess && Port == PIPE_WMEVENTS) {
             GetMachine()->WmInput = NULL;
         }
     }
@@ -81,14 +84,15 @@ ScPipeRead(
     _In_ uint8_t*       Container,
     _In_ size_t         Length)
 {
-    SystemPipe_t *Pipe;
+    SystemPipe_t* Pipe;
     if (Length == 0) {
         return OsSuccess;
     }
 
-    Pipe = PhoenixGetAshPipe(GetCurrentProcess(), Port);
+    Pipe = GetProcessPipe(GetCurrentProcess(), Port);
     if (Pipe == NULL) {
-        ERROR("Process %s trying to read from non-existing pipe %i", MStringRaw(GetCurrentProcess()->Name), Port);
+        ERROR("Process %s trying to read from non-existing pipe %i", 
+            MStringRaw(GetCurrentProcess()->Name), Port);
         for(;;);
         return OsError;
     }
@@ -100,19 +104,19 @@ ScPipeRead(
  * Writes the requested number of bytes to the system-pipe. */
 OsStatus_t
 ScPipeWrite(
-    _In_ UUId_t         ProcessId,
+    _In_ UUId_t         ProcessHandle,
     _In_ int            Port,
     _In_ uint8_t*       Message,
     _In_ size_t         Length)
 {
-    SystemPipe_t *Pipe = NULL;
+    SystemPipe_t* Pipe = NULL;
     if (Message == NULL || Length == 0) {
         return OsError;
     }
 
     // Are we looking for a system out pipe? (std) then the
     // process id (target) will be set as invalid
-    if (ProcessId == UUID_INVALID) {
+    if (ProcessHandle == UUID_INVALID) {
         if (Port == PIPE_STDOUT || Port == PIPE_STDERR) {
             if (Port == PIPE_STDOUT) {
                 Pipe = LogPipeStdout();
@@ -126,7 +130,7 @@ ScPipeWrite(
             return OsError;
         }
     }
-    else { Pipe = PhoenixGetAshPipe(GetProcess(ProcessId), Port); }
+    else { Pipe = GetProcessPipe(GetProcess(ProcessHandle), Port); }
     if (Pipe == NULL) {
         ERROR("Invalid pipe %i", Port);
         return OsError;
@@ -140,23 +144,23 @@ ScPipeWrite(
  * Receives the requested number of bytes from the system-pipe. */
 OsStatus_t
 ScPipeReceive(
-    _In_ UUId_t         ProcessId,
+    _In_ UUId_t         ProcessHandle,
     _In_ int            Port,
     _In_ uint8_t*       Message,
     _In_ size_t         Length)
 {
-    SystemPipe_t *Pipe;
+    SystemPipe_t* Pipe;
     if (Message == NULL || Length == 0) {
         ERROR("Invalid paramters for pipe-receive");
         return OsError;
     }
 
     // Handle special case, system-stdin
-    if (ProcessId == UUID_INVALID) {
+    if (ProcessHandle == UUID_INVALID) {
         return ScPipeRead(Port, Message, Length);
     }
     else {
-        Pipe = PhoenixGetAshPipe(GetProcess(ProcessId), Port);
+        Pipe = GetProcessPipe(GetProcess(ProcessHandle), Port);
     }
 
     if (Pipe == NULL) {
@@ -195,21 +199,20 @@ ScRpcExecute(
     _In_ MRemoteCall_t* RemoteCall,
     _In_ int            Async)
 {
-    // Variables
-    SystemPipeUserState_t State;
-    MCoreThread_t *Thread;
-    SystemPipe_t *Pipe;
-    MCoreAsh_t *Ash;
-    size_t TotalLength  = sizeof(MRemoteCall_t);
-    int i               = 0;
+    SystemPipeUserState_t   State;
+    MCoreThread_t*          Thread;
+    SystemPipe_t*           Pipe;
+    SystemProcess_t*        Process;
+    size_t                  TotalLength = sizeof(MRemoteCall_t);
+    int                     i;
 
     // Start out by resolving both the process and pipe
-    Ash     = GetProcess(RemoteCall->To.Process);
-    Pipe    = PhoenixGetAshPipe(Ash, RemoteCall->To.Port);
+    Process = GetProcess(RemoteCall->To.Process);
+    Pipe    = GetProcessPipe(Process, RemoteCall->To.Port);
 
     // Sanitize the lookups
-    if (Ash == NULL || Pipe == NULL) {
-        if (Ash == NULL) {
+    if (Process == NULL || Pipe == NULL) {
+        if (Process == NULL) {
             ERROR("Target 0x%x did not exist", RemoteCall->To.Process);
         }
         else {
@@ -225,7 +228,7 @@ ScRpcExecute(
     
     // Install Sender
     Thread = ThreadingGetCurrentThread(CpuGetCurrentId());
-    RemoteCall->From.Process    = Thread->AshId;
+    RemoteCall->From.Process    = Thread->ProcessHandle;
     RemoteCall->From.Thread     = Thread->Id;
     RemoteCall->From.Port       = -1;
 
@@ -263,20 +266,19 @@ ScRpcListen(
     _In_ MRemoteCall_t* RemoteCall,
     _In_ uint8_t*       ArgumentBuffer)
 {
-    // Variables
-    SystemPipeUserState_t State;
-    uint8_t *BufferPointer = ArgumentBuffer;
-    SystemPipe_t *Pipe;
-    MCoreAsh_t *Ash;
-    size_t Length;
-    int i;
+    SystemPipeUserState_t   State;
+    uint8_t*                BufferPointer = ArgumentBuffer;
+    SystemPipe_t*           Pipe;
+    SystemProcess_t*        Process;
+    size_t                  Length;
+    int                     i;
 
     // Trace
     TRACE("%s: ScRpcListen(Port %i)", MStringRaw(GetCurrentProcess()->Name), Port);
     
     // Start out by resolving both the process and pipe
-    Ash     = GetCurrentProcess();
-    Pipe    = PhoenixGetAshPipe(Ash, Port);
+    Process = GetCurrentProcess();
+    Pipe    = GetProcessPipe(Process, Port);
 
     AcquireSystemPipeConsumption(Pipe, &Length, &State);
     ReadSystemPipeConsumption(&State, (uint8_t*)RemoteCall, sizeof(MRemoteCall_t));
@@ -300,9 +302,8 @@ ScRpcRespond(
     _In_ const uint8_t*         Buffer, 
     _In_ size_t                 Length)
 {
-    // Variables
-    MCoreThread_t *Thread   = ThreadingGetThread(RemoteAddress->Thread);
-    SystemPipe_t *Pipe      = NULL;
+    MCoreThread_t*  Thread = ThreadingGetThread(RemoteAddress->Thread);
+    SystemPipe_t*   Pipe   = NULL;
 
     // Sanitize thread still exists
     if (Thread != NULL) {

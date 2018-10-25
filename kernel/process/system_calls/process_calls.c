@@ -21,10 +21,10 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
-#include <os/osdefs.h>
-#include <system/utils.h>
-#include <process/phoenix.h>
 #include <process/process.h>
+#include <process/pe.h>
+#include <system/utils.h>
+#include <ds/mstring.h>
 #include <threading.h>
 #include <scheduler.h>
 #include <debug.h>
@@ -35,69 +35,18 @@
  * and the given arguments, returns UUID_INVALID on failure */
 UUId_t
 ScProcessSpawn(
-    _In_ const char*                            Path,
-    _In_ const ProcessStartupInformation_t*     StartupInformation,
-    _In_ int                                    Asynchronous)
+    _In_ const char*                    Path,
+    _In_ ProcessStartupInformation_t*   StartupInformation)
 {
-    // Variables
-    MCorePhoenixRequest_t *Request  = NULL;
-    MString_t *mPath                = NULL;
-    UUId_t Result                   = UUID_INVALID;
-
-    // Only the path cannot be null
-    // Arguments are allowed to be null
-    if (Path == NULL || StartupInformation == NULL) {
-        return UUID_INVALID;
-    }
-
-    // Allocate resources for the spawn
-    Request = (MCorePhoenixRequest_t*)kmalloc(sizeof(MCorePhoenixRequest_t));
-    mPath = MStringCreate((void*)Path, StrUTF8);
-
-    // Reset structure and set it up
-    memset(Request, 0, sizeof(MCorePhoenixRequest_t));
-    Request->Base.Type = AshSpawnProcess;
-    Request->Path = mPath;
-    Request->Base.Cleanup = Asynchronous;
+    MString_t*  mPath;
+    UUId_t      Result = UUID_INVALID;
     
-    // Copy startup-information
-    if (StartupInformation->ArgumentPointer != NULL
-        && StartupInformation->ArgumentLength != 0) {
-        Request->StartupInformation.ArgumentLength = 
-            StartupInformation->ArgumentLength;
-        Request->StartupInformation.ArgumentPointer = 
-            (const char*)kmalloc(StartupInformation->ArgumentLength);
-        memcpy((void*)Request->StartupInformation.ArgumentPointer,
-            StartupInformation->ArgumentPointer, 
-            StartupInformation->ArgumentLength);
+    if (Path == NULL || StartupInformation == NULL) {
+        return Result;
     }
-    if (StartupInformation->InheritanceBlockPointer != NULL
-        && StartupInformation->InheritanceBlockLength != 0) {
-        Request->StartupInformation.InheritanceBlockLength = 
-            StartupInformation->InheritanceBlockLength;
-        Request->StartupInformation.InheritanceBlockPointer = 
-            (const char*)kmalloc(StartupInformation->InheritanceBlockLength);
-        memcpy((void*)Request->StartupInformation.InheritanceBlockPointer,
-            StartupInformation->InheritanceBlockPointer, 
-            StartupInformation->InheritanceBlockLength);
-    }
-
-    // If it's an async request we return immediately
-    // We return an invalid UUID as it cannot be used
-    // for queries
-    PhoenixCreateRequest(Request);
-    if (Asynchronous != 0) {
-        return UUID_INVALID;
-    }
-
-    // Otherwise wait for request to complete
-    // and then cleanup and return the process id
-    PhoenixWaitRequest(Request, 0);
+    mPath = MStringCreate((void*)Path, StrUTF8);
+    CreateProcess(mPath, StartupInformation, ProcessNormal, &Result);
     MStringDestroy(mPath);
-
-    // Store result and cleanup
-    Result = Request->AshId;
-    kfree(Request);
     return Result;
 }
 
@@ -106,11 +55,11 @@ ScProcessSpawn(
  * The exit-code for the process will be returned. */
 OsStatus_t
 ScProcessJoin(
-    _In_  UUId_t    ProcessId,
+    _In_  UUId_t    ProcessHandle,
     _In_  size_t    Timeout,
     _Out_ int*      ExitCode)
 {
-    SystemProcess_t*    Process = GetProcess(ProcessId);
+    SystemProcess_t*    Process = GetProcess(ProcessHandle);
     int                 SleepResult;
     
     if (Process == NULL) {
@@ -130,15 +79,17 @@ ScProcessJoin(
  * Kills the given process-id, it does not guarantee instant kill. */
 OsStatus_t
 ScProcessKill(
-    _In_ UUId_t ProcessId)
+    _In_ UUId_t ProcessHandle)
 {
-    SystemProcess_t* Process = GetProcess(ProcessId);
-
-
-
-
-
-    
+    SystemProcess_t*    Process = GetProcess(ProcessHandle);
+    OsStatus_t          Status  = OsDoesNotExist;
+    // @security checks
+    if (Process != NULL) {
+        WARNING("Process %s killed", MStringRaw(Process->Name));
+        Process->Code = 0;
+        Status = ThreadingTerminateThread(Process->MainThreadId, 0, 1);
+    }
+    return Status;
 }
 
 /* ScProcessExit
@@ -149,29 +100,29 @@ ScProcessExit(
 {
     MCoreThread_t*      Thread  = ThreadingGetCurrentThread(CpuGetCurrentId());
     SystemProcess_t*    Process = GetCurrentProcess();
-    if (Process == NULL) {
-        return OsError;
-    }
-    WARNING("Process %s terminated with code %i", MStringRaw(Process->Name), ExitCode);
+    OsStatus_t          Status  = OsError;
+    if (Process != NULL) {
+        WARNING("Process %s terminated with code %i", MStringRaw(Process->Name), ExitCode);
+        Process->Code = ExitCode;
 
-    // Are we detached? Then call only thread cleanup
-    Process->Code = ExitCode;
-    if (Thread->ParentThreadId == UUID_INVALID) {
-        ThreadingTerminateThread(Thread->Id, ExitCode, 1);
+        // Are we detached? Then call only thread cleanup
+        if (Thread->ParentThreadId == UUID_INVALID) {
+            Status = ThreadingTerminateThread(Thread->Id, ExitCode, 1);
+        }
+        else {
+            Status = ThreadingTerminateThread(Process->MainThreadId, ExitCode, 1);
+        }
     }
-    else {
-        ThreadingTerminateThread(Process->MainThreadId, ExitCode, 1);
-    }
-    return OsSuccess;
+    return Status;
 }
 
 /* ScProcessGetCurrentId 
  * Retrieves the current process identifier. */
 OsStatus_t 
 ScProcessGetCurrentId(
-    _In_ UUId_t* ProcessId)
+    _In_ UUId_t* ProcessHandle)
 {
-    *ProcessId = ThreadingGetCurrentThread(CpuGetCurrentId())->ProcessHandle;
+    *ProcessHandle = ThreadingGetCurrentThread(CpuGetCurrentId())->ProcessHandle;
     return OsSuccess;
 }
 
@@ -205,13 +156,13 @@ ScProcessSignal(
 
 /* Dispatches a signal to the target process id 
  * It will get handled next time it's selected for execution 
- * so we yield instantly as well. If processid is -1, we select self */
+ * so we yield instantly as well. If ProcessHandle is -1, we select self */
 OsStatus_t
 ScProcessRaise(
-    _In_ UUId_t ProcessId, 
+    _In_ UUId_t ProcessHandle, 
     _In_ int    Signal)
 {
-    SystemProcess_t* Process = PhoenixGetProcess(ProcessId);
+    SystemProcess_t* Process = GetProcess(ProcessHandle);
     if (Process == NULL) {
         return OsError;
     }
@@ -229,7 +180,7 @@ ScProcessGetStartupInformation(
         return OsError;
     }
 
-    Process = PhoenixGetCurrentProcess();
+    Process = GetCurrentProcess();
     if (Process == NULL) {
         return OsError;
     }

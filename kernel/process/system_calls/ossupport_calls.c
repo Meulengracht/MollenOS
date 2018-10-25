@@ -122,13 +122,11 @@ ScCreateFileMapping(
     _In_  struct FileMappingParameters* Parameters,
     _Out_ void**                        MemoryPointer)
 {
-    // Variables
-    MCoreAshFileMapping_t *Mapping;
-    MCoreAsh_t *Ash = GetCurrentProcess();
-    size_t AdjustedSize = Parameters->Size + (Parameters->Offset % GetSystemMemoryPageSize());
+    MCoreAshFileMapping_t*  Mapping;
+    SystemProcess_t*        Process         = GetCurrentProcess();
+    size_t                  AdjustedSize    = Parameters->Size + (Parameters->Offset % GetSystemMemoryPageSize());
 
-    // Sanity
-    if (Ash == NULL || Parameters == NULL || Parameters->Size == 0) {
+    if (Process == NULL || Parameters == NULL || Parameters->Size == 0) {
         return OsError;
     }
     
@@ -151,7 +149,7 @@ ScCreateFileMapping(
     Mapping->FileBlock      = (Parameters->Offset / GetSystemMemoryPageSize()) * GetSystemMemoryPageSize();
     Mapping->BlockOffset    = (Parameters->Offset % GetSystemMemoryPageSize());
     Mapping->Length         = AdjustedSize;
-    CollectionAppend(Ash->FileMappings, &Mapping->Header);
+    CollectionAppend(Process->FileMappings, &Mapping->Header);
 
     // Update out
     *MemoryPointer = (void*)(Mapping->BufferObject.Address + Mapping->BlockOffset);
@@ -164,19 +162,18 @@ OsStatus_t
 ScDestroyFileMapping(
     _In_ void *MemoryPointer)
 {
-    // Variables
-    MCoreAshFileMapping_t *Mapping;
-    CollectionItem_t *Node;
-    LargeInteger_t Value;
-    MCoreAsh_t *Ash = GetCurrentProcess();
+    MCoreAshFileMapping_t*  Mapping;
+    CollectionItem_t*       Node;
+    LargeInteger_t          Value;
+    SystemProcess_t*        Process = GetCurrentProcess();
 
     // Only processes are allowed to call this
-    if (Ash == NULL) {
+    if (Process == NULL) {
         return OsError;
     }
 
     // Iterate and find the node first
-    _foreach(Node, Ash->FileMappings) {
+    _foreach(Node, Process->FileMappings) {
         Mapping = (MCoreAshFileMapping_t*)Node;
         if (ISINRANGE((uintptr_t)MemoryPointer, Mapping->BufferObject.Address, (Mapping->BufferObject.Address + Mapping->Length) - 1)) {
             break; // Continue to unmap process
@@ -185,7 +182,7 @@ ScDestroyFileMapping(
 
     // Proceed to cleanup if node was found
     if (Node != NULL) {
-        CollectionRemoveByNode(Ash->FileMappings, Node);
+        CollectionRemoveByNode(Process->FileMappings, Node);
         
         // Unmap all mappings done
         for (uintptr_t ItrAddress = Mapping->BufferObject.Address; 
@@ -212,7 +209,7 @@ ScDestroyFileMapping(
         }
 
         // Free the mapping from the heap
-        ReleaseBlockmapRegion(Ash->Heap, Mapping->BufferObject.Address, Mapping->Length);
+        ReleaseBlockmapRegion(Process->Heap, Mapping->BufferObject.Address, Mapping->Length);
         DestroyHandle(Mapping->BufferObject.Handle);
         kfree(Mapping);
     }

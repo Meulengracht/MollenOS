@@ -64,13 +64,29 @@ SetProcessAlias(
     _In_ UUId_t         Alias)
 {
     // Sanitize both the server and alias 
-    if (Alias < PHOENIX_ALIAS_BASE || AliasMap[Alias - PHOENIX_ALIAS_BASE] != UUID_INVALID) {
+    if (Alias < PHOENIX_ALIAS_BASE || Alias >= (PHOENIX_ALIAS_BASE + PHOENIX_MAX_ALIASES) ||
+        AliasMap[Alias - PHOENIX_ALIAS_BASE] != UUID_INVALID) {
         ERROR("Failed to register alias 0x%x for ash %u (0x%x - %u)",
             Alias, Handle, AliasMap[Alias - PHOENIX_ALIAS_BASE], 
             Alias - PHOENIX_ALIAS_BASE);
         return OsError;
     }
     AliasMap[Alias - PHOENIX_ALIAS_BASE] = Handle;
+    return OsSuccess;
+}
+
+/* IsProcessAlias
+ * Checks the process handle owns the given alias. If it does not, it returns
+ * OsError, otherwise OsSuccess. */
+OsStatus_t
+IsProcessAlias(
+    _In_ UUId_t Handle,
+    _In_ UUId_t Alias)
+{
+    if (Alias < PHOENIX_ALIAS_BASE || Alias >= (PHOENIX_ALIAS_BASE + PHOENIX_MAX_ALIASES) ||
+        AliasMap[Alias - PHOENIX_ALIAS_BASE] != Handle) {
+        return OsError;
+    }
     return OsSuccess;
 }
 
@@ -93,12 +109,11 @@ GetProcessHandleByAlias(
  * Creates a new service by the service identification, this in turns call CreateProcess. */
 OsStatus_t
 CreateService(
-    _In_  MString_t*    Path,
-    _In_  DevInfo_t     VendorId,
-    _In_  DevInfo_t     DeviceId,
-    _In_  DevInfo_t     DeviceClass,
-    _In_  DevInfo_t     DeviceSubClass,
-    _Out_ UUId_t*       Handle)
+    _In_ MString_t* Path,
+    _In_ DevInfo_t  VendorId,
+    _In_ DevInfo_t  DeviceId,
+    _In_ DevInfo_t  DeviceClass,
+    _In_ DevInfo_t  DeviceSubClass)
 {
     DevInfo_t ServiceInfo[4] = { 
         VendorId, DeviceId, DeviceClass, DeviceSubClass
@@ -106,11 +121,13 @@ CreateService(
     ProcessStartupInformation_t Info = {
         (const char*)&ServiceInfo[0], sizeof(ServiceInfo), 0
     };
-    OsStatus_t Status = CreateProcess(Path, &Info, Handle);
+
+    UUId_t      Handle;
+    OsStatus_t  Status = CreateProcess(Path, &Info, &Handle);
     if (Status == OsSuccess) {
         DataKey_t Value;
-        Value.Value = *Handle;
-        CollectionAppend(&Services, CollectionCreateNode(Value, LookupHandle(*Handle)));
+        Value.Value = Handle;
+        CollectionAppend(&Services, CollectionCreateNode(Value, LookupHandle(Handle)));
     }
     return Status;
 }
@@ -119,10 +136,11 @@ CreateService(
  * Retrieves a running service by driver-information to avoid spawning multiple services */
 SystemProcess_t*
 GetServiceByIdentification(
-    _In_ DevInfo_t VendorId,
-    _In_ DevInfo_t DeviceId,
-    _In_ DevInfo_t DeviceClass,
-    _In_ DevInfo_t DeviceSubClass)
+    _In_  DevInfo_t VendorId,
+    _In_  DevInfo_t DeviceId,
+    _In_  DevInfo_t DeviceClass,
+    _In_  DevInfo_t DeviceSubClass,
+    _Out_ UUId_t*   ServiceHandle)
 {
     foreach(Node, &Services) {
         SystemProcess_t* Service    = (SystemProcess_t*)Node->Data;
@@ -131,14 +149,15 @@ GetServiceByIdentification(
         // Should we check vendor-id && device-id?
         if (VendorId != 0 && DeviceId != 0) {
             if (ServiceInfo[0] == VendorId && ServiceInfo[1] == DeviceId) {
+                *ServiceHandle = (UUId_t)Node->Key.Value;
                 return Service;
             }
         }
 
         // Skip all fixed-vendor ids
         if (ServiceInfo[0] != 0xFFEF) {
-            if (ServiceInfo[2] == DeviceClass && 
-                ServiceInfo[3] == DeviceSubClass) {
+            if (ServiceInfo[2] == DeviceClass && ServiceInfo[3] == DeviceSubClass) {
+                *ServiceHandle = (UUId_t)Node->Key.Value;
                 return Service;
             }
         }

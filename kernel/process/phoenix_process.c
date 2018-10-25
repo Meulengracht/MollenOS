@@ -297,33 +297,3 @@ GetCurrentProcess(void)
     }
     return NULL;
 }
-
-/* GetWorkingDirectory
- * Retrieves the process's working directory path determined by the handle. */
-MString_t*
-GetWorkingDirectory(
-    _In_ UUId_t Handle)
-{
-    SystemProcess_t* Process = GetProcess(Handle);
-    if (Process != NULL) {
-        return Process->WorkingDirectory;
-    }
-    else {
-        return NULL;
-    }
-}
-
-/* GetBaseDirectory
- * Retrieves the process's working base path determined by the handle. */
-MString_t*
-GetBaseDirectory(
-    _In_ UUId_t Handle)
-{
-    SystemProcess_t* Process = GetProcess(Handle);
-    if (Process != NULL) {
-        return Process->BaseDirectory;
-    }
-    else {
-        return NULL;
-    }
-}

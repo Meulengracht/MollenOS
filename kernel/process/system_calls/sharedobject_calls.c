@@ -21,10 +21,9 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
-#include <os/osdefs.h>
-#include <ds/mstring.h>
-#include <process/phoenix.h>
+#include <process/process.h>
 #include <process/pe.h>
+#include <ds/mstring.h>
 
 /* ScSharedObjectLoad
  * Load a shared object given a path 
@@ -33,13 +32,10 @@ Handle_t
 ScSharedObjectLoad(
     _In_  const char*   SharedObject)
 {
-    // Variables
-    MCoreAsh_t *Process     = GetCurrentProcess();
-    MString_t *Path         = NULL;
-    uintptr_t BaseAddress   = 0;
-    Handle_t Handle         = HANDLE_INVALID;
-
-    // Sanitize the process
+    SystemProcess_t*    Process     = GetCurrentProcess();
+    Handle_t            Handle      = HANDLE_INVALID;
+    MString_t*          Path;
+    uintptr_t           BaseAddress;
     if (Process == NULL) {
         return HANDLE_INVALID;
     }
@@ -49,16 +45,13 @@ ScSharedObjectLoad(
     if (SharedObject == NULL) {
         return HANDLE_GLOBAL;
     }
-
-    // Create a mstring object from the string
     Path = MStringCreate((void*)SharedObject, StrUTF8);
 
     // Try to resolve the library
     BaseAddress = Process->NextLoadingAddress;
-    Handle = (Handle_t)PeResolveLibrary(Process->Executable, NULL, Path, &BaseAddress);
+    Handle      = (Handle_t)PeResolveLibrary(Process->Executable, NULL, 
+        Path, &BaseAddress);
     Process->NextLoadingAddress = BaseAddress;
-
-    // Cleanup the mstring object
     MStringDestroy(Path);
     return Handle;
 }
@@ -72,7 +65,6 @@ ScSharedObjectGetFunction(
     _In_ Handle_t       Handle, 
     _In_ const char*    Function)
 {
-    // Validate parameters
     if (Handle == HANDLE_INVALID || Function == NULL) {
         return 0;
     }
@@ -80,8 +72,8 @@ ScSharedObjectGetFunction(
     // If the handle is the handle_global, search all loaded
     // libraries for the symbol
     if (Handle == HANDLE_GLOBAL) {
-        MCoreAsh_t *Process = GetCurrentProcess();
-        uintptr_t Address   = 0;
+        SystemProcess_t*    Process = GetCurrentProcess();
+        uintptr_t           Address = 0;
         if (Process != NULL) {
             Address = PeResolveFunction(Process->Executable, Function);
             if (!Address) {
@@ -106,8 +98,7 @@ OsStatus_t
 ScSharedObjectUnload(
     _In_  Handle_t  Handle)
 {
-    // Variables
-    MCoreAsh_t *Process = GetCurrentProcess();
+    SystemProcess_t* Process = GetCurrentProcess();
     if (Process == NULL || Handle == HANDLE_INVALID) {
         return OsError;
     }

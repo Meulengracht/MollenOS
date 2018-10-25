@@ -24,6 +24,7 @@
 #define __VALI_PHOENIX_H__
 
 #include <os/osdefs.h>
+#include <ds/collection.h>
 #include <memorybuffer.h>
 
 typedef struct _SystemProcess SystemProcess_t;
@@ -62,12 +63,11 @@ InitializePhoenix(void);
  * Creates a new service by the service identification, this in turns call CreateProcess. */
 KERNELAPI OsStatus_t KERNELABI
 CreateService(
-    _In_  MString_t*    Path,
-    _In_  DevInfo_t     VendorId,
-    _In_  DevInfo_t     DeviceId,
-    _In_  DevInfo_t     DeviceClass,
-    _In_  DevInfo_t     DeviceSubClass,
-    _Out_ UUId_t*       Handle);
+    _In_ MString_t* Path,
+    _In_ DevInfo_t  VendorId,
+    _In_ DevInfo_t  DeviceId,
+    _In_ DevInfo_t  DeviceClass,
+    _In_ DevInfo_t  DeviceSubClass);
 
 /* SetProcessAlias
  * Allows a server to register an alias for its id
@@ -75,6 +75,14 @@ CreateService(
  * will always refer the calling process */
 KERNELAPI OsStatus_t KERNELABI
 SetProcessAlias(
+    _In_ UUId_t Handle,
+    _In_ UUId_t Alias);
+
+/* IsProcessAlias
+ * Checks the process handle owns the given alias. If it does not, it returns
+ * OsError, otherwise OsSuccess. */
+KERNELAPI OsStatus_t KERNELABI
+IsProcessAlias(
     _In_ UUId_t Handle,
     _In_ UUId_t Alias);
 
@@ -89,10 +97,11 @@ GetProcessHandleByAlias(
  * Retrieves a running service by driver-information to avoid spawning multiple services */
 KERNELAPI SystemProcess_t* KERNELABI
 GetServiceByIdentification(
-    _In_ DevInfo_t VendorId,
-    _In_ DevInfo_t DeviceId,
-    _In_ DevInfo_t DeviceClass,
-    _In_ DevInfo_t DeviceSubClass);
+    _In_  DevInfo_t VendorId,
+    _In_  DevInfo_t DeviceId,
+    _In_  DevInfo_t DeviceClass,
+    _In_  DevInfo_t DeviceSubClass,
+    _Out_ UUId_t*   ServiceHandle);
 
 /* PhoenixFileMappingEvent
  * Signals a new file-mapping access event to the phoenix process system. */

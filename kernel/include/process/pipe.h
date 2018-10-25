@@ -26,37 +26,39 @@
 
 #include <os/osdefs.h>
 
-/* PhoenixOpenAshPipe
+typedef struct _SystemProcess SystemProcess_t;
+typedef struct _SystemPipe SystemPipe_t;
+
+/* CreateProcessPipe
  * Creates a new communication pipe available for use. */
 KERNELAPI OsStatus_t KERNELABI
-PhoenixOpenAshPipe(
-    _In_ MCoreAsh_t*    Ash, 
-    _In_ int            Port, 
-    _In_ int            Type);
+CreateProcessPipe(
+    _In_ SystemProcess_t*   Process,
+    _In_ int                Port, 
+    _In_ int                Type);
 
-/* PhoenixWaitAshPipe
- * Waits for a pipe to be opened on the given
- * ash instance. */
+/* WaitForProcessPipe
+ * Waits for a pipe to be opened on the given process instance. */
 KERNELAPI OsStatus_t KERNELABI
-PhoenixWaitAshPipe(
-    _In_ MCoreAsh_t *Ash, 
-    _In_ int         Port);
+WaitForProcessPipe(
+    _In_ SystemProcess_t*   Process,
+    _In_ int                Port);
 
-/* PhoenixCloseAshPipe
+/* DestroyProcessPipe
  * Closes the pipe for the given Ash, and cleansup
  * resources allocated by the pipe. This shutsdown
  * any communication on the port */
 KERNELAPI OsStatus_t KERNELABI
-PhoenixCloseAshPipe(
-    _In_ MCoreAsh_t *Ash, 
-    _In_ int         Port);
+DestroyProcessPipe(
+    _In_ SystemProcess_t*   Process,
+    _In_ int                Port);
 
-/* PhoenixGetAshPipe
+/* GetProcessPipe
  * Retrieves an existing pipe instance for the given ash
  * and port-id. If it doesn't exist, returns NULL. */
 KERNELAPI SystemPipe_t* KERNELABI
-PhoenixGetAshPipe(
-    _In_ MCoreAsh_t     *Ash, 
-    _In_ int             Port);
+GetProcessPipe(
+    _In_ SystemProcess_t*   Process,
+    _In_ int                Port);
 
 #endif // !__VALI_PROCESS_PIPES_H__

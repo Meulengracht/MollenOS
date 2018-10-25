@@ -40,7 +40,6 @@ ScSystemDebug(
     _In_ const char*    Module,
     _In_ const char*    Message)
 {
-    // Validate params
     if (Module == NULL || Message == NULL) {
         return OsError;
     }
@@ -68,10 +67,12 @@ OsStatus_t ScEndBootSequence(void) {
 /* ScFlushHardwareCache
  * Flushes the specified hardware cache. Should be used with caution as it might
  * result in performance drops. */
-OsStatus_t ScFlushHardwareCache(
+OsStatus_t
+ScFlushHardwareCache(
     _In_     int    Cache,
     _In_Opt_ void*  Start, 
-    _In_Opt_ size_t Length) {
+    _In_Opt_ size_t Length)
+{
     if (Cache == CACHE_INSTRUCTION) {
         CpuFlushInstructionCache(Start, Length);
         return OsSuccess;
@@ -154,7 +155,6 @@ OsStatus_t
 ScPerformanceTick(
     _Out_ LargeInteger_t *Value)
 {
-    // Sanitize input
     if (Value == NULL) {
         return OsError;
     }
@@ -176,12 +176,11 @@ ScQueryDisplayInformation(
  * Right now it simply identity maps the screen display framebuffer
  * into the current process's memory mappings and returns a pointer to it. */
 void*
-ScCreateDisplayFramebuffer(void) {
+ScCreateDisplayFramebuffer(void)
+{
     uintptr_t FbPhysical    = VideoGetTerminal()->FrameBufferAddressPhysical;
     uintptr_t FbVirtual     = 0;
     size_t FbSize           = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
-
-    // Sanitize
     if (GetCurrentProcess() == NULL) {
         return NULL;
     }

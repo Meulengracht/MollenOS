@@ -96,16 +96,4 @@ GetProcess(
 KERNELAPI SystemProcess_t* KERNELABI
 GetCurrentProcess(void);
 
-/* GetWorkingDirectory
- * Retrieves the process's working directory path determined by the handle. */
-KERNELAPI MString_t* KERNELABI
-GetWorkingDirectory(
-    _In_ UUId_t Handle);
-
-/* GetBaseDirectory
- * Retrieves the process's working base path determined by the handle. */
-KERNELAPI MString_t* KERNELABI
-GetBaseDirectory(
-    _In_ UUId_t Handle);
-
 #endif //!__VALI_PROCESS_H__
