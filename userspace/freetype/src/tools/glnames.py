@@ -5353,7 +5353,7 @@ def main():
   dict = StringNode( "", 0 )
 
   for g in range( len( agl_glyphs ) ):
-    dict.add( agl_glyphs[g], eval( "0x" + agl_values[g] ) )
+    dict.add( agl_glyphs[g], ast.literal_eval( "0x" + agl_values[g] ) )
 
   dict       = dict.optimize()
   dict_len   = dict.locate( 0 )
