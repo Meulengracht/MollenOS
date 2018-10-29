@@ -401,15 +401,14 @@ SetVirtualPageMapping(
     _In_ VirtualAddress_t       vAddress,
     _In_ Flags_t                Flags)
 {
-    // Variabes
-    PAGE_MASTER_LEVEL *ParentDirectory;
-    PAGE_MASTER_LEVEL *Directory;
-    PageTable_t *Table;
-    uint32_t Mapping;
-    Flags_t ConvertedFlags;
-    int IsCurrent, Update;
-
-    OsStatus_t Status = OsSuccess;
+    PAGE_MASTER_LEVEL*  ParentDirectory;
+    PAGE_MASTER_LEVEL*  Directory;
+    PageTable_t*        Table;
+    uintptr_t           Mapping;
+    Flags_t             ConvertedFlags;
+    int                 Update;
+    int                 IsCurrent;
+    OsStatus_t          Status = OsSuccess;
 
     ConvertedFlags  = ConvertSystemSpaceToPaging(Flags);
     Directory       = MmVirtualGetMasterTable(MemorySpace, (vAddress & PAGE_MASK), &ParentDirectory, &IsCurrent);
@@ -465,17 +464,16 @@ ClearVirtualPageMapping(
     _In_ SystemMemorySpace_t*   MemorySpace,
     _In_ VirtualAddress_t       Address)
 {
-    // Variabes
-    PAGE_MASTER_LEVEL *ParentDirectory;
-    PAGE_MASTER_LEVEL *Directory;
-    PageTable_t *Table;
-    uint32_t Mapping;
-    int IsCurrent, Update;
+    PAGE_MASTER_LEVEL*  ParentDirectory;
+    PAGE_MASTER_LEVEL*  Directory;
+    PageTable_t*        Table;
+    uintptr_t           Mapping;
+    int                 Update;
+    int                 IsCurrent;
 
     Directory   = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
     Table       = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0, &Update);
  
-    // Did the page-table exist?
     if (Table == NULL) {
         return OsError;
     }

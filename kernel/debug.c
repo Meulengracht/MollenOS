@@ -24,6 +24,8 @@
 //#define __TRACE
 
 #include <process/phoenix.h>
+#include <process/process.h>
+#include <process/pe.h>
 #include <system/utils.h>
 #include <memoryspace.h>
 #include <scheduler.h>
@@ -174,6 +176,7 @@ DebugPanic(
         }
     }
     ThreadingDebugPrint();
+    for(;;);
 
     // Stack trace
     DebugStackTrace(Context, 8);

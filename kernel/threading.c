@@ -23,13 +23,17 @@
 #define __MODULE "MTIF"
 //#define __TRACE
 
+#include <garbagecollector.h>
 #include <component/cpu.h>
 //#include <system/interrupts.h>
 #include <system/thread.h>
 #include <system/utils.h>
 #include <threading.h>
+#include <timers.h>
+#include <handle.h>
 #include <assert.h>
 #include <string.h>
+#include <stdio.h>
 #include <debug.h>
 #include <heap.h>
 
@@ -307,7 +311,7 @@ ThreadingJoinThread(
     if (Target != NULL && Target->ParentThreadId != UUID_INVALID) {
         int Finished = atomic_load(&Target->Cleanup);
         if (Finished != 1) {
-            SchedulerAtomicThreadSleep((atomic_int*)&Target->Cleanup, Finished, 0);
+            SchedulerAtomicThreadSleep((atomic_int*)&Target->Cleanup, &Finished, 0);
         }
         atomic_store(&Target->Cleanup, 1);
         return Target->RetCode;
@@ -452,6 +456,7 @@ ThreadingSwitch(
         Current->LastInstructionPointer = CONTEXT_IP(Current->ContextActive);
     }
 #endif
+    TRACE(" > current thread: %s", Current->Name);
 
     Cleanup = atomic_load_explicit(&Current->Cleanup, memory_order_relaxed);
 GetNextThread:
@@ -461,9 +466,11 @@ GetNextThread:
             GcSignal(GlbThreadGcId, Current);
         }
         NextThread = SchedulerThreadSchedule(NULL, PreEmptive);
+        TRACE(" > (null-schedule) initial next thread: %s", (NextThread) ? NextThread->Name : "null");
     }
     else {
         NextThread = SchedulerThreadSchedule(Current, PreEmptive);
+        TRACE(" > initial next thread: %s", (NextThread) ? NextThread->Name : "null");
     }
 
     // Sanitize if we need to active our idle thread, otherwise
@@ -473,12 +480,13 @@ GetNextThread:
         NextThread = &Core->IdleThread;
     }
     else {
-        Cleanup = atomic_load_explicit(&Current->Cleanup, memory_order_relaxed);
+        Cleanup = atomic_load_explicit(&NextThread->Cleanup, memory_order_relaxed);
         if (Cleanup == 1) {
             Current = NextThread;
             goto GetNextThread;
         }
     }
+    TRACE(" > next thread: %s", NextThread->Name);
 
     // Handle level switch // thread startup
     if (NextThread->Flags & THREADING_TRANSITION_USERMODE) {

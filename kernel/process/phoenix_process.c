@@ -23,12 +23,17 @@
 #define __MODULE "PROC"
 #define __TRACE
 
+#include <modules/modules.h>
 #include <process/phoenix.h>
 #include <process/process.h>
 #include <process/pe.h>
+#include <system/utils.h>
 #include <threading.h>
 #include <machine.h>
 #include <handle.h>
+#include <timers.h>
+#include <debug.h>
+#include <heap.h>
 
 typedef struct _SystemProcessPackage {
     UUId_t      ProcessHandle;
@@ -96,16 +101,17 @@ HandleProcessStartupInformation(
     char* ArgumentBuffer;
 
     // Handle startup information
-    if (StartupInformation->ArgumentPointer != NULL 
-        && StartupInformation->ArgumentLength != 0) {
+    if (StartupInformation->ArgumentPointer != NULL && StartupInformation->ArgumentLength != 0) {
         ArgumentBuffer = (char*)kmalloc(MStringSize(Process->Path) + 1 + StartupInformation->ArgumentLength + 1);
+
         memcpy(ArgumentBuffer, MStringRaw(Process->Path), MStringSize(Process->Path));
         ArgumentBuffer[MStringSize(Process->Path)] = ' ';
+        
         memcpy(ArgumentBuffer + MStringSize(Process->Path) + 1,
             StartupInformation->ArgumentPointer, StartupInformation->ArgumentLength);
         ArgumentBuffer[MStringSize(Process->Path) + 1 + StartupInformation->ArgumentLength] = '\0';
+        
         kfree((void*)StartupInformation->ArgumentPointer);
-
         StartupInformation->ArgumentPointer = ArgumentBuffer;
         StartupInformation->ArgumentLength  = MStringSize(Process->Path) + 1 + StartupInformation->ArgumentLength + 1;
     }
@@ -121,8 +127,7 @@ HandleProcessStartupInformation(
     TRACE("Arguments: %s", ArgumentBuffer);
 
     // Handle the inheritance block
-    if (StartupInformation->InheritanceBlockPointer != NULL
-        && StartupInformation->InheritanceBlockLength != 0) {
+    if (StartupInformation->InheritanceBlockPointer != NULL && StartupInformation->InheritanceBlockLength != 0) {
         // Create a kernel space copy
         void *InheritanceBlock = kmalloc(StartupInformation->InheritanceBlockLength);
         memcpy(InheritanceBlock, StartupInformation->InheritanceBlockPointer, StartupInformation->InheritanceBlockLength);
@@ -130,8 +135,7 @@ HandleProcessStartupInformation(
     }
 
     // Copy data over
-    memcpy(&Process->StartupInformation, 
-        StartupInformation, sizeof(ProcessStartupInformation_t));    
+    memcpy(&Process->StartupInformation, StartupInformation, sizeof(ProcessStartupInformation_t));    
 }
 
 /* LoadProcess
@@ -269,6 +273,7 @@ DestroyProcess(
     DestroyBlockmap(Process->Heap);
     PeUnloadImage(Process->Executable);
     kfree(Process);
+    return OsSuccess;
 }
 
 /* GetProcess
@@ -291,9 +296,5 @@ GetProcess(
 SystemProcess_t*
 GetCurrentProcess(void)
 {
-    UUId_t CoreId = CpuGetCurrentId();
-    if (ThreadingGetCurrentThread(CoreId) != NULL) {
-        return ThreadingGetCurrentThread(CoreId)->Process;
-    }
-    return NULL;
+    return GetProcess(ThreadingGetCurrentThread(CpuGetCurrentId())->ProcessHandle);
 }

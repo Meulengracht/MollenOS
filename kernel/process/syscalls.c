@@ -20,13 +20,17 @@
  */
 #define DefineSyscall(_Sys) ((uintptr_t)&_Sys)
 
-#include <os/osdefs.h>
-#include <os/mollenos.h>
 #include <os/contracts/video.h>
 #include <process/phoenix.h>
+#include <os/mollenos.h>
+#include <os/process.h>
 #include <os/buffer.h>
+#include <threading.h>
 #include <os/input.h>
+#include <os/acpi.h>
 #include <time.h>
+
+struct FileMappingParameters;
 
 // System system calls
 OsStatus_t  ScSystemDebug(int Type, const char* Module, const char* Message);
@@ -101,7 +105,6 @@ OsStatus_t  ScQueryBuffer(UUId_t Handle, uintptr_t* Dma, size_t* Capacity);
 OsStatus_t  ScGetWorkingDirectory(UUId_t ProcessHandle, char* PathBuffer, size_t MaxLength);
 OsStatus_t  ScSetWorkingDirectory(const char* Path);
 OsStatus_t  ScGetAssemblyDirectory(char* PathBuffer, size_t MaxLength);
-struct FileMappingParameters { UUId_t FileHandle; int Flags; uint64_t Offset; size_t Size; };
 OsStatus_t  ScCreateFileMapping(struct FileMappingParameters* Parameters, void** MemoryPointer);
 OsStatus_t  ScDestroyFileMapping(void* MemoryPointer);
 OsStatus_t  ScDestroyHandle(UUId_t Handle);

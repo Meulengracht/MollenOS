@@ -23,14 +23,12 @@
 
 #include <memoryspace.h>
 #include <modules/modules.h>
-#include <process/ash.h>
+#include <process/process.h>
 #include <process/pe.h>
+#include <assert.h>
+#include <string.h>
 #include <debug.h>
 #include <heap.h>
-
-#include <assert.h>
-#include <stdio.h>
-#include <string.h>
 
 // Prototypes
 OsStatus_t LoadFile(const char* Path, char** FullPath, void** Data, size_t* Length);

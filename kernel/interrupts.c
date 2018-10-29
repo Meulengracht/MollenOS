@@ -107,8 +107,7 @@ InterruptGetLeastLoaded(
     int SelectedPenality    = INTERRUPT_NONE;
     int SelectedIrq         = INTERRUPT_NONE;
     int i;
-    
-    // Debug
+
     TRACE("InterruptGetLeastLoaded(Count %i)", Count);
 
     // Iterate all the available irqs
@@ -359,11 +358,10 @@ InterruptRegister(
     Id      = atomic_fetch_add(&InterruptIdGenerator, 1);
     memset((void*)Entry, 0, sizeof(SystemInterrupt_t));
 
-    // Setup some initial information
-    Entry->Id       = (Id << 16);    
-    Entry->Ash      = UUID_INVALID;
-    Entry->Thread   = ThreadingGetCurrentThreadId();
-    Entry->Flags    = Flags;
+    Entry->Id               = (Id << 16);    
+    Entry->ProcessHandle    = UUID_INVALID;
+    Entry->Thread           = ThreadingGetCurrentThreadId();
+    Entry->Flags            = Flags;
 
     // Clear out line if the interrupt is software
     if (Flags & INTERRUPT_SOFT) {
@@ -372,7 +370,7 @@ InterruptRegister(
 
     // Get process id?
     if (!(Flags & INTERRUPT_KERNEL)) {
-        Entry->Ash = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
+        Entry->ProcessHandle = ThreadingGetCurrentThread(CpuGetCurrentId())->ProcessHandle;
     }
 
     // Resolve the table index
@@ -408,7 +406,7 @@ InterruptRegister(
     TRACE("Updated line %i:%i for index 0x%x", Interrupt->Line, Interrupt->Pin, TableIndex);
 
     // If it's an user interrupt, resolve resources
-    if (Entry->Ash != UUID_INVALID) {
+    if (Entry->ProcessHandle != UUID_INVALID) {
         if (InterruptResolveResources(Entry) != OsSuccess) {
             ERROR(" > failed to resolve the requested resources");
             kfree(Entry);
@@ -467,7 +465,7 @@ InterruptUnregister(
     while (Entry != NULL) {
         if (Entry->Id == Source) {
             if (!(Entry->Flags & INTERRUPT_KERNEL)) {
-                if (Entry->Ash != ThreadingGetCurrentThread(CpuGetCurrentId())->AshId) {
+                if (Entry->ProcessHandle != ThreadingGetCurrentThread(CpuGetCurrentId())->ProcessHandle) {
                     continue;
                 }
             }
@@ -505,7 +503,7 @@ InterruptUnregister(
         if (InterruptTable[Entry->Source].Penalty == 0) {
             InterruptConfigure(Entry, 0);
         }
-        if (Entry->Ash != UUID_INVALID) {
+        if (Entry->ProcessHandle != UUID_INVALID) {
             if (InterruptReleaseResources(Entry) != OsSuccess) {
                 ERROR(" > failed to cleanup interrupt resources");
             }
@@ -600,7 +598,7 @@ InterruptHandle(
             Result = Entry->KernelResources.Handler(GetFastInterruptTable(), NULL);
             if (Result != InterruptNotHandled) {
                 if (Result == InterruptHandled && (Entry->Flags & INTERRUPT_USERSPACE)) {
-                    __KernelInterruptDriver(Entry->Ash, Entry->Id, Entry->Interrupt.Context);
+                    __KernelInterruptDriver(Entry->ProcessHandle, Entry->Id, Entry->Interrupt.Context);
                 }
                 *Source = Entry->Source;
                 break;

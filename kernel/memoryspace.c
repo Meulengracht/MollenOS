@@ -22,7 +22,7 @@
  */
 #define __MODULE "MSPC"
 
-#include <process/phoenix.h>
+#include <process/process.h>
 #include <component/cpu.h>
 #include <system/utils.h>
 #include <memoryspace.h>

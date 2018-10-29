@@ -103,17 +103,12 @@ StartApplicationCore(
 void
 CpuSmpInitialize(void)
 {
-    // Variables
     uint32_t *CodePointer   = (uint32_t*)((uint8_t*)(&__GlbTramplineCode[0]) + __GlbTramplineCode_length); 
 	uint32_t EntryCode      = (uint32_t)(uint32_t*)SmpApplicationCoreEntry;
 
-    // Debug
     TRACE("CpuSmpInitialize(%i)", GetMachine()->Processor.NumberOfCores);
 
-    // Initialize variables
     *(CodePointer - 1) = EntryCode;
     *(CodePointer - 2) = GetCurrentSystemMemorySpace()->Data[MEMORY_SPACE_CR3];
-
-    // Initialize the trampoline code in memory
 	memcpy((void*)MEMORY_LOCATION_TRAMPOLINE_CODE, (char*)__GlbTramplineCode, __GlbTramplineCode_length);
 }

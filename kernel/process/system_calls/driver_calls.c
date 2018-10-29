@@ -23,6 +23,8 @@
 
 #include <process/phoenix.h>
 #include <process/process.h>
+#include <process/pipe.h>
+#include <system/utils.h>
 #include <modules/modules.h>
 #include <acpiinterface.h>
 #include <interrupts.h>

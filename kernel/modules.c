@@ -21,20 +21,18 @@
 #define __MODULE "MODS"
 //#define __TRACE
 
-#include <ds/collection.h>
 #include <system/interrupts.h>
 #include <process/phoenix.h>
 #include <modules/modules.h>
+#include <ds/collection.h>
 #include <interrupts.h>
 #include <debug.h>
 #include <crc32.h>
 #include <heap.h>
 
-/* Private definitions that are local to this file */
 #define LIST_MODULE             1
 #define LIST_SERVER             2
 
-/* Globals */
 Collection_t *GlbModules = NULL;
 int GlbModulesInitialized = 0;
 
@@ -143,10 +141,7 @@ ModulesInitialize(
 void
 ModulesRunServers(void)
 {
-    // Variables
     IntStatus_t IrqState = 0;
-
-    // Sanitize init status
     if (GlbModulesInitialized != 1) {
         return;
     }
@@ -160,24 +155,12 @@ ModulesRunServers(void)
     // then they will "run" the system for us
     foreach(sNode, GlbModules) {
         if (sNode->Key.Value == LIST_SERVER) {
-            MCorePhoenixRequest_t *Request = NULL;
             MString_t *Path = MStringCreate("rd:/", StrUTF8);
             MStringAppendString(Path, ((MCoreModule_t*)sNode->Data)->Name);
-
-            // Allocate a new request, let it cleanup itself
-            Request = (MCorePhoenixRequest_t*)kmalloc(sizeof(MCorePhoenixRequest_t));
-            Request->Base.Type = AshSpawnServer;
-            Request->Base.Cleanup = 1;
-
-            // Set parameters
-            Request->Path = Path;
-
-            // Send off async requests
-            PhoenixCreateRequest(Request);
+            CreateService(Path, 0, 0, 0, 0);
+            MStringDestroy(Path);
         }
     }
-
-    // Restore interrupt state
     InterruptRestoreState(IrqState);
 }
 

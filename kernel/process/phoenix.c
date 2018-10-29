@@ -23,14 +23,17 @@
 #define __MODULE "PROC"
 #define __TRACE
 
+#include <garbagecollector.h>
 #include <process/phoenix.h>
 #include <process/process.h>
 #include <criticalsection.h>
 #include <os/mollenos.h>
+#include <os/file.h>
 #include <threading.h>
 #include <machine.h>
 #include <handle.h>
 #include <assert.h>
+#include <debug.h>
 
 OsStatus_t PhoenixFileHandler(void *UserData);
 
@@ -123,7 +126,7 @@ CreateService(
     };
 
     UUId_t      Handle;
-    OsStatus_t  Status = CreateProcess(Path, &Info, &Handle);
+    OsStatus_t  Status = CreateProcess(Path, &Info, ProcessService, &Handle);
     if (Status == OsSuccess) {
         DataKey_t Value;
         Value.Value = Handle;

@@ -67,7 +67,6 @@ UUId_t
 GcRegister(
     _In_ GcHandler_t Handler)
 {
-    // Variables
     DataKey_t Key;
     Key.Value = (int)atomic_fetch_add(&GcIdGenerator, 1);
     CollectionAppend(&GcHandlers, CollectionCreateNode(Key, (void*)Handler));
@@ -80,10 +79,7 @@ OsStatus_t
 GcUnregister(
     _In_ UUId_t Handler)
 {
-    // Variables
     DataKey_t Key;
-
-    // Setup the key
     Key.Value = (int)Handler;
     if (CollectionGetDataByKey(&GcHandlers, Key, 0) == NULL) {
         return OsError;
@@ -96,20 +92,15 @@ GcUnregister(
 OsStatus_t
 GcSignal(
     _In_ UUId_t Handler,
-    _In_ void *Data)
+    _In_ void*  Data)
 {
-    // Variables
     DataKey_t Key;
-
-    // Setup the key
     Key.Value = (int)Handler;
 
     // Sanitize the status of the gc
     if (CollectionGetDataByKey(&GcHandlers, Key, 0) == NULL) {
         return OsError;
     }
-
-    // Create a new event
     CollectionAppend(&GcEvents, CollectionCreateNode(Key, Data));
     SlimSemaphoreSignal(&GlbGcEventLock, 1);
     return OsSuccess;
@@ -119,23 +110,19 @@ GcSignal(
  * The event-handler thread */
 void 
 GcWorker(
-    _In_Opt_ void*  Args)
+    _In_Opt_ void* Args)
 {
-    // Variables
-    CollectionItem_t *eNode = NULL;
-    GcHandler_t Handler;
-    int Run                 = 1;
+    CollectionItem_t*   eNode;
+    GcHandler_t         Handler;
+    int                 Run = 1;
 
     // Unused arg
     _CRT_UNUSED(Args);
-
-    // Run as long as the OS runs
     while (Run) {
         // Wait for next event
         SlimSemaphoreWait(&GlbGcEventLock, 0);
-        eNode = CollectionPopFront(&GcEvents);
 
-        // Sanitize the node
+        eNode = CollectionPopFront(&GcEvents);
         if (eNode == NULL) {
             continue;
         }
@@ -145,8 +132,6 @@ GcWorker(
             CollectionDestroyNode(&GcEvents, eNode);
             continue;
         }
-
-        // Call the handler
         Handler(eNode->Data);
         CollectionDestroyNode(&GcEvents, eNode);
     }

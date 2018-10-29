@@ -186,7 +186,7 @@ InitializeMachine(
 
     // Initialize process and usermode systems
     GcInitialize();
-    PhoenixInitialize();
+    InitializePhoenix();
 
     // Last step is to enable timers that kickstart all other threads
     Status = InitializeSystemTimers();

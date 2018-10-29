@@ -21,11 +21,11 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
-#include <os/osdefs.h>
-#include <os/file.h>
 #include <process/phoenix.h>
 #include <process/process.h>
 #include <memorybuffer.h>
+#include <ds/mstring.h>
+#include <os/file.h>
 #include <handle.h>
 #include <debug.h>
 #include <heap.h>
@@ -38,24 +38,21 @@ ScGetWorkingDirectory(
     _In_ char*      PathBuffer,
     _In_ size_t     MaxLength)
 {
-    // Variables
-    MCoreProcess_t *Process     = NULL;
-    size_t BytesToCopy          = MaxLength;
-
-    // Determine the process
+    SystemProcess_t*    Process;
+    size_t              BytesToCopy = MaxLength;
     if (ProcessId == UUID_INVALID) {
-        Process = PhoenixGetCurrentProcess();
+        Process = GetCurrentProcess();
     }
     else {
-        Process = PhoenixGetProcess(ProcessId);
+        Process = GetProcess(ProcessId);
     }
 
     // Sanitize parameters
-    if (Process == NULL || PathBuffer == NULL) {
+    if (Process == NULL || PathBuffer == NULL || MaxLength == 0) {
         return OsError;
     }
     
-    BytesToCopy = MIN(strlen(MStringRaw(Process->WorkingDirectory)), MaxLength);
+    BytesToCopy = MIN(strlen(MStringRaw(Process->WorkingDirectory)) + 1, MaxLength);
     memcpy(PathBuffer, MStringRaw(Process->WorkingDirectory), BytesToCopy);
     return OsSuccess;
 }
@@ -65,18 +62,14 @@ ScGetWorkingDirectory(
  * path modifier or absolute path */
 OsStatus_t
 ScSetWorkingDirectory(
-    _In_ const char *Path)
+    _In_ const char* Path)
 {
-    // Variables
-    MCoreProcess_t *Process = PhoenixGetCurrentProcess();
-    MString_t *Translated = NULL;
+    SystemProcess_t*    Process = GetCurrentProcess();
+    MString_t*          Translated;
 
-    // Sanitize parameters
     if (Process == NULL || Path == NULL) {
         return OsError;
     }
-
-    // Create a new string instead of modification
     Translated = MStringCreate((void*)Path, StrUTF8);
     MStringDestroy(Process->WorkingDirectory);
     Process->WorkingDirectory = Translated;
@@ -90,16 +83,14 @@ ScGetAssemblyDirectory(
     _In_ char*      PathBuffer,
     _In_ size_t     MaxLength)
 {
-    // Variables
-    MCoreProcess_t *Process = PhoenixGetCurrentProcess();
-    size_t BytesToCopy = MaxLength;
+    SystemProcess_t*    Process     = GetCurrentProcess();
+    size_t              BytesToCopy = MaxLength;
 
-    // Sanitize parameters
-    if (Process == NULL || PathBuffer == NULL) {
+    if (Process == NULL || PathBuffer == NULL || MaxLength == 0) {
         return OsError;
     }
-    if (strlen(MStringRaw(Process->BaseDirectory)) < MaxLength) {
-        BytesToCopy = strlen(MStringRaw(Process->BaseDirectory));
+    if (strlen(MStringRaw(Process->BaseDirectory)) + 1 < MaxLength) {
+        BytesToCopy = strlen(MStringRaw(Process->BaseDirectory)) + 1;
     }
     memcpy(PathBuffer, MStringRaw(Process->BaseDirectory), BytesToCopy);
     return OsSuccess;

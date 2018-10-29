@@ -143,7 +143,7 @@ AddToSleepQueueAndSleep(
     _In_ atomic_int*        Object,
     _In_ int*               ExpectedValue)
 {
-    MCoreThread_t *AppendTo = NULL;
+    MCoreThread_t* AppendTo;
 
     // Null end
     AtomicSectionEnter(&IoQueue.SyncObject);
@@ -164,8 +164,7 @@ AddToSleepQueueAndSleep(
         AtomicSectionLeave(&IoQueue.SyncObject);
         return OsError;
     }
-    Thread->SchedulerFlags |= SCHEDULER_FLAG_BLOCKED;
-    Thread->SchedulerFlags |= THREADING_SKIP_REQUEUE;
+    Thread->SchedulerFlags |= SCHEDULER_FLAG_BLOCKED | SCHEDULER_FLAG_REQUEUE;
     AtomicSectionLeave(&IoQueue.SyncObject);
     ThreadingYield();
     return OsSuccess;
@@ -177,7 +176,7 @@ MCoreThread_t*
 GetThreadReadyForExecution(
     _In_ UUId_t             CoreId)
 {
-    MCoreThread_t *i = IoQueue.Head;
+    MCoreThread_t* i = IoQueue.Head;
     while (i) {
         if (i->CoreId == CoreId && i->Sleep.InterruptedAt) {
             return i;
@@ -402,7 +401,7 @@ SchedulerAtomicThreadSleep(
     CurrentThread   = ThreadingGetCurrentThread(CoreId);
 
     assert(CurrentThread != NULL);
-    TRACE("Adding thread %u to sleep queue on 0x%x", CurrentThread->Id, Handle);
+    TRACE("Atomically adding thread %u to sleep queue on 0x%x", CurrentThread->Id, Object);
     
     // Update sleep-information
     CurrentThread->Sleep.TimeLeft       = Timeout;
@@ -513,6 +512,7 @@ SchedulerRequeueSleepers(
 {
     MCoreThread_t* Thread = GetThreadReadyForExecution(CpuGetCurrentId());
     while (Thread != NULL) {
+        TRACE("readding thread %s", Thread->Name);
         // Remove from sleeper queue and requeue them, however never
         // requeue idle threads if they used sleep
         SchedulerQueueRemove(&IoQueue, Thread);
@@ -541,11 +541,6 @@ SchedulerThreadSchedule(
     // Requeue threads in sleep-queue that have been waken up
     if (IoQueue.Head != NULL) {
         SchedulerRequeueSleepers(Scheduler);
-    }
-
-    // Sanitize the scheduler status
-    if (Scheduler->ThreadCount == 0) {
-        return Thread;
     }
 
     // Handle the scheduled thread first

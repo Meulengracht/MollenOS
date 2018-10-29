@@ -24,9 +24,10 @@
 //#define __TRACE
 
 #include <ds/collection.h>
-#include <process/ash.h>
+#include <system/utils.h>
 #include <interrupts.h>
 #include <scheduler.h>
+#include <threading.h>
 #include <machine.h>
 #include <timers.h>
 #include <stdlib.h>
@@ -48,26 +49,21 @@ TimersStart(
     _In_ int            Periodic,
     _In_ const void*    Data)
 {
-    // Variables
-    MCoreTimer_t *Timer = NULL;
-    DataKey_t Key;
+    MCoreThread_t*  Thread = ThreadingGetCurrentThread(CpuGetCurrentId());
+    MCoreTimer_t*   Timer;
+    DataKey_t       Key;
 
-    // Sanity
-    if (GetCurrentProcess() == NULL) {
+    if (Thread->ProcessHandle == UUID_INVALID) {
         return UUID_INVALID;
     }
-
-    // Allocate a new instance and initialize
     Timer = (MCoreTimer_t*)kmalloc(sizeof(MCoreTimer_t));
     Timer->Id       = atomic_fetch_add(&TimerIdGenerator, 1);
-    Timer->AshId    = GetCurrentProcess()->Id;
+    Timer->AshId    = Thread->ProcessHandle;
     Timer->Data     = Data;
     Timer->Interval = IntervalNs;
     Timer->Current  = 0;
     Timer->Periodic = Periodic;
     Key.Value       = (int)Timer->Id;
-
-    // Add to list of timers
     CollectionAppend(&Timers, CollectionCreateNode(Key, Timer));
     return Timer->Id;
 }
@@ -79,17 +75,16 @@ OsStatus_t
 TimersStop(
     _In_ UUId_t TimerId)
 {
-    // Variables
-    OsStatus_t Result = OsError;
+    MCoreThread_t*  Thread = ThreadingGetCurrentThread(CpuGetCurrentId());
+    OsStatus_t      Result = OsError;
 
     // Now loop through timers registered
     CriticalSectionEnter(&TimersSyncObject);
     foreach(tNode, &Timers) {
-        // Initiate pointer
         MCoreTimer_t *Timer = (MCoreTimer_t*)tNode->Data;
         
         // Does it match the id? + Owner must match
-        if (Timer->Id == TimerId && Timer->AshId == GetCurrentProcess()->Id) {
+        if (Timer->Id == TimerId && Timer->AshId == Thread->ProcessHandle) {
             CollectionRemoveByNode(&Timers, tNode);
             kfree(Timer);
             kfree(tNode);

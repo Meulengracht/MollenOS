@@ -39,14 +39,12 @@ static UUId_t PipeThreads[2]                    = { 0 };
  * on the debug-pipes. */
 void
 LogPipeHandler(
-    _In_ void *PipeInstance)
+    _In_ void* PipeInstance)
 {
-    // Variables
-    SystemPipe_t *Pipe = (SystemPipe_t*)PipeInstance;
-    char MessageBuffer[256];
-    int i;
+    SystemPipe_t*   Pipe = (SystemPipe_t*)PipeInstance;
+    char            MessageBuffer[256];
+    int             i;
 
-    // Listen forever
     while (1) {
         // Reset buffer
         memset((void*)MessageBuffer, 0, sizeof(MessageBuffer));

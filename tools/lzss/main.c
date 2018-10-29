@@ -95,11 +95,14 @@ static int compress_file(const char *oldname, const char *packedname)
 		(packed = (byte *)malloc(aP_max_packed_size(insize))) == NULL ||
 		(workmem = (byte *)malloc(aP_workmem_size(insize))) == NULL) {
 		printf("\nERR: not enough memory\n");
+	    fclose(oldfile);
 		return 1;
 	}
 
 	if (fread(data, 1, insize, oldfile) != insize) {
 		printf("\nERR: error reading from input file\n");
+	    fclose(oldfile);
+        free(data);
 		return 1;
 	}
 
@@ -113,12 +116,16 @@ static int compress_file(const char *oldname, const char *packedname)
 	/* check for compression error */
 	if (outsize == APLIB_ERROR) {
 		printf("\nERR: an error occured while compressing\n");
+	    fclose(oldfile);
+        free(data);
 		return 1;
 	}
 
 	/* create output file */
 	if ((packedfile = fopen(packedname, "wb")) == NULL) {
 		printf("\nERR: unable to create output file\n");
+	    fclose(oldfile);
+        free(data);
 		return 1;
 	}
 

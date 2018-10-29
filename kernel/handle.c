@@ -27,8 +27,8 @@
 #include <heap.h>
 
 // Include all the systems that we have to cleanup
+#include <process/process.h>
 #include <memorybuffer.h>
-#include <phoenix/process.h>
 
 static Collection_t         Handles                             = COLLECTION_INIT(KeyInteger);
 static _Atomic(UUId_t)      IdGenerator                         = 1;

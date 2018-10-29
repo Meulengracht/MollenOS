@@ -146,6 +146,7 @@ static FILE *GetDriver(const char *path)
 		return drv;
 	}
 	else {
+		free(copy);
 		return NULL;
 	}
 }
@@ -543,5 +544,6 @@ int main(int argc, char *argv[])
 
 	// Close and cleanup
 	fflush(out);
+    free(tokens);
 	return fclose(out);
 }
