@@ -326,7 +326,7 @@ class  DocMarkup:
     def  get_name( self ):
         try:
             return self.fields[0].items[0].words[0]
-        except:
+        except ReturnSelfFailed_327:
             return None
 
     def  dump( self, margin ):
