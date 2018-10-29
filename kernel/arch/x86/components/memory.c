@@ -418,7 +418,7 @@ SetVirtualPageMapping(
     if (vAddress < MEMORY_LOCATION_KERNEL_END) {
         if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
             ConvertedFlags |= PAGE_GLOBAL;
-        }  
+        }
     }
 
     // If table is null creation failed
@@ -431,8 +431,8 @@ SyncTable:
         if (ConvertedFlags & PAGE_PERSISTENT) {
             if (Mapping != (pAddress & PAGE_MASK)) {
                 FATAL(FATAL_SCOPE_KERNEL, 
-                    "Tried to remap fixed virtual address 0x%x => 0x%x (Existing 0x%x)", 
-                    vAddress, pAddress, Mapping);
+                    "Tried to remap fixed virtual address 0x%x => 0x%x (Existing 0x%x), debug-address 0x%x", 
+                    vAddress, pAddress, Mapping, &Table->Pages[PAGE_TABLE_INDEX((vAddress & PAGE_MASK))]);
             }
         }
         Status = OsExists;

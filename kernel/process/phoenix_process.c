@@ -21,7 +21,7 @@
  *   file events and creating/destroying processes.
  */
 #define __MODULE "PROC"
-#define __TRACE
+//#define __TRACE
 
 #include <modules/modules.h>
 #include <process/phoenix.h>
@@ -58,11 +58,13 @@ ProcessThreadEntry(
     MCoreThread_t*  Thread              = ThreadingGetCurrentThread(CurrentCpu);
     uintptr_t       BaseAddress;
     
+    assert(Package != NULL);
+    assert(Process != NULL);
+    assert(Thread != NULL);
+
     // Argument when calling a new process is just NULL
     Thread->ParentThreadId  = UUID_INVALID;
     Thread->ProcessHandle   = Package->ProcessHandle;
-    Thread->Function        = (ThreadEntry_t)Process->Executable->EntryAddress;
-    Thread->Arguments       = NULL;
 
     // Update currently running thread, by nulling parent we mark
     // it as a standalone thread, which make sure it's not a part of a killable chain
@@ -77,6 +79,11 @@ ProcessThreadEntry(
     Process->Executable         = PeLoadImage(NULL, Process->Name, Package->FileBuffer, 
         Package->FileBufferLength, &BaseAddress, Package->LoadedFromInitRD);
     Process->NextLoadingAddress = BaseAddress;
+
+    // Update entry functions
+    assert(Process->Executable != NULL);
+    Thread->Function        = (ThreadEntry_t)Process->Executable->EntryAddress;
+    Thread->Arguments       = NULL;
 
     if (!Package->LoadedFromInitRD) {
         kfree(Package->FileBuffer);
@@ -128,7 +135,6 @@ HandleProcessStartupInformation(
 
     // Handle the inheritance block
     if (StartupInformation->InheritanceBlockPointer != NULL && StartupInformation->InheritanceBlockLength != 0) {
-        // Create a kernel space copy
         void *InheritanceBlock = kmalloc(StartupInformation->InheritanceBlockLength);
         memcpy(InheritanceBlock, StartupInformation->InheritanceBlockPointer, StartupInformation->InheritanceBlockLength);
         StartupInformation->InheritanceBlockPointer = InheritanceBlock;

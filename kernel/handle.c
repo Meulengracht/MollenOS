@@ -96,8 +96,8 @@ void*
 LookupHandle(
     _In_ UUId_t             Handle)
 {
-    SystemHandle_t *Instance;
-    DataKey_t Key;
+    SystemHandle_t* Instance;
+    DataKey_t       Key;
 
     // Lookup the handle
     Key.Value   = (int)Handle;

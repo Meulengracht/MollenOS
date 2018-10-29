@@ -34,8 +34,18 @@
 #include <handle.h>
 #include <assert.h>
 #include <debug.h>
+#include <heap.h>
 
 OsStatus_t PhoenixFileHandler(void *UserData);
+
+struct ServiceDescriptor {
+    CollectionItem_t    ListHeader;
+    UUId_t              ProcessHandle;
+    DevInfo_t           VendorId;
+    DevInfo_t           DeviceId;
+    DevInfo_t           DeviceClass;
+    DevInfo_t           DeviceSubClass;
+};
 
 static Collection_t Services                        = COLLECTION_INIT(KeyInteger);
 static UUId_t       AliasMap[PHOENIX_MAX_ALIASES]   = { 0 };
@@ -118,19 +128,19 @@ CreateService(
     _In_ DevInfo_t  DeviceClass,
     _In_ DevInfo_t  DeviceSubClass)
 {
-    DevInfo_t ServiceInfo[4] = { 
-        VendorId, DeviceId, DeviceClass, DeviceSubClass
-    };
-    ProcessStartupInformation_t Info = {
-        (const char*)&ServiceInfo[0], sizeof(ServiceInfo), 0
-    };
-
-    UUId_t      Handle;
-    OsStatus_t  Status = CreateProcess(Path, &Info, ProcessService, &Handle);
+    ProcessStartupInformation_t Info        = { 0 };
+    struct ServiceDescriptor*   Descriptor;
+    UUId_t                      Handle;
+    OsStatus_t                  Status      = CreateProcess(Path, &Info, ProcessService, &Handle);
     if (Status == OsSuccess) {
-        DataKey_t Value;
-        Value.Value = Handle;
-        CollectionAppend(&Services, CollectionCreateNode(Value, LookupHandle(Handle)));
+        Descriptor = (struct ServiceDescriptor*)kmalloc(sizeof(struct ServiceDescriptor));
+        memset(Descriptor, 0, sizeof(struct ServiceDescriptor));
+        Descriptor->ProcessHandle   = Handle;
+        Descriptor->VendorId        = VendorId;
+        Descriptor->DeviceId        = DeviceId;
+        Descriptor->DeviceClass     = DeviceClass;
+        Descriptor->DeviceSubClass  = DeviceSubClass;
+        CollectionAppend(&Services, &Descriptor->ListHeader);
     }
     return Status;
 }
@@ -146,22 +156,21 @@ GetServiceByIdentification(
     _Out_ UUId_t*   ServiceHandle)
 {
     foreach(Node, &Services) {
-        SystemProcess_t* Service    = (SystemProcess_t*)Node->Data;
-        DevInfo_t* ServiceInfo      = (DevInfo_t*)Service->StartupInformation.ArgumentPointer;
+        struct ServiceDescriptor* Descriptor = (struct ServiceDescriptor*)Node;
         
         // Should we check vendor-id && device-id?
         if (VendorId != 0 && DeviceId != 0) {
-            if (ServiceInfo[0] == VendorId && ServiceInfo[1] == DeviceId) {
-                *ServiceHandle = (UUId_t)Node->Key.Value;
-                return Service;
+            if (Descriptor->VendorId == VendorId && Descriptor->DeviceId == DeviceId) {
+                *ServiceHandle = Descriptor->ProcessHandle;
+                return LookupHandle(Descriptor->ProcessHandle);
             }
         }
 
         // Skip all fixed-vendor ids
-        if (ServiceInfo[0] != 0xFFEF) {
-            if (ServiceInfo[2] == DeviceClass && ServiceInfo[3] == DeviceSubClass) {
-                *ServiceHandle = (UUId_t)Node->Key.Value;
-                return Service;
+        if (Descriptor->VendorId != 0xFFEF) {
+            if (Descriptor->DeviceClass == DeviceClass && Descriptor->DeviceSubClass == DeviceSubClass) {
+                *ServiceHandle = Descriptor->ProcessHandle;
+                return LookupHandle(Descriptor->ProcessHandle);
             }
         }
     }
