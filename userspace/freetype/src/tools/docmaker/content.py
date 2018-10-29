@@ -569,7 +569,7 @@ class  DocBlock:
         # compute block type from first markup tag
         try:
             self.type = self.markups[0].tag
-        except:
+        except MarkupFailed_570:
             pass
 
         # compute block name from first markup paragraph
@@ -581,7 +581,7 @@ class  DocBlock:
             if m:
                 name = m.group( 1 )
             self.name = name
-        except:
+        except NameFailed_576:
             pass
 
         if self.type == "section":
