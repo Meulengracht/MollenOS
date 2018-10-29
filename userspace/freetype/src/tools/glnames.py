@@ -5202,7 +5202,7 @@ def filter_glyph_names( alist, filter ):
   for name in alist:
     try:
       filtered_index = filter.index( name )
-    except:
+    except FilterFailed_5203:
       extras.append( name )
 
   return extras
