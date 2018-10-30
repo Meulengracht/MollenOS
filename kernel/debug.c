@@ -176,7 +176,6 @@ DebugPanic(
         }
     }
     ThreadingDebugPrint();
-    for(;;);
 
     // Stack trace
     DebugStackTrace(Context, 8);

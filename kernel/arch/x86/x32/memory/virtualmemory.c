@@ -219,7 +219,7 @@ CloneVirtualSpace(
     _In_ int                    Inherit)
 {
     // Variables
-    PageDirectory_t *SystemDirectory = (PageDirectory_t*)GetSystemMemorySpace()->Data[MEMORY_SPACE_DIRECTORY];
+    PageDirectory_t *SystemDirectory = (PageDirectory_t*)GetDomainSystemMemorySpace()->Data[MEMORY_SPACE_DIRECTORY];
     PageDirectory_t *ParentDirectory = NULL;
     PageDirectory_t *PageDirectory;
     uintptr_t PhysicalAddress;

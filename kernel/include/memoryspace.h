@@ -111,11 +111,11 @@ SwitchSystemMemorySpace(
 KERNELAPI SystemMemorySpace_t* KERNELABI
 GetCurrentSystemMemorySpace(void);
 
-/* GetSystemMemorySpace
+/* GetDomainSystemMemorySpace
  * Retrieves the system's current copy of its memory space. If domains are active it will
  * be for the current domain, if system is uma-mode it's the machine wide. */
 KERNELAPI SystemMemorySpace_t* KERNELABI
-GetSystemMemorySpace(void);
+GetDomainSystemMemorySpace(void);
 
 /* ChangeSystemMemorySpaceProtection
  * Changes the protection parameters for the given memory region.
