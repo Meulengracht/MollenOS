@@ -49,7 +49,7 @@ _CODE_END
  * - Process related system call definitions */
 #define Syscall_ProcessExit(ExitCode) (OsStatus_t)syscall1(1, SCPARAM(ExitCode))
 #define Syscall_ProcessId(ProcessId) (OsStatus_t)syscall1(2, SCPARAM(ProcessId))
-#define Syscall_ProcessSpawn(Path, StartupInformation, Async) (UUId_t)syscall3(3, SCPARAM(Path), SCPARAM(StartupInformation), SCPARAM(Async))
+#define Syscall_ProcessSpawn(Path, StartupInformation) (UUId_t)syscall2(3, SCPARAM(Path), SCPARAM(StartupInformation))
 #define Syscall_ProcessJoin(ProcessId, Timeout, ExitCode) (OsStatus_t)syscall3(4, SCPARAM(ProcessId), SCPARAM(Timeout), SCPARAM(ExitCode))
 #define Syscall_ProcessKill(ProcessId) (OsStatus_t)syscall1(5, SCPARAM(ProcessId))
 #define Syscall_ProcessSignal(Handler) (OsStatus_t)syscall1(6, SCPARAM(Handler))

@@ -118,16 +118,15 @@ HandleProcessStartupInformation(
             StartupInformation->ArgumentPointer, StartupInformation->ArgumentLength);
         ArgumentBuffer[MStringSize(Process->Path) + 1 + StartupInformation->ArgumentLength] = '\0';
         
-        kfree((void*)StartupInformation->ArgumentPointer);
-        StartupInformation->ArgumentPointer = ArgumentBuffer;
-        StartupInformation->ArgumentLength  = MStringSize(Process->Path) + 1 + StartupInformation->ArgumentLength + 1;
+        Process->StartupInformation.ArgumentPointer = ArgumentBuffer;
+        Process->StartupInformation.ArgumentLength  = MStringSize(Process->Path) + 1 + StartupInformation->ArgumentLength + 1;
     }
     else {
         ArgumentBuffer = (char*)kmalloc(MStringSize(Process->Path) + 1);
         memcpy(ArgumentBuffer, MStringRaw(Process->Path), MStringSize(Process->Path) + 1);
 
-        StartupInformation->ArgumentPointer = ArgumentBuffer;
-        StartupInformation->ArgumentLength  = MStringSize(Process->Path) + 1;
+        Process->StartupInformation.ArgumentPointer = ArgumentBuffer;
+        Process->StartupInformation.ArgumentLength  = MStringSize(Process->Path) + 1;
     }
 
     // Debug
@@ -135,13 +134,11 @@ HandleProcessStartupInformation(
 
     // Handle the inheritance block
     if (StartupInformation->InheritanceBlockPointer != NULL && StartupInformation->InheritanceBlockLength != 0) {
-        void *InheritanceBlock = kmalloc(StartupInformation->InheritanceBlockLength);
+        void* InheritanceBlock = kmalloc(StartupInformation->InheritanceBlockLength);
         memcpy(InheritanceBlock, StartupInformation->InheritanceBlockPointer, StartupInformation->InheritanceBlockLength);
-        StartupInformation->InheritanceBlockPointer = InheritanceBlock;
+        Process->StartupInformation.InheritanceBlockPointer = InheritanceBlock;
+        Process->StartupInformation.InheritanceBlockLength  = StartupInformation->InheritanceBlockLength;
     }
-
-    // Copy data over
-    memcpy(&Process->StartupInformation, StartupInformation, sizeof(ProcessStartupInformation_t));    
 }
 
 /* LoadProcess
@@ -235,7 +232,7 @@ CreateProcess(
     Process->Pipes              = CollectionCreate(KeyInteger);
     Process->FileMappings       = CollectionCreate(KeyInteger);
     Process->Type               = Type;
-    Package->ProcessHandle      = CreateHandle(HandleTypeProcess, Process);
+    Package->ProcessHandle      = CreateHandle(HandleTypeProcess, HandleSynchronize, Process);
     HandleProcessStartupInformation(Process, StartupInformation);
 
     *Handle  = Package->ProcessHandle;

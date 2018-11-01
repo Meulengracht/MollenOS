@@ -34,21 +34,27 @@ typedef enum _SystemHandleType {
     HandleTypeCount
 } SystemHandleType_t;
 
+typedef enum _SystemHandleCapability {
+    HandleSynchronize = 0x1
+} SystemHandleCapability_t;
+
 typedef OsStatus_t (*HandleDestructorFn)(void*);
 
 typedef struct _SystemHandle {
-    CollectionItem_t    Header;
-    SystemHandleType_t  Type;
-    atomic_int          References;
-    void*               Resource;
+    CollectionItem_t            Header;
+    SystemHandleType_t          Type;
+    SystemHandleCapability_t    Capabilities;
+    atomic_int                  References;
+    void*                       Resource;
 } SystemHandle_t;
 
 /* CreateHandle
  * Allocates a new handle for a system resource with a reference of 1. */
 KERNELAPI UUId_t KERNELABI
 CreateHandle(
-    _In_ SystemHandleType_t Type,
-    _In_ void*              Resource);
+    _In_ SystemHandleType_t         Type,
+    _In_ SystemHandleCapability_t   Capabilities,
+    _In_ void*                      Resource);
 
 /* AcquireHandle
  * Acquires the handle given for the calling process. This can fail if the handle
@@ -70,5 +76,15 @@ LookupHandle(
 KERNELAPI OsStatus_t KERNELABI
 DestroyHandle(
     _In_ UUId_t             Handle);
+
+/* WaitForHandles
+ * Waits for either of the given handles to signal. The handles that are passed must
+ * support the SYNCHRONIZE capability to be waited for. */
+KERNELAPI OsStatus_t KERNELABI
+WaitForHandles(
+    _In_ UUId_t*            Handles,
+    _In_ size_t             HandleCount,
+    _In_ int                WaitForAll,
+    _In_ size_t             Timeout);
 
 #endif //! __HANDLE_INTERFACE__

@@ -255,12 +255,17 @@ ThreadingDetachThread(
 {
     MCoreThread_t*  Thread  = ThreadingGetCurrentThread(CpuGetCurrentId());
     MCoreThread_t*  Target  = ThreadingGetThread(ThreadId);
-    UUId_t          PId     = Thread->ProcessHandle;
-    if (Target == NULL || Target->ProcessHandle != PId) {
-        return OsError;
+    // Detach is allowed if the caller is the spawner or the caller
+    // is in same process
+    if (Target != NULL) {
+        if (Target->ParentThreadId == Thread->Id || 
+            Target->ProcessHandle == Thread->ProcessHandle) {
+            Target->ParentThreadId = UUID_INVALID;
+            return OsSuccess;
+        }
+        WARNING(" > invalid permissions to perform thread detach");
     }
-    Target->ParentThreadId = UUID_INVALID;
-    return OsSuccess;
+    return OsError;
 }
 
 /* ThreadingTerminateThread

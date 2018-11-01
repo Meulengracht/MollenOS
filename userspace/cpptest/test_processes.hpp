@@ -46,10 +46,11 @@ public:
         TestLog(">> process stdout handle = %i", m_Stdout);
         StartupInformation.InheritFlags = PROCESS_INHERIT_STDOUT;
         StartupInformation.StdOutHandle = m_Stdout;
+
         UUId_t ProcessId = ProcessSpawnEx(Path.c_str(), &StartupInformation, 0);
+        TestLog(">> process id = %u", ProcessId);
         if (ProcessId != UUID_INVALID) {
             int ExitCode = 0;
-            TestLog(">> process id = %u", ProcessId);
             ProcessJoin(ProcessId, 0, &ExitCode);
             TestLog(">> process exitted with code = %i", ExitCode);
         }

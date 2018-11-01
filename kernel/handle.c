@@ -20,17 +20,22 @@
  * - Implementation of the resource handle interface. This provides system-wide
  *   resource handles and maintience of resources. 
  */
+#define __MODULE "HNDL"
+//#define __TRACE
 
+#include <system/thread.h>
+#include <scheduler.h>
 #include <assert.h>
 #include <string.h>
 #include <handle.h>
+#include <debug.h>
 #include <heap.h>
 
 // Include all the systems that we have to cleanup
 #include <process/process.h>
 #include <memorybuffer.h>
 
-static Collection_t         Handles                             = COLLECTION_INIT(KeyInteger);
+static Collection_t         SystemHandles                       = COLLECTION_INIT(KeyInteger);
 static _Atomic(UUId_t)      IdGenerator                         = 1;
 static HandleDestructorFn   HandleDestructors[HandleTypeCount]  = {
     DestroyMemoryBuffer,
@@ -41,11 +46,12 @@ static HandleDestructorFn   HandleDestructors[HandleTypeCount]  = {
  * Allocates a new handle for a system resource with a reference of 1. */
 UUId_t
 CreateHandle(
-    _In_ SystemHandleType_t Type,
-    _In_ void*              Resource)
+    _In_ SystemHandleType_t         Type,
+    _In_ SystemHandleCapability_t   Capabilities,
+    _In_ void*                      Resource)
 {
-    SystemHandle_t *Handle;
-    UUId_t Id;
+    SystemHandle_t* Handle;
+    UUId_t          Id;
 
     assert(Resource != NULL);
 
@@ -56,9 +62,10 @@ CreateHandle(
     memset((void*)Handle, 0, sizeof(SystemHandle_t));
     Handle->Header.Key.Value    = (int)Id;
     Handle->Type                = Type;
+    Handle->Capabilities        = Capabilities;
     Handle->Resource            = Resource;
     atomic_store_explicit(&Handle->References, 1, memory_order_relaxed);
-    CollectionAppend(&Handles, &Handle->Header);
+    CollectionAppend(&SystemHandles, &Handle->Header);
     return Id;
 }
 
@@ -69,13 +76,13 @@ void*
 AcquireHandle(
     _In_ UUId_t             Handle)
 {
-    SystemHandle_t *Instance;
-    DataKey_t Key;
-    int PreviousReferences;
+    SystemHandle_t* Instance;
+    DataKey_t       Key;
+    int             PreviousReferences;
 
     // Lookup the handle
     Key.Value   = (int)Handle;
-    Instance    = (SystemHandle_t*)CollectionGetNodeByKey(&Handles, Key, 0);
+    Instance    = (SystemHandle_t*)CollectionGetNodeByKey(&SystemHandles, Key, 0);
     if (Instance == NULL) {
         return NULL;
     }
@@ -101,7 +108,7 @@ LookupHandle(
 
     // Lookup the handle
     Key.Value   = (int)Handle;
-    Instance    = (SystemHandle_t*)CollectionGetNodeByKey(&Handles, Key, 0);
+    Instance    = (SystemHandle_t*)CollectionGetNodeByKey(&SystemHandles, Key, 0);
     if (Instance == NULL) {
         return NULL;
     }
@@ -115,23 +122,44 @@ OsStatus_t
 DestroyHandle(
     _In_ UUId_t             Handle)
 {
-    SystemHandle_t *Instance;
-    OsStatus_t Status = OsSuccess;
-    DataKey_t Key;
-    int References;
+    SystemHandle_t* Instance;
+    OsStatus_t      Status = OsSuccess;
+    DataKey_t       Key;
+    int             References;
 
     // Lookup the handle
     Key.Value   = (int)Handle;
-    Instance    = (SystemHandle_t*)CollectionGetNodeByKey(&Handles, Key, 0);
+    Instance    = (SystemHandle_t*)CollectionGetNodeByKey(&SystemHandles, Key, 0);
     if (Instance == NULL) {
         return OsError;
     }
 
     References = atomic_fetch_sub(&Instance->References, 1) - 1;
     if (References == 0) {
-        CollectionRemoveByNode(&Handles, &Instance->Header);
+        CollectionRemoveByNode(&SystemHandles, &Instance->Header);
+        if (Instance->Capabilities & HandleSynchronize) {
+            SchedulerHandleSignalAll((uintptr_t*)Handle);
+            ThreadingYield();
+        }
         Status = HandleDestructors[Instance->Type](Instance->Resource);
         kfree(Instance);
     }
     return Status;
+}
+
+/* WaitForHandles
+ * Waits for either of the given handles to signal. The handles that are passed must
+ * support the SYNCHRONIZE capability to be waited for. */
+OsStatus_t
+WaitForHandles(
+    _In_ UUId_t*            Handles,
+    _In_ size_t             HandleCount,
+    _In_ int                WaitForAll,
+    _In_ size_t             Timeout)
+{
+    // @todo multi sync in scheduler
+    assert(Handles != NULL);
+    assert(HandleCount > 0);
+    SchedulerThreadSleep((uintptr_t*)Handles[0], Timeout);
+    return OsSuccess;
 }

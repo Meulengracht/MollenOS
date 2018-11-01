@@ -27,6 +27,7 @@
 #include <ds/mstring.h>
 #include <threading.h>
 #include <scheduler.h>
+#include <handle.h>
 #include <debug.h>
 #include <heap.h>
 
@@ -44,8 +45,11 @@ ScProcessSpawn(
     if (Path == NULL || StartupInformation == NULL) {
         return Result;
     }
+
     mPath = MStringCreate((void*)Path, StrUTF8);
-    CreateProcess(mPath, StartupInformation, ProcessNormal, &Result);
+    if (CreateProcess(mPath, StartupInformation, ProcessNormal, &Result) != OsSuccess) {
+        ERROR(" > failed to spawn process %s", Path);
+    }
     MStringDestroy(mPath);
     return Result;
 }
@@ -59,14 +63,10 @@ ScProcessJoin(
     _In_  size_t    Timeout,
     _Out_ int*      ExitCode)
 {
-    SystemProcess_t*    Process = GetProcess(ProcessHandle);
-    int                 SleepResult;
-    
-    if (Process == NULL) {
-        return OsError;
-    }
-    SleepResult = SchedulerThreadSleep((uintptr_t*)Process, Timeout);
-    if (SleepResult == SCHEDULER_SLEEP_OK) {
+    SystemProcess_t* Process = GetProcess(ProcessHandle);
+    if (Process != NULL) {
+        WARNING("Waiting for handle %u", ProcessHandle);
+        WaitForHandles(&ProcessHandle, 1, 1, Timeout);
         if (ExitCode != NULL) {
             *ExitCode = Process->Code;
         }
