@@ -24,7 +24,7 @@
 #define __MODULE "MBUF"
 //#define __TRACE
 
-#include <process/phoenix.h>
+#include <process/process.h>
 #include <memorybuffer.h>
 #include <machine.h>
 #include <handle.h>
@@ -83,7 +83,7 @@ CreateMemoryBuffer(
         } break;
 
         case MEMORY_BUFFER_FILEMAPPING: {
-            MCoreAsh_t *CurrentProcess = PhoenixGetCurrentAsh();
+            SystemProcess_t* CurrentProcess = GetCurrentProcess();
             assert(CurrentProcess != NULL);
             Virtual = AllocateBlocksInBlockmap(CurrentProcess->Heap, __MASK, Size);
             if (Virtual == 0) {
@@ -99,7 +99,7 @@ CreateMemoryBuffer(
     }
 
     SystemBuffer            = (SystemMemoryBuffer_t*)kmalloc(sizeof(SystemMemoryBuffer_t));
-    Handle                  = CreateHandle(HandleTypeMemoryBuffer, SystemBuffer);
+    Handle                  = CreateHandle(HandleTypeMemoryBuffer, 0, SystemBuffer);
     SystemBuffer->Flags     = Flags;
     SystemBuffer->Capacity  = Capacity;
     SystemBuffer->Physical  = DmaAddress;

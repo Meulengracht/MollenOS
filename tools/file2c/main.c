@@ -62,6 +62,7 @@ int main(int argc, char *argv[])
         }
         fprintf(Output, "0x%.2x", Buffer[i] & 0xff);
     }
+    free(Buffer);
 
     // Write last and finish
     fprintf(Output, "\n};\n\n");

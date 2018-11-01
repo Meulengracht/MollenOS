@@ -23,7 +23,7 @@
 
 #include <os/osdefs.h>
 #include <os/mollenos.h>
-#include <process/phoenix.h>
+#include <process/process.h>
 #include <system/output.h>
 #include <system/utils.h>
 #include <memoryspace.h>
@@ -40,7 +40,6 @@ ScSystemDebug(
     _In_ const char*    Module,
     _In_ const char*    Message)
 {
-    // Validate params
     if (Module == NULL || Message == NULL) {
         return OsError;
     }
@@ -68,10 +67,12 @@ OsStatus_t ScEndBootSequence(void) {
 /* ScFlushHardwareCache
  * Flushes the specified hardware cache. Should be used with caution as it might
  * result in performance drops. */
-OsStatus_t ScFlushHardwareCache(
+OsStatus_t
+ScFlushHardwareCache(
     _In_     int    Cache,
     _In_Opt_ void*  Start, 
-    _In_Opt_ size_t Length) {
+    _In_Opt_ size_t Length)
+{
     if (Cache == CACHE_INSTRUCTION) {
         CpuFlushInstructionCache(Start, Length);
         return OsSuccess;
@@ -114,7 +115,7 @@ ScSystemTick(
 
     if (TimersGetSystemTick(SystemTick) == OsSuccess) {
         if (TickBase == TIME_PROCESS) {
-            MCoreAsh_t* Process = PhoenixGetCurrentAsh();
+            SystemProcess_t* Process = GetCurrentProcess();
             if (Process != NULL) {
                 *SystemTick -= Process->StartedAt;
             }
@@ -154,7 +155,6 @@ OsStatus_t
 ScPerformanceTick(
     _Out_ LargeInteger_t *Value)
 {
-    // Sanitize input
     if (Value == NULL) {
         return OsError;
     }
@@ -176,18 +176,17 @@ ScQueryDisplayInformation(
  * Right now it simply identity maps the screen display framebuffer
  * into the current process's memory mappings and returns a pointer to it. */
 void*
-ScCreateDisplayFramebuffer(void) {
+ScCreateDisplayFramebuffer(void)
+{
     uintptr_t FbPhysical    = VideoGetTerminal()->FrameBufferAddressPhysical;
     uintptr_t FbVirtual     = 0;
     size_t FbSize           = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
-
-    // Sanitize
-    if (PhoenixGetCurrentAsh() == NULL) {
+    if (GetCurrentProcess() == NULL) {
         return NULL;
     }
 
     // Allocate the neccessary size
-    FbVirtual = AllocateBlocksInBlockmap(PhoenixGetCurrentAsh()->Heap, __MASK, FbSize);
+    FbVirtual = AllocateBlocksInBlockmap(GetCurrentProcess()->Heap, __MASK, FbSize);
     if (FbVirtual == 0) {
         return NULL;
     }

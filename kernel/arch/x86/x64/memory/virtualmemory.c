@@ -327,7 +327,7 @@ CloneVirtualSpace(
     PageDirectoryTable_t *SystemDirectoryTable  = NULL;
     PageDirectoryTable_t *DirectoryTable        = NULL;
     PageDirectory_t *Directory                  = NULL;
-    PageMasterTable_t *SystemMasterTable = (PageMasterTable_t*)GetSystemMemorySpace()->Data[MEMORY_SPACE_DIRECTORY];
+    PageMasterTable_t *SystemMasterTable = (PageMasterTable_t*)GetDomainSystemMemorySpace()->Data[MEMORY_SPACE_DIRECTORY];
     PageMasterTable_t *ParentMasterTable = NULL;
     PageMasterTable_t *PageMasterTable;
     uintptr_t PhysicalAddress;

@@ -84,7 +84,8 @@ typedef void*                       Handle_t;
 typedef enum {
     OsSuccess   = 0,
     OsError,            // Error - Generic
-    OsExists            // Error - Already exists
+    OsExists,           // Error - Resource already exists
+    OsDoesNotExist      // Error - Resource does not exist
 } OsStatus_t;
 
 typedef enum {

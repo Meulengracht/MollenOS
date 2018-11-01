@@ -23,14 +23,12 @@
 
 #include <memoryspace.h>
 #include <modules/modules.h>
-#include <process/ash.h>
+#include <process/process.h>
 #include <process/pe.h>
+#include <assert.h>
+#include <string.h>
 #include <debug.h>
 #include <heap.h>
-
-#include <assert.h>
-#include <stdio.h>
-#include <string.h>
 
 // Prototypes
 OsStatus_t LoadFile(const char* Path, char** FullPath, void** Data, size_t* Length);
@@ -84,12 +82,15 @@ PeValidate(
     _In_ uint8_t*   Buffer, 
     _In_ size_t     Length)
 {
-    // Variables
     PeOptionalHeader_t *OptHeader   = NULL;
     PeHeader_t *BaseHeader          = NULL;
     MzHeader_t *DosHeader           = NULL;
     size_t HeaderCheckSum           = 0, CalculatedCheckSum = 0;
     size_t CheckSumAddress          = 0;
+
+    if (Buffer == NULL || Length == 0) {
+        return PE_INVALID;
+    }
 
     // Get pointer to DOS
     DosHeader = (MzHeader_t*)Buffer;
@@ -364,7 +365,7 @@ PeHandleExports(
 
     // Debug
     TRACE("PeHandleExports(%s, AddressRVA 0x%x, Size 0x%x)",
-        MStringRaw(PhoenixGetCurrentAsh()->Name), 
+        MStringRaw(GetCurrentProcess()->Name), 
         ExportDirectory->AddressRVA, ExportDirectory->Size);
 
     // Sanitize the directory first

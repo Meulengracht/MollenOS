@@ -20,13 +20,17 @@
  */
 #define DefineSyscall(_Sys) ((uintptr_t)&_Sys)
 
-#include <os/osdefs.h>
-#include <os/mollenos.h>
 #include <os/contracts/video.h>
 #include <process/phoenix.h>
+#include <os/mollenos.h>
+#include <os/process.h>
 #include <os/buffer.h>
+#include <threading.h>
 #include <os/input.h>
+#include <os/acpi.h>
 #include <time.h>
+
+struct FileMappingParameters;
 
 // System system calls
 OsStatus_t  ScSystemDebug(int Type, const char* Module, const char* Message);
@@ -41,14 +45,14 @@ OsStatus_t  ScQueryDisplayInformation(VideoDescriptor_t *Descriptor);
 void*       ScCreateDisplayFramebuffer(void);
 
 // Process system calls 
-UUId_t      ScProcessSpawn(const char* Path, const ProcessStartupInformation_t* StartupInformation, int Asynchronous);
-OsStatus_t  ScProcessJoin(UUId_t ProcessId, size_t Timeout, int* ExitCode);
-OsStatus_t  ScProcessKill(UUId_t ProcessId);
+UUId_t      ScProcessSpawn(const char* Path, ProcessStartupInformation_t* StartupInformation);
+OsStatus_t  ScProcessJoin(UUId_t ProcessHandle, size_t Timeout, int* ExitCode);
+OsStatus_t  ScProcessKill(UUId_t ProcessHandle);
 OsStatus_t  ScProcessExit(int ExitCode);
-OsStatus_t  ScProcessGetCurrentId(UUId_t* ProcessId);
+OsStatus_t  ScProcessGetCurrentId(UUId_t* ProcessHandle);
 OsStatus_t  ScProcessGetCurrentName(const char* Buffer, size_t MaxLength);
 OsStatus_t  ScProcessSignal(uintptr_t Handler);
-OsStatus_t  ScProcessRaise(UUId_t ProcessId, int Signal);
+OsStatus_t  ScProcessRaise(UUId_t ProcessHandle, int Signal);
 OsStatus_t  ScProcessGetStartupInformation(ProcessStartupInformation_t* StartupInformation);
 OsStatus_t  ScProcessGetModuleHandles(Handle_t ModuleList[PROCESS_MAXMODULES]);
 OsStatus_t  ScProcessGetModuleEntryPoints(Handle_t ModuleList[PROCESS_MAXMODULES]);
@@ -81,8 +85,8 @@ OsStatus_t  ScWaitForObject(uintptr_t* Handle, size_t Timeout);
 OsStatus_t  ScPipeOpen(int Port, int Type);
 OsStatus_t  ScPipeClose(int Port);
 OsStatus_t  ScPipeRead(int Port, uint8_t* Container, size_t Length);
-OsStatus_t  ScPipeWrite(UUId_t ProcessId, int Port, uint8_t* Message, size_t Length);
-OsStatus_t  ScPipeReceive(UUId_t ProcessId, int Port, uint8_t* Message, size_t Length);
+OsStatus_t  ScPipeWrite(UUId_t ProcessHandle, int Port, uint8_t* Message, size_t Length);
+OsStatus_t  ScPipeReceive(UUId_t ProcessHandle, int Port, uint8_t* Message, size_t Length);
 OsStatus_t  ScRpcResponse(MRemoteCall_t* RemoteCall);
 OsStatus_t  ScRpcExecute(MRemoteCall_t* RemoteCall, int Async);
 OsStatus_t  ScRpcListen(int Port, MRemoteCall_t* RemoteCall, uint8_t* ArgumentBuffer);
@@ -98,10 +102,9 @@ OsStatus_t  ScAcquireBuffer(UUId_t Handle, DmaBuffer_t* MemoryBuffer);
 OsStatus_t  ScQueryBuffer(UUId_t Handle, uintptr_t* Dma, size_t* Capacity);
 
 // Operating system support system calls
-OsStatus_t  ScGetWorkingDirectory(UUId_t ProcessId, char* PathBuffer, size_t MaxLength);
+OsStatus_t  ScGetWorkingDirectory(UUId_t ProcessHandle, char* PathBuffer, size_t MaxLength);
 OsStatus_t  ScSetWorkingDirectory(const char* Path);
 OsStatus_t  ScGetAssemblyDirectory(char* PathBuffer, size_t MaxLength);
-struct FileMappingParameters { UUId_t FileHandle; int Flags; uint64_t Offset; size_t Size; };
 OsStatus_t  ScCreateFileMapping(struct FileMappingParameters* Parameters, void** MemoryPointer);
 OsStatus_t  ScDestroyFileMapping(void* MemoryPointer);
 OsStatus_t  ScDestroyHandle(UUId_t Handle);

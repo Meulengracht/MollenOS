@@ -21,12 +21,13 @@
 #define __MODULE "SIG0"
 //#define __TRACE
 
-#include <process/phoenix.h>
+#include <process/process.h>
 #include <system/thread.h>
 #include <system/utils.h>
 #include <threading.h>
 #include <scheduler.h>
 #include <string.h>
+#include <handle.h>
 #include <debug.h>
 #include <heap.h>
 
@@ -81,12 +82,10 @@ SignalCreate(
     _In_ UUId_t     ThreadId,
     _In_ int        Signal)
 {
-	// Variables
-	MCoreThread_t *Target   = ThreadingGetThread(ThreadId);
-	MCoreSignal_t *Sig      = NULL;
-	DataKey_t sKey;
+	MCoreThread_t*  Target   = ThreadingGetThread(ThreadId);
+	SystemSignal_t* Sig;
+	DataKey_t       sKey;
 
-    // Debug
     TRACE("SignalCreate(Thread %u, Signal %i)", ThreadId, Signal);
 
     // Sanitize input, and then sanitize if we have a handler
@@ -98,18 +97,14 @@ SignalCreate(
         ERROR("Signal %i was blocked");
         return OsError; // Ignored
     }
-
-	// Create a new signal instance for process.
-	Sig = (MCoreSignal_t*)kmalloc(sizeof(MCoreSignal_t));
+	Sig = (SystemSignal_t*)kmalloc(sizeof(SystemSignal_t));
     Sig->Ignorable 	= GlbSignalIsDeadly[Signal];
 	Sig->Signal 	= Signal;
-
-	// Add to signal-list
-	sKey.Value = Signal;
+	sKey.Value      = Signal;
 	CollectionAppend(Target->SignalQueue, CollectionCreateNode(sKey, Sig));
 
     // Wake up thread if neccessary
-    if (Target->State != ThreadStateActive) {
+    if (Target->SchedulerFlags & SCHEDULER_FLAG_BLOCKED) {
         SchedulerThreadSignal(Target);
     }
     return OsSuccess;
@@ -121,15 +116,8 @@ SignalCreate(
 OsStatus_t
 SignalReturn(void)
 {
-	// Variables
-	MCoreThread_t *Thread   = NULL;
-	UUId_t Cpu;
-
-	// Oh oh, someone has done the dirty signal
-	Cpu         = CpuGetCurrentId();
-	Thread      = ThreadingGetCurrentThread(Cpu);
-
-	// Cleanup signal
+	UUId_t          Cpu     = CpuGetCurrentId();
+	MCoreThread_t*  Thread  = ThreadingGetCurrentThread(Cpu);
 	Thread->ActiveSignal.Signal = -1;
 	return SignalHandle(Thread->Id);
 }
@@ -141,12 +129,10 @@ OsStatus_t
 SignalHandle(
 	_In_ UUId_t ThreadId)
 {
-	CollectionItem_t *sNode;
-	MCoreThread_t *Thread;
-	MCoreSignal_t *Signal;
-	
-	// Lookup variables
-	Thread = ThreadingGetThread(ThreadId);
+	CollectionItem_t*   Node;
+	MCoreThread_t*      Thread = ThreadingGetThread(ThreadId);;
+	SystemSignal_t*     Signal;
+
 	if (Thread == NULL) {
 		return OsError;
 	}
@@ -157,12 +143,12 @@ SignalHandle(
 	if (Thread->ActiveSignal.Signal != -1) {
 		return OsError;
 	}
-	sNode = CollectionPopFront(Thread->SignalQueue);
+	Node = CollectionPopFront(Thread->SignalQueue);
 
 	// Sanitize the node, no more signals?
-	if (sNode != NULL) {
-		Signal = (MCoreSignal_t*)sNode->Data;
-		CollectionDestroyNode(Thread->SignalQueue, sNode);
+	if (Node != NULL) {
+		Signal = (SystemSignal_t*)Node->Data;
+		CollectionDestroyNode(Thread->SignalQueue, Node);
 		SignalExecute(Thread, Signal);
 	}
 	return OsSuccess;
@@ -174,15 +160,13 @@ SignalHandle(
 void
 SignalExecute(
     _In_ MCoreThread_t *Thread,
-    _In_ MCoreSignal_t *Signal)
+    _In_ SystemSignal_t *Signal)
 {
-    MCoreAsh_t *Process = NULL;
-
-    // Debug
+    SystemProcess_t* Process;
     TRACE("SignalExecute(Thread %u, Signal %i)", Thread->Id, Signal->Signal);
 
     // Instantiate the process
-    Process = PhoenixGetAsh(Thread->AshId);
+    Process = (SystemProcess_t*)LookupHandle(Thread->ProcessHandle);
     if (Process == NULL) {
         kfree(Signal);
         return;
@@ -193,14 +177,14 @@ SignalExecute(
 	if (Process->SignalHandler == 0) {
 		char Action = GlbSignalIsDeadly[Signal->Signal];
 		if (Action == 1 || Action == 2) {
-            ThreadingTerminateThread(Process->MainThread, Signal->Signal, 1);
+            ThreadingTerminateThread(Process->MainThreadId, Signal->Signal, 1);
 		}
         kfree(Signal);
 		return;
 	}
 
 	// Update active and dispatch
-    memcpy(&Thread->ActiveSignal, Signal, sizeof(MCoreSignal_t));
+    memcpy(&Thread->ActiveSignal, Signal, sizeof(SystemSignal_t));
     Thread->ActiveSignal.Context = Thread->ContextActive;
 
     // Cleanup signal and dispatch

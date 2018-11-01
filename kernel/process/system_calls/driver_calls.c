@@ -22,7 +22,9 @@
 //#define __TRACE
 
 #include <process/phoenix.h>
-#include <process/server.h>
+#include <process/process.h>
+#include <process/pipe.h>
+#include <system/utils.h>
 #include <modules/modules.h>
 #include <acpiinterface.h>
 #include <interrupts.h>
@@ -172,14 +174,14 @@ OsStatus_t
 ScRegisterAliasId(
     _In_ UUId_t             Alias)
 {
-    MCoreAsh_t* Process = PhoenixGetCurrentAsh();
+    SystemProcess_t* Process = GetCurrentProcess();
     TRACE("ScRegisterAliasId(Server %s, Alias 0x%X)", MStringRaw(Process->Name), Alias);
     
     // Update the registered sys pipe that should recieve input events from cursor etc
-    if (PhoenixRegisterAlias(Process, Alias) == OsSuccess) {
+    if (SetProcessAlias(ThreadingGetCurrentThread(CpuGetCurrentId())->ProcessHandle, Alias) == OsSuccess) {
         if (Alias == __WINDOWMANAGER_TARGET) {
-            GetMachine()->StdInput  = PhoenixGetAshPipe(Process, PIPE_STDIN);
-            GetMachine()->WmInput   = PhoenixGetAshPipe(Process, PIPE_WMEVENTS);
+            GetMachine()->StdInput  = GetProcessPipe(Process, PIPE_STDIN);
+            GetMachine()->WmInput   = GetProcessPipe(Process, PIPE_WMEVENTS);
         }
         return OsSuccess;
     }
@@ -194,37 +196,31 @@ ScLoadDriver(
     _In_ MCoreDevice_t*     Device,
     _In_ size_t             Length)
 {
-    // Variables
-    MCorePhoenixRequest_t *Request  = NULL;
-    MCoreServer_t *Server           = NULL;
-    MCoreModule_t *Module           = NULL;
-    MString_t *Path                 = NULL;
-    MRemoteCall_t RemoteCall        = { { 0 }, { 0 }, 0 };
+    SystemProcess_t*    Service;
+    MCoreModule_t*      Module;
+    MRemoteCall_t       RemoteCall = { { 0 }, { 0 }, 0 };
+    UUId_t              ServiceHandle;
 
-    // Trace
     TRACE("ScLoadDriver(Vid 0x%x, Pid 0x%x, Class 0x%x, Subclass 0x%x)",
-        Device->VendorId, Device->DeviceId,
-        Device->Class, Device->Subclass);
-
-    // Sanitize parameters, length must not be less than base
+        Device->VendorId, Device->DeviceId, Device->Class, Device->Subclass);
     if (Device == NULL || Length < sizeof(MCoreDevice_t)) {
         return OsError;
     }
 
     // First of all, if a server has already been spawned
     // for the specific driver, then call it's RegisterInstance
-    Server = PhoenixGetServerByDriver(
-        Device->VendorId, Device->DeviceId,
-        Device->Class, Device->Subclass);
+    Service = GetServiceByIdentification(Device->VendorId, Device->DeviceId,
+        Device->Class, Device->Subclass, &ServiceHandle);
+    if (Service == NULL) {
+        MString_t* Path;
+        OsStatus_t Status;
 
-    // Sanitize the lookup 
-    // If it's not found, spawn server
-    if (Server == NULL) {
         // Look for matching driver first, then generic
         Module = ModulesFindSpecific(Device->VendorId, Device->DeviceId);
         if (Module == NULL) {
             Module = ModulesFindGeneric(Device->Class, Device->Subclass);
         }
+
         if (Module == NULL) {
             return OsError;
         }
@@ -232,38 +228,26 @@ ScLoadDriver(
         // Build ramdisk path for module/server
         Path = MStringCreate("rd:/", StrUTF8);
         MStringAppendString(Path, Module->Name);
+        Status = CreateService(Path, Device->VendorId, Device->DeviceId, 
+            Device->Class, Device->Subclass);
+        MStringDestroy(Path);
+        if (Status != OsSuccess) {
+            return Status;
+        }
 
-        // Create the request 
-        Request = (MCorePhoenixRequest_t*)kmalloc(sizeof(MCorePhoenixRequest_t));
-        memset(Request, 0, sizeof(MCorePhoenixRequest_t));
-        Request->Base.Type = AshSpawnServer;
-        Request->Path = Path;
-
-        // Initiate request
-        PhoenixCreateRequest(Request);
-        PhoenixWaitRequest(Request, 0);
-
-        // Sanitize startup
-        Server = PhoenixGetServer(Request->AshId);
-        assert(Server != NULL);
-
-        // Cleanup
-        MStringDestroy(Request->Path);
-        kfree(Request);
-
-        // Update the server params for next load
-        Server->VendorId = Device->VendorId;
-        Server->DeviceId = Device->DeviceId;
-        Server->DeviceClass = Device->Class;
-        Server->DeviceSubClass = Device->Subclass;
+        Service = GetServiceByIdentification(Device->VendorId, Device->DeviceId,
+            Device->Class, Device->Subclass, &ServiceHandle);
+        if (Service == NULL) {
+            return OsError;
+        }
     }
 
     // Initialize the base of a new message, always protocol version 1
-    RPCInitialize(&RemoteCall, Server->Base.Id, 1, __DRIVER_REGISTERINSTANCE);
+    RPCInitialize(&RemoteCall, ServiceHandle, 1, __DRIVER_REGISTERINSTANCE);
     RPCSetArgument(&RemoteCall, 0, Device, Length);
 
     // Make sure the server has opened it's comm-pipe
-    PhoenixWaitAshPipe(&Server->Base, PIPE_REMOTECALL);
+    WaitForProcessPipe(Service, PIPE_REMOTECALL);
     return ScRpcExecute(&RemoteCall, 1);
 }
 
@@ -277,8 +261,8 @@ ScRegisterInterrupt(
     _In_ DeviceInterrupt_t* Interrupt,
     _In_ Flags_t            Flags)
 {
-    if (Interrupt == NULL
-        || (Flags & (INTERRUPT_KERNEL | INTERRUPT_SOFT))) {
+    if (Interrupt == NULL || 
+        (Flags & (INTERRUPT_KERNEL | INTERRUPT_SOFT))) {
         return UUID_INVALID;
     }
     return InterruptRegister(Interrupt, Flags);

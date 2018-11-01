@@ -79,9 +79,9 @@ ProcessSpawn(
 CRTDECL(
 UUId_t,
 ProcessSpawnEx(
-	_In_ const char*                        Path,
-	_In_ const ProcessStartupInformation_t* StartupInformation,
-	_In_ int                                Asynchronous));
+	_In_ const char*                    Path,
+	_In_ ProcessStartupInformation_t*   StartupInformation,
+	_In_ int                            Asynchronous));
 
 /* ProcessJoin
  * Waits for the given process to terminate and

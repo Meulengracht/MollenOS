@@ -30,13 +30,13 @@
 #include <os/osdefs.h>
 #include <os/context.h>
 #include <ds/collection.h>
-#include <memoryspace.h>
-#include <pipe.h>
 #include <signal.h>
 #include <time.h>
 
 // Forward some structures we need
-typedef struct _MCoreAsh MCoreAsh_t;
+typedef struct _SystemMemorySpace SystemMemorySpace_t;
+typedef struct _SystemProcess SystemProcess_t;
+typedef struct _SystemPipe SystemPipe_t;
 
 /* Define the thread entry point signature */
 #ifndef __THREADING_ENTRY
@@ -68,33 +68,17 @@ typedef void(*ThreadEntry_t)(void*);
 
 /* MCoreThread::Flags Bit Definitions 
  * The rest of the bits denode special other run-modes */
-#define THREADING_CPUBOUND              0x00000008
 #define THREADING_SYSTEMTHREAD          0x00000010
 #define THREADING_IDLE                  0x00000020
 #define THREADING_INHERIT               0x00000040
 #define THREADING_IMPERSONATION         0x00000080
-
 #define THREADING_TRANSITION_USERMODE   0x10000000
-#define THREADING_SKIP_REQUEUE          0x20000000
 
-typedef struct _MCoreSignal {
+typedef struct _SystemSignal {
     int         Ignorable;
     int         Signal;
     Context_t*  Context;
-} MCoreSignal_t;
-
-typedef enum _SystemThreadState {
-    ThreadStateActive,
-    ThreadStateBlocked,
-    ThreadStateFinished,
-    ThreadStateCleanup
-} SystemThreadState_t;
-
-typedef enum _MCoreThreadPriority {
-    PriorityLow,
-    PriorityNormal,
-    PriorityCritical
-} MCoreThreadPriority_t;
+} SystemSignal_t;
 
 /* MCoreThread
  * The representation of a thread in the system. Contains scheduling information,
@@ -102,12 +86,12 @@ typedef enum _MCoreThreadPriority {
 typedef struct _MCoreThread {
     CollectionItem_t        CollectionHeader;
 
+    UUId_t                  ParentThreadId;
+    UUId_t                  ProcessHandle;
     UUId_t                  Id;
     const char*             Name;
-    UUId_t                  ParentId;
-    UUId_t                  AshId;
     Flags_t                 Flags;
-    SystemThreadState_t     State;
+    atomic_int              Cleanup;
 
     Context_t*              Contexts[THREADING_NUMCONTEXTS];
     Context_t*              ContextActive;
@@ -123,12 +107,12 @@ typedef struct _MCoreThread {
 
     // Signal Support
     int                     SignalInformation[NUMSIGNALS];
-    MCoreSignal_t           ActiveSignal;
+    SystemSignal_t          ActiveSignal;
     Collection_t*           SignalQueue;
 
     // Scheduler Information
+    Flags_t                 SchedulerFlags;
     UUId_t                  CoreId;
-    MCoreThreadPriority_t   Priority;
     size_t                  TimeSlice;
     int                     Queue;
     uintptr_t               LastInstructionPointer;
@@ -188,8 +172,7 @@ ThreadingDetachThread(
  * Initializes non-kernel mode and marks the thread
  * for transitioning, there is no return from this function */
 KERNELAPI void KERNELABI
-ThreadingSwitchLevel(
-    _In_ MCoreAsh_t*    Ash);
+ThreadingSwitchLevel(void);
 
 /* ThreadingIsCurrentTaskIdle
  * Is the given cpu running it's idle task? */
@@ -244,22 +227,22 @@ SignalReturn(void);
  * it executes the first in list */
 KERNELAPI OsStatus_t KERNELABI
 SignalHandle(
-    _In_ UUId_t         ThreadId);
+    _In_ UUId_t             ThreadId);
 
 /* Create Signal 
  * Dispatches a signal to a thread in the system. If the thread is sleeping
  * and the signal is not masked, then it will be woken up. */
 KERNELAPI OsStatus_t KERNELABI
 SignalCreate(
-    _In_ UUId_t         ThreadId,
-    _In_ int            Signal);
+    _In_ UUId_t             ThreadId,
+    _In_ int                Signal);
 
 /* SignalExecute
  * This function does preliminary checks before actually dispatching the signal 
  * to the process */
 KERNELAPI void KERNELABI
 SignalExecute(
-    _In_ MCoreThread_t* Thread,
-    _In_ MCoreSignal_t* Signal);
+    _In_ MCoreThread_t*     Thread,
+    _In_ SystemSignal_t*    Signal);
 
 #endif

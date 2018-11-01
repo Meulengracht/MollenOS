@@ -31,8 +31,8 @@
 #include <heap.h>
 
 /* ScThreadCreate
- * Creates a new thread bound to 
- * the calling process, with the given entry point and arguments */
+ * Creates a new thread bound to the calling process, with the given 
+ * entry point and arguments */
 UUId_t
 ScThreadCreate(
     _In_ ThreadEntry_t      Entry, 
@@ -42,7 +42,8 @@ ScThreadCreate(
     if (Entry == NULL) {
         return UUID_INVALID;
     }
-    return ThreadingCreateThread(NULL, Entry, Data, ThreadingGetCurrentMode() | THREADING_INHERIT | Flags);
+    return ThreadingCreateThread(NULL, Entry, Data, 
+        ThreadingGetCurrentMode() | THREADING_INHERIT | Flags);
 }
 
 /* ScThreadExit
@@ -62,11 +63,11 @@ ScThreadJoin(
     _In_  UUId_t    ThreadId,
     _Out_ int*      ExitCode)
 {
+    UUId_t  ProcessHandle   = ThreadingGetCurrentThread(CpuGetCurrentId())->ProcessHandle;
     int     ResultCode      = 0;
-    UUId_t  PId             = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
     MCoreThread_t*  Thread  = ThreadingGetThread(ThreadId);
     
-    if (Thread == NULL || Thread->AshId != PId) {
+    if (Thread == NULL || Thread->ProcessHandle != ProcessHandle) {
         return OsError;
     }
 
@@ -94,11 +95,11 @@ ScThreadSignal(
     _In_ UUId_t     ThreadId,
     _In_ int        SignalCode)
 {
-    UUId_t          PId     = ThreadingGetCurrentThread(CpuGetCurrentId())->AshId;
-    MCoreThread_t*  Thread  = ThreadingGetThread(ThreadId);
+    UUId_t          ProcessHandle   = ThreadingGetCurrentThread(CpuGetCurrentId())->ProcessHandle;
+    MCoreThread_t*  Thread          = ThreadingGetThread(ThreadId);
 
     // Perform security checks
-    if (Thread == NULL || Thread->AshId != PId) {
+    if (Thread == NULL || Thread->ProcessHandle != ProcessHandle) {
         ERROR("Thread does not belong to same process");
         return OsError;
     }
@@ -114,8 +115,7 @@ ScThreadSleep(
 {
     clock_t Start   = 0;
     clock_t End     = 0;
-    
-    // Initiate start
+
     TimersGetSystemTick(&Start);
     if (SchedulerThreadSleep(NULL, Milliseconds) == SCHEDULER_SLEEP_INTERRUPTED) {
         End = ThreadingGetCurrentThread(CpuGetCurrentId())->Sleep.InterruptedAt;

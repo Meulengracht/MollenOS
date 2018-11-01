@@ -329,16 +329,24 @@ StdioCloseAllHandles(void)
     StdioObject_t*  Object;
     int             FilesClosed = 0;
     FILE*           File;
-
+    
     LOCK_FILES();
     while (CollectionBegin(&IoObjects) != NULL) {
         CollectionItem_t* Node = CollectionBegin(&IoObjects);
         Object  = (StdioObject_t*)Node->Data;
-        File    = (FILE*)Object->file;
-        if (File != NULL) {
-            if (!fclose(File)) {
-                FilesClosed++;
+        if (Object->handle.InheritationType == STDIO_HANDLE_PIPE) {
+            close(Object->fd);
+        }
+        else if (Object->handle.InheritationType == STDIO_HANDLE_FILE) {
+            File = (FILE*)Object->file;
+            if (File != NULL) {
+                if (!fclose(File)) {
+                    FilesClosed++;
+                }
             }
+        }
+        else {
+            CollectionRemoveByNode(&IoObjects, Node);
         }
     }
     UNLOCK_FILES();

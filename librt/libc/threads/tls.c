@@ -83,13 +83,15 @@ typedef struct _TlsProcessInstance {
     Collection_t    Tls;                // List of TlsThreadInstance
     Collection_t    TlsAtExit;          // List of TlsAtExit
     Collection_t    TlsAtQuickExit;     // List of TlsAtExit
+    int             TlsAtExitHasRun;
 } TlsProcessInstance_t;
 
 static Spinlock_t           TlsLock     = SPINLOCK_INIT;
 static TlsProcessInstance_t TlsGlobal   = { { 0 }, { 0 }, 
     COLLECTION_INIT(KeyInteger),
     COLLECTION_INIT(KeyInteger),
-    COLLECTION_INIT(KeyInteger)
+    COLLECTION_INIT(KeyInteger),
+    0
 };
 
 /* tls_create
@@ -318,7 +320,11 @@ tls_register_atexit(
     _In_ void*          DsoHandle)
 {
     TlsAtExit_t* AtExitFn;
+    
     TRACE("tls_register_atexit(%u, 0x%x)", ThreadId, DsoHandle);
+    if (TlsGlobal.TlsAtExitHasRun != 0) {
+        return;
+    }
 
     AtExitFn = (TlsAtExit_t*)malloc(sizeof(TlsAtExit_t));
     memset(AtExitFn, 0, sizeof(TlsAtExit_t));
@@ -361,11 +367,20 @@ tls_callatexit(_In_ Collection_t* List, _In_ thrd_t ThreadId, _In_ void* DsoHand
     CollectionItem_t*   Node;
     DataKey_t           Key;
     int                 Skip = 0;
+
     TRACE("tls_callatexit(%u, 0x%x, %i)", ThreadId, DsoHandle, ExitCode);
+    if (TlsGlobal.TlsAtExitHasRun != 0) {
+        return;
+    }
 
-    Key.Value = (int)ThreadId;
+    // To avoid recursive at exit calls due to shutdown failure, register that we have
+    // now run exit for primary application.
+    if (ThreadId == UUID_INVALID && DsoHandle == NULL) {
+        TlsGlobal.TlsAtExitHasRun = 1;
+    }
 
-    Node = CollectionGetNodeByKey(List, Key, Skip);
+    Key.Value   = (int)ThreadId;
+    Node        = CollectionGetNodeByKey(List, Key, Skip);
     while (Node != NULL) {
         TlsAtExit_t* Function = (TlsAtExit_t*)Node;
         if (Function->DsoHandle == DsoHandle || DsoHandle == NULL) {

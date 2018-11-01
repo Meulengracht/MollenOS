@@ -34,7 +34,7 @@
  * Resets all values of the startup information structure to default values. */
 void
 InitializeStartupInformation(
-	_In_ ProcessStartupInformation_t* StartupInformation)
+    _In_ ProcessStartupInformation_t* StartupInformation)
 {
     memset(StartupInformation, 0, sizeof(ProcessStartupInformation_t));
 
@@ -50,17 +50,17 @@ InitializeStartupInformation(
  * then this call will always result in UUID_INVALID. */
 UUId_t 
 ProcessSpawn(
-	_In_     const char*    Path,
-	_In_Opt_ const char*    Arguments,
-	_In_     int            Asynchronous)
+    _In_     const char*    Path,
+    _In_Opt_ const char*    Arguments,
+    _In_     int            Asynchronous)
 {
     ProcessStartupInformation_t StartupInformation;
 
-	// Sanitize parameters
-	if (Path == NULL) {
+    // Sanitize parameters
+    if (Path == NULL) {
         _set_errno(EINVAL);
-		return UUID_INVALID;
-	}
+        return UUID_INVALID;
+    }
 
     // Setup information block
     InitializeStartupInformation(&StartupInformation);
@@ -78,12 +78,12 @@ ProcessSpawn(
  * then this call will always result in UUID_INVALID. */
 UUId_t
 ProcessSpawnEx(
-	_In_ const char*                        Path,
-	_In_ const ProcessStartupInformation_t* StartupInformation,
-	_In_ int                                Asynchronous)
+    _In_ const char*                    Path,
+    _In_ ProcessStartupInformation_t*   StartupInformation,
+    _In_ int                            Asynchronous)
 {
-    OsStatus_t Cleanup  = StdioCreateInheritanceBlock((ProcessStartupInformation_t*)StartupInformation);
-	UUId_t Result       = Syscall_ProcessSpawn(Path, StartupInformation, Asynchronous);
+    OsStatus_t  Cleanup = StdioCreateInheritanceBlock(StartupInformation);
+    UUId_t      Result  = Syscall_ProcessSpawn(Path, StartupInformation);
     if (Cleanup == OsSuccess && StartupInformation->InheritanceBlockPointer != NULL) {
         free((void*)StartupInformation->InheritanceBlockPointer);
     }
@@ -95,28 +95,28 @@ ProcessSpawnEx(
  * returns the return-code the process exit'ed with */
 OsStatus_t 
 ProcessJoin(
-	_In_  UUId_t    ProcessId,
+    _In_  UUId_t    ProcessId,
     _In_  size_t    Timeout,
     _Out_ int*      ExitCode)
 {
-	if (ProcessId == UUID_INVALID || ExitCode == NULL) {
+    if (ProcessId == UUID_INVALID || ExitCode == NULL) {
         _set_errno(EINVAL);
-		return OsError;
-	}
-	return Syscall_ProcessJoin(ProcessId, Timeout, ExitCode);
+        return OsError;
+    }
+    return Syscall_ProcessJoin(ProcessId, Timeout, ExitCode);
 }
 
 /* ProcessKill
  * Terminates the process with the given id */
 OsStatus_t 
 ProcessKill(
-	_In_ UUId_t Process)
+    _In_ UUId_t Process)
 {
-	if (Process == UUID_INVALID) {
+    if (Process == UUID_INVALID) {
         _set_errno(EINVAL);
-		return OsError;
-	}
-	return Syscall_ProcessKill(Process);
+        return OsError;
+    }
+    return Syscall_ProcessKill(Process);
 }
 
 /* ProcessGetCurrentId 
@@ -125,7 +125,7 @@ UUId_t
 ProcessGetCurrentId(void)
 {
     UUId_t ProcessId;
-	if (Syscall_ProcessId(&ProcessId) != OsSuccess) {
+    if (Syscall_ProcessId(&ProcessId) != OsSuccess) {
         return UUID_INVALID;
     }
     return ProcessId;

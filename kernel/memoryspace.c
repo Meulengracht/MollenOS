@@ -22,7 +22,7 @@
  */
 #define __MODULE "MSPC"
 
-#include <process/phoenix.h>
+#include <process/process.h>
 #include <component/cpu.h>
 #include <system/utils.h>
 #include <memoryspace.h>
@@ -98,12 +98,14 @@ CreateSystemMemorySpace(
 
         // Parent must be the upper-most instance of the address-space
         // of the process. Only to the point of not having kernel as parent
-        MemorySpace->Parent    = (GetCurrentSystemMemorySpace()->Parent != NULL) ? 
-            GetCurrentSystemMemorySpace()->Parent : GetCurrentSystemMemorySpace();
-        if (MemorySpace->Parent == GetSystemMemorySpace()) {
-            MemorySpace->Parent = NULL;
+        if (Flags & MEMORY_SPACE_INHERIT) {
+            MemorySpace->Parent = (GetCurrentSystemMemorySpace()->Parent != NULL) ? 
+                GetCurrentSystemMemorySpace()->Parent : GetCurrentSystemMemorySpace();
+            if (MemorySpace->Parent == GetDomainSystemMemorySpace()) {
+                MemorySpace->Parent = NULL;
+            }
         }
-        
+
         // If we have a parent, both add a new reference to the parent
         // and also copy all its members. 
         if (MemorySpace->Parent != NULL) {
@@ -164,7 +166,7 @@ GetCurrentSystemMemorySpace(void)
 
     // if no threads are active return the kernel address space
     if (CurrentThread == NULL) {
-        return GetSystemMemorySpace();
+        return GetDomainSystemMemorySpace();
     }
     else {
         assert(CurrentThread->MemorySpace != NULL);
@@ -172,11 +174,11 @@ GetCurrentSystemMemorySpace(void)
     }
 }
 
-/* GetSystemMemorySpace
+/* GetDomainSystemMemorySpace
  * Retrieves the system's current copy of its memory space. If domains are active it will
  * be for the current domain, if system is uma-mode it's the machine wide. */
 SystemMemorySpace_t*
-GetSystemMemorySpace(void)
+GetDomainSystemMemorySpace(void)
 {
     return (GetCurrentDomain() != NULL) ? &GetCurrentDomain()->SystemSpace : &GetMachine()->SystemSpace;
 }
@@ -265,7 +267,7 @@ ResolveVirtualSystemMemorySpaceAddress(
     VirtualAddress_t VirtualBase = 0;
     switch (Flags & MAPPING_VMODE_MASK) {
         case MAPPING_PROCESS: {
-            MCoreAsh_t *CurrentProcess = PhoenixGetCurrentAsh();
+            SystemProcess_t* CurrentProcess = GetCurrentProcess();
             assert(CurrentProcess != NULL);
             VirtualBase = AllocateBlocksInBlockmap(CurrentProcess->Heap, Mask, Size);
             if (VirtualBase == 0) {
@@ -304,7 +306,7 @@ CreateSystemMemorySpaceMapping(
     int PageCount                   = DIVUP(Size, GetSystemMemoryPageSize());
     int i;
     assert(SystemMemorySpace != NULL);
-
+    
     // Get the physical address base, however it can turn out to be 0. This simply
     // means we handle it one at the time in the mapping process
     if (Flags & MAPPING_PROVIDED) { 
@@ -353,7 +355,7 @@ CreateSystemMemorySpaceMapping(
         if (PhysicalAddress != NULL && *PhysicalAddress == __MASK) {
             *PhysicalAddress = PhysicalPage;
         }
-
+        
         Status = SetVirtualPageMapping(SystemMemorySpace, PhysicalPage, VirtualPage, Flags);
         if (Status != OsSuccess) {
             if (Status == OsExists) {

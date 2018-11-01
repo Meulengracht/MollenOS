@@ -20,8 +20,6 @@
  * - Definitions, prototypes and information needed.
  */
 
-/* Includes 
- * - Library */
 #include <signal.h>
 
 /* abort

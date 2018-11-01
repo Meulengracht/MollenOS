@@ -34,8 +34,7 @@
 #include <component/memory.h>
 #include <log.h>
 
-// Forward declarations
-typedef struct _MCoreAsh MCoreAsh_t;
+typedef struct _SystemProcess SystemProcess_t;
 
 /* Sanitize the module definition, must be 
  * present to identify the source-code that include this */
@@ -68,7 +67,7 @@ typedef struct _MCoreAsh MCoreAsh_t;
  * Install page-fault handlers. Should be called as soon as memory setup phase is done */
 KERNELAPI OsStatus_t KERNELABI
 DebugInstallPageFaultHandlers(
-    _In_ SystemMemoryMap_t*    MemoryMap);
+    _In_ SystemMemoryMap_t* MemoryMap);
 
 /* DebugSingleStep
  * Handles the SingleStep trap on a higher level 
@@ -76,7 +75,7 @@ DebugInstallPageFaultHandlers(
  * to this event handler */
 KERNELAPI OsStatus_t KERNELABI
 DebugSingleStep(
-    _In_ Context_t *Context);
+    _In_ Context_t* Context);
 
 /* DebugBreakpoint
  * Handles the Breakpoint trap on a higher level 
@@ -84,7 +83,7 @@ DebugSingleStep(
  * to this event handler */
 KERNELAPI OsStatus_t KERNELABI
 DebugBreakpoint(
-    _In_ Context_t *Context);
+    _In_ Context_t* Context);
 
 /* DebugPageFault
  * Handles page-fault and either validates or invalidates
@@ -92,28 +91,27 @@ DebugBreakpoint(
  * maps in the page and returns OsSuccess */
 KERNELAPI OsStatus_t KERNELABI
 DebugPageFault(
-    _In_ Context_t *Context,
-    _In_ uintptr_t Address);
+    _In_ Context_t* Context,
+    _In_ uintptr_t  Address);
 
 /* DebugPanic
  * Kernel panic function - Call this to enter panic mode
- * and disrupt normal functioning. This function does not
- * return again */
+ * and disrupt normal functioning. This function does not return again */
 KERNELAPI OsStatus_t KERNELABI
 DebugPanic(
-    _In_ int FatalityScope,
-    _In_ Context_t *Context,
-    _In_ const char *Module,
-    _In_ const char *Message, ...);
+    _In_ int            FatalityScope,
+    _In_ Context_t*     Context,
+    _In_ const char*    Module,
+    _In_ const char*    Message, ...);
 
 /* DebugGetModuleByAddress
  * Retrieves the module (Executable) at the given address */
 KERNELAPI OsStatus_t KERNELABI
 DebugGetModuleByAddress(
-    _In_  MCoreAsh_t*   Process,
-    _In_  uintptr_t     Address, 
-    _Out_ uintptr_t*    Base, 
-    _Out_ char**        Name);
+    _In_  SystemProcess_t*  Process,
+    _In_  uintptr_t         Address, 
+    _Out_ uintptr_t*        Base, 
+    _Out_ char**            Name);
 
 /* DebugStackTrace
  * Performs a verbose stack trace in the current context 
@@ -128,8 +126,8 @@ DebugStackTrace(
  * given address and length of memory dump */
 KERNELAPI OsStatus_t KERNELABI
 DebugMemory(
-    _In_Opt_ __CONST char *Description,
-    _In_ void *Address,
-    _In_ size_t Length);
+    _In_Opt_ const char*    Description,
+    _In_     void*          Address,
+    _In_     size_t         Length);
 
 #endif //!_DEBUG_H_

@@ -87,6 +87,9 @@ static int _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
         if(!pos && StdioReadInternal(fd, readbuf, 1, &BytesRead) == OsSuccess) {
             if(!BytesRead) {
 				fdinfo->wxflag |= WX_ATEOF;
+                if (readbuf != &min_buf[0]) {
+                    free(readbuf);
+                }
 				return 0;
 			}else {
 				pos++;
@@ -112,6 +115,9 @@ static int _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
 		// Check for ctrl-z
         if(readbuf[0] == 0x1a) {
             fdinfo->wxflag |= WX_ATEOF;
+            if (readbuf != &min_buf[0]) {
+                free(readbuf);
+            }
             return 0;
         }
 
@@ -133,12 +139,18 @@ static int _ReadUtf8(int fd, wchar_t *buf, unsigned int count)
                     StdioSeekInternal(fd, -1, SEEK_CUR, &noppos);
 				}
 			}
+            if (readbuf != &min_buf[0]) {
+                free(readbuf);
+            }
 			
             return 2;
         }
 
 		// Convert the mb to a wide-char
         if(!(BytesRead = mbstowcs(buf, readbuf, MIN(pos, count)))) {
+            if (readbuf != &min_buf[0]) {
+                free(readbuf);
+            }
             return -1;
         }
 

@@ -24,7 +24,7 @@
 #include <os/osdefs.h>
 #include <os/mollenos.h>
 #include <os/buffer.h>
-#include <process/phoenix.h>
+#include <process/process.h>
 #include <memoryspace.h>
 #include <memorybuffer.h>
 #include <machine.h>
@@ -39,19 +39,15 @@ ScMemoryAllocate(
     _Out_ uintptr_t*    VirtualAddress,
     _Out_ uintptr_t*    PhysicalAddress)
 {
-    // Variables
-    uintptr_t AllocatedAddress;
-    MCoreAsh_t *Ash;
-
-    // Locate the current running process
-    Ash = PhoenixGetCurrentAsh();
-    if (Ash == NULL || Size == 0) {
+    uintptr_t           AllocatedAddress;
+    SystemProcess_t*    Process = GetCurrentProcess();
+    if (Process == NULL || Size == 0) {
         return OsError;
     }
     
     // Now do the allocation in the user-bitmap 
     // since memory is managed in userspace for speed
-    AllocatedAddress = AllocateBlocksInBlockmap(Ash->Heap, __MASK, Size);
+    AllocatedAddress = AllocateBlocksInBlockmap(Process->Heap, __MASK, Size);
     if (AllocatedAddress == 0) {
         return OsError;
     }
@@ -81,7 +77,7 @@ ScMemoryAllocate(
         // Do the actual mapping
         if (CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), 
             PhysicalAddress, &AllocatedAddress, Size, ExtendedFlags, __MASK) != OsSuccess) {
-            ReleaseBlockmapRegion(Ash->Heap, AllocatedAddress, Size);
+            ReleaseBlockmapRegion(Process->Heap, AllocatedAddress, Size);
             *VirtualAddress = 0;
             return OsError;
         }
@@ -107,18 +103,14 @@ ScMemoryFree(
     _In_ uintptr_t  Address, 
     _In_ size_t     Size)
 {
-    // Variables
-    MCoreAsh_t *Ash = NULL;
-
-    // Locate the current running process
-    Ash = PhoenixGetCurrentAsh();
-    if (Ash == NULL || Address == 0 || Size == 0) {
+    SystemProcess_t* Process = GetCurrentProcess();
+    if (Process == NULL || Address == 0 || Size == 0) {
         return OsError;
     }
 
     // Now do the deallocation in the user-bitmap 
     // since memory is managed in userspace for speed
-    if (ReleaseBlockmapRegion(Ash->Heap, Address, Size) != OsSuccess) {
+    if (ReleaseBlockmapRegion(Process->Heap, Address, Size) != OsSuccess) {
         ERROR("ScMemoryFree(Address 0x%x, Size 0x%x) was invalid", Address, Size);
         return OsError;
     }

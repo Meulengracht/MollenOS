@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,85 +16,84 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Server & Process Management
- * - The process/server manager is known as Phoenix
+ * Alias & Process Management
+ * - The implementation of phoenix is responsible for managing alias's, handle
+ *   file events and creating/destroying processes.
  */
 
-#ifndef _MCORE_PROCESS_H_
-#define _MCORE_PROCESS_H_
+#ifndef __VALI_PROCESS_H__
+#define __VALI_PROCESS_H__
 
-/* Includes
-* - Library */
 #include <os/osdefs.h>
 #include <os/process.h>
+#include <ds/collection.h>
+#include <time.h>
 
-/* Includes 
- * - System */
-#include <process/phoenix.h>
+typedef struct _SystemMemorySpace SystemMemorySpace_t;
+typedef struct _MCorePeFile MCorePeFile_t;
+typedef struct _BlockBitmap BlockBitmap_t;
+typedef struct _MString MString_t;
 
-/* The base of an process, processes
- * are derived from Ashes, and merely extensions
- * to support userland stuff */
-typedef struct _MCoreProcess {
-	MCoreAsh_t                   Base;
-	ProcessStartupInformation_t  StartupInformation;
-	MString_t                   *WorkingDirectory;
-	MString_t                   *BaseDirectory;
-} MCoreProcess_t;
+#define PROCESS_INITIAL_STACK   0x1000
+#define PROCESS_MAX_STACK       (4 << 20)
 
-/* PhoenixCreateProcess
- * This function loads the executable and
- * prepares the ash-process-environment, at this point
- * it won't be completely running yet, it needs
- * its own thread for that */
-KERNELAPI
-UUId_t
-KERNELABI
-PhoenixCreateProcess(
-    _In_ MString_t                   *Path,
-    _In_ ProcessStartupInformation_t *StartupInformation);
+// Types of processes that can be created.
+typedef enum _SystemProcessType {
+    ProcessNormal,
+    ProcessService
+} SystemProcessType_t;
 
-/* PhoenixCleanupProcess
- * Cleans up all the process-specific resources allocated
- * this this AshProcess, and afterwards call the base-cleanup */
-KERNELAPI
-void
-KERNELABI
-PhoenixCleanupProcess(
-    _In_ MCoreProcess_t *Process);
+// System process structure
+// Data container that encompass a range of threads and shared resources
+typedef struct _SystemProcess {
+    SystemProcessType_t         Type;
+    MString_t*                  Name;
+    MString_t*                  Path;
 
-/* PhoenixGetProcess
- * This function looks up a server structure by id */
-KERNELAPI
-MCoreProcess_t*
-KERNELABI
-PhoenixGetProcess(
-	_In_ UUId_t ProcessId);
+    ProcessStartupInformation_t StartupInformation;
+    MString_t*                  WorkingDirectory;
+    MString_t*                  BaseDirectory;
+    UUId_t                      MainThreadId;
+    clock_t                     StartedAt;
+    
+    // Resources
+    Collection_t*               Pipes;          // Move to handles
+    Collection_t*               FileMappings;   // Move to handles
+    SystemMemorySpace_t*        MemorySpace;    // just a reference
+    BlockBitmap_t*              Heap;           // Move to memory-space
+    uintptr_t                   SignalHandler;  // Move to memory space/store in thread
 
-/* PhoenixGetCurrentProcess
- * If the current running process is a server then it
- * returns the server structure, otherwise NULL */
-KERNELAPI
-MCoreProcess_t*
-KERNELABI
-PhoenixGetCurrentProcess(void);
+    // Image resources
+    MCorePeFile_t*              Executable;
+    uintptr_t                   NextLoadingAddress;
+    int                         Code;
+} SystemProcess_t;
 
-/* PhoenixGetWorkingDirectory
- * This function looks up the working directory for a process 
- * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
- * is passed, it retrieves the current process's working directory */
-KERNELAPI
-MString_t*
-KERNELABI
-PhoenixGetWorkingDirectory(
-    _In_ UUId_t ProcessId);
+/* CreateProcess 
+ * Creates a new handle, allocates a new handle and initializes a thread that performs
+ * the rest of setup required. */
+KERNELAPI OsStatus_t KERNELABI
+CreateProcess(
+    _In_  MString_t*                    Path,
+    _In_  ProcessStartupInformation_t*  StartupInformation,
+    _In_  SystemProcessType_t           Type,
+    _Out_ UUId_t*                       Handle);
 
-/* PhoenixGetBaseDirectory
- * This function looks up the base directory for a process 
- * by id, if either PROCESS_CURRENT or PROCESS_NO_PROCESS 
- * is passed, it retrieves the current process's base directory */
-MString_t*
-PhoenixGetBaseDirectory(
-    _In_ UUId_t ProcessId);
+/* DestroyProcess
+ * Callback invoked by the handle system when references on a process reaches zero */
+KERNELAPI OsStatus_t KERNELABI
+DestroyProcess(
+    _In_ void*                          Resource);
 
-#endif //!_MCORE_PROCESS_H_
+/* GetProcess
+ * This function retrieves the process structure by it's handle. */
+KERNELAPI SystemProcess_t* KERNELABI
+GetProcess(
+    _In_ UUId_t Handle);
+
+/* GetCurrentProcess
+ * Retrieves the currently running process, identified by its thread. If none NULL is returned. */
+KERNELAPI SystemProcess_t* KERNELABI
+GetCurrentProcess(void);
+
+#endif //!__VALI_PROCESS_H__

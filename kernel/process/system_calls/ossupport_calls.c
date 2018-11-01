@@ -21,11 +21,11 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
-#include <os/osdefs.h>
-#include <os/file.h>
 #include <process/phoenix.h>
 #include <process/process.h>
 #include <memorybuffer.h>
+#include <ds/mstring.h>
+#include <os/file.h>
 #include <handle.h>
 #include <debug.h>
 #include <heap.h>
@@ -38,24 +38,21 @@ ScGetWorkingDirectory(
     _In_ char*      PathBuffer,
     _In_ size_t     MaxLength)
 {
-    // Variables
-    MCoreProcess_t *Process     = NULL;
-    size_t BytesToCopy          = MaxLength;
-
-    // Determine the process
+    SystemProcess_t*    Process;
+    size_t              BytesToCopy = MaxLength;
     if (ProcessId == UUID_INVALID) {
-        Process = PhoenixGetCurrentProcess();
+        Process = GetCurrentProcess();
     }
     else {
-        Process = PhoenixGetProcess(ProcessId);
+        Process = GetProcess(ProcessId);
     }
 
     // Sanitize parameters
-    if (Process == NULL || PathBuffer == NULL) {
+    if (Process == NULL || PathBuffer == NULL || MaxLength == 0) {
         return OsError;
     }
     
-    BytesToCopy = MIN(strlen(MStringRaw(Process->WorkingDirectory)), MaxLength);
+    BytesToCopy = MIN(strlen(MStringRaw(Process->WorkingDirectory)) + 1, MaxLength);
     memcpy(PathBuffer, MStringRaw(Process->WorkingDirectory), BytesToCopy);
     return OsSuccess;
 }
@@ -65,18 +62,14 @@ ScGetWorkingDirectory(
  * path modifier or absolute path */
 OsStatus_t
 ScSetWorkingDirectory(
-    _In_ const char *Path)
+    _In_ const char* Path)
 {
-    // Variables
-    MCoreProcess_t *Process = PhoenixGetCurrentProcess();
-    MString_t *Translated = NULL;
+    SystemProcess_t*    Process = GetCurrentProcess();
+    MString_t*          Translated;
 
-    // Sanitize parameters
     if (Process == NULL || Path == NULL) {
         return OsError;
     }
-
-    // Create a new string instead of modification
     Translated = MStringCreate((void*)Path, StrUTF8);
     MStringDestroy(Process->WorkingDirectory);
     Process->WorkingDirectory = Translated;
@@ -90,16 +83,14 @@ ScGetAssemblyDirectory(
     _In_ char*      PathBuffer,
     _In_ size_t     MaxLength)
 {
-    // Variables
-    MCoreProcess_t *Process = PhoenixGetCurrentProcess();
-    size_t BytesToCopy = MaxLength;
+    SystemProcess_t*    Process     = GetCurrentProcess();
+    size_t              BytesToCopy = MaxLength;
 
-    // Sanitize parameters
-    if (Process == NULL || PathBuffer == NULL) {
+    if (Process == NULL || PathBuffer == NULL || MaxLength == 0) {
         return OsError;
     }
-    if (strlen(MStringRaw(Process->BaseDirectory)) < MaxLength) {
-        BytesToCopy = strlen(MStringRaw(Process->BaseDirectory));
+    if (strlen(MStringRaw(Process->BaseDirectory)) + 1 < MaxLength) {
+        BytesToCopy = strlen(MStringRaw(Process->BaseDirectory)) + 1;
     }
     memcpy(PathBuffer, MStringRaw(Process->BaseDirectory), BytesToCopy);
     return OsSuccess;
@@ -122,13 +113,11 @@ ScCreateFileMapping(
     _In_  struct FileMappingParameters* Parameters,
     _Out_ void**                        MemoryPointer)
 {
-    // Variables
-    MCoreAshFileMapping_t *Mapping;
-    MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
-    size_t AdjustedSize = Parameters->Size + (Parameters->Offset % GetSystemMemoryPageSize());
+    MCoreAshFileMapping_t*  Mapping;
+    SystemProcess_t*        Process         = GetCurrentProcess();
+    size_t                  AdjustedSize    = Parameters->Size + (Parameters->Offset % GetSystemMemoryPageSize());
 
-    // Sanity
-    if (Ash == NULL || Parameters == NULL || Parameters->Size == 0) {
+    if (Process == NULL || Parameters == NULL || Parameters->Size == 0) {
         return OsError;
     }
     
@@ -151,7 +140,7 @@ ScCreateFileMapping(
     Mapping->FileBlock      = (Parameters->Offset / GetSystemMemoryPageSize()) * GetSystemMemoryPageSize();
     Mapping->BlockOffset    = (Parameters->Offset % GetSystemMemoryPageSize());
     Mapping->Length         = AdjustedSize;
-    CollectionAppend(Ash->FileMappings, &Mapping->Header);
+    CollectionAppend(Process->FileMappings, &Mapping->Header);
 
     // Update out
     *MemoryPointer = (void*)(Mapping->BufferObject.Address + Mapping->BlockOffset);
@@ -164,19 +153,18 @@ OsStatus_t
 ScDestroyFileMapping(
     _In_ void *MemoryPointer)
 {
-    // Variables
-    MCoreAshFileMapping_t *Mapping;
-    CollectionItem_t *Node;
-    LargeInteger_t Value;
-    MCoreAsh_t *Ash = PhoenixGetCurrentAsh();
+    MCoreAshFileMapping_t*  Mapping;
+    CollectionItem_t*       Node;
+    LargeInteger_t          Value;
+    SystemProcess_t*        Process = GetCurrentProcess();
 
     // Only processes are allowed to call this
-    if (Ash == NULL) {
+    if (Process == NULL) {
         return OsError;
     }
 
     // Iterate and find the node first
-    _foreach(Node, Ash->FileMappings) {
+    _foreach(Node, Process->FileMappings) {
         Mapping = (MCoreAshFileMapping_t*)Node;
         if (ISINRANGE((uintptr_t)MemoryPointer, Mapping->BufferObject.Address, (Mapping->BufferObject.Address + Mapping->Length) - 1)) {
             break; // Continue to unmap process
@@ -185,7 +173,7 @@ ScDestroyFileMapping(
 
     // Proceed to cleanup if node was found
     if (Node != NULL) {
-        CollectionRemoveByNode(Ash->FileMappings, Node);
+        CollectionRemoveByNode(Process->FileMappings, Node);
         
         // Unmap all mappings done
         for (uintptr_t ItrAddress = Mapping->BufferObject.Address; 
@@ -212,7 +200,7 @@ ScDestroyFileMapping(
         }
 
         // Free the mapping from the heap
-        ReleaseBlockmapRegion(Ash->Heap, Mapping->BufferObject.Address, Mapping->Length);
+        ReleaseBlockmapRegion(Process->Heap, Mapping->BufferObject.Address, Mapping->Length);
         DestroyHandle(Mapping->BufferObject.Handle);
         kfree(Mapping);
     }

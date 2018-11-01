@@ -74,16 +74,16 @@ StartApplicationCore(
     _In_ SystemCpuCore_t*   Core)
 {
 	// Perform the IPI
-	TRACE(" > Booting core %u", Core->Id);
+	TRACE(" > booting core %u", Core->Id);
 	if (ApicPerformIPI(Core->Id, 1) != OsSuccess) {
-		ERROR("Failed to boot core %u (IPI failed)", Core->Id);
+		ERROR(" > failed to boot core %u (ipi failed)", Core->Id);
 		return;
 	}
     // ApicPerformIPI(Core->Id, 0); is needed on older cpus
 
     // Perform the SIPI - some cpu's require two SIPI's
 	if (ApicPerformSIPI(Core->Id, MEMORY_LOCATION_TRAMPOLINE_CODE) != OsSuccess) {
-		ERROR("Failed to boot core %u (SIPI failed)", Core->Id);
+		ERROR(" > failed to boot core %u (sipi failed)", Core->Id);
 		return;
     }
 
@@ -92,7 +92,7 @@ StartApplicationCore(
     CpuStall(200);
     if (Core->State != CpuStateRunning) {
         if (ApicPerformSIPI(Core->Id, MEMORY_LOCATION_TRAMPOLINE_CODE) != OsSuccess) {
-            ERROR("Failed to boot core %u (SIPI failed)", Core->Id);
+            ERROR(" > failed to boot core %u (sipi failed)", Core->Id);
             return;
         }
     }
@@ -103,17 +103,10 @@ StartApplicationCore(
 void
 CpuSmpInitialize(void)
 {
-    // Variables
     uint32_t *CodePointer   = (uint32_t*)((uint8_t*)(&__GlbTramplineCode[0]) + __GlbTramplineCode_length); 
 	uint32_t EntryCode      = (uint32_t)(uint32_t*)SmpApplicationCoreEntry;
 
-    // Debug
-    TRACE("CpuSmpInitialize(%i)", GetMachine()->Processor.NumberOfCores);
-
-    // Initialize variables
     *(CodePointer - 1) = EntryCode;
     *(CodePointer - 2) = GetCurrentSystemMemorySpace()->Data[MEMORY_SPACE_CR3];
-
-    // Initialize the trampoline code in memory
 	memcpy((void*)MEMORY_LOCATION_TRAMPOLINE_CODE, (char*)__GlbTramplineCode, __GlbTramplineCode_length);
 }
