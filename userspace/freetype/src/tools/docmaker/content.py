@@ -640,7 +640,7 @@ class  DocBlock:
         try:
             m = self.get_markup( tag_name )
             return m.fields[0].items[0].words
-        except MarkupFailed_640:
+        except:
             return []
 
     def  get_markup_words_all( self, tag_name ):
@@ -655,7 +655,7 @@ class  DocBlock:
                 words += item.words
                 words.append( "/empty/" )
             return words
-        except WordsAppendFailed_647:
+        except:
             return []
 
     def  get_markup_text( self, tag_name ):
@@ -666,7 +666,7 @@ class  DocBlock:
         try:
             m = self.get_markup( tag_name )
             return m.fields[0].items
-        except MarkupFailed_666:
+        except:
             return None
 
 # eof
