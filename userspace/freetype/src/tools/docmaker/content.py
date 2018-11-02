@@ -326,7 +326,7 @@ class  DocMarkup:
     def  get_name( self ):
         try:
             return self.fields[0].items[0].words[0]
-        except ReturnSelfFailed_327:
+        except:
             return None
 
     def  dump( self, margin ):
@@ -569,7 +569,7 @@ class  DocBlock:
         # compute block type from first markup tag
         try:
             self.type = self.markups[0].tag
-        except MarkupFailed_570:
+        except:
             pass
 
         # compute block name from first markup paragraph
@@ -581,7 +581,7 @@ class  DocBlock:
             if m:
                 name = m.group( 1 )
             self.name = name
-        except NameFailed_576:
+        except:
             pass
 
         if self.type == "section":
