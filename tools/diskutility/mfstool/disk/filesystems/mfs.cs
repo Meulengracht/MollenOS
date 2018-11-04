@@ -111,13 +111,13 @@ namespace DiskUtility
                     // since we are taking only a chunk
                     // of the available length 
                     Sector[SectorIndex * 8] = 0xFF;
-                    Sector[SectorIndex * 8 + 1] = 0xFF;
-                    Sector[SectorIndex * 8 + 2] = 0xFF;
-                    Sector[SectorIndex * 8 + 3] = 0xFF;
-                    Sector[SectorIndex * 8 + 4] = (Byte)(Counter & 0xFF);
-                    Sector[SectorIndex * 8 + 5] = (Byte)((Counter >> 8) & 0xFF);
-                    Sector[SectorIndex * 8 + 6] = (Byte)((Counter >> 16) & 0xFF);
-                    Sector[SectorIndex * 8 + 7] = (Byte)((Counter >> 24) & 0xFF);
+                    Sector[(SectorIndex * 8) + 1] = 0xFF;
+                    Sector[(SectorIndex * 8) + 2] = 0xFF;
+                    Sector[(SectorIndex * 8) + 3] = 0xFF;
+                    Sector[(SectorIndex * 8) + 4] = (Byte)(Counter & 0xFF);
+                    Sector[(SectorIndex * 8) + 5] = (Byte)((Counter >> 8) & 0xFF);
+                    Sector[(SectorIndex * 8) + 6] = (Byte)((Counter >> 16) & 0xFF);
+                    Sector[(SectorIndex * 8) + 7] = (Byte)((Counter >> 24) & 0xFF);
 
                     // Update map sector
                     m_pDisk.Write(Sector, m_iSector + BucketMapSector + SectorOffset, true);
@@ -131,13 +131,13 @@ namespace DiskUtility
 
                     // Update the link
                     Sector[SectorIndex * 8] = (Byte)(BucketPtr & 0xFF);
-                    Sector[SectorIndex * 8 + 1] = (Byte)((BucketPtr >> 8) & 0xFF);
-                    Sector[SectorIndex * 8 + 2] = (Byte)((BucketPtr >> 16) & 0xFF);
-                    Sector[SectorIndex * 8 + 3] = (Byte)((BucketPtr >> 24) & 0xFF);
-                    Sector[SectorIndex * 8 + 4] = (Byte)(NextFreeCount & 0xFF);
-                    Sector[SectorIndex * 8 + 5] = (Byte)((NextFreeCount >> 8) & 0xFF);
-                    Sector[SectorIndex * 8 + 6] = (Byte)((NextFreeCount >> 16) & 0xFF);
-                    Sector[SectorIndex * 8 + 7] = (Byte)((NextFreeCount >> 24) & 0xFF);
+                    Sector[(SectorIndex * 8) + 1] = (Byte)((BucketPtr >> 8) & 0xFF);
+                    Sector[(SectorIndex * 8) + 2] = (Byte)((BucketPtr >> 16) & 0xFF);
+                    Sector[(SectorIndex * 8) + 3] = (Byte)((BucketPtr >> 24) & 0xFF);
+                    Sector[(SectorIndex * 8) + 4] = (Byte)(NextFreeCount & 0xFF);
+                    Sector[(SectorIndex * 8) + 5] = (Byte)((NextFreeCount >> 8) & 0xFF);
+                    Sector[(SectorIndex * 8) + 6] = (Byte)((NextFreeCount >> 16) & 0xFF);
+                    Sector[(SectorIndex * 8) + 7] = (Byte)((NextFreeCount >> 24) & 0xFF);
 
                     // Update the map sector again
                     m_pDisk.Write(Sector, m_iSector + BucketMapSector + SectorOffset, true);
@@ -167,9 +167,9 @@ namespace DiskUtility
 
             // Modify link
             _Sec[_SecInd * 8] = 0xFF;
-            _Sec[_SecInd * 8 + 1] = 0xFF;
-            _Sec[_SecInd * 8 + 2] = 0xFF;
-            _Sec[_SecInd * 8 + 3] = 0xFF;
+            _Sec[(_SecInd * 8) + 1] = 0xFF;
+            _Sec[(_SecInd * 8) + 2] = 0xFF;
+            _Sec[(_SecInd * 8) + 3] = 0xFF;
 
             // Update sector
             m_pDisk.Write(_Sec, m_iSector + BucketMapSector + _SecOff, true);
@@ -221,9 +221,9 @@ namespace DiskUtility
 
             // Update link
             Sector[SectorIndex * 8] = (Byte)(NextBucket & 0xFF);
-            Sector[SectorIndex * 8 + 1] = (Byte)((NextBucket >> 8) & 0xFF);
-            Sector[SectorIndex * 8 + 2] = (Byte)((NextBucket >> 16) & 0xFF);
-            Sector[SectorIndex * 8 + 3] = (Byte)((NextBucket >> 24) & 0xFF);
+            Sector[(SectorIndex * 8) + 1] = (Byte)((NextBucket >> 8) & 0xFF);
+            Sector[(SectorIndex * 8) + 2] = (Byte)((NextBucket >> 16) & 0xFF);
+            Sector[(SectorIndex * 8) + 3] = (Byte)((NextBucket >> 24) & 0xFF);
 
             // Flush buffer to disk
             m_pDisk.Write(Sector, m_iSector + BucketMapSector + SectorOffset, true);
