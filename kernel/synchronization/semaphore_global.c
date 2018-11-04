@@ -27,7 +27,7 @@
 #include <assert.h>
 
 // Global list of existing semaphores
-static Collection_t Semaphores = COLLECTION_INIT(KeyInteger);
+static Collection_t Semaphores = COLLECTION_INIT(KeyId);
 
 /* CreateGlobalSemaphore
  * Allocates a completely new instance of the global semaphore. If a semaphore with
@@ -39,17 +39,16 @@ CreateGlobalSemaphore(
     _In_  int                   MaximumValue,
     _Out_ GlobalSemaphore_t**   Semaphore)
 {
-    // Variables
-	GlobalSemaphore_t *Instance = NULL;
-	DataKey_t hKey;
+	GlobalSemaphore_t*  Instance = NULL;
+	DataKey_t           Key;
 
 	assert(InitialValue >= 0);
     assert(MaximumValue >= InitialValue);
 
 	// First of all, make sure there is no conflicting semaphores in system
 	if (Identifier != NULL) {
-		hKey.Value      = (int)MStringHash(Identifier);
-		void *Exists    = CollectionGetDataByKey(&Semaphores, hKey, 0);
+		Key.Value.Id    = MStringHash(Identifier);
+		void *Exists    = CollectionGetDataByKey(&Semaphores, Key, 0);
 		if (Exists != NULL) {
 			*Semaphore = (GlobalSemaphore_t*)Exists;
             return OsError;
@@ -62,7 +61,7 @@ CreateGlobalSemaphore(
 	
     if (Identifier != NULL)  {
         Instance->Hash = MStringHash(Identifier);
-		CollectionAppend(&Semaphores, CollectionCreateNode(hKey, Semaphore));
+		CollectionAppend(&Semaphores, CollectionCreateNode(Key, Semaphore));
 	}
     else {
         Instance->Hash = 0;
@@ -78,13 +77,12 @@ void
 DestroyGlobalSemaphore(
     _In_ GlobalSemaphore_t*     Semaphore)
 {
-	// Variables
 	DataKey_t Key;
     
 	assert(Semaphore != NULL);
 
 	if (Semaphore->Hash != 0) {
-		Key.Value = (int)Semaphore->Hash;
+		Key.Value.Id = Semaphore->Hash;
 		CollectionRemoveByKey(&Semaphores, Key);
 	}
 	SlimSemaphoreDestroy(&Semaphore->Semaphore);

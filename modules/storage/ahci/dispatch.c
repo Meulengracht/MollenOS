@@ -169,7 +169,7 @@ AhciCommandDispatch(
     // Set the port multiplier
     Transaction->Device->Port->CommandList->Headers[Transaction->Slot].Flags
         |= (DISPATCH_MULTIPLIER(Flags) << 12);
-    Key.Value = Transaction->Slot;
+    Key.Value.Integer = Transaction->Slot;
 
     // Add transaction to list
     tNode = CollectionCreateNode(Key, Transaction);

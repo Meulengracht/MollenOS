@@ -395,10 +395,10 @@ StdioFdAllocate(
     _In_ int fd,
     _In_ int flag)
 {
-    StdioObject_t *io   = NULL;
-    int result          = -1;
-    DataKey_t Key;
-    int i, j;
+    StdioObject_t*  io      = NULL;
+    int             result  = -1;
+    DataKey_t       Key;
+    int             i, j;
 
     // Trying to allocate a specific fd?
     SpinlockAcquire(&BitmapLock);
@@ -446,7 +446,7 @@ StdioFdAllocate(
         SpinlockReset(&io->lock);
     
         // Add to list
-        Key.Value = result;
+        Key.Value.Integer = result;
         CollectionAppend(&IoObjects, CollectionCreateNode(Key, io));
     }
     return result;
@@ -460,11 +460,10 @@ StdioFdFree(
 {
     int         Block;
     int         Offset;
-    DataKey_t   Key;
+    DataKey_t   Key = { .Value.Integer = fd };
     void*       Object;
 
-    Key.Value   = fd;
-    Object      = CollectionGetDataByKey(&IoObjects, Key, 0);
+    Object = CollectionGetDataByKey(&IoObjects, Key, 0);
     if (Object != NULL) {
         if (CollectionRemoveByKey(&IoObjects, Key) != OsSuccess) {
             ERROR(" > failed to remove io object for fd %i, it may not exist", fd);
@@ -489,12 +488,10 @@ StdioHandle_t*
 StdioFdToHandle(
     _In_ int fd)
 {
-    // Variables
-    CollectionItem_t *fNode = NULL;
-    DataKey_t Key;
+    CollectionItem_t*   fNode;
+    DataKey_t           Key = { .Value.Integer = fd };
 
     // Free any resources allocated by the fd
-    Key.Value = fd;
     fNode = CollectionGetNodeByKey(&IoObjects, Key, 0);
     if (fNode != NULL) {
         return &((StdioObject_t*)fNode->Data)->handle;
@@ -514,10 +511,9 @@ StdioFdInitialize(
 {
     StdioObject_t*      Object;
     CollectionItem_t*   Node;
-    DataKey_t           Key;
+    DataKey_t           Key = { .Value.Integer = fd };
 
-    Key.Value   = fd;
-    Node        = CollectionGetNodeByKey(&IoObjects, Key, 0);
+    Node = CollectionGetNodeByKey(&IoObjects, Key, 0);
     if (Node != NULL) {
         Object = (StdioObject_t*)Node->Data;
         if (Object->wxflag & WX_OPEN) {
@@ -926,8 +922,7 @@ StdioObject_t*
 get_ioinfo(
     _In_ int fd)
 {
-    DataKey_t Key;
-    Key.Value = fd;
+    DataKey_t Key = { .Value.Integer = fd };
     return (StdioObject_t*)CollectionGetDataByKey(&IoObjects, Key, 0);
 }
 

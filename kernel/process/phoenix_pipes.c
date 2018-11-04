@@ -55,7 +55,7 @@ CreateProcessPipe(
 
     // Make sure that a pipe on the given Port 
     // doesn't already exist!
-    Key.Value = Port;
+    Key.Value.Integer = Port;
     if (CollectionGetDataByKey(Process->Pipes, Key, 0) != NULL) {
         WARNING("The requested pipe already exists");
         return OsSuccess;
@@ -88,7 +88,7 @@ WaitForProcessPipe(
     }
 
     // Wait for wake-event on pipe
-    Key.Value = Port;
+    Key.Value.Integer = Port;
     while (Run) {
         if (CollectionGetDataByKey(Process->Pipes, Key, 0) != NULL) {
             break;
@@ -116,7 +116,7 @@ DestroyProcessPipe(
         return OsSuccess;
     }
 
-    Key.Value = Port;
+    Key.Value.Integer = Port;
     Pipe = (SystemPipe_t*)CollectionGetDataByKey(Process->Pipes, Key, 0);
     if (Pipe == NULL) {
         return OsError;
@@ -137,6 +137,6 @@ GetProcessPipe(
     if (Process == NULL || Port < 0) {
         return NULL;
     }
-    Key.Value = Port;
+    Key.Value.Integer = Port;
     return (SystemPipe_t*)CollectionGetDataByKey(Process->Pipes, Key, 0);
 }

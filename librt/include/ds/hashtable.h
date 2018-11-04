@@ -31,14 +31,14 @@
 
 #define HASHTABLE_DEFAULT_LOADFACTOR    75 // Equals 75 percent
 
-typedef size_t(*HashFn)(void* Value);
+typedef size_t(*HashFn)(const char*, size_t);
 
 typedef struct _HashTable {
     size_t          Capacity;
     size_t          Size;
     size_t          LoadFactor;
     HashFn          GetHashCode;
-    Collection_t**  Array;
+    Collection_t*   Array;
 } HashTable_t;
 
 /* HashTableCreate
@@ -52,37 +52,38 @@ HashTableCreate(
 /* HashTableSetHashFunction
  * Overrides the default hash function with a user provided hash function. To
  * reset this set with NULL. */
+CRTDECL(void,
+HashTableSetHashFunction(
+    _In_ HashTable_t*   HashTable,
+    _In_ HashFn         Fn));
 
 /* HashTableDestroy
- * Releases all resources 
- * associated with the hashtable */
+ * Cleans up all resources associated with the hashtable. This does not clear up the values
+ * registered in the hash-table. */
 CRTDECL(void,
 HashTableDestroy(
-    _In_ HashTable_t *HashTable));
+    _In_ HashTable_t* HashTable));
 
 /* HashTableInsert
- * Inserts an object with the given
- * string key from the hash table */
+ * Inserts or overwrites the existing key in the hashtable. */
 CRTDECL(void,
 HashTableInsert(
-    _In_ HashTable_t *HashTable, 
-    _In_ DataKey_t Key, 
-    _In_ void *Data));
+    _In_ HashTable_t*   HashTable, 
+    _In_ DataKey_t      Key, 
+    _In_ void*          Data));
 
 /* HashTableRemove 
- * Removes an object with the given 
- * string key from the hash table */
+ * Removes the entry with the matching key from the hashtable. */
 CRTDECL(void,
 HashTableRemove(
-    _In_ HashTable_t *HashTable, 
-    _In_ DataKey_t Key));
+    _In_ HashTable_t*   HashTable, 
+    _In_ DataKey_t      Key));
 
 /* HashTableGetValue
- * Retrieves the data associated with
- * a value from the hash table */
+ * Retrieves the data associated with the given key from the hashtable */
 CRTDECL(void*,
 HashTableGetValue(
-    _In_ HashTable_t *HashTable, 
-    _In_ DataKey_t Key));
+    _In_ HashTable_t*   HashTable, 
+    _In_ DataKey_t      Key));
 
 #endif //!_HASHTABLE_H_

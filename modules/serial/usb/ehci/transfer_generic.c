@@ -244,7 +244,7 @@ HciQueueTransferGeneric(
     }
 
     // Store transaction in queue if it's not there already
-    Key.Value = (int)Transfer->Id;
+    Key.Value.Integer = (int)Transfer->Id;
     if (CollectionGetDataByKey(Controller->Base.TransactionList, Key, 0) == NULL) {
         CollectionAppend(Controller->Base.TransactionList, CollectionCreateNode(Key, Transfer));
         EhciTransactionCount(Controller, Transfer, &Transfer->TransactionsTotal);

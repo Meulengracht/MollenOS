@@ -33,7 +33,7 @@
 #include <debug.h>
 #include <heap.h>
 
-static Collection_t IoSpaces                = COLLECTION_INIT(KeyInteger);
+static Collection_t IoSpaces                = COLLECTION_INIT(KeyId);
 static _Atomic(UUId_t) IoSpaceIdGenerator   = 1;
 
 /* RegisterSystemDeviceIo
@@ -51,13 +51,13 @@ RegisterSystemDeviceIo(
 
     // Allocate a new system only copy of the io-space
     // as we don't want anyone to edit our copy
-    SystemIo    = (SystemDeviceIo_t*)kmalloc(sizeof(SystemDeviceIo_t));
+    SystemIo = (SystemDeviceIo_t*)kmalloc(sizeof(SystemDeviceIo_t));
     memset(SystemIo, 0, sizeof(SystemDeviceIo_t));
     SystemIo->Owner = UUID_INVALID;
 
-    IoSpace->Id     = atomic_fetch_add(&IoSpaceIdGenerator, 1);
+    IoSpace->Id = atomic_fetch_add(&IoSpaceIdGenerator, 1);
     memcpy(&SystemIo->Io, IoSpace, sizeof(DeviceIo_t));
-    SystemIo->Header.Key.Value  = (int)IoSpace->Id;
+    SystemIo->Header.Key.Value.Id = IoSpace->Id;
     return CollectionAppend(&IoSpaces, &SystemIo->Header);
 }
 
@@ -75,8 +75,8 @@ DestroySystemDeviceIo(
     TRACE("DestroySystemDeviceIo(Id %u)", IoSpace);
 
     // Lookup the system copy to validate
-    Key.Value   = (int)IoSpace;
-    SystemIo    = (SystemDeviceIo_t*)CollectionGetNodeByKey(&IoSpaces, Key, 0);
+    Key.Value.Id    = IoSpace->Id;
+    SystemIo        = (SystemDeviceIo_t*)CollectionGetNodeByKey(&IoSpaces, Key, 0);
     if (SystemIo == NULL || SystemIo->Owner != UUID_INVALID) {
         return OsError;
     }
@@ -101,8 +101,8 @@ AcquireSystemDeviceIo(
     TRACE("AcquireSystemDeviceIo(Id %u)", IoSpace->Id);
 
     // Lookup the system copy to validate this requested operation
-    Key.Value   = (int)IoSpace->Id;
-    SystemIo    = (SystemDeviceIo_t*)CollectionGetNodeByKey(&IoSpaces, Key, 0);
+    Key.Value.Id    = IoSpace->Id;
+    SystemIo        = (SystemDeviceIo_t*)CollectionGetNodeByKey(&IoSpaces, Key, 0);
 
     // Sanitize the system copy
     if (Service == NULL || Service->Type != ProcessService ||
@@ -129,9 +129,9 @@ AcquireSystemDeviceIo(
             }
 
             // Adjust for offset and store in io copies
-            MappedAddress                          += BaseAddress % PageSize;
-            IoSpace->Access.Memory.VirtualBase      = MappedAddress;
-            SystemIo->MappedAddress                 = MappedAddress;
+            MappedAddress                       += BaseAddress % PageSize;
+            IoSpace->Access.Memory.VirtualBase   = MappedAddress;
+            SystemIo->MappedAddress              = MappedAddress;
             return OsSuccess;
         } break;
 
@@ -167,8 +167,8 @@ ReleaseSystemDeviceIo(
     TRACE("ReleaseSystemDeviceIo(Id %u)", IoSpace->Id);
 
     // Lookup the system copy to validate this requested operation
-    Key.Value   = (int)IoSpace->Id;
-    SystemIo    = (SystemDeviceIo_t*)CollectionGetNodeByKey(&IoSpaces, Key, 0);
+    Key.Value.Id    = IoSpace->Id;
+    SystemIo        = (SystemDeviceIo_t*)CollectionGetNodeByKey(&IoSpaces, Key, 0);
 
     // Sanitize the system copy and do some security checks
     if (Service == NULL || Service->Type != ProcessService ||
@@ -216,8 +216,8 @@ CreateKernelSystemDeviceIo(
     SystemDeviceIo_t* SystemIo;
     DataKey_t Key;
     
-    Key.Value   = (int)SourceIoSpace->Id;
-    SystemIo    = (SystemDeviceIo_t*)CollectionGetNodeByKey(&IoSpaces, Key, 0);
+    Key.Value.Id    = SourceIoSpace->Id;
+    SystemIo        = (SystemDeviceIo_t*)CollectionGetNodeByKey(&IoSpaces, Key, 0);
     if (SystemIo == NULL) {
         return OsError;
     }
@@ -253,8 +253,8 @@ ReleaseKernelSystemDeviceIo(
     SystemDeviceIo_t* SystemIo;
     DataKey_t Key;
     
-    Key.Value   = (int)SystemIoSpace->Id;
-    SystemIo    = (SystemDeviceIo_t*)CollectionGetNodeByKey(&IoSpaces, Key, 0);
+    Key.Value.Id    = SystemIoSpace->Id;
+    SystemIo        = (SystemDeviceIo_t*)CollectionGetNodeByKey(&IoSpaces, Key, 0);
     if (SystemIo == NULL) {
         return OsError;
     }

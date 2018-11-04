@@ -88,9 +88,9 @@ typedef struct _TlsProcessInstance {
 
 static Spinlock_t           TlsLock     = SPINLOCK_INIT;
 static TlsProcessInstance_t TlsGlobal   = { { 0 }, { 0 }, 
-    COLLECTION_INIT(KeyInteger),
-    COLLECTION_INIT(KeyInteger),
-    COLLECTION_INIT(KeyInteger),
+    COLLECTION_INIT(KeyId),
+    COLLECTION_INIT(KeyId),
+    COLLECTION_INIT(KeyId),
     0
 };
 
@@ -209,21 +209,18 @@ tss_get(
 {
     CollectionItem_t* Node = NULL;
     void *Result            = NULL;
-    thrd_t thr              = UUID_INVALID;
-    DataKey_t tKey;
+    DataKey_t tKey          = { .Value.Id = thrd_current() };
 
     if (tss_key >= TLS_MAX_KEYS) {
         return NULL;
     }
-    thr         = thrd_current();
-    tKey.Value  = thr;
 
     // Iterate the list of TLS instances and 
     // find the one that contains the tls-key
     SpinlockAcquire(&TlsLock);
     _foreach(Node, &TlsGlobal.Tls) {
         TlsThreadInstance_t* Tls = (TlsThreadInstance_t*)Node;
-        if (!dsmatchkey(KeyInteger, tKey, Node->Key) && Tls->Key == tss_key) {
+        if (!dsmatchkey(KeyId, tKey, Node->Key) && Tls->Key == tss_key) {
             Result = Tls->Value;
             break;
         }
@@ -242,22 +239,19 @@ tss_set(
 {
     TlsThreadInstance_t *NewTls = NULL;
     CollectionItem_t *Node      = NULL;
-    thrd_t thr                  = UUID_INVALID;
-    DataKey_t tKey;
+    DataKey_t tKey              = { .Value.Id = thrd_current() };
 
     // Sanitize key value
     if (tss_id >= TLS_MAX_KEYS) {
         return thrd_error;
     }
-    thr         = thrd_current();
-    tKey.Value  = thr;
 
     // Iterate and find if it
     // exists, if exists we override
     SpinlockAcquire(&TlsLock);
     _foreach(Node, &TlsGlobal.Tls) {
         TlsThreadInstance_t *Tls = (TlsThreadInstance_t*)Node;
-        if (!dsmatchkey(KeyInteger, tKey, Node->Key) && Tls->Key == tss_id) {
+        if (!dsmatchkey(KeyId, tKey, Node->Key) && Tls->Key == tss_id) {
             Tls->Value = val;
             SpinlockRelease(&TlsLock);
             return thrd_success;
@@ -267,11 +261,11 @@ tss_set(
 
     NewTls = (TlsThreadInstance_t*)malloc(sizeof(TlsThreadInstance_t));
     memset(NewTls, 0, sizeof(TlsThreadInstance_t));
-    NewTls->ListHeader.Key.Value    = tKey.Value;
-    NewTls->ListHeader.Data         = NewTls;
-    NewTls->Key                     = tss_id;
-    NewTls->Value                   = val;
-    NewTls->Destructor              = TlsGlobal.Dss[tss_id];
+    NewTls->ListHeader.Key  = tKey;
+    NewTls->ListHeader.Data = NewTls;
+    NewTls->Key             = tss_id;
+    NewTls->Value           = val;
+    NewTls->Destructor      = TlsGlobal.Dss[tss_id];
 
     // Last thing is to append it to the tls-list
     SpinlockAcquire(&TlsLock);
@@ -329,9 +323,9 @@ tls_register_atexit(
     AtExitFn = (TlsAtExit_t*)malloc(sizeof(TlsAtExit_t));
     memset(AtExitFn, 0, sizeof(TlsAtExit_t));
 
-    AtExitFn->ListHeader.Key.Value  = (int)ThreadId;
-    AtExitFn->Argument              = Argument;
-    AtExitFn->DsoHandle             = DsoHandle;
+    AtExitFn->ListHeader.Key.Value.Id   = ThreadId;
+    AtExitFn->Argument                  = Argument;
+    AtExitFn->DsoHandle                 = DsoHandle;
     if (ThreadId == UUID_INVALID) {
         AtExitFn->Type              = TLS_ATEXIT_CXA;
         AtExitFn->AtExit.Function   = (void(*)(void*, int))Function;
@@ -365,7 +359,7 @@ void
 tls_callatexit(_In_ Collection_t* List, _In_ thrd_t ThreadId, _In_ void* DsoHandle, _In_ int ExitCode)
 {
     CollectionItem_t*   Node;
-    DataKey_t           Key;
+    DataKey_t           Key = { .Value.Id = ThreadId };
     int                 Skip = 0;
 
     TRACE("tls_callatexit(%u, 0x%x, %i)", ThreadId, DsoHandle, ExitCode);
@@ -379,7 +373,6 @@ tls_callatexit(_In_ Collection_t* List, _In_ thrd_t ThreadId, _In_ void* DsoHand
         TlsGlobal.TlsAtExitHasRun = 1;
     }
 
-    Key.Value   = (int)ThreadId;
     Node        = CollectionGetNodeByKey(List, Key, Skip);
     while (Node != NULL) {
         TlsAtExit_t* Function = (TlsAtExit_t*)Node;
@@ -409,10 +402,8 @@ tls_cleanup(_In_ thrd_t thr, _In_ void* DsoHandle, _In_ int ExitCode)
 {
     int         NumberOfPassesLeft  = TSS_DTOR_ITERATIONS;
     int         NumberOfValsLeft    = 0;
-    DataKey_t   Key;
+    DataKey_t   Key                 = { .Value.Id = thr };
     TRACE("tls_cleanup(%u, 0x%x, %i)", thr, DsoHandle, ExitCode);
-
-    Key.Value = thr;
 
     // Execute all stored destructors untill there is no
     // more values left or we reach the maximum number of passes

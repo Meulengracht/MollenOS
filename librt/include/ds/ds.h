@@ -26,17 +26,22 @@
 
 /* The definition of a key
  * in generic data-structures this can be values or data */
-typedef union _DataKey {
-    int     Value;
-    void*   Pointer;
-    char*   String;
+typedef struct _DataKey {
+    union {
+        int     Integer;
+        UUId_t  Id;
+        struct {
+            const char* Pointer;
+            size_t      Length;
+        } String;
+    } Value;
 } DataKey_t;
 
 /* This enumeration denotes
  * the kind of key that is to be interpreted by the data-structure */
 typedef enum _KeyType {
     KeyInteger,
-    KeyPointer,
+    KeyId,
     KeyString
 } KeyType_t;
 
@@ -50,37 +55,32 @@ typedef struct _SafeMemoryLock {
 
 /* dsalloc
  * Seperate portable memory allocator for data-structures */
-CRTDECL(
-void*,
+CRTDECL(void*,
 dsalloc(
     _In_ size_t size));
 
 /* dsfree
  * Seperate portable memory freeing for data-structures */
-CRTDECL(
-void,
+CRTDECL(void,
 dsfree(
     _In_ void *p));
 
 /* dslock
  * Acquires the lock given, this is a blocking call and will wait untill
  * the lock is acquired. */
-CRTDECL(
-void,
+CRTDECL(void,
 dslock(
-    _In_ SafeMemoryLock_t *MemoryLock));
+    _In_ SafeMemoryLock_t* MemoryLock));
 
 /* dsunlock
  * Releases the lock given and restores any previous flags. */
-CRTDECL(
-void,
+CRTDECL(void,
 dsunlock(
-    _In_ SafeMemoryLock_t *MemoryLock));
+    _In_ SafeMemoryLock_t* MemoryLock));
 
 /* Helper Function 
  * Matches two keys based on the key type returns 0 if they are equal, or -1 if not */
-CRTDECL(
-int,
+CRTDECL(int,
 dsmatchkey(
     _In_ KeyType_t KeyType, 
     _In_ DataKey_t Key1, 
@@ -91,8 +91,7 @@ dsmatchkey(
  *  - 1 if 1 > 2, 
  *  - 0 if 1 == 2 and
  *  - -1 if 2 > 1 */
-CRTDECL(
-int,
+CRTDECL(int,
 dssortkey(
     _In_ KeyType_t KeyType, 
     _In_ DataKey_t Key1, 

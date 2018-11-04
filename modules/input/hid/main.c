@@ -77,7 +77,7 @@ OsStatus_t
 OnLoad(void)
 {
 	// Initialize state for this driver
-    GlbHidDevices = CollectionCreate(KeyInteger);
+    GlbHidDevices = CollectionCreate(KeyId);
     return UsbInitialize();
 }
 
@@ -104,9 +104,8 @@ OsStatus_t
 OnRegister(
     _In_ MCoreDevice_t *Device)
 {
-	// Variables
-	HidDevice_t *HidDevice = NULL;
-	DataKey_t Key;
+	HidDevice_t*    HidDevice = NULL;
+	DataKey_t       Key = { .Value.Id = Device->Id };
 	
 	// Register the new controller
 	HidDevice = HidDeviceCreate((MCoreUsbDevice_t*)Device);
@@ -115,14 +114,7 @@ OnRegister(
 	if (HidDevice == NULL) {
 		return OsError;
 	}
-
-	// Use the device-id as key
-	Key.Value = (int)Device->Id;
-
-	// Append the controller to our list
 	CollectionAppend(GlbHidDevices, CollectionCreateNode(Key, HidDevice));
-
-	// Done - no error
 	return OsSuccess;
 }
 
@@ -133,13 +125,8 @@ OsStatus_t
 OnUnregister(
     _In_ MCoreDevice_t *Device)
 {
-	// Variables
-	HidDevice_t *HidDevice = NULL;
-	DataKey_t Key;
-
-	// Set the key to the id of the device to find
-	// the bound controller
-	Key.Value = (int)Device->Id;
+	HidDevice_t*    HidDevice = NULL;
+	DataKey_t       Key = { .Value.Id = Device->Id };
 
 	// Lookup controller
 	HidDevice = (HidDevice_t*)

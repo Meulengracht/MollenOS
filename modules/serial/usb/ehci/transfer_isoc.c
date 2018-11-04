@@ -104,7 +104,7 @@ HciQueueTransferIsochronous(
 
     // Add transfer
     Transfer->EndpointDescriptor    = (void*)FirstTd;
-    Key.Value                       = 0;
+    Key.Value.Integer               = 0;
     CollectionAppend(Controller->Base.TransactionList, CollectionCreateNode(Key, Transfer));
     return EhciTransactionDispatch(Controller, Transfer);
 }

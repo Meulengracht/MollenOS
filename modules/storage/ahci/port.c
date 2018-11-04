@@ -358,11 +358,12 @@ HandleInterrupt:
     if (DoneCommands != 0) {
         for (i = 0; i < AHCI_MAX_PORTS; i++) {
             if (DoneCommands & (1 << i)) {
-                size_t Offset   = i * AHCI_RECIEVED_FIS_SIZE;
-                Key.Value       = i;
-                tNode           = CollectionGetNodeByKey(Port->Transactions, Key, 0);
+                size_t Offset       = i * AHCI_RECIEVED_FIS_SIZE;
+                Key.Value.Integer   = i;
+                tNode               = CollectionGetNodeByKey(Port->Transactions, Key, 0);
+                
                 assert(tNode != NULL);
-                Transaction     = (AhciTransaction_t*)tNode->Data;
+                Transaction = (AhciTransaction_t*)tNode->Data;
 
                 // Remove and destroy node
                 CollectionRemoveByNode(Port->Transactions, tNode);

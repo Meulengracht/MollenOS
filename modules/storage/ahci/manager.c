@@ -30,7 +30,7 @@
 #include "manager.h"
 
 // Static storage for the disk manager
-static Collection_t Disks               = COLLECTION_INIT(KeyInteger);
+static Collection_t Disks               = COLLECTION_INIT(KeyId);
 static UUId_t       DiskIdGenerator     = 0;
 
 /* AHCIStringFlip 
@@ -214,7 +214,7 @@ AhciManagerCreateDeviceCallback(
     memcpy(&Device->Descriptor.Serial[0], (const void*)&DeviceInformation->SerialNo[0], 20);
 
     // Add disk to list
-    Key.Value = (int)Device->Descriptor.Device;
+    Key.Value.Id = Device->Descriptor.Device;
     CollectionAppend(&Disks, CollectionCreateNode(Key, Device));
     return RegisterDisk(Device->Descriptor.Device, Device->Descriptor.Flags);
 }
@@ -228,14 +228,11 @@ AhciManagerRemoveDevice(
 {
     CollectionItem_t *dNode = NULL;
     AhciDevice_t *Device    = NULL;
-    DataKey_t Key;
+    DataKey_t Key           = { .Value.Id = UUID_INVALID };
 
     // Trace
     TRACE("AhciManagerRemoveDevice(Controller %i, Port %i)",
         Controller->Device.Id, Port->Id);
-
-    // Set initial val
-    Key.Value = -1;
 
     // Iterate all available devices and find
     // the one that matches the port/controller
@@ -246,7 +243,7 @@ AhciManagerRemoveDevice(
             break;
         }
     }
-    if (Key.Value == -1) {
+    if (Key.Value.Id == UUID_INVALID) {
         return OsError;
     }
 
@@ -256,7 +253,7 @@ AhciManagerRemoveDevice(
     // Cleanup resources
     DestroyBuffer(Device->Buffer);
     free(Device);
-    return UnregisterDisk(Key.Value, __DISK_FORCED_REMOVE);
+    return UnregisterDisk(Key.Value.Id, __DISK_FORCED_REMOVE);
 }
 
 /* AhciManagerGetDevice 
@@ -265,8 +262,6 @@ AhciDevice_t*
 AhciManagerGetDevice(
     _In_ UUId_t             Disk)
 {
-    // Variables
-    DataKey_t Key;
-    Key.Value = (int)Disk;
+    DataKey_t Key = { .Value.Id = Disk };
     return CollectionGetDataByKey(&Disks, Key, 0);
 }

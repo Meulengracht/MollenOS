@@ -540,7 +540,7 @@ EhciSetup(
     
     // Register the controller before starting
     if (UsbManagerRegisterController(&Controller->Base) != OsSuccess) {
-        ERROR("Failed to register ehci controller with the system.");
+        ERROR(" > failed to register ehci controller with the system.");
     }
 
     // Now, controller is up and running

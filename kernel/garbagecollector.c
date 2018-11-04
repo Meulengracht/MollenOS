@@ -36,8 +36,8 @@ void GcWorker(void *Args);
 /* Globals 
  * Needed for state-keeping */
 static SlimSemaphore_t GlbGcEventLock;
-static Collection_t GcHandlers      = COLLECTION_INIT(KeyInteger);
-static Collection_t GcEvents        = COLLECTION_INIT(KeyInteger);
+static Collection_t GcHandlers      = COLLECTION_INIT(KeyId);
+static Collection_t GcEvents        = COLLECTION_INIT(KeyId);
 static _Atomic(UUId_t) GcIdGenerator= ATOMIC_VAR_INIT(0);
 
 /* GcConstruct
@@ -68,9 +68,9 @@ GcRegister(
     _In_ GcHandler_t Handler)
 {
     DataKey_t Key;
-    Key.Value = (int)atomic_fetch_add(&GcIdGenerator, 1);
+    Key.Value.Id = atomic_fetch_add(&GcIdGenerator, 1);
     CollectionAppend(&GcHandlers, CollectionCreateNode(Key, (void*)Handler));
-    return (UUId_t)Key.Value;
+    return Key.Value.Id;
 }
 
 /* GcUnregister
@@ -80,7 +80,7 @@ GcUnregister(
     _In_ UUId_t Handler)
 {
     DataKey_t Key;
-    Key.Value = (int)Handler;
+    Key.Value.Id = Handler;
     if (CollectionGetDataByKey(&GcHandlers, Key, 0) == NULL) {
         return OsError;
     }
@@ -95,7 +95,7 @@ GcSignal(
     _In_ void*  Data)
 {
     DataKey_t Key;
-    Key.Value = (int)Handler;
+    Key.Value.Id = Handler;
 
     // Sanitize the status of the gc
     if (CollectionGetDataByKey(&GcHandlers, Key, 0) == NULL) {

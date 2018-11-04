@@ -108,7 +108,7 @@ OsStatus_t OnRegister(MCoreDevice_t *Device)
 	}
 
 	// Use the device-id as key
-	Key.Value = (int)Device->Id;
+	Key.Value.Integer = (int)Device->Id;
 
 	// Append the controller to our list
 	ListAppend(GlbControllers, ListCreateNode(Key, Key, Controller));
@@ -128,7 +128,7 @@ OsStatus_t OnUnregister(MCoreDevice_t *Device)
 
 	// Set the key to the id of the device to find
 	// the bound controller
-	Key.Value = (int)Device->Id;
+	Key.Value.Integer = (int)Device->Id;
 
 	// Lookup controller
 	Controller = (AhciController_t*)

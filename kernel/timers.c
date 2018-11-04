@@ -38,7 +38,7 @@ static MCoreTimePerformanceOps_t PerformanceTimer   = { 0 };
 static CriticalSection_t TimersSyncObject           = CRITICALSECTION_INITIALIZE(CRITICALSECTION_PLAIN);
 static MCoreSystemTimer_t *ActiveSystemTimer        = NULL;
 static Collection_t SystemTimers                    = COLLECTION_INIT(KeyInteger);
-static Collection_t Timers                          = COLLECTION_INIT(KeyInteger);
+static Collection_t Timers                          = COLLECTION_INIT(KeyId);
 static _Atomic(UUId_t) TimerIdGenerator             = ATOMIC_VAR_INIT(0);
 
 /* TimersStart 
@@ -63,7 +63,7 @@ TimersStart(
     Timer->Interval = IntervalNs;
     Timer->Current  = 0;
     Timer->Periodic = Periodic;
-    Key.Value       = (int)Timer->Id;
+    Key.Value.Id    = Timer->Id;
     CollectionAppend(&Timers, CollectionCreateNode(Key, Timer));
     return Timer->Id;
 }
@@ -139,13 +139,11 @@ TimersRegisterSystemTimer(
     _In_ size_t     TickNs,
     _In_ clock_t    (*SystemTickHandler)(void))
 {
-    // Variables
     MCoreSystemTimer_t* SystemTimer;
-    SystemInterrupt_t* Interrupt;
-    DataKey_t tKey;
-    int Delta = abs(1000 - (int)TickNs);
+    SystemInterrupt_t*  Interrupt;
+    DataKey_t           Key    = { 0 };
+    int                 Delta   = abs(1000 - (int)TickNs);
 
-    // Trace
     TRACE("TimersRegisterSystemTimer()");
 
     // Do some validation about the timer source 
@@ -164,8 +162,7 @@ TimersRegisterSystemTimer(
     SystemTimer->SystemTick = SystemTickHandler;
 
     // Add the new timer to the list
-    tKey.Value = 0;
-    CollectionAppend(&SystemTimers, CollectionCreateNode(tKey, SystemTimer));
+    CollectionAppend(&SystemTimers, CollectionCreateNode(Key, SystemTimer));
 
     // Ok, for a system timer we want something optimum
     // of 1 ms per interrupt

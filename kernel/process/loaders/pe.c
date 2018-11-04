@@ -770,8 +770,7 @@ PeLoadImage(
     // Before loading imports, add us to parent list of libraries 
     // so we might be reused, instead of reloaded
     if (Parent != NULL) {
-        DataKey_t Key;
-        Key.Value = 0;
+        DataKey_t Key = { 0 };
         CollectionAppend(Parent->LoadedLibraries, CollectionCreateNode(Key, PeInfo));
     }
 

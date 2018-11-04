@@ -329,8 +329,6 @@ UsbQueryConfigurationDescriptors(
 
     // Cleanup buffer
     free(FullDescriptor);
-
-    // Done
     return OsSuccess;
 }
 
@@ -377,7 +375,7 @@ UsbCoreControllerRegister(
 {
     // Variables
     UsbController_t *Controller = NULL;
-    DataKey_t Key;
+    DataKey_t Key = { 0 };
 
     // Allocate a new instance and reset all members
     Controller = (UsbController_t*)malloc(sizeof(UsbController_t));
@@ -391,7 +389,6 @@ UsbCoreControllerRegister(
 
     // Reserve address 0, it's setup address
     Controller->AddressMap[0] |= 0x1;
-    Key.Value = 0;
     return CollectionAppend(GlbUsbControllers, CollectionCreateNode(Key, Controller));
 }
 

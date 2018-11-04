@@ -84,9 +84,7 @@ VfsIsHandleValid(
     _Out_ FileSystemEntryHandle_t** EntryHandle)
 {
     CollectionItem_t *Node;
-    DataKey_t Key;
-
-    Key.Value   = (int)Handle;
+    DataKey_t Key = { .Value.Id = Handle };
     Node       = CollectionGetNodeByKey(VfsGetOpenHandles(), Key, 0);
     if (Node == NULL) {
         ERROR("Invalid handle given for file");
@@ -176,7 +174,7 @@ VfsVerifyAccessToPath(
         // If our requested mode is exclusive, then we must verify
         // none in our sub-path is opened in exclusive
         if (Access & __FILE_WRITE_ACCESS && !(Access & __FILE_WRITE_SHARE) &&
-            Node->Key.Value != PathHash) {
+            Node->Key.Value.Id != PathHash) {
             // Check if <Entry> contains the entirety of <Path>, if it does then deny
             // the request as we try to open a higher-level entry in exclusive mode
             if (MStringCompare(Entry->Path, Path, 0) != MSTRING_NO_MATCH) {
@@ -186,7 +184,7 @@ VfsVerifyAccessToPath(
         }
 
         // Have we found the existing already opened file?
-        if (Node->Key.Value == PathHash) {
+        if (Node->Key.Value.Id == PathHash) {
             if (Entry->IsLocked != UUID_INVALID) {
                 ERROR("File is opened in exclusive mode already, access denied.");
                 return FsAccessDenied;
@@ -265,7 +263,7 @@ VfsOpenInternal(
                     if ((Options & __FILE_TRUNCATE) && Created == 0 && VfsEntryIsFile(Entry)) {
                         Code = Filesystem->Module->ChangeFileSize(&Filesystem->Descriptor, Entry, 0);
                     }
-                    Key.Value = (int)Entry->Hash;
+                    Key.Value.Id = Entry->Hash;
                     CollectionAppend(VfsGetOpenFiles(), CollectionCreateNode(Key, Entry));
                 }
             }
@@ -388,7 +386,7 @@ VfsOpenEntry(
         Handle->Access  = Access;
         Handle->Options = Options;
         
-        Key.Value = (int)Handle->Id;
+        Key.Value.Id = Handle->Id;
         CollectionAppend(VfsGetOpenHandles(), CollectionCreateNode(Key, Handle));
         *FileId = Handle->Id;
     }
@@ -408,7 +406,7 @@ VfsCloseEntry(
     FileSystemCode_t            Code;
     CollectionItem_t* Node;
     FileSystem_t *Fs;
-    DataKey_t Key;
+    DataKey_t Key = { .Value.Id = Handle };
 
     TRACE("VfsCloseEntry(Handle %u)", Handle);
 
@@ -416,7 +414,6 @@ VfsCloseEntry(
     if (Code != FsOk) {
         return Code;
     }
-    Key.Value   = (int)Handle;
     Node        = CollectionGetNodeByKey(VfsGetOpenHandles(), Key, 0);
     Entry       = EntryHandle->Entry;
 
@@ -448,7 +445,7 @@ VfsCloseEntry(
     // Last reference?
     // Cleanup the file in case of no refs
     if (Entry->References == 0) {
-        Key.Value = (int)Entry->Hash;
+        Key.Value.Id = Entry->Hash;
         CollectionRemoveByKey(VfsGetOpenFiles(), Key);
         Code = Fs->Module->CloseEntry(&Fs->Descriptor, Entry);
     }
@@ -496,12 +493,12 @@ VfsDeletePath(
         if (Code != FsOk) {
             return Code;
         }
-        Key.Value   = (int)EntryHandle->Entry->Hash;
-        Code        = Fs->Module->DeleteEntry(&Fs->Descriptor, EntryHandle);
+        Key.Value.Id    = EntryHandle->Entry->Hash;
+        Code            = Fs->Module->DeleteEntry(&Fs->Descriptor, EntryHandle);
         if (Code == FsOk) {
             // Cleanup handles and open file
             CollectionRemoveByKey(VfsGetOpenFiles(), Key);
-            Key.Value = (int)Handle;
+            Key.Value.Id = Handle;
             CollectionRemoveByKey(VfsGetOpenHandles(), Key);
         }
     }

@@ -62,7 +62,7 @@ OnTimeout(
  * all controllers and all attached devices */
 OsStatus_t
 UsbManagerInitialize(void) {
-    __GlbControllers    = CollectionCreate(KeyInteger);
+    __GlbControllers    = CollectionCreate(KeyId);
     __GlbTimerEvent     = UUID_INVALID;
     __GlbTimerCallback  = NULL;
     return OsSuccess;
@@ -103,14 +103,21 @@ OsStatus_t
 UsbManagerRegisterController(
     _In_ UsbManagerController_t*    Controller)
 {
-    // Variables
-    DataKey_t Key;
-    Key.Value                       = (int)Controller->Device.Id;
+    DataKey_t   Key = { .Value.Id = Controller->Device.Id };
+    int         Retries = 3;
+    OsStatus_t  Status = OsError;
 
-    // Register controller with usbmanager service
-    if (UsbControllerRegister(&Controller->Device, 
-            Controller->Type, Controller->PortCount) != OsSuccess) {
-        return OsError;
+    // Register controller with usbmanager service, sometimes the usb service is a tad
+    // slow in starting up, so try 3 times, with 1 second between
+    for (int i = 0; i < Retries; i++) {
+        Status = UsbControllerRegister(&Controller->Device, Controller->Type, Controller->PortCount);
+        if (Status == OsSuccess) {
+            break;
+        }
+        thrd_sleepex(1000);
+    }
+    if (Status != OsSuccess) {
+        return Status;
     }
     return CollectionAppend(__GlbControllers, CollectionCreateNode(Key, Controller));
 }
@@ -124,10 +131,9 @@ UsbManagerDestroyController(
 {
     // Variables
     CollectionItem_t *cNode = NULL;
-    DataKey_t Key;
+    DataKey_t Key = { .Value.Id = Controller->Device.Id };
 
     // Unregister controller with usbmanager service
-    Key.Value = (int)Controller->Device.Id;
     if (UsbControllerUnregister(Controller->Device.Id) != OsSuccess) {
         return OsError;
     }
@@ -196,7 +202,7 @@ UsbManagerGetToggle(
 
     // Create an unique id for this endpoint
     Pipe = ((uint32_t)Address->DeviceAddress << 8)  | Address->EndpointAddress;
-    Key.Value = (int)Pipe;
+    Key.Value.Integer = (int)Pipe;
 
     // Iterate list of controllers
     foreach(cNode, __GlbControllers) {
@@ -206,8 +212,7 @@ UsbManagerGetToggle(
             // Locate the correct endpoint
             foreach(eNode, Controller->Endpoints) {
                 // Cast data again
-                UsbManagerEndpoint_t *Endpoint =
-                    (UsbManagerEndpoint_t*)eNode->Data;
+                UsbManagerEndpoint_t *Endpoint = (UsbManagerEndpoint_t*)eNode->Data;
                 if (Endpoint->Pipe == Pipe) {
                     return Endpoint->Toggle;
                 }
@@ -228,8 +233,7 @@ UsbManagerGetToggle(
             Endpoint->Toggle = 0;
 
             // Add it to the list
-            CollectionAppend(Controller->Endpoints, 
-                CollectionCreateNode(Key, Endpoint));
+            CollectionAppend(Controller->Endpoints, CollectionCreateNode(Key, Endpoint));
         }
     }
     return 0;
@@ -249,7 +253,7 @@ UsbManagerSetToggle(
 
     // Create an unique id for this endpoint
     Pipe = ((uint32_t)Address->DeviceAddress << 8)  | Address->EndpointAddress;
-    Key.Value = (int)Pipe;
+    Key.Value.Integer = (int)Pipe;
 
     // Iterate list of controllers
     foreach(cNode, __GlbControllers) {

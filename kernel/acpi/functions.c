@@ -474,11 +474,9 @@ AcpiDeviceIrqRoutingCallback(
     ACPI_RESOURCE *Resource, 
     void *Context)
 {
-    // Variables
-    IrqResource_t *IrqResource       = NULL;
-    DataKey_t pKey;
+    IrqResource_t*  IrqResource = NULL;
+    DataKey_t       Key         = { 0 };
 
-    // Debug
     TRACE("AcpiDeviceIrqRoutingCallback(Type %u)", Resource->Type);
 
     // Sanitize the type of resource
@@ -488,7 +486,6 @@ AcpiDeviceIrqRoutingCallback(
 
     // Initiate values
     IrqResource = (IrqResource_t*)Context;
-    pKey.Value = 0;
 
     // Right now we are just looking for Irq's
     if (Resource->Type == ACPI_RESOURCE_TYPE_IRQ) {
@@ -532,7 +529,7 @@ AcpiDeviceIrqRoutingCallback(
             }
             else {
                 // Append to list of irqs
-                CollectionAppend(IrqResource->IrqList, CollectionCreateNode(pKey, RoutingEntry));
+                CollectionAppend(IrqResource->IrqList, CollectionCreateNode(Key, RoutingEntry));
             }
         }
     }
@@ -577,7 +574,7 @@ AcpiDeviceIrqRoutingCallback(
             }
             else {
                 // Append to list of irqs
-                CollectionAppend(IrqResource->IrqList, CollectionCreateNode(pKey, RoutingEntry));
+                CollectionAppend(IrqResource->IrqList, CollectionCreateNode(Key, RoutingEntry));
             }
         }
     }
@@ -741,15 +738,12 @@ ACPI_STATUS
 AcpiDeviceGetIrqRoutings(
     _In_ AcpiDevice_t *Device)
 {
-    // Variables
-    ACPI_PCI_ROUTING_TABLE *PciTable = NULL;
-    PciRoutings_t *Table = NULL;
-    ACPI_STATUS Status;
-    int i;
-    
-    // Buffers
-    IrqResource_t IrqResource;
-    ACPI_BUFFER aBuff;
+    ACPI_PCI_ROUTING_TABLE* PciTable    = NULL;
+    PciRoutings_t*          Table       = NULL;
+    ACPI_STATUS             Status;
+    IrqResource_t           IrqResource;
+    ACPI_BUFFER             aBuff;
+    int                     i;
 
     // Debug
     TRACE("AcpiDeviceGetIrqRoutings()");
@@ -787,8 +781,8 @@ AcpiDeviceGetIrqRoutings(
         ACPI_HANDLE SourceHandle    = NULL;
         unsigned InterruptIndex     = 0;
         unsigned DeviceIndex        = 0;
-        CollectionItem_t *Node      = NULL;
-        DataKey_t Key;
+        CollectionItem_t*   Node    = NULL;
+        DataKey_t           Key     = { 0 };
 
         // Convert the addresses 
         DeviceIndex = (unsigned)((PciTable->Address >> 16) & 0xFFFF);
@@ -806,12 +800,11 @@ AcpiDeviceGetIrqRoutings(
 
             // Allocate a new entry and store information
             RoutingEntry = (PciRoutingEntry_t*)kmalloc(sizeof(PciRoutingEntry_t));
-            RoutingEntry->AcType = ACPI_RESOURCE_TYPE_IRQ;
-            RoutingEntry->Irq = (int)PciTable->SourceIndex;
-            RoutingEntry->Polarity = ACPI_ACTIVE_LOW;
-            RoutingEntry->Trigger = ACPI_LEVEL_SENSITIVE;
-            RoutingEntry->Fixed = 1;
-            Key.Value = 0;
+            RoutingEntry->AcType    = ACPI_RESOURCE_TYPE_IRQ;
+            RoutingEntry->Irq       = (int)PciTable->SourceIndex;
+            RoutingEntry->Polarity  = ACPI_ACTIVE_LOW;
+            RoutingEntry->Trigger   = ACPI_LEVEL_SENSITIVE;
+            RoutingEntry->Fixed     = 1;
 
             // Save interrupt
             CollectionAppend(Table->InterruptEntries[InterruptIndex], 
@@ -822,7 +815,8 @@ AcpiDeviceGetIrqRoutings(
 
         // Ok, so we have a valid handle, lets see if we already have
         // the handle cached in memory
-        Key.String = &PciTable->Source[0];
+        Key.Value.String.Pointer    = &PciTable->Source[0];
+        Key.Value.String.Length     = strlen(&PciTable->Source[0]);
         Node = CollectionGetNodeByKey(Table->Sources, Key, 0);
         if (Node != NULL) {
             Source = (PciRoutingSource_t*)Node->Data;

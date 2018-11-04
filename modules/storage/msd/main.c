@@ -79,7 +79,7 @@ OsStatus_t
 OnLoad(void)
 {
     // Initialize state for this driver
-    GlbMsdDevices = CollectionCreate(KeyInteger);
+    GlbMsdDevices = CollectionCreate(KeyId);
     return UsbInitialize();
 }
 
@@ -106,9 +106,8 @@ OsStatus_t
 OnRegister(
     _In_ MCoreDevice_t *Device)
 {
-    // Variables
     MsdDevice_t *MsdDevice = NULL;
-    DataKey_t Key;
+    DataKey_t Key = { .Value.Id = Device->Id };
     
     // Register the new controller
     MsdDevice = MsdDeviceCreate((MCoreUsbDevice_t*)Device);
@@ -118,8 +117,6 @@ OnRegister(
         return OsError;
     }
 
-    // Append the controller to our list
-    Key.Value = (int)Device->Id;
     CollectionAppend(GlbMsdDevices, CollectionCreateNode(Key, MsdDevice));
     return OsSuccess;
 }
@@ -131,13 +128,8 @@ OsStatus_t
 OnUnregister(
     _In_ MCoreDevice_t *Device)
 {
-    // Variables
     MsdDevice_t *MsdDevice = NULL;
-    DataKey_t Key;
-
-    // Set the key to the id of the device to find
-    // the bound controller
-    Key.Value = (int)Device->Id;
+    DataKey_t Key = { .Value.Id = Device->Id };
 
     // Lookup controller
     MsdDevice = (MsdDevice_t*)
@@ -187,10 +179,7 @@ OnQuery(
             // Get parameters
             StorageDescriptor_t     NullDescriptor;
             MsdDevice_t *Device     = NULL;
-            DataKey_t Key;
-
-            // Lookup device
-            Key.Value   = (int)Arg0->Data.Value;
+            DataKey_t Key = { .Value.Id = Arg0->Data.Value };
             Device      = (MsdDevice_t*)CollectionGetDataByKey(GlbMsdDevices, Key, 0);
 
             // Write the descriptor back
@@ -210,10 +199,7 @@ OnQuery(
             // Get parameters
             StorageOperation_t *Operation = (StorageOperation_t*)Arg1->Data.Buffer;
             MsdDevice_t *Device = NULL;
-            DataKey_t Key;
-            
-            // Lookup device
-            Key.Value = (int)Arg0->Data.Value;
+            DataKey_t Key = { .Value.Id = Arg0->Data.Value };
             Device = (MsdDevice_t*)CollectionGetDataByKey(GlbMsdDevices, Key, 0);
 
             // Determine the kind of operation

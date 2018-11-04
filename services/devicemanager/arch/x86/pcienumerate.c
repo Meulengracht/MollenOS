@@ -229,14 +229,14 @@ PciCheckFunction(
     }
 
     // Add to the flat list
-    lKey.Value = 0;
+    lKey.Value.Integer = 0;
     CollectionAppend(__GlbPciDevices, CollectionCreateNode(lKey, Device));
 
     // Add to list
     if (Pcs->Class == PCI_CLASS_BRIDGE
         && Pcs->Subclass == PCI_BRIDGE_SUBCLASS_PCI) {
         Device->IsBridge = 1;
-        lKey.Value = 1;
+        lKey.Value.Integer = 1;
         CollectionAppend(Parent->Children, CollectionCreateNode(lKey, Device));
         Device->Children = CollectionCreate(KeyInteger);
 
@@ -302,7 +302,7 @@ PciCheckFunction(
 
         // Set keys and type
         Device->IsBridge    = 0;
-        lKey.Value          = 0;
+        lKey.Value.Integer  = 0;
         CollectionAppend(Parent->Children, CollectionCreateNode(lKey, Device));
     }
 }

@@ -104,13 +104,8 @@ AcpiDeriveInterrupt(
     _In_  int               Pin,
     _Out_ Flags_t*          AcpiConform)
 {
-    // Variables
-    AcpiDevice_t *Dev = NULL;
-    DataKey_t iKey;
-
-    // Calculate routing index
-    unsigned rIndex = (Device * 4) + (Pin - 1);
-    iKey.Value      = 0;
+    AcpiDevice_t*   Dev;
+    unsigned        rIndex  = (Device * 4) + (Pin - 1);
 
     // Trace
     TRACE("AcpiDeriveInterrupt(Bus %u, Device %u, Pin %i)", Bus, Device, Pin);

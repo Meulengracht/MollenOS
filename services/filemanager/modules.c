@@ -49,7 +49,7 @@ VfsResolveFileSystem(
 	// Variables
 	FileSystemModule_t *Module = NULL;
 	CollectionItem_t *fNode = NULL;
-	DataKey_t Key;
+	DataKey_t Key = { 0 };
 
 	// Trace
 	TRACE("VfsResolveFileSystem(Type %u)", FileSystem->Type);
@@ -142,9 +142,6 @@ VfsResolveFileSystem(
 
 	// Trace
 	TRACE("Function table present, loading was successful");
-
-	// Last thing is to add it to the list
-	Key.Value = 0;
 	CollectionAppend(VfsGetModules(), CollectionCreateNode(Key, Module));
 	return Module;
 }

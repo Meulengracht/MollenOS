@@ -35,7 +35,7 @@
 #include <process/process.h>
 #include <memorybuffer.h>
 
-static Collection_t         SystemHandles                       = COLLECTION_INIT(KeyInteger);
+static Collection_t         SystemHandles                       = COLLECTION_INIT(KeyId);
 static _Atomic(UUId_t)      IdGenerator                         = 1;
 static HandleDestructorFn   HandleDestructors[HandleTypeCount]  = {
     DestroyMemoryBuffer,
@@ -60,7 +60,7 @@ CreateHandle(
     Id      = atomic_fetch_add(&IdGenerator, 1);
 
     memset((void*)Handle, 0, sizeof(SystemHandle_t));
-    Handle->Header.Key.Value    = (int)Id;
+    Handle->Header.Key.Value.Id = Id;
     Handle->Type                = Type;
     Handle->Capabilities        = Capabilities;
     Handle->Resource            = Resource;
@@ -81,8 +81,8 @@ AcquireHandle(
     int             PreviousReferences;
 
     // Lookup the handle
-    Key.Value   = (int)Handle;
-    Instance    = (SystemHandle_t*)CollectionGetNodeByKey(&SystemHandles, Key, 0);
+    Key.Value.Id    = Handle;
+    Instance        = (SystemHandle_t*)CollectionGetNodeByKey(&SystemHandles, Key, 0);
     if (Instance == NULL) {
         return NULL;
     }
@@ -107,8 +107,8 @@ LookupHandle(
     DataKey_t       Key;
 
     // Lookup the handle
-    Key.Value   = (int)Handle;
-    Instance    = (SystemHandle_t*)CollectionGetNodeByKey(&SystemHandles, Key, 0);
+    Key.Value.Id    = Handle;
+    Instance        = (SystemHandle_t*)CollectionGetNodeByKey(&SystemHandles, Key, 0);
     if (Instance == NULL) {
         return NULL;
     }
@@ -128,8 +128,8 @@ DestroyHandle(
     int             References;
 
     // Lookup the handle
-    Key.Value   = (int)Handle;
-    Instance    = (SystemHandle_t*)CollectionGetNodeByKey(&SystemHandles, Key, 0);
+    Key.Value.Id    = Handle;
+    Instance        = (SystemHandle_t*)CollectionGetNodeByKey(&SystemHandles, Key, 0);
     if (Instance == NULL) {
         return OsError;
     }

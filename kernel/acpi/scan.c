@@ -39,15 +39,13 @@ AcpiDevice_t*
 AcpiDeviceLookupBusRoutings(
     _In_ int Bus)
 {
-    // Variables
-    AcpiDevice_t *Dev = NULL;
-    DataKey_t Key;
-    int Index = 0;
+    AcpiDevice_t*   Dev;
+    DataKey_t       Key = { .Value.Integer = ACPI_BUS_ROOT_BRIDGE };
+    int             Index = 0;
 
     // Loop through buses
     while (1) {
-        Key.Value   = ACPI_BUS_ROOT_BRIDGE;
-        Dev         = (AcpiDevice_t*)CollectionGetNodeByKey(&PciToAcpiDevices, Key, Index);
+        Dev = (AcpiDevice_t*)CollectionGetNodeByKey(&PciToAcpiDevices, Key, Index);
         if (Dev == NULL) {
             break;
         }
@@ -214,7 +212,7 @@ AcpiDeviceCreate(
     }
 
     // Add the device to device-list
-    Device->Header.Key.Value = Device->Type;
+    Device->Header.Key.Value.Integer = Device->Type;
     return CollectionAppend(&PciToAcpiDevices, &Device->Header);
 }
 

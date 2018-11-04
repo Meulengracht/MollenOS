@@ -39,7 +39,7 @@
 
 OsStatus_t ThreadingReap(void *Context);
 
-static Collection_t     Threads         = COLLECTION_INIT(KeyInteger);
+static Collection_t     Threads         = COLLECTION_INIT(KeyId);
 static UUId_t           GlbThreadGcId   = UUID_INVALID;
 static _Atomic(UUId_t)  GlbThreadId     = ATOMIC_VAR_INIT(1);
 
@@ -71,7 +71,7 @@ ThreadingEnable(void)
     SchedulerThreadInitialize(Thread, Thread->Flags);
     Thread->Pipe        = CreateSystemPipe(0, 6); // 64 entries, 4kb
     Thread->SignalQueue = CollectionCreate(KeyInteger);
-    Key.Value           = (int)Thread->Id;
+    Key.Value.Id        = Thread->Id;
     COLLECTION_NODE_INIT(&Thread->CollectionHeader, Key);
 
     // Initialize arch-dependant members
@@ -125,11 +125,11 @@ ThreadingCreateThread(
 
     TRACE("ThreadingCreateThread(%s, 0x%x)", Name, Flags);
 
-    Key.Value   = (int)atomic_fetch_add(&GlbThreadId, 1);
-    Cpu         = CpuGetCurrentId();
-    Parent      = ThreadingGetCurrentThread(Cpu);
+    Key.Value.Id    = atomic_fetch_add(&GlbThreadId, 1);
+    Cpu             = CpuGetCurrentId();
+    Parent          = ThreadingGetCurrentThread(Cpu);
 
-    Thread      = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
+    Thread = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
     memset(Thread, 0, sizeof(MCoreThread_t));
     if (ThreadingRegister(Thread) != OsSuccess) {
         ERROR("Failed to register a new thread with system.");
@@ -149,7 +149,7 @@ ThreadingCreateThread(
 
     // Initialize some basic thread information 
     // The only flags we want to copy for now are the running-mode
-    Thread->Id              = (UUId_t)Key.Value;
+    Thread->Id              = Key.Value.Id;
     Thread->ParentThreadId  = Parent->Id;
     Thread->ProcessHandle   = Parent->ProcessHandle;
     Thread->Function        = Function;

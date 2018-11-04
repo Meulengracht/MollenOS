@@ -54,11 +54,8 @@ VfsResolveQueueExecute(void)
 	// Iterate nodes and resolve
 	foreach(fNode, VfsGetResolverQueue()) {
 		FileSystem_t *Fs = (FileSystem_t*)fNode->Data;
-		DataKey_t Key;
-		
-		// Try to resolve it now
+		DataKey_t Key = { .Value.Id = Fs->Descriptor.Disk.Device };
 		Fs->Module = VfsResolveFileSystem(Fs);
-		Key.Value = (int)Fs->Descriptor.Disk.Device;
 
 		// Sanitize the module - must exist 
 		if (Fs->Module == NULL) {
@@ -96,7 +93,7 @@ DiskRegisterFileSystem(
 	// Variables
 	FileSystem_t *Fs = NULL;
 	char IdentBuffer[8];
-	DataKey_t Key;
+    DataKey_t Key = { .Value.Id = Disk->Device };
 
 	// Trace
 	TRACE("DiskRegisterFileSystem(Sector %u, Size %u, Type %u)",
@@ -104,7 +101,6 @@ DiskRegisterFileSystem(
 
 	// Allocate a new disk id
 	UUId_t Id = VfsIdentifierAllocate(Disk);
-	Key.Value = (int)Disk->Device;
 
 	// Prep the buffer so we can build
 	// a new fs-identifier
@@ -184,7 +180,7 @@ VfsRegisterDisk(
 {
 	// Variables
 	FileSystemDisk_t *Disk = NULL;
-	DataKey_t Key;
+    DataKey_t Key = { .Value.Id = Device };
 
 	// Trace 
 	TRACE("RegisterDisk(Driver %u, Device %u, Flags 0x%x)",
@@ -196,7 +192,6 @@ VfsRegisterDisk(
 	Disk->Driver    = Driver;
 	Disk->Device    = Device;
 	Disk->Flags     = Flags;
-	Key.Value       = (int)Device;
 	if (StorageQuery(Driver, Device, &Disk->Descriptor) != OsSuccess) {
 		free(Disk);
 		return OsError;
@@ -218,13 +213,9 @@ VfsUnregisterDisk(
     _In_ UUId_t  Device,
     _In_ Flags_t Flags)
 {
-	// Variables
 	FileSystemDisk_t *Disk = NULL;
 	CollectionItem_t *lNode = NULL;
-	DataKey_t Key;
-
-	/* Setup pre-stuff */
-	Key.Value = (int)Device;
+    DataKey_t Key = { .Value.Id = Device };
 	lNode = CollectionGetNodeByKey(VfsGetFileSystems(), Key, 0);
 
 	// Keep iterating untill no more FS's are present on disk

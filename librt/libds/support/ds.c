@@ -97,16 +97,18 @@ dsmatchkey(
     _In_ DataKey_t Key2)
 {
 	switch (KeyType) {
+        case KeyId: {
+			if (Key1.Value.Id == Key2.Value.Id) {
+                return 0;
+            }
+        } break;
 		case KeyInteger: {
-			if (Key1.Value == Key2.Value)
-				return 0;
-		} break;
-		case KeyPointer: {
-			if (Key1.Pointer == Key2.Pointer)
-				return 0;
+			if (Key1.Value.Integer == Key2.Value.Integer) {
+                return 0;
+            }
 		} break;
 		case KeyString: {
-			return strcmp(Key1.String, Key2.String);
+			return strcmp(Key1.Value.String.Pointer, Key2.Value.String.Pointer);
 		} break;
 	}
 	return -1;
@@ -114,8 +116,7 @@ dsmatchkey(
 
 /* Helper Function
  * Used by sorting, it compares to values
- * and returns 1 if 1 > 2, 0 if 1 == 2 and
- * -1 if 2 > 1 */
+ * and returns 1 if 1 > 2, 0 if 1 == 2 and -1 if 2 > 1 */
 int
 dssortkey(
     _In_ KeyType_t KeyType,
@@ -123,19 +124,24 @@ dssortkey(
     _In_ DataKey_t Key2)
 {
 	switch (KeyType) {
-		case KeyInteger: {
-			if (Key1.Value == Key2.Value)
+        case KeyId: {
+			if (Key1.Value.Id == Key2.Value.Id)
 				return 0;
-			else if (Key1.Value > Key2.Value)
+			else if (Key1.Value.Id > Key2.Value.Id)
+				return 1;
+			else
+				return -1;
+        } break;
+		case KeyInteger: {
+			if (Key1.Value.Integer == Key2.Value.Integer)
+				return 0;
+			else if (Key1.Value.Integer > Key2.Value.Integer)
 				return 1;
 			else
 				return -1;
 		} break;
-		case KeyPointer: {
-			return 0;
-		} break;
 		case KeyString: {
-			return strcmp(Key1.String, Key2.String);
+			return strcmp(Key1.Value.String.Pointer, Key2.Value.String.Pointer);
 		} break;
 	}
 	return 0;

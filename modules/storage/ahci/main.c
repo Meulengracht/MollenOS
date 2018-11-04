@@ -31,7 +31,7 @@
 #include <stdlib.h>
 
 // Static storage for the driver
-static Collection_t Controllers = COLLECTION_INIT(KeyInteger);
+static Collection_t Controllers = COLLECTION_INIT(KeyId);
 
 /* OnFastInterrupt
  * Is called for the sole purpose to determine if this source
@@ -149,16 +149,13 @@ OnRegister(
     _In_ MCoreDevice_t*                 Device)
 {
     AhciController_t *Controller = NULL;
-    DataKey_t Key;
+    DataKey_t Key = { .Value.Id = Device->Id };
     
     // Register the new controller
     Controller = AhciControllerCreate(Device);
     if (Controller == NULL) {
         return OsError;
     }
-
-    // Use the device-id as key
-    Key.Value = (int)Device->Id;
     return CollectionAppend(&Controllers, CollectionCreateNode(Key, Controller));
 }
 
@@ -171,11 +168,7 @@ OnUnregister(
 {
     // Variables
     AhciController_t *Controller = NULL;
-    DataKey_t Key;
-
-    // Set the key to the id of the device to find
-    // the bound controller
-    Key.Value   = (int)Device->Id;
+    DataKey_t Key = { .Value.Id = Device->Id };
     Controller  = (AhciController_t*)CollectionGetDataByKey(&Controllers, Key, 0);
     if (Controller == NULL) {
         return OsError;

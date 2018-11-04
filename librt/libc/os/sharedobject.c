@@ -21,13 +21,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-/* Includes 
- * - System */
 #include <os/sharedobject.h>
 #include <os/syscall.h>
-
-/* Includes
- * - Library */
 #include <ds/collection.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -42,7 +37,7 @@ typedef struct _LibraryItem {
 /* Globals
  * - Function blueprint for dll-entry */
 typedef void (*SOInitializer_t)(int);
-static Collection_t LoadedLibraries = COLLECTION_INIT(KeyInteger);
+static Collection_t LoadedLibraries = COLLECTION_INIT(KeyId);
 
 /* SharedObjectHash
  * Helper utility to identify shared libraries */
@@ -65,11 +60,10 @@ Handle_t
 SharedObjectLoad(
 	_In_ const char* SharedObject)
 {
-    // Variables
     SOInitializer_t Initializer = NULL;
     LibraryItem_t *Library      = NULL;
     Handle_t Result             = HANDLE_INVALID;
-    DataKey_t Key               = { (int)SharedObjectHash(SharedObject) };
+    DataKey_t Key               = { .Value.Id = SharedObjectHash(SharedObject) };
 
     // Special case
     if (SharedObject == NULL) {

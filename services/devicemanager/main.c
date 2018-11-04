@@ -34,8 +34,8 @@
 
 /* Globals 
  * Keep track of all devices and contracts */
-static Collection_t Contracts       = COLLECTION_INIT(KeyInteger);
-static Collection_t Devices         = COLLECTION_INIT(KeyInteger);
+static Collection_t Contracts       = COLLECTION_INIT(KeyId);
+static Collection_t Devices         = COLLECTION_INIT(KeyId);
 static UUId_t DeviceIdGenerator     = 0;
 static UUId_t ContractIdGenerator   = 0;
 
@@ -117,10 +117,7 @@ OnEvent(
             // Extract argumenters
             MCoreDevice_t *Device   = NULL;
             OsStatus_t Result       = OsError;
-            DataKey_t Key;
-
-            // Lookup device
-            Key.Value   = (int)Message->Arguments[0].Data.Value;
+            DataKey_t Key = { .Value.Id = Message->Arguments[0].Data.Value };
             Device      = CollectionGetDataByKey(&Devices, Key, 0);
 
             // Sanitizie
@@ -211,9 +208,8 @@ DmRegisterDevice(
 	_In_  Flags_t               Flags,
 	_Out_ UUId_t*               Id)
 {
-    // Variables
-    MCoreDevice_t *CopyDevice = NULL;
-    DataKey_t Key;
+    MCoreDevice_t*  CopyDevice = NULL;
+    DataKey_t       Key;
 
     // Argument checks
     _CRT_UNUSED(Parent);
@@ -232,7 +228,7 @@ DmRegisterDevice(
 
     // Generate id and update out
     *Id = Device->Id    = DeviceIdGenerator++;
-    Key.Value           = (int)Device->Id;
+    Key.Value.Id        = Device->Id;
 
     // Allocate our own copy of the device
     CopyDevice          = (MCoreDevice_t*)malloc(Device->Length);
@@ -272,7 +268,7 @@ DmRegisterContract(
         Contract->DeviceId, &Contract->Name[0]);
 
     // Lookup device
-    Key.Value = (int)Contract->DeviceId;
+    Key.Value.Id = Contract->DeviceId;
     if (CollectionGetDataByKey(&Devices, Key, 0) == NULL) {
         ERROR("Device id %u was not registered with the device manager",
             Contract->DeviceId);
@@ -282,7 +278,7 @@ DmRegisterContract(
     // Update contract id
     *Id                     = ContractIdGenerator++;
     Contract->ContractId    = *Id;
-    Key.Value               = (int)*Id;
+    Key.Value.Id            = *Id;
 
     // Allocate our own copy of the contract
     CopyContract = (MContract_t*)malloc(sizeof(MContract_t));

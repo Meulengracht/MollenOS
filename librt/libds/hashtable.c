@@ -23,53 +23,112 @@
  */
 
 #include <ds/hashtable.h>
+#include <assert.h>
 #include <string.h>
 
+static size_t 
+GetDefaultHashValue(const char* Value, size_t Length)
+{
+    return 0;
+}
+
 /* HashTableCreate
- * Initializes a new hash table
- * of the given capacity */
+ * Initializes a new hash table structure of the desired capacity, and load factor.
+ * The load factor defaults to HASHTABLE_DEFAULT_LOADFACTOR. */
 HashTable_t*
 HashTableCreate(
     _In_ size_t Capacity,
     _In_ size_t LoadFactor)
 {
-    
-	return NULL;
+    HashTable_t* HashTable = (HashTable_t*)dsalloc(sizeof(HashTable_t));
+    assert(HashTable != NULL);
+
+    HashTable->Array = (Collection_t*)dsalloc(sizeof(Collection_t) * Capacity);
+    assert(HashTable->Array != NULL);
+    memset(HashTable->Array, 0, sizeof(sizeof(Collection_t) * Capacity));
+    for (size_t i = 0; i < Capacity; i++) {
+        HashTable->Array[i].KeyType = KeyId;
+    }
+
+    HashTable->Size         = 0;
+    HashTable->Capacity     = Capacity;
+    HashTable->LoadFactor   = LoadFactor;
+    HashTable->GetHashCode  = GetDefaultHashValue;
+	return HashTable;
 }
 
 /* HashTableDestroy
- * Releases all resources 
- * associated with the hashtable */
-void HashTableDestroy(HashTable_t *HashTable)
+ * Cleans up all resources associated with the hashtable. This does not clear up the values
+ * registered in the hash-table. */
+void
+HashTableDestroy(
+    _In_ HashTable_t* HashTable)
 {
-	_CRT_UNUSED(HashTable);
+    assert(HashTable != NULL);
+    for (size_t i = 0; i < HashTable->Capacity; i++) {
+        CollectionClear(&HashTable->Array[i]);
+    }
+    dsfree(HashTable->Array);
+    dsfree(HashTable);
+}
+
+/* HashTableSetHashFunction
+ * Overrides the default hash function with a user provided hash function. To
+ * reset this set with NULL. */
+void
+HashTableSetHashFunction(
+    _In_ HashTable_t*   HashTable,
+    _In_ HashFn         Fn)
+{
+    assert(HashTable != NULL);
+    HashTable->GetHashCode = Fn;
 }
 
 /* HashTableInsert
- * Inserts an object with the given
- * string key from the hash table */
-void HashTableInsert(HashTable_t *HashTable, DataKey_t Key, void *Data)
+ * Inserts or overwrites the existing key in the hashtable. */
+void
+HashTableInsert(
+    _In_ HashTable_t*   HashTable,
+    _In_ DataKey_t      Key,
+    _In_ void*          Data)
 {
-	_CRT_UNUSED(HashTable);
-	_CRT_UNUSED(Key);
-	_CRT_UNUSED(Data);
+    assert(HashTable != NULL);
+    size_t              ArrayIndex  = GetDefaultHashValue(Key.Value.String.Pointer, Key.Value.String.Length) % HashTable->Capacity;
+    Collection_t*       Array       = &HashTable->Array[ArrayIndex];
+    DataKey_t           ArrayKey    = { .Value.Id = ArrayIndex };
+    CollectionItem_t*   Existing    = CollectionGetNodeByKey(Array, ArrayKey, 0);
+    if (Existing == NULL) {
+        CollectionAppend(Array, CollectionCreateNode(ArrayKey, Data));
+    }
+    else {
+        Existing->Data = Data;
+    }
 }
 
 /* HashTableRemove 
- * Removes an object with the given 
- * string key from the hash table */
-void HashTableRemove(HashTable_t *HashTable, DataKey_t Key)
+ * Removes the entry with the matching key from the hashtable. */
+void
+HashTableRemove(
+    _In_ HashTable_t*   HashTable,
+    _In_ DataKey_t      Key)
 {
-	_CRT_UNUSED(HashTable);
-	_CRT_UNUSED(Key);
+    assert(HashTable != NULL);
+    size_t              ArrayIndex  = GetDefaultHashValue(Key.Value.String.Pointer, Key.Value.String.Length) % HashTable->Capacity;
+    Collection_t*       Array       = &HashTable->Array[ArrayIndex];
+    DataKey_t           ArrayKey    = { .Value.Id = ArrayIndex };
+    CollectionRemoveByKey(Array, ArrayKey);
 }
 
 /* HashTableGetValue
- * Retrieves the data associated with
- * a value from the hash table */
-void *HashTableGetValue(HashTable_t *HashTable, DataKey_t Key)
+ * Retrieves the data associated with the given key from the hashtable */
+void*
+HashTableGetValue(
+    _In_ HashTable_t*   HashTable,
+    _In_ DataKey_t      Key)
 {
-	_CRT_UNUSED(HashTable);
-	_CRT_UNUSED(Key);
-	return NULL;
+    assert(HashTable != NULL);
+    size_t              ArrayIndex  = GetDefaultHashValue(Key.Value.String.Pointer, Key.Value.String.Length) % HashTable->Capacity;
+    Collection_t*       Array       = &HashTable->Array[ArrayIndex];
+    DataKey_t           ArrayKey    = { .Value.Id = ArrayIndex };
+	return CollectionGetDataByKey(Array, ArrayKey, 0);
 }

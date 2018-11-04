@@ -153,9 +153,8 @@ CollectionDestroyNode(
 
     // Behave different based on the type of key
     switch (Collection->KeyType) {
-        case KeyPointer:
         case KeyString:
-            dsfree(Node->Key.Pointer);
+            dsfree((void*)Node->Key.Value.String.Pointer);
             break;
 
         default:

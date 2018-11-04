@@ -33,145 +33,56 @@ global _outl
 ; uint8_t inb(uint16_t port)
 ; Recieves a byte from a port
 _inb:
-	; Setup frame
-	push ebp
-	mov ebp, esp
-
-	; Save stuff
-	push edx
-
-	; Get byte
-	xor al, al
-	xor edx, edx
-	mov dx, [ebp + 8]
-	in al, dx
-
-	; Restore
-	pop edx
-
-	; Leave frame
-	pop ebp
-	ret
+    xor eax, eax
+    xor edx, edx
+    mov dx, word [esp + 4]
+    in al, dx
+    ret
 
 ; uint16_t inw(uint16_t port)
 ; Recieves a word from a port
 _inw:
-	; Setup frame
-	push ebp
-	mov ebp, esp
-
-	; Save stuff
-	push edx
-
-	; Get word
-	xor ax, ax
-	xor edx, edx
-	mov dx, [ebp + 8]
-	in ax, dx
-
-	; Restore
-	pop edx
-
-	; Leave
-	pop ebp
-	ret
+    xor eax, eax
+    xor edx, edx
+    mov dx, word [esp + 4]
+    in ax, dx
+    ret
 
 ; uint32_t inl(uint16_t port)
 ; Recieves a long from a port
 _inl:
-	; Setup frame
-	push ebp
-	mov ebp, esp
-
-	; Save stuff
-	push edx
-
-	; Get dword
-	xor eax, eax
-	xor edx, edx
-	mov dx, [ebp + 8]
-	in eax, dx
-
-	; Restore
-	pop edx
-
-	; Leave
-	pop ebp
-	ret
+    xor eax, eax
+    xor edx, edx
+    mov dx, word [esp + 4]
+    in eax, dx
+    ret
 
 ; void outb(uint16_t port, uint8_t data)
 ; Sends a byte to a port
 _outb:
-	; Setup frame
-	push ebp
-	mov ebp, esp
-
-	; Save stuff
-	push eax
-	push edx
-
-	; Get data
-	xor eax, eax
-	xor edx, edx
-	mov dx, [ebp + 8]
-	mov al, [ebp + 12]
-	out dx, al
-
-	; Restore
-	pop edx
-	pop eax
-
-	; Leave
-	pop ebp
-	ret
+    xor eax, eax
+    xor edx, edx
+    mov dx, word [esp + 4]
+    mov al, byte [esp + 8]
+    out dx, al
+    ret
 
 ; void outw(uint16_t port, uint16_t data)
 ; Sends a word to a port
 _outw:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
-
-	; Save stuff
-	push eax
-	push edx
-
-	; Get data
-	xor eax, eax
-	xor edx, edx
-	mov dx, [ebp + 8]
-	mov ax, [ebp + 12]
-	out dx, ax
-
-	; Restore
-	pop edx
-	pop eax
-
-	; Release stack frame
-	pop ebp
-	ret
+    xor eax, eax
+    xor edx, edx
+    mov dx, word [esp + 4]
+    mov ax, word [esp + 8]
+    out dx, ax
+    ret
 
 ; void outl(uint16_t port, uint32_t data)
 ; Sends a long to a port
 _outl:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
-
-	; Save stuff
-	push eax
-	push edx
-
-	; Get data
-	xor edx, edx
-	mov dx, [ebp + 8]
-	mov eax, [ebp + 12]
-	out dx, eax
-
-	; Restore
-	pop edx
-	pop eax
-
-	; Release stack frame
-	pop ebp
-	ret
+    xor eax, eax
+    xor edx, edx
+    mov dx, word [esp + 4]
+    mov eax, dword [esp + 8]
+    out dx, eax
+    ret
