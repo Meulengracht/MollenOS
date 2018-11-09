@@ -105,7 +105,7 @@ public:
         logmessage      += " (R=" + std::to_string(_VideoInformation.RedPosition);
         logmessage      += ", G=" + std::to_string(_VideoInformation.GreenPosition);
         logmessage      += ", B=" + std::to_string(_VideoInformation.BluePosition) + ")";
-        sLog.Info(logmessage);
+        sLog.Info(logmessage.c_str());
         _BackbufferSize = Width * Height * 4 * sizeof(GLubyte);
         _Backbuffer     = std::aligned_alloc(32, _BackbufferSize);
         if (_Backbuffer == nullptr) {

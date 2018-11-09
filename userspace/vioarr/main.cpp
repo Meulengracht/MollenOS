@@ -20,6 +20,8 @@
  *  - The window compositor system and general window manager for
  *    MollenOS.
  */
+
+#include <os/mollenos.h>
 #include <os/service.h>
 #include <os/window.h>
 #include "engine/elements/window.hpp"
@@ -47,21 +49,20 @@ bool ConvertSurfaceFormatToGLFormat(UISurfaceFormat_t Format, GLenum &FormatResu
     return Success;
 }
 
-Handle_t HandleCreateWindowRequest(MRemoteCallAddress_t *Process,
-    UIWindowParameters_t *Parameters, UUId_t BufferHandle)
+long HandleCreateWindowRequest(MRemoteCallAddress_t *Process, UIWindowParameters_t *Parameters, UUId_t BufferHandle)
 {
-    DmaBuffer_t *Buffer = nullptr;
-    CWindow *Window = nullptr;
-    Handle_t Result = nullptr;
-    GLenum Format, InternalFormat;
-    int BytesPerPixel;
+    DmaBuffer_t*    Buffer;
+    CWindow*        Window;
+    long            ElementId;
+    GLenum          Format, InternalFormat;
+    int             BytesPerPixel;
 
     // Does the process already own a window? Then don't create
     // one as we don't want a process to flood us
-    Result = sEngine.GetExistingWindowForProcess(Process->Process);
-    if (Result != nullptr) {
+    ElementId = sEngine.GetTopElementByOwner(Process->Process);
+    if (ElementId != -1) {
         sLog.Warning("Tried to create a second process window");
-        return Result;
+        return ElementId;
     }
 
     // Now we must validate the parameters of the request, so validate
@@ -69,20 +70,20 @@ Handle_t HandleCreateWindowRequest(MRemoteCallAddress_t *Process,
     if (Parameters->Surface.Dimensions.w < 0 || Parameters->Surface.Dimensions.h < 0
         || !ConvertSurfaceFormatToGLFormat(Parameters->Surface.Format, Format, InternalFormat, BytesPerPixel)) {
         sLog.Warning("Invalid window parameters");
-        return nullptr;
+        return -1;
     }
 
     // Inherit the buffer
     if (BufferHandle == UUID_INVALID) {
         sLog.Warning("Invalid window buffer handle");
-        return nullptr;
+        return -1;
     }
     Buffer = CreateBuffer(BufferHandle, 0);
 
     // Validate the size of the buffer before acquiring it
     if (GetBufferSize(Buffer) < (Parameters->Surface.Dimensions.w * Parameters->Surface.Dimensions.h * BytesPerPixel)) {
         sLog.Warning("Invalid window buffer size");
-        return nullptr;
+        return -1;
     }
     ZeroBuffer(Buffer);
 
@@ -97,11 +98,11 @@ Handle_t HandleCreateWindowRequest(MRemoteCallAddress_t *Process,
     Window->SetStreamingBufferDimensions(Parameters->Surface.Dimensions.w, Parameters->Surface.Dimensions.h);
     Window->SetStreamingBuffer(Buffer);
     Window->SetStreaming(true);
-    Window->Update();
+    Window->Invalidate();
 
     // Add the window and redraw
-    sEngine.GetActiveScene()->Add(Window);
-    return (Handle_t)Window;
+    sEngine.AddElementToCurrentScene(Window);
+    return Window->GetId();
 }
 
 void MessageHandler()
@@ -109,6 +110,7 @@ void MessageHandler()
     char *ArgumentBuffer    = NULL;
     bool IsRunning          = true;
     MRemoteCall_t Message;
+    SetCurrentThreadName("vioarr_message");
 
     // Listen for messages
     ArgumentBuffer = (char*)::malloc(IPC_MAX_MESSAGELENGTH);
@@ -116,28 +118,23 @@ void MessageHandler()
         // Keep processing messages untill no more
         if (RPCListen(&Message, ArgumentBuffer) == OsSuccess) {
             if (Message.Function == __WINDOWMANAGER_CREATE) {
-                UIWindowParameters_t* Parameters    = nullptr;
-                Handle_t Result                     = nullptr;
-                UUId_t BufferHandle;
+                UIWindowParameters_t*   Parameters = nullptr;
+                long                    ElementId;
+                UUId_t                  BufferHandle;
 
                 // Get arguments
                 RPCCastArgumentToPointer(&Message.Arguments[0], (void**)&Parameters);
                 BufferHandle    = (UUId_t)Message.Arguments[1].Data.Value;
-                Result          = HandleCreateWindowRequest(&Message.From, Parameters, BufferHandle);
-                RPCRespond(&Message.From, &Result, sizeof(Result));
+                ElementId       = HandleCreateWindowRequest(&Message.From, Parameters, BufferHandle);
+                RPCRespond(&Message.From, &ElementId, sizeof(long));
             }
             if (Message.Function == __WINDOWMANAGER_DESTROY) {
-                Handle_t Pointer = (Handle_t)Message.Arguments[0].Data.Value;
-                if (sEngine.IsWindowHandleValid(Pointer)) {
-                    sEngine.GetActiveScene()->Remove(static_cast<CEntity*>(Pointer));
-                }
+                long ElementId = (long)Message.Arguments[0].Data.Value;
+                sEngine.RemoveElement(ElementId);
             }
             if (Message.Function == __WINDOWMANAGER_SWAPBUFFER) {
-                Handle_t Pointer = (Handle_t)Message.Arguments[0].Data.Value;
-                if (sEngine.IsWindowHandleValid(Pointer)) {
-                    auto Window = static_cast<CWindow*>(Pointer);
-                    Window->Update();
-                }
+                long ElementId = (long)Message.Arguments[0].Data.Value;
+                sEngine.InvalidateElement(ElementId);
             }
             if (Message.Function == __WINDOWMANAGER_QUERY) {
                 

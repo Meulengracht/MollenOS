@@ -64,6 +64,7 @@ private:
         int         m_Cursor;
         int         m_InputOffset;
         bool        m_ShowCursor;
+        bool        m_Dirty;
     };
 
 public:

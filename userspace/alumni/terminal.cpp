@@ -20,7 +20,9 @@
  * - The terminal emulator implementation for Vali. Built on manual rendering and
  *   using freetype as the font renderer.
  */
+//#define __TRACE
 
+#include <os/utils.h>
 #include <cassert>
 #include <cctype>
 #include <cmath>
@@ -43,11 +45,13 @@ void CTerminal::CTerminalLine::Reset()
     m_TextLength    = 0;
     m_InputOffset   = 0;
     m_Cursor        = 0;
+    m_Dirty         = true;
     m_Text.clear();
 }
 
 bool CTerminal::CTerminalLine::AddCharacter(int Character)
 {
+    TRACE("CTerminal::CTerminalLine::AddCharacter(%c)", Character);
     char Buf            = (char)Character & 0xFF;
     int CharacterLength = m_Renderer->GetLengthOfCharacter(m_Font, Buf);
 
@@ -59,6 +63,7 @@ bool CTerminal::CTerminalLine::AddCharacter(int Character)
         else {
             m_Text.insert(m_Cursor, &Buf, 1);
         }
+        m_Dirty      = true;
         m_TextLength += CharacterLength;
         m_InputOffset++;
         m_Cursor++;
@@ -69,6 +74,7 @@ bool CTerminal::CTerminalLine::AddCharacter(int Character)
 
 bool CTerminal::CTerminalLine::AddInput(int Character)
 {
+    TRACE("CTerminal::CTerminalLine::AddInput(%c)", Character);
     char Buf            = (char)Character & 0xFF;
     int CharacterLength = m_Renderer->GetLengthOfCharacter(m_Font, Buf);
 
@@ -80,6 +86,7 @@ bool CTerminal::CTerminalLine::AddInput(int Character)
         else {
             m_Text.insert(m_Cursor, &Buf, 1);
         }
+        m_Dirty      = true;
         m_TextLength += CharacterLength;
         m_Cursor++;
         return true;
@@ -92,6 +99,7 @@ bool CTerminal::CTerminalLine::RemoveInput()
     int ModifiedCursor = m_Cursor - m_InputOffset;
     if (ModifiedCursor != 0) {
         m_Text.erase(m_Cursor - 1, 1);
+        m_Dirty      = true;
         m_TextLength = m_Renderer->CalculateTextLength(m_Font, m_Text);
         m_Cursor--;
         return true;
@@ -101,21 +109,25 @@ bool CTerminal::CTerminalLine::RemoveInput()
 
 void CTerminal::CTerminalLine::Update()
 {
-    m_Renderer->RenderClear(0, (m_Row * m_Font->GetFontHeight()) + 2, -1, m_Font->GetFontHeight());
-    m_TextLength = m_Renderer->RenderText(3, (m_Row * m_Font->GetFontHeight()) + 2, m_Font, m_Text);
-    if (m_ShowCursor) {
-        uint32_t ExistingColor = m_Renderer->GetBackgroundColor();
-        m_Renderer->SetBackgroundColor(255, 255, 255, 255);
-        m_Renderer->RenderCharacter(m_TextLength, (m_Row * m_Font->GetFontHeight()) + 2, m_Font, '_');
-        m_Renderer->SetBackgroundColor(ExistingColor);
+    if (m_Dirty) {
+        TRACE("CTerminal::CTerminalLine::Update(%i)", m_Row);
+        m_Renderer->RenderClear(0, (m_Row * m_Font->GetFontHeight()) + 2, -1, m_Font->GetFontHeight());
+        m_TextLength = m_Renderer->RenderText(3, (m_Row * m_Font->GetFontHeight()) + 2, m_Font, m_Text);
+        if (m_ShowCursor) {
+            uint32_t ExistingColor = m_Renderer->GetBackgroundColor();
+            m_Renderer->SetBackgroundColor(255, 255, 255, 255);
+            m_Renderer->RenderCharacter(m_TextLength, (m_Row * m_Font->GetFontHeight()) + 2, m_Font, '_');
+            m_Renderer->SetBackgroundColor(ExistingColor);
+        }
+        m_Dirty = false;
     }
 }
 
 void CTerminal::CTerminalLine::SetText(const std::string& Text)
 {
     Reset();
-    m_Text      = Text;
-    m_Cursor    = Text.length();
+    m_Text   = Text;
+    m_Cursor = Text.length();
 }
 
 std::string CTerminal::CTerminalLine::GetInput()
@@ -129,18 +141,20 @@ std::string CTerminal::CTerminalLine::GetInput()
 void CTerminal::CTerminalLine::HideCursor()
 {
     m_ShowCursor = false;
+    m_Dirty      = true;
 }
 
 void CTerminal::CTerminalLine::ShowCursor()
 {
     m_ShowCursor = true;
+    m_Dirty      = true;
 }
 
 CTerminal::CTerminal(CSurfaceRect& Area, std::shared_ptr<CTerminalRenderer> Renderer, std::shared_ptr<CTerminalFont> Font)
     : m_Renderer(Renderer), m_Font(Font), m_Rows((Area.GetHeight() / Font->GetFontHeight()) - 1), 
       m_HistoryIndex(0), m_LineIndex(0)
 {
-    m_PrintBuffer = (char*)std::malloc(4096);
+    m_PrintBuffer = (char*)std::malloc(PRINTBUFFER_SIZE);
     for (int i = 0; i < m_Rows; i++) {
         m_Lines.push_back(std::make_unique<CTerminalLine>(Renderer, Font, i, Area.GetWidth()));
     }
@@ -185,6 +199,8 @@ std::string CTerminal::ClearInput(bool Newline)
 
 void CTerminal::FinishCurrentLine()
 {
+    TRACE("CTerminal::FinishCurrentLine(%i, %u)", 
+        m_LineIndex, m_Lines[m_LineIndex]->GetText().length());
     // Only add to history if not an empty line
     if (m_Lines[m_LineIndex]->GetText().length() > 0) {
         m_History.push_back(m_Lines[m_LineIndex]->GetText());
@@ -206,6 +222,7 @@ void CTerminal::FinishCurrentLine()
 
 void CTerminal::ScrollToLine(bool ClearInput)
 {
+    TRACE("CTerminal::ScrollToLine(%i, %i)", m_HistoryIndex, m_LineIndex);
     int HistoryStart = m_HistoryIndex - m_LineIndex;
     for (int i = 0; i < m_Rows; i++) {
         if (i == m_LineIndex && !ClearInput) {
@@ -248,6 +265,7 @@ void CTerminal::Print(const char *Format, ...)
     va_start(Arguments, Format);
     vsnprintf(m_PrintBuffer, PRINTBUFFER_SIZE, Format, Arguments);
     va_end(Arguments);
+    TRACE("CTerminal::Print(%s)", &m_PrintBuffer[0]);
 
     for (size_t i = 0; i < PRINTBUFFER_SIZE && m_PrintBuffer[i]; i++) {
         if (m_PrintBuffer[i] == '\n') {
@@ -261,6 +279,7 @@ void CTerminal::Print(const char *Format, ...)
         }
     }
     m_Lines[m_LineIndex]->Update();
+    TRACE("DONE");
 }
 
 void CTerminal::Invalidate()

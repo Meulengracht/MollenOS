@@ -21,7 +21,6 @@
  *    MollenOS.
  */
 
-#include <os/mollenos.h>
 #include <os/process.h>
 #include "vioarr.hpp"
 #include "engine/scene.hpp"
@@ -59,19 +58,17 @@ int VioarrCompositor::Run()
     // Spawn handlers
     sLog.Info("Spawning message handler");
     SpawnInputHandlers();
-    MollenOSEndBoot();
+    sLog.Disable();
 
     // Enter event loop
     sEngine.Render();
     while (m_IsRunning) {
         m_Signal.Wait();
 
-        GetRenderLock();
         // LastUpdate = std::chrono::steady_clock::now();
         sEngine.Render();
         // auto render_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - LastUpdate); /*  milliseconds.count() */
         // auto fps = 1000.0f / render_time_ms;
-        ReleaseRenderLock();
     }
     return 0;
 }
@@ -79,14 +76,4 @@ int VioarrCompositor::Run()
 void VioarrCompositor::UpdateNotify()
 {
     m_Signal.Signal();
-}
-
-void VioarrCompositor::GetRenderLock()
-{
-    m_RenderLock.lock();
-}
-
-void VioarrCompositor::ReleaseRenderLock()
-{
-    m_RenderLock.unlock();
 }

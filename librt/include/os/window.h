@@ -51,19 +51,15 @@ SERVICEAPI OsStatus_t SERVICEABI
 CreateWindow(
     _In_  UIWindowParameters_t* Params,
     _In_  UUId_t                BufferHandle,
-    _Out_ Handle_t*             Handle)
+    _Out_ long*                 WindowHandle)
 {
-    // Variables
     MRemoteCall_t Request;
 
-    // Initialize rpc request
     RPCInitialize(&Request, __WINDOWMANAGER_TARGET, 
         __WINDOWMANAGER_INTERFACE_VERSION, __WINDOWMANAGER_CREATE);
-
-    // Setup rpc arguments
     RPCSetArgument(&Request, 0, (const void*)Params,        sizeof(UIWindowParameters_t));
     RPCSetArgument(&Request, 1, (const void*)&BufferHandle, sizeof(UUId_t));
-    RPCSetResult(&Request, (const void*)Handle, sizeof(Handle_t));
+    RPCSetResult(&Request, (const void*)WindowHandle, sizeof(long));
     return RPCExecute(&Request);
 }
 
@@ -71,15 +67,13 @@ CreateWindow(
  * Destroys a given window and frees the resources associated with it. */
 SERVICEAPI OsStatus_t SERVICEABI
 DestroyWindow(
-    _In_ Handle_t Handle)
+    _In_ long WindowHandle)
 {
-    // Variables
     MRemoteCall_t Request;
 
-    // Initialize rpc request
     RPCInitialize(&Request, __WINDOWMANAGER_TARGET, 
         __WINDOWMANAGER_INTERFACE_VERSION, __WINDOWMANAGER_DESTROY);
-    RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(Handle_t));
+    RPCSetArgument(&Request, 0, (const void*)&WindowHandle, sizeof(long));
     return RPCEvent(&Request);
 }
 
@@ -88,18 +82,14 @@ DestroyWindow(
  * and its surface, that can be used for direct pixel access */
 SERVICEAPI OsStatus_t SERVICEABI
 QueryWindow(
-    _In_  Handle_t                  Handle, 
+    _In_  long                      WindowHandle, 
     _Out_ UISurfaceDescriptor_t*    Descriptor)
 {
-    // Variables
     MRemoteCall_t Request;
 
-    // Initialize rpc request
     RPCInitialize(&Request, __WINDOWMANAGER_TARGET, 
         __WINDOWMANAGER_INTERFACE_VERSION, __WINDOWMANAGER_QUERY);
-
-    // Setup rpc arguments
-    RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(Handle_t));
+    RPCSetArgument(&Request, 0, (const void*)&WindowHandle, sizeof(long));
     RPCSetResult(&Request, (const void*)Descriptor, sizeof(UISurfaceDescriptor_t));
     return RPCExecute(&Request);
 }
@@ -109,17 +99,13 @@ QueryWindow(
  * to render the changes made. */
 SERVICEAPI OsStatus_t SERVICEABI
 SwapWindowBackbuffer(
-    _In_ Handle_t Handle)
+    _In_ long WindowHandle)
 {
-    // Variables
     MRemoteCall_t Request;
 
-    // Initialize rpc request
     RPCInitialize(&Request, __WINDOWMANAGER_TARGET, 
         __WINDOWMANAGER_INTERFACE_VERSION, __WINDOWMANAGER_SWAPBUFFER);
-    
-    // Setup rpc arguments
-    RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(Handle_t));
+    RPCSetArgument(&Request, 0, (const void*)&WindowHandle, sizeof(long));
     return RPCEvent(&Request);
 }
 

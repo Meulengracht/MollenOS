@@ -293,14 +293,12 @@ ThreadingTerminateThread(
         }
     }
     Target->RetCode = ExitCode;
+    atomic_store(&Target->Cleanup, 1);
 
     // If the thread we are trying to kill is not this one, and is sleeping
     // we must wake it up, it will be cleaned on next schedule
     if (ThreadId != ThreadingGetCurrentThreadId()) {
         SchedulerThreadSignal(Target);
-    }
-    if (Target->ParentThreadId == UUID_INVALID) {
-        atomic_store(&Target->Cleanup, 1);
     }
     SchedulerHandleSignalAll((uintptr_t*)&Target->Cleanup);
     return OsSuccess;

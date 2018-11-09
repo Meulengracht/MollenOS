@@ -65,11 +65,12 @@ ScProcessJoin(
 {
     SystemProcess_t* Process = GetProcess(ProcessHandle);
     if (Process != NULL) {
-        WARNING("Waiting for handle %u", ProcessHandle);
+        TRACE("Waiting for handle %u", ProcessHandle);
         WaitForHandles(&ProcessHandle, 1, 1, Timeout);
         if (ExitCode != NULL) {
             *ExitCode = Process->Code;
         }
+        TRACE("We've been waken up on handle %u", ProcessHandle);
         return OsSuccess;
     }
     return OsError;

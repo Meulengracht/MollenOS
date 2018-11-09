@@ -29,19 +29,21 @@
 #include "elements/window.hpp"
 #include "scene.hpp"
 
-CVEightEngine::CVEightEngine()
+long CEntity::g_EntityId = 0;
+
+V8Engine::V8Engine()
 {
     m_Screen        = nullptr;
     m_VgContext     = nullptr;
     m_ActiveScene   = nullptr;
 }
 
-CVEightEngine::~CVEightEngine()
+V8Engine::~V8Engine()
 {
     nvgDeleteGL3(m_VgContext);
 }
 
-void CVEightEngine::Initialize(CDisplay *Screen)
+void V8Engine::Initialize(CDisplay *Screen)
 {
     m_Screen = Screen;
 
@@ -62,7 +64,7 @@ void CVEightEngine::Initialize(CDisplay *Screen)
     nvgCreateFont(m_VgContext, "sans-light", "$sys/fonts/DejaVuSans-ExtraLight.ttf");
 }
 
-void CVEightEngine::Render()
+void V8Engine::Render()
 {
     // Initialize screen
     glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
@@ -78,7 +80,7 @@ void CVEightEngine::Render()
     m_Screen->Present();
 }
 
-void CVEightEngine::AddScene(CScene* Scene)
+void V8Engine::AddScene(CScene* Scene)
 {
     auto Position = std::find(m_Scenes.begin(), m_Scenes.end(), Scene);
     if (Position == m_Scenes.end()) {
@@ -91,7 +93,7 @@ void CVEightEngine::AddScene(CScene* Scene)
     }
 }
 
-bool CVEightEngine::RemoveScene(CScene* Scene)
+bool V8Engine::RemoveScene(CScene* Scene)
 {
     auto Position = std::find(m_Scenes.begin(), m_Scenes.end(), Scene);
     if (Position != m_Scenes.end()) {
@@ -100,8 +102,8 @@ bool CVEightEngine::RemoveScene(CScene* Scene)
         // Validate active scene
         CScene* Next = m_ActiveScene;
         if (m_ActiveScene == Scene) {
-            auto it     = m_Scenes.begin();
-            Next        = (it != m_Scenes.end()) ? *it : nullptr;
+            auto it = m_Scenes.begin();
+            Next    = (it != m_Scenes.end()) ? *it : nullptr;
         }
         m_ActiveScene = Next;
         delete Scene;
@@ -110,39 +112,74 @@ bool CVEightEngine::RemoveScene(CScene* Scene)
     return false;
 }
 
-// GetExistingWindowForProcess
-// Iterate through all root-entities and find if any of them are owned
-// by the given id
-Handle_t CVEightEngine::GetExistingWindowForProcess(UUId_t ProcessId)
+void V8Engine::AddElementToCurrentScene(CEntity* Entity)
 {
-    for (auto s : m_Scenes) {
-        auto Entity = s->GetEntityWithOwner(ProcessId);
-        if (Entity != nullptr) {
-            return (Handle_t)Entity;
-        }
+    if (m_ActiveScene != nullptr) {
+        m_ActiveScene->Add(Entity);
     }
-    return nullptr;
 }
 
-// IsWindowHandleValid
-// Iterates all root handles to find the given window handle, to validate it is not bogus
-bool CVEightEngine::IsWindowHandleValid(Handle_t WindowHandle)
+bool V8Engine::RemoveElement(long ElementId)
+{
+    // Check active scene first
+    if (m_ActiveScene != nullptr) {
+        if (m_ActiveScene->HasEntity(ElementId)) {
+            return m_ActiveScene->Remove(ElementId);
+        }
+    }
+
+    for (auto s : m_Scenes) {
+        if (s->HasEntity(ElementId)) {
+            return s->Remove(ElementId);
+        }
+    }
+    return false;
+}
+
+bool V8Engine::InvalidateElement(long ElementId)
+{
+    // Check active scene first
+    if (m_ActiveScene != nullptr) {
+        if (m_ActiveScene->HasEntity(ElementId)) {
+            return m_ActiveScene->InvalidateElement(ElementId);
+        }
+    }
+
+    for (auto s : m_Scenes) {
+        if (s->HasEntity(ElementId)) {
+            return s->InvalidateElement(ElementId);
+        }
+    }
+    return false;
+}
+
+long V8Engine::GetTopElementByOwner(UUId_t Owner)
 {
     for (auto s : m_Scenes) {
-        if (s->HasEntity(static_cast<CEntity*>(WindowHandle))) {
+        auto Id = s->GetEntityIdForOwner(Owner);
+        if (Id != -1) {
+            return Id;
+        }
+    }
+    return -1;
+}
+
+bool V8Engine::IsElementTopElement(long ElementId)
+{
+    for (auto s : m_Scenes) {
+        if (s->HasEntity(ElementId)) {
             return true;
         }
     }
     return false;
 }
 
-
-float CVEightEngine::GetScreenCenterX()
+float V8Engine::GetScreenCenterX()
 {
     return m_Screen->GetWidth() / 2.0f;
 }
 
-float CVEightEngine::GetScreenCenterY()
+float V8Engine::GetScreenCenterY()
 {
     return m_Screen->GetHeight() / 2.0f;
 }
@@ -150,7 +187,7 @@ float CVEightEngine::GetScreenCenterY()
 // ClampToScreenAxisX
 // Clamps the given value to screen coordinates on the X axis
 // to the range of -1:1
-float CVEightEngine::ClampToScreenAxisX(int Value)
+float V8Engine::ClampToScreenAxisX(int Value)
 {
     // Unsigned: Value/MaxValue
     // Signed:   max((Value/MaxValue), -1.0)
@@ -160,7 +197,7 @@ float CVEightEngine::ClampToScreenAxisX(int Value)
 // ClampToScreenAxisY
 // Clamps the given value to screen coordinates on the Y axis
 // to the range of -1:1
-float CVEightEngine::ClampToScreenAxisY(int Value)
+float V8Engine::ClampToScreenAxisY(int Value)
 {
     // Unsigned: Value/MaxValue
     // Signed:   max((Value/MaxValue), -1.0)
@@ -170,7 +207,7 @@ float CVEightEngine::ClampToScreenAxisY(int Value)
 // ClampMagnitudeToScreenAxisX
 // Clamps the given value to screen coordinates on the Y axis
 // to the range of 0:2
-float CVEightEngine::ClampMagnitudeToScreenAxisX(int Value)
+float V8Engine::ClampMagnitudeToScreenAxisX(int Value)
 {
     return (Value * 2.0f) / (float)m_Screen->GetWidth();
 }
@@ -178,17 +215,17 @@ float CVEightEngine::ClampMagnitudeToScreenAxisX(int Value)
 // ClampMagnitudeToScreenAxisY
 // Clamps the given value to screen coordinates on the Y axis
 // to the range of 0:2
-float CVEightEngine::ClampMagnitudeToScreenAxisY(int Value)
+float V8Engine::ClampMagnitudeToScreenAxisY(int Value)
 {
     return (Value * 2.0f) / (float)m_Screen->GetHeight();
 }
 
-NVGcontext *CVEightEngine::GetContext() const
+NVGcontext *V8Engine::GetContext() const
 {
     return m_VgContext;
 }
 
-CScene* CVEightEngine::GetActiveScene() const
+CScene* V8Engine::GetActiveScene() const
 {
     return m_ActiveScene;
 }

@@ -47,9 +47,6 @@ public:
     int     Run();
     void    UpdateNotify();
 
-    void    GetRenderLock();
-    void    ReleaseRenderLock();
-
 private:
     void    SpawnInputHandlers();
     CScene* CreateLoginScene();

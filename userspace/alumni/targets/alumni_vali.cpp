@@ -40,7 +40,7 @@ namespace {
 CValiAlumni::CValiAlumni(std::unique_ptr<CTerminal> Terminal, std::unique_ptr<CTerminalInterpreter> Interpreter)
     : CAlumni(std::move(Terminal), std::move(Interpreter)), m_Profile("Philip"), m_CurrentDirectory("n/a"),
       m_Stdout(-1), m_Stderr(-1), m_Application(UUID_INVALID), m_StdoutThread(std::bind(&CValiAlumni::StdoutListener, this)), 
-      m_StderrThread(std::bind(&CValiAlumni::StderrListener, this)), m_RunThread(nullptr)
+      m_StderrThread(std::bind(&CValiAlumni::StderrListener, this))
 {
     UpdateWorkingDirectory();
 }
@@ -69,6 +69,8 @@ bool CValiAlumni::HandleKeyCode(unsigned int KeyCode, unsigned int Flags)
     Key.Flags   = Flags;
 
     // Redirect keys if we have an application active
+    // After pressing enter to spawn application, the release event will
+    // get redirected here and fail
     if (m_Application != UUID_INVALID) {
         SendPipe(m_Application, PIPE_STDIN, &Key, sizeof(SystemKey_t));
         return true;
@@ -158,12 +160,8 @@ bool CValiAlumni::ExecuteProgram(const std::string& Program, const std::vector<s
     StartupInformation.StdErrHandle = m_Stderr;
     m_Application = ProcessSpawnEx(Program.c_str(), &StartupInformation, 0);
     if (m_Application != UUID_INVALID) {
-        if (m_RunThread != nullptr) {
-            m_RunThread->join();
-            delete m_RunThread;
-            m_RunThread = nullptr;
-        }
-        m_RunThread = new std::thread(&CValiAlumni::WaitForProcess, this);
+        std::thread WaitThread(&CValiAlumni::WaitForProcess, this);
+        WaitThread.detach();
         return true;
     }
     return false;

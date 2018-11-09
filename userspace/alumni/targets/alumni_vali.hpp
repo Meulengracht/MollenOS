@@ -60,5 +60,4 @@ private:
 
     std::thread     m_StdoutThread;
     std::thread     m_StderrThread;
-    std::thread*    m_RunThread;
 };

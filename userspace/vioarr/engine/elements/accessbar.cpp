@@ -38,10 +38,10 @@ CAccessBar::CAccessBar(CEntity *Parent, NVGcontext* VgContext, int Width, int He
     : CEntity(Parent, VgContext), m_Width(Width), m_Height(Height)
 {
     // Create resources
-    auto UserIcon           = new CSprite(this, VgContext, "$sys/themes/default/user32.png", 32, 32);
+    auto UserIcon = new CSprite(this, VgContext, "$sys/themes/default/user32.png", 32, 32);
     UserIcon->SetPosition(Width - 32 - 8, Height - 32 - 8, 0);
 
-    auto ShutdownButton     = new CButton(this, VgContext, 16, 16);
+    auto ShutdownButton = new CButton(this, VgContext, 16, 16);
     ShutdownButton->SetButtonStateIcon(CButton::ButtonStateNormal, "$sys/themes/default/power16.png");
     ShutdownButton->SetPosition(4.0f, Height - 18, 0);
 
@@ -54,17 +54,13 @@ CAccessBar::CAccessBar(CEntity *Parent, NVGcontext* VgContext, int Width, int He
     m_DateTime->SetFontSize(14.0f);
     m_DateTime->SetFontColor(nvgRGBA(255, 255, 255, 255));
     m_DateTime->SetPosition(28.0f, Height - 14, 0.0f);
-    Update(false);
-
-    sEvents.AddPeriodic([this]() { Update(true); }, 60000);
+    Update();
 }
 
 CAccessBar::CAccessBar(NVGcontext* VgContext, int Width, int Height) 
     : CAccessBar(nullptr, VgContext, Width, Height) { }
 
-CAccessBar::~CAccessBar() {
-    delete m_DateTime;
-}
+CAccessBar::~CAccessBar() { }
 
 float CAccessBar::GetSideBarElementSlotX(int Index)
 {
@@ -76,7 +72,7 @@ float CAccessBar::GetSideBarElementSlotY(int Index)
     return (float)m_Height - ((ACCESSBAR_USER_RADIUS * 1.8f) + 40.0f + (36.0f * Index));
 }
 
-void CAccessBar::Update(bool Redraw) {
+void CAccessBar::Update() {
     time_t      now = std::time(0);
     struct tm*  tstruct;
     char        TimeBuffer[32] = { 0 };
@@ -84,10 +80,6 @@ void CAccessBar::Update(bool Redraw) {
     tstruct = localtime(&now);
     strftime(&TimeBuffer[0], sizeof(TimeBuffer), "%H:%M %a %e", tstruct);
     m_DateTime->SetText(std::string(&TimeBuffer[0]));
-    
-    if (Redraw) {
-        Invalidate();
-    }
 }
 
 void CAccessBar::Draw(NVGcontext* VgContext) {

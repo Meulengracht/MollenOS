@@ -22,150 +22,45 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include <list>
 #include "entity.hpp"
 
 class CScene {
 public:
-    CScene(CEntity* RootLayer) : m_TopmostEntity(nullptr) {
-        m_RootLayer.reset(RootLayer);
-    }
-    ~CScene() {
-        m_EntityLayer.clear();
-        m_PriorityLayer.clear();
-    }
+    CScene(CEntity* RootLayer);
+    ~CScene();
 
-    void                Add(CEntity* Entity) {
-        m_EntityLayer.push_back(std::unique_ptr<CEntity>(Entity));
-        if (m_PriorityLayer.size() == 0) {
-            SetActive(Entity);
-        }
-        Invalidate();
-    }
+    void Add(CEntity* Entity);
+    bool Remove(long ElementId);
+    void MoveToFront(long ElementId);
 
-    bool                Remove(CEntity* Entity) {
-        auto i = m_EntityLayer.begin();
-        while (i != m_EntityLayer.end()) {
-            if (i->get() == Entity) {
-                m_EntityLayer.erase(i);
-                UpdateNextActive(Entity);
-                Invalidate();
-                return true;
-            }
-            i++;
-        }
-        return false;
-    }
+    void AddPriority(CPriorityEntity* Priority);
+    bool RemovePriority(long ElementId);
 
-    void                MoveToFront(CEntity* Entity) {
-        auto i = m_EntityLayer.begin();
-        while (i != m_EntityLayer.end()) {
-            if (i->get() == Entity) {
-                break;
-            }
-            i++;
-        }
-        m_EntityLayer.splice(m_EntityLayer.end(), m_EntityLayer, i);
-        SetActive(Entity);
-        Invalidate();
-    }
+    long GetEntityIdForOwner(UUId_t Owner);
+    bool HasEntity(long ElementId);
+    void ProxyKeyEvent(SystemKey_t* Key);
 
-    CEntity*            GetEntityWithOwner(UUId_t Owner) {
-        for (auto& e : m_EntityLayer) {
-            if (e->GetOwner() == Owner) {
-                return e.get();
-            }
-        }
-        return nullptr;
-    }
-
-    bool                HasEntity(CEntity* Entity) {
-        for (auto& e : m_EntityLayer) {
-            if (e.get() == Entity) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    void                AddPriority(CPriorityEntity* Priority) {
-        // Remove all entities that die upon lost focus
-        m_PriorityLayer.remove_if([](std::unique_ptr<CPriorityEntity> const& e) { return e->HasBehaviour(CPriorityEntity::DeleteOnFocusLost); });
-        m_PriorityLayer.push_back(std::unique_ptr<CPriorityEntity>(Priority));
-        SetPriorityActive(Priority);
-        Invalidate();
-    }
-
-    bool                RemovePriority(CPriorityEntity* Priority) {
-        auto i = m_PriorityLayer.begin();
-        while (i != m_PriorityLayer.end()) {
-            if (i->get() == Priority) {
-                m_PriorityLayer.erase(i);
-                UpdateNextActive(Priority);
-                Invalidate();
-                return true;
-            }
-            i++;
-        }
-        return false;
-    }
-
-    void                ProxyKeyEvent(SystemKey_t* Key) {
-        if (m_TopmostEntity != nullptr) {
-            if (Key->KeyCode == VK_ESCAPE && m_TopmostEntity->IsPriority()) {
-                CPriorityEntity* Entity = static_cast<CPriorityEntity*>(m_TopmostEntity);
-                if (Entity->HasBehaviour(CPriorityEntity::DeleteOnEscape)) {
-                    RemovePriority(Entity);
-                    Invalidate();
-                    return;
-                }
-            }
-            m_TopmostEntity->HandleKeyEvent(Key);
-        }
-    }
-
-    void                Render(NVGcontext* VgContext) {
-        if (m_RootLayer)                { m_RootLayer->Render(VgContext); }
-        for (auto& e : m_EntityLayer)   { e->Render(VgContext); }
-        for (auto& e : m_PriorityLayer) { e->Render(VgContext); }
-    }
+    bool InvalidateElement(long ElementId);
+    void Render(NVGcontext* VgContext);
 
 private:
-    void                SetActive(CEntity* Entity) {
-        for (auto& e : m_EntityLayer) { 
-            e->SetActive(false);
-        }
-        Entity->SetActive(true);
-        m_TopmostEntity = Entity;
-    }
+    template<class T>
+    void UpdateActiveElement(const std::list<std::unique_ptr<T>>& ElementList);
+    void UpdateNextActive(long RemovedElementId);
+    void InvalidateScreen();
 
-    void                SetPriorityActive(CPriorityEntity* Entity) {
-        // ? for (auto& e : m_EntityLayer) { e->SetActive(false); }
-        for (auto& e : m_PriorityLayer) { e->SetActive(false); }
-        Entity->SetActive(true);
-        m_TopmostEntity = Entity;
-    }
+    const std::unique_ptr<CEntity>&         GetElement(long ElementId);
+    const std::unique_ptr<CPriorityEntity>& GetPriorityElement(long ElementId);
 
-    void                UpdateNextActive(CEntity* Removed) {
-        if (Removed != m_TopmostEntity) {
-            return;
-        }
-
-        // Do we have any priorities that should get shown?
-        if (m_PriorityLayer.size() != 0) {
-            SetPriorityActive(m_PriorityLayer.back().get());
-        }
-        else if (m_EntityLayer.size() != 0) {
-            SetActive(m_EntityLayer.back().get());
-        }
-    }
-
-    void                Invalidate() {
-        sVioarr.UpdateNotify();
-    }
-
+private:
+    std::mutex                                  m_Lock;
     std::unique_ptr<CEntity>                    m_RootLayer;
     std::list<std::unique_ptr<CEntity>>         m_EntityLayer;
     std::list<std::unique_ptr<CPriorityEntity>> m_PriorityLayer;
-    CEntity*                                    m_TopmostEntity;
+    long                                        m_TopmostElementId;
+
+    std::unique_ptr<CEntity>                    m_NullElement;
+    std::unique_ptr<CPriorityEntity>            m_NullPriorityElement;
 };

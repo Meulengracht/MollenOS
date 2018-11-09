@@ -41,31 +41,42 @@ protected:
         m_Owner     = UUID_INVALID;
         m_Active    = false;
         m_Visible   = true;
+        m_Id        = g_EntityId++;
     }
     CEntity(CEntity *Parent, NVGcontext* VgContext)
         : CEntity(Parent, VgContext, glm::vec3(0.0f, 0.0f, 0.0f)) { }
     CEntity(NVGcontext* VgContext) 
         : CEntity(nullptr, VgContext) { }
-    CEntity(CEntity const&)     = default;
+    CEntity(CEntity const&)      = default;
     CEntity& operator=(CEntity&) = default;
 
 public:
     virtual ~CEntity() { m_Children.remove_if([](CEntity* Element) { delete Element; return true; });  }
 
 public:
-    void                AddEntity(CEntity *Entity) {
+    void AddEntity(CEntity *Entity) {
         auto Position = std::find(m_Children.begin(), m_Children.end(), Entity);
         if (Position == m_Children.end()) {
             m_Children.push_back(Entity);
         }
     }
-    void                RemoveEntity(CEntity *Entity) {
+
+    void RemoveEntity(CEntity *Entity) {
         auto Position = std::find(m_Children.begin(), m_Children.end(), Entity);
         if (Position != m_Children.end()) {
             m_Children.erase(Position);
         }
     }
-    void                Render(NVGcontext* VgContext) {
+
+    void Invalidate()
+    {
+        Update();
+        for (auto itr = m_Children.begin(); itr != m_Children.end(); itr++) {
+            (*itr)->Invalidate();
+        }
+    }
+
+    void Render(NVGcontext* VgContext) {
         if (!m_Visible) {
             return;
         }
@@ -80,19 +91,19 @@ public:
     }
 
     // Positioning
-    void                Move(float X, float Y, float Z) {
+    void Move(float X, float Y, float Z) {
         m_vPosition.x += X;
         m_vPosition.y += Y;
         m_vPosition.z += Z;
     }
-    void                SetPosition(float X, float Y, float Z) {
+    void SetPosition(float X, float Y, float Z) {
         m_vPosition.x = X;
         m_vPosition.y = Y;
         m_vPosition.z = Z;
     }
 
     // Input handling
-    virtual void        HandleKeyEvent(SystemKey_t* Key) { 
+    virtual void HandleKeyEvent(SystemKey_t* Key) { 
         for (auto itr = m_Children.begin(); itr != m_Children.end(); itr++) {
             if ((*itr)->IsActive()) {
                 (*itr)->HandleKeyEvent(Key);
@@ -101,7 +112,7 @@ public:
     }
 
     // State Changes
-    void                SetActive(bool Active)  {
+    void SetActive(bool Active)  {
         // Make sure we set all children inactive in that case
         if (!Active) {
             for (auto itr = m_Children.begin(); itr != m_Children.end(); itr++) {
@@ -113,11 +124,11 @@ public:
     }
 
     // Setters
-    void                SetX(float X)           { m_vPosition.x = X; }
-    void                SetY(float Y)           { m_vPosition.y = Y; }
-    void                SetZ(float Z)           { m_vPosition.y = Z; }
-    void                SetOwner(UUId_t Owner)  { m_Owner = Owner; }
-    void                SetVisible(bool Show)   { m_Visible = Show; }
+    void SetX(float X)           { m_vPosition.x = X; }
+    void SetY(float Y)           { m_vPosition.y = Y; }
+    void SetZ(float Z)           { m_vPosition.y = Z; }
+    void SetOwner(UUId_t Owner)  { m_Owner = Owner; }
+    void SetVisible(bool Show)   { m_Visible = Show; }
 
     // Getters
     const glm::vec3&    GetPosition() const     { return m_vPosition; }
@@ -128,17 +139,20 @@ public:
     bool                IsPriority() const      { return m_Priority; }
     bool                IsActive() const        { return m_Active; }
     bool                IsVisible() const       { return m_Visible; }
+    long                GetId() const           { return m_Id; }
 
 protected:
     // Overrideable methods
-    virtual void    Draw(NVGcontext* VgContext)     { }
-    virtual void    OnActivationChange(bool Active) { }
+    virtual void Update()                        { }
+    virtual void Draw(NVGcontext* VgContext)     { }
+    virtual void OnActivationChange(bool Active) { }
 
     // Inheritabled methods
-    void Invalidate() {
+    void InvalidateScreen() {
         sVioarr.UpdateNotify();
     }
     
+    long                m_Id;
     CEntity*            m_Parent;
     NVGcontext*         m_VgContext;
     glm::vec3           m_vPosition;
@@ -147,6 +161,8 @@ protected:
     bool                m_Visible;
     UUId_t              m_Owner;
     bool                m_Priority;
+
+    static long         g_EntityId;
 };
 
 class CPriorityEntity : public CEntity {

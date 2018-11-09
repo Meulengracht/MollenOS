@@ -29,7 +29,7 @@
 #define DIALOG_WIDTH                        200
 
 CDialogLogin::CDialogLogin(CEntity* Parent, NVGcontext* VgContext)
-    : CPriorityEntity(Parent, VgContext, CPriorityEntity::DeleteOnFocusLost | CPriorityEntity::DeleteOnEscape)
+    : CPriorityEntity(Parent, VgContext, 0)
 {
     // Create resources neccessary for the dialog, we need a textbox and
     // a dynamic label, default size of window is 450px x 100px

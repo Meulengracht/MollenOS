@@ -21,12 +21,13 @@
  *    MollenOS.
  */
 #pragma once
-
-/* Includes
- * - System */
 #define __TRACE
+
+#include <os/mollenos.h>
 #include <os/utils.h>
-#include <string>
+#include <stdarg.h>
+#include <string.h>
+#include <stdio.h>
 
 class CLogManager {
 public:
@@ -37,23 +38,56 @@ public:
 		return _Instance;
 	}
 private:
-	CLogManager() {}                     // Constructor? (the {} brackets) are needed here.
+	CLogManager() : m_Enabled(true) {}
 
 public:
-	CLogManager(CLogManager const&) = delete;
-	void operator=(CLogManager const&) = delete;
+	CLogManager(CLogManager const&)     = delete;
+	void operator=(CLogManager const&)  = delete;
 
-    void Info(const std::string &Message) {
-        TRACE(Message.c_str());
+    void Info(const char* Format, ...) {
+        if (m_Enabled) {
+            va_list Arguments;
+
+            va_start(Arguments, Format);
+            memset(&m_OutputBuffer[0], 0, sizeof(m_OutputBuffer));
+            vsnprintf(&m_OutputBuffer[0], sizeof(m_OutputBuffer), Format, Arguments);
+            va_end(Arguments);
+            TRACE(&m_OutputBuffer[0]);
+        }
     }
 
-    void Warning(const std::string &Message) {
-        WARNING(Message.c_str());
+    void Warning(const char* Format, ...) {
+        if (m_Enabled) {
+            va_list Arguments;
+
+            va_start(Arguments, Format);
+            memset(&m_OutputBuffer[0], 0, sizeof(m_OutputBuffer));
+            vsnprintf(&m_OutputBuffer[0], sizeof(m_OutputBuffer), Format, Arguments);
+            va_end(Arguments);
+            WARNING(&m_OutputBuffer[0]);
+        }
     }
 
-    void Error(const std::string &Message) {
-        ERROR(Message.c_str());
+    void Error(const char* Format, ...) {
+        if (m_Enabled) {
+            va_list Arguments;
+
+            va_start(Arguments, Format);
+            memset(&m_OutputBuffer[0], 0, sizeof(m_OutputBuffer));
+            vsnprintf(&m_OutputBuffer[0], sizeof(m_OutputBuffer), Format, Arguments);
+            va_end(Arguments);
+            ERROR(&m_OutputBuffer[0]);
+        }
     }
+
+    void Disable() {
+        m_Enabled = false;
+        MollenOSEndBoot();
+    }
+
+private:
+    char m_OutputBuffer[256];
+    bool m_Enabled;
 };
 
 // Shorthand for the vioarr

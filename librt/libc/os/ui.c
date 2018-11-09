@@ -19,14 +19,15 @@
  * MollenOS User Visual Interface
  *  - Provides functionality to create and manage windows used by the program
  */
+
 #include <os/window.h>
 #include <assert.h>
 #include <stdlib.h>
 
 // Globals
 // State keeping for a single window
-static DmaBuffer_t *ProgramWindowBuffer = NULL;
-static Handle_t ProgramWindowHandle     = NULL;
+static DmaBuffer_t* ProgramWindowBuffer = NULL;
+static long         ProgramWindowHandle = -1;
 
 /* UiParametersSetDefault
  * Set(s) default window parameters for the given window param structure. */
@@ -51,7 +52,7 @@ UiParametersSetDefault(
 void
 UiUnregisterWindow(void)
 {
-    if (ProgramWindowHandle != NULL) {
+    if (ProgramWindowHandle != -1) {
         DestroyWindow(ProgramWindowHandle);
     }
 }
@@ -64,8 +65,8 @@ UiRegisterWindow(
     _In_  UIWindowParameters_t* Descriptor,
     _Out_ DmaBuffer_t**         WindowBuffer)
 {
-    OsStatus_t Status;
-    size_t BytesNeccessary = 0;
+    OsStatus_t  Status;
+    size_t      BytesNeccessary = 0;
 
     // Sanitize parameters
     assert(Descriptor != NULL);
@@ -96,7 +97,7 @@ UiRegisterWindow(
 OsStatus_t
 UiSwapBackbuffer(void)
 {
-    if (ProgramWindowHandle == NULL) {
+    if (ProgramWindowHandle == -1) {
         return OsError;
     }
     return SwapWindowBackbuffer(ProgramWindowHandle);

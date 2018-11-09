@@ -334,7 +334,9 @@
         "deviceio.h": "c",
         "mstring.h": "c",
         "assert.h": "c",
-        "memorybuffer.h": "c"
+        "memorybuffer.h": "c",
+        "__external_threading": "cpp",
+        "iostream": "cpp"
     },
     "git.ignoreLimitWarning": true,
     "terminal.integrated.shell.windows": "C:\\Windows\\sysnative\\bash.exe",

@@ -22,6 +22,7 @@
  */
 
 #include "event_queue.hpp"
+#include <os/mollenos.h>
 
 CEventQueue::CEventQueue()
 {
@@ -42,6 +43,7 @@ void CEventQueue::EventLoop()
 {
     std::chrono::time_point<std::chrono::steady_clock> LastUpdate;
     bool IsRunning = true;
+    SetCurrentThreadName("vioarr_events");
 
     while (IsRunning) {
         if (m_Events.size() == 0) {

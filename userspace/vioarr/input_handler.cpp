@@ -21,6 +21,7 @@
  *    MollenOS.
  */
 
+#include <os/mollenos.h>
 #include <os/process.h>
 #include <os/input.h>
 #include <string.h>
@@ -98,6 +99,7 @@ void InputHandler()
 {
     bool IsRunning = true;
     SystemKey_t Key;
+    SetCurrentThreadName("vioarr_input");
 
     while (IsRunning) {
         if (ReadSystemKey(&Key) == OsSuccess) {

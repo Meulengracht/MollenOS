@@ -71,7 +71,7 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
         msg = "error: ";
         msg += Path;
         msg += " is not a PNG.";
-        sLog.Error(msg);
+        sLog.Error(msg.c_str());
         delete[] fbuffer;
         return 0;
     }
@@ -163,7 +163,7 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
             msg = Path;
             msg += ": Unknown libpng color type ";
             msg += std::to_string(color_type) + ".";
-            sLog.Error(msg);
+            sLog.Error(msg.c_str());
             return 0;
     }
 
@@ -184,7 +184,7 @@ GLuint CTextureManager::CreateTexturePNG(const char *Path, int *Width, int *Heig
         msg = Path;
         msg += ": Unsupported bit depth ";
         msg += std::to_string(bit_depth) + ". Must be 8.";
-        sLog.Error(msg);
+        sLog.Error(msg.c_str());
         return 0;
     }
 

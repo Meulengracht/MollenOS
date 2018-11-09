@@ -249,6 +249,7 @@ DestroyProcess(
 {
     SystemProcess_t*    Process = (SystemProcess_t*)Resource;
     CollectionItem_t*   Node;
+    TRACE("DestroyProcess()");
 
     if (Process->StartupInformation.ArgumentPointer != NULL) {
         kfree((void*)Process->StartupInformation.ArgumentPointer);

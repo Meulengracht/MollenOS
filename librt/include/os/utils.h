@@ -24,8 +24,6 @@
 #ifndef _UTILS_INTERFACE_H_
 #define _UTILS_INTERFACE_H_
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
 
 /* Global <always-on> definitions

@@ -52,7 +52,6 @@ public:
     void SetStreamingBufferDimensions(int Width, int Height);
     void SetStreamingBuffer(DmaBuffer_t* Buffer);
     void SetStreaming(bool Enable);
-    void Update();
 
     // Override inheritted methods
     void HandleKeyEvent(SystemKey_t* Key);
@@ -60,6 +59,7 @@ public:
 protected:
     // Override the inherited methods
     void Draw(NVGcontext* VgContext);
+    void Update();
 
 private:
     // Window information

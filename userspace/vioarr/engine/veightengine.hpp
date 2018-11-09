@@ -30,47 +30,52 @@
 #include "backend/nanovg.h"
 
 class CScene;
+class CEntity;
 
-class CVEightEngine {
+class V8Engine {
 public:
-    static CVEightEngine& GetInstance() {
+    static V8Engine& GetInstance() {
         // Guaranteed to be destroyed.
         // Is instantiated on first use
-        static CVEightEngine _Instance;
+        static V8Engine _Instance;
         return _Instance;
     }
 private:
-    CVEightEngine();
-    ~CVEightEngine();
+    V8Engine();
+    ~V8Engine();
 
 public:
-    CVEightEngine(CVEightEngine const&) = delete;
-    void operator=(CVEightEngine const&) = delete;
+    V8Engine(V8Engine const&) = delete;
+    void operator=(V8Engine const&) = delete;
 
-    void                Initialize(CDisplay *Screen);
+    void Initialize(CDisplay *Screen);
 
     // **************************************
     // Render Logic
-    void                Render();
+    void Render();
 
     // **************************************
-    // Business Logic
-    void                AddScene(CScene* Scene);
-    bool                RemoveScene(CScene* Scene);
-    Handle_t            GetExistingWindowForProcess(UUId_t ProcessId);
-    bool                IsWindowHandleValid(Handle_t WindowHandle);
+    // Scene Management
+    void AddScene(CScene* Scene);
+    bool RemoveScene(CScene* Scene);
+    void AddElementToCurrentScene(CEntity* Entity);
+    bool RemoveElement(long ElementId);
+    bool InvalidateElement(long ElementId);
+
+    long GetTopElementByOwner(UUId_t Owner);
+    bool IsElementTopElement(long ElementId);
 
     // **************************************
     // Utilities
-    float               ClampToScreenAxisX(int Value);
-    float               ClampToScreenAxisY(int Value);
-    float               ClampMagnitudeToScreenAxisX(int Value);
-    float               ClampMagnitudeToScreenAxisY(int Value);
-    float               GetScreenCenterX();
-    float               GetScreenCenterY();
+    float ClampToScreenAxisX(int Value);
+    float ClampToScreenAxisY(int Value);
+    float ClampMagnitudeToScreenAxisX(int Value);
+    float ClampMagnitudeToScreenAxisY(int Value);
+    float GetScreenCenterX();
+    float GetScreenCenterY();
 
-    NVGcontext*         GetContext() const;
-    CScene*             GetActiveScene() const;
+    NVGcontext* GetContext() const;
+    CScene*     GetActiveScene() const;
 
 private:
     CDisplay*           m_Screen;
@@ -81,4 +86,4 @@ private:
 };
 
 // Shorthand for the vioarr
-#define sEngine CVEightEngine::GetInstance()
+#define sEngine V8Engine::GetInstance()

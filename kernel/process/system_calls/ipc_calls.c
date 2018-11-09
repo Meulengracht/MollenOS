@@ -132,7 +132,8 @@ ScPipeWrite(
     }
     else { Pipe = GetProcessPipe(GetProcess(ProcessHandle), Port); }
     if (Pipe == NULL) {
-        ERROR("Invalid pipe %i", Port);
+        ERROR("%s: ScPipeWrite::Invalid pipe %i on process handle 0x%x", 
+            ThreadingGetCurrentThread(CpuGetCurrentId())->Name, Port, ProcessHandle);
         return OsError;
     }
 
@@ -164,7 +165,8 @@ ScPipeReceive(
     }
 
     if (Pipe == NULL) {
-        ERROR("Invalid pipe %i", Port);
+        ERROR("%s: ScPipeReceive::Invalid pipe %i on process handle 0x%x", 
+            ThreadingGetCurrentThread(CpuGetCurrentId())->Name, Port, ProcessHandle);
         return OsError;
     }
     ReadSystemPipe(Pipe, Message, Length);

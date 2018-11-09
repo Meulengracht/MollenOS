@@ -395,7 +395,7 @@ StdioFdAllocate(
     _In_ int fd,
     _In_ int flag)
 {
-    StdioObject_t*  io      = NULL;
+    StdioObject_t*  Object      = NULL;
     int             result  = -1;
     DataKey_t       Key;
     int             i, j;
@@ -434,20 +434,22 @@ StdioFdAllocate(
 
     // Create a new io-object
     if (result != -1) {
-        io = (StdioObject_t*)malloc(sizeof(StdioObject_t));
-        io->fd = result;
-        io->handle.InheritationType = STDIO_HANDLE_INVALID;
-        io->wxflag = WX_OPEN | (flag & (WX_DONTINHERIT | WX_APPEND | WX_TEXT | WX_PIPE | WX_TTY));
-        io->lookahead[0] = '\n';
-        io->lookahead[1] = '\n';
-        io->lookahead[2] = '\n';
-        io->exflag = 0;
-        io->file = NULL;
-        SpinlockReset(&io->lock);
+        Object      = (StdioObject_t*)malloc(sizeof(StdioObject_t));
+        Object->fd  = result;
+
+        Object->handle.InheritationType = STDIO_HANDLE_INVALID;
+        
+        Object->wxflag          = WX_OPEN | flag;
+        Object->lookahead[0]    = '\n';
+        Object->lookahead[1]    = '\n';
+        Object->lookahead[2]    = '\n';
+        Object->exflag          = 0;
+        Object->file            = NULL;
+        SpinlockReset(&Object->lock);
     
         // Add to list
         Key.Value.Integer = result;
-        CollectionAppend(&IoObjects, CollectionCreateNode(Key, io));
+        CollectionAppend(&IoObjects, CollectionCreateNode(Key, Object));
     }
     return result;
 }

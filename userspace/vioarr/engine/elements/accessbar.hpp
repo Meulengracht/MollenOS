@@ -42,11 +42,11 @@ public:
 protected:
     // Override the inherited methods
     void        Draw(NVGcontext* VgContext);
+    void        Update();
 
 private:
     float       GetSideBarElementSlotX(int Index);
     float       GetSideBarElementSlotY(int Index);
-    void        Update(bool Redraw);
 
 private:
     int         m_Width;

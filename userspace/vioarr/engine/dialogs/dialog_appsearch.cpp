@@ -63,7 +63,7 @@ void CDialogApplicationSearch::HandleKeyEvent(SystemKey_t* Key)
         }
         m_SuggestionBox->Add((char)(Key->KeyAscii & 0xFF));
     }
-    Invalidate();
+    InvalidateScreen();
 }
 
 void CDialogApplicationSearch::Draw(NVGcontext* VgContext)
