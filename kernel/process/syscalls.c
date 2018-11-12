@@ -31,6 +31,7 @@
 #include <time.h>
 
 struct FileMappingParameters;
+struct MemoryMappingParameters;
 
 // System system calls
 OsStatus_t  ScSystemDebug(int Type, const char* Module, const char* Message);
@@ -63,7 +64,7 @@ uintptr_t   ScSharedObjectGetFunction(Handle_t Handle, const char* Function);
 OsStatus_t  ScSharedObjectUnload(Handle_t Handle);
 
 // Threading system calls
-UUId_t      ScThreadCreate(ThreadEntry_t Entry, void* Data, Flags_t Flags);
+UUId_t      ScThreadCreate(ThreadEntry_t Entry, void* Data, Flags_t Flags, UUId_t MemorySpaceHandle);
 OsStatus_t  ScThreadExit(int ExitCode);
 OsStatus_t  ScThreadJoin(UUId_t ThreadId, int* ExitCode);
 OsStatus_t  ScThreadDetach(UUId_t ThreadId);
@@ -101,6 +102,10 @@ OsStatus_t  ScCreateBuffer(size_t Size, DmaBuffer_t* MemoryBuffer);
 OsStatus_t  ScAcquireBuffer(UUId_t Handle, DmaBuffer_t* MemoryBuffer);
 OsStatus_t  ScQueryBuffer(UUId_t Handle, uintptr_t* Dma, size_t* Capacity);
 
+OsStatus_t  ScCreateSystemMemorySpace(Flags_t Flags, UUId_t* Handle);
+OsStatus_t  ScGetThreadMemorySpaceHandle(UUId_t Thread, UUId_t* Handle);
+OsStatus_t  ScCreateSystemMemorySpaceMapping(UUId_t Handle, struct MemoryMappingParameters* Parameters, DmaBuffer_t* AccessBuffer);
+
 // Operating system support system calls
 OsStatus_t  ScGetWorkingDirectory(UUId_t ProcessHandle, char* PathBuffer, size_t MaxLength);
 OsStatus_t  ScSetWorkingDirectory(const char* Path);
@@ -127,8 +132,8 @@ OsStatus_t  ScInputEvent(SystemInput_t* Input);
 UUId_t      ScTimersStart(size_t Interval, int Periodic, const void* Data);
 OsStatus_t  ScTimersStop(UUId_t TimerId);
 
-/* NoOperation
- * Empty operation, mostly because the operation is reserved */
+// NoOperation
+// Empty operation, mostly because the operation is reserved
 OsStatus_t  NoOperation(void) { return OsSuccess; }
 
 // The static system calls function table.

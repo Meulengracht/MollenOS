@@ -104,8 +104,8 @@ LogInitializeFull(void)
     LogObject.STDERR        = CreateSystemPipe(0, 6); // 1 << 6, 64 entries, 1 << 12 is 4kb
 
     // Create the threads that will echo the pipes
-    PipeThreads[0] = ThreadingCreateThread("log-stdout", LogPipeHandler, (void*)LogObject.STDOUT, 0);
-    PipeThreads[1] = ThreadingCreateThread("log-stderr", LogPipeHandler, (void*)LogObject.STDERR, 0);
+    CreateThread("log-stdout", LogPipeHandler, (void*)LogObject.STDOUT, 0, UUID_INVALID, &PipeThreads[0]);
+    CreateThread("log-stderr", LogPipeHandler, (void*)LogObject.STDERR, 0, UUID_INVALID, &PipeThreads[1]);
 }
 
 /* LogRenderMessages

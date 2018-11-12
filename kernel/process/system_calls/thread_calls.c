@@ -35,15 +35,19 @@
  * entry point and arguments */
 UUId_t
 ScThreadCreate(
-    _In_ ThreadEntry_t      Entry, 
-    _In_ void*              Data, 
-    _In_ Flags_t            Flags)
+    _In_ ThreadEntry_t      Entry,
+    _In_ void*              Arguments,
+    _In_ Flags_t            Flags,
+    _In_ UUId_t             MemorySpaceHandle)
 {
-    if (Entry == NULL) {
-        return UUID_INVALID;
+    UUId_t  Handle      = UUID_INVALID;
+    Flags_t ThreadFlags = ThreadingGetCurrentMode() | THREADING_INHERIT | Flags;
+    if (Entry != NULL) {
+        if (CreateThread(NULL, Entry, Arguments, ThreadFlags, MemorySpaceHandle, &Handle) != OsSuccess) {
+            return UUID_INVALID;
+        }
     }
-    return ThreadingCreateThread(NULL, Entry, Data, 
-        ThreadingGetCurrentMode() | THREADING_INHERIT | Flags);
+    return Handle;
 }
 
 /* ScThreadExit

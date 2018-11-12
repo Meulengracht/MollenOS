@@ -236,7 +236,7 @@ CreateProcess(
     HandleProcessStartupInformation(Process, StartupInformation);
 
     *Handle  = Package->ProcessHandle;
-    ThreadId = ThreadingCreateThread(MStringRaw(Process->Name), ProcessThreadEntry, Package, THREADING_USERMODE);
+    CreateThread(MStringRaw(Process->Name), ProcessThreadEntry, Package, THREADING_USERMODE, UUID_INVALID, &ThreadId);
     ThreadingDetachThread(ThreadId);
     return OsSuccess;
 }
