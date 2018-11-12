@@ -34,12 +34,14 @@
 // Include all the systems that we have to cleanup
 #include <process/process.h>
 #include <memorybuffer.h>
+#include <memoryspace.h>
 
 static Collection_t         SystemHandles                       = COLLECTION_INIT(KeyId);
 static _Atomic(UUId_t)      IdGenerator                         = 1;
 static HandleDestructorFn   HandleDestructors[HandleTypeCount]  = {
     DestroyMemoryBuffer,
-    DestroyProcess
+    DestroyProcess,
+    DestroySystemMemorySpace
 };
 
 /* CreateHandle
@@ -89,7 +91,7 @@ AcquireHandle(
 
     PreviousReferences = atomic_fetch_add(&Instance->References, 1);
     if (PreviousReferences == 0) {
-        // Special case, to fix race-conditioning. If the reference
+        // Special case, to prevent race-conditioning. If the reference
         // count ever reach 0 this was called on cleanup.
         return NULL;
     }

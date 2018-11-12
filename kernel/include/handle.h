@@ -30,6 +30,7 @@
 typedef enum _SystemHandleType {
     HandleTypeMemoryBuffer = 0,
     HandleTypeProcess,
+    HandleTypeMemorySpace,
 
     HandleTypeCount
 } SystemHandleType_t;

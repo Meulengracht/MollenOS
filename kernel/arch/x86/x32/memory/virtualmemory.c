@@ -275,7 +275,7 @@ CloneVirtualSpace(
     // Create new resources for the happy new parent :-)
     if (MemorySpaceParent == NULL) {
         MemorySpace->Data[MEMORY_SPACE_IOMAP] = (uintptr_t)kmalloc(GDT_IOMAP_SIZE);
-        if (MemorySpace->Flags & (MEMORY_SPACE_APPLICATION | MEMORY_SPACE_SERVICE)) {
+        if (MemorySpace->Flags & MEMORY_SPACE_APPLICATION) {
             memset((void*)MemorySpace->Data[MEMORY_SPACE_IOMAP], 0xFF, GDT_IOMAP_SIZE);
         }
         else {

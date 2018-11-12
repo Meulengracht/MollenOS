@@ -25,26 +25,30 @@
 #define __PROCESS_INTERFACE__
 
 #include <os/osdefs.h>
+#include <os/process.h>
 
-typedef struct _SystemProcess {
-    UUId_t                  MainThread;
-    UUId_t                  Id;
+typedef struct _SessionProcess {
+    UUId_t                      MainThread;
+    UUId_t                      Id;
 
-    const char*             Name;
-    const char*             Path;
-    UUId_t                  MemorySpace;
+    const char*                 Name;
+    const char*                 Path;
+    UUId_t                      MemorySpace;
+    ProcessStartupInformation_t StartupInformation;
 
-    // Below is everything related to
-    // the startup and the executable information
-    // that the Ash has
-    void*                   Executable;
-    uintptr_t               NextLoadingAddress;
-    uint8_t*                FileBuffer;
-    size_t                  FileBufferLength;
-    int                     Code;
-} SystemProcess_t;
+    void*                       Executable;
+    uintptr_t                   NextLoadingAddress;
+    uint8_t*                    FileBuffer;
+    size_t                      FileBufferLength;
+    int                         Code;
+} SessionProcess_t;
 
-
-
+/* CreateProcess
+ * Spawns a new process, which can be configured through the parameters. */
+OsStatus_t
+CreateProcess(
+    _In_  const char*                  Path,
+    _In_  ProcessStartupInformation_t* Parameters,
+    _Out_ UUId_t*                      Handle);
 
 #endif //!__PROCESS_INTERFACE__

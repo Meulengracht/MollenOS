@@ -25,7 +25,6 @@
 #define __MEMORY_SPACE_INTERFACE__
 
 #include <os/osdefs.h>
-#include <criticalsection.h>
 
 /* SystemMemorySpace Definitions
  * Definitions, bit definitions and magic constants for memory spaces */
@@ -35,7 +34,6 @@
  * Definitions, bit definitions and magic constants for memory spaces */
 #define MEMORY_SPACE_INHERIT            0x00000001
 #define MEMORY_SPACE_APPLICATION        0x00000002
-#define MEMORY_SPACE_SERVICE            0x00000004
 
 /* SystemMemorySpace (Spaces) Definitions
  * Definitions, bit definitions and magic constants for memory spaces */
@@ -64,16 +62,11 @@
 #define MAPPING_LEGACY                  0x80000000  // (Virtual) Mapping is for legacy memory devices
 #define MAPPING_VMODE_MASK              0xF0000000
 
-/* SystemMemorySpace
- * Represents a virtual memory space that can be used with MMIO
- * functionality on the architecture. */
 typedef struct _SystemMemorySpace {
-    CriticalSection_t           SyncObject;
-    UUId_t                      Id;
-    _Atomic(int)                References;
     Flags_t                     Flags;
     uintptr_t                   Data[MEMORY_DATACOUNT];
     struct _SystemMemorySpace*  Parent;
+    UUId_t                      ParentHandle;
     //blockmap                  spaces[max-spaces]
 } SystemMemorySpace_t;
 
@@ -82,28 +75,28 @@ typedef struct _SystemMemorySpace {
  * system memory space which is the default space the cpu should use for kernel operation. */
 KERNELAPI OsStatus_t KERNELABI
 InitializeSystemMemorySpace(
-    _In_ SystemMemorySpace_t*   SystemMemorySpace);
+    _In_ SystemMemorySpace_t* SystemMemorySpace);
 
 /* CreateSystemMemorySpace
  * Initialize a new memory space, depending on what user is requesting we 
  * might recycle a already existing address space */
-KERNELAPI SystemMemorySpace_t* KERNELABI
-CreateSystemMemorySpace(
-    _In_ Flags_t                Flags);
-
-/* ReleaseSystemMemorySpace
- * Destroy and release all resources related to an address space, 
- * only if there is no more references */
 KERNELAPI OsStatus_t KERNELABI
-ReleaseSystemMemorySpace(
-    _In_ SystemMemorySpace_t*   SystemMemorySpace);
+CreateSystemMemorySpace(
+    _In_  Flags_t Flags,
+    _Out_ UUId_t* Handle);
+
+/* DestroySystemMemorySpace
+ * Callback invoked by the handle system when references on a process reaches zero */
+KERNELAPI OsStatus_t KERNELABI
+DestroySystemMemorySpace(
+    _In_ void* Resource);
 
 /* SwitchSystemMemorySpace
  * Switches the current address space out with the the address space provided 
  * for the current cpu */
 KERNELAPI OsStatus_t KERNELABI
 SwitchSystemMemorySpace(
-    _In_ SystemMemorySpace_t*   SystemMemorySpace);
+    _In_ SystemMemorySpace_t* SystemMemorySpace);
 
 /* GetCurrentSystemMemorySpace
  * Returns the current address space if there is no active threads or threading
@@ -117,17 +110,23 @@ GetCurrentSystemMemorySpace(void);
 KERNELAPI SystemMemorySpace_t* KERNELABI
 GetDomainSystemMemorySpace(void);
 
+/* GetCurrentSystemMemorySpaceHandle
+ * Returns the current address space if there is no active threads or threading
+ * is not setup it returns the kernel address space */
+KERNELAPI UUId_t KERNELABI
+GetCurrentSystemMemorySpaceHandle(void);
+
 /* ChangeSystemMemorySpaceProtection
  * Changes the protection parameters for the given memory region.
  * The region must already be mapped and the size will be rounded up
  * to a multiple of the page-size. */
 KERNELAPI OsStatus_t KERNELABI
 ChangeSystemMemorySpaceProtection(
-    _In_        SystemMemorySpace_t*    SystemMemorySpace,
-    _InOut_Opt_ VirtualAddress_t        VirtualAddress, 
-    _In_        size_t                  Size, 
-    _In_        Flags_t                 Flags,
-    _Out_       Flags_t*                PreviousFlags);
+    _In_        SystemMemorySpace_t* SystemMemorySpace,
+    _InOut_Opt_ VirtualAddress_t     VirtualAddress, 
+    _In_        size_t               Size, 
+    _In_        Flags_t              Flags,
+    _Out_       Flags_t*             PreviousFlags);
 
 /* CreateSystemMemorySpaceMapping
  * Maps the given virtual address into the given address space
@@ -135,33 +134,33 @@ ChangeSystemMemorySpaceProtection(
  * It returns the start address of the allocated physical region */
 KERNELAPI OsStatus_t KERNELABI
 CreateSystemMemorySpaceMapping(
-    _In_        SystemMemorySpace_t*    SystemMemorySpace,
-    _InOut_Opt_ PhysicalAddress_t*      PhysicalAddress, 
-    _InOut_Opt_ VirtualAddress_t*       VirtualAddress,
-    _In_        size_t                  Size, 
-    _In_        Flags_t                 Flags,
-    _In_        uintptr_t               Mask);
+    _In_        SystemMemorySpace_t* SystemMemorySpace,
+    _InOut_Opt_ PhysicalAddress_t*   PhysicalAddress, 
+    _InOut_Opt_ VirtualAddress_t*    VirtualAddress,
+    _In_        size_t               Size, 
+    _In_        Flags_t              Flags,
+    _In_        uintptr_t            Mask);
 
 /* CloneSystemMemorySpaceMapping
  * Clones a region of memory mappings into the address space provided. The new mapping
  * will automatically be marked PERSISTANT and PROVIDED. */
 KERNELAPI OsStatus_t KERNELABI
 CloneSystemMemorySpaceMapping(
-    _In_        SystemMemorySpace_t*    SourceSpace,
-    _In_        SystemMemorySpace_t*    DestinationSpace,
-    _In_        VirtualAddress_t        SourceAddress,
-    _InOut_Opt_ VirtualAddress_t*       DestinationAddress,
-    _In_        size_t                  Size, 
-    _In_        Flags_t                 Flags,
-    _In_        uintptr_t               Mask);
+    _In_        SystemMemorySpace_t* SourceSpace,
+    _In_        SystemMemorySpace_t* DestinationSpace,
+    _In_        VirtualAddress_t     SourceAddress,
+    _InOut_Opt_ VirtualAddress_t*    DestinationAddress,
+    _In_        size_t               Size, 
+    _In_        Flags_t              Flags,
+    _In_        uintptr_t            Mask);
 
 /* RemoveSystemMemoryMapping
  * Unmaps a virtual memory region from an address space */
 KERNELAPI OsStatus_t KERNELABI
 RemoveSystemMemoryMapping(
-    _In_ SystemMemorySpace_t*   SystemMemorySpace, 
-    _In_ VirtualAddress_t       Address, 
-    _In_ size_t                 Size);
+    _In_ SystemMemorySpace_t* SystemMemorySpace, 
+    _In_ VirtualAddress_t     Address, 
+    _In_ size_t               Size);
 
 /* GetSystemMemoryMapping
  * Retrieves a physical mapping from an address space determined

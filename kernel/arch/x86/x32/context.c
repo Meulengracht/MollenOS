@@ -77,11 +77,7 @@ ContextCreate(
         ExtraSegment    = GDT_EXTRA_SEGMENT + 0x03;
 
         // Now select the correct run-mode segments
-        if (THREADING_RUNMODE(ThreadFlags) == THREADING_DRIVERMODE) {
-            CodeSegment     = GDT_PCODE_SEGMENT + 0x03;
-            StackSegment    = DataSegment = GDT_PDATA_SEGMENT + 0x03;
-        }
-        else if (THREADING_RUNMODE(ThreadFlags) == THREADING_USERMODE) {
+        if (THREADING_RUNMODE(ThreadFlags) == THREADING_USERMODE) {
             CodeSegment     = GDT_UCODE_SEGMENT + 0x03;
             StackSegment    = DataSegment = GDT_UDATA_SEGMENT + 0x03;
         }

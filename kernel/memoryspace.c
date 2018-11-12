@@ -28,6 +28,7 @@
 #include <memoryspace.h>
 #include <threading.h>
 #include <machine.h>
+#include <handle.h>
 #include <assert.h>
 #include <debug.h>
 #include <heap.h>
@@ -47,102 +48,87 @@ extern OsStatus_t   SetVirtualPageMapping(SystemMemorySpace_t*, PhysicalAddress_
 extern OsStatus_t   ClearVirtualPageMapping(SystemMemorySpace_t*, VirtualAddress_t);
 extern void         SynchronizePageRegion(SystemMemorySpace_t*, uintptr_t, size_t);
 
-// Global static storage
-static _Atomic(int) AddressSpaceIdGenerator = ATOMIC_VAR_INIT(1);
-
 /* InitializeSystemMemorySpace
  * Initializes the system memory space. This initializes a static version of the
  * system memory space which is the default space the cpu should use for kernel operation. */
 OsStatus_t
 InitializeSystemMemorySpace(
-    _In_ SystemMemorySpace_t*   SystemMemorySpace)
+    _In_ SystemMemorySpace_t* SystemMemorySpace)
 {
-    // Setup reference and lock
-    SystemMemorySpace->Parent   = NULL;
-    SystemMemorySpace->Id       = atomic_fetch_add(&AddressSpaceIdGenerator, 1);
-    CriticalSectionConstruct(&SystemMemorySpace->SyncObject, CRITICALSECTION_REENTRANCY);
-    atomic_store(&SystemMemorySpace->References, 1);
-
-    // Let the architecture initialize further
+    SystemMemorySpace->Parent       = NULL;
+    SystemMemorySpace->ParentHandle = UUID_INVALID;
     return InitializeVirtualSpace(SystemMemorySpace);
 }
 
 /* CreateSystemMemorySpace
  * Initialize a new memory space, depending on what user is requesting we 
  * might recycle a already existing address space */
-SystemMemorySpace_t*
+OsStatus_t
 CreateSystemMemorySpace(
-    _In_ Flags_t                Flags)
+    _In_  Flags_t Flags,
+    _Out_ UUId_t* Handle)
 {
-    SystemMemorySpace_t *MemorySpace = NULL;
-    int i;
-
     // If we want to create a new kernel address
     // space we instead want to re-use the current 
     // If kernel is specified, ignore rest 
     if (Flags == MEMORY_SPACE_INHERIT) {
         // Inheritance is a bit different, we re-use again
         // but instead of reusing the kernel, we reuse the current
-        MemorySpace = GetCurrentSystemMemorySpace();
-        atomic_fetch_add(&MemorySpace->References, 1);
+        *Handle = GetCurrentSystemMemorySpaceHandle();
     }
-    else if (Flags & (MEMORY_SPACE_APPLICATION | MEMORY_SPACE_SERVICE)) {
-        // Allocate a new address space
-        MemorySpace = (SystemMemorySpace_t*)kmalloc(sizeof(SystemMemorySpace_t));
+    else if (Flags & MEMORY_SPACE_APPLICATION) {
+        SystemMemorySpace_t* MemorySpace = (SystemMemorySpace_t*)kmalloc(sizeof(SystemMemorySpace_t));
         memset((void*)MemorySpace, 0, sizeof(SystemMemorySpace_t));
 
-        MemorySpace->Id         = atomic_fetch_add(&AddressSpaceIdGenerator, 1);
-        MemorySpace->Flags      = Flags;
-        MemorySpace->References = 1;
-        CriticalSectionConstruct(&MemorySpace->SyncObject, CRITICALSECTION_REENTRANCY);
+        MemorySpace->Flags        = Flags;
+        MemorySpace->ParentHandle = UUID_INVALID;
 
         // Parent must be the upper-most instance of the address-space
         // of the process. Only to the point of not having kernel as parent
         if (Flags & MEMORY_SPACE_INHERIT) {
-            MemorySpace->Parent = (GetCurrentSystemMemorySpace()->Parent != NULL) ? 
-                GetCurrentSystemMemorySpace()->Parent : GetCurrentSystemMemorySpace();
-            if (MemorySpace->Parent == GetDomainSystemMemorySpace()) {
-                MemorySpace->Parent = NULL;
-            }
-        }
+            SystemMemorySpace_t* Parent = GetCurrentSystemMemorySpace();
+            int                  i;
+            if (Parent != GetDomainSystemMemorySpace()) {
+                if (Parent->ParentHandle != UUID_INVALID) {
+                    MemorySpace->Parent       = Parent->Parent;
+                    MemorySpace->ParentHandle = Parent->ParentHandle;
+                }
+                else {
+                    MemorySpace->Parent       = Parent;
+                    MemorySpace->ParentHandle = GetCurrentSystemMemorySpaceHandle();
+                }
 
-        // If we have a parent, both add a new reference to the parent
-        // and also copy all its members. 
-        if (MemorySpace->Parent != NULL) {
-            atomic_fetch_add(&MemorySpace->Parent->References, 1);
-            for (i = 0; i < MEMORY_DATACOUNT; i++) {
-                MemorySpace->Data[i] = MemorySpace->Parent->Data[i];
+                // Add a reference and copy data
+                AcquireHandle(MemorySpace->ParentHandle);
+                for (i = 0; i < MEMORY_DATACOUNT; i++) {
+                    MemorySpace->Data[i] = MemorySpace->Parent->Data[i];
+                }
             }
         }
         CloneVirtualSpace(MemorySpace->Parent, MemorySpace, (Flags & MEMORY_SPACE_INHERIT) ? 1 : 0);
+        *Handle = CreateHandle(HandleTypeMemorySpace, 0, MemorySpace);
     }
     else {
         FATAL(FATAL_SCOPE_KERNEL, "Invalid flags parsed in CreateSystemMemorySpace 0x%x", Flags);
     }
-    return MemorySpace;
+    return OsSuccess;
 }
 
-/* ReleaseSystemMemorySpace
- * Destroy and release all resources related to an address space, 
- * only if there is no more references */
+/* DestroySystemMemorySpace
+ * Callback invoked by the handle system when references on a process reaches zero */
 OsStatus_t
-ReleaseSystemMemorySpace(
-    _In_ SystemMemorySpace_t*   SystemMemorySpace)
+DestroySystemMemorySpace(
+    _In_ void* Resource)
 {
-    // Acquire lock on the address space
-    int References = atomic_fetch_sub(&SystemMemorySpace->References, 1) - 1;
-
-    // In case that was the last reference cleanup the address space otherwise
-    // just unlock
-    if (References == 0) {
-        if (SystemMemorySpace->Flags & (MEMORY_SPACE_APPLICATION | MEMORY_SPACE_SERVICE)) {
-            DestroyVirtualSpace(SystemMemorySpace);
-        }
-        kfree(SystemMemorySpace);
+    SystemMemorySpace_t* MemorySpace = (SystemMemorySpace_t*)Resource;
+    if (MemorySpace->Flags & MEMORY_SPACE_APPLICATION) {
+        DestroyVirtualSpace(MemorySpace);
     }
-
-    // Reduce a reference to our parent as-well if we have one
-    return (SystemMemorySpace->Parent == NULL) ? OsSuccess : ReleaseSystemMemorySpace(SystemMemorySpace->Parent);
+    if (MemorySpace->ParentHandle != UUID_INVALID) {
+        DestroyHandle(MemorySpace->ParentHandle);
+    }
+    kfree(MemorySpace);
+    return OsSuccess;
 }
 
 /* SwitchSystemMemorySpace
@@ -171,6 +157,21 @@ GetCurrentSystemMemorySpace(void)
     else {
         assert(CurrentThread->MemorySpace != NULL);
         return CurrentThread->MemorySpace;
+    }
+}
+
+/* GetCurrentSystemMemorySpaceHandle
+ * Returns the current address space if there is no active threads or threading
+ * is not setup it returns the kernel address space */
+UUId_t
+GetCurrentSystemMemorySpaceHandle(void)
+{
+    MCoreThread_t* CurrentThread = ThreadingGetCurrentThread(CpuGetCurrentId());
+    if (CurrentThread == NULL) {
+        return UUID_INVALID;
+    }
+    else {
+        return CurrentThread->MemorySpaceHandle;
     }
 }
 

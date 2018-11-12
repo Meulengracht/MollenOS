@@ -44,8 +44,8 @@ __EXTERN CriticalSection_t LoaderLock;
  * of a PE executable */
 uint32_t
 PeCalculateChecksum(
-    _In_ uint8_t*   Data, 
-    _In_ size_t     DataLength, 
+    _In_ uint8_t*   Data,
+    _In_ size_t     DataLength,
     _In_ size_t     PeChkSumOffset)
 {
     // Variables
@@ -79,7 +79,7 @@ PeCalculateChecksum(
  * validation. Returns either PE_INVALID or PE_VALID */
 int
 PeValidate(
-    _In_ uint8_t*   Buffer, 
+    _In_ uint8_t*   Buffer,
     _In_ size_t     Length)
 {
     PeOptionalHeader_t *OptHeader   = NULL;
@@ -643,8 +643,7 @@ PeResolveFunction(
     _In_ MCorePeFile_t* Library, 
     _In_ const char*    Function)
 {
-    // Variables
-    MCorePeExportFunction_t *Exports = Library->ExportedFunctions;
+    MCorePeExportFunction_t* Exports = Library->ExportedFunctions;
     if (Exports != NULL) {
         for (int i = 0; i < Library->NumberOfExportedFunctions; i++) {
             if (Exports[i].Name != NULL && !strcmp(Exports[i].Name, Function)) {

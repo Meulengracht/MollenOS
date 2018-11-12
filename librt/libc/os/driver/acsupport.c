@@ -21,13 +21,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-/* Includes
- * - System */
 #include <os/acpi.h>
 #include <os/syscall.h>
-
-/* Includes
- * - Library */
 #include <stdlib.h>
 
 /* AcpiQueryStatus
@@ -36,7 +31,7 @@
 OsStatus_t
 AcpiQueryStatus(
     AcpiDescriptor_t *AcpiDescriptor) {
-	return Syscall_AcpiQuery(AcpiDescriptor);
+    return Syscall_AcpiQuery(AcpiDescriptor);
 }
 
 /* AcpiQueryTable
@@ -45,26 +40,26 @@ AcpiQueryStatus(
  * the buffer is automatically allocated, and should be cleaned up afterwards  */
 OsStatus_t AcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER **Table)
 {
-	/* We need this temporary storage */
-	ACPI_TABLE_HEADER Header;
-	OsStatus_t Result;
+    /* We need this temporary storage */
+    ACPI_TABLE_HEADER Header;
+    OsStatus_t Result;
 
-	/* Now query for the header information
-	 * so we know what we should allocate */
-	Result = Syscall_AcpiGetHeader(Signature, &Header);
+    /* Now query for the header information
+     * so we know what we should allocate */
+    Result = Syscall_AcpiGetHeader(Signature, &Header);
 
-	/* Sanitize the result */
-	if (Result != OsSuccess) {
-		return Result;
-	}
+    /* Sanitize the result */
+    if (Result != OsSuccess) {
+        return Result;
+    }
 
-	/* Ok, now we can allocate a buffer able to contain
-	 * the entire table information */
-	*Table = (ACPI_TABLE_HEADER*)malloc(Header.Length);
+    /* Ok, now we can allocate a buffer able to contain
+     * the entire table information */
+    *Table = (ACPI_TABLE_HEADER*)malloc(Header.Length);
 
-	/* And finally, we can query for the entirety of
-	 * the requested table! */
-	return Syscall_AcpiGetTable(Signature, *Table);
+    /* And finally, we can query for the entirety of
+     * the requested table! */
+    return Syscall_AcpiGetTable(Signature, *Table);
 }
 
 /* AcpiQueryInterrupt
@@ -75,12 +70,12 @@ OsStatus_t AcpiQueryInterrupt(
     DevInfo_t   Bus,
     DevInfo_t   Device,
     int         Pin,
-	int*        Interrupt,
+    int*        Interrupt,
     Flags_t*    AcpiConform)
 {
-	// Validate the pointers
-	if (Interrupt == NULL || AcpiConform == NULL) {
-		return OsError;
-	}
-	return Syscall_AcpiQueryInterrupt(Bus, Device, Pin, Interrupt, AcpiConform);
+    // Validate the pointers
+    if (Interrupt == NULL || AcpiConform == NULL) {
+        return OsError;
+    }
+    return Syscall_AcpiQueryInterrupt(Bus, Device, Pin, Interrupt, AcpiConform);
 }

@@ -56,12 +56,11 @@ typedef void(*ThreadEntry_t)(void*);
  * runtime mode, which is either:
  * 0 => Kernel
  * 1 => User
- * 2 => Driver
+ * 2 => Reserved 
  * 3 => Reserved 
  * Bit 3: If it's currently in switch-mode */
 #define THREADING_KERNELMODE            0x00000000
 #define THREADING_USERMODE              0x00000001
-#define THREADING_DRIVERMODE            0x00000002
 #define THREADING_SWITCHMODE            0x00000004
 #define THREADING_MODEMASK              0x00000003
 #define THREADING_RUNMODE(Flags)        (Flags & THREADING_MODEMASK)
@@ -100,6 +99,7 @@ typedef struct _MCoreThread {
 
     SystemPipe_t*           Pipe;
     SystemMemorySpace_t*    MemorySpace;
+    UUId_t                  MemorySpaceHandle;
 
     ThreadEntry_t           Function;
     void*                   Arguments;
@@ -135,15 +135,17 @@ ThreadingInitialize(void);
 KERNELAPI OsStatus_t KERNELABI
 ThreadingEnable(void);
 
-/* ThreadingCreateThread
- * Creates a new thread with the given paramaters and it is immediately
- * queued up for execution. */
-KERNELAPI UUId_t KERNELABI
-ThreadingCreateThread(
-    _In_ const char*    Name,
-    _In_ ThreadEntry_t  Function, 
-    _In_ void*          Arguments, 
-    _In_ Flags_t        Flags);
+/* CreateThread
+ * Creates a new thread that will execute the given function as soon as possible. The 
+ * thread can be supplied with arguments, mode and a custom memory space. */
+KERNELAPI OsStatus_t KERNELABI
+CreateThread(
+    _In_  const char*    Name,
+    _In_  ThreadEntry_t  Function,
+    _In_  void*          Arguments,
+    _In_  Flags_t        Flags,
+    _In_  UUId_t         MemorySpaceHandle,
+    _Out_ UUId_t*        Handle);
 
 /* ThreadingTerminateThread
  * Marks the thread with the given id for finished, and it will be cleaned up

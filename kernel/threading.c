@@ -75,7 +75,8 @@ ThreadingEnable(void)
     COLLECTION_NODE_INIT(&Thread->CollectionHeader, Key);
 
     // Initialize arch-dependant members
-    Thread->MemorySpace = GetCurrentSystemMemorySpace();
+    Thread->MemorySpace       = GetCurrentSystemMemorySpace();
+    Thread->MemorySpaceHandle = GetCurrentSystemMemorySpaceHandle();
     if (ThreadingRegister(Thread) != OsSuccess) {
         ERROR("Failed to register thread with system. Threading is not enabled.");
         CpuHalt();
@@ -107,34 +108,36 @@ ThreadingEntryPoint(void)
     for (;;);
 }
 
-/* ThreadingCreateThread
- * Creates a new thread with the given paramaters and it is immediately
- * queued up for execution. */
-UUId_t
-ThreadingCreateThread(
-    _In_ const char*    Name,
-    _In_ ThreadEntry_t  Function,
-    _In_ void*          Arguments,
-    _In_ Flags_t        Flags)
+/* CreateThread
+ * Creates a new thread that will execute the given function as soon as possible. The 
+ * thread can be supplied with arguments, mode and a custom memory space. */
+OsStatus_t
+CreateThread(
+    _In_  const char*    Name,
+    _In_  ThreadEntry_t  Function,
+    _In_  void*          Arguments,
+    _In_  Flags_t        Flags,
+    _In_  UUId_t         MemorySpaceHandle,
+    _Out_ UUId_t*        Handle)
 {
-    MCoreThread_t*  Thread;
-    MCoreThread_t*  Parent;
-    UUId_t          Cpu;
-    char            NameBuffer[16];
-    DataKey_t       Key;
+    MCoreThread_t*       Thread;
+    MCoreThread_t*       Parent;
+    UUId_t               CoreId;
+    char                 NameBuffer[16];
+    DataKey_t            Key;
 
-    TRACE("ThreadingCreateThread(%s, 0x%x)", Name, Flags);
+    TRACE("CreateThread(%s, 0x%x)", Name, Flags);
 
     Key.Value.Id    = atomic_fetch_add(&GlbThreadId, 1);
-    Cpu             = CpuGetCurrentId();
-    Parent          = ThreadingGetCurrentThread(Cpu);
+    CoreId          = CpuGetCurrentId();
+    Parent          = ThreadingGetCurrentThread(CoreId);
 
     Thread = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
     memset(Thread, 0, sizeof(MCoreThread_t));
     if (ThreadingRegister(Thread) != OsSuccess) {
         ERROR("Failed to register a new thread with system.");
         kfree(Thread);
-        return UUID_INVALID;
+        return OsError;
     }
 
     // Sanitize name, if NULL generate a new thread name of format 'Thread X'
@@ -166,32 +169,43 @@ ThreadingCreateThread(
     Thread->SignalQueue = CollectionCreate(KeyInteger);
     Thread->ActiveSignal.Signal = -1;
 
-    // Flag-Special-Case
-    // If it's NOT a kernel thread
-    // we specify transition-mode
-    if (THREADING_RUNMODE(Flags) != THREADING_KERNELMODE && !(Flags & THREADING_INHERIT)) {
-        Thread->Flags |= THREADING_SWITCHMODE;
-    }
+    // Is a memory space given to us that we should run in? Determine run mode automatically
+    if (MemorySpaceHandle != UUID_INVALID) {
+        SystemMemorySpace_t* MemorySpace = (SystemMemorySpace_t*)LookupHandle(MemorySpaceHandle);
+        if (MemorySpace == NULL) {
+            return OsDoesNotExist;
+        }
 
-    // Flag-Special-Case
-    // Determine the address space we want
-    // to initialize for this thread
-    if (THREADING_RUNMODE(Flags) == THREADING_KERNELMODE) {
-        Thread->MemorySpace = CreateSystemMemorySpace(MEMORY_SPACE_INHERIT);
+        if (MemorySpace->Flags & MEMORY_SPACE_APPLICATION) {
+            Thread->Flags |= THREADING_USERMODE;
+        }
+        Thread->MemorySpace       = MemorySpace;
+        Thread->MemorySpaceHandle = MemorySpaceHandle;
+        AcquireHandle(MemorySpaceHandle);
     }
     else {
-        Flags_t ASFlags = 0;
+        Flags_t MemorySpaceFlags = 0;
+        if (THREADING_RUNMODE(Flags) != THREADING_KERNELMODE && !(Flags & THREADING_INHERIT)) {
+            Thread->Flags |= THREADING_SWITCHMODE;
+        }
 
-        if (THREADING_RUNMODE(Flags) == THREADING_DRIVERMODE) {
-            ASFlags |= MEMORY_SPACE_SERVICE;
+        if (THREADING_RUNMODE(Flags) == THREADING_KERNELMODE) {
+            MemorySpaceFlags = MEMORY_SPACE_INHERIT;
         }
         else {
-            ASFlags |= MEMORY_SPACE_APPLICATION;
+            if (THREADING_RUNMODE(Flags) == THREADING_USERMODE) {
+                MemorySpaceFlags |= MEMORY_SPACE_APPLICATION;
+            }
+            if (Flags & THREADING_INHERIT) {
+                MemorySpaceFlags |= MEMORY_SPACE_INHERIT;
+            }
         }
-        if (Flags & THREADING_INHERIT) {
-            ASFlags |= MEMORY_SPACE_INHERIT;
+        
+        if (CreateSystemMemorySpace(MemorySpaceFlags, &Thread->MemorySpaceHandle) != OsSuccess) {
+            ERROR("Failed to create memory space for thread");
+            return OsError;
         }
-        Thread->MemorySpace = CreateSystemMemorySpace(ASFlags);
+        Thread->MemorySpace = (SystemMemorySpace_t*)LookupHandle(Thread->MemorySpaceHandle);
     }
 
     // Create context's neccessary
@@ -204,7 +218,8 @@ ThreadingCreateThread(
     }
     CollectionAppend(&Threads, &Thread->CollectionHeader);
     SchedulerThreadQueue(Thread, 0);
-    return Thread->Id;
+    *Handle = Thread->Id;
+    return OsSuccess;
 }
 
 /* ThreadingCleanupThread
@@ -235,8 +250,12 @@ ThreadingCleanupThread(
             kfree(Thread->Contexts[i]);
         }
     }
-    ReleaseSystemMemorySpace(Thread->MemorySpace);
     DestroySystemPipe(Thread->Pipe);
+
+    // Remove a reference to the memory space if not root
+    if (Thread->MemorySpaceHandle != UUID_INVALID) {
+        DestroyHandle(Thread->MemorySpaceHandle);
+    }
 
     // Remove a reference to the process
     if (Thread->ProcessHandle != UUID_INVALID) {
