@@ -24,6 +24,7 @@
 #include <os/osdefs.h>
 #include <os/mollenos.h>
 #include <os/buffer.h>
+#include <os/memory.h>
 #include <process/process.h>
 #include <memoryspace.h>
 #include <memorybuffer.h>
@@ -198,4 +199,63 @@ ScQueryBuffer(
         return OsError;
     }
     return QueryMemoryBuffer(Handle, Dma, Capacity);
+}
+
+OsStatus_t 
+ScCreateSystemMemorySpace(
+    Flags_t Flags,
+    UUId_t* Handle)
+{
+    if (Handle == NULL /*|| !IsPrivilegedProcess() */) {
+        return OsError;
+    }
+    return CreateMemorySpace(Flags, Handle);
+}
+
+OsStatus_t 
+ScGetThreadMemorySpaceHandle(
+    _In_  UUId_t  ThreadHandle,
+    _Out_ UUId_t* Handle)
+{
+    MCoreThread_t* Thread;
+    if (Handle == NULL /*|| !IsPrivilegedProcess() */) {
+        return OsError;
+    }
+    Thread = ThreadingGetThread(ThreadHandle);
+    if (Thread != NULL) {
+        *Handle = Thread->MemorySpaceHandle;
+        return OsSuccess;
+    }
+    return OsDoesNotExist;
+}
+
+OsStatus_t 
+ScCreateSystemMemorySpaceMapping(
+    _In_ UUId_t                          Handle,
+    _In_ struct MemoryMappingParameters* Parameters,
+    _In_ DmaBuffer_t*                    AccessBuffer)
+{
+    SystemMemorySpace_t* MemorySpace   = (SystemMemorySpace_t*)HandleLookup(Handle);
+    Flags_t              RequiredFlags = MAPPING_USERSPACE | MAPPING_PROVIDED | MAPPING_FIXED;
+    OsStatus_t           Status;
+    if (Parameters == NULL || AccessBuffer == NULL /*|| !IsPrivilegedProcess() */) {
+        return OsError;
+    }
+    if (MemorySpace == NULL) {
+        return OsDoesNotExist;
+    }
+    
+    Status = CreateMemoryBuffer(MEMORY_BUFFER_DEFAULT, Parameters->Length, AccessBuffer);
+    if (Status != OsSuccess) {
+        return Status;
+    }
+
+    Status = CreateSystemMemorySpaceMapping(MemorySpace, &AccessBuffer->Dma, &Parameters->VirtualAddress,
+        Parameters->Length, Parameters->Flags | RequiredFlags, __MASK);
+    if (Status != OsSuccess) {
+        ScMemoryFree(AccessBuffer->Address, AccessBuffer->Capacity);
+        DestroyHandle(AccessBuffer->Handle);
+        return Status;
+    }
+    return Status;
 }

@@ -21,14 +21,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-/* Includes
- * - System */
 #include <os/mollenos.h>
 #include <os/syscall.h>
-
-/* Includes
- * - Library */
-#include <stddef.h>
 
 /* MemoryAllocate
  * Allocates a chunk of memory, controlled by the

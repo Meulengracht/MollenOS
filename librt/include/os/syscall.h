@@ -24,18 +24,16 @@
 #ifndef _SYSCALL_INTEFACE_H_
 #define _SYSCALL_INTEFACE_H_
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 
 /* System Call Definitions 
  * Helpers, macros and definitions for system calls */
 #if defined(i386) || defined(__i386__)
-#define SCTYPE  int
+#define SCTYPE int
 #elif defined(amd64) || defined(__amd64__)
-#define SCTYPE  long long
+#define SCTYPE long long
 #endif
-#define SCPARAM(Arg)                ((SCTYPE)Arg)
+#define SCPARAM(Arg) ((SCTYPE)Arg)
 _CODE_BEGIN
 CRTDECL(SCTYPE, syscall0(SCTYPE Function));
 CRTDECL(SCTYPE, syscall1(SCTYPE Function, SCTYPE Arg0));
@@ -95,6 +93,9 @@ _CODE_END
 #define Syscall_CreateBuffer(Flags, Size, DmaBufferPointer) (OsStatus_t)syscall3(45, SCPARAM(Flags), SCPARAM(Size), SCPARAM(DmaBufferPointer))
 #define Syscall_AcquireBuffer(Handle, DmaBufferPointer) (OsStatus_t)syscall2(46, SCPARAM(Handle), SCPARAM(DmaBufferPointer))
 #define Syscall_QueryBuffer(Handle, DmaOut, CapacityOut) (OsStatus_t)syscall3(47, SCPARAM(Handle), SCPARAM(DmaOut), SCPARAM(CapacityOut))
+#define Syscall_CreateMemorySpace(Flags, HandleOut) (OsStatus_t)syscall2(48, SCPARAM(Flags), SCPARAM(HandleOut))
+#define Syscall_GetMemorySpaceForThread(ThreadHandle, HandleOut) (OsStatus_t)syscall2(49, SCPARAM(ThreadHandle), SCPARAM(HandleOut))
+#define Syscall_CreateMemoryMapping(Handle, Parameters, AccessBuffer) (OsStatus_t)syscall3(50, SCPARAM(Handle), SCPARAM(Parameters), SCPARAM(AccessBuffer))
 
 /* Operating support system calls
  * - Operating support related system call definitions */

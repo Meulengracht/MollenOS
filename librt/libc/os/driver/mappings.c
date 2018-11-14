@@ -21,39 +21,46 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __MEMORY_INTERFACE__
-#define __MEMORY_INTERFACE__
-
-#include <os/osdefs.h>
-#include <os/buffer.h>
-
-struct MemoryMappingParameters {
-    uintptr_t VirtualAddress;
-    size_t    Length;
-    Flags_t   Flags;
-};
+#include <os/memory.h>
+#include <os/syscall.h>
 
 /* CreateMemorySpace
  * Creates a new memory space that can be used to create new mappings, and manipulate existing mappings. */
-CRTDECL(OsStatus_t,
+OsStatus_t
 CreateMemorySpace(
     _In_  Flags_t Flags,
-    _Out_ UUId_t* Handle));
+    _Out_ UUId_t* Handle)
+{
+    if (Handle == NULL) {
+        return OsError;
+    }
+    return Syscall_CreateMemorySpace(Flags, Handle);
+}
 
 /* GetMemorySpaceForThread
  * Retrieves the memory space that is currently running for the thread handle. */
-CRTDECL(OsStatus_t,
+OsStatus_t
 GetMemorySpaceForThread(
     _In_  UUId_t  Thread,
-    _Out_ UUId_t* Handle));
+    _Out_ UUId_t* Handle)
+{
+    if (Handle == NULL) {
+        return OsError;
+    }
+    return Syscall_GetMemorySpaceForThread(Thread, Handle);
+}
 
 /* CreateMemoryMapping
  * Creates a new memory mapping in the memory space, if it was successful in creating a mapping,
  * a new access buffer for that piece of memory will be returned. */
-CRTDECL(OsStatus_t,
+OsStatus_t
 CreateMemoryMapping(
     _In_ UUId_t                          Handle,
     _In_ struct MemoryMappingParameters* Parameters,
-    _In_ DmaBuffer_t*                    AccessBuffer));
-
-#endif //!__MEMORY_INTERFACE__
+    _In_ DmaBuffer_t*                    AccessBuffer)
+{
+    if (Parameters == NULL || AccessBuffer == NULL) {
+        return OsError;
+    }
+    return Syscall_CreateMemoryMapping(Handle, Parameters, AccessBuffer);
+}

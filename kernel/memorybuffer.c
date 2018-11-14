@@ -48,7 +48,7 @@ CreateMemoryBuffer(
     size_t Capacity;
     UUId_t Handle;
 
-    Capacity    = DIVUP(Size, GetSystemMemoryPageSize()) * GetSystemMemoryPageSize();
+    Capacity = DIVUP(Size, GetSystemMemoryPageSize()) * GetSystemMemoryPageSize();
     switch (MEMORY_BUFFER_TYPE(Flags)) {
         case MEMORY_BUFFER_KERNEL: {
             DmaAddress = AllocateSystemMemory(Capacity, __MASK, MEMORY_DOMAIN);

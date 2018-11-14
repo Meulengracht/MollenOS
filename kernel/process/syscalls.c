@@ -103,7 +103,7 @@ OsStatus_t  ScAcquireBuffer(UUId_t Handle, DmaBuffer_t* MemoryBuffer);
 OsStatus_t  ScQueryBuffer(UUId_t Handle, uintptr_t* Dma, size_t* Capacity);
 
 OsStatus_t  ScCreateSystemMemorySpace(Flags_t Flags, UUId_t* Handle);
-OsStatus_t  ScGetThreadMemorySpaceHandle(UUId_t Thread, UUId_t* Handle);
+OsStatus_t  ScGetThreadMemorySpaceHandle(UUId_t ThreadHandle, UUId_t* Handle);
 OsStatus_t  ScCreateSystemMemorySpaceMapping(UUId_t Handle, struct MemoryMappingParameters* Parameters, DmaBuffer_t* AccessBuffer);
 
 // Operating system support system calls
@@ -193,9 +193,9 @@ uintptr_t   GlbSyscallTable[111] = {
     DefineSyscall(ScCreateBuffer),
     DefineSyscall(ScAcquireBuffer),
     DefineSyscall(ScQueryBuffer),
-    DefineSyscall(NoOperation),
-    DefineSyscall(NoOperation),
-    DefineSyscall(NoOperation),
+    DefineSyscall(ScCreateSystemMemorySpace),
+    DefineSyscall(ScGetThreadMemorySpaceHandle),
+    DefineSyscall(ScCreateSystemMemorySpaceMapping),
 
     /* Operating System Support Functions - 51 */
     DefineSyscall(ScGetWorkingDirectory),
