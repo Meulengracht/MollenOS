@@ -1,0 +1,10 @@
+# examples/library/book
+# Defines the book object
+
+namespace library;
+
+object Book {
+    string author;
+    string title;
+    int year;
+}
