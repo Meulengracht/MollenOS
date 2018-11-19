@@ -7,11 +7,16 @@
 #include <list>
 
 class GrachtUnit {
+    using UnitList = std::list<GrachtUnit>;
 public:
     GrachtUnit(std::unique_ptr<GrachtAST> AST);
-    ~GrachtUnit();
+
+    UnitList& const GetSupportUnits();
+
+private:
+    bool VerifyAST();
 
 private:
     std::unique_ptr<GrachtAST> m_AST;
-    std::list<GrachtUnit>      m_SupportUnits;
+    UnitList                   m_SupportUnits;
 };

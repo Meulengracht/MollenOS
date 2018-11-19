@@ -10,6 +10,9 @@ GrachtParser::GrachtParser(std::unique_ptr<GrachtFile> Input)
     
 TokenList& const GrachtParser::GetTokens()
 {
+    if (m_Tokens.size() == 0) {
+        ParseGrachtFile();
+    }
     return m_Tokens;
 }
 

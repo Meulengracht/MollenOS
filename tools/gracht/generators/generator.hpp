@@ -7,8 +7,11 @@
 class GrachtGenerator {
 protected:
     GrachtGenerator(std::unique_ptr<GrachtUnit> Unit);
-    ~GrachtGenerator();
+    virtual ~GrachtGenerator() { }
 
-private:
+    virtual int Generate(const std::string& CommonHeadersPath, const std::string& ClientSourcesPath, 
+        const std::string& ServerSourcesPath) = 0;
+
+protected:
     std::unique_ptr<GrachtUnit> m_Unit;
 };

@@ -8,4 +8,7 @@ class GrachtGeneratorC {
 public:
     GrachtGeneratorC(std::unique_ptr<GrachtUnit> Unit);
     ~GrachtGeneratorC();
+
+    int Generate(const std::string& CommonHeadersPath, const std::string& ClientSourcesPath, 
+        const std::string& ServerSourcesPath) override;
 };

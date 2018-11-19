@@ -30,5 +30,5 @@ int main(int argc, char** argv)
     std::unique_ptr<GrachtAST>        AST(new GrachtAST(std::move(Parser)));
     std::unique_ptr<GrachtUnit>       Code(new GrachtUnit(std::move(AST)));
     std::unique_ptr<GrachtGeneratorC> Generator(new GrachtGeneratorC(std::move(Code)));
-    return 0;
+    return Generator->Generate("", "", "");
 }
