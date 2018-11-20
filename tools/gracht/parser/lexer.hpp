@@ -3,14 +3,18 @@
 #pragma once
 
 #include "parser.hpp"
-#include <memory>
-#include <list>
+#include <string>
 
 class GrachtAST {
 public:
-    GrachtAST(std::unique_ptr<GrachtParser> Parser);
-    ~GrachtAST();
+    GrachtAST(const std::string& Path);
+
+    bool IsValid();
 
 private:
-    std::unique_ptr<GrachtParser> m_Parser;
+    bool ParseTokens();
+    bool VerifyAST();
+
+private:
+    GrachtParser m_Parser;
 };

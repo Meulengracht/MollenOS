@@ -3,17 +3,25 @@
 
 #include "unit.hpp"
 
-GrachtUnit::GrachtUnit(std::unique_ptr<GrachtAST> AST)
+GrachtUnit::GrachtUnit(const std::string& Path)
+    : m_AST(Path)
 {
-
-}
-    
-UnitList& const GrachtUnit::GetSupportUnits()
-{
-
 }
 
-bool GrachtUnit::VerifyAST()
+bool GrachtUnit::IsValid()
 {
+    if (m_AST.IsValid()) {
+        return ParseAST();
+    }
+    return false;
+}
 
+bool GrachtUnit::ParseAST()
+{
+    return false;
+}
+
+bool GrachtUnit::ResolveUsing()
+{
+    return false;
 }

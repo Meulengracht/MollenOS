@@ -4,5 +4,5 @@ using book;
 
 namespace library;
 
-func loan(Book book, out uint book_handle);
-func return(uint book_handle);
+func loan(Book book, out uint book_handle) : bool;
+func return(uint book_handle) : bool;

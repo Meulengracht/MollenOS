@@ -5,13 +5,7 @@
 #include "unit.hpp"
 
 class GrachtGenerator {
-protected:
-    GrachtGenerator(std::unique_ptr<GrachtUnit> Unit);
-    virtual ~GrachtGenerator() { }
-
+public:
     virtual int Generate(const std::string& CommonHeadersPath, const std::string& ClientSourcesPath, 
         const std::string& ServerSourcesPath) = 0;
-
-protected:
-    std::unique_ptr<GrachtUnit> m_Unit;
 };

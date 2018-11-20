@@ -6,17 +6,45 @@
 #include <memory>
 #include <list>
 
+class GrachtScope {
+
+};
+
+class GrachtObject : public GrachtScope {
+
+};
+
+class GrachtFunction : public GrachtScope {
+
+};
+
+class GrachtEnum : public GrachtScope {
+
+};
+
 class GrachtUnit {
-    using UnitList = std::list<GrachtUnit>;
+    using UnitList     = std::list<GrachtUnit>;
+    using ObjectList   = std::list<GrachtObject>;
+    using FunctionList = std::list<GrachtFunction>;
+    using EnumList     = std::list<GrachtEnum>;
 public:
-    GrachtUnit(std::unique_ptr<GrachtAST> AST);
+    GrachtUnit(const std::string& Path);
+    
+    bool IsValid();
 
-    UnitList& const GetSupportUnits();
+    const UnitList&     GetSupportUnits() { return m_SupportUnits; }
+    const ObjectList&   GetObjects()      { return m_Objects; }
+    const FunctionList& GetFunctions()    { return m_Functions; }
+    const EnumList&     GetEnums()        { return m_Enums; }
 
 private:
-    bool VerifyAST();
+    bool ParseAST();
+    bool ResolveUsing();
 
 private:
-    std::unique_ptr<GrachtAST> m_AST;
-    UnitList                   m_SupportUnits;
+    GrachtAST    m_AST;
+    ObjectList   m_Objects;
+    FunctionList m_Functions;
+    EnumList     m_Enums;
+    UnitList     m_SupportUnits;
 };

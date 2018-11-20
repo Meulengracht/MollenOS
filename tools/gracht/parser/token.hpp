@@ -6,12 +6,14 @@ class GrachtToken {
 public:
     enum class TokenType {
         UNKNOWN,
+        SemiColon,
+        Colon,
+        Comma,
         LeftParenthesis,
         RightParenthesis,
         LeftBracket,
         RightBracket,
         OperatorAssign,
-        OperatorSemiColon,
         Identifier,
         StringLiteral,
         DigitLiteral,

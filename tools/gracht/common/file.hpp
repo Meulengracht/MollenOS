@@ -8,13 +8,14 @@
 class GrachtFile {
 public:
     GrachtFile(const std::string& Path);
-    ~GrachtFile();
 
     int ReadCharacter();
     
-    unsigned int       GetHashCode();
-    const std::string& GetPath(); 
+    unsigned int       GetHashCode() { return m_Hash; }
+    const std::string& GetPath() { return m_Path; }
 
 private:
     std::ifstream m_Stream;
+    std::string   m_Path;
+    unsigned int  m_Hash;
 };
