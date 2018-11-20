@@ -5,7 +5,7 @@
 
 
 GrachtAST::GrachtAST(const std::string& Path)
-    : m_Parser(Path)
+    : m_Parser(Path), m_RootNode(nullptr), m_CurrentScope(ASTScope::Global)
 {
 }
 
@@ -20,7 +20,7 @@ bool GrachtAST::IsValid()
 bool GrachtAST::ParseTokens()
 {
     auto Tokens = m_Parser.GetTokens();
-    
+
 }
 
 bool GrachtAST::VerifyAST()

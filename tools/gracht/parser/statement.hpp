@@ -3,6 +3,7 @@
 #pragma once
 
 #include "expression.h"
+#include <memory>
 #include <string>
 
 class Statement
@@ -16,122 +17,67 @@ public:
     };
 public:
 	Statement(StatementType Type) 
-        : m_Type(Type) { }
+        : m_Type(Type), m_Child(nullptr) { }
 	virtual ~Statement() {}
 
-	StatementType GetType() { return m_Type; }
+    void SetChildStatement(std::shared_ptr<Statement> Stmt) { m_Child = Stmt; }
+
+    const std::shared_ptr<Statement>& GetChildStatement() { return m_Child; }
+	StatementType                     GetType()           { return m_Type; }
 
 private:
-	StatementType m_Type;
+	StatementType              m_Type;
+    std::shared_ptr<Statement> m_Child;
 };
 
 class Declaration : public Statement
 {
 public:
-	Declaration(const char *pOfType, const char *pIdentifier) : Statement(StmtDeclaration) {
-		m_pIdentifier = strdup(pIdentifier);
-		m_pOfType = strdup(pOfType);
-		m_pExpression = NULL;
-	}
+	Declaration(const std::string& Type, const std::string& Identifier) 
+        : Statement(StatementType::Declaration), m_OfType(Type), m_Identifier(Identifier) { }
 
-	/* Update expression */
-	void SetExpression(Expression *pExpression) {
-		m_pExpression = pExpression;
-	}
-
-	/* Gets */
-	const char *GetOfType() { return m_pOfType; }
-	const char *GetIdentifier() { return m_pIdentifier; }
-	Expression *GetExpression() { return m_pExpression; }
+	const std::string& GetOfType()     { return m_OfType; }
+	const std::string& GetIdentifier() { return m_Identifier; }
 
 private:
-	const char *m_pOfType;
-	const char *m_pIdentifier;
-	Expression *m_pExpression;
+	std::string m_OfType;
+	std::string m_Identifier;
 };
 
 class Object : public Statement
 {
 public:
-	Object(const char *pIdentifier) : Statement(StmtObject) {
-		m_pIdentifier = strdup(pIdentifier);
-		m_pBody = NULL;
-	}
-	~Object() {
-		free((void*)m_pIdentifier);
-		if (m_pBody != NULL) {
-			delete m_pBody;
-		}
-	}
+	Object(const std::string& Identifier) 
+        : Statement(StatementType::Object), m_Identifier(Identifier) { }
 
-	/* Update body - statement */
-	void SetBody(Statement *pStmt) {
-		m_pBody = pStmt;
-	}
-
-	/* Gets */
-	const char *GetIdentifier() { return m_pIdentifier; }
-	Statement *GetBody() { return m_pBody; }
+	const std::string& GetIdentifier() { return m_pIdentifier; }
 
 private:
-	const char *m_pIdentifier;
-	Statement *m_pBody;
+	std::string& m_Identifier;
 };
 
 class Function : public Statement
 {
 public:
-	Function(const char *pIdentifier) : Statement(StmtFunction) {
-		m_pIdentifier = strdup(pIdentifier);
-		m_pBody = NULL;
-	}
-	~Function() {
-		free((void*)m_pIdentifier);
-		if (m_pBody != NULL) {
-			delete m_pBody;
-		}
-	}
+	Function(const std::string& Identifier) 
+        : Statement(StatementType::Function), m_Identifier(Identifier) { }
 
-	/* Update arguments, variable list */
-
-	/* Update body - statement */
-	void SetBody(Statement *pStmt) {
-		m_pBody = pStmt;
-	}
-
-	/* Gets */
-	const char *GetIdentifier() { return m_pIdentifier; }
-	Statement *GetBody() { return m_pBody; }
+	const std::string& GetIdentifier() { return m_pIdentifier; }
 
 private:
-	const char *m_pIdentifier;
-	Statement *m_pBody;
+	std::string& m_Identifier;
 };
 
-/* The sequence class
- * This describes an statement sequence */
 class Sequence : public Statement
 {
 public:
-	Sequence(Statement *Stmt1, Statement *Stmt2) 
-		: Statement(StmtSequence) {
-		m_pStmt1 = Stmt1;
-		m_pStmt2 = Stmt2;
-	}
-	~Sequence() {
-		if (m_pStmt1 != NULL) {
-			delete m_pStmt1;
-		}
-		if (m_pStmt2 != NULL) {
-			delete m_pStmt2;
-		}
-	}
+	Sequence(std::shared_ptr<Statement> Stmt1, std::shared_ptr<Statement> Stmt2) 
+		: Statement(StatementType::Sequence), m_Stmt1(Stmt1), m_Stmt2(Stmt2) {	}
 
-	/* Gets */
-	Statement *GetStatement1() { return m_pStmt1; }
-	Statement *GetStatement2() { return m_pStmt2; }
+	const std::shared_ptr<Statement>& GetStatement1() { return m_pStmt1; }
+	const std::shared_ptr<Statement>& GetStatement2() { return m_pStmt2; }
 
 private:
-	Statement *m_pStmt1;
-	Statement *m_pStmt2;
+	std::shared_ptr<Statement> m_Stmt1;
+	std::shared_ptr<Statement> m_Stmt2;
 };
