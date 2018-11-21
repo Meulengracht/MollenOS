@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,8 +21,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _OS_DEFITIONS_H_
-#define _OS_DEFITIONS_H_
+#ifndef __OS_DEFINITIONS__
+#define __OS_DEFINITIONS__
 
 #include <crtdefs.h>
 #include <stddef.h>
@@ -85,7 +85,8 @@ typedef enum {
     OsSuccess   = 0,
     OsError,            // Error - Generic
     OsExists,           // Error - Resource already exists
-    OsDoesNotExist      // Error - Resource does not exist
+    OsDoesNotExist,     // Error - Resource does not exist
+    OsInvalidParameters // Error - Bad parameters given
 } OsStatus_t;
 
 typedef enum {
@@ -225,4 +226,4 @@ static inline int LastSetBit(size_t Value)
 #endif
 #endif
 
-#endif //!_OS_DEFITIONS_H_
+#endif //!__OS_DEFINITIONS__

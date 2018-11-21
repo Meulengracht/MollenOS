@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011, Philip Meulengracht
+ * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,211 +16,71 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - PE Format Loader
+ * PE/COFF Image Loader
+ *    - Implements support for loading and processing pe/coff image formats
+ *      and implemented as a part of libds to share between services and kernel
  */
-#define __MODULE        "PELD"
-//#define __TRACE
 
-#include <memoryspace.h>
-#include <modules/modules.h>
-#include <process/process.h>
-#include <process/pe.h>
+#include <os/mollenos.h>
+#include <ds/ds.h>
 #include <assert.h>
-#include <string.h>
-#include <debug.h>
-#include <heap.h>
-
-// Prototypes
-OsStatus_t LoadFile(const char* Path, char** FullPath, void** Data, size_t* Length);
-
-//#define __OSCONFIG_PROCESS_SINGLELOAD
-#ifdef __OSCONFIG_PROCESS_SINGLELOAD
-__EXTERN CriticalSection_t LoaderLock;
-#endif
-
-/* PeCalculateChecksum
- * Perform a checksum calculation of the 
- * given PE file. Use this to validate contents
- * of a PE executable */
-uint32_t
-PeCalculateChecksum(
-    _In_ uint8_t*   Data,
-    _In_ size_t     DataLength,
-    _In_ size_t     PeChkSumOffset)
-{
-    // Variables
-    uint32_t *DataPtr   = (uint32_t*)Data;
-    uint64_t Limit      = 4294967296;
-    uint64_t CheckSum   = 0;
-
-    for (size_t i = 0; i < (DataLength / 4); i++, DataPtr++) {
-        uint32_t Val = *DataPtr;
-
-        // Skip the checksum index
-        if (i == (PeChkSumOffset / 4)) {
-            continue;
-        }
-        CheckSum = (CheckSum & UINT32_MAX) + Val + (CheckSum >> 32);
-        if (CheckSum > Limit) {
-            CheckSum = (CheckSum & UINT32_MAX) + (CheckSum >> 32);
-        }
-    }
-
-    CheckSum = (CheckSum & UINT16_MAX) + (CheckSum >> 16);
-    CheckSum = (CheckSum) + (CheckSum >> 16);
-    CheckSum = CheckSum & UINT16_MAX;
-    CheckSum += (uint32_t)DataLength;
-    return (uint32_t)(CheckSum & UINT32_MAX);
-}
-
-/* PeValidate
- * Validates a file-buffer of the given length,
- * does initial header checks and performs a checksum
- * validation. Returns either PE_INVALID or PE_VALID */
-int
-PeValidate(
-    _In_ uint8_t*   Buffer,
-    _In_ size_t     Length)
-{
-    PeOptionalHeader_t *OptHeader   = NULL;
-    PeHeader_t *BaseHeader          = NULL;
-    MzHeader_t *DosHeader           = NULL;
-    size_t HeaderCheckSum           = 0, CalculatedCheckSum = 0;
-    size_t CheckSumAddress          = 0;
-
-    if (Buffer == NULL || Length == 0) {
-        return PE_INVALID;
-    }
-
-    // Get pointer to DOS
-    DosHeader = (MzHeader_t*)Buffer;
-
-    // Check magic for DOS
-    if (DosHeader->Signature != MZ_MAGIC) {
-        ERROR("Invalid MZ Signature 0x%x", DosHeader->Signature);
-        return PE_INVALID;
-    }
-
-    // Get pointer to PE header
-    BaseHeader = (PeHeader_t*)(Buffer + DosHeader->PeHeaderAddress);
-
-    // Check magic for PE
-    if (BaseHeader->Magic != PE_MAGIC) {
-        ERROR("Invalid PE File Magic 0x%x", BaseHeader->Magic);
-        return PE_INVALID;
-    }
-
-    // Validate the current build-target
-    // we don't load arm modules for a x86
-    if (BaseHeader->Machine != PE_CURRENT_MACHINE) {
-        ERROR("The image as built for machine type 0x%x, "
-             "which is not the current machine type.", BaseHeader->Machine);
-        return PE_INVALID;
-    }
-
-    // Initiate pointer to optional header
-    OptHeader = (PeOptionalHeader_t*)(Buffer + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
-
-    // Validate the current architecture,
-    // again we don't load 32 bit modules for 64 bit
-    if (OptHeader->Architecture != PE_CURRENT_ARCH) {
-        ERROR("The image was built for architecture 0x%x, "
-              "and was not supported by the current architecture.", 
-              OptHeader->Architecture);
-        return PE_INVALID;
-    }
-
-    // Ok, time to validate the contents of the file
-    // by performing a checksum of the PE file
-    // We need to re-cast based on architecture
-    if (OptHeader->Architecture == PE_ARCHITECTURE_32) {
-        PeOptionalHeader32_t *OptHeader32 = 
-            (PeOptionalHeader32_t*)(Buffer + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
-        CheckSumAddress = (size_t)&(OptHeader32->ImageChecksum);
-        HeaderCheckSum = OptHeader32->ImageChecksum;
-    }
-    else if (OptHeader->Architecture == PE_ARCHITECTURE_64) {
-        PeOptionalHeader64_t *OptHeader64 = 
-            (PeOptionalHeader64_t*)(Buffer + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
-        CheckSumAddress = (size_t)&(OptHeader64->ImageChecksum);
-        HeaderCheckSum = OptHeader64->ImageChecksum;
-    }
-
-    // Now do the actual checksum calc if the checksum
-    // of the PE header is not 0
-    if (HeaderCheckSum != 0) {
-        TRACE("Checksum validation phase");
-        CalculatedCheckSum = PeCalculateChecksum(
-            Buffer, Length, CheckSumAddress - ((size_t)Buffer));
-        if (CalculatedCheckSum != HeaderCheckSum) {
-            ERROR("Invalid checksum of file (Header 0x%x, Calculated 0x%x)", 
-                HeaderCheckSum, CalculatedCheckSum);
-            return PE_INVALID;
-        }
-    }
-    return PE_VALID;
-}
+#include "pe.h"
 
 /* PeHandleSections
  * Relocates and initializes all sections in the pe image
  * It also returns the last memory address of the relocations */
-uintptr_t
+OsStatus_t
 PeHandleSections(
-    _In_ MCorePeFile_t* PeFile,
-    _In_ uint8_t*       Data,
-    _In_ uintptr_t      SectionAddress,
-    _In_ int            SectionCount,
-    _In_ int            UserSpace)
+    _In_  PeExecutable_t* Image,
+    _In_  uint8_t*        Data,
+    _In_  uintptr_t       SectionAddress,
+    _In_  int             SectionCount,
+    _Out_ uintptr_t*      NextAvailableAddress)
 {
-    // Variables
-    PeSectionHeader_t *Section  = (PeSectionHeader_t*)SectionAddress;
-    uintptr_t CurrentAddress    = PeFile->VirtualAddress;
-    OsStatus_t Status;
-    char SectionName[PE_SECTION_NAME_LENGTH + 1];
-    int i;
+    PeSectionHeader_t* Section        = (PeSectionHeader_t*)SectionAddress;
+    uintptr_t          CurrentAddress = Image->VirtualAddress;
+    OsStatus_t         Status;
+    char               SectionName[PE_SECTION_NAME_LENGTH + 1];
+    int                i;
 
-    // Debug
-    TRACE("PeHandleSections(Library %s, Address 0x%x, AddressOfSections 0x%x, SectionCount %i)",
-        MStringRaw(PeFile->Name), PeFile->VirtualAddress, SectionAddress, SectionCount);
-
-    // Iterate all sections
     for (i = 0; i < SectionCount; i++)
     {
         // Calculate pointers, we need two of them, one that
         // points to data in file, and one that points to where
         // in memory we want to copy data to
-        uintptr_t VirtualDestination = PeFile->VirtualAddress + Section->VirtualAddress;
-        uint8_t *FileBuffer     = (uint8_t*)(Data + Section->RawAddress);
-        uint8_t *Destination    = (uint8_t*)VirtualDestination;
-        Flags_t PageFlags       = (UserSpace == 1) ? MAPPING_USERSPACE : 0;
-        size_t SectionSize      = MAX(Section->RawSize, Section->VirtualSize);
+        uintptr_t VirtualDestination = Image->VirtualAddress + Section->VirtualAddress;
+        uint8_t*  FileBuffer         = (uint8_t*)(Data + Section->RawAddress);
+        uint8_t*  Destination;
+        Flags_t   PageFlags          = MEMORY_READ;
+        size_t    SectionSize        = MAX(Section->RawSize, Section->VirtualSize);
 
         // Make a local copy of the name, just in case
         // we need to do some debug print
         memcpy(&SectionName[0], &Section->Name[0], 8);
-        SectionName[8]          = 0;
+        SectionName[8] = 0;
 
         // Handle page flags for this section
-        if (Section->Flags & PE_SECTION_EXECUTE) {
-            PageFlags |= MAPPING_EXECUTABLE;
+        if (Section->Flags & PE_SECTION_WRITE) {
+            PageFlags |= MEMORY_WRITE;
         }
-        // @todo missing some cases i think
-        //if (!(Section->Flags & PE_SECTION_WRITE)) {
-        //    PageFlags |= MAPPING_READONLY;
-        //}
+        if (Section->Flags & PE_SECTION_EXECUTE) {
+            PageFlags |= MEMORY_EXECUTABLE;
+        }
 
         // Iterate pages and map them in our memory space
         Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, 
-            &VirtualDestination, SectionSize, PageFlags | MAPPING_FIXED, __MASK);
+            &VirtualDestination, SectionSize, PageFlags, __MASK);
         if (Status != OsSuccess) {
             ERROR("Failed to map in PE section at 0x%x", Destination);
+            return Status;
         }
+        Destination = (uint8_t*)VirtualDestination;
 
         // Store first code segment we encounter
         if (Section->Flags & PE_SECTION_CODE) {
-            if (PeFile->CodeBase == 0) {
-                PeFile->CodeBase = (uintptr_t)Destination;
-                PeFile->CodeSize = Section->VirtualSize;
+            if (Image->CodeBase == 0) {
+                Image->CodeBase = (uintptr_t)Destination;
+                Image->CodeSize = Section->VirtualSize;
             }
         }
 
@@ -244,7 +104,7 @@ PeHandleSections(
         }
 
         // Update address and seciton
-        CurrentAddress = (PeFile->VirtualAddress + Section->VirtualAddress + SectionSize);
+        CurrentAddress = (Image->VirtualAddress + Section->VirtualAddress + SectionSize);
         Section++;
     }
 
@@ -253,87 +113,70 @@ PeHandleSections(
     if (CurrentAddress % GetSystemMemoryPageSize()) {
         CurrentAddress += (GetSystemMemoryPageSize() - (CurrentAddress % GetSystemMemoryPageSize()));
     }
-    return CurrentAddress;
+    *NextAvailableAddress = CurrentAddress;
+    return OsSuccess;
 }
 
 /* PeHandleRelocations
  * Initializes and handles the code relocations in the pe image */
-void PeHandleRelocations(MCorePeFile_t *PeFile, 
-    PeDataDirectory_t *RelocDirectory, uintptr_t ImageBase)
+OsStatus_t
+PeHandleRelocations(
+    PeExecutable_t*    Image,
+    uintptr_t          ImageBase,
+    PeDataDirectory_t* RelocDirectory)
 {
-    /* Get a pointer to the table */
-    uint32_t BytesLeft = RelocDirectory->Size;
-    uint32_t *RelocationPtr = NULL;
-    uint16_t *RelocationEntryPtr = NULL;
-    uint8_t *AdvancePtr = NULL;
-    uint32_t Itr = 0;
+    uint32_t  BytesLeft = RelocDirectory->Size;
+    uint32_t* RelocationPtr;
+    uint16_t* RelocationEntryPtr;
+    uint8_t*  AdvancePtr;
+    uint32_t  i;
 
-    /* Sanitize the directory */
-    if (RelocDirectory->AddressRVA == 0
-        || RelocDirectory->Size == 0) {
-        return;
+    if (RelocDirectory->AddressRVA == 0 || BytesLeft == 0) {
+        return OsDoesNotExist;
     }
-    
-    /* Initialize the relocation pointer */
-    RelocationPtr = (uint32_t*)(PeFile->VirtualAddress + RelocDirectory->AddressRVA);
+    RelocationPtr = (uint32_t*)(Image->VirtualAddress + RelocDirectory->AddressRVA);
 
-    /* Iterate as long as we have bytes to parse */
-    while (BytesLeft > 0)
-    {
-        /* Initialize some local variables */
-        uint32_t PageRVA = *RelocationPtr++;
-        uint32_t BlockSize = 0;
-        uint32_t NumRelocs = 0;
+    while (BytesLeft > 0) {
+        uint32_t PageRVA   = *(RelocationPtr++);
+        uint32_t BlockSize = *(RelocationPtr++);
+        uint32_t NumRelocs;
 
-        /* Get block size */
-        BlockSize = *RelocationPtr++;
-
-        /* Sanitize the block size */
         if (BlockSize > BytesLeft) {
             ERROR("Invalid relocation data: BlockSize > BytesLeft, bailing");
             break;
         }
 
-        /* Decrease the bytes left */
         BytesLeft -= BlockSize;
-
-        /* Now, entries come */
-        if (BlockSize != 0) {
-            NumRelocs = (BlockSize - 8) / sizeof(uint16_t);
-        }
-        else {
+        if (BlockSize == 0) {
             ERROR("Invalid relocation data: BlockSize == 0, bailing");
             break;
         }
-
-        /* Initialize the relocation pointer */
+        NumRelocs          = (BlockSize - 8) / sizeof(uint16_t);
         RelocationEntryPtr = (uint16_t*)RelocationPtr;
 
-        /* Iterate relocation entries for this block */
-        for (Itr = 0; Itr < NumRelocs; Itr++) {
+        for (i = 0; i < NumRelocs; i++) {
             uint16_t RelocationEntry = *RelocationEntryPtr;
-            uint16_t Type = (RelocationEntry >> 12);
-            uint16_t Value = RelocationEntry & 0x0FFF;
+            uint16_t Type            = (RelocationEntry >> 12);
+            uint16_t Value           = RelocationEntry & 0x0FFF;
             
-            if (Type == PE_RELOCATION_HIGHLOW ||
-                Type == PE_RELOCATION_RELATIVE64) { // 32/64 Bit Relative
-                // Create a pointer, the low 12 bits have 
-                // an offset into the PageRVA
-                uintptr_t Offset        = (PeFile->VirtualAddress + PageRVA + Value);
-                uintptr_t Translated    = PeFile->VirtualAddress;
+            // 32/64 Bit Relative
+            if (Type == PE_RELOCATION_HIGHLOW || Type == PE_RELOCATION_RELATIVE64) { 
+                // Create a pointer, the low 12 bits have an offset into the PageRVA
+                uintptr_t Offset     = (Image->VirtualAddress + PageRVA + Value);
+                uintptr_t Translated = Image->VirtualAddress;
 
                 // Handle relocation
                 if (Translated >= ImageBase) {
-                    uintptr_t Delta         = (uintptr_t)(Translated - ImageBase);
-                    *((uintptr_t*)Offset)   += Delta;
+                    uintptr_t Delta       = (uintptr_t)(Translated - ImageBase);
+                    *((uintptr_t*)Offset) += Delta;
                 }
                 else {
-                    uintptr_t Delta         = (uintptr_t)(ImageBase - Translated);
-                    *((uintptr_t*)Offset)   -= Delta;
+                    uintptr_t Delta       = (uintptr_t)(ImageBase - Translated);
+                    *((uintptr_t*)Offset) -= Delta;
                 }
             }
             else if (Type == PE_RELOCATION_ALIGN) {
-                /* End of alignment */
+                // End of alignment
             }
             else {
                 ERROR("Implement support for reloc type: %u", Type);
@@ -342,9 +185,8 @@ void PeHandleRelocations(MCorePeFile_t *PeFile,
             RelocationEntryPtr++;
         }
 
-        /* Adjust the relocation pointer */
-        AdvancePtr = (uint8_t*)RelocationPtr;
-        AdvancePtr += (BlockSize - 8);
+        AdvancePtr    = (uint8_t*)RelocationPtr;
+        AdvancePtr    += (BlockSize - 8);
         RelocationPtr = (uint32_t*)AdvancePtr;
     }
 }
@@ -353,59 +195,146 @@ void PeHandleRelocations(MCorePeFile_t *PeFile,
  * Parses the exporst that the pe image provides and caches the list */
 void
 PeHandleExports(
-    _In_ MCorePeFile_t*     PeFile, 
+    _In_ PeExecutable_t*    Image, 
     _In_ PeDataDirectory_t* ExportDirectory)
 {
-    // Variables
-    PeExportDirectory_t *ExportTable    = NULL;
-    uint32_t *FunctionNamesTable        = NULL;
-    uint16_t *FunctionOrdinalsTable     = NULL;
-    uint32_t *FunctionAddressTable      = NULL;
-    int i, OrdinalBase                  = 0;
+    PeExportDirectory_t* ExportTable;
+    uint32_t*            FunctionNamesTable;
+    uint16_t*            FunctionOrdinalsTable;
+    uint32_t*            FunctionAddressTable;
+    int                  OrdinalBase;
+    int                  i;
 
-    // Debug
     TRACE("PeHandleExports(%s, AddressRVA 0x%x, Size 0x%x)",
-        MStringRaw(GetCurrentProcess()->Name), 
-        ExportDirectory->AddressRVA, ExportDirectory->Size);
-
-    // Sanitize the directory first
+        MStringRaw(Image->Name), ExportDirectory->AddressRVA, ExportDirectory->Size);
     if (ExportDirectory->AddressRVA == 0 || ExportDirectory->Size == 0) {
         return;
     }
 
-    // Initiate pointer to export table
-    ExportTable             = (PeExportDirectory_t*)(PeFile->VirtualAddress + ExportDirectory->AddressRVA);
-
-    // Calculate the names
-    FunctionNamesTable      = (uint32_t*)(PeFile->VirtualAddress + ExportTable->AddressOfNames);
-    FunctionOrdinalsTable   = (uint16_t*)(PeFile->VirtualAddress + ExportTable->AddressOfOrdinals);
-    FunctionAddressTable    = (uint32_t*)(PeFile->VirtualAddress + ExportTable->AddressOfFunctions);
+    ExportTable             = (PeExportDirectory_t*)(Image->VirtualAddress + ExportDirectory->AddressRVA);
+    FunctionNamesTable      = (uint32_t*)(Image->VirtualAddress + ExportTable->AddressOfNames);
+    FunctionOrdinalsTable   = (uint16_t*)(Image->VirtualAddress + ExportTable->AddressOfOrdinals);
+    FunctionAddressTable    = (uint32_t*)(Image->VirtualAddress + ExportTable->AddressOfFunctions);
 
     // Allocate statis array for exports
-    PeFile->ExportedFunctions           = (MCorePeExportFunction_t*)
-        kmalloc(sizeof(MCorePeExportFunction_t) * ExportTable->NumberOfOrdinals);
-    PeFile->NumberOfExportedFunctions   = (int)ExportTable->NumberOfOrdinals;
-    OrdinalBase                         = ExportTable->OrdinalBase;
+    Image->ExportedFunctions         = (PeExportedFunction_t*)dsalloc(sizeof(PeExportedFunction_t) * ExportTable->NumberOfOrdinals);
+    Image->NumberOfExportedFunctions = (int)ExportTable->NumberOfOrdinals;
+    OrdinalBase                      = ExportTable->OrdinalBase;
 
     // Instantiate the list for exported functions
     TRACE("Number of functions to iterate: %u", ExportTable->NumberOfOrdinals);
-    for (i = 0; i < PeFile->NumberOfExportedFunctions; i++) {
-        // Setup the correct entry
-        MCorePeExportFunction_t *ExFunc = &PeFile->ExportedFunctions[i];
+    for (i = 0; i < Image->NumberOfExportedFunctions; i++) {
+        PeExportedFunction_t* ExFunc = &Image->ExportedFunctions[i];
 
         // Extract the function information
-        ExFunc->Name            = NULL;
-        ExFunc->ForwardName     = NULL;
-        ExFunc->Ordinal         = (int)FunctionOrdinalsTable[i];
-        ExFunc->Address         = (uintptr_t)(PeFile->VirtualAddress + FunctionAddressTable[ExFunc->Ordinal - OrdinalBase]);
+        ExFunc->Name        = NULL;
+        ExFunc->ForwardName = NULL;
+        ExFunc->Ordinal     = (int)FunctionOrdinalsTable[i];
+        ExFunc->Address     = (uintptr_t)(Image->VirtualAddress + FunctionAddressTable[ExFunc->Ordinal - OrdinalBase]);
         if ((ExFunc->Ordinal - OrdinalBase) <= ExportTable->NumberOfOrdinals) {
-            ExFunc->Name        = (char*)(PeFile->VirtualAddress + FunctionNamesTable[i]);
+            ExFunc->Name    = (char*)(Image->VirtualAddress + FunctionNamesTable[i]);
         }
         if (FunctionAddressTable[ExFunc->Ordinal - OrdinalBase] >= ExportDirectory->AddressRVA &&
             FunctionAddressTable[ExFunc->Ordinal - OrdinalBase] < (ExportDirectory->AddressRVA + ExportDirectory->Size)) {
-            ExFunc->ForwardName = (char*)(PeFile->VirtualAddress + FunctionAddressTable[ExFunc->Ordinal - OrdinalBase]);
+            ExFunc->ForwardName = (char*)(Image->VirtualAddress + FunctionAddressTable[ExFunc->Ordinal - OrdinalBase]);
             ERROR("(%s): Ordinal %i is forwarded as %s, this is not supported yet", 
-                MStringRaw(PeFile->Name), ExFunc->Ordinal, ExFunc->ForwardName);
+                MStringRaw(Image->Name), ExFunc->Ordinal, ExFunc->ForwardName);
+        }
+    }
+}
+
+PeExportedFunction_t*
+PeResolveImportDescriptor(
+    _In_ PeExecutable_t*       Image,
+    _In_ PeImportDescriptor_t* ImportDescriptor)
+{
+    // Calculate address to IAT
+    // These entries are 64 bit in PE32+ and 32 bit in PE32 
+    if (Image->Architecture == PE_ARCHITECTURE_32) {
+        uint32_t *Iat = (uint32_t*)
+            (Image->VirtualAddress + ImportDescriptor->ImportAddressTable);
+
+        /* Iterate Import table for this module */
+        while (*Iat) {
+            PeExportedFunction_t *Function   = NULL;
+            char *FunctionName                  = NULL;
+            uint32_t Value                      = *Iat;
+
+            /* Is it an ordinal or a function name? */
+            if (Value & PE_IMPORT_ORDINAL_32) {
+                int Ordinal = (int)(Value & 0xFFFF);
+                for (int i = 0; i < NumberOfExports; i++) {
+                    if (Exports[i].Ordinal == Ordinal) {
+                        Function = &Exports[i];
+                        break;
+                    }
+                }
+            }
+            else {
+                /* Nah, pointer to function name, 
+                    * where two first bytes are hint? */
+                FunctionName = (char*)
+                    (Image->VirtualAddress + (Value & PE_IMPORT_NAMEMASK) + 2);
+                for (int i = 0; i < NumberOfExports; i++) {
+                    if (Exports[i].Name != NULL) {
+                        if (!strcmp(Exports[i].Name, FunctionName)) {
+                            Function = &Exports[i];
+                            break;
+                        }
+                    }
+                }
+            }
+            if (Function == NULL) {
+                ERROR("Failed to locate function (%s)", Function->Name);
+                return OsError;
+            }
+
+            // Update import address and go to next
+            *Iat = Function->Address;
+            Iat++;
+        }
+    }
+    else {
+        uint64_t *Iat = (uint64_t*)
+            (Image->VirtualAddress + ImportDescriptor->ImportAddressTable);
+
+        /* Iterate Import table for this module */
+        while (*Iat) {
+            PeExportedFunction_t *Function = NULL;
+            uint64_t Value = *Iat;
+
+            /* Is it an ordinal or a function name? */
+            if (Value & PE_IMPORT_ORDINAL_64) {
+                int Ordinal = (int)(Value & 0xFFFF);
+                for (int i = 0; i < NumberOfExports; i++) {
+                    if (Exports[i].Ordinal == Ordinal) {
+                        Function = &Exports[i];
+                        break;
+                    }
+                }
+            }
+            else {
+                /* Nah, pointer to function name, 
+                    * where two first bytes are hint? */
+                char *FunctionName = (char*)
+                    (Image->VirtualAddress + (uint32_t)(Value & PE_IMPORT_NAMEMASK) + 2);
+                for (int i = 0; i < NumberOfExports; i++) {
+                    if (Exports[i].Name != NULL) {
+                        if (!strcmp(Exports[i].Name, FunctionName)) {
+                            Function = &Exports[i];
+                            break;
+                        }
+                    }
+                }
+            }
+            if (Function == NULL) {
+                ERROR("Failed to locate function (%s)", Function->Name);
+                return OsError;
+            }
+
+            // Update import address and go to next
+            *Iat = (uint64_t)Function->Address;
+            Iat++;
         }
     }
 }
@@ -414,139 +343,44 @@ PeHandleExports(
  * Parses and resolves all image imports by parsing the import address table */
 OsStatus_t
 PeHandleImports(
-    _In_    MCorePeFile_t*     Parent,
-    _In_    MCorePeFile_t*     PeFile, 
+    _In_    PeExecutable_t*    Parent,
+    _In_    PeExecutable_t*    Image, 
     _In_    PeDataDirectory_t* ImportDirectory,
     _InOut_ uintptr_t*         NextImageBase)
 {
-    // Variables
-    PeImportDescriptor_t *ImportDescriptor = NULL;
-
-    // Sanitize input
+    PeImportDescriptor_t* ImportDescriptor;
+    
     if (ImportDirectory->AddressRVA == 0 || ImportDirectory->Size == 0) {
         return OsSuccess;
     }
 
-    // Initiate import
-    ImportDescriptor = (PeImportDescriptor_t*)
-        (PeFile->VirtualAddress + ImportDirectory->AddressRVA);
+    ImportDescriptor = (PeImportDescriptor_t*)(Image->VirtualAddress + ImportDirectory->AddressRVA);
     while (ImportDescriptor->ImportAddressTable != 0) {
-        // Local variables
-        MCorePeFile_t *ResolvedLibrary      = NULL;
-        MCorePeExportFunction_t *Exports    = NULL;
-        MString_t *Name                     = NULL;
-        char *NamePtr                       = NULL;
-        int NumberOfExports                 = 0;
+        PeExecutable_t*       ResolvedLibrary = NULL;
+        PeExportedFunction_t* Exports         = NULL;
+        int                   NumberOfExports = 0;
+        MString_t*            Name;
+        char*                 NamePtr;
 
-        // Initialize the string pointer 
-        // and create a new mstring instance from it
-        NamePtr     = (char*)(PeFile->VirtualAddress + ImportDescriptor->ModuleName);
-        Name        = MStringCreate(NamePtr, StrUTF8);
+        NamePtr = (char*)(Image->VirtualAddress + ImportDescriptor->ModuleName);
+        Name    = MStringCreate(NamePtr, StrUTF8);
 
         // Resolve the library from the import chunk
-        ResolvedLibrary = PeResolveLibrary(Parent, PeFile, Name, NextImageBase);
+        ResolvedLibrary = PeResolveLibrary(Parent, Image, Name, NextImageBase);
         if (ResolvedLibrary == NULL || ResolvedLibrary->ExportedFunctions == NULL) {
             ERROR("(%s): Failed to resolve library %s", 
-                MStringRaw(PeFile->Name), MStringRaw(Name));
+                MStringRaw(Image->Name), MStringRaw(Name));
             return OsError;
         }
         else {
             TRACE("(%s): Library %s resolved, %i functions available", 
-                MStringRaw(PeFile->Name), MStringRaw(Name), 
+                MStringRaw(Image->Name), MStringRaw(Name), 
                 ResolvedLibrary->NumberOfExportedFunctions);
             Exports = ResolvedLibrary->ExportedFunctions;
             NumberOfExports = ResolvedLibrary->NumberOfExportedFunctions;
         }
 
-        // Calculate address to IAT
-        // These entries are 64 bit in PE32+ and 32 bit in PE32 
-        if (PeFile->Architecture == PE_ARCHITECTURE_32) {
-            uint32_t *Iat = (uint32_t*)
-                (PeFile->VirtualAddress + ImportDescriptor->ImportAddressTable);
-
-            /* Iterate Import table for this module */
-            while (*Iat) {
-                MCorePeExportFunction_t *Function   = NULL;
-                char *FunctionName                  = NULL;
-                uint32_t Value                      = *Iat;
-
-                /* Is it an ordinal or a function name? */
-                if (Value & PE_IMPORT_ORDINAL_32) {
-                    int Ordinal = (int)(Value & 0xFFFF);
-                    for (int i = 0; i < NumberOfExports; i++) {
-                        if (Exports[i].Ordinal == Ordinal) {
-                            Function = &Exports[i];
-                            break;
-                        }
-                    }
-                }
-                else {
-                    /* Nah, pointer to function name, 
-                     * where two first bytes are hint? */
-                    FunctionName = (char*)
-                        (PeFile->VirtualAddress + (Value & PE_IMPORT_NAMEMASK) + 2);
-                    for (int i = 0; i < NumberOfExports; i++) {
-                        if (Exports[i].Name != NULL) {
-                            if (!strcmp(Exports[i].Name, FunctionName)) {
-                                Function = &Exports[i];
-                                break;
-                            }
-                        }
-                    }
-                }
-                if (Function == NULL) {
-                    ERROR("Failed to locate function (%s)", Function->Name);
-                    return OsError;
-                }
-
-                // Update import address and go to next
-                *Iat = Function->Address;
-                Iat++;
-            }
-        }
-        else {
-            uint64_t *Iat = (uint64_t*)
-                (PeFile->VirtualAddress + ImportDescriptor->ImportAddressTable);
-
-            /* Iterate Import table for this module */
-            while (*Iat) {
-                MCorePeExportFunction_t *Function = NULL;
-                uint64_t Value = *Iat;
-
-                /* Is it an ordinal or a function name? */
-                if (Value & PE_IMPORT_ORDINAL_64) {
-                    int Ordinal = (int)(Value & 0xFFFF);
-                    for (int i = 0; i < NumberOfExports; i++) {
-                        if (Exports[i].Ordinal == Ordinal) {
-                            Function = &Exports[i];
-                            break;
-                        }
-                    }
-                }
-                else {
-                    /* Nah, pointer to function name, 
-                     * where two first bytes are hint? */
-                    char *FunctionName = (char*)
-                        (PeFile->VirtualAddress + (uint32_t)(Value & PE_IMPORT_NAMEMASK) + 2);
-                    for (int i = 0; i < NumberOfExports; i++) {
-                        if (Exports[i].Name != NULL) {
-                            if (!strcmp(Exports[i].Name, FunctionName)) {
-                                Function = &Exports[i];
-                                break;
-                            }
-                        }
-                    }
-                }
-                if (Function == NULL) {
-                    ERROR("Failed to locate function (%s)", Function->Name);
-                    return OsError;
-                }
-
-                // Update import address and go to next
-                *Iat = (uint64_t)Function->Address;
-                Iat++;
-            }
-        }
+        
         ImportDescriptor++;
     }
     return OsSuccess;
@@ -731,7 +565,7 @@ PeLoadImage(
     }
 
     // Allocate a new pe image file structure
-    PeInfo = (MCorePeFile_t*)kmalloc(sizeof(MCorePeFile_t));
+    PeInfo = (MCorePeFile_t*)dsalloc(sizeof(MCorePeFile_t));
     memset(PeInfo, 0, sizeof(MCorePeFile_t));
 
     // Fill initial members
@@ -763,7 +597,7 @@ PeLoadImage(
     // the sections, then parse all directories
     TRACE("Handling sections, relocations and exports");
     *BaseAddress = PeHandleSections(PeInfo, Buffer, SectionAddress, BaseHeader->NumSections, 1);
-    PeHandleRelocations(PeInfo, &DirectoryPtr[PE_SECTION_BASE_RELOCATION], ImageBase);
+    PeHandleRelocations(PeInfo, ImageBase, &DirectoryPtr[PE_SECTION_BASE_RELOCATION]);
     PeHandleExports(PeInfo, &DirectoryPtr[PE_SECTION_EXPORT]);
 
     // Before loading imports, add us to parent list of libraries 

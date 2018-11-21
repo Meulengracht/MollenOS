@@ -19,8 +19,6 @@
  * MollenOS MCore - Generic Bitmap Implementation
  */
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 #include <ds/bitmap.h>
 #include <string.h>
