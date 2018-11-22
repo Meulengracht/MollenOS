@@ -21,6 +21,7 @@
  *      and implemented as a part of libds to share between services and kernel
  */
 
+#include <ds/ds.h>
 #include "pe.h"
 
 uint32_t
@@ -75,34 +76,17 @@ PeValidateImageBuffer(
 
     // Check magic for DOS
     if (DosHeader->Signature != MZ_MAGIC) {
-        ERROR("Invalid MZ Signature 0x%x", DosHeader->Signature);
+        dserror("Invalid MZ Signature 0x%x", DosHeader->Signature);
         return OsError;
     }
     BaseHeader = (PeHeader_t*)(Buffer + DosHeader->PeHeaderAddress);
 
     // Check magic for PE
     if (BaseHeader->Magic != PE_MAGIC) {
-        ERROR("Invalid PE File Magic 0x%x", BaseHeader->Magic);
-        return OsError;
-    }
-
-    // Validate the current build-target
-    // we don't load arm modules for a x86
-    if (BaseHeader->Machine != PE_CURRENT_MACHINE) {
-        ERROR("The image as built for machine type 0x%x, "
-             "which is not the current machine type.", BaseHeader->Machine);
+        dserror("Invalid PE File Magic 0x%x", BaseHeader->Magic);
         return OsError;
     }
     OptHeader = (PeOptionalHeader_t*)(Buffer + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
-
-    // Validate the current architecture,
-    // again we don't load 32 bit modules for 64 bit
-    if (OptHeader->Architecture != PE_CURRENT_ARCH) {
-        ERROR("The image was built for architecture 0x%x, "
-              "and was not supported by the current architecture.", 
-              OptHeader->Architecture);
-        return OsError;
-    }
 
     // Ok, time to validate the contents of the file
     // by performing a checksum of the PE file
@@ -123,11 +107,11 @@ PeValidateImageBuffer(
     // Now do the actual checksum calc if the checksum
     // of the PE header is not 0
     if (HeaderCheckSum != 0) {
-        TRACE("Checksum validation phase");
+        dstrace("Checksum validation phase");
         CalculatedCheckSum = PeCalculateChecksum(
             Buffer, Length, CheckSumAddress - ((size_t)Buffer));
         if (CalculatedCheckSum != HeaderCheckSum) {
-            ERROR("Invalid checksum of file (Header 0x%x, Calculated 0x%x)", 
+            dserror("Invalid checksum of file (Header 0x%x, Calculated 0x%x)", 
                 HeaderCheckSum, CalculatedCheckSum);
             return OsError;
         }

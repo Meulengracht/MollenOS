@@ -5,6 +5,8 @@
             "includePath": [
                 "${workspaceRoot}",
                 "${workspaceRoot}/librt/include",
+                "${workspaceRoot}/librt/libc/include",
+                "${workspaceRoot}/librt/libds/include",
                 "${workspaceRoot}/librt/libacpi/include",
                 "${workspaceRoot}/kernel/include",
                 "${workspaceRoot}/kernel/arch/x86",
@@ -67,6 +69,8 @@
             "includePath": [
                 "${workspaceRoot}",
                 "${workspaceRoot}/librt/include",
+                "${workspaceRoot}/librt/libc/include",
+                "${workspaceRoot}/librt/libds/include",
                 "${workspaceRoot}/librt/libacpi/include",
                 "${workspaceRoot}/kernel/include",
                 "${workspaceRoot}/kernel/arch/x86",

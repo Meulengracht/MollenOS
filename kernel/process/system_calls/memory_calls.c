@@ -21,14 +21,15 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
-#include <os/osdefs.h>
 #include <os/mollenos.h>
 #include <os/buffer.h>
 #include <os/memory.h>
+
 #include <process/process.h>
-#include <memoryspace.h>
 #include <memorybuffer.h>
+#include <memoryspace.h>
 #include <machine.h>
+#include <handle.h>
 #include <debug.h>
 
 /* ScMemoryAllocate
@@ -203,13 +204,13 @@ ScQueryBuffer(
 
 OsStatus_t 
 ScCreateSystemMemorySpace(
-    Flags_t Flags,
-    UUId_t* Handle)
+    _In_  Flags_t Flags,
+    _Out_ UUId_t* Handle)
 {
     if (Handle == NULL /*|| !IsPrivilegedProcess() */) {
         return OsError;
     }
-    return CreateMemorySpace(Flags, Handle);
+    return CreateSystemMemorySpace(Flags | MEMORY_SPACE_APPLICATION, Handle);
 }
 
 OsStatus_t 
@@ -235,7 +236,7 @@ ScCreateSystemMemorySpaceMapping(
     _In_ struct MemoryMappingParameters* Parameters,
     _In_ DmaBuffer_t*                    AccessBuffer)
 {
-    SystemMemorySpace_t* MemorySpace   = (SystemMemorySpace_t*)HandleLookup(Handle);
+    SystemMemorySpace_t* MemorySpace   = (SystemMemorySpace_t*)LookupHandle(Handle);
     Flags_t              RequiredFlags = MAPPING_USERSPACE | MAPPING_PROVIDED | MAPPING_FIXED;
     OsStatus_t           Status;
     if (Parameters == NULL || AccessBuffer == NULL /*|| !IsPrivilegedProcess() */) {
@@ -245,7 +246,7 @@ ScCreateSystemMemorySpaceMapping(
         return OsDoesNotExist;
     }
     
-    Status = CreateMemoryBuffer(MEMORY_BUFFER_DEFAULT, Parameters->Length, AccessBuffer);
+    Status = CreateMemoryBuffer(MEMORY_BUFFER_MEMORYMAPPING, Parameters->Length, AccessBuffer);
     if (Status != OsSuccess) {
         return Status;
     }

@@ -40,19 +40,19 @@ PeHandleSections(
     PeSectionHeader_t* Section        = (PeSectionHeader_t*)SectionAddress;
     uintptr_t          CurrentAddress = Image->VirtualAddress;
     OsStatus_t         Status;
+    MemoryMapHandle_t  MapHandle;
     char               SectionName[PE_SECTION_NAME_LENGTH + 1];
     int                i;
 
-    for (i = 0; i < SectionCount; i++)
-    {
+    for (i = 0; i < SectionCount; i++) {
         // Calculate pointers, we need two of them, one that
         // points to data in file, and one that points to where
         // in memory we want to copy data to
         uintptr_t VirtualDestination = Image->VirtualAddress + Section->VirtualAddress;
         uint8_t*  FileBuffer         = (uint8_t*)(Data + Section->RawAddress);
-        uint8_t*  Destination;
         Flags_t   PageFlags          = MEMORY_READ;
         size_t    SectionSize        = MAX(Section->RawSize, Section->VirtualSize);
+        uint8_t*  Destination;
 
         // Make a local copy of the name, just in case
         // we need to do some debug print
@@ -68,10 +68,9 @@ PeHandleSections(
         }
 
         // Iterate pages and map them in our memory space
-        Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, 
-            &VirtualDestination, SectionSize, PageFlags, __MASK);
+        Status = AcquireImageMapping(Image->MemorySpace, &VirtualDestination, SectionSize, PageFlags, &MapHandle);
         if (Status != OsSuccess) {
-            ERROR("Failed to map in PE section at 0x%x", Destination);
+            dserror("Failed to map in PE section at 0x%x", VirtualDestination);
             return Status;
         }
         Destination = (uint8_t*)VirtualDestination;
@@ -95,15 +94,12 @@ PeHandleSections(
             memcpy(Destination, FileBuffer, Section->RawSize);
 
             // Sanitize this special case, if the virtual size
-            // is large, this means there needs to be zeroed space
-            // afterwards
+            // is large, this means there needs to be zeroed space afterwards
             if (Section->VirtualSize > Section->RawSize) {
-                memset((Destination + Section->RawSize), 0,
-                    (Section->VirtualSize - Section->RawSize));
+                memset((Destination + Section->RawSize), 0, (Section->VirtualSize - Section->RawSize));
             }
         }
-
-        // Update address and seciton
+        ReleaseImageMapping(MapHandle);
         CurrentAddress = (Image->VirtualAddress + Section->VirtualAddress + SectionSize);
         Section++;
     }
@@ -121,9 +117,9 @@ PeHandleSections(
  * Initializes and handles the code relocations in the pe image */
 OsStatus_t
 PeHandleRelocations(
-    PeExecutable_t*    Image,
-    uintptr_t          ImageBase,
-    PeDataDirectory_t* RelocDirectory)
+    _In_ PeExecutable_t*    Image,
+    _In_ uintptr_t          ImageBase,
+    _In_ PeDataDirectory_t* RelocDirectory)
 {
     uint32_t  BytesLeft = RelocDirectory->Size;
     uint32_t* RelocationPtr;
@@ -142,13 +138,13 @@ PeHandleRelocations(
         uint32_t NumRelocs;
 
         if (BlockSize > BytesLeft) {
-            ERROR("Invalid relocation data: BlockSize > BytesLeft, bailing");
+            dserror("Invalid relocation data: BlockSize > BytesLeft, bailing");
             break;
         }
 
         BytesLeft -= BlockSize;
         if (BlockSize == 0) {
-            ERROR("Invalid relocation data: BlockSize == 0, bailing");
+            dserror("Invalid relocation data: BlockSize == 0, bailing");
             break;
         }
         NumRelocs          = (BlockSize - 8) / sizeof(uint16_t);
@@ -179,7 +175,7 @@ PeHandleRelocations(
                 // End of alignment
             }
             else {
-                ERROR("Implement support for reloc type: %u", Type);
+                dserror("Implement support for reloc type: %u", Type);
                 for (;;);
             }
             RelocationEntryPtr++;
@@ -205,7 +201,7 @@ PeHandleExports(
     int                  OrdinalBase;
     int                  i;
 
-    TRACE("PeHandleExports(%s, AddressRVA 0x%x, Size 0x%x)",
+    dstrace("PeHandleExports(%s, AddressRVA 0x%x, Size 0x%x)",
         MStringRaw(Image->Name), ExportDirectory->AddressRVA, ExportDirectory->Size);
     if (ExportDirectory->AddressRVA == 0 || ExportDirectory->Size == 0) {
         return;
@@ -222,7 +218,7 @@ PeHandleExports(
     OrdinalBase                      = ExportTable->OrdinalBase;
 
     // Instantiate the list for exported functions
-    TRACE("Number of functions to iterate: %u", ExportTable->NumberOfOrdinals);
+    dstrace("Number of functions to iterate: %u", ExportTable->NumberOfOrdinals);
     for (i = 0; i < Image->NumberOfExportedFunctions; i++) {
         PeExportedFunction_t* ExFunc = &Image->ExportedFunctions[i];
 
@@ -237,30 +233,42 @@ PeHandleExports(
         if (FunctionAddressTable[ExFunc->Ordinal - OrdinalBase] >= ExportDirectory->AddressRVA &&
             FunctionAddressTable[ExFunc->Ordinal - OrdinalBase] < (ExportDirectory->AddressRVA + ExportDirectory->Size)) {
             ExFunc->ForwardName = (char*)(Image->VirtualAddress + FunctionAddressTable[ExFunc->Ordinal - OrdinalBase]);
-            ERROR("(%s): Ordinal %i is forwarded as %s, this is not supported yet", 
+            dserror("(%s): Ordinal %i is forwarded as %s, this is not supported yet", 
                 MStringRaw(Image->Name), ExFunc->Ordinal, ExFunc->ForwardName);
         }
     }
 }
 
-PeExportedFunction_t*
+OsStatus_t
 PeResolveImportDescriptor(
-    _In_ PeExecutable_t*       Image,
-    _In_ PeImportDescriptor_t* ImportDescriptor)
+    _In_    PeExecutable_t*       Parent,
+    _In_    PeExecutable_t*       Image,
+    _In_    PeImportDescriptor_t* ImportDescriptor,
+    _In_    MString_t*            ImportDescriptorName,
+    _InOut_ uintptr_t*         NextImageBase)
 {
+    PeExecutable_t*       ResolvedLibrary;
+    PeExportedFunction_t* Exports;
+    int                   NumberOfExports;
+
+    // Resolve the library from the import chunk
+    ResolvedLibrary = PeResolveLibrary(Parent, Image, Name, NextImageBase);
+    if (ResolvedLibrary == NULL || ResolvedLibrary->ExportedFunctions == NULL) {
+        dserror("(%s): Failed to resolve library %s", MStringRaw(Image->Name), MStringRaw(Name));
+        return OsError;
+    }
+    Exports         = ResolvedLibrary->ExportedFunctions;
+    NumberOfExports = ResolvedLibrary->NumberOfExportedFunctions;
+
     // Calculate address to IAT
     // These entries are 64 bit in PE32+ and 32 bit in PE32 
     if (Image->Architecture == PE_ARCHITECTURE_32) {
-        uint32_t *Iat = (uint32_t*)
-            (Image->VirtualAddress + ImportDescriptor->ImportAddressTable);
-
-        /* Iterate Import table for this module */
+        uint32_t* Iat = (uint32_t*)(Image->VirtualAddress + ImportDescriptor->ImportAddressTable);
         while (*Iat) {
-            PeExportedFunction_t *Function   = NULL;
-            char *FunctionName                  = NULL;
-            uint32_t Value                      = *Iat;
+            uint32_t              Value        = *Iat;
+            PeExportedFunction_t* Function     = NULL;
+            char*                 FunctionName;
 
-            /* Is it an ordinal or a function name? */
             if (Value & PE_IMPORT_ORDINAL_32) {
                 int Ordinal = (int)(Value & 0xFFFF);
                 for (int i = 0; i < NumberOfExports; i++) {
@@ -271,10 +279,8 @@ PeResolveImportDescriptor(
                 }
             }
             else {
-                /* Nah, pointer to function name, 
-                    * where two first bytes are hint? */
-                FunctionName = (char*)
-                    (Image->VirtualAddress + (Value & PE_IMPORT_NAMEMASK) + 2);
+                // Nah, pointer to function name, where two first bytes are hint?
+                FunctionName = (char*)(Image->VirtualAddress + (Value & PE_IMPORT_NAMEMASK) + 2);
                 for (int i = 0; i < NumberOfExports; i++) {
                     if (Exports[i].Name != NULL) {
                         if (!strcmp(Exports[i].Name, FunctionName)) {
@@ -284,26 +290,22 @@ PeResolveImportDescriptor(
                     }
                 }
             }
+
             if (Function == NULL) {
-                ERROR("Failed to locate function (%s)", Function->Name);
+                dserror("Failed to locate function (%s)", Function->Name);
                 return OsError;
             }
-
-            // Update import address and go to next
             *Iat = Function->Address;
             Iat++;
         }
     }
     else {
-        uint64_t *Iat = (uint64_t*)
-            (Image->VirtualAddress + ImportDescriptor->ImportAddressTable);
-
-        /* Iterate Import table for this module */
+        uint64_t* Iat = (uint64_t*)(Image->VirtualAddress + ImportDescriptor->ImportAddressTable);
         while (*Iat) {
-            PeExportedFunction_t *Function = NULL;
-            uint64_t Value = *Iat;
+            uint64_t              Value        = *Iat;
+            PeExportedFunction_t* Function     = NULL;
+            char*                 FunctionName;
 
-            /* Is it an ordinal or a function name? */
             if (Value & PE_IMPORT_ORDINAL_64) {
                 int Ordinal = (int)(Value & 0xFFFF);
                 for (int i = 0; i < NumberOfExports; i++) {
@@ -314,10 +316,8 @@ PeResolveImportDescriptor(
                 }
             }
             else {
-                /* Nah, pointer to function name, 
-                    * where two first bytes are hint? */
-                char *FunctionName = (char*)
-                    (Image->VirtualAddress + (uint32_t)(Value & PE_IMPORT_NAMEMASK) + 2);
+                // Nah, pointer to function name, where two first bytes are hint?
+                FunctionName = (char*)(Image->VirtualAddress + (uint32_t)(Value & PE_IMPORT_NAMEMASK) + 2);
                 for (int i = 0; i < NumberOfExports; i++) {
                     if (Exports[i].Name != NULL) {
                         if (!strcmp(Exports[i].Name, FunctionName)) {
@@ -327,12 +327,11 @@ PeResolveImportDescriptor(
                     }
                 }
             }
+
             if (Function == NULL) {
-                ERROR("Failed to locate function (%s)", Function->Name);
+                dserror("Failed to locate function (%s)", Function->Name);
                 return OsError;
             }
-
-            // Update import address and go to next
             *Iat = (uint64_t)Function->Address;
             Iat++;
         }
@@ -356,187 +355,114 @@ PeHandleImports(
 
     ImportDescriptor = (PeImportDescriptor_t*)(Image->VirtualAddress + ImportDirectory->AddressRVA);
     while (ImportDescriptor->ImportAddressTable != 0) {
-        PeExecutable_t*       ResolvedLibrary = NULL;
-        PeExportedFunction_t* Exports         = NULL;
-        int                   NumberOfExports = 0;
-        MString_t*            Name;
-        char*                 NamePtr;
+        char*      NamePtr = (char*)(Image->VirtualAddress + ImportDescriptor->ModuleName);
+        MString_t* Name    = MStringCreate(NamePtr, StrUTF8);
+        OsStatus_t Status  = PeResolveImportDescriptor(Parent, Image, ImportDescriptor, Name, NextImageBase);
+        MStringDestroy(Name);
 
-        NamePtr = (char*)(Image->VirtualAddress + ImportDescriptor->ModuleName);
-        Name    = MStringCreate(NamePtr, StrUTF8);
-
-        // Resolve the library from the import chunk
-        ResolvedLibrary = PeResolveLibrary(Parent, Image, Name, NextImageBase);
-        if (ResolvedLibrary == NULL || ResolvedLibrary->ExportedFunctions == NULL) {
-            ERROR("(%s): Failed to resolve library %s", 
-                MStringRaw(Image->Name), MStringRaw(Name));
+        if (Status != OsSuccess) {
             return OsError;
         }
-        else {
-            TRACE("(%s): Library %s resolved, %i functions available", 
-                MStringRaw(Image->Name), MStringRaw(Name), 
-                ResolvedLibrary->NumberOfExportedFunctions);
-            Exports = ResolvedLibrary->ExportedFunctions;
-            NumberOfExports = ResolvedLibrary->NumberOfExportedFunctions;
-        }
-
-        
         ImportDescriptor++;
     }
     return OsSuccess;
 }
 
-/* PeResolveLibrary
- * Resolves a dependancy or a given module path, a load address must be provided
- * together with a pe-file header to fill out and the parent that wants to resolve
- * the library */
-MCorePeFile_t*
-PeResolveLibrary(
-    _In_    MCorePeFile_t*  Parent,
-    _In_    MCorePeFile_t*  PeFile,
-    _In_    MString_t*      LibraryName,
-    _InOut_ uintptr_t*      LoadAddress)
+/* PeParseAndMapImage
+ * Parses sections, data directories and performs neccessary translations and mappings. */
+OsStatus_t
+PeParseAndMapImage(
+    _In_    PeExecutable_t*  Image,
+    _InOut_ uintptr_t*       BaseAddress)
 {
-    // Variables
-    MCorePeFile_t *ExportParent = Parent;
-    MCorePeFile_t *Exports      = NULL;
-    OsStatus_t Status;
+    uintptr_t         VirtualAddress = Image->VirtualAddress;
+    MemoryMapHandle_t MapHandle;
+    OsStatus_t        Status;
 
-    // Sanitize the parent, because the parent will
-    // be null when it's the root module
-    if (ExportParent == NULL) {
-        ExportParent = PeFile;
+    // Copy metadata of image to base address
+    Status = AcquireImageMapping(Image->MemorySpace, &VirtualAddress, SizeOfMetaData,
+        MEMORY_READ | MEMORY_WRITE, &MapHandle);
+    if (Status != OsSuccess) {
+        dserror("Failed to map pe's metadata, out of memory?");
+        return OsError;
     }
+    memcpy((void*)VirtualAddress, Buffer, SizeOfMetaData);
+    ReleaseImageMapping(MapHandle);
 
-    // Trace
-    TRACE("PeResolveLibrary(Name %s, Address 0x%x)", MStringRaw(LibraryName), *LoadAddress);
+    // Now we want to handle all the directories
+    // and sections in the image, start out by handling
+    // the sections, then parse all directories
+    dstrace("Handling sections, relocations and exports");
+    Status = PeHandleSections(Image, Buffer, SectionAddress, BaseHeader->NumSections, 1, BaseAddress);
+    if (Status != OsSuccess) {
+        return OsError;
+    } 
+    PeHandleRelocations(Image, ImageBase, &DirectoryPtr[PE_SECTION_BASE_RELOCATION]);
+    PeHandleExports(Image, &DirectoryPtr[PE_SECTION_EXPORT]);
 
-    // Before actually loading the file, we want to
-    // try to locate the library in the parent first.
-    foreach(lNode, ExportParent->LoadedLibraries) {
-        MCorePeFile_t *Library = (MCorePeFile_t*)lNode->Data;
-
-        // If we find it, then increase the ref count
-        // and use its exports
-        if (MStringCompare(Library->Name, LibraryName, 1) == MSTRING_FULL_MATCH) {
-            TRACE("Library %s was already resolved, increasing ref count", MStringRaw(Library->Name));
-            Library->References++;
-            Exports = Library;
-            break;
-        }
+    // Before loading imports, add us to parent list of libraries 
+    // so we might be reused, instead of reloaded
+    if (Parent != NULL) {
+        DataKey_t Key = { 0 };
+        CollectionAppend(Parent->Libraries, CollectionCreateNode(Key, Image));
     }
-
-    // Sanitize the exports, if its null we have to resolve the library
-    if (Exports == NULL) {
-        MCorePeFile_t *Library;
-        uint8_t *fBuffer;
-        size_t fSize;
-
-        // Open the file
-        // We have a special case here that it might
-        // be from the ramdisk we are loading
-        if (ExportParent->UsingInitRD) {
-            TRACE("Loading from ramdisk (%s)", MStringRaw(LibraryName));
-            Status = ModulesQueryPath(LibraryName, (void**)&fBuffer, &fSize);
-        }
-        else {
-            TRACE("Loading from filesystem (%s)", MStringRaw(LibraryName));
-            Status = LoadFile(MStringRaw(LibraryName), NULL, (void**)&fBuffer, &fSize);
-        }
-
-        if (Status != OsSuccess && fBuffer != NULL && fSize != 0) {
-            ERROR("Failed to load library %s", MStringRaw(LibraryName));
-            for (;;);
-        }
-
-        // After retrieving the data we can now
-        // load the actual image
-        TRACE("Parsing pe-image");
-        Library = PeLoadImage(ExportParent, LibraryName, fBuffer, fSize, LoadAddress, ExportParent->UsingInitRD);
-        Exports = Library;
-
-        // Cleanup buffer, we are done with it now
-        if (!ExportParent->UsingInitRD) {
-            kfree(fBuffer);
-        }
-    }
-
-    // Sanitize exports again, it's only NULL
-    // if all our attempts failed!
-    if (Exports == NULL) {
-        ERROR("Library %s was unable to be resolved", MStringRaw(LibraryName));
-    }
-    return Exports;
-}
-
-/* PeResolveFunction
- * Resolves a function by name in the given pe image, the return
- * value is the address of the function. 0 If not found */
-uintptr_t
-PeResolveFunction(
-    _In_ MCorePeFile_t* Library, 
-    _In_ const char*    Function)
-{
-    MCorePeExportFunction_t* Exports = Library->ExportedFunctions;
-    if (Exports != NULL) {
-        for (int i = 0; i < Library->NumberOfExportedFunctions; i++) {
-            if (Exports[i].Name != NULL && !strcmp(Exports[i].Name, Function)) {
-                return Exports[i].Address;
-            }
-        }
-    }
-    return 0;
+    Status = PeHandleImports(Parent, Image, &DirectoryPtr[PE_SECTION_IMPORT], BaseAddress);
+    return Status;
 }
 
 /* PeLoadImage
  * Loads the given file-buffer as a pe image into the current address space 
  * at the given Base-Address, which is updated after load to reflect where
  * the next address is available for load */
-MCorePeFile_t*
+OsStatus_t
 PeLoadImage(
-    _In_    MCorePeFile_t*  Parent,
-    _In_    MString_t*      Name,
-    _In_    uint8_t*        Buffer,
-    _In_    size_t          Length,
-    _InOut_ uintptr_t*      BaseAddress,
-    _In_    int             UsingInitRD)
+    _In_    PeExecutable_t*  Parent,
+    _In_    MString_t*       Name,
+    _In_    uint8_t*         Buffer,
+    _In_    size_t           Length,
+    _InOut_ uintptr_t*       BaseAddress,
+    _Out_   PeExecutable_t** ImageOut)
 {
-    // Variables
-    MzHeader_t *DosHeader               = NULL;
-    PeHeader_t *BaseHeader              = NULL;
-    PeOptionalHeader_t *OptHeader       = NULL;
+    MzHeader_t*           DosHeader;
+    PeHeader_t*           BaseHeader;
+    PeOptionalHeader_t*   OptHeader;
+    PeOptionalHeader32_t* OptHeader32;
+    PeOptionalHeader64_t* OptHeader64;
 
-    // Optional headers for both bit-widths
-    PeOptionalHeader32_t *OptHeader32   = NULL;
-    PeOptionalHeader64_t *OptHeader64   = NULL;
-
-    // More variables
-    uintptr_t SectionAddress            = 0;
-    uintptr_t ImageBase                 = 0;
-    size_t SizeOfMetaData               = 0;
-    PeDataDirectory_t *DirectoryPtr     = NULL;
-    MCorePeFile_t *PeInfo               = NULL;
-
-#ifdef __OSCONFIG_PROCESS_SINGLELOAD
-    CriticalSectionEnter(&LoaderLock);
-#endif
-
-    // Debug
-    TRACE("PeLoadImage(Path %s, Parent %s, Address 0x%x)",
+    uintptr_t          SectionAddress;
+    uintptr_t          ImageBase;
+    size_t             SizeOfMetaData;
+    PeDataDirectory_t* DirectoryPtr;
+    PeExecutable_t*    Image;
+    OsStatus_t         Status;
+    
+    dstrace("PeLoadImage(Path %s, Parent %s, Address 0x%x)",
         MStringRaw(Name), (Parent == NULL) ? "None" : MStringRaw(Parent->Name), 
         *BaseAddress);
-
-    // Start out by validating the file buffer
-    // so we don't load any garbage
-    if (!PeValidate(Buffer, Length)) {
-        return NULL;
-    }
     
-    // Start out by initializing our header pointers
-    DosHeader       = (MzHeader_t*)Buffer;
-    BaseHeader      = (PeHeader_t*)(Buffer + DosHeader->PeHeaderAddress);
-    OptHeader       = (PeOptionalHeader_t*)
-        (Buffer + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
+    if (PeValidateImageBuffer(Buffer, Length) != OsSuccess) {
+        return OsError;
+    }
+
+    DosHeader  = (MzHeader_t*)Buffer;
+    BaseHeader = (PeHeader_t*)(Buffer + DosHeader->PeHeaderAddress);
+    OptHeader  = (PeOptionalHeader_t*)(Buffer + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
+    
+    if (BaseHeader->Machine != PE_CURRENT_MACHINE) {
+        dserror("The image as built for machine type 0x%x, "
+              "which is not the current machine type.", 
+              BaseHeader->Machine);
+        return OsError;
+    }
+
+    // Validate the current architecture,
+    // again we don't load 32 bit modules for 64 bit
+    if (OptHeader->Architecture != PE_CURRENT_ARCH) {
+        dserror("The image was built for architecture 0x%x, "
+              "and was not supported by the current architecture.", 
+              OptHeader->Architecture);
+        return OsError;
+    }
 
     // We need to re-cast based on architecture 
     // and handle them differnetly
@@ -559,93 +485,38 @@ PeLoadImage(
         DirectoryPtr    = (PeDataDirectory_t*)&OptHeader64->Directories[0];
     }
     else {
-        // Cleanup, return null
-        ERROR("Unsupported architecture %u", OptHeader->Architecture);
-        return NULL;
+        dserror("Unsupported architecture %u", OptHeader->Architecture);
+        return OsError;
     }
 
-    // Allocate a new pe image file structure
-    PeInfo = (MCorePeFile_t*)dsalloc(sizeof(MCorePeFile_t));
-    memset(PeInfo, 0, sizeof(MCorePeFile_t));
+    Image = (PeExecutable_t*)dsalloc(sizeof(PeExecutable_t));
+    memset(Image, 0, sizeof(PeExecutable_t));
 
-    // Fill initial members
-    PeInfo->Name            = Name;
-    PeInfo->Architecture    = OptHeader->Architecture;
-    PeInfo->VirtualAddress  = *BaseAddress;
-    PeInfo->LoadedLibraries = CollectionCreate(KeyInteger);
-    PeInfo->References      = 1;
-    PeInfo->UsingInitRD     = UsingInitRD;
+    Image->Name            = Name;
+    Image->Architecture    = OptHeader->Architecture;
+    Image->VirtualAddress  = *BaseAddress;
+    Image->Libraries       = CollectionCreate(KeyInteger);
+    Image->References      = 1;
 
     // Set the entry point if there is any
     if (OptHeader->EntryPoint != 0) {
-        PeInfo->EntryAddress = PeInfo->VirtualAddress + OptHeader->EntryPoint;
-    }
-    else {
-        PeInfo->EntryAddress = 0;
+        Image->EntryAddress = Image->VirtualAddress + OptHeader->EntryPoint;
     }
 
-    // Copy sections to base address
-    if (CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &PeInfo->VirtualAddress,
-        SizeOfMetaData, MAPPING_USERSPACE | MAPPING_FIXED, __MASK) != OsSuccess) {
-        // Whatthe
-        FATAL(FATAL_SCOPE_KERNEL, "Failed to map pe's metadata, out of memory?");
-    }
-    memcpy((void*)PeInfo->VirtualAddress, Buffer, SizeOfMetaData);
-    
-    // Now we want to handle all the directories
-    // and sections in the image, start out by handling
-    // the sections, then parse all directories
-    TRACE("Handling sections, relocations and exports");
-    *BaseAddress = PeHandleSections(PeInfo, Buffer, SectionAddress, BaseHeader->NumSections, 1);
-    PeHandleRelocations(PeInfo, ImageBase, &DirectoryPtr[PE_SECTION_BASE_RELOCATION]);
-    PeHandleExports(PeInfo, &DirectoryPtr[PE_SECTION_EXPORT]);
-
-    // Before loading imports, add us to parent list of libraries 
-    // so we might be reused, instead of reloaded
-    if (Parent != NULL) {
-        DataKey_t Key = { 0 };
-        CollectionAppend(Parent->LoadedLibraries, CollectionCreateNode(Key, PeInfo));
+    Status = CreateImageSpace(&Image->MemorySpace);
+    if (Status != OsSuccess) {
+        dserror("Failed to create pe's memory space");
+        CollectionDestroy(Image->Libraries);
+        dsfree(Image);
+        return OsError;
     }
 
-    // Handle imports
-    if (PeHandleImports(Parent, PeInfo, &DirectoryPtr[PE_SECTION_IMPORT], BaseAddress) != OsSuccess) {
-        FATAL(FATAL_SCOPE_KERNEL, "Failed to load library");
+    Status = PeParseAndMapImage(Image, BaseAddress);
+    if (Status != OsSuccess) {
+        PeUnloadLibrary(Parent, Image);
+        return OsError;
     }
-    TRACE("Library(%s) has been loaded", MStringRaw(Name));
-
-#ifdef __OSCONFIG_PROCESS_SINGLELOAD
-    CriticalSectionLeave(&LoaderLock);
-#endif
-    return PeInfo;
-}
-
-/* PeUnloadLibrary
- * Unload dynamically loaded library 
- * This only cleans up in the case there are no more references */
-OsStatus_t
-PeUnloadLibrary(
-    _In_ MCorePeFile_t *Parent, 
-    _In_ MCorePeFile_t *Library)
-{
-    // Decrease the ref count
-    Library->References--;
-
-    // Sanitize the ref count
-    // we might have to unload it if there are
-    // no more references
-    if (Library->References <= 0)  {
-        foreach(lNode, Parent->LoadedLibraries) {
-            MCorePeFile_t *lLib = (MCorePeFile_t*)lNode->Data;
-            if (lLib == Library) {
-                CollectionRemoveByNode(Parent->LoadedLibraries, lNode);
-                kfree(lNode);
-                break;
-            }
-        }
-
-        // Actually unload image
-        return PeUnloadImage(Library);
-    }
+    *ImageOut = Image;
     return OsSuccess;
 }
 
@@ -653,92 +524,48 @@ PeUnloadLibrary(
  * Unload executables, all it's dependancies and free it's resources */
 OsStatus_t
 PeUnloadImage(
-    _In_ MCorePeFile_t *Executable)
+    _In_ PeExecutable_t* Image)
 {
-    // Variables
-    CollectionItem_t *Node = NULL;
-
-    // Sanitize parameter
-    if (Executable == NULL) {
-        return OsError;
-    }
-
-    // Cleanup resources
-    MStringDestroy(Executable->Name);
-
-    // Cleanup exports
-    if (Executable->ExportedFunctions != NULL) {
-        kfree(Executable->ExportedFunctions);
-    }
-
-    // Unload libraries
-    if (Executable->LoadedLibraries != NULL) {
-        _foreach(Node, Executable->LoadedLibraries) {
-            MCorePeFile_t *Library = (MCorePeFile_t*)Node->Data;
-            PeUnloadImage(Library);
+    CollectionItem_t* Node;
+    if (Image != NULL) {
+        MStringDestroy(Image->Name);
+        if (Image->ExportedFunctions != NULL) {
+            dsfree(Image->ExportedFunctions);
         }
-    }
-
-    // Last step, free base
-    kfree(Executable);
-    return OsSuccess;
-}
-
-/* PeGetModuleHandles
- * Retrieves a list of loaded module handles currently loaded for the process. */
-OsStatus_t
-PeGetModuleHandles(
-    _In_ MCorePeFile_t *Executable,
-    _Out_ Handle_t ModuleList[PROCESS_MAXMODULES])
-{
-    // Variables
-    int Index = 0;
-
-    // Sanitize input
-    if (Executable == NULL || ModuleList == NULL) {
-        return OsError;
-    }
-
-    // Reset data
-    memset(&ModuleList[0], 0, sizeof(Handle_t) * PROCESS_MAXMODULES);
-
-    // Copy base over
-    ModuleList[Index++] = (Handle_t)Executable->VirtualAddress;
-    if (Executable->LoadedLibraries != NULL) {
-        foreach(Node, Executable->LoadedLibraries) {
-            MCorePeFile_t *Library = (MCorePeFile_t*)Node->Data;
-            ModuleList[Index++] = (Handle_t)Library->VirtualAddress;
-        }
-    }
-    return OsSuccess;
-}
-
-/* PeGetModuleEntryPoints
- * Retrieves a list of loaded module entry points currently loaded for the process. */
-OsStatus_t
-PeGetModuleEntryPoints(
-    _In_  MCorePeFile_t*    Executable,
-    _Out_ Handle_t          ModuleList[PROCESS_MAXMODULES])
-{
-    // Variables
-    int Index = 0;
-
-    // Sanitize input
-    if (Executable == NULL || ModuleList == NULL) {
-        return OsError;
-    }
-
-    // Reset data
-    memset(&ModuleList[0], 0, sizeof(Handle_t) * PROCESS_MAXMODULES);
-
-    // Copy base over
-    if (Executable->LoadedLibraries != NULL) {
-        foreach(Node, Executable->LoadedLibraries) {
-            MCorePeFile_t *Library = (MCorePeFile_t*)Node->Data;
-            if (Library->EntryAddress != 0) {
-                ModuleList[Index++] = (Handle_t)Library->EntryAddress;
+        if (Image->Libraries != NULL) {
+            _foreach(Node, Image->Libraries) {
+                PeUnloadImage((PeExecutable_t*)Node->Data);
             }
         }
+        dsfree(Image);
+        return OsSuccess;
+    }
+}
+
+/* PeUnloadLibrary
+ * Unload dynamically loaded library 
+ * This only cleans up in the case there are no more references */
+OsStatus_t
+PeUnloadLibrary(
+    _In_ PeExecutable_t* Parent, 
+    _In_ PeExecutable_t* Library)
+{
+    Library->References--;
+
+    // Sanitize the ref count
+    // we might have to unload it if there are no more references
+    if (Library->References <= 0)  {
+        if (Parent != NULL) {
+            foreach(lNode, Parent->Libraries) {
+                PeExecutable_t* lLib = (PeExecutable_t*)lNode->Data;
+                if (lLib == Library) {
+                    CollectionRemoveByNode(Parent->Libraries, lNode);
+                    kfree(lNode);
+                    break;
+                }
+            }
+        }
+        return PeUnloadImage(Library);
     }
     return OsSuccess;
 }

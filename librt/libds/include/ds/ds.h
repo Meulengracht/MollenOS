@@ -16,16 +16,14 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - Generic Data Structures (Shared)
+ * Generic Data Structures
  */
 
-#ifndef _DATASTRUCTURES_H_
-#define _DATASTRUCTURES_H_
+#ifndef __DATASTRUCTURES__
+#define __DATASTRUCTURES__
 
 #include <os/osdefs.h>
 
-/* The definition of a key
- * in generic data-structures this can be values or data */
 typedef struct _DataKey {
     union {
         int     Integer;
@@ -37,64 +35,36 @@ typedef struct _DataKey {
     } Value;
 } DataKey_t;
 
-/* This enumeration denotes
- * the kind of key that is to be interpreted by the data-structure */
 typedef enum _KeyType {
     KeyInteger,
     KeyId,
     KeyString
 } KeyType_t;
 
-/* SafeMemoryLock_t
- * Custom implementation that is available for the different data-structures in
- * the libds. */
 typedef struct _SafeMemoryLock {
     atomic_bool     SyncObject;
     unsigned        Flags;
 } SafeMemoryLock_t;
 
-/* dsalloc
- * Seperate portable memory allocator for data-structures */
-CRTDECL(void*,
-dsalloc(
-    _In_ size_t size));
+CRTDECL(void*, dsalloc(size_t size));
+CRTDECL(void,  dsfree(void* pointer));
 
-/* dsfree
- * Seperate portable memory freeing for data-structures */
-CRTDECL(void,
-dsfree(
-    _In_ void *p));
+CRTDECL(void, dslock(SafeMemoryLock_t* lock));
+CRTDECL(void, dsunlock(SafeMemoryLock_t* lock));
 
-/* dslock
- * Acquires the lock given, this is a blocking call and will wait untill
- * the lock is acquired. */
-CRTDECL(void,
-dslock(
-    _In_ SafeMemoryLock_t* MemoryLock));
-
-/* dsunlock
- * Releases the lock given and restores any previous flags. */
-CRTDECL(void,
-dsunlock(
-    _In_ SafeMemoryLock_t* MemoryLock));
+CRTDECL(void, dstrace(const char* fmt, ...));
+CRTDECL(void, dswarning(const char* fmt, ...));
+CRTDECL(void, dserror(const char* fmt, ...));
 
 /* Helper Function 
  * Matches two keys based on the key type returns 0 if they are equal, or -1 if not */
-CRTDECL(int,
-dsmatchkey(
-    _In_ KeyType_t KeyType, 
-    _In_ DataKey_t Key1, 
-    _In_ DataKey_t Key2));
+CRTDECL(int, dsmatchkey(KeyType_t type, DataKey_t key1, DataKey_t key2));
 
 /* Helper Function
  * Used by sorting, it compares to values and returns 
  *  - 1 if 1 > 2, 
  *  - 0 if 1 == 2 and
  *  - -1 if 2 > 1 */
-CRTDECL(int,
-dssortkey(
-    _In_ KeyType_t KeyType, 
-    _In_ DataKey_t Key1, 
-    _In_ DataKey_t Key2));
+CRTDECL(int, dssortkey(KeyType_t type, DataKey_t key1, DataKey_t key2));
 
-#endif //!_DATASTRUCTURES_H_
+#endif //!__DATASTRUCTURES__

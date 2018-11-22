@@ -273,7 +273,7 @@ __set_reserved(size_t Index, TLS_VALUE Value) {
 /*******************************************************************************
  * System Extensions
  *******************************************************************************/
-CRTDECL(void,       MollenOSEndBoot(void));
+CRTDECL(void, MollenOSEndBoot(void));
 
 _CODE_END
 #endif //!_MOLLENOS_INTERFACE_H_

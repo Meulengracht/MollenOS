@@ -30,6 +30,7 @@
 typedef struct _Collection Collection_t;
 typedef struct _MString MString_t;
 typedef void* MemorySpaceHandle_t;
+typedef void* MemoryMapHandle_t;
 
 #if defined(i386) || defined(__i386__)
 #define PE_CURRENT_MACHINE                  PE_MACHINE_X32
@@ -68,9 +69,10 @@ typedef struct _PeExecutable {
 /*******************************************************************************
  * Support Methods 
  *******************************************************************************/
-__EXTERN OsStatus_t LoadFile(MString_t*, void**, size_t*);
+__EXTERN OsStatus_t LoadFile(MString_t*, MString_t*, void**, size_t*);
 __EXTERN OsStatus_t CreateImageSpace(MemorySpaceHandle_t*);
-__EXTERN OsStatus_t CreateImageMapping(MemorySpaceHandle_t, uintptr_t*, size_t, Flags_t);
+__EXTERN OsStatus_t AcquireImageMapping(MemorySpaceHandle_t, uintptr_t*, size_t, Flags_t, MemoryMapHandle_t*);
+__EXTERN void       ReleaseImageMapping(MemoryMapHandle_t);
 
 /*******************************************************************************
  * Public API 
@@ -84,38 +86,24 @@ PeValidateImageBuffer(
     _In_ uint8_t* Buffer,
     _In_ size_t   Length);
 
-/* PeResolveLibrary
- * Resolves a dependancy or a given module path, a load address must be provided
- * together with a pe-file header to fill out and the parent that wants to resolve
- * the library */
-__EXTERN OsStatus_t
-PeResolveLibrary(
-    _In_    PeExecutable_t* Parent,
-    _In_    PeExecutable_t* PeFile,
-    _In_    MString_t*      LibraryName,
-    _InOut_ uintptr_t*      LoadAddress,
-    _Out_   PeExecutable_t* Image);
-
-/* PeResolveFunction
- * Resolves a function by name in the given pe image, the return
- * value is the address of the function. 0 If not found */
-__EXTERN uintptr_t
-PeResolveFunction(
-    _In_ PeExecutable_t* Library, 
-    _In_ const char*     Function);
-
 /* PeLoadImage
  * Loads the given file-buffer as a pe image into the current address space 
  * at the given Base-Address, which is updated after load to reflect where
  * the next address is available for load */
 __EXTERN OsStatus_t
 PeLoadImage(
-    _In_    PeExecutable_t* Parent,
-    _In_    MString_t*      Name,
-    _In_    uint8_t*        Buffer,
-    _In_    size_t          Length,
-    _InOut_ uintptr_t*      BaseAddress,
-    _Out_   PeExecutable_t* Image);
+    _In_    PeExecutable_t*  Parent,
+    _In_    MString_t*       Name,
+    _In_    uint8_t*         Buffer,
+    _In_    size_t           Length,
+    _InOut_ uintptr_t*       BaseAddress,
+    _Out_   PeExecutable_t** ImageOut);
+
+/* PeUnloadImage
+ * Unload executables, all it's dependancies and free it's resources */
+__EXTERN OsStatus_t
+PeUnloadImage(
+    _In_ PeExecutable_t* Image);
 
 /* PeUnloadLibrary
  * Unload dynamically loaded library 
@@ -125,11 +113,23 @@ PeUnloadLibrary(
     _In_ PeExecutable_t* Parent, 
     _In_ PeExecutable_t* Library);
 
-/* PeUnloadImage
- * Unload executables, all it's dependancies and free it's resources */
-__EXTERN OsStatus_t
-PeUnloadImage(
-    _In_ PeExecutable_t* Image);
+/* PeResolveLibrary
+ * Resolves a dependancy or a given module path, a load address must be provided
+ * together with a pe-file header to fill out and the parent that wants to resolve the library */
+__EXTERN PeExecutable_t*
+PeResolveLibrary(
+    _In_    PeExecutable_t* Parent,
+    _In_    PeExecutable_t* Image,
+    _In_    MString_t*      LibraryName,
+    _InOut_ uintptr_t*      LoadAddress);
+
+/* PeResolveFunction
+ * Resolves a function by name in the given pe image, the return
+ * value is the address of the function. 0 If not found */
+__EXTERN uintptr_t
+PeResolveFunction(
+    _In_ PeExecutable_t* Library, 
+    _In_ const char*     Function);
 
 /* PeGetModuleHandles
  * Retrieves a list of loaded module handles currently loaded for the process. */

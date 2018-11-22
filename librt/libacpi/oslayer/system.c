@@ -202,8 +202,9 @@ AcpiOsExecute (
     ACPI_OSD_EXEC_CALLBACK  Function,
     void                    *Context)
 {
-    UUId_t Id = ThreadingCreateThread("acpi-worker", Function, Context, 0);
-    if (Id != UUID_INVALID) {
+    UUId_t     Id;
+    OsStatus_t Status = CreateThread("acpi-worker", Function, Context, 0, UUID_INVALID, &Id);
+    if (Status != OsSuccess) {
         return AE_OK;
     }
     return AE_ERROR;

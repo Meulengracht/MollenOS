@@ -66,6 +66,9 @@ CreateMemoryBuffer(
             }
         } break;
 
+        // On allocation, the memory mapping variant behaves like
+        // the normal behaviour, on free it does not.
+        case MEMORY_BUFFER_MEMORYMAPPING:
         case MEMORY_BUFFER_DEFAULT: {
             DmaAddress = AllocateSystemMemory(Capacity, __MASK, MEMORY_DOMAIN);
             if (DmaAddress == 0) {
@@ -182,12 +185,11 @@ OsStatus_t
 DestroyMemoryBuffer(
     _In_  void*         Resource)
 {
-    SystemMemoryBuffer_t *SystemBuffer;
-    OsStatus_t Status = OsSuccess;
+    SystemMemoryBuffer_t* SystemBuffer = (SystemMemoryBuffer_t*)Resource;
+    OsStatus_t            Status       = OsSuccess;
 
     // Free the physical pages associated, then cleanup structure
     // Only free in the case it's not empty
-    SystemBuffer = (SystemMemoryBuffer_t*)Resource;
     switch (MEMORY_BUFFER_TYPE(SystemBuffer->Flags)) {
         case MEMORY_BUFFER_DEFAULT:
         case MEMORY_BUFFER_KERNEL: {

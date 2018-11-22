@@ -28,7 +28,7 @@ COMMON_SRCS = $(wildcard assert/*.c) \
        		  $(wildcard ctype/common/*.c) \
        		  $(wildcard stdio/common/*.c)
 
-COMMON_INCS = -I../include
+COMMON_INCS = -I../include -Iinclude -I../libds/include
 
 LIBK_SRCS = $(wildcard os/mstring/*.c) \
 			os/synchronization/spinlock.c \
@@ -89,19 +89,19 @@ tidy: $(LIBK_OBJECTS) $(LIBC_OBJECTS)
 	@$(LD) $(LIBC_LFLAGS) $(LIBC_OBJECTS) /out:$@
 
 %.ko : %.c
-	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
+	@printf "%b" "\033[0;32m[LIBK] Compiling C source object " $< "\033[m\n"
 	@$(CC) -c $(LIBK_CFLAGS) -o $@ $<
 
 %.ko : %.s
-	@printf "%b" "\033[0;32mAssembling source object " $< "\033[m\n"
+	@printf "%b" "\033[0;32m[LIBK] Assembling source object " $< "\033[m\n"
 	@$(AS) $(ASFLAGS) $< -o $@
 
 %.o : %.c
-	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
+	@printf "%b" "\033[0;32m[LIBC] Compiling C source object " $< "\033[m\n"
 	@$(CC) -c $(LIBC_CFLAGS) -o $@ $<
 
 %.o : %.s
-	@printf "%b" "\033[0;32mAssembling source object " $< "\033[m\n"
+	@printf "%b" "\033[0;32m[LIBC] Assembling source object " $< "\033[m\n"
 	@$(AS) $(ASFLAGS) $< -o $@
 
 .PHONY: clean

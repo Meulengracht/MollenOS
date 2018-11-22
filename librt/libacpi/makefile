@@ -6,7 +6,7 @@
 # Include all the definitions for os
 include ../../config/common.mk
 
-INCLUDES = -I../../kernel/include -I../include -Iinclude
+INCLUDES = -I../../kernel/include -I../include -I../libc/include -I../libds/include -Iinclude
 SOURCES = $(wildcard common/*.c) \
 		  $(wildcard debugger/*.c) \
 		  $(wildcard disassembler/*.c) \

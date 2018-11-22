@@ -16,7 +16,7 @@ else
 $(error VALI_ARCH is not set to a valid value)
 endif
 
-COMMON_INCLUDES = -I../include
+COMMON_INCLUDES = -I../include -I../libc/include -Iinclude
 COMMON_SOURCES = $(wildcard *.c)
 
 KERNEL_SOURCES = $(COMMON_SOURCES) support/dsk.c
@@ -30,12 +30,7 @@ KERNEL_CFLAGS = $(GCFLAGS) -mno-sse -D_KRNL_DLL $(COMMON_INCLUDES) $(KERNEL_INCL
 NORMAL_CFLAGS = $(GCFLAGS) -D_KRNL_DLL $(COMMON_INCLUDES)
 LFLAGS = /lib
 
-# default-target
-.PHONY: libdsk
-libdsk: ../build/libdsk.lib
-
-.PHONY: libds
-libds: ../build/libds.lib
+all: ../build/libds.lib ../build/libdsk.lib
 
 # tidy-target
 .PHONY: tidy
