@@ -51,6 +51,7 @@ typedef struct _PeExportedFunction {
 
 typedef struct _PeExecutable {
     MString_t*            Name;
+    MString_t*            FullPath;
     atomic_int            References;
     MemorySpaceHandle_t   MemorySpace;
 
@@ -69,7 +70,7 @@ typedef struct _PeExecutable {
 /*******************************************************************************
  * Support Methods 
  *******************************************************************************/
-__EXTERN OsStatus_t LoadFile(MString_t*, MString_t*, void**, size_t*);
+__EXTERN OsStatus_t LoadFile(MString_t*, MString_t**, void**, size_t*);
 __EXTERN OsStatus_t CreateImageSpace(MemorySpaceHandle_t*);
 __EXTERN OsStatus_t AcquireImageMapping(MemorySpaceHandle_t, uintptr_t*, size_t, Flags_t, MemoryMapHandle_t*);
 __EXTERN void       ReleaseImageMapping(MemoryMapHandle_t);
@@ -94,6 +95,7 @@ __EXTERN OsStatus_t
 PeLoadImage(
     _In_    PeExecutable_t*  Parent,
     _In_    MString_t*       Name,
+    _In_    MString_t*       FullPath,
     _In_    uint8_t*         Buffer,
     _In_    size_t           Length,
     _InOut_ uintptr_t*       BaseAddress,

@@ -245,7 +245,7 @@ PeResolveImportDescriptor(
     _In_    PeExecutable_t*       Image,
     _In_    PeImportDescriptor_t* ImportDescriptor,
     _In_    MString_t*            ImportDescriptorName,
-    _InOut_ uintptr_t*         NextImageBase)
+    _InOut_ uintptr_t*            NextImageBase)
 {
     PeExecutable_t*       ResolvedLibrary;
     PeExportedFunction_t* Exports;
@@ -373,6 +373,7 @@ PeHandleImports(
 OsStatus_t
 PeParseAndMapImage(
     _In_    PeExecutable_t*  Image,
+    _In_    size_t           SizeOfMetaData,
     _InOut_ uintptr_t*       BaseAddress)
 {
     uintptr_t         VirtualAddress = Image->VirtualAddress;
@@ -418,6 +419,7 @@ OsStatus_t
 PeLoadImage(
     _In_    PeExecutable_t*  Parent,
     _In_    MString_t*       Name,
+    _In_    MString_t*       FullPath,
     _In_    uint8_t*         Buffer,
     _In_    size_t           Length,
     _InOut_ uintptr_t*       BaseAddress,
@@ -450,8 +452,8 @@ PeLoadImage(
     
     if (BaseHeader->Machine != PE_CURRENT_MACHINE) {
         dserror("The image as built for machine type 0x%x, "
-              "which is not the current machine type.", 
-              BaseHeader->Machine);
+                "which is not the current machine type.", 
+                BaseHeader->Machine);
         return OsError;
     }
 
@@ -459,8 +461,8 @@ PeLoadImage(
     // again we don't load 32 bit modules for 64 bit
     if (OptHeader->Architecture != PE_CURRENT_ARCH) {
         dserror("The image was built for architecture 0x%x, "
-              "and was not supported by the current architecture.", 
-              OptHeader->Architecture);
+                "and was not supported by the current architecture.", 
+                OptHeader->Architecture);
         return OsError;
     }
 
@@ -492,7 +494,8 @@ PeLoadImage(
     Image = (PeExecutable_t*)dsalloc(sizeof(PeExecutable_t));
     memset(Image, 0, sizeof(PeExecutable_t));
 
-    Image->Name            = Name;
+    Image->Name            = MStringCreate((void*)MStringRaw(Name), StrUFT8);
+    Image->FullPath        = MStringCreate((void*)MStringRaw(FullPath), StrUFT8);
     Image->Architecture    = OptHeader->Architecture;
     Image->VirtualAddress  = *BaseAddress;
     Image->Libraries       = CollectionCreate(KeyInteger);
@@ -507,11 +510,13 @@ PeLoadImage(
     if (Status != OsSuccess) {
         dserror("Failed to create pe's memory space");
         CollectionDestroy(Image->Libraries);
+        MStringDestroy(Image->Name);
+        MStringDestroy(Image->FullPath);
         dsfree(Image);
         return OsError;
     }
 
-    Status = PeParseAndMapImage(Image, BaseAddress);
+    Status = PeParseAndMapImage(Image, SizeOfMetaData, BaseAddress);
     if (Status != OsSuccess) {
         PeUnloadLibrary(Parent, Image);
         return OsError;
@@ -529,6 +534,7 @@ PeUnloadImage(
     CollectionItem_t* Node;
     if (Image != NULL) {
         MStringDestroy(Image->Name);
+        MStringDestroy(Image->FullPath);
         if (Image->ExportedFunctions != NULL) {
             dsfree(Image->ExportedFunctions);
         }

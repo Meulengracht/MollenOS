@@ -82,7 +82,7 @@ SignalCreate(
     _In_ UUId_t     ThreadId,
     _In_ int        Signal)
 {
-    MCoreThread_t*  Target   = ThreadingGetThread(ThreadId);
+    MCoreThread_t*  Target = ThreadingGetThread(ThreadId);
     SystemSignal_t* Sig;
     DataKey_t       Key;
 
@@ -129,9 +129,9 @@ OsStatus_t
 SignalHandle(
     _In_ UUId_t ThreadId)
 {
-    CollectionItem_t*   Node;
-    MCoreThread_t*      Thread = ThreadingGetThread(ThreadId);;
-    SystemSignal_t*     Signal;
+    CollectionItem_t* Node;
+    MCoreThread_t*    Thread = ThreadingGetThread(ThreadId);;
+    SystemSignal_t*   Signal;
 
     if (Thread == NULL) {
         return OsError;

@@ -27,6 +27,7 @@
 #ifdef LIBC_KERNEL
 #define __MODULE "DATA"
 #include <system/interrupts.h>
+#include <modules/modules.h>
 #include <memoryspace.h>
 #include <stdio.h>
 #include <debug.h>
@@ -35,10 +36,14 @@
 #include <os/buffer.h>
 #include <os/memory.h>
 #include <os/utils.h>
+#include <os/file.h>
 #include <stdlib.h>
 #include <stdio.h>
 #endif
 
+/*******************************************************************************
+ * Support Methods (DS)
+ *******************************************************************************/
 void* dsalloc(size_t size)
 {
 #ifdef LIBC_KERNEL
@@ -162,77 +167,76 @@ int dssortkey(KeyType_t type, DataKey_t key1, DataKey_t key2)
 /*******************************************************************************
  * Support Methods (PE)
  *******************************************************************************/
-OsStatus_t LoadFile(MString_t* Path, MString_t* FullPath, void** BufferOut, size_t* LengthOut)
+OsStatus_t LoadFile(MString_t* Path, MString_t** FullPath, void** BufferOut, size_t* LengthOut)
 {
+    OsStatus_t Status;
 #ifdef LIBC_KERNEL
     Status = ModulesQueryPath(Path, (void**)&Buffer, &Size);
+    if (Status == OsSuccess) {
+        *FullPath = MStringCreate(MStringRaw(Path), StrUTF8);
+    }
 #else
-    FileSystemCode_t    FsCode;
-    UUId_t              fHandle;
-    DmaBuffer_t         TransferBuffer  = { 0 };
-    LargeInteger_t      QueriedSize     = { { 0 } };
-    void*               fBuffer         = NULL;
-    size_t fRead = 0, fIndex = 0;
-    size_t fSize = 0;
+    LargeInteger_t   QueriedSize = { { 0 } };
+    void*            Buffer      = NULL;
+    FileSystemCode_t FsCode;
+    UUId_t           Handle;
+    size_t           Size;
 
     // Open the file as read-only
-    FsCode = OpenFile(Path, 0, __FILE_READ_ACCESS, &fHandle);
+    FsCode = OpenFile(Path, 0, __FILE_READ_ACCESS, &Handle);
     if (FsCode != FsOk) {
-        ERROR("Invalid path given: %s", Path);
+        ERROR("Invalid path given: %s", MStringRaw(Path));
         return OsError;
     }
 
-    if (GetFileSize(fHandle, &QueriedSize.u.LowPart, NULL) != OsSuccess) {
+    Status = GetFileSize(Handle, &QueriedSize.u.LowPart, NULL);
+    if (Status != OsSuccess) {
         ERROR("Failed to retrieve the file size");
-        CloseFile(fHandle);
-        return OsError;
+        CloseFile(Handle);
+        return Status;
     }
 
     if (FullPath != NULL) {
-        *FullPath = (char*)kmalloc(_MAXPATH);
-        memset((void*)*FullPath, 0, _MAXPATH);
-        if (GetFilePath(fHandle, *FullPath, _MAXPATH) != OsSuccess) {
+        char* PathBuffer = (char*)dsalloc(_MAXPATH);
+        memset(PathBuffer, 0, _MAXPATH);
+
+        Status = GetFilePath(Handle, PathBuffer, _MAXPATH);
+        if (Status != OsSuccess) {
             ERROR("Failed to query file handle for full path");
-            kfree((void*)*FullPath);
-            CloseFile(fHandle);
-            return OsError;
+            dsfree(PathBuffer);
+            CloseFile(Handle);
+            return Status;
         }
+        *FullPath = MStringCreate(PathBuffer, StrUTF8);
+        dsfree(PathBuffer);
     }
 
-    fSize = (size_t)QueriedSize.QuadPart;
-    if (fSize != 0) {
-        if (CreateMemoryBuffer(MEMORY_BUFFER_KERNEL, fSize, &TransferBuffer) != OsSuccess) {
-            ERROR("Failed to create a memory buffer");
-            CloseFile(fHandle);
-            return OsError;
+    Size = (size_t)QueriedSize.QuadPart;
+    if (Size != 0) {
+        DmaBuffer_t* TransferBuffer = CreateBuffer(UUID_INVALID, Size);
+        if (TransferBuffer != NULL) {
+            Buffer = dsalloc(Size);
+            if (Buffer != NULL) {
+                size_t Index, Read = 0;
+                FsCode = ReadFile(Handle, GetBufferHandle(TransferBuffer), Size, &Index, &Read);
+                if (FsCode == FsOk && Read != 0) {
+                    memcpy(Buffer, (const void*)GetBufferDataPointer(TransferBuffer), Read);
+                }
+                else {
+                    MStringDestroy(*FullPath);
+                    dsfree(Buffer);
+                    Status = OsError;
+                    Buffer = NULL;
+                }
+            }
+            DestroyBuffer(TransferBuffer);
         }
-        
-        fBuffer = kmalloc(fSize);
-        if (fBuffer == NULL) {
-            ERROR("Failed to allocate resources for file-loading");
-            CloseFile(fHandle);
-            return OsError;
-        }
-
-        FsCode = ReadFile(fHandle, TransferBuffer.Handle, fSize, &fIndex, &fRead);
-        if (FsCode != FsOk) {
-            ERROR("Failed to read file, code %i", FsCode);
-            kfree(fBuffer);
-            CloseFile(fHandle);
-            return OsError;
-        }
-        memcpy(fBuffer, (const void*)TransferBuffer.Address, fRead);
-
-        // Cleanup by removing the memory mappings and freeing the
-        // physical space allocated.
-        RemoveSystemMemoryMapping(GetCurrentSystemMemorySpace(), TransferBuffer.Address, TransferBuffer.Capacity);
-        DestroyHandle(TransferBuffer.Handle);
     }
-    CloseFile(fHandle);
-    *Data   = fBuffer;
-    *Length = fSize;
-    return OsSuccess;
+    CloseFile(Handle);
+    *BufferOut = Buffer;
+    *LengthOut = Size;
 #endif
+    return Status;
 }
 
 OsStatus_t CreateImageSpace(MemorySpaceHandle_t* HandleOut)

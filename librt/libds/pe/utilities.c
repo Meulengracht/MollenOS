@@ -47,8 +47,8 @@ PeResolveLibrary(
 
     // Before actually loading the file, we want to
     // try to locate the library in the parent first.
-    foreach(lNode, ExportParent->Libraries) {
-        PeExecutable_t *Library = (PeExecutable_t*)lNode->Data;
+    foreach(Node, ExportParent->Libraries) {
+        PeExecutable_t *Library = (PeExecutable_t*)Node->Data;
         if (MStringCompare(Library->Name, LibraryName, 1) == MSTRING_FULL_MATCH) {
             dstrace("Library %s was already resolved, increasing ref count", MStringRaw(Library->Name));
             Library->References++;
@@ -59,12 +59,13 @@ PeResolveLibrary(
 
     // Sanitize the exports, if its null we have to resolve the library
     if (Exports == NULL) {
-        uint8_t* Buffer;
-        size_t   Size;
+        MString_t* FullPath;
+        uint8_t*   Buffer;
+        size_t     Size;
 
-        Status = LoadFile(LibraryName, (void**)&Buffer, &Size);
+        Status = LoadFile(LibraryName, &FullPath, (void**)&Buffer, &Size);
         if (Status == OsSuccess) {
-            Status  = PeLoadImage(ExportParent, LibraryName, Buffer, Size, LoadAddress, &Exports);
+            Status = PeLoadImage(ExportParent, LibraryName, FullPath, Buffer, Size, LoadAddress, &Exports);
         }
     }
 
