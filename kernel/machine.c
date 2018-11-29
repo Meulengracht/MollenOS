@@ -29,7 +29,6 @@
 #include <acpiinterface.h>
 #include <garbagecollector.h>
 #include <modules/modules.h>
-#include <process/phoenix.h>
 #include <interrupts.h>
 #include <scheduler.h>
 #include <threading.h>
@@ -81,10 +80,14 @@ PrintHeader(
  * Callable by the architecture layer to initialize the kernel */
 void
 InitializeMachine(
-    _In_ Multiboot_t *BootInformation)
+    _In_ Multiboot_t* BootInformation)
 {
-    // Variables
     OsStatus_t Status;
+
+    // Boot information must be supplied
+    if (BootInformation == NULL) {
+        return; // @todo perform unique halt/set error
+    }
     
     // Initialize all our static memory systems and global variables
     memcpy(&Machine.BootInformation, BootInformation, sizeof(Multiboot_t));

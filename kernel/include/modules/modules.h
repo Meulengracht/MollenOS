@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,49 +16,60 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - MollenOS Modules
+ * Kernel Module System
+ *   - Implements loading and management of modules that exists on the initrd. 
  */
-#ifndef _MCORE_MODULES_H_
-#define _MCORE_MODULES_H_
 
-#include <multiboot.h>
-#include <modules/ramdisk.h>
+#ifndef __MODULE_INTERFACE__
+#define __MODULE_INTERFACE__
+
 #include <os/osdefs.h>
 #include <ds/mstring.h>
 
 #define MODULE_FILESYSTEM       0x01010101
 #define MODULE_BUS              0x02020202
 
-/* The module definition, it currently just
- * consists of the a ramdisk entry header and a name/path */
-typedef struct _MCoreModule {
-    MString_t*                  Name;
-    MCoreRamDiskModuleHeader_t  Header;
-    const void*                 Data;
-} MCoreModule_t;
+typedef enum _SystemModuleType {
+    FileResource = 0,
+    ModuleResource,
+    ServiceResource
+} SystemModuleType_t;
 
-/* ModulesInitialize
- * Loads the ramdisk, iterates all headers and 
- * builds a list of both available servers and 
- * available drivers */
-__EXTERN OsStatus_t
-ModulesInitialize(
-    _In_ Multiboot_t* BootInformation);
+typedef struct _SystemModule {
+    DevInfo_t          VendorId;
+    DevInfo_t          DeviceId;
+    DevInfo_t          DeviceClass;
+    DevInfo_t          DeviceSubclass;
+    MString_t*         Path;
+    const void*        Data;
+} SystemModule_t;
 
-/* ModulesRunServers
- * Loads all iterated servers in the supplied ramdisk
- * by spawning each one as a new process */
-__EXTERN void
-ModulesRunServers(void);
+/* RegisterModule
+ * Registers a new system module resource that is then available for the operating system
+ * to use. The resource can be can be either an driver, service or a generic file. */
+KERNELAPI OsStatus_t KERNELABI
+RegisterModule(
+    _In_ const char*        Path,
+    _In_ const void*        Data,
+    _In_ SystemModuleType_t Type,
+    _In_ DevInfo_t          VendorId,
+    _In_ DevInfo_t          DeviceId,
+    _In_ DevInfo_t          DeviceClass,
+    _In_ DevInfo_t          DeviceSubclass);
 
-/* ModulesQueryPath
- * Retrieve a pointer to the file-buffer and its length 
- * based on the given <rd:/> path */
-__EXTERN OsStatus_t
-ModulesQueryPath(
-    _In_ MString_t* Path, 
-    _Out_ void**    Buffer, 
-    _Out_ size_t*   Length);
+/* SpawnServices
+ * Loads all system services present in the initial ramdisk. */
+KERNELAPI void KERNELABI
+SpawnServices(void);
+
+/* GetModuleDataByPath
+ * Retrieve a pointer to the file-buffer and its length based on 
+ * the given <rd:/> path */
+KERNELAPI OsStatus_t KERNELABI
+GetModuleDataByPath(
+    _In_  MString_t* Path, 
+    _Out_ void**     Buffer, 
+    _Out_ size_t*    Length);
 
 /* ModulesFindGeneric
  * Resolve a 'generic' driver by its device-type and/or
@@ -83,4 +94,4 @@ __EXTERN MCoreModule_t*
 ModulesFindString(
     _In_ MString_t* Module);
 
-#endif //!_MCORE_MODULES_H_
+#endif //!__MODULE_INTERFACE__
