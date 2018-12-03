@@ -26,6 +26,8 @@
 
 #include <os/osdefs.h>
 
+typedef struct _BlockBitmap BlockBitmap_t;
+
 /* SystemMemorySpace Definitions
  * Definitions, bit definitions and magic constants for memory spaces */
 #define MEMORY_DATACOUNT                4
@@ -34,12 +36,6 @@
  * Definitions, bit definitions and magic constants for memory spaces */
 #define MEMORY_SPACE_INHERIT            0x00000001
 #define MEMORY_SPACE_APPLICATION        0x00000002
-
-/* SystemMemorySpace (Spaces) Definitions
- * Definitions, bit definitions and magic constants for memory spaces */
-#define MEMORY_SPACE_KERNEL_HEAP        0
-#define MEMORY_SPACE_APPLICATION_HEAP   1
-#define MEMORY_SPACE_IOSPACE            2
 
 /* SystemMemorySpace (Flags) Definitions
  * Definitions, bit definitions and magic constants for memory spaces */
@@ -67,7 +63,7 @@ typedef struct _SystemMemorySpace {
     uintptr_t                   Data[MEMORY_DATACOUNT];
     struct _SystemMemorySpace*  Parent;
     UUId_t                      ParentHandle;
-    //blockmap                  spaces[max-spaces]
+    BlockBitmap_t*              HeapSpace;
 } SystemMemorySpace_t;
 
 /* InitializeSystemMemorySpace

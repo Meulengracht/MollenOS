@@ -61,6 +61,7 @@ typedef struct _PeExecutable {
     uintptr_t             EntryAddress;
     uintptr_t             CodeBase;
     size_t                CodeSize;
+    uintptr_t             NextLoadingAddress;
     
     int                   NumberOfExportedFunctions;
     PeExportedFunction_t* ExportedFunctions;

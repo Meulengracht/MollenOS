@@ -68,9 +68,16 @@ ParseInitialRamdisk(
             uint8_t* ModuleData;
             uint32_t CrcOfData;
 
-            Type = ModuleResource;
-            if (Header->Flags & RAMDISK_MODULE_SERVER) {
-                Type = ServiceResource;
+            if (Entry->Type == RAMDISK_FILE) {
+                Type = FileResource;
+            }
+            else {
+                if (Header->Flags & RAMDISK_MODULE_SERVER) {
+                    Type = ServiceResource;
+                }
+                else {
+                    Type = ModuleResource;
+                }
             }
 
             // Perform CRC validation
@@ -78,10 +85,10 @@ ParseInitialRamdisk(
                 + Entry->DataHeaderOffset + sizeof(SystemRamdiskModuleHeader_t));
             CrcOfData  = Crc32Generate(-1, ModuleData, Header->LengthOfData);
             if (CrcOfData == Header->Crc32OfData) {
-                if (RegisterModule((const char*)&Entry->Name[0], (const void*)ModuleData, Type, Header->VendorId, 
-                    Header->DeviceId, Header->DeviceType, Header->DeviceSubType) != OsSuccess) {
-                    // ?
-                    
+                if (RegisterModule((const char*)&Entry->Name[0], (const void*)ModuleData, Header->LengthOfData, 
+                    Type, Header->VendorId, Header->DeviceId, Header->DeviceType, Header->DeviceSubType) != OsSuccess) {
+                    // @todo ?
+                    FATAL(FATAL_SCOPE_KERNEL, "failed to register module");
                 }
             }
             else

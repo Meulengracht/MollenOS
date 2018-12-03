@@ -23,13 +23,26 @@
 //#define __TRACE
 
 #include <system/interrupts.h>
-#include <modules/modules.h>
+#include <modules/manager.h>
+#include <modules/module.h>
 #include <ds/collection.h>
 #include <interrupts.h>
+#include <threading.h>
 #include <debug.h>
 #include <heap.h>
 
-static Collection_t Modules  = COLLECTION_INIT(KeyInteger);
+OsStatus_t PhoenixFileHandler(void *UserData);
+
+static Collection_t Modules        = COLLECTION_INIT(KeyInteger);
+static UUId_t       GcFileHandleId = 0;
+
+/* InitializeModuleManager
+ * Initializes the static storage needed for the module manager, and registers a garbage collector. */
+void
+InitializeModuleManager(void)
+{
+    GcFileHandleId = GcRegister(PhoenixFileHandler);
+}
 
 /* RegisterModule
  * Registers a new system module resource that is then available for the operating system
@@ -38,6 +51,7 @@ OsStatus_t
 RegisterModule(
     _In_ const char*        Path,
     _In_ const void*        Data,
+    _In_ size_t             Length,
     _In_ SystemModuleType_t Type,
     _In_ DevInfo_t          VendorId,
     _In_ DevInfo_t          DeviceId,
@@ -45,10 +59,12 @@ RegisterModule(
     _In_ DevInfo_t          DeviceSubclass)
 {
     SystemModule_t* Module;
-    DataKey_t       Key = { .Value.Integer = (int)Type };
 
     // Allocate a new module header and copy some values 
     Module       = (SystemModule_t*)kmalloc(sizeof(SystemModule_t));
+    memset(Module, 0, sizeof(SystemModule_t));
+    Module->ListHeader.Key.Value.Integer = (int)Type;
+
     Module->Path = MStringCreate("rd:/", StrUTF8);
     MStringAppendString(Module->Path, Path);
     Module->Data = Data;
@@ -57,7 +73,7 @@ RegisterModule(
     Module->DeviceId       = DeviceId;
     Module->DeviceClass    = DeviceClass;
     Module->DeviceSubclass = DeviceSubclass;
-    return CollectionAppend(&Modules, CollectionCreateNode(Key, Module));
+    return CollectionAppend(&Modules, &Module->ListHeader);
 }
 
 /* SpawnServices
@@ -76,8 +92,11 @@ SpawnServices(void)
     // then they will "run" the system for us
     foreach(Node, &Modules) {
         if (Node->Key.Value.Integer == (int)ServiceResource) {
-            SystemModule_t* Module = (SystemModule_t*)Node->Data;
-            CreateModule(Module->Path, 0, 0, 0, 0);
+            SystemModule_t* Module = (SystemModule_t*)Node;
+            OsStatus_t      Status = SpawnModule((SystemModule_t*)Node, NULL, 0);
+            if (Status != OsSuccess) {
+                FATAL(FATAL_SCOPE_KERNEL, "Failed to spawn module %s: %u", MStrignRaw(Module->Path), Status);
+            }
         }
     }
     InterruptRestoreState(IrqState);
@@ -106,12 +125,12 @@ GetModuleDataByPath(
 
     // Locate the module
     foreach(Node, &Modules) {
-        SystemModule_t* Module = (SystemModule_t*)Node->Data;
+        SystemModule_t* Module = (SystemModule_t*)Node;
         TRACE("Comparing(%s)To(%s)", MStringRaw(Token), MStringRaw(Module->Path));
         if (MStringCompare(Token, Module->Path, 1) != MSTRING_NO_MATCH) {
             *Buffer = (void*)Module->Data;
-            *Length = Module->Header.LengthOfData;
-            Result = OsSuccess;
+            *Length = Module->Length;
+            Result  = OsSuccess;
             break;
         }
     }
@@ -121,60 +140,112 @@ GetModuleDataByPath(
     return Result;
 }
 
-/* ModulesFindGeneric
- * Resolve a 'generic' driver by its device-type and/or
- * its device sub-type, this is generally used if there is no
- * vendor specific driver available for the device. Returns NULL
- * if none is available */
-MCoreModule_t*
-ModulesFindGeneric(
-    _In_ DevInfo_t DeviceType, 
-    _In_ DevInfo_t DeviceSubType)
+/* GetGenericDeviceModule
+ * Resolves a device module by it's generic class and subclass instead of a device specific
+ * module that is resolved by vendor id and product id. */
+SystemModule_t*
+GetGenericDeviceModule(
+    _In_ DevInfo_t DeviceClass, 
+    _In_ DevInfo_t DeviceSubclass)
 {
-    foreach(sNode, &Modules) {
-        MCoreModule_t *Mod = (MCoreModule_t*)sNode->Data;
-        if (Mod->Header.DeviceType == DeviceType
-            && Mod->Header.DeviceSubType == DeviceSubType) {
-            return Mod;
+    foreach(Node, &Modules) {
+        SystemModule_t* Module = (SystemModule_t*)Node;
+        if (Module->DeviceClass       == DeviceClass
+            && Module->DeviceSubclass == DeviceSubclass) {
+            return Module;
         }
     }
     return NULL;
 }
 
-/* ModulesFindSpecific
- * Resolve a specific driver by its vendorid and deviceid 
- * this is to ensure optimal module load. Returns NULL 
- * if none is available */
-MCoreModule_t*
-ModulesFindSpecific(
-    _In_ DevInfo_t VendorId, 
+/* GetSpecificDeviceModule
+ * Resolves a specific device module that is specified by both vendor id and product id. */
+SystemModule_t*
+GetSpecificDeviceModule(
+    _In_ DevInfo_t VendorId,
     _In_ DevInfo_t DeviceId)
 {
-    // Sanitize the id's
     if (VendorId == 0) {
         return NULL;
     }
-    foreach(sNode, &Modules) {
-        MCoreModule_t *Mod = (MCoreModule_t*)sNode->Data;
-        if (Mod->Header.VendorId == VendorId
-            && Mod->Header.DeviceId == DeviceId) {
-            return Mod;
+    foreach(Node, &Modules) {
+        SystemModule_t* Module = (SystemModule_t*)Node;
+        if (Module->VendorId == VendorId && Module->DeviceId == DeviceId) {
+            return Module;
         }
     }
     return NULL;
 }
 
-/* ModulesFindString
- * Resolve a module by its name. Returns NULL if none
- * is available */
-MCoreModule_t*
-ModulesFindString(
-    _In_ MString_t *Module)
+/* GetModule
+ * Retrieves an existing module instance based on the identification markers. */
+SystemModule_t*
+GetModule(
+    _In_  DevInfo_t VendorId,
+    _In_  DevInfo_t DeviceId,
+    _In_  DevInfo_t DeviceClass,
+    _In_  DevInfo_t DeviceSubclass)
 {
-    foreach(sNode, &Modules) {
-        MCoreModule_t *Mod = (MCoreModule_t*)sNode->Data;
-        if (MStringCompare(Module, Mod->Name, 1) == MSTRING_FULL_MATCH) {
-            return Mod;
+    foreach(Node, &Modules) {
+        SystemModule_t* Module = (SystemModule_t*)Node;
+        // Should we check vendor-id && device-id?
+        if (VendorId != 0 && DeviceId != 0) {
+            if (Module->VendorId == VendorId && Module->DeviceId == DeviceId) {
+                return Module;
+            }
+        }
+
+        // Skip all fixed-vendor ids
+        if (Module->VendorId != 0xFFEF) {
+            if (Module->DeviceClass == DeviceClass && Module->DeviceSubclass == DeviceSubclass) {
+                return Module;
+            }
+        }
+    }
+    return NULL;
+}
+
+/* GetCurrentModule
+ * Retrieves the module that belongs to the calling thread. */
+SystemModule_t*
+GetCurrentModule(void)
+{
+    UUId_t ThreadId = ThreadingGetCurrentThreadId();
+    foreach(Node, &Modules) {
+        SystemModule_t* Module = (SystemModule_t*)Node;
+        if (Module->PrimaryThreadId == ThreadId) {
+            return Module;
+        }
+    }
+    return NULL;
+}
+
+/* SetModuleAlias
+ * Sets the alias for the currently running module. Only the primary thread is allowed to perform
+ * this call. */
+OsStatus_t
+SetModuleAlias(
+    _In_ UUId_t Alias)
+{
+    SystemModule_t* Module = GetCurrentModule();
+    if (Module != NULL) {
+        Module->Alias = Alias;
+        return OsSuccess;
+    }
+    return OsInvalidPermission;
+}
+
+/* GetModuleByAlias
+ * Retrieves a running service/module by it's registered alias. This is usually done
+ * by system services to be contactable by applications. */
+SystemModule_t*
+GetModuleByAlias(
+    _In_ UUId_t Alias)
+{
+    foreach(Node, &Modules) {
+        SystemModule_t* Module = (SystemModule_t*)Node;
+        if (Module->Alias == Alias) {
+            return Module;
         }
     }
     return NULL;

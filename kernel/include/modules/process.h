@@ -31,7 +31,6 @@
 
 typedef struct _SystemMemorySpace SystemMemorySpace_t;
 typedef struct _MCorePeFile MCorePeFile_t;
-typedef struct _BlockBitmap BlockBitmap_t;
 typedef struct _MString MString_t;
 
 #define PROCESS_INITIAL_STACK   0x1000
@@ -46,27 +45,9 @@ typedef enum _SystemProcessType {
 // System process structure
 // Data container that encompass a range of threads and shared resources
 typedef struct _SystemProcess {
-    SystemProcessType_t         Type;
-    MString_t*                  Name;
-    MString_t*                  Path;
-
-    ProcessStartupInformation_t StartupInformation;
-    MString_t*                  WorkingDirectory;
-    MString_t*                  BaseDirectory;
     UUId_t                      MainThreadId;
     clock_t                     StartedAt;
-    
-    // Resources
-    Collection_t*               Pipes;          // Move to handles
-    Collection_t*               FileMappings;   // Move to handles
-    SystemMemorySpace_t*        MemorySpace;    // just a reference
-    BlockBitmap_t*              Heap;           // Move to memory-space
     uintptr_t                   SignalHandler;  // Move to memory space/store in thread
-
-    // Image resources
-    MCorePeFile_t*              Executable;
-    uintptr_t                   NextLoadingAddress;
-    int                         Code;
 } SystemProcess_t;
 
 /* CreateProcess 

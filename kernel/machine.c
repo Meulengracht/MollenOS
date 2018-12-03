@@ -26,9 +26,10 @@
 #include <revision.h>
 #include <machine.h>
 
-#include <acpiinterface.h>
 #include <garbagecollector.h>
-#include <modules/modules.h>
+#include <modules/ramdisk.h>
+#include <modules/manager.h>
+#include <acpiinterface.h>
 #include <interrupts.h>
 #include <scheduler.h>
 #include <threading.h>
@@ -187,11 +188,8 @@ InitializeMachine(
     }
 #endif
 
-    // Initialize process and usermode systems
-    GcInitialize();
-    InitializePhoenix();
-
     // Last step is to enable timers that kickstart all other threads
+    GcInitialize();
     Status = InitializeSystemTimers();
     if (Status != OsSuccess) {
         ERROR("Failed to initialize timers for system.");
@@ -208,12 +206,13 @@ InitializeMachine(
 #elif __OSCONFIG_DEBUGMODE
     EnableSystemDebugConsole();
 #else
-    Status = ModulesInitialize(&Machine.BootInformation);
+    InitializeModuleManager();
+    Status = ParseInitialRamdisk(&Machine.BootInformation);
     if (Status != OsSuccess) {
         ERROR(" > no ramdisk provided, operating system will enter debug mode");
+        EnableSystemDebugConsole();
     }
-
-    ModulesRunServers();
+    SpawnServices();
 #endif
     WARNING("End of initialization");
     goto IdleProcessor;
