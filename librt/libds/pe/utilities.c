@@ -33,14 +33,13 @@ PeExecutable_t*
 PeResolveLibrary(
     _In_    PeExecutable_t* Parent,
     _In_    PeExecutable_t* Image,
-    _In_    MString_t*      LibraryName,
-    _InOut_ uintptr_t*      LoadAddress)
+    _In_    MString_t*      LibraryName)
 {
     PeExecutable_t* ExportParent = Parent;
     PeExecutable_t* Exports      = NULL;
     OsStatus_t Status;
 
-    dstrace("PeResolveLibrary(Name %s, Address 0x%x)", MStringRaw(LibraryName), *LoadAddress);
+    dstrace("PeResolveLibrary(Name %s)", MStringRaw(LibraryName));
     if (ExportParent == NULL) {
         ExportParent = Image;
     }
@@ -65,7 +64,7 @@ PeResolveLibrary(
 
         Status = LoadFile(LibraryName, &FullPath, (void**)&Buffer, &Size);
         if (Status == OsSuccess) {
-            Status = PeLoadImage(ExportParent, LibraryName, FullPath, Buffer, Size, LoadAddress, &Exports);
+            Status = PeLoadImage(ExportParent, LibraryName, FullPath, Buffer, Size, &Exports);
         }
     }
 

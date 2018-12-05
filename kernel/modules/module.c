@@ -33,62 +33,49 @@
 #include <debug.h>
 #include <heap.h>
 
-typedef struct _SystemProcessPackage {
-    UUId_t      ProcessHandle;
-    uint8_t*    FileBuffer;
-    size_t      FileBufferLength;
-} SystemProcessPackage_t;
+typedef struct _SystemModulePackage {
+    SystemModule_t* Module;
+    const void*     FileBuffer;
+    size_t          FileBufferLength;
+    int             FileBufferDynamic;
+} SystemModulePackage_t;
 
-/* ProcessThreadEntry
- * This is the standard ash-boot function
- * which simply sets up the ash and jumps to userland */
+/* ModuleThreadEntry
+ * Bootstraps the module, by relocating the image correctly into the module's address
+ * space and handles operatings that must be done on the same thread. */
 void
-ProcessThreadEntry(
-    _In_ void*                          Context)
+ModuleThreadEntry(
+    _In_ void* Context)
 {
-    SystemProcessPackage_t* Package     = (SystemProcessPackage_t*)Context;
-    SystemProcess_t* Process            = (SystemProcess_t*)LookupHandle(Package->ProcessHandle);
-    UUId_t          CurrentCpu          = CpuGetCurrentId();
-    MCoreThread_t*  Thread              = ThreadingGetCurrentThread(CurrentCpu);
-    uintptr_t       BaseAddress;
+    SystemModulePackage_t* Package    = (SystemModulePackage_t*)Context;
+    UUId_t                 CurrentCpu = CpuGetCurrentId();
+    MCoreThread_t*         Thread     = ThreadingGetCurrentThread(CurrentCpu);
+    OsStatus_t             Status;
     
     assert(Package != NULL);
-    assert(Process != NULL);
-    assert(Thread != NULL);
-
-    // Argument when calling a new process is just NULL
-    Thread->ParentThreadId  = UUID_INVALID;
-    Thread->ProcessHandle   = Package->ProcessHandle;
-
-    // Update currently running thread, by nulling parent we mark
-    // it as a standalone thread, which make sure it's not a part of a killable chain
-    Process->MainThreadId   = Thread->Id;
-    Process->MemorySpace    = GetCurrentSystemMemorySpace();
-    TimersGetSystemTick(&Process->StartedAt);
+    TimersGetSystemTick(&Package->Module->StartedAt);
 
     // Setup base address for code data
     TRACE("Loading PE-image into memory (buffer 0x%x, size %u)", 
         Package->FileBuffer, Package->FileBufferLength);
-    BaseAddress                 = GetMachine()->MemoryMap.UserCode.Start;
-    Process->Executable         = PeLoadImage(NULL, Process->Name, Package->FileBuffer, 
-        Package->FileBufferLength, &BaseAddress, Package->LoadedFromInitRD);
-    Process->NextLoadingAddress = BaseAddress;
-
-    // Update entry functions
-    assert(Process->Executable != NULL);
-    Thread->Function        = (ThreadEntry_t)Process->Executable->EntryAddress;
-    Thread->Arguments       = NULL;
-
-    if (!Package->LoadedFromInitRD) {
+    Status = PeLoadImage(NULL, Process->Name, Package->Module->Path, (uint8_t*)Package->FileBuffer,
+        Package->FileBufferLength, &Package->Module->Executable);
+    if (Status == OsSuccess) {
+        Thread->Function  = (ThreadEntry_t)Package->Module->Executable->EntryAddress;
+        Thread->Arguments = NULL;
+    }
+    else {
+        ERROR("Failed to bootstrap pe image: %u", Status);
+    }
+    
+    if (Package->FileBufferDynamic) {
         kfree(Package->FileBuffer);
     }
     kfree(Package);
-
-    // Initialize the memory bitmaps
-    CreateBlockmap(0, GetMachine()->MemoryMap.UserHeap.Start, 
-        GetMachine()->MemoryMap.UserHeap.Start + GetMachine()->MemoryMap.UserHeap.Length, 
-        GetMachine()->MemoryGranularity, &Process->Heap);
-    ThreadingSwitchLevel();
+    
+    if (Status == OsSuccess) {
+        ThreadingSwitchLevel();
+    }
 }
 
 /* SpawnModule 
@@ -99,29 +86,51 @@ SpawnModule(
     _In_  const void*     Data,
     _In_  size_t          Length)
 {
-    SystemProcessPackage_t* Package;
-    int                     Index;
-    UUId_t                  ThreadId;
+    SystemModulePackage_t* Package;
+    int                    Index;
+    OsStatus_t             Status;
+    MString_t*             Name;
 
     assert(Module != NULL);
     assert(Module->Executable == NULL);
+
+    Package = (SystemModulePackage_t*)kmalloc(sizeof(SystemModulePackage_t));
+    Package->FileBuffer        = Data;
+    Package->FileBufferLength  = Length;
+    Package->Module            = Module;
+    Package->FileBufferDynamic = 1;
 
     // If no data is passed the data stored initially in module structure
     // must be present
     if (Data == NULL || Length == 0) {
         assert(Module->Data != NULL && Module->Length != 0);
+        Package->FileBuffer        = Module->Data;
+        Package->FileBufferLength  = Module->Length;
+        Package->FileBufferDynamic = 0;
     }
+
+    Status = PeValidateImageBuffer((uint8_t*)Package->FileBuffer, Package->FileBufferLength);
+    if (Status != OsSuccess) {
+        kfree(Package);
+        return Status;
+    }
+
+    // Create initial resources
+    Module->Rpc = CreateSystemPipe(PIPE_MPMC | PIPE_STRUCTURED_BUFFER, PIPE_DEFAULT_ENTRYCOUNT);
 
     // Split path, even if a / is not found
     // it won't fail, since -1 + 1 = 0, so we just copy the entire string
-    Index                       = MStringFindReverse(Process->Path, '/', 0);
-    Process->WorkingDirectory   = MStringSubString(Process->Path, 0, Index);
-    Process->BaseDirectory      = MStringSubString(Process->Path, 0, Index);
-    Process->Name               = MStringSubString(Process->Path, Index + 1, -1);
-    Process->Pipes              = CollectionCreate(KeyInteger);
-    Process->FileMappings       = CollectionCreate(KeyInteger);
-    Process->Type               = Type;
-    CreateThread(MStringRaw(Process->Name), ProcessThreadEntry, Package, THREADING_USERMODE, UUID_INVALID, &ThreadId);
-    ThreadingDetachThread(ThreadId);
+    Index                    = MStringFindReverse(Module->Path, '/', 0);
+    Module->WorkingDirectory = MStringSubString(Module->Path, 0, Index);
+    Module->BaseDirectory    = MStringSubString(Module->Path, 0, Index);
+    Name                     = MStringSubString(Module->Path, Index + 1, -1);
+    Status                   = CreateThread(MStringRaw(Name), ModuleThreadEntry, Package, 
+        THREADING_USERMODE, UUID_INVALID, &Module->PrimaryThreadId);
+    MStringDestroy(Name);
+    if (Status != OsSuccess) {
+        kfree(Package);
+        return Status;
+    }
+    ThreadingDetachThread(Module->PrimaryThreadId);
     return OsSuccess;
 }

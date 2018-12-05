@@ -21,9 +21,6 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
-#include <process/phoenix.h>
-#include <process/process.h>
-#include <process/pipe.h>
 #include <system/utils.h>
 #include <ds/mstring.h>
 #include <scheduler.h>
@@ -38,8 +35,8 @@
  * communication to this port from other processes */
 OsStatus_t
 ScPipeOpen(
-    _In_ int            Port, 
-    _In_ int            Type)
+    _In_ int Port, 
+    _In_ int Type)
 {
     SystemProcess_t* Process = GetCurrentProcess();
     if (Process != NULL) {

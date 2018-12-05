@@ -22,7 +22,6 @@
  */
 #define __MODULE "MSPC"
 
-#include <process/process.h>
 #include <component/cpu.h>
 #include <system/utils.h>
 #include <memoryspace.h>
@@ -104,6 +103,13 @@ CreateSystemMemorySpace(
                     MemorySpace->Data[i] = MemorySpace->Parent->Data[i];
                 }
             }
+        }
+        
+        // If we are root, create the memory bitmaps
+        if (MemorySpace->ParentHandle == UUID_INVALID) {
+            CreateBlockmap(0, GetMachine()->MemoryMap.UserHeap.Start, 
+                GetMachine()->MemoryMap.UserHeap.Start + GetMachine()->MemoryMap.UserHeap.Length, 
+                GetMachine()->MemoryGranularity, &MemorySpace->HeapSpace);
         }
         CloneVirtualSpace(MemorySpace->Parent, MemorySpace, (Flags & MEMORY_SPACE_INHERIT) ? 1 : 0);
         *Handle = CreateHandle(HandleTypeMemorySpace, 0, MemorySpace);

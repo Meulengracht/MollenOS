@@ -33,6 +33,8 @@ typedef struct _MString MString_t;
 
 #define MODULE_FILESYSTEM       0x01010101
 #define MODULE_BUS              0x02020202
+#define MODULE_INITIAL_STACK    0x1000
+#define MODULE_MAX_STACK        (4 << 20)
 
 typedef enum _SystemModuleType {
     FileResource = 0,
@@ -47,6 +49,7 @@ typedef struct _SystemModule {
     size_t           Length;
 
     // Used by Module/Service type
+    clock_t          StartedAt;
     MString_t*       WorkingDirectory;
     MString_t*       BaseDirectory;
     UUId_t           PrimaryThreadId;

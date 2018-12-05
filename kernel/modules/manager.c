@@ -65,14 +65,15 @@ RegisterModule(
     memset(Module, 0, sizeof(SystemModule_t));
     Module->ListHeader.Key.Value.Integer = (int)Type;
 
+    Module->Data = Data;
     Module->Path = MStringCreate("rd:/", StrUTF8);
     MStringAppendString(Module->Path, Path);
-    Module->Data = Data;
 
-    Module->VendorId       = VendorId;
-    Module->DeviceId       = DeviceId;
-    Module->DeviceClass    = DeviceClass;
-    Module->DeviceSubclass = DeviceSubclass;
+    Module->VendorId        = VendorId;
+    Module->DeviceId        = DeviceId;
+    Module->DeviceClass     = DeviceClass;
+    Module->DeviceSubclass  = DeviceSubclass;
+    Module->PrimaryThreadId = UUID_INVALID;
     return CollectionAppend(&Modules, &Module->ListHeader);
 }
 
@@ -213,7 +214,7 @@ GetCurrentModule(void)
     UUId_t ThreadId = ThreadingGetCurrentThreadId();
     foreach(Node, &Modules) {
         SystemModule_t* Module = (SystemModule_t*)Node;
-        if (Module->PrimaryThreadId == ThreadId) {
+        if (Module->PrimaryThreadId == ThreadId /* || IsChildOf(Module->PrimaryThreadId)*/) {
             return Module;
         }
     }

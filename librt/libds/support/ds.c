@@ -29,6 +29,7 @@
 #include <system/interrupts.h>
 #include <modules/modules.h>
 #include <memoryspace.h>
+#include <machine.h>
 #include <stdio.h>
 #include <debug.h>
 #include <heap.h>
@@ -167,6 +168,15 @@ int dssortkey(KeyType_t type, DataKey_t key1, DataKey_t key2)
 /*******************************************************************************
  * Support Methods (PE)
  *******************************************************************************/
+uintptr_t GetBaseAddress(void)
+{
+#ifdef LIBC_KERNEL
+    return GetMachine()->MemoryMap.UserCode.Start;
+#else
+    return 0;
+#endif
+}
+
 OsStatus_t LoadFile(MString_t* Path, MString_t** FullPath, void** BufferOut, size_t* LengthOut)
 {
     OsStatus_t Status;

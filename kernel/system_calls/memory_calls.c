@@ -25,7 +25,7 @@
 #include <os/buffer.h>
 #include <os/memory.h>
 
-#include <process/process.h>
+#include <modules/manager.h>
 #include <memorybuffer.h>
 #include <memoryspace.h>
 #include <machine.h>
@@ -41,15 +41,15 @@ ScMemoryAllocate(
     _Out_ uintptr_t*    VirtualAddress,
     _Out_ uintptr_t*    PhysicalAddress)
 {
-    uintptr_t           AllocatedAddress;
-    SystemProcess_t*    Process = GetCurrentProcess();
-    if (Process == NULL || Size == 0) {
+    uintptr_t            AllocatedAddress;
+    SystemMemorySpace_t* Space = GetCurrentSystemMemorySpace();
+    if (Space->HeapSpace == NULL || Size == 0) {
         return OsError;
     }
     
     // Now do the allocation in the user-bitmap 
     // since memory is managed in userspace for speed
-    AllocatedAddress = AllocateBlocksInBlockmap(Process->Heap, __MASK, Size);
+    AllocatedAddress = AllocateBlocksInBlockmap(Space->HeapSpace, __MASK, Size);
     if (AllocatedAddress == 0) {
         return OsError;
     }
@@ -105,14 +105,14 @@ ScMemoryFree(
     _In_ uintptr_t  Address, 
     _In_ size_t     Size)
 {
-    SystemProcess_t* Process = GetCurrentProcess();
-    if (Process == NULL || Address == 0 || Size == 0) {
+    SystemMemorySpace_t* Space = GetCurrentSystemMemorySpace();
+    if (Space->HeapSpace == NULL || Address == 0 || Size == 0) {
         return OsError;
     }
 
     // Now do the deallocation in the user-bitmap 
     // since memory is managed in userspace for speed
-    if (ReleaseBlockmapRegion(Process->Heap, Address, Size) != OsSuccess) {
+    if (ReleaseBlockmapRegion(Space->HeapSpace, Address, Size) != OsSuccess) {
         ERROR("ScMemoryFree(Address 0x%x, Size 0x%x) was invalid", Address, Size);
         return OsError;
     }
@@ -124,12 +124,12 @@ ScMemoryFree(
  * and returns allocation information or stats depending on query function */
 OsStatus_t
 ScMemoryQuery(
-    _Out_ MemoryDescriptor_t *Descriptor)
+    _Out_ MemoryDescriptor_t* Descriptor)
 {
     Descriptor->AllocationGranularityBytes = GetMachine()->MemoryGranularity;
-    Descriptor->PageSizeBytes   = GetSystemMemoryPageSize();
-    Descriptor->PagesTotal      = GetMachine()->PhysicalMemory.BlockCount;
-    Descriptor->PagesUsed       = GetMachine()->PhysicalMemory.BlocksAllocated;
+    Descriptor->PageSizeBytes              = GetSystemMemoryPageSize();
+    Descriptor->PagesTotal                 = GetMachine()->PhysicalMemory.BlockCount;
+    Descriptor->PagesUsed                  = GetMachine()->PhysicalMemory.BlocksAllocated;
     return OsSuccess;
 }
 
@@ -138,12 +138,11 @@ ScMemoryQuery(
  * made by MemoryAllocate */
 OsStatus_t
 ScMemoryProtect(
-    _In_  void*     MemoryPointer,
-    _In_  size_t    Length,
-    _In_  Flags_t   Flags,
-    _Out_ Flags_t*  PreviousFlags)
+    _In_  void*    MemoryPointer,
+    _In_  size_t   Length,
+    _In_  Flags_t  Flags,
+    _Out_ Flags_t* PreviousFlags)
 {
-    // Variables
     uintptr_t AddressStart = (uintptr_t)MemoryPointer;
     if (MemoryPointer == NULL || Length == 0) {
         return OsSuccess;
@@ -164,7 +163,6 @@ ScCreateBuffer(
     _In_  size_t        Size,
     _Out_ DmaBuffer_t*  MemoryBuffer)
 {
-    // Variables
     if (MemoryBuffer == NULL || Size == 0) {
         return OsError;
     }
@@ -179,7 +177,6 @@ ScAcquireBuffer(
     _In_  UUId_t        Handle,
     _Out_ DmaBuffer_t*  MemoryBuffer)
 {
-    // Variables
     if (MemoryBuffer == NULL || Handle == UUID_INVALID) {
         return OsError;
     }
@@ -195,7 +192,6 @@ ScQueryBuffer(
     _Out_ uintptr_t*    Dma,
     _Out_ size_t*       Capacity)
 {
-    // Variables
     if (Capacity == NULL || Dma == NULL || Handle == UUID_INVALID) {
         return OsError;
     }
@@ -207,7 +203,11 @@ ScCreateSystemMemorySpace(
     _In_  Flags_t Flags,
     _Out_ UUId_t* Handle)
 {
-    if (Handle == NULL /*|| !IsPrivilegedProcess() */) {
+    SystemModule_t* Module = GetCurrentModule();
+    if (Handle == NULL || Module == NULL) {
+        if (Module == NULL) {
+            return OsInvalidPermission;
+        }
         return OsError;
     }
     return CreateSystemMemorySpace(Flags | MEMORY_SPACE_APPLICATION, Handle);
@@ -218,8 +218,12 @@ ScGetThreadMemorySpaceHandle(
     _In_  UUId_t  ThreadHandle,
     _Out_ UUId_t* Handle)
 {
-    MCoreThread_t* Thread;
-    if (Handle == NULL /*|| !IsPrivilegedProcess() */) {
+    MCoreThread_t*  Thread;
+    SystemModule_t* Module = GetCurrentModule();
+    if (Handle == NULL || Module == NULL) {
+        if (Module == NULL) {
+            return OsInvalidPermission;
+        }
         return OsError;
     }
     Thread = ThreadingGetThread(ThreadHandle);
@@ -236,10 +240,14 @@ ScCreateSystemMemorySpaceMapping(
     _In_ struct MemoryMappingParameters* Parameters,
     _In_ DmaBuffer_t*                    AccessBuffer)
 {
+    SystemModule_t*      Module        = GetCurrentModule();
     SystemMemorySpace_t* MemorySpace   = (SystemMemorySpace_t*)LookupHandle(Handle);
     Flags_t              RequiredFlags = MAPPING_USERSPACE | MAPPING_PROVIDED | MAPPING_FIXED;
     OsStatus_t           Status;
-    if (Parameters == NULL || AccessBuffer == NULL /*|| !IsPrivilegedProcess() */) {
+    if (Parameters == NULL || AccessBuffer == NULL || Module == NULL) {
+        if (Module == NULL) {
+            return OsInvalidPermission;
+        }
         return OsError;
     }
     if (MemorySpace == NULL) {

@@ -31,11 +31,11 @@
  * It also returns the last memory address of the relocations */
 OsStatus_t
 PeHandleSections(
+    _In_  PeExecutable_t* Parent,
     _In_  PeExecutable_t* Image,
     _In_  uint8_t*        Data,
     _In_  uintptr_t       SectionAddress,
-    _In_  int             SectionCount,
-    _Out_ uintptr_t*      NextAvailableAddress)
+    _In_  int             SectionCount)
 {
     PeSectionHeader_t* Section        = (PeSectionHeader_t*)SectionAddress;
     uintptr_t          CurrentAddress = Image->VirtualAddress;
@@ -109,7 +109,9 @@ PeHandleSections(
     if (CurrentAddress % GetSystemMemoryPageSize()) {
         CurrentAddress += (GetSystemMemoryPageSize() - (CurrentAddress % GetSystemMemoryPageSize()));
     }
-    *NextAvailableAddress = CurrentAddress;
+
+    if (Parent != NULL) Parent->NextLoadingAddress = CurrentAddress;
+    else                Image->NextLoadingAddress  = CurrentAddress;
     return OsSuccess;
 }
 
@@ -244,15 +246,14 @@ PeResolveImportDescriptor(
     _In_    PeExecutable_t*       Parent,
     _In_    PeExecutable_t*       Image,
     _In_    PeImportDescriptor_t* ImportDescriptor,
-    _In_    MString_t*            ImportDescriptorName,
-    _InOut_ uintptr_t*            NextImageBase)
+    _In_    MString_t*            ImportDescriptorName)
 {
     PeExecutable_t*       ResolvedLibrary;
     PeExportedFunction_t* Exports;
     int                   NumberOfExports;
 
     // Resolve the library from the import chunk
-    ResolvedLibrary = PeResolveLibrary(Parent, Image, Name, NextImageBase);
+    ResolvedLibrary = PeResolveLibrary(Parent, Image, Name);
     if (ResolvedLibrary == NULL || ResolvedLibrary->ExportedFunctions == NULL) {
         dserror("(%s): Failed to resolve library %s", MStringRaw(Image->Name), MStringRaw(Name));
         return OsError;
@@ -344,8 +345,7 @@ OsStatus_t
 PeHandleImports(
     _In_    PeExecutable_t*    Parent,
     _In_    PeExecutable_t*    Image, 
-    _In_    PeDataDirectory_t* ImportDirectory,
-    _InOut_ uintptr_t*         NextImageBase)
+    _In_    PeDataDirectory_t* ImportDirectory)
 {
     PeImportDescriptor_t* ImportDescriptor;
     
@@ -357,7 +357,7 @@ PeHandleImports(
     while (ImportDescriptor->ImportAddressTable != 0) {
         char*      NamePtr = (char*)(Image->VirtualAddress + ImportDescriptor->ModuleName);
         MString_t* Name    = MStringCreate(NamePtr, StrUTF8);
-        OsStatus_t Status  = PeResolveImportDescriptor(Parent, Image, ImportDescriptor, Name, NextImageBase);
+        OsStatus_t Status  = PeResolveImportDescriptor(Parent, Image, ImportDescriptor, Name);
         MStringDestroy(Name);
 
         if (Status != OsSuccess) {
@@ -372,9 +372,14 @@ PeHandleImports(
  * Parses sections, data directories and performs neccessary translations and mappings. */
 OsStatus_t
 PeParseAndMapImage(
-    _In_    PeExecutable_t*  Image,
-    _In_    size_t           SizeOfMetaData,
-    _InOut_ uintptr_t*       BaseAddress)
+    _In_ PeExecutable_t*    Parent,
+    _In_ PeExecutable_t*    Image,
+    _In_ uint8_t*           ImageBuffer,
+    _In_ uintptr_t          ImageBase,
+    _In_ size_t             SizeOfMetaData,
+    _In_ uintptr_t          SectionBase,
+    _In_ size_t             SectionCount,
+    _In_ PeDataDirectory_t* DirectoryPointer)
 {
     uintptr_t         VirtualAddress = Image->VirtualAddress;
     MemoryMapHandle_t MapHandle;
@@ -387,19 +392,19 @@ PeParseAndMapImage(
         dserror("Failed to map pe's metadata, out of memory?");
         return OsError;
     }
-    memcpy((void*)VirtualAddress, Buffer, SizeOfMetaData);
+    memcpy((void*)VirtualAddress, ImageBuffer, SizeOfMetaData);
     ReleaseImageMapping(MapHandle);
 
     // Now we want to handle all the directories
     // and sections in the image, start out by handling
     // the sections, then parse all directories
     dstrace("Handling sections, relocations and exports");
-    Status = PeHandleSections(Image, Buffer, SectionAddress, BaseHeader->NumSections, 1, BaseAddress);
+    Status = PeHandleSections(Parent, Image, ImageBuffer, SectionBase, SectionCount);
     if (Status != OsSuccess) {
         return OsError;
     } 
-    PeHandleRelocations(Image, ImageBase, &DirectoryPtr[PE_SECTION_BASE_RELOCATION]);
-    PeHandleExports(Image, &DirectoryPtr[PE_SECTION_EXPORT]);
+    PeHandleRelocations(Image, ImageBase, &DirectoryPointer[PE_SECTION_BASE_RELOCATION]);
+    PeHandleExports(Image, &DirectoryPointer[PE_SECTION_EXPORT]);
 
     // Before loading imports, add us to parent list of libraries 
     // so we might be reused, instead of reloaded
@@ -407,7 +412,7 @@ PeParseAndMapImage(
         DataKey_t Key = { 0 };
         CollectionAppend(Parent->Libraries, CollectionCreateNode(Key, Image));
     }
-    Status = PeHandleImports(Parent, Image, &DirectoryPtr[PE_SECTION_IMPORT], BaseAddress);
+    Status = PeHandleImports(Parent, Image, &DirectoryPointer[PE_SECTION_IMPORT]);
     return Status;
 }
 
@@ -422,7 +427,6 @@ PeLoadImage(
     _In_    MString_t*       FullPath,
     _In_    uint8_t*         Buffer,
     _In_    size_t           Length,
-    _InOut_ uintptr_t*       BaseAddress,
     _Out_   PeExecutable_t** ImageOut)
 {
     MzHeader_t*           DosHeader;
@@ -440,7 +444,7 @@ PeLoadImage(
     
     dstrace("PeLoadImage(Path %s, Parent %s, Address 0x%x)",
         MStringRaw(Name), (Parent == NULL) ? "None" : MStringRaw(Parent->Name), 
-        *BaseAddress);
+        GetBaseAddress());
     
     if (PeValidateImageBuffer(Buffer, Length) != OsSuccess) {
         return OsError;
@@ -497,7 +501,7 @@ PeLoadImage(
     Image->Name            = MStringCreate((void*)MStringRaw(Name), StrUFT8);
     Image->FullPath        = MStringCreate((void*)MStringRaw(FullPath), StrUFT8);
     Image->Architecture    = OptHeader->Architecture;
-    Image->VirtualAddress  = *BaseAddress;
+    Image->VirtualAddress  = (Parent == NULL) ? GetBaseAddress() : Parent->NextLoadingAddress;
     Image->Libraries       = CollectionCreate(KeyInteger);
     Image->References      = 1;
 
@@ -516,7 +520,8 @@ PeLoadImage(
         return OsError;
     }
 
-    Status = PeParseAndMapImage(Image, SizeOfMetaData, BaseAddress);
+    Status = PeParseAndMapImage(Parent, Image, Buffer, ImageBase, SizeOfMetaData, SectionAddress, 
+        BaseHeader->NumSections, DirectoryPtr);
     if (Status != OsSuccess) {
         PeUnloadLibrary(Parent, Image);
         return OsError;

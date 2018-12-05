@@ -21,7 +21,6 @@
 #define DefineSyscall(_Sys) ((uintptr_t)&_Sys)
 
 #include <os/contracts/video.h>
-#include <process/phoenix.h>
 #include <os/mollenos.h>
 #include <os/process.h>
 #include <os/buffer.h>
@@ -127,6 +126,7 @@ OsStatus_t  ScRegisterAliasId(UUId_t Alias);
 OsStatus_t  ScLoadDriver(MCoreDevice_t* Device, size_t Length);
 UUId_t      ScRegisterInterrupt(DeviceInterrupt_t* Interrupt, Flags_t Flags);
 OsStatus_t  ScUnregisterInterrupt(UUId_t Source);
+OsStatus_t  ScRegisterEventTarget(UUId_t KeyInput, UUId_t WmInput);
 OsStatus_t  ScKeyEvent(SystemKey_t* Key);
 OsStatus_t  ScInputEvent(SystemInput_t* Input);
 UUId_t      ScTimersStart(size_t Interval, int Periodic, const void* Data);
@@ -257,7 +257,7 @@ uintptr_t   GlbSyscallTable[111] = {
      * - Support */
     DefineSyscall(ScRegisterAliasId),
     DefineSyscall(ScLoadDriver),
-    DefineSyscall(NoOperation),
+    DefineSyscall(ScRegisterEventTarget),
     DefineSyscall(NoOperation),
     DefineSyscall(NoOperation),
     DefineSyscall(NoOperation),

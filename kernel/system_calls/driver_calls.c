@@ -21,11 +21,8 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
-#include <process/phoenix.h>
-#include <process/process.h>
-#include <process/pipe.h>
+#include <modules/manager.h>
 #include <system/utils.h>
-#include <modules/modules.h>
 #include <acpiinterface.h>
 #include <interrupts.h>
 #include <deviceio.h>
@@ -129,8 +126,15 @@ ScAcpiQueryInterrupt(
  * or atleast dummy-implementation */
 OsStatus_t
 ScIoSpaceRegister(
-    _In_ DeviceIo_t*        IoSpace)
+    _In_ DeviceIo_t* IoSpace)
 {
+    SystemModule_t* Module = GetCurrentModule();
+    if (IoSpace == NULL || Module == NULL) {
+        if (Module == NULL) {
+            return OsInvalidPermission;
+        }
+        return OsError;
+    }
     return RegisterSystemDeviceIo(IoSpace);
 }
 
@@ -140,8 +144,15 @@ ScIoSpaceRegister(
  * two drivers using the same device */
 OsStatus_t
 ScIoSpaceAcquire(
-    _In_ DeviceIo_t*        IoSpace)
+    _In_ DeviceIo_t* IoSpace)
 {
+    SystemModule_t* Module = GetCurrentModule();
+    if (IoSpace == NULL || Module == NULL) {
+        if (Module == NULL) {
+            return OsInvalidPermission;
+        }
+        return OsError;
+    }
     return AcquireSystemDeviceIo(IoSpace);
 }
 
@@ -151,8 +162,15 @@ ScIoSpaceAcquire(
  * two drivers using the same device */
 OsStatus_t
 ScIoSpaceRelease(
-    _In_ DeviceIo_t*        IoSpace)
+    _In_ DeviceIo_t* IoSpace)
 {
+    SystemModule_t* Module = GetCurrentModule();
+    if (IoSpace == NULL || Module == NULL) {
+        if (Module == NULL) {
+            return OsInvalidPermission;
+        }
+        return OsError;
+    }
     return ReleaseSystemDeviceIo(IoSpace);
 }
 
@@ -162,8 +180,15 @@ ScIoSpaceRelease(
  * can only be removed if its not already acquired */
 OsStatus_t
 ScIoSpaceDestroy(
-    _In_ DeviceIo_t*        IoSpace)
+    _In_ DeviceIo_t* IoSpace)
 {
+    SystemModule_t* Module = GetCurrentModule();
+    if (IoSpace == NULL || Module == NULL) {
+        if (Module == NULL) {
+            return OsInvalidPermission;
+        }
+        return OsError;
+    }
     return DestroySystemDeviceIo(IoSpace);
 }
 
@@ -172,20 +197,9 @@ ScIoSpaceDestroy(
  * its id if it changes */
 OsStatus_t
 ScRegisterAliasId(
-    _In_ UUId_t             Alias)
+    _In_ UUId_t Alias)
 {
-    SystemProcess_t* Process = GetCurrentProcess();
-    TRACE("ScRegisterAliasId(Server %s, Alias 0x%X)", MStringRaw(Process->Name), Alias);
-    
-    // Update the registered sys pipe that should recieve input events from cursor etc
-    if (SetProcessAlias(ThreadingGetCurrentThread(CpuGetCurrentId())->ProcessHandle, Alias) == OsSuccess) {
-        if (Alias == __WINDOWMANAGER_TARGET) {
-            GetMachine()->StdInput  = GetProcessPipe(Process, PIPE_STDIN);
-            GetMachine()->WmInput   = GetProcessPipe(Process, PIPE_WMEVENTS);
-        }
-        return OsSuccess;
-    }
-    return OsError;
+    return SetModuleAlias(Alias);
 }
 
 /* ScLoadDriver
@@ -261,7 +275,8 @@ ScRegisterInterrupt(
     _In_ DeviceInterrupt_t* Interrupt,
     _In_ Flags_t            Flags)
 {
-    if (Interrupt == NULL || 
+    SystemModule_t* Module = GetCurrentModule();
+    if (Interrupt == NULL || Module == NULL || 
         (Flags & (INTERRUPT_KERNEL | INTERRUPT_SOFT))) {
         return UUID_INVALID;
     }
@@ -275,14 +290,24 @@ OsStatus_t
 ScUnregisterInterrupt(
     _In_ UUId_t             Source)
 {
+    SystemModule_t* Module = GetCurrentModule();
+    if (Module == NULL) {
+        return OsInvalidPermission;
+    }
     return InterruptUnregister(Source);
+}
+
+OsStatus_t ScRegisterEventTarget(UUId_t KeyInput, UUId_t WmInput)
+{
+    //GetMachine()->StdInput = GetProcessPipe(Process, PIPE_STDIN);
+    //GetMachine()->WmInput  = GetProcessPipe(Process, PIPE_WMEVENTS);
 }
 
 /* ScKeyEvent
  * Handles key notification by redirecting them to the standard input in the system. */
 OsStatus_t
 ScKeyEvent(
-    _In_ SystemKey_t*       Key)
+    _In_ SystemKey_t* Key)
 {
     if (GetMachine()->StdInput != NULL) {
         return WriteSystemPipe(GetMachine()->StdInput, (const uint8_t*)Key, sizeof(SystemKey_t));
@@ -294,7 +319,7 @@ ScKeyEvent(
  * Handles input notification by redirecting them to the window manager input. */
 OsStatus_t
 ScInputEvent(
-    _In_ SystemInput_t*     Input)
+    _In_ SystemInput_t* Input)
 {
     if (GetMachine()->WmInput != NULL) {
         return WriteSystemPipe(GetMachine()->WmInput, (const uint8_t*)Input, sizeof(SystemInput_t));
@@ -308,9 +333,9 @@ ScInputEvent(
  * the owner of the timer. */
 UUId_t
 ScTimersStart(
-    _In_ size_t             Interval,
-    _In_ int                Periodic,
-    _In_ const void*        Data)
+    _In_ size_t      Interval,
+    _In_ int         Periodic,
+    _In_ const void* Data)
 {
     return TimersStart(Interval, Periodic, Data);
 }
@@ -320,6 +345,6 @@ ScTimersStart(
  * process. Otherwise access fault. */
 OsStatus_t
 ScTimersStop(
-    _In_ UUId_t             TimerId) {
+    _In_ UUId_t TimerId) {
     return TimersStop(TimerId);
 }
