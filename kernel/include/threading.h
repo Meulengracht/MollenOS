@@ -86,7 +86,6 @@ typedef struct _MCoreThread {
     CollectionItem_t        CollectionHeader;
 
     UUId_t                  ParentThreadId;
-    UUId_t                  ProcessHandle;
     UUId_t                  Id;
     const char*             Name;
     Flags_t                 Flags;

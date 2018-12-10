@@ -29,12 +29,11 @@
 #ifndef _DEBUG_H_
 #define _DEBUG_H_
 
-#include <os/osdefs.h>
-#include <os/context.h>
 #include <component/memory.h>
+#include <modules/module.h>
+#include <os/context.h>
+#include <os/osdefs.h>
 #include <log.h>
-
-typedef struct _SystemProcess SystemProcess_t;
 
 /* Sanitize the module definition, must be 
  * present to identify the source-code that include this */
@@ -108,10 +107,10 @@ DebugPanic(
  * Retrieves the module (Executable) at the given address */
 KERNELAPI OsStatus_t KERNELABI
 DebugGetModuleByAddress(
-    _In_  SystemProcess_t*  Process,
-    _In_  uintptr_t         Address, 
-    _Out_ uintptr_t*        Base, 
-    _Out_ char**            Name);
+    _In_  SystemModule_t* Module,
+    _In_  uintptr_t       Address, 
+    _Out_ uintptr_t*      Base, 
+    _Out_ char**          Name);
 
 /* DebugStackTrace
  * Performs a verbose stack trace in the current context 

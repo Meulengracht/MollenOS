@@ -38,7 +38,6 @@
 PACKED_TYPESTRUCT(MRemoteCallAddress, {
     UUId_t                  Process;
     UUId_t                  Thread;
-    int                     Port;
 });
 
 /* MRemoteCallArgument
@@ -59,7 +58,7 @@ PACKED_TYPESTRUCT(MRemoteCallArgument, {
  * action going through pipes in MollenOS must
  * inherit from this structure for security */
 PACKED_TYPESTRUCT(MRemoteCall, {
-    MRemoteCallAddress_t    To;
+    UUId_t                  Target;
     MRemoteCallAddress_t    From;
 
     // Interface Information
@@ -81,14 +80,10 @@ RPCInitialize(
     _In_ int            Version,
     _In_ int            Function)
 {
-    // Initialize structure
     memset((void*)RemoteCall, 0, sizeof(MRemoteCall_t));
-    RemoteCall->Version     = Version;
-    RemoteCall->Function    = Function;
-
-    // Setup from/to as much as possible
-    RemoteCall->To.Process  = Target;
-    RemoteCall->To.Port     = PIPE_REMOTECALL;
+    RemoteCall->Version  = Version;
+    RemoteCall->Function = Function;
+    RemoteCall->Target   = Target;
 }
 
 /* RPCSetArgument
@@ -197,8 +192,8 @@ RPCCastArgumentToPointer(
  * an argument, set InUse to 0 */
 CRTDECL(OsStatus_t,
 RPCListen(
-    _In_ MRemoteCall_t*         Message,
-    _In_ void*                  ArgumentBuffer));
+    _In_ MRemoteCall_t* Message,
+    _In_ void*          ArgumentBuffer));
 
 /* RPCExecute/RPCEvent
  * To get a reply from the RPC request, the user
@@ -207,11 +202,11 @@ RPCListen(
  * and not block/wait for reply */
 CRTDECL(OsStatus_t,
 RPCExecute(
-    _In_ MRemoteCall_t*         RemoteCall));
+    _In_ MRemoteCall_t* RemoteCall));
 
 CRTDECL(OsStatus_t,
 RPCEvent(
-    _In_ MRemoteCall_t*         RemoteCall));
+    _In_ MRemoteCall_t* RemoteCall));
 
 /* RPCRespond
  * This is a wrapper to return a respond message/buffer to the
@@ -219,9 +214,9 @@ RPCEvent(
  * a result when there is going to be one */
 CRTDECL(OsStatus_t,
 RPCRespond(
-    _In_ MRemoteCallAddress_t*  RemoteAddress,
-    _In_ const void*            Buffer, 
-    _In_ size_t                 Length));
+    _In_ MRemoteCallAddress_t* RemoteAddress,
+    _In_ const void*           Buffer, 
+    _In_ size_t                Length));
 _CODE_END
 
 #endif //!__RPC_INTERFACE__

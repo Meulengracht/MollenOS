@@ -23,9 +23,6 @@
 #define __MODULE        "DBGI"
 //#define __TRACE
 
-#include <process/phoenix.h>
-#include <process/process.h>
-#include <process/pe.h>
 #include <system/utils.h>
 #include <memoryspace.h>
 #include <scheduler.h>
@@ -201,17 +198,17 @@ DebugPanic(
  * Retrieves the module (Executable) at the given address */
 OsStatus_t
 DebugGetModuleByAddress(
-    _In_  SystemProcess_t*  Process,
-    _In_  uintptr_t         Address,
-    _Out_ uintptr_t*        Base,
-    _Out_ char**            Name)
+    _In_  SystemModule_t* Module,
+    _In_  uintptr_t       Address,
+    _Out_ uintptr_t*      Base,
+    _Out_ char**          Name)
 {
     // Validate that the address is within userspace
     if (Address >= MEMORY_LOCATION_RING3_CODE && Address < MEMORY_LOCATION_RING3_CODE_END) {
         // Sanitize whether or not a process was running
         if (Process != NULL && Process->Executable != NULL) {
-            uintptr_t PmBase    = Process->Executable->VirtualAddress;
-            char *PmName        = (char*)MStringRaw(Process->Executable->Name);
+            uintptr_t PmBase = Process->Executable->VirtualAddress;
+            char *PmName     = (char*)MStringRaw(Process->Executable->Name);
 
             // Was it not main executable?
             if (Address > (Process->Executable->CodeBase + Process->Executable->CodeSize)) {

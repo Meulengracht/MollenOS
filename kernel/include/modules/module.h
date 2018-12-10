@@ -44,6 +44,7 @@ typedef enum _SystemModuleType {
 
 typedef struct _SystemModule {
     CollectionItem_t ListHeader;
+    UUId_t           Handle;
     MString_t*       Path;
     const void*      Data;
     size_t           Length;

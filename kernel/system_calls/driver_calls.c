@@ -131,7 +131,7 @@ ScIoSpaceRegister(
     SystemModule_t* Module = GetCurrentModule();
     if (IoSpace == NULL || Module == NULL) {
         if (Module == NULL) {
-            return OsInvalidPermission;
+            return OsInvalidPermissions;
         }
         return OsError;
     }
@@ -149,7 +149,7 @@ ScIoSpaceAcquire(
     SystemModule_t* Module = GetCurrentModule();
     if (IoSpace == NULL || Module == NULL) {
         if (Module == NULL) {
-            return OsInvalidPermission;
+            return OsInvalidPermissions;
         }
         return OsError;
     }
@@ -167,7 +167,7 @@ ScIoSpaceRelease(
     SystemModule_t* Module = GetCurrentModule();
     if (IoSpace == NULL || Module == NULL) {
         if (Module == NULL) {
-            return OsInvalidPermission;
+            return OsInvalidPermissions;
         }
         return OsError;
     }
@@ -185,7 +185,7 @@ ScIoSpaceDestroy(
     SystemModule_t* Module = GetCurrentModule();
     if (IoSpace == NULL || Module == NULL) {
         if (Module == NULL) {
-            return OsInvalidPermission;
+            return OsInvalidPermissions;
         }
         return OsError;
     }
@@ -203,65 +203,54 @@ ScRegisterAliasId(
 }
 
 /* ScLoadDriver
- * Attempts to resolve the best possible drive for
- * the given device information */
+ * Attempts to resolve the best possible drive for the given device information */
 OsStatus_t
 ScLoadDriver(
     _In_ MCoreDevice_t*     Device,
-    _In_ size_t             Length)
+    _In_ size_t             LengthOfDeviceStructure,
+    _In_ const void*        DriverBuffer,
+    _In_ size_t             DriverBufferLength)
 {
-    SystemProcess_t*    Service;
-    MCoreModule_t*      Module;
-    MRemoteCall_t       RemoteCall = { { 0 }, { 0 }, 0 };
-    UUId_t              ServiceHandle;
+    MRemoteCall_t   RemoteCall    = { UUID_INVALID, { 0 }, 0 };
+    SystemModule_t* CurrentModule = GetCurrentModule();
+    SystemModule_t* Module;
+    OsStatus_t      Status;
 
     TRACE("ScLoadDriver(Vid 0x%x, Pid 0x%x, Class 0x%x, Subclass 0x%x)",
         Device->VendorId, Device->DeviceId, Device->Class, Device->Subclass);
-    if (Device == NULL || Length < sizeof(MCoreDevice_t)) {
+    if (CurrentModule == NULL || Device == NULL || LengthOfDeviceStructure < sizeof(MCoreDevice_t)) {
+        if (CurrentModule == NULL) {
+            return OsInvalidPermissions;
+        }
         return OsError;
     }
 
     // First of all, if a server has already been spawned
     // for the specific driver, then call it's RegisterInstance
-    Service = GetServiceByIdentification(Device->VendorId, Device->DeviceId,
-        Device->Class, Device->Subclass, &ServiceHandle);
-    if (Service == NULL) {
-        MString_t* Path;
-        OsStatus_t Status;
-
+    Module = GetModule(Device->VendorId, Device->DeviceId, Device->Class, Device->Subclass);
+    if (Module == NULL) {
         // Look for matching driver first, then generic
-        Module = ModulesFindSpecific(Device->VendorId, Device->DeviceId);
-        if (Module == NULL) {
-            Module = ModulesFindGeneric(Device->Class, Device->Subclass);
-        }
+        Module = GetSpecificDeviceModule(Device->VendorId, Device->DeviceId);
+        Module = (Module == NULL) ? GetGenericDeviceModule(Device->Class, Device->Subclass) : Module;
 
+        // We did not have any, did the driver provide one for us?
         if (Module == NULL) {
+            if (DriverBuffer != NULL && DriverBufferLength != 0) {
+                //RegisterModule(Path, NULL, 0, ModuleResource, Device->VendorId, 
+                //    Device->DeviceId, Device->Class, Device->Subclass);
+            }
             return OsError;
         }
 
-        // Build ramdisk path for module/server
-        Path = MStringCreate("rd:/", StrUTF8);
-        MStringAppendString(Path, Module->Name);
-        Status = CreateService(Path, Device->VendorId, Device->DeviceId, 
-            Device->Class, Device->Subclass);
-        MStringDestroy(Path);
+        Status = SpawnModule(Module, DriverBuffer, DriverBufferLength);
         if (Status != OsSuccess) {
             return Status;
-        }
-
-        Service = GetServiceByIdentification(Device->VendorId, Device->DeviceId,
-            Device->Class, Device->Subclass, &ServiceHandle);
-        if (Service == NULL) {
-            return OsError;
         }
     }
 
     // Initialize the base of a new message, always protocol version 1
-    RPCInitialize(&RemoteCall, ServiceHandle, 1, __DRIVER_REGISTERINSTANCE);
-    RPCSetArgument(&RemoteCall, 0, Device, Length);
-
-    // Make sure the server has opened it's comm-pipe
-    WaitForProcessPipe(Service, PIPE_REMOTECALL);
+    RPCInitialize(&RemoteCall, Module->Handle, 1, __DRIVER_REGISTERINSTANCE);
+    RPCSetArgument(&RemoteCall, 0, Device, LengthOfDeviceStructure);
     return ScRpcExecute(&RemoteCall, 1);
 }
 
@@ -288,19 +277,23 @@ ScRegisterInterrupt(
  * all events of OnInterrupt */
 OsStatus_t
 ScUnregisterInterrupt(
-    _In_ UUId_t             Source)
+    _In_ UUId_t Source)
 {
     SystemModule_t* Module = GetCurrentModule();
     if (Module == NULL) {
-        return OsInvalidPermission;
+        return OsInvalidPermissions;
     }
     return InterruptUnregister(Source);
 }
 
-OsStatus_t ScRegisterEventTarget(UUId_t KeyInput, UUId_t WmInput)
+OsStatus_t
+ScRegisterEventTarget(
+    _In_ UUId_t KeyInput,
+    _In_ UUId_t WmInput)
 {
-    //GetMachine()->StdInput = GetProcessPipe(Process, PIPE_STDIN);
-    //GetMachine()->WmInput  = GetProcessPipe(Process, PIPE_WMEVENTS);
+    GetMachine()->StdInput = (SystemPipe_t*)LookupHandle(KeyInput);
+    GetMachine()->WmInput  = (SystemPipe_t*)LookupHandle(WmInput);
+    return OsSuccess;
 }
 
 /* ScKeyEvent
@@ -345,6 +338,7 @@ ScTimersStart(
  * process. Otherwise access fault. */
 OsStatus_t
 ScTimersStop(
-    _In_ UUId_t TimerId) {
+    _In_ UUId_t TimerId)
+{
     return TimersStop(TimerId);
 }

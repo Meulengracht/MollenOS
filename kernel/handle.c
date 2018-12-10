@@ -32,16 +32,16 @@
 #include <heap.h>
 
 // Include all the systems that we have to cleanup
-#include <process/process.h>
 #include <memorybuffer.h>
 #include <memoryspace.h>
+#include <pipe.h>
 
 static Collection_t         SystemHandles                       = COLLECTION_INIT(KeyId);
 static _Atomic(UUId_t)      IdGenerator                         = 1;
 static HandleDestructorFn   HandleDestructors[HandleTypeCount]  = {
     DestroyMemoryBuffer,
-    DestroyProcess,
-    DestroySystemMemorySpace
+    DestroySystemMemorySpace,
+    DestroySystemPipe
 };
 
 /* CreateHandle

@@ -33,64 +33,63 @@ struct FileMappingParameters;
 struct MemoryMappingParameters;
 
 // System system calls
-OsStatus_t  ScSystemDebug(int Type, const char* Module, const char* Message);
-OsStatus_t  ScEndBootSequence(void);
-OsStatus_t  ScFlushHardwareCache(int Cache, void* Start, size_t Length);
-int         ScEnvironmentQuery(void);
-OsStatus_t  ScSystemTime(struct tm *SystemTime);
-OsStatus_t  ScSystemTick(int TickBase, clock_t *SystemTick);
-OsStatus_t  ScPerformanceFrequency(LargeInteger_t *Frequency);
-OsStatus_t  ScPerformanceTick(LargeInteger_t *Value);
-OsStatus_t  ScQueryDisplayInformation(VideoDescriptor_t *Descriptor);
-void*       ScCreateDisplayFramebuffer(void);
+OsStatus_t ScSystemDebug(int Type, const char* Module, const char* Message);
+OsStatus_t ScEndBootSequence(void);
+OsStatus_t ScFlushHardwareCache(int Cache, void* Start, size_t Length);
+int        ScEnvironmentQuery(void);
+OsStatus_t ScSystemTime(struct tm *SystemTime);
+OsStatus_t ScSystemTick(int TickBase, clock_t *SystemTick);
+OsStatus_t ScPerformanceFrequency(LargeInteger_t *Frequency);
+OsStatus_t ScPerformanceTick(LargeInteger_t *Value);
+OsStatus_t ScQueryDisplayInformation(VideoDescriptor_t *Descriptor);
+void*      ScCreateDisplayFramebuffer(void);
 
 // Process system calls 
-UUId_t      ScProcessSpawn(const char* Path, ProcessStartupInformation_t* StartupInformation);
-OsStatus_t  ScProcessJoin(UUId_t ProcessHandle, size_t Timeout, int* ExitCode);
-OsStatus_t  ScProcessKill(UUId_t ProcessHandle);
-OsStatus_t  ScProcessExit(int ExitCode);
-OsStatus_t  ScProcessGetCurrentId(UUId_t* ProcessHandle);
-OsStatus_t  ScProcessGetCurrentName(const char* Buffer, size_t MaxLength);
-OsStatus_t  ScProcessSignal(uintptr_t Handler);
-OsStatus_t  ScProcessRaise(UUId_t ProcessHandle, int Signal);
-OsStatus_t  ScProcessGetStartupInformation(ProcessStartupInformation_t* StartupInformation);
-OsStatus_t  ScProcessGetModuleHandles(Handle_t ModuleList[PROCESS_MAXMODULES]);
-OsStatus_t  ScProcessGetModuleEntryPoints(Handle_t ModuleList[PROCESS_MAXMODULES]);
+UUId_t     ScProcessSpawn(const char* Path, ProcessStartupInformation_t* StartupInformation);
+OsStatus_t ScProcessJoin(UUId_t ProcessHandle, size_t Timeout, int* ExitCode);
+OsStatus_t ScProcessKill(UUId_t ProcessHandle);
+OsStatus_t ScProcessExit(int ExitCode);
+OsStatus_t ScProcessGetCurrentId(UUId_t* ProcessHandle);
+OsStatus_t ScProcessGetCurrentName(const char* Buffer, size_t MaxLength);
+OsStatus_t ScProcessSignal(uintptr_t Handler);
+OsStatus_t ScProcessRaise(UUId_t ProcessHandle, int Signal);
+OsStatus_t ScProcessGetStartupInformation(ProcessStartupInformation_t* StartupInformation);
+OsStatus_t ScProcessGetModuleHandles(Handle_t ModuleList[PROCESS_MAXMODULES]);
+OsStatus_t ScProcessGetModuleEntryPoints(Handle_t ModuleList[PROCESS_MAXMODULES]);
 
 // Shared object system calls
-Handle_t    ScSharedObjectLoad(const char* SharedObject);
-uintptr_t   ScSharedObjectGetFunction(Handle_t Handle, const char* Function);
-OsStatus_t  ScSharedObjectUnload(Handle_t Handle);
+Handle_t   ScSharedObjectLoad(const char* SharedObject);
+uintptr_t  ScSharedObjectGetFunction(Handle_t Handle, const char* Function);
+OsStatus_t ScSharedObjectUnload(Handle_t Handle);
 
 // Threading system calls
-UUId_t      ScThreadCreate(ThreadEntry_t Entry, void* Data, Flags_t Flags, UUId_t MemorySpaceHandle);
-OsStatus_t  ScThreadExit(int ExitCode);
-OsStatus_t  ScThreadJoin(UUId_t ThreadId, int* ExitCode);
-OsStatus_t  ScThreadDetach(UUId_t ThreadId);
-OsStatus_t  ScThreadSignal(UUId_t ThreadId, int SignalCode);
-OsStatus_t  ScThreadSleep(time_t Milliseconds, time_t* MillisecondsSlept);
-UUId_t      ScThreadGetCurrentId(void);
-OsStatus_t  ScThreadYield(void);
-OsStatus_t  ScThreadSetCurrentName(const char* ThreadName);
-OsStatus_t  ScThreadGetCurrentName(char* ThreadNameBuffer, size_t MaxLength);
+UUId_t     ScThreadCreate(ThreadEntry_t Entry, void* Data, Flags_t Flags, UUId_t MemorySpaceHandle);
+OsStatus_t ScThreadExit(int ExitCode);
+OsStatus_t ScThreadJoin(UUId_t ThreadId, int* ExitCode);
+OsStatus_t ScThreadDetach(UUId_t ThreadId);
+OsStatus_t ScThreadSignal(UUId_t ThreadId, int SignalCode);
+OsStatus_t ScThreadSleep(time_t Milliseconds, time_t* MillisecondsSlept);
+UUId_t     ScThreadGetCurrentId(void);
+OsStatus_t ScThreadYield(void);
+OsStatus_t ScThreadSetCurrentName(const char* ThreadName);
+OsStatus_t ScThreadGetCurrentName(char* ThreadNameBuffer, size_t MaxLength);
 
 // Synchronization system calls
-OsStatus_t  ScConditionCreate(Handle_t* Handle);
-OsStatus_t  ScConditionDestroy(Handle_t Handle);
-OsStatus_t  ScSignalHandle(uintptr_t* Handle);
-OsStatus_t  ScSignalHandleAll(uintptr_t* Handle);
-OsStatus_t  ScWaitForObject(uintptr_t* Handle, size_t Timeout);
+OsStatus_t ScConditionCreate(Handle_t* Handle);
+OsStatus_t ScConditionDestroy(Handle_t Handle);
+OsStatus_t ScSignalHandle(uintptr_t* Handle);
+OsStatus_t ScSignalHandleAll(uintptr_t* Handle);
+OsStatus_t ScWaitForObject(uintptr_t* Handle, size_t Timeout);
 
 // Communication system calls
-OsStatus_t  ScPipeOpen(int Port, int Type);
-OsStatus_t  ScPipeClose(int Port);
-OsStatus_t  ScPipeRead(int Port, uint8_t* Container, size_t Length);
-OsStatus_t  ScPipeWrite(UUId_t ProcessHandle, int Port, uint8_t* Message, size_t Length);
-OsStatus_t  ScPipeReceive(UUId_t ProcessHandle, int Port, uint8_t* Message, size_t Length);
-OsStatus_t  ScRpcResponse(MRemoteCall_t* RemoteCall);
-OsStatus_t  ScRpcExecute(MRemoteCall_t* RemoteCall, int Async);
-OsStatus_t  ScRpcListen(int Port, MRemoteCall_t* RemoteCall, uint8_t* ArgumentBuffer);
-OsStatus_t  ScRpcRespond(MRemoteCallAddress_t* RemoteAddress, const uint8_t* Buffer, size_t Length);
+OsStatus_t ScCreatePipe(int Type, UUId_t* Handle);
+OsStatus_t ScDestroyPipe(UUId_t Handle);
+OsStatus_t ScReadPipe(UUId_t Handle, uint8_t* Message, size_t Length);
+OsStatus_t ScWritePipe(UUId_t Handle, uint8_t* Message, size_t Length);
+OsStatus_t ScRpcResponse(MRemoteCall_t* RemoteCall);
+OsStatus_t ScRpcExecute(MRemoteCall_t* RemoteCall, int Async);
+OsStatus_t ScRpcListen(MRemoteCall_t* RemoteCall, uint8_t* ArgumentBuffer);
+OsStatus_t ScRpcRespond(MRemoteCallAddress_t* RemoteAddress, const uint8_t* Buffer, size_t Length);
 
 // Memory system calls
 OsStatus_t  ScMemoryAllocate(size_t Size, Flags_t Flags, uintptr_t* VirtualAddress, uintptr_t* PhysicalAddress);
@@ -210,11 +209,11 @@ uintptr_t   GlbSyscallTable[111] = {
     DefineSyscall(NoOperation),
 
     /* IPC Functions - 61 */
-    DefineSyscall(ScPipeOpen),
-    DefineSyscall(ScPipeClose),
-    DefineSyscall(ScPipeRead),
-    DefineSyscall(ScPipeWrite),
-    DefineSyscall(ScPipeReceive),
+    DefineSyscall(ScCreatePipe),
+    DefineSyscall(ScDestroyPipe),
+    DefineSyscall(ScReadPipe),
+    DefineSyscall(ScWritePipe),
+    DefineSyscall(NoOperation),
     DefineSyscall(NoOperation),
     DefineSyscall(ScRpcExecute),
     DefineSyscall(ScRpcResponse),

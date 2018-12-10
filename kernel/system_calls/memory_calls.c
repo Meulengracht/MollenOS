@@ -206,7 +206,7 @@ ScCreateSystemMemorySpace(
     SystemModule_t* Module = GetCurrentModule();
     if (Handle == NULL || Module == NULL) {
         if (Module == NULL) {
-            return OsInvalidPermission;
+            return OsInvalidPermissions;
         }
         return OsError;
     }
@@ -222,7 +222,7 @@ ScGetThreadMemorySpaceHandle(
     SystemModule_t* Module = GetCurrentModule();
     if (Handle == NULL || Module == NULL) {
         if (Module == NULL) {
-            return OsInvalidPermission;
+            return OsInvalidPermissions;
         }
         return OsError;
     }
@@ -246,7 +246,7 @@ ScCreateSystemMemorySpaceMapping(
     OsStatus_t           Status;
     if (Parameters == NULL || AccessBuffer == NULL || Module == NULL) {
         if (Module == NULL) {
-            return OsInvalidPermission;
+            return OsInvalidPermissions;
         }
         return OsError;
     }

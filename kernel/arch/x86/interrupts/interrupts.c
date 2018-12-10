@@ -29,7 +29,6 @@
 #include <system/thread.h>
 #include <system/utils.h>
 #include <ds/collection.h>
-#include <process/process.h>
 #include <acpiinterface.h>
 #include <interrupts.h>
 #include <threading.h>
@@ -401,33 +400,25 @@ InterruptEntry(
  * If the signal is blocked the process/thread is killed. */
 OsStatus_t
 ExceptionSignal(
-    _In_ Context_t  *Registers,
-    _In_ int         Signal)
+    _In_ Context_t* Registers,
+    _In_ int        Signal)
 {
-    MCoreThread_t *Thread   = NULL;
-    UUId_t Cpu              = CpuGetCurrentId();
+    UUId_t CoreId         = CpuGetCurrentId();
+    MCoreThread_t* Thread = ThreadingGetCurrentThread(CoreId);
 
-    // Debug
     TRACE("ExceptionSignal(Signal %i)", Signal);
 
     // Sanitize if user-process
 #ifdef __OSCONFIG_DISABLE_SIGNALLING
     if (Signal >= 0) {
 #else
-    if (GetCurrentProcess() == NULL) {
+    if (Thread->MemorySpace->SignalHandler == 0) {
 #endif
         return OsError;
     }
-
-    // Lookup current thread
-    Thread = ThreadingGetCurrentThread(Cpu);
-
-    // Initialize signal
     Thread->ActiveSignal.Ignorable = 0;
-    Thread->ActiveSignal.Signal = Signal;
-    Thread->ActiveSignal.Context = Registers;
-
-    // Dispatch
+    Thread->ActiveSignal.Signal    = Signal;
+    Thread->ActiveSignal.Context   = Registers;
     return ThreadingSignalDispatch(Thread);
 }
 
@@ -435,11 +426,11 @@ ExceptionSignal(
  * Common entry for all exceptions */
 void
 ExceptionEntry(
-    _In_ Context_t *Registers)
+    _In_ Context_t* Registers)
 {
-    MCoreThread_t *Thread   = NULL;
-    uintptr_t Address       = __MASK;
-    int IssueFixed          = 0;
+    MCoreThread_t*Thread = NULL;
+    uintptr_t Address    = __MASK;
+    int IssueFixed       = 0;
 
     // Handle IRQ
     if (Registers->Irq == 0) {      // Divide By Zero (Non-math instruction)

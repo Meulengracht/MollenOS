@@ -23,6 +23,7 @@
 #define __MODULE "PROC"
 //#define __TRACE
 
+#include "../../librt/libds/pe/pe.h"
 #include <modules/manager.h>
 #include <modules/module.h>
 #include <system/utils.h>
@@ -35,6 +36,7 @@
 
 typedef struct _SystemModulePackage {
     SystemModule_t* Module;
+    MString_t*      ModuleName;
     const void*     FileBuffer;
     size_t          FileBufferLength;
     int             FileBufferDynamic;
@@ -58,7 +60,7 @@ ModuleThreadEntry(
     // Setup base address for code data
     TRACE("Loading PE-image into memory (buffer 0x%x, size %u)", 
         Package->FileBuffer, Package->FileBufferLength);
-    Status = PeLoadImage(NULL, Process->Name, Package->Module->Path, (uint8_t*)Package->FileBuffer,
+    Status = PeLoadImage(NULL, Package->ModuleName, Package->Module->Path, (uint8_t*)Package->FileBuffer,
         Package->FileBufferLength, &Package->Module->Executable);
     if (Status == OsSuccess) {
         Thread->Function  = (ThreadEntry_t)Package->Module->Executable->EntryAddress;
@@ -66,11 +68,13 @@ ModuleThreadEntry(
     }
     else {
         ERROR("Failed to bootstrap pe image: %u", Status);
+        Package->Module->PrimaryThreadId = UUID_INVALID;
     }
     
     if (Package->FileBufferDynamic) {
         kfree(Package->FileBuffer);
     }
+    MStringDestroy(Package->ModuleName);
     kfree(Package);
     
     if (Status == OsSuccess) {
@@ -89,7 +93,6 @@ SpawnModule(
     SystemModulePackage_t* Package;
     int                    Index;
     OsStatus_t             Status;
-    MString_t*             Name;
 
     assert(Module != NULL);
     assert(Module->Executable == NULL);
@@ -123,11 +126,12 @@ SpawnModule(
     Index                    = MStringFindReverse(Module->Path, '/', 0);
     Module->WorkingDirectory = MStringSubString(Module->Path, 0, Index);
     Module->BaseDirectory    = MStringSubString(Module->Path, 0, Index);
-    Name                     = MStringSubString(Module->Path, Index + 1, -1);
-    Status                   = CreateThread(MStringRaw(Name), ModuleThreadEntry, Package, 
+    Package->ModuleName      = MStringSubString(Module->Path, Index + 1, -1);
+    Status                   = CreateThread(MStringRaw(Package->ModuleName), ModuleThreadEntry, Package, 
         THREADING_USERMODE, UUID_INVALID, &Module->PrimaryThreadId);
-    MStringDestroy(Name);
     if (Status != OsSuccess) {
+        // @todo cleanup everything?
+        MStringDestroy(Package->ModuleName);
         kfree(Package);
         return Status;
     }

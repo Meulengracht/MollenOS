@@ -41,8 +41,7 @@
 #define PIPE_STDOUT                     0
 #define PIPE_STDIN                      1
 #define PIPE_STDERR                     2
-#define PIPE_REMOTECALL                 3
-#define PIPE_WMEVENTS                   4
+#define PIPE_WMEVENTS                   3
 
 /* Argument type definitions 
  * Used by both RPC and Event argument systems */

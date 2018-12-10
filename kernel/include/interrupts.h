@@ -42,7 +42,7 @@ typedef struct _SystemInterrupt {
     DeviceInterrupt_t               Interrupt;
     FastInterruptResourceTable_t    KernelResources;
     UUId_t                          Id;
-    UUId_t                          ProcessHandle;
+    UUId_t                          PipeHandle;
     UUId_t                          Thread;
     Flags_t                         Flags;
     int                             Source;

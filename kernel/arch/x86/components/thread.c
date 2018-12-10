@@ -21,7 +21,6 @@
  */
 #define __MODULE "XTIF"
 
-#include <process/process.h>
 #include <system/thread.h>
 #include <system/utils.h>
 #include <threading.h>
@@ -165,13 +164,10 @@ OsStatus_t
 ThreadingSignalDispatch(
     _In_ MCoreThread_t* Thread)
 {
-    SystemProcess_t* Process = (SystemProcess_t*)LookupHandle(Thread->ProcessHandle);
-    assert(Process != NULL);
-
     // Now we can enter the signal context 
     // handler, we cannot return from this function
     Thread->Contexts[THREADING_CONTEXT_SIGNAL1] = ContextCreate(Thread->Flags,
-        THREADING_CONTEXT_SIGNAL1, Process->SignalHandler,
+        THREADING_CONTEXT_SIGNAL1, Thread->MemorySpace->SignalHandler,
         MEMORY_LOCATION_SIGNAL_RET, Thread->ActiveSignal.Signal, 0);
     TssUpdateThreadStack(CpuGetCurrentId(), (uintptr_t)Thread->Contexts[THREADING_CONTEXT_SIGNAL0]);
     enter_thread(Thread->Contexts[THREADING_CONTEXT_SIGNAL1]);
@@ -186,12 +182,11 @@ void
 ThreadingImpersonate(
     _In_ MCoreThread_t *Thread)
 {
-    MCoreThread_t *Current;
-    UUId_t Cpu;
-
-    // Instantiate values
-    Cpu             = CpuGetCurrentId();
-    Current         = ThreadingGetCurrentThread(Cpu);
+    MCoreThread_t* Current;
+    UUId_t         Cpu;
+    
+    Cpu     = CpuGetCurrentId();
+    Current = ThreadingGetCurrentThread(Cpu);
     
     // If we impersonate ourself, leave
     if (Current == Thread) {
@@ -200,8 +195,6 @@ ThreadingImpersonate(
     else {
         Current->Flags |= THREADING_IMPERSONATION;
     }
-
-    // Load resources
     TssUpdateIo(Cpu, (uint8_t*)Thread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
     SwitchSystemMemorySpace(Thread->MemorySpace);
 }

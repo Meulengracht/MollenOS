@@ -21,164 +21,114 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
+#include <modules/manager.h>
+#include <modules/module.h>
 #include <system/utils.h>
-#include <ds/mstring.h>
-#include <scheduler.h>
 #include <threading.h>
 #include <os/input.h>
 #include <machine.h>
 #include <debug.h>
 #include <pipe.h>
 
-/* ScPipeOpen
- * Opens a new pipe for the calling Ash process and allows 
- * communication to this port from other processes */
+/* ScCreatePipe
+ * Creates a new communication pipeline that can be used by seperate threads. Returns a 
+ * system-wide unique handle that can referred to. */
 OsStatus_t
-ScPipeOpen(
-    _In_ int Port, 
-    _In_ int Type)
+ScCreatePipe( 
+    _In_  int     Type,
+    _Out_ UUId_t* Handle)
 {
-    SystemProcess_t* Process = GetCurrentProcess();
-    if (Process != NULL) {
-        return CreateProcessPipe(Process, Port, Type);
+    SystemPipe_t* Pipe;
+
+    if (Type == PIPE_RAW) {
+        Pipe = CreateSystemPipe(0, PIPE_DEFAULT_ENTRYCOUNT);
     }
-    return OsError;
+    else if (Type == PIPE_STRUCTURED) {
+        Pipe = CreateSystemPipe(PIPE_MPMC | PIPE_STRUCTURED_BUFFER, PIPE_DEFAULT_ENTRYCOUNT);
+    }
+    else {
+        return OsInvalidParameters;
+    }
+    *Handle = CreateHandle(HandleTypePipe, 0, Pipe);
+    return OsSuccess;
 }
 
-/* ScPipeClose
- * Closes an existing pipe on a given port and
- * shutdowns any communication on that port */
+/* ScDestroyPipe
+ * Closes an existing pipe and releases any resources associated. This will then be invalid for
+ * communication. */
 OsStatus_t
-ScPipeClose(
-    _In_ int            Port)
+ScDestroyPipe(
+    _In_ UUId_t Handle)
 {
-    UUId_t              ProcessHandle = ThreadingGetCurrentThread(CpuGetCurrentId())->ProcessHandle;
-    SystemProcess_t*    Process = GetCurrentProcess();
-    OsStatus_t          Status  = OsError;
-    OsStatus_t          IsWm    = IsProcessAlias(ProcessHandle, __WINDOWMANAGER_TARGET);
+    SystemPipe_t* Pipe = (SystemPipe_t*)LookupHandle(Handle);
+    OsStatus_t    Status = OsInvalidParameters;
 
-    if (Process != NULL) {
-        Status = DestroyProcessPipe(Process, Port);
+    if (Pipe != NULL) {
+        Status = DestroyHandle(Handle);
         
         // Disable the window manager input event pipe
-        if (Status == OsSuccess && IsWm == OsSuccess && Port == PIPE_STDIN) {
+        if (Status == OsSuccess && GetMachine()->StdInput == Pipe) {
             GetMachine()->StdInput = NULL;
         }
 
-        // Disable the window manager input event pipe
-        if (Status == OsSuccess && IsWm == OsSuccess && Port == PIPE_WMEVENTS) {
+        // Disable the window manager wm event pipe
+        if (Status == OsSuccess && GetMachine()->WmInput == Pipe) {
             GetMachine()->WmInput = NULL;
         }
     }
     return Status;
 }
 
-/* ScPipeRead
+/* ScReadPipe
  * Reads the requested number of bytes from the system-pipe. */
 OsStatus_t
-ScPipeRead(
-    _In_ int            Port,
-    _In_ uint8_t*       Container,
-    _In_ size_t         Length)
+ScReadPipe(
+    _In_ UUId_t   Handle,
+    _In_ uint8_t* Message,
+    _In_ size_t   Length)
 {
-    SystemPipe_t* Pipe;
-    if (Length == 0) {
-        return OsSuccess;
+    SystemPipe_t* Pipe = (SystemPipe_t*)LookupHandle(Handle);
+    if (Pipe == NULL) {
+        ERROR("Thread %s trying to read from non-existing pipe handle %u", 
+            ThreadingGetCurrentThread(CpuGetCurrentId())->Name, Handle);
+        return OsDoesNotExist;
     }
 
-    Pipe = GetProcessPipe(GetCurrentProcess(), Port);
-    if (Pipe == NULL) {
-        ERROR("Process %s trying to read from non-existing pipe %i", 
-            MStringRaw(GetCurrentProcess()->Name), Port);
-        for(;;);
-        return OsError;
+    if (Length != 0) {
+        ReadSystemPipe(Pipe, Message, Length);
     }
-    ReadSystemPipe(Pipe, Container, Length);
     return OsSuccess;
 }
 
-/* ScPipeWrite
+/* ScWritePipe
  * Writes the requested number of bytes to the system-pipe. */
 OsStatus_t
-ScPipeWrite(
-    _In_ UUId_t         ProcessHandle,
-    _In_ int            Port,
-    _In_ uint8_t*       Message,
-    _In_ size_t         Length)
+ScWritePipe(
+    _In_ UUId_t   Handle,
+    _In_ uint8_t* Message,
+    _In_ size_t   Length)
 {
-    SystemPipe_t* Pipe = NULL;
+    SystemPipe_t* Pipe = (SystemPipe_t*)LookupHandle(Handle);
     if (Message == NULL || Length == 0) {
         return OsError;
     }
 
-    // Are we looking for a system out pipe? (std) then the
-    // process id (target) will be set as invalid
-    if (ProcessHandle == UUID_INVALID) {
-        if (Port == PIPE_STDOUT || Port == PIPE_STDERR) {
-            if (Port == PIPE_STDOUT) {
-                Pipe = LogPipeStdout();
-            }
-            else if (Port == PIPE_STDERR) {
-                Pipe = LogPipeStderr();
-            }
-        }
-        else {
-            ERROR("Invalid system pipe %i", Port);
-            return OsError;
-        }
-    }
-    else { Pipe = GetProcessPipe(GetProcess(ProcessHandle), Port); }
     if (Pipe == NULL) {
-        ERROR("%s: ScPipeWrite::Invalid pipe %i on process handle 0x%x", 
-            ThreadingGetCurrentThread(CpuGetCurrentId())->Name, Port, ProcessHandle);
+        ERROR("%s: ScPipeWrite::Invalid pipe %u", 
+            ThreadingGetCurrentThread(CpuGetCurrentId())->Name, Handle);
         return OsError;
     }
-
     WriteSystemPipe(Pipe, Message, Length);
     return OsSuccess;
 }
 
-/* ScPipeReceive
- * Receives the requested number of bytes from the system-pipe. */
-OsStatus_t
-ScPipeReceive(
-    _In_ UUId_t         ProcessHandle,
-    _In_ int            Port,
-    _In_ uint8_t*       Message,
-    _In_ size_t         Length)
-{
-    SystemPipe_t* Pipe;
-    if (Message == NULL || Length == 0) {
-        ERROR("Invalid paramters for pipe-receive");
-        return OsError;
-    }
-
-    // Handle special case, system-stdin
-    if (ProcessHandle == UUID_INVALID) {
-        return ScPipeRead(Port, Message, Length);
-    }
-    else {
-        Pipe = GetProcessPipe(GetProcess(ProcessHandle), Port);
-    }
-
-    if (Pipe == NULL) {
-        ERROR("%s: ScPipeReceive::Invalid pipe %i on process handle 0x%x", 
-            ThreadingGetCurrentThread(CpuGetCurrentId())->Name, Port, ProcessHandle);
-        return OsError;
-    }
-    ReadSystemPipe(Pipe, Message, Length);
-    return OsSuccess;
-}
-
 /* ScRpcResponse
- * Waits for IPC RPC request to finish 
- * by polling the default pipe for a rpc-response */
+ * Waits for rpc request to finish by polling the default pipe for a rpc-response */
 OsStatus_t
 ScRpcResponse(
     _In_ MRemoteCall_t* RemoteCall)
 {
-    // Variables
-    SystemPipe_t *Pipe  = ThreadingGetCurrentThread(CpuGetCurrentId())->Pipe;
+    SystemPipe_t* Pipe = ThreadingGetCurrentThread(CpuGetCurrentId())->Pipe;
     assert(Pipe != NULL);
     assert(RemoteCall != NULL);
     assert(RemoteCall->Result.Length > 0);
@@ -198,38 +148,19 @@ ScRpcExecute(
     _In_ MRemoteCall_t* RemoteCall,
     _In_ int            Async)
 {
-    SystemPipeUserState_t   State;
-    MCoreThread_t*          Thread;
-    SystemPipe_t*           Pipe;
-    SystemProcess_t*        Process;
-    size_t                  TotalLength = sizeof(MRemoteCall_t);
-    int                     i;
+    SystemPipeUserState_t State;
+    size_t                TotalLength = sizeof(MRemoteCall_t);
+    SystemPipe_t*         Pipe;
+    int                   i;
 
-    // Start out by resolving both the process and pipe
-    Process = GetProcess(RemoteCall->To.Process);
-    Pipe    = GetProcessPipe(Process, RemoteCall->To.Port);
-
-    // Sanitize the lookups
-    if (Process == NULL || Pipe == NULL) {
-        if (Process == NULL) {
-            ERROR("Target 0x%x did not exist", RemoteCall->To.Process);
-        }
-        else {
-            ERROR("Port %u did not exist in target 0x%x",
-                RemoteCall->To.Port, RemoteCall->To.Process);
-        }
+    assert(RemoteCall != NULL);
+    TRACE("ScRpcExecute(Message %i, Async %i)", RemoteCall->Function, Async);
+    
+    Pipe = (SystemPipe_t*)LookupHandle(RemoteCall->Target);
+    if (Pipe == NULL) {
+        ERROR("Pipe-Handle %u did not exist", RemoteCall->Target);
         return OsError;
     }
-
-    // Trace
-    TRACE("ScRpcExecute(Target %s, Message %i, Async %i)", 
-        MStringRaw(Ash->Name), RemoteCall->Function, Async);
-    
-    // Install Sender
-    Thread = ThreadingGetCurrentThread(CpuGetCurrentId());
-    RemoteCall->From.Process    = Thread->ProcessHandle;
-    RemoteCall->From.Thread     = Thread->Id;
-    RemoteCall->From.Port       = -1;
 
     // Calculate how much data to be comitted
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
@@ -248,9 +179,6 @@ ScRpcExecute(
                 RemoteCall->Arguments[i].Length);
         }
     }
-
-    // Async request? Because if yes, don't
-    // wait for response
     if (Async) {
         return OsSuccess;
     }
@@ -261,25 +189,25 @@ ScRpcExecute(
  * Listens for a new rpc-message on the default rpc-pipe. */
 OsStatus_t
 ScRpcListen(
-    _In_ int            Port,
     _In_ MRemoteCall_t* RemoteCall,
     _In_ uint8_t*       ArgumentBuffer)
 {
     SystemPipeUserState_t   State;
     uint8_t*                BufferPointer = ArgumentBuffer;
-    SystemPipe_t*           Pipe;
-    SystemProcess_t*        Process;
+    SystemModule_t*         Module;
     size_t                  Length;
     int                     i;
-
-    // Trace
+    
+    assert(RemoteCall != NULL);
     TRACE("%s: ScRpcListen(Port %i)", MStringRaw(GetCurrentProcess()->Name), Port);
     
     // Start out by resolving both the process and pipe
-    Process = GetCurrentProcess();
-    Pipe    = GetProcessPipe(Process, Port);
+    Module = GetCurrentModule();
+    if (Module == NULL) {
+        return OsInvalidPermissions;
+    }
 
-    AcquireSystemPipeConsumption(Pipe, &Length, &State);
+    AcquireSystemPipeConsumption(Module->Rpc, &Length, &State);
     ReadSystemPipeConsumption(&State, (uint8_t*)RemoteCall, sizeof(MRemoteCall_t));
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
         if (RemoteCall->Arguments[i].Type == ARGUMENT_BUFFER) {
@@ -288,7 +216,7 @@ ScRpcListen(
             BufferPointer += RemoteCall->Arguments[i].Length;
         }
     }
-    FinalizeSystemPipeConsumption(Pipe, &State);
+    FinalizeSystemPipeConsumption(Module->Rpc, &State);
     return OsSuccess;
 }
 
@@ -297,12 +225,12 @@ ScRpcListen(
  * channel to avoid any concurrency issues. */
 OsStatus_t
 ScRpcRespond(
-    _In_ MRemoteCallAddress_t*  RemoteAddress,
-    _In_ const uint8_t*         Buffer, 
-    _In_ size_t                 Length)
+    _In_ MRemoteCallAddress_t* RemoteAddress,
+    _In_ const uint8_t*        Buffer, 
+    _In_ size_t                Length)
 {
-    MCoreThread_t*  Thread = ThreadingGetThread(RemoteAddress->Thread);
-    SystemPipe_t*   Pipe   = NULL;
+    MCoreThread_t* Thread = ThreadingGetThread(RemoteAddress->Thread);
+    SystemPipe_t*  Pipe   = NULL;
 
     // Sanitize thread still exists
     if (Thread != NULL) {

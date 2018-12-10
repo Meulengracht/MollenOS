@@ -64,6 +64,7 @@ typedef struct _SystemMemorySpace {
     struct _SystemMemorySpace*  Parent;
     UUId_t                      ParentHandle;
     BlockBitmap_t*              HeapSpace;
+    uintptr_t                   SignalHandler;
 } SystemMemorySpace_t;
 
 /* InitializeSystemMemorySpace

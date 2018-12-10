@@ -21,8 +21,6 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
-#include <process/phoenix.h>
-#include <process/process.h>
 #include <memorybuffer.h>
 #include <ds/mstring.h>
 #include <os/file.h>
@@ -34,9 +32,9 @@
  * Queries the current working directory path for the current process (See _MAXPATH) */
 OsStatus_t
 ScGetWorkingDirectory(
-    _In_ UUId_t     ProcessId,
-    _In_ char*      PathBuffer,
-    _In_ size_t     MaxLength)
+    _In_ UUId_t ProcessId,
+    _In_ char*  PathBuffer,
+    _In_ size_t MaxLength)
 {
     SystemProcess_t*    Process;
     size_t              BytesToCopy = MaxLength;

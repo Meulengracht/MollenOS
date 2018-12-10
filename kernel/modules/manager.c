@@ -33,8 +33,9 @@
 
 OsStatus_t PhoenixFileHandler(void *UserData);
 
-static Collection_t Modules        = COLLECTION_INIT(KeyInteger);
-static UUId_t       GcFileHandleId = 0;
+static Collection_t Modules           = COLLECTION_INIT(KeyInteger);
+static UUId_t       GcFileHandleId    = 0;
+static UUId_t       ModuleIdGenerator = 1;
 
 /* InitializeModuleManager
  * Initializes the static storage needed for the module manager, and registers a garbage collector. */
@@ -65,8 +66,9 @@ RegisterModule(
     memset(Module, 0, sizeof(SystemModule_t));
     Module->ListHeader.Key.Value.Integer = (int)Type;
 
-    Module->Data = Data;
-    Module->Path = MStringCreate("rd:/", StrUTF8);
+    Module->Handle = ModuleIdGenerator++;
+    Module->Data   = Data;
+    Module->Path   = MStringCreate("rd:/", StrUTF8);
     MStringAppendString(Module->Path, Path);
 
     Module->VendorId        = VendorId;
@@ -189,17 +191,19 @@ GetModule(
 {
     foreach(Node, &Modules) {
         SystemModule_t* Module = (SystemModule_t*)Node;
-        // Should we check vendor-id && device-id?
-        if (VendorId != 0 && DeviceId != 0) {
-            if (Module->VendorId == VendorId && Module->DeviceId == DeviceId) {
-                return Module;
+            if (Module->PrimaryThreadId != UUID_INVALID) {
+            // Should we check vendor-id && device-id?
+            if (VendorId != 0 && DeviceId != 0) {
+                if (Module->VendorId == VendorId && Module->DeviceId == DeviceId) {
+                    return Module;
+                }
             }
-        }
 
-        // Skip all fixed-vendor ids
-        if (Module->VendorId != 0xFFEF) {
-            if (Module->DeviceClass == DeviceClass && Module->DeviceSubclass == DeviceSubclass) {
-                return Module;
+            // Skip all fixed-vendor ids
+            if (Module->VendorId != 0xFFEF) {
+                if (Module->DeviceClass == DeviceClass && Module->DeviceSubclass == DeviceSubclass) {
+                    return Module;
+                }
             }
         }
     }
@@ -233,7 +237,7 @@ SetModuleAlias(
         Module->Alias = Alias;
         return OsSuccess;
     }
-    return OsInvalidPermission;
+    return OsInvalidPermissions;
 }
 
 /* GetModuleByAlias
