@@ -17,7 +17,7 @@ $(error VALI_ARCH is not set to a valid value)
 endif
 
 COMMON_INCLUDES = -I../include -I../libc/include -Iinclude
-COMMON_SOURCES = $(wildcard *.c)
+COMMON_SOURCES = $(wildcard pe/*.c) $(wildcard *.c)
 
 KERNEL_SOURCES = $(COMMON_SOURCES) support/dsk.c
 KERNEL_OBJECTS = $(KERNEL_SOURCES:.c=.ko)
@@ -46,12 +46,12 @@ tidy: $(KERNEL_OBJECTS) $(OBJECTS)
 
 %.o : %.c
 	@mkdir -p $(dir $@)
-	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
+	@printf "%b" "\033[0;32m[LIBDS] Compiling C source object " $< "\033[m\n"
 	@$(CC) -c $(NORMAL_CFLAGS) -o $@ $<
 
 %.ko : %.c
 	@mkdir -p $(dir $@)
-	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
+	@printf "%b" "\033[0;32m[LIBDS] Compiling C source object " $< "\033[m\n"
 	@$(CC) -c $(KERNEL_CFLAGS) -o $@ $<
 
 .PHONY: clean

@@ -61,14 +61,8 @@
  * Describes a handle that can be inherited by the process. 
  * These can only be created from existing handles (file, pipe etc) */
 typedef struct _StdioHandle {
-    int             InheritationType;
-    union {
-        struct {
-            UUId_t  ProcessId;
-            int     Port;
-        } Pipe;
-        UUId_t      FileHandle;
-    } InheritationData;
+    int     InheritationType;
+    UUId_t  InheritationHandle;
 } StdioHandle_t;
 
 typedef struct {
@@ -94,8 +88,8 @@ __EXTERN int _flswbuf(int ch, FILE *stream);
 /* Stdio internal file-descriptor management functions 
  * Used internally by the c library to manage open file handles */
 __EXTERN int StdioFdAllocate(int fd, int flag);
-__EXTERN void StdioCreateFileHandle(UUId_t FileHandle, StdioObject_t *Object);
-__EXTERN OsStatus_t StdioCreatePipeHandle(UUId_t ProcessId, int Port, int Oflags, StdioObject_t *Object);
+__EXTERN void StdioCreateFileHandle(UUId_t FileHandle, StdioObject_t* Object);
+__EXTERN OsStatus_t StdioCreatePipeHandle(UUId_t PipeHandle, StdioObject_t* Object);
 __EXTERN OsStatus_t StdioFdInitialize(_In_ FILE *file, _In_ int fd, _In_ unsigned stream_flags);
 __EXTERN void StdioFdFree(_In_ int fd);
 __EXTERN StdioHandle_t* StdioFdToHandle(_In_ int fd);

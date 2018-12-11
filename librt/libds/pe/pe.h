@@ -71,6 +71,7 @@ typedef struct _PeExecutable {
 /*******************************************************************************
  * Support Methods 
  *******************************************************************************/
+__EXTERN uintptr_t  GetPageSize(void);
 __EXTERN uintptr_t  GetBaseAddress(void);
 __EXTERN OsStatus_t LoadFile(MString_t*, MString_t**, void**, size_t*);
 __EXTERN OsStatus_t CreateImageSpace(MemorySpaceHandle_t*);

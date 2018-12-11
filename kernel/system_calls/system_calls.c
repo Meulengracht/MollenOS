@@ -21,11 +21,10 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
-#include <os/osdefs.h>
-#include <os/mollenos.h>
-#include <process/process.h>
+#include <modules/manager.h>
 #include <system/output.h>
 #include <system/utils.h>
+#include <os/mollenos.h>
 #include <memoryspace.h>
 #include <threading.h>
 #include <timers.h>
@@ -36,9 +35,9 @@
  * Debug/trace printing for userspace application and drivers */
 OsStatus_t
 ScSystemDebug(
-    _In_ int            Type,
-    _In_ const char*    Module,
-    _In_ const char*    Message)
+    _In_ int         Type,
+    _In_ const char* Module,
+    _In_ const char* Message)
 {
     if (Module == NULL || Message == NULL) {
         return OsError;
@@ -92,9 +91,8 @@ int ScEnvironmentQuery(void) {
  * if a system clock has been initialized. */
 OsStatus_t
 ScSystemTime(
-    _Out_ struct tm *SystemTime)
+    _Out_ struct tm* SystemTime)
 {
-    // Sanitize input
     if (SystemTime == NULL) {
         return OsError;
     }
@@ -115,9 +113,9 @@ ScSystemTick(
 
     if (TimersGetSystemTick(SystemTick) == OsSuccess) {
         if (TickBase == TIME_PROCESS) {
-            SystemProcess_t* Process = GetCurrentProcess();
-            if (Process != NULL) {
-                *SystemTick -= Process->StartedAt;
+            SystemModule_t* Module = GetCurrentModule();
+            if (Module != NULL) {
+                *SystemTick -= Module->StartedAt;
             }
         }
         else if (TickBase == TIME_THREAD) {
@@ -178,15 +176,13 @@ ScQueryDisplayInformation(
 void*
 ScCreateDisplayFramebuffer(void)
 {
-    uintptr_t FbPhysical    = VideoGetTerminal()->FrameBufferAddressPhysical;
-    uintptr_t FbVirtual     = 0;
-    size_t FbSize           = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
-    if (GetCurrentProcess() == NULL) {
-        return NULL;
-    }
+    uintptr_t FbPhysical = VideoGetTerminal()->FrameBufferAddressPhysical;
+    uintptr_t FbVirtual  = 0;
+    size_t FbSize        = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
+    // @todo security
 
     // Allocate the neccessary size
-    FbVirtual = AllocateBlocksInBlockmap(GetCurrentProcess()->Heap, __MASK, FbSize);
+    FbVirtual = AllocateBlocksInBlockmap(GetCurrentSystemMemorySpace()->HeapSpace, __MASK, FbSize);
     if (FbVirtual == 0) {
         return NULL;
     }

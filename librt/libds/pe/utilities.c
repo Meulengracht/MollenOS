@@ -21,8 +21,10 @@
  *      and implemented as a part of libds to share between services and kernel
  */
 
+#include <ds/collection.h>
 #include <os/mollenos.h>
-#include <ds/ds.h>
+#include <ds/mstring.h>
+#include <string.h>
 #include <assert.h>
 #include "pe.h"
 
@@ -69,7 +71,7 @@ PeResolveLibrary(
     }
 
     if (Exports == NULL) {
-        ERROR("Library %s was unable to be resolved", MStringRaw(LibraryName));
+        dserror("Library %s was unable to be resolved", MStringRaw(LibraryName));
     }
     return Exports;
 }
@@ -82,7 +84,7 @@ PeResolveFunction(
     _In_ PeExecutable_t* Library, 
     _In_ const char*    Function)
 {
-    MCorePeExportFunction_t* Exports = Library->ExportedFunctions;
+    PeExportedFunction_t* Exports = Library->ExportedFunctions;
     if (Exports != NULL) {
         for (int i = 0; i < Library->NumberOfExportedFunctions; i++) {
             if (Exports[i].Name != NULL && !strcmp(Exports[i].Name, Function)) {

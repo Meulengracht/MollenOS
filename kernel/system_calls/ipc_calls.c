@@ -27,6 +27,7 @@
 #include <threading.h>
 #include <os/input.h>
 #include <machine.h>
+#include <handle.h>
 #include <debug.h>
 #include <pipe.h>
 

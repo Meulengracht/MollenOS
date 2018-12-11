@@ -42,7 +42,7 @@ GetFilePathFromFd(
         FileHandle->InheritationType != STDIO_HANDLE_FILE) {
         return OsError;
     }
-    return GetFilePath(FileHandle->InheritationData.FileHandle, PathBuffer, MaxLength);
+    return GetFilePath(FileHandle->InheritationHandle, PathBuffer, MaxLength);
 }
 
 /* GetStorageInformationFromPath 
@@ -74,7 +74,7 @@ GetStorageInformationFromFd(
         FileHandle->InheritationType != STDIO_HANDLE_FILE) {
         return OsError;
     }
-    return QueryDiskByHandle(FileHandle->InheritationData.FileHandle, Information);
+    return QueryDiskByHandle(FileHandle->InheritationHandle, Information);
 }
 
 /* GetFileInformationFromPath 
@@ -105,7 +105,7 @@ GetFileInformationFromFd(
         FileHandle->InheritationType != STDIO_HANDLE_FILE) {
         return FsInvalidParameters;
     }
-    return GetFileStatsByHandle(FileHandle->InheritationData.FileHandle, Information);
+    return GetFileStatsByHandle(FileHandle->InheritationHandle, Information);
 }
 
 /* Parameter structure for creating file-mappings. 
@@ -137,7 +137,7 @@ CreateFileMapping(
         return OsError;
     }
 
-    Parameters.FileHandle = FileHandle->InheritationData.FileHandle;
+    Parameters.FileHandle = FileHandle->InheritationHandle;
     Parameters.Flags = Flags;
     Parameters.Offset = Offset;
     Parameters.Size = Size;

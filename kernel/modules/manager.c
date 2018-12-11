@@ -191,7 +191,7 @@ GetModule(
 {
     foreach(Node, &Modules) {
         SystemModule_t* Module = (SystemModule_t*)Node;
-            if (Module->PrimaryThreadId != UUID_INVALID) {
+        if (Module->PrimaryThreadId != UUID_INVALID) {
             // Should we check vendor-id && device-id?
             if (VendorId != 0 && DeviceId != 0) {
                 if (Module->VendorId == VendorId && Module->DeviceId == DeviceId) {
@@ -215,10 +215,10 @@ GetModule(
 SystemModule_t*
 GetCurrentModule(void)
 {
-    UUId_t ThreadId = ThreadingGetCurrentThreadId();
+    MCoreThread_t* Thread = ThreadingGetCurrentThread(CpuGetCurrentId());
     foreach(Node, &Modules) {
         SystemModule_t* Module = (SystemModule_t*)Node;
-        if (Module->PrimaryThreadId == ThreadId /* || IsChildOf(Module->PrimaryThreadId)*/) {
+        if (Module->PrimaryThreadId == Thread->Id /* || IsThreadChildOf(Module->PrimaryThreadId)*/) {
             return Module;
         }
     }

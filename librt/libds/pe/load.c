@@ -21,8 +21,10 @@
  *      and implemented as a part of libds to share between services and kernel
  */
 
+#include <ds/collection.h>
 #include <os/mollenos.h>
-#include <ds/ds.h>
+#include <ds/mstring.h>
+#include <string.h>
 #include <assert.h>
 #include "pe.h"
 
@@ -106,8 +108,8 @@ PeHandleSections(
 
     // Return a page-aligned address that points to the
     // next free relocation address
-    if (CurrentAddress % GetSystemMemoryPageSize()) {
-        CurrentAddress += (GetSystemMemoryPageSize() - (CurrentAddress % GetSystemMemoryPageSize()));
+    if (CurrentAddress % GetPageSize()) {
+        CurrentAddress += (GetPageSize() - (CurrentAddress % GetPageSize()));
     }
 
     if (Parent != NULL) Parent->NextLoadingAddress = CurrentAddress;
@@ -141,13 +143,13 @@ PeHandleRelocations(
 
         if (BlockSize > BytesLeft) {
             dserror("Invalid relocation data: BlockSize > BytesLeft, bailing");
-            break;
+            return OsError;
         }
 
         BytesLeft -= BlockSize;
         if (BlockSize == 0) {
             dserror("Invalid relocation data: BlockSize == 0, bailing");
-            break;
+            return OsError;
         }
         NumRelocs          = (BlockSize - 8) / sizeof(uint16_t);
         RelocationEntryPtr = (uint16_t*)RelocationPtr;
@@ -187,6 +189,7 @@ PeHandleRelocations(
         AdvancePtr    += (BlockSize - 8);
         RelocationPtr = (uint32_t*)AdvancePtr;
     }
+    return OsSuccess;
 }
 
 /* PeHandleExports
@@ -253,9 +256,9 @@ PeResolveImportDescriptor(
     int                   NumberOfExports;
 
     // Resolve the library from the import chunk
-    ResolvedLibrary = PeResolveLibrary(Parent, Image, Name);
+    ResolvedLibrary = PeResolveLibrary(Parent, Image, ImportDescriptorName);
     if (ResolvedLibrary == NULL || ResolvedLibrary->ExportedFunctions == NULL) {
-        dserror("(%s): Failed to resolve library %s", MStringRaw(Image->Name), MStringRaw(Name));
+        dserror("(%s): Failed to resolve library %s", MStringRaw(Image->Name), MStringRaw(ImportDescriptorName));
         return OsError;
     }
     Exports         = ResolvedLibrary->ExportedFunctions;
@@ -337,6 +340,7 @@ PeResolveImportDescriptor(
             Iat++;
         }
     }
+    return OsSuccess;
 }
 
 /* PeHandleImports
@@ -498,8 +502,8 @@ PeLoadImage(
     Image = (PeExecutable_t*)dsalloc(sizeof(PeExecutable_t));
     memset(Image, 0, sizeof(PeExecutable_t));
 
-    Image->Name            = MStringCreate((void*)MStringRaw(Name), StrUFT8);
-    Image->FullPath        = MStringCreate((void*)MStringRaw(FullPath), StrUFT8);
+    Image->Name            = MStringCreate((void*)MStringRaw(Name), StrUTF8);
+    Image->FullPath        = MStringCreate((void*)MStringRaw(FullPath), StrUTF8);
     Image->Architecture    = OptHeader->Architecture;
     Image->VirtualAddress  = (Parent == NULL) ? GetBaseAddress() : Parent->NextLoadingAddress;
     Image->Libraries       = CollectionCreate(KeyInteger);
@@ -551,6 +555,7 @@ PeUnloadImage(
         dsfree(Image);
         return OsSuccess;
     }
+    return OsError;
 }
 
 /* PeUnloadLibrary
@@ -571,7 +576,7 @@ PeUnloadLibrary(
                 PeExecutable_t* lLib = (PeExecutable_t*)lNode->Data;
                 if (lLib == Library) {
                     CollectionRemoveByNode(Parent->Libraries, lNode);
-                    kfree(lNode);
+                    dsfree(lNode);
                     break;
                 }
             }

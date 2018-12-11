@@ -26,6 +26,7 @@
 //#define __TRACE
 
 #include <system/interrupts.h>
+#include <modules/manager.h>
 #include <system/thread.h>
 #include <system/utils.h>
 #include <ds/collection.h>
@@ -59,7 +60,7 @@ extern void     __cli(void);
 extern void     __sti(void);
 extern reg_t    __getflags(void);
 extern reg_t    __getcr2(void);
-extern void     enter_thread(Context_t *Regs);
+extern void     enter_thread(Context_t* Regs);
 
 /* InitializeSoftwareInterrupts
  * Initializes all the default software interrupt gates. */
@@ -552,7 +553,7 @@ ExceptionEntry(
         }
 
         // Locate which module
-        if (DebugGetModuleByAddress(GetCurrentProcess(), CONTEXT_IP(Registers), &Base, &Name) == OsSuccess) {
+        if (DebugGetModuleByAddress(GetCurrentModule(), CONTEXT_IP(Registers), &Base, &Name) == OsSuccess) {
             uintptr_t Diff = CONTEXT_IP(Registers) - Base;
             WRITELINE("Faulty Address: 0x%x (%s)", Diff, Name);
         }

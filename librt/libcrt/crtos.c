@@ -23,8 +23,6 @@
 #include <os/process.h>
 #include <os/ipc/ipc.h>
 
-/* Includes 
- * - Library */
 #include "../libc/threads/tls.h"
 #include <stddef.h>
 #include <stdlib.h>
@@ -195,11 +193,6 @@ __CrtInitialize(
             *ArgumentCount = 0;
         }
     }
-
-    // Initialize default comm pipe
-    OpenPipe(PIPE_REMOTECALL, PIPE_STRUCTURED);
-
-	// Initialize C/CPP constructors as the last step
     __cxa_runinitializers(__CrtCxxInitialize, __CrtCxxFinalize, __CrtAttachTlsBlock);
     return Arguments;
 }

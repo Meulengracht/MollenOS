@@ -130,7 +130,7 @@ int pipe(void)
         return -1;
     }
 
-    Status = StdioCreatePipeHandle(ProcessGetCurrentId(), fd + 64, _IOREAD | _IOWRT, get_ioinfo(fd));
+    Status = StdioCreatePipeHandle(UUID_INVALID, get_ioinfo(fd));
     if (Status == OsError) {
         StdioFdFree(fd);
         _set_errno(ENOENT);

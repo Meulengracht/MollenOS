@@ -25,6 +25,7 @@
 
 #include <os/osdefs.h>
 #include <ds/collection.h>
+#include <time.h>
 
 typedef struct _PeExecutable PeExecutable_t;
 typedef struct _SystemPipe SystemPipe_t;

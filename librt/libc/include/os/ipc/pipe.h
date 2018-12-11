@@ -28,22 +28,20 @@
 #define PIPE_STRUCTURED     1   // This should always be used when there are multiple readers or producers
 
 _CODE_BEGIN
-/* OpenPipe
- * Opens a new communication pipe on the given port for this process, 
- * if one already exists SIGPIPE is signaled */
+/* CreatePipe
+ * Creates a new communication pipe that can be used for transferring arbitrary data. */
 CRTDECL(
 OsStatus_t,
-OpenPipe(
-    _In_ int    Port, 
-    _In_ int    Type));
+CreatePipe(
+    _In_  int     Type,
+    _Out_ UUId_t* Handle));
 
-/* ClosePipe
- * Closes an existing communication pipe on the given port for this process, 
- * if one doesn't exists SIGPIPE is signaled */
+/* DestroyPipe
+ * Closes an existing communication pipe and invalidates it for further data. */
 CRTDECL(
 OsStatus_t,
-ClosePipe(
-    _In_ int    Port));
+DestroyPipe(
+    _In_ UUId_t Handle));
 
 /* ReadPipe
  * This returns -1 if something went wrong reading
@@ -52,26 +50,16 @@ ClosePipe(
 CRTDECL(
 OsStatus_t,
 ReadPipe(
-    _In_ int    Port,
+    _In_ UUId_t Handle,
     _In_ void*  Buffer,
     _In_ size_t Length));
 
-/* Pipe send + recieve
- * The send and recieve calls can actually be used for reading extern pipes
- * and send to external pipes */
+/* WritePipe
+ * Writes the provided data by length to the pipe handle. */
 CRTDECL(
 OsStatus_t,
-SendPipe(
-    _In_ UUId_t ProcessId,
-    _In_ int    Port,
-    _In_ void*  Buffer,
-    _In_ size_t Length));
-
-CRTDECL(
-OsStatus_t,
-ReceivePipe(
-    _In_ UUId_t ProcessId,
-    _In_ int    Port,
+WritePipe(
+    _In_ UUId_t Handle,
     _In_ void*  Buffer,
     _In_ size_t Length));
 _CODE_END

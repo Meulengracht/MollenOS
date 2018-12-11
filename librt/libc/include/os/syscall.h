@@ -108,14 +108,14 @@ _CODE_END
 
 /* Communication system calls
  * - Communication related system call definitions */
-#define Syscall_PipeOpen(Port, Flags) (OsStatus_t)syscall2(61, SCPARAM(Port), SCPARAM(Flags))
-#define Syscall_PipeClose(Port) (OsStatus_t)syscall1(62, SCPARAM(Port))
-#define Syscall_PipeRead(Port, Buffer, Length) (OsStatus_t)syscall3(63, SCPARAM(Port), SCPARAM(Buffer), SCPARAM(Length))
-#define Syscall_PipeSend(ProcessId, Port, Buffer, Length) (OsStatus_t)syscall4(64, SCPARAM(ProcessId), SCPARAM(Port), SCPARAM(Buffer), SCPARAM(Length))
-#define Syscall_PipeReceive(ProcessId, Port, Buffer, Length) (OsStatus_t)syscall4(65, SCPARAM(ProcessId), SCPARAM(Port), SCPARAM(Buffer), SCPARAM(Length))
+#define Syscall_CreatePipe(Flags, HandleOut) (OsStatus_t)syscall2(61, SCPARAM(Flags), SCPARAM(HandleOut))
+#define Syscall_DestroyPipe(Handle) (OsStatus_t)syscall1(62, SCPARAM(Handle))
+#define Syscall_ReadPipe(Handle, Buffer, Length) (OsStatus_t)syscall3(63, SCPARAM(Handle), SCPARAM(Buffer), SCPARAM(Length))
+#define Syscall_WritePipe(Handle, Buffer, Length) (OsStatus_t)syscall3(64, SCPARAM(Handle), SCPARAM(Buffer), SCPARAM(Length))
+
 #define Syscall_RemoteCall(RemoteCall, Asynchronous) (OsStatus_t)syscall2(67, SCPARAM(RemoteCall), SCPARAM(Asynchronous))
 #define Syscall_RpcGetResponse(RemoteCall) (OsStatus_t)syscall1(68, SCPARAM(RemoteCall))
-#define Syscall_RemoteCallWait(Port, RemoteCall, ArgumentBuffer) (OsStatus_t)syscall3(69, SCPARAM(Port), SCPARAM(RemoteCall), SCPARAM(ArgumentBuffer))
+#define Syscall_RemoteCallWait(RemoteCall, ArgumentBuffer) (OsStatus_t)syscall2(69, SCPARAM(RemoteCall), SCPARAM(ArgumentBuffer))
 #define Syscall_RemoteCallRespond(RemoteCall, Buffer, Length) (OsStatus_t)syscall3(70, SCPARAM(RemoteCall), SCPARAM(Buffer), SCPARAM(Length))
 
 /* Base system calls

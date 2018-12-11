@@ -17,8 +17,6 @@
 #ifndef __STDC_COMPLEX__
 #define	__STDC_COMPLEX__
 
-/* Includes
- * - Library */
 #include <crtdefs.h>
 
 #define complex _Complex

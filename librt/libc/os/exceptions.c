@@ -19,7 +19,6 @@
 * MollenOS Visual C++ Implementation
 */
 
-/* Includes */
 //#include "../libmsc++/mvcxx.h"
 #include <stddef.h>
 #include <string.h>

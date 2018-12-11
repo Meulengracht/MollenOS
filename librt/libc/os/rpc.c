@@ -73,7 +73,7 @@ RPCListen(
 	_In_ MRemoteCall_t*         Message,
     _In_ void*                  ArgumentBuffer)
 {
-    return Syscall_RemoteCallWait(PIPE_REMOTECALL, Message, ArgumentBuffer);
+    return Syscall_RemoteCallWait(Message, ArgumentBuffer);
 }
 
 /* RPCRespond

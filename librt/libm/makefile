@@ -35,11 +35,11 @@ all: ../build/libm.dll
 	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
 %.o : %.c
-	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
+	@printf "%b" "\033[0;32m[LIBM] Compiling C source object " $< "\033[m\n"
 	@$(CC) -c $(CFLAGS) -o $@ $<
 
 %.o : %.s
-	@printf "%b" "\033[0;32mAssembling source object " $< "\033[m\n"
+	@printf "%b" "\033[0;32m[LIBM] Assembling source object " $< "\033[m\n"
 	@$(AS) $(ASFLAGS) $< -o $@
 
 .PHONY: clean

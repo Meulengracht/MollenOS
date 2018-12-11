@@ -25,11 +25,12 @@
 
 #include <os/osdefs.h>
 #include <ds/mstring.h>
+#include <ds/collection.h>
+#include <modules/module.h>
 #include <memorybuffer.h>
+#include <memoryspace.h>
 
-// File Mapping Support
-// Provides file-mapping support for processes.
-typedef struct _MCoreAshFileMapping {
+typedef struct _SystemFileMapping {
     CollectionItem_t    Header;
     DmaBuffer_t         BufferObject;
     UUId_t              FileHandle;
@@ -37,15 +38,13 @@ typedef struct _MCoreAshFileMapping {
     uint64_t            BlockOffset;
     size_t              Length;
     Flags_t             Flags;
-} MCoreAshFileMapping_t;
+} SystemFileMapping_t;
 
-/* MCoreAshFileMappingEvent
- * Descripes a file mapping access event. */
-typedef struct _MCoreAshFileMappingEvent {
-    SystemProcess_t*    Process;
-    uintptr_t           Address;
-    OsStatus_t          Result;
-} MCoreAshFileMappingEvent_t;
+typedef struct _SystemFileMappingEvent {
+    SystemMemorySpace_t* MemorySpace;
+    uintptr_t            Address;
+    OsStatus_t           Result;
+} SystemFileMappingEvent_t;
 
 /* InitializeModuleManager
  * Initializes the static storage needed for the module manager, and registers a garbage collector. */
@@ -123,10 +122,10 @@ KERNELAPI SystemModule_t* KERNELABI
 GetModuleByAlias(
     _In_ UUId_t Alias);
 
-/* PhoenixFileMappingEvent
- * Signals a new file-mapping access event to the phoenix process system. */
+/* RegisterFileMappingEvent
+ * Signals a new file-mapping access event to the system. */
 KERNELAPI void KERNELABI
-PhoenixFileMappingEvent(
-    _In_ MCoreAshFileMappingEvent_t* Event);
+RegisterFileMappingEvent(
+    _In_ SystemFileMappingEvent_t* Event);
 
 #endif //!__MODULE_MANAGER_INTERFACE__

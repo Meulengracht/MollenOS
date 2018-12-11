@@ -119,33 +119,29 @@ static Spinlock_t   BitmapLock;
 void
 StdioCloneHandle(StdioHandle_t *Handle, StdioHandle_t *Original)
 {
-    Handle->InheritationType = Original->InheritationType;
-    
-    Handle->InheritationData.FileHandle     = Original->InheritationData.FileHandle;
-    Handle->InheritationData.Pipe.ProcessId = Original->InheritationData.Pipe.ProcessId;
-    Handle->InheritationData.Pipe.Port      = Original->InheritationData.Pipe.Port;
+    Handle->InheritationType   = Original->InheritationType;
+    Handle->InheritationHandle = Original->InheritationHandle;
 }
 
 /* StdioCreateFileHandle 
  * Initializes the handle as a file handle in the stdio object */ 
 void
-StdioCreateFileHandle(UUId_t FileHandle, StdioObject_t *Object)
+StdioCreateFileHandle(UUId_t FileHandle, StdioObject_t* Object)
 {
-    Object->handle.InheritationType             = STDIO_HANDLE_FILE;
-    Object->handle.InheritationData.FileHandle  = FileHandle;
+    Object->handle.InheritationType   = STDIO_HANDLE_FILE;
+    Object->handle.InheritationHandle = FileHandle;
     Object->exflag |= EF_CLOSE;
 }
 
 /* StdioCreateFileHandle 
  * Initializes the handle as a pipe handle in the stdio object */ 
 OsStatus_t
-StdioCreatePipeHandle(UUId_t ProcessId, int Port, int Oflags, StdioObject_t* Object)
+StdioCreatePipeHandle(UUId_t PipeHandle, StdioObject_t* Object)
 {
-    Object->handle.InheritationType                 = STDIO_HANDLE_PIPE;
-    Object->handle.InheritationData.Pipe.ProcessId  = ProcessId;
-    Object->handle.InheritationData.Pipe.Port       = Port;
-    if (Oflags & _IOREAD) {
-        if (OpenPipe(Port, PIPE_RAW) != OsSuccess) {
+    Object->handle.InheritationType   = STDIO_HANDLE_PIPE;
+    Object->handle.InheritationHandle = PipeHandle;
+    if (PipeHandle == UUID_INVALID) {
+        if (CreatePipe(PIPE_RAW, &Object->handle.InheritationHandle) != OsSuccess) {
             return OsError;
         }
         Object->exflag |= EF_CLOSE;
@@ -302,19 +298,19 @@ StdioParseInheritanceBlock(
         __GlbStdout._fd = StdioFdAllocate(STDOUT_FILENO, WX_PIPE | WX_TTY);
         assert(__GlbStdout._fd != -1);
 
-        StdioCreatePipeHandle(UUID_INVALID, PIPE_STDOUT, _IOWRT, get_ioinfo(STDOUT_FILENO));
+        StdioCreatePipeHandle(PIPE_STDOUT, get_ioinfo(STDOUT_FILENO));
     }
     if (get_ioinfo(STDIN_FILENO) == NULL) {
         __GlbStdin._fd = StdioFdAllocate(STDIN_FILENO, WX_PIPE | WX_TTY);
         assert(__GlbStdin._fd != -1);
 
-        StdioCreatePipeHandle(UUID_INVALID, PIPE_STDIN, _IOREAD, get_ioinfo(STDIN_FILENO));
+        StdioCreatePipeHandle(PIPE_STDIN, get_ioinfo(STDIN_FILENO));
     }
     if (get_ioinfo(STDERR_FILENO) == NULL) {
         __GlbStderr._fd = StdioFdAllocate(STDERR_FILENO, WX_PIPE | WX_TTY);
         assert(__GlbStderr._fd != -1);
 
-        StdioCreatePipeHandle(UUID_INVALID, PIPE_STDERR, _IOWRT, get_ioinfo(STDERR_FILENO));
+        StdioCreatePipeHandle(PIPE_STDERR, get_ioinfo(STDERR_FILENO));
     }
     StdioFdInitialize(&__GlbStdout, __GlbStdout._fd,    _IOWRT);
     StdioFdInitialize(&__GlbStdin,  __GlbStdin._fd,     _IOREAD);
@@ -559,7 +555,7 @@ StdioHandleReadFile(
         size_t BytesReadFs              = 0, BytesIndex = 0;
         FileSystemCode_t FsCode;
 
-        FsCode = ReadFile(Handle->InheritationData.FileHandle, GetBufferHandle(TransferBuffer), Length, &BytesIndex, &BytesReadFs);
+        FsCode = ReadFile(Handle->InheritationHandle, GetBufferHandle(TransferBuffer), Length, &BytesIndex, &BytesReadFs);
         if (_fval(FsCode) || BytesReadFs == 0) {
             DestroyBuffer(TransferBuffer);
             if (BytesReadFs == 0) {
@@ -583,7 +579,7 @@ StdioHandleReadFile(
         size_t BytesReadFs      = 0, BytesIndex = 0;
 
         // Perform the read
-        FsCode = ReadFile(Handle->InheritationData.FileHandle, GetBufferHandle(tls_current()->transfer_buffer), 
+        FsCode = ReadFile(Handle->InheritationHandle, GetBufferHandle(tls_current()->transfer_buffer), 
             ChunkSize, &BytesIndex, &BytesReadFs);
         if (_fval(FsCode) || BytesReadFs == 0) {
             break;
@@ -654,8 +650,7 @@ ReadSystemKey(
         return StdioHandleReadFile(Handle, (char*)Key, sizeof(SystemKey_t), NULL);
     }
     else {
-        return ReceivePipe(Handle->InheritationData.Pipe.ProcessId, 
-            Handle->InheritationData.Pipe.Port, Key, sizeof(SystemKey_t));
+        return ReadPipe(Handle->InheritationHandle, Key, sizeof(SystemKey_t));
     }
 }
 
@@ -689,8 +684,7 @@ StdioReadInternal(
             }
             return OsSuccess;
         }
-        else if (ReceivePipe(Handle->InheritationData.Pipe.ProcessId, 
-            Handle->InheritationData.Pipe.Port, Buffer, Length) == OsSuccess) {
+        else if (ReadPipe(Handle->InheritationHandle, Buffer, Length) == OsSuccess) {
             *BytesRead = Length;
             return OsSuccess;
         }
@@ -723,7 +717,7 @@ StdioHandleWriteFile(
         
         SeekBuffer(tls_current()->transfer_buffer, 0); // Rewind buffer
         WriteBuffer(tls_current()->transfer_buffer, (const void *)Pointer, ChunkSize, &BytesWrittenLocal);
-        if (WriteFile(Handle->InheritationData.FileHandle, GetBufferHandle(tls_current()->transfer_buffer), 
+        if (WriteFile(Handle->InheritationHandle, GetBufferHandle(tls_current()->transfer_buffer), 
             ChunkSize, &BytesWrittenLocal) != FsOk) {
             break;
         }
@@ -755,8 +749,7 @@ StdioWriteInternal(
         return StdioHandleWriteFile(Handle, Buffer, Length, BytesWritten);
     }
     else if (Handle->InheritationType == STDIO_HANDLE_PIPE) {
-        if (SendPipe(Handle->InheritationData.Pipe.ProcessId, 
-            Handle->InheritationData.Pipe.Port, Buffer, Length) == OsSuccess) {
+        if (WritePipe(Handle->InheritationHandle, Buffer, Length) == OsSuccess) {
             *BytesWritten = Length;
             return OsSuccess;
         }
@@ -788,7 +781,7 @@ StdioHandleSeekFile(
 
         // Adjust for seek origin
         if (Origin == SEEK_CUR) {
-            Status = GetFilePosition(Handle->InheritationData.FileHandle, &FileInitial.u.LowPart, &FileInitial.u.HighPart);
+            Status = GetFilePosition(Handle->InheritationHandle, &FileInitial.u.LowPart, &FileInitial.u.HighPart);
             if (Status != OsSuccess) {
                 ERROR("failed to get file position");
                 return OsError;
@@ -802,7 +795,7 @@ StdioHandleSeekFile(
             }
         }
         else {
-            Status = GetFileSize(Handle->InheritationData.FileHandle, &FileInitial.u.LowPart, &FileInitial.u.HighPart);
+            Status = GetFileSize(Handle->InheritationHandle, &FileInitial.u.LowPart, &FileInitial.u.HighPart);
             if (Status != OsSuccess) {
                 ERROR("failed to get file size");
                 return OsError;
@@ -815,7 +808,7 @@ StdioHandleSeekFile(
     }
 
     // Now perform the seek
-    FsStatus = SeekFile(Handle->InheritationData.FileHandle, SeekFinal.u.LowPart, SeekFinal.u.HighPart);
+    FsStatus = SeekFile(Handle->InheritationHandle, SeekFinal.u.LowPart, SeekFinal.u.HighPart);
     if (!_fval((int)FsStatus)) {
         *Position = SeekFinal.QuadPart;
         return OsSuccess;

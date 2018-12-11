@@ -19,15 +19,16 @@
  * MollenOS - Generic Data Structures (Shared)
  */
 
-#include <string.h>
+#include <ds/mstring.h>
 #include <ds/ds.h>
 #include "../pe/pe.h"
+#include <string.h>
 
 #define __TRACE
 #ifdef LIBC_KERNEL
 #define __MODULE "DATA"
 #include <system/interrupts.h>
-#include <modules/modules.h>
+#include <modules/manager.h>
 #include <memoryspace.h>
 #include <machine.h>
 #include <stdio.h>
@@ -168,6 +169,15 @@ int dssortkey(KeyType_t type, DataKey_t key1, DataKey_t key2)
 /*******************************************************************************
  * Support Methods (PE)
  *******************************************************************************/
+uintptr_t GetPageSize(void)
+{
+#ifdef LIBC_KERNEL
+    return GetSystemMemoryPageSize();
+#else
+    return 0;
+#endif
+}
+
 uintptr_t GetBaseAddress(void)
 {
 #ifdef LIBC_KERNEL
@@ -181,9 +191,9 @@ OsStatus_t LoadFile(MString_t* Path, MString_t** FullPath, void** BufferOut, siz
 {
     OsStatus_t Status;
 #ifdef LIBC_KERNEL
-    Status = ModulesQueryPath(Path, (void**)&Buffer, &Size);
+    Status = GetModuleDataByPath(Path, BufferOut, LengthOut);
     if (Status == OsSuccess) {
-        *FullPath = MStringCreate(MStringRaw(Path), StrUTF8);
+        *FullPath = MStringCreate((void*)MStringRaw(Path), StrUTF8);
     }
 #else
     LargeInteger_t   QueriedSize = { { 0 } };
@@ -193,7 +203,7 @@ OsStatus_t LoadFile(MString_t* Path, MString_t** FullPath, void** BufferOut, siz
     size_t           Size;
 
     // Open the file as read-only
-    FsCode = OpenFile(Path, 0, __FILE_READ_ACCESS, &Handle);
+    FsCode = OpenFile(MStringRaw(Path), 0, __FILE_READ_ACCESS, &Handle);
     if (FsCode != FsOk) {
         ERROR("Invalid path given: %s", MStringRaw(Path));
         return OsError;

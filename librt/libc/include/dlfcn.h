@@ -22,12 +22,10 @@
 #ifndef __DLFCN_H__
 #define __DLFCN_H__
 
-/* CPP Guard */
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* Includes */
 #include <crtdefs.h>
 
 

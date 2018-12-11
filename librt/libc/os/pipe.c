@@ -25,78 +25,40 @@
 #include <signal.h>
 #include <assert.h>
 
-/* OpenPipe
- * Opens a new communication pipe on the given port for this process, 
- * if one already exists SIGPIPE is signaled */
 OsStatus_t
-OpenPipe(
-    _In_ int    Port, 
-    _In_ int    Type)
+CreatePipe(
+    _In_  int     Type,
+    _Out_ UUId_t* Handle)
 {
-    assert(Port >= 0);
-	return Syscall_PipeOpen(Port, Type);
+    assert(Handle != NULL);
+	return Syscall_CreatePipe(Type, Handle);
 }
 
-/* ClosePipe
- * Closes an existing communication pipe on the given port for this process, 
- * if one doesn't exists SIGPIPE is signaled */
 OsStatus_t
-ClosePipe(
-    _In_ int    Port)
+DestroyPipe(
+    _In_ UUId_t Handle)
 {
-    assert(Port >= 0);
-	return Syscall_PipeClose(Port);
+	return Syscall_DestroyPipe(Handle);
 }
 
-/* PipeRead
- * This returns -1 if something went wrong reading
- * a message from the message queue, otherwise it returns 0
- * and fills the structures with information about the message */
 OsStatus_t
 ReadPipe(
-    _In_ int    Port,
+    _In_ UUId_t Handle,
     _In_ void*  Buffer,
     _In_ size_t Length)
 {
-	// Sanitize input
-    assert(Port >= 0);
     assert(Buffer != NULL);
     assert(Length > 0);
-	return Syscall_PipeRead(Port, Buffer, Length);
+	return Syscall_ReadPipe(Handle, Buffer, Length);
 }
 
-/* Pipe send + recieve
- * The send and recieve calls can actually be used for reading extern pipes
- * and send to external pipes */
 OsStatus_t
-SendPipe(
-    _In_ UUId_t ProcessId,
-    _In_ int    Port,
+WritePipe(
+    _In_ UUId_t Handle,
     _In_ void*  Buffer,
     _In_ size_t Length)
 {
-	// Sanitize input
-    assert(Port >= 0);
     assert(Buffer != NULL);
     assert(Length > 0);
-	return Syscall_PipeSend(ProcessId, Port, Buffer, Length);
-}
-
-/* Pipe send + recieve
- * The send and recieve calls can actually be used for reading extern pipes
- * and send to external pipes */
-OsStatus_t
-ReceivePipe(
-    _In_ UUId_t ProcessId,
-    _In_ int    Port,
-    _In_ void*  Buffer,
-    _In_ size_t Length)
-{
-    assert(Port >= 0);
-    assert(Buffer != NULL);
-    assert(Length > 0);
-    if (ProcessId == UUID_INVALID) {
-        return ReadPipe(Port, Buffer, Length);
-    }
-	return Syscall_PipeReceive(ProcessId, Port, Buffer, Length);
+	return Syscall_WritePipe(Handle, Buffer, Length);
 }
