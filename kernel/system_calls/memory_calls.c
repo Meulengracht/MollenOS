@@ -77,9 +77,9 @@ ScMemoryAllocate(
         }
 
         // Do the actual mapping
-        if (CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), 
-            PhysicalAddress, &AllocatedAddress, Size, ExtendedFlags, __MASK) != OsSuccess) {
-            ReleaseBlockmapRegion(Process->Heap, AllocatedAddress, Size);
+        if (CreateSystemMemorySpaceMapping(Space, PhysicalAddress, &AllocatedAddress, Size, 
+            ExtendedFlags, __MASK) != OsSuccess) {
+            ReleaseBlockmapRegion(Space->HeapSpace, AllocatedAddress, Size);
             *VirtualAddress = 0;
             return OsError;
         }

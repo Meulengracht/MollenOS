@@ -72,7 +72,7 @@ ModuleThreadEntry(
     }
     
     if (Package->FileBufferDynamic) {
-        kfree(Package->FileBuffer);
+        kfree((void*)Package->FileBuffer);
     }
     MStringDestroy(Package->ModuleName);
     kfree(Package);

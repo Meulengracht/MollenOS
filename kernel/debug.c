@@ -23,6 +23,7 @@
 #define __MODULE        "DBGI"
 //#define __TRACE
 
+#include <modules/manager.h>
 #include <system/utils.h>
 #include <memoryspace.h>
 #include <scheduler.h>
@@ -206,16 +207,16 @@ DebugGetModuleByAddress(
     // Validate that the address is within userspace
     if (Address >= MEMORY_LOCATION_RING3_CODE && Address < MEMORY_LOCATION_RING3_CODE_END) {
         // Sanitize whether or not a process was running
-        if (Process != NULL && Process->Executable != NULL) {
-            uintptr_t PmBase = Process->Executable->VirtualAddress;
-            char *PmName     = (char*)MStringRaw(Process->Executable->Name);
+        if (Module != NULL && Module->Executable != NULL) {
+            uintptr_t PmBase = Module->Executable->VirtualAddress;
+            char *PmName     = (char*)MStringRaw(Module->Executable->Name);
 
             // Was it not main executable?
-            if (Address > (Process->Executable->CodeBase + Process->Executable->CodeSize)) {
+            if (Address > (Module->Executable->CodeBase + Module->Executable->CodeSize)) {
                 // Iterate libraries to find the sinner
-                if (Process->Executable->LoadedLibraries != NULL) {
-                    foreach(lNode, Process->Executable->LoadedLibraries) {
-                        MCorePeFile_t *Lib = (MCorePeFile_t*)lNode->Data;
+                if (Module->Executable->Libraries != NULL) {
+                    foreach(lNode, Module->Executable->Libraries) {
+                        PeExecutable_t* Lib = (PeExecutable_t*)lNode->Data;
                         if (Address >= Lib->CodeBase && Address < (Lib->CodeBase + Lib->CodeSize)) {
                             PmName = (char*)MStringRaw(Lib->Name);
                             PmBase = Lib->VirtualAddress;
@@ -223,15 +224,11 @@ DebugGetModuleByAddress(
                     }
                 }
             }
-
-            // Update out's
             *Base = PmBase;
             *Name = PmName;
             return OsSuccess;
         }
     }
-
-    // Was not present
     *Base = 0;
     *Name = NULL;
     return OsError;
@@ -269,7 +266,7 @@ DebugStackTrace(
         uintptr_t Value = StackPtr[0];
         uintptr_t Base  = 0;
         char *Name      = NULL;
-        if (DebugGetModuleByAddress(GetCurrentProcess(), Value, &Base, &Name) == OsSuccess) {
+        if (DebugGetModuleByAddress(GetCurrentModule(), Value, &Base, &Name) == OsSuccess) {
             uintptr_t Diff = Value - Base;
             WRITELINE("%u - 0x%x (%s)", MaxFrames - Itr, Diff, Name);
             Itr--;
@@ -363,57 +360,54 @@ DebugPageFaultFileMappings(
     _In_ Context_t* Context,
     _In_ uintptr_t  Address)
 {
-    MCoreAshFileMappingEvent_t* Event;
-    MCoreAshFileMapping_t*      Mapping;
-    SystemProcess_t*            Process = GetCurrentProcess();
+    SystemMemorySpace_t*      Space = GetCurrentSystemMemorySpace();
+    SystemFileMappingEvent_t* Event;
+    SystemFileMapping_t*      Mapping;
 
-    if (Process != NULL) {
-        // Iterate file-mappings
-        foreach(Node, Process->FileMappings) {
-            Mapping = (MCoreAshFileMapping_t*)Node->Data;
-            if (ISINRANGE(Address, Mapping->BufferObject.Address, (Mapping->BufferObject.Address + Mapping->Length) - 1)) {
-                // Oh, woah, file-mapping
-                Event = (MCoreAshFileMappingEvent_t*)kmalloc(sizeof(MCoreAshFileMappingEvent_t));
-                Event->Process  = Process;
-                Event->Address  = Address;
+    // Iterate file-mappings
+    foreach(Node, Space->FileMappings) {
+        Mapping = (SystemFileMapping_t*)Node->Data;
+        if (ISINRANGE(Address, Mapping->BufferObject.Address, (Mapping->BufferObject.Address + Mapping->Length) - 1)) {
+            // Oh, woah, file-mapping
+            Event = (SystemFileMappingEvent_t*)kmalloc(sizeof(SystemFileMappingEvent_t));
+            Event->MemorySpace = Space;
+            Event->Address     = Address;
 
-                PhoenixFileMappingEvent(Event);
-                SchedulerThreadSleep((uintptr_t*)Event, 0);
-                if (Event->Result != OsSuccess) {
-                    // what? @todo
-                }
-                kfree(Event);
-                return OsSuccess; // Indicate event was handled
+            RegisterFileMappingEvent(Event);
+            SchedulerThreadSleep((uintptr_t*)Event, 0);
+            if (Event->Result != OsSuccess) {
+                // what? @todo
             }
+            kfree(Event);
+            return OsSuccess; // Indicate event was handled
         }
     }
     return OsError;
 }
 
-/* DebugPageFaultProcessHeapMemory
+/* DebugPageFaultHeapMemory
  * Checks for memory access that was (process) heap related and valid */
 OsStatus_t
-DebugPageFaultProcessHeapMemory(
+DebugPageFaultHeapMemory(
     _In_ Context_t* Context,
     _In_ uintptr_t  Address)
 {
-    SystemProcess_t*    Process     = GetCurrentProcess();
-    Flags_t             PageFlags   = MAPPING_USERSPACE | MAPPING_FIXED;
+    SystemMemorySpace_t* Space     = GetCurrentSystemMemorySpace();
+    Flags_t              PageFlags = MAPPING_USERSPACE | MAPPING_FIXED;
 
-    if (Process != NULL) {
+    if (Space->HeapSpace != NULL) {
         if (DebugPageFaultFileMappings(Context, Address) == OsSuccess) {
             return OsSuccess;
         }
 
         // If the mapping is a heap address we need to check for device-io mapping
-        if (BlockBitmapValidateState(Process->Heap, Address, 1) == OsSuccess) {
+        if (BlockBitmapValidateState(Space->HeapSpace, Address, 1) == OsSuccess) {
             uintptr_t ExistingPhysical = ValidateDeviceIoMemoryAddress(Address);
             if (ExistingPhysical != 0) {
-                return CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), &ExistingPhysical, &Address, 
+                return CreateSystemMemorySpaceMapping(Space, &ExistingPhysical, &Address, 
                     GetSystemMemoryPageSize(), PageFlags | MAPPING_NOCACHE | MAPPING_PROVIDED, __MASK);
             }
-            return CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &Address, 
-                GetSystemMemoryPageSize(), PageFlags, __MASK);
+            return CreateSystemMemorySpaceMapping(Space, NULL, &Address, GetSystemMemoryPageSize(), PageFlags, __MASK);
         }
     }
     return OsSuccess;
@@ -448,7 +442,7 @@ DebugInstallPageFaultHandlers(
     // Process heap memory handler
     PageFaultHandlers[1].AreaStart      = MemoryMap->UserHeap.Start;
     PageFaultHandlers[1].AreaEnd        = MemoryMap->UserHeap.Start + MemoryMap->UserHeap.Length;
-    PageFaultHandlers[1].AreaHandler    = DebugPageFaultProcessHeapMemory;
+    PageFaultHandlers[1].AreaHandler    = DebugPageFaultHeapMemory;
 
     // Thread-specific memory handler
     PageFaultHandlers[2].AreaStart      = MemoryMap->ThreadArea.Start;

@@ -42,7 +42,7 @@ typedef struct _SystemInterrupt {
     DeviceInterrupt_t               Interrupt;
     FastInterruptResourceTable_t    KernelResources;
     UUId_t                          Id;
-    UUId_t                          PipeHandle;
+    UUId_t                          ModuleHandle;
     UUId_t                          Thread;
     Flags_t                         Flags;
     int                             Source;
@@ -179,14 +179,14 @@ ScRpcExecute(
 
 SERVICEAPI OsStatus_t SERVICEABI
 __KernelInterruptDriver(
-    _In_ UUId_t             Ash, 
+    _In_ UUId_t             Module, 
     _In_ UUId_t             Id,
     _In_ void*              Data)
 {
     MRemoteCall_t Request;
     size_t Zero = 0;
 
-    RPCInitialize(&Request, Ash, 1, __DRIVER_INTERRUPT);
+    RPCInitialize(&Request, Module, 1, __DRIVER_INTERRUPT);
     RPCSetArgument(&Request, 0, (const void*)&Id, sizeof(UUId_t));
     RPCSetArgument(&Request, 1, (const void*)&Data, sizeof(void*));
     RPCSetArgument(&Request, 2, (const void*)&Zero, sizeof(size_t));
@@ -200,14 +200,14 @@ __KernelInterruptDriver(
  * then informed about a timer-interval that elapsed. */
 SERVICEAPI OsStatus_t SERVICEABI
 __KernelTimeoutDriver(
-    _In_ UUId_t             Ash, 
+    _In_ UUId_t             Module, 
     _In_ UUId_t             TimerId,
     _In_ void*              TimerData)
 {
     MRemoteCall_t Request;
     size_t Zero = 0;
 
-    RPCInitialize(&Request, Ash, 1, __DRIVER_TIMEOUT);
+    RPCInitialize(&Request, Module, 1, __DRIVER_TIMEOUT);
     RPCSetArgument(&Request, 0, (const void*)&TimerId, sizeof(UUId_t));
     RPCSetArgument(&Request, 1, (const void*)&TimerData, sizeof(void*));
     RPCSetArgument(&Request, 2, (const void*)&Zero, sizeof(size_t));

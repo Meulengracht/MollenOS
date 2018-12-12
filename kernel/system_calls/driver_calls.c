@@ -29,6 +29,7 @@
 #include <os/input.h>
 #include <os/acpi.h>
 #include <machine.h>
+#include <handle.h>
 #include <timers.h>
 #include <debug.h>
 #include <heap.h>

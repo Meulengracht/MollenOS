@@ -26,6 +26,7 @@
 
 #include <component/cpu.h>
 #include <criticalsection.h>
+#include <modules/manager.h>
 #include <os/interrupt.h>
 #include <system/utils.h>
 #include <memoryspace.h>
@@ -36,17 +37,15 @@
 #include <heap.h>
 #include <arch.h>
 
-/* InterruptTableEntry
- * Describes an entry in the interrupt table */
 typedef struct _InterruptTableEntry {
-    SystemInterrupt_t*  Descriptor;
-    int                 Penalty;
-    int                 Sharable;
+    SystemInterrupt_t* Descriptor;
+    int                Penalty;
+    int                Sharable;
 } InterruptTableEntry_t;
 
-static InterruptTableEntry_t    InterruptTable[MAX_SUPPORTED_INTERRUPTS]    = { { 0 } };
-static CriticalSection_t        InterruptTableSyncObject    = CRITICALSECTION_INITIALIZE(CRITICALSECTION_PLAIN);
-static _Atomic(UUId_t)          InterruptIdGenerator        = ATOMIC_VAR_INIT(0);
+static InterruptTableEntry_t InterruptTable[MAX_SUPPORTED_INTERRUPTS] = { { 0 } };
+static CriticalSection_t     InterruptTableSyncObject    = CRITICALSECTION_INITIALIZE(CRITICALSECTION_PLAIN);
+static _Atomic(UUId_t)       InterruptIdGenerator        = ATOMIC_VAR_INIT(0);
 
 /* InterruptIncreasePenalty 
  * Increases the penalty for an interrupt source. */
@@ -358,10 +357,10 @@ InterruptRegister(
     Id      = atomic_fetch_add(&InterruptIdGenerator, 1);
     memset((void*)Entry, 0, sizeof(SystemInterrupt_t));
 
-    Entry->Id               = (Id << 16);    
-    Entry->ProcessHandle    = UUID_INVALID;
-    Entry->Thread           = ThreadingGetCurrentThreadId();
-    Entry->Flags            = Flags;
+    Entry->Id           = (Id << 16);    
+    Entry->ModuleHandle = UUID_INVALID;
+    Entry->Thread       = ThreadingGetCurrentThreadId();
+    Entry->Flags        = Flags;
 
     // Clear out line if the interrupt is software
     if (Flags & INTERRUPT_SOFT) {
@@ -370,7 +369,7 @@ InterruptRegister(
 
     // Get process id?
     if (!(Flags & INTERRUPT_KERNEL)) {
-        Entry->ProcessHandle = ThreadingGetCurrentThread(CpuGetCurrentId())->ProcessHandle;
+        Entry->ModuleHandle = GetCurrentModule()->Handle;
     }
 
     // Resolve the table index
@@ -406,7 +405,7 @@ InterruptRegister(
     TRACE("Updated line %i:%i for index 0x%x", Interrupt->Line, Interrupt->Pin, TableIndex);
 
     // If it's an user interrupt, resolve resources
-    if (Entry->ProcessHandle != UUID_INVALID) {
+    if (Entry->ModuleHandle != UUID_INVALID) {
         if (InterruptResolveResources(Entry) != OsSuccess) {
             ERROR(" > failed to resolve the requested resources");
             kfree(Entry);
@@ -465,7 +464,7 @@ InterruptUnregister(
     while (Entry != NULL) {
         if (Entry->Id == Source) {
             if (!(Entry->Flags & INTERRUPT_KERNEL)) {
-                if (Entry->ProcessHandle != ThreadingGetCurrentThread(CpuGetCurrentId())->ProcessHandle) {
+                if (Entry->ModuleHandle != GetCurrentModule()->Handle) {
                     continue;
                 }
             }
@@ -503,7 +502,7 @@ InterruptUnregister(
         if (InterruptTable[Entry->Source].Penalty == 0) {
             InterruptConfigure(Entry, 0);
         }
-        if (Entry->ProcessHandle != UUID_INVALID) {
+        if (Entry->ModuleHandle != UUID_INVALID) {
             if (InterruptReleaseResources(Entry) != OsSuccess) {
                 ERROR(" > failed to cleanup interrupt resources");
             }
@@ -598,7 +597,7 @@ InterruptHandle(
             Result = Entry->KernelResources.Handler(GetFastInterruptTable(), NULL);
             if (Result != InterruptNotHandled) {
                 if (Result == InterruptHandled && (Entry->Flags & INTERRUPT_USERSPACE)) {
-                    __KernelInterruptDriver(Entry->ProcessHandle, Entry->Id, Entry->Interrupt.Context);
+                    __KernelInterruptDriver(Entry->ModuleHandle, Entry->Id, Entry->Interrupt.Context);
                 }
                 *Source = Entry->Source;
                 break;

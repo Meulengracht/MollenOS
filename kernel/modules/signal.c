@@ -21,9 +21,9 @@
 #define __MODULE "SIG0"
 //#define __TRACE
 
-#include <process/process.h>
 #include <system/thread.h>
 #include <system/utils.h>
+#include <memoryspace.h>
 #include <threading.h>
 #include <scheduler.h>
 #include <string.h>
@@ -159,25 +159,19 @@ SignalHandle(
  * dispatching the signal to the process */
 void
 SignalExecute(
-    _In_ MCoreThread_t *Thread,
-    _In_ SystemSignal_t *Signal)
+    _In_ MCoreThread_t*  Thread,
+    _In_ SystemSignal_t* Signal)
 {
-    SystemProcess_t* Process;
+    SystemMemorySpace_t* Space = GetCurrentSystemMemorySpace();
     TRACE("SignalExecute(Thread %u, Signal %i)", Thread->Id, Signal->Signal);
-
-    // Instantiate the process
-    Process = (SystemProcess_t*)LookupHandle(Thread->ProcessHandle);
-    if (Process == NULL) {
-        kfree(Signal);
-        return;
-    }
 
     // If there is no handler for the process and we
     // can't ignore signal, we must kill
-    if (Process->SignalHandler == 0) {
+    if (Space->SignalHandler == 0) {
         char Action = GlbSignalIsDeadly[Signal->Signal];
         if (Action == 1 || Action == 2) {
-            ThreadingTerminateThread(Process->MainThreadId, Signal->Signal, 1);
+            TRACE("Terminating thread due to deadly signal");
+            ThreadingTerminateThread(Thread->Id, Signal->Signal, 1);
         }
         kfree(Signal);
         return;
@@ -186,9 +180,6 @@ SignalExecute(
     // Update active and dispatch
     memcpy(&Thread->ActiveSignal, Signal, sizeof(SystemSignal_t));
     Thread->ActiveSignal.Context = Thread->ContextActive;
-
-    // Cleanup signal and dispatch
     kfree(Signal);
-    TRACE("Signal dispatching..");
     ThreadingSignalDispatch(Thread);
 }

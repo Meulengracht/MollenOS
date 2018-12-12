@@ -35,14 +35,6 @@
 #define IPC_MAX_ARGUMENTS               5
 #define IPC_MAX_MESSAGELENGTH           2048
 
-/* Predefined system pipe-ports that should not
- * be used by user pipes. Trying to open new pipes
- * on these ports will result in error */
-#define PIPE_STDOUT                     0
-#define PIPE_STDIN                      1
-#define PIPE_STDERR                     2
-#define PIPE_WMEVENTS                   3
-
 /* Argument type definitions 
  * Used by both RPC and Event argument systems */
 #define ARGUMENT_NOTUSED                0

@@ -9,11 +9,11 @@ include ../config/common.mk
 INCLUDES = -I../librt/include -I../librt/libc/include -I../librt/libds/include -I../librt/libacpi/include -Iinclude
 SOURCES = $(wildcard acpi/*.c) \
 		  $(wildcard components/*.c) \
+		  $(wildcard modules/*.c) \
 		  $(wildcard output/fonts/*.c) \
 		  $(wildcard output/*.c) \
-		  $(wildcard system_calls/*.c) \
-		  $(wildcard modules/*.c) \
 		  $(wildcard synchronization/*.c) \
+		  $(wildcard system_calls/*.c) \
 		  $(wildcard tests/*.c) \
 		  $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o)

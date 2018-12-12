@@ -35,10 +35,10 @@
  * entry point and arguments */
 UUId_t
 ScThreadCreate(
-    _In_ ThreadEntry_t      Entry,
-    _In_ void*              Arguments,
-    _In_ Flags_t            Flags,
-    _In_ UUId_t             MemorySpaceHandle)
+    _In_ ThreadEntry_t Entry,
+    _In_ void*         Arguments,
+    _In_ Flags_t       Flags,
+    _In_ UUId_t        MemorySpaceHandle)
 {
     UUId_t  Handle      = UUID_INVALID;
     Flags_t ThreadFlags = ThreadingGetCurrentMode() | THREADING_INHERIT | Flags;
@@ -60,18 +60,17 @@ ScThreadExit(
 }
 
 /* ScThreadJoin
- * Thread join, waits for a given
- * thread to finish executing, and returns it's exit code */
+ * Thread join, waits for a given thread to finish executing, and returns it's exit code */
 OsStatus_t
 ScThreadJoin(
-    _In_  UUId_t    ThreadId,
-    _Out_ int*      ExitCode)
+    _In_  UUId_t ThreadId,
+    _Out_ int*   ExitCode)
 {
-    UUId_t  ProcessHandle   = ThreadingGetCurrentThread(CpuGetCurrentId())->ProcessHandle;
-    int     ResultCode      = 0;
-    MCoreThread_t*  Thread  = ThreadingGetThread(ThreadId);
+    UUId_t          MemorySpaceHandle = ThreadingGetCurrentThread(CpuGetCurrentId())->MemorySpaceHandle;
+    int             ResultCode        = 0;
+    MCoreThread_t*  Thread            = ThreadingGetThread(ThreadId);
     
-    if (Thread == NULL || Thread->ProcessHandle != ProcessHandle) {
+    if (Thread == NULL || Thread->MemorySpaceHandle != MemorySpaceHandle) {
         return OsError;
     }
 
@@ -99,11 +98,11 @@ ScThreadSignal(
     _In_ UUId_t     ThreadId,
     _In_ int        SignalCode)
 {
-    UUId_t          ProcessHandle   = ThreadingGetCurrentThread(CpuGetCurrentId())->ProcessHandle;
-    MCoreThread_t*  Thread          = ThreadingGetThread(ThreadId);
+    UUId_t          MemorySpaceHandle = ThreadingGetCurrentThread(CpuGetCurrentId())->MemorySpaceHandle;
+    MCoreThread_t*  Thread            = ThreadingGetThread(ThreadId);
 
     // Perform security checks
-    if (Thread == NULL || Thread->ProcessHandle != ProcessHandle) {
+    if (Thread == NULL || Thread->MemorySpaceHandle != MemorySpaceHandle) {
         ERROR("Thread does not belong to same process");
         return OsError;
     }

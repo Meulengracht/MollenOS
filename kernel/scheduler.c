@@ -33,7 +33,6 @@
 #include <system/thread.h>
 #include <system/interrupts.h>
 #include <system/utils.h>
-#include <process/phoenix.h>
 #include <scheduler.h>
 #include <machine.h>
 #include <assert.h>
@@ -306,8 +305,8 @@ SchedulerThreadQueue(
     _In_ MCoreThread_t*     Thread,
     _In_ int                SuppressSynchronization)
 {
-    SystemDomain_t*     Domain      = GetCurrentDomain();
-    SystemCpu_t*        CoreGroup   = &GetMachine()->Processor;
+    SystemDomain_t*     Domain    = GetCurrentDomain();
+    SystemCpu_t*        CoreGroup = &GetMachine()->Processor;
     MCoreScheduler_t*   Scheduler;
     UUId_t              CoreId;
     int                 i;

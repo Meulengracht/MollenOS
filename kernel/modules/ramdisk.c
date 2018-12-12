@@ -24,7 +24,8 @@
 //#define __TRACE
 
 #include <modules/ramdisk.h>
-#include <modules/modules.h>
+#include <modules/manager.h>
+#include <debug.h>
 #include <crc32.h>
 
 /* ParseInitialRamdisk

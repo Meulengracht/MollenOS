@@ -274,9 +274,7 @@ ResolveVirtualSystemMemorySpaceAddress(
     VirtualAddress_t VirtualBase = 0;
     switch (Flags & MAPPING_VMODE_MASK) {
         case MAPPING_PROCESS: {
-            SystemProcess_t* CurrentProcess = GetCurrentProcess();
-            assert(CurrentProcess != NULL);
-            VirtualBase = AllocateBlocksInBlockmap(CurrentProcess->Heap, Mask, Size);
+            VirtualBase = AllocateBlocksInBlockmap(GetCurrentSystemMemorySpace()->HeapSpace, Mask, Size);
             if (VirtualBase == 0) {
                 ERROR("Ran out of memory for allocation 0x%x (heap)", Size);
                 break;
@@ -308,9 +306,9 @@ CreateSystemMemorySpaceMapping(
     _In_        uintptr_t               Mask)
 {
     PhysicalAddress_t PhysicalBase;
-    VirtualAddress_t VirtualBase;
-    OsStatus_t Status               = OsSuccess;
-    int PageCount                   = DIVUP(Size, GetSystemMemoryPageSize());
+    VirtualAddress_t  VirtualBase;
+    OsStatus_t        Status    = OsSuccess;
+    int               PageCount = DIVUP(Size, GetSystemMemoryPageSize());
     int i;
     assert(SystemMemorySpace != NULL);
     

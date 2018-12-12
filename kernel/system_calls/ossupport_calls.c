@@ -21,6 +21,7 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
+#include <modules/manager.h>
 #include <memorybuffer.h>
 #include <ds/mstring.h>
 #include <os/file.h>
@@ -29,29 +30,20 @@
 #include <heap.h>
 
 /* ScGetWorkingDirectory
- * Queries the current working directory path for the current process (See _MAXPATH) */
+ * Queries the current working directory path for the current module (See _MAXPATH) */
 OsStatus_t
 ScGetWorkingDirectory(
-    _In_ UUId_t ProcessId,
     _In_ char*  PathBuffer,
     _In_ size_t MaxLength)
 {
-    SystemProcess_t*    Process;
-    size_t              BytesToCopy = MaxLength;
-    if (ProcessId == UUID_INVALID) {
-        Process = GetCurrentProcess();
-    }
-    else {
-        Process = GetProcess(ProcessId);
-    }
-
-    // Sanitize parameters
-    if (Process == NULL || PathBuffer == NULL || MaxLength == 0) {
+    SystemModule_t* Module = GetCurrentModule();
+    size_t          BytesToCopy = MaxLength;
+    
+    if (Module == NULL || PathBuffer == NULL || MaxLength == 0) {
         return OsError;
     }
-    
-    BytesToCopy = MIN(strlen(MStringRaw(Process->WorkingDirectory)) + 1, MaxLength);
-    memcpy(PathBuffer, MStringRaw(Process->WorkingDirectory), BytesToCopy);
+    BytesToCopy = MIN(strlen(MStringRaw(Module->WorkingDirectory)) + 1, MaxLength);
+    memcpy(PathBuffer, MStringRaw(Module->WorkingDirectory), BytesToCopy);
     return OsSuccess;
 }
 
@@ -62,15 +54,15 @@ OsStatus_t
 ScSetWorkingDirectory(
     _In_ const char* Path)
 {
-    SystemProcess_t*    Process = GetCurrentProcess();
-    MString_t*          Translated;
+    SystemModule_t* Module = GetCurrentModule();
+    MString_t*      Translated;
 
-    if (Process == NULL || Path == NULL) {
+    if (Module == NULL || Path == NULL) {
         return OsError;
     }
     Translated = MStringCreate((void*)Path, StrUTF8);
-    MStringDestroy(Process->WorkingDirectory);
-    Process->WorkingDirectory = Translated;
+    MStringDestroy(Module->WorkingDirectory);
+    Module->WorkingDirectory = Translated;
     return OsSuccess;
 }
 
@@ -81,19 +73,20 @@ ScGetAssemblyDirectory(
     _In_ char*      PathBuffer,
     _In_ size_t     MaxLength)
 {
-    SystemProcess_t*    Process     = GetCurrentProcess();
-    size_t              BytesToCopy = MaxLength;
+    SystemModule_t* Module = GetCurrentModule();
+    size_t          BytesToCopy = MaxLength;
 
-    if (Process == NULL || PathBuffer == NULL || MaxLength == 0) {
+    if (Module == NULL || PathBuffer == NULL || MaxLength == 0) {
         return OsError;
     }
-    if (strlen(MStringRaw(Process->BaseDirectory)) + 1 < MaxLength) {
-        BytesToCopy = strlen(MStringRaw(Process->BaseDirectory)) + 1;
+    if (strlen(MStringRaw(Module->BaseDirectory)) + 1 < MaxLength) {
+        BytesToCopy = strlen(MStringRaw(Module->BaseDirectory)) + 1;
     }
-    memcpy(PathBuffer, MStringRaw(Process->BaseDirectory), BytesToCopy);
+    memcpy(PathBuffer, MStringRaw(Module->BaseDirectory), BytesToCopy);
     return OsSuccess;
 }
 
+#if 0
 /* Parameter structure for creating file-mappings. 
  * Private structure, only used for parameter passing. */
 struct FileMappingParameters {
@@ -204,6 +197,7 @@ ScDestroyFileMapping(
     }
     return Node != NULL ? OsSuccess : OsError;
 }
+#endif
 
 /* ScDestroyHandle
  * Destroys a generic os handle. Error checks before calling the os version. */

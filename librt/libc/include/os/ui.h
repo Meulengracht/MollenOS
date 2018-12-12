@@ -39,16 +39,17 @@ typedef struct _UiRectangle {
  * Structure to represent a surface in a window and information 
  * about the buffer size */
 typedef struct _UiSurfaceDescriptor {
-    Rect_t              Dimensions;
-    UISurfaceFormat_t   Format;
+    Rect_t            Dimensions;
+    UISurfaceFormat_t Format;
 } UISurfaceDescriptor_t;
 
 /* UIWindowParameters_t
  * Structure used by the the create window function call, the structure 
  * specifies creation details and flags about the window */
 typedef struct _UiWindowParameters {
-    UISurfaceDescriptor_t   Surface;
-    unsigned                Flags;
+    UISurfaceDescriptor_t Surface;
+    unsigned              Flags;
+    UUId_t                WmPipeHandle;
 } UIWindowParameters_t;
 
 _CODE_BEGIN

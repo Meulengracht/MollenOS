@@ -21,16 +21,13 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
-#include <process/process.h>
-#include <process/pe.h>
 #include <ds/mstring.h>
 
 /* ScSharedObjectLoad
- * Load a shared object given a path 
- * path must exists otherwise NULL is returned */
+ * Dynamically loads a new library */
 Handle_t
 ScSharedObjectLoad(
-    _In_  const char*   SharedObject)
+    _In_ const char* SharedObject)
 {
     SystemProcess_t*    Process     = GetCurrentProcess();
     Handle_t            Handle      = HANDLE_INVALID;
