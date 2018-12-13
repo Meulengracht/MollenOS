@@ -119,14 +119,14 @@ SignalReturn(void)
     UUId_t          Cpu     = CpuGetCurrentId();
     MCoreThread_t*  Thread  = ThreadingGetCurrentThread(Cpu);
     Thread->ActiveSignal.Signal = -1;
-    return SignalHandle(Thread->Id);
+    return SignalProcess(Thread->Id);
 }
 
-/* Handle Signal 
+/* SignalProcess
  * This checks if the process has any waiting signals
  * and if it has, it executes the first in list */
 OsStatus_t
-SignalHandle(
+SignalProcess(
     _In_ UUId_t ThreadId)
 {
     CollectionItem_t* Node;

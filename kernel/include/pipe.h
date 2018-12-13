@@ -127,7 +127,7 @@ ConstructSystemPipe(
 
 /* DestroySystemPipe
  * Destroys a pipe and wakes up all sleeping threads, then frees all resources allocated */
-KERNELAPI void KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 DestroySystemPipe(
     _In_ void*                      Resource);
 

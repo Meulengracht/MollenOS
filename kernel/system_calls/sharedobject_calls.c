@@ -21,46 +21,41 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
+#include "../../librt/libds/pe/pe.h"
+#include <modules/manager.h>
 #include <ds/mstring.h>
 
-/* ScSharedObjectLoad
- * Dynamically loads a new library */
-Handle_t
+OsStatus_t
 ScSharedObjectLoad(
-    _In_ const char* SharedObject)
+    _In_  const char* SoName,
+    _In_  uint8_t*    Buffer,
+    _In_  size_t      BufferLength,
+    _Out_ Handle_t*   HandleOut)
 {
-    SystemProcess_t*    Process     = GetCurrentProcess();
-    Handle_t            Handle      = HANDLE_INVALID;
-    MString_t*          Path;
-    uintptr_t           BaseAddress;
-    if (Process == NULL) {
-        return HANDLE_INVALID;
+    SystemModule_t* Module = GetCurrentModule();
+    MString_t*      Path;
+    OsStatus_t      Status;
+    
+    if (Module == NULL) {
+        return OsInvalidPermissions;
     }
 
     // Sanitize the given shared-object path
     // If null, get handle to current assembly
-    if (SharedObject == NULL) {
-        return HANDLE_GLOBAL;
+    if (SoName == NULL) {
+        *HandleOut = HANDLE_GLOBAL;
+        return OsSuccess;
     }
-    Path = MStringCreate((void*)SharedObject, StrUTF8);
-
-    // Try to resolve the library
-    BaseAddress = Process->NextLoadingAddress;
-    Handle      = (Handle_t)PeResolveLibrary(Process->Executable, NULL, 
-        Path, &BaseAddress);
-    Process->NextLoadingAddress = BaseAddress;
+    Path   = MStringCreate((void*)SoName, StrUTF8);
+    Status = PeLoadImage(Module->Executable, Path, Path, Buffer, BufferLength, (PeExecutable_t**)HandleOut);
     MStringDestroy(Path);
-    return Handle;
+    return Status;
 }
 
-/* ScSharedObjectGetFunction
- * Load a function-address given an shared object
- * handle and a function name, function must exist
- * otherwise null is returned */
 uintptr_t
 ScSharedObjectGetFunction(
-    _In_ Handle_t       Handle, 
-    _In_ const char*    Function)
+    _In_ Handle_t    Handle, 
+    _In_ const char* Function)
 {
     if (Handle == HANDLE_INVALID || Function == NULL) {
         return 0;
@@ -69,13 +64,13 @@ ScSharedObjectGetFunction(
     // If the handle is the handle_global, search all loaded
     // libraries for the symbol
     if (Handle == HANDLE_GLOBAL) {
-        SystemProcess_t*    Process = GetCurrentProcess();
-        uintptr_t           Address = 0;
-        if (Process != NULL) {
-            Address = PeResolveFunction(Process->Executable, Function);
+        SystemModule_t* Module  = GetCurrentModule();
+        uintptr_t       Address = 0;
+        if (Module != NULL) {
+            Address = PeResolveFunction(Module->Executable, Function);
             if (!Address) {
-                foreach(Node, Process->Executable->LoadedLibraries) {
-                    Address = PeResolveFunction((MCorePeFile_t*)Node->Data, Function);
+                foreach(Node, Module->Executable->Libraries) {
+                    Address = PeResolveFunction((PeExecutable_t*)Node->Data, Function);
                     if (Address != 0) {
                         break;
                     }
@@ -85,22 +80,20 @@ ScSharedObjectGetFunction(
         return Address;
     }
     else {
-        return PeResolveFunction((MCorePeFile_t*)Handle, Function);
+        return PeResolveFunction((PeExecutable_t*)Handle, Function);
     }
 }
 
-/* Unloads a valid shared object handle
- * returns 0 on success */
 OsStatus_t
 ScSharedObjectUnload(
-    _In_  Handle_t  Handle)
+    _In_ Handle_t Handle)
 {
-    SystemProcess_t* Process = GetCurrentProcess();
-    if (Process == NULL || Handle == HANDLE_INVALID) {
+    SystemModule_t* Module = GetCurrentModule();
+    if (Module == NULL || Handle == HANDLE_INVALID) {
         return OsError;
     }
     if (Handle == HANDLE_GLOBAL) { // Never close running handle
         return OsSuccess;
     }
-    return PeUnloadLibrary(Process->Executable, (MCorePeFile_t*)Handle);
+    return PeUnloadLibrary(Module->Executable, (PeExecutable_t*)Handle);
 }

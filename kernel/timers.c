@@ -23,6 +23,7 @@
 #define __MODULE        "TMIF"
 //#define __TRACE
 
+#include <modules/manager.h>
 #include <ds/collection.h>
 #include <system/utils.h>
 #include <interrupts.h>
@@ -34,31 +35,31 @@
 #include <debug.h>
 #include <heap.h>
 
-static MCoreTimePerformanceOps_t PerformanceTimer   = { 0 };
-static CriticalSection_t TimersSyncObject           = CRITICALSECTION_INITIALIZE(CRITICALSECTION_PLAIN);
-static MCoreSystemTimer_t *ActiveSystemTimer        = NULL;
-static Collection_t SystemTimers                    = COLLECTION_INIT(KeyInteger);
-static Collection_t Timers                          = COLLECTION_INIT(KeyId);
-static _Atomic(UUId_t) TimerIdGenerator             = ATOMIC_VAR_INIT(0);
+static MCoreTimePerformanceOps_t PerformanceTimer  = { 0 };
+static CriticalSection_t         TimersSyncObject  = CRITICALSECTION_INITIALIZE(CRITICALSECTION_PLAIN);
+static MCoreSystemTimer_t*       ActiveSystemTimer = NULL;
+static Collection_t              SystemTimers      = COLLECTION_INIT(KeyInteger);
+static Collection_t              Timers            = COLLECTION_INIT(KeyId);
+static _Atomic(UUId_t)           TimerIdGenerator  = ATOMIC_VAR_INIT(0);
 
 /* TimersStart 
  * Creates a new standard timer for the requesting process. */
 UUId_t
 TimersStart(
-    _In_ size_t         IntervalNs,
-    _In_ int            Periodic,
-    _In_ const void*    Data)
+    _In_ size_t      IntervalNs,
+    _In_ int         Periodic,
+    _In_ const void* Data)
 {
-    MCoreThread_t*  Thread = ThreadingGetCurrentThread(CpuGetCurrentId());
-    MCoreTimer_t*   Timer;
-    DataKey_t       Key;
+    MCoreTimer_t* Timer;
+    DataKey_t     Key;
 
-    if (Thread->ProcessHandle == UUID_INVALID) {
-        return UUID_INVALID;
+    if (GetCurrentModule() == NULL) {
+        return OsInvalidPermissions;
     }
+
     Timer = (MCoreTimer_t*)kmalloc(sizeof(MCoreTimer_t));
     Timer->Id       = atomic_fetch_add(&TimerIdGenerator, 1);
-    Timer->AshId    = Thread->ProcessHandle;
+    Timer->Owner    = GetCurrentModule()->Handle;
     Timer->Data     = Data;
     Timer->Interval = IntervalNs;
     Timer->Current  = 0;
@@ -75,8 +76,11 @@ OsStatus_t
 TimersStop(
     _In_ UUId_t TimerId)
 {
-    MCoreThread_t*  Thread = ThreadingGetCurrentThread(CpuGetCurrentId());
-    OsStatus_t      Result = OsError;
+    OsStatus_t Result = OsError;
+
+    if (GetCurrentModule() == NULL) {
+        return OsInvalidPermissions;
+    }
 
     // Now loop through timers registered
     CriticalSectionEnter(&TimersSyncObject);
@@ -84,7 +88,7 @@ TimersStop(
         MCoreTimer_t *Timer = (MCoreTimer_t*)tNode->Data;
         
         // Does it match the id? + Owner must match
-        if (Timer->Id == TimerId && Timer->AshId == Thread->ProcessHandle) {
+        if (Timer->Id == TimerId && Timer->Owner == GetCurrentModule()->Handle) {
             CollectionRemoveByNode(&Timers, tNode);
             kfree(Timer);
             kfree(tNode);
@@ -113,7 +117,7 @@ TimersTick(
         Timer->Current      -= MIN(Timer->Current, Tick);
 
         if (Timer->Current == 0) {
-            __KernelTimeoutDriver(Timer->AshId, Timer->Id, (void*)Timer->Data);
+            __KernelTimeoutDriver(Timer->Owner, Timer->Id, (void*)Timer->Data);
             if (Timer->Periodic) {
                 Timer->Current = Timer->Interval;
             }
@@ -129,7 +133,7 @@ TimersTick(
     }
 }
 
-/* TimersRegistrate
+/* TimersRegisterSystemTimer
  * Registrates a interrupt timer source with the
  * timer management, which keeps track of which interrupts
  * are available for time-keeping */

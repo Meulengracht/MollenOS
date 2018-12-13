@@ -28,7 +28,8 @@
 #include <ds/collection.h>
 
 typedef enum _SystemHandleType {
-    HandleTypeMemoryBuffer = 0,
+    HandleGeneric = 0,
+    HandleTypeMemoryBuffer,
     HandleTypeMemorySpace,
     HandleTypePipe,
 
@@ -53,31 +54,38 @@ typedef struct _SystemHandle {
  * Allocates a new handle for a system resource with a reference of 1. */
 KERNELAPI UUId_t KERNELABI
 CreateHandle(
-    _In_ SystemHandleType_t         Type,
-    _In_ SystemHandleCapability_t   Capabilities,
-    _In_ void*                      Resource);
-
-/* AcquireHandle
- * Acquires the handle given for the calling process. This can fail if the handle
- * turns out to be invalid, otherwise the resource will be returned. */
-KERNELAPI void* KERNELABI
-AcquireHandle(
-    _In_ UUId_t             Handle);
-
-/* LookupHandle
- * Retrieves the handle given for the calling process. This can fail if the handle
- * turns out to be invalid, otherwise the resource will be returned. */
-KERNELAPI void* KERNELABI
-LookupHandle(
-    _In_ UUId_t             Handle);
+    _In_ SystemHandleType_t       Type,
+    _In_ SystemHandleCapability_t Capabilities,
+    _In_ void*                    Resource);
 
 /* DestroyHandle
  * Reduces the reference count of the given handle, and cleans up the handle on
  * reaching 0 references. */
 KERNELAPI OsStatus_t KERNELABI
 DestroyHandle(
-    _In_ UUId_t             Handle);
+    _In_ UUId_t Handle);
 
+/* AcquireHandle
+ * Acquires the handle given for the calling process. This can fail if the handle
+ * turns out to be invalid, otherwise the resource will be returned. */
+KERNELAPI void* KERNELABI
+AcquireHandle(
+    _In_ UUId_t Handle);
+
+/* LookupHandle
+ * Retrieves the handle given for the calling process. This can fail if the handle
+ * turns out to be invalid, otherwise the resource will be returned. */
+KERNELAPI void* KERNELABI
+LookupHandle(
+    _In_ UUId_t Handle);
+
+/* SignalHandle
+ * Signals a handle and wakes a given number of sleepers. */
+KERNELAPI OsStatus_t KERNELABI
+SignalHandle(
+    _In_ UUId_t Handle,
+    _In_ int    Count);
+    
 /* WaitForHandles
  * Waits for either of the given handles to signal. The handles that are passed must
  * support the SYNCHRONIZE capability to be waited for. */

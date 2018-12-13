@@ -24,8 +24,6 @@
 #ifndef _MCORE_TIMERS_H_
 #define _MCORE_TIMERS_H_
 
-/* Includes
- * - System */
 #include <os/osdefs.h>
 #include <time.h>
 
@@ -43,7 +41,7 @@ typedef struct _MCoreTimePerformanceOps {
  * the owner, the timeout and the type of timer. */
 typedef struct _MCoreTimer {
     UUId_t              Id;
-    UUId_t              AshId;
+    UUId_t              Owner;
     const void*         Data;
 
     size_t              Interval;

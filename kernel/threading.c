@@ -39,9 +39,9 @@
 
 OsStatus_t ThreadingReap(void *Context);
 
-static Collection_t     Threads         = COLLECTION_INIT(KeyId);
-static UUId_t           GlbThreadGcId   = UUID_INVALID;
-static _Atomic(UUId_t)  GlbThreadId     = ATOMIC_VAR_INIT(1);
+static Collection_t    Threads       = COLLECTION_INIT(KeyId);
+static UUId_t          GlbThreadGcId = UUID_INVALID;
+static _Atomic(UUId_t) GlbThreadId   = ATOMIC_VAR_INIT(1);
 
 /* ThreadingInitialize
  * Initializes static data and allocates resources. */
@@ -65,7 +65,6 @@ ThreadingEnable(void)
     Thread->Id              = atomic_fetch_add(&GlbThreadId, 1);
     Thread->Name            = strdup("idle");
     Thread->ParentThreadId  = UUID_INVALID;
-    Thread->ProcessHandle   = UUID_INVALID;
     Thread->Flags           = THREADING_KERNELMODE | THREADING_IDLE;
 
     SchedulerThreadInitialize(Thread, Thread->Flags);
@@ -154,7 +153,6 @@ CreateThread(
     // The only flags we want to copy for now are the running-mode
     Thread->Id              = Key.Value.Id;
     Thread->ParentThreadId  = Parent->Id;
-    Thread->ProcessHandle   = Parent->ProcessHandle;
     Thread->Function        = Function;
     Thread->Arguments       = Arguments;
     Thread->Flags           = Flags;
@@ -213,9 +211,6 @@ CreateThread(
         ContextCreate(Thread->Flags, THREADING_CONTEXT_LEVEL0, (uintptr_t)&ThreadingEntryPoint, 0, 0, 0);
     Thread->Contexts[THREADING_CONTEXT_SIGNAL0] = 
         ContextCreate(Thread->Flags, THREADING_CONTEXT_SIGNAL0, 0, 0, 0, 0);
-    if (Thread->ProcessHandle != UUID_INVALID) {
-        AcquireHandle(Thread->ProcessHandle);
-    }
     CollectionAppend(&Threads, &Thread->CollectionHeader);
     SchedulerThreadQueue(Thread, 0);
     *Handle = Thread->Id;
@@ -256,11 +251,6 @@ ThreadingCleanupThread(
     if (Thread->MemorySpaceHandle != UUID_INVALID) {
         DestroyHandle(Thread->MemorySpaceHandle);
     }
-
-    // Remove a reference to the process
-    if (Thread->ProcessHandle != UUID_INVALID) {
-        DestroyHandle(Thread->ProcessHandle);
-    }
     kfree((void*)Thread->Name);
     kfree(Thread);
 }
@@ -277,8 +267,8 @@ ThreadingDetachThread(
     // Detach is allowed if the caller is the spawner or the caller
     // is in same process
     if (Target != NULL) {
-        if (Target->ParentThreadId == Thread->Id || 
-            Target->ProcessHandle == Thread->ProcessHandle) {
+        if (Target->ParentThreadId    == Thread->Id || 
+            Target->MemorySpaceHandle == Thread->MemorySpaceHandle) {
             Target->ParentThreadId = UUID_INVALID;
             return OsSuccess;
         }

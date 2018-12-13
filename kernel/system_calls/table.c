@@ -55,15 +55,15 @@ OsStatus_t ScProcessKill(UUId_t ProcessHandle);
 OsStatus_t ScProcessExit(int ExitCode);
 OsStatus_t ScProcessGetCurrentId(UUId_t* ProcessHandle);
 OsStatus_t ScProcessGetCurrentName(const char* Buffer, size_t MaxLength);
-OsStatus_t ScProcessSignal(uintptr_t Handler);
-OsStatus_t ScProcessRaise(UUId_t ProcessHandle, int Signal);
 OsStatus_t ScProcessGetStartupInformation(ProcessStartupInformation_t* StartupInformation);
 OsStatus_t ScProcessGetModuleHandles(Handle_t ModuleList[PROCESS_MAXMODULES]);
 OsStatus_t ScProcessGetModuleEntryPoints(Handle_t ModuleList[PROCESS_MAXMODULES]);
-Handle_t   ScSharedObjectLoad(const char* SharedObject);
+
+OsStatus_t ScSharedObjectLoad(const char* SoName, uint8_t* Buffer, size_t BufferLength, Handle_t* HandleOut);
 uintptr_t  ScSharedObjectGetFunction(Handle_t Handle, const char* Function);
 OsStatus_t ScSharedObjectUnload(Handle_t Handle);
-OsStatus_t ScGetWorkingDirectory(UUId_t ProcessHandle, char* PathBuffer, size_t MaxLength);
+
+OsStatus_t ScGetWorkingDirectory(char* PathBuffer, size_t MaxLength);
 OsStatus_t ScSetWorkingDirectory(const char* Path);
 OsStatus_t ScGetAssemblyDirectory(char* PathBuffer, size_t MaxLength);
 
@@ -133,6 +133,8 @@ OsStatus_t ScAcquireBuffer(UUId_t Handle, DmaBuffer_t* MemoryBuffer);
 OsStatus_t ScQueryBuffer(UUId_t Handle, uintptr_t* Dma, size_t* Capacity);
 
 // Support system calls
+OsStatus_t ScInstallSignalHandler(uintptr_t Handler);
+OsStatus_t ScRaiseSignal(UUId_t ProcessHandle, int Signal);
 OsStatus_t ScCreateFileMapping(struct FileMappingParameters* Parameters, void** MemoryPointer);
 OsStatus_t ScDestroyFileMapping(void* MemoryPointer);
 OsStatus_t ScDestroyHandle(UUId_t Handle);
@@ -149,8 +151,8 @@ uintptr_t   GlbSyscallTable[111] = {
     DefineSyscall(ScProcessSpawn),
     DefineSyscall(ScProcessJoin),
     DefineSyscall(ScProcessKill),
-    DefineSyscall(ScProcessSignal),
-    DefineSyscall(ScProcessRaise),
+    DefineSyscall(ScInstallSignalHandler),
+    DefineSyscall(ScRaiseSignal),
     DefineSyscall(ScProcessGetCurrentName),
     DefineSyscall(ScProcessGetModuleHandles),
     DefineSyscall(ScProcessGetModuleEntryPoints),

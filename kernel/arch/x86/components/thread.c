@@ -246,6 +246,6 @@ _ThreadingSwitch(
     set_ts(); // Set task switch bit so we get faults on fpu instructions
 
     // Handle any signals pending for thread
-    SignalHandle(Thread->Id);
+    SignalProcess(Thread->Id);
     return Context;
 }

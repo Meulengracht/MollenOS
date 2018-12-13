@@ -46,11 +46,6 @@ typedef struct _SystemFileMappingEvent {
     OsStatus_t           Result;
 } SystemFileMappingEvent_t;
 
-/* InitializeModuleManager
- * Initializes the static storage needed for the module manager, and registers a garbage collector. */
-KERNELAPI void KERNELABI
-InitializeModuleManager(void);
-
 /* RegisterModule
  * Registers a new system module resource that is then available for the operating system
  * to use. The resource can be can be either an driver, service or a generic file. */
@@ -121,11 +116,5 @@ SetModuleAlias(
 KERNELAPI SystemModule_t* KERNELABI
 GetModuleByAlias(
     _In_ UUId_t Alias);
-
-/* RegisterFileMappingEvent
- * Signals a new file-mapping access event to the system. */
-KERNELAPI void KERNELABI
-RegisterFileMappingEvent(
-    _In_ SystemFileMappingEvent_t* Event);
 
 #endif //!__MODULE_MANAGER_INTERFACE__

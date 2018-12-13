@@ -39,6 +39,7 @@
 static Collection_t         SystemHandles                       = COLLECTION_INIT(KeyId);
 static _Atomic(UUId_t)      IdGenerator                         = 1;
 static HandleDestructorFn   HandleDestructors[HandleTypeCount]  = {
+    NULL,                      // Generic - Ignore
     DestroyMemoryBuffer,
     DestroySystemMemorySpace,
     DestroySystemPipe
@@ -143,10 +144,25 @@ DestroyHandle(
             SchedulerHandleSignalAll((uintptr_t*)Handle);
             ThreadingYield();
         }
-        Status = HandleDestructors[Instance->Type](Instance->Resource);
+        Status = (HandleDestructors[Instance->Type] != NULL) ? HandleDestructors[Instance->Type](Instance->Resource) : OsSuccess;
         kfree(Instance);
     }
     return Status;
+}
+
+/* SignalHandle
+ * Signals a handle and wakes a given number of sleepers. */
+OsStatus_t
+SignalHandle(
+    _In_ UUId_t Handle,
+    _In_ int    Count)
+{
+    for (int i = 0; i < Count; i++) {
+        if (SchedulerHandleSignal((uintptr_t*)Handle) != OsSuccess) {
+            return OsError;
+        }
+    }
+    return OsSuccess;
 }
 
 /* WaitForHandles
@@ -154,10 +170,10 @@ DestroyHandle(
  * support the SYNCHRONIZE capability to be waited for. */
 OsStatus_t
 WaitForHandles(
-    _In_ UUId_t*            Handles,
-    _In_ size_t             HandleCount,
-    _In_ int                WaitForAll,
-    _In_ size_t             Timeout)
+    _In_ UUId_t* Handles,
+    _In_ size_t  HandleCount,
+    _In_ int     WaitForAll,
+    _In_ size_t  Timeout)
 {
     // @todo multi sync in scheduler
     assert(Handles != NULL);

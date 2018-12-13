@@ -25,6 +25,7 @@
 #define __MEMORY_SPACE_INTERFACE__
 
 #include <os/osdefs.h>
+#include <ds/collection.h>
 
 typedef struct _BlockBitmap BlockBitmap_t;
 
@@ -58,11 +59,20 @@ typedef struct _BlockBitmap BlockBitmap_t;
 #define MAPPING_LEGACY                  0x80000000  // (Virtual) Mapping is for legacy memory devices
 #define MAPPING_VMODE_MASK              0xF0000000
 
+typedef struct _SystemMemoryMappingHandler {
+    CollectionItem_t Header;
+    UUId_t           Handle;
+    uintptr_t        Address;
+    size_t           Length;
+} SystemMemoryMappingHandler_t;
+
 typedef struct _SystemMemorySpace {
     Flags_t                     Flags;
     uintptr_t                   Data[MEMORY_DATACOUNT];
     struct _SystemMemorySpace*  Parent;
     UUId_t                      ParentHandle;
+
+    Collection_t*               MemoryHandlers;
     BlockBitmap_t*              HeapSpace;
     uintptr_t                   SignalHandler;
 } SystemMemorySpace_t;

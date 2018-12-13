@@ -206,7 +206,6 @@ InitializeMachine(
 #elif __OSCONFIG_DEBUGMODE
     EnableSystemDebugConsole();
 #else
-    InitializeModuleManager();
     Status = ParseInitialRamdisk(&Machine.BootInformation);
     if (Status != OsSuccess) {
         ERROR(" > no ramdisk provided, operating system will enter debug mode");

@@ -23,16 +23,17 @@
 #define __MODULE        "DBGI"
 //#define __TRACE
 
+#include "../librt/libds/pe/pe.h"
 #include <modules/manager.h>
 #include <system/utils.h>
 #include <memoryspace.h>
-#include <scheduler.h>
+#include <interrupts.h>
 #include <deviceio.h>
 #include <machine.h>
+#include <handle.h>
 #include <stdio.h>
 #include <debug.h>
 #include <heap.h>
-#include <arch.h>
 
 /* Page-fault handlers for different page-fault areas. 
  * Static storage to only allow a maximum handlers. */
@@ -48,17 +49,10 @@ static struct MCorePageFaultHandler_t {
  * to this event handler */
 OsStatus_t
 DebugSingleStep(
-    _In_ Context_t *Context)
+    _In_ Context_t* Context)
 {
-    // Variables
-
-    // Trace
     TRACE("DebugSingleStep(IP 0x%x)", CONTEXT_IP(Context));
-    // @todo
-
     _CRT_UNUSED(Context);
-
-    // Done
     return OsSuccess;
 }
 
@@ -68,17 +62,10 @@ DebugSingleStep(
  * to this event handler */
 OsStatus_t
 DebugBreakpoint(
-    _In_ Context_t *Context)
+    _In_ Context_t* Context)
 {
-    // Variables
-
-    // Trace
     TRACE("DebugBreakpoint(IP 0x%x)", CONTEXT_IP(Context));
-    // @todo
-
     _CRT_UNUSED(Context);
-
-    // Done
     return OsSuccess;
 }
 
@@ -91,7 +78,6 @@ DebugPageFault(
     _In_ Context_t*     Context,
     _In_ uintptr_t      Address)
 {
-    // Trace
     TRACE("DebugPageFault(IP 0x%x, Address 0x%x)", CONTEXT_IP(Context), Address);
     for (int i = 0; i < 8; i++) {
         if (PageFaultHandlers[i].AreaHandler == NULL) {
@@ -131,10 +117,10 @@ DebugHaltAllProcessorCores(
  * return again */
 OsStatus_t
 DebugPanic(
-    _In_ int            FatalityScope,
-    _In_ Context_t*     Context,
-    _In_ const char*    Module,
-    _In_ const char*    Message, ...)
+    _In_ int         FatalityScope,
+    _In_ Context_t*  Context,
+    _In_ const char* Module,
+    _In_ const char* Message, ...)
 {
     MCoreThread_t *CurrentThread;
     char MessageBuffer[256];
@@ -174,8 +160,6 @@ DebugPanic(
         }
     }
     ThreadingDebugPrint();
-
-    // Stack trace
     DebugStackTrace(Context, 8);
 
     // Handle based on the scope of the fatality
@@ -205,7 +189,8 @@ DebugGetModuleByAddress(
     _Out_ char**          Name)
 {
     // Validate that the address is within userspace
-    if (Address >= MEMORY_LOCATION_RING3_CODE && Address < MEMORY_LOCATION_RING3_CODE_END) {
+    if (Address >= GetMachine()->MemoryMap.UserCode.Start && 
+        Address < (GetMachine()->MemoryMap.UserCode.Start + GetMachine()->MemoryMap.UserCode.Length)) {
         // Sanitize whether or not a process was running
         if (Module != NULL && Module->Executable != NULL) {
             uintptr_t PmBase = Module->Executable->VirtualAddress;
@@ -243,10 +228,10 @@ DebugStackTrace(
     _In_ size_t     MaxFrames)
 {
     // Derive stack pointer from the argument
-    uintptr_t *StackPtr = NULL;
-    uintptr_t StackLmt  = 0;
-    uintptr_t PageMask  = ~(GetSystemMemoryPageSize() - 1);
-    size_t Itr          = MaxFrames;
+    uintptr_t* StackPtr;
+    uintptr_t  StackLmt;
+    uintptr_t  PageMask = ~(GetSystemMemoryPageSize() - 1);
+    size_t     Itr      = MaxFrames;
 
     // Use local or given?
     if (Context == NULL) {
@@ -255,7 +240,7 @@ DebugStackTrace(
     }
     else if (CONTEXT_USERSP(Context) != 0) {
         StackPtr = (uintptr_t*)CONTEXT_USERSP(Context);
-        StackLmt = MEMORY_LOCATION_RING3_STACK_START;
+        StackLmt = (CONTEXT_USERSP(Context) & PageMask) + GetSystemMemoryPageSize();
     }
     else {
         StackPtr = (uintptr_t*)CONTEXT_SP(Context);
@@ -266,9 +251,15 @@ DebugStackTrace(
         uintptr_t Value = StackPtr[0];
         uintptr_t Base  = 0;
         char *Name      = NULL;
-        if (DebugGetModuleByAddress(GetCurrentModule(), Value, &Base, &Name) == OsSuccess) {
-            uintptr_t Diff = Value - Base;
-            WRITELINE("%u - 0x%x (%s)", MaxFrames - Itr, Diff, Name);
+        if (Value >= GetMachine()->MemoryMap.UserCode.Start && 
+            Value < (GetMachine()->MemoryMap.UserCode.Start + GetMachine()->MemoryMap.UserCode.Length)) {
+            if (DebugGetModuleByAddress(GetCurrentModule(), Value, &Base, &Name) == OsSuccess) {
+                WRITELINE("%u - 0x%x (%s)", MaxFrames - Itr, (Value - Base), Name);
+                
+            }
+            else {
+                WRITELINE("%u - 0x%x", MaxFrames - Itr, Value);
+            }
             Itr--;
         }
         StackPtr++;
@@ -338,57 +329,31 @@ DebugMemory(
     return OsSuccess;
 }
 
-/* DebugPageFaultKernelHeapMemory
- * Checks for memory access that was (kernel) heap related and valid */
+/* DebugPageMemorySpaceHandlers
+ * Checks for memory access that was memory handler related and valid */
 OsStatus_t
-DebugPageFaultKernelHeapMemory(
+DebugPageMemorySpaceHandlers(
     _In_ Context_t* Context,
     _In_ uintptr_t  Address)
 {
-    if (HeapValidateAddress(HeapGetKernel(), Address) == OsSuccess) {
-        // Try to map it in and return the result
-        return CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &Address, 
-            GetSystemMemoryPageSize(), MAPPING_FIXED, __MASK);
-    }
-    return OsError;
-}
+    SystemMemorySpace_t* Space  = GetCurrentSystemMemorySpace();
+    OsStatus_t           Status = OsError;
 
-/* DebugPageFaultFileMappings
- * Checks for memory access that was file mapped related and valid */
-OsStatus_t
-DebugPageFaultFileMappings(
-    _In_ Context_t* Context,
-    _In_ uintptr_t  Address)
-{
-    SystemMemorySpace_t*      Space = GetCurrentSystemMemorySpace();
-    SystemFileMappingEvent_t* Event;
-    SystemFileMapping_t*      Mapping;
-
-    // Iterate file-mappings
-    foreach(Node, Space->FileMappings) {
-        Mapping = (SystemFileMapping_t*)Node->Data;
-        if (ISINRANGE(Address, Mapping->BufferObject.Address, (Mapping->BufferObject.Address + Mapping->Length) - 1)) {
-            // Oh, woah, file-mapping
-            Event = (SystemFileMappingEvent_t*)kmalloc(sizeof(SystemFileMappingEvent_t));
-            Event->MemorySpace = Space;
-            Event->Address     = Address;
-
-            RegisterFileMappingEvent(Event);
-            SchedulerThreadSleep((uintptr_t*)Event, 0);
-            if (Event->Result != OsSuccess) {
-                // what? @todo
-            }
-            kfree(Event);
-            return OsSuccess; // Indicate event was handled
+    foreach(Node, Space->MemoryHandlers) {
+        SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)Node;
+        if (ISINRANGE(Address, Handler->Address, (Handler->Address + Handler->Length) - 1)) {
+            __KernelInterruptDriver(__SESSIONMANAGER_TARGET, 0, (void*)Handler->Handle);
+            Status = WaitForHandles(&Handler->Handle, 1, 1, 0);
+            break;
         }
     }
-    return OsError;
+    return Status;
 }
 
-/* DebugPageFaultHeapMemory
+/* DebugPageFaultProcessHeapMemory
  * Checks for memory access that was (process) heap related and valid */
 OsStatus_t
-DebugPageFaultHeapMemory(
+DebugPageFaultProcessHeapMemory(
     _In_ Context_t* Context,
     _In_ uintptr_t  Address)
 {
@@ -396,7 +361,8 @@ DebugPageFaultHeapMemory(
     Flags_t              PageFlags = MAPPING_USERSPACE | MAPPING_FIXED;
 
     if (Space->HeapSpace != NULL) {
-        if (DebugPageFaultFileMappings(Context, Address) == OsSuccess) {
+        if (Space->MemoryHandlers != NULL && 
+            DebugPageMemorySpaceHandlers(Context, Address) == OsSuccess) {
             return OsSuccess;
         }
 
@@ -413,6 +379,20 @@ DebugPageFaultHeapMemory(
     return OsSuccess;
 }
 
+/* DebugPageFaultKernelHeapMemory
+ * Checks for memory access that was (kernel) heap related and valid */
+OsStatus_t
+DebugPageFaultKernelHeapMemory(
+    _In_ Context_t* Context,
+    _In_ uintptr_t  Address)
+{
+    if (HeapValidateAddress(HeapGetKernel(), Address) == OsSuccess) {
+        return CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &Address, 
+            GetSystemMemoryPageSize(), MAPPING_FIXED, __MASK);
+    }
+    return OsError;
+}
+
 /* DebugPageFaultThreadMemory
  * Checks for memory access that was io-space related and valid */
 OsStatus_t
@@ -420,7 +400,6 @@ DebugPageFaultThreadMemory(
     _In_ Context_t* Context,
     _In_ uintptr_t  Address)
 {
-    // Try to map it in and return the result
     return CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &Address, 
                 GetSystemMemoryPageSize(), MAPPING_USERSPACE | MAPPING_FIXED, __MASK);
 }
@@ -431,7 +410,6 @@ OsStatus_t
 DebugInstallPageFaultHandlers(
 	_In_ SystemMemoryMap_t*	MemoryMap)
 {
-    // Debug
     TRACE("DebugInstallPageFaultHandlers()");
 
     // Heap memory handler
@@ -442,7 +420,7 @@ DebugInstallPageFaultHandlers(
     // Process heap memory handler
     PageFaultHandlers[1].AreaStart      = MemoryMap->UserHeap.Start;
     PageFaultHandlers[1].AreaEnd        = MemoryMap->UserHeap.Start + MemoryMap->UserHeap.Length;
-    PageFaultHandlers[1].AreaHandler    = DebugPageFaultHeapMemory;
+    PageFaultHandlers[1].AreaHandler    = DebugPageFaultProcessHeapMemory;
 
     // Thread-specific memory handler
     PageFaultHandlers[2].AreaStart      = MemoryMap->ThreadArea.Start;

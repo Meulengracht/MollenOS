@@ -298,19 +298,19 @@ StdioParseInheritanceBlock(
         __GlbStdout._fd = StdioFdAllocate(STDOUT_FILENO, WX_PIPE | WX_TTY);
         assert(__GlbStdout._fd != -1);
 
-        StdioCreatePipeHandle(PIPE_STDOUT, get_ioinfo(STDOUT_FILENO));
+        StdioCreatePipeHandle(UUID_INVALID, get_ioinfo(STDOUT_FILENO));
     }
     if (get_ioinfo(STDIN_FILENO) == NULL) {
         __GlbStdin._fd = StdioFdAllocate(STDIN_FILENO, WX_PIPE | WX_TTY);
         assert(__GlbStdin._fd != -1);
 
-        StdioCreatePipeHandle(PIPE_STDIN, get_ioinfo(STDIN_FILENO));
+        StdioCreatePipeHandle(UUID_INVALID, get_ioinfo(STDIN_FILENO));
     }
     if (get_ioinfo(STDERR_FILENO) == NULL) {
         __GlbStderr._fd = StdioFdAllocate(STDERR_FILENO, WX_PIPE | WX_TTY);
         assert(__GlbStderr._fd != -1);
 
-        StdioCreatePipeHandle(PIPE_STDERR, get_ioinfo(STDERR_FILENO));
+        StdioCreatePipeHandle(UUID_INVALID, get_ioinfo(STDERR_FILENO));
     }
     StdioFdInitialize(&__GlbStdout, __GlbStdout._fd,    _IOWRT);
     StdioFdInitialize(&__GlbStdin,  __GlbStdin._fd,     _IOREAD);

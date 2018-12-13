@@ -223,11 +223,11 @@ ThreadingDebugPrint(void);
 KERNELAPI OsStatus_t KERNELABI
 SignalReturn(void);
 
-/* Handle Signal 
+/* SignalProcess
  * This checks if the process has any waiting signals and if it has, 
  * it executes the first in list */
 KERNELAPI OsStatus_t KERNELABI
-SignalHandle(
+SignalProcess(
     _In_ UUId_t             ThreadId);
 
 /* Create Signal 
