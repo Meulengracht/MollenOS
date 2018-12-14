@@ -226,7 +226,7 @@ ScGetThreadMemorySpaceHandle(
         }
         return OsError;
     }
-    Thread = ThreadingGetThread(ThreadHandle);
+    Thread = GetThread(ThreadHandle);
     if (Thread != NULL) {
         *Handle = Thread->MemorySpaceHandle;
         return OsSuccess;

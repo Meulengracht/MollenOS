@@ -30,42 +30,34 @@
 #define LOG_INITIAL_SIZE        (1024 * 4)
 #define LOG_PREFFERED_SIZE      (1024 * 65)
 
-/* MCoreLogType
- * */
-typedef enum _MCoreLogType {
-    LogTrace    = 0x99E600,
-    LogRaw      = 0x111111,
-    LogPipe     = 0xEE2244,
-    LogDebug    = 0x2ECC71,
-    LogWarning  = 0x9B59B6,
-    LogError    = 0xFF392B
-} MCoreLogType_t;
+typedef enum _SystemLogType {
+    LogTrace   = 0x99E600,
+    LogRaw     = 0x111111,
+    LogPipe    = 0xEE2244,
+    LogDebug   = 0x2ECC71,
+    LogWarning = 0x9B59B6,
+    LogError   = 0xFF392B
+} SystemLogType_t;
 
-/* MCoreLogLine
- * */
-typedef struct _MCoreLogLine {
-    MCoreLogType_t      Type;
-    char                System[10]; // [TYPE  ]
-    char                Data[118]; // Message
-} MCoreLogLine_t;
+typedef struct _SystemLogLine {
+    SystemLogType_t Type;
+    char            System[10]; // [TYPE  ]
+    char            Data[118]; // Message
+} SystemLogLine_t;
 
-/* MCoreLog
- * */
-typedef struct _MCoreLog {
-    uintptr_t*          StartOfData;
-    size_t              DataSize;
-    int                 NumberOfLines;
-    MCoreLogLine_t*     Lines;
-    CriticalSection_t   SyncObject;
+typedef struct _SystemLog {
+    uintptr_t*        StartOfData;
+    size_t            DataSize;
+    int               NumberOfLines;
+    SystemLogLine_t*  Lines;
+    CriticalSection_t SyncObject;
     
-    int                 LineIndex;
-    int                 RenderIndex;
-    int                 AllowRender;
-
-    // Debug pipes
-    SystemPipe_t*       STDOUT;
-    SystemPipe_t*       STDERR;
-} MCoreLog_t;
+    int    LineIndex;
+    int    RenderIndex;
+    int    AllowRender;
+    UUId_t StdOutHandle;
+    UUId_t StdErrHandle;
+} SystemLog_t;
 
 /* LogInitialize
  * Initializes loggin data-structures and global variables
@@ -90,19 +82,12 @@ LogSetRenderMode(
  * reaches the end wrap-around will happen. */
 KERNELAPI void KERNELABI
 LogAppendMessage(
-    _In_ MCoreLogType_t Type,
-    _In_ const char*    Header,
-    _In_ const char*    Message,
+    _In_ SystemLogType_t Type,
+    _In_ const char*     Header,
+    _In_ const char*     Message,
     ...);
 
-/* LogPipeStdout
- * The log pipe for stdout when no windowing system is running. */
-KERNELAPI SystemPipe_t* KERNELABI
-LogPipeStdout(void);
-
-/* LogPipeStderr
- * The log pipe for stderr when no windowing system is running. */
-KERNELAPI SystemPipe_t* KERNELABI
-LogPipeStderr(void);
+KERNELAPI UUId_t KERNELABI GetSystemStdOutHandle(void);
+KERNELAPI UUId_t KERNELABI GetSystemStdErrHandle(void);
 
 #endif // !__LOGGING_INTERFACE__

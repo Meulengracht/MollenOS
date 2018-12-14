@@ -55,7 +55,7 @@ ApicTimerHandler(
     // to this function due to how signals are working
     GlbTimerTicks[CurrCpu]++;
     ApicSendEoi(APIC_NO_GSI, INTERRUPT_LAPIC);
-    Regs = _ThreadingSwitch((Context_t*)Context, 1, &TimeSlice, &TaskPriority);
+    Regs = _GetNextRunnableThread((Context_t*)Context, 1, &TimeSlice, &TaskPriority);
     
     // If we are idle task - disable timer untill we get woken up
     if (!ThreadingIsCurrentTaskIdle(CurrCpu)) {

@@ -51,7 +51,7 @@ ModuleThreadEntry(
 {
     SystemModulePackage_t* Package    = (SystemModulePackage_t*)Context;
     UUId_t                 CurrentCpu = CpuGetCurrentId();
-    MCoreThread_t*         Thread     = ThreadingGetCurrentThread(CurrentCpu);
+    MCoreThread_t*         Thread     = GetCurrentThreadForCore(CurrentCpu);
     OsStatus_t             Status;
     
     assert(Package != NULL);
@@ -78,7 +78,7 @@ ModuleThreadEntry(
     kfree(Package);
     
     if (Status == OsSuccess) {
-        ThreadingSwitchLevel();
+        EnterProtectedThreadLevel();
     }
 }
 

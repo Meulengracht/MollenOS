@@ -359,7 +359,7 @@ InterruptRegister(
 
     Entry->Id           = (Id << 16);    
     Entry->ModuleHandle = UUID_INVALID;
-    Entry->Thread       = ThreadingGetCurrentThreadId();
+    Entry->Thread       = GetCurrentThreadId();
     Entry->Flags        = Flags;
 
     // Clear out line if the interrupt is software

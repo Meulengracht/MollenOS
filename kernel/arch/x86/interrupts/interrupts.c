@@ -405,7 +405,7 @@ ExceptionSignal(
     _In_ int        Signal)
 {
     UUId_t CoreId         = CpuGetCurrentId();
-    MCoreThread_t* Thread = ThreadingGetCurrentThread(CoreId);
+    MCoreThread_t* Thread = GetCurrentThreadForCore(CoreId);
 
     TRACE("ExceptionSignal(Signal %i)", Signal);
 
@@ -468,7 +468,7 @@ ExceptionEntry(
         }
     }
     else if (Registers->Irq == 7) { // DeviceNotAvailable 
-        Thread = ThreadingGetCurrentThread(CpuGetCurrentId());
+        Thread = GetCurrentThreadForCore(CpuGetCurrentId());
         assert(Thread != NULL);
 
         // This might be because we need to restore fpu/sse state
@@ -512,7 +512,7 @@ ExceptionEntry(
         // is that we must check special locations
         if (Address == MEMORY_LOCATION_SIGNAL_RET) {
             UUId_t Cpu  = CpuGetCurrentId();
-            Thread      = ThreadingGetCurrentThread(Cpu);
+            Thread      = GetCurrentThreadForCore(Cpu);
             Registers   = Thread->ActiveSignal.Context;
             TssUpdateThreadStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
             SignalReturn();                 // Complete signal handling

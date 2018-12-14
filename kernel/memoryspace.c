@@ -110,6 +110,7 @@ CreateSystemMemorySpace(
             CreateBlockmap(0, GetMachine()->MemoryMap.UserHeap.Start, 
                 GetMachine()->MemoryMap.UserHeap.Start + GetMachine()->MemoryMap.UserHeap.Length, 
                 GetMachine()->MemoryGranularity, &MemorySpace->HeapSpace);
+            MemorySpace->MemoryHandlers = CollectionCreate(KeyId);
         }
         CloneVirtualSpace(MemorySpace->Parent, MemorySpace, (Flags & MEMORY_SPACE_INHERIT) ? 1 : 0);
         *Handle = CreateHandle(HandleTypeMemorySpace, 0, MemorySpace);
@@ -154,7 +155,7 @@ SystemMemorySpace_t*
 GetCurrentSystemMemorySpace(void)
 {
     // Lookup current thread
-    MCoreThread_t *CurrentThread = ThreadingGetCurrentThread(CpuGetCurrentId());
+    MCoreThread_t *CurrentThread = GetCurrentThreadForCore(CpuGetCurrentId());
 
     // if no threads are active return the kernel address space
     if (CurrentThread == NULL) {
@@ -172,7 +173,7 @@ GetCurrentSystemMemorySpace(void)
 UUId_t
 GetCurrentSystemMemorySpaceHandle(void)
 {
-    MCoreThread_t* CurrentThread = ThreadingGetCurrentThread(CpuGetCurrentId());
+    MCoreThread_t* CurrentThread = GetCurrentThreadForCore(CpuGetCurrentId());
     if (CurrentThread == NULL) {
         return UUID_INVALID;
     }

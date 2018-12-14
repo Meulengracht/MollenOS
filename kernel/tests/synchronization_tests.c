@@ -137,7 +137,7 @@ WaitForSynchronizationTest(
     // Cleanup by killing threads and freeing pipes
     TRACE(" > killing threads");
     for (i = 0; i < NumberOfThreads; i++) {
-        if (ThreadingTerminateThread(Threads[i], 0, 1) != OsSuccess) {
+        if (TerminateThread(Threads[i], 0, 1) != OsSuccess) {
             WARNING(" > failed to kill thread %u", Threads[i]);
         }
     }

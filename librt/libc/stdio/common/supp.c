@@ -86,7 +86,7 @@ int wctomb(char *mbchar, wchar_t wchar)
 /* thrd_current
  * Returns the identifier of the calling thread. */
 thrd_t thrd_current(void) {
-    return (thrd_t)ThreadingGetCurrentThreadId();
+    return (thrd_t)GetCurrentThreadId();
 }
 
 #else

@@ -151,7 +151,7 @@ DebugPanic(
     LogAppendMessage(LogError, Module, &MessageBuffer[0]);
 
     // Log cpu and threads
-    CurrentThread = ThreadingGetCurrentThread(CoreId);
+    CurrentThread = GetCurrentThreadForCore(CoreId);
     if (CurrentThread != NULL) {
         LogAppendMessage(LogError, Module, "Thread %s - %u (Core %u)!",
             CurrentThread->Name, CurrentThread->Id, CoreId);
@@ -159,7 +159,7 @@ DebugPanic(
             // how should we do this
         }
     }
-    ThreadingDebugPrint();
+    DisplayActiveThreads();
     DebugStackTrace(Context, 8);
 
     // Handle based on the scope of the fatality
@@ -342,7 +342,7 @@ DebugPageMemorySpaceHandlers(
     foreach(Node, Space->MemoryHandlers) {
         SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)Node;
         if (ISINRANGE(Address, Handler->Address, (Handler->Address + Handler->Length) - 1)) {
-            __KernelInterruptDriver(__SESSIONMANAGER_TARGET, 0, (void*)Handler->Handle);
+            __KernelInterruptDriver(__FILEMANAGER_TARGET, Handler->Handle, (void*)Address);
             Status = WaitForHandles(&Handler->Handle, 1, 1, 0);
             break;
         }

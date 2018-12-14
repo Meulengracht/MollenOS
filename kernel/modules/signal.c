@@ -82,7 +82,7 @@ SignalCreate(
     _In_ UUId_t     ThreadId,
     _In_ int        Signal)
 {
-    MCoreThread_t*  Target = ThreadingGetThread(ThreadId);
+    MCoreThread_t*  Target = GetThread(ThreadId);
     SystemSignal_t* Sig;
     DataKey_t       Key;
 
@@ -117,7 +117,7 @@ OsStatus_t
 SignalReturn(void)
 {
     UUId_t          Cpu     = CpuGetCurrentId();
-    MCoreThread_t*  Thread  = ThreadingGetCurrentThread(Cpu);
+    MCoreThread_t*  Thread  = GetCurrentThreadForCore(Cpu);
     Thread->ActiveSignal.Signal = -1;
     return SignalProcess(Thread->Id);
 }
@@ -130,7 +130,7 @@ SignalProcess(
     _In_ UUId_t ThreadId)
 {
     CollectionItem_t* Node;
-    MCoreThread_t*    Thread = ThreadingGetThread(ThreadId);;
+    MCoreThread_t*    Thread = GetThread(ThreadId);;
     SystemSignal_t*   Signal;
 
     if (Thread == NULL) {
@@ -171,7 +171,7 @@ SignalExecute(
         char Action = GlbSignalIsDeadly[Signal->Signal];
         if (Action == 1 || Action == 2) {
             TRACE("Terminating thread due to deadly signal");
-            ThreadingTerminateThread(Thread->Id, Signal->Signal, 1);
+            TerminateThread(Thread->Id, Signal->Signal, 1);
         }
         kfree(Signal);
         return;

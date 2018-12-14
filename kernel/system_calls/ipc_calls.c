@@ -91,7 +91,7 @@ ScReadPipe(
     SystemPipe_t* Pipe = (SystemPipe_t*)LookupHandle(Handle);
     if (Pipe == NULL) {
         ERROR("Thread %s trying to read from non-existing pipe handle %u", 
-            ThreadingGetCurrentThread(CpuGetCurrentId())->Name, Handle);
+            GetCurrentThreadForCore(CpuGetCurrentId())->Name, Handle);
         return OsDoesNotExist;
     }
 
@@ -116,7 +116,7 @@ ScWritePipe(
 
     if (Pipe == NULL) {
         ERROR("%s: ScPipeWrite::Invalid pipe %u", 
-            ThreadingGetCurrentThread(CpuGetCurrentId())->Name, Handle);
+            GetCurrentThreadForCore(CpuGetCurrentId())->Name, Handle);
         return OsError;
     }
     WriteSystemPipe(Pipe, Message, Length);
@@ -129,7 +129,7 @@ OsStatus_t
 ScRpcResponse(
     _In_ MRemoteCall_t* RemoteCall)
 {
-    SystemPipe_t* Pipe = ThreadingGetCurrentThread(CpuGetCurrentId())->Pipe;
+    SystemPipe_t* Pipe = GetCurrentThreadForCore(CpuGetCurrentId())->Pipe;
     assert(Pipe != NULL);
     assert(RemoteCall != NULL);
     assert(RemoteCall->Result.Length > 0);
@@ -230,7 +230,7 @@ ScRpcRespond(
     _In_ const uint8_t*        Buffer, 
     _In_ size_t                Length)
 {
-    MCoreThread_t* Thread = ThreadingGetThread(RemoteAddress->Thread);
+    MCoreThread_t* Thread = GetThread(RemoteAddress->Thread);
     SystemPipe_t*  Pipe   = NULL;
 
     // Sanitize thread still exists

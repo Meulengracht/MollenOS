@@ -119,7 +119,7 @@ ScSystemTick(
             }
         }
         else if (TickBase == TIME_THREAD) {
-            MCoreThread_t* Thread = ThreadingGetCurrentThread(CpuGetCurrentId());
+            MCoreThread_t* Thread = GetCurrentThreadForCore(CpuGetCurrentId());
             if (Thread != NULL) {
                 *SystemTick -= Thread->StartedAt;
             }

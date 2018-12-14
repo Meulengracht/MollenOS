@@ -96,13 +96,13 @@ ThreadingEntryPoint(void)
     TRACE("ThreadingEntryPoint()");
 
     CoreId  = CpuGetCurrentId();
-    Thread  = ThreadingGetCurrentThread(CoreId);
+    Thread  = GetCurrentThreadForCore(CoreId);
     if (THREADING_RUNMODE(Thread->Flags) == THREADING_KERNELMODE || (Thread->Flags & THREADING_SWITCHMODE)) {
         Thread->Function(Thread->Arguments);
-        ThreadingTerminateThread(Thread->Id, 0, 1);
+        TerminateThread(Thread->Id, 0, 1);
     }
     else {
-        ThreadingSwitchLevel();
+        EnterProtectedThreadLevel();
     }
     for (;;);
 }
@@ -129,7 +129,7 @@ CreateThread(
 
     Key.Value.Id    = atomic_fetch_add(&GlbThreadId, 1);
     CoreId          = CpuGetCurrentId();
-    Parent          = ThreadingGetCurrentThread(CoreId);
+    Parent          = GetCurrentThreadForCore(CoreId);
 
     Thread = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
     memset(Thread, 0, sizeof(MCoreThread_t));
@@ -262,8 +262,8 @@ OsStatus_t
 ThreadingDetachThread(
     _In_  UUId_t        ThreadId)
 {
-    MCoreThread_t*  Thread  = ThreadingGetCurrentThread(CpuGetCurrentId());
-    MCoreThread_t*  Target  = ThreadingGetThread(ThreadId);
+    MCoreThread_t*  Thread  = GetCurrentThreadForCore(CpuGetCurrentId());
+    MCoreThread_t*  Target  = GetThread(ThreadId);
     // Detach is allowed if the caller is the spawner or the caller
     // is in same process
     if (Target != NULL) {
@@ -277,17 +277,17 @@ ThreadingDetachThread(
     return OsError;
 }
 
-/* ThreadingTerminateThread
+/* TerminateThread
  * Marks the thread with the given id for finished, and it will be cleaned up
  * on next switch unless specified. The given exitcode will be stored. */
 OsStatus_t
-ThreadingTerminateThread(
+TerminateThread(
     _In_ UUId_t         ThreadId,
     _In_ int            ExitCode,
     _In_ int            TerminateChildren)
 {
     CollectionItem_t*   Node;
-    MCoreThread_t*      Target = ThreadingGetThread(ThreadId);
+    MCoreThread_t*      Target = GetThread(ThreadId);
 
     if (Target == NULL || (Target->Flags & THREADING_IDLE)) {
         return OsError; // Never, ever kill system idle threads
@@ -297,7 +297,7 @@ ThreadingTerminateThread(
         _foreach(Node, &Threads) {
             MCoreThread_t *Child = (MCoreThread_t*)Node;
             if (Child->ParentThreadId == Target->Id) {
-                ThreadingTerminateThread(Child->Id, ExitCode, 1);
+                TerminateThread(Child->Id, ExitCode, 1);
             }
         }
     }
@@ -306,7 +306,7 @@ ThreadingTerminateThread(
 
     // If the thread we are trying to kill is not this one, and is sleeping
     // we must wake it up, it will be cleaned on next schedule
-    if (ThreadId != ThreadingGetCurrentThreadId()) {
+    if (ThreadId != GetCurrentThreadId()) {
         SchedulerThreadSignal(Target);
     }
     SchedulerHandleSignalAll((uintptr_t*)&Target->Cleanup);
@@ -319,7 +319,7 @@ int
 ThreadingJoinThread(
     _In_ UUId_t         ThreadId)
 {
-    MCoreThread_t* Target = ThreadingGetThread(ThreadId);
+    MCoreThread_t* Target = GetThread(ThreadId);
     if (Target != NULL && Target->ParentThreadId != UUID_INVALID) {
         int Finished = atomic_load(&Target->Cleanup);
         if (Finished != 1) {
@@ -331,13 +331,13 @@ ThreadingJoinThread(
     return -1;
 }
 
-/* ThreadingSwitchLevel
+/* EnterProtectedThreadLevel
  * Initializes non-kernel mode and marks the thread
  * for transitioning, there is no return from this function */
 void
-ThreadingSwitchLevel(void)
+EnterProtectedThreadLevel(void)
 {
-    MCoreThread_t* Thread = ThreadingGetCurrentThread(CpuGetCurrentId());
+    MCoreThread_t* Thread = GetCurrentThreadForCore(CpuGetCurrentId());
 
     Thread->Contexts[THREADING_CONTEXT_LEVEL1]  = ContextCreate(Thread->Flags,
         THREADING_CONTEXT_LEVEL1, (uintptr_t)Thread->Function, 0, (uintptr_t)Thread->Arguments, 0);
@@ -349,21 +349,21 @@ ThreadingSwitchLevel(void)
     for (;;);
 }
 
-/* ThreadingGetCurrentThread
+/* GetCurrentThreadForCore
  * Retrieves the current thread on the given cpu
  * if there is any issues it returns NULL */
 MCoreThread_t*
-ThreadingGetCurrentThread(
+GetCurrentThreadForCore(
     _In_ UUId_t         CoreId)
 {
     return GetProcessorCore(CoreId)->CurrentThread;
 }
 
-/* ThreadingGetCurrentThreadId
+/* GetCurrentThreadId
  * Retrives the current thread id on the current cpu
  * from the callers perspective */
 UUId_t
-ThreadingGetCurrentThreadId(void)
+GetCurrentThreadId(void)
 {
     if (GetCurrentProcessorCore()->CurrentThread == NULL) {
         return 0;
@@ -371,10 +371,10 @@ ThreadingGetCurrentThreadId(void)
     return GetCurrentProcessorCore()->CurrentThread->Id;
 }
 
-/* ThreadingGetThread
+/* GetThread
  * Lookup thread by the given thread-id, returns NULL if invalid */
 MCoreThread_t*
-ThreadingGetThread(
+GetThread(
     _In_ UUId_t         ThreadId)
 {
     foreach(Node, &Threads) {
@@ -402,10 +402,10 @@ ThreadingIsCurrentTaskIdle(
 Flags_t
 ThreadingGetCurrentMode(void)
 {
-    if (ThreadingGetCurrentThread(CpuGetCurrentId()) == NULL) {
+    if (GetCurrentThreadForCore(CpuGetCurrentId()) == NULL) {
         return THREADING_KERNELMODE;
     }
-    return ThreadingGetCurrentThread(CpuGetCurrentId())->Flags & THREADING_MODEMASK;
+    return GetCurrentThreadForCore(CpuGetCurrentId())->Flags & THREADING_MODEMASK;
 }
 
 /* ThreadingReapZombies
@@ -425,11 +425,11 @@ ThreadingReap(
     return OsSuccess;
 }
 
-/* ThreadingDebugPrint
+/* DisplayActiveThreads
  * Prints out debugging information about each thread
  * in the system, only active threads */
 void
-ThreadingDebugPrint(void)
+DisplayActiveThreads(void)
 {
     foreach(i, &Threads) {
         MCoreThread_t *Thread = (MCoreThread_t*)i;
@@ -441,12 +441,12 @@ ThreadingDebugPrint(void)
     }
 }
 
-/* ThreadingSwitch
+/* GetNextRunnableThread
  * This is the thread-switch function and must be 
  * be called from the below architecture to get the
  * next thread to run */
 MCoreThread_t*
-ThreadingSwitch(
+GetNextRunnableThread(
     _In_ MCoreThread_t* Current, 
     _In_ int            PreEmptive,
     _InOut_ Context_t** Context)

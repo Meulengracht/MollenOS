@@ -180,7 +180,7 @@ ACPI_THREAD_ID
 AcpiOsGetThreadId (
     void)
 {
-    return (ACPI_THREAD_ID)ThreadingGetCurrentThreadId();
+    return (ACPI_THREAD_ID)GetCurrentThreadId();
 }
 
 /******************************************************************************
@@ -243,7 +243,7 @@ void
 AcpiOsSleep (
     UINT64                  Milliseconds)
 {
-    if (ThreadingGetCurrentThread(CpuGetCurrentId()) != NULL) {
+    if (GetCurrentThreadForCore(CpuGetCurrentId()) != NULL) {
         SchedulerThreadSleep(NULL, (size_t)Milliseconds);
     }
     else {

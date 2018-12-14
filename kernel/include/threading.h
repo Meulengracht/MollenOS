@@ -146,11 +146,11 @@ CreateThread(
     _In_  UUId_t         MemorySpaceHandle,
     _Out_ UUId_t*        Handle);
 
-/* ThreadingTerminateThread
+/* TerminateThread
  * Marks the thread with the given id for finished, and it will be cleaned up
  * on next switch unless specified. The given exitcode will be stored. */
 KERNELAPI OsStatus_t KERNELABI
-ThreadingTerminateThread(
+TerminateThread(
     _In_ UUId_t         ThreadId,
     _In_ int            ExitCode,
     _In_ int            TerminateChildren);
@@ -169,53 +169,53 @@ KERNELAPI OsStatus_t KERNELABI
 ThreadingDetachThread(
     _In_  UUId_t        ThreadId);
 
-/* ThreadingSwitchLevel
+/* EnterProtectedThreadLevel
  * Initializes non-kernel mode and marks the thread
  * for transitioning, there is no return from this function */
 KERNELAPI void KERNELABI
-ThreadingSwitchLevel(void);
+EnterProtectedThreadLevel(void);
 
 /* ThreadingIsCurrentTaskIdle
  * Is the given cpu running it's idle task? */
 KERNELAPI int KERNELABI
 ThreadingIsCurrentTaskIdle(
-    _In_ UUId_t         CoreId);
+    _In_ UUId_t CoreId);
 
 /* ThreadingGetCurrentMode
  * Returns the current run-mode for the current thread on the current cpu */
 KERNELAPI Flags_t KERNELABI
 ThreadingGetCurrentMode(void);
 
-/* ThreadingGetCurrentThread
+/* GetCurrentThreadForCore
  * Retrieves the current thread on the given cpu if there is any issues it returns NULL */
 KERNELAPI MCoreThread_t* KERNELABI
-ThreadingGetCurrentThread(
-    _In_ UUId_t         CoreId);
+GetCurrentThreadForCore(
+    _In_ UUId_t CoreId);
 
-/* ThreadingGetCurrentThreadId
+/* GetCurrentThreadId
  * Retrives the current thread id on the current cpu from the callers perspective */
 KERNELAPI UUId_t KERNELABI
-ThreadingGetCurrentThreadId(void);
+GetCurrentThreadId(void);
 
-/* ThreadingGetThread
+/* GetThread
  * Lookup thread by the given thread-id, returns NULL if invalid */
 KERNELAPI MCoreThread_t* KERNELABI
-ThreadingGetThread(
-    _In_ UUId_t         ThreadId);
+GetThread(
+    _In_ UUId_t ThreadId);
 
-/* ThreadingSwitch
+/* GetNextRunnableThread
  * This is the thread-switch function and must be be called from the below architecture 
  * to get the next thread to run */
 KERNELAPI MCoreThread_t* KERNELABI
-ThreadingSwitch(
+GetNextRunnableThread(
     _In_ MCoreThread_t* Current, 
     _In_ int            PreEmptive,
     _InOut_ Context_t** Context);
 
-/* ThreadingDebugPrint
+/* DisplayActiveThreads
  * Prints out debugging information about each thread in the system, only active threads */
 KERNELAPI void KERNELABI
-ThreadingDebugPrint(void);
+DisplayActiveThreads(void);
 
 /* SignalReturn
  * Call upon returning from a signal, this will finish the signal-call and 

@@ -23,8 +23,9 @@
 #ifndef __MODULE_INTERFACE__
 #define __MODULE_INTERFACE__
 
-#include <os/osdefs.h>
 #include <ds/collection.h>
+#include <os/osdefs.h>
+#include <os/process.h>
 #include <time.h>
 
 typedef struct _PeExecutable PeExecutable_t;
@@ -51,17 +52,18 @@ typedef struct _SystemModule {
     size_t           Length;
 
     // Used by Module/Service type
-    clock_t          StartedAt;
-    MString_t*       WorkingDirectory;
-    MString_t*       BaseDirectory;
-    UUId_t           PrimaryThreadId;
-    UUId_t           Alias;
-    DevInfo_t        VendorId;
-    DevInfo_t        DeviceId;
-    DevInfo_t        DeviceClass;
-    DevInfo_t        DeviceSubclass;
-    PeExecutable_t*  Executable;
-    SystemPipe_t*    Rpc;
+    ProcessStartupInformation_t StartupInformation;
+    clock_t                     StartedAt;
+    MString_t*                  WorkingDirectory;
+    MString_t*                  BaseDirectory;
+    UUId_t                      PrimaryThreadId;
+    UUId_t                      Alias;
+    DevInfo_t                   VendorId;
+    DevInfo_t                   DeviceId;
+    DevInfo_t                   DeviceClass;
+    DevInfo_t                   DeviceSubclass;
+    PeExecutable_t*             Executable;
+    SystemPipe_t*               Rpc;
 } SystemModule_t;
 
 /* SpawnModule 

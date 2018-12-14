@@ -358,7 +358,7 @@ SchedulerThreadSleep(
     UUId_t          CoreId;
     
     CoreId          = CpuGetCurrentId();
-    CurrentThread   = ThreadingGetCurrentThread(CoreId);
+    CurrentThread   = GetCurrentThreadForCore(CoreId);
     
     assert(CurrentThread != NULL);
     TRACE("Adding thread %u to sleep queue on 0x%x", CurrentThread->Id, Handle);
@@ -397,7 +397,7 @@ SchedulerAtomicThreadSleep(
     
     // Instantiate values
     CoreId          = CpuGetCurrentId();
-    CurrentThread   = ThreadingGetCurrentThread(CoreId);
+    CurrentThread   = GetCurrentThreadForCore(CoreId);
 
     assert(CurrentThread != NULL);
     TRACE("Atomically adding thread %u to sleep queue on 0x%x", CurrentThread->Id, Object);

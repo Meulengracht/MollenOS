@@ -80,7 +80,7 @@ ThreadingYieldHandler(
     // Yield => start by sending eoi. It is never certain that we actually return
     // to this function due to how signals are working
     ApicSendEoi(APIC_NO_GSI, INTERRUPT_YIELD);
-    Regs = _ThreadingSwitch((Context_t*)Context, 0, &TimeSlice, &TaskPriority);
+    Regs = _GetNextRunnableThread((Context_t*)Context, 0, &TimeSlice, &TaskPriority);
 
     // If we are idle task - disable timer untill we get woken up
     if (!ThreadingIsCurrentTaskIdle(CpuGetCurrentId())) {
@@ -186,7 +186,7 @@ ThreadingImpersonate(
     UUId_t         Cpu;
     
     Cpu     = CpuGetCurrentId();
-    Current = ThreadingGetCurrentThread(Cpu);
+    Current = GetCurrentThreadForCore(Cpu);
     
     // If we impersonate ourself, leave
     if (Current == Thread) {
@@ -199,12 +199,12 @@ ThreadingImpersonate(
     SwitchSystemMemorySpace(Thread->MemorySpace);
 }
 
-/* _ThreadingSwitch
+/* _GetNextRunnableThread
  * This function loads a new task from the scheduler, it
  * implements the task-switching functionality, which MCore leaves
  * up to the underlying architecture */
 Context_t*
-_ThreadingSwitch(
+_GetNextRunnableThread(
     _In_ Context_t  *Context,
     _In_ int         PreEmptive,
     _Out_ size_t    *TimeSlice,
@@ -212,7 +212,7 @@ _ThreadingSwitch(
 {
     // Variables
     UUId_t Cpu              = CpuGetCurrentId();
-    MCoreThread_t *Thread   = ThreadingGetCurrentThread(Cpu);
+    MCoreThread_t *Thread   = GetCurrentThreadForCore(Cpu);
 
     // Sanitize the status of threading - return default values
     if (Thread == NULL) {
@@ -234,7 +234,7 @@ _ThreadingSwitch(
     }
 
     // Get a new thread for us to enter
-    Thread      = ThreadingSwitch(Thread, PreEmptive, &Context);
+    Thread      = GetNextRunnableThread(Thread, PreEmptive, &Context);
     *TimeSlice  = Thread->TimeSlice;
     *TaskQueue  = Thread->Queue;
     Thread->Data[THREAD_DATA_FLAGS] &= ~X86_THREAD_USEDFPU; // Clear the FPU used flag
