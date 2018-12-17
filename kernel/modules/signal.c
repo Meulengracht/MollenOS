@@ -162,7 +162,7 @@ SignalExecute(
     _In_ MCoreThread_t*  Thread,
     _In_ SystemSignal_t* Signal)
 {
-    SystemMemorySpace_t* Space = GetCurrentSystemMemorySpace();
+    SystemMemorySpace_t* Space = GetCurrentMemorySpace();
     TRACE("SignalExecute(Thread %u, Signal %i)", Thread->Id, Signal->Signal);
 
     // If there is no handler for the process and we

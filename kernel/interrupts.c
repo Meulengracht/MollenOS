@@ -194,10 +194,10 @@ InterruptCleanupMemoryResources(
 
     for (int i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
         if (Resources->MemoryResources[i].Address != 0) {
-            uintptr_t Offset    = Resources->MemoryResources[i].Address % GetSystemMemoryPageSize();
+            uintptr_t Offset    = Resources->MemoryResources[i].Address % GetMemorySpacePageSize();
             size_t Length       = Resources->MemoryResources[i].Length + Offset;
 
-            Status = RemoveSystemMemoryMapping(GetCurrentSystemMemorySpace(),
+            Status = RemoveMemorySpaceMapping(GetCurrentMemorySpace(),
                 Resources->MemoryResources[i].Address, Length);
             if (Status != OsSuccess) {
                 ERROR(" > failed to remove interrupt resource mapping");
@@ -223,14 +223,14 @@ InterruptResolveMemoryResources(
 
     for (int i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
         if (Source->MemoryResources[i].Address != 0) {
-            uintptr_t Offset    = Source->MemoryResources[i].Address % GetSystemMemoryPageSize();
+            uintptr_t Offset    = Source->MemoryResources[i].Address % GetMemorySpacePageSize();
             size_t Length       = Source->MemoryResources[i].Length + Offset;
             Flags_t PageFlags   = MAPPING_KERNEL | MAPPING_PROVIDED | MAPPING_PERSISTENT;
             if (Source->MemoryResources[i].Flags & INTERRUPT_RESOURCE_DISABLE_CACHE) {
                 PageFlags |= MAPPING_NOCACHE;
             }
 
-            Status = CloneSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), GetCurrentSystemMemorySpace(),
+            Status = CloneMemorySpaceMapping(GetCurrentMemorySpace(), GetCurrentMemorySpace(),
                 Source->MemoryResources[i].Address, &UpdatedMapping, Length, PageFlags, __MASK);
             if (Status != OsSuccess) {
                 ERROR(" > failed to clone interrupt resource mapping");
@@ -269,10 +269,10 @@ InterruptResolveResources(
     TRACE("InterruptResolveResources()");
 
     // Calculate metrics we need to create the mappings
-    Offset      = ((uintptr_t)Source->Handler) % GetSystemMemoryPageSize();
-    Length      = GetSystemMemoryPageSize() + Offset;
+    Offset      = ((uintptr_t)Source->Handler) % GetMemorySpacePageSize();
+    Length      = GetMemorySpacePageSize() + Offset;
     PageFlags   = MAPPING_EXECUTABLE | MAPPING_READONLY | MAPPING_KERNEL;
-    Status      = CloneSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), GetCurrentSystemMemorySpace(),
+    Status      = CloneMemorySpaceMapping(GetCurrentMemorySpace(), GetCurrentMemorySpace(),
         (VirtualAddress_t)Source->Handler, &Virtual, Length, PageFlags, __MASK);
     if (Status != OsSuccess) {
         ERROR(" > failed to clone interrupt handler mapping");
@@ -315,9 +315,9 @@ InterruptReleaseResources(
     }
 
     // Unmap and release the fast-handler that we had mapped in.
-    Offset      = ((uintptr_t)Resources->Handler) % GetSystemMemoryPageSize();
-    Length      = GetSystemMemoryPageSize() + Offset;
-    Status      = RemoveSystemMemoryMapping(GetCurrentSystemMemorySpace(),
+    Offset      = ((uintptr_t)Resources->Handler) % GetMemorySpacePageSize();
+    Length      = GetMemorySpacePageSize() + Offset;
+    Status      = RemoveMemorySpaceMapping(GetCurrentMemorySpace(),
         (uintptr_t)Resources->Handler, Length);
     if (Status != OsSuccess) {
         ERROR(" > failed to cleanup interrupt handler mapping");

@@ -42,7 +42,7 @@ ScMemoryAllocate(
     _Out_ uintptr_t*    PhysicalAddress)
 {
     uintptr_t            AllocatedAddress;
-    SystemMemorySpace_t* Space = GetCurrentSystemMemorySpace();
+    SystemMemorySpace_t* Space = GetCurrentMemorySpace();
     if (Space->HeapSpace == NULL || Size == 0) {
         return OsError;
     }
@@ -77,7 +77,7 @@ ScMemoryAllocate(
         }
 
         // Do the actual mapping
-        if (CreateSystemMemorySpaceMapping(Space, PhysicalAddress, &AllocatedAddress, Size, 
+        if (CreateMemorySpaceMapping(Space, PhysicalAddress, &AllocatedAddress, Size, 
             ExtendedFlags, __MASK) != OsSuccess) {
             ReleaseBlockmapRegion(Space->HeapSpace, AllocatedAddress, Size);
             *VirtualAddress = 0;
@@ -105,7 +105,7 @@ ScMemoryFree(
     _In_ uintptr_t  Address, 
     _In_ size_t     Size)
 {
-    SystemMemorySpace_t* Space = GetCurrentSystemMemorySpace();
+    SystemMemorySpace_t* Space = GetCurrentMemorySpace();
     if (Space->HeapSpace == NULL || Address == 0 || Size == 0) {
         return OsError;
     }
@@ -116,7 +116,7 @@ ScMemoryFree(
         ERROR("ScMemoryFree(Address 0x%x, Size 0x%x) was invalid", Address, Size);
         return OsError;
     }
-    return RemoveSystemMemoryMapping(GetCurrentSystemMemorySpace(), Address, Size);
+    return RemoveMemorySpaceMapping(GetCurrentMemorySpace(), Address, Size);
 }
 
 /* ScMemoryQuery
@@ -127,7 +127,7 @@ ScMemoryQuery(
     _Out_ MemoryDescriptor_t* Descriptor)
 {
     Descriptor->AllocationGranularityBytes = GetMachine()->MemoryGranularity;
-    Descriptor->PageSizeBytes              = GetSystemMemoryPageSize();
+    Descriptor->PageSizeBytes              = GetMemorySpacePageSize();
     Descriptor->PagesTotal                 = GetMachine()->PhysicalMemory.BlockCount;
     Descriptor->PagesUsed                  = GetMachine()->PhysicalMemory.BlocksAllocated;
     return OsSuccess;
@@ -150,7 +150,7 @@ ScMemoryProtect(
 
     // We must force the application flag as it will remove
     // the user-accessibility if we allow it to change
-    return ChangeSystemMemorySpaceProtection(GetCurrentSystemMemorySpace(), 
+    return ChangeMemorySpaceProtection(GetCurrentMemorySpace(), 
         AddressStart, Length, Flags | MAPPING_USERSPACE, PreviousFlags);
 }
 
@@ -199,7 +199,7 @@ ScQueryBuffer(
 }
 
 OsStatus_t 
-ScCreateSystemMemorySpace(
+ScCreateMemorySpace(
     _In_  Flags_t Flags,
     _Out_ UUId_t* Handle)
 {
@@ -210,7 +210,7 @@ ScCreateSystemMemorySpace(
         }
         return OsError;
     }
-    return CreateSystemMemorySpace(Flags | MEMORY_SPACE_APPLICATION, Handle);
+    return CreateMemorySpace(Flags | MEMORY_SPACE_APPLICATION, Handle);
 }
 
 OsStatus_t 
@@ -235,7 +235,7 @@ ScGetThreadMemorySpaceHandle(
 }
 
 OsStatus_t 
-ScCreateSystemMemorySpaceMapping(
+ScCreateMemorySpaceMapping(
     _In_ UUId_t                          Handle,
     _In_ struct MemoryMappingParameters* Parameters,
     _In_ DmaBuffer_t*                    AccessBuffer)
@@ -259,7 +259,7 @@ ScCreateSystemMemorySpaceMapping(
         return Status;
     }
 
-    Status = CreateSystemMemorySpaceMapping(MemorySpace, &AccessBuffer->Dma, &Parameters->VirtualAddress,
+    Status = CreateMemorySpaceMapping(MemorySpace, &AccessBuffer->Dma, &Parameters->VirtualAddress,
         Parameters->Length, Parameters->Flags | RequiredFlags, __MASK);
     if (Status != OsSuccess) {
         ScMemoryFree(AccessBuffer->Address, AccessBuffer->Capacity);

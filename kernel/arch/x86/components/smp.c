@@ -56,7 +56,7 @@ SmpApplicationCoreEntry(void)
 	IdtInstall();
 
     // Switch into NUMA memory space if any, otherwise nothing happens
-    SwitchSystemMemorySpace(GetCurrentSystemMemorySpace());
+    SwitchMemorySpace(GetCurrentMemorySpace());
 	InitializeLocalApicForApplicationCore();
 
     // Install the TSS before any multitasking
@@ -107,6 +107,6 @@ CpuSmpInitialize(void)
 	uint32_t EntryCode      = (uint32_t)(uint32_t*)SmpApplicationCoreEntry;
 
     *(CodePointer - 1) = EntryCode;
-    *(CodePointer - 2) = GetCurrentSystemMemorySpace()->Data[MEMORY_SPACE_CR3];
+    *(CodePointer - 2) = GetCurrentMemorySpace()->Data[MEMORY_SPACE_CR3];
 	memcpy((void*)MEMORY_LOCATION_TRAMPOLINE_CODE, (char*)__GlbTramplineCode, __GlbTramplineCode_length);
 }

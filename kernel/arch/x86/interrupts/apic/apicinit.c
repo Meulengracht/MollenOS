@@ -149,8 +149,8 @@ ParseIoApic(
 
     // Relocate the io-apic
     Original = Controller->MemoryAddress;
-    CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(),
-        &Original, &Updated, GetSystemMemoryPageSize(), 
+    CreateMemorySpaceMapping(GetCurrentMemorySpace(),
+        &Original, &Updated, GetMemorySpacePageSize(), 
         MAPPING_NOCACHE | MAPPING_KERNEL | MAPPING_PERSISTENT | MAPPING_PROVIDED, __MASK);
     Controller->MemoryAddress = Updated + (Original & 0xFFF);
 
@@ -441,8 +441,8 @@ ApicInitialize(void)
 
     // Perform the remap
     TRACE(" > local apic at 0x%x", OriginalApAddress);
-    CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(),
-        &OriginalApAddress, &UpdatedApAddress, GetSystemMemoryPageSize(), 
+    CreateMemorySpaceMapping(GetCurrentMemorySpace(),
+        &OriginalApAddress, &UpdatedApAddress, GetMemorySpacePageSize(), 
         MAPPING_NOCACHE | MAPPING_KERNEL | MAPPING_PERSISTENT | MAPPING_PROVIDED, __MASK);
     GlbLocalApicBase    = UpdatedApAddress + (OriginalApAddress & 0xFFF);
     BspApicId           = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;

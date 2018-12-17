@@ -196,7 +196,7 @@ ThreadingImpersonate(
         Current->Flags |= THREADING_IMPERSONATION;
     }
     TssUpdateIo(Cpu, (uint8_t*)Thread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
-    SwitchSystemMemorySpace(Thread->MemorySpace);
+    SwitchMemorySpace(Thread->MemorySpace);
 }
 
 /* _GetNextRunnableThread
@@ -240,7 +240,7 @@ _GetNextRunnableThread(
     Thread->Data[THREAD_DATA_FLAGS] &= ~X86_THREAD_USEDFPU; // Clear the FPU used flag
 
     // Load thread-specific resources
-    SwitchSystemMemorySpace(Thread->MemorySpace);
+    SwitchMemorySpace(Thread->MemorySpace);
     TssUpdateThreadStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
     TssUpdateIo(Cpu, (uint8_t*)Thread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
     set_ts(); // Set task switch bit so we get faults on fpu instructions

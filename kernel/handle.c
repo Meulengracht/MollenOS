@@ -41,7 +41,7 @@ static _Atomic(UUId_t)      IdGenerator                         = 1;
 static HandleDestructorFn   HandleDestructors[HandleTypeCount]  = {
     NULL,                      // Generic - Ignore
     DestroyMemoryBuffer,
-    DestroySystemMemorySpace,
+    DestroyMemorySpace,
     DestroySystemPipe
 };
 

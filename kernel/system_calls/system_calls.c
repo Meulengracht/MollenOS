@@ -182,12 +182,12 @@ ScCreateDisplayFramebuffer(void)
     // @todo security
 
     // Allocate the neccessary size
-    FbVirtual = AllocateBlocksInBlockmap(GetCurrentSystemMemorySpace()->HeapSpace, __MASK, FbSize);
+    FbVirtual = AllocateBlocksInBlockmap(GetCurrentMemorySpace()->HeapSpace, __MASK, FbSize);
     if (FbVirtual == 0) {
         return NULL;
     }
 
-    if (CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), &FbPhysical, &FbVirtual,
+    if (CreateMemorySpaceMapping(GetCurrentMemorySpace(), &FbPhysical, &FbVirtual,
         FbSize, MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_FIXED | MAPPING_PROVIDED | MAPPING_PERSISTENT, __MASK) != OsSuccess) {
         // What? @todo
         ERROR("Failed to map the display buffer");

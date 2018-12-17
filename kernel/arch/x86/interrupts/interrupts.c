@@ -549,7 +549,7 @@ ExceptionEntry(
             // Bit 2 - write access
             // Bit 4 - user/kernel
             WRITELINE("page-fault address: 0x%x, error-code 0x%x", Address, Registers->ErrorCode);
-            WRITELINE("existing mapping for address: 0x%x", GetSystemMemoryMapping(GetCurrentSystemMemorySpace(), Address));
+            WRITELINE("existing mapping for address: 0x%x", GetMemorySpaceMapping(GetCurrentMemorySpace(), Address));
         }
 
         // Locate which module

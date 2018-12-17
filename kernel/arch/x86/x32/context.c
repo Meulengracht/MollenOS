@@ -86,7 +86,7 @@ ContextCreate(
         }
 
         // Map in the context
-        CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &ContextAddress,
+        CreateMemorySpaceMapping(GetCurrentMemorySpace(), NULL, &ContextAddress,
             PAGE_SIZE, MAPPING_USERSPACE | MAPPING_FIXED, __MASK);
     }
     else {

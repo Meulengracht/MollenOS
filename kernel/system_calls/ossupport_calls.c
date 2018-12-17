@@ -36,7 +36,7 @@ ScCreateMemoryHandler(
     _Out_ UUId_t*    HandleOut,
     _Out_ uintptr_t* AddressBaseOut)
 {
-    SystemMemorySpace_t* Space = GetCurrentSystemMemorySpace();
+    SystemMemorySpace_t* Space = GetCurrentMemorySpace();
     if (Space->HeapSpace != NULL) {
         SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)kmalloc(sizeof(SystemMemoryMappingHandler_t));
         Handler->Handle  = CreateHandle(HandleGeneric, 0, Handler);
@@ -52,7 +52,7 @@ ScDestroyMemoryHandler(
     _In_ UUId_t Handle)
 {
     SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)LookupHandle(Handle);
-    SystemMemorySpace_t*          Space   = GetCurrentSystemMemorySpace();
+    SystemMemorySpace_t*          Space   = GetCurrentMemorySpace();
     if (Space->MemoryHandlers != NULL && Handler != NULL) {
         CollectionRemoveByNode(Space->MemoryHandlers, &Handler->Header);
         ReleaseBlockmapRegion(Space->HeapSpace, Handler->Address, Handler->Length);
@@ -67,7 +67,7 @@ OsStatus_t
 ScInstallSignalHandler(
     _In_ uintptr_t Handler) 
 {
-    SystemMemorySpace_t* Space = GetCurrentSystemMemorySpace();
+    SystemMemorySpace_t* Space = GetCurrentMemorySpace();
     Space->SignalHandler = Handler;
     return OsSuccess;
 }

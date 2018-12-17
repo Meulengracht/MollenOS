@@ -66,81 +66,83 @@ typedef struct _SystemMemoryMappingHandler {
     size_t           Length;
 } SystemMemoryMappingHandler_t;
 
+typedef struct _SystemMemorySpaceContext {
+    Collection_t*  MemoryHandlers;
+    BlockBitmap_t* HeapSpace;
+    uintptr_t      SignalHandler;
+} SystemMemorySpaceContext_t;
+
 typedef struct _SystemMemorySpace {
+    UUId_t                      ParentHandle;
     Flags_t                     Flags;
     uintptr_t                   Data[MEMORY_DATACOUNT];
-    struct _SystemMemorySpace*  Parent;
-    UUId_t                      ParentHandle;
-
-    Collection_t*               MemoryHandlers;
-    BlockBitmap_t*              HeapSpace;
-    uintptr_t                   SignalHandler;
+    SystemMemorySpaceContext_t* Context;
 } SystemMemorySpace_t;
 
-/* InitializeSystemMemorySpace
+/* InitializeMemorySpace
  * Initializes the system memory space. This initializes a static version of the
  * system memory space which is the default space the cpu should use for kernel operation. */
 KERNELAPI OsStatus_t KERNELABI
-InitializeSystemMemorySpace(
+InitializeMemorySpace(
     _In_ SystemMemorySpace_t* SystemMemorySpace);
 
-/* CreateSystemMemorySpace
+/* CreateMemorySpace
  * Initialize a new memory space, depending on what user is requesting we 
  * might recycle a already existing address space */
 KERNELAPI OsStatus_t KERNELABI
-CreateSystemMemorySpace(
+CreateMemorySpace(
     _In_  Flags_t Flags,
     _Out_ UUId_t* Handle);
 
-/* DestroySystemMemorySpace
+/* DestroyMemorySpace
  * Callback invoked by the handle system when references on a process reaches zero */
 KERNELAPI OsStatus_t KERNELABI
-DestroySystemMemorySpace(
+DestroyMemorySpace(
     _In_ void* Resource);
 
-/* SwitchSystemMemorySpace
+/* SwitchMemorySpace
  * Switches the current address space out with the the address space provided 
  * for the current cpu */
 KERNELAPI OsStatus_t KERNELABI
-SwitchSystemMemorySpace(
+SwitchMemorySpace(
     _In_ SystemMemorySpace_t* SystemMemorySpace);
 
-/* GetCurrentSystemMemorySpace
+/* GetCurrentMemorySpace
  * Returns the current address space if there is no active threads or threading
  * is not setup it returns the kernel address space */
 KERNELAPI SystemMemorySpace_t* KERNELABI
-GetCurrentSystemMemorySpace(void);
+GetCurrentMemorySpace(void);
 
-/* GetDomainSystemMemorySpace
+/* GetDomainMemorySpace
  * Retrieves the system's current copy of its memory space. If domains are active it will
  * be for the current domain, if system is uma-mode it's the machine wide. */
 KERNELAPI SystemMemorySpace_t* KERNELABI
-GetDomainSystemMemorySpace(void);
+GetDomainMemorySpace(void);
 
-/* GetCurrentSystemMemorySpaceHandle
+/* GetCurrentMemorySpaceHandle
  * Returns the current address space if there is no active threads or threading
  * is not setup it returns the kernel address space */
 KERNELAPI UUId_t KERNELABI
-GetCurrentSystemMemorySpaceHandle(void);
+GetCurrentMemorySpaceHandle(void);
 
-/* ChangeSystemMemorySpaceProtection
+/* ChangeMemorySpaceProtection
  * Changes the protection parameters for the given memory region.
  * The region must already be mapped and the size will be rounded up
  * to a multiple of the page-size. */
 KERNELAPI OsStatus_t KERNELABI
-ChangeSystemMemorySpaceProtection(
+ChangeMemorySpaceProtection(
     _In_        SystemMemorySpace_t* SystemMemorySpace,
     _InOut_Opt_ VirtualAddress_t     VirtualAddress, 
     _In_        size_t               Size, 
     _In_        Flags_t              Flags,
     _Out_       Flags_t*             PreviousFlags);
 
-/* CreateSystemMemorySpaceMapping
+/* CreateMemorySpaceMapping
  * Maps the given virtual address into the given address space
  * uses the given physical pages instead of automatic allocation
  * It returns the start address of the allocated physical region */
 KERNELAPI OsStatus_t KERNELABI
-CreateSystemMemorySpaceMapping(
+CreateMemorySpaceMapping(
     _In_        SystemMemorySpace_t* SystemMemorySpace,
     _InOut_Opt_ PhysicalAddress_t*   PhysicalAddress, 
     _InOut_Opt_ VirtualAddress_t*    VirtualAddress,
@@ -148,11 +150,11 @@ CreateSystemMemorySpaceMapping(
     _In_        Flags_t              Flags,
     _In_        uintptr_t            Mask);
 
-/* CloneSystemMemorySpaceMapping
+/* CloneMemorySpaceMapping
  * Clones a region of memory mappings into the address space provided. The new mapping
  * will automatically be marked PERSISTANT and PROVIDED. */
 KERNELAPI OsStatus_t KERNELABI
-CloneSystemMemorySpaceMapping(
+CloneMemorySpaceMapping(
     _In_        SystemMemorySpace_t* SourceSpace,
     _In_        SystemMemorySpace_t* DestinationSpace,
     _In_        VirtualAddress_t     SourceAddress,
@@ -161,41 +163,41 @@ CloneSystemMemorySpaceMapping(
     _In_        Flags_t              Flags,
     _In_        uintptr_t            Mask);
 
-/* RemoveSystemMemoryMapping
+/* RemoveMemorySpaceMapping
  * Unmaps a virtual memory region from an address space */
 KERNELAPI OsStatus_t KERNELABI
-RemoveSystemMemoryMapping(
+RemoveMemorySpaceMapping(
     _In_ SystemMemorySpace_t* SystemMemorySpace, 
     _In_ VirtualAddress_t     Address, 
     _In_ size_t               Size);
 
-/* GetSystemMemoryMapping
+/* GetMemorySpaceMapping
  * Retrieves a physical mapping from an address space determined
  * by the virtual address given */
 KERNELAPI PhysicalAddress_t KERNELABI
-GetSystemMemoryMapping(
+GetMemorySpaceMapping(
     _In_ SystemMemorySpace_t*   SystemMemorySpace, 
     _In_ VirtualAddress_t       VirtualAddress);
 
-/* IsSystemMemoryPageDirty
+/* IsMemorySpacePageDirty
  * Checks if the given virtual address is dirty (has been written data to). 
  * Returns OsSuccess if the address is dirty. */
 KERNELAPI OsStatus_t KERNELABI
-IsSystemMemoryPageDirty(
+IsMemorySpacePageDirty(
     _In_ SystemMemorySpace_t*   SystemMemorySpace,
     _In_ VirtualAddress_t       Address);
 
-/* IsSystemMemoryPresent
+/* IsMemorySpacePagePresent
  * Checks if the given virtual address is present. Returns success if the page
  * at the address has a mapping. */
 KERNELAPI OsStatus_t KERNELABI
-IsSystemMemoryPresent(
+IsMemorySpacePagePresent(
     _In_ SystemMemorySpace_t*   SystemMemorySpace,
     _In_ VirtualAddress_t       Address);
 
-/* GetSystemMemoryPageSize
+/* GetMemorySpacePageSize
  * Retrieves the memory page-size used by the underlying architecture. */
 KERNELAPI size_t KERNELABI
-GetSystemMemoryPageSize(void);
+GetMemorySpacePageSize(void);
 
 #endif //!__MEMORY_SPACE_INTERFACE__

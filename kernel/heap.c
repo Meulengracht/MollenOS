@@ -84,10 +84,10 @@ HeapAllocateInternal(
     // a physical memory page-boundary
     ReturnAddress       = atomic_fetch_add(&Heap->HeaderCurrent, Length);
     ReturnAddressEnd    = ReturnAddress + Length;
-    Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &ReturnAddress,
-        GetSystemMemoryPageSize(), MapFlags, __MASK);
-    Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &ReturnAddressEnd,
-        GetSystemMemoryPageSize(), MapFlags, __MASK);
+    Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), NULL, &ReturnAddress,
+        GetMemorySpacePageSize(), MapFlags, __MASK);
+    Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), NULL, &ReturnAddressEnd,
+        GetMemorySpacePageSize(), MapFlags, __MASK);
     return (uintptr_t*)ReturnAddress;
 }
 
@@ -464,14 +464,14 @@ HeapAllocate(
     // we want to use our normal blocks for smaller allocations 
     // and the page-aligned for larger ones 
     if (ALLOCISNORMAL(Flags) && Length >= HEAP_NORMAL_BLOCK) {
-        AdjustedSize = ALIGN(Length, GetSystemMemoryPageSize(), 1);
+        AdjustedSize = ALIGN(Length, GetMemorySpacePageSize(), 1);
         Flags |= ALLOCATION_PAGEALIGN;
     }
     if (ALLOCISNOTBIG(Flags) && AdjustedSize >= HEAP_LARGE_BLOCK) {
         Flags |= ALLOCATION_BIG;
     }
-    if (ALLOCISPAGE(Flags) && !ISALIGNED(AdjustedSize, GetSystemMemoryPageSize())) {
-        AdjustedSize = ALIGN(AdjustedSize, GetSystemMemoryPageSize(), 1);
+    if (ALLOCISPAGE(Flags) && !ISALIGNED(AdjustedSize, GetMemorySpacePageSize())) {
+        AdjustedSize = ALIGN(AdjustedSize, GetMemorySpacePageSize(), 1);
     }
 
     // Select the proper child list
@@ -514,7 +514,7 @@ HeapAllocate(
     // If return value is not 0 it means our allocation was made!
     if (RetVal != 0) {
         if (Flags & ALLOCATION_COMMIT) {
-            CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &RetVal, 
+            CreateMemorySpaceMapping(GetCurrentMemorySpace(), NULL, &RetVal, 
                 AdjustedSize, MAPPING_FIXED, Mask);
         }
         if (Flags & ALLOCATION_ZERO) {
@@ -879,14 +879,14 @@ kmalloc_base(
     }
 
     // Check alignment
-    if ((Flags & ALLOCATION_PAGEALIGN) && (ReturnAddress % GetSystemMemoryPageSize()) != 0) {
+    if ((Flags & ALLOCATION_PAGEALIGN) && (ReturnAddress % GetMemorySpacePageSize()) != 0) {
         FATAL(FATAL_SCOPE_KERNEL, "Allocation result 0x%x (alignment failed)", ReturnAddress);
         return NULL;
     } 
 
     // Lookup physical
     if (PhysicalAddress != NULL) {
-        *PhysicalAddress = GetSystemMemoryMapping(GetCurrentSystemMemorySpace(), ReturnAddress);
+        *PhysicalAddress = GetMemorySpaceMapping(GetCurrentMemorySpace(), ReturnAddress);
     }
     return (void*)ReturnAddress;
 }

@@ -47,7 +47,7 @@ CreateMemoryBuffer(
     size_t Capacity;
     UUId_t Handle;
 
-    Capacity = DIVUP(Size, GetSystemMemoryPageSize()) * GetSystemMemoryPageSize();
+    Capacity = DIVUP(Size, GetMemorySpacePageSize()) * GetMemorySpacePageSize();
     switch (MEMORY_BUFFER_TYPE(Flags)) {
         case MEMORY_BUFFER_KERNEL: {
             DmaAddress = AllocateSystemMemory(Capacity, __MASK, MEMORY_DOMAIN);
@@ -56,7 +56,7 @@ CreateMemoryBuffer(
                 return OsError;
             }
 
-            Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), &DmaAddress, 
+            Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), &DmaAddress, 
                 &Virtual, Capacity, MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_KERNEL, __MASK);
             if (Status != OsSuccess) {
                 ERROR("Failed to map system memory");
@@ -75,7 +75,7 @@ CreateMemoryBuffer(
                 return OsError;
             }
 
-            Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), &DmaAddress, 
+            Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), &DmaAddress, 
                 &Virtual, Capacity, MAPPING_USERSPACE | MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_PROCESS, __MASK);
             if (Status != OsSuccess) {
                 ERROR("Failed to map system memory");
@@ -85,7 +85,7 @@ CreateMemoryBuffer(
         } break;
 
         case MEMORY_BUFFER_FILEMAPPING: {
-            Virtual = AllocateBlocksInBlockmap(GetCurrentSystemMemorySpace()->HeapSpace, __MASK, Size);
+            Virtual = AllocateBlocksInBlockmap(GetCurrentMemorySpace()->HeapSpace, __MASK, Size);
             if (Virtual == 0) {
                 ERROR("Failed to allocate heap memory");
                 return OsError;
@@ -135,7 +135,7 @@ AcquireMemoryBuffer(
     }
 
     // Map it in to make sure we can do it
-    Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), &SystemBuffer->Physical, 
+    Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), &SystemBuffer->Physical, 
         &Virtual, SystemBuffer->Capacity, MAPPING_USERSPACE | 
         MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_PROCESS, __MASK);
     if (Status != OsSuccess) {

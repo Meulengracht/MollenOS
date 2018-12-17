@@ -230,21 +230,21 @@ DebugStackTrace(
     // Derive stack pointer from the argument
     uintptr_t* StackPtr;
     uintptr_t  StackLmt;
-    uintptr_t  PageMask = ~(GetSystemMemoryPageSize() - 1);
+    uintptr_t  PageMask = ~(GetMemorySpacePageSize() - 1);
     size_t     Itr      = MaxFrames;
 
     // Use local or given?
     if (Context == NULL) {
         StackPtr = (uintptr_t*)&MaxFrames;
-        StackLmt = ((uintptr_t)StackPtr & PageMask) + GetSystemMemoryPageSize();
+        StackLmt = ((uintptr_t)StackPtr & PageMask) + GetMemorySpacePageSize();
     }
     else if (CONTEXT_USERSP(Context) != 0) {
         StackPtr = (uintptr_t*)CONTEXT_USERSP(Context);
-        StackLmt = (CONTEXT_USERSP(Context) & PageMask) + GetSystemMemoryPageSize();
+        StackLmt = (CONTEXT_USERSP(Context) & PageMask) + GetMemorySpacePageSize();
     }
     else {
         StackPtr = (uintptr_t*)CONTEXT_SP(Context);
-        StackLmt = (CONTEXT_SP(Context) & PageMask) + GetSystemMemoryPageSize();
+        StackLmt = (CONTEXT_SP(Context) & PageMask) + GetMemorySpacePageSize();
     }
 
     while (Itr && (uintptr_t)StackPtr < StackLmt) {
@@ -336,7 +336,7 @@ DebugPageMemorySpaceHandlers(
     _In_ Context_t* Context,
     _In_ uintptr_t  Address)
 {
-    SystemMemorySpace_t* Space  = GetCurrentSystemMemorySpace();
+    SystemMemorySpace_t* Space  = GetCurrentMemorySpace();
     OsStatus_t           Status = OsError;
 
     foreach(Node, Space->MemoryHandlers) {
@@ -357,7 +357,7 @@ DebugPageFaultProcessHeapMemory(
     _In_ Context_t* Context,
     _In_ uintptr_t  Address)
 {
-    SystemMemorySpace_t* Space     = GetCurrentSystemMemorySpace();
+    SystemMemorySpace_t* Space     = GetCurrentMemorySpace();
     Flags_t              PageFlags = MAPPING_USERSPACE | MAPPING_FIXED;
 
     if (Space->HeapSpace != NULL) {
@@ -370,10 +370,10 @@ DebugPageFaultProcessHeapMemory(
         if (BlockBitmapValidateState(Space->HeapSpace, Address, 1) == OsSuccess) {
             uintptr_t ExistingPhysical = ValidateDeviceIoMemoryAddress(Address);
             if (ExistingPhysical != 0) {
-                return CreateSystemMemorySpaceMapping(Space, &ExistingPhysical, &Address, 
-                    GetSystemMemoryPageSize(), PageFlags | MAPPING_NOCACHE | MAPPING_PROVIDED, __MASK);
+                return CreateMemorySpaceMapping(Space, &ExistingPhysical, &Address, 
+                    GetMemorySpacePageSize(), PageFlags | MAPPING_NOCACHE | MAPPING_PROVIDED, __MASK);
             }
-            return CreateSystemMemorySpaceMapping(Space, NULL, &Address, GetSystemMemoryPageSize(), PageFlags, __MASK);
+            return CreateMemorySpaceMapping(Space, NULL, &Address, GetMemorySpacePageSize(), PageFlags, __MASK);
         }
     }
     return OsSuccess;
@@ -387,8 +387,8 @@ DebugPageFaultKernelHeapMemory(
     _In_ uintptr_t  Address)
 {
     if (HeapValidateAddress(HeapGetKernel(), Address) == OsSuccess) {
-        return CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &Address, 
-            GetSystemMemoryPageSize(), MAPPING_FIXED, __MASK);
+        return CreateMemorySpaceMapping(GetCurrentMemorySpace(), NULL, &Address, 
+            GetMemorySpacePageSize(), MAPPING_FIXED, __MASK);
     }
     return OsError;
 }
@@ -400,8 +400,8 @@ DebugPageFaultThreadMemory(
     _In_ Context_t* Context,
     _In_ uintptr_t  Address)
 {
-    return CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &Address, 
-                GetSystemMemoryPageSize(), MAPPING_USERSPACE | MAPPING_FIXED, __MASK);
+    return CreateMemorySpaceMapping(GetCurrentMemorySpace(), NULL, &Address, 
+                GetMemorySpacePageSize(), MAPPING_USERSPACE | MAPPING_FIXED, __MASK);
 }
 
 /* DebugInstallPageFaultHandlers

@@ -163,14 +163,15 @@ MmVirtualGetMasterTable(
 
     // If there is no parent then we ignore it as we don't have to synchronize with kernel directory.
     // We always have the shared page-tables mapped. The address must be below the thread-specific space
-    if (MemorySpace->Parent != NULL) {
+    if (MemorySpace->ParentHandle != UUID_INVALID) {
         if (Address < MEMORY_LOCATION_RING3_THREAD_START) {
-            Parent = (PageMasterTable_t*)MemorySpace->Parent->Data[MEMORY_SPACE_DIRECTORY];
+            SystemMemorySpace_t* MemorySpaceParent = (SystemMemorySpace_t*)LookupHandle(SystemMemorySpace->ParentHandle);
+            Parent = (PageMasterTable_t*)MemorySpaceParent->Parent->Data[MEMORY_SPACE_DIRECTORY];
         }
     }
 
     // Update the provided pointers
-    *IsCurrent          = (MemorySpace == GetCurrentSystemMemorySpace()) ? 1 : 0;
+    *IsCurrent          = (MemorySpace == GetCurrentMemorySpace()) ? 1 : 0;
     *ParentDirectory    = Parent;
     return Directory;
 }
@@ -327,7 +328,7 @@ CloneVirtualSpace(
     PageDirectoryTable_t *SystemDirectoryTable  = NULL;
     PageDirectoryTable_t *DirectoryTable        = NULL;
     PageDirectory_t *Directory                  = NULL;
-    PageMasterTable_t *SystemMasterTable = (PageMasterTable_t*)GetDomainSystemMemorySpace()->Data[MEMORY_SPACE_DIRECTORY];
+    PageMasterTable_t *SystemMasterTable = (PageMasterTable_t*)GetDomainMemorySpace()->Data[MEMORY_SPACE_DIRECTORY];
     PageMasterTable_t *ParentMasterTable = NULL;
     PageMasterTable_t *PageMasterTable;
     uintptr_t PhysicalAddress;
@@ -511,7 +512,7 @@ DestroyVirtualSpace(
     kfree(Current);
 
     // Free the resources allocated specifically for this
-    if (SystemMemorySpace->Parent == NULL) {
+    if (SystemMemorySpace->ParentHandle == UUID_INVALID) {
         kfree((void*)SystemMemorySpace->Data[MEMORY_SPACE_IOMAP]);
     }
     return OsSuccess;

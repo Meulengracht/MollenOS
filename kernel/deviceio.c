@@ -118,10 +118,10 @@ AcquireSystemDeviceIo(
         case DeviceIoMemoryBased: {
             uintptr_t BaseAddress   = SystemIo->Io.Access.Memory.PhysicalBase;
             uintptr_t MappedAddress;
-            size_t PageSize         = GetSystemMemoryPageSize();
+            size_t PageSize         = GetMemorySpacePageSize();
             size_t Length           = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
 
-            MappedAddress = AllocateBlocksInBlockmap(GetCurrentSystemMemorySpace()->HeapSpace, __MASK, Length);
+            MappedAddress = AllocateBlocksInBlockmap(GetCurrentMemorySpace()->HeapSpace, __MASK, Length);
             if (MappedAddress == 0) {
                 ERROR(" > failed to allocate heap memory for mapping");
                 break;
@@ -136,7 +136,7 @@ AcquireSystemDeviceIo(
 
         case DeviceIoPortBased: {
             for (size_t i = 0; i < SystemIo->Io.Access.Port.Length; i++) {
-                SetDirectIoAccess(CoreId, GetCurrentSystemMemorySpace(), ((uint16_t)(SystemIo->Io.Access.Port.Base + i)), 1);
+                SetDirectIoAccess(CoreId, GetCurrentMemorySpace(), ((uint16_t)(SystemIo->Io.Access.Port.Base + i)), 1);
             }
             return OsSuccess;
         } break;
@@ -182,15 +182,15 @@ ReleaseSystemDeviceIo(
     switch (SystemIo->Io.Type) {
         case DeviceIoMemoryBased: {
             uintptr_t BaseAddress   = SystemIo->Io.Access.Memory.PhysicalBase;
-            size_t PageSize         = GetSystemMemoryPageSize();
+            size_t PageSize         = GetMemorySpacePageSize();
             size_t Length           = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
-            ReleaseBlockmapRegion(GetCurrentSystemMemorySpace()->HeapSpace, SystemIo->MappedAddress, Length);
-            RemoveSystemMemoryMapping(GetCurrentSystemMemorySpace(), SystemIo->MappedAddress, Length);
+            ReleaseBlockmapRegion(GetCurrentMemorySpace()->HeapSpace, SystemIo->MappedAddress, Length);
+            RemoveMemorySpaceMapping(GetCurrentMemorySpace(), SystemIo->MappedAddress, Length);
         } break;
 
         case DeviceIoPortBased: {
             for (size_t i = 0; i < SystemIo->Io.Access.Port.Length; i++) {
-                SetDirectIoAccess(CoreId, GetCurrentSystemMemorySpace(), ((uint16_t)(SystemIo->Io.Access.Port.Base + i)), 0);
+                SetDirectIoAccess(CoreId, GetCurrentMemorySpace(), ((uint16_t)(SystemIo->Io.Access.Port.Base + i)), 0);
             }
         } break;
 
@@ -224,9 +224,9 @@ CreateKernelSystemDeviceIo(
     switch (SystemIo->Io.Type) {
         case DeviceIoMemoryBased: {
             uintptr_t BaseAddress   = SystemIo->Io.Access.Memory.PhysicalBase;
-            size_t PageSize         = GetSystemMemoryPageSize();
+            size_t PageSize         = GetMemorySpacePageSize();
             size_t Length           = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
-            OsStatus_t Status       = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(),
+            OsStatus_t Status       = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
                 &BaseAddress, &SystemIo->Io.Access.Memory.VirtualBase, Length, 
                 MAPPING_NOCACHE | MAPPING_PROVIDED | MAPPING_KERNEL | MAPPING_PERSISTENT, __MASK);
             if (Status != OsSuccess) {
@@ -261,9 +261,9 @@ ReleaseKernelSystemDeviceIo(
     switch (SystemIo->Io.Type) {
         case DeviceIoMemoryBased: {
             uintptr_t BaseAddress   = SystemIo->Io.Access.Memory.PhysicalBase;
-            size_t PageSize         = GetSystemMemoryPageSize();
+            size_t PageSize         = GetMemorySpacePageSize();
             size_t Length           = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
-            RemoveSystemMemoryMapping(GetCurrentSystemMemorySpace(), SystemIo->Io.Access.Memory.VirtualBase, Length);
+            RemoveMemorySpaceMapping(GetCurrentMemorySpace(), SystemIo->Io.Access.Memory.VirtualBase, Length);
             SystemIo->Io.Access.Memory.VirtualBase = 0;
         } break;
 

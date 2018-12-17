@@ -200,7 +200,7 @@ PageSynchronizationHandler(
     _In_ void*                      Context)
 {
     // Variables
-    SystemMemorySpace_t *Current = GetCurrentSystemMemorySpace();
+    SystemMemorySpace_t *Current = GetCurrentMemorySpace();
     _CRT_UNUSED(NotUsed);
     _CRT_UNUSED(Context);
 
@@ -245,11 +245,11 @@ SynchronizePageRegion(
         SyncData.ParentPagingData = NULL; // Everyone must update
     }
     else {
-        if (SystemMemorySpace->Parent == NULL) {
+        if (SystemMemorySpace->ParentHandle == UUID_INVALID) {
             SyncData.ParentPagingData = SystemMemorySpace; // Children of us must update
         }
         else {
-            SyncData.ParentPagingData = SystemMemorySpace->Parent; // Parent and siblings!
+            SyncData.ParentPagingData = LookupHandle(SystemMemorySpace->ParentHandle); // Parent and siblings!
         }
     }
     SyncData.Address            = Address;

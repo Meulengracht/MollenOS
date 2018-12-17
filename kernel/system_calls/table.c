@@ -64,9 +64,9 @@ OsStatus_t ScGetWorkingDirectory(char* PathBuffer, size_t MaxLength);
 OsStatus_t ScSetWorkingDirectory(const char* Path);
 OsStatus_t ScGetAssemblyDirectory(char* PathBuffer, size_t MaxLength);
 
-OsStatus_t ScCreateSystemMemorySpace(Flags_t Flags, UUId_t* Handle);
+OsStatus_t ScCreateMemorySpace(Flags_t Flags, UUId_t* Handle);
 OsStatus_t ScGetThreadMemorySpaceHandle(UUId_t ThreadHandle, UUId_t* Handle);
-OsStatus_t ScCreateSystemMemorySpaceMapping(UUId_t Handle, struct MemoryMappingParameters* Parameters, DmaBuffer_t* AccessBuffer);
+OsStatus_t ScCreateMemorySpaceMapping(UUId_t Handle, struct MemoryMappingParameters* Parameters, DmaBuffer_t* AccessBuffer);
 
 // Driver system calls
 OsStatus_t ScAcpiQueryStatus(AcpiDescriptor_t* AcpiDescriptor);
@@ -132,7 +132,7 @@ OsStatus_t ScQueryBuffer(UUId_t Handle, uintptr_t* Dma, size_t* Capacity);
 // Support system calls
 OsStatus_t ScDestroyHandle(UUId_t Handle);
 OsStatus_t ScInstallSignalHandler(uintptr_t Handler);
-OsStatus_t ScRaiseSignal(UUId_t ProcessHandle, int Signal);
+OsStatus_t ScRaiseSignal(UUId_t ThreadHandle, int Signal);
 OsStatus_t ScCreateMemoryHandler(Flags_t Flags, size_t Length, UUId_t* HandleOut, uintptr_t* AddressBaseOut);
 OsStatus_t ScDestroyMemoryHandler(UUId_t Handle);
 OsStatus_t NoOperation(void) { return OsSuccess; }
@@ -171,9 +171,9 @@ uintptr_t GlbSyscallTable[79] = {
     DefineSyscall(20, ScSetWorkingDirectory),
     DefineSyscall(21, ScGetAssemblyDirectory),
 
-    DefineSyscall(22, ScCreateSystemMemorySpace),
+    DefineSyscall(22, ScCreateMemorySpace),
     DefineSyscall(23, ScGetThreadMemorySpaceHandle),
-    DefineSyscall(24, ScCreateSystemMemorySpaceMapping),
+    DefineSyscall(24, ScCreateMemorySpaceMapping),
 
     // Driver system calls
     DefineSyscall(25, ScAcpiQueryStatus),

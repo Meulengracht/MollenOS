@@ -74,8 +74,8 @@ ThreadingEnable(void)
     COLLECTION_NODE_INIT(&Thread->CollectionHeader, Key);
 
     // Initialize arch-dependant members
-    Thread->MemorySpace       = GetCurrentSystemMemorySpace();
-    Thread->MemorySpaceHandle = GetCurrentSystemMemorySpaceHandle();
+    Thread->MemorySpace       = GetCurrentMemorySpace();
+    Thread->MemorySpaceHandle = GetCurrentMemorySpaceHandle();
     if (ThreadingRegister(Thread) != OsSuccess) {
         ERROR("Failed to register thread with system. Threading is not enabled.");
         CpuHalt();
@@ -199,7 +199,7 @@ CreateThread(
             }
         }
         
-        if (CreateSystemMemorySpace(MemorySpaceFlags, &Thread->MemorySpaceHandle) != OsSuccess) {
+        if (CreateMemorySpace(MemorySpaceFlags, &Thread->MemorySpaceHandle) != OsSuccess) {
             ERROR("Failed to create memory space for thread");
             return OsError;
         }
