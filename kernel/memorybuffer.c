@@ -40,12 +40,13 @@ CreateMemoryBuffer(
     _In_  size_t        Size,
     _Out_ DmaBuffer_t*  MemoryBuffer)
 {
-    SystemMemoryBuffer_t *SystemBuffer;
-    OsStatus_t Status       = OsSuccess;
-    uintptr_t DmaAddress    = 0;
-    uintptr_t Virtual       = 0;
-    size_t Capacity;
-    UUId_t Handle;
+    SystemMemoryBuffer_t* SystemBuffer;
+    SystemMemorySpace_t*  Space      = GetCurrentMemorySpace();
+    OsStatus_t            Status     = OsSuccess;
+    uintptr_t             DmaAddress = 0;
+    uintptr_t             Virtual    = 0;
+    size_t                Capacity;
+    UUId_t                Handle;
 
     Capacity = DIVUP(Size, GetMemorySpacePageSize()) * GetMemorySpacePageSize();
     switch (MEMORY_BUFFER_TYPE(Flags)) {
@@ -56,7 +57,7 @@ CreateMemoryBuffer(
                 return OsError;
             }
 
-            Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), &DmaAddress, 
+            Status = CreateMemorySpaceMapping(Space, &DmaAddress, 
                 &Virtual, Capacity, MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_KERNEL, __MASK);
             if (Status != OsSuccess) {
                 ERROR("Failed to map system memory");
@@ -75,20 +76,12 @@ CreateMemoryBuffer(
                 return OsError;
             }
 
-            Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), &DmaAddress, 
+            Status = CreateMemorySpaceMapping(Space, &DmaAddress, 
                 &Virtual, Capacity, MAPPING_USERSPACE | MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_PROCESS, __MASK);
             if (Status != OsSuccess) {
                 ERROR("Failed to map system memory");
                 FreeSystemMemory(DmaAddress, Capacity);
                 return Status;
-            }
-        } break;
-
-        case MEMORY_BUFFER_FILEMAPPING: {
-            Virtual = AllocateBlocksInBlockmap(GetCurrentMemorySpace()->HeapSpace, __MASK, Size);
-            if (Virtual == 0) {
-                ERROR("Failed to allocate heap memory");
-                return OsError;
             }
         } break;
 

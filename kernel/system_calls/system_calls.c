@@ -176,18 +176,20 @@ ScQueryDisplayInformation(
 void*
 ScCreateDisplayFramebuffer(void)
 {
-    uintptr_t FbPhysical = VideoGetTerminal()->FrameBufferAddressPhysical;
-    uintptr_t FbVirtual  = 0;
-    size_t FbSize        = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
+    SystemMemorySpace_t* Space      = GetCurrentMemorySpace();
+    uintptr_t            FbPhysical = VideoGetTerminal()->FrameBufferAddressPhysical;
+    uintptr_t            FbVirtual  = 0;
+    size_t               FbSize     = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
     // @todo security
+    assert(Space->Context != NULL);
 
     // Allocate the neccessary size
-    FbVirtual = AllocateBlocksInBlockmap(GetCurrentMemorySpace()->HeapSpace, __MASK, FbSize);
+    FbVirtual = AllocateBlocksInBlockmap(Space->Context->HeapSpace, __MASK, FbSize);
     if (FbVirtual == 0) {
         return NULL;
     }
 
-    if (CreateMemorySpaceMapping(GetCurrentMemorySpace(), &FbPhysical, &FbVirtual,
+    if (CreateMemorySpaceMapping(Space, &FbPhysical, &FbVirtual,
         FbSize, MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_FIXED | MAPPING_PROVIDED | MAPPING_PERSISTENT, __MASK) != OsSuccess) {
         // What? @todo
         ERROR("Failed to map the display buffer");

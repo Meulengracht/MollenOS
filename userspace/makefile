@@ -26,10 +26,11 @@ copy_headers:
 	@mkdir -p include/sys
 	@mkdir -p include/cxx
 	@cp ../librt/include/*.h include/
-	@cp ../librt/include/$(VALI_ARCH)/*.h include/
-	@cp ../librt/include/sys/*.h include/sys/
-	@cp ../librt/include/ds/*.h include/ds/
-	@cp -r ../librt/include/os/ include/
+	@cp ../librt/libc/include/*.h include/
+	@cp -r ../librt/libc/include/os/ include/
+	@cp ../librt/libc/include/$(VALI_ARCH)/*.h include/
+	@cp ../librt/libc/include/sys/*.h include/sys/
+	@cp ../librt/libds/include/ds/*.h include/ds/
 	@cp -r ../librt/libcxx/cxx/include/* include/cxx/
 
 .PHONY: copy_libraries

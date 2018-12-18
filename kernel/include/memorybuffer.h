@@ -31,9 +31,8 @@
 
 #define MEMORY_BUFFER_DEFAULT           0x00000000
 #define MEMORY_BUFFER_KERNEL            0x00000001
-#define MEMORY_BUFFER_FILEMAPPING       0x00000002
-#define MEMORY_BUFFER_MEMORYMAPPING     0x00000004
-#define MEMORY_BUFFER_TYPE(Flags)       (Flags & 0x7)
+#define MEMORY_BUFFER_MEMORYMAPPING     0x00000002
+#define MEMORY_BUFFER_TYPE(Flags)       (Flags & 0x3)
 
 typedef struct _SystemMemoryBuffer {
     Flags_t             Flags;

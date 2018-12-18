@@ -312,7 +312,8 @@ ResolveVirtualSystemMemorySpaceAddress(
     VirtualAddress_t VirtualBase = 0;
     switch (Flags & MAPPING_VMODE_MASK) {
         case MAPPING_PROCESS: {
-            VirtualBase = AllocateBlocksInBlockmap(GetCurrentMemorySpace()->HeapSpace, Mask, Size);
+            assert(SystemMemorySpace->Context != NULL);
+            VirtualBase = AllocateBlocksInBlockmap(SystemMemorySpace->Context->HeapSpace, Mask, Size);
             if (VirtualBase == 0) {
                 ERROR("Ran out of memory for allocation 0x%x (heap)", Size);
                 break;

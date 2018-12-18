@@ -6,7 +6,7 @@ include ../../../config/common.mk
 
 SOURCES = $(wildcard ./*.c)
 
-INCLUDES = -I../../../librt/include
+INCLUDES = -I../../../librt/include -I../../../librt/libc/include -I../../../librt/libds/include
 OBJECTS = $(SOURCES:.c=.o)
 
 CFLAGS = $(GCFLAGS) $(INCLUDES)

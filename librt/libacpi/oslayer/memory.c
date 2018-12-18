@@ -95,14 +95,14 @@ AcpiOsMapMemory(
     // Variables
     PhysicalAddress_t Physical  = (PhysicalAddress_t)Where;
     VirtualAddress_t Result     = 0;
-    size_t Offset               = Physical % GetSystemMemoryPageSize();
+    size_t Offset               = Physical % GetMemorySpacePageSize();
     size_t AdjustedLength       = Length + Offset;
 
     // We have everything below 4mb identity mapped
     if (Where >= 0x1000 && Where < 0x400000) {
         return (void*)Where;
     }
-    if (CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), &Physical, &Result, 
+    if (CreateMemorySpaceMapping(GetCurrentMemorySpace(), &Physical, &Result, 
         AdjustedLength, MAPPING_NOCACHE | MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_KERNEL, __MASK) != OsSuccess) {
         // Uhh
         ERROR("Failed to map physical memory 0x%x", Where);
@@ -131,14 +131,13 @@ AcpiOsUnmapMemory(
 {
     // Variables
     VirtualAddress_t Address = (VirtualAddress_t)LogicalAddress;
-    size_t AdjustedLength    = Size + (Address & (GetSystemMemoryPageSize() - 1));
+    size_t AdjustedLength    = Size + (Address & (GetMemorySpacePageSize() - 1));
 
     // We have everything below 4mb identity mapped
     if (Address >= 0x1000 && Address < 0x400000) {
         return;
     }
-    else if (RemoveSystemMemoryMapping(GetCurrentSystemMemorySpace(), 
-             Address, AdjustedLength) != OsSuccess) {
+    else if (RemoveMemorySpaceMapping(GetCurrentMemorySpace(), Address, AdjustedLength) != OsSuccess) {
         ERROR("Failed to unmap memory 0x%x", Address);
     }
 }
@@ -160,8 +159,8 @@ AcpiOsGetPhysicalAddress(
     void                    *LogicalAddress,
     ACPI_PHYSICAL_ADDRESS   *PhysicalAddress)
 {
-    PhysicalAddress_t Result = GetSystemMemoryMapping(
-        GetCurrentSystemMemorySpace(), (VirtualAddress_t)LogicalAddress);
+    PhysicalAddress_t Result = GetMemorySpaceMapping(
+        GetCurrentMemorySpace(), (VirtualAddress_t)LogicalAddress);
     if (Result != 0) {
         *PhysicalAddress = (ACPI_PHYSICAL_ADDRESS)Result;
         return AE_OK;

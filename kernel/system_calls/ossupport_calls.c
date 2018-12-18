@@ -37,12 +37,14 @@ ScCreateMemoryHandler(
     _Out_ uintptr_t* AddressBaseOut)
 {
     SystemMemorySpace_t* Space = GetCurrentMemorySpace();
-    if (Space->HeapSpace != NULL) {
+    assert(Space->Context != NULL);
+
+    if (Space->Context->HeapSpace != NULL) {
         SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)kmalloc(sizeof(SystemMemoryMappingHandler_t));
         Handler->Handle  = CreateHandle(HandleGeneric, 0, Handler);
-        Handler->Address = AllocateBlocksInBlockmap(Space->HeapSpace, __MASK, Length);
+        Handler->Address = AllocateBlocksInBlockmap(Space->Context->HeapSpace, __MASK, Length);
         Handler->Length  = Length;
-        return CollectionAppend(Space->MemoryHandlers, &Handler->Header);
+        return CollectionAppend(Space->Context->MemoryHandlers, &Handler->Header);
     }
     return OsInvalidPermissions;
 }
@@ -53,9 +55,11 @@ ScDestroyMemoryHandler(
 {
     SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)LookupHandle(Handle);
     SystemMemorySpace_t*          Space   = GetCurrentMemorySpace();
-    if (Space->MemoryHandlers != NULL && Handler != NULL) {
-        CollectionRemoveByNode(Space->MemoryHandlers, &Handler->Header);
-        ReleaseBlockmapRegion(Space->HeapSpace, Handler->Address, Handler->Length);
+    assert(Space->Context != NULL);
+
+    if (Space->Context->MemoryHandlers != NULL && Handler != NULL) {
+        CollectionRemoveByNode(Space->Context->MemoryHandlers, &Handler->Header);
+        ReleaseBlockmapRegion(Space->Context->HeapSpace, Handler->Address, Handler->Length);
         DestroyHandle(Handle);
         kfree(Handler);
         return OsSuccess;
@@ -68,7 +72,9 @@ ScInstallSignalHandler(
     _In_ uintptr_t Handler) 
 {
     SystemMemorySpace_t* Space = GetCurrentMemorySpace();
-    Space->SignalHandler = Handler;
+    assert(Space->Context != NULL);
+
+    Space->Context->SignalHandler = Handler;
     return OsSuccess;
 }
 

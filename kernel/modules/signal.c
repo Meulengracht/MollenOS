@@ -164,10 +164,11 @@ SignalExecute(
 {
     SystemMemorySpace_t* Space = GetCurrentMemorySpace();
     TRACE("SignalExecute(Thread %u, Signal %i)", Thread->Id, Signal->Signal);
+    assert(Space->Context != NULL);
 
     // If there is no handler for the process and we
     // can't ignore signal, we must kill
-    if (Space->SignalHandler == 0) {
+    if (Space->Context->SignalHandler == 0) {
         char Action = GlbSignalIsDeadly[Signal->Signal];
         if (Action == 1 || Action == 2) {
             TRACE("Terminating thread due to deadly signal");

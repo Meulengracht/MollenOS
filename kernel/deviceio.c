@@ -92,10 +92,11 @@ OsStatus_t
 AcquireSystemDeviceIo(
     _In_ DeviceIo_t* IoSpace)
 {
-    SystemDeviceIo_t* SystemIo;
-    SystemModule_t*   Module = GetCurrentModule();
-    DataKey_t         Key;
-    UUId_t            CoreId = CpuGetCurrentId();
+    SystemDeviceIo_t*    SystemIo;
+    SystemMemorySpace_t* Space  = GetCurrentMemorySpace();
+    SystemModule_t*      Module = GetCurrentModule();
+    UUId_t               CoreId = CpuGetCurrentId();
+    DataKey_t            Key;
     assert(IoSpace != NULL);
 
     TRACE("AcquireSystemDeviceIo(Id %u)", IoSpace->Id);
@@ -116,12 +117,13 @@ AcquireSystemDeviceIo(
 
     switch (SystemIo->Io.Type) {
         case DeviceIoMemoryBased: {
-            uintptr_t BaseAddress   = SystemIo->Io.Access.Memory.PhysicalBase;
             uintptr_t MappedAddress;
-            size_t PageSize         = GetMemorySpacePageSize();
-            size_t Length           = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
+            uintptr_t BaseAddress = SystemIo->Io.Access.Memory.PhysicalBase;
+            size_t    PageSize    = GetMemorySpacePageSize();
+            size_t    Length      = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
+            assert(Space->Context != NULL);
 
-            MappedAddress = AllocateBlocksInBlockmap(GetCurrentMemorySpace()->HeapSpace, __MASK, Length);
+            MappedAddress = AllocateBlocksInBlockmap(Space->Context->HeapSpace, __MASK, Length);
             if (MappedAddress == 0) {
                 ERROR(" > failed to allocate heap memory for mapping");
                 break;
@@ -136,7 +138,7 @@ AcquireSystemDeviceIo(
 
         case DeviceIoPortBased: {
             for (size_t i = 0; i < SystemIo->Io.Access.Port.Length; i++) {
-                SetDirectIoAccess(CoreId, GetCurrentMemorySpace(), ((uint16_t)(SystemIo->Io.Access.Port.Base + i)), 1);
+                SetDirectIoAccess(CoreId, Space, ((uint16_t)(SystemIo->Io.Access.Port.Base + i)), 1);
             }
             return OsSuccess;
         } break;
@@ -156,10 +158,11 @@ OsStatus_t
 ReleaseSystemDeviceIo(
     _In_ DeviceIo_t*    IoSpace)
 {
-    SystemDeviceIo_t* SystemIo;
-    SystemModule_t*   Module = GetCurrentModule();
-    UUId_t            CoreId = CpuGetCurrentId();
-    DataKey_t         Key;
+    SystemDeviceIo_t*    SystemIo;
+    SystemMemorySpace_t* Space  = GetCurrentMemorySpace();
+    SystemModule_t*      Module = GetCurrentModule();
+    UUId_t               CoreId = CpuGetCurrentId();
+    DataKey_t            Key;
     assert(IoSpace != NULL);
 
     // Debugging
@@ -181,16 +184,18 @@ ReleaseSystemDeviceIo(
 
     switch (SystemIo->Io.Type) {
         case DeviceIoMemoryBased: {
-            uintptr_t BaseAddress   = SystemIo->Io.Access.Memory.PhysicalBase;
-            size_t PageSize         = GetMemorySpacePageSize();
-            size_t Length           = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
-            ReleaseBlockmapRegion(GetCurrentMemorySpace()->HeapSpace, SystemIo->MappedAddress, Length);
-            RemoveMemorySpaceMapping(GetCurrentMemorySpace(), SystemIo->MappedAddress, Length);
+            uintptr_t BaseAddress = SystemIo->Io.Access.Memory.PhysicalBase;
+            size_t    PageSize    = GetMemorySpacePageSize();
+            size_t    Length      = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
+            assert(Space->Context != NULL);
+
+            ReleaseBlockmapRegion(Space->Context->HeapSpace, SystemIo->MappedAddress, Length);
+            RemoveMemorySpaceMapping(Space, SystemIo->MappedAddress, Length);
         } break;
 
         case DeviceIoPortBased: {
             for (size_t i = 0; i < SystemIo->Io.Access.Port.Length; i++) {
-                SetDirectIoAccess(CoreId, GetCurrentMemorySpace(), ((uint16_t)(SystemIo->Io.Access.Port.Base + i)), 0);
+                SetDirectIoAccess(CoreId, Space, ((uint16_t)(SystemIo->Io.Access.Port.Base + i)), 0);
             }
         } break;
 

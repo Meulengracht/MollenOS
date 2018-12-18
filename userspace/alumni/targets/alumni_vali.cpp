@@ -68,14 +68,6 @@ bool CValiAlumni::HandleKeyCode(unsigned int KeyCode, unsigned int Flags)
     Key.KeyCode = KeyCode;
     Key.Flags   = Flags;
 
-    // Redirect keys if we have an application active
-    // After pressing enter to spawn application, the release event will
-    // get redirected here and fail
-    if (m_Application != UUID_INVALID) {
-        SendPipe(m_Application, PIPE_STDIN, &Key, sizeof(SystemKey_t));
-        return true;
-    }
-
     // Don't respond to released events
     if (Flags & KEY_MODIFIER_RELEASED) {
         return false;
@@ -155,13 +147,13 @@ bool CValiAlumni::ExecuteProgram(const std::string& Program, const std::vector<s
     }
 
     // Set inheritation
-    StartupInformation.InheritFlags = PROCESS_INHERIT_STDOUT | PROCESS_INHERIT_STDERR;
+    StartupInformation.InheritFlags = PROCESS_INHERIT_STDOUT | PROCESS_INHERIT_STDIN | PROCESS_INHERIT_STDERR;
     StartupInformation.StdOutHandle = m_Stdout;
+    StartupInformation.StdInHandle  = STDIN_FILENO;
     StartupInformation.StdErrHandle = m_Stderr;
     m_Application = ProcessSpawnEx(Program.c_str(), &StartupInformation, 0);
     if (m_Application != UUID_INVALID) {
-        std::thread WaitThread(&CValiAlumni::WaitForProcess, this);
-        WaitThread.detach();
+        WaitForProcess();
         return true;
     }
     return false;

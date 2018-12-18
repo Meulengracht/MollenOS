@@ -343,3 +343,14 @@ ScTimersStop(
 {
     return TimersStop(TimerId);
 }
+
+OsStatus_t
+ScGetProcessBaseAddress(
+    _Out_ uintptr_t* BaseAddress)
+{
+    if (BaseAddress != NULL) {
+        *BaseAddress = GetMachine()->MemoryMap.UserCode.Start;
+        return OsSuccess;
+    }
+    return OsInvalidParameters;
+}

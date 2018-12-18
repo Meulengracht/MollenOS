@@ -199,8 +199,8 @@ PageSynchronizationHandler(
     _In_ FastInterruptResources_t*  NotUsed,
     _In_ void*                      Context)
 {
-    // Variables
-    SystemMemorySpace_t *Current = GetCurrentMemorySpace();
+    SystemMemorySpace_t* Current = GetCurrentMemorySpace();
+    UUId_t CurrentHandle         = GetCurrentMemorySpaceHandle();
     _CRT_UNUSED(NotUsed);
     _CRT_UNUSED(Context);
 
@@ -208,9 +208,9 @@ PageSynchronizationHandler(
     // If NULL => everyone must update
     // If it matches our parent, we must update
     // If it matches us, we must update
-    if (SyncData.ParentPagingData == NULL ||
-        Current->Parent == (SystemMemorySpace_t*)SyncData.ParentPagingData || 
-        Current         == (SystemMemorySpace_t*)SyncData.ParentPagingData) {
+    if (SyncData.MemorySpaceHandle == UUID_INVALID ||
+        Current->ParentHandle      == SyncData.MemorySpaceHandle || 
+        CurrentHandle              == SyncData.MemorySpaceHandle) {
         for (uintptr_t i = 0; i < SyncData.Length; i += PAGE_SIZE) {
             memory_invalidate_addr(SyncData.Address + i);
         }
@@ -242,18 +242,18 @@ SynchronizePageRegion(
     
     // Setup arguments
     if (Address < MEMORY_LOCATION_KERNEL_END) {
-        SyncData.ParentPagingData = NULL; // Everyone must update
+        SyncData.MemorySpaceHandle = UUID_INVALID; // Everyone must update
     }
     else {
         if (SystemMemorySpace->ParentHandle == UUID_INVALID) {
-            SyncData.ParentPagingData = SystemMemorySpace; // Children of us must update
+            SyncData.MemorySpaceHandle = GetCurrentMemorySpaceHandle(); // Children of us must update
         }
         else {
-            SyncData.ParentPagingData = LookupHandle(SystemMemorySpace->ParentHandle); // Parent and siblings!
+            SyncData.MemorySpaceHandle = SystemMemorySpace->ParentHandle; // Parent and siblings!
         }
     }
-    SyncData.Address            = Address;
-    SyncData.CallsCompleted     = 0;
+    SyncData.Address        = Address;
+    SyncData.CallsCompleted = 0;
 
     // Synchronize the page-tables
     ApicSendInterrupt(InterruptAllButSelf, UUID_INVALID, INTERRUPT_SYNCHRONIZE_PAGE);

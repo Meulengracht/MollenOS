@@ -164,10 +164,14 @@ OsStatus_t
 ThreadingSignalDispatch(
     _In_ MCoreThread_t* Thread)
 {
+    assert(Thread != NULL);
+    assert(Thread->MemorySpace->Context != NULL);
+    assert(Thread->MemorySpace->Context->SignalHandler != 0);
+
     // Now we can enter the signal context 
     // handler, we cannot return from this function
     Thread->Contexts[THREADING_CONTEXT_SIGNAL1] = ContextCreate(Thread->Flags,
-        THREADING_CONTEXT_SIGNAL1, Thread->MemorySpace->SignalHandler,
+        THREADING_CONTEXT_SIGNAL1, Thread->MemorySpace->Context->SignalHandler,
         MEMORY_LOCATION_SIGNAL_RET, Thread->ActiveSignal.Signal, 0);
     TssUpdateThreadStack(CpuGetCurrentId(), (uintptr_t)Thread->Contexts[THREADING_CONTEXT_SIGNAL0]);
     enter_thread(Thread->Contexts[THREADING_CONTEXT_SIGNAL1]);

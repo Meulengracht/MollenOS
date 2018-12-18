@@ -28,6 +28,7 @@
 #include <system/output.h>
 #include <system/utils.h>
 #include <threading.h>
+#include <handle.h>
 #include <memory.h>
 #include <assert.h>
 #include <debug.h>
@@ -165,8 +166,8 @@ MmVirtualGetMasterTable(
     // We always have the shared page-tables mapped. The address must be below the thread-specific space
     if (MemorySpace->ParentHandle != UUID_INVALID) {
         if (Address < MEMORY_LOCATION_RING3_THREAD_START) {
-            SystemMemorySpace_t* MemorySpaceParent = (SystemMemorySpace_t*)LookupHandle(SystemMemorySpace->ParentHandle);
-            Parent = (PageMasterTable_t*)MemorySpaceParent->Parent->Data[MEMORY_SPACE_DIRECTORY];
+            SystemMemorySpace_t* MemorySpaceParent = (SystemMemorySpace_t*)LookupHandle(MemorySpace->ParentHandle);
+            Parent = (PageMasterTable_t*)MemorySpaceParent->Data[MEMORY_SPACE_DIRECTORY];
         }
     }
 

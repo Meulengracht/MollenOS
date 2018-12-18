@@ -4,7 +4,7 @@
 # Include all the definitions for os
 include ../../config/common.mk
 
-INCLUDES = -I../../librt/include -Iinclude
+INCLUDES = -I../../librt/include -I../../librt/libc/include -I../../librt/libds/include -Iinclude
 SOURCES = $(wildcard layouts/*.c) \
 		  $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o)

@@ -67,7 +67,7 @@ PACKED_TYPESTRUCT(BIOSMemoryRegion, {
 typedef struct _MemorySynchronizationObject {
     Spinlock_t      SyncObject;
     volatile int    CallsCompleted;
-    void*           ParentPagingData;
+    UUId_t          MemorySpaceHandle;
     uintptr_t       Address;
     size_t          Length;
 } MemorySynchronizationObject_t;

@@ -339,12 +339,14 @@ DebugPageMemorySpaceHandlers(
     SystemMemorySpace_t* Space  = GetCurrentMemorySpace();
     OsStatus_t           Status = OsError;
 
-    foreach(Node, Space->MemoryHandlers) {
-        SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)Node;
-        if (ISINRANGE(Address, Handler->Address, (Handler->Address + Handler->Length) - 1)) {
-            __KernelInterruptDriver(__FILEMANAGER_TARGET, Handler->Handle, (void*)Address);
-            Status = WaitForHandles(&Handler->Handle, 1, 1, 0);
-            break;
+    if (Space->Context != NULL) {
+        foreach(Node, Space->Context->MemoryHandlers) {
+            SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)Node;
+            if (ISINRANGE(Address, Handler->Address, (Handler->Address + Handler->Length) - 1)) {
+                __KernelInterruptDriver(__FILEMANAGER_TARGET, Handler->Handle, (void*)Address);
+                Status = WaitForHandles(&Handler->Handle, 1, 1, 0);
+                break;
+            }
         }
     }
     return Status;
@@ -360,14 +362,13 @@ DebugPageFaultProcessHeapMemory(
     SystemMemorySpace_t* Space     = GetCurrentMemorySpace();
     Flags_t              PageFlags = MAPPING_USERSPACE | MAPPING_FIXED;
 
-    if (Space->HeapSpace != NULL) {
-        if (Space->MemoryHandlers != NULL && 
-            DebugPageMemorySpaceHandlers(Context, Address) == OsSuccess) {
+    if (Space->Context != NULL) {
+        if (DebugPageMemorySpaceHandlers(Context, Address) == OsSuccess) {
             return OsSuccess;
         }
 
         // If the mapping is a heap address we need to check for device-io mapping
-        if (BlockBitmapValidateState(Space->HeapSpace, Address, 1) == OsSuccess) {
+        if (BlockBitmapValidateState(Space->Context->HeapSpace, Address, 1) == OsSuccess) {
             uintptr_t ExistingPhysical = ValidateDeviceIoMemoryAddress(Address);
             if (ExistingPhysical != 0) {
                 return CreateMemorySpaceMapping(Space, &ExistingPhysical, &Address, 

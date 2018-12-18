@@ -43,13 +43,15 @@ ScMemoryAllocate(
 {
     uintptr_t            AllocatedAddress;
     SystemMemorySpace_t* Space = GetCurrentMemorySpace();
-    if (Space->HeapSpace == NULL || Size == 0) {
-        return OsError;
+    
+    assert(Space->Context != NULL);
+    if (Size == 0) {
+        return OsInvalidParameters;
     }
     
     // Now do the allocation in the user-bitmap 
     // since memory is managed in userspace for speed
-    AllocatedAddress = AllocateBlocksInBlockmap(Space->HeapSpace, __MASK, Size);
+    AllocatedAddress = AllocateBlocksInBlockmap(Space->Context->HeapSpace, __MASK, Size);
     if (AllocatedAddress == 0) {
         return OsError;
     }
@@ -79,7 +81,7 @@ ScMemoryAllocate(
         // Do the actual mapping
         if (CreateMemorySpaceMapping(Space, PhysicalAddress, &AllocatedAddress, Size, 
             ExtendedFlags, __MASK) != OsSuccess) {
-            ReleaseBlockmapRegion(Space->HeapSpace, AllocatedAddress, Size);
+            ReleaseBlockmapRegion(Space->Context->HeapSpace, AllocatedAddress, Size);
             *VirtualAddress = 0;
             return OsError;
         }
@@ -106,17 +108,19 @@ ScMemoryFree(
     _In_ size_t     Size)
 {
     SystemMemorySpace_t* Space = GetCurrentMemorySpace();
-    if (Space->HeapSpace == NULL || Address == 0 || Size == 0) {
-        return OsError;
+    
+    assert(Space->Context != NULL);
+    if (Address == 0 || Size == 0) {
+        return OsInvalidParameters;
     }
 
     // Now do the deallocation in the user-bitmap 
     // since memory is managed in userspace for speed
-    if (ReleaseBlockmapRegion(Space->HeapSpace, Address, Size) != OsSuccess) {
+    if (ReleaseBlockmapRegion(Space->Context->HeapSpace, Address, Size) != OsSuccess) {
         ERROR("ScMemoryFree(Address 0x%x, Size 0x%x) was invalid", Address, Size);
         return OsError;
     }
-    return RemoveMemorySpaceMapping(GetCurrentMemorySpace(), Address, Size);
+    return RemoveMemorySpaceMapping(Space, Address, Size);
 }
 
 /* ScMemoryQuery

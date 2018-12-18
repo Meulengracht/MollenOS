@@ -41,6 +41,8 @@
 #include <os/file.h>
 #include <stdlib.h>
 #include <stdio.h>
+
+static MemoryDescriptor_t __SystemMemoryInformation = { 0 };
 #endif
 
 /*******************************************************************************
@@ -172,9 +174,12 @@ int dssortkey(KeyType_t type, DataKey_t key1, DataKey_t key2)
 uintptr_t GetPageSize(void)
 {
 #ifdef LIBC_KERNEL
-    return GetSystemMemoryPageSize();
+    return GetMemorySpacePageSize();
 #else
-    return 0;
+    if (__SystemMemoryInformation.PageSizeBytes == 0) {
+        MemoryQuery(&__SystemMemoryInformation);
+    }
+    return __SystemMemoryInformation.PageSizeBytes;
 #endif
 }
 
@@ -262,7 +267,7 @@ OsStatus_t LoadFile(MString_t* Path, MString_t** FullPath, void** BufferOut, siz
 OsStatus_t CreateImageSpace(MemorySpaceHandle_t* HandleOut)
 {
 #ifdef LIBC_KERNEL
-    *HandleOut = (MemorySpaceHandle_t)GetCurrentSystemMemorySpace();
+    *HandleOut = (MemorySpaceHandle_t)GetCurrentMemorySpace();
 #else
     UUId_t     MemorySpaceHandle = UUID_INVALID;
     OsStatus_t Status            = CreateMemorySpace(0, &MemorySpaceHandle);
@@ -280,7 +285,7 @@ OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, s
 {
     OsStatus_t Status;
 #ifdef LIBC_KERNEL
-    Status = CreateSystemMemorySpaceMapping((SystemMemorySpace_t*)Handle, NULL, Address, Length, Flags, __MASK);
+    Status = CreateMemorySpaceMapping((SystemMemorySpace_t*)Handle, NULL, Address, Length, Flags, __MASK);
     _CRT_UNUSED(HandleOut);
 #else
     struct MemoryMappingParameters Parameters;
