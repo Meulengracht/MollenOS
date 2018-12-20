@@ -138,7 +138,7 @@ OsStatus_t ScPerformanceTick(LargeInteger_t *Value);
 OsStatus_t NoOperation(void) { return OsSuccess; }
 
 // The static system calls function table.
-uintptr_t GlbSyscallTable[79] = {
+uintptr_t GlbSyscallTable[78] = {
     ///////////////////////////////////////////////
     // Operating System Interface
     // - Protected, services/modules
@@ -234,14 +234,13 @@ uintptr_t GlbSyscallTable[79] = {
     // Support system calls
     DefineSyscall(67, ScDestroyHandle),
     DefineSyscall(68, ScInstallSignalHandler),
-    DefineSyscall(69, ScRaiseSignal),
-    DefineSyscall(70, ScCreateMemoryHandler),
-    DefineSyscall(71, ScDestroyMemoryHandler),
-    DefineSyscall(72, ScFlushHardwareCache),
-    DefineSyscall(73, ScEnvironmentQuery),
-    DefineSyscall(74, ScSystemTick),
-    DefineSyscall(75, ScPerformanceFrequency),
-    DefineSyscall(76, ScPerformanceTick),
-    DefineSyscall(77, ScSystemTime),
-    DefineSyscall(78, NoOperation)
+    DefineSyscall(69, ScCreateMemoryHandler),
+    DefineSyscall(70, ScDestroyMemoryHandler),
+    DefineSyscall(71, ScFlushHardwareCache),
+    DefineSyscall(72, ScEnvironmentQuery),
+    DefineSyscall(73, ScSystemTick),
+    DefineSyscall(74, ScPerformanceFrequency),
+    DefineSyscall(75, ScPerformanceTick),
+    DefineSyscall(76, ScSystemTime),
+    DefineSyscall(77, NoOperation)
 };

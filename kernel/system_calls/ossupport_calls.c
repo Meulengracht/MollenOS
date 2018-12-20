@@ -79,18 +79,6 @@ ScInstallSignalHandler(
 }
 
 OsStatus_t
-ScRaiseSignal(
-    _In_ UUId_t ThreadHandle, 
-    _In_ int    Signal)
-{
-    MCoreThread_t* Thread = GetThread(ThreadHandle);
-    if (Thread != NULL) {
-        return SignalCreate(ThreadHandle, Signal);
-    }
-    return OsDoesNotExist;
-}
-
-OsStatus_t
 ScDestroyHandle(
     _In_ UUId_t Handle)
 {
