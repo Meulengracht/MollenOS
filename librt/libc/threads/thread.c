@@ -21,7 +21,7 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include <os/syscall.h>
+#include <internal/_syscalls.h>
 #include <threads.h>
 #include <stddef.h>
 #include <stdlib.h>

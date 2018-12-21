@@ -336,7 +336,8 @@
         "assert.h": "c",
         "memorybuffer.h": "c",
         "__external_threading": "cpp",
-        "iostream": "cpp"
+        "iostream": "cpp",
+        "_syscalls.h": "c"
     },
     "git.ignoreLimitWarning": true,
     "terminal.integrated.shell.windows": "C:\\Windows\\sysnative\\bash.exe",

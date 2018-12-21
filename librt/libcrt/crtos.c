@@ -19,7 +19,7 @@
  * MollenOS C Environment - Shared Routines
  */
 
-#include <os/syscall.h>
+#include <internal/_syscalls.h>
 #include <os/process.h>
 #include <os/ipc/ipc.h>
 
@@ -29,36 +29,16 @@
 #include <string.h>
 #include <ctype.h>
 
-/* Extern
- * - C/C++ Initialization
- * - C/C++ Cleanup */
-__EXTERN int main(int argc, char **argv, char **envp);
-__EXTERN void __CrtCxxInitialize(void);
-__EXTERN void __CrtCxxFinalize(void);
-__EXTERN void __CrtAttachTlsBlock(void);
+extern int main(int argc, char **argv, char **envp);
+extern void __CrtCxxInitialize(void);
+extern void __CrtCxxFinalize(void);
+extern void __CrtAttachTlsBlock(void);
 #ifndef __clang__
 CRTDECL(void, __CppInitVectoredEH(void));
 #endif
 
-/* StdioInitialize
- * Initializes default handles and resources */
-CRTDECL(void, StdioInitialize(void *InheritanceBlock, size_t InheritanceBlockLength));
-
-/* StdSignalInitialize
- * Initializes the default signal-handler for the process. */
-CRTDECL(void, StdSignalInitialize(void));
-
-/* __cxa_runinitializers 
- * C++ Initializes library C++ runtime for all loaded modules */
-CRTDECL(void, __cxa_runinitializers(
-    _In_ void (*Initializer)(void), 
-    _In_ void (*Finalizer)(void), 
-    _In_ void (*TlsAttachFunction)(void)));
-
-/* Globals
- * Static buffer to avoid allocations for process startup information. */
-static char StartupArgumentBuffer[512];
-static char StartupInheritanceBuffer[512];
+CRTDECL(void, __cxa_runinitializers(void (*Initializer)(void), void (*Finalizer)(void), void (*TlsAttachFunction)(void)));
+CRTDECL(void, InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInformation));
 
 /* Unescape Quotes in arguments */
 void
@@ -153,30 +133,16 @@ ParseCommandLine(
 char**
 __CrtInitialize(
     _In_  thread_storage_t* Tls,
-    _In_  int               StartupInfoEnabled,
+    _In_  int               IsModule,
     _Out_ int*              ArgumentCount)
 {
     ProcessStartupInformation_t StartupInformation;
 	char**                      Arguments = NULL;
     
 	tls_create(Tls);
-
-    // Get startup information
     memset(&StartupInformation, 0, sizeof(ProcessStartupInformation_t));
-    if (StartupInfoEnabled) {
-        memset(&StartupArgumentBuffer[0], 0, sizeof(StartupArgumentBuffer));
-        memset(&StartupInheritanceBuffer[0], 0, sizeof(StartupInheritanceBuffer));
-        StartupInformation.ArgumentPointer = &StartupArgumentBuffer[0];
-        StartupInformation.ArgumentLength = sizeof(StartupArgumentBuffer);
-        StartupInformation.InheritanceBlockPointer = &StartupInheritanceBuffer[0];
-        StartupInformation.InheritanceBlockLength = sizeof(StartupInheritanceBuffer);
-        GetStartupInformation(&StartupInformation);
-    }
+    InitializeProcess(IsModule, &StartupInformation);
 
-	// Initialize STD-C
-	StdioInitialize((void*)StartupInformation.InheritanceBlockPointer, StartupInformation.InheritanceBlockLength);
-    StdSignalInitialize();
- 
     // If msc, initialize the vectored-eh
 #ifndef __clang__
     __CppInitVectoredEH();
@@ -185,9 +151,9 @@ __CrtInitialize(
     // Handle process arguments
     if (ArgumentCount != NULL) {
         if (StartupInformation.ArgumentLength != 0) {
-            *ArgumentCount  = ParseCommandLine(&StartupArgumentBuffer[0], NULL);
+            *ArgumentCount  = ParseCommandLine((char*)StartupInformation.ArgumentPointer, NULL);
             Arguments       = (char**)calloc(sizeof(char*), (*ArgumentCount) + 1);
-            ParseCommandLine(&StartupArgumentBuffer[0], Arguments);
+            ParseCommandLine((char*)StartupInformation.ArgumentPointer, Arguments);
         }
         else {
             *ArgumentCount = 0;

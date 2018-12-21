@@ -21,8 +21,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
+#include <internal/_syscalls.h>
 #include <os/acpi.h>
-#include <os/syscall.h>
 #include <stdlib.h>
 
 /* AcpiQueryStatus
@@ -30,7 +30,8 @@
  * or OsError if Acpi is not supported on the running platform */
 OsStatus_t
 AcpiQueryStatus(
-    AcpiDescriptor_t *AcpiDescriptor) {
+    _In_ AcpiDescriptor_t* AcpiDescriptor)
+{
     return Syscall_AcpiQuery(AcpiDescriptor);
 }
 
@@ -38,27 +39,20 @@ AcpiQueryStatus(
  * Queries the full table information of the table that matches
  * the given signature, and copies the information to the supplied pointer
  * the buffer is automatically allocated, and should be cleaned up afterwards  */
-OsStatus_t AcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER **Table)
+OsStatus_t
+AcpiQueryTable(
+    _In_  const char*         Signature, 
+    _Out_ ACPI_TABLE_HEADER** Table)
 {
-    /* We need this temporary storage */
     ACPI_TABLE_HEADER Header;
-    OsStatus_t Result;
-
-    /* Now query for the header information
-     * so we know what we should allocate */
+    OsStatus_t        Result;
+    
     Result = Syscall_AcpiGetHeader(Signature, &Header);
-
-    /* Sanitize the result */
     if (Result != OsSuccess) {
         return Result;
     }
 
-    /* Ok, now we can allocate a buffer able to contain
-     * the entire table information */
     *Table = (ACPI_TABLE_HEADER*)malloc(Header.Length);
-
-    /* And finally, we can query for the entirety of
-     * the requested table! */
     return Syscall_AcpiGetTable(Signature, *Table);
 }
 
@@ -67,13 +61,12 @@ OsStatus_t AcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER **Table)
  * pin combination. The pin must be zero indexed. Conform flags
  * are returned in the <AcpiConform> */
 OsStatus_t AcpiQueryInterrupt(
-    DevInfo_t   Bus,
-    DevInfo_t   Device,
-    int         Pin,
-    int*        Interrupt,
-    Flags_t*    AcpiConform)
+    _In_  DevInfo_t Bus,
+    _In_  DevInfo_t Device,
+    _In_  int       Pin,
+    _Out_ int*      Interrupt,
+    _Out_ Flags_t*  AcpiConform)
 {
-    // Validate the pointers
     if (Interrupt == NULL || AcpiConform == NULL) {
         return OsError;
     }

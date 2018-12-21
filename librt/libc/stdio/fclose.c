@@ -21,7 +21,6 @@
  */
 
 #include <os/file.h>
-#include <os/syscall.h>
 #include <os/utils.h>
 
 #include <io.h>

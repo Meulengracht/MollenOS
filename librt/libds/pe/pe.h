@@ -26,6 +26,7 @@
 
 #include <os/osdefs.h>
 #include <os/process.h>
+#include <os/pe.h>
 
 typedef struct _Collection Collection_t;
 typedef struct _MString MString_t;

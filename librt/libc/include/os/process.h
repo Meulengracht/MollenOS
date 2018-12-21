@@ -25,7 +25,6 @@
 #define __PROCESS_INTERFACE_H__
 
 #include <os/osdefs.h>
-#include <os/pe.h>
 
 #define PROCESS_MAXMODULES          128
 
@@ -100,13 +99,21 @@ OsStatus_t,
 ProcessKill(
 	_In_ UUId_t Process));
 
+/* ProcessTerminate
+ * Terminates the current process that is registered with the process manager.
+ * This invalidates every functionality available to this process. */
+CRTDECL( 
+OsStatus_t,
+ProcessTerminate(
+	_In_ int ExitCode));
+
 /* GetStartupInformation
  * Retrieves startup information about the process. 
  * Data buffers must be supplied with a max length. */
 CRTDECL(
 OsStatus_t,
-GetStartupInformation(
-    _InOut_ ProcessStartupInformation_t *StartupInformation));
+ProcessGetStartupInformation(
+    _In_ ProcessStartupInformation_t *StartupInformation));
 
 /* ProcessGetCurrentId 
  * Retrieves the current process identifier. */

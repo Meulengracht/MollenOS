@@ -91,9 +91,9 @@ thrd_t thrd_current(void) {
 
 #else
 #define __TRACE
+#include <internal/_syscalls.h>
 #include <ds/collection.h>
 #include <os/ipc/ipc.h>
-#include <os/syscall.h>
 #include <os/input.h>
 #include <os/utils.h>
 #include <os/file.h>

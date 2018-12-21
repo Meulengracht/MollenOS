@@ -123,18 +123,15 @@ IoctlDeviceEx(
     _InOut_ Flags_t *Value,
     _In_ size_t Width)
 {
-    // Variables
     MRemoteCall_t Request;
-    Flags_t Result = 0;
-    Flags_t Select = 0;
+    Flags_t       Result = 0;
+    Flags_t       Select = 0;
 
-    // Build selection
     Select = __DEVICEMANAGER_IOCTL_EXT;
     if (Direction == 0) {
         Select |= __DEVICEMANAGER_IOCTL_EXT_READ;
     }
 
-    // Initialize RPC
     RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
         __DEVICEMANAGER_INTERFACE_VERSION, __DEVICEMANAGER_IOCTLDEVICE);
     RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
@@ -143,19 +140,14 @@ IoctlDeviceEx(
     RPCSetArgument(&Request, 3, (__CONST void*)Value, sizeof(Flags_t));
     RPCSetArgument(&Request, 4, (__CONST void*)&Width, sizeof(size_t));
     RPCSetResult(&Request, (__CONST void*)&Result, sizeof(Flags_t));
-    
-    // Execute RPC
-    RPCExecute(&Request);
 
-    // Handle return
+    RPCExecute(&Request);
     if (Direction == 0 && Value != NULL) {
         *Value = Result;
     }
     else {
         return (OsStatus_t)Result;
     }
-
-    // Read, discard value
     return OsSuccess;
 }
 

@@ -20,11 +20,8 @@
  * - Definitions, prototypes and information needed.
  */
 
-/* Includes
- * -Library */
-#include <os/syscall.h>
-#include <os/utils.h>
 #include <internal/_all.h>
+#include <os/utils.h>
 #include <signal.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -167,7 +164,7 @@ void
 StdSignalInitialize()
 {
     // Install default handler
-    if (Syscall_ProcessSignal(StdSignalEntry) != OsSuccess) {
+    if (Syscall_InstallSignalHandler(StdSignalEntry) != OsSuccess) {
         // Uhh?
     }
 }

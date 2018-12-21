@@ -21,10 +21,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-/* Includes
- * - System */
+#include <internal/_syscalls.h>
 #include <os/timers.h>
-#include <os/syscall.h>
 
 /* TimerStart 
  * Creates a new standard timer for the requesting process. 

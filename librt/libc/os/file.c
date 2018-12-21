@@ -21,9 +21,9 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include <os/file.h>
+#include <internal/_syscalls.h>
 #include <os/mollenos.h>
-#include <os/syscall.h>
+#include <os/file.h>
 #include <stdio.h>
 #include "../stdio/local.h"
 
@@ -108,50 +108,50 @@ GetFileInformationFromFd(
     return GetFileStatsByHandle(FileHandle->InheritationHandle, Information);
 }
 
-/* Parameter structure for creating file-mappings. 
- * Private structure, only used for parameter passing. */
-struct FileMappingParameters {
-    UUId_t    FileHandle;
-    int       Flags;
-    uint64_t  Offset;
-    size_t    Size;
-};
-
 /* CreateFileMapping 
  * Creates a new memory mapping for the given file descriptor with the given
  * offset and size. */
 OsStatus_t
 CreateFileMapping(
-    _In_  int       FileDescriptor,
-    _In_  int       Flags,
-    _In_  uint64_t  Offset,
-    _In_  size_t    Size,
-    _Out_ void**    MemoryPointer)
+    _In_  int      FileDescriptor,
+    _In_  int      Flags,
+    _In_  uint64_t Offset,
+    _In_  size_t   Length,
+    _Out_ void**   MemoryPointer,
+    _Out_ UUId_t*  Handle)
 {
-    // Variables
-    struct FileMappingParameters Parameters;
-    StdioHandle_t *FileHandle = StdioFdToHandle(FileDescriptor);
+    FileMappingParameters_t Parameters;
+    StdioHandle_t*          FileHandle = StdioFdToHandle(FileDescriptor);
+    OsStatus_t              Status;
 
     // Sanitize that the descritor is valid
     if (FileHandle == NULL || FileHandle->InheritationType != STDIO_HANDLE_FILE) {
         return OsError;
     }
 
-    Parameters.FileHandle = FileHandle->InheritationHandle;
-    Parameters.Flags = Flags;
-    Parameters.Offset = Offset;
-    Parameters.Size = Size;
-    return Syscall_CreateFileMapping(&Parameters, MemoryPointer);
+    // Start out by allocating a memory handler handle
+    Status = Syscall_CreateMemoryHandler(Flags, Length, Handle, MemoryPointer);
+    if (Status == OsSuccess) {
+        // Tell the file manager that it now has to handle this as-well
+        Parameters.MemoryHandle   = *Handle;
+        Parameters.Flags          = Flags;
+        Parameters.FileOffset     = Offset;
+        Parameters.VirtualAddress = (uintptr_t)*MemoryPointer;
+        Parameters.Length         = Length;
+        // Status = RegisterFileMapping(FileHandle->InheritationHandle, &FileMappingParameters);
+    }
+    return Status;
 }
 
 /* DestroyFileMapping 
  * Destroys a previously created memory mapping. */
 OsStatus_t
 DestroyFileMapping(
-    _In_ void *MemoryPointer)
+    _In_ UUId_t Handle)
 {
-    if (MemoryPointer == NULL) {
-        return OsError;
+    OsStatus_t Status = Syscall_DestroyMemoryHandler(Handle);
+    if (Status == OsSuccess) {
+        // Status = UnregisterFileMapping(Handle);
     }
-    return Syscall_DestroyFileMapping(MemoryPointer);
+    return Status;
 }

@@ -60,6 +60,14 @@ PACKED_TYPESTRUCT(QueryFileStatsPackage, {
     OsFileDescriptor_t  Descriptor;
 });
 
+PACKED_TYPESTRUCT(FileMappingParameters, {
+    UUId_t    MemoryHandle;
+    Flags_t   Flags;
+    uint64_t  FileOffset;
+    uintptr_t VirtualAddress;
+    size_t    Length;
+});
+
 /* These definitions are in-place to allow a custom
  * setting of the file-manager, these are set to values
  * where in theory it should never be needed to have more */

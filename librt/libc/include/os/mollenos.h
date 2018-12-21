@@ -235,8 +235,8 @@ CRTDECL(OsStatus_t, GetStorageInformationFromPath(const char *Path, vStorageDesc
 CRTDECL(OsStatus_t, GetStorageInformationFromFd(int FileDescriptor, vStorageDescriptor_t *Information));
 CRTDECL(FileSystemCode_t, GetFileInformationFromPath(const char *Path, OsFileDescriptor_t *Information));
 CRTDECL(FileSystemCode_t, GetFileInformationFromFd(int FileDescriptor, OsFileDescriptor_t *Information));
-CRTDECL(OsStatus_t, CreateFileMapping(int FileDescriptor, int Flags, uint64_t Offset, size_t Size, void **MemoryPointer));
-CRTDECL(OsStatus_t, DestroyFileMapping(void *MemoryPointer));
+CRTDECL(OsStatus_t, CreateFileMapping(int FileDescriptor, int Flags, uint64_t Offset, size_t Length, void **MemoryPointer, UUId_t* Handle));
+CRTDECL(OsStatus_t, DestroyFileMapping(UUId_t Handle));
 
 #if defined(i386) || defined(__i386__)
 #define TLS_VALUE   uint32_t

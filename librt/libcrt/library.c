@@ -19,13 +19,8 @@
  * MollenOS C Library - Entry Points
  */
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 
-/* Extern
- * - C/C++ Initialization
- * - C/C++ Cleanup */
 __EXTERN void __CrtCxxInitialize(void);
 __EXTERN void __CrtCxxFinalize(void);
 __EXTERN void __CrtAttachTlsBlock(void);

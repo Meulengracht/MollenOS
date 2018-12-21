@@ -21,8 +21,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
+#include <internal/_syscalls.h>
 #include <os/memory.h>
-#include <os/syscall.h>
 
 /* CreateMemorySpace
  * Creates a new memory space that can be used to create new mappings, and manipulate existing mappings. */
@@ -62,5 +62,5 @@ CreateMemoryMapping(
     if (Parameters == NULL || AccessBuffer == NULL) {
         return OsError;
     }
-    return Syscall_CreateMemoryMapping(Handle, Parameters, AccessBuffer);
+    return Syscall_CreateMemorySpaceMapping(Handle, Parameters, AccessBuffer);
 }

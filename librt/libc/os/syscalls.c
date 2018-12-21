@@ -21,10 +21,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-/* Includes
- * - Library */
+#include <internal/_syscalls.h>
 #include <os/osdefs.h>
-#include <os/syscall.h>
 
 /* Extern 
  * - Access to assembler for the platform */

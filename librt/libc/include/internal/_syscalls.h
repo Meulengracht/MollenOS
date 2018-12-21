@@ -1,28 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011, Philip Meulengracht
- *
- * This program is free software : you can redistribute it and / or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation ? , either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Syscalls Support Definitions & Structures
- * - This header describes the base syscall-structures, prototypes
- *   and functionality, refer to the individual things for descriptions
- */
-
-#ifndef _SYSCALL_INTEFACE_H_
-#define _SYSCALL_INTEFACE_H_
+#ifndef __INTERNAL_CRT_SYSCALLS__
+#define __INTERNAL_CRT_SYSCALLS__
 
 #include <os/osdefs.h>
 
@@ -63,7 +40,7 @@ _CODE_END
 #define Syscall_SetWorkingDirectory(Path) (OsStatus_t)syscall1(14, SCPARAM(Path))
 #define Syscall_GetAssemblyDirectory(Buffer, MaxLength) (OsStatus_t)syscall2(15, SCPARAM(Buffer), SCPARAM(MaxLength))
 
-#define Syscall_CreateMemorySpace(Flags, HandleOut) (OsStatus_t)syscall2(16, SCPARAM(Buffer), SCPARAM(MaxLength))
+#define Syscall_CreateMemorySpace(Flags, HandleOut) (OsStatus_t)syscall2(16, SCPARAM(Flags), SCPARAM(HandleOut))
 #define Syscall_GetMemorySpaceForThread(ThreadHandle, HandleOut) (OsStatus_t)syscall2(17, SCPARAM(ThreadHandle), SCPARAM(HandleOut))
 #define Syscall_CreateMemorySpaceMapping(Handle, Parameters, AccessBuffer) (OsStatus_t)syscall3(18, SCPARAM(Handle), SCPARAM(Parameters), SCPARAM(AccessBuffer))
 
@@ -134,4 +111,4 @@ _CODE_END
 #define Syscall_SystemPerformanceTime(Value) (OsStatus_t)syscall1(75, SCPARAM(Value))
 #define Syscall_SystemTime(Time) (OsStatus_t)syscall1(76, SCPARAM(Time))
 
-#endif //!_SYSCALL_INTEFACE_H_
+#endif //!__INTERNAL_CRT_SYSCALLS__

@@ -48,7 +48,7 @@ void __CrtModuleEntry(void)
     int IsRunning           = 1;
 
     // Initialize environment
-    __CrtInitialize(&Tls, 0, NULL);
+    __CrtInitialize(&Tls, 1, NULL);
 
     // Call the driver load function 
     // - This will be run once, before loop

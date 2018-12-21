@@ -21,10 +21,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-/* Includes
- * - System */
+#include <internal/_syscalls.h>
 #include <os/device.h>
-#include <os/syscall.h>
 
 /* RegisterService 
  * Registers a service on the current alias, allowing

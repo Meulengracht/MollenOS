@@ -32,7 +32,6 @@
 //#define __TRACE
 
 #include <os/mollenos.h>
-#include <os/syscall.h>
 #include <os/spinlock.h>
 #include <ds/collection.h>
 #include <os/utils.h>

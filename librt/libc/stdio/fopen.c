@@ -22,7 +22,6 @@
 #include <os/ipc/pipe.h>
 #include <os/utils.h>
 #include <os/file.h>
-#include <os/syscall.h>
 
 #include <io.h>
 #include <stdio.h>

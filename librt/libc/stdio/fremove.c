@@ -21,11 +21,9 @@
  */
 
 #include <os/file.h>
-#include <os/syscall.h>
-
-#include <io.h>
 #include <stdio.h>
 #include <errno.h>
+#include <io.h>
 
 /* unlink
  * The is the ANSI C file 

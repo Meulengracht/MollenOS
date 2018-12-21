@@ -20,7 +20,8 @@
  * - Definitions, prototypes and information needed.
  */
 
-#include <os/syscall.h>
+#include <internal/_utils.h>
+#include <os/process.h>
 
 /* _Exit
  * Terminate normally, no cleanup. No calls to anything. 
@@ -29,7 +30,12 @@ void
 _Exit(
     _In_ int Status)
 {
-    Syscall_ProcessExit(Status);
-    Syscall_ThreadYield();
-	for (;;);
+    if (IsProcessModule()) {
+        Syscall_ModuleExit(Status);
+    }
+    else {
+        ProcessTerminate(Status);
+    }
+    Syscall_ThreadExit(Status);
+    for(;;);
 }

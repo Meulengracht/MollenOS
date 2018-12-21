@@ -21,8 +21,6 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-/* Includes
- * - System */
 #include <os/binarysemaphore.h>
 #include <os/utils.h>
 
@@ -46,8 +44,6 @@ BinarySemaphoreConstruct(
     mtx_init(&BinarySemaphore->Mutex, mtx_plain);
     cnd_init(&BinarySemaphore->Condition);
 	BinarySemaphore->Value = Value;
-
-	// Done
 	return OsSuccess;
 }
 

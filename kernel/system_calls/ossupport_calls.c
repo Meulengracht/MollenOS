@@ -44,6 +44,9 @@ ScCreateMemoryHandler(
         Handler->Handle  = CreateHandle(HandleGeneric, 0, Handler);
         Handler->Address = AllocateBlocksInBlockmap(Space->Context->HeapSpace, __MASK, Length);
         Handler->Length  = Length;
+        
+        *HandleOut       = Handler->Handle;
+        *AddressBaseOut  = Handler->Address;
         return CollectionAppend(Space->Context->MemoryHandlers, &Handler->Header);
     }
     return OsInvalidPermissions;
