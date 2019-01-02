@@ -29,8 +29,6 @@
 #include <string.h>
 #include <stdio.h>
 
-/* Globals
- * - State keeping variables */
 static UUId_t WindowingSystemId = UUID_INVALID;
 
 /* OnLoad
@@ -82,7 +80,7 @@ OnEvent(
                 sprintf(&PathBuffer[0], "%s:/shared/bin/vioarr.app", DiskIdentifier);
 #endif
                 TRACE("Spawning %s", &PathBuffer[0]);
-                WindowingSystemId = ProcessSpawn(&PathBuffer[0], NULL, 0);
+                WindowingSystemId = ProcessSpawn(&PathBuffer[0], NULL);
             }
         } break;
         case __SESSIONMANAGER_LOGIN: {

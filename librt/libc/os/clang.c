@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +16,12 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C - CRT Functions 
+ * CRT Functions 
  */
 #define __TRACE
 
+#include <internal/_syscalls.h>
+#include <internal/_utils.h>
 #include <os/osdefs.h>
 #include <os/spinlock.h>
 #include <os/process.h>
@@ -38,24 +40,16 @@ typedef void(*_PVFI)(int);
 typedef void(*_PVTLS)(void*, unsigned long, void*);
 #endif
 
-/* ProcessGetModuleEntryPoints
- * Retrieves a list of loaded modules for the process and
- * their entry points. */
-OsStatus_t CRTHIDE
-ProcessGetModuleEntryPoints(
-    _Out_ Handle_t ModuleList[PROCESS_MAXMODULES]);
-
-__EXTERN void StdioCleanup(void);
-__EXTERN void tls_atexit(_In_ thrd_t thr, _In_ void (*Function)(void*), _In_ void* Argument, _In_ void* DsoHandle);
-__EXTERN void tls_atexit_quick(_In_ thrd_t thr, _In_ void (*Function)(void*), _In_ void* Argument, _In_ void* DsoHandle);
+extern OsStatus_t CRTHIDE ProcessGetLibraryEntryPoints(Handle_t LibraryList[PROCESS_MAXMODULES]);
+extern void               StdioCleanup(void);
+extern void               tls_atexit(_In_ thrd_t thr, _In_ void (*Function)(void*), _In_ void* Argument, _In_ void* DsoHandle);
+extern void               tls_atexit_quick(_In_ thrd_t thr, _In_ void (*Function)(void*), _In_ void* Argument, _In_ void* DsoHandle);
 
 static Handle_t ModuleList[PROCESS_MAXMODULES] = { 0 };
-static void (*PrimaryApplicationFinalizers)(void);
-static void (*PrimaryApplicationTlsAttach)(void);
+static void   (*PrimaryApplicationFinalizers)(void);
+static void   (*PrimaryApplicationTlsAttach)(void);
 
-/* __CrtCallInitializers
- * */
-CRTDECL(void, __CrtCallInitializers(_PVFV *pfbegin, _PVFV *pfend))
+CRTDECL(void, __cxa_callinitializers(_PVFV *pfbegin, _PVFV *pfend))
 {
     while (pfbegin < pfend) {
         if (*pfbegin != NULL)
@@ -64,9 +58,7 @@ CRTDECL(void, __CrtCallInitializers(_PVFV *pfbegin, _PVFV *pfend))
     }
 }
 
-/* __CrtCallInitializersEx
- * */
-CRTDECL(int, __CrtCallInitializersEx(_PIFV *pfbegin, _PIFV *pfend))
+CRTDECL(int, __cxa_callinitializers_ex(_PIFV *pfbegin, _PIFV *pfend))
 {
     int ret = 0;
     while (pfbegin < pfend  && ret == 0) {
@@ -77,9 +69,7 @@ CRTDECL(int, __CrtCallInitializersEx(_PIFV *pfbegin, _PIFV *pfend))
     return ret;
 }
 
-/* __CrtCallInitializersTls
- * */
-CRTDECL(void, __CrtCallInitializersTls(
+CRTDECL(void, __cxa_callinitializers_tls(
     _In_ _PVTLS*        pfbegin,
     _In_ _PVTLS*        pfend,
     _In_ void*          dso_handle,
@@ -92,10 +82,8 @@ CRTDECL(void, __CrtCallInitializersTls(
     }
 }
 
-/* __CrtCallExitHandlers
- * */
 void CRTHIDE
-__CrtCallExitHandlers(
+__cxa_exithandlers(
     _In_ int Status,
     _In_ int Quick,
     _In_ int DoAtExit,
@@ -128,6 +116,16 @@ __CrtCallExitHandlers(
     tls_destroy(tls_current());
 }
 
+/* __cxa_getentrypoints
+ * Retrieves a list of entry points for loaded libraries. */
+OsStatus_t __cxa_getentrypoints(Handle_t LibraryList[PROCESS_MAXMODULES])
+{
+    if (IsProcessModule()) {
+        return Syscall_ModuleGetModuleEntryPoints(LibraryList);
+    }
+    return ProcessGetLibraryEntryPoints(LibraryList);
+}
+
 /* __cxa_runinitializers 
  * C++ Initializes library C++ runtime for all loaded modules */
 CRTDECL(void, __cxa_runinitializers(
@@ -136,7 +134,7 @@ CRTDECL(void, __cxa_runinitializers(
     _In_ void (*TlsAttachFunction)(void)))
 {
     fpreset();
-    if (ProcessGetModuleEntryPoints(ModuleList) == OsSuccess) {
+    if (__cxa_getentrypoints(ModuleList) == OsSuccess) {
         for (int i = 0; i < PROCESS_MAXMODULES; i++) {
             if (ModuleList[i] == NULL) {
                 break;
@@ -156,7 +154,7 @@ CRTDECL(void, __cxa_runinitializers(
 CRTDECL(void, __cxa_threadinitialize(void))
 {
     fpreset();
-    if (ProcessGetModuleEntryPoints(ModuleList) == OsSuccess) {
+    if (__cxa_getentrypoints(ModuleList) == OsSuccess) {
         for (int i = 0; i < PROCESS_MAXMODULES; i++) {
             if (ModuleList[i] == NULL) {
                 break;

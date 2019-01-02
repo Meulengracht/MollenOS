@@ -34,41 +34,42 @@
 
 OsStatus_t
 ScModuleGetStartupInformation(
-    _In_ ProcessStartupInformation_t* StartupInformation)
+    _In_ void*   InheritanceBlock, 
+    _In_ size_t* InheritanceBlockLength,
+    _In_ void*   ArgumentBlock,
+    _In_ size_t* ArgumentBlockLength)
 {
     SystemModule_t* Module = GetCurrentModule();
-    if (Module == NULL || StartupInformation == NULL) {
-        return (Module == NULL) ? OsInvalidPermissions : OsError;
+    if (Module == NULL) {
+        return OsInvalidPermissions;
     }
 
-    if (Module->StartupInformation.ArgumentPointer != NULL) {
-        if (StartupInformation->ArgumentPointer != NULL) {
-            memcpy((void*)StartupInformation->ArgumentPointer, 
-                Module->StartupInformation.ArgumentPointer,
-                MIN(StartupInformation->ArgumentLength, Module->StartupInformation.ArgumentLength));
-            StartupInformation->ArgumentLength = MIN(StartupInformation->ArgumentLength, Module->StartupInformation.ArgumentLength);
+    if (Module->ArgumentBlock != NULL) {
+        if (ArgumentBlock != NULL) {
+            memcpy((void*)ArgumentBlock, Module->ArgumentBlock,
+                MIN(*ArgumentBlockLength, Module->ArgumentBlockLength));
+            *ArgumentBlockLength = MIN(*ArgumentBlockLength, Module->ArgumentBlockLength);
         }
-        else {
-            StartupInformation->ArgumentLength = Module->StartupInformation.ArgumentLength;
-        }
-    }
-    else {
-        StartupInformation->ArgumentLength = 0;
-    }
-    if (Module->StartupInformation.InheritanceBlockPointer != NULL) {
-        if (StartupInformation->InheritanceBlockPointer != NULL) {
-            size_t BytesToCopy = MIN(StartupInformation->InheritanceBlockLength, 
-                    Module->StartupInformation.InheritanceBlockLength);
-            memcpy((void*)StartupInformation->InheritanceBlockPointer, 
-                Module->StartupInformation.InheritanceBlockPointer, BytesToCopy);
-            StartupInformation->InheritanceBlockLength = BytesToCopy;
-        }
-        else {
-            StartupInformation->InheritanceBlockLength = Module->StartupInformation.InheritanceBlockLength;
+        else if (ArgumentBlockLength != NULL) {
+            *ArgumentBlockLength = Module->ArgumentBlockLength;
         }
     }
-    else {
-        StartupInformation->InheritanceBlockLength = 0;
+    else if (ArgumentBlockLength != NULL) {
+        *ArgumentBlockLength = 0;
+    }
+
+    if (Module->InheritanceBlock != NULL) {
+        if (InheritanceBlock != NULL) {
+            size_t BytesToCopy = MIN(*InheritanceBlockLength, Module->InheritanceBlockLength);
+            memcpy((void*)InheritanceBlock, Module->InheritanceBlock, BytesToCopy);
+            *InheritanceBlockLength = BytesToCopy;
+        }
+        else if (InheritanceBlockLength != NULL) {
+            *InheritanceBlockLength = Module->InheritanceBlockLength;
+        }
+    }
+    else if (InheritanceBlockLength != NULL) {
+        *InheritanceBlockLength = 0;
     }
     return OsSuccess;
 }

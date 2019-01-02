@@ -19,7 +19,6 @@
  * MollenOS Inter-Process Communication Interface
  */
 
-#include <internal/_syscalls.h>
 #include <os/ipc/ipc.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -28,7 +27,7 @@
 __EXTERN
 OsStatus_t 
 ScRpcExecute(
-	_In_ MRemoteCall_t *RemoteCall,
+	_In_ MRemoteCall_t* RemoteCall,
 	_In_ int            Asynchronous);
 
 OsStatus_t
@@ -39,52 +38,40 @@ RPCExecute(
 }
 
 #else
+#include <internal/_syscalls.h>
+#include <internal/_utils.h>
 
-/* RPCExecute/RPCEvent
- * To get a reply from the RPC request, the user
- * must use RPCExecute, this will automatically wait
- * for a reply, whereas RPCEvent will send the request
- * and not block/wait for reply */
-OsStatus_t 
+OsStatus_t
 RPCExecute(
-	_In_ MRemoteCall_t*         RemoteCall)
+	_In_ MRemoteCall_t* RemoteCall)
 {
+    // Install sender
+    RemoteCall->From.Process = *GetInternalProcessId();
     return Syscall_RemoteCall(RemoteCall, 0);
 }
 
-/* RPCExecute/RPCEvent
- * To get a reply from the RPC request, the user
- * must use RPCExecute, this will automatically wait
- * for a reply, whereas RPCEvent will send the request
- * and not block/wait for reply */
-OsStatus_t 
+OsStatus_t
 RPCEvent(
-	_In_ MRemoteCall_t*         RemoteCall)
+	_In_ MRemoteCall_t* RemoteCall)
 {
+    // Install sender
+    RemoteCall->From.Process = *GetInternalProcessId();
     return Syscall_RemoteCall(RemoteCall, 1);
 }
 
-/* RPCListen 
- * Call this to wait for a new RPC message, it automatically
- * reads the message, and all the arguments. To avoid freeing
- * an argument, set InUse to 0 */
-OsStatus_t 
+OsStatus_t
 RPCListen(
-	_In_ MRemoteCall_t*         Message,
-    _In_ void*                  ArgumentBuffer)
+	_In_ MRemoteCall_t* Message,
+    _In_ void*          ArgumentBuffer)
 {
     return Syscall_RemoteCallWait(Message, ArgumentBuffer);
 }
 
-/* RPCRespond
- * This is a wrapper to return a respond message/buffer to the
- * sender of the message, it's good practice to always wait for
- * a result when there is going to be one */
-OsStatus_t 
+OsStatus_t
 RPCRespond(
-    _In_ MRemoteCallAddress_t*  RemoteAddress,
-    _In_ const void*            Buffer, 
-    _In_ size_t                 Length)
+    _In_ MRemoteCallAddress_t* RemoteAddress,
+    _In_ const void*           Buffer, 
+    _In_ size_t                Length)
 {
 	return Syscall_RemoteCallRespond(RemoteAddress, (void*)Buffer, Length);
 }

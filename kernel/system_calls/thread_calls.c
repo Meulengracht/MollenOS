@@ -134,19 +134,22 @@ ScThreadSleep(
     return OsSuccess;
 }
 
-/* ScThreadGetCurrentId
- * Retrieves the thread id of the calling thread */
 UUId_t
-ScThreadGetCurrentId(void) {
+ScThreadGetCurrentId(void)
+{
     return GetCurrentThreadId();
 }
 
-/* ScThreadYield
- * This yields the current thread and gives cpu time to another thread */
 OsStatus_t
-ScThreadYield(void) {
+ScThreadYield(void)
+{
     ThreadingYield();
     return OsSuccess;
+}
+
+UUId_t ScThreadCookie(void)
+{
+    return GetCurrentThreadForCore(CpuGetCurrentId())->Cookie;
 }
 
 /* ScThreadSetCurrentName

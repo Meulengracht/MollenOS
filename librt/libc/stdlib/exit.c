@@ -33,9 +33,9 @@
  *    If exit_code is EXIT_FAILURE, an implementation-defined status, indicating unsuccessful 
  *    termination is returned. In other cases implementation-defined status value is returned. */
 #ifdef __clang__
-__EXTERN void __CrtCallExitHandlers(int Status, int Quick, int DoAtExit, int CleanupCrt);
-__EXTERN int __cxa_atexit(void (*Function)(void*), void *Argument, void *Dso);
-__EXTERN void *__dso_handle;
+extern void  __cxa_exithandlers(int Status, int Quick, int DoAtExit, int CleanupCrt);
+extern int   __cxa_atexit(void (*Function)(void*), void *Argument, void *Dso);
+extern void* __dso_handle;
 int
 atexit(
     _In_ void (*Function)(void))
@@ -46,7 +46,7 @@ void
 exit(
     _In_ int Status)
 {
-    __CrtCallExitHandlers(Status, 0, 1, 1);
+    __cxa_exithandlers(Status, 0, 1, 1);
 	_Exit(Status);
 }
 #else

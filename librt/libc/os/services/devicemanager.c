@@ -22,6 +22,8 @@
  */
 
 #include <os/contracts/base.h>
+#include <os/ipc/ipc.h>
+#include <os/service.h>
 #include <os/device.h>
 #include <string.h>
 

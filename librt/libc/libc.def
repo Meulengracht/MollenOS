@@ -17,6 +17,7 @@ CollectionRemoveByKey
 CollectionDestroy
 CollectionLength
 InitializeProcess
+GetInternalCommandLine
 exit
 _setjmp
 _setjmp3

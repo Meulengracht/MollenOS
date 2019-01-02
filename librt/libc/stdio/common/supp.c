@@ -209,7 +209,9 @@ StdioGetNumberOfInheritableHandles(
  * Creates a block of data containing all the stdio handles that can be inherited. */
 static OsStatus_t
 StdioCreateInheritanceBlock(
-    _In_ ProcessStartupInformation_t* StartupInformation)
+    _In_  ProcessStartupInformation_t* StartupInformation,
+    _Out_ void**                       InheritationBlock,
+    _Out_ size_t*                      InheritationBlockLength)
 {
     StdioObject_t*  BlockPointer    = NULL;
     size_t          NumberOfObjects = 0;
@@ -222,9 +224,9 @@ StdioCreateInheritanceBlock(
     
     NumberOfObjects = StdioGetNumberOfInheritableHandles(StartupInformation);
     if (NumberOfObjects != 0) {
-        StartupInformation->InheritanceBlockLength  = NumberOfObjects * sizeof(StdioObject_t);
-        StartupInformation->InheritanceBlockPointer = malloc(NumberOfObjects * sizeof(StdioObject_t));
-        BlockPointer = (StdioObject_t*)StartupInformation->InheritanceBlockPointer;
+        *InheritationBlockLength = NumberOfObjects * sizeof(StdioObject_t);
+        *InheritationBlock       = malloc(NumberOfObjects * sizeof(StdioObject_t));
+        BlockPointer             = (StdioObject_t*)(*InheritationBlock);
 
         LOCK_FILES();
         foreach(Node, &IoObjects) {

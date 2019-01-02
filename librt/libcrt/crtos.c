@@ -39,6 +39,7 @@ CRTDECL(void, __CppInitVectoredEH(void));
 
 CRTDECL(void, __cxa_runinitializers(void (*Initializer)(void), void (*Finalizer)(void), void (*TlsAttachFunction)(void)));
 CRTDECL(void, InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInformation));
+CRTDECL(const char*, GetInternalCommandLine(void));
 
 /* Unescape Quotes in arguments */
 void
@@ -150,10 +151,10 @@ __CrtInitialize(
 
     // Handle process arguments
     if (ArgumentCount != NULL) {
-        if (StartupInformation.ArgumentLength != 0) {
-            *ArgumentCount  = ParseCommandLine((char*)StartupInformation.ArgumentPointer, NULL);
+        if (strlen(GetInternalCommandLine()) != 0) {
+            *ArgumentCount  = ParseCommandLine((char*)GetInternalCommandLine(), NULL);
             Arguments       = (char**)calloc(sizeof(char*), (*ArgumentCount) + 1);
-            ParseCommandLine((char*)StartupInformation.ArgumentPointer, Arguments);
+            ParseCommandLine((char*)GetInternalCommandLine(), Arguments);
         }
         else {
             *ArgumentCount = 0;

@@ -25,6 +25,7 @@
 #include "devicemanager.h"
 #include <os/driver.h>
 #include <os/utils.h>
+#include <os/service.h>
 #include <ds/collection.h>
 #include <bus.h>
 #include <assert.h>

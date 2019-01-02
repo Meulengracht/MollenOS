@@ -248,7 +248,9 @@ OsStatus_t LoadFile(MString_t* Path, MString_t** FullPath, void** BufferOut, siz
                     memcpy(Buffer, (const void*)GetBufferDataPointer(TransferBuffer), Read);
                 }
                 else {
-                    MStringDestroy(*FullPath);
+                    if (FullPath != NULL) {
+                        MStringDestroy(*FullPath);
+                    }
                     dsfree(Buffer);
                     Status = OsError;
                     Buffer = NULL;

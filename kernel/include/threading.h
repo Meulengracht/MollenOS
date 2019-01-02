@@ -90,6 +90,7 @@ typedef struct _MCoreThread {
     const char*             Name;
     Flags_t                 Flags;
     atomic_int              Cleanup;
+    UUId_t                  Cookie;
 
     Context_t*              Contexts[THREADING_NUMCONTEXTS];
     Context_t*              ContextActive;

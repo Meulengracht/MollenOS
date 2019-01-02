@@ -52,7 +52,10 @@ typedef struct _SystemModule {
     size_t           Length;
 
     // Used by Module/Service type
-    ProcessStartupInformation_t StartupInformation;
+    void*                       InheritanceBlock;
+    size_t                      InheritanceBlockLength;
+    void*                       ArgumentBlock;
+    size_t                      ArgumentBlockLength;
     clock_t                     StartedAt;
     MString_t*                  WorkingDirectory;
     MString_t*                  BaseDirectory;

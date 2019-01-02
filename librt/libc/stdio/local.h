@@ -99,7 +99,9 @@ __EXTERN StdioHandle_t* StdioFdToHandle(_In_ int fd);
  * can be inherited. */
 __EXTERN OsStatus_t
 StdioCreateInheritanceBlock(
-	_In_ ProcessStartupInformation_t* StartupInformation);
+	_In_  ProcessStartupInformation_t* StartupInformation,
+    _Out_ void**                       InheritationBlock,
+    _Out_ size_t*                      InheritationBlockLength);
 
 /* StdioReadInternal
  * Internal read wrapper for file-reading */

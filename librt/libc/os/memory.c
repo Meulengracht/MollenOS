@@ -22,7 +22,7 @@
  */
 
 #include <os/mollenos.h>
-#include <os/syscall.h>
+#include <internal/_syscalls.h>
 
 /* MemoryAllocate
  * Allocates a chunk of memory, controlled by the

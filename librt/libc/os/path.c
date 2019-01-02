@@ -22,8 +22,10 @@
  */
 
 #include <os/contracts/filesystem.h>
+#include <internal/_syscalls.h>
+#include <internal/_utils.h>
 #include <os/mollenos.h>
-#include <os/syscall.h>
+#include <os/process.h>
 #include <os/file.h>
 #include <string.h>
 
@@ -32,7 +34,7 @@
  * given path modifier or absolute path */
 OsStatus_t
 SetWorkingDirectory(
-    _In_ const char *Path)
+    _In_ const char* Path)
 {
     OsFileDescriptor_t  FileInfo;
 	char                TempBuffer[_MAXPATH];
@@ -46,7 +48,7 @@ SetWorkingDirectory(
         memcpy(&TempBuffer[0], Path, strlen(Path));
     }
     else {
-        if (Syscall_GetWorkingDirectory(UUID_INVALID, &TempBuffer[0], _MAXPATH) != OsSuccess) {
+        if (GetWorkingDirectory(&TempBuffer[0], _MAXPATH) != OsSuccess) {
             return OsError;
         }
         strcat(&TempBuffer[0], Path);
@@ -59,7 +61,14 @@ SetWorkingDirectory(
             if (TempBuffer[CurrentLength - 1] != '/') {
                 TempBuffer[CurrentLength] = '/';
             }
-            return Syscall_SetWorkingDirectory(&TempBuffer[0]);
+
+            // Handle this differently based on a module or application
+            if (IsProcessModule()) {
+                return Syscall_SetWorkingDirectory(&TempBuffer[0]);
+            }
+            else {
+                return ProcessSetWorkingDirectory(&TempBuffer[0]);
+            }
         }
     }
     return OsError;
@@ -75,21 +84,13 @@ GetWorkingDirectory(
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
-	return Syscall_GetWorkingDirectory(UUID_INVALID, PathBuffer, MaxLength);
-}
 
-/* GetWorkingDirectoryOfApplication
- * Queries the current working directory path for the specific process (See _MAXPATH) */
-OsStatus_t
-GetWorkingDirectoryOfApplication(
-    _In_ UUId_t ProcessId,
-    _In_ char*  PathBuffer,
-    _In_ size_t MaxLength)
-{
-	if (PathBuffer == NULL || MaxLength == 0) {
-		return OsError;
-	}
-	return Syscall_GetWorkingDirectory(ProcessId, PathBuffer, MaxLength);
+    if (IsProcessModule()) {
+        return Syscall_GetWorkingDirectory(PathBuffer, MaxLength);
+    }
+	else {
+        return ProcessGetWorkingDirectory(UUID_INVALID, PathBuffer, MaxLength);
+    }
 }
 
 /* GetAssemblyDirectory
@@ -102,7 +103,13 @@ GetAssemblyDirectory(
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
-	return Syscall_GetAssemblyDirectory(PathBuffer, MaxLength);
+
+    if (IsProcessModule()) {
+        return Syscall_GetAssemblyDirectory(PathBuffer, MaxLength);
+    }
+	else {
+        return ProcessGetAssemblyDirectory(UUID_INVALID, PathBuffer, MaxLength);
+    }
 }
 
 /* GetUserDirectory 
@@ -115,7 +122,7 @@ GetUserDirectory(
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
-    return PathResolveEnvironment(UserDataDirectory, PathBuffer, MaxLength);
+    return PathResolveEnvironment(IsProcessModule() ? PathSystemDirectory : UserDataDirectory, PathBuffer, MaxLength);
 }
 
 /* GetUserCacheDirectory 
@@ -128,7 +135,7 @@ GetUserCacheDirectory(
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
-    return PathResolveEnvironment(UserCacheDirectory, PathBuffer, MaxLength);
+    return PathResolveEnvironment(IsProcessModule() ? PathSystemDirectory : UserCacheDirectory, PathBuffer, MaxLength);
 }
 
 /* GetApplicationDirectory 
@@ -141,7 +148,7 @@ GetApplicationDirectory(
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
-    return PathResolveEnvironment(ApplicationDataDirectory, PathBuffer, MaxLength);
+    return PathResolveEnvironment(IsProcessModule() ? PathSystemDirectory : ApplicationDataDirectory, PathBuffer, MaxLength);
 }
 
 /* GetApplicationTemporaryDirectory 
@@ -154,5 +161,5 @@ GetApplicationTemporaryDirectory(
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
-    return PathResolveEnvironment(ApplicationTemporaryDirectory, PathBuffer, MaxLength);
+    return PathResolveEnvironment(IsProcessModule() ? PathSystemDirectory : ApplicationTemporaryDirectory, PathBuffer, MaxLength);
 }

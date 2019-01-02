@@ -22,6 +22,7 @@
 
 #include <os/contracts/base.h>
 #include <os/mollenos.h>
+#include <os/ipc/ipc.h>
 #include <os/utils.h>
 #include <threads.h>
 #include <string.h>

@@ -503,19 +503,17 @@ UsbEndpointReset(
 
 /* UsbQueryControllerCount
  * Queries the available number of usb controllers. */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 UsbQueryControllerCount(
-    _Out_ int*                      ControllerCount));
+    _Out_ int* ControllerCount));
 
 /* UsbQueryController
  * Queries the controller with the given index. Index-max is
  * the controller count - 1. */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 UsbQueryController(
-    _In_  int                       Index,
-    _Out_ UsbHcController_t*        Controller));
+    _In_ int                Index,
+    _In_ UsbHcController_t* Controller));
 
 /* UsbQueryPipes 
  * Queries the available interfaces and endpoints on a given

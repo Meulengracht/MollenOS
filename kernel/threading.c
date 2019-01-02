@@ -52,6 +52,20 @@ ThreadingInitialize(void)
     return OsSuccess;
 }
 
+UUId_t
+CreateThreadCookie(
+    _In_ MCoreThread_t* Thread,
+    _In_ MCoreThread_t* Parent)
+{
+    UUId_t Cookie = Thread->StartedAt ^ Parent->StartedAt;
+    for (int i = 0; i < 5; i++) {
+        Cookie >>= i;
+        Cookie += Thread->StartedAt;
+        Cookie *= Parent->StartedAt;
+    }
+    return Cookie;
+}
+
 /* ThreadingEnable
  * Enables the threading system for the given cpu calling the function. */
 OsStatus_t
@@ -157,7 +171,9 @@ CreateThread(
     Thread->Arguments       = Arguments;
     Thread->Flags           = Flags;
     COLLECTION_NODE_INIT(&Thread->CollectionHeader, Key);
+    
     TimersGetSystemTick(&Thread->StartedAt);
+    Thread->Cookie = CreateThreadCookie(Thread, Parent);
 
     // Setup initial scheduler information
     SchedulerThreadInitialize(Thread, Flags);
@@ -179,6 +195,7 @@ CreateThread(
         }
         Thread->MemorySpace       = MemorySpace;
         Thread->MemorySpaceHandle = MemorySpaceHandle;
+        Thread->Cookie            = Parent->Cookie;
         AcquireHandle(MemorySpaceHandle);
     }
     else {

@@ -136,8 +136,8 @@ ScRpcResponse(
 
     // Read up to <Length> bytes, this results in the next 1 .. Length
     // being read from the raw-pipe.
-    ReadSystemPipe(Pipe, (uint8_t*)RemoteCall->Result.Data.Buffer, 
-        RemoteCall->Result.Length);
+    RemoteCall->Result.Length = ReadSystemPipe(Pipe, 
+        (uint8_t*)RemoteCall->Result.Data.Buffer, RemoteCall->Result.Length);
     return OsSuccess;
 }
 
@@ -151,6 +151,7 @@ ScRpcExecute(
 {
     SystemPipeUserState_t State;
     size_t                TotalLength = sizeof(MRemoteCall_t);
+    MCoreThread_t*        Thread;
     SystemPipe_t*         Pipe;
     int                   i;
 
@@ -169,6 +170,11 @@ ScRpcExecute(
             TotalLength += RemoteCall->Arguments[i].Length;
         }
     }
+
+    // Decrypt the sender for the receiver
+    Thread = GetCurrentThreadForCore(CpuGetCurrentId());
+    RemoteCall->From.Process ^= Thread->Cookie;
+    RemoteCall->From.Thread   = Thread->Id;
 
     // Setup producer access
     AcquireSystemPipeProduction(Pipe, TotalLength, &State);

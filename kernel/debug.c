@@ -29,6 +29,7 @@
 #include <memoryspace.h>
 #include <interrupts.h>
 #include <deviceio.h>
+#include <os/file.h>
 #include <machine.h>
 #include <handle.h>
 #include <stdio.h>

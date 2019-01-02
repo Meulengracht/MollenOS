@@ -22,23 +22,20 @@
  */
 
 #include <os/contracts/usbhost.h>
+#include <os/service.h>
 #include <os/usb.h>
 
 /* UsbQueryControllerCount
  * Queries the available number of usb controllers. */
 OsStatus_t
 UsbQueryControllerCount(
-    _Out_ int *ControllerCount)
+    _Out_ int* ControllerCount)
 {
-    // Variables
 	MRemoteCall_t Request;
 
-	// Initialize RPC
 	RPCInitialize(&Request, __USBMANAGER_TARGET, 
         __USBMANAGER_INTERFACE_VERSION, __USBMANAGER_QUERYCONTROLLERCOUNT);
-
-    // No arguments, set result buffer
-    RPCSetResult(&Request, (__CONST void*)ControllerCount, sizeof(int));
+    RPCSetResult(&Request, (const void*)ControllerCount, sizeof(int));
 	return RPCExecute(&Request);
 }
 
@@ -47,20 +44,14 @@ UsbQueryControllerCount(
  * the controller count - 1. */
 OsStatus_t
 UsbQueryController(
-    _In_ int Index,
-    _Out_ UsbHcController_t *Controller)
+    _In_ int                Index,
+    _In_ UsbHcController_t* Controller)
 {
-    // Variables
 	MRemoteCall_t Request;
 
-	// Initialize RPC
 	RPCInitialize(&Request, __USBMANAGER_TARGET, 
         __USBMANAGER_INTERFACE_VERSION, __USBMANAGER_QUERYCONTROLLER);
-
-    // Set arguments
-    RPCSetArgument(&Request, 0, (__CONST void*)&Index, sizeof(int));
-
-    // Set result buffer
-    RPCSetResult(&Request, (__CONST void*)Controller, sizeof(UsbHcController_t));
+    RPCSetArgument(&Request, 0, (const void*)&Index, sizeof(int));
+    RPCSetResult(&Request, (const void*)Controller, sizeof(UsbHcController_t));
 	return RPCExecute(&Request);
 }

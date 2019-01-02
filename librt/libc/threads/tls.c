@@ -22,8 +22,8 @@
  * 
  * Process Flow:
  *  - Startup:          tls_create(main_thread)
- *  - Cleanup (Normal)  __CrtCallExitHandlers, tls_cleanup(thread/process), tls_destroy
- *  - Cleanup (Quick)   __CrtCallExitHandlers, tls_cleanup_quick(thread/process), tls_destroy
+ *  - Cleanup (Normal)  __cxa_exithandlers, tls_cleanup(thread/process), tls_destroy
+ *  - Cleanup (Quick)   __cxa_exithandlers, tls_cleanup_quick(thread/process), tls_destroy
  * 
  * Thread Flow:
  *  - Startup:          tls_create(new_thread), __cxa_threadinitialize

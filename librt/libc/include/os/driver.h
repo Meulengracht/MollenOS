@@ -23,9 +23,10 @@
 #ifndef _DRIVER_SDK_H_
 #define _DRIVER_SDK_H_
 
-#include <os/osdefs.h>
 #include <os/contracts/base.h>
 #include <os/interrupt.h>
+#include <os/ipc/ipc.h>
+#include <os/osdefs.h>
 #include <os/device.h>
 #include <os/acpi.h>
 #include <os/io.h>

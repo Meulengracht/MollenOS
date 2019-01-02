@@ -74,7 +74,7 @@ StorageQuery(
 
     Contract.DriverId   = Driver;
     Contract.Type       = ContractStorage;
-    Contract.Version    = __DEVICEMANAGER_INTERFACE_VERSION;
+    Contract.Version    = 1;
     return QueryDriver(&Contract, __STORAGE_QUERY_STAT,
         &StorageDevice, sizeof(UUId_t), NULL, 0, NULL, 0, 
         Descriptor, sizeof(StorageDescriptor_t));
@@ -100,7 +100,7 @@ StorageRead(
 
     Contract.DriverId       = DriverId;
     Contract.Type           = ContractStorage;
-    Contract.Version        = __DEVICEMANAGER_INTERFACE_VERSION;
+    Contract.Version        = 1;
 
     Operation.Direction     = __STORAGE_OPERATION_READ;
     Operation.AbsSector     = Sector;
@@ -133,7 +133,7 @@ StorageWrite(
 
     Contract.DriverId       = Driver;
     Contract.Type           = ContractStorage;
-    Contract.Version        = __DEVICEMANAGER_INTERFACE_VERSION;
+    Contract.Version        = 1;
 
     Operation.Direction     = __STORAGE_OPERATION_WRITE;
     Operation.AbsSector     = Sector;

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2018, Philip Meulengracht
+ * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,27 +16,39 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS User Session Interface
- * - MollenOS SDK 
+ * Session Manager Interface
+ * - Part of the SDK. Provides user session related functionality through the session manager.
  */
 
 #ifndef __SDK_SESSIONS_H__
 #define __SDK_SESSIONS_H__
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
-#include <os/ipc/ipc.h>
-#include <os/service.h>
 #include <time.h>
 
-/* These are the different IPC functions supported
- * by the driver, note that some of them might
- * be changed in the different versions, and/or new
- * functions will be added */
-#define __SESSIONMANAGER_CHECKUP        IPC_DECL_FUNCTION(0)
-#define __SESSIONMANAGER_LOGIN          IPC_DECL_FUNCTION(1)
-#define __SESSIONMANAGER_LOGOUT         IPC_DECL_FUNCTION(2)
+// IPC Function Declarations
+#define __SESSIONMANAGER_CHECKUP           IPC_DECL_FUNCTION(0)
+#define __SESSIONMANAGER_LOGIN             IPC_DECL_FUNCTION(1)
+#define __SESSIONMANAGER_LOGOUT            IPC_DECL_FUNCTION(2)
+
+#define __SESSIONMANAGER_CREATE_PROCESS    IPC_DECL_FUNCTION(3)
+#define __SESSIONMANAGER_JOIN_PROCESS      IPC_DECL_FUNCTION(4)
+#define __SESSIONMANAGER_KILL_PROCESS      IPC_DECL_FUNCTION(5)
+#define __SESSIONMANAGER_TERMINATE_PROCESS IPC_DECL_FUNCTION(6)
+#define __SESSIONMANAGER_GET_PROCESS_ID    IPC_DECL_FUNCTION(7)
+#define __SESSIONMANAGER_GET_ARGUMENTS     IPC_DECL_FUNCTION(8)
+#define __SESSIONMANAGER_GET_INHERIT_BLOCK IPC_DECL_FUNCTION(9)
+#define __SESSIONMANAGER_GET_PROCESS_NAME  IPC_DECL_FUNCTION(10)
+
+#define __SESSIONMANAGER_GET_ASSEMBLY_DIRECTORY IPC_DECL_FUNCTION(11)
+#define __SESSIONMANAGER_GET_WORKING_DIRECTORY  IPC_DECL_FUNCTION(12)
+#define __SESSIONMANAGER_SET_WORKING_DIRECTORY  IPC_DECL_FUNCTION(13)
+
+#define __SESSIONMANAGER_GET_LIBRARY_HANDLES IPC_DECL_FUNCTION(14)
+#define __SESSIONMANAGER_GET_LIBRARY_ENTRIES IPC_DECL_FUNCTION(15)
+#define __SESSIONMANAGER_LOAD_LIBRARY        IPC_DECL_FUNCTION(16)
+#define __SESSIONMANAGER_RESOLVE_FUNCTION    IPC_DECL_FUNCTION(17)
+#define __SESSIONMANAGER_UNLOAD_LIBRARY      IPC_DECL_FUNCTION(18)
 
 /* SessionObject 
  * Response object from login-requests and session inquiries. */
@@ -49,71 +61,25 @@ PACKED_TYPESTRUCT(SessionObject, {
 });
 
 /* SessionCheckDisk
- * Notifies the sessionmanager of a new accessible system disk. */
-SERVICEAPI
-OsStatus_t
-SERVICEABI
+ * Notifies the sessionmanager if a new accessible system disk. */
+CRTDECL(OsStatus_t,
 SessionCheckDisk(
-	_In_ __CONST char *DiskIdentifier)
-{
-	// Variables
-	MRemoteCall_t Request;
-
-	// Initialze RPC
-	RPCInitialize(&Request, __SESSIONMANAGER_TARGET, 1, __SESSIONMANAGER_CHECKUP);
-	RPCSetArgument(&Request, 0, (__CONST void*)DiskIdentifier, strlen(DiskIdentifier) + 1);
-
-	// Send
-	return RPCEvent(&Request);
-}
+	_In_ const char* DiskIdentifier));
 
 /* SessionLoginRequest
  * Sends a login-request to the session-manager. The sessionmanager will respond
  * with a SessionObject structure containing information about success/failure. */
-SERVICEAPI
-OsStatus_t
-SERVICEABI
+CRTDECL(OsStatus_t,
 SessionLoginRequest(
-	_In_ __CONST char *User,
-    _In_ __CONST char *Password,
-    _Out_ SessionObject_t *Result)
-{
-	// Variables
-	MRemoteCall_t Request;
-
-	// Initialze RPC
-	RPCInitialize(&Request, __SESSIONMANAGER_TARGET, 1, __SESSIONMANAGER_LOGIN);
-	RPCSetArgument(&Request, 0, (__CONST void*)User, strlen(User) + 1);
-    RPCSetArgument(&Request, 1, (__CONST void*)Password, strlen(Password) + 1);
-    RPCSetResult(&Request, (__CONST void*)Result, sizeof(SessionObject_t));
-
-	// Send
-	return RPCExecute(&Request);
-}
+	_In_ const char*      User,
+    _In_ const char*      Password,
+    _In_ SessionObject_t* Result));
 
 /* SessionLogoutRequest
  * Sends a logout-request to the session-manager. The acquired session-id from
  * the login must be used to logout the correct user. */
-SERVICEAPI
-OsStatus_t
-SERVICEABI
+CRTDECL(OsStatus_t,
 SessionLogoutRequest(
-	_In_ __CONST char *SessionId)
-{
-	// Variables
-	MRemoteCall_t Request;
-    OsStatus_t Result   = OsError;
-
-	// Initialze RPC
-	RPCInitialize(&Request, __SESSIONMANAGER_TARGET, 1, __SESSIONMANAGER_LOGOUT);
-	RPCSetArgument(&Request, 0, (__CONST void*)SessionId, strlen(SessionId) + 1);
-    RPCSetResult(&Request, (__CONST void*)&Result, sizeof(OsStatus_t));
-
-	// Send
-	if (RPCExecute(&Request) != OsSuccess) {
-        return OsError;
-    }
-    return Result;
-}
+	_In_ const char* SessionId));
 
 #endif //!__SDK_SESSIONS_H__

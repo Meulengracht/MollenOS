@@ -21,12 +21,17 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
+#include <internal/_syscalls.h>
+#include <internal/_utils.h>
 #include <os/sharedobject.h>
-#include <os/syscall.h>
 #include <ds/collection.h>
+#include <ds/mstring.h>
+#include <os/process.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <ctype.h>
+
+extern OsStatus_t LoadFile(MString_t* Path, MString_t** FullPath, void** BufferOut, size_t* LengthOut);
 
 typedef struct _LibraryItem {
     CollectionItem_t Header;
@@ -34,13 +39,9 @@ typedef struct _LibraryItem {
     int              References;
 } LibraryItem_t;
 
-/* Globals
- * - Function blueprint for dll-entry */
 typedef void (*SOInitializer_t)(int);
 static Collection_t LoadedLibraries = COLLECTION_INIT(KeyId);
 
-/* SharedObjectHash
- * Helper utility to identify shared libraries */
 size_t SharedObjectHash(const char *String) {
 	uint8_t* Pointer    = (uint8_t*)String;
 	size_t Hash         = 5381;
@@ -53,15 +54,12 @@ size_t SharedObjectHash(const char *String) {
 	return Hash;
 }
 
-/* SharedObjectLoad
- * Load a shared object given a path
- * path must exists otherwise NULL is returned */
 Handle_t 
 SharedObjectLoad(
 	_In_ const char* SharedObject)
 {
     SOInitializer_t Initializer = NULL;
-    LibraryItem_t *Library      = NULL;
+    LibraryItem_t* Library      = NULL;
     Handle_t Result             = HANDLE_INVALID;
     DataKey_t Key               = { .Value.Id = SharedObjectHash(SharedObject) };
 
@@ -72,7 +70,27 @@ SharedObjectLoad(
 
     Library = CollectionGetDataByKey(&LoadedLibraries, Key, 0);
     if (Library == NULL) {
-	    Result = Syscall_LibraryLoad(SharedObject);
+        if (IsProcessModule()) {
+            void*  Buffer       = NULL;
+            size_t BufferLength = 0;
+            if (SharedObject != NULL) {
+                MString_t* PathOfObject = MStringCreate((void*)SharedObject, StrUTF8);
+                OsStatus_t Status       = LoadFile(PathOfObject, NULL, &Buffer, &BufferLength);
+                MStringDestroy(PathOfObject);
+                if (Status != OsSuccess) {
+                    return HANDLE_INVALID;
+                }
+            }
+	        if (Syscall_LibraryLoad(SharedObject, Buffer, BufferLength, &Result) != OsSuccess) {
+                if (Buffer != NULL) { 
+                    free(Buffer);
+                }
+            }
+        }
+        else {
+            ProcessLoadLibrary(SharedObject, &Result);
+        }
+
         if (Result != HANDLE_INVALID) {
             Library = (LibraryItem_t*)malloc(sizeof(LibraryItem_t));
             COLLECTION_NODE_INIT((CollectionItem_t*)Library, Key);
@@ -95,10 +113,6 @@ SharedObjectLoad(
     return Result;
 }
 
-/* SharedObjectGetFunction
- * Load a function-address given an shared object
- * handle and a function name, function must exist
- * otherwise null is returned */
 void*
 SharedObjectGetFunction(
 	_In_ Handle_t       Handle, 
@@ -107,21 +121,26 @@ SharedObjectGetFunction(
 	if (Handle == HANDLE_INVALID || Function == NULL) {
 		return NULL;
 	}
-	return (void*)Syscall_LibraryFunction(Handle, Function);
+
+    if (IsProcessModule()) {
+        return (void*)Syscall_LibraryFunction(Handle, Function);
+    }
+	else {
+        uintptr_t AddressOfFunction;
+        if (ProcessGetLibraryFunction(Handle, Function, &AddressOfFunction) != OsSuccess) {
+            return NULL;
+        }
+        return (void*)AddressOfFunction;
+    }
 }
 
-/* SharedObjectUnload
- * Unloads a valid shared object handle
- * returns OsError on failure */
 OsStatus_t 
 SharedObjectUnload(
 	_In_ Handle_t Handle)
 {
-    // Variables
-    SOInitializer_t Initialize  = NULL;
-    LibraryItem_t *Library      = NULL;
+    SOInitializer_t Initialize = NULL;
+    LibraryItem_t*  Library    = NULL;
 
-	// Sanitize input
 	if (Handle == HANDLE_INVALID) {
 		return OsError;
 	}
@@ -142,7 +161,13 @@ SharedObjectUnload(
             if (Initialize != NULL) {
                 Initialize(DLL_ACTION_FINALIZE);
             }
-	        return Syscall_LibraryUnload(Handle);
+
+            if (IsProcessModule()) {
+                return Syscall_LibraryUnload(Handle);
+            }
+	        else {
+                return ProcessUnloadLibrary(Handle);
+            }
         }
     }
     return OsError;

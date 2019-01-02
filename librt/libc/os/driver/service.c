@@ -22,26 +22,20 @@
  */
 
 #include <internal/_syscalls.h>
+#include <os/service.h>
 #include <os/device.h>
 
-/* RegisterService 
- * Registers a service on the current alias, allowing
- * other applications and frameworks to send commands
- * and function requests */
 OsStatus_t
 RegisterService(
-    _In_ UUId_t Alias) {
+    _In_ UUId_t Alias)
+{
 	return Syscall_RegisterService(Alias);
 }
 
-/* InstallDriver 
- * Tries to find a suitable driver for the given device
- * by searching storage-medias for the vendorid/deviceid 
- * combination or the class/subclass combination if specific
- * is not found */
 OsStatus_t
 InstallDriver(
     _In_ MCoreDevice_t* Device, 
-    _In_ size_t         Length) {
+    _In_ size_t         Length)
+{
 	return Syscall_LoadDriver(Device, Length);
 }

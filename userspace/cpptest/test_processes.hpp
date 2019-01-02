@@ -47,7 +47,7 @@ public:
         StartupInformation.InheritFlags = PROCESS_INHERIT_STDOUT;
         StartupInformation.StdOutHandle = m_Stdout;
 
-        UUId_t ProcessId = ProcessSpawnEx(Path.c_str(), &StartupInformation, 0);
+        UUId_t ProcessId = ProcessSpawnEx(Path.c_str(), nullptr, &StartupInformation);
         TestLog(">> process id = %u", ProcessId);
         if (ProcessId != UUID_INVALID) {
             int ExitCode = 0;
@@ -64,7 +64,7 @@ public:
     int TestSpawnInvalidProcess()
     {
         TestLog("TestSpawnInvalidProcess");
-        UUId_t ProcessId = ProcessSpawn("plx don't exist", nullptr, 0);
+        UUId_t ProcessId = ProcessSpawn("plx don't exist", nullptr);
         if (ProcessId == UUID_INVALID) {
             TestLog(">> process failed successfully");
         }

@@ -26,33 +26,40 @@
 extern void StdioInitialize(void *InheritanceBlock, size_t InheritanceBlockLength);
 extern void StdSignalInitialize(void);
 
-static char __CrtArgumentBuffer[512]    = { 0 };
-static char __CrtInheritanceBuffer[512] = { 0 };
-static int  __CrtIsModule               = 0;
+static char   __CrtArgumentBuffer[512]    = { 0 };
+static char   __CrtInheritanceBuffer[512] = { 0 };
+static int    __CrtIsModule               = 0;
+static UUId_t __CrtProcessId              = UUID_INVALID;
 
 void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInformation)
 {
-    // Store the module information for later
-    __CrtIsModule = IsModule;
+    size_t InheritanceBlockLength = sizeof(__CrtInheritanceBuffer);
+    size_t ArgumentBlockLength    = sizeof(__CrtArgumentBuffer);
+    _CRT_UNUSED(StartupInformation);
+
+    __CrtIsModule  = IsModule;
+    __CrtProcessId = ProcessGetCurrentId() ^ Syscall_ThreadCookie();
 
     // Get startup information
-    StartupInformation->ArgumentPointer         = &__CrtArgumentBuffer[0];
-    StartupInformation->ArgumentLength          = sizeof(__CrtArgumentBuffer);
-    StartupInformation->InheritanceBlockPointer = &__CrtInheritanceBuffer[0];
-    StartupInformation->InheritanceBlockLength  = sizeof(__CrtInheritanceBuffer);
-    if (IsModule) {
-        Syscall_ModuleGetStartupInfo(StartupInformation);
-    }
-    else {
-        ProcessGetStartupInformation(StartupInformation);
-    }
-
+    GetProcessInheritationBlock(&__CrtInheritanceBuffer[0], &InheritanceBlockLength);
+    GetProcessCommandLine(&__CrtArgumentBuffer[0], &ArgumentBlockLength);
+    
 	// Initialize STD-C
-	StdioInitialize((void*)StartupInformation->InheritanceBlockPointer, StartupInformation->InheritanceBlockLength);
+	StdioInitialize((void*)&__CrtInheritanceBuffer[0], InheritanceBlockLength);
     StdSignalInitialize();
 }
 
 int IsProcessModule(void)
 {
     return __CrtIsModule;
+}
+
+UUId_t* GetInternalProcessId(void)
+{
+    return &__CrtProcessId;
+}
+
+const char* GetInternalCommandLine(void)
+{
+    return &__CrtArgumentBuffer[0];
 }

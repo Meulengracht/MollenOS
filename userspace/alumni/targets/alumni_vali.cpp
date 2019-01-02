@@ -142,8 +142,6 @@ bool CValiAlumni::ExecuteProgram(const std::string& Program, const std::vector<s
             }
             Line += Arguments[i];
         }
-        StartupInformation.ArgumentPointer  = Line.c_str();
-        StartupInformation.ArgumentLength   = strlen(StartupInformation.ArgumentPointer);
     }
 
     // Set inheritation
@@ -151,7 +149,7 @@ bool CValiAlumni::ExecuteProgram(const std::string& Program, const std::vector<s
     StartupInformation.StdOutHandle = m_Stdout;
     StartupInformation.StdInHandle  = STDIN_FILENO;
     StartupInformation.StdErrHandle = m_Stderr;
-    m_Application = ProcessSpawnEx(Program.c_str(), &StartupInformation, 0);
+    m_Application = ProcessSpawnEx(Program.c_str(), Line.c_str(), &StartupInformation);
     if (m_Application != UUID_INVALID) {
         WaitForProcess();
         return true;

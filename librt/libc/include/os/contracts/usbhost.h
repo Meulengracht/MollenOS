@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Contract Definitions & Structures (Usb-Host Contract)
+ * Contract Definitions & Structures (Usb-Host Contract)
  * - This header describes the base contract-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -24,9 +24,8 @@
 #ifndef _CONTRACT_USBHOST_INTERFACE_H_
 #define _CONTRACT_USBHOST_INTERFACE_H_
 
-/* Includes 
- * - System */
 #include <os/osdefs.h>
+#include <os/service.h>
 #include <os/driver.h>
 #include <os/usb.h>
 
@@ -56,13 +55,11 @@
 
 /* UsbControllerRegister
  * Registers a new controller with the given type and setup */
-SERVICEAPI
-OsStatus_t
-SERVICEABI
+SERVICEAPI OsStatus_t SERVICEABI
 UsbControllerRegister(
-    _In_ MCoreDevice_t *Device,
+    _In_ MCoreDevice_t*      Device,
     _In_ UsbControllerType_t Type,
-    _In_ size_t Ports)
+    _In_ size_t              Ports)
 {
     // Variables
     MRemoteCall_t Request;
@@ -81,9 +78,7 @@ UsbControllerRegister(
 /* UsbControllerUnregister
  * Unregisters the given usb-controller from the manager and
  * unregisters any devices registered by the controller */
-SERVICEAPI
-OsStatus_t
-SERVICEABI
+SERVICEAPI OsStatus_t SERVICEABI
 UsbControllerUnregister(
     _In_ UUId_t DeviceId)
 {
@@ -103,9 +98,7 @@ UsbControllerUnregister(
  * Fired by a usbhost controller driver whenever there is a change
  * in port-status. The port-status is then queried automatically by
  * the usbmanager. */
-SERVICEAPI
-OsStatus_t
-SERVICEABI
+SERVICEAPI OsStatus_t SERVICEABI
 UsbEventPort(
     _In_ UUId_t     DeviceId,
     _In_ uint8_t    HubAddress,

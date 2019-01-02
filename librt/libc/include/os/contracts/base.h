@@ -24,8 +24,9 @@
 #ifndef _CONTRACT_INTERFACE_H_
 #define _CONTRACT_INTERFACE_H_
 
-#include <os/device.h>
 #include <os/osdefs.h>
+#include <os/device.h>
+#include <string.h>
 
 /* Contract definitions, related to some limits
  * that is bound to the contract structure */

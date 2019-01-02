@@ -20,6 +20,7 @@
  * - Definitions, prototypes and information needed.
  */
 
+#include <internal/_syscalls.h>
 #include <internal/_utils.h>
 #include <os/process.h>
 
