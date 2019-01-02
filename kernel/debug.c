@@ -252,8 +252,11 @@ DebugStackTrace(
         uintptr_t Value = StackPtr[0];
         uintptr_t Base  = 0;
         char *Name      = NULL;
+
+        // Check for userspace code address
         if (Value >= GetMachine()->MemoryMap.UserCode.Start && 
-            Value < (GetMachine()->MemoryMap.UserCode.Start + GetMachine()->MemoryMap.UserCode.Length)) {
+            Value < (GetMachine()->MemoryMap.UserCode.Start + GetMachine()->MemoryMap.UserCode.Length) &&
+            Context != NULL) {
             if (DebugGetModuleByAddress(GetCurrentModule(), Value, &Base, &Name) == OsSuccess) {
                 WRITELINE("%u - 0x%x (%s)", MaxFrames - Itr, (Value - Base), Name);
                 
@@ -261,6 +264,12 @@ DebugStackTrace(
             else {
                 WRITELINE("%u - 0x%x", MaxFrames - Itr, Value);
             }
+            Itr--;
+        }
+
+        // Check for kernelspace code address
+        if (Value >= 0x100000 && Value < 0x200000 && Context == NULL) {
+            WRITELINE("%u - 0x%x", MaxFrames - Itr, Value);
             Itr--;
         }
         StackPtr++;

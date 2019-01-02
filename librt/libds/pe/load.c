@@ -52,7 +52,7 @@ PeHandleSections(
         // in memory we want to copy data to
         uintptr_t VirtualDestination = Image->VirtualAddress + Section->VirtualAddress;
         uint8_t*  FileBuffer         = (uint8_t*)(Data + Section->RawAddress);
-        Flags_t   PageFlags          = MEMORY_READ;
+        Flags_t   PageFlags          = MEMORY_READ | MEMORY_WRITE;
         size_t    SectionSize        = MAX(Section->RawSize, Section->VirtualSize);
         uint8_t*  Destination;
 
@@ -62,9 +62,6 @@ PeHandleSections(
         SectionName[8] = 0;
 
         // Handle page flags for this section
-        if (Section->Flags & PE_SECTION_WRITE) {
-            PageFlags |= MEMORY_WRITE;
-        }
         if (Section->Flags & PE_SECTION_EXECUTE) {
             PageFlags |= MEMORY_EXECUTABLE;
         }
@@ -101,6 +98,12 @@ PeHandleSections(
                 memset((Destination + Section->RawSize), 0, (Section->VirtualSize - Section->RawSize));
             }
         }
+
+        // If the section is read-only, now change the protection
+        if (!(Section->Flags & PE_SECTION_WRITE)) {
+            // @todo
+        }
+
         ReleaseImageMapping(MapHandle);
         CurrentAddress = (Image->VirtualAddress + Section->VirtualAddress + SectionSize);
         Section++;

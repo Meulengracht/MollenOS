@@ -304,7 +304,7 @@ ClearKernelMemoryAllocation(
  * Updates the currently active memory space for the calling core. */
 OsStatus_t
 SwitchVirtualSpace(
-    SystemMemorySpace_t*        SystemMemorySpace)
+    SystemMemorySpace_t* SystemMemorySpace)
 {
     // Variables
     assert(SystemMemorySpace != NULL);

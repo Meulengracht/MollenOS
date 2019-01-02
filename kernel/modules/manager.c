@@ -22,6 +22,7 @@
 #define __MODULE "MODS"
 //#define __TRACE
 
+#include "../../librt/libds/pe/pe.h"
 #include <system/interrupts.h>
 #include <system/utils.h>
 #include <garbagecollector.h>
@@ -55,12 +56,13 @@ RegisterModule(
     SystemModule_t* Module;
 
     // Allocate a new module header and copy some values 
-    Module       = (SystemModule_t*)kmalloc(sizeof(SystemModule_t));
+    Module = (SystemModule_t*)kmalloc(sizeof(SystemModule_t));
     memset(Module, 0, sizeof(SystemModule_t));
     Module->ListHeader.Key.Value.Integer = (int)Type;
 
     Module->Handle = ModuleIdGenerator++;
     Module->Data   = Data;
+    Module->Length = Length;
     Module->Path   = MStringCreate("rd:/", StrUTF8);
     MStringAppendCharacters(Module->Path, Path, StrUTF8);
 
@@ -211,7 +213,7 @@ GetCurrentModule(void)
     MCoreThread_t* Thread = GetCurrentThreadForCore(CpuGetCurrentId());
     foreach(Node, &Modules) {
         SystemModule_t* Module = (SystemModule_t*)Node;
-        if (Module->PrimaryThreadId == Thread->Id /* || IsThreadChildOf(Module->PrimaryThreadId)*/) {
+        if (Module->Executable->MemorySpace == (MemorySpaceHandle_t)Thread->MemorySpace) {
             return Module;
         }
     }

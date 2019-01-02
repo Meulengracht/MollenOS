@@ -180,7 +180,7 @@ DestroyMemorySpace(
  * for the current cpu */
 OsStatus_t
 SwitchMemorySpace(
-    _In_ SystemMemorySpace_t*   SystemMemorySpace)
+    _In_ SystemMemorySpace_t* SystemMemorySpace)
 {
     return SwitchVirtualSpace(SystemMemorySpace);
 }

@@ -550,6 +550,7 @@ ExceptionEntry(
             // Bit 4 - user/kernel
             WRITELINE("page-fault address: 0x%x, error-code 0x%x", Address, Registers->ErrorCode);
             WRITELINE("existing mapping for address: 0x%x", GetMemorySpaceMapping(GetCurrentMemorySpace(), Address));
+            for(;;);
         }
 
         // Locate which module

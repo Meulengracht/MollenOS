@@ -200,27 +200,27 @@ CreateThread(
     }
     else {
         Flags_t MemorySpaceFlags = 0;
-        if (THREADING_RUNMODE(Flags) != THREADING_KERNELMODE && !(Flags & THREADING_INHERIT)) {
-            Thread->Flags |= THREADING_SWITCHMODE;
-        }
-
         if (THREADING_RUNMODE(Flags) == THREADING_KERNELMODE) {
-            MemorySpaceFlags = MEMORY_SPACE_INHERIT;
+            Thread->MemorySpace       = GetDomainMemorySpace();
+            Thread->MemorySpaceHandle = UUID_INVALID;
         }
         else {
+            if (!(Flags & THREADING_INHERIT)) {
+                Thread->Flags |= THREADING_SWITCHMODE;
+            }
+
             if (THREADING_RUNMODE(Flags) == THREADING_USERMODE) {
                 MemorySpaceFlags |= MEMORY_SPACE_APPLICATION;
             }
             if (Flags & THREADING_INHERIT) {
                 MemorySpaceFlags |= MEMORY_SPACE_INHERIT;
             }
+            if (CreateMemorySpace(MemorySpaceFlags, &Thread->MemorySpaceHandle) != OsSuccess) {
+                ERROR("Failed to create memory space for thread");
+                return OsError;
+            }
+            Thread->MemorySpace = (SystemMemorySpace_t*)LookupHandle(Thread->MemorySpaceHandle);
         }
-        
-        if (CreateMemorySpace(MemorySpaceFlags, &Thread->MemorySpaceHandle) != OsSuccess) {
-            ERROR("Failed to create memory space for thread");
-            return OsError;
-        }
-        Thread->MemorySpace = (SystemMemorySpace_t*)LookupHandle(Thread->MemorySpaceHandle);
     }
 
     // Create context's neccessary

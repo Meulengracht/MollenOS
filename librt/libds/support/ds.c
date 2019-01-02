@@ -19,6 +19,7 @@
  * MollenOS - Generic Data Structures (Shared)
  */
 
+#include <os/mollenos.h>
 #include <ds/mstring.h>
 #include <ds/ds.h>
 #include "../pe/pe.h"
@@ -287,7 +288,15 @@ OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, s
 {
     OsStatus_t Status;
 #ifdef LIBC_KERNEL
-    Status = CreateMemorySpaceMapping((SystemMemorySpace_t*)Handle, NULL, Address, Length, Flags, __MASK);
+    // Translate memory flags to kernel flags
+    Flags_t KernelFlags = MAPPING_USERSPACE | MAPPING_DOMAIN | MAPPING_PROCESS;
+    if (!(Flags & (MEMORY_WRITE | MEMORY_EXECUTABLE))) {
+        KernelFlags |= MAPPING_READONLY;
+    }
+    if (Flags | MEMORY_EXECUTABLE) {
+        KernelFlags |= MAPPING_EXECUTABLE;
+    }
+    Status = CreateMemorySpaceMapping((SystemMemorySpace_t*)Handle, NULL, Address, Length, KernelFlags, __MASK);
     _CRT_UNUSED(HandleOut);
 #else
     struct MemoryMappingParameters Parameters;
