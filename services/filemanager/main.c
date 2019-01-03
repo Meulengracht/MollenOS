@@ -58,7 +58,7 @@ static const char *FunctionNames[] = {
 #endif
 
 // Static storage for the filemanager
-static int       	DiskTable[__FILEMANAGER_MAXDISKS] = { 0 };
+static int          DiskTable[__FILEMANAGER_MAXDISKS] = { 0 };
 static Collection_t ResolveQueue    = COLLECTION_INIT(KeyId);
 static Collection_t FileSystems     = COLLECTION_INIT(KeyId);
 static Collection_t OpenHandles     = COLLECTION_INIT(KeyId);
@@ -66,8 +66,8 @@ static Collection_t OpenFiles       = COLLECTION_INIT(KeyId);
 static Collection_t Modules         = COLLECTION_INIT(KeyId);
 static Collection_t Disks           = COLLECTION_INIT(KeyId);
 
-//static UUId_t 		FileSystemIdGenerator     = 0;
-static UUId_t    	FileIdGenerator         = 0;
+//static UUId_t FileSystemIdGenerator = 0;
+static UUId_t FileIdGenerator = 0;
 
 /* VfsGetOpenFiles / VfsGetOpenHandles
  * Retrieves the list of open files /handles and allows access and manipulation of the list */

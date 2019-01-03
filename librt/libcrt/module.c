@@ -19,14 +19,9 @@
  * MollenOS C Library - Driver Entry 
  */
 
-/* Includes 
- * - System */
-#include <os/driver.h>
-#include <os/mollenos.h>
-
-/* Includes
- * - Library */
 #include "../libc/threads/tls.h"
+#include <os/mollenos.h>
+#include <os/driver.h>
 #include <stdlib.h>
 
 /* CRT Initialization sequence
@@ -34,18 +29,17 @@
 extern char**
 __CrtInitialize(
     _In_  thread_storage_t* Tls,
-    _In_  int               StartupInfoEnabled,
+    _In_  int               IsModule,
     _Out_ int*              ArgumentCount);
 
 /* __CrtModuleEntry
  * Use this entry point for modules. */
 void __CrtModuleEntry(void)
 {
-    // Variables
-    thread_storage_t        Tls;
-    MRemoteCall_t           Message;
-    char *ArgumentBuffer    = NULL;
-    int IsRunning           = 1;
+    thread_storage_t Tls;
+    MRemoteCall_t    Message;
+    char*            ArgumentBuffer;
+    int              IsRunning = 1;
 
     // Initialize environment
     __CrtInitialize(&Tls, 1, NULL);
@@ -53,7 +47,6 @@ void __CrtModuleEntry(void)
     // Call the driver load function 
     // - This will be run once, before loop
     if (OnLoad() != OsSuccess) {
-        OnUnload();
         goto Cleanup;
     }
 
@@ -94,10 +87,7 @@ void __CrtModuleEntry(void)
             }
         }
     }
-
-    // Call unload, so driver can cleanup
-    OnUnload();
-
 Cleanup:
+    OnUnload();
     exit(-1);
 }

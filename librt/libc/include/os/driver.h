@@ -20,8 +20,8 @@
  * - MollenOS SDK 
  */
 
-#ifndef _DRIVER_SDK_H_
-#define _DRIVER_SDK_H_
+#ifndef __DRIVER_SDK_H__
+#define __DRIVER_SDK_H__
 
 #include <os/contracts/base.h>
 #include <os/interrupt.h>
@@ -114,19 +114,15 @@ InterruptDriver(
     _In_ size_t Argument2,
     _In_ size_t Argument3)
 {
-	// Variables
 	MRemoteCall_t Request;
-	UUId_t NoId = UUID_INVALID;
+	UUId_t        NoId = UUID_INVALID;
 
-	// Initialze RPC
 	RPCInitialize(&Request, Driver, 1, __DRIVER_INTERRUPT);
 	RPCSetArgument(&Request, 0, (const void*)&NoId, sizeof(UUId_t));
     RPCSetArgument(&Request, 1, (const void*)&Argument0, sizeof(size_t));
     RPCSetArgument(&Request, 2, (const void*)&Argument1, sizeof(size_t));
     RPCSetArgument(&Request, 3, (const void*)&Argument2, sizeof(size_t));
     RPCSetArgument(&Request, 4, (const void*)&Argument3, sizeof(size_t));
-
-	// Send
 	return RPCEvent(&Request);
 }
 
@@ -147,16 +143,12 @@ QueryDriver(
 	_Out_Opt_ const void*   ResultBuffer,
 	_In_Opt_  size_t        ResultLength)
 {
-	// Variables
 	MRemoteCall_t Request;
 
-	// Initialize static RPC variables like
-	// type of RPC, pipe and version
 	RPCInitialize(&Request, Contract->DriverId, Contract->Version, __DRIVER_QUERY);
 	RPCSetArgument(&Request, 0, (const void*)&Contract->Type, sizeof(MContractType_t));
 	RPCSetArgument(&Request, 1, (const void*)&Function, sizeof(int));
 	RPCSetResult(&Request, ResultBuffer, ResultLength);
-
 	// Setup arguments if given
 	if (Arg0 != NULL && Length0 != 0) {
 		RPCSetArgument(&Request, 2, Arg0, Length0);
@@ -170,4 +162,4 @@ QueryDriver(
 	return RPCExecute(&Request);
 }
 
-#endif //!DRIVER_SDK
+#endif //!__DRIVER_SDK_H__

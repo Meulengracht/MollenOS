@@ -46,6 +46,12 @@ typedef struct _SystemFileMappingEvent {
     OsStatus_t           Result;
 } SystemFileMappingEvent_t;
 
+/* InitializeModuleInheritationBlock
+ * Initializes the std-handles that gets passed to services and modules, this will result in default
+ * output to reach kernel console. */
+KERNELAPI void KERNELABI
+InitializeModuleInheritationBlock(void);
+
 /* RegisterModule
  * Registers a new system module resource that is then available for the operating system
  * to use. The resource can be can be either an driver, service or a generic file. */
@@ -110,11 +116,11 @@ KERNELAPI OsStatus_t KERNELABI
 SetModuleAlias(
     _In_ UUId_t Alias);
 
-/* GetModuleByAlias
- * Retrieves a running service/module by it's registered alias. This is usually done
+/* GetModuleByHandle
+ * Retrieves a running service/module by it's registered handle. This is usually done
  * by system services to be contactable by applications. */
 KERNELAPI SystemModule_t* KERNELABI
-GetModuleByAlias(
-    _In_ UUId_t Alias);
+GetModuleByHandle(
+    _In_ UUId_t Handle);
 
 #endif //!__MODULE_MANAGER_INTERFACE__

@@ -80,7 +80,7 @@ OnEvent(
                 sprintf(&PathBuffer[0], "%s:/shared/bin/vioarr.app", DiskIdentifier);
 #endif
                 TRACE("Spawning %s", &PathBuffer[0]);
-                WindowingSystemId = ProcessSpawn(&PathBuffer[0], NULL);
+                //WindowingSystemId = ProcessSpawn(&PathBuffer[0], NULL);
             }
         } break;
         case __SESSIONMANAGER_LOGIN: {

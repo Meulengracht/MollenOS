@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Contract Definitions & Structures
+ * Contract Definitions & Structures
  * - This header describes the base contract-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -28,13 +28,8 @@
 #include <os/device.h>
 #include <string.h>
 
-/* Contract definitions, related to some limits
- * that is bound to the contract structure */
-#define CONTRACT_MAX_NAME           64
+#define CONTRACT_MAX_NAME 64
 
-/* The available types of contracts 
- * and denotes the type of device that 
- * is bound to the contract */
 typedef enum _MContractType {
     ContractUnknown,
     ContractController,
@@ -42,25 +37,20 @@ typedef enum _MContractType {
     ContractStorage
 } MContractType_t;
 
-/* The available contract status's that
- * a contract can be in */
 typedef enum _MContractState {
     ContractIdle,
     ContractActive,
     ContractInactive
 } MContractState_t;
 
-/* The base of a contract, it contains
- * information related to the driver that
- * controls a device */
 PACKED_TYPESTRUCT(MContract, {
-    UUId_t              ContractId;
-    UUId_t              DriverId;
-    UUId_t              DeviceId;
-    MContractType_t     Type;
-    int                 Version;
-    MContractState_t    State;
-    char                Name[CONTRACT_MAX_NAME];
+    UUId_t           ContractId;
+    UUId_t           DriverId;
+    UUId_t           DeviceId;
+    MContractType_t  Type;
+    int              Version;
+    MContractState_t State;
+    char             Name[CONTRACT_MAX_NAME];
 });
 
 /* InitializeContract

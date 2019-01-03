@@ -22,24 +22,34 @@
 #define __MODULE "MODS"
 //#define __TRACE
 
+#include "../../librt/libc/stdio/local.h"
 #include "../../librt/libds/pe/pe.h"
-#include <system/interrupts.h>
 #include <system/utils.h>
-#include <garbagecollector.h>
-#include <modules/manager.h>
-#include <modules/module.h>
-#include <ds/collection.h>
-#include <interrupts.h>
+#include <ds/mstring.h>
 #include <threading.h>
 #include <debug.h>
 #include <heap.h>
 
-static Collection_t Modules           = COLLECTION_INIT(KeyInteger);
-static UUId_t       ModuleIdGenerator = 1;
+static Collection_t  Modules               = COLLECTION_INIT(KeyInteger);
+static StdioObject_t ModuleInheriations[2] = { 0 };
+static int           ModuleIdGenerator     = 1;
 
-/* RegisterModule
- * Registers a new system module resource that is then available for the operating system
- * to use. The resource can be can be either an driver, service or a generic file. */
+void
+InitializeModuleInheritationBlock(void)
+{
+    // STDOUT_FILENO
+    ModuleInheriations[0].fd                       = STDOUT_FILENO;
+    ModuleInheriations[0].wxflag                   = WX_PIPE | WX_TTY | WX_OPEN;
+    ModuleInheriations[0].handle.InheritationType  = STDIO_HANDLE_PIPE;
+    ModuleInheriations[0].handle.InheritationHandle = GetSystemStdOutHandle();
+
+    // STDERR_FILENO
+    ModuleInheriations[1].fd                       = STDERR_FILENO;
+    ModuleInheriations[1].wxflag                   = WX_PIPE | WX_TTY | WX_OPEN;
+    ModuleInheriations[1].handle.InheritationType  = STDIO_HANDLE_PIPE;
+    ModuleInheriations[1].handle.InheritationHandle = GetSystemStdErrHandle();
+}
+
 OsStatus_t
 RegisterModule(
     _In_ const char*        Path,
@@ -63,6 +73,9 @@ RegisterModule(
     Module->Length = Length;
     Module->Path   = MStringCreate("rd:/", StrUTF8);
     MStringAppendCharacters(Module->Path, Path, StrUTF8);
+
+    Module->InheritanceBlock       = (void*)&ModuleInheriations[0];
+    Module->InheritanceBlockLength = sizeof(ModuleInheriations);
 
     Module->VendorId        = VendorId;
     Module->DeviceId        = DeviceId;
@@ -222,16 +235,16 @@ SetModuleAlias(
     return OsInvalidPermissions;
 }
 
-/* GetModuleByAlias
- * Retrieves a running service/module by it's registered alias. This is usually done
+/* GetModuleByHandle
+ * Retrieves a running service/module by it's registered handle. This is usually done
  * by system services to be contactable by applications. */
 SystemModule_t*
-GetModuleByAlias(
-    _In_ UUId_t Alias)
+GetModuleByHandle(
+    _In_ UUId_t Handle)
 {
     foreach(Node, &Modules) {
         SystemModule_t* Module = (SystemModule_t*)Node;
-        if (Module->Alias == Alias) {
+        if (Module->Handle == Handle || Module->Alias == Handle) {
             return Module;
         }
     }

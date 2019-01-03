@@ -26,8 +26,8 @@
 #include <string.h>
 
 #define __MODULE "DATA"
-#define __TRACE
 #ifdef LIBC_KERNEL
+//#define __TRACE
 #include <system/interrupts.h>
 #include <modules/manager.h>
 #include <memoryspace.h>
@@ -44,6 +44,7 @@ typedef struct _MemoryMappingState {
 } MemoryMappingState_t;
 
 #else
+#define __TRACE
 #include <internal/_syscalls.h>
 #include <os/buffer.h>
 #include <os/memory.h>

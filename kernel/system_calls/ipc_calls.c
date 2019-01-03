@@ -152,15 +152,16 @@ ScRpcExecute(
     SystemPipeUserState_t State;
     size_t                TotalLength = sizeof(MRemoteCall_t);
     MCoreThread_t*        Thread;
-    SystemPipe_t*         Pipe;
+    SystemModule_t*       Module;
     int                   i;
 
     assert(RemoteCall != NULL);
     TRACE("ScRpcExecute(Message %i, Async %i)", RemoteCall->Function, Async);
+    //WARNING("%s: ScRpcExecute(%i, 0x%x)", GetCurrentThreadForCore(CpuGetCurrentId())->Name, RemoteCall->Function, RemoteCall->Target);
     
-    Pipe = (SystemPipe_t*)LookupHandle(RemoteCall->Target);
-    if (Pipe == NULL) {
-        ERROR("Pipe-Handle %u did not exist", RemoteCall->Target);
+    Module = (SystemModule_t*)GetModuleByHandle(RemoteCall->Target);
+    if (Module == NULL || Module->Rpc == NULL) {
+        ERROR("RPC-Target %u did not exist", RemoteCall->Target);
         return OsError;
     }
 
@@ -177,7 +178,7 @@ ScRpcExecute(
     RemoteCall->From.Thread   = Thread->Id;
 
     // Setup producer access
-    AcquireSystemPipeProduction(Pipe, TotalLength, &State);
+    AcquireSystemPipeProduction(Module->Rpc, TotalLength, &State);
     WriteSystemPipeProduction(&State, (const uint8_t*)RemoteCall, sizeof(MRemoteCall_t));
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
         if (RemoteCall->Arguments[i].Type == ARGUMENT_BUFFER) {
@@ -192,21 +193,19 @@ ScRpcExecute(
     return ScRpcResponse(RemoteCall);
 }
 
-/* ScRpcListen
- * Listens for a new rpc-message on the default rpc-pipe. */
 OsStatus_t
 ScRpcListen(
     _In_ MRemoteCall_t* RemoteCall,
     _In_ uint8_t*       ArgumentBuffer)
 {
-    SystemPipeUserState_t   State;
-    uint8_t*                BufferPointer = ArgumentBuffer;
-    SystemModule_t*         Module;
-    size_t                  Length;
-    int                     i;
+    SystemPipeUserState_t State;
+    uint8_t*              BufferPointer = ArgumentBuffer;
+    SystemModule_t*       Module;
+    size_t                Length;
+    int                   i;
     
     assert(RemoteCall != NULL);
-    TRACE("%s: ScRpcListen(Port %i)", MStringRaw(GetCurrentProcess()->Name), Port);
+    //WARNING("%s: ScRpcListen()", GetCurrentThreadForCore(CpuGetCurrentId())->Name);
     
     // Start out by resolving both the process and pipe
     Module = GetCurrentModule();
@@ -227,9 +226,6 @@ ScRpcListen(
     return OsSuccess;
 }
 
-/* ScRpcRespond
- * A wrapper for sending an RPC response to the calling thread. Each thread has each it's response
- * channel to avoid any concurrency issues. */
 OsStatus_t
 ScRpcRespond(
     _In_ MRemoteCallAddress_t* RemoteAddress,
@@ -238,6 +234,7 @@ ScRpcRespond(
 {
     MCoreThread_t* Thread = GetThread(RemoteAddress->Thread);
     SystemPipe_t*  Pipe   = NULL;
+    //WARNING("%s: ScRpcRespond()", GetCurrentThreadForCore(CpuGetCurrentId())->Name);
 
     // Sanitize thread still exists
     if (Thread != NULL) {

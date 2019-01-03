@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - C Standard Library
+ * C Standard Library
  * - Standard IO Support header
  */
 
@@ -26,6 +26,7 @@
 #include <os/osdefs.h>
 #include <os/spinlock.h>
 #include <os/process.h>
+#include <stdio.h>
 
 #ifndef _IOCOMMIT
 #define _IOCOMMIT 0x4000
@@ -57,22 +58,19 @@
 #define STDIO_HANDLE_PIPE       1
 #define STDIO_HANDLE_FILE       2
 
-/* StdioHandle
- * Describes a handle that can be inherited by the process. 
- * These can only be created from existing handles (file, pipe etc) */
 typedef struct _StdioHandle {
-    int     InheritationType;
-    UUId_t  InheritationHandle;
+    int    InheritationType;
+    UUId_t InheritationHandle;
 } StdioHandle_t;
 
 typedef struct {
-    int                 fd;
-    StdioHandle_t       handle;
-    unsigned char       wxflag;
-    char                lookahead[3];
-    int                 exflag;
-    void*               file;
-    Spinlock_t          lock;
+    int           fd;
+    StdioHandle_t handle;
+    unsigned char wxflag;
+    char          lookahead[3];
+    int           exflag;
+    void*         file;
+    Spinlock_t    lock;
 } StdioObject_t;
 
 __EXTERN StdioObject_t* get_ioinfo(int fd);
@@ -105,32 +103,29 @@ StdioCreateInheritanceBlock(
 
 /* StdioReadInternal
  * Internal read wrapper for file-reading */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 StdioReadInternal(
-    _In_ int fd, 
-    _In_ char *Buffer, 
-    _In_ size_t Length,
-    _Out_ size_t *BytesRead);
+    _In_  int     fd, 
+    _In_  char*   Buffer, 
+    _In_  size_t  Length,
+    _Out_ size_t* BytesRead);
 
 /* StdioWriteInternal
  * Internal write wrapper for file-writing */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 StdioWriteInternal(
-    _In_ int fd, 
-    _Out_ char *Buffer, 
-    _In_ size_t Length,
-    _Out_ size_t *BytesWritten);
+    _In_  int     fd, 
+    _Out_ char*   Buffer, 
+    _In_  size_t  Length,
+    _Out_ size_t* BytesWritten);
 
 /* StdioSeekInternal
  * Internal wrapper for stdio's syntax, conversion to our own RPC syntax */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 StdioSeekInternal(
-    _In_ int fd, 
-    _In_ off64_t Offset, 
-    _In_ int Origin,
-    _Out_ long long *Position);
+    _In_  int        fd, 
+    _In_  off64_t    Offset, 
+    _In_  int        Origin,
+    _Out_ long long* Position);
 
 #endif //!__STDIO_SUPPORT_H__

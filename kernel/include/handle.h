@@ -73,11 +73,19 @@ AcquireHandle(
     _In_ UUId_t Handle);
 
 /* LookupHandle
- * Retrieves the handle given for the calling process. This can fail if the handle
+ * Retrieves the handle given. This can fail if the handle
  * turns out to be invalid, otherwise the resource will be returned. */
 KERNELAPI void* KERNELABI
 LookupHandle(
     _In_ UUId_t Handle);
+
+/* LookupHandleOfType
+ * Retrieves the handle given, while also performing type validation of the handle. 
+ * This can fail if the handle turns out to be invalid, otherwise the resource will be returned. */
+KERNELAPI void* KERNELABI
+LookupHandleOfType(
+    _In_ UUId_t             Handle,
+    _In_ SystemHandleType_t Type);
 
 /* SignalHandle
  * Signals a handle and wakes a given number of sleepers. */

@@ -45,8 +45,6 @@ static HandleDestructorFn   HandleDestructors[HandleTypeCount]  = {
     DestroySystemPipe
 };
 
-/* CreateHandle
- * Allocates a new handle for a system resource with a reference of 1. */
 UUId_t
 CreateHandle(
     _In_ SystemHandleType_t         Type,
@@ -72,9 +70,6 @@ CreateHandle(
     return Id;
 }
 
-/* AcquireHandle
- * Acquires the handle given for the calling process. This can fail if the handle
- * turns out to be invalid, otherwise the resource will be returned. */
 void*
 AcquireHandle(
     _In_ UUId_t             Handle)
@@ -99,9 +94,6 @@ AcquireHandle(
     return Instance->Resource;
 }
 
-/* LookupHandle
- * Retrieves the handle given for the calling process. This can fail if the handle
- * turns out to be invalid, otherwise the resource will be returned. */
 void*
 LookupHandle(
     _In_ UUId_t             Handle)
@@ -118,9 +110,23 @@ LookupHandle(
     return Instance->Resource;
 }
 
-/* DestroyHandle
- * Reduces the reference count of the given handle, and cleans up the handle on
- * reaching 0 references. */
+void*
+LookupHandleOfType(
+    _In_ UUId_t             Handle,
+    _In_ SystemHandleType_t Type)
+{
+    SystemHandle_t* Instance;
+    DataKey_t       Key;
+
+    // Lookup the handle
+    Key.Value.Id    = Handle;
+    Instance        = (SystemHandle_t*)CollectionGetNodeByKey(&SystemHandles, Key, 0);
+    if (Instance == NULL || Instance->Type != Type) {
+        return NULL;
+    }
+    return Instance->Resource;
+}
+
 OsStatus_t
 DestroyHandle(
     _In_ UUId_t             Handle)
@@ -150,8 +156,6 @@ DestroyHandle(
     return Status;
 }
 
-/* SignalHandle
- * Signals a handle and wakes a given number of sleepers. */
 OsStatus_t
 SignalHandle(
     _In_ UUId_t Handle,
@@ -165,9 +169,6 @@ SignalHandle(
     return OsSuccess;
 }
 
-/* WaitForHandles
- * Waits for either of the given handles to signal. The handles that are passed must
- * support the SYNCHRONIZE capability to be waited for. */
 OsStatus_t
 WaitForHandles(
     _In_ UUId_t* Handles,
