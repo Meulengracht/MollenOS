@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,13 +16,13 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Definitions & Structures
+ * Definitions & Structures
  * - This header describes the os-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _MOLLENOS_INTERFACE_H_
-#define _MOLLENOS_INTERFACE_H_
+#ifndef __MOLLENOS_H__
+#define __MOLLENOS_H__
 
 #include <os/osdefs.h>
 #include <time.h>
@@ -57,8 +57,7 @@ _CODE_BEGIN
  * Allocates a chunk of memory, controlled by the
  * requested size of memory. The returned memory will always
  * be rounded up to nearest page-size */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 MemoryAllocate(
     _In_      void*         NearAddress,
 	_In_      size_t        Length,
@@ -69,8 +68,7 @@ MemoryAllocate(
 /* MemoryFree
  * Frees previously allocated memory and releases
  * the system resources associated. */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 MemoryFree(
 	_In_ void*      MemoryPointer,
 	_In_ size_t     Length));
@@ -78,8 +76,7 @@ MemoryFree(
 /* MemoryProtect
  * Changes the protection flags of a previous memory allocation
  * made by MemoryAllocate */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 MemoryProtect(
     _In_  void*     MemoryPointer,
 	_In_  size_t    Length,
@@ -89,24 +86,21 @@ MemoryProtect(
 /* MemoryQuery
  * Queries the underlying system for memory information 
  * like memory used and the page-size */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 MemoryQuery(
 	_Out_ MemoryDescriptor_t *Descriptor));
 
 /* SystemTime
  * Retrieves the system time. This is only ticking
  * if a system clock has been initialized. */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 SystemTime(
 	_Out_ struct tm *time));
 
 /* SystemTick
  * Retrieves the system tick counter. This is only ticking
  * if a system timer has been initialized. */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 SystemTick(
     _In_  int       TickBase,
 	_Out_ clock_t*  Clock));
@@ -114,24 +108,21 @@ SystemTick(
 /* QueryPerformanceFrequency
  * Returns how often the performance timer fires every
  * second, the value will never be 0 */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 QueryPerformanceFrequency(
 	_Out_ LargeInteger_t *Frequency));
 
 /* QueryPerformanceTimer 
  * Queries the created performance timer and returns the
  * information in the given structure */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 QueryPerformanceTimer(
 	_Out_ LargeInteger_t *Value));
 
 /* FlushHardwareCache
  * Flushes the specified hardware cache. Should be used with caution as it might
  * result in performance drops. */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 FlushHardwareCache(
     _In_     int    Cache,
     _In_Opt_ void*  Start, 
@@ -275,4 +266,4 @@ __set_reserved(size_t Index, TLS_VALUE Value) {
 CRTDECL(void, MollenOSEndBoot(void));
 
 _CODE_END
-#endif //!_MOLLENOS_INTERFACE_H_
+#endif //!__MOLLENOS_H__

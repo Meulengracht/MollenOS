@@ -35,12 +35,8 @@
 #include <heap.h>
 #include <pipe.h>
 
-// Externs
 extern OsStatus_t ScRpcExecute(MRemoteCall_t* RemoteCall, int Async);
 
-/* ScAcpiQueryStatus
- * Queries basic acpi information and returns either OsSuccess
- * or OsError if Acpi is not supported on the running platform */
 OsStatus_t
 ScAcpiQueryStatus(
    _In_ AcpiDescriptor_t*   AcpiDescriptor)
@@ -61,9 +57,6 @@ ScAcpiQueryStatus(
     }
 }
 
-/* ScAcpiQueryTableHeader
- * Queries the table header of the table that matches
- * the given signature, if none is found OsError is returned */
 OsStatus_t
 ScAcpiQueryTableHeader(
     _In_ const char*        Signature,
@@ -83,9 +76,6 @@ ScAcpiQueryTableHeader(
     return OsSuccess;
 }
 
-/* ScAcpiQueryTable
- * Queries the full table information of the table that matches
- * the given signature, if none is found OsError is returned */
 OsStatus_t
 ScAcpiQueryTable(
     _In_ const char*        Signature,
@@ -105,10 +95,6 @@ ScAcpiQueryTable(
     return OsSuccess;
 }
 
-/* ScAcpiQueryInterrupt 
- * Queries the interrupt-line for the given bus, device and
- * pin combination. The pin must be zero indexed. Conform flags
- * are returned in the <AcpiConform> */
 OsStatus_t
 ScAcpiQueryInterrupt(
     _In_  DevInfo_t         Bus,
@@ -120,11 +106,7 @@ ScAcpiQueryInterrupt(
     *Interrupt = AcpiDeriveInterrupt(Bus, Device, Pin, AcpiConform);
     return (*Interrupt == INTERRUPT_NONE) ? OsError : OsSuccess;
 }
- 
-/* ScIoSpaceRegister
- * Creates and registers a new IoSpace with our
- * architecture sub-layer, it must support io-spaces 
- * or atleast dummy-implementation */
+
 OsStatus_t
 ScIoSpaceRegister(
     _In_ DeviceIo_t* IoSpace)
@@ -139,10 +121,6 @@ ScIoSpaceRegister(
     return RegisterSystemDeviceIo(IoSpace);
 }
 
-/* ScIoSpaceAcquire
- * Tries to claim a given io-space, only one driver
- * can claim a single io-space at a time, to avoid
- * two drivers using the same device */
 OsStatus_t
 ScIoSpaceAcquire(
     _In_ DeviceIo_t* IoSpace)
@@ -157,10 +135,6 @@ ScIoSpaceAcquire(
     return AcquireSystemDeviceIo(IoSpace);
 }
 
-/* ScIoSpaceRelease
- * Tries to release a given io-space, only one driver
- * can claim a single io-space at a time, to avoid
- * two drivers using the same device */
 OsStatus_t
 ScIoSpaceRelease(
     _In_ DeviceIo_t* IoSpace)
@@ -175,10 +149,6 @@ ScIoSpaceRelease(
     return ReleaseSystemDeviceIo(IoSpace);
 }
 
-/* ScIoSpaceDestroy
- * Destroys the io-space with the given id and removes
- * it from the io-manage in the operation system, it
- * can only be removed if its not already acquired */
 OsStatus_t
 ScIoSpaceDestroy(
     _In_ DeviceIo_t* IoSpace)
@@ -193,24 +163,20 @@ ScIoSpaceDestroy(
     return DestroySystemDeviceIo(IoSpace);
 }
 
-/* Allows a server to register an alias for its 
- * process id, as applications can't possibly know
- * its id if it changes */
 OsStatus_t
 ScRegisterAliasId(
     _In_ UUId_t Alias)
 {
+    WARNING("New Service: 0x%x", Alias);
     return SetModuleAlias(Alias);
 }
 
-/* ScLoadDriver
- * Attempts to resolve the best possible drive for the given device information */
 OsStatus_t
 ScLoadDriver(
-    _In_ MCoreDevice_t*     Device,
-    _In_ size_t             LengthOfDeviceStructure,
-    _In_ const void*        DriverBuffer,
-    _In_ size_t             DriverBufferLength)
+    _In_ MCoreDevice_t* Device,
+    _In_ size_t         LengthOfDeviceStructure,
+    _In_ const void*    DriverBuffer,
+    _In_ size_t         DriverBufferLength)
 {
     MRemoteCall_t   RemoteCall    = { UUID_INVALID, { 0 }, 0 };
     SystemModule_t* CurrentModule = GetCurrentModule();
@@ -237,10 +203,16 @@ ScLoadDriver(
         // We did not have any, did the driver provide one for us?
         if (Module == NULL) {
             if (DriverBuffer != NULL && DriverBufferLength != 0) {
-                //RegisterModule(Path, NULL, 0, ModuleResource, Device->VendorId, 
-                //    Device->DeviceId, Device->Class, Device->Subclass);
+                Status = RegisterModule("custom_module", DriverBuffer, DriverBufferLength, ModuleResource, 
+                    Device->VendorId, Device->DeviceId, Device->Class, Device->Subclass);
+                if (Status == OsSuccess) {
+                    Module = GetModule(Device->VendorId, Device->DeviceId, Device->Class, Device->Subclass);
+                }
             }
-            return OsError;
+
+            if (Module == NULL) {
+                return OsError;
+            }
         }
 
         Status = SpawnModule(Module, DriverBuffer, DriverBufferLength);
@@ -255,11 +227,6 @@ ScLoadDriver(
     return ScRpcExecute(&RemoteCall, 1);
 }
 
-/* ScRegisterInterrupt 
- * Allocates the given interrupt source for use by
- * the requesting driver, an id for the interrupt source
- * is returned. After a succesful register, OnInterrupt
- * can be called by the event-system */
 UUId_t
 ScRegisterInterrupt(
     _In_ DeviceInterrupt_t* Interrupt,
@@ -273,9 +240,6 @@ ScRegisterInterrupt(
     return InterruptRegister(Interrupt, Flags);
 }
 
-/* ScUnregisterInterrupt 
- * Unallocates the given interrupt source and disables
- * all events of OnInterrupt */
 OsStatus_t
 ScUnregisterInterrupt(
     _In_ UUId_t Source)
@@ -297,8 +261,6 @@ ScRegisterEventTarget(
     return OsSuccess;
 }
 
-/* ScKeyEvent
- * Handles key notification by redirecting them to the standard input in the system. */
 OsStatus_t
 ScKeyEvent(
     _In_ SystemKey_t* Key)
@@ -309,8 +271,6 @@ ScKeyEvent(
     return OsSuccess;
 }
 
-/* ScInputEvent
- * Handles input notification by redirecting them to the window manager input. */
 OsStatus_t
 ScInputEvent(
     _In_ SystemInput_t* Input)
@@ -321,10 +281,6 @@ ScInputEvent(
     return OsSuccess;
 }
 
-/* ScTimersStart
- * Creates a new standard timer for the requesting process. 
- * When interval elapses a __TIMEOUT event is generated for
- * the owner of the timer. */
 UUId_t
 ScTimersStart(
     _In_ size_t      Interval,
@@ -334,9 +290,6 @@ ScTimersStart(
     return TimersStart(Interval, Periodic, Data);
 }
 
-/* ScTimersStop
- * Destroys a existing standard timer, owner must be the requesting
- * process. Otherwise access fault. */
 OsStatus_t
 ScTimersStop(
     _In_ UUId_t TimerId)

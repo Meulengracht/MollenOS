@@ -34,8 +34,6 @@
 #include <debug.h>
 #include <heap.h>
 
-//OsStatus_t PhoenixFileHandler(void *UserData);
-
 static Collection_t Modules           = COLLECTION_INIT(KeyInteger);
 static UUId_t       ModuleIdGenerator = 1;
 
@@ -109,31 +107,19 @@ GetModuleDataByPath(
     _Out_ void**     Buffer, 
     _Out_ size_t*    Length)
 {
-    MString_t* Token  = Path;
     OsStatus_t Result = OsError;
-    int        Index;
     TRACE("GetModuleDataByPath(%s)", MStringRaw(Path));
-
-    // Build the token we are looking for
-    Index = MStringFindReverse(Path, '/', 0);
-    if (Index != MSTRING_NOT_FOUND) {
-        Token = MStringSubString(Path, Index + 1, -1);
-    }
-    TRACE("TokenToSearchFor(%s)", MStringRaw(Token));
 
     // Locate the module
     foreach(Node, &Modules) {
         SystemModule_t* Module = (SystemModule_t*)Node;
-        TRACE("Comparing(%s)To(%s)", MStringRaw(Token), MStringRaw(Module->Path));
-        if (MStringCompare(Token, Module->Path, 1) != MSTRING_NO_MATCH) {
+        TRACE("Comparing(%s)To(%s)", MStringRaw(Path), MStringRaw(Module->Path));
+        if (MStringCompare(Path, Module->Path, 1) != MSTRING_NO_MATCH) {
             *Buffer = (void*)Module->Data;
             *Length = Module->Length;
             Result  = OsSuccess;
             break;
         }
-    }
-    if (Index != MSTRING_NOT_FOUND) {
-        MStringDestroy(Token);
     }
     return Result;
 }
@@ -213,7 +199,8 @@ GetCurrentModule(void)
     MCoreThread_t* Thread = GetCurrentThreadForCore(CpuGetCurrentId());
     foreach(Node, &Modules) {
         SystemModule_t* Module = (SystemModule_t*)Node;
-        if (Module->Executable->MemorySpace == (MemorySpaceHandle_t)Thread->MemorySpace) {
+        if (Module->Executable != NULL &&
+            Module->Executable->MemorySpace == (MemorySpaceHandle_t)Thread->MemorySpace) {
             return Module;
         }
     }

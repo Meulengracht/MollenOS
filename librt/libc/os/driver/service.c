@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,26 +16,40 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Service Definitions & Structures
+ * Service Definitions & Structures
  * - This header describes the base service-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
 #include <internal/_syscalls.h>
+#include <internal/_utils.h>
 #include <os/service.h>
 #include <os/device.h>
+#include <assert.h>
 
 OsStatus_t
 RegisterService(
     _In_ UUId_t Alias)
 {
+    if (!IsProcessModule()) {
+        return OsInvalidPermissions;
+    }
+
 	return Syscall_RegisterService(Alias);
 }
 
 OsStatus_t
 InstallDriver(
     _In_ MCoreDevice_t* Device, 
-    _In_ size_t         Length)
+    _In_ size_t         Length,
+    _In_ const void*    DriverBuffer,
+    _In_ size_t         DriverBufferLength)
 {
-	return Syscall_LoadDriver(Device, Length);
+    if (!IsProcessModule()) {
+        return OsInvalidPermissions;
+    }
+
+    assert(Device != NULL);
+    assert(Length != 0);
+	return Syscall_LoadDriver(Device, Length, DriverBuffer, DriverBufferLength);
 }

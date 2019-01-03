@@ -53,7 +53,7 @@ _CODE_END
 #define Syscall_IoSpaceRelease(IoSpace) (OsStatus_t)syscall1(25, SCPARAM(IoSpace))
 #define Syscall_IoSpaceDestroy(IoSpaceId) (OsStatus_t)syscall1(26, SCPARAM(IoSpaceId))
 #define Syscall_RegisterService(Alias) (OsStatus_t)syscall1(27, SCPARAM(Alias))
-#define Syscall_LoadDriver(Device, Length) (OsStatus_t)syscall2(28, SCPARAM(Device), SCPARAM(Length))
+#define Syscall_LoadDriver(Device, Length, Buffer, BufferLength) (OsStatus_t)syscall4(28, SCPARAM(Device), SCPARAM(Length), SCPARAM(Buffer), SCPARAM(BufferLength))
 #define Syscall_InterruptAdd(Descriptor, Flags) (UUId_t)syscall2(29, SCPARAM(Descriptor), SCPARAM(Flags))
 #define Syscall_InterruptRemove(InterruptId) (OsStatus_t)syscall1(30, SCPARAM(InterruptId))
 #define Syscall_RegisterEventTarget(KeyInputHandle, WmInputHandle) (OsStatus_t)syscall2(31, SCPARAM(KeyInputHandle), SCPARAM(WmInputHandle))

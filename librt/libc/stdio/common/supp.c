@@ -286,8 +286,8 @@ StdioParseInheritanceBlock(
 {
     // Handle inheritance
     if (InheritanceBlock != NULL) {
-        StdioObject_t *ObjectPointer    = (StdioObject_t*)InheritanceBlock;
-        size_t BytesLeft                = InheritanceBlockLength;
+        StdioObject_t* ObjectPointer = (StdioObject_t*)InheritanceBlock;
+        size_t         BytesLeft     = InheritanceBlockLength;
         while (BytesLeft >= sizeof(StdioObject_t)) {
             StdioInheritObject(ObjectPointer);
             BytesLeft -= sizeof(StdioObject_t);

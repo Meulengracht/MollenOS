@@ -25,9 +25,9 @@
 #include "../pe/pe.h"
 #include <string.h>
 
+#define __MODULE "DATA"
 #define __TRACE
 #ifdef LIBC_KERNEL
-#define __MODULE "DATA"
 #include <system/interrupts.h>
 #include <modules/manager.h>
 #include <memoryspace.h>
@@ -35,13 +35,30 @@
 #include <stdio.h>
 #include <debug.h>
 #include <heap.h>
+
+typedef struct _MemoryMappingState {
+    MemorySpaceHandle_t Handle;
+    uintptr_t           Address;
+    size_t              Length;
+    Flags_t             Flags;
+} MemoryMappingState_t;
+
 #else
+#include <internal/_syscalls.h>
 #include <os/buffer.h>
 #include <os/memory.h>
 #include <os/utils.h>
 #include <os/file.h>
 #include <stdlib.h>
 #include <stdio.h>
+
+typedef struct _MemoryMappingState {
+    MemorySpaceHandle_t Handle;
+    uintptr_t           Address;
+    size_t              Length;
+    Flags_t             Flags;
+    DmaBuffer_t*        UserAccess;
+} MemoryMappingState_t;
 
 static MemoryDescriptor_t __SystemMemoryInformation = { 0 };
 #endif
@@ -189,7 +206,9 @@ uintptr_t GetBaseAddress(void)
 #ifdef LIBC_KERNEL
     return GetMachine()->MemoryMap.UserCode.Start;
 #else
-    return 0;
+    uintptr_t BaseAddress = 0;
+    Syscall_GetProcessBaseAddress(&BaseAddress);
+    return BaseAddress;
 #endif
 }
 
@@ -197,10 +216,13 @@ OsStatus_t LoadFile(MString_t* Path, MString_t** FullPath, void** BufferOut, siz
 {
     OsStatus_t Status;
 #ifdef LIBC_KERNEL
-    Status = GetModuleDataByPath(Path, BufferOut, LengthOut);
+    MString_t* InitRdPath = MStringCreate("rd:/", StrUTF8);
+    MStringAppendCharacters(InitRdPath, MStringRaw(Path), StrUTF8);
+    Status = GetModuleDataByPath(InitRdPath, BufferOut, LengthOut);
     if (Status == OsSuccess) {
-        *FullPath = MStringCreate((void*)MStringRaw(Path), StrUTF8);
+        *FullPath = MStringCreate((void*)MStringRaw(InitRdPath), StrUTF8);
     }
+    MStringDestroy(InitRdPath);
 #else
     LargeInteger_t   QueriedSize = { { 0 } };
     void*            Buffer      = NULL;
@@ -286,18 +308,27 @@ OsStatus_t CreateImageSpace(MemorySpaceHandle_t* HandleOut)
 // accessible in kernel mode, and in usermode a transfer-buffer is transparently provided as proxy.
 OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, size_t Length, Flags_t Flags, MemoryMapHandle_t* HandleOut)
 {
-    OsStatus_t Status;
+    MemoryMappingState_t* StateObject = (MemoryMappingState_t*)dsalloc(sizeof(MemoryMappingState_t));
+    OsStatus_t            Status;
+
+    StateObject->Handle  = Handle;
+    StateObject->Address = *Address;
+    StateObject->Length  = Length;
+    StateObject->Flags   = Flags;
+    *HandleOut           = (MemoryMapHandle_t*)StateObject;
+
+    // When creating these mappings we must always
+    // map in with write flags, and then clear the write flag on release if it was requested
 #ifdef LIBC_KERNEL
     // Translate memory flags to kernel flags
-    Flags_t KernelFlags = MAPPING_USERSPACE | MAPPING_DOMAIN | MAPPING_PROCESS;
-    if (!(Flags & (MEMORY_WRITE | MEMORY_EXECUTABLE))) {
-        KernelFlags |= MAPPING_READONLY;
-    }
+    Flags_t KernelFlags = MAPPING_USERSPACE | MAPPING_DOMAIN | MAPPING_FIXED;
     if (Flags | MEMORY_EXECUTABLE) {
         KernelFlags |= MAPPING_EXECUTABLE;
     }
     Status = CreateMemorySpaceMapping((SystemMemorySpace_t*)Handle, NULL, Address, Length, KernelFlags, __MASK);
-    _CRT_UNUSED(HandleOut);
+    if (Status != OsSuccess) {
+        dsfree(StateObject);
+    }
 #else
     struct MemoryMappingParameters Parameters;
     DmaBuffer_t* Buffer = (DmaBuffer_t*)dsalloc(sizeof(DmaBuffer_t));
@@ -310,10 +341,11 @@ OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, s
     Status = CreateMemoryMapping((UUId_t)Handle, &Parameters, Buffer);
     if (Status != OsSuccess) {
         dsfree(Buffer);
+        dsfree(StateObject);
         return Status;
     }
     *Address   = (uintptr_t)GetBufferDataPointer(Buffer);
-    *HandleOut = (MemoryMapHandle_t)Buffer;
+    StateObject->UserAccess = Buffer;
 #endif
     return Status;
 }
@@ -322,9 +354,20 @@ OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, s
 // that is neccessary in kernel mode, so this function does nothing
 void ReleaseImageMapping(MemoryMapHandle_t Handle)
 {
+    MemoryMappingState_t* StateObject = (MemoryMappingState_t*)Handle;
+
 #ifdef LIBC_KERNEL
-    _CRT_UNUSED(Handle);
+    // Translate memory flags to kernel flags
+    Flags_t KernelFlags = MAPPING_USERSPACE | MAPPING_DOMAIN | MAPPING_FIXED;
+    if (StateObject->Flags | MEMORY_EXECUTABLE) {
+        KernelFlags |= MAPPING_EXECUTABLE;
+    }
+    if (!(StateObject->Flags & (MEMORY_WRITE | MEMORY_EXECUTABLE))) {
+        KernelFlags |= MAPPING_READONLY;
+    }
+    ChangeMemorySpaceProtection(StateObject->Handle, StateObject->Address, StateObject->Length, KernelFlags, NULL);
 #else
-    DestroyBuffer((DmaBuffer_t*)Handle);
+    DestroyBuffer(StateObject->UserAccess);
 #endif
+    dsfree(StateObject);
 }

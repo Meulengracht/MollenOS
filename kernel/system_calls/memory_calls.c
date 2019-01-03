@@ -263,8 +263,15 @@ ScCreateMemorySpaceMapping(
         return Status;
     }
 
+    if (Parameters->Flags | MEMORY_EXECUTABLE) {
+        RequiredFlags |= MAPPING_EXECUTABLE;
+    }
+    if (!(Parameters->Flags & (MEMORY_WRITE | MEMORY_EXECUTABLE))) {
+        RequiredFlags |= MAPPING_READONLY;
+    }
+
     Status = CreateMemorySpaceMapping(MemorySpace, &AccessBuffer->Dma, &Parameters->VirtualAddress,
-        Parameters->Length, Parameters->Flags | RequiredFlags, __MASK);
+        Parameters->Length, RequiredFlags, __MASK);
     if (Status != OsSuccess) {
         ScMemoryFree(AccessBuffer->Address, AccessBuffer->Capacity);
         DestroyHandle(AccessBuffer->Handle);
