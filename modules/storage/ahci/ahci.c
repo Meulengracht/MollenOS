@@ -31,23 +31,23 @@
 
 // Prototypes
 InterruptStatus_t OnFastInterrupt(FastInterruptResources_t*, void*);
-OsStatus_t AhciSetup(AhciController_t *Controller);
+OsStatus_t        AhciSetup(AhciController_t* Controller);
 
 /* AhciControllerCreate
  * Registers a new controller with the AHCI driver */
 AhciController_t*
 AhciControllerCreate(
-    _In_ MCoreDevice_t*        Device)
+    _In_ MCoreDevice_t* Device)
 {
-    // Variables
-    AhciController_t *Controller    = NULL;
-    DeviceIo_t *IoBase              = NULL;
-    int i;
+    AhciController_t* Controller;
+    DeviceIo_t*       IoBase = NULL;
+    OsStatus_t        Status;
+    int               i;
 
-    // Allocate a new instance of the controller
     Controller = (AhciController_t*)malloc(sizeof(AhciController_t));
     memset(Controller, 0, sizeof(AhciController_t));
     memcpy(&Controller->Device, Device, Device->Length);
+    
     Controller->Contract.DeviceId = Controller->Device.Id;
     SpinlockReset(&Controller->Lock);
 
@@ -66,13 +66,12 @@ AhciControllerCreate(
         free(Controller);
         return NULL;
     }
-
-    // Trace
     TRACE("Found Io-Space (Type %u, Physical 0x%x, Size 0x%x)",
         IoBase->Type, IoBase->Access.Memory.PhysicalBase, IoBase->Access.Memory.Length);
 
     // Acquire the io-space
-    if (AcquireDeviceIo(IoBase) != OsSuccess) {
+    Status = AcquireDeviceIo(IoBase); 
+    if (Status != OsSuccess) {
         ERROR("Failed to create and acquire the io-space for ahci-controller");
         free(Controller);
         return NULL;
@@ -82,21 +81,18 @@ AhciControllerCreate(
     // Start out by initializing the contract
     InitializeContract(&Controller->Contract, Controller->Contract.DeviceId, 1,
         ContractController, "AHCI Controller Interface");
-
-    // Trace
     TRACE("Io-Space was assigned virtual address 0x%x", IoBase->Access.Memory.VirtualBase);
 
     // Instantiate the register-access
     Controller->Registers = (AHCIGenericRegisters_t*)IoBase->Access.Memory.VirtualBase;
-
-    // Initialize the interrupt settings
     RegisterFastInterruptHandler(&Controller->Device.Interrupt, OnFastInterrupt);
     RegisterFastInterruptIoResource(&Controller->Device.Interrupt, IoBase);
     RegisterFastInterruptMemoryResource(&Controller->Device.Interrupt, 
         (uintptr_t)&Controller->InterruptResource, sizeof(AhciInterruptResource_t), 0);
 
     // Register contract before interrupt
-    if (RegisterContract(&Controller->Contract) != OsSuccess) {
+    Status = RegisterContract(&Controller->Contract);
+    if (Status != OsSuccess) {
         ERROR("Failed to register contract for ahci-controller");
         ReleaseDeviceIo(Controller->IoBase);
         free(Controller);
@@ -109,9 +105,9 @@ AhciControllerCreate(
     Controller->InterruptId = RegisterInterruptSource(&Controller->Device.Interrupt, INTERRUPT_USERSPACE);
 
     // Enable device
-    if (IoctlDevice(Controller->Device.Id, __DEVICEMANAGER_IOCTL_BUS,
-        (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE
-            | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OsSuccess) {
+    Status = IoctlDevice(Controller->Device.Id, __DEVICEMANAGER_IOCTL_BUS,
+        (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE));
+    if (Status != OsSuccess || Controller->InterruptId == UUID_INVALID) {
         ERROR("Failed to enable the ahci-controller");
         UnregisterInterruptSource(Controller->InterruptId);
         ReleaseDeviceIo(Controller->IoBase);
@@ -135,7 +131,7 @@ AhciControllerCreate(
  * any resources related to it */
 OsStatus_t
 AhciControllerDestroy(
-    _In_ AhciController_t*    Controller)
+    _In_ AhciController_t* Controller)
 {
     int i;
 
@@ -170,25 +166,20 @@ AhciControllerDestroy(
     return OsSuccess;
 }
 
-/* AHCIReset 
- * Resets the entire HBA Controller and all ports */
 OsStatus_t
 AhciReset(
-    _In_ AhciController_t*    Controller)
+    _In_ AhciController_t* Controller)
 {
-    // Variables
     int Hung = 0;
     int i;
 
-    // Software may reset the entire HBA by setting GHC.HR to 1.
+    // Software may perform an HBA reset prior to initializing the controller by setting GHC.AE to 1 and then setting GHC.HR to 1 if desired
     Controller->Registers->GlobalHostControl |= AHCI_HOSTCONTROL_HR;
-    MemoryBarrier();
 
     // The bit shall be cleared to 0 by the HBA when the reset is complete. 
     // If the HBA has not cleared GHC.HR to 0 within 1 second of 
     // software setting GHC.HR to 1, the HBA is in a hung or locked state.
-    WaitForConditionWithFault(Hung, 
-        ((Controller->Registers->GlobalHostControl & AHCI_HOSTCONTROL_HR) == 0), 10, 200);
+    WaitForConditionWithFault(Hung, ((Controller->Registers->GlobalHostControl & AHCI_HOSTCONTROL_HR) == 0), 10, 200);
     if (Hung) {
         return OsError;
     }
@@ -200,7 +191,9 @@ AhciReset(
     // a COMRESET to be sent on the port.
 
     // Indicate that system software is AHCI aware by setting GHC.AE to 1.
-    Controller->Registers->GlobalHostControl |= AHCI_HOSTCONTROL_AE;
+    if (!(Controller->Registers->Capabilities & AHCI_CAPABILITIES_SAM)) {
+        Controller->Registers->GlobalHostControl |= AHCI_HOSTCONTROL_AE;
+    }
 
     // Ensure that the controller is not in the running state by reading and
     // examining each implemented ports PxCMD register
@@ -208,46 +201,15 @@ AhciReset(
         if (!(Controller->ValidPorts & AHCI_IMPLEMENTED_PORT(i))) {
             continue;
         }
-
-        // If PxCMD.ST, PxCMD.CR, PxCMD.FRE and PxCMD.FR
-        // are all cleared, the port is in an idle state
-        if (!(Controller->Ports[i]->Registers->CommandAndStatus &
-            (AHCI_PORT_ST | AHCI_PORT_CR | AHCI_PORT_FRE | AHCI_PORT_FR))) {
-            continue;
-        }
-
-        // System software places a port into the idle state by clearing PxCMD.ST and
-        // waiting for PxCMD.CR to return 0 when read 
-        Controller->Ports[i]->Registers->CommandAndStatus = 0;
-    }
-    MemoryBarrier();
-
-    // Software should wait at least 500 milliseconds for port idle to occur
-    thrd_sleepex(650);
-
-    // Now we iterate through and see what happened
-    for (i = 0; i < AHCI_MAX_PORTS; i++) {
-        if (Controller->Ports[i] != NULL) {
-            if ((Controller->Ports[i]->Registers->CommandAndStatus
-                & (AHCI_PORT_CR | AHCI_PORT_FR))) {
-                // Port did not go idle
-                // Attempt a port reset and if that fails destroy it
-                if (AhciPortReset(Controller, Controller->Ports[i]) != OsSuccess) {
-                    AhciPortCleanup(Controller, Controller->Ports[i]);
-                }
-            }
-        }
+        TRACE(" > port %i status after reset: 0x%x", i, Controller->Ports[i]->Registers->CommandAndStatus);
     }
     return OsSuccess;
 }
 
-/* AHCITakeOwnership
- * Takes control of the HBA from BIOS */
 OsStatus_t
 AhciTakeOwnership(
-    _In_ AhciController_t*    Controller)
+    _In_ AhciController_t* Controller)
 {
-    // Variables
     int Hung = 0;
 
     // Step 1. Sets the OS Ownership (BOHC.OOS) bit to 1.
@@ -278,16 +240,61 @@ AhciTakeOwnership(
     }
 }
 
-/* AHCISetup
- * Initializes memory structures, ports and
- * resets the controller so it's ready for use */
+OsStatus_t
+AllocateOperationalMemory(
+    _In_ AhciController_t* Controller)
+{
+    Flags_t MemoryFlags = MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN | MEMORY_COMMIT | MEMORY_READ | MEMORY_WRITE;
+
+    // Allocate some shared resources. The resource we need is 
+    // 1K for the Command List per port
+    // A Command table for each command header (32) per port
+    if (MemoryAllocate(NULL, sizeof(AHCICommandList_t) * Controller->PortCount, 
+        MemoryFlags, &Controller->CommandListBase, &Controller->CommandListBasePhysical) != OsSuccess) {
+        ERROR("AHCI::Failed to allocate memory for the command list.");
+        return OsError;
+    }
+    if (MemoryAllocate(NULL, (AHCI_COMMAND_TABLE_SIZE * 32) * Controller->PortCount, 
+        MemoryFlags, &Controller->CommandTableBase, &Controller->CommandTableBasePhysical) != OsSuccess) {
+        ERROR("AHCI::Failed to allocate memory for the command table.");
+        return OsError;
+    }
+
+    // Trace allocations
+    TRACE("Command List memory at 0x%x (Physical 0x%x), size 0x%x",
+        Controller->CommandListBase, Controller->CommandListBasePhysical,
+        sizeof(AHCICommandList_t) * Controller->PortCount);
+    TRACE("Command Table memory at 0x%x (Physical 0x%x), size 0x%x",
+        Controller->CommandTableBase, Controller->CommandTableBasePhysical,
+        (AHCI_COMMAND_TABLE_SIZE * 32) * Controller->PortCount);
+    
+    // We have to take into account FIS based switching here, 
+    // if it's supported we need 4K per port, otherwise 256 bytes per port
+    if (Controller->Registers->Capabilities & AHCI_CAPABILITIES_FBSS) {
+        if (MemoryAllocate(NULL, 0x1000 * Controller->PortCount,
+            MemoryFlags, &Controller->FisBase, &Controller->FisBasePhysical) != OsSuccess) {
+            ERROR("AHCI::Failed to allocate memory for the fis-area.");
+            return OsError;
+        }
+    }
+    else {
+        if (MemoryAllocate(NULL, 256 * Controller->PortCount,
+            MemoryFlags, &Controller->FisBase, &Controller->FisBasePhysical) != OsSuccess) {
+            ERROR("AHCI::Failed to allocate memory for the fis-area.");
+            return OsError;
+        }
+    }
+    TRACE("FIS-Area memory at 0x%x (Physical 0x%x), size 0x%x", 
+        Controller->FisBase, Controller->FisBasePhysical, (AHCI_COMMAND_TABLE_SIZE * 32) * Controller->PortCount);
+    return OsSuccess;
+}
+
 OsStatus_t
 AhciSetup(
-    _In_ AhciController_t*    Controller)
+    _In_ AhciController_t*Controller)
 {
-    // Variables
-    int FullResetRequired   = 0;
-    int ActivePortCount     = 0;
+    int FullResetRequired = 0;
+    int ActivePortCount   = 0;
     int i;
 
     // Take ownership of the controller
@@ -296,139 +303,71 @@ AhciSetup(
         return OsError;
     }
 
-    // Indicate that system software is AHCI aware 
-    // by setting GHC.AE to 1.
-    Controller->Registers->GlobalHostControl |= AHCI_HOSTCONTROL_AE;
+    // Indicate that system software is AHCI aware by setting GHC.AE to 1.
+    if (!(Controller->Registers->Capabilities & AHCI_CAPABILITIES_SAM)) {
+        Controller->Registers->GlobalHostControl |= AHCI_HOSTCONTROL_AE;
+    }
 
     // Determine which ports are implemented by the HBA, by reading the PI register. 
     // This bit map value will aid software in determining how many ports are 
     // available and which port registers need to be initialized.
-    Controller->ValidPorts          = Controller->Registers->PortsImplemented;
-    Controller->CommandSlotCount    = AHCI_CAPABILITIES_NCS(Controller->Registers->Capabilities);
-
-    // Trace
+    Controller->ValidPorts       = Controller->Registers->PortsImplemented;
+    Controller->CommandSlotCount = AHCI_CAPABILITIES_NCS(Controller->Registers->Capabilities);
+    for (i = 0; i < AHCI_MAX_PORTS; i++) {
+        if (!(Controller->ValidPorts & AHCI_IMPLEMENTED_PORT(i))) {
+            continue;
+        }
+        Controller->PortCount++;
+    }
     TRACE("Port Validity Bitmap 0x%x, Capabilities 0x%x",
         Controller->ValidPorts, Controller->Registers->Capabilities);
 
-    // Ensure that the controller is not in the running state by reading and 
-    // examining each implemented ports PxCMD register
+    // Allocate memory neccessary, we must have set Controller->PortCount by this point
+    if (AllocateOperationalMemory(Controller) != OsSuccess) {
+        ERROR("Failed to allocate neccessary memory for the controller.");
+        return OsError;
+    }
+
+    // Initialize ports
     for (i = 0; i < AHCI_MAX_PORTS; i++) {
         if (!(Controller->ValidPorts & AHCI_IMPLEMENTED_PORT(i))) {
             continue;
         }
 
-        // Create a new port
+        // Create a port descriptor and get register access
         Controller->Ports[i] = AhciPortCreate(Controller, ActivePortCount++, i);
-
-        // If PxCMD.ST, PxCMD.CR, PxCMD.FRE and PxCMD.FR 
-        // are all cleared, the port is in an idle state
-        if (!(Controller->Ports[i]->Registers->CommandAndStatus &
-            (AHCI_PORT_ST | AHCI_PORT_CR | AHCI_PORT_FRE | AHCI_PORT_FR))) {
-            continue;
-        }
-
-        // System software places a port into the idle state by clearing PxCMD.ST and 
-        // waiting for PxCMD.CR to return 0 when read
-        Controller->Ports[i]->Registers->CommandAndStatus = 0;
+        AhciPortInitiateSetup(Controller, Controller->Ports[i]);
+        AhciPortRebase(Controller, Controller->Ports[i]);
     }
-    MemoryBarrier();
-    Controller->PortCount = ActivePortCount;
 
-    // Trace
-    TRACE("Ports Implemented: %i", ActivePortCount);
-
-    // Software should wait at least 500 milliseconds for port idle to occur
-    thrd_sleepex(650);
-
-    // Now we iterate through and see what happened
+    // Finish the stop sequences
     for (i = 0; i < AHCI_MAX_PORTS; i++) {
         if (Controller->Ports[i] != NULL) {
-            if ((Controller->Ports[i]->Registers->CommandAndStatus & (AHCI_PORT_CR | AHCI_PORT_FR))) {
-                // Port did not go idle - Attempt a port reset
-                if (AhciPortReset(Controller, Controller->Ports[i]) != OsSuccess) {
-                    FullResetRequired = 1;
-                    break;
-                }
+            if (AhciPortFinishSetup(Controller, Controller->Ports[i]) != OsSuccess) {
+                ERROR(" > failed to initialize port %i", i);
+                FullResetRequired = 1;
+                break;
             }
         }
     }
 
-    // If one of the ports reset fail, and ports  
-    // still don't clear properly, we should attempt a full reset
+    // Perform full reset if required here
     if (FullResetRequired) {
-        TRACE("Full reset of controller is required");
         if (AhciReset(Controller) != OsSuccess) {
-            ERROR("Failed to reset controller, as a full reset was required.");
+            ERROR("Failed to initialize the AHCI controller, aborting");
             return OsError;
-        }
-    }
-
-    // Allocate some shared resources, especially 
-    // command lists as we need 1K * portcount
-    if (MemoryAllocate(NULL, 1024 * ActivePortCount, MEMORY_LOWFIRST | MEMORY_CONTIGIOUS
-        | MEMORY_CLEAN | MEMORY_COMMIT, &Controller->CommandListBase,
-        &Controller->CommandListBasePhysical) != OsSuccess) {
-        ERROR("AHCI::Failed to allocate memory for the command list.");
-        return OsError;
-    }
-    if (MemoryAllocate(NULL, (AHCI_COMMAND_TABLE_SIZE * 32) * ActivePortCount, 
-        MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN 
-        | MEMORY_COMMIT, &Controller->CommandTableBase,
-        &Controller->CommandTableBasePhysical) != OsSuccess) {
-        ERROR("AHCI::Failed to allocate memory for the command table.");
-        return OsError;
-    }
-
-    // Trace allocations
-    TRACE("Command List memory at 0x%x (Physical 0x%x), size 0x%x",
-        Controller->CommandListBase, Controller->CommandListBasePhysical,
-        1024 * ActivePortCount);
-    TRACE("Command Table memory at 0x%x (Physical 0x%x), size 0x%x",
-        Controller->CommandTableBase, Controller->CommandTableBasePhysical,
-        (AHCI_COMMAND_TABLE_SIZE * 32) * ActivePortCount);
-    
-    // We have to take into account FIS based switching here, 
-    // if it's supported we need 4K
-    if (Controller->Registers->Capabilities & AHCI_CAPABILITIES_FBSS) {
-        if (MemoryAllocate(NULL, 0x1000 * ActivePortCount,
-            MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN
-            | MEMORY_COMMIT, &Controller->FisBase,
-            &Controller->FisBasePhysical) != OsSuccess) {
-            ERROR("AHCI::Failed to allocate memory for the fis-area.");
-            return OsError;
-        }
-    }
-    else {
-        if (MemoryAllocate(NULL, 256 * ActivePortCount,
-            MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN
-            | MEMORY_COMMIT, &Controller->FisBase,
-            &Controller->FisBasePhysical) != OsSuccess) {
-            ERROR("AHCI::Failed to allocate memory for the fis-area.");
-            return OsError;
-        }
-    }
-
-    TRACE("FIS-Area memory at 0x%x (Physical 0x%x), size 0x%x",
-        Controller->FisBase, Controller->FisBasePhysical,
-        (AHCI_COMMAND_TABLE_SIZE * 32) * ActivePortCount);
-
-    // For each implemented port, system software shall allocate memory
-    for (i = 0; i < AHCI_MAX_PORTS; i++) {
-        if (Controller->Ports[i] != NULL) {
-            AhciPortInitialize(Controller, Controller->Ports[i]);
         }
     }
 
     // To enable the HBA to generate interrupts, 
     // system software must also set GHC.IE to a 1
-    Controller->Registers->InterruptStatus      = 0xFFFFFFFF;
-    Controller->Registers->GlobalHostControl   |= AHCI_HOSTCONTROL_IE;
-
-    // Enumerate ports and devices
+    Controller->Registers->InterruptStatus    = 0xFFFFFFFF;
+    Controller->Registers->GlobalHostControl |= AHCI_HOSTCONTROL_IE;
     for (i = 0; i < AHCI_MAX_PORTS; i++) {
         if (Controller->Ports[i] != NULL) {
-            TRACE(" > initializing port %i (index %i)", Controller->Ports[i]->Id, Controller->Ports[i]->Index);
-            AhciPortSetupDevice(Controller, Controller->Ports[i]);
+            if (AhciPortStart(Controller, Controller->Ports[i]) != OsSuccess) {
+                ERROR(" > failed to start port %i", i);
+            }
         }
     }
     return OsSuccess;

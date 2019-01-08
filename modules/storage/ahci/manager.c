@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Advanced Host Controller Interface Driver
+ * Advanced Host Controller Interface Driver
  * TODO:
  *    - Port Multiplier Support
  *    - Power Management
@@ -29,9 +29,8 @@
 #include <stdlib.h>
 #include "manager.h"
 
-// Static storage for the disk manager
-static Collection_t Disks               = COLLECTION_INIT(KeyId);
-static UUId_t       DiskIdGenerator     = 0;
+static Collection_t Disks           = COLLECTION_INIT(KeyId);
+static UUId_t       DiskIdGenerator = 0;
 
 /* AHCIStringFlip 
  * Flips a string returned by an ahci command so it's readable */
@@ -68,7 +67,6 @@ AhciStringFlip(
 OsStatus_t
 AhciManagerInitialize(void)
 {
-    // Trace
     TRACE("AhciManagerInitialize()");
     return OsSuccess;
 }
@@ -78,13 +76,10 @@ AhciManagerInitialize(void)
 OsStatus_t
 AhciManagerDestroy(void)
 {
-    // Trace
     TRACE("AhciManagerDestroy()");
 
-    // Iterate through registered devices and
-    // unregister them with the filemanager
     foreach(dNode, &Disks) {
-        AhciDevice_t *Device = (AhciDevice_t*)dNode->Data;
+        AhciDevice_t* Device = (AhciDevice_t*)dNode->Data;
         UnregisterDisk(Device->Descriptor.Device, __DISK_FORCED_REMOVE);
         DestroyBuffer(Device->Buffer);
         free(Device);
@@ -92,17 +87,14 @@ AhciManagerDestroy(void)
     return CollectionClear(&Disks);
 }
 
-/* AhciManagerCreateDevice
- * Registers a new device with the ahci-manager on the specified
- * port and controller. Identifies and registers with neccessary services */
 OsStatus_t
 AhciManagerCreateDevice(
-    _In_ AhciController_t*  Controller, 
-    _In_ AhciPort_t*        Port)
+    _In_ AhciController_t* Controller, 
+    _In_ AhciPort_t*       Port)
 {
-    AhciTransaction_t *Transaction  = NULL;
-    DmaBuffer_t *Buffer             = NULL;
-    AhciDevice_t *Device            = NULL;
+    AhciTransaction_t* Transaction;
+    DmaBuffer_t*       Buffer;
+    AhciDevice_t*      Device;
 
     // First of all, is this a port multiplier? 
     // because then we should really enumerate it
@@ -112,28 +104,25 @@ AhciManagerCreateDevice(
             Port->Registers->Signature, Port->Id);
         return OsError;
     }
-
-    // Trace
     TRACE("AhciManagerCreateDevice(Controller %i, Port %i)",
         Controller->Device.Id, Port->Id);
 
     // Allocate data-structures
-    Transaction                 = (AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
-    Device                      = (AhciDevice_t*)malloc(sizeof(AhciDevice_t));
-    Buffer                      = CreateBuffer(UUID_INVALID, sizeof(ATAIdentify_t));
+    Transaction = (AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
+    Device      = (AhciDevice_t*)malloc(sizeof(AhciDevice_t));
+    Buffer      = CreateBuffer(UUID_INVALID, sizeof(ATAIdentify_t));
 
-    // Initiate a new device structure
-    Device->Controller          = Controller;
-    Device->Port                = Port;
-    Device->Buffer              = Buffer;
-    Device->Index               = 0;
+    memset(Transaction, 0, sizeof(AhciTransaction_t));
+    memset(Device, 0, sizeof(AhciDevice_t));
 
-    // Important!
-    Device->AddressingMode      = 1;
-    Device->SectorSize          = sizeof(ATAIdentify_t);
-    Device->Type                = (Port->Registers->Signature == SATA_SIGNATURE_ATAPI) ? 1 : 0;
+    Device->Controller     = Controller;
+    Device->Port           = Port;
+    Device->Buffer         = Buffer;
+    Device->Index          = 0;
+    Device->AddressingMode = 1;
+    Device->SectorSize     = sizeof(ATAIdentify_t);
+    Device->Type           = (Port->Registers->Signature == SATA_SIGNATURE_ATAPI) ? 1 : 0;
 
-    // Initiate the transaction
     Transaction->ResponseAddress.Thread = UUID_INVALID;
     Transaction->Address        = GetBufferDma(Buffer);
     Transaction->SectorCount    = 1;
@@ -141,16 +130,13 @@ AhciManagerCreateDevice(
     return AhciCommandRegisterFIS(Transaction, AtaPIOIdentifyDevice, 0, 0, 0);
 }
 
-/* AhciManagerCreateDeviceCallback
- * Needs to be called once the identify command has finished executing */
 OsStatus_t
 AhciManagerCreateDeviceCallback(
-    _In_ AhciDevice_t*        Device)
+    _In_ AhciDevice_t* Device)
 {
-    ATAIdentify_t *DeviceInformation;
-    DataKey_t Key;
+    ATAIdentify_t* DeviceInformation;
+    DataKey_t      Key;
 
-    // Instantiate pointer
     DeviceInformation = (ATAIdentify_t*)GetBufferDataPointer(Device->Buffer);
 
     // Flip the data in the strings as it's inverted
@@ -158,7 +144,6 @@ AhciManagerCreateDeviceCallback(
     AhciStringFlip(DeviceInformation->ModelNo, 40);
     AhciStringFlip(DeviceInformation->FWRevision, 8);
 
-    // Trace
     TRACE("AhciManagerCreateDeviceCallback(%s)", &DeviceInformation->ModelNo[0]);
 
     // Set capabilities
@@ -202,40 +187,33 @@ AhciManagerCreateDeviceCallback(
     // At this point the ahcidisk structure is filled
     // and we can continue to fill out the descriptor
     memset(&Device->Descriptor, 0, sizeof(StorageDescriptor_t));
-    Device->Descriptor.Driver       = UUID_INVALID;
-    Device->Descriptor.Device       = DiskIdGenerator++;
-    Device->Descriptor.Flags        = 0;
-
-    Device->Descriptor.SectorCount  = Device->SectorsLBA;
-    Device->Descriptor.SectorSize   = Device->SectorSize;
+    Device->Descriptor.Driver      = UUID_INVALID;
+    Device->Descriptor.Device      = DiskIdGenerator++;
+    Device->Descriptor.Flags       = 0;
+    Device->Descriptor.SectorCount = Device->SectorsLBA;
+    Device->Descriptor.SectorSize  = Device->SectorSize;
 
     // Copy string data
     memcpy(&Device->Descriptor.Model[0], (const void*)&DeviceInformation->ModelNo[0], 40);
     memcpy(&Device->Descriptor.Serial[0], (const void*)&DeviceInformation->SerialNo[0], 20);
 
-    // Add disk to list
     Key.Value.Id = Device->Descriptor.Device;
     CollectionAppend(&Disks, CollectionCreateNode(Key, Device));
     return RegisterDisk(Device->Descriptor.Device, Device->Descriptor.Flags);
 }
 
-/* AhciManagerRemoveDevice
- * Removes an existing device from the ahci-manager */
 OsStatus_t
 AhciManagerRemoveDevice(
-    _In_ AhciController_t*    Controller,
-    _In_ AhciPort_t*        Port)
+    _In_ AhciController_t* Controller,
+    _In_ AhciPort_t*       Port)
 {
-    CollectionItem_t *dNode = NULL;
-    AhciDevice_t *Device    = NULL;
-    DataKey_t Key           = { .Value.Id = UUID_INVALID };
+    CollectionItem_t* dNode;
+    AhciDevice_t*     Device;
+    DataKey_t         Key = { .Value.Id = UUID_INVALID };
 
-    // Trace
     TRACE("AhciManagerRemoveDevice(Controller %i, Port %i)",
         Controller->Device.Id, Port->Id);
 
-    // Iterate all available devices and find
-    // the one that matches the port/controller
     _foreach(dNode, &Disks) {
         Device = (AhciDevice_t*)dNode->Data;
         if (Device->Port == Port && Device->Controller == Controller) {
@@ -247,20 +225,15 @@ AhciManagerRemoveDevice(
         return OsError;
     }
 
-    // Step one is clean up from list
     CollectionRemoveByKey(&Disks, Key);
-
-    // Cleanup resources
     DestroyBuffer(Device->Buffer);
     free(Device);
     return UnregisterDisk(Key.Value.Id, __DISK_FORCED_REMOVE);
 }
 
-/* AhciManagerGetDevice 
- * Retrieves device from the disk-id given */
 AhciDevice_t*
 AhciManagerGetDevice(
-    _In_ UUId_t             Disk)
+    _In_ UUId_t Disk)
 {
     DataKey_t Key = { .Value.Id = Disk };
     return CollectionGetDataByKey(&Disks, Key, 0);

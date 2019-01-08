@@ -55,22 +55,19 @@ OnUnload(void)
  * and should handle the given event*/
 OsStatus_t
 OnEvent(
-	_In_ MRemoteCall_t *Message)
+	_In_ MRemoteCall_t* Message)
 {
-	// Variables
     OsStatus_t Result = OsSuccess;
-    char PathBuffer[64];
+    char       PathBuffer[64];
     
-    // Debug
     TRACE("Sessionmanager.OnEvent(%i)", Message->Function);
 
-    // New function call!
     switch (Message->Function) {
         case __SESSIONMANAGER_CHECKUP: {
             if (WindowingSystemId == UUID_INVALID) {
                 // The identifier might be stored as a value here if less than a specific
                 // amount of bytes
-                const char *DiskIdentifier = RPCGetStringArgument(Message, 0);
+                const char* DiskIdentifier = RPCGetStringArgument(Message, 0);
 
                 // Clear up buffer and spawn app
                 memset(&PathBuffer[0], 0, sizeof(PathBuffer));
@@ -80,7 +77,7 @@ OnEvent(
                 sprintf(&PathBuffer[0], "%s:/shared/bin/vioarr.app", DiskIdentifier);
 #endif
                 TRACE("Spawning %s", &PathBuffer[0]);
-                //WindowingSystemId = ProcessSpawn(&PathBuffer[0], NULL);
+                //WindowingSystemId = CreateProcess(&PathBuffer[0], NULL);
             }
         } break;
         case __SESSIONMANAGER_LOGIN: {

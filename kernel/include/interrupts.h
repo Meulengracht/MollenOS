@@ -174,17 +174,17 @@ AcpiDeriveInterrupt(
  * to unmask the interrupt-line again */
 __EXTERN OsStatus_t
 ScRpcExecute(
-    _In_ MRemoteCall_t*     Rpc,
-    _In_ int                Async);
+    _In_ MRemoteCall_t* Rpc,
+    _In_ int            Async);
 
 SERVICEAPI OsStatus_t SERVICEABI
 __KernelInterruptDriver(
-    _In_ UUId_t             Module, 
-    _In_ UUId_t             Id,
-    _In_ void*              Data)
+    _In_ UUId_t Module, 
+    _In_ UUId_t Id,
+    _In_ void*  Data)
 {
     MRemoteCall_t Request;
-    size_t Zero = 0;
+    size_t        Zero = 0;
 
     RPCInitialize(&Request, Module, 1, __DRIVER_INTERRUPT);
     RPCSetArgument(&Request, 0, (const void*)&Id, sizeof(UUId_t));
@@ -200,12 +200,12 @@ __KernelInterruptDriver(
  * then informed about a timer-interval that elapsed. */
 SERVICEAPI OsStatus_t SERVICEABI
 __KernelTimeoutDriver(
-    _In_ UUId_t             Module, 
-    _In_ UUId_t             TimerId,
-    _In_ void*              TimerData)
+    _In_ UUId_t Module, 
+    _In_ UUId_t TimerId,
+    _In_ void*  TimerData)
 {
     MRemoteCall_t Request;
-    size_t Zero = 0;
+    size_t        Zero = 0;
 
     RPCInitialize(&Request, Module, 1, __DRIVER_TIMEOUT);
     RPCSetArgument(&Request, 0, (const void*)&TimerId, sizeof(UUId_t));

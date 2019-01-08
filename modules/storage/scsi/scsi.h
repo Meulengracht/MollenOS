@@ -24,8 +24,6 @@
 #ifndef _SCSI_H_
 #define _SCSI_H_
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 
 /* SCSI Command Definitions 

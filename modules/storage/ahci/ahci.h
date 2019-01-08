@@ -47,8 +47,8 @@
 #define AHCI_RECIEVED_FIS_SIZE          256
 
 /* How much we should allocate for each port */
-#define AHCI_PORT_PRDT_COUNT            32
-#define AHCI_COMMAND_TABLE_SIZE         (128 + (16 * AHCI_PORT_PRDT_COUNT))
+#define AHCI_COMMAND_TABLE_PRDT_COUNT   32
+#define AHCI_COMMAND_TABLE_SIZE         (128 + (16 * AHCI_COMMAND_TABLE_PRDT_COUNT))
 #define AHCI_PRDT_MAX_LENGTH            (4 * 1024 * 1024)
 
 /* AHCI Generic Host Control Registers 
@@ -103,25 +103,24 @@ PACKED_ATYPESTRUCT(volatile, AHCIPortRegisters, {
 /* The Physical Region Descriptor Table 
  * Describes a scatter/gather list for data transfers. */
 PACKED_TYPESTRUCT(AHCIPrdtEntry, {
-    reg32_t                 DataBaseAddress;
-    reg32_t                 DataBaseAddressUpper;
-    reg32_t                 Reserved;
+    reg32_t DataBaseAddress;
+    reg32_t DataBaseAddressUpper;
+    reg32_t Reserved;
 
     /* Descriptor Information 
      * Bits 00-21: Data Byte Count 
      * Bit 31: Interrupt on Completion */
-    reg32_t                 Descriptor;
+    reg32_t Descriptor;
 });
 #define AHCI_PRDT_IOC            (1 << 31)  // Interrupt on Completion
 
-/* The command table, which is pointed to by a 
- * Command list header, and this table contains
- * a given number of FIS, 128 bytes */
+/* The command table which is pointed to by a Command list header, 
+ * and this table contains a given number of FIS, 128 bytes */
 PACKED_TYPESTRUCT(AHCICommandTable, {
-    uint8_t                 FISCommand[64];
-    uint8_t                 FISAtapi[16];
-    uint8_t                 Reserved[48];
-    AHCIPrdtEntry_t         PrdtEntry[8];    // Between 0...65535 entries of PRDT
+    uint8_t         FISCommand[64];
+    uint8_t         FISAtapi[16];
+    uint8_t         Reserved[48];
+    AHCIPrdtEntry_t PrdtEntry[1];    // Between 0...65535 entries of PRDT
 });
 
 /* The command list entry structure 
@@ -137,35 +136,34 @@ PACKED_TYPESTRUCT(AHCICommandHeader, {
     // Bit    10: Clear Busy Upon R_OK 
     // Bit    11: Reserved
     // Bit 12-15: Port Multiplier Port
-    uint16_t                Flags;
-    uint16_t                TableLength;    // Physical Region Descriptor Table Length
-    uint32_t                PRDByteCount;   // PRDBC: PRD Byte Count
+    uint16_t Flags;
+    uint16_t TableLength;    // (PRDT) Physical Region Descriptor Table Length
+    uint32_t PRDByteCount;   // PRDBC: PRD Byte Count
 
-    uint32_t                CmdTableBaseAddress;
-    uint32_t                CmdTableBaseAddressUpper;
-    uint32_t                Reserved[4];
+    uint32_t CmdTableBaseAddress;
+    uint32_t CmdTableBaseAddressUpper;
+    uint32_t Reserved[4];
 });
 
 /* The command list structure 
- * Contains a number of entries (1K /32 bytes)
- * for each port to execute */
+ * Contains a number of entries (1K /32 bytes) for each port to execute */
 PACKED_TYPESTRUCT(AHCICommandList, {
-    AHCICommandHeader_t     Headers[32];
+    AHCICommandHeader_t Headers[32];
 });
 
 /* Received FIS 
  * There are four kinds of FIS which may be sent to the host 
  * by the device as indicated in the following structure declaration */
 PACKED_ATYPESTRUCT(volatile, AHCIFis, {
-    FISDmaSetup_t           DmaSetup;
-    uint8_t                 Padding0[4];
-    FISPioSetup_t           PioSetup;
-    uint8_t                 Padding1[12];
-    FISRegisterD2H_t        RegisterD2H;
-    uint8_t                 Padding2[4];
-    FISDeviceBits_t         DeviceBits;
-    uint8_t                 UnknownFIS[64];
-    uint8_t                 ReservedArea[0x100 - 0xA0]; // Offset 0xA0 - Reserved
+    FISDmaSetup_t    DmaSetup;
+    uint8_t          Padding0[4];
+    FISPioSetup_t    PioSetup;
+    uint8_t          Padding1[12];
+    FISRegisterD2H_t RegisterD2H;
+    uint8_t          Padding2[4];
+    FISDeviceBits_t  DeviceBits;
+    uint8_t          UnknownFIS[64];
+    uint8_t          ReservedArea[0x100 - 0xA0]; // Offset 0xA0 - Reserved
 });
 
 /* Capability Bits (Host Capabilities) 
@@ -299,24 +297,24 @@ PACKED_ATYPESTRUCT(volatile, AHCIFis, {
 
 /* Port Ata Control (AtaControl)
  * - Port Registers */
+#define AHCI_PORT_SCTL_RESET                 0x1
+#define AHCI_PORT_SCTL_DISABLE               0x4
 
-/* Device Detection Initialization */
-#define AHCI_PORT_SCTL_DET_MASK             0xF
-#define AHCI_PORT_SCTL_DET_RESET            0x1
-#define AHCI_PORT_SCTL_DET_DISABLE          0x4
+#define AHCI_PORT_SCTL_SPEED_LIMIT_GEN1      0x10
+#define AHCI_PORT_SCTL_SPEED_LIMIT_GEN2      0x20
+#define AHCI_PORT_SCTL_SPEED_LIMIT_GEN3      0x30
+
+#define AHCI_PORT_SCTL_DISABLE_PARTIAL_STATE 0x100
+#define AHCI_PORT_SCTL_DISABLE_SLUMBER_STATE 0x200
+#define AHCI_PORT_SCTL_DISABLE_DEVSLEEP_PWM  0x400
 
 /* Port Ata Status (AtaStatus)
  * - Port Registers */
-
-/* Device Detection */
 #define AHCI_PORT_STSS_DET(Sts)             (Sts & 0xF)
 #define AHCI_PORT_SSTS_DET_NODEVICE         0x0
-#define AHCI_PORT_SSTS_DET_NOPHYCOM         0x1             /* Device is present, but no phys com */
-#define AHCI_PORT_SSTS_DET_ENABLED          0x3 
-
-/* Port Ata Error (AtaError)
- * - Port Registers */
-#define AHCI_PORT_SERR_CLEARALL             0x3FF783
+#define AHCI_PORT_SSTS_DET_NOPHYCOM         0x1
+#define AHCI_PORT_SSTS_DET_ENABLED          0x3
+#define AHCI_PORT_SSTS_DET_DISABLED         0x4
 
 /* The AHCI Controller Port 
  * Contains all memory structures neccessary for port transactions */
@@ -329,7 +327,7 @@ typedef struct _AhciPort {
 
     AHCIPortRegisters_t*    Registers;
     AHCICommandList_t*      CommandList;
-    AHCIFis_t**             RecievedFisTable;
+    AHCIFis_t*              RecievedFisTable;
     AHCIFis_t*              RecievedFis;
     void*                   CommandTable;
 
@@ -422,25 +420,32 @@ AhciPortCleanup(
     _In_ AhciController_t*  Controller, 
     _In_ AhciPort_t*        Port);
 
-/* AhciPortInitialize
- * Initializes the memory regions and enables them in the port */
+/* AhciPortInitiateSetup
+ * Initiates the setup sequence, this function needs at-least 500ms to complete before calling finish setup. */
 __EXTERN void
-AhciPortInitialize(
+AhciPortInitiateSetup(
+    _In_ AhciController_t*  Controller,
+    _In_ AhciPort_t*        Port);
+
+/* AhciPortFinishSetup
+ * Finishes setup of port by completing a reset sequence. */
+__EXTERN OsStatus_t
+AhciPortFinishSetup(
     _In_ AhciController_t*  Controller, 
     _In_ AhciPort_t*        Port);
 
-/* AhciPortSetupDevice
- * Identifies connection on a port, and initializes connection/device */
-__EXTERN OsStatus_t
-AhciPortSetupDevice(
+/* AhciPortRebase
+ * Rebases the port by setting up allocated memory tables and command memory. This can only be done
+ * when the port is in a disabled state. */
+__EXTERN void
+AhciPortRebase(
     _In_ AhciController_t*  Controller, 
     _In_ AhciPort_t*        Port);
 
-/* AhciPortReset
- * Resets the port, and resets communication with the device on the port
- * if the communication was destroyed */
+/* AhciPortStart
+ * Starts the port, the port must have been in a disabled state and must have been rebased at-least once. */
 __EXTERN OsStatus_t
-AhciPortReset(
+AhciPortStart(
     _In_ AhciController_t*  Controller, 
     _In_ AhciPort_t*        Port);
 

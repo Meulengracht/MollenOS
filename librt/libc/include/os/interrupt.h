@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Interrupt Support Definitions & Structures
+ * Interrupt Support Definitions & Structures
  * - This header describes the base interrupt-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */

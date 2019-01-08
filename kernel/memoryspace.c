@@ -440,9 +440,9 @@ CloneMemorySpaceMapping(
     _In_        uintptr_t               Mask)
 {
     VirtualAddress_t VirtualBase;
-    OsStatus_t Status               = OsSuccess;
-    int PageCount                   = DIVUP(Size, GetMemorySpacePageSize());
-    int i;
+    OsStatus_t       Status    = OsSuccess;
+    int              PageCount = DIVUP(Size, GetMemorySpacePageSize());
+    int              i;
     assert(SourceSpace != NULL);
     assert(DestinationSpace != NULL);
 

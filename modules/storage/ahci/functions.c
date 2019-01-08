@@ -22,6 +22,7 @@
  *	- Power Management
  */
 
+#include <commands.h>
 #include <os/mollenos.h>
 #include <os/utils.h>
 #include "manager.h"
@@ -108,5 +109,5 @@ AhciWriteSectors(
 			Command = AtaPIOWrite;	// LBA28
 		}
 	}
-	return AhciCommandRegisterFIS(Transaction, Command, SectorLBA, 0, 0);
+	return AhciCommandRegisterFIS(Transaction, Command, SectorLBA, 0, 1);
 }

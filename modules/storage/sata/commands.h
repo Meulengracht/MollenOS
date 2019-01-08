@@ -24,8 +24,6 @@
 #ifndef _ATA_H_
 #define _ATA_H_
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 
 // Status Definitions
