@@ -32,7 +32,7 @@ _CODE_END
 #define Syscall_ModuleGetModuleEntryPoints(HandleList) (OsStatus_t)syscall1(8, SCPARAM(HandleList))
 #define Syscall_ModuleExit(ExitCode) (OsStatus_t)syscall1(9, SCPARAM(ExitCode))
 
-#define Syscall_LibraryLoad(Name, Buffer, BufferLength, HandleOut) (Handle_t)syscall4(10, SCPARAM(Name), SCPARAM(Buffer), SCPARAM(BufferLength), SCPARAM(HandleOut))
+#define Syscall_LibraryLoad(Name, Buffer, BufferLength, HandleOut) (OsStatus_t)syscall4(10, SCPARAM(Name), SCPARAM(Buffer), SCPARAM(BufferLength), SCPARAM(HandleOut))
 #define Syscall_LibraryFunction(Handle, FunctionName) (uintptr_t)syscall2(11, SCPARAM(Handle), SCPARAM(FunctionName))
 #define Syscall_LibraryUnload(Handle) (OsStatus_t)syscall1(12, SCPARAM(Handle))
 
@@ -65,7 +65,7 @@ _CODE_END
 
 ///////////////////////////////////////////////
 // Operating System (Process) Interface
-#define Syscall_ThreadCreate(Entry, Argument, Flags) (UUId_t)syscall3(37, SCPARAM(Entry), SCPARAM(Argument), SCPARAM(Flags))
+#define Syscall_ThreadCreate(Entry, Argument, Flags, MemorySpaceHandle) (UUId_t)syscall4(37, SCPARAM(Entry), SCPARAM(Argument), SCPARAM(Flags), SCPARAM(MemorySpaceHandle))
 #define Syscall_ThreadExit(ExitCode) (OsStatus_t)syscall1(38, SCPARAM(ExitCode))
 #define Syscall_ThreadSignal(ThreadId, Signal) (OsStatus_t)syscall2(39, SCPARAM(ThreadId), SCPARAM(Signal))
 #define Syscall_ThreadJoin(ThreadId, ExitCode) (OsStatus_t)syscall2(40, SCPARAM(ThreadId), SCPARAM(ExitCode))

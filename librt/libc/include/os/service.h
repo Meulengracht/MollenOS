@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Service Definitions & Structures
+ * Service Definitions & Structures
  * - This header describes the base service-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -27,13 +27,14 @@
 #include <os/ipc/ipc.h>
 #include <os/osdefs.h>
 
-#define __SERVICE_TARGET(Index)             ((UUId_t)0x8000 + Index)
+#define __SERVICE_TARGET(Index)  ((UUId_t)0x8000 + Index)
 
-#define __DEVICEMANAGER_TARGET              __SERVICE_TARGET(0)
-#define __FILEMANAGER_TARGET                __SERVICE_TARGET(1)
-#define __WINDOWMANAGER_TARGET              __SERVICE_TARGET(2)
-#define __USBMANAGER_TARGET                 __SERVICE_TARGET(3)
-#define __SESSIONMANAGER_TARGET             __SERVICE_TARGET(4)
+#define __DEVICEMANAGER_TARGET   __SERVICE_TARGET(0)
+#define __FILEMANAGER_TARGET     __SERVICE_TARGET(1)
+#define __WINDOWMANAGER_TARGET   __SERVICE_TARGET(2)
+#define __USBMANAGER_TARGET      __SERVICE_TARGET(3)
+#define __SESSIONMANAGER_TARGET  __SERVICE_TARGET(4)
+#define __PROCESSMANAGER_TARGET  __SERVICE_TARGET(5)
 
 _CODE_BEGIN
 /* RegisterService 

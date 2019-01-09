@@ -31,8 +31,6 @@
 #include <stddef.h>
 #include <ctype.h>
 
-extern OsStatus_t LoadFile(MString_t* Path, MString_t** FullPath, void** BufferOut, size_t* LengthOut);
-
 typedef struct _LibraryItem {
     CollectionItem_t Header;
     Handle_t         Handle;
@@ -70,28 +68,15 @@ SharedObjectLoad(
 
     Library = CollectionGetDataByKey(&LoadedLibraries, Key, 0);
     if (Library == NULL) {
+        OsStatus_t Status;
         if (IsProcessModule()) {
-            void*  Buffer       = NULL;
-            size_t BufferLength = 0;
-            if (SharedObject != NULL) {
-                MString_t* PathOfObject = MStringCreate((void*)SharedObject, StrUTF8);
-                OsStatus_t Status       = LoadFile(PathOfObject, NULL, &Buffer, &BufferLength);
-                MStringDestroy(PathOfObject);
-                if (Status != OsSuccess) {
-                    return HANDLE_INVALID;
-                }
-            }
-	        if (Syscall_LibraryLoad(SharedObject, Buffer, BufferLength, &Result) != OsSuccess) {
-                if (Buffer != NULL) { 
-                    free(Buffer);
-                }
-            }
+            Status = Syscall_LibraryLoad(SharedObject, NULL, 0, &Result);
         }
         else {
-            ProcessLoadLibrary(SharedObject, &Result);
+            Status = ProcessLoadLibrary(SharedObject, &Result);
         }
 
-        if (Result != HANDLE_INVALID) {
+        if (Status == OsSuccess && Result != HANDLE_INVALID) {
             Library = (LibraryItem_t*)malloc(sizeof(LibraryItem_t));
             COLLECTION_NODE_INIT((CollectionItem_t*)Library, Key);
             Library->Handle     = Result;

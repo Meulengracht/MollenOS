@@ -166,6 +166,26 @@ RPCGetStringArgument(
     return NULL;
 }
 
+/* RPCGetPointerArgument
+ * Casts the argument index to a pointer safely and handling cases where the data
+ * fits entirely into the register argument. */
+SERVICEAPI void* SERVICEABI
+RPCGetPointerArgument(
+    _In_ MRemoteCall_t* RemoteCall,
+    _In_ int            Index)
+{
+    if (RemoteCall == NULL || Index < 0 || Index >= IPC_MAX_ARGUMENTS) {
+        return NULL;
+    }
+    if (RemoteCall->Arguments[Index].Type == ARGUMENT_REGISTER) {
+        return (void*)&RemoteCall->Arguments[Index].Data.Value;
+    }
+    else if (RemoteCall->Arguments[Index].Type == ARGUMENT_BUFFER) {
+        return (void*)RemoteCall->Arguments[Index].Data.Buffer;
+    }
+    return NULL;
+}
+
 /* RPCCastArgumentToPointer
  * Casts the argument to a pointer safely and handling cases where data
  * fits entirely into the register argument. */

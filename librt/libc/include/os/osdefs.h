@@ -36,6 +36,8 @@
 #error "Compiler does not support C11"
 #endif
 
+#define DECL_STRUCT(Type) typedef struct _##Type Type##_t
+
 #ifdef _UNICODE
 # define TCHAR wchar_t
 # define _T(x) L ##x

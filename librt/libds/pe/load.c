@@ -515,14 +515,19 @@ PeLoadImage(
         Image->EntryAddress = Image->VirtualAddress + OptHeader->EntryPoint;
     }
 
-    Status = CreateImageSpace(&Image->MemorySpace);
-    if (Status != OsSuccess) {
-        dserror("Failed to create pe's memory space");
-        CollectionDestroy(Image->Libraries);
-        MStringDestroy(Image->Name);
-        MStringDestroy(Image->FullPath);
-        dsfree(Image);
-        return OsError;
+    if (Parent == NULL) {
+        Status = CreateImageSpace(&Image->MemorySpace);
+        if (Status != OsSuccess) {
+            dserror("Failed to create pe's memory space");
+            CollectionDestroy(Image->Libraries);
+            MStringDestroy(Image->Name);
+            MStringDestroy(Image->FullPath);
+            dsfree(Image);
+            return OsError;
+        }
+    }
+    else {
+        Image->MemorySpace = Parent->MemorySpace;
     }
 
     Status = PeParseAndMapImage(Parent, Image, Buffer, ImageBase, SizeOfMetaData, SectionAddress, 

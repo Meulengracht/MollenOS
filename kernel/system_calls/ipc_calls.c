@@ -157,7 +157,6 @@ ScRpcExecute(
 
     assert(RemoteCall != NULL);
     TRACE("ScRpcExecute(Message %i, Async %i)", RemoteCall->Function, Async);
-    //WARNING("%s: ScRpcExecute(%i, 0x%x)", GetCurrentThreadForCore(CpuGetCurrentId())->Name, RemoteCall->Function, RemoteCall->Target);
     
     Module = (SystemModule_t*)GetModuleByHandle(RemoteCall->Target);
     if (Module == NULL || Module->Rpc == NULL) {
@@ -205,7 +204,6 @@ ScRpcListen(
     int                   i;
     
     assert(RemoteCall != NULL);
-    //WARNING("%s: ScRpcListen()", GetCurrentThreadForCore(CpuGetCurrentId())->Name);
     
     // Start out by resolving both the process and pipe
     Module = GetCurrentModule();
@@ -234,7 +232,6 @@ ScRpcRespond(
 {
     MCoreThread_t* Thread = GetThread(RemoteAddress->Thread);
     SystemPipe_t*  Pipe   = NULL;
-    //WARNING("%s: ScRpcRespond()", GetCurrentThreadForCore(CpuGetCurrentId())->Name);
 
     // Sanitize thread still exists
     if (Thread != NULL) {

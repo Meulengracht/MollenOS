@@ -20,8 +20,10 @@
  */
 
 #include <internal/_syscalls.h>
+#include <internal/_utils.h>
 #include <os/contracts/video.h>
 #include <os/mollenos.h>
+#include <os/process.h>
 #include <os/utils.h>
 
 #include <stdarg.h>
@@ -30,8 +32,6 @@
 
 const char *__SysTypeMessage = "LIBC";
 
-/* SystemDebug 
- * Debug/trace printing for userspace application and drivers */
 void
 SystemDebug(
 	_In_ int         Type,
@@ -52,23 +52,16 @@ void MollenOSEndBoot(void)
     Syscall_SystemStart();
 }
 
-/* QueryDisplayInformation
- * Queries the current display driver for information. */
 OsStatus_t QueryDisplayInformation(VideoDescriptor_t *Descriptor)
 {
     return Syscall_DisplayInformation(Descriptor);
 }
 
-/* CreateDisplayFramebuffer
- * Creates a new display framebuffer to use for direct drawing. */
 void* CreateDisplayFramebuffer(void)
 {
     return Syscall_CreateDisplayFramebuffer();
 }
 
-/* SystemTime
- * Retrieves the system time. This is only ticking
- * if a system clock has been initialized. */
 OsStatus_t
 SystemTime(
 	_Out_ struct tm *time)
@@ -76,20 +69,17 @@ SystemTime(
     return Syscall_SystemTime(time);
 }
 
-/* SystemTick
- * Retrieves the system tick counter. This is only ticking
- * if a system timer has been initialized. */
 OsStatus_t
 SystemTick(
     _In_  int      TickBase,
 	_Out_ clock_t* Clock)
 {
+    if (TickBase == TIME_PROCESS && !IsProcessModule()) {
+        return ProcessGetTickBase(Clock);
+    }
     return Syscall_SystemTick(TickBase, Clock);
 }
 
-/* QueryPerformanceFrequency
- * Returns how often the performance timer fires every
- * second, the value will never be 0 */
 OsStatus_t
 QueryPerformanceFrequency(
 	_Out_ LargeInteger_t *Frequency)
@@ -97,9 +87,6 @@ QueryPerformanceFrequency(
     return Syscall_SystemPerformanceFrequency(Frequency);
 }
 
-/* QueryPerformanceTimer 
- * Queries the created performance timer and returns the
- * information in the given structure */
 OsStatus_t
 QueryPerformanceTimer(
 	_Out_ LargeInteger_t *Value)
@@ -107,9 +94,6 @@ QueryPerformanceTimer(
     return Syscall_SystemPerformanceTime(Value);
 }
 
-/* FlushHardwareCache
- * Flushes the specified hardware cache. Should be used with caution as it might
- * result in performance drops. */
 OsStatus_t
 FlushHardwareCache(
     _In_     int    Cache,

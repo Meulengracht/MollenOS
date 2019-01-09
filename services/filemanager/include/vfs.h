@@ -41,10 +41,8 @@
 #define __FILE_OPERATION_READ           0x00000001
 #define __FILE_OPERATION_WRITE          0x00000002
 
-/* VFS FileSystem Types
- * The different supported built-in filesystems */
 typedef enum _FileSystemType {
-    FSUnknown                = 0,
+    FSUnknown = 0,
     FSFAT,
     FSEXFAT,
     FSNTFS,

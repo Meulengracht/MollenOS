@@ -220,7 +220,7 @@ OsStatus_t LoadFile(MString_t* Path, MString_t** FullPath, void** BufferOut, siz
     MString_t* InitRdPath = MStringCreate("rd:/", StrUTF8);
     MStringAppendCharacters(InitRdPath, MStringRaw(Path), StrUTF8);
     Status = GetModuleDataByPath(InitRdPath, BufferOut, LengthOut);
-    if (Status == OsSuccess) {
+    if (Status == OsSuccess && FullPath != NULL) {
         *FullPath = MStringCreate((void*)MStringRaw(InitRdPath), StrUTF8);
     }
     MStringDestroy(InitRdPath);

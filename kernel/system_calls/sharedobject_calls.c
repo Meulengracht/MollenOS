@@ -24,6 +24,9 @@
 #include "../../librt/libds/pe/pe.h"
 #include <modules/manager.h>
 #include <ds/mstring.h>
+#include <debug.h>
+
+extern OsStatus_t LoadFile(MString_t* Path, MString_t** FullPath, void** BufferOut, size_t* LengthOut);
 
 OsStatus_t
 ScSharedObjectLoad(
@@ -46,7 +49,15 @@ ScSharedObjectLoad(
         *HandleOut = HANDLE_GLOBAL;
         return OsSuccess;
     }
-    Path   = MStringCreate((void*)SoName, StrUTF8);
+
+    // Resolve the data if none were passed along
+    Path = MStringCreate((void*)SoName, StrUTF8);
+    if (Buffer == NULL || BufferLength == 0) {
+        Status = LoadFile(Path, NULL, (void**)&Buffer, &BufferLength);
+        if (Status != OsSuccess) {
+            return OsDoesNotExist;
+        }
+    }
     Status = PeLoadImage(Module->Executable, Path, Path, Buffer, BufferLength, (PeExecutable_t**)HandleOut);
     MStringDestroy(Path);
     return Status;

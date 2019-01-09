@@ -89,16 +89,8 @@ AhciPortIdentifyDevice(
     _In_ AhciController_t* Controller, 
     _In_ AhciPort_t*       Port)
 {
-    // Detect present ports using
-    // PxTFD.STS.BSY = 0, PxTFD.STS.DRQ = 0, and PxSSTS.DET = 3
-    if (Port->Registers->TaskFileData & (AHCI_PORT_TFD_BSY | AHCI_PORT_TFD_DRQ)
-        || (AHCI_PORT_STSS_DET(Port->Registers->AtaStatus) != AHCI_PORT_SSTS_DET_ENABLED)) {
-        WARNING(" > no device detected 0x%x - 0x%x", Port->Registers->TaskFileData, Port->Registers->AtaStatus);
-        return OsError;
-    }
-
-    TRACE(" > device present 0x%x on port %i", Port->Registers->Signature, Port->Id);
     Port->Connected = 1;
+    TRACE(" > device present 0x%x on port %i", Port->Registers->Signature, Port->Id);
     return AhciManagerCreateDevice(Controller, Port);
 }
 
@@ -134,11 +126,21 @@ AhciPortFinishSetup(
 
     // Step 2 -> wait for the fis receive engine to stop by waiting for AHCI_PORT_FR to clear
     Port->Registers->CommandAndStatus &= ~AHCI_PORT_FRE;
-    WaitForConditionWithFault(Hung, (Port->Registers->CommandAndStatus & AHCI_PORT_FR) == 0, 10, 10);
+    WaitForConditionWithFault(Hung, (Port->Registers->CommandAndStatus & AHCI_PORT_FR) == 0, 6, 100);
     if (Hung) {
         ERROR(" > failed to stop fis receive engine: 0x%x", Port->Registers->CommandAndStatus);
         return OsError;
     }
+
+    // Step 3.1 -> If 1 or 2 fails, then we proceed to a reset of the port.
+    // Step 3.2 -> If 1 and 2 succeeds, then skip reset and proceed to rebase of port.
+
+    // Step 4 -> Rebase
+    // Step 5 -> Initialize registers
+    // Step 6 -> DET initialization
+    // Step 7 -> FRE initialization
+    // Step 8 -> Wait for BSYDRQ to clear
+    // Step 9 -> ST initialization
 
     // Software causes a port reset (COMRESET) by writing 1h to the PxSCTL.DET
     // Also disable slumber and partial state
@@ -162,7 +164,7 @@ AhciPortFinishSetup(
         }
     }
 
-    if ((AHCI_PORT_STSS_DET(Port->Registers->AtaStatus) == AHCI_PORT_SSTS_DET_ENABLED)) {
+    if (AHCI_PORT_STSS_DET(Port->Registers->AtaStatus) == AHCI_PORT_SSTS_DET_ENABLED) {
         // Handle staggered spin up support
         if (Controller->Registers->Capabilities & AHCI_CAPABILITIES_SSS) {
             Port->Registers->CommandAndStatus |= AHCI_PORT_SUD | AHCI_PORT_POD | AHCI_PORT_ICC_ACTIVE;
@@ -227,6 +229,44 @@ AhciPortRebase(
     }
 }
 
+/* AhciPortEnable
+ * Enables the port by performing the last steps of the setup. At this point we assume that DET == 3. 
+ * We also assume that CR | FR == 0 and that port has been rebased. */
+OsStatus_t
+AhciPortEnable(
+    _In_ AhciController_t* Controller,
+    _In_ AhciPort_t*       Port)
+{
+    int Hung = 0;
+
+    // Set FRE before ST
+    Port->Registers->CommandAndStatus |= AHCI_PORT_FRE;
+    WaitForConditionWithFault(Hung, Port->Registers->CommandAndStatus & AHCI_PORT_FR, 6, 100);
+    if (Hung) {
+        ERROR(" > fis receive engine failed to start: 0x%x", Port->Registers->CommandAndStatus);
+        return OsTimeout;
+    }
+
+    // Wait for BSYDRQ to clear
+    if (Port->Registers->TaskFileData & (AHCI_PORT_TFD_BSY | AHCI_PORT_TFD_DRQ)) {
+        Port->Registers->AtaError = (1 << 26); // Exchanged bit.
+        WaitForConditionWithFault(Hung, (Port->Registers->TaskFileData & (AHCI_PORT_TFD_BSY | AHCI_PORT_TFD_DRQ)) == 0, 30, 100);
+        if (Hung) {
+            ERROR(" > failed to clear BSY and DRQ: 0x%x", Port->Registers->TaskFileData);
+            return OsTimeout;
+        }
+    }
+
+    // Finally start
+    Port->Registers->CommandAndStatus |= AHCI_PORT_ST;
+    WaitForConditionWithFault(Hung, Port->Registers->CommandAndStatus & AHCI_PORT_CR, 6, 100);
+    if (Hung) {
+        ERROR(" > command engine failed to start: 0x%x", Port->Registers->CommandAndStatus);
+        return OsTimeout;
+    }
+    return AhciPortIdentifyDevice(Controller, Port);
+}
+
 /* AhciPortStart
  * Starts the port, the port must have been in a disabled state and must have been rebased at-least once. */
 OsStatus_t
@@ -262,32 +302,24 @@ AhciPortStart(
         Port->Registers->CmdListBaseAddressUpper = 0;
     }
 
-    // Make sure AHCI_PORT_CR is not set
-    WaitForConditionWithFault(Hung, (Port->Registers->CommandAndStatus & AHCI_PORT_CR) == 0, 10, 25);
-    if (Hung) {
-        ERROR(" > command engine is hung: 0x%x", Port->Registers->CommandAndStatus);
-        return OsTimeout;
-    }
-    
     // Setup the interesting interrupts we want
     Port->Registers->InterruptEnable = (reg32_t)(AHCI_PORT_IE_CPDE | AHCI_PORT_IE_TFEE
         | AHCI_PORT_IE_PCE | AHCI_PORT_IE_DSE | AHCI_PORT_IE_PSE | AHCI_PORT_IE_DHRE);
 
-    // Set FRE before ST
-    Port->Registers->CommandAndStatus |= AHCI_PORT_FRE;
-    WaitForConditionWithFault(Hung, Port->Registers->CommandAndStatus & AHCI_PORT_FR, 6, 100);
+    // Make sure AHCI_PORT_CR and AHCI_PORT_FR is not set
+    WaitForConditionWithFault(Hung, (Port->Registers->CommandAndStatus & (AHCI_PORT_CR | AHCI_PORT_FR)) == 0, 10, 25);
     if (Hung) {
-        ERROR(" > fis receive engine failed to start: 0x%x", Port->Registers->CommandAndStatus);
+        // In this case we should reset the entire controller @todo
+        ERROR(" > command engine is hung: 0x%x", Port->Registers->CommandAndStatus);
         return OsTimeout;
     }
-
-    Port->Registers->CommandAndStatus |= AHCI_PORT_ST;
-    WaitForConditionWithFault(Hung, Port->Registers->CommandAndStatus & AHCI_PORT_CR, 6, 100);
-    if (Hung) {
-        ERROR(" > command engine failed to start: 0x%x", Port->Registers->CommandAndStatus);
-        return OsTimeout;
+    
+    // Wait for FRE and BSYDRQ. This assumes a device present
+    if (AHCI_PORT_STSS_DET(Port->Registers->AtaStatus) != AHCI_PORT_SSTS_DET_ENABLED) {
+        WARNING(" > port has nothing present: 0x%x", Port->Registers->AtaStatus);
+        return OsSuccess;
     }
-    return AhciPortIdentifyDevice(Controller, Port);
+    return AhciPortEnable(Controller, Port);
 }
 
 /* AhciPortAcquireCommandSlot

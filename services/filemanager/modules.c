@@ -35,7 +35,7 @@ const char *_GlbFileSystemDrivers[] = {
 	"$sys/drivers/filesystems/ntfs.dll",
 	"$sys/drivers/filesystems/hfs.dll",
 	"$sys/drivers/filesystems/hpfs.dll",
-	"rd:/mfs.dll",
+	"mfs.dll",
 	"$sys/drivers/filesystems/ext.dll"
 };
 
@@ -46,10 +46,9 @@ FileSystemModule_t*
 VfsResolveFileSystem(
     _In_ FileSystem_t *FileSystem)
 {
-	// Variables
-	FileSystemModule_t *Module = NULL;
-	CollectionItem_t *fNode = NULL;
-	DataKey_t Key = { 0 };
+	FileSystemModule_t* Module = NULL;
+	CollectionItem_t*   fNode = NULL;
+	DataKey_t           Key = { 0 };
 
 	// Trace
 	TRACE("VfsResolveFileSystem(Type %u)", FileSystem->Type);
@@ -75,6 +74,11 @@ VfsResolveFileSystem(
 
 	// Resolve the library path and load it 
 	if (FileSystem->Type != FSUnknown) {
+        if (FileSystem->Type != FSMFS) {
+            ERROR("Can't load modules other than onboard modules in ramdisk");
+            free(Module);
+            return NULL;
+        }
 		Module->Handle = SharedObjectLoad(_GlbFileSystemDrivers[(int)FileSystem->Type]);
 	}
 
