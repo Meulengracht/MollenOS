@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Usb Definitions & Structures
+ * Usb Definitions & Structures
  * - This header describes the base usb-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -25,9 +25,9 @@
 #define _USB_INTERFACE_H_
 
 #include <os/osdefs.h>
-#include <os/usb/definitions.h>
+#include <ddk/usb/definitions.h>
 #include <os/bufferpool.h>
-#include <os/device.h>
+#include <ddk/device.h>
 
 /* USB Definitions
  * Contains magic constants, settings and bit definitions */

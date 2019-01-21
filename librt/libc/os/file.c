@@ -23,7 +23,7 @@
 
 #include <internal/_syscalls.h>
 #include <os/mollenos.h>
-#include <os/file.h>
+#include <ddk/file.h>
 #include <stdio.h>
 #include "../stdio/local.h"
 

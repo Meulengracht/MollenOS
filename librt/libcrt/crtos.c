@@ -21,7 +21,7 @@
 
 #include <internal/_syscalls.h>
 #include <os/process.h>
-#include <os/ipc/ipc.h>
+#include <ddk/ipc/ipc.h>
 
 #include "../libc/threads/tls.h"
 #include <stddef.h>

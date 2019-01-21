@@ -34,7 +34,7 @@
 #include <os/mollenos.h>
 #include <os/spinlock.h>
 #include <ds/collection.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include <threads.h>
 #include <stdlib.h>
 #include <assert.h>

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS X86 Cpu Information Header
+ * x86 Cpu Information Header
  * - Contains some definitions and structures for helping around
  *   in the sub-layer system
  */
@@ -44,20 +44,15 @@
 #endif
 #define isspace(c) ((c >= 0x09 && c <= 0x0D) || (c == 0x20))
 
-/* Extern functions
- * We need access to these in order to implement
- * the interface */
-__EXTERN volatile size_t GlbTimerTicks[64];
-
-/* Extern assembly functions
- * These utilities are located in boot.asm */
-__EXTERN void __wbinvd(void);
-__EXTERN void __hlt(void);
-__EXTERN void CpuEnableXSave(void);
-__EXTERN void CpuEnableAvx(void);
-__EXTERN void CpuEnableSse(void);
-__EXTERN void CpuEnableGpe(void);
-__EXTERN void CpuEnableFpu(void);
+// Extern assembly functions
+// These utilities are located in boot.asm
+extern void __wbinvd(void);
+extern void __hlt(void);
+extern void CpuEnableXSave(void);
+extern void CpuEnableAvx(void);
+extern void CpuEnableSse(void);
+extern void CpuEnableGpe(void);
+extern void CpuEnableFpu(void);
 
 /* TrimWhitespaces
  * Trims leading and trailing whitespaces in-place on the given string. This is neccessary
@@ -83,9 +78,6 @@ TrimWhitespaces(char *str)
     return str;
 }
 
-/* InitializeProcessor
- * Initializes the cpu as much as neccessary for the system to be in a running state. This
- * also initializes the primary core of the cpu structure. */
 void
 InitializeProcessor(
     _In_ SystemCpu_t*       Cpu)
@@ -151,9 +143,6 @@ InitializeProcessor(
     SmBiosInitialize(NULL);
 }
 
-/* SetMachineUmaMode (@arch)
- * Sets the current machine into UMA mode which means there are no domains. This must
- * be implemented by the architecture to allow a arch-specific setup of the UMA topology. */
 void
 SetMachineUmaMode(void)
 {
@@ -165,9 +154,6 @@ SetMachineUmaMode(void)
     for(;;);
 }
 
-/* InterruptProcessorCore (@arch) 
- * Interrupts the given core with a specified reason, how the reason is handled is 
- * implementation specific. */
 void
 InterruptProcessorCore(
     _In_ UUId_t                     CoreId,
@@ -181,9 +167,6 @@ InterruptProcessorCore(
     }
 }
 
-/* CpuInitializeFeatures
- * Initializes all onboard features on the running core. This can be extended features
- * as SSE, MMX, FPU, AVX etc */
 void
 CpuInitializeFeatures(void)
 {
@@ -212,8 +195,6 @@ CpuInitializeFeatures(void)
     }
 }
 
-/* CpuHasFeatures
- * Determines if the cpu has the requested features */
 OsStatus_t
 CpuHasFeatures(Flags_t Ecx, Flags_t Edx)
 {
@@ -233,10 +214,8 @@ CpuHasFeatures(Flags_t Ecx, Flags_t Edx)
 	return OsSuccess;
 }
 
-/* CpuGetCurrentId 
- * Retrieves the current cpu id for caller */
 UUId_t
-CpuGetCurrentId(void)
+ArchGetProcessorCoreId(void)
 {
     if (ApicIsInitialized() == OsSuccess) {
         return (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
@@ -247,26 +226,17 @@ CpuGetCurrentId(void)
     return GetMachine()->Processor.PrimaryCore.Id;
 }
 
-/* CpuIdle
- * Enters idle mode for the current cpu */
 void
-CpuIdle(void) {
+ArchProcessorIdle(void)
+{
 	__hlt();
 }
 
-/* CpuHalt
- * Halts the current cpu - rendering cpu useless */
 void
-CpuHalt(void) {
+ArchProcessorHalt(void)
+{
 	InterruptDisable();
 	__hlt();
-}
-
-/* CpuGetTicks
- * Get the ticks for the current cpu. */
-size_t
-CpuGetTicks(void) {
-    return GlbTimerTicks[CpuGetCurrentId()];
 }
 
 /* CpuFlushInstructionCache
@@ -284,13 +254,10 @@ CpuFlushInstructionCache(
     __wbinvd();
 }
 
-/* Backup Timer, Should always be provided */
 extern void _rdtsc(uint64_t *Value);
 
-/* CpuStall
- * Stalls the cpu for the given milliseconds, blocking call. */
 void
-CpuStall(
+ArchStallProcessorCore(
     size_t MilliSeconds)
 {
 	// Variables
@@ -299,7 +266,7 @@ CpuStall(
 
 	if (!(GetMachine()->Processor.Data[CPU_DATA_FEATURES_EDX] & CPUID_FEAT_EDX_TSC)) {
 		FATAL(FATAL_SCOPE_KERNEL, "DelayMs() was called, but no TSC support in CPU.");
-		CpuIdle();
+		ArchProcessorIdle();
 	}
 
 	// Use the read timestamp counter

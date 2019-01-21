@@ -16,17 +16,17 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Path Definitions & Structures
+ * Path Definitions & Structures
  * - This header describes the path-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include <os/contracts/filesystem.h>
+#include <ddk/contracts/filesystem.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
 #include <os/mollenos.h>
 #include <os/process.h>
-#include <os/file.h>
+#include <ddk/file.h>
 #include <string.h>
 
 /* SetWorkingDirectory

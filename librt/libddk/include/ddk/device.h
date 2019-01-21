@@ -25,8 +25,8 @@
 #define _DEVICE_INTERFACE_H_
 
 #include <os/osdefs.h>
-#include <os/interrupt.h>
-#include <os/io.h>
+#include <ddk/interrupt.h>
+#include <ddk/io.h>
 
 #define __DEVICEMANAGER_INTERFACE_VERSION           1
 

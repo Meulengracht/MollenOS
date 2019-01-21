@@ -27,7 +27,7 @@
 #include <component/cpu.h>
 #include <criticalsection.h>
 #include <modules/manager.h>
-#include <os/interrupt.h>
+#include <ddk/interrupt.h>
 #include <system/utils.h>
 #include <memoryspace.h>
 #include <interrupts.h>

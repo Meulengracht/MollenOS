@@ -20,7 +20,8 @@
  *  - Provides functionality to create and manage windows used by the program
  */
 
-#include <os/window.h>
+#include <ddk/window.h>
+#include <ddk/buffer.h>
 #include <assert.h>
 #include <stdlib.h>
 
@@ -63,7 +64,7 @@ UiUnregisterWindow(void)
 OsStatus_t
 UiRegisterWindow(
     _In_  UIWindowParameters_t* Descriptor,
-    _Out_ DmaBuffer_t**         WindowBuffer)
+    _Out_ void**                WindowBuffer)
 {
     OsStatus_t  Status;
     size_t      BytesNeccessary = 0;
@@ -78,11 +79,10 @@ UiRegisterWindow(
     BytesNeccessary = Descriptor->Surface.Dimensions.w * Descriptor->Surface.Dimensions.h * 4;
 
     // Create the buffer object
-    *WindowBuffer = CreateBuffer(UUID_INVALID, BytesNeccessary);
-    if (*WindowBuffer == NULL) {
+    ProgramWindowBuffer = CreateBuffer(UUID_INVALID, BytesNeccessary);
+    if (ProgramWindowBuffer == NULL) {
         return OsError;
     }
-    ProgramWindowBuffer = *WindowBuffer;
 
     // Create the window
     Status = CreateWindow(Descriptor, GetBufferHandle(ProgramWindowBuffer), &ProgramWindowHandle);

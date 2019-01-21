@@ -23,13 +23,13 @@
 #ifndef __DRIVER_SDK_H__
 #define __DRIVER_SDK_H__
 
-#include <os/contracts/base.h>
-#include <os/interrupt.h>
-#include <os/ipc/ipc.h>
+#include <ddk/contracts/base.h>
+#include <ddk/interrupt.h>
+#include <ddk/ipc/ipc.h>
 #include <os/osdefs.h>
-#include <os/device.h>
-#include <os/acpi.h>
-#include <os/io.h>
+#include <ddk/device.h>
+#include <ddk/acpi.h>
+#include <ddk/io.h>
 
 /* These are the different IPC functions supported
  * by the driver, note that some of them might
@@ -39,70 +39,7 @@
 #define __DRIVER_UNREGISTERINSTANCE		IPC_DECL_FUNCTION(1)
 #define __DRIVER_INTERRUPT				IPC_DECL_FUNCTION(2)
 #define __DRIVER_QUERY					IPC_DECL_FUNCTION(3)
-#define __DRIVER_TIMEOUT				IPC_DECL_FUNCTION(4)
-#define __DRIVER_UNLOAD					IPC_DECL_FUNCTION(5)
-
-#ifdef __DRIVER_IMPL
-
-/* OnLoad
- * The entry-point of a driver, this is called
- * as soon as the driver is loaded in the system */
-__EXTERN OsStatus_t
-OnLoad(void);
-
-/* OnUnload
- * This is called when the driver is being unloaded
- * and should free all resources allocated by the system */
-__EXTERN OsStatus_t
-OnUnload(void);
-
-/* OnRegister
- * Is called when the device-manager registers a new
- * instance of this driver for the given device */
-__EXTERN OsStatus_t
-OnRegister(
-	_In_ MCoreDevice_t*				Device);
-
-/* OnUnregister
- * Is called when the device-manager wants to unload
- * an instance of this driver from the system */
-__EXTERN OsStatus_t
-OnUnregister(
-	_In_ MCoreDevice_t*				Device);
-
-/* OnInterrupt
- * Is called by external services to indicate an external interrupt.
- * This is to actually process the device interrupt */
-__EXTERN InterruptStatus_t
-OnInterrupt(
-    _In_Opt_ void*					InterruptData,
-    _In_Opt_ size_t 				Arg0,
-    _In_Opt_ size_t 				Arg1,
-    _In_Opt_ size_t 				Arg2);
-
-/* OnTimeout
- * Is called when one of the registered timer-handles
- * times-out. A new timeout event is generated and passed
- * on to the below handler */
-__EXTERN OsStatus_t
-OnTimeout(
-	_In_ UUId_t 					Timer,
-	_In_ void*						Data);
-
-/* OnQuery
- * Occurs when an external process or server quries
- * this driver for data, this will correspond to the query
- * function that is defined in the contract */
-__EXTERN OsStatus_t
-OnQuery(
-	_In_     MContractType_t        QueryType, 
-	_In_     int                    QueryFunction, 
-	_In_Opt_ MRemoteCallArgument_t* Arg0,
-	_In_Opt_ MRemoteCallArgument_t* Arg1,
-	_In_Opt_ MRemoteCallArgument_t* Arg2,
-    _In_     MRemoteCallAddress_t*  Address);
-
-#endif
+#define __DRIVER_UNLOAD					IPC_DECL_FUNCTION(4)
 
 /* InterruptDriver
  * Call this to send an interrupt into user-space */

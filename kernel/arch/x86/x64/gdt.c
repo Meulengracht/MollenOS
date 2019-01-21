@@ -116,7 +116,7 @@ TssInitialize(
 	// Variables
 	uint64_t tBase  = 0;
 	uint32_t tLimit = 0;
-    UUId_t CoreId   = CpuGetCurrentId();
+    UUId_t CoreId   = ArchGetProcessorCoreId();
 
 	// If we use the static allocator, it must be the boot cpu
 	if (PrimaryCore) {
@@ -162,7 +162,7 @@ TssCreateStacks(void)
     Stacks          += PAGE_SIZE * 7;
 
     for (int i = 0; i < 7; i++) {
-        TssPointers[CpuGetCurrentId()]->InterruptTable[i] = Stacks;
+        TssPointers[ArchGetProcessorCoreId()]->InterruptTable[i] = Stacks;
         Stacks -= PAGE_SIZE;
     }
 }
@@ -172,7 +172,7 @@ TssCreateStacks(void)
 uintptr_t
 TssGetBootIoSpace(void)
 {
-	return (uintptr_t)&TssPointers[CpuGetCurrentId()]->IoMap[0];
+	return (uintptr_t)&TssPointers[ArchGetProcessorCoreId()]->IoMap[0];
 }
 
 /* TssUpdateIo

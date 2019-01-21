@@ -26,10 +26,10 @@
 
 /* Includes
  * - Library */
-#include <os/contracts/usbhost.h>
+#include <ddk/contracts/usbhost.h>
 #include <os/spinlock.h>
 #include <os/osdefs.h>
-#include <os/usb.h>
+#include <ddk/usb.h>
 
 /* UsbManagerTransferFlags
  * Describes a unified way of reporting special transfer states. */

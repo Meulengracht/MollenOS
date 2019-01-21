@@ -24,7 +24,7 @@
 #ifndef _CONTRACT_STORAGE_INTERFACE_H_
 #define _CONTRACT_STORAGE_INTERFACE_H_
 
-#include <os/driver.h>
+#include <ddk/driver.h>
 #include <os/osdefs.h>
 
 /* Storage device query functions that must be implemented

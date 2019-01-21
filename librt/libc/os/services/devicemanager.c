@@ -21,10 +21,10 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include <os/contracts/base.h>
-#include <os/ipc/ipc.h>
-#include <os/service.h>
-#include <os/device.h>
+#include <ddk/contracts/base.h>
+#include <ddk/ipc/ipc.h>
+#include <ddk/service.h>
+#include <ddk/device.h>
 #include <string.h>
 
 UUId_t

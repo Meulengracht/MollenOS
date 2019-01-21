@@ -20,8 +20,8 @@
  */
 
 #include <internal/_syscalls.h>
-#include <os/ipc/ipc.h>
-#include <os/ipc/pipe.h>
+#include <ddk/ipc/ipc.h>
+#include <ddk/ipc/pipe.h>
 #include <signal.h>
 #include <assert.h>
 

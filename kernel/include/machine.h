@@ -26,6 +26,7 @@
 
 #include <os/osdefs.h>
 #include <ds/blbitmap.h>
+#include <os/mollenos.h>
 #include <multiboot.h>
 #include <time.h>
 #include <pipe.h>
@@ -58,6 +59,7 @@ typedef struct _SystemMachine {
     SystemInterruptOverride_t*  Overrides;
     SystemPipe_t*               StdInput;
     SystemPipe_t*               WmInput;
+    SystemTime_t                SystemTime;
 
     // Total information across domains
     size_t                      NumberOfProcessors;

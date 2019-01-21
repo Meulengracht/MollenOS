@@ -116,7 +116,7 @@ SignalCreate(
 OsStatus_t
 SignalReturn(void)
 {
-    UUId_t          Cpu     = CpuGetCurrentId();
+    UUId_t          Cpu     = ArchGetProcessorCoreId();
     MCoreThread_t*  Thread  = GetCurrentThreadForCore(Cpu);
     Thread->ActiveSignal.Signal = -1;
     return SignalProcess(Thread->Id);

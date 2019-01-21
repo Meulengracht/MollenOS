@@ -129,10 +129,10 @@ ContextCreate(
 	return Context;
 }
 
-/* ContextDump 
+/* ArchDumpThreadContext 
  * Dumps the contents of the given context for debugging */
 OsStatus_t
-ContextDump(
+ArchDumpThreadContext(
 	_In_ Context_t *Context)
 {
 	// Dump general registers

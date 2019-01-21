@@ -23,16 +23,21 @@
 
 #include <internal/_syscalls.h> // for Syscall_ThreadCreate
 #include "../../librt/libds/pe/pe.h"
+#include <os/eventqueue.h>
 #include "process.h"
 #include <ds/mstring.h>
-#include <os/buffer.h>
-#include <os/utils.h>
+#include <ddk/buffer.h>
+#include <ddk/utils.h>
 #include <stdlib.h>
+#include <assert.h>
+#include <string.h>
 
-static Collection_t Processes          = COLLECTION_INIT(KeyId);
-static UUId_t       ProcessIdGenerator = 1;
+static Collection_t  Processes          = COLLECTION_INIT(KeyId);
+static Collection_t  Joiners            = COLLECTION_INIT(KeyId);
+static UUId_t        ProcessIdGenerator = 1;
+static EventQueue_t* EventQueue         = NULL;
 
-void
+static void
 DestroyProcess(
     _In_ Process_t* Process)
 {
@@ -52,6 +57,34 @@ DestroyProcess(
         PeUnloadImage(Process->Executable);
     }
     free(Process);
+}
+
+static void
+HandleJoinProcess(
+    _In_ void* Context)
+{
+    ProcessJoiner_t*     Join    = (ProcessJoiner_t*)Context;
+    JoinProcessPackage_t Package = { .Status = OsTimeout };
+
+    // Notify application about this
+    if (Join->Process->State == ProcessTerminating) {
+        Package.Status   = OsSuccess;
+        Package.ExitCode = Join->Process->ExitCode;
+    }
+    RPCRespond(&Join->Address, (const void*)&Package, sizeof(JoinProcessPackage_t));
+
+    // Release our reference
+    DestroyProcess(Join->Process);
+
+    // Cleanup our resources
+    CollectionRemoveByNode(&Joiners, &Join->Header);
+    free(Join);
+}
+
+OsStatus_t
+InitializeProcessManager(void)
+{
+    CreateEventQueue(&EventQueue);
 }
 
 OsStatus_t
@@ -112,7 +145,7 @@ CreateProcess(
     if (Arguments != NULL && ArgumentsLength != 0) {
         Process->Arguments = malloc(ArgumentsLength);
         Process->ArgumentsLength = ArgumentsLength;
-        memcpy(Process->Arguments, Arguments, ArgumentsLength);
+        memcpy((void*)Process->Arguments, (void*)Arguments, ArgumentsLength);
     }
     if (InheritationBlock != NULL && InheritationBlockLength != 0) {
         Process->InheritationBlock = malloc(InheritationBlockLength);
@@ -120,6 +153,9 @@ CreateProcess(
         memcpy(Process->InheritationBlock, InheritationBlock, InheritationBlockLength);
     }
 
+    SpinlockReset(&Process->SyncObject);
+    Process->State               = ProcessRunning;
+    Process->References          = ATOMIC_VAR_INIT(1);
     Process->Header.Key.Value.Id = ProcessIdGenerator++;
     Process->StartedAt           = clock();
     Process->PrimaryThreadId     = Syscall_ThreadCreate(Process->Executable->EntryAddress, 0, 0, Process->Executable->MemorySpace);
@@ -137,6 +173,89 @@ CleanupAndExit:
     return Status;
 }
 
+OsStatus_t
+JoinProcess(
+    _In_  Process_t*            Process,
+    _In_  MRemoteCallAddress_t* Address,
+    _In_  size_t                Timeout)
+{
+    ProcessJoiner_t* Join = (ProcessJoiner_t*)malloc(sizeof(ProcessJoiner_t));
+    memset(Join, 0, sizeof(ProcessJoiner_t));
+    
+    Join->Header.Key.Value.Id = Process->Header.Key.Value.Id;
+    memcpy(&Join->Address, Address, sizeof(MRemoteCallAddress_t));
+    Join->Process = Process;
+
+    SpinlockAcquire(&Process->SyncObject);
+    if (Process->State == ProcessRunning) {
+        atomic_fetch_and_add(&Process->References, 1);
+        Join->EventHandle = QueueDelayedEvent(EventQueue, HandleJoinProcess, Join, Timeout);
+        CollectionAppend(&Joiners, &Join->Header);
+    }
+    else {
+        HandleJoinProcess((void*)Join);
+    }
+    SpinlockRelease(&Process->SyncObject);
+    return OsSuccess;
+}
+
+OsStatus_t
+KillProcess(
+    _In_ Process_t* Killer,
+    _In_ Process_t* Target)
+{
+    return OsError;
+}
+
+OsStatus_t
+TerminateProcess(
+    _In_ Process_t* Process,
+    _In_ int        ExitCode)
+{
+    return OsError;
+}
+
+OsStatus_t
+LoadProcessLibrary(
+    _In_  Process_t*  Process,
+    _In_  const char* Path,
+    _Out_ Handle_t*   HandleOut)
+{
+    return OsError;
+}
+
+uintptr_t
+ResolveProcessLibraryFunction(
+    _In_ Process_t*  Process,
+    _In_ Handle_t    Handle,
+    _In_ const char* Function)
+{
+    return PeResolveFunction((PeExecutable_t*)Handle, Function);
+}
+
+OsStatus_t
+UnloadProcessLibrary(
+    _In_ Process_t* Process,
+    _In_ Handle_t   Handle)
+{
+    return PeUnloadLibrary(Process->Executable, (PeExecutable_t*)Handle);
+}
+
+OsStatus_t
+GetProcessLibraryHandles(
+    _In_  Process_t* Process,
+    _Out_ Handle_t   LibraryList[PROCESS_MAXMODULES])
+{
+    return PeGetModuleHandles(Process->Executable, LibraryList);
+}
+
+OsStatus_t
+GetProcessLibraryEntryPoints(
+    _In_  Process_t* Process,
+    _Out_ Handle_t   LibraryList[PROCESS_MAXMODULES])
+{
+    return PeGetModuleEntryPoints(Process->Executable, LibraryList);
+}
 
 Process_t*
 GetProcess(

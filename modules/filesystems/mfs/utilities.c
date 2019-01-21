@@ -21,7 +21,7 @@
  */
 //#define __TRACE
 
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include "mfs.h"
 #include <stdlib.h>
 #include <string.h>

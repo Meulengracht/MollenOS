@@ -22,9 +22,10 @@
  */
 #define __TRACE
 
-#include <os/service.h>
+#include <ds/mstring.h>
+#include <ddk/service.h>
 #include <os/process.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include <string.h>
 #include <stdio.h>
 #include "process.h"
@@ -33,7 +34,11 @@ OsStatus_t
 OnLoad(void)
 {
     // Register us with server manager
-	return RegisterService(__PROCESSMANAGER_TARGET);
+	OsStatus_t Status = RegisterService(__PROCESSMANAGER_TARGET);
+    if (Status == OsSuccess) {
+        Status = InitializeProcessManager();
+    }
+    return Status;
 }
 
 OsStatus_t
@@ -47,9 +52,9 @@ OnEvent(
 	_In_ MRemoteCall_t* RPC)
 {
     OsStatus_t Handled = OsInvalidParameters;
-    TRACE("Processmanager.OnEvent(%i)", Message->Function);
+    TRACE("Processmanager.OnEvent(%i)", RPC->Function);
 
-    switch (Message->Function) {
+    switch (RPC->Function) {
         case __PROCESSMANAGER_CREATE_PROCESS: {
             const char*                  Path               = RPCGetStringArgument(RPC, 0);
             ProcessStartupInformation_t* StartupInformation = RPCGetPointerArgument(RPC, 1);
@@ -57,8 +62,8 @@ OnEvent(
             OsStatus_t                   Result;
 
             Result = CreateProcess(Path, StartupInformation, 
-                RPCGetPointerArgument(RPC, 2), RPC->Arguments[2].Length, 
-                RPCGetStringArgument(RPC, 3), RPC->Arguments[3].Length, &Handle);
+                RPCGetStringArgument(RPC, 3), RPC->Arguments[3].Length, 
+                RPCGetPointerArgument(RPC, 2), RPC->Arguments[2].Length, &Handle);
             if (Result != OsSuccess) {
                 Handle = UUID_INVALID;
             }
@@ -66,26 +71,40 @@ OnEvent(
         } break;
 
         case __PROCESSMANAGER_JOIN_PROCESS: {
-            JoinProcessPackage_t Package;
-            UUId_t               Handle  = RPC->Arguments[0].Data.Value;
+            JoinProcessPackage_t Package = { .Status = OsDoesNotExist };
+            Process_t*           Process = GetProcess(RPC->Arguments[0].Data.Value);
             size_t               Timeout = RPC->Arguments[1].Data.Value;
-            
+            if (Process != NULL) {
+                Package.Status = JoinProcess(Process, &RPC->From, Timeout);
+                if (Package.Status == OsSuccess) {
+                    // Delayed response/already responded
+                    Handled = OsSuccess;
+                    break;
+                }
+            }
             Handled = RPCRespond(&RPC->From, (const void*)&Package, sizeof(JoinProcessPackage_t));
         } break;
 
         case __PROCESSMANAGER_KILL_PROCESS: {
-            UUId_t     Handle = RPC->Arguments[0].Data.Value;
-            OsStatus_t Result;
-
-
+            Process_t* Process       = GetProcess(RPC->From.Process);
+            Process_t* TargetProcess = GetProcess(RPC->Arguments[0].Data.Value);
+            OsStatus_t Result        = OsInvalidPermissions;
+            if (Process != NULL) {
+                Result = OsDoesNotExist;
+                if (TargetProcess != NULL) {
+                    Result = KillProcess(Process, TargetProcess);
+                }
+            }
             Handled = RPCRespond(&RPC->From, (const void*)&Result, sizeof(OsStatus_t));
         } break;
 
         case __PROCESSMANAGER_TERMINATE_PROCESS: {
-            UUId_t     Handle   = RPC->From.Process;
+            Process_t* Process  = GetProcess(RPC->From.Process);
             int        ExitCode = (int)RPC->Arguments[0].Data.Value;
-            OsStatus_t Result;
-
+            OsStatus_t Result   = OsDoesNotExist;
+            if (Process != NULL) {
+                Result = TerminateProcess(Process, ExitCode);
+            }
             Handled = RPCRespond(&RPC->From, (const void*)&Result, sizeof(OsStatus_t));
         } break;
 
@@ -129,7 +148,7 @@ OnEvent(
             Process_t* Process = GetProcess(RPC->From.Process);
             clock_t    Tick    = 0;
             if (Process != NULL) {
-                Tick = Process->StartedAt;
+                Tick = clock() - Process->StartedAt;
             }
             Handled = RPCRespond(&RPC->From, (const void*)&Tick, sizeof(clock_t));
         } break;
@@ -153,36 +172,69 @@ OnEvent(
         } break;
 
         case __PROCESSMANAGER_SET_WORKING_DIRECTORY: {
-            UUId_t     Handle = RPC->From.Process;
-            OsStatus_t Result;
-
+            Process_t*  Process = GetProcess(RPC->From.Process);
+            OsStatus_t  Result  = OsDoesNotExist;
+            const char* Path    = RPCGetStringArgument(RPC, 0);
+            if (Process != NULL) {
+                Result = OsInvalidParameters;
+                if (Path != NULL) {
+                    MStringDestroy(Process->WorkingDirectory);
+                    Process->WorkingDirectory = MStringCreate((void*)Path, StrUTF8);
+                    Result = OsSuccess;
+                }
+            }
             Handled = RPCRespond(&RPC->From, (const void*)&Result, sizeof(OsStatus_t));
         } break;
 
         case __PROCESSMANAGER_GET_LIBRARY_HANDLES: {
-            UUId_t Handle = RPC->From.Process;
+            Process_t* Process = GetProcess(RPC->From.Process);
+            Handle_t   LibraryList[PROCESS_MAXMODULES];
+            memset(&LibraryList[0], 0, sizeof(LibraryList));
 
+            if (Process != NULL) {
+                GetProcessLibraryHandles(Process, LibraryList);
+            }
+            Handled = RPCRespond(&RPC->From, (const void*)&LibraryList[0], sizeof(LibraryList));
         } break;
 
         case __PROCESSMANAGER_GET_LIBRARY_ENTRIES: {
-            UUId_t Handle = RPC->From.Process;
+            Process_t* Process = GetProcess(RPC->From.Process);
+            Handle_t   LibraryList[PROCESS_MAXMODULES];
+            memset(&LibraryList[0], 0, sizeof(LibraryList));
 
+            if (Process != NULL) {
+                GetProcessLibraryEntryPoints(Process, LibraryList);
+            }
+            Handled = RPCRespond(&RPC->From, (const void*)&LibraryList[0], sizeof(LibraryList));
         } break;
 
         case __PROCESSMANAGER_LOAD_LIBRARY: {
-            UUId_t Handle = RPC->From.Process;
-
+            Process_t*  Process = GetProcess(RPC->From.Process);
+            const char* Path    = RPCGetStringArgument(RPC, 0);
+            Handle_t    Handle  = HANDLE_INVALID;
+            if (Process != NULL) {
+                LoadProcessLibrary(Process, Path, &Handle);
+            }
+            Handled = RPCRespond(&RPC->From, (const void*)&Handle, sizeof(Handle_t));
         } break;
 
         case __PROCESSMANAGER_RESOLVE_FUNCTION: {
-            UUId_t Handle = RPC->From.Process;
-
+            Process_t*  Process  = GetProcess(RPC->From.Process);
+            Handle_t    Handle   = (Handle_t)RPC->Arguments[0].Data.Value;
+            const char* Function = RPCGetStringArgument(RPC, 1);
+            uintptr_t   Address  = 0;
+            if (Process != NULL) {
+                Address = ResolveProcessLibraryFunction(Process, Handle, Function);
+            }
+            Handled = RPCRespond(&RPC->From, (const void*)&Address, sizeof(uintptr_t));
         } break;
 
         case __PROCESSMANAGER_UNLOAD_LIBRARY: {
-            UUId_t     Handle = RPC->From.Process;
-            OsStatus_t Result;
-
+            Process_t* Process = GetProcess(RPC->From.Process);
+            OsStatus_t Result  = OsDoesNotExist;
+            if (Process != NULL) {
+                Result = UnloadProcessLibrary(Process, (Handle_t)RPC->Arguments[0].Data.Value);
+            }
             Handled = RPCRespond(&RPC->From, (const void*)&Result, sizeof(OsStatus_t));
         } break;
         

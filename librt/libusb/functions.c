@@ -22,11 +22,11 @@
  */
 //#define __TRACE
 
-#include <os/contracts/usbhost.h>
+#include <ddk/contracts/usbhost.h>
 #include <os/bufferpool.h>
-#include <os/driver.h>
-#include <os/usb.h>
-#include <os/utils.h>
+#include <ddk/driver.h>
+#include <ddk/usb.h>
+#include <ddk/utils.h>
 #include <threads.h>
 #include <stdlib.h>
 #include <string.h>
@@ -117,7 +117,7 @@ UsbTransferSetup(
 
     // Is there a data-stage?
     if (DataAddress != 0) {
-        AckIndex = 2;
+        AckIndex++;
         Transfer->Transactions[1].BufferAddress = DataAddress;
         Transfer->Transactions[1].Length        = DataLength;
         Transfer->Transactions[1].Type          = DataType;

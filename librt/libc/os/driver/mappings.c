@@ -22,7 +22,7 @@
  */
 
 #include <internal/_syscalls.h>
-#include <os/memory.h>
+#include <ddk/memory.h>
 
 /* CreateMemorySpace
  * Creates a new memory space that can be used to create new mappings, and manipulate existing mappings. */

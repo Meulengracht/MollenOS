@@ -22,7 +22,7 @@
  */
 
 #include <internal/_syscalls.h>
-#include <os/acpi.h>
+#include <ddk/acpi.h>
 #include <stdlib.h>
 
 /* AcpiQueryStatus

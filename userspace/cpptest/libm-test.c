@@ -32,7 +32,7 @@
    chooses one of the parameters as delta for testing
    equality
    PRINTF_EXPR	   Floating point conversion specification to print a variable
-   of type FLOAT with  TRACE.  PRINTF_EXPR just contains
+   of type FLOAT with  printf.  PRINTF_EXPR just contains
    the specifier, not the percent and width arguments,
    e.g. "f".
    PRINTF_XEXPR	   Like PRINTF_EXPR, but print in hexadecimal format.
@@ -115,7 +115,7 @@
 # define _GNU_SOURCE
 #endif
 #define SYS_MATH_H
-#define __TRACE
+#define __printf
 
 #include "libm-test-ulps.h"
 #include <float.h>
@@ -125,7 +125,6 @@
 #else
 #include <openlibm.h>
 #endif
-#include <os/utils.h>
 
 #if 0 /* XXX scp XXX */
 #define FE_INEXACT FE_INEXACT
@@ -362,9 +361,9 @@ print_max_error (const char *func_name, FLOAT allowed, int xfail)
 
   if (print_screen_max_error (ok, xfail))
     {
-       TRACE ("Maximal error of `%s'\n", func_name);
-       TRACE (" is      : % .4" PRINTF_NEXPR " ulp\n", max_error);
-       TRACE (" accepted: % .4" PRINTF_NEXPR " ulp\n", allowed);
+       printf ("Maximal error of `%s'\n", func_name);
+       printf (" is      : % .4" PRINTF_NEXPR " ulp\n", max_error);
+       printf (" accepted: % .4" PRINTF_NEXPR " ulp\n", allowed);
     }
 
   update_stats (ok, xfail);
@@ -390,12 +389,12 @@ print_complex_max_error (const char *func_name, __complex__ FLOAT allowed,
 
   if (print_screen_max_error (ok, xfail))
     {
-       TRACE ("Maximal error of real part of: %s\n", func_name);
-       TRACE (" is      : % .4" PRINTF_NEXPR " ulp\n", real_max_error);
-       TRACE (" accepted: % .4" PRINTF_NEXPR " ulp\n", __real__ allowed);
-       TRACE ("Maximal error of imaginary part of: %s\n", func_name);
-       TRACE (" is      : % .4" PRINTF_NEXPR " ulp\n", imag_max_error);
-       TRACE (" accepted: % .4" PRINTF_NEXPR " ulp\n", __imag__ allowed);
+       printf ("Maximal error of real part of: %s\n", func_name);
+       printf (" is      : % .4" PRINTF_NEXPR " ulp\n", real_max_error);
+       printf (" accepted: % .4" PRINTF_NEXPR " ulp\n", __real__ allowed);
+       printf ("Maximal error of imaginary part of: %s\n", func_name);
+       printf (" is      : % .4" PRINTF_NEXPR " ulp\n", imag_max_error);
+       printf (" accepted: % .4" PRINTF_NEXPR " ulp\n", __imag__ allowed);
     }
 
   update_stats (ok, xfail);
@@ -421,13 +420,13 @@ test_single_exception (const char *test_name,
       if (fetestexcept (fe_flag))
 	{
 	  if (print_screen (1, 0))
-	     TRACE ("Pass: %s: Exception \"%s\" set\n", test_name, flag_name);
+	     printf ("Pass: %s: Exception \"%s\" set\n", test_name, flag_name);
 	}
       else
 	{
 	  ok = 0;
 	  if (print_screen (0, 0))
-	     TRACE ("Failure: %s: Exception \"%s\" not set\n",
+	     printf ("Failure: %s: Exception \"%s\" not set\n",
 		    test_name, flag_name);
 	}
     }
@@ -437,13 +436,13 @@ test_single_exception (const char *test_name,
 	{
 	  ok = 0;
 	  if (print_screen (0, 0))
-	     TRACE ("Failure: %s: Exception \"%s\" set\n",
+	     printf ("Failure: %s: Exception \"%s\" set\n",
 		    test_name, flag_name);
 	}
       else
 	{
 	  if (print_screen (1, 0))
-	     TRACE ("%s: Exception \"%s\" not set\n", test_name,
+	     printf ("%s: Exception \"%s\" not set\n", test_name,
 		    flag_name);
 	}
     }
@@ -497,7 +496,7 @@ check_float_internal (const char *test_name, FLOAT computed, FLOAT expected,
 	  && signbit (computed) != signbit (expected))
 	{
 	  ok = 0;
-	   TRACE ("infinity has wrong sign.\n");
+	   printf ("infinity has wrong sign.\n");
 	}
       else
 	ok = 1;
@@ -531,19 +530,19 @@ check_float_internal (const char *test_name, FLOAT computed, FLOAT expected,
   if (print_screen (ok, xfail))
     {
       if (!ok)
-	 TRACE ("Failure: ");
-       TRACE ("Test: %s\n", test_name);
-       TRACE ("Result:\n");
-       TRACE (" is:         % .20" PRINTF_EXPR "  % .20" PRINTF_XEXPR "\n",
+	 printf ("Failure: ");
+       printf ("Test: %s\n", test_name);
+       printf ("Result:\n");
+       printf (" is:         % .20" PRINTF_EXPR "  % .20" PRINTF_XEXPR "\n",
 	      computed, computed);
-       TRACE (" should be:  % .20" PRINTF_EXPR "  % .20" PRINTF_XEXPR "\n",
+       printf (" should be:  % .20" PRINTF_EXPR "  % .20" PRINTF_XEXPR "\n",
 	      expected, expected);
       if (print_diff)
 	{
-	   TRACE (" difference: % .20" PRINTF_EXPR "  % .20" PRINTF_XEXPR
+	   printf (" difference: % .20" PRINTF_EXPR "  % .20" PRINTF_XEXPR
 		  "\n", diff, diff);
-	   TRACE (" ulp       : % .4" PRINTF_NEXPR "\n", ulp);
-	   TRACE (" max.ulp   : % .4" PRINTF_NEXPR "\n", max_ulp);
+	   printf (" ulp       : % .4" PRINTF_NEXPR "\n", ulp);
+	   printf (" max.ulp   : % .4" PRINTF_NEXPR "\n", max_ulp);
 	}
     }
   update_stats (ok, xfail);
@@ -611,11 +610,11 @@ check_int (const char *test_name, int computed, int expected, int max_ulp,
   if (print_screen (ok, xfail))
     {
       if (!ok)
-	 TRACE ("Failure: ");
-       TRACE ("Test: %s\n", test_name);
-       TRACE ("Result:\n");
-       TRACE (" is:         %d\n", computed);
-       TRACE (" should be:  %d\n", expected);
+	 printf ("Failure: ");
+       printf ("Test: %s\n", test_name);
+       printf ("Result:\n");
+       printf (" is:         %d\n", computed);
+       printf (" should be:  %d\n", expected);
     }
 
   update_stats (ok, xfail);
@@ -641,11 +640,11 @@ check_long (const char *test_name, long int computed, long int expected,
   if (print_screen (ok, xfail))
     {
       if (!ok)
-	 TRACE ("Failure: ");
-       TRACE ("Test: %s\n", test_name);
-       TRACE ("Result:\n");
-       TRACE (" is:         %ld\n", computed);
-       TRACE (" should be:  %ld\n", expected);
+	 printf ("Failure: ");
+       printf ("Test: %s\n", test_name);
+       printf ("Result:\n");
+       printf (" is:         %ld\n", computed);
+       printf (" should be:  %ld\n", expected);
     }
 
   update_stats (ok, xfail);
@@ -667,11 +666,11 @@ check_bool (const char *test_name, int computed, int expected,
   if (print_screen (ok, xfail))
     {
       if (!ok)
-	 TRACE ("Failure: ");
-       TRACE ("Test: %s\n", test_name);
-       TRACE ("Result:\n");
-       TRACE (" is:         %d\n", computed);
-       TRACE (" should be:  %d\n", expected);
+	 printf ("Failure: ");
+       printf ("Test: %s\n", test_name);
+       printf ("Result:\n");
+       printf (" is:         %d\n", computed);
+       printf (" should be:  %d\n", expected);
     }
 
   update_stats (ok, xfail);
@@ -699,11 +698,11 @@ check_longlong (const char *test_name, long long int computed,
   if (print_screen (ok, xfail))
     {
       if (!ok)
-	 TRACE ("Failure:");
-       TRACE ("Test: %s\n", test_name);
-       TRACE ("Result:\n");
-       TRACE (" is:         %lld\n", computed);
-       TRACE (" should be:  %lld\n", expected);
+	 printf ("Failure:");
+       printf ("Test: %s\n", test_name);
+       printf ("Result:\n");
+       printf (" is:         %lld\n", computed);
+       printf (" should be:  %lld\n", expected);
     }
 
   update_stats (ok, xfail);
@@ -4329,18 +4328,18 @@ check_ulp (void)
   /* This gives one ulp.  */
   u = FUNC(nextafter) (10, 20);
   check_equal (10.0, u, 1, &diff, &ulp);
-   TRACE ("One ulp: % .4" PRINTF_NEXPR "\n", ulp);
+   printf ("One ulp: % .4" PRINTF_NEXPR "\n", ulp);
 
   /* This gives one more ulp.  */
   u = FUNC(nextafter) (u, 20);
   check_equal (10.0, u, 2, &diff, &ulp);
-   TRACE ("two ulp: % .4" PRINTF_NEXPR "\n", ulp);
+   printf ("two ulp: % .4" PRINTF_NEXPR "\n", ulp);
 
   /* And now calculate 100 ulp.  */
   for (i = 2; i < 100; i++)
     u = FUNC(nextafter) (u, 20);
   check_equal (10.0, u, 100, &diff, &ulp);
-   TRACE ("100 ulp: % .4" PRINTF_NEXPR "\n", ulp);
+   printf ("100 ulp: % .4" PRINTF_NEXPR "\n", ulp);
 }
 #endif
 
@@ -4382,7 +4381,7 @@ libm_main (int argc, char **argv)
 
 
   initialize ();
-   TRACE (TEST_MSG);
+   printf (TEST_MSG);
 
 #if 0
   check_ulp ();
@@ -4516,19 +4515,19 @@ libm_main (int argc, char **argv)
   if (output_ulps)
     fclose (ulps_file);
 
-   TRACE ("\nTest suite completed:\n");
-   TRACE ("  %d test cases plus %d tests for exception flags executed.\n",
+   printf ("\nTest suite completed:\n");
+   printf ("  %d test cases plus %d tests for exception flags executed.\n",
 	  noTests, noExcTests);
   if (noXFails)
-     TRACE ("  %d expected failures occurred.\n", noXFails);
+     printf ("  %d expected failures occurred.\n", noXFails);
   if (noXPasses)
-     TRACE ("  %d unexpected passes occurred.\n", noXPasses);
+     printf ("  %d unexpected passes occurred.\n", noXPasses);
   if (noErrors)
     {
-       TRACE ("  %d errors occurred.\n", noErrors);
+       printf ("  %d errors occurred.\n", noErrors);
       return 1;
     }
-   TRACE ("  All tests passed successfully.\n");
+   printf ("  All tests passed successfully.\n");
 
   return 0;
 }

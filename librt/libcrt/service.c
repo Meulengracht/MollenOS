@@ -21,9 +21,13 @@
 
 #include <os/threadpool.h>
 #include <os/mollenos.h>
-#include <os/service.h>
+#include <ddk/service.h>
 #include "../libc/threads/tls.h"
 #include <stdlib.h>
+
+__EXTERN OsStatus_t OnLoad(void);
+__EXTERN OsStatus_t OnUnload(void);
+__EXTERN OsStatus_t OnEvent(MRemoteCall_t *Message);
 
 /* CRT Initialization sequence
  * for a shared C/C++ environment call this in all entry points */

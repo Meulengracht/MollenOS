@@ -26,10 +26,10 @@
 
 /* Includes 
  * - System */
-#include <os/usb/definitions.h>
-#include <os/driver.h>
-#include <os/device.h>
-#include <os/usb.h>
+#include <ddk/usb/definitions.h>
+#include <ddk/driver.h>
+#include <ddk/device.h>
+#include <ddk/usb.h>
 #include <os/osdefs.h>
 
 /* MCoreUsbDevice_t

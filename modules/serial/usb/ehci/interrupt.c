@@ -23,7 +23,7 @@
 //#define __TRACE
 
 #include <os/mollenos.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include <string.h>
 #include <stdlib.h>
 #include "../common/manager.h"

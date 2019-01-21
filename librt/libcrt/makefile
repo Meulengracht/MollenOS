@@ -4,7 +4,7 @@
 # Include all the definitions for os
 include ../../config/common.mk
 
-INCLUDES = -I../include -I../libc/include
+INCLUDES = -I../include -I../libc/include -I../libddk/include
 
 C_SRCS_ALL = $(wildcard vscrt/*.c) \
 			 $(wildcard ./*.c)

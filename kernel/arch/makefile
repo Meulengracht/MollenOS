@@ -6,7 +6,7 @@
 # Include all the definitions for os
 include ../../config/common.mk
 
-INCLUDES = -I../../librt/include -I../../librt/libc/include -I../../librt/libds/include -I../../librt/libacpi/include -I../include
+INCLUDES = -I../../librt/include -I../../librt/libc/include -I../../librt/libds/include -I../../librt/libddk/include -I../../librt/libacpi/include -I../include
 
 ifeq ($(VALI_ARCH),i386)
     INCLUDES += -Ix86 -Ix86/x32

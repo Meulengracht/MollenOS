@@ -25,9 +25,9 @@
 
 /* Includes 
  * - System */
-#include <os/contracts/disk.h>
+#include <ddk/contracts/disk.h>
 #include <os/mollenos.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include "manager.h"
 
 /* Includes

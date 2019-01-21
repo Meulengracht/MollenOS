@@ -24,6 +24,7 @@
 #define __PROCESS_INTERFACE_H__
 
 #include <os/osdefs.h>
+#include <time.h>
 
 #define __PROCESSMANAGER_CREATE_PROCESS    IPC_DECL_FUNCTION(0)
 #define __PROCESSMANAGER_JOIN_PROCESS      IPC_DECL_FUNCTION(1)
@@ -55,8 +56,8 @@
 #define PROCESS_INHERIT_ALL         (PROCESS_INHERIT_STDOUT | PROCESS_INHERIT_STDIN | PROCESS_INHERIT_STDERR | PROCESS_INHERIT_FILES)
 
 PACKED_TYPESTRUCT(JoinProcessPackage, {
-    int ExitCode;
-    int Timeout;
+    OsStatus_t Status;
+    int        ExitCode;
 });
 
 /* ProcessStartupInformation

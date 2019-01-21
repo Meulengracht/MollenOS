@@ -26,17 +26,27 @@
 
 #include <os/osdefs.h>
 #include <os/process.h>
+#include <os/spinlock.h>
 #include <ds/collection.h>
+#include <ddk/ipc/ipc.h>
 #include <time.h>
 
 // Forward declarations
 DECL_STRUCT(PeExecutable);
 DECL_STRUCT(MString);
 
+typedef enum _ProcessState {
+    ProcessRunning = 0,
+    ProcessTerminating
+} ProcessState_t;
+
 typedef struct _Process {
     CollectionItem_t            Header;
     UUId_t                      PrimaryThreadId;
     clock_t                     StartedAt;
+    atomic_int                  References;
+    Spinlock_t                  SyncObject;
+    ProcessState_t              State;
 
     MString_t*                  Name;
     MString_t*                  Path;
@@ -52,9 +62,21 @@ typedef struct _Process {
     int                         ExitCode;
 } Process_t;
 
+typedef struct _ProcessJoiner {
+    CollectionItem_t     Header;
+    MRemoteCallAddress_t Address;
+    Process_t*           Process;
+    UUId_t               EventHandle;
+} ProcessJoiner_t;
+
+/* InitializeProcessManager
+ * Initializes the subsystems for managing the running processes, providing manipulations and optimizations. */
+__EXTERN OsStatus_t
+InitializeProcessManager(void);
+
 /* CreateProcess
  * Spawns a new process, which can be configured through the parameters. */
-OsStatus_t
+__EXTERN OsStatus_t
 CreateProcess(
     _In_  const char*                  Path,
     _In_  ProcessStartupInformation_t* Parameters,
@@ -64,17 +86,75 @@ CreateProcess(
     _In_  size_t                       InheritationBlockLength,
     _Out_ UUId_t*                      Handle);
 
+/* JoinProcess
+ * Waits for the process to exit and returns the exit code. A timeout can optionally be specified. */
+__EXTERN OsStatus_t
+JoinProcess(
+    _In_  Process_t*            Process,
+    _In_  MRemoteCallAddress_t* Address,
+    _In_  size_t                Timeout);
+
+/* KillProcess
+ * Request to kill a process. If security checks pass the processmanager will shutdown the process. */
+__EXTERN OsStatus_t
+KillProcess(
+    _In_ Process_t* Killer,
+    _In_ Process_t* Target);
+
+/* TerminateProcess
+ * Terminates the calling process. Immediately after this the calling process must exit on its own. */
+__EXTERN OsStatus_t
+TerminateProcess(
+    _In_ Process_t* Process,
+    _In_ int        ExitCode);
+
+/* LoadProcessLibrary
+ * Try to dynamically load a library for the calling process into its memory space. */
+__EXTERN OsStatus_t
+LoadProcessLibrary(
+    _In_  Process_t*  Process,
+    _In_  const char* Path,
+    _Out_ Handle_t*   HandleOut);
+
+/* ResolveProcessLibraryFunction
+ * Resolves a function address with the given name. */
+__EXTERN uintptr_t
+ResolveProcessLibraryFunction(
+    _In_ Process_t*  Process,
+    _In_ Handle_t    Handle,
+    _In_ const char* Function);
+
+/* UnloadProcessLibrary
+ * Unloads a previously dynamically loaded library. */
+__EXTERN OsStatus_t
+UnloadProcessLibrary(
+    _In_ Process_t* Process,
+    _In_ Handle_t   Handle);
+
+/* GetProcessLibraryHandles
+ * Retrieves a list of loaded module handles currently loaded for the process. */
+__EXTERN OsStatus_t
+GetProcessLibraryHandles(
+    _In_  Process_t* Process,
+    _Out_ Handle_t   LibraryList[PROCESS_MAXMODULES]);
+
+/* GetProcessLibraryEntryPoints
+ * Retrieves a list of loaded module entry points currently loaded for the process. */
+__EXTERN OsStatus_t
+GetProcessLibraryEntryPoints(
+    _In_  Process_t* Process,
+    _Out_ Handle_t   LibraryList[PROCESS_MAXMODULES]);
 
 /* GetProcess
  * Retrieve a process instance from its handle. */
-Process_t*
+__EXTERN Process_t*
 GetProcess(
     _In_ UUId_t Handle);
 
 /* GetProcessByPrimaryThread
  * Looks up a process instance by its primary thread. This can be used by the
  * primary thread to obtain its process id. */
-Process_t*
+__EXTERN Process_t*
 GetProcessByPrimaryThread(
     _In_ UUId_t ThreadId);
 

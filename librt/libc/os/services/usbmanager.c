@@ -21,9 +21,9 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include <os/contracts/usbhost.h>
-#include <os/service.h>
-#include <os/usb.h>
+#include <ddk/contracts/usbhost.h>
+#include <ddk/service.h>
+#include <ddk/usb.h>
 
 /* UsbQueryControllerCount
  * Queries the available number of usb controllers. */

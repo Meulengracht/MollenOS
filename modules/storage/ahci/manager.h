@@ -27,7 +27,7 @@
 
 #include <os/osdefs.h>
 #include <ds/collection.h>
-#include <os/buffer.h>
+#include <ddk/buffer.h>
 #include "ahci.h"
 
 /* Dispatcher Flags 

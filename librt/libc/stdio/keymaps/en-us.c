@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - C Standard Library
+ * C Standard Library
  * - Keymap implementation. Supports key translation from native keycodes to
  *   the standard en-US keyboard. Supports Ascii for now
  */

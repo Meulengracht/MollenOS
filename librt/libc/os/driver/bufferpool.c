@@ -24,7 +24,7 @@
 
 #include <os/bufferpool.h>
 #include <os/osdefs.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include "../common/bytepool.h"
 #include <stdlib.h>
 #include <stddef.h>

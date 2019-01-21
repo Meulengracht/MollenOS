@@ -24,13 +24,13 @@
 #ifndef _VFS_INTERFACE_H_
 #define _VFS_INTERFACE_H_
 
-#include <os/contracts/filesystem.h>
+#include <ddk/contracts/filesystem.h>
 #include <os/sharedobject.h>
 #include <ds/collection.h>
 #include <os/mollenos.h>
-#include <os/buffer.h>
+#include <ddk/buffer.h>
 #include <ds/mstring.h>
-#include <os/file.h>
+#include <ddk/file.h>
 
 /* VFS Definitions 
  * - General identifiers can be used in paths */

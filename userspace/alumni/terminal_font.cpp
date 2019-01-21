@@ -20,9 +20,7 @@
  * - The terminal emulator implementation for Vali. Built on manual rendering and
  *   using freetype as the font renderer.
  */
-//#define __TRACE
 
-#include <os/utils.h>
 #include <fstream>
 #include <cassert>
 #include <cstdio>
@@ -255,7 +253,6 @@ void CTerminalFont::ResetPrevious()
 
 void CTerminalFont::FlushGlyph(FontGlyph_t* Glyph)
 {
-    TRACE("CTerminalFont::FlushGlyph()");
     Glyph->Stored   = 0;
     Glyph->Index    = 0;
     Glyph->Cached   = 0;
@@ -286,7 +283,6 @@ FT_Error CTerminalFont::LoadGlyph(unsigned long Character, FontGlyph_t* Cached, 
     FT_GlyphSlot        Glyph;
     FT_Glyph_Metrics*   Metrics;
     FT_Outline*         Outline;
-    TRACE("CTerminalFont::LoadGlyph()");
 
     if (!m_Face) {
         return FT_Err_Invalid_Handle;
@@ -297,7 +293,6 @@ FT_Error CTerminalFont::LoadGlyph(unsigned long Character, FontGlyph_t* Cached, 
         Cached->Index = FT_Get_Char_Index(m_Face, Character);
     }
 
-    TRACE("0");
     Status = FT_Load_Glyph(m_Face, Cached->Index, FT_LOAD_DEFAULT | m_Hinting);
     if (Status) {
         return Status;
@@ -307,7 +302,6 @@ FT_Error CTerminalFont::LoadGlyph(unsigned long Character, FontGlyph_t* Cached, 
     Metrics = &Glyph->metrics;
     Outline = &Glyph->outline;
 
-    TRACE("0.5");
     // Get the glyph metrics if desired
     if ((Want & CACHED_METRICS) && !(Cached->Stored & CACHED_METRICS)) {
         if (FT_IS_SCALABLE(m_Face)) {
@@ -342,7 +336,6 @@ FT_Error CTerminalFont::LoadGlyph(unsigned long Character, FontGlyph_t* Cached, 
         }
         Cached->Stored |= CACHED_METRICS;
     }
-    TRACE("1");
     
     // Do we have the glyph cached as bitmap/pixmap?
     if (((Want & CACHED_BITMAP) && !(Cached->Stored & CACHED_BITMAP)) ||
@@ -434,7 +427,6 @@ FT_Error CTerminalFont::LoadGlyph(unsigned long Character, FontGlyph_t* Cached, 
         }
         Destination->pitch += Bump;
         Destination->width += Bump;
-        TRACE("1.1");
 
         if (Destination->rows != 0) {
             Destination->buffer = (unsigned char*)malloc(Destination->pitch * Destination->rows);
@@ -560,7 +552,6 @@ FT_Error CTerminalFont::LoadGlyph(unsigned long Character, FontGlyph_t* Cached, 
                 }
             }
         }
-        TRACE("1.2");
 
         // Handle the bold style
         if (TTF_HANDLE_STYLE_BOLD(this))  {
@@ -603,7 +594,6 @@ FT_Error CTerminalFont::LoadGlyph(unsigned long Character, FontGlyph_t* Cached, 
             FT_Done_Glyph(BitmapGlyph);
         }
     }
-    TRACE("2");
 
     Cached->Cached = Character;
     return 0;
@@ -614,7 +604,6 @@ FT_Error CTerminalFont::FindGlyph(unsigned long Character, int Want)
     FT_Error Status       = 0;
     int      ElementCount = sizeof(m_Cache) / sizeof(m_Cache[0]);
     int      h            = Character % ElementCount;
-    TRACE("CTerminalFont::FindGlyph(%c, %i)", (char)Character, h);
 
     // Get the appropriate index
     m_Current = &m_Cache[h];

@@ -23,7 +23,7 @@
 /* Includes
  * - Library */
 #include <os/mollenos.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include <stdlib.h>
 #include <threads.h>
 #include <string.h>

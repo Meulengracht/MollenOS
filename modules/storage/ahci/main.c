@@ -23,9 +23,9 @@
  */
 //#define __TRACE
 
-#include <os/contracts/storage.h>
+#include <ddk/contracts/storage.h>
 #include <os/mollenos.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include "manager.h"
 #include <string.h>
 #include <stdlib.h>
@@ -104,19 +104,6 @@ HandleInterrupt:
         goto HandleInterrupt;
     }
     return InterruptHandled;
-}
-
-/* OnTimeout
- * Is called when one of the registered timer-handles
- * times-out. A new timeout event is generated and passed on to the below handler */
-OsStatus_t
-OnTimeout(
-    _In_ UUId_t Timer,
-    _In_ void *Data)
-{
-    _CRT_UNUSED(Timer);
-    _CRT_UNUSED(Data);
-    return OsSuccess;
 }
 
 /* OnLoad

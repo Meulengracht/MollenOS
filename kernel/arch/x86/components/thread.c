@@ -61,7 +61,7 @@ ThreadingHaltHandler(
 {
     _CRT_UNUSED(NotUsed);
     _CRT_UNUSED(Context);
-    CpuHalt();
+    ArchProcessorHalt();
     return InterruptHandled;
 }
 
@@ -83,7 +83,7 @@ ThreadingYieldHandler(
     Regs = _GetNextRunnableThread((Context_t*)Context, 0, &TimeSlice, &TaskPriority);
 
     // If we are idle task - disable timer untill we get woken up
-    if (!ThreadingIsCurrentTaskIdle(CpuGetCurrentId())) {
+    if (!ThreadingIsCurrentTaskIdle(ArchGetProcessorCoreId())) {
         ApicSetTaskPriority(61 - TaskPriority);
         ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * TimeSlice);
     }
@@ -173,7 +173,7 @@ ThreadingSignalDispatch(
     Thread->Contexts[THREADING_CONTEXT_SIGNAL1] = ContextCreate(Thread->Flags,
         THREADING_CONTEXT_SIGNAL1, Thread->MemorySpace->Context->SignalHandler,
         MEMORY_LOCATION_SIGNAL_RET, Thread->ActiveSignal.Signal, 0);
-    TssUpdateThreadStack(CpuGetCurrentId(), (uintptr_t)Thread->Contexts[THREADING_CONTEXT_SIGNAL0]);
+    TssUpdateThreadStack(ArchGetProcessorCoreId(), (uintptr_t)Thread->Contexts[THREADING_CONTEXT_SIGNAL0]);
     enter_thread(Thread->Contexts[THREADING_CONTEXT_SIGNAL1]);
     return OsSuccess;
 }
@@ -189,7 +189,7 @@ ThreadingImpersonate(
     MCoreThread_t* Current;
     UUId_t         Cpu;
     
-    Cpu     = CpuGetCurrentId();
+    Cpu     = ArchGetProcessorCoreId();
     Current = GetCurrentThreadForCore(Cpu);
     
     // If we impersonate ourself, leave
@@ -215,7 +215,7 @@ _GetNextRunnableThread(
     _Out_ int       *TaskQueue)
 {
     // Variables
-    UUId_t Cpu              = CpuGetCurrentId();
+    UUId_t Cpu              = ArchGetProcessorCoreId();
     MCoreThread_t *Thread   = GetCurrentThreadForCore(Cpu);
 
     // Sanitize the status of threading - return default values

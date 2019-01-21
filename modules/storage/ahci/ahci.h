@@ -28,11 +28,11 @@
 #include <os/osdefs.h>
 #include <os/spinlock.h>
 #include <ds/collection.h>
-#include <os/contracts/base.h>
-#include <os/contracts/storage.h>
-#include <os/interrupt.h>
-#include <os/device.h>
-#include <os/buffer.h>
+#include <ddk/contracts/base.h>
+#include <ddk/contracts/storage.h>
+#include <ddk/interrupt.h>
+#include <ddk/device.h>
+#include <ddk/buffer.h>
 
 /* Includes
  * - Sata */

@@ -23,8 +23,8 @@
 
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
-#include <os/service.h>
-#include <os/device.h>
+#include <ddk/service.h>
+#include <ddk/device.h>
 #include <assert.h>
 
 OsStatus_t

@@ -24,7 +24,7 @@
 
 #include <commands.h>
 #include <os/mollenos.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include "manager.h"
 #include <stdlib.h>
 

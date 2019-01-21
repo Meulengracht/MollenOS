@@ -22,8 +22,8 @@
 //#define __TRACE
 
 #include <os/mollenos.h>
-#include <os/buffer.h>
-#include <os/memory.h>
+#include <ddk/buffer.h>
+#include <ddk/memory.h>
 
 #include <modules/manager.h>
 #include <memorybuffer.h>
@@ -121,20 +121,6 @@ ScMemoryFree(
         return OsError;
     }
     return RemoveMemorySpaceMapping(Space, Address, Size);
-}
-
-/* ScMemoryQuery
- * Queries information about a chunk of memory 
- * and returns allocation information or stats depending on query function */
-OsStatus_t
-ScMemoryQuery(
-    _Out_ MemoryDescriptor_t* Descriptor)
-{
-    Descriptor->AllocationGranularityBytes = GetMachine()->MemoryGranularity;
-    Descriptor->PageSizeBytes              = GetMemorySpacePageSize();
-    Descriptor->PagesTotal                 = GetMachine()->PhysicalMemory.BlockCount;
-    Descriptor->PagesUsed                  = GetMachine()->PhysicalMemory.BlocksAllocated;
-    return OsSuccess;
 }
 
 /* MemoryProtect

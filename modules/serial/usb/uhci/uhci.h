@@ -24,7 +24,7 @@
 #ifndef __USB_UHCI__
 #define __USB_UHCI__
 
-#include <os/contracts/usbhost.h>
+#include <ddk/contracts/usbhost.h>
 #include <os/osdefs.h>
 #include <ds/collection.h>
 

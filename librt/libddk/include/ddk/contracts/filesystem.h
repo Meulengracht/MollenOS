@@ -24,9 +24,9 @@
 #ifndef _CONTRACT_FILESYSTEM_INTERFACE_H_
 #define _CONTRACT_FILESYSTEM_INTERFACE_H_
 
-#include <os/contracts/storage.h>
-#include <os/buffer.h>
-#include <os/driver.h>
+#include <ddk/contracts/storage.h>
+#include <ddk/buffer.h>
+#include <ddk/driver.h>
 #include <os/mollenos.h>
 
 /* FileSystem Export 

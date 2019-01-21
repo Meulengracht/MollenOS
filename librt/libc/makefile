@@ -26,9 +26,10 @@ COMMON_SRCS = $(wildcard assert/*.c) \
        		  $(wildcard mem/*.c) \
        		  $(wildcard string/*.c) \
        		  $(wildcard ctype/common/*.c) \
-       		  $(wildcard stdio/common/*.c)
+       		  $(wildcard stdio/common/*.c) \
+       		  $(wildcard time/common/*.c)
 
-COMMON_INCS = -I../include -Iinclude -I../libds/include
+COMMON_INCS = -I../include -Iinclude -I../libds/include -I../libddk/include
 
 LIBK_SRCS = $(wildcard os/mstring/*.c) \
 			os/synchronization/spinlock.c \

@@ -22,10 +22,10 @@
  */
 //#define __TRACE
 
-#include <os/file.h>
+#include <ddk/file.h>
 #include <os/mollenos.h>
 #include <os/process.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include "include/vfs.h"
 #include <stdlib.h>
 #include <string.h>

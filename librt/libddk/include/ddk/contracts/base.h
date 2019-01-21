@@ -25,7 +25,7 @@
 #define _CONTRACT_INTERFACE_H_
 
 #include <os/osdefs.h>
-#include <os/device.h>
+#include <ddk/device.h>
 #include <string.h>
 
 #define CONTRACT_MAX_NAME 64

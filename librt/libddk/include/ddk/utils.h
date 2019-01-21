@@ -25,6 +25,7 @@
 #define _UTILS_INTERFACE_H_
 
 #include <os/osdefs.h>
+#include <os/input.h>
 
 /* Global <always-on> definitions
  * These are enabled no matter which kind of debugging is enabled */
@@ -74,8 +75,22 @@ _CODE_BEGIN
  * Debug/trace printing for userspace application and drivers */
 CRTDECL(void,
 SystemDebug(
-	_In_ int Type,
-	_In_ __CONST char *Format, ...));
+	_In_ int         Type,
+	_In_ const char* Format, ...));
+
+/* WriteSystemInput
+ * Notifies the operating system of new input, this input is written to the system's
+ * standard input, which is then sent to the window-manager if present. */
+CRTDECL(OsStatus_t,
+WriteSystemInput(
+    _In_ SystemInput_t* Input));
+
+/* WriteSystemKey
+ * Notifies the operating system of new key-event, this key is written to the system's
+ * standard input, which is then sent to the window-manager if present. */
+CRTDECL(OsStatus_t,
+WriteSystemKey(
+    _In_ SystemKey_t* Key));
 _CODE_END
 
 #endif //!_UTILS_INTERFACE_H_

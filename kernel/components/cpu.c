@@ -97,8 +97,8 @@ void
 ActivateApplicationCore(
     _In_ SystemCpuCore_t*   Core)
 {
-    SystemDomain_t *Domain;
-    OsStatus_t Status;
+    SystemDomain_t* Domain;
+    OsStatus_t      Status;
 
     // Notify everyone that we are running
     GetMachine()->NumberOfActiveCores++;
@@ -108,7 +108,7 @@ ActivateApplicationCore(
 	Status = ThreadingEnable();
     if (Status != OsSuccess) {
         ERROR("Failed to enable threading for application core %u.", Core->Id);
-        CpuIdle();
+        ArchProcessorIdle();
     }
     InterruptEnable();
 
@@ -124,7 +124,7 @@ ActivateApplicationCore(
     // Enter idle loop
     WARNING("Core %u is online", Core->Id);
 	while (1) {
-		CpuIdle();
+		ArchProcessorIdle();
     }
 }
 
@@ -176,6 +176,6 @@ GetProcessorCore(
 SystemCpuCore_t*
 GetCurrentProcessorCore(void)
 {
-    assert(CpuStorageTable[CpuGetCurrentId()] != NULL);
-    return CpuStorageTable[CpuGetCurrentId()];
+    assert(CpuStorageTable[ArchGetProcessorCoreId()] != NULL);
+    return CpuStorageTable[ArchGetProcessorCoreId()];
 }

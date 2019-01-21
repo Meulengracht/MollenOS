@@ -29,23 +29,33 @@
 
 /* Memory Allocation Definitions
  * Flags that can be used when requesting virtual memory */
-#define MEMORY_COMMIT					0x00000001
-#define MEMORY_CONTIGIOUS				0x00000002
-#define MEMORY_LOWFIRST					0x00000004
-#define MEMORY_CLEAN					0x00000008
-#define MEMORY_UNCHACHEABLE				0x00000010
+#define MEMORY_COMMIT                   0x00000001
+#define MEMORY_CONTIGIOUS               0x00000002
+#define MEMORY_LOWFIRST                 0x00000004
+#define MEMORY_CLEAN                    0x00000008
+#define MEMORY_UNCHACHEABLE             0x00000010
 #define MEMORY_READ                     0x00000020
 #define MEMORY_WRITE                    0x00000040
 #define MEMORY_EXECUTABLE               0x00000080
 
-/* Memory Descriptor
- * Describes the current memory state and setup
- * thats available on the current machine */
-PACKED_TYPESTRUCT(MemoryDescriptor, {
-	size_t			PagesTotal;
-	size_t			PagesUsed;
-	size_t			PageSizeBytes;
-    size_t          AllocationGranularityBytes;
+PACKED_TYPESTRUCT(SystemDescriptor, {
+    size_t NumberOfProcessors;
+    size_t NumberOfActiveCores;
+
+    size_t PagesTotal;
+    size_t PagesUsed;
+    size_t PageSizeBytes;
+    size_t AllocationGranularityBytes;
+});
+
+PACKED_TYPESTRUCT(SystemTime, {
+    LargeUInteger_t Nanoseconds;
+    int             Second;
+    int             Minute;
+    int             Hour;
+    int             DayOfMonth;
+    int             Month;
+    int             Year;
 });
 
 /* Cache Type Definitions
@@ -59,65 +69,62 @@ _CODE_BEGIN
  * be rounded up to nearest page-size */
 CRTDECL(OsStatus_t,
 MemoryAllocate(
-    _In_      void*         NearAddress,
-	_In_      size_t        Length,
-	_In_      Flags_t       Flags,
-	_Out_     void**        MemoryPointer,
-	_Out_Opt_ uintptr_t*    PhysicalPointer));
+    _In_      void*      NearAddress,
+    _In_      size_t     Length,
+    _In_      Flags_t    Flags,
+    _Out_     void**     MemoryPointer,
+    _Out_Opt_ uintptr_t* PhysicalPointer));
 
 /* MemoryFree
  * Frees previously allocated memory and releases
  * the system resources associated. */
 CRTDECL(OsStatus_t,
 MemoryFree(
-	_In_ void*      MemoryPointer,
-	_In_ size_t     Length));
+    _In_ void*  MemoryPointer,
+    _In_ size_t Length));
 
 /* MemoryProtect
  * Changes the protection flags of a previous memory allocation
  * made by MemoryAllocate */
 CRTDECL(OsStatus_t,
 MemoryProtect(
-    _In_  void*     MemoryPointer,
-	_In_  size_t    Length,
-    _In_  Flags_t   Flags,
-    _Out_ Flags_t*  PreviousFlags));
+    _In_  void*    MemoryPointer,
+    _In_  size_t   Length,
+    _In_  Flags_t  Flags,
+    _Out_ Flags_t* PreviousFlags));
 
-/* MemoryQuery
- * Queries the underlying system for memory information 
- * like memory used and the page-size */
+/* SystemQuery
+ * Queries the underlying system for hardware information */
 CRTDECL(OsStatus_t,
-MemoryQuery(
-	_Out_ MemoryDescriptor_t *Descriptor));
+SystemQuery(
+    _In_ SystemDescriptor_t* Descriptor));
 
-/* SystemTime
- * Retrieves the system time. This is only ticking
- * if a system clock has been initialized. */
+/* GetSystemTime
+ * Retrieves the system time. This is only ticking if a system clock has been initialized. */
 CRTDECL(OsStatus_t,
-SystemTime(
-	_Out_ struct tm *time));
+GetSystemTime(
+    _In_ SystemTime_t* Time));
 
-/* SystemTick
- * Retrieves the system tick counter. This is only ticking
- * if a system timer has been initialized. */
+/* GetSystemTick
+ * Retrieves the system tick counter. This is only ticking if a system timer has been initialized. */
 CRTDECL(OsStatus_t,
-SystemTick(
-    _In_  int       TickBase,
-	_Out_ clock_t*  Clock));
+GetSystemTick(
+    _In_ int              TickBase,
+    _In_ LargeUInteger_t* Tick));
 
 /* QueryPerformanceFrequency
  * Returns how often the performance timer fires every
  * second, the value will never be 0 */
 CRTDECL(OsStatus_t,
 QueryPerformanceFrequency(
-	_Out_ LargeInteger_t *Frequency));
+    _Out_ LargeInteger_t *Frequency));
 
 /* QueryPerformanceTimer 
  * Queries the created performance timer and returns the
  * information in the given structure */
 CRTDECL(OsStatus_t,
 QueryPerformanceTimer(
-	_Out_ LargeInteger_t *Value));
+    _Out_ LargeInteger_t *Value));
 
 /* FlushHardwareCache
  * Flushes the specified hardware cache. Should be used with caution as it might
@@ -149,26 +156,26 @@ CRTDECL(OsStatus_t, GetApplicationTemporaryDirectory(char *PathBuffer, size_t Ma
  * File Extensions
  *******************************************************************************/
 typedef enum _FileSystemCode {
-	FsOk,
-	FsDeleted,
-	FsInvalidParameters,
-	FsPathNotFound,
-	FsAccessDenied,
-	FsPathIsNotDirectory,
-	FsPathExists,
-	FsDiskError
+    FsOk,
+    FsDeleted,
+    FsInvalidParameters,
+    FsPathNotFound,
+    FsAccessDenied,
+    FsPathIsNotDirectory,
+    FsPathExists,
+    FsDiskError
 } FileSystemCode_t;
 
 typedef enum _EnvironmentPath {
-	PathRoot,
-	PathSystemDirectory,
+    PathRoot,
+    PathSystemDirectory,
 
-	// Common paths
-	PathCommonBin,
-	PathCommonDocuments,
-	PathCommonInclude,
-	PathCommonLib,
-	PathCommonMedia,
+    // Common paths
+    PathCommonBin,
+    PathCommonDocuments,
+    PathCommonInclude,
+    PathCommonLib,
+    PathCommonMedia,
     
     // User specific paths
     UserDataDirectory,
@@ -179,7 +186,7 @@ typedef enum _EnvironmentPath {
     ApplicationTemporaryDirectory,
 
     // EoE
-	PathEnvironmentCount
+    PathEnvironmentCount
 } EnvironmentPath_t;
 
 typedef struct _vStorageDescriptor {
@@ -245,10 +252,10 @@ CRTDECL(OsStatus_t, DestroyFileMapping(UUId_t Handle));
  * pointer, we need to take into account the compiler here */
 SERVICEAPI size_t SERVICEABI
 __get_reserved(size_t Index) {
-	TLS_VALUE Value = 0;
-	size_t Offset   = (Index * sizeof(TLS_VALUE));
-	TLS_READ;
-	return (size_t)Value;
+    TLS_VALUE Value = 0;
+    size_t Offset   = (Index * sizeof(TLS_VALUE));
+    TLS_READ;
+    return (size_t)Value;
 }
 
 /* __set_reserved
@@ -256,8 +263,8 @@ __get_reserved(size_t Index) {
  * pointer, we need to take into account the compiler here */
 SERVICEAPI void SERVICEABI
 __set_reserved(size_t Index, TLS_VALUE Value) {
-	size_t Offset = (Index * sizeof(TLS_VALUE));
-	TLS_WRITE;
+    size_t Offset = (Index * sizeof(TLS_VALUE));
+    TLS_WRITE;
 }
 
 /*******************************************************************************

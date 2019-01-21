@@ -19,8 +19,7 @@
  * MollenOS
  */
 
-#define __TRACE
-#include <os/utils.h>
+#include <stdio.h>
 #define TESTLIB
 #include "lib.hpp"
 
@@ -36,6 +35,6 @@ int CTestLib::callme() {
 static CTestLib _TestLibInstance;
 
 void dllmain(int action) {
-    TRACE("dllmain(action = %i)", action);
-    TRACE("(L) Value of the global static: %i", _TestLibInstance.callme());
+    printf("dllmain(action = %i)", action);
+    printf("(L) Value of the global static: %i", _TestLibInstance.callme());
 }

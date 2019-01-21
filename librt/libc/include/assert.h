@@ -22,8 +22,6 @@
 #ifndef __STDC_ASSERT__
 #define __STDC_ASSERT__
 
-/* Includes 
- * - Library */
 #include <crtdefs.h>
 
 _CODE_BEGIN

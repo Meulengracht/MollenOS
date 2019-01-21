@@ -16,36 +16,32 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Timer Support Definitions & Structures
- * - This header describes the base timer-structures, prototypes
+ * Service Definitions & Structures
+ * - This header describes the base service-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _TIMERS_INTERFACE_H_
-#define _TIMERS_INTERFACE_H_
+#ifndef _SERVICE_H_
+#define _SERVICE_H_
 
-/* Includes 
- * - System */
+#include <ddk/ipc/ipc.h>
 #include <os/osdefs.h>
 
-/* TimersStart 
- * Creates a new standard timer for the requesting process. 
- * When interval elapses a __TIMEOUT event is generated for
- * the owner of the timer. 
- * <Interval> is in MilliSeconds */
-CRTDECL(
-UUId_t,
-TimerStart(
-    _In_ size_t         Interval,
-    _In_ int            Periodic,
-    _In_ const void*    Data));
+#define __SERVICE_TARGET(Index)  ((UUId_t)0x8000 + Index)
 
-/* TimersStop
- * Destroys a existing standard timer, owner must be the requesting
- * process. Otherwise access fault. */
-CRTDECL(
-OsStatus_t,
-TimerStop(
-    _In_ UUId_t TimerId));
+#define __DEVICEMANAGER_TARGET   __SERVICE_TARGET(0)
+#define __FILEMANAGER_TARGET     __SERVICE_TARGET(1)
+#define __WINDOWMANAGER_TARGET   __SERVICE_TARGET(2)
+#define __USBMANAGER_TARGET      __SERVICE_TARGET(3)
+#define __SESSIONMANAGER_TARGET  __SERVICE_TARGET(4)
+#define __PROCESSMANAGER_TARGET  __SERVICE_TARGET(5)
 
-#endif //!_TIMERS_INTERFACE_H_
+_CODE_BEGIN
+/* RegisterService 
+ * Registers a service on the current alias, allowing
+ * other applications and frameworks to send commands
+ * and function requests */
+CRTDECL(OsStatus_t, RegisterService(UUId_t Alias));
+_CODE_END
+
+#endif //!_SERVICE_H_

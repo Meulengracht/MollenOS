@@ -24,7 +24,7 @@
 //#define __TRACE
 
 #include <os/mollenos.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include "manager.h"
 #include <threads.h>
 #include <stdlib.h>

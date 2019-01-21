@@ -8,7 +8,7 @@ SOURCES = $(wildcard devices/scancodes/*.c) \
 		  $(wildcard devices/*.c) \
 		  $(wildcard ./*.c)
 
-INCLUDES = -I../../../../librt/include -I../../../../librt/libc/include -I../../../../librt/libds/include
+INCLUDES = -I../../../../librt/include -I../../../../librt/libc/include -I../../../../librt/libds/include -I../../../../librt/libddk/include
 OBJECTS = $(SOURCES:.c=.o)
 
 CFLAGS = $(GCFLAGS) -Wno-invalid-source-encoding -D__DRIVER_IMPL $(INCLUDES)

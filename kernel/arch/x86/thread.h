@@ -26,7 +26,7 @@
 
 #include <arch.h>
 #include <os/osdefs.h>
-#include <os/interrupt.h>
+#include <ddk/interrupt.h>
 
 #define X86_THREAD_USEDFPU          0x1
 

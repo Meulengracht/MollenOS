@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS User Visual Interface
+ * User Interface
  *  - Provides functionality to create and manage windows used by the program
  */
 
@@ -24,7 +24,6 @@
 #define __USER_INTERFACE__
 
 #include <os/osdefs.h>
-#include <os/buffer.h>
 
 typedef enum _UiSurfaceFormat {
     SurfaceRGBA,
@@ -55,24 +54,21 @@ typedef struct _UiWindowParameters {
 _CODE_BEGIN
 /* UiParametersSetDefault
  * Set(s) default window parameters for the given window param structure. */
-CRTDECL(
-void,
+CRTDECL(void,
 UiParametersSetDefault(
     _In_  UIWindowParameters_t* Descriptor));
 
 /* UiRegisterWindow
  * Registers a new window with the window manage with the given 
  * configuration. If the configuration is invalid, OsError is returned. */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 UiRegisterWindow(
     _In_  UIWindowParameters_t* Descriptor,
-    _Out_ DmaBuffer_t**         WindowBuffer));
+    _Out_ void**                WindowBuffer));
 
 /* UiSwapBackbuffer
  * Presents the current backbuffer and rendering all changes made to the window. */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 UiSwapBackbuffer(void));
 _CODE_END
 

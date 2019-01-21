@@ -22,7 +22,7 @@
  */
 
 #include <system/io.h>
-#include <os/interrupt.h>
+#include <ddk/interrupt.h>
 #include <interrupts.h>
 
 static FastInterruptResources_t FastInterruptTable = { 0 };

@@ -54,8 +54,12 @@ PitInterrupt(
 	return InterruptHandled;
 }
 
-/* PitGetTicks
- * Retrieves the number of ticks done by the PIT. */
+void
+PitResetTicks(void)
+{
+    PitUnit.Ticks = 0;
+}
+
 clock_t
 PitGetTicks(void)
 {
@@ -89,7 +93,7 @@ PitInitialize(void)
 
 	// Register our irq as a system timer
 	if (PitUnit.Irq != UUID_INVALID) {
-		TimersRegisterSystemTimer(PitUnit.Irq, PitUnit.NsTick, PitGetTicks);
+		TimersRegisterSystemTimer(PitUnit.Irq, PitUnit.NsTick, PitGetTicks, PitResetTicks);
 	}
     else {
         ERROR("Failed to register interrupt");

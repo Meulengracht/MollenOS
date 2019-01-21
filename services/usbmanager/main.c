@@ -23,8 +23,8 @@
 
 /* Includes
  * - System */
-#include <os/usb.h>
-#include <os/utils.h>
+#include <ddk/usb.h>
+#include <ddk/utils.h>
 #include "manager.h"
 
 /* OnLoad

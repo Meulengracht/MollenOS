@@ -92,7 +92,7 @@ ThreadingEnable(void)
     Thread->MemorySpaceHandle = GetCurrentMemorySpaceHandle();
     if (ThreadingRegister(Thread) != OsSuccess) {
         ERROR("Failed to register thread with system. Threading is not enabled.");
-        CpuHalt();
+        ArchProcessorHalt();
     }
     GetCurrentProcessorCore()->CurrentThread = Thread;
     return CollectionAppend(&Threads, &Thread->CollectionHeader);
@@ -109,7 +109,7 @@ ThreadingEntryPoint(void)
 
     TRACE("ThreadingEntryPoint()");
 
-    CoreId  = CpuGetCurrentId();
+    CoreId  = ArchGetProcessorCoreId();
     Thread  = GetCurrentThreadForCore(CoreId);
     if (THREADING_RUNMODE(Thread->Flags) == THREADING_KERNELMODE || (Thread->Flags & THREADING_SWITCHMODE)) {
         Thread->Function(Thread->Arguments);
@@ -142,7 +142,7 @@ CreateThread(
     TRACE("CreateThread(%s, 0x%x)", Name, Flags);
 
     Key.Value.Id    = atomic_fetch_add(&GlbThreadId, 1);
-    CoreId          = CpuGetCurrentId();
+    CoreId          = ArchGetProcessorCoreId();
     Parent          = GetCurrentThreadForCore(CoreId);
 
     Thread = (MCoreThread_t*)kmalloc(sizeof(MCoreThread_t));
@@ -279,7 +279,7 @@ OsStatus_t
 ThreadingDetachThread(
     _In_  UUId_t        ThreadId)
 {
-    MCoreThread_t*  Thread  = GetCurrentThreadForCore(CpuGetCurrentId());
+    MCoreThread_t*  Thread  = GetCurrentThreadForCore(ArchGetProcessorCoreId());
     MCoreThread_t*  Target  = GetThread(ThreadId);
     // Detach is allowed if the caller is the spawner or the caller
     // is in same process
@@ -354,7 +354,7 @@ ThreadingJoinThread(
 void
 EnterProtectedThreadLevel(void)
 {
-    MCoreThread_t* Thread = GetCurrentThreadForCore(CpuGetCurrentId());
+    MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
 
     Thread->Contexts[THREADING_CONTEXT_LEVEL1]  = ContextCreate(Thread->Flags,
         THREADING_CONTEXT_LEVEL1, (uintptr_t)Thread->Function, 0, (uintptr_t)Thread->Arguments, 0);
@@ -419,10 +419,10 @@ ThreadingIsCurrentTaskIdle(
 Flags_t
 ThreadingGetCurrentMode(void)
 {
-    if (GetCurrentThreadForCore(CpuGetCurrentId()) == NULL) {
+    if (GetCurrentThreadForCore(ArchGetProcessorCoreId()) == NULL) {
         return THREADING_KERNELMODE;
     }
-    return GetCurrentThreadForCore(CpuGetCurrentId())->Flags & THREADING_MODEMASK;
+    return GetCurrentThreadForCore(ArchGetProcessorCoreId())->Flags & THREADING_MODEMASK;
 }
 
 /* ThreadingReapZombies

@@ -95,7 +95,7 @@ AcquireSystemDeviceIo(
     SystemDeviceIo_t*    SystemIo;
     SystemMemorySpace_t* Space  = GetCurrentMemorySpace();
     SystemModule_t*      Module = GetCurrentModule();
-    UUId_t               CoreId = CpuGetCurrentId();
+    UUId_t               CoreId = ArchGetProcessorCoreId();
     DataKey_t            Key;
     assert(IoSpace != NULL);
 
@@ -161,7 +161,7 @@ ReleaseSystemDeviceIo(
     SystemDeviceIo_t*    SystemIo;
     SystemMemorySpace_t* Space  = GetCurrentMemorySpace();
     SystemModule_t*      Module = GetCurrentModule();
-    UUId_t               CoreId = CpuGetCurrentId();
+    UUId_t               CoreId = ArchGetProcessorCoreId();
     DataKey_t            Key;
     assert(IoSpace != NULL);
 

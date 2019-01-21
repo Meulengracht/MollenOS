@@ -26,7 +26,7 @@
 #define __MEMORY_BUFFER_INTERFACE__
 
 #include <os/osdefs.h>
-#include <os/buffer.h>
+#include <ddk/buffer.h>
 #include <memoryspace.h>
 
 #define MEMORY_BUFFER_DEFAULT           0x00000000

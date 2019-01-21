@@ -25,9 +25,9 @@
 #define _FILE_INTERFACE_H_
 
 #include <os/mollenos.h>
-#include <os/service.h>
-#include <os/buffer.h>
-#include <os/ipc/ipc.h>
+#include <ddk/service.h>
+#include <ddk/buffer.h>
+#include <ddk/ipc/ipc.h>
 
 /* This is the options structure used exclusively
  * for multi-params readback from the ipc operations */

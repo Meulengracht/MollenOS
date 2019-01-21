@@ -16,92 +16,54 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - USB Controller Manager
+ * USB Controller Manager
  * - Contains the implementation of a shared controller manager
  *   for all the usb drivers
  */
 //#define __TRACE
 
-/* Includes
- * - System */
 #include <os/mollenos.h>
-#include <os/timers.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
+#include <assert.h>
+#include <stdlib.h>
 #include "manager.h"
 #include "hci.h"
 
-/* Includes
- * - Library */
-#include <assert.h>
-#include <stddef.h>
-#include <stdlib.h>
+static EventQueue_t* EventQueue  = NULL;
+static Collection_t  Controllers = COLLECTION_INIT(KeyId);
 
-/* Globals
- * Keeps track of the usb-manager state and its data */
-static Collection_t *__GlbControllers   = NULL;
-static UUId_t __GlbTimerEvent           = UUID_INVALID;
-static UsbCallback __GlbTimerCallback   = NULL;
-
-/* OnTimeout
- * Is called when one of the registered timer-handles
- * times-out. A new timeout event is generated and passed
- * on to the below handler */
 OsStatus_t
-OnTimeout(
-    _In_ UUId_t Timer,
-    _In_ void*  Data) {
-    _CRT_UNUSED(Timer); _CRT_UNUSED(Data);
-    if (__GlbTimerCallback != NULL) {
-        __GlbTimerCallback();
-    }
+UsbManagerInitialize(void)
+{
+    CreateEventQueue(&EventQueue);
     return OsSuccess;
 }
 
-/* UsbManagerInitialize
- * Initializes the usb manager that keeps track of
- * all controllers and all attached devices */
 OsStatus_t
-UsbManagerInitialize(void) {
-    __GlbControllers    = CollectionCreate(KeyId);
-    __GlbTimerEvent     = UUID_INVALID;
-    __GlbTimerCallback  = NULL;
-    return OsSuccess;
-}
-
-/* UsbManagerDestroy
- * Cleans up the manager and releases resources allocated */
-OsStatus_t
-UsbManagerDestroy(void) {
-    foreach(cNode, __GlbControllers) {
+UsbManagerDestroy(void)
+{
+    DestroyEventQueue(EventQueue);
+    foreach(cNode, &Controllers) {
         free(cNode->Data);
     }
-    return CollectionDestroy(__GlbControllers);
+    return CollectionDestroy(&Controllers);
 }
 
-/* UsbManagerGetControllers
- * Retrieve a list of all attached controllers to the system. */
 Collection_t*
-UsbManagerGetControllers(void) {
-    return __GlbControllers;
-}
-
-/* UsbManagerRegisterTimer
- * Registers a timer function that will be called every given interval. */
-OsStatus_t
-UsbManagerRegisterTimer(
-    _In_ int                        IntervalMs,
-    _In_ UsbCallback                Function)
+UsbManagerGetControllers(void)
 {
-    __GlbTimerEvent     = TimerStart(IntervalMs, 1, NULL);
-    __GlbTimerCallback  = Function;
-    return OsSuccess;
+    return &Controllers;
 }
 
-/* UsbManagerRegisterController
- * Registers the usb controller with the system. */
+EventQueue_t*
+UsbManagerGetEventQueue(void)
+{
+    return EventQueue;
+}
+
 OsStatus_t
 UsbManagerRegisterController(
-    _In_ UsbManagerController_t*    Controller)
+    _In_ UsbManagerController_t* Controller)
 {
     DataKey_t   Key = { .Value.Id = Controller->Device.Id };
     int         Retries = 3;
@@ -119,7 +81,7 @@ UsbManagerRegisterController(
     if (Status != OsSuccess) {
         return Status;
     }
-    return CollectionAppend(__GlbControllers, CollectionCreateNode(Key, Controller));
+    return CollectionAppend(&Controllers, CollectionCreateNode(Key, Controller));
 }
 
 /* UsbManagerDestroyController
@@ -139,17 +101,14 @@ UsbManagerDestroyController(
     }
 
     // Remove from list
-    cNode = CollectionGetNodeByKey(__GlbControllers, Key, 0);
+    cNode = CollectionGetNodeByKey(&Controllers, Key, 0);
     if (cNode != NULL) {
-        CollectionUnlinkNode(__GlbControllers, cNode);
-        return CollectionDestroyNode(__GlbControllers, cNode);
+        CollectionUnlinkNode(&Controllers, cNode);
+        return CollectionDestroyNode(&Controllers, cNode);
     }
     return OsError;
 }
 
-/* UsbManagerIterateTransfers
- * Iterate the transfers associated with the given controller. The iteration
- * flow can be controlled with the return codes. */
 void
 UsbManagerIterateTransfers(
     _In_ UsbManagerController_t*    Controller,
@@ -173,14 +132,12 @@ UsbManagerIterateTransfers(
     }
 }
 
-/* UsbManagerGetController 
- * Returns a controller by the given device-id */
 UsbManagerController_t*
 UsbManagerGetController(
-    _In_ UUId_t                     Device)
+    _In_ UUId_t Device)
 {
     // Iterate list of controllers
-    foreach(cNode, __GlbControllers) {
+    foreach(cNode, &Controllers) {
         UsbManagerController_t *Controller = (UsbManagerController_t*)cNode->Data;
         if (Controller->Device.Id == Device) {
             return Controller;
@@ -189,12 +146,10 @@ UsbManagerGetController(
     return NULL;
 }
 
-/* UsbManagerGetToggle 
- * Retrieves the toggle status for a given pipe */
 int
 UsbManagerGetToggle(
-    _In_ UUId_t                     Device,
-    _In_ UsbHcAddress_t*            Address)
+    _In_ UUId_t          Device,
+    _In_ UsbHcAddress_t* Address)
 {
     // Variables
     DataKey_t Key;
@@ -205,7 +160,7 @@ UsbManagerGetToggle(
     Key.Value.Integer = (int)Pipe;
 
     // Iterate list of controllers
-    foreach(cNode, __GlbControllers) {
+    foreach(cNode, &Controllers) {
         // Cast data of node to our type
         UsbManagerController_t *Controller = (UsbManagerController_t*)cNode->Data;
         if (Controller->Device.Id == Device) {
@@ -222,7 +177,7 @@ UsbManagerGetToggle(
 
     // Not found, create a new endpoint with toggle 0
     // Iterate list of controllers
-    _foreach(cNode, __GlbControllers) {
+    _foreach(cNode, &Controllers) {
         // Cast data of node to our type
         UsbManagerController_t *Controller = (UsbManagerController_t*)cNode->Data;
         if (Controller->Device.Id == Device) {
@@ -239,13 +194,11 @@ UsbManagerGetToggle(
     return 0;
 }
 
-/* UsbManagetSetToggle 
- * Updates the toggle status for a given pipe */
 OsStatus_t
 UsbManagerSetToggle(
-    _In_ UUId_t                     Device,
-    _In_ UsbHcAddress_t*            Address,
-    _In_ int                        Toggle)
+    _In_ UUId_t          Device,
+    _In_ UsbHcAddress_t* Address,
+    _In_ int             Toggle)
 {
     // Variables
     DataKey_t Key;
@@ -256,7 +209,7 @@ UsbManagerSetToggle(
     Key.Value.Integer = (int)Pipe;
 
     // Iterate list of controllers
-    foreach(cNode, __GlbControllers) {
+    foreach(cNode, &Controllers) {
         // Cast data of node to our type
         UsbManagerController_t *Controller = (UsbManagerController_t*)cNode->Data;
         if (Controller->Device.Id == Device) {
@@ -274,7 +227,7 @@ UsbManagerSetToggle(
 
     // Not found, create a new endpoint with given toggle
     // Iterate list of controllers
-    _foreach(cNode, __GlbControllers) {
+    _foreach(cNode, &Controllers) {
         // Cast data of node to our type
         UsbManagerController_t *Controller = (UsbManagerController_t*)cNode->Data;
         if (Controller->Device.Id == Device) {
@@ -291,13 +244,10 @@ UsbManagerSetToggle(
     return OsError;
 }
 
-/* UsbManagerFinalizeTransfer
- * Finalizes the transfer by sending an notification, requeuing if all bytes are not
- * transferred or queing a transfer waiting. */
 OsStatus_t
 UsbManagerFinalizeTransfer(
-    _In_ UsbManagerController_t*    Controller,
-    _In_ UsbManagerTransfer_t*      Transfer)
+    _In_ UsbManagerController_t* Controller,
+    _In_ UsbManagerTransfer_t*   Transfer)
 {
     // Variables
     CollectionItem_t *Node      = NULL;
@@ -339,9 +289,6 @@ UsbManagerFinalizeTransfer(
     }
 }
 
-/* UsbManagerClearTransfers
- * Clears all queued transfers by iterating them and invoking Finalize.
- * This will also wake-up waiting processes and tell them it's off. */
 void
 UsbManagerClearTransfers(
     _In_ UsbManagerController_t*    Controller)
@@ -356,8 +303,6 @@ UsbManagerClearTransfers(
     CollectionClear(Controller->TransactionList);
 }
 
-/* UsbManagerIsAddressesEqual
- * Checks two different usb addreses if they are targetting the same endpoint. */
 OsStatus_t
 UsbManagerIsAddressesEqual(
     _In_ UsbHcAddress_t*            Address1,
@@ -372,9 +317,6 @@ UsbManagerIsAddressesEqual(
     return OsError;
 }
 
-/* UsbManagerSynchronizeTransfers
- * Synchronizes transfers, the pipe to synchronize with must be passed in the <Context> parameter. 
- * This only affects Bulk/Interrupt and if their transfer status is Queued. */
 int
 UsbManagerSynchronizeTransfers(
     _In_ UsbManagerController_t*    Controller,
@@ -397,9 +339,6 @@ UsbManagerSynchronizeTransfers(
     return ITERATOR_CONTINUE;
 }
 
-/* UsbManagerScheduleTransfer
- * Processes and validates the given transfer item. If any action needs to be taken
- * this function will handle completion. */
 int
 UsbManagerScheduleTransfer(
     _In_ UsbManagerController_t*    Controller,
@@ -424,9 +363,6 @@ UsbManagerScheduleTransfer(
     return ITERATOR_CONTINUE;
 }
 
-/* UsbManagerScheduleTransfers
- * Handles all transfers that are marked for either Schedule or Unscheduling.
- * The iteration process will invoke <HciProcessElement> */
 void
 UsbManagerScheduleTransfers(
     _In_ UsbManagerController_t*    Controller)
@@ -435,9 +371,6 @@ UsbManagerScheduleTransfers(
     UsbManagerIterateTransfers(Controller, UsbManagerScheduleTransfer, NULL);
 }
 
-/* UsbManagerProcessTransfer
- * Processes and validates the given transfer item. If any action needs to be taken
- * this function will handle completion. */
 int
 UsbManagerProcessTransfer(
     _In_ UsbManagerController_t*    Controller,
@@ -502,9 +435,6 @@ UsbManagerProcessTransfer(
     return ITERATOR_CONTINUE;
 }
 
-/* UsbManagerProcessTransfers
- * Processes all the associated transfers with the given usb controller.
- * The iteration process will invoke <HciProcessElement> */
 void
 UsbManagerProcessTransfers(
     _In_ UsbManagerController_t*    Controller)
@@ -513,9 +443,6 @@ UsbManagerProcessTransfers(
     UsbManagerIterateTransfers(Controller, UsbManagerProcessTransfer, NULL);
 }
 
-/* UsbManagerIterateChain
- * Iterates a given chain at the requested direction. The reason
- * for the iteration must also be provided to act accordingly. */
 void
 UsbManagerIterateChain(
     _In_ UsbManagerController_t*    Controller,
@@ -577,9 +504,6 @@ UsbManagerIterateChain(
     }
 }
 
-/* UsbManagerDumpChain
- * Iterates a given chain at the requested direction. The function then
- * invokes the HciProcessElement with USB_REASON_DUMP. */
 void
 UsbManagerDumpChain(
     _In_ UsbManagerController_t*    Controller,

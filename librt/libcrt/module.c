@@ -21,8 +21,16 @@
 
 #include "../libc/threads/tls.h"
 #include <os/mollenos.h>
-#include <os/driver.h>
+#include <ddk/driver.h>
 #include <stdlib.h>
+
+// Module Interface
+__EXTERN OsStatus_t        OnLoad(void);
+__EXTERN OsStatus_t        OnUnload(void);
+__EXTERN OsStatus_t        OnRegister(MCoreDevice_t*);
+__EXTERN OsStatus_t        OnUnregister(MCoreDevice_t*);
+__EXTERN InterruptStatus_t OnInterrupt(void*, size_t, size_t, size_t);
+__EXTERN OsStatus_t        OnQuery(MContractType_t,  int,  MRemoteCallArgument_t*, MRemoteCallArgument_t*, MRemoteCallArgument_t*, MRemoteCallAddress_t*);
 
 /* CRT Initialization sequence
  * for a shared C/C++ environment call this in all entry points */
@@ -66,10 +74,6 @@ void __CrtModuleEntry(void)
                         Message.Arguments[2].Data.Value,
                         Message.Arguments[3].Data.Value,
                         Message.Arguments[4].Data.Value);
-                } break;
-                case __DRIVER_TIMEOUT: {
-                    OnTimeout((UUId_t)Message.Arguments[0].Data.Value,
-                        (void*)Message.Arguments[1].Data.Value);
                 } break;
                 case __DRIVER_QUERY: {
                     OnQuery((MContractType_t)Message.Arguments[0].Data.Value, 

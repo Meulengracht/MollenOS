@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Syscall Definitions & Structures
+ * Syscall Definitions & Structures
  * - This header describes the base syscall-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -24,8 +24,6 @@
 #include <internal/_syscalls.h>
 #include <os/osdefs.h>
 
-/* Extern 
- * - Access to assembler for the platform */
 __EXTERN SCTYPE _syscall(SCTYPE Function, SCTYPE Arg0, SCTYPE Arg1, SCTYPE Arg2, SCTYPE Arg3, SCTYPE Arg4);
 
 SCTYPE syscall0(SCTYPE Function) {

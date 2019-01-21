@@ -41,7 +41,7 @@
 #define ARGUMENT_BUFFER                 1
 #define ARGUMENT_REGISTER               2
 
-#include <os/ipc/rpc.h>
-#include <os/ipc/pipe.h>
+#include <ddk/ipc/rpc.h>
+#include <ddk/ipc/pipe.h>
 
 #endif //!__IPC_INTERFACE__

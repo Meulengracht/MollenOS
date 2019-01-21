@@ -66,7 +66,7 @@ ScThreadJoin(
     _In_  UUId_t ThreadId,
     _Out_ int*   ExitCode)
 {
-    UUId_t          MemorySpaceHandle = GetCurrentThreadForCore(CpuGetCurrentId())->MemorySpaceHandle;
+    UUId_t          MemorySpaceHandle = GetCurrentThreadForCore(ArchGetProcessorCoreId())->MemorySpaceHandle;
     int             ResultCode        = 0;
     MCoreThread_t*  Thread            = GetThread(ThreadId);
     
@@ -98,7 +98,7 @@ ScThreadSignal(
     _In_ UUId_t     ThreadId,
     _In_ int        SignalCode)
 {
-    UUId_t          MemorySpaceHandle = GetCurrentThreadForCore(CpuGetCurrentId())->MemorySpaceHandle;
+    UUId_t          MemorySpaceHandle = GetCurrentThreadForCore(ArchGetProcessorCoreId())->MemorySpaceHandle;
     MCoreThread_t*  Thread            = GetThread(ThreadId);
 
     // Perform security checks
@@ -121,7 +121,7 @@ ScThreadSleep(
 
     TimersGetSystemTick(&Start);
     if (SchedulerThreadSleep(NULL, Milliseconds) == SCHEDULER_SLEEP_INTERRUPTED) {
-        End = GetCurrentThreadForCore(CpuGetCurrentId())->Sleep.InterruptedAt;
+        End = GetCurrentThreadForCore(ArchGetProcessorCoreId())->Sleep.InterruptedAt;
     }
     else {
         TimersGetSystemTick(&End);
@@ -149,7 +149,7 @@ ScThreadYield(void)
 
 UUId_t ScThreadCookie(void)
 {
-    return GetCurrentThreadForCore(CpuGetCurrentId())->Cookie;
+    return GetCurrentThreadForCore(ArchGetProcessorCoreId())->Cookie;
 }
 
 /* ScThreadSetCurrentName
@@ -157,7 +157,7 @@ UUId_t ScThreadCookie(void)
 OsStatus_t
 ScThreadSetCurrentName(const char *ThreadName) 
 {
-    MCoreThread_t*  Thread          = GetCurrentThreadForCore(CpuGetCurrentId());
+    MCoreThread_t*  Thread          = GetCurrentThreadForCore(ArchGetProcessorCoreId());
     const char*     PreviousName    = NULL;
 
     if (Thread == NULL || ThreadName == NULL) {
@@ -174,7 +174,7 @@ ScThreadSetCurrentName(const char *ThreadName)
 OsStatus_t
 ScThreadGetCurrentName(char *ThreadNameBuffer, size_t MaxLength)
 {
-    MCoreThread_t* Thread = GetCurrentThreadForCore(CpuGetCurrentId());
+    MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
 
     if (Thread == NULL || ThreadNameBuffer == NULL) {
         return OsError;

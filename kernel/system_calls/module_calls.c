@@ -126,7 +126,7 @@ OsStatus_t
 ScModuleExit(
     _In_ int ExitCode)
 {
-    MCoreThread_t*  Thread = GetCurrentThreadForCore(CpuGetCurrentId());
+    MCoreThread_t*  Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
     SystemModule_t* Module = GetCurrentModule();
     OsStatus_t      Status = OsError;
     if (Module != NULL) {

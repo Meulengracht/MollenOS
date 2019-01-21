@@ -22,7 +22,7 @@
  */
 
 #include <internal/_syscalls.h>
-#include <os/io.h>
+#include <ddk/io.h>
 #include <assert.h>
 
 /* Externs, this is i/o

@@ -27,12 +27,11 @@
 #include <os/mollenos.h>
 #include <memoryspace.h>
 #include <threading.h>
-#include <timers.h>
 #include <console.h>
+#include <machine.h>
+#include <timers.h>
 #include <debug.h>
 
-/* ScSystemDebug 
- * Debug/trace printing for userspace application and drivers */
 OsStatus_t
 ScSystemDebug(
     _In_ int         Type,
@@ -63,9 +62,20 @@ OsStatus_t ScEndBootSequence(void) {
     return OsSuccess;
 }
 
-/* ScFlushHardwareCache
- * Flushes the specified hardware cache. Should be used with caution as it might
- * result in performance drops. */
+OsStatus_t
+ScSystemQuery(
+    _In_ SystemDescriptor_t* Descriptor)
+{
+    Descriptor->NumberOfProcessors  = GetMachine()->NumberOfProcessors;
+    Descriptor->NumberOfActiveCores = GetMachine()->NumberOfActiveCores;
+
+    Descriptor->AllocationGranularityBytes = GetMachine()->MemoryGranularity;
+    Descriptor->PageSizeBytes              = GetMemorySpacePageSize();
+    Descriptor->PagesTotal                 = GetMachine()->PhysicalMemory.BlockCount;
+    Descriptor->PagesUsed                  = GetMachine()->PhysicalMemory.BlocksAllocated;
+    return OsSuccess;
+}
+
 OsStatus_t
 ScFlushHardwareCache(
     _In_     int    Cache,
@@ -79,62 +89,47 @@ ScFlushHardwareCache(
     return OsError;
 }
 
-/* System (Environment) Query 
- * This function allows the user to query 
- * information about cpu, memory, stats etc */
-int ScEnvironmentQuery(void) {
-    return 0;
-}
-
-/* ScSystemTime
- * Retrieves the system time. This is only ticking
- * if a system clock has been initialized. */
 OsStatus_t
 ScSystemTime(
-    _Out_ struct tm* SystemTime)
+    _In_ SystemTime_t* SystemTime)
 {
     if (SystemTime == NULL) {
         return OsError;
     }
-    return TimersGetSystemTime(SystemTime);
+    memcpy(SystemTime, &GetMachine()->SystemTime, sizeof(SystemTime_t));
+    return OsSuccess;
 }
 
-/* ScSystemTick
- * Retrieves the system tick counter. This is only ticking
- * if a system timer has been initialized. */
 OsStatus_t
 ScSystemTick(
-    _In_  int       TickBase,
-    _Out_ clock_t*  SystemTick)
+    _In_ int              TickBase,
+    _In_ LargeUInteger_t* Tick)
 {
-    if (SystemTick == NULL) {
+    if (Tick == NULL) {
         return OsError;
     }
 
-    if (TimersGetSystemTick(SystemTick) == OsSuccess) {
+    if (TimersGetSystemTick((clock_t*)&Tick->QuadPart) == OsSuccess) {
         if (TickBase == TIME_PROCESS) {
             SystemModule_t* Module = GetCurrentModule();
             if (Module != NULL) {
-                *SystemTick -= Module->StartedAt;
+                Tick->QuadPart -= Module->StartedAt;
             }
         }
         else if (TickBase == TIME_THREAD) {
-            MCoreThread_t* Thread = GetCurrentThreadForCore(CpuGetCurrentId());
+            MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
             if (Thread != NULL) {
-                *SystemTick -= Thread->StartedAt;
+                Tick->QuadPart -= Thread->StartedAt;
             }
         }
         return OsSuccess;
     }
 
     // Default the result to 0 to indicate unsupported
-    *SystemTick = 0;
+    Tick->QuadPart = 0;
     return OsError;
 }
 
-/* ScPerformanceFrequency
- * Returns how often the performance timer fires every
- * second, the value will never be 0 */
 OsStatus_t
 ScPerformanceFrequency(
     _Out_ LargeInteger_t *Frequency)
@@ -146,9 +141,6 @@ ScPerformanceFrequency(
     return TimersQueryPerformanceFrequency(Frequency);
 }
 
-/* ScPerformanceTick
- * Retrieves the system performance tick counter. This is only ticking
- * if a system performance timer has been initialized. */
 OsStatus_t
 ScPerformanceTick(
     _Out_ LargeInteger_t *Value)
@@ -159,8 +151,6 @@ ScPerformanceTick(
     return TimersQueryPerformanceTick(Value);
 }
 
-/* ScQueryDisplayInformation
- * Queries information about the active display */
 OsStatus_t
 ScQueryDisplayInformation(
     _In_ VideoDescriptor_t *Descriptor) {
@@ -170,9 +160,6 @@ ScQueryDisplayInformation(
     return VideoQuery(Descriptor);
 }
 
-/* ScCreateDisplayFramebuffer
- * Right now it simply identity maps the screen display framebuffer
- * into the current process's memory mappings and returns a pointer to it. */
 void*
 ScCreateDisplayFramebuffer(void)
 {

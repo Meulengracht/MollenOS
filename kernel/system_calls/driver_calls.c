@@ -27,7 +27,7 @@
 #include <interrupts.h>
 #include <deviceio.h>
 #include <os/input.h>
-#include <os/acpi.h>
+#include <ddk/acpi.h>
 #include <machine.h>
 #include <handle.h>
 #include <timers.h>
@@ -279,22 +279,6 @@ ScInputEvent(
         return WriteSystemPipe(GetMachine()->WmInput, (const uint8_t*)Input, sizeof(SystemInput_t));
     }
     return OsSuccess;
-}
-
-UUId_t
-ScTimersStart(
-    _In_ size_t      Interval,
-    _In_ int         Periodic,
-    _In_ const void* Data)
-{
-    return TimersStart(Interval, Periodic, Data);
-}
-
-OsStatus_t
-ScTimersStop(
-    _In_ UUId_t TimerId)
-{
-    return TimersStop(TimerId);
 }
 
 OsStatus_t

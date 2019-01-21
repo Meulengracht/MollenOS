@@ -23,7 +23,7 @@
 
 #include "include/vfs.h"
 #include <os/mollenos.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include <strings.h>
 #include <string.h>
 #include <ctype.h>

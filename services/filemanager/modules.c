@@ -22,7 +22,7 @@
 //#define __TRACE
 
 #include "include/vfs.h"
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include <stdlib.h>
 
 /* Filesystem driver map

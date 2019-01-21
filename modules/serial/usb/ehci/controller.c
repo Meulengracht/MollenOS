@@ -24,8 +24,8 @@
 
 /* Includes
  * - System */
-#include <os/device.h>
-#include <os/utils.h>
+#include <ddk/device.h>
+#include <ddk/utils.h>
 #include "../common/hci.h"
 #include "ehci.h"
 

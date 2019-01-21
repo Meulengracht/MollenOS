@@ -24,7 +24,7 @@
 #define __STDC_TLS__
 
 #include <os/osdefs.h>
-#include <os/buffer.h>
+#include <ddk/buffer.h>
 #include <errno.h>
 #include <threads.h>
 #include <wchar.h>

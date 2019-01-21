@@ -21,9 +21,9 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include <os/sessions.h>
-#include <os/ipc/ipc.h>
-#include <os/service.h>
+#include <ddk/sessions.h>
+#include <ddk/ipc/ipc.h>
+#include <ddk/service.h>
 
 /* SessionCheckDisk
  * Notifies the sessionmanager if a new accessible system disk. */

@@ -21,7 +21,7 @@
  */
 #define __TRACE
 
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include "../include/vfs.h"
 #include "../include/gpt.h"
 #include "../include/mbr.h"

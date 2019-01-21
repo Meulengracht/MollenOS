@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - BufferPool Support Definitions & Structures
+ * BufferPool Support Definitions & Structures
  * - This header describes the base bufferpool-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -24,7 +24,7 @@
 #ifndef _BUFFERPOOL_INTERFACE_H_
 #define _BUFFERPOOL_INTERFACE_H_
 
-#include <os/buffer.h>
+#include <ddk/buffer.h>
 #include <os/osdefs.h>
 
 typedef struct _BufferPool BufferPool_t;

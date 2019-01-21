@@ -29,7 +29,7 @@
 #include <memoryspace.h>
 #include <interrupts.h>
 #include <deviceio.h>
-#include <os/file.h>
+#include <ddk/file.h>
 #include <machine.h>
 #include <handle.h>
 #include <stdio.h>
@@ -131,7 +131,7 @@ DebugPanic(
     TRACE("DebugPanic(Scope %i)", FatalityScope);
 
     // Disable all other cores in system if the fault is kernel scope
-    CoreId = CpuGetCurrentId();
+    CoreId = ArchGetProcessorCoreId();
     if (FatalityScope == FATAL_SCOPE_KERNEL) {
         if (CollectionLength(&GetMachine()->SystemDomains) != 0) {
             foreach(NumaNode, &GetMachine()->SystemDomains) {
@@ -165,7 +165,7 @@ DebugPanic(
 
     // Handle based on the scope of the fatality
     if (FatalityScope == FATAL_SCOPE_KERNEL) {
-        CpuHalt();
+        ArchProcessorHalt();
     }
     else if (FatalityScope == FATAL_SCOPE_PROCESS) {
         // @todo
@@ -175,7 +175,7 @@ DebugPanic(
     }
     else {
         ERROR("Encounted an unkown fatality scope %i", FatalityScope);
-        CpuHalt();
+        ArchProcessorHalt();
     }
     return OsSuccess;
 }

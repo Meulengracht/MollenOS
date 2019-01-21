@@ -27,8 +27,8 @@
 /* Includes 
  * - System */
 #include <os/osdefs.h>
-#include <os/driver.h>
-#include <os/usb.h>
+#include <ddk/driver.h>
+#include <ddk/usb.h>
 
 /* These definitions are in-place to allow a custom
  * setting of the device-manager, these are set to values

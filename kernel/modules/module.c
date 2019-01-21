@@ -50,7 +50,7 @@ ModuleThreadEntry(
     _In_ void* Context)
 {
     SystemModulePackage_t* Package    = (SystemModulePackage_t*)Context;
-    UUId_t                 CurrentCpu = CpuGetCurrentId();
+    UUId_t                 CurrentCpu = ArchGetProcessorCoreId();
     MCoreThread_t*         Thread     = GetCurrentThreadForCore(CurrentCpu);
     OsStatus_t             Status;
     

@@ -404,7 +404,7 @@ ExceptionSignal(
     _In_ Context_t* Registers,
     _In_ int        Signal)
 {
-    UUId_t CoreId         = CpuGetCurrentId();
+    UUId_t CoreId         = ArchGetProcessorCoreId();
     MCoreThread_t* Thread = GetCurrentThreadForCore(CoreId);
 
     TRACE("ExceptionSignal(Signal %i)", Signal);
@@ -468,7 +468,7 @@ ExceptionEntry(
         }
     }
     else if (Registers->Irq == 7) { // DeviceNotAvailable 
-        Thread = GetCurrentThreadForCore(CpuGetCurrentId());
+        Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
         assert(Thread != NULL);
 
         // This might be because we need to restore fpu/sse state
@@ -511,7 +511,7 @@ ExceptionEntry(
         // The first thing we must check before propegating events
         // is that we must check special locations
         if (Address == MEMORY_LOCATION_SIGNAL_RET) {
-            UUId_t Cpu  = CpuGetCurrentId();
+            UUId_t Cpu  = ArchGetProcessorCoreId();
             Thread      = GetCurrentThreadForCore(Cpu);
             Registers   = Thread->ActiveSignal.Context;
             TssUpdateThreadStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
@@ -562,7 +562,7 @@ ExceptionEntry(
         }
 
         // Enter panic handler
-        ContextDump(Registers);
+        ArchDumpThreadContext(Registers);
         DebugPanic(FATAL_SCOPE_KERNEL, Registers, __MODULE,
             "Unhandled or fatal interrupt %u, Error Code: %u, Faulty Address: 0x%x",
             Registers->Irq, Registers->ErrorCode, CONTEXT_IP(Registers));

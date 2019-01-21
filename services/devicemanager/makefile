@@ -4,7 +4,7 @@
 # Include all the definitions for os
 include ../../config/common.mk
 
-INCLUDES = -I../../librt/include -I../../librt/libc/include -I../../librt/libds/include
+INCLUDES = -I../../librt/include -I../../librt/libc/include -I../../librt/libds/include -I../../librt/libddk/include
 SOURCES = main.c
 
 # Check for architecture

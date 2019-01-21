@@ -209,7 +209,7 @@ GetModule(
 SystemModule_t*
 GetCurrentModule(void)
 {
-    MCoreThread_t* Thread = GetCurrentThreadForCore(CpuGetCurrentId());
+    MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
     foreach(Node, &Modules) {
         SystemModule_t* Module = (SystemModule_t*)Node;
         if (Module->Executable != NULL &&

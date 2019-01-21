@@ -22,7 +22,7 @@
  */
 
 #include <os/binarysemaphore.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 
 /* BinarySemaphoreConstruct
  * Initializes the semaphore value to either 0 or 1 */

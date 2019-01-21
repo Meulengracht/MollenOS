@@ -26,7 +26,7 @@
 
 /* Includes 
  * - System */
-#include <os/contracts/base.h>
+#include <ddk/contracts/base.h>
 #include <os/osdefs.h>
 
 PACKED_TYPESTRUCT(VideoDescriptor, {

@@ -22,8 +22,8 @@
 //#define __TRACE
 
 #include <ds/collection.h>
-#include <os/file.h>
-#include <os/utils.h>
+#include <ddk/file.h>
+#include <ddk/utils.h>
 #include "include/vfs.h"
 #include <stdlib.h>
 #include <string.h>

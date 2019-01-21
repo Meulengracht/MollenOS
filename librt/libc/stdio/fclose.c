@@ -20,8 +20,8 @@
  * - Closes a given file-handle and cleans up
  */
 
-#include <os/file.h>
-#include <os/utils.h>
+#include <ddk/file.h>
+#include <ddk/utils.h>
 
 #include <io.h>
 #include <stdio.h>

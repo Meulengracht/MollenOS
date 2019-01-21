@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,51 +16,59 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - TimeSpec Support Definitions & Structures
+ * TimeSpec Support Definitions & Structures
  * - This header describes the base timespec-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
 #include <os/mollenos.h>
 #include <time.h>
+#include "local.h"
 
-/* timespec_get
- * 1. Modifies the timespec object pointed to by ts to hold the current calendar 
- *    time in the time base base.
- * 2. Expands to a value suitable for use as the base argument of timespec_get
- * Other macro constants beginning with TIME_ may be provided by the implementation 
- * to indicate additional time bases. If base is TIME_UTC, then
- * 1. ts->tv_sec is set to the number of seconds since an implementation defined epoch, 
- *    truncated to a whole value
- * 2. ts->tv_nsec member is set to the integral number of nanoseconds, rounded to the 
- *    resolution of the system clock*/
 int
 timespec_get(
-    _In_ struct timespec*   ts,
-    _In_ int                base)
+    _In_ struct timespec* ts,
+    _In_ int              base)
 {
-    clock_t tick = 0;
+    SystemTime_t    SystemTime = { { { 0 } } };
+	struct tm       Temporary  = { 0 };
+    LargeUInteger_t Tick       = { { 0 } };
 
-    // Sanitize input
     if (ts == NULL) {
         return -1;
     }
 
     // Update based on type
     switch (base) {
+        case TIME_TAI:
         case TIME_UTC: {
-            ts->tv_sec  = time(NULL);
-            ts->tv_nsec = 0;
-        } break;
-        case TIME_TAI: {
-            // @todo
+            if (GetSystemTime(&SystemTime) == OsSuccess) {
+                if (base == TIME_UTC) {
+                    Temporary.tm_sec  = SystemTime.Second;
+                    Temporary.tm_min  = SystemTime.Minute;
+                    Temporary.tm_hour = SystemTime.Hour;
+                    Temporary.tm_mday = SystemTime.DayOfMonth;
+                    Temporary.tm_mon  = SystemTime.Month - 1;
+                    Temporary.tm_year = SystemTime.Year;
+                    ts->tv_sec        = mktime(&Temporary);
+                }
+                else {
+                    ts->tv_sec = SystemTime.Second + (SystemTime.Minute * SECSPERMIN) +
+                        (SystemTime.Hour * SECSPERHOUR) + ((SystemTime.DayOfMonth - 1) * SECSPERDAY) +
+                        ((SystemTime.Month - 1) * (SECSPERDAY * 30)) + ((SystemTime.Year * DAYSPERYEAR) * SECSPERDAY);
+                }
+                ts->tv_nsec = (long)SystemTime.Nanoseconds.QuadPart;
+            }
+            else {
+                return -1;
+            }
         } break;
         case TIME_MONOTONIC:
         case TIME_PROCESS:
         case TIME_THREAD: {
-            SystemTick(base, &tick);
-            ts->tv_sec  = tick / CLOCKS_PER_SEC;
-            ts->tv_nsec = (tick % CLOCKS_PER_SEC) * NSEC_PER_MSEC;
+            GetSystemTick(base, &Tick);
+            ts->tv_sec  = (time_t)(Tick.QuadPart / CLOCKS_PER_SEC);
+            ts->tv_nsec = (long)((Tick.QuadPart % CLOCKS_PER_SEC) * NSEC_PER_MSEC);
         } break;
 
         default:

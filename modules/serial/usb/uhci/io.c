@@ -22,7 +22,7 @@
  */
 //#define __TRACE
 
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include "uhci.h"
 
 /* UhciRead16

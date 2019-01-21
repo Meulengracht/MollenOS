@@ -46,10 +46,10 @@ typedef struct _MemoryMappingState {
 #else
 #define __TRACE
 #include <internal/_syscalls.h>
-#include <os/buffer.h>
-#include <os/memory.h>
-#include <os/utils.h>
-#include <os/file.h>
+#include <ddk/buffer.h>
+#include <ddk/memory.h>
+#include <ddk/utils.h>
+#include <ddk/file.h>
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -61,7 +61,7 @@ typedef struct _MemoryMappingState {
     DmaBuffer_t*        UserAccess;
 } MemoryMappingState_t;
 
-static MemoryDescriptor_t __SystemMemoryInformation = { 0 };
+static SystemDescriptor_t __SystemInformation = { 0 };
 #endif
 
 /*******************************************************************************
@@ -195,10 +195,10 @@ uintptr_t GetPageSize(void)
 #ifdef LIBC_KERNEL
     return GetMemorySpacePageSize();
 #else
-    if (__SystemMemoryInformation.PageSizeBytes == 0) {
-        MemoryQuery(&__SystemMemoryInformation);
+    if (__SystemInformation.PageSizeBytes == 0) {
+        SystemQuery(&__SystemInformation);
     }
-    return __SystemMemoryInformation.PageSizeBytes;
+    return __SystemInformation.PageSizeBytes;
 #endif
 }
 

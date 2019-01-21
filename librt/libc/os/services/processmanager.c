@@ -23,8 +23,8 @@
 
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
-#include <os/ipc/ipc.h>
-#include <os/service.h>
+#include <ddk/ipc/ipc.h>
+#include <ddk/service.h>
 #include <os/process.h>
 #include <threads.h>
 #include <stdlib.h>
@@ -117,14 +117,11 @@ ProcessJoin(
     RPCSetArgument(&Request, 1, (const void*)&Timeout, sizeof(size_t));
     RPCSetResult(&Request, (const void*)&Package, sizeof(JoinProcessPackage_t));
     Status = RPCExecute(&Request);
-    if (Status != OsSuccess || Package.Timeout) {
-        if (Package.Timeout) {
-            return OsTimeout;
-        }
+    if (Status != OsSuccess) {
         return Status;
     }
     *ExitCode = Package.ExitCode;
-    return OsSuccess;
+    return Package.Status;
 }
 
 OsStatus_t

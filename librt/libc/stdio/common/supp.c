@@ -93,10 +93,10 @@ thrd_t thrd_current(void) {
 #define __TRACE
 #include <internal/_syscalls.h>
 #include <ds/collection.h>
-#include <os/ipc/ipc.h>
+#include <ddk/ipc/ipc.h>
+#include <ddk/utils.h>
+#include <ddk/file.h>
 #include <os/input.h>
-#include <os/utils.h>
-#include <os/file.h>
 #include "../../threads/tls.h"
 #include <stdio.h>
 #include <errno.h>

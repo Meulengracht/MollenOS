@@ -26,8 +26,8 @@
 
 #include <os/mollenos.h>
 #include <os/osdefs.h>
-#include <os/ipc/ipc.h>
-#include <os/service.h>
+#include <ddk/ipc/ipc.h>
+#include <ddk/service.h>
 #include <os/ui.h>
 
 /* These definitions are in-place to allow a custom

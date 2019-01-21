@@ -24,8 +24,8 @@
 
 #include <internal/_syscalls.h>
 #include <os/mollenos.h>
-#include <os/buffer.h>
-#include <os/utils.h>
+#include <ddk/buffer.h>
+#include <ddk/utils.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>

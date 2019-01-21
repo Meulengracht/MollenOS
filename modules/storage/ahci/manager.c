@@ -23,9 +23,9 @@
  */
 //#define __TRACE
 
-#include <os/file.h>
+#include <ddk/file.h>
 #include <os/mollenos.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include <stdlib.h>
 #include "manager.h"
 

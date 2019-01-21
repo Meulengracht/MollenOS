@@ -557,13 +557,13 @@ SetDirectIoAccess(
     // Update thread's io-map and the active access
     if (Enable) {
         IoMap[Port / 8] &= ~(1 << (Port % 8));
-        if (CoreId == CpuGetCurrentId()) {
+        if (CoreId == ArchGetProcessorCoreId()) {
             TssEnableIo(CoreId, Port);
         }
     }
     else {
         IoMap[Port / 8] |= (1 << (Port % 8));
-        if (CoreId == CpuGetCurrentId()) {
+        if (CoreId == ArchGetProcessorCoreId()) {
             TssDisableIo(CoreId, Port);
         }
     }

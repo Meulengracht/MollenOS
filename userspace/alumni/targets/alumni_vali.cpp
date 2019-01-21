@@ -23,7 +23,6 @@
 
 #include <os/mollenos.h>
 #include <os/process.h>
-#include <os/ipc/ipc.h>
 #include <os/input.h>
 #include <io.h>
 #include "../terminal_interpreter.hpp"

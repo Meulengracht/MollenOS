@@ -66,7 +66,7 @@ void CValiSurface::Invalidate() {
 }
 
 uint8_t* CValiSurface::GetDataPointer(int OffsetX, int OffsetY) {
-    uint8_t *Pointer = (uint8_t*)GetBufferDataPointer(m_WindowBuffer);
+    uint8_t *Pointer = (uint8_t*)m_WindowBuffer;
     Pointer += ((OffsetY * (GetDimensions().GetWidth() * 4)) + (OffsetX * 4));
     return Pointer;
 }

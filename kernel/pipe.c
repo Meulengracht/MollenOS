@@ -26,6 +26,7 @@
 //#define __TRACE
 
 #include <system/utils.h>
+#include <system/time.h>
 #include <scheduler.h>
 #include <debug.h>
 #include <pipe.h>
@@ -917,7 +918,7 @@ AdvanceSystemPipeConsumer(
     if ((Pipe->Configuration & PIPE_MPMC) == 0) {
         SystemPipeSegment_t *Next;
         while (GetSystemPipeTail(Pipe) == Segment) {
-            CpuStall(1);
+            ArchStallProcessorCore(1);
         }
         Next = GetNextSegment(Segment);
         assert(Next != NULL);

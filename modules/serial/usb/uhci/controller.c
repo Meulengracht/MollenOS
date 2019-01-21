@@ -24,7 +24,7 @@
 
 /* Includes
  * - System */
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include "uhci.h"
 
 /* Includes
@@ -45,8 +45,9 @@ static int TimerRegistered = 0;
 /* HciTimerCallback 
  * The function to check up on ports at regular intervals. */
 void
-HciTimerCallback(void)
+HciTimerCallback(void* Context)
 {
+    _CRT_UNUSED(Context);
     // Do a port-check and perform transaction checks
     foreach(cNode, UsbManagerGetControllers()) {
         UhciUpdateCurrentFrame((UhciController_t*)cNode->Data);
@@ -89,7 +90,7 @@ HciControllerCreate(
 
     // Register the callback if it's not already
     if (TimerRegistered == 0) {
-        UsbManagerRegisterTimer(MSEC_PER_SEC, HciTimerCallback);
+        QueuePeriodicEvent(UsbManagerGetEventQueue(), HciTimerCallback, NULL, MSEC_PER_SEC);
         TimerRegistered = 1;
     }
 

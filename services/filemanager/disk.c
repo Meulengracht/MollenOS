@@ -21,11 +21,11 @@
  */
 #define __TRACE
 
-#include <os/contracts/filesystem.h>
-#include <os/sessions.h>
-#include <os/file.h>
+#include <ddk/contracts/filesystem.h>
+#include <ddk/sessions.h>
+#include <ddk/file.h>
 #include <os/process.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include "include/vfs.h"
 #include <stdlib.h>
 #include <string.h>

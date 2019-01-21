@@ -23,8 +23,8 @@
 
 /* Includes
  * - System */
-#include <os/utils.h>
-#include <os/usb.h>
+#include <ddk/utils.h>
+#include <ddk/usb.h>
 #include "../msd.h"
 
 /* UfiConstructCommand

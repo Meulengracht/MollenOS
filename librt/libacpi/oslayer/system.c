@@ -26,9 +26,11 @@
  * - (OS) System */
 #include <system/thread.h>
 #include <system/utils.h>
+#include <system/time.h>
 #include <interrupts.h>
 #include <threading.h>
 #include <scheduler.h>
+#include <timers.h>
 #include <debug.h>
 
 /* Includes
@@ -243,7 +245,7 @@ void
 AcpiOsSleep (
     UINT64                  Milliseconds)
 {
-    if (GetCurrentThreadForCore(CpuGetCurrentId()) != NULL) {
+    if (GetCurrentThreadForCore(ArchGetProcessorCoreId()) != NULL) {
         SchedulerThreadSleep(NULL, (size_t)Milliseconds);
     }
     else {
@@ -267,7 +269,7 @@ AcpiOsStall (
     UINT32                  Microseconds)
 {
     // We never stall for less than 1 ms
-    CpuStall((Microseconds / 1000) + 1);
+    ArchStallProcessorCore((Microseconds / 1000) + 1);
 }
 
 
@@ -328,7 +330,9 @@ UINT64
 AcpiOsGetTimer (
     void)
 {
-    return (UINT64)CpuGetTicks();
+    UINT64 CurrentTime = 0;
+    TimersGetSystemTick((clock_t*)&CurrentTime);
+    return CurrentTime;
 }
 
 /******************************************************************************

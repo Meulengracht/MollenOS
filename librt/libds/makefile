@@ -16,8 +16,8 @@ else
 $(error VALI_ARCH is not set to a valid value)
 endif
 
-COMMON_INCLUDES = -I../include -I../libc/include -Iinclude
-COMMON_SOURCES = $(wildcard pe/*.c) $(wildcard *.c)
+COMMON_INCLUDES = -I../include -I../libc/include -Iinclude -I../libddk/include
+COMMON_SOURCES = $(wildcard mstring/*.c) $(wildcard pe/*.c) $(wildcard *.c)
 
 KERNEL_SOURCES = $(COMMON_SOURCES) support/dsk.c
 KERNEL_OBJECTS = $(KERNEL_SOURCES:.c=.ko)

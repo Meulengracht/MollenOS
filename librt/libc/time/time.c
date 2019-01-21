@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,26 +16,33 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C Library - Get Time
+ * Get System Time
+ *  - Retrieves the system time in sec/min/day/mon/year format, and converts it to local
+ *    time in time_t format.
  */
 
 #include <os/mollenos.h>
-#include <time.h>
 #include <stddef.h>
-#include <string.h>
+#include <time.h>
 
-time_t time(time_t *timer)
+time_t time(time_t* Timer)
 {
-	struct tm TimeStruct;
-	time_t Converted = 0;
+    SystemTime_t SystemTime = { { { 0 } } };
+	struct tm    Temporary  = { 0 };
+	time_t       Result     = 0;
 
-	if (SystemTime(&TimeStruct) != OsSuccess) {
-		return 0;
+    // Retrieve structure in our format, convert and mktime
+	if (GetSystemTime(&SystemTime) == OsSuccess) {
+        Temporary.tm_sec  = SystemTime.Second;
+        Temporary.tm_min  = SystemTime.Minute;
+        Temporary.tm_hour = SystemTime.Hour;
+        Temporary.tm_mday = SystemTime.DayOfMonth;
+        Temporary.tm_mon  = SystemTime.Month - 1;
+        Temporary.tm_year = SystemTime.Year;
+        Result = mktime(&Temporary);
+        if (Timer != NULL) {
+            *Timer = Result;
+        }
 	}
-    
-	Converted = mktime(&TimeStruct);
-	if (timer != NULL) {
-		*timer = Converted;
-	}
-	return Converted;
+	return Result;
 }

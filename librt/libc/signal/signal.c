@@ -21,7 +21,7 @@
  */
 
 #include <internal/_all.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include <signal.h>
 #include <errno.h>
 #include <stdlib.h>

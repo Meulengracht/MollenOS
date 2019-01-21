@@ -30,12 +30,12 @@
  * file. Useful because they make it more difficult to inadvertently type in
  * the wrong signature. */
 #ifndef __ACPI_EXCLUDE_TABLES
-#include <os/acpi/acsetup.h>
-#include <os/acpi/actypes.h>
-#include <os/acpi/actbl.h>
-#include <os/acpi/actbl1.h>
-#include <os/acpi/actbl2.h>
-#include <os/acpi/actbl3.h>
+#include <ddk/acpi/acsetup.h>
+#include <ddk/acpi/actypes.h>
+#include <ddk/acpi/actbl.h>
+#include <ddk/acpi/actbl1.h>
+#include <ddk/acpi/actbl2.h>
+#include <ddk/acpi/actbl3.h>
 #endif
 
 /* The ACPI system descriptor structure

@@ -29,10 +29,8 @@
 #include <stdlib.h>
 #include "../cmos.h"
 
-/* CmosGetTicks
- * Retrieves the number of ticks done by the RTC. */
-clock_t
-CmosGetTicks(void);
+extern void    CmosResetTicks(void);
+extern clock_t CmosGetTicks(void);
 
 /* RtcInterrupt
  * Handles the rtc interrupt and acknowledges the interrupt by reading cmos */
@@ -102,7 +100,7 @@ RtcInitialize(
 
     // Register our irq as a system timer
     if (Chip->Irq != UUID_INVALID) {
-        TimersRegisterSystemTimer(Chip->Irq, Chip->NsTick, CmosGetTicks);
+        TimersRegisterSystemTimer(Chip->Irq, Chip->NsTick, CmosGetTicks, CmosResetTicks);
     }
     else {
         ERROR("Failed to register interrupt for rtc");

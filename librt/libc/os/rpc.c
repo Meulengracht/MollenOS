@@ -19,7 +19,7 @@
  * MollenOS Inter-Process Communication Interface
  */
 
-#include <os/ipc/ipc.h>
+#include <ddk/ipc/ipc.h>
 #include <stdlib.h>
 #include <signal.h>
 

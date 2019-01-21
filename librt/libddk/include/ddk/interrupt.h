@@ -25,7 +25,7 @@
 #define __INTERRUPT_INTERFACE_H__
 
 #include <os/osdefs.h>
-#include <os/io.h>
+#include <ddk/io.h>
 
 #define INTERRUPT_NONE                      (int)-1
 #define INTERRUPT_MAXVECTORS                8

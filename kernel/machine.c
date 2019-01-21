@@ -45,27 +45,22 @@
 extern void StartTestingPhase(void);
 #endif
 
-/* Globals
- * - Static state variables */
 static SystemMachine_t Machine = { 
-    { 0 }, { 0 }, { 0 }, { 0 },         // Strings
+    { 0 }, { 0 }, { 0 }, { 0 },                      // Strings
     REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD,
-    { 0 }, { { 0 } }, { 0 }, { 0 },     // BootInformation, Processor, MemorySpace, PhysicalMemory
-    { { 0 } }, COLLECTION_INIT(KeyInteger), // Memory Map, SystemDomains
-    NULL, 0, NULL, NULL, NULL,          // InterruptControllers
-    0, 0, 0, 0                          // Total Information
+    { 0 }, { { 0 } }, { 0 }, { 0 },                  // BootInformation, Processor, MemorySpace, PhysicalMemory
+    { { 0 } }, COLLECTION_INIT(KeyInteger),          // Memory Map, SystemDomains
+    NULL, 0, NULL, NULL, NULL,                       // InterruptControllers
+    { { { 0 } } },                                   // SystemTime
+    0, 0, 0, 0                                       // Total Information
 };
 
-/* GetMachine
- * Retrieves a pointer for the machine structure. */
 SystemMachine_t*
 GetMachine(void)
 {
     return &Machine;
 }
 
-/* PrintHeader
- * Print build information and os-versioning */
 void
 PrintHeader(
     _In_ Multiboot_t *BootInformation)
@@ -77,8 +72,6 @@ PrintHeader(
     WRITELINE("%s build %s - %s\n", BUILD_SYSTEM, BUILD_DATE, BUILD_TIME);
 }
 
-/* InitializeMachine
- * Callable by the architecture layer to initialize the kernel */
 void
 InitializeMachine(
     _In_ Multiboot_t* BootInformation)
@@ -140,7 +133,7 @@ InitializeMachine(
     Status = InitializeConsole();
     if (Status != OsSuccess) {
         ERROR("Failed to initialize output for system.");
-        CpuHalt();
+        ArchProcessorHalt();
     }
 
     // Build system topology by enumerating the SRAT table if present.
@@ -160,20 +153,20 @@ InitializeMachine(
     Status = ThreadingInitialize();
     if (Status != OsSuccess) {
         ERROR("Failed to initialize threading for boot core.");
-        CpuIdle();
+        ArchProcessorIdle();
     }
 
     Status = ThreadingEnable();
     if (Status != OsSuccess) {
         ERROR("Failed to enable threading for boot core.");
-        CpuIdle();
+        ArchProcessorIdle();
     }
 
     InitializeInterruptTable();
     Status = InterruptInitialize();
     if (Status != OsSuccess) {
         ERROR("Failed to initialize interrupts for system.");
-        CpuIdle();
+        ArchProcessorIdle();
     }
     LogInitializeFull();
 
@@ -183,7 +176,7 @@ InitializeMachine(
         AcpiInitialize();
         if (AcpiDevicesScan() != AE_OK) {
             ERROR("Failed to finalize the ACPI setup.");
-            CpuIdle();
+            ArchProcessorIdle();
         }
     }
 #endif
@@ -193,8 +186,9 @@ InitializeMachine(
     Status = InitializeSystemTimers();
     if (Status != OsSuccess) {
         ERROR("Failed to initialize timers for system.");
-        CpuHalt();
+        ArchProcessorHalt();
     }
+    TimersSynchronizeTime();
 #ifdef __OSCONFIG_ENABLE_MULTIPROCESSORS
     EnableMultiProcessoringMode();
 #endif
@@ -221,11 +215,11 @@ StopAndShowError:
     Status = InitializeConsole();
     if (Status != OsSuccess) {
         ERROR("Failed to initialize output for system.");
-        CpuHalt();
+        ArchProcessorHalt();
     }
 
 IdleProcessor:
     while (1) {
-        CpuIdle();
+        ArchProcessorIdle();
     }
 }

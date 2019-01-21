@@ -49,9 +49,6 @@ typedef enum _DeviceInputType {
 
 #define KEY_MODIFIER_RELEASED   0x1000
 
-/* SystemKey
- * Represents a key event coming from an input pipe. Contains state details
- * and different text representations. */
 PACKED_TYPESTRUCT(SystemKey, {
     uint8_t     KeyAscii;
     uint8_t     KeyCode;
@@ -59,9 +56,6 @@ PACKED_TYPESTRUCT(SystemKey, {
     uint32_t    KeyUnicode;
 });
 
-/* SystemInput
- * Represents an input event that is used for non-key events. This could be raw pointer
- * data like mouse-data or joystick-data. */
 PACKED_TYPESTRUCT(SystemInput, {
     uint8_t     Type;
     uint8_t     Flags;
@@ -72,33 +66,19 @@ PACKED_TYPESTRUCT(SystemInput, {
 });
 
 _CODE_BEGIN
-/* WriteSystemInput
- * Notifies the operating system of new input, this input is written to the system's
- * standard input, which is then sent to the window-manager if present. */
-CRTDECL(OsStatus_t,
-WriteSystemInput(
-    _In_ SystemInput_t* Input));
-
-/* WriteSystemKey
- * Notifies the operating system of new key-event, this key is written to the system's
- * standard input, which is then sent to the window-manager if present. */
-CRTDECL(OsStatus_t,
-WriteSystemKey(
-    _In_ SystemKey_t*   Key));
-
 /* ReadSystemKey
  * Reads a system key from the process's stdin handle. This returns
  * the raw system key with no processing performed on the key. */
 CRTDECL(OsStatus_t,
 ReadSystemKey(
-    _In_ SystemKey_t*   Key));
+    _In_ SystemKey_t* Key));
 
 /* TranslateSystemKey
  * Performs the translation on the keycode in the system key structure. This fills
  * in the <KeyUnicode> and <KeyAscii> members by translation of the active keymap. */
 CRTDECL(OsStatus_t,
 TranslateSystemKey(
-    _In_ SystemKey_t*   Key));
+    _In_ SystemKey_t* Key));
 _CODE_END
 
 #endif //!__INPUT_INTERFACE_H__

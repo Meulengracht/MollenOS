@@ -22,8 +22,7 @@
 #define __MODULE "APIC"
 #define __TRACE
 
-/* Includes 
- * - System */
+#include <ds/collection.h>
 #include <component/domain.h>
 #include <component/cpu.h>
 #include <system/interrupts.h>
@@ -33,28 +32,21 @@
 #include <interrupts.h>
 #include <memoryspace.h>
 #include <machine.h>
+#include <string.h>
 #include <timers.h>
 #include <debug.h>
 #include <apic.h>
 #include <heap.h>
 #include <mp.h>
 
-/* Includes
- * - Library */
-#include <ds/collection.h>
-#include <string.h>
-
 extern void _rdmsr(size_t Register, uint64_t *Value);
 
-/* Globals 
- * We mark the GlbTimerTicks volatile
- * as it changes frequently */
-SystemInterruptController_t *GlbIoApicI8259Apic = NULL;
-int GlbIoApicI8259Pin = 0;
-size_t GlbTimerQuantum = APIC_DEFAULT_QUANTUM;
-volatile size_t GlbTimerTicks[64];
+static SystemInterruptController_t* IoApicI8259Apic = NULL;
+static int                          IoApicI8259Pin  = 0;
+static SystemInterruptMode_t        InterruptMode   = InterruptModePic;
+
+size_t    GlbTimerQuantum  = APIC_DEFAULT_QUANTUM;
 uintptr_t GlbLocalApicBase = 0;
-SystemInterruptMode_t InterruptMode = InterruptModePic;
 
 /* GetSystemLvtByAcpi
  * Retrieves lvt setup for the calling cpu and the given Lvt index. */
@@ -78,7 +70,7 @@ GetSystemLvtByAcpi(
             switch (MadtEntry->Type) {
                 case ACPI_MADT_TYPE_LOCAL_APIC_NMI: {
                     ACPI_MADT_LOCAL_APIC_NMI *Nmi = (ACPI_MADT_LOCAL_APIC_NMI*)MadtEntry;
-                    if (Nmi->ProcessorId == 0xFF || Nmi->ProcessorId == CpuGetCurrentId()) {
+                    if (Nmi->ProcessorId == 0xFF || Nmi->ProcessorId == ArchGetProcessorCoreId()) {
                         if (Nmi->Lint == Lvt) {
                             LvtSetup = APIC_NMI_ROUTE;
                             LvtSetup |= (AcpiGetPolarityMode(Nmi->IntiFlags, 0) << 13);
@@ -128,7 +120,7 @@ InitializeApicLvt(
     }
 
     // Disable the lvt entry for all other than the boot processor
-    if (CpuGetCurrentId() != GetMachine()->Processor.PrimaryCore.Id) {
+    if (ArchGetProcessorCoreId() != GetMachine()->Processor.PrimaryCore.Id) {
         Temp |= APIC_MASKED;
     }
     ApicWriteLocal(APIC_LINT0_REGISTER + (Lvt * 0x10), Temp);
@@ -187,15 +179,15 @@ ParseIoApic(
      *                                   processors that is the destination
      */
 
-    /* Step 1 - find the i8259 connection */
+    // Step 1 - find the i8259 connection
     for (i = 0; i <= IoEntries; i++) {
         uint64_t Entry = ApicReadIoEntry(Controller, i);
 
-        /* Unmasked and ExtINT? 
-         * - Then we found it */ 
+        // Unmasked and ExtINT? 
+        // - Then we found it, and should lock the interrupt route
         if ((Entry & (APIC_MASKED | APIC_EXTINT_ROUTE)) == APIC_EXTINT_ROUTE) {
-            GlbIoApicI8259Apic     = Controller;
-            GlbIoApicI8259Pin     = i;
+            IoApicI8259Apic = Controller;
+            IoApicI8259Pin  = i;
             InterruptIncreasePenalty(i);
             break;
         }
@@ -412,10 +404,6 @@ ApicInitialize(void)
     WriteDirectIo(DeviceIoPortBased, 0x22, 1, 0x70);
     WriteDirectIo(DeviceIoPortBased, 0x23, 1, 0x1);
 
-    // Clear out the global timer-tick counter
-    // we don't want any values in it previously :-)
-    memset((void*)GlbTimerTicks, 0, sizeof(GlbTimerTicks));
-
     // Step 2. Get the LAPIC base 
     // So we lookup the MADT table if it exists (if it doesn't
     // we should fallback to MP tables)
@@ -514,7 +502,7 @@ void
 InitializeLocalApicForApplicationCore(void)
 {
     // Perform inital preperations for the APIC
-    ApicInitialSetup(CpuGetCurrentId());
+    ApicInitialSetup(ArchGetProcessorCoreId());
     ApicEnable();
 
     // Setup the LVT channels
@@ -540,9 +528,9 @@ ApicRecalibrateTimer(void)
     TRACE("ApicRecalibrateTimer()");
 
     // Setup initial local apic timer registers
-    ApicWriteLocal(APIC_TIMER_VECTOR,       INTERRUPT_LAPIC);
-    ApicWriteLocal(APIC_DIVIDE_REGISTER,    APIC_TIMER_DIVIDER_1);
-    ApicWriteLocal(APIC_INITIAL_COUNT,      0xFFFFFFFF); // Set counter to max, it counts down
+    ApicWriteLocal(APIC_TIMER_VECTOR,    INTERRUPT_LAPIC);
+    ApicWriteLocal(APIC_DIVIDE_REGISTER, APIC_TIMER_DIVIDER_1);
+    ApicWriteLocal(APIC_INITIAL_COUNT,   0xFFFFFFFF); // Set counter to max, it counts down
 
     // Sleep for 100 ms
     while (Tick < 100) {

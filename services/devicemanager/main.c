@@ -23,9 +23,9 @@
 //#define __TRACE
 
 #include "devicemanager.h"
-#include <os/driver.h>
-#include <os/utils.h>
-#include <os/service.h>
+#include <ddk/driver.h>
+#include <ddk/utils.h>
+#include <ddk/service.h>
 #include <ds/collection.h>
 #include <bus.h>
 #include <assert.h>

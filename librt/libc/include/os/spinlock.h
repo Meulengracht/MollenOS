@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2018, Philip Meulengracht
+ * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Spinlock Support Definitions & Structures
+ * Spinlock Support Definitions & Structures
  * - This header describes the base spinlock-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -24,48 +24,40 @@
 #ifndef _SPINLOCK_INTERFACE_H_
 #define _SPINLOCK_INTERFACE_H_
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
 #include <threads.h>
 
-/* Spinlock Definitions
- * The definition of a spinlock handle used for primitive lock access */
 typedef struct _Spinlock {
-    int                 Value;
-    UUId_t              Owner;
-    int                 References;
+    int    Value;
+    UUId_t Owner;
+    int    References;
 } Spinlock_t;
 #define SPINLOCK_INIT   { 0 }
 
 _CODE_BEGIN
 /* SpinlockReset
  * This initializes a spinlock handle and sets it to default value (unlocked) */
-CRTDECL( 
-OsStatus_t,
+CRTDECL(OsStatus_t,
 SpinlockReset(
-	_In_ Spinlock_t *Lock));
+	_In_ Spinlock_t* Lock));
 
 /* SpinlockAcquire
  * Acquires the spinlock while busy-waiting for it to be ready if neccessary */
-CRTDECL( 
-OsStatus_t,
+CRTDECL(OsStatus_t,
 SpinlockAcquire(
-	_In_ Spinlock_t *Lock));
+	_In_ Spinlock_t* Lock));
 
 /* SpinlockTryAcquire
  * Makes an attempt to acquire the spinlock without blocking */
-CRTDECL( 
-OsStatus_t,
+CRTDECL(OsStatus_t,
 SpinlockTryAcquire(
-	_In_ Spinlock_t *Lock));
+	_In_ Spinlock_t* Lock));
 
 /* SpinlockRelease
  * Releases the spinlock, and lets other threads access the lock */
-CRTDECL( 
-OsStatus_t,
+CRTDECL(OsStatus_t,
 SpinlockRelease(
-	_In_ Spinlock_t *Lock));
+	_In_ Spinlock_t* Lock));
 _CODE_END
 
 #endif //!_SPINLOCK_INTERFACE_H_

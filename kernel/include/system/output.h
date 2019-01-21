@@ -25,7 +25,7 @@
 #define _MCORE_SYSVIDEO_H_
 
 #include <os/osdefs.h>
-#include <os/contracts/video.h>
+#include <ddk/contracts/video.h>
 
 PACKED_TYPESTRUCT(BootTerminal, {
 	Flags_t						Type;

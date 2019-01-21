@@ -26,7 +26,7 @@
 
 #include <os/osdefs.h>
 #include <ds/collection.h>
-#include <os/io.h>
+#include <ddk/io.h>
 
 // Operating system version of the DeviceIo
 // Contains extra information as current owner of a space to increase

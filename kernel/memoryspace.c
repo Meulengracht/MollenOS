@@ -192,7 +192,7 @@ SystemMemorySpace_t*
 GetCurrentMemorySpace(void)
 {
     // Lookup current thread
-    MCoreThread_t *CurrentThread = GetCurrentThreadForCore(CpuGetCurrentId());
+    MCoreThread_t *CurrentThread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
 
     // if no threads are active return the kernel address space
     if (CurrentThread == NULL) {
@@ -210,7 +210,7 @@ GetCurrentMemorySpace(void)
 UUId_t
 GetCurrentMemorySpaceHandle(void)
 {
-    MCoreThread_t* CurrentThread = GetCurrentThreadForCore(CpuGetCurrentId());
+    MCoreThread_t* CurrentThread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
     if (CurrentThread == NULL) {
         return UUID_INVALID;
     }

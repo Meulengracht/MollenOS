@@ -22,12 +22,7 @@
  */
 #define SHA1HANDSOFF
 
-/* Includes 
- * - System */
 #include <os/sha1.h>
-
-/* Includes
- * - Library */
 #include <stdio.h>
 #include <string.h>
 

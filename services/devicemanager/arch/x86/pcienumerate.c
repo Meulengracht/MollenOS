@@ -24,8 +24,8 @@
 
 #include "../../devicemanager.h"
 #include "bus.h"
-#include <os/acpi.h>
-#include <os/utils.h>
+#include <ddk/acpi.h>
+#include <ddk/utils.h>
 #include <stdlib.h>
 
 /* PCI-Express Support

@@ -91,7 +91,7 @@ ScReadPipe(
     SystemPipe_t* Pipe = (SystemPipe_t*)LookupHandle(Handle);
     if (Pipe == NULL) {
         ERROR("Thread %s trying to read from non-existing pipe handle %u", 
-            GetCurrentThreadForCore(CpuGetCurrentId())->Name, Handle);
+            GetCurrentThreadForCore(ArchGetProcessorCoreId())->Name, Handle);
         return OsDoesNotExist;
     }
 
@@ -116,7 +116,7 @@ ScWritePipe(
 
     if (Pipe == NULL) {
         ERROR("%s: ScPipeWrite::Invalid pipe %u", 
-            GetCurrentThreadForCore(CpuGetCurrentId())->Name, Handle);
+            GetCurrentThreadForCore(ArchGetProcessorCoreId())->Name, Handle);
         return OsError;
     }
     WriteSystemPipe(Pipe, Message, Length);
@@ -129,7 +129,7 @@ OsStatus_t
 ScRpcResponse(
     _In_ MRemoteCall_t* RemoteCall)
 {
-    SystemPipe_t* Pipe = GetCurrentThreadForCore(CpuGetCurrentId())->Pipe;
+    SystemPipe_t* Pipe = GetCurrentThreadForCore(ArchGetProcessorCoreId())->Pipe;
     assert(Pipe != NULL);
     assert(RemoteCall != NULL);
     assert(RemoteCall->Result.Length > 0);
@@ -172,7 +172,7 @@ ScRpcExecute(
     }
 
     // Decrypt the sender for the receiver
-    Thread = GetCurrentThreadForCore(CpuGetCurrentId());
+    Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
     RemoteCall->From.Process ^= Thread->Cookie;
     RemoteCall->From.Thread   = Thread->Id;
 

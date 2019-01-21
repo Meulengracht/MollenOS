@@ -19,9 +19,9 @@
  * MollenOS C Library - File Opening & File Creation
  */
 
-#include <os/ipc/pipe.h>
-#include <os/utils.h>
-#include <os/file.h>
+#include <ddk/ipc/pipe.h>
+#include <ddk/utils.h>
+#include <ddk/file.h>
 
 #include <io.h>
 #include <stdio.h>

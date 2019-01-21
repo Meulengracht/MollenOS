@@ -4,7 +4,7 @@
 # Include all the definitions for os
 include ../../config/common.mk
 
-INCLUDES = -Icxx/include -I../include -I../libc/include -Iabi/include/
+INCLUDES = -Icxx/include -I../include -I../libc/include -I../libddk/include -Iabi/include/
 
 INT_SOURCES = ../libcrt/crtos.c ../libcrt/crtcoff.c
 ABI_SOURCES = $(wildcard abi/src/*.cpp) $(wildcard init/*.cpp)

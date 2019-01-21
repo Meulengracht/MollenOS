@@ -24,7 +24,7 @@
 
 /* Includes
  * - System */
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include "uhci.h"
 
 /* Includes

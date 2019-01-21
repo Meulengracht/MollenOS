@@ -228,7 +228,7 @@ SchedulerSynchronizeCore(
     TRACE("SchedulerSynchronizeCore(%u, %i)", Thread->CoreId, SuppressSynchronization);
 
     // If the current cpu is idling, wake us up
-    if (Thread->CoreId != CpuGetCurrentId()) {
+    if (Thread->CoreId != ArchGetProcessorCoreId()) {
         State = (volatile SystemCpuState_t*)&GetProcessorCore(Thread->CoreId)->State;
         while (*State & CpuStateInterruptActive);
     }
@@ -289,7 +289,7 @@ SchedulerThreadInitialize(
         Thread->Queue           = SCHEDULER_LEVEL_LOW;
         Thread->TimeSlice       = SCHEDULER_TIMESLICE_INITIAL + (SCHEDULER_LEVEL_LOW * 2);
         Thread->SchedulerFlags |= SCHEDULER_FLAG_BOUND;
-        Thread->CoreId          = CpuGetCurrentId();
+        Thread->CoreId          = ArchGetProcessorCoreId();
     }
     else {
         Thread->Queue       = 0;
@@ -357,7 +357,7 @@ SchedulerThreadSleep(
     MCoreThread_t*  CurrentThread;
     UUId_t          CoreId;
     
-    CoreId          = CpuGetCurrentId();
+    CoreId          = ArchGetProcessorCoreId();
     CurrentThread   = GetCurrentThreadForCore(CoreId);
     
     assert(CurrentThread != NULL);
@@ -396,7 +396,7 @@ SchedulerAtomicThreadSleep(
     UUId_t          CoreId;
     
     // Instantiate values
-    CoreId          = CpuGetCurrentId();
+    CoreId          = ArchGetProcessorCoreId();
     CurrentThread   = GetCurrentThreadForCore(CoreId);
 
     assert(CurrentThread != NULL);
@@ -509,7 +509,7 @@ void
 SchedulerRequeueSleepers(
     _In_ MCoreScheduler_t*  Scheduler)
 {
-    MCoreThread_t* Thread = GetThreadReadyForExecution(CpuGetCurrentId());
+    MCoreThread_t* Thread = GetThreadReadyForExecution(ArchGetProcessorCoreId());
     while (Thread != NULL) {
         TRACE("readding thread %s", Thread->Name);
         // Remove from sleeper queue and requeue them, however never
@@ -518,7 +518,7 @@ SchedulerRequeueSleepers(
         if (!(Thread->Flags & THREADING_IDLE)) {
             SchedulerThreadQueue(Thread, 1);
         }
-        Thread = GetThreadReadyForExecution(CpuGetCurrentId());
+        Thread = GetThreadReadyForExecution(ArchGetProcessorCoreId());
     }
 }
 

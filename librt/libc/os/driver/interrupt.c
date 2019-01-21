@@ -22,7 +22,7 @@
  */
 
 #include <internal/_syscalls.h>
-#include <os/driver.h>
+#include <ddk/driver.h>
 
 /* RegisterFastInterruptHandler
  * Registers a fast interrupt handler associated with the interrupt. */
