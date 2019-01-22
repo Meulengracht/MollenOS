@@ -26,10 +26,10 @@
 #include <revision.h>
 #include <machine.h>
 
-#include <acpiinterface.h>
 #include <garbagecollector.h>
-#include <modules/modules.h>
-#include <process/phoenix.h>
+#include <modules/ramdisk.h>
+#include <modules/manager.h>
+#include <acpiinterface.h>
 #include <interrupts.h>
 #include <scheduler.h>
 #include <threading.h>
@@ -45,27 +45,22 @@
 extern void StartTestingPhase(void);
 #endif
 
-/* Globals
- * - Static state variables */
 static SystemMachine_t Machine = { 
-    { 0 }, { 0 }, { 0 }, { 0 },         // Strings
+    { 0 }, { 0 }, { 0 }, { 0 },                      // Strings
     REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD,
-    { 0 }, { { 0 } }, { 0 }, { 0 },     // BootInformation, Processor, MemorySpace, PhysicalMemory
-    { { 0 } }, COLLECTION_INIT(KeyInteger), // Memory Map, SystemDomains
-    NULL, 0, NULL, NULL, NULL,          // InterruptControllers
-    0, 0, 0, 0                          // Total Information
+    { 0 }, { { 0 } }, { 0 }, { 0 },                  // BootInformation, Processor, MemorySpace, PhysicalMemory
+    { { 0 } }, COLLECTION_INIT(KeyInteger),          // Memory Map, SystemDomains
+    NULL, 0, NULL, NULL, NULL,                       // InterruptControllers
+    { { { 0 } } },                                   // SystemTime
+    0, 0, 0, 0                                       // Total Information
 };
 
-/* GetMachine
- * Retrieves a pointer for the machine structure. */
 SystemMachine_t*
 GetMachine(void)
 {
     return &Machine;
 }
 
-/* PrintHeader
- * Print build information and os-versioning */
 void
 PrintHeader(
     _In_ Multiboot_t *BootInformation)
@@ -77,14 +72,16 @@ PrintHeader(
     WRITELINE("%s build %s - %s\n", BUILD_SYSTEM, BUILD_DATE, BUILD_TIME);
 }
 
-/* InitializeMachine
- * Callable by the architecture layer to initialize the kernel */
 void
 InitializeMachine(
-    _In_ Multiboot_t *BootInformation)
+    _In_ Multiboot_t* BootInformation)
 {
-    // Variables
     OsStatus_t Status;
+
+    // Boot information must be supplied
+    if (BootInformation == NULL) {
+        return; // @todo perform unique halt/set error
+    }
     
     // Initialize all our static memory systems and global variables
     memcpy(&Machine.BootInformation, BootInformation, sizeof(Multiboot_t));
@@ -117,7 +114,7 @@ InitializeMachine(
 
 #ifdef __OSCONFIG_HAS_MMIO
     DebugInstallPageFaultHandlers(&Machine.MemoryMap);
-    Status = InitializeSystemMemorySpace(&Machine.SystemSpace);
+    Status = InitializeMemorySpace(&Machine.SystemSpace);
     if (Status != OsSuccess) {
         ERROR("Failed to initalize system memory space");
         goto StopAndShowError;
@@ -136,7 +133,7 @@ InitializeMachine(
     Status = InitializeConsole();
     if (Status != OsSuccess) {
         ERROR("Failed to initialize output for system.");
-        CpuHalt();
+        ArchProcessorHalt();
     }
 
     // Build system topology by enumerating the SRAT table if present.
@@ -156,20 +153,20 @@ InitializeMachine(
     Status = ThreadingInitialize();
     if (Status != OsSuccess) {
         ERROR("Failed to initialize threading for boot core.");
-        CpuIdle();
+        ArchProcessorIdle();
     }
 
     Status = ThreadingEnable();
     if (Status != OsSuccess) {
         ERROR("Failed to enable threading for boot core.");
-        CpuIdle();
+        ArchProcessorIdle();
     }
 
     InitializeInterruptTable();
     Status = InterruptInitialize();
     if (Status != OsSuccess) {
         ERROR("Failed to initialize interrupts for system.");
-        CpuIdle();
+        ArchProcessorIdle();
     }
     LogInitializeFull();
 
@@ -179,21 +176,19 @@ InitializeMachine(
         AcpiInitialize();
         if (AcpiDevicesScan() != AE_OK) {
             ERROR("Failed to finalize the ACPI setup.");
-            CpuIdle();
+            ArchProcessorIdle();
         }
     }
 #endif
 
-    // Initialize process and usermode systems
-    GcInitialize();
-    InitializePhoenix();
-
     // Last step is to enable timers that kickstart all other threads
+    GcInitialize();
     Status = InitializeSystemTimers();
     if (Status != OsSuccess) {
         ERROR("Failed to initialize timers for system.");
-        CpuHalt();
+        ArchProcessorHalt();
     }
+    TimersSynchronizeTime();
 #ifdef __OSCONFIG_ENABLE_MULTIPROCESSORS
     EnableMultiProcessoringMode();
 #endif
@@ -205,12 +200,13 @@ InitializeMachine(
 #elif __OSCONFIG_DEBUGMODE
     EnableSystemDebugConsole();
 #else
-    Status = ModulesInitialize(&Machine.BootInformation);
+    InitializeModuleInheritationBlock();
+    Status = ParseInitialRamdisk(&Machine.BootInformation);
     if (Status != OsSuccess) {
         ERROR(" > no ramdisk provided, operating system will enter debug mode");
+        EnableSystemDebugConsole();
     }
-
-    ModulesRunServers();
+    SpawnServices();
 #endif
     WARNING("End of initialization");
     goto IdleProcessor;
@@ -219,11 +215,11 @@ StopAndShowError:
     Status = InitializeConsole();
     if (Status != OsSuccess) {
         ERROR("Failed to initialize output for system.");
-        CpuHalt();
+        ArchProcessorHalt();
     }
 
 IdleProcessor:
     while (1) {
-        CpuIdle();
+        ArchProcessorIdle();
     }
 }

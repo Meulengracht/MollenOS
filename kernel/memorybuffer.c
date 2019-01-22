@@ -24,7 +24,6 @@
 #define __MODULE "MBUF"
 //#define __TRACE
 
-#include <process/process.h>
 #include <memorybuffer.h>
 #include <machine.h>
 #include <handle.h>
@@ -41,14 +40,15 @@ CreateMemoryBuffer(
     _In_  size_t        Size,
     _Out_ DmaBuffer_t*  MemoryBuffer)
 {
-    SystemMemoryBuffer_t *SystemBuffer;
-    OsStatus_t Status       = OsSuccess;
-    uintptr_t DmaAddress    = 0;
-    uintptr_t Virtual       = 0;
-    size_t Capacity;
-    UUId_t Handle;
+    SystemMemoryBuffer_t* SystemBuffer;
+    SystemMemorySpace_t*  Space      = GetCurrentMemorySpace();
+    OsStatus_t            Status     = OsSuccess;
+    uintptr_t             DmaAddress = 0;
+    uintptr_t             Virtual    = 0;
+    size_t                Capacity;
+    UUId_t                Handle;
 
-    Capacity    = DIVUP(Size, GetSystemMemoryPageSize()) * GetSystemMemoryPageSize();
+    Capacity = DIVUP(Size, GetMemorySpacePageSize()) * GetMemorySpacePageSize();
     switch (MEMORY_BUFFER_TYPE(Flags)) {
         case MEMORY_BUFFER_KERNEL: {
             DmaAddress = AllocateSystemMemory(Capacity, __MASK, MEMORY_DOMAIN);
@@ -57,7 +57,7 @@ CreateMemoryBuffer(
                 return OsError;
             }
 
-            Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), &DmaAddress, 
+            Status = CreateMemorySpaceMapping(Space, &DmaAddress, 
                 &Virtual, Capacity, MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_KERNEL, __MASK);
             if (Status != OsSuccess) {
                 ERROR("Failed to map system memory");
@@ -66,6 +66,9 @@ CreateMemoryBuffer(
             }
         } break;
 
+        // On allocation, the memory mapping variant behaves like
+        // the normal behaviour, on free it does not.
+        case MEMORY_BUFFER_MEMORYMAPPING:
         case MEMORY_BUFFER_DEFAULT: {
             DmaAddress = AllocateSystemMemory(Capacity, __MASK, MEMORY_DOMAIN);
             if (DmaAddress == 0) {
@@ -73,22 +76,12 @@ CreateMemoryBuffer(
                 return OsError;
             }
 
-            Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), &DmaAddress, 
+            Status = CreateMemorySpaceMapping(Space, &DmaAddress, 
                 &Virtual, Capacity, MAPPING_USERSPACE | MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_PROCESS, __MASK);
             if (Status != OsSuccess) {
                 ERROR("Failed to map system memory");
                 FreeSystemMemory(DmaAddress, Capacity);
                 return Status;
-            }
-        } break;
-
-        case MEMORY_BUFFER_FILEMAPPING: {
-            SystemProcess_t* CurrentProcess = GetCurrentProcess();
-            assert(CurrentProcess != NULL);
-            Virtual = AllocateBlocksInBlockmap(CurrentProcess->Heap, __MASK, Size);
-            if (Virtual == 0) {
-                ERROR("Failed to allocate heap memory");
-                return OsError;
             }
         } break;
 
@@ -135,7 +128,7 @@ AcquireMemoryBuffer(
     }
 
     // Map it in to make sure we can do it
-    Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), &SystemBuffer->Physical, 
+    Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), &SystemBuffer->Physical, 
         &Virtual, SystemBuffer->Capacity, MAPPING_USERSPACE | 
         MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_PROCESS, __MASK);
     if (Status != OsSuccess) {
@@ -182,12 +175,11 @@ OsStatus_t
 DestroyMemoryBuffer(
     _In_  void*         Resource)
 {
-    SystemMemoryBuffer_t *SystemBuffer;
-    OsStatus_t Status = OsSuccess;
+    SystemMemoryBuffer_t* SystemBuffer = (SystemMemoryBuffer_t*)Resource;
+    OsStatus_t            Status       = OsSuccess;
 
     // Free the physical pages associated, then cleanup structure
     // Only free in the case it's not empty
-    SystemBuffer = (SystemMemoryBuffer_t*)Resource;
     switch (MEMORY_BUFFER_TYPE(SystemBuffer->Flags)) {
         case MEMORY_BUFFER_DEFAULT:
         case MEMORY_BUFFER_KERNEL: {

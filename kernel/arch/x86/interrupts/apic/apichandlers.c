@@ -27,15 +27,8 @@
 #include <acpi.h>
 #include <apic.h>
 
-/* Externs 
- * We need access to a few of the variables
- * in the other apic files */
-__EXTERN volatile size_t GlbTimerTicks[64];
-__EXTERN size_t GlbTimerQuantum;
-
-/* Extern to our assembly function
- * it loads the new task context */
-__EXTERN void enter_thread(Context_t *Regs);
+extern size_t GlbTimerQuantum;
+extern void enter_thread(Context_t *Regs);
 
 /* ApicTimerHandler
  * The scheduler interrupt handler. The only functionality this handler has is
@@ -48,14 +41,13 @@ ApicTimerHandler(
     Context_t *Regs;
     size_t TimeSlice;
     int TaskPriority;
-    UUId_t CurrCpu = CpuGetCurrentId();
+    UUId_t CurrCpu = ArchGetProcessorCoreId();
     _CRT_UNUSED(NotUsed);
 
     // Yield => start by sending eoi. It is never certain that we actually return
     // to this function due to how signals are working
-    GlbTimerTicks[CurrCpu]++;
     ApicSendEoi(APIC_NO_GSI, INTERRUPT_LAPIC);
-    Regs = _ThreadingSwitch((Context_t*)Context, 1, &TimeSlice, &TaskPriority);
+    Regs = _GetNextRunnableThread((Context_t*)Context, 1, &TimeSlice, &TaskPriority);
     
     // If we are idle task - disable timer untill we get woken up
     if (!ThreadingIsCurrentTaskIdle(CurrCpu)) {

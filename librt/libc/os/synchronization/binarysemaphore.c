@@ -21,10 +21,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-/* Includes
- * - System */
 #include <os/binarysemaphore.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 
 /* BinarySemaphoreConstruct
  * Initializes the semaphore value to either 0 or 1 */
@@ -46,8 +44,6 @@ BinarySemaphoreConstruct(
     mtx_init(&BinarySemaphore->Mutex, mtx_plain);
     cnd_init(&BinarySemaphore->Condition);
 	BinarySemaphore->Value = Value;
-
-	// Done
 	return OsSuccess;
 }
 

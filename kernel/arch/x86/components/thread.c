@@ -21,7 +21,6 @@
  */
 #define __MODULE "XTIF"
 
-#include <process/process.h>
 #include <system/thread.h>
 #include <system/utils.h>
 #include <threading.h>
@@ -62,7 +61,7 @@ ThreadingHaltHandler(
 {
     _CRT_UNUSED(NotUsed);
     _CRT_UNUSED(Context);
-    CpuHalt();
+    ArchProcessorHalt();
     return InterruptHandled;
 }
 
@@ -81,10 +80,10 @@ ThreadingYieldHandler(
     // Yield => start by sending eoi. It is never certain that we actually return
     // to this function due to how signals are working
     ApicSendEoi(APIC_NO_GSI, INTERRUPT_YIELD);
-    Regs = _ThreadingSwitch((Context_t*)Context, 0, &TimeSlice, &TaskPriority);
+    Regs = _GetNextRunnableThread((Context_t*)Context, 0, &TimeSlice, &TaskPriority);
 
     // If we are idle task - disable timer untill we get woken up
-    if (!ThreadingIsCurrentTaskIdle(CpuGetCurrentId())) {
+    if (!ThreadingIsCurrentTaskIdle(ArchGetProcessorCoreId())) {
         ApicSetTaskPriority(61 - TaskPriority);
         ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * TimeSlice);
     }
@@ -165,15 +164,16 @@ OsStatus_t
 ThreadingSignalDispatch(
     _In_ MCoreThread_t* Thread)
 {
-    SystemProcess_t* Process = (SystemProcess_t*)LookupHandle(Thread->ProcessHandle);
-    assert(Process != NULL);
+    assert(Thread != NULL);
+    assert(Thread->MemorySpace->Context != NULL);
+    assert(Thread->MemorySpace->Context->SignalHandler != 0);
 
     // Now we can enter the signal context 
     // handler, we cannot return from this function
     Thread->Contexts[THREADING_CONTEXT_SIGNAL1] = ContextCreate(Thread->Flags,
-        THREADING_CONTEXT_SIGNAL1, Process->SignalHandler,
+        THREADING_CONTEXT_SIGNAL1, Thread->MemorySpace->Context->SignalHandler,
         MEMORY_LOCATION_SIGNAL_RET, Thread->ActiveSignal.Signal, 0);
-    TssUpdateThreadStack(CpuGetCurrentId(), (uintptr_t)Thread->Contexts[THREADING_CONTEXT_SIGNAL0]);
+    TssUpdateThreadStack(ArchGetProcessorCoreId(), (uintptr_t)Thread->Contexts[THREADING_CONTEXT_SIGNAL0]);
     enter_thread(Thread->Contexts[THREADING_CONTEXT_SIGNAL1]);
     return OsSuccess;
 }
@@ -186,12 +186,11 @@ void
 ThreadingImpersonate(
     _In_ MCoreThread_t *Thread)
 {
-    MCoreThread_t *Current;
-    UUId_t Cpu;
-
-    // Instantiate values
-    Cpu             = CpuGetCurrentId();
-    Current         = ThreadingGetCurrentThread(Cpu);
+    MCoreThread_t* Current;
+    UUId_t         Cpu;
+    
+    Cpu     = ArchGetProcessorCoreId();
+    Current = GetCurrentThreadForCore(Cpu);
     
     // If we impersonate ourself, leave
     if (Current == Thread) {
@@ -200,26 +199,24 @@ ThreadingImpersonate(
     else {
         Current->Flags |= THREADING_IMPERSONATION;
     }
-
-    // Load resources
     TssUpdateIo(Cpu, (uint8_t*)Thread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
-    SwitchSystemMemorySpace(Thread->MemorySpace);
+    SwitchMemorySpace(Thread->MemorySpace);
 }
 
-/* _ThreadingSwitch
+/* _GetNextRunnableThread
  * This function loads a new task from the scheduler, it
  * implements the task-switching functionality, which MCore leaves
  * up to the underlying architecture */
 Context_t*
-_ThreadingSwitch(
+_GetNextRunnableThread(
     _In_ Context_t  *Context,
     _In_ int         PreEmptive,
     _Out_ size_t    *TimeSlice,
     _Out_ int       *TaskQueue)
 {
     // Variables
-    UUId_t Cpu              = CpuGetCurrentId();
-    MCoreThread_t *Thread   = ThreadingGetCurrentThread(Cpu);
+    UUId_t Cpu              = ArchGetProcessorCoreId();
+    MCoreThread_t *Thread   = GetCurrentThreadForCore(Cpu);
 
     // Sanitize the status of threading - return default values
     if (Thread == NULL) {
@@ -241,18 +238,18 @@ _ThreadingSwitch(
     }
 
     // Get a new thread for us to enter
-    Thread      = ThreadingSwitch(Thread, PreEmptive, &Context);
+    Thread      = GetNextRunnableThread(Thread, PreEmptive, &Context);
     *TimeSlice  = Thread->TimeSlice;
     *TaskQueue  = Thread->Queue;
     Thread->Data[THREAD_DATA_FLAGS] &= ~X86_THREAD_USEDFPU; // Clear the FPU used flag
 
     // Load thread-specific resources
-    SwitchSystemMemorySpace(Thread->MemorySpace);
+    SwitchMemorySpace(Thread->MemorySpace);
     TssUpdateThreadStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
     TssUpdateIo(Cpu, (uint8_t*)Thread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
     set_ts(); // Set task switch bit so we get faults on fpu instructions
 
     // Handle any signals pending for thread
-    SignalHandle(Thread->Id);
+    SignalProcess(Thread->Id);
     return Context;
 }

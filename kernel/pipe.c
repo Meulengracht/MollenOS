@@ -26,6 +26,7 @@
 //#define __TRACE
 
 #include <system/utils.h>
+#include <system/time.h>
 #include <scheduler.h>
 #include <debug.h>
 #include <pipe.h>
@@ -90,13 +91,14 @@ ConstructSystemPipe(
 
 /* DestroySystemPipe
  * Destroys a pipe and wakes up all sleeping threads, then frees all resources allocated */
-void
+OsStatus_t
 DestroySystemPipe(
-    _In_ SystemPipe_t*              Pipe)
+    _In_ void*                      Resource)
 {
     // @todo pipe synchronization with threads waiting
     // for data in pipe.
-    kfree(Pipe);
+    kfree(Resource);
+    return OsSuccess;
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -916,7 +918,7 @@ AdvanceSystemPipeConsumer(
     if ((Pipe->Configuration & PIPE_MPMC) == 0) {
         SystemPipeSegment_t *Next;
         while (GetSystemPipeTail(Pipe) == Segment) {
-            CpuStall(1);
+            ArchStallProcessorCore(1);
         }
         Next = GetNextSegment(Segment);
         assert(Next != NULL);

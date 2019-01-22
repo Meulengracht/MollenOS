@@ -29,11 +29,11 @@
 
 /* Includes
  * - Interfaces */
-#include <os/contracts/base.h>
-#include <os/contracts/usbhost.h>
-#include <os/contracts/usbdevice.h>
-#include <os/contracts/storage.h>
-#include <os/file.h>
+#include <ddk/contracts/base.h>
+#include <ddk/contracts/usbhost.h>
+#include <ddk/contracts/usbdevice.h>
+#include <ddk/contracts/storage.h>
+#include <ddk/file.h>
 
 /* MSD Subclass Definitions 
  * Contains generic magic constants and definitions */

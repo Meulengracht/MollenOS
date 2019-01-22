@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,14 +16,17 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Shared Object Support Definitions & Structures
+ * Shared Object Support Definitions & Structures
  * - This header describes the base sharedobject-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
+#include <internal/_syscalls.h>
+#include <internal/_utils.h>
 #include <os/sharedobject.h>
-#include <os/syscall.h>
 #include <ds/collection.h>
+#include <ds/mstring.h>
+#include <os/process.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <ctype.h>
@@ -34,13 +37,9 @@ typedef struct _LibraryItem {
     int              References;
 } LibraryItem_t;
 
-/* Globals
- * - Function blueprint for dll-entry */
 typedef void (*SOInitializer_t)(int);
 static Collection_t LoadedLibraries = COLLECTION_INIT(KeyId);
 
-/* SharedObjectHash
- * Helper utility to identify shared libraries */
 size_t SharedObjectHash(const char *String) {
 	uint8_t* Pointer    = (uint8_t*)String;
 	size_t Hash         = 5381;
@@ -53,15 +52,12 @@ size_t SharedObjectHash(const char *String) {
 	return Hash;
 }
 
-/* SharedObjectLoad
- * Load a shared object given a path
- * path must exists otherwise NULL is returned */
 Handle_t 
 SharedObjectLoad(
 	_In_ const char* SharedObject)
 {
     SOInitializer_t Initializer = NULL;
-    LibraryItem_t *Library      = NULL;
+    LibraryItem_t* Library      = NULL;
     Handle_t Result             = HANDLE_INVALID;
     DataKey_t Key               = { .Value.Id = SharedObjectHash(SharedObject) };
 
@@ -72,8 +68,15 @@ SharedObjectLoad(
 
     Library = CollectionGetDataByKey(&LoadedLibraries, Key, 0);
     if (Library == NULL) {
-	    Result = Syscall_LibraryLoad(SharedObject);
-        if (Result != HANDLE_INVALID) {
+        OsStatus_t Status;
+        if (IsProcessModule()) {
+            Status = Syscall_LibraryLoad(SharedObject, NULL, 0, &Result);
+        }
+        else {
+            Status = ProcessLoadLibrary(SharedObject, &Result);
+        }
+
+        if (Status == OsSuccess && Result != HANDLE_INVALID) {
             Library = (LibraryItem_t*)malloc(sizeof(LibraryItem_t));
             COLLECTION_NODE_INIT((CollectionItem_t*)Library, Key);
             Library->Handle     = Result;
@@ -95,10 +98,6 @@ SharedObjectLoad(
     return Result;
 }
 
-/* SharedObjectGetFunction
- * Load a function-address given an shared object
- * handle and a function name, function must exist
- * otherwise null is returned */
 void*
 SharedObjectGetFunction(
 	_In_ Handle_t       Handle, 
@@ -107,21 +106,26 @@ SharedObjectGetFunction(
 	if (Handle == HANDLE_INVALID || Function == NULL) {
 		return NULL;
 	}
-	return (void*)Syscall_LibraryFunction(Handle, Function);
+
+    if (IsProcessModule()) {
+        return (void*)Syscall_LibraryFunction(Handle, Function);
+    }
+	else {
+        uintptr_t AddressOfFunction;
+        if (ProcessGetLibraryFunction(Handle, Function, &AddressOfFunction) != OsSuccess) {
+            return NULL;
+        }
+        return (void*)AddressOfFunction;
+    }
 }
 
-/* SharedObjectUnload
- * Unloads a valid shared object handle
- * returns OsError on failure */
 OsStatus_t 
 SharedObjectUnload(
 	_In_ Handle_t Handle)
 {
-    // Variables
-    SOInitializer_t Initialize  = NULL;
-    LibraryItem_t *Library      = NULL;
+    SOInitializer_t Initialize = NULL;
+    LibraryItem_t*  Library    = NULL;
 
-	// Sanitize input
 	if (Handle == HANDLE_INVALID) {
 		return OsError;
 	}
@@ -142,7 +146,13 @@ SharedObjectUnload(
             if (Initialize != NULL) {
                 Initialize(DLL_ACTION_FINALIZE);
             }
-	        return Syscall_LibraryUnload(Handle);
+
+            if (IsProcessModule()) {
+                return Syscall_LibraryUnload(Handle);
+            }
+	        else {
+                return ProcessUnloadLibrary(Handle);
+            }
         }
     }
     return OsError;

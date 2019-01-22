@@ -21,39 +21,33 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include <os/contracts/base.h>
-#include <os/device.h>
+#include <ddk/contracts/base.h>
+#include <ddk/ipc/ipc.h>
+#include <ddk/service.h>
+#include <ddk/device.h>
 #include <string.h>
 
-/* Device Registering
- * Allows registering of a new device in the
- * device-manager, and automatically queries for a driver for the new device */
 UUId_t
 RegisterDevice(
     _In_    UUId_t          Parent,
     _InOut_ MCoreDevice_t*  Device, 
     _In_    Flags_t         Flags)
 {
-    // Variables
     MRemoteCall_t Request;
-    UUId_t Result = UUID_INVALID;
+    UUId_t        Result = UUID_INVALID;
     
     // Sanitize
     if (Device == NULL || (Device->Length < sizeof(MCoreDevice_t))) {
         return UUID_INVALID;
     }
 
-    // Initialize RPC
     RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
         __DEVICEMANAGER_INTERFACE_VERSION, __DEVICEMANAGER_REGISTERDEVICE);
     RPCSetArgument(&Request, 0, (const void*)&Parent, sizeof(UUId_t));
     RPCSetArgument(&Request, 1, (const void*)Device, Device->Length);
     RPCSetArgument(&Request, 2, (const void*)&Flags, sizeof(Flags_t));
     
-    // Result
     RPCSetResult(&Request, (const void*)&Result, sizeof(UUId_t));
-    
-    // Execute RPC
     if (RPCExecute(&Request) != OsSuccess) {
         return UUID_INVALID;
     }
@@ -70,15 +64,13 @@ OsStatus_t
 UnregisterDevice(
     _In_ UUId_t DeviceId)
 {
-    // Variables
     MRemoteCall_t Request;
-    OsStatus_t Result = OsSuccess;
+    OsStatus_t    Result = OsSuccess;
 
-    // Initialize RPC
     RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
         __DEVICEMANAGER_INTERFACE_VERSION, __DEVICEMANAGER_UNREGISTERDEVICE);
-    RPCSetArgument(&Request, 0, (__CONST void*)&DeviceId, sizeof(UUId_t));
-    RPCSetResult(&Request, (__CONST void*)&Result, sizeof(OsStatus_t));
+    RPCSetArgument(&Request, 0, (const void*)&DeviceId, sizeof(UUId_t));
+    RPCSetResult(&Request, (const void*)&Result, sizeof(OsStatus_t));
     if (RPCExecute(&Request) != OsSuccess) {
         return OsError;
     }
@@ -90,23 +82,19 @@ UnregisterDevice(
  * or enable, or configure the device */
 OsStatus_t
 IoctlDevice(
-    _In_ UUId_t Device,
+    _In_ UUId_t  Device,
     _In_ Flags_t Command,
     _In_ Flags_t Flags)
 {
-    // Variables
     MRemoteCall_t Request;
-    OsStatus_t Result = OsSuccess;
+    OsStatus_t    Result = OsSuccess;
 
-    // Initialize RPC
     RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
         __DEVICEMANAGER_INTERFACE_VERSION, __DEVICEMANAGER_IOCTLDEVICE);
-    RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
-    RPCSetArgument(&Request, 1, (__CONST void*)&Command, sizeof(Flags_t));
-    RPCSetArgument(&Request, 2, (__CONST void*)&Flags, sizeof(Flags_t));
-    RPCSetResult(&Request, (__CONST void*)&Result, sizeof(OsStatus_t));
-    
-    // Execute RPC
+    RPCSetArgument(&Request, 0, (const void*)&Device, sizeof(UUId_t));
+    RPCSetArgument(&Request, 1, (const void*)&Command, sizeof(Flags_t));
+    RPCSetArgument(&Request, 2, (const void*)&Flags, sizeof(Flags_t));
+    RPCSetResult(&Request, (const void*)&Result, sizeof(OsStatus_t));
     RPCExecute(&Request);
     return Result;
 }
@@ -117,45 +105,36 @@ IoctlDevice(
  * <Direction> = 0 (Read), 1 (Write) */
 OsStatus_t
 IoctlDeviceEx(
-    _In_ UUId_t Device,
-    _In_ int Direction,
-    _In_ Flags_t Register,
-    _InOut_ Flags_t *Value,
-    _In_ size_t Width)
+    _In_    UUId_t   Device,
+    _In_    int      Direction,
+    _In_    Flags_t  Register,
+    _InOut_ Flags_t* Value,
+    _In_    size_t   Width)
 {
-    // Variables
     MRemoteCall_t Request;
-    Flags_t Result = 0;
-    Flags_t Select = 0;
+    Flags_t       Result = 0;
+    Flags_t       Select = 0;
 
-    // Build selection
     Select = __DEVICEMANAGER_IOCTL_EXT;
     if (Direction == 0) {
         Select |= __DEVICEMANAGER_IOCTL_EXT_READ;
     }
 
-    // Initialize RPC
     RPCInitialize(&Request, __DEVICEMANAGER_TARGET, 
         __DEVICEMANAGER_INTERFACE_VERSION, __DEVICEMANAGER_IOCTLDEVICE);
-    RPCSetArgument(&Request, 0, (__CONST void*)&Device, sizeof(UUId_t));
-    RPCSetArgument(&Request, 1, (__CONST void*)&Select, sizeof(Flags_t));
-    RPCSetArgument(&Request, 2, (__CONST void*)&Register, sizeof(Flags_t));
-    RPCSetArgument(&Request, 3, (__CONST void*)Value, sizeof(Flags_t));
-    RPCSetArgument(&Request, 4, (__CONST void*)&Width, sizeof(size_t));
-    RPCSetResult(&Request, (__CONST void*)&Result, sizeof(Flags_t));
-    
-    // Execute RPC
+    RPCSetArgument(&Request, 0, (const void*)&Device, sizeof(UUId_t));
+    RPCSetArgument(&Request, 1, (const void*)&Select, sizeof(Flags_t));
+    RPCSetArgument(&Request, 2, (const void*)&Register, sizeof(Flags_t));
+    RPCSetArgument(&Request, 3, (const void*)Value, sizeof(Flags_t));
+    RPCSetArgument(&Request, 4, (const void*)&Width, sizeof(size_t));
+    RPCSetResult(&Request, (const void*)&Result, sizeof(Flags_t));
     RPCExecute(&Request);
-
-    // Handle return
     if (Direction == 0 && Value != NULL) {
         *Value = Result;
     }
     else {
         return (OsStatus_t)Result;
     }
-
-    // Read, discard value
     return OsSuccess;
 }
 
@@ -165,12 +144,11 @@ IoctlDeviceEx(
  * of functionality the device supports */
 OsStatus_t
 RegisterContract(
-    _In_ MContract_t *Contract)
+    _In_ MContract_t* Contract)
 {
-    // Variables
     MRemoteCall_t Request;
-    OsStatus_t Result = OsSuccess;
-    UUId_t ContractId = UUID_INVALID;
+    OsStatus_t    Result = OsSuccess;
+    UUId_t        ContractId = UUID_INVALID;
 
     // Initialize static RPC variables like
     // type of RPC, pipe and version

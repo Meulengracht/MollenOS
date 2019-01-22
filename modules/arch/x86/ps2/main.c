@@ -20,9 +20,10 @@
  * http://wiki.osdev.org/PS2
  */
 
-#include <os/contracts/base.h>
+#include <ddk/contracts/base.h>
 #include <os/mollenos.h>
-#include <os/utils.h>
+#include <ddk/ipc/ipc.h>
+#include <ddk/utils.h>
 #include <threads.h>
 #include <string.h>
 #include <stdlib.h>
@@ -246,19 +247,6 @@ OnInterrupt(
         return PS2MouseInterrupt(Port);
     }
     return InterruptHandled;
-}
-
-/* OnTimeout
- * Is called when one of the registered timer-handles
- * times-out. A new timeout event is generated and passed on to the below handler */ 
-OsStatus_t
-OnTimeout(
-    _In_ UUId_t     Timer,
-    _In_ void*        Data)
-{
-    _CRT_UNUSED(Timer);
-    _CRT_UNUSED(Data);
-    return OsSuccess;
 }
 
 /* OnLoad

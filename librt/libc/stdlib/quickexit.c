@@ -24,9 +24,9 @@
 #include <errno.h>
 
 #ifdef __clang__
-__EXTERN void __CrtCallExitHandlers(int Status, int Quick, int DoAtExit, int CleanupCrt);
-__EXTERN int __cxa_at_quick_exit(void (*Function)(void*), void *Dso);
-__EXTERN void *__dso_handle;
+extern void  __cxa_exithandlers(int Status, int Quick, int DoAtExit, int CleanupCrt);
+extern int   __cxa_at_quick_exit(void (*Function)(void*), void *Dso);
+extern void* __dso_handle;
 
 /* at_quick_exit 
  * Register a cleanup handler for
@@ -42,7 +42,7 @@ at_quick_exit(
 void
 quick_exit(
     _In_ int Status) {
-    __CrtCallExitHandlers(Status, 1, 0, 0);
+    __cxa_exithandlers(Status, 1, 0, 0);
 	_Exit(Status);
 }
 #else

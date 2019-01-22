@@ -22,7 +22,7 @@
 //#define __TRACE
 
 #include <os/input.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include <string.h>
 #include <stdlib.h>
 #include "keyboard.h"

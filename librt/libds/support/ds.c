@@ -19,21 +19,55 @@
  * MollenOS - Generic Data Structures (Shared)
  */
 
+#include <os/mollenos.h>
+#include <ds/mstring.h>
 #include <ds/ds.h>
+#include "../pe/pe.h"
 #include <string.h>
 
+#define __MODULE "DATA"
 #ifdef LIBC_KERNEL
+//#define __TRACE
 #include <system/interrupts.h>
+#include <modules/manager.h>
+#include <memoryspace.h>
+#include <machine.h>
+#include <stdio.h>
+#include <debug.h>
 #include <heap.h>
+
+typedef struct _MemoryMappingState {
+    MemorySpaceHandle_t Handle;
+    uintptr_t           Address;
+    size_t              Length;
+    Flags_t             Flags;
+} MemoryMappingState_t;
+
 #else
+#define __TRACE
+#include <internal/_syscalls.h>
+#include <ddk/buffer.h>
+#include <ddk/memory.h>
+#include <ddk/utils.h>
+#include <ddk/file.h>
 #include <stdlib.h>
+#include <stdio.h>
+
+typedef struct _MemoryMappingState {
+    MemorySpaceHandle_t Handle;
+    uintptr_t           Address;
+    size_t              Length;
+    Flags_t             Flags;
+    DmaBuffer_t*        UserAccess;
+} MemoryMappingState_t;
+
+static SystemDescriptor_t __SystemInformation = { 0 };
 #endif
 
-/* dsalloc
- * Seperate portable memory allocator for data-structures */
-void*
-dsalloc(
-    _In_ size_t size)
+/*******************************************************************************
+ * Support Methods (DS)
+ *******************************************************************************/
+void* dsalloc(size_t size)
 {
 #ifdef LIBC_KERNEL
 	return kmalloc(size);
@@ -42,107 +76,299 @@ dsalloc(
 #endif
 }
 
-/* dsfree
- * Seperate portable memory freeing for data-structures */
-void
-dsfree(
-    _In_ void *p)
+void dsfree(void* pointer)
 {
 #ifdef LIBC_KERNEL
-	kfree(p);
+	kfree(pointer);
 #else
-	free(p);
+	free(pointer);
 #endif
 }
 
-/* dslock
- * Acquires the lock given, this is a blocking call and will wait untill
- * the lock is acquired. */
-void
-dslock(
-    _In_ SafeMemoryLock_t *MemoryLock)
+void dslock(SafeMemoryLock_t* lock)
 {
     bool locked = true;
 
 #ifdef LIBC_KERNEL
-    MemoryLock->Flags = InterruptDisable();
+    lock->Flags = InterruptDisable();
 #endif
     while (1) {
-        bool val = atomic_exchange(&MemoryLock->SyncObject, locked);
+        bool val = atomic_exchange(&lock->SyncObject, locked);
         if (val == false) {
             break;
         }
     }
 }
 
-/* dsunlock
- * Releases the lock given and restores any previous flags. */
-void
-dsunlock(
-    _In_ SafeMemoryLock_t *MemoryLock)
+void dsunlock(SafeMemoryLock_t* lock)
 {
-    atomic_exchange(&MemoryLock->SyncObject, false);
+    atomic_exchange(&lock->SyncObject, false);
 #ifdef LIBC_KERNEL
-    InterruptRestoreState(MemoryLock->Flags);
+    InterruptRestoreState(lock->Flags);
 #endif
 }
 
-/* Helper Function
- * Matches two keys based on the key type
- * returns 0 if they are equal, or -1 if not */
-int
-dsmatchkey(
-    _In_ KeyType_t KeyType,
-    _In_ DataKey_t Key1,
-    _In_ DataKey_t Key2)
+void dstrace(const char* fmt, ...)
 {
-	switch (KeyType) {
+    char Buffer[256] = { 0 };
+    va_list Arguments;
+
+    va_start(Arguments, fmt);
+    vsnprintf(&Buffer[0], sizeof(Buffer), fmt, Arguments);
+    va_end(Arguments);
+    TRACE(&Buffer[0]);
+}
+
+void dswarning(const char* fmt, ...)
+{
+    char Buffer[256] = { 0 };
+    va_list Arguments;
+
+    va_start(Arguments, fmt);
+    vsnprintf(&Buffer[0], sizeof(Buffer), fmt, Arguments);
+    va_end(Arguments);
+    WARNING(&Buffer[0]);
+}
+
+void dserror(const char* fmt, ...)
+{
+    char Buffer[256] = { 0 };
+    va_list Arguments;
+
+    va_start(Arguments, fmt);
+    vsnprintf(&Buffer[0], sizeof(Buffer), fmt, Arguments);
+    va_end(Arguments);
+    ERROR(&Buffer[0]);
+}
+
+int dsmatchkey(KeyType_t type, DataKey_t key1, DataKey_t key2)
+{
+	switch (type) {
         case KeyId: {
-			if (Key1.Value.Id == Key2.Value.Id) {
+			if (key1.Value.Id == key2.Value.Id) {
                 return 0;
             }
         } break;
 		case KeyInteger: {
-			if (Key1.Value.Integer == Key2.Value.Integer) {
+			if (key1.Value.Integer == key2.Value.Integer) {
                 return 0;
             }
 		} break;
 		case KeyString: {
-			return strcmp(Key1.Value.String.Pointer, Key2.Value.String.Pointer);
+			return strcmp(key1.Value.String.Pointer, key2.Value.String.Pointer);
 		} break;
 	}
 	return -1;
 }
 
-/* Helper Function
- * Used by sorting, it compares to values
- * and returns 1 if 1 > 2, 0 if 1 == 2 and -1 if 2 > 1 */
-int
-dssortkey(
-    _In_ KeyType_t KeyType,
-    _In_ DataKey_t Key1,
-    _In_ DataKey_t Key2)
+int dssortkey(KeyType_t type, DataKey_t key1, DataKey_t key2)
 {
-	switch (KeyType) {
+	switch (type) {
         case KeyId: {
-			if (Key1.Value.Id == Key2.Value.Id)
+			if (key1.Value.Id == key2.Value.Id)
 				return 0;
-			else if (Key1.Value.Id > Key2.Value.Id)
+			else if (key1.Value.Id > key2.Value.Id)
 				return 1;
 			else
 				return -1;
         } break;
 		case KeyInteger: {
-			if (Key1.Value.Integer == Key2.Value.Integer)
+			if (key1.Value.Integer == key2.Value.Integer)
 				return 0;
-			else if (Key1.Value.Integer > Key2.Value.Integer)
+			else if (key1.Value.Integer > key2.Value.Integer)
 				return 1;
 			else
 				return -1;
 		} break;
 		case KeyString: {
-			return strcmp(Key1.Value.String.Pointer, Key2.Value.String.Pointer);
+			return strcmp(key1.Value.String.Pointer, key2.Value.String.Pointer);
 		} break;
 	}
 	return 0;
+}
+
+/*******************************************************************************
+ * Support Methods (PE)
+ *******************************************************************************/
+uintptr_t GetPageSize(void)
+{
+#ifdef LIBC_KERNEL
+    return GetMemorySpacePageSize();
+#else
+    if (__SystemInformation.PageSizeBytes == 0) {
+        SystemQuery(&__SystemInformation);
+    }
+    return __SystemInformation.PageSizeBytes;
+#endif
+}
+
+uintptr_t GetBaseAddress(void)
+{
+#ifdef LIBC_KERNEL
+    return GetMachine()->MemoryMap.UserCode.Start;
+#else
+    uintptr_t BaseAddress = 0;
+    Syscall_GetProcessBaseAddress(&BaseAddress);
+    return BaseAddress;
+#endif
+}
+
+OsStatus_t LoadFile(MString_t* Path, MString_t** FullPath, void** BufferOut, size_t* LengthOut)
+{
+    OsStatus_t Status;
+#ifdef LIBC_KERNEL
+    MString_t* InitRdPath = MStringCreate("rd:/", StrUTF8);
+    MStringAppendCharacters(InitRdPath, MStringRaw(Path), StrUTF8);
+    Status = GetModuleDataByPath(InitRdPath, BufferOut, LengthOut);
+    if (Status == OsSuccess && FullPath != NULL) {
+        *FullPath = MStringCreate((void*)MStringRaw(InitRdPath), StrUTF8);
+    }
+    MStringDestroy(InitRdPath);
+#else
+    LargeInteger_t   QueriedSize = { { 0 } };
+    void*            Buffer      = NULL;
+    FileSystemCode_t FsCode;
+    UUId_t           Handle;
+    size_t           Size;
+
+    // Open the file as read-only
+    FsCode = OpenFile(MStringRaw(Path), 0, __FILE_READ_ACCESS, &Handle);
+    if (FsCode != FsOk) {
+        ERROR("Invalid path given: %s", MStringRaw(Path));
+        return OsError;
+    }
+
+    Status = GetFileSize(Handle, &QueriedSize.u.LowPart, NULL);
+    if (Status != OsSuccess) {
+        ERROR("Failed to retrieve the file size");
+        CloseFile(Handle);
+        return Status;
+    }
+
+    if (FullPath != NULL) {
+        char* PathBuffer = (char*)dsalloc(_MAXPATH);
+        memset(PathBuffer, 0, _MAXPATH);
+
+        Status = GetFilePath(Handle, PathBuffer, _MAXPATH);
+        if (Status != OsSuccess) {
+            ERROR("Failed to query file handle for full path");
+            dsfree(PathBuffer);
+            CloseFile(Handle);
+            return Status;
+        }
+        *FullPath = MStringCreate(PathBuffer, StrUTF8);
+        dsfree(PathBuffer);
+    }
+
+    Size = (size_t)QueriedSize.QuadPart;
+    if (Size != 0) {
+        DmaBuffer_t* TransferBuffer = CreateBuffer(UUID_INVALID, Size);
+        if (TransferBuffer != NULL) {
+            Buffer = dsalloc(Size);
+            if (Buffer != NULL) {
+                size_t Index, Read = 0;
+                FsCode = ReadFile(Handle, GetBufferHandle(TransferBuffer), Size, &Index, &Read);
+                if (FsCode == FsOk && Read != 0) {
+                    memcpy(Buffer, (const void*)GetBufferDataPointer(TransferBuffer), Read);
+                }
+                else {
+                    if (FullPath != NULL) {
+                        MStringDestroy(*FullPath);
+                    }
+                    dsfree(Buffer);
+                    Status = OsError;
+                    Buffer = NULL;
+                }
+            }
+            DestroyBuffer(TransferBuffer);
+        }
+    }
+    CloseFile(Handle);
+    *BufferOut = Buffer;
+    *LengthOut = Size;
+#endif
+    return Status;
+}
+
+OsStatus_t CreateImageSpace(MemorySpaceHandle_t* HandleOut)
+{
+#ifdef LIBC_KERNEL
+    *HandleOut = (MemorySpaceHandle_t)GetCurrentMemorySpace();
+#else
+    UUId_t     MemorySpaceHandle = UUID_INVALID;
+    OsStatus_t Status            = CreateMemorySpace(0, &MemorySpaceHandle);
+    if (Status != OsSuccess) {
+        return Status;
+    }
+    *HandleOut = (MemorySpaceHandle_t)MemorySpaceHandle;
+#endif
+    return OsSuccess;
+}
+
+// Acquires (and creates) a memory mapping in the given memory space handle. The mapping is directly 
+// accessible in kernel mode, and in usermode a transfer-buffer is transparently provided as proxy.
+OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, size_t Length, Flags_t Flags, MemoryMapHandle_t* HandleOut)
+{
+    MemoryMappingState_t* StateObject = (MemoryMappingState_t*)dsalloc(sizeof(MemoryMappingState_t));
+    OsStatus_t            Status;
+
+    StateObject->Handle  = Handle;
+    StateObject->Address = *Address;
+    StateObject->Length  = Length;
+    StateObject->Flags   = Flags;
+    *HandleOut           = (MemoryMapHandle_t*)StateObject;
+
+    // When creating these mappings we must always
+    // map in with write flags, and then clear the write flag on release if it was requested
+#ifdef LIBC_KERNEL
+    // Translate memory flags to kernel flags
+    Flags_t KernelFlags = MAPPING_USERSPACE | MAPPING_DOMAIN | MAPPING_FIXED;
+    if (Flags | MEMORY_EXECUTABLE) {
+        KernelFlags |= MAPPING_EXECUTABLE;
+    }
+    Status = CreateMemorySpaceMapping((SystemMemorySpace_t*)Handle, NULL, Address, Length, KernelFlags, __MASK);
+    if (Status != OsSuccess) {
+        dsfree(StateObject);
+    }
+#else
+    struct MemoryMappingParameters Parameters;
+    DmaBuffer_t* Buffer = (DmaBuffer_t*)dsalloc(sizeof(DmaBuffer_t));
+
+    memset(Buffer, 0, sizeof(DmaBuffer_t));
+    Parameters.VirtualAddress = *Address;
+    Parameters.Length         = Length;
+    Parameters.Flags          = Flags;
+    
+    Status = CreateMemoryMapping((UUId_t)Handle, &Parameters, Buffer);
+    if (Status != OsSuccess) {
+        dsfree(Buffer);
+        dsfree(StateObject);
+        return Status;
+    }
+    *Address   = (uintptr_t)GetBufferDataPointer(Buffer);
+    StateObject->UserAccess = Buffer;
+#endif
+    return Status;
+}
+
+// Releases the access previously granted to the mapping, however this is not something
+// that is neccessary in kernel mode, so this function does nothing
+void ReleaseImageMapping(MemoryMapHandle_t Handle)
+{
+    MemoryMappingState_t* StateObject = (MemoryMappingState_t*)Handle;
+
+#ifdef LIBC_KERNEL
+    // Translate memory flags to kernel flags
+    Flags_t KernelFlags = MAPPING_USERSPACE | MAPPING_DOMAIN | MAPPING_FIXED;
+    if (StateObject->Flags | MEMORY_EXECUTABLE) {
+        KernelFlags |= MAPPING_EXECUTABLE;
+    }
+    if (!(StateObject->Flags & (MEMORY_WRITE | MEMORY_EXECUTABLE))) {
+        KernelFlags |= MAPPING_READONLY;
+    }
+    ChangeMemorySpaceProtection(StateObject->Handle, StateObject->Address, StateObject->Length, KernelFlags, NULL);
+#else
+    DestroyBuffer(StateObject->UserAccess);
+#endif
+    dsfree(StateObject);
 }

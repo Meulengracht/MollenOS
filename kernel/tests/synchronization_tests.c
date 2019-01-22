@@ -137,7 +137,7 @@ WaitForSynchronizationTest(
     // Cleanup by killing threads and freeing pipes
     TRACE(" > killing threads");
     for (i = 0; i < NumberOfThreads; i++) {
-        if (ThreadingTerminateThread(Threads[i], 0, 1) != OsSuccess) {
+        if (TerminateThread(Threads[i], 0, 1) != OsSuccess) {
             WARNING(" > failed to kill thread %u", Threads[i]);
         }
     }
@@ -185,8 +185,8 @@ TestSynchronization(void *Unused)
     assert(Package->Pipes[TEST_PRODUCER] != NULL);
 
     // Spawn threads
-    Threads[0] = ThreadingCreateThread("Test_Consumer", ConsumeWorker, Package, 0);
-    Threads[1] = ThreadingCreateThread("Test_Producer", ProduceWorker, Package, 0);
+    CreateThread("Test_Consumer", ConsumeWorker, Package, 0, UUID_INVALID, &Threads[0]);
+    CreateThread("Test_Producer", ProduceWorker, Package, 0, UUID_INVALID, &Threads[1]);
     assert(Threads[0] != UUID_INVALID);
     assert(Threads[1] != UUID_INVALID);
     WaitForSynchronizationTest(Package, Threads, 2, 120 * 1000, 10 * 1000);
@@ -205,8 +205,8 @@ TestSynchronization(void *Unused)
     assert(Package->Pipes[TEST_CONSUMER] != NULL);
 
     // Spawn threads
-    Threads[0] = ThreadingCreateThread("Test_Consumer", ConsumeWorker, Package, 0);
-    Threads[1] = ThreadingCreateThread("Test_Producer", ProduceWorker, Package, 0);
+    CreateThread("Test_Consumer", ConsumeWorker, Package, 0, UUID_INVALID, &Threads[0]);
+    CreateThread("Test_Producer", ProduceWorker, Package, 0, UUID_INVALID, &Threads[1]);
     assert(Threads[0] != UUID_INVALID);
     assert(Threads[1] != UUID_INVALID);
     WaitForSynchronizationTest(Package, Threads, 2, 120 * 1000, 10 * 1000);
@@ -227,8 +227,8 @@ TestSynchronization(void *Unused)
     assert(Package->Pipes[TEST_PRODUCER] != NULL);
 
     // Spawn threads
-    Threads[0] = ThreadingCreateThread("Test_Consumer", ConsumeWorker, Package, 0);
-    Threads[1] = ThreadingCreateThread("Test_Producer", ProduceWorker, Package, 0);
+    CreateThread("Test_Consumer", ConsumeWorker, Package, 0, UUID_INVALID, &Threads[0]);
+    CreateThread("Test_Producer", ProduceWorker, Package, 0, UUID_INVALID, &Threads[1]);
     assert(Threads[0] != UUID_INVALID);
     assert(Threads[1] != UUID_INVALID);
     WaitForSynchronizationTest(Package, Threads, 2, 120 * 1000, 10 * 1000);
@@ -247,8 +247,8 @@ TestSynchronization(void *Unused)
     assert(Package->Pipes[TEST_CONSUMER] != NULL);
 
     // Spawn threads
-    Threads[0] = ThreadingCreateThread("Test_Consumer", ConsumeWorker, Package, 0);
-    Threads[1] = ThreadingCreateThread("Test_Producer", ProduceWorker, Package, 0);
+    CreateThread("Test_Consumer", ConsumeWorker, Package, 0, UUID_INVALID, &Threads[0]);
+    CreateThread("Test_Producer", ProduceWorker, Package, 0, UUID_INVALID, &Threads[1]);
     assert(Threads[0] != UUID_INVALID);
     assert(Threads[1] != UUID_INVALID);
     WaitForSynchronizationTest(Package, Threads, 2, 120 * 1000, 10 * 1000);

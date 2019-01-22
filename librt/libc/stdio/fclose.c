@@ -20,9 +20,8 @@
  * - Closes a given file-handle and cleans up
  */
 
-#include <os/file.h>
-#include <os/syscall.h>
-#include <os/utils.h>
+#include <ddk/file.h>
+#include <ddk/utils.h>
 
 #include <io.h>
 #include <stdio.h>
@@ -49,7 +48,7 @@ int close(int fd)
     if (!(Object->wxflag & WX_INHERITTED)) {
         if (Object->handle.InheritationType == STDIO_HANDLE_FILE) {
             if (Object->exflag & EF_CLOSE) {
-                Result = (int)CloseFile(Object->handle.InheritationData.FileHandle);
+                Result = (int)CloseFile(Object->handle.InheritationHandle);
                 if (_fval(Result)) {
                     Result = -1;
                 }
@@ -58,7 +57,7 @@ int close(int fd)
         else if (Object->handle.InheritationType == STDIO_HANDLE_PIPE) {
             // if it has read caps then we have an issue, close pipe
             if (Object->exflag & EF_CLOSE) {
-                if (ClosePipe(Object->handle.InheritationData.Pipe.Port) != OsSuccess) {
+                if (DestroyPipe(Object->handle.InheritationHandle) != OsSuccess) {
                     Result = -1;
                 }
             }

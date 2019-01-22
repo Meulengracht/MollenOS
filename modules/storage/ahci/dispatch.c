@@ -24,7 +24,7 @@
 //#define __TRACE
 
 #include <os/mollenos.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include "manager.h"
 #include <threads.h>
 #include <stdlib.h>
@@ -33,31 +33,36 @@
  * Dumps the registers and state of the controller and given port */
 void
 AhciDumpCurrentState(
-    _In_ AhciController_t*    Controller, 
-    _In_ AhciPort_t*        Port)
+    _In_ AhciController_t* Controller, 
+    _In_ AhciPort_t*       Port)
 {
     // When trace is disabled
     _CRT_UNUSED(Controller);
     _CRT_UNUSED(Port);
 
     // Dump registers
-    TRACE("AHCI.GlobalHostControl 0x%x",
+    WARNING("AHCI.GlobalHostControl 0x%x",
         Controller->Registers->GlobalHostControl);
-    TRACE("AHCI.InterruptStatus 0x%x",
+    WARNING("AHCI.InterruptStatus 0x%x",
         Controller->Registers->InterruptStatus);
-    TRACE("AHCI.CcControl 0x%x",
+    WARNING("AHCI.CcControl 0x%x",
         Controller->Registers->CcControl);
 
-    TRACE("AHCI.Port[%i].CommandAndStatus 0x%x", Port->Id,
+    WARNING("AHCI.Port[%i].CommandAndStatus 0x%x", Port->Id,
         Port->Registers->CommandAndStatus);
-    TRACE("AHCI.Port[%i].InterruptEnable 0x%x", Port->Id,
+    WARNING("AHCI.Port[%i].InterruptEnable 0x%x", Port->Id,
         Port->Registers->InterruptEnable);
-    TRACE("AHCI.Port[%i].InterruptStatus 0x%x", Port->Id,
+    WARNING("AHCI.Port[%i].InterruptStatus 0x%x", Port->Id,
         Port->Registers->InterruptStatus);
-    TRACE("AHCI.Port[%i].CommandIssue 0x%x", Port->Id,
+    WARNING("AHCI.Port[%i].CommandIssue 0x%x", Port->Id,
         Port->Registers->CommandIssue);
-    TRACE("AHCI.Port[%i].TaskFileData 0x%x", Port->Id,
+    WARNING("AHCI.Port[%i].TaskFileData 0x%x", Port->Id,
         Port->Registers->TaskFileData);
+
+    WARNING("AHCI.Port[%i].AtaError 0x%x", Port->Id,
+        Port->Registers->AtaError);
+    WARNING("AHCI.Port[%i].AtaStatus 0x%x", Port->Id,
+        Port->Registers->AtaStatus);
 }
 
 /* AhciCommandDispatch 
@@ -73,14 +78,12 @@ AhciCommandDispatch(
     _In_ void*              AtapiCommand, 
     _In_ size_t             AtapiCommandLength)
 {
-    AHCICommandTable_t *CommandTable = NULL;
-    size_t BytesLeft            = Transaction->SectorCount * Transaction->Device->SectorSize;
-    uintptr_t BufferPointer     = 0;
-    CollectionItem_t *tNode     = NULL;
-    int PrdtIndex               = 0;
-    DataKey_t Key;
+    AHCICommandHeader_t* CommandHeader;
+    AHCICommandTable_t*  CommandTable;
+    uintptr_t            BufferPointer;
+    size_t               BytesLeft = Transaction->SectorCount * Transaction->Device->SectorSize;
+    int                  PrdtIndex = 0;
 
-    // Trace
     TRACE("AhciCommandDispatch(Port %u, Flags 0x%x, Length %u, TransferSize 0x%x)",
         Transaction->Device->Port->Id, Flags, CommandLength, BytesLeft);
 
@@ -98,9 +101,9 @@ AhciCommandDispatch(
         goto Error;
     }
 
-    // Get a reference to the command slot and reset
-    // the data in the command table
-    CommandTable = (AHCICommandTable_t*)((uint8_t*)Transaction->Device->Port->CommandTable
+    // Get a reference to the command slot and reset the data in the command table
+    CommandHeader = &Transaction->Device->Port->CommandList->Headers[Transaction->Slot];
+    CommandTable  = (AHCICommandTable_t*)((uint8_t*)Transaction->Device->Port->CommandTable
             + (AHCI_COMMAND_TABLE_SIZE * Transaction->Slot));
     memset(CommandTable, 0, AHCI_COMMAND_TABLE_SIZE);
 
@@ -119,27 +122,23 @@ AhciCommandDispatch(
         memcpy(&CommandTable->FISAtapi[0], AtapiCommand, AtapiCommandLength);
     }
 
-    // Trace
-    TRACE("Building PRDT Table");
-
     // Build PRDT entries
+    TRACE("Building PRDT Table");
     BufferPointer = Transaction->Address;
     while (BytesLeft > 0) {
-        AHCIPrdtEntry_t *Prdt = &CommandTable->PrdtEntry[PrdtIndex];
+        AHCIPrdtEntry_t* Prdt = &CommandTable->PrdtEntry[PrdtIndex];
         size_t TransferLength = MIN(AHCI_PRDT_MAX_LENGTH, BytesLeft);
 
         // Set buffer information and transfer sizes
-        Prdt->DataBaseAddress       = LODWORD(BufferPointer);
-        Prdt->DataBaseAddressUpper  = (sizeof(void*) > 4) ? HIDWORD(BufferPointer) : 0;
-        Prdt->Descriptor            = (TransferLength - 1); // N - 1
+        Prdt->DataBaseAddress      = LODWORD(BufferPointer);
+        Prdt->DataBaseAddressUpper = (sizeof(void*) > 4) ? HIDWORD(BufferPointer) : 0;
+        Prdt->Descriptor           = TransferLength - 1; // N - 1
 
-        // Trace
-        TRACE("PRDT %u, Address 0x%x, Length 0x%x",
-            PrdtIndex, Prdt->DataBaseAddress, Prdt->Descriptor);
+        TRACE("PRDT %u, Address 0x%x, Length 0x%x", PrdtIndex, Prdt->DataBaseAddress, Prdt->Descriptor);
 
         // Adjust counters
-        BufferPointer     += TransferLength;
-        BytesLeft         -= TransferLength;
+        BufferPointer += TransferLength;
+        BytesLeft     -= TransferLength;
         PrdtIndex++;
 
         // If this is the last PRDT packet, set IOC
@@ -149,39 +148,37 @@ AhciCommandDispatch(
     }
 
     // Update command table to the new command
-    Transaction->Device->Port->CommandList->Headers[Transaction->Slot].TableLength = (uint16_t)PrdtIndex;
-    Transaction->Device->Port->CommandList->Headers[Transaction->Slot].Flags = (uint16_t)(CommandLength / 4);
+    CommandHeader->PRDByteCount = 0;
+    CommandHeader->TableLength  = (uint16_t)PrdtIndex;
+    CommandHeader->Flags        = (uint16_t)(CommandLength >> 2);
+    TRACE("PRDT Count %u, Number of DW's %u", CommandHeader->TableLength, CommandHeader->Flags);
 
     // Update transfer with the dispatch flags
     if (Flags & DISPATCH_ATAPI) {
-        Transaction->Device->Port->CommandList->Headers[Transaction->Slot].Flags |= (1 << 5);
+        CommandHeader->Flags |= (1 << 5);
     }
     if (Flags & DISPATCH_WRITE) {
-        Transaction->Device->Port->CommandList->Headers[Transaction->Slot].Flags |= (1 << 6);
+        CommandHeader->Flags |= (1 << 6);
     }
     if (Flags & DISPATCH_PREFETCH) {
-        Transaction->Device->Port->CommandList->Headers[Transaction->Slot].Flags |= (1 << 7);
+        CommandHeader->Flags |= (1 << 7);
     }
     if (Flags & DISPATCH_CLEARBUSY) {
-        Transaction->Device->Port->CommandList->Headers[Transaction->Slot].Flags |= (1 << 10);
+        CommandHeader->Flags |= (1 << 10);
     }
 
     // Set the port multiplier
-    Transaction->Device->Port->CommandList->Headers[Transaction->Slot].Flags
-        |= (DISPATCH_MULTIPLIER(Flags) << 12);
-    Key.Value.Integer = Transaction->Slot;
+    CommandHeader->Flags |= (DISPATCH_MULTIPLIER(Flags) << 12);
+    Transaction->Header.Key.Value.Integer = Transaction->Slot;
 
     // Add transaction to list
-    tNode = CollectionCreateNode(Key, Transaction);
-    CollectionAppend(Transaction->Device->Port->Transactions, tNode);
+    CollectionAppend(Transaction->Device->Port->Transactions, &Transaction->Header);
     TRACE("Enabling command on slot %u", Transaction->Slot);
-
-    // Enable command 
     AhciPortStartCommandSlot(Transaction->Device->Port, Transaction->Slot);
 
 #ifdef __TRACE
     // Dump state
-    thrd_sleepex(1000);
+    thrd_sleepex(5000);
     AhciDumpCurrentState(Transaction->Device->Controller, Transaction->Device->Port);
 #endif
     return OsSuccess;
@@ -212,11 +209,7 @@ OsStatus_t
 AhciVerifyRegisterFIS(
     _In_ AhciTransaction_t *Transaction)
 {
-    AHCIFis_t *Fis;
-    size_t Offset = Transaction->Slot * AHCI_RECIEVED_FIS_SIZE;
-
-    // Get a pointer to the FIS
-    Fis = (AHCIFis_t*)((uint8_t*)Transaction->Device->Port->RecievedFisTable + Offset);
+    AHCIFis_t *Fis = &Transaction->Device->Port->RecievedFisTable[Transaction->Slot];
 
     // Is the error bit set?
     if (Fis->RegisterD2H.Status & ATA_STS_DEV_ERROR) {
@@ -303,7 +296,7 @@ AhciCommandRegisterFIS(
     }
 
     // Determine direction of operation
-    if (Write != 0) {
+    if (Write) {
         Flags |= DISPATCH_WRITE;
     }
 
@@ -330,9 +323,7 @@ OsStatus_t
 AhciCommandFinish(
     _In_ AhciTransaction_t *Transaction)
 {
-    OsStatus_t Status = OsError;
-
-    // Trace
+    OsStatus_t Status;
     TRACE("AhciCommandFinish()");
 
     // Verify the command execution

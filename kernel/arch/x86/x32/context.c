@@ -77,11 +77,7 @@ ContextCreate(
         ExtraSegment    = GDT_EXTRA_SEGMENT + 0x03;
 
         // Now select the correct run-mode segments
-        if (THREADING_RUNMODE(ThreadFlags) == THREADING_DRIVERMODE) {
-            CodeSegment     = GDT_PCODE_SEGMENT + 0x03;
-            StackSegment    = DataSegment = GDT_PDATA_SEGMENT + 0x03;
-        }
-        else if (THREADING_RUNMODE(ThreadFlags) == THREADING_USERMODE) {
+        if (THREADING_RUNMODE(ThreadFlags) == THREADING_USERMODE) {
             CodeSegment     = GDT_UCODE_SEGMENT + 0x03;
             StackSegment    = DataSegment = GDT_UDATA_SEGMENT + 0x03;
         }
@@ -90,7 +86,7 @@ ContextCreate(
         }
 
         // Map in the context
-        CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), NULL, &ContextAddress,
+        CreateMemorySpaceMapping(GetCurrentMemorySpace(), NULL, &ContextAddress,
             PAGE_SIZE, MAPPING_USERSPACE | MAPPING_FIXED, __MASK);
     }
     else {
@@ -130,10 +126,10 @@ ContextCreate(
     return Context;
 }
 
-/* ContextDump 
+/* ArchDumpThreadContext 
  * Dumps the contents of the given context for debugging */
 OsStatus_t
-ContextDump(
+ArchDumpThreadContext(
     _In_ Context_t *Context)
 {
     // Dump general registers

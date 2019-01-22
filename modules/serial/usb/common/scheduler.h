@@ -26,10 +26,10 @@
 
 /* Includes
  * - Library */
-#include <os/contracts/usbhost.h>
+#include <ddk/contracts/usbhost.h>
 #include <os/spinlock.h>
 #include <os/osdefs.h>
-#include <os/usb.h>
+#include <ddk/usb.h>
 
 /* Definitions
  * Generic bandwidth allocation constants/support */

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,56 +16,37 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Utility Interface
+ * Utility Interface
  * - Contains the shared kernel utility interface
  *   that all sub-layers / architectures must conform to
  */
 
-#ifndef _MCORE_UTILS_H_
-#define _MCORE_UTILS_H_
+#ifndef __SYSTEM_INTERFACE_UTILS_H__
+#define __SYSTEM_INTERFACE_UTILS_H__
 
 #include <os/osdefs.h>
-#include <os/spinlock.h>
 #include <os/context.h>
-#include <time.h>
 
-/* ContextDump 
- * Dumps the contents of the given context for debugging */
+/* ArchDumpThreadContext 
+ * Dumps the contents of the given thread context for debugging. */
 KERNELAPI OsStatus_t KERNELABI
-ContextDump(
+ArchDumpThreadContext(
     _In_ Context_t *Context);
 
-/* CpuGetCurrentId 
- * Retrieves the current cpu id for caller */
+/* ArchGetProcessorCoreId 
+ * Returns the current processor core id. */
 KERNELAPI UUId_t KERNELABI
-CpuGetCurrentId(void);
+ArchGetProcessorCoreId(void);
 
-/* CpuIdle
- * Enters idle mode for the current cpu */
+/* ArchProcessorIdle
+ * Enters idle mode for the current processor core. */
 KERNELAPI void KERNELABI
-CpuIdle(void);
+ArchProcessorIdle(void);
 
-/* CpuHalt
- * Halts the current cpu - rendering system useless */
+/* ArchProcessorHalt
+ * Halts the current cpu - rendering system useless. */
 KERNELAPI void KERNELABI
-CpuHalt(void);
-
-/* CpuGetTicks
- * Get the ticks for the current cpu. */
-KERNELAPI size_t KERNELABI
-CpuGetTicks(void);
-
-/* CpuGetTime
- * Retrieves the time for the system. */
-KERNELAPI OsStatus_t KERNELABI
-CpuGetTime(
-    _Out_ struct tm *SystemTime);
-
-/* CpuStall
- * Stalls the cpu for the given milliseconds, blocking call. */
-KERNELAPI void KERNELABI
-CpuStall(
-    size_t MilliSeconds);
+ArchProcessorHalt(void);
 
 /* CpuFlushInstructionCache
  * Flushes the instruction cache for the processor. */
@@ -74,4 +55,4 @@ CpuFlushInstructionCache(
     _In_Opt_ void*  Start, 
     _In_Opt_ size_t Length);
 
-#endif //!_MCORE_UTILS_H_
+#endif //!__SYSTEM_INTERFACE_UTILS_H__

@@ -21,13 +21,7 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
- /* Includes 
-  * - System */
 #include <os/spinlock.h>
-#include <os/syscall.h>
-
-/* Includes
- * - Library */
 #include <threads.h>
 #include <stddef.h>
 #include <stdlib.h>

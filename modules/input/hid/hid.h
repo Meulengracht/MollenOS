@@ -23,9 +23,9 @@
 #define __USB_HID_H__
 
 #include <os/osdefs.h>
-#include <os/contracts/base.h>
-#include <os/contracts/usbhost.h>
-#include <os/contracts/usbdevice.h>
+#include <ddk/contracts/base.h>
+#include <ddk/contracts/usbhost.h>
+#include <ddk/contracts/usbdevice.h>
 #include <os/input.h>
 
 /* HID Class Definitions 

@@ -21,8 +21,7 @@
  *    the stability and integrity of the operating system.
  */
 #pragma once
-#define __TRACE
-#include <os/utils.h>
+#include <cstdio>
 #include <string>
 
 class OSTest {
@@ -41,7 +40,7 @@ protected:
         vsnprintf(&Buffer[0], sizeof(Buffer) - 1, Format, Arguments);
         va_end(Arguments);
 
-        TRACE(&Buffer[0]);
+        printf("%s", &Buffer[0]);
     }
 };
 

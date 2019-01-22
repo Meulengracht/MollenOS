@@ -22,10 +22,10 @@
  */
 #define __TRACE
 
-#include <os/contracts/usbdevice.h>
-#include <os/device.h>
-#include <os/usb.h>
-#include <os/utils.h>
+#include <ddk/contracts/usbdevice.h>
+#include <ddk/device.h>
+#include <ddk/usb.h>
+#include <ddk/utils.h>
 #include "manager.h"
 #include <threads.h>
 #include <stdlib.h>

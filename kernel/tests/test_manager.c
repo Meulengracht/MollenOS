@@ -40,11 +40,14 @@ StartTestingPhase(void)
 
     // Run data-structure tests
     //TRACE(" > Running data structure tests");
-    //CurrentTest = ThreadingCreateThread("TestDataStructures", TestDataStructures, NULL, 0);
+    //CurrentTest = CreateThread("TestDataStructures", TestDataStructures, NULL, 0);
     //ThreadingJoinThread(CurrentTest);
 
     // Run synchronization tests
     TRACE(" > Running synchronization tests");
-    CurrentTest = ThreadingCreateThread("TestSynchronization", TestSynchronization, NULL, 0);
+    if (CreateThread("TestSynchronization", TestSynchronization, NULL, 0, UUID_INVALID, &CurrentTest) != OsSuccess) {
+        ERROR(" > Failed to spawn test thread");
+        return;
+    }
     ThreadingJoinThread(CurrentTest);
 }

@@ -29,6 +29,7 @@
 #include <system/utils.h>
 #include <threading.h>
 #include <machine.h>
+#include <handle.h>
 #include <memory.h>
 #include <assert.h>
 #include <debug.h>
@@ -126,14 +127,15 @@ MmVirtualGetMasterTable(
 
     // If there is no parent then we ignore it as we don't have to synchronize with kernel directory.
     // We always have the shared page-tables mapped. The address must be below the thread-specific space
-    if (MemorySpace->Parent != NULL) {
+    if (MemorySpace->ParentHandle != UUID_INVALID) {
         if (Address < MEMORY_LOCATION_RING3_THREAD_START) {
-            Parent = (PageDirectory_t*)MemorySpace->Parent->Data[MEMORY_SPACE_DIRECTORY];
+            SystemMemorySpace_t* MemorySpaceParent = (SystemMemorySpace_t*)LookupHandle(MemorySpace->ParentHandle);
+            Parent = (PageDirectory_t*)MemorySpaceParent->Data[MEMORY_SPACE_DIRECTORY];
         }
     }
 
     // Update the provided pointers
-    *IsCurrent          = (MemorySpace == GetCurrentSystemMemorySpace()) ? 1 : 0;
+    *IsCurrent          = (MemorySpace == GetCurrentMemorySpace()) ? 1 : 0;
     *ParentDirectory    = Parent;
     return Directory;
 }
@@ -219,7 +221,7 @@ CloneVirtualSpace(
     _In_ int                    Inherit)
 {
     // Variables
-    PageDirectory_t *SystemDirectory = (PageDirectory_t*)GetDomainSystemMemorySpace()->Data[MEMORY_SPACE_DIRECTORY];
+    PageDirectory_t *SystemDirectory = (PageDirectory_t*)GetDomainMemorySpace()->Data[MEMORY_SPACE_DIRECTORY];
     PageDirectory_t *ParentDirectory = NULL;
     PageDirectory_t *PageDirectory;
     uintptr_t PhysicalAddress;
@@ -275,7 +277,7 @@ CloneVirtualSpace(
     // Create new resources for the happy new parent :-)
     if (MemorySpaceParent == NULL) {
         MemorySpace->Data[MEMORY_SPACE_IOMAP] = (uintptr_t)kmalloc(GDT_IOMAP_SIZE);
-        if (MemorySpace->Flags & (MEMORY_SPACE_APPLICATION | MEMORY_SPACE_SERVICE)) {
+        if (MemorySpace->Flags & MEMORY_SPACE_APPLICATION) {
             memset((void*)MemorySpace->Data[MEMORY_SPACE_IOMAP], 0xFF, GDT_IOMAP_SIZE);
         }
         else {
@@ -332,7 +334,7 @@ DestroyVirtualSpace(
     kfree(Pd);
 
     // Free the resources allocated specifically for this
-    if (SystemMemorySpace->Parent == NULL) {
+    if (SystemMemorySpace->ParentHandle == UUID_INVALID) {
         kfree((void*)SystemMemorySpace->Data[MEMORY_SPACE_IOMAP]);
     }
     return OsSuccess;

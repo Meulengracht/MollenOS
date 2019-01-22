@@ -23,6 +23,7 @@
 #include <system/output.h>
 #include <threading.h>
 #include <machine.h>
+#include <handle.h>
 #include <assert.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -30,9 +31,9 @@
 #include <heap.h>
 #include <log.h>
 
-static MCoreLog_t LogObject                     = { 0 };
-static char StaticLogSpace[LOG_INITIAL_SIZE]    = { 0 };
-static UUId_t PipeThreads[2]                    = { 0 };
+static SystemLog_t LogObject                 = { 0 };
+static char StaticLogSpace[LOG_INITIAL_SIZE] = { 0 };
+static UUId_t PipeThreads[2]                 = { 0 };
 
 /* LogPipeHandler
  * The handler function that will get spawned twice to listen for new messages
@@ -73,8 +74,8 @@ LogInitialize(void)
     LogObject.StartOfData   = (uintptr_t*)&StaticLogSpace[0];
     LogObject.DataSize      = LOG_INITIAL_SIZE;
     
-    LogObject.Lines         = (MCoreLogLine_t*)&StaticLogSpace[0];
-    LogObject.NumberOfLines = LOG_INITIAL_SIZE / sizeof(MCoreLogLine_t);
+    LogObject.Lines         = (SystemLogLine_t*)&StaticLogSpace[0];
+    LogObject.NumberOfLines = LOG_INITIAL_SIZE / sizeof(SystemLogLine_t);
 	CriticalSectionConstruct(&LogObject.SyncObject, CRITICALSECTION_PLAIN);
 }
 
@@ -83,8 +84,9 @@ LogInitialize(void)
 void
 LogInitializeFull(void)
 {
-    // Variables
-    void *UpgradeBuffer = NULL;
+    SystemPipe_t* StdOut;
+    SystemPipe_t* StdErr;
+    void*         UpgradeBuffer;
 
     // Upgrade the buffer
     UpgradeBuffer = kmalloc(LOG_PREFFERED_SIZE);
@@ -94,18 +96,21 @@ LogInitializeFull(void)
     memcpy(UpgradeBuffer, (const void*)LogObject.StartOfData, LogObject.DataSize);
     LogObject.StartOfData   = (uintptr_t*)UpgradeBuffer;
     LogObject.DataSize      = LOG_PREFFERED_SIZE;
-
-    LogObject.Lines         = (MCoreLogLine_t*)UpgradeBuffer;
-    LogObject.NumberOfLines = LOG_PREFFERED_SIZE / sizeof(MCoreLogLine_t);
+    LogObject.Lines         = (SystemLogLine_t*)UpgradeBuffer;
+    LogObject.NumberOfLines = LOG_PREFFERED_SIZE / sizeof(SystemLogLine_t);
 	CriticalSectionLeave(&LogObject.SyncObject);
 
     // Create 4kb pipes
-    LogObject.STDOUT        = CreateSystemPipe(0, 6); // 1 << 6, 64 entries, 1 << 12 is 4kb
-    LogObject.STDERR        = CreateSystemPipe(0, 6); // 1 << 6, 64 entries, 1 << 12 is 4kb
+    StdOut = CreateSystemPipe(0, 6); // 1 << 6, 64 entries, 1 << 12 is 4kb
+    StdErr = CreateSystemPipe(0, 6); // 1 << 6, 64 entries, 1 << 12 is 4kb
+
+    // Create handles for modules
+    LogObject.StdOutHandle = CreateHandle(HandleTypePipe, 0, StdOut);
+    LogObject.StdErrHandle = CreateHandle(HandleTypePipe, 0, StdErr);
 
     // Create the threads that will echo the pipes
-    PipeThreads[0] = ThreadingCreateThread("log-stdout", LogPipeHandler, (void*)LogObject.STDOUT, 0);
-    PipeThreads[1] = ThreadingCreateThread("log-stderr", LogPipeHandler, (void*)LogObject.STDERR, 0);
+    CreateThread("log-stdout", LogPipeHandler, (void*)StdOut, 0, UUID_INVALID, &PipeThreads[0]);
+    CreateThread("log-stderr", LogPipeHandler, (void*)StdErr, 0, UUID_INVALID, &PipeThreads[1]);
 }
 
 /* LogRenderMessages
@@ -114,8 +119,7 @@ LogInitializeFull(void)
 void
 LogRenderMessages(void)
 {
-    // Variables
-    MCoreLogLine_t *Line = NULL;
+    SystemLogLine_t* Line;
 
 	CriticalSectionEnter(&LogObject.SyncObject);
     while (LogObject.RenderIndex != LogObject.LineIndex) {
@@ -162,13 +166,13 @@ LogSetRenderMode(
  * reaches the end wrap-around will happen. */
 void
 LogAppendMessage(
-    _In_ MCoreLogType_t Type,
-    _In_ const char*    Header,
-    _In_ const char*    Message,
+    _In_ SystemLogType_t Type,
+    _In_ const char*     Header,
+    _In_ const char*     Message,
     ...)
 {
     // Variables
-    MCoreLogLine_t *Line = NULL;
+    SystemLogLine_t *Line = NULL;
 	va_list Arguments;
 
     // Sanitize
@@ -182,7 +186,7 @@ LogAppendMessage(
         LogObject.LineIndex = 0;
     }
 	CriticalSectionLeave(&LogObject.SyncObject);
-    memset((void*)Line, 0, sizeof(MCoreLogLine_t));
+    memset((void*)Line, 0, sizeof(SystemLogLine_t));
     Line->Type = Type;
     snprintf(&Line->System[0], sizeof(Line->System), "[%s] ", Header);
     
@@ -196,14 +200,12 @@ LogAppendMessage(
     }
 }
 
-/* LogPipeStdout
- * The log pipe for stdout when no windowing system is running. */
-SystemPipe_t *LogPipeStdout(void) {
-    return LogObject.STDOUT;
+UUId_t GetSystemStdOutHandle(void)
+{
+    return LogObject.StdOutHandle;
 }
 
-/* LogPipeStderr
- * The log pipe for stderr when no windowing system is running. */
-SystemPipe_t *LogPipeStderr(void) {
-    return LogObject.STDERR;
+UUId_t GetSystemStdErrHandle(void)
+{
+    return LogObject.StdErrHandle;
 }

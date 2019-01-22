@@ -22,7 +22,7 @@ I should reach a point where they are highly required.
 Userspace libraries that are being ported currently (native builds)
  - None at the moment, currently working on the window manager system
 
-Userspace libraries planned for port in 2018
+Userspace libraries planned for port in 2019
  - clang
  - tbd (rest will be announced as we go)
 

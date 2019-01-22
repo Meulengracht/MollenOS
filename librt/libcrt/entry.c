@@ -19,15 +19,10 @@
  * MollenOS C Library - Entry Points
  */
 
-/* Includes 
- * - Library */
 #include "../libc/threads/tls.h"
 #include <stddef.h>
 #include <stdlib.h>
 
-/* Extern
- * - C/C++ Initialization
- * - C/C++ Cleanup */
 extern int main(int argc, char **argv, char **envp);
 
 /* CRT Initialization sequence
@@ -35,7 +30,7 @@ extern int main(int argc, char **argv, char **envp);
 extern char**
 __CrtInitialize(
     _In_  thread_storage_t* Tls,
-    _In_  int               StartupInfoEnabled,
+    _In_  int               IsModule,
     _Out_ int*              ArgumentCount);
 
 /* __CrtConsoleEntry
@@ -51,7 +46,7 @@ __CrtConsoleEntry(void)
 	int ExitCode            = 0;
 
 	// Initialize run-time
-	Arguments = __CrtInitialize(&Tls, 1, &ArgumentCount);
+	Arguments = __CrtInitialize(&Tls, 0, &ArgumentCount);
 
     // Call user-process entry routine
 	ExitCode = main(ArgumentCount, Arguments, NULL);

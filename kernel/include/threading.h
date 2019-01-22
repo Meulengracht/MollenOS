@@ -56,12 +56,11 @@ typedef void(*ThreadEntry_t)(void*);
  * runtime mode, which is either:
  * 0 => Kernel
  * 1 => User
- * 2 => Driver
+ * 2 => Reserved 
  * 3 => Reserved 
  * Bit 3: If it's currently in switch-mode */
 #define THREADING_KERNELMODE            0x00000000
 #define THREADING_USERMODE              0x00000001
-#define THREADING_DRIVERMODE            0x00000002
 #define THREADING_SWITCHMODE            0x00000004
 #define THREADING_MODEMASK              0x00000003
 #define THREADING_RUNMODE(Flags)        (Flags & THREADING_MODEMASK)
@@ -87,11 +86,11 @@ typedef struct _MCoreThread {
     CollectionItem_t        CollectionHeader;
 
     UUId_t                  ParentThreadId;
-    UUId_t                  ProcessHandle;
     UUId_t                  Id;
     const char*             Name;
     Flags_t                 Flags;
     atomic_int              Cleanup;
+    UUId_t                  Cookie;
 
     Context_t*              Contexts[THREADING_NUMCONTEXTS];
     Context_t*              ContextActive;
@@ -100,6 +99,7 @@ typedef struct _MCoreThread {
 
     SystemPipe_t*           Pipe;
     SystemMemorySpace_t*    MemorySpace;
+    UUId_t                  MemorySpaceHandle;
 
     ThreadEntry_t           Function;
     void*                   Arguments;
@@ -135,21 +135,23 @@ ThreadingInitialize(void);
 KERNELAPI OsStatus_t KERNELABI
 ThreadingEnable(void);
 
-/* ThreadingCreateThread
- * Creates a new thread with the given paramaters and it is immediately
- * queued up for execution. */
-KERNELAPI UUId_t KERNELABI
-ThreadingCreateThread(
-    _In_ const char*    Name,
-    _In_ ThreadEntry_t  Function, 
-    _In_ void*          Arguments, 
-    _In_ Flags_t        Flags);
+/* CreateThread
+ * Creates a new thread that will execute the given function as soon as possible. The 
+ * thread can be supplied with arguments, mode and a custom memory space. */
+KERNELAPI OsStatus_t KERNELABI
+CreateThread(
+    _In_  const char*    Name,
+    _In_  ThreadEntry_t  Function,
+    _In_  void*          Arguments,
+    _In_  Flags_t        Flags,
+    _In_  UUId_t         MemorySpaceHandle,
+    _Out_ UUId_t*        Handle);
 
-/* ThreadingTerminateThread
+/* TerminateThread
  * Marks the thread with the given id for finished, and it will be cleaned up
  * on next switch unless specified. The given exitcode will be stored. */
 KERNELAPI OsStatus_t KERNELABI
-ThreadingTerminateThread(
+TerminateThread(
     _In_ UUId_t         ThreadId,
     _In_ int            ExitCode,
     _In_ int            TerminateChildren);
@@ -168,53 +170,53 @@ KERNELAPI OsStatus_t KERNELABI
 ThreadingDetachThread(
     _In_  UUId_t        ThreadId);
 
-/* ThreadingSwitchLevel
+/* EnterProtectedThreadLevel
  * Initializes non-kernel mode and marks the thread
  * for transitioning, there is no return from this function */
 KERNELAPI void KERNELABI
-ThreadingSwitchLevel(void);
+EnterProtectedThreadLevel(void);
 
 /* ThreadingIsCurrentTaskIdle
  * Is the given cpu running it's idle task? */
 KERNELAPI int KERNELABI
 ThreadingIsCurrentTaskIdle(
-    _In_ UUId_t         CoreId);
+    _In_ UUId_t CoreId);
 
 /* ThreadingGetCurrentMode
  * Returns the current run-mode for the current thread on the current cpu */
 KERNELAPI Flags_t KERNELABI
 ThreadingGetCurrentMode(void);
 
-/* ThreadingGetCurrentThread
+/* GetCurrentThreadForCore
  * Retrieves the current thread on the given cpu if there is any issues it returns NULL */
 KERNELAPI MCoreThread_t* KERNELABI
-ThreadingGetCurrentThread(
-    _In_ UUId_t         CoreId);
+GetCurrentThreadForCore(
+    _In_ UUId_t CoreId);
 
-/* ThreadingGetCurrentThreadId
+/* GetCurrentThreadId
  * Retrives the current thread id on the current cpu from the callers perspective */
 KERNELAPI UUId_t KERNELABI
-ThreadingGetCurrentThreadId(void);
+GetCurrentThreadId(void);
 
-/* ThreadingGetThread
+/* GetThread
  * Lookup thread by the given thread-id, returns NULL if invalid */
 KERNELAPI MCoreThread_t* KERNELABI
-ThreadingGetThread(
-    _In_ UUId_t         ThreadId);
+GetThread(
+    _In_ UUId_t ThreadId);
 
-/* ThreadingSwitch
+/* GetNextRunnableThread
  * This is the thread-switch function and must be be called from the below architecture 
  * to get the next thread to run */
 KERNELAPI MCoreThread_t* KERNELABI
-ThreadingSwitch(
+GetNextRunnableThread(
     _In_ MCoreThread_t* Current, 
     _In_ int            PreEmptive,
     _InOut_ Context_t** Context);
 
-/* ThreadingDebugPrint
+/* DisplayActiveThreads
  * Prints out debugging information about each thread in the system, only active threads */
 KERNELAPI void KERNELABI
-ThreadingDebugPrint(void);
+DisplayActiveThreads(void);
 
 /* SignalReturn
  * Call upon returning from a signal, this will finish the signal-call and 
@@ -222,11 +224,11 @@ ThreadingDebugPrint(void);
 KERNELAPI OsStatus_t KERNELABI
 SignalReturn(void);
 
-/* Handle Signal 
+/* SignalProcess
  * This checks if the process has any waiting signals and if it has, 
  * it executes the first in list */
 KERNELAPI OsStatus_t KERNELABI
-SignalHandle(
+SignalProcess(
     _In_ UUId_t             ThreadId);
 
 /* Create Signal 

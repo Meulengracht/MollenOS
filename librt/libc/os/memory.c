@@ -16,19 +16,13 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Memory Definitions & Structures
+ * Memory Definitions & Structures
  * - This header describes the memory-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-/* Includes
- * - System */
 #include <os/mollenos.h>
-#include <os/syscall.h>
-
-/* Includes
- * - Library */
-#include <stddef.h>
+#include <internal/_syscalls.h>
 
 /* MemoryAllocate
  * Allocates a chunk of memory, controlled by the
@@ -91,18 +85,4 @@ MemoryProtect(
 		return OsError;
 	}
     return Syscall_MemoryProtect(MemoryPointer, Length, Flags, PreviousFlags);
-}
-
-/* MemoryQuery
- * Queries the underlying system for memory information 
- * like memory used and the page-size */
-OsStatus_t
-MemoryQuery(
-	_Out_ MemoryDescriptor_t *Descriptor)
-{
-	// Sanitize parameters
-	if (Descriptor == NULL) {
-		return OsError;
-	}
-	return Syscall_MemoryQuery(Descriptor);
 }

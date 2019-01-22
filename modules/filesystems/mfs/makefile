@@ -6,11 +6,11 @@ include ../../../config/common.mk
 
 SOURCES = $(wildcard ./*.c)
 
-INCLUDES = -I../../../librt/include
+INCLUDES = -I../../../librt/include -I../../../librt/libc/include -I../../../librt/libds/include -I../../../librt/libddk/include
 OBJECTS = $(SOURCES:.c=.o)
 
 CFLAGS = $(GCFLAGS) $(INCLUDES)
-LFLAGS = /nodefaultlib /subsystem:native /noentry /dll /lldmap ../../../librt/build/libclang.lib ../../../librt/build/libc.lib ../../../librt/build/libdrv.lib
+LFLAGS = /nodefaultlib /subsystem:native /noentry /dll /lldmap ../../../librt/build/libclang.lib ../../../librt/build/libc.lib ../../../librt/build/libdrv.lib ../../../librt/build/libds.lib
 
 .PHONY: all
 all: ../../build/mfs.dll ../../build/mfs.mdrv

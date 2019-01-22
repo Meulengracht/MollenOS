@@ -22,9 +22,10 @@
  */
 //#define __TRACE
 
-#include <os/file.h>
+#include <ddk/file.h>
 #include <os/mollenos.h>
-#include <os/utils.h>
+#include <os/process.h>
+#include <ddk/utils.h>
 #include "include/vfs.h"
 #include <stdlib.h>
 #include <string.h>
@@ -328,7 +329,7 @@ VfsResolvePath(
     if (strchr(Path, ':') == NULL && strchr(Path, '$') == NULL) {
         char *BasePath  = (char*)malloc(_MAXPATH);
         memset(BasePath, 0, _MAXPATH);
-        if (GetWorkingDirectoryOfApplication(Requester, &BasePath[0], _MAXPATH) == OsError) {
+        if (ProcessGetWorkingDirectory(Requester, &BasePath[0], _MAXPATH) == OsError) {
             if (VfsGuessBasePath(Path, &BasePath[0]) == OsError) {
                 ERROR("Failed to guess the base path for path %s", Path);
                 return NULL;

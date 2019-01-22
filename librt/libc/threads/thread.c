@@ -21,7 +21,7 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include <os/syscall.h>
+#include <internal/_syscalls.h>
 #include <threads.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -89,11 +89,12 @@ thrd_create(
     if (Tp == NULL) {
         return thrd_nomem;
     }
-    Tp->Entry   = func;
-    Tp->Data    = arg;
+    
+    Tp->Entry = func;
+    Tp->Data  = arg;
 
     // Redirect to operating system to handle rest
-    Result = (thrd_t)Syscall_ThreadCreate((thrd_start_t)thrd_initialize, Tp, 0);
+    Result = (thrd_t)Syscall_ThreadCreate((thrd_start_t)thrd_initialize, Tp, 0, UUID_INVALID);
     if (Result == UUID_INVALID) {
         free(Tp);
         return thrd_error;

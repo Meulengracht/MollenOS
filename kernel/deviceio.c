@@ -24,7 +24,7 @@
 //#define __TRACE
 
 #include <ds/collection.h>
-#include <process/process.h>
+#include <modules/manager.h>
 #include <system/utils.h>
 #include <memoryspace.h>
 #include <system/io.h>
@@ -41,7 +41,7 @@ static _Atomic(UUId_t) IoSpaceIdGenerator   = 1;
  * overlaps any existing io range, this request will be denied by the system. */
 OsStatus_t
 RegisterSystemDeviceIo(
-    _In_ DeviceIo_t*    IoSpace)
+    _In_ DeviceIo_t* IoSpace)
 {
     SystemDeviceIo_t* SystemIo;
     TRACE("RegisterSystemDeviceIo(Type %u)", IoSpace->Type);
@@ -66,7 +66,7 @@ RegisterSystemDeviceIo(
  * associated and disabling the io range for use. */
 OsStatus_t
 DestroySystemDeviceIo(
-    _In_ DeviceIo_t*    IoSpace)
+    _In_ DeviceIo_t* IoSpace)
 {
     SystemDeviceIo_t* SystemIo;
     DataKey_t Key;
@@ -90,12 +90,13 @@ DestroySystemDeviceIo(
  * at a time, to avoid two drivers using the same device */
 OsStatus_t
 AcquireSystemDeviceIo(
-    _In_ DeviceIo_t*    IoSpace)
+    _In_ DeviceIo_t* IoSpace)
 {
-    SystemDeviceIo_t*   SystemIo;
-    SystemProcess_t*    Service = GetCurrentProcess();
-    DataKey_t           Key;
-    UUId_t              CoreId = CpuGetCurrentId();
+    SystemDeviceIo_t*    SystemIo;
+    SystemMemorySpace_t* Space  = GetCurrentMemorySpace();
+    SystemModule_t*      Module = GetCurrentModule();
+    UUId_t               CoreId = ArchGetProcessorCoreId();
+    DataKey_t            Key;
     assert(IoSpace != NULL);
 
     TRACE("AcquireSystemDeviceIo(Id %u)", IoSpace->Id);
@@ -105,24 +106,24 @@ AcquireSystemDeviceIo(
     SystemIo        = (SystemDeviceIo_t*)CollectionGetNodeByKey(&IoSpaces, Key, 0);
 
     // Sanitize the system copy
-    if (Service == NULL || Service->Type != ProcessService ||
-        SystemIo == NULL || SystemIo->Owner != UUID_INVALID) {
-        if (Service == NULL || Service->Type != ProcessService) {
+    if (Module == NULL || SystemIo == NULL || SystemIo->Owner != UUID_INVALID) {
+        if (Module == NULL) {
             ERROR(" > non-server process tried to acquire io-space");
         }
         ERROR(" > failed to find the requested io-space, id %u", IoSpace->Id);
         return OsError;
     }
-    SystemIo->Owner = ThreadingGetCurrentThread(CoreId)->ProcessHandle;
+    SystemIo->Owner = Module->Handle;
 
     switch (SystemIo->Io.Type) {
         case DeviceIoMemoryBased: {
-            uintptr_t BaseAddress   = SystemIo->Io.Access.Memory.PhysicalBase;
             uintptr_t MappedAddress;
-            size_t PageSize         = GetSystemMemoryPageSize();
-            size_t Length           = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
+            uintptr_t BaseAddress = SystemIo->Io.Access.Memory.PhysicalBase;
+            size_t    PageSize    = GetMemorySpacePageSize();
+            size_t    Length      = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
+            assert(Space->Context != NULL);
 
-            MappedAddress = AllocateBlocksInBlockmap(Service->Heap, __MASK, Length);
+            MappedAddress = AllocateBlocksInBlockmap(Space->Context->HeapSpace, __MASK, Length);
             if (MappedAddress == 0) {
                 ERROR(" > failed to allocate heap memory for mapping");
                 break;
@@ -137,7 +138,7 @@ AcquireSystemDeviceIo(
 
         case DeviceIoPortBased: {
             for (size_t i = 0; i < SystemIo->Io.Access.Port.Length; i++) {
-                SetDirectIoAccess(CoreId, GetCurrentSystemMemorySpace(), ((uint16_t)(SystemIo->Io.Access.Port.Base + i)), 1);
+                SetDirectIoAccess(CoreId, Space, ((uint16_t)(SystemIo->Io.Access.Port.Base + i)), 1);
             }
             return OsSuccess;
         } break;
@@ -157,10 +158,11 @@ OsStatus_t
 ReleaseSystemDeviceIo(
     _In_ DeviceIo_t*    IoSpace)
 {
-    SystemDeviceIo_t*   SystemIo;
-    SystemProcess_t*    Service = GetCurrentProcess();
-    DataKey_t           Key;
-    UUId_t              CoreId = CpuGetCurrentId();
+    SystemDeviceIo_t*    SystemIo;
+    SystemMemorySpace_t* Space  = GetCurrentMemorySpace();
+    SystemModule_t*      Module = GetCurrentModule();
+    UUId_t               CoreId = ArchGetProcessorCoreId();
+    DataKey_t            Key;
     assert(IoSpace != NULL);
 
     // Debugging
@@ -171,9 +173,9 @@ ReleaseSystemDeviceIo(
     SystemIo        = (SystemDeviceIo_t*)CollectionGetNodeByKey(&IoSpaces, Key, 0);
 
     // Sanitize the system copy and do some security checks
-    if (Service == NULL || Service->Type != ProcessService ||
-        SystemIo == NULL || SystemIo->Owner != ThreadingGetCurrentThread(CoreId)->ProcessHandle) {
-        if (Service == NULL || Service->Type != ProcessService) {
+    if (Module == NULL || SystemIo == NULL || 
+        SystemIo->Owner != Module->Handle) {
+        if (Module == NULL) {
             ERROR(" > non-server process tried to acquire io-space");
         }
         ERROR(" > failed to find the requested io-space, id %u", IoSpace->Id);
@@ -182,16 +184,18 @@ ReleaseSystemDeviceIo(
 
     switch (SystemIo->Io.Type) {
         case DeviceIoMemoryBased: {
-            uintptr_t BaseAddress   = SystemIo->Io.Access.Memory.PhysicalBase;
-            size_t PageSize         = GetSystemMemoryPageSize();
-            size_t Length           = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
-            ReleaseBlockmapRegion(Service->Heap, SystemIo->MappedAddress, Length);
-            RemoveSystemMemoryMapping(GetCurrentSystemMemorySpace(), SystemIo->MappedAddress, Length);
+            uintptr_t BaseAddress = SystemIo->Io.Access.Memory.PhysicalBase;
+            size_t    PageSize    = GetMemorySpacePageSize();
+            size_t    Length      = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
+            assert(Space->Context != NULL);
+
+            ReleaseBlockmapRegion(Space->Context->HeapSpace, SystemIo->MappedAddress, Length);
+            RemoveMemorySpaceMapping(Space, SystemIo->MappedAddress, Length);
         } break;
 
         case DeviceIoPortBased: {
             for (size_t i = 0; i < SystemIo->Io.Access.Port.Length; i++) {
-                SetDirectIoAccess(CoreId, GetCurrentSystemMemorySpace(), ((uint16_t)(SystemIo->Io.Access.Port.Base + i)), 0);
+                SetDirectIoAccess(CoreId, Space, ((uint16_t)(SystemIo->Io.Access.Port.Base + i)), 0);
             }
         } break;
 
@@ -225,9 +229,9 @@ CreateKernelSystemDeviceIo(
     switch (SystemIo->Io.Type) {
         case DeviceIoMemoryBased: {
             uintptr_t BaseAddress   = SystemIo->Io.Access.Memory.PhysicalBase;
-            size_t PageSize         = GetSystemMemoryPageSize();
+            size_t PageSize         = GetMemorySpacePageSize();
             size_t Length           = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
-            OsStatus_t Status       = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(),
+            OsStatus_t Status       = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
                 &BaseAddress, &SystemIo->Io.Access.Memory.VirtualBase, Length, 
                 MAPPING_NOCACHE | MAPPING_PROVIDED | MAPPING_KERNEL | MAPPING_PERSISTENT, __MASK);
             if (Status != OsSuccess) {
@@ -262,9 +266,9 @@ ReleaseKernelSystemDeviceIo(
     switch (SystemIo->Io.Type) {
         case DeviceIoMemoryBased: {
             uintptr_t BaseAddress   = SystemIo->Io.Access.Memory.PhysicalBase;
-            size_t PageSize         = GetSystemMemoryPageSize();
+            size_t PageSize         = GetMemorySpacePageSize();
             size_t Length           = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
-            RemoveSystemMemoryMapping(GetCurrentSystemMemorySpace(), SystemIo->Io.Access.Memory.VirtualBase, Length);
+            RemoveMemorySpaceMapping(GetCurrentMemorySpace(), SystemIo->Io.Access.Memory.VirtualBase, Length);
             SystemIo->Io.Access.Memory.VirtualBase = 0;
         } break;
 
@@ -281,27 +285,24 @@ ReleaseKernelSystemDeviceIo(
  * that involves that virtual address */
 uintptr_t
 ValidateDeviceIoMemoryAddress(
-    _In_ uintptr_t      Address)
+    _In_ uintptr_t Address)
 {
-    UUId_t Handle = ThreadingGetCurrentThread(CpuGetCurrentId())->ProcessHandle;
-
-    // Debugging
+    SystemModule_t* Module = GetCurrentModule();
     TRACE("ValidateDeviceIoMemoryAddress(Process %u, Address 0x%x)", Handle, Address);
 
-    // Sanitize the id
-    if (Handle == UUID_INVALID) {
+    if (Module == NULL) {
         return 0;
     }
     
     // Iterate and check each io-space if the process has this mapped in
     foreach(ioNode, &IoSpaces) {
-        SystemDeviceIo_t *IoSpace   = (SystemDeviceIo_t*)ioNode;
-        uintptr_t VirtualBase       = IoSpace->MappedAddress;
+        SystemDeviceIo_t* IoSpace     = (SystemDeviceIo_t*)ioNode;
+        uintptr_t         VirtualBase = IoSpace->MappedAddress;
 
         // Two things has to be true before the io-space
         // is valid, it has to belong to the right process
         // and be in range 
-        if (IoSpace->Owner == Handle && IoSpace->Io.Type == DeviceIoMemoryBased &&
+        if (IoSpace->Owner == Module->Handle && IoSpace->Io.Type == DeviceIoMemoryBased &&
             (Address >= VirtualBase && Address < (VirtualBase + IoSpace->Io.Access.Memory.Length))) {
             return IoSpace->Io.Access.Memory.PhysicalBase + (Address - VirtualBase);
         }

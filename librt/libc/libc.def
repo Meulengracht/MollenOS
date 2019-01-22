@@ -16,7 +16,8 @@ CollectionRemoveByNode
 CollectionRemoveByKey
 CollectionDestroy
 CollectionLength
-StdSignalInitialize
+InitializeProcess
+GetInternalCommandLine
 exit
 _setjmp
 _setjmp3

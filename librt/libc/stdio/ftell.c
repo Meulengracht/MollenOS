@@ -20,14 +20,12 @@
  * - Returns the current value of the position indicator of the stream.
  */
 
-#include <os/file.h>
-#include <os/syscall.h>
-
-#include <io.h>
+#include <ddk/file.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include "local.h"
+#include <io.h>
 
 /* tell 
  * Returns the current value of the position indicator of the stream.

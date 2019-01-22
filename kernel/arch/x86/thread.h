@@ -26,7 +26,7 @@
 
 #include <arch.h>
 #include <os/osdefs.h>
-#include <os/interrupt.h>
+#include <ddk/interrupt.h>
 
 #define X86_THREAD_USEDFPU          0x1
 
@@ -49,12 +49,12 @@ ThreadingHaltHandler(
     _In_ FastInterruptResources_t*  NotUsed,
     _In_ void*                      Context);
 
-/* _ThreadingSwitch
+/* _GetNextRunnableThread
  * This function loads a new task from the scheduler, it
  * implements the task-switching functionality, which MCore leaves
  * up to the underlying architecture */
 KERNELAPI Context_t* KERNELABI
-_ThreadingSwitch(
+_GetNextRunnableThread(
     _In_  Context_t*                Context,
     _In_  int                       PreEmptive,
     _Out_ size_t*                   TimeSlice,

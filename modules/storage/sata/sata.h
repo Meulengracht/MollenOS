@@ -24,8 +24,6 @@
 #ifndef _SATA_H_
 #define _SATA_H_
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 
 /* SATA Device Signatures
@@ -124,7 +122,7 @@ PACKED_TYPESTRUCT(FISRegisterD2H, {
 	uint32_t				Reserved2;		/* DWORD 4: Reserved */
 });
 
-/* Data FIS – Bidirectional 
+/* Data FIS ï¿½ Bidirectional 
  * This FIS is used by the host or device to send data payload. 
  * The data size can be varied. */
 PACKED_TYPESTRUCT(FISData, {
@@ -138,8 +136,8 @@ PACKED_TYPESTRUCT(FISData, {
 	uint32_t				Payload[1];
 });
 
-/* PIO Setup – Device to Host
- * This FIS is used by the device to tell the host that it’s about to send 
+/* PIO Setup ï¿½ Device to Host
+ * This FIS is used by the device to tell the host that itï¿½s about to send 
  * or ready to receive a PIO data payload. */
 PACKED_TYPESTRUCT(FISPioSetup, {
 	uint8_t						Type;

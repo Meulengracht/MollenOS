@@ -21,7 +21,7 @@
  */
 #define __TRACE
 
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include "../include/vfs.h"
 #include "../include/gpt.h"
 #include "../include/mbr.h"
@@ -69,6 +69,7 @@ OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
 		Type = FSFAT;
 	}
 	else {
+        WARNING("Unknown filesystem detected");
 		// The following needs processing in other sectors to be determined
 		//TODO
 		//HPFS

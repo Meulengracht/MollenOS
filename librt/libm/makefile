@@ -7,7 +7,7 @@ include ../../config/common.mk
 ASM_SRCS = $(wildcard $(VALI_ARCH)/*.s)
 ARCH_SRCS = $(wildcard $(VALI_ARCH)/*.c)
 SOURCES = $(wildcard *.c)
-INCLUDES = -I../include
+INCLUDES = -I../include -I../libc/include
 
 # Setup architecture specific flags and paths
 # On windows-i386, double is 32 bits, long double is 64 bits
@@ -35,11 +35,11 @@ all: ../build/libm.dll
 	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
 %.o : %.c
-	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
+	@printf "%b" "\033[0;32m[LIBM] Compiling C source object " $< "\033[m\n"
 	@$(CC) -c $(CFLAGS) -o $@ $<
 
 %.o : %.s
-	@printf "%b" "\033[0;32mAssembling source object " $< "\033[m\n"
+	@printf "%b" "\033[0;32m[LIBM] Assembling source object " $< "\033[m\n"
 	@$(AS) $(ASFLAGS) $< -o $@
 
 .PHONY: clean

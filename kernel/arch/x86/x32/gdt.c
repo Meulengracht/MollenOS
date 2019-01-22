@@ -126,7 +126,7 @@ TssInitialize(
 	// Variables
 	uint32_t tBase  = 0;
 	uint32_t tLimit = 0;
-    UUId_t CoreId   = CpuGetCurrentId();
+    UUId_t CoreId   = ArchGetProcessorCoreId();
 
 	// If we use the static allocator, it must be the boot cpu
 	if (PrimaryCore) {
@@ -176,7 +176,7 @@ TssUpdateThreadStack(
 uintptr_t
 TssGetBootIoSpace(void)
 {
-	return (uintptr_t)&TssPointers[CpuGetCurrentId()]->IoMap[0];
+	return (uintptr_t)&TssPointers[ArchGetProcessorCoreId()]->IoMap[0];
 }
 
 /* TssUpdateIo

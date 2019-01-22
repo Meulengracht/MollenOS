@@ -29,7 +29,7 @@
  * Instantiates a new collection with the specified key-type. */
 Collection_t*
 CollectionCreate(
-    _In_ KeyType_t              KeyType)
+    _In_ KeyType_t KeyType)
 {
     // Allocate a new Collection structure
     Collection_t *Collection = (Collection_t*)dsalloc(sizeof(Collection_t));
@@ -44,8 +44,8 @@ CollectionCreate(
  * Instantiates a new static Collection with the given attribs and keytype */
 void
 CollectionConstruct(
-    _In_ Collection_t*          Collection,
-    _In_ KeyType_t              KeyType)
+    _In_ Collection_t* Collection,
+    _In_ KeyType_t     KeyType)
 {
     memset(Collection, 0, sizeof(Collection_t));
     Collection->KeyType = KeyType;

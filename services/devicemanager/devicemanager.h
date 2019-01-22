@@ -24,9 +24,9 @@
 #ifndef __DEVICEMANAGER_INTERFACE__
 #define __DEVICEMANAGER_INTERFACE__
 
-#include <os/contracts/base.h>
+#include <ddk/contracts/base.h>
 #include <os/osdefs.h>
-#include <os/device.h>
+#include <ddk/device.h>
 
 /* DmRegisterDevice
  * Allows registering of a new device in the

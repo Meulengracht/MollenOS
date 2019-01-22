@@ -19,41 +19,42 @@
  * MollenOS C Library - Driver Entry 
  */
 
-/* Includes 
- * - System */
-#include <os/driver.h>
-#include <os/mollenos.h>
-
-/* Includes
- * - Library */
 #include "../libc/threads/tls.h"
+#include <os/mollenos.h>
+#include <ddk/driver.h>
 #include <stdlib.h>
+
+// Module Interface
+__EXTERN OsStatus_t        OnLoad(void);
+__EXTERN OsStatus_t        OnUnload(void);
+__EXTERN OsStatus_t        OnRegister(MCoreDevice_t*);
+__EXTERN OsStatus_t        OnUnregister(MCoreDevice_t*);
+__EXTERN InterruptStatus_t OnInterrupt(void*, size_t, size_t, size_t);
+__EXTERN OsStatus_t        OnQuery(MContractType_t,  int,  MRemoteCallArgument_t*, MRemoteCallArgument_t*, MRemoteCallArgument_t*, MRemoteCallAddress_t*);
 
 /* CRT Initialization sequence
  * for a shared C/C++ environment call this in all entry points */
 extern char**
 __CrtInitialize(
     _In_  thread_storage_t* Tls,
-    _In_  int               StartupInfoEnabled,
+    _In_  int               IsModule,
     _Out_ int*              ArgumentCount);
 
 /* __CrtModuleEntry
  * Use this entry point for modules. */
 void __CrtModuleEntry(void)
 {
-    // Variables
-    thread_storage_t        Tls;
-    MRemoteCall_t           Message;
-    char *ArgumentBuffer    = NULL;
-    int IsRunning           = 1;
+    thread_storage_t Tls;
+    MRemoteCall_t    Message;
+    char*            ArgumentBuffer;
+    int              IsRunning = 1;
 
     // Initialize environment
-    __CrtInitialize(&Tls, 0, NULL);
+    __CrtInitialize(&Tls, 1, NULL);
 
     // Call the driver load function 
     // - This will be run once, before loop
     if (OnLoad() != OsSuccess) {
-        OnUnload();
         goto Cleanup;
     }
 
@@ -74,10 +75,6 @@ void __CrtModuleEntry(void)
                         Message.Arguments[3].Data.Value,
                         Message.Arguments[4].Data.Value);
                 } break;
-                case __DRIVER_TIMEOUT: {
-                    OnTimeout((UUId_t)Message.Arguments[0].Data.Value,
-                        (void*)Message.Arguments[1].Data.Value);
-                } break;
                 case __DRIVER_QUERY: {
                     OnQuery((MContractType_t)Message.Arguments[0].Data.Value, 
                         (int)Message.Arguments[1].Data.Value, 
@@ -94,10 +91,7 @@ void __CrtModuleEntry(void)
             }
         }
     }
-
-    // Call unload, so driver can cleanup
-    OnUnload();
-
 Cleanup:
+    OnUnload();
     exit(-1);
 }

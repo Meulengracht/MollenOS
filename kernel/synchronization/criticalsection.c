@@ -87,12 +87,12 @@ CriticalSectionEnter(
     // Critical sections are not owned by threads but instead cpu's as only
     // one cpu can own the lock at the time
     if (Section->References > 0 && (Section->Flags & CRITICALSECTION_REENTRANCY)) {
-        if (Section->Owner == CpuGetCurrentId()) {
+        if (Section->Owner == ArchGetProcessorCoreId()) {
             Section->References++;
             return OsSuccess;
         }
     }
-    else if (Section->References > 0 && Section->Owner == CpuGetCurrentId()) {
+    else if (Section->References > 0 && Section->Owner == ArchGetProcessorCoreId()) {
         FATAL(FATAL_SCOPE_KERNEL, "Tried to relock a non-recursive lock 0x%x", Section);
     }
 
@@ -101,7 +101,7 @@ CriticalSectionEnter(
     SpinlockAcquire(&Section->Lock);
 
     // Update lock
-    Section->Owner      = CpuGetCurrentId();
+    Section->Owner      = ArchGetProcessorCoreId();
     Section->References = 1;
     Section->State      = IrqState;
     return OsSuccess;

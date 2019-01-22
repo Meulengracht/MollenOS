@@ -26,7 +26,7 @@
 
 #include <os/osdefs.h>
 #include <ds/collection.h>
-#include <os/device.h>
+#include <ddk/device.h>
 
 /* Fixed device-id and vendor-id values for 
  * loading non-dynamic devices */

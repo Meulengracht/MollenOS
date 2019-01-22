@@ -26,7 +26,7 @@
 
 extern "C" {
     extern int      main(int argc, char **argv, char **envp);
-    extern char**   __CrtInitialize(thread_storage_t* Tls, int StartupInfoEnabled, int* ArgumentCount);
+    extern char**   __CrtInitialize(thread_storage_t* Tls, int IsModule, int* ArgumentCount);
 }
 
 /* __CrtConsoleEntry
@@ -42,7 +42,7 @@ __CrtConsoleEntry(void)
 	int ExitCode            = 0;
 
 	// Initialize run-time
-	Arguments = __CrtInitialize(&Tls, 1, &ArgumentCount);
+	Arguments = __CrtInitialize(&Tls, 0, &ArgumentCount);
 
     // Call user-process entry routine
 	ExitCode = main(ArgumentCount, Arguments, NULL);

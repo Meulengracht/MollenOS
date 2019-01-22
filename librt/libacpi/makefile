@@ -6,7 +6,7 @@
 # Include all the definitions for os
 include ../../config/common.mk
 
-INCLUDES = -I../../kernel/include -I../include -Iinclude
+INCLUDES = -I../../kernel/include -I../include -I../libc/include -I../libddk/include -I../libds/include -Iinclude
 SOURCES = $(wildcard common/*.c) \
 		  $(wildcard debugger/*.c) \
 		  $(wildcard disassembler/*.c) \
@@ -33,7 +33,7 @@ all: ../build/libacpi.lib
 	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 	
 %.o : %.c
-	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
+	@printf "%b" "\033[0;32m[ACPI] Compiling C source object " $< "\033[m\n"
 	@$(CC) -c $(CFLAGS) -o $@ $<
 
 .PHONY: clean

@@ -29,10 +29,10 @@
 #ifndef _MFS_H_
 #define _MFS_H_
 
-#include <os/contracts/filesystem.h>
+#include <ddk/contracts/filesystem.h>
 #include <os/mollenos.h>
 #include <ds/mstring.h>
-#include <os/file.h>
+#include <ddk/file.h>
 
 /* MFS Definitions and Utilities
  * Contains magic constant values and utility macros for conversion */

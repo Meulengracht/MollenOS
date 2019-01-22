@@ -4,13 +4,13 @@
 # Include all the definitions for os
 include ../../config/common.mk
 
-INCLUDES = -I../../librt/include -Iinclude
+INCLUDES = -I../../librt/include -I../../librt/libc/include -I../../librt/libds/include -I../../librt/libddk/include -Iinclude
 SOURCES = $(wildcard layouts/*.c) \
 		  $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o)
 
 CFLAGS = $(GCFLAGS) -Wno-address-of-packed-member -D__SERVICE_IMPL -D__FILEMANAGER_IMPL $(INCLUDES)
-LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtServiceEntry /dll /lldmap ../../librt/build/libsrv.lib ../../librt/build/libc.lib
+LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtServiceEntry /dll /lldmap ../../librt/build/libsrv.lib ../../librt/build/libc.lib ../../librt/build/libds.lib
 
 .PHONY: all
 all: ../build/filemanager.dll ../build/filemanager.mdrv

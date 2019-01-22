@@ -16,8 +16,8 @@ else
 $(error VALI_ARCH is not set to a valid value)
 endif
 
-COMMON_INCLUDES = -I../include
-COMMON_SOURCES = $(wildcard *.c)
+COMMON_INCLUDES = -I../include -I../libc/include -Iinclude -I../libddk/include
+COMMON_SOURCES = $(wildcard mstring/*.c) $(wildcard pe/*.c) $(wildcard *.c)
 
 KERNEL_SOURCES = $(COMMON_SOURCES) support/dsk.c
 KERNEL_OBJECTS = $(KERNEL_SOURCES:.c=.ko)
@@ -30,12 +30,7 @@ KERNEL_CFLAGS = $(GCFLAGS) -mno-sse -D_KRNL_DLL $(COMMON_INCLUDES) $(KERNEL_INCL
 NORMAL_CFLAGS = $(GCFLAGS) -D_KRNL_DLL $(COMMON_INCLUDES)
 LFLAGS = /lib
 
-# default-target
-.PHONY: libdsk
-libdsk: ../build/libdsk.lib
-
-.PHONY: libds
-libds: ../build/libds.lib
+all: ../build/libds.lib ../build/libdsk.lib
 
 # tidy-target
 .PHONY: tidy
@@ -51,12 +46,12 @@ tidy: $(KERNEL_OBJECTS) $(OBJECTS)
 
 %.o : %.c
 	@mkdir -p $(dir $@)
-	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
+	@printf "%b" "\033[0;32m[LIBDS] Compiling C source object " $< "\033[m\n"
 	@$(CC) -c $(NORMAL_CFLAGS) -o $@ $<
 
 %.ko : %.c
 	@mkdir -p $(dir $@)
-	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
+	@printf "%b" "\033[0;32m[LIBDS] Compiling C source object " $< "\033[m\n"
 	@$(CC) -c $(KERNEL_CFLAGS) -o $@ $<
 
 .PHONY: clean

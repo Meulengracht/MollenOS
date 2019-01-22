@@ -26,10 +26,10 @@
 //#define __TRACE
 
 #include <system/interrupts.h>
+#include <modules/manager.h>
 #include <system/thread.h>
 #include <system/utils.h>
 #include <ds/collection.h>
-#include <process/process.h>
 #include <acpiinterface.h>
 #include <interrupts.h>
 #include <threading.h>
@@ -60,7 +60,7 @@ extern void     __cli(void);
 extern void     __sti(void);
 extern reg_t    __getflags(void);
 extern reg_t    __getcr2(void);
-extern void     enter_thread(Context_t *Regs);
+extern void     enter_thread(Context_t* Regs);
 
 /* InitializeSoftwareInterrupts
  * Initializes all the default software interrupt gates. */
@@ -401,33 +401,25 @@ InterruptEntry(
  * If the signal is blocked the process/thread is killed. */
 OsStatus_t
 ExceptionSignal(
-    _In_ Context_t  *Registers,
-    _In_ int         Signal)
+    _In_ Context_t* Registers,
+    _In_ int        Signal)
 {
-    MCoreThread_t *Thread   = NULL;
-    UUId_t Cpu              = CpuGetCurrentId();
+    UUId_t CoreId         = ArchGetProcessorCoreId();
+    MCoreThread_t* Thread = GetCurrentThreadForCore(CoreId);
 
-    // Debug
     TRACE("ExceptionSignal(Signal %i)", Signal);
 
     // Sanitize if user-process
 #ifdef __OSCONFIG_DISABLE_SIGNALLING
     if (Signal >= 0) {
 #else
-    if (GetCurrentProcess() == NULL) {
+    if (Thread->MemorySpace->SignalHandler == 0) {
 #endif
         return OsError;
     }
-
-    // Lookup current thread
-    Thread = ThreadingGetCurrentThread(Cpu);
-
-    // Initialize signal
     Thread->ActiveSignal.Ignorable = 0;
-    Thread->ActiveSignal.Signal = Signal;
-    Thread->ActiveSignal.Context = Registers;
-
-    // Dispatch
+    Thread->ActiveSignal.Signal    = Signal;
+    Thread->ActiveSignal.Context   = Registers;
     return ThreadingSignalDispatch(Thread);
 }
 
@@ -435,11 +427,11 @@ ExceptionSignal(
  * Common entry for all exceptions */
 void
 ExceptionEntry(
-    _In_ Context_t *Registers)
+    _In_ Context_t* Registers)
 {
-    MCoreThread_t *Thread   = NULL;
-    uintptr_t Address       = __MASK;
-    int IssueFixed          = 0;
+    MCoreThread_t*Thread = NULL;
+    uintptr_t Address    = __MASK;
+    int IssueFixed       = 0;
 
     // Handle IRQ
     if (Registers->Irq == 0) {      // Divide By Zero (Non-math instruction)
@@ -476,7 +468,7 @@ ExceptionEntry(
         }
     }
     else if (Registers->Irq == 7) { // DeviceNotAvailable 
-        Thread = ThreadingGetCurrentThread(CpuGetCurrentId());
+        Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
         assert(Thread != NULL);
 
         // This might be because we need to restore fpu/sse state
@@ -519,8 +511,8 @@ ExceptionEntry(
         // The first thing we must check before propegating events
         // is that we must check special locations
         if (Address == MEMORY_LOCATION_SIGNAL_RET) {
-            UUId_t Cpu  = CpuGetCurrentId();
-            Thread      = ThreadingGetCurrentThread(Cpu);
+            UUId_t Cpu  = ArchGetProcessorCoreId();
+            Thread      = GetCurrentThreadForCore(Cpu);
             Registers   = Thread->ActiveSignal.Context;
             TssUpdateThreadStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
             SignalReturn();                 // Complete signal handling
@@ -557,11 +549,11 @@ ExceptionEntry(
             // Bit 2 - write access
             // Bit 4 - user/kernel
             WRITELINE("page-fault address: 0x%x, error-code 0x%x", Address, Registers->ErrorCode);
-            WRITELINE("existing mapping for address: 0x%x", GetSystemMemoryMapping(GetCurrentSystemMemorySpace(), Address));
+            WRITELINE("existing mapping for address: 0x%x", GetMemorySpaceMapping(GetCurrentMemorySpace(), Address));
         }
 
         // Locate which module
-        if (DebugGetModuleByAddress(GetCurrentProcess(), CONTEXT_IP(Registers), &Base, &Name) == OsSuccess) {
+        if (DebugGetModuleByAddress(GetCurrentModule(), CONTEXT_IP(Registers), &Base, &Name) == OsSuccess) {
             uintptr_t Diff = CONTEXT_IP(Registers) - Base;
             WRITELINE("Faulty Address: 0x%x (%s)", Diff, Name);
         }
@@ -570,7 +562,7 @@ ExceptionEntry(
         }
 
         // Enter panic handler
-        ContextDump(Registers);
+        ArchDumpThreadContext(Registers);
         DebugPanic(FATAL_SCOPE_KERNEL, Registers, __MODULE,
             "Unhandled or fatal interrupt %u, Error Code: %u, Faulty Address: 0x%x",
             Registers->Irq, Registers->ErrorCode, CONTEXT_IP(Registers));

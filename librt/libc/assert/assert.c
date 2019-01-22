@@ -29,7 +29,7 @@ void _assert_panic(const char* str) {
 	DebugPanic(FATAL_SCOPE_KERNEL, NULL, __MODULE, str);
 }
 #else
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include <stdlib.h>
 
 /* Redirect output and exit thread */

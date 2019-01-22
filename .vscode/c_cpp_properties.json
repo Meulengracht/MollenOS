@@ -5,7 +5,10 @@
             "includePath": [
                 "${workspaceRoot}",
                 "${workspaceRoot}/librt/include",
+                "${workspaceRoot}/librt/libc/include",
+                "${workspaceRoot}/librt/libds/include",
                 "${workspaceRoot}/librt/libacpi/include",
+                "${workspaceRoot}/librt/libddk/include",
                 "${workspaceRoot}/kernel/include",
                 "${workspaceRoot}/kernel/arch/x86",
                 "${workspaceRoot}/kernel/arch/x86/x32",
@@ -67,7 +70,10 @@
             "includePath": [
                 "${workspaceRoot}",
                 "${workspaceRoot}/librt/include",
+                "${workspaceRoot}/librt/libc/include",
+                "${workspaceRoot}/librt/libds/include",
                 "${workspaceRoot}/librt/libacpi/include",
+                "${workspaceRoot}/librt/libddk/include",
                 "${workspaceRoot}/kernel/include",
                 "${workspaceRoot}/kernel/arch/x86",
                 "${workspaceRoot}/kernel/arch/x86/x64",

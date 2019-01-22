@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,107 +19,100 @@
  * MollenOS System Interface
  */
 
-/* Includes 
- * - System */
-#include <os/contracts/video.h>
+#include <internal/_syscalls.h>
+#include <internal/_utils.h>
+#include <ddk/contracts/video.h>
 #include <os/mollenos.h>
-#include <os/syscall.h>
-#include <os/utils.h>
+#include <os/process.h>
+#include <ddk/utils.h>
 
-/* Includes
- * - Library */
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
-/* Const Message */
 const char *__SysTypeMessage = "LIBC";
 
-/* SystemDebug 
- * Debug/trace printing for userspace application and drivers */
 void
 SystemDebug(
-	_In_ int Type,
-	_In_ __CONST char *Format, ...)
+	_In_ int         Type,
+	_In_ const char* Format, ...)
 {
-	// Static storage
 	va_list Args;
-	char TmpBuffer[256];
+	char    TmpBuffer[256];
 
-	// Reset buffer
 	memset(&TmpBuffer[0], 0, sizeof(TmpBuffer));
-
-	// Now use that one to format the string
-	// in using sprintf
 	va_start(Args, Format);
 	vsprintf(&TmpBuffer[0], Format, Args);
 	va_end(Args);
-
-	// Now spit it out
     Syscall_Debug(Type, __SysTypeMessage, &TmpBuffer[0]);
 }
 
-/* End Boot Sequence */
-void MollenOSEndBoot(void) {
+void
+MollenOSEndBoot(void)
+{
     Syscall_SystemStart();
 }
 
-/* QueryDisplayInformation
- * Queries the current display driver for information. */
-OsStatus_t QueryDisplayInformation(VideoDescriptor_t *Descriptor) {
+OsStatus_t
+SystemQuery(
+	_In_ SystemDescriptor_t* Descriptor)
+{
+	// Sanitize parameters
+	if (Descriptor == NULL) {
+		return OsError;
+	}
+	return Syscall_SystemQuery(Descriptor);
+}
+
+OsStatus_t
+QueryDisplayInformation(VideoDescriptor_t *Descriptor)
+{
     return Syscall_DisplayInformation(Descriptor);
 }
 
-/* CreateDisplayFramebuffer
- * Creates a new display framebuffer to use for direct drawing. */
-void* CreateDisplayFramebuffer(void) {
+void*
+CreateDisplayFramebuffer(void)
+{
     return Syscall_CreateDisplayFramebuffer();
 }
 
-/* SystemTime
- * Retrieves the system time. This is only ticking
- * if a system clock has been initialized. */
 OsStatus_t
-SystemTime(
-	_Out_ struct tm *time) {
-    return Syscall_SystemTime(time);
+GetSystemTime(
+	_In_ SystemTime_t* Time)
+{
+    return Syscall_SystemTime(Time);
 }
 
-/* SystemTick
- * Retrieves the system tick counter. This is only ticking
- * if a system timer has been initialized. */
 OsStatus_t
-SystemTick(
-    _In_  int       TickBase,
-	_Out_ clock_t*  Clock) {
-    return Syscall_SystemTick(TickBase, Clock);
+GetSystemTick(
+    _In_ int              TickBase,
+    _In_ LargeUInteger_t* Tick)
+{
+    if (TickBase == TIME_PROCESS && !IsProcessModule()) {
+        return ProcessGetTickBase((clock_t*)&Tick->QuadPart);
+    }
+    return Syscall_SystemTick(TickBase, Tick);
 }
 
-/* QueryPerformanceFrequency
- * Returns how often the performance timer fires every
- * second, the value will never be 0 */
 OsStatus_t
 QueryPerformanceFrequency(
-	_Out_ LargeInteger_t *Frequency) {
+	_Out_ LargeInteger_t *Frequency)
+{
     return Syscall_SystemPerformanceFrequency(Frequency);
 }
 
-/* QueryPerformanceTimer 
- * Queries the created performance timer and returns the
- * information in the given structure */
 OsStatus_t
 QueryPerformanceTimer(
-	_Out_ LargeInteger_t *Value) {
+	_Out_ LargeInteger_t *Value)
+{
     return Syscall_SystemPerformanceTime(Value);
 }
 
-/* FlushHardwareCache
- * Flushes the specified hardware cache. Should be used with caution as it might
- * result in performance drops. */
 OsStatus_t
 FlushHardwareCache(
     _In_     int    Cache,
     _In_Opt_ void*  Start, 
-    _In_Opt_ size_t Length) {
+    _In_Opt_ size_t Length)
+{
     return Syscall_FlushHardwareCache(Cache, Start, Length);
 }

@@ -19,9 +19,8 @@
  * MollenOS C Library - Write to file-handles
  */
 
-#include <os/file.h>
-#include <os/syscall.h>
-#include <os/utils.h>
+#include <ddk/file.h>
+#include <ddk/utils.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>

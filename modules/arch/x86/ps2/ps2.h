@@ -23,10 +23,10 @@
 #ifndef _DRIVER_PS2_CONTROLLER_H_
 #define _DRIVER_PS2_CONTROLLER_H_
 
-#include <os/contracts/base.h>
-#include <os/interrupt.h>
+#include <ddk/contracts/base.h>
+#include <ddk/interrupt.h>
 #include <os/osdefs.h>
-#include <os/io.h>
+#include <ddk/io.h>
 
 // Register offsets
 #define PS2_REGISTER_DATA           0x00

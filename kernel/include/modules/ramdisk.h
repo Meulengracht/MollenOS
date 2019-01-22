@@ -23,14 +23,11 @@
 #define __RAMDISK_H__
 
 #include <os/osdefs.h>
+#include <multiboot.h>
 
 /* Definitions for the MollenOS ramdisk
- * This is the magic signature, must be present
- * in the ramdisk image file */
+ * This is the magic signature, must be present in the ramdisk image file */
 #define RAMDISK_MAGIC               0x3144524D
-
-/* This is to identify which version of the
- * ramdisk is in use, and how to load data */
 #define RAMDISK_VERSION_1           0x01
 
 /* Supported architectures, must of course match
@@ -39,8 +36,7 @@
 #define RAMDISK_ARCH_X86_64         0x10
 
 /* This is the different ramdisk-header identifiers
- * Entries can be either generic files, directories
- * or modules (/server) */
+ * Entries can be either generic files, directories or modules (/server) */
 #define RAMDISK_FILE                0x1
 #define RAMDISK_DIRECTORY           0x2
 #define RAMDISK_MODULE              0x4
@@ -50,39 +46,39 @@
 #define RAMDISK_MODULE_SHARED       0x1
 #define RAMDISK_MODULE_SERVER       0x2
 
-/* MCoreRamDiskHeader
- * The ramdisk header, this is present in the 
- * first few bytes of the ramdisk image, members
- * do not vary in length */
-PACKED_TYPESTRUCT(MCoreRamDiskHeader, {
-    uint32_t    Magic;
-    uint32_t    Version;
-    uint32_t    Architecture;
-    int32_t     FileCount;
+PACKED_TYPESTRUCT(SystemRamdiskHeader, {
+    uint32_t Magic;
+    uint32_t Version;
+    uint32_t Architecture;
+    int32_t  FileCount;
 });
 
-/* MCoreRamDiskEntry
- * This is the ramdisk entry, which describes
- * an entry in the ramdisk. The ramdisk entry area
- * contains headers right after each other */
-PACKED_TYPESTRUCT(MCoreRamDiskEntry, {
-    uint8_t     Name[64]; // UTF-8 Encoded filename
-    uint32_t    Type; // Check the ramdisk entry definitions
-    uint32_t    DataHeaderOffset; // offset in the ramdisk
+// Entries are stored sequentially right after the header, they
+// point to an offset within
+PACKED_TYPESTRUCT(SystemRamdiskEntry, {
+    uint8_t  Name[64];          // UTF-8 Encoded filename
+    uint32_t Type;              // Check the ramdisk entry definitions
+    uint32_t DataHeaderOffset;  // offset in the ramdisk
 });
 
-/* MCoreRamDiskModuleHeader
- * This is the module header, and contains basic information
- * about the module data that follow this header. */
-PACKED_TYPESTRUCT(MCoreRamDiskModuleHeader, {
-    uint32_t    Flags;
-    uint32_t    LengthOfData; // Excluding this header
-    uint32_t    Crc32OfData;
+// The module header type is preceeding the actual data, and act
+// as a descriptor about the data
+PACKED_TYPESTRUCT(SystemRamdiskModuleHeader, {
+    uint32_t Flags;
+    uint32_t LengthOfData; // Excluding this header
+    uint32_t Crc32OfData;  // Excluding this header
     
-    uint32_t    VendorId;
-    uint32_t    DeviceId;
-    uint32_t    DeviceType;
-    uint32_t    DeviceSubType;
+    uint32_t VendorId;
+    uint32_t DeviceId;
+    uint32_t DeviceType;
+    uint32_t DeviceSubType;
 });
+
+/* ParseInitialRamdisk
+ * Parses the supplied ramdisk by the bootloader. Without a ramdisk present only debug
+ * functionality will be available. */
+KERNELAPI OsStatus_t KERNELABI
+ParseInitialRamdisk(
+    _In_ Multiboot_t* BootInformation);
 
 #endif //!__RAMDISK_H__

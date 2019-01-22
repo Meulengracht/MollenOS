@@ -23,7 +23,8 @@
 
 #include <os/binarysemaphore.h>
 #include <os/threadpool.h>
-#include <os/utils.h>
+#include <os/mollenos.h>
+#include <ddk/utils.h>
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
@@ -327,8 +328,9 @@ ThreadPoolInitialize(
     
     // Handle thread count
     if (NumThreads == THREADPOOL_DEFAULT_WORKERS) {
-        NumThreads = 2;
-        // for now.. set to num_cpus
+        SystemDescriptor_t Sys;
+        SystemQuery(&Sys);
+        NumThreads = Sys.NumberOfActiveCores;
     }
 
     // Sanitize parameters

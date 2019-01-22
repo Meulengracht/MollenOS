@@ -24,13 +24,13 @@
 #ifndef _VFS_INTERFACE_H_
 #define _VFS_INTERFACE_H_
 
-#include <os/contracts/filesystem.h>
+#include <ddk/contracts/filesystem.h>
 #include <os/sharedobject.h>
 #include <ds/collection.h>
 #include <os/mollenos.h>
-#include <os/buffer.h>
+#include <ddk/buffer.h>
 #include <ds/mstring.h>
-#include <os/file.h>
+#include <ddk/file.h>
 
 /* VFS Definitions 
  * - General identifiers can be used in paths */
@@ -41,10 +41,8 @@
 #define __FILE_OPERATION_READ           0x00000001
 #define __FILE_OPERATION_WRITE          0x00000002
 
-/* VFS FileSystem Types
- * The different supported built-in filesystems */
 typedef enum _FileSystemType {
-    FSUnknown                = 0,
+    FSUnknown = 0,
     FSFAT,
     FSEXFAT,
     FSNTFS,

@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Interrupt Interface
+ * Interrupt Interface
  * - Contains the shared kernel interrupt interface
  *   that all sub-layers must conform to
  */
@@ -24,9 +24,9 @@
 #ifndef _MCORE_INTERRUPTS_H_
 #define _MCORE_INTERRUPTS_H_
 
-#include <os/interrupt.h>
-#include <os/driver.h>
-#include <os/ipc/ipc.h>
+#include <ddk/interrupt.h>
+#include <ddk/driver.h>
+#include <ddk/ipc/ipc.h>
 #include <os/osdefs.h>
 #include <os/context.h>
 
@@ -42,7 +42,7 @@ typedef struct _SystemInterrupt {
     DeviceInterrupt_t               Interrupt;
     FastInterruptResourceTable_t    KernelResources;
     UUId_t                          Id;
-    UUId_t                          ProcessHandle;
+    UUId_t                          ModuleHandle;
     UUId_t                          Thread;
     Flags_t                         Flags;
     int                             Source;
@@ -174,42 +174,21 @@ AcpiDeriveInterrupt(
  * to unmask the interrupt-line again */
 __EXTERN OsStatus_t
 ScRpcExecute(
-    _In_ MRemoteCall_t*     Rpc,
-    _In_ int                Async);
+    _In_ MRemoteCall_t* Rpc,
+    _In_ int            Async);
 
 SERVICEAPI OsStatus_t SERVICEABI
 __KernelInterruptDriver(
-    _In_ UUId_t             Ash, 
-    _In_ UUId_t             Id,
-    _In_ void*              Data)
+    _In_ UUId_t Module, 
+    _In_ UUId_t Id,
+    _In_ void*  Data)
 {
     MRemoteCall_t Request;
-    size_t Zero = 0;
+    size_t        Zero = 0;
 
-    RPCInitialize(&Request, Ash, 1, __DRIVER_INTERRUPT);
+    RPCInitialize(&Request, Module, 1, __DRIVER_INTERRUPT);
     RPCSetArgument(&Request, 0, (const void*)&Id, sizeof(UUId_t));
     RPCSetArgument(&Request, 1, (const void*)&Data, sizeof(void*));
-    RPCSetArgument(&Request, 2, (const void*)&Zero, sizeof(size_t));
-    RPCSetArgument(&Request, 3, (const void*)&Zero, sizeof(size_t));
-    RPCSetArgument(&Request, 4, (const void*)&Zero, sizeof(size_t));
-    return ScRpcExecute(&Request, 1);
-}
-
-/* __KernelTimeoutDriver
- * Call this to send an timeout into userspace. The driver is
- * then informed about a timer-interval that elapsed. */
-SERVICEAPI OsStatus_t SERVICEABI
-__KernelTimeoutDriver(
-    _In_ UUId_t             Ash, 
-    _In_ UUId_t             TimerId,
-    _In_ void*              TimerData)
-{
-    MRemoteCall_t Request;
-    size_t Zero = 0;
-
-    RPCInitialize(&Request, Ash, 1, __DRIVER_TIMEOUT);
-    RPCSetArgument(&Request, 0, (const void*)&TimerId, sizeof(UUId_t));
-    RPCSetArgument(&Request, 1, (const void*)&TimerData, sizeof(void*));
     RPCSetArgument(&Request, 2, (const void*)&Zero, sizeof(size_t));
     RPCSetArgument(&Request, 3, (const void*)&Zero, sizeof(size_t));
     RPCSetArgument(&Request, 4, (const void*)&Zero, sizeof(size_t));

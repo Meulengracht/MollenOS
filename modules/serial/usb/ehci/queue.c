@@ -27,7 +27,7 @@
 /* Includes
  * - System */
 #include <os/mollenos.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include "ehci.h"
 
 /* Includes

@@ -20,9 +20,7 @@
  * - Sets the position indicator associated with the stream to a new position.
  */
 
-#include <os/file.h>
-#include <os/syscall.h>
-
+#include <ddk/file.h>
 #include <io.h>
 #include <stdio.h>
 #include <errno.h>

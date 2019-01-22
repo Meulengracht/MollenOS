@@ -21,8 +21,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include <os/io.h>
-#include <os/syscall.h>
+#include <internal/_syscalls.h>
+#include <ddk/io.h>
 #include <assert.h>
 
 /* Externs, this is i/o

@@ -6,15 +6,14 @@
 # Include all the definitions for os
 include ../config/common.mk
 
-INCLUDES = -I../librt/include -I../librt/libacpi/include -Iinclude
+INCLUDES = -I../librt/include -I../librt/libc/include -I../librt/libds/include -I../librt/libddk/include -I../librt/libacpi/include -Iinclude
 SOURCES = $(wildcard acpi/*.c) \
 		  $(wildcard components/*.c) \
+		  $(wildcard modules/*.c) \
 		  $(wildcard output/fonts/*.c) \
 		  $(wildcard output/*.c) \
-		  $(wildcard process/system_calls/*.c) \
-		  $(wildcard process/loaders/*.c) \
-		  $(wildcard process/*.c) \
 		  $(wildcard synchronization/*.c) \
+		  $(wildcard system_calls/*.c) \
 		  $(wildcard tests/*.c) \
 		  $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o)

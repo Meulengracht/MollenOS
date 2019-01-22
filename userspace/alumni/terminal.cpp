@@ -20,9 +20,7 @@
  * - The terminal emulator implementation for Vali. Built on manual rendering and
  *   using freetype as the font renderer.
  */
-//#define __TRACE
 
-#include <os/utils.h>
 #include <cassert>
 #include <cctype>
 #include <cmath>
@@ -51,7 +49,6 @@ void CTerminal::CTerminalLine::Reset()
 
 bool CTerminal::CTerminalLine::AddCharacter(int Character)
 {
-    TRACE("CTerminal::CTerminalLine::AddCharacter(%c)", Character);
     char Buf            = (char)Character & 0xFF;
     int CharacterLength = m_Renderer->GetLengthOfCharacter(m_Font, Buf);
 
@@ -74,7 +71,6 @@ bool CTerminal::CTerminalLine::AddCharacter(int Character)
 
 bool CTerminal::CTerminalLine::AddInput(int Character)
 {
-    TRACE("CTerminal::CTerminalLine::AddInput(%c)", Character);
     char Buf            = (char)Character & 0xFF;
     int CharacterLength = m_Renderer->GetLengthOfCharacter(m_Font, Buf);
 
@@ -110,7 +106,6 @@ bool CTerminal::CTerminalLine::RemoveInput()
 void CTerminal::CTerminalLine::Update()
 {
     if (m_Dirty) {
-        TRACE("CTerminal::CTerminalLine::Update(%i)", m_Row);
         m_Renderer->RenderClear(0, (m_Row * m_Font->GetFontHeight()) + 2, -1, m_Font->GetFontHeight());
         m_TextLength = m_Renderer->RenderText(3, (m_Row * m_Font->GetFontHeight()) + 2, m_Font, m_Text);
         if (m_ShowCursor) {
@@ -199,8 +194,6 @@ std::string CTerminal::ClearInput(bool Newline)
 
 void CTerminal::FinishCurrentLine()
 {
-    TRACE("CTerminal::FinishCurrentLine(%i, %u)", 
-        m_LineIndex, m_Lines[m_LineIndex]->GetText().length());
     // Only add to history if not an empty line
     if (m_Lines[m_LineIndex]->GetText().length() > 0) {
         m_History.push_back(m_Lines[m_LineIndex]->GetText());
@@ -222,7 +215,6 @@ void CTerminal::FinishCurrentLine()
 
 void CTerminal::ScrollToLine(bool ClearInput)
 {
-    TRACE("CTerminal::ScrollToLine(%i, %i)", m_HistoryIndex, m_LineIndex);
     int HistoryStart = m_HistoryIndex - m_LineIndex;
     for (int i = 0; i < m_Rows; i++) {
         if (i == m_LineIndex && !ClearInput) {
@@ -265,7 +257,6 @@ void CTerminal::Print(const char *Format, ...)
     va_start(Arguments, Format);
     vsnprintf(m_PrintBuffer, PRINTBUFFER_SIZE, Format, Arguments);
     va_end(Arguments);
-    TRACE("CTerminal::Print(%s)", &m_PrintBuffer[0]);
 
     for (size_t i = 0; i < PRINTBUFFER_SIZE && m_PrintBuffer[i]; i++) {
         if (m_PrintBuffer[i] == '\n') {
@@ -279,7 +270,6 @@ void CTerminal::Print(const char *Format, ...)
         }
     }
     m_Lines[m_LineIndex]->Update();
-    TRACE("DONE");
 }
 
 void CTerminal::Invalidate()

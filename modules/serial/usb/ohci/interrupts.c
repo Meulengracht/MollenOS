@@ -24,8 +24,7 @@
 
 #include <ds/collection.h>
 #include <os/mollenos.h>
-#include <os/timers.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include <threads.h>
 #include <string.h>
 #include <stdlib.h>

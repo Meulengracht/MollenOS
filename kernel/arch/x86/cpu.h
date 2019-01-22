@@ -57,10 +57,7 @@
 #define CPU_DATA_FEATURES_ECX       2
 #define CPU_DATA_FEATURES_EDX       3
 
-/* Cpu Features 
- * Tells us which kind of support there is available
- * on the cpu */
-enum CpuFeatures{
+enum CpuFeatures {
 	//Features contained in ECX register
 	CPUID_FEAT_ECX_SSE3 = 1 << 0,
 	CPUID_FEAT_ECX_PCLMUL = 1 << 1,
@@ -87,6 +84,8 @@ enum CpuFeatures{
 	CPUID_FEAT_ECX_XSAVE = 1 << 26,
 	CPUID_FEAT_ECX_OSXSAVE = 1 << 27,
 	CPUID_FEAT_ECX_AVX = 1 << 28,
+	CPUID_FEAT_ECX_F16C = 1 << 29,
+	CPUID_FEAT_ECX_RDRAND = 1 << 30,
 
 	//Features contained in EDX register
 	CPUID_FEAT_EDX_FPU = 1 << 0,

@@ -6,7 +6,7 @@ include ../../../config/common.mk
 
 SOURCES = $(wildcard ./*.c)
 
-INCLUDES = -I../../../librt/include -I../sata
+INCLUDES = -I../../../librt/include -I../../../librt/libc/include -I../../../librt/libds/include -I../../../librt/libddk/include
 OBJECTS = $(SOURCES:.c=.o)
 
 CFLAGS = $(GCFLAGS) -D__DRIVER_IMPL $(INCLUDES)

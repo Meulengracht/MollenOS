@@ -21,16 +21,15 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-/* Includes 
- * - System */
 #include <os/mollenos.h>
-#include <os/syscall.h>
+#include <internal/_syscalls.h>
 
 /* SetCurrentThreadName
  * Updates the name of the currently running thread. */
 OsStatus_t 
 SetCurrentThreadName(
-    _In_ const char *ThreadName) {
+    _In_ const char* ThreadName)
+{
     return Syscall_ThreadSetCurrentName(ThreadName);
 }
 
@@ -39,6 +38,7 @@ SetCurrentThreadName(
 OsStatus_t 
 GetCurrentThreadName(
     _In_ char*  ThreadNameBuffer,
-    _In_ size_t MaxLength) {
+    _In_ size_t MaxLength)
+{
     return Syscall_ThreadGetCurrentName(ThreadNameBuffer, MaxLength);
 }

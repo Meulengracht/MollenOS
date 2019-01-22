@@ -26,9 +26,11 @@
  * - (OS) System */
 #include <system/thread.h>
 #include <system/utils.h>
+#include <system/time.h>
 #include <interrupts.h>
 #include <threading.h>
 #include <scheduler.h>
+#include <timers.h>
 #include <debug.h>
 
 /* Includes
@@ -180,7 +182,7 @@ ACPI_THREAD_ID
 AcpiOsGetThreadId (
     void)
 {
-    return (ACPI_THREAD_ID)ThreadingGetCurrentThreadId();
+    return (ACPI_THREAD_ID)GetCurrentThreadId();
 }
 
 /******************************************************************************
@@ -202,8 +204,9 @@ AcpiOsExecute (
     ACPI_OSD_EXEC_CALLBACK  Function,
     void                    *Context)
 {
-    UUId_t Id = ThreadingCreateThread("acpi-worker", Function, Context, 0);
-    if (Id != UUID_INVALID) {
+    UUId_t     Id;
+    OsStatus_t Status = CreateThread("acpi-worker", Function, Context, 0, UUID_INVALID, &Id);
+    if (Status != OsSuccess) {
         return AE_OK;
     }
     return AE_ERROR;
@@ -242,7 +245,7 @@ void
 AcpiOsSleep (
     UINT64                  Milliseconds)
 {
-    if (ThreadingGetCurrentThread(CpuGetCurrentId()) != NULL) {
+    if (GetCurrentThreadForCore(ArchGetProcessorCoreId()) != NULL) {
         SchedulerThreadSleep(NULL, (size_t)Milliseconds);
     }
     else {
@@ -266,7 +269,7 @@ AcpiOsStall (
     UINT32                  Microseconds)
 {
     // We never stall for less than 1 ms
-    CpuStall((Microseconds / 1000) + 1);
+    ArchStallProcessorCore((Microseconds / 1000) + 1);
 }
 
 
@@ -327,7 +330,9 @@ UINT64
 AcpiOsGetTimer (
     void)
 {
-    return (UINT64)CpuGetTicks();
+    UINT64 CurrentTime = 0;
+    TimersGetSystemTick((clock_t*)&CurrentTime);
+    return CurrentTime;
 }
 
 /******************************************************************************

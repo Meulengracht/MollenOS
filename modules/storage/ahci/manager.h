@@ -27,7 +27,7 @@
 
 #include <os/osdefs.h>
 #include <ds/collection.h>
-#include <os/buffer.h>
+#include <ddk/buffer.h>
 #include "ahci.h"
 
 /* Dispatcher Flags 
@@ -42,11 +42,12 @@
  * Describes the ahci-transaction object and contains
  * information about the buffer and the requester */
 typedef struct _AhciTransaction {
-    MRemoteCallAddress_t        ResponseAddress;
-    uintptr_t                   Address;
-    size_t                      SectorCount;
-    AhciDevice_t*               Device;
-    int                         Slot;
+    CollectionItem_t     Header;
+    MRemoteCallAddress_t ResponseAddress;
+    uintptr_t            Address;
+    size_t               SectorCount;
+    AhciDevice_t*        Device;
+    int                  Slot;
 } AhciTransaction_t;
 
 /* AhciManagerInitialize

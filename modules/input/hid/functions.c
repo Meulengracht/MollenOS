@@ -19,8 +19,8 @@
  * MollenOS MCore - Human Input Device Driver (Generic)
  */
 
-#include <os/utils.h>
-#include <os/usb.h>
+#include <ddk/utils.h>
+#include <ddk/usb.h>
 #include <stdlib.h>
 #include "hid.h"
 

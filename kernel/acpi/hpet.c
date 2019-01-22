@@ -22,22 +22,14 @@
 #define __MODULE "HPET"
 //#define __TRACE
 
-/* Includes
- * - System */
 #include <memoryspace.h>
 #include <interrupts.h>
 #include <timers.h>
 #include <debug.h>
 #include <hpet.h>
 #include <heap.h>
-
-/* Includes
- * - Library */
 #include <stdlib.h>
 
-/* Globals
- * We keep a controller-structure as static, as there can only be
- * one controller present. */
 static HpController_t HpetController = { 0 };
 
 /* HpRead
@@ -118,8 +110,12 @@ HpStart(void)
     HpWrite(HPET_REGISTER_CONFIG, Config);
 }
 
-/* HpGetTicks
- * Retrieves the number of ticks done by the PIT. */
+void
+HpResetTicks(void)
+{
+    HpetController.Clock = 0;
+}
+
 clock_t
 HpGetTicks(void)
 {
@@ -375,8 +371,8 @@ HpInitialize(
     _In_ ACPI_TABLE_HPET *Table)
 {
     // Variables
-    MCoreTimePerformanceOps_t PerformanceOps = { 
-        HpReadFrequency, HpReadMainCounter, NULL
+    SystemPerformanceTimerOps_t PerformanceOps = { 
+        HpReadFrequency, HpReadMainCounter
     };
     int Legacy = 0, FoundPeriodic = 0;
     OsStatus_t Status;
@@ -393,8 +389,8 @@ HpInitialize(
     HpetController.TickMinimum = Table->MinimumTick;
 
     // Map the address
-    Status = CreateSystemMemorySpaceMapping(GetCurrentSystemMemorySpace(), 
-        &HpetController.BaseAddress, &HpetController.BaseAddress, GetSystemMemoryPageSize(),
+    Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), 
+        &HpetController.BaseAddress, &HpetController.BaseAddress, GetMemorySpacePageSize(),
         MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_NOCACHE | MAPPING_KERNEL, __MASK);
     if (Status != OsSuccess) {
         ERROR("Failed to map address for hpet.");
@@ -468,7 +464,7 @@ HpInitialize(
                 ERROR("Failed to initialize periodic timer %i", i);
             }
             else {
-                if (TimersRegisterSystemTimer(HpetController.Timers[i].Interrupt, 1000, HpGetTicks) != OsSuccess) {
+                if (TimersRegisterSystemTimer(HpetController.Timers[i].Interrupt, 1000, HpGetTicks, HpResetTicks) != OsSuccess) {
                     ERROR("Failed register timer %i as the system timer", i);
                 }
                 else {

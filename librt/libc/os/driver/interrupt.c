@@ -21,8 +21,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include <os/driver.h>
-#include <os/syscall.h>
+#include <internal/_syscalls.h>
+#include <ddk/driver.h>
 
 /* RegisterFastInterruptHandler
  * Registers a fast interrupt handler associated with the interrupt. */

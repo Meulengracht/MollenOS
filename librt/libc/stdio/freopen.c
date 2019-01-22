@@ -19,9 +19,7 @@
  * MollenOS C Library - Reopen file-handle
  */
 
-#include <os/file.h>
-#include <os/syscall.h>
-
+#include <ddk/file.h>
 #include <io.h>
 #include <stdio.h>
 #include <errno.h>

@@ -21,16 +21,20 @@
 
 #include <os/threadpool.h>
 #include <os/mollenos.h>
-#include <os/service.h>
+#include <ddk/service.h>
 #include "../libc/threads/tls.h"
 #include <stdlib.h>
+
+__EXTERN OsStatus_t OnLoad(void);
+__EXTERN OsStatus_t OnUnload(void);
+__EXTERN OsStatus_t OnEvent(MRemoteCall_t *Message);
 
 /* CRT Initialization sequence
  * for a shared C/C++ environment call this in all entry points */
 extern char**
 __CrtInitialize(
     _In_  thread_storage_t* Tls,
-    _In_  int               StartupInfoEnabled,
+    _In_  int               IsModule,
     _Out_ int*              ArgumentCount);
 
 /* Server event entry point
@@ -61,19 +65,17 @@ void __CrtServiceEntry(void)
     int IsRunning               = 1;
 
     // Initialize environment
-    __CrtInitialize(&Tls, 0, NULL);
+    __CrtInitialize(&Tls, 1, NULL);
 
     // Call the driver load function 
     // - This will be run once, before loop
     if (OnLoad() != OsSuccess) {
-        OnUnload();
         goto Cleanup;
     }
 
     // Initialize threadpool
 #ifdef __SERVER_MULTITHREADED
     if (ThreadPoolInitialize(THREADPOOL_DEFAULT_WORKERS, &ThreadPool) != OsSuccess) {
-        OnUnload();
         goto Cleanup;
     }
 
@@ -105,9 +107,7 @@ void __CrtServiceEntry(void)
     }
 #endif
 
-    // Call unload, so driver can cleanup
-    OnUnload();
-
 Cleanup:
+    OnUnload();
     exit(-1);
 }

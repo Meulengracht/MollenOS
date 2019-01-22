@@ -22,9 +22,9 @@
 
 /* Includes 
  * - System */
-#include <os/contracts/storage.h>
+#include <ddk/contracts/storage.h>
 #include <os/mollenos.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include "hid.h"
 
 /* Includes
@@ -54,20 +54,6 @@ OnInterrupt(
     _CRT_UNUSED(Arg2);
     return HidInterrupt((HidDevice_t*)InterruptData, 
         (UsbTransferStatus_t)Arg0, Arg1);
-}
-
-/* OnTimeout
- * Is called when one of the registered timer-handles
- * times-out. A new timeout event is generated and passed
- * on to the below handler */
-OsStatus_t
-OnTimeout(
-	_In_ UUId_t Timer,
-	_In_ void *Data)
-{
-	_CRT_UNUSED(Timer);
-	_CRT_UNUSED(Data);
-	return OsSuccess;
 }
 
 /* OnLoad

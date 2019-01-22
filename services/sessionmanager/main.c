@@ -16,26 +16,21 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Service - Session Manager
+ * Session Manager
  * - Contains the implementation of the session-manager which keeps track
  *   of all users and their running applications.
  */
 #define __TRACE
 
-#include <os/service.h>
-#include <os/sessions.h>
+#include <ddk/service.h>
+#include <ddk/sessions.h>
 #include <os/process.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include <string.h>
 #include <stdio.h>
 
-/* Globals
- * - State keeping variables */
 static UUId_t WindowingSystemId = UUID_INVALID;
 
-/* OnLoad
- * The entry-point of a server, this is called
- * as soon as the server is loaded in the system */
 OsStatus_t
 OnLoad(void)
 {
@@ -43,36 +38,27 @@ OnLoad(void)
 	return RegisterService(__SESSIONMANAGER_TARGET);
 }
 
-/* OnUnload
- * This is called when the server is being unloaded
- * and should free all resources allocated by the system */
 OsStatus_t
 OnUnload(void)
 {
     return OsSuccess;
 }
 
-/* OnEvent
- * This is called when the server recieved an external evnet
- * and should handle the given event*/
 OsStatus_t
 OnEvent(
-	_In_ MRemoteCall_t *Message)
+	_In_ MRemoteCall_t* Message)
 {
-	// Variables
     OsStatus_t Result = OsSuccess;
-    char PathBuffer[64];
+    char       PathBuffer[64];
     
-    // Debug
     TRACE("Sessionmanager.OnEvent(%i)", Message->Function);
 
-    // New function call!
     switch (Message->Function) {
         case __SESSIONMANAGER_CHECKUP: {
             if (WindowingSystemId == UUID_INVALID) {
                 // The identifier might be stored as a value here if less than a specific
                 // amount of bytes
-                const char *DiskIdentifier = RPCGetStringArgument(Message, 0);
+                const char* DiskIdentifier = RPCGetStringArgument(Message, 0);
 
                 // Clear up buffer and spawn app
                 memset(&PathBuffer[0], 0, sizeof(PathBuffer));
@@ -82,7 +68,7 @@ OnEvent(
                 sprintf(&PathBuffer[0], "%s:/shared/bin/vioarr.app", DiskIdentifier);
 #endif
                 TRACE("Spawning %s", &PathBuffer[0]);
-                WindowingSystemId = ProcessSpawn(&PathBuffer[0], NULL, 0);
+                WindowingSystemId = ProcessSpawn(&PathBuffer[0], NULL);
             }
         } break;
         case __SESSIONMANAGER_LOGIN: {

@@ -22,6 +22,7 @@
 
 #include <system/interrupts.h>
 #include <system/utils.h>
+#include <system/time.h>
 #include <assert.h>
 #include <apic.h>
 
@@ -32,7 +33,7 @@ for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
          fault = 1; \
          break;\
                                             }\
-    CpuStall(wait);\
+    ArchStallProcessorCore(wait);\
                     }
 
 /* ApicWaitForIdle
@@ -77,15 +78,14 @@ ApicSendInterrupt(
     _In_ UUId_t             Specific,
     _In_ int                Vector)
 {
-	// Variables
-	uint32_t IpiLow     = 0;
-	uint32_t IpiHigh    = 0;
-    UUId_t CpuId        = UUID_INVALID;
+	uint32_t    IpiLow  = 0;
+	uint32_t    IpiHigh = 0;
+    UUId_t      CpuId   = UUID_INVALID;
     IntStatus_t InterruptStatus;
-    OsStatus_t Status;
+    OsStatus_t  Status;
     
     // Get cpu-id of us
-    CpuId = CpuGetCurrentId();
+    CpuId = ArchGetProcessorCoreId();
     if (Type == InterruptSpecific && Specific == CpuId) {
         Type = InterruptSelf;
     }
@@ -114,12 +114,12 @@ ApicSendInterrupt(
     // busy we don't want to clear it as we already a send pending, just queue up interrupt
     InterruptStatus = InterruptDisable();
 	Status          = ApicWaitForIdle();
-    assert(Status != OsError);
-
-	ApicWriteLocal(APIC_ICR_HIGH,   IpiHigh);
-	ApicWriteLocal(APIC_ICR_LOW,    IpiLow);
+    if (Status == OsSuccess) {
+        ApicWriteLocal(APIC_ICR_HIGH, IpiHigh);
+        ApicWriteLocal(APIC_ICR_LOW,  IpiLow);
+    }
     InterruptRestoreState(InterruptStatus);
-    return OsSuccess;
+    return Status;
 }
 
 /* ApicPerformIPI
@@ -129,11 +129,10 @@ ApicPerformIPI(
     _In_ UUId_t             CoreId,
     _In_ int                Assert)
 {
-	// Variables
-	uint32_t IpiHigh    = APIC_DESTINATION(CoreId); // We use physical addressing for IPI/SIPI
-	uint32_t IpiLow     = 0;
+	uint32_t    IpiHigh = APIC_DESTINATION(CoreId); // We use physical addressing for IPI/SIPI
+	uint32_t    IpiLow  = 0;
     IntStatus_t InterruptStatus;
-    OsStatus_t Status;
+    OsStatus_t  Status;
 
     // Determine assert or deassert
     if (Assert) {
@@ -146,12 +145,12 @@ ApicPerformIPI(
 	// Wait for ICR to clear
     InterruptStatus = InterruptDisable();
 	Status          = ApicWaitForIdle();
-    assert(Status != OsError);
-    
-	// Always write upper first, irq is sent when low is written
-	ApicWriteLocal(APIC_ICR_HIGH,   IpiHigh);
-	ApicWriteLocal(APIC_ICR_LOW,    IpiLow);
-    Status = ApicWaitForIdle();
+    if (Status == OsSuccess) {        
+        // Always write upper first, irq is sent when low is written
+        ApicWriteLocal(APIC_ICR_HIGH, IpiHigh);
+        ApicWriteLocal(APIC_ICR_LOW,  IpiLow);
+        Status = ApicWaitForIdle(); 
+    }
     InterruptRestoreState(InterruptStatus);
     return Status;
 }
@@ -163,12 +162,11 @@ ApicPerformSIPI(
     _In_ UUId_t             CoreId,
     _In_ uintptr_t          Address)
 {
-	// Variables
-	uint32_t IpiLow     = APIC_DELIVERY_MODE(APIC_MODE_SIPI) | APIC_LEVEL_ASSERT | APIC_DESTINATION_PHYSICAL;
-	uint32_t IpiHigh    = APIC_DESTINATION(CoreId); // We use physical addressing for IPI/SIPI
-    uint8_t Vector      = 0;
+	uint32_t    IpiLow  = APIC_DELIVERY_MODE(APIC_MODE_SIPI) | APIC_LEVEL_ASSERT | APIC_DESTINATION_PHYSICAL;
+	uint32_t    IpiHigh = APIC_DESTINATION(CoreId); // We use physical addressing for IPI/SIPI
+    uint8_t     Vector  = 0;
     IntStatus_t InterruptStatus;
-    OsStatus_t Status;
+    OsStatus_t  Status;
     
     // Sanitize address given
     assert((Address % 0x1000) == 0);
@@ -179,12 +177,12 @@ ApicPerformSIPI(
 	// Wait for ICR to clear
     InterruptStatus = InterruptDisable();
 	Status          = ApicWaitForIdle();
-    assert(Status != OsError);
-    
-	// Always write upper first, irq is sent when low is written
-	ApicWriteLocal(APIC_ICR_HIGH,   IpiHigh);
-	ApicWriteLocal(APIC_ICR_LOW,    IpiLow);
-    Status = ApicWaitForIdle();
+    if (Status == OsSuccess) {        
+        // Always write upper first, irq is sent when low is written
+        ApicWriteLocal(APIC_ICR_HIGH, IpiHigh);
+        ApicWriteLocal(APIC_ICR_LOW,  IpiLow);
+        Status = ApicWaitForIdle();
+    }
     InterruptRestoreState(InterruptStatus);
     return Status;
 }

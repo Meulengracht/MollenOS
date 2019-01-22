@@ -32,18 +32,19 @@
 #include <heap.h>
 
 // Include all the systems that we have to cleanup
-#include <process/process.h>
 #include <memorybuffer.h>
+#include <memoryspace.h>
+#include <pipe.h>
 
 static Collection_t         SystemHandles                       = COLLECTION_INIT(KeyId);
 static _Atomic(UUId_t)      IdGenerator                         = 1;
 static HandleDestructorFn   HandleDestructors[HandleTypeCount]  = {
+    NULL,                      // Generic - Ignore
     DestroyMemoryBuffer,
-    DestroyProcess
+    DestroyMemorySpace,
+    DestroySystemPipe
 };
 
-/* CreateHandle
- * Allocates a new handle for a system resource with a reference of 1. */
 UUId_t
 CreateHandle(
     _In_ SystemHandleType_t         Type,
@@ -69,9 +70,6 @@ CreateHandle(
     return Id;
 }
 
-/* AcquireHandle
- * Acquires the handle given for the calling process. This can fail if the handle
- * turns out to be invalid, otherwise the resource will be returned. */
 void*
 AcquireHandle(
     _In_ UUId_t             Handle)
@@ -89,16 +87,13 @@ AcquireHandle(
 
     PreviousReferences = atomic_fetch_add(&Instance->References, 1);
     if (PreviousReferences == 0) {
-        // Special case, to fix race-conditioning. If the reference
+        // Special case, to prevent race-conditioning. If the reference
         // count ever reach 0 this was called on cleanup.
         return NULL;
     }
     return Instance->Resource;
 }
 
-/* LookupHandle
- * Retrieves the handle given for the calling process. This can fail if the handle
- * turns out to be invalid, otherwise the resource will be returned. */
 void*
 LookupHandle(
     _In_ UUId_t             Handle)
@@ -115,9 +110,23 @@ LookupHandle(
     return Instance->Resource;
 }
 
-/* DestroyHandle
- * Reduces the reference count of the given handle, and cleans up the handle on
- * reaching 0 references. */
+void*
+LookupHandleOfType(
+    _In_ UUId_t             Handle,
+    _In_ SystemHandleType_t Type)
+{
+    SystemHandle_t* Instance;
+    DataKey_t       Key;
+
+    // Lookup the handle
+    Key.Value.Id    = Handle;
+    Instance        = (SystemHandle_t*)CollectionGetNodeByKey(&SystemHandles, Key, 0);
+    if (Instance == NULL || Instance->Type != Type) {
+        return NULL;
+    }
+    return Instance->Resource;
+}
+
 OsStatus_t
 DestroyHandle(
     _In_ UUId_t             Handle)
@@ -141,21 +150,31 @@ DestroyHandle(
             SchedulerHandleSignalAll((uintptr_t*)Handle);
             ThreadingYield();
         }
-        Status = HandleDestructors[Instance->Type](Instance->Resource);
+        Status = (HandleDestructors[Instance->Type] != NULL) ? HandleDestructors[Instance->Type](Instance->Resource) : OsSuccess;
         kfree(Instance);
     }
     return Status;
 }
 
-/* WaitForHandles
- * Waits for either of the given handles to signal. The handles that are passed must
- * support the SYNCHRONIZE capability to be waited for. */
+OsStatus_t
+SignalHandle(
+    _In_ UUId_t Handle,
+    _In_ int    Count)
+{
+    for (int i = 0; i < Count; i++) {
+        if (SchedulerHandleSignal((uintptr_t*)Handle) != OsSuccess) {
+            return OsError;
+        }
+    }
+    return OsSuccess;
+}
+
 OsStatus_t
 WaitForHandles(
-    _In_ UUId_t*            Handles,
-    _In_ size_t             HandleCount,
-    _In_ int                WaitForAll,
-    _In_ size_t             Timeout)
+    _In_ UUId_t* Handles,
+    _In_ size_t  HandleCount,
+    _In_ int     WaitForAll,
+    _In_ size_t  Timeout)
 {
     // @todo multi sync in scheduler
     assert(Handles != NULL);

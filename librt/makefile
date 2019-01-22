@@ -11,8 +11,7 @@
 .PHONY: all
 all: build deploy
 	@$(MAKE) -s -C libc -f makefile libk
-	@$(MAKE) -s -C libds -f makefile libds
-	@$(MAKE) -s -C libds -f makefile libdsk
+	@$(MAKE) -s -C libds -f makefile
 	@$(MAKE) -s -C libclang -f makefile
 	@$(MAKE) -s -C libcrt -f makefile libcrt
 	@$(MAKE) -s -C libcrt -f makefile libdrv

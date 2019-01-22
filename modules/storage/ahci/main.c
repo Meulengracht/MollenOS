@@ -23,14 +23,13 @@
  */
 //#define __TRACE
 
-#include <os/contracts/storage.h>
+#include <ddk/contracts/storage.h>
 #include <os/mollenos.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include "manager.h"
 #include <string.h>
 #include <stdlib.h>
 
-// Static storage for the driver
 static Collection_t Controllers = COLLECTION_INIT(KeyId);
 
 /* OnFastInterrupt
@@ -78,9 +77,9 @@ OnInterrupt(
     _In_Opt_ size_t Arg1,
     _In_Opt_ size_t Arg2)
 {
-    AhciController_t *Controller = NULL;
-    reg32_t InterruptStatus;
-    int i;
+    AhciController_t* Controller;
+    reg32_t           InterruptStatus;
+    int               i;
 
     // Unused
     _CRT_UNUSED(Arg0);
@@ -105,19 +104,6 @@ HandleInterrupt:
         goto HandleInterrupt;
     }
     return InterruptHandled;
-}
-
-/* OnTimeout
- * Is called when one of the registered timer-handles
- * times-out. A new timeout event is generated and passed on to the below handler */
-OsStatus_t
-OnTimeout(
-    _In_ UUId_t Timer,
-    _In_ void *Data)
-{
-    _CRT_UNUSED(Timer);
-    _CRT_UNUSED(Data);
-    return OsSuccess;
 }
 
 /* OnLoad
@@ -146,10 +132,10 @@ OnUnload(void)
  * instance of this driver for the given device */
 OsStatus_t
 OnRegister(
-    _In_ MCoreDevice_t*                 Device)
+    _In_ MCoreDevice_t* Device)
 {
-    AhciController_t *Controller = NULL;
-    DataKey_t Key = { .Value.Id = Device->Id };
+    AhciController_t* Controller;
+    DataKey_t         Key = { .Value.Id = Device->Id };
     
     // Register the new controller
     Controller = AhciControllerCreate(Device);
@@ -205,10 +191,9 @@ OnQuery(
         // Query stats about a disk identifier in the form of
         // a StorageDescriptor
         case __STORAGE_QUERY_STAT: {
-            // Get parameters
-            AhciDevice_t *Device    = NULL;
-            UUId_t DiskId           = (UUId_t)Arg0->Data.Value;
-            StorageDescriptor_t     NullDescriptor;
+            AhciDevice_t*       Device;
+            StorageDescriptor_t NullDescriptor;
+            UUId_t              DiskId = (UUId_t)Arg0->Data.Value;
 
             // Lookup device
             Device = AhciManagerGetDevice(DiskId);
@@ -219,7 +204,6 @@ OnQuery(
                 memset((void*)&NullDescriptor, 0, sizeof(StorageDescriptor_t));
                 return RPCRespond(Address, (void*)&NullDescriptor, sizeof(StorageDescriptor_t));
             }
-
         } break;
 
             // Read or write sectors from a disk identifier
@@ -239,9 +223,9 @@ OnQuery(
             AhciTransaction_t *Transaction  = (AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
             memset((void*)Transaction, 0, sizeof(AhciTransaction_t));
             memcpy((void*)&Transaction->ResponseAddress, Address, sizeof(MRemoteCallAddress_t));
-            Transaction->Address        = Operation->PhysicalBuffer;
-            Transaction->SectorCount    = Operation->SectorCount;
-            Transaction->Device         = Device;
+            Transaction->Address     = Operation->PhysicalBuffer;
+            Transaction->SectorCount = Operation->SectorCount;
+            Transaction->Device      = Device;
 
             // Determine the kind of operation
             if (Operation->Direction == __STORAGE_OPERATION_READ) {

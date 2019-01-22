@@ -25,9 +25,11 @@
 
 #include <system/interrupts.h>
 #include <system/utils.h>
+#include <system/time.h>
 #include <memoryspace.h>
 #include <machine.h>
 #include <memory.h>
+#include <timers.h>
 #include <debug.h>
 #include <apic.h>
 #include <gdt.h>
@@ -37,15 +39,25 @@
 #include <component/domain.h>
 #include <component/cpu.h>
 
-/* External boot-stage for the application cores to jump into
- * kernel code and get initialized for execution. */
-extern const int    __GlbTramplineCode_length;
-extern const char   __GlbTramplineCode[];
+extern const int   __GlbTramplineCode_length;
+extern const char  __GlbTramplineCode[];
 
-/* SmpApplicationCoreEntry
- * The entry point for other cpu cores to get ready for code execution. This is neccessary
- * as the cores boot in 16 bit mode (64 bit for EFI?). The state we expect the core in is that
- * it has paging enabled in the same address space as boot-core. */
+void
+PollTimerForMilliseconds(size_t Milliseconds)
+{
+    volatile clock_t Current;
+    clock_t End;
+    if (TimersGetSystemTick((clock_t*)&Current) != OsSuccess) {
+        ArchStallProcessorCore(Milliseconds);
+        return;
+    }
+
+    End = Current + Milliseconds;
+    while (Current < End) {
+        TimersGetSystemTick((clock_t*)&Current);
+    }
+}
+
 void
 SmpApplicationCoreEntry(void)
 {
@@ -56,7 +68,7 @@ SmpApplicationCoreEntry(void)
 	IdtInstall();
 
     // Switch into NUMA memory space if any, otherwise nothing happens
-    SwitchSystemMemorySpace(GetCurrentSystemMemorySpace());
+    SwitchMemorySpace(GetCurrentMemorySpace());
 	InitializeLocalApicForApplicationCore();
 
     // Install the TSS before any multitasking
@@ -66,30 +78,35 @@ SmpApplicationCoreEntry(void)
     ActivateApplicationCore(GetCurrentProcessorCore());
 }
 
-/* StartApplicationCore (@arch)
- * Initializes and starts the cpu core given. This is called by the kernel if it detects multiple
- * cores in the processor. */
 void
 StartApplicationCore(
-    _In_ SystemCpuCore_t*   Core)
+    _In_ SystemCpuCore_t* Core)
 {
+    int Timeout;
+
 	// Perform the IPI
 	TRACE(" > booting core %u", Core->Id);
 	if (ApicPerformIPI(Core->Id, 1) != OsSuccess) {
 		ERROR(" > failed to boot core %u (ipi failed)", Core->Id);
 		return;
 	}
-    // ApicPerformIPI(Core->Id, 0); is needed on older cpus
+    PollTimerForMilliseconds(10);
+    // ApicPerformIPI(Core->Id, 0); is needed on older cpus, but not supported on newer.
+    // If there is an external DX the AP's will execute code in bios and won't support SIPI
 
-    // Perform the SIPI - some cpu's require two SIPI's
+    // Perform the SIPI - some cpu's require two SIPI's.
 	if (ApicPerformSIPI(Core->Id, MEMORY_LOCATION_TRAMPOLINE_CODE) != OsSuccess) {
 		ERROR(" > failed to boot core %u (sipi failed)", Core->Id);
 		return;
     }
 
-    // Wait - check if it booted, give it 200ms
+    // Wait - check if it booted, give it 10ms
     // If it didn't boot then send another SIPI and give up
-    CpuStall(200);
+    Timeout = 10;
+    while (Core->State != CpuStateRunning && Timeout) {
+        PollTimerForMilliseconds(1);
+        Timeout--;
+    }
     if (Core->State != CpuStateRunning) {
         if (ApicPerformSIPI(Core->Id, MEMORY_LOCATION_TRAMPOLINE_CODE) != OsSuccess) {
             ERROR(" > failed to boot core %u (sipi failed)", Core->Id);
@@ -98,8 +115,6 @@ StartApplicationCore(
     }
 }
 
-/* CpuSmpInitialize
- * Initializes an SMP environment and boots the available cores in the system */
 void
 CpuSmpInitialize(void)
 {
@@ -107,6 +122,6 @@ CpuSmpInitialize(void)
 	uint32_t EntryCode      = (uint32_t)(uint32_t*)SmpApplicationCoreEntry;
 
     *(CodePointer - 1) = EntryCode;
-    *(CodePointer - 2) = GetCurrentSystemMemorySpace()->Data[MEMORY_SPACE_CR3];
+    *(CodePointer - 2) = GetCurrentMemorySpace()->Data[MEMORY_SPACE_CR3];
 	memcpy((void*)MEMORY_LOCATION_TRAMPOLINE_CODE, (char*)__GlbTramplineCode, __GlbTramplineCode_length);
 }

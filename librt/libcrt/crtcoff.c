@@ -23,7 +23,7 @@
 /* Includes
  * - Library */
 #include <os/mollenos.h>
-#include <os/utils.h>
+#include <ddk/utils.h>
 #include <stdlib.h>
 #include <threads.h>
 #include <string.h>
@@ -112,9 +112,9 @@ _CRTALLOC(".tls$ZZZ") char _tls_end     = 0;
 
 /* Externs 
  * - Access to lib-c initializers */
-CRTDECL(void, __CrtCallInitializers(_PVFV *pfbegin, _PVFV *pfend));
-CRTDECL(int,  __CrtCallInitializersEx(_PIFV *pfbegin, _PIFV *pfend));
-CRTDECL(void, __CrtCallInitializersTls(_PVTLS *pfbegin, _PVTLS *pfend, void *dso_handle, unsigned long reason));
+CRTDECL(void, __cxa_callinitializers(_PVFV *pfbegin, _PVFV *pfend));
+CRTDECL(int,  __cxa_callinitializers_ex(_PIFV *pfbegin, _PIFV *pfend));
+CRTDECL(void, __cxa_callinitializers_tls(_PVTLS *pfbegin, _PVTLS *pfend, void *dso_handle, unsigned long reason));
 
 /* Globals
  * - Global exported shared variables */
@@ -164,9 +164,9 @@ void __CrtAttachTlsBlock(void) {
         _tls_array[_tls_index] = _tls_module_data;
     }
     if (_tls_init == 0) {
-        __CrtCallInitializersTls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_INITIALIZE);
+        __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_INITIALIZE);
     }
-    __CrtCallInitializersTls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_THREADATTACH);
+    __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_THREADATTACH);
 }
 
 // On ALL coff platform this must be called
@@ -174,14 +174,14 @@ void __CrtAttachTlsBlock(void) {
 void __CrtCxxInitialize(void) {
     __CrtCreateTlsBlock();
     __CrtAttachTlsBlock();
-	__CrtCallInitializers(__xc_a, __xc_z);
-	__CrtCallInitializersEx(__xi_a, __xi_z);
+	__cxa_callinitializers(__xc_a, __xc_z);
+	__cxa_callinitializers_ex(__xi_a, __xi_z);
 }
 
 // On non-windows coff platforms this should not be run
 // as terminators are registered by cxa_atexit.
 void __CrtCxxFinalize(void) {
-	__CrtCallInitializers(__xp_a, __xp_z);
-	__CrtCallInitializers(__xt_a, __xt_z);
-    __CrtCallInitializersTls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_FINALIZE);
+	__cxa_callinitializers(__xp_a, __xp_z);
+	__cxa_callinitializers(__xt_a, __xt_z);
+    __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_FINALIZE);
 }

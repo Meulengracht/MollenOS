@@ -22,10 +22,10 @@
  */
 #define __TRACE
 
-#include <os/buffer.h>
+#include <internal/_syscalls.h>
 #include <os/mollenos.h>
-#include <os/syscall.h>
-#include <os/utils.h>
+#include <ddk/buffer.h>
+#include <ddk/utils.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -35,10 +35,10 @@
  * this allows hardware drivers to interact with the buffer */
 DmaBuffer_t*
 CreateBuffer(
-    _In_ UUId_t                 FromHandle,
-    _In_ size_t                 Length)
+    _In_ UUId_t FromHandle,
+    _In_ size_t Length)
 {
-    DmaBuffer_t *Buffer = NULL;
+    DmaBuffer_t* Buffer;
 
     // Make sure the length is positive if we are requesting
     // to create a new buffer

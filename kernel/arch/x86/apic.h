@@ -24,7 +24,7 @@
 #define __APIC_H__
 
 #include <os/osdefs.h>
-#include <os/interrupt.h>
+#include <ddk/interrupt.h>
 #include <component/ic.h>
 #include <arch.h>
 
