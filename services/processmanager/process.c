@@ -20,6 +20,7 @@
  * - Contains the implementation of the process-manager which keeps track
  *   of running applications.
  */
+#define __TRACE
 
 #include <internal/_syscalls.h> // for Syscall_ThreadCreate
 #include "../../librt/libds/pe/pe.h"
@@ -87,6 +88,7 @@ OsStatus_t
 InitializeProcessManager(void)
 {
     CreateEventQueue(&EventQueue);
+    return OsSuccess;
 }
 
 OsStatus_t
@@ -108,6 +110,7 @@ CreateProcess(
 
     assert(Path != NULL);
     assert(Handle != NULL);
+    TRACE("CreateProcess(%s, %u, %u)", Path, ArgumentsLength, InheritationBlockLength);
 
     Process = (Process_t*)malloc(sizeof(Process_t));
     assert(Process != NULL);
@@ -183,6 +186,7 @@ JoinProcess(
 {
     ProcessJoiner_t* Join = (ProcessJoiner_t*)malloc(sizeof(ProcessJoiner_t));
     memset(Join, 0, sizeof(ProcessJoiner_t));
+    TRACE("JoinProcess(%u, %u)", Process->Header.Key.Value.Id, Timeout);
     
     Join->Header.Key.Value.Id = Process->Header.Key.Value.Id;
     memcpy(&Join->Address, Address, sizeof(MRemoteCallAddress_t));
@@ -212,6 +216,8 @@ KillProcess(
     _In_ Process_t* Target)
 {
     // Verify permissions
+    TRACE("KillProcess(%u, %u)", Killer->Header.Key.Value.Id, 
+        Target->Header.Key.Value.Id);
 
     // Send a kill signal on the primary thread, if it fails, then
     // the thread has probably already shutdown, but the process instance is
@@ -228,6 +234,7 @@ TerminateProcess(
     _In_ int        ExitCode)
 {
     CollectionItem_t* Node;
+    TRACE("TerminateProcess(%u, %i)", Process->Header.Key.Value.Id, ExitCode);
 
     // Mark the process as terminating
     atomic_store(&Process->State, PROCESS_TERMINATING);
@@ -264,6 +271,8 @@ LoadProcessLibrary(
     OsStatus_t Status;
     int        Index;
 
+    TRACE("LoadProcessLibrary(%u, %s)", Process->Header.Key.Value.Id, 
+        (Path == NULL) ? "Global" : Path);
     if (Path == NULL) {
         *HandleOut = HANDLE_GLOBAL;
         return OsSuccess;
@@ -273,6 +282,7 @@ LoadProcessLibrary(
     PathAsMString = MStringCreate((void*)Path, StrUTF8);
     Status        = LoadFile(PathAsMString, &FullPath, (void**)&FileBuffer, &FileBufferLength);
     if (Status != OsSuccess) {
+        ERROR(" > failed to load file");
         MStringDestroy(PathAsMString);
         return Status;
     }
@@ -280,6 +290,7 @@ LoadProcessLibrary(
     // Verify image as PE compliant
     Status = PeValidateImageBuffer(FileBuffer, FileBufferLength);
     if (Status != OsSuccess) {
+        ERROR(" > failed to validate the file as a pe image");
         MStringDestroy(PathAsMString);
         MStringDestroy(FullPath);
         free((void*)FileBuffer);
@@ -304,6 +315,8 @@ ResolveProcessLibraryFunction(
     _In_ const char* Function)
 {
     PeExecutable_t* Image = Process->Executable;
+    TRACE("ResolveProcessLibraryFunction(%u, %s)", 
+        Process->Header.Key.Value.Id, Function);
     if (Handle != HANDLE_GLOBAL) {
         Image = (PeExecutable_t*)Handle;
     }
@@ -315,6 +328,7 @@ UnloadProcessLibrary(
     _In_ Process_t* Process,
     _In_ Handle_t   Handle)
 {
+    TRACE("UnloadProcessLibrary(%u)", Process->Header.Key.Value.Id);
     if (Handle == HANDLE_GLOBAL) {
         return OsSuccess;
     }
@@ -326,6 +340,7 @@ GetProcessLibraryHandles(
     _In_  Process_t* Process,
     _Out_ Handle_t   LibraryList[PROCESS_MAXMODULES])
 {
+    TRACE("GetProcessLibraryHandles(%u)", Process->Header.Key.Value.Id);
     return PeGetModuleHandles(Process->Executable, LibraryList);
 }
 
@@ -334,6 +349,7 @@ GetProcessLibraryEntryPoints(
     _In_  Process_t* Process,
     _Out_ Handle_t   LibraryList[PROCESS_MAXMODULES])
 {
+    TRACE("GetProcessLibraryEntryPoints(%u)", Process->Header.Key.Value.Id);
     return PeGetModuleEntryPoints(Process->Executable, LibraryList);
 }
 

@@ -8,7 +8,6 @@
 #define SECSPERDAY   (SECSPERHOUR * HOURSPERDAY)
 #define DAYSPERWEEK  7
 #define MONSPERYEAR  12
-#define DAYSPERYEAR  365
 
 #define YEAR_BASE                      1900
 #define EPOCH_YEAR                     1970
@@ -17,12 +16,17 @@
 #define EPOCH_YEARS_SINCE_CENTURY      70
 #define EPOCH_YEARS_SINCE_LEAP_CENTURY 370
 
-#define isleap(y) ((((y) % 4) == 0 && ((y) % 100) != 0) || ((y) % 400) == 0)
+#define isleap(Year) ((((Year) % 4) == 0 && ((Year) % 100) != 0) || ((Year) % 400) == 0)
+#define DAYSPERYEAR(Year) (isleap(Year) ? 366 : 365)
 
 int __tzcalc_limits(int __year);
 
 // Shared tabels that can be accessed for information and help for conversions
 extern const int __month_lengths[2][MONSPERYEAR];
+extern const int __days_before_month[2][MONSPERYEAR];
+extern int       __daylight;
+extern long      __timezone;
+extern char*     __tzname[2];
 
 void _tzset_unlocked_r(void);
 void _tzset_unlocked(void);

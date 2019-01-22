@@ -49,13 +49,13 @@ timespec_get(
                     Temporary.tm_hour = SystemTime.Hour;
                     Temporary.tm_mday = SystemTime.DayOfMonth;
                     Temporary.tm_mon  = SystemTime.Month - 1;
-                    Temporary.tm_year = SystemTime.Year;
+                    Temporary.tm_year = SystemTime.Year - YEAR_BASE;
                     ts->tv_sec        = mktime(&Temporary);
                 }
                 else {
                     ts->tv_sec = SystemTime.Second + (SystemTime.Minute * SECSPERMIN) +
                         (SystemTime.Hour * SECSPERHOUR) + ((SystemTime.DayOfMonth - 1) * SECSPERDAY) +
-                        ((SystemTime.Month - 1) * (SECSPERDAY * 30)) + ((SystemTime.Year * DAYSPERYEAR) * SECSPERDAY);
+                        ((SystemTime.Month - 1) * (SECSPERDAY * 30)) + ((SystemTime.Year * 365) * SECSPERDAY);
                 }
                 ts->tv_nsec = (long)SystemTime.Nanoseconds.QuadPart;
             }

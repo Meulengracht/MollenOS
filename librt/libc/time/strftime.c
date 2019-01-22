@@ -290,9 +290,6 @@ locale, hard-coding the "C" locale settings.
 #include "local.h"
 #include "../locale/setlocale.h"
 
-/* Externs */
-extern char **_tzname;
-
 /* Defines to make the file dual use for either strftime() or wcsftime().
  * To get wcsftime, define MAKE_WCSFTIME.
  * To get strftime, do not define MAKE_WCSFTIME.
@@ -1399,7 +1396,7 @@ recurse:
 	      tznam = tim_p->__TM_ZONE;
 #endif
 	      if (!tznam)
-		tznam = _tzname[tim_p->tm_isdst > 0];
+		tznam = __tzname[tim_p->tm_isdst > 0];
 	      /* Note that in case of wcsftime this loop only works for
 	         timezone abbreviations using the portable codeset (aka ASCII).
 		 This seems to be the case, but if that ever changes, this
@@ -1837,7 +1834,7 @@ if(strcmp(getenv("TZ"),strchr(TZ,'=')+1))  {
 tzset();
 
 #if defined(VERBOSE)
-printf("_timezone=%d, _daylight=%d, _tzname[0]=%s, _tzname[1]=%s\n", _timezone, _daylight, _tzname[0], _tzname[1]);
+printf("_timezone=%d, __daylight=%d, __tzname[0]=%s, __tzname[1]=%s\n", __timezone, __daylight, __tzname[0], __tzname[1]);
 {
 long offset;
 __tzinfo_type *tz = __gettzinfo ();

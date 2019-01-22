@@ -11,10 +11,6 @@ static char __tzname_std[11];
 static char __tzname_dst[11];
 static char *prev_tzenv = NULL;
 
-__EXTERN char **_tzname;
-__EXTERN int _daylight;
-__EXTERN long _timezone;
-
 void _tzset_unlocked_r(void)
 {
   char *tzenv;
@@ -25,10 +21,10 @@ void _tzset_unlocked_r(void)
 
   if ((tzenv = getenv("TZ")) == NULL)
       {
-	_timezone = 0;
-	_daylight = 0;
-	_tzname[0] = "GMT";
-	_tzname[1] = "GMT";
+	__timezone = 0;
+	__daylight = 0;
+	__tzname[0] = "GMT";
+	__tzname[1] = "GMT";
 	free(prev_tzenv);
 	prev_tzenv = NULL;
 	return;
@@ -67,18 +63,18 @@ void _tzset_unlocked_r(void)
     return;
   
   tz->__tzrule[0].offset = sign * (ss + SECSPERMIN * mm + SECSPERHOUR * hh);
-  _tzname[0] = __tzname_std;
+  __tzname[0] = __tzname_std;
   tzenv += n;
   
   if (sscanf (tzenv, "%10[^0-9,+-]%n", __tzname_dst, &n) <= 0)
     { /* No dst */
-      _tzname[1] = _tzname[0];
-      _timezone = tz->__tzrule[0].offset;
-      _daylight = 0;
+      __tzname[1] = __tzname[0];
+      __timezone = tz->__tzrule[0].offset;
+      __daylight = 0;
       return;
     }
   else
-    _tzname[1] = __tzname_dst;
+    __tzname[1] = __tzname_dst;
 
   tzenv += n;
 
@@ -179,13 +175,14 @@ void _tzset_unlocked_r(void)
     }
 
   __tzcalc_limits (tz->__tzyear);
-  _timezone = tz->__tzrule[0].offset;  
-  _daylight = tz->__tzrule[0].offset != tz->__tzrule[1].offset;
+  __timezone = tz->__tzrule[0].offset;  
+  __daylight = tz->__tzrule[0].offset != tz->__tzrule[1].offset;
 }
 
-void _tzset_r(void)
+void 
+_tzset_r(void)
 {
-  TZ_LOCK;
-  _tzset_unlocked_r();
-  TZ_UNLOCK;
+    TZ_LOCK;
+    _tzset_unlocked_r();
+    TZ_UNLOCK;
 }

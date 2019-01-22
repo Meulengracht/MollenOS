@@ -44,15 +44,10 @@ ANSI C requires <<localtime>>.
 <<localtime>> requires no supporting OS subroutines.
 */
 
-/* Includes 
- * - Library */
 #include "../threads/tls.h"
 #include <string.h>
 #include <time.h>
 #include "local.h"
-
-/* Externs to other files */
-__EXTERN int _daylight;
 
 /* Reentrency version of gmtime 
  * Modified implementation by newlib */
@@ -71,7 +66,7 @@ struct tm *localtime_r(__CONST time_t *__restrict tim_p, struct tm *__restrict r
 
 	TZ_LOCK;
 	_tzset_unlocked();
-	if (_daylight)
+	if (__daylight)
 	{
 		if (year == tz->__tzyear || __tzcalc_limits(year))
 			res->tm_isdst = (tz->__tznorth

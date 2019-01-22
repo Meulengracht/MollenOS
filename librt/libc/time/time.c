@@ -24,6 +24,7 @@
 #include <os/mollenos.h>
 #include <stddef.h>
 #include <time.h>
+#include "local.h"
 
 time_t time(time_t* Timer)
 {
@@ -38,7 +39,7 @@ time_t time(time_t* Timer)
         Temporary.tm_hour = SystemTime.Hour;
         Temporary.tm_mday = SystemTime.DayOfMonth;
         Temporary.tm_mon  = SystemTime.Month - 1;
-        Temporary.tm_year = SystemTime.Year;
+        Temporary.tm_year = SystemTime.Year - YEAR_BASE;
         Result = mktime(&Temporary);
         if (Timer != NULL) {
             *Timer = Result;
