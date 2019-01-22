@@ -52,6 +52,6 @@ CRTDECL(UUId_t, QueuePeriodicEvent(EventQueue_t* EventQueue, EventQueueFunction 
 /* CancelEvent
  * Marks an event to be cancelled, this will cancel the next time the event would fire, and all subsequent occasions of that
  * event. It will not cancel an event in progress. */
-CRTDECL(void, CancelEvent(EventQueue_t* EventQueue, UUId_t EventHandle));
+CRTDECL(OsStatus_t, CancelEvent(EventQueue_t* EventQueue, UUId_t EventHandle));
 
 #endif //!__EVENT_QUEUE_INTERFACE_H__

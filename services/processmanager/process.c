@@ -31,6 +31,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <signal.h>
 
 static Collection_t  Processes          = COLLECTION_INIT(KeyId);
 static Collection_t  Joiners            = COLLECTION_INIT(KeyId);
@@ -41,22 +42,27 @@ static void
 DestroyProcess(
     _In_ Process_t* Process)
 {
-    if (Process->Name != NULL) {
-        MStringDestroy(Process->Name);
+    int References = atomic_fetch_sub(&Process->References, 1);
+    if (References == 1) {
+        CollectionRemoveByNode(&Processes, &Process->Header);
+        if (Process->Name != NULL) {
+            MStringDestroy(Process->Name);
+        }
+        if (Process->Path != NULL) {
+            MStringDestroy(Process->Path);
+        }
+        if (Process->WorkingDirectory != NULL) {
+            MStringDestroy(Process->WorkingDirectory);
+        }
+        if (Process->AssemblyDirectory != NULL) {
+            MStringDestroy(Process->AssemblyDirectory);
+        }
+        if (Process->Executable != NULL) {
+            PeUnloadImage(Process->Executable);
+        }
+        free(Process);
+        return;
     }
-    if (Process->Path != NULL) {
-        MStringDestroy(Process->Path);
-    }
-    if (Process->WorkingDirectory != NULL) {
-        MStringDestroy(Process->WorkingDirectory);
-    }
-    if (Process->AssemblyDirectory != NULL) {
-        MStringDestroy(Process->AssemblyDirectory);
-    }
-    if (Process->Executable != NULL) {
-        PeUnloadImage(Process->Executable);
-    }
-    free(Process);
 }
 
 static void
@@ -65,19 +71,15 @@ HandleJoinProcess(
 {
     ProcessJoiner_t*     Join    = (ProcessJoiner_t*)Context;
     JoinProcessPackage_t Package = { .Status = OsTimeout };
+    CollectionRemoveByNode(&Joiners, &Join->Header);
 
     // Notify application about this
-    if (Join->Process->State == ProcessTerminating) {
+    if (atomic_load(&Join->Process->State) == PROCESS_TERMINATING) {
         Package.Status   = OsSuccess;
         Package.ExitCode = Join->Process->ExitCode;
     }
     RPCRespond(&Join->Address, (const void*)&Package, sizeof(JoinProcessPackage_t));
-
-    // Release our reference
     DestroyProcess(Join->Process);
-
-    // Cleanup our resources
-    CollectionRemoveByNode(&Joiners, &Join->Header);
     free(Join);
 }
 
@@ -110,6 +112,9 @@ CreateProcess(
     Process = (Process_t*)malloc(sizeof(Process_t));
     assert(Process != NULL);
     memset(Process, 0, sizeof(Process_t));
+
+    Process->State      = ATOMIC_VAR_INIT(PROCESS_RUNNING);
+    Process->References = ATOMIC_VAR_INIT(1);
 
     // Create the neccessary strings
     PathAsMString = MStringCreate((void*)Path, StrUTF8);
@@ -153,9 +158,6 @@ CreateProcess(
         memcpy(Process->InheritationBlock, InheritationBlock, InheritationBlockLength);
     }
 
-    SpinlockReset(&Process->SyncObject);
-    Process->State               = ProcessRunning;
-    Process->References          = ATOMIC_VAR_INIT(1);
     Process->Header.Key.Value.Id = ProcessIdGenerator++;
     Process->StartedAt           = clock();
     Process->PrimaryThreadId     = Syscall_ThreadCreate(Process->Executable->EntryAddress, 0, 0, Process->Executable->MemorySpace);
@@ -185,17 +187,22 @@ JoinProcess(
     Join->Header.Key.Value.Id = Process->Header.Key.Value.Id;
     memcpy(&Join->Address, Address, sizeof(MRemoteCallAddress_t));
     Join->Process = Process;
-
-    SpinlockAcquire(&Process->SyncObject);
-    if (Process->State == ProcessRunning) {
-        atomic_fetch_and_add(&Process->References, 1);
+    if (Timeout != 0) {
         Join->EventHandle = QueueDelayedEvent(EventQueue, HandleJoinProcess, Join, Timeout);
-        CollectionAppend(&Joiners, &Join->Header);
     }
     else {
-        HandleJoinProcess((void*)Join);
+        Join->EventHandle = UUID_INVALID;
     }
-    SpinlockRelease(&Process->SyncObject);
+
+    if (atomic_load(&Process->State) == PROCESS_RUNNING) {
+        if (atomic_fetch_add(&Process->References, 1) != 0) {
+            return CollectionAppend(&Joiners, &Join->Header);
+        }
+    }
+    if (Join->EventHandle != UUID_INVALID) {
+        CancelEvent(EventQueue, Join->EventHandle);
+    }
+    HandleJoinProcess((void*)Join);
     return OsSuccess;
 }
 
@@ -204,7 +211,15 @@ KillProcess(
     _In_ Process_t* Killer,
     _In_ Process_t* Target)
 {
-    return OsError;
+    // Verify permissions
+
+    // Send a kill signal on the primary thread, if it fails, then
+    // the thread has probably already shutdown, but the process instance is
+    // lingering around.
+    if (Syscall_ThreadSignal(Target->PrimaryThreadId, SIGKILL) != OsSuccess) {
+        return TerminateProcess(Target, -1);
+    }
+    return OsSuccess;
 }
 
 OsStatus_t
@@ -212,7 +227,27 @@ TerminateProcess(
     _In_ Process_t* Process,
     _In_ int        ExitCode)
 {
-    return OsError;
+    CollectionItem_t* Node;
+
+    // Mark the process as terminating
+    atomic_store(&Process->State, PROCESS_TERMINATING);
+    Process->ExitCode = ExitCode;
+    
+    // Identify all joiners, wake them or cancel their events
+    Node = CollectionGetNodeByKey(&Joiners, Process->Header.Key, 0);
+    while (Node != NULL) {
+        ProcessJoiner_t* Join = (ProcessJoiner_t*)Node;
+        if (Join->EventHandle != UUID_INVALID) {
+            if (CancelEvent(EventQueue, Join->EventHandle) == OsSuccess) {
+                HandleJoinProcess((void*)Join);
+            }
+        }
+        else {
+            HandleJoinProcess((void*)Join);
+        }
+    }
+    DestroyProcess(Process);
+    return OsSuccess;
 }
 
 OsStatus_t
@@ -221,7 +256,45 @@ LoadProcessLibrary(
     _In_  const char* Path,
     _Out_ Handle_t*   HandleOut)
 {
-    return OsError;
+    uint8_t*   FileBuffer = NULL;
+    size_t     FileBufferLength;
+    MString_t* PathAsMString;
+    MString_t* FullPath;
+    MString_t* Name;
+    OsStatus_t Status;
+    int        Index;
+
+    if (Path == NULL) {
+        *HandleOut = HANDLE_GLOBAL;
+        return OsSuccess;
+    }
+
+    // Create the neccessary strings
+    PathAsMString = MStringCreate((void*)Path, StrUTF8);
+    Status        = LoadFile(PathAsMString, &FullPath, (void**)&FileBuffer, &FileBufferLength);
+    if (Status != OsSuccess) {
+        MStringDestroy(PathAsMString);
+        return Status;
+    }
+
+    // Verify image as PE compliant
+    Status = PeValidateImageBuffer(FileBuffer, FileBufferLength);
+    if (Status != OsSuccess) {
+        MStringDestroy(PathAsMString);
+        MStringDestroy(FullPath);
+        free((void*)FileBuffer);
+        return Status;
+    }
+    Index  = MStringFindReverse(FullPath, '/', 0);
+    Name   = MStringSubString(FullPath, Index + 1, -1);
+    Status = PeLoadImage(Process->Executable, Name, FullPath, FileBuffer, FileBufferLength, (PeExecutable_t**)HandleOut);
+
+    // Cleanup
+    MStringDestroy(PathAsMString);
+    MStringDestroy(FullPath);
+    MStringDestroy(Name);
+    free((void*)FileBuffer);
+    return Status;
 }
 
 uintptr_t
@@ -230,7 +303,11 @@ ResolveProcessLibraryFunction(
     _In_ Handle_t    Handle,
     _In_ const char* Function)
 {
-    return PeResolveFunction((PeExecutable_t*)Handle, Function);
+    PeExecutable_t* Image = Process->Executable;
+    if (Handle != HANDLE_GLOBAL) {
+        Image = (PeExecutable_t*)Handle;
+    }
+    return PeResolveFunction(Image, Function);
 }
 
 OsStatus_t
@@ -238,6 +315,9 @@ UnloadProcessLibrary(
     _In_ Process_t* Process,
     _In_ Handle_t   Handle)
 {
+    if (Handle == HANDLE_GLOBAL) {
+        return OsSuccess;
+    }
     return PeUnloadLibrary(Process->Executable, (PeExecutable_t*)Handle);
 }
 

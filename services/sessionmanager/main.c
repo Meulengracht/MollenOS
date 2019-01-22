@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Service - Session Manager
+ * Session Manager
  * - Contains the implementation of the session-manager which keeps track
  *   of all users and their running applications.
  */
@@ -31,9 +31,6 @@
 
 static UUId_t WindowingSystemId = UUID_INVALID;
 
-/* OnLoad
- * The entry-point of a server, this is called
- * as soon as the server is loaded in the system */
 OsStatus_t
 OnLoad(void)
 {
@@ -41,18 +38,12 @@ OnLoad(void)
 	return RegisterService(__SESSIONMANAGER_TARGET);
 }
 
-/* OnUnload
- * This is called when the server is being unloaded
- * and should free all resources allocated by the system */
 OsStatus_t
 OnUnload(void)
 {
     return OsSuccess;
 }
 
-/* OnEvent
- * This is called when the server recieved an external evnet
- * and should handle the given event*/
 OsStatus_t
 OnEvent(
 	_In_ MRemoteCall_t* Message)

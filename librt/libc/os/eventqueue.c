@@ -28,13 +28,17 @@
 #include <assert.h>
 #include <string.h>
 
+#define EVENT_QUEUED    0
+#define EVENT_EXECUTED  1
+#define EVENT_CANCELLED 2
+
 typedef struct _EventQueueEvent {
     CollectionItem_t   Header;
     EventQueueFunction Function;
     void*              Context;
     size_t             Timeout;
     size_t             Interval;
-    int                Cancelled;
+    int                State;
 } EventQueueEvent_t;
 
 typedef struct _EventQueue {
@@ -101,13 +105,15 @@ UUId_t QueuePeriodicEvent(EventQueue_t* EventQueue, EventQueueFunction Callback,
     return AddToEventQueue(EventQueue, Callback, Context, IntervalMs, IntervalMs);
 }
 
-void CancelEvent(EventQueue_t* EventQueue, UUId_t EventHandle)
+OsStatus_t CancelEvent(EventQueue_t* EventQueue, UUId_t EventHandle)
 {
     DataKey_t          Key   = { .Value.Id = EventHandle };
     EventQueueEvent_t* Event = (EventQueueEvent_t*)CollectionGetNodeByKey(EventQueue->Events, Key, 0);
-    if (Event != NULL) {
-        Event->Cancelled = 1;
+    if (Event != NULL && Event->State != EVENT_EXECUTED) {
+        Event->State = EVENT_CANCELLED;
+        return OsSuccess;
     }
+    return OsDoesNotExist;
 }
 
 static UUId_t AddToEventQueue(EventQueue_t* EventQueue, EventQueueFunction Function, void* Context, size_t TimeoutMs, size_t IntervalMs)
@@ -164,19 +170,20 @@ static int EventQueueWorker(void* Context)
 
             if (cnd_timedwait(&EventQueue->EventCondition, &EventQueue->EventLock, &TimePoint) == thrd_timedout) {
                 // We timedout, or in other words successfully waited
-                if (!Event->Cancelled) {
+                if (Event->State != EVENT_CANCELLED) {
+                    Event->State = EVENT_EXECUTED;
                     Event->Function(Event->Context);
                     if (Event->Interval != 0) {
                         Event->Timeout = Event->Interval;
                     }
                 }
-                if (Event->Cancelled || !Event->Interval) {
+                if (Event->State == EVENT_CANCELLED || !Event->Interval) {
                     CollectionRemoveByNode(EventQueue->Events, &Event->Header);
                     CollectionDestroyNode(EventQueue->Events, &Event->Header);
                 }
             }
             else {
-                if (!Event->Cancelled) {
+                if (Event->State != EVENT_CANCELLED) {
                     // We were interrupted due to added events, calculate sleep time and subtract. Then
                     // start over
                     timespec_get(&InterruptedAt, TIME_UTC);

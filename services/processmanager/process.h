@@ -35,18 +35,15 @@
 DECL_STRUCT(PeExecutable);
 DECL_STRUCT(MString);
 
-typedef enum _ProcessState {
-    ProcessRunning = 0,
-    ProcessTerminating
-} ProcessState_t;
+#define PROCESS_RUNNING     0
+#define PROCESS_TERMINATING 1
 
 typedef struct _Process {
     CollectionItem_t            Header;
     UUId_t                      PrimaryThreadId;
     clock_t                     StartedAt;
     atomic_int                  References;
-    Spinlock_t                  SyncObject;
-    ProcessState_t              State;
+    atomic_uint                 State;
 
     MString_t*                  Name;
     MString_t*                  Path;
