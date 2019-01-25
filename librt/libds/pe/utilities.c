@@ -28,6 +28,11 @@
 #include <assert.h>
 #include "pe.h"
 
+#ifndef __TRACE
+#undef dstrace
+#define dstrace(...)
+#endif
+
 /* PeResolveLibrary
  * Resolves a dependancy or a given module path, a load address must be provided
  * together with a pe-file header to fill out and the parent that wants to resolve the library */
@@ -63,7 +68,7 @@ PeResolveLibrary(
         MString_t* FullPath;
         uint8_t*   Buffer;
         size_t     Size;
-
+        
         Status = LoadFile(LibraryName, &FullPath, (void**)&Buffer, &Size);
         if (Status == OsSuccess) {
             Status = PeLoadImage(ExportParent, LibraryName, FullPath, Buffer, Size, &Exports);

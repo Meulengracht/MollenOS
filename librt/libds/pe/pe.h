@@ -28,8 +28,8 @@
 #include <os/process.h>
 #include <os/pe.h>
 
-typedef struct _Collection Collection_t;
-typedef struct _MString MString_t;
+DECL_STRUCT(Collection);
+DECL_STRUCT(MString);
 typedef void* MemorySpaceHandle_t;
 typedef void* MemoryMapHandle_t;
 
@@ -44,10 +44,10 @@ typedef void* MemoryMapHandle_t;
 #endif
 
 typedef struct _PeExportedFunction {
-    char*     Name;
-    char*     ForwardName; //Library.Function
-    int       Ordinal;
-    uintptr_t Address;
+    const char* Name;
+    const char* ForwardName; //Library.Function
+    int         Ordinal;
+    uintptr_t   Address;
 } PeExportedFunction_t;
 
 typedef struct _PeExecutable {
@@ -60,12 +60,14 @@ typedef struct _PeExecutable {
 
     uintptr_t             VirtualAddress;
     uintptr_t             EntryAddress;
+    uintptr_t             OriginalImageBase;
     uintptr_t             CodeBase;
     size_t                CodeSize;
     uintptr_t             NextLoadingAddress;
     
     int                   NumberOfExportedFunctions;
     PeExportedFunction_t* ExportedFunctions;
+    char*                 ExportedFunctionNames;
     Collection_t*         Libraries;
 } PeExecutable_t;
 
@@ -74,6 +76,7 @@ typedef struct _PeExecutable {
  *******************************************************************************/
 __EXTERN uintptr_t  GetPageSize(void);
 __EXTERN uintptr_t  GetBaseAddress(void);
+__EXTERN clock_t    GetTimestamp(void);
 __EXTERN OsStatus_t LoadFile(MString_t*, MString_t**, void**, size_t*);
 __EXTERN OsStatus_t CreateImageSpace(MemorySpaceHandle_t*);
 __EXTERN OsStatus_t AcquireImageMapping(MemorySpaceHandle_t, uintptr_t*, size_t, Flags_t, MemoryMapHandle_t*);

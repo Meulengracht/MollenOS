@@ -28,16 +28,79 @@
 #include <assert.h>
 #include "pe.h"
 
+#ifndef __TRACE
+#undef dstrace
+#define dstrace(...)
+#endif
+
+typedef struct _SectionMapping {
+    MemoryMapHandle_t Handle;
+    uint8_t*          BasePointer;
+    uintptr_t         RVA;
+    size_t            Size;
+} SectionMapping_t;
+
+#define OFFSET_IN_SECTION(Section, _RVA) (uintptr_t)(Section->BasePointer + ((_RVA) - Section->RVA))
+
+// Directory handlers
+OsStatus_t PeHandleRelocations(PeExecutable_t*,PeExecutable_t*,SectionMapping_t*, uint8_t*, size_t);
+OsStatus_t PeHandleExports(PeExecutable_t*,PeExecutable_t*, SectionMapping_t*, uint8_t*, size_t);
+OsStatus_t PeHandleImports(PeExecutable_t*,PeExecutable_t*, SectionMapping_t*, uint8_t*, size_t);
+
+typedef OsStatus_t(*DataDirectoryHandler)(PeExecutable_t*,PeExecutable_t*, SectionMapping_t*, uint8_t*, size_t);
+static struct {
+    int                  Index;
+    DataDirectoryHandler Handler;
+} DataDirectoryHandlers[] = {
+    { PE_SECTION_BASE_RELOCATION, PeHandleRelocations },
+    { PE_SECTION_EXPORT, PeHandleExports },
+    { PE_SECTION_IMPORT, PeHandleImports },
+    { PE_NUM_DIRECTORIES, NULL }
+};
+
+static SectionMapping_t*
+GetSectionFromRVA(
+    _In_ int               SectionCount,
+    _In_ SectionMapping_t* SectionMappings,
+    _In_ uintptr_t         RVA)
+{
+    int i;
+    
+    for (i = 0; i < SectionCount; i++) {
+        uintptr_t SectionStart = SectionMappings[i].RVA;
+        uintptr_t SectionEnd   = SectionMappings[i].RVA + SectionMappings[i].Size;
+        if (RVA >= SectionStart && RVA < SectionEnd) {
+            return &SectionMappings[i];
+        }
+    }
+    assert(0);
+    return NULL;
+}
+
+static uintptr_t
+GetOffsetInSectionFromRVA(
+    _In_ int               SectionCount,
+    _In_ SectionMapping_t* SectionMappings,
+    _In_ uintptr_t         RVA)
+{
+    SectionMapping_t* Section = GetSectionFromRVA(SectionCount, SectionMappings, RVA);
+    if (Section != NULL) {
+        return OFFSET_IN_SECTION(Section, RVA);
+    }
+    return 0;
+}
+
 /* PeHandleSections
  * Relocates and initializes all sections in the pe image
  * It also returns the last memory address of the relocations */
 OsStatus_t
 PeHandleSections(
-    _In_  PeExecutable_t* Parent,
-    _In_  PeExecutable_t* Image,
-    _In_  uint8_t*        Data,
-    _In_  uintptr_t       SectionAddress,
-    _In_  int             SectionCount)
+    _In_ PeExecutable_t*     Parent,
+    _In_ PeExecutable_t*     Image,
+    _In_ uint8_t*            Data,
+    _In_ uintptr_t           SectionAddress,
+    _In_ int                 SectionCount,
+    _In_ SectionMapping_t*   SectionHandles)
 {
     PeSectionHeader_t* Section        = (PeSectionHeader_t*)SectionAddress;
     uintptr_t          CurrentAddress = Image->VirtualAddress;
@@ -77,6 +140,11 @@ PeHandleSections(
         }
         Destination = (uint8_t*)VirtualDestination;
 
+        SectionHandles[i].Handle      = MapHandle;
+        SectionHandles[i].BasePointer = Destination;
+        SectionHandles[i].RVA         = Section->VirtualAddress;
+        SectionHandles[i].Size        = SectionSize;
+
         // Store first code segment we encounter
         if (Section->Flags & PE_SECTION_CODE) {
             if (Image->CodeBase == 0) {
@@ -101,8 +169,6 @@ PeHandleSections(
                 memset((Destination + Section->RawSize), 0, (Section->VirtualSize - Section->RawSize));
             }
         }
-
-        ReleaseImageMapping(MapHandle);
         CurrentAddress = (Image->VirtualAddress + Section->VirtualAddress + SectionSize);
         Section++;
     }
@@ -122,25 +188,23 @@ PeHandleSections(
  * Initializes and handles the code relocations in the pe image */
 OsStatus_t
 PeHandleRelocations(
+    _In_ PeExecutable_t*    ParentImage,
     _In_ PeExecutable_t*    Image,
-    _In_ uintptr_t          ImageBase,
-    _In_ PeDataDirectory_t* RelocDirectory)
+    _In_ SectionMapping_t*  Section,
+    _In_ uint8_t*           DirectoryContent,
+    _In_ size_t             DirectorySize)
 {
-    uint32_t  BytesLeft = RelocDirectory->Size;
-    uint32_t* RelocationPtr;
+    uint32_t  BytesLeft = DirectorySize;
+    uint32_t* RelocationPtr = (uint32_t*)DirectoryContent;
     uint16_t* RelocationEntryPtr;
     uint8_t*  AdvancePtr;
     uint32_t  i;
 
-    if (RelocDirectory->AddressRVA == 0 || BytesLeft == 0) {
-        return OsDoesNotExist;
-    }
-    RelocationPtr = (uint32_t*)(Image->VirtualAddress + RelocDirectory->AddressRVA);
-
     while (BytesLeft > 0) {
-        uint32_t PageRVA   = *(RelocationPtr++);
-        uint32_t BlockSize = *(RelocationPtr++);
-        uint32_t NumRelocs;
+        uint32_t  PageRVA     = *(RelocationPtr++);
+        uint32_t  BlockSize   = *(RelocationPtr++);
+        uintptr_t SectionBase = OFFSET_IN_SECTION(Section, PageRVA);
+        uint32_t  NumRelocs;
 
         if (BlockSize > BytesLeft) {
             dserror("Invalid relocation data: BlockSize > BytesLeft, bailing");
@@ -163,17 +227,17 @@ PeHandleRelocations(
             // 32/64 Bit Relative
             if (Type == PE_RELOCATION_HIGHLOW || Type == PE_RELOCATION_RELATIVE64) { 
                 // Create a pointer, the low 12 bits have an offset into the PageRVA
-                uintptr_t Offset     = (Image->VirtualAddress + PageRVA + Value);
-                uintptr_t Translated = Image->VirtualAddress;
+                uintptr_t Address          = SectionBase + Value;
+                uintptr_t UpdatedImageBase = Image->VirtualAddress;
 
                 // Handle relocation
-                if (Translated >= ImageBase) {
-                    uintptr_t Delta       = (uintptr_t)(Translated - ImageBase);
-                    *((uintptr_t*)Offset) += Delta;
+                if (UpdatedImageBase >= Image->OriginalImageBase) {
+                    uintptr_t Delta       = (uintptr_t)(UpdatedImageBase - Image->OriginalImageBase);
+                    *((uintptr_t*)Address) += Delta;
                 }
                 else {
-                    uintptr_t Delta       = (uintptr_t)(ImageBase - Translated);
-                    *((uintptr_t*)Offset) -= Delta;
+                    uintptr_t Delta       = (uintptr_t)(Image->OriginalImageBase - UpdatedImageBase);
+                    *((uintptr_t*)Address) -= Delta;
                 }
             }
             else if (Type == PE_RELOCATION_ALIGN) {
@@ -195,80 +259,105 @@ PeHandleRelocations(
 
 /* PeHandleExports
  * Parses the exporst that the pe image provides and caches the list */
-void
+OsStatus_t
 PeHandleExports(
-    _In_ PeExecutable_t*    Image, 
-    _In_ PeDataDirectory_t* ExportDirectory)
+    _In_ PeExecutable_t*    ParentImage,
+    _In_ PeExecutable_t*    Image,
+    _In_ SectionMapping_t*  Section,
+    _In_ uint8_t*           DirectoryContent,
+    _In_ size_t             DirectorySize)
 {
     PeExportDirectory_t* ExportTable;
     uint32_t*            FunctionNamesTable;
     uint16_t*            FunctionOrdinalsTable;
     uint32_t*            FunctionAddressTable;
+    size_t               FunctionNameLengths;
     int                  OrdinalBase;
     int                  i;
 
-    dstrace("PeHandleExports(%s, AddressRVA 0x%x, Size 0x%x)",
-        MStringRaw(Image->Name), ExportDirectory->AddressRVA, ExportDirectory->Size);
-    if (ExportDirectory->AddressRVA == 0 || ExportDirectory->Size == 0) {
-        return;
-    }
+    dstrace("PeHandleExports(%s, Address 0x%x, Size 0x%x)",
+        MStringRaw(Image->Name), DirectoryContent, DirectorySize);
 
-    ExportTable             = (PeExportDirectory_t*)(Image->VirtualAddress + ExportDirectory->AddressRVA);
-    FunctionNamesTable      = (uint32_t*)(Image->VirtualAddress + ExportTable->AddressOfNames);
-    FunctionOrdinalsTable   = (uint16_t*)(Image->VirtualAddress + ExportTable->AddressOfOrdinals);
-    FunctionAddressTable    = (uint32_t*)(Image->VirtualAddress + ExportTable->AddressOfFunctions);
+    // The following tables are the access we need
+    ExportTable           = (PeExportDirectory_t*)DirectoryContent;
+    FunctionNamesTable    = (uint32_t*)OFFSET_IN_SECTION(Section, ExportTable->AddressOfNames);
+    FunctionOrdinalsTable = (uint16_t*)OFFSET_IN_SECTION(Section, ExportTable->AddressOfOrdinals);
+    FunctionAddressTable  = (uint32_t*)OFFSET_IN_SECTION(Section, ExportTable->AddressOfFunctions);
+    OrdinalBase           = ExportTable->OrdinalBase;
 
-    // Allocate statis array for exports
-    Image->ExportedFunctions         = (PeExportedFunction_t*)dsalloc(sizeof(PeExportedFunction_t) * ExportTable->NumberOfOrdinals);
-    Image->NumberOfExportedFunctions = (int)ExportTable->NumberOfOrdinals;
-    OrdinalBase                      = ExportTable->OrdinalBase;
+    // Allocate array for exports
+    Image->NumberOfExportedFunctions = (int)ExportTable->NumberOfFunctions;
+    Image->ExportedFunctions         = (PeExportedFunction_t*)dsalloc(sizeof(PeExportedFunction_t) * ExportTable->NumberOfFunctions);
+    memset(Image->ExportedFunctions, 0, sizeof(PeExportedFunction_t) * ExportTable->NumberOfFunctions);
 
-    // Instantiate the list for exported functions
-    dstrace("Number of functions to iterate: %u", ExportTable->NumberOfOrdinals);
+    // Fill the exported list, we export all the function addresses first with ordinals, and get
+    // an idea of how much space we need to store names of each function
+    dstrace("Number of functions to iterate: %u", ExportTable->NumberOfFunctions);
+    FunctionNameLengths = 0;
     for (i = 0; i < Image->NumberOfExportedFunctions; i++) {
         PeExportedFunction_t* ExFunc = &Image->ExportedFunctions[i];
-
-        // Extract the function information
-        ExFunc->Name        = NULL;
-        ExFunc->ForwardName = NULL;
-        ExFunc->Ordinal     = (int)FunctionOrdinalsTable[i];
-        ExFunc->Address     = (uintptr_t)(Image->VirtualAddress + FunctionAddressTable[ExFunc->Ordinal - OrdinalBase]);
-        if ((ExFunc->Ordinal - OrdinalBase) <= ExportTable->NumberOfOrdinals) {
-            ExFunc->Name    = (char*)(Image->VirtualAddress + FunctionNamesTable[i]);
+        ExFunc->Address              = (uintptr_t)(Image->VirtualAddress + FunctionAddressTable[i]);
+        if (i < ExportTable->NumberOfNames) {
+            uintptr_t NameAddress = OFFSET_IN_SECTION(Section, FunctionNamesTable[i]);
+            FunctionNameLengths  += strlen((const char*)NameAddress) + 1;
         }
-        if (FunctionAddressTable[ExFunc->Ordinal - OrdinalBase] >= ExportDirectory->AddressRVA &&
-            FunctionAddressTable[ExFunc->Ordinal - OrdinalBase] < (ExportDirectory->AddressRVA + ExportDirectory->Size)) {
-            ExFunc->ForwardName = (char*)(Image->VirtualAddress + FunctionAddressTable[ExFunc->Ordinal - OrdinalBase]);
+
+        // @todo support forwarded names
+        if (ExFunc->Address >= (uintptr_t)DirectoryContent &&
+            ExFunc->Address < ((uintptr_t)DirectoryContent + DirectorySize)) {
+            uintptr_t NameAddress = OFFSET_IN_SECTION(Section, FunctionAddressTable[i]);
+            //FunctionNameLengths  += strlen((const char*)NameAddress) + 1;
             dserror("(%s): Ordinal %i is forwarded as %s, this is not supported yet", 
-                MStringRaw(Image->Name), ExFunc->Ordinal, ExFunc->ForwardName);
+                MStringRaw(Image->Name), i, (const char*)NameAddress);
         }
     }
+
+    // Allocate name array
+    dstrace("Number of names/ordinals to iterate: %u (name table size %u)", ExportTable->NumberOfNames, FunctionNameLengths);
+    Image->ExportedFunctionNames = (char*)dsalloc(FunctionNameLengths);
+    FunctionNameLengths          = 0;
+    for (i = 0; i < ExportTable->NumberOfNames; i++) {
+        uintptr_t             NameAddress    = OFFSET_IN_SECTION(Section, FunctionNamesTable[i]);
+        int                   Ordinal        = (int)FunctionOrdinalsTable[i];
+        PeExportedFunction_t* ExFunc         = &Image->ExportedFunctions[Ordinal - OrdinalBase];
+        size_t                FunctionLength = strlen((const char*)NameAddress) + 1;
+        char*                 Name           = &Image->ExportedFunctionNames[FunctionNameLengths];
+
+        memcpy(Name, (const char*)NameAddress, FunctionLength);
+        ExFunc->Name         = Name;
+        ExFunc->Ordinal      = Ordinal;
+        FunctionNameLengths += FunctionLength;
+    }
+    return OsSuccess;
 }
 
 OsStatus_t
 PeResolveImportDescriptor(
-    _In_    PeExecutable_t*       Parent,
-    _In_    PeExecutable_t*       Image,
-    _In_    PeImportDescriptor_t* ImportDescriptor,
-    _In_    MString_t*            ImportDescriptorName)
+    _In_ PeExecutable_t*       ParentImage,
+    _In_ PeExecutable_t*       Image,
+    _In_ SectionMapping_t*     Section,
+    _In_ PeImportDescriptor_t* ImportDescriptor,
+    _In_ MString_t*            ImportDescriptorName)
 {
     PeExecutable_t*       ResolvedLibrary;
     PeExportedFunction_t* Exports;
     int                   NumberOfExports;
+    uintptr_t             AddressOfImportTable;
 
     // Resolve the library from the import chunk
-    ResolvedLibrary = PeResolveLibrary(Parent, Image, ImportDescriptorName);
+    ResolvedLibrary = PeResolveLibrary(ParentImage, Image, ImportDescriptorName);
     if (ResolvedLibrary == NULL || ResolvedLibrary->ExportedFunctions == NULL) {
         dserror("(%s): Failed to resolve library %s", MStringRaw(Image->Name), MStringRaw(ImportDescriptorName));
         return OsError;
     }
-    Exports         = ResolvedLibrary->ExportedFunctions;
-    NumberOfExports = ResolvedLibrary->NumberOfExportedFunctions;
+    Exports              = ResolvedLibrary->ExportedFunctions;
+    NumberOfExports      = ResolvedLibrary->NumberOfExportedFunctions;
+    AddressOfImportTable = OFFSET_IN_SECTION(Section, ImportDescriptor->ImportAddressTable);
 
     // Calculate address to IAT
     // These entries are 64 bit in PE32+ and 32 bit in PE32 
     if (Image->Architecture == PE_ARCHITECTURE_32) {
-        uint32_t* Iat = (uint32_t*)(Image->VirtualAddress + ImportDescriptor->ImportAddressTable);
+        uint32_t* Iat = (uint32_t*)AddressOfImportTable;
         while (*Iat) {
             uint32_t              Value        = *Iat;
             PeExportedFunction_t* Function     = NULL;
@@ -285,7 +374,7 @@ PeResolveImportDescriptor(
             }
             else {
                 // Nah, pointer to function name, where two first bytes are hint?
-                FunctionName = (char*)(Image->VirtualAddress + (Value & PE_IMPORT_NAMEMASK) + 2);
+                FunctionName = (char*)OFFSET_IN_SECTION(Section, (Value & PE_IMPORT_NAMEMASK) + 2);
                 for (int i = 0; i < NumberOfExports; i++) {
                     if (Exports[i].Name != NULL) {
                         if (!strcmp(Exports[i].Name, FunctionName)) {
@@ -305,7 +394,7 @@ PeResolveImportDescriptor(
         }
     }
     else {
-        uint64_t* Iat = (uint64_t*)(Image->VirtualAddress + ImportDescriptor->ImportAddressTable);
+        uint64_t* Iat = (uint64_t*)AddressOfImportTable;
         while (*Iat) {
             uint64_t              Value        = *Iat;
             PeExportedFunction_t* Function     = NULL;
@@ -322,7 +411,7 @@ PeResolveImportDescriptor(
             }
             else {
                 // Nah, pointer to function name, where two first bytes are hint?
-                FunctionName = (char*)(Image->VirtualAddress + (uint32_t)(Value & PE_IMPORT_NAMEMASK) + 2);
+                FunctionName = (char*)OFFSET_IN_SECTION(Section, (uint32_t)(Value & PE_IMPORT_NAMEMASK) + 2);
                 for (int i = 0; i < NumberOfExports; i++) {
                     if (Exports[i].Name != NULL) {
                         if (!strcmp(Exports[i].Name, FunctionName)) {
@@ -348,21 +437,17 @@ PeResolveImportDescriptor(
  * Parses and resolves all image imports by parsing the import address table */
 OsStatus_t
 PeHandleImports(
-    _In_    PeExecutable_t*    Parent,
-    _In_    PeExecutable_t*    Image, 
-    _In_    PeDataDirectory_t* ImportDirectory)
+    _In_ PeExecutable_t*    ParentImage,
+    _In_ PeExecutable_t*    Image,
+    _In_ SectionMapping_t*  Section,
+    _In_ uint8_t*           DirectoryContent,
+    _In_ size_t             DirectorySize)
 {
-    PeImportDescriptor_t* ImportDescriptor;
-    
-    if (ImportDirectory->AddressRVA == 0 || ImportDirectory->Size == 0) {
-        return OsSuccess;
-    }
-
-    ImportDescriptor = (PeImportDescriptor_t*)(Image->VirtualAddress + ImportDirectory->AddressRVA);
+    PeImportDescriptor_t* ImportDescriptor = (PeImportDescriptor_t*)DirectoryContent;
     while (ImportDescriptor->ImportAddressTable != 0) {
-        char*      NamePtr = (char*)(Image->VirtualAddress + ImportDescriptor->ModuleName);
-        MString_t* Name    = MStringCreate(NamePtr, StrUTF8);
-        OsStatus_t Status  = PeResolveImportDescriptor(Parent, Image, ImportDescriptor, Name);
+        uintptr_t  HostNameAddress = OFFSET_IN_SECTION(Section, ImportDescriptor->ModuleName);
+        MString_t* Name            = MStringCreate((void*)HostNameAddress, StrUTF8);
+        OsStatus_t Status          = PeResolveImportDescriptor(ParentImage, Image, Section, ImportDescriptor, Name);
         MStringDestroy(Name);
 
         if (Status != OsSuccess) {
@@ -380,15 +465,18 @@ PeParseAndMapImage(
     _In_ PeExecutable_t*    Parent,
     _In_ PeExecutable_t*    Image,
     _In_ uint8_t*           ImageBuffer,
-    _In_ uintptr_t          ImageBase,
     _In_ size_t             SizeOfMetaData,
     _In_ uintptr_t          SectionBase,
-    _In_ size_t             SectionCount,
-    _In_ PeDataDirectory_t* DirectoryPointer)
+    _In_ int                SectionCount,
+    _In_ PeDataDirectory_t* Directories)
 {
-    uintptr_t         VirtualAddress = Image->VirtualAddress;
-    MemoryMapHandle_t MapHandle;
-    OsStatus_t        Status;
+    uintptr_t          VirtualAddress = Image->VirtualAddress;
+    uint8_t*           DirectoryContents[PE_NUM_DIRECTORIES] = { 0 };
+    SectionMapping_t*  SectionMappings;
+    MemoryMapHandle_t  MapHandle;
+    OsStatus_t         Status;
+    clock_t            Timing;
+    int                i, j;
 
     // Copy metadata of image to base address
     Status = AcquireImageMapping(Image->MemorySpace, &VirtualAddress, SizeOfMetaData,
@@ -400,24 +488,65 @@ PeParseAndMapImage(
     memcpy((void*)VirtualAddress, ImageBuffer, SizeOfMetaData);
     ReleaseImageMapping(MapHandle);
 
-    // Now we want to handle all the directories
-    // and sections in the image, start out by handling
-    // the sections, then parse all directories
-    dstrace("Handling sections, relocations and exports");
-    Status = PeHandleSections(Parent, Image, ImageBuffer, SectionBase, SectionCount);
+    // Allocate an array of mappings that we can keep sections in
+    SectionMappings = (SectionMapping_t*)dsalloc(sizeof(SectionMapping_t) * SectionCount);
+    memset(SectionMappings, 0, sizeof(SectionMapping_t) * SectionCount);
+
+    // Now we want to handle all the directories and sections in the image
+    dstrace("Handling sections and data directory mappings");
+    Status = PeHandleSections(Parent, Image, ImageBuffer, SectionBase, SectionCount, SectionMappings);
     if (Status != OsSuccess) {
         return OsError;
-    } 
-    PeHandleRelocations(Image, ImageBase, &DirectoryPointer[PE_SECTION_BASE_RELOCATION]);
-    PeHandleExports(Image, &DirectoryPointer[PE_SECTION_EXPORT]);
+    }
+    
+    // Do we have a data directory in this section? Or multiple?
+    for (i = 0; i < SectionCount; i++) {
+        uintptr_t SectionStart = SectionMappings[i].RVA;
+        uintptr_t SectionEnd   = SectionMappings[i].RVA + SectionMappings[i].Size;
+        for (j = 0; j < PE_NUM_DIRECTORIES; j++) {
+            if (Directories[j].AddressRVA >= SectionStart &&
+                (Directories[j].AddressRVA + Directories[j].Size) <= SectionEnd) {
+                // Directory is contained in this section
+                dstrace("Directory[%i] located in Section[%i]", j, i);
+                DirectoryContents[j] = SectionMappings[i].BasePointer + (Directories[j].AddressRVA - SectionStart);
+            }
+        }
+    }
 
-    // Before loading imports, add us to parent list of libraries 
-    // so we might be reused, instead of reloaded
+    // Add us to parent before handling data-directories
     if (Parent != NULL) {
         DataKey_t Key = { 0 };
         CollectionAppend(Parent->Libraries, CollectionCreateNode(Key, Image));
     }
-    Status = PeHandleImports(Parent, Image, &DirectoryPointer[PE_SECTION_IMPORT]);
+
+    // Handle all the data directories, if they are present
+    for (i = 0; i < PE_NUM_DIRECTORIES; i++) {
+        int DataDirectoryIndex = DataDirectoryHandlers[i].Index;
+        if (DataDirectoryIndex == PE_NUM_DIRECTORIES) {
+            break; // End of list of handlers
+        }
+
+        // Is there any directory available for the handler?
+        if (DirectoryContents[DataDirectoryIndex] != NULL) {
+            dstrace("parsing data-directory[%i]", DataDirectoryIndex);
+            Timing = GetTimestamp();
+            Status = DataDirectoryHandlers[i].Handler(Parent, Image,
+                GetSectionFromRVA(SectionCount, SectionMappings, Directories[DataDirectoryIndex].AddressRVA), 
+                DirectoryContents[DataDirectoryIndex], Directories[DataDirectoryIndex].Size);
+            if (Status != OsSuccess) {
+                dserror("handling of data-directory failed, status %u", Status);
+            }
+            dstrace("directory[%i]: %u ms", DataDirectoryIndex, GetTimestamp() - Timing);
+        }
+    }
+
+    // Free all the section mappings
+    for (i = 0; i < SectionCount; i++) {
+        if (SectionMappings[i].Handle != NULL) {
+            ReleaseImageMapping(SectionMappings[i].Handle);
+        }
+    }
+    dsfree(SectionMappings);
     return Status;
 }
 
@@ -434,19 +563,19 @@ PeLoadImage(
     _In_    size_t           Length,
     _Out_   PeExecutable_t** ImageOut)
 {
-    MzHeader_t*           DosHeader;
-    PeHeader_t*           BaseHeader;
-    PeOptionalHeader_t*   OptHeader;
-    PeOptionalHeader32_t* OptHeader32;
-    PeOptionalHeader64_t* OptHeader64;
-
     uintptr_t          SectionAddress;
     uintptr_t          ImageBase;
     size_t             SizeOfMetaData;
     PeDataDirectory_t* DirectoryPtr;
     PeExecutable_t*    Image;
     OsStatus_t         Status;
-    
+
+    MzHeader_t*           DosHeader;
+    PeHeader_t*           BaseHeader;
+    PeOptionalHeader_t*   OptHeader;
+    PeOptionalHeader32_t* OptHeader32;
+    PeOptionalHeader64_t* OptHeader64;
+
     dstrace("PeLoadImage(Path %s, Parent %s, Address 0x%x)",
         MStringRaw(Name), (Parent == NULL) ? "None" : MStringRaw(Parent->Name), 
         GetBaseAddress());
@@ -503,12 +632,13 @@ PeLoadImage(
     Image = (PeExecutable_t*)dsalloc(sizeof(PeExecutable_t));
     memset(Image, 0, sizeof(PeExecutable_t));
 
-    Image->Name            = MStringCreate((void*)MStringRaw(Name), StrUTF8);
-    Image->FullPath        = MStringCreate((void*)MStringRaw(FullPath), StrUTF8);
-    Image->Architecture    = OptHeader->Architecture;
-    Image->VirtualAddress  = (Parent == NULL) ? GetBaseAddress() : Parent->NextLoadingAddress;
-    Image->Libraries       = CollectionCreate(KeyInteger);
-    Image->References      = 1;
+    Image->Name              = MStringCreate((void*)MStringRaw(Name), StrUTF8);
+    Image->FullPath          = MStringCreate((void*)MStringRaw(FullPath), StrUTF8);
+    Image->Architecture      = OptHeader->Architecture;
+    Image->VirtualAddress    = (Parent == NULL) ? GetBaseAddress() : Parent->NextLoadingAddress;
+    Image->Libraries         = CollectionCreate(KeyInteger);
+    Image->References        = 1;
+    Image->OriginalImageBase = ImageBase;
 
     // Set the entry point if there is any
     if (OptHeader->EntryPoint != 0) {
@@ -530,8 +660,9 @@ PeLoadImage(
         Image->MemorySpace = Parent->MemorySpace;
     }
 
-    Status = PeParseAndMapImage(Parent, Image, Buffer, ImageBase, SizeOfMetaData, SectionAddress, 
-        BaseHeader->NumSections, DirectoryPtr);
+    // Parse the headers, directories and handle them.
+    Status = PeParseAndMapImage(Parent, Image, Buffer, SizeOfMetaData, SectionAddress, 
+        (int)BaseHeader->NumSections, DirectoryPtr);
     if (Status != OsSuccess) {
         PeUnloadLibrary(Parent, Image);
         return OsError;

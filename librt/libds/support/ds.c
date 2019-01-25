@@ -27,11 +27,12 @@
 
 #define __MODULE "DATA"
 #ifdef LIBC_KERNEL
-//#define __TRACE
+#define __TRACE
 #include <system/interrupts.h>
 #include <modules/manager.h>
 #include <memoryspace.h>
 #include <machine.h>
+#include <timers.h>
 #include <stdio.h>
 #include <debug.h>
 #include <heap.h>
@@ -52,6 +53,7 @@ typedef struct _MemoryMappingState {
 #include <ddk/file.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
 
 typedef struct _MemoryMappingState {
     MemorySpaceHandle_t Handle;
@@ -211,6 +213,17 @@ uintptr_t GetBaseAddress(void)
     Syscall_GetProcessBaseAddress(&BaseAddress);
     return BaseAddress;
 #endif
+}
+
+clock_t GetTimestamp(void)
+{
+    clock_t Result;
+#ifdef LIBC_KERNEL
+    TimersGetSystemTick(&Result);
+#else
+    Result = clock();
+#endif
+    return Result;
 }
 
 OsStatus_t LoadFile(MString_t* Path, MString_t** FullPath, void** BufferOut, size_t* LengthOut)

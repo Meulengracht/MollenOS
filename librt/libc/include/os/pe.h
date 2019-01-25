@@ -326,7 +326,7 @@ PACKED_TYPESTRUCT(PeExportDirectory, {
     uint32_t            DllName;
     uint32_t            OrdinalBase;
     uint32_t            NumberOfFunctions;
-    uint32_t            NumberOfOrdinals;
+    uint32_t            NumberOfNames;
     uint32_t            AddressOfFunctions;
     uint32_t            AddressOfNames;
     uint32_t            AddressOfOrdinals;
