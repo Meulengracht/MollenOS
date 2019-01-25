@@ -90,6 +90,50 @@ GetOffsetInSectionFromRVA(
     return 0;
 }
 
+static PeExportedFunction_t*
+GetExportedFunctionByOrdinal(
+    _In_ PeExportedFunction_t* Exports,
+    _In_ int                   NumberOfExports,
+    _In_ int                   Ordinal)
+{
+    for (int i = 0; i < NumberOfExports; i++) {
+        if (Exports[i].Ordinal == Ordinal) {
+            return &Exports[i];
+        }
+    }
+    return NULL;
+}
+
+static PeExportedFunction_t*
+GetExportedFunctionByNameDescriptor(
+    _In_ PeExportedFunction_t*     Exports,
+    _In_ int                       NumberOfExports,
+    _In_ PeImportNameDescriptor_t* Descriptor)
+{
+    int i;
+
+    // Use the hint if provided
+    if (Descriptor->OrdinalHint != 0) {
+        for (i = 0; i < NumberOfExports; i++) {
+            if (Exports[i].Ordinal == Descriptor->OrdinalHint) {
+                if (!strcmp(Exports[i].Name, (const char*)&Descriptor->Name[0])) {
+                    return &Exports[i];
+                }
+            }
+        }
+    }
+
+    // Hint was invalid or not present
+    for (i = 0; i < NumberOfExports; i++) {
+        if (Exports[i].Name != NULL) {
+            if (!strcmp(Exports[i].Name, (const char*)&Descriptor->Name[0])) {
+                return &Exports[i];
+            }
+        }
+    }
+    return NULL;
+}
+
 /* PeHandleSections
  * Relocates and initializes all sections in the pe image
  * It also returns the last memory address of the relocations */
@@ -339,10 +383,14 @@ PeResolveImportDescriptor(
     _In_ PeImportDescriptor_t* ImportDescriptor,
     _In_ MString_t*            ImportDescriptorName)
 {
-    PeExecutable_t*       ResolvedLibrary;
-    PeExportedFunction_t* Exports;
-    int                   NumberOfExports;
-    uintptr_t             AddressOfImportTable;
+    PeExecutable_t*           ResolvedLibrary;
+    PeExportedFunction_t*     Exports;
+    int                       NumberOfExports;
+    uintptr_t                 AddressOfImportTable;
+    PeImportNameDescriptor_t* NameDescriptor;
+
+    dswarning("PeResolveImportDescriptor(%s, %s)", 
+        MStringRaw(Image->Name), MStringRaw(ImportDescriptorName));
 
     // Resolve the library from the import chunk
     ResolvedLibrary = PeResolveLibrary(ParentImage, Image, ImportDescriptorName);
@@ -356,78 +404,52 @@ PeResolveImportDescriptor(
 
     // Calculate address to IAT
     // These entries are 64 bit in PE32+ and 32 bit in PE32 
+    dswarning(" > parsing");
     if (Image->Architecture == PE_ARCHITECTURE_32) {
-        uint32_t* Iat = (uint32_t*)AddressOfImportTable;
-        while (*Iat) {
-            uint32_t              Value        = *Iat;
-            PeExportedFunction_t* Function     = NULL;
-            char*                 FunctionName;
+        uint32_t* ThunkPointer = (uint32_t*)AddressOfImportTable;
+        while (*ThunkPointer) {
+            uint32_t              Value    = *ThunkPointer;
+            PeExportedFunction_t* Function = NULL;
 
+            // If the upper bit is set, then it's import by ordinal
             if (Value & PE_IMPORT_ORDINAL_32) {
                 int Ordinal = (int)(Value & 0xFFFF);
-                for (int i = 0; i < NumberOfExports; i++) {
-                    if (Exports[i].Ordinal == Ordinal) {
-                        Function = &Exports[i];
-                        break;
-                    }
-                }
+                Function    = GetExportedFunctionByOrdinal(Exports, NumberOfExports, Ordinal);
             }
             else {
-                // Nah, pointer to function name, where two first bytes are hint?
-                FunctionName = (char*)OFFSET_IN_SECTION(Section, (Value & PE_IMPORT_NAMEMASK) + 2);
-                for (int i = 0; i < NumberOfExports; i++) {
-                    if (Exports[i].Name != NULL) {
-                        if (!strcmp(Exports[i].Name, FunctionName)) {
-                            Function = &Exports[i];
-                            break;
-                        }
-                    }
-                }
+                NameDescriptor = (PeImportNameDescriptor_t*)OFFSET_IN_SECTION(Section, Value & PE_IMPORT_NAMEMASK);
+                Function       = GetExportedFunctionByNameDescriptor(Exports, NumberOfExports, NameDescriptor);
             }
 
             if (Function == NULL) {
                 dserror("Failed to locate function (%s)", Function->Name);
                 return OsError;
             }
-            *Iat = Function->Address;
-            Iat++;
+            *ThunkPointer = Function->Address;
+            ThunkPointer++;
         }
     }
     else {
-        uint64_t* Iat = (uint64_t*)AddressOfImportTable;
-        while (*Iat) {
-            uint64_t              Value        = *Iat;
-            PeExportedFunction_t* Function     = NULL;
-            char*                 FunctionName;
+        uint64_t* ThunkPointer = (uint64_t*)AddressOfImportTable;
+        while (*ThunkPointer) {
+            uint64_t              Value    = *ThunkPointer;
+            PeExportedFunction_t* Function = NULL;
 
             if (Value & PE_IMPORT_ORDINAL_64) {
                 int Ordinal = (int)(Value & 0xFFFF);
-                for (int i = 0; i < NumberOfExports; i++) {
-                    if (Exports[i].Ordinal == Ordinal) {
-                        Function = &Exports[i];
-                        break;
-                    }
-                }
+                Function    = GetExportedFunctionByOrdinal(Exports, NumberOfExports, Ordinal);
             }
             else {
-                // Nah, pointer to function name, where two first bytes are hint?
-                FunctionName = (char*)OFFSET_IN_SECTION(Section, (uint32_t)(Value & PE_IMPORT_NAMEMASK) + 2);
-                for (int i = 0; i < NumberOfExports; i++) {
-                    if (Exports[i].Name != NULL) {
-                        if (!strcmp(Exports[i].Name, FunctionName)) {
-                            Function = &Exports[i];
-                            break;
-                        }
-                    }
-                }
+                NameDescriptor = (PeImportNameDescriptor_t*)OFFSET_IN_SECTION(Section, Value & PE_IMPORT_NAMEMASK);
+                Function       = GetExportedFunctionByNameDescriptor(Exports, NumberOfExports, NameDescriptor);
             }
 
             if (Function == NULL) {
                 dserror("Failed to locate function (%s)", Function->Name);
                 return OsError;
             }
-            *Iat = (uint64_t)Function->Address;
-            Iat++;
+            *ThunkPointer = (uint64_t)Function->Address;
+            ThunkPointer++;
         }
     }
     return OsSuccess;

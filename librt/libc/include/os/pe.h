@@ -332,10 +332,6 @@ PACKED_TYPESTRUCT(PeExportDirectory, {
     uint32_t            AddressOfOrdinals;
 });
 
-/* PE-Directory
- * The Import Directory, contains a list of
- * Pe-Import-Headers that each describe a new
- * image dependancy */
 PACKED_TYPESTRUCT(PeImportDirectory, {
     uint16_t            Signature1; // Must be 0 
     uint16_t            Signature2; // Must be 0xFFFF
@@ -350,9 +346,6 @@ PACKED_TYPESTRUCT(PeImportDirectory, {
     uint16_t            Flags;
 });
 
-/* PE-Import-Header 
- * The Import Descriptor, describes a new
- * library dependancy */
 PACKED_TYPESTRUCT(PeImportDescriptor, {
     union {
         uint32_t        Attributes;
@@ -362,6 +355,11 @@ PACKED_TYPESTRUCT(PeImportDescriptor, {
     uint32_t            ForwarderChainId;
     uint32_t            ModuleName; // RVA
     uint32_t            ImportAddressTable; // RVA
+});
+
+PACKED_TYPESTRUCT(PeImportNameDescriptor, {
+    uint16_t OrdinalHint;
+    uint8_t  Name[1]; // RVA
 });
 
 #endif //!__OS_PEIMAGE__

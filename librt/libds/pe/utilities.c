@@ -72,6 +72,7 @@ PeResolveLibrary(
         Status = LoadFile(LibraryName, &FullPath, (void**)&Buffer, &Size);
         if (Status == OsSuccess) {
             Status = PeLoadImage(ExportParent, LibraryName, FullPath, Buffer, Size, &Exports);
+            MStringDestroy(FullPath);
         }
     }
 
