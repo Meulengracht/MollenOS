@@ -29,10 +29,17 @@
 #include <ds/mstring.h>
 #include <ddk/buffer.h>
 #include <ddk/utils.h>
+#include <ddk/file.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
 #include <signal.h>
+
+// When referencing a process structure, increase ref count and wait for lock
+// Hwowever if ref count ends up being 1 when increasing, then abort
+
+// When terminating, set state to terminating and reduce ref count. If ref count
+// is 0 then destroy, otherwise just release lock
 
 static Collection_t  Processes          = COLLECTION_INIT(KeyId);
 static Collection_t  Joiners            = COLLECTION_INIT(KeyId);
@@ -82,6 +89,81 @@ HandleJoinProcess(
     RPCRespond(&Join->Address, (const void*)&Package, sizeof(JoinProcessPackage_t));
     DestroyProcess(Join->Process);
     free(Join);
+}
+
+OsStatus_t
+LoadFile(
+    MString_t*  Path,
+    MString_t** FullPath,
+    void**      BufferOut,
+    size_t*     LengthOut)
+{
+    OsStatus_t       Status;
+    LargeInteger_t   QueriedSize = { { 0 } };
+    void*            Buffer      = NULL;
+    FileSystemCode_t FsCode;
+    UUId_t           Handle;
+    size_t           Size;
+
+    // We have to make sure here that the path is fully resolved before loading. If not
+    // then the filemanager will try to use our working directory and that is wrong
+
+    // Open the file as read-only
+    FsCode = OpenFile(MStringRaw(Path), 0, __FILE_READ_ACCESS, &Handle);
+    if (FsCode != FsOk) {
+        ERROR("Invalid path given: %s", MStringRaw(Path));
+        return OsError;
+    }
+
+    if (FullPath != NULL) {
+        char* PathBuffer = (char*)dsalloc(_MAXPATH);
+        memset(PathBuffer, 0, _MAXPATH);
+
+        Status = GetFilePath(Handle, PathBuffer, _MAXPATH);
+        if (Status != OsSuccess) {
+            ERROR("Failed to query file handle for full path");
+            dsfree(PathBuffer);
+            CloseFile(Handle);
+            return Status;
+        }
+        *FullPath = MStringCreate(PathBuffer, StrUTF8);
+        dsfree(PathBuffer);
+    }
+
+    Status = GetFileSize(Handle, &QueriedSize.u.LowPart, NULL);
+    if (Status != OsSuccess) {
+        ERROR("Failed to retrieve the file size");
+        CloseFile(Handle);
+        return Status;
+    }
+
+    Size = (size_t)QueriedSize.QuadPart;
+    if (Size != 0) {
+        DmaBuffer_t* TransferBuffer = CreateBuffer(UUID_INVALID, Size);
+        if (TransferBuffer != NULL) {
+            Buffer = dsalloc(Size);
+            if (Buffer != NULL) {
+                size_t Index, Read = 0;
+                FsCode = ReadFile(Handle, GetBufferHandle(TransferBuffer), Size, &Index, &Read);
+                if (FsCode == FsOk && Read != 0) {
+                    memcpy(Buffer, (const void*)GetBufferDataPointer(TransferBuffer), Read);
+                }
+                else {
+                    if (FullPath != NULL) {
+                        MStringDestroy(*FullPath);
+                    }
+                    dsfree(Buffer);
+                    Status = OsError;
+                    Buffer = NULL;
+                }
+            }
+            DestroyBuffer(TransferBuffer);
+        }
+    }
+    CloseFile(Handle);
+    *BufferOut = Buffer;
+    *LengthOut = Size;
+    return Status;
 }
 
 OsStatus_t

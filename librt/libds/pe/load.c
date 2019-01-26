@@ -43,25 +43,29 @@ typedef struct _SectionMapping {
 #define OFFSET_IN_SECTION(Section, _RVA) (uintptr_t)(Section->BasePointer + ((_RVA) - Section->RVA))
 
 // Directory handlers
-OsStatus_t PeHandleRelocations(PeExecutable_t*,PeExecutable_t*,SectionMapping_t*, uint8_t*, size_t);
-OsStatus_t PeHandleExports(PeExecutable_t*,PeExecutable_t*, SectionMapping_t*, uint8_t*, size_t);
-OsStatus_t PeHandleImports(PeExecutable_t*,PeExecutable_t*, SectionMapping_t*, uint8_t*, size_t);
+OsStatus_t PeHandleRelocations(PeExecutable_t*,PeExecutable_t*, SectionMapping_t*, int, uint8_t*, size_t);
+OsStatus_t PeHandleExports(PeExecutable_t*,PeExecutable_t*, SectionMapping_t*, int, uint8_t*, size_t);
+OsStatus_t PeHandleImports(PeExecutable_t*,PeExecutable_t*, SectionMapping_t*, int, uint8_t*, size_t);
 
-typedef OsStatus_t(*DataDirectoryHandler)(PeExecutable_t*,PeExecutable_t*, SectionMapping_t*, uint8_t*, size_t);
+typedef OsStatus_t(*DataDirectoryHandler)(PeExecutable_t*, PeExecutable_t*, SectionMapping_t*, int, uint8_t*, size_t);
 static struct {
     int                  Index;
     DataDirectoryHandler Handler;
 } DataDirectoryHandlers[] = {
     { PE_SECTION_BASE_RELOCATION, PeHandleRelocations },
     { PE_SECTION_EXPORT, PeHandleExports },
+
+    // Always handle import table last
     { PE_SECTION_IMPORT, PeHandleImports },
+
+    // EOL marker
     { PE_NUM_DIRECTORIES, NULL }
 };
 
 static SectionMapping_t*
 GetSectionFromRVA(
-    _In_ int               SectionCount,
     _In_ SectionMapping_t* SectionMappings,
+    _In_ int               SectionCount,
     _In_ uintptr_t         RVA)
 {
     int i;
@@ -79,11 +83,11 @@ GetSectionFromRVA(
 
 static uintptr_t
 GetOffsetInSectionFromRVA(
-    _In_ int               SectionCount,
     _In_ SectionMapping_t* SectionMappings,
+    _In_ int               SectionCount,
     _In_ uintptr_t         RVA)
 {
-    SectionMapping_t* Section = GetSectionFromRVA(SectionCount, SectionMappings, RVA);
+    SectionMapping_t* Section = GetSectionFromRVA(SectionMappings, SectionCount, RVA);
     if (Section != NULL) {
         return OFFSET_IN_SECTION(Section, RVA);
     }
@@ -234,21 +238,26 @@ OsStatus_t
 PeHandleRelocations(
     _In_ PeExecutable_t*    ParentImage,
     _In_ PeExecutable_t*    Image,
-    _In_ SectionMapping_t*  Section,
+    _In_ SectionMapping_t*  Sections,
+    _In_ int                SectionCount,
     _In_ uint8_t*           DirectoryContent,
     _In_ size_t             DirectorySize)
 {
-    uint32_t  BytesLeft = DirectorySize;
-    uint32_t* RelocationPtr = (uint32_t*)DirectoryContent;
-    uint16_t* RelocationEntryPtr;
-    uint8_t*  AdvancePtr;
-    uint32_t  i;
+    uint32_t          BytesLeft     = DirectorySize;
+    uint32_t*         RelocationPtr = (uint32_t*)DirectoryContent;
+    uint16_t*         RelocationEntryPtr;
+    SectionMapping_t* Section;
+    uintptr_t         SectionBase;
+    uint8_t*          AdvancePtr;
+    uint32_t          i;
 
     while (BytesLeft > 0) {
         uint32_t  PageRVA     = *(RelocationPtr++);
         uint32_t  BlockSize   = *(RelocationPtr++);
-        uintptr_t SectionBase = OFFSET_IN_SECTION(Section, PageRVA);
         uint32_t  NumRelocs;
+
+        Section     = GetSectionFromRVA(Sections, SectionCount, PageRVA);
+        SectionBase = OFFSET_IN_SECTION(Section, PageRVA);
 
         if (BlockSize > BytesLeft) {
             dserror("Invalid relocation data: BlockSize > BytesLeft, bailing");
@@ -307,10 +316,12 @@ OsStatus_t
 PeHandleExports(
     _In_ PeExecutable_t*    ParentImage,
     _In_ PeExecutable_t*    Image,
-    _In_ SectionMapping_t*  Section,
+    _In_ SectionMapping_t*  Sections,
+    _In_ int                SectionCount,
     _In_ uint8_t*           DirectoryContent,
     _In_ size_t             DirectorySize)
 {
+    SectionMapping_t*    Section;
     PeExportDirectory_t* ExportTable;
     uint32_t*            FunctionNamesTable;
     uint16_t*            FunctionOrdinalsTable;
@@ -324,6 +335,7 @@ PeHandleExports(
 
     // The following tables are the access we need
     ExportTable           = (PeExportDirectory_t*)DirectoryContent;
+    Section               = GetSectionFromRVA(Sections, SectionCount, ExportTable->AddressOfFunctions);
     FunctionNamesTable    = (uint32_t*)OFFSET_IN_SECTION(Section, ExportTable->AddressOfNames);
     FunctionOrdinalsTable = (uint16_t*)OFFSET_IN_SECTION(Section, ExportTable->AddressOfOrdinals);
     FunctionAddressTable  = (uint32_t*)OFFSET_IN_SECTION(Section, ExportTable->AddressOfFunctions);
@@ -461,15 +473,17 @@ OsStatus_t
 PeHandleImports(
     _In_ PeExecutable_t*    ParentImage,
     _In_ PeExecutable_t*    Image,
-    _In_ SectionMapping_t*  Section,
+    _In_ SectionMapping_t*  Sections,
+    _In_ int                SectionCount,
     _In_ uint8_t*           DirectoryContent,
     _In_ size_t             DirectorySize)
 {
     PeImportDescriptor_t* ImportDescriptor = (PeImportDescriptor_t*)DirectoryContent;
     while (ImportDescriptor->ImportAddressTable != 0) {
-        uintptr_t  HostNameAddress = OFFSET_IN_SECTION(Section, ImportDescriptor->ModuleName);
-        MString_t* Name            = MStringCreate((void*)HostNameAddress, StrUTF8);
-        OsStatus_t Status          = PeResolveImportDescriptor(ParentImage, Image, Section, ImportDescriptor, Name);
+        SectionMapping_t* Section         = GetSectionFromRVA(Sections, SectionCount, ImportDescriptor->ImportAddressTable);
+        uintptr_t         HostNameAddress = OFFSET_IN_SECTION(Section, ImportDescriptor->ModuleName);
+        MString_t*        Name            = MStringCreate((void*)HostNameAddress, StrUTF8);
+        OsStatus_t        Status          = PeResolveImportDescriptor(ParentImage, Image, Section, ImportDescriptor, Name);
         MStringDestroy(Name);
 
         if (Status != OsSuccess) {
@@ -552,8 +566,7 @@ PeParseAndMapImage(
         if (DirectoryContents[DataDirectoryIndex] != NULL) {
             dstrace("parsing data-directory[%i]", DataDirectoryIndex);
             Timing = GetTimestamp();
-            Status = DataDirectoryHandlers[i].Handler(Parent, Image,
-                GetSectionFromRVA(SectionCount, SectionMappings, Directories[DataDirectoryIndex].AddressRVA), 
+            Status = DataDirectoryHandlers[i].Handler(Parent, Image, SectionMappings, SectionCount, 
                 DirectoryContents[DataDirectoryIndex], Directories[DataDirectoryIndex].Size);
             if (Status != OsSuccess) {
                 dserror("handling of data-directory failed, status %u", Status);

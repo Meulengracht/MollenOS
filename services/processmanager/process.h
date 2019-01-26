@@ -44,6 +44,7 @@ typedef struct _Process {
     clock_t                     StartedAt;
     atomic_int                  References;
     atomic_uint                 State;
+    // mtx_t SyncObject
 
     MString_t*                  Name;
     MString_t*                  Path;

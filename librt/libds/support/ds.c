@@ -226,10 +226,10 @@ clock_t GetTimestamp(void)
     return Result;
 }
 
+#ifdef LIBC_KERNEL
 OsStatus_t LoadFile(MString_t* Path, MString_t** FullPath, void** BufferOut, size_t* LengthOut)
 {
     OsStatus_t Status;
-#ifdef LIBC_KERNEL
     MString_t* InitRdPath = MStringCreate("rd:/", StrUTF8);
     MStringAppendCharacters(InitRdPath, MStringRaw(Path), StrUTF8);
     Status = GetModuleDataByPath(InitRdPath, BufferOut, LengthOut);
@@ -237,71 +237,9 @@ OsStatus_t LoadFile(MString_t* Path, MString_t** FullPath, void** BufferOut, siz
         *FullPath = MStringCreate((void*)MStringRaw(InitRdPath), StrUTF8);
     }
     MStringDestroy(InitRdPath);
-#else
-    LargeInteger_t   QueriedSize = { { 0 } };
-    void*            Buffer      = NULL;
-    FileSystemCode_t FsCode;
-    UUId_t           Handle;
-    size_t           Size;
-
-    // Open the file as read-only
-    FsCode = OpenFile(MStringRaw(Path), 0, __FILE_READ_ACCESS, &Handle);
-    if (FsCode != FsOk) {
-        ERROR("Invalid path given: %s", MStringRaw(Path));
-        return OsError;
-    }
-
-    Status = GetFileSize(Handle, &QueriedSize.u.LowPart, NULL);
-    if (Status != OsSuccess) {
-        ERROR("Failed to retrieve the file size");
-        CloseFile(Handle);
-        return Status;
-    }
-
-    if (FullPath != NULL) {
-        char* PathBuffer = (char*)dsalloc(_MAXPATH);
-        memset(PathBuffer, 0, _MAXPATH);
-
-        Status = GetFilePath(Handle, PathBuffer, _MAXPATH);
-        if (Status != OsSuccess) {
-            ERROR("Failed to query file handle for full path");
-            dsfree(PathBuffer);
-            CloseFile(Handle);
-            return Status;
-        }
-        *FullPath = MStringCreate(PathBuffer, StrUTF8);
-        dsfree(PathBuffer);
-    }
-
-    Size = (size_t)QueriedSize.QuadPart;
-    if (Size != 0) {
-        DmaBuffer_t* TransferBuffer = CreateBuffer(UUID_INVALID, Size);
-        if (TransferBuffer != NULL) {
-            Buffer = dsalloc(Size);
-            if (Buffer != NULL) {
-                size_t Index, Read = 0;
-                FsCode = ReadFile(Handle, GetBufferHandle(TransferBuffer), Size, &Index, &Read);
-                if (FsCode == FsOk && Read != 0) {
-                    memcpy(Buffer, (const void*)GetBufferDataPointer(TransferBuffer), Read);
-                }
-                else {
-                    if (FullPath != NULL) {
-                        MStringDestroy(*FullPath);
-                    }
-                    dsfree(Buffer);
-                    Status = OsError;
-                    Buffer = NULL;
-                }
-            }
-            DestroyBuffer(TransferBuffer);
-        }
-    }
-    CloseFile(Handle);
-    *BufferOut = Buffer;
-    *LengthOut = Size;
-#endif
     return Status;
 }
+#endif
 
 OsStatus_t CreateImageSpace(MemorySpaceHandle_t* HandleOut)
 {

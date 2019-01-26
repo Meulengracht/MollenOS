@@ -123,15 +123,16 @@ GetModuleDataByPath(
     OsStatus_t Result = OsError;
     TRACE("GetModuleDataByPath(%s)", MStringRaw(Path));
 
-    // Locate the module
     foreach(Node, &Modules) {
         SystemModule_t* Module = (SystemModule_t*)Node;
-        TRACE("Comparing(%s)To(%s)", MStringRaw(Path), MStringRaw(Module->Path));
-        if (MStringCompare(Path, Module->Path, 1) != MSTRING_NO_MATCH) {
-            *Buffer = (void*)Module->Data;
-            *Length = Module->Length;
-            Result  = OsSuccess;
-            break;
+        if (Module->Path != NULL) {
+            TRACE("Comparing(%s)To(%s)", MStringRaw(Path), MStringRaw(Module->Path));
+            if (MStringCompare(Path, Module->Path, 1) != MSTRING_NO_MATCH) {
+                *Buffer = (void*)Module->Data;
+                *Length = Module->Length;
+                Result  = OsSuccess;
+                break;
+            }
         }
     }
     return Result;
