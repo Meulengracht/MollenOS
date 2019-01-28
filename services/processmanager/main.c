@@ -61,7 +61,7 @@ OnEvent(
             UUId_t                       Handle;
             OsStatus_t                   Result;
 
-            Result = CreateProcess(Path, StartupInformation, 
+            Result = CreateProcess(RPC->From.Process, Path, StartupInformation, 
                 RPCGetStringArgument(RPC, 3), RPC->Arguments[3].Length, 
                 RPCGetPointerArgument(RPC, 2), RPC->Arguments[2].Length, &Handle);
             if (Result != OsSuccess) {

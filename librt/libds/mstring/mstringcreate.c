@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,77 +16,64 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - String Format
+ * Generic String Library
+ *    - Managed string library for manipulating of strings in a managed format and to support
+ *      conversions from different formats to UTF-8
  */
 
 #include "mstringprivate.h"
+#include <assert.h>
 
-/* Helper 
- * Converts ASCII to UTF-8 returns 0 on success, otherwise error */
-int MStringConvertASCIIToUtf8(MString_t *Storage, const char *Source)
+static int
+MStringConvertASCIIToUtf8(
+    _In_ MString_t*  Storage,
+    _In_ const char* Source)
 {
-    /* Variables and make sure to reset length */
     char *dPtr = NULL;
     char *cPtr = (char*)Source;
     size_t DataLength = 0;
-    Storage->Length = 0;
 
-    /* We have to count manually, 
-     * one of them might be two bytes */
+    // Get the length of the data
+    Storage->Length = 0;
     while (*cPtr) {
         Storage->Length += Utf8ByteSizeOfCharacterInUtf8((mchar_t)*cPtr);
         cPtr++;
     }
 
-    /* Calculate Length 
-     * include extra byte for terminator */
     DataLength = DIVUP((Storage->Length + 1), MSTRING_BLOCK_SIZE) * MSTRING_BLOCK_SIZE;
-
-    /* Allocate a buffer */
     Storage->Data = (void*)dsalloc(DataLength);
     Storage->MaxLength = DataLength;
-
-    /* Memset it */
     memset(Storage->Data, 0, DataLength);
 
-    /* Conversion time! */
     dPtr = Storage->Data;
     cPtr = (char*)Source;
     while (*cPtr) {
         size_t Bytes = 0;
 
-        /* Make sure the character is encodable */
         if (!Utf8ConvertCharacterToUtf8((mchar_t)*cPtr, dPtr, &Bytes)) {
             dPtr += Bytes;
         }
-
-        /* Next source item */
         cPtr++;
     }
     return 0;
 }
 
-/* Helper
- * Converts Latin1 to UTF-8 returns 0 on success, otherwise error */
-int MStringConvertLatin1ToUtf8(MString_t *Storage, const char *Source)
+static int
+MStringConvertLatin1ToUtf8(
+    _In_ MString_t*  Storage,
+    _In_ const char* Source)
 {
-    /* Calculate the string length 
-     * given by the forumale len*2+1 */
     size_t TempLength = strlen(Source) * 2 + 1;
     char *SourcePtr = (char*)Source;
     char *DestPtr = NULL;
 
-    /* Calculate Length */
     size_t DataLength = DIVUP(TempLength, MSTRING_BLOCK_SIZE) * MSTRING_BLOCK_SIZE;
 
-    /* Allocate a buffer */
     Storage->Data = (void*)dsalloc(DataLength);
     Storage->MaxLength = DataLength;
 
-    /* Memset it */
     memset(Storage->Data, 0, DataLength);
 
-    /* Iterate the data given and convert */
     DestPtr = (char*)Storage->Data;
     while (*SourcePtr) {
         uint8_t ch = *(uint8_t*)SourcePtr++;
@@ -99,56 +86,40 @@ int MStringConvertLatin1ToUtf8(MString_t *Storage, const char *Source)
         }
     }
 
-    /* Null terminate */
     *DestPtr = '\0';
-
-    /* Update the actual length of the string */
     Storage->Length = strlen((const char*)Storage->Data);
-
-    /* Done! */
     return 0;
 }
 
-/* Helper
- * Converts UTF-16 to UTF-8 returns 0 on success, otherwise error */
-int MStringConvertUtf16ToUtf8(MString_t *Storage, const char *Source)
+static int
+MStringConvertUtf16ToUtf8(
+    _In_ MString_t * Storage,
+    _In_ const char* Source)
 {
-    /* Variables and make sure to reset length */
     uint16_t *sPtr = (uint16_t*)Source;
     char *dPtr = NULL;
     size_t DataLength = 0;
+
+    // Get length of data
     Storage->Length = 0;
-    
-    /* Iterate and count how many bytes
-     * are neccessary for the string */
     while (*sPtr) {
         Storage->Length += Utf8ByteSizeOfCharacterInUtf8((mchar_t)*sPtr);
         sPtr++;
     }
 
-    /* Calculate Length 
-     * but here include terminator bytes */
     DataLength = DIVUP((Storage->Length + 2), MSTRING_BLOCK_SIZE) * MSTRING_BLOCK_SIZE;
-
-    /* Allocate a buffer */
     Storage->Data = (void*)dsalloc(DataLength);
     Storage->MaxLength = DataLength;
-
-    /* Memset it */
     memset(Storage->Data, 0, DataLength);
 
-    /* Conversion time! */
     sPtr = (uint16_t*)Source;
     dPtr = (char*)Storage->Data;
     while (*sPtr) {
         size_t Bytes = 0;
 
-        /* Make sure the character is encodable */
         if (!Utf8ConvertCharacterToUtf8((mchar_t)*sPtr, dPtr, &Bytes)) {
             dPtr += Bytes;
         }
-
-        /* Advance to next character in string */
         sPtr++;
     }
 
@@ -156,56 +127,44 @@ int MStringConvertUtf16ToUtf8(MString_t *Storage, const char *Source)
     return 0;
 }
 
-/* Helper
- * Converts UTF-32 to UTF-8 returns 0 on success, otherwise error */
-int MStringConvertUtf32ToUtf8(MString_t *Storage, const char *Source)
+static int
+MStringConvertUtf32ToUtf8(
+    _In_ MString_t*  Storage,
+    _In_ const char* Source)
 {
-    /* Variables and make sure to reset length */
     uint32_t *sPtr = (uint32_t*)Source;
     char *dPtr = NULL;
     size_t DataLength = 0;
-    Storage->Length = 0;
     
-    /* Iterate and count how many bytes
-     * are neccessary for the string */
+    // Get length of data
+    Storage->Length = 0;
     while (*sPtr) {
         Storage->Length += Utf8ByteSizeOfCharacterInUtf8((mchar_t)*sPtr);
         sPtr++;
     }
 
-    /* Calculate Length 
-     * but here include terminator bytes */
     DataLength = DIVUP((Storage->Length + 4), MSTRING_BLOCK_SIZE) * MSTRING_BLOCK_SIZE;
-
-    /* Allocate a buffer */
     Storage->Data = (void*)dsalloc(DataLength);
     Storage->MaxLength = DataLength;
-
-    /* Memset it */
     memset(Storage->Data, 0, DataLength);
 
-    /* Conversion time! */
     sPtr = (uint32_t*)Source;
     dPtr = (char*)Storage->Data;
     while (*sPtr) {
         size_t Bytes = 0;
 
-        /* Make sure the character is encodable */
         if (!Utf8ConvertCharacterToUtf8((mchar_t)*sPtr, dPtr, &Bytes)) {
             dPtr += Bytes;
         }
-
-        /* Advance to next character in string */
         sPtr++;
     }
-
-    /* Done! */
     return 0;
 }
 
-/* Helper 
- * Copies UTF-8 to MString UTF-8 returns 0 on success, otherwise error */
-int MStringCopyUtf8ToUtf8(MString_t *Storage, const char *Source)
+static int
+MStringCopyUtf8ToUtf8(
+    _In_ MString_t*  Storage,
+    _In_ const char* Source)
 {
     size_t DataLength;
 
@@ -220,9 +179,9 @@ int MStringCopyUtf8ToUtf8(MString_t *Storage, const char *Source)
     return 0;
 }
 
-/* Helper 
- * Resets a MString instance to a null string */
-void MStringNull(MString_t *Storage)
+static void
+MStringNull(
+    _In_ MString_t *Storage)
 {
     if (Storage->Data == NULL) {
         Storage->Data = dsalloc(MSTRING_BLOCK_SIZE);
@@ -232,50 +191,84 @@ void MStringNull(MString_t *Storage)
     Storage->Length = 0;
 }
 
-/* Creates a MString instace from string data
- * The possible string-data types are ASCII, UTF8, UTF16, UTF32
- * and it automatically converts the data to an UTf8 representation
- * and keeps it as UTF8 internally */
-MString_t*
-MStringCreate(
-    _In_ void*          Data,
-    _In_ MStringType_t  DataType)
+void
+MStringReset(
+    _In_ MString_t*    String,
+    _In_ const char*   NewString,
+    _In_ MStringType_t DataType)
 {
-    MString_t* String = (MString_t*)dsalloc(sizeof(MString_t));
-    memset((void*)String, 0, sizeof(MString_t));
+    assert(String != NULL);
 
-    if (Data == NULL) {
+    if (String->Data != NULL) {
+        dsfree(String->Data);
+    }
+    
+    if (NewString == NULL) {
         MStringNull(String);
-        return String;
     }
 
     if (DataType == StrASCII) {
-        if (MStringConvertASCIIToUtf8(String, (const char*)Data)) {
+        if (MStringConvertASCIIToUtf8(String, NewString)) {
             MStringNull(String);
         }
     }
     else if (DataType == StrUTF8) {
-        if (MStringCopyUtf8ToUtf8(String, (const char*)Data)) {
+        if (MStringCopyUtf8ToUtf8(String, NewString)) {
             MStringNull(String);
         }
     }
     else if (DataType == Latin1) {
-        if (MStringConvertLatin1ToUtf8(String, (const char*)Data)) {
+        if (MStringConvertLatin1ToUtf8(String, NewString)) {
             MStringNull(String);
         }
     }
     else if (DataType == StrUTF16) {
-        if (MStringConvertUtf16ToUtf8(String, (const char*)Data)) {
+        if (MStringConvertUtf16ToUtf8(String, NewString)) {
             MStringNull(String);
         }
     }
     else if (DataType == StrUTF32) {
-        if (MStringConvertUtf32ToUtf8(String, (const char*)Data)) {
+        if (MStringConvertUtf32ToUtf8(String, NewString)) {
             MStringNull(String);
         }
     }
     else {
         MStringNull(String);
     }
+}
+
+MString_t*
+MStringCreate(
+    _In_ const char*   Data,
+    _In_ MStringType_t DataType)
+{
+    MString_t* String = (MString_t*)dsalloc(sizeof(MString_t));
+    memset((void*)String, 0, sizeof(MString_t));
+    MStringReset(String, Data, DataType);
     return String;
+}
+
+MString_t*
+MStringClone(
+    _In_ MString_t* String)
+{
+    MString_t* Clone;
+
+    assert(String != NULL);
+    if (String->Length != 0) {
+        Clone = (MString_t*)dsalloc(sizeof(MString_t));
+        MStringCopyUtf8ToUtf8(Clone, MStringRaw(String));
+    }
+    else {
+        Clone = MStringCreate(NULL, StrUTF8);
+    }
+    return Clone;
+}
+
+void
+MStringZero(
+    _In_ MString_t* String)
+{
+    assert(String != NULL);
+    MStringNull(String);
 }

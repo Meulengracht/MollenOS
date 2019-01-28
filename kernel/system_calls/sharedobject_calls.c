@@ -26,13 +26,9 @@
 #include <ds/mstring.h>
 #include <debug.h>
 
-extern OsStatus_t LoadFile(MString_t* Path, MString_t** FullPath, void** BufferOut, size_t* LengthOut);
-
 OsStatus_t
 ScSharedObjectLoad(
     _In_  const char* SoName,
-    _In_  uint8_t*    Buffer,
-    _In_  size_t      BufferLength,
     _Out_ Handle_t*   HandleOut)
 {
     SystemModule_t* Module = GetCurrentModule();
@@ -50,15 +46,8 @@ ScSharedObjectLoad(
         return OsSuccess;
     }
 
-    // Resolve the data if none were passed along
-    Path = MStringCreate((void*)SoName, StrUTF8);
-    if (Buffer == NULL || BufferLength == 0) {
-        Status = LoadFile(Path, NULL, (void**)&Buffer, &BufferLength);
-        if (Status != OsSuccess) {
-            return OsDoesNotExist;
-        }
-    }
-    Status = PeLoadImage(Module->Executable, Path, Path, Buffer, BufferLength, (PeExecutable_t**)HandleOut);
+    Path   = MStringCreate(SoName, StrUTF8);
+    Status = PeLoadImage(UUID_INVALID, Module->Executable, Path, (PeExecutable_t**)HandleOut);
     MStringDestroy(Path);
     return Status;
 }

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2018, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,17 +16,14 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS String Library
- *  - Contains implementation of a generic string library that can
- *    hold data in an UTF8 maner. It can convert all typical string formats
- *    to UTF-8.
+ * Generic String Library
+ *    - Managed string library for manipulating of strings in a managed format and to support
+ *      conversions from different formats to UTF-8
  */
 
 #include "mstringprivate.h"
 #include <assert.h>
 
-/* MStringLength
- * Get's the number of characters in a mstring and not the actual byte length. */
 size_t
 MStringLength(
     _In_ MString_t *String)
@@ -38,8 +35,6 @@ MStringLength(
 	return Utf8CharacterCountInString((const char*)String->Data);
 }
 
-/* MStringSize
- * Retrieves the number of bytes used in the given mstring */
 size_t
 MStringSize(
     _In_ MString_t *String)

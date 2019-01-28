@@ -37,9 +37,6 @@
 typedef struct _SystemModulePackage {
     SystemModule_t* Module;
     MString_t*      ModuleName;
-    const void*     FileBuffer;
-    size_t          FileBufferLength;
-    int             FileBufferDynamic;
 } SystemModulePackage_t;
 
 /* ModuleThreadEntry
@@ -60,8 +57,7 @@ ModuleThreadEntry(
     // Setup base address for code data
     TRACE("Loading PE-image into memory (buffer 0x%x, size %u)", 
         Package->FileBuffer, Package->FileBufferLength);
-    Status = PeLoadImage(NULL, Package->ModuleName, Package->Module->Path, (uint8_t*)Package->FileBuffer,
-        Package->FileBufferLength, &Package->Module->Executable);
+    Status = PeLoadImage(UUID_INVALID, NULL, Package->Module->Path, &Package->Module->Executable);
     if (Status == OsSuccess) {
         Thread->Function  = (ThreadEntry_t)Package->Module->Executable->EntryAddress;
         Thread->Arguments = NULL;
@@ -69,10 +65,6 @@ ModuleThreadEntry(
     else {
         ERROR("Failed to bootstrap pe image: %u", Status);
         Package->Module->PrimaryThreadId = UUID_INVALID;
-    }
-    
-    if (Package->FileBufferDynamic) {
-        kfree((void*)Package->FileBuffer);
     }
     MStringDestroy(Package->ModuleName);
     kfree(Package);
@@ -82,13 +74,9 @@ ModuleThreadEntry(
     }
 }
 
-/* SpawnModule 
- * Loads the module given into memory, creates a new bootstrap thread and executes the module. */
 OsStatus_t
 SpawnModule(
-    _In_  SystemModule_t* Module,
-    _In_  const void*     Data,
-    _In_  size_t          Length)
+    _In_ SystemModule_t* Module)
 {
     SystemModulePackage_t* Package;
     int                    Index;
@@ -96,30 +84,11 @@ SpawnModule(
 
     assert(Module != NULL);
     assert(Module->Executable == NULL);
+    assert(Module->Data != NULL && Module->Length != 0);
 
-    Package = (SystemModulePackage_t*)kmalloc(sizeof(SystemModulePackage_t));
-    Package->FileBuffer        = Data;
-    Package->FileBufferLength  = Length;
-    Package->Module            = Module;
-    Package->FileBufferDynamic = 1;
-
-    // If no data is passed the data stored initially in module structure
-    // must be present
-    if (Data == NULL || Length == 0) {
-        assert(Module->Data != NULL && Module->Length != 0);
-        Package->FileBuffer        = Module->Data;
-        Package->FileBufferLength  = Module->Length;
-        Package->FileBufferDynamic = 0;
-    }
-
-    Status = PeValidateImageBuffer((uint8_t*)Package->FileBuffer, Package->FileBufferLength);
-    if (Status != OsSuccess) {
-        kfree(Package);
-        return Status;
-    }
-
-    // Create initial resources
-    Module->Rpc = CreateSystemPipe(PIPE_MPMC | PIPE_STRUCTURED_BUFFER, PIPE_DEFAULT_ENTRYCOUNT);
+    Package         = (SystemModulePackage_t*)kmalloc(sizeof(SystemModulePackage_t));
+    Package->Module = Module;
+    Module->Rpc     = CreateSystemPipe(PIPE_MPMC | PIPE_STRUCTURED_BUFFER, PIPE_DEFAULT_ENTRYCOUNT);
 
     // Split path, even if a / is not found
     // it won't fail, since -1 + 1 = 0, so we just copy the entire string

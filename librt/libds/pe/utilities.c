@@ -65,14 +65,9 @@ PeResolveLibrary(
 
     // Sanitize the exports, if its null we have to resolve the library
     if (Exports == NULL) {
-        MString_t* FullPath;
-        uint8_t*   Buffer;
-        size_t     Size;
-        
-        Status = LoadFile(LibraryName, &FullPath, (void**)&Buffer, &Size);
-        if (Status == OsSuccess) {
-            Status = PeLoadImage(ExportParent, LibraryName, FullPath, Buffer, Size, &Exports);
-            MStringDestroy(FullPath);
+        Status = PeLoadImage(ExportParent->Owner, ExportParent, LibraryName, &Exports);
+        if (Status != OsSuccess) {
+            dserror("Library %s could not be loaded %u", MStringRaw(LibraryName), Status);
         }
     }
 

@@ -173,7 +173,7 @@ ScSetWorkingDirectory(
     if (Module == NULL || Path == NULL) {
         return OsError;
     }
-    Translated = MStringCreate((void*)Path, StrUTF8);
+    Translated = MStringCreate(Path, StrUTF8);
     MStringDestroy(Module->WorkingDirectory);
     Module->WorkingDirectory = Translated;
     return OsSuccess;

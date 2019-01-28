@@ -50,7 +50,7 @@ OsStatus_t ScModuleGetModuleHandles(Handle_t ModuleList[PROCESS_MAXMODULES]);
 OsStatus_t ScModuleGetModuleEntryPoints(Handle_t ModuleList[PROCESS_MAXMODULES]);
 OsStatus_t ScModuleExit(int ExitCode);
 
-OsStatus_t ScSharedObjectLoad(const char* SoName, uint8_t* Buffer, size_t BufferLength, Handle_t* HandleOut);
+OsStatus_t ScSharedObjectLoad(const char* SoName, Handle_t* HandleOut);
 uintptr_t  ScSharedObjectGetFunction(Handle_t Handle, const char* Function);
 OsStatus_t ScSharedObjectUnload(Handle_t Handle);
 

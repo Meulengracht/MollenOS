@@ -76,6 +76,7 @@ InitializeProcessManager(void);
  * Spawns a new process, which can be configured through the parameters. */
 __EXTERN OsStatus_t
 CreateProcess(
+    _In_  UUId_t                       Owner,
     _In_  const char*                  Path,
     _In_  ProcessStartupInformation_t* Parameters,
     _In_  const char*                  Arguments,

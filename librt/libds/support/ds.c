@@ -227,17 +227,28 @@ clock_t GetTimestamp(void)
 }
 
 #ifdef LIBC_KERNEL
-OsStatus_t LoadFile(MString_t* Path, MString_t** FullPath, void** BufferOut, size_t* LengthOut)
+OsStatus_t ResolveFilePath(UUId_t ProcessId, MString_t* Path, MString_t** FullPath)
 {
-    OsStatus_t Status;
-    MString_t* InitRdPath = MStringCreate("rd:/", StrUTF8);
-    MStringAppendCharacters(InitRdPath, MStringRaw(Path), StrUTF8);
-    Status = GetModuleDataByPath(InitRdPath, BufferOut, LengthOut);
-    if (Status == OsSuccess && FullPath != NULL) {
-        *FullPath = MStringCreate((void*)MStringRaw(InitRdPath), StrUTF8);
+    MString_t* InitRdPath;
+    
+    // Don't care about the uuid
+    _CRT_UNUSED(ProcessId);
+    
+    // Check if path already contains rd:/
+    if (MStringFindCString(Path, "rd:/") == MSTRING_NOT_FOUND) {
+        InitRdPath = MStringCreate("rd:/", StrUTF8);
+        MStringAppendCharacters(InitRdPath, MStringRaw(Path), StrUTF8);
     }
-    MStringDestroy(InitRdPath);
-    return Status;
+    else {
+        InitRdPath = MStringCreate(MStringRaw(Path), StrUTF8);
+    }
+    *FullPath = InitRdPath;
+    return OsSuccess;
+}
+
+OsStatus_t LoadFile(MString_t* FullPath, void** BufferOut, size_t* LengthOut)
+{
+    return GetModuleDataByPath(FullPath, BufferOut, LengthOut);
 }
 #endif
 

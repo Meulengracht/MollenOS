@@ -102,7 +102,7 @@ SpawnServices(void)
     foreach(Node, &Modules) {
         if (Node->Key.Value.Integer == (int)ServiceResource) {
             SystemModule_t* Module = (SystemModule_t*)Node;
-            OsStatus_t      Status = SpawnModule((SystemModule_t*)Node, NULL, 0);
+            OsStatus_t      Status = SpawnModule((SystemModule_t*)Node);
             if (Status != OsSuccess) {
                 FATAL(FATAL_SCOPE_KERNEL, "Failed to spawn module %s: %u", MStringRaw(Module->Path), Status);
             }
