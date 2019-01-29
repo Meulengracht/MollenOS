@@ -128,6 +128,7 @@ GetModuleDataByPath(
         if (Module->Path != NULL) {
             TRACE("Comparing(%s)To(%s)", MStringRaw(Path), MStringRaw(Module->Path));
             if (MStringCompare(Path, Module->Path, 1) != MSTRING_NO_MATCH) {
+                assert(Module->Data != NULL && Module->Length != 0);
                 *Buffer = (void*)Module->Data;
                 *Length = Module->Length;
                 Result  = OsSuccess;

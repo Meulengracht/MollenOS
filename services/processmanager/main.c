@@ -24,7 +24,7 @@
 
 #include <ds/mstring.h>
 #include <ddk/service.h>
-#include <os/process.h>
+#include <ddk/process.h>
 #include <ddk/utils.h>
 #include <string.h>
 #include <stdio.h>
@@ -123,7 +123,9 @@ OnEvent(
             if (Process == NULL) {
                 Handled = RPCRespond(&RPC->From, (const void*)&NullPtr, sizeof(void*));
             }
-            Handled = RPCRespond(&RPC->From, (const void*)Process->Arguments, Process->ArgumentsLength);
+            else {
+                Handled = RPCRespond(&RPC->From, (const void*)Process->Arguments, Process->ArgumentsLength);
+            }
         } break;
 
         case __PROCESSMANAGER_GET_INHERIT_BLOCK: {
@@ -132,7 +134,9 @@ OnEvent(
             if (Process == NULL || Process->InheritationBlockLength == 0) {
                 Handled = RPCRespond(&RPC->From, (const void*)&NullPtr, sizeof(void*));
             }
-            Handled = RPCRespond(&RPC->From, (const void*)Process->InheritationBlock, Process->InheritationBlockLength);
+            else {
+                Handled = RPCRespond(&RPC->From, (const void*)Process->InheritationBlock, Process->InheritationBlockLength);
+            }
         } break;
 
         case __PROCESSMANAGER_GET_PROCESS_NAME: {
@@ -141,7 +145,9 @@ OnEvent(
             if (Process == NULL) {
                 Handled = RPCRespond(&RPC->From, (const void*)&NullPtr, sizeof(void*));
             }
-            Handled = RPCRespond(&RPC->From, (const void*)MStringRaw(Process->Name), MStringSize(Process->Name) + 1);
+            else {
+                Handled = RPCRespond(&RPC->From, (const void*)MStringRaw(Process->Name), MStringSize(Process->Name) + 1);
+            }
         } break;
 
         case __PROCESSMANAGER_GET_PROCESS_TICK: {
@@ -159,7 +165,9 @@ OnEvent(
             if (Process == NULL) {
                 Handled = RPCRespond(&RPC->From, (const void*)&NullPtr, sizeof(void*));
             }
-            Handled = RPCRespond(&RPC->From, (const void*)MStringRaw(Process->AssemblyDirectory), MStringSize(Process->AssemblyDirectory) + 1);
+            else {
+                Handled = RPCRespond(&RPC->From, (const void*)MStringRaw(Process->AssemblyDirectory), MStringSize(Process->AssemblyDirectory) + 1);
+            }
         } break;
 
         case __PROCESSMANAGER_GET_WORKING_DIRECTORY: {
@@ -168,7 +176,9 @@ OnEvent(
             if (Process == NULL) {
                 Handled = RPCRespond(&RPC->From, (const void*)&NullPtr, sizeof(void*));
             }
-            Handled = RPCRespond(&RPC->From, (const void*)MStringRaw(Process->WorkingDirectory), MStringSize(Process->WorkingDirectory) + 1);
+            else {
+                Handled = RPCRespond(&RPC->From, (const void*)MStringRaw(Process->WorkingDirectory), MStringSize(Process->WorkingDirectory) + 1);
+            }
         } break;
 
         case __PROCESSMANAGER_SET_WORKING_DIRECTORY: {

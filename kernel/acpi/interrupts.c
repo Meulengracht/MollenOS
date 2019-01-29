@@ -120,11 +120,11 @@ AcpiDeriveInterrupt(
             &Dev->HId[0], rIndex);
         if (Dev->Routings->ActiveIrqs[rIndex] != INTERRUPT_NONE
             && Dev->Routings->InterruptEntries[rIndex] != NULL) {
-            PciRoutingEntry_t *RoutingEntry = NULL;
+            PciRoutingEntry_t* RoutingEntry = NULL;
 
             // Lookup entry in list
             foreach(iNode, Dev->Routings->InterruptEntries[rIndex]) {
-                RoutingEntry = (PciRoutingEntry_t*)iNode->Data;
+                RoutingEntry = (PciRoutingEntry_t*)iNode;
                 if (RoutingEntry->Irq == Dev->Routings->ActiveIrqs[rIndex]) {
                     break;
                 }

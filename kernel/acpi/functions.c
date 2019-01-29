@@ -475,7 +475,6 @@ AcpiDeviceIrqRoutingCallback(
     void *Context)
 {
     IrqResource_t*  IrqResource = NULL;
-    DataKey_t       Key         = { 0 };
 
     TRACE("AcpiDeviceIrqRoutingCallback(Type %u)", Resource->Type);
 
@@ -509,13 +508,13 @@ AcpiDeviceIrqRoutingCallback(
         // Iterate all possible interrupts (InterruptCount)
         for (i = 0; i < Irq->InterruptCount; i++) {
             // Set initial members
-            PciRoutingEntry_t *RoutingEntry = 
-                (PciRoutingEntry_t*)kmalloc(sizeof(PciRoutingEntry_t));
-            RoutingEntry->AcType        = ACPI_RESOURCE_TYPE_IRQ;
-            RoutingEntry->Polarity      = Irq->Polarity;
-            RoutingEntry->Trigger       = Irq->Triggering;
-            RoutingEntry->Shareable     = Irq->Sharable;
-            RoutingEntry->Irq           = Irq->Interrupts[i];
+            PciRoutingEntry_t* RoutingEntry = (PciRoutingEntry_t*)kmalloc(sizeof(PciRoutingEntry_t));
+            memset(RoutingEntry, 0, sizeof(PciRoutingEntry_t));
+            RoutingEntry->AcType    = ACPI_RESOURCE_TYPE_IRQ;
+            RoutingEntry->Polarity  = Irq->Polarity;
+            RoutingEntry->Trigger   = Irq->Triggering;
+            RoutingEntry->Shareable = Irq->Sharable;
+            RoutingEntry->Irq       = Irq->Interrupts[i];
 
             // Are we just finding the active irq?
             if (IrqResource->Gathering == 0) {
@@ -529,7 +528,7 @@ AcpiDeviceIrqRoutingCallback(
             }
             else {
                 // Append to list of irqs
-                CollectionAppend(IrqResource->IrqList, CollectionCreateNode(Key, RoutingEntry));
+                CollectionAppend(IrqResource->IrqList, &RoutingEntry->Header);
             }
         }
     }
@@ -554,13 +553,13 @@ AcpiDeviceIrqRoutingCallback(
         // Iterate all possible interrupts (InterruptCount)
         for (i = 0; i < Irq->InterruptCount; i++) {
             // Set initial members
-            PciRoutingEntry_t *RoutingEntry = 
-                (PciRoutingEntry_t*)kmalloc(sizeof(PciRoutingEntry_t));
-            RoutingEntry->AcType        = ACPI_RESOURCE_TYPE_EXTENDED_IRQ;
-            RoutingEntry->Polarity      = Irq->Polarity;
-            RoutingEntry->Trigger       = Irq->Triggering;
-            RoutingEntry->Shareable     = Irq->Sharable;
-            RoutingEntry->Irq           = Irq->Interrupts[i];
+            PciRoutingEntry_t *RoutingEntry = (PciRoutingEntry_t*)kmalloc(sizeof(PciRoutingEntry_t));
+            memset(RoutingEntry, 0, sizeof(PciRoutingEntry_t));
+            RoutingEntry->AcType    = ACPI_RESOURCE_TYPE_EXTENDED_IRQ;
+            RoutingEntry->Polarity  = Irq->Polarity;
+            RoutingEntry->Trigger   = Irq->Triggering;
+            RoutingEntry->Shareable = Irq->Sharable;
+            RoutingEntry->Irq       = Irq->Interrupts[i];
 
             // Are we just finding the active irq?
             if (IrqResource->Gathering == 0) {
@@ -574,7 +573,7 @@ AcpiDeviceIrqRoutingCallback(
             }
             else {
                 // Append to list of irqs
-                CollectionAppend(IrqResource->IrqList, CollectionCreateNode(Key, RoutingEntry));
+                CollectionAppend(IrqResource->IrqList, &RoutingEntry->Header);
             }
         }
     }
@@ -597,7 +596,7 @@ AcpiGetLeastLoaded(
 
     // Sum up and transfer to int array
     foreach(iNode, RoutingEntries) {
-        PciRoutingEntry_t *Entry = (PciRoutingEntry_t*)iNode->Data;
+        PciRoutingEntry_t *Entry = (PciRoutingEntry_t*)iNode;
         InterruptList[Count] = Entry->Irq;
         Count++;
     }
@@ -611,7 +610,7 @@ AcpiGetLeastLoaded(
 
     // Lookup selected
     _foreach(iNode, RoutingEntries) {
-        PciRoutingEntry_t *Entry = (PciRoutingEntry_t*)iNode->Data;
+        PciRoutingEntry_t *Entry = (PciRoutingEntry_t*)iNode;
         if (Entry->Irq == Count) {
             return Entry;
         }
@@ -627,7 +626,7 @@ AcpiGetLeastLoaded(
  * the possible irqs of the device. Selects the best possible irq */
 ACPI_STATUS
 AcpiDeviceSelectIrq(
-    _InOut_ PciRoutingSource_t *Source)
+    _InOut_ PciRoutingSource_t* Source)
 {
     // Variables
     PciRoutingEntry_t *SelectedEntry = NULL;
@@ -646,7 +645,7 @@ AcpiDeviceSelectIrq(
     if (Source->ActiveEntry != NULL) {
         TRACE("Irq %u is active, validating", Source->ActiveEntry->Irq);
         foreach(iNode, Source->Entries) {
-            PciRoutingEntry_t *Entry = (PciRoutingEntry_t*)iNode->Data;
+            PciRoutingEntry_t *Entry = (PciRoutingEntry_t*)iNode;
             if (Entry->Irq == Source->ActiveEntry->Irq) {
                 if (Entry != Source->ActiveEntry) {
                     kfree(Source->ActiveEntry);
@@ -761,14 +760,12 @@ AcpiDeviceGetIrqRoutings(
     }
     
     // Allocate a new table for the device
-    Table = (PciRoutings_t*)kmalloc(sizeof(PciRoutings_t));
+    Table          = (PciRoutings_t*)kmalloc(sizeof(PciRoutings_t));
     Table->Sources = CollectionCreate(KeyString);
     for (i = 0; i < 128; i++) {
         Table->InterruptEntries[i] = NULL;
-        Table->ActiveIrqs[i] = INTERRUPT_NONE;
+        Table->ActiveIrqs[i]       = INTERRUPT_NONE;
     }
-
-    // Store it in device
     Device->Routings = Table;
 
     // Enumerate entries
@@ -781,7 +778,6 @@ AcpiDeviceGetIrqRoutings(
         ACPI_HANDLE SourceHandle    = NULL;
         unsigned InterruptIndex     = 0;
         unsigned DeviceIndex        = 0;
-        CollectionItem_t*   Node    = NULL;
         DataKey_t           Key     = { 0 };
 
         // Convert the addresses 
@@ -791,24 +787,22 @@ AcpiDeviceGetIrqRoutings(
         // Check if the first byte is 0, then there is no irq-resource
         // Then the SourceIndex is the actual IRQ
         if (PciTable->Source[0] == '\0') {
-            PciRoutingEntry_t *RoutingEntry = NULL;
-
+            PciRoutingEntry_t* RoutingEntry;
             if (Table->InterruptEntries[InterruptIndex] == NULL) {
-                Table->InterruptEntries[InterruptIndex] = 
-                    CollectionCreate(KeyInteger);
+                Table->InterruptEntries[InterruptIndex] = CollectionCreate(KeyInteger);
             }
 
             // Allocate a new entry and store information
             RoutingEntry = (PciRoutingEntry_t*)kmalloc(sizeof(PciRoutingEntry_t));
-            RoutingEntry->AcType    = ACPI_RESOURCE_TYPE_IRQ;
-            RoutingEntry->Irq       = (int)PciTable->SourceIndex;
-            RoutingEntry->Polarity  = ACPI_ACTIVE_LOW;
-            RoutingEntry->Trigger   = ACPI_LEVEL_SENSITIVE;
-            RoutingEntry->Fixed     = 1;
+            memset(RoutingEntry, 0, sizeof(PciRoutingEntry_t));
+            RoutingEntry->AcType   = ACPI_RESOURCE_TYPE_IRQ;
+            RoutingEntry->Irq      = (int)PciTable->SourceIndex;
+            RoutingEntry->Polarity = ACPI_ACTIVE_LOW;
+            RoutingEntry->Trigger  = ACPI_LEVEL_SENSITIVE;
+            RoutingEntry->Fixed    = 1;
 
             // Save interrupt
-            CollectionAppend(Table->InterruptEntries[InterruptIndex], 
-                CollectionCreateNode(Key, RoutingEntry));
+            CollectionAppend(Table->InterruptEntries[InterruptIndex], &RoutingEntry->Header);
             Table->ActiveIrqs[InterruptIndex] = (int)PciTable->SourceIndex;
             continue;
         }
@@ -817,9 +811,8 @@ AcpiDeviceGetIrqRoutings(
         // the handle cached in memory
         Key.Value.String.Pointer    = &PciTable->Source[0];
         Key.Value.String.Length     = strlen(&PciTable->Source[0]);
-        Node = CollectionGetNodeByKey(Table->Sources, Key, 0);
-        if (Node != NULL) {
-            Source = (PciRoutingSource_t*)Node->Data;
+        Source                      = (PciRoutingSource_t*)CollectionGetNodeByKey(Table->Sources, Key, 0);
+        if (Source != NULL) {
             Table->InterruptEntries[InterruptIndex] = Source->Entries;
             Table->ActiveIrqs[InterruptIndex] = Source->ActiveEntry->Irq;
             continue;
@@ -835,13 +828,12 @@ AcpiDeviceGetIrqRoutings(
         // Debug
         TRACE("Enumerating possible resources for a new source");
         Source = (PciRoutingSource_t*)kmalloc(sizeof(PciRoutingSource_t));
-        Source->Handle = SourceHandle;
-        Source->Entries = CollectionCreate(KeyInteger);
+        memset(Source, 0, sizeof(PciRoutingSource_t));
+        Source->Header.Key  = Key;
+        Source->Handle      = SourceHandle;
+        Source->Entries     = CollectionCreate(KeyInteger);
         Source->ActiveEntry = NULL;
-        
-        // Create the list for this new source
-        Node = CollectionCreateNode(Key, Source);
-        CollectionAppend(Table->Sources, Node);
+        CollectionAppend(Table->Sources, &Source->Header);
 
         // Store the information for the callback
         IrqResource.Gathering = 1;

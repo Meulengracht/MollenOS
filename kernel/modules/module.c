@@ -32,12 +32,6 @@
 #include <handle.h>
 #include <timers.h>
 #include <debug.h>
-#include <heap.h>
-
-typedef struct _SystemModulePackage {
-    SystemModule_t* Module;
-    MString_t*      ModuleName;
-} SystemModulePackage_t;
 
 /* ModuleThreadEntry
  * Bootstraps the module, by relocating the image correctly into the module's address
@@ -46,28 +40,25 @@ void
 ModuleThreadEntry(
     _In_ void* Context)
 {
-    SystemModulePackage_t* Package    = (SystemModulePackage_t*)Context;
-    UUId_t                 CurrentCpu = ArchGetProcessorCoreId();
-    MCoreThread_t*         Thread     = GetCurrentThreadForCore(CurrentCpu);
-    OsStatus_t             Status;
+    SystemModule_t* Module    = (SystemModule_t*)Context;
+    UUId_t          CurrentCpu = ArchGetProcessorCoreId();
+    MCoreThread_t*  Thread     = GetCurrentThreadForCore(CurrentCpu);
+    OsStatus_t      Status;
     
-    assert(Package != NULL);
-    TimersGetSystemTick(&Package->Module->StartedAt);
+    assert(Module != NULL);
+    TimersGetSystemTick(&Module->StartedAt);
 
     // Setup base address for code data
-    TRACE("Loading PE-image into memory (buffer 0x%x, size %u)", 
-        Package->FileBuffer, Package->FileBufferLength);
-    Status = PeLoadImage(UUID_INVALID, NULL, Package->Module->Path, &Package->Module->Executable);
+    TRACE("Loading PE-image into memory (path %s)", MStringRaw(Module->Path));
+    Status = PeLoadImage(UUID_INVALID, NULL, Module->Path, &Module->Executable);
     if (Status == OsSuccess) {
-        Thread->Function  = (ThreadEntry_t)Package->Module->Executable->EntryAddress;
+        Thread->Function  = (ThreadEntry_t)Module->Executable->EntryAddress;
         Thread->Arguments = NULL;
     }
     else {
         ERROR("Failed to bootstrap pe image: %u", Status);
-        Package->Module->PrimaryThreadId = UUID_INVALID;
+        Module->PrimaryThreadId = UUID_INVALID;
     }
-    MStringDestroy(Package->ModuleName);
-    kfree(Package);
     
     if (Status == OsSuccess) {
         EnterProtectedThreadLevel();
@@ -78,30 +69,28 @@ OsStatus_t
 SpawnModule(
     _In_ SystemModule_t* Module)
 {
-    SystemModulePackage_t* Package;
     int                    Index;
     OsStatus_t             Status;
+    MString_t*             ModuleName;
+    TRACE("SpawnModule(%s)", MStringRaw(Module->Path));
 
     assert(Module != NULL);
     assert(Module->Executable == NULL);
     assert(Module->Data != NULL && Module->Length != 0);
 
-    Package         = (SystemModulePackage_t*)kmalloc(sizeof(SystemModulePackage_t));
-    Package->Module = Module;
-    Module->Rpc     = CreateSystemPipe(PIPE_MPMC | PIPE_STRUCTURED_BUFFER, PIPE_DEFAULT_ENTRYCOUNT);
+    Module->Rpc = CreateSystemPipe(PIPE_MPMC | PIPE_STRUCTURED_BUFFER, PIPE_DEFAULT_ENTRYCOUNT);
 
     // Split path, even if a / is not found
     // it won't fail, since -1 + 1 = 0, so we just copy the entire string
     Index                    = MStringFindReverse(Module->Path, '/', 0);
     Module->WorkingDirectory = MStringSubString(Module->Path, 0, Index);
     Module->BaseDirectory    = MStringSubString(Module->Path, 0, Index);
-    Package->ModuleName      = MStringSubString(Module->Path, Index + 1, -1);
-    Status                   = CreateThread(MStringRaw(Package->ModuleName), ModuleThreadEntry, Package, 
+    ModuleName               = MStringSubString(Module->Path, Index + 1, -1);
+    Status                   = CreateThread(MStringRaw(ModuleName), ModuleThreadEntry, Module, 
         THREADING_USERMODE, UUID_INVALID, &Module->PrimaryThreadId);
+    MStringDestroy(ModuleName);
     if (Status != OsSuccess) {
         // @todo cleanup everything?
-        MStringDestroy(Package->ModuleName);
-        kfree(Package);
         return Status;
     }
     ThreadingDetachThread(Module->PrimaryThreadId);

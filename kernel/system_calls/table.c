@@ -23,7 +23,7 @@
 #include <ddk/contracts/video.h>
 #include <os/mollenos.h>
 #include <ddk/ipc/ipc.h>
-#include <os/process.h>
+#include <ddk/process.h>
 #include <ddk/buffer.h>
 #include <threading.h>
 #include <ddk/acpi.h>

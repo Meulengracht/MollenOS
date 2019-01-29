@@ -25,8 +25,8 @@
 #include <internal/_utils.h>
 #include <os/sharedobject.h>
 #include <ds/collection.h>
+#include <ddk/process.h>
 #include <ds/mstring.h>
-#include <os/process.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <ctype.h>

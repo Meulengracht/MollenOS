@@ -96,6 +96,7 @@ TestFilePath(
     _In_ MString_t* Path)
 {
     OsFileDescriptor_t FileStats;
+    TRACE("TestFilePath(%s)", MStringRaw(Path));
     if (GetFileStatsByPath((const char*)MStringRaw(Path), &FileStats) != FsOk) {
         return OsError;
     }
@@ -108,36 +109,54 @@ ResolveFilePath(
     _In_  MString_t*  Path,
     _Out_ MString_t** FullPathOut)
 {
+    TRACE("ResolveFilePath(%u, %s)", ProcessId, MStringRaw(Path));
     if (MStringFind(Path, ':', 0) == MSTRING_NOT_FOUND && 
         MStringFind(Path, '$', 0) == MSTRING_NOT_FOUND) {
+        TRACE(" => resolving");
         // Check the working directory, if it fails iterate the environment defaults
         Process_t* Process = GetProcess(ProcessId);
-        MString_t* Result  = MStringClone(Process->WorkingDirectory);
-        MStringAppendCharacter(Result, '/');
-        MStringAppend(Result, Path);
-        if (TestFilePath(Result) != OsSuccess) {
-            // Look at the type of file we are trying to load. .app? .dll? 
-            // for other types its most likely resource load
-            int IsApp = MStringFindCString(Path, ".app");
-            int IsDll = MStringFindCString(Path, ".dll");
-            if (IsApp != MSTRING_NOT_FOUND || IsDll != MSTRING_NOT_FOUND) {
-                MStringReset(Result, "$bin/", StrUTF8);
-            }
-            else {
-                MStringReset(Result, "$sys/", StrUTF8);
-            }
+        MString_t* Result;
+        int        IsApp;
+        int        IsDll;
+
+        // Services do not have working directories (well they do, but that is $sys or $bin)
+        // But make sure Result is initialzied to a string
+        if (Process != NULL) {
+            Result = MStringClone(Process->WorkingDirectory);
+            MStringAppendCharacter(Result, '/');
             MStringAppend(Result, Path);
             if (TestFilePath(Result) == OsSuccess) {
                 *FullPathOut = Result;
                 return OsSuccess;
             }
-            else {
-                MStringDestroy(Result);
-                return OsError;
-            }
+        }
+        else {
+            Result = MStringCreate(NULL, StrUTF8);
+        }
+
+        TRACE(" => guessing");
+        // Look at the type of file we are trying to load. .app? .dll? 
+        // for other types its most likely resource load
+        IsApp = MStringFindCString(Path, ".app");
+        IsDll = MStringFindCString(Path, ".dll");
+        if (IsApp != MSTRING_NOT_FOUND || IsDll != MSTRING_NOT_FOUND) {
+            MStringReset(Result, "$bin/", StrUTF8);
+        }
+        else {
+            MStringReset(Result, "$sys/", StrUTF8);
+        }
+        MStringAppend(Result, Path);
+        if (TestFilePath(Result) == OsSuccess) {
+            *FullPathOut = Result;
+            return OsSuccess;
+        }
+        else {
+            MStringDestroy(Result);
+            return OsError;
         }
     }
     else {
+        TRACE(" => cloning");
         *FullPathOut = MStringClone(Path);
     }
     return OsSuccess;
@@ -145,9 +164,9 @@ ResolveFilePath(
 
 OsStatus_t
 LoadFile(
-    MString_t* FullPath,
-    void**     BufferOut,
-    size_t*    LengthOut)
+    _In_  MString_t* FullPath,
+    _Out_ void**     BufferOut,
+    _Out_ size_t*    LengthOut)
 {
     OsStatus_t       Status;
     LargeInteger_t   QueriedSize = { { 0 } };
@@ -199,6 +218,17 @@ LoadFile(
     return Status;
 }
 
+void
+UnloadFile(
+    _In_ MString_t* FullPath,
+    _In_ void*      Buffer)
+{
+    // So right now we will simply free the buffer, 
+    // but when we implement caching we will check if it should stay cached
+    _CRT_UNUSED(FullPath);
+    free(Buffer);
+}
+
 OsStatus_t
 InitializeProcessManager(void)
 {
@@ -219,6 +249,8 @@ CreateProcess(
 {
     Process_t* Process;
     MString_t* PathAsMString;
+    size_t     PathLength;
+    char*      ArgumentsPointer;
     int        Index;
     OsStatus_t Status;
 
@@ -253,11 +285,19 @@ CreateProcess(
 
     // Store copies of startup information
     memcpy(&Process->StartupInformation, Parameters, sizeof(ProcessStartupInformation_t));
+
+    // Handle arguments, we need to prepend the full path of the executable
+    PathLength       = strlen(MStringRaw(Process->Path));
+    ArgumentsPointer = malloc(PathLength + 1 + ArgumentsLength);
+    
+    memcpy(&ArgumentsPointer[0], (const void*)MStringRaw(Process->Path), PathLength);
+    ArgumentsPointer[PathLength] = ' ';
     if (Arguments != NULL && ArgumentsLength != 0) {
-        Process->Arguments = malloc(ArgumentsLength);
-        Process->ArgumentsLength = ArgumentsLength;
-        memcpy((void*)Process->Arguments, (void*)Arguments, ArgumentsLength);
+        memcpy(&ArgumentsPointer[PathLength + 1], (void*)Arguments, ArgumentsLength);
     }
+    Process->Arguments       = (const char*)ArgumentsPointer;
+    Process->ArgumentsLength = PathLength + 1 + ArgumentsLength;
+
     if (InheritationBlock != NULL && InheritationBlockLength != 0) {
         Process->InheritationBlock = malloc(InheritationBlockLength);
         Process->InheritationBlockLength = InheritationBlockLength;

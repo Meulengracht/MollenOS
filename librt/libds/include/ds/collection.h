@@ -61,69 +61,60 @@ typedef struct _Collection {
 _CODE_BEGIN
 /* CollectionCreate
  * Instantiates a new Collection with the given attribs and keytype */
-CRTDECL(
-Collection_t*,
+CRTDECL(Collection_t*,
 CollectionCreate(
     _In_ KeyType_t              KeyType));
     
 /* CollectionConstruct
  * Instantiates a new static Collection with the given attribs and keytype */
-CRTDECL(
-void,
+CRTDECL(void,
 CollectionConstruct(
     _In_ Collection_t*          Collection,
     _In_ KeyType_t              KeyType));
 
 /* CollectionClear
  * Clears the Collection of members, cleans up nodes. */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 CollectionClear(
     _In_ Collection_t*          Collection));
 
 /* CollectionDestroy
  * Destroys the Collection and frees all resources associated
  * does also free all Collection elements and keys */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 CollectionDestroy(
     _In_ Collection_t*          Collection));
 
 /* CollectionLength
  * Returns the length of the given Collection */
-CRTDECL(
-size_t,
+CRTDECL(size_t,
 CollectionLength(
     _In_ Collection_t*          Collection));
 
 /* CollectionBegin
  * Retrieves the starting element of the Collection */
-CRTDECL(
-CollectionIterator_t*,
+CRTDECL(CollectionIterator_t*,
 CollectionBegin(
     _In_ Collection_t*          Collection));
 
 /* CollectionNext
  * Iterates to the next element in the Collection and returns
  * NULL when the end has been reached */
-CRTDECL(
-CollectionIterator_t*,
+CRTDECL(CollectionIterator_t*,
 CollectionNext(
     _In_ CollectionIterator_t*  It));
 
 /* CollectionCreateNode
  * Instantiates a new Collection node that can be appended to the Collection 
  * by CollectionAppend. If using an unsorted Collection set the sortkey == key */
-CRTDECL(
-CollectionItem_t*,
+CRTDECL(CollectionItem_t*,
 CollectionCreateNode(
     _In_ DataKey_t              Key,
     _In_ void*                  Data));
 
 /* CollectionDestroyNode
  * Cleans up a Collection node and frees all resources it had */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 CollectionDestroyNode(
     _In_ Collection_t*          Collection,
     _In_ CollectionItem_t*      Node));
@@ -132,8 +123,7 @@ CollectionDestroyNode(
  * Insert the node into a specific position in the Collection, if position is invalid it is
  * inserted at the back. This function is not available for sorted Collections, it will simply 
  * call CollectionInsert instead */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 CollectionInsertAt(
     _In_ Collection_t*          Collection, 
     _In_ CollectionItem_t*      Node, 
@@ -142,8 +132,7 @@ CollectionInsertAt(
 /* CollectionInsert 
  * Inserts the node into the front of the Collection. This should be used for sorted
  * Collections, but is available for unsorted Collections aswell */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 CollectionInsert(
     _In_ Collection_t*          Collection, 
     _In_ CollectionItem_t*      Node));
@@ -151,31 +140,27 @@ CollectionInsert(
 /* CollectionAppend
  * Inserts the node into the the back of the Collection. This function is not
  * available for sorted Collections, it will simply redirect to CollectionInsert */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 CollectionAppend(
     _In_ Collection_t*          Collection,
     _In_ CollectionItem_t*      Node));
 
 /* CollectionPopFront
  * Removes and returns the first element in the collection. */
-CRTDECL(
-CollectionItem_t*,
+CRTDECL(CollectionItem_t*,
 CollectionPopFront(
     _In_ Collection_t*          Collection));
 
 /* CollectionPopBack
  * Removes and returns the last element in the collection. */
-CRTDECL(
-CollectionItem_t*,
+CRTDECL(CollectionItem_t*,
 CollectionPopBack(
     _In_ Collection_t*          Collection));
 
 /* CollectionGetNodeByKey
  * These are the node-retriever functions 
  * they return the Collection-node by either key data or index */
-CRTDECL(
-CollectionItem_t*,
+CRTDECL(CollectionItem_t*,
 CollectionGetNodeByKey(
     _In_ Collection_t*          Collection,
     _In_ DataKey_t              Key, 
@@ -184,8 +169,7 @@ CollectionGetNodeByKey(
 /* CollectionGetDataByKey
  * Finds the n-occurence of an element with the given key and returns
  * the associated data with it */
-CRTDECL(
-void*,
+CRTDECL(void*,
 CollectionGetDataByKey(
     _In_ Collection_t*          Collection, 
     _In_ DataKey_t              Key, 
@@ -193,8 +177,7 @@ CollectionGetDataByKey(
 
 /* CollectionExecute(s)
  * These functions execute a given function on all relevant nodes (see names) */
-CRTDECL(
-void,
+CRTDECL(void,
 CollectionExecuteOnKey(
     _In_ Collection_t*          Collection,
     _In_ void                   (*Function)(void*, int, void*),
@@ -203,8 +186,7 @@ CollectionExecuteOnKey(
 
 /* CollectionExecute(s)
  * These functions execute a given function on all relevant nodes (see names) */
-CRTDECL(
-void,
+CRTDECL(void,
 CollectionExecuteAll(
     _In_ Collection_t*          Collection,
     _In_ void                   (*Function)(void*, int, void*),
@@ -212,32 +194,28 @@ CollectionExecuteAll(
 
 /* CollectionUnlinkNode
  * This functions unlinks a node and returns the next node for usage */
-CRTDECL(
-CollectionItem_t*,
+CRTDECL(CollectionItem_t*,
 CollectionUnlinkNode(
     _In_ Collection_t*          Collection, 
     _In_ CollectionItem_t*      Node));
 
 /* CollectionRemove
  * These are the deletion functions and remove based on either node index or key */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 CollectionRemoveByNode(
     _In_ Collection_t*          Collection,
     _In_ CollectionItem_t*      Node));
 
 /* CollectionRemove
  * These are the deletion functions and remove based on either node index or key */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 CollectionRemoveByIndex(
     _In_ Collection_t*          Collection, 
     _In_ int                    Index));
 
 /* CollectionRemove
  * These are the deletion functions and remove based on either node index or key */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 CollectionRemoveByKey(
     _In_ Collection_t*          Collection, 
     _In_ DataKey_t              Key));

@@ -63,17 +63,20 @@ MStringConvertLatin1ToUtf8(
     _In_ MString_t*  Storage,
     _In_ const char* Source)
 {
-    size_t TempLength = strlen(Source) * 2 + 1;
-    char *SourcePtr = (char*)Source;
-    char *DestPtr = NULL;
+    size_t DataLength;
+    size_t TempLength;
+    char*  SourcePtr;
+    char*  DestPtr;
+    assert(Source != NULL);
 
-    size_t DataLength = DIVUP(TempLength, MSTRING_BLOCK_SIZE) * MSTRING_BLOCK_SIZE;
-
-    Storage->Data = (void*)dsalloc(DataLength);
+    TempLength         = strlen(Source) * 2 + 1;
+    SourcePtr          = (char*)Source;
+    DataLength         = DIVUP(TempLength, MSTRING_BLOCK_SIZE) * MSTRING_BLOCK_SIZE;
     Storage->MaxLength = DataLength;
 
+    Storage->Data = (void*)dsalloc(DataLength);
     memset(Storage->Data, 0, DataLength);
-
+    
     DestPtr = (char*)Storage->Data;
     while (*SourcePtr) {
         uint8_t ch = *(uint8_t*)SourcePtr++;
@@ -167,6 +170,7 @@ MStringCopyUtf8ToUtf8(
     _In_ const char* Source)
 {
     size_t DataLength;
+    assert(Source != NULL);
 
     Storage->Length = strlen(Source);
     DataLength      = DIVUP((Storage->Length + 1), MSTRING_BLOCK_SIZE) * MSTRING_BLOCK_SIZE;
@@ -181,10 +185,10 @@ MStringCopyUtf8ToUtf8(
 
 static void
 MStringNull(
-    _In_ MString_t *Storage)
+    _In_ MString_t* Storage)
 {
     if (Storage->Data == NULL) {
-        Storage->Data = dsalloc(MSTRING_BLOCK_SIZE);
+        Storage->Data      = dsalloc(MSTRING_BLOCK_SIZE);
         Storage->MaxLength = MSTRING_BLOCK_SIZE;
     }
     memset(Storage->Data, 0, Storage->MaxLength);
@@ -201,10 +205,12 @@ MStringReset(
 
     if (String->Data != NULL) {
         dsfree(String->Data);
+        String->Data = NULL;
     }
     
     if (NewString == NULL) {
         MStringNull(String);
+        return;
     }
 
     if (DataType == StrASCII) {
@@ -255,8 +261,9 @@ MStringClone(
     MString_t* Clone;
 
     assert(String != NULL);
-    if (String->Length != 0) {
+    if (String->Length != 0 && String->Data != NULL) {
         Clone = (MString_t*)dsalloc(sizeof(MString_t));
+        memset((void*)Clone, 0, sizeof(MString_t));
         MStringCopyUtf8ToUtf8(Clone, MStringRaw(String));
     }
     else {

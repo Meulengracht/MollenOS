@@ -25,6 +25,7 @@
 #include <internal/_utils.h>
 #include <ddk/ipc/ipc.h>
 #include <ddk/service.h>
+#include <ddk/process.h>
 #include <os/process.h>
 #include <threads.h>
 #include <stdlib.h>

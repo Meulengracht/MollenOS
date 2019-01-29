@@ -33,13 +33,11 @@
 // Prototype for the worker thread
 void GcWorker(void *Args);
 
-/* Globals 
- * Needed for state-keeping */
 static SlimSemaphore_t GlbGcEventLock;
-static Collection_t GcHandlers       = COLLECTION_INIT(KeyId);
-static Collection_t GcEvents         = COLLECTION_INIT(KeyId);
-static _Atomic(UUId_t) GcIdGenerator = ATOMIC_VAR_INIT(0);
-static UUId_t          GcThreadHandle = UUID_INVALID;
+static Collection_t    GcHandlers       = COLLECTION_INIT(KeyId);
+static Collection_t    GcEvents         = COLLECTION_INIT(KeyId);
+static _Atomic(UUId_t) GcIdGenerator    = ATOMIC_VAR_INIT(0);
+static UUId_t          GcThreadHandle   = UUID_INVALID;
 
 /* GcConstruct
  * Constructs the gc data-systems, but does not start the actual collection */

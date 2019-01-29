@@ -21,7 +21,7 @@
  */
 
 #include <internal/_syscalls.h>
-#include <os/process.h>
+#include <ddk/process.h>
 
 extern void StdioInitialize(void *InheritanceBlock, size_t InheritanceBlockLength);
 extern void StdSignalInitialize(void);

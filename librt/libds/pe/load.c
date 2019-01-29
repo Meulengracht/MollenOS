@@ -243,7 +243,7 @@ PeResolveImportDescriptor(
     uintptr_t                 AddressOfImportTable;
     PeImportNameDescriptor_t* NameDescriptor;
 
-    dswarning("PeResolveImportDescriptor(%s, %s)", 
+    dstrace("PeResolveImportDescriptor(%s, %s)", 
         MStringRaw(Image->Name), MStringRaw(ImportDescriptorName));
 
     // Resolve the library from the import chunk
@@ -257,8 +257,7 @@ PeResolveImportDescriptor(
     AddressOfImportTable = OFFSET_IN_SECTION(Section, ImportDescriptor->ImportAddressTable);
 
     // Calculate address to IAT
-    // These entries are 64 bit in PE32+ and 32 bit in PE32 
-    dswarning(" > parsing");
+    // These entries are 64 bit in PE32+ and 32 bit in PE32
     if (Image->Architecture == PE_ARCHITECTURE_32) {
         uint32_t* ThunkPointer = (uint32_t*)AddressOfImportTable;
         while (*ThunkPointer) {
@@ -605,6 +604,7 @@ ResolvePeImagePath(
         return Status;
     }
 
+    *BufferOut   = Buffer;
     *FullPathOut = FullPath;
     return PeValidateImageBuffer(Buffer, Length);
 }
@@ -723,6 +723,7 @@ PeLoadImage(
     // Parse the headers, directories and handle them.
     Status = PeParseAndMapImage(Parent, Image, Buffer, SizeOfMetaData, SectionAddress, 
         (int)BaseHeader->NumSections, DirectoryPtr);
+    UnloadFile(FullPath, (void*)Buffer);
     if (Status != OsSuccess) {
         PeUnloadLibrary(Parent, Image);
         return OsError;

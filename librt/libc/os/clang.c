@@ -24,7 +24,7 @@
 #include <internal/_utils.h>
 #include <os/osdefs.h>
 #include <os/spinlock.h>
-#include <os/process.h>
+#include <ddk/process.h>
 #include <ddk/utils.h>
 #include <threads.h>
 #include <stdlib.h>
