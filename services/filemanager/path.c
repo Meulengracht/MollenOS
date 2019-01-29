@@ -87,7 +87,7 @@ VfsPathResolveEnvironment(
 	_foreach(fNode, VfsGetFileSystems()) {
 		FileSystem_t *Fs = (FileSystem_t*)fNode->Data;
 		if (Fs->Descriptor.Flags & __FILESYSTEM_BOOT) {
-			MStringAppendString(ResolvedPath, Fs->Identifier);
+			MStringAppend(ResolvedPath, Fs->Identifier);
 			pFound = 1;
 			break;
 		}
@@ -119,7 +119,7 @@ VfsExpandIdentifier(
             _foreach(Node, VfsGetFileSystems()) { // Resolve filesystem
                 FileSystem_t *Fs = (FileSystem_t*)Node->Data;
                 if (Fs->Descriptor.Flags & __FILESYSTEM_BOOT) {
-                    MStringAppendString(TargetString, Fs->Identifier);
+                    MStringAppend(TargetString, Fs->Identifier);
                     break;
                 }
             }

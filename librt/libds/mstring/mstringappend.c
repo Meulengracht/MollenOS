@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2016, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,16 +16,18 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - String Format
+ * Generic String Library
+ *    - Managed string library for manipulating of strings in a managed format and to support
+ *      conversions from different formats to UTF-8
  */
 
 #include "mstringprivate.h"
 #include <assert.h>
 
 void
-MStringAppendString(
-    _In_ MString_t*     Destination,
-    _In_ MString_t*     String)
+MStringAppend(
+    _In_ MString_t* Destination,
+    _In_ MString_t* String)
 {
     uint8_t *StringPtr;
     size_t NewLength;
@@ -48,8 +50,8 @@ MStringAppendString(
 
 void
 MStringAppendCharacter(
-    _In_ MString_t*     String,
-    _In_ mchar_t        Character)
+    _In_ MString_t* String,
+    _In_ mchar_t    Character)
 {
     uint8_t*    StringPtr;
     size_t      NewLength;
@@ -72,14 +74,14 @@ MStringAppendCharacter(
 
 void
 MStringAppendCharacters(
-    _In_ MString_t*     String,
-    _In_ const char*    Characters,
-    _In_ MStringType_t  DataType)
+    _In_ MString_t*    String,
+    _In_ const char*   Characters,
+    _In_ MStringType_t DataType)
 {
     assert(String != NULL);
     assert(Characters != NULL);
 
-    MString_t* Proxy = MStringCreate((void*)Characters, DataType);
-    MStringAppendString(String, Proxy);
+    MString_t* Proxy = MStringCreate(Characters, DataType);
+    MStringAppend(String, Proxy);
     MStringDestroy(Proxy);
 }

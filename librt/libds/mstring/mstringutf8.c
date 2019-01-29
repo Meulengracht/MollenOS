@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,23 +16,20 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - String Format
+ * Generic String Library
+ *    - Managed string library for manipulating of strings in a managed format and to support
+ *      conversions from different formats to UTF-8
  */
 
-/* Includes 
- * - System */
 #include "mstringprivate.h"
 
-/* Helpers */
 #define IsUTF8(Character) (((Character) & 0xC0) == 0x80)
 
-/* Offset Table */
 uint32_t GlbUtf8Offsets[6] = {
 	0x00000000UL, 0x00003080UL, 0x000E2080UL,
 	0x03C82080UL, 0xFA082080UL, 0x82082080UL
 };
 
-/* Extra Byte Table */
 char GlbUtf8ExtraBytes[256] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,

@@ -70,7 +70,7 @@ SharedObjectLoad(
     if (Library == NULL) {
         OsStatus_t Status;
         if (IsProcessModule()) {
-            Status = Syscall_LibraryLoad(SharedObject, NULL, 0, &Result);
+            Status = Syscall_LibraryLoad(SharedObject, &Result);
         }
         else {
             Status = ProcessLoadLibrary(SharedObject, &Result);

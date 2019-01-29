@@ -292,8 +292,8 @@ VfsOpenInternal(
  * the working directory cannot be resolved. */
 OsStatus_t
 VfsGuessBasePath(
-    _In_  const char*   Path,
-    _Out_ char*         Result)
+    _In_ const char* Path,
+    _In_ char*       Result)
 {
     char *dot = strrchr(Path, '.');
 

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2016, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,15 +16,13 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - String Format
+ * Generic String Library
+ *    - Managed string library for manipulating of strings in a managed format and to support
+ *      conversions from different formats to UTF-8
  */
 
-/* Includes 
- * - System */
 #include "mstringprivate.h"
 
-/* Destroys the string and frees any resourec
- * allocated by the structure */
 void MStringDestroy(MString_t *String)
 {
 	/* Sanitize parameters */

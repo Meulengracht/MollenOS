@@ -135,7 +135,7 @@ MfsLocateRecord(
 
             // Convert the filename into a mstring object
             // and try to match it with our token (ignore case)
-            Filename        = MStringCreate(&Record->Name[0], StrUTF8);
+            Filename        = MStringCreate((const char*)&Record->Name[0], StrUTF8);
             CompareResult   = MStringCompare(Token, Filename, 1);
             TRACE("Matching token %s == %s: %i", MStringRaw(Token), MStringRaw(Filename), CompareResult);
             MStringDestroy(Filename);
@@ -272,7 +272,7 @@ MfsLocateFreeRecord(
             
             // Convert the filename into a mstring object
             // and try to match it with our token (ignore case)
-            Filename        = MStringCreate(&Record->Name[0], StrUTF8);
+            Filename        = MStringCreate((const char*)&Record->Name[0], StrUTF8);
             CompareResult   = MStringCompare(Token, Filename, 1);
             TRACE("Matching token %s == %s: %i", MStringRaw(Token), MStringRaw(Filename), CompareResult);
             MStringDestroy(Filename);

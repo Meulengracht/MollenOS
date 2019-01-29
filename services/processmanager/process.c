@@ -47,7 +47,7 @@ static UUId_t        ProcessIdGenerator = 1;
 static EventQueue_t* EventQueue         = NULL;
 
 static void
-DestroyProcess(
+ReleaseProcess(
     _In_ Process_t* Process)
 {
     int References = atomic_fetch_sub(&Process->References, 1);
@@ -87,16 +87,67 @@ HandleJoinProcess(
         Package.ExitCode = Join->Process->ExitCode;
     }
     RPCRespond(&Join->Address, (const void*)&Package, sizeof(JoinProcessPackage_t));
-    DestroyProcess(Join->Process);
+    ReleaseProcess(Join->Process);
     free(Join);
+}
+
+static OsStatus_t
+TestFilePath(
+    _In_ MString_t* Path)
+{
+    OsFileDescriptor_t FileStats;
+    if (GetFileStatsByPath((const char*)MStringRaw(Path), &FileStats) != FsOk) {
+        return OsError;
+    }
+    return OsSuccess;
+}
+
+OsStatus_t
+ResolveFilePath(
+    _In_  UUId_t      ProcessId,
+    _In_  MString_t*  Path,
+    _Out_ MString_t** FullPathOut)
+{
+    if (MStringFind(Path, ':', 0) == MSTRING_NOT_FOUND && 
+        MStringFind(Path, '$', 0) == MSTRING_NOT_FOUND) {
+        // Check the working directory, if it fails iterate the environment defaults
+        Process_t* Process = GetProcess(ProcessId);
+        MString_t* Result  = MStringClone(Process->WorkingDirectory);
+        MStringAppendCharacter(Result, '/');
+        MStringAppend(Result, Path);
+        if (TestFilePath(Result) != OsSuccess) {
+            // Look at the type of file we are trying to load. .app? .dll? 
+            // for other types its most likely resource load
+            int IsApp = MStringFindCString(Path, ".app");
+            int IsDll = MStringFindCString(Path, ".dll");
+            if (IsApp != MSTRING_NOT_FOUND || IsDll != MSTRING_NOT_FOUND) {
+                MStringReset(Result, "$bin/", StrUTF8);
+            }
+            else {
+                MStringReset(Result, "$sys/", StrUTF8);
+            }
+            MStringAppend(Result, Path);
+            if (TestFilePath(Result) == OsSuccess) {
+                *FullPathOut = Result;
+                return OsSuccess;
+            }
+            else {
+                MStringDestroy(Result);
+                return OsError;
+            }
+        }
+    }
+    else {
+        *FullPathOut = MStringClone(Path);
+    }
+    return OsSuccess;
 }
 
 OsStatus_t
 LoadFile(
-    MString_t*  Path,
-    MString_t** FullPath,
-    void**      BufferOut,
-    size_t*     LengthOut)
+    MString_t* FullPath,
+    void**     BufferOut,
+    size_t*    LengthOut)
 {
     OsStatus_t       Status;
     LargeInteger_t   QueriedSize = { { 0 } };
@@ -109,25 +160,10 @@ LoadFile(
     // then the filemanager will try to use our working directory and that is wrong
 
     // Open the file as read-only
-    FsCode = OpenFile(MStringRaw(Path), 0, __FILE_READ_ACCESS, &Handle);
+    FsCode = OpenFile(MStringRaw(FullPath), 0, __FILE_READ_ACCESS, &Handle);
     if (FsCode != FsOk) {
-        ERROR("Invalid path given: %s", MStringRaw(Path));
+        ERROR("Invalid path given: %s", MStringRaw(FullPath));
         return OsError;
-    }
-
-    if (FullPath != NULL) {
-        char* PathBuffer = (char*)dsalloc(_MAXPATH);
-        memset(PathBuffer, 0, _MAXPATH);
-
-        Status = GetFilePath(Handle, PathBuffer, _MAXPATH);
-        if (Status != OsSuccess) {
-            ERROR("Failed to query file handle for full path");
-            dsfree(PathBuffer);
-            CloseFile(Handle);
-            return Status;
-        }
-        *FullPath = MStringCreate(PathBuffer, StrUTF8);
-        dsfree(PathBuffer);
     }
 
     Status = GetFileSize(Handle, &QueriedSize.u.LowPart, NULL);
@@ -149,9 +185,6 @@ LoadFile(
                     memcpy(Buffer, (const void*)GetBufferDataPointer(TransferBuffer), Read);
                 }
                 else {
-                    if (FullPath != NULL) {
-                        MStringDestroy(*FullPath);
-                    }
                     dsfree(Buffer);
                     Status = OsError;
                     Buffer = NULL;
@@ -175,6 +208,7 @@ InitializeProcessManager(void)
 
 OsStatus_t
 CreateProcess(
+    _In_  UUId_t                       Owner,
     _In_  const char*                  Path,
     _In_  ProcessStartupInformation_t* Parameters,
     _In_  const char*                  Arguments,
@@ -183,8 +217,6 @@ CreateProcess(
     _In_  size_t                       InheritationBlockLength,
     _Out_ UUId_t*                      Handle)
 {
-    uint8_t*   FileBuffer = NULL;
-    size_t     FileBufferLength;
     Process_t* Process;
     MString_t* PathAsMString;
     int        Index;
@@ -198,37 +230,26 @@ CreateProcess(
     assert(Process != NULL);
     memset(Process, 0, sizeof(Process_t));
 
-    Process->State      = ATOMIC_VAR_INIT(PROCESS_RUNNING);
-    Process->References = ATOMIC_VAR_INIT(1);
-
-    // Create the neccessary strings
-    PathAsMString = MStringCreate((void*)Path, StrUTF8);
-    Status        = LoadFile(PathAsMString, &Process->Path, (void**)&FileBuffer, &FileBufferLength);
-    if (Status != OsSuccess) {
-        ERROR(" > failed to resolve process path");
-        goto CleanupAndExit;
-    }
-
-    // Verify image as PE compliant
-    Status = PeValidateImageBuffer(FileBuffer, FileBufferLength);
-    if (Status != OsSuccess) {
-        ERROR(" > invalid pe image");
-        goto CleanupAndExit;
-    }
-
-    // Split path, even if a / is not found
-    // it won't fail, since -1 + 1 = 0, so we just copy the entire string
-    Index                      = MStringFindReverse(Process->Path, '/', 0);
-    Process->Name              = MStringSubString(Process->Path, Index + 1, -1);
-    Process->WorkingDirectory  = MStringSubString(Process->Path, 0, Index);
-    Process->AssemblyDirectory = MStringSubString(Process->Path, 0, Index);
+    Process->Header.Key.Value.Id = ProcessIdGenerator++;
+    Process->State               = ATOMIC_VAR_INIT(PROCESS_RUNNING);
+    Process->References          = ATOMIC_VAR_INIT(1);
+    Process->StartedAt           = clock();
 
     // Load the executable
-    Status = PeLoadImage(NULL, Process->Name, Process->Path, FileBuffer, FileBufferLength, &Process->Executable);
+    PathAsMString = MStringCreate((void*)Path, StrUTF8);
+    Status        = PeLoadImage(Owner, NULL, PathAsMString, &Process->Executable);
     if (Status != OsSuccess) {
         ERROR(" > failed to load executable");
         goto CleanupAndExit;
     }
+    MStringDestroy(PathAsMString);
+
+    // it won't fail, since -1 + 1 = 0, so we just copy the entire string
+    Process->Path              = MStringCreate((void*)MStringRaw(Process->Executable->FullPath), StrUTF8);
+    Index                      = MStringFindReverse(Process->Path, '/', 0);
+    Process->Name              = MStringSubString(Process->Path, Index + 1, -1);
+    Process->WorkingDirectory  = MStringSubString(Process->Path, 0, Index);
+    Process->AssemblyDirectory = MStringSubString(Process->Path, 0, Index);
 
     // Store copies of startup information
     memcpy(&Process->StartupInformation, Parameters, sizeof(ProcessStartupInformation_t));
@@ -243,20 +264,15 @@ CreateProcess(
         memcpy(Process->InheritationBlock, InheritationBlock, InheritationBlockLength);
     }
 
-    Process->Header.Key.Value.Id = ProcessIdGenerator++;
-    Process->StartedAt           = clock();
     Process->PrimaryThreadId     = Syscall_ThreadCreate(Process->Executable->EntryAddress, 0, 0, Process->Executable->MemorySpace);
     Status                       = Syscall_ThreadDetach(Process->PrimaryThreadId);
     CollectionAppend(&Processes, &Process->Header);
-    free(FileBuffer);
     *Handle = Process->Header.Key.Value.Id;
     return Status;
 
 CleanupAndExit:
-    if (FileBuffer != NULL) {
-        free(FileBuffer);
-    }
-    DestroyProcess(Process);
+    MStringDestroy(PathAsMString);
+    ReleaseProcess(Process);
     return Status;
 }
 
@@ -335,7 +351,7 @@ TerminateProcess(
             HandleJoinProcess((void*)Join);
         }
     }
-    DestroyProcess(Process);
+    ReleaseProcess(Process);
     return OsSuccess;
 }
 
@@ -345,13 +361,8 @@ LoadProcessLibrary(
     _In_  const char* Path,
     _Out_ Handle_t*   HandleOut)
 {
-    uint8_t*   FileBuffer = NULL;
-    size_t     FileBufferLength;
     MString_t* PathAsMString;
-    MString_t* FullPath;
-    MString_t* Name;
     OsStatus_t Status;
-    int        Index;
 
     TRACE("LoadProcessLibrary(%u, %s)", Process->Header.Key.Value.Id, 
         (Path == NULL) ? "Global" : Path);
@@ -362,31 +373,8 @@ LoadProcessLibrary(
 
     // Create the neccessary strings
     PathAsMString = MStringCreate((void*)Path, StrUTF8);
-    Status        = LoadFile(PathAsMString, &FullPath, (void**)&FileBuffer, &FileBufferLength);
-    if (Status != OsSuccess) {
-        ERROR(" > failed to load file");
-        MStringDestroy(PathAsMString);
-        return Status;
-    }
-
-    // Verify image as PE compliant
-    Status = PeValidateImageBuffer(FileBuffer, FileBufferLength);
-    if (Status != OsSuccess) {
-        ERROR(" > failed to validate the file as a pe image");
-        MStringDestroy(PathAsMString);
-        MStringDestroy(FullPath);
-        free((void*)FileBuffer);
-        return Status;
-    }
-    Index  = MStringFindReverse(FullPath, '/', 0);
-    Name   = MStringSubString(FullPath, Index + 1, -1);
-    Status = PeLoadImage(Process->Executable, Name, FullPath, FileBuffer, FileBufferLength, (PeExecutable_t**)HandleOut);
-
-    // Cleanup
+    Status        = PeLoadImage(Process->Header.Key.Value.Id, Process->Executable, PathAsMString, (PeExecutable_t**)HandleOut);
     MStringDestroy(PathAsMString);
-    MStringDestroy(FullPath);
-    MStringDestroy(Name);
-    free((void*)FileBuffer);
     return Status;
 }
 

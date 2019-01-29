@@ -1,64 +1,49 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS MCore - String Format
-*/
+ *
+ * Copyright 2011, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * Generic String Library
+ *    - Managed string library for manipulating of strings in a managed format and to support
+ *      conversions from different formats to UTF-8
+ */
 
-/* Includes
- * - System */
 #include "mstringprivate.h"
 
 /* Get character at the given index and 
  * return the character found as UTF32 */
 mchar_t MStringGetCharAt(MString_t *String, int Index)
 {
-	/* Loop vars */
-	char *sPtr = (char*)String->Data;
-	int sIndex = 0, Itr = 0;
+	char* sPtr   = (char*)String->Data;
+	int   sIndex = 0, Itr = 0;
 
-	/* Sanitize parameters */
-	if (String->Data == NULL
-		|| String->Length == 0)
+	if (String->Data == NULL || String->Length == 0)
 		return MSTRING_EOS;
 
-	/* Iterate */
-	while (sPtr[sIndex] && sIndex < (int)String->Length) 
-	{
-		/* Get next */
-		mchar_t Character =
-			Utf8GetNextCharacterInString(sPtr, &sIndex);
-
-		/* Sanitize that 
-		 * no errors has occured or eos */
+	while (sPtr[sIndex] && sIndex < (int)String->Length) {
+		mchar_t Character = Utf8GetNextCharacterInString(sPtr, &sIndex);
 		if (Character == MSTRING_EOS) {
 			break;
 		}
 
-		/* Is it equal? */
 		if (Itr == Index) {
 			return Character;
 		}
-
-		/* Othewise, keep searching */
 		Itr++;
 	}
-
-	/* No entry */
 	return MSTRING_EOS;
 }
 

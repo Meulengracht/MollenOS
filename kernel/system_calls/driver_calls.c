@@ -215,7 +215,7 @@ ScLoadDriver(
             }
         }
 
-        Status = SpawnModule(Module, DriverBuffer, DriverBufferLength);
+        Status = SpawnModule(Module);
         if (Status != OsSuccess) {
             return Status;
         }

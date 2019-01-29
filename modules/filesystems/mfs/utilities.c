@@ -404,7 +404,7 @@ MfsFileRecordToVfsFile(
     // Skip the bucket placement and path
     VfsEntry->Base.Descriptor.StorageId = (int)FileSystem->Disk.Device; // ???
     // VfsEntry->Base.Descriptor.Id = ??
-    VfsEntry->Base.Name                     = MStringCreate(&NativeEntry->Name[0], StrUTF8);
+    VfsEntry->Base.Name                     = MStringCreate((const char*)&NativeEntry->Name[0], StrUTF8);
     VfsEntry->NativeFlags                   = NativeEntry->Flags;
     VfsEntry->Base.Descriptor.Size.QuadPart = NativeEntry->Size;
     VfsEntry->AllocatedSize                 = NativeEntry->AllocatedSize;

@@ -73,8 +73,6 @@ typedef struct _SystemModule {
  * Loads the module given into memory, creates a new bootstrap thread and executes the module. */
 KERNELAPI OsStatus_t KERNELABI
 SpawnModule(
-    _In_  SystemModule_t* Module,
-    _In_  const void*     Data,
-    _In_  size_t          Length);
+    _In_  SystemModule_t* Module);
 
 #endif //!__MODULE_INTERFACE__

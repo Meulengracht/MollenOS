@@ -1,26 +1,28 @@
 /* MollenOS
-*
-* Copyright 2011 - 2016, Philip Meulengracht
-*
-* This program is free software : you can redistribute it and / or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation ? , either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.If not, see <http://www.gnu.org/licenses/>.
-*
-*
-* MollenOS MCore - String Format
-*/
+ *
+ * Copyright 2011, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * Generic String Library
+ *    - Managed string library for manipulating of strings in a managed format and to support
+ *      conversions from different formats to UTF-8
+ */
 
-#ifndef _MCORE_STRING_H_
-#define _MCORE_STRING_H_
+#ifndef __MSTRING_INTERFACE_H__
+#define __MSTRING_INTERFACE_H__
 
 #include <os/osdefs.h>
 #include <ds/ds.h>
@@ -43,25 +45,17 @@ struct _MString;
 typedef struct _MString MString_t;
 
 _CODE_BEGIN
-/* Creates a MString instace from string data
- * The possible string-data types are ASCII, UTF8, UTF16, UTF32
- * and it automatically converts the data to an UTf8 representation
- * and keeps it as UTF8 internally */
-CRTDECL(MString_t*, MStringCreate(void* Data, MStringType_t DataType));
+CRTDECL(MString_t*, MStringCreate(const char* Data, MStringType_t DataType));
+CRTDECL(MString_t*, MStringClone(MString_t* String));
+CRTDECL(void,       MStringZero(MString_t* String));
+CRTDECL(void,       MStringReset(MString_t* String, const char* NewString, MStringType_t DataType));
+CRTDECL(void,       MStringCopy(MString_t* Destination, MString_t* Source, int DestinationIndex, int SourceIndex, int Length));
 CRTDECL(void,       MStringDestroy(MString_t* String));
 
-/* Copies some or all of string data 
- * from Source to Destination, it does NOT append
- * the string, but rather overrides in destination, 
- * if -1 is given in length, it copies the entire Source */
-CRTDECL(void, MStringCopy(MString_t* Destination, MString_t* Source, int Length));
-
-/* Append Character to a given string 
- * the character is assumed to be either 
- * ASCII, UTF16 or UTF32 and NOT utf8 */
+// Append Character to a given string the character is assumed to be either ASCII, UTF16 or UTF32
+CRTDECL(void, MStringAppend(MString_t* Destination, MString_t* String));
 CRTDECL(void, MStringAppendCharacter(MString_t* String, mchar_t Character));
 CRTDECL(void, MStringAppendCharacters(MString_t* String, const char* Characters, MStringType_t DataType));
-CRTDECL(void, MStringAppendString(MString_t* Destination, MString_t* String));
 CRTDECL(void, MStringAppendInt32(MString_t* String, int32_t Value));
 CRTDECL(void, MStringAppendUInt32(MString_t* String, uint32_t Value));
 CRTDECL(void, MStringAppendHex32(MString_t* String, uint32_t Value));
@@ -83,23 +77,14 @@ CRTDECL(mchar_t, MStringGetCharAt(MString_t* String, int Index));
 /* Iterate through a MString, it returns the next
  * character each time untill MSTRING_EOS. Call with Iterator = NULL
  * the first time, it holds the state. And Index = 0. */
-CRTDECL(mchar_t, MStringIterate(MString_t* String, char** Iterator, size_t* Index));
-
-/* Substring - build substring from the given mstring
- * starting at Index with the Length. If the length is -1
- * it takes the rest of string */
+CRTDECL(mchar_t,    MStringIterate(MString_t* String, char** Iterator, size_t* Index));
 CRTDECL(MString_t*, MStringSubString(MString_t* String, int Index, int Length));
 CRTDECL(int,        MStringReplace(MString_t* String, const char* SearchFor, const char* ReplaceWith));
 
-/* MStringLength
- * Returns the number of individual characters in the string. */
-CRTDECL(size_t, MStringLength(MString_t* String));
-
-/* MStringSize
- * Returns the number of bytes used by the string. */
-CRTDECL(size_t,         MStringSize(MString_t* String));
-CRTDECL(const char*,    MStringRaw(MString_t* String));
-CRTDECL(size_t,         MStringHash(MString_t* String));
+CRTDECL(size_t,      MStringLength(MString_t* String)); // Number of characters
+CRTDECL(size_t,      MStringSize(MString_t* String));   // Number of bytes
+CRTDECL(const char*, MStringRaw(MString_t* String));
+CRTDECL(size_t,      MStringHash(MString_t* String));
 
 /* MStringCompare
  * Compare two strings with either case-insensitivity or not. 
@@ -120,4 +105,4 @@ CRTDECL(void,       MStringLowerCase(MString_t* String));
 CRTDECL(MString_t*, MStringLowerCaseCopy(MString_t* String));
 _CODE_END
 
-#endif //!_MCORE_STRING_H_
+#endif //!__MSTRING_INTERFACE_H__
