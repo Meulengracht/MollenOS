@@ -133,16 +133,18 @@ install_vmdk: install_shared
 
 .PHONY: build_toolchain
 build_toolchain:
+	cd tools
 	mkdir -p toolchain
-	chmod +x ./tools/depends.sh
-	chmod +x ./tools/checkout.sh
-	chmod +x ./tools/build_clang.sh
-	chmod +x ./tools/build_toolchain.sh
-	bash ./tools/depends.sh
-	bash ./tools/checkout.sh
-	bash ./tools/build_clang.sh
-	bash ./tools/build_toolchain.sh
+	chmod +x ./depends.sh
+	chmod +x ./checkout.sh
+	chmod +x ./build_clang.sh
+	chmod +x ./build_toolchain.sh
+	bash ./depends.sh
+	bash ./checkout.sh
+	bash ./build_clang.sh
+	bash ./build_toolchain.sh
 	rm -rf toolchain
+	cd ..
 
 .PHONY: clean
 clean:

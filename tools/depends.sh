@@ -6,7 +6,7 @@ mkdir -p toolchain
 cd toolchain
 
 # Dev-libraries
-apt-get -qq install libelf1 libelf-dev libffi6 libffi-dev make gcc g++ git nasm mono-complete flex bison python python-pip libyaml-dev
+sudo apt-get -qq install libelf1 libelf-dev libffi6 libffi-dev make gcc g++ git nasm mono-complete flex bison python python-pip libyaml-dev
 pip install prettytable Mako pyaml dateutils --upgrade
 
 # cmake version 3 is required
@@ -24,9 +24,12 @@ if [ ! "$(printf '%s\n' "$CMAKE_REQUIRED_VERSION" "$CMAKE_VERSION" | sort -V | h
   fi
   ./bootstrap
   make
-  make install
+  sudo make install
   cd ..
 fi
 
 # go out of toolchain
 cd ..
+
+# Install the cmake platform template
+cp ./Vali.cmake /usr/local/share/cmake-3.13/Modules/Platform/Vali.cmake
