@@ -35,18 +35,12 @@
 #include <string.h>
 #include <signal.h>
 
-// When referencing a process structure, increase ref count and wait for lock
-// Hwowever if ref count ends up being 1 when increasing, then abort
-
-// When terminating, set state to terminating and reduce ref count. If ref count
-// is 0 then destroy, otherwise just release lock
-
 static Collection_t  Processes          = COLLECTION_INIT(KeyId);
 static Collection_t  Joiners            = COLLECTION_INIT(KeyId);
 static UUId_t        ProcessIdGenerator = 1;
 static EventQueue_t* EventQueue         = NULL;
 
-static void
+void
 ReleaseProcess(
     _In_ Process_t* Process)
 {
@@ -71,6 +65,36 @@ ReleaseProcess(
         free(Process);
         return;
     }
+    SpinlockRelease(&Process->SyncObject);
+}
+
+Process_t*
+AcquireProcess(
+    _In_ UUId_t Handle)
+{
+    DataKey_t  Key     = { .Value.Id = Handle };
+    Process_t* Process = (Process_t*)CollectionGetNodeByKey(&Processes, Key, 0);
+    if (Process != NULL) {
+        int References;
+        while (1) {
+            References = atomic_load(&Process->References);
+            if (References == 0) {
+                break;
+            }
+            if (atomic_compare_exchange_weak(&Process->References, &References, References + 1)) {
+                break;
+            }
+        }
+
+        if (References > 0) {
+            SpinlockAcquire(&Process->SyncObject);
+            if (Process->State == PROCESS_RUNNING) {
+                return Process;
+            }
+            ReleaseProcess(Process);
+        }
+    }
+    return NULL;
 }
 
 static void
@@ -261,6 +285,7 @@ CreateProcess(
     Process->State               = ATOMIC_VAR_INIT(PROCESS_RUNNING);
     Process->References          = ATOMIC_VAR_INIT(1);
     Process->StartedAt           = clock();
+    SpinlockReset(&Process->SyncObject);
 
     // Load the executable
     PathAsMString = MStringCreate((void*)Path, StrUTF8);
@@ -331,16 +356,9 @@ JoinProcess(
         Join->EventHandle = UUID_INVALID;
     }
 
-    if (atomic_load(&Process->State) == PROCESS_RUNNING) {
-        if (atomic_fetch_add(&Process->References, 1) != 0) {
-            return CollectionAppend(&Joiners, &Join->Header);
-        }
-    }
-    if (Join->EventHandle != UUID_INVALID) {
-        CancelEvent(EventQueue, Join->EventHandle);
-    }
-    HandleJoinProcess((void*)Join);
-    return OsSuccess;
+    // Add a reference
+    atomic_fetch_add(&Process->References, 1);
+    return CollectionAppend(&Joiners, &Join->Header);
 }
 
 OsStatus_t
@@ -370,7 +388,7 @@ TerminateProcess(
     TRACE("TerminateProcess(%u, %i)", Process->Header.Key.Value.Id, ExitCode);
 
     // Mark the process as terminating
-    atomic_store(&Process->State, PROCESS_TERMINATING);
+    Process->State    = PROCESS_TERMINATING;
     Process->ExitCode = ExitCode;
     
     // Identify all joiners, wake them or cancel their events
@@ -386,7 +404,6 @@ TerminateProcess(
             HandleJoinProcess((void*)Join);
         }
     }
-    ReleaseProcess(Process);
     return OsSuccess;
 }
 
@@ -456,14 +473,6 @@ GetProcessLibraryEntryPoints(
 {
     TRACE("GetProcessLibraryEntryPoints(%u)", Process->Header.Key.Value.Id);
     return PeGetModuleEntryPoints(Process->Executable, LibraryList);
-}
-
-Process_t*
-GetProcess(
-    _In_ UUId_t Handle)
-{
-    DataKey_t Key = { .Value.Id = Handle };
-    return (Process_t*)CollectionGetNodeByKey(&Processes, Key, 0);
 }
 
 Process_t*
