@@ -48,6 +48,7 @@ OsStatus_t
 OnEvent(
 	_In_ MRemoteCall_t* Message)
 {
+    ProcessStartupInformation_t StartupInformation;
     OsStatus_t Result = OsSuccess;
     char       PathBuffer[64];
     
@@ -68,7 +69,9 @@ OnEvent(
                 sprintf(&PathBuffer[0], "%s:/shared/bin/vioarr.app", DiskIdentifier);
 #endif
                 TRACE("Spawning %s", &PathBuffer[0]);
-                WindowingSystemId = ProcessSpawn(&PathBuffer[0], NULL);
+                InitializeStartupInformation(&StartupInformation);
+                StartupInformation.InheritFlags = PROCESS_INHERIT_STDOUT | PROCESS_INHERIT_STDERR;
+                WindowingSystemId = ProcessSpawnEx(&PathBuffer[0], NULL, &StartupInformation);
             }
         } break;
         case __SESSIONMANAGER_LOGIN: {

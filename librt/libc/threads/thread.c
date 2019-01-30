@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Threading Support Definitions & Structures
+ * Threading Support Definitions & Structures
  * - This header describes the base threading-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -35,8 +35,6 @@ typedef struct _ThreadPackage {
     void*           Data;
 } ThreadPackage_t;
 
-/* thrd_initialize
- * All new threads inherit this start function */
 void
 thrd_initialize(
     _In_ void *Data)
@@ -116,8 +114,6 @@ thrd_equal(
     return 0;
 }
 
-/* thrd_current
- * Returns the identifier of the calling thread. */
 thrd_t
 thrd_current(void)
 {
@@ -131,16 +127,10 @@ thrd_current(void)
     return tls_current()->thr_id;
 }
 
-/* thrd_sleep
- * Blocks the execution of the current thread for at least until the TIME_UTC 
- * based time point pointed to by time_point has been reached.
- * The sleep may resume earlier if a signal that is not ignored is received. 
- * In such case, if remaining is not NULL, the remaining time duration is stored 
- * into the object pointed to by remaining. */
 int
 thrd_sleep(
-    _In_ __CONST struct timespec* time_point,
-    _In_Opt_ struct timespec* remaining)
+    _In_     const struct timespec* time_point,
+    _In_Opt_ struct timespec*       remaining)
 {
     // Add up to msec granularity, we don't support sub-ms
     time_t msec         = time_point->tv_sec * MSEC_PER_SEC;
@@ -166,8 +156,6 @@ thrd_sleep(
     return 0;
 }
 
-/* thrd_sleep
- * Blocks the execution of the current thread for at least given milliseconds */
 int
 thrd_sleepex(
     _In_ size_t msec)
@@ -177,25 +165,12 @@ thrd_sleepex(
     return 0;
 }
 
-/* thrd_yield
- * Provides a hint to the implementation to reschedule the execution of threads, 
- * allowing other threads to run. */
 void
-thrd_yield(void) {
+thrd_yield(void)
+{
     (void)Syscall_ThreadYield();
 }
 
-/* thrd_exit
- * First, for every thread-specific storage key which was created with a non-null 
- * destructor and for which the associated value is non-null (see tss_create), thrd_exit 
- * sets the value associated with the key to NULL and then invokes the destructor with 
- * the previous value of the key. The order in which the destructors are invoked is unspecified.
- * If, after this, there remain keys with both non-null destructors and values 
- * (e.g. if a destructor executed tss_set), the process is repeated up to TSS_DTOR_ITERATIONS times.
- * Finally, the thrd_exit function terminates execution of the calling thread and sets its result code to res.
- * If the last thread in the program is terminated with thrd_exit, the entire program 
- * terminates as if by calling exit with EXIT_SUCCESS as the argument (so the functions 
- * registered by atexit are executed in the context of that last thread) */
 _Noreturn void 
 thrd_exit(
     _In_ int res)
@@ -206,15 +181,10 @@ thrd_exit(
     for(;;);
 }
 
-/* thrd_join
- * Blocks the current thread until the thread identified by thr finishes execution.
- * If res is not a null pointer, the result code of the thread is put to the location pointed to by res.
- * The termination of the thread synchronizes-with the completion of this function.
- * The behavior is undefined if the thread was previously detached or joined by another thread. */
 int
 thrd_join(
-    _In_ thrd_t thr,
-    _Out_ int *res)
+    _In_  thrd_t thr,
+    _Out_ int*   res)
 {
     if (Syscall_ThreadJoin(thr, res) == OsSuccess) {
         return thrd_success;
@@ -222,9 +192,6 @@ thrd_join(
     return thrd_error;
 }
 
-/* thrd_detach
- * Detaches the thread identified by thr from the current environment. 
- * The resources held by the thread will be freed automatically once the thread exits. */
 int
 thrd_detach(
     _In_ thrd_t thr)
@@ -236,9 +203,6 @@ thrd_detach(
     return thrd_error;
 }
 
-/* thrd_signal
- * Invokes a signal on the given thread id, for security reasons
- * it's only possible to signal threads local to the running process. */
 int
 thrd_signal(
     _In_ thrd_t thr,

@@ -160,8 +160,10 @@ OnEvent(
         } break;
 
         case __PROCESSMANAGER_GET_ASSEMBLY_DIRECTORY: {
-            Process_t* Process = GetProcess(RPC->From.Process);
-            void*      NullPtr = NULL;
+            UUId_t     ProcessHandle = RPC->Arguments[0].Data.Value;
+            void*      NullPtr       = NULL;
+            Process_t* Process       = GetProcess((ProcessHandle == UUID_INVALID) ? RPC->From.Process : ProcessHandle);
+            
             if (Process == NULL) {
                 Handled = RPCRespond(&RPC->From, (const void*)&NullPtr, sizeof(void*));
             }
@@ -171,8 +173,10 @@ OnEvent(
         } break;
 
         case __PROCESSMANAGER_GET_WORKING_DIRECTORY: {
-            Process_t* Process = GetProcess(RPC->From.Process);
-            void*      NullPtr = NULL;
+            UUId_t     ProcessHandle = RPC->Arguments[0].Data.Value;
+            void*      NullPtr       = NULL;
+            Process_t* Process       = GetProcess((ProcessHandle == UUID_INVALID) ? RPC->From.Process : ProcessHandle);
+
             if (Process == NULL) {
                 Handled = RPCRespond(&RPC->From, (const void*)&NullPtr, sizeof(void*));
             }

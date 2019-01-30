@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - C/C++ Test Suite for Userspace
+ * C/C++ Test Suite for Userspace
  *  - Runs a variety of userspace tests against the libc/libc++ to verify
  *    the stability and integrity of the operating system.
  */
@@ -38,22 +38,22 @@ extern "C" int libm_main (int argc, char **argv);
 thread_local std::thread::id thread_id;
 void thread_function() {
     thread_id = std::this_thread::get_id();
-    printf("Thread id of new thread: %u", std::hash<std::thread::id>{}(thread_id));
+    printf("Thread id of new thread: %u\n", std::hash<std::thread::id>{}(thread_id));
 }
 
 void RunMeAtExit()
 {
-    printf("I was run at exit!");
+    printf("I was run at exit!\n");
 }
 
 int TestThreading() {
     int ErrorCounter = 0;
     std::thread::id local_id = std::this_thread::get_id();
     thread_id = std::this_thread::get_id();
-    printf("Thread id of main thread: %u", std::hash<std::thread::id>{}(thread_id));
+    printf("Thread id of main thread: %u\n", std::hash<std::thread::id>{}(thread_id));
     std::thread tlsthread(thread_function);
     tlsthread.join();
-    printf("Thread id of main thread: %u", std::hash<std::thread::id>{}(thread_id));
+    printf("Thread id of main thread: %u\n", std::hash<std::thread::id>{}(thread_id));
     if (thread_id != local_id) {
         ErrorCounter++;
     }
@@ -66,7 +66,7 @@ int TestThreading() {
 #include "lib.hpp"
 static CTestLib _TestLibInstance;
 int TestGlobalInitialization() {
-    printf("(M) Value of the global static: %i", _TestLibInstance.callme());
+    printf("(M) Value of the global static: %i\n", _TestLibInstance.callme());
     if (_TestLibInstance.callme() != 42) return 1;
     return 0;
 }

@@ -25,6 +25,7 @@
 #define _MCORE_SEMAPHORE_H_
 
 #include <os/osdefs.h>
+#include <ds/collection.h>
 #include <ds/mstring.h>
 #include <semaphore_slim.h>
 
@@ -32,9 +33,10 @@
  * Global semaphores need an identifier (string) contrary to normal semaphores.
  * Only one semaphore with the identifier can exist */
 typedef struct _GlobalSemaphore {
-    SlimSemaphore_t     Semaphore;
-    UUId_t              Creator;
-    size_t              Hash;
+    CollectionItem_t Header;
+    SlimSemaphore_t  Semaphore;
+    UUId_t           Creator;
+    size_t           Hash;
 } GlobalSemaphore_t;
 
 /* CreateGlobalSemaphore

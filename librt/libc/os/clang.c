@@ -145,8 +145,8 @@ CRTDECL(void, __cxa_runinitializers(
 
     // Run callers initializer
     Initializer();
-    PrimaryApplicationFinalizers    = Finalizer;
-    PrimaryApplicationTlsAttach     = TlsAttachFunction;
+    PrimaryApplicationFinalizers = Finalizer;
+    PrimaryApplicationTlsAttach  = TlsAttachFunction;
 }
 
 /* __cxa_threadinitialize
@@ -154,7 +154,7 @@ CRTDECL(void, __cxa_runinitializers(
 CRTDECL(void, __cxa_threadinitialize(void))
 {
     fpreset();
-    if (__cxa_getentrypoints(ModuleList) == OsSuccess) {
+    if ((ModuleList[0] != 0) || (__cxa_getentrypoints(ModuleList) == OsSuccess)) {
         for (int i = 0; i < PROCESS_MAXMODULES; i++) {
             if (ModuleList[i] == NULL) {
                 break;

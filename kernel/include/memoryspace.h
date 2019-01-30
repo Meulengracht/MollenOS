@@ -125,6 +125,13 @@ GetDomainMemorySpace(void);
 KERNELAPI UUId_t KERNELABI
 GetCurrentMemorySpaceHandle(void);
 
+/* AreMemorySpacesRelated 
+ * Checks if two memory spaces are related to each other by sharing resources. */
+KERNELAPI OsStatus_t KERNELABI
+AreMemorySpacesRelated(
+    _In_ SystemMemorySpace_t* Space1,
+    _In_ SystemMemorySpace_t* Space2);
+
 /* ChangeMemorySpaceProtection
  * Changes the protection parameters for the given memory region.
  * The region must already be mapped and the size will be rounded up

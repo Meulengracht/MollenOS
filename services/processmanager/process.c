@@ -20,7 +20,7 @@
  * - Contains the implementation of the process-manager which keeps track
  *   of running applications.
  */
-#define __TRACE
+//#define __TRACE
 
 #include <internal/_syscalls.h> // for Syscall_ThreadCreate
 #include "../../librt/libds/pe/pe.h"
@@ -96,7 +96,6 @@ TestFilePath(
     _In_ MString_t* Path)
 {
     OsFileDescriptor_t FileStats;
-    TRACE("TestFilePath(%s)", MStringRaw(Path));
     if (GetFileStatsByPath((const char*)MStringRaw(Path), &FileStats) != FsOk) {
         return OsError;
     }
@@ -109,10 +108,8 @@ ResolveFilePath(
     _In_  MString_t*  Path,
     _Out_ MString_t** FullPathOut)
 {
-    TRACE("ResolveFilePath(%u, %s)", ProcessId, MStringRaw(Path));
     if (MStringFind(Path, ':', 0) == MSTRING_NOT_FOUND && 
         MStringFind(Path, '$', 0) == MSTRING_NOT_FOUND) {
-        TRACE(" => resolving");
         // Check the working directory, if it fails iterate the environment defaults
         Process_t* Process = GetProcess(ProcessId);
         MString_t* Result;
@@ -134,7 +131,6 @@ ResolveFilePath(
             Result = MStringCreate(NULL, StrUTF8);
         }
 
-        TRACE(" => guessing");
         // Look at the type of file we are trying to load. .app? .dll? 
         // for other types its most likely resource load
         IsApp = MStringFindCString(Path, ".app");
@@ -156,7 +152,6 @@ ResolveFilePath(
         }
     }
     else {
-        TRACE(" => cloning");
         *FullPathOut = MStringClone(Path);
     }
     return OsSuccess;
@@ -304,8 +299,8 @@ CreateProcess(
         memcpy(Process->InheritationBlock, InheritationBlock, InheritationBlockLength);
     }
 
-    Process->PrimaryThreadId     = Syscall_ThreadCreate(Process->Executable->EntryAddress, 0, 0, Process->Executable->MemorySpace);
-    Status                       = Syscall_ThreadDetach(Process->PrimaryThreadId);
+    Process->PrimaryThreadId = Syscall_ThreadCreate(Process->Executable->EntryAddress, 0, 0, Process->Executable->MemorySpace);
+    Status                   = Syscall_ThreadDetach(Process->PrimaryThreadId);
     CollectionAppend(&Processes, &Process->Header);
     *Handle = Process->Header.Key.Value.Id;
     return Status;

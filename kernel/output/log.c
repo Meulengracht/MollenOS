@@ -35,9 +35,6 @@ static SystemLog_t LogObject                 = { 0 };
 static char StaticLogSpace[LOG_INITIAL_SIZE] = { 0 };
 static UUId_t PipeThreads[2]                 = { 0 };
 
-/* LogPipeHandler
- * The handler function that will get spawned twice to listen for new messages
- * on the debug-pipes. */
 void
 LogPipeHandler(
     _In_ void* PipeInstance)

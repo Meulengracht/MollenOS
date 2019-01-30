@@ -228,6 +228,16 @@ GetDomainMemorySpace(void)
     return (GetCurrentDomain() != NULL) ? &GetCurrentDomain()->SystemSpace : &GetMachine()->SystemSpace;
 }
 
+/* AreMemorySpacesRelated 
+ * Checks if two memory spaces are related to each other by sharing resources. */
+OsStatus_t
+AreMemorySpacesRelated(
+    _In_ SystemMemorySpace_t* Space1,
+    _In_ SystemMemorySpace_t* Space2)
+{
+    return (Space1->Context == Space2->Context) ? OsSuccess : OsError;
+}
+
 /* ChangeMemorySpaceProtection
  * Changes the protection parameters for the given memory region.
  * The region must already be mapped and the size will be rounded up
