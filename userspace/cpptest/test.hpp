@@ -40,7 +40,7 @@ protected:
         vsnprintf(&Buffer[0], sizeof(Buffer) - 1, Format, Arguments);
         va_end(Arguments);
 
-        printf("%s", &Buffer[0]);
+        printf("%s\n", &Buffer[0]);
     }
 };
 

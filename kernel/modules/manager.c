@@ -25,6 +25,7 @@
 #include "../../librt/libc/stdio/local.h"
 #include "../../librt/libds/pe/pe.h"
 #include <system/utils.h>
+#include <memoryspace.h>
 #include <ds/mstring.h>
 #include <threading.h>
 #include <debug.h>
@@ -128,6 +129,7 @@ GetModuleDataByPath(
         if (Module->Path != NULL) {
             TRACE("Comparing(%s)To(%s)", MStringRaw(Path), MStringRaw(Module->Path));
             if (MStringCompare(Path, Module->Path, 1) != MSTRING_NO_MATCH) {
+                assert(Module->Data != NULL && Module->Length != 0);
                 *Buffer = (void*)Module->Data;
                 *Length = Module->Length;
                 Result  = OsSuccess;
@@ -205,16 +207,15 @@ GetModule(
     return NULL;
 }
 
-/* GetCurrentModule
- * Retrieves the module that belongs to the calling thread. */
 SystemModule_t*
 GetCurrentModule(void)
 {
     MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
     foreach(Node, &Modules) {
         SystemModule_t* Module = (SystemModule_t*)Node;
-        if (Module->Executable != NULL &&
-            Module->Executable->MemorySpace == (MemorySpaceHandle_t)Thread->MemorySpace) {
+        if (Module->Executable != NULL && 
+            AreMemorySpacesRelated(Module->Executable->MemorySpace, 
+                (MemorySpaceHandle_t)Thread->MemorySpace) == OsSuccess) {
             return Module;
         }
     }

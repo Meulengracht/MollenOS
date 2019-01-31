@@ -81,50 +81,40 @@
 
 /* ACPICA Package Definitions 
  * Package manipulation convenience functions. */
-#define ACPI_PKG_VALID(pkg, size)				        \
-((pkg) != NULL && (pkg)->Type == ACPI_TYPE_PACKAGE &&	\
+#define ACPI_PKG_VALID(pkg, size)                        \
+((pkg) != NULL && (pkg)->Type == ACPI_TYPE_PACKAGE &&    \
  (pkg)->Package.Count >= (size))
 
-/* AcpiEcdt
- * The most relevant values from the ECDT table to
- * be stored for usage throughout the system */
 PACKED_TYPESTRUCT(AcpiEcdt, {
-    ACPI_HANDLE             Handle;
-    ACPI_GENERIC_ADDRESS    CommandAddress;
-    ACPI_GENERIC_ADDRESS    DataAddress;
-    UINT8                   Gpe;
-    UINT32                  UId;
-    char                    NsPath[32];
+    ACPI_HANDLE          Handle;
+    ACPI_GENERIC_ADDRESS CommandAddress;
+    ACPI_GENERIC_ADDRESS DataAddress;
+    UINT8                Gpe;
+    UINT32               UId;
+    char                 NsPath[32];
 });
 
-/* PciRoutingEntry
- * Structure containing information
- * about an interrupt in this system */
 PACKED_TYPESTRUCT(PciRoutingEntry, {
-    int                     Irq;
-    uint8_t                 AcType;
-    uint8_t                 Trigger;
-    uint8_t                 Shareable;
-    uint8_t                 Polarity;
-    uint8_t                 Fixed;
+    CollectionItem_t Header;
+    int              Irq;
+    uint8_t          AcType;
+    uint8_t          Trigger;
+    uint8_t          Shareable;
+    uint8_t          Polarity;
+    uint8_t          Fixed;
 });
 
-/* PciRoutingSource
- * Contains an irq source, it's possible irq resources
- * and the currently active irq */
 PACKED_TYPESTRUCT(PciRoutingSource, {
-    ACPI_HANDLE              Handle;
-    Collection_t            *Entries;
-    PciRoutingEntry_t       *ActiveEntry;
+    CollectionItem_t   Header;
+    ACPI_HANDLE        Handle;
+    Collection_t*      Entries;
+    PciRoutingEntry_t* ActiveEntry;
 });
 
-/* PciRoutings
- * A table containing 128 interrupt entries 
- * which is the number of 'redirects' there can be */
 PACKED_TYPESTRUCT(PciRoutings, {
-    Collection_t            *Sources; // List of lists of irqs
-    Collection_t            *InterruptEntries[128];
-    int                      ActiveIrqs[128];
+    Collection_t* Sources; // List of lists of irqs
+    Collection_t* InterruptEntries[128];
+    int           ActiveIrqs[128];
 });
 
 /* AcpiDevicePower
@@ -197,14 +187,14 @@ AcpiDeviceLookupBusRoutings(
  * Stores custom context data for an individual acpi-device handle */
 KERNELAPI ACPI_STATUS KERNELABI
 AcpiDeviceAttachData(
-	_In_ AcpiDevice_t*      Device,
-	_In_ int                Type);
+    _In_ AcpiDevice_t*      Device,
+    _In_ int                Type);
 
 /* AcpiDeviceGetStatus
  * Retrieves the status of the device by querying the _STA method. */
 KERNELAPI ACPI_STATUS KERNELABI
 AcpiDeviceGetStatus(
-	_InOut_ AcpiDevice_t* Device);
+    _InOut_ AcpiDevice_t* Device);
 
 /* AcpiDeviceGetBusAndSegment
  * Retrieves the initial location on the bus for the device */
@@ -220,7 +210,7 @@ __EXTERN ACPI_STATUS AcpiDeviceGetFeatures(AcpiDevice_t *Device);
  * the ssdt information. */
 KERNELAPI ACPI_STATUS KERNELABI
 AcpiDeviceGetIrqRoutings(
-	_In_ AcpiDevice_t *Device);
+    _In_ AcpiDevice_t *Device);
 
 /* AcpiDeviceGetHWInfo
  * Retrieves acpi-hardware information like Status, Address

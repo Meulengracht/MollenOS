@@ -25,9 +25,9 @@
 
 #include <garbagecollector.h>
 #include <component/cpu.h>
-//#include <system/interrupts.h>
 #include <system/thread.h>
 #include <system/utils.h>
+#include <memoryspace.h>
 #include <threading.h>
 #include <timers.h>
 #include <handle.h>
@@ -277,21 +277,22 @@ ThreadingCleanupThread(
  * sure it runs untill it kills itself. */
 OsStatus_t
 ThreadingDetachThread(
-    _In_  UUId_t        ThreadId)
+    _In_ UUId_t ThreadId)
 {
-    MCoreThread_t*  Thread  = GetCurrentThreadForCore(ArchGetProcessorCoreId());
-    MCoreThread_t*  Target  = GetThread(ThreadId);
+    MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    MCoreThread_t* Target = GetThread(ThreadId);
+    OsStatus_t     Status = OsDoesNotExist;
+    
     // Detach is allowed if the caller is the spawner or the caller
     // is in same process
     if (Target != NULL) {
-        if (Target->ParentThreadId    == Thread->Id || 
-            Target->MemorySpaceHandle == Thread->MemorySpaceHandle) {
+        Status = AreMemorySpacesRelated(Thread->MemorySpace, Target->MemorySpace);
+        if (Target->ParentThreadId == Thread->Id || Status == OsSuccess) {
             Target->ParentThreadId = UUID_INVALID;
-            return OsSuccess;
+            Status                 = OsSuccess;
         }
-        WARNING(" > invalid permissions to perform thread detach");
     }
-    return OsError;
+    return Status;
 }
 
 /* TerminateThread
@@ -386,6 +387,21 @@ GetCurrentThreadId(void)
         return 0;
     }
     return GetCurrentProcessorCore()->CurrentThread->Id;
+}
+
+/* AreThreadsRelated 
+ * Returns whether or not the threads are running in same address space context. */
+OsStatus_t
+AreThreadsRelated(
+    _In_ UUId_t Thread1,
+    _In_ UUId_t Thread2)
+{
+    MCoreThread_t* First  = GetThread(Thread1);
+    MCoreThread_t* Second = GetThread(Thread2);
+    if (First == NULL || Second == NULL) {
+        return OsDoesNotExist;
+    }
+    return AreMemorySpacesRelated(First->MemorySpace, Second->MemorySpace);
 }
 
 /* GetThread

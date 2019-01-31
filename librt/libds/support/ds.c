@@ -240,7 +240,7 @@ OsStatus_t ResolveFilePath(UUId_t ProcessId, MString_t* Path, MString_t** FullPa
         MStringAppendCharacters(InitRdPath, MStringRaw(Path), StrUTF8);
     }
     else {
-        InitRdPath = MStringCreate(MStringRaw(Path), StrUTF8);
+        InitRdPath = MStringClone(Path);
     }
     *FullPath = InitRdPath;
     return OsSuccess;
@@ -249,6 +249,13 @@ OsStatus_t ResolveFilePath(UUId_t ProcessId, MString_t* Path, MString_t** FullPa
 OsStatus_t LoadFile(MString_t* FullPath, void** BufferOut, size_t* LengthOut)
 {
     return GetModuleDataByPath(FullPath, BufferOut, LengthOut);
+}
+
+void UnloadFile(MString_t* FullPath, void* Buffer)
+{
+    // Do nothing, never free the module buffers
+    _CRT_UNUSED(FullPath);
+    _CRT_UNUSED(Buffer);
 }
 #endif
 
@@ -307,7 +314,7 @@ OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, s
         dsfree(StateObject);
         return Status;
     }
-    *Address   = (uintptr_t)GetBufferDataPointer(Buffer);
+    *Address = (uintptr_t)GetBufferDataPointer(Buffer);
     StateObject->UserAccess = Buffer;
 #endif
     return Status;

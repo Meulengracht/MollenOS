@@ -25,8 +25,8 @@
 #include <ctype.h>
 
 extern "C" {
-    extern int      main(int argc, char **argv, char **envp);
-    extern char**   __CrtInitialize(thread_storage_t* Tls, int IsModule, int* ArgumentCount);
+    extern int    main(int argc, char **argv, char **envp);
+    extern char** __CrtInitialize(thread_storage_t* Tls, int IsModule, int* ArgumentCount);
 }
 
 /* __CrtConsoleEntry
@@ -35,17 +35,13 @@ extern "C" {
 extern "C" void
 __CrtConsoleEntry(void)
 {
-	// Variables
-	thread_storage_t        Tls;
-	char **Arguments        = NULL;
-	int ArgumentCount       = 0;
-	int ExitCode            = 0;
+	thread_storage_t  Tls;
+	int               ArgumentCount = 0;
+	char**            Arguments;
+	int               ExitCode;
 
-	// Initialize run-time
 	Arguments = __CrtInitialize(&Tls, 0, &ArgumentCount);
-
-    // Call user-process entry routine
-	ExitCode = main(ArgumentCount, Arguments, NULL);
+	ExitCode  = main(ArgumentCount, Arguments, NULL);
 
 	// Exit cleanly, calling atexit() functions
 	free(Arguments);

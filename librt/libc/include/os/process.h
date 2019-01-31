@@ -26,39 +26,12 @@
 #include <os/osdefs.h>
 #include <time.h>
 
-#define __PROCESSMANAGER_CREATE_PROCESS    IPC_DECL_FUNCTION(0)
-#define __PROCESSMANAGER_JOIN_PROCESS      IPC_DECL_FUNCTION(1)
-#define __PROCESSMANAGER_KILL_PROCESS      IPC_DECL_FUNCTION(2)
-#define __PROCESSMANAGER_TERMINATE_PROCESS IPC_DECL_FUNCTION(3)
-#define __PROCESSMANAGER_GET_PROCESS_ID    IPC_DECL_FUNCTION(4)
-#define __PROCESSMANAGER_GET_ARGUMENTS     IPC_DECL_FUNCTION(5)
-#define __PROCESSMANAGER_GET_INHERIT_BLOCK IPC_DECL_FUNCTION(6)
-#define __PROCESSMANAGER_GET_PROCESS_NAME  IPC_DECL_FUNCTION(7)
-#define __PROCESSMANAGER_GET_PROCESS_TICK  IPC_DECL_FUNCTION(8)
-
-#define __PROCESSMANAGER_GET_ASSEMBLY_DIRECTORY IPC_DECL_FUNCTION(9)
-#define __PROCESSMANAGER_GET_WORKING_DIRECTORY  IPC_DECL_FUNCTION(10)
-#define __PROCESSMANAGER_SET_WORKING_DIRECTORY  IPC_DECL_FUNCTION(11)
-
-#define __PROCESSMANAGER_GET_LIBRARY_HANDLES IPC_DECL_FUNCTION(12)
-#define __PROCESSMANAGER_GET_LIBRARY_ENTRIES IPC_DECL_FUNCTION(13)
-#define __PROCESSMANAGER_LOAD_LIBRARY        IPC_DECL_FUNCTION(14)
-#define __PROCESSMANAGER_RESOLVE_FUNCTION    IPC_DECL_FUNCTION(15)
-#define __PROCESSMANAGER_UNLOAD_LIBRARY      IPC_DECL_FUNCTION(16)
-
-#define PROCESS_MAXMODULES          128
-
 #define PROCESS_INHERIT_NONE        0x00000000
 #define PROCESS_INHERIT_STDOUT      0x00000001
 #define PROCESS_INHERIT_STDIN       0x00000002
 #define PROCESS_INHERIT_STDERR      0x00000004
 #define PROCESS_INHERIT_FILES       0x00000008
 #define PROCESS_INHERIT_ALL         (PROCESS_INHERIT_STDOUT | PROCESS_INHERIT_STDIN | PROCESS_INHERIT_STDERR | PROCESS_INHERIT_FILES)
-
-PACKED_TYPESTRUCT(JoinProcessPackage, {
-    OsStatus_t Status;
-    int        ExitCode;
-});
 
 /* ProcessStartupInformation
  * Contains information about the process startup. Can be queried
@@ -136,14 +109,6 @@ GetProcessCommandLine(
     _In_    const char* Buffer,
     _InOut_ size_t*     Length));
 
-/* GetProcessInheritationBlock
- * Retrieves startup information about the process. 
- * Data buffers must be supplied with a max length. */
-CRTDECL(OsStatus_t,
-GetProcessInheritationBlock(
-    _In_    const char* Buffer,
-    _InOut_ size_t*     Length));
-
 /* ProcessGetCurrentName
  * Retrieves the current process identifier. */
 CRTDECL(OsStatus_t, 
@@ -174,36 +139,6 @@ ProcessGetWorkingDirectory(
 CRTDECL(OsStatus_t, 
 ProcessSetWorkingDirectory(
     _In_ const char* Path));
-
-/* ProcessGetLibraryHandles
- * Retrieves a list of loaded library handles. Handles can be queried
- * for various application-image data. */
-CRTDECL(OsStatus_t,
-ProcessGetLibraryHandles(
-    _Out_ Handle_t LibraryList[PROCESS_MAXMODULES]));
-
-/* ProcessLoadLibrary 
- * Dynamically loads an application extensions for current process. A handle for the new
- * library is set in Handle if OsSuccess is returned. */
-CRTDECL(OsStatus_t,
-ProcessLoadLibrary(
-    _In_  const char* Path,
-    _Out_ Handle_t*   Handle));
-
-/* ProcessGetLibraryFunction 
- * Resolves the address of the library function name given, a pointer to the function will
- * be set in Address if OsSuccess is returned. */
-CRTDECL(OsStatus_t,
-ProcessGetLibraryFunction(
-    _In_  Handle_t    Handle,
-    _In_  const char* FunctionName,
-    _Out_ uintptr_t*  Address));
-
-/* ProcessUnloadLibrary 
- * Unloads the library handle, and renders all functions resolved invalid. */
-CRTDECL(OsStatus_t,
-ProcessUnloadLibrary(
-    _In_ Handle_t Handle));
 _CODE_END
 
 #endif //!_PROCESS_INTERFACE_H_

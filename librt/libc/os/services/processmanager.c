@@ -25,7 +25,8 @@
 #include <internal/_utils.h>
 #include <ddk/ipc/ipc.h>
 #include <ddk/service.h>
-#include <os/process.h>
+#include <ddk/process.h>
+#include <ddk/utils.h>
 #include <threads.h>
 #include <stdlib.h>
 #include <string.h>
@@ -72,13 +73,14 @@ ProcessSpawnEx(
     _In_     ProcessStartupInformation_t* StartupInformation)
 {
     MRemoteCall_t Request;
-    UUId_t        Handle            = 0;
-    void*         InheritationBlock = NULL;
-    size_t        InheritationBlockLength;
-    OsStatus_t    Status = StdioCreateInheritanceBlock(StartupInformation, &InheritationBlock, &InheritationBlockLength);
+    UUId_t        Handle                  = UUID_INVALID;
+    void*         InheritationBlock       = NULL;
+    size_t        InheritationBlockLength = 0;
+    OsStatus_t    Status;
     assert(Path != NULL);
     assert(StartupInformation != NULL);
 
+    StdioCreateInheritanceBlock(StartupInformation, &InheritationBlock, &InheritationBlockLength);
     RPCInitialize(&Request, __PROCESSMANAGER_TARGET, 1, __PROCESSMANAGER_CREATE_PROCESS);
     RPCSetArgument(&Request, 0, (const void*)Path, strlen(Path) + 1);
     RPCSetArgument(&Request, 1, (const void*)StartupInformation, sizeof(ProcessStartupInformation_t));
@@ -89,11 +91,12 @@ ProcessSpawnEx(
         RPCSetArgument(&Request, 3, (const void*)Arguments, strlen(Arguments) + 1);
     }
     RPCSetResult(&Request, (const void*)&Handle, sizeof(UUId_t));
-    Status = RPCExecute(&Request);
 
+    Status = RPCExecute(&Request);
     if (InheritationBlock != NULL) {
         free(InheritationBlock);
     }
+    WARNING("> result 0x%x", Status);
     return Handle;
 }
 

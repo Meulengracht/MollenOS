@@ -21,9 +21,9 @@
 
 #include <os/osdefs.h>
 
-__EXTERN void __CrtCxxInitialize(void);
-__EXTERN void __CrtCxxFinalize(void);
-__EXTERN void __CrtAttachTlsBlock(void);
+__EXTERN void __cxa_module_global_init(void);
+__EXTERN void __cxa_module_global_finit(void);
+__EXTERN void __cxa_module_tls_thread_init(void);
 CRTDECL(void, __cxa_finalize(void *Dso));
 __EXTERN void dllmain(int action);
 __EXTERN void *__dso_handle;
@@ -37,17 +37,17 @@ __CrtLibraryEntry(int Action)
 	switch (Action) {
         case DLL_ACTION_INITIALIZE: {
             // Module has been attached to system.
-            __CrtCxxInitialize();
+            __cxa_module_global_init();
             dllmain(DLL_ACTION_INITIALIZE);
         } break;
         case DLL_ACTION_FINALIZE: {
             // Module is being unloaded
             dllmain(DLL_ACTION_FINALIZE);
-            __CrtCxxFinalize();
+            __cxa_module_global_finit();
             __cxa_finalize(__dso_handle);
         } break;
         case DLL_ACTION_THREADATTACH: {
-            __CrtAttachTlsBlock();
+            __cxa_module_tls_thread_init();
         } break;
     }
 }

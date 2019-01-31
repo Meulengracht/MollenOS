@@ -99,10 +99,10 @@ CreateMemoryBuffer(
 
     // Update the user-provided structure
     if (MemoryBuffer != NULL) {
-        MemoryBuffer->Handle    = Handle;
-        MemoryBuffer->Dma       = DmaAddress;
-        MemoryBuffer->Capacity  = Capacity;
-        MemoryBuffer->Address   = Virtual;
+        MemoryBuffer->Handle   = Handle;
+        MemoryBuffer->Dma      = DmaAddress;
+        MemoryBuffer->Capacity = Capacity;
+        MemoryBuffer->Address  = Virtual;
     }
     return Status;
 }

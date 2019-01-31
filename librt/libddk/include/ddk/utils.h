@@ -71,6 +71,41 @@
 	}
 
 _CODE_BEGIN
+
+#if defined(i386) || defined(__i386__)
+#define TLS_VALUE   uint32_t
+#define TLS_READ    __asm { __asm mov ebx, [Offset] __asm mov eax, gs:[ebx] __asm mov [Value], eax }
+#define TLS_WRITE   __asm { __asm mov ebx, [Offset] __asm mov eax, [Value] __asm mov gs:[ebx], eax }
+#elif defined(amd64) || defined(__amd64__)
+#define TLS_VALUE   uint64_t
+#define TLS_READ    __asm { __asm mov rbx, [Offset] __asm mov rax, gs:[rbx] __asm mov [Value], rax }
+#define TLS_WRITE   __asm { __asm mov rbx, [Offset] __asm mov rax, [Value] __asm mov gs:[rbx], rax }
+#else
+#error "Implement rw for tls for this architecture"
+#endif
+
+/* __get_reserved
+ * Read and write the magic tls thread-specific
+ * pointer, we need to take into account the compiler here */
+SERVICEAPI size_t SERVICEABI
+__get_reserved(size_t Index) {
+    TLS_VALUE Value = 0;
+    size_t Offset   = (Index * sizeof(TLS_VALUE));
+    TLS_READ;
+    return (size_t)Value;
+}
+
+/* __set_reserved
+ * Read and write the magic tls thread-specific
+ * pointer, we need to take into account the compiler here */
+SERVICEAPI void SERVICEABI
+__set_reserved(size_t Index, TLS_VALUE Value) {
+    size_t Offset = (Index * sizeof(TLS_VALUE));
+    TLS_WRITE;
+}
+
+CRTDECL(void, MollenOSEndBoot(void));
+
 /* SystemDebug 
  * Debug/trace printing for userspace application and drivers */
 CRTDECL(void,
@@ -91,6 +126,7 @@ WriteSystemInput(
 CRTDECL(OsStatus_t,
 WriteSystemKey(
     _In_ SystemKey_t* Key));
+
 _CODE_END
 
 #endif //!_UTILS_INTERFACE_H_

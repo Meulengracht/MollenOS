@@ -30,9 +30,6 @@
 #include <debug.h>
 #include <heap.h>
 
-/* ScThreadCreate
- * Creates a new thread bound to the calling process, with the given 
- * entry point and arguments */
 UUId_t
 ScThreadCreate(
     _In_ ThreadEntry_t Entry,
@@ -50,67 +47,51 @@ ScThreadCreate(
     return Handle;
 }
 
-/* ScThreadExit
- * Exits the current thread and instantly yields control to scheduler */
 OsStatus_t
 ScThreadExit(
     _In_ int ExitCode)
 {
+    TRACE("ScThreadExit(%i)", ExitCode);
     return TerminateThread(GetCurrentThreadId(), ExitCode, 1);
 }
 
-/* ScThreadJoin
- * Thread join, waits for a given thread to finish executing, and returns it's exit code */
 OsStatus_t
 ScThreadJoin(
     _In_  UUId_t ThreadId,
     _Out_ int*   ExitCode)
 {
-    UUId_t          MemorySpaceHandle = GetCurrentThreadForCore(ArchGetProcessorCoreId())->MemorySpaceHandle;
-    int             ResultCode        = 0;
-    MCoreThread_t*  Thread            = GetThread(ThreadId);
-    
-    if (Thread == NULL || Thread->MemorySpaceHandle != MemorySpaceHandle) {
-        return OsError;
-    }
+    int        ResultCode = 0;
+    OsStatus_t Result     = AreThreadsRelated(ThreadId, GetCurrentThreadId());
 
-    ResultCode = ThreadingJoinThread(ThreadId);
-    if (ExitCode != NULL) {
-        *ExitCode = ResultCode;
+    if (Result == OsSuccess) {
+        ResultCode = ThreadingJoinThread(ThreadId);
+        if (ExitCode != NULL) {
+            *ExitCode = ResultCode;
+        }
     }
-    return OsSuccess;
+    TRACE("ScThreadJoin(%u) => %u", ThreadId, Result);
+    return Result;
 }
 
-/* ScThreadDetach
- * Unattaches a running thread from a process, making sure it lives
- * past the lifetime of a process unless killed. */
 OsStatus_t
 ScThreadDetach(
-    _In_  UUId_t    ThreadId)
+    _In_ UUId_t ThreadId)
 {
     return ThreadingDetachThread(ThreadId);
 }
 
-/* ScThreadSignal
- * Kills the thread with the given id, owner must be same process */
 OsStatus_t
 ScThreadSignal(
     _In_ UUId_t     ThreadId,
     _In_ int        SignalCode)
 {
-    UUId_t          MemorySpaceHandle = GetCurrentThreadForCore(ArchGetProcessorCoreId())->MemorySpaceHandle;
-    MCoreThread_t*  Thread            = GetThread(ThreadId);
-
-    // Perform security checks
-    if (Thread == NULL || Thread->MemorySpaceHandle != MemorySpaceHandle) {
-        ERROR("Thread does not belong to same process");
-        return OsError;
+    OsStatus_t Result = AreThreadsRelated(ThreadId, GetCurrentThreadId());
+    if (Result == OsSuccess) {
+        Result = SignalCreate(ThreadId, SignalCode);
     }
-    return SignalCreate(ThreadId, SignalCode);
+    return Result;
 }
 
-/* ScThreadSleep
- * Sleeps the current thread for the given milliseconds. */
 OsStatus_t
 ScThreadSleep(
     _In_  time_t    Milliseconds,
@@ -152,13 +133,11 @@ UUId_t ScThreadCookie(void)
     return GetCurrentThreadForCore(ArchGetProcessorCoreId())->Cookie;
 }
 
-/* ScThreadSetCurrentName
- * Changes the name of the current thread to the one specified by ThreadName. */
 OsStatus_t
 ScThreadSetCurrentName(const char *ThreadName) 
 {
-    MCoreThread_t*  Thread          = GetCurrentThreadForCore(ArchGetProcessorCoreId());
-    const char*     PreviousName    = NULL;
+    MCoreThread_t* Thread       = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    const char*    PreviousName = NULL;
 
     if (Thread == NULL || ThreadName == NULL) {
         return OsError;
@@ -169,8 +148,6 @@ ScThreadSetCurrentName(const char *ThreadName)
     return OsSuccess;
 }
 
-/* ScThreadGetCurrentName
- * Retrieves the name of the current thread, up to max specified bytes. */
 OsStatus_t
 ScThreadGetCurrentName(char *ThreadNameBuffer, size_t MaxLength)
 {

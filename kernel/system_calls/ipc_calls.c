@@ -19,7 +19,7 @@
  * MollenOS MCore - System Calls
  */
 #define __MODULE "SCIF"
-//#define __TRACE
+#define __TRACE
 
 #include <modules/manager.h>
 #include <modules/module.h>
@@ -111,20 +111,18 @@ ScWritePipe(
 {
     SystemPipe_t* Pipe = (SystemPipe_t*)LookupHandle(Handle);
     if (Message == NULL || Length == 0) {
-        return OsError;
+        return OsInvalidParameters;
     }
 
     if (Pipe == NULL) {
         ERROR("%s: ScPipeWrite::Invalid pipe %u", 
             GetCurrentThreadForCore(ArchGetProcessorCoreId())->Name, Handle);
-        return OsError;
+        return OsDoesNotExist;
     }
     WriteSystemPipe(Pipe, Message, Length);
     return OsSuccess;
 }
 
-/* ScRpcResponse
- * Waits for rpc request to finish by polling the default pipe for a rpc-response */
 OsStatus_t
 ScRpcResponse(
     _In_ MRemoteCall_t* RemoteCall)
@@ -141,9 +139,6 @@ ScRpcResponse(
     return OsSuccess;
 }
 
-/* ScRpcExecute
- * Executes an IPC RPC request to the given process and optionally waits for
- * a reply/response */
 OsStatus_t
 ScRpcExecute(
     _In_ MRemoteCall_t* RemoteCall,
@@ -156,7 +151,7 @@ ScRpcExecute(
     int                   i;
 
     assert(RemoteCall != NULL);
-    TRACE("ScRpcExecute(Message %i, Async %i)", RemoteCall->Function, Async);
+    //TRACE("ScRpcExecute(Message %i, Async %i)", RemoteCall->Function, Async);
     
     Module = (SystemModule_t*)GetModuleByHandle(RemoteCall->Target);
     if (Module == NULL || Module->Rpc == NULL) {

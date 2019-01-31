@@ -65,6 +65,7 @@ public:
     {
         TestLog("TestSpawnInvalidProcess");
         UUId_t ProcessId = ProcessSpawn("plx don't exist", nullptr);
+        TestLog(">> process id = %u", ProcessId);
         if (ProcessId == UUID_INVALID) {
             TestLog(">> process failed successfully");
         }

@@ -16,11 +16,12 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - C/C++ Test Suite for Userspace
+ * C/C++ Test Suite for Userspace
  *  - Runs a variety of userspace tests against the libc/libc++ to verify
  *    the stability and integrity of the operating system.
  */
 
+#include <ddk/utils.h>
 #include "test.hpp"
 #include "test_constreams.hpp"
 #include "test_filestreams.hpp"
@@ -32,32 +33,51 @@
 
 extern "C" int libm_main (int argc, char **argv);
 
+class TestTLS {
+public:
+    TestTLS() {
+        WARNING("TestTLS()");
+        Value = 31;
+    }
+
+    void SetValue(int Value) {
+        this->Value = Value;
+    }
+
+    int GetValue() {
+        return Value;
+    }
+
+private:
+    int Value;
+};
+
 /*******************************************
  * Tls Testing
  *******************************************/
-thread_local std::thread::id thread_id;
-void thread_function() {
-    thread_id = std::this_thread::get_id();
-    printf("Thread id of new thread: %u", std::hash<std::thread::id>{}(thread_id));
-}
+thread_local TestTLS TlsObject;
 
-void RunMeAtExit()
-{
-    printf("I was run at exit!");
+void thread_function() {
+    printf("2: Initial value of variable: %u\n", TlsObject.GetValue());
+    TlsObject.SetValue(100);
+    printf("2: New value of variable: %u\n", TlsObject.GetValue());
 }
 
 int TestThreading() {
     int ErrorCounter = 0;
-    std::thread::id local_id = std::this_thread::get_id();
-    thread_id = std::this_thread::get_id();
-    printf("Thread id of main thread: %u", std::hash<std::thread::id>{}(thread_id));
+    printf("1: Initial value of variable: %u \n", TlsObject.GetValue());
     std::thread tlsthread(thread_function);
     tlsthread.join();
-    printf("Thread id of main thread: %u", std::hash<std::thread::id>{}(thread_id));
-    if (thread_id != local_id) {
+    printf("1: New value of variable: %u\n", TlsObject.GetValue());
+    if (TlsObject.GetValue() != 31) {
         ErrorCounter++;
     }
     return ErrorCounter;
+}
+
+void RunMeAtExit()
+{
+    printf("I was run at exit!\n");
 }
 
 /*******************************************
@@ -66,7 +86,7 @@ int TestThreading() {
 #include "lib.hpp"
 static CTestLib _TestLibInstance;
 int TestGlobalInitialization() {
-    printf("(M) Value of the global static: %i", _TestLibInstance.callme());
+    printf("(M) Value of the global static: %i\n", _TestLibInstance.callme());
     if (_TestLibInstance.callme() != 42) return 1;
     return 0;
 }

@@ -18,10 +18,12 @@
  *
  * Pipe Communication Interface
  */
+#define __TRACE
 
 #include <internal/_syscalls.h>
 #include <ddk/ipc/ipc.h>
 #include <ddk/ipc/pipe.h>
+#include <ddk/utils.h>
 #include <signal.h>
 #include <assert.h>
 

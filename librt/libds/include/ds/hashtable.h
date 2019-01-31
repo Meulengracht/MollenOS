@@ -68,8 +68,8 @@ HashTableDestroy(
  * Inserts or overwrites the existing key in the hashtable. */
 CRTDECL(void,
 HashTableInsert(
-    _In_ HashTable_t*   HashTable, 
-    _In_ DataKey_t      Key, 
+    _In_ HashTable_t*   HashTable,
+    _In_ DataKey_t      Key,
     _In_ void*          Data));
 
 /* HashTableRemove 

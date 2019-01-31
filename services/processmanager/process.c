@@ -20,7 +20,7 @@
  * - Contains the implementation of the process-manager which keeps track
  *   of running applications.
  */
-#define __TRACE
+//#define __TRACE
 
 #include <internal/_syscalls.h> // for Syscall_ThreadCreate
 #include "../../librt/libds/pe/pe.h"
@@ -35,19 +35,13 @@
 #include <string.h>
 #include <signal.h>
 
-// When referencing a process structure, increase ref count and wait for lock
-// Hwowever if ref count ends up being 1 when increasing, then abort
-
-// When terminating, set state to terminating and reduce ref count. If ref count
-// is 0 then destroy, otherwise just release lock
-
 static Collection_t  Processes          = COLLECTION_INIT(KeyId);
 static Collection_t  Joiners            = COLLECTION_INIT(KeyId);
 static UUId_t        ProcessIdGenerator = 1;
 static EventQueue_t* EventQueue         = NULL;
 
-static void
-ReleaseProcess(
+static OsStatus_t
+DestroyProcess(
     _In_ Process_t* Process)
 {
     int References = atomic_fetch_sub(&Process->References, 1);
@@ -69,8 +63,47 @@ ReleaseProcess(
             PeUnloadImage(Process->Executable);
         }
         free(Process);
-        return;
+        return OsSuccess;
     }
+    return OsError;
+}
+
+void
+ReleaseProcess(
+    _In_ Process_t* Process)
+{
+    if (DestroyProcess(Process) != OsSuccess) {
+        SpinlockRelease(&Process->SyncObject);
+    } 
+}
+
+Process_t*
+AcquireProcess(
+    _In_ UUId_t Handle)
+{
+    DataKey_t  Key     = { .Value.Id = Handle };
+    Process_t* Process = (Process_t*)CollectionGetNodeByKey(&Processes, Key, 0);
+    if (Process != NULL) {
+        int References;
+        while (1) {
+            References = atomic_load(&Process->References);
+            if (References == 0) {
+                break;
+            }
+            if (atomic_compare_exchange_weak(&Process->References, &References, References + 1)) {
+                break;
+            }
+        }
+
+        if (References > 0) {
+            SpinlockAcquire(&Process->SyncObject);
+            if (Process->State == PROCESS_RUNNING) {
+                return Process;
+            }
+            ReleaseProcess(Process);
+        }
+    }
+    return NULL;
 }
 
 static void
@@ -82,12 +115,12 @@ HandleJoinProcess(
     CollectionRemoveByNode(&Joiners, &Join->Header);
 
     // Notify application about this
-    if (atomic_load(&Join->Process->State) == PROCESS_TERMINATING) {
+    if (Join->Process->State == PROCESS_TERMINATING) {
         Package.Status   = OsSuccess;
         Package.ExitCode = Join->Process->ExitCode;
     }
     RPCRespond(&Join->Address, (const void*)&Package, sizeof(JoinProcessPackage_t));
-    ReleaseProcess(Join->Process);
+    DestroyProcess(Join->Process);
     free(Join);
 }
 
@@ -111,30 +144,45 @@ ResolveFilePath(
     if (MStringFind(Path, ':', 0) == MSTRING_NOT_FOUND && 
         MStringFind(Path, '$', 0) == MSTRING_NOT_FOUND) {
         // Check the working directory, if it fails iterate the environment defaults
-        Process_t* Process = GetProcess(ProcessId);
-        MString_t* Result  = MStringClone(Process->WorkingDirectory);
-        MStringAppendCharacter(Result, '/');
-        MStringAppend(Result, Path);
-        if (TestFilePath(Result) != OsSuccess) {
-            // Look at the type of file we are trying to load. .app? .dll? 
-            // for other types its most likely resource load
-            int IsApp = MStringFindCString(Path, ".app");
-            int IsDll = MStringFindCString(Path, ".dll");
-            if (IsApp != MSTRING_NOT_FOUND || IsDll != MSTRING_NOT_FOUND) {
-                MStringReset(Result, "$bin/", StrUTF8);
-            }
-            else {
-                MStringReset(Result, "$sys/", StrUTF8);
-            }
+        Process_t* Process = AcquireProcess(ProcessId);
+        MString_t* Result;
+        int        IsApp;
+        int        IsDll;
+
+        // Services do not have working directories (well they do, but that is $sys or $bin)
+        // But make sure Result is initialzied to a string
+        if (Process != NULL) {
+            Result = MStringClone(Process->WorkingDirectory);
+            ReleaseProcess(Process);
+            MStringAppendCharacter(Result, '/');
             MStringAppend(Result, Path);
             if (TestFilePath(Result) == OsSuccess) {
                 *FullPathOut = Result;
                 return OsSuccess;
             }
-            else {
-                MStringDestroy(Result);
-                return OsError;
-            }
+        }
+        else {
+            Result = MStringCreate(NULL, StrUTF8);
+        }
+
+        // Look at the type of file we are trying to load. .app? .dll? 
+        // for other types its most likely resource load
+        IsApp = MStringFindCString(Path, ".app");
+        IsDll = MStringFindCString(Path, ".dll");
+        if (IsApp != MSTRING_NOT_FOUND || IsDll != MSTRING_NOT_FOUND) {
+            MStringReset(Result, "$bin/", StrUTF8);
+        }
+        else {
+            MStringReset(Result, "$sys/", StrUTF8);
+        }
+        MStringAppend(Result, Path);
+        if (TestFilePath(Result) == OsSuccess) {
+            *FullPathOut = Result;
+            return OsSuccess;
+        }
+        else {
+            MStringDestroy(Result);
+            return OsError;
         }
     }
     else {
@@ -145,9 +193,9 @@ ResolveFilePath(
 
 OsStatus_t
 LoadFile(
-    MString_t* FullPath,
-    void**     BufferOut,
-    size_t*    LengthOut)
+    _In_  MString_t* FullPath,
+    _Out_ void**     BufferOut,
+    _Out_ size_t*    LengthOut)
 {
     OsStatus_t       Status;
     LargeInteger_t   QueriedSize = { { 0 } };
@@ -199,6 +247,17 @@ LoadFile(
     return Status;
 }
 
+void
+UnloadFile(
+    _In_ MString_t* FullPath,
+    _In_ void*      Buffer)
+{
+    // So right now we will simply free the buffer, 
+    // but when we implement caching we will check if it should stay cached
+    _CRT_UNUSED(FullPath);
+    free(Buffer);
+}
+
 OsStatus_t
 InitializeProcessManager(void)
 {
@@ -219,6 +278,8 @@ CreateProcess(
 {
     Process_t* Process;
     MString_t* PathAsMString;
+    size_t     PathLength;
+    char*      ArgumentsPointer;
     int        Index;
     OsStatus_t Status;
 
@@ -234,6 +295,7 @@ CreateProcess(
     Process->State               = ATOMIC_VAR_INIT(PROCESS_RUNNING);
     Process->References          = ATOMIC_VAR_INIT(1);
     Process->StartedAt           = clock();
+    SpinlockReset(&Process->SyncObject);
 
     // Load the executable
     PathAsMString = MStringCreate((void*)Path, StrUTF8);
@@ -253,19 +315,27 @@ CreateProcess(
 
     // Store copies of startup information
     memcpy(&Process->StartupInformation, Parameters, sizeof(ProcessStartupInformation_t));
+
+    // Handle arguments, we need to prepend the full path of the executable
+    PathLength       = strlen(MStringRaw(Process->Path));
+    ArgumentsPointer = malloc(PathLength + 1 + ArgumentsLength);
+    
+    memcpy(&ArgumentsPointer[0], (const void*)MStringRaw(Process->Path), PathLength);
+    ArgumentsPointer[PathLength] = ' ';
     if (Arguments != NULL && ArgumentsLength != 0) {
-        Process->Arguments = malloc(ArgumentsLength);
-        Process->ArgumentsLength = ArgumentsLength;
-        memcpy((void*)Process->Arguments, (void*)Arguments, ArgumentsLength);
+        memcpy(&ArgumentsPointer[PathLength + 1], (void*)Arguments, ArgumentsLength);
     }
+    Process->Arguments       = (const char*)ArgumentsPointer;
+    Process->ArgumentsLength = PathLength + 1 + ArgumentsLength;
+
     if (InheritationBlock != NULL && InheritationBlockLength != 0) {
         Process->InheritationBlock = malloc(InheritationBlockLength);
         Process->InheritationBlockLength = InheritationBlockLength;
         memcpy(Process->InheritationBlock, InheritationBlock, InheritationBlockLength);
     }
 
-    Process->PrimaryThreadId     = Syscall_ThreadCreate(Process->Executable->EntryAddress, 0, 0, Process->Executable->MemorySpace);
-    Status                       = Syscall_ThreadDetach(Process->PrimaryThreadId);
+    Process->PrimaryThreadId = Syscall_ThreadCreate(Process->Executable->EntryAddress, 0, 0, Process->Executable->MemorySpace);
+    Status                   = Syscall_ThreadDetach(Process->PrimaryThreadId);
     CollectionAppend(&Processes, &Process->Header);
     *Handle = Process->Header.Key.Value.Id;
     return Status;
@@ -296,16 +366,9 @@ JoinProcess(
         Join->EventHandle = UUID_INVALID;
     }
 
-    if (atomic_load(&Process->State) == PROCESS_RUNNING) {
-        if (atomic_fetch_add(&Process->References, 1) != 0) {
-            return CollectionAppend(&Joiners, &Join->Header);
-        }
-    }
-    if (Join->EventHandle != UUID_INVALID) {
-        CancelEvent(EventQueue, Join->EventHandle);
-    }
-    HandleJoinProcess((void*)Join);
-    return OsSuccess;
+    // Add a reference
+    atomic_fetch_add(&Process->References, 1);
+    return CollectionAppend(&Joiners, &Join->Header);
 }
 
 OsStatus_t
@@ -335,7 +398,7 @@ TerminateProcess(
     TRACE("TerminateProcess(%u, %i)", Process->Header.Key.Value.Id, ExitCode);
 
     // Mark the process as terminating
-    atomic_store(&Process->State, PROCESS_TERMINATING);
+    Process->State    = PROCESS_TERMINATING;
     Process->ExitCode = ExitCode;
     
     // Identify all joiners, wake them or cancel their events
@@ -351,7 +414,6 @@ TerminateProcess(
             HandleJoinProcess((void*)Join);
         }
     }
-    ReleaseProcess(Process);
     return OsSuccess;
 }
 
@@ -421,14 +483,6 @@ GetProcessLibraryEntryPoints(
 {
     TRACE("GetProcessLibraryEntryPoints(%u)", Process->Header.Key.Value.Id);
     return PeGetModuleEntryPoints(Process->Executable, LibraryList);
-}
-
-Process_t*
-GetProcess(
-    _In_ UUId_t Handle)
-{
-    DataKey_t Key = { .Value.Id = Handle };
-    return (Process_t*)CollectionGetNodeByKey(&Processes, Key, 0);
 }
 
 Process_t*

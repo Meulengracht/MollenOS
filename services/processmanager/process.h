@@ -43,8 +43,8 @@ typedef struct _Process {
     UUId_t                      PrimaryThreadId;
     clock_t                     StartedAt;
     atomic_int                  References;
-    atomic_uint                 State;
-    // mtx_t SyncObject
+    int                         State;
+    Spinlock_t                  SyncObject;
 
     MString_t*                  Name;
     MString_t*                  Path;
@@ -144,11 +144,17 @@ GetProcessLibraryEntryPoints(
     _In_  Process_t* Process,
     _Out_ Handle_t   LibraryList[PROCESS_MAXMODULES]);
 
-/* GetProcess
- * Retrieve a process instance from its handle. */
+/* AcquireProcess
+ * Acquires a reference to a process and allows safe access to the structure. */
 __EXTERN Process_t*
-GetProcess(
+AcquireProcess(
     _In_ UUId_t Handle);
+
+/* ReleaseProcess
+ * Releases a reference to a process and unlocks the process structure for other threads. */
+void
+ReleaseProcess(
+    _In_ Process_t* Process);
 
 /* GetProcessByPrimaryThread
  * Looks up a process instance by its primary thread. This can be used by the

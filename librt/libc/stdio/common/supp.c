@@ -745,7 +745,8 @@ StdioWriteInternal(
     _In_  size_t    Length,
     _Out_ size_t*   BytesWritten)
 {
-    StdioHandle_t *Handle   = StdioFdToHandle(fd);
+    StdioHandle_t* Handle = StdioFdToHandle(fd);
+    assert(Handle != NULL);
 
     if (Handle->InheritationType == STDIO_HANDLE_FILE) {
         return StdioHandleWriteFile(Handle, Buffer, Length, BytesWritten);

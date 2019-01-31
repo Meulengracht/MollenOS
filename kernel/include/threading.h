@@ -198,6 +198,13 @@ GetCurrentThreadForCore(
 KERNELAPI UUId_t KERNELABI
 GetCurrentThreadId(void);
 
+/* AreThreadsRelated 
+ * Returns whether or not the threads are running in same address space context. */
+KERNELAPI OsStatus_t KERNELABI
+AreThreadsRelated(
+    _In_ UUId_t Thread1,
+    _In_ UUId_t Thread2);
+
 /* GetThread
  * Lookup thread by the given thread-id, returns NULL if invalid */
 KERNELAPI MCoreThread_t* KERNELABI

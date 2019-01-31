@@ -22,16 +22,11 @@
  */
 
 #include <semaphore_global.h>
-#include <ds/collection.h>
-#include <heap.h>
 #include <assert.h>
+#include <heap.h>
 
-// Global list of existing semaphores
 static Collection_t Semaphores = COLLECTION_INIT(KeyId);
 
-/* CreateGlobalSemaphore
- * Allocates a completely new instance of the global semaphore. If a semaphore with
- * the given name exists, the existing semaphore is returned and OsError. */
 OsStatus_t
 CreateGlobalSemaphore(
     _In_  MString_t*            Identifier, 
@@ -40,15 +35,15 @@ CreateGlobalSemaphore(
     _Out_ GlobalSemaphore_t**   Semaphore)
 {
 	GlobalSemaphore_t*  Instance = NULL;
-	DataKey_t           Key;
+	DataKey_t           Key      = { 0 };
 
 	assert(InitialValue >= 0);
     assert(MaximumValue >= InitialValue);
 
 	// First of all, make sure there is no conflicting semaphores in system
 	if (Identifier != NULL) {
-		Key.Value.Id    = MStringHash(Identifier);
-		void *Exists    = CollectionGetDataByKey(&Semaphores, Key, 0);
+		Key.Value.Id = MStringHash(Identifier);
+		void *Exists = CollectionGetNodeByKey(&Semaphores, Key, 0);
 		if (Exists != NULL) {
 			*Semaphore = (GlobalSemaphore_t*)Exists;
             return OsError;
@@ -57,11 +52,13 @@ CreateGlobalSemaphore(
 
     // Initialize the new instance
 	Instance = (GlobalSemaphore_t*)kmalloc(sizeof(GlobalSemaphore_t));
+    memset(Instance, 0, sizeof(GlobalSemaphore_t));
 	SlimSemaphoreConstruct(&Instance->Semaphore, InitialValue, MaximumValue);
+    Instance->Header.Key = Key;
 	
     if (Identifier != NULL)  {
         Instance->Hash = MStringHash(Identifier);
-		CollectionAppend(&Semaphores, CollectionCreateNode(Key, Semaphore));
+		CollectionAppend(&Semaphores, &Instance->Header);
 	}
     else {
         Instance->Hash = 0;
@@ -71,8 +68,6 @@ CreateGlobalSemaphore(
     return OsSuccess;
 }
 
-/* DestroyGlobalSemaphore
- * Wakes up all threads that are waiting for the semaphore and destroys the semaphore. */
 void
 DestroyGlobalSemaphore(
     _In_ GlobalSemaphore_t*     Semaphore)
@@ -80,18 +75,14 @@ DestroyGlobalSemaphore(
 	DataKey_t Key;
     
 	assert(Semaphore != NULL);
-
 	if (Semaphore->Hash != 0) {
 		Key.Value.Id = Semaphore->Hash;
-		CollectionRemoveByKey(&Semaphores, Key);
+		CollectionRemoveByNode(&Semaphores, &Semaphore->Header);
 	}
 	SlimSemaphoreDestroy(&Semaphore->Semaphore);
     kfree(Semaphore);
 }
 
-/* GlobalSemaphoreWait
- * Waits for the semaphore signal with the optional time-out.
- * Returns SCHEDULER_SLEEP_OK or SCHEDULER_SLEEP_TIMEOUT */
 int
 GlobalSemaphoreWait(
     _In_ GlobalSemaphore_t*     Semaphore,
@@ -100,8 +91,6 @@ GlobalSemaphoreWait(
 	return SlimSemaphoreWait(&Semaphore->Semaphore, Timeout);
 }
 
-/* GlobalSemaphoreSignal
- * Signals the semaphore with the given value, default is 1 */
 OsStatus_t
 GlobalSemaphoreSignal(
     _In_ GlobalSemaphore_t*     Semaphore,

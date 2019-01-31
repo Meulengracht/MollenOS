@@ -25,7 +25,7 @@
 #define __PE_IMAGE_LOADER__
 
 #include <os/osdefs.h>
-#include <os/process.h>
+#include <ddk/process.h>
 #include <os/pe.h>
 
 DECL_STRUCT(Collection);
@@ -80,6 +80,7 @@ __EXTERN uintptr_t  GetBaseAddress(void);
 __EXTERN clock_t    GetTimestamp(void);
 __EXTERN OsStatus_t ResolveFilePath(UUId_t, MString_t*, MString_t**);
 __EXTERN OsStatus_t LoadFile(MString_t*, void**, size_t*);
+__EXTERN void       UnloadFile(MString_t*, void*);
 __EXTERN OsStatus_t CreateImageSpace(MemorySpaceHandle_t*);
 __EXTERN OsStatus_t AcquireImageMapping(MemorySpaceHandle_t, uintptr_t*, size_t, Flags_t, MemoryMapHandle_t*);
 __EXTERN void       ReleaseImageMapping(MemoryMapHandle_t);
