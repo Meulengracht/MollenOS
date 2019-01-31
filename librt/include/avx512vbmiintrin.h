@@ -29,7 +29,7 @@
 #define __VBMIINTRIN_H
 
 /* Define the default attributes for the functions in this file. */
-#define __DEFAULT_FN_ATTRS __attribute__((__always_inline__, __nodebug__, __target__("avx512vbmi")))
+#define __DEFAULT_FN_ATTRS __attribute__((__always_inline__, __nodebug__, __target__("avx512vbmi"), __min_vector_width__(512)))
 
 
 static __inline__ __m512i __DEFAULT_FN_ATTRS
@@ -91,30 +91,26 @@ _mm512_mask_permutexvar_epi8 (__m512i __W, __mmask64 __M, __m512i __A,
 }
 
 static __inline__ __m512i __DEFAULT_FN_ATTRS
-_mm512_mask_multishift_epi64_epi8 (__m512i __W, __mmask64 __M, __m512i __X, __m512i __Y)
+_mm512_multishift_epi64_epi8(__m512i __X, __m512i __Y)
 {
-  return (__m512i) __builtin_ia32_vpmultishiftqb512_mask ((__v64qi) __X,
-                (__v64qi) __Y,
-                (__v64qi) __W,
-                (__mmask64) __M);
+  return (__m512i)__builtin_ia32_vpmultishiftqb512((__v64qi)__X, (__v64qi) __Y);
 }
 
 static __inline__ __m512i __DEFAULT_FN_ATTRS
-_mm512_maskz_multishift_epi64_epi8 (__mmask64 __M, __m512i __X, __m512i __Y)
+_mm512_mask_multishift_epi64_epi8(__m512i __W, __mmask64 __M, __m512i __X,
+                                  __m512i __Y)
 {
-  return (__m512i) __builtin_ia32_vpmultishiftqb512_mask ((__v64qi) __X,
-                (__v64qi) __Y,
-                (__v64qi) _mm512_setzero_si512 (),
-                (__mmask64) __M);
+  return (__m512i)__builtin_ia32_selectb_512((__mmask64)__M,
+                                (__v64qi)_mm512_multishift_epi64_epi8(__X, __Y),
+                                (__v64qi)__W);
 }
 
 static __inline__ __m512i __DEFAULT_FN_ATTRS
-_mm512_multishift_epi64_epi8 (__m512i __X, __m512i __Y)
+_mm512_maskz_multishift_epi64_epi8(__mmask64 __M, __m512i __X, __m512i __Y)
 {
-  return (__m512i) __builtin_ia32_vpmultishiftqb512_mask ((__v64qi) __X,
-                (__v64qi) __Y,
-                (__v64qi) _mm512_undefined_epi32 (),
-                (__mmask64) -1);
+  return (__m512i)__builtin_ia32_selectb_512((__mmask64)__M,
+                                (__v64qi)_mm512_multishift_epi64_epi8(__X, __Y),
+                                (__v64qi)_mm512_setzero_si512());
 }
 
 
