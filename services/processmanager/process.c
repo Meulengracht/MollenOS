@@ -40,8 +40,8 @@ static Collection_t  Joiners            = COLLECTION_INIT(KeyId);
 static UUId_t        ProcessIdGenerator = 1;
 static EventQueue_t* EventQueue         = NULL;
 
-void
-ReleaseProcess(
+static OsStatus_t
+DestroyProcess(
     _In_ Process_t* Process)
 {
     int References = atomic_fetch_sub(&Process->References, 1);
@@ -63,9 +63,18 @@ ReleaseProcess(
             PeUnloadImage(Process->Executable);
         }
         free(Process);
-        return;
+        return OsSuccess;
     }
-    SpinlockRelease(&Process->SyncObject);
+    return OsError;
+}
+
+void
+ReleaseProcess(
+    _In_ Process_t* Process)
+{
+    if (DestroyProcess(Process) != OsSuccess) {
+        SpinlockRelease(&Process->SyncObject);
+    } 
 }
 
 Process_t*
@@ -106,12 +115,12 @@ HandleJoinProcess(
     CollectionRemoveByNode(&Joiners, &Join->Header);
 
     // Notify application about this
-    if (atomic_load(&Join->Process->State) == PROCESS_TERMINATING) {
+    if (Join->Process->State == PROCESS_TERMINATING) {
         Package.Status   = OsSuccess;
         Package.ExitCode = Join->Process->ExitCode;
     }
     RPCRespond(&Join->Address, (const void*)&Package, sizeof(JoinProcessPackage_t));
-    ReleaseProcess(Join->Process);
+    DestroyProcess(Join->Process);
     free(Join);
 }
 
@@ -135,7 +144,7 @@ ResolveFilePath(
     if (MStringFind(Path, ':', 0) == MSTRING_NOT_FOUND && 
         MStringFind(Path, '$', 0) == MSTRING_NOT_FOUND) {
         // Check the working directory, if it fails iterate the environment defaults
-        Process_t* Process = GetProcess(ProcessId);
+        Process_t* Process = AcquireProcess(ProcessId);
         MString_t* Result;
         int        IsApp;
         int        IsDll;
@@ -144,6 +153,7 @@ ResolveFilePath(
         // But make sure Result is initialzied to a string
         if (Process != NULL) {
             Result = MStringClone(Process->WorkingDirectory);
+            ReleaseProcess(Process);
             MStringAppendCharacter(Result, '/');
             MStringAppend(Result, Path);
             if (TestFilePath(Result) == OsSuccess) {

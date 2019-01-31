@@ -28,12 +28,11 @@
 #include <modules/manager.h>
 #include <memorybuffer.h>
 #include <memoryspace.h>
+#include <threading.h>
 #include <machine.h>
 #include <handle.h>
 #include <debug.h>
 
-/* ScMemoryAllocate
- * Allows a process to allocate memory from the userheap, it takes a size and allocation flags */
 OsStatus_t
 ScMemoryAllocate(
     _In_  size_t        Size, 
@@ -100,8 +99,6 @@ ScMemoryAllocate(
     return OsSuccess;
 }
 
-/* ScMemoryFree
- * Free's previous allocated memory, given an address and a size (though not needed for now!) */
 OsStatus_t 
 ScMemoryFree(
     _In_ uintptr_t  Address, 
@@ -123,9 +120,6 @@ ScMemoryFree(
     return RemoveMemorySpaceMapping(Space, Address, Size);
 }
 
-/* MemoryProtect
- * Changes the protection flags of a previous memory allocation
- * made by MemoryAllocate */
 OsStatus_t
 ScMemoryProtect(
     _In_  void*    MemoryPointer,
@@ -144,9 +138,6 @@ ScMemoryProtect(
         AddressStart, Length, Flags | MAPPING_USERSPACE, PreviousFlags);
 }
 
-/* ScCreateBuffer
- * Creates a new system memory buffer and fills in the details for the 
- * given buffer-object */
 OsStatus_t
 ScCreateBuffer(
     _In_  Flags_t       Flags,
@@ -159,9 +150,6 @@ ScCreateBuffer(
     return CreateMemoryBuffer(Flags, Size, MemoryBuffer);
 }
 
-/* ScAcquireBuffer
- * Acquires an existing memory buffer handle to the current memory space.
- * This provides access to the memory the handle is associated with. */
 OsStatus_t
 ScAcquireBuffer(
     _In_  UUId_t        Handle,
@@ -173,9 +161,6 @@ ScAcquireBuffer(
     return AcquireMemoryBuffer(Handle, MemoryBuffer);
 }
 
-/* ScQueryBuffer
- * Queries an existing memory buffer handle. Returns the metrics for the
- * system buffer. */
 OsStatus_t
 ScQueryBuffer(
     _In_  UUId_t        Handle,

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,13 +16,12 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C Environment - Shared Routines
+ * COFF/PE Image Support
+ *   - Implements CRT routines and sections neccessary for proper running PE/COFF images.
  */
+
 #define __TRACE
 
-/* Includes
- * - Library */
-#include <os/mollenos.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
 #include <threads.h>
@@ -107,22 +106,17 @@ _CRTALLOC(".CRT$XLA") _PVTLS __xl_a[]   = { 0 };
 _CRTALLOC(".CRT$XLZ") _PVTLS __xl_z[]   = { 0 };
 #pragma comment(linker, "/merge:.CRT=.data")
 
-_CRTALLOC(".tls") char _tls_start       = 0;
-_CRTALLOC(".tls$ZZZ") char _tls_end     = 0;
+_CRTALLOC(".tls")     char _tls_start = 0;
+_CRTALLOC(".tls$ZZZ") char _tls_end   = 0;
 
-/* Externs 
- * - Access to lib-c initializers */
 CRTDECL(void, __cxa_callinitializers(_PVFV *pfbegin, _PVFV *pfend));
 CRTDECL(int,  __cxa_callinitializers_ex(_PIFV *pfbegin, _PIFV *pfend));
 CRTDECL(void, __cxa_callinitializers_tls(_PVTLS *pfbegin, _PVTLS *pfend, void *dso_handle, unsigned long reason));
 
-/* Globals
- * - Global exported shared variables */
 static int _tls_init    = 0;
-void *__dso_handle      = &__dso_handle;
-void *_tls_module_data  = NULL;
+void*      __dso_handle = &__dso_handle;
 #if defined(i386) || defined(__i386__) || defined(amd64) || defined(__amd64__)
-void **_tls_array       = NULL; // on 64 bit this must be at gs:0x58 [11], 32 bit this should point into tls area
+void**        _tls_array = NULL; // on 64 bit this must be at gs:0x58 [11], 32 bit this should point into tls area
 unsigned long _tls_index = 0;
 #else
 #error "Implicit tls architecture must be implemented"
@@ -144,24 +138,26 @@ _CRTALLOC(".rdata$T") const struct {
         0                               // characteristics
 };
 
-// __CrtCreateTlsBlock
-// Creates a new tls key for the module that links against
-// this file
-void __CrtCreateTlsBlock(void) {
+// __cxa_module_tls_global_init
+// Creates a new tls key for the module that links against this file, this index for this
+// module is reused for each thread to keep the index the same
+void __cxa_module_tls_global_init(void) {
+    // _tls_array points into TLS data array, so while the pointer is seen as equal
+    // all threads and points to same address, the address is directly located in
+    // the TLS structure
     _tls_array = (void**)__get_reserved(1);
     _tls_index = 0;
     while (_tls_array[_tls_index] != NULL) _tls_index++;
 }
 
-// __CrtAttachTlsBlock
+// __cxa_module_tls_thread_init
 // Creates a new tls block for calling thread. This is automatically
 // called for main thread, not new threads
-void __CrtAttachTlsBlock(void) {
+void __cxa_module_tls_thread_init(void) {
     size_t TlsDataSize = (size_t)_tls_used.EndOfData - (size_t)_tls_used.StartOfData;
     if (TlsDataSize > 0 && _tls_used.StartOfData < _tls_used.EndOfData) {
-        _tls_module_data = malloc(TlsDataSize);
-        memcpy(_tls_module_data, (void*)_tls_used.StartOfData, TlsDataSize);
-        _tls_array[_tls_index] = _tls_module_data;
+        _tls_array[_tls_index] = malloc(TlsDataSize);
+        memcpy(_tls_array[_tls_index], (void*)_tls_used.StartOfData, TlsDataSize);
     }
     if (_tls_init == 0) {
         __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_INITIALIZE);
@@ -171,16 +167,16 @@ void __CrtAttachTlsBlock(void) {
 
 // On ALL coff platform this must be called
 // to run all initializers for C/C++
-void __CrtCxxInitialize(void) {
-    __CrtCreateTlsBlock();
-    __CrtAttachTlsBlock();
+void __cxa_module_global_init(void) {
+    __cxa_module_tls_global_init();
+    __cxa_module_tls_thread_init();
 	__cxa_callinitializers(__xc_a, __xc_z);
 	__cxa_callinitializers_ex(__xi_a, __xi_z);
 }
 
 // On non-windows coff platforms this should not be run
 // as terminators are registered by cxa_atexit.
-void __CrtCxxFinalize(void) {
+void __cxa_module_global_finit(void) {
 	__cxa_callinitializers(__xp_a, __xp_z);
 	__cxa_callinitializers(__xt_a, __xt_z);
     __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_FINALIZE);

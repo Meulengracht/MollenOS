@@ -28,9 +28,9 @@
  * - C/C++ Cleanup */
 extern void dllmain(int action);
 extern "C" {
-    extern void __CrtCxxInitialize(void);
-    extern void __CrtCxxFinalize(void);
-    extern void __CrtAttachTlsBlock(void);
+    extern void __cxa_module_global_init(void);
+    extern void __cxa_module_global_finit(void);
+    extern void __cxa_module_tls_thread_init(void);
     extern CRTDECL(void, __cxa_finalize(void *Dso));
     extern void *__dso_handle;
 }
@@ -44,17 +44,17 @@ __CrtLibraryEntry(int Action)
 	switch (Action) {
         case DLL_ACTION_INITIALIZE: {
             // Module has been attached to system.
-            __CrtCxxInitialize();
+            __cxa_module_global_init();
             dllmain(DLL_ACTION_INITIALIZE);
         } break;
         case DLL_ACTION_FINALIZE: {
             // Module is being unloaded
             dllmain(DLL_ACTION_FINALIZE);
-            __CrtCxxFinalize();
+            __cxa_module_global_finit();
             __cxa_finalize(__dso_handle);
         } break;
         case DLL_ACTION_THREADATTACH: {
-            __CrtAttachTlsBlock();
+            __cxa_module_tls_thread_init();
         } break;
     }
 }

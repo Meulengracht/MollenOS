@@ -340,7 +340,11 @@
         "_syscalls.h": "c",
         "_utils.h": "c",
         "sessions.h": "c",
-        "mp.h": "c"
+        "mp.h": "c",
+        "cctype": "cpp",
+        "cstdarg": "cpp",
+        "cwctype": "cpp",
+        "iomanip": "cpp"
     },
     "git.ignoreLimitWarning": true,
     "terminal.integrated.shell.windows": "C:\\Windows\\sysnative\\bash.exe",

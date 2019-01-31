@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C-Support Exit Implementation
+ * C-Support Exit Implementation
  * - Definitions, prototypes and information needed.
  */
 
@@ -24,9 +24,6 @@
 #include <internal/_utils.h>
 #include <os/process.h>
 
-/* _Exit
- * Terminate normally, no cleanup. No calls to anything. 
- * And it never returns this function */
 void
 _Exit(
     _In_ int Status)

@@ -30,9 +30,9 @@
 #include <ctype.h>
 
 extern int main(int argc, char **argv, char **envp);
-extern void __CrtCxxInitialize(void);
-extern void __CrtCxxFinalize(void);
-extern void __CrtAttachTlsBlock(void);
+extern void __cxa_module_global_init(void);
+extern void __cxa_module_global_finit(void);
+extern void __cxa_module_tls_thread_init(void);
 #ifndef __clang__
 CRTDECL(void, __CppInitVectoredEH(void));
 #endif
@@ -160,6 +160,6 @@ __CrtInitialize(
             *ArgumentCount = 0;
         }
     }
-    __cxa_runinitializers(__CrtCxxInitialize, __CrtCxxFinalize, __CrtAttachTlsBlock);
+    __cxa_runinitializers(__cxa_module_global_init, __cxa_module_global_finit, __cxa_module_tls_thread_init);
     return Arguments;
 }

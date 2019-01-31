@@ -68,7 +68,7 @@ CreateBuffer(
  * allocated with the CreateBuffer function */
 OsStatus_t
 DestroyBuffer(
-    _In_ DmaBuffer_t*           BufferObject)
+    _In_ DmaBuffer_t* BufferObject)
 {
     OsStatus_t Status;
 

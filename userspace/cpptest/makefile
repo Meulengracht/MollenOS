@@ -3,7 +3,7 @@
 # Include all the definitions for os
 include ../../config/common.mk
 
-INCLUDES = -I../include/cxx -I../include
+INCLUDES = -I../include/cxx -I../include -I../../librt/libddk/include
 
 CFLAGS = $(GUCFLAGS) $(INCLUDES)
 CXXFLAGS = $(GUCXXFLAGS) $(INCLUDES)

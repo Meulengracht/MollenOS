@@ -122,10 +122,12 @@ tls_create(
  * Destroys a thread-storage space should be called by thread crt */
 OsStatus_t
 tls_destroy(
-    _In_ thread_storage_t*  Tls)
+    _In_ thread_storage_t* Tls)
 {
+    // @todo this is called twice for primary thread. Look into this
     if (Tls->transfer_buffer != NULL) {
         DestroyBuffer(Tls->transfer_buffer);
+        Tls->transfer_buffer = NULL;
     }
     return OsSuccess;
 }
@@ -372,7 +374,7 @@ tls_callatexit(_In_ Collection_t* List, _In_ thrd_t ThreadId, _In_ void* DsoHand
         TlsGlobal.TlsAtExitHasRun = 1;
     }
 
-    Node        = CollectionGetNodeByKey(List, Key, Skip);
+    Node = CollectionGetNodeByKey(List, Key, Skip);
     while (Node != NULL) {
         TlsAtExit_t* Function = (TlsAtExit_t*)Node;
         if (Function->DsoHandle == DsoHandle || DsoHandle == NULL) {

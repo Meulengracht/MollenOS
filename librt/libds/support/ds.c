@@ -314,7 +314,7 @@ OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, s
         dsfree(StateObject);
         return Status;
     }
-    *Address   = (uintptr_t)GetBufferDataPointer(Buffer);
+    *Address = (uintptr_t)GetBufferDataPointer(Buffer);
     StateObject->UserAccess = Buffer;
 #endif
     return Status;
