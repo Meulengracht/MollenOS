@@ -22,8 +22,6 @@
 #ifndef _WCHAR_H_
 #define _WCHAR_H_
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 #include <stddef.h>
 #include <stdarg.h>
@@ -38,6 +36,25 @@ typedef __WINT_TYPE__ wint_t;
 
 #ifndef WEOF
 # define WEOF ((wint_t)-1)
+#endif
+
+
+/* This must match definition in <time.h> */
+#ifndef _TM_DEFINED
+#define _TM_DEFINED
+struct tm {
+    int tm_sec;     //Seconds
+    int tm_min;     //Minutes
+    int tm_hour;    //Hours
+    int tm_mday;    //Day of the month
+    int tm_mon;     //Months
+    int tm_year;    //Years
+    int tm_wday;    //Days since sunday
+    int tm_yday;    //Days since January 1'st
+    int tm_isdst;   //Is daylight saving?
+    long tm_gmtoff; //Offset from UTC in seconds
+    char *tm_zone;
+};
 #endif
 
 /* This must match definition in <stdint.h> */
@@ -155,6 +172,25 @@ _CRTIMP int wcscoll_l(__CONST wchar_t *a,
 _CRTIMP int wcsncasecmp_l(__CONST wchar_t *s1, 
 	__CONST wchar_t *s2, size_t n, 
 	locale_t locale);
+
+/* wcsftime
+ * Converts the date and time information from a given calendar time time 
+ * to a null-terminated wide character string str according to format string format. 
+ * Up to count bytes are written. */
+#ifndef _WCSFTIME_DEFINED
+#define _WCSFTIME_DEFINED
+CRTDECL(size_t, wcsftime(
+    _In_ wchar_t*__restrict str,
+    _In_ size_t maxsize,
+    _In_ __CONST wchar_t*__restrict format, 
+    _In_ __CONST struct tm*__restrict time));
+CRTDECL(size_t, wcsftime_l(
+    _In_ wchar_t*__restrict str,
+    _In_ size_t maxsize,
+    _In_ __CONST wchar_t*__restrict format, 
+    _In_ __CONST struct tm*__restrict time,
+    _In_ struct __locale_t *locale));
+#endif
 
 #ifdef __cplusplus
 }

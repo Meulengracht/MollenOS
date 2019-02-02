@@ -57,9 +57,8 @@ typedef __SIZE_TYPE__ clock_t;
 #define TIME_PROCESS        3 // The epoch for this clock is at some time during the generation of the current process.
 #define TIME_THREAD         4 // The epic is like TIME_PROCESS, but locally for the calling thread.
 
-/* tm
- * Define the time structures, this one is the base
- * structure that describes a point in time */
+#ifndef _TM_DEFINED
+#define _TM_DEFINED
 struct tm {
     int tm_sec;     //Seconds
     int tm_min;     //Minutes
@@ -73,6 +72,7 @@ struct tm {
     long tm_gmtoff; //Offset from UTC in seconds
     char *tm_zone;
 };
+#endif
 struct timespec {
     time_t tv_sec;
     long tv_nsec;
@@ -106,8 +106,7 @@ _CODE_BEGIN
 /* time
  * Returns the current calendar time encoded as a time_t object, and 
  * also stores it in the time_t object pointed to by arg (unless arg is a null pointer). */
-_CRTIMP
-time_t
+_CRTIMP time_t
 time(
     _Out_Opt_ time_t *arg);
 
@@ -259,6 +258,8 @@ CRTDECL(size_t, strftime_l(
  * Converts the date and time information from a given calendar time time 
  * to a null-terminated wide character string str according to format string format. 
  * Up to count bytes are written. */
+#ifndef _WCSFTIME_DEFINED
+#define _WCSFTIME_DEFINED
 CRTDECL(size_t, wcsftime(
     _In_ wchar_t*__restrict str,
     _In_ size_t maxsize,
@@ -270,6 +271,7 @@ CRTDECL(size_t, wcsftime_l(
     _In_ __CONST wchar_t*__restrict format, 
     _In_ __CONST struct tm*__restrict time,
     _In_ struct __locale_t *locale));
+#endif
 _CODE_END
 
 #endif //!__STDC_TIME__
