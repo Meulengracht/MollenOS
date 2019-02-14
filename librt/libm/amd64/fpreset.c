@@ -23,7 +23,6 @@
 
 void _fpreset(void)
 {
-    // Variables
     const unsigned short x86_cw = 0x27f;
     const unsigned long sse2_cw = 0x1f80;
 	

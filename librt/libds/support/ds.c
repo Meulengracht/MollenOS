@@ -64,6 +64,7 @@ typedef struct _MemoryMappingState {
 } MemoryMappingState_t;
 
 static SystemDescriptor_t __SystemInformation = { 0 };
+static uintptr_t          __SystemBaseAddress = 0;
 #endif
 
 /*******************************************************************************
@@ -209,9 +210,10 @@ uintptr_t GetBaseAddress(void)
 #ifdef LIBC_KERNEL
     return GetMachine()->MemoryMap.UserCode.Start;
 #else
-    uintptr_t BaseAddress = 0;
-    Syscall_GetProcessBaseAddress(&BaseAddress);
-    return BaseAddress;
+    if (__SystemBaseAddress == 0) {
+        Syscall_GetProcessBaseAddress(&__SystemBaseAddress);
+    }
+    return __SystemBaseAddress;
 #endif
 }
 
@@ -285,7 +287,7 @@ OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, s
     StateObject->Address = *Address;
     StateObject->Length  = Length;
     StateObject->Flags   = Flags;
-    *HandleOut           = (MemoryMapHandle_t*)StateObject;
+    *HandleOut           = (MemoryMapHandle_t)StateObject;
 
     // When creating these mappings we must always
     // map in with write flags, and then clear the write flag on release if it was requested
@@ -314,6 +316,7 @@ OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, s
         dsfree(StateObject);
         return Status;
     }
+    TRACE("Mapping: V 0x%x => P 0x%x => S 0x%x", Buffer->Address, Buffer->Dma, Buffer->Capacity);
     *Address = (uintptr_t)GetBufferDataPointer(Buffer);
     StateObject->UserAccess = Buffer;
 #endif

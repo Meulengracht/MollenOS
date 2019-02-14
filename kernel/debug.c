@@ -160,7 +160,6 @@ DebugPanic(
             // how should we do this
         }
     }
-    DisplayActiveThreads();
     DebugStackTrace(Context, 8);
 
     // Handle based on the scope of the fatality
@@ -177,6 +176,7 @@ DebugPanic(
         ERROR("Encounted an unkown fatality scope %i", FatalityScope);
         ArchProcessorHalt();
     }
+    for(;;);
     return OsSuccess;
 }
 
@@ -336,6 +336,20 @@ DebugMemory(
 
     // And print the final ASCII bit.
     LogAppendMessage(LogRaw, "EMPT", "  %s\n", Buffer);
+    return OsSuccess;
+}
+
+OsStatus_t
+DebugHandleShortcut(
+    _In_ SystemKey_t* Key)
+{
+    if (Key->KeyCode == VK_1) {
+        WRITELINE("Memory in use %u Bytes", GetMachine()->PhysicalMemory.BlocksAllocated * 0x1000);
+        WRITELINE("Block status %u/%u", GetMachine()->PhysicalMemory.BlocksAllocated, GetMachine()->PhysicalMemory.BlockCount);
+    }
+    else if (Key->KeyCode == VK_2) {
+        DisplayActiveThreads();
+    }
     return OsSuccess;
 }
 

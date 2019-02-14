@@ -1,6 +1,6 @@
 /* MollenOS
 *
-* Copyright 2011 - 2016, Philip Meulengracht
+* Copyright 2011, Philip Meulengracht
 *
 * This program is free software : you can redistribute it and / or modify
 * it under the terms of the GNU General Public License as published by
@@ -15,44 +15,36 @@
 * You should have received a copy of the GNU General Public License
 * along with this program.If not, see <http://www.gnu.org/licenses/>.
 *
-*
-* MollenOS - Optimized memory copy
 */
 
+#include <stdint.h>
 #include <math.h>
+
 #define CPUID_FEAT_EDX_SSE		1 << 25
+
 #if defined(_MSC_VER) && !defined(__clang__)
 #include <intrin.h>
+#define __get_cpuid(Function, Registers) __cpuid(Registers, Function);
 #else
 #include <cpuid.h>
+#define __get_cpuid(Function, Registers) __cpuid(Function, Registers[0], Registers[1], Registers[2], Registers[3]);
 #endif
 
 void _fpreset(void)
 {
-    // Variables
-    const unsigned short x86_cw = 0x27f;
-	int CpuRegisters[4] = { 0 };
-	int CpuFeatEdx = 0;
+    const unsigned long  sse2_cw          = 0x1f80;
+    const unsigned short x86_cw           = 0x27f;
+	uint32_t             cpu_registers[4] = { 0 };
 
-	// Now extract the cpu information 
-	// so we can select a memcpy
+    __get_cpuid(0, cpu_registers);
 #if defined(_MSC_VER) && !defined(__clang__)
-	__cpuid(CpuRegisters, 1);
-#else
-    __cpuid(1, CpuRegisters[0], CpuRegisters[1], CpuRegisters[2], CpuRegisters[3]);
-#endif
-    // Features are in ecx/edx
-    CpuFeatEdx = CpuRegisters[3];
-
-#ifdef _MSC_VER
     __asm { fninit }
     __asm { fldcw [x86_cw] }
 #else
     __asm__ __volatile__( "fninit; fldcw %0" : : "m" (x86_cw) );
 #endif
-    if (CpuFeatEdx & CPUID_FEAT_EDX_SSE) {
-        const unsigned long sse2_cw = 0x1f80;
-#ifdef _MSC_VER
+    if (cpu_registers[3] & CPUID_FEAT_EDX_SSE) {
+#if defined(_MSC_VER) && !defined(__clang__)
         __asm { ldmxcsr [sse2_cw] }
 #else
         __asm__ __volatile__( "ldmxcsr %0" : : "m" (sse2_cw) );

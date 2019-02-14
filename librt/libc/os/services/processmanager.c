@@ -26,6 +26,7 @@
 #include <ddk/ipc/ipc.h>
 #include <ddk/service.h>
 #include <ddk/process.h>
+#include <os/context.h>
 #include <ddk/utils.h>
 #include <threads.h>
 #include <stdlib.h>
@@ -331,6 +332,26 @@ ProcessGetLibraryEntryPoints(
 
     RPCInitialize(&Request, __PROCESSMANAGER_TARGET, 1, __PROCESSMANAGER_GET_LIBRARY_ENTRIES);
     RPCSetResult(&Request, (const void*)&LibraryList[0], sizeof(Handle_t) * PROCESS_MAXMODULES);
+    return RPCExecute(&Request);
+}
+
+OsStatus_t
+ProcessReportCrash(
+    _In_ Context_t* CrashContext,
+    _In_ int        CrashReason)
+{
+    MRemoteCall_t Request;
+    OsStatus_t    Result;
+
+    // Not supported by modules
+    if (IsProcessModule()) {
+        return OsError;
+    }
+
+    RPCInitialize(&Request, __PROCESSMANAGER_TARGET, 1, __PROCESSMANAGER_CRASH_REPORT);
+    RPCSetArgument(&Request, 0, (const void*)CrashContext, sizeof(Context_t));
+    RPCSetArgument(&Request, 1, (const void*)&CrashReason, sizeof(int));
+    RPCSetResult(&Request, (const void*)&Result, sizeof(OsStatus_t));
     return RPCExecute(&Request);
 }
 

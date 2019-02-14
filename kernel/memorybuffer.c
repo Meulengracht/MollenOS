@@ -187,7 +187,6 @@ DestroyMemoryBuffer(
         } break;
 
         default: {
-
         } break;
     }
 

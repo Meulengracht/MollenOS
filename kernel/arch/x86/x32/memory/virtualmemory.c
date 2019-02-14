@@ -75,14 +75,15 @@ MmVirtualFillPageTable(
 	_In_ VirtualAddress_t   vAddressStart, 
 	_In_ Flags_t            Flags)
 {
-	// Variables
-	uintptr_t pAddress, vAddress;
-	int i;
+    atomic_uint* AtomicPointer;
+	uintptr_t    pAddress, vAddress;
+	int          i;
 
 	// Iterate through pages and map them
 	for (i = PAGE_TABLE_INDEX(vAddressStart), pAddress = pAddressStart, vAddress = vAddressStart;
 		i < ENTRIES_PER_PAGE; i++, pAddress += PAGE_SIZE, vAddress += PAGE_SIZE) {
-        atomic_store_explicit(&pTable->Pages[PAGE_TABLE_INDEX(vAddress)], pAddress | Flags, memory_order_relaxed);
+        AtomicPointer = &pTable->Pages[PAGE_TABLE_INDEX(vAddress)];
+        atomic_store_explicit(AtomicPointer, pAddress | Flags, memory_order_relaxed);
 	}
 }
 
@@ -96,16 +97,17 @@ MmVirtualMapMemoryRange(
 	_In_ uintptr_t          Length,
 	_In_ Flags_t            Flags)
 {
-	// Variables
-	unsigned i;
+    atomic_uint* AtomicPointer;
+	unsigned     i;
 
 	// Iterate the afflicted page-tables
 	for (i = PAGE_DIRECTORY_INDEX(AddressStart);
 		i < (PAGE_DIRECTORY_INDEX(AddressStart + Length - 1) + 1); i++) {
-		PageTable_t *Table = MmVirtualCreatePageTable();
+		PageTable_t* Table = MmVirtualCreatePageTable();
+        AtomicPointer      = &PageDirectory->pTables[i];
 
 		// Install the table into the given page-directory
-		atomic_store_explicit(&PageDirectory->pTables[i], (PhysicalAddress_t)Table | Flags, memory_order_relaxed);
+		atomic_store_explicit(AtomicPointer, (PhysicalAddress_t)Table | Flags, memory_order_relaxed);
 		PageDirectory->vTables[i] = (uintptr_t)Table;
 	}
 }
@@ -114,14 +116,13 @@ MmVirtualMapMemoryRange(
  * Helper function to retrieve the current active directory. */
 PageDirectory_t*
 MmVirtualGetMasterTable(
-    _In_  SystemMemorySpace_t*  MemorySpace,
-    _In_  VirtualAddress_t      Address,
-    _Out_ PageDirectory_t**     ParentDirectory,
-    _Out_ int*                  IsCurrent)
+    _In_  SystemMemorySpace_t* MemorySpace,
+    _In_  VirtualAddress_t     Address,
+    _Out_ PageDirectory_t**    ParentDirectory,
+    _Out_ int*                 IsCurrent)
 {
-    // Variables
-    PageDirectory_t *Directory  = (PageDirectory_t*)MemorySpace->Data[MEMORY_SPACE_DIRECTORY];
-    PageDirectory_t *Parent     = NULL;
+    PageDirectory_t* Directory = (PageDirectory_t*)MemorySpace->Data[MEMORY_SPACE_DIRECTORY];
+    PageDirectory_t* Parent    = NULL;
 
 	assert(Directory != NULL);
 
@@ -133,10 +134,8 @@ MmVirtualGetMasterTable(
             Parent = (PageDirectory_t*)MemorySpaceParent->Data[MEMORY_SPACE_DIRECTORY];
         }
     }
-
-    // Update the provided pointers
-    *IsCurrent          = (MemorySpace == GetCurrentMemorySpace()) ? 1 : 0;
-    *ParentDirectory    = Parent;
+    *IsCurrent       = (MemorySpace == GetCurrentMemorySpace()) ? 1 : 0;
+    *ParentDirectory = Parent;
     return Directory;
 }
 
@@ -144,22 +143,24 @@ MmVirtualGetMasterTable(
  * Helper function to retrieve a table from the given directory. */
 PageTable_t*
 MmVirtualGetTable(
-    _In_ PageDirectory_t*   ParentPageDirectory,
-    _In_ PageDirectory_t*   PageDirectory,
-    _In_ uintptr_t          Address,
-    _In_ int                IsCurrent,
-    _In_ int                CreateIfMissing,
-    _In_ Flags_t            CreateFlags,
-    _Out_ int*              Update)
+    _In_ PageDirectory_t* ParentPageDirectory,
+    _In_ PageDirectory_t* PageDirectory,
+    _In_ uintptr_t        Address,
+    _In_ int              IsCurrent,
+    _In_ int              CreateIfMissing,
+    _In_ Flags_t          CreateFlags,
+    _Out_ int*            Update)
 {
-    // Variables
-    PageTable_t *Table  = NULL;
-    int PageTableIndex  = PAGE_DIRECTORY_INDEX(Address);
-    uint32_t ParentMapping;
+    atomic_uint* AtomicPointerParent;
+    atomic_uint* AtomicPointer;
+    PageTable_t* Table          = NULL;
+    int          PageTableIndex = PAGE_DIRECTORY_INDEX(Address);
+    uint32_t     ParentMapping;
 
     // Load the entry from the table
-    ParentMapping   = atomic_load(&PageDirectory->pTables[PageTableIndex]);
-    *Update         = 0; // Not used on x32, only 64
+    AtomicPointer = &PageDirectory->pTables[PageTableIndex];
+    ParentMapping = atomic_load(AtomicPointer);
+    *Update       = 0; // Not used on x32, only 64
 
     // Sanitize PRESENT status
 	if (ParentMapping & PAGE_PRESENT) {
@@ -171,13 +172,14 @@ MmVirtualGetTable(
 SyncWithParent:
         ParentMapping = 0;
         if (ParentPageDirectory != NULL) {
-            ParentMapping = atomic_load(&ParentPageDirectory->pTables[PageTableIndex]);
+            AtomicPointerParent = &ParentPageDirectory->pTables[PageTableIndex];
+            ParentMapping       = atomic_load(AtomicPointerParent);
         }
 
         // Check the parent-mapping
         if (ParentMapping & PAGE_PRESENT) {
             // Update our page-directory and reload
-            atomic_store(&PageDirectory->pTables[PageTableIndex], ParentMapping | PAGE_INHERITED);
+            atomic_store(AtomicPointer, ParentMapping | PAGE_INHERITED);
             PageDirectory->vTables[PageTableIndex]  = ParentPageDirectory->vTables[PageTableIndex];
             Table                                   = (PageTable_t*)PageDirectory->vTables[PageTableIndex];
             assert(Table != NULL);
@@ -192,7 +194,7 @@ SyncWithParent:
             // Now perform the synchronization
             TablePhysical |= CreateFlags;
             if (ParentPageDirectory != NULL && !atomic_compare_exchange_strong(
-                &ParentPageDirectory->pTables[PageTableIndex], &ParentMapping, TablePhysical)) {
+                AtomicPointerParent, &ParentMapping, TablePhysical)) {
                 // Start over as someone else beat us to the punch
                 kfree((void*)Table);
                 goto SyncWithParent;
@@ -200,7 +202,7 @@ SyncWithParent:
 
             // Update us and mark our copy as INHERITED
             TablePhysical |= PAGE_INHERITED;
-            atomic_store(&PageDirectory->pTables[PageTableIndex], TablePhysical);
+            atomic_store(AtomicPointer, TablePhysical);
             PageDirectory->vTables[PageTableIndex] = (uintptr_t)Table;
         }
 
@@ -220,16 +222,16 @@ CloneVirtualSpace(
     _In_ SystemMemorySpace_t*   MemorySpace,
     _In_ int                    Inherit)
 {
-    // Variables
-    PageDirectory_t *SystemDirectory = (PageDirectory_t*)GetDomainMemorySpace()->Data[MEMORY_SPACE_DIRECTORY];
-    PageDirectory_t *ParentDirectory = NULL;
-    PageDirectory_t *PageDirectory;
-    uintptr_t PhysicalAddress;
+    atomic_uint*     AtomicPointer;
+    PageDirectory_t* SystemDirectory = (PageDirectory_t*)GetDomainMemorySpace()->Data[MEMORY_SPACE_DIRECTORY];
+    PageDirectory_t* ParentDirectory = NULL;
+    PageDirectory_t* PageDirectory;
+    uintptr_t        PhysicalAddress;
     int i;
 
     // Lookup which table-region is the stack region
-    int ThreadRegion            = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_START);
-    int ThreadRegionEnd         = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_END);
+    int ThreadRegion    = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_START);
+    int ThreadRegionEnd = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_END);
 
     PageDirectory = (PageDirectory_t*)kmalloc_ap(sizeof(PageDirectory_t), &PhysicalAddress);
     memset(PageDirectory, 0, sizeof(PageDirectory_t));
@@ -251,8 +253,11 @@ CloneVirtualSpace(
         // Sanitize if it's inside kernel region
         if (SystemDirectory->vTables[i] != 0) {
             // Update the physical table
-            KernelMapping = atomic_load(&SystemDirectory->pTables[i]);
-            atomic_store(&PageDirectory->pTables[i], KernelMapping);
+            AtomicPointer = &SystemDirectory->pTables[i];
+            KernelMapping = atomic_load(AtomicPointer);
+            
+            AtomicPointer = &PageDirectory->pTables[i];
+            atomic_store(AtomicPointer, KernelMapping);
 
             // Copy virtual
             PageDirectory->vTables[i] = SystemDirectory->vTables[i];
@@ -262,9 +267,11 @@ CloneVirtualSpace(
         // Inherit? We must mark that table inherited to avoid
         // it being freed again
         if (Inherit && ParentDirectory != NULL) {
-            CurrentMapping = atomic_load(&ParentDirectory->pTables[i]);
+            AtomicPointer  = &ParentDirectory->pTables[i];
+            CurrentMapping = atomic_load(AtomicPointer);
             if (CurrentMapping & PAGE_PRESENT) {
-                atomic_store(&PageDirectory->pTables[i], CurrentMapping | PAGE_INHERITED);
+                AtomicPointer = &PageDirectory->pTables[i];
+                atomic_store(AtomicPointer, CurrentMapping | PAGE_INHERITED);
                 PageDirectory->vTables[i] = ParentDirectory->vTables[i];
             }
         }
@@ -291,10 +298,11 @@ CloneVirtualSpace(
  * Destroys and cleans up any resources used by the virtual address space. */
 OsStatus_t
 DestroyVirtualSpace(
-    _In_ SystemMemorySpace_t*   SystemMemorySpace)
+    _In_ SystemMemorySpace_t* SystemMemorySpace)
 {
-    PageDirectory_t *Pd = (PageDirectory_t*)SystemMemorySpace->Data[MEMORY_SPACE_DIRECTORY];
-    int i, j;
+    atomic_uint*     AtomicPointer;
+    PageDirectory_t* Pd = (PageDirectory_t*)SystemMemorySpace->Data[MEMORY_SPACE_DIRECTORY];
+    int              i, j;
 
     // Iterate page-mappings
     for (i = 0; i < ENTRIES_PER_PAGE; i++) {
@@ -309,7 +317,8 @@ DestroyVirtualSpace(
 
         // Load the mapping, then perform checks for inheritation or a system
         // mapping which is done by kernel page-directory
-        CurrentMapping = atomic_load_explicit(&Pd->pTables[i], memory_order_relaxed);
+        AtomicPointer  = &Pd->pTables[i];
+        CurrentMapping = atomic_load_explicit(AtomicPointer, memory_order_relaxed);
         if (CurrentMapping & (PAGE_SYSTEM_MAP | PAGE_INHERITED)) {
             continue;
         }
@@ -317,7 +326,8 @@ DestroyVirtualSpace(
         // Iterate pages in table
         Table = (PageTable_t*)Pd->vTables[i];
         for (j = 0; j < ENTRIES_PER_PAGE; j++) {
-            CurrentMapping = atomic_load_explicit(&Table->Pages[j], memory_order_relaxed);
+            AtomicPointer  = &Table->Pages[j];
+            CurrentMapping = atomic_load_explicit(AtomicPointer, memory_order_relaxed);
             if (CurrentMapping & PAGE_PERSISTENT) {
                 continue;
             }

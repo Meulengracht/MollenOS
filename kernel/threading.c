@@ -458,26 +458,18 @@ ThreadingReap(
     return OsSuccess;
 }
 
-/* DisplayActiveThreads
- * Prints out debugging information about each thread
- * in the system, only active threads */
 void
 DisplayActiveThreads(void)
 {
     foreach(i, &Threads) {
-        MCoreThread_t *Thread = (MCoreThread_t*)i;
+        MCoreThread_t* Thread = (MCoreThread_t*)i;
         if (atomic_load_explicit(&Thread->Cleanup, memory_order_relaxed) == 0) {
-            WRITELINE("Thread %u (%s) - Flags 0x%x, Queue %i, Timeslice %u, Cpu: %u",
-                Thread->Id, Thread->Name, Thread->Flags, Thread->Queue, 
-                Thread->TimeSlice, Thread->CoreId);
+            WRITELINE("Thread %u (%s) - Parent %u, Instruction Pointer 0x%x", 
+                Thread->Id, Thread->Name, Thread->ParentThreadId, CONTEXT_IP(Thread->ContextActive));
         }
     }
 }
 
-/* GetNextRunnableThread
- * This is the thread-switch function and must be 
- * be called from the below architecture to get the
- * next thread to run */
 MCoreThread_t*
 GetNextRunnableThread(
     _In_ MCoreThread_t* Current, 

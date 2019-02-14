@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Log Interface
+ * Logging Interface
  * - Contains the shared kernel log interface for logging-usage
  */
 

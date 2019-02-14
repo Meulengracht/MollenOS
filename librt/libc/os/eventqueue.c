@@ -23,6 +23,7 @@
 
 #include <ds/collection.h>
 #include <os/eventqueue.h>
+#include <os/mollenos.h>
 #include <threads.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -157,6 +158,7 @@ static int EventQueueWorker(void* Context)
     struct timespec TimePoint;
     struct timespec InterruptedAt;
     struct timespec TimeSpent;
+    SetCurrentThreadName("event-pump");
 
     while (EventQueue->IsRunning) {
         EventQueueEvent_t* Event = GetNearestEventQueueDeadline(EventQueue);

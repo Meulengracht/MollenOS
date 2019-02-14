@@ -39,7 +39,7 @@ config_flags =
 #config_flags += -D__OSCONFIG_REDUCEDHARDWARE
 
 # OS Configuration
-config_flags += -D__OSCONFIG_DISABLE_SIGNALLING # Kernel fault on all hardware signals
+#config_flags += -D__OSCONFIG_DISABLE_SIGNALLING # Kernel fault on all hardware signals
 config_flags += -D__OSCONFIG_LOGGING_KTRACE # Kernel Tracing
 config_flags += -D__OSCONFIG_ENABLE_MULTIPROCESSORS # Use all cores
 config_flags += -D__OSCONFIG_DEBUGCONSOLE # Enable debug console on startup instead of splash

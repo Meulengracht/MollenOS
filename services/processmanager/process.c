@@ -27,6 +27,7 @@
 #include <os/eventqueue.h>
 #include "process.h"
 #include <ds/mstring.h>
+#include <os/context.h>
 #include <ddk/buffer.h>
 #include <ddk/utils.h>
 #include <ddk/file.h>
@@ -483,6 +484,40 @@ GetProcessLibraryEntryPoints(
 {
     TRACE("GetProcessLibraryEntryPoints(%u)", Process->Header.Key.Value.Id);
     return PeGetModuleEntryPoints(Process->Executable, LibraryList);
+}
+
+OsStatus_t
+HandleProcessCrashReport(
+    _In_ Process_t* Process,
+    _In_ Context_t* CrashContext,
+    _In_ int        CrashReason)
+{
+    uintptr_t  ImageBase    = Process->Executable->VirtualAddress;
+    MString_t* ImageName    = Process->Executable->Name;
+    uintptr_t  CrashAddress = CONTEXT_IP(CrashContext);
+    
+    TRACE("HandleProcessCrashReport(%i)", CrashReason);
+    // Was it not main executable?
+    if (CrashAddress > (Process->Executable->CodeBase + Process->Executable->CodeSize)) {
+        // Iterate libraries to find the sinner
+        if (Process->Executable->Libraries != NULL) {
+            foreach(Node, Process->Executable->Libraries) {
+                PeExecutable_t* Library = (PeExecutable_t*)Node->Data;
+                if (CrashAddress >= Library->CodeBase && 
+                    CrashAddress < (Library->CodeBase + Library->CodeSize)) {
+                    ImageName = Library->Name;
+                    ImageBase = Library->VirtualAddress;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Debug
+    ERROR("%s: Crashed in module %s, at offset 0x%x",
+        MStringRaw(Process->Executable->Name), MStringRaw(ImageName),
+        CrashAddress - ImageBase);
+    return OsSuccess;
 }
 
 Process_t*

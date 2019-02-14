@@ -19,9 +19,10 @@ $(error VALI_ARCH is not set to a valid value)
 endif
 
 OBJECTS = $(SOURCES:.c=.o)
+LIBRARIES = ../../librt/build/libsrv.lib ../../librt/build/libc.lib
 
 CFLAGS = $(GCFLAGS) -Wno-address-of-packed-member -D__SERVICE_IMPL $(INCLUDES)
-LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtServiceEntry /dll ../../librt/build/libsrv.lib ../../librt/build/libc.lib
+LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtServiceEntry /dll
 
 .PHONY: all
 all: ../build/devicemanager.dll ../build/devicemanager.mdrv
@@ -30,9 +31,9 @@ all: ../build/devicemanager.dll ../build/devicemanager.mdrv
 	@printf "%b" "\033[1;35mCopying settings file " $< "\033[m\n"
 	@cp $< $@
 
-../build/devicemanager.dll: $(OBJECTS)
+../build/devicemanager.dll: $(OBJECTS) $(LIBRARIES)
 	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
-	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	@$(LD) $(LFLAGS) $(LIBRARIES) $(OBJECTS) /out:$@
 	
 %.o : %.c
 	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"

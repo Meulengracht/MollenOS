@@ -186,6 +186,13 @@ GetMemorySpaceMapping(
     _In_ SystemMemorySpace_t*   SystemMemorySpace, 
     _In_ VirtualAddress_t       VirtualAddress);
 
+/* GetMemorySpaceAttributes
+ * Reads the attributes for a specific virtual memory address in the given space. */
+KERNELAPI Flags_t KERNELABI
+GetMemorySpaceAttributes(
+    _In_ SystemMemorySpace_t* SystemMemorySpace, 
+    _In_ VirtualAddress_t     VirtualAddress);
+
 /* IsMemorySpacePageDirty
  * Checks if the given virtual address is dirty (has been written data to). 
  * Returns OsSuccess if the address is dirty. */

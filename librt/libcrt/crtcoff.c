@@ -20,7 +20,7 @@
  *   - Implements CRT routines and sections neccessary for proper running PE/COFF images.
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <ddk/utils.h>
 #include <stdlib.h>
@@ -94,16 +94,16 @@ typedef void(*_PVTLS)(void*, unsigned long, void*);
 /* CRT Segments
  * - COFF Linker segments for initializers/finalizers 
  *   I = C, C = C++, P = Pre-Terminators, T = Terminators. */
-_CRTALLOC(".CRT$XIA") _PIFV __xi_a[]    = { 0 };
-_CRTALLOC(".CRT$XIZ") _PIFV __xi_z[]    = { 0 };
-_CRTALLOC(".CRT$XCA") _PVFV __xc_a[]    = { 0 };
-_CRTALLOC(".CRT$XCZ") _PVFV __xc_z[]    = { 0 };
-_CRTALLOC(".CRT$XPA") _PVFV __xp_a[]    = { 0 };
-_CRTALLOC(".CRT$XPZ") _PVFV __xp_z[]    = { 0 };
-_CRTALLOC(".CRT$XTA") _PVFV __xt_a[]    = { 0 };
-_CRTALLOC(".CRT$XTZ") _PVFV __xt_z[]    = { 0 };
-_CRTALLOC(".CRT$XLA") _PVTLS __xl_a[]   = { 0 };
-_CRTALLOC(".CRT$XLZ") _PVTLS __xl_z[]   = { 0 };
+_CRTALLOC(".CRT$XIA") _PIFV __xi_a[]  = { 0 };
+_CRTALLOC(".CRT$XIZ") _PIFV __xi_z[]  = { 0 };
+_CRTALLOC(".CRT$XCA") _PVFV __xc_a[]  = { 0 };
+_CRTALLOC(".CRT$XCZ") _PVFV __xc_z[]  = { 0 };
+_CRTALLOC(".CRT$XPA") _PVFV __xp_a[]  = { 0 };
+_CRTALLOC(".CRT$XPZ") _PVFV __xp_z[]  = { 0 };
+_CRTALLOC(".CRT$XTA") _PVFV __xt_a[]  = { 0 };
+_CRTALLOC(".CRT$XTZ") _PVFV __xt_z[]  = { 0 };
+_CRTALLOC(".CRT$XLA") _PVTLS __xl_a[] = { 0 };
+_CRTALLOC(".CRT$XLZ") _PVTLS __xl_z[] = { 0 };
 #pragma comment(linker, "/merge:.CRT=.data")
 
 _CRTALLOC(".tls")     char _tls_start = 0;
@@ -130,12 +130,12 @@ _CRTALLOC(".rdata$T") const struct {
     size_t      SizeOfZeroFill;
     size_t      Characteristics;
 } _tls_used = {
-        (uintptr_t*)(&_tls_start + 1),  // start of tls data
-        (uintptr_t*)&_tls_end,          // end of tls data
-        (uintptr_t*)&_tls_index,        // address of tls_index
-        (uintptr_t*)(&__xl_a + 1),      // pointer to call back array
-        0,                              // size of tls zero fill
-        0                               // characteristics
+        (uintptr_t*)(&_tls_start + 1), // start of tls data, skip the initial char
+        (uintptr_t*)&_tls_end,         // end of tls data
+        (uintptr_t*)&_tls_index,       // address of tls_index
+        (uintptr_t*)(&__xl_a + 1),     // pointer to call back array, skip the inital index
+        0,                             // size of tls zero fill
+        0                              // characteristics
 };
 
 // __cxa_module_tls_global_init
@@ -145,6 +145,7 @@ void __cxa_module_tls_global_init(void) {
     // _tls_array points into TLS data array, so while the pointer is seen as equal
     // all threads and points to same address, the address is directly located in
     // the TLS structure
+    TRACE("__cxa_module_tls_global_init()");
     _tls_array = (void**)__get_reserved(1);
     _tls_index = 0;
     while (_tls_array[_tls_index] != NULL) _tls_index++;
@@ -155,19 +156,34 @@ void __cxa_module_tls_global_init(void) {
 // called for main thread, not new threads
 void __cxa_module_tls_thread_init(void) {
     size_t TlsDataSize = (size_t)_tls_used.EndOfData - (size_t)_tls_used.StartOfData;
+    TRACE("__cxa_module_tls_thread_init(%u, 0x%x, 0x%x)", TlsDataSize, _tls_used.StartOfData, _tls_used.EndOfData);
     if (TlsDataSize > 0 && _tls_used.StartOfData < _tls_used.EndOfData) {
         _tls_array[_tls_index] = malloc(TlsDataSize);
         memcpy(_tls_array[_tls_index], (void*)_tls_used.StartOfData, TlsDataSize);
     }
     if (_tls_init == 0) {
         __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_INITIALIZE);
+        _tls_init = 1;
     }
     __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_THREADATTACH);
+}
+
+// __cxa_module_tls_thread_finit
+// Cleans up the tls block for calling thread. This is automatically
+// called for main thread, not new threads
+void __cxa_module_tls_thread_finit(void) {
+    size_t TlsDataSize = (size_t)_tls_used.EndOfData - (size_t)_tls_used.StartOfData;
+    TRACE("__cxa_module_tls_thread_finit(%u, 0x%x, 0x%x)", TlsDataSize, _tls_used.StartOfData, _tls_used.EndOfData);
+    __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_THREADDETACH);
+    if (TlsDataSize > 0 && _tls_used.StartOfData < _tls_used.EndOfData) {
+        free(_tls_array[_tls_index]);
+    }
 }
 
 // On ALL coff platform this must be called
 // to run all initializers for C/C++
 void __cxa_module_global_init(void) {
+    TRACE("__cxa_module_global_init()");
     __cxa_module_tls_global_init();
     __cxa_module_tls_thread_init();
 	__cxa_callinitializers(__xc_a, __xc_z);
@@ -177,7 +193,9 @@ void __cxa_module_global_init(void) {
 // On non-windows coff platforms this should not be run
 // as terminators are registered by cxa_atexit.
 void __cxa_module_global_finit(void) {
+    TRACE("__cxa_module_global_finit()");
 	__cxa_callinitializers(__xp_a, __xp_z);
 	__cxa_callinitializers(__xt_a, __xt_z);
+    __cxa_module_tls_thread_finit();
     __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_FINALIZE);
 }

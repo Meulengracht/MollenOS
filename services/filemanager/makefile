@@ -8,9 +8,10 @@ INCLUDES = -I../../librt/include -I../../librt/libc/include -I../../librt/libds/
 SOURCES = $(wildcard layouts/*.c) \
 		  $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o)
+LIBRARIES = ../../librt/build/libsrv.lib ../../librt/build/libc.lib ../../librt/build/libds.lib
 
 CFLAGS = $(GCFLAGS) -Wno-address-of-packed-member -D__SERVICE_IMPL -D__FILEMANAGER_IMPL $(INCLUDES)
-LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtServiceEntry /dll /lldmap ../../librt/build/libsrv.lib ../../librt/build/libc.lib ../../librt/build/libds.lib
+LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtServiceEntry /dll /lldmap
 
 .PHONY: all
 all: ../build/filemanager.dll ../build/filemanager.mdrv
@@ -19,9 +20,9 @@ all: ../build/filemanager.dll ../build/filemanager.mdrv
 	@printf "%b" "\033[1;35mCopying settings file " $< "\033[m\n"
 	@cp $< $@
 
-../build/filemanager.dll: $(OBJECTS)
+../build/filemanager.dll: $(OBJECTS) $(LIBRARIES)
 	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
-	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	@$(LD) $(LFLAGS) $(LIBRARIES) $(OBJECTS) /out:$@
 	
 %.o : %.c
 	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"

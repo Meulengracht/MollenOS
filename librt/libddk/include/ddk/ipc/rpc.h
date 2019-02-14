@@ -32,18 +32,11 @@
 #include <string.h>
 #include <assert.h>
 
-/* MRemoteCallAddress
- * A mailbox address for a remote call procedure. A remote call
- * always include both a From and To address. */
 PACKED_TYPESTRUCT(MRemoteCallAddress, {
     UUId_t                  Process;
     UUId_t                  Thread;
 });
 
-/* MRemoteCallArgument
- * The argument package that can be passed
- * to an IPC function request, we support up
- * to 5 arguments */
 PACKED_TYPESTRUCT(MRemoteCallArgument, {
     uint8_t                 Type;
     union {
@@ -53,10 +46,6 @@ PACKED_TYPESTRUCT(MRemoteCallArgument, {
     size_t                  Length;
 });
 
-/* MRemoteCall
- * The base event message structure, any IPC
- * action going through pipes in MollenOS must
- * inherit from this structure for security */
 PACKED_TYPESTRUCT(MRemoteCall, {
     UUId_t                  Target;
     MRemoteCallAddress_t    From;

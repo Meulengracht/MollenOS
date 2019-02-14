@@ -33,6 +33,7 @@
 #include <modules/module.h>
 #include <os/context.h>
 #include <os/osdefs.h>
+#include <os/input.h>
 #include <log.h>
 
 /* Sanitize the module definition, must be 
@@ -42,8 +43,7 @@
 #endif
 
 /* Global <toggable> definitions
- * These can be turned on per-source file by pre-defining
- * the __TRACE before inclusion */
+ * These can be turned on per-source file by pre-defining the __TRACE before inclusion */
 #if defined(__TRACE) && defined(__OSCONFIG_LOGGING_KTRACE)
 #define TRACE(...)               	LogAppendMessage(LogTrace, __MODULE, __VA_ARGS__)
 #else
@@ -98,10 +98,10 @@ DebugPageFault(
  * and disrupt normal functioning. This function does not return again */
 KERNELAPI OsStatus_t KERNELABI
 DebugPanic(
-    _In_ int            FatalityScope,
-    _In_ Context_t*     Context,
-    _In_ const char*    Module,
-    _In_ const char*    Message, ...);
+    _In_ int         FatalityScope,
+    _In_ Context_t*  Context,
+    _In_ const char* Module,
+    _In_ const char* Message, ...);
 
 /* DebugGetModuleByAddress
  * Retrieves the module (Executable) at the given address */
@@ -125,8 +125,14 @@ DebugStackTrace(
  * given address and length of memory dump */
 KERNELAPI OsStatus_t KERNELABI
 DebugMemory(
-    _In_Opt_ const char*    Description,
-    _In_     void*          Address,
-    _In_     size_t         Length);
+    _In_Opt_ const char* Description,
+    _In_     void*       Address,
+    _In_     size_t      Length);
+
+/* DebugHandleShortcut
+ * Handles system shortcuts that can be used during system debugging. */
+KERNELAPI OsStatus_t KERNELABI
+DebugHandleShortcut(
+    _In_ SystemKey_t* Key);
 
 #endif //!_DEBUG_H_

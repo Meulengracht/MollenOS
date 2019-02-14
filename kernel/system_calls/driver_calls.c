@@ -265,6 +265,11 @@ OsStatus_t
 ScKeyEvent(
     _In_ SystemKey_t* Key)
 {
+    // Handle debug key events
+    if ((Key->Flags & (KEY_MODIFIER_LCTRL | KEY_MODIFIER_RCTRL)) && 
+        (Key->Flags & KEY_MODIFIER_RELEASED)) {
+        DebugHandleShortcut(Key);
+    }
     if (GetMachine()->StdInput != NULL) {
         return WriteSystemPipe(GetMachine()->StdInput, (const uint8_t*)Key, sizeof(SystemKey_t));
     }

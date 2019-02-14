@@ -26,6 +26,8 @@
 #include <os/osdefs.h>
 #include <os/process.h>
 
+DECL_STRUCT(Context);
+
 #define __PROCESSMANAGER_CREATE_PROCESS    IPC_DECL_FUNCTION(0)
 #define __PROCESSMANAGER_JOIN_PROCESS      IPC_DECL_FUNCTION(1)
 #define __PROCESSMANAGER_KILL_PROCESS      IPC_DECL_FUNCTION(2)
@@ -93,6 +95,14 @@ ProcessGetLibraryFunction(
 CRTDECL(OsStatus_t,
 ProcessUnloadLibrary(
     _In_ Handle_t Handle));
+
+/* ProcessReportCrash 
+ * Reports a crash to the process manager, and gives opportunity for debugging. While
+ * this call is not responded too, the application is kept alive. */
+CRTDECL(OsStatus_t,
+ProcessReportCrash(
+    _In_ Context_t* CrashContext,
+    _In_ int        CrashReason));
 _CODE_END
 
 #endif //!_PROCESS_INTERFACE_H_

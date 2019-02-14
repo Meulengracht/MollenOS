@@ -144,6 +144,14 @@ GetProcessLibraryEntryPoints(
     _In_  Process_t* Process,
     _Out_ Handle_t   LibraryList[PROCESS_MAXMODULES]);
 
+/* HandleProcessCrashReport
+ * Finds the module, and the relevant offset into that module. */
+__EXTERN OsStatus_t
+HandleProcessCrashReport(
+    _In_ Process_t* Process,
+    _In_ Context_t* CrashContext,
+    _In_ int        CrashReason);
+
 /* AcquireProcess
  * Acquires a reference to a process and allows safe access to the structure. */
 __EXTERN Process_t*

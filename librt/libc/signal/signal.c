@@ -16,16 +16,17 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C-Support Signal Implementation
+ * C-Support Signal Implementation
  * - Definitions, prototypes and information needed.
  */
 
 #include <internal/_all.h>
+#include <ddk/process.h>
+#include <os/context.h>
 #include <ddk/utils.h>
 #include <signal.h>
-#include <errno.h>
 #include <stdlib.h>
-#include <stddef.h>
+#include <errno.h>
 
 #if defined(__i386__)
 #include <i386/fenv.h>
@@ -88,26 +89,15 @@ static sig_element signal_list[] = {
     { SIGUSR2, "User-defined signal-2", SIG_IGN }
 };
 
-/* StdMathErrorEntry
- * The default math error handler for zero divison, fpu and sse errors. */
 void
-StdMathErrorEntry(
-    _In_ __signalhandler_t Handler)
+StdCrash(
+    _In_ int Signal)
 {
-    // Variables
-    int Fixed = 0;
+    Context_t Context;
 
-    // Is it an FPU/SSE exception?
-    Fixed = fetestexcept(FE_ALL_EXCEPT);
-
-    // Is handler valid?
-    if (Handler != SIG_DFL && Handler != SIG_IGN && Handler != SIG_ERR) {
-        Handler(SIGFPE);
-    }
-    
-    // If none are detected, it is integer division, quit program
-    if (!Fixed) {
-        _exit(EXIT_FAILURE);
+    // Retrieve the errornous context, and then report an application crash
+    if (Syscall_ThreadGetContext(&Context) == OsSuccess) {
+        ProcessReportCrash(&Context, Signal);
     }
 }
 
@@ -117,9 +107,9 @@ void
 StdSignalEntry(
     _In_ int Signal)
 {
-    // Variables
     __signalhandler_t Handler = SIG_ERR;
-    int i;
+    int               Fixed   = 0;
+    int               i;
     
     // Find handler
     for(i = 0; i < sizeof(signal_list) / sizeof(signal_list[0]); i++) {
@@ -131,13 +121,14 @@ StdSignalEntry(
 
     // Handle math errors in any case
     if (Signal == SIGFPE) {
-        StdMathErrorEntry(Handler);
+        Fixed = fetestexcept(FE_ALL_EXCEPT);
     }
 
-    // Sanitize
+    // Sanitize handler, and then invoke if a user has registered one
     if (Handler != SIG_IGN && Handler != SIG_ERR) {
         if (Handler == SIG_DFL) {
             if (signal_fatality[Signal] == 1 || signal_fatality[Signal] == 2) {
+                StdCrash(Signal);
                 _exit(EXIT_FAILURE);
             }
         }
@@ -146,14 +137,11 @@ StdSignalEntry(
         }
     }
 
-    // Unhandled signal?
-    if (Handler == SIG_ERR) {
+    // Unhandled signal, or division by zero specifically?
+    if ((Signal == SIGFPE && !Fixed) || Handler == SIG_ERR ||
+        (Signal != SIGINT && Signal != SIGUSR1 && Signal != SIGUSR2)) {
         ERROR("Unhandled signal %i. Aborting application", Signal);
-        _exit(Signal);
-    }
-
-    // Some signals are ignorable, others cause exit no matter what
-    if (Signal != SIGINT && Signal != SIGFPE && Signal != SIGUSR1 && Signal != SIGUSR2) {
+        StdCrash(Signal);
         _exit(Signal);
     }
 }

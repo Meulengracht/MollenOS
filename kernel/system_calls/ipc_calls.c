@@ -131,6 +131,7 @@ ScRpcResponse(
     assert(Pipe != NULL);
     assert(RemoteCall != NULL);
     assert(RemoteCall->Result.Length > 0);
+    //TRACE("ScRpcResponse(Message %i, %u)", RemoteCall->Function, RemoteCall->Result.Length);
 
     // Read up to <Length> bytes, this results in the next 1 .. Length
     // being read from the raw-pipe.
@@ -227,6 +228,7 @@ ScRpcRespond(
 {
     MCoreThread_t* Thread = GetThread(RemoteAddress->Thread);
     SystemPipe_t*  Pipe   = NULL;
+    //TRACE("ScRpcRespond(Thread %u, %u)", RemoteAddress->Thread, Length);
 
     // Sanitize thread still exists
     if (Thread != NULL) {

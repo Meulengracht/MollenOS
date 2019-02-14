@@ -362,16 +362,13 @@ UpdateEntry:
     return OsSuccess;
 }
 
-/* InterruptEntry
- * The common entry point for interrupts, all non-exceptions will enter here, 
- * lookup a handler and execute the code */
 void
 InterruptEntry(
-    _In_ Context_t *Registers)
+    _In_ Context_t* Registers)
 {
-    InterruptStatus_t Result    = InterruptNotHandled;
-    int TableIndex              = (int)Registers->Irq + 32;
-    int Gsi                     = APIC_NO_GSI;
+    InterruptStatus_t Result     = InterruptNotHandled;
+    int               TableIndex = (int)Registers->Irq + 32;
+    int               Gsi        = APIC_NO_GSI;
 
     // Call kernel method
     Result = InterruptHandle(Registers, TableIndex, &Gsi);
@@ -396,15 +393,12 @@ InterruptEntry(
     }
 }
 
-/* ExceptionSignal
- * Sends a signal to the executing thread/process immediately.
- * If the signal is blocked the process/thread is killed. */
 OsStatus_t
 ExceptionSignal(
     _In_ Context_t* Registers,
     _In_ int        Signal)
 {
-    UUId_t CoreId         = ArchGetProcessorCoreId();
+    UUId_t         CoreId = ArchGetProcessorCoreId();
     MCoreThread_t* Thread = GetCurrentThreadForCore(CoreId);
 
     TRACE("ExceptionSignal(Signal %i)", Signal);
@@ -413,7 +407,7 @@ ExceptionSignal(
 #ifdef __OSCONFIG_DISABLE_SIGNALLING
     if (Signal >= 0) {
 #else
-    if (Thread->MemorySpace->SignalHandler == 0) {
+    if (Thread->MemorySpace->Context->SignalHandler == 0) {
 #endif
         return OsError;
     }
@@ -423,8 +417,6 @@ ExceptionSignal(
     return ThreadingSignalDispatch(Thread);
 }
 
-/* ExceptionEntry
- * Common entry for all exceptions */
 void
 ExceptionEntry(
     _In_ Context_t* Registers)
@@ -520,12 +512,13 @@ ExceptionEntry(
             enter_thread(Registers);
         }
 
-        // Final step is to see if kernel can handle the 
-        // unallocated address
+        // Final step is to see if kernel can handle the unallocated address
         if (DebugPageFault(Registers, Address) == OsSuccess) {
             IssueFixed = 1;
         }
         else {
+            ERROR("MEMORY_ACCESS_FAULT: 0x%x, 0x%x, 0x%x", 
+                Address, Registers->ErrorCode, CONTEXT_IP(Registers));
             if (ExceptionSignal(Registers, SIGSEGV) == OsSuccess) {
                 IssueFixed = 1;
             }
@@ -550,6 +543,7 @@ ExceptionEntry(
             // Bit 4 - user/kernel
             WRITELINE("page-fault address: 0x%x, error-code 0x%x", Address, Registers->ErrorCode);
             WRITELINE("existing mapping for address: 0x%x", GetMemorySpaceMapping(GetCurrentMemorySpace(), Address));
+            WRITELINE("existing attribs for address: 0x%x", GetMemorySpaceAttributes(GetCurrentMemorySpace(), Address));
         }
 
         // Locate which module

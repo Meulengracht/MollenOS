@@ -273,8 +273,6 @@ PACKED_TYPESTRUCT(PeOptionalHeader64, {
     PeDataDirectory_t   Directories[PE_NUM_DIRECTORIES];
 });
 
-/* Section Header 
- * they are located directly after the optional headers */
 PACKED_TYPESTRUCT(PeSectionHeader, {
     uint8_t             Name[PE_SECTION_NAME_LENGTH];
     uint32_t            VirtualSize;
@@ -314,10 +312,6 @@ PACKED_TYPESTRUCT(PePdbInformation, {
     char                PdbFileName[1];
 });
 
-/* PE-Directory
- * The Export Directory, contains a list
- * of exported functions, their ordinals and
- * function names. */
 PACKED_TYPESTRUCT(PeExportDirectory, {
     uint32_t            Flags;
     uint32_t            TimeStamp;

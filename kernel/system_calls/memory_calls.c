@@ -113,6 +113,7 @@ ScMemoryFree(
 
     // Now do the deallocation in the user-bitmap 
     // since memory is managed in userspace for speed
+    TRACE("MemoryFree(V 0x%x, L 0x%x)", Address, Size);
     if (ReleaseBlockmapRegion(Space->Context->HeapSpace, Address, Size) != OsSuccess) {
         ERROR("ScMemoryFree(Address 0x%x, Size 0x%x) was invalid", Address, Size);
         return OsError;
@@ -225,7 +226,7 @@ ScCreateMemorySpaceMapping(
         }
         return OsError;
     }
-    if (MemorySpace == NULL) {
+    if (MemorySpace == NULL || Parameters->Flags == 0) {
         return OsDoesNotExist;
     }
     
@@ -237,12 +238,15 @@ ScCreateMemorySpaceMapping(
     if (Parameters->Flags | MEMORY_EXECUTABLE) {
         RequiredFlags |= MAPPING_EXECUTABLE;
     }
-    if (!(Parameters->Flags & (MEMORY_WRITE | MEMORY_EXECUTABLE))) {
+    if (!(Parameters->Flags & MEMORY_WRITE)) {
         RequiredFlags |= MAPPING_READONLY;
     }
 
+    TRACE("CreateMemorySpaceMapping(P 0x%x, V 0x%x, L 0x%x, F 0x%x)", 
+        AccessBuffer->Dma, Parameters->VirtualAddress, Parameters->Length, RequiredFlags);
     Status = CreateMemorySpaceMapping(MemorySpace, &AccessBuffer->Dma, &Parameters->VirtualAddress,
         Parameters->Length, RequiredFlags, __MASK);
+    TRACE("=> mapped to 0x%x", AccessBuffer->Address);
     if (Status != OsSuccess) {
         ScMemoryFree(AccessBuffer->Address, AccessBuffer->Capacity);
         DestroyHandle(AccessBuffer->Handle);

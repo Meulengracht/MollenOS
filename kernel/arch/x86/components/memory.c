@@ -324,19 +324,17 @@ SetVirtualPageAttributes(
     _In_ VirtualAddress_t       Address,
     _In_ Flags_t                Flags)
 {
-    // Variabes
-    PAGE_MASTER_LEVEL *ParentDirectory;
-    PAGE_MASTER_LEVEL *Directory;
-    PageTable_t *Table;
-    uint32_t Mapping;
-    Flags_t ConvertedFlags;
-    int IsCurrent, Update;
+    PAGE_MASTER_LEVEL* ParentDirectory;
+    PAGE_MASTER_LEVEL* Directory;
+    atomic_uint*       AtomicPointer;
+    PageTable_t*       Table;
+    uint32_t           Mapping;
+    Flags_t            ConvertedFlags;
+    int                IsCurrent, Update;
 
-    ConvertedFlags  = ConvertSystemSpaceToPaging(Flags);
-    Directory       = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
-    Table           = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, ConvertedFlags, &Update);
-
-    // Does page table exist?
+    ConvertedFlags = ConvertSystemSpaceToPaging(Flags);
+    Directory      = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
+    Table          = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, ConvertedFlags, &Update);
     if (Table == NULL) {
         return OsError;
     }
@@ -349,9 +347,10 @@ SetVirtualPageAttributes(
     }
 
     // Map it, make sure we mask the page address so we don't accidently set any flags
-    Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(Address)]);
+    AtomicPointer = &Table->Pages[PAGE_TABLE_INDEX(Address)];
+    Mapping       = atomic_load(AtomicPointer);
     if (!(Mapping & PAGE_SYSTEM_MAP)) {
-        atomic_store(&Table->Pages[PAGE_TABLE_INDEX(Address)], (Mapping & PAGE_MASK) | ConvertedFlags);
+        atomic_store(AtomicPointer, (Mapping & PAGE_MASK) | ConvertedFlags);
         if (IsCurrent) {
             memory_invalidate_addr(Address);
         }
@@ -368,25 +367,24 @@ GetVirtualPageAttributes(
     _In_  VirtualAddress_t      Address,
     _Out_ Flags_t*              Flags)
 {
-    // Variabes
-    PAGE_MASTER_LEVEL *ParentDirectory;
-    PAGE_MASTER_LEVEL *Directory;
-    PageTable_t *Table;
-    int IsCurrent, Update;
-    Flags_t OriginalFlags;
+    PAGE_MASTER_LEVEL* ParentDirectory;
+    PAGE_MASTER_LEVEL* Directory;
+    atomic_uint*       AtomicPointer;
+    PageTable_t*       Table;
+    int                IsCurrent, Update;
+    Flags_t            OriginalFlags;
 
-    Directory   = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
-    Table       = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0, &Update);
-
-    // Does page table exist?
+    Directory = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
+    Table     = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0, &Update);
     if (Table == NULL) {
         return OsError;
     }
+    AtomicPointer = &Table->Pages[PAGE_TABLE_INDEX(Address)];
 
     // Map it, make sure we mask the page address so we don't accidently set any flags
     if (Flags != NULL) {
-        OriginalFlags   = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(Address)]) & ATTRIBUTE_MASK;
-        *Flags          = ConvertPagingToSystemSpace(OriginalFlags);
+        OriginalFlags = atomic_load(AtomicPointer) & ATTRIBUTE_MASK;
+        *Flags        = ConvertPagingToSystemSpace(OriginalFlags);
     }
     return OsSuccess;
 }
@@ -401,18 +399,19 @@ SetVirtualPageMapping(
     _In_ VirtualAddress_t       vAddress,
     _In_ Flags_t                Flags)
 {
-    PAGE_MASTER_LEVEL*  ParentDirectory;
-    PAGE_MASTER_LEVEL*  Directory;
-    PageTable_t*        Table;
-    uintptr_t           Mapping;
-    Flags_t             ConvertedFlags;
-    int                 Update;
-    int                 IsCurrent;
-    OsStatus_t          Status = OsSuccess;
+    PAGE_MASTER_LEVEL* ParentDirectory;
+    PAGE_MASTER_LEVEL* Directory;
+    atomic_uint*       AtomicPointer;
+    PageTable_t*       Table;
+    uintptr_t          Mapping;
+    Flags_t            ConvertedFlags;
+    int                Update;
+    int                IsCurrent;
+    OsStatus_t         Status = OsSuccess;
 
-    ConvertedFlags  = ConvertSystemSpaceToPaging(Flags);
-    Directory       = MmVirtualGetMasterTable(MemorySpace, (vAddress & PAGE_MASK), &ParentDirectory, &IsCurrent);
-    Table           = MmVirtualGetTable(ParentDirectory, Directory, (vAddress & PAGE_MASK), IsCurrent, 1, ConvertedFlags, &Update);
+    ConvertedFlags = ConvertSystemSpaceToPaging(Flags);
+    Directory      = MmVirtualGetMasterTable(MemorySpace, (vAddress & PAGE_MASK), &ParentDirectory, &IsCurrent);
+    Table          = MmVirtualGetTable(ParentDirectory, Directory, (vAddress & PAGE_MASK), IsCurrent, 1, ConvertedFlags, &Update);
 
     // For kernel mappings we would like to mark the mappings global
     if (vAddress < MEMORY_LOCATION_KERNEL_END) {
@@ -425,14 +424,15 @@ SetVirtualPageMapping(
     assert(Table != NULL);
 
     // Make sure value is not mapped already, NEVER overwrite a mapping
-    Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX((vAddress & PAGE_MASK))]);
+    AtomicPointer = &Table->Pages[PAGE_TABLE_INDEX((vAddress & PAGE_MASK))];
+    Mapping       = atomic_load(AtomicPointer);
 SyncTable:
     if (Mapping != 0) {
         if (ConvertedFlags & PAGE_PERSISTENT) {
             if (Mapping != (pAddress & PAGE_MASK)) {
                 FATAL(FATAL_SCOPE_KERNEL, 
                     "Tried to remap fixed virtual address 0x%x => 0x%x (Existing 0x%x), debug-address 0x%x", 
-                    vAddress, pAddress, Mapping, &Table->Pages[PAGE_TABLE_INDEX((vAddress & PAGE_MASK))]);
+                    vAddress, pAddress, Mapping, AtomicPointer);
             }
         }
         Status = OsExists;
@@ -440,8 +440,7 @@ SyncTable:
     }
 
     // Perform the mapping in a weak context, fast operation
-    if (!atomic_compare_exchange_weak(&Table->Pages[PAGE_TABLE_INDEX((vAddress & PAGE_MASK))], 
-        &Mapping, (pAddress & PAGE_MASK) | ConvertedFlags)) {
+    if (!atomic_compare_exchange_weak(AtomicPointer, &Mapping, (pAddress & PAGE_MASK) | ConvertedFlags)) {
         goto SyncTable;
     }
 
@@ -464,16 +463,16 @@ ClearVirtualPageMapping(
     _In_ SystemMemorySpace_t*   MemorySpace,
     _In_ VirtualAddress_t       Address)
 {
-    PAGE_MASTER_LEVEL*  ParentDirectory;
-    PAGE_MASTER_LEVEL*  Directory;
-    PageTable_t*        Table;
-    uintptr_t           Mapping;
-    int                 Update;
-    int                 IsCurrent;
+    PAGE_MASTER_LEVEL* ParentDirectory;
+    PAGE_MASTER_LEVEL* Directory;
+    atomic_uint*       AtomicPointer;
+    PageTable_t*       Table;
+    uintptr_t          Mapping;
+    int                Update;
+    int                IsCurrent;
 
-    Directory   = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
-    Table       = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0, &Update);
- 
+    Directory = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
+    Table     = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0, &Update);
     if (Table == NULL) {
         return OsError;
     }
@@ -485,13 +484,14 @@ ClearVirtualPageMapping(
     }
 
     // Load the mapping
-    Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(Address)]);
+    AtomicPointer = &Table->Pages[PAGE_TABLE_INDEX(Address)];
+    Mapping       = atomic_load(AtomicPointer);
 SyncTable:
     if (Mapping & PAGE_PRESENT) {
         if (!(Mapping & PAGE_SYSTEM_MAP)) {
             // Present, not system map
             // Perform the un-mapping in a weak context, fast operation
-            if (!atomic_compare_exchange_weak(&Table->Pages[PAGE_TABLE_INDEX(Address)], &Mapping, 0)) {
+            if (!atomic_compare_exchange_weak(AtomicPointer, &Mapping, 0)) {
                 goto SyncTable;
             }
 
@@ -518,23 +518,22 @@ GetVirtualPageMapping(
     _In_ SystemMemorySpace_t*   MemorySpace,
     _In_ VirtualAddress_t       Address)
 {
-    // Variabes
-    PAGE_MASTER_LEVEL *ParentDirectory;
-    PAGE_MASTER_LEVEL *Directory;
-    PageTable_t *Table;
-    uint32_t Mapping;
-    int IsCurrent, Update;
+    PAGE_MASTER_LEVEL* ParentDirectory;
+    PAGE_MASTER_LEVEL* Directory;
+    atomic_uint*       AtomicPointer;
+    PageTable_t*       Table;
+    uint32_t           Mapping;
+    int                IsCurrent, Update;
 
-    Directory   = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
-    Table       = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0, &Update);
- 
-    // Does page table exist?
+    Directory = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
+    Table     = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0, &Update);
     if (Table == NULL) {
         return 0;
     }
 
     // Get the address and return with proper offset
-    Mapping = atomic_load(&Table->Pages[PAGE_TABLE_INDEX(Address)]);
+    AtomicPointer = &Table->Pages[PAGE_TABLE_INDEX(Address)];
+    Mapping       = atomic_load(AtomicPointer);
 
     // Make sure we still return 0 if the mapping is indeed 0
     if ((Mapping & PAGE_MASK) == 0 || !(Mapping & PAGE_PRESENT)) {

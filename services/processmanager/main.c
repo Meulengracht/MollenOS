@@ -273,6 +273,14 @@ OnEvent(
 
         case __PROCESSMANAGER_CRASH_REPORT: {
             // so far what do, we need to specify a report structure
+            Process_t* Process      = AcquireProcess(RPC->From.Process);
+            Context_t* CrashContext = RPCGetPointerArgument(RPC, 0);
+            int        CrashReason  = (int)RPC->Arguments[1].Data.Value;
+            OsStatus_t Result       = OsDoesNotExist;
+            if (Process != NULL) {
+                Result = HandleProcessCrashReport(Process, CrashContext, CrashReason);
+            }
+            Handled = RPCRespond(&RPC->From, (const void*)&Result, sizeof(OsStatus_t));
         }
         
         default: {

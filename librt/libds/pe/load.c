@@ -77,6 +77,14 @@ GetSectionFromRVA(
             return &SectionMappings[i];
         }
     }
+
+    // Debug why this happens
+    dserror("GetSectionFromRVA(0x%x) => error segment not found", RVA);
+    for (i = 0; i < SectionCount; i++) {
+        uintptr_t SectionStart = SectionMappings[i].RVA;
+        uintptr_t SectionEnd   = SectionMappings[i].RVA + SectionMappings[i].Size;
+        dswarning("section(%i) => 0x%x, 0x%x", i, SectionStart, SectionEnd);
+    }
     assert(0);
     return NULL;
 }
@@ -193,7 +201,7 @@ PeHandleSections(
         // Store first code segment we encounter
         if (Section->Flags & PE_SECTION_CODE) {
             if (Image->CodeBase == 0) {
-                Image->CodeBase = (uintptr_t)Destination;
+                Image->CodeBase = (uintptr_t)Image->VirtualAddress + Section->VirtualAddress;
                 Image->CodeSize = Section->VirtualSize;
             }
         }
@@ -203,15 +211,23 @@ PeHandleSections(
         // Code: Copy memory 
         // Data: Copy memory
         if (Section->RawSize == 0 || (Section->Flags & PE_SECTION_BSS)) {
+            dswarning("section(%i): clearing %u bytes => 0x%x (0x%x, 0x%x)", i, Section->VirtualSize, Destination,
+                Image->VirtualAddress + Section->VirtualAddress, PageFlags);
             memset(Destination, 0, Section->VirtualSize);
         }
         else if ((Section->Flags & PE_SECTION_CODE) || (Section->Flags & PE_SECTION_DATA)) {
+            dswarning("section(%i): copying %u bytes 0x%x => 0x%x (0x%x, 0x%x)", i, 
+                Section->RawSize, FileBuffer, Destination,
+                Image->VirtualAddress + Section->VirtualAddress, PageFlags);
             memcpy(Destination, FileBuffer, Section->RawSize);
 
             // Sanitize this special case, if the virtual size
             // is large, this means there needs to be zeroed space afterwards
             if (Section->VirtualSize > Section->RawSize) {
-                memset((Destination + Section->RawSize), 0, (Section->VirtualSize - Section->RawSize));
+                Destination += Section->RawSize;
+                dswarning("section(%i): clearing %u bytes => 0x%x (0x%x, 0x%x)", i, Section->VirtualSize - Section->RawSize, 
+                    Destination, Image->VirtualAddress + Section->VirtualAddress, PageFlags);
+                memset(Destination, 0, (Section->VirtualSize - Section->RawSize));
             }
         }
         CurrentAddress = (Image->VirtualAddress + Section->VirtualAddress + SectionSize);
@@ -308,8 +324,6 @@ PeResolveImportDescriptor(
     return OsSuccess;
 }
 
-/* PeHandleRelocations
- * Initializes and handles the code relocations in the pe image */
 OsStatus_t
 PeHandleRelocations(
     _In_ PeExecutable_t*    ParentImage,
@@ -319,75 +333,81 @@ PeHandleRelocations(
     _In_ uint8_t*           DirectoryContent,
     _In_ size_t             DirectorySize)
 {
-    uint32_t          BytesLeft     = DirectorySize;
-    uint32_t*         RelocationPtr = (uint32_t*)DirectoryContent;
-    uint16_t*         RelocationEntryPtr;
-    SectionMapping_t* Section;
-    uintptr_t         SectionBase;
-    uint8_t*          AdvancePtr;
-    uint32_t          i;
+    uint32_t  BytesLeft         = DirectorySize;
+    uint32_t* RelocationPointer = (uint32_t*)DirectoryContent;
+    uintptr_t ImageDelta        = Image->VirtualAddress - Image->OriginalImageBase;
+    uint32_t  i;
+
+    // Sanitize the image delta
+    if (ImageDelta == 0) {
+        return OsSuccess;
+    }
 
     while (BytesLeft > 0) {
-        uint32_t  PageRVA     = *(RelocationPtr++);
-        uint32_t  BlockSize   = *(RelocationPtr++);
-        uint32_t  NumRelocs;
+        uint16_t*         RelocationTable;
+        uint32_t          NumRelocs;
+        SectionMapping_t* Section;
+        uintptr_t         SectionBase;
+
+        // Get the next block
+        uint32_t  PageRVA   = RelocationPointer[0];
+        uint32_t  BlockSize = RelocationPointer[1];
+        if (PageRVA == 0) {
+            dserror("Invalid relocation data: PageRVA is 0");
+            assert(0);
+        }
 
         Section     = GetSectionFromRVA(Sections, SectionCount, PageRVA);
         SectionBase = OFFSET_IN_SECTION(Section, PageRVA);
 
         if (BlockSize > BytesLeft) {
             dserror("Invalid relocation data: BlockSize > BytesLeft, bailing");
-            return OsError;
+            assert(0);
         }
 
-        BytesLeft -= BlockSize;
         if (BlockSize == 0) {
             dserror("Invalid relocation data: BlockSize == 0, bailing");
-            return OsError;
+            assert(0);
         }
-        NumRelocs          = (BlockSize - 8) / sizeof(uint16_t);
-        RelocationEntryPtr = (uint16_t*)RelocationPtr;
+        NumRelocs       = (BlockSize - 8) / sizeof(uint16_t);
+        RelocationTable = (uint16_t*)&RelocationPointer[2];
 
         for (i = 0; i < NumRelocs; i++) {
-            uint16_t RelocationEntry = *RelocationEntryPtr;
+            uint16_t RelocationEntry = RelocationTable[i];
             uint16_t Type            = (RelocationEntry >> 12);
             uint16_t Value           = RelocationEntry & 0x0FFF;
             
             // 32/64 Bit Relative
             if (Type == PE_RELOCATION_HIGHLOW || Type == PE_RELOCATION_RELATIVE64) { 
                 // Create a pointer, the low 12 bits have an offset into the PageRVA
-                uintptr_t Address          = SectionBase + Value;
-                uintptr_t UpdatedImageBase = Image->VirtualAddress;
-
-                // Handle relocation
-                if (UpdatedImageBase >= Image->OriginalImageBase) {
-                    uintptr_t Delta       = (uintptr_t)(UpdatedImageBase - Image->OriginalImageBase);
-                    *((uintptr_t*)Address) += Delta;
+                volatile uintptr_t* AddressPointer = (volatile uintptr_t*)(SectionBase + Value);
+                uintptr_t           UpdatedAddress = *AddressPointer + ImageDelta;
+                if (UpdatedAddress < Image->VirtualAddress || UpdatedAddress >= 0x30000000) {
+                    dserror("%s: Rel %u, Value %u (%u/%u)", MStringRaw(Image->Name), Type, Value, i, NumRelocs);
+                    dserror("PageRVA 0x%x of SectionRVA 0x%x. Current blocksize %u", PageRVA, Section->RVA, BlockSize);
+                    dserror("Section 0x%x, SectionAddress 0x%x, Address 0x%x, Value 0x%x", 
+                        Section->BasePointer, SectionBase, AddressPointer, *AddressPointer);
+                    dserror("Relocation caused invalid pointer: 0x%x, 0x%x, New Base 0x%x, Old Base 0x%x",
+                        UpdatedAddress, ImageDelta, Image->VirtualAddress, Image->OriginalImageBase);
+                    assert(0);
                 }
-                else {
-                    uintptr_t Delta       = (uintptr_t)(Image->OriginalImageBase - UpdatedImageBase);
-                    *((uintptr_t*)Address) -= Delta;
-                }
+                *AddressPointer = UpdatedAddress;
             }
             else if (Type == PE_RELOCATION_ALIGN) {
                 // End of alignment
+                break;
             }
             else {
                 dserror("Implement support for reloc type: %u", Type);
-                for (;;);
+                assert(0);
             }
-            RelocationEntryPtr++;
         }
-
-        AdvancePtr    = (uint8_t*)RelocationPtr;
-        AdvancePtr    += (BlockSize - 8);
-        RelocationPtr = (uint32_t*)AdvancePtr;
+        RelocationPointer += (BlockSize / sizeof(uint32_t));
+        BytesLeft         -= BlockSize;
     }
     return OsSuccess;
 }
 
-/* PeHandleExports
- * Parses the exporst that the pe image provides and caches the list */
 OsStatus_t
 PeHandleExports(
     _In_ PeExecutable_t*    ParentImage,
@@ -410,7 +430,23 @@ PeHandleExports(
         MStringRaw(Image->Name), DirectoryContent, DirectorySize);
 
     // The following tables are the access we need
-    ExportTable           = (PeExportDirectory_t*)DirectoryContent;
+    ExportTable = (PeExportDirectory_t*)DirectoryContent;
+    if (ExportTable->AddressOfFunctions == 0) {
+        int Index = 0;
+        dswarning("Export table present, but address of functions table is zero.");
+        dswarning("ExportTable(0x%x, %u) => Size of Directory %u", 
+            ExportTable->Flags, ExportTable->NumberOfFunctions, DirectorySize);
+        for (i = 0; i < 4; i++, Index += 16) {
+            dswarning("%x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x", DirectoryContent[Index],
+                DirectoryContent[Index + 1], DirectoryContent[Index + 2], DirectoryContent[Index + 3],
+                DirectoryContent[Index + 4], DirectoryContent[Index + 5], DirectoryContent[Index + 6],
+                DirectoryContent[Index + 7], DirectoryContent[Index + 8], DirectoryContent[Index + 9],
+                DirectoryContent[Index + 10], DirectoryContent[Index + 11], DirectoryContent[Index + 12],
+                DirectoryContent[Index + 13], DirectoryContent[Index + 14], DirectoryContent[Index + 15]);
+        }
+        return OsError;
+    }
+
     Section               = GetSectionFromRVA(Sections, SectionCount, ExportTable->AddressOfFunctions);
     FunctionNamesTable    = (uint32_t*)OFFSET_IN_SECTION(Section, ExportTable->AddressOfNames);
     FunctionOrdinalsTable = (uint16_t*)OFFSET_IN_SECTION(Section, ExportTable->AddressOfOrdinals);
@@ -418,30 +454,40 @@ PeHandleExports(
     OrdinalBase           = ExportTable->OrdinalBase;
 
     // Allocate array for exports
-    Image->NumberOfExportedFunctions = (int)ExportTable->NumberOfFunctions;
-    Image->ExportedFunctions         = (PeExportedFunction_t*)dsalloc(sizeof(PeExportedFunction_t) * ExportTable->NumberOfFunctions);
-    memset(Image->ExportedFunctions, 0, sizeof(PeExportedFunction_t) * ExportTable->NumberOfFunctions);
+    Image->NumberOfExportedFunctions = (int)ExportTable->NumberOfNames;
+    Image->ExportedFunctions         = (PeExportedFunction_t*)dsalloc(sizeof(PeExportedFunction_t) * Image->NumberOfExportedFunctions);
+    memset(Image->ExportedFunctions, 0, sizeof(PeExportedFunction_t) * Image->NumberOfExportedFunctions);
 
     // Fill the exported list, we export all the function addresses first with ordinals, and get
     // an idea of how much space we need to store names of each function
-    dstrace("Number of functions to iterate: %u", ExportTable->NumberOfFunctions);
+    dstrace("Number of functions to iterate: %u", Image->NumberOfExportedFunctions);
     FunctionNameLengths = 0;
     for (i = 0; i < Image->NumberOfExportedFunctions; i++) {
-        PeExportedFunction_t* ExFunc = &Image->ExportedFunctions[i];
-        ExFunc->Address              = (uintptr_t)(Image->VirtualAddress + FunctionAddressTable[i]);
-        if (i < ExportTable->NumberOfNames) {
-            uintptr_t NameAddress = OFFSET_IN_SECTION(Section, FunctionNamesTable[i]);
-            FunctionNameLengths  += strlen((const char*)NameAddress) + 1;
-        }
+        PeExportedFunction_t* ExFunc      = &Image->ExportedFunctions[i];
+        uintptr_t             NameAddress = OFFSET_IN_SECTION(Section, FunctionNamesTable[i]);
 
-        // @todo support forwarded names
+        // Count up the number of bytes we need for a name buffer
+        ExFunc->Ordinal      = FunctionOrdinalsTable[i] - OrdinalBase;
+        ExFunc->Address      = (uintptr_t)(Image->VirtualAddress + FunctionAddressTable[ExFunc->Ordinal]);
+
+        // Handle forwarded names
         if (ExFunc->Address >= (uintptr_t)DirectoryContent &&
             ExFunc->Address < ((uintptr_t)DirectoryContent + DirectorySize)) {
-            uintptr_t NameAddress = OFFSET_IN_SECTION(Section, FunctionAddressTable[i]);
-            //FunctionNameLengths  += strlen((const char*)NameAddress) + 1;
-            dserror("(%s): Ordinal %i is forwarded as %s, this is not supported yet", 
-                MStringRaw(Image->Name), i, (const char*)NameAddress);
+            NameAddress = OFFSET_IN_SECTION(Section, FunctionAddressTable[i]);
         }
+        else {
+            uintptr_t MaxImageValue = (ParentImage == NULL) ? Image->NextLoadingAddress : ParentImage->NextLoadingAddress; 
+            if (!ISINRANGE(ExFunc->Address, Image->CodeBase, MaxImageValue)) {
+                dserror("%s: Address 0x%x (Table RVA value: 0x%x), %i", 
+                    MStringRaw(Image->Name), ExFunc->Address, FunctionAddressTable[ExFunc->Ordinal], i);
+                dserror("The function to export was located outside the image code boundaries (0x%x => 0x%x)",
+                    Image->CodeBase, MaxImageValue);
+                dserror("ExportTable->NumberOfFunctions [%u]", ExportTable->NumberOfFunctions);
+                dserror("ExportTable->AddressOfFunctions [0x%x]", ExportTable->AddressOfFunctions);
+                assert(0);
+            }
+        }
+        FunctionNameLengths += strlen((const char*)NameAddress) + 1;
     }
 
     // Allocate name array
@@ -449,15 +495,23 @@ PeHandleExports(
     Image->ExportedFunctionNames = (char*)dsalloc(FunctionNameLengths);
     FunctionNameLengths          = 0;
     for (i = 0; i < ExportTable->NumberOfNames; i++) {
-        uintptr_t             NameAddress    = OFFSET_IN_SECTION(Section, FunctionNamesTable[i]);
-        int                   Ordinal        = (int)FunctionOrdinalsTable[i];
-        PeExportedFunction_t* ExFunc         = &Image->ExportedFunctions[Ordinal - OrdinalBase];
-        size_t                FunctionLength = strlen((const char*)NameAddress) + 1;
-        char*                 Name           = &Image->ExportedFunctionNames[FunctionNameLengths];
+        PeExportedFunction_t* ExFunc     = &Image->ExportedFunctions[i];
+        char*                 NameBuffer = &Image->ExportedFunctionNames[FunctionNameLengths];
+        uintptr_t             NameAddress;
+        size_t                FunctionLength;
 
-        memcpy(Name, (const char*)NameAddress, FunctionLength);
-        ExFunc->Name         = Name;
-        ExFunc->Ordinal      = Ordinal;
+        // Handle the forwarded names
+        if (ExFunc->Address >= (uintptr_t)DirectoryContent &&
+            ExFunc->Address < ((uintptr_t)DirectoryContent + DirectorySize)) {
+            NameAddress = OFFSET_IN_SECTION(Section, FunctionAddressTable[i]);
+        }
+        else {
+            NameAddress = OFFSET_IN_SECTION(Section, FunctionNamesTable[i]);
+        }
+        FunctionLength = strlen((const char*)NameAddress) + 1;
+
+        memcpy(NameBuffer, (const char*)NameAddress, FunctionLength);
+        ExFunc->Name         = NameBuffer;
         FunctionNameLengths += FunctionLength;
     }
     return OsSuccess;
@@ -531,12 +585,19 @@ PeParseAndMapImage(
     for (i = 0; i < SectionCount; i++) {
         uintptr_t SectionStart = SectionMappings[i].RVA;
         uintptr_t SectionEnd   = SectionMappings[i].RVA + SectionMappings[i].Size;
+        dswarning("section(%i, 0x%x): 0x%x => 0x%x", i, SectionMappings[i].RVA,
+            SectionMappings[i].BasePointer, SectionMappings[i].BasePointer + SectionMappings[i].Size);
         for (j = 0; j < PE_NUM_DIRECTORIES; j++) {
-            if (Directories[j].AddressRVA >= SectionStart &&
-                (Directories[j].AddressRVA + Directories[j].Size) <= SectionEnd) {
-                // Directory is contained in this section
-                dstrace("Directory[%i] located in Section[%i]", j, i);
-                DirectoryContents[j] = SectionMappings[i].BasePointer + (Directories[j].AddressRVA - SectionStart);
+            if (Directories[j].AddressRVA == 0 || Directories[j].Size == 0) {
+                continue;
+            }
+            if (DirectoryContents[j] == NULL) {
+                if (Directories[j].AddressRVA >= SectionStart &&
+                    (Directories[j].AddressRVA + Directories[j].Size) <= SectionEnd) {
+                    // Directory is contained in this section
+                    DirectoryContents[j] = SectionMappings[i].BasePointer + (Directories[j].AddressRVA - SectionStart);
+                    dswarning("directory(%i, 0x%x): 0x%x", j, Directories[j].AddressRVA, DirectoryContents[j]);
+                }
             }
         }
     }
@@ -699,6 +760,7 @@ PeLoadImage(
     Image->Libraries         = CollectionCreate(KeyInteger);
     Image->References        = 1;
     Image->OriginalImageBase = ImageBase;
+    dswarning("library (%s) => 0x%x", MStringRaw(Image->Name), Image->VirtualAddress);
 
     // Set the entry point if there is any
     if (OptHeader->EntryPoint != 0) {

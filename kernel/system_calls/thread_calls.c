@@ -159,3 +159,15 @@ ScThreadGetCurrentName(char *ThreadNameBuffer, size_t MaxLength)
     strncpy(ThreadNameBuffer, Thread->Name, MaxLength);
     return OsSuccess;
 }
+
+OsStatus_t
+ScThreadGetContext(
+    _In_ Context_t* ContextOut)
+{
+    MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    if (Thread == NULL || Thread->ActiveSignal.Context == NULL) {
+        return OsError;
+    }
+    memcpy(ContextOut, Thread->ActiveSignal.Context, sizeof(Context_t));
+    return OsSuccess;
+}

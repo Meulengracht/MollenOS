@@ -18,7 +18,7 @@
  *
  * CRT Functions 
  */
-#define __TRACE
+//#define __TRACE
 
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
@@ -45,12 +45,14 @@ extern void               StdioCleanup(void);
 extern void               tls_atexit(_In_ thrd_t thr, _In_ void (*Function)(void*), _In_ void* Argument, _In_ void* DsoHandle);
 extern void               tls_atexit_quick(_In_ thrd_t thr, _In_ void (*Function)(void*), _In_ void* Argument, _In_ void* DsoHandle);
 
+static int      CleanupPerformed               = 0;
 static Handle_t ModuleList[PROCESS_MAXMODULES] = { 0 };
-static void   (*PrimaryApplicationFinalizers)(void);
-static void   (*PrimaryApplicationTlsAttach)(void);
+static void   (*__cxa_primary_cleanup)(void);
+static void   (*__cxa_primary_tls_thread_init)(void);
 
 CRTDECL(void, __cxa_callinitializers(_PVFV *pfbegin, _PVFV *pfend))
 {
+    TRACE("__cxa_callinitializers()");
     while (pfbegin < pfend) {
         if (*pfbegin != NULL)
             (**pfbegin)();
@@ -60,6 +62,7 @@ CRTDECL(void, __cxa_callinitializers(_PVFV *pfbegin, _PVFV *pfend))
 
 CRTDECL(int, __cxa_callinitializers_ex(_PIFV *pfbegin, _PIFV *pfend))
 {
+    TRACE("__cxa_callinitializers_ex()");
     int ret = 0;
     while (pfbegin < pfend  && ret == 0) {
         if (*pfbegin != NULL)
@@ -89,6 +92,12 @@ __cxa_exithandlers(
     _In_ int DoAtExit,
     _In_ int CleanupCrt)
 {
+    // Avoid recursive calls or anything to this
+    if (CleanupPerformed != 0) {
+        return;
+    }
+    CleanupPerformed = 1;
+
     // Run crt for primary application
     if (CleanupCrt != 0) {
         if (!Quick) { tls_cleanup(thrd_current(), NULL, Status); tls_cleanup(UUID_INVALID, NULL, Status); }
@@ -105,7 +114,7 @@ __cxa_exithandlers(
                 ((void (*)(int))ModuleList[i])(DLL_ACTION_FINALIZE);
             }
             // Cleanup primary app
-            PrimaryApplicationFinalizers();
+            __cxa_primary_cleanup();
         }
     }
 
@@ -120,6 +129,7 @@ __cxa_exithandlers(
  * Retrieves a list of entry points for loaded libraries. */
 OsStatus_t __cxa_getentrypoints(Handle_t LibraryList[PROCESS_MAXMODULES])
 {
+    TRACE("__cxa_getentrypoints()");
     if (IsProcessModule()) {
         return Syscall_ModuleGetModuleEntryPoints(LibraryList);
     }
@@ -133,6 +143,7 @@ CRTDECL(void, __cxa_runinitializers(
     _In_ void (*Finalizer)(void), 
     _In_ void (*TlsAttachFunction)(void)))
 {
+    TRACE("__cxa_runinitializers()");
     fpreset();
     if (__cxa_getentrypoints(ModuleList) == OsSuccess) {
         for (int i = 0; i < PROCESS_MAXMODULES; i++) {
@@ -145,14 +156,15 @@ CRTDECL(void, __cxa_runinitializers(
 
     // Run callers initializer
     Initializer();
-    PrimaryApplicationFinalizers = Finalizer;
-    PrimaryApplicationTlsAttach  = TlsAttachFunction;
+    __cxa_primary_cleanup         = Finalizer;
+    __cxa_primary_tls_thread_init = TlsAttachFunction;
 }
 
 /* __cxa_threadinitialize
  * Initializes thread storage runtime for all loaded modules */
 CRTDECL(void, __cxa_threadinitialize(void))
 {
+    TRACE("__cxa_threadinitialize()");
     fpreset();
     if ((ModuleList[0] != 0) || (__cxa_getentrypoints(ModuleList) == OsSuccess)) {
         for (int i = 0; i < PROCESS_MAXMODULES; i++) {
@@ -162,7 +174,7 @@ CRTDECL(void, __cxa_threadinitialize(void))
             ((void (*)(int))ModuleList[i])(DLL_ACTION_THREADATTACH);
         }
     }
-    PrimaryApplicationTlsAttach();
+    __cxa_primary_tls_thread_init();
 }
 
 /* __cxa_finalize
@@ -170,6 +182,7 @@ CRTDECL(void, __cxa_threadinitialize(void))
  * are specific to the calling thread and also for the entire process. */
 CRTDECL(void, __cxa_finalize(void *Dso))
 {
+    TRACE("__cxa_finalize()");
     tls_cleanup(thrd_current(), Dso, 0);
     tls_cleanup(UUID_INVALID, Dso, 0);
 }

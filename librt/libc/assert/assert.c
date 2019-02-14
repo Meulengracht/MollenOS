@@ -19,7 +19,6 @@
 * MollenOS C-Library - Assert
 */
 
-/* Includes */
 #include <assert.h>
 
 #ifdef LIBC_KERNEL
@@ -32,7 +31,6 @@ void _assert_panic(const char* str) {
 #include <ddk/utils.h>
 #include <stdlib.h>
 
-/* Redirect output and exit thread */
 void _assert_panic(const char* str)
 {
 	ERROR(str);

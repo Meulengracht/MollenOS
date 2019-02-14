@@ -95,6 +95,7 @@ public:
         int Errors  = 0;
         m_Stdout    = pipe();
         std::thread stdout_listener(&ProcessTests::StdoutListener, this);
+        stdout_listener.detach();
 
         Errors += TestSpawnProcess("macia.app");
         Errors += TestSpawnInvalidProcess();

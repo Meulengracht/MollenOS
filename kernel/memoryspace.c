@@ -419,6 +419,7 @@ CreateMemorySpaceMapping(
 
                 // Never unmap fixed-physical pages, this is important
                 if (!(Flags & MAPPING_PROVIDED)) {
+                    WARNING("freed: 0x%x", PhysicalPage);
                     FreeSystemMemory(PhysicalPage, GetMemorySpacePageSize());
                 }
 
@@ -500,10 +501,9 @@ RemoveMemorySpaceMapping(
     _In_ size_t                 Size)
 {
     OsStatus_t Status;
-    int PageCount = DIVUP(Size, GetMemorySpacePageSize());
-    int i;
+    int        PageCount = DIVUP(Size, GetMemorySpacePageSize());
+    int        i;
 
-    // Sanitize address space
     assert(SystemMemorySpace != NULL);
 
     for (i = 0; i < PageCount; i++) {
@@ -522,9 +522,6 @@ RemoveMemorySpaceMapping(
     return OsSuccess;
 }
 
-/* GetMemorySpaceMapping
- * Retrieves a physical mapping from an address space determined
- * by the virtual address given */
 PhysicalAddress_t
 GetMemorySpaceMapping(
     _In_ SystemMemorySpace_t*   SystemMemorySpace, 
@@ -532,6 +529,19 @@ GetMemorySpaceMapping(
 {
     assert(SystemMemorySpace != NULL);
     return GetVirtualPageMapping(SystemMemorySpace, VirtualAddress);
+}
+
+Flags_t
+GetMemorySpaceAttributes(
+    _In_ SystemMemorySpace_t* SystemMemorySpace, 
+    _In_ VirtualAddress_t     VirtualAddress)
+{
+    Flags_t Attributes;
+    assert(SystemMemorySpace != NULL);
+    if (GetVirtualPageAttributes(SystemMemorySpace, VirtualAddress, &Attributes) != OsSuccess) {
+        return 0;
+    }
+    return Attributes;
 }
 
 /* IsMemorySpacePageDirty
