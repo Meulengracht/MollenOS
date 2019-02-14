@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.8.2)
 project (Vali)
 
 # Setup options and defaults
@@ -12,7 +12,7 @@ set (VALI_PATH_INITRD ${CMAKE_BINARY_DIR}/initrd)
 set (VALI_PROJECTS "")
 
 # Compile native tools needed to build the final image
-
+add_subdirectory (tools)
 
 # Configure compilation
 include (config/${VALI_PLATFORM}/PlatformConfig.cmake)

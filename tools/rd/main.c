@@ -8,10 +8,15 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#ifdef _MSC_VER
+#include "dirent.h"
+#define PACKED_TYPESTRUCT(name, body) __pragma(pack(push, 1)) typedef struct _##name body name##_t __pragma(pack(pop))
+#else
 #include <dirent.h>
+#define PACKED_TYPESTRUCT(name, body) typedef struct __attribute__((packed)) _##name body name##_t
+#endif
 #include <sys/stat.h>
 
-#define PACKED_TYPESTRUCT(name, body) typedef struct __attribute__((packed)) _##name body name##_t
 #define POLYNOMIAL 0x04c11db7L      // Standard CRC-32 ppolynomial
 
 PACKED_TYPESTRUCT(BitmapFileHeader, {
