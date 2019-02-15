@@ -11,6 +11,10 @@ set (VALI_PATH_DEPLOY ${CMAKE_BINARY_DIR}/deploy)
 set (VALI_PATH_INITRD ${CMAKE_BINARY_DIR}/initrd)
 set (VALI_PROJECTS "")
 
+# Create neccessary directories
+file(MAKE_DIRECTORY ${VALI_PATH_DEPLOY})
+file(MAKE_DIRECTORY ${VALI_PATH_INITRD})
+
 # Compile native tools needed to build the final image
 add_subdirectory (tools)
 
