@@ -100,6 +100,11 @@ static uintptr_t AllocateVirtualMemory(size_t PageCount)
     return (uintptr_t)malloc(4096 * PageCount);
 }
 
+static void FreeVirtualMemory(uintptr_t Address, size_t PageCount)
+{
+    free(Address);
+}
+
 static void slab_initalize_objects(MemoryCache_t* Cache, MemorySlab_t* Slab)
 {
     uintptr_t Address = (uintptr_t)Slab->Address;
@@ -127,12 +132,7 @@ static void slab_destroy_objects(MemoryCache_t* Cache, MemorySlab_t* Slab)
         if (Cache->ObjectDestructor) {
             Cache->ObjectDestructor(Cache, (void*)Address);
         }
-
-        Address += Cache->ObjectSize;
-        if (Cache->Flags & MEMORY_DEBUG_OVERRUN) {
-            *((uint32_t*)Address) = MEMORY_OVERRUN_PATTERN;
-        }
-        Address += Cache->ObjectPadding;
+        Address += Cache->ObjectSize + Cache->ObjectPadding;
     }
 }
 
@@ -143,9 +143,14 @@ static MemorySlab_t* slab_create(MemoryCache_t* Cache)
     uintptr_t     DataAddress = AllocateVirtualMemory(Cache->PageCount);
     if (Cache->SlabOnSite) {
         Slab = (MemorySlab_t*)DataAddress;
+        ObjectAddress = DataAddress + Cache->SlabStructureSize;
+        if (Cache->ObjectAlignment != 0 && (ObjectAddress % Cache->ObjectAlignment)) {
+            ObjectAddress += Cache->ObjectAlignment - (ObjectAddress % Cache->ObjectAlignment);
+        }
     }
     else {
-        Slab = (MemorySlab_t*)kmalloc(sizeof(MemorySlab_t));
+        Slab = (MemorySlab_t*)kmalloc(Cache->SlabStructureSize);
+        ObjectAddress = DataAddress;
     }
 
     // Handle debug flags
@@ -155,14 +160,22 @@ static MemorySlab_t* slab_create(MemoryCache_t* Cache)
     memset(Slab, 0, Cache->SlabStructureSize);
 
     // Initialize slab
-    ObjectAddress = DataAddress + Cache->SlabStructureSize;
-    if (Cache->ObjectAlignment != 0 && (ObjectAddress % Cache->ObjectAlignment)) {
-        ObjectAddress += Cache->ObjectAlignment - (ObjectAddress % Cache->ObjectAlignment);
-    }
-    Slab->FreeBitmap = (uint32_t*)(DataAddress + sizeof(MemorySlab_t));
+    Slab->FreeBitmap = (uint32_t*)((uintptr_t)Slab + sizeof(MemorySlab_t));
     Slab->Address = (uintptr_t*)ObjectAddress;
     slab_initalize_objects(Cache, Slab);
     return Slab;
+}
+
+static void slab_destroy(MemoryCache_t* Cache, MemorySlab_t* Slab)
+{
+    slab_destroy_objects(Cache, Slab);
+    if (!Cache->SlabOnSite) {
+        FreeVirtualMemory((uintptr_t)Slab->Address, Cache->PageCount);
+        kfree(Slab);
+    }
+    else {
+        FreeVirtualMemory((uintptr_t)Slab, Cache->PageCount);
+    }
 }
 
 static inline size_t slab_calculate_structure_size(size_t ObjectsPerSlab)
