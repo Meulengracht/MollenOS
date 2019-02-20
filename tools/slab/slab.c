@@ -48,7 +48,7 @@ typedef struct {
 } MemoryAtomicCache_t;
 
 typedef struct MemoryCache {
-    const char*  CacheName;
+    const char*  Name;
     Spinlock_t   SyncObject;
     Flags_t      Flags;
 
@@ -73,6 +73,7 @@ typedef struct MemoryCache {
 #define MEMORY_DEBUG_USE_AFTER_FREE  0x1
 #define MEMORY_DEBUG_OVERRUN         0x2
 
+void  MemoryCacheInitialize(void);
 MemoryCache_t* MemoryCacheCreate(const char* Name, size_t ObjectSize, size_t ObjectAlignment,
     Flags_t Flags, void(*ObjectConstructor)(struct MemoryCache*, void*), void(*ObjectDestructor)(struct MemoryCache*, void*));
 void* MemoryCacheAllocate(MemoryCache_t* Cache);
@@ -91,11 +92,12 @@ void  kfree(void* Object);
 #define MEMORY_ATOMIC_CACHE(Cache, Core)            (MemoryAtomicCache_t*)(Cache->AtomicCaches + (Core * (sizeof(MemoryAtomicCache_t) + (Cache->ObjectCount * sizeof(void*)))))
 #define MEMORY_ATOMIC_ELEMENT(AtomicCache, Element) ((uintptr_t**)((uintptr_t)AtomicCache + sizeof(MemoryAtomicCache_t) + (Element * sizeof(void*))))
 
+static MemoryCache_t InitialCache = { 0 };
 static struct FixedCache {
     size_t         ObjectSize;
-    const char*    CacheName;
+    const char*    Name;
     MemoryCache_t* Cache;
-} DefaultCaches[14] = {
+} DefaultCaches[] = {
     { 32,     "size32_cache",     NULL },
     { 64,     "size64_cache",     NULL },
     { 128,    "size128_cache",    NULL },
@@ -111,11 +113,25 @@ static struct FixedCache {
     { 131072, "size131072_cache", NULL },
     { 0,      NULL,               NULL }
 };
-static MemoryCache_t InitialCache = {
-    "cache_cache", NULL, 0, sizeof(MemoryCache_t), 0, 0, 0, 0, 0,
-    NULL, NULL, 0, 0, NULL, NULL, NULL, 0
-    // cctor, dctor
-};
+
+static int slab_allocate_index(MemoryCache_t* Cache, MemorySlab_t* Slab)
+{
+    int i;
+    for (i = 0; i < (int)Cache->ObjectCount; i++) {
+        if (!(Slab->FreeBitmap[i / 32] & (1 << (i % 32)))) {
+            Slab->FreeBitmap[i / 32] |= (1 << (i % 32));
+            return i;
+        }
+    }
+    return -1;
+}
+
+static void slab_free_index(MemoryCache_t* Cache, MemorySlab_t* Slab, int Index)
+{
+    if (Index < (int)Cache->ObjectCount) {
+        Slab->FreeBitmap[Index / 32] &= ~(1 << (Index % 32));
+    }
+}
 
 static int slab_contains_address(MemoryCache_t* Cache, MemorySlab_t* Slab, uintptr_t Address)
 {
@@ -351,9 +367,7 @@ static void cache_construct(MemoryCache_t* Cache, const char* Name, size_t Objec
         ObjectPadding += ObjectAlignment - ((ObjectSize + ObjectPadding) % ObjectAlignment);
     }
 
-    // Setup defaults for memory cache
-    memset(Cache, 0, sizeof(MemoryCache_t));
-    Cache->CacheName = Name;
+    Cache->Name = Name;
     Cache->Flags = Flags;
     Cache->ObjectSize = ObjectSize;
     Cache->ObjectAlignment = ObjectAlignment;
@@ -367,6 +381,7 @@ MemoryCache_t* MemoryCacheCreate(const char* Name, size_t ObjectSize, size_t Obj
     Flags_t Flags, void(*ObjectConstructor)(struct MemoryCache*, void*), void(*ObjectDestructor)(struct MemoryCache*, void*))
 {
     MemoryCache_t* Cache = (MemoryCache_t*)MemoryCacheAllocate(&InitialCache);
+    memset(Cache, 0, sizeof(MemoryCache_t));
 
     // Initialize lists and spinlock
 
@@ -388,25 +403,6 @@ void MemoryCacheDestroy(MemoryCache_t* Cache)
 
 
     MemoryCacheFree(&InitialCache, Cache);
-}
-
-static int slab_allocate_index(MemoryCache_t* Cache, MemorySlab_t* Slab)
-{
-    int i;
-    for (i = 0; i < (int)Cache->ObjectCount; i++) {
-        if (!(Slab->FreeBitmap[i / 32] & (1 << (i % 32)))) {
-            Slab->FreeBitmap[i / 32] |= (1 << (i % 32));
-            return i;
-        }
-    }
-    return -1;
-}
-
-static void slab_free_index(MemoryCache_t* Cache, MemorySlab_t* Slab, int Index)
-{
-    if (Index < (int)Cache->ObjectCount) {
-        Slab->FreeBitmap[Index / 32] &= ~(1 << (Index % 32));
-    }
 }
 
 void* MemoryCacheAllocate(MemoryCache_t* Cache)
@@ -466,7 +462,7 @@ void* kmalloc(size_t Size)
 
     // If the cache does not exist, we must create it
     if (Selected->Cache == NULL) {
-        MemoryCacheCreate(Selected->CacheName, Selected->ObjectSize, 0, 0, NULL, NULL);
+        Selected->Cache = MemoryCacheCreate(Selected->Name, Selected->ObjectSize, Selected->ObjectSize, 0, NULL, NULL);
     }
     return MemoryCacheAllocate(Selected->Cache);
 }
@@ -489,6 +485,11 @@ void kfree(void* Object)
     MemoryCacheFree(Selected->Cache, Object);
 }
 
+void MemoryCacheInitialize(void)
+{
+    cache_construct(&InitialCache, "cache_cache", sizeof(MemoryCache_t), 32, 0, NULL, NULL);
+}
+
 // main.c
 int main()
 {
@@ -503,7 +504,7 @@ int main()
     cache_calculate_slab_size(NULL, 4096, 0, 0);
 
     printf("\nSlab creation test in initial cache\n");
-    cache_construct(&InitialCache, InitialCache.CacheName, sizeof(MemoryCache_t), 32, 0, NULL, NULL);
+    MemoryCacheInitialize();
     slab_create(&InitialCache);
     return 0;
 }
