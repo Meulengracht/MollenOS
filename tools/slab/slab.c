@@ -1,8 +1,29 @@
-// slab_allocator.cpp : This file contains the 'main' function. Program execution begins and ends there.
+// slab.c : This file contains the 'main' function. Program execution begins and ends there.
 //
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+
+static uintptr_t AllocateVirtualMemory(size_t PageCount)
+{
+    // @todo implement
+    return (uintptr_t)malloc(4096 * PageCount);
+}
+
+static void FreeVirtualMemory(uintptr_t Address, size_t PageCount)
+{
+    free((void*)Address);
+}
+
+static int GetCpuCount(void)
+{
+    return 1;
+}
+
+static int GetCpuId(void)
+{
+    return 0;
+}
 
 // slab.h
 // Types and definitions for implementing the slab allocator.
@@ -22,31 +43,31 @@ typedef struct {
 // Memory Atomic Cache is followed directly by the buffer area for pointers
 // MemoryAtomicCache_t | Pointer | Pointer | Pointer | Pointer | MemoryAtomicCache_t ...
 typedef struct {
-    size_t Available;
-    size_t Limit;
+    int Available;
+    int Limit;
 } MemoryAtomicCache_t;
 
 typedef struct MemoryCache {
-    const char*          CacheName;
-    Spinlock_t           SyncObject;
-    Flags_t              Flags;
+    const char*  CacheName;
+    Spinlock_t   SyncObject;
+    Flags_t      Flags;
 
-    size_t               ObjectSize;
-    size_t               ObjectAlignment;
-    size_t               ObjectPadding;
-    size_t               ObjectCount;      // Count per slab
-    size_t               PageCount;
-    size_t               NumberOfFreeObjects;
+    size_t       ObjectSize;
+    size_t       ObjectAlignment;
+    size_t       ObjectPadding;
+    size_t       ObjectCount;      // Count per slab
+    size_t       PageCount;
+    size_t       NumberOfFreeObjects;
     void(*ObjectConstructor)(struct MemoryCache*, void*);
     void(*ObjectDestructor)(struct MemoryCache*, void*);
 
-    int                  SlabOnSite;
-    size_t               SlabStructureSize;
-    Collection_t         FreeSlabs;
-    Collection_t         PartialSlabs;
-    Collection_t         FullSlabs;
+    int          SlabOnSite;
+    size_t       SlabStructureSize;
+    Collection_t FreeSlabs;
+    Collection_t PartialSlabs;
+    Collection_t FullSlabs;
 
-    MemoryAtomicCache_t* AtomicCaches;
+    uintptr_t    AtomicCaches;
 } MemoryCache_t;
 
 #define MEMORY_DEBUG_USE_AFTER_FREE  0x1
@@ -65,8 +86,10 @@ void  kfree(void* Object);
 #include <assert.h>
 #include <string.h>
 
-#define MEMORY_OVERRUN_PATTERN       0xA5A5A5A5
-#define MEMORY_SLAB_ONSITE_THRESHOLD 512
+#define MEMORY_OVERRUN_PATTERN                      0xA5A5A5A5
+#define MEMORY_SLAB_ONSITE_THRESHOLD                512
+#define MEMORY_ATOMIC_CACHE(Cache, Core)            (MemoryAtomicCache_t*)(Cache->AtomicCaches + (Core * (sizeof(MemoryAtomicCache_t) + (Cache->ObjectCount * sizeof(void*)))))
+#define MEMORY_ATOMIC_ELEMENT(AtomicCache, Element) ((uintptr_t**)((uintptr_t)AtomicCache + sizeof(MemoryAtomicCache_t) + (Element * sizeof(void*))))
 
 static struct FixedCache {
     size_t         ObjectSize;
@@ -90,19 +113,18 @@ static struct FixedCache {
 };
 static MemoryCache_t InitialCache = {
     "cache_cache", NULL, 0, sizeof(MemoryCache_t), 0, 0, 0, 0, 0,
-    NULL, NULL, 0, 0, NULL, NULL, NULL, NULL
+    NULL, NULL, 0, 0, NULL, NULL, NULL, 0
     // cctor, dctor
 };
 
-static uintptr_t AllocateVirtualMemory(size_t PageCount)
+static int slab_contains_address(MemoryCache_t* Cache, MemorySlab_t* Slab, uintptr_t Address)
 {
-    // @todo implement
-    return (uintptr_t)malloc(4096 * PageCount);
-}
-
-static void FreeVirtualMemory(uintptr_t Address, size_t PageCount)
-{
-    free(Address);
+    uintptr_t Base = (uintptr_t)Slab->Address;
+    uintptr_t End = Base + (Cache->ObjectCount * (Cache->ObjectSize + Cache->ObjectPadding));
+    if (Address >= Base && Address < End) {
+        return 1;
+    }
+    return 0;
 }
 
 static void slab_initalize_objects(MemoryCache_t* Cache, MemorySlab_t* Slab)
@@ -111,6 +133,7 @@ static void slab_initalize_objects(MemoryCache_t* Cache, MemorySlab_t* Slab)
     size_t    i;
 
     for (i = 0; i < Cache->ObjectCount; i++) {
+        printf("slab: Object at 0x%x\n", Address);
         if (Cache->ObjectConstructor) {
             Cache->ObjectConstructor(Cache, (void*)Address);
         }
@@ -178,7 +201,31 @@ static void slab_destroy(MemoryCache_t* Cache, MemorySlab_t* Slab)
     }
 }
 
-static inline size_t slab_calculate_structure_size(size_t ObjectsPerSlab)
+static int cache_contains_address(MemoryCache_t* Cache, uintptr_t Address)
+{
+    int Found = 0;
+    // Iterate full
+
+    // Iterate partials
+    return Found;
+}
+
+static inline struct FixedCache* cache_find_fixed_size(size_t Size)
+{
+    struct FixedCache* Selected = NULL;
+    int                i = 0;
+
+    // Find a cache to do the allocation in
+    while (DefaultCaches[i].ObjectSize != 0) {
+        if (Size <= DefaultCaches[i].ObjectSize) {
+            Selected = &DefaultCaches[i];
+            break;
+        }
+    }
+    return Selected;
+}
+
+static inline size_t cache_calculate_slab_structure_size(size_t ObjectsPerSlab)
 {
     size_t SlabStructure = sizeof(MemorySlab_t);
     // Calculate how many bytes the slab metadata will need
@@ -187,6 +234,40 @@ static inline size_t slab_calculate_structure_size(size_t ObjectsPerSlab)
         SlabStructure++;
     }
     return SlabStructure;
+}
+
+static size_t cache_calculate_atomic_cache(MemoryCache_t* Cache)
+{
+    // number of cpu * cpu_cache_objects + number of cpu * objects per slab * pointer size
+    size_t BytesRequired = 0;
+    if (GetCpuCount() > 1) {
+        BytesRequired = (GetCpuCount() * (sizeof(MemoryAtomicCache_t) + (Cache->ObjectCount * sizeof(void*))));
+        if (cache_find_fixed_size(BytesRequired) == NULL) {
+            BytesRequired = 0;
+        }
+    }
+    return BytesRequired;
+}
+
+static void cache_initialize_atomic_cache(MemoryCache_t* Cache)
+{
+    size_t AtomicCacheSize = cache_calculate_atomic_cache(Cache);
+    int    i;
+    if (AtomicCacheSize) {
+        Cache->AtomicCaches = (uintptr_t)kmalloc(AtomicCacheSize);
+        memset((void*)Cache->AtomicCaches, 0, AtomicCacheSize);
+        for (i = 0; i < GetCpuCount(); i++) {
+            MemoryAtomicCache_t* AtomicCache = MEMORY_ATOMIC_CACHE(Cache, i);
+            AtomicCache->Available = 0;
+            AtomicCache->Limit = Cache->ObjectCount;
+        }
+    }
+}
+
+static void cache_drain_atomic_cache(MemoryCache_t* Cache)
+{
+    // Send out IPI to all cores to empty their caches and put them into the gloal
+    // cache, this should be done when attempting to free up memory.
 }
 
 // Object size is the size of the actual object
@@ -207,7 +288,7 @@ static void cache_calculate_slab_size(MemoryCache_t* Cache, size_t ObjectSize, s
     if ((ObjectSize + ObjectPadding) < MEMORY_SLAB_ONSITE_THRESHOLD) {
         ObjectsPerSlab = PageSize / (ObjectSize + ObjectPadding);
         SlabOnSite = 1;
-        ReservedSpace = slab_calculate_structure_size(ObjectsPerSlab) + ObjectAlignment;
+        ReservedSpace = cache_calculate_slab_structure_size(ObjectsPerSlab) + ObjectAlignment;
     }
     ObjectsPerSlab = (PageSize - ReservedSpace) / (ObjectSize + ObjectPadding);
     Wastage = PageSize - (ObjectsPerSlab * (ObjectSize + ObjectPadding));
@@ -220,14 +301,29 @@ static void cache_calculate_slab_size(MemoryCache_t* Cache, size_t ObjectSize, s
         ObjectsPerSlab = ((PageSize * PageCount) - ReservedSpace) / (ObjectSize + ObjectPadding);
         Wastage = (PageSize * PageCount) - (ObjectsPerSlab * (ObjectSize + ObjectPadding));
         if (SlabOnSite) {
-            ReservedSpace = slab_calculate_structure_size(ObjectsPerSlab) + ObjectAlignment;
+            ReservedSpace = cache_calculate_slab_structure_size(ObjectsPerSlab) + ObjectAlignment;
         }
     }
 
     // We do, detect if there is enough room for us to keep the slab on site
     // and still provide proper alignment
-    if (!SlabOnSite && (Wastage >= (slab_calculate_structure_size(ObjectsPerSlab) + ObjectAlignment))) {
+    if (!SlabOnSite && (Wastage >= (cache_calculate_slab_structure_size(ObjectsPerSlab) + ObjectAlignment))) {
         SlabOnSite = 1;
+    }
+
+    // We have a special case, as this is an operating system memory allocator, and we use
+    // page-sizes pretty frequently, we don't want just 1 page per slab, we instead increase this
+    // to 16
+    if (ObjectSize == PageSize) {
+        ObjectsPerSlab = 16;
+        PageCount = 16;
+        SlabOnSite = 0;
+        ReservedSpace = 0;
+    }
+
+    // Make sure we calculate the size of the slab in the case it's not allocated on site
+    if (ReservedSpace == 0) {
+        ReservedSpace = cache_calculate_slab_structure_size(ObjectsPerSlab);
     }
 
     if (Cache != NULL) {
@@ -237,23 +333,22 @@ static void cache_calculate_slab_size(MemoryCache_t* Cache, size_t ObjectSize, s
         Cache->PageCount = PageCount;
     }
 
-    printf("Object(%u, %u): %u Page(s), %u Objects, %u Bytes Wasted, %i\n", ObjectSize, ObjectPadding,
-        PageCount, ObjectsPerSlab, Wastage, SlabOnSite);
+    printf("Object(%u, %u): %u Page(s), %u Objects, %u Bytes Wasted, Slab %i, %u\n", ObjectSize, ObjectPadding,
+        PageCount, ObjectsPerSlab, Wastage, SlabOnSite, ReservedSpace);
 }
 
-MemoryCache_t* MemoryCacheCreate(const char* Name, size_t ObjectSize, size_t ObjectAlignment,
+static void cache_construct(MemoryCache_t* Cache, const char* Name, size_t ObjectSize, size_t ObjectAlignment,
     Flags_t Flags, void(*ObjectConstructor)(struct MemoryCache*, void*), void(*ObjectDestructor)(struct MemoryCache*, void*))
 {
-    MemoryCache_t* Cache = (MemoryCache_t*)MemoryCacheAllocate(&InitialCache);
-    size_t         ObjectPadding = 0;
+    size_t ObjectPadding = 0;
 
     // Calculate padding
     if (Flags & MEMORY_DEBUG_OVERRUN) {
         ObjectPadding += 4;
     }
 
-    if ((ObjectSize + ObjectPadding) % ObjectAlignment) {
-        ObjectPadding += ObjectAlignment - (ObjectSize + ObjectPadding);
+    if (ObjectAlignment != 0 && ((ObjectSize + ObjectPadding) % ObjectAlignment)) {
+        ObjectPadding += ObjectAlignment - ((ObjectSize + ObjectPadding) % ObjectAlignment);
     }
 
     // Setup defaults for memory cache
@@ -266,10 +361,33 @@ MemoryCache_t* MemoryCacheCreate(const char* Name, size_t ObjectSize, size_t Obj
     Cache->ObjectConstructor = ObjectConstructor;
     Cache->ObjectDestructor = ObjectDestructor;
     cache_calculate_slab_size(Cache, ObjectSize, ObjectAlignment, ObjectPadding);
+}
+
+MemoryCache_t* MemoryCacheCreate(const char* Name, size_t ObjectSize, size_t ObjectAlignment,
+    Flags_t Flags, void(*ObjectConstructor)(struct MemoryCache*, void*), void(*ObjectDestructor)(struct MemoryCache*, void*))
+{
+    MemoryCache_t* Cache = (MemoryCache_t*)MemoryCacheAllocate(&InitialCache);
 
     // Initialize lists and spinlock
 
+    // Construct the instance, and then see if we can enable the per-cpu cache
+    cache_construct(Cache, Name, ObjectSize, ObjectAlignment, Flags, ObjectConstructor, ObjectDestructor);
+    cache_initialize_atomic_cache(Cache);
     return Cache;
+}
+
+void MemoryCacheDestroy(MemoryCache_t* Cache)
+{
+    // If there are any cpu caches, free them, there is no need to drain the cpu caches
+    // here at this point as we assume that when destroying a cache we do it for good reason
+    if (Cache->AtomicCaches != 0) {
+        kfree((void*)Cache->AtomicCaches);
+    }
+
+    // Iterate all the slab lists, unlink the slab and then destroy it
+
+
+    MemoryCacheFree(&InitialCache, Cache);
 }
 
 static int slab_allocate_index(MemoryCache_t* Cache, MemorySlab_t* Slab)
@@ -293,11 +411,14 @@ static void slab_free_index(MemoryCache_t* Cache, MemorySlab_t* Slab, int Index)
 
 void* MemoryCacheAllocate(MemoryCache_t* Cache)
 {
+    void* Allocated = NULL;
     // Can we allocate from cpu cache?
-    if (Cache->AtomicCaches != NULL) {
-        // get cache
-        // pop off element if any
-        // return
+    if (Cache->AtomicCaches != 0) {
+        MemoryAtomicCache_t* AtomicCache = MEMORY_ATOMIC_CACHE(Cache, GetCpuId());
+        if (AtomicCache->Available > 0) {
+            Allocated = MEMORY_ATOMIC_ELEMENT(AtomicCache, (--AtomicCache->Available))[0];
+            return Allocated;
+        }
     }
 
     // Otherwise allocate from global cache
@@ -307,8 +428,7 @@ void* MemoryCacheAllocate(MemoryCache_t* Cache)
     // allocate and build new slab if none exists
     // get object
     // unlock
-    // return
-    return NULL;
+    return Allocated;
 }
 
 void MemoryCacheFree(MemoryCache_t* Cache, void* Object)
@@ -319,56 +439,29 @@ void MemoryCacheFree(MemoryCache_t* Cache, void* Object)
     }
 
     // Can we push to cpu cache?
-    if (Cache->AtomicCaches != NULL) {
-        // get cache
-        // push element
-        // return
+    if (Cache->AtomicCaches != 0) {
+        MemoryAtomicCache_t* AtomicCache = MEMORY_ATOMIC_CACHE(Cache, GetCpuId());
+        if (AtomicCache->Available < AtomicCache->Limit) {
+            MEMORY_ATOMIC_ELEMENT(AtomicCache, (AtomicCache->Available++))[0] = Object;
+            return;
+        }
     }
 
+    // Acquire lock
+    // No, find the slab that has this object and free it
+    // unlock
 }
 
 int MemoryCacheReap(void)
 {
+    // Iterate the caches in the system and drain their cpu caches
+    // Then start looking at the entirely free slabs, and free them.
     return 0;
-}
-
-void MemoryCacheDestroy(MemoryCache_t* Cache)
-{
-
-}
-
-static int slab_contains_address(MemoryCache_t* Cache, MemorySlab_t* Slab, uintptr_t Address)
-{
-    uintptr_t Base = (uintptr_t)Slab->Address;
-    uintptr_t End = Base + (Cache->ObjectCount * (Cache->ObjectSize + Cache->ObjectPadding));
-    if (Address >= Base && Address < End) {
-        return 1;
-    }
-    return 0;
-}
-
-static int cache_contains_address(MemoryCache_t* Cache, uintptr_t Address)
-{
-    int Found = 0;
-    // Iterate full
-
-    // Iterate partials
-
-    return Found;
 }
 
 void* kmalloc(size_t Size)
 {
-    struct FixedCache* Selected = NULL;
-    int                i = 0;
-
-    // Find a cache to do the allocation in
-    while (DefaultCaches[i].ObjectSize != 0) {
-        if (Size <= DefaultCaches[i].ObjectSize) {
-            Selected = &DefaultCaches[i];
-            break;
-        }
-    }
+    struct FixedCache* Selected = cache_find_fixed_size(Size);
     assert(Selected != NULL);
 
     // If the cache does not exist, we must create it
@@ -410,7 +503,7 @@ int main()
     cache_calculate_slab_size(NULL, 4096, 0, 0);
 
     printf("\nSlab creation test in initial cache\n");
-    cache_calculate_slab_size(&InitialCache, sizeof(MemoryCache_t), 0, 0);
+    cache_construct(&InitialCache, InitialCache.CacheName, sizeof(MemoryCache_t), 32, 0, NULL, NULL);
     slab_create(&InitialCache);
     return 0;
 }
