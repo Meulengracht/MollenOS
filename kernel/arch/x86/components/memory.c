@@ -25,6 +25,7 @@
 #include <system/utils.h>
 #include <ds/blbitmap.h>
 #include <multiboot.h>
+#include <machine.h>
 #include <assert.h>
 #include <memory.h>
 #include <debug.h>
@@ -115,11 +116,8 @@ InitializeSystemMemory(
     *MemoryGranularity    = PAGE_SIZE;
     *NumberOfMemoryBlocks = DIVUP(MemorySize, PAGE_SIZE);
     
-    MemoryMap->SystemHeap.Start  = MEMORY_LOCATION_HEAP;
-    MemoryMap->SystemHeap.Length = MEMORY_LOCATION_HEAP_END - MEMORY_LOCATION_HEAP;
-
-    MemoryMap->UserCode.Start  = MEMORY_LOCATION_RING3_CODE;
-    MemoryMap->UserCode.Length = MEMORY_LOCATION_RING3_CODE_END - MEMORY_LOCATION_RING3_CODE;
+    MemoryMap->UserCode.Start       = MEMORY_LOCATION_RING3_CODE;
+    MemoryMap->UserCode.Length      = MEMORY_LOCATION_RING3_CODE_END - MEMORY_LOCATION_RING3_CODE;
 
     MemoryMap->UserHeap.Start  = MEMORY_LOCATION_RING3_HEAP;
     MemoryMap->UserHeap.Length = MEMORY_LOCATION_RING3_HEAP_END - MEMORY_LOCATION_RING3_HEAP;

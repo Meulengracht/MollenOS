@@ -123,14 +123,7 @@ InitializeMachine(
 #else
 #error "Kernel does not support non-mmio platforms"
 #endif
-    Status = HeapConstruct(HeapGetKernel(), Machine.MemoryMap.SystemHeap.Start, 
-        Machine.MemoryMap.SystemHeap.Start + Machine.MemoryMap.SystemHeap.Length, 0);
-    if (Status != OsSuccess) {
-        ERROR("Failed to initalize system heap in range 0x%x => 0x%x", 
-            Machine.MemoryMap.SystemHeap.Start, Machine.MemoryMap.SystemHeap.Start + Machine.MemoryMap.SystemHeap.Length);
-        goto StopAndShowError;
-    }
-
+    MemoryCacheInitialize();
     Status = InitializeConsole();
     if (Status != OsSuccess) {
         ERROR("Failed to initialize output for system.");

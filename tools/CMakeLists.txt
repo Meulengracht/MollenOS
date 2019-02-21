@@ -32,7 +32,9 @@ endif ()
 # Build the gracht protocol utility
 
 # Build the diskutility, since this is a c# project it is a bit tricky
-add_subdirectory (diskutility)
+if (MSVC)
+    add_subdirectory (diskutility)
+endif ()
 
 # Build the file to C-hex array utility
 add_executable (file2c file2c/main.c)

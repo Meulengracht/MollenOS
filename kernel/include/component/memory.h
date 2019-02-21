@@ -32,7 +32,6 @@ typedef struct _SystemMemoryRange {
 } SystemMemoryRange_t;
 
 typedef struct _SystemMemoryMap {
-    SystemMemoryRange_t     SystemHeap;
     SystemMemoryRange_t     UserCode;
     SystemMemoryRange_t     UserHeap;
     SystemMemoryRange_t     ThreadArea;

@@ -19,7 +19,7 @@ file(MAKE_DIRECTORY ${VALI_PATH_INITRD})
 add_subdirectory (tools)
 
 # Configure compilation
-include (config/${VALI_PLATFORM}/PlatformConfig.cmake)
+include (cmake/${VALI_PLATFORM}PlatformConfig.cmake)
 
 # Configure projects that are specified
 foreach (proj in ${VALI_PROJECTS})
@@ -31,3 +31,6 @@ foreach (proj in ${VALI_PROJECTS})
         include (${proj})
 	endif ()
 endforeach (proj)
+
+# Configure the kernel project
+add_subdirectory (kernel)
