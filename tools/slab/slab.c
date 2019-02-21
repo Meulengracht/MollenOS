@@ -37,7 +37,7 @@ typedef unsigned long Flags_t;
 typedef struct {
     CollectionItem_t Header;
     uintptr_t*       Address;  // Points to first object
-    uint32_t*        FreeBitmap;
+    uint8_t*         FreeBitmap;
 } MemorySlab_t;
 
 // Memory Atomic Cache is followed directly by the buffer area for pointers
@@ -118,8 +118,8 @@ static int slab_allocate_index(MemoryCache_t* Cache, MemorySlab_t* Slab)
 {
     int i;
     for (i = 0; i < (int)Cache->ObjectCount; i++) {
-        if (!(Slab->FreeBitmap[i / 32] & (1 << (i % 32)))) {
-            Slab->FreeBitmap[i / 32] |= (1 << (i % 32));
+        if (!(Slab->FreeBitmap[i / 8] & (1 << (i % 8)))) {
+            Slab->FreeBitmap[i / 8] |= (1 << (i % 8));
             return i;
         }
     }
@@ -129,7 +129,7 @@ static int slab_allocate_index(MemoryCache_t* Cache, MemorySlab_t* Slab)
 static void slab_free_index(MemoryCache_t* Cache, MemorySlab_t* Slab, int Index)
 {
     if (Index < (int)Cache->ObjectCount) {
-        Slab->FreeBitmap[Index / 32] &= ~(1 << (Index % 32));
+        Slab->FreeBitmap[Index / 8] &= ~(1 << (Index % 8));
     }
 }
 
@@ -199,7 +199,7 @@ static MemorySlab_t* slab_create(MemoryCache_t* Cache)
     memset(Slab, 0, Cache->SlabStructureSize);
 
     // Initialize slab
-    Slab->FreeBitmap = (uint32_t*)((uintptr_t)Slab + sizeof(MemorySlab_t));
+    Slab->FreeBitmap = (uint8_t*)((uintptr_t)Slab + sizeof(MemorySlab_t));
     Slab->Address = (uintptr_t*)ObjectAddress;
     slab_initalize_objects(Cache, Slab);
     return Slab;
@@ -297,9 +297,9 @@ static void cache_calculate_slab_size(MemoryCache_t* Cache, size_t ObjectSize, s
     size_t ReservedSpace = 0;
     int    SlabOnSite = 0;
     size_t PageCount = 1;
+    int    i = 0;
     size_t ObjectsPerSlab;
     size_t Wastage;
-    int    i = 0;
 
     if ((ObjectSize + ObjectPadding) < MEMORY_SLAB_ONSITE_THRESHOLD) {
         ObjectsPerSlab = PageSize / (ObjectSize + ObjectPadding);
@@ -498,13 +498,13 @@ int main()
     cache_calculate_slab_size(NULL, 64, 8, 8);
     cache_calculate_slab_size(NULL, 128, 8, 8);
     cache_calculate_slab_size(NULL, 256, 8, 8);
-    cache_calculate_slab_size(NULL, 512, 8, 8);
-    cache_calculate_slab_size(NULL, 1024, 8, 8);
+    cache_calculate_slab_size(NULL, 512, 512, 0);
+    cache_calculate_slab_size(NULL, 1024, 1024, 0);
     cache_calculate_slab_size(NULL, 44, 8, 8);
-    cache_calculate_slab_size(NULL, 4096, 0, 0);
+    cache_calculate_slab_size(NULL, 4096, 4096, 0);
 
     printf("\nSlab creation test in initial cache\n");
     MemoryCacheInitialize();
-    slab_create(&InitialCache);
+    slab_destroy(&InitialCache, slab_create(&InitialCache));
     return 0;
 }
