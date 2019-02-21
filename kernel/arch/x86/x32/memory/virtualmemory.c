@@ -187,7 +187,7 @@ SyncWithParent:
         else if (CreateIfMissing) {
             // Allocate, do a CAS and see if it works, if it fails retry our operation
             uintptr_t TablePhysical;
-            Table = (PageTable_t*)kmalloc_ap(PAGE_SIZE, &TablePhysical);
+            Table = (PageTable_t*)kmalloc_p(PAGE_SIZE, &TablePhysical);
 		    assert(Table != NULL);
             memset((void*)Table, 0, sizeof(PageTable_t));
 
@@ -233,7 +233,7 @@ CloneVirtualSpace(
     int ThreadRegion    = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_START);
     int ThreadRegionEnd = PAGE_DIRECTORY_INDEX(MEMORY_LOCATION_RING3_THREAD_END);
 
-    PageDirectory = (PageDirectory_t*)kmalloc_ap(sizeof(PageDirectory_t), &PhysicalAddress);
+    PageDirectory = (PageDirectory_t*)kmalloc_p(sizeof(PageDirectory_t), &PhysicalAddress);
     memset(PageDirectory, 0, sizeof(PageDirectory_t));
 
     // Determine parent
@@ -421,7 +421,7 @@ InitializeVirtualSpace(
     }
     else {
         // Create a new page directory but copy all kernel mappings to the domain specific memory
-        //iDirectory = (PageDirectory_t*)kmalloc_ap(sizeof(PageDirectory_t), &iPhysical);
+        //iDirectory = (PageDirectory_t*)kmalloc_p(sizeof(PageDirectory_t), &iPhysical);
         NOTIMPLEMENTED("Implement initialization of other-domain virtaul spaces");
     }
     return OsSuccess;

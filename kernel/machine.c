@@ -114,7 +114,6 @@ InitializeMachine(
     }
 
 #ifdef __OSCONFIG_HAS_MMIO
-    DebugInstallPageFaultHandlers(&Machine.MemoryMap);
     Status = InitializeMemorySpace(&Machine.SystemSpace);
     if (Status != OsSuccess) {
         ERROR("Failed to initalize system memory space");

@@ -36,14 +36,6 @@
 #include <debug.h>
 #include <heap.h>
 
-/* Page-fault handlers for different page-fault areas. 
- * Static storage to only allow a maximum handlers. */
-static struct MCorePageFaultHandler_t {
-    uintptr_t   AreaStart;
-    uintptr_t   AreaEnd;
-    OsStatus_t (*AreaHandler)(SystemMemorySpace_t*, Context_t*, uintptr_t);
-} PageFaultHandlers[8] = { { 0 } };
-
 static OsStatus_t
 DebugPageMemorySpaceHandlers(
     _In_ Context_t* Context,
@@ -83,10 +75,6 @@ DebugBreakpoint(
     return OsSuccess;
 }
 
-/* DebugPageFault
- * Handles page-fault and either validates or invalidates
- * that the address is valid. In case of valid address it automatically
- * maps in the page and returns OsSuccess */
 OsStatus_t
 DebugPageFault(
     _In_ Context_t* Context,
@@ -368,58 +356,6 @@ DebugHandleShortcut(
     return OsSuccess;
 }
 
-/* DebugPageFaultProcessHeapMemory
- * Checks for memory access that was (process) heap related and valid */
-OsStatus_t
-DebugPageFaultProcessHeapMemory(
-    _In_ SystemMemorySpace_t* Space,
-    _In_ Context_t*           Context,
-    _In_ uintptr_t            Address)
-{
-    Flags_t    PageFlags      = MAPPING_COMMIT | MAPPING_USERSPACE;
-    Flags_t    PlacementFlags = MAPPING_VIRTUAL_FIXED;
-    uintptr_t  Physical;
-    OsStatus_t Status = OsError;
-
-    if (Space->Context != NULL) {
-        if (DebugPageMemorySpaceHandlers(Context, Address) == OsSuccess) {
-            return OsSuccess;
-        }
-
-        // If the mapping is a heap address we need to check for device-io mapping
-        if (BlockBitmapValidateState(Space->Context->HeapSpace, Address, 1) == OsSuccess) {
-            Physical = ValidateDeviceIoMemoryAddress(Address);
-            if (Physical != 0) {
-                PlacementFlags = MAPPING_PHYSICAL_FIXED;
-                PageFlags     |= MAPPING_NOCACHE;
-            }
-            Status = CommitMemorySpaceMapping(Space, &Physical, Address, MAPPING_PHYSICAL_DEFAULT, __MASK);
-            if (Status == OsExists) {
-                Status = OsSuccess;
-            }
-        }
-    }
-    return Status;
-}
-
-/* DebugPageFaultKernelHeapMemory
- * Checks for memory access that was (kernel) heap related and valid */
-OsStatus_t
-DebugPageFaultKernelHeapMemory(
-    _In_ SystemMemorySpace_t* Space,
-    _In_ Context_t*           Context,
-    _In_ uintptr_t            Address)
-{
-    OsStatus_t Status = OsError;
-    if (HeapValidateAddress(HeapGetKernel(), Address) == OsSuccess) {
-        Status = CommitMemorySpaceMapping(Space, NULL, Address, MAPPING_PHYSICAL_DEFAULT, __MASK);
-        if (Status == OsExists) {
-            Status = OsSuccess;
-        }
-    }
-    return OsError;
-}
-
 /* DebugPageFaultThreadMemory
  * Checks for memory access that was io-space related and valid */
 OsStatus_t
@@ -431,31 +367,6 @@ DebugPageFaultThreadMemory(
     // Don't bother checking this for multithreading issues, this is thread
     // specific memory and thus only accessible to a single thread
     return CommitMemorySpaceMapping(Space, NULL, Address, MAPPING_PHYSICAL_DEFAULT, __MASK);
-}
-
-/* DebugInstallPageFaultHandlers
- * Install page-fault handlers. Should be called as soon as memory setup phase is done */
-OsStatus_t
-DebugInstallPageFaultHandlers(
-	_In_ SystemMemoryMap_t*	MemoryMap)
-{
-    TRACE("DebugInstallPageFaultHandlers()");
-
-    // Heap memory handler
-    PageFaultHandlers[0].AreaStart      = MemoryMap->SystemHeap.Start;
-    PageFaultHandlers[0].AreaEnd        = MemoryMap->SystemHeap.Start + MemoryMap->SystemHeap.Length;
-    PageFaultHandlers[0].AreaHandler    = DebugPageFaultKernelHeapMemory;
-
-    // Process heap memory handler
-    PageFaultHandlers[1].AreaStart      = MemoryMap->UserHeap.Start;
-    PageFaultHandlers[1].AreaEnd        = MemoryMap->UserHeap.Start + MemoryMap->UserHeap.Length;
-    PageFaultHandlers[1].AreaHandler    = DebugPageFaultProcessHeapMemory;
-
-    // Thread-specific memory handler
-    PageFaultHandlers[2].AreaStart      = MemoryMap->ThreadArea.Start;
-    PageFaultHandlers[2].AreaEnd        = MemoryMap->ThreadArea.Start + MemoryMap->ThreadArea.Length;
-    PageFaultHandlers[2].AreaHandler    = DebugPageFaultThreadMemory;
-    return OsSuccess;
 }
 
 /* Disassembles Memory */

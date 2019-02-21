@@ -110,7 +110,7 @@ ThreadingRegister(
 {
     // Allocate a new thread context (x86) and zero it out
     Thread->Data[THREAD_DATA_FLAGS]         = 0;
-    Thread->Data[THREAD_DATA_MATHBUFFER]    = (uintptr_t)kmalloc_a(0x1000);
+    Thread->Data[THREAD_DATA_MATHBUFFER]    = (uintptr_t)kmalloc(0x1000);
     memset((void*)Thread->Data[THREAD_DATA_MATHBUFFER], 0, 0x1000);
     return OsSuccess;
 }

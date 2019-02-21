@@ -62,12 +62,6 @@
 #define FATAL(Scope, ...)         	DebugPanic(Scope, NULL, __MODULE, __VA_ARGS__)
 #define NOTIMPLEMENTED(Message)   	DebugPanic(FATAL_SCOPE_KERNEL, NULL, "NOT-IMPLEMENTED: %s, line %d, %s", __FILE__, __LINE__, Message)
 
-/* DebugInstallPageFaultHandlers
- * Install page-fault handlers. Should be called as soon as memory setup phase is done */
-KERNELAPI OsStatus_t KERNELABI
-DebugInstallPageFaultHandlers(
-    _In_ SystemMemoryMap_t* MemoryMap);
-
 /* DebugSingleStep
  * Handles the SingleStep trap on a higher level 
  * and the actual interrupt/exception should be propegated

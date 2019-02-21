@@ -229,7 +229,7 @@ SyncPmlWithParent:
         }
         else if (CreateIfMissing) {
             // Allocate, do a CAS and see if it works, if it fails retry our operation
-            DirectoryTable = (PageDirectoryTable_t*)kmalloc_ap(sizeof(PageDirectoryTable_t), &Physical);
+            DirectoryTable = (PageDirectoryTable_t*)kmalloc_p(sizeof(PageDirectoryTable_t), &Physical);
             assert(DirectoryTable != NULL);
             memset((void*)DirectoryTable, 0, sizeof(PageDirectoryTable_t));
 
@@ -267,7 +267,7 @@ SyncPdp:
         assert(Directory != NULL);
     }
     else if (CreateIfMissing) {
-		Directory = (PageDirectory_t*)kmalloc_ap(sizeof(PageDirectory_t), &Physical);
+		Directory = (PageDirectory_t*)kmalloc_p(sizeof(PageDirectory_t), &Physical);
         assert(Directory != NULL);
         memset((void*)Directory, 0, sizeof(PageDirectory_t));
 
@@ -297,7 +297,7 @@ SyncPd:
         assert(Table != NULL);
     }
     else if (CreateIfMissing) {
-		Table = (PageTable_t*)kmalloc_ap(sizeof(PageTable_t), &Physical);
+		Table = (PageTable_t*)kmalloc_p(sizeof(PageTable_t), &Physical);
         assert(Table != NULL);
         memset((void*)Table, 0, sizeof(PageTable_t));
 
@@ -345,7 +345,7 @@ CloneVirtualSpace(
     int ThreadRegion        = PAGE_DIRECTORY_POINTER_INDEX(MEMORY_LOCATION_RING3_THREAD_START);
     int ApplicationRegion   = PAGE_DIRECTORY_POINTER_INDEX(MEMORY_LOCATION_RING3_CODE);
 
-    PageMasterTable = (PageMasterTable_t*)kmalloc_ap(sizeof(PageMasterTable_t), &MasterAddress);
+    PageMasterTable = (PageMasterTable_t*)kmalloc_p(sizeof(PageMasterTable_t), &MasterAddress);
     memset(PageMasterTable, 0, sizeof(PageMasterTable_t));
 
     // Determine parent
@@ -358,7 +358,7 @@ CloneVirtualSpace(
 
     // PML4[512] => PDP[512] => [PD => PT]
     // Create PML4[0] and PDP[0]
-    PageMasterTable->vTables[0] = (uint64_t)kmalloc_ap(sizeof(PageDirectoryTable_t), &PhysicalAddress);
+    PageMasterTable->vTables[0] = (uint64_t)kmalloc_p(sizeof(PageDirectoryTable_t), &PhysicalAddress);
     atomic_store(&PageMasterTable->pTables[0], PhysicalAddress | PAGE_PRESENT | PAGE_WRITE | PAGE_USER);
     DirectoryTable      = (PageDirectoryTable_t*)PageMasterTable->vTables[0];
     memset((void*)DirectoryTable, 0, sizeof(PageDirectoryTable_t));
@@ -369,7 +369,7 @@ CloneVirtualSpace(
     DirectoryTable->vTables[0] = SystemDirectoryTable->vTables[0];
 
     // Set PD[ThreadRegion] => NEW [NON-INHERITABLE]
-    DirectoryTable->vTables[ThreadRegion] = (uint64_t)kmalloc_ap(sizeof(PageDirectory_t), &PhysicalAddress);
+    DirectoryTable->vTables[ThreadRegion] = (uint64_t)kmalloc_p(sizeof(PageDirectory_t), &PhysicalAddress);
     atomic_store(&DirectoryTable->pTables[ThreadRegion], PhysicalAddress | PAGE_PRESENT | PAGE_WRITE | PAGE_USER);
     Directory                             = (PageDirectory_t*)DirectoryTable->vTables[ThreadRegion];
     memset((void*)Directory, 0, sizeof(PageDirectory_t));
@@ -590,7 +590,7 @@ InitializeVirtualSpace(
     }
     else {
         // Create a new page directory but copy all kernel mappings to the domain specific memory
-        iDirectory = (PageMasterTable_t*)kmalloc_ap(sizeof(PageMasterTable_t), &iPhysical);
+        iDirectory = (PageMasterTable_t*)kmalloc_p(sizeof(PageMasterTable_t), &iPhysical);
         NOTIMPLEMENTED("Implement initialization of other-domain virtaul spaces");
     }
     return OsSuccess;

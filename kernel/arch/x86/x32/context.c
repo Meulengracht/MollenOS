@@ -60,7 +60,7 @@ ContextCreate(
 
     // Select proper segments based on context type and run-mode
     if (ContextType == THREADING_CONTEXT_LEVEL0 || ContextType == THREADING_CONTEXT_SIGNAL0) {
-        ContextAddress  = ((uintptr_t)kmalloc_a(0x1000)) + 0x1000 - sizeof(Context_t);
+        ContextAddress  = ((uintptr_t)kmalloc(0x1000)) + 0x1000 - sizeof(Context_t);
         CodeSegment     = GDT_KCODE_SEGMENT;
         ExtraSegment    = StackSegment = DataSegment = GDT_KDATA_SEGMENT;
         EbpInitial      = (ContextAddress + sizeof(Context_t));

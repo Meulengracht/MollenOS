@@ -58,10 +58,10 @@ static struct FixedCache {
 
 static uintptr_t AllocateVirtualMemory(size_t PageCount)
 {
-    size_t     PageSize = GetMemorySpacePageSize();
     uintptr_t  Address;
-    OsStatus_t Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), NULL, &Address, PageSize * PageCount, 
-        MAPPING_DOMAIN, __MASK); // Allocate from GAM
+    size_t     PageSize = GetMemorySpacePageSize();
+    OsStatus_t Status   = CreateMemorySpaceMapping(GetCurrentMemorySpace(), NULL, &Address, PageSize * PageCount, 
+        MAPPING_DOMAIN, MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_GLOBAL, __MASK); // Allocate from GAM
     if (Status != OsSuccess) {
         ERROR("Ran out of memory for allocation in the heap");
         return 0;
@@ -72,7 +72,7 @@ static uintptr_t AllocateVirtualMemory(size_t PageCount)
 static void FreeVirtualMemory(uintptr_t Address, size_t PageCount)
 {
     size_t     PageSize = GetMemorySpacePageSize();
-    OsStatus_t Status = RemoveMemorySpaceMapping(GetCurrentMemorySpace(), Address, PageSize * PageCount);
+    OsStatus_t Status   = RemoveMemorySpaceMapping(GetCurrentMemorySpace(), Address, PageSize * PageCount);
     if (Status != OsSuccess) {
         ERROR("Failed to free allocation 0x%x of size 0x%x", Address, PageSize * PageCount);
     }

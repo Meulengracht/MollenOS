@@ -65,7 +65,7 @@ ContextCreate(
 
 	// Select proper segments based on context type and run-mode
 	if (ContextType == THREADING_CONTEXT_LEVEL0 || ContextType == THREADING_CONTEXT_SIGNAL0) {
-		ContextAddress  = ((uintptr_t)kmalloc_a(PAGE_SIZE)) + PAGE_SIZE - sizeof(Context_t);
+		ContextAddress  = ((uintptr_t)kmalloc(PAGE_SIZE)) + PAGE_SIZE - sizeof(Context_t);
 		CodeSegment     = GDT_KCODE_SEGMENT;
 		ExtraSegment    = StackSegment = DataSegment = GDT_KDATA_SEGMENT;
 		RbpInitial      = (ContextAddress + sizeof(Context_t));
