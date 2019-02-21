@@ -91,7 +91,8 @@ ContextCreate(
 
         // Map in the context
 		CreateMemorySpaceMapping(GetCurrentMemorySpace(), NULL, &ContextAddress,
-			PAGE_SIZE, MAPPING_USERSPACE | MAPPING_FIXED, __MASK);
+			PAGE_SIZE, MAPPING_COMMIT | MAPPING_USERSPACE, 
+            MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_FIXED, __MASK);
     }
 	else {
 		FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%i)", ContextType);

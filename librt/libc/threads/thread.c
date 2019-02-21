@@ -29,6 +29,7 @@
 #include "tls.h"
 
 CRTDECL(void, __cxa_threadinitialize(void));
+CRTDECL(void, __cxa_threadfinalize(void));
 
 typedef struct _ThreadPackage {
     thrd_start_t    Entry;
@@ -46,8 +47,8 @@ thrd_initialize(
     tls_create(&Tls);
     __cxa_threadinitialize();
     
-    Tp          = (ThreadPackage_t*)Data;
-    ExitCode    = Tp->Entry(Tp->Data);
+    Tp       = (ThreadPackage_t*)Data;
+    ExitCode = Tp->Entry(Tp->Data);
 
     free(Tp);
     thrd_exit(ExitCode);
@@ -177,6 +178,7 @@ thrd_exit(
 {
     tls_cleanup(thrd_current(), NULL, res);
     tls_destroy(tls_current());
+    __cxa_threadfinalize();
     Syscall_ThreadExit(res);
     for(;;);
 }

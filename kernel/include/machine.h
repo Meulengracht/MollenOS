@@ -52,6 +52,7 @@ typedef struct _SystemMachine {
     SystemCpu_t                 Processor;      // Used in UMA mode
     SystemMemorySpace_t         SystemSpace;    // Used in UMA mode
     BlockBitmap_t               PhysicalMemory;
+    BlockBitmap_t               GlobalAccessMemory;
     SystemMemoryMap_t           MemoryMap;
     Collection_t                SystemDomains;
     SystemInterruptController_t* InterruptController;
@@ -91,6 +92,7 @@ KERNELAPI OsStatus_t KERNELABI
 InitializeSystemMemory(
     _In_ Multiboot_t*       BootInformation,
     _In_ BlockBitmap_t*     Memory,
+    _In_ BlockBitmap_t*     GlobalAccessMemory,
     _In_ SystemMemoryMap_t* MemoryMap,
     _In_ size_t*            MemoryGranularity,
     _In_ size_t*            NumberOfMemoryBlocks);

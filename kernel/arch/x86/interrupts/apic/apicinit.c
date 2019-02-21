@@ -141,9 +141,9 @@ ParseIoApic(
 
     // Relocate the io-apic
     Original = Controller->MemoryAddress;
-    CreateMemorySpaceMapping(GetCurrentMemorySpace(),
-        &Original, &Updated, GetMemorySpacePageSize(), 
-        MAPPING_NOCACHE | MAPPING_KERNEL | MAPPING_PERSISTENT | MAPPING_PROVIDED, __MASK);
+    CreateMemorySpaceMapping(GetCurrentMemorySpace(), &Original, &Updated, GetMemorySpacePageSize(), 
+        MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT, 
+        MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_GLOBAL, __MASK);
     Controller->MemoryAddress = Updated + (Original & 0xFFF);
 
     /* Maximum Redirection Entry - RO. This field contains the entry number (0 being the lowest
@@ -429,11 +429,12 @@ ApicInitialize(void)
 
     // Perform the remap
     TRACE(" > local apic at 0x%x", OriginalApAddress);
-    CreateMemorySpaceMapping(GetCurrentMemorySpace(),
-        &OriginalApAddress, &UpdatedApAddress, GetMemorySpacePageSize(), 
-        MAPPING_NOCACHE | MAPPING_KERNEL | MAPPING_PERSISTENT | MAPPING_PROVIDED, __MASK);
-    GlbLocalApicBase    = UpdatedApAddress + (OriginalApAddress & 0xFFF);
-    BspApicId           = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
+    CreateMemorySpaceMapping(GetCurrentMemorySpace(), &OriginalApAddress, 
+        &UpdatedApAddress, GetMemorySpacePageSize(), 
+        MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT, 
+        MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED, __MASK);
+    GlbLocalApicBase = UpdatedApAddress + (OriginalApAddress & 0xFFF);
+    BspApicId        = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
 
     // Do some initial shared Apic setup
     // for this processor id

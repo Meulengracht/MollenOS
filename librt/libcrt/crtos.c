@@ -33,11 +33,13 @@ extern int main(int argc, char **argv, char **envp);
 extern void __cxa_module_global_init(void);
 extern void __cxa_module_global_finit(void);
 extern void __cxa_module_tls_thread_init(void);
+extern void __cxa_module_tls_thread_finit(void);
 #ifndef __clang__
 CRTDECL(void, __CppInitVectoredEH(void));
 #endif
 
-CRTDECL(void, __cxa_runinitializers(void (*Initializer)(void), void (*Finalizer)(void), void (*TlsAttachFunction)(void)));
+CRTDECL(void, __cxa_runinitializers(void (*module_init)(void), void (*module_cleanup)(void), 
+    void (*module_thread_init)(void), void (*module_thread_finit)(void)));
 CRTDECL(void, InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInformation));
 CRTDECL(const char*, GetInternalCommandLine(void));
 
@@ -160,6 +162,7 @@ __CrtInitialize(
             *ArgumentCount = 0;
         }
     }
-    __cxa_runinitializers(__cxa_module_global_init, __cxa_module_global_finit, __cxa_module_tls_thread_init);
+    __cxa_runinitializers(__cxa_module_global_init, __cxa_module_global_finit, 
+        __cxa_module_tls_thread_init, __cxa_module_tls_thread_finit);
     return Arguments;
 }

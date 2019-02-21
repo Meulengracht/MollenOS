@@ -30,10 +30,6 @@
 #include <debug.h>
 #include <heap.h>
 
-/* CreateMemoryBuffer 
- * Creates a new memory buffer instance of the given size. The allocation
- * of resources happens at this call, and reference is set to 1. Size is automatically
- * rounded up to a block-alignment */
 OsStatus_t
 CreateMemoryBuffer(
     _In_  Flags_t       Flags,
@@ -51,17 +47,11 @@ CreateMemoryBuffer(
     Capacity = DIVUP(Size, GetMemorySpacePageSize()) * GetMemorySpacePageSize();
     switch (MEMORY_BUFFER_TYPE(Flags)) {
         case MEMORY_BUFFER_KERNEL: {
-            DmaAddress = AllocateSystemMemory(Capacity, __MASK, MEMORY_DOMAIN);
-            if (DmaAddress == 0) {
-                ERROR("Failed to allocate system memory");
-                return OsError;
-            }
-
             Status = CreateMemorySpaceMapping(Space, &DmaAddress, 
-                &Virtual, Capacity, MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_KERNEL, __MASK);
+                &Virtual, Capacity, MAPPING_COMMIT | MAPPING_PERSISTENT,
+                MAPPING_PHYSICAL_CONTIGIOUS | MAPPING_VIRTUAL_GLOBAL, __MASK);
             if (Status != OsSuccess) {
                 ERROR("Failed to map system memory");
-                FreeSystemMemory(DmaAddress, Capacity);
                 return Status;
             }
         } break;
@@ -70,17 +60,11 @@ CreateMemoryBuffer(
         // the normal behaviour, on free it does not.
         case MEMORY_BUFFER_MEMORYMAPPING:
         case MEMORY_BUFFER_DEFAULT: {
-            DmaAddress = AllocateSystemMemory(Capacity, __MASK, MEMORY_DOMAIN);
-            if (DmaAddress == 0) {
-                ERROR("Failed to allocate system memory");
-                return OsError;
-            }
-
             Status = CreateMemorySpaceMapping(Space, &DmaAddress, 
-                &Virtual, Capacity, MAPPING_USERSPACE | MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_PROCESS, __MASK);
+                &Virtual, Capacity, MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_PERSISTENT,
+                MAPPING_PHYSICAL_CONTIGIOUS | MAPPING_VIRTUAL_PROCESS, __MASK);
             if (Status != OsSuccess) {
                 ERROR("Failed to map system memory");
-                FreeSystemMemory(DmaAddress, Capacity);
                 return Status;
             }
         } break;
@@ -107,17 +91,14 @@ CreateMemoryBuffer(
     return Status;
 }
 
-/* AcquireMemoryBuffer
- * Acquires an existing memory buffer into the current memory space. This will
- * add it to the list of in-use buffers and increase reference count. */
 OsStatus_t
 AcquireMemoryBuffer(
-    _In_  UUId_t        Handle,
-    _Out_ DmaBuffer_t*  MemoryBuffer)
+    _In_  UUId_t       Handle,
+    _Out_ DmaBuffer_t* MemoryBuffer)
 {
-    SystemMemoryBuffer_t *SystemBuffer;
-    OsStatus_t Status;
-    uintptr_t Virtual;
+    SystemMemoryBuffer_t* SystemBuffer;
+    OsStatus_t            Status;
+    uintptr_t             Virtual;
 
     // We acquire the buffer by mapping it into our address space
     // and adding a reference
@@ -129,8 +110,8 @@ AcquireMemoryBuffer(
 
     // Map it in to make sure we can do it
     Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), &SystemBuffer->Physical, 
-        &Virtual, SystemBuffer->Capacity, MAPPING_USERSPACE | 
-        MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_PROCESS, __MASK);
+        &Virtual, SystemBuffer->Capacity, MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_PERSISTENT,
+        MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS, __MASK);
     if (Status != OsSuccess) {
         ERROR("Failed to map process memory");
         return Status;
@@ -144,9 +125,6 @@ AcquireMemoryBuffer(
     return Status;
 }
 
-/* QueryMemoryBuffer
- * Queries the handle for information instead of acquiring the memory buffer. This
- * can be usefull when no access is needed to the buffer. */
 OsStatus_t
 QueryMemoryBuffer(
     _In_  UUId_t        Handle,
@@ -161,19 +139,14 @@ QueryMemoryBuffer(
     if (SystemBuffer == NULL) {
         return OsError;
     }
-
-    // Update outs
-    *Dma        = SystemBuffer->Physical;
-    *Capacity   = SystemBuffer->Capacity;
+    *Dma      = SystemBuffer->Physical;
+    *Capacity = SystemBuffer->Capacity;
     return OsSuccess;
 }
 
-/* DestroyMemoryBuffer
- * Cleans up the resources associated with the handle. This function is registered
- * with the handle manager. */
 OsStatus_t
 DestroyMemoryBuffer(
-    _In_  void*         Resource)
+    _In_ void* Resource)
 {
     SystemMemoryBuffer_t* SystemBuffer = (SystemMemoryBuffer_t*)Resource;
     OsStatus_t            Status       = OsSuccess;
@@ -185,7 +158,9 @@ DestroyMemoryBuffer(
         case MEMORY_BUFFER_KERNEL: {
             Status = FreeSystemMemory(SystemBuffer->Physical, SystemBuffer->Capacity);
         } break;
-
+        
+        // case MEMORY_BUFFER_MEMORYMAPPING
+        // Don't free as those physical pages are permanently allocated
         default: {
         } break;
     }

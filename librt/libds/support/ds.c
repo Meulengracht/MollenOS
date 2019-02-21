@@ -293,11 +293,13 @@ OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, s
     // map in with write flags, and then clear the write flag on release if it was requested
 #ifdef LIBC_KERNEL
     // Translate memory flags to kernel flags
-    Flags_t KernelFlags = MAPPING_USERSPACE | MAPPING_DOMAIN | MAPPING_FIXED;
-    if (Flags | MEMORY_EXECUTABLE) {
+    Flags_t KernelFlags = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_DOMAIN;
+    Flags_t PlacementFlags = MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_FIXED;
+    if (Flags & MEMORY_EXECUTABLE) {
         KernelFlags |= MAPPING_EXECUTABLE;
     }
-    Status = CreateMemorySpaceMapping((SystemMemorySpace_t*)Handle, NULL, Address, Length, KernelFlags, __MASK);
+    Status = CreateMemorySpaceMapping((SystemMemorySpace_t*)Handle, NULL, Address, Length, 
+        KernelFlags, PlacementFlags, __MASK);
     if (Status != OsSuccess) {
         dsfree(StateObject);
     }
@@ -331,8 +333,8 @@ void ReleaseImageMapping(MemoryMapHandle_t Handle)
 
 #ifdef LIBC_KERNEL
     // Translate memory flags to kernel flags
-    Flags_t KernelFlags = MAPPING_USERSPACE | MAPPING_DOMAIN | MAPPING_FIXED;
-    if (StateObject->Flags | MEMORY_EXECUTABLE) {
+    Flags_t KernelFlags = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_DOMAIN;
+    if (StateObject->Flags & MEMORY_EXECUTABLE) {
         KernelFlags |= MAPPING_EXECUTABLE;
     }
     if (!(StateObject->Flags & (MEMORY_WRITE | MEMORY_EXECUTABLE))) {

@@ -223,15 +223,16 @@ InterruptResolveMemoryResources(
 
     for (int i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
         if (Source->MemoryResources[i].Address != 0) {
-            uintptr_t Offset    = Source->MemoryResources[i].Address % GetMemorySpacePageSize();
-            size_t Length       = Source->MemoryResources[i].Length + Offset;
-            Flags_t PageFlags   = MAPPING_KERNEL | MAPPING_PROVIDED | MAPPING_PERSISTENT;
+            uintptr_t Offset       = Source->MemoryResources[i].Address % GetMemorySpacePageSize();
+            size_t Length          = Source->MemoryResources[i].Length + Offset;
+            Flags_t PageFlags      = MAPPING_COMMIT | MAPPING_PERSISTENT;
+            Flags_t PlacementFlags = MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED;
             if (Source->MemoryResources[i].Flags & INTERRUPT_RESOURCE_DISABLE_CACHE) {
                 PageFlags |= MAPPING_NOCACHE;
             }
 
             Status = CloneMemorySpaceMapping(GetCurrentMemorySpace(), GetCurrentMemorySpace(),
-                Source->MemoryResources[i].Address, &UpdatedMapping, Length, PageFlags, __MASK);
+                Source->MemoryResources[i].Address, &UpdatedMapping, Length, PageFlags, PlacementFlags);
             if (Status != OsSuccess) {
                 ERROR(" > failed to clone interrupt resource mapping");
                 break;
@@ -257,23 +258,24 @@ OsStatus_t
 InterruptResolveResources(
     _In_ SystemInterrupt_t* Interrupt)
 {
-    FastInterruptResourceTable_t* Source        = &Interrupt->Interrupt.FastInterrupt;
-    FastInterruptResourceTable_t* Destination   = &Interrupt->KernelResources;
-    Flags_t PageFlags;
-    OsStatus_t Status;
-    uintptr_t Virtual;
-    uintptr_t Offset;
-    size_t Length;
+    FastInterruptResourceTable_t* Source      = &Interrupt->Interrupt.FastInterrupt;
+    FastInterruptResourceTable_t* Destination = &Interrupt->KernelResources;
+    Flags_t                       PlacementFlags;
+    Flags_t                       PageFlags;
+    OsStatus_t                    Status;
+    uintptr_t                     Virtual;
+    uintptr_t                     Offset;
+    size_t                        Length;
 
-    // Debug
     TRACE("InterruptResolveResources()");
 
     // Calculate metrics we need to create the mappings
-    Offset    = ((uintptr_t)Source->Handler) % GetMemorySpacePageSize();
-    Length    = GetMemorySpacePageSize() + Offset;
-    PageFlags = MAPPING_EXECUTABLE | MAPPING_READONLY | MAPPING_KERNEL;
-    Status    = CloneMemorySpaceMapping(GetCurrentMemorySpace(), GetCurrentMemorySpace(),
-        (VirtualAddress_t)Source->Handler, &Virtual, Length, PageFlags, __MASK);
+    Offset         = ((uintptr_t)Source->Handler) % GetMemorySpacePageSize();
+    Length         = GetMemorySpacePageSize() + Offset;
+    PageFlags      = MAPPING_COMMIT | MAPPING_EXECUTABLE | MAPPING_READONLY;
+    PlacementFlags = MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_DEFAULT;
+    Status         = CloneMemorySpaceMapping(GetCurrentMemorySpace(), GetCurrentMemorySpace(),
+        (VirtualAddress_t)Source->Handler, &Virtual, Length, PageFlags, PlacementFlags);
     if (Status != OsSuccess) {
         ERROR(" > failed to clone interrupt handler mapping");
         return OsError;

@@ -41,13 +41,30 @@
 static struct MCorePageFaultHandler_t {
     uintptr_t   AreaStart;
     uintptr_t   AreaEnd;
-    OsStatus_t (*AreaHandler)(Context_t *Context, uintptr_t Address);
+    OsStatus_t (*AreaHandler)(SystemMemorySpace_t*, Context_t*, uintptr_t);
 } PageFaultHandlers[8] = { { 0 } };
 
-/* DebugSingleStep
- * Handles the SingleStep trap on a higher level 
- * and the actual interrupt/exception should be propegated
- * to this event handler */
+static OsStatus_t
+DebugPageMemorySpaceHandlers(
+    _In_ Context_t* Context,
+    _In_ uintptr_t  Address)
+{
+    SystemMemorySpace_t* Space  = GetCurrentMemorySpace();
+    OsStatus_t           Status = OsError;
+
+    if (Space->Context != NULL) {
+        foreach(Node, Space->Context->MemoryHandlers) {
+            SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)Node;
+            if (ISINRANGE(Address, Handler->Address, (Handler->Address + Handler->Length) - 1)) {
+                __KernelInterruptDriver(__FILEMANAGER_TARGET, Handler->Handle, (void*)Address);
+                Status = WaitForHandles(&Handler->Handle, 1, 1, 0);
+                break;
+            }
+        }
+    }
+    return Status;
+}
+
 OsStatus_t
 DebugSingleStep(
     _In_ Context_t* Context)
@@ -57,10 +74,6 @@ DebugSingleStep(
     return OsSuccess;
 }
 
-/* DebugBreakpoint
- * Handles the Breakpoint trap on a higher level 
- * and the actual interrupt/exception should be propegated
- * to this event handler */
 OsStatus_t
 DebugBreakpoint(
     _In_ Context_t* Context)
@@ -76,21 +89,23 @@ DebugBreakpoint(
  * maps in the page and returns OsSuccess */
 OsStatus_t
 DebugPageFault(
-    _In_ Context_t*     Context,
-    _In_ uintptr_t      Address)
+    _In_ Context_t* Context,
+    _In_ uintptr_t  Address)
 {
+    SystemMemorySpace_t* Space  = GetCurrentMemorySpace();
+    OsStatus_t           Status;
     TRACE("DebugPageFault(IP 0x%x, Address 0x%x)", CONTEXT_IP(Context), Address);
-    for (int i = 0; i < 8; i++) {
-        if (PageFaultHandlers[i].AreaHandler == NULL) {
-            break;
-        }
-        if (ISINRANGE(Address, PageFaultHandlers[i].AreaStart, PageFaultHandlers[i].AreaEnd - 1)) {
-            if (PageFaultHandlers[i].AreaHandler(Context, Address) == OsSuccess) {
-                return OsSuccess;
-            }
+
+    if (Space->Context != NULL) {
+        if (DebugPageMemorySpaceHandlers(Context, Address) == OsSuccess) {
+            return OsSuccess;
         }
     }
-    return OsError;
+    Status = CommitMemorySpaceMapping(Space, NULL, Address, MAPPING_PHYSICAL_DEFAULT, __MASK);
+    if (Status == OsExists) {
+        Status = OsSuccess;
+    }
+    return Status;
 }
 
 /* DebugHaltAllProcessorCores
@@ -353,38 +368,18 @@ DebugHandleShortcut(
     return OsSuccess;
 }
 
-/* DebugPageMemorySpaceHandlers
- * Checks for memory access that was memory handler related and valid */
-OsStatus_t
-DebugPageMemorySpaceHandlers(
-    _In_ Context_t* Context,
-    _In_ uintptr_t  Address)
-{
-    SystemMemorySpace_t* Space  = GetCurrentMemorySpace();
-    OsStatus_t           Status = OsError;
-
-    if (Space->Context != NULL) {
-        foreach(Node, Space->Context->MemoryHandlers) {
-            SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)Node;
-            if (ISINRANGE(Address, Handler->Address, (Handler->Address + Handler->Length) - 1)) {
-                __KernelInterruptDriver(__FILEMANAGER_TARGET, Handler->Handle, (void*)Address);
-                Status = WaitForHandles(&Handler->Handle, 1, 1, 0);
-                break;
-            }
-        }
-    }
-    return Status;
-}
-
 /* DebugPageFaultProcessHeapMemory
  * Checks for memory access that was (process) heap related and valid */
 OsStatus_t
 DebugPageFaultProcessHeapMemory(
-    _In_ Context_t* Context,
-    _In_ uintptr_t  Address)
+    _In_ SystemMemorySpace_t* Space,
+    _In_ Context_t*           Context,
+    _In_ uintptr_t            Address)
 {
-    SystemMemorySpace_t* Space     = GetCurrentMemorySpace();
-    Flags_t              PageFlags = MAPPING_USERSPACE | MAPPING_FIXED;
+    Flags_t    PageFlags      = MAPPING_COMMIT | MAPPING_USERSPACE;
+    Flags_t    PlacementFlags = MAPPING_VIRTUAL_FIXED;
+    uintptr_t  Physical;
+    OsStatus_t Status = OsError;
 
     if (Space->Context != NULL) {
         if (DebugPageMemorySpaceHandlers(Context, Address) == OsSuccess) {
@@ -393,27 +388,34 @@ DebugPageFaultProcessHeapMemory(
 
         // If the mapping is a heap address we need to check for device-io mapping
         if (BlockBitmapValidateState(Space->Context->HeapSpace, Address, 1) == OsSuccess) {
-            uintptr_t ExistingPhysical = ValidateDeviceIoMemoryAddress(Address);
-            if (ExistingPhysical != 0) {
-                return CreateMemorySpaceMapping(Space, &ExistingPhysical, &Address, 
-                    GetMemorySpacePageSize(), PageFlags | MAPPING_NOCACHE | MAPPING_PROVIDED, __MASK);
+            Physical = ValidateDeviceIoMemoryAddress(Address);
+            if (Physical != 0) {
+                PlacementFlags = MAPPING_PHYSICAL_FIXED;
+                PageFlags     |= MAPPING_NOCACHE;
             }
-            return CreateMemorySpaceMapping(Space, NULL, &Address, GetMemorySpacePageSize(), PageFlags, __MASK);
+            Status = CommitMemorySpaceMapping(Space, &Physical, Address, MAPPING_PHYSICAL_DEFAULT, __MASK);
+            if (Status == OsExists) {
+                Status = OsSuccess;
+            }
         }
     }
-    return OsSuccess;
+    return Status;
 }
 
 /* DebugPageFaultKernelHeapMemory
  * Checks for memory access that was (kernel) heap related and valid */
 OsStatus_t
 DebugPageFaultKernelHeapMemory(
-    _In_ Context_t* Context,
-    _In_ uintptr_t  Address)
+    _In_ SystemMemorySpace_t* Space,
+    _In_ Context_t*           Context,
+    _In_ uintptr_t            Address)
 {
+    OsStatus_t Status = OsError;
     if (HeapValidateAddress(HeapGetKernel(), Address) == OsSuccess) {
-        return CreateMemorySpaceMapping(GetCurrentMemorySpace(), NULL, &Address, 
-            GetMemorySpacePageSize(), MAPPING_FIXED, __MASK);
+        Status = CommitMemorySpaceMapping(Space, NULL, Address, MAPPING_PHYSICAL_DEFAULT, __MASK);
+        if (Status == OsExists) {
+            Status = OsSuccess;
+        }
     }
     return OsError;
 }
@@ -422,11 +424,13 @@ DebugPageFaultKernelHeapMemory(
  * Checks for memory access that was io-space related and valid */
 OsStatus_t
 DebugPageFaultThreadMemory(
-    _In_ Context_t* Context,
-    _In_ uintptr_t  Address)
+    _In_ SystemMemorySpace_t* Space,
+    _In_ Context_t*           Context,
+    _In_ uintptr_t            Address)
 {
-    return CreateMemorySpaceMapping(GetCurrentMemorySpace(), NULL, &Address, 
-                GetMemorySpacePageSize(), MAPPING_USERSPACE | MAPPING_FIXED, __MASK);
+    // Don't bother checking this for multithreading issues, this is thread
+    // specific memory and thus only accessible to a single thread
+    return CommitMemorySpaceMapping(Space, NULL, Address, MAPPING_PHYSICAL_DEFAULT, __MASK);
 }
 
 /* DebugInstallPageFaultHandlers
@@ -463,10 +467,7 @@ DebugInstallPageFaultHandlers(
 //    char *instructions = (char*)kmalloc(0x1000);
 //    uintptr_t pointer = address;
 //
-//    /* Null */
 //    memset(instructions, 0, 0x1000);
-//
-//    /* Do it! */
 //    for (n = 0; n < num_instructions; n++)
 //    {
 //        INSTRUCTION inst;
@@ -489,8 +490,6 @@ DebugInstallPageFaultHandlers(
 //            strcat(instructions, inst_str);
 //            strcat(instructions, "\n");
 //        }
-//
-//        /* Increament Pointer */
 //        pointer += inst.length;
 //    }
 //

@@ -70,10 +70,10 @@ HeapAllocateInternal(
     _In_ Heap_t*        Heap,
     _In_ size_t         Length)
 {
-    // Variables
-    uintptr_t ReturnAddressEnd;
-    uintptr_t ReturnAddress;
-    Flags_t MapFlags = ((Heap->IsUser == 1) ? MAPPING_USERSPACE : 0) | MAPPING_FIXED;
+    uintptr_t  ReturnAddressEnd;
+    uintptr_t  ReturnAddress;
+    Flags_t    MapFlags = ((Heap->IsUser == 1) ? MAPPING_USERSPACE : 0) | MAPPING_COMMIT;
+    Flags_t    PlacementFlags = MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_FIXED;
     OsStatus_t Status;
 
     // Sanitize the size, and memory status
@@ -85,9 +85,9 @@ HeapAllocateInternal(
     ReturnAddress       = atomic_fetch_add(&Heap->HeaderCurrent, Length);
     ReturnAddressEnd    = ReturnAddress + Length;
     Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), NULL, &ReturnAddress,
-        GetMemorySpacePageSize(), MapFlags, __MASK);
+        GetMemorySpacePageSize(), MapFlags, PlacementFlags, __MASK);
     Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), NULL, &ReturnAddressEnd,
-        GetMemorySpacePageSize(), MapFlags, __MASK);
+        GetMemorySpacePageSize(), MapFlags, PlacementFlags, __MASK);
     return (uintptr_t*)ReturnAddress;
 }
 
@@ -513,11 +513,13 @@ HeapAllocate(
     // Sanitize
     // If return value is not 0 it means our allocation was made!
     if (RetVal != 0) {
+        Flags_t MemoryFlags = 0;
         if (Flags & ALLOCATION_COMMIT) {
-            CreateMemorySpaceMapping(GetCurrentMemorySpace(), NULL, &RetVal, 
-                AdjustedSize, MAPPING_FIXED, Mask);
+            MemoryFlags = MAPPING_COMMIT;
         }
-        if (Flags & ALLOCATION_ZERO) {
+        CreateMemorySpaceMapping(GetCurrentMemorySpace(), NULL, &RetVal, 
+                AdjustedSize, MemoryFlags, MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_FIXED, Mask);
+        if ((Flags & (ALLOCATION_COMMIT | ALLOCATION_ZERO)) == (ALLOCATION_COMMIT | ALLOCATION_ZERO)) {
             memset((void*)RetVal, 0, Length);
         }
         return RetVal;

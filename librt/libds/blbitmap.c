@@ -217,7 +217,6 @@ BlockBitmapValidateState(
     _In_ uintptr_t      Block,
     _In_ int            Set)
 {
-    // Variables
     int Index;
     assert(Blockmap != NULL);
     
@@ -227,7 +226,7 @@ BlockBitmapValidateState(
     // Do some sanity checks on the calculated 
     // values, they should be in bounds
     if (Index < 0 || Index >= (int)Blockmap->BlockCount) {
-        return OsError;
+        return OsDoesNotExist;
     }
 
     // Now we will check whether or not the bit has been set/clear

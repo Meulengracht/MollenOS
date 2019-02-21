@@ -56,8 +56,7 @@ typedef struct _BlockBitmapSegment {
 /* CreateBlockmap
  * Creates a new blockmap of with the given configuration and returns a pointer to a newly
  * allocated blockmap. Also returns an error code. */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 CreateBlockmap(
     _In_  Flags_t           Configuration,
     _In_  uintptr_t         BlockStart, 
@@ -68,8 +67,7 @@ CreateBlockmap(
 /* ConstructBlockmap
  * Instantiates a static instance of a block bitmap. The buffer used for the bit storage
  * must also be provided and should be of at-least GetBytesNeccessaryForBlockmap(<Params>). */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 ConstructBlockmap(
     _In_ BlockBitmap_t*     Blockmap,
     _In_ void*              Buffer,
@@ -80,15 +78,13 @@ ConstructBlockmap(
 
 /* DestroyBlockmap
  * Destroys a block bitmap, and releases all resources associated with the bitmap */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 DestroyBlockmap(
     _In_ BlockBitmap_t* Blockmap));
 
 /* GetBytesNeccessaryForBlockmap
  * Calculates the number of bytes neccessary for the allocation parameters. */
-CRTDECL(
-size_t,
+CRTDECL(size_t,
 GetBytesNeccessaryForBlockmap(
     _In_ uintptr_t          BlockStart, 
     _In_ uintptr_t          BlockEnd, 
@@ -97,8 +93,7 @@ GetBytesNeccessaryForBlockmap(
 /* AllocateBlocksInBlockmap
  * Allocates a number of bytes in the bitmap (rounded up in blocks)
  * and returns the calculated block of the start of block allocated (continously) */
-CRTDECL(
-uintptr_t,
+CRTDECL(uintptr_t,
 AllocateBlocksInBlockmap(
     _In_ BlockBitmap_t* Blockmap,
     _In_ size_t         AllocationMask,
@@ -107,8 +102,7 @@ AllocateBlocksInBlockmap(
 /* ReserveBlockmapRegion
  * Reserves a region of the blockmap. This sets the given region to allocated. The
  * region and size must be within boundaries of the blockmap. */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 ReserveBlockmapRegion(
     _In_ BlockBitmap_t* Blockmap,
     _In_ uintptr_t      Block,
@@ -117,8 +111,7 @@ ReserveBlockmapRegion(
 /* ReleaseBlockmapRegion
  * Deallocates a given block translated into offsets 
  * into the given bitmap, and frees them in the bitmap */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 ReleaseBlockmapRegion(
     _In_ BlockBitmap_t* Blockmap,
     _In_ uintptr_t      Block,
@@ -127,8 +120,7 @@ ReleaseBlockmapRegion(
 /* BlockBitmapValidate
  * Validates the given block that it's within
  * range of our bitmap and that it is either set or clear */
-CRTDECL(
-OsStatus_t,
+CRTDECL(OsStatus_t,
 BlockBitmapValidateState(
     _In_ BlockBitmap_t* Blockmap,
     _In_ uintptr_t      Block,

@@ -113,7 +113,6 @@ CRTDECL(void, __cxa_callinitializers(_PVFV *pfbegin, _PVFV *pfend));
 CRTDECL(int,  __cxa_callinitializers_ex(_PIFV *pfbegin, _PIFV *pfend));
 CRTDECL(void, __cxa_callinitializers_tls(_PVTLS *pfbegin, _PVTLS *pfend, void *dso_handle, unsigned long reason));
 
-static int _tls_init    = 0;
 void*      __dso_handle = &__dso_handle;
 #if defined(i386) || defined(__i386__) || defined(amd64) || defined(__amd64__)
 void**        _tls_array = NULL; // on 64 bit this must be at gs:0x58 [11], 32 bit this should point into tls area
@@ -161,10 +160,6 @@ void __cxa_module_tls_thread_init(void) {
         _tls_array[_tls_index] = malloc(TlsDataSize);
         memcpy(_tls_array[_tls_index], (void*)_tls_used.StartOfData, TlsDataSize);
     }
-    if (_tls_init == 0) {
-        __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_INITIALIZE);
-        _tls_init = 1;
-    }
     __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_THREADATTACH);
 }
 
@@ -185,6 +180,7 @@ void __cxa_module_tls_thread_finit(void) {
 void __cxa_module_global_init(void) {
     TRACE("__cxa_module_global_init()");
     __cxa_module_tls_global_init();
+    __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_INITIALIZE);
     __cxa_module_tls_thread_init();
 	__cxa_callinitializers(__xc_a, __xc_z);
 	__cxa_callinitializers_ex(__xi_a, __xi_z);
@@ -193,9 +189,13 @@ void __cxa_module_global_init(void) {
 // On non-windows coff platforms this should not be run
 // as terminators are registered by cxa_atexit.
 void __cxa_module_global_finit(void) {
+    size_t TlsDataSize = (size_t)_tls_used.EndOfData - (size_t)_tls_used.StartOfData;
     TRACE("__cxa_module_global_finit()");
 	__cxa_callinitializers(__xp_a, __xp_z);
 	__cxa_callinitializers(__xt_a, __xt_z);
-    __cxa_module_tls_thread_finit();
+    __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_THREADDETACH);
     __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_FINALIZE);
+    if (TlsDataSize > 0 && _tls_used.StartOfData < _tls_used.EndOfData) {
+        free(_tls_array[_tls_index]);
+    }
 }

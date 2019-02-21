@@ -47,17 +47,18 @@ typedef struct _BlockBitmap BlockBitmap_t;
 #define MAPPING_ISDIRTY                 0x00000010  // Memory that has been marked poluted/written to
 #define MAPPING_PERSISTENT              0x00000020  // Memory should not be freed when mapping is removed
 #define MAPPING_DOMAIN                  0x00000040  // Memory allocated for mapping must be domain local
-#define MAPPING_LOWFIRST                0x00000080  // Memory resources should be allocated by low-addresses first
+#define MAPPING_COMMIT                  0x00000080  // Memory should be comitted immediately
+#define MAPPING_LOWFIRST                0x00000100  // Memory resources should be allocated by low-addresses first
 
-#define MAPPING_PROVIDED                0x00010000  // (Physical) Mapping is supplied
-#define MAPPING_CONTIGIOUS              0x00020000  // (Physical) Mapping must be continous
-#define MAPPING_PMODE_MASK              0x000F0000
+#define MAPPING_PHYSICAL_DEFAULT        0x00000001  // (Physical) Mappings are default allocated
+#define MAPPING_PHYSICAL_CONTIGIOUS     0x00000002  // (Physical) Mappings are default allocated, as contigious
+#define MAPPING_PHYSICAL_FIXED          0x00000004  // (Physical) Mappings are supplied
+#define MAPPING_PHYSICAL_MASK           0x00000007
 
-#define MAPPING_FIXED                   0x10000000  // (Virtual) Mapping is supplied
-#define MAPPING_PROCESS                 0x20000000  // (Virtual) Mapping is process specific
-#define MAPPING_KERNEL                  0x40000000  // (Virtual) Mapping is done in priority memory
-#define MAPPING_LEGACY                  0x80000000  // (Virtual) Mapping is for legacy memory devices
-#define MAPPING_VMODE_MASK              0xF0000000
+#define MAPPING_VIRTUAL_GLOBAL          0x00000008  // (Virtual) Mapping is done in global access memory
+#define MAPPING_VIRTUAL_PROCESS         0x00000010  // (Virtual) Mapping is process specific
+#define MAPPING_VIRTUAL_FIXED           0x00000020  // (Virtual) Mapping is supplied
+#define MAPPING_VIRTUAL_MASK            0x00000038
 
 typedef struct _SystemMemoryMappingHandler {
     CollectionItem_t Header;
@@ -153,9 +154,21 @@ CreateMemorySpaceMapping(
     _In_        SystemMemorySpace_t* SystemMemorySpace,
     _InOut_Opt_ PhysicalAddress_t*   PhysicalAddress, 
     _InOut_Opt_ VirtualAddress_t*    VirtualAddress,
-    _In_        size_t               Size, 
-    _In_        Flags_t              Flags,
-    _In_        uintptr_t            Mask);
+    _In_        size_t               Size,
+    _In_        Flags_t              MemoryFlags,
+    _In_        Flags_t              PlacementFlags,
+    _In_        uintptr_t            PhysicalMask);
+
+/* CommitMemorySpaceMapping
+ * Commits/finishes an already present memory mapping. If a physical address
+ * is not already provided one will be allocated for the mapping. Flags must present. */
+KERNELAPI OsStatus_t KERNELABI
+CommitMemorySpaceMapping(
+    _In_        SystemMemorySpace_t* SystemMemorySpace,
+    _InOut_Opt_ PhysicalAddress_t*   PhysicalAddress, 
+    _In_        VirtualAddress_t     VirtualAddress,
+    _In_        Flags_t              PlacementFlags,
+    _In_        uintptr_t            PhysicalMask);
 
 /* CloneMemorySpaceMapping
  * Clones a region of memory mappings into the address space provided. The new mapping
@@ -166,9 +179,9 @@ CloneMemorySpaceMapping(
     _In_        SystemMemorySpace_t* DestinationSpace,
     _In_        VirtualAddress_t     SourceAddress,
     _InOut_Opt_ VirtualAddress_t*    DestinationAddress,
-    _In_        size_t               Size, 
-    _In_        Flags_t              Flags,
-    _In_        uintptr_t            Mask);
+    _In_        size_t               Size,
+    _In_        Flags_t              MemoryFlags,
+    _In_        Flags_t              PlacementFlags);
 
 /* RemoveMemorySpaceMapping
  * Unmaps a virtual memory region from an address space */

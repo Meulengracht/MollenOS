@@ -27,7 +27,7 @@
  * 
  * Thread Flow:
  *  - Startup:          tls_create(new_thread), __cxa_threadinitialize
- *  - Cleanup:          tls_cleanup(thread), tls_destroy
+ *  - Cleanup:          tls_cleanup(thread), tls_destroy, __cxa_threadfinalize
  */
 //#define __TRACE
 

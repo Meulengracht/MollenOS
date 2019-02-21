@@ -49,7 +49,7 @@ static SystemMachine_t Machine = {
     { 0 }, { 0 }, { 0 }, { 0 },                      // Strings
     REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD,
     { 0 }, { { 0 } }, { 0 }, { 0 },                  // BootInformation, Processor, MemorySpace, PhysicalMemory
-    { { 0 } }, COLLECTION_INIT(KeyInteger),          // Memory Map, SystemDomains
+    { 0 }, { { 0 } }, COLLECTION_INIT(KeyInteger),   // GAMemory, Memory Map, SystemDomains
     NULL, 0, NULL, NULL, NULL,                       // InterruptControllers
     { { { 0 } } },                                   // SystemTime
     0, 0, 0, 0                                       // Total Information
@@ -106,7 +106,8 @@ InitializeMachine(
 
     // Initialize machine memory
     Status = InitializeSystemMemory(&Machine.BootInformation, &Machine.PhysicalMemory,
-        &Machine.MemoryMap, &Machine.MemoryGranularity, &Machine.NumberOfMemoryBlocks);
+        &Machine.GlobalAccessMemory, &Machine.MemoryMap, &Machine.MemoryGranularity, 
+        &Machine.NumberOfMemoryBlocks);
     if (Status != OsSuccess) {
         ERROR("Failed to initalize system memory system");
         goto StopAndShowError;
@@ -195,6 +196,7 @@ InitializeMachine(
 
     // Either of three things happen, testing phase can begin, we can enter
     // debug console or last option is normal operation.
+    for(;;);
 #ifdef __OSCONFIG_TEST_KERNEL
     StartTestingPhase();
 #elif __OSCONFIG_DEBUGMODE

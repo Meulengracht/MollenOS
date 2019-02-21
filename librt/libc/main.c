@@ -18,9 +18,6 @@
  *
  * MollenOS C Library - Entry Point
  */
-
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 
 void CRTHIDE dllmain(

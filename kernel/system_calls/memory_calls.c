@@ -35,68 +35,48 @@
 
 OsStatus_t
 ScMemoryAllocate(
-    _In_  size_t        Size, 
-    _In_  Flags_t       Flags, 
+    _In_  size_t        Size,
+    _In_  Flags_t       Flags,
     _Out_ uintptr_t*    VirtualAddress,
     _Out_ uintptr_t*    PhysicalAddress)
 {
+    OsStatus_t           Status;
     uintptr_t            AllocatedAddress;
-    SystemMemorySpace_t* Space = GetCurrentMemorySpace();
-    
-    assert(Space->Context != NULL);
+    SystemMemorySpace_t* Space          = GetCurrentMemorySpace();
+    Flags_t              MemoryFlags    = MAPPING_USERSPACE | MAPPING_VIRTUAL_PROCESS;
+    Flags_t              PlacementFlags = MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_PROCESS;
     if (Size == 0) {
         return OsInvalidParameters;
     }
-    
-    // Now do the allocation in the user-bitmap 
-    // since memory is managed in userspace for speed
-    AllocatedAddress = AllocateBlocksInBlockmap(Space->Context->HeapSpace, __MASK, Size);
-    if (AllocatedAddress == 0) {
-        return OsError;
-    }
 
-    // Force a commit of memory if any flags
-    // is given, because we can't apply flags later
-    if (Flags != 0) {
-        Flags |= MEMORY_COMMIT;
-    }
-
-    // Handle flags
-    // If the commit flag is not given the flags won't be applied
+    // Convert flags from memory domain to memory space domain
     if (Flags & MEMORY_COMMIT) {
-        int ExtendedFlags = MAPPING_USERSPACE | MAPPING_FIXED;
-
-        // Build extensions
-        if (Flags & MEMORY_CONTIGIOUS) {
-            ExtendedFlags |= MAPPING_CONTIGIOUS;
-        }
-        if (Flags & MEMORY_UNCHACHEABLE) {
-            ExtendedFlags |= MAPPING_NOCACHE;
-        }
-        if (Flags & MEMORY_LOWFIRST) {
-            ExtendedFlags |= MAPPING_LOWFIRST;
-        }
-
-        // Do the actual mapping
-        if (CreateMemorySpaceMapping(Space, PhysicalAddress, &AllocatedAddress, Size, 
-            ExtendedFlags, __MASK) != OsSuccess) {
-            ReleaseBlockmapRegion(Space->Context->HeapSpace, AllocatedAddress, Size);
-            *VirtualAddress = 0;
-            return OsError;
-        }
-
-        // Handle post allocation flags
-        if (Flags & MEMORY_CLEAN) {
-            memset((void*)AllocatedAddress, 0, Size);
-        }
+        MemoryFlags |= MAPPING_COMMIT;
     }
-    else {
+    if (Flags & MEMORY_CONTIGIOUS) {
+        MemoryFlags |= MAPPING_PHYSICAL_CONTIGIOUS;
+    }
+    if (Flags & MEMORY_UNCHACHEABLE) {
+        MemoryFlags |= MAPPING_NOCACHE;
+    }
+    if (Flags & MEMORY_LOWFIRST) {
+        MemoryFlags |= MAPPING_LOWFIRST;
+    }
+
+    // Reset
+    if (PhysicalAddress != NULL) {
         *PhysicalAddress = 0;
     }
 
-    // Update out and return
-    *VirtualAddress = (uintptr_t)AllocatedAddress;
-    return OsSuccess;
+    Status = CreateMemorySpaceMapping(Space, PhysicalAddress, &AllocatedAddress, Size, 
+        MemoryFlags, PlacementFlags, __MASK);
+    if (Status == OsSuccess) {
+        if ((Flags & (MEMORY_COMMIT | MEMORY_CLEAN)) == (MEMORY_COMMIT | MEMORY_CLEAN)) {
+            memset((void*)AllocatedAddress, 0, Size);
+        }
+        *VirtualAddress = (uintptr_t)AllocatedAddress;
+    }
+    return Status;
 }
 
 OsStatus_t 
@@ -105,18 +85,8 @@ ScMemoryFree(
     _In_ size_t     Size)
 {
     SystemMemorySpace_t* Space = GetCurrentMemorySpace();
-    
-    assert(Space->Context != NULL);
     if (Address == 0 || Size == 0) {
         return OsInvalidParameters;
-    }
-
-    // Now do the deallocation in the user-bitmap 
-    // since memory is managed in userspace for speed
-    TRACE("MemoryFree(V 0x%x, L 0x%x)", Address, Size);
-    if (ReleaseBlockmapRegion(Space->Context->HeapSpace, Address, Size) != OsSuccess) {
-        ERROR("ScMemoryFree(Address 0x%x, Size 0x%x) was invalid", Address, Size);
-        return OsError;
     }
     return RemoveMemorySpaceMapping(Space, Address, Size);
 }
@@ -216,17 +186,18 @@ ScCreateMemorySpaceMapping(
     _In_ struct MemoryMappingParameters* Parameters,
     _In_ DmaBuffer_t*                    AccessBuffer)
 {
-    SystemModule_t*      Module        = GetCurrentModule();
-    SystemMemorySpace_t* MemorySpace   = (SystemMemorySpace_t*)LookupHandle(Handle);
-    Flags_t              RequiredFlags = MAPPING_USERSPACE | MAPPING_PROVIDED | MAPPING_FIXED;
+    SystemModule_t*      Module         = GetCurrentModule();
+    SystemMemorySpace_t* MemorySpace    = (SystemMemorySpace_t*)LookupHandle(Handle);
+    Flags_t              RequiredFlags  = MAPPING_COMMIT | MAPPING_USERSPACE;
+    Flags_t              PlacementFlags = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS;
     OsStatus_t           Status;
     if (Parameters == NULL || AccessBuffer == NULL || Module == NULL) {
         if (Module == NULL) {
             return OsInvalidPermissions;
         }
-        return OsError;
+        return OsInvalidParameters;
     }
-    if (MemorySpace == NULL || Parameters->Flags == 0) {
+    if (MemorySpace == NULL) {
         return OsDoesNotExist;
     }
     
@@ -235,7 +206,7 @@ ScCreateMemorySpaceMapping(
         return Status;
     }
 
-    if (Parameters->Flags | MEMORY_EXECUTABLE) {
+    if (Parameters->Flags & MEMORY_EXECUTABLE) {
         RequiredFlags |= MAPPING_EXECUTABLE;
     }
     if (!(Parameters->Flags & MEMORY_WRITE)) {
@@ -245,7 +216,7 @@ ScCreateMemorySpaceMapping(
     TRACE("CreateMemorySpaceMapping(P 0x%x, V 0x%x, L 0x%x, F 0x%x)", 
         AccessBuffer->Dma, Parameters->VirtualAddress, Parameters->Length, RequiredFlags);
     Status = CreateMemorySpaceMapping(MemorySpace, &AccessBuffer->Dma, &Parameters->VirtualAddress,
-        Parameters->Length, RequiredFlags, __MASK);
+        Parameters->Length, RequiredFlags, PlacementFlags, __MASK);
     TRACE("=> mapped to 0x%x", AccessBuffer->Address);
     if (Status != OsSuccess) {
         ScMemoryFree(AccessBuffer->Address, AccessBuffer->Capacity);

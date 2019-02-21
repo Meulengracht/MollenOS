@@ -44,13 +44,9 @@ extern void memory_load_cr3(uintptr_t pda);
 extern void memory_reload_cr3(void);
 
 // Global static storage for the memory
-static BlockBitmap_t                    KernelMemory    = { 0 };
-static MemorySynchronizationObject_t    SyncData        = { SPINLOCK_INIT, 0 };
-static size_t                           BlockmapBytes   = 0;
+static MemorySynchronizationObject_t SyncData      = { SPINLOCK_INIT, 0 };
+static size_t                        BlockmapBytes = 0;
 
-/* PrintPhysicalMemoryUsage
- * This is a debug function for inspecting
- * the memory status, it spits out how many blocks are in use */
 void
 PrintPhysicalMemoryUsage(void) {
     TRACE("Bitmap size: %u Bytes", BlockmapBytes);
@@ -65,15 +61,15 @@ OsStatus_t
 InitializeSystemMemory(
     _In_ Multiboot_t*       BootInformation,
     _In_ BlockBitmap_t*     Memory,
+    _In_ BlockBitmap_t*     GlobalAccessMemory,
     _In_ SystemMemoryMap_t* MemoryMap,
     _In_ size_t*            MemoryGranularity,
     _In_ size_t*            NumberOfMemoryBlocks)
 {
-    // Variables
-    BIOSMemoryRegion_t *RegionPointer = NULL;
-    uintptr_t MemorySize;
-    size_t BytesOccupied = 0;
-    int i;
+    BIOSMemoryRegion_t* RegionPointer = NULL;
+    uintptr_t           MemorySize;
+    size_t              BytesOccupied = 0;
+    int                 i;
 
     // Initialize
     RegionPointer = (BIOSMemoryRegion_t*)(uintptr_t)BootInformation->MemoryMapAddress;
@@ -91,14 +87,13 @@ InitializeSystemMemory(
     // Free regions given to us by memory map
     for (i = 0; i < (int)BootInformation->MemoryMapLength; i++) {
         if (RegionPointer->Type == 1) {
-            ReleaseBlockmapRegion(Memory, 
-                (uintptr_t)RegionPointer->Address, (size_t)RegionPointer->Size);
+            ReleaseBlockmapRegion(Memory, (uintptr_t)RegionPointer->Address, (size_t)RegionPointer->Size);
         }
         RegionPointer++;
     }
 
     // Initialize the kernel memory region
-    ConstructBlockmap(&KernelMemory, (void*)(MEMORY_LOCATION_BITMAP + (BlockmapBytes + PAGE_SIZE)), 
+    ConstructBlockmap(GlobalAccessMemory, (void*)(MEMORY_LOCATION_BITMAP + (BlockmapBytes + PAGE_SIZE)), 
         0, MEMORY_LOCATION_RESERVED, MEMORY_LOCATION_KERNEL_END, PAGE_SIZE);
     BytesOccupied += GetBytesNeccessaryForBlockmap(MEMORY_LOCATION_RESERVED, MEMORY_LOCATION_KERNEL_END, PAGE_SIZE) + PAGE_SIZE;
 
@@ -117,20 +112,20 @@ InitializeSystemMemory(
     BlockmapBytes = BytesOccupied;
 
     // Fill in rest of data
-    *MemoryGranularity      = PAGE_SIZE;
-    *NumberOfMemoryBlocks   = DIVUP(MemorySize, PAGE_SIZE);
+    *MemoryGranularity    = PAGE_SIZE;
+    *NumberOfMemoryBlocks = DIVUP(MemorySize, PAGE_SIZE);
     
-    MemoryMap->SystemHeap.Start     = MEMORY_LOCATION_HEAP;
-    MemoryMap->SystemHeap.Length    = MEMORY_LOCATION_HEAP_END - MEMORY_LOCATION_HEAP;
+    MemoryMap->SystemHeap.Start  = MEMORY_LOCATION_HEAP;
+    MemoryMap->SystemHeap.Length = MEMORY_LOCATION_HEAP_END - MEMORY_LOCATION_HEAP;
 
-    MemoryMap->UserCode.Start       = MEMORY_LOCATION_RING3_CODE;
-    MemoryMap->UserCode.Length      = MEMORY_LOCATION_RING3_CODE_END - MEMORY_LOCATION_RING3_CODE;
+    MemoryMap->UserCode.Start  = MEMORY_LOCATION_RING3_CODE;
+    MemoryMap->UserCode.Length = MEMORY_LOCATION_RING3_CODE_END - MEMORY_LOCATION_RING3_CODE;
 
-    MemoryMap->UserHeap.Start       = MEMORY_LOCATION_RING3_HEAP;
-    MemoryMap->UserHeap.Length      = MEMORY_LOCATION_RING3_HEAP_END - MEMORY_LOCATION_RING3_HEAP;
+    MemoryMap->UserHeap.Start  = MEMORY_LOCATION_RING3_HEAP;
+    MemoryMap->UserHeap.Length = MEMORY_LOCATION_RING3_HEAP_END - MEMORY_LOCATION_RING3_HEAP;
     
-    MemoryMap->ThreadArea.Start     = MEMORY_LOCATION_RING3_THREAD_START;
-    MemoryMap->ThreadArea.Length    = MEMORY_LOCATION_RING3_THREAD_END - MEMORY_LOCATION_RING3_THREAD_START;
+    MemoryMap->ThreadArea.Start  = MEMORY_LOCATION_RING3_THREAD_START;
+    MemoryMap->ThreadArea.Length = MEMORY_LOCATION_RING3_THREAD_END - MEMORY_LOCATION_RING3_THREAD_START;
 
     // Debug initial stats
     PrintPhysicalMemoryUsage();
@@ -142,9 +137,14 @@ InitializeSystemMemory(
 Flags_t
 ConvertSystemSpaceToPaging(Flags_t Flags)
 {
-    // Variables
-    Flags_t NativeFlags = PAGE_PRESENT;
+    Flags_t NativeFlags = 0;
 
+    if (Flags & MAPPING_COMMIT) {
+        NativeFlags |= PAGE_PRESENT;
+    }
+    else {
+        NativeFlags |= PAGE_RESERVED;
+    }
     if (Flags & MAPPING_USERSPACE) {
         NativeFlags |= PAGE_USER;
     }
@@ -168,26 +168,28 @@ ConvertSystemSpaceToPaging(Flags_t Flags)
 Flags_t
 ConvertPagingToSystemSpace(Flags_t Flags)
 {
-    // Variables
     Flags_t GenericFlags = 0;
 
-    if (Flags & PAGE_PRESENT) {
-        GenericFlags |= MAPPING_EXECUTABLE;
-    }
-    if (!(Flags & PAGE_WRITE)) {
-        GenericFlags |= MAPPING_READONLY;
-    }
-    if (Flags & PAGE_USER) {
-        GenericFlags |= MAPPING_USERSPACE;
-    }
-    if (Flags & PAGE_CACHE_DISABLE) {
-        GenericFlags |= MAPPING_NOCACHE;
-    }
-    if (Flags & PAGE_PERSISTENT) {
-        GenericFlags |= MAPPING_PERSISTENT;
-    }
-    if (Flags & PAGE_DIRTY) {
-        GenericFlags |= MAPPING_ISDIRTY;
+    if (Flags & (PAGE_PRESENT | PAGE_RESERVED)) {
+        GenericFlags = MAPPING_EXECUTABLE; // For now 
+        if (Flags & PAGE_PRESENT) {
+            GenericFlags |= MAPPING_COMMIT;
+        }
+        if (!(Flags & PAGE_WRITE)) {
+            GenericFlags |= MAPPING_READONLY;
+        }
+        if (Flags & PAGE_USER) {
+            GenericFlags |= MAPPING_USERSPACE;
+        }
+        if (Flags & PAGE_CACHE_DISABLE) {
+            GenericFlags |= MAPPING_NOCACHE;
+        }
+        if (Flags & PAGE_PERSISTENT) {
+            GenericFlags |= MAPPING_PERSISTENT;
+        }
+        if (Flags & PAGE_DIRTY) {
+            GenericFlags |= MAPPING_ISDIRTY;
+        }
     }
     return GenericFlags;
 }
@@ -196,8 +198,8 @@ ConvertPagingToSystemSpace(Flags_t Flags)
  * Synchronizes the page address specified in the MemorySynchronization Object. */
 InterruptStatus_t
 PageSynchronizationHandler(
-    _In_ FastInterruptResources_t*  NotUsed,
-    _In_ void*                      Context)
+    _In_ FastInterruptResources_t* NotUsed,
+    _In_ void*                     Context)
 {
     SystemMemorySpace_t* Current = GetCurrentMemorySpace();
     UUId_t CurrentHandle         = GetCurrentMemorySpaceHandle();
@@ -224,9 +226,9 @@ PageSynchronizationHandler(
  * latest revision of the page-table cached. */
 void
 SynchronizePageRegion(
-    _In_ SystemMemorySpace_t*   SystemMemorySpace,
-    _In_ uintptr_t              Address,
-    _In_ size_t                 Length)
+    _In_ SystemMemorySpace_t* SystemMemorySpace,
+    _In_ uintptr_t            Address,
+    _In_ size_t               Length)
 {
     IntStatus_t Status;
 
@@ -264,40 +266,6 @@ SynchronizePageRegion(
     // Release lock before enabling interrupts to avoid a schedule before we've released.
     SpinlockRelease(&SyncData.SyncObject);
     InterruptRestoreState(Status);
-}
-
-/* ResolveVirtualSpaceAddress
- * Resolves the virtual address from the given memory flags. There are special areas
- * reserved for special types of allocation. */
-OsStatus_t
-ResolveVirtualSpaceAddress(
-    _In_  SystemMemorySpace_t*  SystemMemorySpace,
-    _In_  size_t                Size,
-    _In_  Flags_t               Flags,
-    _Out_ VirtualAddress_t*     VirtualBase)
-{
-    // unused
-    _CRT_UNUSED(SystemMemorySpace);
-
-    if (Flags & MAPPING_KERNEL) {
-        *VirtualBase = AllocateBlocksInBlockmap(&KernelMemory, __MASK, Size);
-        return OsSuccess;
-    }
-    else if (Flags & MAPPING_LEGACY) {
-        // @todo
-        FATAL(FATAL_SCOPE_KERNEL, "Tried to allocate ISA DMA memory");
-    }
-    return OsError;
-}
-
-/* ClearKernelMemoryAllocation
- * Clears the kernel memory allocation at the given address and size. */
-OsStatus_t
-ClearKernelMemoryAllocation(
-    _In_ uintptr_t              Address,
-    _In_ size_t                 Size)
-{
-    return ReleaseBlockmapRegion(&KernelMemory, Address, Size);
 }
 
 /* SwitchVirtualSpace
@@ -389,9 +357,66 @@ GetVirtualPageAttributes(
     return OsSuccess;
 }
 
-/* SetVirtualPageMapping
- * Installs a new page-mapping in the given page-directory. The type of mapping 
- * is controlled by the Flags parameter. */
+OsStatus_t
+CommitVirtualPageMapping(
+    _In_ SystemMemorySpace_t*   MemorySpace,
+    _In_ PhysicalAddress_t      pAddress,
+    _In_ VirtualAddress_t       vAddress)
+{
+    PAGE_MASTER_LEVEL* ParentDirectory;
+    PAGE_MASTER_LEVEL* Directory;
+    atomic_uint*       AtomicPointer;
+    PageTable_t*       Table;
+    uintptr_t          Mapping;
+    int                Update;
+    int                IsCurrent;
+    OsStatus_t         Status = OsSuccess;
+
+    vAddress &= PAGE_MASK;
+    Directory = MmVirtualGetMasterTable(MemorySpace, vAddress, &ParentDirectory, &IsCurrent);
+    Table     = MmVirtualGetTable(ParentDirectory, Directory, vAddress, IsCurrent, 0, 0, &Update);
+    if (Table == NULL) {
+        return OsDoesNotExist;
+    }
+
+    // Make sure value is not mapped already, NEVER overwrite a mapping
+    AtomicPointer = &Table->Pages[PAGE_TABLE_INDEX(vAddress)];
+    Mapping       = atomic_load(AtomicPointer);
+SyncTable:
+    if (Mapping & PAGE_PRESENT) {
+        Status = OsExists;
+        goto LeaveFunction;
+    }
+    if (!(Mapping & PAGE_RESERVED)) {
+        Status = OsDoesNotExist;
+        goto LeaveFunction;
+    }
+    
+    // Build the mapping, reuse existing attached physical if it exists
+    if ((Mapping & PAGE_MASK) != 0) {
+        pAddress = Mapping | PAGE_PRESENT;
+    }
+    else {
+        pAddress = (pAddress & PAGE_MASK) | (Mapping & ATTRIBUTE_MASK) | PAGE_PRESENT;
+    }
+    pAddress &= ~(PAGE_RESERVED);
+
+    // Perform the mapping in a weak context, fast operation
+    if (!atomic_compare_exchange_weak(AtomicPointer, &Mapping, pAddress)) {
+        goto SyncTable;
+    }
+
+    // Last step is to invalidate the address in the MMIO
+LeaveFunction:
+    if (IsCurrent || Update) {
+        if (Update) {
+            memory_reload_cr3();
+        }
+        memory_invalidate_addr(vAddress);
+    }
+    return Status;
+}
+
 OsStatus_t
 SetVirtualPageMapping(
     _In_ SystemMemorySpace_t*   MemorySpace,
@@ -409,9 +434,10 @@ SetVirtualPageMapping(
     int                IsCurrent;
     OsStatus_t         Status = OsSuccess;
 
+    vAddress      &= PAGE_MASK;
     ConvertedFlags = ConvertSystemSpaceToPaging(Flags);
-    Directory      = MmVirtualGetMasterTable(MemorySpace, (vAddress & PAGE_MASK), &ParentDirectory, &IsCurrent);
-    Table          = MmVirtualGetTable(ParentDirectory, Directory, (vAddress & PAGE_MASK), IsCurrent, 1, ConvertedFlags, &Update);
+    Directory      = MmVirtualGetMasterTable(MemorySpace, vAddress, &ParentDirectory, &IsCurrent);
+    Table          = MmVirtualGetTable(ParentDirectory, Directory, vAddress, IsCurrent, 1, ConvertedFlags, &Update);
 
     // For kernel mappings we would like to mark the mappings global
     if (vAddress < MEMORY_LOCATION_KERNEL_END) {
@@ -424,23 +450,17 @@ SetVirtualPageMapping(
     assert(Table != NULL);
 
     // Make sure value is not mapped already, NEVER overwrite a mapping
-    AtomicPointer = &Table->Pages[PAGE_TABLE_INDEX((vAddress & PAGE_MASK))];
+    pAddress      = (pAddress & PAGE_MASK) | ConvertedFlags;
+    AtomicPointer = &Table->Pages[PAGE_TABLE_INDEX(vAddress)];
     Mapping       = atomic_load(AtomicPointer);
 SyncTable:
     if (Mapping != 0) {
-        if (ConvertedFlags & PAGE_PERSISTENT) {
-            if (Mapping != (pAddress & PAGE_MASK)) {
-                FATAL(FATAL_SCOPE_KERNEL, 
-                    "Tried to remap fixed virtual address 0x%x => 0x%x (Existing 0x%x), debug-address 0x%x", 
-                    vAddress, pAddress, Mapping, AtomicPointer);
-            }
-        }
         Status = OsExists;
         goto LeaveFunction;
     }
 
     // Perform the mapping in a weak context, fast operation
-    if (!atomic_compare_exchange_weak(AtomicPointer, &Mapping, (pAddress & PAGE_MASK) | ConvertedFlags)) {
+    if (!atomic_compare_exchange_weak(AtomicPointer, &Mapping, pAddress)) {
         goto SyncTable;
     }
 
@@ -450,18 +470,15 @@ LeaveFunction:
         if (Update) {
             memory_reload_cr3();
         }
-        memory_invalidate_addr((vAddress & PAGE_MASK));
+        memory_invalidate_addr(vAddress);
     }
     return Status;
 }
 
-/* ClearVirtualPageMapping
- * Unmaps a previous mapping from the given page-directory
- * the mapping must be present */
 OsStatus_t
 ClearVirtualPageMapping(
-    _In_ SystemMemorySpace_t*   MemorySpace,
-    _In_ VirtualAddress_t       Address)
+    _In_ SystemMemorySpace_t* MemorySpace,
+    _In_ VirtualAddress_t     Address)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
@@ -476,33 +493,29 @@ ClearVirtualPageMapping(
     if (Table == NULL) {
         return OsError;
     }
-    
-    // For kernel mappings we would like to mark the page free if it's
-    // in the kernel reserved region
-    if (Address >= MEMORY_LOCATION_RESERVED && Address < MEMORY_LOCATION_KERNEL_END) {
-        ClearKernelMemoryAllocation(Address, PAGE_SIZE);
-    }
 
     // Load the mapping
     AtomicPointer = &Table->Pages[PAGE_TABLE_INDEX(Address)];
     Mapping       = atomic_load(AtomicPointer);
 SyncTable:
-    if (Mapping & PAGE_PRESENT) {
+    if (Mapping != 0) {
         if (!(Mapping & PAGE_SYSTEM_MAP)) {
-            // Present, not system map
-            // Perform the un-mapping in a weak context, fast operation
+            // Maybe present, not system map
+            // Perform the clearing in a weak context, fast operation
             if (!atomic_compare_exchange_weak(AtomicPointer, &Mapping, 0)) {
                 goto SyncTable;
             }
 
-            // Release memory, but don't if it is a virtual mapping, that means we 
-            // should not free the physical page
-            if (!(Mapping & PAGE_PERSISTENT)) {
-                FreeSystemMemory(Mapping & PAGE_MASK, PAGE_SIZE);
-            }
-            
-            if (IsCurrent) {
+            // Invalidate page if it was present
+            if ((Mapping & PAGE_PRESENT) && IsCurrent) {
                 memory_invalidate_addr(Address);
+            }
+
+            // Release memory, but don't if it is a virtual mapping, that means we 
+            // should not free the physical page. We only do this if the memory
+            // is marked as present, otherwise we don't
+            if ((Mapping & PAGE_PRESENT) && !(Mapping & PAGE_PERSISTENT)) {
+                FreeSystemMemory(Mapping & PAGE_MASK, PAGE_SIZE);
             }
             return OsSuccess;
         }
@@ -510,9 +523,6 @@ SyncTable:
     return OsError;
 }
 
-/* GetVirtualPageMapping
- * Retrieves the physical address mapping of the
- * virtual memory address given - from the page directory that is given */
 uintptr_t
 GetVirtualPageMapping(
     _In_ SystemMemorySpace_t*   MemorySpace,
@@ -542,8 +552,6 @@ GetVirtualPageMapping(
     return ((Mapping & PAGE_MASK) + (Address & ATTRIBUTE_MASK));
 }
 
-/* SetDirectIoAccess
- * Set's the io status of the given memory space. */
 OsStatus_t
 SetDirectIoAccess(
     _In_ UUId_t                     CoreId,

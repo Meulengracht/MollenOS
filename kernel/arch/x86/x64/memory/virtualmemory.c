@@ -221,7 +221,7 @@ SyncPmlWithParent:
         // Check the parent-mapping
         if (ParentMapping & PAGE_PRESENT) {
             // Update our page-directory and reload
-            atomic_store(&PageMasterTable->pTables[PmIndex], ParentMapping | PAGE_INHERITED);
+            atomic_store(&PageMasterTable->pTables[PmIndex], ParentMapping | PAGETABLE_INHERITED);
             PageMasterTable->vTables[PmIndex]   = ParentPageMasterTable->vTables[PmIndex];
             DirectoryTable                      = (PageDirectoryTable_t*)PageMasterTable->vTables[PmIndex];
             assert(DirectoryTable != NULL);
@@ -243,7 +243,7 @@ SyncPmlWithParent:
             }
 
             // Update us and mark our copy inherited
-            Physical |= PAGE_INHERITED;
+            Physical |= PAGETABLE_INHERITED;
             atomic_store(&PageMasterTable->pTables[PmIndex], Physical);
             PageMasterTable->vTables[PmIndex]   = (uintptr_t)Table;
             *Update                             = IsCurrent;
@@ -383,7 +383,7 @@ CloneVirtualSpace(
         for (int PdpIndex = ApplicationRegion; PdpIndex < ENTRIES_PER_PAGE; PdpIndex++) {
             uint64_t Mapping = atomic_load(&DirectoryTableCurrent->pTables[PdpIndex]);
             if (Mapping & PAGE_PRESENT) {
-                atomic_store(&DirectoryTable->pTables[PdpIndex], Mapping | PAGE_INHERITED);
+                atomic_store(&DirectoryTable->pTables[PdpIndex], Mapping | PAGETABLE_INHERITED);
                 DirectoryTable->vTables[PdpIndex] = DirectoryTableCurrent->vTables[PdpIndex];
             }
         }
@@ -393,7 +393,7 @@ CloneVirtualSpace(
         for (int PmIndex = 1; PmIndex < ENTRIES_PER_PAGE; PmIndex++) {
             uint64_t Mapping = atomic_load(&ParentMasterTable->pTables[PmIndex]);
             if (Mapping & PAGE_PRESENT) {
-                atomic_store(&PageMasterTable->pTables[PmIndex], Mapping | PAGE_INHERITED);
+                atomic_store(&PageMasterTable->pTables[PmIndex], Mapping | PAGETABLE_INHERITED);
                 PageMasterTable->vTables[PmIndex] = ParentMasterTable->vTables[PmIndex];
             }
         }
@@ -428,12 +428,15 @@ MmVirtualDestroyPageTable(
     // Handle PT[0..511] normally
     for (int Index = 0; Index < ENTRIES_PER_PAGE; Index++) {
         Mapping = atomic_load_explicit(&PageTable->Pages[Index], memory_order_relaxed);
-        if (Mapping & (PAGE_SYSTEM_MAP | PAGE_INHERITED | PAGE_PERSISTENT)) {
+        if ((Mapping & (PAGE_SYSTEM_MAP | PAGE_PERSISTENT)) || 
+            !(Mapping & PAGE_PRESENT)) {
             continue;
         }
 
         if ((Mapping & PAGE_MASK) != 0) {
-            FreeSystemMemory(Mapping & PAGE_MASK, PAGE_SIZE);
+            if (FreeSystemMemory(Mapping & PAGE_MASK, PAGE_SIZE) != OsSuccess) {
+                ERROR("Tried to free page %i (0x%x), but was not allocated", Index, Mapping);
+            }
         }
     }
 
@@ -454,7 +457,7 @@ MmVirtualDestroyPageDirectory(
     // Handle PD[0..511] normally
     for (int Index = 0; Index < ENTRIES_PER_PAGE; Index++) {
         Mapping = atomic_load_explicit(&PageDirectory->pTables[Index], memory_order_relaxed);
-        if (Mapping & (PAGE_SYSTEM_MAP | PAGE_INHERITED)) {
+        if (Mapping & (PAGE_SYSTEM_MAP | PAGETABLE_INHERITED)) {
             continue;
         }
 
@@ -480,7 +483,7 @@ MmVirtualDestroyPageDirectoryTable(
     // Handle PDP[0..511] normally
     for (int Index = 0; Index < ENTRIES_PER_PAGE; Index++) {
         Mapping = atomic_load_explicit(&PageDirectoryTable->pTables[Index], memory_order_relaxed);
-        if (Mapping & (PAGE_SYSTEM_MAP | PAGE_INHERITED)) {
+        if (Mapping & (PAGE_SYSTEM_MAP | PAGETABLE_INHERITED)) {
             continue;
         }
 

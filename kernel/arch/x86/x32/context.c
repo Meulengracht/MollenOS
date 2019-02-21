@@ -46,14 +46,13 @@ ContextCreate(
     _In_ uintptr_t  Argument0,
     _In_ uintptr_t  Argument1)
 {
-    // Variables
-    Context_t *Context       = NULL;
-    uint32_t DataSegment     = 0,
-             ExtraSegment    = 0,
-             CodeSegment     = 0, 
-             StackSegment    = 0;
-    uintptr_t ContextAddress = 0, 
-              EbpInitial     = 0;
+    Context_t* Context        = NULL;
+    uint32_t   DataSegment    = 0,
+               ExtraSegment   = 0,
+               CodeSegment    = 0, 
+               StackSegment   = 0;
+    uintptr_t  ContextAddress = 0, 
+               EbpInitial     = 0;
 
     // Trace
     TRACE("ContextCreate(ThreadFlags 0x%x, Type %i, Eip 0x%x, Args 0x%x)",
@@ -87,7 +86,8 @@ ContextCreate(
 
         // Map in the context
         CreateMemorySpaceMapping(GetCurrentMemorySpace(), NULL, &ContextAddress,
-            PAGE_SIZE, MAPPING_USERSPACE | MAPPING_FIXED, __MASK);
+            PAGE_SIZE, MAPPING_COMMIT | MAPPING_USERSPACE, 
+            MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_FIXED, __MASK);
     }
     else {
         FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%i)", ContextType);
@@ -121,8 +121,6 @@ ContextCreate(
     Context->Arguments[0] = ReturnAddress;
     Context->Arguments[1] = Argument0;
     Context->Arguments[2] = Argument1;
-
-    // Return the newly created context
     return Context;
 }
 

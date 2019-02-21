@@ -31,6 +31,7 @@ extern "C" {
     extern void __cxa_module_global_init(void);
     extern void __cxa_module_global_finit(void);
     extern void __cxa_module_tls_thread_init(void);
+    extern void __cxa_module_tls_thread_finit(void);
     extern CRTDECL(void, __cxa_finalize(void *Dso));
     extern void *__dso_handle;
 }
@@ -55,6 +56,11 @@ __CrtLibraryEntry(int Action)
         } break;
         case DLL_ACTION_THREADATTACH: {
             __cxa_module_tls_thread_init();
+            dllmain(DLL_ACTION_THREADATTACH);
+        } break;
+        case DLL_ACTION_THREADDETACH: {
+            dllmain(DLL_ACTION_THREADDETACH);
+            __cxa_module_tls_thread_finit();
         } break;
     }
 }

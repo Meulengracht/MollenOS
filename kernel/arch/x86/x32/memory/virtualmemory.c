@@ -179,7 +179,7 @@ SyncWithParent:
         // Check the parent-mapping
         if (ParentMapping & PAGE_PRESENT) {
             // Update our page-directory and reload
-            atomic_store(AtomicPointer, ParentMapping | PAGE_INHERITED);
+            atomic_store(AtomicPointer, ParentMapping | PAGETABLE_INHERITED);
             PageDirectory->vTables[PageTableIndex]  = ParentPageDirectory->vTables[PageTableIndex];
             Table                                   = (PageTable_t*)PageDirectory->vTables[PageTableIndex];
             assert(Table != NULL);
@@ -201,7 +201,7 @@ SyncWithParent:
             }
 
             // Update us and mark our copy as INHERITED
-            TablePhysical |= PAGE_INHERITED;
+            TablePhysical |= PAGETABLE_INHERITED;
             atomic_store(AtomicPointer, TablePhysical);
             PageDirectory->vTables[PageTableIndex] = (uintptr_t)Table;
         }
@@ -271,7 +271,7 @@ CloneVirtualSpace(
             CurrentMapping = atomic_load(AtomicPointer);
             if (CurrentMapping & PAGE_PRESENT) {
                 AtomicPointer = &PageDirectory->pTables[i];
-                atomic_store(AtomicPointer, CurrentMapping | PAGE_INHERITED);
+                atomic_store(AtomicPointer, CurrentMapping | PAGETABLE_INHERITED);
                 PageDirectory->vTables[i] = ParentDirectory->vTables[i];
             }
         }
@@ -319,7 +319,7 @@ DestroyVirtualSpace(
         // mapping which is done by kernel page-directory
         AtomicPointer  = &Pd->pTables[i];
         CurrentMapping = atomic_load_explicit(AtomicPointer, memory_order_relaxed);
-        if (CurrentMapping & (PAGE_SYSTEM_MAP | PAGE_INHERITED)) {
+        if (CurrentMapping & (PAGE_SYSTEM_MAP | PAGETABLE_INHERITED)) {
             continue;
         }
 
@@ -328,7 +328,8 @@ DestroyVirtualSpace(
         for (j = 0; j < ENTRIES_PER_PAGE; j++) {
             AtomicPointer  = &Table->Pages[j];
             CurrentMapping = atomic_load_explicit(AtomicPointer, memory_order_relaxed);
-            if (CurrentMapping & PAGE_PERSISTENT) {
+            if ((CurrentMapping & (PAGE_SYSTEM_MAP | PAGE_PERSISTENT)) || 
+                !(CurrentMapping & PAGE_PRESENT)) {
                 continue;
             }
 

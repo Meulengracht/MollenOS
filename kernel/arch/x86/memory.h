@@ -29,7 +29,7 @@
 #include <paging.h>
 
 /* Shared PT/Page Definitions */
-#define PAGE_PRESENT          	0x1
+#define PAGE_PRESENT            0x1
 #define PAGE_WRITE              0x2
 #define PAGE_USER               0x4
 #define PAGE_WRITETHROUGH       0x8
@@ -39,37 +39,38 @@
 /* Page Table Definitions */
 #define PAGETABLE_UNUSED        0x40
 #define PAGETABLE_LARGE         0x80
-#define PAGETABLE_IGNORED       0x100
+#define PAGETABLE_ZERO          0x100 // Must be zero, unused
+#define PAGETABLE_INHERITED     0x200
 
 /* Page Definitions */
 #define PAGE_DIRTY              0x40
-#define PAGE_UNUSED             0x80
+#define PAGE_PAT                0x80
 #define PAGE_GLOBAL             0x100
 
-/* MollenOS PT/Page Definitions */
-#define PAGE_SYSTEM_MAP         0x200
-#define PAGE_INHERITED          0x400
-#define PAGE_PERSISTENT         0x800
+/* OS PT/Page Definitions */
+#define PAGE_SYSTEM_MAP         0x200 // @todo get rid of this and use inherited instead
+#define PAGE_PERSISTENT         0x400
+#define PAGE_RESERVED           0x800
 #define PAGE_NX                 0x8000000000000000 // amd64 + nx cpuid must be set
 
 /* Memory Map Structure 
  * This is the structure passed to us by the mBoot bootloader */
 PACKED_TYPESTRUCT(BIOSMemoryRegion, {
-    uint64_t        Address;
-    uint64_t        Size;
-    uint32_t        Type;        //1 => Available, 2 => ACPI, 3 => Reserved
-    uint32_t        Nil;
-    uint64_t        Padding;
+    uint64_t Address;
+    uint64_t Size;
+    uint32_t Type;        //1 => Available, 2 => ACPI, 3 => Reserved
+    uint32_t Nil;
+    uint64_t Padding;
 });
 
 /* MemorySynchronizationObject
  * Used to synchronize paging structures across all cpu cores. */
 typedef struct _MemorySynchronizationObject {
-    Spinlock_t      SyncObject;
-    volatile int    CallsCompleted;
-    UUId_t          MemorySpaceHandle;
-    uintptr_t       Address;
-    size_t          Length;
+    Spinlock_t   SyncObject;
+    volatile int CallsCompleted;
+    UUId_t       MemorySpaceHandle;
+    uintptr_t    Address;
+    size_t       Length;
 } MemorySynchronizationObject_t;
 
 /* ConvertSystemSpaceToPaging

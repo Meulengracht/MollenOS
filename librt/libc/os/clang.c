@@ -49,6 +49,7 @@ static int      CleanupPerformed               = 0;
 static Handle_t ModuleList[PROCESS_MAXMODULES] = { 0 };
 static void   (*__cxa_primary_cleanup)(void);
 static void   (*__cxa_primary_tls_thread_init)(void);
+static void   (*__cxa_primary_tls_thread_finit)(void);
 
 CRTDECL(void, __cxa_callinitializers(_PVFV *pfbegin, _PVFV *pfend))
 {
@@ -139,9 +140,10 @@ OsStatus_t __cxa_getentrypoints(Handle_t LibraryList[PROCESS_MAXMODULES])
 /* __cxa_runinitializers 
  * C++ Initializes library C++ runtime for all loaded modules */
 CRTDECL(void, __cxa_runinitializers(
-    _In_ void (*Initializer)(void), 
-    _In_ void (*Finalizer)(void), 
-    _In_ void (*TlsAttachFunction)(void)))
+    _In_ void (*module_init)(void), 
+    _In_ void (*module_cleanup)(void),
+    _In_ void (*module_thread_init)(void),
+    _In_ void (*module_thread_finit)(void)))
 {
     TRACE("__cxa_runinitializers()");
     fpreset();
@@ -155,9 +157,10 @@ CRTDECL(void, __cxa_runinitializers(
     }
 
     // Run callers initializer
-    Initializer();
-    __cxa_primary_cleanup         = Finalizer;
-    __cxa_primary_tls_thread_init = TlsAttachFunction;
+    module_init();
+    __cxa_primary_cleanup          = module_cleanup;
+    __cxa_primary_tls_thread_init  = module_thread_init;
+    __cxa_primary_tls_thread_finit = module_thread_finit;
 }
 
 /* __cxa_threadinitialize
@@ -175,6 +178,22 @@ CRTDECL(void, __cxa_threadinitialize(void))
         }
     }
     __cxa_primary_tls_thread_init();
+}
+
+/* __cxa_threadfinalize
+ * Finalizes thread storage runtime for all loaded modules */
+CRTDECL(void, __cxa_threadfinalize(void))
+{
+    TRACE("__cxa_threadfinalize()");
+    if ((ModuleList[0] != 0) || (__cxa_getentrypoints(ModuleList) == OsSuccess)) {
+        for (int i = 0; i < PROCESS_MAXMODULES; i++) {
+            if (ModuleList[i] == NULL) {
+                break;
+            }
+            ((void (*)(int))ModuleList[i])(DLL_ACTION_THREADDETACH);
+        }
+    }
+    __cxa_primary_tls_thread_finit();
 }
 
 /* __cxa_finalize

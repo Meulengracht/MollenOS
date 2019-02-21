@@ -122,7 +122,8 @@ AcquireSystemDeviceIo(
             size_t    PageSize    = GetMemorySpacePageSize();
             size_t    Length      = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
             assert(Space->Context != NULL);
-
+            
+            // Allocate space in heap without comitting the pages
             MappedAddress = AllocateBlocksInBlockmap(Space->Context->HeapSpace, __MASK, Length);
             if (MappedAddress == 0) {
                 ERROR(" > failed to allocate heap memory for mapping");
@@ -188,8 +189,6 @@ ReleaseSystemDeviceIo(
             size_t    PageSize    = GetMemorySpacePageSize();
             size_t    Length      = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
             assert(Space->Context != NULL);
-
-            ReleaseBlockmapRegion(Space->Context->HeapSpace, SystemIo->MappedAddress, Length);
             RemoveMemorySpaceMapping(Space, SystemIo->MappedAddress, Length);
         } break;
 
@@ -214,8 +213,8 @@ ReleaseSystemDeviceIo(
  * and cleaned up by the opposite call. */
 OsStatus_t
 CreateKernelSystemDeviceIo(
-    _In_  DeviceIo_t*   SourceIoSpace,
-    _Out_ DeviceIo_t**  SystemIoSpace)
+    _In_  DeviceIo_t*  SourceIoSpace,
+    _Out_ DeviceIo_t** SystemIoSpace)
 {
     SystemDeviceIo_t* SystemIo;
     DataKey_t Key;
@@ -228,12 +227,13 @@ CreateKernelSystemDeviceIo(
 
     switch (SystemIo->Io.Type) {
         case DeviceIoMemoryBased: {
-            uintptr_t BaseAddress   = SystemIo->Io.Access.Memory.PhysicalBase;
-            size_t PageSize         = GetMemorySpacePageSize();
-            size_t Length           = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
-            OsStatus_t Status       = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
+            uintptr_t BaseAddress = SystemIo->Io.Access.Memory.PhysicalBase;
+            size_t PageSize       = GetMemorySpacePageSize();
+            size_t Length         = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
+            OsStatus_t Status     = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
                 &BaseAddress, &SystemIo->Io.Access.Memory.VirtualBase, Length, 
-                MAPPING_NOCACHE | MAPPING_PROVIDED | MAPPING_KERNEL | MAPPING_PERSISTENT, __MASK);
+                MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT, 
+                MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_GLOBAL, __MASK);
             if (Status != OsSuccess) {
                 ERROR(" > failed to create mapping");
                 return OsError;
@@ -252,7 +252,7 @@ CreateKernelSystemDeviceIo(
  * Releases the kernel mapped copy of the passed device-io. */
 OsStatus_t
 ReleaseKernelSystemDeviceIo(
-    _In_ DeviceIo_t*    SystemIoSpace)
+    _In_ DeviceIo_t* SystemIoSpace)
 {
     SystemDeviceIo_t* SystemIo;
     DataKey_t Key;

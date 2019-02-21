@@ -407,7 +407,9 @@ ExceptionSignal(
 #ifdef __OSCONFIG_DISABLE_SIGNALLING
     if (Signal >= 0) {
 #else
-    if (Thread->MemorySpace->Context->SignalHandler == 0) {
+    if (Thread == NULL || Thread->MemorySpace == NULL ||
+        Thread->MemorySpace->Context == NULL ||
+        Thread->MemorySpace->Context->SignalHandler == 0) {
 #endif
         return OsError;
     }

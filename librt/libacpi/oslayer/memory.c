@@ -92,18 +92,18 @@ AcpiOsMapMemory(
     ACPI_PHYSICAL_ADDRESS   Where,
     ACPI_SIZE               Length)
 {
-    // Variables
-    PhysicalAddress_t Physical  = (PhysicalAddress_t)Where;
-    VirtualAddress_t Result     = 0;
-    size_t Offset               = Physical % GetMemorySpacePageSize();
-    size_t AdjustedLength       = Length + Offset;
+    PhysicalAddress_t Physical       = (PhysicalAddress_t)Where;
+    VirtualAddress_t  Result         = 0;
+    size_t            Offset         = Physical % GetMemorySpacePageSize();
+    size_t            AdjustedLength = Length + Offset;
 
     // We have everything below 4mb identity mapped
     if (Where >= 0x1000 && Where < 0x400000) {
         return (void*)Where;
     }
     if (CreateMemorySpaceMapping(GetCurrentMemorySpace(), &Physical, &Result, 
-        AdjustedLength, MAPPING_NOCACHE | MAPPING_PROVIDED | MAPPING_PERSISTENT | MAPPING_KERNEL, __MASK) != OsSuccess) {
+        AdjustedLength, MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT,
+        MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_GLOBAL, __MASK) != OsSuccess) {
         // Uhh
         ERROR("Failed to map physical memory 0x%x", Where);
         return NULL;
