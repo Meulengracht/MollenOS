@@ -93,16 +93,16 @@ AcpiOsMapMemory(
     ACPI_SIZE               Length)
 {
     PhysicalAddress_t Physical       = (PhysicalAddress_t)Where;
-    VirtualAddress_t  Result         = 0;
-    size_t            Offset         = Physical % GetMemorySpacePageSize();
+    size_t            Offset         = (size_t)(Where % GetMemorySpacePageSize());
     size_t            AdjustedLength = Length + Offset;
+    VirtualAddress_t  Result         = 0;
 
     // We have everything below 4mb identity mapped
-    if (Where >= 0x1000 && Where < 0x400000) {
-        return (void*)Where;
+    if (Physical >= 0x1000 && Physical < 0x400000) {
+        return (void*)Physical;
     }
     if (CreateMemorySpaceMapping(GetCurrentMemorySpace(), &Physical, &Result, 
-        AdjustedLength, MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT,
+        AdjustedLength, MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT | MAPPING_READONLY,
         MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_GLOBAL, __MASK) != OsSuccess) {
         // Uhh
         ERROR("Failed to map physical memory 0x%x", Where);
@@ -129,16 +129,18 @@ AcpiOsUnmapMemory(
     void*                   LogicalAddress,
     ACPI_SIZE               Size)
 {
-    // Variables
-    VirtualAddress_t Address = (VirtualAddress_t)LogicalAddress;
-    size_t AdjustedLength    = Size + (Address & (GetMemorySpacePageSize() - 1));
+    VirtualAddress_t Address        = (VirtualAddress_t)LogicalAddress;
+    size_t           Offset         = Address % GetMemorySpacePageSize();
+    size_t           AdjustedLength = Size + Offset;
 
     // We have everything below 4mb identity mapped
     if (Address >= 0x1000 && Address < 0x400000) {
         return;
     }
-    else if (RemoveMemorySpaceMapping(GetCurrentMemorySpace(), Address, AdjustedLength) != OsSuccess) {
-        ERROR("Failed to unmap memory 0x%x", Address);
+    else {
+        if (RemoveMemorySpaceMapping(GetCurrentMemorySpace(), Address - Offset, AdjustedLength) != OsSuccess) {
+            ERROR("Failed to unmap memory 0x%x", Address);   
+        }
     }
 }
 
@@ -159,8 +161,8 @@ AcpiOsGetPhysicalAddress(
     void                    *LogicalAddress,
     ACPI_PHYSICAL_ADDRESS   *PhysicalAddress)
 {
-    PhysicalAddress_t Result = GetMemorySpaceMapping(
-        GetCurrentMemorySpace(), (VirtualAddress_t)LogicalAddress);
+    VirtualAddress_t  Address = (VirtualAddress_t)LogicalAddress;
+    PhysicalAddress_t Result  = GetMemorySpaceMapping(GetCurrentMemorySpace(), Address);
     if (Result != 0) {
         *PhysicalAddress = (ACPI_PHYSICAL_ADDRESS)Result;
         return AE_OK;

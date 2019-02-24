@@ -356,19 +356,6 @@ DebugHandleShortcut(
     return OsSuccess;
 }
 
-/* DebugPageFaultThreadMemory
- * Checks for memory access that was io-space related and valid */
-OsStatus_t
-DebugPageFaultThreadMemory(
-    _In_ SystemMemorySpace_t* Space,
-    _In_ Context_t*           Context,
-    _In_ uintptr_t            Address)
-{
-    // Don't bother checking this for multithreading issues, this is thread
-    // specific memory and thus only accessible to a single thread
-    return CommitMemorySpaceMapping(Space, NULL, Address, MAPPING_PHYSICAL_DEFAULT, __MASK);
-}
-
 /* Disassembles Memory */
 //char *get_instructions_at_mem(uintptr_t address)
 //{

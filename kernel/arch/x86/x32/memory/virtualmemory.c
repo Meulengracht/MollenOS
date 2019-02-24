@@ -22,6 +22,7 @@
  */
 #define __MODULE		"VMEM"
 //#define __TRACE
+#define __COMPILE_ASSERT
 
 #include <component/cpu.h>
 #include <memoryspace.h>
@@ -38,77 +39,68 @@
 #include <cpu.h>
 #include <gdt.h>
 
-/* Extern assembly functions that are
- * implemented in _paging.asm */
+extern uintptr_t LastReservedAddress;
+
 extern OsStatus_t SwitchVirtualSpace(SystemMemorySpace_t*);
 extern void memory_set_paging(int enable);
 extern void memory_reload_cr3(void);
 
-/* MmVirtualCreatePageTable
- * Creates and initializes a new empty page-table */
-PageTable_t*
+STATIC_ASSERT(sizeof(PageDirectory_t) == 8192, Invalid_PageDirectory_Alignment);
+
+// Disable the atomic wrong alignment, as they are aligned and are sanitized
+// by the static assert
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Watomic-alignment"
+#endif
+
+static PageTable_t*
 MmVirtualCreatePageTable(void)
 {
-	// Variables
-	PageTable_t *Table = NULL;
+	PageTable_t*      Table   = NULL;
 	PhysicalAddress_t Address = 0;
 
-	// Allocate a new page-table instance
 	Address = AllocateSystemMemory(sizeof(PageTable_t), MEMORY_ALLOCATION_MASK, 0);
-	Table = (PageTable_t*)Address;
-
-	// Make sure all is good
+	Table  = (PageTable_t*)Address;
 	assert(Table != NULL);
 
-	// Initialize it and return
 	memset((void*)Table, 0, sizeof(PageTable_t));
 	return Table;
 }
 
-/* MmVirtualFillPageTable
- * Identity maps a memory region inside the given
- * page-table - type of mappings is controlled with Flags */
-void 
+static void
 MmVirtualFillPageTable(
-	_In_ PageTable_t*       pTable, 
+	_In_ PageTable_t*       Table, 
 	_In_ PhysicalAddress_t  pAddressStart, 
 	_In_ VirtualAddress_t   vAddressStart, 
 	_In_ Flags_t            Flags)
 {
-    atomic_uint* AtomicPointer;
-	uintptr_t    pAddress, vAddress;
-	int          i;
+	uintptr_t pAddress = pAddressStart | Flags;
+	int       i        = PAGE_TABLE_INDEX(vAddressStart);
 
 	// Iterate through pages and map them
-	for (i = PAGE_TABLE_INDEX(vAddressStart), pAddress = pAddressStart, vAddress = vAddressStart;
-		i < ENTRIES_PER_PAGE; i++, pAddress += PAGE_SIZE, vAddress += PAGE_SIZE) {
-        AtomicPointer = &pTable->Pages[PAGE_TABLE_INDEX(vAddress)];
-        atomic_store_explicit(AtomicPointer, pAddress | Flags, memory_order_relaxed);
+	for (; i < ENTRIES_PER_PAGE; i++, pAddress += PAGE_SIZE) {
+        atomic_store_explicit(&Table->Pages[i], pAddress, memory_order_relaxed);
 	}
 }
 
-/* MmVirtualMapMemoryRange
- * Maps an entire region into the given page-directory and marks them present.
- * They can then be used for either identity mapping or real mappings afterwards. */
-void 
+static void
 MmVirtualMapMemoryRange(
-	_In_ PageDirectory_t*   PageDirectory,
-	_In_ VirtualAddress_t   AddressStart,
-	_In_ uintptr_t          Length,
-	_In_ Flags_t            Flags)
+	_In_ PageDirectory_t* PageDirectory,
+	_In_ VirtualAddress_t AddressStart,
+	_In_ uintptr_t        Length,
+	_In_ Flags_t          Flags)
 {
-    atomic_uint* AtomicPointer;
-	unsigned     i;
+    int PdStart = PAGE_DIRECTORY_INDEX(AddressStart);
+    int PdEnd   = PAGE_DIRECTORY_INDEX(AddressStart + Length - 1) + 1;
+	int i;
 
 	// Iterate the afflicted page-tables
-	for (i = PAGE_DIRECTORY_INDEX(AddressStart);
-		i < (PAGE_DIRECTORY_INDEX(AddressStart + Length - 1) + 1); i++) {
-		PageTable_t* Table = MmVirtualCreatePageTable();
-        AtomicPointer      = &PageDirectory->pTables[i];
-
-		// Install the table into the given page-directory
-		atomic_store_explicit(AtomicPointer, (PhysicalAddress_t)Table | Flags, memory_order_relaxed);
-		PageDirectory->vTables[i] = (uintptr_t)Table;
+	for (i = PdStart; i < PdEnd; i++) {
+		uint32_t TableAddress     = (uint32_t)MmVirtualCreatePageTable();
+		PageDirectory->vTables[i] = TableAddress;
+        TableAddress             |= Flags;
+        atomic_store_explicit(&PageDirectory->pTables[i], TableAddress, memory_order_relaxed);
 	}
 }
 
@@ -151,37 +143,34 @@ MmVirtualGetTable(
     _In_ Flags_t          CreateFlags,
     _Out_ int*            Update)
 {
-    atomic_uint* AtomicPointerParent;
-    atomic_uint* AtomicPointer;
     PageTable_t* Table          = NULL;
     int          PageTableIndex = PAGE_DIRECTORY_INDEX(Address);
     uint32_t     ParentMapping;
+    uint32_t     Mapping;
 
     // Load the entry from the table
-    AtomicPointer = &PageDirectory->pTables[PageTableIndex];
-    ParentMapping = atomic_load(AtomicPointer);
-    *Update       = 0; // Not used on x32, only 64
+    Mapping = atomic_load(&PageDirectory->pTables[PageTableIndex]);
+    *Update = 0; // Not used on x32, only 64
 
     // Sanitize PRESENT status
-	if (ParentMapping & PAGE_PRESENT) {
+	if (Mapping & PAGE_PRESENT) {
         Table = (PageTable_t*)PageDirectory->vTables[PageTableIndex];
 	    assert(Table != NULL);
 	}
     else {
         // Table not present, before attemping to create, sanitize parent
-SyncWithParent:
         ParentMapping = 0;
         if (ParentPageDirectory != NULL) {
-            AtomicPointerParent = &ParentPageDirectory->pTables[PageTableIndex];
-            ParentMapping       = atomic_load(AtomicPointerParent);
+            ParentMapping = atomic_load(&ParentPageDirectory->pTables[PageTableIndex]);
         }
 
+SyncWithParent:
         // Check the parent-mapping
         if (ParentMapping & PAGE_PRESENT) {
             // Update our page-directory and reload
-            atomic_store(AtomicPointer, ParentMapping | PAGETABLE_INHERITED);
-            PageDirectory->vTables[PageTableIndex]  = ParentPageDirectory->vTables[PageTableIndex];
-            Table                                   = (PageTable_t*)PageDirectory->vTables[PageTableIndex];
+            atomic_store(&PageDirectory->pTables[PageTableIndex], ParentMapping | PAGETABLE_INHERITED);
+            PageDirectory->vTables[PageTableIndex] = ParentPageDirectory->vTables[PageTableIndex];
+            Table                                  = (PageTable_t*)PageDirectory->vTables[PageTableIndex];
             assert(Table != NULL);
         }
         else if (CreateIfMissing) {
@@ -193,16 +182,19 @@ SyncWithParent:
 
             // Now perform the synchronization
             TablePhysical |= CreateFlags;
-            if (ParentPageDirectory != NULL && !atomic_compare_exchange_strong(
-                AtomicPointerParent, &ParentMapping, TablePhysical)) {
-                // Start over as someone else beat us to the punch
-                kfree((void*)Table);
-                goto SyncWithParent;
+            if (ParentPageDirectory != NULL) {
+                if (!atomic_compare_exchange_strong(
+                    &ParentPageDirectory->pTables[PageTableIndex], &ParentMapping, TablePhysical)) {
+                    // Start over as someone else beat us to the punch
+                    kfree((void*)Table);
+                    goto SyncWithParent;
+                }
+                ParentPageDirectory->vTables[PageTableIndex] = (uint32_t)Table;
             }
 
             // Update us and mark our copy as INHERITED
             TablePhysical |= PAGETABLE_INHERITED;
-            atomic_store(AtomicPointer, TablePhysical);
+            atomic_store(&PageDirectory->pTables[PageTableIndex], TablePhysical);
             PageDirectory->vTables[PageTableIndex] = (uintptr_t)Table;
         }
 
@@ -222,7 +214,6 @@ CloneVirtualSpace(
     _In_ SystemMemorySpace_t*   MemorySpace,
     _In_ int                    Inherit)
 {
-    atomic_uint*     AtomicPointer;
     PageDirectory_t* SystemDirectory = (PageDirectory_t*)GetDomainMemorySpace()->Data[MEMORY_SPACE_DIRECTORY];
     PageDirectory_t* ParentDirectory = NULL;
     PageDirectory_t* PageDirectory;
@@ -253,11 +244,8 @@ CloneVirtualSpace(
         // Sanitize if it's inside kernel region
         if (SystemDirectory->vTables[i] != 0) {
             // Update the physical table
-            AtomicPointer = &SystemDirectory->pTables[i];
-            KernelMapping = atomic_load(AtomicPointer);
-            
-            AtomicPointer = &PageDirectory->pTables[i];
-            atomic_store(AtomicPointer, KernelMapping);
+            KernelMapping = atomic_load(&SystemDirectory->pTables[i]);
+            atomic_store(&PageDirectory->pTables[i], KernelMapping);
 
             // Copy virtual
             PageDirectory->vTables[i] = SystemDirectory->vTables[i];
@@ -267,11 +255,9 @@ CloneVirtualSpace(
         // Inherit? We must mark that table inherited to avoid
         // it being freed again
         if (Inherit && ParentDirectory != NULL) {
-            AtomicPointer  = &ParentDirectory->pTables[i];
-            CurrentMapping = atomic_load(AtomicPointer);
+            CurrentMapping = atomic_load(&ParentDirectory->pTables[i]);
             if (CurrentMapping & PAGE_PRESENT) {
-                AtomicPointer = &PageDirectory->pTables[i];
-                atomic_store(AtomicPointer, CurrentMapping | PAGETABLE_INHERITED);
+                atomic_store(&PageDirectory->pTables[i], CurrentMapping | PAGETABLE_INHERITED);
                 PageDirectory->vTables[i] = ParentDirectory->vTables[i];
             }
         }
@@ -300,7 +286,6 @@ OsStatus_t
 DestroyVirtualSpace(
     _In_ SystemMemorySpace_t* SystemMemorySpace)
 {
-    atomic_uint*     AtomicPointer;
     PageDirectory_t* Pd = (PageDirectory_t*)SystemMemorySpace->Data[MEMORY_SPACE_DIRECTORY];
     int              i, j;
 
@@ -317,8 +302,7 @@ DestroyVirtualSpace(
 
         // Load the mapping, then perform checks for inheritation or a system
         // mapping which is done by kernel page-directory
-        AtomicPointer  = &Pd->pTables[i];
-        CurrentMapping = atomic_load_explicit(AtomicPointer, memory_order_relaxed);
+        CurrentMapping = atomic_load_explicit(&Pd->pTables[i], memory_order_relaxed);
         if (CurrentMapping & (PAGE_SYSTEM_MAP | PAGETABLE_INHERITED)) {
             continue;
         }
@@ -326,8 +310,7 @@ DestroyVirtualSpace(
         // Iterate pages in table
         Table = (PageTable_t*)Pd->vTables[i];
         for (j = 0; j < ENTRIES_PER_PAGE; j++) {
-            AtomicPointer  = &Table->Pages[j];
-            CurrentMapping = atomic_load_explicit(AtomicPointer, memory_order_relaxed);
+            CurrentMapping = atomic_load_explicit(&Table->Pages[j], memory_order_relaxed);
             if ((CurrentMapping & (PAGE_SYSTEM_MAP | PAGE_PERSISTENT)) || 
                 !(CurrentMapping & PAGE_PRESENT)) {
                 continue;
@@ -376,9 +359,9 @@ InitializeVirtualSpace(
     // Is this the primary core that is getting initialized? Then
     // we should create the core mappings first instead of reusing
     if (GetCurrentProcessorCore() == &GetMachine()->Processor.PrimaryCore) {
-        size_t BytesToMap               = 0;
-        PhysicalAddress_t PhysicalBase  = 0;
-        VirtualAddress_t VirtualBase    = 0;
+        size_t            BytesToMap   = 0;
+        PhysicalAddress_t PhysicalBase = 0;
+        VirtualAddress_t  VirtualBase  = 0;
 
         // Allocate 2 pages for the kernel page directory
         // and reset it by zeroing it out
@@ -392,16 +375,26 @@ InitializeVirtualSpace(
         TRACE("Mapping the kernel region from 0x%x => 0x%x", MEMORY_LOCATION_KERNEL, MEMORY_LOCATION_KERNEL_END);
         MmVirtualMapMemoryRange(iDirectory, 0, MEMORY_LOCATION_KERNEL_END, KernelPageFlags);
 
-        // Identity map some of the regions
-        // Kernel image region
-        // Kernel video region
+        // Identity map the first inital page tables
         MmVirtualFillPageTable((PageTable_t*)iDirectory->vTables[0], 0x1000, 0x1000, KernelPageFlags);
+        BytesToMap   = LastReservedAddress - MIN(LastReservedAddress, TABLE_SPACE_SIZE);
+        VirtualBase  = TABLE_SPACE_SIZE;
+        PhysicalBase = TABLE_SPACE_SIZE;
+        while (BytesToMap) {
+            iTable = (PageTable_t*)iDirectory->vTables[PAGE_DIRECTORY_INDEX(VirtualBase)];
+            MmVirtualFillPageTable(iTable, PhysicalBase, 0, KernelPageFlags);
+            BytesToMap      -= MIN(BytesToMap, TABLE_SPACE_SIZE);
+            PhysicalBase    += TABLE_SPACE_SIZE;
+            VirtualBase     += TABLE_SPACE_SIZE;
+        }
+
+        // Identity map the video framebuffer region
         BytesToMap      = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
         PhysicalBase    = VideoGetTerminal()->FrameBufferAddress;
         VirtualBase     = MEMORY_LOCATION_VIDEO;
         while (BytesToMap) {
             iTable          = (PageTable_t*)iDirectory->vTables[PAGE_DIRECTORY_INDEX(VirtualBase)];
-            MmVirtualFillPageTable(iTable, PhysicalBase, VirtualBase, KernelPageFlags | PAGE_USER); // @todo is PAGE_USER neccessary?
+            MmVirtualFillPageTable(iTable, PhysicalBase, 0, KernelPageFlags);
             BytesToMap      -= MIN(BytesToMap, TABLE_SPACE_SIZE);
             PhysicalBase    += TABLE_SPACE_SIZE;
             VirtualBase     += TABLE_SPACE_SIZE;
@@ -414,8 +407,6 @@ InitializeVirtualSpace(
         SystemMemorySpace->Data[MEMORY_SPACE_CR3]       = iPhysical;
         SystemMemorySpace->Data[MEMORY_SPACE_DIRECTORY] = (uintptr_t)iDirectory;
         SystemMemorySpace->Data[MEMORY_SPACE_IOMAP]     = TssGetBootIoSpace();
-
-        // Update and switch page-directory for the calling core
         SwitchVirtualSpace(SystemMemorySpace);
         memory_set_paging(1);
     }
@@ -426,3 +417,7 @@ InitializeVirtualSpace(
     }
     return OsSuccess;
 }
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif

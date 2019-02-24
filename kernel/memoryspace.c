@@ -334,8 +334,6 @@ CreateMemorySpaceMapping(
     int               i;
     assert(SystemMemorySpace != NULL);
     assert(PlacementFlags != 0);
-    WARNING("CreateMemorySpaceMapping(Size 0x%x, Flags 0x%x, Placement 0x%x)",
-        Size, MemoryFlags, PlacementFlags);
 
     // Handle the resolvement of the physical address, if physical-base is 0 after this
     // then we should allocate pages one-by-one as no requirements were set
@@ -370,7 +368,7 @@ CreateMemorySpaceMapping(
                 }
             }
             else if (PlacementFlags & MAPPING_PHYSICAL_FIXED) {
-                PhysicalPage = PhysicalBase+ (i * GetMemorySpacePageSize());
+                PhysicalPage = PhysicalBase + (i * GetMemorySpacePageSize());
             }
 
             Status = InstallMemoryMapping(SystemMemorySpace, PhysicalPage, VirtualPage, MemoryFlags, PlacementFlags);
@@ -481,8 +479,6 @@ RemoveMemorySpaceMapping(
     int        i;
     assert(SystemMemorySpace != NULL);
 
-    WARNING("RemoveMemorySpaceMapping(0x%x, Size 0x%x)", Address, Size);
-
     // Free the underlying resources first, before freeing the upper resources
     for (i = 0; i < PageCount; i++) {
         uintptr_t VirtualPage = Address + (i * GetMemorySpacePageSize());
@@ -499,7 +495,6 @@ RemoveMemorySpaceMapping(
         ReleaseBlockmapRegion(SystemMemorySpace->Context->HeapSpace, Address, Size);
     }
     else if (BlockBitmapValidateState(&GetMachine()->GlobalAccessMemory, Address, 1) == OsSuccess) {
-        WARNING("Freeing GAM address 0x%x", Address);
         ReleaseBlockmapRegion(&GetMachine()->GlobalAccessMemory, Address, Size);
     }
     else {

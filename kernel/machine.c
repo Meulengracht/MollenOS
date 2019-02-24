@@ -90,10 +90,10 @@ InitializeMachine(
     GcConstruct();
 
     // Setup strings
-    sprintf(&Machine.Architecture[0],   "System: %s", ARCHITECTURE_NAME);
-    sprintf(&Machine.Bootloader[0],     "Boot: %s", (char*)(uintptr_t)BootInformation->BootLoaderName);
-    sprintf(&Machine.Author[0],         "Philip Meulengracht, Copyright 2011-2018.");
-    sprintf(&Machine.Date[0],           "%s - %s", BUILD_DATE, BUILD_TIME);
+    sprintf(&Machine.Architecture[0], "System: %s", ARCHITECTURE_NAME);
+    sprintf(&Machine.Bootloader[0],   "Boot: %s", (char*)(uintptr_t)BootInformation->BootLoaderName);
+    sprintf(&Machine.Author[0],       "Philip Meulengracht, Copyright 2011-2018.");
+    sprintf(&Machine.Date[0],         "%s - %s", BUILD_DATE, BUILD_TIME);
     
     // Set initial stats for this machine and then initialize cpu
     InitializeProcessor(&Machine.Processor);
@@ -188,7 +188,6 @@ InitializeMachine(
 
     // Either of three things happen, testing phase can begin, we can enter
     // debug console or last option is normal operation.
-    for(;;);
 #ifdef __OSCONFIG_TEST_KERNEL
     StartTestingPhase();
 #elif __OSCONFIG_DEBUGMODE

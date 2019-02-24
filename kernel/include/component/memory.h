@@ -27,24 +27,25 @@
 #include <ds/blbitmap.h>
 
 typedef struct _SystemMemoryRange {
-    uintptr_t           Start;
-    size_t              Length;
+    uintptr_t Start;
+    size_t    Length;
 } SystemMemoryRange_t;
 
 typedef struct _SystemMemoryMap {
-    SystemMemoryRange_t     UserCode;
-    SystemMemoryRange_t     UserHeap;
-    SystemMemoryRange_t     ThreadArea;
+    SystemMemoryRange_t KernelRegion;
+    SystemMemoryRange_t UserCode;
+    SystemMemoryRange_t UserHeap;
+    SystemMemoryRange_t ThreadRegion;
 } SystemMemoryMap_t;
 
 typedef struct _SystemMemory {
     // Memory Information
-    uintptr_t               Start;
-    uintptr_t               Length;
-    size_t                  BlockSize;
-    int                     Removable;      // This memory is not fixed and should not be used for system memory
-    int                     NonVolatile;    // Memory is non volatile
-    BlockBitmapSegment_t    MemoryRange;
+    uintptr_t            Start;
+    uintptr_t            Length;
+    size_t               BlockSize;
+    int                  Removable;      // This memory is not fixed and should not be used for system memory
+    int                  NonVolatile;    // Memory is non volatile
+    BlockBitmapSegment_t MemoryRange;
 } SystemMemory_t;
 
 #endif // !__COMPONENT_MEMORY__

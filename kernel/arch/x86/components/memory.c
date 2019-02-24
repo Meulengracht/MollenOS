@@ -45,14 +45,23 @@ extern void memory_load_cr3(uintptr_t pda);
 extern void memory_reload_cr3(void);
 
 // Global static storage for the memory
-static MemorySynchronizationObject_t SyncData      = { SPINLOCK_INIT, 0 };
-static size_t                        BlockmapBytes = 0;
+static MemorySynchronizationObject_t SyncData            = { SPINLOCK_INIT, 0 };
+static size_t                        BlockmapBytes       = 0;
+uintptr_t                            LastReservedAddress = 0;
+
+// Disable the atomic wrong alignment, as they are aligned and are sanitized
+// in the arch-specific layer
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Watomic-alignment"
+#endif
 
 void
 PrintPhysicalMemoryUsage(void) {
     TRACE("Bitmap size: %u Bytes", BlockmapBytes);
     TRACE("Memory in use %u Bytes", GetMachine()->PhysicalMemory.BlocksAllocated * PAGE_SIZE);
     TRACE("Block status %u/%u", GetMachine()->PhysicalMemory.BlocksAllocated, GetMachine()->PhysicalMemory.BlockCount);
+    TRACE("Reserved memory: 0x%x (%u blocks)", LastReservedAddress, LastReservedAddress / PAGE_SIZE);
 }
 
 /* InitializeSystemMemory (@arch)
@@ -99,31 +108,36 @@ InitializeSystemMemory(
     BytesOccupied += GetBytesNeccessaryForBlockmap(MEMORY_LOCATION_RESERVED, MEMORY_LOCATION_KERNEL_END, PAGE_SIZE) + PAGE_SIZE;
 
     // Mark default regions in use and special regions
-    //  0x0000              || Used for catching null-pointers
+    //  0x0000 - 0x1000     || Used for catching null-pointers
+    //  0x1000 - 0x7FFFF    || Free RAM (mBoot)
+    //  0x80000 - 0xFFFFF   || BIOS Area (Mostly)
     //  0x4000 + 0x8000     || Used for memory region & Trampoline-code
     //  0x90000 - 0x9F000   || Kernel Stack
     //  0x100000 - KernelSize
     //  0x200000 - RamDiskSize
     //  0x300000 - ??       || Bitmap Space
-    ReserveBlockmapRegion(Memory, 0,                        0x10000);
-    ReserveBlockmapRegion(Memory, 0x90000,                  0xF000);
-    ReserveBlockmapRegion(Memory, MEMORY_LOCATION_KERNEL,   BootInformation->KernelSize + PAGE_SIZE);
-    ReserveBlockmapRegion(Memory, MEMORY_LOCATION_RAMDISK,  BootInformation->RamdiskSize + PAGE_SIZE);
-    ReserveBlockmapRegion(Memory, MEMORY_LOCATION_BITMAP,   BytesOccupied);
-    BlockmapBytes = BytesOccupied;
+    ReserveBlockmapRegion(Memory, 0,                       MEMORY_LOCATION_KERNEL);
+    ReserveBlockmapRegion(Memory, MEMORY_LOCATION_KERNEL,  BootInformation->KernelSize + PAGE_SIZE);
+    ReserveBlockmapRegion(Memory, MEMORY_LOCATION_RAMDISK, BootInformation->RamdiskSize + PAGE_SIZE);
+    ReserveBlockmapRegion(Memory, MEMORY_LOCATION_BITMAP,  BytesOccupied);
+    BlockmapBytes       = BytesOccupied;
+    LastReservedAddress = MEMORY_LOCATION_BITMAP + BytesOccupied;
 
     // Fill in rest of data
     *MemoryGranularity    = PAGE_SIZE;
     *NumberOfMemoryBlocks = DIVUP(MemorySize, PAGE_SIZE);
     
-    MemoryMap->UserCode.Start       = MEMORY_LOCATION_RING3_CODE;
-    MemoryMap->UserCode.Length      = MEMORY_LOCATION_RING3_CODE_END - MEMORY_LOCATION_RING3_CODE;
+    MemoryMap->KernelRegion.Start  = 0;
+    MemoryMap->KernelRegion.Length = MEMORY_LOCATION_KERNEL_END;
+
+    MemoryMap->UserCode.Start  = MEMORY_LOCATION_RING3_CODE;
+    MemoryMap->UserCode.Length = MEMORY_LOCATION_RING3_CODE_END - MEMORY_LOCATION_RING3_CODE;
 
     MemoryMap->UserHeap.Start  = MEMORY_LOCATION_RING3_HEAP;
     MemoryMap->UserHeap.Length = MEMORY_LOCATION_RING3_HEAP_END - MEMORY_LOCATION_RING3_HEAP;
     
-    MemoryMap->ThreadArea.Start  = MEMORY_LOCATION_RING3_THREAD_START;
-    MemoryMap->ThreadArea.Length = MEMORY_LOCATION_RING3_THREAD_END - MEMORY_LOCATION_RING3_THREAD_START;
+    MemoryMap->ThreadRegion.Start  = MEMORY_LOCATION_RING3_THREAD_START;
+    MemoryMap->ThreadRegion.Length = MEMORY_LOCATION_RING3_THREAD_END - MEMORY_LOCATION_RING3_THREAD_START;
 
     // Debug initial stats
     PrintPhysicalMemoryUsage();
@@ -292,11 +306,11 @@ SetVirtualPageAttributes(
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
-    atomic_uint*       AtomicPointer;
     PageTable_t*       Table;
     uint32_t           Mapping;
     Flags_t            ConvertedFlags;
     int                IsCurrent, Update;
+    int                Index = PAGE_TABLE_INDEX(Address);
 
     ConvertedFlags = ConvertSystemSpaceToPaging(Flags);
     Directory      = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
@@ -313,10 +327,9 @@ SetVirtualPageAttributes(
     }
 
     // Map it, make sure we mask the page address so we don't accidently set any flags
-    AtomicPointer = &Table->Pages[PAGE_TABLE_INDEX(Address)];
-    Mapping       = atomic_load(AtomicPointer);
+    Mapping = atomic_load(&Table->Pages[Index]);
     if (!(Mapping & PAGE_SYSTEM_MAP)) {
-        atomic_store(AtomicPointer, (Mapping & PAGE_MASK) | ConvertedFlags);
+        atomic_store(&Table->Pages[Index], (Mapping & PAGE_MASK) | ConvertedFlags);
         if (IsCurrent) {
             memory_invalidate_addr(Address);
         }
@@ -329,27 +342,26 @@ SetVirtualPageAttributes(
  * Retrieves memory protection flags for the given virtual address */
 OsStatus_t
 GetVirtualPageAttributes(
-    _In_  SystemMemorySpace_t*  MemorySpace,
-    _In_  VirtualAddress_t      Address,
-    _Out_ Flags_t*              Flags)
+    _In_  SystemMemorySpace_t* MemorySpace,
+    _In_  VirtualAddress_t     Address,
+    _Out_ Flags_t*             Flags)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
-    atomic_uint*       AtomicPointer;
     PageTable_t*       Table;
     int                IsCurrent, Update;
     Flags_t            OriginalFlags;
+    int                Index = PAGE_TABLE_INDEX(Address);
 
     Directory = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
     Table     = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0, &Update);
     if (Table == NULL) {
         return OsError;
     }
-    AtomicPointer = &Table->Pages[PAGE_TABLE_INDEX(Address)];
 
     // Map it, make sure we mask the page address so we don't accidently set any flags
     if (Flags != NULL) {
-        OriginalFlags = atomic_load(AtomicPointer) & ATTRIBUTE_MASK;
+        OriginalFlags = atomic_load(&Table->Pages[Index]) & ATTRIBUTE_MASK;
         *Flags        = ConvertPagingToSystemSpace(OriginalFlags);
     }
     return OsSuccess;
@@ -357,17 +369,17 @@ GetVirtualPageAttributes(
 
 OsStatus_t
 CommitVirtualPageMapping(
-    _In_ SystemMemorySpace_t*   MemorySpace,
-    _In_ PhysicalAddress_t      pAddress,
-    _In_ VirtualAddress_t       vAddress)
+    _In_ SystemMemorySpace_t* MemorySpace,
+    _In_ PhysicalAddress_t    pAddress,
+    _In_ VirtualAddress_t     vAddress)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
-    atomic_uint*       AtomicPointer;
     PageTable_t*       Table;
     uintptr_t          Mapping;
     int                Update;
     int                IsCurrent;
+    int                Index  = PAGE_TABLE_INDEX(vAddress);
     OsStatus_t         Status = OsSuccess;
 
     vAddress &= PAGE_MASK;
@@ -378,8 +390,7 @@ CommitVirtualPageMapping(
     }
 
     // Make sure value is not mapped already, NEVER overwrite a mapping
-    AtomicPointer = &Table->Pages[PAGE_TABLE_INDEX(vAddress)];
-    Mapping       = atomic_load(AtomicPointer);
+    Mapping = atomic_load(&Table->Pages[Index]);
 SyncTable:
     if (Mapping & PAGE_PRESENT) {
         Status = OsExists;
@@ -400,7 +411,7 @@ SyncTable:
     pAddress &= ~(PAGE_RESERVED);
 
     // Perform the mapping in a weak context, fast operation
-    if (!atomic_compare_exchange_weak(AtomicPointer, &Mapping, pAddress)) {
+    if (!atomic_compare_exchange_weak(&Table->Pages[Index], &Mapping, pAddress)) {
         goto SyncTable;
     }
 
@@ -417,19 +428,19 @@ LeaveFunction:
 
 OsStatus_t
 SetVirtualPageMapping(
-    _In_ SystemMemorySpace_t*   MemorySpace,
-    _In_ PhysicalAddress_t      pAddress,
-    _In_ VirtualAddress_t       vAddress,
-    _In_ Flags_t                Flags)
+    _In_ SystemMemorySpace_t* MemorySpace,
+    _In_ PhysicalAddress_t    pAddress,
+    _In_ VirtualAddress_t     vAddress,
+    _In_ Flags_t              Flags)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
-    atomic_uint*       AtomicPointer;
     PageTable_t*       Table;
     uintptr_t          Mapping;
     Flags_t            ConvertedFlags;
     int                Update;
     int                IsCurrent;
+    int                Index  = PAGE_TABLE_INDEX(vAddress);
     OsStatus_t         Status = OsSuccess;
 
     vAddress      &= PAGE_MASK;
@@ -448,9 +459,8 @@ SetVirtualPageMapping(
     assert(Table != NULL);
 
     // Make sure value is not mapped already, NEVER overwrite a mapping
-    pAddress      = (pAddress & PAGE_MASK) | ConvertedFlags;
-    AtomicPointer = &Table->Pages[PAGE_TABLE_INDEX(vAddress)];
-    Mapping       = atomic_load(AtomicPointer);
+    pAddress = (pAddress & PAGE_MASK) | ConvertedFlags;
+    Mapping  = atomic_load(&Table->Pages[Index]);
 SyncTable:
     if (Mapping != 0) {
         Status = OsExists;
@@ -458,7 +468,7 @@ SyncTable:
     }
 
     // Perform the mapping in a weak context, fast operation
-    if (!atomic_compare_exchange_weak(AtomicPointer, &Mapping, pAddress)) {
+    if (!atomic_compare_exchange_weak(&Table->Pages[Index], &Mapping, pAddress)) {
         goto SyncTable;
     }
 
@@ -480,11 +490,11 @@ ClearVirtualPageMapping(
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
-    atomic_uint*       AtomicPointer;
     PageTable_t*       Table;
     uintptr_t          Mapping;
     int                Update;
     int                IsCurrent;
+    int                Index = PAGE_TABLE_INDEX(Address);
 
     Directory = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
     Table     = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0, &Update);
@@ -493,14 +503,13 @@ ClearVirtualPageMapping(
     }
 
     // Load the mapping
-    AtomicPointer = &Table->Pages[PAGE_TABLE_INDEX(Address)];
-    Mapping       = atomic_load(AtomicPointer);
+    Mapping = atomic_load(&Table->Pages[Index]);
 SyncTable:
     if (Mapping != 0) {
         if (!(Mapping & PAGE_SYSTEM_MAP)) {
             // Maybe present, not system map
             // Perform the clearing in a weak context, fast operation
-            if (!atomic_compare_exchange_weak(AtomicPointer, &Mapping, 0)) {
+            if (!atomic_compare_exchange_weak(&Table->Pages[Index], &Mapping, 0)) {
                 goto SyncTable;
             }
 
@@ -523,15 +532,15 @@ SyncTable:
 
 uintptr_t
 GetVirtualPageMapping(
-    _In_ SystemMemorySpace_t*   MemorySpace,
-    _In_ VirtualAddress_t       Address)
+    _In_ SystemMemorySpace_t* MemorySpace,
+    _In_ VirtualAddress_t     Address)
 {
     PAGE_MASTER_LEVEL* ParentDirectory;
     PAGE_MASTER_LEVEL* Directory;
-    atomic_uint*       AtomicPointer;
     PageTable_t*       Table;
     uint32_t           Mapping;
     int                IsCurrent, Update;
+    int                Index = PAGE_TABLE_INDEX(Address);
 
     Directory = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
     Table     = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0, &Update);
@@ -540,8 +549,7 @@ GetVirtualPageMapping(
     }
 
     // Get the address and return with proper offset
-    AtomicPointer = &Table->Pages[PAGE_TABLE_INDEX(Address)];
-    Mapping       = atomic_load(AtomicPointer);
+    Mapping = atomic_load(&Table->Pages[Index]);
 
     // Make sure we still return 0 if the mapping is indeed 0
     if ((Mapping & PAGE_MASK) == 0 || !(Mapping & PAGE_PRESENT)) {
@@ -552,10 +560,10 @@ GetVirtualPageMapping(
 
 OsStatus_t
 SetDirectIoAccess(
-    _In_ UUId_t                     CoreId,
-    _In_ SystemMemorySpace_t*       MemorySpace,
-    _In_ uint16_t                   Port,
-    _In_ int                        Enable)
+    _In_ UUId_t               CoreId,
+    _In_ SystemMemorySpace_t* MemorySpace,
+    _In_ uint16_t             Port,
+    _In_ int                  Enable)
 {
     uint8_t *IoMap = (uint8_t*)MemorySpace->Data[MEMORY_SPACE_IOMAP];
 
@@ -574,3 +582,7 @@ SetDirectIoAccess(
     }
     return OsSuccess;
 }
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
