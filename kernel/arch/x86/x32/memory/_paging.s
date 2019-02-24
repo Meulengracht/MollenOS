@@ -73,5 +73,6 @@ _memory_load_cr3:
 ;void _memory_invalidate_addr(uintptr_t pda)
 ;Invalidates a page address
 _memory_invalidate_addr:
-	invlpg [esp + 4]
+    mov eax, [esp + 4]
+	invlpg [eax]
 	ret
