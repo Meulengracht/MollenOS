@@ -127,11 +127,9 @@ GcWorker(
         }
 
         // Sanitize the handler
-        if ((Handler = (GcHandler_t)CollectionGetDataByKey(&GcHandlers, eNode->Key, 0)) == NULL) {
-            CollectionDestroyNode(&GcEvents, eNode);
-            continue;
+        if ((Handler = (GcHandler_t)CollectionGetDataByKey(&GcHandlers, eNode->Key, 0)) != NULL) {
+            Handler(eNode->Data);
         }
-        Handler(eNode->Data);
         CollectionDestroyNode(&GcEvents, eNode);
     }
 }

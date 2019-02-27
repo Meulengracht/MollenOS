@@ -22,16 +22,10 @@
  */
 //#define __TRACE
 
-/* Includes 
- * - System */
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "ohci.h"
-
-/* Includes
- * - Library */
 #include <threads.h>
-#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -83,7 +77,7 @@ HciControllerCreate(
 
     // Trace
     TRACE("Found Io-Space (Type %u, Physical 0x%x, Size 0x%x)",
-        IoBase->Type, IoBase->PhysicalBase, IoBase->Size);
+        IoBase->Type, IoBase->Access.Memory.PhysicalBase, IoBase->Access.Memory.Length);
 
     // Acquire the io-space
     if (AcquireDeviceIo(IoBase) != OsSuccess) {
@@ -111,12 +105,12 @@ HciControllerCreate(
         ContractController, "OHCI Controller Interface");
 
     // Trace
-    TRACE("Io-Space was assigned virtual address 0x%x", IoBase->VirtualBase);
+    TRACE("Io-Space was assigned virtual address 0x%x", IoBase->Access.Memory.VirtualBase);
 
     // Instantiate the register-access and disable interrupts on device
-    Controller->Registers                           = (OhciRegisters_t*)IoBase->Access.Memory.VirtualBase;
-    Controller->Registers->HcInterruptEnable        = 0;
-    Controller->Registers->HcInterruptDisable       = OHCI_MASTER_INTERRUPT;
+    Controller->Registers                     = (OhciRegisters_t*)IoBase->Access.Memory.VirtualBase;
+    Controller->Registers->HcInterruptEnable  = 0;
+    Controller->Registers->HcInterruptDisable = OHCI_MASTER_INTERRUPT;
 
     // Initialize the interrupt settings
     RegisterFastInterruptHandler(&Controller->Base.Device.Interrupt, OnFastInterrupt);

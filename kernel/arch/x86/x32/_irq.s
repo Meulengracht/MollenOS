@@ -76,7 +76,6 @@ ___getcr2:
 
 ;Common entry point for exceptions
 _exception_common:
-	
 	; Save Segments
 	push ds
 	push es

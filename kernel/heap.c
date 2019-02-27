@@ -500,7 +500,7 @@ MemoryCacheFree(
     _In_ void*          Object)
 {
     CollectionItem_t* Node;
-    int CheckFull = 0;
+    int CheckFull = 1;
     TRACE("MemoryCacheFree(%s, 0x%x)", Cache->Name, Object);
 
     // Handle debug flags
@@ -529,13 +529,13 @@ MemoryCacheFree(
                 CollectionRemoveByNode(&Cache->PartialSlabs, Node);
                 CollectionAppend(&Cache->FreeSlabs, Node);
             }
-            CheckFull = 1;
+            CheckFull = 0;
             break;
         }
     }
 
     // Otherwise move on to the full slabs, and move to partial if neccessary
-    if (!CheckFull) {
+    if (CheckFull) {
         _foreach(Node, &Cache->FullSlabs) {
             MemorySlab_t* Slab = (MemorySlab_t*)Node;
             int           Index = slab_contains_address(Cache, Slab, (uintptr_t)Object);

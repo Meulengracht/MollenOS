@@ -211,12 +211,12 @@ PeHandleSections(
         // Code: Copy memory 
         // Data: Copy memory
         if (Section->RawSize == 0 || (Section->Flags & PE_SECTION_BSS)) {
-            dswarning("section(%i): clearing %u bytes => 0x%x (0x%x, 0x%x)", i, Section->VirtualSize, Destination,
+            dstrace("section(%i): clearing %u bytes => 0x%x (0x%x, 0x%x)", i, Section->VirtualSize, Destination,
                 Image->VirtualAddress + Section->VirtualAddress, PageFlags);
             memset(Destination, 0, Section->VirtualSize);
         }
         else if ((Section->Flags & PE_SECTION_CODE) || (Section->Flags & PE_SECTION_DATA)) {
-            dswarning("section(%i): copying %u bytes 0x%x => 0x%x (0x%x, 0x%x)", i, 
+            dstrace("section(%i): copying %u bytes 0x%x => 0x%x (0x%x, 0x%x)", i, 
                 Section->RawSize, FileBuffer, Destination,
                 Image->VirtualAddress + Section->VirtualAddress, PageFlags);
             memcpy(Destination, FileBuffer, Section->RawSize);
@@ -225,7 +225,7 @@ PeHandleSections(
             // is large, this means there needs to be zeroed space afterwards
             if (Section->VirtualSize > Section->RawSize) {
                 Destination += Section->RawSize;
-                dswarning("section(%i): clearing %u bytes => 0x%x (0x%x, 0x%x)", i, Section->VirtualSize - Section->RawSize, 
+                dstrace("section(%i): clearing %u bytes => 0x%x (0x%x, 0x%x)", i, Section->VirtualSize - Section->RawSize, 
                     Destination, Image->VirtualAddress + Section->VirtualAddress, PageFlags);
                 memset(Destination, 0, (Section->VirtualSize - Section->RawSize));
             }
@@ -585,8 +585,6 @@ PeParseAndMapImage(
     for (i = 0; i < SectionCount; i++) {
         uintptr_t SectionStart = SectionMappings[i].RVA;
         uintptr_t SectionEnd   = SectionMappings[i].RVA + SectionMappings[i].Size;
-        dswarning("section(%i, 0x%x): 0x%x => 0x%x", i, SectionMappings[i].RVA,
-            SectionMappings[i].BasePointer, SectionMappings[i].BasePointer + SectionMappings[i].Size);
         for (j = 0; j < PE_NUM_DIRECTORIES; j++) {
             if (Directories[j].AddressRVA == 0 || Directories[j].Size == 0) {
                 continue;
@@ -596,7 +594,6 @@ PeParseAndMapImage(
                     (Directories[j].AddressRVA + Directories[j].Size) <= SectionEnd) {
                     // Directory is contained in this section
                     DirectoryContents[j] = SectionMappings[i].BasePointer + (Directories[j].AddressRVA - SectionStart);
-                    dswarning("directory(%i, 0x%x): 0x%x", j, Directories[j].AddressRVA, DirectoryContents[j]);
                 }
             }
         }
@@ -760,7 +757,7 @@ PeLoadImage(
     Image->Libraries         = CollectionCreate(KeyInteger);
     Image->References        = 1;
     Image->OriginalImageBase = ImageBase;
-    dswarning("library (%s) => 0x%x", MStringRaw(Image->Name), Image->VirtualAddress);
+    dstrace("library (%s) => 0x%x", MStringRaw(Image->Name), Image->VirtualAddress);
 
     // Set the entry point if there is any
     if (OptHeader->EntryPoint != 0) {

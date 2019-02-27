@@ -139,6 +139,7 @@ InitializeProcessor(
     GdtInitialize();
     IdtInitialize();
     PicInitialize();
+    VbeInitialize();
     SmBiosInitialize(NULL);
 }
 

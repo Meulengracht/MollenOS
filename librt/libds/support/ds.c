@@ -318,7 +318,6 @@ OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, s
         dsfree(StateObject);
         return Status;
     }
-    TRACE("Mapping: V 0x%x => P 0x%x => S 0x%x", Buffer->Address, Buffer->Dma, Buffer->Capacity);
     *Address = (uintptr_t)GetBufferDataPointer(Buffer);
     StateObject->UserAccess = Buffer;
 #endif

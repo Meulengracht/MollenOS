@@ -189,7 +189,7 @@ ScCreateMemorySpaceMapping(
     SystemModule_t*      Module         = GetCurrentModule();
     SystemMemorySpace_t* MemorySpace    = (SystemMemorySpace_t*)LookupHandle(Handle);
     Flags_t              RequiredFlags  = MAPPING_COMMIT | MAPPING_USERSPACE;
-    Flags_t              PlacementFlags = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS;
+    Flags_t              PlacementFlags = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_FIXED;
     OsStatus_t           Status;
     if (Parameters == NULL || AccessBuffer == NULL || Module == NULL) {
         if (Module == NULL) {

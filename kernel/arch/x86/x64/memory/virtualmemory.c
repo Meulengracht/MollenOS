@@ -573,19 +573,21 @@ InitializeVirtualSpace(
         }
 
         // Identity map the video framebuffer region
-        BytesToMap      = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
-        PhysicalBase    = VideoGetTerminal()->FrameBufferAddress;
-        VirtualBase     = MEMORY_LOCATION_VIDEO;
-        while (BytesToMap) {
-            iTable          = GET_TABLE_HELPER(iDirectory, VirtualBase);
-            MmVirtualFillPageTable(iTable, PhysicalBase, 0, KernelPageFlags);
-            BytesToMap      -= MIN(BytesToMap, TABLE_SPACE_SIZE);
-            PhysicalBase    += TABLE_SPACE_SIZE;
-            VirtualBase     += TABLE_SPACE_SIZE;
-        }
+        if (GetMachine()->BootInformation.VbeMode) {
+            BytesToMap      = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
+            PhysicalBase    = VideoGetTerminal()->FrameBufferAddress;
+            VirtualBase     = MEMORY_LOCATION_VIDEO;
+            while (BytesToMap) {
+                iTable          = GET_TABLE_HELPER(iDirectory, VirtualBase);
+                MmVirtualFillPageTable(iTable, PhysicalBase, 0, KernelPageFlags);
+                BytesToMap      -= MIN(BytesToMap, TABLE_SPACE_SIZE);
+                PhysicalBase    += TABLE_SPACE_SIZE;
+                VirtualBase     += TABLE_SPACE_SIZE;
+            }
 
-        // Update video address to the new
-        VideoGetTerminal()->FrameBufferAddress = MEMORY_LOCATION_VIDEO;
+            // Update video address to the new
+            VideoGetTerminal()->FrameBufferAddress = MEMORY_LOCATION_VIDEO;
+        }
 
         // Update the configuration data for the memory space
         SystemMemorySpace->Data[MEMORY_SPACE_CR3]       = iPhysical;

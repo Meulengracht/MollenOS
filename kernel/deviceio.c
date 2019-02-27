@@ -121,13 +121,14 @@ AcquireSystemDeviceIo(
             uintptr_t BaseAddress = SystemIo->Io.Access.Memory.PhysicalBase;
             size_t    PageSize    = GetMemorySpacePageSize();
             size_t    Length      = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
-            assert(Space->Context != NULL);
-            
-            // Allocate space in heap without comitting the pages
-            MappedAddress = AllocateBlocksInBlockmap(Space->Context->HeapSpace, __MASK, Length);
-            if (MappedAddress == 0) {
-                ERROR(" > failed to allocate heap memory for mapping");
-                break;
+            OsStatus_t Status     = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
+                &BaseAddress, &MappedAddress, Length, 
+                MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_PERSISTENT, 
+                MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS, __MASK);
+            if (Status != OsSuccess) {
+                ERROR(" > Failed to allocate memory for device io memory");
+                SystemIo->Owner = UUID_INVALID;
+                return Status;
             }
 
             // Adjust for offset and store in io copies

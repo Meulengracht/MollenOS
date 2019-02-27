@@ -223,7 +223,6 @@ DmRegisterDevice(
     // Now, we want to try to find a driver for the new device
 #ifndef __OSCONFIG_NODRIVERS
     if (Flags & __DEVICEMANAGER_REGISTER_LOADDRIVER) {
-        TRACE("Loading driver by querying system.");
         return InstallDriver(CopyDevice, Device->Length, NULL, 0);
     }
 #endif

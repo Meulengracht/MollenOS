@@ -16,25 +16,17 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS X86-32 VBE Information Header
+ * X86-32 VBE Information Header
  * - Contains definitions related to VBE/VESA/Video for X86
  */
 
 #ifndef _X86_VBE_H_
 #define _X86_VBE_H_
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 
-/* Definitions 
- * This is primarily fixed memory addresses that
- * we will need to fall-back to in case no video */
-#define STD_VIDEO_MEMORY		0xB8000
+#define STD_VIDEO_MEMORY 0xB8000
 
-/* This is the VBE Graphic Information
- * Descriptor which we have setup in
- * the bootloader */
 PACKED_TYPESTRUCT(VbeMode, {
 	uint16_t        ModeAttributes;
 	uint8_t         WinAAttributes;
@@ -66,16 +58,12 @@ PACKED_TYPESTRUCT(VbeMode, {
 	uint8_t         ReservedMaskPos;
 	uint8_t         DirectColorModeInfo;
 
-	/* VBE 2.0 Extensions */
+	// VBE 2.0 Extensions
 	uint32_t        PhysBasePtr;
 	uint32_t        OffScreenMemOffset;
 	uint16_t        OffScreenMemSize;
 });
 
-/* VbeInitialize
- * Initializes the X86 video sub-system and provides
- * boot-video interface for the entire OS */
-KERNELAPI void KERNELABI
-VbeInitialize(void);
+KERNELAPI void KERNELABI VbeInitialize(void);
 
 #endif // !_X86_VBE_H_

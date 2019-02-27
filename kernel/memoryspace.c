@@ -346,11 +346,6 @@ CreateMemorySpaceMapping(
         PhysicalBase = *PhysicalAddress;
     }
     
-    // Sanitize fixed physical addresses. They are ALWAYS persistant
-    if (PlacementFlags & MAPPING_PHYSICAL_FIXED) {
-        MemoryFlags |= MAPPING_PERSISTENT;
-    }
-    
     // Resolve the virtual address, if virtual-base is zero then we have trouble, as something
     // went wrong during the phase to figure out where to place
     VirtualBase = ResolveVirtualSystemMemorySpaceAddress(SystemMemorySpace, VirtualAddress, Size, PlacementFlags);

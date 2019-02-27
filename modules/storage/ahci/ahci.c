@@ -172,6 +172,7 @@ AhciReset(
 {
     int Hung = 0;
     int i;
+    TRACE("AhciReset()");
 
     // Software may perform an HBA reset prior to initializing the controller by setting GHC.AE to 1 and then setting GHC.HR to 1 if desired
     Controller->Registers->GlobalHostControl |= AHCI_HOSTCONTROL_HR;
@@ -211,6 +212,7 @@ AhciTakeOwnership(
     _In_ AhciController_t* Controller)
 {
     int Hung = 0;
+    TRACE("AhciTakeOwnership()");
 
     // Step 1. Sets the OS Ownership (BOHC.OOS) bit to 1.
     Controller->Registers->OSControlAndStatus |= AHCI_CONTROLSTATUS_OOS;
@@ -245,6 +247,7 @@ AllocateOperationalMemory(
     _In_ AhciController_t* Controller)
 {
     Flags_t MemoryFlags = MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN | MEMORY_COMMIT | MEMORY_READ | MEMORY_WRITE;
+    TRACE("AllocateOperationalMemory()");
 
     // Allocate some shared resources. The resource we need is 
     // 1K for the Command List per port
@@ -296,6 +299,7 @@ AhciSetup(
     int FullResetRequired = 0;
     int ActivePortCount   = 0;
     int i;
+    TRACE("AhciSetup()");
 
     // Take ownership of the controller
     if (AhciTakeOwnership(Controller) != OsSuccess) {
