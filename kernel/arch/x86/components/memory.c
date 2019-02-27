@@ -38,7 +38,7 @@
 extern PAGE_MASTER_LEVEL* MmVirtualGetMasterTable(SystemMemorySpace_t* MemorySpace, VirtualAddress_t Address,
     PAGE_MASTER_LEVEL** ParentDirectory, int* IsCurrent);
 extern PageTable_t* MmVirtualGetTable(PAGE_MASTER_LEVEL* ParentPageMasterTable, PAGE_MASTER_LEVEL* PageMasterTable,
-    VirtualAddress_t VirtualAddress, int IsCurrent, int CreateIfMissing, Flags_t CreateFlags, int* Update);
+    VirtualAddress_t VirtualAddress, int IsCurrent, int CreateIfMissing, int* Update);
 
 extern void memory_invalidate_addr(uintptr_t pda);
 extern void memory_load_cr3(uintptr_t pda);
@@ -314,7 +314,7 @@ SetVirtualPageAttributes(
 
     ConvertedFlags = ConvertSystemSpaceToPaging(Flags);
     Directory      = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
-    Table          = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, ConvertedFlags, &Update);
+    Table          = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, &Update);
     if (Table == NULL) {
         return OsError;
     }
@@ -323,19 +323,16 @@ SetVirtualPageAttributes(
     if (Address < MEMORY_LOCATION_KERNEL_END) {
         if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
             ConvertedFlags |= PAGE_GLOBAL;
-        }  
+        }
     }
 
     // Map it, make sure we mask the page address so we don't accidently set any flags
-    Mapping = atomic_load(&Table->Pages[Index]);
-    if (!(Mapping & PAGE_SYSTEM_MAP)) {
-        atomic_store(&Table->Pages[Index], (Mapping & PAGE_MASK) | ConvertedFlags);
-        if (IsCurrent) {
-            memory_invalidate_addr(Address);
-        }
-        return OsSuccess;
+    Mapping = (atomic_load(&Table->Pages[Index])) & PAGE_MASK;
+    atomic_store(&Table->Pages[Index], Mapping | ConvertedFlags);
+    if (IsCurrent) {
+        memory_invalidate_addr(Address);
     }
-    return OsError;
+    return OsSuccess;
 }
 
 /* GetVirtualPageAttributes
@@ -354,7 +351,7 @@ GetVirtualPageAttributes(
     int                Index = PAGE_TABLE_INDEX(Address);
 
     Directory = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
-    Table     = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0, &Update);
+    Table     = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, &Update);
     if (Table == NULL) {
         return OsError;
     }
@@ -384,7 +381,7 @@ CommitVirtualPageMapping(
 
     vAddress &= PAGE_MASK;
     Directory = MmVirtualGetMasterTable(MemorySpace, vAddress, &ParentDirectory, &IsCurrent);
-    Table     = MmVirtualGetTable(ParentDirectory, Directory, vAddress, IsCurrent, 0, 0, &Update);
+    Table     = MmVirtualGetTable(ParentDirectory, Directory, vAddress, IsCurrent, 0, &Update);
     if (Table == NULL) {
         return OsDoesNotExist;
     }
@@ -446,7 +443,7 @@ SetVirtualPageMapping(
     vAddress      &= PAGE_MASK;
     ConvertedFlags = ConvertSystemSpaceToPaging(Flags);
     Directory      = MmVirtualGetMasterTable(MemorySpace, vAddress, &ParentDirectory, &IsCurrent);
-    Table          = MmVirtualGetTable(ParentDirectory, Directory, vAddress, IsCurrent, 1, ConvertedFlags, &Update);
+    Table          = MmVirtualGetTable(ParentDirectory, Directory, vAddress, IsCurrent, 1, &Update);
 
     // For kernel mappings we would like to mark the mappings global
     if (vAddress < MEMORY_LOCATION_KERNEL_END) {
@@ -497,7 +494,7 @@ ClearVirtualPageMapping(
     int                Index = PAGE_TABLE_INDEX(Address);
 
     Directory = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
-    Table     = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0, &Update);
+    Table     = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, &Update);
     if (Table == NULL) {
         return OsError;
     }
@@ -506,26 +503,24 @@ ClearVirtualPageMapping(
     Mapping = atomic_load(&Table->Pages[Index]);
 SyncTable:
     if (Mapping != 0) {
-        if (!(Mapping & PAGE_SYSTEM_MAP)) {
-            // Maybe present, not system map
-            // Perform the clearing in a weak context, fast operation
-            if (!atomic_compare_exchange_weak(&Table->Pages[Index], &Mapping, 0)) {
-                goto SyncTable;
-            }
-
-            // Invalidate page if it was present
-            if ((Mapping & PAGE_PRESENT) && IsCurrent) {
-                memory_invalidate_addr(Address);
-            }
-
-            // Release memory, but don't if it is a virtual mapping, that means we 
-            // should not free the physical page. We only do this if the memory
-            // is marked as present, otherwise we don't
-            if ((Mapping & PAGE_PRESENT) && !(Mapping & PAGE_PERSISTENT)) {
-                FreeSystemMemory(Mapping & PAGE_MASK, PAGE_SIZE);
-            }
-            return OsSuccess;
+        // Maybe present, not system map
+        // Perform the clearing in a weak context, fast operation
+        if (!atomic_compare_exchange_weak(&Table->Pages[Index], &Mapping, 0)) {
+            goto SyncTable;
         }
+
+        // Invalidate page if it was present
+        if ((Mapping & PAGE_PRESENT) && IsCurrent) {
+            memory_invalidate_addr(Address);
+        }
+
+        // Release memory, but don't if it is a virtual mapping, that means we 
+        // should not free the physical page. We only do this if the memory
+        // is marked as present, otherwise we don't
+        if ((Mapping & PAGE_PRESENT) && !(Mapping & PAGE_PERSISTENT)) {
+            FreeSystemMemory(Mapping & PAGE_MASK, PAGE_SIZE);
+        }
+        return OsSuccess;
     }
     return OsError;
 }
@@ -543,7 +538,7 @@ GetVirtualPageMapping(
     int                Index = PAGE_TABLE_INDEX(Address);
 
     Directory = MmVirtualGetMasterTable(MemorySpace, Address, &ParentDirectory, &IsCurrent);
-    Table     = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, 0, &Update);
+    Table     = MmVirtualGetTable(ParentDirectory, Directory, Address, IsCurrent, 0, &Update);
     if (Table == NULL) {
         return 0;
     }

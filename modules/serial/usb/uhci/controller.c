@@ -22,24 +22,15 @@
  */
 //#define __TRACE
 
-/* Includes
- * - System */
 #include <ddk/utils.h>
 #include "uhci.h"
-
-/* Includes
- * - Library */
 #include <threads.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* Prototypes 
- * This is to keep the create/destroy at the top of the source file */
-OsStatus_t          UhciSetup(UhciController_t *Controller);
-InterruptStatus_t   OnFastInterrupt(FastInterruptResources_t*, void*);
+OsStatus_t        UhciSetup(UhciController_t *Controller);
+InterruptStatus_t OnFastInterrupt(FastInterruptResources_t*, void*);
 
-/* Globals
- * State-keeping and single-time stuff. */
 static int TimerRegistered = 0;
 
 /* HciTimerCallback 
@@ -125,7 +116,7 @@ HciControllerCreate(
 
     // Trace
     TRACE("Found Io-Space (Type %u, Physical 0x%x, Size 0x%x)",
-        IoBase->Type, IoBase->PhysicalBase, IoBase->Size);
+        IoBase->Type, IoBase->Access.Memory.PhysicalBase, IoBase->Access.Memory.Length);
 
     // Acquire the io-space
     if (AcquireDeviceIo(IoBase) != OsSuccess) {
@@ -299,10 +290,10 @@ UhciReset(
     UhciWrite16(Controller, UHCI_REGISTER_INTR,     0x0000);
 
     // Now reconfigure the controller
-    UhciWrite8(Controller, UHCI_REGISTER_SOFMOD,    64); // Frame length 1 ms
-    UhciWrite32(Controller, UHCI_REGISTER_FRBASEADDR, 
-        Controller->Base.Scheduler->Settings.FrameListPhysical);
-    UhciWrite16(Controller, UHCI_REGISTER_FRNUM,    (Controller->Frame & UHCI_FRAME_MASK));
+    UhciWrite8(Controller, UHCI_REGISTER_SOFMOD,      64); // Frame length 1 ms
+    UhciWrite32(Controller, UHCI_REGISTER_FRBASEADDR, Controller->Base.Scheduler->Settings.FrameListPhysical);
+    UhciWrite16(Controller, UHCI_REGISTER_FRNUM,     (Controller->Frame & UHCI_FRAME_MASK));
+    TRACE(" > Queue physical address at 0x%x", Controller->Base.Scheduler->Settings.FrameListPhysical);
 
     // Enable the interrupts that are relevant
     UhciWrite16(Controller, UHCI_REGISTER_INTR, 

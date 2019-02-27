@@ -111,8 +111,10 @@ Entry:
 	; Install GDT
 	call 	InstallGdt
 
+%ifdef __OSCONFIG_HAS_VIDEO
 	; VESA System Select
 	call 	VesaSetup
+%endif
 
 	; Setup FileSystem (Based on Stage1 Type)
 	xor 	eax, eax
@@ -155,10 +157,8 @@ Continue:
 	mov 	esi, szSuccess
 	call 	Print
 
-	; Now, the tricky thing comes
-	; We must go to 32-bit, copy the kernel
-	; to 0x1000000, then return back
-	; so we can load ramdisk
+	; Now, the tricky thing comes. We must go to 32-bit, copy the kernel
+	; to 0x1000000, then return back so we can load ramdisk
 
 	; GO PROTECTED MODE!
 	mov		eax, cr0
@@ -248,8 +248,10 @@ Finish16Bit:
 	mov 	esi, szFinishBootMsg
 	call 	Print
 
+%ifdef __OSCONFIG_HAS_VIDEO
 	; Switch Video Mode
 	call 	VesaFinish
+%endif
 
 	; GO PROTECTED MODE!
 	mov		eax, cr0

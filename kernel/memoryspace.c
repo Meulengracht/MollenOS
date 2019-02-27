@@ -365,6 +365,10 @@ CreateMemorySpaceMapping(
                 }
                 else {
                     PhysicalPage = AllocateSystemMemory(GetMemorySpacePageSize(), PhysicalMask, 0);
+                    assert(PhysicalPage != 0);
+                    if (PhysicalAddress != NULL && *PhysicalAddress == __MASK) {
+                        *PhysicalAddress = PhysicalPage;
+                    }
                 }
             }
             else if (PlacementFlags & MAPPING_PHYSICAL_FIXED) {
@@ -401,25 +405,17 @@ CommitMemorySpaceMapping(
     _In_        SystemMemorySpace_t* SystemMemorySpace,
     _InOut_Opt_ PhysicalAddress_t*   PhysicalAddress, 
     _In_        VirtualAddress_t     VirtualAddress,
-    _In_        Flags_t              PlacementFlags,
     _In_        uintptr_t            PhysicalMask)
 {
     uintptr_t  PhysicalPage;
     OsStatus_t Status = OsError;
     assert(SystemMemorySpace != NULL);
 
-    PhysicalPage = GetVirtualPageMapping(SystemMemorySpace, VirtualAddress);
-    if (PhysicalPage == 0) {
-        if (PlacementFlags & MAPPING_PHYSICAL_FIXED) {
-            assert(PhysicalAddress != NULL);
-            PhysicalPage = *PhysicalAddress;
-        }
-        else {
-            PhysicalPage = AllocateSystemMemory(GetMemorySpacePageSize(), PhysicalMask, 0);
-        }   
-    }
+    PhysicalPage = AllocateSystemMemory(GetMemorySpacePageSize(), PhysicalMask, 0);
+    assert(PhysicalPage != 0);
+   
     Status = CommitVirtualPageMapping(SystemMemorySpace, PhysicalPage, VirtualAddress);
-    if (Status != OsSuccess && !(PlacementFlags & MAPPING_PHYSICAL_FIXED)) {
+    if (Status != OsSuccess) {
         FreeSystemMemory(PhysicalPage, GetMemorySpacePageSize());
     }
     return Status;

@@ -45,12 +45,6 @@ InitializeFramebufferOutput(void);
 KERNELAPI OsStatus_t KERNELABI
 InitializeConsole(void);
 
-/* EnableSystemDebugConsole
- * Enters the debug console mode. This allows to inspect the system state and much of
- * the information available to the system. */
-KERNELAPI OsStatus_t KERNELABI
-EnableSystemDebugConsole(void);
-
 /* VideoQuery
  * Renders a character with default colors
  * at the current terminal position */

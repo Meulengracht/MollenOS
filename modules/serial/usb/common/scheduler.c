@@ -16,21 +16,16 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - USB Controller Scheduler
+ * USB Controller Scheduler
  * - Contains the implementation of a shared controller scheduker
  *   for all the usb drivers
  */
 //#define __TRACE
 #define __COMPILE_ASSERT
 
-/* Includes
- * - System */
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "scheduler.h"
-
-/* Includes
- * - Library */
 #include <assert.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -121,6 +116,7 @@ UsbSchedulerInitialize(
         ERROR("Failed to allocate memory for resource-pool");
         return OsError;
     }
+    TRACE(" > Allocated address 0x%x (=> Physical 0x%x)", Pool, PoolPhysical);
 
     // Validate memory boundaries
     if (!(Settings->Flags & USB_SCHEDULER_FL64)) {
@@ -158,12 +154,13 @@ UsbSchedulerInitialize(
 
     // Allocate the last resources
     TRACE(" > Allocating management resources");
-    Scheduler->VirtualFrameList     = (uintptr_t*)malloc(Settings->FrameCount * sizeof(uintptr_t));
+    Scheduler->VirtualFrameList = (uintptr_t*)malloc(Settings->FrameCount * sizeof(uintptr_t));
     assert(Scheduler->VirtualFrameList != NULL);
-    Scheduler->Bandwidth            = (size_t*)malloc((Settings->FrameCount * Settings->SubframeCount * sizeof(size_t)));
+    
+    Scheduler->Bandwidth = (size_t*)malloc((Settings->FrameCount * Settings->SubframeCount * sizeof(size_t)));
     assert(Scheduler->Bandwidth != NULL);
 
-    *SchedulerOut                   = Scheduler;
+    *SchedulerOut = Scheduler;
     TRACE(" > Resetting internal data");
     return UsbSchedulerResetInternalData(Scheduler, 1, 1);
 }

@@ -16,42 +16,42 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Video Interface (Boot)
+ * Video Interface (Boot)
  * - Contains the shared kernel video interface
  *   that all sub-layers / architectures must conform to
  */
 
-#ifndef _MCORE_SYSVIDEO_H_
-#define _MCORE_SYSVIDEO_H_
+#ifndef __VALI_OUTPUT_H__
+#define __VALI_OUTPUT_H__
 
 #include <os/osdefs.h>
 #include <ddk/contracts/video.h>
 
 PACKED_TYPESTRUCT(BootTerminal, {
-	Flags_t						Type;
-	VideoDescriptor_t			Info;
+    Flags_t						AvailableOutputs;
+    VideoDescriptor_t			Info;
 
     uintptr_t                   FrameBufferAddress;
     uintptr_t                   FrameBufferAddressPhysical;
 
-	unsigned					CursorX;
-	unsigned					CursorY;
-	
-	unsigned					CursorStartX;
-	unsigned					CursorStartY;
-	unsigned					CursorLimitX;
-	unsigned					CursorLimitY;
+    unsigned					CursorX;
+    unsigned					CursorY;
+    
+    unsigned					CursorStartX;
+    unsigned					CursorStartY;
+    unsigned					CursorLimitX;
+    unsigned					CursorLimitY;
 
-	uint32_t					FgColor;
-	uint32_t					BgColor;
+    uint32_t					FgColor;
+    uint32_t					BgColor;
 });
 
 /* Video Type Definitions
  * Currently only two kind of video types needs
  * to be supported for boot - textmode or lfbmode */
-#define VIDEO_NONE				0x00000000  // @todo rename uart
-#define VIDEO_TEXT				0x00000001  // @todo rename tty
-#define VIDEO_GRAPHICS			0x00000002
+#define VIDEO_UART      0x00000001
+#define VIDEO_TEXT      0x00000002
+#define VIDEO_GRAPHICS  0x00000004 // This and _TEXT are mutually exclusive
 
 /* VideoGetTerminal
  * Retrieves the current terminal information */
@@ -67,24 +67,24 @@ VideoClear(void);
  * Draws a pixel of the given color at the specifiedpixel-position */
 KERNELAPI OsStatus_t KERNELABI
 VideoDrawPixel(
-	_In_ unsigned X, 
-	_In_ unsigned Y, 
-	_In_ uint32_t Color);
+    _In_ unsigned X, 
+    _In_ unsigned Y, 
+    _In_ uint32_t Color);
 
 /* VideoDrawCharacter
  * Renders a character of the given color(s) at the specified pixel-position */
 KERNELAPI OsStatus_t KERNELABI
 VideoDrawCharacter(
-	_In_ unsigned X, 
-	_In_ unsigned Y, 
-	_In_ int Character, 
-	_In_ uint32_t Bg, 
-	_In_ uint32_t Fg);
+    _In_ unsigned X, 
+    _In_ unsigned Y, 
+    _In_ int Character, 
+    _In_ uint32_t Bg, 
+    _In_ uint32_t Fg);
 
 /* VideoPutCharacter
  * Renders a character with default colors at the current terminal position */
 KERNELAPI OsStatus_t KERNELABI
 VideoPutCharacter(
-	_In_ int Character);
+    _In_ int Character);
 
-#endif //!_MCORE_SYSVIDEO_H_
+#endif //!__VALI_OUTPUT_H__

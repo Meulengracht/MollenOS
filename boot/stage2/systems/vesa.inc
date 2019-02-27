@@ -188,7 +188,7 @@ VesaFindBestSuitableMode:
 		cmp 	ax, 0x009B
 		jne 	.NextEntry
 
-		; We want 32 bit modes!! ALPHA FTW
+		; We want 32 bit modes!!
 		mov 	al, byte [VesaModeInfo + VbeModeStruct.Bpp]
 		cmp 	al, bl
 		jne 	.NextEntry
@@ -259,11 +259,10 @@ VesaFinish:
 	; Save state
 	pushad
 
-	; Make sure it is not 0
-	cmp 	word [wOptimizedVesaMode], 0
-	je 		.Done
+	; Make sure it is not 0 or 1
+	cmp 	word [wOptimizedVesaMode], 1
+	jbe		.Done
 
-	; Setup INT 
 	mov 	ax, 0x4F02
 	mov 	bx, word [wOptimizedVesaMode]
 	or 		bx, 0x4000
@@ -314,44 +313,44 @@ VesaSetup:
 	call 	VesaFindBestSuitableMode
 
 	; Yay?
-	cmp 	word [wOptimizedVesaMode], 0
-	jne 	.ModeSuccess
+	cmp 	word [wOptimizedVesaMode], 1
+	ja 	    .ModeSuccess
 
 	; Try to locate 24 bit mode then
 	mov	bx, 0x18
 	call	VesaFindBestSuitableMode
 
 	; Sanity
-	cmp 	word [wOptimizedVesaMode], 0
-	je 	.Fail
+	cmp 	word [wOptimizedVesaMode], 1
+	jbe     .Fail
 
 	.ModeSuccess:
-	pop	es
-	; YAY!
-	mov 	esi, szVesaModeSpace
-	call 	Print
-	xor 	eax, eax
-	mov 	ax, word [wCurrentResX]
-	call 	PrintNumber
-	mov 	esi, szVesaModeSeperator
-	call 	Print
-	mov 	ax, word [wCurrentResY]
-	call 	PrintNumber
-	mov 	esi, szVesaModeEnd
-	call 	Print
-
-	; Reload structure
-	xor 	ecx, ecx
-	mov 	ax, 0x4F01
-	mov 	cx, word [wOptimizedVesaMode]
-	mov 	edi, VesaModeInfo
-	mov 	dword [BootHeader + MultiBoot.VBEModeInfo], edi
-	mov 	dword [BootHeader + MultiBoot.VBEMode], ecx
-	int 	0x10
-
-	; Restore & Return
-	popad 
-	ret
+		pop	es
+		; YAY!
+		mov 	esi, szVesaModeSpace
+		call 	Print
+		xor 	eax, eax
+		mov 	ax, word [wCurrentResX]
+		call 	PrintNumber
+		mov 	esi, szVesaModeSeperator
+		call 	Print
+		mov 	ax, word [wCurrentResY]
+		call 	PrintNumber
+		mov 	esi, szVesaModeEnd
+		call 	Print
+	
+		; Reload structure
+		xor 	ecx, ecx
+		mov 	ax, 0x4F01
+		mov 	cx, word [wOptimizedVesaMode]
+		mov 	edi, VesaModeInfo
+		mov 	dword [BootHeader + MultiBoot.VBEModeInfo], edi
+		mov 	dword [BootHeader + MultiBoot.VBEMode], ecx
+		int 	0x10
+	
+		; Restore & Return
+		popad 
+		ret
 
 	.GetModeFail:
 		pop	es
@@ -387,7 +386,11 @@ szModeFailed					db		" [VBE NO SUPPORT]", 0x0D, 0x0A, 0x00
 szNoAvailModesFailed				db		" [VBE NO 24/32B MODES]", 0x0D, 0x0A, 0x00
 
 ; Etc
+%ifdef __OSCONFIG_HAS_VIDEO
+wOptimizedVesaMode 				dw 		1
+%else
 wOptimizedVesaMode 				dw 		0
+%endif
 wCurrentResX					dw 		0
 wCurrentResY 					dw 		0
 

@@ -44,7 +44,7 @@ ScMemoryAllocate(
     uintptr_t            AllocatedAddress;
     SystemMemorySpace_t* Space          = GetCurrentMemorySpace();
     Flags_t              MemoryFlags    = MAPPING_USERSPACE | MAPPING_VIRTUAL_PROCESS;
-    Flags_t              PlacementFlags = MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_PROCESS;
+    Flags_t              PlacementFlags = MAPPING_VIRTUAL_PROCESS;
     if (Size == 0) {
         return OsInvalidParameters;
     }
@@ -53,19 +53,19 @@ ScMemoryAllocate(
     if (Flags & MEMORY_COMMIT) {
         MemoryFlags |= MAPPING_COMMIT;
     }
-    if (Flags & MEMORY_CONTIGIOUS) {
-        MemoryFlags |= MAPPING_PHYSICAL_CONTIGIOUS;
-    }
     if (Flags & MEMORY_UNCHACHEABLE) {
         MemoryFlags |= MAPPING_NOCACHE;
     }
     if (Flags & MEMORY_LOWFIRST) {
         MemoryFlags |= MAPPING_LOWFIRST;
     }
-
-    // Reset
-    if (PhysicalAddress != NULL) {
-        *PhysicalAddress = 0;
+    
+    // Handle the physical placement flag
+    if (Flags & MEMORY_CONTIGIOUS) {
+        PlacementFlags |= MAPPING_PHYSICAL_CONTIGIOUS;
+    }
+    else {
+        PlacementFlags |= MAPPING_PHYSICAL_DEFAULT;
     }
 
     Status = CreateMemorySpaceMapping(Space, PhysicalAddress, &AllocatedAddress, Size, 

@@ -29,6 +29,7 @@
 #include <system/utils.h>
 #include <memoryspace.h>
 #include <threading.h>
+#include <machine.h>
 #include <timers.h>
 #include <handle.h>
 #include <assert.h>
@@ -221,6 +222,14 @@ CreateThread(
             }
             Thread->MemorySpace = (SystemMemorySpace_t*)LookupHandle(Thread->MemorySpaceHandle);
         }
+    }
+    
+    // Create pre-mapped tls region for userspace threads
+    if (THREADING_RUNMODE(Flags) == THREADING_USERMODE) {
+        uintptr_t ThreadRegionStart = GetMachine()->MemoryMap.ThreadRegion.Start;
+        size_t    ThreadRegionSize  = GetMachine()->MemoryMap.ThreadRegion.Length;
+        CreateMemorySpaceMapping(Thread->MemorySpace, NULL, &ThreadRegionStart, ThreadRegionSize, 
+            MAPPING_DOMAIN | MAPPING_USERSPACE, MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_FIXED, __MASK);
     }
 
     // Create context's neccessary

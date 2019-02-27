@@ -16,12 +16,13 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS x86-64 Virtual Memory Manager
+ * X86-64 Virtual Memory Manager
  * - Contains the implementation of virtual memory management
  *   for the X86-64 Architecture 
  */
-#define __MODULE		"VMEM"
+#define __MODULE "VMEM"
 //#define __TRACE
+#define __COMPILE_ASSERT
 
 #include <component/cpu.h>
 #include <memoryspace.h>
@@ -38,17 +39,29 @@
 #include <cpu.h>
 #include <gdt.h>
 
+extern uintptr_t LastReservedAddress;
+
 extern OsStatus_t SwitchVirtualSpace(SystemMemorySpace_t*);
+
+STATIC_ASSERT(sizeof(PageDirectory_t) == 8192, Invalid_PageDirectory_Alignment);
+STATIC_ASSERT(sizeof(PageDirectoryTable_t) == 8192, Invalid_PageDirectoryTable_Alignment);
+STATIC_ASSERT(sizeof(PageMasterTable_t) == 8192, Invalid_PageMasterTable_Alignment);
 
 // Function helpers for repeating functions where it pays off
 // to have them seperate
-#define CREATE_STRUCTURE_HELPER(Type, Name) Type* MmVirtualCreate##Name(void) { \
+#define CREATE_STRUCTURE_HELPER(Type, Name) static Type* MmVirtualCreate##Name(void) { \
                                             Type *Instance = (Type*)AllocateSystemMemory(DIVUP(sizeof(Type), PAGE_SIZE), MEMORY_ALLOCATION_MASK, 0); \
                                             assert(Instance != NULL); \
                                             memset((void*)Instance, 0, sizeof(Type)); \
                                             return Instance; }
 #define GET_TABLE_HELPER(MasterTable, Address) ((PageTable_t*)((PageDirectory_t*)((PageDirectoryTable_t*)MasterTable->vTables[PAGE_LEVEL_4_INDEX(Address)])->vTables[PAGE_DIRECTORY_POINTER_INDEX(Address)])->vTables[PAGE_DIRECTORY_INDEX(Address)])
 
+// Disable the atomic wrong alignment, as they are aligned and are sanitized
+// by the static assert
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Watomic-alignment"
+#endif
 
 /* MmVirtualCreatePageTable
  * Creates and initializes a new empty page-table */
@@ -62,41 +75,32 @@ CREATE_STRUCTURE_HELPER(PageDirectory_t, PageDirectory)
  * Creates and initializes a new empty page-directory-table */
 CREATE_STRUCTURE_HELPER(PageDirectoryTable_t, PageDirectoryTable)
 
-/* MmVirtualFillPageTable
- * Identity maps a memory region inside the given
- * page-table - type of mappings is controlled with Flags */
-void 
+static void 
 MmVirtualFillPageTable(
 	_In_ PageTable_t*       Table, 
 	_In_ PhysicalAddress_t  PhysicalAddress, 
 	_In_ VirtualAddress_t   VirtualAddress, 
 	_In_ Flags_t            Flags)
 {
-	// Variables
-	uintptr_t PhysicalEntry, VirtualEntry;
-	int i;
+	uintptr_t pAddress = PhysicalAddress | Flags;
+	int       i        = PAGE_TABLE_INDEX(VirtualAddress);
 
 	// Iterate through pages and map them
-	for (i = PAGE_TABLE_INDEX(VirtualAddress), PhysicalEntry = PhysicalAddress, VirtualEntry = VirtualAddress;
-		i < ENTRIES_PER_PAGE; i++, PhysicalEntry += PAGE_SIZE, VirtualEntry += PAGE_SIZE) {
-        atomic_store(&Table->Pages[PAGE_TABLE_INDEX(VirtualEntry)], PhysicalEntry | Flags);
+	for (; i < ENTRIES_PER_PAGE; i++, pAddress += PAGE_SIZE) {
+        atomic_store_explicit(&Table->Pages[i], pAddress, memory_order_relaxed);
 	}
 }
 
-
-/* MmVirtualMapMemoryRange
- * Maps an entire region into the given page-directory and marks them present.
- * They can then be used for either identity mapping or real mappings afterwards. */
-void 
+static uintptr_t 
 MmVirtualMapMemoryRange(
 	_In_ PageMasterTable_t* MasterTable,
 	_In_ VirtualAddress_t   AddressStart,
 	_In_ uintptr_t          Length,
 	_In_ Flags_t            Flags)
 {
-	// Variables
-    PageDirectoryTable_t *DirectoryTable;
-    PageDirectory_t *Directory;
+    uintptr_t             LastAddress = 0;
+    PageDirectoryTable_t* DirectoryTable;
+    PageDirectory_t*      Directory;
 	unsigned i, j, je, k, ke;
 
     // Get indices, need them to make decisions
@@ -117,6 +121,7 @@ MmVirtualMapMemoryRange(
             MasterTable->vTables[i] = (uintptr_t)MmVirtualCreatePageDirectoryTable();
             atomic_store_explicit(&MasterTable->pTables[i], MasterTable->vTables[i] | Flags, 
                 memory_order_relaxed);
+            LastAddress = MasterTable->vTables[i];
         }
         DirectoryTable = (PageDirectoryTable_t*)MasterTable->vTables[i];
 
@@ -129,6 +134,7 @@ MmVirtualMapMemoryRange(
                 DirectoryTable->vTables[j] = (uintptr_t)MmVirtualCreatePageDirectory();
                 atomic_store_explicit(&DirectoryTable->pTables[j], DirectoryTable->vTables[j] | Flags, 
                     memory_order_relaxed);
+                LastAddress = DirectoryTable->vTables[j];
             }
             Directory = (PageDirectory_t*)DirectoryTable->vTables[j];
 
@@ -141,10 +147,12 @@ MmVirtualMapMemoryRange(
                     Directory->vTables[k] = (uintptr_t)MmVirtualCreatePageTable();
                     atomic_store_explicit(&Directory->pTables[k], Directory->vTables[k] | Flags, 
                         memory_order_relaxed);
+                    LastAddress = Directory->vTables[k];
                 }
             }
         }
     }
+    return LastAddress;
 }
 
 /* MmVirtualGetMasterTable
@@ -156,9 +164,8 @@ MmVirtualGetMasterTable(
     _Out_ PageMasterTable_t**   ParentDirectory,
     _Out_ int*                  IsCurrent)
 {
-    // Variables
-    PageMasterTable_t *Directory    = (PageMasterTable_t*)MemorySpace->Data[MEMORY_SPACE_DIRECTORY];
-    PageMasterTable_t *Parent       = NULL;
+    PageMasterTable_t* Directory = (PageMasterTable_t*)MemorySpace->Data[MEMORY_SPACE_DIRECTORY];
+    PageMasterTable_t* Parent    = NULL;
 
 	assert(Directory != NULL);
 
@@ -172,8 +179,8 @@ MmVirtualGetMasterTable(
     }
 
     // Update the provided pointers
-    *IsCurrent          = (MemorySpace == GetCurrentMemorySpace()) ? 1 : 0;
-    *ParentDirectory    = Parent;
+    *IsCurrent       = (MemorySpace == GetCurrentMemorySpace()) ? 1 : 0;
+    *ParentDirectory = Parent;
     return Directory;
 }
 
@@ -186,22 +193,25 @@ MmVirtualGetTable(
 	_In_  VirtualAddress_t      VirtualAddress,
     _In_  int                   IsCurrent,
     _In_  int                   CreateIfMissing,
-    _In_  Flags_t               CreateFlags,
     _Out_ int*                  Update)
 {
-	// Variabes
-    PageDirectoryTable_t *DirectoryTable    = NULL;
-    PageDirectory_t *Directory              = NULL;
-	PageTable_t *Table                      = NULL;
-	uintptr_t Physical                      = 0;
-    uint64_t ParentMapping;
-
+    PageDirectoryTable_t* DirectoryTable = NULL;
+    PageDirectory_t*      Directory      = NULL;
+	PageTable_t*          Table          = NULL;
+	uintptr_t             Physical       = 0;
+    Flags_t               CreateFlags    = PAGE_PRESENT | PAGE_WRITE;
+    uint64_t              ParentMapping;
+    
     // Initialize indices and variables
     int PmIndex     = PAGE_LEVEL_4_INDEX(VirtualAddress);
     int PdpIndex    = PAGE_DIRECTORY_POINTER_INDEX(VirtualAddress);
     int PdIndex     = PAGE_DIRECTORY_INDEX(VirtualAddress);
     ParentMapping   = atomic_load(&PageMasterTable->pTables[PmIndex]);
     *Update         = 0;
+
+    if (VirtualAddress > MEMORY_LOCATION_KERNEL_END) {
+        CreateFlags |= PAGE_USER;
+    }
 
 	/////////////////////////////////////////////////
     // Check and synchronize the page-directory table as that is the 
@@ -222,31 +232,34 @@ SyncPmlWithParent:
         if (ParentMapping & PAGE_PRESENT) {
             // Update our page-directory and reload
             atomic_store(&PageMasterTable->pTables[PmIndex], ParentMapping | PAGETABLE_INHERITED);
-            PageMasterTable->vTables[PmIndex]   = ParentPageMasterTable->vTables[PmIndex];
-            DirectoryTable                      = (PageDirectoryTable_t*)PageMasterTable->vTables[PmIndex];
+            PageMasterTable->vTables[PmIndex] = ParentPageMasterTable->vTables[PmIndex];
+            DirectoryTable                    = (PageDirectoryTable_t*)PageMasterTable->vTables[PmIndex];
             assert(DirectoryTable != NULL);
-            *Update                             = IsCurrent;
+            *Update = IsCurrent;
         }
         else if (CreateIfMissing) {
             // Allocate, do a CAS and see if it works, if it fails retry our operation
             DirectoryTable = (PageDirectoryTable_t*)kmalloc_p(sizeof(PageDirectoryTable_t), &Physical);
             assert(DirectoryTable != NULL);
             memset((void*)DirectoryTable, 0, sizeof(PageDirectoryTable_t));
+            Physical |= CreateFlags;
 
             // Now perform the synchronization
-            Physical |= PAGE_PRESENT | PAGE_WRITE | CreateFlags;
-            if (ParentPageMasterTable != NULL && !atomic_compare_exchange_strong(
-                &ParentPageMasterTable->pTables[PmIndex], &ParentMapping, Physical)) {
-                // Start over as someone else beat us to the punch
-                kfree((void*)DirectoryTable);
-                goto SyncPmlWithParent;
+            if (ParentPageMasterTable != NULL) {
+                if (!atomic_compare_exchange_strong(
+                    &ParentPageMasterTable->pTables[PmIndex], &ParentMapping, Physical)) {
+                    // Start over as someone else beat us to the punch
+                    kfree((void*)DirectoryTable);
+                    goto SyncPmlWithParent;
+                }
+                ParentPageMasterTable->vTables[PmIndex] = (uint64_t)DirectoryTable;
             }
 
             // Update us and mark our copy inherited
             Physical |= PAGETABLE_INHERITED;
             atomic_store(&PageMasterTable->pTables[PmIndex], Physical);
-            PageMasterTable->vTables[PmIndex]   = (uintptr_t)Table;
-            *Update                             = IsCurrent;
+            PageMasterTable->vTables[PmIndex] = (uintptr_t)Table;
+            *Update                           = IsCurrent;
         }
     }
 
@@ -272,7 +285,7 @@ SyncPdp:
         memset((void*)Directory, 0, sizeof(PageDirectory_t));
 
         // Adjust the physical pointer to include flags
-        Physical |= PAGE_PRESENT | PAGE_WRITE | CreateFlags;
+        Physical |= CreateFlags;
         if (!atomic_compare_exchange_strong(&DirectoryTable->pTables[PdpIndex], 
             &ParentMapping, Physical)) {
             // Start over as someone else beat us to the punch
@@ -302,7 +315,7 @@ SyncPd:
         memset((void*)Table, 0, sizeof(PageTable_t));
 
         // Adjust the physical pointer to include flags
-        Physical |= PAGE_PRESENT | PAGE_WRITE | CreateFlags;
+        Physical |= CreateFlags;
         if (!atomic_compare_exchange_strong(&Directory->pTables[PdIndex], 
             &ParentMapping, Physical)) {
             // Start over as someone else beat us to the punch
@@ -325,13 +338,12 @@ CloneVirtualSpace(
     _In_ SystemMemorySpace_t*   MemorySpace,
     _In_ int                    Inherit)
 {
-    // Variables
-    PageDirectoryTable_t *SystemDirectoryTable  = NULL;
-    PageDirectoryTable_t *DirectoryTable        = NULL;
-    PageDirectory_t *Directory                  = NULL;
-    PageMasterTable_t *SystemMasterTable = (PageMasterTable_t*)GetDomainMemorySpace()->Data[MEMORY_SPACE_DIRECTORY];
-    PageMasterTable_t *ParentMasterTable = NULL;
-    PageMasterTable_t *PageMasterTable;
+    PageDirectoryTable_t* SystemDirectoryTable = NULL;
+    PageDirectoryTable_t* DirectoryTable       = NULL;
+    PageDirectory_t*      Directory            = NULL;
+    PageMasterTable_t*    SystemMasterTable    = (PageMasterTable_t*)GetDomainMemorySpace()->Data[MEMORY_SPACE_DIRECTORY];
+    PageMasterTable_t*    ParentMasterTable    = NULL;
+    PageMasterTable_t*    PageMasterTable;
     uintptr_t PhysicalAddress;
     uintptr_t MasterAddress;
 
@@ -363,9 +375,9 @@ CloneVirtualSpace(
     DirectoryTable      = (PageDirectoryTable_t*)PageMasterTable->vTables[0];
     memset((void*)DirectoryTable, 0, sizeof(PageDirectoryTable_t));
 
-    // Set PD[0] => KERNEL PD[0]
+    // Set PD[0] => KERNEL PD[0] and mark as inherited
     PhysicalAddress = atomic_load(&SystemDirectoryTable->pTables[0]);
-    atomic_store(&DirectoryTable->pTables[0], PhysicalAddress);
+    atomic_store(&DirectoryTable->pTables[0], PhysicalAddress | PAGETABLE_INHERITED);
     DirectoryTable->vTables[0] = SystemDirectoryTable->vTables[0];
 
     // Set PD[ThreadRegion] => NEW [NON-INHERITABLE]
@@ -422,14 +434,12 @@ OsStatus_t
 MmVirtualDestroyPageTable(
 	_In_ PageTable_t* PageTable)
 {
-    // Variables
     uint64_t Mapping;
 
     // Handle PT[0..511] normally
     for (int Index = 0; Index < ENTRIES_PER_PAGE; Index++) {
         Mapping = atomic_load_explicit(&PageTable->Pages[Index], memory_order_relaxed);
-        if ((Mapping & (PAGE_SYSTEM_MAP | PAGE_PERSISTENT)) || 
-            !(Mapping & PAGE_PRESENT)) {
+        if ((Mapping & PAGE_PERSISTENT) || !(Mapping & PAGE_PRESENT)) {
             continue;
         }
 
@@ -439,8 +449,6 @@ MmVirtualDestroyPageTable(
             }
         }
     }
-
-    // Done with page-table, free it
     kfree(PageTable);
     return OsSuccess;
 }
@@ -451,22 +459,16 @@ OsStatus_t
 MmVirtualDestroyPageDirectory(
 	_In_ PageDirectory_t* PageDirectory)
 {
-    // Variables
     uint64_t Mapping;
 
     // Handle PD[0..511] normally
     for (int Index = 0; Index < ENTRIES_PER_PAGE; Index++) {
         Mapping = atomic_load_explicit(&PageDirectory->pTables[Index], memory_order_relaxed);
-        if (Mapping & (PAGE_SYSTEM_MAP | PAGETABLE_INHERITED)) {
+        if ((Mapping & PAGETABLE_INHERITED) || !(Mapping & PAGE_PRESENT)) {
             continue;
         }
-
-        if (Mapping & PAGE_PRESENT) {
-            MmVirtualDestroyPageTable((PageTable_t*)PageDirectory->vTables[Index]);
-        }
+        MmVirtualDestroyPageTable((PageTable_t*)PageDirectory->vTables[Index]);
     }
-
-    // Done with page-directory, free it
     kfree(PageDirectory);
     return OsSuccess;
 }
@@ -477,22 +479,16 @@ OsStatus_t
 MmVirtualDestroyPageDirectoryTable(
 	_In_ PageDirectoryTable_t* PageDirectoryTable)
 {
-    // Variables
     uint64_t Mapping;
 
     // Handle PDP[0..511] normally
     for (int Index = 0; Index < ENTRIES_PER_PAGE; Index++) {
         Mapping = atomic_load_explicit(&PageDirectoryTable->pTables[Index], memory_order_relaxed);
-        if (Mapping & (PAGE_SYSTEM_MAP | PAGETABLE_INHERITED)) {
+        if ((Mapping & PAGETABLE_INHERITED) || !(Mapping & PAGE_PRESENT)) {
             continue;
         }
-
-        if (Mapping & PAGE_PRESENT) {
-            MmVirtualDestroyPageDirectory((PageDirectory_t*)PageDirectoryTable->vTables[Index]);
-        }
+        MmVirtualDestroyPageDirectory((PageDirectory_t*)PageDirectoryTable->vTables[Index]);
     }
-
-    // Done with page-directory-table, free it
     kfree(PageDirectoryTable);
     return OsSuccess;
 }
@@ -529,20 +525,17 @@ OsStatus_t
 InitializeVirtualSpace(
     _In_ SystemMemorySpace_t*   SystemMemorySpace)
 {
-	// Variables
-    PageMasterTable_t *iDirectory;
-	PageTable_t *iTable;
-    Flags_t KernelPageFlags = 0;
-    uintptr_t iPhysical;
-
-	// Trace information
+    PageMasterTable_t* iDirectory;
+	PageTable_t*       iTable;
+    Flags_t            KernelPageFlags = PAGE_PRESENT | PAGE_WRITE;
+    uintptr_t          iPhysical;
+    uintptr_t          LastAllocatedAddress;
 	TRACE("InitializeVirtualSpace()");
 
     // Can we use global pages for kernel table?
     if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
         KernelPageFlags |= PAGE_GLOBAL;
     }
-    KernelPageFlags |= PAGE_PRESENT | PAGE_WRITE | PAGE_SYSTEM_MAP;
 
 	// Allocate 2 pages for the kernel page directory
 	// and reset it by zeroing it out
@@ -559,19 +552,33 @@ InitializeVirtualSpace(
         // Due to how it works with multiple cpu's, we need to make sure all shared
         // tables already are mapped in the upper-most level of the page-directory
         TRACE("Mapping the kernel region from 0x%x => 0x%x", MEMORY_LOCATION_KERNEL, MEMORY_LOCATION_KERNEL_END);
-        MmVirtualMapMemoryRange(iDirectory, 0, MEMORY_LOCATION_KERNEL_END, KernelPageFlags);
+        LastAllocatedAddress = MmVirtualMapMemoryRange(iDirectory, 0, MEMORY_LOCATION_KERNEL_END, KernelPageFlags);
+        if (LastAllocatedAddress > LastReservedAddress) {
+            BytesToMap = LastAllocatedAddress - MIN(LastAllocatedAddress, TABLE_SPACE_SIZE);
+        }
+        else {
+            BytesToMap = LastReservedAddress - MIN(LastReservedAddress, TABLE_SPACE_SIZE);
+        }
 
-        // Identity map some of the regions
-        // Kernel image region
-        // Kernel video region
+        // Identity map the first initial page tables
         MmVirtualFillPageTable(GET_TABLE_HELPER(iDirectory, (uint64_t)0), 0x1000, 0x1000, KernelPageFlags);
-        MmVirtualFillPageTable(GET_TABLE_HELPER(iDirectory, (uint64_t)TABLE_SPACE_SIZE), TABLE_SPACE_SIZE, TABLE_SPACE_SIZE, KernelPageFlags);
+        VirtualBase  = TABLE_SPACE_SIZE;
+        PhysicalBase = TABLE_SPACE_SIZE;
+        while (BytesToMap) {
+            iTable          = GET_TABLE_HELPER(iDirectory, VirtualBase);
+            MmVirtualFillPageTable(iTable, PhysicalBase, 0, KernelPageFlags);
+            BytesToMap      -= MIN(BytesToMap, TABLE_SPACE_SIZE);
+            PhysicalBase    += TABLE_SPACE_SIZE;
+            VirtualBase     += TABLE_SPACE_SIZE;
+        }
+
+        // Identity map the video framebuffer region
         BytesToMap      = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
         PhysicalBase    = VideoGetTerminal()->FrameBufferAddress;
         VirtualBase     = MEMORY_LOCATION_VIDEO;
         while (BytesToMap) {
             iTable          = GET_TABLE_HELPER(iDirectory, VirtualBase);
-            MmVirtualFillPageTable(iTable, PhysicalBase, VirtualBase, KernelPageFlags | PAGE_USER); // @todo is PAGE_USER neccessary?
+            MmVirtualFillPageTable(iTable, PhysicalBase, 0, KernelPageFlags);
             BytesToMap      -= MIN(BytesToMap, TABLE_SPACE_SIZE);
             PhysicalBase    += TABLE_SPACE_SIZE;
             VirtualBase     += TABLE_SPACE_SIZE;
@@ -584,14 +591,16 @@ InitializeVirtualSpace(
         SystemMemorySpace->Data[MEMORY_SPACE_CR3]       = iPhysical;
         SystemMemorySpace->Data[MEMORY_SPACE_DIRECTORY] = (uintptr_t)iDirectory;
         SystemMemorySpace->Data[MEMORY_SPACE_IOMAP]     = TssGetBootIoSpace();
-        
-        // Update and switch page-directory for the calling core
         SwitchVirtualSpace(SystemMemorySpace);
     }
     else {
         // Create a new page directory but copy all kernel mappings to the domain specific memory
-        iDirectory = (PageMasterTable_t*)kmalloc_p(sizeof(PageMasterTable_t), &iPhysical);
+        //iDirectory = (PageMasterTable_t*)kmalloc_p(sizeof(PageMasterTable_t), &iPhysical);
         NOTIMPLEMENTED("Implement initialization of other-domain virtaul spaces");
     }
     return OsSuccess;
 }
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif

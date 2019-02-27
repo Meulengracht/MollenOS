@@ -16,11 +16,11 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Device Manager
+ * Device Manager
  * - Implementation of the device manager in the operating system.
  *   Keeps track of devices, their loaded drivers and bus management.
  */
-//#define __TRACE
+#define __TRACE
 
 #include "devicemanager.h"
 #include <ddk/driver.h>
@@ -33,10 +33,10 @@
 #include <string.h>
 #include <ctype.h>
 
-static Collection_t Contracts       = COLLECTION_INIT(KeyId);
-static Collection_t Devices         = COLLECTION_INIT(KeyId);
-static UUId_t DeviceIdGenerator     = 0;
-static UUId_t ContractIdGenerator   = 0;
+static Collection_t Contracts           = COLLECTION_INIT(KeyId);
+static Collection_t Devices             = COLLECTION_INIT(KeyId);
+static UUId_t       DeviceIdGenerator   = 0;
+static UUId_t       ContractIdGenerator = 0;
 
 /* OnLoad
  * The entry-point of a server, this is called

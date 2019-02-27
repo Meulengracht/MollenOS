@@ -190,14 +190,12 @@ InitializeMachine(
     // debug console or last option is normal operation.
 #ifdef __OSCONFIG_TEST_KERNEL
     StartTestingPhase();
-#elif __OSCONFIG_DEBUGMODE
-    EnableSystemDebugConsole();
 #else
     InitializeModuleInheritationBlock();
     Status = ParseInitialRamdisk(&Machine.BootInformation);
     if (Status != OsSuccess) {
-        ERROR(" > no ramdisk provided, operating system will enter debug mode");
-        EnableSystemDebugConsole();
+        ERROR(" > no ramdisk provided, operating system stopping");
+        ArchProcessorHalt();
     }
     SpawnServices();
 #endif

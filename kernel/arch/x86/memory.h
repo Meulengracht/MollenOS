@@ -28,7 +28,7 @@
 #include <machine.h>
 #include <paging.h>
 
-/* Shared PT/Page Definitions */
+// Shared bitfields
 #define PAGE_PRESENT            0x1
 #define PAGE_WRITE              0x2
 #define PAGE_USER               0x4
@@ -36,22 +36,23 @@
 #define PAGE_CACHE_DISABLE      0x10
 #define PAGE_ACCESSED           0x20
 
-/* Page Table Definitions */
-#define PAGETABLE_UNUSED        0x40
-#define PAGETABLE_LARGE         0x80
-#define PAGETABLE_ZERO          0x100 // Must be zero, unused
-#define PAGETABLE_INHERITED     0x200
-
-/* Page Definitions */
+// Page-specific bitfields
 #define PAGE_DIRTY              0x40
 #define PAGE_PAT                0x80
 #define PAGE_GLOBAL             0x100
 
-/* OS PT/Page Definitions */
-#define PAGE_SYSTEM_MAP         0x200 // @todo get rid of this and use inherited instead
-#define PAGE_PERSISTENT         0x400
-#define PAGE_RESERVED           0x800
+// PageTable-specific bitfields
+#define PAGETABLE_UNUSED        0x40
+#define PAGETABLE_LARGE         0x80
+#define PAGETABLE_ZERO          0x100 // Must be zero, unused
+
+// OS Bitfields for pages, bits 9-11 are available
+#define PAGE_PERSISTENT         0x200
+#define PAGE_RESERVED           0x400
 #define PAGE_NX                 0x8000000000000000 // amd64 + nx cpuid must be set
+
+// OS Bitfields for page tables, bits 9-11 are available
+#define PAGETABLE_INHERITED     0x200
 
 /* Memory Map Structure 
  * This is the structure passed to us by the mBoot bootloader */

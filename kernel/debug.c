@@ -89,7 +89,7 @@ DebugPageFault(
             return OsSuccess;
         }
     }
-    Status = CommitMemorySpaceMapping(Space, NULL, Address, MAPPING_PHYSICAL_DEFAULT, __MASK);
+    Status = CommitMemorySpaceMapping(Space, NULL, Address, __MASK);
     if (Status == OsExists) {
         Status = OsSuccess;
     }

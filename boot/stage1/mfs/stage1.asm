@@ -25,7 +25,13 @@
 ; 0x00007C00 - 0x00007DFF		Bootloader (512 Bytes)
 ; 0x00007E00 - 0x0007FFFF		Kernel Loading Bay (480.5 Kb)
 ; Rest above is not reliable
-
+%define UART_PORT_BASE          0x3F8
+%define UART_PORT_DATA          UART_PORT_BASE
+%define UART_PORT_IRQ_ENABLE    UART_PORT_BASE + 1
+%define UART_PORT_FIFO		    UART_PORT_BASE + 2
+%define UART_PORT_LINE_CONTROL  UART_PORT_BASE + 3
+%define UART_PORT_MODEM_CONTROL UART_PORT_BASE + 4
+%define UART_PORT_LINE_STATUS   UART_PORT_BASE + 5
 
 ; 16 Bit Code, Origin at 0x0
 BITS 16
@@ -82,8 +88,44 @@ FixCS:
 
 	; Step 0. Save DL
 	mov 	byte [bPhysicalDriveNum], dl
+	
+	; Step 1. Initialize the UART
+	xor		eax, eax
+	xor     edx, edx
+	
+	; Disable IRQS
+	mov     dx, UART_PORT_IRQ_ENABLE
+	out     dx, al
+	
+	; Enable DLAB
+	mov     dx, UART_PORT_LINE_CONTROL
+	mov     al, 0x80
+	out     dx, al
+	
+	; Set BAUD to 38kbs
+	mov     dx, UART_PORT_DATA
+	mov     al, 0x03
+	out     dx, al
+	mov     dx, UART_PORT_IRQ_ENABLE
+	mov     al, 0x00
+	out     dx, al
+	
+	; Remove DLAB and set 8 bits, 1 stop bit, no parity
+	mov     dx, UART_PORT_LINE_CONTROL
+	mov     al, 0x03
+	out     dx, al
+	
+	; Enable FIFO with 14 bytes threshold
+	mov     dx, UART_PORT_FIFO
+	mov     al, 0xC7
+	out     dx, al
+	
+	; Enable IRQS and enable RTS/DSR
+	mov     dx, UART_PORT_MODEM_CONTROL
+	mov     al, 0x0B
+	out     dx, al
 
-	; Step 1. Load Stage2
+	; Step 2. Load Stage2
 	xor		eax, eax
 	mov		es, ax
 	mov		bx, 0x0500
@@ -172,7 +214,6 @@ ReadSector:
 	; Done
 	ret
 
-
 ; ********************************
 ; PrintChar
 ; IN:
@@ -181,12 +222,27 @@ ReadSector:
 PrintChar:
 	pusha
 
-	; Setup INT
+%ifdef __OSCONFIG_HAS_VIDEO
+	push    ax
 	mov 	ah, 0x0E
 	mov 	bx, 0x00
 	int 	0x10
+	pop     ax
+%endif
 
-	; Restore & Return
+%ifdef __OSCONFIG_HAS_UART
+	mov bl, al
+	.WaitForTxEmpty:
+		mov dx, UART_PORT_LINE_STATUS
+		in  al, dx
+		and al, 0x20
+		cmp al, 0x20
+		jne .WaitForTxEmpty
+	mov al, bl
+	mov dx, UART_PORT_DATA
+	out dx, al
+%endif
+
 	popa
 	ret
 

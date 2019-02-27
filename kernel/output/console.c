@@ -16,7 +16,9 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Video Device
+ * Debug Console Implementation
+ *  - Provides an interface for creating and initializing the output system
+ *    and the debug console
  */
 
 #include <system/output.h>
@@ -25,12 +27,9 @@
 #include <math.h>
 #include <log.h>
 
-const char *GlbBootVideoWindowTitle = "Startup Debug Console";
+static const char *GlbBootVideoWindowTitle = "Startup Debug Console";
 
-/* VideoDrawLine
- * Draw's a line from (StartX, StartY) -> (EndX, EndY) 
- * with the given color */
-void 
+static void 
 VideoDrawLine(
 	_In_ unsigned StartX, 
 	_In_ unsigned StartY,
@@ -53,10 +52,7 @@ VideoDrawLine(
 	}
 }
 
-/* VideoDrawBootTerminal
- * Draws the crude initial boot-terminal without any
- * fancy effects or anything */
-void
+static void
 VideoDrawBootTerminal(
 	_In_ unsigned X, 
 	_In_ unsigned Y,
@@ -95,9 +91,6 @@ VideoDrawBootTerminal(
 	VideoGetTerminal()->CursorLimitY = Y + Height - 17;
 }
 
-/* VideoQuery
- * Renders a character with default colors
- * at the current terminal position */
 OsStatus_t
 VideoQuery(
 	_Out_ VideoDescriptor_t *Descriptor)
@@ -129,20 +122,17 @@ InitializeConsole(void)
     if (Status == OsSuccess) {
         VideoClear();
 #ifdef __OSCONFIG_DEBUGCONSOLE
-		VideoDrawBootTerminal((VideoGetTerminal()->CursorLimitX / 2) - 325, 0, 
-			650, VideoGetTerminal()->Info.Height);
+		if (VideoGetTerminal()->AvailableOutputs & VIDEO_GRAPHICS) {
+			VideoDrawBootTerminal((VideoGetTerminal()->CursorLimitX / 2) - 325, 0, 
+				650, VideoGetTerminal()->Info.Height);
+		}
 #endif
     }
 #endif
-    LogSetRenderMode(1);
-	return OsSuccess;
-}
 
-/* EnableSystemDebugConsole
- * Enters the debug console mode. This allows to inspect the system state and much of
- * the information available to the system. */
-OsStatus_t
-EnableSystemDebugConsole(void)
-{
-    return OsError;
+	// Only enable the log if we have any outputs
+	if (VideoGetTerminal()->AvailableOutputs != 0) {
+		LogSetRenderMode(1);	
+	}
+	return OsSuccess;
 }

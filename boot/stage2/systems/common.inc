@@ -27,6 +27,10 @@
 
 BITS 16
 
+%define UART_PORT_BASE          0x3F8
+%define UART_PORT_DATA          UART_PORT_BASE
+%define UART_PORT_LINE_STATUS   UART_PORT_BASE + 5
+
 ; Definitions
 %define 		BLACK		0x0
 %define 		BLUE 		0x1
@@ -129,14 +133,30 @@ PrintChar:
 	; Save state
 	push 	ax
 	push 	bx
+	push    dx
 
-	; Setup INT
+%ifdef __OSCONFIG_HAS_VIDEO
+	push    ax
 	mov 	ah, 0x0E
 	mov 	bl, byte [bTextColor]
 	mov 	bh, 0x00
 	int 	0x10
+	pop     ax
+%endif
 
-	; Restore & Return
+%ifdef __OSCONFIG_HAS_UART
+	mov bl, al
+	.WaitForTxEmpty:
+		mov dx, UART_PORT_LINE_STATUS
+		in  al, dx
+		and al, 0x20
+		cmp al, 0x20
+		jne .WaitForTxEmpty
+	mov al, bl
+	mov dx, UART_PORT_DATA
+	out dx, al
+%endif
+    pop     dx
 	pop 	bx
 	pop 	ax
 	ret

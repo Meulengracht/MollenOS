@@ -167,7 +167,6 @@ CommitMemorySpaceMapping(
     _In_        SystemMemorySpace_t* SystemMemorySpace,
     _InOut_Opt_ PhysicalAddress_t*   PhysicalAddress, 
     _In_        VirtualAddress_t     VirtualAddress,
-    _In_        Flags_t              PlacementFlags,
     _In_        uintptr_t            PhysicalMask);
 
 /* CloneMemorySpaceMapping

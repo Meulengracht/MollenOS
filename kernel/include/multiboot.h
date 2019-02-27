@@ -30,13 +30,13 @@
  * Contains a lot of stored boot information from the bootloader
  * environment, information here must be quickly stored. */
 PACKED_TYPESTRUCT(Multiboot, {
-    uint32_t                    Flags;
-    uint32_t                    MemoryLow;
-    uint32_t                    MemoryHigh;
-    uint32_t                    BootDevice;
-    uint32_t                    CmdLine;
-    uint32_t                    RamdiskSize;    // ModuleCount
-    uint32_t                    RamdiskAddress; // RamdiskAddress
+    uint32_t Flags;
+    uint32_t MemoryLow;
+    uint32_t MemoryHigh;
+    uint32_t BootDevice;
+    uint32_t CmdLine;
+    uint32_t RamdiskSize;    // ModuleCount
+    uint32_t RamdiskAddress; // RamdiskAddress
     
     union {
         struct {
@@ -55,24 +55,24 @@ PACKED_TYPESTRUCT(Multiboot, {
         } Elf;
     } Symbols;
 
-    uint32_t                    MemoryMapLength;
-    uint32_t                    MemoryMapAddress;
+    uint32_t MemoryMapLength;
+    uint32_t MemoryMapAddress;
 
-    uint32_t                    KernelSize; // DrivesLength
-    uint32_t                    KernelAddress; // DrivesAddress
+    uint32_t KernelSize; // DrivesLength
+    uint32_t KernelAddress; // DrivesAddress
     
-    uint32_t                    ConfigTable;
+    uint32_t ConfigTable;
     
-    uint32_t                    BootLoaderName;
+    uint32_t BootLoaderName;
 
-    uint32_t                    ApmTable;
+    uint32_t ApmTable;
     
-    uint32_t                    VbeControllerInfo;
-    uint32_t                    VbeModeInfo;
-    uint32_t                    VbeMode;
-    uint32_t                    VbeInterfaceSegment;
-    uint32_t                    VbeInterfaceOffset;
-    uint32_t                    VbeInterfaceLength;
+    uint32_t VbeControllerInfo;
+    uint32_t VbeModeInfo;
+    uint32_t VbeMode;
+    uint32_t VbeInterfaceSegment;
+    uint32_t VbeInterfaceOffset;
+    uint32_t VbeInterfaceLength;
 });
 
 /* Flags */

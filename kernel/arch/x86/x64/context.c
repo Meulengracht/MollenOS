@@ -88,11 +88,7 @@ ContextCreate(
         else {
             FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID THREADFLAGS(%u)", ThreadFlags);
         }
-
-        // Map in the context
-		CreateMemorySpaceMapping(GetCurrentMemorySpace(), NULL, &ContextAddress,
-			PAGE_SIZE, MAPPING_COMMIT | MAPPING_USERSPACE, 
-            MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_FIXED, __MASK);
+        CommitMemorySpaceMapping(GetCurrentMemorySpace(), NULL, ContextAddress, __MASK);
     }
 	else {
 		FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%i)", ContextType);
