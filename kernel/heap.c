@@ -53,6 +53,7 @@ static struct FixedCache {
     { 32768,  "size32768_cache",  NULL },
     { 65536,  "size65536_cache",  NULL },
     { 131072, "size131072_cache", NULL },
+    { 262144, "size131072_cache", NULL },
     { 0,      NULL,               NULL }
 };
 
@@ -187,6 +188,47 @@ static void slab_destroy(MemoryCache_t* Cache, MemorySlab_t* Slab)
     else {
         FreeVirtualMemory((uintptr_t)Slab, Cache->PageCount);
     }
+}
+
+static void
+slab_dump_information(
+    _In_ MemoryCache_t* Cache,
+    _In_ MemorySlab_t*  Slab)
+{
+    uintptr_t StartAddress = (uintptr_t)Slab->Address;
+    uintptr_t EndAddress   = StartAddress + (Cache->ObjectCount * (Cache->ObjectSize + Cache->ObjectPadding));
+    
+    // Write slab information
+    WRITELINE(" -- slab: 0x%x => 0x%x, FreeObjects %u", StartAddress, EndAddress, Slab->NumberOfFreeObjects);
+}
+
+static void
+cache_dump_information(
+    _In_ MemoryCache_t* Cache)
+{
+    CollectionItem_t* Node;
+    
+    // Write cache information
+    WRITELINE("%s: Object Size %u, Alignment %u, Padding %u, Count %u, FreeObjects %u",
+        Cache->Name, Cache->ObjectSize, Cache->ObjectAlignment, Cache->ObjectPadding,
+        Cache->ObjectCount, Cache->NumberOfFreeObjects);
+        
+    // Dump slabs
+    WRITELINE("* full slabs");
+    _foreach(Node, &Cache->FullSlabs) {
+        slab_dump_information(Cache, (MemorySlab_t*)Node);
+    }
+    
+    WRITELINE("* partial slabs");
+    _foreach(Node, &Cache->PartialSlabs) {
+        slab_dump_information(Cache, (MemorySlab_t*)Node);
+    }
+    
+    WRITELINE("* free slabs");
+    _foreach(Node, &Cache->FreeSlabs) {
+        slab_dump_information(Cache, (MemorySlab_t*)Node);
+    }
+    WRITELINE("");
 }
 
 static int
@@ -341,11 +383,17 @@ cache_calculate_slab_size(
         SlabOnSite = 1;
     }
 
-    // We have a special case, as this is an operating system memory allocator, and we use
-    // page-sizes pretty frequently, we don't want just 1 page per slab, we instead increase this
+    // We have two special case, as this is an operating system memory allocator, and we use
+    // 4096/8192 pretty frequently, we don't want just 1 page per slab, we instead increase this
     // to 16
-    if (ObjectSize == PageSize) {
+    if (ObjectSize == 4096) {
         ObjectsPerSlab = 16;
+        PageCount      = 16;
+        SlabOnSite     = 0;
+        ReservedSpace  = 0;
+    }
+    else if (ObjectSize == 8192) {
+        ObjectsPerSlab = 8;
         PageCount      = 16;
         SlabOnSite     = 0;
         ReservedSpace  = 0;
@@ -530,6 +578,7 @@ MemoryCacheFree(
                 CollectionAppend(&Cache->FreeSlabs, Node);
             }
             CheckFull = 0;
+            Cache->NumberOfFreeObjects++;
             break;
         }
     }
@@ -542,7 +591,15 @@ MemoryCacheFree(
             if (Index != -1) {
                 slab_free_index(Cache, Slab, Index);
                 CollectionRemoveByNode(&Cache->FullSlabs, Node);
-                CollectionAppend(&Cache->PartialSlabs, Node);
+                
+                // A slab can go directly from full to free if the count is 1
+                if (Cache->ObjectCount == 1) {
+                    CollectionAppend(&Cache->FreeSlabs, Node);
+                }
+                else {
+                    CollectionAppend(&Cache->PartialSlabs, Node);
+                }
+                Cache->NumberOfFreeObjects++;
                 break;
             }
         }
@@ -561,7 +618,11 @@ void* kmalloc(size_t Size)
 {
     TRACE("kmalloc(%u)", Size);
     struct FixedCache* Selected = cache_find_fixed_size(Size);
-    assert(Selected != NULL);
+    if (Selected == NULL) {
+        ERROR("Could not find a cache for size %u", Size);
+        MemoryCacheDump(NULL);
+        assert(0);   
+    }
 
     // If the cache does not exist, we must create it
     if (Selected->Cache == NULL) {
@@ -594,11 +655,42 @@ void kfree(void* Object)
         }
         i++;
     }
-    assert(Selected != NULL);
+    if (Selected == NULL) {
+        ERROR("Could not find a cache for object 0x%x", Object);
+        MemoryCacheDump(NULL);
+        assert(0);   
+    }
     MemoryCacheFree(Selected->Cache, Object);
 }
 
-void MemoryCacheInitialize(void)
+void
+MemoryCacheDump(
+    _In_ MemoryCache_t* Cache)
+{
+    int i = 0;
+    
+    if (Cache != NULL) {
+        cache_dump_information(Cache);
+        return;
+    }
+    
+    // Otherwise dump default caches
+    while (DefaultCaches[i].ObjectSize != 0) {
+        if (DefaultCaches[i].Cache != NULL) {
+            cache_dump_information(DefaultCaches[i].Cache);
+        }
+        i++;
+    }
+    
+    // Dump memory information
+    WRITELINE("\nMemory Stats: %u/%u Bytes, %u/%u Blocks",
+        GetMachine()->PhysicalMemory.BlocksAllocated * GetMemorySpacePageSize(), 
+        GetMachine()->PhysicalMemory.BlockCount * GetMemorySpacePageSize(),
+        GetMachine()->PhysicalMemory.BlocksAllocated, GetMachine()->PhysicalMemory.BlockCount);
+}
+
+void
+MemoryCacheInitialize(void)
 {
     cache_construct(&InitialCache, "cache_cache", sizeof(MemoryCache_t), 0, 0, NULL, NULL);
 }

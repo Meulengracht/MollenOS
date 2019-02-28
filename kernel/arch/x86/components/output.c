@@ -394,7 +394,7 @@ VbeInitialize(void)
         // VBE-Mode (Graphics)
         default: {
             if (GetMachine()->BootInformation.VbeModeInfo) {
-                VbeMode_t* VbeModePointer = (VbeMode_t*)GetMachine()->BootInformation.VbeModeInfo;
+                VbeMode_t* VbeModePointer = (VbeMode_t*)(uintptr_t)GetMachine()->BootInformation.VbeModeInfo;
                 
                 Terminal.FrameBufferAddress         = VbeModePointer->PhysBasePtr;
                 Terminal.FrameBufferAddressPhysical = VbeModePointer->PhysBasePtr;
@@ -477,11 +477,12 @@ VideoPutCharacter(
     }
     
     if (Terminal.AvailableOutputs & VIDEO_UART) {
-        uint8_t LineStatus = 0x0;
+        size_t LineStatus      = 0x0;
+        size_t CharacterBuffer = (size_t)(Character & 0xFF);
         while (!(LineStatus & 0x20)) {
-            ReadDirectIo(DeviceIoPortBased, 0x3F8 + 5, 1, (size_t*)&LineStatus);
+            ReadDirectIo(DeviceIoPortBased, 0x3F8 + 5, 1, &LineStatus);
         }
-        WriteDirectIo(DeviceIoPortBased, 0x3F8, 1, (uint8_t)(Character & 0xFF));
+        WriteDirectIo(DeviceIoPortBased, 0x3F8, 1, CharacterBuffer);
     }
     return OsSuccess;
 }

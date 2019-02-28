@@ -50,7 +50,7 @@ STATIC_ASSERT(sizeof(PageMasterTable_t) == 8192, Invalid_PageMasterTable_Alignme
 // Function helpers for repeating functions where it pays off
 // to have them seperate
 #define CREATE_STRUCTURE_HELPER(Type, Name) static Type* MmVirtualCreate##Name(void) { \
-                                            Type *Instance = (Type*)AllocateSystemMemory(DIVUP(sizeof(Type), PAGE_SIZE), MEMORY_ALLOCATION_MASK, 0); \
+                                            Type *Instance = (Type*)AllocateSystemMemory(sizeof(Type), MEMORY_ALLOCATION_MASK, 0); \
                                             assert(Instance != NULL); \
                                             memset((void*)Instance, 0, sizeof(Type)); \
                                             return Instance; }

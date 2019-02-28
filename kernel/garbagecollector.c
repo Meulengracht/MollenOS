@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Garbage Collector
+ * Garbage Collector
  * - Makes it possible for regular cleanup in the kernel
  *   or regular maintiance.
  */
@@ -29,22 +29,32 @@
 #include <semaphore_slim.h>
 #include <threading.h>
 #include <debug.h>
+#include <heap.h>
+
+typedef struct _GcEndpoint {
+    CollectionItem_t Header;
+    GcHandler_t      Handler;
+} GcEndpoint_t;
+
+typedef struct _GcMessage {
+    CollectionItem_t Header;
+    void*            Argument;
+} GcMessage_t;
 
 // Prototype for the worker thread
 void GcWorker(void *Args);
 
 static SlimSemaphore_t GlbGcEventLock;
-static Collection_t    GcHandlers       = COLLECTION_INIT(KeyId);
-static Collection_t    GcEvents         = COLLECTION_INIT(KeyId);
-static _Atomic(UUId_t) GcIdGenerator    = ATOMIC_VAR_INIT(0);
-static UUId_t          GcThreadHandle   = UUID_INVALID;
+static Collection_t    GcHandlers     = COLLECTION_INIT(KeyId);
+static Collection_t    GcEvents       = COLLECTION_INIT(KeyId);
+static _Atomic(UUId_t) GcIdGenerator  = ATOMIC_VAR_INIT(0);
+static UUId_t          GcThreadHandle = UUID_INVALID;
 
 /* GcConstruct
  * Constructs the gc data-systems, but does not start the actual collection */
 void
 GcConstruct(void)
 {
-    // Create data-structures
     SlimSemaphoreConstruct(&GlbGcEventLock, 0, 1000);
 }
 
@@ -66,10 +76,13 @@ UUId_t
 GcRegister(
     _In_ GcHandler_t Handler)
 {
-    DataKey_t Key;
-    Key.Value.Id = atomic_fetch_add(&GcIdGenerator, 1);
-    CollectionAppend(&GcHandlers, CollectionCreateNode(Key, (void*)Handler));
-    return Key.Value.Id;
+    GcEndpoint_t* Endpoint = (GcEndpoint_t*)kmalloc(sizeof(GcEndpoint_t));
+    memset(Endpoint, 0, sizeof(GcEndpoint_t));
+    
+    Endpoint->Header.Key.Value.Id = atomic_fetch_add(&GcIdGenerator, 1);
+    Endpoint->Handler             = Handler;
+    CollectionAppend(&GcHandlers, &Endpoint->Header);
+    return Endpoint->Header.Key.Value.Id;
 }
 
 /* GcUnregister
@@ -78,10 +91,10 @@ OsStatus_t
 GcUnregister(
     _In_ UUId_t Handler)
 {
-    DataKey_t Key;
-    Key.Value.Id = Handler;
-    if (CollectionGetDataByKey(&GcHandlers, Key, 0) == NULL) {
-        return OsError;
+    DataKey_t         Key  = { .Value.Id = Handler };
+    CollectionItem_t* Node = CollectionGetNodeByKey(&GcHandlers, Key, 0);
+    if (Node == NULL) {
+        return OsDoesNotExist;
     }
     return CollectionRemoveByKey(&GcHandlers, Key);
 }
@@ -93,14 +106,19 @@ GcSignal(
     _In_ UUId_t Handler,
     _In_ void*  Data)
 {
-    DataKey_t Key;
-    Key.Value.Id = Handler;
-
-    // Sanitize the status of the gc
-    if (CollectionGetDataByKey(&GcHandlers, Key, 0) == NULL) {
-        return OsError;
+    GcMessage_t*      Message;
+    DataKey_t         Key  = { .Value.Id = Handler };
+    CollectionItem_t* Node = CollectionGetNodeByKey(&GcHandlers, Key, 0);
+    if (Node == NULL) {
+        return OsDoesNotExist;
     }
-    CollectionAppend(&GcEvents, CollectionCreateNode(Key, Data));
+
+    Message = (GcMessage_t*)kmalloc(sizeof(GcMessage_t));
+    memset(Message, 0, sizeof(GcMessage_t));
+    Message->Header.Key.Value.Id = Handler;
+    Message->Argument            = Data;
+    
+    CollectionAppend(&GcEvents, &Message->Header);
     SlimSemaphoreSignal(&GlbGcEventLock, 1);
     return OsSuccess;
 }
@@ -111,9 +129,9 @@ void
 GcWorker(
     _In_Opt_ void* Args)
 {
-    CollectionItem_t*   eNode;
-    GcHandler_t         Handler;
-    int                 Run = 1;
+    GcEndpoint_t* Endpoint;
+    GcMessage_t*  Message;
+    int           Run = 1;
 
     // Unused arg
     _CRT_UNUSED(Args);
@@ -121,15 +139,16 @@ GcWorker(
         // Wait for next event
         SlimSemaphoreWait(&GlbGcEventLock, 0);
 
-        eNode = CollectionPopFront(&GcEvents);
-        if (eNode == NULL) {
+        Message = (GcMessage_t*)CollectionPopFront(&GcEvents);
+        if (Message == NULL) {
             continue;
         }
 
         // Sanitize the handler
-        if ((Handler = (GcHandler_t)CollectionGetDataByKey(&GcHandlers, eNode->Key, 0)) != NULL) {
-            Handler(eNode->Data);
+        Endpoint = (GcEndpoint_t*)CollectionGetNodeByKey(&GcHandlers, Message->Header.Key, 0);
+        if (Endpoint != NULL) {
+            Endpoint->Handler(Message->Argument);
         }
-        CollectionDestroyNode(&GcEvents, eNode);
+        kfree(Message);
     }
 }

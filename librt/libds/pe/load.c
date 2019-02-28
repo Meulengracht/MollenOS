@@ -333,7 +333,7 @@ PeHandleRelocations(
     _In_ uint8_t*           DirectoryContent,
     _In_ size_t             DirectorySize)
 {
-    uint32_t  BytesLeft         = DirectorySize;
+    size_t    BytesLeft         = DirectorySize;
     uint32_t* RelocationPointer = (uint32_t*)DirectoryContent;
     uintptr_t ImageDelta        = Image->VirtualAddress - Image->OriginalImageBase;
     uint32_t  i;
@@ -382,12 +382,22 @@ PeHandleRelocations(
                 // Create a pointer, the low 12 bits have an offset into the PageRVA
                 volatile uintptr_t* AddressPointer = (volatile uintptr_t*)(SectionBase + Value);
                 uintptr_t           UpdatedAddress = *AddressPointer + ImageDelta;
-                if (UpdatedAddress < Image->VirtualAddress || UpdatedAddress >= 0x30000000) {
+                if (Type == PE_RELOCATION_HIGHLOW &&
+                    (UpdatedAddress < Image->VirtualAddress || UpdatedAddress >= 0x30000000)) {
                     dserror("%s: Rel %u, Value %u (%u/%u)", MStringRaw(Image->Name), Type, Value, i, NumRelocs);
                     dserror("PageRVA 0x%x of SectionRVA 0x%x. Current blocksize %u", PageRVA, Section->RVA, BlockSize);
                     dserror("Section 0x%x, SectionAddress 0x%x, Address 0x%x, Value 0x%x", 
                         Section->BasePointer, SectionBase, AddressPointer, *AddressPointer);
                     dserror("Relocation caused invalid pointer: 0x%x, 0x%x, New Base 0x%x, Old Base 0x%x",
+                        UpdatedAddress, ImageDelta, Image->VirtualAddress, Image->OriginalImageBase);
+                    assert(0);
+                }
+                else if (UpdatedAddress < Image->VirtualAddress || UpdatedAddress >= 0x300000000) {
+                    dserror("%s: Rel %u, Value %u (%u/%u)", MStringRaw(Image->Name), Type, Value, i, NumRelocs);
+                    dserror("PageRVA 0x%x of SectionRVA 0x%x. Current blocksize %u", PageRVA, Section->RVA, BlockSize);
+                    dserror("Section 0x%x, SectionAddress 0x%x, Address 0x%x, Value 0x%x", 
+                        Section->BasePointer, SectionBase, AddressPointer, *AddressPointer);
+                    dserror("Relocation caused invalid pointer: 0x%llx, 0x%llx, New Base 0x%llx, Old Base 0x%llx",
                         UpdatedAddress, ImageDelta, Image->VirtualAddress, Image->OriginalImageBase);
                     assert(0);
                 }

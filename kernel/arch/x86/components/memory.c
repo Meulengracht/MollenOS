@@ -119,7 +119,10 @@ InitializeSystemMemory(
     ReserveBlockmapRegion(Memory, 0,                       MEMORY_LOCATION_KERNEL);
     ReserveBlockmapRegion(Memory, MEMORY_LOCATION_KERNEL,  BootInformation->KernelSize + PAGE_SIZE);
     ReserveBlockmapRegion(Memory, MEMORY_LOCATION_RAMDISK, BootInformation->RamdiskSize + PAGE_SIZE);
-    ReserveBlockmapRegion(Memory, MEMORY_LOCATION_BITMAP,  BytesOccupied);
+#if defined(amd64) || defined(__amd64__)
+    ReserveBlockmapRegion(Memory, MEMORY_LOCATION_BOOTPAGING, 0x5000);
+#endif
+    ReserveBlockmapRegion(Memory, MEMORY_LOCATION_BITMAP, BytesOccupied);
     BlockmapBytes       = BytesOccupied;
     LastReservedAddress = MEMORY_LOCATION_BITMAP + BytesOccupied;
 

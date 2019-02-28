@@ -94,6 +94,11 @@ void MemoryCacheDestroy(MemoryCache_t* Cache);
 // to free up memory. Returns number of pages freed.
 int MemoryCacheReap(void);
 
+// MemoryCacheDump
+// Dumps information about the cache and the slabs allocated for it.
+// If NULL is passed the fixed size caches will be dumped.
+void MemoryCacheDump(MemoryCache_t* Cache);
+
 void* kmalloc_p(size_t Size, uintptr_t* DmaOut);
 void* kmalloc(size_t Size);
 void kfree(void* Object);

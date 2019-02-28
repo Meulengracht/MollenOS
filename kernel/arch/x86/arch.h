@@ -61,17 +61,17 @@
  * 0xF0000000        =>             0xFF000000 (Thread specific storage 240 mb)
  * 0xFF000000        =>             0xFFFFFFFF (Thread specific stack 16mb)
  */
-#define MEMORY_LOCATION_KERNEL              0x100000     /* Kernel Image Space: 1024 kB */
-#define MEMORY_LOCATION_RAMDISK             0x200000     /* RamDisk Image Space: 1024 kB */
-#define MEMORY_LOCATION_BITMAP              0x300000     /* Bitmap Space: 12 mB */
-#define MEMORY_LOCATION_VIDEO               0x1000000    /* Video Space: 16 mB */
-#define MEMORY_LOCATION_RESERVED            0x2000000    /* Driver Space: 240~ mB */
+#define MEMORY_LOCATION_KERNEL              0x100000    // Kernel Image Space: 1024 kB
+#define MEMORY_LOCATION_RAMDISK             0x200000    // RamDisk Image Space: 1024 kB
+#define MEMORY_LOCATION_BITMAP              0x300000    // Bitmap Space: 12 mB
+#define MEMORY_LOCATION_VIDEO               0x1000000   // Video Space: 16 mB
+#define MEMORY_LOCATION_RESERVED            0x2000000   // Driver Space: 240~ mB
 #define MEMORY_LOCATION_KERNEL_END          0x10000000
 #define MEMORY_SEGMENT_RING0_LIMIT          0xFFFFFFFF
 
-#define MEMORY_LOCATION_RING3_CODE          0x20000000    /* Base for ring3 code */
+#define MEMORY_LOCATION_RING3_CODE          0x20000000 // Base for ring3 code
 #define MEMORY_LOCATION_RING3_CODE_END      0x30000000
-#define MEMORY_LOCATION_RING3_HEAP          0x30000000    /* Base for ring3 heap */
+#define MEMORY_LOCATION_RING3_HEAP          0x30000000 // Base for ring3 heap
 #define MEMORY_LOCATION_RING3_HEAP_END      0xF0000000
 
 #define MEMORY_LOCATION_RING3_THREAD_START  0xFF000000
@@ -92,11 +92,12 @@
  * 0xFF000000       =>          0xFFFFFFFF  (Application Stack Space, 16mb)
  * 0x200000000      =>          0xFFFFFFFFFFFFFFFF (Application Memory Space - terabytes)
  */
-#define MEMORY_LOCATION_KERNEL              0x100000     /* Kernel Image Space: 1024 kB */
-#define MEMORY_LOCATION_RAMDISK             0x200000     /* RamDisk Image Space: 1024 kB */
-#define MEMORY_LOCATION_BITMAP              0x305000     /* Bitmap Space: 12 mB (first 0x5000 is used for initial page-dir) */
-#define MEMORY_LOCATION_VIDEO               0x1000000    /* Video Space: 16 mB */
-#define MEMORY_LOCATION_RESERVED            0x2000000    /* Driver Space: 240~ mB */
+#define MEMORY_LOCATION_KERNEL              0x100000     // Kernel Image Space: 1024 kB
+#define MEMORY_LOCATION_RAMDISK             0x200000     // RamDisk Image Space: 1024 kB
+#define MEMORY_LOCATION_BOOTPAGING          0x300000     // Boot paging area, 5 pages (20 Kb)
+#define MEMORY_LOCATION_BITMAP              0x305000     // Bitmap Space: 12~ mB
+#define MEMORY_LOCATION_VIDEO               0x1000000    // Video Space: 16 mB
+#define MEMORY_LOCATION_RESERVED            0x2000000    // Driver Space: 240~ mB
 #define MEMORY_LOCATION_KERNEL_END          0x10000000
 
 #define MEMORY_LOCATION_RING3_THREAD_START  0xFF000000
@@ -107,9 +108,9 @@
 // Every gigabyte in page size blocks is 131 Kb
 // Every gigabyte in 1mb page blocks is then 512 bytes
 #define MEMORY_LOCATION_RING3_CODE          0x200000000
-#define MEMORY_LOCATION_RING3_CODE_END      0x300000000     // 4gb code space
+#define MEMORY_LOCATION_RING3_CODE_END      0x300000000 // 4gb code space
 #define MEMORY_LOCATION_RING3_HEAP          0x300000000
-#define MEMORY_LOCATION_RING3_HEAP_END      0x700000000     // xxgb heap memory space
+#define MEMORY_LOCATION_RING3_HEAP_END      0x400000000 // 4gb heap memory space
 //#define MEMORY_LOCATION_RING3_HEAP_END    0xFFFFFFFFFFFFFFFF
 
 #define MEMORY_SEGMENT_SIGSTACK_BASE        MEMORY_LOCATION_RING3_STACK_START
@@ -121,7 +122,7 @@
 #endif
 
 /* Special addresses must be between 0x11000000 -> 0x11001000 */
-#define MEMORY_LOCATION_SIGNAL_RET          0x110000DE    /* Signal Ret Addr */
+#define MEMORY_LOCATION_SIGNAL_RET          0x110000DE // Signal return address
 
 // Hardware interrupt vectors (0x90 - 0xF0)
 #define INTERRUPT_PHYSICAL_BASE             0x90
