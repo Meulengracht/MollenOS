@@ -21,8 +21,6 @@
 #define __MODULE		"CTXT"
 //#define __TRACE
 
-/* Includes 
- * - System */
 #include <os/context.h>
 #include <threading.h>
 #include <thread.h>
@@ -31,16 +29,9 @@
 #include <heap.h>
 #include <log.h>
 #include <gdt.h>
-
-/* Includes
- * - Library */
 #include <string.h>
 #include <stdio.h>
 
-/* ContextCreate
- * Stack manipulation / setup of stacks for given
- * threading. We need functions that create a new kernel
- * stack and user/driver stack. Pass threading flags */
 Context_t*
 ContextCreate(
     _In_ Flags_t    ThreadFlags,
@@ -50,7 +41,6 @@ ContextCreate(
     _In_ uintptr_t  Argument0,
     _In_ uintptr_t  Argument1)
 {
-	// Variables
 	Context_t *Context       = NULL;
     uint64_t DataSegment     = 0,
              ExtraSegment    = 0,
@@ -59,7 +49,6 @@ ContextCreate(
     uintptr_t ContextAddress = 0, 
               RbpInitial     = 0;
 
-	// Trace
 	TRACE("ContextCreate(ThreadFlags 0x%llx, Type %i, Rip 0x%llx, Args 0x%llx)",
 		ThreadFlags, ContextType, EntryAddress);
 
@@ -126,8 +115,18 @@ ContextCreate(
 	return Context;
 }
 
-/* ArchDumpThreadContext 
- * Dumps the contents of the given context for debugging */
+void
+ContextDestroy(
+    _In_ Context_t* Context,
+    _In_ int        ContextType)
+{
+    // If it is kernel space contexts they are allocated on the kernel heap,
+    // otherwise they are cleaned up by the memory space
+    if (ContextType == THREADING_CONTEXT_LEVEL0 || ContextType == THREADING_CONTEXT_SIGNAL0) {
+        kfree(Context);
+    }
+}
+
 OsStatus_t
 ArchDumpThreadContext(
 	_In_ Context_t *Context)

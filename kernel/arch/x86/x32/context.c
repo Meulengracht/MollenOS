@@ -33,10 +33,6 @@
 #include <log.h>
 #include <gdt.h>
 
-/* ContextCreate
- * Stack manipulation / setup of stacks for given
- * threading. We need functions that create a new kernel
- * stack and user/driver stack. Pass threading flags */
 Context_t*
 ContextCreate(
     _In_ Flags_t    ThreadFlags,
@@ -54,7 +50,6 @@ ContextCreate(
     uintptr_t  ContextAddress = 0, 
                EbpInitial     = 0;
 
-    // Trace
     TRACE("ContextCreate(ThreadFlags 0x%x, Type %i, Eip 0x%x, Args 0x%x)",
         ThreadFlags, ContextType, EntryAddress);
 
@@ -120,8 +115,18 @@ ContextCreate(
     return Context;
 }
 
-/* ArchDumpThreadContext 
- * Dumps the contents of the given context for debugging */
+void
+ContextDestroy(
+    _In_ Context_t* Context,
+    _In_ int        ContextType)
+{
+    // If it is kernel space contexts they are allocated on the kernel heap,
+    // otherwise they are cleaned up by the memory space
+    if (ContextType == THREADING_CONTEXT_LEVEL0 || ContextType == THREADING_CONTEXT_SIGNAL0) {
+        kfree(Context);
+    }
+}
+
 OsStatus_t
 ArchDumpThreadContext(
     _In_ Context_t *Context)

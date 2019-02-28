@@ -519,7 +519,8 @@ ExceptionEntry(
             IssueFixed = 1;
         }
         else {
-            ERROR("MEMORY_ACCESS_FAULT: 0x%x, 0x%x, 0x%x", 
+            ERROR("%s: MEMORY_ACCESS_FAULT: 0x%x, 0x%x, 0x%x", 
+                GetCurrentThreadForCore(ArchGetProcessorCoreId())->Name, 
                 Address, Registers->ErrorCode, CONTEXT_IP(Registers));
             if (ExceptionSignal(Registers, SIGSEGV) == OsSuccess) {
                 IssueFixed = 1;

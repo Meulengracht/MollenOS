@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,13 +16,13 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Threading Interface
+ * Threading Support Interface
  * - Contains the shared kernel threading interface
  *   that all sub-layers / architectures must conform to
  */
 
-#ifndef _MCORE_SYSTHREADS_H_
-#define _MCORE_SYSTHREADS_H_
+#ifndef __VALI_THREADING_SUPPORT_H__
+#define __VALI_THREADING_SUPPORT_H__
 
 #include <os/osdefs.h>
 #include <os/context.h>
@@ -65,9 +65,8 @@ ThreadingSignalDispatch(
 	_In_ MCoreThread_t *Thread);
 
 /* ContextCreate
- * Stack manipulation / setup of stacks for given
- * threading. We need functions that create a new kernel
- * stack and user/driver stack. Pass threading flags */
+ * Creates a new context for a thread, a type and the flags for which
+ * the thread is been created under is passed. */
 KERNELAPI Context_t* KERNELABI
 ContextCreate(
     _In_ Flags_t    ThreadFlags,
@@ -77,4 +76,11 @@ ContextCreate(
     _In_ uintptr_t  Argument0,
     _In_ uintptr_t  Argument1);
 
-#endif //!_MCORE_SYSTHREADS_H_
+/* ContextDestroy
+ * Destroys the context for the thread and releases resources. */
+KERNELAPI void KERNELABI
+ContextDestroy(
+    _In_ Context_t* Context,
+    _In_ int        ContextType);
+
+#endif //!__VALI_THREADING_SUPPORT_H__

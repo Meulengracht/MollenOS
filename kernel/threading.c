@@ -268,7 +268,7 @@ ThreadingCleanupThread(
     
     for (i = 0; i < THREADING_NUMCONTEXTS; i++) {
         if (Thread->Contexts[i] != NULL) {
-            kfree(Thread->Contexts[i]);
+            ContextDestroy(Thread->Contexts[i], i);
         }
     }
     DestroySystemPipe(Thread->Pipe);

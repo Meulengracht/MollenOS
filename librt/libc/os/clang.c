@@ -18,7 +18,7 @@
  *
  * CRT Functions 
  */
-//#define __TRACE
+#define __TRACE
 
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>

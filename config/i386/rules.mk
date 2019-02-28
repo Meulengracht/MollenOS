@@ -17,11 +17,10 @@ shared_flags = -U_WIN32 -fms-extensions -Wall -nostdlib -nostdinc -O3 -DMOLLENOS
 ###########################
 config_flags += -D__OSCONFIG_HAS_MMIO
 config_flags += -D__OSCONFIG_ACPI_SUPPORT
+config_flags += -D__OSCONFIG_HAS_UART
 
 # Sanitize for headless environment
-ifdef VALI_HEADLESS
-config_flags += -D__OSCONFIG_HAS_UART
-else
+ifndef VALI_HEADLESS
 config_flags += -D__OSCONFIG_HAS_VIDEO
 endif
 

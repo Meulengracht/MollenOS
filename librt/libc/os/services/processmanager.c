@@ -97,7 +97,6 @@ ProcessSpawnEx(
     if (InheritationBlock != NULL) {
         free(InheritationBlock);
     }
-    WARNING("> result 0x%x", Status);
     return Handle;
 }
 

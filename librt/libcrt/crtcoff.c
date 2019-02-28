@@ -19,8 +19,7 @@
  * COFF/PE Image Support
  *   - Implements CRT routines and sections neccessary for proper running PE/COFF images.
  */
-
-//#define __TRACE
+#define __TRACE
 
 #include <ddk/utils.h>
 #include <stdlib.h>
@@ -190,7 +189,7 @@ void __cxa_module_global_init(void) {
 // as terminators are registered by cxa_atexit.
 void __cxa_module_global_finit(void) {
     size_t TlsDataSize = (size_t)_tls_used.EndOfData - (size_t)_tls_used.StartOfData;
-    TRACE("__cxa_module_global_finit()");
+    TRACE("__cxa_module_global_finit(0x%x)", __dso_handle);
 	__cxa_callinitializers(__xp_a, __xp_z);
 	__cxa_callinitializers(__xt_a, __xt_z);
     __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_THREADDETACH);

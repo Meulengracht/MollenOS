@@ -301,11 +301,12 @@ CreateProcess(
     // Load the executable
     PathAsMString = MStringCreate((void*)Path, StrUTF8);
     Status        = PeLoadImage(Owner, NULL, PathAsMString, &Process->Executable);
+    MStringDestroy(PathAsMString);
     if (Status != OsSuccess) {
         ERROR(" > failed to load executable");
-        goto CleanupAndExit;
+        free(Process);
+        return Status;
     }
-    MStringDestroy(PathAsMString);
 
     // it won't fail, since -1 + 1 = 0, so we just copy the entire string
     Process->Path              = MStringCreate((void*)MStringRaw(Process->Executable->FullPath), StrUTF8);
@@ -339,11 +340,6 @@ CreateProcess(
     Status                   = Syscall_ThreadDetach(Process->PrimaryThreadId);
     CollectionAppend(&Processes, &Process->Header);
     *Handle = Process->Header.Key.Value.Id;
-    return Status;
-
-CleanupAndExit:
-    MStringDestroy(PathAsMString);
-    ReleaseProcess(Process);
     return Status;
 }
 
@@ -414,6 +410,9 @@ TerminateProcess(
         else {
             HandleJoinProcess((void*)Join);
         }
+
+        // Get next node
+        Node = CollectionGetNodeByKey(&Joiners, Process->Header.Key, 0);
     }
     return OsSuccess;
 }
