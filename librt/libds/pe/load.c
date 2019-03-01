@@ -394,7 +394,7 @@ PeHandleRelocations(
                 }
 #endif
 #if __BITS == 64
-                else if (UpdatedAddress < Image->VirtualAddress || UpdatedAddress >= 0x300000000) {
+                if (UpdatedAddress < Image->VirtualAddress || UpdatedAddress >= 0x300000000) {
                     dserror("%s: Rel %u, Value %u (%u/%u)", MStringRaw(Image->Name), Type, Value, i, NumRelocs);
                     dserror("PageRVA 0x%x of SectionRVA 0x%x. Current blocksize %u", PageRVA, Section->RVA, BlockSize);
                     dserror("Section 0x%x, SectionAddress 0x%x, Address 0x%x, Value 0x%x", 
