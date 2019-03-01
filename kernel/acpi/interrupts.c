@@ -108,7 +108,7 @@ AcpiDeriveInterrupt(
     unsigned        rIndex  = (Device * 4) + (Pin - 1);
 
     // Trace
-    TRACE("AcpiDeriveInterrupt(Bus %u, Device %u, Pin %i)", Bus, Device, Pin);
+    TRACE("AcpiDeriveInterrupt(Bus %" PRIuIN ", Device %" PRIuIN ", Pin %" PRIiIN ")", Bus, Device, Pin);
 
     // Start by checking if we can find the
     // routings by checking the given device
@@ -116,7 +116,7 @@ AcpiDeriveInterrupt(
 
     // Make sure there was a bus device for it
     if (Dev != NULL) {
-        TRACE("Found bus-device <%s>, accessing index %u", 
+        TRACE("Found bus-device <%s>, accessing index %" PRIuIN "", 
             &Dev->HId[0], rIndex);
         if (Dev->Routings->ActiveIrqs[rIndex] != INTERRUPT_NONE
             && Dev->Routings->InterruptEntries[rIndex] != NULL) {
@@ -150,7 +150,7 @@ AcpiDeriveInterrupt(
             }
 
             // Return found interrupt
-            TRACE("Found interrupt %i", RoutingEntry->Irq);
+            TRACE("Found interrupt %" PRIiIN "", RoutingEntry->Irq);
             return RoutingEntry->Irq;
         }
     }

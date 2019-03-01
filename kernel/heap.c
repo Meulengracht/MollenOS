@@ -75,7 +75,7 @@ static void FreeVirtualMemory(uintptr_t Address, size_t PageCount)
     size_t     PageSize = GetMemorySpacePageSize();
     OsStatus_t Status   = RemoveMemorySpaceMapping(GetCurrentMemorySpace(), Address, PageSize * PageCount);
     if (Status != OsSuccess) {
-        ERROR("Failed to free allocation 0x%x of size 0x%x", Address, PageSize * PageCount);
+        ERROR("Failed to free allocation 0x%" PRIxIN " of size 0x%" PRIxIN "", Address, PageSize * PageCount);
     }
 }
 
@@ -150,7 +150,7 @@ slab_create(
     MemorySlab_t* Slab;
     uintptr_t     ObjectAddress;
     uintptr_t     DataAddress = AllocateVirtualMemory(Cache->PageCount);
-    TRACE("slab_create(%s): 0x%x", Cache->Name, DataAddress);
+    TRACE("slab_create(%s): 0x%" PRIxIN "", Cache->Name, DataAddress);
 
     if (Cache->SlabOnSite) {
         Slab          = (MemorySlab_t*)DataAddress;
@@ -199,7 +199,7 @@ slab_dump_information(
     uintptr_t EndAddress   = StartAddress + (Cache->ObjectCount * (Cache->ObjectSize + Cache->ObjectPadding));
     
     // Write slab information
-    WRITELINE(" -- slab: 0x%x => 0x%x, FreeObjects %u", StartAddress, EndAddress, Slab->NumberOfFreeObjects);
+    WRITELINE(" -- slab: 0x%" PRIxIN " => 0x%" PRIxIN ", FreeObjects %" PRIuIN "", StartAddress, EndAddress, Slab->NumberOfFreeObjects);
 }
 
 static void
@@ -209,7 +209,7 @@ cache_dump_information(
     CollectionItem_t* Node;
     
     // Write cache information
-    WRITELINE("%s: Object Size %u, Alignment %u, Padding %u, Count %u, FreeObjects %u",
+    WRITELINE("%s: Object Size %" PRIuIN ", Alignment %" PRIuIN ", Padding %" PRIuIN ", Count %" PRIuIN ", FreeObjects %" PRIuIN "",
         Cache->Name, Cache->ObjectSize, Cache->ObjectAlignment, Cache->ObjectPadding,
         Cache->ObjectCount, Cache->NumberOfFreeObjects);
         
@@ -238,7 +238,7 @@ cache_contains_address(
 {
     CollectionItem_t* Node;
     int               Found = 0;
-    TRACE("cache_contains_address(%s, 0x%x)", Cache->Name, Address);
+    TRACE("cache_contains_address(%s, 0x%" PRIxIN ")", Cache->Name, Address);
 
     // Check partials first
     _foreach(Node, &Cache->PartialSlabs) {
@@ -351,7 +351,7 @@ cache_calculate_slab_size(
     int    i               = 0;
     size_t ObjectsPerSlab;
     size_t Wastage;
-    TRACE("cache_calculate_slab_size(%s, %u, %u, %u)",
+    TRACE("cache_calculate_slab_size(%s, %" PRIuIN ", %" PRIuIN ", %" PRIuIN ")",
         (Cache == NULL ? "null" : Cache->Name), ObjectSize, ObjectAlignment, ObjectPadding);
 
     if ((ObjectSize + ObjectPadding) < MEMORY_SLAB_ONSITE_THRESHOLD) {
@@ -361,7 +361,7 @@ cache_calculate_slab_size(
     }
     ObjectsPerSlab = (PageSize - ReservedSpace) / (ObjectSize + ObjectPadding);
     Wastage        = (PageSize - (ObjectsPerSlab * (ObjectSize + ObjectPadding))) - ReservedSpace;
-    TRACE(" * %u Objects (%i), On %u Pages, %u Bytes of Waste (%u Bytes Reserved)", 
+    TRACE(" * %" PRIuIN " Objects (%" PRIiIN "), On %" PRIuIN " Pages, %" PRIuIN " Bytes of Waste (%" PRIuIN " Bytes Reserved)", 
         ObjectsPerSlab, SlabOnSite, PageCount, Wastage, ReservedSpace);
     
     // Make sure we always have atleast 1 element
@@ -410,7 +410,7 @@ cache_calculate_slab_size(
         Cache->SlabStructureSize = ReservedSpace;
         Cache->PageCount         = PageCount;
     }
-    TRACE(" => %u Objects (%i), On %u Pages", ObjectsPerSlab, SlabOnSite, PageCount);
+    TRACE(" => %" PRIuIN " Objects (%" PRIiIN "), On %" PRIuIN " Pages", ObjectsPerSlab, SlabOnSite, PageCount);
 }
 
 static void
@@ -538,7 +538,7 @@ MemoryCacheAllocate(
     Allocated = MEMORY_SLAB_ELEMENT(Cache, Slab, Index);
     Cache->NumberOfFreeObjects--;
     dsunlock(&Cache->SyncObject);
-    TRACE(" => 0x%x", Allocated);
+    TRACE(" => 0x%" PRIxIN "", Allocated);
     return Allocated;
 }
 
@@ -549,7 +549,7 @@ MemoryCacheFree(
 {
     CollectionItem_t* Node;
     int CheckFull = 1;
-    TRACE("MemoryCacheFree(%s, 0x%x)", Cache->Name, Object);
+    TRACE("MemoryCacheFree(%s, 0x%" PRIxIN ")", Cache->Name, Object);
 
     // Handle debug flags
     if (Cache->Flags & MEMORY_DEBUG_USE_AFTER_FREE) {
@@ -616,10 +616,10 @@ int MemoryCacheReap(void)
 
 void* kmalloc(size_t Size)
 {
-    TRACE("kmalloc(%u)", Size);
+    TRACE("kmalloc(%" PRIuIN ")", Size);
     struct FixedCache* Selected = cache_find_fixed_size(Size);
     if (Selected == NULL) {
-        ERROR("Could not find a cache for size %u", Size);
+        ERROR("Could not find a cache for size %" PRIuIN "", Size);
         MemoryCacheDump(NULL);
         assert(0);   
     }
@@ -656,7 +656,7 @@ void kfree(void* Object)
         i++;
     }
     if (Selected == NULL) {
-        ERROR("Could not find a cache for object 0x%x", Object);
+        ERROR("Could not find a cache for object 0x%" PRIxIN "", Object);
         MemoryCacheDump(NULL);
         assert(0);   
     }
@@ -683,7 +683,7 @@ MemoryCacheDump(
     }
     
     // Dump memory information
-    WRITELINE("\nMemory Stats: %u/%u Bytes, %u/%u Blocks",
+    WRITELINE("\nMemory Stats: %" PRIuIN "/%" PRIuIN " Bytes, %" PRIuIN "/%" PRIuIN " Blocks",
         GetMachine()->PhysicalMemory.BlocksAllocated * GetMemorySpacePageSize(), 
         GetMachine()->PhysicalMemory.BlockCount * GetMemorySpacePageSize(),
         GetMachine()->PhysicalMemory.BlocksAllocated, GetMachine()->PhysicalMemory.BlockCount);

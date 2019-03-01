@@ -49,7 +49,7 @@ ContextCreate(
     uintptr_t ContextAddress = 0, 
               RbpInitial     = 0;
 
-	TRACE("ContextCreate(ThreadFlags 0x%llx, Type %i, Rip 0x%llx, Args 0x%llx)",
+	TRACE("ContextCreate(ThreadFlags 0x%llx, Type %" PRIiIN ", Rip 0x%llx, Args 0x%llx)",
 		ThreadFlags, ContextType, EntryAddress);
 
 	// Select proper segments based on context type and run-mode
@@ -75,12 +75,12 @@ ContextCreate(
 		    StackSegment    = DataSegment = GDT_UDATA_SEGMENT + 0x03;
         }
         else {
-            FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID THREADFLAGS(%u)", ThreadFlags);
+            FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID THREADFLAGS(%" PRIuIN ")", ThreadFlags);
         }
         CommitMemorySpaceMapping(GetCurrentMemorySpace(), NULL, ContextAddress, __MASK);
     }
 	else {
-		FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%i)", ContextType);
+		FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%" PRIiIN ")", ContextType);
 	}
 
 	// Initialize the context pointer

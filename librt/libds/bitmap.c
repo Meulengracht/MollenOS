@@ -25,17 +25,12 @@
 #include <stddef.h>
 #include <assert.h>
 
-/* BitmapCreate
- * Creates a bitmap of the given size in bytes, the actual available
- * member count will then be Size * sizeof(byte). This automatically
- * allocates neccessary resources */
 Bitmap_t*
 BitmapCreate(
-    _In_ size_t     Size)
+    _In_ size_t Size)
 {
-    // Variables
-    Bitmap_t *Bitmap = NULL;
-    uintptr_t *Data = NULL;
+    Bitmap_t* Bitmap = NULL;
+    size_t*   Data   = NULL;
     assert(Size > 0);
 
     // Allocate a new bitmap and associated buffer
@@ -54,15 +49,11 @@ BitmapCreate(
     return Bitmap;
 }
 
-/* BitmapConstruct
- * Creates a bitmap of the given size in bytes, the actual available
- * member count will then be Size * sizeof(byte). This uses user-provided
- * resources, and won't be cleaned up. */
 OsStatus_t
 BitmapConstruct(
-    _In_ Bitmap_t*  Bitmap,
-    _In_ uintptr_t* Data,
-    _In_ size_t     Size)
+    _In_ Bitmap_t* Bitmap,
+    _In_ size_t*   Data,
+    _In_ size_t    Size)
 {
     assert(Bitmap != NULL);
     assert(Data != NULL);
@@ -70,18 +61,17 @@ BitmapConstruct(
 
     // Fill in data
     memset(Data, 0, Size);
+    Bitmap->Cleanup     = 0;
+    
     Bitmap->Data        = Data;
     Bitmap->SizeInBytes = Size;
-    Bitmap->Cleanup     = 0;
-    Bitmap->Capacity    = (Size * 8);
+    Bitmap->BitCount    = (Size * 8);
     return OsSuccess;
 }
 
-/* BitmapDestroy
- * Cleans up any resources allocated by the Create/Construct. */
 OsStatus_t
 BitmapDestroy(
-    _In_ Bitmap_t*  Bitmap)
+    _In_ Bitmap_t* Bitmap)
 {
     assert(Bitmap != NULL);
 
@@ -93,18 +83,16 @@ BitmapDestroy(
     return OsSuccess;
 }
 
-/* BitmapSetBits
- * Flips all bits to 1 at the given index, and for <Count> bits. Returns the 
- * actual number of bits set in this iteration. */
 int
 BitmapSetBits(
-    _In_ Bitmap_t*  Bitmap,
-    _In_ int        Index,
-    _In_ int        Count)
+    _In_    Bitmap_t* Bitmap,
+    _InOut_ int*      SearchIndex,
+    _In_    int       Index,
+    _In_    int       Count)
 {
     // Calculate the block index first
-    int BlockIndex  = Index / (sizeof(uintptr_t) * 8);
-    int BlockOffset = Index % (sizeof(uintptr_t) * 8);
+    int BlockIndex  = Index / __BITS;
+    int BlockOffset = Index % __BITS;
     int BitsLeft    = Count;
     int BitsSet     = 0;
     int NumberOfObjects;
@@ -112,13 +100,29 @@ BitmapSetBits(
     assert(Bitmap != NULL);
 
     // Get maximum number of iterations
-    NumberOfObjects = Bitmap->SizeInBytes / sizeof(uintptr_t);
+    NumberOfObjects = Bitmap->SizeInBytes / sizeof(size_t);
+    
+    // Update the search index if the bits we are setting overlaps
+    // on the search index
+    if (SearchIndex != NULL && *SearchIndex != -1) {
+        if (Index <= *SearchIndex && (Index + Count) > *SearchIndex) {
+            *SearchIndex = Index + Count;
+        }
+    }
 
     // Iterate the block and flip bits
     for (i = BlockIndex; (i < NumberOfObjects) && (BitsLeft > 0); i++) {
+        if (Bitmap->Data[i] == 0 && BlockOffset == 0 && BitsLeft >= __BITS) {
+            Bitmap->Data[i] = __MASK;
+            BitsSet        += __BITS;
+            BitsLeft       -= __BITS;
+            continue;
+        }
+        
         for (j = BlockOffset; (j < __BITS) && (BitsLeft > 0); j++, BitsLeft--) {
-            if (!(Bitmap->Data[i] & (1 << j))) {
-                Bitmap->Data[i] |= (1 << j);
+            size_t Bit = (size_t)1 << j;
+            if (!(Bitmap->Data[i] & Bit)) {
+                Bitmap->Data[i] |= Bit;
                 BitsSet++;
             }
         }
@@ -127,14 +131,12 @@ BitmapSetBits(
     return BitsSet;
 }
 
-/* BitmapClearBits
- * Clears all bits from the given index, and for <Count> bits. Returns the number
- * of bits cleared in this iteration. */
 int
 BitmapClearBits(
-    _In_ Bitmap_t*  Bitmap,
-    _In_ int        Index,
-    _In_ int        Count)
+    _In_    Bitmap_t* Bitmap,
+    _InOut_ int*      SearchIndex,
+    _In_    int       Index,
+    _In_    int       Count)
 {
     // Calculate the block index first
     int BlockIndex  = Index / __BITS;
@@ -146,13 +148,26 @@ BitmapClearBits(
     assert(Bitmap != NULL);
 
     // Get maximum number of iterations
-    NumberOfObjects = Bitmap->SizeInBytes / sizeof(uintptr_t);
+    NumberOfObjects = Bitmap->SizeInBytes / sizeof(size_t);
 
+    // Update the search index if the range we are clearing comes before the search index
+    if (SearchIndex != NULL && (*SearchIndex == -1 || Index < *SearchIndex)) {
+        *SearchIndex = Index;
+    }
+    
     // Iterate the block and flip bits
     for (i = BlockIndex; (i < NumberOfObjects) && (BitsLeft > 0); i++) {
+        if (Bitmap->Data[i] == __MASK && BlockOffset == 0 && BitsLeft >= __BITS) {
+            Bitmap->Data[i] = 0;
+            BitsCleared    += __BITS;
+            BitsLeft       -= __BITS;
+            continue;
+        }
+        
         for (j = BlockOffset; (j < __BITS) && (BitsLeft > 0); j++, BitsLeft--) {
-            if (Bitmap->Data[i] & (1 << j)) {
-                Bitmap->Data[i] &= ~(1 << j);
+            size_t Bit = (size_t)1 << j;
+            if (Bitmap->Data[i] & Bit) {
+                Bitmap->Data[i] &= ~Bit;
                 BitsCleared++;
             }
         }
@@ -161,9 +176,6 @@ BitmapClearBits(
     return BitsCleared;
 }
 
-/* BitmapAreBitsSet
- * If all bits are set from the given index, and for <Count> bits, then this
- * function returns 1. Otherwise 0. */
 int
 BitmapAreBitsSet(
     _In_ Bitmap_t*  Bitmap,
@@ -171,17 +183,21 @@ BitmapAreBitsSet(
     _In_ int        Count)
 {
     // Calculate the block index first
-    int BlockIndex  = Index / (sizeof(uintptr_t) * 8);
-    int BlockOffset = Index % (sizeof(uintptr_t) * 8);
+    int BlockIndex  = Index / __BITS;
+    int BlockOffset = Index % __BITS;
     int BitsLeft    = Count;
+    int NumberOfObjects;
     int i, j;
     assert(Bitmap != NULL);
+    
+    // Get maximum number of iterations
+    NumberOfObjects = Bitmap->SizeInBytes / sizeof(size_t);
 
     // Iterate the block and flip bits
-    for (i = BlockIndex; 
-         i < (Bitmap->SizeInBytes / sizeof(uintptr_t)) && BitsLeft > 0; i++) {
+    for (i = BlockIndex; (i < NumberOfObjects) && (BitsLeft > 0); i++) {
         for (j = BlockOffset; j < __BITS && BitsLeft > 0; j++, BitsLeft--) {
-            if (!(Bitmap->Data[i] & (1 << j))) {
+            size_t Bit = (size_t)1 << j;
+            if (!(Bitmap->Data[i] & Bit)) {
                 return 0;
             }
         }
@@ -194,9 +210,6 @@ BitmapAreBitsSet(
     return 1;
 }
 
-/* BitmapAreBitsClear
- * If all bits are cleared from the given index, and for <Count> bits, then this
- * function returns 1. Otherwise 0. */
 int
 BitmapAreBitsClear(
     _In_ Bitmap_t*  Bitmap,
@@ -204,17 +217,21 @@ BitmapAreBitsClear(
     _In_ int        Count)
 {
     // Calculate the block index first
-    int BlockIndex  = Index / (sizeof(uintptr_t) * 8);
-    int BlockOffset = Index % (sizeof(uintptr_t) * 8);
+    int BlockIndex  = Index / __BITS;
+    int BlockOffset = Index % __BITS;
     int BitsLeft    = Count;
+    int NumberOfObjects;
     int i, j;
     assert(Bitmap != NULL);
 
+    // Get maximum number of iterations
+    NumberOfObjects = Bitmap->SizeInBytes / sizeof(size_t);
+
     // Iterate the block and flip bits
-    for (i = BlockIndex; 
-         i < (Bitmap->SizeInBytes / sizeof(uintptr_t)) && BitsLeft > 0; i++) {
+    for (i = BlockIndex; (i < NumberOfObjects) && (BitsLeft > 0); i++) {
         for (j = BlockOffset; j < __BITS && BitsLeft > 0; j++, BitsLeft--) {
-            if (Bitmap->Data[i] & (1 << j)) {
+            size_t Bit = (size_t)1 << j;
+            if (Bitmap->Data[i] & Bit) {
                 return 0;
             }
         }
@@ -227,29 +244,38 @@ BitmapAreBitsClear(
     return 1;
 }
 
-/* BitmapFindBits
- * Locates the requested number of consequtive free bits.
- * Returns the index of the first free bit. Returns -1 on no free. */
 int
 BitmapFindBits(
-    _In_ Bitmap_t*  Bitmap,
-    _In_ int        Count)
+    _In_    Bitmap_t* Bitmap,
+    _InOut_ int*      SearchIndex,
+    _In_    int       Count)
 {
-    // Variables
+    int NumberOfObjects;
     int StartBit = -1;
-    int i, j, k;
+    int i = 0;
+    int j = 0;
+    int k;
     assert(Bitmap != NULL);
 
+    // Get maximum number of iterations
+    NumberOfObjects = Bitmap->SizeInBytes / sizeof(size_t);
+    
+    // Is the search index initialized?
+    if (SearchIndex != NULL && *SearchIndex != -1) {
+        i = *SearchIndex / __BITS;
+        j = *SearchIndex % __BITS;
+    }
+
     // Iterate bits
-    for (i = 0; i < (Bitmap->SizeInBytes / sizeof(uintptr_t)); i++) {
+    for (; i < NumberOfObjects; i++) {
         // Quick test, if all is allocated, damn
         if (Bitmap->Data[i] == __MASK) {
             continue;
         }
 
         // Test each bit in the value
-        for (j = 0; j < __BITS; j++) {
-            uintptr_t CurrentBit = 1 << j;
+        for (; j < __BITS; j++) {
+            size_t CurrentBit = (size_t)1 << j;
             if (Bitmap->Data[i] & CurrentBit) {
                 continue;
             }
@@ -261,12 +287,12 @@ BitmapFindBits(
                 if ((j + k) >= __BITS) {
                     int TempI   = i + ((j + k) / __BITS);
                     int OffsetI = (j + k) % __BITS;
-                    if (Bitmap->Data[TempI] & (1 << OffsetI)) {
+                    if (Bitmap->Data[TempI] & ((size_t)1 << OffsetI)) {
                         break;
                     }
                 }
                 else {
-                    if (Bitmap->Data[i] & (1 << (j + k))) {
+                    if (Bitmap->Data[i] & ((size_t)1 << (j + k))) {
                         break;
                     }
                 }
@@ -274,15 +300,21 @@ BitmapFindBits(
 
             // If k == numblocks we've found free bits!
             if (k == Count) {
-                StartBit = (int)(i * (sizeof(uintptr_t) * 8) + j);
+                StartBit = (int)(i * (sizeof(size_t) * 8) + j);
                 break;
             }
         }
+        j = 0; // Reset j
 
         // Break out if we found start-bit
         if (StartBit != -1) {
             break;
         }
+    }
+    
+    // Update search index
+    if (SearchIndex != NULL && *SearchIndex == StartBit) {
+        *SearchIndex = StartBit + Count;
     }
     return StartBit;
 }

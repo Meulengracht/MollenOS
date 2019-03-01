@@ -225,7 +225,7 @@ SchedulerSynchronizeCore(
     _In_ int                SuppressSynchronization)
 {
     volatile SystemCpuState_t *State;
-    TRACE("SchedulerSynchronizeCore(%u, %i)", Thread->CoreId, SuppressSynchronization);
+    TRACE("SchedulerSynchronizeCore(%" PRIuIN ", %" PRIiIN ")", Thread->CoreId, SuppressSynchronization);
 
     // If the current cpu is idling, wake us up
     if (Thread->CoreId != ArchGetProcessorCoreId()) {
@@ -337,7 +337,7 @@ SchedulerThreadQueue(
     else {
         Scheduler = SchedulerGetFromCore(Thread->CoreId);
     }
-    TRACE("Appending thread %u (%s) to queue %i", Thread->Id, Thread->Name, Thread->Queue);
+    TRACE("Appending thread %" PRIuIN " (%s) to queue %" PRIiIN "", Thread->Id, Thread->Name, Thread->Queue);
     SchedulerQueueAppend(&Scheduler->Queues[Thread->Queue], Thread, Thread);
     Scheduler->ThreadCount++;
 
@@ -361,7 +361,7 @@ SchedulerThreadSleep(
     CurrentThread   = GetCurrentThreadForCore(CoreId);
     
     assert(CurrentThread != NULL);
-    TRACE("Adding thread %u to sleep queue on 0x%x", CurrentThread->Id, Handle);
+    TRACE("Adding thread %" PRIuIN " to sleep queue on 0x%" PRIxIN "", CurrentThread->Id, Handle);
     
     // Update sleep-information
     CurrentThread->Sleep.TimeLeft       = Timeout;
@@ -400,7 +400,7 @@ SchedulerAtomicThreadSleep(
     CurrentThread   = GetCurrentThreadForCore(CoreId);
 
     assert(CurrentThread != NULL);
-    TRACE("Atomically adding thread %u to sleep queue on 0x%x", CurrentThread->Id, Object);
+    TRACE("Atomically adding thread %" PRIuIN " to sleep queue on 0x%" PRIxIN "", CurrentThread->Id, Object);
     
     // Update sleep-information
     CurrentThread->Sleep.TimeLeft       = Timeout;
@@ -429,7 +429,7 @@ OsStatus_t
 SchedulerThreadSignal(
     _In_ MCoreThread_t*     Thread)
 {
-    TRACE("SchedulerThreadSignal(Thread %u)", Thread->Id);
+    TRACE("SchedulerThreadSignal(Thread %" PRIuIN ")", Thread->Id);
     assert(Thread != NULL);
 
     // If found, remove from queue and queue
@@ -449,7 +449,7 @@ OsStatus_t
 SchedulerHandleSignal(
     _In_ uintptr_t*         Handle)
 {
-    TRACE("SchedulerHandleSignal(Handle 0x%x)", Handle);
+    TRACE("SchedulerHandleSignal(Handle 0x%" PRIxIN ")", Handle);
 
     MCoreThread_t* Current = GetThreadSleepingByHandle(&IoQueue, Handle);
     if (Current != NULL) {

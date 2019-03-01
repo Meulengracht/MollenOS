@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Threads Definitions & Structures
+ * Threads Definitions & Structures
  * - This header describes the base threads-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -24,8 +24,17 @@
 #include <os/mollenos.h>
 #include <internal/_syscalls.h>
 
-/* SetCurrentThreadName
- * Updates the name of the currently running thread. */
+
+void
+InitializeThreadParameters(
+    _In_ ThreadParameters_t* Paramaters)
+{
+    Paramaters->Name              = NULL;
+    Paramaters->Configuration     = 0;
+    Paramaters->MemorySpaceHandle = UUID_INVALID;
+    Paramaters->MaximumStackSize  = __MASK;
+}
+
 OsStatus_t 
 SetCurrentThreadName(
     _In_ const char* ThreadName)
@@ -33,8 +42,6 @@ SetCurrentThreadName(
     return Syscall_ThreadSetCurrentName(ThreadName);
 }
 
-/* GetCurrentThreadName
- * Retrieves the name of the currently running thread. */
 OsStatus_t 
 GetCurrentThreadName(
     _In_ char*  ThreadNameBuffer,

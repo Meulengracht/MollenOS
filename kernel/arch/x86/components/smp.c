@@ -85,9 +85,9 @@ StartApplicationCore(
     int Timeout;
 
 	// Perform the IPI
-	TRACE(" > booting core %u", Core->Id);
+	TRACE(" > booting core %" PRIuIN "", Core->Id);
 	if (ApicPerformIPI(Core->Id, 1) != OsSuccess) {
-		ERROR(" > failed to boot core %u (ipi failed)", Core->Id);
+		ERROR(" > failed to boot core %" PRIuIN " (ipi failed)", Core->Id);
 		return;
 	}
     PollTimerForMilliseconds(10);
@@ -96,7 +96,7 @@ StartApplicationCore(
 
     // Perform the SIPI - some cpu's require two SIPI's.
 	if (ApicPerformSIPI(Core->Id, MEMORY_LOCATION_TRAMPOLINE_CODE) != OsSuccess) {
-		ERROR(" > failed to boot core %u (sipi failed)", Core->Id);
+		ERROR(" > failed to boot core %" PRIuIN " (sipi failed)", Core->Id);
 		return;
     }
 
@@ -109,7 +109,7 @@ StartApplicationCore(
     }
     if (Core->State != CpuStateRunning) {
         if (ApicPerformSIPI(Core->Id, MEMORY_LOCATION_TRAMPOLINE_CODE) != OsSuccess) {
-            ERROR(" > failed to boot core %u (sipi failed)", Core->Id);
+            ERROR(" > failed to boot core %" PRIuIN " (sipi failed)", Core->Id);
             return;
         }
     }

@@ -63,7 +63,7 @@ _CODE_END
 
 ///////////////////////////////////////////////
 // Operating System (Process) Interface
-#define Syscall_ThreadCreate(Entry, Argument, Flags, MemorySpaceHandle) (UUId_t)syscall4(35, SCPARAM(Entry), SCPARAM(Argument), SCPARAM(Flags), SCPARAM(MemorySpaceHandle))
+#define Syscall_ThreadCreate(Entry, Argument, Parameters, HandleOut) (OsStatus_t)syscall4(35, SCPARAM(Entry), SCPARAM(Argument), SCPARAM(Parameters), SCPARAM(HandleOut))
 #define Syscall_ThreadExit(ExitCode) (OsStatus_t)syscall1(36, SCPARAM(ExitCode))
 #define Syscall_ThreadSignal(ThreadId, Signal) (OsStatus_t)syscall2(37, SCPARAM(ThreadId), SCPARAM(Signal))
 #define Syscall_ThreadJoin(ThreadId, ExitCode) (OsStatus_t)syscall2(38, SCPARAM(ThreadId), SCPARAM(ExitCode))

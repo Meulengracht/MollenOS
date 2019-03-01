@@ -38,6 +38,7 @@ static int TimerRegistered = 0;
 void
 HciTimerCallback(void* Context)
 {
+    TRACE("HciTimerCallback()");
     _CRT_UNUSED(Context);
     // Do a port-check and perform transaction checks
     foreach(cNode, UsbManagerGetControllers()) {

@@ -21,7 +21,7 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
-#include <os/osdefs.h>
+#include <os/mollenos.h>
 #include <system/thread.h>
 #include <system/utils.h>
 #include <threading.h>
@@ -30,28 +30,39 @@
 #include <debug.h>
 #include <heap.h>
 
-UUId_t
+OsStatus_t
 ScThreadCreate(
-    _In_ ThreadEntry_t Entry,
-    _In_ void*         Arguments,
-    _In_ Flags_t       Flags,
-    _In_ UUId_t        MemorySpaceHandle)
+    _In_  ThreadEntry_t       Entry,
+    _In_  void*               Arguments,
+    _In_  ThreadParameters_t* Parameters,
+    _Out_ UUId_t*             HandleOut)
 {
-    UUId_t  Handle      = UUID_INVALID;
-    Flags_t ThreadFlags = ThreadingGetCurrentMode() | THREADING_INHERIT | Flags;
-    if (Entry != NULL) {
-        if (CreateThread(NULL, Entry, Arguments, ThreadFlags, MemorySpaceHandle, &Handle) != OsSuccess) {
-            return UUID_INVALID;
-        }
+    Flags_t     ThreadFlags       = ThreadingGetCurrentMode();
+    UUId_t      MemorySpaceHandle = UUID_INVALID;
+    const char* Name              = NULL;
+    if (Entry == NULL) {
+        return OsInvalidParameters;
     }
-    return Handle;
+    
+    // Handle additional paramaters
+    if (Parameters != NULL) {
+        Name              = Parameters->Name;
+        ThreadFlags      |= Parameters->Configuration;
+        MemorySpaceHandle = Parameters->MemorySpaceHandle;
+    }
+    
+    // If a memory space is not provided, then we inherit
+    if (MemorySpaceHandle == UUID_INVALID) {
+        ThreadFlags |= THREADING_INHERIT;
+    }
+    return CreateThread(Name, Entry, Arguments, ThreadFlags, MemorySpaceHandle, HandleOut);
 }
 
 OsStatus_t
 ScThreadExit(
     _In_ int ExitCode)
 {
-    TRACE("ScThreadExit(%i)", ExitCode);
+    TRACE("ScThreadExit(%" PRIiIN ")", ExitCode);
     return TerminateThread(GetCurrentThreadId(), ExitCode, 1);
 }
 
@@ -69,7 +80,7 @@ ScThreadJoin(
             *ExitCode = ResultCode;
         }
     }
-    TRACE("ScThreadJoin(%u) => %u", ThreadId, Result);
+    TRACE("ScThreadJoin(%" PRIuIN ") => %" PRIuIN "", ThreadId, Result);
     return Result;
 }
 
@@ -128,7 +139,8 @@ ScThreadYield(void)
     return OsSuccess;
 }
 
-UUId_t ScThreadCookie(void)
+UUId_t
+ScThreadCookie(void)
 {
     return GetCurrentThreadForCore(ArchGetProcessorCoreId())->Cookie;
 }

@@ -20,7 +20,6 @@
  * - This header describes the base event-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
-
 #include <ds/collection.h>
 #include <os/eventqueue.h>
 #include <os/mollenos.h>
@@ -108,13 +107,18 @@ UUId_t QueuePeriodicEvent(EventQueue_t* EventQueue, EventQueueFunction Callback,
 
 OsStatus_t CancelEvent(EventQueue_t* EventQueue, UUId_t EventHandle)
 {
-    DataKey_t          Key   = { .Value.Id = EventHandle };
-    EventQueueEvent_t* Event = (EventQueueEvent_t*)CollectionGetNodeByKey(EventQueue->Events, Key, 0);
+    DataKey_t          Key = { .Value.Id = EventHandle };
+    EventQueueEvent_t* Event;
+    OsStatus_t         Status = OsDoesNotExist;
+    
+    mtx_lock(&EventQueue->EventLock);
+    Event = (EventQueueEvent_t*)CollectionGetNodeByKey(EventQueue->Events, Key, 0);
     if (Event != NULL && Event->State != EVENT_EXECUTED) {
         Event->State = EVENT_CANCELLED;
-        return OsSuccess;
+        Status = OsSuccess;
     }
-    return OsDoesNotExist;
+    mtx_unlock(&EventQueue->EventLock);
+    return Status;
 }
 
 static UUId_t AddToEventQueue(EventQueue_t* EventQueue, EventQueueFunction Function, void* Context, size_t TimeoutMs, size_t IntervalMs)
@@ -130,7 +134,10 @@ static UUId_t AddToEventQueue(EventQueue_t* EventQueue, EventQueueFunction Funct
     Event->Context  = Context;
     Event->Timeout  = TimeoutMs;
     Event->Interval = IntervalMs;
+    
+    mtx_lock(&EventQueue->EventLock);
     CollectionAppend(EventQueue->Events, &Event->Header);
+    mtx_unlock(&EventQueue->EventLock);
     cnd_signal(&EventQueue->EventCondition);
     return Event->Header.Key.Value.Id;
 }
@@ -154,14 +161,16 @@ static EventQueueEvent_t* GetNearestEventQueueDeadline(EventQueue_t* EventQueue)
 
 static int EventQueueWorker(void* Context)
 {
+    EventQueueEvent_t* Event;
     EventQueue_t*   EventQueue = (EventQueue_t*)Context;
     struct timespec TimePoint;
     struct timespec InterruptedAt;
     struct timespec TimeSpent;
     SetCurrentThreadName("event-pump");
 
+    mtx_lock(&EventQueue->EventLock);
     while (EventQueue->IsRunning) {
-        EventQueueEvent_t* Event = GetNearestEventQueueDeadline(EventQueue);
+        Event = GetNearestEventQueueDeadline(EventQueue);
         if (Event != NULL) {
             timespec_get(&TimePoint, TIME_UTC);
             TimePoint.tv_nsec += Event->Timeout * NSEC_PER_MSEC;
@@ -174,7 +183,10 @@ static int EventQueueWorker(void* Context)
                 // We timedout, or in other words successfully waited
                 if (Event->State != EVENT_CANCELLED) {
                     Event->State = EVENT_EXECUTED;
+                    
+                    mtx_unlock(&EventQueue->EventLock);
                     Event->Function(Event->Context);
+                    mtx_lock(&EventQueue->EventLock);
                     if (Event->Interval != 0) {
                         Event->Timeout = Event->Interval;
                     }
@@ -206,5 +218,6 @@ static int EventQueueWorker(void* Context)
             cnd_wait(&EventQueue->EventCondition, &EventQueue->EventLock);
         }
     }
+    mtx_unlock(&EventQueue->EventLock);
     return 0;
 }

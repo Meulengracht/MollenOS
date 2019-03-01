@@ -22,13 +22,8 @@
  */
 //#define __TRACE
 
-/* Includes
- * - System */
 #include <ddk/utils.h>
 #include "uhci.h"
-
-/* Includes
- * - Library */
 #include <threads.h>
 #include <string.h>
 

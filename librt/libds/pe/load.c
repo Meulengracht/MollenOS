@@ -382,8 +382,8 @@ PeHandleRelocations(
                 // Create a pointer, the low 12 bits have an offset into the PageRVA
                 volatile uintptr_t* AddressPointer = (volatile uintptr_t*)(SectionBase + Value);
                 uintptr_t           UpdatedAddress = *AddressPointer + ImageDelta;
-                if (Type == PE_RELOCATION_HIGHLOW &&
-                    (UpdatedAddress < Image->VirtualAddress || UpdatedAddress >= 0x30000000)) {
+#if __BITS == 32
+                if (UpdatedAddress < Image->VirtualAddress || UpdatedAddress >= 0x30000000) {
                     dserror("%s: Rel %u, Value %u (%u/%u)", MStringRaw(Image->Name), Type, Value, i, NumRelocs);
                     dserror("PageRVA 0x%x of SectionRVA 0x%x. Current blocksize %u", PageRVA, Section->RVA, BlockSize);
                     dserror("Section 0x%x, SectionAddress 0x%x, Address 0x%x, Value 0x%x", 
@@ -392,6 +392,8 @@ PeHandleRelocations(
                         UpdatedAddress, ImageDelta, Image->VirtualAddress, Image->OriginalImageBase);
                     assert(0);
                 }
+#endif
+#if __BITS == 64
                 else if (UpdatedAddress < Image->VirtualAddress || UpdatedAddress >= 0x300000000) {
                     dserror("%s: Rel %u, Value %u (%u/%u)", MStringRaw(Image->Name), Type, Value, i, NumRelocs);
                     dserror("PageRVA 0x%x of SectionRVA 0x%x. Current blocksize %u", PageRVA, Section->RVA, BlockSize);
@@ -401,6 +403,7 @@ PeHandleRelocations(
                         UpdatedAddress, ImageDelta, Image->VirtualAddress, Image->OriginalImageBase);
                     assert(0);
                 }
+#endif
                 *AddressPointer = UpdatedAddress;
             }
             else if (Type == PE_RELOCATION_ALIGN) {

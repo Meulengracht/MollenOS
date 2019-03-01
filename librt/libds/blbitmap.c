@@ -20,7 +20,6 @@
  */
 
 #include <ds/blbitmap.h>
-#include <stddef.h>
 #include <string.h>
 #include <assert.h>
 
@@ -82,7 +81,7 @@ ConstructBlockmap(
     Blockmap->BlockEnd      = BlockEnd;
     Blockmap->BlockSize     = BlockSize;
     Blockmap->BlockCount    = (BlockEnd - BlockStart) / BlockSize;
-    BitmapConstruct(&Blockmap->Base, (uintptr_t*)Buffer, DIVUP((Blockmap->BlockCount + 1), 8));
+    BitmapConstruct(&Blockmap->Base, (size_t*)Buffer, DIVUP((Blockmap->BlockCount + 1), 8));
 
     // Handle configuration parameters
     if (Configuration & BLOCKMAP_ALLRESERVED) {
@@ -124,9 +123,9 @@ AllocateBlocksInBlockmap(
 
     // Locked operation
     dslock(&Blockmap->SyncObject);
-    Index = BitmapFindBits(&Blockmap->Base, BitCount);
+    Index = BitmapFindBits(&Blockmap->Base, NULL, BitCount);
     if (Index != -1) {
-        BitmapSetBits(&Blockmap->Base, Index, BitCount);
+        BitmapSetBits(&Blockmap->Base, NULL, Index, BitCount);
         Block = Blockmap->BlockStart + (uintptr_t)(Index * Blockmap->BlockSize);
         Blockmap->BlocksAllocated += BitCount;
         Blockmap->NumAllocations++;
@@ -157,12 +156,12 @@ ReserveBlockmapRegion(
 
     // Calculate number of bits that we need to set, also calculate
     // the start bit
-    Index       = (Block - Blockmap->BlockStart) / Blockmap->BlockSize;
-    BitCount    = DIVUP(Size, Blockmap->BlockSize);
+    Index    = (Block - Blockmap->BlockStart) / Blockmap->BlockSize;
+    BitCount = DIVUP(Size, Blockmap->BlockSize);
 
     // Locked operation
     dslock(&Blockmap->SyncObject);
-    BitCount = BitmapSetBits(&Blockmap->Base, Index, BitCount);
+    BitCount = BitmapSetBits(&Blockmap->Base, NULL, Index, BitCount);
     if (BitCount != 0) {
         Blockmap->BlocksAllocated += BitCount;
         Blockmap->NumAllocations++;
@@ -180,7 +179,6 @@ ReleaseBlockmapRegion(
     _In_ uintptr_t      Block,
     _In_ size_t         Size)
 {
-    // Variables
     int BitCount;
     int Index;
 
@@ -188,8 +186,8 @@ ReleaseBlockmapRegion(
     assert(Size > 0);
     
     // Calculate the index and number of bits
-    Index       = (Block - Blockmap->BlockStart) / Blockmap->BlockSize;
-    BitCount    = DIVUP(Size, Blockmap->BlockSize);
+    Index    = (Block - Blockmap->BlockStart) / Blockmap->BlockSize;
+    BitCount = DIVUP(Size, Blockmap->BlockSize);
 
     // Do some sanity checks on the calculated 
     // values, they should be in bounds
@@ -199,7 +197,7 @@ ReleaseBlockmapRegion(
 
     // Locked operation to free bits
     dslock(&Blockmap->SyncObject);
-    BitCount = BitmapClearBits(&Blockmap->Base, Index, BitCount);
+    BitCount = BitmapClearBits(&Blockmap->Base, NULL, Index, BitCount);
     if (BitCount != 0) {
         Blockmap->BlocksAllocated -= BitCount;
         Blockmap->NumFrees++;

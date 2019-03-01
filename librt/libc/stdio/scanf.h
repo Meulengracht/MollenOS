@@ -614,7 +614,7 @@ _FUNCTION_ {
 			format++;
 		    }
 		    if(*format == ']') {
-			BitmapSetBits(bitMask, ']', 1);
+			BitmapSetBits(bitMask, NULL, ']', 1);
 			format++;
 		    }
                     while(*format && (*format != ']')) {
@@ -622,12 +622,12 @@ _FUNCTION_ {
 			 * "Note that %[a-z] and %[z-a] are interpreted as equivalent to %[abcde...z]." */
 			if((*format == '-') && (*(format + 1) != ']')) {
 			    if ((*(format - 1)) < *(format + 1))
-				BitmapSetBits(bitMask, *(format - 1) +1 , *(format + 1) - *(format - 1));
+				BitmapSetBits(bitMask, NULL, *(format - 1) +1 , *(format + 1) - *(format - 1));
 			    else
-				BitmapSetBits(bitMask, *(format + 1)    , *(format - 1) - *(format + 1));
+				BitmapSetBits(bitMask, NULL, *(format + 1)    , *(format - 1) - *(format + 1));
 			    format++;
 			} else
-                BitmapSetBits(bitMask, *format, 1);
+                BitmapSetBits(bitMask, NULL, *format, 1);
 			format++;
 		    }
                     /* read until char is not suitable */

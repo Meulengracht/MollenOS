@@ -90,7 +90,7 @@ ScReadPipe(
 {
     SystemPipe_t* Pipe = (SystemPipe_t*)LookupHandle(Handle);
     if (Pipe == NULL) {
-        ERROR("Thread %s trying to read from non-existing pipe handle %u", 
+        ERROR("Thread %s trying to read from non-existing pipe handle %" PRIuIN "", 
             GetCurrentThreadForCore(ArchGetProcessorCoreId())->Name, Handle);
         return OsDoesNotExist;
     }
@@ -115,7 +115,7 @@ ScWritePipe(
     }
 
     if (Pipe == NULL) {
-        ERROR("%s: ScPipeWrite::Invalid pipe %u", 
+        ERROR("%s: ScPipeWrite::Invalid pipe %" PRIuIN "", 
             GetCurrentThreadForCore(ArchGetProcessorCoreId())->Name, Handle);
         return OsDoesNotExist;
     }
@@ -131,7 +131,7 @@ ScRpcResponse(
     assert(Pipe != NULL);
     assert(RemoteCall != NULL);
     assert(RemoteCall->Result.Length > 0);
-    //TRACE("ScRpcResponse(Message %i, %u)", RemoteCall->Function, RemoteCall->Result.Length);
+    //TRACE("ScRpcResponse(Message %" PRIiIN ", %" PRIuIN ")", RemoteCall->Function, RemoteCall->Result.Length);
 
     // Read up to <Length> bytes, this results in the next 1 .. Length
     // being read from the raw-pipe.
@@ -152,15 +152,15 @@ ScRpcExecute(
     int                   i;
 
     assert(RemoteCall != NULL);
-    //TRACE("ScRpcExecute(Message %i, Async %i)", RemoteCall->Function, Async);
+    //TRACE("ScRpcExecute(Message %" PRIiIN ", Async %" PRIiIN ")", RemoteCall->Function, Async);
     
     Module = (SystemModule_t*)GetModuleByHandle(RemoteCall->Target);
     if (Module == NULL || Module->Rpc == NULL) {
-        ERROR("RPC-Target %u did not exist", RemoteCall->Target);
+        ERROR("RPC-Target %" PRIuIN " did not exist", RemoteCall->Target);
         return OsError;
     }
 
-    // Calculate how much data to be comitted
+    // Calculate how much data to be comittedc
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
         if (RemoteCall->Arguments[i].Type == ARGUMENT_BUFFER) {
             TotalLength += RemoteCall->Arguments[i].Length;
@@ -228,14 +228,14 @@ ScRpcRespond(
 {
     MCoreThread_t* Thread = GetThread(RemoteAddress->Thread);
     SystemPipe_t*  Pipe   = NULL;
-    //TRACE("ScRpcRespond(Thread %u, %u)", RemoteAddress->Thread, Length);
+    //TRACE("ScRpcRespond(Thread %" PRIuIN ", %" PRIuIN ")", RemoteAddress->Thread, Length);
 
     // Sanitize thread still exists
     if (Thread != NULL) {
         Pipe = Thread->Pipe;
     }
     if (Pipe == NULL) {
-        ERROR("Thread %u did not exist", RemoteAddress->Thread);
+        ERROR("Thread %" PRIuIN " did not exist", RemoteAddress->Thread);
         return OsError;
     }
     WriteSystemPipe(Pipe, Buffer, Length);

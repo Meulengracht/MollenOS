@@ -121,7 +121,7 @@ GetSystemDomainMetricsFromSRAT(
                     Domain             |= (uint32_t)CpuAffinity->ProximityDomainHi[1] << 16;
                     Domain             |= (uint32_t)CpuAffinity->ProximityDomainHi[0] << 8;
                     Domain            |= CpuAffinity->ProximityDomainLo;
-                    TRACE("Cpu %u => Domain %u", CpuAffinity->ApicId, Domain);
+                    TRACE("Cpu %" PRIuIN " => Domain %" PRIuIN "", CpuAffinity->ApicId, Domain);
                 }
             } break;
 
@@ -129,7 +129,7 @@ GetSystemDomainMetricsFromSRAT(
                 ACPI_SRAT_MEM_AFFINITY *MemoryAffinity = (ACPI_SRAT_MEM_AFFINITY*)SratEntry;
                 if (MemoryAffinity->Flags & ACPI_SRAT_MEM_ENABLED) {
                     uint32_t Domain = MemoryAffinity->ProximityDomain;
-                    TRACE("Memory 0x%x => Domain %u", LODWORD(MemoryAffinity->BaseAddress), Domain);
+                    TRACE("Memory 0x%" PRIxIN " => Domain %" PRIuIN "", LODWORD(MemoryAffinity->BaseAddress), Domain);
 
                     // ACPI_SRAT_MEM_HOT_PLUGGABLE
                     // ACPI_SRAT_MEM_NON_VOLATILE
@@ -140,7 +140,7 @@ GetSystemDomainMetricsFromSRAT(
                 ACPI_SRAT_X2APIC_CPU_AFFINITY *CpuAffinity = (ACPI_SRAT_X2APIC_CPU_AFFINITY*)SratEntry;
                 if (CpuAffinity->Flags & ACPI_SRAT_CPU_USE_AFFINITY) {
                     uint32_t Domain = CpuAffinity->ProximityDomain;
-                    TRACE("Cpu %u => Domain %u", CpuAffinity->ApicId, Domain);
+                    TRACE("Cpu %" PRIuIN " => Domain %" PRIuIN "", CpuAffinity->ApicId, Domain);
                     
                 }
             } break;
@@ -183,7 +183,7 @@ EnumerateSystemCoresForDomainSRAT(
                     DomainId         |= CpuAffinity->ProximityDomainLo;
                     if (Domain->Id == DomainId) {
                         if (RegisterDomainCore(Domain, CpuAffinity->ApicId, 0) != OsSuccess) {
-                            ERROR("Failed to register domain core %u", CpuAffinity->ApicId);
+                            ERROR("Failed to register domain core %" PRIuIN "", CpuAffinity->ApicId);
                         }
                     }
                 }
@@ -195,7 +195,7 @@ EnumerateSystemCoresForDomainSRAT(
                     uint32_t DomainId = CpuAffinity->ProximityDomain;
                     if (Domain->Id == DomainId) {
                         if (RegisterDomainCore(Domain, CpuAffinity->ApicId, 1) != OsSuccess) {
-                            ERROR("Failed to register domain core %u", CpuAffinity->ApicId);
+                            ERROR("Failed to register domain core %" PRIuIN "", CpuAffinity->ApicId);
                         }
                     }
                 }
@@ -231,7 +231,7 @@ EnumerateSystemCoresMADT(
                 // Cast to correct MADT structure
                 ACPI_MADT_LOCAL_APIC *AcpiCpu = (ACPI_MADT_LOCAL_APIC*)MadtEntry;
                 if (AcpiCpu->LapicFlags & 0x1) {
-                    TRACE(" > core %u available and active", AcpiCpu->Id);
+                    TRACE(" > core %" PRIuIN " available and active", AcpiCpu->Id);
                     if (AcpiCpu->Id != GetMachine()->Processor.PrimaryCore.Id) {
                         RegisterApplicationCore(&GetMachine()->Processor, AcpiCpu->Id, CpuStateShutdown, 0);
                     }
@@ -240,7 +240,7 @@ EnumerateSystemCoresMADT(
             case ACPI_MADT_TYPE_LOCAL_X2APIC: {
                 ACPI_MADT_LOCAL_X2APIC *AcpiCpu = (ACPI_MADT_LOCAL_X2APIC*)MadtEntry;
                 if (AcpiCpu->LapicFlags & 0x1) {
-                    TRACE(" > core %u available for xapic2", AcpiCpu->LocalApicId);
+                    TRACE(" > core %" PRIuIN " available for xapic2", AcpiCpu->LocalApicId);
                     //@todo
                 }
             } break;
@@ -305,7 +305,7 @@ EnumerateSystemHardwareMADT(
         switch (MadtEntry->Type) {
             case ACPI_MADT_TYPE_IO_APIC: {
                 ACPI_MADT_IO_APIC *IoApic = (ACPI_MADT_IO_APIC*)MadtEntry;
-                TRACE(" > io-apic: %u", IoApic->Id);
+                TRACE(" > io-apic: %" PRIuIN "", IoApic->Id);
                 if (CreateInterruptController(IoApic->Id, (int)IoApic->GlobalIrqBase, 24, IoApic->Address) != OsSuccess) {
                     ERROR("Failed to register interrupt-controller");   
                 }
@@ -361,7 +361,7 @@ AcpiInitializeEarly(void)
     // Perform the initial setup of ACPICA
     Status = AcpiInitializeSubsystem();
     if (ACPI_FAILURE(Status)) {
-        ERROR(" > acpi is not available (acpi disabled %u)", Status);
+        ERROR(" > acpi is not available (acpi disabled %" PRIuIN ")", Status);
         AcpiStatus = ACPI_NOT_AVAILABLE;
         return OsError;
     }
@@ -369,7 +369,7 @@ AcpiInitializeEarly(void)
     // Do the early table enumeration
     Status = AcpiInitializeTables(NULL, ACPI_MAX_INIT_TABLES, TRUE);
     if (ACPI_FAILURE(Status)) {
-        ERROR(" > failed to obtain acpi tables (acpi disabled %u)", Status);
+        ERROR(" > failed to obtain acpi tables (acpi disabled %" PRIuIN ")", Status);
         AcpiStatus = ACPI_NOT_AVAILABLE;
         return OsError;
     }
@@ -397,7 +397,7 @@ AcpiInitializeEarly(void)
             // Get number of domains
             NumberOfDomains = GetSystemDomainCountFromSRAT(SratTableStart, SratTableEnd);
             if (NumberOfDomains > 1) {
-                TRACE(" > number of domains %i", NumberOfDomains);
+                TRACE(" > number of domains %" PRIiIN "", NumberOfDomains);
                 for (int i = 0; i < NumberOfDomains; i++) {
                     SystemDomain_t *Domain;
                     uintptr_t MemoryStart   = 0;

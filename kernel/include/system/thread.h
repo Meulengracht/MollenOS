@@ -37,14 +37,6 @@ KERNELAPI OsStatus_t KERNELABI
 ThreadingRegister(
     _In_ MCoreThread_t *Thread);
 
-/* ThreadingImpersonate
- * This function switches the current runtime-context
- * out with the given thread context, this should only
- * be used as a temporary way of impersonating another thread */
-KERNELAPI void KERNELABI
-ThreadingImpersonate(
-    _In_ MCoreThread_t *Thread);
-
 /* ThreadingUnregister
  * Unregisters the thread from the system and cleans up any 
  * resources allocated by ThreadingRegister */

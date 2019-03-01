@@ -145,7 +145,7 @@ CreateMemorySpace(
         *Handle = CreateHandle(HandleTypeMemorySpace, 0, MemorySpace);
     }
     else {
-        FATAL(FATAL_SCOPE_KERNEL, "Invalid flags parsed in CreateMemorySpace 0x%x", Flags);
+        FATAL(FATAL_SCOPE_KERNEL, "Invalid flags parsed in CreateMemorySpace 0x%" PRIxIN "", Flags);
     }
     return OsSuccess;
 }
@@ -275,19 +275,19 @@ ResolveVirtualSystemMemorySpaceAddress(
             assert(SystemMemorySpace->Context != NULL);
             VirtualBase = AllocateBlocksInBlockmap(SystemMemorySpace->Context->HeapSpace, __MASK, Size);
             if (VirtualBase == 0) {
-                ERROR("Ran out of memory for allocation 0x%x (heap)", Size);
+                ERROR("Ran out of memory for allocation 0x%" PRIxIN " (heap)", Size);
             }
         } break;
 
         case MAPPING_VIRTUAL_GLOBAL: {
             VirtualBase = AllocateBlocksInBlockmap(&GetMachine()->GlobalAccessMemory, __MASK, Size);
             if (VirtualBase == 0) {
-                ERROR("Ran out of memory for allocation 0x%x (ga-memory)", Size);
+                ERROR("Ran out of memory for allocation 0x%" PRIxIN " (ga-memory)", Size);
             }
         } break;
 
         default: {
-            FATAL(FATAL_SCOPE_KERNEL, "Failed to allocate virtual memory for flags: 0x%x", PlacementFlags);
+            FATAL(FATAL_SCOPE_KERNEL, "Failed to allocate virtual memory for flags: 0x%" PRIxIN "", PlacementFlags);
         } break;
     }
     assert(VirtualBase != 0);
@@ -309,7 +309,7 @@ InstallMemoryMapping(
     OsStatus_t Status = SetVirtualPageMapping(SystemMemorySpace, PhysicalAddress, VirtualAddress, MemoryFlags);
     if (Status != OsSuccess) {
         if (Status == OsExists) {
-            ERROR("Memory mapping at 0x%x already existed", VirtualAddress);
+            ERROR("Memory mapping at 0x%" PRIxIN " already existed", VirtualAddress);
             assert((PlacementFlags & MAPPING_VIRTUAL_FIXED) != 0);
         }
     }
@@ -475,7 +475,7 @@ RemoveMemorySpaceMapping(
         uintptr_t VirtualPage = Address + (i * GetMemorySpacePageSize());
         Status = ClearVirtualPageMapping(SystemMemorySpace, VirtualPage);
         if (Status != OsSuccess) {
-            WARNING("Failed to unmap address 0x%x", VirtualPage);
+            WARNING("Failed to unmap address 0x%" PRIxIN "", VirtualPage);
         }
     }
     SynchronizePageRegion(SystemMemorySpace, Address, Size);

@@ -58,6 +58,13 @@ PACKED_TYPESTRUCT(JoinProcessPackage, {
 });
 
 _CODE_BEGIN
+/* ProcessTerminate
+ * Terminates the current process that is registered with the process manager.
+ * This invalidates every functionality available to this process. */
+CRTDECL(OsStatus_t,
+ProcessTerminate(
+	_In_ int ExitCode));
+
 /* GetProcessInheritationBlock
  * Retrieves startup information about the process. 
  * Data buffers must be supplied with a max length. */

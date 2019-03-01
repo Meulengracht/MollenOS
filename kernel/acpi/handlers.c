@@ -77,7 +77,7 @@ AcpiBusNotifyHandler(
 {
 	_CRT_UNUSED(Device);
 	_CRT_UNUSED(Context);
-	ERROR("Global Notification: Type 0x%x\n", NotifyType);
+	ERROR("Global Notification: Type 0x%" PRIxIN "\n", NotifyType);
 }
 
 /* AcpiEventHandler
@@ -96,12 +96,12 @@ AcpiEventHandler(
     
     // Trace
     if (EventType == ACPI_EVENT_TYPE_GPE) {
-        WRITELINE("ACPI Gpe Event - 0x%x", EventNumber);
+        WRITELINE("ACPI Gpe Event - 0x%" PRIxIN "", EventNumber);
     }
     else if (EventType == ACPI_EVENT_TYPE_FIXED) {
-        WRITELINE("ACPI Fixed Event - 0x%x", EventNumber);
+        WRITELINE("ACPI Fixed Event - 0x%" PRIxIN "", EventNumber);
     }
     else {
-        FATAL(FATAL_SCOPE_KERNEL, "Invalid ACPI Global Event %u", EventType);
+        FATAL(FATAL_SCOPE_KERNEL, "Invalid ACPI Global Event %" PRIuIN "", EventType);
     }
 }

@@ -93,7 +93,7 @@ CriticalSectionEnter(
         }
     }
     else if (Section->References > 0 && Section->Owner == ArchGetProcessorCoreId()) {
-        FATAL(FATAL_SCOPE_KERNEL, "Tried to relock a non-recursive lock 0x%x", Section);
+        FATAL(FATAL_SCOPE_KERNEL, "Tried to relock a non-recursive lock 0x%" PRIxIN "", Section);
     }
 
     // Disable interrupts before we try to acquire the lock

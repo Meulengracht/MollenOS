@@ -28,9 +28,6 @@
 #include <errno.h>
 #include <time.h>
 
-/* cnd_init
- * Initializes new condition variable. 
- * The object pointed to by cond will be set to value that identifies the condition variable. */
 int
 cnd_init(
     _In_ cnd_t* cond)
@@ -45,9 +42,6 @@ cnd_init(
     return thrd_success;
 }
 
-/* cnd_destroy
- * Destroys the condition variable pointed to by cond. If there are threads 
- * waiting on cond, the behavior is undefined. */
 void
 cnd_destroy(
     _In_ cnd_t* cond)
@@ -59,9 +53,6 @@ cnd_destroy(
     Syscall_ConditionDestroy(*cond);
 }
 
-/* cnd_signal
- * Unblocks one thread that currently waits on condition variable pointed to by cond. 
- * If no threads are blocked, does nothing and returns thrd_success. */
 int
 cnd_signal(
     _In_ cnd_t *cond)
@@ -76,9 +67,6 @@ cnd_signal(
     return thrd_success;
 }
 
-/* cnd_broadcast
- * Unblocks all thread that currently wait on condition variable pointed to by cond. 
- * If no threads are blocked, does nothing and returns thrd_success. */
 int 
 cnd_broadcast(
     _In_ cnd_t *cond)
@@ -93,16 +81,11 @@ cnd_broadcast(
     return thrd_success;
 }
 
-/* cnd_wait
- * Atomically unlocks the mutex pointed to by mutex and blocks on the 
- * condition variable pointed to by cond until the thread is signalled 
- * by cnd_signal or cnd_broadcast. The mutex is locked again before the function returns. */
 int
 cnd_wait(
     _In_ cnd_t* cond,
     _In_ mtx_t* mutex)
 {
-	// Sanitize input
 	if (cond == NULL || mutex == NULL) {
 		return thrd_error;
 	}
@@ -115,17 +98,11 @@ cnd_wait(
     return mtx_lock(mutex);
 }
 
-/* cnd_timedwait
- * Atomically unlocks the mutex pointed to by mutex and blocks on the 
- * condition variable pointed to by cond until the thread is signalled 
- * by cnd_signal or cnd_broadcast, or until the TIME_UTC based time point 
- * pointed to by time_point has been reached. The mutex is locked again 
- * before the function returns. */
 int
 cnd_timedwait(
     _In_ cnd_t* restrict cond,
     _In_ mtx_t* restrict mutex,
-    _In_ __CONST struct timespec* restrict time_point)
+    _In_ const struct timespec* restrict time_point)
 {
 	// Variables
 	OsStatus_t osresult = OsError;

@@ -23,8 +23,6 @@
 #ifndef __STDC_THREADS__
 #define __STDC_THREADS__
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
 #include <limits.h>
 #include <time.h>

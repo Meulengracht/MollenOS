@@ -106,19 +106,19 @@ WaitForSynchronizationTest(
 
         // Debug the number of iterations done by each worker
         if (NumberOfThreads == 4) {
-            TRACE(" > consumes %u : %u / produces %u : %u", Package->Consumptions[0],
+            TRACE(" > consumes %" PRIuIN " : %" PRIuIN " / produces %" PRIuIN " : %" PRIuIN "", Package->Consumptions[0],
                 Package->Consumptions[1], Package->Productions[0], Package->Productions[1]);
         }
         else if (NumberOfThreads == 3) {
-            TRACE(" > consumes %u / produces %u : %u", Package->Consumptions[0],
+            TRACE(" > consumes %" PRIuIN " / produces %" PRIuIN " : %" PRIuIN "", Package->Consumptions[0],
                 Package->Productions[0], Package->Productions[1]);
         }
         else {
-            TRACE(" > consumes %u / produces %u", Package->Consumptions[0], Package->Productions[0]);
+            TRACE(" > consumes %" PRIuIN " / produces %" PRIuIN "", Package->Consumptions[0], Package->Productions[0]);
         }
 
         // Debug data for simplex pipe
-        TRACE(" > consumer pipe: buffer r/w: (%u/%u), cr/cw: (%u/%u)", 
+        TRACE(" > consumer pipe: buffer r/w: (%" PRIuIN "/%" PRIuIN "), cr/cw: (%" PRIuIN "/%" PRIuIN ")", 
             atomic_load(&Package->Pipes[TEST_CONSUMER]->ConsumerState.Head->Buffer.ReadPointer),
             atomic_load(&Package->Pipes[TEST_CONSUMER]->ConsumerState.Head->Buffer.WritePointer),
             atomic_load(&Package->Pipes[TEST_CONSUMER]->ConsumerState.Head->Buffer.ReadCommitted),
@@ -126,7 +126,7 @@ WaitForSynchronizationTest(
         
         // Debug data for dublex pipe
         if (Package->Configuration & SYNCHRONIZATION_TEST_DUBLEX) {
-            TRACE(" > producer pipe: buffer r/w: (%u/%u), cr/cw: (%u/%u)", 
+            TRACE(" > producer pipe: buffer r/w: (%" PRIuIN "/%" PRIuIN "), cr/cw: (%" PRIuIN "/%" PRIuIN ")", 
                 atomic_load(&Package->Pipes[TEST_PRODUCER]->ConsumerState.Head->Buffer.ReadPointer),
                 atomic_load(&Package->Pipes[TEST_PRODUCER]->ConsumerState.Head->Buffer.WritePointer),
                 atomic_load(&Package->Pipes[TEST_PRODUCER]->ConsumerState.Head->Buffer.ReadCommitted),
@@ -138,7 +138,7 @@ WaitForSynchronizationTest(
     TRACE(" > killing threads");
     for (i = 0; i < NumberOfThreads; i++) {
         if (TerminateThread(Threads[i], 0, 1) != OsSuccess) {
-            WARNING(" > failed to kill thread %u", Threads[i]);
+            WARNING(" > failed to kill thread %" PRIuIN "", Threads[i]);
         }
     }
     

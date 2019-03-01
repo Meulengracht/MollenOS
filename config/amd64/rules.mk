@@ -3,7 +3,7 @@
 
 # Export some flags used that are architecture specific for clang
 build_target = target_amd64
-arch_flags = -m64 -Damd64 -D__x86_64__ --target=amd64-pc-win32-itanium-coff -fdwarf-exceptions
+arch_flags = -m64 -Damd64 -D__x86_64__ -D__STDC_FORMAT_MACROS_64 --target=amd64-pc-win32-itanium-coff -fdwarf-exceptions
 PVS_PLATFORM=linux64
 
 # -Xclang -flto-visibility-public-std makes sure to generate cxx-abi stuff without __imp_ 

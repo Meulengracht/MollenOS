@@ -86,15 +86,15 @@ SignalCreate(
     SystemSignal_t* Sig;
     DataKey_t       Key;
 
-    TRACE("SignalCreate(Thread %u, Signal %i)", ThreadId, Signal);
+    TRACE("SignalCreate(Thread %" PRIuIN ", Signal %" PRIiIN ")", ThreadId, Signal);
 
     // Sanitize input, and then sanitize if we have a handler
     if (Target == NULL || Signal >= NUMSIGNALS) {
-        ERROR("Signal %i was not in range");
+        ERROR("Signal %" PRIiIN " was not in range");
         return OsError; // Invalid
     }
     if (Target->SignalInformation[Signal] == 1) {
-        ERROR("Signal %i was blocked");
+        ERROR("Signal %" PRIiIN " was blocked");
         return OsError; // Ignored
     }
     Sig = (SystemSignal_t*)kmalloc(sizeof(SystemSignal_t));
@@ -163,7 +163,7 @@ SignalExecute(
     _In_ SystemSignal_t* Signal)
 {
     SystemMemorySpace_t* Space = GetCurrentMemorySpace();
-    TRACE("SignalExecute(Thread %u, Signal %i)", Thread->Id, Signal->Signal);
+    TRACE("SignalExecute(Thread %" PRIuIN ", Signal %" PRIiIN ")", Thread->Id, Signal->Signal);
     assert(Space->Context != NULL);
 
     // If there is no handler for the process and we

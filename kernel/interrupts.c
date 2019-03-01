@@ -107,7 +107,7 @@ InterruptGetLeastLoaded(
     int SelectedIrq      = INTERRUPT_NONE;
     int i;
 
-    TRACE("InterruptGetLeastLoaded(Count %i)", Count);
+    TRACE("InterruptGetLeastLoaded(Count %" PRIiIN ")", Count);
 
     // Iterate all the available irqs
     // that the device-supports
@@ -237,7 +237,7 @@ InterruptResolveMemoryResources(
                 ERROR(" > failed to clone interrupt resource mapping");
                 break;
             }
-            TRACE(" > remapped resource to 0x%x from 0x%x", UpdatedMapping + Offset, Source->MemoryResources[i]);
+            TRACE(" > remapped resource to 0x%" PRIxIN " from 0x%" PRIxIN "", UpdatedMapping + Offset, Source->MemoryResources[i]);
             Destination->MemoryResources[i].Address = UpdatedMapping + Offset;
             Destination->MemoryResources[i].Length  = Source->MemoryResources[i].Length;
             Destination->MemoryResources[i].Flags   = Source->MemoryResources[i].Flags;
@@ -282,7 +282,7 @@ InterruptResolveResources(
     }
     Virtual += Offset;
 
-    TRACE(" > remapped irq-handler to 0x%x from 0x%x", Virtual, (uintptr_t)Source->Handler);
+    TRACE(" > remapped irq-handler to 0x%" PRIxIN " from 0x%" PRIxIN "", Virtual, (uintptr_t)Source->Handler);
     Destination->Handler = (InterruptHandler_t)Virtual;
 
     TRACE(" > remapping io-resources");
@@ -350,7 +350,7 @@ InterruptRegister(
     UUId_t             Id;
 
     // Trace
-    TRACE("InterruptRegister(Line %i, Pin %i, Vector %i, Flags 0x%x)",
+    TRACE("InterruptRegister(Line %" PRIiIN ", Pin %" PRIiIN ", Vector %" PRIiIN ", Flags 0x%" PRIxIN ")",
         Interrupt->Line, Interrupt->Pin, Interrupt->Vectors[0], Flags);
 
     // Allocate a new entry for the table
@@ -403,7 +403,7 @@ InterruptRegister(
     }
 
     // Trace
-    TRACE("Updated line %i:%i for index 0x%x", Interrupt->Line, Interrupt->Pin, TableIndex);
+    TRACE("Updated line %" PRIiIN ":%" PRIiIN " for index 0x%" PRIxIN "", Interrupt->Line, Interrupt->Pin, TableIndex);
 
     // If it's an user interrupt, resolve resources
     if (Entry->ModuleHandle != UUID_INVALID) {
@@ -426,16 +426,16 @@ InterruptRegister(
         Entry->Link = InterruptTable[TableIndex].Descriptor;
         InterruptTable[TableIndex].Descriptor = Entry;
         if (InterruptIncreasePenalty(TableIndex) != OsSuccess) {
-            ERROR("Failed to increase penalty for source %i", Entry->Source);
+            ERROR("Failed to increase penalty for source %" PRIiIN "", Entry->Source);
         }
     }
 
     // Enable the new interrupt
     if (InterruptConfigure(Entry, 1) != OsSuccess) {
-        ERROR("Failed to enable source %i", Entry->Source);
+        ERROR("Failed to enable source %" PRIiIN "", Entry->Source);
     }
     CriticalSectionLeave(&InterruptTableSyncObject);
-    TRACE("Interrupt Id 0x%x", Entry->Id);
+    TRACE("Interrupt Id 0x%" PRIxIN "", Entry->Id);
     return Entry->Id;
 }
 

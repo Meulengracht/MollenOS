@@ -35,7 +35,7 @@ OsStatus_t
 CmosInitialize(
     _In_ int InitializeRtc)
 {
-    TRACE("CmosInitialize(rtc %i)", InitializeRtc);
+    TRACE("CmosInitialize(rtc %" PRIiIN ")", InitializeRtc);
 
     // Check out century register
     if (AcpiAvailable() == ACPI_AVAILABLE) {

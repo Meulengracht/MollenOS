@@ -40,7 +40,7 @@ ParseInitialRamdisk(
     int                    Counter = 0;
     SystemModuleType_t     Type;
 
-    TRACE("ParseInitialRamdisk(Address 0x%x, Size 0x%x)",
+    TRACE("ParseInitialRamdisk(Address 0x%" PRIxIN ", Size 0x%" PRIxIN ")",
         BootInformation->RamdiskAddress, BootInformation->RamdiskSize);
     if (BootInformation->RamdiskAddress == 0 || BootInformation->RamdiskSize == 0) {
         return OsError;
@@ -49,11 +49,11 @@ ParseInitialRamdisk(
     // Initialize the pointer and read the signature value, must match
     Ramdisk = (SystemRamdiskHeader_t*)(uintptr_t)BootInformation->RamdiskAddress;
     if (Ramdisk->Magic != RAMDISK_MAGIC) {
-        ERROR("Invalid magic in ramdisk - 0x%x", Ramdisk->Magic);
+        ERROR("Invalid magic in ramdisk - 0x%" PRIxIN "", Ramdisk->Magic);
         return OsError;
     }
     if (Ramdisk->Version != RAMDISK_VERSION_1) {
-        ERROR("Invalid ramdisk version - 0x%x", Ramdisk->Version);
+        ERROR("Invalid ramdisk version - 0x%" PRIxIN "", Ramdisk->Version);
         return OsError;
     }
     Entry   = (SystemRamdiskEntry_t*)
@@ -61,7 +61,7 @@ ParseInitialRamdisk(
     Counter = Ramdisk->FileCount;
 
     // Keep iterating untill we reach the end of counter
-    TRACE("Parsing %i number of files in the ramdisk", Counter);
+    TRACE("Parsing %" PRIiIN " number of files in the ramdisk", Counter);
     while (Counter != 0) {
         if (Entry->Type == RAMDISK_MODULE || Entry->Type == RAMDISK_FILE) {
             SystemRamdiskModuleHeader_t* Header =
@@ -94,13 +94,13 @@ ParseInitialRamdisk(
             }
             else
             {
-                ERROR("CRC-Validation(%s): Failed (Calculated 0x%x != Stored 0x%x)",
+                ERROR("CRC-Validation(%s): Failed (Calculated 0x%" PRIxIN " != Stored 0x%" PRIxIN ")",
                     &Entry->Name[0], CrcOfData, Header->Crc32OfData);
                 break;
             }
         }
         else {
-            WARNING("Unknown entry type: %u", Entry->Type);
+            WARNING("Unknown entry type: %" PRIuIN "", Entry->Type);
         }
         Counter--;
         Entry++;

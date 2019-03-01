@@ -323,7 +323,7 @@ DestroyVirtualSpace(
             // If it has a mapping - free it
             if ((CurrentMapping & PAGE_MASK) != 0) {
                 if (FreeSystemMemory(CurrentMapping & PAGE_MASK, PAGE_SIZE) != OsSuccess) {
-                    ERROR("Tried to free page %i (0x%x), but was not allocated", j, CurrentMapping);
+                    ERROR("Tried to free page %" PRIiIN " (0x%" PRIxIN "), but was not allocated", j, CurrentMapping);
                 }
             }
         }
@@ -372,7 +372,7 @@ InitializeVirtualSpace(
 
         // Due to how it works with multiple cpu's, we need to make sure all shared
         // tables already are mapped in the upper-most level of the page-directory
-        TRACE("Mapping the kernel region from 0x%x => 0x%x", MEMORY_LOCATION_KERNEL, MEMORY_LOCATION_KERNEL_END);
+        TRACE("Mapping the kernel region from 0x%" PRIxIN " => 0x%" PRIxIN "", MEMORY_LOCATION_KERNEL, MEMORY_LOCATION_KERNEL_END);
         LastAllocatedAddress = MmVirtualMapMemoryRange(iDirectory, 0, MEMORY_LOCATION_KERNEL_END, KernelPageFlags);
         if (LastAllocatedAddress > LastReservedAddress) {
             BytesToMap = LastAllocatedAddress - MIN(LastAllocatedAddress, TABLE_SPACE_SIZE);

@@ -44,7 +44,7 @@ RegisterSystemDeviceIo(
     _In_ DeviceIo_t* IoSpace)
 {
     SystemDeviceIo_t* SystemIo;
-    TRACE("RegisterSystemDeviceIo(Type %u)", IoSpace->Type);
+    TRACE("RegisterSystemDeviceIo(Type %" PRIuIN ")", IoSpace->Type);
 
     // Before doing anything, we should do a over-lap
     // check before trying to register this
@@ -72,7 +72,7 @@ DestroySystemDeviceIo(
     DataKey_t Key;
 
     // Debugging
-    TRACE("DestroySystemDeviceIo(Id %u)", IoSpace);
+    TRACE("DestroySystemDeviceIo(Id %" PRIuIN ")", IoSpace);
 
     // Lookup the system copy to validate
     Key.Value.Id    = IoSpace->Id;
@@ -99,7 +99,7 @@ AcquireSystemDeviceIo(
     DataKey_t            Key;
     assert(IoSpace != NULL);
 
-    TRACE("AcquireSystemDeviceIo(Id %u)", IoSpace->Id);
+    TRACE("AcquireSystemDeviceIo(Id %" PRIuIN ")", IoSpace->Id);
 
     // Lookup the system copy to validate this requested operation
     Key.Value.Id    = IoSpace->Id;
@@ -110,7 +110,7 @@ AcquireSystemDeviceIo(
         if (Module == NULL) {
             ERROR(" > non-server process tried to acquire io-space");
         }
-        ERROR(" > failed to find the requested io-space, id %u", IoSpace->Id);
+        ERROR(" > failed to find the requested io-space, id %" PRIuIN "", IoSpace->Id);
         return OsError;
     }
     SystemIo->Owner = Module->Handle;
@@ -146,7 +146,7 @@ AcquireSystemDeviceIo(
         } break;
 
         default:
-            ERROR(" > unimplemented device-io type %u", SystemIo->Io.Type);
+            ERROR(" > unimplemented device-io type %" PRIuIN "", SystemIo->Io.Type);
             break;
     }
     SystemIo->Owner = UUID_INVALID;
@@ -168,7 +168,7 @@ ReleaseSystemDeviceIo(
     assert(IoSpace != NULL);
 
     // Debugging
-    TRACE("ReleaseSystemDeviceIo(Id %u)", IoSpace->Id);
+    TRACE("ReleaseSystemDeviceIo(Id %" PRIuIN ")", IoSpace->Id);
 
     // Lookup the system copy to validate this requested operation
     Key.Value.Id    = IoSpace->Id;
@@ -180,7 +180,7 @@ ReleaseSystemDeviceIo(
         if (Module == NULL) {
             ERROR(" > non-server process tried to acquire io-space");
         }
-        ERROR(" > failed to find the requested io-space, id %u", IoSpace->Id);
+        ERROR(" > failed to find the requested io-space, id %" PRIuIN "", IoSpace->Id);
         return OsError;
     }
 
@@ -200,7 +200,7 @@ ReleaseSystemDeviceIo(
         } break;
 
         default:
-            ERROR(" > unimplemented device-io type %u", SystemIo->Io.Type);
+            ERROR(" > unimplemented device-io type %" PRIuIN "", SystemIo->Io.Type);
             break;
     }
     IoSpace->Access.Memory.VirtualBase      = 0;
@@ -289,7 +289,7 @@ ValidateDeviceIoMemoryAddress(
     _In_ uintptr_t Address)
 {
     SystemModule_t* Module = GetCurrentModule();
-    TRACE("ValidateDeviceIoMemoryAddress(Process %u, Address 0x%x)", Handle, Address);
+    TRACE("ValidateDeviceIoMemoryAddress(Process %" PRIuIN ", Address 0x%" PRIxIN ")", Handle, Address);
 
     if (Module == NULL) {
         return 0;

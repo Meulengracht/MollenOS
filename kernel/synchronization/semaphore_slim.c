@@ -108,7 +108,7 @@ SlimSemaphoreSignal(
     int i;
 
     // Debug
-    TRACE("SemaphoreSignal(Value %i)", Semaphore->Value);
+    TRACE("SemaphoreSignal(Value %" PRIiIN ")", Semaphore->Value);
 
     // assert not max
     CurrentValue = atomic_load(&Semaphore->Value);

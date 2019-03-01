@@ -22,10 +22,11 @@
  */
 
 #include <internal/_syscalls.h>
+#include <os/mollenos.h>
 #include <threads.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <assert.h>
 #include "tls.h"
 
 CRTDECL(void, __cxa_threadinitialize(void));
@@ -80,25 +81,27 @@ thrd_create(
     _In_  thrd_start_t  func,
     _In_  void*         arg)
 {
-    ThreadPackage_t *Tp = NULL;
-    thrd_t Result       = UUID_INVALID;
+    ThreadParameters_t Paramaters;
+    ThreadPackage_t*   Package;
+    assert(thr != NULL);
 
     // Allocate a new startup-package
-    Tp = (ThreadPackage_t*)malloc(sizeof(ThreadPackage_t));
-    if (Tp == NULL) {
+    Package = (ThreadPackage_t*)malloc(sizeof(ThreadPackage_t));
+    if (Package == NULL) {
         return thrd_nomem;
     }
     
-    Tp->Entry = func;
-    Tp->Data  = arg;
+    // Setup package and default thread paramaters
+    Package->Entry = func;
+    Package->Data  = arg;
+    InitializeThreadParameters(&Paramaters);
+    *thr = UUID_INVALID;
 
     // Redirect to operating system to handle rest
-    Result = (thrd_t)Syscall_ThreadCreate((thrd_start_t)thrd_initialize, Tp, 0, UUID_INVALID);
-    if (Result == UUID_INVALID) {
-        free(Tp);
+    if (Syscall_ThreadCreate((thrd_start_t)thrd_initialize, Package, &Paramaters, (UUId_t*)thr) != OsSuccess) {
+        free(Package);
         return thrd_error;
     }
-    *thr = Result;
     return thrd_success;
 }
 

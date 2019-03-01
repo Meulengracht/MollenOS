@@ -22,7 +22,7 @@
 
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
-#include <os/process.h>
+#include <ddk/process.h>
 
 void
 _Exit(

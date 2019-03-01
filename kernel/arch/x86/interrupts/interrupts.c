@@ -113,7 +113,7 @@ InterruptGetApicConfiguration(
 {
     uint64_t ApicFlags = APIC_FLAGS_DEFAULT;
 
-    TRACE("InterruptDetermine(%i:%i)", Interrupt->Line, Interrupt->Pin);
+    TRACE("InterruptDetermine(%" PRIiIN ":%" PRIiIN ")", Interrupt->Line, Interrupt->Pin);
 
     // Case 1 - ISA Interrupts 
     // - In most cases are Edge-Triggered, Active-High
@@ -160,7 +160,7 @@ InterruptGetApicConfiguration(
             ApicFlags |= 0x800;                     // Logical Destination Mode
         }
         else {
-            TRACE(" > pci interrupt (pin-configured - 0x%x)", Interrupt->AcpiConform);
+            TRACE(" > pci interrupt (pin-configured - 0x%" PRIxIN ")", Interrupt->AcpiConform);
             ApicFlags |= 0x100;                     // Lowest Priority
             ApicFlags |= 0x800;                     // Logical Destination Mode
 
@@ -293,7 +293,7 @@ InterruptConfigure(
     } ApicExisting;
     
     // Debug
-    TRACE("InterruptConfigure(Id 0x%x, Enable %i)", Descriptor->Id, Enable);
+    TRACE("InterruptConfigure(Id 0x%" PRIxIN ", Enable %" PRIiIN ")", Descriptor->Id, Enable);
 
     // Is this a software interrupt? Don't install
     if (Descriptor->Flags & INTERRUPT_SOFT || 
@@ -312,7 +312,7 @@ InterruptConfigure(
     ApicFlags  |= TableIndex;
 
     // Trace
-    TRACE("Calculated flags for interrupt: 0x%x (TableIndex %u)", LODWORD(ApicFlags), TableIndex);
+    TRACE("Calculated flags for interrupt: 0x%" PRIxIN " (TableIndex %" PRIuIN ")", LODWORD(ApicFlags), TableIndex);
 
     // If this is an (E)ISA interrupt make sure it's configured
     // properly in the PIC/ELCR
@@ -343,19 +343,19 @@ UpdateEntry:
                 if (!(ApicExisting.Parts.Lo & APIC_MASKED)) {
                     UUId_t ExistingIndex = LOBYTE(LOWORD(ApicExisting.Parts.Lo));
                     if (ExistingIndex != TableIndex) {
-                        FATAL(FATAL_SCOPE_KERNEL, "Table index for already installed interrupt: %u", 
+                        FATAL(FATAL_SCOPE_KERNEL, "Table index for already installed interrupt: %" PRIuIN "", 
                             TableIndex);
                     }
                 }
                 else {
                     // Unmask the irq in the io-apic
-                    TRACE("Installing source %i => 0x%x", Descriptor->Source, LODWORD(ApicFlags));
+                    TRACE("Installing source %" PRIiIN " => 0x%" PRIxIN "", Descriptor->Source, LODWORD(ApicFlags));
                     ApicWriteIoEntry(Ic, Descriptor->Source, ApicFlags);
                 }
             }
         }
         else {
-            ERROR("Failed to derive io-apic for source %i", Descriptor->Source);
+            ERROR("Failed to derive io-apic for source %" PRIiIN "", Descriptor->Source);
             return OsError;
         }
     }
@@ -383,7 +383,7 @@ InterruptEntry(
             && TableIndex != (INTERRUPT_PHYSICAL_BASE + 7)
             && TableIndex != (INTERRUPT_PHYSICAL_BASE + 15)) {
             // Fault
-            FATAL(FATAL_SCOPE_KERNEL, "Unhandled interrupt %u (Source %i)", 
+            FATAL(FATAL_SCOPE_KERNEL, "Unhandled interrupt %" PRIuIN " (Source %" PRIiIN ")", 
                 TableIndex, Gsi);
         }
     }
@@ -401,7 +401,7 @@ ExceptionSignal(
     UUId_t         CoreId = ArchGetProcessorCoreId();
     MCoreThread_t* Thread = GetCurrentThreadForCore(CoreId);
 
-    TRACE("ExceptionSignal(Signal %i)", Signal);
+    TRACE("ExceptionSignal(Signal %" PRIiIN ")", Signal);
 
     // Sanitize if user-process
 #ifdef __OSCONFIG_DISABLE_SIGNALLING
@@ -519,7 +519,7 @@ ExceptionEntry(
             IssueFixed = 1;
         }
         else {
-            ERROR("%s: MEMORY_ACCESS_FAULT: 0x%x, 0x%x, 0x%x", 
+            ERROR("%s: MEMORY_ACCESS_FAULT: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN "", 
                 GetCurrentThreadForCore(ArchGetProcessorCoreId())->Name, 
                 Address, Registers->ErrorCode, CONTEXT_IP(Registers));
             if (ExceptionSignal(Registers, SIGSEGV) == OsSuccess) {
@@ -544,24 +544,24 @@ ExceptionEntry(
             // Bit 1 - present status 
             // Bit 2 - write access
             // Bit 4 - user/kernel
-            WRITELINE("page-fault address: 0x%x, error-code 0x%x", Address, Registers->ErrorCode);
-            WRITELINE("existing mapping for address: 0x%x", GetMemorySpaceMapping(GetCurrentMemorySpace(), Address));
-            WRITELINE("existing attribs for address: 0x%x", GetMemorySpaceAttributes(GetCurrentMemorySpace(), Address));
+            WRITELINE("page-fault address: 0x%" PRIxIN ", error-code 0x%" PRIxIN "", Address, Registers->ErrorCode);
+            WRITELINE("existing mapping for address: 0x%" PRIxIN "", GetMemorySpaceMapping(GetCurrentMemorySpace(), Address));
+            WRITELINE("existing attribs for address: 0x%" PRIxIN "", GetMemorySpaceAttributes(GetCurrentMemorySpace(), Address));
         }
 
         // Locate which module
         if (DebugGetModuleByAddress(GetCurrentModule(), CONTEXT_IP(Registers), &Base, &Name) == OsSuccess) {
             uintptr_t Diff = CONTEXT_IP(Registers) - Base;
-            WRITELINE("Faulty Address: 0x%x (%s)", Diff, Name);
+            WRITELINE("Faulty Address: 0x%" PRIxIN " (%s)", Diff, Name);
         }
         else {
-            WRITELINE("Faulty Address: 0x%x", CONTEXT_IP(Registers));
+            WRITELINE("Faulty Address: 0x%" PRIxIN "", CONTEXT_IP(Registers));
         }
 
         // Enter panic handler
         ArchDumpThreadContext(Registers);
         DebugPanic(FATAL_SCOPE_KERNEL, Registers, __MODULE,
-            "Unhandled or fatal interrupt %u, Error Code: %u, Faulty Address: 0x%x",
+            "Unhandled or fatal interrupt %" PRIuIN ", Error Code: %" PRIuIN ", Faulty Address: 0x%" PRIxIN "",
             Registers->Irq, Registers->ErrorCode, CONTEXT_IP(Registers));
     }
 }

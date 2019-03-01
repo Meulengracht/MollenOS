@@ -112,7 +112,8 @@ ThreadingEntryPoint(void)
 
     CoreId  = ArchGetProcessorCoreId();
     Thread  = GetCurrentThreadForCore(CoreId);
-    if (THREADING_RUNMODE(Thread->Flags) == THREADING_KERNELMODE || (Thread->Flags & THREADING_SWITCHMODE)) {
+    if (THREADING_RUNMODE(Thread->Flags) == THREADING_KERNELMODE || (Thread->Flags & THREADING_KERNELENTRY)) {
+        Thread->Flags &= ~(THREADING_KERNELENTRY);
         Thread->Function(Thread->Arguments);
         TerminateThread(Thread->Id, 0, 1);
     }
@@ -140,7 +141,7 @@ CreateThread(
     char                 NameBuffer[16];
     DataKey_t            Key;
 
-    TRACE("CreateThread(%s, 0x%x)", Name, Flags);
+    TRACE("CreateThread(%s, 0x%" PRIxIN ")", Name, Flags);
 
     Key.Value.Id    = atomic_fetch_add(&GlbThreadId, 1);
     CoreId          = ArchGetProcessorCoreId();
@@ -157,7 +158,7 @@ CreateThread(
     // Sanitize name, if NULL generate a new thread name of format 'Thread X'
     if (Name == NULL) {
         memset(&NameBuffer[0], 0, sizeof(NameBuffer));
-        sprintf(&NameBuffer[0], "thread %i", Key.Value);
+        sprintf(&NameBuffer[0], "thread %" PRIuIN, Key.Value.Id);
         Thread->Name = strdup(&NameBuffer[0]);
     }
     else {
@@ -174,7 +175,13 @@ CreateThread(
     COLLECTION_NODE_INIT(&Thread->CollectionHeader, Key);
     
     TimersGetSystemTick(&Thread->StartedAt);
-    Thread->Cookie = CreateThreadCookie(Thread, Parent);
+    
+    if (Flags & THREADING_INHERIT) {
+        Thread->Cookie = Parent->Cookie;
+    }
+    else {
+        Thread->Cookie = CreateThreadCookie(Thread, Parent);
+    }
 
     // Setup initial scheduler information
     SchedulerThreadInitialize(Thread, Flags);
@@ -206,10 +213,6 @@ CreateThread(
             Thread->MemorySpaceHandle = UUID_INVALID;
         }
         else {
-            if (!(Flags & THREADING_INHERIT)) {
-                Thread->Flags |= THREADING_SWITCHMODE;
-            }
-
             if (THREADING_RUNMODE(Flags) == THREADING_USERMODE) {
                 MemorySpaceFlags |= MEMORY_SPACE_APPLICATION;
             }
@@ -473,7 +476,7 @@ DisplayActiveThreads(void)
     foreach(i, &Threads) {
         MCoreThread_t* Thread = (MCoreThread_t*)i;
         if (atomic_load_explicit(&Thread->Cleanup, memory_order_relaxed) == 0) {
-            WRITELINE("Thread %u (%s) - Parent %u, Instruction Pointer 0x%x", 
+            WRITELINE("Thread %" PRIuIN " (%s) - Parent %" PRIuIN ", Instruction Pointer 0x%" PRIxIN "", 
                 Thread->Id, Thread->Name, Thread->ParentThreadId, CONTEXT_IP(Thread->ContextActive));
         }
     }
@@ -496,7 +499,7 @@ GetNextRunnableThread(
 #if 0
     if (PreEmptive && Current->ContextActive != NULL && !(Current->Flags & THREADING_IDLE)) {
         if (Current->LastInstructionPointer == CONTEXT_IP(Current->ContextActive)) {
-            FATAL(FATAL_SCOPE_KERNEL, " > detected thread %s stuck at instruction 0x%x\n", 
+            FATAL(FATAL_SCOPE_KERNEL, " > detected thread %s stuck at instruction 0x%" PRIxIN "\n", 
                 Current->Name, CONTEXT_IP(Current->ContextActive));
         }
         Current->LastInstructionPointer = CONTEXT_IP(Current->ContextActive);
@@ -536,7 +539,7 @@ GetNextThread:
 
     // Handle level switch // thread startup
     if (NextThread->Flags & THREADING_TRANSITION_USERMODE) {
-        NextThread->Flags           &= ~(THREADING_SWITCHMODE | THREADING_TRANSITION_USERMODE);
+        NextThread->Flags           &= ~(THREADING_TRANSITION_USERMODE);
         NextThread->ContextActive   = NextThread->Contexts[THREADING_CONTEXT_LEVEL1];
     }
     if (NextThread->ContextActive == NULL) {

@@ -107,7 +107,7 @@ ActivateApplicationCore(
     // Create the idle-thread and scheduler for the core
 	Status = ThreadingEnable();
     if (Status != OsSuccess) {
-        ERROR("Failed to enable threading for application core %u.", Core->Id);
+        ERROR("Failed to enable threading for application core %" PRIuIN ".", Core->Id);
         ArchProcessorIdle();
     }
     InterruptEnable();
@@ -122,7 +122,7 @@ ActivateApplicationCore(
     }
 
     // Enter idle loop
-    WARNING("Core %u is online", Core->Id);
+    WARNING("Core %" PRIuIN " is online", Core->Id);
 	while (1) {
 		ArchProcessorIdle();
     }

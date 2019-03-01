@@ -736,10 +736,10 @@ UsbCoreGetController(
  * the usbmanager. */
 OsStatus_t
 UsbCoreEventPort(
-    _In_ UUId_t                 DriverId,
-    _In_ UUId_t                 DeviceId,
-    _In_ uint8_t                HubAddress,
-    _In_ uint8_t                PortAddress)
+    _In_ UUId_t  DriverId,
+    _In_ UUId_t  DeviceId,
+    _In_ uint8_t HubAddress,
+    _In_ uint8_t PortAddress)
 {
     // Variables
     UsbController_t *Controller = NULL;

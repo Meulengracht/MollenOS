@@ -116,7 +116,7 @@ UsbSchedulerInitialize(
         ERROR("Failed to allocate memory for resource-pool");
         return OsError;
     }
-    TRACE(" > Allocated address 0x%x (=> Physical 0x%x)", Pool, PoolPhysical);
+    TRACE(" > Allocated address 0x%" PRIxIN " (=> Physical 0x%" PRIxIN ")", Pool, PoolPhysical);
 
     // Validate memory boundaries
     if (!(Settings->Flags & USB_SCHEDULER_FL64)) {

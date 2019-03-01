@@ -13,8 +13,6 @@
 #ifndef _INTTYPES_H
 #define _INTTYPES_H
 
-/* Includes
- * - Library */
 #include <crtdefs.h>
 #include <stdint.h>
 #define __need_wchar_t
@@ -136,6 +134,19 @@ typedef struct _imaxdiv_t {
 #define PRIXFAST64 "llX"
 
 #define PRIXMAX "llX"
+
+/* Platform size independant formatters 
+ * - signed
+ * - unsigned */
+#if defined(__STDC_FORMAT_MACROS_64)
+#define PRIiIN "lli"
+#define PRIuIN "llu"
+#define PRIxIN "llx"
+#else
+#define PRIiIN "i"
+#define PRIuIN "u"
+#define PRIxIN "x"
+#endif
 
 /*
  *   fscanf macros for signed int types

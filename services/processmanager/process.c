@@ -277,12 +277,13 @@ CreateProcess(
     _In_  size_t                       InheritationBlockLength,
     _Out_ UUId_t*                      Handle)
 {
-    Process_t* Process;
-    MString_t* PathAsMString;
-    size_t     PathLength;
-    char*      ArgumentsPointer;
-    int        Index;
-    OsStatus_t Status;
+    ThreadParameters_t Paramaters;
+    Process_t*         Process;
+    MString_t*         PathAsMString;
+    size_t             PathLength;
+    char*              ArgumentsPointer;
+    int                Index;
+    OsStatus_t         Status;
 
     assert(Path != NULL);
     assert(Handle != NULL);
@@ -336,8 +337,15 @@ CreateProcess(
         memcpy(Process->InheritationBlock, InheritationBlock, InheritationBlockLength);
     }
 
-    Process->PrimaryThreadId = Syscall_ThreadCreate(Process->Executable->EntryAddress, 0, 0, Process->Executable->MemorySpace);
-    Status                   = Syscall_ThreadDetach(Process->PrimaryThreadId);
+    // Initialize threading paramaters for the new thread
+    InitializeThreadParameters(&Paramaters);
+    Paramaters.Name              = MStringRaw(Process->Name);
+    Paramaters.MemorySpaceHandle = (UUId_t)Process->Executable->MemorySpace;
+    
+    Status = Syscall_ThreadCreate(Process->Executable->EntryAddress, NULL, &Paramaters, &Process->PrimaryThreadId);
+    if (Status == OsSuccess) {
+        Status = Syscall_ThreadDetach(Process->PrimaryThreadId);
+    }
     CollectionAppend(&Processes, &Process->Header);
     *Handle = Process->Header.Key.Value.Id;
     return Status;

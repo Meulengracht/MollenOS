@@ -53,7 +53,6 @@ static void   (*__cxa_primary_tls_thread_finit)(void);
 
 CRTDECL(void, __cxa_callinitializers(_PVFV *pfbegin, _PVFV *pfend))
 {
-    TRACE("__cxa_callinitializers()");
     while (pfbegin < pfend) {
         if (*pfbegin != NULL)
             (**pfbegin)();
@@ -63,7 +62,6 @@ CRTDECL(void, __cxa_callinitializers(_PVFV *pfbegin, _PVFV *pfend))
 
 CRTDECL(int, __cxa_callinitializers_ex(_PIFV *pfbegin, _PIFV *pfend))
 {
-    TRACE("__cxa_callinitializers_ex()");
     int ret = 0;
     while (pfbegin < pfend  && ret == 0) {
         if (*pfbegin != NULL)

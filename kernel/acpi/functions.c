@@ -476,7 +476,7 @@ AcpiDeviceIrqRoutingCallback(
 {
     IrqResource_t*  IrqResource = NULL;
 
-    TRACE("AcpiDeviceIrqRoutingCallback(Type %u)", Resource->Type);
+    TRACE("AcpiDeviceIrqRoutingCallback(Type %" PRIuIN ")", Resource->Type);
 
     // Sanitize the type of resource
     if (Resource->Type == ACPI_RESOURCE_TYPE_END_TAG) {
@@ -617,7 +617,7 @@ AcpiGetLeastLoaded(
     }
 
     // The hell??
-    ERROR("Couldn't refind interrupt %i", Count);
+    ERROR("Couldn't refind interrupt %" PRIiIN "", Count);
     return NULL;
 }
 
@@ -643,7 +643,7 @@ AcpiDeviceSelectIrq(
     // Check that we have an active irq and that it
     // exists in the possible irq-list
     if (Source->ActiveEntry != NULL) {
-        TRACE("Irq %u is active, validating", Source->ActiveEntry->Irq);
+        TRACE("Irq %" PRIuIN " is active, validating", Source->ActiveEntry->Irq);
         foreach(iNode, Source->Entries) {
             PciRoutingEntry_t *Entry = (PciRoutingEntry_t*)iNode;
             if (Entry->Irq == Source->ActiveEntry->Irq) {
@@ -670,13 +670,13 @@ AcpiDeviceSelectIrq(
 
     // Sanitize
     if (SelectedEntry == NULL) {
-        TRACE("No possible irq for device out of %u entries", 
+        TRACE("No possible irq for device out of %" PRIuIN " entries", 
             CollectionLength(Source->Entries));
         return AE_ERROR;
     }
 
     // Debug
-    TRACE("Updating device with irq %u", SelectedEntry->Irq);
+    TRACE("Updating device with irq %" PRIuIN "", SelectedEntry->Irq);
 
     // Initiate objects
     Resource = kmalloc(sizeof(*Resource) + 1);
@@ -712,7 +712,7 @@ AcpiDeviceSelectIrq(
     // Try to set current resource
     Status = AcpiSetCurrentResources(Source->Handle, &Buffer);
     if (ACPI_FAILURE(Status)) {
-        ERROR("Failed to update the current irq resource, code %u", Status);
+        ERROR("Failed to update the current irq resource, code %" PRIuIN "", Status);
         return Status;
     }
     Source->ActiveEntry = SelectedEntry;
@@ -755,7 +755,7 @@ AcpiDeviceGetIrqRoutings(
     // Try to get routings
     Status = AcpiGetIrqRoutingTable(Device->Handle, &aBuff);
     if (ACPI_FAILURE(Status)) {
-        ERROR("Failed to extract irq routings, code %u", Status);
+        ERROR("Failed to extract irq routings, code %" PRIuIN "", Status);
         goto done;
     }
     

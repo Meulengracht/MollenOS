@@ -50,7 +50,7 @@ ContextCreate(
     uintptr_t  ContextAddress = 0, 
                EbpInitial     = 0;
 
-    TRACE("ContextCreate(ThreadFlags 0x%x, Type %i, Eip 0x%x, Args 0x%x)",
+    TRACE("ContextCreate(ThreadFlags 0x%" PRIxIN ", Type %" PRIiIN ", Eip 0x%" PRIxIN ", Args 0x%" PRIxIN ")",
         ThreadFlags, ContextType, EntryAddress);
 
     // Select proper segments based on context type and run-mode
@@ -76,12 +76,12 @@ ContextCreate(
             StackSegment    = DataSegment = GDT_UDATA_SEGMENT + 0x03;
         }
         else {
-            FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID THREADFLAGS(%u)", ThreadFlags);
+            FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID THREADFLAGS(%" PRIuIN ")", ThreadFlags);
         }
         CommitMemorySpaceMapping(GetCurrentMemorySpace(), NULL, ContextAddress, __MASK);
     }
     else {
-        FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%i)", ContextType);
+        FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%" PRIiIN ")", ContextType);
     }
     assert(ContextAddress != 0);
 
@@ -132,22 +132,22 @@ ArchDumpThreadContext(
     _In_ Context_t *Context)
 {
     // Dump general registers
-    WRITELINE("EAX: 0x%x, EBX 0x%x, ECX 0x%x, EDX 0x%x",
+    WRITELINE("EAX: 0x%" PRIxIN ", EBX 0x%" PRIxIN ", ECX 0x%" PRIxIN ", EDX 0x%" PRIxIN "",
         Context->Eax, Context->Ebx, Context->Ecx, Context->Edx);
 
     // Dump stack registers
-    WRITELINE("ESP 0x%x (UserESP 0x%x), EBP 0x%x, Flags 0x%x",
+    WRITELINE("ESP 0x%" PRIxIN " (UserESP 0x%" PRIxIN "), EBP 0x%" PRIxIN ", Flags 0x%" PRIxIN "",
         Context->Esp, Context->UserEsp, Context->Ebp, Context->Eflags);
         
     // Dump copy registers
-    WRITELINE("ESI 0x%x, EDI 0x%x", Context->Esi, Context->Edi);
+    WRITELINE("ESI 0x%" PRIxIN ", EDI 0x%" PRIxIN "", Context->Esi, Context->Edi);
 
     // Dump segments
-    WRITELINE("CS 0x%x, DS 0x%x, GS 0x%x, ES 0x%x, FS 0x%x",
+    WRITELINE("CS 0x%" PRIxIN ", DS 0x%" PRIxIN ", GS 0x%" PRIxIN ", ES 0x%" PRIxIN ", FS 0x%" PRIxIN "",
         Context->Cs, Context->Ds, Context->Gs, Context->Es, Context->Fs);
 
     // Dump IRQ information
-    WRITELINE("IRQ 0x%x, ErrorCode 0x%x, UserSS 0x%x",
+    WRITELINE("IRQ 0x%" PRIxIN ", ErrorCode 0x%" PRIxIN ", UserSS 0x%" PRIxIN "",
         Context->Irq, Context->ErrorCode, Context->UserSs);
     return OsSuccess;
 }

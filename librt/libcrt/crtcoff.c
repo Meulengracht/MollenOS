@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <threads.h>
 #include <string.h>
+#include <inttypes.h>
 
 #define _ATTRIBUTES read
 #pragma section(".CRTMP$XCA",long,_ATTRIBUTES)
@@ -154,7 +155,8 @@ void __cxa_module_tls_global_init(void) {
 // called for main thread, not new threads
 void __cxa_module_tls_thread_init(void) {
     size_t TlsDataSize = (size_t)_tls_used.EndOfData - (size_t)_tls_used.StartOfData;
-    TRACE("__cxa_module_tls_thread_init(%u, 0x%x, 0x%x)", TlsDataSize, _tls_used.StartOfData, _tls_used.EndOfData);
+    TRACE("__cxa_module_tls_thread_init(%" PRIuIN ", 0x%" PRIxIN ", 0x%" PRIxIN ")", 
+        TlsDataSize, _tls_used.StartOfData, _tls_used.EndOfData);
     if (TlsDataSize > 0 && _tls_used.StartOfData < _tls_used.EndOfData) {
         _tls_array[_tls_index] = malloc(TlsDataSize);
         memcpy(_tls_array[_tls_index], (void*)_tls_used.StartOfData, TlsDataSize);
@@ -167,7 +169,8 @@ void __cxa_module_tls_thread_init(void) {
 // called for main thread, not new threads
 void __cxa_module_tls_thread_finit(void) {
     size_t TlsDataSize = (size_t)_tls_used.EndOfData - (size_t)_tls_used.StartOfData;
-    TRACE("__cxa_module_tls_thread_finit(%u, 0x%x, 0x%x)", TlsDataSize, _tls_used.StartOfData, _tls_used.EndOfData);
+    TRACE("__cxa_module_tls_thread_finit(%" PRIuIN ", 0x%" PRIxIN ", 0x%" PRIxIN ")", 
+        TlsDataSize, _tls_used.StartOfData, _tls_used.EndOfData);
     __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_THREADDETACH);
     if (TlsDataSize > 0 && _tls_used.StartOfData < _tls_used.EndOfData) {
         free(_tls_array[_tls_index]);
@@ -189,7 +192,7 @@ void __cxa_module_global_init(void) {
 // as terminators are registered by cxa_atexit.
 void __cxa_module_global_finit(void) {
     size_t TlsDataSize = (size_t)_tls_used.EndOfData - (size_t)_tls_used.StartOfData;
-    TRACE("__cxa_module_global_finit(0x%x)", __dso_handle);
+    TRACE("__cxa_module_global_finit(0x%" PRIxIN ")", __dso_handle);
 	__cxa_callinitializers(__xp_a, __xp_z);
 	__cxa_callinitializers(__xt_a, __xt_z);
     __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_THREADDETACH);

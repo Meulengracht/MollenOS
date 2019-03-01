@@ -180,7 +180,7 @@ HpInterrupt(
     HpRead(HPET_REGISTER_INTSTATUS, &InterruptStatus);
 
     // Trace
-    TRACE("Interrupt - Status 0x%x", InterruptStatus);
+    TRACE("Interrupt - Status 0x%" PRIxIN "", InterruptStatus);
 
     // Was the interrupt even from this controller?
     if (!InterruptStatus) {
@@ -219,7 +219,7 @@ HpComparatorInitialize(
     reg32_t InterruptMap    = 0;
 
     // Debug
-    TRACE("HpComparatorInitialize(%i)", Index);
+    TRACE("HpComparatorInitialize(%" PRIiIN ")", Index);
 
     // Read values
     HpRead(HPET_TIMER_CONFIG(Index), &Configuration);
@@ -268,14 +268,14 @@ HpComparatorStart(
     HpTimer_t *Timer = &HpetController.Timers[Index];
 
     // Debug
-    TRACE("HpComparatorStart(%i, %u, %i)", Index, LODWORD(Frequency), Periodic);
+    TRACE("HpComparatorStart(%" PRIiIN ", %" PRIuIN ", %" PRIiIN ")", Index, LODWORD(Frequency), Periodic);
 
     // Calculate the delta
     Delta            = (uint64_t)HpetController.Frequency.QuadPart / Frequency;
     if (Delta < HpetController.TickMinimum) {
         Delta        = HpetController.TickMinimum;
     }
-    TRACE(" > Delta 0x%x", LODWORD(Delta));
+    TRACE(" > Delta 0x%" PRIxIN "", LODWORD(Delta));
 
     // Stop main timer and calculate the next irq
     HpStop();
@@ -290,7 +290,7 @@ HpComparatorStart(
         HpetInterrupt.Context                   = Timer;
         HpetInterrupt.Line                      = INTERRUPT_NONE;
         HpetInterrupt.Pin                       = INTERRUPT_NONE;
-        TRACE(" > Gathering interrupts from irq-map 0x%x", Timer->InterruptMap);
+        TRACE(" > Gathering interrupts from irq-map 0x%" PRIxIN "", Timer->InterruptMap);
 
         // From the interrupt map, calculate possible int's
         for (i = 0, j = 0; i < 32; i++) {
@@ -319,7 +319,7 @@ HpComparatorStart(
             Timer->Interrupt    =
                 InterruptRegister(&HpetInterrupt, INTERRUPT_VECTOR | INTERRUPT_KERNEL);
             Timer->Irq          = HpetInterrupt.Line;
-            TRACE(" > Using irq interrupt %i", Timer->Irq);
+            TRACE(" > Using irq interrupt %" PRIiIN "", Timer->Irq);
         }
     }
     
@@ -354,7 +354,7 @@ HpComparatorStart(
 
     // Update configuration and comparator
     HpWrite(HPET_REGISTER_INTSTATUS,        (1 << Index));
-    TRACE(" > Writing config value 0x%x",   TempValue);
+    TRACE(" > Writing config value 0x%" PRIxIN "",   TempValue);
     HpWrite(HPET_TIMER_CONFIG(Index),       TempValue);
     HpWriteCounter(HPET_TIMER_COMPARATOR(Index),    (reg64_t)Now.QuadPart);
     if (Timer->PeriodicSupport && Periodic) {
@@ -380,7 +380,7 @@ HpInitialize(
     int i, NumTimers;
 
     // Trace
-    TRACE("HpInitialize(Address 0x%x, Sequence %u)",
+    TRACE("HpInitialize(Address 0x%" PRIxIN ", Sequence %" PRIuIN ")",
         (uintptr_t)(Table->Address.Address & __MASK), Table->Sequence);
 
     // Initialize the structure
@@ -405,7 +405,7 @@ HpInitialize(
 
     // Get the period
     HpRead(HPET_REGISTER_CAPABILITIES + 4, &HpetController.Period);
-    TRACE("Minimum Tick 0x%x, Period 0x%x", HpetController.TickMinimum, HpetController.Period);
+    TRACE("Minimum Tick 0x%" PRIxIN ", Period 0x%" PRIxIN "", HpetController.TickMinimum, HpetController.Period);
 
     // AMD SB700 Systems initialise HPET on first register access,
     // wait for it to setup HPET, its config register reads 0xFFFFFFFF meanwhile
@@ -433,7 +433,7 @@ HpInitialize(
     NumTimers               = (int)HPET_TIMERCOUNT(TempValue);
 
     // Trace
-    TRACE("Capabilities 0x%x, Timers 0x%x, MHz %u", 
+    TRACE("Capabilities 0x%" PRIxIN ", Timers 0x%" PRIxIN ", MHz %" PRIuIN "", 
         TempValue, NumTimers, (HpetController.Frequency.u.LowPart / 1000));
 
     // Sanitize the number of timers, must be above 0
@@ -452,7 +452,7 @@ HpInitialize(
     // Loop through all comparators and configurate them
     for (i = 0; i < NumTimers; i++) {
         if (HpComparatorInitialize(i) == OsError) {
-            ERROR("HPET Failed to initialize comparator %i", i);
+            ERROR("HPET Failed to initialize comparator %" PRIiIN "", i);
             HpetController.Timers[i].Present = 0;
         }
     }
@@ -462,11 +462,11 @@ HpInitialize(
     for (i = 0; i < NumTimers; i++) {
         if (HpetController.Timers[i].Present && HpetController.Timers[i].PeriodicSupport) {
             if (HpComparatorStart(i, 1000, 1) != OsSuccess) {
-                ERROR("Failed to initialize periodic timer %i", i);
+                ERROR("Failed to initialize periodic timer %" PRIiIN "", i);
             }
             else {
                 if (TimersRegisterSystemTimer(HpetController.Timers[i].Interrupt, 1000, HpGetTicks, HpResetTicks) != OsSuccess) {
-                    ERROR("Failed register timer %i as the system timer", i);
+                    ERROR("Failed register timer %" PRIiIN " as the system timer", i);
                 }
                 else {
                     HpetController.Timers[i].SystemTimer = 1;

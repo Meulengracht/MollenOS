@@ -138,6 +138,13 @@ FlushHardwareCache(
 /*******************************************************************************
  * Threading Extensions
  *******************************************************************************/
+typedef struct {
+    const char* Name;
+    Flags_t     Configuration;
+    UUId_t      MemorySpaceHandle;
+    size_t      MaximumStackSize;
+} ThreadParameters_t;
+CRTDECL(void,       InitializeThreadParameters(ThreadParameters_t* Paramaters));
 CRTDECL(OsStatus_t, SetCurrentThreadName(const char *ThreadName));
 CRTDECL(OsStatus_t, GetCurrentThreadName(char *ThreadNameBuffer, size_t MaxLength));
 
@@ -189,7 +196,7 @@ typedef enum _EnvironmentPath {
     PathEnvironmentCount
 } EnvironmentPath_t;
 
-typedef struct _vStorageDescriptor {
+typedef struct {
     long                Id;
     Flags_t             Flags;
     char                SerialNumber[32];
@@ -198,7 +205,7 @@ typedef struct _vStorageDescriptor {
     LargeInteger_t      BytesAvailable;
 } vStorageDescriptor_t;
 
-typedef struct _OsFileDescriptor {
+typedef struct {
     long                Id;
     long                StorageId;
     Flags_t             Flags;

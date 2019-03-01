@@ -167,7 +167,7 @@ OsStatus_t
 ScRegisterAliasId(
     _In_ UUId_t Alias)
 {
-    WARNING("New Service: 0x%x", Alias);
+    WARNING("New Service: 0x%" PRIxIN "", Alias);
     return SetModuleAlias(Alias);
 }
 
@@ -183,7 +183,7 @@ ScLoadDriver(
     SystemModule_t* Module;
     OsStatus_t      Status;
 
-    TRACE("ScLoadDriver(Vid 0x%x, Pid 0x%x, Class 0x%x, Subclass 0x%x)",
+    TRACE("ScLoadDriver(Vid 0x%" PRIxIN ", Pid 0x%" PRIxIN ", Class 0x%" PRIxIN ", Subclass 0x%" PRIxIN ")",
         Device->VendorId, Device->DeviceId, Device->Class, Device->Subclass);
     if (CurrentModule == NULL || Device == NULL || LengthOfDeviceStructure < sizeof(MCoreDevice_t)) {
         if (CurrentModule == NULL) {

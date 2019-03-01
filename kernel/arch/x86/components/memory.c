@@ -58,10 +58,10 @@ uintptr_t                            LastReservedAddress = 0;
 
 void
 PrintPhysicalMemoryUsage(void) {
-    TRACE("Bitmap size: %u Bytes", BlockmapBytes);
-    TRACE("Memory in use %u Bytes", GetMachine()->PhysicalMemory.BlocksAllocated * PAGE_SIZE);
-    TRACE("Block status %u/%u", GetMachine()->PhysicalMemory.BlocksAllocated, GetMachine()->PhysicalMemory.BlockCount);
-    TRACE("Reserved memory: 0x%x (%u blocks)", LastReservedAddress, LastReservedAddress / PAGE_SIZE);
+    TRACE("Bitmap size: %" PRIuIN " Bytes", BlockmapBytes);
+    TRACE("Memory in use %" PRIuIN " Bytes", GetMachine()->PhysicalMemory.BlocksAllocated * PAGE_SIZE);
+    TRACE("Block status %" PRIuIN "/%" PRIuIN "", GetMachine()->PhysicalMemory.BlocksAllocated, GetMachine()->PhysicalMemory.BlockCount);
+    TRACE("Reserved memory: 0x%" PRIxIN " (%" PRIuIN " blocks)", LastReservedAddress, LastReservedAddress / PAGE_SIZE);
 }
 
 /* InitializeSystemMemory (@arch)

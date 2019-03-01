@@ -61,7 +61,7 @@ OsStatus_t
 DebugSingleStep(
     _In_ Context_t* Context)
 {
-    TRACE("DebugSingleStep(IP 0x%x)", CONTEXT_IP(Context));
+    TRACE("DebugSingleStep(IP 0x%" PRIxIN ")", CONTEXT_IP(Context));
     _CRT_UNUSED(Context);
     return OsSuccess;
 }
@@ -70,7 +70,7 @@ OsStatus_t
 DebugBreakpoint(
     _In_ Context_t* Context)
 {
-    TRACE("DebugBreakpoint(IP 0x%x)", CONTEXT_IP(Context));
+    TRACE("DebugBreakpoint(IP 0x%" PRIxIN ")", CONTEXT_IP(Context));
     _CRT_UNUSED(Context);
     return OsSuccess;
 }
@@ -82,7 +82,7 @@ DebugPageFault(
 {
     SystemMemorySpace_t* Space  = GetCurrentMemorySpace();
     OsStatus_t           Status;
-    TRACE("DebugPageFault(IP 0x%x, Address 0x%x)", CONTEXT_IP(Context), Address);
+    TRACE("DebugPageFault(IP 0x%" PRIxIN ", Address 0x%" PRIxIN ")", CONTEXT_IP(Context), Address);
 
     if (Space->Context != NULL) {
         if (DebugPageMemorySpaceHandlers(Context, Address) == OsSuccess) {
@@ -131,7 +131,7 @@ DebugPanic(
     va_list Arguments;
     UUId_t CoreId;
 
-    TRACE("DebugPanic(Scope %i)", FatalityScope);
+    TRACE("DebugPanic(Scope %" PRIiIN ")", FatalityScope);
 
     // Disable all other cores in system if the fault is kernel scope
     CoreId = ArchGetProcessorCoreId();
@@ -157,11 +157,8 @@ DebugPanic(
     // Log cpu and threads
     CurrentThread = GetCurrentThreadForCore(CoreId);
     if (CurrentThread != NULL) {
-        LogAppendMessage(LogError, Module, "Thread %s - %u (Core %u)!",
+        LogAppendMessage(LogError, Module, "Thread %s - %" PRIuIN " (Core %" PRIuIN ")!",
             CurrentThread->Name, CurrentThread->Id, CoreId);
-        if (CurrentThread->Flags & THREADING_IMPERSONATION) {
-            // how should we do this
-        }
     }
     DebugStackTrace(Context, 8);
 
@@ -176,7 +173,7 @@ DebugPanic(
         // @todo
     }
     else {
-        ERROR("Encounted an unkown fatality scope %i", FatalityScope);
+        ERROR("Encounted an unkown fatality scope %" PRIiIN "", FatalityScope);
         ArchProcessorHalt();
     }
     for(;;);
@@ -261,18 +258,18 @@ DebugStackTrace(
             Value < (GetMachine()->MemoryMap.UserCode.Start + GetMachine()->MemoryMap.UserCode.Length) &&
             Context != NULL) {
             if (DebugGetModuleByAddress(GetCurrentModule(), Value, &Base, &Name) == OsSuccess) {
-                WRITELINE("%u - 0x%x (%s)", MaxFrames - Itr, (Value - Base), Name);
+                WRITELINE("%" PRIuIN " - 0x%" PRIxIN " (%s)", MaxFrames - Itr, (Value - Base), Name);
                 
             }
             else {
-                WRITELINE("%u - 0x%x", MaxFrames - Itr, Value);
+                WRITELINE("%" PRIuIN " - 0x%" PRIxIN "", MaxFrames - Itr, Value);
             }
             Itr--;
         }
 
         // Check for kernelspace code address
         if (Value >= 0x100000 && Value < 0x200000 && Context == NULL) {
-            WRITELINE("%u - 0x%x", MaxFrames - Itr, Value);
+            WRITELINE("%" PRIuIN " - 0x%" PRIxIN "", MaxFrames - Itr, Value);
             Itr--;
         }
         StackPtr++;
@@ -347,8 +344,8 @@ DebugHandleShortcut(
     _In_ SystemKey_t* Key)
 {
     if (Key->KeyCode == VK_1) {
-        WRITELINE("Memory in use %u Bytes", GetMachine()->PhysicalMemory.BlocksAllocated * 0x1000);
-        WRITELINE("Block status %u/%u", GetMachine()->PhysicalMemory.BlocksAllocated, GetMachine()->PhysicalMemory.BlockCount);
+        WRITELINE("Memory in use %" PRIuIN " Bytes", GetMachine()->PhysicalMemory.BlocksAllocated * 0x1000);
+        WRITELINE("Block status %" PRIuIN "/%" PRIuIN "", GetMachine()->PhysicalMemory.BlocksAllocated, GetMachine()->PhysicalMemory.BlockCount);
     }
     else if (Key->KeyCode == VK_2) {
         DisplayActiveThreads();

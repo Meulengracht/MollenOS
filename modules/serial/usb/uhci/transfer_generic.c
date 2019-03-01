@@ -187,7 +187,7 @@ UhciTransferFill(
         size_t ByteStep             = 0;
         int PreviousToggle          = -1;
         int Toggle                  = 0;
-        TRACE("Transaction(%i, Buffer 0x%x, Length %u, Type %i)", i,
+        TRACE("Transaction(%i, Buffer 0x%" PRIxIN ", Length %u, Type %i)", i,
             Transfer->Transfer.Transactions[i].BufferAddress, BytesToTransfer, Type);
 
         // Adjust offsets

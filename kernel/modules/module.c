@@ -56,7 +56,7 @@ ModuleThreadEntry(
         Thread->Arguments = NULL;
     }
     else {
-        ERROR("Failed to bootstrap pe image: %u", Status);
+        ERROR("Failed to bootstrap pe image: %" PRIuIN "", Status);
         Module->PrimaryThreadId = UUID_INVALID;
     }
     
@@ -87,7 +87,7 @@ SpawnModule(
     Module->BaseDirectory    = MStringSubString(Module->Path, 0, Index);
     ModuleName               = MStringSubString(Module->Path, Index + 1, -1);
     Status                   = CreateThread(MStringRaw(ModuleName), ModuleThreadEntry, Module, 
-        THREADING_USERMODE, UUID_INVALID, &Module->PrimaryThreadId);
+        THREADING_KERNELENTRY | THREADING_USERMODE, UUID_INVALID, &Module->PrimaryThreadId);
     MStringDestroy(ModuleName);
     if (Status != OsSuccess) {
         // @todo cleanup everything?

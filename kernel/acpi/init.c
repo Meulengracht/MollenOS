@@ -95,14 +95,14 @@ AcpiInitialize(void)
     TRACE(" > loading acpi tables");
     Status = AcpiLoadTables();
     if (ACPI_FAILURE(Status)) {
-        FATAL(FATAL_SCOPE_KERNEL, "Failed LoadTables, %u!", Status);
+        FATAL(FATAL_SCOPE_KERNEL, "Failed LoadTables, %" PRIuIN "!", Status);
     }
 
     // Install the OSI strings that we respond to
     TRACE(" > initializing osi interface, windows/vali");
     Status = AcpiInstallInterfaceHandler(AcpiOsi);
     if (ACPI_FAILURE(Status)) {
-        FATAL(FATAL_SCOPE_KERNEL, "Failed AcpiInstallInterfaceHandler, %u!", Status);
+        FATAL(FATAL_SCOPE_KERNEL, "Failed AcpiInstallInterfaceHandler, %" PRIuIN "!", Status);
     }
     AcpiOsiSetup("Windows 2009");
     AcpiOsiSetup("Windows 2013");
@@ -114,14 +114,14 @@ AcpiInitialize(void)
     //TRACE(" > installing default handlers");
     //Status = AcpiInstallHandlers();
     //if (ACPI_FAILURE(Status)) {
-    //    FATAL(FATAL_SCOPE_KERNEL, "Failed AcpiInstallHandlers, %u!", Status);
+    //    FATAL(FATAL_SCOPE_KERNEL, "Failed AcpiInstallHandlers, %" PRIuIN "!", Status);
     //}
 
     // Initialize the ACPI hardware
     TRACE(" > enabling acpi");
     Status = AcpiEnableSubsystem(ACPI_FULL_INITIALIZATION);
     if (ACPI_FAILURE(Status)) {
-        FATAL(FATAL_SCOPE_KERNEL, "Failed AcpiEnableSubsystem, %u!", Status);
+        FATAL(FATAL_SCOPE_KERNEL, "Failed AcpiEnableSubsystem, %" PRIuIN "!", Status);
     }
     
     // Initialize the ec if present
@@ -147,7 +147,7 @@ AcpiInitialize(void)
     TRACE(" > initializing acpi namespace");
     Status = AcpiInitializeObjects(ACPI_FULL_INITIALIZATION);
     if (ACPI_FAILURE(Status)){
-        FATAL(FATAL_SCOPE_KERNEL, "Failed AcpiInitializeObjects, %u!", Status);
+        FATAL(FATAL_SCOPE_KERNEL, "Failed AcpiInitializeObjects, %" PRIuIN "!", Status);
     }
 
     // Run _OSC on root, it should always be run after InitializeObjects

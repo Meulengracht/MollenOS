@@ -27,6 +27,7 @@
 #include <crtdefs.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <inttypes.h>
 
 #if defined __STDC_VERSION__ && __STDC_VERSION__ >= 201112L
 #include <stdatomic.h>

@@ -85,7 +85,7 @@ extern OsStatus_t ScGetProcessBaseAddress(uintptr_t* BaseAddress);
 // - Unprotected, all
 
 // Threading system calls
-extern UUId_t     ScThreadCreate(ThreadEntry_t Entry, void* Data, Flags_t Flags, UUId_t MemorySpaceHandle);
+extern OsStatus_t ScThreadCreate(ThreadEntry_t, void*, ThreadParameters_t*, UUId_t*);
 extern OsStatus_t ScThreadExit(int ExitCode);
 extern OsStatus_t ScThreadJoin(UUId_t ThreadId, int* ExitCode);
 extern OsStatus_t ScThreadDetach(UUId_t ThreadId);

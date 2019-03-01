@@ -178,31 +178,6 @@ ThreadingSignalDispatch(
     return OsSuccess;
 }
 
-/* ThreadingImpersonate
- * This function switches the current runtime-context
- * out with the given thread context, this should only
- * be used as a temporary way of impersonating another thread */
-void
-ThreadingImpersonate(
-    _In_ MCoreThread_t *Thread)
-{
-    MCoreThread_t* Current;
-    UUId_t         Cpu;
-    
-    Cpu     = ArchGetProcessorCoreId();
-    Current = GetCurrentThreadForCore(Cpu);
-    
-    // If we impersonate ourself, leave
-    if (Current == Thread) {
-        Current->Flags &= ~(THREADING_IMPERSONATION);
-    }
-    else {
-        Current->Flags |= THREADING_IMPERSONATION;
-    }
-    TssUpdateIo(Cpu, (uint8_t*)Thread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
-    SwitchMemorySpace(Thread->MemorySpace);
-}
-
 /* _GetNextRunnableThread
  * This function loads a new task from the scheduler, it
  * implements the task-switching functionality, which MCore leaves
@@ -224,7 +199,6 @@ _GetNextRunnableThread(
         *TaskQueue      = 0;
         return Context;
     }
-    assert(!(Thread->Flags & THREADING_IMPERSONATION));
     
     // Save FPU/MMX/SSE information if it's
     // been used, otherwise skip this and save time

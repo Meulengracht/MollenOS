@@ -83,13 +83,6 @@ CRTDECL(OsStatus_t,
 ProcessKill(
 	_In_ UUId_t Handle));
 
-/* ProcessTerminate
- * Terminates the current process that is registered with the process manager.
- * This invalidates every functionality available to this process. */
-CRTDECL(OsStatus_t,
-ProcessTerminate(
-	_In_ int ExitCode));
-
 /* ProcessGetCurrentId
  * Retrieves the current process identifier. */
 CRTDECL(UUId_t, 

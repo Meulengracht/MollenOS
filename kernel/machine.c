@@ -65,7 +65,7 @@ void
 PrintHeader(
     _In_ Multiboot_t *BootInformation)
 {
-    WRITELINE("MollenOS - Platform: %s - Version %i.%i.%i",
+    WRITELINE("MollenOS - Platform: %s - Version %" PRIiIN ".%" PRIiIN ".%" PRIiIN "",
         ARCHITECTURE_NAME, REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD);
     WRITELINE("Written by Philip Meulengracht, Copyright 2011-2018.");
     WRITELINE("Bootloader - %s", (char*)(uintptr_t)BootInformation->BootLoaderName);

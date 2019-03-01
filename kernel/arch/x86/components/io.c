@@ -168,13 +168,13 @@ ReadDirectIo(
             }
 #endif
             else {
-                ERROR(" > invalid port width %u for reading", Width);
+                ERROR(" > invalid port width %" PRIuIN " for reading", Width);
                 return OsError;
             }
         } break;
 
         default: {
-            FATAL(FATAL_SCOPE_KERNEL, " > invalid direct io read type %u", Type);
+            FATAL(FATAL_SCOPE_KERNEL, " > invalid direct io read type %" PRIuIN "", Type);
         } break;
     }
     return OsSuccess;
@@ -207,13 +207,13 @@ WriteDirectIo(
             }
     #endif
             else {
-                ERROR(" > invalid port width %u for writing", Width);
+                ERROR(" > invalid port width %" PRIuIN " for writing", Width);
                 return OsError;
             }
         } break;
 
         default: {
-            FATAL(FATAL_SCOPE_KERNEL, " > invalid direct io write type %u", Type);
+            FATAL(FATAL_SCOPE_KERNEL, " > invalid direct io write type %" PRIuIN "", Type);
         } break;
     }
     return OsSuccess;
@@ -241,7 +241,7 @@ ReadDirectPci(
         *Value = (size_t)PciRead32(Bus, Slot, Function, Register);
     }
     else {
-        ERROR("(PciRead) Invalid width %u", Width);
+        ERROR("(PciRead) Invalid width %" PRIuIN "", Width);
         return OsError;
     }
     return OsSuccess;
@@ -269,7 +269,7 @@ WriteDirectPci(
         PciWrite32(Bus, Slot, Function, Register, (uint32_t)Value);
     }
     else {
-        ERROR("(PciWrite) Invalid width %u", Width);
+        ERROR("(PciWrite) Invalid width %" PRIuIN "", Width);
         return OsError;
     }
     return OsSuccess;

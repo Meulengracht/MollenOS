@@ -104,7 +104,7 @@ AcquireMemoryBuffer(
     // and adding a reference
     SystemBuffer = AcquireHandle(Handle);
     if (SystemBuffer == NULL) {
-        ERROR("Invalid memory buffer handle 0x%x", Handle);
+        ERROR("Invalid memory buffer handle 0x%" PRIxIN "", Handle);
         return OsError;
     }
 

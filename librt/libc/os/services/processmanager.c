@@ -158,20 +158,12 @@ ProcessTerminate(
     OsStatus_t    Status = OsSuccess;
     OsStatus_t    Result = OsSuccess;
 
-    if (IsProcessModule()) {
-        return Syscall_ModuleExit(ExitCode);
-    }
-
     RPCInitialize(&Request, __PROCESSMANAGER_TARGET, 1, __PROCESSMANAGER_TERMINATE_PROCESS);
     RPCSetArgument(&Request, 0, (const void*)&ExitCode, sizeof(int));
     RPCSetResult(&Request, (const void*)&Result, sizeof(OsStatus_t));
     Status = RPCExecute(&Request);
     if (Status != OsSuccess) {
         return Status;
-    }
-
-    if (Result == OsSuccess) {
-        thrd_exit(ExitCode);
     }
     return Result;
 }

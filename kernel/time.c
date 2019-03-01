@@ -73,7 +73,7 @@ TimersRegisterSystemTimer(
     // the only system timers we want are fast_interrupts
     Interrupt = InterruptGet(Source);
     if (Interrupt == NULL) {
-        TRACE("Interrupt was not found for source %u", Source);
+        TRACE("Interrupt was not found for source %" PRIuIN "", Source);
         return OsError;
     }
 
@@ -98,7 +98,7 @@ TimersRegisterSystemTimer(
     else {
         ActiveSystemTimer = SystemTimer;
     }
-    TRACE("New system timer: %u", ActiveSystemTimer->Source);
+    TRACE("New system timer: %" PRIuIN "", ActiveSystemTimer->Source);
     return OsSuccess;
 }
 

@@ -155,7 +155,7 @@ ACPI_STATUS AcpiRunOscRequest(ACPI_HANDLE device, struct _acpi_osc *osc)
 
 	if (query_status)
 	{
-		TRACE("OSC Query Failed, Status Word: 0x%x\n", query_status);
+		TRACE("OSC Query Failed, Status Word: 0x%" PRIxIN "\n", query_status);
 		status = AE_ERROR;
 		goto fail;
 	}

@@ -193,7 +193,7 @@ AcpiDeviceCreate(
     if (Device->Features & ACPI_FEATURE_PRT) {
         Status = AcpiDeviceGetIrqRoutings(Device);
         if (ACPI_FAILURE(Status)) {
-            ERROR("Failed to retrieve pci irq routings from device %s (%u)", 
+            ERROR("Failed to retrieve pci irq routings from device %s (%" PRIuIN ")", 
                 Device->BusId, Status);
         }
     }
@@ -202,7 +202,7 @@ AcpiDeviceCreate(
     if (Device->Features & ACPI_FEATURE_PRW) {
         Status = AcpiDeviceParsePower(Device);
         if (ACPI_FAILURE(Status)) {
-            ERROR("Failed to parse power resources from device %s (%u)", 
+            ERROR("Failed to parse power resources from device %s (%" PRIuIN ")", 
                 Device->BusId, Status);
         }
         else {
@@ -250,7 +250,7 @@ AcpiDeviceScanCallback(
     // Lookup the type of device-handle
     Status = AcpiGetType(Handle, &Type);
     if (ACPI_FAILURE(Status)) {
-        WARNING("Failed to enumerate device at level %u", Level);
+        WARNING("Failed to enumerate device at level %" PRIuIN "", Level);
         return AE_OK; // if it fails go to next
     }
 
@@ -269,7 +269,7 @@ AcpiDeviceScanCallback(
         case ACPI_TYPE_POWER:
             Type = ACPI_BUS_TYPE_PWM;
         default: {
-            WARNING("Acpi gave us objects of type %u", Type);
+            WARNING("Acpi gave us objects of type %" PRIuIN "", Type);
             return AE_OK;
         }
     }
@@ -277,7 +277,7 @@ AcpiDeviceScanCallback(
     // Retrieve the parent device handle
     Status = AcpiGetParent(Handle, &Parent);
     if (AcpiDeviceCreate(Handle, Parent, (int)Type) != OsSuccess) {
-        ERROR("Failed to initialize acpi-device of type %u", Type);
+        ERROR("Failed to initialize acpi-device of type %" PRIuIN "", Type);
     }
     return AE_OK;
 }

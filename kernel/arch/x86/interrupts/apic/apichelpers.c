@@ -112,7 +112,7 @@ void ApicMaskGsi(int Gsi)
     Ic  = GetInterruptControllerByLine(Gsi);
     Pin = GetPinOffsetByLine(Gsi);
     if (Ic == NULL || Pin == APIC_NO_GSI) {
-        FATAL(FATAL_SCOPE_KERNEL, "Invalid Gsi %u", Gsi);
+        FATAL(FATAL_SCOPE_KERNEL, "Invalid Gsi %" PRIuIN "", Gsi);
     }
 
     // Update the entry
@@ -142,7 +142,7 @@ void ApicUnmaskGsi(int Gsi)
     Ic  = GetInterruptControllerByLine(Gsi);
     Pin = GetPinOffsetByLine(Gsi);
     if (Ic == NULL || Pin == APIC_NO_GSI) {
-        FATAL(FATAL_SCOPE_KERNEL, "Invalid Gsi %u", Gsi);
+        FATAL(FATAL_SCOPE_KERNEL, "Invalid Gsi %" PRIuIN "", Gsi);
     }
 
     // Update the entry
@@ -185,7 +185,7 @@ void ApicSendEoi(int Gsi, uint32_t Vector)
         Ic  = GetInterruptControllerByLine(Gsi);
         Pin = GetPinOffsetByLine(Gsi);
         if (Ic == NULL || Pin == APIC_NO_GSI) {
-            FATAL(FATAL_SCOPE_KERNEL, "Invalid Gsi %u", Gsi);
+            FATAL(FATAL_SCOPE_KERNEL, "Invalid Gsi %" PRIuIN "", Gsi);
         }
 
         // We want to mask it and clear the level trigger bit

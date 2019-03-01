@@ -350,7 +350,7 @@ CloneVirtualSpace(
     // Essentially what we want to do here is to clone almost the entire
     // kernel address space (index 0 of the pdp) except for thread region
     // If inherit is set, then clone all other mappings as well
-    TRACE("CloneVirtualSpace(Inherit %i)", Inherit);
+    TRACE("CloneVirtualSpace(Inherit %" PRIiIN ")", Inherit);
 
     // Lookup which table-region is the stack region
     // We already know the thread-locale region is in PML4[0] => PDP[0] => UNKN
@@ -445,7 +445,7 @@ MmVirtualDestroyPageTable(
 
         if ((Mapping & PAGE_MASK) != 0) {
             if (FreeSystemMemory(Mapping & PAGE_MASK, PAGE_SIZE) != OsSuccess) {
-                ERROR("Tried to free page %i (0x%x), but was not allocated", Index, Mapping);
+                ERROR("Tried to free page %" PRIiIN " (0x%" PRIxIN "), but was not allocated", Index, Mapping);
             }
         }
     }
@@ -551,7 +551,7 @@ InitializeVirtualSpace(
 
         // Due to how it works with multiple cpu's, we need to make sure all shared
         // tables already are mapped in the upper-most level of the page-directory
-        TRACE("Mapping the kernel region from 0x%x => 0x%x", MEMORY_LOCATION_KERNEL, MEMORY_LOCATION_KERNEL_END);
+        TRACE("Mapping the kernel region from 0x%" PRIxIN " => 0x%" PRIxIN "", MEMORY_LOCATION_KERNEL, MEMORY_LOCATION_KERNEL_END);
         LastAllocatedAddress = MmVirtualMapMemoryRange(iDirectory, 0, MEMORY_LOCATION_KERNEL_END, KernelPageFlags);
         if (LastAllocatedAddress > LastReservedAddress) {
             BytesToMap = LastAllocatedAddress - MIN(LastAllocatedAddress, TABLE_SPACE_SIZE);
@@ -594,6 +594,9 @@ InitializeVirtualSpace(
         SystemMemorySpace->Data[MEMORY_SPACE_DIRECTORY] = (uintptr_t)iDirectory;
         SystemMemorySpace->Data[MEMORY_SPACE_IOMAP]     = TssGetBootIoSpace();
         SwitchVirtualSpace(SystemMemorySpace);
+        
+        // Release the memory reserved for the boot paging region
+        ReleaseBlockmapRegion(&GetMachine()->PhysicalMemory, MEMORY_LOCATION_BOOTPAGING, 0x5000);
     }
     else {
         // Create a new page directory but copy all kernel mappings to the domain specific memory

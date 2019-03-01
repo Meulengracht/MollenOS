@@ -213,11 +213,11 @@ ScCreateMemorySpaceMapping(
         RequiredFlags |= MAPPING_READONLY;
     }
 
-    TRACE("CreateMemorySpaceMapping(P 0x%x, V 0x%x, L 0x%x, F 0x%x)", 
+    TRACE("CreateMemorySpaceMapping(P 0x%" PRIxIN ", V 0x%" PRIxIN ", L 0x%" PRIxIN ", F 0x%" PRIxIN ")", 
         AccessBuffer->Dma, Parameters->VirtualAddress, Parameters->Length, RequiredFlags);
     Status = CreateMemorySpaceMapping(MemorySpace, &AccessBuffer->Dma, &Parameters->VirtualAddress,
         Parameters->Length, RequiredFlags, PlacementFlags, __MASK);
-    TRACE("=> mapped to 0x%x", AccessBuffer->Address);
+    TRACE("=> mapped to 0x%" PRIxIN "", AccessBuffer->Address);
     if (Status != OsSuccess) {
         ScMemoryFree(AccessBuffer->Address, AccessBuffer->Capacity);
         DestroyHandle(AccessBuffer->Handle);

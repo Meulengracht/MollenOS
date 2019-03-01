@@ -137,7 +137,7 @@ ParseIoApic(
     int IoEntries, i, j;
 
     // Debug
-    TRACE(" > initialing io-apic %u", Controller->Id);
+    TRACE(" > initialing io-apic %" PRIuIN "", Controller->Id);
 
     // Relocate the io-apic
     Original = Controller->MemoryAddress;
@@ -153,7 +153,7 @@ ParseIoApic(
     IoEntries >>= 16;
     IoEntries &= 0xFF;
     Controller->NumberOfInterruptLines = IoEntries + 1;
-    TRACE(" > number of interrupt pins: %i", IoEntries);
+    TRACE(" > number of interrupt pins: %" PRIiIN "", IoEntries);
 
     /* Structure of IO Entry Register:
      * Bits 0 - 7: Interrupt Vector that will be raised (Valid ranges are from 0x10 - 0xFE) - Read/Write
@@ -428,7 +428,7 @@ ApicInitialize(void)
     }
 
     // Perform the remap
-    TRACE(" > local apic at 0x%x", OriginalApAddress);
+    TRACE(" > local apic at 0x%" PRIxIN "", OriginalApAddress);
     CreateMemorySpaceMapping(GetCurrentMemorySpace(), &OriginalApAddress, 
         &UpdatedApAddress, GetMemorySpacePageSize(), 
         MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT, 
@@ -543,9 +543,9 @@ ApicRecalibrateTimer(void)
     // Stop counter and calibrate
     ApicWriteLocal(APIC_TIMER_VECTOR, APIC_MASKED);
     TimerTicks = (0xFFFFFFFF - ApicReadLocal(APIC_CURRENT_COUNT));
-    TRACE("Bus Speed: %u Hz", TimerTicks);
+    TRACE("Bus Speed: %" PRIuIN " Hz", TimerTicks);
     GlbTimerQuantum = (TimerTicks / 100) + 1;
-    TRACE("Quantum: %u", GlbTimerQuantum);
+    TRACE("Quantum: %" PRIuIN "", GlbTimerQuantum);
 
     // Start timer for good
     ApicStartTimer(GlbTimerQuantum * 20);
