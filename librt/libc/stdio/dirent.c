@@ -88,9 +88,6 @@ closedir(
     return -1;
 }
 
-/* readdir
- * Reads a directory entry at the current index and increases the current index
- * for the directory handle. */
 int
 readdir(
     _In_ struct DIR*    handle, 
