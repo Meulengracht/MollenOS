@@ -18,7 +18,7 @@
  *
  * CRT Functions 
  */
-#define __TRACE
+//#define __TRACE
 
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
@@ -97,12 +97,13 @@ __cxa_exithandlers(
     }
     CleanupPerformed = 1;
 
-    // Run crt for primary application
+    // Run dynamic crt for primary application
     if (CleanupCrt != 0) {
         if (!Quick) { tls_cleanup(thrd_current(), NULL, Status); tls_cleanup(UUID_INVALID, NULL, Status); }
         else        { tls_cleanup_quick(thrd_current(), NULL, Status); tls_cleanup_quick(UUID_INVALID, NULL, Status); }
     }
 
+    // Run dynamic/static for all modules
     if (!Quick) {
         // Run at-exit lists for all the modules
         if (DoAtExit != 0) {
@@ -194,14 +195,24 @@ CRTDECL(void, __cxa_threadfinalize(void))
     __cxa_primary_tls_thread_finit();
 }
 
+CRTDECL(void, __cxa_tls_thread_cleanup(void *Dso))
+{
+    TRACE("__cxa_tls_thread_cleanup()");
+    tls_cleanup(thrd_current(), Dso, 0);
+}
+
+CRTDECL(void, __cxa_tls_module_cleanup(void *Dso))
+{
+    TRACE("__cxa_tls_module_cleanup()");
+    tls_cleanup(UUID_INVALID, Dso, 0);
+}
+
 /* __cxa_finalize
- * Performs proper cleanup for the C runtime by invoking at-exit handlers that
- * are specific to the calling thread and also for the entire process. */
+ * C++ At-Exit implementation for dynamic cleanup of registered handlers */
 CRTDECL(void, __cxa_finalize(void *Dso))
 {
-    TRACE("__cxa_finalize()");
-    tls_cleanup(thrd_current(), Dso, 0);
-    tls_cleanup(UUID_INVALID, Dso, 0);
+    __cxa_tls_thread_cleanup(Dso);
+    __cxa_tls_module_cleanup(Dso);
 }
 
 /* __cxa_atexit/__cxa_at_quick_exit 

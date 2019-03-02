@@ -22,39 +22,26 @@
  */
 #define __TRACE
 
-/* Includes
- * - System */
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "hci.h"
-
-/* Includes
- * - Library */
-#include <stddef.h>
 #include <stdlib.h>
 
-/* OnLoad
- * The entry-point of a driver, this is called
- * as soon as the driver is loaded in the system */
 OsStatus_t
-OnLoad(void) {
+OnLoad(void)
+{
     return UsbManagerInitialize();
 }
 
-/* OnUnload
- * This is called when the driver is being unloaded
- * and should free all resources allocated by the system */
 OsStatus_t
-OnUnload(void) {
+OnUnload(void)
+{
     return UsbManagerDestroy();
 }
 
-/* OnRegister
- * Is called when the device-manager registers a new
- * instance of this driver for the given device */
 OsStatus_t
 OnRegister(
-    _In_ MCoreDevice_t *Device)
+    _In_ MCoreDevice_t* Device)
 {
     if (HciControllerCreate(Device) == NULL) {
         return OsError;
@@ -64,28 +51,17 @@ OnRegister(
     }
 }
 
-/* OnUnregister
- * Is called when the device-manager wants to unload
- * an instance of this driver from the system */
 OsStatus_t
 OnUnregister(
     _In_ MCoreDevice_t *Device)
 {
-    // Variables
-    UsbManagerController_t *Controller = NULL;
-    
-    // Lookup controller
-    Controller = UsbManagerGetController(Device->Id);
+    UsbManagerController_t* Controller = UsbManagerGetController(Device->Id);
     if (Controller == NULL) {
         return OsError;
     }
     return HciControllerDestroy(Controller);
 }
 
-/* OnQuery
- * Occurs when an external process or server quries
- * this driver for data, this will correspond to the query
- * function that is defined in the contract */
 OsStatus_t 
 OnQuery(
 	_In_     MContractType_t        QueryType, 

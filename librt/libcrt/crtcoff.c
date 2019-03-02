@@ -19,7 +19,7 @@
  * COFF/PE Image Support
  *   - Implements CRT routines and sections neccessary for proper running PE/COFF images.
  */
-#define __TRACE
+//#define __TRACE
 
 #include <ddk/utils.h>
 #include <stdlib.h>
@@ -140,7 +140,8 @@ _CRTALLOC(".rdata$T") const struct {
 // __cxa_module_tls_global_init
 // Creates a new tls key for the module that links against this file, this index for this
 // module is reused for each thread to keep the index the same
-void __cxa_module_tls_global_init(void) {
+void __cxa_module_tls_global_init(void)
+{
     // _tls_array points into TLS data array, so while the pointer is seen as equal
     // all threads and points to same address, the address is directly located in
     // the TLS structure
@@ -153,7 +154,8 @@ void __cxa_module_tls_global_init(void) {
 // __cxa_module_tls_thread_init
 // Creates a new tls block for calling thread. This is automatically
 // called for main thread, not new threads
-void __cxa_module_tls_thread_init(void) {
+void __cxa_module_tls_thread_init(void)
+{
     size_t TlsDataSize = (size_t)_tls_used.EndOfData - (size_t)_tls_used.StartOfData;
     TRACE("__cxa_module_tls_thread_init(%" PRIuIN ", 0x%" PRIxIN ", 0x%" PRIxIN ")", 
         TlsDataSize, _tls_used.StartOfData, _tls_used.EndOfData);
@@ -167,7 +169,8 @@ void __cxa_module_tls_thread_init(void) {
 // __cxa_module_tls_thread_finit
 // Cleans up the tls block for calling thread. This is automatically
 // called for main thread, not new threads
-void __cxa_module_tls_thread_finit(void) {
+void __cxa_module_tls_thread_finit(void)
+{
     size_t TlsDataSize = (size_t)_tls_used.EndOfData - (size_t)_tls_used.StartOfData;
     TRACE("__cxa_module_tls_thread_finit(%" PRIuIN ", 0x%" PRIxIN ", 0x%" PRIxIN ")", 
         TlsDataSize, _tls_used.StartOfData, _tls_used.EndOfData);
@@ -179,7 +182,8 @@ void __cxa_module_tls_thread_finit(void) {
 
 // On ALL coff platform this must be called
 // to run all initializers for C/C++
-void __cxa_module_global_init(void) {
+void __cxa_module_global_init(void)
+{
     TRACE("__cxa_module_global_init()");
     __cxa_module_tls_global_init();
     __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_INITIALIZE);
@@ -190,7 +194,8 @@ void __cxa_module_global_init(void) {
 
 // On non-windows coff platforms this should not be run
 // as terminators are registered by cxa_atexit.
-void __cxa_module_global_finit(void) {
+void __cxa_module_global_finit(void)
+{
     size_t TlsDataSize = (size_t)_tls_used.EndOfData - (size_t)_tls_used.StartOfData;
     TRACE("__cxa_module_global_finit(0x%" PRIxIN ")", __dso_handle);
 	__cxa_callinitializers(__xp_a, __xp_z);

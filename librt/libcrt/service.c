@@ -25,21 +25,16 @@
 #include "../libc/threads/tls.h"
 #include <stdlib.h>
 
-__EXTERN OsStatus_t OnLoad(void);
-__EXTERN OsStatus_t OnUnload(void);
-__EXTERN OsStatus_t OnEvent(MRemoteCall_t *Message);
+extern OsStatus_t OnLoad(void);
+extern OsStatus_t OnUnload(void);
+extern OsStatus_t OnEvent(MRemoteCall_t *Message);
 
-/* CRT Initialization sequence
- * for a shared C/C++ environment call this in all entry points */
 extern char**
 __CrtInitialize(
     _In_  thread_storage_t* Tls,
     _In_  int               IsModule,
     _Out_ int*              ArgumentCount);
 
-/* Server event entry point
- * Used in multi-threading environment as means to cleanup
- * all allocated resources properly */
 int __CrtHandleEvent(void *Argument)
 {
     // Initiate the message pointer
@@ -51,11 +46,8 @@ int __CrtHandleEvent(void *Argument)
     return Result == OsSuccess ? 0 : -1;
 }
 
-/* __CrtServiceEntry
- * Use this entry point for services. */
 void __CrtServiceEntry(void)
 {
-    // Variables
     thread_storage_t            Tls;
     MRemoteCall_t               Message;
 #ifdef __SERVER_MULTITHREADED
@@ -70,7 +62,7 @@ void __CrtServiceEntry(void)
     // Call the driver load function 
     // - This will be run once, before loop
     if (OnLoad() != OsSuccess) {
-        goto Cleanup;
+        exit(-1);
     }
 
     // Initialize threadpool

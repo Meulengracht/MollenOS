@@ -37,11 +37,9 @@
 #define __PROCESSMANAGER_TARGET  __SERVICE_TARGET(5)
 
 _CODE_BEGIN
-/* RegisterService 
- * Registers a service on the current alias, allowing
- * other applications and frameworks to send commands
- * and function requests */
 CRTDECL(OsStatus_t, RegisterService(UUId_t Alias));
+CRTDECL(OsStatus_t, IsServiceAvailable(UUId_t Alias));
+CRTDECL(OsStatus_t, WaitForService(UUId_t Alias, size_t Timeout));
 _CODE_END
 
 #endif //!_SERVICE_H_

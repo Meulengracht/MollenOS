@@ -181,3 +181,13 @@ ScCreateDisplayFramebuffer(void)
     }
     return (void*)FbVirtual;
 }
+
+OsStatus_t
+ScIsServiceAvailable(
+    _In_ UUId_t ServiceId)
+{
+    if (GetModuleByHandle(ServiceId) != NULL) {
+        return OsSuccess;
+    }
+    return OsDoesNotExist;
+}

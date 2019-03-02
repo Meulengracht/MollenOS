@@ -109,5 +109,6 @@ _CODE_END
 #define Syscall_SystemPerformanceFrequency(Frequency) (OsStatus_t)syscall1(73, SCPARAM(Frequency))
 #define Syscall_SystemPerformanceTime(Value) (OsStatus_t)syscall1(74, SCPARAM(Value))
 #define Syscall_SystemTime(Time) (OsStatus_t)syscall1(75, SCPARAM(Time))
+#define Syscall_IsServiceAvailable(ServiceId) (OsStatus_t)syscall1(76, SCPARAM(ServiceId))
 
 #endif //!__INTERNAL_CRT_SYSCALLS__

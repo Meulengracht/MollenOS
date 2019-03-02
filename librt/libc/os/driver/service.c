@@ -25,6 +25,7 @@
 #include <internal/_utils.h>
 #include <ddk/service.h>
 #include <ddk/device.h>
+#include <threads.h>
 #include <assert.h>
 
 OsStatus_t
@@ -34,8 +35,38 @@ RegisterService(
     if (!IsProcessModule()) {
         return OsInvalidPermissions;
     }
-
 	return Syscall_RegisterService(Alias);
+}
+
+OsStatus_t
+IsServiceAvailable(
+    _In_ UUId_t Alias)
+{
+    return Syscall_IsServiceAvailable(Alias);
+}
+
+
+OsStatus_t
+WaitForService(
+    _In_ UUId_t Alias,
+    _In_ size_t Timeout)
+{
+    size_t     TimeLeft = Timeout;
+    OsStatus_t Status   = Syscall_IsServiceAvailable(Alias);
+    if (!Timeout) {
+        while (Status != OsSuccess) {
+            thrd_sleepex(100);
+            Status = Syscall_IsServiceAvailable(Alias);
+        }
+    }
+    else {
+        while (TimeLeft || Status != OsSuccess) {
+            thrd_sleepex(100);
+            TimeLeft -= 100;
+            Status    = Syscall_IsServiceAvailable(Alias);
+        }
+    }
+    return Status;
 }
 
 OsStatus_t

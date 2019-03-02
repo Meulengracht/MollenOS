@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,22 +16,20 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C Library - Entry Points
+ * Library CRT Setup
  */
 
 #include <os/osdefs.h>
 
-__EXTERN void __cxa_module_global_init(void);
-__EXTERN void __cxa_module_global_finit(void);
-__EXTERN void __cxa_module_tls_thread_init(void);
-__EXTERN void __cxa_module_tls_thread_finit(void);
-CRTDECL(void, __cxa_finalize(void *Dso));
-__EXTERN void dllmain(int action);
-__EXTERN void *__dso_handle;
+extern void __cxa_module_global_init(void);
+extern void __cxa_module_global_finit(void);
+extern void __cxa_module_tls_thread_init(void);
+extern void __cxa_module_tls_thread_finit(void);
+CRTDECL(void, __cxa_tls_thread_cleanup(void *Dso));
+CRTDECL(void, __cxa_tls_module_cleanup(void *Dso));
+extern void dllmain(int action);
+extern void *__dso_handle;
 
-/* __CrtLibraryEntry
- * Library crt initialization routine. This runs
- * available C++ constructors/destructors. */
 void
 __CrtLibraryEntry(int Action)
 {
@@ -44,8 +42,9 @@ __CrtLibraryEntry(int Action)
         case DLL_ACTION_FINALIZE: {
             // Module is being unloaded
             dllmain(DLL_ACTION_FINALIZE);
+            __cxa_tls_thread_cleanup(__dso_handle);
+            __cxa_tls_module_cleanup(__dso_handle);
             __cxa_module_global_finit();
-            __cxa_finalize(__dso_handle);
         } break;
         case DLL_ACTION_THREADATTACH: {
             __cxa_module_tls_thread_init();
@@ -53,6 +52,7 @@ __CrtLibraryEntry(int Action)
         } break;
         case DLL_ACTION_THREADDETACH: {
             dllmain(DLL_ACTION_THREADDETACH);
+            __cxa_tls_thread_cleanup(__dso_handle);
             __cxa_module_tls_thread_finit();
         } break;
     }

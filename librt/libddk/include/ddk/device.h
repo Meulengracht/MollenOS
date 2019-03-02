@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Device Definitions & Structures
+ * Device Definitions & Structures
  * - This header describes the base device-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -72,10 +72,6 @@
 #define __DEVICEMANAGER_IOCTL_EXT_WRITE             0x00000000
 #define __DEVICEMANAGER_IOCTL_EXT_READ              0x80000000
 
-/* This is the base device structure definition
- * and is passed on to all drivers on their initialization
- * to give them an overview and description of their device 
- * and functions to read/write directly to the device */
 PACKED_TYPESTRUCT(MCoreDevice, {
     UUId_t              Id;
     char                Name[__DEVICEMANAGER_NAMEBUFFER_LENGTH];

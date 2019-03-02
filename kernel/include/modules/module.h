@@ -32,7 +32,6 @@ typedef struct _PeExecutable PeExecutable_t;
 typedef struct _SystemPipe SystemPipe_t;
 typedef struct _MString MString_t;
 
-
 #define MODULE_FILESYSTEM       0x01010101
 #define MODULE_BUS              0x02020202
 #define MODULE_INITIAL_STACK    0x1000
@@ -44,7 +43,7 @@ typedef enum _SystemModuleType {
     ServiceResource
 } SystemModuleType_t;
 
-typedef struct _SystemModule {
+typedef struct {
     CollectionItem_t ListHeader;
     UUId_t           Handle;
     MString_t*       Path;
@@ -52,21 +51,21 @@ typedef struct _SystemModule {
     size_t           Length;
 
     // Used by Module/Service type
-    void*                       InheritanceBlock;
-    size_t                      InheritanceBlockLength;
-    void*                       ArgumentBlock;
-    size_t                      ArgumentBlockLength;
-    clock_t                     StartedAt;
-    MString_t*                  WorkingDirectory;
-    MString_t*                  BaseDirectory;
-    UUId_t                      PrimaryThreadId;
-    UUId_t                      Alias;
-    DevInfo_t                   VendorId;
-    DevInfo_t                   DeviceId;
-    DevInfo_t                   DeviceClass;
-    DevInfo_t                   DeviceSubclass;
-    PeExecutable_t*             Executable;
-    SystemPipe_t*               Rpc;
+    void*           InheritanceBlock;
+    size_t          InheritanceBlockLength;
+    void*           ArgumentBlock;
+    size_t          ArgumentBlockLength;
+    clock_t         StartedAt;
+    MString_t*      WorkingDirectory;
+    MString_t*      BaseDirectory;
+    UUId_t          PrimaryThreadId;
+    UUId_t          Alias;
+    DevInfo_t       VendorId;
+    DevInfo_t       DeviceId;
+    DevInfo_t       DeviceClass;
+    DevInfo_t       DeviceSubclass;
+    PeExecutable_t* Executable;
+    SystemPipe_t*   Rpc;
 } SystemModule_t;
 
 /* SpawnModule 

@@ -25,23 +25,19 @@
 #include <stdlib.h>
 
 // Module Interface
-__EXTERN OsStatus_t        OnLoad(void);
-__EXTERN OsStatus_t        OnUnload(void);
-__EXTERN OsStatus_t        OnRegister(MCoreDevice_t*);
-__EXTERN OsStatus_t        OnUnregister(MCoreDevice_t*);
-__EXTERN InterruptStatus_t OnInterrupt(void*, size_t, size_t, size_t);
-__EXTERN OsStatus_t        OnQuery(MContractType_t,  int,  MRemoteCallArgument_t*, MRemoteCallArgument_t*, MRemoteCallArgument_t*, MRemoteCallAddress_t*);
+extern OsStatus_t        OnLoad(void);
+extern OsStatus_t        OnUnload(void);
+extern OsStatus_t        OnRegister(MCoreDevice_t*);
+extern OsStatus_t        OnUnregister(MCoreDevice_t*);
+extern InterruptStatus_t OnInterrupt(void*, size_t, size_t, size_t);
+extern OsStatus_t        OnQuery(MContractType_t,  int,  MRemoteCallArgument_t*, MRemoteCallArgument_t*, MRemoteCallArgument_t*, MRemoteCallAddress_t*);
 
-/* CRT Initialization sequence
- * for a shared C/C++ environment call this in all entry points */
 extern char**
 __CrtInitialize(
     _In_  thread_storage_t* Tls,
     _In_  int               IsModule,
     _Out_ int*              ArgumentCount);
 
-/* __CrtModuleEntry
- * Use this entry point for modules. */
 void __CrtModuleEntry(void)
 {
     thread_storage_t Tls;
@@ -55,7 +51,7 @@ void __CrtModuleEntry(void)
     // Call the driver load function 
     // - This will be run once, before loop
     if (OnLoad() != OsSuccess) {
-        goto Cleanup;
+        exit(-1);
     }
 
     // Initialize the driver event loop
@@ -91,7 +87,6 @@ void __CrtModuleEntry(void)
             }
         }
     }
-Cleanup:
     OnUnload();
     exit(-1);
 }

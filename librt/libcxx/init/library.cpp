@@ -19,26 +19,19 @@
  * MollenOS C++ Library - Entry Points
  */
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 
-/* Extern
- * - C/C++ Initialization
- * - C/C++ Cleanup */
 extern void dllmain(int action);
 extern "C" {
     extern void __cxa_module_global_init(void);
     extern void __cxa_module_global_finit(void);
     extern void __cxa_module_tls_thread_init(void);
     extern void __cxa_module_tls_thread_finit(void);
-    extern CRTDECL(void, __cxa_finalize(void *Dso));
+    extern CRTDECL(void, __cxa_tls_thread_cleanup(void *Dso));
+    extern CRTDECL(void, __cxa_tls_module_cleanup(void *Dso));
     extern void *__dso_handle;
 }
 
-/* __CrtLibraryEntry
- * Library crt initialization routine. This runs
- * available C++ constructors/destructors. */
 extern "C" void
 __CrtLibraryEntry(int Action)
 {
@@ -51,8 +44,9 @@ __CrtLibraryEntry(int Action)
         case DLL_ACTION_FINALIZE: {
             // Module is being unloaded
             dllmain(DLL_ACTION_FINALIZE);
+            __cxa_tls_thread_cleanup(__dso_handle);
+            __cxa_tls_module_cleanup(__dso_handle);
             __cxa_module_global_finit();
-            __cxa_finalize(__dso_handle);
         } break;
         case DLL_ACTION_THREADATTACH: {
             __cxa_module_tls_thread_init();
@@ -60,6 +54,7 @@ __CrtLibraryEntry(int Action)
         } break;
         case DLL_ACTION_THREADDETACH: {
             dllmain(DLL_ACTION_THREADDETACH);
+            __cxa_tls_thread_cleanup(__dso_handle);
             __cxa_module_tls_thread_finit();
         } break;
     }

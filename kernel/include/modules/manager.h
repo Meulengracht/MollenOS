@@ -31,13 +31,13 @@
 #include <memoryspace.h>
 
 typedef struct _SystemFileMapping {
-    CollectionItem_t    Header;
-    DmaBuffer_t         BufferObject;
-    UUId_t              FileHandle;
-    uint64_t            FileBlock;
-    uint64_t            BlockOffset;
-    size_t              Length;
-    Flags_t             Flags;
+    CollectionItem_t Header;
+    DmaBuffer_t      BufferObject;
+    UUId_t           FileHandle;
+    uint64_t         FileBlock;
+    uint64_t         BlockOffset;
+    size_t           Length;
+    Flags_t          Flags;
 } SystemFileMapping_t;
 
 typedef struct _SystemFileMappingEvent {

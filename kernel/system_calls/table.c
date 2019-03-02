@@ -135,7 +135,7 @@ extern OsStatus_t ScSystemTime(SystemTime_t* SystemTime);
 extern OsStatus_t ScSystemTick(int TickBase, LargeUInteger_t* Tick);
 extern OsStatus_t ScPerformanceFrequency(LargeInteger_t *Frequency);
 extern OsStatus_t ScPerformanceTick(LargeInteger_t *Value);
-extern OsStatus_t NoOperation(void) { return OsSuccess; }
+extern OsStatus_t ScIsServiceAvailable(UUId_t ServiceId);
 
 // The static system calls function table.
 uintptr_t GlbSyscallTable[77] = {
@@ -241,5 +241,5 @@ uintptr_t GlbSyscallTable[77] = {
     DefineSyscall(73, ScPerformanceFrequency),
     DefineSyscall(74, ScPerformanceTick),
     DefineSyscall(75, ScSystemTime),
-    DefineSyscall(76, NoOperation)
+    DefineSyscall(76, ScIsServiceAvailable)
 };
