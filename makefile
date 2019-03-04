@@ -7,44 +7,23 @@
 # - python + (sudo apt-get install python-pip libyaml-dev) + (sudo pip install prettytable Mako pyaml dateutils --upgrade)
 # Required environmental stuff:
 # - CROSS=/path/to/cross/home
-#
-
-# Include all the definitions for os
 include config/common.mk
 
+# When building the SDK we need to have VALI_SDK_PATH defined so we 
+# know where it needs to be installed. By default we install in /userspace directory
+ifndef VALI_SDK_PATH
+VALI_SDK_PATH=$(userspace_path)
+endif
+
 .PHONY: all
-all: build_tools gen_revision build_bootloader build_libraries build_kernel build_drivers setup_userspace build_initrd
+all: build setup_userspace package_initrd
 
-#kernel/git_revision.c: .git/HEAD .git/index
-#    echo "const char *gitversion = \"$(shell git rev-parse HEAD)\";" > $@
+.PHONY: build
+build: build_tools gen_revision build_bootloader build_libraries build_kernel build_drivers
 
-# Kernel + minimal userspace release
-.PHONY: kernel_release
-kernel_release: build_tools gen_revision_minor gen_revision build_bootloader build_libraries build_kernel build_drivers setup_userspace build_initrd install_img
-	#zip mollenos.img mollenos_$(shell revision print all).zip
-	#zip userspace/include mollenos_$(shell revision print all)_sdk.zip
-	#zip userspace/lib mollenos_$(shell revision print all)_sdk.zip
-	#zip userspace/bin mollenos_$(shell revision print all)_sdk.zip
-
-.PHONY: build_initrd
-build_initrd:
-	@printf "%b" "\033[1;35mInstalling initrd files into /initrd\033[m\n"
-	@mkdir -p initrd
-	@cp librt/build/*.dll initrd/
-	@cp services/build/*.dll initrd/
-	@cp services/build/*.mdrv initrd/
-	@cp modules/build/*.dll initrd/
-	@cp modules/build/*.mdrv initrd/
-	#@cp resources/initrd/* initrd/
-
-.PHONY: build_tools
-build_tools:
-	@$(MAKE) -s -C tools/lzss -f makefile
-	@$(MAKE) -s -C tools/rd -f makefile
-	@$(MAKE) -s -C tools/diskutility -f makefile
-	@$(MAKE) -s -C tools/revision -f makefile
-	@$(MAKE) -s -C tools/file2c -f makefile
-
+#############################################
+##### UTILITY TARGETS                   #####
+#############################################
 .PHONY: gen_revision_minor
 	@printf "%b" "\033[1;35mUpdating revision version (minor)\033[m\n"
 	@./revision minor clang
@@ -55,15 +34,13 @@ gen_revision:
 	@./revision build clang
 	@cp revision.h kernel/include/revision.h
 
-.PHONY: setup_userspace
-setup_userspace:
-	@printf "%b" "\033[1;35mSetting up userspace folders(include/lib)\033[m\n"
-	@$(MAKE) -s -C userspace -f makefile
+.PHONY: run_bochs
+run_bochs:
+	 bochs -q -f tools/setup.bochsrc
 
-.PHONY: build_userspace
-build_userspace:
-	@$(MAKE) -s -C userspace -f makefile applications
-
+#############################################
+##### BUILD TARGETS (Boot, Lib, Kernel) #####
+#############################################
 .PHONY: build_kernel
 build_kernel:
 	@$(MAKE) -s -C kernel -f makefile
@@ -80,6 +57,70 @@ build_libraries:
 .PHONY: build_bootloader
 build_bootloader:
 	@$(MAKE) -s -C boot -f makefile
+
+.PHONY: build_tools
+build_tools:
+	@$(MAKE) -s -C tools/lzss -f makefile
+	@$(MAKE) -s -C tools/rd -f makefile
+	@$(MAKE) -s -C tools/diskutility -f makefile
+	@$(MAKE) -s -C tools/revision -f makefile
+	@$(MAKE) -s -C tools/file2c -f makefile
+
+#############################################
+##### PACKAGING TARGETS (OS, SDK, DDK)  #####
+#############################################
+.PHONY: package_os
+package_os: package_initrd
+	$(eval VALI_VERSION = $(shell ./revision print all))
+	@mkdir -p os_package
+	@cp -a boot/build/. os_package/
+	@./rd $(VALI_ARCH) initrd.mos
+	@./lzss c initrd.mos os_package/initrd.mos
+	@./lzss c kernel/build/syskrnl.mos os_package/syskrnl.mos
+	@cd os_package; zip -r vali-$(VALI_VERSION)-$(VALI_ARCH).zip .
+	@mv os_package/vali-$(VALI_VERSION)-$(VALI_ARCH).zip .
+	@rm -rf os_package
+
+.PHONY: package_initrd
+package_initrd:
+	@printf "%b" "\033[1;35mPackaging initrd files\033[m\n"
+	@mkdir -p initrd
+	@cp librt/build/*.dll initrd/
+	@cp services/build/*.dll initrd/
+	@cp services/build/*.mdrv initrd/
+	@cp modules/build/*.dll initrd/
+	@cp modules/build/*.mdrv initrd/
+	#@cp resources/initrd/* initrd/
+
+.PHONY: package_sdk
+package_sdk: build package_sdk_headers package_sdk_libraries
+	$(eval VALI_VERSION = $(shell ./revision print all))
+	@cd $(VALI_SDK_PATH); zip -r vali-sdk-$(VALI_VERSION)-$(VALI_ARCH).zip .
+	@mv $(VALI_SDK_PATH)/vali-sdk-$(VALI_VERSION)-$(VALI_ARCH).zip .
+
+.PHONY: package_sdk_headers
+package_sdk_headers:
+	@mkdir -p $(VALI_SDK_PATH)/include
+	@mkdir -p $(VALI_SDK_PATH)/include/ds
+	@mkdir -p $(VALI_SDK_PATH)/include/os
+	@mkdir -p $(VALI_SDK_PATH)/include/sys
+	@mkdir -p $(VALI_SDK_PATH)/include/cxx
+	@cp librt/include/*.h $(VALI_SDK_PATH)/include/
+	@cp librt/libc/include/*.h $(VALI_SDK_PATH)/include/
+	@cp -r librt/libc/include/os/ $(VALI_SDK_PATH)/include/
+	@cp librt/libc/include/$(VALI_ARCH)/*.h $(VALI_SDK_PATH)/include/
+	@cp librt/libc/include/sys/*.h $(VALI_SDK_PATH)/include/sys/
+	@cp librt/libds/include/ds/*.h $(VALI_SDK_PATH)/include/ds/
+	@cp -r librt/libcxx/cxx/include/* $(VALI_SDK_PATH)/include/cxx/
+
+.PHONY: package_sdk_libraries
+package_sdk_libraries:
+	@mkdir -p $(VALI_SDK_PATH)/bin
+	@mkdir -p $(VALI_SDK_PATH)/lib
+	@cp librt/build/*.dll $(VALI_SDK_PATH)/bin/
+	@cp librt/build/*.lib $(VALI_SDK_PATH)/lib/
+	@cp librt/deploy/*.dll $(VALI_SDK_PATH)/bin/
+	@cp librt/deploy/*.lib $(VALI_SDK_PATH)/lib/
 
 # Build the deploy directory, which contains the primary (system) drive
 # structure, system folder, default binaries etc
@@ -112,25 +153,15 @@ install_img: install_shared
 .PHONY: install_vmdk
 install_vmdk: install_shared
 	mono diskutility -auto -target vmdk -scheme mbr
-	
-.PHONY: run_bochs
-run_bochs:
-	 bochs -q -f tools/setup.bochsrc
 
-.PHONY: build_toolchain
-build_toolchain:
-	cd tools
-	mkdir -p toolchain
-	chmod +x ./depends.sh
-	chmod +x ./checkout.sh
-	chmod +x ./build_clang.sh
-	chmod +x ./build_toolchain.sh
-	bash ./depends.sh
-	bash ./checkout.sh
-	bash ./build_clang.sh
-	bash ./build_toolchain.sh
-	rm -rf toolchain
-	cd ..
+.PHONY: setup_userspace
+setup_userspace:
+	@printf "%b" "\033[1;35mSetting up userspace folders(include/lib)\033[m\n"
+	@$(MAKE) -s -C userspace -f makefile
+
+.PHONY: build_userspace
+build_userspace:
+	@$(MAKE) -s -C userspace -f makefile applications
 
 .PHONY: clean
 clean:
@@ -151,3 +182,4 @@ clean:
 	@rm -f *.vmdk
 	@rm -f *.img
 	@rm -f *.lock
+	@rm -f *.zip
