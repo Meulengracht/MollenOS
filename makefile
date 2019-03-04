@@ -93,7 +93,7 @@ package_initrd:
 	#@cp resources/initrd/* initrd/
 
 .PHONY: package_sdk
-package_sdk: build package_sdk_headers package_sdk_libraries
+package_sdk: package_sdk_headers package_sdk_libraries
 	$(eval VALI_VERSION = $(shell ./revision print all))
 	@cd $(VALI_SDK_PATH); zip -r vali-sdk-$(VALI_VERSION)-$(VALI_ARCH).zip .
 	@mv $(VALI_SDK_PATH)/vali-sdk-$(VALI_VERSION)-$(VALI_ARCH).zip .
