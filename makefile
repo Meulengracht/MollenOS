@@ -9,10 +9,13 @@
 # - CROSS=/path/to/cross/home
 include config/common.mk
 
-# When building the SDK we need to have VALI_SDK_PATH defined so we 
+# When building the SDK/DDK we need to have VALI_SDK_PATH defined so we 
 # know where it needs to be installed. By default we install in /userspace directory
 ifndef VALI_SDK_PATH
 VALI_SDK_PATH=$(userspace_path)
+endif
+ifndef VALI_DDK_PATH
+VALI_DDK_PATH=$(userspace_path)
 endif
 
 .PHONY: all
@@ -121,6 +124,18 @@ package_sdk_libraries:
 	@cp librt/build/*.lib $(VALI_SDK_PATH)/lib/
 	@cp librt/deploy/*.dll $(VALI_SDK_PATH)/bin/
 	@cp librt/deploy/*.lib $(VALI_SDK_PATH)/lib/
+
+.PHONY: package_ddk
+package_ddk: package_ddk_headers
+	$(eval VALI_VERSION = $(shell ./revision print all))
+	@cd $(VALI_DDK_PATH); zip -r vali-ddk-$(VALI_VERSION)-$(VALI_ARCH).zip .
+	@mv $(VALI_DDK_PATH)/vali-ddk-$(VALI_VERSION)-$(VALI_ARCH).zip .
+
+.PHONY: package_ddk_headers
+package_ddk_headers:
+	@mkdir -p $(VALI_DDK_PATH)/include
+	@mkdir -p $(VALI_DDK_PATH)/include/ddk
+	@cp librt/libc/include/ddk/*.h $(VALI_DDK_PATH)/include/ddk/
 
 # Build the deploy directory, which contains the primary (system) drive
 # structure, system folder, default binaries etc
