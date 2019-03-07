@@ -10,10 +10,16 @@
 Before you setup anything you must setup environmental variables that are used by
 the project.
 
-| Variable         | Description             |
-| ---------------- |:-----------------------:|
-| CROSS            | Points to where the cross-compiler will be installed. |
-| VALI_ARCH        | Which architecture you will build the OS and applications for. |
+| Variable              | Required | Description             |
+| --------------------- |:-------- |:-----------------------:|
+| CROSS                 | Yes      | Points to where the cross-compiler will be installed. |
+| VALI_ARCH             | Yes      | Which architecture you will build the OS and applications for. |
+| VALI_SDK_PATH         | No*      | Points to where the SDK should be installed for app development. |
+| VALI_DDK_PATH         | No*      | Points to where the DDK should be installed for driver development. |
+| VALI_APPLICATION_PATH | No**     | Points to where the Vali applications/libraries are built. |
+
+* Can be supplied to enable make install_sdk and make install_ddk
+** Can be supplied to include built applications in the kernel image
 
 ### Setting up the toolchain
 The only thing you need to get started is a succesfully built toolchain of llvm/clang/lld. To help make this easier
@@ -34,12 +40,17 @@ the final pre-requisites (nasm, mono-complete, cmake platform script). The scrip
 After this, you are essentially ready to start developing on the operating system. When/if you make pull requests
 when contributing, please follow the pull template that is provided.
 
+### Setting up for application development
+If you want to build applications for Vali, you will need the make install_sdk/ddk commands, you will need all the not required environment variables. Then follow the instructions located [here](https://github.com/Meulengracht/vali-userspace) to get the sources for the applications.
+
 ### The build commands
 There is a series of build commands available.
 
 | Command           | Description             |
 | ----------------- |:-----------------------:|
 | make              | Builds the operating system and support libraries |
+| make install_sdk  | Installs the SDK to the location VALI_SDK_PATH points. This is needed for app and driver development. |
+| make install_ddk  | Installs the DDK to the location VALI_DDK_PATH points. This is needed for driver development. |
 | make install_img  | Creates a harddisk image with bootloader, kernel, libraries and built apps of format .img |
 | make install_vmdk | Creates a harddisk image with bootloader, kernel, libraries and built apps of format .vmdk |
 
@@ -107,39 +118,3 @@ Showcase of MollenOS to get an idea of how the userspace will be once it's finis
 ![The mesa/llvmpipe/gallium port for the OS running](docs/images/gfx1.png)
 ![The mesa/llvmpipe/gallium port for the OS running](docs/images/gfx2.png)
 ![The mesa/llvmpipe/gallium port for the OS running](docs/images/gfx4.png)
-
-## Implementations & Essential Software
-
-### The C-Library, C++ Library and OS Library
-
-The run-time libraries used/implemented in mollenos are:
- - libcrt (Contains compiler support functions and entry points for apps/drivers/etc)
- - libclang (Contains compiler support for clang)
- - libc + libm (Contains the standard c library support for the c-language)
- - libcxx + libcxxabi (Contains the standard c++ library runtime and support for the c++-language)
-
-The c++ runtime and support is a native port of the c++ runtime for clang and the itanium abi. All os support functions are available in the standard c library.
-
-### Vioarr (Window Manager)
-
-Vioarr (formerly known as Sapphire), is the windowmanager for MollenOS. It will be based upon a 3d platform (opengl) to perform advanced and beautiful
-graphical user interfaces. Vioarr currently builds on the vector graphics library nanovg which will be used for doing UI elements. The user interface in
-MollenOS will be with focus on simplicity with a modern theme. 
-
-### Ported libraries and programs
-
-These are the various libraries ported to MollenOS userspace, and are primarily used by system software, like the terminal, window manager etc.
-
-| Library       | Version   | Description             |
-| ------------- | ---------:|:-----------------------:|
-| openlibm      | <unk>     | open mathematical c-library   |
-| compiler-rt   | <unk>     | llvm/clang compiler runtime support  |
-| libunwind     | <unk>     | unwind support for the c++ itanium abi  |
-| libcxxabi     | <unk>     | c++ itanium abi compiler support implementation  |
-| libcxx        | <unk>     | c++ standard library support   |
-| llvm          | <unk>     | The LLVM compiler back-end   |
-| mesa3d        | <unk>     | Open source 3d opengl framework   |
-| zlib          | <unk>     | Compression library   |
-| libpng        | <unk>     | PNG image library   |
-| freetype2     | <unk>     | Library to handle and render fonts   |
-
