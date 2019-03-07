@@ -8,7 +8,8 @@
 
 ### Environment variables
 Before you setup anything you must setup environmental variables that are used by
-the project
+the project.
+
 | Variable         | Description             |
 | ---------------- |:-----------------------:|
 | CROSS            | Points to where the cross-compiler will be installed. |
@@ -35,6 +36,7 @@ when contributing, please follow the pull template that is provided.
 
 ### The build commands
 There is a series of build commands available.
+
 | Command           | Description             |
 | ----------------- |:-----------------------:|
 | make              | Builds the operating system and support libraries |
