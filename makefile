@@ -101,6 +101,7 @@ package_sdk: package_sdk_headers package_sdk_libraries
 	$(eval VALI_VERSION = $(shell ./revision print all))
 	@cd $(VALI_SDK_PATH); zip -r vali-sdk-$(VALI_VERSION)-$(VALI_ARCH).zip .
 	@mv $(VALI_SDK_PATH)/vali-sdk-$(VALI_VERSION)-$(VALI_ARCH).zip .
+	@rm -rf $(VALI_SDK_PATH)
 
 .PHONY: package_sdk_headers
 package_sdk_headers:
@@ -131,6 +132,7 @@ package_ddk: package_ddk_headers
 	$(eval VALI_VERSION = $(shell ./revision print all))
 	@cd $(VALI_DDK_PATH); zip -r vali-ddk-$(VALI_VERSION)-$(VALI_ARCH).zip .
 	@mv $(VALI_DDK_PATH)/vali-ddk-$(VALI_VERSION)-$(VALI_ARCH).zip .
+	@rm -rf $(VALI_DDK_PATH)
 
 .PHONY: package_ddk_headers
 package_ddk_headers:
@@ -139,8 +141,14 @@ package_ddk_headers:
 	@cp -r librt/libddk/include/ddk/* $(VALI_DDK_PATH)/include/ddk/
 
 #############################################
-##### DEPLOY/IMAGE TARGETS              #####
+##### INSTALL/IMAGE TARGETS             #####
 #############################################
+.PHONY: install_sdk
+install_sdk: package_sdk_headers package_sdk_libraries
+
+.PHONY: install_dkk
+install_dkk: package_ddk_headers
+
 # Build the deploy directory, which contains the primary (system) drive
 # structure, system folder, default binaries etc
 .PHONY: install_shared
