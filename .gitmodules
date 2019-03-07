@@ -7,18 +7,6 @@
 [submodule "librt/libcxx/unwind"]
 	path = librt/libcxx/unwind
 	url = https://github.com/Meulengracht/libunwind
-[submodule "userspace/mesa"]
-	path = userspace/mesa
-	url = https://github.com/Meulengracht/mesa
-[submodule "userspace/llvm"]
-	path = userspace/llvm
-	url = https://github.com/Meulengracht/llvm
 [submodule "librt/libclang"]
 	path = librt/libclang
 	url = https://github.com/Meulengracht/compiler-rt
-[submodule "userspace/glm"]
-	path = userspace/glm
-	url = https://github.com/Meulengracht/glm.git
-[submodule "userspace/nanovg"]
-	path = userspace/nanovg
-	url = https://github.com/Meulengracht/nanovg

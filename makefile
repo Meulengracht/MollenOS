@@ -18,9 +18,6 @@ ifndef VALI_DDK_PATH
 VALI_DDK_PATH=$(userspace_path)
 endif
 
-.PHONY: all
-all: build setup_userspace package_initrd
-
 .PHONY: build
 build: build_tools gen_revision build_bootloader build_libraries build_kernel build_drivers
 
@@ -61,6 +58,10 @@ build_libraries:
 build_bootloader:
 	@$(MAKE) -s -C boot -f makefile
 
+.PHONY: build_tests
+build_tests:
+	@$(MAKE) -s -C tests -f makefile
+	
 .PHONY: build_tools
 build_tools:
 	@$(MAKE) -s -C tools/lzss -f makefile
@@ -72,8 +73,19 @@ build_tools:
 #############################################
 ##### PACKAGING TARGETS (OS, SDK, DDK)  #####
 #############################################
+.PHONY: copy_initrd_files
+copy_initrd_files:
+	@printf "%b" "\033[1;35mPackaging initrd files\033[m\n"
+	@mkdir -p initrd
+	@cp librt/build/*.dll initrd/
+	@cp services/build/*.dll initrd/
+	@cp services/build/*.mdrv initrd/
+	@cp modules/build/*.dll initrd/
+	@cp modules/build/*.mdrv initrd/
+	#@cp resources/initrd/* initrd/
+
 .PHONY: package_os
-package_os: package_initrd
+package_os: copy_initrd_files
 	$(eval VALI_VERSION = $(shell ./revision print all))
 	@mkdir -p os_package
 	@cp -a boot/build/. os_package/
@@ -83,17 +95,6 @@ package_os: package_initrd
 	@cd os_package; zip -r vali-$(VALI_VERSION)-$(VALI_ARCH).zip .
 	@mv os_package/vali-$(VALI_VERSION)-$(VALI_ARCH).zip .
 	@rm -rf os_package
-
-.PHONY: package_initrd
-package_initrd:
-	@printf "%b" "\033[1;35mPackaging initrd files\033[m\n"
-	@mkdir -p initrd
-	@cp librt/build/*.dll initrd/
-	@cp services/build/*.dll initrd/
-	@cp services/build/*.mdrv initrd/
-	@cp modules/build/*.dll initrd/
-	@cp modules/build/*.mdrv initrd/
-	#@cp resources/initrd/* initrd/
 
 .PHONY: package_sdk
 package_sdk: package_sdk_headers package_sdk_libraries
@@ -137,9 +138,12 @@ package_ddk_headers:
 	@mkdir -p $(VALI_DDK_PATH)/include/ddk
 	@cp -r librt/libddk/include/ddk/* $(VALI_DDK_PATH)/include/ddk/
 
+#############################################
+##### DEPLOY/IMAGE TARGETS              #####
+#############################################
 # Build the deploy directory, which contains the primary (system) drive
 # structure, system folder, default binaries etc
-.PHONY: install_shared
+.PHONY: copy_initrd_files install_shared
 install_shared:
 	mkdir -p deploy/hdd
 	mkdir -p deploy/hdd/shared
@@ -155,10 +159,12 @@ install_shared:
 	cp librt/build/*.dll deploy/hdd/shared/bin/
 	cp librt/deploy/*.lib deploy/hdd/shared/lib/
 	cp librt/deploy/*.dll deploy/hdd/shared/bin/
-	cp userspace/bin/*.app deploy/hdd/shared/bin/ 2>/dev/null || :
-	cp userspace/bin/*.dll deploy/hdd/shared/bin/ 2>/dev/null || :
-	#cp userspace/lib/* deploy/hdd/shared/lib/ 2>/dev/null || :
-	#cp userspace/include/* deploy/hdd/shared/include/ 2>/dev/null || :
+    cp tests/bin/*.app deploy/hdd/shared/bin/ 2>/dev/null || :; \
+    cp tests/bin/*.dll deploy/hdd/shared/bin/ 2>/dev/null || :; \
+	if [ -d "$(VALI_APPLICATION_PATH)" ]; then \
+        cp $(VALI_APPLICATION_PATH)/bin/*.app deploy/hdd/shared/bin/ 2>/dev/null || :; \
+        cp $(VALI_APPLICATION_PATH)/bin/*.dll deploy/hdd/shared/bin/ 2>/dev/null || :; \
+    fi
 
 .PHONY: install_img
 install_img: install_shared
@@ -169,15 +175,6 @@ install_img: install_shared
 install_vmdk: install_shared
 	mono diskutility -auto -target vmdk -scheme mbr
 
-.PHONY: setup_userspace
-setup_userspace:
-	@printf "%b" "\033[1;35mSetting up userspace folders(include/lib)\033[m\n"
-	@$(MAKE) -s -C userspace -f makefile
-
-.PHONY: build_userspace
-build_userspace:
-	@$(MAKE) -s -C userspace -f makefile applications
-
 .PHONY: clean
 clean:
 	@$(MAKE) -s -C boot -f makefile clean
@@ -185,12 +182,12 @@ clean:
 	@$(MAKE) -s -C services -f makefile clean
 	@$(MAKE) -s -C modules -f makefile clean
 	@$(MAKE) -s -C kernel -f makefile clean
-	@$(MAKE) -s -C userspace -f makefile clean
 	@$(MAKE) -s -C tools/lzss -f makefile clean
 	@$(MAKE) -s -C tools/rd -f makefile clean
 	@$(MAKE) -s -C tools/diskutility -f makefile clean
 	@$(MAKE) -s -C tools/revision -f makefile clean
 	@$(MAKE) -s -C tools/file2c -f makefile clean
+	@$(MAKE) -s -C tests -f makefile clean
 	@rm -f initrd.mos
 	@rm -rf deploy
 	@rm -rf initrd
