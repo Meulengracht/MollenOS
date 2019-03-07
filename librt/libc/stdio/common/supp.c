@@ -25,13 +25,9 @@
 #include <threading.h>
 #include <stdio.h>
 
-/* Globals
- * Static initialization for kernel outs */
 Spinlock_t __GlbPrintLock = SPINLOCK_INIT;
 FILE __GlbStdout = { 0 }, __GlbStdin = { 0 }, __GlbStderr = { 0 };
 
-/* _lock_file
- * Performs primitive locking on a file-stream. */
 OsStatus_t
 _lock_file(
     _In_ FILE *file)
@@ -42,8 +38,6 @@ _lock_file(
     return OsSuccess;
 }
 
-/* _unlock_file
- * Performs primitive unlocking on a file-stream. */
 OsStatus_t
 _unlock_file(
     _In_ FILE *file)
@@ -54,8 +48,6 @@ _unlock_file(
     return OsSuccess;
 }
 
-/* getstdfile
- * Retrieves a standard io stream handle */
 FILE *
 getstdfile(
     _In_ int n)
@@ -83,8 +75,6 @@ int wctomb(char *mbchar, wchar_t wchar)
     return 0;
 }
 
-/* thrd_current
- * Returns the identifier of the calling thread. */
 thrd_t thrd_current(void) {
     return (thrd_t)GetCurrentThreadId();
 }

@@ -24,14 +24,11 @@
 #include <ddk/buffer.h>
 #include <assert.h>
 #include <stdlib.h>
+#include "../stdio/local.h"
 
-// Globals
-// State keeping for a single window
 static DmaBuffer_t* ProgramWindowBuffer = NULL;
 static long         ProgramWindowHandle = -1;
 
-/* UiParametersSetDefault
- * Set(s) default window parameters for the given window param structure. */
 void
 UiParametersSetDefault(
     _In_  UIWindowParameters_t* Descriptor)
@@ -45,11 +42,12 @@ UiParametersSetDefault(
     Descriptor->Surface.Dimensions.y    = -1;
     Descriptor->Surface.Dimensions.w    = 450;
     Descriptor->Surface.Dimensions.h    = 300;
+    
+    // Sanitize that this is indeed a pipe handle @todo
+    Descriptor->InputPipeHandle   = get_ioinfo(STDIN_FILENO)->handle.InheritationHandle;
+    Descriptor->WmEventPipeHandle = UUID_INVALID;
 }
 
-/* UiUnregisterWindow
- * Unregisters and destroys the current active window for the application.
- * If none are registered, OsError is returned. */
 void
 UiUnregisterWindow(void)
 {
@@ -58,9 +56,6 @@ UiUnregisterWindow(void)
     }
 }
 
-/* UiRegisterWindow
- * Registers a new window with the window manage with the given 
- * configuration. If the configuration is invalid, OsError is returned. */
 OsStatus_t
 UiRegisterWindow(
     _In_  UIWindowParameters_t* Descriptor,
@@ -92,8 +87,6 @@ UiRegisterWindow(
     return Status;
 }
 
-/* UiSwapBackbuffer
- * Presents the current backbuffer and rendering all changes made to the window. */
 OsStatus_t
 UiSwapBackbuffer(void)
 {

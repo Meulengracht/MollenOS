@@ -146,8 +146,8 @@ package_ddk_headers:
 .PHONY: install_sdk
 install_sdk: package_sdk_headers package_sdk_libraries
 
-.PHONY: install_dkk
-install_dkk: package_ddk_headers
+.PHONY: install_ddk
+install_ddk: package_ddk_headers
 
 # Build the deploy directory, which contains the primary (system) drive
 # structure, system folder, default binaries etc
@@ -167,12 +167,12 @@ install_shared: copy_initrd_files
 	cp librt/build/*.dll deploy/hdd/shared/bin/
 	cp librt/deploy/*.lib deploy/hdd/shared/lib/
 	cp librt/deploy/*.dll deploy/hdd/shared/bin/
-    cp tests/bin/*.app deploy/hdd/shared/bin/ 2>/dev/null || :; \
-    cp tests/bin/*.dll deploy/hdd/shared/bin/ 2>/dev/null || :; \
-	if [ -d "$(VALI_APPLICATION_PATH)" ]; then \
+	if [ -d $(VALI_APPLICATION_PATH) ]; then \
         cp $(VALI_APPLICATION_PATH)/bin/*.app deploy/hdd/shared/bin/ 2>/dev/null || :; \
         cp $(VALI_APPLICATION_PATH)/bin/*.dll deploy/hdd/shared/bin/ 2>/dev/null || :; \
     fi
+    cp tests/bin/*.app deploy/hdd/shared/bin/ 2>/dev/null || :
+    cp tests/bin/*.dll deploy/hdd/shared/bin/ 2>/dev/null || :
 
 .PHONY: install_img
 install_img: install_shared

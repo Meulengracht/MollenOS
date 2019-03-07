@@ -48,7 +48,8 @@ typedef struct _UiSurfaceDescriptor {
 typedef struct _UiWindowParameters {
     UISurfaceDescriptor_t Surface;
     unsigned              Flags;
-    UUId_t                WmPipeHandle;
+    UUId_t                InputPipeHandle;
+    UUId_t                WmEventPipeHandle;
 } UIWindowParameters_t;
 
 _CODE_BEGIN
