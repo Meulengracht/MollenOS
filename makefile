@@ -135,7 +135,7 @@ package_ddk: package_ddk_headers
 package_ddk_headers:
 	@mkdir -p $(VALI_DDK_PATH)/include
 	@mkdir -p $(VALI_DDK_PATH)/include/ddk
-	@cp librt/libc/include/ddk/*.h $(VALI_DDK_PATH)/include/ddk/
+	@cp librt/libddk/include/ddk/*.h $(VALI_DDK_PATH)/include/ddk/
 
 # Build the deploy directory, which contains the primary (system) drive
 # structure, system folder, default binaries etc
