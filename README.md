@@ -19,13 +19,13 @@ the project.
 | VALI_APPLICATION_PATH | No**     | Points to where the Vali applications/libraries are built. |
 
 * Can be supplied to enable make install_sdk and make install_ddk
+
 ** Can be supplied to include built applications in the kernel image
 
 ### Setting up the toolchain
 The only thing you need to get started is a succesfully built toolchain of llvm/clang/lld. To help make this easier
 I have made a fully automated script, which downloads all the neccessary components, and initiates a full build of llvm/lld/clang.
-Make note that two full builds need to run, and that this takes a couple of hours. First the llvm/clang/lld setup is built and installed,
-then the cross-compiler is built afterwards.
+Make note that two full builds need to run, and that this takes a couple of hours. First the llvm/clang/lld setup is built and installed, then the cross-compiler is built afterwards.
 
 Toolchain scripts are located [here](https://github.com/Meulengracht/vali-toolchain). You should run the scripts in this order:
 - depends.sh
