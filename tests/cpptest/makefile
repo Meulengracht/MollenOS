@@ -3,20 +3,20 @@
 # Include all the definitions for os
 include ../../config/common.mk
 
-INCLUDES = -I../include/cxx -I../include -I../../librt/libddk/include
+INCLUDES = -I../../librt/libcxx/cxx/include -I../../librt/libc/include -I../../librt/libc/include/$(VALI_ARCH) -I../../librt/libddk/include -I../../librt/include
 
 CFLAGS = $(GUCFLAGS) $(INCLUDES)
 CXXFLAGS = $(GUCXXFLAGS) $(INCLUDES)
-LFLAGS = $(GLFLAGS) /lldmap
+LFLAGS = $(GLFLAGS) /lldmap -LIBPATH:../../librt/build -LIBPATH:../../librt/deploy
 
 .PHONY: all
 all: ../bin/cpplibtest.dll ../bin/cpptest.app
 
-../bin/cpplibtest.dll: lib.o $(GUCXXLIBRARIES)
+../bin/cpplibtest.dll: lib.o
 	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
 	@$(LD) /dll /entry:__CrtLibraryEntry $(LFLAGS) $(GUCXXLIBRARIES) lib.o /out:$@
 
-../bin/cpptest.app: main.o test-double.o $(GUCXXLIBRARIES)
+../bin/cpptest.app: main.o test-double.o
 	@printf "%b" "\033[0;36mCreating application " $@ "\033[m\n"
 	@$(LD) /entry:__CrtConsoleEntry ../bin/cpplibtest.lib $(LFLAGS) $(GUCXXLIBRARIES) main.o test-double.o /out:$@
 	

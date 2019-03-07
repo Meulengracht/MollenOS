@@ -29,7 +29,6 @@
 #include "test_so.hpp"
 #include <cstdlib>
 #include <thread>
-#include <png.h>
 
 extern "C" int libm_main (int argc, char **argv);
 
@@ -104,7 +103,7 @@ int main(int argc, char **argv) {
    
     // Run tests
     RUN_TEST_SUITE(ErrorCounter, ConsoleStreamTests);
-    RUN_TEST_SUITE(ErrorCounter, SharedObjectTests);
+    //RUN_TEST_SUITE(ErrorCounter, SharedObjectTests);
     RUN_TEST_SUITE(ErrorCounter, FileStreamTests);
     RUN_TEST_SUITE(ErrorCounter, ProcessTests);
 

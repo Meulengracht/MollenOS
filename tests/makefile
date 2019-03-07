@@ -1,5 +1,7 @@
 # Makefile for building all tests appications
 #
+export GUCLIBRARIES = libcrt.lib libclang.lib libc.lib libunwind.lib libm.lib
+export GUCXXLIBRARIES = libcxx.lib libclang.lib libc.lib libunwind.lib libm.lib
 
 .PHONY: all
 all: bin lib include build_cpptest

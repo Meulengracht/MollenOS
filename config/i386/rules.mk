@@ -35,5 +35,3 @@ GLFLAGS = /nodefaultlib /machine:X86 /subsystem:native
 # Userspace environment compilation flags
 GUCFLAGS = $(shared_flags) $(arch_flags) $(disable_warnings)
 GUCXXFLAGS = -std=c++17 $(shared_flags) $(arch_flags) $(disable_warnings)
-GUCLIBRARIES = $(lib_path)/libcrt.lib $(lib_path)/libclang.lib $(lib_path)/libc.lib $(lib_path)/libunwind.lib $(lib_path)/libm.lib
-GUCXXLIBRARIES = $(lib_path)/libcxx.lib $(lib_path)/libclang.lib $(lib_path)/libc.lib $(lib_path)/libunwind.lib $(lib_path)/libm.lib

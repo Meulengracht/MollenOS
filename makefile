@@ -19,7 +19,7 @@ VALI_DDK_PATH=$(userspace_path)
 endif
 
 .PHONY: build
-build: build_tools gen_revision build_bootloader build_libraries build_kernel build_drivers
+build: build_tools gen_revision build_bootloader build_libraries build_kernel build_drivers build_tests
 
 #############################################
 ##### UTILITY TARGETS                   #####
@@ -143,8 +143,8 @@ package_ddk_headers:
 #############################################
 # Build the deploy directory, which contains the primary (system) drive
 # structure, system folder, default binaries etc
-.PHONY: copy_initrd_files install_shared
-install_shared:
+.PHONY: install_shared
+install_shared: copy_initrd_files
 	mkdir -p deploy/hdd
 	mkdir -p deploy/hdd/shared
 	mkdir -p deploy/hdd/shared/bin
