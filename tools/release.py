@@ -164,6 +164,7 @@ def main(args):
     
     # Build the requested image file
     diskutility_path = os.path.join(main_path, 'diskutility')
+    os.chmod(diskutility_path, 509)
     p = subprocess.Popen([diskutility_path, '-auto', '-target', pargs.target, '-scheme', pargs.scheme])
     p.wait();
     
