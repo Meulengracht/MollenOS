@@ -177,9 +177,9 @@ def main(args):
     
     # Zip and remove the disk image
     if len(version_parts) == 0:
-        zip_file_name = 'vali-release-local.zip'
+        zip_file_name = 'vali-release-local-' + pargs.target + '.zip'
     else:
-        zip_file_name = 'vali-release-' + version_parts[0] + '.' + version_parts[1] + '.' + version_parts[2] + '-' + arch + '.zip'
+        zip_file_name = 'vali-release-' + version_parts[0] + '.' + version_parts[1] + '.' + version_parts[2] + '-' + arch + '-' + pargs.target + '.zip'
     zipf = zipfile.ZipFile(zip_file_name, 'w', zipfile.ZIP_DEFLATED)
     zipf.write('mollenos.' + pargs.target)
     zipf.close()
