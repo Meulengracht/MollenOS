@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS User Visual Interface
+ * UI Communication interface with window service
  *  - Provides functionality to create and manage windows used by the program
  */
 
@@ -33,6 +33,8 @@ void
 UiParametersSetDefault(
     _In_  UIWindowParameters_t* Descriptor)
 {
+    StdioObject_t* StdioStdin = get_ioinfo(STDIN_FILENO);
+    
     // Sanitize parameters
     assert(Descriptor != NULL);
     Descriptor->Flags           = 0;
@@ -43,8 +45,10 @@ UiParametersSetDefault(
     Descriptor->Surface.Dimensions.w    = 450;
     Descriptor->Surface.Dimensions.h    = 300;
     
-    // Sanitize that this is indeed a pipe handle @todo
-    Descriptor->InputPipeHandle   = get_ioinfo(STDIN_FILENO)->handle.InheritationHandle;
+    // Sanitize that this is indeed a pipe handle
+    if (StdioStdin != NULL && StdioStdin->handle.InheritationType == STDIO_HANDLE_PIPE) {
+        Descriptor->InputPipeHandle = StdioStdin->handle.InheritationHandle;
+    }
     Descriptor->WmEventPipeHandle = UUID_INVALID;
 }
 

@@ -92,9 +92,13 @@ package_os: copy_initrd_files
 	@./rd $(VALI_ARCH) initrd.mos
 	@./lzss c initrd.mos os_package/initrd.mos
 	@./lzss c kernel/build/syskrnl.mos os_package/syskrnl.mos
+	@cp -r resources os_package/
+	@cp diskutility os_package/
+	@cp DiscUtils* os_package/
 	@cd os_package; zip -r vali-$(VALI_VERSION)-$(VALI_ARCH).zip .
 	@mv os_package/vali-$(VALI_VERSION)-$(VALI_ARCH).zip .
 	@rm -rf os_package
+	@rm initrd.mos
 
 .PHONY: package_sdk
 package_sdk: package_sdk_headers package_sdk_libraries
