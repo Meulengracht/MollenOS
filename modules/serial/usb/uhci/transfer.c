@@ -23,17 +23,9 @@
 //#define __TRACE
 //#define __DIAGNOSE
 
-/* Includes 
- * - System */
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "uhci.h"
-
-/* Includes
- * - Library */
-#include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
 
 /* UhciTransactionDispatch
  * Queues the transfer up in the controller hardware, after finalizing the

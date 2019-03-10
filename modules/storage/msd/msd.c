@@ -20,18 +20,11 @@
  */
 #define __TRACE
 
-/* Includes
- * - System */
 #include <ddk/utils.h>
 #include <ddk/usb.h>
 #include "msd.h"
-
-/* Includes
- * - Library */
 #include <stdlib.h>
 
-/* Global
- * - String data and static data */
 static const char *DeviceTypeStrings[TypeCount] = {
     "Floppy Drive",
     "Disk Drive",
@@ -48,11 +41,10 @@ static const char *DeviceProtocolStrings[ProtocolCount] = {
  * Initializes a new msd-device from the given usb-device */
 MsdDevice_t*
 MsdDeviceCreate(
-    _In_ MCoreUsbDevice_t *UsbDevice)
+    _In_ MCoreUsbDevice_t* UsbDevice)
 {
-    // Variables
-    MsdDevice_t *Device = NULL;
-    int i;
+    MsdDevice_t* Device = NULL;
+    int          i;
 
     // Debug
     TRACE("MsdDeviceCreate(DeviceId %u)", UsbDevice->Base.Id);
@@ -69,19 +61,22 @@ MsdDeviceCreate(
     Device = (MsdDevice_t*)malloc(sizeof(MsdDevice_t));
     memset(Device, 0, sizeof(MsdDevice_t));
     memcpy(&Device->Base, UsbDevice, sizeof(MCoreUsbDevice_t));
-    Device->Control = &UsbDevice->Endpoints[0];
+    Device->Control = &Device->Base.Endpoints[0];
 
     // Find neccessary endpoints
-    for (i = 1; i < UsbDevice->Interface.Versions[0].EndpointCount + 1; i++) {
-        if (UsbDevice->Endpoints[i].Type == EndpointInterrupt) {
-            Device->Interrupt = &UsbDevice->Endpoints[i];
+    for (i = 1; i < Device->Base.Interface.Versions[0].EndpointCount + 1; i++) {
+        if (Device->Base.Endpoints[i].Type == EndpointInterrupt) {
+            Device->Interrupt = &Device->Base.Endpoints[i];
+            TRACE("MSD-Int: %" PRIuIN, Device->Base.Endpoints[i].Address);
         }
-        else if (UsbDevice->Endpoints[i].Type == EndpointBulk) {
-            if (UsbDevice->Endpoints[i].Direction == USB_ENDPOINT_IN) {
-                Device->In = &UsbDevice->Endpoints[i];
+        else if (Device->Base.Endpoints[i].Type == EndpointBulk) {
+            if (Device->Base.Endpoints[i].Direction == USB_ENDPOINT_IN) {
+                Device->In = &Device->Base.Endpoints[i];
+                TRACE("MSD-In: %" PRIuIN, Device->Base.Endpoints[i].Address);
             }
-            else if (UsbDevice->Endpoints[i].Direction == USB_ENDPOINT_OUT) {
-                Device->Out = &UsbDevice->Endpoints[i];
+            else if (Device->Base.Endpoints[i].Direction == USB_ENDPOINT_OUT) {
+                Device->Out = &Device->Base.Endpoints[i];
+                TRACE("MSD-Out: %" PRIuIN, Device->Base.Endpoints[i].Address);
             }
         }
     }
@@ -93,12 +88,12 @@ MsdDeviceCreate(
     Device->Descriptor.SectorSize = 512;
     
     // Determine type of msd
-    if (UsbDevice->Interface.Subclass == MSD_SUBCLASS_FLOPPY) {
+    if (Device->Base.Interface.Subclass == MSD_SUBCLASS_FLOPPY) {
         Device->Type = TypeFloppy;
         Device->AlignedAccess = 1;
         Device->Descriptor.SectorsPerCylinder = 18;
     }
-    else if (UsbDevice->Interface.Subclass != MSD_SUBCLASS_ATAPI) {
+    else if (Device->Base.Interface.Subclass != MSD_SUBCLASS_ATAPI) {
         Device->Type = TypeDiskDrive;
     }
     else {
@@ -107,13 +102,13 @@ MsdDeviceCreate(
 
     // Determine type of protocol
     if (Device->Protocol == ProtocolUnknown) {
-        if (UsbDevice->Interface.Protocol == MSD_PROTOCOL_CBI) {
+        if (Device->Base.Interface.Protocol == MSD_PROTOCOL_CBI) {
             Device->Protocol = ProtocolCBI;
         }
-        else if (UsbDevice->Interface.Protocol == MSD_PROTOCOL_CB) {
+        else if (Device->Base.Interface.Protocol == MSD_PROTOCOL_CB) {
             Device->Protocol = ProtocolCB;
         }
-        else if (UsbDevice->Interface.Protocol == MSD_PROTOCOL_BULK_ONLY) {
+        else if (Device->Base.Interface.Protocol == MSD_PROTOCOL_BULK_ONLY) {
             Device->Protocol = ProtocolBulk;
         }
     }
@@ -169,8 +164,6 @@ Error:
     if (Device != NULL) {
         MsdDeviceDestroy(Device);
     }
-
-    // Done, return null
     return NULL;
 }
 

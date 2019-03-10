@@ -46,7 +46,7 @@ const char *UhciErrorMessages[] = {
  * This function calculates the first free set of bits in a value */
 size_t
 UhciFFS(
-    _In_ size_t                 Value)
+    _In_ size_t Value)
 {
     // Variables
     size_t Set = 0;
@@ -77,7 +77,7 @@ UhciFFS(
  * Determine Qh for Interrupt Transfer */
 int
 UhciDetermineInterruptIndex(
-    _In_ size_t                 Frame)
+    _In_ size_t Frame)
 {
     // Variables
     int Index = 0;
@@ -96,7 +96,7 @@ UhciDetermineInterruptIndex(
  * Retrieves a status-code from a given condition code */
 UsbTransferStatus_t
 UhciGetStatusCode(
-    _In_ int                    ConditionCode)
+    _In_ int ConditionCode)
 {
     // One huuuge if/else
     if (ConditionCode == 0) {
@@ -130,7 +130,7 @@ UhciGetStatusCode(
  * Removes and cleans up any existing transfers, then reinitializes. */
 OsStatus_t
 UhciQueueResetInternalData(
-    _In_ UhciController_t*      Controller)
+    _In_ UhciController_t* Controller)
 {
     // Variables
     UhciTransferDescriptor_t *NullTd    = NULL;
@@ -208,7 +208,7 @@ UhciQueueResetInternalData(
  * Initialize the controller's queue resources and resets counters */
 OsStatus_t
 UhciQueueInitialize(
-    _In_ UhciController_t*      Controller)
+    _In_ UhciController_t* Controller)
 {
     // Variables
     UsbSchedulerSettings_t Settings;
@@ -241,7 +241,7 @@ UhciQueueInitialize(
  * Removes and cleans up any existing transfers, then reinitializes. */
 OsStatus_t
 UhciQueueReset(
-    _In_ UhciController_t*      Controller)
+    _In_ UhciController_t* Controller)
 {
     // Debug
     TRACE("UhciQueueReset()");
@@ -259,7 +259,7 @@ UhciQueueReset(
  * Cleans up any resources allocated by QueueInitialize */
 OsStatus_t
 UhciQueueDestroy(
-    _In_ UhciController_t*      Controller)
+    _In_ UhciController_t* Controller)
 {
     // Debug
     TRACE("UhciQueueDestroy()");
@@ -274,7 +274,7 @@ UhciQueueDestroy(
  * OBS: Needs to be called regularly */
 void
 UhciUpdateCurrentFrame(
-    _In_ UhciController_t*      Controller)
+    _In_ UhciController_t* Controller)
 {
     // Variables
     uint16_t FrameNo    = 0;
@@ -291,11 +291,10 @@ UhciUpdateCurrentFrame(
  * Converts the given condition-code in a TD to a string-index */
 int
 UhciConditionCodeToIndex(
-    _In_ int                    ConditionCode)
+    _In_ int ConditionCode)
 {
-    // Variables
-    int bCount  = 0;
-    int Cc      = ConditionCode;
+    int bCount = 0;
+    int Cc     = ConditionCode;
 
     // Keep bit-shifting and count which bit is set
     for (; Cc != 0;) {
@@ -313,10 +312,10 @@ UhciConditionCodeToIndex(
  * will be provided in <Context> */
 int
 HciProcessElement(
-    _In_ UsbManagerController_t*    Controller,
-    _In_ uint8_t*                   Element,
-    _In_ int                        Reason,
-    _In_ void*                      Context)
+    _In_ UsbManagerController_t* Controller,
+    _In_ uint8_t*                Element,
+    _In_ int                     Reason,
+    _In_ void*                   Context)
 {
     // Variables
     UhciTransferDescriptor_t *Td    = (UhciTransferDescriptor_t*)Element;
@@ -410,9 +409,9 @@ HciProcessElement(
  * associated will be provided in <Context> */
 void
 HciProcessEvent(
-    _In_ UsbManagerController_t*    Controller,
-    _In_ int                        Event,
-    _In_ void*                      Context)
+    _In_ UsbManagerController_t* Controller,
+    _In_ int                     Event,
+    _In_ void*                   Context)
 {
     // Variables
     UsbManagerTransfer_t *Transfer  = (UsbManagerTransfer_t*)Context;

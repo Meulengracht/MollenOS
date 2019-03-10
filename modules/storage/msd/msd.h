@@ -22,13 +22,9 @@
 #ifndef _USB_MSD_H_
 #define _USB_MSD_H_
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 #include "../scsi/scsi.h"
 
-/* Includes
- * - Interfaces */
 #include <ddk/contracts/base.h>
 #include <ddk/contracts/usbhost.h>
 #include <ddk/contracts/usbdevice.h>
@@ -61,16 +57,14 @@
 
 #define MSD_TAG_SIGNATURE		        0xB00B1E00
 
-/* MsdCommandBlock
- * Wrapper structure for representing a SCSI command */
 PACKED_TYPESTRUCT(MsdCommandBlock, {
-	uint32_t                        Signature; //Must Contain 0x43425355 (little-endian)
-	uint32_t                        Tag;
-	uint32_t                        DataLength;
-	uint8_t                         Flags;
-	uint8_t                         Lun; // Bits 0-3
-	uint8_t                         Length; // Length of this structure, bits 0-4
-	uint8_t                         CommandBytes[16];
+	uint32_t Signature; //Must Contain 0x43425355 (little-endian)
+	uint32_t Tag;
+	uint32_t DataLength;
+	uint8_t  Flags;
+	uint8_t  Lun; // Bits 0-3
+	uint8_t  Length; // Length of this structure, bits 0-4
+	uint8_t  CommandBytes[16];
 });
 
 /* MsdCommandBlock::Signature
@@ -90,20 +84,15 @@ PACKED_TYPESTRUCT(MsdCommandBlock, {
 #define MSD_CBW_OUT				        0x0
 #define MSD_CBW_IN				        0x80
 
-/* MsdCommandBlockUFI
- * Wrapper structure for representing a UFI SCSI command.
- * Unified Floppy Interface (Usb Floppy Drives) */
 PACKED_TYPESTRUCT(MsdCommandBlockUFI, {
-	uint8_t                         CommandBytes[12];
+	uint8_t CommandBytes[12];
 });
 
-/* MsdCommandStatus
- * Wrapper structure for representing a SCSI command response. */
 PACKED_TYPESTRUCT(MsdCommandStatus, {
-	uint32_t                        Signature; // Must Contain 0x53425355 (little-endian)
-	uint32_t                        Tag;
-	uint32_t                        DataResidue; // The difference in data transfered
-	uint8_t                         Status;
+	uint32_t Signature; // Must Contain 0x53425355 (little-endian)
+	uint32_t Tag;
+	uint32_t DataResidue; // The difference in data transfered
+	uint8_t  Status;
 });
 
 /* MsdCommandStatus::Signature
@@ -116,9 +105,6 @@ PACKED_TYPESTRUCT(MsdCommandStatus, {
 #define MSD_CSW_FAIL			        0x1
 #define MSD_CSW_PHASE_ERROR		        0x2
 
-/* MsdDeviceType
- * The different types of usb msd devices. The most common
- * one being hard-drives */
 typedef enum _MsdDeviceType {
     TypeFloppy,
 	TypeDiskDrive,
@@ -126,9 +112,6 @@ typedef enum _MsdDeviceType {
     TypeCount
 } MsdDeviceType_t;
 
-/* MsdProtocolType
- * The different types of usb msd protocols. The most common
- * one being bulk */
 typedef enum _MsdProtocolType {
     ProtocolUnknown,
     ProtocolCB,
@@ -137,80 +120,70 @@ typedef enum _MsdProtocolType {
     ProtocolCount
 } MsdProtocolType_t;
 
-/* MsdOperations
- * The different kinds of protocols require different kind
- * of ways to perform transfers */
 typedef struct _MsdDevice MsdDevice_t;
 typedef struct _MsdOperations {
-    OsStatus_t              (*Initialize)(_In_ MsdDevice_t *Device);
-    UsbTransferStatus_t     (*SendCommand)(_In_ MsdDevice_t *Device, _In_ uint8_t ScsiCommand, _In_ uint64_t SectorStart, _In_ uintptr_t DataAddress, _In_ size_t DataLength);
-    UsbTransferStatus_t     (*ReadData)(_In_ MsdDevice_t *Device, _In_ uintptr_t DataAddress, _In_ size_t DataLength, _Out_ size_t *BytesRead);
-    UsbTransferStatus_t     (*WriteData)(_In_ MsdDevice_t *Device, _In_ uintptr_t DataAddress, _In_ size_t DataLength, _Out_ size_t *BytesWritten);
-    UsbTransferStatus_t     (*GetStatus)(_In_ MsdDevice_t *Device);
+    OsStatus_t          (*Initialize)(MsdDevice_t*);
+    UsbTransferStatus_t (*SendCommand)(MsdDevice_t*, uint8_t ScsiCommand, uint64_t SectorStart, uintptr_t DataAddress, size_t DataLength);
+    UsbTransferStatus_t (*ReadData)(MsdDevice_t*, uintptr_t DataAddress, size_t DataLength, size_t* BytesRead);
+    UsbTransferStatus_t (*WriteData)(MsdDevice_t*, uintptr_t DataAddress, size_t DataLength, size_t* BytesWritten);
+    UsbTransferStatus_t (*GetStatus)(MsdDevice_t*);
 } MsdOperations_t;
 
-/* MsdDevice
- * Represents a mass storage device. */
 typedef struct _MsdDevice {
-    MCoreUsbDevice_t             Base;
-    MContract_t                  Contract;
-    StorageDescriptor_t          Descriptor;
-    MsdDeviceType_t              Type;
-    MsdProtocolType_t            Protocol;
-    MsdOperations_t             *Operations;
+    MCoreUsbDevice_t    Base;
+    MContract_t         Contract;
+    StorageDescriptor_t Descriptor;
+    MsdDeviceType_t     Type;
+    MsdProtocolType_t   Protocol;
+    MsdOperations_t*    Operations;
 
-	int                          IsReady;
-	int                          IsExtended;
-    int                          AlignedAccess;
+	int IsReady;
+	int IsExtended;
+    int AlignedAccess;
 
     // Reusable buffers
-    MsdCommandBlock_t           *CommandBlock;
-    uintptr_t                    CommandBlockAddress;
-    MsdCommandStatus_t          *StatusBlock;
-    uintptr_t                    StatusBlockAddress;
+    MsdCommandBlock_t*  CommandBlock;
+    uintptr_t           CommandBlockAddress;
+    MsdCommandStatus_t* StatusBlock;
+    uintptr_t           StatusBlockAddress;
     
     // CBI Information
-    UsbHcEndpointDescriptor_t   *Control;
-    UsbHcEndpointDescriptor_t   *In;
-	UsbHcEndpointDescriptor_t   *Out;
-	UsbHcEndpointDescriptor_t   *Interrupt;
+    UsbHcEndpointDescriptor_t* Control;
+    UsbHcEndpointDescriptor_t* In;
+	UsbHcEndpointDescriptor_t* Out;
+	UsbHcEndpointDescriptor_t* Interrupt;
 } MsdDevice_t;
 
 /* MsdDeviceCreate
  * Initializes a new msd-device from the given usb-device */
-__EXTERN
-MsdDevice_t*
+__EXTERN MsdDevice_t*
 MsdDeviceCreate(
     _In_ MCoreUsbDevice_t *UsbDevice);
 
 /* MsdDeviceDestroy
  * Destroys an existing msd device instance and cleans up
  * any resources related to it */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 MsdDeviceDestroy(
     _In_ MsdDevice_t *Device);
 
 /* MsdDeviceInitialize 
  * Initializes and validates that the protocol has all neccessary
  * resources/endpoints/prerequisites for operation. */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 MsdDeviceInitialize(
     _In_ MsdDevice_t *Device);
 
 /* MsdDeviceStart
  * Initializes the device by performing one-time setup and reading device
  * capabilities and features. */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 MsdDeviceStart(
     _In_ MsdDevice_t *Device);
 
 /* MsdReadSectors
  * Read a given amount of sectors (bytes/sector-size) from the MSD. */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 MsdReadSectors(
     _In_ MsdDevice_t *Device,
     _In_ uint64_t SectorStart, 
@@ -220,8 +193,7 @@ MsdReadSectors(
 
 /* MsdWriteSectors
  * Write a given amount of sectors (bytes/sector-size) to the MSD. */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 MsdWriteSectors(
     _In_ MsdDevice_t *Device,
     _In_ uint64_t SectorStart, 

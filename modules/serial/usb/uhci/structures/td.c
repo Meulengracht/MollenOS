@@ -22,84 +22,72 @@
  */
 //#define __TRACE
 
-/* Includes 
- * - System */
+#include <ds/collection.h>
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "../uhci.h"
-
-/* Includes
- * - Library */
-#include <ds/collection.h>
-#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 
-/* UhciTdSetup 
- * Creates a new setup token td and initializes all the members.
- * The Td is immediately ready for execution. */
 void
 UhciTdSetup(
-    _In_ UhciTransferDescriptor_t*  Td,
-    _In_ uintptr_t                  BufferAddress,
-    _In_ size_t                     Address, 
-    _In_ size_t                     Endpoint,
-    _In_ UsbSpeed_t                 Speed)
+    _In_ UhciTransferDescriptor_t* Td,
+    _In_ uintptr_t                 BufferAddress,
+    _In_ size_t                    Address, 
+    _In_ size_t                    Endpoint,
+    _In_ UsbSpeed_t                Speed)
 {
     // Set no link
-    Td->Link            = UHCI_LINK_END;
+    Td->Link = UHCI_LINK_END;
 
     // Setup td flags
-    Td->Flags           = UHCI_TD_ACTIVE;
-    Td->Flags           |= UHCI_TD_SETCOUNT(3);
+    Td->Flags  = UHCI_TD_ACTIVE;
+    Td->Flags |= UHCI_TD_SETCOUNT(3);
     if (Speed == LowSpeed) {
-        Td->Flags       |= UHCI_TD_LOWSPEED;
+        Td->Flags |= UHCI_TD_LOWSPEED;
     }
 
     // Setup td header
-    Td->Header          = UHCI_TD_PID_SETUP;
-    Td->Header          |= UHCI_TD_DEVICE_ADDR(Address);
-    Td->Header          |= UHCI_TD_EP_ADDR(Endpoint);
-    Td->Header          |= UHCI_TD_MAX_LEN((sizeof(UsbPacket_t) - 1));
+    Td->Header  = UHCI_TD_PID_SETUP;
+    Td->Header |= UHCI_TD_DEVICE_ADDR(Address);
+    Td->Header |= UHCI_TD_EP_ADDR(Endpoint);
+    Td->Header |= UHCI_TD_MAX_LEN((sizeof(UsbPacket_t) - 1));
 
     // Install the buffer
-    Td->Buffer          = BufferAddress;
+    Td->Buffer = LODWORD(BufferAddress);
 
     // Store data
-    Td->OriginalFlags   = Td->Flags;
-    Td->OriginalHeader  = Td->Header;
+    Td->OriginalFlags  = Td->Flags;
+    Td->OriginalHeader = Td->Header;
     
     // Set usb scheduler link info
-    Td->Object.Flags   |= UHCI_LINK_DEPTH;
+    Td->Object.Flags |= UHCI_LINK_DEPTH;
 }
 
-/* UhciTdIo 
- * Creates a new io token td and initializes all the members.
- * The Td is immediately ready for execution. */
 void
 UhciTdIo(
-    _In_ UhciTransferDescriptor_t*  Td,
-    _In_ UsbTransferType_t          Type,
-    _In_ uint32_t                   PId,
-    _In_ int                        Toggle,
-    _In_ size_t                     Address, 
-    _In_ size_t                     Endpoint,
-    _In_ size_t                     MaxPacketSize,
-    _In_ UsbSpeed_t                 Speed,
-    _In_ uintptr_t                  BufferAddress,
-    _In_ size_t                     Length)
+    _In_ UhciTransferDescriptor_t* Td,
+    _In_ UsbTransferType_t         Type,
+    _In_ uint32_t                  PId,
+    _In_ int                       Toggle,
+    _In_ size_t                    Address, 
+    _In_ size_t                    Endpoint,
+    _In_ size_t                    MaxPacketSize,
+    _In_ UsbSpeed_t                Speed,
+    _In_ uintptr_t                 BufferAddress,
+    _In_ size_t                    Length)
 {
     // Set no link
-    Td->Link        = UHCI_LINK_END;
+    Td->Link = UHCI_LINK_END;
 
     // Setup td flags
-    Td->Flags       = UHCI_TD_ACTIVE;
-    Td->Flags       |= UHCI_TD_SETCOUNT(3);
+    Td->Flags  = UHCI_TD_ACTIVE;
+    Td->Flags |= UHCI_TD_SETCOUNT(3);
     if (Speed == LowSpeed) {
-        Td->Flags   |= UHCI_TD_LOWSPEED;
+        Td->Flags |= UHCI_TD_LOWSPEED;
     }
     if (Type == IsochronousTransfer) {
-        Td->Flags   |= UHCI_TD_ISOCHRONOUS;
+        Td->Flags |= UHCI_TD_ISOCHRONOUS;
     }
 
     // We set SPD on in transfers, but NOT on zero length
@@ -109,51 +97,48 @@ UhciTdIo(
         }
     }
     else if (PId == UHCI_TD_PID_IN) {
-        Td->Flags   |= UHCI_TD_SHORT_PACKET;
+        Td->Flags |= UHCI_TD_SHORT_PACKET;
     }
 
     // Setup td header
-    Td->Header      = PId;
-    Td->Header      |= UHCI_TD_DEVICE_ADDR(Address);
-    Td->Header      |= UHCI_TD_EP_ADDR(Endpoint);
-
-    // Set the data-toggle?
+    Td->Header  = PId;
+    Td->Header |= UHCI_TD_DEVICE_ADDR(Address);
+    Td->Header |= UHCI_TD_EP_ADDR(Endpoint);
     if (Toggle) {
-        Td->Header  |= UHCI_TD_DATA_TOGGLE;
+        Td->Header |= UHCI_TD_DATA_TOGGLE;
     }
 
     // Setup size
     if (Length > 0) {
         if (Length < MaxPacketSize && Type == InterruptTransfer) {
-            Td->Header  |= UHCI_TD_MAX_LEN((MaxPacketSize - 1));
+            Td->Header |= UHCI_TD_MAX_LEN((MaxPacketSize - 1));
         }
         else {
-            Td->Header  |= UHCI_TD_MAX_LEN((Length - 1));
+            Td->Header |= UHCI_TD_MAX_LEN((Length - 1));
         }
     }
     else {
-        Td->Header      |= UHCI_TD_MAX_LEN(0x7FF);
+        Td->Header |= UHCI_TD_MAX_LEN(0x7FF);
     }
 
     // Store buffer
-    Td->Buffer          = LODWORD(BufferAddress);
+    Td->Buffer = LODWORD(BufferAddress);
 
     // Store data
-    Td->OriginalFlags   = Td->Flags;
-    Td->OriginalHeader  = Td->Header;
+    Td->OriginalFlags  = Td->Flags;
+    Td->OriginalHeader = Td->Header;
 
     // Set usb scheduler link info
-    Td->Object.Flags   |= UHCI_LINK_DEPTH;
+    Td->Object.Flags |= UHCI_LINK_DEPTH;
 }
 
 /* UhciTdDump
  * Dumps the information contained in the descriptor by writing it. */
 void
 UhciTdDump(
-    _In_ UhciController_t*          Controller,
-    _In_ UhciTransferDescriptor_t*  Td)
+    _In_ UhciController_t*         Controller,
+    _In_ UhciTransferDescriptor_t* Td)
 {
-    // Variables
     uintptr_t PhysicalAddress   = 0;
 
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler, UHCI_TD_POOL, 
@@ -162,15 +147,11 @@ UhciTdDump(
         PhysicalAddress, Td->Link, Td->Flags, Td->Header, Td->Buffer);
 }
 
-/* UhciTdValidate
- * Checks the transfer descriptors for errors and updates the transfer that is attached
- * with the bytes transferred and error status. */
 void
 UhciTdValidate(
     _In_  UsbManagerTransfer_t*     Transfer,
     _In_  UhciTransferDescriptor_t* Td)
 {
-    // Variables
     int ErrorCode = UhciConditionCodeToIndex(UHCI_TD_STATUS(Td->Flags));
     int i;
 
@@ -187,18 +168,18 @@ UhciTdValidate(
 
     // Now validate the code
     if (ErrorCode != 0) {
-        Transfer->Status        = UhciGetStatusCode(ErrorCode);
+        Transfer->Status = UhciGetStatusCode(ErrorCode);
         return; // Skip bytes transferred
     }
     else if (ErrorCode == 0 && Transfer->Status == TransferQueued) {
-        Transfer->Status        = TransferFinished;
+        Transfer->Status = TransferFinished;
     }
 
     // Calculate length transferred 
     // Take into consideration the N-1 
     if (Td->Buffer != 0) {
-        int BytesTransferred    = UHCI_TD_ACTUALLENGTH(Td->Flags) + 1;
-        int BytesRequested      = UHCI_TD_GET_LEN(Td->Header) + 1;
+        int BytesTransferred = UHCI_TD_ACTUALLENGTH(Td->Flags) + 1;
+        int BytesRequested   = UHCI_TD_GET_LEN(Td->Header) + 1;
         if (BytesTransferred < BytesRequested) {
             Transfer->Flags |= TransferFlagShort;
 
@@ -217,15 +198,11 @@ UhciTdValidate(
     }
 }
 
-/* UhciTdSynchronize
- * Synchronizes the toggle status of the transfer descriptor by retrieving
- * current and updating the pipe toggle. */
 void
 UhciTdSynchronize(
     _In_  UsbManagerTransfer_t*     Transfer,
     _In_  UhciTransferDescriptor_t* Td)
 {
-    // Variables
     int Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
 
     // Is it neccessary?
@@ -233,35 +210,30 @@ UhciTdSynchronize(
         return;
     }
 
-    // Clear
-    Td->Header          &= ~(UHCI_TD_DATA_TOGGLE);
+    Td->Header &= ~(UHCI_TD_DATA_TOGGLE);
     if (Toggle) {
-        Td->Header      |= UHCI_TD_DATA_TOGGLE;
+        Td->Header |= UHCI_TD_DATA_TOGGLE;
     }
 
     // Update copy
-    Td->OriginalHeader  = Td->Header;
+    Td->OriginalHeader = Td->Header;
     UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, Toggle ^ 1);
 }
 
-/* UhciTdRestart
- * Restarts a transfer descriptor by resettings it's status and updating buffers if the
- * trasnfer type is an interrupt-transfer that uses circularbuffers. */
 void
 UhciTdRestart(
     _In_  UsbManagerTransfer_t*     Transfer,
     _In_  UhciTransferDescriptor_t* Td)
 {
-    // Variables
-    UhciQueueHead_t *Qh         = NULL;
-    uintptr_t BufferBaseUpdated = 0;
-    uintptr_t BufferStep        = 0;
-    int Toggle                  = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
+    UhciQueueHead_t* Qh;
+    uintptr_t        BufferBaseUpdated;
+    uintptr_t        BufferStep;
+    int              Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
 
     // Setup some variables
     if (Transfer->Transfer.Type == InterruptTransfer) {
-        Qh              = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
-        BufferStep      = Transfer->Transfer.Endpoint.MaxPacketSize;
+        Qh         = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
+        BufferStep = Transfer->Transfer.Endpoint.MaxPacketSize;
         
         // Flip
         Td->OriginalHeader &= ~UHCI_TD_DATA_TOGGLE;
@@ -272,14 +244,14 @@ UhciTdRestart(
         
         // Adjust buffer if not just restart
         if (Transfer->Status != TransferNAK) {
-            BufferBaseUpdated   = ADDLIMIT(Qh->BufferBase, Td->Buffer, 
+            BufferBaseUpdated = ADDLIMIT(Qh->BufferBase, Td->Buffer, 
                 BufferStep, Qh->BufferBase + Transfer->Transfer.PeriodicBufferSize);
-            Td->Buffer          = LODWORD(BufferBaseUpdated);
-            Qh->BufferBase      = LODWORD(BufferBaseUpdated);
+            Td->Buffer     = LODWORD(BufferBaseUpdated);
+            Qh->BufferBase = LODWORD(BufferBaseUpdated);
         }
     }
     
     // Restore
-    Td->Header  = Td->OriginalHeader;
-    Td->Flags   = Td->OriginalFlags;
+    Td->Header = Td->OriginalHeader;
+    Td->Flags  = Td->OriginalFlags;
 }

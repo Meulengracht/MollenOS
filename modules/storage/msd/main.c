@@ -20,22 +20,14 @@
  */
 //#define __TRACE
 
-/* Includes 
- * - System */
 #include <ddk/contracts/storage.h>
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "msd.h"
-
-/* Includes
- * - Library */
 #include <ds/collection.h>
-#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 
-/* Globals
- * State-tracking variables */
 static Collection_t *GlbMsdDevices = NULL;
 
 /* OnInterrupt

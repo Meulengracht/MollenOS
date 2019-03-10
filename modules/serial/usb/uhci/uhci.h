@@ -99,9 +99,7 @@
 #define UHCI_LINK_QH                    0x2        // 1 => Qh, 0 => Td
 #define UHCI_LINK_DEPTH                 0x4        // 1 => Depth, 0 => Breadth
 
-/* UhciTransferDescriptor
- * Describes a generic transfer-descriptor that can be either of all
- * four different transaction types. Must be 16 byte aligned. */
+// 16 Byte alignment
 PACKED_TYPESTRUCT(UhciTransferDescriptor, {
     reg32_t                 Link;
     reg32_t                 Flags;
@@ -117,10 +115,10 @@ PACKED_TYPESTRUCT(UhciTransferDescriptor, {
 /* UhciTransferDescriptor::Flags
  * Contains definitions and bitfield definitions for UhciTransferDescriptor::Flags */
 #define UHCI_TD_LENGTH_MASK             0x7FF
-#define UHCI_TD_ACTIVE                  0x800000
-#define UHCI_TD_IOC                     0x1000000
-#define UHCI_TD_ISOCHRONOUS             0x2000000
-#define UHCI_TD_LOWSPEED                0x4000000
+#define UHCI_TD_ACTIVE                  (1 << 23)
+#define UHCI_TD_IOC                     (1 << 24)
+#define UHCI_TD_ISOCHRONOUS             (1 << 25)
+#define UHCI_TD_LOWSPEED                (1 << 26)
 #define UHCI_TD_SETCOUNT(n)             ((n & 0x3) << 27)
 #define UHCI_TD_SHORT_PACKET            (1 << 29)
 #define UHCI_TD_ACTUALLENGTH(n)         (n & UHCI_TD_LENGTH_MASK)
@@ -139,8 +137,6 @@ PACKED_TYPESTRUCT(UhciTransferDescriptor, {
 #define UHCI_TD_MAX_LEN(n)              ((n & UHCI_TD_LENGTH_MASK) << 21)
 #define UHCI_TD_GET_LEN(n)              ((n >> 21) & UHCI_TD_LENGTH_MASK)
 
-/* Queue Head
- * @todo */
 PACKED_TYPESTRUCT(UhciQueueHead, {
     reg32_t                 Link;
     reg32_t                 Child;

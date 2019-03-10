@@ -90,11 +90,10 @@ OnQuery(
     switch (QueryFunction) {
         // Generic Queue
         case __USBHOST_QUEUETRANSFER: {
-            // Variables
             UsbTransferResult_t ResPackage;
 
             // Create and setup new transfer
-            Transfer                    = UsbManagerCreateTransfer(
+            Transfer = UsbManagerCreateTransfer(
                 (UsbTransfer_t*)Arg1->Data.Buffer, Address, Device);
             
             // Queue the periodic transfer

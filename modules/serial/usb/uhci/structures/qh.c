@@ -22,26 +22,17 @@
  */
 //#define __TRACE
 
-/* Includes 
- * - System */
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "../uhci.h"
-
-/* Includes
- * - Library */
 #include <ds/collection.h>
-#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 
-/* UhciCalculateBandwidth
- * Calculates the queue for the queue-head. */
 void
 UhciQhCalculateQueue(
-    _In_ UhciQueueHead_t*       Qh)
+    _In_ UhciQueueHead_t* Qh)
 {
-    // Variables
     int Exponent, Queue;
 
     // Calculate the correct index
@@ -51,30 +42,22 @@ UhciQhCalculateQueue(
         }
     }
 
-    // Update queue
-    Queue       = 9 - Exponent;
-    Qh->Queue   = Queue & 0xFF;
+    Queue     = 9 - Exponent;
+    Qh->Queue = Queue & 0xFF;
     TRACE("Queue for interrupt transfer: %i", Queue);
 }
 
-/* UhciQhInitialize
- * Initializes the queue head data-structure and the associated
- * hcd flags. Afterwards the queue head is ready for use. */
 OsStatus_t
 UhciQhInitialize(
-    _In_ UhciController_t*      Controller,
-    _In_ UsbManagerTransfer_t*  Transfer)
+    _In_ UhciController_t*     Controller,
+    _In_ UsbManagerTransfer_t* Transfer)
 {
-    // Variables
-    UhciQueueHead_t *Qh = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
-    OsStatus_t Status   = OsSuccess;
+    UhciQueueHead_t* Qh     = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
+    OsStatus_t       Status = OsSuccess;
 
-    // Initialize link
-    Qh->Link            = UHCI_LINK_END;
-    Qh->Child           = UHCI_LINK_END;
-
-    // Initialize link flags
-    Qh->Object.Flags    |= UHCI_LINK_QH;
+    Qh->Link          = UHCI_LINK_END;
+    Qh->Child         = UHCI_LINK_END;
+    Qh->Object.Flags |= UHCI_LINK_QH;
 
     // Allocate bandwidth if int/isoc
     if (Transfer->Transfer.Type == InterruptTransfer || Transfer->Transfer.Type == IsochronousTransfer) {
@@ -86,20 +69,17 @@ UhciQhInitialize(
         }
     }
     else {
-        Qh->Queue       = UHCI_POOL_QH_ASYNC;
+        Qh->Queue = UHCI_POOL_QH_ASYNC;
     }
     return Status;
 }
 
-/* UhciQhDump
- * Dumps the information contained in the queue-head by writing it to stdout */
 void
 UhciQhDump(
-    _In_ UhciController_t*      Controller,
-    _In_ UhciQueueHead_t*       Qh)
+    _In_ UhciController_t* Controller,
+    _In_ UhciQueueHead_t*  Qh)
 {
-    // Variables
-    uintptr_t PhysicalAddress   = 0;
+    uintptr_t PhysicalAddress = 0;
 
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler, UHCI_QH_POOL, 
         Qh->Object.Index & USB_ELEMENT_INDEX_MASK, NULL, &PhysicalAddress);
@@ -107,40 +87,30 @@ UhciQhDump(
         PhysicalAddress, Qh->Object.Flags, Qh->Link, Qh->Child);
 }
 
-/* UhciQhRestart
- * Restarts an interrupt QH by resetting it to it's start state */
 void
 UhciQhRestart(
     _In_ UhciController_t*      Controller,
     _In_ UsbManagerTransfer_t*  Transfer)
 {
-    // Variables
-    UhciQueueHead_t *Qh             = NULL;
-    uintptr_t LinkPhysical          = 0;
+    UhciQueueHead_t* Qh           = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
+    uintptr_t        LinkPhysical = 0;
     
-    // Setup some variables
-    Qh              = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
-
     // Do some extra processing for periodics
     Qh->BufferBase  = Transfer->Transfer.Transactions[0].BufferAddress;
 
     // Reinitialize the queue-head
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler, UHCI_TD_POOL, 
         Qh->Object.DepthIndex & USB_ELEMENT_INDEX_MASK, NULL, &LinkPhysical);
-    Qh->Child       = LinkPhysical | UHCI_LINK_DEPTH;
+    Qh->Child = LinkPhysical | UHCI_LINK_DEPTH;
 }
 
-/* UhciQhLink 
- * Link a given queue head into the correct queue determined by Qh->Queue.
- * This can handle linkage of async and interrupt transfers. */
 void
 UhciQhLink(
-    _In_ UhciController_t*      Controller,
-    _In_ UhciQueueHead_t*       Qh)
+    _In_ UhciController_t* Controller,
+    _In_ UhciQueueHead_t*  Qh)
 {
-    // Variables
-    UhciQueueHead_t *QueueQh        = NULL;
-    uint16_t Marker                 = 0;
+    UhciQueueHead_t* QueueQh = NULL;
+    uint16_t         Marker;
 
     // Get the queue for this queue-head
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler, UHCI_QH_POOL, 
@@ -159,16 +129,12 @@ UhciQhLink(
         (uint8_t*)QueueQh, (uint8_t*)Qh, Marker, USB_CHAIN_BREATH);
 }
 
-/* UhciQhUnlink 
- * Unlinks a given queue head from the correct queue determined by Qh->Queue.
- * This can handle removal of async and interrupt transfers. */
 void
 UhciQhUnlink(
-    _In_ UhciController_t*      Controller,
-    _In_ UhciQueueHead_t*       Qh)
+    _In_ UhciController_t* Controller,
+    _In_ UhciQueueHead_t*  Qh)
 {
-    // Variables
-    UhciQueueHead_t *QueueQh        = NULL;
+    UhciQueueHead_t* QueueQh = NULL;
 
     // Get the queue for this queue-head
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler, UHCI_QH_POOL, 

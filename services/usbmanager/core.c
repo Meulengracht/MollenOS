@@ -68,8 +68,6 @@ UsbDeviceDestroy(
     _In_ UsbController_t *Controller,
     _In_ UsbPort_t *Port);
 
-/* Globals 
- * To keep track of all data since system startup */
 static Collection_t *GlbUsbControllers  = NULL;
 static Collection_t *GlbUsbDevices      = NULL;
 
@@ -77,7 +75,7 @@ static Collection_t *GlbUsbDevices      = NULL;
  * Retrieves the identification string for the usb class. */
 const char*
 UsbGetIdentificationString(
-    _In_ uint8_t                ClassCode)
+    _In_ uint8_t ClassCode)
 {
     for (int i = 0; i < 22; i++) {
         if (DeviceIdentifications[i].Class == ClassCode) {
@@ -91,8 +89,8 @@ UsbGetIdentificationString(
  * Iterate all 128 addresses in an controller and find one not allocated */
 OsStatus_t
 UsbReserveAddress(
-    _In_  UsbController_t*      Controller,
-    _Out_ int*                  Address)
+    _In_  UsbController_t* Controller,
+    _Out_ int*             Address)
 {
     // We find the first free bit in map
     int Itr = 0, Jtr = 0;
@@ -431,9 +429,8 @@ UsbDeviceLoadDrivers(
     _In_ UsbController_t*       Controller,
     _In_ UsbDevice_t*           Device)
 {
-    // Variables
     MCoreUsbDevice_t CoreDevice;
-    int i;
+    int              i;
 
     // Debug
     TRACE("UsbDeviceLoadDrivers()");
@@ -441,11 +438,11 @@ UsbDeviceLoadDrivers(
     // Initialize the base device
     memset(&CoreDevice, 0, sizeof(MCoreUsbDevice_t));
     memcpy(&CoreDevice.Base.Name[0], "Generic Usb Device", 18);
-    CoreDevice.Base.Id          = UUID_INVALID;
-    CoreDevice.Base.Length      = sizeof(MCoreUsbDevice_t);
-    CoreDevice.Base.VendorId    = Device->Base.VendorId;
-    CoreDevice.Base.DeviceId    = Device->Base.ProductId;
-    CoreDevice.Base.Class       = USB_DEVICE_CLASS;
+    CoreDevice.Base.Id       = UUID_INVALID;
+    CoreDevice.Base.Length   = sizeof(MCoreUsbDevice_t);
+    CoreDevice.Base.VendorId = Device->Base.VendorId;
+    CoreDevice.Base.DeviceId = Device->Base.ProductId;
+    CoreDevice.Base.Class    = USB_DEVICE_CLASS;
 
     // Initialize the usb device
     memcpy(&CoreDevice.Device, &Device->Base, sizeof(UsbHcDevice_t));

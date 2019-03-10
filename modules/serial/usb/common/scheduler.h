@@ -24,8 +24,6 @@
 #ifndef __USB_SCHEDULER__
 #define __USB_SCHEDULER__
 
-/* Includes
- * - Library */
 #include <ddk/contracts/usbhost.h>
 #include <os/spinlock.h>
 #include <os/osdefs.h>
@@ -163,8 +161,7 @@ typedef struct _UsbScheduler {
 /* UsbSchedulerSettingsCreate
  * Initializes a new instance of the settings to customize the
  * scheduler. */
-__EXTERN
-void
+__EXTERN void
 UsbSchedulerSettingsCreate(
     _In_ UsbSchedulerSettings_t*    Settings,
     _In_ size_t                     FrameCount,
@@ -175,8 +172,7 @@ UsbSchedulerSettingsCreate(
 /* UsbSchedulerSettingsConfigureFrameList
  * Configure the framelist settings for the scheduler. This is always
  * neccessary to call if the controller is supplying its own framelist. */
-__EXTERN
-void
+__EXTERN void
 UsbSchedulerSettingsConfigureFrameList(
     _In_ UsbSchedulerSettings_t*    Settings,
     _In_ reg32_t*                   FrameList,
@@ -185,8 +181,7 @@ UsbSchedulerSettingsConfigureFrameList(
 /* UsbSchedulerSettingsAddPool
  * Adds a new pool to the scheduler configuration that will get created
  * with the scheduler. */
-__EXTERN
-void
+__EXTERN void
 UsbSchedulerSettingsAddPool(
     _In_ UsbSchedulerSettings_t*    Settings,
     _In_ size_t                     ElementSize,
@@ -201,8 +196,7 @@ UsbSchedulerSettingsAddPool(
  * Initializes a new instance of a scheduler that can be used to
  * keep track of controller bandwidth and which frames are active.
  * MaxBandwidth is usually either 800 or 900. */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 UsbSchedulerInitialize(
 	_In_  UsbSchedulerSettings_t*   Settings,
     _Out_ UsbScheduler_t**          SchedulerOut);
@@ -210,8 +204,7 @@ UsbSchedulerInitialize(
 /* UsbSchedulerDestroy 
  * Cleans up any resources allocated by the scheduler. Any transactions already
  * scheduled by this scheduler will be unreachable and invalid after this call. */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 UsbSchedulerDestroy(
 	_In_ UsbScheduler_t*            Scheduler);
 
@@ -219,8 +212,7 @@ UsbSchedulerDestroy(
  * Reinitializes all data structures in the scheduler to initial state. 
  * This should never be called unless the associating controller is in a
  * stopped state as the framelist is affected. */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 UsbSchedulerResetInternalData(
     _In_ UsbScheduler_t*            Scheduler,
     _In_ int                        ResetElements,
@@ -228,8 +220,7 @@ UsbSchedulerResetInternalData(
 
 /* UsbSchedulerGetPoolElement
  * Retrieves the element at the given pool and index. */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 UsbSchedulerGetPoolElement(
     _In_  UsbScheduler_t*           Scheduler,
     _In_  int                       Pool,
@@ -239,8 +230,7 @@ UsbSchedulerGetPoolElement(
 
 /* UsbSchedulerGetPoolFromElement
  * Retrieves which pool an element belongs to by only knowing the address. */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 UsbSchedulerGetPoolFromElement(
     _In_  UsbScheduler_t*           Scheduler,
     _In_  uint8_t*                  Element,
@@ -248,8 +238,7 @@ UsbSchedulerGetPoolFromElement(
 
 /* UsbSchedulerGetPoolFromElementPhysical
  * Retrieves which pool an element belongs to by only knowing the physical address. */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 UsbSchedulerGetPoolFromElementPhysical(
     _In_  UsbScheduler_t*           Scheduler,
     _In_  uintptr_t                 ElementPhysical,
@@ -259,8 +248,7 @@ UsbSchedulerGetPoolFromElementPhysical(
  * Allocates a new element for usage with the scheduler. If this returns
  * OsError we are out of elements and we should wait till next transfer. ElementOut
  * will in this case be set to USB_OUT_OF_RESOURCES. */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 UsbSchedulerAllocateElement(
     _In_  UsbScheduler_t*           Scheduler,
     _In_  int                       Pool,
@@ -269,8 +257,7 @@ UsbSchedulerAllocateElement(
 /* UsbSchedulerFreeElement
  * Releases the previously allocated element by resetting it. This call automatically
  * frees any bandwidth associated with the element. */
-__EXTERN
-void
+__EXTERN void
 UsbSchedulerFreeElement(
     _In_ UsbScheduler_t*            Scheduler,
     _In_ uint8_t*                   Element);
@@ -279,8 +266,7 @@ UsbSchedulerFreeElement(
  * Allocates bandwidth for a scheduler element. The bandwidth will automatically
  * be fitted into where is best place on schedule. If there is no more room it will
  * return OsError. */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 UsbSchedulerAllocateBandwidth(
     _In_ UsbScheduler_t*            Scheduler,
     _In_ UsbHcEndpointDescriptor_t* Endpoint,
@@ -293,8 +279,7 @@ UsbSchedulerAllocateBandwidth(
  * Chains up a new element to the given element chain. The root element
  * must be specified and the element to append to the chain. Also the
  * chain direction must be specified. */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 UsbSchedulerChainElement(
     _In_ UsbScheduler_t*        Scheduler,
     _In_ uint8_t*               ElementRoot,
@@ -306,8 +291,7 @@ UsbSchedulerChainElement(
  * Removes an existing element from the given element chain. The root element
  * must be specified and the element to remove from the chain. Also the
  * chain direction must be specified. */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 UsbSchedulerUnchainElement(
     _In_ UsbScheduler_t*        Scheduler,
     _In_ uint8_t*               ElementRoot,
@@ -318,8 +302,7 @@ UsbSchedulerUnchainElement(
  * Queue's up a periodic/isochronous transfer. If it was not possible
  * to schedule the transfer with the requested bandwidth, it returns
  * OsError */
-__EXTERN
-OsStatus_t
+__EXTERN OsStatus_t
 UsbSchedulerLinkPeriodicElement(
     _In_ UsbScheduler_t*        Scheduler,
     _In_ uint8_t*               Element);
@@ -327,8 +310,7 @@ UsbSchedulerLinkPeriodicElement(
 /* UsbSchedulerUnlinkPeriodicElement
  * Removes an already queued up periodic transfer (interrupt/isoc) from the
  * controllers scheduler. */
-__EXTERN
-void
+__EXTERN void
 UsbSchedulerUnlinkPeriodicElement(
     _In_ UsbScheduler_t*        Scheduler,
     _In_ uint8_t*               Element);

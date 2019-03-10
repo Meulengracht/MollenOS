@@ -20,16 +20,11 @@
  */
 //#define __TRACE
 
-/* Includes
- * - System */
 #include <ddk/utils.h>
 #include <ddk/usb.h>
 #include "msd.h"
 #include <threads.h>
 
-/* Protocol-Table
- * Used for setting up the different protocol implemtation 
- * function tables. */
 __EXTERN MsdOperations_t BulkOperations;
 __EXTERN MsdOperations_t UfiOperations;
 static MsdOperations_t *ProtocolOperations[ProtocolCount] = {
@@ -39,8 +34,6 @@ static MsdOperations_t *ProtocolOperations[ProtocolCount] = {
     &BulkOperations
 };
 
-/* Sense Key Descriptions
- * Provides descriptive information about the sense codes */
 const char* SenseKeys[] = {
     "No Sense",
     "Recovered Error - last command completed with some recovery action",

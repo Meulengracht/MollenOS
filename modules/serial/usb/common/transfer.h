@@ -46,7 +46,7 @@ typedef enum _UsbManagerTransferFlags {
 /* UsbManagerTransfer
  * Describes a generic transfer with information needed
  * in order to execute a callback for the requester */
-typedef struct _UsbManagerTransfer {
+typedef struct {
     UsbTransfer_t               Transfer;
     MRemoteCallAddress_t        ResponseAddress;
 

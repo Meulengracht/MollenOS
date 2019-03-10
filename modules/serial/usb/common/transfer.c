@@ -16,26 +16,19 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - USB Controller Scheduler
+ * USB Controller Scheduler
  * - Contains the implementation of a shared controller scheduker
  *   for all the usb drivers
  */
 //#define __TRACE
 #define __COMPILE_ASSERT
 
-/* Includes
- * - System */
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "transfer.h"
-
-/* Includes
- * - Library */
 #include <assert.h>
-#include <stddef.h>
 #include <stdlib.h>
 
-// Globals
 static UUId_t __GlbTransferId   = 0;
 
 /* UsbManagerCreateTransfer
@@ -47,19 +40,18 @@ UsbManagerCreateTransfer(
     _In_ MRemoteCallAddress_t*  Address,
     _In_ UUId_t                 Device)
 {
-    // Variables
     UsbManagerTransfer_t *UsbTransfer = NULL;
 
     // Allocate a new instance
-    UsbTransfer                 = (UsbManagerTransfer_t*)malloc(sizeof(UsbManagerTransfer_t));
+    UsbTransfer = (UsbManagerTransfer_t*)malloc(sizeof(UsbManagerTransfer_t));
     memset(UsbTransfer, 0, sizeof(UsbManagerTransfer_t));
 
     // Copy information over
     memcpy(&UsbTransfer->Transfer, Transfer, sizeof(UsbTransfer_t));
     memcpy(&UsbTransfer->ResponseAddress, Address, sizeof(MRemoteCallAddress_t));
-    UsbTransfer->DeviceId       = Device;
-    UsbTransfer->Id             = __GlbTransferId++;
-    UsbTransfer->Status         = TransferNotProcessed;
+    UsbTransfer->DeviceId = Device;
+    UsbTransfer->Id       = __GlbTransferId++;
+    UsbTransfer->Status   = TransferNotProcessed;
     return UsbTransfer;
 }
 

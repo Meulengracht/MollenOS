@@ -31,8 +31,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Globals
- * State-keeping variables for libusb */
 static const size_t LIBUSB_SHAREDBUFFER_SIZE    = 0x2000;
 static DmaBuffer_t *__LibUsbBuffer              = NULL;
 static BufferPool_t *__LibUsbBufferPool         = NULL;
@@ -57,7 +55,6 @@ UsbCleanup(void) {
 /* UsbRetrievePool 
  * Retrieves the shared usb-memory pool for transfers. Only
  * use this for small short-term use buffers. */
-__EXTERN
 BufferPool_t*
 UsbRetrievePool(void) {
     return __LibUsbBufferPool;
@@ -75,20 +72,20 @@ UsbTransferInitialize(
     _In_ Flags_t                    Flags)
 {
     // Debug
-    TRACE("UsbTransferInitialize()");
+    TRACE("UsbTransferInitialize(%" PRIuIN ")", Endpoint->Address);
 
     // Initialize structure
     memset(Transfer, 0, sizeof(UsbTransfer_t));
     memcpy(&Transfer->Endpoint, Endpoint, sizeof(UsbHcEndpointDescriptor_t));
 
-    // Initialize
-    Transfer->Flags                 = Flags;
-    Transfer->Type                  = Type;
-    Transfer->Speed                 = Device->Speed;
+    Transfer->Flags = Flags;
+    Transfer->Type  = Type;
+    Transfer->Speed = Device->Speed;
 
-    Transfer->Address.HubAddress    = Device->HubAddress;
-    Transfer->Address.PortAddress   = Device->PortAddress;
-    Transfer->Address.DeviceAddress = Device->DeviceAddress;
+    Transfer->Address.HubAddress      = Device->HubAddress;
+    Transfer->Address.PortAddress     = Device->PortAddress;
+    Transfer->Address.DeviceAddress   = Device->DeviceAddress;
+    Transfer->Address.EndpointAddress = (uint8_t)(Endpoint->Address & 0xFF);
     return OsSuccess;
 }
 

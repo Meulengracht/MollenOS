@@ -191,8 +191,8 @@ UhciTransferFill(
             Transfer->Transfer.Transactions[i].BufferAddress, BytesToTransfer, Type);
 
         // Adjust offsets
-        ByteOffset                  = Transfer->BytesTransferred[i];
-        BytesToTransfer            -= Transfer->BytesTransferred[i];
+        ByteOffset       = Transfer->BytesTransferred[i];
+        BytesToTransfer -= Transfer->BytesTransferred[i];
         if (BytesToTransfer == 0 && Transfer->Transfer.Transactions[i].ZeroLength != 1) {
             TRACE(" > Skipping");
             continue;
@@ -202,26 +202,26 @@ UhciTransferFill(
         // of package, then set toggle
         if (ByteOffset == 0 && Transfer->Transfer.Transactions[i].Handshake) {
             Transfer->Transfer.Transactions[i].Handshake = 0;
-            PreviousToggle          = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
+            PreviousToggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
             UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, 1);
         }
 
         // Keep adding td's
         TRACE(" > BytesToTransfer(%u)", BytesToTransfer);
         while (BytesToTransfer || Transfer->Transfer.Transactions[i].ZeroLength == 1) {
-            Toggle          = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
+            Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
             if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, UHCI_TD_POOL, (uint8_t**)&Td) == OsSuccess) {
                 if (Type == SetupTransaction) {
                     TRACE(" > Creating setup packet");
-                    Toggle      = 0; // Initial toggle must ALWAYS be 0 for setup
-                    ByteStep    = BytesToTransfer;
+                    Toggle   = 0; // Initial toggle must ALWAYS be 0 for setup
+                    ByteStep = BytesToTransfer;
                     UhciTdSetup(Td, Transfer->Transfer.Transactions[i].BufferAddress,
                         Transfer->Transfer.Address.DeviceAddress,
                         Transfer->Transfer.Address.EndpointAddress, Transfer->Transfer.Speed);
                 }
                 else {
                     TRACE(" > Creating io packet");
-                    ByteStep    = MIN(BytesToTransfer, Transfer->Transfer.Endpoint.MaxPacketSize);
+                    ByteStep = MIN(BytesToTransfer, Transfer->Transfer.Endpoint.MaxPacketSize);
                     UhciTdIo(Td, Transfer->Transfer.Type, 
                         (Type == InTransaction ? UHCI_TD_PID_IN : UHCI_TD_PID_OUT), 
                         Toggle, Transfer->Transfer.Address.DeviceAddress,
