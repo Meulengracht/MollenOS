@@ -1,8 +1,11 @@
 
 # The Mollen(/Vali) Operating System 
 
-[![Build Status](http://www.mollenos.com/teamcity/app/rest/builds/buildType:(id:ValiOS_I386_Build)/statusIcon)](http://www.mollenos.com/teamcity/project.html?projectId=ValiOS&branch_ValiOS=__all_branches__)
-[![Build Status](http://www.mollenos.com/teamcity/app/rest/builds/buildType:(id:ValiOS_Amd64_Build)/statusIcon)](http://www.mollenos.com/teamcity/project.html?projectId=ValiOS&branch_ValiOS=__all_branches__)
+
+| Build Configuration   | Status   |
+| --------------------- |:-------- |
+| I386                  | [![Build Status](http://www.mollenos.com/teamcity/app/rest/builds/buildType:(id:ValiOS_I386_Build)/statusIcon)](http://www.mollenos.com/teamcity/project.html?projectId=ValiOS&branch_ValiOS=__all_branches__) |
+| AMD64                 | [![Build Status](http://www.mollenos.com/teamcity/app/rest/builds/buildType:(id:ValiOS_Amd64_Build)/statusIcon)](http://www.mollenos.com/teamcity/project.html?projectId=ValiOS&branch_ValiOS=__all_branches__) |
 
 ## Getting Started
 
