@@ -513,7 +513,7 @@ AcpiDeviceIrqRoutingCallback(
             RoutingEntry->AcType    = ACPI_RESOURCE_TYPE_IRQ;
             RoutingEntry->Polarity  = Irq->Polarity;
             RoutingEntry->Trigger   = Irq->Triggering;
-            RoutingEntry->Shareable = Irq->Sharable;
+            RoutingEntry->Shareable = Irq->Shareable;
             RoutingEntry->Irq       = Irq->Interrupts[i];
 
             // Are we just finding the active irq?
@@ -558,7 +558,7 @@ AcpiDeviceIrqRoutingCallback(
             RoutingEntry->AcType    = ACPI_RESOURCE_TYPE_EXTENDED_IRQ;
             RoutingEntry->Polarity  = Irq->Polarity;
             RoutingEntry->Trigger   = Irq->Triggering;
-            RoutingEntry->Shareable = Irq->Sharable;
+            RoutingEntry->Shareable = Irq->Shareable;
             RoutingEntry->Irq       = Irq->Interrupts[i];
 
             // Are we just finding the active irq?
@@ -690,7 +690,7 @@ AcpiDeviceSelectIrq(
         Resource->Irq.Length = sizeof(ACPI_RESOURCE);
         Resource->Irq.Data.Irq.Triggering = SelectedEntry->Trigger;
         Resource->Irq.Data.Irq.Polarity = SelectedEntry->Polarity;
-        Resource->Irq.Data.Irq.Sharable = SelectedEntry->Shareable;
+        Resource->Irq.Data.Irq.Shareable = SelectedEntry->Shareable;
         Resource->Irq.Data.Irq.InterruptCount = 1;
         Resource->Irq.Data.Irq.Interrupts[0] = (UINT8)SelectedEntry->Irq;
     }
@@ -700,7 +700,7 @@ AcpiDeviceSelectIrq(
         Resource->Irq.Data.ExtendedIrq.ProducerConsumer = ACPI_CONSUMER;
         Resource->Irq.Data.ExtendedIrq.Triggering = SelectedEntry->Trigger;
         Resource->Irq.Data.ExtendedIrq.Polarity = SelectedEntry->Polarity;
-        Resource->Irq.Data.ExtendedIrq.Sharable = SelectedEntry->Shareable;
+        Resource->Irq.Data.ExtendedIrq.Shareable = SelectedEntry->Shareable;
         Resource->Irq.Data.ExtendedIrq.InterruptCount = 1;
         Resource->Irq.Data.ExtendedIrq.Interrupts[0] = (UINT8)SelectedEntry->Irq;
     }
