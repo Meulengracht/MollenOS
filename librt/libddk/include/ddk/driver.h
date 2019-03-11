@@ -16,20 +16,16 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Driver Inteface
- * - MollenOS SDK 
+ * Kernel Driver Inteface
+ * - Describes the base driver interface, which calls should be implemented and
+ *   which calls are available for communicating with drivers
  */
 
 #ifndef __DRIVER_SDK_H__
 #define __DRIVER_SDK_H__
 
 #include <ddk/contracts/base.h>
-#include <ddk/interrupt.h>
 #include <ddk/ipc/ipc.h>
-#include <os/osdefs.h>
-#include <ddk/device.h>
-#include <ddk/acpi.h>
-#include <ddk/io.h>
 
 /* These are the different IPC functions supported
  * by the driver, note that some of them might
