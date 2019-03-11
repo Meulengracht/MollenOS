@@ -350,7 +350,7 @@ InterruptRegister(
     UUId_t             Id;
 
     // Trace
-    TRACE("InterruptRegister(Line %" PRIiIN ", Pin %" PRIiIN ", Vector %" PRIiIN ", Flags 0x%" PRIxIN ")",
+    TRACE("InterruptRegister(Line %i Pin %i, Vector %i, Flags 0x%" PRIxIN ")",
         Interrupt->Line, Interrupt->Pin, Interrupt->Vectors[0], Flags);
 
     // Allocate a new entry for the table
@@ -403,7 +403,8 @@ InterruptRegister(
     }
 
     // Trace
-    TRACE("Updated line %" PRIiIN ":%" PRIiIN " for index 0x%" PRIxIN "", Interrupt->Line, Interrupt->Pin, TableIndex);
+    TRACE("Updated line %i:%i for index 0x%" PRIxIN "",
+        Interrupt->Line, Interrupt->Pin, TableIndex);
 
     // If it's an user interrupt, resolve resources
     if (Entry->ModuleHandle != UUID_INVALID) {
@@ -417,9 +418,9 @@ InterruptRegister(
     // Initialize the table entry?
     CriticalSectionEnter(&InterruptTableSyncObject);
     if (InterruptTable[TableIndex].Descriptor == NULL) {
-        InterruptTable[TableIndex].Descriptor   = Entry;
-        InterruptTable[TableIndex].Penalty      = 1;
-        InterruptTable[TableIndex].Sharable     = (Flags & INTERRUPT_NOTSHARABLE) ? 0 : 1;
+        InterruptTable[TableIndex].Descriptor = Entry;
+        InterruptTable[TableIndex].Penalty    = 1;
+        InterruptTable[TableIndex].Sharable   = (Flags & INTERRUPT_NOTSHARABLE) ? 0 : 1;
     }
     else {
         // Insert and increase penalty
@@ -435,7 +436,8 @@ InterruptRegister(
         ERROR("Failed to enable source %" PRIiIN "", Entry->Source);
     }
     CriticalSectionLeave(&InterruptTableSyncObject);
-    TRACE("Interrupt Id 0x%" PRIxIN "", Entry->Id);
+    TRACE("Interrupt Id 0x%" PRIxIN " (Handler 0x%" PRIxIN ", Context 0x%" PRIxIN ")",
+        Entry->Id, Entry->Interrupt.FastInterrupt.Handler, Entry->Interrupt.Context);
     return Entry->Id;
 }
 
