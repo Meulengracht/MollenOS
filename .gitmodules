@@ -10,3 +10,6 @@
 [submodule "librt/libclang"]
 	path = librt/libclang
 	url = https://github.com/Meulengracht/compiler-rt
+[submodule "librt/libacpi"]
+	path = librt/libacpi
+	url = https://github.com/Meulengracht/acpica

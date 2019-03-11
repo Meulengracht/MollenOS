@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - ACPI Minimal Subset for drivers
+ * ACPI Minimal Subset for drivers
  * - This header enables a minimal subset of ACPI for
  *   driver usage
  */
@@ -60,7 +60,9 @@
 #elif defined(__clang__)
 #define COMPILER_DEPENDENT_INT64    long long
 #define COMPILER_DEPENDENT_UINT64   unsigned long long
+#ifndef ACPI_INLINE
 #define ACPI_INLINE                 __inline
+#endif
 
 /*
 * Calling conventions:

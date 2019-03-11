@@ -42,8 +42,8 @@ config_flags =
 #########################
 # ACPI Configuration
 #########################
+#ACPI_FULL_DEBUG
 #config_flags += -D__OSCONFIG_ACPIDEBUG
-#config_flags += -D__OSCONFIG_ACPIDEBUGGER
 #config_flags += -D__OSCONFIG_ACPIDEBUGMUTEXES
 #config_flags += -D__OSCONFIG_REDUCEDHARDWARE
 
