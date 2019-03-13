@@ -29,9 +29,7 @@
 #include <assert.h>
 #include <string.h>
 
-/* UhciErrorMessages
- * Textual representations of the possible error codes */
-const char *UhciErrorMessages[] = {
+const char* UhciErrorMessages[] = {
     "No Error",
     "Bitstuff Error",
     "CRC/Timeout Error",
@@ -48,7 +46,6 @@ size_t
 UhciFFS(
     _In_ size_t Value)
 {
-    // Variables
     size_t Set = 0;
 
     if (!(Value & 0xFFFF)) { // 16 Bits
@@ -73,17 +70,11 @@ UhciFFS(
     return Set;
 }
 
-/* UhciDetermineInterruptIndex
- * Determine Qh for Interrupt Transfer */
 int
 UhciDetermineInterruptIndex(
     _In_ size_t Frame)
 {
-    // Variables
-    int Index = 0;
-
-    // Determine index from first free bit 8 queues
-    Index = 8 - UhciFFS(Frame | UHCI_NUM_FRAMES);
+    int Index = 8 - UhciFFS(Frame | UHCI_NUM_FRAMES);
 
     // If we are out of bounds then assume async queue
     if (Index < 2 || Index > 8) {
@@ -92,13 +83,10 @@ UhciDetermineInterruptIndex(
     return Index;
 }
 
-/* UhciGetStatusCode
- * Retrieves a status-code from a given condition code */
 UsbTransferStatus_t
 UhciGetStatusCode(
     _In_ int ConditionCode)
 {
-    // One huuuge if/else
     if (ConditionCode == 0) {
         return TransferFinished;
     }
@@ -126,21 +114,18 @@ UhciGetStatusCode(
     }
 }
 
-/* UhciQueueResetInternalData
- * Removes and cleans up any existing transfers, then reinitializes. */
 OsStatus_t
 UhciQueueResetInternalData(
     _In_ UhciController_t* Controller)
 {
-    // Variables
-    UhciTransferDescriptor_t *NullTd    = NULL;
-    UhciQueueHead_t *AsyncQh            = NULL;
-    UhciQueueHead_t *NullQh             = NULL;
-    UhciQueueHead_t *Qh                 = NULL;
-    uintptr_t AsyncQhPhysical           = 0;
-    uintptr_t NullQhPhysical            = 0;
-    uintptr_t NullTdPhysical            = 0;
-    int i;
+    UhciTransferDescriptor_t* NullTd          = NULL;
+    UhciQueueHead_t*          AsyncQh         = NULL;
+    UhciQueueHead_t*          NullQh          = NULL;
+    UhciQueueHead_t*          Qh              = NULL;
+    uintptr_t                 AsyncQhPhysical = 0;
+    uintptr_t                 NullQhPhysical  = 0;
+    uintptr_t                 NullTdPhysical  = 0;
+    int                       i;
 
     // Debug
     TRACE("UhciQueueResetInternalData()");
@@ -198,25 +183,21 @@ UhciQueueResetInternalData(
         UsbSchedulerGetPoolElement(Controller->Base.Scheduler, UHCI_QH_POOL, 
             Index, (uint8_t**)&Qh, &AsyncQhPhysical);
 
-        Controller->Base.Scheduler->VirtualFrameList[i]     = (uintptr_t)Qh;
-        Controller->Base.Scheduler->Settings.FrameList[i]   = AsyncQhPhysical | UHCI_LINK_QH;
+        Controller->Base.Scheduler->VirtualFrameList[i]   = (uintptr_t)Qh;
+        Controller->Base.Scheduler->Settings.FrameList[i] = AsyncQhPhysical | UHCI_LINK_QH;
     }
     return OsSuccess;
 }
 
-/* UhciQueueInitialize
- * Initialize the controller's queue resources and resets counters */
 OsStatus_t
 UhciQueueInitialize(
     _In_ UhciController_t* Controller)
 {
-    // Variables
     UsbSchedulerSettings_t Settings;
 
     // Debug
     TRACE("UhciQueueInitialize()");
 
-    // Initialize the scheduler
     TRACE(" > Configuring scheduler");
     UsbSchedulerSettingsCreate(&Settings, UHCI_NUM_FRAMES, 1, 900, 
         USB_SCHEDULER_FRAMELIST | USB_SCHEDULER_LINK_BIT_EOL);
@@ -229,21 +210,15 @@ UhciQueueInitialize(
         UHCI_POOL_TD_START, offsetof(UhciTransferDescriptor_t, Link), 
         offsetof(UhciTransferDescriptor_t, Link), offsetof(UhciTransferDescriptor_t, Object));
     
-    // Create the scheduler
     TRACE(" > Initializing scheduler");
     UsbSchedulerInitialize(&Settings, &Controller->Base.Scheduler);
-
-    // Initialize internal data structures
     return UhciQueueResetInternalData(Controller);
 }
 
-/* UhciQueueReset
- * Removes and cleans up any existing transfers, then reinitializes. */
 OsStatus_t
 UhciQueueReset(
     _In_ UhciController_t* Controller)
 {
-    // Debug
     TRACE("UhciQueueReset()");
 
     // Stop Controller
@@ -255,13 +230,10 @@ UhciQueueReset(
     return UhciQueueResetInternalData(Controller);
 }
 
-/* UhciQueueDestroy
- * Cleans up any resources allocated by QueueInitialize */
 OsStatus_t
 UhciQueueDestroy(
     _In_ UhciController_t* Controller)
 {
-    // Debug
     TRACE("UhciQueueDestroy()");
 
     // Make sure everything is unscheduled, reset and clean
@@ -269,16 +241,13 @@ UhciQueueDestroy(
     return UsbSchedulerDestroy(Controller->Base.Scheduler);
 }
 
-/* UhciUpdateCurrentFrame
- * Updates the current frame and stores it in the controller given.
- * OBS: Needs to be called regularly */
+// This should be called regularly to keep the stored frame relevant
 void
 UhciUpdateCurrentFrame(
     _In_ UhciController_t* Controller)
 {
-    // Variables
-    uint16_t FrameNo    = 0;
-    int Delta           = 0;
+    uint16_t FrameNo = 0;
+    int      Delta   = 0;
 
     // Read the current frame, and use the last read frame to calculate the delta
     // then add to current frame
@@ -287,8 +256,6 @@ UhciUpdateCurrentFrame(
     Controller->Frame   += Delta;
 }
 
-/* UhciConditionCodeToIndex
- * Converts the given condition-code in a TD to a string-index */
 int
 UhciConditionCodeToIndex(
     _In_ int ConditionCode)
@@ -307,9 +274,6 @@ UhciConditionCodeToIndex(
     return bCount;
 }
 
-/* HciProcessElement 
- * Proceses the element accordingly to the reason given. The transfer associated
- * will be provided in <Context> */
 int
 HciProcessElement(
     _In_ UsbManagerController_t* Controller,
@@ -317,14 +281,11 @@ HciProcessElement(
     _In_ int                     Reason,
     _In_ void*                   Context)
 {
-    // Variables
-    UhciTransferDescriptor_t *Td    = (UhciTransferDescriptor_t*)Element;
-    UsbManagerTransfer_t *Transfer  = (UsbManagerTransfer_t*)Context;
+    UhciTransferDescriptor_t* Td       = (UhciTransferDescriptor_t*)Element;
+    UsbManagerTransfer_t*     Transfer = (UsbManagerTransfer_t*)Context;
 
     // Debug
     TRACE("UhciProcessElement(Reason %i)", Reason);
-
-    // Handle the reasons
     switch (Reason) {
         case USB_REASON_DUMP: {
             if (Transfer->Transfer.Type != IsochronousTransfer
@@ -338,8 +299,8 @@ HciProcessElement(
         
         case USB_REASON_SCAN: {
             // If we have a queue-head allocated skip it
-            if (Transfer->Transfer.Type != IsochronousTransfer
-                && Element == (uint8_t*)Transfer->EndpointDescriptor) {
+            if (Transfer->Transfer.Type != IsochronousTransfer && 
+                Element == (uint8_t*)Transfer->EndpointDescriptor) {
                 // Skip scan on queue-heads
                 return ITERATOR_CONTINUE;
             }
@@ -380,7 +341,7 @@ HciProcessElement(
             }
             else {
                 // Link all elements
-                UsbSchedulerLinkPeriodicElement(Controller->Scheduler, Element);
+                UsbSchedulerLinkPeriodicElement(Controller->Scheduler, UHCI_TD_POOL, Element);
             }
         } break;
         
@@ -392,7 +353,7 @@ HciProcessElement(
             }
             else {
                 // Link all elements
-                UsbSchedulerUnlinkPeriodicElement(Controller->Scheduler, Element);
+                UsbSchedulerUnlinkPeriodicElement(Controller->Scheduler, UHCI_TD_POOL, Element);
             }
         } break;
         
@@ -404,22 +365,15 @@ HciProcessElement(
     return ITERATOR_CONTINUE;
 }
 
-/* HciProcessEvent
- * Invoked on different very specific events that require assistance. If a transfer 
- * associated will be provided in <Context> */
 void
 HciProcessEvent(
     _In_ UsbManagerController_t* Controller,
     _In_ int                     Event,
     _In_ void*                   Context)
 {
-    // Variables
-    UsbManagerTransfer_t *Transfer  = (UsbManagerTransfer_t*)Context;
-
-    // Debug
+    UsbManagerTransfer_t* Transfer = (UsbManagerTransfer_t*)Context;
     TRACE("UhciProcessEvent(Event %i)", Event);
 
-    // Handle the reasons
     switch (Event) {
         case USB_EVENT_RESTART_DONE: {
             if (Transfer->Transfer.Type != IsochronousTransfer) {

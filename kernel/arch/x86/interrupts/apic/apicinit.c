@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS x86 Advanced Programmable Interrupt Controller Driver
+ * X86 Advanced Programmable Interrupt Controller Driver
  *  - Initialization code for boot/ap cpus
  */
 #define __MODULE "APIC"
@@ -372,21 +372,15 @@ ApicEnable(void)
     ApicWriteLocal(APIC_SPURIOUS_REG, Temp);
 }
 
-/* ApicStartTimer
- * Reloads the local apic timer with a default
- * divisor and the timer set to the given quantum
- * the timer is immediately started */
 void
 ApicStartTimer(
     _In_ size_t Quantum)
 {
-    ApicWriteLocal(APIC_TIMER_VECTOR,       APIC_TIMER_ONESHOT | INTERRUPT_LAPIC);
-    ApicWriteLocal(APIC_DIVIDE_REGISTER,    APIC_TIMER_DIVIDER_1);
-    ApicWriteLocal(APIC_INITIAL_COUNT,      Quantum);
+    ApicWriteLocal(APIC_TIMER_VECTOR,    APIC_TIMER_ONESHOT | INTERRUPT_LAPIC);
+    ApicWriteLocal(APIC_DIVIDE_REGISTER, APIC_TIMER_DIVIDER_1);
+    ApicWriteLocal(APIC_INITIAL_COUNT,   Quantum);
 }
 
-/* ApicInitialize
- * Initialize the local APIC controller and install default interrupts. */
 void
 ApicInitialize(void)
 {
@@ -480,25 +474,18 @@ ApicInitialize(void)
     ApicSendEoi(0, 0);
 }
 
-/* GetApicInterruptMode
- * Returns the current system interrupt mode. This is determined by ApicInitialize(). */
 SystemInterruptMode_t
 GetApicInterruptMode(void)
 {
     return InterruptMode;
 }
 
-/* ApicIsInitialized
- * Returns OsSuccess if the local apic is initialized and memory mapped. */
 OsStatus_t
 ApicIsInitialized(void)
 {
     return (GlbLocalApicBase == 0) ? OsError : OsSuccess;
 }
 
-/* InitializeLocalApicForApplicationCore
- * Enables the local apic and sets it's default state. Also initializes the 
- * local apic timer, but does not start it. */
 void
 InitializeLocalApicForApplicationCore(void)
 {
@@ -515,15 +502,13 @@ InitializeLocalApicForApplicationCore(void)
     ApicStartTimer(0);
 }
 
-/* ApicRecalibrateTimer
- * Recalibrates the the local apic timer, using an external timer source
- * to accurately have the local apic tick at 1ms */
 void
 ApicRecalibrateTimer(void)
 {
-    // Variables
-    volatile clock_t Tick       = 0;
-    size_t TimerTicks           = 0;
+    volatile clock_t InitialTick = 0;
+    volatile clock_t Tick        = 0;
+    clock_t          PassedTicks;
+    size_t           TimerTicks;
 
     // Debug
     TRACE("ApicRecalibrateTimer()");
@@ -534,17 +519,19 @@ ApicRecalibrateTimer(void)
     ApicWriteLocal(APIC_INITIAL_COUNT,   0xFFFFFFFF); // Set counter to max, it counts down
 
     // Sleep for 100 ms
-    while (Tick < 100) {
-        if (TimersGetSystemTick((clock_t*)&Tick) != OsSuccess) {
-            FATAL(FATAL_SCOPE_KERNEL, "No system timers are present, can't calibrate APIC");
-        }
+    if (TimersGetSystemTick((clock_t*)&InitialTick) != OsSuccess) {
+        FATAL(FATAL_SCOPE_KERNEL, "No system timers are present, can't calibrate APIC");
     }
+    while (Tick < (InitialTick + 100)) {
+        TimersGetSystemTick((clock_t*)&Tick);
+    }
+    PassedTicks = Tick - InitialTick;
     
     // Stop counter and calibrate
     ApicWriteLocal(APIC_TIMER_VECTOR, APIC_MASKED);
     TimerTicks = (0xFFFFFFFF - ApicReadLocal(APIC_CURRENT_COUNT));
-    TRACE("Bus Speed: %" PRIuIN " Hz", TimerTicks);
-    GlbTimerQuantum = (TimerTicks / 100) + 1;
+    TRACE("Bus Speed: %" PRIuIN " Hz", (TimerTicks * 10));
+    GlbTimerQuantum = (TimerTicks / PassedTicks) + 1;
     TRACE("Quantum: %" PRIuIN "", GlbTimerQuantum);
 
     // Start timer for good

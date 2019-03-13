@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,11 +16,11 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Universal Host Controller Interface Driver
+ * Universal Host Controller Interface Driver
  * TODO:
  *    - Power Management
  */
-//#define __TRACE
+#define __TRACE
 
 #include <os/mollenos.h>
 #include <ddk/utils.h>
@@ -29,18 +29,14 @@
 #include "../common/manager.h"
 #include "uhci.h"
 
-/* OnFastInterrupt
- * Is called for the sole purpose to determine if this source
- * has invoked an irq. If it has, silence and return (Handled) */
 InterruptStatus_t
 OnFastInterrupt(
-    _In_ FastInterruptResources_t*  InterruptTable,
-    _In_ void*                      NotUsed)
+    _In_ FastInterruptResources_t* InterruptTable,
+    _In_ void*                     NotUsed)
 {
-    // Variables
-    UhciController_t *Controller    = (UhciController_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
-    DeviceIo_t* IoSpace             = INTERRUPT_IOSPACE(InterruptTable, 0);
-    uint16_t InterruptStatus;
+    UhciController_t* Controller = (UhciController_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
+    DeviceIo_t*       IoSpace    = INTERRUPT_IOSPACE(InterruptTable, 0);
+    uint16_t          InterruptStatus;
     _CRT_UNUSED(NotUsed);
 
     // Was the interrupt even from this controller?
@@ -55,30 +51,25 @@ OnFastInterrupt(
     return InterruptHandled;
 }
 
-/* OnInterrupt
- * Is called by external services to indicate an external interrupt.
- * This is to actually process the device interrupt */
 InterruptStatus_t 
 OnInterrupt(
-    _In_Opt_ void *InterruptData,
+    _In_Opt_ void*  InterruptData,
     _In_Opt_ size_t Arg0,
     _In_Opt_ size_t Arg1,
     _In_Opt_ size_t Arg2)
 {
-    // Variables
-    UhciController_t *Controller = NULL;
-    uint16_t InterruptStatus;
+    UhciController_t* Controller = NULL;
+    uint16_t          InterruptStatus;
     
     // Unusued
     _CRT_UNUSED(Arg0);
     _CRT_UNUSED(Arg1);
     _CRT_UNUSED(Arg2);
 
-    // Instantiate the pointer
-    Controller      = (UhciController_t*)InterruptData;
+    Controller = (UhciController_t*)InterruptData;
 
 HandleInterrupt:
-    InterruptStatus = Controller->Base.InterruptStatus;
+    InterruptStatus                  = Controller->Base.InterruptStatus;
     Controller->Base.InterruptStatus = 0;
     // If either interrupt or error is present, it means a change happened
     // in one of our transactions

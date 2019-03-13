@@ -38,7 +38,6 @@ typedef struct _SystemMemorySpace SystemMemorySpace_t;
 typedef struct _SystemProcess SystemProcess_t;
 typedef struct _SystemPipe SystemPipe_t;
 
-/* Define the thread entry point signature */
 #ifndef __THREADING_ENTRY
 #define __THREADING_ENTRY
 typedef void(*ThreadEntry_t)(void*);
@@ -67,9 +66,8 @@ typedef void(*ThreadEntry_t)(void*);
 /* MCoreThread::Flags Bit Definitions 
  * The rest of the bits denode special other run-modes */
 #define THREADING_KERNELENTRY           0x00000004
-#define THREADING_SYSTEMTHREAD          0x00000008
-#define THREADING_IDLE                  0x00000010
-#define THREADING_INHERIT               0x00000020
+#define THREADING_IDLE                  0x00000008
+#define THREADING_INHERIT               0x00000010
 #define THREADING_TRANSITION_USERMODE   0x10000000
 
 typedef struct _SystemSignal {
@@ -78,14 +76,10 @@ typedef struct _SystemSignal {
     Context_t*  Context;
 } SystemSignal_t;
 
-/* MCoreThread
- * The representation of a thread in the system. Contains scheduling information,
- * thread information and data for contexts and signals. */
 typedef struct _MCoreThread {
-    CollectionItem_t        CollectionHeader;
+    CollectionItem_t        Header;
 
     UUId_t                  ParentThreadId;
-    UUId_t                  Id;
     const char*             Name;
     Flags_t                 Flags;
     atomic_int              Cleanup;

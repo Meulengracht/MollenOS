@@ -55,21 +55,17 @@
 #define SCHEDULER_FLAG_REQUEUE          0x2
 #define SCHEDULER_FLAG_BOUND            0x4
 
-/* MCoreSchedulerQueue
- * Represents a queue level in the scheduler. */
-typedef struct _MCoreSchedulerQueue {
-    MCoreThread_t*      Head;
-    MCoreThread_t*      Tail;
-    AtomicSection_t     SyncObject;
+typedef struct {
+    MCoreThread_t*  Head;
+    MCoreThread_t*  Tail;
+    AtomicSection_t SyncObject;
 } SchedulerQueue_t;
 
-/* MCoreScheduler
- * The core scheduler, contains information needed
- * to keep track of active threads and priority queues. */
-typedef struct _MCoreScheduler {
-    SchedulerQueue_t    Queues[SCHEDULER_LEVEL_COUNT];
-    size_t              BoostTimer;
-    int                 ThreadCount;
+typedef struct {
+    SchedulerQueue_t Queues[SCHEDULER_LEVEL_COUNT];
+    size_t           BoostTimer;
+    int              ThreadCount;
+    int              Bandwidth;
 } MCoreScheduler_t;
 
 /* SchedulerThreadInitialize

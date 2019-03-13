@@ -24,8 +24,6 @@
 #ifndef _MCORE_SYSTEMSETUP_H_
 #define _MCORE_SYSTEMSETUP_H_
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 #include <multiboot.h>
 
@@ -36,11 +34,9 @@
 
 /* SystemFeaturesInitialize
  * Called by the kernel to initialize a supported system */
-KERNELAPI
-OsStatus_t
-KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 SystemFeaturesInitialize(
-    _In_ Multiboot_t *BootInformation,
-    _In_ Flags_t Systems);
+    _In_ Multiboot_t* BootInformation,
+    _In_ Flags_t      Systems);
 
 #endif // !_MCORE_SYSTEMSETUP_H_

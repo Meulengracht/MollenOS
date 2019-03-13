@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS x86 Common Threading Interface
+ * X86 Common Threading Interface
  * - Contains shared x86 threading routines
  */
 #define __MODULE "XTIF"
@@ -38,22 +38,17 @@
 #include <string.h>
 #include <stdio.h>
 
-/* Externs
- * Extern access, we need access to the timer-quantum 
- * and a bunch of  assembly functions */
-__EXTERN size_t GlbTimerQuantum;
-__EXTERN void init_fpu(void);
-__EXTERN void load_fpu(uintptr_t *buffer);
-__EXTERN void load_fpu_extended(uintptr_t *buffer);
-__EXTERN void save_fpu(uintptr_t *buffer);
-__EXTERN void save_fpu_extended(uintptr_t *buffer);
-__EXTERN void set_ts(void);
-__EXTERN void clear_ts(void);
-__EXTERN void _yield(void);
-__EXTERN void enter_thread(Context_t *Regs);
+extern size_t GlbTimerQuantum;
+extern void init_fpu(void);
+extern void load_fpu(uintptr_t *buffer);
+extern void load_fpu_extended(uintptr_t *buffer);
+extern void save_fpu(uintptr_t *buffer);
+extern void save_fpu_extended(uintptr_t *buffer);
+extern void set_ts(void);
+extern void clear_ts(void);
+extern void _yield(void);
+extern void enter_thread(Context_t *Regs);
 
-/* ThreadingHaltHandler
- * Software interrupt handler for the halt command. cli/hlt combo */
 InterruptStatus_t
 ThreadingHaltHandler(
     _In_ FastInterruptResources_t*  NotUsed,
@@ -65,22 +60,20 @@ ThreadingHaltHandler(
     return InterruptHandled;
 }
 
-/* ThreadingYieldHandler
- * Software interrupt handler for the yield command. Emulates a regular timer interrupt. */
 InterruptStatus_t
 ThreadingYieldHandler(
     _In_ FastInterruptResources_t*  NotUsed,
     _In_ void*                      Context)
 {
-    Context_t *Regs;
-    size_t TimeSlice;
-    int TaskPriority;
+    Context_t* NextContext;
+    size_t     TimeSlice;
+    int        TaskPriority;
     _CRT_UNUSED(NotUsed);
 
     // Yield => start by sending eoi. It is never certain that we actually return
     // to this function due to how signals are working
     ApicSendEoi(APIC_NO_GSI, INTERRUPT_YIELD);
-    Regs = _GetNextRunnableThread((Context_t*)Context, 0, &TimeSlice, &TaskPriority);
+    NextContext = _GetNextRunnableThread((Context_t*)Context, 0, &TimeSlice, &TaskPriority);
 
     // If we are idle task - disable timer untill we get woken up
     if (!ThreadingIsCurrentTaskIdle(ArchGetProcessorCoreId())) {
@@ -94,44 +87,31 @@ ThreadingYieldHandler(
 
     // Manually update interrupt status
     InterruptSetActiveStatus(0);
-    
-    // Enter new thread, no returning
-    enter_thread(Regs);
+    enter_thread(NextContext);
     return InterruptHandled;
 }
 
-/* ThreadingRegister
- * Initializes a new arch-specific thread context
- * for the given threading flags, also initializes
- * the yield interrupt handler first time its called */
 OsStatus_t
 ThreadingRegister(
-    _In_ MCoreThread_t *Thread)
+    _In_ MCoreThread_t* Thread)
 {
-    // Allocate a new thread context (x86) and zero it out
-    Thread->Data[THREAD_DATA_FLAGS]         = 0;
-    Thread->Data[THREAD_DATA_MATHBUFFER]    = (uintptr_t)kmalloc(0x1000);
+    Thread->Data[THREAD_DATA_FLAGS]      = 0;
+    Thread->Data[THREAD_DATA_MATHBUFFER] = (uintptr_t)kmalloc(0x1000);
     memset((void*)Thread->Data[THREAD_DATA_MATHBUFFER], 0, 0x1000);
     return OsSuccess;
 }
 
-/* ThreadingUnregister
- * Unregisters the thread from the system and cleans up any 
- * resources allocated by ThreadingRegister */
 OsStatus_t
 ThreadingUnregister(
-    _In_ MCoreThread_t *Thread)
+    _In_ MCoreThread_t* Thread)
 {
     kfree((void*)Thread->Data[THREAD_DATA_MATHBUFFER]);
     return OsSuccess;
 }
 
-/* ThreadingFpuException
- * Handles the fpu exception that might get triggered
- * when performing any float/double instructions. */
 OsStatus_t
 ThreadingFpuException(
-    _In_ MCoreThread_t *Thread)
+    _In_ MCoreThread_t* Thread)
 {
     // Clear the task-switch bit
     clear_ts();
@@ -149,17 +129,12 @@ ThreadingFpuException(
     return OsError;
 }
 
-/* ThreadingYield
- * Yields the current thread control to the scheduler */
 void
 ThreadingYield(void)
 {
     _yield();
 }
 
-/* ThreadingSignalDispatch
- * Dispatches a signal to the given thread. This function
- * does not return. */
 OsStatus_t
 ThreadingSignalDispatch(
     _In_ MCoreThread_t* Thread)
@@ -178,25 +153,20 @@ ThreadingSignalDispatch(
     return OsSuccess;
 }
 
-/* _GetNextRunnableThread
- * This function loads a new task from the scheduler, it
- * implements the task-switching functionality, which MCore leaves
- * up to the underlying architecture */
 Context_t*
 _GetNextRunnableThread(
-    _In_ Context_t  *Context,
-    _In_ int         PreEmptive,
-    _Out_ size_t    *TimeSlice,
-    _Out_ int       *TaskQueue)
+    _In_  Context_t* Context,
+    _In_  int        PreEmptive,
+    _Out_ size_t*    TimeSlice,
+    _Out_ int*       TaskQueue)
 {
-    // Variables
-    UUId_t Cpu              = ArchGetProcessorCoreId();
-    MCoreThread_t *Thread   = GetCurrentThreadForCore(Cpu);
+    UUId_t         Cpu    = ArchGetProcessorCoreId();
+    MCoreThread_t* Thread = GetCurrentThreadForCore(Cpu);
 
     // Sanitize the status of threading - return default values
     if (Thread == NULL) {
-        *TimeSlice      = 20;
-        *TaskQueue      = 0;
+        *TimeSlice = 20;
+        *TaskQueue = 0;
         return Context;
     }
     
@@ -212,9 +182,9 @@ _GetNextRunnableThread(
     }
 
     // Get a new thread for us to enter
-    Thread      = GetNextRunnableThread(Thread, PreEmptive, &Context);
-    *TimeSlice  = Thread->TimeSlice;
-    *TaskQueue  = Thread->Queue;
+    Thread     = GetNextRunnableThread(Thread, PreEmptive, &Context);
+    *TimeSlice = Thread->TimeSlice;
+    *TaskQueue = Thread->Queue;
     Thread->Data[THREAD_DATA_FLAGS] &= ~X86_THREAD_USEDFPU; // Clear the FPU used flag
 
     // Load thread-specific resources
@@ -224,6 +194,6 @@ _GetNextRunnableThread(
     set_ts(); // Set task switch bit so we get faults on fpu instructions
 
     // Handle any signals pending for thread
-    SignalProcess(Thread->Id);
+    SignalProcess(Thread->Header.Key.Value.Id);
     return Context;
 }

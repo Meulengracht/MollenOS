@@ -29,11 +29,8 @@
 #include <assert.h>
 #include <stdlib.h>
 
-static UUId_t __GlbTransferId   = 0;
+static UUId_t __GlbTransferId = 0;
 
-/* UsbManagerCreateTransfer
- * Creates a new transfer with the usb-manager.
- * Identifies and registers with neccessary services */
 UsbManagerTransfer_t*
 UsbManagerCreateTransfer(
     _In_ UsbTransfer_t*         Transfer,
@@ -55,14 +52,10 @@ UsbManagerCreateTransfer(
     return UsbTransfer;
 }
 
-/* UsbManagerSendNotification 
- * Sends a notification to the subscribing process whenever a periodic
- * transaction has completed/failed. */
 void
 UsbManagerSendNotification(
-    _In_ UsbManagerTransfer_t*  Transfer)
+    _In_ UsbManagerTransfer_t* Transfer)
 {
-    // Variables
     UsbTransferResult_t Result;
     
     // If user doesn't want, ignore
@@ -81,7 +74,7 @@ UsbManagerSendNotification(
         Result.BytesTransferred += Transfer->BytesTransferred[1];
         Result.BytesTransferred += Transfer->BytesTransferred[2];
 
-        Result.Status           = Transfer->Status;
+        Result.Status = Transfer->Status;
         RPCRespond(&Transfer->ResponseAddress, (void*)&Result, sizeof(UsbTransferResult_t));
     }
     else {

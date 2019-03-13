@@ -33,8 +33,6 @@ InterruptStatus_t OnFastInterrupt(FastInterruptResources_t*, void*);
 
 static int TimerRegistered = 0;
 
-/* HciTimerCallback 
- * The function to check up on ports at regular intervals. */
 void
 HciTimerCallback(void* Context)
 {
@@ -48,28 +46,23 @@ HciTimerCallback(void* Context)
     }
 }
 
-/* UhciControllerDump 
- * Dumps all the controller registers */
 void
 UhciControllerDump(
-    _In_ UhciController_t*          Controller)
+    _In_ UhciController_t* Controller)
 {
-    TRACE("Command(0x%x), Status(0x%x), Interrupt(0x%x)", 
+    WARNING("Command(0x%x), Status(0x%x), Interrupt(0x%x)", 
         UhciRead16(Controller, UHCI_REGISTER_COMMAND),
         UhciRead16(Controller, UHCI_REGISTER_STATUS),
         UhciRead16(Controller, UHCI_REGISTER_INTR));
-    TRACE("FrameNumber(0x%x), BaseAddress(0x%x), Sofmod(0x%x)", 
+    WARNING("FrameNumber(0x%x), BaseAddress(0x%x), Sofmod(0x%x)", 
         UhciRead16(Controller, UHCI_REGISTER_FRNUM),
-        UhciRead16(Controller, UHCI_REGISTER_FRBASEADDR),
-        UhciRead16(Controller, UHCI_REGISTER_SOFMOD));
+        UhciRead32(Controller, UHCI_REGISTER_FRBASEADDR),
+        UhciRead8(Controller, UHCI_REGISTER_SOFMOD));
 }
 
-/* HciControllerCreate 
- * Initializes and creates a new Hci Controller instance
- * from a given new system device on the bus. */
 UsbManagerController_t*
 HciControllerCreate(
-    _In_ MCoreDevice_t*             Device)
+    _In_ MCoreDevice_t* Device)
 {
     // Variables
     UhciController_t *Controller    = NULL;
@@ -190,12 +183,9 @@ HciControllerCreate(
     }
 }
 
-/* HciControllerDestroy
- * Destroys an existing controller instance and cleans up
- * any resources related to it */
 OsStatus_t
 HciControllerDestroy(
-    _In_ UsbManagerController_t*    Controller)
+    _In_ UsbManagerController_t* Controller)
 {
     // Cleanup scheduler
     UhciQueueDestroy((UhciController_t*)Controller);
@@ -213,14 +203,11 @@ HciControllerDestroy(
     return OsSuccess;
 }
 
-/* UhciStart
- * Boots the controller, if it succeeds OsSuccess is returned. */
 OsStatus_t
 UhciStart(
-    _In_ UhciController_t*  Controller,
-    _In_ int                Wait)
+    _In_ UhciController_t* Controller,
+    _In_ int               Wait)
 {
-    // Variables
     uint16_t OldCmd = 0;
     
     // Debug
@@ -228,8 +215,8 @@ UhciStart(
 
     // Read current command register
     // to preserve information, then assert some flags
-    OldCmd  = UhciRead16(Controller, UHCI_REGISTER_COMMAND);
-    OldCmd  |= (UHCI_COMMAND_CONFIGFLAG | UHCI_COMMAND_RUN | UHCI_COMMAND_MAXPACKET64);
+    OldCmd = UhciRead16(Controller, UHCI_REGISTER_COMMAND);
+    OldCmd |= (UHCI_COMMAND_CONFIGFLAG | UHCI_COMMAND_RUN | UHCI_COMMAND_MAXPACKET64);
 
     // Update
     UhciWrite16(Controller, UHCI_REGISTER_COMMAND, OldCmd);
@@ -238,38 +225,32 @@ UhciStart(
     }
 
     // Wait for controller to start
-    OldCmd  = 0;
+    OldCmd = 0;
     WaitForConditionWithFault(OldCmd, 
         (UhciRead16(Controller, UHCI_REGISTER_STATUS) & UHCI_STATUS_HALTED) == 0, 100, 10);
     return (OldCmd == 0) ? OsSuccess : OsError;
 }
 
-/* UhciStop
- * Stops the controller, if it succeeds OsSuccess is returned. */
 OsStatus_t
 UhciStop(
     _In_ UhciController_t*  Controller)
 {
-    // Variables
     uint16_t OldCmd = 0;
     
     // Read current command register
     // to preserve information, then deassert run flag
-    OldCmd          = UhciRead16(Controller, UHCI_REGISTER_COMMAND);
-    OldCmd          &= ~(UHCI_COMMAND_RUN);
+    OldCmd = UhciRead16(Controller, UHCI_REGISTER_COMMAND);
+    OldCmd &= ~(UHCI_COMMAND_RUN);
 
     // Update
     UhciWrite16(Controller, UHCI_REGISTER_COMMAND, OldCmd);
     return OsSuccess;
 }
 
-/* UhciReset
- * Resets the controller back to usable state, does not restart the controller. */
 OsStatus_t
 UhciReset(
     _In_ UhciController_t*  Controller)
 {
-    // Variables
     uint16_t Temp = 0;
 
     // Assert the host-controller reset bit
@@ -303,15 +284,12 @@ UhciReset(
     return OsSuccess;
 }
 
-/* UhciSetup
- * Initializes the controller state and resources */
 OsStatus_t
 UhciSetup(
     _In_ UhciController_t *Controller)
 {
-    // Variables
-    uint16_t Temp       = 0;
-    int i;
+    uint16_t Temp = 0;
+    int      i;
     
     // Debug
     TRACE("UhciSetup()");

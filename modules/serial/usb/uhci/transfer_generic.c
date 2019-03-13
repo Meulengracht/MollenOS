@@ -16,34 +16,24 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Universal Host Controller Interface Driver
+ * Universal Host Controller Interface Driver
  * TODO:
  *    - Power Management
  */
 //#define __TRACE
 
-/* Includes 
- * - System */
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "uhci.h"
-
-/* Includes
- * - Library */
 #include <assert.h>
-#include <stddef.h>
 #include <string.h>
-#include <stdlib.h>
 
-/* UhciTransactionCount
- * Returns the number of transactions neccessary for the transfer. */
 static OsStatus_t
 UhciTransactionCount(
     _In_  UhciController_t*     Controller,
     _In_  UsbManagerTransfer_t* Transfer,
     _Out_ int*                  TransactionsTotal)
 {
-    // Variables
     int TransactionCount    = 0;
     int i;
 
@@ -59,10 +49,10 @@ UhciTransactionCount(
         while (BytesToTransfer || AddZeroLength == 1
             || Transfer->Transfer.Transactions[i].ZeroLength == 1) {
             if (Type == SetupTransaction) {
-                ByteStep    = BytesToTransfer;
+                ByteStep = BytesToTransfer;
             }
             else {
-                ByteStep    = MIN(BytesToTransfer, Transfer->Transfer.Endpoint.MaxPacketSize);
+                ByteStep = MIN(BytesToTransfer, Transfer->Transfer.Endpoint.MaxPacketSize);
             }
             TransactionCount++;
 
@@ -88,17 +78,14 @@ UhciTransactionCount(
     return OsSuccess;
 }
 
-/* UhciTransferFillIsochronous
- * Fills the transfer with as many transfer-descriptors as possible/needed. */
 static OsStatus_t
 UhciTransferFillIsochronous(
-    _In_ UhciController_t*      Controller,
-    _In_ UsbManagerTransfer_t*  Transfer)
+    _In_ UhciController_t*     Controller,
+    _In_ UsbManagerTransfer_t* Transfer)
 {
-    // Variables
-    UhciTransferDescriptor_t *InitialTd     = NULL;
-    UhciTransferDescriptor_t *PreviousTd    = NULL;
-    UhciTransferDescriptor_t *Td            = NULL;
+    UhciTransferDescriptor_t* InitialTd  = NULL;
+    UhciTransferDescriptor_t* PreviousTd = NULL;
+    UhciTransferDescriptor_t* Td         = NULL;
 
     // Debug
     TRACE("UhciTransferFillIsochronous()");
@@ -140,8 +127,8 @@ UhciTransferFillIsochronous(
                 PreviousTd  = Td;
             }
             else {
-                UsbSchedulerChainElement(Controller->Base.Scheduler, 
-                    (uint8_t*)InitialTd, (uint8_t*)Td, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
+                UsbSchedulerChainElement(Controller->Base.Scheduler, UHCI_TD_POOL, 
+                    (uint8_t*)InitialTd, UHCI_TD_POOL, (uint8_t*)Td, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
                 PreviousTd  = Td;
             }
 
@@ -162,21 +149,16 @@ UhciTransferFillIsochronous(
     }
 }
 
-/* UhciTransferFill 
- * Fills the transfer with as many transfer-descriptors as possible/needed. */
 static OsStatus_t
 UhciTransferFill(
-    _In_ UhciController_t*      Controller,
-    _In_ UsbManagerTransfer_t*  Transfer)
+    _In_ UhciController_t*     Controller,
+    _In_ UsbManagerTransfer_t* Transfer)
 {
-    // Variables
-    UhciTransferDescriptor_t *PreviousTd    = NULL;
-    UhciTransferDescriptor_t *Td            = NULL;
-    UhciQueueHead_t *Qh                     = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
-    int OutOfResources                      = 0;
-    int i;
-
-    // Debug
+    UhciTransferDescriptor_t* PreviousTd     = NULL;
+    UhciTransferDescriptor_t* Td             = NULL;
+    UhciQueueHead_t*          Qh             = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
+    int                       OutOfResources = 0;
+    int                       i;
     TRACE("UhciTransferFill()");
 
     // Get next address from which we need to load
@@ -187,8 +169,9 @@ UhciTransferFill(
         size_t ByteStep             = 0;
         int PreviousToggle          = -1;
         int Toggle                  = 0;
-        TRACE("Transaction(%i, Buffer 0x%" PRIxIN ", Length %u, Type %i)", i,
-            Transfer->Transfer.Transactions[i].BufferAddress, BytesToTransfer, Type);
+        TRACE("Transaction(%i, Buffer 0x%" PRIxIN ", Length %u, Type %i, MPS %u)", i,
+            Transfer->Transfer.Transactions[i].BufferAddress, BytesToTransfer, Type,
+            Transfer->Transfer.Endpoint.MaxPacketSize);
 
         // Adjust offsets
         ByteOffset       = Transfer->BytesTransferred[i];
@@ -243,8 +226,8 @@ UhciTransferFill(
                 break;
             }
             else {
-                UsbSchedulerChainElement(Controller->Base.Scheduler, 
-                    (uint8_t*)Qh, (uint8_t*)Td, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
+                UsbSchedulerChainElement(Controller->Base.Scheduler, UHCI_QH_POOL, 
+                        (uint8_t*)Qh, UHCI_TD_POOL, (uint8_t*)Td, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
                 PreviousTd = Td;
 
                 // Update toggle by flipping
@@ -287,21 +270,16 @@ UhciTransferFill(
     }
 }
 
-/* HciQueueTransferGeneric 
- * Queues a new asynchronous/interrupt transfer for the given driver and pipe. 
- * The function does not block. */
 UsbTransferStatus_t
 HciQueueTransferGeneric(
-    _In_ UsbManagerTransfer_t*      Transfer)
+    _In_ UsbManagerTransfer_t* Transfer)
 {
-    // Variables
-    UhciQueueHead_t *EndpointDescriptor     = NULL;
-    UhciController_t *Controller            = NULL;
-    DataKey_t Key;
-
-    // Get Controller
-    Controller          = (UhciController_t*)UsbManagerGetController(Transfer->DeviceId);
-    Transfer->Status    = TransferNotProcessed;
+    UhciQueueHead_t*  EndpointDescriptor = NULL;
+    UhciController_t* Controller;
+    DataKey_t         Key;
+    
+    Controller       = (UhciController_t*)UsbManagerGetController(Transfer->DeviceId);
+    Transfer->Status = TransferNotProcessed;
 
     // Step 1 - Allocate queue head
     if (Transfer->EndpointDescriptor == NULL) {
@@ -334,20 +312,16 @@ HciQueueTransferGeneric(
     return UhciTransactionDispatch(Controller, Transfer);
 }
 
-/* HciQueueTransferIsochronous 
- * Queues a new isochronous transfer for the given driver and pipe. 
- * The function does not block. */
 UsbTransferStatus_t
 HciQueueTransferIsochronous(
-    _In_ UsbManagerTransfer_t*      Transfer)
+    _In_ UsbManagerTransfer_t* Transfer)
 {
-    // Variables
-    UhciController_t *Controller            = NULL;
-    DataKey_t Key;
+    UhciController_t* Controller;
+    DataKey_t         Key;
 
     // Get Controller
-    Controller          = (UhciController_t*)UsbManagerGetController(Transfer->DeviceId);
-    Transfer->Status    = TransferNotProcessed;
+    Controller       = (UhciController_t*)UsbManagerGetController(Transfer->DeviceId);
+    Transfer->Status = TransferNotProcessed;
 
     // Store transaction in queue if it's not there already
     Key.Value.Integer = (int)Transfer->Id;

@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - USB Controller Scheduler
+ * USB Controller Scheduler
  * - Contains the implementation of a shared controller scheduker
  *   for all the usb drivers
  */
@@ -24,15 +24,11 @@
 #ifndef __USB_TRANSFER__
 #define __USB_TRANSFER__
 
-/* Includes
- * - Library */
 #include <ddk/contracts/usbhost.h>
 #include <os/spinlock.h>
 #include <os/osdefs.h>
 #include <ddk/usb.h>
 
-/* UsbManagerTransferFlags
- * Describes a unified way of reporting special transfer states. */
 typedef enum _UsbManagerTransferFlags {
     TransferFlagNone        = 0x0,
     TransferFlagShort       = 0x1,
@@ -43,9 +39,6 @@ typedef enum _UsbManagerTransferFlags {
     TransferFlagNotified    = 0x20
 } UsbManagerTransferFlags_t;
 
-/* UsbManagerTransfer
- * Describes a generic transfer with information needed
- * in order to execute a callback for the requester */
 typedef struct {
     UsbTransfer_t               Transfer;
     MRemoteCallAddress_t        ResponseAddress;
@@ -68,8 +61,7 @@ typedef struct {
 /* UsbManagerCreateTransfer
  * Creates a new transfer with the usb-manager.
  * Identifies and registers with neccessary services */
-__EXTERN
-UsbManagerTransfer_t*
+__EXTERN UsbManagerTransfer_t*
 UsbManagerCreateTransfer(
     _In_ UsbTransfer_t*         Transfer,
     _In_ MRemoteCallAddress_t*  Address,
@@ -78,8 +70,7 @@ UsbManagerCreateTransfer(
 /* UsbManagerSendNotification
  * Sends a notification to the subscribing process whenever a periodic
  * transaction has completed/failed. */
-__EXTERN
-void
+__EXTERN void
 UsbManagerSendNotification(
     _In_ UsbManagerTransfer_t*  Transfer);
 

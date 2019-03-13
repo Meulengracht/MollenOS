@@ -119,7 +119,7 @@ SignalReturn(void)
     UUId_t          Cpu     = ArchGetProcessorCoreId();
     MCoreThread_t*  Thread  = GetCurrentThreadForCore(Cpu);
     Thread->ActiveSignal.Signal = -1;
-    return SignalProcess(Thread->Id);
+    return SignalProcess(Thread->Header.Key.Value.Id);
 }
 
 /* SignalProcess
@@ -163,7 +163,8 @@ SignalExecute(
     _In_ SystemSignal_t* Signal)
 {
     SystemMemorySpace_t* Space = GetCurrentMemorySpace();
-    TRACE("SignalExecute(Thread %" PRIuIN ", Signal %" PRIiIN ")", Thread->Id, Signal->Signal);
+    TRACE("SignalExecute(Thread %" PRIuIN ", Signal %" PRIiIN ")", 
+        Thread->Header.Key.ValueId, Signal->Signal);
     assert(Space->Context != NULL);
 
     // If there is no handler for the process and we
@@ -172,7 +173,7 @@ SignalExecute(
         char Action = GlbSignalIsDeadly[Signal->Signal];
         if (Action == 1 || Action == 2) {
             TRACE("Terminating thread due to deadly signal");
-            TerminateThread(Thread->Id, Signal->Signal, 1);
+            TerminateThread(Thread->Header.Key.Value.Id, Signal->Signal, 1);
         }
         kfree(Signal);
         return;

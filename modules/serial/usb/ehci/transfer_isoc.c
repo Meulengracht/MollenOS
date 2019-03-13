@@ -85,8 +85,8 @@ HciQueueTransferIsochronous(
             PreviousTd  = iTd;
         }
         else {
-            UsbSchedulerChainElement(Controller->Base.Scheduler, 
-                (uint8_t*)FirstTd, (uint8_t*)iTd, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
+            UsbSchedulerChainElement(Controller->Base.Scheduler, EHCI_iTD_POOL, 
+                (uint8_t*)FirstTd, EHCI_iTD_POOL, (uint8_t*)iTd, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
             
             for (i = 0; i < 8; i++) {
                 if (PreviousTd->Transactions[i] & EHCI_iTD_IOC) {

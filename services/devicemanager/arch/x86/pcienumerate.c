@@ -217,7 +217,7 @@ PciCheckFunction(
     // Trace Information about device 
     // Ignore the spam of device_id 0x7a0 in VMWare
     if (Pcs->DeviceId != 0x7a0) {
-        TRACE(" - [%d:%d:%d] %s", Bus, Device, Function,
+        TRACE(" - [%x:%x:%x] %s", Bus, Device, Function,
             PciToString(Pcs->Class, Pcs->Subclass, Pcs->Interface));
     }
 
@@ -233,8 +233,7 @@ PciCheckFunction(
     CollectionAppend(__GlbPciDevices, CollectionCreateNode(lKey, Device));
 
     // Add to list
-    if (Pcs->Class == PCI_CLASS_BRIDGE
-        && Pcs->Subclass == PCI_BRIDGE_SUBCLASS_PCI) {
+    if (Pcs->Class == PCI_CLASS_BRIDGE && Pcs->Subclass == PCI_BRIDGE_SUBCLASS_PCI) {
         Device->IsBridge = 1;
         lKey.Value.Integer = 1;
         CollectionAppend(Parent->Children, CollectionCreateNode(lKey, Device));
@@ -251,10 +250,10 @@ PciCheckFunction(
         // We do need acpi for this 
         // query acpi interrupt information for device
         if (__GlbAcpiAvailable == 1) {
-            PciDevice_t *Iterator = Device;
-            Flags_t AcpiConform = 0;
-            int InterruptLine = -1;
-            int Pin = Pcs->InterruptPin;
+            PciDevice_t* Iterator      = Device;
+            Flags_t      AcpiConform   = 0;
+            int          InterruptLine = INTERRUPT_NONE;
+            int          Pin           = Pcs->InterruptPin;
 
             // Sanitize legals
             if (Pin > 4) {
@@ -295,7 +294,7 @@ PciCheckFunction(
                     PciWrite8(Parent->BusIo, (DevInfo_t)Bus, (DevInfo_t)Slot,
                         (DevInfo_t)Function, 0x3C, (uint8_t)InterruptLine);
                     Device->Header->InterruptLine = (uint8_t)InterruptLine;
-                    Device->AcpiConform = AcpiConform;
+                    Device->AcpiConform           = AcpiConform;
                 }
             }
         }
@@ -395,7 +394,7 @@ PciCreateDeviceFromPci(
     PciReadBars(PciDevice->BusIo, &Device, PciDevice->Header->HeaderType);
 
     // PCI - IDE Bar Fixup
-    // From experience ide-bars don't always show up (ex: Oracle VM)
+    // From experience ide-bars don't always show up (ex: Oracle VM and Bochs)
     // but only the initial 4 bars don't, the BM bar
     // always seem to show up 
     if (PciDevice->Header->Class == PCI_CLASS_STORAGE

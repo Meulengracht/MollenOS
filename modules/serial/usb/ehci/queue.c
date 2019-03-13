@@ -436,10 +436,11 @@ HciProcessElement(
                 EhciSetPrefetching((EhciController_t*)Controller, Transfer->Transfer.Type, 0);
                 if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
                     UsbSchedulerGetPoolElement(Controller->Scheduler, EHCI_QH_POOL, EHCI_QH_ASYNC, &AsyncRootElement, NULL);
-                    UsbSchedulerChainElement(Controller->Scheduler, AsyncRootElement, Element, USB_ELEMENT_NO_INDEX, USB_CHAIN_BREATH);
+                    UsbSchedulerChainElement(Controller->Scheduler, EHCI_QH_POOL, AsyncRootElement, 
+                        EHCI_QH_POOL, Element, USB_ELEMENT_NO_INDEX, USB_CHAIN_BREATH);
                 }
                 else {
-                    UsbSchedulerLinkPeriodicElement(Controller->Scheduler, Element);
+                    UsbSchedulerLinkPeriodicElement(Controller->Scheduler, EHCI_QH_POOL, Element);
                 }
                 EhciSetPrefetching((EhciController_t*)Controller, Transfer->Transfer.Type, 1);
                 EhciEnableScheduler((EhciController_t*)Controller, Transfer->Transfer.Type);
@@ -455,10 +456,10 @@ HciProcessElement(
                 EhciSetPrefetching((EhciController_t*)Controller, Transfer->Transfer.Type, 0);
                 if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
                     UsbSchedulerGetPoolElement(Controller->Scheduler, EHCI_QH_POOL, EHCI_QH_ASYNC, &AsyncRootElement, NULL);
-                    UsbSchedulerUnchainElement(Controller->Scheduler, AsyncRootElement, Element, USB_CHAIN_BREATH);
+                    UsbSchedulerUnchainElement(Controller->Scheduler, EHCI_QH_POOL, AsyncRootElement, EHCI_QH_POOL, Element, USB_CHAIN_BREATH);
                 }
                 else {
-                    UsbSchedulerUnlinkPeriodicElement(Controller->Scheduler, Element);
+                    UsbSchedulerUnlinkPeriodicElement(Controller->Scheduler, EHCI_QH_POOL, Element);
                 }
                 EhciSetPrefetching((EhciController_t*)Controller, Transfer->Transfer.Type, 1);
                 SpinlockRelease(&Controller->Lock);

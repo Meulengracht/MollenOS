@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,14 +30,10 @@
 #include <os/osdefs.h>
 #include <os/context.h>
 
-/* Special flags that are available only
- * in kernel context for special interrupts */
+// Kernel specific interrupt models
 #define INTERRUPT_KERNEL                0x10000000
 #define INTERRUPT_CONTEXT               0x20000000
 
-/* SystemInterrupt
- * The kernel interrupt descriptor structure. Contains
- * all information neccessary to store registered interrupts. */
 typedef struct _SystemInterrupt {
     DeviceInterrupt_t               Interrupt;
     FastInterruptResourceTable_t    KernelResources;
@@ -168,31 +164,14 @@ AcpiDeriveInterrupt(
     _In_  int               Pin,
     _Out_ Flags_t*          AcpiConform);
 
-/* __KernelInterruptDriver
+/* SendModuleInterrupt
  * Call this to send an interrupt into user-space
  * the driver must acknowledge the interrupt once its handled
  * to unmask the interrupt-line again */
-__EXTERN OsStatus_t
-ScRpcExecute(
-    _In_ MRemoteCall_t* Rpc,
-    _In_ int            Async);
-
-SERVICEAPI OsStatus_t SERVICEABI
-__KernelInterruptDriver(
+KERNELAPI OsStatus_t KERNELABI
+SendModuleInterrupt(
     _In_ UUId_t Module, 
     _In_ UUId_t Id,
-    _In_ void*  Data)
-{
-    MRemoteCall_t Request;
-    size_t        Zero = 0;
-
-    RPCInitialize(&Request, Module, 1, __DRIVER_INTERRUPT);
-    RPCSetArgument(&Request, 0, (const void*)&Id, sizeof(UUId_t));
-    RPCSetArgument(&Request, 1, (const void*)&Data, sizeof(void*));
-    RPCSetArgument(&Request, 2, (const void*)&Zero, sizeof(size_t));
-    RPCSetArgument(&Request, 3, (const void*)&Zero, sizeof(size_t));
-    RPCSetArgument(&Request, 4, (const void*)&Zero, sizeof(size_t));
-    return ScRpcExecute(&Request, 1);
-}
+    _In_ void*  Data);
 
 #endif //!_MCORE_INTERRUPTS_H_

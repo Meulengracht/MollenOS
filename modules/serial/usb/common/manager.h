@@ -34,16 +34,11 @@
 #include "transfer.h"
 #include "scheduler.h"
 
-/* UsbManagerEndpoint
- * Keeps track of the active endpoints for a controller. */
 typedef struct _UsbManagerEndpoint {
     UUId_t                  Pipe;
     int                     Toggle;
 } UsbManagerEndpoint_t;
 
-/* UsbManagerController
- * Describes a generic controller with information needed
- * in order for the manager to function */
 typedef struct _UsbManagerController {
     UUId_t              Id;
     UsbControllerType_t Type;
@@ -195,5 +190,11 @@ UsbManagerProcessTransfers(
 __EXTERN void
 UsbManagerScheduleTransfers(
     _In_ UsbManagerController_t*    Controller);
+
+/* UsbManagerDumpSchedule
+ * Prints the entire schedule, frame for frame out. This fills a lot of space. */
+__EXTERN void
+UsbManagerDumpSchedule(
+    _In_ UsbManagerController_t* Controller);
 
 #endif //!_USB_MANAGER_H_

@@ -27,36 +27,32 @@
 #include <ddk/utils.h>
 #include "uhci.h"
 
-/* UhciTransactionDispatch
- * Queues the transfer up in the controller hardware, after finalizing the
- * transactions and preparing them. */
 UsbTransferStatus_t
 UhciTransactionDispatch(
     _In_ UhciController_t*      Controller,
     _In_ UsbManagerTransfer_t*  Transfer)
 {
     // Update status
-    Transfer->Status        = TransferQueued;
+    Transfer->Status = TransferQueued;
     UhciUpdateCurrentFrame(Controller);
+    
 #ifdef __TRACE
     UsbManagerDumpChain(&Controller->Base, Transfer, (uint8_t*)Transfer->EndpointDescriptor, USB_CHAIN_DEPTH);
 #ifdef __DIAGNOSE
     for(;;);
 #endif
 #endif
+
     UsbManagerIterateChain(&Controller->Base, Transfer->EndpointDescriptor, 
         USB_CHAIN_DEPTH, USB_REASON_LINK, HciProcessElement, Transfer);
     return TransferQueued;
 }
 
-/* HciTransactionFinalize
- * Finalizes a transfer by cleaning up resources allocated. This should free
- * all elements and unschedule elements. */
 OsStatus_t
 HciTransactionFinalize(
-    _In_ UsbManagerController_t*    Controller,
-    _In_ UsbManagerTransfer_t*      Transfer,
-    _In_ int                        Reset)
+    _In_ UsbManagerController_t* Controller,
+    _In_ UsbManagerTransfer_t*   Transfer,
+    _In_ int                     Reset)
 {
     // Debug
     TRACE("UhciTransactionFinalize(Id %u)", Transfer->Id);
@@ -68,11 +64,9 @@ HciTransactionFinalize(
     return OsSuccess;
 }
 
-/* HciDequeueTransfer 
- * Removes a queued transfer from the controller's transfer list */
 UsbTransferStatus_t
 HciDequeueTransfer(
-    _In_ UsbManagerTransfer_t*      Transfer)
+    _In_ UsbManagerTransfer_t* Transfer)
 {
     // Mark for unscheduling on next interrupt/check
     Transfer->Flags |= TransferFlagUnschedule;

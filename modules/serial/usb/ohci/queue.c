@@ -217,7 +217,6 @@ HciProcessElement(
     _In_ int                        Reason,
     _In_ void*                      Context)
 {
-    // Variables
     UsbManagerTransfer_t *Transfer  = (UsbManagerTransfer_t*)Context;
 
     // Debug
@@ -276,23 +275,23 @@ HciProcessElement(
         } break;
 
         case USB_REASON_LINK: {
-            // If it's a queue head link that
+            // If it's a queue head link that, otherwise ignore
             if (Element == (uint8_t*)Transfer->EndpointDescriptor) {
                 if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
                     OhciQhLink((OhciController_t*)Controller, Transfer->Transfer.Type, (OhciQueueHead_t*)Element);
                 }
                 else {
-                    UsbSchedulerLinkPeriodicElement(Controller->Scheduler, Element);
+                    UsbSchedulerLinkPeriodicElement(Controller->Scheduler, OHCI_QH_POOL, Element);
                 }
                 return ITERATOR_STOP;
             }
         } break;
         
         case USB_REASON_UNLINK: {
-            // If it's a queue head link that
+            // If it's a queue head unlink that, otherwise ignore
             if (Element == (uint8_t*)Transfer->EndpointDescriptor) {
                 if (Transfer->Transfer.Type == InterruptTransfer || Transfer->Transfer.Type == IsochronousTransfer) {
-                    UsbSchedulerUnlinkPeriodicElement(Controller->Scheduler, Element);
+                    UsbSchedulerUnlinkPeriodicElement(Controller->Scheduler, OHCI_QH_POOL, Element);
                 }
                 return ITERATOR_STOP;
             }

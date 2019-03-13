@@ -48,7 +48,7 @@ DebugPageMemorySpaceHandlers(
         foreach(Node, Space->Context->MemoryHandlers) {
             SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)Node;
             if (ISINRANGE(Address, Handler->Address, (Handler->Address + Handler->Length) - 1)) {
-                __KernelInterruptDriver(__FILEMANAGER_TARGET, Handler->Handle, (void*)Address);
+                SendModuleInterrupt(__FILEMANAGER_TARGET, Handler->Handle, (void*)Address);
                 Status = WaitForHandles(&Handler->Handle, 1, 1, 0);
                 break;
             }
@@ -158,7 +158,7 @@ DebugPanic(
     CurrentThread = GetCurrentThreadForCore(CoreId);
     if (CurrentThread != NULL) {
         LogAppendMessage(LogError, Module, "Thread %s - %" PRIuIN " (Core %" PRIuIN ")!",
-            CurrentThread->Name, CurrentThread->Id, CoreId);
+            CurrentThread->Name, CurrentThread->Header.Key.Value.Id, CoreId);
     }
     DebugStackTrace(Context, 8);
 

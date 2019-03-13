@@ -129,12 +129,11 @@ OhciQhRestart(
  * This can handle linkage of async and interrupt transfers. */
 void
 OhciQhLink(
-    _In_ OhciController_t*          Controller,
-    _In_ UsbTransferType_t          Type,
-    _In_ OhciQueueHead_t*           Qh)
+    _In_ OhciController_t* Controller,
+    _In_ UsbTransferType_t Type,
+    _In_ OhciQueueHead_t*  Qh)
 {
-    // Variables
-    OhciQueueHead_t *RootQh = NULL;
+    OhciQueueHead_t* RootQh = NULL;
 
     // Switch based on type of transfer
     if (Type == ControlTransfer) {
@@ -143,8 +142,8 @@ OhciQhLink(
             UsbSchedulerGetPoolElement(Controller->Base.Scheduler, OHCI_QH_POOL, 
                 Controller->TransactionQueueControlIndex & USB_ELEMENT_INDEX_MASK, 
                 (uint8_t**)&RootQh, NULL);
-            UsbSchedulerChainElement(Controller->Base.Scheduler, (uint8_t*)RootQh, 
-                (uint8_t*)Qh, 0, USB_CHAIN_BREATH);
+            UsbSchedulerChainElement(Controller->Base.Scheduler, OHCI_QH_POOL, (uint8_t*)RootQh, 
+                OHCI_QH_POOL, (uint8_t*)Qh, 0, USB_CHAIN_BREATH);
         }
         else {
             Controller->TransactionQueueControlIndex = Qh->Object.Index;
@@ -163,8 +162,8 @@ OhciQhLink(
             UsbSchedulerGetPoolElement(Controller->Base.Scheduler, OHCI_QH_POOL, 
                 Controller->TransactionQueueBulkIndex & USB_ELEMENT_INDEX_MASK, 
                 (uint8_t**)&RootQh, NULL);
-            UsbSchedulerChainElement(Controller->Base.Scheduler, (uint8_t*)RootQh, 
-                (uint8_t*)Qh, 0, USB_CHAIN_BREATH);
+            UsbSchedulerChainElement(Controller->Base.Scheduler, OHCI_QH_POOL, (uint8_t*)RootQh, 
+                OHCI_QH_POOL, (uint8_t*)Qh, 0, USB_CHAIN_BREATH);
         }
         else {
             Controller->TransactionQueueBulkIndex = Qh->Object.Index;

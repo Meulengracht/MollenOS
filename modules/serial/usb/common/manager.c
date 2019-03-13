@@ -90,16 +90,12 @@ UsbManagerRegisterController(
     return CollectionAppend(&Controllers, CollectionCreateNode(Key, Controller));
 }
 
-/* UsbManagerDestroyController
- * Unregisters a controller with the usb-manager.
- * Identifies and unregisters with neccessary services */
 OsStatus_t
 UsbManagerDestroyController(
-    _In_ UsbManagerController_t*    Controller)
+    _In_ UsbManagerController_t* Controller)
 {
-    // Variables
-    CollectionItem_t *cNode = NULL;
-    DataKey_t Key = { .Value.Id = Controller->Device.Id };
+    CollectionItem_t* cNode = NULL;
+    DataKey_t         Key   = { .Value.Id = Controller->Device.Id };
 
     // Unregister controller with usbmanager service
     if (UsbControllerUnregister(Controller->Device.Id) != OsSuccess) {
@@ -117,20 +113,20 @@ UsbManagerDestroyController(
 
 void
 UsbManagerIterateTransfers(
-    _In_ UsbManagerController_t*    Controller,
-    _In_ UsbTransferItemCallback    ItemCallback,
-    _In_ void*                      Context)
+    _In_ UsbManagerController_t* Controller,
+    _In_ UsbTransferItemCallback ItemCallback,
+    _In_ void*                   Context)
 {
     foreach_nolink(Node, Controller->TransactionList) {
-        UsbManagerTransfer_t *Transfer  = (UsbManagerTransfer_t*)Node->Data;
-        int Status                      = ItemCallback(Controller, Transfer, Context);
+        UsbManagerTransfer_t* Transfer = (UsbManagerTransfer_t*)Node->Data;
+        int                   Status   = ItemCallback(Controller, Transfer, Context);
         if (Status & ITERATOR_REMOVE) {
-            CollectionItem_t *NextNode  = CollectionUnlinkNode(Controller->TransactionList, Node);
+            CollectionItem_t* NextNode = CollectionUnlinkNode(Controller->TransactionList, Node);
             CollectionDestroyNode(Controller->TransactionList, Node);
-            Node                        = NextNode;
+            Node = NextNode;
         }
         else {
-            Node                        = CollectionNext(Node);
+            Node = CollectionNext(Node);
         }
         if (Status & ITERATOR_STOP) {
             break;
@@ -142,7 +138,6 @@ UsbManagerController_t*
 UsbManagerGetController(
     _In_ UUId_t Device)
 {
-    // Iterate list of controllers
     foreach(cNode, &Controllers) {
         UsbManagerController_t *Controller = (UsbManagerController_t*)cNode->Data;
         if (Controller->Device.Id == Device) {
@@ -157,9 +152,8 @@ UsbManagerGetToggle(
     _In_ UUId_t          Device,
     _In_ UsbHcAddress_t* Address)
 {
-    // Variables
     DataKey_t Key;
-    UUId_t Pipe;
+    UUId_t    Pipe;
 
     // Create an unique id for this endpoint
     Pipe = ((uint32_t)Address->DeviceAddress << 8)  | Address->EndpointAddress;
@@ -206,9 +200,8 @@ UsbManagerSetToggle(
     _In_ UsbHcAddress_t* Address,
     _In_ int             Toggle)
 {
-    // Variables
     DataKey_t Key;
-    UUId_t Pipe;
+    UUId_t    Pipe;
 
     // Create an unique id for this endpoint
     Pipe = ((uint32_t)Address->DeviceAddress << 8)  | Address->EndpointAddress;
@@ -255,9 +248,8 @@ UsbManagerFinalizeTransfer(
     _In_ UsbManagerController_t* Controller,
     _In_ UsbManagerTransfer_t*   Transfer)
 {
-    // Variables
-    CollectionItem_t *Node      = NULL;
-    int BytesLeft               = 0;
+    CollectionItem_t* Node      = NULL;
+    int               BytesLeft = 0;
 
     // Is the transfer done?
     if ((Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer)
@@ -297,7 +289,7 @@ UsbManagerFinalizeTransfer(
 
 void
 UsbManagerClearTransfers(
-    _In_ UsbManagerController_t*    Controller)
+    _In_ UsbManagerController_t* Controller)
 {
     // Avoid requeuing by setting executed == total
     foreach(tNode, Controller->TransactionList) {
@@ -311,13 +303,13 @@ UsbManagerClearTransfers(
 
 OsStatus_t
 UsbManagerIsAddressesEqual(
-    _In_ UsbHcAddress_t*            Address1,
-    _In_ UsbHcAddress_t*            Address2)
+    _In_ UsbHcAddress_t* Address1,
+    _In_ UsbHcAddress_t* Address2)
 {
-    if (Address1->HubAddress        == Address2->HubAddress     &&
-        Address1->PortAddress       == Address2->PortAddress    && 
-        Address1->DeviceAddress     == Address2->DeviceAddress  &&
-        Address1->EndpointAddress   == Address2->EndpointAddress) {
+    if (Address1->HubAddress      == Address2->HubAddress     &&
+        Address1->PortAddress     == Address2->PortAddress    && 
+        Address1->DeviceAddress   == Address2->DeviceAddress  &&
+        Address1->EndpointAddress == Address2->EndpointAddress) {
         return OsSuccess;
     }
     return OsError;
@@ -325,12 +317,11 @@ UsbManagerIsAddressesEqual(
 
 int
 UsbManagerSynchronizeTransfers(
-    _In_ UsbManagerController_t*    Controller,
-    _In_ UsbManagerTransfer_t*      Transfer,
-    _In_ void*                      Context)
+    _In_ UsbManagerController_t* Controller,
+    _In_ UsbManagerTransfer_t*   Transfer,
+    _In_ void*                   Context)
 {
-    // Variables
-    UsbHcAddress_t *Address = (UsbHcAddress_t*)Context;
+    UsbHcAddress_t* Address = (UsbHcAddress_t*)Context;
 
     // Is this transfer relevant?
     if (UsbManagerIsAddressesEqual(&Transfer->Transfer.Address, Address) != OsSuccess
@@ -347,9 +338,9 @@ UsbManagerSynchronizeTransfers(
 
 int
 UsbManagerScheduleTransfer(
-    _In_ UsbManagerController_t*    Controller,
-    _In_ UsbManagerTransfer_t*      Transfer,
-    _In_ void*                      Context)
+    _In_ UsbManagerController_t* Controller,
+    _In_ UsbManagerTransfer_t*   Transfer,
+    _In_ void*                   Context)
 {
     // Has the transfer been marked for unschedule?
     if (Transfer->Flags & TransferFlagUnschedule) {
@@ -371,18 +362,19 @@ UsbManagerScheduleTransfer(
 
 void
 UsbManagerScheduleTransfers(
-    _In_ UsbManagerController_t*    Controller)
+    _In_ UsbManagerController_t* Controller)
 {
-    // Simply invoke our iterator with a fixed shared implementation.
     UsbManagerIterateTransfers(Controller, UsbManagerScheduleTransfer, NULL);
 }
 
 int
 UsbManagerProcessTransfer(
-    _In_ UsbManagerController_t*    Controller,
-    _In_ UsbManagerTransfer_t*      Transfer,
-    _In_ void*                      Context)
+    _In_ UsbManagerController_t* Controller,
+    _In_ UsbManagerTransfer_t*   Transfer,
+    _In_ void*                   Context)
 {
+    static int NumBulks = 0;
+    
     // Has the transfer been marked for cleanup?
     if (Transfer->Flags & TransferFlagCleanup) {
         if (Transfer->EndpointDescriptor != NULL) {
@@ -400,7 +392,16 @@ UsbManagerProcessTransfer(
     if (Transfer->Status != TransferQueued) {
         return ITERATOR_CONTINUE;
     }
-
+    
+    if (Transfer->Transfer.Type == BulkTransfer) {
+        NumBulks++;
+        if (NumBulks == 13) {
+            UsbManagerDumpSchedule(Controller);
+            UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
+                USB_CHAIN_DEPTH, USB_REASON_DUMP, HciProcessElement, Transfer);
+        }
+    }
+    
     // Debug
     TRACE("> Validation transfer(Id %u, Status %u)", Transfer->Id, Transfer->Status);
     UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
@@ -408,6 +409,13 @@ UsbManagerProcessTransfer(
     TRACE("> Updated metrics (Id %u, Status %u, Flags 0x%x)", Transfer->Id, Transfer->Status, Transfer->Flags);
     if (Transfer->Status == TransferQueued) {
         return ITERATOR_CONTINUE;
+    }
+    
+    if (Transfer->Transfer.Type == BulkTransfer) {
+        if (NumBulks == 13) {
+            ERROR("Transfer->Status %u, Transfer->TransactionsExecuted %u/%u",
+                Transfer->Status, Transfer->TransactionsExecuted, Transfer->TransactionsTotal);
+        }
     }
     
     // Do we need to fixup toggles?
@@ -426,8 +434,8 @@ UsbManagerProcessTransfer(
         if (Transfer->Status != TransferNAK) {
             UsbManagerSendNotification(Transfer);
         }
-        Transfer->Status    = TransferQueued;
-        Transfer->Flags     = TransferFlagNone;
+        Transfer->Status = TransferQueued;
+        Transfer->Flags  = TransferFlagNone;
     }
     else if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
         HciTransactionFinalize(Controller, Transfer, 0);
@@ -443,42 +451,40 @@ UsbManagerProcessTransfer(
 
 void
 UsbManagerProcessTransfers(
-    _In_ UsbManagerController_t*    Controller)
+    _In_ UsbManagerController_t* Controller)
 {
-    // Simply invoke our iterator with a fixed shared implementation.
     UsbManagerIterateTransfers(Controller, UsbManagerProcessTransfer, NULL);
 }
 
 void
 UsbManagerIterateChain(
-    _In_ UsbManagerController_t*    Controller,
-    _In_ uint8_t*                   ElementRoot,
-    _In_ int                        Direction,
-    _In_ int                        Reason,
+    _In_ UsbManagerController_t*     Controller,
+    _In_ uint8_t*                    ElementRoot,
+    _In_ int                         Direction,
+    _In_ int                         Reason,
     _In_ UsbSchedulerElementCallback ElementCallback,
-    _In_ void*                      Context)
+    _In_ void*                       Context)
 {
-    // Variables
-    UsbSchedulerObject_t *Object    = NULL;
-    UsbSchedulerPool_t *Pool        = NULL;
-    OsStatus_t Result               = OsSuccess;
-    uint16_t RootIndex              = 0;
-    uint16_t LinkIndex              = 0;
-    uint8_t *Element                = ElementRoot;
-    int Status                      = 0;
+    UsbSchedulerObject_t* Object    = NULL;
+    UsbSchedulerPool_t*   Pool      = NULL;
+    OsStatus_t            Result    = OsSuccess;
+    uint16_t              RootIndex = 0;
+    uint16_t              LinkIndex = 0;
+    uint8_t*              Element   = ElementRoot;
+    int                   Status    = 0;
     
     // Debug
     assert(Controller != NULL);
     assert(ElementRoot != NULL);
 
     // Validate element and lookup pool
-    Result                  = UsbSchedulerGetPoolFromElement(Controller->Scheduler, Element, &Pool);
+    Result = UsbSchedulerGetPoolFromElement(Controller->Scheduler, Element, &Pool);
     assert(Result == OsSuccess);
-    Object                  = USB_ELEMENT_OBJECT(Pool, Element);
+    Object = USB_ELEMENT_OBJECT(Pool, Element);
     
     // Get indices
-    RootIndex               = Object->Index;
-    LinkIndex               = (Direction == USB_CHAIN_BREATH) ? Object->BreathIndex : Object->DepthIndex;
+    RootIndex = Object->Index;
+    LinkIndex = (Direction == USB_CHAIN_BREATH) ? Object->BreathIndex : Object->DepthIndex;
 
     // Iterate to end, support cyclic queues
     while (Element) {
@@ -488,36 +494,65 @@ UsbManagerIterateChain(
                 break;
             }
         }
-
-        Status          = ElementCallback(Controller, Element, Reason, Context);
+        
+        Status = ElementCallback(Controller, Element, Reason, Context);
         if (Status & ITERATOR_STOP) {
             break;
         }
         if (Status & ITERATOR_REMOVE) {
             WARNING("ElementCallback returned ITERATOR_REMOVE");
         }
-
+        
         // Should we stop?
         if (LinkIndex == USB_ELEMENT_NO_INDEX || LinkIndex == RootIndex) {
             break;
         }
         
         // Move to next object
-        Pool            = USB_ELEMENT_GET_POOL(Controller->Scheduler, LinkIndex);
-        Element         = USB_ELEMENT_INDEX(Pool, LinkIndex);
-        Object          = USB_ELEMENT_OBJECT(Pool, Element);
-        LinkIndex       = (Direction == USB_CHAIN_BREATH) ? Object->BreathIndex : Object->DepthIndex;
+        Pool      = USB_ELEMENT_GET_POOL(Controller->Scheduler, LinkIndex);
+        Element   = USB_ELEMENT_INDEX(Pool, LinkIndex);
+        Object    = USB_ELEMENT_OBJECT(Pool, Element);
+        LinkIndex = (Direction == USB_CHAIN_BREATH) ? Object->BreathIndex : Object->DepthIndex;
     }
 }
 
 void
 UsbManagerDumpChain(
-    _In_ UsbManagerController_t*    Controller,
-    _In_ UsbManagerTransfer_t*      Transfer,
-    _In_ uint8_t*                   ElementRoot,
-    _In_ int                        Direction)
+    _In_ UsbManagerController_t* Controller,
+    _In_ UsbManagerTransfer_t*   Transfer,
+    _In_ uint8_t*                ElementRoot,
+    _In_ int                     Direction)
 {
     // Invoke HciProcessElement
     UsbManagerIterateChain(Controller, ElementRoot, 
         Direction, USB_REASON_DUMP, HciProcessElement, Transfer);
+}
+
+
+int
+UsbManagerDumpScheduleElement(
+    _In_ UsbManagerController_t* Controller,
+    _In_ uint8_t*                Element,
+    _In_ int                     Reason,
+    _In_ void*                   Context)
+{
+    UsbManagerTransfer_t* Transfer = (UsbManagerTransfer_t*)Context;
+    Transfer->EndpointDescriptor   = Element;
+    
+    // Dump entire depth chain
+    UsbManagerIterateChain(Controller, Element, 
+        USB_CHAIN_DEPTH, USB_REASON_DUMP, HciProcessElement, Context);
+    return ITERATOR_CONTINUE;
+}
+
+void
+UsbManagerDumpSchedule(
+    _In_ UsbManagerController_t* Controller)
+{
+    UsbManagerTransfer_t PseudoTransferObject = { { 0 } };
+    for (int i = 0; i < Controller->Scheduler->Settings.FrameCount; i++) {
+        WARNING("-------------------------- FRAME %i ---------------------------------", i);
+        UsbManagerIterateChain(Controller, (uint8_t*)Controller->Scheduler->VirtualFrameList[i], 
+            USB_CHAIN_BREATH, USB_REASON_DUMP, UsbManagerDumpScheduleElement, &PseudoTransferObject);
+    }
 }

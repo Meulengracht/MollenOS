@@ -22,12 +22,9 @@
  */
 //#define __TRACE
 
-#include <os/mollenos.h>
+#include <ds/collection.h>
 #include <ddk/utils.h>
 #include "../uhci.h"
-#include <ds/collection.h>
-#include <string.h>
-#include <stdlib.h>
 
 void
 UhciQhCalculateQueue(
@@ -96,7 +93,7 @@ UhciQhRestart(
     uintptr_t        LinkPhysical = 0;
     
     // Do some extra processing for periodics
-    Qh->BufferBase  = Transfer->Transfer.Transactions[0].BufferAddress;
+    Qh->BufferBase = Transfer->Transfer.Transactions[0].BufferAddress;
 
     // Reinitialize the queue-head
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler, UHCI_TD_POOL, 
@@ -125,8 +122,8 @@ UhciQhLink(
     }
     
     // Link it
-    UsbSchedulerChainElement(Controller->Base.Scheduler, 
-        (uint8_t*)QueueQh, (uint8_t*)Qh, Marker, USB_CHAIN_BREATH);
+    UsbSchedulerChainElement(Controller->Base.Scheduler, UHCI_QH_POOL,
+        (uint8_t*)QueueQh, UHCI_QH_POOL, (uint8_t*)Qh, Marker, USB_CHAIN_BREATH);
 }
 
 void
@@ -142,5 +139,5 @@ UhciQhUnlink(
 
     // Unlink it
     UsbSchedulerUnchainElement(Controller->Base.Scheduler, 
-        (uint8_t*)QueueQh, (uint8_t*)Qh, USB_CHAIN_BREATH);
+        UHCI_QH_POOL, (uint8_t*)QueueQh, UHCI_QH_POOL, (uint8_t*)Qh, USB_CHAIN_BREATH);
 }

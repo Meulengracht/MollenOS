@@ -166,7 +166,7 @@ OhciTransferFill(
             }
             else {
                 UsbSchedulerChainElement(Controller->Base.Scheduler, 
-                    (uint8_t*)Qh, (uint8_t*)Td, ZeroIndex, USB_CHAIN_DEPTH);
+                    OHCI_QH_POOL, (uint8_t*)Qh, OHCI_TD_POOL, (uint8_t*)Td, ZeroIndex, USB_CHAIN_DEPTH);
                 PreviousTd = Td;
 
                 // Update toggle by flipping

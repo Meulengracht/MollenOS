@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Interrupt Interface
+ * Interrupt Interface
  * - Contains the shared kernel interrupt interface
  *   that is generic and can be shared/used by all systems
  */
@@ -27,8 +27,6 @@
 
 static FastInterruptResources_t FastInterruptTable = { 0 };
 
-/* FastInterruptResources_t
- * Retrieves the system fast interrupt resource table to pass to process interrupt handlers. */
 FastInterruptResources_t*
 GetFastInterruptTable(void)
 {
@@ -38,9 +36,9 @@ GetFastInterruptTable(void)
 // ReadIoSpace
 static size_t
 TableFunctionReadIoSpace(
-    _In_ DeviceIo_t*    IoSpace,
-    _In_ size_t         Offset,
-    _In_ size_t         Length)
+    _In_ DeviceIo_t* IoSpace,
+    _In_ size_t      Offset,
+    _In_ size_t      Length)
 {
     size_t Value = 0;
     if (IoSpace->Type == DeviceIoPortBased) {
@@ -63,9 +61,6 @@ TableFunctionWriteIoSpace(
     return OsError;
 }
 
-/* InitializeInterruptTable
- * Initializes the static system interrupt table. This must be done before any driver interrupts
- * as they will rely on the system function table that gets passed along. */
 void
 InitializeInterruptTable(void)
 {

@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Universal Host Controller Interface Driver
+ * Universal Host Controller Interface Driver
  * Todo:
  * Power Management
  */
@@ -181,6 +181,13 @@ typedef struct _UhciController {
 /*******************************************************************************
  * Input/Output Methods
  *******************************************************************************/
+
+/* UhciRead8
+ * Reads a 1-byte value from the control-space of the controller */
+__EXTERN uint8_t
+UhciRead8(
+    _In_ UhciController_t*  Controller, 
+    _In_ uint16_t           Register);
 
 /* UhciRead16
  * Reads a 2-byte value from the control-space of the controller */

@@ -39,19 +39,19 @@ FsReadFromFile(
     _Out_ size_t*                   BytesAt,
     _Out_ size_t*                   BytesRead)
 {
-    MfsInstance_t*      Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
-    MfsEntry_t*         Entry           = (MfsEntry_t*)Handle->Base.Entry;
-    FileSystemCode_t    Result          = FsOk;
-    uintptr_t           DataPointer     = GetBufferDma(BufferObject);
-    uint64_t            Position        = Handle->Base.Position;
-    size_t              BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize;
-    size_t              BytesToRead     = Length;
+    MfsInstance_t*   Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
+    MfsEntry_t*      Entry           = (MfsEntry_t*)Handle->Base.Entry;
+    FileSystemCode_t Result          = FsOk;
+    uintptr_t        DataPointer     = GetBufferDma(BufferObject);
+    uint64_t         Position        = Handle->Base.Position;
+    size_t           BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize;
+    size_t           BytesToRead     = Length;
 
     TRACE("FsReadFile(Id 0x%x, Position %u, Length %u)",
         Handle->Base.Id, LODWORD(Handle->Base.Position), Length);
 
-    *BytesRead      = 0;
-    *BytesAt        = Handle->Base.Position % FileSystem->Disk.Descriptor.SectorSize;
+    *BytesRead = 0;
+    *BytesAt   = Handle->Base.Position % FileSystem->Disk.Descriptor.SectorSize;
 
     // Sanitize the amount of bytes we want to read, cap it at bytes available
     if ((Position + BytesToRead) > Entry->Base.Descriptor.Size.QuadPart) {

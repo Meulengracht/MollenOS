@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - USB Controller Manager
+ * USB Controller Manager
  * - Contains the implementation of a shared controller manager
  *   for all the usb drivers
  */
@@ -62,7 +62,7 @@ OnUnregister(
     return HciControllerDestroy(Controller);
 }
 
-OsStatus_t 
+OsStatus_t
 OnQuery(
 	_In_     MContractType_t        QueryType, 
 	_In_     int                    QueryFunction, 
@@ -110,19 +110,18 @@ OnQuery(
 
         // Periodic Queue
         case __USBHOST_QUEUEPERIODIC: {
-            // Variables
             UsbTransferResult_t ResPackage;
 
             // Create and setup new transfer
-            Transfer                    = UsbManagerCreateTransfer(
+            Transfer = UsbManagerCreateTransfer(
                 (UsbTransfer_t*)Arg1->Data.Buffer, Address, Device);
 
             // Queue the periodic transfer
             if (Transfer->Transfer.Type == IsochronousTransfer) {
-                ResPackage.Status       = HciQueueTransferIsochronous(Transfer);
+                ResPackage.Status = HciQueueTransferIsochronous(Transfer);
             }
             else {
-                ResPackage.Status       = HciQueueTransferGeneric(Transfer);
+                ResPackage.Status = HciQueueTransferGeneric(Transfer);
             }
             ResPackage.Id               = Transfer->Id;
             ResPackage.BytesTransferred = 0;
@@ -131,16 +130,13 @@ OnQuery(
 
         // Dequeue Transfer
         case __USBHOST_DEQUEUEPERIODIC: {
-            // Variables
-            UsbManagerTransfer_t *Transfer  = NULL;
-            UUId_t Id                       = (UUId_t)Arg1->Data.Value;
-            UsbTransferStatus_t Status      = TransferInvalid;
+            UsbManagerTransfer_t* Transfer = NULL;
+            UUId_t                Id       = (UUId_t)Arg1->Data.Value;
+            UsbTransferStatus_t   Status   = TransferInvalid;
 
-            // Lookup transfer by iterating through
-            // available transfers
+            // Lookup transfer by iterating through available transfers
             foreach(tNode, Controller->TransactionList) {
-                // Cast data to our type
-                UsbManagerTransfer_t *NodeTransfer = (UsbManagerTransfer_t*)tNode->Data;
+                UsbManagerTransfer_t* NodeTransfer = (UsbManagerTransfer_t*)tNode->Data;
                 if (NodeTransfer->Id == Id) {
                     Transfer = NodeTransfer;
                     break;
@@ -151,8 +147,6 @@ OnQuery(
             if (Transfer != NULL) {
                 Status = HciDequeueTransfer(Transfer);
             }
-
-            // Send back package
             return RPCRespond(Address, (void*)&Status, sizeof(UsbTransferStatus_t));
         } break;
 
@@ -180,8 +174,5 @@ OnQuery(
         default:
             break;
     }
-
-    // Dunno, fall-through case
-    // Return status response
     return RPCRespond(Address, (void*)&Result, sizeof(OsStatus_t));
 }

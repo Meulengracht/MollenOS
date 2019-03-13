@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Universal Host Controller Interface Driver
+ * Universal Host Controller Interface Driver
  * Todo:
  * Power Management
  */
@@ -27,14 +27,11 @@
 #include <threads.h>
 #include <string.h>
 
-/* HciPortReset
- * Resets the given port and returns the result of the reset */
 OsStatus_t
 HciPortReset(
-    _In_ UsbManagerController_t*    Controller, 
-    _In_ int                        Index)
+    _In_ UsbManagerController_t* Controller, 
+    _In_ int                     Index)
 {
-	// Variables
 	uint16_t pOffset    = (UHCI_REGISTER_PORT_BASE + (Index * 2));
 	uint16_t TempValue  = 0;
 
@@ -73,19 +70,14 @@ HciPortReset(
 	return OsSuccess;
 }
 
-/* HciPortGetStatus 
- * Retrieve the current port status, with connected and enabled information */
 void
 HciPortGetStatus(
-    _In_  UsbManagerController_t*   Controller,
-    _In_  int                       Index,
-    _Out_ UsbHcPortDescriptor_t*    Port)
+    _In_  UsbManagerController_t* Controller,
+    _In_  int                     Index,
+    _Out_ UsbHcPortDescriptor_t*  Port)
 {
-	// Variables
-    uint16_t pStatus    = 0;
-    
-	// Now we can get current port status
-	pStatus             = UhciRead16((UhciController_t*)Controller, (UHCI_REGISTER_PORT_BASE + (Index * 2)));
+    uint16_t pStatus = UhciRead16((UhciController_t*)Controller, 
+    	(UHCI_REGISTER_PORT_BASE + (Index * 2)));
 
     // Debug
     TRACE("UhciPortGetStatus(Port %i, Status 0x%x)", Index, pStatus);
@@ -96,15 +88,11 @@ HciPortGetStatus(
     Port->Speed     = (pStatus & UHCI_PORT_LOWSPEED) == 0 ? FullSpeed : LowSpeed;
 }
 
-/* UhciPortCheck
- * Detects if any connection activity has occurred on the given port and
- * controller. If any activity was detected, usb service will be contacted. */
 OsStatus_t
 UhciPortCheck(
-	_In_ UhciController_t*          Controller, 
-	_In_ int                        Index)
+	_In_ UhciController_t* Controller, 
+	_In_ int               Index)
 {
-	// Variables
 	uint16_t pStatus = UhciRead16(Controller, (UHCI_REGISTER_PORT_BASE + (Index * 2)));
 	if (!(pStatus & UHCI_PORT_CONNECT_EVENT)) {
 		return OsSuccess;
@@ -118,26 +106,21 @@ UhciPortCheck(
 	return UsbEventPort(Controller->Base.Device.Id, 0, (uint8_t)(Index & 0xFF));
 }
 
-/* UhciPortsCheck
- * Enumerates ports and checks for any pending events. This also
- * notifies the usb-service if any connection changes appear */
 OsStatus_t
 UhciPortsCheck(
-	_In_ UhciController_t*          Controller) {
+	_In_ UhciController_t* Controller)
+{
 	for (int i = 0; i < (int)(Controller->Base.PortCount); i++) {
 		UhciPortCheck(Controller, i);
 	}
 	return OsSuccess;
 }
 
-/* UhciPortPrepare
- * Resets the port and also clears out any event on the port line. */
 OsStatus_t
 UhciPortPrepare(
-	_In_ UhciController_t*          Controller, 
-	_In_ int                        Index)
+	_In_ UhciController_t* Controller, 
+	_In_ int               Index)
 {
-	// Trace
 	TRACE("UhciPortPrepare(Port %i)", Index);
 	return HciPortReset(&Controller->Base, Index);
 }

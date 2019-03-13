@@ -82,20 +82,20 @@ InitializeSoftwareInterrupts(void)
     Interrupt.Vectors[0]            = INTERRUPT_HALT;
     Interrupt.FastInterrupt.Handler = ThreadingHaltHandler;
     InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
-        | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
+        | INTERRUPT_NOTSHARABLE);
 
     // Page synchronization interrupt
     Interrupt.Vectors[0]            = INTERRUPT_SYNCHRONIZE_PAGE;
     Interrupt.FastInterrupt.Handler = PageSynchronizationHandler;
     InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
-        | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
+        | INTERRUPT_NOTSHARABLE);
     
     // Install local apic handlers
     // - LVT Error handler
     Interrupt.Vectors[0]            = INTERRUPT_LVTERROR;
     Interrupt.FastInterrupt.Handler = ApicErrorHandler;
     InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
-        | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
+        | INTERRUPT_NOTSHARABLE);
     
     // - Timer handler
     Interrupt.Vectors[0]            = INTERRUPT_LAPIC;
@@ -113,7 +113,7 @@ InterruptGetApicConfiguration(
 {
     uint64_t ApicFlags = APIC_FLAGS_DEFAULT;
 
-    TRACE("InterruptDetermine(%" PRIiIN ":%" PRIiIN ")", Interrupt->Line, Interrupt->Pin);
+    TRACE("InterruptGetApicConfiguration(%i:%i)", Interrupt->Line, Interrupt->Pin);
 
     // Case 1 - ISA Interrupts 
     // - In most cases are Edge-Triggered, Active-High
@@ -293,7 +293,7 @@ InterruptConfigure(
     } ApicExisting;
     
     // Debug
-    TRACE("InterruptConfigure(Id 0x%" PRIxIN ", Enable %" PRIiIN ")", Descriptor->Id, Enable);
+    TRACE("InterruptConfigure(Id 0x%" PRIxIN ", Enable %i)", Descriptor->Id, Enable);
 
     // Is this a software interrupt? Don't install
     if (Descriptor->Flags & INTERRUPT_SOFT || 
@@ -349,13 +349,13 @@ UpdateEntry:
                 }
                 else {
                     // Unmask the irq in the io-apic
-                    TRACE("Installing source %" PRIiIN " => 0x%" PRIxIN "", Descriptor->Source, LODWORD(ApicFlags));
+                    TRACE("Installing source %i => 0x%" PRIxIN "", Descriptor->Source, LODWORD(ApicFlags));
                     ApicWriteIoEntry(Ic, Descriptor->Source, ApicFlags);
                 }
             }
         }
         else {
-            ERROR("Failed to derive io-apic for source %" PRIiIN "", Descriptor->Source);
+            ERROR("Failed to derive io-apic for source %i", Descriptor->Source);
             return OsError;
         }
     }
@@ -383,7 +383,7 @@ InterruptEntry(
             && TableIndex != (INTERRUPT_PHYSICAL_BASE + 7)
             && TableIndex != (INTERRUPT_PHYSICAL_BASE + 15)) {
             // Fault
-            FATAL(FATAL_SCOPE_KERNEL, "Unhandled interrupt %" PRIuIN " (Source %" PRIiIN ")", 
+            FATAL(FATAL_SCOPE_KERNEL, "Unhandled interrupt %" PRIuIN " (Source %i)", 
                 TableIndex, Gsi);
         }
     }
@@ -401,7 +401,7 @@ ExceptionSignal(
     UUId_t         CoreId = ArchGetProcessorCoreId();
     MCoreThread_t* Thread = GetCurrentThreadForCore(CoreId);
 
-    TRACE("ExceptionSignal(Signal %" PRIiIN ")", Signal);
+    TRACE("ExceptionSignal(Signal %i)", Signal);
 
     // Sanitize if user-process
 #ifdef __OSCONFIG_DISABLE_SIGNALLING

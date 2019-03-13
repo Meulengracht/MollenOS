@@ -30,9 +30,6 @@
 extern size_t GlbTimerQuantum;
 extern void enter_thread(Context_t *Regs);
 
-/* ApicTimerHandler
- * The scheduler interrupt handler. The only functionality this handler has is
- * to switch threads. */
 InterruptStatus_t
 ApicTimerHandler(
     _In_ FastInterruptResources_t*  NotUsed,
@@ -67,9 +64,6 @@ ApicTimerHandler(
     return InterruptHandled;
 }
 
-/* ApicErrorHandler
- * Handles any internally errors that the apic encounters. Most of these
- * don't have any resolution. */
 InterruptStatus_t
 ApicErrorHandler(
     _In_ FastInterruptResources_t*  NotUsed,

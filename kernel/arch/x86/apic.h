@@ -112,7 +112,7 @@
 /* This is a configurable default quantum for the
  * local apic timer, this is used untill it's possible
  * for the cpu to more accurately calculate a quantum */
-#define APIC_DEFAULT_QUANTUM	15000
+#define APIC_DEFAULT_QUANTUM 15000
 
 /* Interrupt Target Types
  * The supported kinds of interrupt targets we support

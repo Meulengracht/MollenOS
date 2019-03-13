@@ -120,6 +120,7 @@ MfsLocateRecord(
             Result = FsDiskError;
             goto Cleanup;
         }
+        TRACE("Read done");
 
         // Iterate the number of records in a bucket
         // A record spans two sectors

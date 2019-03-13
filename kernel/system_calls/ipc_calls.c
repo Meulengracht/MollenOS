@@ -170,7 +170,7 @@ ScRpcExecute(
     // Decrypt the sender for the receiver
     Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
     RemoteCall->From.Process ^= Thread->Cookie;
-    RemoteCall->From.Thread   = Thread->Id;
+    RemoteCall->From.Thread   = Thread->Header.Key.Value.Id;
 
     // Setup producer access
     AcquireSystemPipeProduction(Module->Rpc, TotalLength, &State);

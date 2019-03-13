@@ -36,16 +36,16 @@ InterruptInitialize(void);
  * Resolves the table index from the given interrupt settings. */
 KERNELAPI OsStatus_t KERNELABI
 InterruptResolve(
-    _In_  DeviceInterrupt_t*    Interrupt,
-    _In_  Flags_t               Flags,
-    _Out_ UUId_t*               TableIndex);
+    _In_  DeviceInterrupt_t* Interrupt,
+    _In_  Flags_t            Flags,
+    _Out_ UUId_t*            TableIndex);
 
 /* InterruptConfigure
  * Configures the given interrupt in the system */
 KERNELAPI OsStatus_t KERNELABI
 InterruptConfigure(
-    _In_ SystemInterrupt_t*     Descriptor,
-    _In_ int                    Enable);
+    _In_ SystemInterrupt_t* Descriptor,
+    _In_ int                Enable);
 
 /* InterruptDisable
  * Disables interrupts and returns the state before disabling */
@@ -62,7 +62,7 @@ InterruptEnable(void);
  * state, that must have been saved from SaveState */
 KERNELAPI IntStatus_t KERNELABI
 InterruptRestoreState(
-    _In_ IntStatus_t            State);
+    _In_ IntStatus_t State);
 
 /* InterruptSaveState
  * Retrieves the current state of interrupts */

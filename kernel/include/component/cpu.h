@@ -28,8 +28,6 @@
 #include <threading.h>
 #include <scheduler.h>
 
-/* SystemCpuState
- * Represents the current state of the cpu.*/
 typedef enum _SystemCpuState {
     CpuStateUnavailable     = 0x0,
     CpuStateShutdown        = 0x1,
@@ -43,10 +41,6 @@ typedef enum _SystemCpuInterruptReason {
     CpuInterruptYield
 } SystemCpuInterruptReason_t;
 
-/* SystemCpuCore
- * Structure that encapsulates everything a core needs to keep
- * it's data and current state. This contains information about
- * state, scheduler and <<>> */
 typedef struct _SystemCpuCore {
     UUId_t              Id;
     SystemCpuState_t    State;
@@ -60,9 +54,6 @@ typedef struct _SystemCpuCore {
     MCoreThread_t*      CurrentThread;
 } SystemCpuCore_t;
 
-/* SystemCpu
- * Structure that holds all information neccessary to identify
- * a cpu with multiple cores. */
 typedef struct _SystemCpu {
     char                Vendor[16];     // zero terminated string
     char                Brand[64];      // zero terminated string

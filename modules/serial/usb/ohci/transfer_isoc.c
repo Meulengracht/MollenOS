@@ -109,8 +109,8 @@ OhciTransferFill(
             break;
         }
         else {
-            UsbSchedulerChainElement(Controller->Base.Scheduler, 
-                (uint8_t*)Qh, (uint8_t*)Td, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
+            UsbSchedulerChainElement(Controller->Base.Scheduler, OHCI_QH_POOL, 
+                (uint8_t*)Qh, OHCI_iTD_POOL, (uint8_t*)Td, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
             PreviousTd = Td;
         }
 
@@ -122,8 +122,8 @@ OhciTransferFill(
     // If we ran out of resources it can be pretty serious
     if (PreviousTd != NULL) {
         // We have a transfer
-        UsbSchedulerChainElement(Controller->Base.Scheduler, 
-            (uint8_t*)Qh, (uint8_t*)ZeroTd, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
+        UsbSchedulerChainElement(Controller->Base.Scheduler, OHCI_QH_POOL, 
+            (uint8_t*)Qh, OHCI_iTD_POOL, (uint8_t*)ZeroTd, USB_ELEMENT_NO_INDEX, USB_CHAIN_DEPTH);
         
         // Enable ioc
         PreviousTd->Flags           &= ~OHCI_TD_IOC_NONE;

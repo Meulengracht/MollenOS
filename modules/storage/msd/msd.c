@@ -67,16 +67,13 @@ MsdDeviceCreate(
     for (i = 1; i < Device->Base.Interface.Versions[0].EndpointCount + 1; i++) {
         if (Device->Base.Endpoints[i].Type == EndpointInterrupt) {
             Device->Interrupt = &Device->Base.Endpoints[i];
-            TRACE("MSD-Int: %" PRIuIN, Device->Base.Endpoints[i].Address);
         }
         else if (Device->Base.Endpoints[i].Type == EndpointBulk) {
             if (Device->Base.Endpoints[i].Direction == USB_ENDPOINT_IN) {
                 Device->In = &Device->Base.Endpoints[i];
-                TRACE("MSD-In: %" PRIuIN, Device->Base.Endpoints[i].Address);
             }
             else if (Device->Base.Endpoints[i].Direction == USB_ENDPOINT_OUT) {
                 Device->Out = &Device->Base.Endpoints[i];
-                TRACE("MSD-Out: %" PRIuIN, Device->Base.Endpoints[i].Address);
             }
         }
     }
