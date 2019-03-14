@@ -38,7 +38,7 @@ the project.
 
 | Variable              | Required | Description             |
 | --------------------- |:-------- |:-----------------------:|
-| CROSS                 | Yes      | Points to where the cross-compiler will be installed. |
+| CROSS                 | Yes      | Points to where the cross-compiler is installed. |
 | VALI_ARCH             | Yes\*    | Which architecture you will build the OS and applications for. |
 | VALI_SDK_PATH         | No\*\*   | Points to where the SDK should be installed for app development. |
 | VALI_DDK_PATH         | No\*\*   | Points to where the DDK should be installed for driver development. |
