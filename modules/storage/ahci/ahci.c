@@ -246,7 +246,8 @@ OsStatus_t
 AllocateOperationalMemory(
     _In_ AhciController_t* Controller)
 {
-    Flags_t MemoryFlags = MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN | MEMORY_COMMIT | MEMORY_READ | MEMORY_WRITE;
+    Flags_t MemoryFlags = MEMORY_LOWFIRST | MEMORY_CONTIGIOUS | MEMORY_CLEAN | 
+        MEMORY_COMMIT | MEMORY_UNCHACHEABLE | MEMORY_READ | MEMORY_WRITE;
     TRACE("AllocateOperationalMemory()");
 
     // Allocate some shared resources. The resource we need is 

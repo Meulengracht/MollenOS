@@ -62,7 +62,7 @@ There is a series of build commands available.
 #### Bochs
 The uhci driver in bochs (2.6.9) defers packages when communicating with MSD devices to fake a seek delay,
 however this results in issues with reading from the harddisk, since bochs does not correctly store the number
-of deferred packages.
+of deferred packages. See this issue description [here](https://forum.osdev.org/viewtopic.php?f=1&t=32574&start=0).
 
 ## Current development progress
 

@@ -25,8 +25,6 @@
 #include <ddk/io.h>
 #include <assert.h>
 
-/* Externs, this is i/o
- * access and varies from architecture */
 ASMDECL(uint8_t,  __readbyte(uint16_t Port));
 ASMDECL(void,     __writebyte(uint16_t Port, uint8_t Value));
 ASMDECL(uint16_t, __readword(uint16_t Port));
@@ -238,4 +236,16 @@ WriteDeviceIo(
             break;
     }
     return Status;
+}
+
+
+reg32_t __IoReadMemory32(volatile reg32_t* Register)
+{
+    reg32_t Value = *Register;
+    return Value;
+}
+
+void __IoWriteMemory32(volatile reg32_t* Register, reg32_t Value)
+{
+    *Register = Value;
 }

@@ -56,6 +56,26 @@ typedef struct _DeviceIo {
 } DeviceIo_t;
 
 _CODE_BEGIN
+
+// Memory/optimization safe reading from hardware memory registers
+CRTDECL(reg32_t, __IoReadMemory32(volatile reg32_t*));
+CRTDECL(void,    __IoWriteMemory32(volatile reg32_t*, reg32_t));
+
+static inline reg32_t
+ReadVolatile32(volatile reg32_t* Register)
+{
+    reg32_t Value = __IoReadMemory32(Register);
+    MemoryBarrier();
+    return Value;
+}
+
+static inline void
+WriteVolatile32(volatile reg32_t* Register, reg32_t Value)
+{
+    __IoWriteMemory32(Register, Value);
+    MemoryBarrier();
+}
+
 /* CreateDeviceMemoryIo
  * Registers a new device memory io with the operating system. If this memory range
  * overlaps any existing io range, this request will be denied by the system. */

@@ -926,7 +926,8 @@ parport1: enabled=1, file="parport.out"
 # accepts the parameter "write_protected" with valid values 0 and 1 to select
 # the access mode (default is 0).
 #=======================================================================
-usb_uhci: enabled=1, port1=disk:mollenos_usb.img
+#usb_uhci: enabled=1, port1=disk:mollenos_usb.img
+
 #usb_uhci: enabled=1
 #usb_uhci: enabled=1, port1=mouse, port2=disk:usbstick.img
 #usb_uhci: enabled=1, port1=hub:7, port2=disk:growing:usbdisk.img
@@ -942,6 +943,8 @@ usb_uhci: enabled=1, port1=disk:mollenos_usb.img
 # syntax as the UHCI controller (see above). The optionsX parameter is also
 # available on OHCI.
 #=======================================================================
+usb_ohci: enabled=1, port1=disk:mollenos_usb.img
+
 #usb_ohci: enabled=1
 #usb_ohci: enabled=1, port1=printer:usbprinter.bin
 

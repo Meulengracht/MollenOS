@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Open Host Controller Interface Driver
+ * Open Host Controller Interface Driver
  * TODO:
  *    - Power Management
  */
@@ -40,16 +40,14 @@ OnFastInterrupt(
     _In_ FastInterruptResources_t*  InterruptTable,
     _In_ void*                      NotUsed)
 {
-    // Variables
-    OhciRegisters_t* Registers      = (OhciRegisters_t*)INTERRUPT_IOSPACE(InterruptTable, 0)->Access.Memory.VirtualBase;
-    OhciController_t* Controller    = (OhciController_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
-    OhciHCCA_t* Hcca                = (OhciHCCA_t*)INTERRUPT_RESOURCE(InterruptTable, 1);
-    reg32_t InterruptStatus;
+    OhciRegisters_t*  Registers  = (OhciRegisters_t*)INTERRUPT_IOSPACE(InterruptTable, 0)->Access.Memory.VirtualBase;
+    OhciController_t* Controller = (OhciController_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
+    OhciHCCA_t*       Hcca       = (OhciHCCA_t*)INTERRUPT_RESOURCE(InterruptTable, 1);
+    reg32_t           InterruptStatus;
     _CRT_UNUSED(NotUsed);
 
     // There are two cases where it might be, just to be sure
-    // we don't miss an interrupt, if the HeadDone is set or the
-    // intr is set
+    // we don't miss an interrupt, if the HeadDone is set or the intr is set
     if (Hcca->HeadDone != 0) {
         InterruptStatus = OHCI_PROCESS_EVENT;
         // If halted bit is set, get rest of interrupt
@@ -78,13 +76,13 @@ OnFastInterrupt(
     // Stage 1 of the linking/unlinking event, disable queues untill
     // after the actual unlink/link event
     if (InterruptStatus & OHCI_SOF_EVENT) {
-        Registers->HcControl           &= ~(OHCI_CONTROL_ALL_ACTIVE);
-        Registers->HcInterruptDisable   = OHCI_SOF_EVENT;
+        Registers->HcControl          &= ~(OHCI_CONTROL_ALL_ACTIVE);
+        Registers->HcInterruptDisable  = OHCI_SOF_EVENT;
     }
 
     // Store interrupts, acknowledge and return
-    Controller->Base.InterruptStatus   |= InterruptStatus;
-    Registers->HcInterruptStatus        = InterruptStatus;
+    Controller->Base.InterruptStatus |= InterruptStatus;
+    Registers->HcInterruptStatus      = InterruptStatus;
     return InterruptHandled;
 }
 
@@ -98,21 +96,18 @@ OnInterrupt(
     _In_Opt_ size_t Arg1,
     _In_Opt_ size_t Arg2)
 {
-    // Variables
-    OhciController_t *Controller        = NULL;
-    reg32_t InterruptStatus             = 0;
+    OhciController_t* Controller;
+    reg32_t           InterruptStatus;
     
     // Unusued
     _CRT_UNUSED(Arg0);
     _CRT_UNUSED(Arg1);
     _CRT_UNUSED(Arg2);
 
-    // Instantiate the pointer
-    Controller                          = (OhciController_t*)InterruptData;
-    
+    Controller = (OhciController_t*)InterruptData;
 ProcessInterrupt:
-    InterruptStatus                     = Controller->Base.InterruptStatus;
-    Controller->Base.InterruptStatus    = 0;
+    InterruptStatus                  = Controller->Base.InterruptStatus;
+    Controller->Base.InterruptStatus = 0;
 
     // Process Checks
     if (InterruptStatus & OHCI_PROCESS_EVENT) {
@@ -142,7 +137,8 @@ ProcessInterrupt:
     // Stage 2 of an linking/unlinking event
     if (InterruptStatus & OHCI_SOF_EVENT) {
         UsbManagerScheduleTransfers(&Controller->Base);
-        Controller->Registers->HcControl |= Controller->QueuesActive;
+        WriteVolatile32(&Controller->Registers->HcControl, 
+            ReadVolatile32(&Controller->Registers->HcControl) | Controller->QueuesActive);
         UsbManagerProcessTransfers(&Controller->Base);
     }
 

@@ -133,7 +133,8 @@ OhciQhLink(
     _In_ UsbTransferType_t Type,
     _In_ OhciQueueHead_t*  Qh)
 {
-    OhciQueueHead_t* RootQh = NULL;
+    OhciQueueHead_t* RootQh        = NULL;
+    reg32_t          CommandStatus = ReadVolatile32(&Controller->Registers->HcCommandStatus);
 
     // Switch based on type of transfer
     if (Type == ControlTransfer) {
@@ -151,7 +152,7 @@ OhciQhLink(
         Controller->TransactionsWaitingControl++;
 
         // Enable?
-        if (!(Controller->Registers->HcCommandStatus & OHCI_COMMAND_CONTROL_FILLED)) {
+        if (!(CommandStatus & OHCI_COMMAND_CONTROL_FILLED)) {
             OhciReloadAsynchronous(Controller, ControlTransfer);
             Controller->QueuesActive |= OHCI_CONTROL_CONTROL_ACTIVE;
         }
@@ -171,7 +172,7 @@ OhciQhLink(
         Controller->TransactionsWaitingBulk++;
 
         // Enable?
-        if (!(Controller->Registers->HcCommandStatus & OHCI_COMMAND_BULK_FILLED)) {
+        if (!(CommandStatus & OHCI_COMMAND_BULK_FILLED)) {
             OhciReloadAsynchronous(Controller, BulkTransfer);
             Controller->QueuesActive |= OHCI_CONTROL_BULK_ACTIVE;
         }
