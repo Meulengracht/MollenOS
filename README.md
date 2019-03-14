@@ -93,11 +93,11 @@ I appreciate any form for contribution you want to make to the project! The proj
 
 You can start contributing on any aspect of the operating system, and if you should ever be in doubt, feel free to send me an email at phailmollen@gmail.com.
 
-### Submitting issues
+### Submitting issues <a name="contrib-issues"></a>
 
 When submitting issues, please take care that the issue is not a dublicate of an already existing, open issue. Please follow the templates specified for issues. Issues can be either a bug report or a feature request. If you feel like the feedback/issue you have does not fall into either category, pick the one you feel it fits the most.
 
-### Pull Requests
+### Pull Requests <a name="contrib-pr"></a>
 
 If you want to contribute as a developer on the project please fork the repository, and contribute via pull requests. There is a pull request template you can use when creating a pull request. Please allow for a day or two for me to review the pull request before accepting, as I will take a look as quickly as possible and submit your pull request.
 
