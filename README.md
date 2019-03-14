@@ -39,14 +39,16 @@ the project.
 | Variable              | Required | Description             |
 | --------------------- |:-------- |:-----------------------:|
 | CROSS                 | Yes      | Points to where the cross-compiler will be installed. |
-| VALI_ARCH             | Yes      | Which architecture you will build the OS and applications for. |
-| VALI_SDK_PATH         | No\*     | Points to where the SDK should be installed for app development. |
-| VALI_DDK_PATH         | No\*     | Points to where the DDK should be installed for driver development. |
-| VALI_APPLICATION_PATH | No\*\*   | Points to where the Vali applications/libraries are built. |
+| VALI_ARCH             | Yes\*    | Which architecture you will build the OS and applications for. |
+| VALI_SDK_PATH         | No\*\*   | Points to where the SDK should be installed for app development. |
+| VALI_DDK_PATH         | No\*\*   | Points to where the DDK should be installed for driver development. |
+| VALI_APPLICATION_PATH | No\*\*\* | Points to where the Vali applications/libraries are built. |
 
-\* Can be supplied to enable make install_sdk and make install_ddk
+\* The supported platforms targets right now are i386 and amd64
 
-\*\* Can be supplied to include built applications in the kernel image
+\*\* Can be supplied to enable make install_sdk and make install_ddk
+
+\*\*\* Can be supplied to include built applications in the kernel image
 
 ### Setting up the toolchain <a name="setting-up-toolchain"></a>
 The only thing you need to get started is a succesfully built toolchain of llvm/clang/lld. To help make this easier
