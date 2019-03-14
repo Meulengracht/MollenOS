@@ -76,10 +76,11 @@ UsbSchedulerInitialize(
     _In_  UsbSchedulerSettings_t* Settings,
     _Out_ UsbScheduler_t**        SchedulerOut)
 {
-    UsbScheduler_t* Scheduler     = NULL;
+    UsbScheduler_t* Scheduler;
     uintptr_t       PoolPhysical  = 0;
     size_t          PoolSizeBytes = 0;
     uint8_t*        Pool          = NULL;
+    Flags_t         MemoryFlags;
     int             i;
 
     // Debug
@@ -98,11 +99,17 @@ UsbSchedulerInitialize(
     for (i = 0; i < Settings->PoolCount; i++) {
         PoolSizeBytes += Settings->Pools[i].ElementCount * Settings->Pools[i].ElementAlignedSize;
     }
+    
+    // Setup required memory allocation flags
+    // Require low memory as most usb controllers don't work with physical memory above 2GB
+    // Require uncacheable memory as it's hardware accessible memory.
+    // Require contigious memory to make allocation/address conversion easier
+    MemoryFlags = MEMORY_COMMIT | MEMORY_CLEAN | MEMORY_CONTIGIOUS | MEMORY_LOWFIRST |
+        MEMORY_UNCHACHEABLE | MEMORY_READ | MEMORY_WRITE;
 
     // Perform the allocation
     TRACE(" > Allocating memory (%u bytes)", PoolSizeBytes);
-    if (MemoryAllocate(NULL, PoolSizeBytes, MEMORY_CLEAN | MEMORY_COMMIT
-        | MEMORY_LOWFIRST | MEMORY_CONTIGIOUS, (void**)&Pool, &PoolPhysical) != OsSuccess) {
+    if (MemoryAllocate(NULL, PoolSizeBytes, MemoryFlags, (void**)&Pool, &PoolPhysical) != OsSuccess) {
         ERROR("Failed to allocate memory for resource-pool");
         return OsError;
     }
@@ -508,9 +515,9 @@ UsbSchedulerFreeBandwidth(
     size_t                i, j;
 
     // Validate element and lookup pool
-    Result                  = UsbSchedulerGetPoolFromElement(Scheduler, Element, &sPool);
+    Result = UsbSchedulerGetPoolFromElement(Scheduler, Element, &sPool);
     assert(Result == OsSuccess);
-    sObject                 = USB_ELEMENT_OBJECT(sPool, Element);
+    sObject = USB_ELEMENT_OBJECT(sPool, Element);
 
     // Iterate the requested period and clean up
     SpinlockAcquire(&Scheduler->Lock);

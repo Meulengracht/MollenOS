@@ -29,14 +29,14 @@
 
 /* Memory Allocation Definitions
  * Flags that can be used when requesting virtual memory */
-#define MEMORY_COMMIT                   0x00000001
-#define MEMORY_CONTIGIOUS               0x00000002
-#define MEMORY_LOWFIRST                 0x00000004
-#define MEMORY_CLEAN                    0x00000008
-#define MEMORY_UNCHACHEABLE             0x00000010
-#define MEMORY_READ                     0x00000020
-#define MEMORY_WRITE                    0x00000040
-#define MEMORY_EXECUTABLE               0x00000080
+#define MEMORY_COMMIT       0x00000001 // If commit is not passed, memory will only be reserved.
+#define MEMORY_CONTIGIOUS   0x00000002 // Physical memory must be contigous
+#define MEMORY_LOWFIRST     0x00000004 // Allocate from low memory
+#define MEMORY_CLEAN        0x00000008 // Memory should be cleaned
+#define MEMORY_UNCHACHEABLE 0x00000010 // Memory must not be cached
+#define MEMORY_READ         0x00000020 // Memory is readable
+#define MEMORY_WRITE        0x00000040 // Memory is writable
+#define MEMORY_EXECUTABLE   0x00000080 // Memory is executable
 
 PACKED_TYPESTRUCT(SystemDescriptor, {
     size_t NumberOfProcessors;
@@ -60,13 +60,12 @@ PACKED_TYPESTRUCT(SystemTime, {
 
 /* Cache Type Definitions
  * Flags that can be used when requesting a flush of one of the hardware caches */
-#define CACHE_INSTRUCTION               1
+#define CACHE_INSTRUCTION   1
 
 _CODE_BEGIN
 /* MemoryAllocate
- * Allocates a chunk of memory, controlled by the
- * requested size of memory. The returned memory will always
- * be rounded up to nearest page-size */
+ * Allocates a chunk of memory, controlled by the requested size of memory. 
+ * The returned memory will always be rounded up to nearest page-size */
 CRTDECL(OsStatus_t,
 MemoryAllocate(
     _In_      void*      NearAddress,
@@ -76,16 +75,14 @@ MemoryAllocate(
     _Out_Opt_ uintptr_t* PhysicalPointer));
 
 /* MemoryFree
- * Frees previously allocated memory and releases
- * the system resources associated. */
+ * Frees previously allocated memory and releases the system resources associated. */
 CRTDECL(OsStatus_t,
 MemoryFree(
     _In_ void*  MemoryPointer,
     _In_ size_t Length));
 
 /* MemoryProtect
- * Changes the protection flags of a previous memory allocation
- * made by MemoryAllocate */
+ * Changes the protection flags of a previous memory allocation made by MemoryAllocate */
 CRTDECL(OsStatus_t,
 MemoryProtect(
     _In_  void*    MemoryPointer,
@@ -113,15 +110,13 @@ GetSystemTick(
     _In_ LargeUInteger_t* Tick));
 
 /* QueryPerformanceFrequency
- * Returns how often the performance timer fires every
- * second, the value will never be 0 */
+ * Returns how often the performance timer fires every second, the value will never be 0 */
 CRTDECL(OsStatus_t,
 QueryPerformanceFrequency(
     _Out_ LargeInteger_t *Frequency));
 
 /* QueryPerformanceTimer 
- * Queries the created performance timer and returns the
- * information in the given structure */
+ * Queries the created performance timer and returns the information in the given structure */
 CRTDECL(OsStatus_t,
 QueryPerformanceTimer(
     _Out_ LargeInteger_t *Value));
@@ -234,13 +229,13 @@ typedef struct {
 #define FILE_MAPPING_WRITE      0x00000002
 #define FILE_MAPPING_EXECUTE    0x00000004
 
-CRTDECL(OsStatus_t, GetFilePathFromFd(int FileDescriptor, char *PathBuffer, size_t MaxLength));
-CRTDECL(OsStatus_t, GetStorageInformationFromPath(const char *Path, vStorageDescriptor_t *Information));
-CRTDECL(OsStatus_t, GetStorageInformationFromFd(int FileDescriptor, vStorageDescriptor_t *Information));
+CRTDECL(OsStatus_t,       GetFilePathFromFd(int FileDescriptor, char *PathBuffer, size_t MaxLength));
+CRTDECL(OsStatus_t,       GetStorageInformationFromPath(const char *Path, vStorageDescriptor_t *Information));
+CRTDECL(OsStatus_t,       GetStorageInformationFromFd(int FileDescriptor, vStorageDescriptor_t *Information));
 CRTDECL(FileSystemCode_t, GetFileInformationFromPath(const char *Path, OsFileDescriptor_t *Information));
 CRTDECL(FileSystemCode_t, GetFileInformationFromFd(int FileDescriptor, OsFileDescriptor_t *Information));
-CRTDECL(OsStatus_t, CreateFileMapping(int FileDescriptor, int Flags, uint64_t Offset, size_t Length, void **MemoryPointer, UUId_t* Handle));
-CRTDECL(OsStatus_t, DestroyFileMapping(UUId_t Handle));
+CRTDECL(OsStatus_t,       CreateFileMapping(int FileDescriptor, int Flags, uint64_t Offset, size_t Length, void **MemoryPointer, UUId_t* Handle));
+CRTDECL(OsStatus_t,       DestroyFileMapping(UUId_t Handle));
 
 _CODE_END
 #endif //!__MOLLENOS_H__

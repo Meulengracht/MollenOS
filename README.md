@@ -17,13 +17,13 @@ the project.
 | --------------------- |:-------- |:-----------------------:|
 | CROSS                 | Yes      | Points to where the cross-compiler will be installed. |
 | VALI_ARCH             | Yes      | Which architecture you will build the OS and applications for. |
-| VALI_SDK_PATH         | No*      | Points to where the SDK should be installed for app development. |
-| VALI_DDK_PATH         | No*      | Points to where the DDK should be installed for driver development. |
-| VALI_APPLICATION_PATH | No**     | Points to where the Vali applications/libraries are built. |
+| VALI_SDK_PATH         | No\*     | Points to where the SDK should be installed for app development. |
+| VALI_DDK_PATH         | No\*     | Points to where the DDK should be installed for driver development. |
+| VALI_APPLICATION_PATH | No\*\*   | Points to where the Vali applications/libraries are built. |
 
-* Can be supplied to enable make install_sdk and make install_ddk
+\* Can be supplied to enable make install_sdk and make install_ddk
 
-** Can be supplied to include built applications in the kernel image
+\*\* Can be supplied to include built applications in the kernel image
 
 ### Setting up the toolchain
 The only thing you need to get started is a succesfully built toolchain of llvm/clang/lld. To help make this easier
@@ -56,6 +56,13 @@ There is a series of build commands available.
 | make install_ddk  | Installs the DDK to the location VALI_DDK_PATH points. This is needed for driver development. |
 | make install_img  | Creates a harddisk image with bootloader, kernel, libraries and built apps of format .img |
 | make install_vmdk | Creates a harddisk image with bootloader, kernel, libraries and built apps of format .vmdk |
+
+### Known issues
+
+#### Bochs
+The uhci driver in bochs (2.6.9) defers packages when communicating with MSD devices to fake a seek delay,
+however this results in issues with reading from the harddisk, since bochs does not correctly store the number
+of deferred packages.
 
 ## Current development progress
 

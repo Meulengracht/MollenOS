@@ -719,7 +719,7 @@ log: bochsout.txt
 panic: action=ask
 error: action=report
 info: action=report
-debug: action=ignore, pci=report # report BX_DEBUG from module 'pci'
+debug: action=ignore, pci=report, usb_uhci=ignore
 
 #=======================================================================
 # DEBUGGER_LOG:
@@ -1019,11 +1019,3 @@ magic_break: enabled=1
 #   port_e9_hack: enabled=1
 #=======================================================================
 #port_e9_hack: enabled=1
-
-#=======================================================================
-# USER_PLUGIN:
-# Load user-defined plugin. This option is available only if Bochs is
-# compiled with plugin support. Maximum 8 different plugins are supported.
-# See the example in the Bochs sources how to write a plugin device.
-#=======================================================================
-#user_plugin: name=testdev

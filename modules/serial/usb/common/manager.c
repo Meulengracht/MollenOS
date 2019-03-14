@@ -373,8 +373,6 @@ UsbManagerProcessTransfer(
     _In_ UsbManagerTransfer_t*   Transfer,
     _In_ void*                   Context)
 {
-    static int NumBulks = 0;
-    
     // Has the transfer been marked for cleanup?
     if (Transfer->Flags & TransferFlagCleanup) {
         if (Transfer->EndpointDescriptor != NULL) {
@@ -393,15 +391,6 @@ UsbManagerProcessTransfer(
         return ITERATOR_CONTINUE;
     }
     
-    if (Transfer->Transfer.Type == BulkTransfer) {
-        NumBulks++;
-        if (NumBulks == 13) {
-            UsbManagerDumpSchedule(Controller);
-            UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
-                USB_CHAIN_DEPTH, USB_REASON_DUMP, HciProcessElement, Transfer);
-        }
-    }
-    
     // Debug
     TRACE("> Validation transfer(Id %u, Status %u)", Transfer->Id, Transfer->Status);
     UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
@@ -409,13 +398,6 @@ UsbManagerProcessTransfer(
     TRACE("> Updated metrics (Id %u, Status %u, Flags 0x%x)", Transfer->Id, Transfer->Status, Transfer->Flags);
     if (Transfer->Status == TransferQueued) {
         return ITERATOR_CONTINUE;
-    }
-    
-    if (Transfer->Transfer.Type == BulkTransfer) {
-        if (NumBulks == 13) {
-            ERROR("Transfer->Status %u, Transfer->TransactionsExecuted %u/%u",
-                Transfer->Status, Transfer->TransactionsExecuted, Transfer->TransactionsTotal);
-        }
     }
     
     // Do we need to fixup toggles?
@@ -527,7 +509,6 @@ UsbManagerDumpChain(
     UsbManagerIterateChain(Controller, ElementRoot, 
         Direction, USB_REASON_DUMP, HciProcessElement, Transfer);
 }
-
 
 int
 UsbManagerDumpScheduleElement(
