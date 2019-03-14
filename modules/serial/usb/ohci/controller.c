@@ -104,7 +104,7 @@ HciControllerCreate(
         IoBase->Access.Memory.VirtualBase);
 
     // Instantiate the register-access and disable interrupts on device
-    Controller->Registers                     = (OhciRegisters_t*)IoBase->Access.Memory.VirtualBase;
+    Controller->Registers = (OhciRegisters_t*)IoBase->Access.Memory.VirtualBase;
     WriteVolatile32(&Controller->Registers->HcInterruptEnable, 0);
     WriteVolatile32(&Controller->Registers->HcInterruptDisable, OHCI_MASTER_INTERRUPT);
 
