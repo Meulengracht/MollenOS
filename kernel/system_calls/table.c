@@ -60,7 +60,7 @@ extern OsStatus_t ScGetAssemblyDirectory(char* PathBuffer, size_t MaxLength);
 
 extern OsStatus_t ScCreateMemorySpace(Flags_t Flags, UUId_t* Handle);
 extern OsStatus_t ScGetThreadMemorySpaceHandle(UUId_t ThreadHandle, UUId_t* Handle);
-extern OsStatus_t ScCreateMemorySpaceMapping(UUId_t Handle, struct MemoryMappingParameters* Parameters, DmaBuffer_t* AccessBuffer);
+extern OsStatus_t ScCreateMemorySpaceMapping(UUId_t Handle, struct MemoryMappingParameters* Parameters, void** AddressOut);
 
 // Driver system calls
 extern OsStatus_t ScAcpiQueryStatus(AcpiDescriptor_t* AcpiDescriptor);

@@ -50,17 +50,14 @@ GetMemorySpaceForThread(
     return Syscall_GetMemorySpaceForThread(Thread, Handle);
 }
 
-/* CreateMemoryMapping
- * Creates a new memory mapping in the memory space, if it was successful in creating a mapping,
- * a new access buffer for that piece of memory will be returned. */
 OsStatus_t
 CreateMemoryMapping(
-    _In_ UUId_t                          Handle,
-    _In_ struct MemoryMappingParameters* Parameters,
-    _In_ DmaBuffer_t*                    AccessBuffer)
+    _In_  UUId_t                          Handle,
+    _In_  struct MemoryMappingParameters* Parameters,
+    _Out_ void**                          AddressOut)
 {
-    if (Parameters == NULL || AccessBuffer == NULL) {
+    if (Parameters == NULL || AddressOut == NULL) {
         return OsError;
     }
-    return Syscall_CreateMemorySpaceMapping(Handle, Parameters, AccessBuffer);
+    return Syscall_CreateMemorySpaceMapping(Handle, Parameters, AddressOut);
 }

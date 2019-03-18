@@ -235,7 +235,8 @@ MfsReadSectors(
     _In_ FileSystemDescriptor_t*    FileSystem, 
     _In_ DmaBuffer_t*               Buffer,
     _In_ uint64_t                   Sector,
-    _In_ size_t                     Count);
+    _In_ size_t                     Count,
+    _In_ size_t*                    SectorsRead);
 
 /* MfsWriteSectors 
  * A wrapper for writing sectors to the disk associated
@@ -245,7 +246,8 @@ MfsWriteSectors(
     _In_ FileSystemDescriptor_t*    FileSystem,
     _In_ DmaBuffer_t*               Buffer,
     _In_ uint64_t                   Sector,
-    _In_ size_t                     Count);
+    _In_ size_t                     Count,
+    _In_ size_t*                    SectorsWritten);
 
 /* MfsGetBucketLink
  * Looks up the next bucket link by utilizing the cached

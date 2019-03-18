@@ -125,10 +125,6 @@ OnUnregister(
     return MsdDeviceDestroy(MsdDevice);
 }
 
-/* OnQuery
- * Occurs when an external process or server quries
- * this driver for data, this will correspond to the query
- * function that is defined in the contract */
 OsStatus_t 
 OnQuery(
 	_In_     MContractType_t        QueryType, 
@@ -138,34 +134,24 @@ OnQuery(
 	_In_Opt_ MRemoteCallArgument_t* Arg2,
     _In_     MRemoteCallAddress_t*  Address)
 {
-    // Unused params
     _CRT_UNUSED(Arg2);
-
-    // Debug
+    
     TRACE("MSD.OnQuery(Function %i)", QueryFunction);
-
-    // Sanitize the QueryType
     if (QueryType != ContractStorage) {
         return OsError;
     }
 
-    // Which kind of function has been invoked?
     switch (QueryFunction) {
-        // Query stats about a disk identifier in the form of
-        // a StorageDescriptor
         case __STORAGE_QUERY_STAT: {
-            // Get parameters
-            StorageDescriptor_t     NullDescriptor;
-            MsdDevice_t *Device     = NULL;
-            DataKey_t Key = { .Value.Id = Arg0->Data.Value };
-            Device      = (MsdDevice_t*)CollectionGetDataByKey(GlbMsdDevices, Key, 0);
-
-            // Write the descriptor back
+            StorageDescriptor_t NullDescriptor = { 0 };
+            MsdDevice_t*        Device         = NULL;
+            DataKey_t           Key            = { .Value.Id = Arg0->Data.Value };
+            
+            Device = (MsdDevice_t*)CollectionGetDataByKey(GlbMsdDevices, Key, 0);
             if (Device != NULL) {
                 return RPCRespond(Address, (void*)&Device->Descriptor, sizeof(StorageDescriptor_t));
             }
             else {
-                memset((void*)&NullDescriptor, 0, sizeof(StorageDescriptor_t));
                 return RPCRespond(Address, (void*)&NullDescriptor, sizeof(StorageDescriptor_t));
             }
         } break;
@@ -174,41 +160,26 @@ OnQuery(
         // They have same parameters with different direction
         case __STORAGE_QUERY_WRITE:
         case __STORAGE_QUERY_READ: {
-            // Get parameters
-            StorageOperation_t *Operation = (StorageOperation_t*)Arg1->Data.Buffer;
-            MsdDevice_t *Device = NULL;
-            DataKey_t Key = { .Value.Id = Arg0->Data.Value };
+            StorageOperation_t*      Operation = (StorageOperation_t*)Arg1->Data.Buffer;
+            DataKey_t                Key       = { .Value.Id = Arg0->Data.Value };
+            StorageOperationResult_t Result    = { .Status = OsInvalidParameters };
+            MsdDevice_t*             Device;
+            
             Device = (MsdDevice_t*)CollectionGetDataByKey(GlbMsdDevices, Key, 0);
+            if (Device == NULL) {
+                return RPCRespond(Address, (void*)&Result, sizeof(StorageOperationResult_t));
+            }
 
             // Determine the kind of operation
-            if (Device != NULL
-                && Operation->Direction == __STORAGE_OPERATION_READ) {
-                if (MsdReadSectors(Device, Operation->AbsSector, Operation->PhysicalBuffer, 
-                    Operation->SectorCount * Device->Descriptor.SectorSize, NULL) != OsSuccess) {
-                    OsStatus_t Result = OsError;
-                    return RPCRespond(Address, (void*)&Result, sizeof(OsStatus_t));
-                }
-                else {
-                    OsStatus_t Result = OsSuccess;
-                    return RPCRespond(Address, (void*)&Result, sizeof(OsStatus_t));
-                }
+            if (Operation->Direction == __STORAGE_OPERATION_READ) {
+                Result.Status = MsdReadSectors(Device, Operation->AbsoluteSector, Operation->PhysicalBuffer, 
+                    Operation->SectorCount, &Result.SectorsTransferred);
             }
-            else if (Device != NULL
-                && Operation->Direction == __STORAGE_OPERATION_WRITE) {
-                if (MsdWriteSectors(Device, Operation->AbsSector, Operation->PhysicalBuffer, 
-                    Operation->SectorCount * Device->Descriptor.SectorSize, NULL) != OsSuccess) {
-                    OsStatus_t Result = OsError;
-                    return RPCRespond(Address, (void*)&Result, sizeof(OsStatus_t));
-                }
-                else {
-                    OsStatus_t Result = OsSuccess;
-                    return RPCRespond(Address, (void*)&Result, sizeof(OsStatus_t));
-                }
+            else if (Operation->Direction == __STORAGE_OPERATION_WRITE) {
+                Result.Status = MsdWriteSectors(Device, Operation->AbsoluteSector, Operation->PhysicalBuffer, 
+                    Operation->SectorCount, &Result.SectorsTransferred);
             }
-            else {
-                OsStatus_t Result = OsError;
-                return RPCRespond(Address, (void*)&Result, sizeof(OsStatus_t));
-            }
+            return RPCRespond(Address, (void*)&Result, sizeof(StorageOperationResult_t));
         } break;
 
         // Other cases not supported

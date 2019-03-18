@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2018, Philip Meulengracht
+ * Copyright 2016, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,16 +15,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * MollenOS Threading Scheduler
- * Implements scheduling with priority
- * Priority 61 is System Priority.
- * Priority 60 - 0 are Normal Priorties
- * Priorities 60 - 0 start at 10 ms, slowly increases to 300 ms.
- * Priority boosts every 1000 ms?
- * On yields, keep priority.
- * On task-switchs, decrease priority.
- * A thread can only stay a maximum in each priority.
+ * Multilevel Feedback Scheduler
+ *  - Implements scheduling of threads by having a specified number of queues
+ *    where each queue has a different timeslice, the longer a thread is running
+ *    the less priority it gets, however longer timeslices it gets.
  */
 #define __MODULE "SCHE"
 //#define __TRACE
@@ -159,7 +153,7 @@ SchedulerSynchronizeCore(
     _In_ int            SuppressSynchronization)
 {
     volatile SystemCpuState_t *State;
-    TRACE("SchedulerSynchronizeCore(%" PRIuIN ", %" PRIiIN ")", 
+    TRACE("SchedulerSynchronizeCore(%" PRIuIN ", %i)", 
         Thread->CoreId, SuppressSynchronization);
 
     // If the current cpu is idling, wake us up
@@ -205,7 +199,7 @@ AddToSleepQueueAndSleep(
         ERROR("Sleep.TimeLeft %u, Sleep.Timeout %u, Sleep.Handle 0x%" PRIxIN ", Sleep.InterruptedAt %u",
             Thread->Sleep.TimeLeft, Thread->Sleep.Timeout, 
             Thread->Sleep.Handle, Thread->Sleep.InterruptedAt);
-        ERROR("Thread->SchedulerFlags 0x%llx", Thread->SchedulerFlags);
+        ERROR("Thread->SchedulerFlags 0x%" PRIxIN, Thread->SchedulerFlags);
         assert(0);
     }
 #endif
@@ -272,7 +266,7 @@ SchedulerThreadQueue(
     }
     
     assert(FindThreadInQueue(&IoQueue, Thread) == OsError);
-    TRACE("Appending thread %" PRIuIN " (%s) to queue %" PRIiIN "", Thread->Id, Thread->Name, Thread->Queue);
+    TRACE("Appending thread %" PRIuIN " (%s) to queue %i", Thread->Id, Thread->Name, Thread->Queue);
     if (SuppressSynchronization) {
         AppendToQueue(&Scheduler->Queues[Thread->Queue], Thread, Thread);   
     }

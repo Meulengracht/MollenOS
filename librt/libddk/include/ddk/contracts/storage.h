@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Contract Definitions & Structures (Storage Contract)
+ * Contract Definitions & Structures (Storage Contract)
  * - This header describes the base contract-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -36,29 +36,28 @@
 #define __STORAGE_OPERATION_READ            0x00000001
 #define __STORAGE_OPERATION_WRITE           0x00000002
 
-/* The Storage descriptor structure 
- * contains geometric and generic information
- * about the given storage-medium */
 PACKED_TYPESTRUCT(StorageDescriptor, {
-    UUId_t              Device;
-    UUId_t              Driver;
-    Flags_t             Flags;
-    char                Model[64];
-    char                Serial[32];
-    size_t              SectorSize;
-    uint64_t            SectorCount;
-    size_t              SectorsPerCylinder;
-    size_t              LUNCount;
+    UUId_t   Device;
+    UUId_t   Driver;
+    Flags_t  Flags;
+    char     Model[64];
+    char     Serial[32];
+    size_t   SectorSize;
+    uint64_t SectorCount;
+    size_t   SectorsPerCylinder;
+    size_t   LUNCount;
 });
 
-/* The storage operation structure 
- * contains information related to storage-mediums operations
- * like read and write */
 PACKED_TYPESTRUCT(StorageOperation, {
-    int                 Direction;
-    uint64_t            AbsSector;
-    uintptr_t           PhysicalBuffer;
-    size_t              SectorCount;
+    int       Direction;
+    uint64_t  AbsoluteSector;
+    uintptr_t PhysicalBuffer;
+    size_t    SectorCount;
+});
+
+PACKED_TYPESTRUCT(StorageOperationResult, {
+    OsStatus_t Status;
+    size_t     SectorsTransferred;
 });
 
 /* StorageQuery
@@ -72,9 +71,12 @@ StorageQuery(
 {
     MContract_t Contract;
 
+    // Initialise contract details
     Contract.DriverId   = Driver;
     Contract.Type       = ContractStorage;
     Contract.Version    = 1;
+    
+    // Perform the device query
     return QueryDriver(&Contract, __STORAGE_QUERY_STAT,
         &StorageDevice, sizeof(UUId_t), NULL, 0, NULL, 0, 
         Descriptor, sizeof(StorageDescriptor_t));
@@ -91,26 +93,32 @@ StorageRead(
     _In_  UUId_t    DriverId, 
     _In_  UUId_t    StorageDeviceId,
     _In_  uint64_t  Sector, 
-    _Out_ uintptr_t PhysicalAddress, 
-    _In_  size_t    SectorCount)
+    _In_  uintptr_t PhysicalAddress, 
+    _In_  size_t    SectorCount,
+    _Out_ size_t*   SectorsRead)
 {
-    MContract_t         Contract;
-    StorageOperation_t  Operation;
-    OsStatus_t Result = OsSuccess;
+    MContract_t              Contract;
+    StorageOperation_t       Operation;
+    StorageOperationResult_t Result;
 
+    // Initialise contract details
     Contract.DriverId       = DriverId;
     Contract.Type           = ContractStorage;
     Contract.Version        = 1;
 
-    Operation.Direction     = __STORAGE_OPERATION_READ;
-    Operation.AbsSector     = Sector;
+    // Initialize operation details
+    Operation.Direction      = __STORAGE_OPERATION_READ;
+    Operation.AbsoluteSector = Sector;
     Operation.PhysicalBuffer = PhysicalAddress;
-    Operation.SectorCount   = SectorCount;
+    Operation.SectorCount    = SectorCount;
+    
+    // Perform the query
     QueryDriver(&Contract, __STORAGE_QUERY_READ,
         &StorageDeviceId, sizeof(UUId_t), 
         &Operation, sizeof(StorageOperation_t), NULL, 0, 
-        &Result, sizeof(OsStatus_t));
-    return Result;
+        &Result, sizeof(StorageOperationResult_t));
+    *SectorsRead = Result.SectorsTransferred;
+    return Result.Status;
 }
 
 /* StorageWrite
@@ -124,27 +132,31 @@ StorageWrite(
     _In_  UUId_t    Driver,
     _In_  UUId_t    StorageDevice,
     _In_  uint64_t  Sector, 
-    _Out_ uintptr_t PhysicalAddress,
-    _In_  size_t    SectorCount)
+    _In_  uintptr_t PhysicalAddress,
+    _In_  size_t    SectorCount,
+    _Out_ size_t*   SectorsWritten)
 {
-    MContract_t         Contract;
-    StorageOperation_t  Operation;
-    OsStatus_t Result = OsSuccess;
+    MContract_t              Contract;
+    StorageOperation_t       Operation;
+    StorageOperationResult_t Result;
 
+    // Initialise contract details
     Contract.DriverId       = Driver;
     Contract.Type           = ContractStorage;
     Contract.Version        = 1;
 
-    Operation.Direction     = __STORAGE_OPERATION_WRITE;
-    Operation.AbsSector     = Sector;
+    // Initialize operation details
+    Operation.Direction      = __STORAGE_OPERATION_WRITE;
+    Operation.AbsoluteSector = Sector;
     Operation.PhysicalBuffer = PhysicalAddress;
-    Operation.SectorCount   = SectorCount;
+    Operation.SectorCount    = SectorCount;
 
     QueryDriver(&Contract, __STORAGE_QUERY_WRITE,
         &StorageDevice, sizeof(UUId_t), 
         &Operation, sizeof(StorageOperation_t), NULL, 0, 
-        &Result, sizeof(OsStatus_t));
-    return Result;
+        &Result, sizeof(StorageOperationResult_t));
+    *SectorsWritten = Result.SectorsTransferred;
+    return Result.Status;
 }
 
 #endif //!_CONTRACT_STORAGE_INTERFACE_H_

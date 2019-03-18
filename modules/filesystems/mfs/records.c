@@ -26,9 +26,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* MfsExtractToken 
- * Path utility to extract the next directory/file path token
- * from the given path. If it's end of path the RemainingPath will be NULL */
 OsStatus_t
 MfsExtractToken(
     _In_  MString_t*    Path, 
@@ -81,6 +78,7 @@ MfsLocateRecord(
     int                 IsEndOfPath     = 0;
     int                 IsEndOfFolder   = 0;
     size_t              i;
+    size_t              SectorsTransferred;
 
     TRACE("MfsLocateRecord(Directory-Bucket %u, Path %s)", BucketOfDirectory, MStringRaw(Path));
 
@@ -115,7 +113,7 @@ MfsLocateRecord(
         
         // Start out by loading the bucket buffer with data
         if (MfsReadSectors(FileSystem, Mfs->TransferBuffer, MFS_GETSECTOR(Mfs, CurrentBucket), 
-            Mfs->SectorsPerBucket * Link.Length) != OsSuccess) {
+            Mfs->SectorsPerBucket * Link.Length, &SectorsTransferred) != OsSuccess) {
             ERROR("Failed to read directory-bucket %u", CurrentBucket);
             Result = FsDiskError;
             goto Cleanup;
@@ -210,6 +208,7 @@ MfsLocateFreeRecord(
     int                 IsEndOfFolder   = 0;
     int                 IsEndOfPath     = 0;
     size_t              i;
+    size_t              SectorsTransferred;
 
     TRACE("MfsLocateFreeRecord(Directory-Bucket %u, Path %s)", BucketOfDirectory, MStringRaw(Path));
 
@@ -237,7 +236,7 @@ MfsLocateFreeRecord(
         
         // Start out by loading the bucket buffer with data
         if (MfsReadSectors(FileSystem, Mfs->TransferBuffer, MFS_GETSECTOR(Mfs, CurrentBucket), 
-            Mfs->SectorsPerBucket * Link.Length) != OsSuccess) {
+            Mfs->SectorsPerBucket * Link.Length, &SectorsTransferred) != OsSuccess) {
             ERROR("Failed to read directory-bucket %u", CurrentBucket);
             Result = FsDiskError;
             goto Cleanup;
@@ -304,7 +303,7 @@ MfsLocateFreeRecord(
 
                         // Write back record bucket
                         if (MfsWriteSectors(FileSystem, Mfs->TransferBuffer,
-                            MFS_GETSECTOR(Mfs, CurrentBucket), Mfs->SectorsPerBucket) != OsSuccess) {
+                            MFS_GETSECTOR(Mfs, CurrentBucket), Mfs->SectorsPerBucket, &SectorsTransferred) != OsSuccess) {
                             ERROR("Failed to update bucket %u", CurrentBucket);
                             Result = FsDiskError;
                             goto Cleanup;

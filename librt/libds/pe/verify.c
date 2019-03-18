@@ -54,9 +54,6 @@ PeCalculateChecksum(
     return (uint32_t)(CheckSum & UINT32_MAX);
 }
 
-/* PeValidateImageBuffer
- * Validates a file-buffer of the given length, does initial header 
- * checks and performs a checksum validation. */
 OsStatus_t
 PeValidateImageBuffer(
     _In_ uint8_t* Buffer,

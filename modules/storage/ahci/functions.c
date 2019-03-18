@@ -28,32 +28,35 @@
 #include "manager.h"
 #include <stdlib.h>
 
-/* AhciReadSectors 
- * The wrapper function for reading data from an 
- * ahci-drive. It also auto-selects the command needed and everything.
- * Should return 0 on no error */
 OsStatus_t
 AhciReadSectors(
 	_In_ AhciTransaction_t* Transaction, 
 	_In_ uint64_t           SectorLBA)
 {
+    size_t           SectorsToBeRead;
 	ATACommandType_t Command;
 
-	// Sanitize bounds
-	if ((SectorLBA + Transaction->SectorCount) >= Transaction->Device->SectorsLBA) {
-		return OsError;
-	}
+    // Protect against bad start sector
+    if (SectorLBA >= Transaction->Device->SectorsLBA ||
+    	Transaction->SectorCount == 0) {
+        return OsInvalidParameters;
+    }
 
-	// Sanitize requested sector-count
-	if (Transaction->SectorCount == 0) {
-		return OsError;
-	}
+    // Of course it's possible that the requester is requesting too much data in one
+    // go, so we will have to clamp some of the values. Is the sector valid first of all?
+    SectorsToBeRead = Transaction->SectorCount;
+    if ((SectorLBA + SectorsToBeRead) >= Transaction->Device->SectorsLBA) {
+        SectorsToBeRead = Transaction->Device->SectorsLBA - SectorLBA;
+    }
 
 	// The first thing we need to do is determine which type
-	// of ATA command we can use
+	// of ATA command we can use. The number of sectors that can be read at once
+	// is pretty limited unless the addressing mode is set to extended (2).
+	SectorsToBeRead = MIN(Transaction->SectorCount, UINT8_MAX);
 	if (Transaction->Device->UseDMA) {
 		if (Transaction->Device->AddressingMode == 2) {
-			Command = AtaDMAReadExt; // LBA48
+			Command         = AtaDMAReadExt; // LBA48
+			SectorsToBeRead = MIN(Transaction->SectorCount, UINT16_MAX);
 		}
 		else {
 			Command = AtaDMARead; // LBA28
@@ -67,47 +70,56 @@ AhciReadSectors(
 			Command = AtaPIORead; // LBA28
 		}
 	}
+	
+	// Update the number of sectors we want to read
+	Transaction->SectorCount = SectorsToBeRead;
 	return AhciCommandRegisterFIS(Transaction, Command, SectorLBA, 0, 0);
 }
 
-/* AhciWriteSectors 
- * The wrapper function for writing data to an 
- * ahci-drive. It also auto-selects the command needed and everything.
- * Should return 0 on no error */
 OsStatus_t
 AhciWriteSectors(
 	_In_ AhciTransaction_t* Transaction,
 	_In_ uint64_t           SectorLBA)
 {
+    size_t           SectorsToBeWritten;
 	ATACommandType_t Command;
 
-	// Sanitize bounds
-	if ((SectorLBA + Transaction->SectorCount) >= Transaction->Device->SectorsLBA) {
-		return OsError;
-	}
+    // Protect against bad start sector
+    if (SectorLBA >= Transaction->Device->SectorsLBA ||
+    	Transaction->SectorCount == 0) {
+        return OsInvalidParameters;
+    }
 
-	// Sanitize requested sector-count
-	if (Transaction->SectorCount == 0) {
-		return OsError;
-	}
+    // Of course it's possible that the requester is requesting too much data in one
+    // go, so we will have to clamp some of the values. Is the sector valid first of all?
+    SectorsToBeWritten = Transaction->SectorCount;
+    if ((SectorLBA + SectorsToBeWritten) >= Transaction->Device->SectorsLBA) {
+        SectorsToBeWritten = Transaction->Device->SectorsLBA - SectorLBA;
+    }
 
 	// The first thing we need to do is determine which type
-	// of ATA command we can use
+	// of ATA command we can use. The number of sectors that can be read at once
+	// is pretty limited unless the addressing mode is set to extended (2).
+	SectorsToBeWritten = MIN(Transaction->SectorCount, UINT8_MAX);
 	if (Transaction->Device->UseDMA) {
 		if (Transaction->Device->AddressingMode == 2) {
-			Command = AtaDMAWriteExt;	// LBA48
+			Command            = AtaDMAWriteExt; // LBA48
+			SectorsToBeWritten = MIN(Transaction->SectorCount, UINT16_MAX);
 		}
 		else {
-			Command = AtaDMAWrite;	// LBA28
+			Command = AtaDMAWrite; // LBA28
 		}
 	}
 	else {
 		if (Transaction->Device->AddressingMode == 2) {
-			Command = AtaPIOWriteExt;	// LBA48
+			Command = AtaPIOWriteExt; // LBA48
 		}
 		else {
-			Command = AtaPIOWrite;	// LBA28
+			Command = AtaPIOWrite; // LBA28
 		}
 	}
+	
+	// Update the number of sectors we want to write
+	Transaction->SectorCount = SectorsToBeWritten;
 	return AhciCommandRegisterFIS(Transaction, Command, SectorLBA, 0, 1);
 }

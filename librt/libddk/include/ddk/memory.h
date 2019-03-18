@@ -52,8 +52,8 @@ GetMemorySpaceForThread(
  * a new access buffer for that piece of memory will be returned. */
 CRTDECL(OsStatus_t,
 CreateMemoryMapping(
-    _In_ UUId_t                          Handle,
-    _In_ struct MemoryMappingParameters* Parameters,
-    _In_ DmaBuffer_t*                    AccessBuffer));
+    _In_  UUId_t                          Handle,
+    _In_  struct MemoryMappingParameters* Parameters,
+    _Out_ void**                          AddressOut));
 
 #endif //!__MEMORY_INTERFACE__

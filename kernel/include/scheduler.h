@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2018, Philip Meulengracht
+ * Copyright 2016, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,20 +15,14 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * MollenOS Threading Scheduler
- * Implements scheduling with priority
- * Priority 61 is System Priority.
- * Priority 60 - 0 are Normal Priorties
- * Priorities 60 - 0 start at 10 ms, slowly increases to 300 ms.
- * Priority boosts every 1000 ms?
- * On yields, keep priority.
- * On task-switchs, decrease priority.
- * A thread can only stay a maximum in each priority.
+ * Multilevel Feedback Scheduler
+ *  - Implements scheduling of threads by having a specified number of queues
+ *    where each queue has a different timeslice, the longer a thread is running
+ *    the less priority it gets, however longer timeslices it gets.
  */
 
-#ifndef _MCORE_SCHEDULER_H_
-#define _MCORE_SCHEDULER_H_
+#ifndef __VALI_SCHEDULER_H__
+#define __VALI_SCHEDULER_H__
 
 #include <os/osdefs.h>
 #include <atomicsection.h>
@@ -135,4 +129,4 @@ SchedulerThreadSchedule(
     _In_ MCoreThread_t*     Thread,
     _In_ int                Preemptive);
 
-#endif // !_MCORE_SCHEDULER_H_
+#endif // !__VALI_SCHEDULER_H__

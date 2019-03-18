@@ -230,6 +230,7 @@ LoadFile(
             if (Buffer != NULL) {
                 size_t Index, Read = 0;
                 FsCode = ReadFile(Handle, GetBufferHandle(TransferBuffer), Size, &Index, &Read);
+                TRACE("Read %" PRIuIN " bytes from file %s", Read, MStringRaw(FullPath));
                 if (FsCode == FsOk && Read != 0) {
                     memcpy(Buffer, (const void*)GetBufferDataPointer(TransferBuffer), Read);
                 }
