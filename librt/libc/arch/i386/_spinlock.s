@@ -49,14 +49,14 @@ __spinlock_acquire:
 
 	; Try to get lock
 	.trylock:
-	xchg dword [ebx], eax
+	xchg byte [ebx], al
 	test eax, eax
 	je .gotlock
 
 	; Busy-wait loop
 	.lockloop:
 	pause
-	cmp dword [ebx], 0
+	cmp byte [ebx], 0
 	jne .lockloop
 	jmp .trylock
 
@@ -90,7 +90,7 @@ __spinlock_test:
 	mov eax, 1
 
 	; Try to get lock
-	xchg dword [ebx], eax
+	xchg byte [ebx], al
 	test eax, eax
 	je .gotlock
 
@@ -126,7 +126,7 @@ __spinlock_release:
 	je .done
 
 	; Ok, we assume valid pointer, set it to 0
-	mov dword [ebx], 0
+	mov byte [ebx], 0
 
 	; Release stack frame
 	.done:

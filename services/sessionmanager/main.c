@@ -64,7 +64,7 @@ OnEvent(
                 // Clear up buffer and spawn app
                 memset(&PathBuffer[0], 0, sizeof(PathBuffer));
 #ifdef __OSCONFIG_RUN_CPPTESTS
-                sprintf(&PathBuffer[0], "%s:/shared/bin/cpptest.app", DiskIdentifier);
+                sprintf(&PathBuffer[0], "%s:/shared/bin/stest.app", DiskIdentifier);
 #else
                 sprintf(&PathBuffer[0], "%s:/shared/bin/vioarr.app", DiskIdentifier);
 #endif

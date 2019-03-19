@@ -32,9 +32,9 @@
 #include <pipe.h>
 #include <heap.h>
 
-#include <stddef.h>
 #include <string.h>
 #include <assert.h>
+#include <limits.h>
 
 // Prototypes
 static void CreateSegment(

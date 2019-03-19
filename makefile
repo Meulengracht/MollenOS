@@ -174,9 +174,10 @@ install_shared: copy_initrd_files
 	if [ -d $(VALI_APPLICATION_PATH) ]; then \
         cp $(VALI_APPLICATION_PATH)/bin/*.app deploy/hdd/shared/bin/ 2>/dev/null || :; \
         cp $(VALI_APPLICATION_PATH)/bin/*.dll deploy/hdd/shared/bin/ 2>/dev/null || :; \
+    else \
+	    cp tests/bin/*.app deploy/hdd/shared/bin/ 2>/dev/null || :; \
+	    cp tests/bin/*.dll deploy/hdd/shared/bin/ 2>/dev/null || :; \
     fi
-    cp tests/bin/*.app deploy/hdd/shared/bin/ 2>/dev/null || :
-    cp tests/bin/*.dll deploy/hdd/shared/bin/ 2>/dev/null || :
 
 .PHONY: install_img
 install_img: install_shared

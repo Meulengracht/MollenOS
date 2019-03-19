@@ -581,6 +581,7 @@ PeParseAndMapImage(
     OsStatus_t         Status;
     clock_t            Timing;
     int                i, j;
+    dstrace("%s: loading at 0x%" PRIxIN, MStringRaw(Image->Name), Image->VirtualAddress);
 
     // Copy metadata of image to base address
     Status = AcquireImageMapping(Image->MemorySpace, &VirtualAddress, SizeOfMetaData,

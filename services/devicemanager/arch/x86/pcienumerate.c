@@ -216,6 +216,7 @@ PciCheckFunction(
 
     // Trace Information about device 
     // Ignore the spam of device_id 0x7a0 in VMWare
+    // This is VIRTIO devices
     if (Pcs->DeviceId != 0x7a0) {
         TRACE(" - [%x:%x:%x] %s", Bus, Device, Function,
             PciToString(Pcs->Class, Pcs->Subclass, Pcs->Interface));

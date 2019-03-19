@@ -23,6 +23,7 @@
 #ifdef LIBC_KERNEL
 #include <os/spinlock.h>
 #include <threading.h>
+#include <threads.h>
 #include <stdio.h>
 
 Spinlock_t __GlbPrintLock = SPINLOCK_INIT;
@@ -80,7 +81,7 @@ thrd_t thrd_current(void) {
 }
 
 #else
-#define __TRACE
+//#define __TRACE
 #include <internal/_syscalls.h>
 #include <ds/collection.h>
 #include <ddk/ipc/ipc.h>
@@ -304,9 +305,9 @@ StdioParseInheritanceBlock(
 
         StdioCreatePipeHandle(UUID_INVALID, get_ioinfo(STDERR_FILENO));
     }
-    StdioFdInitialize(&__GlbStdout, __GlbStdout._fd,    _IOWRT);
-    StdioFdInitialize(&__GlbStdin,  __GlbStdin._fd,     _IOREAD);
-    StdioFdInitialize(&__GlbStderr, __GlbStderr._fd,    _IOWRT);
+    StdioFdInitialize(&__GlbStdout, __GlbStdout._fd, _IOWRT);
+    StdioFdInitialize(&__GlbStdin,  __GlbStdin._fd,  _IOREAD);
+    StdioFdInitialize(&__GlbStderr, __GlbStderr._fd, _IOWRT);
 }
 
 /* StdioCloseAllHandles
@@ -387,6 +388,7 @@ StdioFdAllocate(
     int             result  = -1;
     DataKey_t       Key;
     int             i, j;
+    TRACE("StdioFdAllocate(%i)", fd);
 
     // Trying to allocate a specific fd?
     SpinlockAcquire(&BitmapLock);
@@ -427,17 +429,18 @@ StdioFdAllocate(
 
         Object->handle.InheritationType = STDIO_HANDLE_INVALID;
         
-        Object->wxflag          = WX_OPEN | flag;
-        Object->lookahead[0]    = '\n';
-        Object->lookahead[1]    = '\n';
-        Object->lookahead[2]    = '\n';
-        Object->exflag          = 0;
-        Object->file            = NULL;
+        Object->wxflag       = WX_OPEN | flag;
+        Object->lookahead[0] = '\n';
+        Object->lookahead[1] = '\n';
+        Object->lookahead[2] = '\n';
+        Object->exflag       = 0;
+        Object->file         = NULL;
         SpinlockReset(&Object->lock);
     
         // Add to list
         Key.Value.Integer = result;
         CollectionAppend(&IoObjects, CollectionCreateNode(Key, Object));
+        TRACE(" >> success %i", fd);
     }
     return result;
 }
@@ -502,6 +505,7 @@ StdioFdInitialize(
     StdioObject_t*      Object;
     CollectionItem_t*   Node;
     DataKey_t           Key = { .Value.Integer = fd };
+    TRACE("StdioFdInitialize(%i)", fd);
 
     Node = CollectionGetNodeByKey(&IoObjects, Key, 0);
     if (Node != NULL) {
@@ -513,6 +517,7 @@ StdioFdInitialize(
             file->_flag     = stream_flags;
             file->_tmpfname = NULL;
             Object->file    = file;
+            TRACE(" > success (%i, 0x%" PRIxIN ")", fd, file);
             return OsSuccess;
         }
         else {
@@ -981,30 +986,30 @@ remove_std_buffer(
     _In_ FILE *file)
 {
     os_flush_buffer(file);
-    file->_ptr      = file->_base = NULL;
-    file->_bufsiz   = file->_cnt = 0;
-    file->_flag     &= ~_USERBUF;
+    file->_ptr    = file->_base = NULL;
+    file->_bufsiz = file->_cnt = 0;
+    file->_flag   &= ~_USERBUF;
 }
 
-/* _lock_file
- * Performs primitive locking on a file-stream. */
 OsStatus_t
 _lock_file(
     _In_ FILE *file)
 {
+    TRACE("_lock_file(0x%" PRIxIN ")", file);
     if (!(file->_flag & _IOSTRG)) {
+        assert(get_ioinfo(file->_fd) != NULL);
         return SpinlockAcquire(&get_ioinfo(file->_fd)->lock);
     }
     return OsSuccess;
 }
 
-/* _unlock_file
- * Performs primitive unlocking on a file-stream. */
 OsStatus_t
 _unlock_file(
     _In_ FILE *file)
 {
+    TRACE("_unlock_file(0x%" PRIxIN ")", file);
     if (!(file->_flag & _IOSTRG)) {
+        assert(get_ioinfo(file->_fd) != NULL);
         return SpinlockRelease(&get_ioinfo(file->_fd)->lock);
     }
     return OsSuccess;
