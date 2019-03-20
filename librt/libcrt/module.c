@@ -57,7 +57,7 @@ void __CrtModuleEntry(void)
     // Initialize the driver event loop
     ArgumentBuffer = (char*)malloc(IPC_MAX_MESSAGELENGTH);
     while (IsRunning) {
-        if (RPCListen(&Message, ArgumentBuffer) == OsSuccess) {
+        if (RPCListen(UUID_INVALID, &Message, ArgumentBuffer) == OsSuccess) {
             switch (Message.Function) {
                 case __DRIVER_REGISTERINSTANCE: {
                     OnRegister((MCoreDevice_t*)Message.Arguments[0].Data.Buffer);

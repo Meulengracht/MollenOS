@@ -75,7 +75,7 @@ extern OsStatus_t ScRegisterAliasId(UUId_t Alias);
 extern OsStatus_t ScLoadDriver(MCoreDevice_t* Device, size_t Length);
 extern UUId_t     ScRegisterInterrupt(DeviceInterrupt_t* Interrupt, Flags_t Flags);
 extern OsStatus_t ScUnregisterInterrupt(UUId_t Source);
-extern OsStatus_t ScRegisterEventTarget(UUId_t KeyInput, UUId_t WmInput);
+extern OsStatus_t ScRegisterEventTarget(UUId_t RcHandle, UUId_t KeyInput, UUId_t WmInput);
 extern OsStatus_t ScKeyEvent(SystemKey_t* Key);
 extern OsStatus_t ScInputEvent(SystemInput_t* Input);
 extern OsStatus_t ScGetProcessBaseAddress(uintptr_t* BaseAddress);
@@ -112,7 +112,7 @@ extern OsStatus_t ScReadPipe(UUId_t Handle, uint8_t* Message, size_t Length);
 extern OsStatus_t ScWritePipe(UUId_t Handle, uint8_t* Message, size_t Length);
 extern OsStatus_t ScRpcResponse(MRemoteCall_t* RemoteCall);
 extern OsStatus_t ScRpcExecute(MRemoteCall_t* RemoteCall, int Async);
-extern OsStatus_t ScRpcListen(MRemoteCall_t* RemoteCall, uint8_t* ArgumentBuffer);
+extern OsStatus_t ScRpcListen(UUId_t Handle, MRemoteCall_t* RemoteCall, uint8_t* ArgumentBuffer);
 extern OsStatus_t ScRpcRespond(MRemoteCallAddress_t* RemoteAddress, const uint8_t* Buffer, size_t Length);
 
 // Memory system calls

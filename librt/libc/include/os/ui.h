@@ -25,27 +25,21 @@
 
 #include <os/osdefs.h>
 
-typedef enum _UiSurfaceFormat {
+typedef enum {
     SurfaceRGBA,
 } UISurfaceFormat_t;
 
-typedef struct _UiRectangle {
+typedef struct {
     int x, y;
     int w, h;
 } Rect_t;
 
-/* UISurfaceDescriptor
- * Structure to represent a surface in a window and information 
- * about the buffer size */
-typedef struct _UiSurfaceDescriptor {
+typedef struct {
     Rect_t            Dimensions;
     UISurfaceFormat_t Format;
 } UISurfaceDescriptor_t;
 
-/* UIWindowParameters_t
- * Structure used by the the create window function call, the structure 
- * specifies creation details and flags about the window */
-typedef struct _UiWindowParameters {
+typedef struct {
     UISurfaceDescriptor_t Surface;
     unsigned              Flags;
     UUId_t                InputPipeHandle;

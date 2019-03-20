@@ -196,11 +196,12 @@ RPCCastArgumentToPointer(
 }
 
 /* RPCListen 
- * Call this to wait for a new RPC message, it automatically
- * reads the message, and all the arguments. To avoid freeing
- * an argument, set InUse to 0 */
+ * Call this to wait for a new RPC message on the pipe handle. Services and drivers
+ * are allowed to pass UUID_INVALID as pipe handle as they have rpc pipes created
+ * for them. Any other program needs to provide a pipe they want to listen on. */
 CRTDECL(OsStatus_t,
 RPCListen(
+    _In_ UUId_t         Handle,
     _In_ MRemoteCall_t* Message,
     _In_ void*          ArgumentBuffer));
 

@@ -61,10 +61,11 @@ RPCEvent(
 
 OsStatus_t
 RPCListen(
+    _In_ UUId_t         Handle,
 	_In_ MRemoteCall_t* Message,
     _In_ void*          ArgumentBuffer)
 {
-    return Syscall_RemoteCallWait(Message, ArgumentBuffer);
+    return Syscall_RemoteCallWait(Handle, Message, ArgumentBuffer);
 }
 
 OsStatus_t
