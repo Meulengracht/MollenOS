@@ -33,8 +33,8 @@ CRTDECL(void, __cxa_threadinitialize(void));
 CRTDECL(void, __cxa_threadfinalize(void));
 
 typedef struct _ThreadPackage {
-    thrd_start_t    Entry;
-    void*           Data;
+    thrd_start_t Entry;
+    void*        Data;
 } ThreadPackage_t;
 
 void

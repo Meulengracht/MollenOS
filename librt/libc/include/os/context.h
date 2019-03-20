@@ -26,9 +26,6 @@
 
 #include <os/osdefs.h>
 
-/* The context depends on the current running 
- * architecture - and describes which kind of
- * information is stored for each context */
 #if defined(__i386__) || defined(i386)
 PACKED_TYPESTRUCT(Context, {
 	uint32_t                Edi;
@@ -93,7 +90,8 @@ PACKED_TYPESTRUCT(Context, {
 	uint64_t                UserRsp;
 	uint64_t                UserSs;
     
-    uint64_t                Arguments[5];
+    uint64_t                ReturnAddress;
+    uint64_t                ShadowSpace[4];
 });
 #define CONTEXT_IP(Context)     Context->Rip
 #define CONTEXT_SP(Context)     Context->Rsp

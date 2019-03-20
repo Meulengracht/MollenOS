@@ -52,6 +52,7 @@ typedef struct {
     _Atomic(int) _count;
     Spinlock_t   _syncobject;
 } mtx_t;
+// _MTX_INITIALIZER_NP
 
 #define TSS_DTOR_ITERATIONS 4
 #define TSS_KEY_INVALID     UINT_MAX

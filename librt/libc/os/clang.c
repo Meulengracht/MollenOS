@@ -88,8 +88,10 @@ __cxa_callinitializers_tls(
 {
     TRACE("__cxa_callinitializers_tls()");
     while (pfbegin < pfend) {
-        if (*pfbegin != NULL)
+        if (*pfbegin != NULL) {
+            TRACE(" > invoking 0x%" PRIxIN, *pfbegin);
             (**pfbegin)(dso_handle, reason, NULL);
+        }
         ++pfbegin;
     }
 }

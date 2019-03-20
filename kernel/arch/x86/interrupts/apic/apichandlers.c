@@ -58,8 +58,6 @@ ApicTimerHandler(
 
     // Manually update interrupt status
     InterruptSetActiveStatus(0);
-    
-    // Enter new thread, no returning
     enter_thread(Regs);
     return InterruptHandled;
 }

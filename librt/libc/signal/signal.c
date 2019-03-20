@@ -93,12 +93,16 @@ void
 StdCrash(
     _In_ int Signal)
 {
-    Context_t Context;
+    Context_t Context = { 0 };
 
     // Retrieve the errornous context, and then report an application crash
-    if (Syscall_ThreadGetContext(&Context) == OsSuccess) {
-        ProcessReportCrash(&Context, Signal);
+    // this will only get the LAST errornous context, which means in cases
+    // where the application itself raises an issue this is invalid
+    if (Syscall_ThreadGetContext(&Context) != OsSuccess) {
+        // Read our current context
+        ERROR("Unable to get crash context for thread, invoked by application %i", Signal);
     }
+    ProcessReportCrash(&Context, Signal);
 }
 
 /* StdSignalEntry

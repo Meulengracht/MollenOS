@@ -110,21 +110,16 @@ SignalCreate(
     return OsSuccess;
 }
 
-/* SignalReturn
- * Call upon returning from a signal, this will finish
- * the signal-call and enter a new signal if any is queued up */
 OsStatus_t
 SignalReturn(void)
 {
-    UUId_t          Cpu     = ArchGetProcessorCoreId();
-    MCoreThread_t*  Thread  = GetCurrentThreadForCore(Cpu);
-    Thread->ActiveSignal.Signal = -1;
+    UUId_t         Cpu    = ArchGetProcessorCoreId();
+    MCoreThread_t* Thread = GetCurrentThreadForCore(Cpu);
+    Thread->ActiveSignal.Signal  = -1;
+    Thread->ActiveSignal.Context = NULL;
     return SignalProcess(Thread->Header.Key.Value.Id);
 }
 
-/* SignalProcess
- * This checks if the process has any waiting signals
- * and if it has, it executes the first in list */
 OsStatus_t
 SignalProcess(
     _In_ UUId_t ThreadId)
@@ -154,9 +149,6 @@ SignalProcess(
     return OsSuccess;
 }
 
-/* SignalExecute
- * This function does preliminary checks before actually
- * dispatching the signal to the process */
 void
 SignalExecute(
     _In_ MCoreThread_t*  Thread,

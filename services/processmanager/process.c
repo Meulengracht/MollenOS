@@ -522,9 +522,9 @@ HandleProcessCrashReport(
     }
 
     // Debug
-    ERROR("%s: Crashed in module %s, at offset 0x%x",
+    ERROR("%s: Crashed in module %s, at offset 0x%" PRIxIN " (0x%" PRIxIN ") with reason %i",
         MStringRaw(Process->Executable->Name), MStringRaw(ImageName),
-        CrashAddress - ImageBase);
+        CrashAddress - ImageBase, CrashAddress, CrashReason);
     return OsSuccess;
 }
 

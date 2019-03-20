@@ -58,7 +58,7 @@ config_flags += -D__OSCONFIG_DEBUGMODE
 config_flags += -D__OSCONFIG_LOGGING_KTRACE # Kernel Tracing
 #config_flags += -D__OSCONFIG_DISABLE_SIGNALLING # Kernel fault on all hardware signals
 config_flags += -D__OSCONFIG_ENABLE_MULTIPROCESSORS # Use all cores
-config_flags += -D__OSCONFIG_RUN_CPPTESTS # Enables user-mode testing programs for the c/c++ suite.
+#config_flags += -D__OSCONFIG_RUN_CPPTESTS # Enables user-mode testing programs for the c/c++ suite.
 #config_flags += -D__OSCONFIG_TEST_KERNEL  # Enable kernel-mode testing suites of the operating system
 
 #########################
