@@ -20,9 +20,10 @@
  * - Returns the current value of the position indicator of the stream.
  */
 
-#include <ddk/file.h>
+#include <os/services/file.h>
 #include <stdio.h>
 #include <errno.h>
+#include <assert.h>
 #include <string.h>
 #include "local.h"
 #include <io.h>

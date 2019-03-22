@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,36 +16,34 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Threads Definitions & Structures
- * - This header describes the base threads-structures, prototypes
+ * OS Utilities (Protected) Definitions & Structures
+ * - This header describes the base utility-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include <os/mollenos.h>
 #include <internal/_syscalls.h>
+#include <string.h>
+#include <stdio.h>
 
+static const char* MessageHeader = "LIBC";
 
 void
-InitializeThreadParameters(
-    _In_ ThreadParameters_t* Paramaters)
+SystemDebug(
+	_In_ int         Type,
+	_In_ const char* Format, ...)
 {
-    Paramaters->Name              = NULL;
-    Paramaters->Configuration     = 0;
-    Paramaters->MemorySpaceHandle = UUID_INVALID;
-    Paramaters->MaximumStackSize  = __MASK;
+	va_list Args;
+	char    Buffer[256];
+
+	memset(&Buffer[0], 0, sizeof(Buffer));
+	va_start(Args, Format);
+	vsprintf(&Buffer[0], Format, Args);
+	va_end(Args);
+    Syscall_Debug(Type, MessageHeader, &Buffer[0]);
 }
 
-OsStatus_t 
-SetCurrentThreadName(
-    _In_ const char* ThreadName)
+void
+MollenOSEndBoot(void)
 {
-    return Syscall_ThreadSetCurrentName(ThreadName);
-}
-
-OsStatus_t 
-GetCurrentThreadName(
-    _In_ char*  ThreadNameBuffer,
-    _In_ size_t MaxLength)
-{
-    return Syscall_ThreadGetCurrentName(ThreadNameBuffer, MaxLength);
+    Syscall_SystemStart();
 }

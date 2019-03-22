@@ -24,33 +24,24 @@
 #include <ddk/contracts/video.h>
 #include <os/mollenos.h>
 #include <os/process.h>
-#include <ddk/utils.h>
+#include "../stdio/local.h"
 
-#include <stdarg.h>
-#include <stdio.h>
-#include <string.h>
-
-const char *__SysTypeMessage = "LIBC";
-
-void
-SystemDebug(
-	_In_ int         Type,
-	_In_ const char* Format, ...)
+OsStatus_t
+ListenForSystemEvents(
+    _In_ int    Types,
+    _In_ UUId_t WmListener)
 {
-	va_list Args;
-	char    TmpBuffer[256];
-
-	memset(&TmpBuffer[0], 0, sizeof(TmpBuffer));
-	va_start(Args, Format);
-	vsprintf(&TmpBuffer[0], Format, Args);
-	va_end(Args);
-    Syscall_Debug(Type, __SysTypeMessage, &TmpBuffer[0]);
-}
-
-void
-MollenOSEndBoot(void)
-{
-    Syscall_SystemStart();
+    UUId_t StdListener = UUID_INVALID;
+    if (Types & OS_EVENT_STDIN) {
+        // if the stdin is inheritted it won't be ok, in that case close
+        // the inheritted handle and open a new
+        StdioHandle_t* Handle = StdioFdToHandle(STDIN_FILENO);
+        if (Handle == NULL) {
+            return OsDoesNotExist;
+        }
+        StdListener = Handle->InheritationHandle;
+    }
+    return Syscall_RegisterEventTarget(StdInputHandle, WmListener);
 }
 
 OsStatus_t
@@ -65,7 +56,8 @@ SystemQuery(
 }
 
 OsStatus_t
-QueryDisplayInformation(VideoDescriptor_t *Descriptor)
+QueryDisplayInformation(
+    _In_ VideoDescriptor_t *Descriptor)
 {
     return Syscall_DisplayInformation(Descriptor);
 }
@@ -96,14 +88,14 @@ GetSystemTick(
 
 OsStatus_t
 QueryPerformanceFrequency(
-	_Out_ LargeInteger_t *Frequency)
+	_In_ LargeInteger_t* Frequency)
 {
     return Syscall_SystemPerformanceFrequency(Frequency);
 }
 
 OsStatus_t
 QueryPerformanceTimer(
-	_Out_ LargeInteger_t *Value)
+	_In_ LargeInteger_t* Value)
 {
     return Syscall_SystemPerformanceTime(Value);
 }

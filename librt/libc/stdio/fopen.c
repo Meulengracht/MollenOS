@@ -21,7 +21,7 @@
 
 #include <ddk/ipc/pipe.h>
 #include <ddk/utils.h>
-#include <ddk/file.h>
+#include <os/services/file.h>
 
 #include <io.h>
 #include <stdio.h>

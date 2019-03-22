@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,18 +16,33 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * UI Communication interface with window service
- *  - Provides functionality to create and manage windows used by the program
+ * Ui Service Definitions & Structures
+ * - This header describes the base ui-structure, prototypes
+ *   and functionality, refer to the individual things for descriptions
  */
 
-#include <ddk/window.h>
+#include <os/services/session.h>
+#include <os/services/targets.h>
+#include <ddk/services/window.h>
 #include <ddk/buffer.h>
 #include <assert.h>
 #include <stdlib.h>
 #include "../stdio/local.h"
 
-static DmaBuffer_t* ProgramWindowBuffer = NULL;
-static long         ProgramWindowHandle = -1;
+static DmaBuffer_t* ProgramWindowBuffer    = NULL;
+static long         ProgramWindowHandle    = -1;
+static UUId_t       WindowingServiceHandle = UUID_INVALID;
+
+static OsStatus_t
+GetWindowingService()
+{
+    ServiceObject_t WindowService = { 0 };
+    OsStatus_t      Status        = GetServiceObjectsWithCapabilities(WindowingService, &WindowService, 1);
+    if (Status == OsSuccess && WindowService.Capabilities != 0) {
+        WindowingServiceHandle = WindowService.ChannelHandle;
+    }
+    return Status;
+}
 
 void
 UiParametersSetDefault(
@@ -55,8 +70,8 @@ UiParametersSetDefault(
 void
 UiUnregisterWindow(void)
 {
-    if (ProgramWindowHandle != -1) {
-        DestroyWindow(ProgramWindowHandle);
+    if (ProgramWindowHandle != -1 && WindowingServiceHandle != UUID_INVALID) {
+        DestroyWindow(WindowingServiceHandle, ProgramWindowHandle);
     }
 }
 
@@ -72,6 +87,13 @@ UiRegisterWindow(
     assert(Descriptor != NULL);
     assert(WindowBuffer != NULL);
     
+    // Find the windowing service
+    if (WindowingServiceHandle == UUID_INVALID) {
+        if (GetWindowingService() != OsSuccess) {
+            return OsNotSupported;
+        }
+    }
+    
     // Calculate how many bytes are needed by checking sizes requested.
     if (Descriptor->Surface.Dimensions.w <= 100)    { Descriptor->Surface.Dimensions.w = 450; }
     if (Descriptor->Surface.Dimensions.h <= 100)    { Descriptor->Surface.Dimensions.h = 300; }
@@ -84,7 +106,8 @@ UiRegisterWindow(
     }
 
     // Create the window
-    Status = CreateWindow(Descriptor, GetBufferHandle(ProgramWindowBuffer), &ProgramWindowHandle);
+    Status = CreateWindow(WindowingServiceHandle, Descriptor, 
+        GetBufferHandle(ProgramWindowBuffer), &ProgramWindowHandle);
     if (Status == OsSuccess) {
         atexit(UiUnregisterWindow);
     }
@@ -94,8 +117,8 @@ UiRegisterWindow(
 OsStatus_t
 UiSwapBackbuffer(void)
 {
-    if (ProgramWindowHandle == -1) {
+    if (ProgramWindowHandle == -1 || WindowingServiceHandle == UUID_INVALID) {
         return OsError;
     }
-    return SwapWindowBackbuffer(ProgramWindowHandle);
+    return SwapWindowBackbuffer(WindowingServiceHandle, ProgramWindowHandle);
 }

@@ -22,12 +22,10 @@
  */
 //#define __TRACE
 
-#include <os/bufferpool.h>
-#include <os/osdefs.h>
+#include <ddk/bufferpool.h>
 #include <ddk/utils.h>
 #include "../common/bytepool.h"
 #include <stdlib.h>
-#include <stddef.h>
 
 typedef struct _BufferPool {
     DmaBuffer_t*    Buffer;

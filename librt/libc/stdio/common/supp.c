@@ -86,7 +86,8 @@ thrd_t thrd_current(void) {
 #include <ds/collection.h>
 #include <ddk/ipc/ipc.h>
 #include <ddk/utils.h>
-#include <ddk/file.h>
+#include <ddk/services/file.h>
+#include <os/services/file.h>
 #include <os/input.h>
 #include "../../threads/tls.h"
 #include <stdio.h>

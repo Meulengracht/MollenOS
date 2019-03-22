@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,33 +16,17 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Process Manager Interface
- * - Part of the SDK. Provides process related functionality through the session manager.
+ * Process Service Definitions & Structures
+ * - This header describes the base process-structure, prototypes
+ *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __PROCESS_INTERFACE_H__
-#define __PROCESS_INTERFACE_H__
+#ifndef __SERVICES_PROCESS_H__
+#define __SERVICES_PROCESS_H__
 
 #include <os/osdefs.h>
+#include <os/types/process.h>
 #include <time.h>
-
-#define PROCESS_INHERIT_NONE        0x00000000
-#define PROCESS_INHERIT_STDOUT      0x00000001
-#define PROCESS_INHERIT_STDIN       0x00000002
-#define PROCESS_INHERIT_STDERR      0x00000004
-#define PROCESS_INHERIT_FILES       0x00000008
-#define PROCESS_INHERIT_ALL         (PROCESS_INHERIT_STDOUT | PROCESS_INHERIT_STDIN | PROCESS_INHERIT_STDERR | PROCESS_INHERIT_FILES)
-
-/* ProcessStartupInformation
- * Contains information about the process startup. Can be queried
- * from the operating system during process startup. */
-typedef struct _ProcessStartupInformation {
-    Flags_t         InheritFlags;
-    int             StdOutHandle;
-    int             StdInHandle;
-    int             StdErrHandle;
-    size_t          MemoryLimit;
-} ProcessStartupInformation_t;
 
 _CODE_BEGIN
 /* InitializeStartupInformation
@@ -134,4 +118,4 @@ ProcessSetWorkingDirectory(
     _In_ const char* Path));
 _CODE_END
 
-#endif //!_PROCESS_INTERFACE_H_
+#endif //!__SERVICES_PROCESS_H__

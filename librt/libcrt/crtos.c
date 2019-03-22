@@ -20,11 +20,10 @@
  */
 
 #include <internal/_syscalls.h>
-#include <os/process.h>
+#include <os/services/process.h>
 #include <ddk/ipc/ipc.h>
 
 #include "../libc/threads/tls.h"
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>

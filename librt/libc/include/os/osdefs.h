@@ -91,7 +91,8 @@ typedef enum {
     OsDoesNotExist,      // Error - Resource does not exist
     OsInvalidParameters, // Error - Bad parameters given
     OsInvalidPermissions,// Error - Bad permissions
-    OsTimeout            // Error - Timeout
+    OsTimeout,           // Error - Timeout
+    OsNotSupported       // Error - Feature not supported
 } OsStatus_t;
 
 typedef enum {

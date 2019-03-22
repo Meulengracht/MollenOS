@@ -25,7 +25,13 @@
 #define __MOLLENOS_H__
 
 #include <os/osdefs.h>
+#include <os/types/file.h>
+#include <os/types/storage.h>
 #include <time.h>
+
+// System Event Types
+#define OS_EVENT_STDIN  0x1
+#define OS_EVENT_WM     0x2
 
 /* Memory Allocation Definitions
  * Flags that can be used when requesting virtual memory */
@@ -61,6 +67,7 @@ PACKED_TYPESTRUCT(SystemTime, {
 /* Cache Type Definitions
  * Flags that can be used when requesting a flush of one of the hardware caches */
 #define CACHE_INSTRUCTION   1
+#define CACHE_MEMORY        2
 
 _CODE_BEGIN
 /* MemoryAllocate
@@ -109,26 +116,17 @@ GetSystemTick(
     _In_ int              TickBase,
     _In_ LargeUInteger_t* Tick));
 
-/* QueryPerformanceFrequency
- * Returns how often the performance timer fires every second, the value will never be 0 */
-CRTDECL(OsStatus_t,
-QueryPerformanceFrequency(
-    _Out_ LargeInteger_t *Frequency));
+CRTDECL(OsStatus_t, QueryPerformanceFrequency(LargeInteger_t* Frequency));
+CRTDECL(OsStatus_t, QueryPerformanceTimer(LargeInteger_t* Value));
+CRTDECL(OsStatus_t, FlushHardwareCache(int Cache, void* Start, size_t Length));
 
-/* QueryPerformanceTimer 
- * Queries the created performance timer and returns the information in the given structure */
+/* ListenForSystemEvents
+ * Provides the opportunity to listen for different kinds of system events. The
+ * STDIN events are key presses. The WM events are cursor input. */
 CRTDECL(OsStatus_t,
-QueryPerformanceTimer(
-    _Out_ LargeInteger_t *Value));
-
-/* FlushHardwareCache
- * Flushes the specified hardware cache. Should be used with caution as it might
- * result in performance drops. */
-CRTDECL(OsStatus_t,
-FlushHardwareCache(
-    _In_     int    Cache,
-    _In_Opt_ void*  Start, 
-    _In_Opt_ size_t Length));
+ListenForSystemEvents(
+    _In_ int    Types,
+    _In_ UUId_t WmListener));
 
 /*******************************************************************************
  * Threading Extensions
@@ -157,72 +155,6 @@ CRTDECL(OsStatus_t, GetApplicationTemporaryDirectory(char *PathBuffer, size_t Ma
 /*******************************************************************************
  * File Extensions
  *******************************************************************************/
-typedef enum _FileSystemCode {
-    FsOk,
-    FsDeleted,
-    FsInvalidParameters,
-    FsPathNotFound,
-    FsAccessDenied,
-    FsPathIsNotDirectory,
-    FsPathExists,
-    FsDiskError
-} FileSystemCode_t;
-
-typedef enum _EnvironmentPath {
-    PathRoot,
-    PathSystemDirectory,
-
-    // Common paths
-    PathCommonBin,
-    PathCommonDocuments,
-    PathCommonInclude,
-    PathCommonLib,
-    PathCommonMedia,
-    
-    // User specific paths
-    UserDataDirectory,
-    UserCacheDirectory,
-
-    // Application specific paths
-    ApplicationDataDirectory,
-    ApplicationTemporaryDirectory,
-
-    // EoE
-    PathEnvironmentCount
-} EnvironmentPath_t;
-
-typedef struct {
-    long                Id;
-    Flags_t             Flags;
-    char                SerialNumber[32];
-    LargeInteger_t      BytesTotal;
-    LargeInteger_t      BytesFree;
-    LargeInteger_t      BytesAvailable;
-} vStorageDescriptor_t;
-
-typedef struct {
-    long                Id;
-    long                StorageId;
-    Flags_t             Flags;
-    Flags_t             Permissions;
-    LargeUInteger_t     Size;
-    struct timespec     CreatedAt;
-    struct timespec     ModifiedAt;
-    struct timespec     AccessedAt;
-} OsFileDescriptor_t;
-
-// vStorageDescriptor_t::Flags
-#define STORAGE_STATIC          0x00000001
-
-// OsFileDescriptor_t::Flags
-#define FILE_FLAG_FILE          0x00000000
-#define FILE_FLAG_DIRECTORY     0x00000001
-#define FILE_FLAG_LINK          0x00000002
-
-// OsFileDescriptor_t::Permissions
-#define FILE_PERMISSION_READ    0x00000001
-#define FILE_PERMISSION_WRITE   0x00000002
-#define FILE_PERMISSION_EXECUTE 0x00000004
 
 // CreateFileMapping::Flags
 #define FILE_MAPPING_READ       0x00000001
@@ -230,8 +162,10 @@ typedef struct {
 #define FILE_MAPPING_EXECUTE    0x00000004
 
 CRTDECL(OsStatus_t,       GetFilePathFromFd(int FileDescriptor, char *PathBuffer, size_t MaxLength));
-CRTDECL(OsStatus_t,       GetStorageInformationFromPath(const char *Path, vStorageDescriptor_t *Information));
-CRTDECL(OsStatus_t,       GetStorageInformationFromFd(int FileDescriptor, vStorageDescriptor_t *Information));
+CRTDECL(OsStatus_t,       GetStorageInformationFromPath(const char *Path, OsStorageDescriptor_t *Information));
+CRTDECL(OsStatus_t,       GetStorageInformationFromFd(int FileDescriptor, OsStorageDescriptor_t *Information));
+CRTDECL(OsStatus_t,       GetFileSystemInformationFromPath(const char *Path, OsFileSystemDescriptor_t *Information));
+CRTDECL(OsStatus_t,       GetFileSystemInformationFromFd(int FileDescriptor, OsFileSystemDescriptor_t *Information));
 CRTDECL(FileSystemCode_t, GetFileInformationFromPath(const char *Path, OsFileDescriptor_t *Information));
 CRTDECL(FileSystemCode_t, GetFileInformationFromFd(int FileDescriptor, OsFileDescriptor_t *Information));
 CRTDECL(OsStatus_t,       CreateFileMapping(int FileDescriptor, int Flags, uint64_t Offset, size_t Length, void **MemoryPointer, UUId_t* Handle));

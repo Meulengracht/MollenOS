@@ -149,18 +149,29 @@ ScRpcExecute(
     size_t                TotalLength = sizeof(MRemoteCall_t);
     MCoreThread_t*        Thread;
     SystemModule_t*       Module;
+    SystemPipe_t*         Pipe;
     int                   i;
-
     assert(RemoteCall != NULL);
-    //TRACE("ScRpcExecute(Message %" PRIiIN ", Async %" PRIiIN ")", RemoteCall->Function, Async);
     
     Module = (SystemModule_t*)GetModuleByHandle(RemoteCall->Target);
-    if (Module == NULL || Module->Rpc == NULL) {
-        ERROR("RPC-Target %" PRIuIN " did not exist", RemoteCall->Target);
-        return OsError;
+    if (Module == NULL) {
+        Pipe = (SystemPipe_t*)LookupHandle(Handle);
+        if (Pipe == NULL) {
+            return OsDoesNotExist;
+        }
+        if (!(Pipe->Configuration & PIPE_STRUCTURED_BUFFER)) {
+            return OsInvalidParameters;
+        }
+    }
+    else {
+        if (Module->Rpc == NULL) {
+            ERROR("RPC-Target %" PRIuIN " did exist, but was not running", RemoteCall->Target);
+            return OsInvalidParameters;
+        }
+        Pipe = Module->Rpc;
     }
 
-    // Calculate how much data to be comittedc
+    // Calculate how much data to be comitted
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
         if (RemoteCall->Arguments[i].Type == ARGUMENT_BUFFER) {
             TotalLength += RemoteCall->Arguments[i].Length;
@@ -173,7 +184,7 @@ ScRpcExecute(
     RemoteCall->From.Thread   = Thread->Header.Key.Value.Id;
 
     // Setup producer access
-    AcquireSystemPipeProduction(Module->Rpc, TotalLength, &State);
+    AcquireSystemPipeProduction(Pipe, TotalLength, &State);
     WriteSystemPipeProduction(&State, (const uint8_t*)RemoteCall, sizeof(MRemoteCall_t));
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
         if (RemoteCall->Arguments[i].Type == ARGUMENT_BUFFER) {

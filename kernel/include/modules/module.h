@@ -23,9 +23,9 @@
 #ifndef __MODULE_INTERFACE__
 #define __MODULE_INTERFACE__
 
-#include <ds/collection.h>
 #include <os/osdefs.h>
-#include <os/process.h>
+#include <os/types/process.h>
+#include <ds/collection.h>
 #include <time.h>
 
 typedef struct _PeExecutable PeExecutable_t;

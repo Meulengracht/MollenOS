@@ -26,7 +26,7 @@
 #ifndef __IPC_INTERFACE__
 #define __IPC_INTERFACE__
 
-#include <os/osdefs.h>
+#include <ddk/ddkdefs.h>
 
 /* IPC Declaration definitions that can
  * be used by the different IPC systems */

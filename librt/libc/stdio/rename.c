@@ -20,19 +20,14 @@
  * - File link implementation
  */
 
-/* Includes
- * - System */
-#include <ddk/file.h>
-#include <stdlib.h>
-#include <errno.h>
 #include <stdio.h>
 
 /* rename
  * Renames a file if the the directories/paths match. Otherwise
  * the file will be moved. */
 int rename(
-	_In_ __CONST char * oldname, 
-	_In_ __CONST char * newname)
+	_In_ const char * oldname, 
+	_In_ const char * newname)
 {
     // @todo
     return -1;

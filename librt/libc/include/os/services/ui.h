@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,12 +16,13 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * User Interface
- *  - Provides functionality to create and manage windows used by the program
+ * Ui Service Definitions & Structures
+ * - This header describes the base ui-structure, prototypes
+ *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __USER_INTERFACE__
-#define __USER_INTERFACE__
+#ifndef __SERVICES_UI_H__
+#define __SERVICES_UI_H__
 
 #include <os/osdefs.h>
 
@@ -67,4 +68,4 @@ CRTDECL(OsStatus_t,
 UiSwapBackbuffer(void));
 _CODE_END
 
-#endif // !__USER_INTERFACE__
+#endif // !__SERVICES_UI_H__

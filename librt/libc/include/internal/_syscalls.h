@@ -56,7 +56,7 @@ _CODE_END
 #define Syscall_LoadDriver(Device, Length, Buffer, BufferLength) (OsStatus_t)syscall4(28, SCPARAM(Device), SCPARAM(Length), SCPARAM(Buffer), SCPARAM(BufferLength))
 #define Syscall_InterruptAdd(Descriptor, Flags) (UUId_t)syscall2(29, SCPARAM(Descriptor), SCPARAM(Flags))
 #define Syscall_InterruptRemove(InterruptId) (OsStatus_t)syscall1(30, SCPARAM(InterruptId))
-#define Syscall_RegisterEventTarget(RcHandle, StdInputHandle, InputHandle) (OsStatus_t)syscall3(31, SCPARAM(RcHandle), SCPARAM(KeyInputHandle), SCPARAM(WmInputHandle))
+#define Syscall_RegisterEventTarget(StdInputHandle, WmHandle) (OsStatus_t)syscall2(31, SCPARAM(StdInputHandle), SCPARAM(WmHandle))
 #define Syscall_KeyEvent(SystemKey) (OsStatus_t)syscall1(32, SCPARAM(SystemKey))
 #define Syscall_InputEvent(SystemInput) (OsStatus_t)syscall1(33, SCPARAM(SystemInput))
 #define Syscall_GetProcessBaseAddress(BaseAddressOut) (OsStatus_t)syscall1(34, SCPARAM(BaseAddressOut))

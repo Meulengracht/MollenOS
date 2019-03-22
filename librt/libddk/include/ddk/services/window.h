@@ -21,13 +21,11 @@
  *    per process can be created.
  */
 
-#ifndef _VALI_WINDOWING_H_
-#define _VALI_WINDOWING_H_
+#ifndef __SDK_WINDOW_H__
+#define __SDK_WINDOW_H__
 
 #include <os/mollenos.h>
-#include <os/osdefs.h>
 #include <ddk/ipc/ipc.h>
-#include <ddk/service.h>
 #include <os/ui.h>
 
 /* These definitions are in-place to allow a custom
@@ -49,13 +47,14 @@
  * or set to previous handle if a handle for this process already exists. */
 SERVICEAPI OsStatus_t SERVICEABI
 CreateWindow(
+    _In_  UUId_t                ServiceHandle,
     _In_  UIWindowParameters_t* Params,
     _In_  UUId_t                BufferHandle,
     _Out_ long*                 WindowHandle)
 {
     MRemoteCall_t Request;
 
-    RPCInitialize(&Request, __WINDOWMANAGER_TARGET, 
+    RPCInitialize(&Request, ServiceHandle, 
         __WINDOWMANAGER_INTERFACE_VERSION, __WINDOWMANAGER_CREATE);
     RPCSetArgument(&Request, 0, (const void*)Params,        sizeof(UIWindowParameters_t));
     RPCSetArgument(&Request, 1, (const void*)&BufferHandle, sizeof(UUId_t));
@@ -67,11 +66,12 @@ CreateWindow(
  * Destroys a given window and frees the resources associated with it. */
 SERVICEAPI OsStatus_t SERVICEABI
 DestroyWindow(
-    _In_ long WindowHandle)
+    _In_ UUId_t ServiceHandle,
+    _In_ long   WindowHandle)
 {
     MRemoteCall_t Request;
 
-    RPCInitialize(&Request, __WINDOWMANAGER_TARGET, 
+    RPCInitialize(&Request, ServiceHandle, 
         __WINDOWMANAGER_INTERFACE_VERSION, __WINDOWMANAGER_DESTROY);
     RPCSetArgument(&Request, 0, (const void*)&WindowHandle, sizeof(long));
     return RPCEvent(&Request);
@@ -82,12 +82,13 @@ DestroyWindow(
  * and its surface, that can be used for direct pixel access */
 SERVICEAPI OsStatus_t SERVICEABI
 QueryWindow(
-    _In_  long                      WindowHandle, 
-    _Out_ UISurfaceDescriptor_t*    Descriptor)
+    _In_  UUId_t                 ServiceHandle,
+    _In_  long                   WindowHandle, 
+    _Out_ UISurfaceDescriptor_t* Descriptor)
 {
     MRemoteCall_t Request;
 
-    RPCInitialize(&Request, __WINDOWMANAGER_TARGET, 
+    RPCInitialize(&Request, ServiceHandle, 
         __WINDOWMANAGER_INTERFACE_VERSION, __WINDOWMANAGER_QUERY);
     RPCSetArgument(&Request, 0, (const void*)&WindowHandle, sizeof(long));
     RPCSetResult(&Request, (const void*)Descriptor, sizeof(UISurfaceDescriptor_t));
@@ -99,14 +100,15 @@ QueryWindow(
  * to render the changes made. */
 SERVICEAPI OsStatus_t SERVICEABI
 SwapWindowBackbuffer(
-    _In_ long WindowHandle)
+    _In_ UUId_t ServiceHandle,
+    _In_ long   WindowHandle)
 {
     MRemoteCall_t Request;
 
-    RPCInitialize(&Request, __WINDOWMANAGER_TARGET, 
+    RPCInitialize(&Request, ServiceHandle, 
         __WINDOWMANAGER_INTERFACE_VERSION, __WINDOWMANAGER_SWAPBUFFER);
     RPCSetArgument(&Request, 0, (const void*)&WindowHandle, sizeof(long));
     return RPCEvent(&Request);
 }
 
-#endif //!_VALI_WINDOWING_H_
+#endif //!__SDK_WINDOW_H__

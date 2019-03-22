@@ -24,7 +24,7 @@
 #ifndef _USB_INTERFACE_H_
 #define _USB_INTERFACE_H_
 
-#include <os/osdefs.h>
+#include <ddk/ddkdefs.h>
 #include <ddk/usb/definitions.h>
 #include <os/bufferpool.h>
 #include <ddk/device.h>
@@ -503,14 +503,14 @@ UsbEndpointReset(
 
 /* UsbQueryControllerCount
  * Queries the available number of usb controllers. */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 UsbQueryControllerCount(
     _Out_ int* ControllerCount));
 
 /* UsbQueryController
  * Queries the controller with the given index. Index-max is
  * the controller count - 1. */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 UsbQueryController(
     _In_ int                Index,
     _In_ UsbHcController_t* Controller));

@@ -25,8 +25,9 @@
 #define __PE_IMAGE_LOADER__
 
 #include <os/osdefs.h>
-#include <ddk/process.h>
+#include <ddk/services/process.h>
 #include <os/pe.h>
+#include <time.h>
 
 DECL_STRUCT(Collection);
 DECL_STRUCT(MString);

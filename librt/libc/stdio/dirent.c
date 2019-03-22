@@ -21,8 +21,6 @@
  */
 //#define __TRACE
 
-#include <ddk/utils.h>
-#include <ddk/file.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <io.h>

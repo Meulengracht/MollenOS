@@ -24,7 +24,7 @@
 #ifndef _CONTRACT_USBHOST_INTERFACE_H_
 #define _CONTRACT_USBHOST_INTERFACE_H_
 
-#include <os/osdefs.h>
+#include <ddk/ddkdefs.h>
 #include <ddk/service.h>
 #include <ddk/driver.h>
 #include <ddk/usb.h>

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,36 +16,25 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Session Manager Interface
- * - Part of the SDK. Provides user session related functionality through the session manager.
+ * Session Service Definitions & Structures
+ * - This header describes the base session-structure, prototypes
+ *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __SDK_SESSIONS_H__
-#define __SDK_SESSIONS_H__
+#ifndef __SERVICES_SESSION_H__
+#define __SERVICES_SESSION_H__
 
 #include <os/osdefs.h>
-#include <time.h>
+#include <os/types/session.h>
 
-// IPC Function Declarations
-#define __SESSIONMANAGER_CHECKUP           IPC_DECL_FUNCTION(0)
-#define __SESSIONMANAGER_LOGIN             IPC_DECL_FUNCTION(1)
-#define __SESSIONMANAGER_LOGOUT            IPC_DECL_FUNCTION(2)
-
-/* SessionObject 
- * Response object from login-requests and session inquiries. */
-PACKED_TYPESTRUCT(SessionObject, {
-    OsStatus_t              Status;
-
-    char                    SessionId[16];
-    time_t                  LastLogin;
- /* UserProfile_t           Profile; */
-});
-
-/* SessionCheckDisk
- * Notifies the sessionmanager if a new accessible system disk. */
+/* GetServiceObjectsWithCapabilities
+ * Retrieves a list of service objects that match the requested capabilities. 
+ * The capabilities provided is matched as an AND operation. */
 CRTDECL(OsStatus_t,
-SessionCheckDisk(
-	_In_ const char* DiskIdentifier));
+GetServiceObjectsWithCapabilities(
+	_In_ ServiceCapabilities_t Capabilities,
+	_In_ ServiceObject_t*      ObjectBuffer,
+	_In_ size_t                MaxObjects));
 
 /* SessionLoginRequest
  * Sends a login-request to the session-manager. The sessionmanager will respond
@@ -63,4 +52,4 @@ CRTDECL(OsStatus_t,
 SessionLogoutRequest(
 	_In_ const char* SessionId));
 
-#endif //!__SDK_SESSIONS_H__
+#endif //!__SERVICES_SESSIONS_H__

@@ -25,7 +25,7 @@
 #define _SERVICE_H_
 
 #include <ddk/ipc/ipc.h>
-#include <os/osdefs.h>
+#include <ddk/ddkdefs.h>
 
 #define __SERVICE_TARGET(Index)  ((UUId_t)0x8000 + Index)
 
@@ -36,9 +36,9 @@
 #define __PROCESSMANAGER_TARGET  __SERVICE_TARGET(4)
 
 _CODE_BEGIN
-CRTDECL(OsStatus_t, RegisterService(UUId_t Alias));
-CRTDECL(OsStatus_t, IsServiceAvailable(UUId_t Alias));
-CRTDECL(OsStatus_t, WaitForService(UUId_t Alias, size_t Timeout));
+DDKDECL(OsStatus_t, RegisterService(UUId_t Alias));
+DDKDECL(OsStatus_t, IsServiceAvailable(UUId_t Alias));
+DDKDECL(OsStatus_t, WaitForService(UUId_t Alias, size_t Timeout));
 _CODE_END
 
 #endif //!_SERVICE_H_

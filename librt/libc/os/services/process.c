@@ -16,16 +16,16 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * ProcessManager Definitions & Structures
- * - This file describes the process-structure, prototypes
+ * Process Service Definitions & Structures
+ * - This header describes the base process-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
+#include <os/services/targets.h>
+#include <ddk/services/process.h>
 #include <ddk/ipc/ipc.h>
-#include <ddk/service.h>
-#include <ddk/process.h>
 #include <os/context.h>
 #include <ddk/utils.h>
 #include <threads.h>
@@ -34,7 +34,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <assert.h>
-#include "../../stdio/local.h"
+#include "../../../stdio/local.h"
 
 void
 InitializeStartupInformation(

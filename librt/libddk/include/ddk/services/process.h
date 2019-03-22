@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,15 +16,16 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Process Manager Interface
- * - Part of the SDK. Provides process related functionality through the session manager.
+ * Process Service (Protected) Definitions & Structures
+ * - This header describes the base process-structure, prototypes
+ *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __SDK_PROCESS_INTERFACE_H__
-#define __SDK_PROCESS_INTERFACE_H__
+#ifndef __DDK_SERVICES_PROCESS_H__
+#define __DDK_SERVICES_PROCESS_H__
 
-#include <os/osdefs.h>
-#include <os/process.h>
+#include <ddk/ddkdefs.h>
+#include <os/types/process.h>
 
 DECL_STRUCT(Context);
 
@@ -61,14 +62,14 @@ _CODE_BEGIN
 /* ProcessTerminate
  * Terminates the current process that is registered with the process manager.
  * This invalidates every functionality available to this process. */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 ProcessTerminate(
 	_In_ int ExitCode));
 
 /* GetProcessInheritationBlock
  * Retrieves startup information about the process. 
  * Data buffers must be supplied with a max length. */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 GetProcessInheritationBlock(
     _In_    const char* Buffer,
     _InOut_ size_t*     Length));
@@ -76,14 +77,14 @@ GetProcessInheritationBlock(
 /* ProcessGetLibraryHandles
  * Retrieves a list of loaded library handles. Handles can be queried
  * for various application-image data. */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 ProcessGetLibraryHandles(
     _Out_ Handle_t LibraryList[PROCESS_MAXMODULES]));
 
 /* ProcessLoadLibrary 
  * Dynamically loads an application extensions for current process. A handle for the new
  * library is set in Handle if OsSuccess is returned. */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 ProcessLoadLibrary(
     _In_  const char* Path,
     _Out_ Handle_t*   Handle));
@@ -91,7 +92,7 @@ ProcessLoadLibrary(
 /* ProcessGetLibraryFunction 
  * Resolves the address of the library function name given, a pointer to the function will
  * be set in Address if OsSuccess is returned. */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 ProcessGetLibraryFunction(
     _In_  Handle_t    Handle,
     _In_  const char* FunctionName,
@@ -99,17 +100,17 @@ ProcessGetLibraryFunction(
 
 /* ProcessUnloadLibrary 
  * Unloads the library handle, and renders all functions resolved invalid. */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 ProcessUnloadLibrary(
     _In_ Handle_t Handle));
 
 /* ProcessReportCrash 
  * Reports a crash to the process manager, and gives opportunity for debugging. While
  * this call is not responded too, the application is kept alive. */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 ProcessReportCrash(
     _In_ Context_t* CrashContext,
     _In_ int        CrashReason));
 _CODE_END
 
-#endif //!_PROCESS_INTERFACE_H_
+#endif //!__DDK_SERVICES_PROCESS_H__

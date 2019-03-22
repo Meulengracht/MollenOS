@@ -417,7 +417,7 @@ typedef struct _BytePool BytePool_t;
  * Add a region of memory to the buffer pool. If the pointer to the bytepool is passed as
  * null, it is treated as a new memory region and thus initialized. Otherwise memory is
  * added to the existing pool. */
-CRTDECL(
+DDKDECL(
 OsStatus_t,
 bpool(
 	_In_ void *buf, 
@@ -427,7 +427,7 @@ bpool(
 /* bget
  * Used for buffer allocation with the given pool. Returns NULL if there
  * is no more room available.  */
-CRTDECL(
+DDKDECL(
 void*,
 bget(
 	_In_ BytePool_t *pool, 
@@ -437,7 +437,7 @@ bget(
  * Allocate a buffer and clear its contents to zero.  We clear
  * the  entire  contents  of  the buffer to zero, not just the
  * region requested by the caller. */
-CRTDECL(
+DDKDECL(
 void*,
 bgetz(
 	_In_ BytePool_t *pool,
@@ -448,7 +448,7 @@ bgetz(
  * simply in terms of brel()  and  bget().	 It  could  be
  * enhanced to allow the buffer to grow into adjacent free
  * blocks and to avoid moving data unnecessarily.  */
-CRTDECL(
+DDKDECL(
 void*,
 bgetr(
 	_In_ BytePool_t *pool, 
@@ -457,7 +457,7 @@ bgetr(
 
 /* brel
  * Release a previous allocated buffer in the given pool. */
-CRTDECL(
+DDKDECL(
 void,
 brel(
 	_In_ BytePool_t *pool, 
@@ -465,7 +465,7 @@ brel(
 
 /* bectl
  * Establish automatic pool expansion control */
-CRTDECL(
+DDKDECL(
 void,
 bectl(
 	_In_ BytePool_t *pool,
@@ -476,7 +476,7 @@ bectl(
 
 /* bstats
  * Return buffer allocation free space statistics.  */
-CRTDECL(
+DDKDECL(
 void,
 bstats(
 	_In_ BytePool_t *pool,
@@ -488,7 +488,7 @@ bstats(
 
 /* bstatse
  * Return extended statistics */
-CRTDECL(
+DDKDECL(
 void,
 bstatse(
 	_In_ BytePool_t *pool,
@@ -503,7 +503,7 @@ bstatse(
  * Dump the data in a buffer.  This is called with the  user
  * data pointer, and backs up to the buffer header.  It will
  * dump either a free block or an allocated one. */
-CRTDECL(
+DDKDECL(
 void,
 bufdump(
 	_In_ BytePool_t *pool,
@@ -515,7 +515,7 @@ bufdump(
  * are dumped. If DUMPFREE is nonzero, free blocks are
  * dumped as well. If FreeWipe  checking is  enabled, free
  * blocks which have been clobbered will always be dumped. */
-CRTDECL(
+DDKDECL(
 void,
 bpoold(
 	_In_ BytePool_t *pool,
@@ -526,7 +526,7 @@ bpoold(
 /* bpoolv
  * Validate a buffer pool. If NDEBUG isn't defined,
  * any error generates an assertion failure. */
-CRTDECL(
+DDKDECL(
 OsStatus_t,
 bpoolv(
 	_In_ BytePool_t *pool,

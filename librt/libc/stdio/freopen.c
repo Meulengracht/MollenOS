@@ -19,7 +19,7 @@
  * MollenOS C Library - Reopen file-handle
  */
 
-#include <ddk/file.h>
+#include <os/services/file.h>
 #include <io.h>
 #include <stdio.h>
 #include <errno.h>
@@ -31,8 +31,8 @@
  * Reuses stream to either open the file specified 
  * by filename or to change its access mode. */
 FILE *freopen(
-	_In_ __CONST char * filename, 
-	_In_ __CONST char * mode, 
+	_In_ const char * filename, 
+	_In_ const char * mode, 
 	_In_ FILE * stream)
 {
 	// Variables

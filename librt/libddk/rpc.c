@@ -19,27 +19,11 @@
  * MollenOS Inter-Process Communication Interface
  */
 
+#include <internal/_syscalls.h>
+#include <internal/_utils.h>
 #include <ddk/ipc/ipc.h>
 #include <stdlib.h>
 #include <signal.h>
-
-#ifdef LIBC_KERNEL
-__EXTERN
-OsStatus_t 
-ScRpcExecute(
-	_In_ MRemoteCall_t* RemoteCall,
-	_In_ int            Asynchronous);
-
-OsStatus_t
-RPCExecute(
-	_In_ MRemoteCall_t *RemoteCall)
-{
-	return ScRpcExecute(RemoteCall, 0);
-}
-
-#else
-#include <internal/_syscalls.h>
-#include <internal/_utils.h>
 
 OsStatus_t
 RPCExecute(
@@ -76,5 +60,3 @@ RPCRespond(
 {
 	return Syscall_RemoteCallRespond(RemoteAddress, (void*)Buffer, Length);
 }
-
-#endif

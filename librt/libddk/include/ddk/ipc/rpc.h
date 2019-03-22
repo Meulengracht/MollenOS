@@ -28,7 +28,7 @@
 #error "You must include ipc.h and not this directly"
 #endif
 
-#include <os/osdefs.h>
+#include <ddk/ddkdefs.h>
 #include <string.h>
 #include <assert.h>
 
@@ -199,7 +199,7 @@ RPCCastArgumentToPointer(
  * Call this to wait for a new RPC message on the pipe handle. Services and drivers
  * are allowed to pass UUID_INVALID as pipe handle as they have rpc pipes created
  * for them. Any other program needs to provide a pipe they want to listen on. */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 RPCListen(
     _In_ UUId_t         Handle,
     _In_ MRemoteCall_t* Message,
@@ -210,11 +210,11 @@ RPCListen(
  * must use RPCExecute, this will automatically wait
  * for a reply, whereas RPCEvent will send the request
  * and not block/wait for reply */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 RPCExecute(
     _In_ MRemoteCall_t* RemoteCall));
 
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 RPCEvent(
     _In_ MRemoteCall_t* RemoteCall));
 
@@ -222,7 +222,7 @@ RPCEvent(
  * This is a wrapper to return a respond message/buffer to the
  * sender of the message, it's good practice to always wait for
  * a result when there is going to be one */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 RPCRespond(
     _In_ MRemoteCallAddress_t* RemoteAddress,
     _In_ const void*           Buffer, 

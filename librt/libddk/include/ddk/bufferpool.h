@@ -25,7 +25,7 @@
 #define _BUFFERPOOL_INTERFACE_H_
 
 #include <ddk/buffer.h>
-#include <os/osdefs.h>
+#include <ddk/ddkdefs.h>
 
 typedef struct _BufferPool BufferPool_t;
 
@@ -33,7 +33,7 @@ _CODE_BEGIN
 /* BufferPoolCreate
  * Creates a new buffer-pool from the given buffer object. 
  * This allows sub-allocations from a buffer-object. */
-CRTDECL(
+DDKDECL(
 OsStatus_t,
 BufferPoolCreate(
     _In_  DmaBuffer_t*      Buffer,
@@ -42,7 +42,7 @@ BufferPoolCreate(
 /* BufferPoolDestroy
  * Cleans up the buffer-pool and deallocates resources previously
  * allocated. This does not destroy the buffer-object. */
-CRTDECL(
+DDKDECL(
 OsStatus_t,
 BufferPoolDestroy(
     _In_ BufferPool_t*      Pool));
@@ -51,7 +51,7 @@ BufferPoolDestroy(
  * Allocates the requested size and outputs two addresses. The
  * virtual pointer to the accessible data, and the address of its 
  * corresponding physical address for hardware. */
-CRTDECL(
+DDKDECL(
 OsStatus_t,
 BufferPoolAllocate(
     _In_ BufferPool_t*      Pool,
@@ -62,7 +62,7 @@ BufferPoolAllocate(
 /* BufferPoolFree
  * Frees previously allocations made by the buffer-pool. The virtual
  * address must be the one passed back. */
-CRTDECL(
+DDKDECL(
 OsStatus_t,
 BufferPoolFree(
     _In_ BufferPool_t*      Pool,

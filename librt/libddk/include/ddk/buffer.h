@@ -24,7 +24,7 @@
 #ifndef __BUFFER_INTERFACE__
 #define __BUFFER_INTERFACE__
 
-#include <os/osdefs.h>
+#include <ddk/ddkdefs.h>
 
 // System dma buffer
 // Contains information about a dma buffer for use with transfers,
@@ -41,7 +41,7 @@ _CODE_BEGIN
 /* CreateBuffer
  * Creates a new buffer either from an existing handle (Length will be ignored),
  * or creates a new buffer with the given length if FromHandle == UUID_INVALID. */
-CRTDECL(DmaBuffer_t*,
+DDKDECL(DmaBuffer_t*,
 CreateBuffer(
     _In_ UUId_t FromHandle,
     _In_ size_t Length));
@@ -49,20 +49,20 @@ CreateBuffer(
 /* DestroyBuffer
  * Destroys the given buffer object and release resources
  * allocated with the CreateBuffer function */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 DestroyBuffer(
     _In_ DmaBuffer_t* BufferObject));
 
 /* ZeroBuffer
  * Clears the entire buffer and resets the internal indices */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 ZeroBuffer(
     _In_ DmaBuffer_t* BufferObject));
 
 /* SeekBuffer
  * Seeks the current write/read marker to a specified point
  * in the buffer */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 SeekBuffer(
     _In_ DmaBuffer_t* BufferObject,
     _In_ size_t       Position));
@@ -70,7 +70,7 @@ SeekBuffer(
 /* ReadBuffer
  * Reads <BytesToWrite> into the given user-buffer from the given buffer-object. 
  * It performs indexed reads, so the read will be from the current position */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 ReadBuffer(
     _In_      DmaBuffer_t* BufferObject,
     _Out_     const void*  Buffer,
@@ -80,7 +80,7 @@ ReadBuffer(
 /* WriteBuffer
  * Writes <BytesToWrite> into the allocated buffer-object from the given user-buffer. 
  * It performs indexed writes, so the next write will be appended to the current position */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 WriteBuffer(
     _In_      DmaBuffer_t* BufferObject,
     _In_      const void*  Buffer,
@@ -91,7 +91,7 @@ WriteBuffer(
  * Writes <BytesToTransfer> into the destination from the given
  * source buffer, make sure the position in both buffers are correct.
  * The number of bytes transferred is set as output */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 CombineBuffer(
     _In_      DmaBuffer_t* Destination,
     _In_      DmaBuffer_t* Source,
@@ -100,28 +100,28 @@ CombineBuffer(
 
 /* GetBufferHandle
  * Retrieves the handle of the dma buffer for other processes to use. */
-CRTDECL(UUId_t,
+DDKDECL(UUId_t,
 GetBufferHandle(
     _In_ DmaBuffer_t* BufferObject));
 
 /* GetBufferSize
  * Retrieves the size of the dma buffer. This might vary from the length given in
  * creation of the buffer as it may change it for performance reasons. */
-CRTDECL(size_t,
+DDKDECL(size_t,
 GetBufferSize(
     _In_ DmaBuffer_t* BufferObject));
 
 /* GetBufferDma
  * Retrieves the dma address of the memory buffer. This address cannot be used
  * for accessing memory, but instead is a pointer to the physical memory. */
-CRTDECL(uintptr_t,
+DDKDECL(uintptr_t,
 GetBufferDma(
     _In_ DmaBuffer_t* BufferObject));
 
 /* GetBufferDataPointer
  * Retrieves the data pointer to the physical memory. This can be used to access
  * the physical memory as this pointer is mapped to the dma.  */
-CRTDECL(void*,
+DDKDECL(void*,
 GetBufferDataPointer(
     _In_ DmaBuffer_t* BufferObject));
 _CODE_END

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,8 +16,8 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Shared Object Support Definitions & Structures
- * - This header describes the base sharedobject-structures, prototypes
+ * DLL Service Definitions & Structures
+ * - This header describes the base library-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
@@ -28,7 +28,7 @@
 #include <ddk/process.h>
 #include <ds/mstring.h>
 #include <stdlib.h>
-#include <stddef.h>
+#include <errno.h>
 #include <ctype.h>
 
 typedef struct _LibraryItem {
@@ -40,7 +40,7 @@ typedef struct _LibraryItem {
 typedef void (*SOInitializer_t)(int);
 static Collection_t LoadedLibraries = COLLECTION_INIT(KeyId);
 
-size_t SharedObjectHash(const char *String) {
+static size_t SharedObjectHash(const char *String) {
 	uint8_t* Pointer    = (uint8_t*)String;
 	size_t Hash         = 5381;
 	int Character       = 0;
@@ -50,6 +50,38 @@ size_t SharedObjectHash(const char *String) {
 	while ((Character = tolower(*Pointer++)) != 0)
 		Hash = ((Hash << 5) + Hash) + Character; /* hash * 33 + c */
 	return Hash;
+}
+
+static void
+SetErrnoFromOsStatus(
+    _In_ OsStatus_t Status)
+{
+    switch (Status) {
+        case OsSuccess:
+            _set_errno(EOK);
+            break;
+        case OsError:
+            _set_errno(ELIBACC);
+            break;
+        case OsExists:
+            _set_errno(EEXIST);
+            break;
+        case OsDoesNotExist:
+            _set_errno(ENOENT);
+            break;
+        case OsInvalidParameters:
+            _set_errno(EINVAL);
+            break;
+        case OsInvalidPermissions:
+            _set_errno(EACCES);
+            break;
+        case OsTimeout:
+            _set_errno(ETIME);
+            break;
+        case OsNotSupported:
+            _set_errno(ENOSYS);
+            break;
+    }
 }
 
 Handle_t 
@@ -95,6 +127,7 @@ SharedObjectLoad(
         }
         Result = Library->Handle;
     }
+    SetErrnoFromOsStatus(Status);
     return Result;
 }
 
@@ -103,7 +136,9 @@ SharedObjectGetFunction(
 	_In_ Handle_t       Handle, 
 	_In_ const char*    Function)
 {
+    OsStatus_t Status;
 	if (Handle == HANDLE_INVALID || Function == NULL) {
+	    _set_errno(EINVAL);
 		return NULL;
 	}
 
@@ -112,21 +147,25 @@ SharedObjectGetFunction(
     }
 	else {
         uintptr_t AddressOfFunction;
-        if (ProcessGetLibraryFunction(Handle, Function, &AddressOfFunction) != OsSuccess) {
+        Status = ProcessGetLibraryFunction(Handle, Function, &AddressOfFunction);
+        SetErrnoFromOsStatus(Status);
+        if (Status != OsSuccess) {
             return NULL;
         }
         return (void*)AddressOfFunction;
     }
 }
 
-OsStatus_t 
+OsStatus_t
 SharedObjectUnload(
 	_In_ Handle_t Handle)
 {
     SOInitializer_t Initialize = NULL;
     LibraryItem_t*  Library    = NULL;
+    OsStatus_t      Status;
 
 	if (Handle == HANDLE_INVALID) {
+	    _set_errno(EINVAL);
 		return OsError;
 	}
     if (Handle == HANDLE_GLOBAL) {
@@ -146,14 +185,17 @@ SharedObjectUnload(
             if (Initialize != NULL) {
                 Initialize(DLL_ACTION_FINALIZE);
             }
-
+            
             if (IsProcessModule()) {
-                return Syscall_LibraryUnload(Handle);
+                Status = Syscall_LibraryUnload(Handle);
             }
 	        else {
-                return ProcessUnloadLibrary(Handle);
+                Status = ProcessUnloadLibrary(Handle);
             }
+            SetErrnoFromOsStatus(Status);
+            return Status;
         }
     }
+	_set_errno(EFAULT);
     return OsError;
 }

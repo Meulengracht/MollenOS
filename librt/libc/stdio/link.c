@@ -20,10 +20,6 @@
  * - File link implementation
  */
 
-/* Includes
- * - System */
-#include <ddk/file.h>
-#include <stdlib.h>
 #include <errno.h>
 #include <io.h>
 

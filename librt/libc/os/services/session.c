@@ -16,31 +16,24 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * SessionManager Definitions & Structures
- * - This file describes the session-structure, prototypes
+ * Session Service Definitions & Structures
+ * - This header describes the base session-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include <ddk/sessions.h>
-#include <ddk/ipc/ipc.h>
-#include <ddk/service.h>
+#include <ddk/services/session.h>
+#include <os/services/session.h>
+#include <os/services/targets.h>
 
-/* SessionCheckDisk
- * Notifies the sessionmanager if a new accessible system disk. */
 OsStatus_t
-SessionCheckDisk(
-	_In_ const char* DiskIdentifier)
+GetServiceObjectsWithCapabilities(
+	_In_ ServiceCapabilities_t Capabilities,
+	_In_ ServiceObject_t*      ObjectBuffer,
+	_In_ size_t                MaxObjects)
 {
-	MRemoteCall_t Request;
-
-	RPCInitialize(&Request, __SESSIONMANAGER_TARGET, 1, __SESSIONMANAGER_CHECKUP);
-	RPCSetArgument(&Request, 0, (const void*)DiskIdentifier, strlen(DiskIdentifier) + 1);
-	return RPCEvent(&Request);
+	
 }
 
-/* SessionLoginRequest
- * Sends a login-request to the session-manager. The sessionmanager will respond
- * with a SessionObject structure containing information about success/failure. */
 OsStatus_t
 SessionLoginRequest(
 	_In_ const char*      User,
@@ -56,9 +49,6 @@ SessionLoginRequest(
 	return RPCExecute(&Request);
 }
 
-/* SessionLogoutRequest
- * Sends a logout-request to the session-manager. The acquired session-id from
- * the login must be used to logout the correct user. */
 OsStatus_t
 SessionLogoutRequest(
 	_In_ const char* SessionId)

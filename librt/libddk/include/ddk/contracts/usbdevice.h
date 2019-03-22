@@ -30,7 +30,7 @@
 #include <ddk/driver.h>
 #include <ddk/device.h>
 #include <ddk/usb.h>
-#include <os/osdefs.h>
+#include <ddk/ddkdefs.h>
 
 /* MCoreUsbDevice_t
  * This is the base usb device structure definition

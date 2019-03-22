@@ -21,7 +21,7 @@
  */
 
 #include <internal/_all.h>
-#include <ddk/process.h>
+#include <ddk/services/process.h>
 #include <os/context.h>
 #include <ddk/utils.h>
 #include <signal.h>
@@ -133,7 +133,7 @@ StdSignalEntry(
         if (Handler == SIG_DFL) {
             if (signal_fatality[Signal] == 1 || signal_fatality[Signal] == 2) {
                 StdCrash(Signal);
-                _exit(EXIT_FAILURE);
+                _Exit(EXIT_FAILURE);
             }
         }
         else {
@@ -146,7 +146,7 @@ StdSignalEntry(
         (Signal != SIGINT && Signal != SIGUSR1 && Signal != SIGUSR2)) {
         ERROR("Unhandled signal %i. Aborting application", Signal);
         StdCrash(Signal);
-        _exit(Signal);
+        _Exit(Signal);
     }
 }
 

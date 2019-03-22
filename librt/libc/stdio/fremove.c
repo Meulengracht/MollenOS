@@ -20,7 +20,7 @@
  * - Deletes the file specified by the path
  */
 
-#include <ddk/file.h>
+#include <os/services/file.h>
 #include <stdio.h>
 #include <errno.h>
 #include <io.h>

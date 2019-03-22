@@ -16,8 +16,8 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Usb Definitions & Structures
- * - This file describes the usb-structure, prototypes
+ * Device (Protected) Definitions & Structures
+ * - This file describes the device-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 

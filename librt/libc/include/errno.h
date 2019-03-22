@@ -22,8 +22,6 @@
 #ifndef __STDC_ERRNO__
 #define __STDC_ERRNO__
 
-/* Includes 
- * - Library */
 #include <crtdefs.h>
 
 #ifndef _ERRCODE_DEFINED

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,13 +16,13 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Shared Objects Definitions & Structures
- * - This header describes the shared object structure, prototypes
+ * DLL Service Definitions & Structures
+ * - This header describes the base library-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _SHARED_OBJECTS_INTERFACE_H_
-#define _SHARED_OBJECTS_INTERFACE_H_
+#ifndef __SERVICES_SHAREDOBJECT_H__
+#define __SERVICES_SHAREDOBJECT_H__
 
 #include <os/osdefs.h>
 
@@ -50,4 +50,4 @@ SharedObjectUnload(
 	_In_ Handle_t Handle));
 _CODE_END
 
-#endif //!_SHARED_OBJECTS_INTERFACE_H_
+#endif //!__SERVICES_SHAREDOBJECT_H__

@@ -27,15 +27,12 @@
 #include <stdio.h>
 #include "../stdio/local.h"
 
-/* GetFilePathFromFd 
- * Queries the system for the absolute file-path of the given file-descriptor. */
 OsStatus_t
 GetFilePathFromFd(
     _In_ int    FileDescriptor,
     _In_ char*  PathBuffer,
     _In_ size_t MaxLength)
 {
-    // Variables
     StdioHandle_t *FileHandle = StdioFdToHandle(FileDescriptor);
 
     if (FileHandle == NULL || PathBuffer == NULL || 
@@ -45,13 +42,10 @@ GetFilePathFromFd(
     return GetFilePath(FileHandle->InheritationHandle, PathBuffer, MaxLength);
 }
 
-/* GetStorageInformationFromPath 
- * Retrives information about the storage medium that belongs to 
- * the given path. */
 OsStatus_t
 GetStorageInformationFromPath(
     _In_ const char*            Path,
-    _In_ vStorageDescriptor_t*  Information)
+    _In_ OsStorageDescriptor_t* Information)
 {
     if (Information == NULL || Path == NULL) {
         return OsError;
@@ -59,15 +53,11 @@ GetStorageInformationFromPath(
     return QueryDiskByPath(Path, Information);
 }
 
-/* GetStorageInformationFromFd 
- * Retrives information about the storage medium that belongs to 
- * the given file descriptor. */
 OsStatus_t
 GetStorageInformationFromFd(
     _In_ int                    FileDescriptor,
-    _In_ vStorageDescriptor_t*  Information)
+    _In_ OsStorageDescriptor_t* Information)
 {
-    // Variables
     StdioHandle_t *FileHandle = StdioFdToHandle(FileDescriptor);
 
     if (FileHandle == NULL || Information == NULL ||
@@ -77,9 +67,31 @@ GetStorageInformationFromFd(
     return QueryDiskByHandle(FileHandle->InheritationHandle, Information);
 }
 
-/* GetFileInformationFromPath 
- * Queries information about the file from the given path. If the path
- * does not exist or is invalid the descriptor is zeroed out. */
+CRTDECL(OsStatus_t, 
+GetFileSystemInformationFromPath(
+    _In_ const char *Path,
+    _In_ OsFileSystemDescriptor_t *Information)
+{
+    if (Information == NULL || Path == NULL) {
+        return FsInvalidParameters;
+    }
+    return GetFileSystemStatsByPath(Path, Information);
+}
+
+CRTDECL(OsStatus_t, 
+GetFileSystemInformationFromFd(
+    _In_ int FileDescriptor,
+    _In_ OsFileSystemDescriptor_t *Information)
+{
+    StdioHandle_t *FileHandle = StdioFdToHandle(FileDescriptor);
+
+    if (FileHandle == NULL || Information == NULL ||
+        FileHandle->InheritationType != STDIO_HANDLE_FILE) {
+        return FsInvalidParameters;
+    }
+    return GetFileSystemStatsByHandle(FileHandle->InheritationHandle, Information);
+}
+
 FileSystemCode_t
 GetFileInformationFromPath(
     _In_ const char*            Path,
@@ -91,9 +103,6 @@ GetFileInformationFromPath(
     return GetFileStatsByPath(Path, Information);
 }
 
-/* GetFileInformationFromFd 
- * Queries information about the file from the given file handle. If the path
- * does not exist or is invalid the descriptor is zeroed out. */
 FileSystemCode_t
 GetFileInformationFromFd(
     _In_ int                    FileDescriptor,
@@ -108,9 +117,6 @@ GetFileInformationFromFd(
     return GetFileStatsByHandle(FileHandle->InheritationHandle, Information);
 }
 
-/* CreateFileMapping 
- * Creates a new memory mapping for the given file descriptor with the given
- * offset and size. */
 OsStatus_t
 CreateFileMapping(
     _In_  int      FileDescriptor,
@@ -143,8 +149,6 @@ CreateFileMapping(
     return Status;
 }
 
-/* DestroyFileMapping 
- * Destroys a previously created memory mapping. */
 OsStatus_t
 DestroyFileMapping(
     _In_ UUId_t Handle)

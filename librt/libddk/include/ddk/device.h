@@ -21,10 +21,10 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _DEVICE_INTERFACE_H_
-#define _DEVICE_INTERFACE_H_
+#ifndef __SDK_DEVICE_H__
+#define __SDK_DEVICE_H__
 
-#include <os/osdefs.h>
+#include <ddk/ddkdefs.h>
 #include <ddk/interrupt.h>
 #include <ddk/io.h>
 
@@ -98,7 +98,7 @@ PACKED_TYPESTRUCT(MCoreDevice, {
 /* RegisterDevice
  * Allows registering of a new device in the
  * device-manager, and automatically queries for a driver for the new device */
-CRTDECL(UUId_t,
+DDKDECL(UUId_t,
 RegisterDevice(
     _In_ UUId_t         Parent,
     _In_ MCoreDevice_t* Device, 
@@ -107,14 +107,14 @@ RegisterDevice(
 /* UnregisterDevice
  * Allows removal of a device in the device-manager, and automatically 
  * unloads drivers for the removed device */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 UnregisterDevice(
     _In_ UUId_t DeviceId));
 
 /* IoctlDevice
  * Allows manipulation of a given device to either disable
  * or enable, or configure the device */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 IoctlDevice(
     _In_ UUId_t  Device,
     _In_ Flags_t Command,
@@ -124,7 +124,7 @@ IoctlDevice(
  * Allows manipulation of a given device to either disable
  * or enable, or configure the device.
  * <Direction> = 0 (Read), 1 (Write) */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 IoctlDeviceEx(
     _In_    UUId_t   Device,
     _In_    int      Direction,
@@ -137,11 +137,11 @@ IoctlDeviceEx(
  * by searching storage-medias for the vendorid/deviceid 
  * combination or the class/subclass combination if specific
  * is not found */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 InstallDriver(
     _In_ MCoreDevice_t* Device, 
     _In_ size_t         Length,
     _In_ const void*    DriverBuffer,
     _In_ size_t         DriverBufferLength));
 
-#endif //!_DEVICE_INTERFACE_H_
+#endif //!__SDK_DEVICE_H__

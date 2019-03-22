@@ -253,12 +253,11 @@ ScUnregisterInterrupt(
 
 OsStatus_t
 ScRegisterEventTarget(
-    _In_ UUId_t RcHandle,
-    _In_ UUId_t KeyInput,
-    _In_ UUId_t WmInput)
+    _In_ UUId_t StdInputHandle,
+    _In_ UUId_t WmHandle)
 {
-    GetMachine()->StdInput = (SystemPipe_t*)LookupHandle(KeyInput);
-    GetMachine()->WmInput  = (SystemPipe_t*)LookupHandle(WmInput);
+    GetMachine()->StdInput = (SystemPipe_t*)LookupHandle(StdInputHandle);
+    GetMachine()->WmInput  = (SystemPipe_t*)LookupHandle(WmHandle);
     return OsSuccess;
 }
 

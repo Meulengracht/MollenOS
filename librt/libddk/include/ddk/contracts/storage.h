@@ -25,7 +25,7 @@
 #define _CONTRACT_STORAGE_INTERFACE_H_
 
 #include <ddk/driver.h>
-#include <os/osdefs.h>
+#include <ddk/ddkdefs.h>
 
 /* Storage device query functions that must be implemented
  * by the storage driver - those can then be used by this interface */

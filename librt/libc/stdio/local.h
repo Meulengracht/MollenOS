@@ -25,7 +25,7 @@
 
 #include <os/osdefs.h>
 #include <os/spinlock.h>
-#include <os/process.h>
+#include <os/types/process.h>
 #include <stdio.h>
 
 #ifndef _IOCOMMIT
