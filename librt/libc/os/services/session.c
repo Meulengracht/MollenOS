@@ -31,7 +31,13 @@ GetServiceObjectsWithCapabilities(
 	_In_ ServiceObject_t*      ObjectBuffer,
 	_In_ size_t                MaxObjects)
 {
-	
+	MRemoteCall_t Request;
+
+	RPCInitialize(&Request, __SESSIONMANAGER_TARGET, 1, __SESSIONMANAGER_LOOKUP);
+	RPCSetArgument(&Request, 0, (const void*)&Capabilities, sizeof(ServiceCapabilities_t));
+    RPCSetArgument(&Request, 1, (const void*)&MaxObjects, sizeof(size_t));
+    RPCSetResult(&Request, (const void*)ObjectBuffer, sizeof(ServiceObject_t) * MaxObjects);
+	return RPCExecute(&Request);
 }
 
 OsStatus_t

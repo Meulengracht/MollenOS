@@ -32,14 +32,28 @@ RegisterServiceObject(
 	_In_  UUId_t                ChannelHandle,
 	_Out_ UUId_t*               ServiceHandle)
 {
-	
+	MRemoteCall_t Request;
+
+	RPCInitialize(&Request, __SESSIONMANAGER_TARGET, 1, __SESSIONMANAGER_REGISTER);
+	RPCSetArgument(&Request, 0, (const void*)Name, strlen(Name) + 1);
+	RPCSetArgument(&Request, 1, (const void*)&Capabilities, sizeof(ServiceCapabilities_t));
+    RPCSetArgument(&Request, 2, (const void*)&ChannelHandle, sizeof(UUId_t));
+    RPCSetResult(&Request, (const void*)ServiceHandle, sizeof(UUId_t));
+	return RPCExecute(&Request);
 }
 
 OsStatus_t
 UnregisterServiceObject(
 	_In_ UUId_t ServiceHandle)
 {
-	
+	MRemoteCall_t Request;
+	OsStatus_t    Status;
+
+	RPCInitialize(&Request, __SESSIONMANAGER_TARGET, 1, __SESSIONMANAGER_UNREGISTER);
+	RPCSetArgument(&Request, 0, (const void*)&ServiceHandle, sizeof(UUId_t));
+    RPCSetResult(&Request, (const void*)&Status, sizeof(OsStatus_t));
+    RPCExecute(&Request);
+	return Status;
 }
 
 OsStatus_t
@@ -48,7 +62,7 @@ SessionCheckDisk(
 {
 	MRemoteCall_t Request;
 
-	RPCInitialize(&Request, __SESSIONMANAGER_TARGET, 1, __SESSIONMANAGER_CHECKUP);
+	RPCInitialize(&Request, __SESSIONMANAGER_TARGET, 1, __SESSIONMANAGER_NEWDEVICE);
 	RPCSetArgument(&Request, 0, (const void*)DiskIdentifier, strlen(DiskIdentifier) + 1);
 	return RPCEvent(&Request);
 }
