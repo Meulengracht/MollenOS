@@ -11,15 +11,16 @@ SOURCES = $(wildcard devices/scancodes/*.c) \
 INCLUDES = -I../../../../librt/include -I../../../../librt/libc/include -I../../../../librt/libds/include -I../../../../librt/libddk/include
 OBJECTS = $(SOURCES:.c=.o)
 
+LIBRARIES = ../../../../librt/build/ddk.lib ../../../../librt/build/libc.lib ../../../../librt/build/libdrv.lib
 CFLAGS = $(GCFLAGS) -Wno-invalid-source-encoding -D__DRIVER_IMPL $(INCLUDES)
-LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtModuleEntry /lldmap /dll ../../../../librt/build/libc.lib ../../../../librt/build/libdrv.lib
+LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtModuleEntry /lldmap /dll
 
 .PHONY: all
 all: ../../../build/ps2.dll ../../../build/ps2.mdrv
 
-../../../build/ps2.dll: $(OBJECTS)
+../../../build/ps2.dll: $(OBJECTS) $(LIBRARIES)
 	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
-	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	@$(LD) $(LFLAGS) $(OBJECTS) $(LIBRARIES) /out:$@
 
 ../../../build/ps2.mdrv: ps2.mdrv
 	@printf "%b" "\033[1;35mCopying settings file " $< "\033[m\n"

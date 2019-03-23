@@ -25,12 +25,13 @@
 #define _VFS_INTERFACE_H_
 
 #include <ddk/contracts/filesystem.h>
-#include <os/sharedobject.h>
+#include <ddk/services/file.h>
+#include <os/services/sharedobject.h>
+#include <os/types/path.h>
 #include <ds/collection.h>
 #include <os/mollenos.h>
 #include <ddk/buffer.h>
 #include <ds/mstring.h>
-#include <ddk/file.h>
 
 /* VFS Definitions 
  * - General identifiers can be used in paths */

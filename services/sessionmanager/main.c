@@ -22,9 +22,9 @@
  */
 #define __TRACE
 
+#include <os/services/process.h>
+#include <ddk/services/session.h>
 #include <ddk/service.h>
-#include <ddk/sessions.h>
-#include <os/process.h>
 #include <ddk/utils.h>
 #include <string.h>
 #include <stdio.h>

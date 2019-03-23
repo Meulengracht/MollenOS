@@ -21,6 +21,7 @@
  */
 
 #include <internal/_all.h>
+#include <internal/_utils.h>
 #include <ddk/services/process.h>
 #include <os/context.h>
 #include <ddk/utils.h>
@@ -102,7 +103,11 @@ StdCrash(
         // Read our current context
         ERROR("Unable to get crash context for thread, invoked by application %i", Signal);
     }
-    ProcessReportCrash(&Context, Signal);
+    
+    // Not supported by modules
+    if (!IsProcessModule()) {
+        ProcessReportCrash(&Context, Signal);
+    }
 }
 
 /* StdSignalEntry

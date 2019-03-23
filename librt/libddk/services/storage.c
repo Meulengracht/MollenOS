@@ -20,6 +20,7 @@
  * - This header describes the base storage-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
+#include <os/services/targets.h>
 #include <ddk/services/file.h>
 
 OsStatus_t
@@ -30,7 +31,7 @@ RegisterStorage(
     MRemoteCall_t Request;
 
     RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_REGISTERDISK);
+        __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_REGISTERSTORAGE);
     RPCSetArgument(&Request, 0, (const void*)&Device, sizeof(UUId_t));
     RPCSetArgument(&Request, 1, (const void*)&Flags, sizeof(Flags_t));
     return RPCEvent(&Request);
@@ -44,7 +45,7 @@ UnregisterStorage(
     MRemoteCall_t Request;
 
     RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_UNREGISTERDISK);
+        __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_UNREGISTERSTORAGE);
     RPCSetArgument(&Request, 0, (const void*)&Device, sizeof(UUId_t));
     RPCSetArgument(&Request, 1, (const void*)&Flags, sizeof(Flags_t));
     return RPCEvent(&Request);

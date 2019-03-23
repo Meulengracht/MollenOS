@@ -22,8 +22,8 @@
  */
 #pragma once
 
+#include <os/services/process.h>
 #include <os/mollenos.h>
-#include <os/process.h>
 #include <iostream>
 #include <fstream>
 #include <cstdio>

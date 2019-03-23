@@ -22,7 +22,9 @@
  */
 
 #include <internal/_syscalls.h>
+#include <os/input.h>
 #include <string.h>
+#include <assert.h>
 #include <stdio.h>
 
 static const char* MessageHeader = "LIBC";
@@ -46,4 +48,20 @@ void
 MollenOSEndBoot(void)
 {
     Syscall_SystemStart();
+}
+
+OsStatus_t
+WriteSystemInput(
+    _In_ SystemInput_t* Input)
+{
+    assert(Input != NULL);
+    return Syscall_InputEvent(Input);
+}
+
+OsStatus_t
+WriteSystemKey(
+    _In_ SystemKey_t* Key)
+{
+    assert(Key != NULL);
+    return Syscall_KeyEvent(Key);
 }

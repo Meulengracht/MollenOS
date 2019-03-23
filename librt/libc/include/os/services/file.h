@@ -164,22 +164,6 @@ GetFilePath(
     _In_ char*   Path,
     _In_ size_t  MaxLength));
 
-/* GetFileSystemStatsByPath 
- * Queries file information by the given path. If the path is invalid
- * or doesn't exist the information is zeroed out. */
-CRTDECL(FileSystemCode_t,
-GetFileSystemStatsByPath(
-    _In_ const char*               Path,
-    _In_ OsFileSystemDescriptor_t* FileDescriptor));
-
-/* GetFileSystemStatsByHandle 
- * Queries file information by the given file handle. If the handle is invalid
- * or doesn't exist the information is zeroed out. */
-CRTDECL(FileSystemCode_t,
-GetFileSystemStatsByHandle(
-    _In_ UUId_t                    Handle,
-    _In_ OsFileSystemDescriptor_t* FileDescriptor));
-
 /* GetFileStatsByPath 
  * Queries file information by the given path. If the path is invalid
  * or doesn't exist the information is zeroed out. */
@@ -195,5 +179,21 @@ CRTDECL(FileSystemCode_t,
 GetFileStatsByHandle(
     _In_ UUId_t              Handle,
     _In_ OsFileDescriptor_t* FileDescriptor));
+
+/* GetFileSystemStatsByPath 
+ * Queries file information by the given path. If the path is invalid
+ * or doesn't exist the information is zeroed out. */
+CRTDECL(FileSystemCode_t,
+GetFileSystemStatsByPath(
+    _In_ const char*               Path,
+    _In_ OsFileSystemDescriptor_t* Descriptor));
+
+/* GetFileSystemStatsByHandle 
+ * Queries file information by the given file handle. If the handle is invalid
+ * or doesn't exist the information is zeroed out. */
+CRTDECL(FileSystemCode_t,
+GetFileSystemStatsByHandle(
+    _In_ UUId_t                    Handle,
+    _In_ OsFileSystemDescriptor_t* Descriptor));
 
 #endif //!__SERVICES_FILE_H__

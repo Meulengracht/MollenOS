@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,17 +16,17 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Windowing System Interface for processes
- *  - Processes can use this interface to manage a window. Only one window
- *    per process can be created.
+ * Windowing Service (Protected) Definitions & Structures
+ * - This header describes the base session-structure, prototypes
+ *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __SDK_WINDOW_H__
-#define __SDK_WINDOW_H__
+#ifndef __DDK_SERVICES_WINDOW_H__
+#define __DDK_SERVICES_WINDOW_H__
 
-#include <os/mollenos.h>
+#include <ddk/ddkdefs.h>
 #include <ddk/ipc/ipc.h>
-#include <os/ui.h>
+#include <os/types/ui.h>
 
 /* These definitions are in-place to allow a custom
  * setting of the windowmanager, these are set to values
@@ -45,70 +45,35 @@
  * Creates a window of the given dimensions and flags. The returned
  * value is the id of the newly created window. The handle is NULL on failure
  * or set to previous handle if a handle for this process already exists. */
-SERVICEAPI OsStatus_t SERVICEABI
+DDKDECL(OsStatus_t,
 CreateWindow(
     _In_  UUId_t                ServiceHandle,
     _In_  UIWindowParameters_t* Params,
     _In_  UUId_t                BufferHandle,
-    _Out_ long*                 WindowHandle)
-{
-    MRemoteCall_t Request;
-
-    RPCInitialize(&Request, ServiceHandle, 
-        __WINDOWMANAGER_INTERFACE_VERSION, __WINDOWMANAGER_CREATE);
-    RPCSetArgument(&Request, 0, (const void*)Params,        sizeof(UIWindowParameters_t));
-    RPCSetArgument(&Request, 1, (const void*)&BufferHandle, sizeof(UUId_t));
-    RPCSetResult(&Request, (const void*)WindowHandle, sizeof(long));
-    return RPCExecute(&Request);
-}
+    _Out_ long*                 WindowHandle));
 
 /* DestroyWindow 
  * Destroys a given window and frees the resources associated with it. */
-SERVICEAPI OsStatus_t SERVICEABI
+DDKDECL(OsStatus_t,
 DestroyWindow(
     _In_ UUId_t ServiceHandle,
-    _In_ long   WindowHandle)
-{
-    MRemoteCall_t Request;
-
-    RPCInitialize(&Request, ServiceHandle, 
-        __WINDOWMANAGER_INTERFACE_VERSION, __WINDOWMANAGER_DESTROY);
-    RPCSetArgument(&Request, 0, (const void*)&WindowHandle, sizeof(long));
-    return RPCEvent(&Request);
-}
+    _In_ long   WindowHandle));
 
 /* QueryWindow
  * Queries the window for information about dimensions
  * and its surface, that can be used for direct pixel access */
-SERVICEAPI OsStatus_t SERVICEABI
+DDKDECL(OsStatus_t,
 QueryWindow(
     _In_  UUId_t                 ServiceHandle,
     _In_  long                   WindowHandle, 
-    _Out_ UISurfaceDescriptor_t* Descriptor)
-{
-    MRemoteCall_t Request;
-
-    RPCInitialize(&Request, ServiceHandle, 
-        __WINDOWMANAGER_INTERFACE_VERSION, __WINDOWMANAGER_QUERY);
-    RPCSetArgument(&Request, 0, (const void*)&WindowHandle, sizeof(long));
-    RPCSetResult(&Request, (const void*)Descriptor, sizeof(UISurfaceDescriptor_t));
-    return RPCExecute(&Request);
-}
+    _Out_ UISurfaceDescriptor_t* Descriptor));
 
 /* SwapWindowBackbuffer
  * Invalidates the window and swaps the backbuffer with screen buffer
  * to render the changes made. */
-SERVICEAPI OsStatus_t SERVICEABI
+DDKDECL(OsStatus_t,
 SwapWindowBackbuffer(
     _In_ UUId_t ServiceHandle,
-    _In_ long   WindowHandle)
-{
-    MRemoteCall_t Request;
-
-    RPCInitialize(&Request, ServiceHandle, 
-        __WINDOWMANAGER_INTERFACE_VERSION, __WINDOWMANAGER_SWAPBUFFER);
-    RPCSetArgument(&Request, 0, (const void*)&WindowHandle, sizeof(long));
-    return RPCEvent(&Request);
-}
+    _In_ long   WindowHandle));
 
 #endif //!__SDK_WINDOW_H__

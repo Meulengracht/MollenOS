@@ -23,7 +23,7 @@
  */
 //#define __TRACE
 
-#include <ddk/file.h>
+#include <ddk/services/file.h>
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
@@ -80,7 +80,7 @@ AhciManagerDestroy(void)
 
     foreach(dNode, &Disks) {
         AhciDevice_t* Device = (AhciDevice_t*)dNode->Data;
-        UnregisterDisk(Device->Descriptor.Device, __DISK_FORCED_REMOVE);
+        UnregisterStorage(Device->Descriptor.Device, __STORAGE_FORCED_REMOVE);
         DestroyBuffer(Device->Buffer);
         free(Device);
     }
@@ -199,7 +199,7 @@ AhciManagerCreateDeviceCallback(
 
     Key.Value.Id = Device->Descriptor.Device;
     CollectionAppend(&Disks, CollectionCreateNode(Key, Device));
-    return RegisterDisk(Device->Descriptor.Device, Device->Descriptor.Flags);
+    return RegisterStorage(Device->Descriptor.Device, Device->Descriptor.Flags);
 }
 
 OsStatus_t
@@ -228,7 +228,7 @@ AhciManagerRemoveDevice(
     CollectionRemoveByKey(&Disks, Key);
     DestroyBuffer(Device->Buffer);
     free(Device);
-    return UnregisterDisk(Key.Value.Id, __DISK_FORCED_REMOVE);
+    return UnregisterStorage(Key.Value.Id, __STORAGE_FORCED_REMOVE);
 }
 
 AhciDevice_t*

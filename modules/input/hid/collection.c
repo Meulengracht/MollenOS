@@ -20,15 +20,9 @@
  */
 //#define __TRACE
 
-/* Includes
- * - System */
-#include <ddk/utils.h>
-#include <ddk/usb.h>
 #include "hid.h"
-
-/* Includes
- * - Library */
-#include <stddef.h>
+#include <ddk/services/usb.h>
+#include <ddk/utils.h>
 #include <stdlib.h>
 
 /* HidExtractValue

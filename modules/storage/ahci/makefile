@@ -9,15 +9,16 @@ SOURCES = $(wildcard ./*.c)
 INCLUDES = -I../../../librt/include -I../../../librt/libc/include -I../../../librt/libds/include -I../../../librt/libddk/include -I../sata
 OBJECTS = $(SOURCES:.c=.o)
 
+LIBRARIES = ../../../librt/build/ddk.lib ../../../librt/build/libc.lib ../../../librt/build/libdrv.lib
 CFLAGS = $(GCFLAGS) -D__DRIVER_IMPL $(INCLUDES)
-LFLAGS = /nodefaultlib /lldmap /subsystem:native /entry:__CrtModuleEntry /dll ../../../librt/build/libc.lib ../../../librt/build/libdrv.lib
+LFLAGS = /nodefaultlib /lldmap /subsystem:native /entry:__CrtModuleEntry /dll
 
 .PHONY: all
 all: ../../build/ahci.dll ../../build/ahci.mdrv
 
-../../build/ahci.dll: $(OBJECTS)
+../../build/ahci.dll: $(OBJECTS) $(LIBRARIES)
 	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
-	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	@$(LD) $(LFLAGS) $(OBJECTS) $(LIBRARIES) /out:$@
 
 ../../build/ahci.mdrv: ahci.mdrv
 	@printf "%b" "\033[1;35mCopying settings file " $< "\033[m\n"

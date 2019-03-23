@@ -25,9 +25,9 @@
 #define __USB_SCHEDULER__
 
 #include <ddk/contracts/usbhost.h>
+#include <ddk/services/usb.h>
 #include <os/spinlock.h>
 #include <os/osdefs.h>
-#include <ddk/usb.h>
 
 #define FRAME_TIME_USECS                1000L
 #define FRAME_TIME_BITS                 12000L

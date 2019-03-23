@@ -23,9 +23,9 @@
 //#define __TRACE
 
 #include <ddk/contracts/usbhost.h>
-#include <os/bufferpool.h>
+#include <ddk/services/usb.h>
+#include <ddk/bufferpool.h>
 #include <ddk/driver.h>
-#include <ddk/usb.h>
 #include <ddk/utils.h>
 #include <threads.h>
 #include <stdlib.h>

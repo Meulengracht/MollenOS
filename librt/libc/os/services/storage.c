@@ -22,6 +22,7 @@
  */
 
 #include <ddk/services/file.h>
+#include <os/services/targets.h>
 #include <os/services/storage.h>
 
 OsStatus_t
@@ -32,7 +33,7 @@ QueryStorageByPath(
     MRemoteCall_t Request;
 
     RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_QUERYDISKBYPATH);
+        __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_QUERYSTORAGEBYPATH);
     RPCSetArgument(&Request, 0, (const void*)Path, strlen(Path) + 1);
     RPCSetResult(&Request, (const void*)StorageDescriptor, sizeof(OsStorageDescriptor_t));
     return RPCExecute(&Request);
@@ -46,7 +47,7 @@ QueryStorageByHandle(
     MRemoteCall_t Request;
     
     RPCInitialize(&Request, __FILEMANAGER_TARGET, 
-        __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_QUERYDISKBYHANDLE);
+        __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_QUERYSTORAGEBYHANDLE);
     RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
     RPCSetResult(&Request, (const void*)StorageDescriptor, sizeof(OsStorageDescriptor_t));
     return RPCExecute(&Request);

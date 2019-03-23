@@ -16,36 +16,35 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Ui Service Definitions & Structures
+ * Ui Type Definitions & Structures
  * - This header describes the base ui-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __SERVICES_UI_H__
-#define __SERVICES_UI_H__
+#ifndef __TYPES_UI_H__
+#define __TYPES_UI_H__
 
 #include <os/osdefs.h>
-#include <os/types/ui.h>
 
-_CODE_BEGIN
-/* UiParametersSetDefault
- * Set(s) default window parameters for the given window param structure. */
-CRTDECL(void,
-UiParametersSetDefault(
-    _In_  UIWindowParameters_t* Descriptor));
+typedef enum {
+    SurfaceRGBA,
+} UISurfaceFormat_t;
 
-/* UiRegisterWindow
- * Registers a new window with the window manage with the given 
- * configuration. If the configuration is invalid, OsError is returned. */
-CRTDECL(OsStatus_t,
-UiRegisterWindow(
-    _In_  UIWindowParameters_t* Descriptor,
-    _Out_ void**                WindowBuffer));
+typedef struct {
+    int x, y;
+    int w, h;
+} Rect_t;
 
-/* UiSwapBackbuffer
- * Presents the current backbuffer and rendering all changes made to the window. */
-CRTDECL(OsStatus_t,
-UiSwapBackbuffer(void));
-_CODE_END
+typedef struct {
+    Rect_t            Dimensions;
+    UISurfaceFormat_t Format;
+} UISurfaceDescriptor_t;
 
-#endif // !__SERVICES_UI_H__
+typedef struct {
+    UISurfaceDescriptor_t Surface;
+    unsigned              Flags;
+    UUId_t                InputPipeHandle;
+    UUId_t                WmEventPipeHandle;
+} UIWindowParameters_t;
+
+#endif // !__TYPES_UI_H__

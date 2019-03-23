@@ -21,7 +21,7 @@
  *    the stability and integrity of the operating system.
  */
 #pragma once
-#include <os/sharedobject.h>
+#include <os/services/sharedobject.h>
 #include "test.hpp"
 
 typedef const char*(*libpng_ver_func)(void *nullp);

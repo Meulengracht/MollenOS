@@ -70,4 +70,12 @@ typedef struct {
 #define FILE_PERMISSION_WRITE   0x00000002
 #define FILE_PERMISSION_EXECUTE 0x00000004
 
+PACKED_TYPESTRUCT(FileMappingParameters, {
+    UUId_t    MemoryHandle;
+    Flags_t   Flags;
+    uint64_t  FileOffset;
+    uintptr_t VirtualAddress;
+    size_t    Length;
+});
+
 #endif //!__TYPES_FILE_H__

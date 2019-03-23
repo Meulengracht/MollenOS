@@ -29,7 +29,7 @@
 #include <ddk/contracts/usbhost.h>
 #include <ddk/contracts/usbdevice.h>
 #include <ddk/contracts/storage.h>
-#include <ddk/file.h>
+#include <ddk/services/file.h>
 
 /* MSD Subclass Definitions 
  * Contains generic magic constants and definitions */

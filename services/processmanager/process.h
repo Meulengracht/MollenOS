@@ -25,7 +25,7 @@
 #define __PROCESS_INTERFACE__
 
 #include <os/osdefs.h>
-#include <os/process.h>
+#include <os/services/process.h>
 #include <os/spinlock.h>
 #include <ds/collection.h>
 #include <ddk/ipc/ipc.h>

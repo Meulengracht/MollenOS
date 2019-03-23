@@ -21,9 +21,7 @@
  *   of all usb-controllers and their devices
  */
 
-/* Includes
- * - System */
-#include <ddk/usb.h>
+#include <ddk/services/usb.h>
 #include <ddk/utils.h>
 #include "manager.h"
 

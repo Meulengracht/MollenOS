@@ -25,6 +25,7 @@
 #define __DDK_SERVICES_PROCESS_H__
 
 #include <ddk/ddkdefs.h>
+#include <ddk/ipc/ipc.h>
 #include <os/types/process.h>
 
 DECL_STRUCT(Context);

@@ -599,28 +599,6 @@ StdioHandleReadFile(
     return OsSuccess;
 }
 
-/* WriteSystemInput
- * Notifies the operating system of new input, this input is written to the system's
- * standard input, which is then sent to the window-manager if present. */
-OsStatus_t
-WriteSystemInput(
-    _In_ SystemInput_t* Input)
-{
-    assert(Input != NULL);
-    return Syscall_InputEvent(Input);
-}
-
-/* WriteSystemKey
- * Notifies the operating system of new key-event, this key is written to the system's
- * standard input, which is then sent to the window-manager if present. */
-OsStatus_t
-WriteSystemKey(
-    _In_ SystemKey_t*   Key)
-{
-    assert(Key != NULL);
-    return Syscall_KeyEvent(Key);
-}
-
 extern OsStatus_t GetKeyFromSystemKeyEnUs(SystemKey_t* Key);
 
 /* TranslateSystemKey

@@ -36,7 +36,7 @@ static UUId_t       WindowingServiceHandle = UUID_INVALID;
 static OsStatus_t
 GetWindowingService()
 {
-    ServiceObject_t WindowService = { 0 };
+    ServiceObject_t WindowService = { { 0 } };
     OsStatus_t      Status        = GetServiceObjectsWithCapabilities(WindowingService, &WindowService, 1);
     if (Status == OsSuccess && WindowService.Capabilities != 0) {
         WindowingServiceHandle = WindowService.ChannelHandle;

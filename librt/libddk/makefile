@@ -4,15 +4,23 @@
 # Include all the definitions for os
 include ../../config/common.mk
 
-ASFLAGS = -f win32 -Xvc
 INCLUDES = -I../include -I../libc/include -Iinclude
 
-SOURCES = $(wildcard /**/*.c) $(wildcard *.c)
-OBJECTS = $(SOURCES:.c=.o)
+# Setup architecture specific flags and paths
+ifeq ($(VALI_ARCH), i386)
+	ASFLAGS = -f win32 -Xvc
+else ifeq ($(VALI_ARCH), amd64)
+	ASFLAGS = -f win64 -Xvc
+else
+$(error VALI_ARCH is not set to a valid value)
+endif
+
+ASM_SOURCES = $(wildcard arch/$(VALI_ARCH)/*.s)
+SOURCES = $(wildcard **/*.c) $(wildcard *.c)
+OBJECTS = $(SOURCES:.c=.o) $(ASM_SOURCES:.s=.o)
 
 # Setup flags
 CFLAGS = $(GCFLAGS) $(INCLUDES)
-
 LFLAGS = /lib
 
 # default-target
@@ -25,12 +33,12 @@ all: ../build/ddk.lib
 
 %.o : %.c
 	@mkdir -p $(dir $@)
-	@printf "%b" "\033[0;32mCompiling C source object " $< "\033[m\n"
+	@printf "%b" "\033[0;32m[LIBDDK] Compiling C source object " $< "\033[m\n"
 	@$(CC) -c $(CFLAGS) -o $@ $<
 
 %.o : %.s
 	@mkdir -p $(dir $@)
-	@printf "%b" "\033[0;32mAssembling source object " $< "\033[m\n"
+	@printf "%b" "\033[0;32m[LIBDDK] Assembling source object " $< "\033[m\n"
 	@$(AS) $(ASFLAGS) $< -o $@
 
 .PHONY: clean

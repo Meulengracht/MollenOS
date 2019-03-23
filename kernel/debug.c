@@ -24,12 +24,12 @@
 //#define __TRACE
 
 #include "../librt/libds/pe/pe.h"
+#include <os/services/targets.h>
 #include <modules/manager.h>
 #include <system/utils.h>
 #include <memoryspace.h>
 #include <interrupts.h>
 #include <deviceio.h>
-#include <ddk/file.h>
 #include <machine.h>
 #include <handle.h>
 #include <stdio.h>

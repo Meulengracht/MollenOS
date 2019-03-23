@@ -26,8 +26,8 @@
 #define BULK_RESET_OUT  0x4
 #define BULK_RESET_ALL  (BULK_RESET | BULK_RESET_IN | BULK_RESET_OUT)
 
+#include <ddk/services/usb.h>
 #include <ddk/utils.h>
-#include <ddk/usb.h>
 #include "../msd.h"
 
 /* BulkReset

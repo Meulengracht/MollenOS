@@ -32,9 +32,6 @@ OsStatus_t
 RegisterService(
     _In_ UUId_t Alias)
 {
-    if (!IsProcessModule()) {
-        return OsInvalidPermissions;
-    }
 	return Syscall_RegisterService(Alias);
 }
 
@@ -76,10 +73,6 @@ InstallDriver(
     _In_ const void*    DriverBuffer,
     _In_ size_t         DriverBufferLength)
 {
-    if (!IsProcessModule()) {
-        return OsInvalidPermissions;
-    }
-
     assert(Device != NULL);
     assert(Length != 0);
 	return Syscall_LoadDriver(Device, Length, DriverBuffer, DriverBufferLength);

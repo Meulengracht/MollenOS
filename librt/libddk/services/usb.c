@@ -16,14 +16,13 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Usb Definitions & Structures
+ * Usb Definitions & Structures
  * - This file describes the usb-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
 #include <ddk/contracts/usbhost.h>
-#include <ddk/service.h>
-#include <ddk/usb.h>
+#include <ddk/services/usb.h>
 
 /* UsbQueryControllerCount
  * Queries the available number of usb controllers. */

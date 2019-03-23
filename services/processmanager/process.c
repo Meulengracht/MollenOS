@@ -24,13 +24,14 @@
 
 #include <internal/_syscalls.h> // for Syscall_ThreadCreate
 #include "../../librt/libds/pe/pe.h"
+#include <os/services/file.h>
 #include <os/eventqueue.h>
+#include <os/mollenos.h>
+#include <os/context.h>
 #include "process.h"
 #include <ds/mstring.h>
-#include <os/context.h>
 #include <ddk/buffer.h>
 #include <ddk/utils.h>
-#include <ddk/file.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>

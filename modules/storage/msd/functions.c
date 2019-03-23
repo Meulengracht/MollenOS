@@ -20,9 +20,8 @@
  */
 //#define __TRACE
 
-#include <ddk/utils.h>
-#include <ddk/usb.h>
 #include "msd.h"
+#include <ddk/utils.h>
 #include <threads.h>
 
 extern MsdOperations_t BulkOperations;

@@ -9,15 +9,16 @@ SOURCES = $(wildcard ./*.c)
 INCLUDES = -I../../../librt/include -I../../../librt/libc/include -I../../../librt/libds/include -I../../../librt/libddk/include
 OBJECTS = $(SOURCES:.c=.o)
 
+LIBRARIES = ../../../librt/build/libclang.lib ../../../librt/build/ddk.lib ../../../librt/build/libc.lib ../../../librt/build/libdrv.lib ../../../librt/build/libds.lib
 CFLAGS = $(GCFLAGS) $(INCLUDES)
-LFLAGS = /nodefaultlib /subsystem:native /noentry /dll /lldmap ../../../librt/build/libclang.lib ../../../librt/build/libc.lib ../../../librt/build/libdrv.lib ../../../librt/build/libds.lib
+LFLAGS = /nodefaultlib /subsystem:native /noentry /dll /lldmap 
 
 .PHONY: all
 all: ../../build/mfs.dll ../../build/mfs.mdrv
 
-../../build/mfs.dll: $(OBJECTS)
+../../build/mfs.dll: $(OBJECTS) $(LIBRARIES)
 	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
-	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	@$(LD) $(LFLAGS) $(OBJECTS) $(LIBRARIES) /out:$@
 
 ../../build/mfs.mdrv: mfs.mdrv
 	@printf "%b" "\033[1;35mCopying settings file " $< "\033[m\n"

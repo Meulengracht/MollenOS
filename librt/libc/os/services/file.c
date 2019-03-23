@@ -355,7 +355,7 @@ GetFileStatsByHandle(
 
     RPCInitialize(&Request, __FILEMANAGER_TARGET, __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_GETSTATSBYHANDLE);
     RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
-    RPCSetResult(&Request, (const void*)&FileDescriptor, sizeof(OsFileDescriptor_t));
+    RPCSetResult(&Request, (const void*)&Package, sizeof(QueryFileStatsPackage_t));
     
     if (RPCExecute(&Request) == OsSuccess) {
         Status = Package.Code;
@@ -367,15 +367,40 @@ GetFileStatsByHandle(
 FileSystemCode_t
 GetFileSystemStatsByPath(
     _In_ const char*               Path,
-    _In_ OsFileSystemDescriptor_t* FileDescriptor)
+    _In_ OsFileSystemDescriptor_t* Descriptor)
 {
+
+    QueryFileSystemStatsPackage_t Package;
+    MRemoteCall_t                 Request;
+    FileSystemCode_t              Status = FsInvalidParameters;
+
+    RPCInitialize(&Request, __FILEMANAGER_TARGET, __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_QUERY_FILESYSTEM_BY_PATH);
+    RPCSetArgument(&Request, 0, (const void*)Path, strlen(Path) + 1);
+    RPCSetResult(&Request, (const void*)&Package, sizeof(QueryFileSystemStatsPackage_t));
     
+    if (RPCExecute(&Request) == OsSuccess) {
+        Status = Package.Code;
+        memcpy((void*)Descriptor, &Package.Descriptor, sizeof(OsFileSystemDescriptor_t));
+    }
+    return Status;
 }
 
 FileSystemCode_t
 GetFileSystemStatsByHandle(
     _In_ UUId_t                    Handle,
-    _In_ OsFileSystemDescriptor_t* FileDescriptor)
+    _In_ OsFileSystemDescriptor_t* Descriptor)
 {
+    QueryFileSystemStatsPackage_t Package;
+    MRemoteCall_t                 Request;
+    FileSystemCode_t              Status = FsInvalidParameters;
+
+    RPCInitialize(&Request, __FILEMANAGER_TARGET, __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_QUERY_FILESYSTEM_BY_HANDLE);
+    RPCSetArgument(&Request, 0, (const void*)&Handle, sizeof(UUId_t));
+    RPCSetResult(&Request, (const void*)&Package, sizeof(QueryFileSystemStatsPackage_t));
     
+    if (RPCExecute(&Request) == OsSuccess) {
+        Status = Package.Code;
+        memcpy((void*)Descriptor, &Package.Descriptor, sizeof(OsFileSystemDescriptor_t));
+    }
+    return Status;
 }

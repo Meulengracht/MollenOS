@@ -9,15 +9,16 @@ SOURCES = $(wildcard ./*.c)
 INCLUDES = -I../../../librt/include -I../../../librt/libc/include -I../../../librt/libds/include -I../../../librt/libddk/include
 OBJECTS = $(SOURCES:.c=.o)
 
+LIBRARIES = ../../../librt/build/ddk.lib ../../../librt/build/libc.lib ../../../librt/build/libdrv.lib ../../../librt/build/libusb.lib
 CFLAGS = $(GCFLAGS) -D__DRIVER_IMPL $(INCLUDES)
-LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtModuleEntry /dll ../../../librt/build/libc.lib ../../../librt/build/libdrv.lib ../../../librt/build/libusb.lib
+LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtModuleEntry /dll
 
 .PHONY: all
 all: ../../build/hid.dll ../../build/hid.mdrv
 
-../../build/hid.dll: $(OBJECTS)
+../../build/hid.dll: $(OBJECTS) $(LIBRARIES)
 	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
-	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	@$(LD) $(LFLAGS) $(OBJECTS) $(LIBRARIES) /out:$@
 
 ../../build/hid.mdrv: hid.mdrv
 	@printf "%b" "\033[1;35mCopying settings file " $< "\033[m\n"

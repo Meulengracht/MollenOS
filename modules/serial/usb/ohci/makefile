@@ -11,15 +11,16 @@ SOURCES = $(wildcard ../common/*.c) \
 INCLUDES = -I../../../../librt/include -I../../../../librt/libc/include -I../../../../librt/libds/include -I../../../../librt/libddk/include
 OBJECTS = $(SOURCES:.c=.o)
 
+LIBRARIES = ../../../../librt/build/ddk.lib ../../../../librt/build/libc.lib ../../../../librt/build/libdrv.lib
 CFLAGS = $(GCFLAGS) -Wno-address-of-packed-member -D__DRIVER_IMPL $(INCLUDES)
-LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtModuleEntry /dll /lldmap ../../../../librt/build/libc.lib ../../../../librt/build/libdrv.lib
+LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtModuleEntry /dll /lldmap
 
 .PHONY: all
 all: ../../../build/ohci.dll ../../../build/ohci.mdrv
 
-../../../build/ohci.dll: $(OBJECTS)
+../../../build/ohci.dll: $(OBJECTS) $(LIBRARIES)
 	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
-	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
+	@$(LD) $(LFLAGS) $(OBJECTS) $(LIBRARIES) /out:$@
 
 ../../../build/ohci.mdrv: ohci.mdrv
 	@printf "%b" "\033[1;35mCopying settings file " $< "\033[m\n"

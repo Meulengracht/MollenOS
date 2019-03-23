@@ -24,9 +24,8 @@
 #include <ddk/contracts/filesystem.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
-#include <os/mollenos.h>
-#include <os/process.h>
-#include <ddk/file.h>
+#include <os/services/path.h>
+#include <os/services/process.h>
 #include <string.h>
 
 /* SetWorkingDirectory

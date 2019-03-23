@@ -155,7 +155,7 @@ ScRpcExecute(
     
     Module = (SystemModule_t*)GetModuleByHandle(RemoteCall->Target);
     if (Module == NULL) {
-        Pipe = (SystemPipe_t*)LookupHandle(Handle);
+        Pipe = (SystemPipe_t*)LookupHandle(RemoteCall->Target);
         if (Pipe == NULL) {
             return OsDoesNotExist;
         }
@@ -253,10 +253,9 @@ ScRpcRespond(
     _In_ size_t                Length)
 {
     MCoreThread_t* Thread = GetThread(RemoteAddress->Thread);
-    SystemPipe_t*  Pipe;
     if (Thread) {
         if (Thread->Pipe) {
-            WriteSystemPipe(Pipe, Buffer, Length);
+            WriteSystemPipe(Thread->Pipe, Buffer, Length);
             return OsSuccess;
         }
     }

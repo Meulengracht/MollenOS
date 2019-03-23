@@ -405,12 +405,8 @@
 #ifndef __BYTEPOOL_INTERFACE_H__
 #define __BYTEPOOL_INTERFACE_H__
 
-/* Includes 
- * - Library */
-#include <os/osdefs.h>
+#include <ddk/ddkdefs.h>
 
-/* Bytepool Definitions
- * Typedefs and definitions for use with the bytepool */
 typedef struct _BytePool BytePool_t;
 
 /* bpool

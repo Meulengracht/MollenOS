@@ -25,8 +25,9 @@
 #define _USB_INTERFACE_H_
 
 #include <ddk/ddkdefs.h>
+#include <ddk/ipc/ipc.h>
 #include <ddk/usb/definitions.h>
-#include <os/bufferpool.h>
+#include <ddk/bufferpool.h>
 #include <ddk/device.h>
 
 /* USB Definitions

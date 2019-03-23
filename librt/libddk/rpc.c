@@ -20,17 +20,14 @@
  */
 
 #include <internal/_syscalls.h>
-#include <internal/_utils.h>
+#include <os/services/process.h>
 #include <ddk/ipc/ipc.h>
-#include <stdlib.h>
-#include <signal.h>
 
 OsStatus_t
 RPCExecute(
 	_In_ MRemoteCall_t* RemoteCall)
 {
-    // Install sender
-    RemoteCall->From.Process = *GetInternalProcessId();
+    RemoteCall->From.Process = ProcessGetCurrentId();
     return Syscall_RemoteCall(RemoteCall, 0);
 }
 
@@ -38,8 +35,7 @@ OsStatus_t
 RPCEvent(
 	_In_ MRemoteCall_t* RemoteCall)
 {
-    // Install sender
-    RemoteCall->From.Process = *GetInternalProcessId();
+    RemoteCall->From.Process = ProcessGetCurrentId();
     return Syscall_RemoteCall(RemoteCall, 1);
 }
 

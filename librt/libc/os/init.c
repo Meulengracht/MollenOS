@@ -21,7 +21,9 @@
  */
 
 #include <internal/_syscalls.h>
-#include <ddk/process.h>
+#include <internal/_utils.h>
+#include <os/services/process.h>
+#include <ddk/services/process.h>
 
 extern void StdioInitialize(void *InheritanceBlock, size_t InheritanceBlockLength);
 extern void StdSignalInitialize(void);
@@ -41,7 +43,12 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
     __CrtProcessId = ProcessGetCurrentId() ^ Syscall_ThreadCookie();
 
     // Get startup information
-    GetProcessInheritationBlock(&__CrtInheritanceBuffer[0], &InheritanceBlockLength);
+    if (IsProcessModule()) {
+        Syscall_ModuleGetStartupInfo(&__CrtInheritanceBuffer[0], &InheritanceBlockLength, NULL, NULL);
+    }
+    else {
+        GetProcessInheritationBlock(&__CrtInheritanceBuffer[0], &InheritanceBlockLength);
+    }
     GetProcessCommandLine(&__CrtArgumentBuffer[0], &ArgumentBlockLength);
     
 	// Initialize STD-C

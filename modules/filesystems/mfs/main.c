@@ -21,6 +21,7 @@
  */
 //#define __TRACE
 
+#include <ddk/services/file.h>
 #include <ddk/utils.h>
 #include <threads.h>
 #include <stdlib.h>
@@ -256,7 +257,7 @@ FsDestroy(
     }
 
     // Which kind of unmount is it?
-    if (!(UnmountFlags & __DISK_FORCED_REMOVE)) {
+    if (!(UnmountFlags & __STORAGE_FORCED_REMOVE)) {
         // Flush everything
         // @todo
     }

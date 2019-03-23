@@ -22,8 +22,10 @@
  */
 
 #include <internal/_syscalls.h>
+
+#include <os/services/file.h>
+#include <os/services/storage.h>
 #include <os/mollenos.h>
-#include <ddk/file.h>
 #include <stdio.h>
 #include "../stdio/local.h"
 
@@ -50,7 +52,7 @@ GetStorageInformationFromPath(
     if (Information == NULL || Path == NULL) {
         return OsError;
     }
-    return QueryDiskByPath(Path, Information);
+    return QueryStorageByPath(Path, Information);
 }
 
 OsStatus_t
@@ -64,10 +66,10 @@ GetStorageInformationFromFd(
         FileHandle->InheritationType != STDIO_HANDLE_FILE) {
         return OsError;
     }
-    return QueryDiskByHandle(FileHandle->InheritationHandle, Information);
+    return QueryStorageByHandle(FileHandle->InheritationHandle, Information);
 }
 
-CRTDECL(OsStatus_t, 
+FileSystemCode_t
 GetFileSystemInformationFromPath(
     _In_ const char *Path,
     _In_ OsFileSystemDescriptor_t *Information)
@@ -78,7 +80,7 @@ GetFileSystemInformationFromPath(
     return GetFileSystemStatsByPath(Path, Information);
 }
 
-CRTDECL(OsStatus_t, 
+FileSystemCode_t
 GetFileSystemInformationFromFd(
     _In_ int FileDescriptor,
     _In_ OsFileSystemDescriptor_t *Information)

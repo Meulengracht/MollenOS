@@ -22,8 +22,8 @@
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
 #include <ddk/contracts/video.h>
+#include <os/services/process.h>
 #include <os/mollenos.h>
-#include <os/process.h>
 #include "../stdio/local.h"
 
 OsStatus_t
@@ -41,7 +41,7 @@ ListenForSystemEvents(
         }
         StdListener = Handle->InheritationHandle;
     }
-    return Syscall_RegisterEventTarget(StdInputHandle, WmListener);
+    return Syscall_RegisterEventTarget(StdListener, WmListener);
 }
 
 OsStatus_t

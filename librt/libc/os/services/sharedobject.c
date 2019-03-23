@@ -23,9 +23,12 @@
 
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
-#include <os/sharedobject.h>
+
+#include <os/services/targets.h>
+#include <os/services/sharedobject.h>
+#include <ddk/services/process.h>
+
 #include <ds/collection.h>
-#include <ddk/process.h>
 #include <ds/mstring.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -89,9 +92,10 @@ SharedObjectLoad(
 	_In_ const char* SharedObject)
 {
     SOInitializer_t Initializer = NULL;
-    LibraryItem_t* Library      = NULL;
-    Handle_t Result             = HANDLE_INVALID;
-    DataKey_t Key               = { .Value.Id = SharedObjectHash(SharedObject) };
+    LibraryItem_t*  Library     = NULL;
+    Handle_t        Result      = HANDLE_INVALID;
+    DataKey_t       Key         = { .Value.Id = SharedObjectHash(SharedObject) };
+    OsStatus_t      Status      = OsSuccess;
 
     // Special case
     if (SharedObject == NULL) {
@@ -100,7 +104,6 @@ SharedObjectLoad(
 
     Library = CollectionGetDataByKey(&LoadedLibraries, Key, 0);
     if (Library == NULL) {
-        OsStatus_t Status;
         if (IsProcessModule()) {
             Status = Syscall_LibraryLoad(SharedObject, &Result);
         }

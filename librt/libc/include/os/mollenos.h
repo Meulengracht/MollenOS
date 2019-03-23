@@ -164,8 +164,8 @@ CRTDECL(OsStatus_t, GetApplicationTemporaryDirectory(char *PathBuffer, size_t Ma
 CRTDECL(OsStatus_t,       GetFilePathFromFd(int FileDescriptor, char *PathBuffer, size_t MaxLength));
 CRTDECL(OsStatus_t,       GetStorageInformationFromPath(const char *Path, OsStorageDescriptor_t *Information));
 CRTDECL(OsStatus_t,       GetStorageInformationFromFd(int FileDescriptor, OsStorageDescriptor_t *Information));
-CRTDECL(OsStatus_t,       GetFileSystemInformationFromPath(const char *Path, OsFileSystemDescriptor_t *Information));
-CRTDECL(OsStatus_t,       GetFileSystemInformationFromFd(int FileDescriptor, OsFileSystemDescriptor_t *Information));
+CRTDECL(FileSystemCode_t, GetFileSystemInformationFromPath(const char *Path, OsFileSystemDescriptor_t *Information));
+CRTDECL(FileSystemCode_t, GetFileSystemInformationFromFd(int FileDescriptor, OsFileSystemDescriptor_t *Information));
 CRTDECL(FileSystemCode_t, GetFileInformationFromPath(const char *Path, OsFileDescriptor_t *Information));
 CRTDECL(FileSystemCode_t, GetFileInformationFromFd(int FileDescriptor, OsFileDescriptor_t *Information));
 CRTDECL(OsStatus_t,       CreateFileMapping(int FileDescriptor, int Flags, uint64_t Offset, size_t Length, void **MemoryPointer, UUId_t* Handle));

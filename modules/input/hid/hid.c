@@ -20,8 +20,8 @@
  */
 //#define __TRACE
 
+#include <ddk/services/usb.h>
 #include <ddk/utils.h>
-#include <ddk/usb.h>
 #include <stdlib.h>
 #include "hid.h"
 

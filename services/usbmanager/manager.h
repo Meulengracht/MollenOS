@@ -24,11 +24,9 @@
 #ifndef __USBMANAGER_H__
 #define __USBMANAGER_H__
 
-/* Includes 
- * - System */
 #include <ddk/contracts/usbhost.h>
-#include <os/bufferpool.h>
-#include <ddk/usb.h>
+#include <ddk/services/usb.h>
+#include <ddk/bufferpool.h>
 #include <os/osdefs.h>
 #include <ds/collection.h>
 
