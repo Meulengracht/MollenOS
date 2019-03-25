@@ -36,6 +36,7 @@
 #define __SESSIONMANAGER_LOGIN             IPC_DECL_FUNCTION(4)
 #define __SESSIONMANAGER_LOGOUT            IPC_DECL_FUNCTION(5)
 
+_CODE_BEGIN
 /* RegisterServiceObject
  * Registers a new service object with the session manager, which is then accessible
  * to the rest of the system for RPC activity. */
@@ -57,5 +58,6 @@ UnregisterServiceObject(
 DDKDECL(OsStatus_t,
 SessionCheckDisk(
 	_In_ const char* DiskIdentifier));
+_CODE_END
 
 #endif //!__SDK_SESSIONS_H__

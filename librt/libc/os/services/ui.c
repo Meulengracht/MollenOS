@@ -23,6 +23,7 @@
 
 #include <os/services/session.h>
 #include <os/services/targets.h>
+#include <os/services/ui.h>
 #include <ddk/services/window.h>
 #include <ddk/buffer.h>
 #include <assert.h>

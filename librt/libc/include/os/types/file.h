@@ -39,14 +39,14 @@ typedef enum {
 } FileSystemCode_t;
 
 typedef struct {
-    long           Id;
-    Flags_t        Flags;
-    size_t         MaxFilenameLength;
-    char           SerialNumber[32];
-    unsigned long  BlockSize;
-    unsigned long  BlocksPerSegment;
-    LargeInteger_t SegmentsTotal;
-    LargeInteger_t SegmentsFree;
+    long            Id;
+    Flags_t         Flags;
+    size_t          MaxFilenameLength;
+    char            SerialNumber[32];
+    unsigned long   BlockSize;
+    unsigned long   BlocksPerSegment;
+    LargeUInteger_t SegmentsTotal;
+    LargeUInteger_t SegmentsFree;
 } OsFileSystemDescriptor_t;
 
 typedef struct {

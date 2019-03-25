@@ -19,10 +19,6 @@ LFLAGS = /lib
 .PHONY: all
 all: ../build/libusb.lib
 
-# tidy-target
-.PHONY: tidy
-tidy: $(OBJECTS)
-
 ../build/libusb.lib: $(OBJECTS)
 	@printf "%b" "\033[0;36mCreating static library " $@ "\033[m\n"
 	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
