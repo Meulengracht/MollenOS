@@ -155,14 +155,20 @@ ProcessGetCurrentId(void)
 {
     MRemoteCall_t Request;
     UUId_t        ProcessId = *GetInternalProcessId();
-    if (ProcessId == UUID_INVALID) { 
+    OsStatus_t    Status;
+    
+    if (ProcessId == UUID_INVALID) {
         if (IsProcessModule()) {
             Syscall_ModuleId(&ProcessId);
         }
         else {
             RPCInitialize(&Request, __PROCESSMANAGER_TARGET, 1, __PROCESSMANAGER_GET_PROCESS_ID);
             RPCSetResult(&Request, (const void*)&ProcessId, sizeof(UUId_t));
-            assert(RPCExecute(&Request) == OsSuccess);
+            
+            // Don't invoke the regular execute as that results in call to this function
+            // We don't need a proper set From.Process for this call to work
+            Status = Syscall_RemoteCall(&Request, 0);
+            assert(Status == OsSuccess);
         }
         *GetInternalProcessId() = ProcessId;
     }
