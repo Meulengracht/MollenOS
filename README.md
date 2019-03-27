@@ -1,11 +1,20 @@
 
 # The Mollen(/Vali) Operating System 
 
-
 | Build Configuration   | Status   |
 | --------------------- |:-------- |
 | I386                  | [![Build Status](http://www.mollenos.com/teamcity/app/rest/builds/buildType:(id:ValiOS_I386_Build)/statusIcon)](http://www.mollenos.com/teamcity/project.html?projectId=ValiOS&branch_ValiOS=__all_branches__) |
 | AMD64                 | [![Build Status](http://www.mollenos.com/teamcity/app/rest/builds/buildType:(id:ValiOS_Amd64_Build)/statusIcon)](http://www.mollenos.com/teamcity/project.html?projectId=ValiOS&branch_ValiOS=__all_branches__) |
+
+## Download
+
+| Build Configuration | Image | Version | Download Link |
+| ------------------- | -----:| -------:| ------------- |
+| I386                | .Img  | Latest  | [Download](http://www.mollenos.com/teamcity/repository/downloadAll/ValiOS_I386_ReleaseImg/.lastSuccessful) |
+| I386                | .Vmdk | Latest  | [Download](http://www.mollenos.com/teamcity/repository/downloadAll/ValiOS_I386_ReleaseVmdk/.lastSuccessful) |
+| AMD64               | .Img  | Latest  | [Download](http://www.mollenos.com/teamcity/repository/downloadAll/ValiOS_Amd64_ReleaseImg/.lastSuccessful) |
+| AMD64               | .Vmdk | Latest  | [Download](http://www.mollenos.com/teamcity/repository/downloadAll/ValiOS_Amd64_ReleaseVmdk/.lastSuccessful) |
+
 
 ## Table of Contents
 
