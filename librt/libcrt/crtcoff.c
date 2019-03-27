@@ -145,7 +145,7 @@ void __cxa_module_tls_global_init(void)
     // _tls_array points into TLS data array, so while the pointer is seen as equal
     // all threads and points to same address, the address is directly located in
     // the TLS structure
-    TRACE("__cxa_module_tls_global_init()");
+    TRACE("__cxa_module_tls_global_init(0x%" PRIxIN ")", __dso_handle);
     _tls_array = (void**)__get_reserved(1);
     _tls_index = 0;
     while (_tls_array[_tls_index] != NULL) _tls_index++;
@@ -184,12 +184,15 @@ void __cxa_module_tls_thread_finit(void)
 // to run all initializers for C/C++
 void __cxa_module_global_init(void)
 {
-    TRACE("__cxa_module_global_init()");
+    TRACE("__cxa_module_global_init(0x%" PRIxIN ")", __dso_handle);
     __cxa_module_tls_global_init();
     __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_INITIALIZE);
     __cxa_module_tls_thread_init();
-	__cxa_callinitializers(__xc_a, __xc_z);
+    TRACE(" > global init (c)");
 	__cxa_callinitializers_ex(__xi_a, __xi_z);
+    TRACE(" > global init (c++)");
+	__cxa_callinitializers(__xc_a, __xc_z);
+	TRACE(" > done");
 }
 
 // On non-windows coff platforms this should not be run

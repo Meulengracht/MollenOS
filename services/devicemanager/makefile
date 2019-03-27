@@ -19,7 +19,7 @@ $(error VALI_ARCH is not set to a valid value)
 endif
 
 OBJECTS = $(SOURCES:.c=.o)
-LIBRARIES = ../../librt/build/libsrv.lib ../../librt/build/libc.lib
+LIBRARIES = ../../librt/build/libsrv.lib ../../librt/build/ddk.lib ../../librt/build/libc.lib
 
 CFLAGS = $(GCFLAGS) -Wno-address-of-packed-member -D__SERVICE_IMPL $(INCLUDES)
 LFLAGS = $(GLFLAGS) /lldmap /entry:__CrtServiceEntry /dll

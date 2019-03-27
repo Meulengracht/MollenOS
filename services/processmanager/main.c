@@ -23,8 +23,8 @@
 #define __TRACE
 
 #include <ds/mstring.h>
+#include <ddk/services/process.h>
 #include <ddk/service.h>
-#include <ddk/process.h>
 #include <ddk/utils.h>
 #include <string.h>
 #include <stdio.h>

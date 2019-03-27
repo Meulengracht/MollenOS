@@ -24,7 +24,7 @@
 #ifndef _ACPI_INTEFACE_H_
 #define _ACPI_INTEFACE_H_
 
-#include <os/osdefs.h>
+#include <ddk/ddkdefs.h>
 
 /* Values for description table header signatures for tables defined in this
  * file. Useful because they make it more difficult to inadvertently type in
@@ -76,19 +76,19 @@ typedef struct _AcpiDescriptor {
 /* AcpiQueryStatus
  * Queries basic acpi information and returns either OsSuccess
  * or OsError if Acpi is not supported on the running platform */
-CRTDECL(OsStatus_t, AcpiQueryStatus(AcpiDescriptor_t *AcpiDescriptor));
+DDKDECL(OsStatus_t, AcpiQueryStatus(AcpiDescriptor_t *AcpiDescriptor));
 
 /* AcpiQueryTable
  * Queries the full table information of the table that matches
  * the given signature, and copies the information to the supplied pointer
  * the buffer is automatically allocated, and should be cleaned up afterwards  */
-CRTDECL(OsStatus_t, AcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER **Table));
+DDKDECL(OsStatus_t, AcpiQueryTable(const char *Signature, ACPI_TABLE_HEADER **Table));
 
 /* AcpiQueryInterrupt
  * Queries the interrupt-line for the given bus, device and
  * pin combination. The pin must be zero indexed. Conform flags
  * are returned in the <AcpiConform> */
-CRTDECL(OsStatus_t, AcpiQueryInterrupt(DevInfo_t Bus, DevInfo_t Device, int Pin,
+DDKDECL(OsStatus_t, AcpiQueryInterrupt(DevInfo_t Bus, DevInfo_t Device, int Pin,
 	int *Interrupt, Flags_t *AcpiConform));
 
 #endif //!_ACPI_INTEFACE_H_

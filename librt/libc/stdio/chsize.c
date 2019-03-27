@@ -20,8 +20,6 @@
  * - File size change implementation
  */
 
-#include <ddk/file.h>
-#include <stdlib.h>
 #include <errno.h>
 #include <io.h>
 

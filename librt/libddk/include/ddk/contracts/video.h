@@ -27,7 +27,7 @@
 /* Includes 
  * - System */
 #include <ddk/contracts/base.h>
-#include <os/osdefs.h>
+#include <ddk/ddkdefs.h>
 
 PACKED_TYPESTRUCT(VideoDescriptor, {
     size_t              BytesPerScanline;
@@ -49,11 +49,11 @@ PACKED_TYPESTRUCT(VideoDescriptor, {
 _CODE_BEGIN
 /* QueryDisplayInformation
  * Queries the current display driver for information. */
-CRTDECL(OsStatus_t, QueryDisplayInformation(VideoDescriptor_t *Descriptor));
+DDKDECL(OsStatus_t, QueryDisplayInformation(VideoDescriptor_t *Descriptor));
 
 /* CreateDisplayFramebuffer
  * Creates a new display framebuffer to use for direct drawing. */
-CRTDECL(void*, CreateDisplayFramebuffer(void));
+DDKDECL(void*, CreateDisplayFramebuffer(void));
 _CODE_END
 
 #endif //!_CONTRACT_VIDEO_INTERFACE_H_

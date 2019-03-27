@@ -29,7 +29,7 @@
 #include <ddk/contracts/usbhost.h>
 #include <ddk/contracts/usbdevice.h>
 #include <ddk/contracts/storage.h>
-#include <ddk/file.h>
+#include <ddk/services/file.h>
 
 /* MSD Subclass Definitions 
  * Contains generic magic constants and definitions */
@@ -188,8 +188,8 @@ MsdReadSectors(
     _In_ MsdDevice_t *Device,
     _In_ uint64_t SectorStart, 
     _In_ uintptr_t BufferAddress,
-    _In_ size_t BufferLength,
-    _Out_ size_t *BytesRead);
+    _In_ size_t SectorCount,
+    _Out_ size_t *SectorsRead);
 
 /* MsdWriteSectors
  * Write a given amount of sectors (bytes/sector-size) to the MSD. */
@@ -198,7 +198,7 @@ MsdWriteSectors(
     _In_ MsdDevice_t *Device,
     _In_ uint64_t SectorStart, 
     _In_ uintptr_t BufferAddress,
-    _In_ size_t BufferLength,
-    _Out_ size_t *BytesWritten);
+    _In_ size_t SectorCount,
+    _Out_ size_t *SectorsWritten);
 
 #endif // !_USB_MSD_H_

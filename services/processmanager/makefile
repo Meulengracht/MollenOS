@@ -7,7 +7,7 @@ include ../../config/common.mk
 INCLUDES = -I../../librt/include -I../../librt/libc/include -I../../librt/libds/include -I../../librt/libddk/include -Iinclude
 SOURCES = $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o)
-LIBRARIES = ../../librt/build/libsrv.lib ../../librt/build/libc.lib ../../librt/build/libds.lib
+LIBRARIES = ../../librt/build/libsrv.lib ../../librt/build/ddk.lib ../../librt/build/libc.lib ../../librt/build/libds.lib
 
 CFLAGS = $(GCFLAGS) -Wno-address-of-packed-member -D__SERVICE_IMPL $(INCLUDES)
 LFLAGS = /nodefaultlib /subsystem:native /lldmap /entry:__CrtServiceEntry /dll

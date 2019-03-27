@@ -24,7 +24,7 @@
 #ifndef __INTERRUPT_INTERFACE_H__
 #define __INTERRUPT_INTERFACE_H__
 
-#include <os/osdefs.h>
+#include <ddk/ddkdefs.h>
 #include <ddk/io.h>
 
 #define INTERRUPT_NONE                      (int)-1
@@ -113,21 +113,21 @@ typedef struct _DeviceInterrupt {
 
 /* RegisterFastInterruptHandler
  * Registers a fast interrupt handler associated with the interrupt. */
-CRTDECL(void,
+DDKDECL(void,
 RegisterFastInterruptHandler(
     _In_ DeviceInterrupt_t* Interrupt,
     _In_ InterruptHandler_t Handler));
 
 /* RegisterFastInterruptIoResource
  * Registers the given device io resource with the fast-interrupt. */
-CRTDECL(void,
+DDKDECL(void,
 RegisterFastInterruptIoResource(
     _In_ DeviceInterrupt_t* Interrupt,
     _In_ DeviceIo_t*        IoSpace));
 
 /* RegisterFastInterruptMemoryResource
  * Registers the given memory resource with the fast-interrupt. */
-CRTDECL(void,
+DDKDECL(void,
 RegisterFastInterruptMemoryResource(
     _In_ DeviceInterrupt_t* Interrupt,
     _In_ uintptr_t          Address,
@@ -136,7 +136,7 @@ RegisterFastInterruptMemoryResource(
 
 /* RegisterInterruptContext
  * Sets the context pointer that should be attached to any OnInterrupt events. */
-CRTDECL(void,
+DDKDECL(void,
 RegisterInterruptContext(
     _In_ DeviceInterrupt_t* Interrupt,
     _In_ void*              Context));
@@ -144,14 +144,14 @@ RegisterInterruptContext(
 /* RegisterInterruptSource 
  * Allocates the given interrupt source for use by the requesting driver, an id for the interrupt source
  * is returned. After a succesful register, OnInterrupt can be called by the event-system */
-CRTDECL(UUId_t,
+DDKDECL(UUId_t,
 RegisterInterruptSource(
     _In_ DeviceInterrupt_t* Interrupt,
     _In_ Flags_t            Flags));
 
 /* UnregisterInterruptSource 
  * Unallocates the given interrupt source and disables all events of OnInterrupt */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 UnregisterInterruptSource(
     _In_ UUId_t             Source));
 

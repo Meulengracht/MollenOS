@@ -253,11 +253,11 @@ ScUnregisterInterrupt(
 
 OsStatus_t
 ScRegisterEventTarget(
-    _In_ UUId_t KeyInput,
-    _In_ UUId_t WmInput)
+    _In_ UUId_t StdInputHandle,
+    _In_ UUId_t WmHandle)
 {
-    GetMachine()->StdInput = (SystemPipe_t*)LookupHandle(KeyInput);
-    GetMachine()->WmInput  = (SystemPipe_t*)LookupHandle(WmInput);
+    GetMachine()->StdInput = (SystemPipe_t*)LookupHandle(StdInputHandle);
+    GetMachine()->WmInput  = (SystemPipe_t*)LookupHandle(WmHandle);
     return OsSuccess;
 }
 
@@ -265,11 +265,13 @@ OsStatus_t
 ScKeyEvent(
     _In_ SystemKey_t* Key)
 {
+#ifdef __OSCONFIG_ENABLE_DEBUG_SHORTCUTS
     // Handle debug key events
     if ((Key->Flags & (KEY_MODIFIER_LCTRL | KEY_MODIFIER_RCTRL)) && 
         (Key->Flags & KEY_MODIFIER_RELEASED)) {
         DebugHandleShortcut(Key);
     }
+#endif
     if (GetMachine()->StdInput != NULL) {
         return WriteSystemPipe(GetMachine()->StdInput, (const uint8_t*)Key, sizeof(SystemKey_t));
     }

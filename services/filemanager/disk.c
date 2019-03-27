@@ -22,10 +22,11 @@
 #define __TRACE
 
 #include <ddk/contracts/filesystem.h>
-#include <ddk/sessions.h>
-#include <ddk/file.h>
-#include <os/process.h>
+#include <ddk/services/session.h>
+#include <ddk/services/file.h>
 #include <ddk/utils.h>
+#include <os/services/targets.h>
+
 #include "include/vfs.h"
 #include <stdlib.h>
 #include <string.h>
@@ -96,7 +97,7 @@ DiskRegisterFileSystem(
 
     // Copy the storage ident over 
     // We use "st" for hard media, and "rm" for removables
-    strcpy(&IdentBuffer[0], (Disk->Flags & __DISK_REMOVABLE) ? "rm" : "st");
+    strcpy(&IdentBuffer[0], (Disk->Flags & __STORAGE_REMOVABLE) ? "rm" : "st");
     itoa((int)Id, &IdentBuffer[2], 10);
 
     // Allocate a new copy of the fs-structure

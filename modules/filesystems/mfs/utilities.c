@@ -26,34 +26,30 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* MfsReadSectors 
- * A wrapper for reading sectors from the disk associated
- * with the file-system descriptor */
 OsStatus_t
 MfsReadSectors(
     _In_ FileSystemDescriptor_t*    FileSystem, 
     _In_ DmaBuffer_t*               Buffer,
     _In_ uint64_t                   Sector,
-    _In_ size_t                     Count)
+    _In_ size_t                     Count,
+    _In_ size_t*                    SectorsRead)
 {
     uint64_t AbsoluteSector = FileSystem->SectorStart + Sector;
     return StorageRead(FileSystem->Disk.Driver, FileSystem->Disk.Device, 
-        AbsoluteSector, GetBufferDma(Buffer), Count);
+        AbsoluteSector, GetBufferDma(Buffer), Count, SectorsRead);
 }
 
-/* MfsWriteSectors 
- * A wrapper for writing sectors to the disk associated
- * with the file-system descriptor */
 OsStatus_t
 MfsWriteSectors(
     _In_ FileSystemDescriptor_t*    FileSystem,
     _In_ DmaBuffer_t*               Buffer,
     _In_ uint64_t                   Sector,
-    _In_ size_t                     Count)
+    _In_ size_t                     Count,
+    _In_ size_t*                    SectorsWritten)
 {
     uint64_t AbsoluteSector = FileSystem->SectorStart + Sector;
     return StorageWrite(FileSystem->Disk.Driver, FileSystem->Disk.Device, 
-        AbsoluteSector, GetBufferDma(Buffer), Count);
+        AbsoluteSector, GetBufferDma(Buffer), Count, SectorsWritten);
 }
 
 /* MfsUpdateMasterRecord
@@ -63,14 +59,15 @@ MfsUpdateMasterRecord(
     _In_ FileSystemDescriptor_t*    FileSystem)
 {
     MfsInstance_t* Mfs = (MfsInstance_t*)FileSystem->ExtensionData;
+    size_t         SectorsTransferred;
 
     TRACE("MfsUpdateMasterRecord()");
 
     ZeroBuffer(Mfs->TransferBuffer);
     WriteBuffer(Mfs->TransferBuffer, &Mfs->MasterRecord, sizeof(MasterRecord_t), NULL);
 
-    if (MfsWriteSectors(FileSystem, Mfs->TransferBuffer, Mfs->MasterRecordSector, 1)        != OsSuccess || 
-        MfsWriteSectors(FileSystem, Mfs->TransferBuffer, Mfs->MasterRecordMirrorSector, 1)  != OsSuccess) {
+    if (MfsWriteSectors(FileSystem, Mfs->TransferBuffer, Mfs->MasterRecordSector, 1, &SectorsTransferred)        != OsSuccess || 
+        MfsWriteSectors(FileSystem, Mfs->TransferBuffer, Mfs->MasterRecordMirrorSector, 1, &SectorsTransferred)  != OsSuccess) {
         ERROR("Failed to write master-record to disk");
         return OsError;
     }
@@ -108,6 +105,7 @@ MfsSetBucketLink(
     MfsInstance_t*  Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
     uint8_t*        BufferOffset    = NULL;
     size_t          SectorOffset    = 0;
+    size_t          SectorsTransferred;
 
     TRACE("MfsSetBucketLink(Bucket %u, Link %u)", Bucket, Link->Link);
 
@@ -118,11 +116,11 @@ MfsSetBucketLink(
     }
 
     // Calculate which sector that is dirty now
-    SectorOffset        = Bucket / Mfs->BucketsPerSectorInMap;
+    SectorOffset = Bucket / Mfs->BucketsPerSectorInMap;
 
     // Calculate offset into buffer
-    BufferOffset        = (uint8_t*)Mfs->BucketMap;
-    BufferOffset        += (SectorOffset * FileSystem->Disk.Descriptor.SectorSize);
+    BufferOffset = (uint8_t*)Mfs->BucketMap;
+    BufferOffset += (SectorOffset * FileSystem->Disk.Descriptor.SectorSize);
 
     // Copy a sector's worth of data into the buffer
     ZeroBuffer(Mfs->TransferBuffer);
@@ -130,7 +128,7 @@ MfsSetBucketLink(
 
     // Flush buffer to disk
     if (MfsWriteSectors(FileSystem, Mfs->TransferBuffer, 
-        Mfs->MasterRecord.MapSector + SectorOffset, 1) != OsSuccess) {
+        Mfs->MasterRecord.MapSector + SectorOffset, 1, &SectorsTransferred) != OsSuccess) {
         ERROR("Failed to update the given map-sector %u on disk",
             LODWORD(Mfs->MasterRecord.MapSector + SectorOffset));
         return OsError;
@@ -340,6 +338,7 @@ MfsZeroBucket(
 {
     MfsInstance_t*  Mfs = (MfsInstance_t*)FileSystem->ExtensionData;
     size_t          i;
+    size_t          SectorsTransferred;
 
     TRACE("MfsZeroBucket(Bucket %u, Count %u)", Bucket, Count);
 
@@ -347,7 +346,8 @@ MfsZeroBucket(
     for (i = 0; i < Count; i++) {
         // Calculate the sector
         uint64_t AbsoluteSector = MFS_GETSECTOR(Mfs, Bucket + i);
-        if (MfsWriteSectors(FileSystem, Mfs->TransferBuffer, AbsoluteSector, Mfs->SectorsPerBucket) != OsSuccess) {
+        if (MfsWriteSectors(FileSystem, Mfs->TransferBuffer, AbsoluteSector, 
+            Mfs->SectorsPerBucket, &SectorsTransferred) != OsSuccess) {
             ERROR("Failed to write bucket to disk");
             return OsError;
         }
@@ -434,12 +434,14 @@ MfsUpdateRecord(
     FileSystemCode_t    Result  = FsOk;
     FileRecord_t*       Record  = NULL;
     size_t              i;
+    size_t              SectorsTransferred;
 
     TRACE("MfsUpdateEntry(File %s)", MStringRaw(Entry->Base.Name));
 
     // Read the stored data bucket where the record is
-    if (MfsReadSectors(FileSystem, Mfs->TransferBuffer, MFS_GETSECTOR(Mfs, Entry->DirectoryBucket), 
-        Mfs->SectorsPerBucket * Entry->DirectoryLength) != OsSuccess) {
+    if (MfsReadSectors(FileSystem, Mfs->TransferBuffer, 
+        MFS_GETSECTOR(Mfs, Entry->DirectoryBucket), 
+        Mfs->SectorsPerBucket * Entry->DirectoryLength, &SectorsTransferred) != OsSuccess) {
         ERROR("Failed to read bucket %u", Entry->DirectoryBucket);
         Result = FsDiskError;
         goto Cleanup;
@@ -481,7 +483,7 @@ MfsUpdateRecord(
     
     // Write the bucket back to the disk
     if (MfsWriteSectors(FileSystem, Mfs->TransferBuffer, MFS_GETSECTOR(Mfs, Entry->DirectoryBucket), 
-        Mfs->SectorsPerBucket * Entry->DirectoryLength) != OsSuccess) {
+        Mfs->SectorsPerBucket * Entry->DirectoryLength, &SectorsTransferred) != OsSuccess) {
         ERROR("Failed to update bucket %u", Entry->DirectoryBucket);
         Result = FsDiskError;
     }

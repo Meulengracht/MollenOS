@@ -20,9 +20,8 @@
  */
 #define __TRACE
 
-#include <ddk/utils.h>
-#include <ddk/usb.h>
 #include "msd.h"
+#include <ddk/utils.h>
 #include <stdlib.h>
 
 static const char *DeviceTypeStrings[TypeCount] = {
@@ -149,7 +148,7 @@ MsdDeviceCreate(
     }
 
     // Notify diskmanager
-    if (RegisterDisk(Device->Base.Base.Id, __DISK_REMOVABLE) != OsSuccess) {
+    if (RegisterStorage(Device->Base.Base.Id, __STORAGE_REMOVABLE) != OsSuccess) {
         ERROR("Failed to register storage with storagemanager");
     }
 
@@ -172,7 +171,7 @@ MsdDeviceDestroy(
     _In_ MsdDevice_t *Device)
 {
     // Notify diskmanager
-    if (UnregisterDisk(Device->Base.Base.Id, __DISK_FORCED_REMOVE) != OsSuccess) {
+    if (UnregisterStorage(Device->Base.Base.Id, __STORAGE_FORCED_REMOVE) != OsSuccess) {
         ERROR("Failed to unregister storage with storagemanager");
     }
 

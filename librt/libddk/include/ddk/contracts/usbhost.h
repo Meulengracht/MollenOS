@@ -24,10 +24,10 @@
 #ifndef _CONTRACT_USBHOST_INTERFACE_H_
 #define _CONTRACT_USBHOST_INTERFACE_H_
 
-#include <os/osdefs.h>
+#include <ddk/ddkdefs.h>
+#include <ddk/services/usb.h>
 #include <ddk/service.h>
 #include <ddk/driver.h>
-#include <ddk/usb.h>
 
 /* These definitions are in-place to allow a custom
  * setting of the device-manager, these are set to values

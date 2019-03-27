@@ -20,8 +20,8 @@
  */
 //#define __TRACE
 
+#include <os/services/file.h>
 #include <ddk/utils.h>
-#include <ddk/file.h>
 #include <strings.h>
 #include <string.h>
 #include <errno.h>

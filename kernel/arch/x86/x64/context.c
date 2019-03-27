@@ -66,8 +66,8 @@ ContextCreate(
         else {
 		    ContextAddress  = ((MEMORY_SEGMENT_SIGSTACK_BASE + MEMORY_SEGMENT_SIGSTACK_SIZE) - sizeof(Context_t));
         }
- 		RbpInitial      = MEMORY_LOCATION_RING3_STACK_START;
-        ExtraSegment    = GDT_EXTRA_SEGMENT + 0x03;
+ 		RbpInitial   = MEMORY_LOCATION_RING3_STACK_START;
+        ExtraSegment = GDT_EXTRA_SEGMENT + 0x03;
 
         // Now select the correct run-mode segments
         if (THREADING_RUNMODE(ThreadFlags) == THREADING_USERMODE) {
@@ -84,34 +84,29 @@ ContextCreate(
 	}
 
 	// Initialize the context pointer
-	Context         = (Context_t*)ContextAddress;
+	Context = (Context_t*)ContextAddress;
     memset(Context, 0, sizeof(Context_t));
 
 	// Setup segments for the stack
-	Context->Ds     = DataSegment;
-	Context->Es     = DataSegment;
-	Context->Fs     = DataSegment;
-	Context->Gs     = ExtraSegment;
-
-	// Initialize registers to zero value
-	Context->Rbp    = RbpInitial;
+	Context->Ds  = DataSegment;
+	Context->Es  = DataSegment;
+	Context->Fs  = DataSegment;
+	Context->Gs  = ExtraSegment;
+	Context->Rbp = RbpInitial;
 
 	// Setup entry, eflags and the code segment
 	Context->Rip    = EntryAddress;
 	Context->Rflags = X86_THREAD_EFLAGS;
 	Context->Cs     = CodeSegment;
 
-	// Either initialize the ring3 stuff
-	// or zero out the values
-    Context->UserRsp = (uintptr_t)&Context->Arguments[0];
-    Context->UserSs = StackSegment;
+	// Either initialize the ring3 stuff or zero out the values
+    Context->UserRsp = (uintptr_t)&Context->ReturnAddress;
+    Context->UserSs  = StackSegment;
 
-    // Setup arguments
-    Context->Arguments[0] = ReturnAddress;
-    Context->Rcx    = Argument0;
-    Context->Rdx    = Argument1;
-
-	// Return the newly created context
+    // Setup arguments and return
+    Context->ReturnAddress = ReturnAddress;
+    Context->Rcx           = Argument0;
+    Context->Rdx           = Argument1;
 	return Context;
 }
 

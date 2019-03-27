@@ -25,14 +25,13 @@
 #define _SPINLOCK_INTERFACE_H_
 
 #include <os/osdefs.h>
-#include <threads.h>
 
 typedef struct _Spinlock {
     int    Value;
     UUId_t Owner;
     int    References;
 } Spinlock_t;
-#define SPINLOCK_INIT   { 0 }
+#define SPINLOCK_INIT   { 0, UUID_INVALID, 0 }
 
 _CODE_BEGIN
 /* SpinlockReset

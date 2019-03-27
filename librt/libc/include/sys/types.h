@@ -16,10 +16,10 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - POSIX System Types
+ * POSIX System Types
  *   - Common definitions used by posix systems, we only define this header
- *     and most of the types for compliance, they are not used by MollenOS and
- *     programs should refrain from using posix headers on MollenOS
+ *     and most of the types for compliance, they are not used by Vali and
+ *     programs should refrain from using posix headers on Vali
  */
 
 #ifndef __SYS_TYPES__

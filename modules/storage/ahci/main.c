@@ -211,16 +211,18 @@ OnQuery(
         case __STORAGE_QUERY_WRITE:
         case __STORAGE_QUERY_READ: {
             // Get parameters
-            StorageOperation_t *Operation   = (StorageOperation_t*)Arg1->Data.Buffer;
-            UUId_t DiskId                   = (UUId_t)Arg0->Data.Value;
-            AhciDevice_t *Device            = AhciManagerGetDevice(DiskId);
-            OsStatus_t OpsStatus            = OsError;
+            StorageOperation_t*      Operation = (StorageOperation_t*)Arg1->Data.Buffer;
+            UUId_t                   DiskId    = (UUId_t)Arg0->Data.Value;
+            AhciDevice_t*            Device    = AhciManagerGetDevice(DiskId);
+            StorageOperationResult_t Result    = { .Status = OsInvalidParameters };
+            AhciTransaction_t*       Transaction;
+            
             if (Device == NULL) {
-                return RPCRespond(Address, (void*)&OpsStatus, sizeof(OsStatus_t));
+                return RPCRespond(Address, (void*)&Result, sizeof(StorageOperationResult_t));
             }
 
             // Create a new transaction
-            AhciTransaction_t *Transaction  = (AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
+            Transaction  = (AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
             memset((void*)Transaction, 0, sizeof(AhciTransaction_t));
             memcpy((void*)&Transaction->ResponseAddress, Address, sizeof(MRemoteCallAddress_t));
             Transaction->Address     = Operation->PhysicalBuffer;
@@ -229,15 +231,15 @@ OnQuery(
 
             // Determine the kind of operation
             if (Operation->Direction == __STORAGE_OPERATION_READ) {
-                OpsStatus = AhciReadSectors(Transaction, Operation->AbsSector);
+                Result.Status = AhciReadSectors(Transaction, Operation->AbsoluteSector);
             }
             else if (Operation->Direction == __STORAGE_OPERATION_WRITE) {
-                OpsStatus = AhciWriteSectors(Transaction, Operation->AbsSector);
+                Result.Status = AhciWriteSectors(Transaction, Operation->AbsoluteSector);
             }
 
             // Only return immediately if there was an error
-            if (OpsStatus != OsSuccess) {
-                return RPCRespond(Address, (void*)&OpsStatus, sizeof(OsStatus_t));
+            if (Result.Status != OsSuccess) {
+                return RPCRespond(Address, (void*)&Result, sizeof(StorageOperationResult_t));
             }
             else {
                 return OsSuccess;

@@ -32,18 +32,18 @@
 OsStatus_t MbrEnumeratePartitions(FileSystemDisk_t *Disk, 
     DmaBuffer_t *Buffer, uint64_t Sector)
 {
-    // Variables
-    MasterBootRecord_t *Mbr = NULL;
-    int PartitionCount = 0;
-    int i;
+    MasterBootRecord_t* Mbr;
+    int                 PartitionCount = 0;
+    int                 i;
+    size_t              SectorsRead;
 
     // Trace
-    TRACE("MbrEnumeratePartitions(Sector %u)",
-        LODWORD(Sector));
+    TRACE("MbrEnumeratePartitions(Sector %u)", LODWORD(Sector));
 
     // Start out by reading the mbr to detect whether
     // or not there is a partition table
-    if (StorageRead(Disk->Driver, Disk->Device, Sector, GetBufferDma(Buffer), 1) != OsSuccess) {
+    if (StorageRead(Disk->Driver, Disk->Device, Sector, 
+        GetBufferDma(Buffer), 1, &SectorsRead) != OsSuccess) {
         return OsError;
     }
 

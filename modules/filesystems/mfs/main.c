@@ -21,6 +21,7 @@
  */
 //#define __TRACE
 
+#include <ddk/services/file.h>
 #include <ddk/utils.h>
 #include <threads.h>
 #include <stdlib.h>
@@ -256,7 +257,7 @@ FsDestroy(
     }
 
     // Which kind of unmount is it?
-    if (!(UnmountFlags & __DISK_FORCED_REMOVE)) {
+    if (!(UnmountFlags & __STORAGE_FORCED_REMOVE)) {
         // Flush everything
         // @todo
     }
@@ -306,6 +307,7 @@ FsInitialize(
     uint64_t BytesRead              = 0;
     uint64_t BytesLeft              = 0;
     size_t i, imax;
+    size_t SectorsTransferred;
 
     TRACE("FsInitialize()");
 
@@ -313,7 +315,7 @@ FsInitialize(
     Buffer = CreateBuffer(UUID_INVALID, Descriptor->Disk.Descriptor.SectorSize);
 
     // Read the boot-sector
-    if (MfsReadSectors(Descriptor, Buffer, 0, 1) != OsSuccess) {
+    if (MfsReadSectors(Descriptor, Buffer, 0, 1, &SectorsTransferred) != OsSuccess) {
         ERROR("Failed to read mfs boot-sector record");
         goto Error;
     }
@@ -343,7 +345,7 @@ FsInitialize(
     Mfs->BucketsPerSectorInMap = Descriptor->Disk.Descriptor.SectorSize / 8;
 
     // Read the master-record
-    if (MfsReadSectors(Descriptor, Buffer, Mfs->MasterRecordSector, 1) != OsSuccess) {
+    if (MfsReadSectors(Descriptor, Buffer, Mfs->MasterRecordSector, 1, &SectorsTransferred) != OsSuccess) {
         ERROR("Failed to read mfs master-sector record");
         goto Error;
     }
@@ -380,7 +382,7 @@ FsInitialize(
         size_t SectorCount  = DIVUP(TransferSize, Descriptor->Disk.Descriptor.SectorSize);
 
         // Read sectors
-        if (MfsReadSectors(Descriptor, Buffer, MapSector, SectorCount) != OsSuccess) {
+        if (MfsReadSectors(Descriptor, Buffer, MapSector, SectorCount, &SectorsTransferred) != OsSuccess) {
             ERROR("Failed to read sector 0x%x (map) into cache", LODWORD(MapSector));
             goto Error;
         }

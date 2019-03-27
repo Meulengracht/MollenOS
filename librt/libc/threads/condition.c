@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Condition Support Definitions & Structures
+ * Condition Support Definitions & Structures
  * - This header describes the base condition-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -32,7 +32,6 @@ int
 cnd_init(
     _In_ cnd_t* cond)
 {
-    // Sanitize input
     if (cond == NULL) {
         return thrd_error;
     }
@@ -46,7 +45,6 @@ void
 cnd_destroy(
     _In_ cnd_t* cond)
 {
-    // Sanitize input
 	if (cond == NULL) {
 		return;
 	}
@@ -55,9 +53,8 @@ cnd_destroy(
 
 int
 cnd_signal(
-    _In_ cnd_t *cond)
+    _In_ cnd_t* cond)
 {
-	// Sanitize input
 	if (cond == NULL) {
 		return thrd_error;
 	}
@@ -71,7 +68,6 @@ int
 cnd_broadcast(
     _In_ cnd_t *cond)
 {
-	// Sanitize input
 	if (cond == NULL) {
 		return thrd_error;
 	}
@@ -90,7 +86,6 @@ cnd_wait(
 		return thrd_error;
 	}
 
-	// Unlock mutex and sleep
 	if (mtx_unlock(mutex) != thrd_success) {
         return thrd_error;
     }
@@ -100,14 +95,13 @@ cnd_wait(
 
 int
 cnd_timedwait(
-    _In_ cnd_t* restrict cond,
-    _In_ mtx_t* restrict mutex,
+    _In_ cnd_t* restrict                 cond,
+    _In_ mtx_t* restrict                 mutex,
     _In_ const struct timespec* restrict time_point)
 {
-	// Variables
-	OsStatus_t osresult = OsError;
-	struct timespec     now, result;
-    time_t msec         = 0;
+	OsStatus_t      status = OsError;
+    time_t          msec   = 0;
+	struct timespec now, result;
 
 	// Sanitize input
 	if (cond == NULL || mutex == NULL) {
@@ -124,11 +118,9 @@ cnd_timedwait(
     if (result.tv_nsec != 0) {
         msec += ((result.tv_nsec - 1) / NSEC_PER_MSEC) + 1;
     }
-	osresult = Syscall_WaitForObject(*cond, msec);
-	if (osresult != OsSuccess) {
+	status = Syscall_WaitForObject(*cond, msec);
+	if (status != OsSuccess) {
 		return thrd_timedout;
 	}
-	
-	// Last step is to acquire mutex again
 	return mtx_lock(mutex);
 }

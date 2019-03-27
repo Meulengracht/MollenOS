@@ -25,9 +25,9 @@
 #define __USB_TRANSFER__
 
 #include <ddk/contracts/usbhost.h>
+#include <ddk/services/usb.h>
 #include <os/spinlock.h>
 #include <os/osdefs.h>
-#include <ddk/usb.h>
 
 typedef enum _UsbManagerTransferFlags {
     TransferFlagNone        = 0x0,

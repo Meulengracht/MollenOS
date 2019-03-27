@@ -22,19 +22,22 @@
  */
 #define __TRACE
 
+#include <ds/collection.h>
+#include <os/services/process.h>
+#include <ddk/services/session.h>
 #include <ddk/service.h>
-#include <ddk/sessions.h>
-#include <os/process.h>
 #include <ddk/utils.h>
 #include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
 
-static UUId_t WindowingSystemId = UUID_INVALID;
+static Collection_t Services               = COLLECTION_INIT(KeyId);
+static UUId_t       ServiceHandleGenerator = 0;
+static UUId_t       WindowingSystemId      = UUID_INVALID;
 
 OsStatus_t
 OnLoad(void)
 {
-    // Register us with server manager
 	return RegisterService(__SESSIONMANAGER_TARGET);
 }
 
@@ -55,7 +58,53 @@ OnEvent(
     TRACE("Sessionmanager.OnEvent(%i)", Message->Function);
 
     switch (Message->Function) {
-        case __SESSIONMANAGER_CHECKUP: {
+        case __SESSIONMANAGER_REGISTER: {
+            ServiceObject_t*      Service;
+            const char*           Name    = RPCGetStringArgument(Message, 0);
+            ServiceCapabilities_t Caps    = (ServiceCapabilities_t)Message->Arguments[1].Data.Value;
+            UUId_t                Channel = (UUId_t)Message->Arguments[2].Data.Value;
+            UUId_t                Handle  = ServiceHandleGenerator++;
+            DataKey_t             Key     = { .Value.Id = Handle };
+            
+            Service = (ServiceObject_t*)malloc(sizeof(ServiceObject_t));
+            memset(Service, 0, sizeof(ServiceObject_t));
+            memcpy(&Service->Name[0], Name, strlen(Name));
+            
+            Service->Capabilities  = Caps;
+            Service->ChannelHandle = Channel;
+            CollectionAppend(&Services, CollectionCreateNode(Key, Service));
+            return RPCRespond(&Message->From, (const void*)&Handle, sizeof(UUId_t));
+        } break;
+        
+        case __SESSIONMANAGER_UNREGISTER: {
+            UUId_t           ServiceHandle = (UUId_t)Message->Arguments[0].Data.Value;
+            DataKey_t        Key           = { .Value.Id = ServiceHandle };
+            
+            Result = CollectionRemoveByKey(&Services, Key);
+            return RPCRespond(&Message->From, (const void*)&Result, sizeof(OsStatus_t));
+        } break;
+        
+        case __SESSIONMANAGER_LOOKUP: {
+            ServiceCapabilities_t Caps           = (ServiceCapabilities_t)Message->Arguments[0].Data.Value;
+            size_t                Count          = MIN(Message->Arguments[1].Data.Value, 8);
+            ServiceObject_t*      ServiceResults = malloc(sizeof(ServiceObject_t) * Count);
+            int                   i              = 0;
+            memset(ServiceResults, 0, sizeof(ServiceObject_t) * Count);
+            
+            foreach(Node, &Services) {
+                ServiceObject_t* Service = Node->Data;
+                if ((Service->Capabilities & Caps) == Caps) {
+                    memcpy(&ServiceResults[i], Service, sizeof(ServiceObject_t));
+                    i++;
+                }
+            }
+            
+            Result = RPCRespond(&Message->From, (const void*)ServiceResults, sizeof(ServiceObject_t) * Count);
+            free(ServiceResults);
+            return Result;
+        } break;
+        
+        case __SESSIONMANAGER_NEWDEVICE: {
             if (WindowingSystemId == UUID_INVALID) {
                 // The identifier might be stored as a value here if less than a specific
                 // amount of bytes
@@ -64,7 +113,7 @@ OnEvent(
                 // Clear up buffer and spawn app
                 memset(&PathBuffer[0], 0, sizeof(PathBuffer));
 #ifdef __OSCONFIG_RUN_CPPTESTS
-                sprintf(&PathBuffer[0], "%s:/shared/bin/cpptest.app", DiskIdentifier);
+                sprintf(&PathBuffer[0], "%s:/shared/bin/stest.app", DiskIdentifier);
 #else
                 sprintf(&PathBuffer[0], "%s:/shared/bin/vioarr.app", DiskIdentifier);
 #endif

@@ -24,7 +24,7 @@
 #ifndef __DEVICEIO_INTERFACE_H__
 #define __DEVICEIO_INTERFACE_H__
 
-#include <os/osdefs.h>
+#include <ddk/ddkdefs.h>
 
 typedef enum _DeviceIoType {
     DeviceIoInvalid     = 0,
@@ -58,8 +58,8 @@ typedef struct _DeviceIo {
 _CODE_BEGIN
 
 // Memory/optimization safe reading from hardware memory registers
-CRTDECL(reg32_t, __IoReadMemory32(volatile reg32_t*));
-CRTDECL(void,    __IoWriteMemory32(volatile reg32_t*, reg32_t));
+DDKDECL(reg32_t, __IoReadMemory32(volatile reg32_t*));
+DDKDECL(void,    __IoWriteMemory32(volatile reg32_t*, reg32_t));
 
 static inline reg32_t
 ReadVolatile32(volatile reg32_t* Register)
@@ -79,7 +79,7 @@ WriteVolatile32(volatile reg32_t* Register, reg32_t Value)
 /* CreateDeviceMemoryIo
  * Registers a new device memory io with the operating system. If this memory range
  * overlaps any existing io range, this request will be denied by the system. */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 CreateDeviceMemoryIo(
     _In_ DeviceIo_t*    IoSpace,
     _In_ uintptr_t      PhysicalBase,
@@ -88,7 +88,7 @@ CreateDeviceMemoryIo(
 /* CreateDevicePortIo
  * Registers a new device port io with the operating system. If this port io range
  * overlaps any existing range, this request will be denied by the system. */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 CreateDevicePortIo(
     _In_ DeviceIo_t*    IoSpace,
     _In_ uint16_t       Port,
@@ -97,7 +97,7 @@ CreateDevicePortIo(
 /* CreateDevicePinIo
  * Registers a new device port/pin io with the operating system. If this port/pin
  * overlaps any existing port/pin, this request will be denied by the system. */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 CreateDevicePinIo(
     _In_ DeviceIo_t*    IoSpace,
     _In_ uint16_t       Port,
@@ -106,28 +106,28 @@ CreateDevicePinIo(
 /* DestroyDeviceIo
  * Unregisters a device-io with the operating system, releasing all resources
  * associated and disabling the io range for use. */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 DestroyDeviceIo(
     _In_ DeviceIo_t*    IoSpace));
 
 /* AcquireDeviceIo
  * Tries to claim a given io-space, only one driver can claim a single io-space 
  * at a time, to avoid two drivers using the same device */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 AcquireDeviceIo(
     _In_ DeviceIo_t*    IoSpace));
 
 /* ReleaseDeviceIo
  * Tries to release a given io-space, only one driver can claim a single io-space 
  * at a time, to avoid two drivers using the same device */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 ReleaseDeviceIo(
     _In_ DeviceIo_t*    IoSpace));
 
 /* ReadDeviceIo
  * Read data from the given io-space at <offset> with the given <length>, 
  * the offset and length must be below the size of the io-space */
-CRTDECL(size_t,
+DDKDECL(size_t,
 ReadDeviceIo(
     _In_ DeviceIo_t*    IoSpace,
     _In_ size_t         Offset,
@@ -136,7 +136,7 @@ ReadDeviceIo(
 /* WriteDeviceIo
  * Write data from the given io-space at <offset> with the given <length>, 
  * the offset and length must be below the size of the io-space */
-CRTDECL(OsStatus_t,
+DDKDECL(OsStatus_t,
 WriteDeviceIo(
     _In_ DeviceIo_t*    IoSpace,
     _In_ size_t         Offset,

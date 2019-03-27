@@ -23,7 +23,7 @@
 #include <ddk/contracts/video.h>
 #include <os/mollenos.h>
 #include <ddk/ipc/ipc.h>
-#include <ddk/process.h>
+#include <ddk/services/process.h>
 #include <ddk/buffer.h>
 #include <threading.h>
 #include <ddk/acpi.h>
@@ -60,7 +60,7 @@ extern OsStatus_t ScGetAssemblyDirectory(char* PathBuffer, size_t MaxLength);
 
 extern OsStatus_t ScCreateMemorySpace(Flags_t Flags, UUId_t* Handle);
 extern OsStatus_t ScGetThreadMemorySpaceHandle(UUId_t ThreadHandle, UUId_t* Handle);
-extern OsStatus_t ScCreateMemorySpaceMapping(UUId_t Handle, struct MemoryMappingParameters* Parameters, DmaBuffer_t* AccessBuffer);
+extern OsStatus_t ScCreateMemorySpaceMapping(UUId_t Handle, struct MemoryMappingParameters* Parameters, void** AddressOut);
 
 // Driver system calls
 extern OsStatus_t ScAcpiQueryStatus(AcpiDescriptor_t* AcpiDescriptor);
@@ -75,7 +75,7 @@ extern OsStatus_t ScRegisterAliasId(UUId_t Alias);
 extern OsStatus_t ScLoadDriver(MCoreDevice_t* Device, size_t Length);
 extern UUId_t     ScRegisterInterrupt(DeviceInterrupt_t* Interrupt, Flags_t Flags);
 extern OsStatus_t ScUnregisterInterrupt(UUId_t Source);
-extern OsStatus_t ScRegisterEventTarget(UUId_t KeyInput, UUId_t WmInput);
+extern OsStatus_t ScRegisterEventTarget(UUId_t StdInputHandle, UUId_t WmHandle);
 extern OsStatus_t ScKeyEvent(SystemKey_t* Key);
 extern OsStatus_t ScInputEvent(SystemInput_t* Input);
 extern OsStatus_t ScGetProcessBaseAddress(uintptr_t* BaseAddress);
@@ -112,7 +112,7 @@ extern OsStatus_t ScReadPipe(UUId_t Handle, uint8_t* Message, size_t Length);
 extern OsStatus_t ScWritePipe(UUId_t Handle, uint8_t* Message, size_t Length);
 extern OsStatus_t ScRpcResponse(MRemoteCall_t* RemoteCall);
 extern OsStatus_t ScRpcExecute(MRemoteCall_t* RemoteCall, int Async);
-extern OsStatus_t ScRpcListen(MRemoteCall_t* RemoteCall, uint8_t* ArgumentBuffer);
+extern OsStatus_t ScRpcListen(UUId_t Handle, MRemoteCall_t* RemoteCall, uint8_t* ArgumentBuffer);
 extern OsStatus_t ScRpcRespond(MRemoteCallAddress_t* RemoteAddress, const uint8_t* Buffer, size_t Length);
 
 // Memory system calls

@@ -30,9 +30,9 @@
 #define _MFS_H_
 
 #include <ddk/contracts/filesystem.h>
+#include <os/services/file.h>
 #include <os/mollenos.h>
 #include <ds/mstring.h>
-#include <ddk/file.h>
 
 /* MFS Definitions and Utilities
  * Contains magic constant values and utility macros for conversion */
@@ -235,7 +235,8 @@ MfsReadSectors(
     _In_ FileSystemDescriptor_t*    FileSystem, 
     _In_ DmaBuffer_t*               Buffer,
     _In_ uint64_t                   Sector,
-    _In_ size_t                     Count);
+    _In_ size_t                     Count,
+    _In_ size_t*                    SectorsRead);
 
 /* MfsWriteSectors 
  * A wrapper for writing sectors to the disk associated
@@ -245,7 +246,8 @@ MfsWriteSectors(
     _In_ FileSystemDescriptor_t*    FileSystem,
     _In_ DmaBuffer_t*               Buffer,
     _In_ uint64_t                   Sector,
-    _In_ size_t                     Count);
+    _In_ size_t                     Count,
+    _In_ size_t*                    SectorsWritten);
 
 /* MfsGetBucketLink
  * Looks up the next bucket link by utilizing the cached

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,9 +29,6 @@ extern "C" {
     extern char** __CrtInitialize(thread_storage_t* Tls, int IsModule, int* ArgumentCount);
 }
 
-/* __CrtConsoleEntry
- * Console crt initialization routine. This spawns a new console
- * if no inheritance is given. */
 extern "C" void
 __CrtConsoleEntry(void)
 {
@@ -42,8 +39,6 @@ __CrtConsoleEntry(void)
 
 	Arguments = __CrtInitialize(&Tls, 0, &ArgumentCount);
 	ExitCode  = main(ArgumentCount, Arguments, NULL);
-
-	// Exit cleanly, calling atexit() functions
 	free(Arguments);
 	exit(ExitCode);
 }

@@ -21,10 +21,8 @@
  */
 #define __TRACE
 
-/* Includes
- * - System */
+#include <ddk/services/usb.h>
 #include <ddk/utils.h>
-#include <ddk/usb.h>
 #include "../msd.h"
 
 /* UfiConstructCommand

@@ -36,36 +36,27 @@
 #include <stdio.h>
 #include <debug.h>
 #include <heap.h>
-
-typedef struct _MemoryMappingState {
-    MemorySpaceHandle_t Handle;
-    uintptr_t           Address;
-    size_t              Length;
-    Flags_t             Flags;
-} MemoryMappingState_t;
-
 #else
 #define __TRACE
 #include <internal/_syscalls.h>
 #include <ddk/buffer.h>
 #include <ddk/memory.h>
 #include <ddk/utils.h>
-#include <ddk/file.h>
+#include <ddk/services/file.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+
+static SystemDescriptor_t __SystemInformation = { 0 };
+static uintptr_t          __SystemBaseAddress = 0;
+#endif
 
 typedef struct _MemoryMappingState {
     MemorySpaceHandle_t Handle;
     uintptr_t           Address;
     size_t              Length;
     Flags_t             Flags;
-    DmaBuffer_t*        UserAccess;
 } MemoryMappingState_t;
-
-static SystemDescriptor_t __SystemInformation = { 0 };
-static uintptr_t          __SystemBaseAddress = 0;
-#endif
 
 /*******************************************************************************
  * Support Methods (DS)
@@ -293,34 +284,25 @@ OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, s
     // map in with write flags, and then clear the write flag on release if it was requested
 #ifdef LIBC_KERNEL
     // Translate memory flags to kernel flags
-    Flags_t KernelFlags = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_DOMAIN;
+    Flags_t KernelFlags    = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_DOMAIN;
     Flags_t PlacementFlags = MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_FIXED;
     if (Flags & MEMORY_EXECUTABLE) {
         KernelFlags |= MAPPING_EXECUTABLE;
     }
     Status = CreateMemorySpaceMapping((SystemMemorySpace_t*)Handle, NULL, Address, Length, 
         KernelFlags, PlacementFlags, __MASK);
-    if (Status != OsSuccess) {
-        dsfree(StateObject);
-    }
 #else
     struct MemoryMappingParameters Parameters;
-    DmaBuffer_t* Buffer = (DmaBuffer_t*)dsalloc(sizeof(DmaBuffer_t));
-
-    memset(Buffer, 0, sizeof(DmaBuffer_t));
     Parameters.VirtualAddress = *Address;
     Parameters.Length         = Length;
     Parameters.Flags          = Flags;
     
-    Status = CreateMemoryMapping((UUId_t)Handle, &Parameters, Buffer);
-    if (Status != OsSuccess) {
-        dsfree(Buffer);
-        dsfree(StateObject);
-        return Status;
-    }
-    *Address = (uintptr_t)GetBufferDataPointer(Buffer);
-    StateObject->UserAccess = Buffer;
+    Status   = CreateMemoryMapping((UUId_t)Handle, &Parameters, (void**)&StateObject->Address);
+    *Address = StateObject->Address;
 #endif
+    if (Status != OsSuccess) {
+        dsfree(StateObject);
+    }
     return Status;
 }
 
@@ -341,7 +323,7 @@ void ReleaseImageMapping(MemoryMapHandle_t Handle)
     }
     ChangeMemorySpaceProtection(StateObject->Handle, StateObject->Address, StateObject->Length, KernelFlags, NULL);
 #else
-    DestroyBuffer(StateObject->UserAccess);
+    MemoryFree((void*)StateObject->Address, StateObject->Length);
 #endif
     dsfree(StateObject);
 }

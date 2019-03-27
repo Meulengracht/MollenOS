@@ -16,12 +16,14 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C-Support Initialize Implementation
+ * C-Support Initialize Implementation
  * - Definitions, prototypes and information needed.
  */
 
 #include <internal/_syscalls.h>
-#include <ddk/process.h>
+#include <internal/_utils.h>
+#include <os/services/process.h>
+#include <ddk/services/process.h>
 
 extern void StdioInitialize(void *InheritanceBlock, size_t InheritanceBlockLength);
 extern void StdSignalInitialize(void);
@@ -37,12 +39,19 @@ void InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInforma
     size_t ArgumentBlockLength    = sizeof(__CrtArgumentBuffer);
     _CRT_UNUSED(StartupInformation);
 
+    // We must set IsModule before anything
     __CrtIsModule  = IsModule;
     __CrtProcessId = ProcessGetCurrentId() ^ Syscall_ThreadCookie();
 
     // Get startup information
-    GetProcessInheritationBlock(&__CrtInheritanceBuffer[0], &InheritanceBlockLength);
-    GetProcessCommandLine(&__CrtArgumentBuffer[0], &ArgumentBlockLength);
+    if (IsModule) {
+        Syscall_ModuleGetStartupInfo(&__CrtInheritanceBuffer[0], &InheritanceBlockLength, 
+                                     &__CrtArgumentBuffer[0], &ArgumentBlockLength);
+    }
+    else {
+        GetProcessInheritationBlock(&__CrtInheritanceBuffer[0], &InheritanceBlockLength);
+        GetProcessCommandLine(&__CrtArgumentBuffer[0], &ArgumentBlockLength);
+    }
     
 	// Initialize STD-C
 	StdioInitialize((void*)&__CrtInheritanceBuffer[0], InheritanceBlockLength);

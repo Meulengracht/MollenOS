@@ -26,6 +26,7 @@
 #include <ddk/utils.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <threads.h>
 #include "manager.h"
 #include "hci.h"
 

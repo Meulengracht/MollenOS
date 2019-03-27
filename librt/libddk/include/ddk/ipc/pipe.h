@@ -22,7 +22,7 @@
 #ifndef __PIPE_INTERFACE__
 #define __PIPE_INTERFACE__
 
-#include <os/osdefs.h>
+#include <ddk/ddkdefs.h>
 
 #define PIPE_RAW            0   // Raw data passing
 #define PIPE_STRUCTURED     1   // This should always be used when there are multiple readers or producers
@@ -30,7 +30,7 @@
 _CODE_BEGIN
 /* CreatePipe
  * Creates a new communication pipe that can be used for transferring arbitrary data. */
-CRTDECL(
+DDKDECL(
 OsStatus_t,
 CreatePipe(
     _In_  int     Type,
@@ -38,7 +38,7 @@ CreatePipe(
 
 /* DestroyPipe
  * Closes an existing communication pipe and invalidates it for further data. */
-CRTDECL(
+DDKDECL(
 OsStatus_t,
 DestroyPipe(
     _In_ UUId_t Handle));
@@ -47,7 +47,7 @@ DestroyPipe(
  * This returns -1 if something went wrong reading
  * a message from the message queue, otherwise it returns 0
  * and fills the structures with information about the message */
-CRTDECL(
+DDKDECL(
 OsStatus_t,
 ReadPipe(
     _In_ UUId_t Handle,
@@ -56,7 +56,7 @@ ReadPipe(
 
 /* WritePipe
  * Writes the provided data by length to the pipe handle. */
-CRTDECL(
+DDKDECL(
 OsStatus_t,
 WritePipe(
     _In_ UUId_t Handle,

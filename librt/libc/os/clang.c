@@ -24,7 +24,7 @@
 #include <internal/_utils.h>
 #include <os/osdefs.h>
 #include <os/spinlock.h>
-#include <ddk/process.h>
+#include <ddk/services/process.h>
 #include <ddk/utils.h>
 #include <threads.h>
 #include <stdlib.h>
@@ -51,35 +51,47 @@ static void   (*__cxa_primary_cleanup)(void);
 static void   (*__cxa_primary_tls_thread_init)(void);
 static void   (*__cxa_primary_tls_thread_finit)(void);
 
-CRTDECL(void, __cxa_callinitializers(_PVFV *pfbegin, _PVFV *pfend))
+CRTDECL(void,
+__cxa_callinitializers(_PVFV *pfbegin, _PVFV *pfend))
 {
+    TRACE("__cxa_callinitializers()");
     while (pfbegin < pfend) {
-        if (*pfbegin != NULL)
+        if (*pfbegin != NULL) {
+            TRACE(" > invoking 0x%" PRIxIN, *pfbegin);
             (**pfbegin)();
+        }
         ++pfbegin;
     }
 }
 
-CRTDECL(int, __cxa_callinitializers_ex(_PIFV *pfbegin, _PIFV *pfend))
+CRTDECL(int,
+__cxa_callinitializers_ex(_PIFV *pfbegin, _PIFV *pfend))
 {
+    TRACE("__cxa_callinitializers_ex()");
     int ret = 0;
     while (pfbegin < pfend  && ret == 0) {
-        if (*pfbegin != NULL)
+        if (*pfbegin != NULL) {
+            TRACE(" > invoking 0x%" PRIxIN, *pfbegin);
             ret = (**pfbegin)();
+        }
         ++pfbegin;
     }
     return ret;
 }
 
-CRTDECL(void, __cxa_callinitializers_tls(
+CRTDECL(void,
+__cxa_callinitializers_tls(
     _In_ _PVTLS*        pfbegin,
     _In_ _PVTLS*        pfend,
     _In_ void*          dso_handle,
     _In_ unsigned long  reason))
 {
+    TRACE("__cxa_callinitializers_tls()");
     while (pfbegin < pfend) {
-        if (*pfbegin != NULL)
+        if (*pfbegin != NULL) {
+            TRACE(" > invoking 0x%" PRIxIN, *pfbegin);
             (**pfbegin)(dso_handle, reason, NULL);
+        }
         ++pfbegin;
     }
 }
@@ -91,6 +103,7 @@ __cxa_exithandlers(
     _In_ int DoAtExit,
     _In_ int CleanupCrt)
 {
+    TRACE("__cxa_exithandlers()");
     // Avoid recursive calls or anything to this
     if (CleanupPerformed != 0) {
         return;
@@ -218,10 +231,12 @@ CRTDECL(void, __cxa_finalize(void *Dso))
 /* __cxa_atexit/__cxa_at_quick_exit 
  * C++ At-Exit implementation for registering of exit-handlers. */
 CRTDECL(int, __cxa_atexit(void (*Function)(void*), void *Argument, void *Dso)) {
+    TRACE("__cxa_atexit()");
     tls_atexit(UUID_INVALID, Function, Argument, Dso);
     return 0;
 }
 CRTDECL(int, __cxa_at_quick_exit(void (*Function)(void*), void *Dso)) {
+    TRACE("__cxa_at_quick_exit()");
     tls_atexit_quick(UUID_INVALID, Function, NULL, Dso);
     return 0;
 }
@@ -229,11 +244,13 @@ CRTDECL(int, __cxa_at_quick_exit(void (*Function)(void*), void *Dso)) {
 /* __cxa_thread_atexit_impl/__cxa_thread_at_quick_exit_impl
  * C++ At-Exit implementation for thread specific cleanup. */
 CRTDECL(int, __cxa_thread_atexit_impl(void (*dtor)(void*), void* arg, void* dso_symbol)) {
+    TRACE("__cxa_thread_atexit_impl()");
     tls_atexit(thrd_current(), dtor, arg, dso_symbol);
     return 0;
 }
 
 CRTDECL(int, __cxa_thread_at_quick_exit_impl(void (*dtor)(void*), void* dso_symbol)) {
+    TRACE("__cxa_thread_at_quick_exit_impl()");
     tls_atexit_quick(thrd_current(), dtor, NULL, dso_symbol);
     return 0;
 }

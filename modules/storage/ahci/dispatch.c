@@ -29,8 +29,6 @@
 #include <threads.h>
 #include <stdlib.h>
 
-/* AhciDumpCurrentState
- * Dumps the registers and state of the controller and given port */
 void
 AhciDumpCurrentState(
     _In_ AhciController_t* Controller, 
@@ -65,10 +63,6 @@ AhciDumpCurrentState(
         Port->Registers->AtaStatus);
 }
 
-/* AhciCommandDispatch 
- * Dispatches a FIS command on a given port 
- * This function automatically allocates everything neccessary
- * for the transfer */
 OsStatus_t
 AhciCommandDispatch(
     _In_ AhciTransaction_t* Transaction,
@@ -226,8 +220,6 @@ AhciVerifyRegisterFIS(
     return OsSuccess;
 }
 
-/* AhciCommandRegisterFIS 
- * Builds a new AHCI Transaction based on a register FIS */
 OsStatus_t 
 AhciCommandRegisterFIS(
     _In_ AhciTransaction_t* Transaction,
@@ -236,12 +228,9 @@ AhciCommandRegisterFIS(
     _In_ int                Device, 
     _In_ int                Write)
 {
-    FISRegisterH2D_t Fis;
-    OsStatus_t Status;
-    Flags_t Flags;
-
-    // Reset the fis structure as we have it on stack
-    memset((void*)&Fis, 0, sizeof(FISRegisterH2D_t));
+    FISRegisterH2D_t Fis = { 0 };
+    OsStatus_t       Status;
+    Flags_t          Flags;
 
     // Trace
     TRACE("AhciCommandRegisterFIS(Cmd 0x%x, Sector 0x%x)",
@@ -263,10 +252,10 @@ AhciCommandRegisterFIS(
         // Set CHS params
 
         // Set count
-        Fis.Count = MIN(Transaction->SectorCount, UINT8_MAX); 
+        Fis.Count = (uint16_t)(Transaction->SectorCount & 0xFF);
     }
-    else if (Transaction->Device->AddressingMode == 1
-        || Transaction->Device->AddressingMode == 2) {
+    else if (Transaction->Device->AddressingMode == 1 || 
+             Transaction->Device->AddressingMode == 2) {
         // Set LBA 28 parameters
         Fis.SectorNo            = LOBYTE(SectorLBA);
         Fis.CylinderLow         = (uint8_t)((SectorLBA >> 8) & 0xFF);
@@ -279,11 +268,11 @@ AhciCommandRegisterFIS(
             Fis.CylinderHighExtended    = (uint8_t)((SectorLBA >> 40) & 0xFF);
 
             // Count is 16 bit here
-            Fis.Count = MIN(Transaction->SectorCount, UINT16_MAX);
+            Fis.Count = (uint16_t)(Transaction->SectorCount & 0xFFFF);
         }
         else {
             // Count is 8 bit in lba28
-            Fis.Count = MIN(Transaction->SectorCount, UINT8_MAX);
+            Fis.Count = (uint16_t)(Transaction->SectorCount & 0xFF);
         }
     }
 
@@ -317,26 +306,25 @@ AhciCommandRegisterFIS(
     return Status;
 }
 
-/* AhciCommandFinish
- * Verifies and cleans up a transaction made by dispatch */
 OsStatus_t 
 AhciCommandFinish(
-    _In_ AhciTransaction_t *Transaction)
+    _In_ AhciTransaction_t* Transaction)
 {
-    OsStatus_t Status;
+    StorageOperationResult_t Result = { 0 };
     TRACE("AhciCommandFinish()");
 
     // Verify the command execution
-    Status = AhciVerifyRegisterFIS(Transaction);
+    Result.Status             = AhciVerifyRegisterFIS(Transaction);
+    Result.SectorsTransferred = Transaction->SectorCount;
+    
+    // Release it, and handle callbacks
     AhciPortReleaseCommandSlot(Transaction->Device->Port, Transaction->Slot);
-
-    // If this was an internal request we need to notify manager
     if (Transaction->ResponseAddress.Thread == UUID_INVALID) {
         AhciManagerCreateDeviceCallback(Transaction->Device);
     }
     else {
-        RPCRespond(&Transaction->ResponseAddress, (void*)&Status, sizeof(OsStatus_t));
+        RPCRespond(&Transaction->ResponseAddress, (void*)&Result, sizeof(StorageOperationResult_t));
     }
     free(Transaction);
-    return Status;
+    return Result.Status;
 }

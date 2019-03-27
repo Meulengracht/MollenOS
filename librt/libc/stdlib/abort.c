@@ -22,10 +22,8 @@
 
 #include <signal.h>
 
-/* abort
- * Causes abnormal program termination unless SIGABRT is being caught by a signal handler 
- * passed to signal and the handler does not return. */
 void
-abort(void) {
+abort(void)
+{
 	raise(SIGABRT);
 }

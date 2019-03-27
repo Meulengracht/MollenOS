@@ -24,13 +24,11 @@
 #ifndef _CONTRACT_USBDEVICE_INTERFACE_H_
 #define _CONTRACT_USBDEVICE_INTERFACE_H_
 
-/* Includes 
- * - System */
 #include <ddk/usb/definitions.h>
+#include <ddk/services/usb.h>
 #include <ddk/driver.h>
 #include <ddk/device.h>
-#include <ddk/usb.h>
-#include <os/osdefs.h>
+#include <ddk/ddkdefs.h>
 
 /* MCoreUsbDevice_t
  * This is the base usb device structure definition

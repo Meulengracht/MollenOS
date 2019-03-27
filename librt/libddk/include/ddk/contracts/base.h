@@ -24,7 +24,7 @@
 #ifndef _CONTRACT_INTERFACE_H_
 #define _CONTRACT_INTERFACE_H_
 
-#include <os/osdefs.h>
+#include <ddk/ddkdefs.h>
 #include <ddk/device.h>
 #include <string.h>
 
@@ -80,14 +80,14 @@ InitializeContract(
  * Registers the given contact with the device-manager to let
  * the manager know we are handling this device, and what kind
  * of functionality the device supports */
-CRTDECL(
+DDKDECL(
 OsStatus_t,
 RegisterContract(
     _In_ MContract_t *Contract));
 
 /* QueryContract 
  * Handles the generic query function, by resolving the correct driver and asking for data */
-CRTDECL(
+DDKDECL(
 OsStatus_t,
 QueryContract(
     _In_      MContractType_t   Type, 

@@ -23,8 +23,8 @@
 #define __TRACE
 
 #include <ddk/contracts/usbdevice.h>
+#include <ddk/services/usb.h>
 #include <ddk/device.h>
-#include <ddk/usb.h>
 #include <ddk/utils.h>
 #include "manager.h"
 #include <threads.h>

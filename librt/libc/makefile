@@ -31,9 +31,7 @@ COMMON_SRCS = $(wildcard assert/*.c) \
 
 COMMON_INCS = -I../include -Iinclude -I../libds/include -I../libddk/include
 
-LIBK_SRCS = $(wildcard os/mstring/*.c) \
-			os/synchronization/spinlock.c \
-			os/rpc.c \
+LIBK_SRCS = os/synchronization/spinlock.c \
 			locale/locale.c \
 			stdlib/itoa.c \
 			stdlib/strtoul.c \
@@ -60,7 +58,7 @@ LIBC_SRCS = $(wildcard ctype/*.c) \
 LIBK_OBJECTS = $(ASM_SRCS:.s=.ko) $(COMMON_SRCS:.c=.ko) $(LIBK_SRCS:.c=.ko)
 LIBC_OBJECTS = $(ASM_SRCS:.s=.o) $(COMMON_SRCS:.c=.o) $(LIBC_SRCS:.c=.o)
 
-LIBC_DEPENDENCIES = ../build/libcrt.lib ../build/libclang.lib ../build/libm.lib ../build/libds.lib
+LIBC_DEPENDENCIES = ../build/libcrt.lib ../build/libclang.lib ../build/libm.lib ../build/libds.lib ../build/ddk.lib
 
 # Setup flags and stuff each for individual build  $(subst ../,,$(ASM_SRCS))
 LIBK_CFLAGS = $(GCFLAGS) -mno-sse -D__OSLIB_C_IMPLEMENTATION -DLIBC_KERNEL -D_KRNL_DLL $(COMMON_INCS) $(LIBK_INCS)
@@ -76,10 +74,6 @@ libk: ../build/libk.lib
 # libc-target
 .PHONY: libc
 libc: ../build/libc.dll
-
-# tidy-target
-.PHONY: tidy
-tidy: $(LIBK_OBJECTS) $(LIBC_OBJECTS)
 
 ../build/libk.lib: $(LIBK_OBJECTS)
 	@printf "%b" "\033[0;36mCreating static library " $@ "\033[m\n"

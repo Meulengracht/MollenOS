@@ -182,16 +182,17 @@ ScGetThreadMemorySpaceHandle(
 
 OsStatus_t 
 ScCreateMemorySpaceMapping(
-    _In_ UUId_t                          Handle,
-    _In_ struct MemoryMappingParameters* Parameters,
-    _In_ DmaBuffer_t*                    AccessBuffer)
+    _In_  UUId_t                          Handle,
+    _In_  struct MemoryMappingParameters* Parameters,
+    _Out_ void**                          AddressOut)
 {
     SystemModule_t*      Module         = GetCurrentModule();
     SystemMemorySpace_t* MemorySpace    = (SystemMemorySpace_t*)LookupHandle(Handle);
     Flags_t              RequiredFlags  = MAPPING_COMMIT | MAPPING_USERSPACE;
-    Flags_t              PlacementFlags = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_FIXED;
+    Flags_t              PlacementFlags = MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_FIXED;
+    VirtualAddress_t     CopyPlacement  = 0;
     OsStatus_t           Status;
-    if (Parameters == NULL || AccessBuffer == NULL || Module == NULL) {
+    if (Parameters == NULL || AddressOut == NULL || Module == NULL) {
         if (Module == NULL) {
             return OsInvalidPermissions;
         }
@@ -201,11 +202,6 @@ ScCreateMemorySpaceMapping(
         return OsDoesNotExist;
     }
     
-    Status = CreateMemoryBuffer(MEMORY_BUFFER_MEMORYMAPPING, Parameters->Length, AccessBuffer);
-    if (Status != OsSuccess) {
-        return Status;
-    }
-
     if (Parameters->Flags & MEMORY_EXECUTABLE) {
         RequiredFlags |= MAPPING_EXECUTABLE;
     }
@@ -213,15 +209,25 @@ ScCreateMemorySpaceMapping(
         RequiredFlags |= MAPPING_READONLY;
     }
 
-    TRACE("CreateMemorySpaceMapping(P 0x%" PRIxIN ", V 0x%" PRIxIN ", L 0x%" PRIxIN ", F 0x%" PRIxIN ")", 
-        AccessBuffer->Dma, Parameters->VirtualAddress, Parameters->Length, RequiredFlags);
-    Status = CreateMemorySpaceMapping(MemorySpace, &AccessBuffer->Dma, &Parameters->VirtualAddress,
+    // Create the original mapping in the memory space passed, with the correct
+    // access flags. The copied one must have all kinds of access.
+    Status = CreateMemorySpaceMapping(MemorySpace, NULL, &Parameters->VirtualAddress,
         Parameters->Length, RequiredFlags, PlacementFlags, __MASK);
-    TRACE("=> mapped to 0x%" PRIxIN "", AccessBuffer->Address);
     if (Status != OsSuccess) {
-        ScMemoryFree(AccessBuffer->Address, AccessBuffer->Capacity);
-        DestroyHandle(AccessBuffer->Handle);
+        ERROR("ScCreateMemorySpaceMapping::Failed the create mapping in original space");
         return Status;
     }
+    
+    // Create a cloned copy in our own memory space, however we will set new placement and
+    // access flags
+    PlacementFlags = MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_PROCESS;
+    RequiredFlags  = MAPPING_COMMIT | MAPPING_USERSPACE;
+    Status         = CloneMemorySpaceMapping(MemorySpace, GetCurrentMemorySpace(),
+        Parameters->VirtualAddress, &CopyPlacement, Parameters->Length, RequiredFlags, PlacementFlags);
+    if (Status != OsSuccess) {
+        ERROR("ScCreateMemorySpaceMapping::Failed the create mapping in parent space");
+        RemoveMemorySpaceMapping(MemorySpace, Parameters->VirtualAddress, Parameters->Length);
+    }
+    *AddressOut = (void*)CopyPlacement;
     return Status;
 }

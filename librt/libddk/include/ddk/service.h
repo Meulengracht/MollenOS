@@ -25,21 +25,20 @@
 #define _SERVICE_H_
 
 #include <ddk/ipc/ipc.h>
-#include <os/osdefs.h>
+#include <ddk/ddkdefs.h>
 
 #define __SERVICE_TARGET(Index)  ((UUId_t)0x8000 + Index)
 
 #define __DEVICEMANAGER_TARGET   __SERVICE_TARGET(0)
 #define __FILEMANAGER_TARGET     __SERVICE_TARGET(1)
-#define __WINDOWMANAGER_TARGET   __SERVICE_TARGET(2)
-#define __USBMANAGER_TARGET      __SERVICE_TARGET(3)
-#define __SESSIONMANAGER_TARGET  __SERVICE_TARGET(4)
-#define __PROCESSMANAGER_TARGET  __SERVICE_TARGET(5)
+#define __USBMANAGER_TARGET      __SERVICE_TARGET(2)
+#define __SESSIONMANAGER_TARGET  __SERVICE_TARGET(3)
+#define __PROCESSMANAGER_TARGET  __SERVICE_TARGET(4)
 
 _CODE_BEGIN
-CRTDECL(OsStatus_t, RegisterService(UUId_t Alias));
-CRTDECL(OsStatus_t, IsServiceAvailable(UUId_t Alias));
-CRTDECL(OsStatus_t, WaitForService(UUId_t Alias, size_t Timeout));
+DDKDECL(OsStatus_t, RegisterService(UUId_t Alias));
+DDKDECL(OsStatus_t, IsServiceAvailable(UUId_t Alias));
+DDKDECL(OsStatus_t, WaitForService(UUId_t Alias, size_t Timeout));
 _CODE_END
 
 #endif //!_SERVICE_H_

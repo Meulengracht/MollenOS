@@ -27,17 +27,14 @@
 #include <string.h>
 #include "mfs.h"
 
-/* FsReadFromFile 
- * Reads the requested number of units from the entry handle into the supplied buffer. This
- * can be handled differently based on the type of entry. */
 FileSystemCode_t
 FsReadFromFile(
-    _In_  FileSystemDescriptor_t*   FileSystem,
-    _In_  MfsEntryHandle_t*         Handle,
-    _In_  DmaBuffer_t*              BufferObject,
-    _In_  size_t                    Length,
-    _Out_ size_t*                   BytesAt,
-    _Out_ size_t*                   BytesRead)
+    _In_  FileSystemDescriptor_t* FileSystem,
+    _In_  MfsEntryHandle_t*       Handle,
+    _In_  DmaBuffer_t*            BufferObject,
+    _In_  size_t                  Length,
+    _Out_ size_t*                 BytesAt,
+    _Out_ size_t*                 BytesRead)
 {
     MfsInstance_t*   Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
     MfsEntry_t*      Entry           = (MfsEntry_t*)Handle->Base.Entry;
@@ -116,13 +113,17 @@ FsReadFromFile(
 
         // Perform the read (Raw - as we need to pass the datapointer)
         if (StorageRead(FileSystem->Disk.Driver, FileSystem->Disk.Device, 
-            FileSystem->SectorStart + Sector, DataPointer, SectorCount) != OsSuccess) {
+            FileSystem->SectorStart + Sector, DataPointer, SectorCount, &SectorCount) != OsSuccess) {
             ERROR("Failed to read sector");
             Result = FsDiskError;
             break;
         }
 
-        // Increase the pointers and decrease with bytes read
+        // Increase the pointers and decrease with bytes read, take into account
+        // we might not have been able to read all data in one go
+        if ((FileSystem->Disk.Descriptor.SectorSize * SectorCount) < ByteCount) {
+            ByteCount = FileSystem->Disk.Descriptor.SectorSize * SectorCount;
+        }
         DataPointer += FileSystem->Disk.Descriptor.SectorSize * SectorCount;
         *BytesRead  += ByteCount;
         Position    += ByteCount;
@@ -149,9 +150,6 @@ FsReadFromFile(
     return Result;
 }
 
-/* FsWriteToFile 
- * Writes the requested number of bytes to the given
- * file handle and outputs the number of bytes actually written */
 FileSystemCode_t
 FsWriteToFile(
     _In_  FileSystemDescriptor_t*   FileSystem,
@@ -160,18 +158,18 @@ FsWriteToFile(
     _In_  size_t                    Length,
     _Out_ size_t*                   BytesWritten)
 {
-    MfsInstance_t*      Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
-    MfsEntry_t*         Entry           = (MfsEntry_t*)Handle->Base.Entry;
-    FileSystemCode_t    Result          = FsOk;
-    uint64_t            Position        = Handle->Base.Position;
-    size_t              BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize;
-    size_t              BytesToWrite    = Length;
+    MfsInstance_t*   Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
+    MfsEntry_t*      Entry           = (MfsEntry_t*)Handle->Base.Entry;
+    FileSystemCode_t Result          = FsOk;
+    uint64_t         Position        = Handle->Base.Position;
+    size_t           BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize;
+    size_t           BytesToWrite    = Length;
 
     TRACE("FsWriteEntry(Id 0x%x, Position %u, Length %u)",
         Handle->Base.Id, LODWORD(Position), Length);
 
-    *BytesWritten   = 0;
-    Result          = MfsEnsureRecordSpace(FileSystem, Entry, Position + BytesToWrite);
+    *BytesWritten = 0;
+    Result        = MfsEnsureRecordSpace(FileSystem, Entry, Position + BytesToWrite);
     if (Result != FsOk) {
         return Result;
     }
@@ -229,11 +227,17 @@ FsWriteToFile(
         // Case 1 - Handle padding
         if (SectorOffset != 0 || ByteCount != FileSystem->Disk.Descriptor.SectorSize) {
             // Start building the sector
-            if (MfsReadSectors(FileSystem, Mfs->TransferBuffer, Sector, SectorCount) != OsSuccess) {
+            if (MfsReadSectors(FileSystem, Mfs->TransferBuffer, Sector, 
+                SectorCount, &SectorCount) != OsSuccess) {
                 ERROR("Failed to read sector %u for combination step", 
                     LODWORD(Sector));
                 Result = FsDiskError;
                 break;
+            }
+            
+            // Adjust the bytecount if we are not able to read all in one go
+            if ((FileSystem->Disk.Descriptor.SectorSize * SectorCount) < ByteCount) {
+                ByteCount = FileSystem->Disk.Descriptor.SectorSize * SectorCount;
             }
         }
 
@@ -242,16 +246,21 @@ FsWriteToFile(
         CombineBuffer(Mfs->TransferBuffer, BufferObject, ByteCount, NULL);
 
         // Perform the write (Raw - as we need to pass the datapointer)
-        if (MfsWriteSectors(FileSystem, Mfs->TransferBuffer, Sector, SectorCount) != OsSuccess) {
+        if (MfsWriteSectors(FileSystem, Mfs->TransferBuffer, Sector, 
+            SectorCount, &SectorCount) != OsSuccess) {
             ERROR("Failed to write sector %u", LODWORD(Sector));
             Result = FsDiskError;
             break;
         }
 
         // Increase the pointers and decrease with bytes read
-        Position        += ByteCount;
-        *BytesWritten   += ByteCount;
-        BytesToWrite    -= ByteCount;
+        // Adjust the bytecount if we are not able to read all in one go
+        if ((FileSystem->Disk.Descriptor.SectorSize * SectorCount) < ByteCount) {
+            ByteCount = FileSystem->Disk.Descriptor.SectorSize * SectorCount;
+        }
+        Position      += ByteCount;
+        *BytesWritten += ByteCount;
+        BytesToWrite  -= ByteCount;
 
         // Do we need to switch bucket?
         // We do if the position we have read to equals end of bucket
@@ -287,14 +296,11 @@ FsWriteToFile(
     return Result;
 }
 
-/* FsSeekInFile 
- * Seeks in the given entry-handle to the absolute position
- * given, must be within boundaries otherwise a seek won't take a place */
 FileSystemCode_t
 FsSeekInFile(
-    _In_ FileSystemDescriptor_t*    FileSystem,
-    _In_ MfsEntryHandle_t*          Handle,
-    _In_ uint64_t                   AbsolutePosition)
+    _In_ FileSystemDescriptor_t* FileSystem,
+    _In_ MfsEntryHandle_t*       Handle,
+    _In_ uint64_t                AbsolutePosition)
 {
     MfsInstance_t*  Mfs                 = (MfsInstance_t*)FileSystem->ExtensionData;
     MfsEntry_t*     Entry               = (MfsEntry_t*)Handle->Base.Entry;
@@ -387,14 +393,11 @@ FsSeekInFile(
     return FsOk;
 }
 
-/* FsChangeFileSize 
- * Either expands or shrinks the allocated space for the given
- * file-handle to the requested size. */
 FileSystemCode_t
 FsChangeFileSize(
-    _In_ FileSystemDescriptor_t*    FileSystem,
-    _In_ FileSystemEntry_t*         BaseEntry,
-    _In_ uint64_t                   Size)
+    _In_ FileSystemDescriptor_t* FileSystem,
+    _In_ FileSystemEntry_t*      BaseEntry,
+    _In_ uint64_t                Size)
 {
     MfsEntry_t*         Entry   = (MfsEntry_t*)BaseEntry;
     FileSystemCode_t    Code    = FsOk;

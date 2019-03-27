@@ -24,13 +24,14 @@
 
 #include <internal/_syscalls.h> // for Syscall_ThreadCreate
 #include "../../librt/libds/pe/pe.h"
+#include <os/services/file.h>
 #include <os/eventqueue.h>
+#include <os/mollenos.h>
+#include <os/context.h>
 #include "process.h"
 #include <ds/mstring.h>
-#include <os/context.h>
 #include <ddk/buffer.h>
 #include <ddk/utils.h>
-#include <ddk/file.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
@@ -230,6 +231,7 @@ LoadFile(
             if (Buffer != NULL) {
                 size_t Index, Read = 0;
                 FsCode = ReadFile(Handle, GetBufferHandle(TransferBuffer), Size, &Index, &Read);
+                TRACE("Read %" PRIuIN " bytes from file %s", Read, MStringRaw(FullPath));
                 if (FsCode == FsOk && Read != 0) {
                     memcpy(Buffer, (const void*)GetBufferDataPointer(TransferBuffer), Read);
                 }
@@ -521,9 +523,9 @@ HandleProcessCrashReport(
     }
 
     // Debug
-    ERROR("%s: Crashed in module %s, at offset 0x%x",
+    ERROR("%s: Crashed in module %s, at offset 0x%" PRIxIN " (0x%" PRIxIN ") with reason %i",
         MStringRaw(Process->Executable->Name), MStringRaw(ImageName),
-        CrashAddress - ImageBase);
+        CrashAddress - ImageBase, CrashAddress, CrashReason);
     return OsSuccess;
 }
 

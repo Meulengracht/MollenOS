@@ -26,7 +26,7 @@
 
 /* Includes 
  * - System */
-#include <os/osdefs.h>
+#include <ddk/ddkdefs.h>
 #include <ddk/driver.h>
 #include <ddk/usb.h>
 

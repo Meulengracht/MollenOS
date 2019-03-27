@@ -33,27 +33,26 @@
 OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
 	DmaBuffer_t *Buffer, uint64_t Sector, uint64_t SectorCount)
 {
-	// Variables
-	MasterBootRecord_t *Mbr = NULL;
-	FileSystemType_t Type = FSUnknown;
+	MasterBootRecord_t* Mbr;
+	FileSystemType_t    Type = FSUnknown;
+	size_t              SectorsRead;
 
 	// Trace
 	TRACE("DiskDetectFileSystem(Sector %u, Count %u)",
 		LODWORD(Sector), LODWORD(SectorCount));
 
 	// Make sure the MBR is loaded
-	if (StorageRead(Disk->Driver, Disk->Device, Sector, GetBufferDma(Buffer), 1) != OsSuccess) {
+	if (StorageRead(Disk->Driver, Disk->Device, Sector, 
+		GetBufferDma(Buffer), 1, &SectorsRead) != OsSuccess) {
 		return OsError;
 	}
-
-	// Instantiate the mbr-pointer
-	Mbr = (MasterBootRecord_t*)GetBufferDataPointer(Buffer);
 
 	// Ok - we do some basic signature checks 
 	// MFS - "MFS1" 
 	// NTFS - "NTFS" 
 	// exFAT - "EXFAT" 
 	// FAT - "FATXX"
+	Mbr = (MasterBootRecord_t*)GetBufferDataPointer(Buffer);
 	if (!strncmp((const char*)&Mbr->BootCode[3], "MFS1", 4)) {
 		Type = FSMFS;
 	}
@@ -92,10 +91,10 @@ OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
  * OsError to indicate the entire disk is a FS */
 OsStatus_t DiskDetectLayout(FileSystemDisk_t *Disk)
 {
-	// Variables
-	DmaBuffer_t *Buffer = NULL;
-	GptHeader_t *Gpt = NULL;
-	OsStatus_t Result;
+	DmaBuffer_t* Buffer;
+	GptHeader_t* Gpt;
+	OsStatus_t   Result;
+	size_t       SectorsRead;
 
 	// Trace
 	TRACE("DiskDetectLayout(SectorSize %u)",
@@ -108,7 +107,8 @@ OsStatus_t DiskDetectLayout(FileSystemDisk_t *Disk)
 	// In order to detect the schema that is used
 	// for the disk - we can easily just read sector LBA 1
 	// and look for the GPT signature
-	if (StorageRead(Disk->Driver, Disk->Device, 1, GetBufferDma(Buffer), 1) != OsSuccess) {
+	if (StorageRead(Disk->Driver, Disk->Device, 1, 
+		GetBufferDma(Buffer), 1, &SectorsRead) != OsSuccess) {
 		DestroyBuffer(Buffer);
 		return OsError;
 	}

@@ -21,22 +21,27 @@
  */
 //#define __TRACE
 
-#include <ds/collection.h>
-#include <ddk/file.h>
-#include <ddk/utils.h>
 #include "include/vfs.h"
+#include <os/services/storage.h>
+#include <ddk/service.h>
+#include <ddk/utils.h>
+
+#include <ds/collection.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 
 #ifdef __TRACE
 static const char *FunctionNames[] = {
-    "RegisterDisk",
-    "UnregisterDisk",
-    "QueryDisks",
-    "QueryDisk",
-    "QueryDiskByPath",
-    "QueryDiskByHandle",
+    "RegisterStorage",
+    "UnregisterStorage",
+    "QueryStorages",
+    "QueryStorage",
+    "QueryStorageByPath",
+    "QueryStorageByHandle",
+    "QueryStorageFileSystems",
+    "QueryFileSystemByPath",
+    "QueryFileSystemByHandle",
     "OpenFile",
     "CloseFile",
     "ReadFile",
@@ -130,7 +135,7 @@ VfsIdentifierAllocate(
 
     // Start out by determing start index
     ArrayEndIndex = __FILEMANAGER_MAXDISKS / 2;
-    if (Disk->Flags & __DISK_REMOVABLE) {
+    if (Disk->Flags & __STORAGE_REMOVABLE) {
         ArrayStartIndex = __FILEMANAGER_MAXDISKS / 2;
         ArrayEndIndex = __FILEMANAGER_MAXDISKS;
     }
@@ -153,7 +158,7 @@ VfsIdentifierFree(
     _In_ UUId_t              Id)
 {
     int ArrayIndex = (int)Id;
-    if (Disk->Flags & __DISK_REMOVABLE) {
+    if (Disk->Flags & __STORAGE_REMOVABLE) {
         ArrayIndex += __FILEMANAGER_MAXDISKS / 2;
     }
     if (ArrayIndex < __FILEMANAGER_MAXDISKS) {
@@ -206,7 +211,7 @@ OnEvent(
         // Handles registration of a new disk 
         // and and parses the disk-system for a MBR
         // or a GPT table 
-        case __FILEMANAGER_REGISTERDISK: {
+        case __FILEMANAGER_REGISTERSTORAGE: {
             Result = VfsRegisterDisk(Message->From.Process,
                 (UUId_t)Message->Arguments[0].Data.Value,
                 (Flags_t)Message->Arguments[1].Data.Value);
@@ -214,20 +219,26 @@ OnEvent(
 
         // Unregisters a disk from the system and
         // handles cleanup of all attached filesystems
-        case __FILEMANAGER_UNREGISTERDISK: {
+        case __FILEMANAGER_UNREGISTERSTORAGE: {
             Result = VfsUnregisterDisk(
                 (UUId_t)Message->Arguments[0].Data.Value,
                 (Flags_t)Message->Arguments[1].Data.Value);
         } break;
 
         // @todo
-        case __FILEMANAGER_QUERYDISKS: {
+        case __FILEMANAGER_QUERYSTORAGES: {
         } break;
-        case __FILEMANAGER_QUERYDISK: {
+        case __FILEMANAGER_QUERYSTORAGE: {
         } break;
-        case __FILEMANAGER_QUERYDISKBYPATH: {
+        case __FILEMANAGER_QUERYSTORAGEBYPATH: {
         } break;
-        case __FILEMANAGER_QUERYDISKBYHANDLE: {
+        case __FILEMANAGER_QUERYSTORAGEBYHANDLE: {
+        } break;
+        case __FILEMANAGER_QUERY_STORAGE_FILESYSTEMS: {
+        } break;
+        case __FILEMANAGER_QUERY_FILESYSTEM_BY_PATH: {
+        } break;
+        case __FILEMANAGER_QUERY_FILESYSTEM_BY_HANDLE: {
         } break;
 
         // Opens or creates the given file path based on

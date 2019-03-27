@@ -20,7 +20,8 @@
  * - Closes a given file-handle and cleans up
  */
 
-#include <ddk/file.h>
+#include <ddk/services/file.h> // for ipc
+#include <os/services/file.h>
 #include <ddk/utils.h>
 
 #include <io.h>
@@ -28,6 +29,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include <assert.h>
 #include "local.h"
 
 /* close

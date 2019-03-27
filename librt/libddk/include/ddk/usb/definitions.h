@@ -26,7 +26,7 @@
 
 /* Includes
  * - Library */
-#include <os/osdefs.h>
+#include <ddk/ddkdefs.h>
 
 /* Usb Controller Definitions
  * Shared constants and magics here that are usefull to all

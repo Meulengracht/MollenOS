@@ -25,11 +25,11 @@
 #define _USB_MANAGER_H_
 
 #include <ddk/contracts/usbhost.h>
-#include <ds/collection.h>
+#include <ddk/services/usb.h>
 #include <os/eventqueue.h>
+#include <ds/collection.h>
 #include <ddk/device.h>
 #include <ddk/driver.h>
-#include <ddk/usb.h>
 #include <os/spinlock.h>
 #include "transfer.h"
 #include "scheduler.h"

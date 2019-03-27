@@ -42,7 +42,7 @@ _CODE_END
 
 #define Syscall_CreateMemorySpace(Flags, HandleOut) (OsStatus_t)syscall2(16, SCPARAM(Flags), SCPARAM(HandleOut))
 #define Syscall_GetMemorySpaceForThread(ThreadHandle, HandleOut) (OsStatus_t)syscall2(17, SCPARAM(ThreadHandle), SCPARAM(HandleOut))
-#define Syscall_CreateMemorySpaceMapping(Handle, Parameters, AccessBuffer) (OsStatus_t)syscall3(18, SCPARAM(Handle), SCPARAM(Parameters), SCPARAM(AccessBuffer))
+#define Syscall_CreateMemorySpaceMapping(Handle, Parameters, AddressOut) (OsStatus_t)syscall3(18, SCPARAM(Handle), SCPARAM(Parameters), SCPARAM(AddressOut))
 
 #define Syscall_AcpiQuery(Descriptor) (OsStatus_t)syscall1(19, SCPARAM(Descriptor))
 #define Syscall_AcpiGetHeader(Signature, Header) (OsStatus_t)syscall2(20, SCPARAM(Signature), SCPARAM(Header))
@@ -56,7 +56,7 @@ _CODE_END
 #define Syscall_LoadDriver(Device, Length, Buffer, BufferLength) (OsStatus_t)syscall4(28, SCPARAM(Device), SCPARAM(Length), SCPARAM(Buffer), SCPARAM(BufferLength))
 #define Syscall_InterruptAdd(Descriptor, Flags) (UUId_t)syscall2(29, SCPARAM(Descriptor), SCPARAM(Flags))
 #define Syscall_InterruptRemove(InterruptId) (OsStatus_t)syscall1(30, SCPARAM(InterruptId))
-#define Syscall_RegisterEventTarget(KeyInputHandle, WmInputHandle) (OsStatus_t)syscall2(31, SCPARAM(KeyInputHandle), SCPARAM(WmInputHandle))
+#define Syscall_RegisterEventTarget(StdInputHandle, WmHandle) (OsStatus_t)syscall2(31, SCPARAM(StdInputHandle), SCPARAM(WmHandle))
 #define Syscall_KeyEvent(SystemKey) (OsStatus_t)syscall1(32, SCPARAM(SystemKey))
 #define Syscall_InputEvent(SystemInput) (OsStatus_t)syscall1(33, SCPARAM(SystemInput))
 #define Syscall_GetProcessBaseAddress(BaseAddressOut) (OsStatus_t)syscall1(34, SCPARAM(BaseAddressOut))
@@ -89,7 +89,7 @@ _CODE_END
 
 #define Syscall_RemoteCall(RemoteCall, Asynchronous) (OsStatus_t)syscall2(56, SCPARAM(RemoteCall), SCPARAM(Asynchronous))
 #define Syscall_RpcGetResponse(RemoteCall) (OsStatus_t)syscall1(57, SCPARAM(RemoteCall))
-#define Syscall_RemoteCallWait(RemoteCall, ArgumentBuffer) (OsStatus_t)syscall2(58, SCPARAM(RemoteCall), SCPARAM(ArgumentBuffer))
+#define Syscall_RemoteCallWait(Handle, RemoteCall, ArgumentBuffer) (OsStatus_t)syscall3(58, SCPARAM(Handle), SCPARAM(RemoteCall), SCPARAM(ArgumentBuffer))
 #define Syscall_RemoteCallRespond(RemoteAddress, Buffer, Length) (OsStatus_t)syscall3(59, SCPARAM(RemoteAddress), SCPARAM(Buffer), SCPARAM(Length))
 
 #define Syscall_MemoryAllocate(Size, Flags, Virtual, Physical) (OsStatus_t)syscall4(60, SCPARAM(Size), SCPARAM(Flags), SCPARAM(Virtual), SCPARAM(Physical))

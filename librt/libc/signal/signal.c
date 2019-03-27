@@ -21,7 +21,8 @@
  */
 
 #include <internal/_all.h>
-#include <ddk/process.h>
+#include <internal/_utils.h>
+#include <ddk/services/process.h>
 #include <os/context.h>
 #include <ddk/utils.h>
 #include <signal.h>
@@ -93,10 +94,18 @@ void
 StdCrash(
     _In_ int Signal)
 {
-    Context_t Context;
+    Context_t Context = { 0 };
 
     // Retrieve the errornous context, and then report an application crash
-    if (Syscall_ThreadGetContext(&Context) == OsSuccess) {
+    // this will only get the LAST errornous context, which means in cases
+    // where the application itself raises an issue this is invalid
+    if (Syscall_ThreadGetContext(&Context) != OsSuccess) {
+        // Read our current context
+        ERROR("Unable to get crash context for thread, invoked by application %i", Signal);
+    }
+    
+    // Not supported by modules
+    if (!IsProcessModule()) {
         ProcessReportCrash(&Context, Signal);
     }
 }
@@ -129,7 +138,7 @@ StdSignalEntry(
         if (Handler == SIG_DFL) {
             if (signal_fatality[Signal] == 1 || signal_fatality[Signal] == 2) {
                 StdCrash(Signal);
-                _exit(EXIT_FAILURE);
+                _Exit(EXIT_FAILURE);
             }
         }
         else {
@@ -142,7 +151,7 @@ StdSignalEntry(
         (Signal != SIGINT && Signal != SIGUSR1 && Signal != SIGUSR2)) {
         ERROR("Unhandled signal %i. Aborting application", Signal);
         StdCrash(Signal);
-        _exit(Signal);
+        _Exit(Signal);
     }
 }
 

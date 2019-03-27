@@ -20,11 +20,10 @@
  */
 
 #include <internal/_syscalls.h>
-#include <os/process.h>
+#include <os/services/process.h>
 #include <ddk/ipc/ipc.h>
 
 #include "../libc/threads/tls.h"
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -38,9 +37,9 @@ extern void __cxa_module_tls_thread_finit(void);
 CRTDECL(void, __CppInitVectoredEH(void));
 #endif
 
-CRTDECL(void, __cxa_runinitializers(void (*module_init)(void), void (*module_cleanup)(void), 
+CRTDECL(void,        __cxa_runinitializers(void (*module_init)(void), void (*module_cleanup)(void), 
     void (*module_thread_init)(void), void (*module_thread_finit)(void)));
-CRTDECL(void, InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInformation));
+CRTDECL(void,        InitializeProcess(int IsModule, ProcessStartupInformation_t* StartupInformation));
 CRTDECL(const char*, GetInternalCommandLine(void));
 
 /* Unescape Quotes in arguments */

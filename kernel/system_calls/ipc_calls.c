@@ -149,18 +149,29 @@ ScRpcExecute(
     size_t                TotalLength = sizeof(MRemoteCall_t);
     MCoreThread_t*        Thread;
     SystemModule_t*       Module;
+    SystemPipe_t*         Pipe;
     int                   i;
-
     assert(RemoteCall != NULL);
-    //TRACE("ScRpcExecute(Message %" PRIiIN ", Async %" PRIiIN ")", RemoteCall->Function, Async);
     
     Module = (SystemModule_t*)GetModuleByHandle(RemoteCall->Target);
-    if (Module == NULL || Module->Rpc == NULL) {
-        ERROR("RPC-Target %" PRIuIN " did not exist", RemoteCall->Target);
-        return OsError;
+    if (Module == NULL) {
+        Pipe = (SystemPipe_t*)LookupHandle(RemoteCall->Target);
+        if (Pipe == NULL) {
+            return OsDoesNotExist;
+        }
+        if (!(Pipe->Configuration & PIPE_STRUCTURED_BUFFER)) {
+            return OsInvalidParameters;
+        }
+    }
+    else {
+        if (Module->Rpc == NULL) {
+            ERROR("RPC-Target %" PRIuIN " did exist, but was not running", RemoteCall->Target);
+            return OsInvalidParameters;
+        }
+        Pipe = Module->Rpc;
     }
 
-    // Calculate how much data to be comittedc
+    // Calculate how much data to be comitted
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
         if (RemoteCall->Arguments[i].Type == ARGUMENT_BUFFER) {
             TotalLength += RemoteCall->Arguments[i].Length;
@@ -173,7 +184,7 @@ ScRpcExecute(
     RemoteCall->From.Thread   = Thread->Header.Key.Value.Id;
 
     // Setup producer access
-    AcquireSystemPipeProduction(Module->Rpc, TotalLength, &State);
+    AcquireSystemPipeProduction(Pipe, TotalLength, &State);
     WriteSystemPipeProduction(&State, (const uint8_t*)RemoteCall, sizeof(MRemoteCall_t));
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
         if (RemoteCall->Arguments[i].Type == ARGUMENT_BUFFER) {
@@ -190,24 +201,39 @@ ScRpcExecute(
 
 OsStatus_t
 ScRpcListen(
+    _In_ UUId_t         Handle,
     _In_ MRemoteCall_t* RemoteCall,
     _In_ uint8_t*       ArgumentBuffer)
 {
     SystemPipeUserState_t State;
     uint8_t*              BufferPointer = ArgumentBuffer;
     SystemModule_t*       Module;
+    SystemPipe_t*         Pipe;
     size_t                Length;
     int                   i;
     
     assert(RemoteCall != NULL);
     
     // Start out by resolving both the process and pipe
-    Module = GetCurrentModule();
-    if (Module == NULL) {
-        return OsInvalidPermissions;
+    if (Handle == UUID_INVALID) {
+        Module = GetCurrentModule();
+        if (Module == NULL) {
+            return OsInvalidPermissions;
+        }
+        Pipe = Module->Rpc;
+    }
+    else {
+        Pipe = (SystemPipe_t*)LookupHandle(Handle);
+        if (Pipe == NULL) {
+            return OsDoesNotExist;
+        }
+        if (!(Pipe->Configuration & PIPE_STRUCTURED_BUFFER)) {
+            return OsInvalidParameters;
+        }
     }
 
-    AcquireSystemPipeConsumption(Module->Rpc, &Length, &State);
+    // Get in queue for pipe entry
+    AcquireSystemPipeConsumption(Pipe, &Length, &State);
     ReadSystemPipeConsumption(&State, (uint8_t*)RemoteCall, sizeof(MRemoteCall_t));
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
         if (RemoteCall->Arguments[i].Type == ARGUMENT_BUFFER) {
@@ -216,7 +242,7 @@ ScRpcListen(
             BufferPointer += RemoteCall->Arguments[i].Length;
         }
     }
-    FinalizeSystemPipeConsumption(Module->Rpc, &State);
+    FinalizeSystemPipeConsumption(Pipe, &State);
     return OsSuccess;
 }
 
@@ -227,17 +253,12 @@ ScRpcRespond(
     _In_ size_t                Length)
 {
     MCoreThread_t* Thread = GetThread(RemoteAddress->Thread);
-    SystemPipe_t*  Pipe   = NULL;
-    //TRACE("ScRpcRespond(Thread %" PRIuIN ", %" PRIuIN ")", RemoteAddress->Thread, Length);
-
-    // Sanitize thread still exists
-    if (Thread != NULL) {
-        Pipe = Thread->Pipe;
+    if (Thread) {
+        if (Thread->Pipe) {
+            WriteSystemPipe(Thread->Pipe, Buffer, Length);
+            return OsSuccess;
+        }
     }
-    if (Pipe == NULL) {
-        ERROR("Thread %" PRIuIN " did not exist", RemoteAddress->Thread);
-        return OsError;
-    }
-    WriteSystemPipe(Pipe, Buffer, Length);
-    return OsSuccess;
+    ERROR("Thread %" PRIuIN " did not exist", RemoteAddress->Thread);
+    return OsDoesNotExist;
 }

@@ -148,12 +148,12 @@ GetExportedFunctionByNameDescriptor(
 
 static OsStatus_t
 PeHandleSections(
-    _In_ PeExecutable_t*     Parent,
-    _In_ PeExecutable_t*     Image,
-    _In_ uint8_t*            Data,
-    _In_ uintptr_t           SectionAddress,
-    _In_ int                 SectionCount,
-    _In_ SectionMapping_t*   SectionHandles)
+    _In_ PeExecutable_t*   Parent,
+    _In_ PeExecutable_t*   Image,
+    _In_ uint8_t*          Data,
+    _In_ uintptr_t         SectionAddress,
+    _In_ int               SectionCount,
+    _In_ SectionMapping_t* SectionHandles)
 {
     PeSectionHeader_t* Section        = (PeSectionHeader_t*)SectionAddress;
     uintptr_t          CurrentAddress = Image->VirtualAddress;
@@ -188,7 +188,8 @@ PeHandleSections(
         // Iterate pages and map them in our memory space
         Status = AcquireImageMapping(Image->MemorySpace, &VirtualDestination, SectionSize, PageFlags, &MapHandle);
         if (Status != OsSuccess) {
-            dserror("Failed to map in PE section at 0x%x", VirtualDestination);
+            dserror("%s: Failed to map section %s at 0x%" PRIxIN ": %u", 
+                MStringRaw(Image->Name), &SectionName[0], VirtualDestination, Status);
             return Status;
         }
         Destination = (uint8_t*)VirtualDestination;
@@ -350,10 +351,22 @@ PeHandleRelocations(
         uintptr_t         SectionBase;
 
         // Get the next block
-        uint32_t  PageRVA   = RelocationPointer[0];
-        uint32_t  BlockSize = RelocationPointer[1];
-        if (PageRVA == 0) {
-            dserror("Invalid relocation data: PageRVA is 0");
+        uint32_t PageRVA   = RelocationPointer[0];
+        uint32_t BlockSize = RelocationPointer[1];
+        if (PageRVA == 0 || BlockSize == 0) {
+            int Index = 0;
+            dserror("%s: Directory 0x%" PRIxIN ", Size %" PRIuIN, 
+                MStringRaw(Image->Name), DirectoryContent, DirectorySize);
+            dserror("BytesLeft %" PRIuIN ", ", BytesLeft);
+            dserror("PageRVA is 0, BlockSize %u", BlockSize);
+            for (i = 0; i < 4; i++, Index += 16) {
+                dswarning("%x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x", DirectoryContent[Index],
+                    DirectoryContent[Index + 1], DirectoryContent[Index + 2], DirectoryContent[Index + 3],
+                    DirectoryContent[Index + 4], DirectoryContent[Index + 5], DirectoryContent[Index + 6],
+                    DirectoryContent[Index + 7], DirectoryContent[Index + 8], DirectoryContent[Index + 9],
+                    DirectoryContent[Index + 10], DirectoryContent[Index + 11], DirectoryContent[Index + 12],
+                    DirectoryContent[Index + 13], DirectoryContent[Index + 14], DirectoryContent[Index + 15]);
+            }
             assert(0);
         }
 
@@ -364,11 +377,7 @@ PeHandleRelocations(
             dserror("Invalid relocation data: BlockSize > BytesLeft, bailing");
             assert(0);
         }
-
-        if (BlockSize == 0) {
-            dserror("Invalid relocation data: BlockSize == 0, bailing");
-            assert(0);
-        }
+        
         NumRelocs       = (BlockSize - 8) / sizeof(uint16_t);
         RelocationTable = (uint16_t*)&RelocationPointer[2];
 
@@ -423,12 +432,12 @@ PeHandleRelocations(
 
 OsStatus_t
 PeHandleExports(
-    _In_ PeExecutable_t*    ParentImage,
-    _In_ PeExecutable_t*    Image,
-    _In_ SectionMapping_t*  Sections,
-    _In_ int                SectionCount,
-    _In_ uint8_t*           DirectoryContent,
-    _In_ size_t             DirectorySize)
+    _In_ PeExecutable_t*   ParentImage,
+    _In_ PeExecutable_t*   Image,
+    _In_ SectionMapping_t* Sections,
+    _In_ int               SectionCount,
+    _In_ uint8_t*          DirectoryContent,
+    _In_ size_t            DirectorySize)
 {
     SectionMapping_t*    Section;
     PeExportDirectory_t* ExportTable;
@@ -572,6 +581,7 @@ PeParseAndMapImage(
     OsStatus_t         Status;
     clock_t            Timing;
     int                i, j;
+    dstrace("%s: loading at 0x%" PRIxIN, MStringRaw(Image->Name), Image->VirtualAddress);
 
     // Copy metadata of image to base address
     Status = AcquireImageMapping(Image->MemorySpace, &VirtualAddress, SizeOfMetaData,
