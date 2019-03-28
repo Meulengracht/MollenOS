@@ -95,7 +95,7 @@ _CODE_END
 #define Syscall_MemoryAllocate(Size, Flags, Virtual, Physical) (OsStatus_t)syscall4(60, SCPARAM(Size), SCPARAM(Flags), SCPARAM(Virtual), SCPARAM(Physical))
 #define Syscall_MemoryFree(Pointer, Size) (OsStatus_t)syscall2(61, SCPARAM(Pointer), SCPARAM(Size))
 #define Syscall_MemoryProtect(MemoryPointer, Length, Flags, PreviousFlags) (OsStatus_t)syscall4(62, SCPARAM(MemoryPointer), SCPARAM(Length), SCPARAM(Flags), SCPARAM(PreviousFlags))
-#define Syscall_CreateBuffer(Size, DmaBufferPointer) (OsStatus_t)syscall3(63, SCPARAM(Size), SCPARAM(DmaBufferPointer))
+#define Syscall_CreateBuffer(Size, DmaBufferPointer) (OsStatus_t)syscall2(63, SCPARAM(Size), SCPARAM(DmaBufferPointer))
 #define Syscall_AcquireBuffer(Handle, DmaBufferPointer) (OsStatus_t)syscall2(64, SCPARAM(Handle), SCPARAM(DmaBufferPointer))
 #define Syscall_QueryBuffer(Handle, DmaOut, CapacityOut) (OsStatus_t)syscall3(65, SCPARAM(Handle), SCPARAM(DmaOut), SCPARAM(CapacityOut))
 
