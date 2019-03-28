@@ -7,18 +7,14 @@
                 "${workspaceRoot}/librt/include",
                 "${workspaceRoot}/librt/libc/include",
                 "${workspaceRoot}/librt/libds/include",
-                "${workspaceRoot}/librt/libacpi/include",
+                "${workspaceRoot}/librt/libacpi/source/include",
                 "${workspaceRoot}/librt/libddk/include",
                 "${workspaceRoot}/kernel/include",
                 "${workspaceRoot}/kernel/arch/x86",
                 "${workspaceRoot}/kernel/arch/x86/x32",
                 "${workspaceRoot}/services/devicemanager/arch/x86",
                 "${workspaceRoot}/modules/storage/sata",
-                "${workspaceRoot}/modules/storage/scsi",
-                "${workspaceRoot}/userspace/include",
-                "${workspaceRoot}/userspace/include/cxx",
-                "${workspaceRoot}/userspace/mesa/include",
-                "${workspaceRoot}/userspace/vioarr"
+                "${workspaceRoot}/modules/storage/scsi"
             ],
             "defines": [
                 "__STDC_VERSION__=201112L",
@@ -72,18 +68,14 @@
                 "${workspaceRoot}/librt/include",
                 "${workspaceRoot}/librt/libc/include",
                 "${workspaceRoot}/librt/libds/include",
-                "${workspaceRoot}/librt/libacpi/include",
+                "${workspaceRoot}/librt/libacpi/source/include",
                 "${workspaceRoot}/librt/libddk/include",
                 "${workspaceRoot}/kernel/include",
                 "${workspaceRoot}/kernel/arch/x86",
                 "${workspaceRoot}/kernel/arch/x86/x64",
                 "${workspaceRoot}/services/devicemanager/arch/x86",
                 "${workspaceRoot}/modules/storage/sata",
-                "${workspaceRoot}/modules/storage/scsi",
-                "${workspaceRoot}/userspace/include",
-                "${workspaceRoot}/userspace/include/cxx",
-                "${workspaceRoot}/userspace/mesa/include",
-                "${workspaceRoot}/userspace/vioarr"
+                "${workspaceRoot}/modules/storage/scsi"
             ],
             "defines": [
                 "__STDC_VERSION__=201112L",
@@ -128,8 +120,7 @@
             },
             "intelliSenseMode": "clang-x64",
             "cStandard": "c11",
-            "cppStandard": "c++17",
-            "compileCommands": "${workspaceFolder}/userspace/llvm_out/compile_commands.json"
+            "cppStandard": "c++17"
         }
     ],
     "version": 4
