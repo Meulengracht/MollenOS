@@ -55,20 +55,19 @@ thrd_initialize(
     thrd_exit(ExitCode);
 }
 
-/* call_once
- * Calls function func exactly once, even if invoked from several threads. 
- * The completion of the function func synchronizes with all previous or subsequent 
- * calls to call_once with the same flag variable. */
 void
 call_once(
     _In_ once_flag* flag, 
     _In_ void (*func)(void))
 {
-    // Use interlocked exchange for this operation
-    int RunOnce = atomic_exchange(flag, 0);
-    if (RunOnce != 0) {
+    assert(flag != NULL);
+    
+    mtx_lock(&flag->_syncobject);
+    if (!flag->_value) {
+        flag->_value = 1;
         func();
     }
+    mtx_unlock(&flag->_syncobject);
 }
 
 /* thrd_create

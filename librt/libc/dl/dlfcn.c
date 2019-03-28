@@ -34,7 +34,7 @@ dlopen (
     return (void*)SharedObjectLoad(filepath);
 }
 
-int, 
+int
 dlclose(
     _In_ void* handle)
 {

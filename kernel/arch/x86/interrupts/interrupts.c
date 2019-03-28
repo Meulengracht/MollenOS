@@ -519,6 +519,10 @@ ExceptionEntry(
             IssueFixed = 1;
         }
         else {
+            if (Registers) {
+                __asm { xchg bx, bx };
+                return;
+            }
             ERROR("%s: MEMORY_ACCESS_FAULT: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN "", 
                 GetCurrentThreadForCore(ArchGetProcessorCoreId())->Name, 
                 Address, Registers->ErrorCode, CONTEXT_IP(Registers));

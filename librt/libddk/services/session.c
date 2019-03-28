@@ -47,7 +47,7 @@ UnregisterServiceObject(
 	_In_ UUId_t ServiceHandle)
 {
 	MRemoteCall_t Request;
-	OsStatus_t    Status;
+	OsStatus_t    Status = OsSuccess;
 
 	RPCInitialize(&Request, __SESSIONMANAGER_TARGET, 1, __SESSIONMANAGER_UNREGISTER);
 	RPCSetArgument(&Request, 0, (const void*)&ServiceHandle, sizeof(UUId_t));

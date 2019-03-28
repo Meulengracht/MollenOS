@@ -536,23 +536,23 @@ void __MallocLibCEmpty(void)
 #ifdef MOLLENOS
 
 // Define features
-#define USE_LOCKS               1
-#define HAVE_MMAP               1
-#define MMAP_CLEARS             0
-#define HAVE_MORECORE           0
-#define HAVE_MREMAP             0
-#define INSECURE                0
-// #define MSPACES 1
-#define ABORT_ON_ASSERT_FAILURE 1
-#define PROCEED_ON_ERROR        0
+#define USE_LOCKS               1 // Use locks
+#define HAVE_MMAP               1 // We do support memory mappings
+#define HAVE_MORECORE           0 // *not supported*
+#define HAVE_MREMAP             0 // *not supported*
+#define MMAP_CLEARS             1 // We ask the allocator to clear
+#define INSECURE                0 // Run things secure
+#define FOOTERS                 1 // More security please
+#define MSPACES                 0 // Do not compile support for mspaces
+#define ABORT_ON_ASSERT_FAILURE 1 // Call abort on asserts
+#define PROCEED_ON_ERROR        0 // Stop on errors please
 
+#define LACKS_SCHED_H
+#define LACKS_FCNTL_H
 #define LACKS_UNISTD_H
-#define LACKS_TIME_H
 #define LACKS_SYS_PARAM_H
 #define LACKS_SYS_MMAN_H
-#define LACKS_FCNTL_H
 #define LACKS_SYS_TYPES_H
-#define LACKS_SCHED_H
 
 #ifndef MALLOC_FAILURE_ACTION
 #define MALLOC_FAILURE_ACTION
@@ -1684,10 +1684,11 @@ unsigned char _BitScanReverse(unsigned long *index, unsigned long mask);
 #ifndef WIN32
 #ifdef MOLLENOS
 #include <os/mollenos.h>
-/* MollenOS MMAP via Syscall */
 static FORCEINLINE void* mosmmap(size_t Size) {
 	void* ptr = NULL;
-	if (MemoryAllocate(NULL, Size, MEMORY_READ | MEMORY_WRITE, &ptr, NULL) != OsSuccess) {
+	if (MemoryAllocate(NULL, Size, 
+	    MEMORY_COMMIT | MEMORY_CLEAN | MEMORY_READ | MEMORY_WRITE,
+	    &ptr, NULL) != OsSuccess) {
 		return MFAIL;
 	}
 	else {

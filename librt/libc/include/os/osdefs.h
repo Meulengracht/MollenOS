@@ -29,13 +29,15 @@
 #include <stdint.h>
 #include <inttypes.h>
 
+#if !defined(__cplusplus)
 #if defined __STDC_VERSION__ && __STDC_VERSION__ >= 201112L
 #include <stdatomic.h>
 #include <stdnoreturn.h>
 #include <stdbool.h>
 #elif defined __STDC_VERSION__
 #error "Compiler does not support C11"
-#endif
+#endif // __STDC_VERSION__ >= 201112L
+#endif // !__cplusplus
 
 #define DECL_STRUCT(Type) typedef struct _##Type Type##_t
 

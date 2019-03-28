@@ -38,7 +38,6 @@ typedef int (*thrd_start_t)(void*);
 typedef void (*tss_dtor_t)(void*);
 
 // Define default threading types
-typedef _Atomic(int) once_flag;
 typedef unsigned int tss_t;
 typedef UUId_t       thrd_t;
 
@@ -54,11 +53,11 @@ typedef struct {
 } mtx_t;
 // _MTX_INITIALIZER_NP
 
-#define TSS_DTOR_ITERATIONS 4
-#define TSS_KEY_INVALID     UINT_MAX
-#define ONCE_FLAG_INIT      ATOMIC_VAR_INIT(1)
-#define MUTEX_INIT(type)    { type, UUID_INVALID, 0, SPINLOCK_INIT }
-#define COND_INIT           UUID_INVALID
+// Once-Flag Synchronization Object
+typedef struct {
+    mtx_t _syncobject;
+    int   _value;
+} once_flag;
 
 enum {
     thrd_success    = 0,
@@ -73,6 +72,12 @@ enum {
     mtx_recursive   = 1,
     mtx_timed       = 2
 };
+
+#define TSS_DTOR_ITERATIONS 4
+#define TSS_KEY_INVALID     UINT_MAX
+#define MUTEX_INIT(type)    { type, UUID_INVALID, 0, SPINLOCK_INIT }
+#define ONCE_FLAG_INIT      { MUTEX_INIT(mtx_plain), 0 }
+#define COND_INIT           UUID_INVALID
 
 _CODE_BEGIN
 /* call_once

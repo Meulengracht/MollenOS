@@ -34,6 +34,7 @@
 #define MEMORY_ATOMIC_ELEMENT(AtomicCache, Element) ((uintptr_t**)((uintptr_t)AtomicCache + sizeof(MemoryAtomicCache_t) + (Element * sizeof(void*))))
 #define MEMORY_SLAB_ELEMENT(Cache, Slab, Element)   (void*)((uintptr_t)Slab->Address + (Element * (Cache->ObjectSize + Cache->ObjectPadding)))
 
+// All the standard caches DO not use contigious memory
 static MemoryCache_t InitialCache = { 0 };
 static struct FixedCache {
     size_t         ObjectSize;
@@ -57,11 +58,21 @@ static struct FixedCache {
     { 0,      NULL,               NULL }
 };
 
-static uintptr_t AllocateVirtualMemory(size_t PageCount)
+static uintptr_t AllocateVirtualMemory(Flags_t Flags, size_t PageCount)
 {
     uintptr_t  Address;
     size_t     PageSize = GetMemorySpacePageSize();
-    OsStatus_t Status   = CreateMemorySpaceMapping(GetCurrentMemorySpace(), NULL, &Address, PageSize * PageCount, 
+    Flags_t    AllocationFlags = MAPPING_VIRTUAL_GLOBAL;
+    OsStatus_t Status;
+    
+    if (Flags & HEAP_CONTIGIOUS) {
+        AllocationFlags |= MAPPING_PHYSICAL_CONTIGIOUS;
+    }
+    else {
+        AllocationFlags |= MAPPING_PHYSICAL_DEFAULT;
+    }
+    
+    Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), NULL, &Address, PageSize * PageCount, 
         MAPPING_COMMIT | MAPPING_DOMAIN, MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_GLOBAL, __MASK);
     if (Status != OsSuccess) {
         ERROR("Ran out of memory for allocation in the heap");
@@ -121,7 +132,7 @@ static void slab_initalize_objects(MemoryCache_t* Cache, MemorySlab_t* Slab)
         }
 
         Address += Cache->ObjectSize;
-        if (Cache->Flags & MEMORY_DEBUG_OVERRUN) {
+        if (Cache->Flags & HEAP_DEBUG_OVERRUN) {
             *((uint32_t*)Address) = MEMORY_OVERRUN_PATTERN;
         }
         Address += Cache->ObjectPadding;
@@ -149,7 +160,7 @@ slab_create(
 {
     MemorySlab_t* Slab;
     uintptr_t     ObjectAddress;
-    uintptr_t     DataAddress = AllocateVirtualMemory(Cache->PageCount);
+    uintptr_t     DataAddress = AllocateVirtualMemory(Cache->Flags, Cache->PageCount);
     TRACE("slab_create(%s): 0x%" PRIxIN "", Cache->Name, DataAddress);
 
     if (Cache->SlabOnSite) {
@@ -165,7 +176,7 @@ slab_create(
     }
 
     // Handle debug flags
-    if (Cache->Flags & MEMORY_DEBUG_USE_AFTER_FREE) {
+    if (Cache->Flags & HEAP_DEBUG_USE_AFTER_FREE) {
         memset((void*)DataAddress, MEMORY_OVERRUN_PATTERN, (Cache->PageCount * GetMemorySpacePageSize()));
     }
     memset(Slab, 0, Cache->SlabStructureSize);
@@ -426,7 +437,7 @@ cache_construct(
     size_t ObjectPadding = 0;
 
     // Calculate padding
-    if (Flags & MEMORY_DEBUG_OVERRUN) {
+    if (Flags & HEAP_DEBUG_OVERRUN) {
         ObjectPadding += 4;
     }
 
@@ -552,7 +563,7 @@ MemoryCacheFree(
     TRACE("MemoryCacheFree(%s, 0x%" PRIxIN ")", Cache->Name, Object);
 
     // Handle debug flags
-    if (Cache->Flags & MEMORY_DEBUG_USE_AFTER_FREE) {
+    if (Cache->Flags & HEAP_DEBUG_USE_AFTER_FREE) {
         memset(Object, MEMORY_OVERRUN_PATTERN, Cache->ObjectSize);
     }
 

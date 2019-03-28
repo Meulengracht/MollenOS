@@ -32,7 +32,6 @@
 
 OsStatus_t
 CreateMemoryBuffer(
-    _In_  Flags_t       Flags,
     _In_  size_t        Size,
     _Out_ DmaBuffer_t*  MemoryBuffer)
 {
@@ -45,39 +44,16 @@ CreateMemoryBuffer(
     UUId_t                Handle;
 
     Capacity = DIVUP(Size, GetMemorySpacePageSize()) * GetMemorySpacePageSize();
-    switch (MEMORY_BUFFER_TYPE(Flags)) {
-        case MEMORY_BUFFER_KERNEL: {
-            Status = CreateMemorySpaceMapping(Space, &DmaAddress, 
-                &Virtual, Capacity, MAPPING_COMMIT | MAPPING_PERSISTENT,
-                MAPPING_PHYSICAL_CONTIGIOUS | MAPPING_VIRTUAL_GLOBAL, __MASK);
-            if (Status != OsSuccess) {
-                ERROR("Failed to map system memory");
-                return Status;
-            }
-        } break;
-
-        // On allocation, the memory mapping variant behaves like
-        // the normal behaviour, on free it does not.
-        case MEMORY_BUFFER_MEMORYMAPPING:
-        case MEMORY_BUFFER_DEFAULT: {
-            Status = CreateMemorySpaceMapping(Space, &DmaAddress, 
-                &Virtual, Capacity, MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_PERSISTENT,
-                MAPPING_PHYSICAL_CONTIGIOUS | MAPPING_VIRTUAL_PROCESS, __MASK);
-            if (Status != OsSuccess) {
-                ERROR("Failed to map system memory");
-                return Status;
-            }
-        } break;
-
-        default: {
-            ERROR("Unknown memory buffer option");
-            return OsError;
-        } break;
+    Status   = CreateMemorySpaceMapping(Space, &DmaAddress, 
+        &Virtual, Capacity, MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_PERSISTENT,
+        MAPPING_PHYSICAL_CONTIGIOUS | MAPPING_VIRTUAL_PROCESS, __MASK);
+    if (Status != OsSuccess) {
+        ERROR("Failed to map system memory");
+        return Status;
     }
 
     SystemBuffer            = (SystemMemoryBuffer_t*)kmalloc(sizeof(SystemMemoryBuffer_t));
     Handle                  = CreateHandle(HandleTypeMemoryBuffer, 0, SystemBuffer);
-    SystemBuffer->Flags     = Flags;
     SystemBuffer->Capacity  = Capacity;
     SystemBuffer->Physical  = DmaAddress;
 
@@ -150,21 +126,8 @@ DestroyMemoryBuffer(
 {
     SystemMemoryBuffer_t* SystemBuffer = (SystemMemoryBuffer_t*)Resource;
     OsStatus_t            Status       = OsSuccess;
-
-    // Free the physical pages associated, then cleanup structure
-    // Only free in the case it's not empty
-    switch (MEMORY_BUFFER_TYPE(SystemBuffer->Flags)) {
-        case MEMORY_BUFFER_DEFAULT:
-        case MEMORY_BUFFER_KERNEL: {
-            Status = FreeSystemMemory(SystemBuffer->Physical, SystemBuffer->Capacity);
-        } break;
-        
-        // case MEMORY_BUFFER_MEMORYMAPPING
-        // Don't free as those physical pages are permanently allocated
-        default: {
-        } break;
-    }
-
+    
+    Status = FreeSystemMemory(SystemBuffer->Physical, SystemBuffer->Capacity);
     kfree(Resource);
     return Status;
 }

@@ -39,6 +39,7 @@ LIBK_SRCS = os/synchronization/spinlock.c \
 			wstring/wcsnlen.c
 
 LIBC_SRCS = $(wildcard ctype/*.c) \
+			$(wildcard dl/*.c) \
 			$(wildcard getopt/*.c) \
 			$(wildcard locale/*.c) \
 			$(wildcard signal/*.c) \

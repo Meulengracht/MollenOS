@@ -53,8 +53,8 @@ ThreadingEntryPoint(void)
 
     TRACE("ThreadingEntryPoint()");
 
-    CoreId  = ArchGetProcessorCoreId();
-    Thread  = GetCurrentThreadForCore(CoreId);
+    CoreId = ArchGetProcessorCoreId();
+    Thread = GetCurrentThreadForCore(CoreId);
     
     if (Thread->Flags & THREADING_IDLE) {
         while (1) {

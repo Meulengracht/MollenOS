@@ -111,14 +111,13 @@ ScMemoryProtect(
 
 OsStatus_t
 ScCreateBuffer(
-    _In_  Flags_t       Flags,
     _In_  size_t        Size,
     _Out_ DmaBuffer_t*  MemoryBuffer)
 {
     if (MemoryBuffer == NULL || Size == 0) {
         return OsError;
     }
-    return CreateMemoryBuffer(Flags, Size, MemoryBuffer);
+    return CreateMemoryBuffer(Size, MemoryBuffer);
 }
 
 OsStatus_t

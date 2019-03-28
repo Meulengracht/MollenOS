@@ -55,7 +55,7 @@ CreateBuffer(
         }
     }
     else {
-        if (Syscall_CreateBuffer(0, Length, Buffer) != OsSuccess) {
+        if (Syscall_CreateBuffer(Length, Buffer) != OsSuccess) {
             free(Buffer);
             return NULL;
         }

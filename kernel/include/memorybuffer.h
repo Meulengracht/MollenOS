@@ -29,15 +29,9 @@
 #include <ddk/buffer.h>
 #include <memoryspace.h>
 
-#define MEMORY_BUFFER_DEFAULT           0x00000000
-#define MEMORY_BUFFER_KERNEL            0x00000001
-#define MEMORY_BUFFER_MEMORYMAPPING     0x00000002
-#define MEMORY_BUFFER_TYPE(Flags)       (Flags & 0x3)
-
-typedef struct _SystemMemoryBuffer {
-    Flags_t             Flags;
-    uintptr_t           Physical;
-    size_t              Capacity;
+typedef struct {
+    uintptr_t Physical;
+    size_t    Capacity;
 } SystemMemoryBuffer_t;
 
 /* CreateMemoryBuffer 
@@ -46,7 +40,6 @@ typedef struct _SystemMemoryBuffer {
  * rounded up to a block-alignment */
 KERNELAPI OsStatus_t KERNELABI
 CreateMemoryBuffer(
-    _In_  Flags_t       Flags,
     _In_  size_t        Size,
     _Out_ DmaBuffer_t*  MemoryBuffer);
 
