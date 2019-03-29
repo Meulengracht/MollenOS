@@ -233,16 +233,13 @@ EhciGetStatusCode(
     }
 }
 
-/* EhciSetPrefetching
- * Disables the prefetching related to the transfer-type. */
 OsStatus_t
 EhciSetPrefetching(
     _In_ EhciController_t*  Controller,
     _In_ UsbTransferType_t  Type,
     _In_ int                Set)
 {
-    // Variables
-    reg32_t Command         = Controller->OpRegisters->UsbCommand;
+    reg32_t Command = ReadVolatile32(&Controller->OpRegisters->UsbCommand);
     if (!(Controller->CParameters & EHCI_CPARAM_HWPREFETCH)) {
         return OsError;
     }
@@ -251,107 +248,89 @@ EhciSetPrefetching(
     if (Type == ControlTransfer || Type == BulkTransfer) {
         if (!Set) {
             Command &= ~(EHCI_COMMAND_ASYNC_PREFETCH);
-            Controller->OpRegisters->UsbCommand = Command;
-            MemoryBarrier();
-            while (Controller->OpRegisters->UsbCommand & EHCI_COMMAND_ASYNC_PREFETCH);
+            WriteVolatile32(&Controller->OpRegisters->UsbCommand, Command);
+            while (ReadVolatile32(&Controller->OpRegisters->UsbCommand) & EHCI_COMMAND_ASYNC_PREFETCH);
         }
         else {
             Command |= EHCI_COMMAND_ASYNC_PREFETCH;
-            Controller->OpRegisters->UsbCommand = Command;
+            WriteVolatile32(&Controller->OpRegisters->UsbCommand, Command);
         }
     }
     else {
         if (!Set) {
             Command &= ~(EHCI_COMMAND_PERIOD_PREFECTCH);
-            Controller->OpRegisters->UsbCommand = Command;
-            MemoryBarrier();
-            while (Controller->OpRegisters->UsbCommand & EHCI_COMMAND_PERIOD_PREFECTCH);
+            WriteVolatile32(&Controller->OpRegisters->UsbCommand, Command);
+            while (ReadVolatile32(&Controller->OpRegisters->UsbCommand) & EHCI_COMMAND_PERIOD_PREFECTCH);
         }
         else {
             Command |= EHCI_COMMAND_PERIOD_PREFECTCH;
-            Controller->OpRegisters->UsbCommand = Command;
+            WriteVolatile32(&Controller->OpRegisters->UsbCommand, Command);
         }
     }
     return OsSuccess;
 }
 
-/* EhciEnableScheduler
- * Enables the relevant scheduler if it is not enabled already */
 void
 EhciEnableScheduler(
     _In_ EhciController_t*  Controller,
     _In_ UsbTransferType_t  Type)
 {
-    // Variables
-    reg32_t Temp    = 0;
+    reg32_t Status  = ReadVolatile32(&Controller->OpRegisters->UsbStatus);
+    reg32_t Command = ReadVolatile32(&Controller->OpRegisters->UsbCommand);
 
     // Sanitize the current status
     if (Type == ControlTransfer || Type == BulkTransfer) {
-        if (Controller->OpRegisters->UsbStatus & EHCI_STATUS_ASYNC_ACTIVE) {
+        if (Status & EHCI_STATUS_ASYNC_ACTIVE) {
             // Should we ring the doorbell? I don't believe it's entirely neccessary
             // as we use reclamation heads @todo
             return;
         }
-
-        // Fire the enable command
-        Temp                                = Controller->OpRegisters->UsbCommand;
-        Temp                                |= EHCI_COMMAND_ASYNC_ENABLE;
-        Controller->OpRegisters->UsbCommand = Temp;
+        Command |= EHCI_COMMAND_ASYNC_ENABLE;
+        WriteVolatile32(&Controller->OpRegisters->UsbCommand, Command);
     }
     else {
-        if (Controller->OpRegisters->UsbStatus & EHCI_STATUS_PERIODIC_ACTIVE) {
+        if (Status & EHCI_STATUS_PERIODIC_ACTIVE) {
             return;
         }
-
-        // Fire the enable command
-        Temp                                = Controller->OpRegisters->UsbCommand;
-        Temp                                |= EHCI_COMMAND_PERIODIC_ENABLE;
-        Controller->OpRegisters->UsbCommand = Temp;
+        Command |= EHCI_COMMAND_PERIODIC_ENABLE;
+        WriteVolatile32(&Controller->OpRegisters->UsbCommand, Command);
     }
 }
 
-/* EhciDisableScheduler
- * Disables the sheduler if it is not disabled already */
 void
 EhciDisableScheduler(
     _In_ EhciController_t*  Controller,
     _In_ UsbTransferType_t  Type)
 {
-    // Variables
-    reg32_t Temp    = 0;
+    reg32_t Status  = ReadVolatile32(&Controller->OpRegisters->UsbStatus);
+    reg32_t Command = ReadVolatile32(&Controller->OpRegisters->UsbCommand);
 
     // Sanitize its current status
     if (Type == ControlTransfer || Type == BulkTransfer) {
-        if (!(Controller->OpRegisters->UsbStatus & EHCI_STATUS_ASYNC_ACTIVE)) {
+        if (!(Status & EHCI_STATUS_ASYNC_ACTIVE)) {
             return;
         }
-
-        // Fire off disable command
-        Temp                                = Controller->OpRegisters->UsbCommand;
-        Temp                                &= ~(EHCI_COMMAND_ASYNC_ENABLE);
-        Controller->OpRegisters->UsbCommand = Temp;
+        Command &= ~(EHCI_COMMAND_ASYNC_ENABLE);
+        WriteVolatile32(&Controller->OpRegisters->UsbCommand, Command);
     }
     else {
-        if (!(Controller->OpRegisters->UsbStatus & EHCI_STATUS_PERIODIC_ACTIVE)) {
+        if (!(Status & EHCI_STATUS_PERIODIC_ACTIVE)) {
             return;
         }
-
-        // Fire off disable command
-        Temp                                = Controller->OpRegisters->UsbCommand;
-        Temp                                &= ~(EHCI_COMMAND_PERIODIC_ENABLE);
-        Controller->OpRegisters->UsbCommand = Temp;
+        Command &= ~(EHCI_COMMAND_PERIODIC_ENABLE);
+        WriteVolatile32(&Controller->OpRegisters->UsbCommand, Command);
     }
 }
 
-/* EhciRingDoorbell
- * This functions rings the bell */
 void
 EhciRingDoorbell(
     _In_ EhciController_t*  Controller)
 {
     // Do not ring the doorbell if the schedule is not running
-    if (Controller->OpRegisters->UsbStatus & EHCI_STATUS_ASYNC_ACTIVE) {
-        Controller->OpRegisters->UsbCommand |= EHCI_COMMAND_IOC_ASYNC_DOORBELL;
+    if (ReadVolatile32(&Controller->OpRegisters->UsbStatus) & EHCI_STATUS_ASYNC_ACTIVE) {
+        reg32_t Command = ReadVolatile32(&Controller->OpRegisters->UsbCommand);
+        WriteVolatile32(&Controller->OpRegisters->UsbCommand, 
+            Command | EHCI_COMMAND_IOC_ASYNC_DOORBELL);
     }
 }
 
@@ -365,7 +344,6 @@ HciProcessElement(
     _In_ int                        Reason,
     _In_ void*                      Context)
 {
-    // Variables
     UsbManagerTransfer_t *Transfer  = (UsbManagerTransfer_t*)Context;
     UsbSchedulerPool_t *QhPool      = &Controller->Scheduler->Settings.Pools[EHCI_QH_POOL];
     UsbSchedulerPool_t *Pool        = NULL;

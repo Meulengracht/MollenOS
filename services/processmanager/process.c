@@ -241,7 +241,15 @@ LoadFile(
                     Buffer = NULL;
                 }
             }
+            else {
+                ERROR("Failed to allocate a buffer for the data");
+                Status = OsError;
+            }
             DestroyBuffer(TransferBuffer);
+        }
+        else {
+            ERROR("Failed to create a transfer buffer");
+            Status = OsError;
         }
     }
     CloseFile(Handle);

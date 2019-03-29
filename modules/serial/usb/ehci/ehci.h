@@ -24,8 +24,6 @@
 #ifndef __USB_EHCI__
 #define __USB_EHCI__
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
 #include <ddk/contracts/usbhost.h>
 #include <ds/collection.h>
@@ -42,9 +40,6 @@
 #define EHCI_VERSION_10             0x0100
 #define EHCI_VERSION_11             0x0110
 
-/* EchiCapabilityRegisters
- * Describes capabilities and gives information about which features the
- * EHCI controller supports. */
 PACKED_ATYPESTRUCT(volatile, EchiCapabilityRegisters, {
     uint8_t                     Length;
     uint8_t                     Reserved;

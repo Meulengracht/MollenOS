@@ -51,8 +51,6 @@
 #define AHCI_COMMAND_TABLE_SIZE         (128 + (16 * AHCI_COMMAND_TABLE_PRDT_COUNT))
 #define AHCI_PRDT_MAX_LENGTH            (4 * 1024 * 1024)
 
-/* AHCI Generic Host Control Registers 
- * Global, apply to all AHCI ops */
 PACKED_ATYPESTRUCT(volatile, AHCIGenericRegisters, {
     reg32_t                Capabilities;
     reg32_t                GlobalHostControl;
@@ -70,9 +68,6 @@ PACKED_ATYPESTRUCT(volatile, AHCIGenericRegisters, {
     reg32_t                OSControlAndStatus;
 });
 
-/* AHCI Port Specific Registers
- * This is per port, which means these registers
- * only control a single port */
 PACKED_ATYPESTRUCT(volatile, AHCIPortRegisters, {
     reg32_t                CmdListBaseAddress;
     reg32_t                CmdListBaseAddressUpper;
