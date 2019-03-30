@@ -23,6 +23,7 @@
 #define __STDLIB_INC__
 
 #include <os/osdefs.h>
+#include <malloc.h>
 #include <locale.h>
 #include <wchar.h>
 
@@ -126,21 +127,11 @@ CRTDECL(uintmax_t,          strtoumax(const char *__restrict, char **__restrict,
 
 /* Pseudo-random sequence generation 
  * The seed is thread-specific and setup by the CRT */
-CRTDECL(int,                rand(void));
-CRTDECL(void,               srand(unsigned int));
+CRTDECL(int,   rand(void));
+CRTDECL(void,  srand(unsigned int));
 
-/* Memory management functions 
- * Use to allocate, deallocate and reallocate
- * memory, uses mollenos's virtual allocators */
-CRTDECL(void*,              malloc(size_t));
-CRTDECL(void*,              realloc(void*, size_t));
-CRTDECL(void*,              calloc(size_t, size_t));
-
-/* aligned_alloc
- * Allocate size bytes of uninitialized storage whose alignment is specified by alignment. 
- * The size parameter must be an integral multiple of alignment. */
-CRTDECL(void*,              aligned_alloc(size_t alignment, size_t size));
-CRTDECL(void,               free(void *ptr));
+// C11 Aligned allocation
+CRTDECL(void*, aligned_alloc(size_t alignment, size_t size));
 
 /* Environment functions, primarily functions
  * related to system env setup and exit functionality */

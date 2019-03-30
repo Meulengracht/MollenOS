@@ -16,21 +16,14 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C-Support Aligned Allocation Implementation
+ * Aligned Allocation Implementation
  * - Definitions, prototypes and information needed.
  */
 #include <stdlib.h>
-#include <errno.h>
 
 void* aligned_alloc(
     _In_ size_t alignment,
     _In_ size_t size)
 {
-    size_t total_size = alignment + size;
-    void *ptr = malloc(total_size);
-    if (ptr == NULL) {
-        _set_errno(ENOMEM);
-        return NULL;
-    }
-    return (void*)ALIGN((uintptr_t)ptr, alignment, 1);
+    return memalign(alignment, size);
 }
