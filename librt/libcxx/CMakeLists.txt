@@ -1,19 +1,23 @@
 if(NOT DEFINED VALI_BUILD)
   cmake_minimum_required(VERSION 3.8.2)
   include(../../cmake/SetupEnvironment.cmake)
-  project(vali-cxxrt)
+  project(vali-cxxrt NONE)
 endif()
+
+# Change some compiler setup first
+enable_language(C)
+enable_language(CXX)
 
 # llvm package setup
 set(PACKAGE_NAME vali-cxxrt)
 set(PACKAGE_VERSION 9.0.0svn)
 set(PACKAGE_STRING "${PACKAGE_NAME} ${PACKAGE_VERSION}")
 set(PACKAGE_BUGREPORT "llvm-bugs@lists.llvm.org")
-  
+
 # Setup some configuration options for LLVM setup
 set(LLVM_INCLUDE_TESTS OFF)
 set(LLVM_LIBDIR_SUFFIX "")
-set(LLVM_EXTERNAL_LIBCXX_SOURCE_DIR "libcxx")
+set(LLVM_EXTERNAL_LIBCXX_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libcxx")
 
 set(LLVM_ENABLE_LIBCXX ON)
 set(LLVM_ENABLE_EH ON CACHE BOOL "")
@@ -32,6 +36,7 @@ set(LIBUNWIND_INCLUDE_DOCS OFF CACHE BOOL "")
 
 # Configure libcxxabi
 set(LIBCXXABI_VALI_BOOTSTRAP ON)
+set(LIBCXXABI_HERMETIC_STATIC_LIBRARY ON CACHE BOOL "")
 set(LIBCXXABI_USE_LLVM_UNWINDER ON CACHE BOOL "")
 set(LIBCXXABI_HAS_EXTERNAL_THREAD_API ON CACHE BOOL "")
 

@@ -120,7 +120,7 @@ package_sdk_headers:
 	@cp librt/libc/include/$(VALI_ARCH)/*.h $(VALI_SDK_PATH)/include/
 	@cp librt/libc/include/sys/*.h $(VALI_SDK_PATH)/include/sys/
 	@cp librt/libds/include/ds/*.h $(VALI_SDK_PATH)/include/ds/
-	@cp -r librt/libcxx/cxx/include/* $(VALI_SDK_PATH)/include/cxx/
+	@cp -r librt/libcxx/libcxx/include/* $(VALI_SDK_PATH)/include/cxx/
 
 .PHONY: package_sdk_libraries
 package_sdk_libraries:
