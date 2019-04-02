@@ -3,10 +3,10 @@
 # Include all the definitions for os
 include ../../config/common.mk
 
-INCLUDES = -I../../librt/libcxx/cxx/include -I../../librt/libc/include -I../../librt/libc/include/$(VALI_ARCH) -I../../librt/libddk/include -I../../librt/include
+INCLUDES = -I../../librt/libcxx/libcxx/include -I../../librt/libc/include -I../../librt/libc/include/$(VALI_ARCH) -I../../librt/libddk/include -I../../librt/include
 
 CFLAGS = $(GUCFLAGS) $(INCLUDES)
-CXXFLAGS = $(GUCXXFLAGS) $(INCLUDES)
+CXXFLAGS = $(GUCXXFLAGS) -static $(INCLUDES)
 LFLAGS = $(GLFLAGS) /lldmap -LIBPATH:../../librt/build -LIBPATH:../../librt/deploy
 
 .PHONY: all

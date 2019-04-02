@@ -10,7 +10,7 @@ SOURCES = $(wildcard ./protocols/*.c) \
 INCLUDES = -I../../../librt/include -I../../../librt/libc/include -I../../../librt/libds/include -I../../../librt/libddk/include -I../sata
 OBJECTS = $(SOURCES:.c=.o)
 
-LIBRARIES = ../../../librt/build/ddk.lib ../../../librt/build/libc.lib ../../../librt/build/libdrv.lib ../../../librt/build/libusb.lib
+LIBRARIES = ../../../librt/build/ddk.lib ../../../librt/build/c.lib ../../../librt/build/libdrv.lib ../../../librt/build/libusb.lib
 CFLAGS = $(GCFLAGS) -D__DRIVER_IMPL $(INCLUDES)
 LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtModuleEntry /dll
 

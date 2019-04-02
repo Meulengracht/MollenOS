@@ -10,7 +10,7 @@ PVS_PLATFORM=linux64
 # -std=c11 enables c11 support for C compilation 0;35
 # -gdwarf enables dwarf debugging generation, should be used ... -fexceptions -fcxx-exceptions
 disable_warnings = -Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function
-shared_flags = -U_WIN32 -fms-extensions -Wall -nostdlib -nostdinc -O3 -DMOLLENOS -Xclang -flto-visibility-public-std
+shared_flags = -U_WIN32 -fms-extensions -Wall -nostdlib -nostdinc -O3 -DMOLLENOS
 
 ###########################
 # Hardware Configuration
@@ -34,4 +34,4 @@ GLFLAGS = /nodefaultlib /machine:X64 /subsystem:native
 
 # Userspace environment compilation flags
 GUCFLAGS = $(shared_flags) $(arch_flags) $(disable_warnings)
-GUCXXFLAGS = -std=c++17 $(shared_flags) $(arch_flags) $(disable_warnings)
+GUCXXFLAGS = -std=c++11 $(shared_flags) $(arch_flags) $(disable_warnings)

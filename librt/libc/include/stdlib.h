@@ -264,7 +264,7 @@ _CRTIMP unsigned long long wcstoull(
 _CODE_END
 
 
-#if __BSD_VISIBLE
+#if defined(__BSD_VISIBLE)
 CRTDECL(intmax_t,  strtoimax_l(const char *__restrict, char **_restrict, int, locale_t));
 CRTDECL(uintmax_t, strtoumax_l(const char *__restrict, char **_restrict, int, locale_t));
 CRTDECL(intmax_t,  wcstoimax_l(const wchar_t *__restrict, wchar_t **_restrict, int, locale_t));

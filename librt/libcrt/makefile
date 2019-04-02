@@ -28,7 +28,7 @@ LFLAGS = /lib
 
 # default-target
 .PHONY: libcrt
-libcrt: ../build/libcrt.lib
+libcrt: ../build/crt.lib
 
 .PHONY: libdrv
 libdrv: ../build/libdrv.lib
@@ -36,7 +36,7 @@ libdrv: ../build/libdrv.lib
 .PHONY: libsrv
 libsrv: ../build/libsrv.lib
 
-../build/libcrt.lib: $(OBJECTS)
+../build/crt.lib: $(OBJECTS)
 	@printf "%b" "\033[0;36mCreating static library " $@ "\033[m\n"
 	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
@@ -54,7 +54,7 @@ libsrv: ../build/libsrv.lib
 
 .PHONY: clean
 clean:
-	@rm -f ../build/libcrt.lib
+	@rm -f ../build/crt.lib
 	@rm -f ../build/libdrv.lib
 	@rm -f ../build/libsrv.lib
 	@rm -f $(OBJECTS_ALL)

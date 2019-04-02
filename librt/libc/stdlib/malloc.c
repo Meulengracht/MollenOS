@@ -3316,8 +3316,9 @@ void* dlmalloc(size_t bytes) {
 
   postaction:
     POSTACTION(gm);
-    if ((uintptr_t)mem >= 0x300cbb000) {
+    if ((uintptr_t)mem == 0x300cbb6b0) {
       TRACE("malloc(%u == %u): 0x%" PRIxIN, bytes, nb, mem);
+      __asm { xchg bx, bx };
     }
     return mem;
   }
@@ -3333,7 +3334,7 @@ void dlfree(void* mem) {
      free chunks, if they exist, and then place in a bin.  Intermixed
      with special cases for top, dv, mmapped chunks, and usage errors.
   */
-  if ((uintptr_t)mem >= 0x300cbb000) {
+  if ((uintptr_t)mem >= 0x300cbb6b0) {
     TRACE("free(0x%" PRIxIN ")", mem);
   }
 

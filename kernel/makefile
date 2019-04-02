@@ -22,7 +22,7 @@ PVSINTS = $(SOURCES:.c=.o.PVS-Studio.i)
 PVSLOGS = $(SOURCES:.c=.o.PVS-Studio.log)
 
 # Setup dependencies for the kernel object
-DEPENDENCIES = ../librt/build/libcrt.lib ../librt/build/libclang.lib ../librt/build/libk.lib ../librt/build/libdsk.lib ../librt/build/libacpi.lib build/$(VALI_ARCH).lib
+DEPENDENCIES = ../librt/build/crt.lib ../librt/build/compiler-rt.lib ../librt/build/libk.lib ../librt/build/libdsk.lib ../librt/build/libacpi.lib build/$(VALI_ARCH).lib
 
 # --save-temps
 CFLAGS = $(GCFLAGS) -mno-sse -D_KAPI -DUNICODE -DLIBC_KERNEL -D_KRNL_DLL $(INCLUDES)

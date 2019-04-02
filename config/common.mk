@@ -33,8 +33,6 @@ mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 config_path := $(abspath $(dir $(mkfile_path)))
 workspace_path := $(abspath $(config_path)/../)
 arch_path := $(abspath $(workspace_path)/kernel/arch/$(VALI_ARCH))
-userspace_path := $(abspath $(workspace_path)/userspace)
-include_path := $(userspace_path)/include
 
 # MollenOS Configuration, comment in or out for specific features
 config_flags = 

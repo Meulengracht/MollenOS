@@ -23,8 +23,6 @@
 #ifndef __STDC_STRING__
 #define __STDC_STRING__
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 #include <locale.h>
 #include <errno.h>
@@ -62,7 +60,7 @@ CRTDECL_EX(errno_t, memmove_s(
     _In_ void *dest,
     _In_ rsize_t destsz,
     _In_ const void *src,
-    _In_ rsize_t count));
+    _In_ rsize_t count))
 
 /* strcpy
  * Copies the null-terminated byte string pointed to by src, including the null terminator, 
@@ -82,7 +80,7 @@ CRTDECL(char*, strcpy(
 CRTDECL_EX(errno_t, strcpy_s(
     _In_ char *restrict dest,
     _In_ rsize_t destsz,
-    _In_ const char *restrict src));
+    _In_ const char *restrict src))
 
 /* strncpy 
  * Copies at most count characters of the character array pointed to by src 
@@ -107,7 +105,7 @@ CRTDECL_EX(errno_t, strncpy_s(
     _In_ char *restrict dest,
     _In_ rsize_t destsz,
     _In_ const char *restrict src,
-    _In_ rsize_t count));
+    _In_ rsize_t count))
 
 /*******************************
  *       String Concenation    *
@@ -169,13 +167,13 @@ CRTDECL(char*, strerror(
 CRTDECL_EX(errno_t, strerror_s(
     _In_ char *buf,
     _In_ rsize_t bufsz,
-    _In_ errno_t errnum));
+    _In_ errno_t errnum))
 
 /* strerrorlen_s 
  * Computes the length of the untruncated locale-specific error message that strerror_s 
  * would write if it were called with errnum. The length does not include the null terminator. */
 CRTDECL_EX(size_t, strerrorlen_s(
-    _In_ errno_t errnum));
+    _In_ errno_t errnum))
 
 _CRTIMP	void* memset(void *dest, int c, size_t count);
 _CRTIMP	size_t strlen(__CONST char* str);

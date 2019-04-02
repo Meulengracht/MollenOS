@@ -34,7 +34,7 @@ int CTestLib::callme() {
 // Global, static init
 static CTestLib _TestLibInstance;
 
-void dllmain(int action) {
+extern "C" void dllmain(int action) {
     printf("dllmain(action = %i)\n", action);
     printf("(L) Value of the global static: %i\n", _TestLibInstance.callme());
 }

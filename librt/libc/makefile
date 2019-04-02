@@ -59,7 +59,7 @@ LIBC_SRCS = $(wildcard ctype/*.c) \
 LIBK_OBJECTS = $(ASM_SRCS:.s=.ko) $(COMMON_SRCS:.c=.ko) $(LIBK_SRCS:.c=.ko)
 LIBC_OBJECTS = $(ASM_SRCS:.s=.o) $(COMMON_SRCS:.c=.o) $(LIBC_SRCS:.c=.o)
 
-LIBC_DEPENDENCIES = ../build/libcrt.lib ../build/libclang.lib ../build/libm.lib ../build/libds.lib ../build/ddk.lib
+LIBC_DEPENDENCIES = ../build/crt.lib ../build/compiler-rt.lib ../build/m.lib ../build/libds.lib ../build/ddk.lib
 
 # Setup flags and stuff each for individual build  $(subst ../,,$(ASM_SRCS))
 LIBK_CFLAGS = $(GCFLAGS) -mno-sse -D__OSLIB_C_IMPLEMENTATION -DLIBC_KERNEL -D_KRNL_DLL $(COMMON_INCS) $(LIBK_INCS)
@@ -74,13 +74,13 @@ libk: ../build/libk.lib
 
 # libc-target
 .PHONY: libc
-libc: ../build/libc.dll
+libc: ../build/c.dll
 
 ../build/libk.lib: $(LIBK_OBJECTS)
 	@printf "%b" "\033[0;36mCreating static library " $@ "\033[m\n"
 	@$(LD) $(LIBK_LFLAGS) $(LIBK_OBJECTS) /out:$@
 
-../build/libc.dll: $(LIBC_OBJECTS) $(LIBC_DEPENDENCIES)
+../build/c.dll: $(LIBC_OBJECTS) $(LIBC_DEPENDENCIES)
 	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
 	@$(LD) $(LIBC_LFLAGS) $(LIBC_OBJECTS) /out:$@
 
@@ -103,7 +103,7 @@ libc: ../build/libc.dll
 .PHONY: clean
 clean:
 	@rm -f ../build/libk.lib
-	@rm -f ../build/libc.dll
-	@rm -f ../build/libc.lib
+	@rm -f ../build/c.dll
+	@rm -f ../build/c.lib
 	@rm -rf $(LIBC_OBJECTS)
 	@rm -rf $(LIBK_OBJECTS)

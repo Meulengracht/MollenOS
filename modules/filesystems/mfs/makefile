@@ -9,7 +9,7 @@ SOURCES = $(wildcard ./*.c)
 INCLUDES = -I../../../librt/include -I../../../librt/libc/include -I../../../librt/libds/include -I../../../librt/libddk/include
 OBJECTS = $(SOURCES:.c=.o)
 
-LIBRARIES = ../../../librt/build/libclang.lib ../../../librt/build/ddk.lib ../../../librt/build/libc.lib ../../../librt/build/libdrv.lib ../../../librt/build/libds.lib
+LIBRARIES = ../../../librt/build/compiler-rt.lib ../../../librt/build/ddk.lib ../../../librt/build/c.lib ../../../librt/build/libdrv.lib ../../../librt/build/libds.lib
 CFLAGS = $(GCFLAGS) $(INCLUDES)
 LFLAGS = /nodefaultlib /subsystem:native /noentry /dll /lldmap 
 

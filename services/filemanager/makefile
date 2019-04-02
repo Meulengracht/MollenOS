@@ -8,7 +8,7 @@ INCLUDES = -I../../librt/include -I../../librt/libc/include -I../../librt/libds/
 SOURCES = $(wildcard layouts/*.c) \
 		  $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o)
-LIBRARIES = ../../librt/build/libsrv.lib ../../librt/build/ddk.lib ../../librt/build/libc.lib ../../librt/build/libds.lib
+LIBRARIES = ../../librt/build/libsrv.lib ../../librt/build/ddk.lib ../../librt/build/c.lib ../../librt/build/libds.lib
 
 CFLAGS = $(GCFLAGS) -Wno-address-of-packed-member -D__SERVICE_IMPL -D__FILEMANAGER_IMPL $(INCLUDES)
 LFLAGS = /nodefaultlib /subsystem:native /entry:__CrtServiceEntry /dll /lldmap

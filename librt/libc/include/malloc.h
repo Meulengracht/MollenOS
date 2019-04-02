@@ -562,7 +562,7 @@ MAX_RELEASE_CHECK_RATE   default: 4095 unless not HAVE_MMAP
 #endif
 
 #ifndef WIN32
-#if _WIN32
+#if defined(_WIN32)
 #define WIN32 1
 #endif  /* _WIN32 */
 #ifdef _WIN32_WCE

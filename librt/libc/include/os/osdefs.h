@@ -34,8 +34,6 @@
 #include <stdatomic.h>
 #include <stdnoreturn.h>
 #include <stdbool.h>
-#elif defined __STDC_VERSION__
-#error "Compiler does not support C11"
 #endif // __STDC_VERSION__ >= 201112L
 #endif // !__cplusplus
 

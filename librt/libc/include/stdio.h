@@ -40,7 +40,7 @@ _CODE_BEGIN
 
 /* Set fpos_t to the arch-specific width */
 #ifndef FPOS_T_DEFINED
-#if _FILE_OFFSET_BITS==64
+#if defined(_FILE_OFFSET_BITS) && _FILE_OFFSET_BITS==64
 	typedef uint64_t fpos_t;
 #else
 	typedef uint32_t fpos_t;
@@ -50,7 +50,7 @@ _CODE_BEGIN
 
 /* Define off_t if not already */
 #ifndef OFF_T_DEFINED
-#if _FILE_OFFSET_BITS==64
+#if defined(_FILE_OFFSET_BITS) && _FILE_OFFSET_BITS==64
 	typedef int64_t off_t;
 	typedef int64_t off_t;
 #else

@@ -28,9 +28,9 @@ CFLAGS = $(GCFLAGS) -D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAREDLIBRARY $(math_
 LFLAGS = $(GLFLAGS) /lldmap /def:$(VALI_ARCH)/libm.def /noentry /dll 
 
 .PHONY: all
-all: ../build/libm.dll
+all: ../build/m.dll
 
-../build/libm.dll: $(OBJECTS)
+../build/m.dll: $(OBJECTS)
 	@printf "%b" "\033[0;36mCreating shared library " $@ "\033[m\n"
 	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
@@ -44,6 +44,6 @@ all: ../build/libm.dll
 
 .PHONY: clean
 clean:
-	@rm -f ../build/libm.dll
-	@rm -f ../build/libm.lib
+	@rm -f ../build/m.dll
+	@rm -f ../build/m.lib
 	@rm -f $(OBJECTS)

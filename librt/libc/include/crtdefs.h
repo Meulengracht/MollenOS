@@ -109,7 +109,7 @@
 #define CRTDECL(ReturnType, Function) __STDC_DECORATION ReturnType Function
 #define CRTDECL_DATA(Type, Name) __STDC_DECORATION Type Name
 #ifdef __STDC_LIB_EXT1__
-#define CRTDECL_EX(ReturnType, Function) __STDC_DECORATION ReturnType Function
+#define CRTDECL_EX(ReturnType, Function) __STDC_DECORATION ReturnType Function;
 #else
 #define CRTDECL_EX(ReturnType, Function)
 #endif //!__STDC_LIB_EXT1__
@@ -255,6 +255,10 @@
 #else
 #define CRT_UNALIGNED
 #endif
+#endif
+
+#if !defined(__STDC_VERSION__)
+#define __STDC_VERSION__ 199901L
 #endif
 
 #if __STDC_VERSION__ >= 201112L
