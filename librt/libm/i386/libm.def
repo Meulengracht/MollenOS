@@ -1,4 +1,4 @@
-LIBRARY libm
+LIBRARY m
 EXPORTS
 floor
 floorf

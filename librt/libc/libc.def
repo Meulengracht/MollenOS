@@ -1,4 +1,4 @@
-LIBRARY libc
+LIBRARY c
 EXPORTS
 abort
 CollectionCreateNode
