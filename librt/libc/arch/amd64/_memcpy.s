@@ -20,11 +20,17 @@
 bits 64
 segment .text
 
-;Functions in this asm
 global asm_memcpy_sse2
 
 ; void asm_memcpy_sse2(void *Dest <rcx>, void *Source <rdx>, int Loops <r8>, int RemainingBytes <r9>)
+; @abi set to ms
 asm_memcpy_sse2:
+	; Store space for XMM6 and XMM7, they are considered non-volatile in
+	; ms abi
+	sub     rsp, 32
+    movdqu [rsp], xmm6
+    movdqu [rsp + 16], xmm7
+
 	; Save stuff
 	push	rdi
 	push	rsi
@@ -67,8 +73,8 @@ AlignedLoop:
     movntdq [rdi + 32], xmm2
     movntdq [rdi + 48], xmm3
     movntdq [rdi + 64], xmm4
-    movntdq [rdi + 96], xmm6
     movntdq [rdi + 80], xmm5
+    movntdq [rdi + 96], xmm6
     movntdq [rdi + 112], xmm7
 
 	; Increase Pointers
@@ -78,7 +84,7 @@ AlignedLoop:
 
 	; Loop Epilogue
 	jnz		AlignedLoop
-	jmp		SseDone
+	jmp		SseRemain
 	
 	; Unaligned Loop
 UnalignedLoop:
@@ -113,10 +119,6 @@ UnalignedLoop:
 	; Loop Epilogue
 	jnz		UnalignedLoop
 
-SseDone:
-	; Done, cleanup MMX
-	emms
-
 	; Remainders
 SseRemain:
 	mov		rcx, rdx
@@ -129,4 +131,10 @@ SseRemain:
 CpyDone:
 	pop		rsi
 	pop		rdi
+
+	; Restore the saved registers
+    movdqu  xmm6, [rsp]
+    movdqu  xmm7, [rsp + 16]
+	add     rsp, 32
+
 	ret

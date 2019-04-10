@@ -30,7 +30,7 @@
 #  define _LIBUNWIND_HIGHEST_DWARF_REGISTER _LIBUNWIND_HIGHEST_DWARF_REGISTER_X86
 # elif defined(__x86_64__) || defined(amd64)
 #  define _LIBUNWIND_TARGET_X86_64 1
-#  if defined(_WIN64) || defined(MOLLENOS)
+#  if defined(_WIN64) || defined(MOLLENOS) // @abi
 #    define _LIBUNWIND_CONTEXT_SIZE 54
 #    define _LIBUNWIND_CURSOR_SIZE 66
 #  else

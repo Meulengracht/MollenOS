@@ -20,14 +20,12 @@
 bits 32
 segment .text
 
-;Functions in this asm
 global _asm_memcpy_mmx
 global _asm_memcpy_sse
 global _asm_memcpy_sse2
 
 ; void asm_memcpy_mmx(void *Dest, void *Source, int Loops, int RemainingBytes)
-; We wait for the spinlock to become free
-; then set value to 1 to mark it in use.
+; @abi set to ms
 _asm_memcpy_mmx:
 	; Stack Frame
 	push	ebp
@@ -98,12 +96,19 @@ MmxDone:
 
 
 ; void asm_memcpy_sse(void *Dest, void *Source, int Loops, int RemainingBytes)
+; @abi set to ms
 _asm_memcpy_sse:
 	; Stack Frame
 	push	ebp
 	mov		ebp, esp
 	
-	; Save stuff
+	; Store space for XMM6 and XMM7, they are considered non-volatile in
+	; ms abi
+	sub     esp, 32
+    movdqu [esp], xmm6
+    movdqu [esp + 16], xmm7
+	
+	; Preserve some registers
 	push	edi
 	push	esi
 
@@ -151,7 +156,7 @@ AlignedLoop:
 
 	; Loop Epilogue
 	jnz		AlignedLoop
-	jmp		SseDone
+	jmp		SseRemain
 	
 	; Unaligned Loop
 UnalignedLoop:
@@ -181,10 +186,6 @@ UnalignedLoop:
 	; Loop Epilogue
 	jnz		UnalignedLoop
 
-SseDone:
-	; Done, cleanup MMX
-	emms
-
 	; Remainders
 SseRemain:
 	mov		ecx, edx
@@ -197,17 +198,28 @@ SseRemain:
 CpyDone:
 	pop		esi
 	pop		edi
+	
+	; Restore the saved registers
+    movdqu  xmm6, [esp]
+    movdqu  xmm7, [esp + 16]
+	add     esp, 32
 
-	; Unwind & return
 	pop     ebp
 	ret
 
 ; void asm_memcpy_sse2(void *Dest, void *Source, int Loops, int RemainingBytes)
+; @abi set to ms
 _asm_memcpy_sse2:
 	; Stack Frame
 	push	ebp
 	mov		ebp, esp
 	
+	; Store space for XMM6 and XMM7, they are considered non-volatile in
+	; ms abi
+	sub     esp, 32
+    movdqu [esp], xmm6
+    movdqu [esp + 16], xmm7
+    
 	; Save stuff
 	push	edi
 	push	esi
@@ -261,7 +273,7 @@ AlignedLoop2:
 
 	; Loop Epilogue
 	jnz		AlignedLoop2
-	jmp		Sse2Done
+	jmp		Sse2Remain
 	
 	; Unaligned Loop
 UnalignedLoop2:
@@ -296,10 +308,6 @@ UnalignedLoop2:
 	; Loop Epilogue
 	jnz		UnalignedLoop2
 
-Sse2Done:
-	; Done, cleanup MMX
-	emms
-
 	; Remainders
 Sse2Remain:
 	mov		ecx, edx
@@ -312,7 +320,11 @@ Sse2Remain:
 CpyDone2:
 	pop		esi
 	pop		edi
+	
+	; Restore the saved registers
+    movdqu  xmm6, [esp]
+    movdqu  xmm7, [esp + 16]
+	add     esp, 32
 
-	; Unwind & return
 	pop     ebp
 	ret

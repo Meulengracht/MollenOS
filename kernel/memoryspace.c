@@ -334,16 +334,18 @@ CreateMemorySpaceMapping(
     int               i;
     assert(SystemMemorySpace != NULL);
     assert(PlacementFlags != 0);
+    
+    // Make sure that we set COMMIT and PERSISTANT if fixed is present, it makes no sense to not
+    // commit fixed addresses as persistent
+    if (PlacementFlags & MAPPING_PHYSICAL_FIXED) {
+        MemoryFlags |= MAPPING_COMMIT | MAPPING_PERSISTENT;
+    }
 
     // Handle the resolvement of the physical address, if physical-base is 0 after this
     // then we should allocate pages one-by-one as no requirements were set
     if (MemoryFlags & MAPPING_COMMIT) {
         PhysicalBase = ResolvePhysicalMemorySpaceAddress(PhysicalAddress, Size, 
             PlacementFlags, PhysicalMask, &CleanupOnError);
-    }
-    else if (PlacementFlags & MAPPING_PHYSICAL_FIXED) {
-        assert(PhysicalAddress != NULL);
-        PhysicalBase = *PhysicalAddress;
     }
     
     // Resolve the virtual address, if virtual-base is zero then we have trouble, as something
@@ -365,9 +367,6 @@ CreateMemorySpaceMapping(
                         *PhysicalAddress = PhysicalPage;
                     }
                 }
-            }
-            else if (PlacementFlags & MAPPING_PHYSICAL_FIXED) {
-                PhysicalPage = PhysicalBase + (i * GetMemorySpacePageSize());
             }
 
             Status = InstallMemoryMapping(SystemMemorySpace, PhysicalPage, VirtualPage, MemoryFlags, PlacementFlags);
@@ -405,6 +404,7 @@ CommitMemorySpaceMapping(
     uintptr_t  PhysicalPage;
     OsStatus_t Status = OsError;
     assert(SystemMemorySpace != NULL);
+    assert(PhysicalAddress == NULL); // Not used for now
 
     PhysicalPage = AllocateSystemMemory(GetMemorySpacePageSize(), PhysicalMask, 0);
     assert(PhysicalPage != 0);
@@ -473,7 +473,7 @@ RemoveMemorySpaceMapping(
     // Free the underlying resources first, before freeing the upper resources
     for (i = 0; i < PageCount; i++) {
         uintptr_t VirtualPage = Address + (i * GetMemorySpacePageSize());
-        Status = ClearVirtualPageMapping(SystemMemorySpace, VirtualPage);
+        Status                = ClearVirtualPageMapping(SystemMemorySpace, VirtualPage);
         if (Status != OsSuccess) {
             WARNING("Failed to unmap address 0x%" PRIxIN "", VirtualPage);
         }
@@ -552,17 +552,13 @@ GetMemorySpaceAttributes(
     return Attributes;
 }
 
-/* IsMemorySpacePageDirty
- * Checks if the given virtual address is dirty (has been written data to). 
- * Returns OsSuccess if the address is dirty. */
 OsStatus_t
 IsMemorySpacePageDirty(
     _In_ SystemMemorySpace_t*   SystemMemorySpace,
     _In_ VirtualAddress_t       Address)
 {
-    // Variables
-    OsStatus_t Status   = OsSuccess;
-    Flags_t Flags       = 0;
+    OsStatus_t Status = OsSuccess;
+    Flags_t    Flags  = 0;
     
     // Sanitize address space
     assert(SystemMemorySpace != NULL);
@@ -575,31 +571,25 @@ IsMemorySpacePageDirty(
     return Status;
 }
 
-/* IsMemorySpacePagePresent
- * Checks if the given virtual address is present. Returns success if the page
- * at the address has a mapping. */
 OsStatus_t
 IsMemorySpacePagePresent(
-    _In_ SystemMemorySpace_t*   SystemMemorySpace,
-    _In_ VirtualAddress_t       Address)
+    _In_ SystemMemorySpace_t* SystemMemorySpace,
+    _In_ VirtualAddress_t     Address)
 {
-    // Variables
-    OsStatus_t Status   = OsSuccess;
-    Flags_t Flags       = 0;
+    OsStatus_t Status = OsSuccess;
+    Flags_t    Flags  = 0;
     
     // Sanitize address space
     assert(SystemMemorySpace != NULL);
     Status = GetVirtualPageAttributes(SystemMemorySpace, Address, &Flags);
 
     // Check the flags if status was ok
-    if (Status == OsSuccess && !(Flags & MAPPING_EXECUTABLE)) {
-        Status = OsError;
+    if (Status == OsSuccess && !(Flags & MAPPING_COMMIT)) {
+        Status = OsDoesNotExist;
     }
     return Status;
 }
 
-/* GetMemorySpacePageSize
- * Retrieves the memory page-size used by the underlying architecture. */
 size_t
 GetMemorySpacePageSize(void)
 {

@@ -16,21 +16,35 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Generic Block Bitmap Implementation
+ * Generic Block Bitmap Implementation
+ *  - Has the capability to contain a huge range of blocks as bitmaps
+ *    by implementing a value range as segments of bitmaps of block sizes.
  */
 
-#ifndef __BLOCK_BITMAP__
-#define __BLOCK_BITMAP__
+#ifndef __BLOCK_BITMAP_H__
+#define __BLOCK_BITMAP_H__
 
 #include <os/osdefs.h>
 #include <ds/ds.h>
 #include <ds/bitmap.h>
 
-#define BLOCKMAP_ALLRESERVED            (1 << 0) // Set all to allocated initially
+// Defines for allocation splits
+// Size per gigabyte is 32 kb if the block size is 4 kb
+#define BLOCKMAP_MEGABYTE (1024 * 1024)
 
-/* BlockBitmap_t
- * A specialized bitmap that returns memory blocks instead of frames.
- * This way it can be used for keeping track of memory regions in <BlockSize> */
+// Settings for configuration of map
+#define BLOCKMAP_ALLRESERVED (1 << 0) // Set all to allocated initially
+
+// Default is 0, which uses the entire range in a single segment
+#define BLOCKMAP_SIZE_256MB  (1 << 1)
+#define BLOCKMAP_SIZE_512MB  (2 << 1)
+#define BLOCKMAP_SIZE_1024MB (3 << 1)
+
+typedef struct {
+    Bitmap_t         Base;
+    SafeMemoryLock_t SyncObject;
+} BlockmapSegment_t;
+
 typedef struct _BlockBitmap {
     Bitmap_t            Base;
     SafeMemoryLock_t    SyncObject;
@@ -40,18 +54,16 @@ typedef struct _BlockBitmap {
     uintptr_t           BlockEnd;
     size_t              BlockSize;
     size_t              BlockCount;
+    
+    // Segments
+    // BlockmapSegment_t** Segments;
+    // size_t              SegmentCount;
 
     // Statistics
     size_t              BlocksAllocated;
     size_t              NumAllocations;
     size_t              NumFrees;
 } BlockBitmap_t;
-
-typedef struct _BlockBitmapSegment {
-    BlockBitmap_t*      Source;
-    uintptr_t           SegmentStart;
-    uintptr_t           SegmentSize;
-} BlockBitmapSegment_t;
 
 /* CreateBlockmap
  * Creates a new blockmap of with the given configuration and returns a pointer to a newly
@@ -126,4 +138,4 @@ BlockBitmapValidateState(
     _In_ uintptr_t      Block,
     _In_ int            Set));
 
-#endif //!__BLOCK_BITMAP__
+#endif //!__BLOCK_BITMAP_H__

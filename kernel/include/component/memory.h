@@ -45,7 +45,7 @@ typedef struct _SystemMemory {
     size_t               BlockSize;
     int                  Removable;      // This memory is not fixed and should not be used for system memory
     int                  NonVolatile;    // Memory is non volatile
-    BlockBitmapSegment_t MemoryRange;
+    BlockmapSegment_t*   MemoryRange;
 } SystemMemory_t;
 
 #endif // !__COMPONENT_MEMORY__
