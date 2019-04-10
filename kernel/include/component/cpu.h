@@ -48,7 +48,7 @@ typedef struct _SystemCpuCore {
 
     // Static resources
     MCoreThread_t       IdleThread;
-    MCoreScheduler_t    Scheduler;
+    SystemScheduler_t   Scheduler;
 
     // State resources
     MCoreThread_t*      CurrentThread;

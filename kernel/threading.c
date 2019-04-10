@@ -261,6 +261,7 @@ ThreadingCleanupThread(
     // Make sure we are completely removed as reference
     // from the entire system. We also signal all waiters for this
     // thread again before continueing just in case
+    SchedulerThreadFinalize(Thread);
     SchedulerHandleSignalAll((uintptr_t*)&Thread->Cleanup);
     ThreadingUnregister(Thread);
 

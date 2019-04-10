@@ -171,7 +171,7 @@ SchedulerSynchronizeCore(
     }
 }
 
-static MCoreScheduler_t*
+static SystemScheduler_t*
 SchedulerGetFromCore(
     _In_ UUId_t CoreId)
 {
@@ -206,6 +206,45 @@ AddToSleepQueueAndSleep(
     return OsSuccess;
 }
 
+static void
+AllocateSchedulerForThread(
+    _In_ MCoreThread_t* Thread)
+{
+    SystemDomain_t*    Domain    = GetCurrentDomain();
+    SystemCpu_t*       CoreGroup = &GetMachine()->Processor;
+    SystemScheduler_t* Scheduler;
+    UUId_t             CoreId;
+    int                i;
+    
+    // Select the default core range
+    if (Domain != NULL) {
+        // Use the core range from our domain
+        CoreGroup = &Domain->CoreGroup;
+    }
+    Scheduler = &CoreGroup->PrimaryCore.Scheduler;
+    CoreId    = CoreGroup->PrimaryCore.Id;
+    
+    // Allocate a processor core for this thread
+    for (i = 0; i < (CoreGroup->NumberOfCores - 1); i++) {
+        // Skip cores not booted yet, their scheduler is not initialized
+        if (CoreGroup->ApplicationCores[i].State != CpuStateRunning) {
+            continue;
+        }
+
+        if (CoreGroup->ApplicationCores[i].Scheduler.Bandwidth < Scheduler->Bandwidth) {
+            Scheduler = &CoreGroup->ApplicationCores[i].Scheduler;
+            CoreId    = CoreGroup->ApplicationCores[i].Id;
+        }
+    }
+    
+    // Select whatever we end up with
+    Thread->CoreId = CoreId;
+    
+    // Add pressure on this scheduler
+    Scheduler->Bandwidth += Thread->TimeSlice;
+    Scheduler->ThreadCount++;
+}
+
 void
 SchedulerThreadInitialize(
     _In_ MCoreThread_t* Thread,
@@ -213,7 +252,6 @@ SchedulerThreadInitialize(
 {
     Thread->Link           = NULL;
     Thread->SchedulerFlags = 0;
-    Thread->CoreId         = SCHEDULER_CPU_SELECT;
 
     if (Flags & THREADING_IDLE) {
         Thread->Queue           = SCHEDULER_LEVEL_LOW;
@@ -224,7 +262,21 @@ SchedulerThreadInitialize(
     else {
         Thread->Queue     = 0;
         Thread->TimeSlice = SCHEDULER_TIMESLICE_INITIAL;
+        
+        // Initial pressure must be set
+        AllocateSchedulerForThread(Thread);
     }
+}
+
+void
+SchedulerThreadFinalize(
+    _In_ MCoreThread_t* Thread)
+{
+    SystemScheduler_t* Scheduler = SchedulerGetFromCore(Thread->CoreId);
+    
+    // Remove pressure
+    Scheduler->Bandwidth -= Thread->TimeSlice;
+    Scheduler->ThreadCount--;
 }
 
 OsStatus_t
@@ -232,41 +284,11 @@ SchedulerThreadQueue(
     _In_ MCoreThread_t* Thread,
     _In_ int            SuppressSynchronization)
 {
-    SystemDomain_t*   Domain    = GetCurrentDomain();
-    SystemCpu_t*      CoreGroup = &GetMachine()->Processor;
-    MCoreScheduler_t* Scheduler;
-    UUId_t            CoreId;
-    int               i;
-
-    // Select the default core range
-    if (Domain != NULL) {
-        // Use the core range from our domain
-        CoreGroup = &Domain->CoreGroup;
-    }
-    Scheduler = &CoreGroup->PrimaryCore.Scheduler;
-    CoreId    = CoreGroup->PrimaryCore.Id;
-    
-    // Sanitize the cpu that thread needs to be bound to
-    if (Thread->CoreId == SCHEDULER_CPU_SELECT) {
-        for (i = 0; i < (CoreGroup->NumberOfCores - 1); i++) {
-            // Skip cores not booted yet, their scheduler is not initialized
-            if (CoreGroup->ApplicationCores[i].State != CpuStateRunning) {
-                continue;
-            }
-
-            if (CoreGroup->ApplicationCores[i].Scheduler.ThreadCount < Scheduler->ThreadCount) {
-                Scheduler = &CoreGroup->ApplicationCores[i].Scheduler;
-                CoreId    = CoreGroup->ApplicationCores[i].Id;
-            }
-        }
-        Thread->CoreId = CoreId;
-    }
-    else {
-        Scheduler = SchedulerGetFromCore(Thread->CoreId);
-    }
+    SystemScheduler_t* Scheduler = SchedulerGetFromCore(Thread->CoreId);
     
     assert(FindThreadInQueue(&IoQueue, Thread) == OsError);
     TRACE("Appending thread %" PRIuIN " (%s) to queue %i", Thread->Id, Thread->Name, Thread->Queue);
+    
     if (SuppressSynchronization) {
         AppendToQueue(&Scheduler->Queues[Thread->Queue], Thread, Thread);   
     }
@@ -275,8 +297,7 @@ SchedulerThreadQueue(
         AppendToQueue(&Scheduler->Queues[Thread->Queue], Thread, Thread);
         AtomicSectionLeave(&Scheduler->Queues[Thread->Queue].SyncObject);
     }
-    Scheduler->ThreadCount++;
-
+    
     Thread->SchedulerFlags &= ~(SCHEDULER_FLAG_BLOCKED);
     SchedulerSynchronizeCore(Thread, SuppressSynchronization);
     return OsSuccess;
@@ -428,8 +449,22 @@ SchedulerTick(
 }
 
 static void
+UpdatePressureForThread(
+    _In_ SystemScheduler_t* Scheduler,
+    _In_ MCoreThread_t*     Thread,
+    _In_ int                NewPressureRank)
+{
+    if (NewPressureRank != Thread->Queue) {
+        Scheduler->Bandwidth -= Thread->TimeSlice;
+        Thread->Queue         = NewPressureRank;
+        Thread->TimeSlice     = (NewPressureRank * 2) + SCHEDULER_TIMESLICE_INITIAL;
+        Scheduler->Bandwidth += Thread->TimeSlice;
+    }
+}
+
+static void
 SchedulerBoostThreads(
-    _In_ MCoreScheduler_t* Scheduler)
+    _In_ SystemScheduler_t* Scheduler)
 {
     for (int i = 1; i < SCHEDULER_LEVEL_CRITICAL; i++) {
         if (Scheduler->Queues[i].Head) {
@@ -443,7 +478,7 @@ SchedulerBoostThreads(
 
 static void
 SchedulerRequeueSleepers(
-    _In_ MCoreScheduler_t* Scheduler)
+    _In_ SystemScheduler_t* Scheduler)
 {
     MCoreThread_t* Thread;
     
@@ -464,23 +499,22 @@ SchedulerThreadSchedule(
     _In_ MCoreThread_t* Thread,
     _In_ int            Preemptive)
 {
-    MCoreScheduler_t* Scheduler   = &GetCurrentProcessorCore()->Scheduler;
-    MCoreThread_t*    NextThread  = NULL;
-    size_t            TimeSlice   = 0;
-    int               i;
+    SystemScheduler_t* Scheduler  = &GetCurrentProcessorCore()->Scheduler;
+    MCoreThread_t*     NextThread = NULL;
+    clock_t            CurrentClock;
+    int                i;
 
     TRACE("SchedulerThreadSchedule()");
 
     // Handle the scheduled thread first
     if (Thread != NULL) {
         if (!(Thread->SchedulerFlags & SCHEDULER_FLAG_REQUEUE)) {
-            TimeSlice = Thread->TimeSlice;
-
             // Did it yield itself?
             if (Preemptive != 0) {
-                if (Thread->Queue < (SCHEDULER_LEVEL_CRITICAL - 1)) {
-                    Thread->Queue++;
-                    Thread->TimeSlice = (Thread->Queue * 2) + SCHEDULER_TIMESLICE_INITIAL;
+                // Nah, we interrupted it, demote it for that unless we are at max
+                // priority queue.
+                if (Thread->Queue < SCHEDULER_LEVEL_LOW) {
+                    UpdatePressureForThread(Scheduler, Thread, Thread->Queue + 1);
                 }
             }
             SchedulerThreadQueue(Thread, 1);      
@@ -489,9 +523,6 @@ SchedulerThreadSchedule(
             Thread->SchedulerFlags &= ~(SCHEDULER_FLAG_REQUEUE); // Clear the requeue flag
         }
     }
-    else {
-        TimeSlice = SCHEDULER_TIMESLICE_INITIAL;
-    }
 
     // Requeue threads in sleep-queue that have been waken up
     if (IoQueue.Head) {
@@ -499,20 +530,24 @@ SchedulerThreadSchedule(
     }
     
     // Handle the boost timer
-    Scheduler->BoostTimer += TimeSlice;
-    if (Scheduler->BoostTimer >= SCHEDULER_BOOST) {
-        SchedulerBoostThreads(Scheduler);
-        Scheduler->BoostTimer = 0;
+    TimersGetSystemTick(&CurrentClock);
+    if (Scheduler->LastBoost == 0) {
+        Scheduler->LastBoost = CurrentClock;
+    }
+    else {
+        clock_t TimeDiff = CurrentClock - Scheduler->LastBoost;
+        if (TimeDiff >= SCHEDULER_BOOST) {
+            SchedulerBoostThreads(Scheduler);
+            Scheduler->LastBoost = CurrentClock;
+        }
     }
     
     // Get next thread
     for (i = 0; i < SCHEDULER_LEVEL_COUNT; i++) {
         if (Scheduler->Queues[i].Head != NULL) {
-            NextThread            = Scheduler->Queues[i].Head;
-            NextThread->Queue     = i;
-            NextThread->TimeSlice = (i * 2) + SCHEDULER_TIMESLICE_INITIAL;
+            NextThread = Scheduler->Queues[i].Head;
+            UpdatePressureForThread(Scheduler, NextThread, i);
             RemoveFromQueue(&Scheduler->Queues[i], NextThread);
-            Scheduler->ThreadCount--;
             break;
         }
     }

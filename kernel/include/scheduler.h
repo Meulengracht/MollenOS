@@ -34,10 +34,10 @@
 #define SCHEDULER_LEVEL_CRITICAL        60
 #define SCHEDULER_LEVEL_COUNT           61
 
+// Boosts happen every 10 seconds to prevent starvation in the scheduler
+// Timeslices go from initial => 
 #define SCHEDULER_TIMESLICE_INITIAL     10
-#define SCHEDULER_BOOST                 3000
-
-#define SCHEDULER_CPU_SELECT            0xFF
+#define SCHEDULER_BOOST                 10000
 
 #define SCHEDULER_TIMEOUT_INFINITE      0
 #define SCHEDULER_SLEEP_OK              0
@@ -57,34 +57,40 @@ typedef struct {
 
 typedef struct {
     SchedulerQueue_t Queues[SCHEDULER_LEVEL_COUNT];
-    size_t           BoostTimer;
     int              ThreadCount;
     int              Bandwidth;
-} MCoreScheduler_t;
+    clock_t          LastBoost;
+} SystemScheduler_t;
 
 /* SchedulerThreadInitialize
- * Can be called by the creation of a new thread to initalize
- * all the scheduler data for that thread. */
+ * Initializes the thread for scheduling. This must be done before the kernel
+ * scheduler is used for the thread. */
 KERNELAPI void KERNELABI
 SchedulerThreadInitialize(
-    _In_ MCoreThread_t*     Thread,
-    _In_ Flags_t            Flags);
+    _In_ MCoreThread_t* Thread,
+    _In_ Flags_t        Flags);
+    
+/* SchedulerThreadFinalize
+ * Cleans up the resources associated with the kernel scheduler. */
+KERNELAPI void KERNELABI
+SchedulerThreadFinalize(
+    _In_ MCoreThread_t* Thread);
 
 /* SchedulerThreadQueue
  * Queues up a new thread for execution on the either least-loaded core, or the specified
  * core in the thread structure. */
 KERNELAPI OsStatus_t KERNELABI
 SchedulerThreadQueue(
-    _In_ MCoreThread_t*     Thread,
-    _In_ int                SuppressSynchronization);
+    _In_ MCoreThread_t* Thread,
+    _In_ int            SuppressSynchronization);
 
 /* SchedulerThreadSleep
  * Enters the current thread into sleep-queue. Can return different
  * sleep-state results. SCHEDULER_SLEEP_OK or SCHEDULER_SLEEP_TIMEOUT. */
 KERNELAPI int KERNELABI
 SchedulerThreadSleep(
-    _In_ uintptr_t*         Handle,
-    _In_ size_t             Timeout);
+    _In_ uintptr_t* Handle,
+    _In_ size_t     Timeout);
 
 /* SchedulerAtomicThreadSleep
  * Enters the current thread into sleep-queue. This is done by using a synchronized
