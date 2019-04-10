@@ -276,7 +276,7 @@ SynchronizePageRegion(
     ApicSendInterrupt(InterruptAllButSelf, UUID_INVALID, INTERRUPT_SYNCHRONIZE_PAGE);
     
     // Wait for all cpu's to have handled this.
-    while(SyncData.CallsCompleted != (GetMachine()->NumberOfActiveCores - 1));
+    while(SyncData.CallsCompleted < (GetMachine()->NumberOfActiveCores - 1));
 
     // Release lock before enabling interrupts to avoid a schedule before we've released.
     SpinlockRelease(&SyncData.SyncObject);

@@ -209,16 +209,15 @@ EnumerateSystemCoresForDomainSRAT(
     }
 }
 
-/* EnumerateSystemCoresMADT
- * Uses the SRAT table to register cores for the uma machine. It will ignore all other
- * entries as as that will be enumerated in next iteration. */
 void
 EnumerateSystemCoresMADT(
-    _In_ void*              MadtTableStart,
-    _In_ void*              MadtTableEnd)
+    _In_  void* MadtTableStart,
+    _In_  void* MadtTableEnd,
+    _In_  int   RegisterCores,
+    _Out_ int*  CoreCountOut)
 {
-    // Variables
-    ACPI_SUBTABLE_HEADER *MadtEntry = NULL;
+    ACPI_SUBTABLE_HEADER* MadtEntry;
+    int                   CoreCount = 0;
 
     for (MadtEntry = (ACPI_SUBTABLE_HEADER*)MadtTableStart; (void*)MadtEntry < MadtTableEnd;) {
         // Avoid an infinite loop if we hit a bogus entry.
@@ -231,9 +230,12 @@ EnumerateSystemCoresMADT(
                 // Cast to correct MADT structure
                 ACPI_MADT_LOCAL_APIC *AcpiCpu = (ACPI_MADT_LOCAL_APIC*)MadtEntry;
                 if (AcpiCpu->LapicFlags & 0x1) {
-                    TRACE(" > core %" PRIuIN " available and active", AcpiCpu->Id);
-                    if (AcpiCpu->Id != GetMachine()->Processor.PrimaryCore.Id) {
-                        RegisterApplicationCore(&GetMachine()->Processor, AcpiCpu->Id, CpuStateShutdown, 0);
+                    CoreCount++;
+                    if (RegisterCores) {
+                        TRACE(" > core %" PRIuIN " available and active", AcpiCpu->Id);
+                        if (AcpiCpu->Id != GetMachine()->Processor.PrimaryCore.Id) {
+                            RegisterApplicationCore(&GetMachine()->Processor, AcpiCpu->Id, CpuStateShutdown, 0);
+                        }
                     }
                 }
             } break;
@@ -250,6 +252,11 @@ EnumerateSystemCoresMADT(
         }
         MadtEntry = (ACPI_SUBTABLE_HEADER*)
             ACPI_ADD_PTR(ACPI_SUBTABLE_HEADER, MadtEntry, MadtEntry->Length);
+    }
+    
+    // Guard against no pointer and invalid MADT table
+    if (CoreCountOut && CoreCount != 0) {
+        *CoreCountOut = CoreCount;
     }
 }
 
@@ -426,7 +433,14 @@ AcpiInitializeEarly(void)
             // No domains present, system is UMA
             // Use the MADT to enumerate system cores
             TRACE(" > uma/acpi system, single domain");
-            EnumerateSystemCoresMADT(MadtTableStart, MadtTableEnd);
+            if (GetMachine()->Processor.NumberOfCores == 1) {
+                // Check for cores anyways, some times the MADT knows things
+                // that we don't. So in the first run we simply count cores and
+                // update the saved value we have
+                EnumerateSystemCoresMADT(MadtTableStart, MadtTableEnd, 0, 
+                    &GetMachine()->Processor.NumberOfCores);
+            }
+            EnumerateSystemCoresMADT(MadtTableStart, MadtTableEnd, 1, NULL);
         }
 
         // Handle system interrupt overrides

@@ -95,13 +95,13 @@ AhciManagerCreateDevice(
     AhciTransaction_t* Transaction;
     DmaBuffer_t*       Buffer;
     AhciDevice_t*      Device;
+    reg32_t            Signature = ReadVolatile32(&Port->Registers->Signature);
 
     // First of all, is this a port multiplier? 
     // because then we should really enumerate it
-    if (Port->Registers->Signature == SATA_SIGNATURE_PM
-        || Port->Registers->Signature == SATA_SIGNATURE_SEMB) {
+    if (Signature == SATA_SIGNATURE_PM || Signature == SATA_SIGNATURE_SEMB) {
         WARNING("AHCI::Unsupported device type 0x%x on port %i",
-            Port->Registers->Signature, Port->Id);
+            Signature, Port->Id);
         return OsError;
     }
     TRACE("AhciManagerCreateDevice(Controller %i, Port %i)",
@@ -121,7 +121,7 @@ AhciManagerCreateDevice(
     Device->Index          = 0;
     Device->AddressingMode = 1;
     Device->SectorSize     = sizeof(ATAIdentify_t);
-    Device->Type           = (Port->Registers->Signature == SATA_SIGNATURE_ATAPI) ? 1 : 0;
+    Device->Type           = (Signature == SATA_SIGNATURE_ATAPI) ? 1 : 0;
 
     Transaction->ResponseAddress.Thread = UUID_INVALID;
     Transaction->Address        = GetBufferDma(Buffer);

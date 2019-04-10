@@ -252,11 +252,13 @@ SyncPmlWithParent:
                     kfree((void*)DirectoryTable);
                     goto SyncPmlWithParent;
                 }
+                
+                // If we are inheriting it's important that we mark our copy inherited
                 ParentPageMasterTable->vTables[PmIndex] = (uint64_t)DirectoryTable;
+                Physical |= PAGETABLE_INHERITED;
             }
 
-            // Update us and mark our copy inherited
-            Physical |= PAGETABLE_INHERITED;
+            // Update our copy
             atomic_store(&PageMasterTable->pTables[PmIndex], Physical);
             PageMasterTable->vTables[PmIndex] = (uintptr_t)Table;
             *Update                           = IsCurrent;
@@ -287,15 +289,15 @@ SyncPdp:
         // Adjust the physical pointer to include flags
         Physical |= CreateFlags;
         if (!atomic_compare_exchange_strong(&DirectoryTable->pTables[PdpIndex], 
-            &ParentMapping, Physical)) {
+                &ParentMapping, Physical)) {
             // Start over as someone else beat us to the punch
             kfree((void*)Directory);
             goto SyncPdp;
         }
 
         // Update the pdp
-        DirectoryTable->vTables[PdpIndex]   = (uint64_t)Directory;
-        *Update                             = IsCurrent;
+        DirectoryTable->vTables[PdpIndex] = (uint64_t)Directory;
+        *Update                           = IsCurrent;
     }
 
     // Sanitize the status of the allocation/synchronization
@@ -551,7 +553,7 @@ InitializeVirtualSpace(
 
         // Due to how it works with multiple cpu's, we need to make sure all shared
         // tables already are mapped in the upper-most level of the page-directory
-        TRACE("Mapping the kernel region from 0x%" PRIxIN " => 0x%" PRIxIN "", MEMORY_LOCATION_KERNEL, MEMORY_LOCATION_KERNEL_END);
+        TRACE("Mapping the global region from 0x%" PRIxIN " => 0x%" PRIxIN "", MEMORY_LOCATION_KERNEL, MEMORY_LOCATION_KERNEL_END);
         LastAllocatedAddress = MmVirtualMapMemoryRange(iDirectory, 0, MEMORY_LOCATION_KERNEL_END, KernelPageFlags);
         if (LastAllocatedAddress > LastReservedAddress) {
             BytesToMap = LastAllocatedAddress - MIN(LastAllocatedAddress, TABLE_SPACE_SIZE);

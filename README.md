@@ -62,12 +62,11 @@ the project.
 ### Setting up the toolchain <a name="setting-up-toolchain"></a>
 The only thing you need to get started is a succesfully built toolchain of llvm/clang/lld. To help make this easier
 I have made a fully automated script, which downloads all the neccessary components, and initiates a full build of llvm/lld/clang.
-Make note that two full builds need to run, and that this takes a couple of hours. First the llvm/clang/lld setup is built and installed, then the cross-compiler is built afterwards.
+Make note that a full build of llvm/clang/lld need to run, and that this takes a couple of hours.
 
 Toolchain scripts are located [here](https://github.com/Meulengracht/vali-toolchain). You should run the scripts in this order:
 - depends.sh
 - checkout.sh
-- build-clang.sh
 - build-cross.sh
 
 ### Setting up for OS development <a name="setting-up-devenv"></a>
@@ -157,9 +156,8 @@ All documentation about design and implementation, and the theory behind is stor
 - /modules (Contains drivers for MollenOS)
 - /releases (Full releases of the OS)
 - /services (Contains system services like the filemanager for MollenOS)
-- /tools (Contains tools for building and manipulating)
-- /userspace (Contains software projects for the user-applications)
 - /resources (Contains the deploy folder for installing the OS)
+- /tools (Contains tools for building and manipulating)
 
 ## Screenshots <a name="screenshots"></a>
 

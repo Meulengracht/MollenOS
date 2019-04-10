@@ -194,11 +194,13 @@ SyncWithParent:
                     kfree((void*)Table);
                     goto SyncWithParent;
                 }
+                
+                // Ok we just transferred successfully, mark our copy inheritted
                 ParentPageDirectory->vTables[PageTableIndex] = (uint32_t)Table;
+                TablePhysical |= PAGETABLE_INHERITED;
             }
 
-            // Update us and mark our copy as INHERITED
-            TablePhysical |= PAGETABLE_INHERITED;
+            // Update our copy
             atomic_store(&PageDirectory->pTables[PageTableIndex], TablePhysical);
             PageDirectory->vTables[PageTableIndex] = (uintptr_t)Table;
         }

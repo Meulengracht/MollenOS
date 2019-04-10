@@ -96,7 +96,7 @@ void dslock(SafeMemoryLock_t* lock)
 
 void dsunlock(SafeMemoryLock_t* lock)
 {
-    atomic_exchange(&lock->SyncObject, false);
+    atomic_store(&lock->SyncObject, false);
 #ifdef LIBC_KERNEL
     InterruptRestoreState(lock->Flags);
 #endif

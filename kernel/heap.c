@@ -54,7 +54,7 @@ static struct FixedCache {
     { 32768,  "size32768_cache",  NULL },
     { 65536,  "size65536_cache",  NULL },
     { 131072, "size131072_cache", NULL },
-    { 262144, "size131072_cache", NULL },
+    { 262144, "size262144_cache", NULL },
     { 0,      NULL,               NULL }
 };
 
@@ -536,7 +536,10 @@ MemoryCacheAllocate(
     else {
         // allocate and build new slab, put it into partial list right away
         // as we are allocating a new object immediately
+        dsunlock(&Cache->SyncObject);
         Slab = slab_create(Cache);
+        dslock(&Cache->SyncObject);
+        
         Cache->NumberOfFreeObjects += Cache->ObjectCount;
         CollectionAppend(&Cache->PartialSlabs, &Slab->Header);
     }

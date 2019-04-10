@@ -280,7 +280,7 @@ AhciCommandRegisterFIS(
     Flags = DISPATCH_MULTIPLIER(0);
     
     // Atapi device?
-    if (Transaction->Device->Port->Registers->Signature == SATA_SIGNATURE_ATAPI) {
+    if (ReadVolatile32(&Transaction->Device->Port->Registers->Signature) == SATA_SIGNATURE_ATAPI) {
         Flags |= DISPATCH_ATAPI;
     }
 
