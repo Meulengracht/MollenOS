@@ -22,6 +22,7 @@
  */
 
 #include <internal/_syscalls.h>
+#include <ddk/contracts/video.h>
 #include <os/input.h>
 #include <string.h>
 #include <assert.h>
@@ -64,4 +65,17 @@ WriteSystemKey(
 {
     assert(Key != NULL);
     return Syscall_KeyEvent(Key);
+}
+
+OsStatus_t
+QueryDisplayInformation(
+    _In_ VideoDescriptor_t *Descriptor)
+{
+    return Syscall_DisplayInformation(Descriptor);
+}
+
+void*
+CreateDisplayFramebuffer(void)
+{
+    return Syscall_CreateDisplayFramebuffer();
 }

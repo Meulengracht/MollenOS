@@ -136,7 +136,8 @@ StdSignalEntry(
     // Sanitize handler, and then invoke if a user has registered one
     if (Handler != SIG_IGN && Handler != SIG_ERR) {
         if (Handler == SIG_DFL) {
-            if (signal_fatality[Signal] == 1 || signal_fatality[Signal] == 2) {
+            if (!Fixed && (signal_fatality[Signal] == 1 || 
+                    signal_fatality[Signal] == 2)) {
                 StdCrash(Signal);
                 _Exit(EXIT_FAILURE);
             }
@@ -146,9 +147,13 @@ StdSignalEntry(
         }
     }
 
+    // Clear any outstanding math errors
+    if (Signal == SIGFPE && Fixed) {
+        return;
+    }
+
     // Unhandled signal, or division by zero specifically?
-    if ((Signal == SIGFPE && !Fixed) || Handler == SIG_ERR ||
-        (Signal != SIGINT && Signal != SIGUSR1 && Signal != SIGUSR2)) {
+    if (Handler == SIG_ERR || (Signal != SIGINT && Signal != SIGUSR1 && Signal != SIGUSR2)) {
         ERROR("Unhandled signal %i. Aborting application", Signal);
         StdCrash(Signal);
         _Exit(Signal);

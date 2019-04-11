@@ -33,60 +33,43 @@
 #include <log.h>
 #include <gdt.h>
 
-Context_t*
-ContextCreate(
-    _In_ Flags_t    ThreadFlags,
+void
+ContextReset(
+    _In_ Context_t* Context,
     _In_ int        ContextType,
-    _In_ uintptr_t  EntryAddress,
+	_In_ uintptr_t  EntryAddress,
     _In_ uintptr_t  ReturnAddress,
     _In_ uintptr_t  Argument0,
     _In_ uintptr_t  Argument1)
 {
-    Context_t* Context        = NULL;
     uint32_t   DataSegment    = 0,
                ExtraSegment   = 0,
                CodeSegment    = 0, 
                StackSegment   = 0;
-    uintptr_t  ContextAddress = 0, 
-               EbpInitial     = 0;
-
-    TRACE("ContextCreate(ThreadFlags 0x%" PRIxIN ", Type %" PRIiIN ", Eip 0x%" PRIxIN ", Args 0x%" PRIxIN ")",
-        ThreadFlags, ContextType, EntryAddress);
-
-    // Select proper segments based on context type and run-mode
+    uintptr_t  EbpInitial     = 0;
+    
     if (ContextType == THREADING_CONTEXT_LEVEL0 || ContextType == THREADING_CONTEXT_SIGNAL0) {
-        ContextAddress  = ((uintptr_t)kmalloc(0x1000)) + 0x1000 - sizeof(Context_t);
         CodeSegment     = GDT_KCODE_SEGMENT;
         ExtraSegment    = StackSegment = DataSegment = GDT_KDATA_SEGMENT;
-        EbpInitial      = (ContextAddress + sizeof(Context_t));
+        EbpInitial      = ((uintptr_t)Context + sizeof(Context_t));
     }
     else if (ContextType == THREADING_CONTEXT_LEVEL1 || ContextType == THREADING_CONTEXT_SIGNAL1) {
-        if (ContextType == THREADING_CONTEXT_LEVEL1) {
-            ContextAddress  = (MEMORY_LOCATION_RING3_STACK_START - sizeof(Context_t));
-        }
-        else {
-            ContextAddress  = ((MEMORY_SEGMENT_SIGSTACK_BASE + MEMORY_SEGMENT_SIGSTACK_SIZE) - sizeof(Context_t));
-        }
         EbpInitial      = MEMORY_LOCATION_RING3_STACK_START;
         ExtraSegment    = GDT_EXTRA_SEGMENT + 0x03;
 
         // Now select the correct run-mode segments
-        if (THREADING_RUNMODE(ThreadFlags) == THREADING_USERMODE) {
-            CodeSegment     = GDT_UCODE_SEGMENT + 0x03;
-            StackSegment    = DataSegment = GDT_UDATA_SEGMENT + 0x03;
+        CodeSegment     = GDT_UCODE_SEGMENT + 0x03;
+        StackSegment    = DataSegment = GDT_UDATA_SEGMENT + 0x03;
+
+        // Set return address if its signal
+        if (ContextType == THREADING_CONTEXT_SIGNAL1) {
+            ReturnAddress = MEMORY_LOCATION_SIGNAL_RET;
         }
-        else {
-            FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID THREADFLAGS(%" PRIuIN ")", ThreadFlags);
-        }
-        CommitMemorySpaceMapping(GetCurrentMemorySpace(), NULL, ContextAddress, __MASK);
     }
     else {
         FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%" PRIiIN ")", ContextType);
     }
-    assert(ContextAddress != 0);
 
-    // Initialize the context pointer
-    Context = (Context_t*)ContextAddress;
     memset(Context, 0, sizeof(Context_t));
 
     // Setup segments for the stack
@@ -99,20 +82,45 @@ ContextCreate(
     Context->Ebp = EbpInitial;
 
     // Setup entry, eflags and the code segment
-    Context->Eip = EntryAddress;
+    Context->Eip    = EntryAddress;
     Context->Eflags = X86_THREAD_EFLAGS;
-    Context->Cs = CodeSegment;
+    Context->Cs     = CodeSegment;
 
     // Either initialize the ring3 stuff
     // or zero out the values
     Context->UserEsp = (uintptr_t)&Context->Arguments[0];
-    Context->UserSs = StackSegment;
+    Context->UserSs  = StackSegment;
 
     // Setup arguments
     Context->Arguments[0] = ReturnAddress;
     Context->Arguments[1] = Argument0;
     Context->Arguments[2] = Argument1;
-    return Context;
+}
+
+Context_t*
+ContextCreate(
+    _In_ int ContextType)
+{
+    uintptr_t ContextAddress = 0;
+
+    // Select proper segments based on context type and run-mode
+    if (ContextType == THREADING_CONTEXT_LEVEL0 || ContextType == THREADING_CONTEXT_SIGNAL0) {
+        ContextAddress  = ((uintptr_t)kmalloc(0x1000)) + 0x1000 - sizeof(Context_t);
+    }
+    else if (ContextType == THREADING_CONTEXT_LEVEL1 || ContextType == THREADING_CONTEXT_SIGNAL1) {
+        if (ContextType == THREADING_CONTEXT_LEVEL1) {
+            ContextAddress  = (MEMORY_LOCATION_RING3_STACK_START - sizeof(Context_t));
+        }
+        else {
+            ContextAddress  = ((MEMORY_SEGMENT_SIGSTACK_BASE + MEMORY_SEGMENT_SIGSTACK_SIZE) - sizeof(Context_t));
+        }
+        CommitMemorySpaceMapping(GetCurrentMemorySpace(), NULL, ContextAddress, __MASK);
+    }
+    else {
+        FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%" PRIiIN ")", ContextType);
+    }
+    assert(ContextAddress != 0);
+    return (Context_t*)ContextAddress;
 }
 
 void

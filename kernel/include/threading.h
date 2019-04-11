@@ -222,29 +222,38 @@ DisplayActiveThreads(void);
  * Call upon returning from a signal, this will finish the signal-call and 
  * enter a new signal if any is queued up */
 KERNELAPI OsStatus_t KERNELABI
-SignalReturn(void);
+SignalReturn(
+    _In_ MCoreThread_t* Thread);
 
 /* SignalProcess
  * This checks if the process has any waiting signals and if it has, 
  * it executes the first in list */
 KERNELAPI OsStatus_t KERNELABI
 SignalProcess(
-    _In_ UUId_t             ThreadId);
+    _In_ UUId_t ThreadId);
 
-/* Create Signal 
- * Dispatches a signal to a thread in the system. If the thread is sleeping
- * and the signal is not masked, then it will be woken up. */
+/* SignalCreateExternal
+ * Dispatches a signal to a thread in the system from an external 
+ * source (i.e another thread). */
 KERNELAPI OsStatus_t KERNELABI
-SignalCreate(
-    _In_ UUId_t             ThreadId,
-    _In_ int                Signal);
+SignalCreateExternal(
+    _In_ UUId_t ThreadId,
+    _In_ int    Signal);
+
+/* SignalCreateInternal
+ * Dispatches a signal to an already running thread, this must come from the same
+ * thread (i.e an exception). */
+KERNELAPI OsStatus_t KERNELABI
+SignalCreateInternal(
+    _In_ Context_t* Registers,
+    _In_ int        Signal);
 
 /* SignalExecute
  * This function does preliminary checks before actually dispatching the signal 
  * to the process */
 KERNELAPI void KERNELABI
 SignalExecute(
-    _In_ MCoreThread_t*     Thread,
-    _In_ SystemSignal_t*    Signal);
+    _In_ MCoreThread_t*  Thread,
+    _In_ SystemSignal_t* Signal);
 
 #endif

@@ -61,7 +61,13 @@ ThreadingSignalDispatch(
  * the thread is been created under is passed. */
 KERNELAPI Context_t* KERNELABI
 ContextCreate(
-    _In_ Flags_t    ThreadFlags,
+    _In_ int ContextType);
+
+/* ContextReset
+ * Resets an already existing context to new with the given parameters. */
+KERNELAPI void KERNELABI
+ContextReset(
+    _In_ Context_t* Context,
     _In_ int        ContextType,
 	_In_ uintptr_t  EntryAddress,
     _In_ uintptr_t  ReturnAddress,

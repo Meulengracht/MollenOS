@@ -24,7 +24,7 @@ $(error VALI_ARCH is not set to a valid value)
 endif
 
 OBJECTS = $(ASM_SRCS:.s=.o) $(ARCH_SRCS:.c=.o) $(SOURCES:.c=.o)
-CFLAGS = $(GCFLAGS) -D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAREDLIBRARY $(math_flags) -DCRTDLL $(INCLUDES)
+CFLAGS = $(GCFLAGS) -fno-builtin -fno-strict-aliasing -D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAREDLIBRARY $(math_flags) -DCRTDLL $(INCLUDES)
 LFLAGS = $(GLFLAGS) /lldmap /def:$(VALI_ARCH)/libm.def /noentry /dll 
 
 .PHONY: all

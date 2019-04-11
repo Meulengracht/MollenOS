@@ -12,14 +12,10 @@
 #ifndef _MATH_PRIVATE_H_
 #define	_MATH_PRIVATE_H_
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 #include <endian.h>
 #include <float.h>
 
-/* Includes 
- * - Architecture */
 #if defined(i386) || defined(__i386__)
 #include "i386/fpmath.h"
 #elif defined(amd64) || defined(__amd64__)

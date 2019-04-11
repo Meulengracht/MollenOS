@@ -74,11 +74,25 @@ char GlbSignalIsDeadly[] = {
     0  /* SIGEND     */
 };
 
-/* Create Signal 
- * Dispatches a signal to a thread in the system. If the thread is sleeping
- * and the signal is not masked, then it will be woken up. */
+static void
+EnsureSignalStacks(
+    _In_ MCoreThread_t* Thread)
+{
+    if (Thread->Contexts[THREADING_CONTEXT_SIGNAL0] == NULL) {
+        Thread->Contexts[THREADING_CONTEXT_SIGNAL0] = ContextCreate(THREADING_CONTEXT_SIGNAL0);
+        ContextReset(Thread->Contexts[THREADING_CONTEXT_SIGNAL0], 
+            THREADING_CONTEXT_SIGNAL0, 0, 0, 0, 0);
+    }
+
+    if (Thread->Contexts[THREADING_CONTEXT_SIGNAL1] == NULL) {
+        Thread->Contexts[THREADING_CONTEXT_SIGNAL1] = ContextCreate(THREADING_CONTEXT_SIGNAL1);
+    }
+    ContextReset(Thread->Contexts[THREADING_CONTEXT_SIGNAL1], THREADING_CONTEXT_SIGNAL1,
+        Thread->MemorySpace->Context->SignalHandler, 0, Thread->ActiveSignal.Signal, 0);
+}
+
 OsStatus_t
-SignalCreate(
+SignalCreateExternal(
     _In_ UUId_t     ThreadId,
     _In_ int        Signal)
 {
@@ -86,7 +100,7 @@ SignalCreate(
     SystemSignal_t* Sig;
     DataKey_t       Key;
 
-    TRACE("SignalCreate(Thread %" PRIuIN ", Signal %" PRIiIN ")", ThreadId, Signal);
+    TRACE("SignalCreateExternal(Thread %" PRIuIN ", Signal %" PRIiIN ")", ThreadId, Signal);
 
     // Sanitize input, and then sanitize if we have a handler
     if (Target == NULL || Signal >= NUMSIGNALS) {
@@ -111,10 +125,38 @@ SignalCreate(
 }
 
 OsStatus_t
-SignalReturn(void)
+SignalCreateInternal(
+    _In_ Context_t* Registers,
+    _In_ int        Signal)
 {
-    UUId_t         Cpu    = ArchGetProcessorCoreId();
-    MCoreThread_t* Thread = GetCurrentThreadForCore(Cpu);
+    UUId_t         CoreId = ArchGetProcessorCoreId();
+    MCoreThread_t* Thread = GetCurrentThreadForCore(CoreId);
+
+    TRACE("ExceptionSignal(Signal %i)", Signal);
+
+    // Sanitize if user-process
+#ifdef __OSCONFIG_DISABLE_SIGNALLING
+    if (Signal >= 0) {
+#else
+    if (Thread == NULL || Thread->MemorySpace == NULL ||
+        Thread->MemorySpace->Context == NULL ||
+        Thread->MemorySpace->Context->SignalHandler == 0) {
+#endif
+        return OsError;
+    }
+    Thread->ActiveSignal.Ignorable = 0;
+    Thread->ActiveSignal.Signal    = Signal;
+    Thread->ActiveSignal.Context   = Registers;
+
+    EnsureSignalStacks(Thread);
+    return ThreadingSignalDispatch(Thread);
+}
+
+OsStatus_t
+SignalReturn(
+    _In_ MCoreThread_t* Thread)
+{
+    Thread->ContextActive        = Thread->ActiveSignal.Context;
     Thread->ActiveSignal.Signal  = -1;
     Thread->ActiveSignal.Context = NULL;
     return SignalProcess(Thread->Header.Key.Value.Id);
@@ -125,7 +167,7 @@ SignalProcess(
     _In_ UUId_t ThreadId)
 {
     CollectionItem_t* Node;
-    MCoreThread_t*    Thread = GetThread(ThreadId);;
+    MCoreThread_t*    Thread = GetThread(ThreadId);
     SystemSignal_t*   Signal;
 
     if (Thread == NULL) {
@@ -175,5 +217,7 @@ SignalExecute(
     memcpy(&Thread->ActiveSignal, Signal, sizeof(SystemSignal_t));
     Thread->ActiveSignal.Context = Thread->ContextActive;
     kfree(Signal);
+
+    EnsureSignalStacks(Thread);
     ThreadingSignalDispatch(Thread);
 }

@@ -393,32 +393,6 @@ InterruptEntry(
     }
 }
 
-OsStatus_t
-ExceptionSignal(
-    _In_ Context_t* Registers,
-    _In_ int        Signal)
-{
-    UUId_t         CoreId = ArchGetProcessorCoreId();
-    MCoreThread_t* Thread = GetCurrentThreadForCore(CoreId);
-
-    TRACE("ExceptionSignal(Signal %i)", Signal);
-
-    // Sanitize if user-process
-#ifdef __OSCONFIG_DISABLE_SIGNALLING
-    if (Signal >= 0) {
-#else
-    if (Thread == NULL || Thread->MemorySpace == NULL ||
-        Thread->MemorySpace->Context == NULL ||
-        Thread->MemorySpace->Context->SignalHandler == 0) {
-#endif
-        return OsError;
-    }
-    Thread->ActiveSignal.Ignorable = 0;
-    Thread->ActiveSignal.Signal    = Signal;
-    Thread->ActiveSignal.Context   = Registers;
-    return ThreadingSignalDispatch(Thread);
-}
-
 void
 ExceptionEntry(
     _In_ Context_t* Registers)
@@ -429,7 +403,7 @@ ExceptionEntry(
 
     // Handle IRQ
     if (Registers->Irq == 0) {      // Divide By Zero (Non-math instruction)
-        if (ExceptionSignal(Registers, SIGFPE) == OsSuccess) {
+        if (SignalCreateInternal(Registers, SIGFPE) == OsSuccess) {
             IssueFixed = 1;
         }
     }
@@ -447,17 +421,17 @@ ExceptionEntry(
         IssueFixed = 1;
     }
     else if (Registers->Irq == 4) { // Overflow
-        if (ExceptionSignal(Registers, SIGSEGV) == OsSuccess) {
+        if (SignalCreateInternal(Registers, SIGSEGV) == OsSuccess) {
             IssueFixed = 1;
         }
     }
     else if (Registers->Irq == 5) { // Bound Range Exceeded
-        if (ExceptionSignal(Registers, SIGSEGV) == OsSuccess) {
+        if (SignalCreateInternal(Registers, SIGSEGV) == OsSuccess) {
             IssueFixed = 1;
         }
     }
     else if (Registers->Irq == 6) { // Invalid Opcode
-        if (ExceptionSignal(Registers, SIGILL) == OsSuccess) {
+        if (SignalCreateInternal(Registers, SIGILL) == OsSuccess) {
             IssueFixed = 1;
         }
     }
@@ -467,7 +441,7 @@ ExceptionEntry(
 
         // This might be because we need to restore fpu/sse state
         if (ThreadingFpuException(Thread) != OsSuccess) {
-            if (ExceptionSignal(Registers, SIGFPE) == OsSuccess) {
+            if (SignalCreateInternal(Registers, SIGFPE) == OsSuccess) {
                 IssueFixed = 1;
             }
         }
@@ -485,17 +459,17 @@ ExceptionEntry(
         // Fall-through to kernel fault
     }
     else if (Registers->Irq == 11) { // Segment Not Present
-        if (ExceptionSignal(Registers, SIGSEGV) == OsSuccess) {
+        if (SignalCreateInternal(Registers, SIGSEGV) == OsSuccess) {
             IssueFixed = 1;
         }
     }
     else if (Registers->Irq == 12) { // Stack Segment Fault
-        if (ExceptionSignal(Registers, SIGSEGV) == OsSuccess) {
+        if (SignalCreateInternal(Registers, SIGSEGV) == OsSuccess) {
             IssueFixed = 1;
         }
     }
     else if (Registers->Irq == 13) { // General Protection Fault
-        if (ExceptionSignal(Registers, SIGSEGV) == OsSuccess) {
+        if (SignalCreateInternal(Registers, SIGSEGV) == OsSuccess) {
             IssueFixed = 1;
         }
     }
@@ -505,13 +479,16 @@ ExceptionEntry(
         // The first thing we must check before propegating events
         // is that we must check special locations
         if (Address == MEMORY_LOCATION_SIGNAL_RET) {
-            UUId_t Cpu  = ArchGetProcessorCoreId();
-            Thread      = GetCurrentThreadForCore(Cpu);
-            Registers   = Thread->ActiveSignal.Context;
+            UUId_t Cpu            = ArchGetProcessorCoreId();
+            Thread                = GetCurrentThreadForCore(Cpu);
+
+            // Complete signal handling, maybe we don't return from here
+            SignalReturn(Thread); 
+
+            // If we do, we return in the threads active context
             TssUpdateThreadStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
-            SignalReturn();                 // Complete signal handling
             InterruptSetActiveStatus(0);    // Clear interrupt status before leaving
-            enter_thread(Registers);
+            enter_thread(Thread->ContextActive);
         }
 
         // Final step is to see if kernel can handle the unallocated address
@@ -526,13 +503,13 @@ ExceptionEntry(
             ERROR("%s: MEMORY_ACCESS_FAULT: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN "", 
                 GetCurrentThreadForCore(ArchGetProcessorCoreId())->Name, 
                 Address, Registers->ErrorCode, CONTEXT_IP(Registers));
-            if (ExceptionSignal(Registers, SIGSEGV) == OsSuccess) {
+            if (SignalCreateInternal(Registers, SIGSEGV) == OsSuccess) {
                 IssueFixed = 1;
             }
         }
     }
     else if (Registers->Irq == 16 || Registers->Irq == 19) {    // FPU & SIMD Floating Point Exception
-        if (ExceptionSignal(Registers, SIGFPE) == OsSuccess) {
+        if (SignalCreateInternal(Registers, SIGFPE) == OsSuccess) {
             IssueFixed = 1;
         }
     }

@@ -78,10 +78,12 @@ static void
 CreateDefaultThreadContexts(
     _In_ MCoreThread_t* Thread)
 {
-    Thread->Contexts[THREADING_CONTEXT_LEVEL0] = 
-        ContextCreate(Thread->Flags, THREADING_CONTEXT_LEVEL0, (uintptr_t)&ThreadingEntryPoint, 0, 0, 0);
-    Thread->Contexts[THREADING_CONTEXT_SIGNAL0] = 
-        ContextCreate(Thread->Flags, THREADING_CONTEXT_SIGNAL0, 0, 0, 0, 0);
+    Thread->Contexts[THREADING_CONTEXT_LEVEL0] = ContextCreate(THREADING_CONTEXT_LEVEL0);
+
+    ContextReset(Thread->Contexts[THREADING_CONTEXT_LEVEL0], THREADING_CONTEXT_LEVEL0, 
+        (uintptr_t)&ThreadingEntryPoint, 0, 0, 0);
+
+    // Should we create user stacks immediately?
 }
 
 // Setup defaults for a new thread and creates appropriate resources
@@ -359,10 +361,10 @@ EnterProtectedThreadLevel(void)
 {
     MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
 
-    Thread->Contexts[THREADING_CONTEXT_LEVEL1]  = ContextCreate(Thread->Flags,
-        THREADING_CONTEXT_LEVEL1, (uintptr_t)Thread->Function, 0, (uintptr_t)Thread->Arguments, 0);
-    Thread->Contexts[THREADING_CONTEXT_SIGNAL1] = ContextCreate(Thread->Flags,
-        THREADING_CONTEXT_SIGNAL1, 0, 0, 0, 0);
+    // Create the userspace stack now that we need it 
+    Thread->Contexts[THREADING_CONTEXT_LEVEL1] = ContextCreate(THREADING_CONTEXT_LEVEL1);
+    ContextReset(Thread->Contexts[THREADING_CONTEXT_LEVEL1], THREADING_CONTEXT_LEVEL1,
+        (uintptr_t)Thread->Function, 0, (uintptr_t)Thread->Arguments, 0);
     Thread->Flags |= THREADING_TRANSITION_USERMODE;
 
     ThreadingYield();

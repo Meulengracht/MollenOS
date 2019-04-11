@@ -21,7 +21,6 @@
 
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
-#include <ddk/contracts/video.h>
 #include <os/services/process.h>
 #include <os/mollenos.h>
 #include "../stdio/local.h"
@@ -53,19 +52,6 @@ SystemQuery(
 		return OsError;
 	}
 	return Syscall_SystemQuery(Descriptor);
-}
-
-OsStatus_t
-QueryDisplayInformation(
-    _In_ VideoDescriptor_t *Descriptor)
-{
-    return Syscall_DisplayInformation(Descriptor);
-}
-
-void*
-CreateDisplayFramebuffer(void)
-{
-    return Syscall_CreateDisplayFramebuffer();
 }
 
 OsStatus_t

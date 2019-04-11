@@ -20,7 +20,7 @@
 #include <stdint.h>
 #include <math.h>
 
-#define CPUID_FEAT_EDX_SSE		1 << 25
+#define CPUID_FEAT_EDX_SSE 1 << 25
 
 #if defined(_MSC_VER) && !defined(__clang__)
 #include <intrin.h>
@@ -32,9 +32,9 @@
 
 void _fpreset(void)
 {
-    const unsigned long  sse2_cw          = 0x1f80;
     const unsigned short x86_cw           = 0x27f;
-	uint32_t             cpu_registers[4] = { 0 };
+    const unsigned long  sse2_cw          = 0x1f80;
+	int                  cpu_registers[4] = { 0 };
 
     __get_cpuid(0, cpu_registers);
 #if defined(_MSC_VER) && !defined(__clang__)

@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Contract Definitions & Structures (Video Contract)
+ * Contract Definitions & Structures (Video Contract)
  * - This header describes the base contract-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -24,8 +24,6 @@
 #ifndef _CONTRACT_VIDEO_INTERFACE_H_
 #define _CONTRACT_VIDEO_INTERFACE_H_
 
-/* Includes 
- * - System */
 #include <ddk/contracts/base.h>
 #include <ddk/ddkdefs.h>
 
