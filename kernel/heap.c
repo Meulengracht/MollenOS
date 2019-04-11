@@ -251,7 +251,9 @@ cache_contains_address(
     int               Found = 0;
     TRACE("cache_contains_address(%s, 0x%" PRIxIN ")", Cache->Name, Address);
 
-    // Check partials first
+    // Check partials first, we have to lock the cache as slabs can 
+    // get rearranged as we go, which is not ideal
+    dslock(&Cache->SyncObject);
     _foreach(Node, &Cache->PartialSlabs) {
         int Index = slab_contains_address(Cache, (MemorySlab_t*)Node, Address);
         if (Index != -1) {
@@ -270,6 +272,7 @@ cache_contains_address(
             }
         }
     }
+    dsunlock(&Cache->SyncObject);
     return Found;
 }
 
