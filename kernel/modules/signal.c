@@ -31,9 +31,7 @@
 #include <debug.h>
 #include <heap.h>
 
-/* Globals 
- * Keep track of signal-consequences */
-char GlbSignalIsDeadly[] = {
+static char GlbSignalIsDeadly[] = {
     0, /* 0? */
     1, /* SIGHUP     */
     1, /* SIGINT     */
@@ -74,21 +72,16 @@ char GlbSignalIsDeadly[] = {
     0  /* SIGEND     */
 };
 
-static void
-EnsureSignalStacks(
+static Context_t*
+EnsureSignalStack(
     _In_ MCoreThread_t* Thread)
 {
-    if (Thread->Contexts[THREADING_CONTEXT_SIGNAL0] == NULL) {
-        Thread->Contexts[THREADING_CONTEXT_SIGNAL0] = ContextCreate(THREADING_CONTEXT_SIGNAL0);
-        ContextReset(Thread->Contexts[THREADING_CONTEXT_SIGNAL0], 
-            THREADING_CONTEXT_SIGNAL0, 0, 0, 0, 0);
+    if (Thread->Contexts[THREADING_CONTEXT_SIGNAL] == NULL) {
+        Thread->Contexts[THREADING_CONTEXT_SIGNAL] = ContextCreate(THREADING_CONTEXT_SIGNAL);
     }
-
-    if (Thread->Contexts[THREADING_CONTEXT_SIGNAL1] == NULL) {
-        Thread->Contexts[THREADING_CONTEXT_SIGNAL1] = ContextCreate(THREADING_CONTEXT_SIGNAL1);
-    }
-    ContextReset(Thread->Contexts[THREADING_CONTEXT_SIGNAL1], THREADING_CONTEXT_SIGNAL1,
-        Thread->MemorySpace->Context->SignalHandler, 0, Thread->ActiveSignal.Signal, 0);
+    ContextReset(Thread->Contexts[THREADING_CONTEXT_SIGNAL], THREADING_CONTEXT_SIGNAL, 
+        0, 0, 0, 0);
+    return Thread->Contexts[THREADING_CONTEXT_SIGNAL];
 }
 
 OsStatus_t
@@ -98,24 +91,24 @@ SignalCreateExternal(
 {
     MCoreThread_t*  Target = GetThread(ThreadId);
     SystemSignal_t* Sig;
-    DataKey_t       Key;
 
-    TRACE("SignalCreateExternal(Thread %" PRIuIN ", Signal %" PRIiIN ")", ThreadId, Signal);
+    TRACE("SignalCreateExternal(Thread %" PRIuIN ", Signal %i)", ThreadId, Signal);
 
     // Sanitize input, and then sanitize if we have a handler
     if (Target == NULL || Signal >= NUMSIGNALS) {
-        ERROR("Signal %" PRIiIN " was not in range");
+        ERROR("Signal %i was not in range");
         return OsError; // Invalid
     }
     if (Target->SignalInformation[Signal] == 1) {
-        ERROR("Signal %" PRIiIN " was blocked");
+        ERROR("Signal %i was blocked");
         return OsError; // Ignored
     }
     Sig = (SystemSignal_t*)kmalloc(sizeof(SystemSignal_t));
-    Sig->Ignorable      = GlbSignalIsDeadly[Signal];
-    Sig->Signal         = Signal;
-    Key.Value.Integer   = Signal;
-    CollectionAppend(Target->SignalQueue, CollectionCreateNode(Key, Sig));
+    memset(Sig, 0, sizeof(SystemSignal_t));
+    
+    Sig->Deadly = GlbSignalIsDeadly[Signal];
+    Sig->Signal = Signal;
+    CollectionAppend(Target->SignalQueue, &Sig->Header);
 
     // Wake up thread if neccessary
     if (Target->SchedulerFlags & SCHEDULER_FLAG_BLOCKED) {
@@ -129,8 +122,9 @@ SignalCreateInternal(
     _In_ Context_t* Registers,
     _In_ int        Signal)
 {
-    UUId_t         CoreId = ArchGetProcessorCoreId();
-    MCoreThread_t* Thread = GetCurrentThreadForCore(CoreId);
+    UUId_t         CoreId    = ArchGetProcessorCoreId();
+    MCoreThread_t* Thread    = GetCurrentThreadForCore(CoreId);
+    Context_t*     SafeStack = NULL;
 
     TRACE("ExceptionSignal(Signal %i)", Signal);
 
@@ -144,25 +138,27 @@ SignalCreateInternal(
 #endif
         return OsError;
     }
-    Thread->ActiveSignal.Ignorable = 0;
-    Thread->ActiveSignal.Signal    = Signal;
-    Thread->ActiveSignal.Context   = Registers;
 
-    EnsureSignalStacks(Thread);
-    return ThreadingSignalDispatch(Thread);
+    // Ensure safe stack for deadly interrupts
+    // 0 => not deadly
+    // 1 => soft terminate
+    // 2 => safe terminate
+    // 3 => safe terminate (should quit immediately)
+    if (GlbSignalIsDeadly[Signal] > 1) {
+        // @todo check if works
+        //SafeStack = EnsureSignalStacks(Thread);
+    }
+
+    // Push the intercept
+    ContextPushInterceptor(Registers, 
+        Thread->MemorySpace->Context->SignalHandler, 
+        (uintptr_t*)SafeStack,
+        Signal,
+        0);
+    return OsSuccess;
 }
 
-OsStatus_t
-SignalReturn(
-    _In_ MCoreThread_t* Thread)
-{
-    Thread->ContextActive        = Thread->ActiveSignal.Context;
-    Thread->ActiveSignal.Signal  = -1;
-    Thread->ActiveSignal.Context = NULL;
-    return SignalProcess(Thread->Header.Key.Value.Id);
-}
-
-OsStatus_t
+void
 SignalProcess(
     _In_ UUId_t ThreadId)
 {
@@ -170,54 +166,22 @@ SignalProcess(
     MCoreThread_t*    Thread = GetThread(ThreadId);
     SystemSignal_t*   Signal;
 
-    if (Thread == NULL) {
-        return OsError;
-    }
-
-    // Even if there is a Ash, we might want not
-    // to Ash any signals ATM if there is already 
-    // one active
-    if (Thread->ActiveSignal.Signal != -1) {
-        return OsError;
-    }
-    Node = CollectionPopFront(Thread->SignalQueue);
-
-    // Sanitize the node, no more signals?
-    if (Node != NULL) {
-        Signal = (SystemSignal_t*)Node->Data;
-        CollectionDestroyNode(Thread->SignalQueue, Node);
-        SignalExecute(Thread, Signal);
-    }
-    return OsSuccess;
-}
-
-void
-SignalExecute(
-    _In_ MCoreThread_t*  Thread,
-    _In_ SystemSignal_t* Signal)
-{
-    SystemMemorySpace_t* Space = GetCurrentMemorySpace();
-    TRACE("SignalExecute(Thread %" PRIuIN ", Signal %" PRIiIN ")", 
-        Thread->Header.Key.ValueId, Signal->Signal);
-    assert(Space->Context != NULL);
-
-    // If there is no handler for the process and we
-    // can't ignore signal, we must kill
-    if (Space->Context->SignalHandler == 0) {
-        char Action = GlbSignalIsDeadly[Signal->Signal];
-        if (Action == 1 || Action == 2) {
-            TRACE("Terminating thread due to deadly signal");
-            TerminateThread(Thread->Header.Key.Value.Id, Signal->Signal, 1);
-        }
-        kfree(Signal);
+    if (Thread == NULL || 
+        Thread->MemorySpace == NULL ||
+        Thread->MemorySpace->Context == NULL ||
+        Thread->MemorySpace->Context->SignalHandler == 0) {
         return;
     }
-
-    // Update active and dispatch
-    memcpy(&Thread->ActiveSignal, Signal, sizeof(SystemSignal_t));
-    Thread->ActiveSignal.Context = Thread->ContextActive;
-    kfree(Signal);
-
-    EnsureSignalStacks(Thread);
-    ThreadingSignalDispatch(Thread);
+    
+    // Process all the signals
+    Node = CollectionPopFront(Thread->SignalQueue);
+    while (Node != NULL) {
+        Signal = (SystemSignal_t*)Node;
+        ContextPushInterceptor(Thread->ContextActive,
+            Thread->MemorySpace->Context->SignalHandler,
+            NULL,
+            Signal->Signal,
+            0);
+        kfree(Signal);
+    }
 }

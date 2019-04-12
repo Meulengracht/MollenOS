@@ -121,7 +121,6 @@ InitializeDefaultThread(
     // Create communication members
     Thread->Pipe        = CreateSystemPipe(0, 6); // 64 entries, 4kb
     Thread->SignalQueue = CollectionCreate(KeyInteger);
-    Thread->ActiveSignal.Signal = -1;
     
     // Setup initial scheduler information
     SchedulerThreadInitialize(Thread, Flags);
@@ -254,8 +253,7 @@ void
 ThreadingCleanupThread(
     _In_ MCoreThread_t* Thread)
 {
-    CollectionItem_t*   Node;
-    int                 i;
+    int i;
 
     assert(Thread != NULL);
     assert(atomic_load_explicit(&Thread->Cleanup, memory_order_relaxed) == 1);
@@ -266,12 +264,8 @@ ThreadingCleanupThread(
     SchedulerThreadFinalize(Thread);
     SchedulerHandleSignalAll((uintptr_t*)&Thread->Cleanup);
     ThreadingUnregister(Thread);
-
-    _foreach(Node, Thread->SignalQueue) {
-        kfree(Node->Data);
-    }
-    CollectionDestroy(Thread->SignalQueue);
     
+    CollectionDestroy(Thread->SignalQueue);
     for (i = 0; i < THREADING_NUMCONTEXTS; i++) {
         if (Thread->Contexts[i] != NULL) {
             ContextDestroy(Thread->Contexts[i], i);
@@ -516,6 +510,9 @@ GetNextThread:
         NextThread->Name, NextThread->ContextActive, CONTEXT_IP(NextThread->ContextActive), 
         NextThread->TimeSlice, NextThread->Queue);
 
+    // Handle any signals pending for thread
+    SignalProcess(NextThread->Header.Key.Value.Id);
+    
     Core->CurrentThread = NextThread;
     *Context            = NextThread->ContextActive;
     return NextThread;

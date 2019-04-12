@@ -135,22 +135,6 @@ ThreadingYield(void)
     _yield();
 }
 
-OsStatus_t
-ThreadingSignalDispatch(
-    _In_ MCoreThread_t* Thread)
-{
-    assert(Thread != NULL);
-    assert(Thread->MemorySpace->Context != NULL);
-    assert(Thread->MemorySpace->Context->SignalHandler != 0);
-    assert(Thread->Contexts[THREADING_CONTEXT_SIGNAL0] != NULL);
-    assert(Thread->Contexts[THREADING_CONTEXT_SIGNAL1] != NULL);
-
-    TssUpdateThreadStack(ArchGetProcessorCoreId(), (uintptr_t)Thread->Contexts[THREADING_CONTEXT_SIGNAL0]);
-    InterruptSetActiveStatus(0);
-    enter_thread(Thread->Contexts[THREADING_CONTEXT_SIGNAL1]);
-    return OsSuccess;
-}
-
 Context_t*
 _GetNextRunnableThread(
     _In_  Context_t* Context,
@@ -190,8 +174,5 @@ _GetNextRunnableThread(
     TssUpdateThreadStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
     TssUpdateIo(Cpu, (uint8_t*)Thread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
     set_ts(); // Set task switch bit so we get faults on fpu instructions
-
-    // Handle any signals pending for thread
-    SignalProcess(Thread->Header.Key.Value.Id);
     return Context;
 }

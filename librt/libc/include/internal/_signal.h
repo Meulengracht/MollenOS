@@ -10,11 +10,10 @@
 typedef	void (*__signalhandler_t)(int);
 #endif
 
-void _default_handler(int signal);
 typedef struct _sig_element {
-	int signal;
-	char *signame;
+	int               signal;
+	const char*		  name;
 	__signalhandler_t handler;
-}sig_element;
+} sig_element;
 
 #endif

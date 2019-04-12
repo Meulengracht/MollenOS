@@ -49,12 +49,17 @@ ThreadingUnregister(
 KERNELAPI void KERNELABI
 ThreadingYield(void);
 
-/* ThreadingSignalDispatch
- * Dispatches a signal to the given thread. This function
- * does not return. */
-KERNELAPI OsStatus_t KERNELABI
-ThreadingSignalDispatch(
-	_In_ MCoreThread_t *Thread);
+/* ContextPushInterceptor
+ * Adds an interceptor function that gets executed upon return of 
+ * of thread. This will then be the next thing executed. Optionally a safe
+ * stack can be provided that will be used for execution. */
+void
+ContextPushInterceptor(
+    _In_     Context_t* Context,
+    _In_     uintptr_t  Address,
+    _In_Opt_ uintptr_t* SafeStack,
+    _In_     uintptr_t  Argument0,
+    _In_     uintptr_t  Argument1);
 
 /* ContextCreate
  * Creates a new context for a thread, a type and the flags for which

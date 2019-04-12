@@ -32,59 +32,82 @@
 #include <string.h>
 #include <stdio.h>
 
-Context_t*
-ContextCreate(
-    _In_ Flags_t    ThreadFlags,
+static void
+ContextPush(
+	_In_ uintptr_t** Address,
+	_In_ uintptr_t   Value)
+{
+	(*Address)--;
+	*(*Address) = Value;
+}
+
+void
+ContextPushInterceptor(
+    _In_     Context_t* Context,
+    _In_     uintptr_t  Address,
+    _In_Opt_ uintptr_t* SafeStack,
+    _In_     uintptr_t  Argument0,
+    _In_     uintptr_t  Argument1)
+{
+	// Ok so the tricky thing here is the interceptor must be pushed
+	// on the USER stack, not the current context pointer which makes things
+	// both easier and a bit more complex. We do not guarentee stack alignment
+	// when creating interceptor functions.
+	
+	// @todo perform stack-safe operations, check if stack is ok before doing 
+	// any of these pushes 
+	
+	// Push in reverse fashion, and have everything on stack to be able to restore
+	// the default register states
+	ContextPush((uintptr_t**)&Context->UserRsp, Context->Rip);
+	ContextPush((uintptr_t**)&Context->UserRsp, Context->Rcx);
+	ContextPush((uintptr_t**)&Context->UserRsp, Context->Rdx);
+	ContextPush((uintptr_t**)&Context->UserRsp, Context->R8);
+	
+	// Set arguments
+	Context->Rip = Address;
+	Context->Rcx = Argument0;
+	Context->Rdx = Argument1;
+	Context->R8  = (uint64_t)SafeStack;
+}
+
+void
+ContextReset(
+    _In_ Context_t* Context,
     _In_ int        ContextType,
 	_In_ uintptr_t  EntryAddress,
     _In_ uintptr_t  ReturnAddress,
     _In_ uintptr_t  Argument0,
     _In_ uintptr_t  Argument1)
 {
-	Context_t *Context       = NULL;
-    uint64_t DataSegment     = 0,
-             ExtraSegment    = 0,
-             CodeSegment     = 0, 
-             StackSegment    = 0;
-    uintptr_t ContextAddress = 0, 
-              RbpInitial     = 0;
-
-	TRACE("ContextCreate(ThreadFlags 0x%llx, Type %" PRIiIN ", Rip 0x%llx, Args 0x%llx)",
-		ThreadFlags, ContextType, EntryAddress);
-
+    uint64_t  DataSegment  = 0,
+              ExtraSegment = 0,
+              CodeSegment  = 0, 
+              StackSegment = 0;
+    uintptr_t RbpInitial   = 0;
+	
 	// Select proper segments based on context type and run-mode
-	if (ContextType == THREADING_CONTEXT_LEVEL0 || ContextType == THREADING_CONTEXT_SIGNAL0) {
-		ContextAddress  = ((uintptr_t)kmalloc(PAGE_SIZE)) + PAGE_SIZE - sizeof(Context_t);
+	if (ContextType == THREADING_CONTEXT_LEVEL0) {
 		CodeSegment     = GDT_KCODE_SEGMENT;
 		ExtraSegment    = StackSegment = DataSegment = GDT_KDATA_SEGMENT;
-		RbpInitial      = (ContextAddress + sizeof(Context_t));
+		RbpInitial      = ((uintptr_t)Context + sizeof(Context_t));
 	}
-    else if (ContextType == THREADING_CONTEXT_LEVEL1 || ContextType == THREADING_CONTEXT_SIGNAL1) {
-        if (ContextType == THREADING_CONTEXT_LEVEL1) {
-		    ContextAddress  = (MEMORY_LOCATION_RING3_STACK_START - sizeof(Context_t));
-        }
-        else {
-		    ContextAddress  = ((MEMORY_SEGMENT_SIGSTACK_BASE + MEMORY_SEGMENT_SIGSTACK_SIZE) - sizeof(Context_t));
-        }
+    else if (ContextType == THREADING_CONTEXT_LEVEL1 || ContextType == THREADING_CONTEXT_SIGNAL) {
  		RbpInitial   = MEMORY_LOCATION_RING3_STACK_START;
         ExtraSegment = GDT_EXTRA_SEGMENT + 0x03;
-
-        // Now select the correct run-mode segments
-        if (THREADING_RUNMODE(ThreadFlags) == THREADING_USERMODE) {
-            CodeSegment     = GDT_UCODE_SEGMENT + 0x03;
-		    StackSegment    = DataSegment = GDT_UDATA_SEGMENT + 0x03;
+        CodeSegment  = GDT_UCODE_SEGMENT + 0x03;
+	    StackSegment = DataSegment = GDT_UDATA_SEGMENT + 0x03;
+	    
+        // Set return address if its signal, just in case
+        if (ContextType == THREADING_CONTEXT_SIGNAL) {
+        	EntryAddress  = MEMORY_LOCATION_SIGNAL_RET;
+            ReturnAddress = MEMORY_LOCATION_SIGNAL_RET;
         }
-        else {
-            FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID THREADFLAGS(%" PRIuIN ")", ThreadFlags);
-        }
-        CommitMemorySpaceMapping(GetCurrentMemorySpace(), NULL, ContextAddress, __MASK);
     }
 	else {
 		FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%" PRIiIN ")", ContextType);
 	}
 
-	// Initialize the context pointer
-	Context = (Context_t*)ContextAddress;
     memset(Context, 0, sizeof(Context_t));
 
 	// Setup segments for the stack
@@ -107,7 +130,32 @@ ContextCreate(
     Context->ReturnAddress = ReturnAddress;
     Context->Rcx           = Argument0;
     Context->Rdx           = Argument1;
-	return Context;
+}
+
+Context_t*
+ContextCreate(
+    _In_ int ContextType)
+{
+    uintptr_t ContextAddress = 0;
+
+	// Select proper segments based on context type and run-mode
+	if (ContextType == THREADING_CONTEXT_LEVEL0) {
+		ContextAddress  = ((uintptr_t)kmalloc(PAGE_SIZE)) + PAGE_SIZE - sizeof(Context_t);
+	}
+    else if (ContextType == THREADING_CONTEXT_LEVEL1 || ContextType == THREADING_CONTEXT_SIGNAL) {
+        if (ContextType == THREADING_CONTEXT_LEVEL1) {
+		    ContextAddress  = (MEMORY_LOCATION_RING3_STACK_START - sizeof(Context_t));
+        }
+        else {
+		    ContextAddress  = ((MEMORY_SEGMENT_SIGSTACK_BASE + MEMORY_SEGMENT_SIGSTACK_SIZE) - sizeof(Context_t));
+        }
+        CommitMemorySpaceMapping(GetCurrentMemorySpace(), NULL, ContextAddress, __MASK);
+    }
+	else {
+		FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%" PRIiIN ")", ContextType);
+	}
+    assert(ContextAddress != 0);
+	return (Context_t*)ContextAddress;
 }
 
 void
@@ -117,14 +165,14 @@ ContextDestroy(
 {
     // If it is kernel space contexts they are allocated on the kernel heap,
     // otherwise they are cleaned up by the memory space
-    if (ContextType == THREADING_CONTEXT_LEVEL0 || ContextType == THREADING_CONTEXT_SIGNAL0) {
+    if (ContextType == THREADING_CONTEXT_LEVEL0) {
         kfree(Context);
     }
 }
 
 OsStatus_t
 ArchDumpThreadContext(
-	_In_ Context_t *Context)
+	_In_ Context_t* Context)
 {
 	// Dump general registers
 	WRITELINE("RAX: 0x%llx, RBX 0x%llx, RCX 0x%llx, RDX 0x%llx",

@@ -479,16 +479,9 @@ ExceptionEntry(
         // The first thing we must check before propegating events
         // is that we must check special locations
         if (Address == MEMORY_LOCATION_SIGNAL_RET) {
-            UUId_t Cpu            = ArchGetProcessorCoreId();
-            Thread                = GetCurrentThreadForCore(Cpu);
-
-            // Complete signal handling, maybe we don't return from here
-            SignalReturn(Thread); 
-
-            // If we do, we return in the threads active context
-            TssUpdateThreadStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
-            InterruptSetActiveStatus(0);    // Clear interrupt status before leaving
-            enter_thread(Thread->ContextActive);
+            TerminateThread(GetCurrentThreadId(), SIGSEGV, 1);
+            ERROR(" >> return from signal detected");
+            for(;;);
         }
 
         // Final step is to see if kernel can handle the unallocated address
@@ -496,10 +489,6 @@ ExceptionEntry(
             IssueFixed = 1;
         }
         else {
-            if (Registers) {
-                __asm { xchg bx, bx };
-                return;
-            }
             ERROR("%s: MEMORY_ACCESS_FAULT: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN "", 
                 GetCurrentThreadForCore(ArchGetProcessorCoreId())->Name, 
                 Address, Registers->ErrorCode, CONTEXT_IP(Registers));

@@ -35,6 +35,10 @@
 #include <amd64/fenv.h>
 #endif
 
+// Assembly entry points that handle the stack changes made
+// by the stack system in the kernel
+extern void __signalentry(void);
+
 // The consequences of recieving the different signals
 char signal_fatality[] = {
 	0, /* 0? */
@@ -90,100 +94,99 @@ static sig_element signal_list[] = {
     { SIGUSR2, "User-defined signal-2", SIG_IGN }
 };
 
-void
-StdCrash(
-    _In_ int Signal)
+static void
+DefaultCrashHandler(
+    _In_ sig_element* Signal,
+    _In_ Context_t*   Context)
 {
-    Context_t Context = { 0 };
-
-    // Retrieve the errornous context, and then report an application crash
-    // this will only get the LAST errornous context, which means in cases
-    // where the application itself raises an issue this is invalid
-    if (Syscall_ThreadGetContext(&Context) != OsSuccess) {
-        // Read our current context
-        ERROR("Unable to get crash context for thread, invoked by application %i", Signal);
-    }
-    
     // Not supported by modules
     if (!IsProcessModule()) {
-        ProcessReportCrash(&Context, Signal);
+        ProcessReportCrash(Context, Signal->signal);
+    }
+    
+    // Last thing is to exit application
+    ERROR("Received signal %i (%s). Terminating application", 
+        Signal->signal, Signal->name);
+    _Exit(EXIT_FAILURE);
+}
+
+static void
+CreateSignalInformation(
+    _In_ int Signal)
+{
+    // Handle math errors in any case
+    if (Signal == SIGFPE) {
+        int ExceptionType = fetestexcept(FE_ALL_EXCEPT);
+        (void)ExceptionType;
     }
 }
 
-/* StdSignalEntry
- * Default entry for all signal-handlers */
 void
-StdSignalEntry(
-    _In_ int Signal)
+StdInvokeSignal(
+    _In_ int        Signal,
+    _In_ Context_t* Context)
 {
-    __signalhandler_t Handler = SIG_ERR;
-    int               Fixed   = 0;
-    int               i;
+    sig_element* sig = NULL;
+    int          fatal;
+    int          i;
+    
+    // 3 of the signals are relatively harmless and we can continue after
+    fatal = Signal != SIGINT && Signal != SIGUSR1 && Signal != SIGUSR2;
     
     // Find handler
     for(i = 0; i < sizeof(signal_list) / sizeof(signal_list[0]); i++) {
         if (signal_list[i].signal == Signal) {
-            Handler = signal_list[i].handler;
+            sig = &signal_list[i];
             break;
         }
     }
-
-    // Handle math errors in any case
-    if (Signal == SIGFPE) {
-        Fixed = fetestexcept(FE_ALL_EXCEPT);
-    }
-
-    // Sanitize handler, and then invoke if a user has registered one
-    if (Handler != SIG_IGN && Handler != SIG_ERR) {
-        if (Handler == SIG_DFL) {
-            if (!Fixed && (signal_fatality[Signal] == 1 || 
-                    signal_fatality[Signal] == 2)) {
-                StdCrash(Signal);
-                _Exit(EXIT_FAILURE);
+    
+    // Check against unsupported signal
+    if (sig != NULL) {
+        CreateSignalInformation(Signal);
+        if (sig->handler != SIG_IGN) {
+            if (sig->handler == SIG_DFL || sig->handler == SIG_ERR) {
+                if (sig->handler == SIG_ERR ||
+                    signal_fatality[Signal] == 1 || 
+                    signal_fatality[Signal] == 2) {
+                    DefaultCrashHandler(sig, Context);
+                }
+            }
+            else {
+                sig->handler(Signal);
             }
         }
-        else {
-            Handler(Signal);
-        }
-    }
-
-    // Clear any outstanding math errors
-    if (Signal == SIGFPE && Fixed) {
-        return;
     }
 
     // Unhandled signal, or division by zero specifically?
-    if (Handler == SIG_ERR || (Signal != SIGINT && Signal != SIGUSR1 && Signal != SIGUSR2)) {
-        ERROR("Unhandled signal %i. Aborting application", Signal);
-        StdCrash(Signal);
-        _Exit(Signal);
+    if (sig == NULL) {
+        sig_element _static_sig = { .signal = Signal };
+        DefaultCrashHandler(&_static_sig, Context);
+    }
+    else if (fatal) {
+        DefaultCrashHandler(sig, Context);
     }
 }
 
-/* StdSignalInitialize
- * Initializes the default signal-handler for the process. */
 void
 StdSignalInitialize()
 {
     // Install default handler
-    if (Syscall_InstallSignalHandler(StdSignalEntry) != OsSuccess) {
-        // Uhh?
+    if (Syscall_InstallSignalHandler(__signalentry) != OsSuccess) {
+        assert(0);
     }
 }
 
-/* signal
- * Install a handler for the given signal. We allow handlers for
- * SIGINT, SIGSEGV, SIGTERM, SIGILL, SIGABRT, SIGFPE. */
 __signalhandler_t
 signal(
-    _In_ int sig,
+    _In_ int               sig,
     _In_ __signalhandler_t func)
 {
-    // Variables
     __signalhandler_t temp;
-    unsigned int i;
+    unsigned int      i;
 
-    // Validate signal
+    // Validate signal, currently we do not support POSIX
+    // signal extensions
     switch (sig) {
         case SIGINT:
         case SIGILL:
@@ -219,15 +222,12 @@ signal(
     return SIG_ERR;
 }
 
-/* raise
- * Sends signal sig to the program. The signal handler, specified using signal(), is invoked.
- * If the user-defined signal handling strategy is not set using signal() yet, 
- * it is implementation-defined whether the signal will be ignored or default handler will be invoked. */
 int
 raise(
     _In_ int sig)
 {
-    // Validate which signals we can update
+    Context_t Empty = { 0 };
+    
     switch (sig) {
         case SIGINT:
         case SIGILL:
@@ -242,8 +242,7 @@ raise(
         default:
             return -1;
     }
-
-    // Use the std-signal-entry, it correctly calls the attached handler.
-    StdSignalEntry(sig);
+    
+    StdInvokeSignal(sig, &Empty);
     return 0;
 }

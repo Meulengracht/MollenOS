@@ -33,6 +33,47 @@
 #include <log.h>
 #include <gdt.h>
 
+static void
+ContextPush(
+	_In_ uintptr_t** Address,
+	_In_ uintptr_t   Value)
+{
+	(*Address)--;
+	*(*Address) = Value;
+}
+
+void
+ContextPushInterceptor(
+    _In_     Context_t* Context,
+    _In_     uintptr_t  Address,
+    _In_Opt_ uintptr_t* SafeStack,
+    _In_     uintptr_t  Argument0,
+    _In_     uintptr_t  Argument1)
+{
+	// Ok so the tricky thing here is the interceptor must be pushed
+	// on the USER stack, not the current context pointer which makes things
+	// both easier and a bit more complex. We do not guarentee stack alignment
+	// when creating interceptor functions.
+	
+	// @todo perform stack-safe operations, check if stack is ok before doing 
+	// any of these pushes 
+	
+	// Push in reverse fashion, and have everything on stack to be able to restore
+	// the default register states
+	ContextPush((uintptr_t**)&Context->UserEsp, Context->Eip);
+	ContextPush((uintptr_t**)&Context->UserEsp, Context->Eax);
+	ContextPush((uintptr_t**)&Context->UserEsp, Context->Ebx);
+	ContextPush((uintptr_t**)&Context->UserEsp, Context->Ecx);
+	ContextPush((uintptr_t**)&Context->UserEsp, Context->Edx);
+	
+	// Set arguments
+	Context->Eip = Address;
+	Context->Eax = Argument0;
+	Context->Ebx = Argument1;
+	Context->Ecx = (uint32_t)SafeStack;
+	Context->Edx = 0;
+}
+
 void
 ContextReset(
     _In_ Context_t* Context,
@@ -48,12 +89,12 @@ ContextReset(
                StackSegment   = 0;
     uintptr_t  EbpInitial     = 0;
     
-    if (ContextType == THREADING_CONTEXT_LEVEL0 || ContextType == THREADING_CONTEXT_SIGNAL0) {
+    if (ContextType == THREADING_CONTEXT_LEVEL0) {
         CodeSegment     = GDT_KCODE_SEGMENT;
         ExtraSegment    = StackSegment = DataSegment = GDT_KDATA_SEGMENT;
         EbpInitial      = ((uintptr_t)Context + sizeof(Context_t));
     }
-    else if (ContextType == THREADING_CONTEXT_LEVEL1 || ContextType == THREADING_CONTEXT_SIGNAL1) {
+    else if (ContextType == THREADING_CONTEXT_LEVEL1 || ContextType == THREADING_CONTEXT_SIGNAL) {
         EbpInitial      = MEMORY_LOCATION_RING3_STACK_START;
         ExtraSegment    = GDT_EXTRA_SEGMENT + 0x03;
 
@@ -62,7 +103,8 @@ ContextReset(
         StackSegment    = DataSegment = GDT_UDATA_SEGMENT + 0x03;
 
         // Set return address if its signal
-        if (ContextType == THREADING_CONTEXT_SIGNAL1) {
+        if (ContextType == THREADING_CONTEXT_SIGNAL) {
+        	EntryAddress  = MEMORY_LOCATION_SIGNAL_RET;
             ReturnAddress = MEMORY_LOCATION_SIGNAL_RET;
         }
     }
@@ -104,10 +146,10 @@ ContextCreate(
     uintptr_t ContextAddress = 0;
 
     // Select proper segments based on context type and run-mode
-    if (ContextType == THREADING_CONTEXT_LEVEL0 || ContextType == THREADING_CONTEXT_SIGNAL0) {
+    if (ContextType == THREADING_CONTEXT_LEVEL0) {
         ContextAddress  = ((uintptr_t)kmalloc(0x1000)) + 0x1000 - sizeof(Context_t);
     }
-    else if (ContextType == THREADING_CONTEXT_LEVEL1 || ContextType == THREADING_CONTEXT_SIGNAL1) {
+    else if (ContextType == THREADING_CONTEXT_LEVEL1 || ContextType == THREADING_CONTEXT_SIGNAL) {
         if (ContextType == THREADING_CONTEXT_LEVEL1) {
             ContextAddress  = (MEMORY_LOCATION_RING3_STACK_START - sizeof(Context_t));
         }
@@ -130,7 +172,7 @@ ContextDestroy(
 {
     // If it is kernel space contexts they are allocated on the kernel heap,
     // otherwise they are cleaned up by the memory space
-    if (ContextType == THREADING_CONTEXT_LEVEL0 || ContextType == THREADING_CONTEXT_SIGNAL0) {
+    if (ContextType == THREADING_CONTEXT_LEVEL0) {
         kfree(Context);
     }
 }

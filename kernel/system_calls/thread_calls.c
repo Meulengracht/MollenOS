@@ -177,9 +177,9 @@ ScThreadGetContext(
     _In_ Context_t* ContextOut)
 {
     MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
-    if (Thread == NULL || Thread->ActiveSignal.Context == NULL) {
+    if (Thread == NULL) {
         return OsError;
     }
-    memcpy(ContextOut, Thread->ActiveSignal.Context, sizeof(Context_t));
+    memcpy(ContextOut, Thread->ContextActive, sizeof(Context_t));
     return OsSuccess;
 }

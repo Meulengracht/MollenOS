@@ -16,15 +16,13 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS C-Support Signal Implementation
+ * Standard C-Signal Implementation
  * - Definitions, prototypes and information needed.
  */
 
-#ifndef __LIBC_SIGNAL__
-#define __LIBC_SIGNAL__
+#ifndef __SIGNAL_H__
+#define __SIGNAL_H__
 
-/* Includes 
- * - Library */
 #include <os/osdefs.h>
 
 #ifndef _SIG_ATOMIC_T_DEFINED
@@ -85,4 +83,4 @@ CRTDECL(__signalhandler_t, signal(int Sig, __signalhandler_t Func));
 CRTDECL(int,               raise(int Sig));
 _CODE_END
 
-#endif //__LIBC_SIGNAL__
+#endif //__SIGNAL_H__

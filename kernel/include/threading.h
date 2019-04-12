@@ -24,8 +24,8 @@
  *   someone must have either called Join or Detach (+ reach exit) on the thread
  */
 
-#ifndef _MCORE_THREADING_H_
-#define _MCORE_THREADING_H_
+#ifndef __THREADING_H__
+#define __THREADING_H__
 
 #include <os/osdefs.h>
 #include <os/context.h>
@@ -45,9 +45,8 @@ typedef void(*ThreadEntry_t)(void*);
 
 #define THREADING_CONTEXT_LEVEL0        0   // Kernel
 #define THREADING_CONTEXT_LEVEL1        1   // Application
-#define THREADING_CONTEXT_SIGNAL0       2   // Signal (Cpu)
-#define THREADING_CONTEXT_SIGNAL1       3   // Signal (Application)
-#define THREADING_NUMCONTEXTS           4
+#define THREADING_CONTEXT_SIGNAL        2   // Signal Safe
+#define THREADING_NUMCONTEXTS           3
 #define THREADING_CONFIGDATA_COUNT      4
 
 /* MCoreThread::Flags Bit Definitions 
@@ -71,9 +70,9 @@ typedef void(*ThreadEntry_t)(void*);
 #define THREADING_TRANSITION_USERMODE   0x10000000
 
 typedef struct _SystemSignal {
-    int         Ignorable;
-    int         Signal;
-    Context_t*  Context;
+    CollectionItem_t Header;
+    int              Deadly;
+    int              Signal;
 } SystemSignal_t;
 
 typedef struct _MCoreThread {
@@ -100,7 +99,6 @@ typedef struct _MCoreThread {
 
     // Signal Support
     int                     SignalInformation[NUMSIGNALS];
-    SystemSignal_t          ActiveSignal;
     Collection_t*           SignalQueue;
 
     // Scheduler Information
@@ -218,20 +216,6 @@ GetNextRunnableThread(
 KERNELAPI void KERNELABI
 DisplayActiveThreads(void);
 
-/* SignalReturn
- * Call upon returning from a signal, this will finish the signal-call and 
- * enter a new signal if any is queued up */
-KERNELAPI OsStatus_t KERNELABI
-SignalReturn(
-    _In_ MCoreThread_t* Thread);
-
-/* SignalProcess
- * This checks if the process has any waiting signals and if it has, 
- * it executes the first in list */
-KERNELAPI OsStatus_t KERNELABI
-SignalProcess(
-    _In_ UUId_t ThreadId);
-
 /* SignalCreateExternal
  * Dispatches a signal to a thread in the system from an external 
  * source (i.e another thread). */
@@ -248,12 +232,10 @@ SignalCreateInternal(
     _In_ Context_t* Registers,
     _In_ int        Signal);
 
-/* SignalExecute
- * This function does preliminary checks before actually dispatching the signal 
- * to the process */
+/* SignalProcess
+ * Processes all queued signals and appends to execution list. */
 KERNELAPI void KERNELABI
-SignalExecute(
-    _In_ MCoreThread_t*  Thread,
-    _In_ SystemSignal_t* Signal);
+SignalProcess(
+    _In_ UUId_t ThreadId);
 
-#endif
+#endif //!__THREADING_H__
