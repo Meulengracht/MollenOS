@@ -26,7 +26,7 @@
 
 #include "private.h"
 #include <math.h>
-#include <i386/fenv.h>
+#include <fenv.h>
 
 /* We save and restore the floating-point environment to avoid raising
  * an inexact exception.  We can get away with using fesetenv()

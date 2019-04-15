@@ -27,7 +27,7 @@ OBJECTS = $(SOURCES:.c=.o)
 
 # Setup flags and stuff each for individual build  $(subst ../,,$(ASM_SRCS))
 KERNEL_CFLAGS = $(GCFLAGS) -mno-sse -D_KRNL_DLL $(COMMON_INCLUDES) $(KERNEL_INCLUDES)
-NORMAL_CFLAGS = $(GCFLAGS) -D_KRNL_DLL $(COMMON_INCLUDES)
+NORMAL_CFLAGS = $(GCFLAGS) $(COMMON_INCLUDES)
 LFLAGS = /lib
 
 all: ../build/libds.lib ../build/libdsk.lib

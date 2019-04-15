@@ -3,7 +3,7 @@
 
 # Export some flags used that are architecture specific for clang
 build_target = target_i386
-arch_flags = -m32 -Di386 -D__i386__ --target=i386-pc-win32-itanium-coff
+arch_flags = -march=i686 -m32 -Di386 -D__i386__ --target=i386-pc-win32-itanium-coff
 PVS_PLATFORM=linux32
 
 # -Xclang -flto-visibility-public-std makes sure to generate cxx-abi stuff without __imp_ 

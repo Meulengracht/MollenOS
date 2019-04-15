@@ -26,7 +26,7 @@
 
 #include "private.h"
 #include <math.h>
-#include <i386/fenv.h>
+#include <fenv.h>
 
 #ifdef _MSC_VER
 #pragma warning(disable:4056)

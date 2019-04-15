@@ -25,7 +25,7 @@ PVSLOGS = $(SOURCES:.c=.o.PVS-Studio.log)
 DEPENDENCIES = ../librt/build/crt.lib ../librt/build/compiler-rt.lib ../librt/build/libk.lib ../librt/build/libdsk.lib ../librt/build/libacpi.lib build/$(VALI_ARCH).lib
 
 # --save-temps
-CFLAGS = $(GCFLAGS) -mno-sse -D_KAPI -DUNICODE -DLIBC_KERNEL -D_KRNL_DLL $(INCLUDES)
+CFLAGS = $(GCFLAGS) -mno-sse -DUNICODE -DLIBC_KERNEL -D_KRNL_DLL $(INCLUDES)
 LFLAGS = $(GLFLAGS) /entry:kentry /fixed /base:"0x100000" /manifest:no /lldmap $(DEPENDENCIES)
 PVSFLAGS = --skip-cl-exe=yes --preprocessor=clang --platform=$(PVS_PLATFORM) --analysis-mode=4 --language=C
 

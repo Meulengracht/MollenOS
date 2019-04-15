@@ -11,7 +11,7 @@ SOURCES = $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o)
 
 # Setup flags
-CFLAGS = $(GCFLAGS) -D_KRNL_DLL $(INCLUDES)
+CFLAGS = $(GCFLAGS) $(INCLUDES)
 
 LFLAGS = /lib
 

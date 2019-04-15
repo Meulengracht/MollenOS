@@ -36,8 +36,6 @@ for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
     ArchStallProcessorCore(wait);\
                     }
 
-/* ApicWaitForIdle
- * Waits for the ICR delivery busy bit to clear, to make sure an ICR is succesfully delivered to the core. */
 OsStatus_t
 ApicWaitForIdle(void)
 {
@@ -46,8 +44,6 @@ ApicWaitForIdle(void)
 	return (Error == 0) ? OsSuccess : OsError;
 }
 
-/* ApicSynchronizeArbIds
- * Performs a INIT-Deassert to perform the synchronization of the arbitration ids on all cores. */
 void
 ApicSynchronizeArbIds(void)
 {
@@ -70,8 +66,6 @@ ApicSynchronizeArbIds(void)
     InterruptRestoreState(InterruptStatus);
 }
 
-/* ApicSendInterrupt
- * Sends an interrupt vector-request to a given cpu-id. */
 OsStatus_t
 ApicSendInterrupt(
     _In_ InterruptTarget_t  Type,
@@ -122,8 +116,6 @@ ApicSendInterrupt(
     return Status;
 }
 
-/* ApicPerformIPI
- * Sends an ipi request for the specified cpu */
 OsStatus_t
 ApicPerformIPI(
     _In_ UUId_t             CoreId,
@@ -155,8 +147,6 @@ ApicPerformIPI(
     return Status;
 }
 
-/* ApicPerformSIPI
- * Sends an sipi request for the specified cpu, to start executing code at the given vector */
 OsStatus_t
 ApicPerformSIPI(
     _In_ UUId_t             CoreId,

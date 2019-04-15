@@ -117,8 +117,8 @@ package_sdk_headers:
 	@cp librt/include/*.h $(VALI_SDK_PATH)/include/
 	@cp librt/libc/include/*.h $(VALI_SDK_PATH)/include/
 	@cp -r librt/libc/include/os/ $(VALI_SDK_PATH)/include/
-	@cp librt/libc/include/$(VALI_ARCH)/*.h $(VALI_SDK_PATH)/include/
 	@cp librt/libc/include/sys/*.h $(VALI_SDK_PATH)/include/sys/
+	@cp librt/libm/include/*.h $(VALI_SDK_PATH)/include/
 	@cp librt/libds/include/ds/*.h $(VALI_SDK_PATH)/include/ds/
 	@cp -r librt/libcxx/libcxx/include/* $(VALI_SDK_PATH)/include/cxx/
 

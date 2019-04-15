@@ -27,7 +27,7 @@
 #include "private.h"
 #include <limits.h>
 #include <math.h>
-#include <i386/fenv.h>
+#include <fenv.h>
 
 #ifndef type
 #define type		double

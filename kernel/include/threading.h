@@ -1,3 +1,4 @@
+
 /* MollenOS
  *
  * Copyright 2015, Philip Meulengracht
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore Threading Interface
+ * Threading Interface
  * - Handles all common threading across architectures
  *   and implements systems like signaling, synchronization and rpc
  * 

@@ -290,7 +290,7 @@ SchedulerThreadQueue(
     TRACE("Appending thread %" PRIuIN " (%s) to queue %i", Thread->Id, Thread->Name, Thread->Queue);
     
     if (SuppressSynchronization) {
-        AppendToQueue(&Scheduler->Queues[Thread->Queue], Thread, Thread);   
+        AppendToQueue(&Scheduler->Queues[Thread->Queue], Thread, Thread);
     }
     else {
         AtomicSectionEnter(&Scheduler->Queues[Thread->Queue].SyncObject);
@@ -517,7 +517,7 @@ SchedulerThreadSchedule(
                     UpdatePressureForThread(Scheduler, Thread, Thread->Queue + 1);
                 }
             }
-            SchedulerThreadQueue(Thread, 1);      
+            AppendToQueue(&Scheduler->Queues[Thread->Queue], Thread, Thread);
         }
         else {
             Thread->SchedulerFlags &= ~(SCHEDULER_FLAG_REQUEUE); // Clear the requeue flag

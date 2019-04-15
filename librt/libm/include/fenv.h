@@ -29,7 +29,6 @@
 #ifndef	_FENV_H_
 #define	_FENV_H_
 
-/* Includes */
 #include <os/osdefs.h>
 
 #ifndef	__fenv_static
@@ -60,25 +59,25 @@ typedef struct {
 	(env).__mxcsr_lo = (uint16_t)(x);			\
 } while (0)
 
-typedef	uint16_t	fexcept_t;
+typedef	uint16_t fexcept_t;
 
 /* Exception flags */
-#define	FE_INVALID	0x01
-#define	FE_DENORMAL	0x02
+#define	FE_INVALID		0x01
+#define	FE_DENORMAL		0x02
 #define	FE_DIVBYZERO	0x04
-#define	FE_OVERFLOW	0x08
+#define	FE_OVERFLOW		0x08
 #define	FE_UNDERFLOW	0x10
-#define	FE_INEXACT	0x20
+#define	FE_INEXACT		0x20
 #define	FE_ALL_EXCEPT	(FE_DIVBYZERO | FE_DENORMAL | FE_INEXACT | \
-			 FE_INVALID | FE_OVERFLOW | FE_UNDERFLOW)
+						 FE_INVALID | FE_OVERFLOW | FE_UNDERFLOW)
 
 /* Rounding modes */
 #define	FE_TONEAREST	0x0000
-#define	FE_DOWNWARD	0x0400
-#define	FE_UPWARD	0x0800
+#define	FE_DOWNWARD		0x0400
+#define	FE_UPWARD		0x0800
 #define	FE_TOWARDZERO	0x0c00
-#define	_ROUND_MASK	(FE_TONEAREST | FE_DOWNWARD | \
-			 FE_UPWARD | FE_TOWARDZERO)
+#define	_ROUND_MASK		(FE_TONEAREST | FE_DOWNWARD | \
+						 FE_UPWARD | FE_TOWARDZERO)
 
 /*
  * As compared to the x87 control word, the SSE unit's control word
@@ -88,58 +87,22 @@ typedef	uint16_t	fexcept_t;
 #define	_SSE_ROUND_SHIFT	3
 #define	_SSE_EMASK_SHIFT	7
 
-/* Inline helpers for both MSVC assembler, 
- * but also for GCC assembler, unfortunately
- * i don't know how to do the clober thing in msvc */
-#if defined(_MSC_VER) && !defined(__clang__)
-#define	__fldcw(__cw)		_asm fldcw dword ptr [__cw]
-#define	__fldenv(__env)		_asm fldenv dword ptr [__env]
-#define	__fldenvx(__env)	_asm fldenv dword ptr [__env]
-#define	__fnclex()			_asm fnclex
-#define	__fnstenv(__env)	_asm fnstenv dword ptr [__env]
-#define	__fnstcw(__cw)		_asm fnstcw dword ptr [__cw]
-#define	__fnstsw(__sw)		_asm fnstsw dword ptr [__sw]
-#define	__fwait()			_asm fwait
-#define	__ldmxcsr(__csr)	_asm ldmxcsr dword ptr [__csr]
-#define	__stmxcsr(__csr)	_asm stmxcsr dword ptr [__csr]
-#else
-#define	__fldcw(__cw)		__asm __volatile("fldcw %0" : : "m" (__cw))
-#define	__fldenv(__env)		__asm __volatile("fldenv %0" : : "m" (__env))
-#define	__fldenvx(__env)	__asm __volatile("fldenv %0" : : "m" (__env)  \
-				: "st", "st(1)", "st(2)", "st(3)", "st(4)",   \
-				"st(5)", "st(6)", "st(7)")
-#define	__fnclex()		__asm __volatile("fnclex")
-#define	__fnstenv(__env)	__asm __volatile("fnstenv %0" : "=m" (*(__env)))
-#define	__fnstcw(__cw)		__asm __volatile("fnstcw %0" : "=m" (*(__cw)))
-#define	__fnstsw(__sw)		__asm __volatile("fnstsw %0" : "=am" (*(__sw)))
-#define	__fwait()		__asm __volatile("fwait")
-#define	__ldmxcsr(__csr)	__asm __volatile("ldmxcsr %0" : : "m" (__csr))
-#define	__stmxcsr(__csr)	__asm __volatile("stmxcsr %0" : "=m" (*(__csr)))
+// Include assembler helpers for correct arch
+#if defined(i386) || defined(__i386__)
+#include <fenv_i386.h>
+#elif defined(amd64) || defined(__amd64__) || defined(__x86_64__)
+#include <fenv_amd64.h>
 #endif
 
 _CODE_BEGIN
 
 /* The C99 standard (7.6.9) allows us to define 
  * implementation-specific macros for different fp environments */
-CRTDECL_DATA(extern const fenv_t, __fe_dfl_env);
-#define	FE_DFL_ENV	(&__fe_dfl_env)
-
-/* The SSE status */
-enum __sse_support { 
-	__SSE_YES, 
-	__SSE_NO, 
-	__SSE_UNK 
-};
-
-/* After testing for SSE support once we cache the result in __has_sse. */
-CRTDECL_DATA(extern enum __sse_support,__has_sse);
-CRTDECL(int,                           __test_sse(void));
-#ifdef __SSE__
-#define	__HAS_SSE()	1
-#else
-#define	__HAS_SSE()	(__has_sse == __SSE_YES ||			\
-			 (__has_sse == __SSE_UNK && __test_sse()))
-#endif
+CRTDECL(int, __has_sse(void));
+CRTDECL_DATA(extern const fenv_t, *_fe_dfl_env);
+CRTDECL_DATA(extern const fenv_t, *_fe_nomask_env);
+#define	FE_DFL_ENV	(&_fe_dfl_env)
+#define FE_NOMASK_ENV (&_fe_nomask_env)
 
 /* Prototypes which we don't inline */
 CRTDECL(int, fesetexceptflag(const fexcept_t *__flagp, int __excepts));
@@ -163,7 +126,7 @@ feclearexcept(int __excepts)
 		__env.__status &= ~__excepts;
 		__fldenv(__env);
 	}
-	if (__HAS_SSE()) {
+	if (__has_sse()) {
 		__stmxcsr(&__mxcsr);
 		__mxcsr &= ~__excepts;
 		__ldmxcsr(__mxcsr);
@@ -178,7 +141,7 @@ fegetexceptflag(fexcept_t *__flagp, int __excepts)
 	uint16_t __status;
 
 	__fnstsw(&__status);
-	if (__HAS_SSE())
+	if (__has_sse())
 		__stmxcsr(&__mxcsr);
 	else
 		__mxcsr = 0;
@@ -193,7 +156,7 @@ fetestexcept(int __excepts)
 	uint16_t __status;
 
 	__fnstsw(&__status);
-	if (__HAS_SSE())
+	if (__has_sse())
 		__stmxcsr(&__mxcsr);
 	else
 		__mxcsr = 0;
@@ -229,7 +192,7 @@ fesetround(int __round)
 	__control |= __round;
 	__fldcw(__control);
 
-	if (__HAS_SSE()) {
+	if (__has_sse()) {
 		__stmxcsr(&__mxcsr);
 		__mxcsr &= ~(_ROUND_MASK << _SSE_ROUND_SHIFT);
 		__mxcsr |= __round << _SSE_ROUND_SHIFT;
@@ -256,7 +219,7 @@ fesetenv(const fenv_t *__envp)
 	 * inlined, so we need to be more careful.
 	 */
 	__fldenvx(__env);
-	if (__HAS_SSE())
+	if (__has_sse())
 		__ldmxcsr(__mxcsr);
 	return (0);
 }

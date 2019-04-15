@@ -28,12 +28,7 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <errno.h>
-
-#if defined(__i386__)
-#include <i386/fenv.h>
-#elif defined(__amd64__)
-#include <amd64/fenv.h>
-#endif
+#include <fenv.h>
 
 // Assembly entry points that handle the stack changes made
 // by the stack system in the kernel
