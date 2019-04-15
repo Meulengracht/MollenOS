@@ -35,7 +35,7 @@
 #define SCHEDULER_LEVEL_COUNT           61
 
 // Boosts happen every 10 seconds to prevent starvation in the scheduler
-// Timeslices go from initial => 
+// Timeslices go from initial => initial + (2 * SCHEDULER_LEVEL_COUNT)
 #define SCHEDULER_TIMESLICE_INITIAL     10
 #define SCHEDULER_BOOST                 10000
 

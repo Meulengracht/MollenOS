@@ -51,8 +51,8 @@ _save_fpu:
 ; void save_fpu_extended(uintptr_t *buffer)
 ; Save FPU, MMX, SSE, AVX extended registers
 _save_fpu_extended:
-    mov eax, 0xFFFFFFFF
-    mov edx, 0xFFFFFFFF
+	mov eax, 0xFFFFFFFF
+	mov edx, 0xFFFFFFFF
 	mov ecx, [esp + 4]
 	xsave [ecx]
 	ret
@@ -67,8 +67,8 @@ _load_fpu:
 ; void load_fpu_extended(uintptr_t *buffer)
 ; Load MMX and MMX registers
 _load_fpu_extended:
-    mov eax, 0xFFFFFFFF
-    mov edx, 0xFFFFFFFF
+	mov eax, 0xFFFFFFFF
+	mov edx, 0xFFFFFFFF
 	mov ecx, [esp + 4]
 	xrstor [ecx]
 	ret
@@ -76,15 +76,10 @@ _load_fpu_extended:
 ; void set_ts()
 ; Sets the Task-Switch register
 _set_ts:
-	; Save eax
 	push eax
-
-	; Set TS
 	mov eax, cr0
 	bts eax, 3
 	mov cr0, eax
-
-	; Restore
 	pop eax
 	ret 
 
@@ -103,40 +98,20 @@ _init_fpu:
 ; void _rdtsc(uint64_t *value)
 ; Gets the CPU time-stamp counter
 __rdtsc:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
-	push ebx
-
-	; Get pointer
-	mov ebx, [ebp + 8]
+	mov ecx, [esp + 4]
 	rdtsc
-	mov [ebx], eax
-	mov [ebx + 4], edx
-
-	; Restore
-	pop ebx
-	pop ebp
+	mov [ecx], eax
+	mov [ecx + 4], edx
 	ret
 
 ; void _rdmsr(size_t Register, uint64_t *value)
 ; Gets the CPU model specific register
 __rdmsr:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
-	push ebx
-
-	; Get pointer
-    mov ecx, [ebp + 8]
-	mov ebx, [ebp + 12]
+    mov ecx, [esp + 4]
 	rdmsr
-	mov [ebx], eax
-	mov [ebx + 4], edx
-
-	; Restore
-	pop ebx
-	pop ebp
+	mov ecx, [esp + 8]
+	mov [ecx], eax
+	mov [ecx + 4], edx
 	ret
 
 ; void enter_thread(registers_t *stack)

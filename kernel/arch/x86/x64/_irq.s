@@ -66,7 +66,7 @@ __hlt:
 __getflags:
 	pushfq
 	pop rax
-	ret 
+	ret
 
 ; uint32_t __getcr2(void)
 ; Gets CR2 register

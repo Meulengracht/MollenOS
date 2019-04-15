@@ -66,7 +66,7 @@ ___hlt:
 ___getflags:
 	pushfd
 	pop eax
-	ret 
+	ret
 
 ; uint32_t __getcr2(void)
 ; Gets CR2 register
