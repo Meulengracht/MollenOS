@@ -167,7 +167,7 @@ SchedulerSynchronizeCore(
 
     // Perform synchronization
     if (ThreadingIsCurrentTaskIdle(Thread->CoreId)) {
-        InterruptProcessorCore(Thread->CoreId, CpuInterruptYield);
+        ExecuteProcessorCoreFunction(Thread->CoreId, CpuFunctionYield, NULL, NULL);
     }
 }
 

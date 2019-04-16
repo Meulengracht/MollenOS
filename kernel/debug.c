@@ -104,12 +104,12 @@ DebugHaltAllProcessorCores(
     _In_ SystemCpu_t*   Processor)
 {
     if (ExcludeId != Processor->PrimaryCore.Id) {
-        InterruptProcessorCore(Processor->PrimaryCore.Id, CpuInterruptHalt);
+        ExecuteProcessorCoreFunction(Processor->PrimaryCore.Id, CpuFunctionHalt, NULL, NULL);
     }
 
     for (int i = 0; i < Processor->NumberOfCores - 1; i++) {
         if (ExcludeId != Processor->ApplicationCores[i].Id) {
-            InterruptProcessorCore(Processor->ApplicationCores[i].Id, CpuInterruptHalt);
+            ExecuteProcessorCoreFunction(Processor->ApplicationCores[i].Id, CpuFunctionHalt, NULL, NULL);
         }
     }
     return OsSuccess;

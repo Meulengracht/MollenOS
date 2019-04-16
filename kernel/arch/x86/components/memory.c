@@ -45,9 +45,8 @@ extern void memory_load_cr3(uintptr_t pda);
 extern void memory_reload_cr3(void);
 
 // Global static storage for the memory
-static MemorySynchronizationObject_t SyncData            = { SPINLOCK_INIT, 0 };
-static size_t                        BlockmapBytes       = 0;
-uintptr_t                            LastReservedAddress = 0;
+static size_t BlockmapBytes       = 0;
+uintptr_t     LastReservedAddress = 0;
 
 // Disable the atomic wrong alignment, as they are aligned and are sanitized
 // in the arch-specific layer
@@ -207,80 +206,6 @@ ConvertPagingToSystemSpace(Flags_t Flags)
         }
     }
     return GenericFlags;
-}
-
-/* PageSynchronizationHandler
- * Synchronizes the page address specified in the MemorySynchronization Object. */
-InterruptStatus_t
-PageSynchronizationHandler(
-    _In_ FastInterruptResources_t* NotUsed,
-    _In_ void*                     Context)
-{
-    SystemMemorySpace_t* Current = GetCurrentMemorySpace();
-    UUId_t CurrentHandle         = GetCurrentMemorySpaceHandle();
-    _CRT_UNUSED(NotUsed);
-    _CRT_UNUSED(Context);
-
-    // Make sure the current address space is matching
-    // If NULL => everyone must update
-    // If it matches our parent, we must update
-    // If it matches us, we must update
-    if (SyncData.MemorySpaceHandle == UUID_INVALID ||
-        Current->ParentHandle      == SyncData.MemorySpaceHandle || 
-        CurrentHandle              == SyncData.MemorySpaceHandle) {
-        for (uintptr_t i = 0; i < SyncData.Length; i += PAGE_SIZE) {
-            memory_invalidate_addr(SyncData.Address + i);
-        }
-    }
-    SyncData.CallsCompleted++;
-    return InterruptHandled;
-}
-
-/* SynchronizePageRegion
- * Synchronizes the page address across cores to make sure they have the
- * latest revision of the page-table cached. */
-void
-SynchronizePageRegion(
-    _In_ SystemMemorySpace_t* SystemMemorySpace,
-    _In_ uintptr_t            Address,
-    _In_ size_t               Length)
-{
-    IntStatus_t Status;
-
-    // Skip this entire step if there is no multiple cores active
-    if (GetMachine()->NumberOfActiveCores <= 1) {
-        return;
-    }
-    assert(InterruptGetActiveStatus() == 0);
-
-    // Get the lock before disabling interrupts
-    SpinlockAcquire(&SyncData.SyncObject);
-    Status = InterruptDisable();
-    
-    // Setup arguments
-    if (Address < MEMORY_LOCATION_KERNEL_END) {
-        SyncData.MemorySpaceHandle = UUID_INVALID; // Everyone must update
-    }
-    else {
-        if (SystemMemorySpace->ParentHandle == UUID_INVALID) {
-            SyncData.MemorySpaceHandle = GetCurrentMemorySpaceHandle(); // Children of us must update
-        }
-        else {
-            SyncData.MemorySpaceHandle = SystemMemorySpace->ParentHandle; // Parent and siblings!
-        }
-    }
-    SyncData.Address        = Address;
-    SyncData.CallsCompleted = 0;
-
-    // Synchronize the page-tables
-    ApicSendInterrupt(InterruptAllButSelf, UUID_INVALID, INTERRUPT_SYNCHRONIZE_PAGE);
-    
-    // Wait for all cpu's to have handled this.
-    while(SyncData.CallsCompleted < (GetMachine()->NumberOfActiveCores - 1));
-
-    // Release lock before enabling interrupts to avoid a schedule before we've released.
-    SpinlockRelease(&SyncData.SyncObject);
-    InterruptRestoreState(Status);
 }
 
 /* SwitchVirtualSpace

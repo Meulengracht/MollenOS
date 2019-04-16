@@ -26,6 +26,7 @@
 #include <system/utils.h>
 #include <interrupts.h>
 #include <machine.h>
+#include <memory.h>
 #include <smbios.h>
 #include <debug.h>
 #include <apic.h>
@@ -48,6 +49,8 @@
 // These utilities are located in boot.asm
 extern void __wbinvd(void);
 extern void __hlt(void);
+extern void memory_invalidate_addr(uintptr_t);
+extern void memory_reload_cr3(void);
 extern void CpuEnableXSave(void);
 extern void CpuEnableAvx(void);
 extern void CpuEnableSse(void);
@@ -60,21 +63,20 @@ extern void CpuEnableFpu(void);
 static char*
 TrimWhitespaces(char *str)
 {
-    // Variables
     char *end;
 
     // Trim leading space
-    while(isspace((unsigned char)*str)) str++;
+    while (isspace((unsigned char)*str)) str++;
     if(*str == 0) {
         return str; // All spaces?
     }
 
     // Trim trailing space
     end = str + strlen(str) - 1;
-    while(end > str && isspace((unsigned char)*end)) end--;
+    while (end > str && isspace((unsigned char)*end)) end--;
 
     // Write new null terminator
-    *(end+1) = 0;
+    *(end + 1) = 0;
     return str;
 }
 
@@ -154,16 +156,43 @@ SetMachineUmaMode(void)
     for(;;);
 }
 
-void
-InterruptProcessorCore(
-    _In_ UUId_t                     CoreId,
-    _In_ SystemCpuInterruptReason_t Reason)
+InterruptStatus_t
+FunctionExecutionInterruptHandler(
+    _In_ FastInterruptResources_t* NotUsed,
+    _In_ void*                     NotUsedEither)
 {
-    if (Reason == CpuInterruptHalt) {
-        ApicSendInterrupt(InterruptSpecific, CoreId, INTERRUPT_HALT);
+    // We must execute the function in the FunctionState
+    SystemCpuCore_t*    Core     = GetCurrentProcessorCore();
+    SystemCpuFunction_t Function = Core->FunctionState.Function;
+    void*               Argument = Core->FunctionState.Argument;
+    SpinlockRelease(&Core->FunctionState.SyncObject);
+    
+    Function(Argument);
+    return InterruptHandled;
+}
+
+void
+ExecuteProcessorCoreFunction(
+    _In_     UUId_t                  CoreId,
+    _In_     SystemCpuFunctionType_t Type,
+    _In_Opt_ SystemCpuFunction_t     Function,
+    _In_Opt_ void*                   Argument)
+{
+    if (Type == CpuFunctionHalt) {
+        (void)ApicSendInterrupt(InterruptSpecific, CoreId, INTERRUPT_HALT);
     }
-    else if (Reason == CpuInterruptYield) {
-        ApicSendInterrupt(InterruptSpecific, CoreId, INTERRUPT_YIELD);
+    else if (Type == CpuFunctionYield) {
+        (void)ApicSendInterrupt(InterruptSpecific, CoreId, INTERRUPT_YIELD);
+    }
+    else if (Type == CpuFunctionCustom) {
+        SystemCpuCore_t* Core = GetProcessorCore(CoreId);
+        
+        // Get data lock on the core we are sending to
+        SpinlockAcquire(&Core->FunctionState.SyncObject);
+        Core->FunctionState.Function = Function;
+        Core->FunctionState.Argument = Argument;
+        
+        (void)ApicSendInterrupt(InterruptSpecific, CoreId, INTERRUPT_FUNCTION);
     }
 }
 
@@ -239,8 +268,6 @@ ArchProcessorHalt(void)
 	__hlt();
 }
 
-/* CpuFlushInstructionCache
- * Flushes the instruction cache for the processor. */
 void
 CpuFlushInstructionCache(
     _In_Opt_ void*  Start, 
@@ -252,6 +279,23 @@ CpuFlushInstructionCache(
 
     // Invoke assembly routine
     __wbinvd();
+}
+
+void
+CpuInvalidateMemoryCache(
+    _In_Opt_ void*  Start, 
+    _In_Opt_ size_t Length)
+{
+    if (Start == NULL) {
+        memory_reload_cr3();
+    }
+    else {
+        uintptr_t StartAddress = ((uintptr_t)Start) & PAGE_MASK;
+        uintptr_t EndAddress   = StartAddress + Length + PAGE_MASK;
+        for (uintptr_t i = StartAddress; i < EndAddress; i += PAGE_SIZE) {
+            memory_invalidate_addr(i);
+        }
+    }
 }
 
 extern void _rdtsc(uint64_t *Value);

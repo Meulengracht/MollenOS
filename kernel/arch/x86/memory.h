@@ -64,16 +64,6 @@ PACKED_TYPESTRUCT(BIOSMemoryRegion, {
     uint64_t Padding;
 });
 
-/* MemorySynchronizationObject
- * Used to synchronize paging structures across all cpu cores. */
-typedef struct _MemorySynchronizationObject {
-    Spinlock_t   SyncObject;
-    volatile int CallsCompleted;
-    UUId_t       MemorySpaceHandle;
-    uintptr_t    Address;
-    size_t       Length;
-} MemorySynchronizationObject_t;
-
 /* ConvertSystemSpaceToPaging
  * Converts system memory-space generic flags to native x86 paging flags */
 KERNELAPI Flags_t KERNELABI

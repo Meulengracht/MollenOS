@@ -46,7 +46,70 @@ extern uintptr_t  GetVirtualPageMapping(SystemMemorySpace_t*, VirtualAddress_t);
 extern OsStatus_t CommitVirtualPageMapping(SystemMemorySpace_t*, PhysicalAddress_t, VirtualAddress_t);
 extern OsStatus_t SetVirtualPageMapping(SystemMemorySpace_t*, PhysicalAddress_t, VirtualAddress_t, Flags_t);
 extern OsStatus_t ClearVirtualPageMapping(SystemMemorySpace_t*, VirtualAddress_t);
-extern void       SynchronizePageRegion(SystemMemorySpace_t*, uintptr_t, size_t);
+
+typedef struct {
+    volatile int CallsCompleted;
+    UUId_t       MemorySpaceHandle;
+    uintptr_t    Address;
+    size_t       Length;
+} MemorySynchronizationObject_t;
+
+static void
+MemorySynchronizationHandler(
+    _In_ void* Context)
+{
+    MemorySynchronizationObject_t* Object        = (MemorySynchronizationObject_t*)Context;
+    SystemMemorySpace_t*           Current       = GetCurrentMemorySpace();
+    UUId_t                         CurrentHandle = GetCurrentMemorySpaceHandle();
+
+    // Make sure the current address space is matching
+    // If NULL => everyone must update
+    // If it matches our parent, we must update
+    // If it matches us, we must update
+    if (Object->MemorySpaceHandle  == UUID_INVALID ||
+        Current->ParentHandle      == Object->MemorySpaceHandle || 
+        CurrentHandle              == Object->MemorySpaceHandle) {
+        CpuInvalidateMemoryCache((void*)Object->Address, Object->Length);
+    }
+    Object->CallsCompleted++;
+}
+
+static void
+SynchronizeMemoryRegion(
+    _In_ SystemMemorySpace_t* SystemMemorySpace,
+    _In_ uintptr_t            Address,
+    _In_ size_t               Length)
+{
+    // We can easily allocate this object on the stack as the stack is globally
+    // visible to all kernel code. This spares us allocation on heap
+    MemorySynchronizationObject_t Object = { 0 };
+    int                           NumberOfCores;
+
+    // Skip this entire step if there is no multiple cores active
+    if (GetMachine()->NumberOfActiveCores <= 1) {
+        return;
+    }
+
+    // Check for global address, in that case invalidate all cores
+    if (BlockBitmapValidateState(&GetMachine()->GlobalAccessMemory, Address, 1) != OsDoesNotExist) {
+        Object.MemorySpaceHandle = UUID_INVALID; // Everyone must update
+    }
+    else {
+        if (SystemMemorySpace->ParentHandle == UUID_INVALID) {
+            Object.MemorySpaceHandle = GetCurrentMemorySpaceHandle(); // Children of us must update
+        }
+        else {
+            Object.MemorySpaceHandle = SystemMemorySpace->ParentHandle; // Parent and siblings!
+        }
+    }
+    Object.Address        = Address;
+    Object.Length         = Length;
+    Object.CallsCompleted = 0;
+
+    NumberOfCores = ExecuteProcessorFunction(1, CpuFunctionCustom,
+        MemorySynchronizationHandler, (void*)&Object);
+    while (Object.CallsCompleted < NumberOfCores);
+}
 
 static void
 CreateMemorySpaceContext(
@@ -478,7 +541,7 @@ RemoveMemorySpaceMapping(
             WARNING("Failed to unmap address 0x%" PRIxIN "", VirtualPage);
         }
     }
-    SynchronizePageRegion(SystemMemorySpace, Address, Size);
+    SynchronizeMemoryRegion(SystemMemorySpace, Address, Size);
 
     // Free the range in either GAM or Process memory
     if (SystemMemorySpace->Context != NULL &&
@@ -526,7 +589,7 @@ ChangeMemorySpaceProtection(
             break;
         }
     }
-    SynchronizePageRegion(SystemMemorySpace, VirtualAddress, Size);
+    SynchronizeMemoryRegion(SystemMemorySpace, VirtualAddress, Size);
     return Status;
 }
 

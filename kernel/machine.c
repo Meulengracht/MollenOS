@@ -48,7 +48,7 @@ extern void StartTestingPhase(void);
 static SystemMachine_t Machine = { 
     { 0 }, { 0 }, { 0 }, { 0 },                      // Strings
     REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD,
-    { 0 }, { { 0 } }, { 0 }, { 0 },                  // BootInformation, Processor, MemorySpace, PhysicalMemory
+    { 0 }, SYSTEM_CPU_INIT, { 0 }, { 0 },            // BootInformation, Processor, MemorySpace, PhysicalMemory
     { 0 }, { { 0 } }, COLLECTION_INIT(KeyInteger),   // GAMemory, Memory Map, SystemDomains
     NULL, 0, NULL, NULL, NULL,                       // InterruptControllers
     { { { 0 } } },                                   // SystemTime

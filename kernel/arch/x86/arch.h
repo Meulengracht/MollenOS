@@ -130,7 +130,7 @@
 
 // Software interrupt vectors (0x20 - 0x90)
 // Synchronization calls
-#define INTERRUPT_SYNCHRONIZE_PAGE          0x70
+#define INTERRUPT_FUNCTION                  0x70
 #define INTERRUPT_PANIC                     0x71
 #define INTERRUPT_SPURIOUS                  0x7F
 

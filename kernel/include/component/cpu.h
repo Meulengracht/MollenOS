@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
- * MollenOS System Component Infrastructure 
+ * System Component Infrastructure 
  * - The Central Processing Unit Component is one of the primary actors
  *   in a domain. 
  */
@@ -24,11 +24,14 @@
 #define __COMPONENT_CPU__
 
 #include <os/osdefs.h>
+#include <os/spinlock.h>
 #include <memoryspace.h>
 #include <threading.h>
 #include <scheduler.h>
 
-typedef enum _SystemCpuState {
+typedef void(*SystemCpuFunction_t)(void*);
+
+typedef enum {
     CpuStateUnavailable     = 0x0,
     CpuStateShutdown        = 0x1,
     CpuStateRunning         = 0x2,
@@ -36,22 +39,30 @@ typedef enum _SystemCpuState {
     CpuStateInterruptActive = 0x10000
 } SystemCpuState_t;
 
-typedef enum _SystemCpuInterruptReason {
-    CpuInterruptHalt,
-    CpuInterruptYield
-} SystemCpuInterruptReason_t;
+typedef enum {
+    CpuFunctionHalt,
+    CpuFunctionYield,
+    CpuFunctionCustom
+} SystemCpuFunctionType_t;
 
-typedef struct _SystemCpuCore {
-    UUId_t              Id;
-    SystemCpuState_t    State;
-    int                 External;
+typedef struct {
+    Spinlock_t          SyncObject;
+    SystemCpuFunction_t Function;
+    void*               Argument;
+} SystemCpuFunctionState_t;
+
+typedef struct {
+    UUId_t                   Id;
+    SystemCpuState_t         State;
+    int                      External;
 
     // Static resources
-    MCoreThread_t       IdleThread;
-    SystemScheduler_t   Scheduler;
+    MCoreThread_t            IdleThread;
+    SystemScheduler_t        Scheduler;
 
     // State resources
-    MCoreThread_t*      CurrentThread;
+    SystemCpuFunctionState_t FunctionState;
+    MCoreThread_t*           CurrentThread;
 } SystemCpuCore_t;
 
 typedef struct _SystemCpu {
@@ -66,6 +77,10 @@ typedef struct _SystemCpu {
     struct _SystemCpu*  Link;
 } SystemCpu_t;
 
+#define SYSTEM_CPU_CORE_FN_STATE_INIT { SPINLOCK_INIT, NULL, NULL }
+#define SYSTEM_CPU_CORE_INIT          { UUID_INVALID, CpuStateUnavailable, 0, { 0 }, { { { 0 } } }, SYSTEM_CPU_CORE_FN_STATE_INIT, NULL }
+#define SYSTEM_CPU_INIT               { { 0 }, { 0 }, { 0 }, 0, SYSTEM_CPU_CORE_INIT, NULL, NULL }
+
 /* EnableMultiProcessoringMode
  * If multiple cores are present this will boot them up. If multiple domains are present
  * it will boot all primary cores in each domain, then boot up rest of cores in our own domain. */
@@ -78,7 +93,7 @@ EnableMultiProcessoringMode(void);
  * new instance of the cpu-core. */
 KERNELAPI void KERNELABI
 RegisterStaticCore(
-    _In_ SystemCpuCore_t*   Core);
+    _In_ SystemCpuCore_t* Core);
 
 /* RegisterApplicationCore
  * Registers a new cpu application core for the given cpu. The core count and the
@@ -86,23 +101,23 @@ RegisterStaticCore(
  * new instance of the cpu-core. */
 KERNELAPI void KERNELABI
 RegisterApplicationCore(
-    _In_ SystemCpu_t*       Cpu,
-    _In_ UUId_t             CoreId,
-    _In_ SystemCpuState_t   InitialState,
-    _In_ int                External);
+    _In_ SystemCpu_t*     Cpu,
+    _In_ UUId_t           CoreId,
+    _In_ SystemCpuState_t InitialState,
+    _In_ int              External);
 
 /* ActivateApplicationCore 
  * Activates the given core and prepares it for usage. This sets up a new 
  * scheduler and initializes a new idle thread. This function does never return. */
 KERNELAPI void KERNELABI
 ActivateApplicationCore(
-    _In_ SystemCpuCore_t*   Core);
+    _In_ SystemCpuCore_t* Core);
 
 /* GetProcessorCore
  * Retrieves the cpu core from the given core-id. */
 KERNELAPI SystemCpuCore_t* KERNELABI
 GetProcessorCore(
-    _In_ UUId_t             CoreId);
+    _In_ UUId_t CoreId);
 
 /* GetCurrentProcessorCore
  * Retrieves the cpu core that belongs to calling cpu core. */
@@ -114,21 +129,33 @@ GetCurrentProcessorCore(void);
  * also initializes the primary core of the cpu structure. */
 KERNELAPI void KERNELABI
 InitializeProcessor(
-    _In_ SystemCpu_t*       Cpu);
+    _In_ SystemCpu_t* Cpu);
 
 /* StartApplicationCore (@arch)
  * Initializes and starts the cpu core given. This is called by the kernel if it detects multiple
  * cores in the processor. */
 KERNELAPI void KERNELABI
 StartApplicationCore(
-    _In_ SystemCpuCore_t*   Core);
+    _In_ SystemCpuCore_t* Core);
 
-/* InterruptProcessorCore (@arch) 
+/* ExecuteProcessorCoreFunction (@arch) 
  * Interrupts the given core with a specified reason, how the reason is handled is 
  * implementation specific. */
 KERNELAPI void KERNELABI
-InterruptProcessorCore(
-    _In_ UUId_t                     CoreId,
-    _In_ SystemCpuInterruptReason_t Reason);
+ExecuteProcessorCoreFunction(
+    _In_     UUId_t                  CoreId,
+    _In_     SystemCpuFunctionType_t Type,
+    _In_Opt_ SystemCpuFunction_t     Function,
+    _In_Opt_ void*                   Argument);
+
+/* ExecuteProcessorFunction 
+ * Executes a function for an entire processor, and returns the number of cores
+ * the function request was successfully sent to. */
+KERNELAPI int KERNELABI
+ExecuteProcessorFunction(
+    _In_     int                     ExcludeSelf,
+    _In_     SystemCpuFunctionType_t Type,
+    _In_Opt_ SystemCpuFunction_t     Function,
+    _In_Opt_ void*                   Argument);
 
 #endif // !__COMPONENT_CPU__

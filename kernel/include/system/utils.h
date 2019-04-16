@@ -55,4 +55,11 @@ CpuFlushInstructionCache(
     _In_Opt_ void*  Start, 
     _In_Opt_ size_t Length);
 
+/* CpuInvalidateMemoryCache
+ * Invalidates a memory area in the memory cache. */
+KERNELAPI void KERNELABI
+CpuInvalidateMemoryCache(
+    _In_Opt_ void*  Start, 
+    _In_Opt_ size_t Length);
+
 #endif //!__SYSTEM_INTERFACE_UTILS_H__

@@ -33,26 +33,34 @@
 #include <heap.h>
 
 /* Static per-cpu data
- * We do not need to support more than 256 cpus because of APIC id's on the x86 arch. */
+ * We do not need to support more than 256 cpus because of APIC id's on the x86 arch. 
+ * How about on the x2apic? */
 static SystemCpuCore_t* CpuStorageTable[256] = { 0 };
 
-/* RegisterStaticCore
- * Registers the primary core for the given cpu. The core count and the
- * application-core will be initialized on first call to this function. This also allocates a 
- * new instance of the cpu-core. */
+SystemCpuCore_t*
+GetProcessorCore(
+    _In_ UUId_t CoreId)
+{
+    assert(CpuStorageTable[CoreId] != NULL);
+    return CpuStorageTable[CoreId];
+}
+
+SystemCpuCore_t*
+GetCurrentProcessorCore(void)
+{
+    assert(CpuStorageTable[ArchGetProcessorCoreId()] != NULL);
+    return CpuStorageTable[ArchGetProcessorCoreId()];
+}
+
 void
 RegisterStaticCore(
-    _In_ SystemCpuCore_t*   Core)
+    _In_ SystemCpuCore_t* Core)
 {
     // Register in lookup table
     assert(Core->Id < 256);
     CpuStorageTable[Core->Id] = Core;
 }
 
-/* RegisterApplicationCore
- * Registers a new cpu application core for the given cpu. The core count and the
- * application-core will be initialized on first call to this function. This also allocates a 
- * new instance of the cpu-core. */
 void
 RegisterApplicationCore(
     _In_ SystemCpu_t*       Cpu,
@@ -66,14 +74,16 @@ RegisterApplicationCore(
     assert(Cpu != NULL);
     assert(Cpu->NumberOfCores > 1);
 
-    // Make sure the array is allocated
+    // Make sure the array is allocated and initialized
     if(Cpu->ApplicationCores == NULL) {
         if (Cpu->NumberOfCores > 1) {
-            Cpu->ApplicationCores   = (SystemCpuCore_t*)kmalloc(sizeof(SystemCpuCore_t) * (Cpu->NumberOfCores - 1));
+            Cpu->ApplicationCores = (SystemCpuCore_t*)kmalloc(sizeof(SystemCpuCore_t) * (Cpu->NumberOfCores - 1));
             memset((void*)Cpu->ApplicationCores, 0, sizeof(SystemCpuCore_t) * (Cpu->NumberOfCores - 1));
+            
             for (i = 0; i < (Cpu->NumberOfCores - 1); i++) {
                 Cpu->ApplicationCores[i].Id     = UUID_INVALID;
                 Cpu->ApplicationCores[i].State  = CpuStateUnavailable;
+                SpinlockReset(&Cpu->ApplicationCores[i].FunctionState.SyncObject);
             }
         }
     }
@@ -81,21 +91,18 @@ RegisterApplicationCore(
     // Find it and update parameters for it
     for (i = 0; i < (Cpu->NumberOfCores - 1); i++) {
         if (Cpu->ApplicationCores[i].Id == UUID_INVALID) {
-            Cpu->ApplicationCores[i].Id         = CoreId;
-            Cpu->ApplicationCores[i].State      = InitialState;
-            Cpu->ApplicationCores[i].External   = External;
-            CpuStorageTable[CoreId]             = &Cpu->ApplicationCores[i];
+            Cpu->ApplicationCores[i].Id       = CoreId;
+            Cpu->ApplicationCores[i].State    = InitialState;
+            Cpu->ApplicationCores[i].External = External;
+            CpuStorageTable[CoreId]           = &Cpu->ApplicationCores[i];
             break;
         }
     }
 }
 
-/* ActivateApplicationCore 
- * Activates the given core and prepares it for usage. This sets up a new 
- * scheduler and initializes a new idle thread. This function does never return. */
 void
 ActivateApplicationCore(
-    _In_ SystemCpuCore_t*   Core)
+    _In_ SystemCpuCore_t* Core)
 {
     SystemDomain_t* Domain;
     OsStatus_t      Status;
@@ -128,54 +135,40 @@ ActivateApplicationCore(
     }
 }
 
-/* EnableMultiProcessoringMode
- * If multiple cores are present this will boot them up. If multiple domains are present
- * it will boot all primary cores in each domain, then boot up rest of cores in our own domain. */
-void
-EnableMultiProcessoringMode(void)
+int
+ExecuteProcessorFunction(
+    _In_     int                     ExcludeSelf,
+    _In_     SystemCpuFunctionType_t Type,
+    _In_Opt_ SystemCpuFunction_t     Function,
+    _In_Opt_ void*                   Argument)
 {
-    SystemDomain_t *CurrentDomain = GetCurrentDomain();
-    SystemDomain_t *Domain;
-    int i;
-
-    // Boot all cores in our own domain, then boot the initial core
-    // for all the other domains, they will boot up their own domains.
-    foreach (DomainNode, GetDomains()) {
-        Domain = (SystemDomain_t*)DomainNode->Data;
-        if (Domain != CurrentDomain) {
-            StartApplicationCore(&Domain->CoreGroup.PrimaryCore);
-        }
-    }
-
-    if (CurrentDomain != NULL) {
-        // Don't ever include ourself
-        for (i = 0; i < (CurrentDomain->CoreGroup.NumberOfCores - 1); i++) {
-            StartApplicationCore(&CurrentDomain->CoreGroup.ApplicationCores[i]);
-        }
+    SystemDomain_t*  Domain;
+    SystemCpu_t*     Processor;
+    SystemCpuCore_t* CurrentCore = GetCurrentProcessorCore();
+    int              Executions = 0;
+    
+    Domain = GetCurrentDomain();
+    if (Domain != NULL) {
+        Processor = &Domain->CoreGroup;
     }
     else {
-        // No domains in system - boot all cores except ourself
-        for (i = 0; i < (GetMachine()->Processor.NumberOfCores - 1); i++) {
-            StartApplicationCore(&GetMachine()->Processor.ApplicationCores[i]);
+        Processor = &GetMachine()->Processor;
+    }
+    
+    if (!ExcludeSelf || (ExcludeSelf && Processor->PrimaryCore.Id != CurrentCore->Id)) {
+        if (Processor->PrimaryCore.State == CpuStateRunning) {
+            ExecuteProcessorCoreFunction(Processor->PrimaryCore.Id, Type, Function, Argument);
+            Executions++;
         }
     }
-}
-
-/* GetProcessorCore
- * Retrieves the cpu core from the given core-id. */
-SystemCpuCore_t*
-GetProcessorCore(
-    _In_ UUId_t             CoreId)
-{
-    assert(CpuStorageTable[CoreId] != NULL);
-    return CpuStorageTable[CoreId];
-}
-
-/* GetCurrentProcessorCore
- * Retrieves the cpu core that belongs to calling cpu core. */
-SystemCpuCore_t*
-GetCurrentProcessorCore(void)
-{
-    assert(CpuStorageTable[ArchGetProcessorCoreId()] != NULL);
-    return CpuStorageTable[ArchGetProcessorCoreId()];
+    
+    for (int i = 0; i < (Processor->NumberOfCores - 1); i++) {
+        if (!ExcludeSelf || (ExcludeSelf && Processor->ApplicationCores[i].Id != CurrentCore->Id)) {
+            if (Processor->ApplicationCores[i].State == CpuStateRunning) {
+                ExecuteProcessorCoreFunction(Processor->ApplicationCores[i].Id, Type, Function, Argument);
+                Executions++;
+            }
+        }
+    }
+    return Executions;
 }

@@ -86,6 +86,10 @@ ScFlushHardwareCache(
         CpuFlushInstructionCache(Start, Length);
         return OsSuccess;
     }
+    else if (Cache == CACHE_MEMORY) {
+        CpuInvalidateMemoryCache(Start, Length);
+        return OsSuccess;
+    }
     return OsError;
 }
 
