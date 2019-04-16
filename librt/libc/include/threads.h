@@ -28,14 +28,6 @@
 #include <limits.h>
 #include <time.h>
 
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-#include <stdnoreturn.h>
-#elif defined(__GNUC__) || defined(__clang__)
-#define noreturn __attribute__((noreturn))
-#else
-#define noreturn
-#endif
-
 // In non c++ mode we define thread_local keyword
 #if !defined(__cplusplus)
 #define thread_local _Thread_local
@@ -153,7 +145,7 @@ thrd_yield(void));
  * If the last thread in the program is terminated with thrd_exit, the entire program 
  * terminates as if by calling exit with EXIT_SUCCESS as the argument (so the functions 
  * registered by atexit are executed in the context of that last thread) */
-CRTDECL(noreturn void, 
+CRTDECL(void, 
 thrd_exit(
     _In_ int res));
 
