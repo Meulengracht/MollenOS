@@ -167,15 +167,10 @@ ScQueryDisplayInformation(
 void*
 ScCreateDisplayFramebuffer(void)
 {
-    SystemModule_t*      Module     = GetCurrentModule();
     SystemMemorySpace_t* Space      = GetCurrentMemorySpace();
     uintptr_t            FbPhysical = VideoGetTerminal()->FrameBufferAddressPhysical;
     uintptr_t            FbVirtual  = 0;
     size_t               FbSize     = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
-    
-    if (Module == NULL) {
-        return NULL;
-    }
 
     if (CreateMemorySpaceMapping(Space, &FbPhysical, &FbVirtual, FbSize, 
         MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_PERSISTENT,
