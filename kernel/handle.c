@@ -23,7 +23,7 @@
 #define __MODULE "HNDL"
 //#define __TRACE
 
-#include <system/thread.h>
+#include <arch/thread.h>
 #include <scheduler.h>
 #include <assert.h>
 #include <string.h>

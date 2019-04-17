@@ -25,9 +25,9 @@
 #include <ds/collection.h>
 #include <component/domain.h>
 #include <component/cpu.h>
-#include <system/interrupts.h>
-#include <system/utils.h>
-#include <system/io.h>
+#include <arch/interrupts.h>
+#include <arch/utils.h>
+#include <arch/io.h>
 #include <acpiinterface.h>
 #include <interrupts.h>
 #include <memoryspace.h>

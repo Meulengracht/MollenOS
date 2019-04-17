@@ -25,8 +25,8 @@
 
 #include <garbagecollector.h>
 #include <component/cpu.h>
-#include <system/thread.h>
-#include <system/utils.h>
+#include <arch/thread.h>
+#include <arch/utils.h>
 #include <memoryspace.h>
 #include <threading.h>
 #include <machine.h>
@@ -244,7 +244,7 @@ CreateThread(
     }
 
     CollectionAppend(&Threads, &Thread->Header);
-    SchedulerThreadQueue(Thread, 0);
+    SchedulerThreadQueue(Thread);
     *Handle = Thread->Header.Key.Value.Id;
     return OsSuccess;
 }

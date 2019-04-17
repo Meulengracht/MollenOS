@@ -25,7 +25,7 @@
 #define __MODULE        "IRQS"
 //#define __TRACE
 
-#include <system/interrupts.h>
+#include <arch/interrupts.h>
 #include <machine.h>
 #include <debug.h>
 #include <arch.h>

@@ -22,6 +22,7 @@
 #define __MODULE "TEST"
 #define __TRACE
 
+#include <ddk/ipc/ipc.h>
 #include <scheduler.h>
 #include <threading.h>
 #include <assert.h>

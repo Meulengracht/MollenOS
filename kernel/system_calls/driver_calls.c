@@ -22,7 +22,7 @@
 //#define __TRACE
 
 #include <modules/manager.h>
-#include <system/utils.h>
+#include <arch/utils.h>
 #include <acpiinterface.h>
 #include <interrupts.h>
 #include <deviceio.h>

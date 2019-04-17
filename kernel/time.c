@@ -26,9 +26,9 @@
 #include "../librt/libc/time/local.h"
 #include <modules/manager.h>
 #include <ds/collection.h>
-#include <system/interrupts.h>
-#include <system/utils.h>
-#include <system/time.h>
+#include <arch/interrupts.h>
+#include <arch/utils.h>
+#include <arch/time.h>
 #include <interrupts.h>
 #include <scheduler.h>
 #include <threading.h>

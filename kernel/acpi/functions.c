@@ -22,7 +22,7 @@
 #define __MODULE "DSIF"
 //#define __TRACE
 
-#include <system/utils.h>
+#include <arch/utils.h>
 #include <acpiinterface.h>
 #include <interrupts.h>
 #include <assert.h>

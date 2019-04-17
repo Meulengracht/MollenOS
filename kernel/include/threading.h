@@ -70,7 +70,14 @@ typedef void(*ThreadEntry_t)(void*);
 #define THREADING_INHERIT               0x00000010
 #define THREADING_TRANSITION_USERMODE   0x10000000
 
-typedef struct _SystemSignal {
+typedef enum {
+    ThreadStateIdle,
+    ThreadStateQueued,
+    ThreadStateBlocked,
+    ThreadStateRunning
+} ThreadState_t;
+
+typedef struct {
     CollectionItem_t Header;
     int              Deadly;
     int              Signal;
@@ -103,6 +110,7 @@ typedef struct _MCoreThread {
     Collection_t*           SignalQueue;
 
     // Scheduler Information
+    ThreadState_t           State;
     Flags_t                 SchedulerFlags;
     UUId_t                  CoreId;
     size_t                  TimeSlice;

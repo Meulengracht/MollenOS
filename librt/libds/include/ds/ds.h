@@ -24,7 +24,7 @@
 
 #include <os/osdefs.h>
 
-typedef struct _DataKey {
+typedef struct {
     union {
         int     Integer;
         UUId_t  Id;
@@ -35,15 +35,15 @@ typedef struct _DataKey {
     } Value;
 } DataKey_t;
 
-typedef enum _KeyType {
+typedef enum {
     KeyInteger,
     KeyId,
     KeyString
 } KeyType_t;
 
-typedef struct _SafeMemoryLock {
-    atomic_bool     SyncObject;
-    unsigned        Flags;
+typedef struct {
+    atomic_bool SyncObject;
+    unsigned    Flags;
 } SafeMemoryLock_t;
 
 CRTDECL(void*, dsalloc(size_t size));

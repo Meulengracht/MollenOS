@@ -21,8 +21,8 @@
 #define __MODULE "PMEM"
 #define __TRACE
 
-#include <system/interrupts.h>
-#include <system/utils.h>
+#include <arch/interrupts.h>
+#include <arch/utils.h>
 #include <ds/blbitmap.h>
 #include <multiboot.h>
 #include <machine.h>

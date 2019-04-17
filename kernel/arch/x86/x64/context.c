@@ -25,6 +25,7 @@
 #include <threading.h>
 #include <thread.h>
 #include <memory.h>
+#include <assert.h>
 #include <debug.h>
 #include <heap.h>
 #include <log.h>

@@ -28,7 +28,8 @@
 #include <criticalsection.h>
 #include <modules/manager.h>
 #include <ddk/interrupt.h>
-#include <system/utils.h>
+#include <arch/interrupts.h>
+#include <arch/utils.h>
 #include <memoryspace.h>
 #include <interrupts.h>
 #include <threading.h>
@@ -599,7 +600,8 @@ InterruptHandle(
             Result = Entry->KernelResources.Handler(GetFastInterruptTable(), NULL);
             if (Result != InterruptNotHandled) {
                 if (Entry->Flags & INTERRUPT_USERSPACE) {
-                    assert(SendModuleInterrupt(Entry->ModuleHandle, Entry->Id, Entry->Interrupt.Context) == OsSuccess);
+                    OsStatus_t Status = SendModuleInterrupt(Entry->ModuleHandle, Entry->Id, Entry->Interrupt.Context);
+                    assert(Status == OsSuccess);
                 }
                 *Source = Entry->Source;
                 break;

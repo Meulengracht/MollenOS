@@ -23,7 +23,7 @@
 #define __MODULE "PIT0"
 #define __TRACE
 
-#include <system/io.h>
+#include <arch/io.h>
 #include <interrupts.h>
 #include <timers.h>
 #include <debug.h>

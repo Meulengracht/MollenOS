@@ -1,14 +1,14 @@
 # Makefile for building the mollenos kernel image
 # Includes sub-libraries as
-# - acpica
 # - arch sub-layer
 
 # Include all the definitions for os
 include ../../config/common.mk
 
-INCLUDES = -I../../librt/include -I../../librt/libc/include \
+INCLUDES = -Iinclude -I../include -I../../librt/libacpi/source/include \
 		   -I../../librt/libds/include -I../../librt/libddk/include \
-		   -I../../librt/libacpi/source/include -I../include
+		   -I../../librt/libc/include -I../../librt/include
+		   
 
 ifeq ($(VALI_ARCH),i386)
     INCLUDES += -Ix86 -Ix86/x32
@@ -43,12 +43,9 @@ LFLAGS = /lib
 .PHONY: all
 all: header ../build/$(VALI_ARCH).lib
 
-.PHONY: tidy
-tidy: header $(OBJECTS)
-
 .PHONY: header
 header:
-	cp x86/arch.h ../include/arch.h
+	cp x86/arch.h include/arch.h
 
 ../build/$(VALI_ARCH).lib: $(OBJECTS)
 	@printf "%b" "\033[0;36mCreating static library " $@ "\033[m\n"
@@ -64,6 +61,6 @@ header:
 
 .PHONY: clean
 clean:
-	@rm -f ../include/arch.h
+	@rm -f include/arch.h
 	@rm -f ../build/$(VALI_ARCH).lib
 	@rm -f $(OBJECTS)

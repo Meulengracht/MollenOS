@@ -24,8 +24,8 @@
 
 /* Includes 
  * - System */
-#include <system/interrupts.h>
-#include <system/utils.h>
+#include <arch/interrupts.h>
+#include <arch/utils.h>
 #include <criticalsection.h>
 #include <interrupts.h>
 #include <debug.h>

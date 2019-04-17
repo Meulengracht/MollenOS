@@ -28,8 +28,8 @@
 #define __STRICT_ASSERT(x) 
 #endif
 
-#include <system/thread.h>
-#include <system/utils.h>
+#include <arch/thread.h>
+#include <arch/utils.h>
 #include <semaphore_slim.h>
 #include <scheduler.h>
 #include <debug.h>

@@ -21,8 +21,8 @@
  */
 #define __MODULE "XTIF"
 
-#include <system/thread.h>
-#include <system/utils.h>
+#include <arch/thread.h>
+#include <arch/utils.h>
 #include <threading.h>
 #include <interrupts.h>
 #include <thread.h>

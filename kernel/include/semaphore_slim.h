@@ -25,15 +25,10 @@
 #define __SLIM_SEMAPHORE__
 
 #include <os/osdefs.h>
-#include <atomicsection.h>
 
-/* SlimSemaphore
- * Contains only the absolute minimum for a semaphore. This is to create
- * a semaphore structure where memory needs to be kept to a minmimum.
- * Integrated usage only. No destruction for this. */
-typedef struct _SlimSemaphore {
-	atomic_int          Value;
-    int                 MaxValue;
+typedef struct {
+	atomic_int Value;
+    int        MaxValue;
 } SlimSemaphore_t;
 
 /* SlimSemaphoreConstruct

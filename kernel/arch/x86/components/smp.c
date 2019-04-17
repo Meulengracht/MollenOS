@@ -23,9 +23,9 @@
 #define __MODULE "SMP0"
 #define __TRACE
 
-#include <system/interrupts.h>
-#include <system/utils.h>
-#include <system/time.h>
+#include <arch/interrupts.h>
+#include <arch/utils.h>
+#include <arch/time.h>
 #include <memoryspace.h>
 #include <machine.h>
 #include <memory.h>

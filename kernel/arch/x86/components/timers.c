@@ -23,6 +23,7 @@
 #define __TRACE
 
 #include <acpiinterface.h>
+#include <interrupts.h>
 #include <debug.h>
 #include <apic.h>
 #include <cpu.h>

@@ -78,7 +78,7 @@ typedef struct _SystemCpu {
 } SystemCpu_t;
 
 #define SYSTEM_CPU_CORE_FN_STATE_INIT { SPINLOCK_INIT, NULL, NULL }
-#define SYSTEM_CPU_CORE_INIT          { UUID_INVALID, CpuStateUnavailable, 0, { 0 }, { { { 0 } } }, SYSTEM_CPU_CORE_FN_STATE_INIT, NULL }
+#define SYSTEM_CPU_CORE_INIT          { UUID_INVALID, CpuStateUnavailable, 0, { 0 }, SCHEDULER_INIT, SYSTEM_CPU_CORE_FN_STATE_INIT, NULL }
 #define SYSTEM_CPU_INIT               { { 0 }, { 0 }, { 0 }, 0, SYSTEM_CPU_CORE_INIT, NULL, NULL }
 
 /* EnableMultiProcessoringMode

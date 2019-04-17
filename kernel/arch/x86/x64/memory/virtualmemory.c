@@ -26,8 +26,8 @@
 
 #include <component/cpu.h>
 #include <memoryspace.h>
-#include <system/output.h>
-#include <system/utils.h>
+#include <arch/output.h>
+#include <arch/utils.h>
 #include <threading.h>
 #include <handle.h>
 #include <memory.h>

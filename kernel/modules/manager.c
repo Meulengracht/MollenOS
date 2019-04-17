@@ -24,8 +24,9 @@
 
 #include "../../librt/libc/stdio/local.h"
 #include "../../librt/libds/pe/pe.h"
-#include <system/utils.h>
 #include <memoryspace.h>
+#include <arch/interrupts.h>
+#include <arch/utils.h>
 #include <ds/mstring.h>
 #include <threading.h>
 #include <debug.h>

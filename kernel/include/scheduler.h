@@ -25,8 +25,10 @@
 #define __VALI_SCHEDULER_H__
 
 #include <os/osdefs.h>
-#include <atomicsection.h>
-#include <threading.h>
+#include <ds/ds.h>
+#include <time.h>
+
+typedef struct _MCoreThread MCoreThread_t;
 
 /* Scheduler Definitions
  * Contains magic constants, bit definitions and settings. */
@@ -45,22 +47,22 @@
 #define SCHEDULER_SLEEP_INTERRUPTED     2
 #define SCHEDULER_SLEEP_SYNC_FAILED     3
 
-#define SCHEDULER_FLAG_BLOCKED          0x1
-#define SCHEDULER_FLAG_REQUEUE          0x2
-#define SCHEDULER_FLAG_BOUND            0x4
+#define SCHEDULER_FLAG_BOUND            0x1
 
 typedef struct {
-    MCoreThread_t*  Head;
-    MCoreThread_t*  Tail;
-    AtomicSection_t SyncObject;
+    MCoreThread_t* Head;
+    MCoreThread_t* Tail;
 } SchedulerQueue_t;
 
 typedef struct {
+    SafeMemoryLock_t SyncObject;
     SchedulerQueue_t Queues[SCHEDULER_LEVEL_COUNT];
-    int              ThreadCount;
-    int              Bandwidth;
+    atomic_int       ThreadCount;
+    atomic_uint      Bandwidth;
     clock_t          LastBoost;
 } SystemScheduler_t;
+
+#define SCHEDULER_INIT { { 0 }, { { 0 } }, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0), 0 }
 
 /* SchedulerThreadInitialize
  * Initializes the thread for scheduling. This must be done before the kernel
@@ -79,10 +81,9 @@ SchedulerThreadFinalize(
 /* SchedulerThreadQueue
  * Queues up a new thread for execution on the either least-loaded core, or the specified
  * core in the thread structure. */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI void KERNELABI
 SchedulerThreadQueue(
-    _In_ MCoreThread_t* Thread,
-    _In_ int            SuppressSynchronization);
+    _In_ MCoreThread_t* Thread);
 
 /* SchedulerThreadSleep
  * Enters the current thread into sleep-queue. Can return different

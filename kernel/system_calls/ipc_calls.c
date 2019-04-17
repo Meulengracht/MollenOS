@@ -16,14 +16,16 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - System Calls
+ * System call interface - IPC implementation
+ *
  */
 #define __MODULE "SCIF"
 #define __TRACE
 
+#include <ddk/ipc/ipc.h>
 #include <modules/manager.h>
 #include <modules/module.h>
-#include <system/utils.h>
+#include <arch/utils.h>
 #include <threading.h>
 #include <os/input.h>
 #include <machine.h>

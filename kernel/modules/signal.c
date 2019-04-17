@@ -21,8 +21,8 @@
 #define __MODULE "SIG0"
 //#define __TRACE
 
-#include <system/thread.h>
-#include <system/utils.h>
+#include <arch/thread.h>
+#include <arch/utils.h>
 #include <memoryspace.h>
 #include <threading.h>
 #include <scheduler.h>
@@ -111,7 +111,7 @@ SignalCreateExternal(
     CollectionAppend(Target->SignalQueue, &Sig->Header);
 
     // Wake up thread if neccessary
-    if (Target->SchedulerFlags & SCHEDULER_FLAG_BLOCKED) {
+    if (Target->State == ThreadStateBlocked) {
         SchedulerThreadSignal(Target);
     }
     return OsSuccess;

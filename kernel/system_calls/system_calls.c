@@ -22,8 +22,8 @@
 //#define __TRACE
 
 #include <modules/manager.h>
-#include <system/output.h>
-#include <system/utils.h>
+#include <arch/output.h>
+#include <arch/utils.h>
 #include <os/mollenos.h>
 #include <memoryspace.h>
 #include <threading.h>

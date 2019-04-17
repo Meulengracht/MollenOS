@@ -21,7 +21,7 @@
  *    and the debug console
  */
 
-#include <system/output.h>
+#include <arch/output.h>
 #include <string.h>
 #include <console.h>
 #include <math.h>

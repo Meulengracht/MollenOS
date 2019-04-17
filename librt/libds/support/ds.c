@@ -28,7 +28,7 @@
 #define __MODULE "DATA"
 #ifdef LIBC_KERNEL
 #define __TRACE
-#include <system/interrupts.h>
+#include <arch/interrupts.h>
 #include <modules/manager.h>
 #include <memoryspace.h>
 #include <machine.h>

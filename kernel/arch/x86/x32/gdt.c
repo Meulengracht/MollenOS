@@ -21,7 +21,8 @@
  * - Task State Segment 
  */
 
-#include <system/utils.h>
+#include <interrupts.h>
+#include <arch/utils.h>
 #include <memory.h>
 #include <assert.h>
 #include <string.h>
@@ -29,12 +30,8 @@
 #include <heap.h>
 #include <gdt.h>
 
-/* Externs
- * Provide access to some assembler functions */
-__EXTERN void TssInstall(int GdtIndex);
+extern void TssInstall(int GdtIndex);
 
-/* Globals
- * Static storage as we have no memory allocator here */
 GdtObject_t __GdtTableObject; // Don't make static, used in asm
 static GdtDescriptor_t Descriptors[GDT_MAX_DESCRIPTORS]    = { { 0 } };
 static TssDescriptor_t *TssPointers[GDT_MAX_TSS]           = { 0 };

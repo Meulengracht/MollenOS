@@ -20,9 +20,9 @@
  *  - Ipi and synchronization utility functions
  */
 
-#include <system/interrupts.h>
-#include <system/utils.h>
-#include <system/time.h>
+#include <arch/interrupts.h>
+#include <arch/utils.h>
+#include <arch/time.h>
 #include <assert.h>
 #include <apic.h>
 

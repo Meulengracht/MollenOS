@@ -26,7 +26,7 @@
 #include "../librt/libds/pe/pe.h"
 #include <os/services/targets.h>
 #include <modules/manager.h>
-#include <system/utils.h>
+#include <arch/utils.h>
 #include <memoryspace.h>
 #include <interrupts.h>
 #include <deviceio.h>

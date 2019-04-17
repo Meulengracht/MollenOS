@@ -22,11 +22,12 @@
 //#define __TRACE
 
 #include <os/mollenos.h>
-#include <system/thread.h>
-#include <system/utils.h>
+#include <arch/thread.h>
+#include <arch/utils.h>
 #include <threading.h>
 #include <scheduler.h>
 #include <timers.h>
+#include <string.h>
 #include <debug.h>
 #include <heap.h>
 

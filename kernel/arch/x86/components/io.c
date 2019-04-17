@@ -22,7 +22,7 @@
  */
 #define __MODULE "IOLL"
 
-#include <system/io.h>
+#include <arch/io.h>
 #include <debug.h>
 #include <arch.h>
 #include <pci.h>

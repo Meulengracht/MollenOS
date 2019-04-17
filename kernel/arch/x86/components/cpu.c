@@ -22,8 +22,8 @@
  */
 #define __MODULE "CCPU"
 
-#include <system/interrupts.h>
-#include <system/utils.h>
+#include <arch/interrupts.h>
+#include <arch/utils.h>
 #include <interrupts.h>
 #include <machine.h>
 #include <memory.h>

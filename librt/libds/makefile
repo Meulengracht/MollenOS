@@ -8,9 +8,11 @@ include ../../config/common.mk
 # Setup architecture specific flags and paths
 ifeq ($(VALI_ARCH), i386)
 	KERNEL_INCLUDES = -I../../kernel/include \
+					  -I../../kernel/arch/include \
 				      -I../../kernel/arch/x86/x32
 else ifeq ($(VALI_ARCH), amd64)
 	KERNEL_INCLUDES = -I../../kernel/include \
+					  -I../../kernel/arch/include \
 				      -I../../kernel/arch/x86/x64
 else
 $(error VALI_ARCH is not set to a valid value)

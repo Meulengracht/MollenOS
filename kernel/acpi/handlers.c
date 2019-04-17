@@ -23,6 +23,7 @@
 #define __TRACE
 
 #include <acpiinterface.h>
+#include <assert.h>
 #include <debug.h>
 
 /* Fixed Event Handlers */

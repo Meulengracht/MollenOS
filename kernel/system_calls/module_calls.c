@@ -23,7 +23,7 @@
 
 #include "../../librt/libds/pe/pe.h"
 #include <modules/manager.h>
-#include <system/utils.h>
+#include <arch/utils.h>
 #include <os/types/process.h>
 #include <ds/mstring.h>
 #include <threading.h>

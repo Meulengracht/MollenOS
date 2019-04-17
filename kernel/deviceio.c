@@ -25,11 +25,13 @@
 
 #include <ds/collection.h>
 #include <modules/manager.h>
-#include <system/utils.h>
+#include <arch/utils.h>
+#include <arch/io.h>
 #include <memoryspace.h>
-#include <system/io.h>
 #include <threading.h>
 #include <deviceio.h>
+#include <string.h>
+#include <assert.h>
 #include <debug.h>
 #include <heap.h>
 

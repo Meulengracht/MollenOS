@@ -30,6 +30,7 @@
 #include <memoryspace.h>
 #include <threading.h>
 #include <machine.h>
+#include <string.h>
 #include <handle.h>
 #include <debug.h>
 

@@ -25,7 +25,7 @@
 #include <os/mollenos.h>
 #include <acpiinterface.h>
 #include "../cmos.h"
-#include <system/io.h>
+#include <arch/io.h>
 #include <string.h>
 #include <debug.h>
 

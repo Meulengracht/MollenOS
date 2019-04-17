@@ -20,7 +20,7 @@
  *
  */
 
-#include <system/io.h>
+#include <arch/io.h>
 #include <pic.h>
 
 static int GlbElcrInitialized = 0;

@@ -24,8 +24,8 @@
 
 #include <component/domain.h>
 #include <component/cpu.h>
-#include <system/interrupts.h>
-#include <system/utils.h>
+#include <arch/interrupts.h>
+#include <arch/utils.h>
 #include <machine.h>
 #include <assert.h>
 #include <string.h>

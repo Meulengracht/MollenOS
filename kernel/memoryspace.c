@@ -23,12 +23,13 @@
 #define __MODULE "MSPC"
 
 #include <component/cpu.h>
-#include <system/utils.h>
+#include <arch/utils.h>
 #include <memoryspace.h>
 #include <threading.h>
 #include <machine.h>
 #include <handle.h>
 #include <assert.h>
+#include <string.h>
 #include <debug.h>
 #include <heap.h>
 

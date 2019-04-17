@@ -20,7 +20,7 @@
 #define __MODULE "HEAP"
 //#define __TRACE
 
-#include <system/utils.h>
+#include <arch/utils.h>
 #include <memoryspace.h>
 #include <machine.h>
 #include <debug.h>

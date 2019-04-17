@@ -21,8 +21,8 @@
 #define __MODULE "MACH"
 #define __TRACE
 
-#include <system/interrupts.h>
-#include <system/utils.h>
+#include <arch/interrupts.h>
+#include <arch/utils.h>
 #include <revision.h>
 #include <machine.h>
 

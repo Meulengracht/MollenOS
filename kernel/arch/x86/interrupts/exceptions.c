@@ -26,9 +26,10 @@
 //#define __TRACE
 
 #include <modules/manager.h>
-#include <system/utils.h>
+#include <arch/utils.h>
 #include <memoryspace.h>
 #include <threading.h>
+#include <assert.h>
 #include <debug.h>
 #include <arch.h>
 

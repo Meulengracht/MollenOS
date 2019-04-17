@@ -6,8 +6,9 @@
 # Include all the definitions for os
 include ../config/common.mk
 
-INCLUDES = -I../librt/include -I../librt/libc/include -I../librt/libds/include \
-		   -I../librt/libddk/include -I../librt/libacpi/source/include -Iinclude
+INCLUDES = -Iinclude -Iarch/include -I../librt/libds/include \
+		   -I../librt/libacpi/source/include -I../librt/libddk/include \
+		   -I../librt/libc/include -I../librt/include
 SOURCES = $(wildcard acpi/*.c) \
 		  $(wildcard components/*.c) \
 		  $(wildcard modules/*.c) \

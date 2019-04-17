@@ -20,7 +20,7 @@
  *   of a system domain.
  */
 #include <component/domain.h>
-#include <system/utils.h>
+#include <arch/utils.h>
 #include <machine.h>
 
 /* CreateNumaDomain

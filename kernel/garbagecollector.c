@@ -28,6 +28,7 @@
 #include <criticalsection.h>
 #include <semaphore_slim.h>
 #include <threading.h>
+#include <string.h>
 #include <debug.h>
 #include <heap.h>
 

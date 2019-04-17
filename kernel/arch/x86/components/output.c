@@ -22,8 +22,8 @@
  */
 
 #include <machine.h>
-#include <system/output.h>
-#include <system/io.h>
+#include <arch/output.h>
+#include <arch/io.h>
 #include <string.h>
 #include <vbe.h>
 

@@ -20,7 +20,7 @@
  * - Interrupt Handlers specific for the APIC
  */
 
-#include <system/utils.h>
+#include <arch/utils.h>
 #include <threading.h>
 #include <interrupts.h>
 #include <thread.h>

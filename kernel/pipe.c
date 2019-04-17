@@ -25,8 +25,8 @@
 #define __MODULE "PIPE"
 //#define __TRACE
 
-#include <system/utils.h>
-#include <system/time.h>
+#include <arch/utils.h>
+#include <arch/time.h>
 #include <scheduler.h>
 #include <debug.h>
 #include <pipe.h>

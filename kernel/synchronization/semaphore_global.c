@@ -22,6 +22,7 @@
  */
 
 #include <semaphore_global.h>
+#include <string.h>
 #include <assert.h>
 #include <heap.h>
 

@@ -21,7 +21,7 @@
  *   that is generic and can be shared/used by all systems
  */
 
-#include <system/io.h>
+#include <arch/io.h>
 #include <ddk/interrupt.h>
 #include <interrupts.h>
 

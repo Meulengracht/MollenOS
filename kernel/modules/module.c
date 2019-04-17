@@ -26,7 +26,7 @@
 #include "../../librt/libds/pe/pe.h"
 #include <modules/manager.h>
 #include <modules/module.h>
-#include <system/utils.h>
+#include <arch/utils.h>
 #include <threading.h>
 #include <machine.h>
 #include <handle.h>
