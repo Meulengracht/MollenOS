@@ -204,8 +204,7 @@ EhciDisableLegacySupport(
         int Run             = 1;
 
         // Get the extended capability register
-        // We read the second byte, because it contains
-        // the BIOS Semaphore
+        // We read the second byte, because it contains the BIOS Semaphore
         while (Run) {
             // Retrieve capability id
             if (IoctlDeviceEx(Controller->Base.Device.Id, 0, Eecp, &CapId, 1) != OsSuccess) {
@@ -233,7 +232,6 @@ EhciDisableLegacySupport(
 
         // Only continue if Id == 0x01
         if (CapId == 0x01) {
-            // Variables
             Flags_t Zero = 0;
             if (IoctlDeviceEx(Controller->Base.Device.Id, 0, Eecp + 0x2, &Semaphore, 1) != OsSuccess) {
                 return;

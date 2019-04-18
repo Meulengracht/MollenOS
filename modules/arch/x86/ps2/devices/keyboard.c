@@ -119,10 +119,10 @@ PS2KeyboardFastInterrupt(
     _In_ FastInterruptResources_t*  InterruptTable,
     _In_ void*                      Unused)
 {
-    DeviceIo_t* IoSpace     = INTERRUPT_IOSPACE(InterruptTable, 0);
-    PS2Port_t* Port         = (PS2Port_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
-    uint8_t DataRecieved    = (uint8_t)InterruptTable->ReadIoSpace(IoSpace, PS2_REGISTER_DATA, 1);
-    PS2Command_t* Command   = &Port->ActiveCommand;
+    DeviceIo_t* IoSpace   = INTERRUPT_IOSPACE(InterruptTable, 0);
+    PS2Port_t* Port       = (PS2Port_t*)INTERRUPT_RESOURCE(InterruptTable, 0);
+    uint8_t DataRecieved  = (uint8_t)InterruptTable->ReadIoSpace(IoSpace, PS2_REGISTER_DATA, 1);
+    PS2Command_t* Command = &Port->ActiveCommand;
 
     if (Command->State != PS2Free) {
         Command->Buffer[Command->SyncObject] = DataRecieved;
@@ -147,11 +147,11 @@ PS2KeyboardFastInterrupt(
  * Handles the ps2-keyboard interrupt and processes the captured data */
 InterruptStatus_t
 PS2KeyboardInterrupt(
-    _In_ PS2Port_t*                 Port)
+    _In_ PS2Port_t* Port)
 {
     OsStatus_t Status   = OsError;
     uint8_t ScancodeSet = PS2_KEYBOARD_DATA_SCANCODESET(Port);
-    SystemKey_t Key;
+    SystemKey_t Key     = { 0 };
 
     // Perform scancode-translation
     while (Status == OsError) {
@@ -171,8 +171,8 @@ PS2KeyboardInterrupt(
 
     // If the key was an actual key and not modifier, remove our flags and send
     if (PS2KeyboardHandleModifiers(Port, &Key) == OsSuccess) {
-        Key.Flags  &= ~(KEY_MODIFIER_EXTENDED);
-        Status      = WriteSystemKey(&Key);
+        Key.Flags &= ~(KEY_MODIFIER_EXTENDED);
+        Status    = WriteSystemKey(&Key);
     }
     return InterruptHandled;
 }
@@ -181,8 +181,8 @@ PS2KeyboardInterrupt(
  * Retrieves the current scancode-set for the keyboard */
 OsStatus_t
 PS2KeyboardGetScancode(
-    _In_  PS2Port_t*                Port,
-    _Out_ uint8_t*                  ResultSet)
+    _In_  PS2Port_t* Port,
+    _Out_ uint8_t*   ResultSet)
 {
     uint8_t Response = 0;
     if (PS2PortExecuteCommand(Port, PS2_KEYBOARD_SCANCODE, &Response) != OsSuccess) {

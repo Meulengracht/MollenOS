@@ -25,6 +25,7 @@
 #include <internal/_syscalls.h> // for Syscall_ThreadCreate
 #include "../../librt/libds/pe/pe.h"
 #include <os/services/file.h>
+#include <os/services/path.h>
 #include <os/eventqueue.h>
 #include <os/mollenos.h>
 #include <os/context.h>
@@ -137,60 +138,95 @@ TestFilePath(
     return OsSuccess;
 }
 
+static OsStatus_t
+GuessBasePath(
+    _In_  UUId_t      ProcessId,
+    _In_  MString_t*  Path,
+    _Out_ MString_t** FullPathOut)
+{
+    // Check the working directory, if it fails iterate the environment defaults
+    Process_t* Process = AcquireProcess(ProcessId);
+    MString_t* Result;
+    int        IsApp;
+    int        IsDll;
+
+    // Start by testing against the loaders current working directory,
+    // however this won't work for the base process
+    if (Process != NULL) {
+        Result = MStringClone(Process->WorkingDirectory);
+        ReleaseProcess(Process);
+        MStringAppendCharacter(Result, '/');
+        MStringAppend(Result, Path);
+        if (TestFilePath(Result) == OsSuccess) {
+            *FullPathOut = Result;
+            return OsSuccess;
+        }
+    }
+    else {
+        Result = MStringCreate(NULL, StrUTF8);
+    }
+
+    // At this point we have to run through all PATH values
+    // Look at the type of file we are trying to load. .app? .dll? 
+    // for other types its most likely resource load
+    IsApp = MStringFindCString(Path, ".app");
+    IsDll = MStringFindCString(Path, ".dll");
+    if (IsApp != MSTRING_NOT_FOUND || IsDll != MSTRING_NOT_FOUND) {
+        MStringReset(Result, "$bin/", StrUTF8);
+    }
+    else {
+        MStringReset(Result, "$sys/", StrUTF8);
+    }
+    MStringAppend(Result, Path);
+    if (TestFilePath(Result) == OsSuccess) {
+        *FullPathOut = Result;
+        return OsSuccess;
+    }
+    else {
+        MStringDestroy(Result);
+        return OsError;
+    }
+}
+
 OsStatus_t
 ResolveFilePath(
     _In_  UUId_t      ProcessId,
     _In_  MString_t*  Path,
     _Out_ MString_t** FullPathOut)
 {
-    if (MStringFind(Path, ':', 0) == MSTRING_NOT_FOUND && 
-        MStringFind(Path, '$', 0) == MSTRING_NOT_FOUND) {
-        // Check the working directory, if it fails iterate the environment defaults
-        Process_t* Process = AcquireProcess(ProcessId);
-        MString_t* Result;
-        int        IsApp;
-        int        IsDll;
+    OsStatus_t Status          = OsSuccess;
+    MString_t* TemporaryResult = Path;
 
-        // Services do not have working directories (well they do, but that is $sys or $bin)
-        // But make sure Result is initialzied to a string
-        if (Process != NULL) {
-            Result = MStringClone(Process->WorkingDirectory);
-            ReleaseProcess(Process);
-            MStringAppendCharacter(Result, '/');
-            MStringAppend(Result, Path);
-            if (TestFilePath(Result) == OsSuccess) {
-                *FullPathOut = Result;
-                return OsSuccess;
+    if (MStringFind(Path, ':', 0) == MSTRING_NOT_FOUND) {
+        // If we don't even have an environmental identifier present, we
+        // have to get creative and guess away
+        if (MStringFind(Path, '$', 0) == MSTRING_NOT_FOUND) {
+            Status = GuessBasePath(ProcessId, Path, &TemporaryResult);
+
+            // If we already deduced an absolute path skip the canonicalizing moment
+            if (Status == OsSuccess && MStringFind(TemporaryResult, ':', 0) != MSTRING_NOT_FOUND) {
+                *FullPathOut = TemporaryResult;
+                return Status;
             }
         }
-        else {
-            Result = MStringCreate(NULL, StrUTF8);
-        }
 
-        // Look at the type of file we are trying to load. .app? .dll? 
-        // for other types its most likely resource load
-        IsApp = MStringFindCString(Path, ".app");
-        IsDll = MStringFindCString(Path, ".dll");
-        if (IsApp != MSTRING_NOT_FOUND || IsDll != MSTRING_NOT_FOUND) {
-            MStringReset(Result, "$bin/", StrUTF8);
-        }
-        else {
-            MStringReset(Result, "$sys/", StrUTF8);
-        }
-        MStringAppend(Result, Path);
-        if (TestFilePath(Result) == OsSuccess) {
-            *FullPathOut = Result;
-            return OsSuccess;
-        }
-        else {
-            MStringDestroy(Result);
-            return OsError;
+        // Take into account we might have failed to guess base path
+        if (Status == OsSuccess) {
+            char* CanonicalizedPath = (char*)malloc(_MAXPATH);
+            memset(CanonicalizedPath, 0, _MAXPATH);
+
+            Status = PathCanonicalize(MStringRaw(TemporaryResult), CanonicalizedPath, _MAXPATH);
+            if (Status == OsSuccess) {
+                *FullPathOut = MStringCreate(CanonicalizedPath, StrUTF8);
+            }
+            free(CanonicalizedPath);
         }
     }
     else {
-        *FullPathOut = MStringClone(Path);
+        // Assume absolute path
+        *FullPathOut = MStringClone(TemporaryResult);
     }
-    return OsSuccess;
+    return Status;
 }
 
 OsStatus_t

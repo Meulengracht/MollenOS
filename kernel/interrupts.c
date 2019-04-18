@@ -599,7 +599,9 @@ InterruptHandle(
             GetFastInterruptTable()->ResourceTable = &Entry->KernelResources;
             Result = Entry->KernelResources.Handler(GetFastInterruptTable(), NULL);
             if (Result != InterruptNotHandled) {
-                if (Entry->Flags & INTERRUPT_USERSPACE) {
+                // We have the InterruptHandledStop as a marker to identify
+                // when it's not neccessary to further send an interrupt notification
+                if ((Entry->Flags & INTERRUPT_USERSPACE) != 0 && Result != InterruptHandledStop) {
                     OsStatus_t Status = SendModuleInterrupt(Entry->ModuleHandle, Entry->Id, Entry->Interrupt.Context);
                     assert(Status == OsSuccess);
                 }

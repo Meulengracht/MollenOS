@@ -146,6 +146,9 @@ ArchGetSystemTime(
         }    
     }
 
+    // Correct the 0 indexed values
+    SystemTime->DayOfMonth++;
+
     if (Century != 0) {
         SystemTime->Year += Century * 100;
     }

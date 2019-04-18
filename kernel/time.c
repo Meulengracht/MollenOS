@@ -170,7 +170,7 @@ UpdateSystemTime(size_t Nanoseconds)
                     DaysInMonth = __month_lengths[IsLeap][Time->Month - 1];
                     Time->DayOfMonth++;
                     if (Time->DayOfMonth > DaysInMonth) {
-                        Time->DayOfMonth = 0;
+                        Time->DayOfMonth = 1;
                         Time->Month++;
                         if (Time->Month > MONSPERYEAR) {
                             Time->Month = 0;

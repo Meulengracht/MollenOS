@@ -131,12 +131,9 @@ VfsExpandIdentifier(
     return OsError;
 }
 
-/* VfsPathCanonicalize
- * Canonicalizes the path by removing extra characters
- * and resolving all identifiers in path */
 MString_t*
 VfsPathCanonicalize(
-    _In_ const char*        Path)
+    _In_ const char* Path)
 {
 	MString_t*  AbsPath;
 	int         i = 0;
@@ -153,7 +150,10 @@ VfsPathCanonicalize(
 		}
 
 		// Special case 1 - Identifier
+        // To avoid abuse, we clear the string before expanding an identifier
+        // in ANY case
 		if (IS_IDENTIFIER(&Path[i])) {
+            MStringZero(AbsPath);
             /* OsStatus_t Status = */ VfsExpandIdentifier(AbsPath, &Path[i]);
             while (!IS_EOL(&Path[i]) && !IS_SEPERATOR(&Path[i])) {
                 i++;

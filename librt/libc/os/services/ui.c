@@ -61,7 +61,7 @@ UiParametersSetDefault(
     Descriptor->Surface.Dimensions.w    = 450;
     Descriptor->Surface.Dimensions.h    = 300;
     
-    // Sanitize that this is indeed a pipe handle
+    // Sanitize that this is indeed a pipe handle, @todo allow any
     if (StdioStdin != NULL && StdioStdin->handle.InheritationType == STDIO_HANDLE_PIPE) {
         Descriptor->InputPipeHandle = StdioStdin->handle.InheritationHandle;
     }
@@ -110,6 +110,7 @@ UiRegisterWindow(
     Status = CreateWindow(WindowingServiceHandle, Descriptor, 
         GetBufferHandle(ProgramWindowBuffer), &ProgramWindowHandle);
     if (Status == OsSuccess) {
+        *WindowBuffer = GetBufferDataPointer(ProgramWindowBuffer);
         atexit(UiUnregisterWindow);
     }
     return Status;
