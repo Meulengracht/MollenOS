@@ -73,7 +73,6 @@ LogInitialize(void)
     
     LogObject.Lines         = (SystemLogLine_t*)&StaticLogSpace[0];
     LogObject.NumberOfLines = LOG_INITIAL_SIZE / sizeof(SystemLogLine_t);
-	CriticalSectionConstruct(&LogObject.SyncObject, CRITICALSECTION_PLAIN);
 }
 
 /* LogInitializeFull
@@ -89,13 +88,13 @@ LogInitializeFull(void)
     UpgradeBuffer = kmalloc(LOG_PREFFERED_SIZE);
     memset(UpgradeBuffer, 0, LOG_PREFFERED_SIZE);
 
-	CriticalSectionEnter(&LogObject.SyncObject);
+	dslock(&LogObject.SyncObject);
     memcpy(UpgradeBuffer, (const void*)LogObject.StartOfData, LogObject.DataSize);
     LogObject.StartOfData   = (uintptr_t*)UpgradeBuffer;
     LogObject.DataSize      = LOG_PREFFERED_SIZE;
     LogObject.Lines         = (SystemLogLine_t*)UpgradeBuffer;
     LogObject.NumberOfLines = LOG_PREFFERED_SIZE / sizeof(SystemLogLine_t);
-	CriticalSectionLeave(&LogObject.SyncObject);
+	dsunlock(&LogObject.SyncObject);
 
     // Create 4kb pipes
     StdOut = CreateSystemPipe(0, 6); // 1 << 6, 64 entries, 1 << 12 is 4kb
@@ -118,7 +117,7 @@ LogRenderMessages(void)
 {
     SystemLogLine_t* Line;
 
-	CriticalSectionEnter(&LogObject.SyncObject);
+	dslock(&LogObject.SyncObject);
     while (LogObject.RenderIndex != LogObject.LineIndex) {
 
         // Get next line to be rendered
@@ -141,7 +140,7 @@ LogRenderMessages(void)
             printf("%s\n", &Line->Data[0]);
         }
     }
-	CriticalSectionLeave(&LogObject.SyncObject);
+	dsunlock(&LogObject.SyncObject);
 }
 
 /* LogSetRenderMode
@@ -177,12 +176,12 @@ LogAppendMessage(
     assert(Message != NULL);
 
     // Get a new line object
-	CriticalSectionEnter(&LogObject.SyncObject);
+	dslock(&LogObject.SyncObject);
     Line = &LogObject.Lines[LogObject.LineIndex++];
     if (LogObject.LineIndex == LogObject.NumberOfLines) {
         LogObject.LineIndex = 0;
     }
-	CriticalSectionLeave(&LogObject.SyncObject);
+	dsunlock(&LogObject.SyncObject);
     memset((void*)Line, 0, sizeof(SystemLogLine_t));
     Line->Type = Type;
     snprintf(&Line->System[0], sizeof(Line->System), "[%s] ", Header);

@@ -124,23 +124,22 @@
 /* Special addresses must be between 0x11000000 -> 0x11001000 */
 #define MEMORY_LOCATION_SIGNAL_RET          0x110000DE // Signal return address
 
+
+// Software interrupt vectors (0x70 - 0x80)
+#define INTERRUPT_SOFTWARE_BASE             0x70
+#define INTERRUPT_SOFTWARE_END              0x80
+
+// architecture vectors (0x80 - 0x90)
+#define INTERRUPT_SYSCALL                   0x80
+#define INTERRUPT_YIELD                     0x81
+#define INTERRUPT_SPURIOUS                  0x82
+
 // Hardware interrupt vectors (0x90 - 0xF0)
 #define INTERRUPT_PHYSICAL_BASE             0x90
 #define INTERRUPT_PHYSICAL_END              0xF0
 
-// Software interrupt vectors (0x20 - 0x90)
-// Synchronization calls
-#define INTERRUPT_FUNCTION                  0x70
-#define INTERRUPT_PANIC                     0x71
-#define INTERRUPT_SPURIOUS                  0x7F
-
-// System calls
-#define INTERRUPT_SYSCALL                   0x80
-#define INTERRUPT_YIELD                     0x81
-#define INTERRUPT_HALT                      0x82
-
-// Priveliged software calls
-#define INTERRUPT_LVTERROR                  0x83
+// High priority architecture vectors (0xF0 - 0xFF)
 #define INTERRUPT_LAPIC                     0xF0
+#define INTERRUPT_LVTERROR                  0xF1
 
 #endif // !_MCORE_X86_ARCH_

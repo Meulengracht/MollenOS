@@ -16,13 +16,13 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Interrupts Interface
+ * Interrupts Interface
  * - Contains the shared kernel interrupts interface
  *   that all sub-layers / architectures must conform to
  */
 
-#ifndef _MCORE_SYSTEMINTS_H_
-#define _MCORE_SYSTEMINTS_H_
+#ifndef __VALI_ARCH_INTERRUPT_H__
+#define __VALI_ARCH_INTERRUPT_H__
 
 #include <os/osdefs.h>
 #include <interrupts.h>
@@ -75,4 +75,4 @@ InterruptSaveState(void);
 KERNELAPI int KERNELABI
 InterruptIsDisabled(void);
 
-#endif //!_MCORE_SYSTEMINTS_H_
+#endif //!__VALI_ARCH_INTERRUPT_H__

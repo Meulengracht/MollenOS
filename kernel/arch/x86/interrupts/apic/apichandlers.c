@@ -35,30 +35,9 @@ ApicTimerHandler(
     _In_ FastInterruptResources_t*  NotUsed,
     _In_ void*                      Context)
 {
-    Context_t *Regs;
-    size_t TimeSlice;
-    int TaskPriority;
-    UUId_t CurrCpu = ArchGetProcessorCoreId();
     _CRT_UNUSED(NotUsed);
-
-    // Yield => start by sending eoi. It is never certain that we actually return
-    // to this function due to how signals are working
     ApicSendEoi(APIC_NO_GSI, INTERRUPT_LAPIC);
-    Regs = _GetNextRunnableThread((Context_t*)Context, 1, &TimeSlice, &TaskPriority);
-    
-    // If we are idle task - disable timer untill we get woken up
-    if (!ThreadingIsCurrentTaskIdle(CurrCpu)) {
-        ApicSetTaskPriority(61 - TaskPriority);
-        ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * TimeSlice);
-    }
-    else {
-        ApicSetTaskPriority(0);
-        ApicWriteLocal(APIC_INITIAL_COUNT, 0);
-    }
-
-    // Manually update interrupt status
-    InterruptSetActiveStatus(0);
-    enter_thread(Regs);
+    X86SwitchThread((Context_t*)Context, 1);
     return InterruptHandled;
 }
 

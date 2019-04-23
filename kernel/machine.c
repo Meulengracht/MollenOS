@@ -22,6 +22,7 @@
 #define __TRACE
 
 #include <arch/interrupts.h>
+#include <arch/thread.h>
 #include <arch/utils.h>
 #include <revision.h>
 #include <machine.h>
@@ -97,7 +98,6 @@ InitializeMachine(
     
     // Set initial stats for this machine and then initialize cpu
     InitializeProcessor(&Machine.Processor);
-    RegisterStaticCore(&Machine.Processor.PrimaryCore);
     Machine.NumberOfActiveCores = 1;
     Machine.NumberOfProcessors  = 1;
     
@@ -156,6 +156,7 @@ InitializeMachine(
     }
 
     InitializeInterruptTable();
+    InitializeInterruptHandlers();
     Status = InterruptInitialize();
     if (Status != OsSuccess) {
         ERROR("Failed to initialize interrupts for system.");
@@ -199,7 +200,10 @@ InitializeMachine(
     }
     SpawnServices();
 #endif
-    WARNING("End of initialization");
+
+    // yield before going to assume new threads
+    WARNING("End of initialization, yielding control");
+    ThreadingYield();
     goto IdleProcessor;
 
 StopAndShowError:

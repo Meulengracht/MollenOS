@@ -35,7 +35,7 @@ RingBuffer_t *RingBufferCreate(size_t Size)
 	RingBuffer->Length = Size;
 
 	/* Reset Lock */
-	SpinlockReset(&RingBuffer->Lock);
+	SpinlockReset(&RingBuffer->Lock, 0);
 
 	return RingBuffer;
 }
@@ -52,7 +52,7 @@ void RingBufferConstruct(RingBuffer_t *RingBuffer, uint8_t *Buffer, size_t Buffe
 	RingBuffer->Length = BufferLength;
 
 	/* Reset Lock */
-	SpinlockReset(&RingBuffer->Lock);
+	SpinlockReset(&RingBuffer->Lock, 0);
 }
 
 /* Destroy RingBuffer */

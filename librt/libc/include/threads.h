@@ -75,7 +75,7 @@ enum {
 
 #define TSS_DTOR_ITERATIONS 4
 #define TSS_KEY_INVALID     UINT_MAX
-#define MUTEX_INIT(type)    { type, UUID_INVALID, 0, SPINLOCK_INIT }
+#define MUTEX_INIT(type)    { type, UUID_INVALID, 0, SPINLOCK_INIT(0) }
 #define ONCE_FLAG_INIT      { MUTEX_INIT(mtx_plain), 0 }
 #define COND_INIT           UUID_INVALID
 

@@ -130,7 +130,7 @@ UsbSchedulerInitialize(
     memset((void*)Scheduler, 0, sizeof(UsbScheduler_t));
 
     // Store initial information we were given
-    SpinlockReset(&Scheduler->Lock);
+    SpinlockReset(&Scheduler->Lock, 0);
     memcpy((void*)&Scheduler->Settings, Settings, sizeof(UsbSchedulerSettings_t));
     Scheduler->PoolSizeBytes = PoolSizeBytes;
 

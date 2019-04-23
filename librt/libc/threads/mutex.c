@@ -37,7 +37,7 @@ mtx_init(
     mutex->_flags = type;
     mutex->_owner = UUID_INVALID;
     mutex->_count = ATOMIC_VAR_INIT(0);
-    SpinlockReset(&mutex->_syncobject);
+    SpinlockReset(&mutex->_syncobject, 0);
     return thrd_success;
 }
 

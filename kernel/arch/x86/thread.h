@@ -42,22 +42,13 @@ ThreadingYieldHandler(
     _In_ FastInterruptResources_t*  NotUsed,
     _In_ void*                      Context);
 
-/* ThreadingHaltHandler
- * Software interrupt handler for the halt command. cli/hlt combo */
-KERNELAPI InterruptStatus_t KERNELABI
-ThreadingHaltHandler(
-    _In_ FastInterruptResources_t*  NotUsed,
-    _In_ void*                      Context);
-
-/* _GetNextRunnableThread
- * This function loads a new task from the scheduler, it
- * implements the task-switching functionality, which MCore leaves
- * up to the underlying architecture */
-KERNELAPI Context_t* KERNELABI
-_GetNextRunnableThread(
-    _In_  Context_t*                Context,
-    _In_  int                       PreEmptive,
-    _Out_ size_t*                   TimeSlice,
-    _Out_ int*                      TaskQueue);
+/* X86SwitchThread
+ * Takes the current context, and the circumstances of why the switch
+ * happens and performs a task switch to the next runnable thread. If none
+ * are ready, it switches to Idle thread */
+KERNELAPI void KERNELABI
+X86SwitchThread(
+    _In_  Context_t* Context,
+    _In_  int        PreEmptive);
 
 #endif // !_MCORE_THREAD_H_

@@ -10,6 +10,7 @@
                 "${workspaceRoot}/librt/libacpi/source/include",
                 "${workspaceRoot}/librt/libddk/include",
                 "${workspaceRoot}/kernel/include",
+                "${workspaceRoot}/kernel/arch/include",
                 "${workspaceRoot}/kernel/arch/x86",
                 "${workspaceRoot}/kernel/arch/x86/x32",
                 "${workspaceRoot}/services/devicemanager/arch/x86",
@@ -55,8 +56,7 @@
             },
             "intelliSenseMode": "clang-x64",
             "cStandard": "c11",
-            "cppStandard": "c++17",
-            "compileCommands": "${workspaceFolder}/toolchain/llvm/tools/clang/test/Index/compile_commands.json"
+            "cppStandard": "c++17"
         },
         {
             "name": "MollenOS-amd64",
@@ -68,6 +68,7 @@
                 "${workspaceRoot}/librt/libacpi/source/include",
                 "${workspaceRoot}/librt/libddk/include",
                 "${workspaceRoot}/kernel/include",
+                "${workspaceRoot}/kernel/arch/include",
                 "${workspaceRoot}/kernel/arch/x86",
                 "${workspaceRoot}/kernel/arch/x86/x64",
                 "${workspaceRoot}/services/devicemanager/arch/x86",

@@ -71,11 +71,18 @@ typedef struct MemoryCache {
 // Initialize the default cache that is required for allocating new caches.
 void MemoryCacheInitialize(void);
 
-// MemoryCacheCreate
+// MemoryCacheConstruct
 // Create a new custom memory cache that can be used to allocate objects for. Can be customized
 // both with alignment, flags and constructor/destructor functionality upon creation of objects.
-MemoryCache_t* MemoryCacheCreate(const char* Name, size_t ObjectSize, size_t ObjectAlignment,
-    Flags_t Flags, void(*ObjectConstructor)(struct MemoryCache*, void*), void(*ObjectDestructor)(struct MemoryCache*, void*));
+KERNELAPI void KERNELABI
+MemoryCacheConstruct(
+    _In_ MemoryCache_t* Cache,
+    _In_ const char*    Name,
+    _In_ size_t         ObjectSize,
+    _In_ size_t         ObjectAlignment,
+    _In_ Flags_t        Flags,
+    _In_ void(*ObjectConstructor)(struct MemoryCache*, void*),
+    _In_ void(*ObjectDestructor)(struct MemoryCache*, void*));
 
 // MemoryCacheAllocate
 // Allocates a new object from the cache.

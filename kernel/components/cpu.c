@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
- * MollenOS System Component Infrastructure 
+ * System Component Infrastructure 
  * - The Central Processing Unit Component is one of the primary actors
  *   in a domain. 
  */
@@ -52,13 +52,20 @@ GetCurrentProcessorCore(void)
     return CpuStorageTable[ArchGetProcessorCoreId()];
 }
 
-void
+static void
 RegisterStaticCore(
     _In_ SystemCpuCore_t* Core)
 {
-    // Register in lookup table
     assert(Core->Id < 256);
     CpuStorageTable[Core->Id] = Core;
+}
+
+void
+InitializeProcessor(
+    _In_ SystemCpu_t* Cpu)
+{
+    ArchProcessorInitialize(Cpu);
+    RegisterStaticCore(&Cpu->PrimaryCore);
 }
 
 void
@@ -83,7 +90,6 @@ RegisterApplicationCore(
             for (i = 0; i < (Cpu->NumberOfCores - 1); i++) {
                 Cpu->ApplicationCores[i].Id     = UUID_INVALID;
                 Cpu->ApplicationCores[i].State  = CpuStateUnavailable;
-                SpinlockReset(&Cpu->ApplicationCores[i].FunctionState.SyncObject);
             }
         }
     }

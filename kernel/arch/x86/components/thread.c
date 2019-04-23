@@ -39,7 +39,7 @@
 #include <stdio.h>
 
 extern size_t GlbTimerQuantum;
-extern void init_fpu(void);
+extern void enter_thread(Context_t *Regs);
 extern void load_fpu(uintptr_t *buffer);
 extern void load_fpu_extended(uintptr_t *buffer);
 extern void save_fpu(uintptr_t *buffer);
@@ -47,49 +47,6 @@ extern void save_fpu_extended(uintptr_t *buffer);
 extern void set_ts(void);
 extern void clear_ts(void);
 extern void _yield(void);
-extern void enter_thread(Context_t *Regs);
-
-InterruptStatus_t
-ThreadingHaltHandler(
-    _In_ FastInterruptResources_t*  NotUsed,
-    _In_ void*                      Context)
-{
-    _CRT_UNUSED(NotUsed);
-    _CRT_UNUSED(Context);
-    ArchProcessorHalt();
-    return InterruptHandled;
-}
-
-InterruptStatus_t
-ThreadingYieldHandler(
-    _In_ FastInterruptResources_t*  NotUsed,
-    _In_ void*                      Context)
-{
-    Context_t* NextContext;
-    size_t     TimeSlice;
-    int        TaskPriority;
-    _CRT_UNUSED(NotUsed);
-
-    // Yield => start by sending eoi. It is never certain that we actually return
-    // to this function due to how signals are working
-    ApicSendEoi(APIC_NO_GSI, INTERRUPT_YIELD);
-    NextContext = _GetNextRunnableThread((Context_t*)Context, 0, &TimeSlice, &TaskPriority);
-
-    // If we are idle task - disable timer untill we get woken up
-    if (!ThreadingIsCurrentTaskIdle(ArchGetProcessorCoreId())) {
-        ApicSetTaskPriority(61 - TaskPriority);
-        ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * TimeSlice);
-    }
-    else {
-        ApicSetTaskPriority(0);
-        ApicWriteLocal(APIC_INITIAL_COUNT, 0);
-    }
-
-    // Manually update interrupt status
-    InterruptSetActiveStatus(0);
-    enter_thread(NextContext);
-    return InterruptHandled;
-}
 
 OsStatus_t
 ThreadingRegister(
@@ -132,24 +89,35 @@ ThreadingFpuException(
 void
 ThreadingYield(void)
 {
-    _yield();
+    // Never yield in interrupt handlers, could cause wierd stuff to happen
+    if (InterruptGetActiveStatus()) {
+        if (ThreadingIsCurrentTaskIdle(ArchGetProcessorCoreId())) {
+            WARNING("Restarting local timer to yield");
+            ApicSetTaskPriority(0);
+            ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum);
+        }
+    }
+    else {
+        _yield();
+    }
 }
 
-Context_t*
-_GetNextRunnableThread(
+void
+X86SwitchThread(
     _In_  Context_t* Context,
-    _In_  int        PreEmptive,
-    _Out_ size_t*    TimeSlice,
-    _Out_ int*       TaskQueue)
+    _In_  int        PreEmptive)
 {
     UUId_t         Cpu    = ArchGetProcessorCoreId();
     MCoreThread_t* Thread = GetCurrentThreadForCore(Cpu);
 
-    // Sanitize the status of threading - return default values
+    // Sanitize the status of threading, if it's not up and running
+    // but a timer is, then set default values and return thread
     if (Thread == NULL) {
-        *TimeSlice = 20;
-        *TaskQueue = 0;
-        return Context;
+        ApicSetTaskPriority(0);
+        ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * 20);
+        InterruptSetActiveStatus(0);
+        enter_thread(Context);
+        // -- no return
     }
     
     // Save FPU/MMX/SSE information if it's
@@ -164,9 +132,7 @@ _GetNextRunnableThread(
     }
 
     // Get a new thread for us to enter
-    Thread     = GetNextRunnableThread(Thread, PreEmptive, &Context);
-    *TimeSlice = Thread->TimeSlice;
-    *TaskQueue = Thread->Queue;
+    Thread = GetNextRunnableThread(Thread, PreEmptive, &Context);
     Thread->Data[THREAD_DATA_FLAGS] &= ~X86_THREAD_USEDFPU; // Clear the FPU used flag
 
     // Load thread-specific resources
@@ -174,5 +140,18 @@ _GetNextRunnableThread(
     TssUpdateThreadStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
     TssUpdateIo(Cpu, (uint8_t*)Thread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
     set_ts(); // Set task switch bit so we get faults on fpu instructions
-    return Context;
+
+    // If we are idle task - disable timer untill we get woken up
+    if (Thread->Flags & THREADING_IDLE) {
+        ApicSetTaskPriority(0);
+        ApicWriteLocal(APIC_INITIAL_COUNT, 0);
+    }
+    else {
+        ApicSetTaskPriority(61 - Thread->Queue);
+        ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * Thread->TimeSlice);
+    }
+    
+    // Manually update interrupt status
+    InterruptSetActiveStatus(0);
+    enter_thread(Context);
 }

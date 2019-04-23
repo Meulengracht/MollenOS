@@ -33,43 +33,28 @@
 #include <gdt.h>
 #include <cpu.h>
 
-extern InterruptStatus_t FunctionExecutionInterruptHandler(FastInterruptResources_t*, void*);
-
 void
 InitializeSoftwareInterrupts(void)
 {
     DeviceInterrupt_t Interrupt = { { 0 } };
-    Interrupt.Vectors[1]            = INTERRUPT_NONE;
-    Interrupt.Line                  = INTERRUPT_NONE;
+    Interrupt.Vectors[0]            = INTERRUPT_NONE;
     Interrupt.Pin                   = INTERRUPT_NONE;
     
     // Yield interrupt
-    Interrupt.Vectors[0]            = INTERRUPT_YIELD;
+    Interrupt.Line                  = INTERRUPT_YIELD;
     Interrupt.FastInterrupt.Handler = ThreadingYieldHandler;
     InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
         | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
 
-    // Halt interrupt
-    Interrupt.Vectors[0]            = INTERRUPT_HALT;
-    Interrupt.FastInterrupt.Handler = ThreadingHaltHandler;
-    InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
-        | INTERRUPT_NOTSHARABLE);
-
-    // Page synchronization interrupt
-    Interrupt.Vectors[0]            = INTERRUPT_FUNCTION;
-    Interrupt.FastInterrupt.Handler = FunctionExecutionInterruptHandler;
-    InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
-        | INTERRUPT_NOTSHARABLE);
-    
     // Install local apic handlers
     // - LVT Error handler
-    Interrupt.Vectors[0]            = INTERRUPT_LVTERROR;
+    Interrupt.Line                  = INTERRUPT_LVTERROR;
     Interrupt.FastInterrupt.Handler = ApicErrorHandler;
     InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
         | INTERRUPT_NOTSHARABLE);
     
     // - Timer handler
-    Interrupt.Vectors[0]            = INTERRUPT_LAPIC;
+    Interrupt.Line                  = INTERRUPT_LAPIC;
     Interrupt.FastInterrupt.Handler = ApicTimerHandler;
     InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
         | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);

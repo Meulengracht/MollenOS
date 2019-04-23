@@ -16,14 +16,17 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS x86 Advanced Programmable Interrupt Controller Driver
+ * Advanced Programmable Interrupt Controller Driver
  *  - Ipi and synchronization utility functions
  */
+#define __MODULE "APIC"
+#define __TRACE
 
 #include <arch/interrupts.h>
 #include <arch/utils.h>
 #include <arch/time.h>
 #include <assert.h>
+#include <debug.h>
 #include <apic.h>
 
 #define WaitForConditionWithFault(fault, condition, runs, wait)\
@@ -52,8 +55,7 @@ ApicSynchronizeArbIds(void)
     OsStatus_t Status;
 
 	// Not needed on AMD and not supported on P4 
-	// So we need a check here in place to do it 
-	// @todo
+	// So we need a check here in place to do it @todo
     InterruptStatus = InterruptDisable();
 	Status          = ApicWaitForIdle();
     assert(Status != OsError);
@@ -74,13 +76,11 @@ ApicSendInterrupt(
 {
 	uint32_t    IpiLow  = 0;
 	uint32_t    IpiHigh = 0;
-    UUId_t      CpuId   = UUID_INVALID;
+    UUId_t      CoreId  = ArchGetProcessorCoreId();
     IntStatus_t InterruptStatus;
     OsStatus_t  Status;
     
-    // Get cpu-id of us
-    CpuId = ArchGetProcessorCoreId();
-    if (Type == InterruptSpecific && Specific == CpuId) {
+    if (Type == InterruptSpecific && Specific == CoreId) {
         Type = InterruptSelf;
     }
 

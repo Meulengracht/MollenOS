@@ -89,7 +89,7 @@ HciControllerCreate(
     Controller->Base.Type               = UsbUHCI;
     Controller->Base.TransactionList    = CollectionCreate(KeyInteger);
     Controller->Base.Endpoints          = CollectionCreate(KeyInteger);
-    SpinlockReset(&Controller->Base.Lock);
+    SpinlockReset(&Controller->Base.Lock, 0);
 
     // Get I/O Base, and for UHCI it'll be the first address we encounter
     // of type IO

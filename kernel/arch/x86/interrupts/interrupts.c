@@ -25,6 +25,7 @@
 #define __MODULE        "IRQS"
 //#define __TRACE
 
+#include <arch/utils.h>
 #include <interrupts.h>
 #include <debug.h>
 #include <apic.h>
@@ -36,12 +37,12 @@ InterruptEntry(
     InterruptStatus_t Result     = InterruptNotHandled;
     int               TableIndex = (int)Registers->Irq + 32;
     int               Gsi        = APIC_NO_GSI;
-
-    // Call kernel method
-    Result = InterruptHandle(Registers, TableIndex, &Gsi);
+    uint32_t          Tpr        = ApicGetTaskPriority();
+    ApicSetTaskPriority(TableIndex);
 
     // Sanitize the result of the
     // irq-handling - all irqs must be handled
+    Result = InterruptHandle(Registers, TableIndex, &Gsi);
     if (Result == InterruptNotHandled 
         && InterruptGetIndex(TableIndex) == NULL) {
         // Unhandled interrupts are only ok if spurious
@@ -58,4 +59,5 @@ InterruptEntry(
         // Last action is send eoi
         ApicSendEoi(Gsi, TableIndex);
     }
+    ApicSetTaskPriority(Tpr);
 }

@@ -26,8 +26,6 @@
 #include <os/osdefs.h>
 #include <ds/ds.h>
 
-/* CollectionItem
- * Generic collection item that can be indexed by a generic key. */
 typedef struct _CollectionItem {
     DataKey_t               Key;
     bool                    Dynamic;
@@ -37,10 +35,7 @@ typedef struct _CollectionItem {
     struct _CollectionItem* Prev;
 } CollectionItem_t;
 typedef struct _CollectionItem CollectionIterator_t;
-#define COLLECTION_NODE_INIT(Node, Key) (Node)->Key.Value = Key.Value; (Node)->Data = 0; (Node)->Link = 0; (Node)->Prev = 0 
 
-/* Collection
- * Generic collection implemented by doubly linked list. */
 typedef struct _Collection {
     SafeMemoryLock_t    SyncObject;
     KeyType_t           KeyType;
@@ -49,10 +44,10 @@ typedef struct _Collection {
     CollectionItem_t*   Head;
     CollectionItem_t*   Tail;
 } Collection_t;
-#define COLLECTION_INIT(KeyType) { { 0 }, KeyType, 0, NULL, NULL }
 
-/* Foreach Macro(s)
- * They help keeping the code clean and readable when coding loops */
+#define COLLECTION_INIT(KeyType) { { 0 }, KeyType, 0, NULL, NULL }
+#define COLLECTION_NODE_INIT(Node, Key) (Node)->Key.Value = Key.Value; (Node)->Data = 0; (Node)->Link = 0; (Node)->Prev = 0
+
 #define foreach(i, Collection) CollectionIterator_t *i; for (i = CollectionBegin(Collection); i != NULL; i = CollectionNext(i))
 #define foreach_nolink(i, Collection) CollectionIterator_t *i; for (i = CollectionBegin(Collection); i != NULL; )
 #define _foreach(i, Collection) for (i = CollectionBegin(Collection); i != NULL; i = CollectionNext(i))

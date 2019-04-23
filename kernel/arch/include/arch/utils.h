@@ -25,7 +25,9 @@
 #define __SYSTEM_INTERFACE_UTILS_H__
 
 #include <os/osdefs.h>
-#include <os/context.h>
+
+typedef struct _Context Context_t;
+typedef struct _SystemCpu SystemCpu_t;
 
 /* ArchDumpThreadContext 
  * Dumps the contents of the given thread context for debugging. */
@@ -37,6 +39,19 @@ ArchDumpThreadContext(
  * Returns the current processor core id. */
 KERNELAPI UUId_t KERNELABI
 ArchGetProcessorCoreId(void);
+
+/* ArchProcessorInitialize
+ * Initializes and fills in the processor structure for the calling processor. */
+KERNELAPI void KERNELABI
+ArchProcessorInitialize(
+    _In_ SystemCpu_t* Processor);
+
+/* ArchProcessorSendInterrupt
+ * Sends the given interrupt vector to the core specified. */
+KERNELAPI void KERNELABI
+ArchProcessorSendInterrupt(
+    _In_ UUId_t CoreId,
+    _In_ UUId_t InterruptId);
 
 /* ArchProcessorIdle
  * Enters idle mode for the current processor core. */

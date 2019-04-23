@@ -232,7 +232,7 @@ EnumerateSystemCoresMADT(
                 if (AcpiCpu->LapicFlags & 0x1) {
                     CoreCount++;
                     if (RegisterCores) {
-                        TRACE(" > core %" PRIuIN " available and active", AcpiCpu->Id);
+                        TRACE(" > core %" PRIuIN " (%" PRIuIN ") available and active", AcpiCpu->Id, AcpiCpu->ProcessorId);
                         if (AcpiCpu->Id != GetMachine()->Processor.PrimaryCore.Id) {
                             RegisterApplicationCore(&GetMachine()->Processor, AcpiCpu->Id, CpuStateShutdown, 0);
                         }

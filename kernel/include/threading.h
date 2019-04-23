@@ -110,8 +110,8 @@ typedef struct _MCoreThread {
     Collection_t*           SignalQueue;
 
     // Scheduler Information
-    ThreadState_t           State;
-    Flags_t                 SchedulerFlags;
+    volatile ThreadState_t  State;
+    volatile Flags_t        SchedulerFlags;
     UUId_t                  CoreId;
     size_t                  TimeSlice;
     int                     Queue;

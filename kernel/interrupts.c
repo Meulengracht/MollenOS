@@ -22,14 +22,14 @@
  */
 
 #define __MODULE        "INIF"
-//#define __TRACE
+#define __TRACE
 
 #include <component/cpu.h>
-#include <criticalsection.h>
 #include <modules/manager.h>
 #include <ddk/interrupt.h>
 #include <arch/interrupts.h>
 #include <arch/utils.h>
+#include <ds/ds.h>
 #include <memoryspace.h>
 #include <interrupts.h>
 #include <threading.h>
@@ -45,8 +45,8 @@ typedef struct _InterruptTableEntry {
 } InterruptTableEntry_t;
 
 static InterruptTableEntry_t InterruptTable[MAX_SUPPORTED_INTERRUPTS] = { { 0 } };
-static CriticalSection_t     InterruptTableSyncObject    = CRITICALSECTION_INITIALIZE(CRITICALSECTION_PLAIN);
-static _Atomic(UUId_t)       InterruptIdGenerator        = ATOMIC_VAR_INIT(0);
+static SafeMemoryLock_t      InterruptTableSyncObject = { 0 };
+static _Atomic(UUId_t)       InterruptIdGenerator     = ATOMIC_VAR_INIT(0);
 
 /* InterruptIncreasePenalty 
  * Increases the penalty for an interrupt source. */
@@ -338,9 +338,6 @@ InterruptReleaseResources(
     return OsSuccess;
 }
 
-/* InterruptRegister
- * Parses the device interrupt descriptor and allocates/resolves
- * neccessary resources for the interrupt request. */
 UUId_t
 InterruptRegister(
     _In_ DeviceInterrupt_t* Interrupt,
@@ -364,11 +361,6 @@ InterruptRegister(
     Entry->Thread       = GetCurrentThreadId();
     Entry->Flags        = Flags;
 
-    // Clear out line if the interrupt is software
-    if (Flags & INTERRUPT_SOFT) {
-        Interrupt->Line = INTERRUPT_NONE;
-    }
-
     // Get process id?
     if (!(Flags & INTERRUPT_KERNEL)) {
         Entry->ModuleHandle = GetCurrentModule()->Handle;
@@ -390,7 +382,7 @@ InterruptRegister(
     if (Flags & INTERRUPT_NOTSHARABLE) {
         if (InterruptTable[TableIndex].Descriptor != NULL) {
             // We failed to gain exclusive access
-            ERROR(" > can't gain exclusive access as there exist interrupt");
+            ERROR(" > can't gain exclusive access as there exist interrupt for 0x%x", TableIndex);
             kfree(Entry);
             return OsError;
         }
@@ -417,7 +409,7 @@ InterruptRegister(
     }
     
     // Initialize the table entry?
-    CriticalSectionEnter(&InterruptTableSyncObject);
+    dslock(&InterruptTableSyncObject);
     if (InterruptTable[TableIndex].Descriptor == NULL) {
         InterruptTable[TableIndex].Descriptor = Entry;
         InterruptTable[TableIndex].Penalty    = 1;
@@ -436,7 +428,7 @@ InterruptRegister(
     if (InterruptConfigure(Entry, 1) != OsSuccess) {
         ERROR("Failed to enable source %" PRIiIN "", Entry->Source);
     }
-    CriticalSectionLeave(&InterruptTableSyncObject);
+    dsunlock(&InterruptTableSyncObject);
     TRACE("Interrupt Id 0x%" PRIxIN " (Handler 0x%" PRIxIN ", Context 0x%" PRIxIN ")",
         Entry->Id, Entry->Interrupt.FastInterrupt.Handler, Entry->Interrupt.Context);
     return Entry->Id;
@@ -458,7 +450,7 @@ InterruptUnregister(
     }
     
     // Iterate handlers in that table index and unlink the given entry
-    CriticalSectionEnter(&InterruptTableSyncObject);
+    dslock(&InterruptTableSyncObject);
     Entry = InterruptTable[TableIndex].Descriptor;
     while (Entry != NULL) {
         if (Entry->Id == Source) {
@@ -483,7 +475,7 @@ InterruptUnregister(
         Previous = Entry;
         Entry = Entry->Link;
     }
-    CriticalSectionLeave(&InterruptTableSyncObject);
+    dsunlock(&InterruptTableSyncObject);
 
     // Sanitize if we were successfull
     if (Found == 0) {
@@ -581,6 +573,9 @@ InterruptHandle(
 {
     SystemInterrupt_t* Entry;
     InterruptStatus_t  Result = InterruptNotHandled;
+    if (TableIndex != 0x98) {
+        TRACE("InterruptHandle(0x%x)", TableIndex);
+    }
     
     // Update current status
     InterruptSetActiveStatus(1);
