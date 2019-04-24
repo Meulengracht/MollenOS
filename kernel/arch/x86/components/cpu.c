@@ -167,19 +167,6 @@ ArchProcessorSendInterrupt(
     }
 }
 
-InterruptStatus_t
-ThreadingYieldHandler(
-    _In_ FastInterruptResources_t*  NotUsed,
-    _In_ void*                      Context)
-{
-    _CRT_UNUSED(NotUsed);
-
-    // Mark that we received it
-    ApicSendEoi(APIC_NO_GSI, INTERRUPT_YIELD);
-    X86SwitchThread((Context_t*)Context, 0);
-    return InterruptHandled;
-}
-
 void
 CpuInitializeFeatures(void)
 {

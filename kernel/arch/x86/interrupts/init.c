@@ -40,12 +40,6 @@ InitializeSoftwareInterrupts(void)
     Interrupt.Vectors[0]            = INTERRUPT_NONE;
     Interrupt.Pin                   = INTERRUPT_NONE;
     
-    // Yield interrupt
-    Interrupt.Line                  = INTERRUPT_YIELD;
-    Interrupt.FastInterrupt.Handler = ThreadingYieldHandler;
-    InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
-        | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
-
     // Install local apic handlers
     // - LVT Error handler
     Interrupt.Line                  = INTERRUPT_LVTERROR;
@@ -92,8 +86,5 @@ InterruptInitialize(void)
         ERROR(" > cpu does not have a local apic. This model is too old and not supported.");
         return OsError;
     }
-
-    // Load the trampoline code in to memory
-    CpuSmpInitialize();
     return OsSuccess;
 }

@@ -21,7 +21,7 @@
  *    the less priority it gets, however longer timeslices it gets.
  */
 #define __MODULE "SCHE"
-#define __TRACE
+//#define __TRACE
 //#define DETECT_OVERRUNS
 
 #include <component/domain.h>

@@ -53,7 +53,7 @@ static SystemMachine_t Machine = {
     { 0 }, { { 0 } }, COLLECTION_INIT(KeyInteger),   // GAMemory, Memory Map, SystemDomains
     NULL, 0, NULL, NULL, NULL,                       // InterruptControllers
     { { { 0 } } },                                   // SystemTime
-    0, 0, 0, 0                                       // Total Information
+    0, 0, 0, 0, 0                                    // Total Information
 };
 
 SystemMachine_t*
@@ -100,6 +100,7 @@ InitializeMachine(
     InitializeProcessor(&Machine.Processor);
     Machine.NumberOfActiveCores = 1;
     Machine.NumberOfProcessors  = 1;
+    Machine.NumberOfCores       = 1;
     
     // Print build/info-header
     PrintHeader(&Machine.BootInformation);

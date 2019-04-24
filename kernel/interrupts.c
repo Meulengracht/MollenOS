@@ -16,13 +16,13 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Interrupt Interface
+ * Interrupt Interface
  * - Contains the shared kernel interrupt interface
  *   that is generic and can be shared/used by all systems
  */
 
 #define __MODULE        "INIF"
-#define __TRACE
+//#define __TRACE
 
 #include <component/cpu.h>
 #include <modules/manager.h>
@@ -573,10 +573,7 @@ InterruptHandle(
 {
     SystemInterrupt_t* Entry;
     InterruptStatus_t  Result = InterruptNotHandled;
-    if (TableIndex != 0x98) {
-        TRACE("InterruptHandle(0x%x)", TableIndex);
-    }
-    
+
     // Update current status
     InterruptSetActiveStatus(1);
     Entry = InterruptTable[TableIndex].Descriptor;

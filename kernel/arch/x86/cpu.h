@@ -126,12 +126,6 @@ enum CpuFeatures {
 KERNELAPI void KERNELABI
 CpuInitializeFeatures(void);
 
-/* CpuSmpInitialize
- * Initializes an SMP environment and boots the
- * available cores in the system */
-KERNELAPI void KERNELABI
-CpuSmpInitialize(void);
-
 /* CpuHasFeatures
  * Determines if the cpu has the requested features */
 KERNELAPI OsStatus_t KERNELABI

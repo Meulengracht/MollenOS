@@ -20,7 +20,9 @@
  * - Contains shared x86 threading routines
  */
 #define __MODULE "XTIF"
+//#define __TRACE
 
+#include <arch/interrupts.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
 #include <threading.h>
@@ -92,7 +94,6 @@ ThreadingYield(void)
     // Never yield in interrupt handlers, could cause wierd stuff to happen
     if (InterruptGetActiveStatus()) {
         if (ThreadingIsCurrentTaskIdle(ArchGetProcessorCoreId())) {
-            WARNING("Restarting local timer to yield");
             ApicSetTaskPriority(0);
             ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum);
         }
@@ -107,8 +108,8 @@ X86SwitchThread(
     _In_  Context_t* Context,
     _In_  int        PreEmptive)
 {
-    UUId_t         Cpu    = ArchGetProcessorCoreId();
-    MCoreThread_t* Thread = GetCurrentThreadForCore(Cpu);
+    UUId_t         CoreId      = ArchGetProcessorCoreId();
+    MCoreThread_t* Thread      = GetCurrentThreadForCore(CoreId);
 
     // Sanitize the status of threading, if it's not up and running
     // but a timer is, then set default values and return thread
@@ -137,14 +138,13 @@ X86SwitchThread(
 
     // Load thread-specific resources
     SwitchMemorySpace(Thread->MemorySpace);
-    TssUpdateThreadStack(Cpu, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
-    TssUpdateIo(Cpu, (uint8_t*)Thread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
+    TssUpdateThreadStack(CoreId, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
+    TssUpdateIo(CoreId, (uint8_t*)Thread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
     set_ts(); // Set task switch bit so we get faults on fpu instructions
 
     // If we are idle task - disable timer untill we get woken up
     if (Thread->Flags & THREADING_IDLE) {
         ApicSetTaskPriority(0);
-        ApicWriteLocal(APIC_INITIAL_COUNT, 0);
     }
     else {
         ApicSetTaskPriority(61 - Thread->Queue);

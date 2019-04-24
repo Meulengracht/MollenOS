@@ -16,11 +16,11 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS x86 Architecture Header
+ * x86 Architecture Header
  */
 
-#ifndef _MCORE_X86_ARCH_
-#define _MCORE_X86_ARCH_
+#ifndef __VALI_ARCH_X86_H__
+#define __VALI_ARCH_X86_H__
 
 #include <os/osdefs.h>
 #include <os/context.h>
@@ -124,15 +124,10 @@
 /* Special addresses must be between 0x11000000 -> 0x11001000 */
 #define MEMORY_LOCATION_SIGNAL_RET          0x110000DE // Signal return address
 
-
 // Software interrupt vectors (0x70 - 0x80)
-#define INTERRUPT_SOFTWARE_BASE             0x70
-#define INTERRUPT_SOFTWARE_END              0x80
-
-// architecture vectors (0x80 - 0x90)
 #define INTERRUPT_SYSCALL                   0x80
-#define INTERRUPT_YIELD                     0x81
-#define INTERRUPT_SPURIOUS                  0x82
+#define INTERRUPT_SOFTWARE_BASE             0x81
+#define INTERRUPT_SOFTWARE_END              0x90
 
 // Hardware interrupt vectors (0x90 - 0xF0)
 #define INTERRUPT_PHYSICAL_BASE             0x90
@@ -141,5 +136,6 @@
 // High priority architecture vectors (0xF0 - 0xFF)
 #define INTERRUPT_LAPIC                     0xF0
 #define INTERRUPT_LVTERROR                  0xF1
+#define INTERRUPT_SPURIOUS                  0xF2
 
-#endif // !_MCORE_X86_ARCH_
+#endif // !__VALI_ARCH_X86_H__

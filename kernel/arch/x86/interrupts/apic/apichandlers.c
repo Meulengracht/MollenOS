@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS x86 Advanced Programmable Interrupt Controller Driver
+ * x86 Advanced Programmable Interrupt Controller Driver
  * - Interrupt Handlers specific for the APIC
  */
 
@@ -27,17 +27,19 @@
 #include <acpi.h>
 #include <apic.h>
 
-extern size_t GlbTimerQuantum;
-extern void enter_thread(Context_t *Regs);
-
 InterruptStatus_t
 ApicTimerHandler(
     _In_ FastInterruptResources_t*  NotUsed,
     _In_ void*                      Context)
 {
+    uint32_t Count = ApicReadLocal(APIC_CURRENT_COUNT);
     _CRT_UNUSED(NotUsed);
+    
+    if (Count != 0) {
+        ApicWriteLocal(APIC_INITIAL_COUNT, 0);
+    }
     ApicSendEoi(APIC_NO_GSI, INTERRUPT_LAPIC);
-    X86SwitchThread((Context_t*)Context, 1);
+    X86SwitchThread((Context_t*)Context, Count == 0 ? 1 : 0);
     return InterruptHandled;
 }
 

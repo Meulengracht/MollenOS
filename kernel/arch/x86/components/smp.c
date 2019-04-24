@@ -23,6 +23,8 @@
 #define __MODULE "SMP0"
 #define __TRACE
 
+#include <component/domain.h>
+#include <component/cpu.h>
 #include <arch/interrupts.h>
 #include <arch/utils.h>
 #include <arch/time.h>
@@ -32,15 +34,15 @@
 #include <timers.h>
 #include <debug.h>
 #include <apic.h>
+#include <heap.h>
 #include <gdt.h>
 #include <idt.h>
 #include <cpu.h>
 #include <string.h>
-#include <component/domain.h>
-#include <component/cpu.h>
 
 extern const int   __GlbTramplineCode_length;
 extern const char  __GlbTramplineCode[];
+static int         JumpSpaceInitialized = 0;
 
 void
 PollTimerForMilliseconds(size_t Milliseconds)
@@ -61,21 +63,36 @@ PollTimerForMilliseconds(size_t Milliseconds)
 void
 SmpApplicationCoreEntry(void)
 {
-	// Disable interrupts and setup descriptors
-	InterruptDisable();
-	CpuInitializeFeatures();
-	GdtInstall();
-	IdtInstall();
+    // Disable interrupts and setup descriptors
+    InterruptDisable();
+    CpuInitializeFeatures();
+    GdtInstall();
+    IdtInstall();
 
     // Switch into NUMA memory space if any, otherwise nothing happens
     SwitchMemorySpace(GetCurrentMemorySpace());
-	InitializeLocalApicForApplicationCore();
+    InitializeLocalApicForApplicationCore();
 
     // Install the TSS before any multitasking
-	TssInitialize(0);
+    TssInitialize(0);
 
     // Register with system - no returning
     ActivateApplicationCore(GetCurrentProcessorCore());
+}
+
+static void
+InitializeApplicationJumpSpace(void)
+{
+    uint32_t* CodePointer = (uint32_t*)((uint8_t*)(&__GlbTramplineCode[0]) + __GlbTramplineCode_length); 
+    uint32_t  EntryCode   = (uint32_t)(uint32_t*)SmpApplicationCoreEntry;
+    void*     StackSpace  = kmalloc((GetMachine()->NumberOfCores - 1) * 0x1000);
+    TRACE("InitializeApplicationJumpSpace => allocated %u stacks", (GetMachine()->NumberOfCores - 1));
+
+    *(CodePointer - 1) = EntryCode;
+    *(CodePointer - 2) = GetCurrentMemorySpace()->Data[MEMORY_SPACE_CR3];
+    *(CodePointer - 3) = (uint32_t)(StackSpace) + 0x1000;
+    *(CodePointer - 4) = 0x1000;
+    memcpy((void*)MEMORY_LOCATION_TRAMPOLINE_CODE, (char*)__GlbTramplineCode, __GlbTramplineCode_length);
 }
 
 void
@@ -84,20 +101,26 @@ StartApplicationCore(
 {
     int Timeout;
 
-	// Perform the IPI
-	TRACE(" > booting core %" PRIuIN "", Core->Id);
-	if (ApicPerformIPI(Core->Id, 1) != OsSuccess) {
-		ERROR(" > failed to boot core %" PRIuIN " (ipi failed)", Core->Id);
-		return;
-	}
+    // Initialize jump space
+    if (!JumpSpaceInitialized) {
+        JumpSpaceInitialized = 1;
+        InitializeApplicationJumpSpace();
+    }
+
+    // Perform the IPI
+    TRACE(" > booting core %" PRIuIN "", Core->Id);
+    if (ApicPerformIPI(Core->Id, 1) != OsSuccess) {
+        ERROR(" > failed to boot core %" PRIuIN " (ipi failed)", Core->Id);
+        return;
+    }
     PollTimerForMilliseconds(10);
     // ApicPerformIPI(Core->Id, 0); is needed on older cpus, but not supported on newer.
     // If there is an external DX the AP's will execute code in bios and won't support SIPI
 
     // Perform the SIPI - some cpu's require two SIPI's.
-	if (ApicPerformSIPI(Core->Id, MEMORY_LOCATION_TRAMPOLINE_CODE) != OsSuccess) {
-		ERROR(" > failed to boot core %" PRIuIN " (sipi failed)", Core->Id);
-		return;
+    if (ApicPerformSIPI(Core->Id, MEMORY_LOCATION_TRAMPOLINE_CODE) != OsSuccess) {
+        ERROR(" > failed to boot core %" PRIuIN " (sipi failed)", Core->Id);
+        return;
     }
 
     // Wait - check if it booted, give it 10ms
@@ -113,15 +136,4 @@ StartApplicationCore(
             return;
         }
     }
-}
-
-void
-CpuSmpInitialize(void)
-{
-    uint32_t *CodePointer   = (uint32_t*)((uint8_t*)(&__GlbTramplineCode[0]) + __GlbTramplineCode_length); 
-	uint32_t EntryCode      = (uint32_t)(uint32_t*)SmpApplicationCoreEntry;
-
-    *(CodePointer - 1) = EntryCode;
-    *(CodePointer - 2) = GetCurrentMemorySpace()->Data[MEMORY_SPACE_CR3];
-	memcpy((void*)MEMORY_LOCATION_TRAMPOLINE_CODE, (char*)__GlbTramplineCode, __GlbTramplineCode_length);
 }
