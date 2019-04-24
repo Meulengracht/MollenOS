@@ -23,8 +23,8 @@
 #ifndef __STDC_THREADS__
 #define __STDC_THREADS__
 
+#include <os/spinlock.h>
 #include <os/osdefs.h>
-#include <os/mutex.h>
 #include <limits.h>
 #include <time.h>
 
@@ -45,7 +45,13 @@ typedef UUId_t       thrd_t;
 typedef uintptr_t cnd_t;
 
 // Mutex Synchronization Object
-typedef Mutex_t mtx_t;
+typedef struct {
+    int          _flags;
+    thrd_t       _owner;
+    _Atomic(int) _count;
+    Spinlock_t   _syncobject;
+} mtx_t;
+// _MTX_INITIALIZER_NP
 
 // Once-Flag Synchronization Object
 typedef struct {
@@ -54,23 +60,23 @@ typedef struct {
 } once_flag;
 
 enum {
-    thrd_success    = MutexSuccess,
-    thrd_busy       = MutexBusy,
-    thrd_nomem      = 2,
-    thrd_timedout   = 3,
-    thrd_error      = MutexError
+    thrd_success    = 0,
+    thrd_nomem      = 1,
+    thrd_timedout   = 2,
+    thrd_busy       = 3,
+    thrd_error      = -1
 };
 
 enum {
-    mtx_plain       = MutexSimple,
-    mtx_recursive   = MutexRecursive,
+    mtx_plain       = 0,
+    mtx_recursive   = 1,
     mtx_timed       = 2
 };
 
 #define TSS_DTOR_ITERATIONS 4
 #define TSS_KEY_INVALID     UINT_MAX
-#define _MTX_INITIALIZER_NP MUTEX_INIT(mtx_plain)
-#define ONCE_FLAG_INIT      { _MTX_INITIALIZER_NP, 0 }
+#define MUTEX_INIT(type)    { type, UUID_INVALID, 0, SPINLOCK_INIT(0) }
+#define ONCE_FLAG_INIT      { MUTEX_INIT(mtx_plain), 0 }
 #define COND_INIT           UUID_INVALID
 
 _CODE_BEGIN
