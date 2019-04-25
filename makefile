@@ -201,6 +201,7 @@ clean:
 	@$(MAKE) -s -C tools/revision -f makefile clean
 	@$(MAKE) -s -C tools/file2c -f makefile clean
 	@$(MAKE) -s -C tests -f makefile clean
+	@rm -f kernel/include/revision.h
 	@rm -f initrd.mos
 	@rm -rf deploy
 	@rm -rf initrd

@@ -27,4 +27,5 @@ build/ap.sys: stage2/ap.asm
 
 .PHONY: clean
 clean:
+	@rm -f ../kernel/arch/x86/components/smp_trampoline.c
 	@rm -rf build
