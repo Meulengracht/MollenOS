@@ -24,7 +24,7 @@
 #define __LOGGING_INTERFACE__
 
 #include <os/osdefs.h>
-#include <criticalsection.h>
+#include <ds/ds.h>
 #include <pipe.h>
 
 #define LOG_INITIAL_SIZE        (1024 * 4)
@@ -46,11 +46,11 @@ typedef struct _SystemLogLine {
 } SystemLogLine_t;
 
 typedef struct _SystemLog {
-    uintptr_t*        StartOfData;
-    size_t            DataSize;
-    int               NumberOfLines;
-    SystemLogLine_t*  Lines;
-    CriticalSection_t SyncObject;
+    uintptr_t*       StartOfData;
+    size_t           DataSize;
+    int              NumberOfLines;
+    SystemLogLine_t* Lines;
+    SafeMemoryLock_t SyncObject;
     
     int    LineIndex;
     int    RenderIndex;

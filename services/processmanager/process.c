@@ -343,7 +343,7 @@ CreateProcess(
     Process->State               = ATOMIC_VAR_INIT(PROCESS_RUNNING);
     Process->References          = ATOMIC_VAR_INIT(1);
     Process->StartedAt           = clock();
-    SpinlockReset(&Process->SyncObject);
+    SpinlockReset(&Process->SyncObject, SPINLOCK_RECURSIVE);
 
     // Load the executable
     PathAsMString = MStringCreate((void*)Path, StrUTF8);

@@ -299,11 +299,11 @@ void ApicInitialSetup(UUId_t Cpu)
         ApicWriteLocal(APIC_ESR, 0);
     }
 #endif
-    ApicWriteLocal(APIC_PERF_MONITOR,   APIC_NMI_ROUTE);
+    ApicWriteLocal(APIC_PERF_MONITOR, APIC_NMI_ROUTE);
 
     // Set the destination to flat and compute a logical index
-    ApicWriteLocal(APIC_DEST_FORMAT,    0xFFFFFFFF);
-    ApicWriteLocal(APIC_LOGICAL_DEST,   APIC_DESTINATION(ApicComputeLogicalDestination(Cpu)));
+    ApicWriteLocal(APIC_DEST_FORMAT,  0xFFFFFFFF);
+    ApicWriteLocal(APIC_LOGICAL_DEST, APIC_DESTINATION(ApicComputeLogicalDestination(Cpu)));
     ApicSetTaskPriority(0);
 
     // Last thing is clear status and interrupt registers
@@ -353,7 +353,6 @@ ApicSetupESR(void)
 void
 ApicEnable(void)
 {
-    // Variables
     uint32_t Temp = 0;
 
     // Enable local apic
@@ -362,8 +361,7 @@ ApicEnable(void)
     Temp |= 0x100;
 
 #if defined(i386) || defined(__i386__)
-    // This reduces some problems with to fast
-    // interrupt mask/unmask
+    // This reduces some problems with to fast interrupt mask/unmask
     Temp &= ~(0x200);
 #endif
 
@@ -384,7 +382,6 @@ ApicStartTimer(
 void
 ApicInitialize(void)
 {
-    // Variables
     SystemInterruptController_t *Ic = NULL;
     ACPI_TABLE_HEADER *Header       = NULL;
     uint32_t TemporaryValue         = 0;
@@ -429,6 +426,7 @@ ApicInitialize(void)
         MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED, __MASK);
     GlbLocalApicBase = UpdatedApAddress + (OriginalApAddress & 0xFFF);
     BspApicId        = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
+    TRACE(" > local bsp id %u", BspApicId);
 
     // Do some initial shared Apic setup
     // for this processor id

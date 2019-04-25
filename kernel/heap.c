@@ -427,8 +427,8 @@ cache_calculate_slab_size(
     TRACE(" => %" PRIuIN " Objects (%" PRIiIN "), On %" PRIuIN " Pages", ObjectsPerSlab, SlabOnSite, PageCount);
 }
 
-static void
-cache_construct(
+void
+MemoryCacheConstruct(
     _In_ MemoryCache_t* Cache,
     _In_ const char*    Name,
     _In_ size_t         ObjectSize,
@@ -471,7 +471,7 @@ MemoryCacheCreate(
     memset(Cache, 0, sizeof(MemoryCache_t));
 
     // Construct the instance, and then see if we can enable the per-cpu cache
-    cache_construct(Cache, Name, ObjectSize, ObjectAlignment, Flags, ObjectConstructor, ObjectDestructor);
+    MemoryCacheConstruct(Cache, Name, ObjectSize, ObjectAlignment, Flags, ObjectConstructor, ObjectDestructor);
     cache_initialize_atomic_cache(Cache);
     return Cache;
 }
@@ -709,5 +709,5 @@ MemoryCacheDump(
 void
 MemoryCacheInitialize(void)
 {
-    cache_construct(&InitialCache, "cache_cache", sizeof(MemoryCache_t), 0, 0, NULL, NULL);
+    MemoryCacheConstruct(&InitialCache, "cache_cache", sizeof(MemoryCache_t), 0, 0, NULL, NULL);
 }

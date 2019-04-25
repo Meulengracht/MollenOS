@@ -85,7 +85,7 @@ typedef struct _TlsProcessInstance {
     int             TlsAtExitHasRun;
 } TlsProcessInstance_t;
 
-static Spinlock_t           TlsLock     = SPINLOCK_INIT;
+static Spinlock_t           TlsLock     = SPINLOCK_INIT(0);
 static TlsProcessInstance_t TlsGlobal   = { { 0 }, { 0 }, 
     COLLECTION_INIT(KeyId),
     COLLECTION_INIT(KeyId),

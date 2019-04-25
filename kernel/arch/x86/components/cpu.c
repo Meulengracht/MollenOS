@@ -28,6 +28,7 @@
 #include <machine.h>
 #include <memory.h>
 #include <smbios.h>
+#include <thread.h>
 #include <debug.h>
 #include <apic.h>
 #include <cpu.h>
@@ -45,8 +46,6 @@
 #endif
 #define isspace(c) ((c >= 0x09 && c <= 0x0D) || (c == 0x20))
 
-// Extern assembly functions
-// These utilities are located in boot.asm
 extern void __wbinvd(void);
 extern void __hlt(void);
 extern void memory_invalidate_addr(uintptr_t);
@@ -81,8 +80,8 @@ TrimWhitespaces(char *str)
 }
 
 void
-InitializeProcessor(
-    _In_ SystemCpu_t*       Cpu)
+ArchProcessorInitialize(
+    _In_ SystemCpu_t* Processor)
 {
 	// Variables
 	uint32_t CpuRegisters[4]    = { 0 };
@@ -91,30 +90,30 @@ InitializeProcessor(
     __get_cpuid(0, CpuRegisters);
     
     // Set default number of cores params
-    Cpu->NumberOfCores          = 1;
+    Processor->NumberOfCores          = 1;
 
     // Initialize the default params of primary core
-    Cpu->PrimaryCore.Id         = 0;
-    Cpu->PrimaryCore.State      = CpuStateRunning;
-    Cpu->PrimaryCore.External   = 0;
+    Processor->PrimaryCore.Id         = 0;
+    Processor->PrimaryCore.State      = CpuStateRunning;
+    Processor->PrimaryCore.External   = 0;
 
     // Store cpu-id level and store the cpu vendor
-    Cpu->Data[CPU_DATA_MAXLEVEL] = CpuRegisters[0];
-    memcpy(&Cpu->Vendor[0], &CpuRegisters[1], 4);
-    memcpy(&Cpu->Vendor[4], &CpuRegisters[3], 4);
-    memcpy(&Cpu->Vendor[8], &CpuRegisters[2], 4);
+    Processor->Data[CPU_DATA_MAXLEVEL] = CpuRegisters[0];
+    memcpy(&Processor->Vendor[0], &CpuRegisters[1], 4);
+    memcpy(&Processor->Vendor[4], &CpuRegisters[3], 4);
+    memcpy(&Processor->Vendor[8], &CpuRegisters[2], 4);
 
     // Does it support retrieving features?
-    if (Cpu->Data[CPU_DATA_MAXLEVEL] >= 1) {
+    if (Processor->Data[CPU_DATA_MAXLEVEL] >= 1) {
         __get_cpuid(1, CpuRegisters);
-        Cpu->Data[CPU_DATA_FEATURES_ECX]    = CpuRegisters[2];
-        Cpu->Data[CPU_DATA_FEATURES_EDX]    = CpuRegisters[3];
-        Cpu->NumberOfCores                  = (CpuRegisters[1] >> 16) & 0xFF;
-        Cpu->PrimaryCore.Id                 = (CpuRegisters[1] >> 24) & 0xFF;
+        Processor->Data[CPU_DATA_FEATURES_ECX]    = CpuRegisters[2];
+        Processor->Data[CPU_DATA_FEATURES_EDX]    = CpuRegisters[3];
+        Processor->NumberOfCores                  = (CpuRegisters[1] >> 16) & 0xFF;
+        Processor->PrimaryCore.Id                 = (CpuRegisters[1] >> 24) & 0xFF;
 
         // This can be reported as 0, which means we assume a single cpu
-        if (Cpu->NumberOfCores == 0) {
-            Cpu->NumberOfCores = 1;
+        if (Processor->NumberOfCores == 0) {
+            Processor->NumberOfCores = 1;
         }
     }
 
@@ -122,8 +121,8 @@ InitializeProcessor(
     __get_cpuid(0x80000000, CpuRegisters);
 
     // Extract the processor brand string if it's supported
-    Cpu->Data[CPU_DATA_MAXEXTENDEDLEVEL] = CpuRegisters[0];
-    if (Cpu->Data[CPU_DATA_MAXEXTENDEDLEVEL] >= 0x80000004) {
+    Processor->Data[CPU_DATA_MAXEXTENDEDLEVEL] = CpuRegisters[0];
+    if (Processor->Data[CPU_DATA_MAXEXTENDEDLEVEL] >= 0x80000004) {
         __get_cpuid(0x80000002, CpuRegisters); // First 16 bytes
         memcpy(&TemporaryBrand[0], &CpuRegisters[0], 16);
         __get_cpuid(0x80000003, CpuRegisters); // Middle 16 bytes
@@ -131,13 +130,14 @@ InitializeProcessor(
         __get_cpuid(0x80000004, CpuRegisters); // Last 16 bytes
         memcpy(&TemporaryBrand[32], &CpuRegisters[0], 16);
         BrandPointer = TrimWhitespaces(BrandPointer);
-        memcpy(&Cpu->Brand[0], BrandPointer, strlen(BrandPointer));
+        memcpy(&Processor->Brand[0], BrandPointer, strlen(BrandPointer));
     }
 
     // Enable cpu features
     CpuInitializeFeatures();
 
-    // Initialize cpu systems
+    // Initialize cpu systems, only do this for primary processor
+    // @todo
     GdtInitialize();
     IdtInitialize();
     PicInitialize();
@@ -156,43 +156,14 @@ SetMachineUmaMode(void)
     for(;;);
 }
 
-InterruptStatus_t
-FunctionExecutionInterruptHandler(
-    _In_ FastInterruptResources_t* NotUsed,
-    _In_ void*                     NotUsedEither)
-{
-    // We must execute the function in the FunctionState
-    SystemCpuCore_t*    Core     = GetCurrentProcessorCore();
-    SystemCpuFunction_t Function = Core->FunctionState.Function;
-    void*               Argument = Core->FunctionState.Argument;
-    SpinlockRelease(&Core->FunctionState.SyncObject);
-    
-    Function(Argument);
-    return InterruptHandled;
-}
-
 void
-ExecuteProcessorCoreFunction(
-    _In_     UUId_t                  CoreId,
-    _In_     SystemCpuFunctionType_t Type,
-    _In_Opt_ SystemCpuFunction_t     Function,
-    _In_Opt_ void*                   Argument)
+ArchProcessorSendInterrupt(
+    _In_ UUId_t CoreId,
+    _In_ UUId_t InterruptId)
 {
-    if (Type == CpuFunctionHalt) {
-        (void)ApicSendInterrupt(InterruptSpecific, CoreId, INTERRUPT_HALT);
-    }
-    else if (Type == CpuFunctionYield) {
-        (void)ApicSendInterrupt(InterruptSpecific, CoreId, INTERRUPT_YIELD);
-    }
-    else if (Type == CpuFunctionCustom) {
-        SystemCpuCore_t* Core = GetProcessorCore(CoreId);
-        
-        // Get data lock on the core we are sending to
-        SpinlockAcquire(&Core->FunctionState.SyncObject);
-        Core->FunctionState.Function = Function;
-        Core->FunctionState.Argument = Argument;
-        
-        (void)ApicSendInterrupt(InterruptSpecific, CoreId, INTERRUPT_FUNCTION);
+    OsStatus_t Status = ApicSendInterrupt(InterruptSpecific, CoreId, (int)(InterruptId & 0xFF));
+    if (Status != OsSuccess) {
+        FATAL(FATAL_SCOPE_KERNEL, "Failed to deliver IPI signal");
     }
 }
 
