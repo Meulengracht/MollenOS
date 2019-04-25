@@ -94,8 +94,11 @@ static int slab_allocate_index(MemoryCache_t* Cache, MemorySlab_t* Slab)
 {
     int i;
     for (i = 0; i < (int)Cache->ObjectCount; i++) {
-        if (!(Slab->FreeBitmap[i / 8] & (1 << (i % 8)))) {
-            Slab->FreeBitmap[i / 8] |= (1 << (i % 8));
+        unsigned Block  = i / 8;
+        unsigned Offset = i % 8;
+        if (!(Slab->FreeBitmap[Block] & (1 << Offset))) {
+            assert(i < Cache->ObjectCount);
+            Slab->FreeBitmap[Block] |= (1 << Offset);
             Slab->NumberOfFreeObjects--;
             return i;
         }
@@ -105,20 +108,27 @@ static int slab_allocate_index(MemoryCache_t* Cache, MemorySlab_t* Slab)
 
 static void slab_free_index(MemoryCache_t* Cache, MemorySlab_t* Slab, int Index)
 {
+    unsigned Block  = Index / 8;
+    unsigned Offset = Index % 8;
+    assert(Slab->NumberOfFreeObjects < Cache->ObjectCount);
+    assert(Slab->NumberOfFreeObjects >= 0);
     if (Index < (int)Cache->ObjectCount) {
-        Slab->FreeBitmap[Index / 8] &= ~(1 << (Index % 8));
+        Slab->FreeBitmap[Block] &= ~(1 << Offset);
         Slab->NumberOfFreeObjects++;
     }
 }
 
 static int slab_contains_address(MemoryCache_t* Cache, MemorySlab_t* Slab, uintptr_t Address)
 {
-    uintptr_t Base = (uintptr_t)Slab->Address;
-    uintptr_t End  = Base + (Cache->ObjectCount * (Cache->ObjectSize + Cache->ObjectPadding));
+    uintptr_t Base  = (uintptr_t)Slab->Address;
+    uintptr_t End   = Base + (Cache->ObjectCount * (Cache->ObjectSize + Cache->ObjectPadding));
+    int       Index = -1;
     if (Address >= Base && Address < End) {
-        return (int)((Address - Base) / (Cache->ObjectSize + Cache->ObjectPadding));
+        Index = (int)((Address - Base) / (Cache->ObjectSize + Cache->ObjectPadding));
+        assert(Index >= 0);
+        assert(Index < Cache->ObjectCount);
     }
-    return -1;
+    return Index;
 }
 
 static void slab_initalize_objects(MemoryCache_t* Cache, MemorySlab_t* Slab)
@@ -313,8 +323,8 @@ cache_calculate_atomic_cache(
 {
     // number of cpu * cpu_cache_objects + number of cpu * objects per slab * pointer size
     size_t BytesRequired = 0;
-    if (GetMachine()->NumberOfActiveCores > 1) {
-        BytesRequired = (GetMachine()->NumberOfActiveCores * (sizeof(MemoryAtomicCache_t) + (Cache->ObjectCount * sizeof(void*))));
+    if (GetMachine()->NumberOfCores > 1) {
+        BytesRequired = (GetMachine()->NumberOfCores * (sizeof(MemoryAtomicCache_t) + (Cache->ObjectCount * sizeof(void*))));
         if (cache_find_fixed_size(BytesRequired) == NULL) {
             BytesRequired = 0;
         }
@@ -331,10 +341,10 @@ cache_initialize_atomic_cache(
     if (AtomicCacheSize) {
         Cache->AtomicCaches = (uintptr_t)kmalloc(AtomicCacheSize);
         memset((void*)Cache->AtomicCaches, 0, AtomicCacheSize);
-        for (i = 0; i < GetMachine()->NumberOfActiveCores; i++) {
+        for (i = 0; i < GetMachine()->NumberOfCores; i++) {
             MemoryAtomicCache_t* AtomicCache = MEMORY_ATOMIC_CACHE(Cache, i);
-            AtomicCache->Available = 0;
-            AtomicCache->Limit = Cache->ObjectCount;
+            AtomicCache->Available           = 0;
+            AtomicCache->Limit               = Cache->ObjectCount;
         }
     }
 }
@@ -447,6 +457,7 @@ MemoryCacheConstruct(
     if (ObjectAlignment != 0 && ((ObjectSize + ObjectPadding) % ObjectAlignment)) {
         ObjectPadding += ObjectAlignment - ((ObjectSize + ObjectPadding) % ObjectAlignment);
     }
+    memset(Cache, 0, sizeof(MemoryCache_t));
 
     Cache->Name              = Name;
     Cache->Flags             = Flags;
@@ -468,7 +479,6 @@ MemoryCacheCreate(
     _In_ void(*ObjectDestructor)(struct MemoryCache*, void*))
 {
     MemoryCache_t* Cache = (MemoryCache_t*)MemoryCacheAllocate(&InitialCache);
-    memset(Cache, 0, sizeof(MemoryCache_t));
 
     // Construct the instance, and then see if we can enable the per-cpu cache
     MemoryCacheConstruct(Cache, Name, ObjectSize, ObjectAlignment, Flags, ObjectConstructor, ObjectDestructor);
@@ -535,26 +545,41 @@ MemoryCacheAllocate(
             Slab = (MemorySlab_t*)CollectionPopFront(&Cache->FreeSlabs);
             CollectionAppend(&Cache->PartialSlabs, &Slab->Header);
         }
+        
+        Index = slab_allocate_index(Cache, Slab);
+        if (Index == -1) {
+            ERROR("index -1: NumberOfFreeObjects %u/%u", 
+                Slab->NumberOfFreeObjects, Cache->ObjectCount);
+        }
+        assert(Index != -1);
+        if (!Slab->NumberOfFreeObjects) {
+            // Last index, push to full
+            CollectionRemoveByNode(&Cache->PartialSlabs, &Slab->Header);
+            CollectionAppend(&Cache->FullSlabs, &Slab->Header);
+        }
+        Cache->NumberOfFreeObjects--;
     }
     else {
+        dsunlock(&Cache->SyncObject);
         // allocate and build new slab, put it into partial list right away
         // as we are allocating a new object immediately
-        dsunlock(&Cache->SyncObject);
         Slab = slab_create(Cache);
-        dslock(&Cache->SyncObject);
+        assert(Slab != NULL);
+        Index = slab_allocate_index(Cache, Slab);
+        assert(Index != -1);
         
-        Cache->NumberOfFreeObjects += Cache->ObjectCount;
-        CollectionAppend(&Cache->PartialSlabs, &Slab->Header);
+        dslock(&Cache->SyncObject);
+        if (!Slab->NumberOfFreeObjects) {
+            CollectionAppend(&Cache->FullSlabs, &Slab->Header);
+        }
+        else {
+            Cache->NumberOfFreeObjects += (Cache->ObjectCount - 1);
+            CollectionAppend(&Cache->PartialSlabs, &Slab->Header);
+        }
     }
-    Index = slab_allocate_index(Cache, Slab);
-    if (!Slab->NumberOfFreeObjects) {
-        // Last index, push to full
-        CollectionPopFront(&Cache->PartialSlabs);
-        CollectionAppend(&Cache->FullSlabs, &Slab->Header);
-    }
-    Allocated = MEMORY_SLAB_ELEMENT(Cache, Slab, Index);
-    Cache->NumberOfFreeObjects--;
     dsunlock(&Cache->SyncObject);
+    
+    Allocated = MEMORY_SLAB_ELEMENT(Cache, Slab, Index);
     TRACE(" => 0x%" PRIxIN "", Allocated);
     return Allocated;
 }
