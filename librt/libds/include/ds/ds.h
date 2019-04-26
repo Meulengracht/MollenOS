@@ -42,8 +42,8 @@ typedef enum {
 } KeyType_t;
 
 typedef struct {
-    atomic_bool SyncObject;
-    unsigned    Flags;
+    _Atomic(int) SyncObject;
+    unsigned     Flags;
 } SafeMemoryLock_t;
 
 CRTDECL(void*, dsalloc(size_t size));

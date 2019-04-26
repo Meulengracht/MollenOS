@@ -109,6 +109,7 @@ SynchronizeMemoryRegion(
 
     NumberOfCores = ExecuteProcessorFunction(1, CpuFunctionCustom,
         MemorySynchronizationHandler, (void*)&Object);
+    while (Object.CallsCompleted != NumberOfCores);
 }
 
 static void

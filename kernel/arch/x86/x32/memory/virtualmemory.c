@@ -126,10 +126,6 @@ MmVirtualGetMasterTable(
     if (MemorySpace->ParentHandle != UUID_INVALID) {
         if (Address < MEMORY_LOCATION_RING3_THREAD_START) {
             SystemMemorySpace_t* MemorySpaceParent = (SystemMemorySpace_t*)LookupHandle(MemorySpace->ParentHandle);
-            if (MemorySpaceParent == NULL) {
-                FATAL(FATAL_SCOPE_KERNEL, "Failed to lookup memory space parent handle 0x%x", 
-                    MemorySpace->ParentHandle);
-            }
             Parent = (PageDirectory_t*)MemorySpaceParent->Data[MEMORY_SPACE_DIRECTORY];
         }
     }

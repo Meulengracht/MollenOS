@@ -233,8 +233,6 @@ CreateThread(
             Thread->MemorySpace = (SystemMemorySpace_t*)LookupHandle(Thread->MemorySpaceHandle);
         }
     }
-    WARNING("%s: mm-handle 0x%x, mm-parent 0x%x, mm-flags 0x%x",
-        Thread->Name, Thread->MemorySpaceHandle, Thread->MemorySpace->ParentHandle, Thread->MemorySpace->Flags);
     
     // Create pre-mapped tls region for userspace threads
     if (THREADING_RUNMODE(Flags) == THREADING_USERMODE) {
@@ -465,7 +463,7 @@ GetNextRunnableThread(
     Core                    = GetCurrentProcessorCore();
     Current->ContextActive  = *Context;
     
-    WARNING("%u: current thread: %s (Context 0x%" PRIxIN ", IP 0x%" PRIxIN ", PreEmptive %i)",
+    TRACE("%u: current thread: %s (Context 0x%" PRIxIN ", IP 0x%" PRIxIN ", PreEmptive %i)",
         Core->Id, Current->Name, *Context, CONTEXT_IP((*Context)), PreEmptive);
 
     Cleanup = atomic_load_explicit(&Current->Cleanup, memory_order_relaxed);
@@ -507,7 +505,7 @@ GetNextThread:
     if (NextThread->ContextActive == NULL) {
         NextThread->ContextActive = NextThread->Contexts[THREADING_CONTEXT_LEVEL0];
     }
-    WARNING("%u: next thread: %s (Context 0x%" PRIxIN ", IP 0x%" PRIxIN ", Slice %" PRIuIN ", Queue %i)", 
+    TRACE("%u: next thread: %s (Context 0x%" PRIxIN ", IP 0x%" PRIxIN ", Slice %" PRIuIN ", Queue %i)", 
         Core->Id, NextThread->Name, NextThread->ContextActive, CONTEXT_IP(NextThread->ContextActive), 
         NextThread->TimeSlice, NextThread->Queue);
 

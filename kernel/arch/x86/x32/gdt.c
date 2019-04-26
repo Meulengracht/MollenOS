@@ -176,38 +176,29 @@ TssGetBootIoSpace(void)
 	return (uintptr_t)&TssPointers[ArchGetProcessorCoreId()]->IoMap[0];
 }
 
-/* TssUpdateIo
- * Updates the io-map for the current runinng task, should
- * be updated each time there is a task-switch to reflect
- * io-privs. Iomap given must be length GDT_IOMAP_SIZE */
 void
 TssUpdateIo(
     _In_ UUId_t     Cpu,
-    _In_ uint8_t*   IoMap) {
+    _In_ uint8_t*   IoMap)
+{
     assert(TssPointers[Cpu] != NULL);
 	memcpy(&TssPointers[Cpu]->IoMap[0], IoMap, GDT_IOMAP_SIZE);
 }
 
-/* TssEnableIo
- * Enables the given port in the given io-map, also updates
- * the change into the current tss for the given cpu to 
- * reflect the port-ownership instantly */
 void
 TssEnableIo(
     _In_ UUId_t     Cpu,
-    _In_ uint16_t   Port) {
+    _In_ uint16_t   Port)
+{
     assert(TssPointers[Cpu] != NULL);
 	TssPointers[Cpu]->IoMap[Port / 8] &= ~(1 << (Port % 8));
 }
 
-/* TssDisableIo
- * Disables the given port in the given io-map, also updates
- * the change into the current tss for the given cpu to 
- * reflect the port-ownership instantly */
 void
 TssDisableIo(
     _In_ UUId_t     Cpu,
-    _In_ uint16_t   Port) {
+    _In_ uint16_t   Port)
+{
     assert(TssPointers[Cpu] != NULL);
 	TssPointers[Cpu]->IoMap[Port / 8] |= (1 << (Port % 8));
 }

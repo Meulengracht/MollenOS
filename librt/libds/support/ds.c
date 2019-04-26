@@ -81,14 +81,14 @@ void dsfree(void* pointer)
 
 void dslock(SafeMemoryLock_t* lock)
 {
-    bool locked = true;
+    int locked = 1;
 
 #ifdef LIBC_KERNEL
     IntStatus_t flags = InterruptDisable();
 #endif
     while (1) {
-        bool val = atomic_exchange(&lock->SyncObject, locked);
-        if (val == false) {
+        int val = atomic_exchange(&lock->SyncObject, locked);
+        if (!val) {
             break;
         }
     }
@@ -102,7 +102,7 @@ void dsunlock(SafeMemoryLock_t* lock)
 #ifdef LIBC_KERNEL
     IntStatus_t flags = lock->Flags;
 #endif
-    atomic_store(&lock->SyncObject, false);
+    atomic_store(&lock->SyncObject, 0);
 #ifdef LIBC_KERNEL
     InterruptRestoreState(flags);
 #endif

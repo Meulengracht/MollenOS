@@ -28,7 +28,7 @@
  // FreeBitmap | Object | Object | Object |
 typedef struct {
     CollectionItem_t Header;
-    size_t           NumberOfFreeObjects;
+    volatile size_t  NumberOfFreeObjects;
     uintptr_t*       Address;  // Points to first object
     uint8_t*         FreeBitmap;
 } MemorySlab_t;
@@ -50,7 +50,7 @@ typedef struct MemoryCache {
     size_t           ObjectPadding;
     size_t           ObjectCount;      // Count per slab
     size_t           PageCount;
-    size_t           NumberOfFreeObjects;
+    volatile size_t  NumberOfFreeObjects;
     void           (*ObjectConstructor)(struct MemoryCache*, void*);
     void           (*ObjectDestructor)(struct MemoryCache*, void*);
 

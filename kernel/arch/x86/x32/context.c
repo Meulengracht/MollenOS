@@ -60,6 +60,7 @@ ContextPushInterceptor(
 	
 	// Push in reverse fashion, and have everything on stack to be able to restore
 	// the default register states
+	assert(Context->UserEsp >= MEMORY_LOCATION_RING3_THREAD_START);
 	ContextPush((uintptr_t**)&Context->UserEsp, Context->Eip);
 	ContextPush((uintptr_t**)&Context->UserEsp, Context->Eax);
 	ContextPush((uintptr_t**)&Context->UserEsp, Context->Ebx);
