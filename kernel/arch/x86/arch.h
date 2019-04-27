@@ -45,7 +45,7 @@
 #define MEMORY_SPACE_IOMAP              2
 
 #ifndef GDT_IOMAP_SIZE
-#define GDT_IOMAP_SIZE                  2048
+#define GDT_IOMAP_SIZE                  ((0xFFFF / 8) + 1)
 #endif
 
 /* Threading (Data) Definitions

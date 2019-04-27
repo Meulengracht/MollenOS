@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS x86-32 Descriptor Table
+ * x86-32 Descriptor Table
  * - Global Descriptor Table
  * - Task State Segment 
  */
@@ -33,33 +33,28 @@
 extern void TssInstall(int GdtIndex);
 
 GdtObject_t __GdtTableObject; // Don't make static, used in asm
-static GdtDescriptor_t Descriptors[GDT_MAX_DESCRIPTORS]    = { { 0 } };
-static TssDescriptor_t *TssPointers[GDT_MAX_TSS]           = { 0 };
-static TssDescriptor_t BootTss                             = { 0 };
-static _Atomic(int) GdtIndicer                             = ATOMIC_VAR_INIT(0);
+static GdtDescriptor_t Descriptors[GDT_MAX_DESCRIPTORS] = { { 0 } };
+static TssDescriptor_t *TssPointers[GDT_MAX_TSS]        = { 0 };
+static TssDescriptor_t BootTss                          = { 0 };
+static _Atomic(int) GdtIndicer                          = ATOMIC_VAR_INIT(0);
 
-/* GdtInstallDescriptor
- * Helper for installing a new gdt descriptor into
- * the descriptor table, a memory base, memory limit
- * access flags and a grandularity must be provided to
- * configurate the segment */
-int
+static int
 GdtInstallDescriptor(
-    _In_ uint32_t       Base, 
-    _In_ uint32_t       Limit,
-    _In_ uint8_t        Access, 
-    _In_ uint8_t        Grandularity)
+    _In_ uint32_t Base, 
+    _In_ uint32_t Limit,
+    _In_ uint8_t  Access, 
+    _In_ uint8_t  Grandularity)
 {
     int GdtIndex = atomic_fetch_add(&GdtIndicer, 1);
 
 	// Fill descriptor
-	Descriptors[GdtIndex].BaseLow       = (uint16_t)(Base & 0xFFFF);
-	Descriptors[GdtIndex].BaseMid       = (uint8_t)((Base >> 16) & 0xFF);
-	Descriptors[GdtIndex].BaseHigh      = (uint8_t)((Base >> 24) & 0xFF);
-	Descriptors[GdtIndex].LimitLow      = (uint16_t)(Limit & 0xFFFF);
-	Descriptors[GdtIndex].Flags         = (uint8_t)((Limit >> 16) & 0x0F);
-	Descriptors[GdtIndex].Flags         |= (Grandularity & 0xF0);
-	Descriptors[GdtIndex].Access        = Access;
+	Descriptors[GdtIndex].BaseLow  = (uint16_t)(Base & 0xFFFF);
+	Descriptors[GdtIndex].BaseMid  = (uint8_t)((Base >> 16) & 0xFF);
+	Descriptors[GdtIndex].BaseHigh = (uint8_t)((Base >> 24) & 0xFF);
+	Descriptors[GdtIndex].LimitLow = (uint16_t)(Limit & 0xFFFF);
+	Descriptors[GdtIndex].Flags    = (uint8_t)((Limit >> 16) & 0x0F);
+	Descriptors[GdtIndex].Flags    |= (Grandularity & 0xF0);
+	Descriptors[GdtIndex].Access   = Access;
     return GdtIndex;
 }
 
@@ -118,18 +113,18 @@ GdtInitialize(void)
  * core, and it will set default params for the TSS */
 void
 TssInitialize(
-    _In_ int    PrimaryCore)
+    _In_ int PrimaryCore)
 {
-	// Variables
 	uint32_t tBase  = 0;
 	uint32_t tLimit = 0;
-    UUId_t CoreId   = ArchGetProcessorCoreId();
+    UUId_t   CoreId = ArchGetProcessorCoreId();
 
 	// If we use the static allocator, it must be the boot cpu
 	if (PrimaryCore) {
 		TssPointers[CoreId] = &BootTss;
 	}
 	else {
+		assert(CoreId < GDT_MAX_TSS);
 		TssPointers[CoreId] = (TssDescriptor_t*)kmalloc(sizeof(TssDescriptor_t));
 	}
 
@@ -156,20 +151,15 @@ TssInitialize(
 	TssInstall(GdtInstallDescriptor(tBase, tLimit, GDT_TSS_ENTRY, 0x00));
 }
 
-/* TssUpdateThreadStack
- * Updates the kernel/interrupt stack for the current
- * cpu tss entry, this should be updated at each task-switch */
 void
 TssUpdateThreadStack(
-    _In_ UUId_t     Cpu, 
-    _In_ uintptr_t  Stack)
+    _In_ UUId_t    Cpu, 
+    _In_ uintptr_t Stack)
 {
     assert(TssPointers[Cpu] != NULL);
 	TssPointers[Cpu]->Esp0 = Stack;
 }
 
-/* TssGetBootIoSpace
- * Retrieves the boot-io bitmap space for the kernel threads. */
 uintptr_t
 TssGetBootIoSpace(void)
 {
@@ -178,8 +168,8 @@ TssGetBootIoSpace(void)
 
 void
 TssUpdateIo(
-    _In_ UUId_t     Cpu,
-    _In_ uint8_t*   IoMap)
+    _In_ UUId_t   Cpu,
+    _In_ uint8_t* IoMap)
 {
     assert(TssPointers[Cpu] != NULL);
 	memcpy(&TssPointers[Cpu]->IoMap[0], IoMap, GDT_IOMAP_SIZE);
@@ -187,18 +177,26 @@ TssUpdateIo(
 
 void
 TssEnableIo(
-    _In_ UUId_t     Cpu,
-    _In_ uint16_t   Port)
+    _In_ UUId_t   Cpu,
+    _In_ uint16_t Port)
 {
+	size_t  Block  = Port / 8;
+	size_t  Offset = Port % 8;
+	uint8_t Bit    = (1u << Offset);
+	
     assert(TssPointers[Cpu] != NULL);
-	TssPointers[Cpu]->IoMap[Port / 8] &= ~(1 << (Port % 8));
+	TssPointers[Cpu]->IoMap[Block] &= ~(Bit);
 }
 
 void
 TssDisableIo(
-    _In_ UUId_t     Cpu,
-    _In_ uint16_t   Port)
+    _In_ UUId_t   Cpu,
+    _In_ uint16_t Port)
 {
+	size_t  Block  = Port / 8;
+	size_t  Offset = Port % 8;
+	uint8_t Bit    = (1u << Offset);
+	
     assert(TssPointers[Cpu] != NULL);
-	TssPointers[Cpu]->IoMap[Port / 8] |= (1 << (Port % 8));
+	TssPointers[Cpu]->IoMap[Block] |= (Bit);
 }
