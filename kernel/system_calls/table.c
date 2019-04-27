@@ -138,7 +138,7 @@ extern OsStatus_t ScPerformanceTick(LargeInteger_t *Value);
 extern OsStatus_t ScIsServiceAvailable(UUId_t ServiceId);
 
 // The static system calls function table.
-uintptr_t GlbSyscallTable[77] = {
+uintptr_t SystemCallsTable[77] = {
     ///////////////////////////////////////////////
     // Operating System Interface
     // - Protected, services/modules

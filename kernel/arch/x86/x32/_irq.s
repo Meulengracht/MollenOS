@@ -35,7 +35,57 @@ global ___getcr2
 ;Externs, common entry points
 extern _ExceptionEntry
 extern _InterruptEntry
-extern _GlbSyscallTable
+extern _SystemCallsTable
+
+; Save segments, registers and switch to kernel land 
+%macro save_state 0
+    push ds
+    push es
+    push fs
+    push gs
+    pushad
+
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+%endmacro
+
+; Restore segments, registers and cleanup irq + error code
+%macro restore_state 0
+    popad
+    pop gs
+    pop fs
+    pop es
+    pop ds
+    add esp, 0x8
+%endmacro
+
+; Exception with no error code
+%macro irq_no_error 1
+    global _irq_handler%1
+    _irq_handler%1:
+        push 0
+        push %1
+        jmp _exception_common
+%endmacro
+
+%macro irq_error 1
+    global _irq_handler%1
+    _irq_handler%1:
+        push %1
+        jmp _exception_common
+%endmacro
+
+%macro irq_normal 2
+    global _irq_handler%1
+    _irq_handler%1:
+        push 0
+        push %2
+        jmp _irq_common
+%endmacro
+
 
 ; void __wbinvd(void)
 ; Flushes the internal cpu caches
@@ -46,188 +96,94 @@ ___wbinvd:
 ; void __cli(void)
 ; Disables interrupts
 ___cli:
-	cli
-	ret 
+    cli
+    ret 
 
 ; void __sti(void)
 ; Enables interrupts
 ___sti:
-	sti
-	ret 
+    sti
+    ret 
 
 ; void __hlt(void)
 ; Halts the cpu untill interrupt
 ___hlt:
-	hlt
-	ret 
+    hlt
+    ret 
 
 ; uint32_t __getflags(void)
 ; Gets Eflags
 ___getflags:
-	pushfd
-	pop eax
-	ret
+    pushfd
+    pop eax
+    ret
 
 ; uint32_t __getcr2(void)
 ; Gets CR2 register
 ___getcr2:
-	mov eax, cr2
-	ret 
+    mov eax, cr2
+    ret 
 
-;Common entry point for exceptions
+; Common entry point for exceptions
+; Interrupts are disabled, no need to set task register
 _exception_common:
-	; Save Segments
-	push ds
-	push es
-	push fs
-	push gs
+    save_state
 
-	; Save Registers
-	pushad
+    ; Push registers as pointer to struct
+    push esp
+    call _ExceptionEntry
+    add esp, 0x4
 
-	; Switch to kernel segment
-	mov ax, 0x10
-	mov ds, ax
-	mov es, ax
-	mov fs, ax
-	mov gs, ax
-
-	; Push registers as pointer to struct
-	push esp
-
-	; Call C-code exception handler
-	call _ExceptionEntry
-
-	; Cleanup
-	add esp, 0x4
-
-	; _IF_ we return, restore state
-	popad
-
-	; Restore segments
-	pop gs
-	pop fs
-	pop es
-	pop ds
-
-	; Cleanup IrqNum & IrqErrorCode from stack
-	add esp, 0x8
-
-	; Return
-	iret
+    restore_state
+    iret
 
 ;Common entry point for interrupts
 _irq_common:
-	
-	; Save Segments
-	push ds
-	push es
-	push fs
-	push gs
+    save_state
 
-	; Save Registers
-	pushad
+    ; Push registers as pointer to struct
+    push esp
+    call _InterruptEntry
+    add esp, 0x4
 
-	; Switch to kernel segment
-	mov ax, 0x10
-	mov ds, ax
-	mov es, ax
-	mov fs, ax
-	mov gs, ax
-
-	; Push registers as pointer to struct
-	push esp
-
-	; Call C-code exception handler
-	call _InterruptEntry
-
-	; Cleanup
-	add esp, 0x4
-
-	; When we return, restore state
-	popad
-
-	; Restore segments
-	pop gs
-	pop fs
-	pop es
-	pop ds
-
-	; Cleanup IrqNum & IrqErrorCode from stack
-	add esp, 0x8
-
-	; Return
-	iret
+    restore_state
+    iret
 
 ; Entrypoint for syscall 
 _syscall_entry:
-	
-	; Save Segments
-	push ds
-	push es
-	push fs
-	push gs
+    push ds
+    push es
+    push fs
+    push gs
 
-	; Switch to kernel segment
-	push eax
-	mov ax, 0x10
-	mov ds, ax
-	mov es, ax
-	mov fs, ax
-	mov gs, ax
-	pop eax
+    ; Switch to kernel segment
+    push eax
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    pop eax
 
-	; Push args to stack
-	push edi
-	push esi
-	push edx
-	push ecx
-	push ebx
+    ; Push args to stack
+    push edi
+    push esi
+    push edx
+    push ecx
+    push ebx
 
-	; Lookup Function
-	shl eax, 2
-	mov ebx, [_GlbSyscallTable + eax]
-	
-	; Call function
-	call ebx
+    ; Lookup Function
+    shl eax, 2
+    mov ebx, [_SystemCallsTable + eax]
+    call ebx
+    add esp, 20
 
-	; Cleanup
-	add esp, 20
-
-	; Restore segments
-	pop gs
-	pop fs
-	pop es
-	pop ds
-
-	; Return
-	iret
-
-; Macros
-
-; Exception with no error code
-%macro irq_no_error 1
-	global _irq_handler%1
-	_irq_handler%1:
-		push 0
-		push %1
-		jmp _exception_common
-%endmacro
-
-%macro irq_error 1
-	global _irq_handler%1
-	_irq_handler%1:
-		push %1
-		jmp _exception_common
-%endmacro
-
-%macro irq_normal 2
-	global _irq_handler%1
-	_irq_handler%1:
-		push 0
-		push %2
-		jmp _irq_common
-%endmacro
+    ; Restore segments
+    pop gs
+    pop fs
+    pop es
+    pop ds
+    iret
 
 ;Define excetions!
 irq_no_error 0

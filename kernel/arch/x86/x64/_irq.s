@@ -35,7 +35,7 @@ global __getcr2
 ;Externs, common entry points
 extern ExceptionEntry
 extern InterruptEntry
-extern GlbSyscallTable
+extern SystemCallsTable
 
 ; void __wbinvd(void)
 ; Flushes the internal cpu caches
@@ -196,7 +196,7 @@ syscall_entry:
 
 	; Lookup Function (index * 8)
 	shl r11, 3
-	mov r11, qword [GlbSyscallTable + r11]
+	mov r11, qword [SystemCallsTable + r11]
 
 	; Call function
     sub rsp, 0x28        ; microsoft home-space + 1 reg

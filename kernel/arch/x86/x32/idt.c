@@ -32,8 +32,12 @@ IdtObject_t Idtptr;
 
 static void InterruptInstallDefaultGates(void);
 
-static void IdtInstallDescriptor(int IntNum, uintptr_t Base,
-    uint16_t Selector, uint8_t Flags)
+static void
+IdtInstallDescriptor(
+    _In_ int       IntNum,
+    _In_ uintptr_t Base,
+    _In_ uint16_t  Selector,
+    _In_ uint8_t   Flags)
 {
     IdtDescriptors[IntNum].BaseLow  = (Base & 0xFFFF);
     IdtDescriptors[IntNum].BaseHigh = ((Base >> 16) & 0xFFFF);
@@ -42,14 +46,10 @@ static void IdtInstallDescriptor(int IntNum, uintptr_t Base,
     IdtDescriptors[IntNum].Flags    = Flags;
 }
 
-/* IdtInitialize
- * Initialize the idt table with the 256 default
- * descriptors for entering shared interrupt handlers
- * and shared exception handlers */
 void IdtInitialize(void)
 {
     Idtptr.Limit = (sizeof(IdtEntry_t) * IDT_DESCRIPTORS) - 1;
-    Idtptr.Base = (uint32_t)&IdtDescriptors[0];
+    Idtptr.Base  = (uint32_t)&IdtDescriptors[0];
     memset(&IdtDescriptors[0], 0, sizeof(IdtDescriptors));
     InterruptInstallDefaultGates();
     IdtInstallDescriptor(INTERRUPT_SYSCALL, (uintptr_t)syscall_entry, 
@@ -57,7 +57,8 @@ void IdtInitialize(void)
     IdtInstall();
 }
 
-void InterruptInstallDefaultGates(void)
+static void
+InterruptInstallDefaultGates(void)
 {
     IdtInstallDescriptor(0, (uint32_t)&irq_handler0,
         GDT_KCODE_SEGMENT, IDT_RING3 | IDT_PRESENT | IDT_INTERRUPT_GATE32);

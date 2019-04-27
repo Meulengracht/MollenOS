@@ -20,15 +20,10 @@
  * - Interrupt Descriptor Table
  */
 
-/* Includes
- * - System */
+#include <string.h>
 #include <arch.h>
 #include <idt.h>
 #include <gdt.h>
-
-/* Includes
- * - Library */
-#include <string.h>
 
 /* Shorthande define that helps
  * us transform the name of the irq */
@@ -39,66 +34,43 @@
 IdtObject_t __IdtTableObject;
 static IdtEntry_t IdtDescriptors[IDT_DESCRIPTORS];
 
-/* InterruptInstallDefaultGates
- * Installs the default interrupt and exception
- * handlers into the idt-table, we fill every entry
- * with a shared handler */
-void InterruptInstallDefaultGates(void);
+static void InterruptInstallDefaultGates(void);
 
-/* IdtInstallDescriptor
- * Helper for installing a new idt descriptor into
- * the descriptor table, a memory base, interrupt
- * flags and a segment selector */
-void IdtInstallDescriptor(
-    _In_ int        IntNum,
-    _In_ uint64_t   Base,
-	_In_ uint16_t   Selector,
-    _In_ uint8_t    Flags,
-    _In_ uint8_t    IstIndex)
+static void
+IdtInstallDescriptor(
+    _In_ int      IntNum,
+    _In_ uint64_t Base,
+	_In_ uint16_t Selector,
+    _In_ uint8_t  Flags,
+    _In_ uint8_t  IstIndex)
 {
-    // Update the entry with given configuration
-	IdtDescriptors[IntNum].BaseLow = (uint16_t)(Base & 0xFFFF);
+	IdtDescriptors[IntNum].BaseLow    = (uint16_t)(Base & 0xFFFF);
 	IdtDescriptors[IntNum].BaseMiddle = (uint16_t)((Base >> 16) & 0xFFFF);
-	IdtDescriptors[IntNum].BaseHigh = (uint32_t)((Base >> 32) & 0xFFFFFFFF);
-	IdtDescriptors[IntNum].Selector = Selector;
-	IdtDescriptors[IntNum].Flags = Flags;
-	IdtDescriptors[IntNum].IstIndex = IstIndex;
-	IdtDescriptors[IntNum].Zero = 0;
+	IdtDescriptors[IntNum].BaseHigh   = (uint32_t)((Base >> 32) & 0xFFFFFFFF);
+	IdtDescriptors[IntNum].Selector   = Selector;
+	IdtDescriptors[IntNum].Flags      = Flags;
+	IdtDescriptors[IntNum].IstIndex   = IstIndex;
+	IdtDescriptors[IntNum].Zero       = 0;
 }
 
-/* IdtInitialize
- * Initialize the idt table with the 256 default
- * descriptors for entering shared interrupt handlers
- * and shared exception handlers */
 void IdtInitialize(void)
 {
 	__IdtTableObject.Limit = (sizeof(IdtEntry_t) * IDT_DESCRIPTORS) - 1;
-	__IdtTableObject.Base = (uint32_t)&IdtDescriptors[0];
-
-	// Initialize all default entries
+	__IdtTableObject.Base  = (uint32_t)&IdtDescriptors[0];
 	memset(&IdtDescriptors[0], 0, sizeof(IdtDescriptors));
 	InterruptInstallDefaultGates();
 
 	// Override ALL call gates that need on per-thread base
     // INTERRUPT_SYSCALL, INTERRUPT_LAPIC
-
-    // INTERRUPT_SYSCALL
 	IdtInstallDescriptor(INTERRUPT_SYSCALL, (uintptr_t)syscall_entry, 
 		GDT_KCODE_SEGMENT, IDT_RING3 | IDT_PRESENT | IDT_TRAP_GATE32, IDT_IST_INDEX_LEGACY);
-    
-    // INTERRUPT_LAPIC
-	IdtInstallDescriptor(INTERRUPT_LAPIC, (uint32_t)&irq_stringify(240), 
+	IdtInstallDescriptor(INTERRUPT_LAPIC, (uint32_t)&irq_stringify(97), 
         GDT_KCODE_SEGMENT, IDT_RING3 | IDT_PRESENT | IDT_INTERRUPT_GATE32, IDT_IST_INDEX_LEGACY);
-
-	// Install the IDT
 	IdtInstall();
 }
 
-/* InterruptInstallDefaultGates
- * Installs the default interrupt and exception
- * handlers into the idt-table, we fill every entry
- * with a shared handler */
-void InterruptInstallDefaultGates(void)
+static void
+InterruptInstallDefaultGates(void)
 {
 	/* Install exception handlers */
 	IdtInstallDescriptor(0, (uint32_t)&irq_handler0,
