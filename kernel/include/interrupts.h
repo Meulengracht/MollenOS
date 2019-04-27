@@ -51,6 +51,11 @@ typedef struct _SystemInterrupt {
 KERNELAPI void KERNELABI
 InitializeInterruptTable(void);
 
+/* InitializeInterruptHandlers
+ * Initializes the default kernel interrupt handlers for different multi-core functionality. */
+KERNELAPI void KERNELABI
+InitializeInterruptHandlers(void);
+
 /* FastInterruptResources_t
  * Retrieves the system fast interrupt resource table to pass to process interrupt handlers. */
 KERNELAPI FastInterruptResources_t* KERNELABI

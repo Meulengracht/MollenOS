@@ -66,8 +66,6 @@ TssInstall:
 	mov rax, rcx
 	shl rax, 4
 	or rax, 0x3
-
-	; Load task register
 	ltr ax
 	ret
 

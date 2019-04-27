@@ -48,6 +48,7 @@ typedef struct _MCoreThread MCoreThread_t;
 #define SCHEDULER_SLEEP_SYNC_FAILED     3
 
 #define SCHEDULER_FLAG_BOUND            0x1
+#define SCHEDULER_FLAG_BLOCK_IN_PRG     0x2
 
 typedef struct {
     MCoreThread_t* Head;

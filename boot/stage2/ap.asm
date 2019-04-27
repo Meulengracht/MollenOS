@@ -49,8 +49,8 @@ FixCS:
 
 	; Setup stack
 	mov		ss, ax
-    mov     ax, word [wStackSize]
-	lock xadd word [wStackAddress], ax
+    mov     ax, word [wBootStackSize]
+	lock xadd word [wBootStackAddress], ax
 	mov		sp, ax
     mov     bp, ax
 	xor 	ax, ax
@@ -90,7 +90,10 @@ Entry32:
 	mov 	gs, ax
 	mov 	ss, ax
 	mov 	es, ax
-	movzx 	esp, bp
+    mov     eax, dword [dRunStackSize]
+	lock xadd dword [dRunStackAddress], eax
+    mov     ebp, eax
+	mov 	esp, eax
 
 	; Setup Cpu
 %ifdef __amd64__
@@ -142,14 +145,15 @@ EndOfStage:
 ; **************************** 
 BITS 64
 Entry64:
-    xor 	eax, eax
-	mov 	ax, DATA64_DESC
-	mov 	ds, ax
-	mov 	fs, ax
-	mov 	gs, ax
-	mov 	ss, ax
-	mov 	es, ax
-	movzx 	rsp, bp
+    xor     eax, eax
+	mov     ax, DATA64_DESC
+	mov     ds, ax
+	mov     fs, ax
+	mov     gs, ax
+	mov     ss, ax
+	mov     es, ax
+	xor     rsp, rsp
+	mov     esp, ebp
 
     ; Setup Registers
 	xor 	rsi, rsi
@@ -168,7 +172,9 @@ EndOfStage64:
 ; **************************
 ; Variables
 ; **************************
-wStackSize              dw  0x500
-wStackAddress           dw  0x1500  ; Base-stack must not be below 0x1000
+wBootStackSize          dw  0x100
+wBootStackAddress       dw  0x1100  ; Base-stack must not be below 0x1000
+dRunStackSize           dd  0       ; size - 16
+dRunStackAddress        dd  0       ; size - 12
 dSystemPageDirectory    dd  0       ; size - 8
 dKernelAddress          dd  0       ; size - 4

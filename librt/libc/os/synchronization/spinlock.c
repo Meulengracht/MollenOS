@@ -26,40 +26,24 @@
 #include <threads.h>
 #include <assert.h>
 
-__EXTERN int _spinlock_acquire(Spinlock_t *Spinlock);
-__EXTERN int _spinlock_test(Spinlock_t *Spinlock);
-__EXTERN void _spinlock_release(Spinlock_t *Spinlock);
+extern int _spinlock_acquire(Spinlock_t *Spinlock);
+extern int _spinlock_test(Spinlock_t *Spinlock);
+extern void _spinlock_release(Spinlock_t *Spinlock);
+
+#define IS_RECURSIVE(Spinlock) (Spinlock->Configuration & SPINLOCK_RECURSIVE)
 
 OsStatus_t 
 SpinlockReset(
-	_In_ Spinlock_t *Lock)
+	_In_ Spinlock_t *Lock,
+    _In_ Flags_t     Configuration)
 {
     assert(Lock != NULL);
-	Lock->Value      = 0;
-    Lock->References = 0;
-    Lock->Owner      = UUID_INVALID;
+    atomic_store(&Lock->References, 0);
+
+	Lock->Value         = 0;
+    Lock->Owner         = UUID_INVALID;
+    Lock->Configuration = Configuration;
 	return OsSuccess;
-}
-
-OsStatus_t
-SpinlockAcquire(
-	_In_ Spinlock_t *Lock)
-{
-    assert(Lock != NULL);
-
-    // Reentrancy
-    if (Lock->Owner == thrd_current()) {
-        Lock->References++;
-        return OsSuccess;
-    }
-
-    // Value is updated by _acquire
-	if (!_spinlock_acquire(Lock)) {
-        return OsError;
-    }
-    Lock->Owner      = thrd_current();
-    Lock->References = 1;
-    return OsSuccess;
 }
 
 OsStatus_t
@@ -68,9 +52,8 @@ SpinlockTryAcquire(
 {
     assert(Lock != NULL);
 
-    // Reentrancy
-    if (Lock->Owner == thrd_current()) {
-        Lock->References++;
+    if (IS_RECURSIVE(Lock) && Lock->Owner == thrd_current()) {
+        atomic_fetch_add(&Lock->References, 1);
         return OsSuccess;
     }
 
@@ -78,22 +61,30 @@ SpinlockTryAcquire(
 	if (!_spinlock_test(Lock)) {
         return OsError;
     }
-    Lock->Owner      = thrd_current();
-    Lock->References = 1;
+    
+    atomic_store(&Lock->References, 1);
+    Lock->Owner = thrd_current();
     return OsSuccess;
 }
 
-OsStatus_t 
+void
+SpinlockAcquire(
+	_In_ Spinlock_t *Lock)
+{
+    while (SpinlockTryAcquire(Lock) != OsSuccess);
+}
+
+void 
 SpinlockRelease(
 	_In_ Spinlock_t *Lock)
 {
+    int References;
     assert(Lock != NULL);
 
     // Reduce the number of references
-    Lock->References--;
-    if (Lock->References == 0) {
+    References = atomic_fetch_sub(&Lock->References, 1);
+    if (References == 1) {
         Lock->Owner = UUID_INVALID;
         _spinlock_release(Lock);
     }
-	return OsSuccess;
 }

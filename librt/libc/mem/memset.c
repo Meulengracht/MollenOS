@@ -21,7 +21,7 @@ void *memset(void *dest, int c, size_t count)
 	unsigned long *aligned_addr;
 	unsigned int d = c & 0xff;	/* To avoid sign extension, copy C to an
 					unsigned variable.  */
-
+					
 	while (UNALIGNED (s))
 	{
 		if (count--)

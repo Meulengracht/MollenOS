@@ -116,33 +116,60 @@ InterruptGetApicConfiguration(
     return ApicFlags;
 }
 
+static UUId_t
+AllocateSoftwareVector(
+    _In_    DeviceInterrupt_t*  Interrupt,
+    _In_    Flags_t             Flags)
+{
+    UUId_t Result = 0;
+    
+    // Is it fixed?
+    if ((Flags & INTERRUPT_VECTOR) || 
+        Interrupt->Line != INTERRUPT_NONE) {
+
+        Result = (UUId_t)Interrupt->Line;
+
+        // Fixed by vector?
+        if (Flags & INTERRUPT_VECTOR) {
+            Result = InterruptGetLeastLoaded(Interrupt->Vectors, INTERRUPT_MAXVECTORS);
+        }
+
+        // @todo verify proper fixed lines
+    }
+    else if (Interrupt->Line == INTERRUPT_NONE) {
+        int Vectors[INTERRUPT_SOFTWARE_END - INTERRUPT_SOFTWARE_BASE];
+        int i;
+        for (i = 0; i < (INTERRUPT_SOFTWARE_END - INTERRUPT_SOFTWARE_BASE); i++) {
+            Vectors[i] = (INTERRUPT_SOFTWARE_BASE + i);
+        }
+        Result = InterruptGetLeastLoaded(Vectors, i);
+    }
+    else {
+        assert(0);
+    }
+    return Result;
+}
+
 OsStatus_t
 InterruptResolve(
     _In_    DeviceInterrupt_t*  Interrupt,
     _In_    Flags_t             Flags,
     _Out_   UUId_t*             TableIndex)
 {
-    // 1 Resolve the physical interrupt line
-    if (!(Flags & INTERRUPT_SOFT)) {
-        if (Flags & (INTERRUPT_VECTOR | INTERRUPT_MSI)) {
+    if (!(Flags & (INTERRUPT_SOFT | INTERRUPT_MSI))) {
+        if (Flags & INTERRUPT_VECTOR) {
             int Vectors[INTERRUPT_PHYSICAL_END - INTERRUPT_PHYSICAL_BASE];
             int i;
-            if (Flags & INTERRUPT_MSI) {
-                for (i = 0; i < (INTERRUPT_PHYSICAL_END - INTERRUPT_PHYSICAL_BASE); i++) {
-                    Vectors[i] = (INTERRUPT_PHYSICAL_BASE + i);
+            Vectors[INTERRUPT_MAXVECTORS] = INTERRUPT_NONE;
+            for (i = 0; i < INTERRUPT_MAXVECTORS; i++) {
+                if (Interrupt->Vectors[i] == INTERRUPT_NONE
+                    || i == INTERRUPT_MAXVECTORS) {
+                    Vectors[i] = INTERRUPT_NONE;
+                    break;
                 }
+                Vectors[i] = (INTERRUPT_PHYSICAL_BASE + Interrupt->Vectors[i]);
             }
-            else {
-                Vectors[INTERRUPT_MAXVECTORS] = INTERRUPT_NONE;
-                for (i = 0; i < INTERRUPT_MAXVECTORS; i++) {
-                    if (Interrupt->Vectors[i] == INTERRUPT_NONE
-                        || i == INTERRUPT_MAXVECTORS) {
-                        Vectors[i] = INTERRUPT_NONE;
-                        break;
-                    }
-                    Vectors[i] = (INTERRUPT_PHYSICAL_BASE + Interrupt->Vectors[i]);
-                }
-            }
+
             Interrupt->Line = InterruptGetLeastLoaded(Vectors, i);
 
             // Adjust to physical
@@ -150,24 +177,26 @@ InterruptResolve(
                 Interrupt->Line -= INTERRUPT_PHYSICAL_BASE;
             }
         }
-    }
 
-    // Do we need to override the source?
-    if (Interrupt->Line != INTERRUPT_NONE) {
-        // Now lookup in ACPI overrides if we should
-        // change the global source
-        for (int i = 0; i < GetMachine()->NumberOfOverrides; i++) {
-            if (GetMachine()->Overrides[i].SourceLine == Interrupt->Line) {
-                Interrupt->Line         = GetMachine()->Overrides[i].DestinationLine;
-                Interrupt->AcpiConform  = GetMachine()->Overrides[i].OverrideFlags;
+        // Do we need to override the source?
+        if (Interrupt->Line != INTERRUPT_NONE) {
+            // Now lookup in ACPI overrides if we should
+            // change the global source
+            for (int i = 0; i < GetMachine()->NumberOfOverrides; i++) {
+                if (GetMachine()->Overrides[i].SourceLine == Interrupt->Line) {
+                    Interrupt->Line         = GetMachine()->Overrides[i].DestinationLine;
+                    Interrupt->AcpiConform  = GetMachine()->Overrides[i].OverrideFlags;
+                }
             }
         }
+        *TableIndex = INTERRUPT_PHYSICAL_BASE + (UUId_t)Interrupt->Line;
+    }
+    else {
+        *TableIndex = AllocateSoftwareVector(Interrupt, Flags);
     }
 
-    // 2 Resolve the table index
+    // In case of MSI interrupt, update msi format
     if (Flags & INTERRUPT_MSI) {
-        *TableIndex = (INTERRUPT_PHYSICAL_BASE + (UUId_t)Interrupt->Line);
-
         // Fill in MSI data
         // MSI Message Address Register (0xFEE00000 LAPIC)
         // Bits 31-20: Must be 0xFEE
@@ -186,21 +215,6 @@ InterruptResolve(
         // Bits 10-08: Delivery Mode, standard
         // Bits 07-00: Vector
         Interrupt->MsiValue = (0x100 | (*TableIndex & 0xFF));
-    }
-    else {
-        // Driver/kernel interrupt
-        if (Flags & INTERRUPT_SOFT) {
-            if (Flags & INTERRUPT_VECTOR) {
-                *TableIndex = InterruptGetLeastLoaded(
-                    Interrupt->Vectors, INTERRUPT_MAXVECTORS);
-            }
-            else {
-                *TableIndex = Interrupt->Vectors[0];
-            }
-        }
-        else {
-            *TableIndex = (INTERRUPT_PHYSICAL_BASE + (UUId_t)Interrupt->Line);
-        }
     }
     return OsSuccess;
 }
@@ -225,8 +239,7 @@ InterruptConfigure(
     TRACE("InterruptConfigure(Id 0x%" PRIxIN ", Enable %i)", Descriptor->Id, Enable);
 
     // Is this a software interrupt? Don't install
-    if (Descriptor->Flags & INTERRUPT_SOFT || 
-        Descriptor->Interrupt.Line == INTERRUPT_NONE) {
+    if (Descriptor->Flags & (INTERRUPT_SOFT | INTERRUPT_MSI)) {
         return OsSuccess;
     }
 

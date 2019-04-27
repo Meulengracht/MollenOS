@@ -56,7 +56,7 @@ typedef struct _QuickExitHandler {
 
 /* Spinlock protecting the list access
  * of quick-exit handlers */
-static Spinlock_t _GlbQuickExitLock = SPINLOCK_INIT;
+static Spinlock_t _GlbQuickExitLock = SPINLOCK_INIT(0);
 static QuickExitHandler_t *_GlbQuickExitStack = NULL;
 
 /* at_quick_exit 

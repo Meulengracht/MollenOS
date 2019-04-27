@@ -26,7 +26,7 @@
 #include <threads.h>
 #include <stdio.h>
 
-Spinlock_t __GlbPrintLock = SPINLOCK_INIT;
+Spinlock_t __GlbPrintLock = SPINLOCK_INIT(0);
 FILE __GlbStdout = { 0 }, __GlbStdin = { 0 }, __GlbStderr = { 0 };
 
 OsStatus_t
@@ -34,7 +34,7 @@ _lock_file(
     _In_ FILE *file)
 {
     if (!(file->_flag & _IOSTRG)) {
-        return SpinlockAcquire(&__GlbPrintLock);
+        SpinlockAcquire(&__GlbPrintLock);
     }
     return OsSuccess;
 }
@@ -44,7 +44,7 @@ _unlock_file(
     _In_ FILE *file)
 {
     if (!(file->_flag & _IOSTRG)) {
-        return SpinlockRelease(&__GlbPrintLock);
+        SpinlockRelease(&__GlbPrintLock);
     }
     return OsSuccess;
 }
@@ -104,7 +104,7 @@ thrd_t thrd_current(void) {
 static Collection_t IoObjects   = COLLECTION_INIT(KeyInteger);
 static int*         FdBitmap    = NULL;
 static FILE         __GlbStdout = { 0 }, __GlbStdin = { 0 }, __GlbStderr = { 0 };
-static Spinlock_t   BitmapLock;
+static Spinlock_t   BitmapLock  = SPINLOCK_INIT(0);
 
 /* StdioCloneHandle 
  * Allocates and initializes a new stdio handle. */
@@ -350,9 +350,6 @@ StdioInitialize(
     _In_ void*  InheritanceBlock,
     _In_ size_t InheritanceBlockLength)
 {
-    // Initialize the locks
-    SpinlockReset(&BitmapLock);
-
     // Initialize the bitmap of fds
     FdBitmap = (int *)malloc(DIVUP(INTERNAL_MAXFILES, 8));
     memset(FdBitmap, 0, DIVUP(INTERNAL_MAXFILES, 8));
@@ -436,7 +433,7 @@ StdioFdAllocate(
         Object->lookahead[2] = '\n';
         Object->exflag       = 0;
         Object->file         = NULL;
-        SpinlockReset(&Object->lock);
+        SpinlockReset(&Object->lock, SPINLOCK_RECURSIVE);
     
         // Add to list
         Key.Value.Integer = result;
@@ -977,7 +974,7 @@ _lock_file(
     TRACE("_lock_file(0x%" PRIxIN ")", file);
     if (!(file->_flag & _IOSTRG)) {
         assert(get_ioinfo(file->_fd) != NULL);
-        return SpinlockAcquire(&get_ioinfo(file->_fd)->lock);
+        SpinlockAcquire(&get_ioinfo(file->_fd)->lock);
     }
     return OsSuccess;
 }
@@ -989,7 +986,7 @@ _unlock_file(
     TRACE("_unlock_file(0x%" PRIxIN ")", file);
     if (!(file->_flag & _IOSTRG)) {
         assert(get_ioinfo(file->_fd) != NULL);
-        return SpinlockRelease(&get_ioinfo(file->_fd)->lock);
+        SpinlockRelease(&get_ioinfo(file->_fd)->lock);
     }
     return OsSuccess;
 }

@@ -39,7 +39,6 @@ RtcInterrupt(
     _In_ FastInterruptResources_t*  NotUsed,
     _In_ void*                      Context)
 {
-    // Instantiate pointer
     Cmos_t *Chip = (Cmos_t*)Context;
     _CRT_UNUSED(NotUsed);
 

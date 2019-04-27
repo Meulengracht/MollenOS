@@ -56,10 +56,8 @@ add_executable (vali-core
 	output/log.c
 
 	# Synchronization
-	synchronization/atomicsection.c
-	synchronization/criticalsection.c
-	synchronization/semaphore_global.c
-	synchronization/semaphore_slim.c
+	synchronization/mutex.c
+	synchronization/semaphore.c
 
 	# System calls
 	system_calls/driver_calls.c

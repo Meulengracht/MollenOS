@@ -129,7 +129,7 @@ LookupHandleOfType(
 
 OsStatus_t
 DestroyHandle(
-    _In_ UUId_t             Handle)
+    _In_ UUId_t Handle)
 {
     SystemHandle_t* Instance;
     OsStatus_t      Status = OsSuccess;

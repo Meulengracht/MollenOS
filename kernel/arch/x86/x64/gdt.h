@@ -32,7 +32,7 @@
  * no dynamic memory at the time we need them */
 #define GDT_MAX_TSS                 128
 #define GDT_MAX_DESCRIPTORS         (GDT_MAX_TSS + 8)
-#define GDT_IOMAP_SIZE              2048
+#define GDT_IOMAP_SIZE              ((0xFFFF / 8) + 1)
 
 /* 8 Hardcoded system descriptors, we must have a 
  * null descriptor to catch cases where segment has

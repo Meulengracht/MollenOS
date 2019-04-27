@@ -38,7 +38,7 @@ global _enter_thread
 ; void _yield(void)
 ; Yields
 __yield:
-	int 0x81
+	int 0xF0
 	ret 
 
 ; void save_fpu(uintptr_t *buffer)

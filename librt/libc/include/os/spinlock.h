@@ -21,28 +21,33 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef _SPINLOCK_INTERFACE_H_
-#define _SPINLOCK_INTERFACE_H_
+#ifndef __SPINLOCK_H__
+#define __SPINLOCK_H__
 
 #include <os/osdefs.h>
 
-typedef struct _Spinlock {
-    int    Value;
-    UUId_t Owner;
-    int    References;
+#define SPINLOCK_RECURSIVE 0x1
+
+typedef struct {
+    int          Value;
+    Flags_t      Configuration;
+    UUId_t       Owner;
+    _Atomic(int) References;
 } Spinlock_t;
-#define SPINLOCK_INIT   { 0, UUID_INVALID, 0 }
+
+#define SPINLOCK_INIT(Flags) { 0, Flags, UUID_INVALID, 0 }
 
 _CODE_BEGIN
 /* SpinlockReset
  * This initializes a spinlock handle and sets it to default value (unlocked) */
 CRTDECL(OsStatus_t,
 SpinlockReset(
-	_In_ Spinlock_t* Lock));
+	_In_ Spinlock_t* Lock,
+    _In_ Flags_t     Configuration));
 
 /* SpinlockAcquire
  * Acquires the spinlock while busy-waiting for it to be ready if neccessary */
-CRTDECL(OsStatus_t,
+CRTDECL(void,
 SpinlockAcquire(
 	_In_ Spinlock_t* Lock));
 
@@ -54,9 +59,9 @@ SpinlockTryAcquire(
 
 /* SpinlockRelease
  * Releases the spinlock, and lets other threads access the lock */
-CRTDECL(OsStatus_t,
+CRTDECL(void,
 SpinlockRelease(
 	_In_ Spinlock_t* Lock));
 _CODE_END
 
-#endif //!_SPINLOCK_INTERFACE_H_
+#endif //!__SPINLOCK_H__

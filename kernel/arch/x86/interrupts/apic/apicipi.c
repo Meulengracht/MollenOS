@@ -16,14 +16,17 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS x86 Advanced Programmable Interrupt Controller Driver
+ * Advanced Programmable Interrupt Controller Driver
  *  - Ipi and synchronization utility functions
  */
+#define __MODULE "APIC"
+#define __TRACE
 
 #include <arch/interrupts.h>
 #include <arch/utils.h>
 #include <arch/time.h>
 #include <assert.h>
+#include <debug.h>
 #include <apic.h>
 
 #define WaitForConditionWithFault(fault, condition, runs, wait)\
@@ -52,8 +55,7 @@ ApicSynchronizeArbIds(void)
     OsStatus_t Status;
 
 	// Not needed on AMD and not supported on P4 
-	// So we need a check here in place to do it 
-	// @todo
+	// So we need a check here in place to do it @todo
     InterruptStatus = InterruptDisable();
 	Status          = ApicWaitForIdle();
     assert(Status != OsError);
@@ -70,17 +72,19 @@ OsStatus_t
 ApicSendInterrupt(
     _In_ InterruptTarget_t  Type,
     _In_ UUId_t             Specific,
-    _In_ int                Vector)
+    _In_ uint32_t           Vector)
 {
 	uint32_t    IpiLow  = 0;
 	uint32_t    IpiHigh = 0;
-    UUId_t      CpuId   = UUID_INVALID;
+    UUId_t      CoreId  = ArchGetProcessorCoreId();
     IntStatus_t InterruptStatus;
     OsStatus_t  Status;
+
+    if (!ApicIsInitialized()) {
+        return OsSuccess;
+    }
     
-    // Get cpu-id of us
-    CpuId = ArchGetProcessorCoreId();
-    if (Type == InterruptSpecific && Specific == CpuId) {
+    if (Type == InterruptSpecific && Specific == CoreId) {
         Type = InterruptSelf;
     }
 
@@ -111,6 +115,7 @@ ApicSendInterrupt(
     if (Status == OsSuccess) {
         ApicWriteLocal(APIC_ICR_HIGH, IpiHigh);
         ApicWriteLocal(APIC_ICR_LOW,  IpiLow);
+        Status = ApicWaitForIdle();
     }
     InterruptRestoreState(InterruptStatus);
     return Status;
@@ -118,8 +123,8 @@ ApicSendInterrupt(
 
 OsStatus_t
 ApicPerformIPI(
-    _In_ UUId_t             CoreId,
-    _In_ int                Assert)
+    _In_ UUId_t CoreId,
+    _In_ int    Assert)
 {
 	uint32_t    IpiHigh = APIC_DESTINATION(CoreId); // We use physical addressing for IPI/SIPI
 	uint32_t    IpiLow  = 0;
@@ -149,8 +154,8 @@ ApicPerformIPI(
 
 OsStatus_t
 ApicPerformSIPI(
-    _In_ UUId_t             CoreId,
-    _In_ uintptr_t          Address)
+    _In_ UUId_t    CoreId,
+    _In_ uintptr_t Address)
 {
 	uint32_t    IpiLow  = APIC_DELIVERY_MODE(APIC_MODE_SIPI) | APIC_LEVEL_ASSERT | APIC_DESTINATION_PHYSICAL;
 	uint32_t    IpiHigh = APIC_DESTINATION(CoreId); // We use physical addressing for IPI/SIPI

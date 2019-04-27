@@ -143,7 +143,6 @@ ReserveBlockmapRegion(
     _In_ uintptr_t      Block,
     _In_ size_t         Size)
 {
-    // Variables
     int BitCount;
     int Index;
 

@@ -64,6 +64,7 @@ typedef struct _SystemMachine {
 
     // Total information across domains
     size_t                      NumberOfProcessors;
+    size_t                      NumberOfCores;
     size_t                      NumberOfActiveCores;
     size_t                      NumberOfMemoryBlocks;
     size_t                      MemoryGranularity;

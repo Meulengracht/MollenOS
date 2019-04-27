@@ -70,12 +70,9 @@ CollectionClear(
     return OsSuccess;
 }
 
-/* CollectionDestroy
- * Destroys the Collection and frees all resources associated
- * does also free all Collection elements and keys */
 OsStatus_t
 CollectionDestroy(
-    _In_ Collection_t*          Collection)
+    _In_ Collection_t* Collection)
 {
     CollectionItem_t *Node = NULL;
     assert(Collection != NULL);
@@ -91,32 +88,25 @@ CollectionDestroy(
     return OsSuccess;
 }
 
-/* CollectionLength
- * Returns the length of the given Collection */
 size_t
 CollectionLength(
-    _In_ Collection_t*          Collection)
+    _In_ Collection_t* Collection)
 {
     assert(Collection != NULL);
     return atomic_load(&Collection->Length);
 }
 
-/* CollectionBegin
- * Retrieves the starting element of the Collection */
 CollectionIterator_t*
 CollectionBegin(
-    _In_ Collection_t*          Collection)
+    _In_ Collection_t* Collection)
 {
     assert(Collection != NULL);
     return Collection->Head;
 }
 
-/* CollectionNext
- * Iterates to the next element in the Collection and returns
- * NULL when the end has been reached */
 CollectionIterator_t*
 CollectionNext(
-    _In_ CollectionIterator_t*  It)
+    _In_ CollectionIterator_t* It)
 {
     return (It == NULL) ? NULL : It->Link;
 }
@@ -215,8 +205,8 @@ CollectionInsert(
         Collection->Head->Prev  = Node;
         Collection->Head        = Node;
     }
-    dsunlock(&Collection->SyncObject);
     atomic_fetch_add(&Collection->Length, 1);
+    dsunlock(&Collection->SyncObject);
     return OsSuccess;
 }
 
@@ -247,8 +237,8 @@ CollectionAppend(
         Collection->Tail->Link  = Node;
         Collection->Tail        = Node;
     }
-    dsunlock(&Collection->SyncObject);
     atomic_fetch_add(&Collection->Length, 1);
+    dsunlock(&Collection->SyncObject);
     return OsSuccess;
 }
 
@@ -282,8 +272,8 @@ CollectionPopFront(
     if (Collection->Tail == Current) {
         Collection->Head = Collection->Tail = NULL;
     }
-    dsunlock(&Collection->SyncObject);
     atomic_fetch_sub(&Collection->Length, 1);
+    dsunlock(&Collection->SyncObject);
 
     // Reset its link (remove any Collection traces!)
     Current->Link = NULL;

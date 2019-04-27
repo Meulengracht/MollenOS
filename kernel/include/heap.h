@@ -28,7 +28,7 @@
  // FreeBitmap | Object | Object | Object |
 typedef struct {
     CollectionItem_t Header;
-    size_t           NumberOfFreeObjects;
+    volatile size_t  NumberOfFreeObjects;
     uintptr_t*       Address;  // Points to first object
     uint8_t*         FreeBitmap;
 } MemorySlab_t;
@@ -50,7 +50,7 @@ typedef struct MemoryCache {
     size_t           ObjectPadding;
     size_t           ObjectCount;      // Count per slab
     size_t           PageCount;
-    size_t           NumberOfFreeObjects;
+    volatile size_t  NumberOfFreeObjects;
     void           (*ObjectConstructor)(struct MemoryCache*, void*);
     void           (*ObjectDestructor)(struct MemoryCache*, void*);
 
@@ -63,19 +63,31 @@ typedef struct MemoryCache {
     uintptr_t        AtomicCaches;
 } MemoryCache_t;
 
-#define HEAP_DEBUG_USE_AFTER_FREE  0x1
-#define HEAP_DEBUG_OVERRUN         0x2
-#define HEAP_CONTIGIOUS            0x4
+// Debug options for caches
+#define HEAP_DEBUG_USE_AFTER_FREE   0x1
+#define HEAP_DEBUG_OVERRUN          0x2
+
+// Configuration options for caches
+#define HEAP_CACHE_DEFAULT          0x4    // Only set for fixed size caches
+#define HEAP_CONTIGIOUS             0x8    // If the memory allocated must be contigious
+#define HEAP_SLAB_NO_ATOMIC_CACHE   0x10   // Set to disable smp optimizations
 
 // MemoryCacheInitialize
 // Initialize the default cache that is required for allocating new caches.
 void MemoryCacheInitialize(void);
 
-// MemoryCacheCreate
+// MemoryCacheConstruct
 // Create a new custom memory cache that can be used to allocate objects for. Can be customized
 // both with alignment, flags and constructor/destructor functionality upon creation of objects.
-MemoryCache_t* MemoryCacheCreate(const char* Name, size_t ObjectSize, size_t ObjectAlignment,
-    Flags_t Flags, void(*ObjectConstructor)(struct MemoryCache*, void*), void(*ObjectDestructor)(struct MemoryCache*, void*));
+KERNELAPI void KERNELABI
+MemoryCacheConstruct(
+    _In_ MemoryCache_t* Cache,
+    _In_ const char*    Name,
+    _In_ size_t         ObjectSize,
+    _In_ size_t         ObjectAlignment,
+    _In_ Flags_t        Flags,
+    _In_ void(*ObjectConstructor)(struct MemoryCache*, void*),
+    _In_ void(*ObjectDestructor)(struct MemoryCache*, void*));
 
 // MemoryCacheAllocate
 // Allocates a new object from the cache.

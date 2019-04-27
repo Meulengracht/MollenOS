@@ -40,25 +40,27 @@ static struct FixedCache {
     size_t         ObjectSize;
     const char*    Name;
     MemoryCache_t* Cache;
+    Flags_t        InitializationFlags;
 } DefaultCaches[] = {
-    { 32,     "size32_cache",     NULL },
-    { 64,     "size64_cache",     NULL },
-    { 128,    "size128_cache",    NULL },
-    { 256,    "size256_cache",    NULL },
-    { 512,    "size512_cache",    NULL },
-    { 1024,   "size1024_cache",   NULL },
-    { 2048,   "size2048_cache",   NULL },
-    { 4096,   "size4096_cache",   NULL },
-    { 8192,   "size8192_cache",   NULL },
-    { 16384,  "size16384_cache",  NULL },
-    { 32768,  "size32768_cache",  NULL },
-    { 65536,  "size65536_cache",  NULL },
-    { 131072, "size131072_cache", NULL },
-    { 262144, "size262144_cache", NULL },
-    { 0,      NULL,               NULL }
+    { 32,     "size32_cache",     NULL, HEAP_CACHE_DEFAULT },
+    { 64,     "size64_cache",     NULL, HEAP_CACHE_DEFAULT },
+    { 128,    "size128_cache",    NULL, HEAP_CACHE_DEFAULT },
+    { 256,    "size256_cache",    NULL, HEAP_CACHE_DEFAULT },
+    { 512,    "size512_cache",    NULL, HEAP_CACHE_DEFAULT },
+    { 1024,   "size1024_cache",   NULL, HEAP_CACHE_DEFAULT },
+    { 2048,   "size2048_cache",   NULL, HEAP_CACHE_DEFAULT },
+    { 4096,   "size4096_cache",   NULL, HEAP_CACHE_DEFAULT },
+    { 8192,   "size8192_cache",   NULL, HEAP_CACHE_DEFAULT },
+    { 16384,  "size16384_cache",  NULL, HEAP_CACHE_DEFAULT },
+    { 32768,  "size32768_cache",  NULL, HEAP_CACHE_DEFAULT },
+    { 65536,  "size65536_cache",  NULL, HEAP_CACHE_DEFAULT },
+    { 131072, "size131072_cache", NULL, HEAP_CACHE_DEFAULT },
+    { 262144, "size262144_cache", NULL, HEAP_CACHE_DEFAULT },
+    { 0,      NULL,               NULL, 0 }
 };
 
-static uintptr_t AllocateVirtualMemory(Flags_t Flags, size_t PageCount)
+static uintptr_t
+allocate_virtual_memory(Flags_t Flags, size_t PageCount)
 {
     uintptr_t  Address;
     size_t     PageSize = GetMemorySpacePageSize();
@@ -81,7 +83,8 @@ static uintptr_t AllocateVirtualMemory(Flags_t Flags, size_t PageCount)
     return Address;
 }
 
-static void FreeVirtualMemory(uintptr_t Address, size_t PageCount)
+static void
+free_virtual_memory(uintptr_t Address, size_t PageCount)
 {
     size_t     PageSize = GetMemorySpacePageSize();
     OsStatus_t Status   = RemoveMemorySpaceMapping(GetCurrentMemorySpace(), Address, PageSize * PageCount);
@@ -90,12 +93,35 @@ static void FreeVirtualMemory(uintptr_t Address, size_t PageCount)
     }
 }
 
-static int slab_allocate_index(MemoryCache_t* Cache, MemorySlab_t* Slab)
+static inline struct FixedCache*
+cache_find_fixed_size(
+    _In_ size_t Size)
+{
+    struct FixedCache* Selected = NULL;
+    int                i = 0;
+
+    // Find a cache to do the allocation in
+    while (DefaultCaches[i].ObjectSize != 0) {
+        if (Size <= DefaultCaches[i].ObjectSize) {
+            Selected = &DefaultCaches[i];
+            break;
+        }
+        i++;
+    }
+    return Selected;
+}
+
+static int
+slab_allocate_index(MemoryCache_t* Cache, MemorySlab_t* Slab)
 {
     int i;
+    assert(Slab->NumberOfFreeObjects <= Cache->ObjectCount);
     for (i = 0; i < (int)Cache->ObjectCount; i++) {
-        if (!(Slab->FreeBitmap[i / 8] & (1 << (i % 8)))) {
-            Slab->FreeBitmap[i / 8] |= (1 << (i % 8));
+        unsigned Block  = i / 8;
+        unsigned Offset = i % 8;
+        uint8_t  Bit    = (1u << Offset);
+        if (!(Slab->FreeBitmap[Block] & Bit)) {
+            Slab->FreeBitmap[Block] |= Bit;
             Slab->NumberOfFreeObjects--;
             return i;
         }
@@ -103,25 +129,36 @@ static int slab_allocate_index(MemoryCache_t* Cache, MemorySlab_t* Slab)
     return -1;
 }
 
-static void slab_free_index(MemoryCache_t* Cache, MemorySlab_t* Slab, int Index)
+static void
+slab_free_index(MemoryCache_t* Cache, MemorySlab_t* Slab, int Index)
 {
+    unsigned Block  = Index / 8;
+    unsigned Offset = Index % 8;
+    uint8_t  Bit    = (1u << Offset);
+    assert(Slab->NumberOfFreeObjects < Cache->ObjectCount);
     if (Index < (int)Cache->ObjectCount) {
-        Slab->FreeBitmap[Index / 8] &= ~(1 << (Index % 8));
+        Slab->FreeBitmap[Block] &= ~(Bit);
         Slab->NumberOfFreeObjects++;
     }
 }
 
-static int slab_contains_address(MemoryCache_t* Cache, MemorySlab_t* Slab, uintptr_t Address)
+static int
+slab_contains_address(MemoryCache_t* Cache, MemorySlab_t* Slab, uintptr_t Address)
 {
-    uintptr_t Base = (uintptr_t)Slab->Address;
-    uintptr_t End  = Base + (Cache->ObjectCount * (Cache->ObjectSize + Cache->ObjectPadding));
+    size_t    ObjectSize = Cache->ObjectSize + Cache->ObjectPadding;
+    uintptr_t Base       = (uintptr_t)Slab->Address;
+    uintptr_t End        = Base + (Cache->ObjectCount * ObjectSize);
+    int       Index      = -1;
     if (Address >= Base && Address < End) {
-        return (int)((Address - Base) / (Cache->ObjectSize + Cache->ObjectPadding));
+        Index = (int)((Address - Base) / ObjectSize);
+        assert(Index >= 0);
+        assert(Index < Cache->ObjectCount);
     }
-    return -1;
+    return Index;
 }
 
-static void slab_initalize_objects(MemoryCache_t* Cache, MemorySlab_t* Slab)
+static void
+slab_initalize_objects(MemoryCache_t* Cache, MemorySlab_t* Slab)
 {
     uintptr_t Address = (uintptr_t)Slab->Address;
     size_t    i;
@@ -160,7 +197,7 @@ slab_create(
 {
     MemorySlab_t* Slab;
     uintptr_t     ObjectAddress;
-    uintptr_t     DataAddress = AllocateVirtualMemory(Cache->Flags, Cache->PageCount);
+    uintptr_t     DataAddress = allocate_virtual_memory(Cache->Flags, Cache->PageCount);
     TRACE("slab_create(%s): 0x%" PRIxIN "", Cache->Name, DataAddress);
 
     if (Cache->SlabOnSite) {
@@ -171,6 +208,16 @@ slab_create(
         }
     }
     else {
+        // Protect against recursive allocations here, if we are default cache
+        // make sure we don't allocate from the same size as us
+        if (Cache->Flags & HEAP_CACHE_DEFAULT) {
+            struct FixedCache* Fixed = cache_find_fixed_size(Cache->SlabStructureSize);
+            if (Fixed->ObjectSize == Cache->ObjectSize) {
+                FATAL(FATAL_SCOPE_KERNEL, "Recursive allocation %u for default cache %u", 
+                    Cache->SlabStructureSize, Cache->ObjectSize);
+            }
+        }
+        
         Slab          = (MemorySlab_t*)kmalloc(Cache->SlabStructureSize);
         ObjectAddress = DataAddress;
     }
@@ -193,11 +240,11 @@ static void slab_destroy(MemoryCache_t* Cache, MemorySlab_t* Slab)
 {
     slab_destroy_objects(Cache, Slab);
     if (!Cache->SlabOnSite) {
-        FreeVirtualMemory((uintptr_t)Slab->Address, Cache->PageCount);
+        free_virtual_memory((uintptr_t)Slab->Address, Cache->PageCount);
         kfree(Slab);
     }
     else {
-        FreeVirtualMemory((uintptr_t)Slab, Cache->PageCount);
+        free_virtual_memory((uintptr_t)Slab, Cache->PageCount);
     }
 }
 
@@ -276,24 +323,6 @@ cache_contains_address(
     return Found;
 }
 
-static inline struct FixedCache*
-cache_find_fixed_size(
-    _In_ size_t Size)
-{
-    struct FixedCache* Selected = NULL;
-    int                i = 0;
-
-    // Find a cache to do the allocation in
-    while (DefaultCaches[i].ObjectSize != 0) {
-        if (Size <= DefaultCaches[i].ObjectSize) {
-            Selected = &DefaultCaches[i];
-            break;
-        }
-        i++;
-    }
-    return Selected;
-}
-
 static inline size_t
 cache_calculate_slab_structure_size(
     _In_ size_t ObjectsPerSlab)
@@ -313,8 +342,9 @@ cache_calculate_atomic_cache(
 {
     // number of cpu * cpu_cache_objects + number of cpu * objects per slab * pointer size
     size_t BytesRequired = 0;
-    if (GetMachine()->NumberOfActiveCores > 1) {
-        BytesRequired = (GetMachine()->NumberOfActiveCores * (sizeof(MemoryAtomicCache_t) + (Cache->ObjectCount * sizeof(void*))));
+    if (GetMachine()->NumberOfCores > 1) {
+        BytesRequired = (GetMachine()->NumberOfCores * 
+            (sizeof(MemoryAtomicCache_t) + (Cache->ObjectCount * sizeof(void*))));
         if (cache_find_fixed_size(BytesRequired) == NULL) {
             BytesRequired = 0;
         }
@@ -331,15 +361,16 @@ cache_initialize_atomic_cache(
     if (AtomicCacheSize) {
         Cache->AtomicCaches = (uintptr_t)kmalloc(AtomicCacheSize);
         memset((void*)Cache->AtomicCaches, 0, AtomicCacheSize);
-        for (i = 0; i < GetMachine()->NumberOfActiveCores; i++) {
+        for (i = 0; i < GetMachine()->NumberOfCores; i++) {
             MemoryAtomicCache_t* AtomicCache = MEMORY_ATOMIC_CACHE(Cache, i);
-            AtomicCache->Available = 0;
-            AtomicCache->Limit = Cache->ObjectCount;
+            AtomicCache->Available           = 0;
+            AtomicCache->Limit               = Cache->ObjectCount;
         }
     }
 }
 
-static void cache_drain_atomic_cache(MemoryCache_t* Cache)
+static void
+cache_drain_atomic_cache(MemoryCache_t* Cache)
 {
     // Send out IPI to all cores to empty their caches and put them into the gloal
     // cache, this should be done when attempting to free up memory.
@@ -427,8 +458,8 @@ cache_calculate_slab_size(
     TRACE(" => %" PRIuIN " Objects (%" PRIiIN "), On %" PRIuIN " Pages", ObjectsPerSlab, SlabOnSite, PageCount);
 }
 
-static void
-cache_construct(
+void
+MemoryCacheConstruct(
     _In_ MemoryCache_t* Cache,
     _In_ const char*    Name,
     _In_ size_t         ObjectSize,
@@ -447,6 +478,7 @@ cache_construct(
     if (ObjectAlignment != 0 && ((ObjectSize + ObjectPadding) % ObjectAlignment)) {
         ObjectPadding += ObjectAlignment - ((ObjectSize + ObjectPadding) % ObjectAlignment);
     }
+    memset(Cache, 0, sizeof(MemoryCache_t));
 
     Cache->Name              = Name;
     Cache->Flags             = Flags;
@@ -456,6 +488,11 @@ cache_construct(
     Cache->ObjectConstructor = ObjectConstructor;
     Cache->ObjectDestructor  = ObjectDestructor;
     cache_calculate_slab_size(Cache, ObjectSize, ObjectAlignment, ObjectPadding);
+    
+    // We only perform this if it has been requested and is not a default cache
+    if (!(Cache->Flags & (HEAP_CACHE_DEFAULT | HEAP_SLAB_NO_ATOMIC_CACHE))) {
+        cache_initialize_atomic_cache(Cache);
+    }
 }
 
 MemoryCache_t*
@@ -468,11 +505,7 @@ MemoryCacheCreate(
     _In_ void(*ObjectDestructor)(struct MemoryCache*, void*))
 {
     MemoryCache_t* Cache = (MemoryCache_t*)MemoryCacheAllocate(&InitialCache);
-    memset(Cache, 0, sizeof(MemoryCache_t));
-
-    // Construct the instance, and then see if we can enable the per-cpu cache
-    cache_construct(Cache, Name, ObjectSize, ObjectAlignment, Flags, ObjectConstructor, ObjectDestructor);
-    cache_initialize_atomic_cache(Cache);
+    MemoryCacheConstruct(Cache, Name, ObjectSize, ObjectAlignment, Flags, ObjectConstructor, ObjectDestructor);
     return Cache;
 }
 
@@ -525,36 +558,48 @@ MemoryCacheAllocate(
         }
     }
 
-    // Otherwise allocate from global cache
+    // Otherwise allocate from global cache  0x407018
     dslock(&Cache->SyncObject);
     if (Cache->NumberOfFreeObjects != 0) {
         if (CollectionLength(&Cache->PartialSlabs) != 0) {
             Slab = (MemorySlab_t*)CollectionBegin(&Cache->PartialSlabs);
+            assert(Slab->NumberOfFreeObjects != 0);
         }
         else {
             Slab = (MemorySlab_t*)CollectionPopFront(&Cache->FreeSlabs);
             CollectionAppend(&Cache->PartialSlabs, &Slab->Header);
         }
+        
+        Index = slab_allocate_index(Cache, Slab);
+        assert(Index != -1);
+        if (!Slab->NumberOfFreeObjects) {
+            // Last index, push to full
+            CollectionRemoveByNode(&Cache->PartialSlabs, &Slab->Header);
+            CollectionAppend(&Cache->FullSlabs, &Slab->Header);
+        }
+        Cache->NumberOfFreeObjects--;
     }
     else {
+        dsunlock(&Cache->SyncObject);
         // allocate and build new slab, put it into partial list right away
         // as we are allocating a new object immediately
-        dsunlock(&Cache->SyncObject);
         Slab = slab_create(Cache);
-        dslock(&Cache->SyncObject);
+        assert(Slab != NULL);
+        Index = slab_allocate_index(Cache, Slab);
+        assert(Index != -1);
         
-        Cache->NumberOfFreeObjects += Cache->ObjectCount;
-        CollectionAppend(&Cache->PartialSlabs, &Slab->Header);
+        dslock(&Cache->SyncObject);
+        if (!Slab->NumberOfFreeObjects) {
+            CollectionAppend(&Cache->FullSlabs, &Slab->Header);
+        }
+        else {
+            Cache->NumberOfFreeObjects += (Cache->ObjectCount - 1);
+            CollectionAppend(&Cache->PartialSlabs, &Slab->Header);
+        }
     }
-    Index = slab_allocate_index(Cache, Slab);
-    if (!Slab->NumberOfFreeObjects) {
-        // Last index, push to full
-        CollectionPopFront(&Cache->PartialSlabs);
-        CollectionAppend(&Cache->FullSlabs, &Slab->Header);
-    }
-    Allocated = MEMORY_SLAB_ELEMENT(Cache, Slab, Index);
-    Cache->NumberOfFreeObjects--;
     dsunlock(&Cache->SyncObject);
+    
+    Allocated = MEMORY_SLAB_ELEMENT(Cache, Slab, Index);
     TRACE(" => 0x%" PRIxIN "", Allocated);
     return Allocated;
 }
@@ -643,7 +688,12 @@ void* kmalloc(size_t Size)
 
     // If the cache does not exist, we must create it
     if (Selected->Cache == NULL) {
-        Selected->Cache = MemoryCacheCreate(Selected->Name, Selected->ObjectSize, Selected->ObjectSize, 0, NULL, NULL);
+        Selected->Cache = MemoryCacheCreate(Selected->Name, Selected->ObjectSize,
+            Selected->ObjectSize, Selected->InitializationFlags, NULL, NULL);
+        
+        // We must initialize this after updating the cache variable to ensure
+        // we don't end up in an enternal loop
+        cache_initialize_atomic_cache(Selected->Cache);
     }
     return MemoryCacheAllocate(Selected->Cache);
 }
@@ -709,5 +759,5 @@ MemoryCacheDump(
 void
 MemoryCacheInitialize(void)
 {
-    cache_construct(&InitialCache, "cache_cache", sizeof(MemoryCache_t), 0, 0, NULL, NULL);
+    MemoryCacheConstruct(&InitialCache, "cache_cache", sizeof(MemoryCache_t), 0, 0, NULL, NULL);
 }

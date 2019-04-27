@@ -232,9 +232,11 @@ EnumerateSystemCoresMADT(
                 if (AcpiCpu->LapicFlags & 0x1) {
                     CoreCount++;
                     if (RegisterCores) {
-                        TRACE(" > core %" PRIuIN " available and active", AcpiCpu->Id);
-                        if (AcpiCpu->Id != GetMachine()->Processor.PrimaryCore.Id) {
-                            RegisterApplicationCore(&GetMachine()->Processor, AcpiCpu->Id, CpuStateShutdown, 0);
+                        uint8_t ApicId      = AcpiCpu->Id;
+                        uint8_t ProcessorId = AcpiCpu->ProcessorId;
+                        TRACE(" > core %u (%u) available and active", ApicId, ProcessorId);
+                        if (ApicId != GetMachine()->Processor.PrimaryCore.Id) {
+                            RegisterApplicationCore(&GetMachine()->Processor, ApicId, CpuStateShutdown, 0);
                         }
                     }
                 }
@@ -242,7 +244,7 @@ EnumerateSystemCoresMADT(
             case ACPI_MADT_TYPE_LOCAL_X2APIC: {
                 ACPI_MADT_LOCAL_X2APIC *AcpiCpu = (ACPI_MADT_LOCAL_X2APIC*)MadtEntry;
                 if (AcpiCpu->LapicFlags & 0x1) {
-                    TRACE(" > core %" PRIuIN " available for xapic2", AcpiCpu->LocalApicId);
+                    TRACE(" > core %u available for xapic2", AcpiCpu->LocalApicId);
                     //@todo
                 }
             } break;
@@ -405,6 +407,8 @@ AcpiInitializeEarly(void)
             NumberOfDomains = GetSystemDomainCountFromSRAT(SratTableStart, SratTableEnd);
             if (NumberOfDomains > 1) {
                 TRACE(" > number of domains %" PRIiIN "", NumberOfDomains);
+                GetMachine()->NumberOfCores = 0;
+
                 for (int i = 0; i < NumberOfDomains; i++) {
                     SystemDomain_t *Domain;
                     uintptr_t MemoryStart   = 0;
@@ -413,6 +417,7 @@ AcpiInitializeEarly(void)
                     GetSystemDomainMetricsFromSRAT(SratTableStart, SratTableEnd,
                         (uint32_t)i, &NumberOfCores, &MemoryStart, &MemoryLength);
                     WARNING("end for now");
+                    GetMachine()->NumberOfCores += (size_t)NumberOfCores;
                     for(;;);
 
                     // Validate not empty domain
@@ -441,6 +446,9 @@ AcpiInitializeEarly(void)
                     &GetMachine()->Processor.NumberOfCores);
             }
             EnumerateSystemCoresMADT(MadtTableStart, MadtTableEnd, 1, NULL);
+
+            // Update the total number of cores
+            GetMachine()->NumberOfCores = GetMachine()->Processor.NumberOfCores;
         }
 
         // Handle system interrupt overrides

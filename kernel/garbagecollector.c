@@ -25,7 +25,6 @@
 
 #include <ds/collection.h>
 #include <garbagecollector.h>
-#include <criticalsection.h>
 #include <semaphore_slim.h>
 #include <threading.h>
 #include <string.h>

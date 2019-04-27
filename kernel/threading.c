@@ -79,7 +79,6 @@ CreateDefaultThreadContexts(
     _In_ MCoreThread_t* Thread)
 {
     Thread->Contexts[THREADING_CONTEXT_LEVEL0] = ContextCreate(THREADING_CONTEXT_LEVEL0);
-
     ContextReset(Thread->Contexts[THREADING_CONTEXT_LEVEL0], THREADING_CONTEXT_LEVEL0, 
         (uintptr_t)&ThreadingEntryPoint, 0, 0, 0);
 
@@ -215,12 +214,12 @@ CreateThread(
         AcquireHandle(MemorySpaceHandle);
     }
     else {
-        Flags_t MemorySpaceFlags = 0;
         if (THREADING_RUNMODE(Flags) == THREADING_KERNELMODE) {
             Thread->MemorySpace       = GetDomainMemorySpace();
             Thread->MemorySpaceHandle = UUID_INVALID;
         }
         else {
+            Flags_t MemorySpaceFlags = 0;
             if (THREADING_RUNMODE(Flags) == THREADING_USERMODE) {
                 MemorySpaceFlags |= MEMORY_SPACE_APPLICATION;
             }
@@ -464,8 +463,8 @@ GetNextRunnableThread(
     Core                    = GetCurrentProcessorCore();
     Current->ContextActive  = *Context;
     
-    TRACE(" > current thread: %s (Context 0x%" PRIxIN ", IP 0x%" PRIxIN ", PreEmptive %i)",
-        Current->Name, *Context, CONTEXT_IP((*Context)), PreEmptive);
+    TRACE("%u: current thread: %s (Context 0x%" PRIxIN ", IP 0x%" PRIxIN ", PreEmptive %i)",
+        Core->Id, Current->Name, *Context, CONTEXT_IP((*Context)), PreEmptive);
 
     Cleanup = atomic_load_explicit(&Current->Cleanup, memory_order_relaxed);
 GetNextThread:
@@ -506,8 +505,8 @@ GetNextThread:
     if (NextThread->ContextActive == NULL) {
         NextThread->ContextActive = NextThread->Contexts[THREADING_CONTEXT_LEVEL0];
     }
-    TRACE(" > next thread: %s (Context 0x%" PRIxIN ", IP 0x%" PRIxIN ", Slice %" PRIuIN ", Queue %i)", 
-        NextThread->Name, NextThread->ContextActive, CONTEXT_IP(NextThread->ContextActive), 
+    TRACE("%u: next thread: %s (Context 0x%" PRIxIN ", IP 0x%" PRIxIN ", Slice %" PRIuIN ", Queue %i)", 
+        Core->Id, NextThread->Name, NextThread->ContextActive, CONTEXT_IP(NextThread->ContextActive), 
         NextThread->TimeSlice, NextThread->Queue);
 
     // Handle any signals pending for thread

@@ -24,7 +24,7 @@
 #define __COMPONENT_CPU__
 
 #include <os/osdefs.h>
-#include <os/spinlock.h>
+#include <ds/collection.h>
 #include <memoryspace.h>
 #include <threading.h>
 #include <scheduler.h>
@@ -41,28 +41,33 @@ typedef enum {
 
 typedef enum {
     CpuFunctionHalt,
-    CpuFunctionYield,
-    CpuFunctionCustom
+    CpuFunctionCustom,
+
+    CpuFunctionCount
 } SystemCpuFunctionType_t;
 
 typedef struct {
-    Spinlock_t          SyncObject;
-    SystemCpuFunction_t Function;
+    CollectionItem_t    Header;
+    SystemCpuFunction_t Handler;
     void*               Argument;
-} SystemCpuFunctionState_t;
+} SystemCoreFunctionItem_t;
 
 typedef struct {
-    UUId_t                   Id;
-    SystemCpuState_t         State;
-    int                      External;
+    Collection_t     Queue;
+} SystemCoreFunctionQueue_t;
+
+typedef struct {
+    UUId_t            Id;
+    SystemCpuState_t  State;
+    int               External;
 
     // Static resources
-    MCoreThread_t            IdleThread;
-    SystemScheduler_t        Scheduler;
+    MCoreThread_t     IdleThread;
+    SystemScheduler_t Scheduler;
 
     // State resources
-    SystemCpuFunctionState_t FunctionState;
-    MCoreThread_t*           CurrentThread;
+    Collection_t      FunctionQueue[CpuFunctionCount];
+    MCoreThread_t*    CurrentThread;
 } SystemCpuCore_t;
 
 typedef struct _SystemCpu {
@@ -77,23 +82,15 @@ typedef struct _SystemCpu {
     struct _SystemCpu*  Link;
 } SystemCpu_t;
 
-#define SYSTEM_CPU_CORE_FN_STATE_INIT { SPINLOCK_INIT, NULL, NULL }
-#define SYSTEM_CPU_CORE_INIT          { UUID_INVALID, CpuStateUnavailable, 0, { 0 }, SCHEDULER_INIT, SYSTEM_CPU_CORE_FN_STATE_INIT, NULL }
-#define SYSTEM_CPU_INIT               { { 0 }, { 0 }, { 0 }, 0, SYSTEM_CPU_CORE_INIT, NULL, NULL }
+#define SYSTEM_CORE_FN_STATE_INIT { COLLECTION_INIT(KeyInteger) }
+#define SYSTEM_CPU_CORE_INIT      { UUID_INVALID, CpuStateUnavailable, 0, { 0 }, SCHEDULER_INIT, SYSTEM_CORE_FN_STATE_INIT, NULL }
+#define SYSTEM_CPU_INIT           { { 0 }, { 0 }, { 0 }, 0, SYSTEM_CPU_CORE_INIT, NULL, NULL }
 
 /* EnableMultiProcessoringMode
  * If multiple cores are present this will boot them up. If multiple domains are present
  * it will boot all primary cores in each domain, then boot up rest of cores in our own domain. */
 KERNELAPI void KERNELABI
 EnableMultiProcessoringMode(void);
-
-/* RegisterStaticCore
- * Registers the primary core for the given cpu. The core count and the
- * application-core will be initialized on first call to this function. This also allocates a 
- * new instance of the cpu-core. */
-KERNELAPI void KERNELABI
-RegisterStaticCore(
-    _In_ SystemCpuCore_t* Core);
 
 /* RegisterApplicationCore
  * Registers a new cpu application core for the given cpu. The core count and the
@@ -124,7 +121,7 @@ GetProcessorCore(
 KERNELAPI SystemCpuCore_t* KERNELABI
 GetCurrentProcessorCore(void);
 
-/* InitializeProcessor (@arch)
+/* InitializeProcessor
  * Initializes the cpu as much as neccessary for the system to be in a running state. This
  * also initializes the primary core of the cpu structure. */
 KERNELAPI void KERNELABI
@@ -138,7 +135,7 @@ KERNELAPI void KERNELABI
 StartApplicationCore(
     _In_ SystemCpuCore_t* Core);
 
-/* ExecuteProcessorCoreFunction (@arch) 
+/* ExecuteProcessorCoreFunction
  * Interrupts the given core with a specified reason, how the reason is handled is 
  * implementation specific. */
 KERNELAPI void KERNELABI

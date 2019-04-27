@@ -33,8 +33,10 @@
 
 /* Table sizes, in 64 bit a table is 2mb 
  * and this means we need to identity map more than a single page-table. */
-#define TABLE_SPACE_SIZE        0x200000
-#define DIRECTORY_SPACE_SIZE    0x40000000
+#define TABLE_SPACE_SIZE           (PAGE_SIZE * ENTRIES_PER_PAGE)
+#define DIRECTORY_SPACE_SIZE       ((uint64_t)TABLE_SPACE_SIZE * (uint64_t)ENTRIES_PER_PAGE)
+#define DIRECTORY_TABLE_SPACE_SIZE ((uint64_t)DIRECTORY_SPACE_SIZE * (uint64_t)ENTRIES_PER_PAGE)
+#define PML4_SPACE_SIZE            ((uint64_t)DIRECTORY_TABLE_SPACE_SIZE * (uint64_t)ENTRIES_PER_PAGE)
 #define MEMORY_ALLOCATION_MASK  0x3FFFFF
 
 /* Indices

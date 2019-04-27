@@ -20,11 +20,12 @@ build/stage2.sys: stage2/stage2.asm
 
 build/ap.sys: stage2/ap.asm
 	@printf "%b" "\033[0;32mAssembling source object " $< "\033[m\n"
-	@cd stage2 && $(AS) $(ASFLAGS) -DTRAMPOLINE_LOCATION=0x8000 ap.asm -o ap.sys && cd ..
+	@cd stage2 && $(AS) $(ASFLAGS) -DTRAMPOLINE_LOCATION=0x8000 -D__BOOT_SILENCE ap.asm -o ap.sys && cd ..
 	@cp stage2/ap.sys build/ap.sys
 	@rm stage2/ap.sys
 	../file2c build/ap.sys ../kernel/arch/x86/components/smp_trampoline.c __GlbTramplineCode
 
 .PHONY: clean
 clean:
+	@rm -f ../kernel/arch/x86/components/smp_trampoline.c
 	@rm -rf build
