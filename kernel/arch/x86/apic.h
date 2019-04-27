@@ -38,6 +38,7 @@
 #define APIC_DEST_FORMAT		0xE0
 #define APIC_SPURIOUS_REG		0xF0
 #define APIC_ESR				0x280
+#define APIC_CMCI               0x2F0
 #define APIC_ICR_LOW			0x300
 #define APIC_ICR_HIGH			0x310
 #define APIC_TIMER_VECTOR		0x320
@@ -222,7 +223,7 @@ KERNELAPI OsStatus_t KERNELABI
 ApicSendInterrupt(
     _In_ InterruptTarget_t  Type,
     _In_ UUId_t             Specific,
-    _In_ int                Vector);
+    _In_ uint32_t           Vector);
 
 /* ApicPerformIPI
  * Sends an ipi request for the specified cpu */

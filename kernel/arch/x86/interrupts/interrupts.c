@@ -39,7 +39,7 @@ InterruptEntry(
     int               Gsi        = APIC_NO_GSI;
     uint32_t          Tpr        = ApicGetTaskPriority();
     ApicSetTaskPriority(TableIndex);
-
+    
     // Sanitize the result of the
     // irq-handling - all irqs must be handled
     Result = InterruptHandle(Registers, TableIndex, &Gsi);

@@ -54,11 +54,12 @@ static Flags_t
 GetSystemLvtByAcpi(
     _In_ uint8_t                        Lvt)
 {
-    ACPI_TABLE_HEADER *Header     = NULL;
-    Flags_t LvtSetup             = 0;
+    ACPI_TABLE_HEADER* Header   = NULL;
+    Flags_t            LvtSetup = 0;
 
     // Check for MADT presence and enumerate
-    if (AcpiAvailable() == ACPI_AVAILABLE && ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 0, &Header))) {
+    if (AcpiAvailable() == ACPI_AVAILABLE && 
+        ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 0, &Header))) {
         ACPI_SUBTABLE_HEADER *MadtEntry = NULL;
         ACPI_TABLE_MADT *MadtTable  = (ACPI_TABLE_MADT*)Header;
         void *MadtTableStart        = (void*)((uintptr_t)MadtTable + sizeof(ACPI_TABLE_MADT));
@@ -99,7 +100,7 @@ GetSystemLvtByAcpi(
  * specified in there, sane default values will be set. */
 static void
 InitializeApicLvt(
-    _In_ uint8_t                        Lvt)
+    _In_ uint8_t Lvt)
 {
     // Variables
     uint32_t Temp = GetSystemLvtByAcpi(Lvt);
@@ -231,23 +232,21 @@ ParseIoApic(
     }
 }
 
-/* Resets the local apic for the current
- * cpu and resets it to sane values, deasserts lines 
- * and clears errors */
 void ApicClear(void)
 {
-    int MaxLvt = 0;
+    int      MaxLvt = ApicGetMaxLvt();
     uint32_t Temp = 0;
 
-    /* Get Max LVT */
-    MaxLvt = ApicGetMaxLvt();
+    // Work around AMD Erratum 411
+    ApicWriteLocal(APIC_INITIAL_COUNT, 0);
 
-    /* Mask error lvt */
+    //  Masking an LVT entry on a P6 can trigger a local APIC error
+    // if the vector is zero. Mask LVTERR first to prevent this.
     if (MaxLvt >= 3) {
         ApicWriteLocal(APIC_ERROR_REGISTER, INTERRUPT_LVTERROR | APIC_MASKED);
     }
 
-    /* Mask these before deasserting */
+    // Carefully mask these before deactivating
     Temp = ApicReadLocal(APIC_TIMER_VECTOR);
     ApicWriteLocal(APIC_TIMER_VECTOR, Temp | APIC_MASKED);
     Temp = ApicReadLocal(APIC_LINT0_REGISTER);
@@ -259,31 +258,53 @@ void ApicClear(void)
         ApicWriteLocal(APIC_PERF_MONITOR, Temp | APIC_MASKED);
     }
 
-    /* Clean out APIC */
+    // Don't touch this untill further notice
+#if 0
+    if (MaxLvt >= 5) {
+        Temp = ApicReadLocal(APIC_THERMAL_SENSOR);
+        ApicWriteLocal(APIC_THERMAL_SENSOR, Temp | APIC_MASKED);
+    }
+#endif
+
+    if (MaxLvt >= 6) {
+        Temp = ApicReadLocal(APIC_CMCI);
+        ApicWriteLocal(APIC_CMCI, Temp | APIC_MASKED);
+    }
+
+    // Clean out apic states
     ApicWriteLocal(APIC_TIMER_VECTOR, APIC_MASKED);
     ApicWriteLocal(APIC_LINT0_REGISTER, APIC_MASKED);
     ApicWriteLocal(APIC_LINT1_REGISTER, APIC_MASKED);
+
     if (MaxLvt >= 3) {
         ApicWriteLocal(APIC_ERROR_REGISTER, APIC_MASKED);
     }
+
     if (MaxLvt >= 4) {
         ApicWriteLocal(APIC_PERF_MONITOR, APIC_MASKED);
     }
 
-    /* Integrated APIC (!82489DX) ? */
+#if 0
+    if (MaxLvt >= 5) {
+        ApicWriteLocal(APIC_THERMAL_SENSOR, APIC_MASKED);
+    }
+#endif
+
+    if (MaxLvt >= 6) {
+        ApicWriteLocal(APIC_CMCI, APIC_MASKED);
+    }
+
+    // Integrated APIC (!82489DX) ?
     if (ApicIsIntegrated()) {
+        // Clear ESR due to Pentium errata 3AP and 11AP
         if (MaxLvt > 3) {
-            /* Clear ESR due to Pentium errata 3AP and 11AP */
             ApicWriteLocal(APIC_ESR, 0);
         }
         ApicReadLocal(APIC_ESR);
     }
 }
 
-/* Basic initializationo of the local apic
- * chip, it resets the apic to a known default state
- * before we try and initialize */
-void ApicInitialSetup(UUId_t Cpu)
+void ApicInitialSetup(UUId_t CoreId)
 {
     // Variables
     uint32_t Temp = 0;
@@ -291,6 +312,7 @@ void ApicInitialSetup(UUId_t Cpu)
 
     // Clear apic state and hammer the ESR to 0
     ApicClear();
+
 #if defined(i386) || defined(__i386__)
     if (ApicIsIntegrated()) {
         ApicWriteLocal(APIC_ESR, 0);
@@ -299,11 +321,12 @@ void ApicInitialSetup(UUId_t Cpu)
         ApicWriteLocal(APIC_ESR, 0);
     }
 #endif
+
     ApicWriteLocal(APIC_PERF_MONITOR, APIC_NMI_ROUTE);
 
     // Set the destination to flat and compute a logical index
     ApicWriteLocal(APIC_DEST_FORMAT,  0xFFFFFFFF);
-    ApicWriteLocal(APIC_LOGICAL_DEST, APIC_DESTINATION(ApicComputeLogicalDestination(Cpu)));
+    ApicWriteLocal(APIC_LOGICAL_DEST, APIC_DESTINATION(ApicComputeLogicalDestination(CoreId)));
     ApicSetTaskPriority(0);
 
     // Last thing is clear status and interrupt registers
@@ -358,14 +381,11 @@ ApicEnable(void)
     // Enable local apic
     Temp = ApicReadLocal(APIC_SPURIOUS_REG);
     Temp &= ~(0x000FF);
-    Temp |= 0x100;
-
+    Temp |= 0x100; // Enable Apic
 #if defined(i386) || defined(__i386__)
-    // This reduces some problems with to fast interrupt mask/unmask
+    // This bit is reserved on P4/Xeon and should be cleared
     Temp &= ~(0x200);
 #endif
-
-    // Set spurious vector and enable
     Temp |= INTERRUPT_SPURIOUS;
     ApicWriteLocal(APIC_SPURIOUS_REG, Temp);
 }

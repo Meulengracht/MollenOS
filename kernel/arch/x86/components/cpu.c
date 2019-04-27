@@ -161,7 +161,7 @@ ArchProcessorSendInterrupt(
     _In_ UUId_t CoreId,
     _In_ UUId_t InterruptId)
 {
-    OsStatus_t Status = ApicSendInterrupt(InterruptSpecific, CoreId, (int)(InterruptId & 0xFF));
+    OsStatus_t Status = ApicSendInterrupt(InterruptSpecific, CoreId, InterruptId & 0xFF);
     if (Status != OsSuccess) {
         FATAL(FATAL_SCOPE_KERNEL, "Failed to deliver IPI signal");
     }

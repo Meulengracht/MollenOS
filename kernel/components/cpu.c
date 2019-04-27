@@ -25,6 +25,7 @@
 #include <component/domain.h>
 #include <component/cpu.h>
 #include <arch/interrupts.h>
+#include <arch/thread.h>
 #include <arch/utils.h>
 #include <machine.h>
 #include <assert.h>
