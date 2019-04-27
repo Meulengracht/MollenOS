@@ -91,72 +91,99 @@ MmVirtualFillPageTable(
 	}
 }
 
-static uintptr_t 
-MmVirtualMapMemoryRange(
-	_In_ PageMasterTable_t* MasterTable,
-	_In_ VirtualAddress_t   AddressStart,
-	_In_ uintptr_t          Length,
-	_In_ Flags_t            Flags)
+static uintptr_t
+CreateDirectoryEntriesForRange(
+    _In_ PageDirectory_t* Directory,
+	_In_ VirtualAddress_t AddressStart,
+	_In_ size_t           Length,
+	_In_ Flags_t          Flags,
+    _In_ uintptr_t        LastAddressIn)
 {
-    uintptr_t             LastAddress = 0;
-    PageDirectoryTable_t* DirectoryTable;
-    PageDirectory_t*      Directory;
-	unsigned i, j, je, k, ke;
+    uintptr_t LastAddress = LastAddressIn;
+    int       PdStart     = PAGE_DIRECTORY_POINTER_INDEX(AddressStart);
+    int       PdEnd       = PdStart + DIVUP(Length, TABLE_SPACE_SIZE);
+    int       i;
 
-    // Get indices, need them to make decisions
-    int PmStart     = PAGE_LEVEL_4_INDEX(AddressStart);
-    int PmEnd       = PAGE_LEVEL_4_INDEX(AddressStart + Length - 1) + 1;
-
-    int PdpStart    = PAGE_DIRECTORY_POINTER_INDEX(AddressStart);
-    int PdpEnd      = PAGE_DIRECTORY_POINTER_INDEX(AddressStart + Length - 1) + 1;
-
-    int PdStart     = PAGE_DIRECTORY_INDEX(AddressStart);
-    int PdEnd       = PAGE_DIRECTORY_INDEX(AddressStart + Length - 1) + 1;
-
-    // Iterate all the neccessary page-directory tables
-    // @todo the indices are not correct for sub pml4
-    for (i = PmStart; i < PmEnd; i++)
-    {
-        if (MasterTable->vTables[i] == 0) {
-            MasterTable->vTables[i] = (uintptr_t)MmVirtualCreatePageDirectoryTable();
-            atomic_store_explicit(&MasterTable->pTables[i], MasterTable->vTables[i] | Flags, 
-                memory_order_relaxed);
-            LastAddress = MasterTable->vTables[i];
-        }
-        DirectoryTable = (PageDirectoryTable_t*)MasterTable->vTables[i];
-
-        // Iterate all the neccessary page-directories
-        j   = (i == PmStart) ? PdpStart : 0;
-        je  = ((i + 1) == PmEnd) ? PdpEnd : ENTRIES_PER_PAGE;
-        for (; j < je; j++)
-        {
-            if (DirectoryTable->vTables[j] == 0) {
-                DirectoryTable->vTables[j] = (uintptr_t)MmVirtualCreatePageDirectory();
-                atomic_store_explicit(&DirectoryTable->pTables[j], DirectoryTable->vTables[j] | Flags, 
-                    memory_order_relaxed);
-                LastAddress = DirectoryTable->vTables[j];
-            }
-            Directory = (PageDirectory_t*)DirectoryTable->vTables[j];
-
-            // Iterate all the page-tables that will be needed
-            k   = (j == PdpStart) ? PdStart : 0;
-            ke  = ((j + 1) == PdpEnd) ? PdEnd : ENTRIES_PER_PAGE;
-            for (; k < ke; k++)
-            {
-                if (Directory->vTables[k] == 0) {
-                    Directory->vTables[k] = (uintptr_t)MmVirtualCreatePageTable();
-                    atomic_store_explicit(&Directory->pTables[k], Directory->vTables[k] | Flags, 
-                        memory_order_relaxed);
-                    LastAddress = Directory->vTables[k];
-                }
-            }
+    for (i = PdStart; i < PdEnd; i++) {
+        if (Directory->vTables[i] == 0) {
+            Directory->vTables[i] = (uintptr_t)MmVirtualCreatePageTable();
+            atomic_store(&Directory->pTables[i], Directory->vTables[i] | Flags);
+            LastAddress = Directory->vTables[i];
         }
     }
     return LastAddress;
 }
 
-/* MmVirtualGetMasterTable
- * Helper function to retrieve the current active PML4. */
+static uintptr_t
+CreateDirectoryTableEntriesForRange(
+    _In_ PageDirectoryTable_t* DirectoryTable,
+	_In_ VirtualAddress_t      AddressStart,
+	_In_ size_t                Length,
+	_In_ Flags_t               Flags,
+    _In_ uintptr_t             LastAddressIn)
+{
+    uintptr_t LastAddress = LastAddressIn;
+    size_t    BytesToMap  = Length;
+    uintptr_t AddressItr  = AddressStart;
+    int       PdpStart    = PAGE_DIRECTORY_POINTER_INDEX(AddressStart);
+    int       PdpEnd      = PdpStart + DIVUP(Length, DIRECTORY_SPACE_SIZE);
+    int       i;
+
+    for (i = PdpStart; i < PdpEnd; i++) {
+        if (DirectoryTable->vTables[i] == 0) {
+            DirectoryTable->vTables[i] = (uintptr_t)MmVirtualCreatePageDirectory();
+            atomic_store(&DirectoryTable->pTables[i], DirectoryTable->vTables[i] | Flags);
+            LastAddress = DirectoryTable->vTables[i];
+        }
+
+        size_t SubLength = MIN(DIRECTORY_SPACE_SIZE, BytesToMap);
+        LastAddress      = CreateDirectoryEntriesForRange(
+            (PageDirectory_t*)DirectoryTable->vTables[i],
+            AddressItr, SubLength, Flags, LastAddress);
+
+        // Increase iterators
+        BytesToMap -= SubLength;
+        AddressItr += SubLength;
+    }
+    return LastAddress;
+}
+
+static uintptr_t 
+MmVirtualMapMemoryRange(
+	_In_ PageMasterTable_t* MasterTable,
+	_In_ VirtualAddress_t   AddressStart,
+	_In_ size_t             Length,
+	_In_ Flags_t            Flags)
+{
+    uintptr_t LastAddress = 0;
+    size_t    BytesToMap  = Length;
+    uintptr_t AddressItr  = AddressStart;
+	unsigned  i;
+
+    // Get indices, need them to make decisions
+    int PmStart = PAGE_LEVEL_4_INDEX(AddressStart);
+    int PmEnd   = PmStart + DIVUP(Length, DIRECTORY_TABLE_SPACE_SIZE);
+
+    // Iterate all the neccessary page-directory tables
+    for (i = PmStart; i < PmEnd; i++) {
+        if (MasterTable->vTables[i] == 0) {
+            MasterTable->vTables[i] = (uintptr_t)MmVirtualCreatePageDirectoryTable();
+            atomic_store(&MasterTable->pTables[i], MasterTable->vTables[i] | Flags);
+            LastAddress = MasterTable->vTables[i];
+        }
+
+        size_t SubLength = MIN(DIRECTORY_TABLE_SPACE_SIZE, BytesToMap);
+        LastAddress = CreateDirectoryTableEntriesForRange(
+            (PageDirectoryTable_t*)MasterTable->vTables[i],
+            AddressItr, SubLength, Flags, LastAddress);
+        
+        // Increase iterators
+        BytesToMap -= SubLength;
+        AddressItr += SubLength;
+    }
+    return LastAddress;
+}
+
 PageMasterTable_t*
 MmVirtualGetMasterTable(
     _In_  SystemMemorySpace_t*  MemorySpace,
@@ -184,8 +211,6 @@ MmVirtualGetMasterTable(
     return Directory;
 }
 
-/* MmVirtualGetTable
- * Helper function to retrieve a table from the given master table. */
 PageTable_t*
 MmVirtualGetTable(
 	_In_  PageMasterTable_t*    ParentPageMasterTable,
@@ -332,8 +357,6 @@ SyncPd:
 	return Table;
 }
 
-/* CloneVirtualSpace
- * Clones a new virtual memory space for an application to use. */
 OsStatus_t
 CloneVirtualSpace(
     _In_ SystemMemorySpace_t*   MemorySpaceParent, 
@@ -525,7 +548,7 @@ DestroyVirtualSpace(
  * or reuses the existing one if it's not the primary core that creates it. */
 OsStatus_t
 InitializeVirtualSpace(
-    _In_ SystemMemorySpace_t*   SystemMemorySpace)
+    _In_ SystemMemorySpace_t* SystemMemorySpace)
 {
     PageMasterTable_t* iDirectory;
 	PageTable_t*       iTable;
@@ -553,8 +576,10 @@ InitializeVirtualSpace(
 
         // Due to how it works with multiple cpu's, we need to make sure all shared
         // tables already are mapped in the upper-most level of the page-directory
-        TRACE("Mapping the global region from 0x%" PRIxIN " => 0x%" PRIxIN "", MEMORY_LOCATION_KERNEL, MEMORY_LOCATION_KERNEL_END);
-        LastAllocatedAddress = MmVirtualMapMemoryRange(iDirectory, 0, MEMORY_LOCATION_KERNEL_END, KernelPageFlags);
+        TRACE("Mapping the global region from 0x%" PRIxIN " => 0x%" PRIxIN "", 
+            MEMORY_LOCATION_KERNEL, MEMORY_LOCATION_KERNEL_END);
+        LastAllocatedAddress = MmVirtualMapMemoryRange(iDirectory, 0, 
+            MEMORY_LOCATION_KERNEL_END, PAGE_PRESENT | PAGE_WRITE);
         if (LastAllocatedAddress > LastReservedAddress) {
             BytesToMap = LastAllocatedAddress - MIN(LastAllocatedAddress, TABLE_SPACE_SIZE);
         }
@@ -576,15 +601,16 @@ InitializeVirtualSpace(
 
         // Identity map the video framebuffer region
         if (GetMachine()->BootInformation.VbeMode) {
-            BytesToMap      = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
-            PhysicalBase    = VideoGetTerminal()->FrameBufferAddress;
-            VirtualBase     = MEMORY_LOCATION_VIDEO;
+            BytesToMap   = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
+            PhysicalBase = VideoGetTerminal()->FrameBufferAddress;
+            VirtualBase  = MEMORY_LOCATION_VIDEO;
             while (BytesToMap) {
-                iTable          = GET_TABLE_HELPER(iDirectory, VirtualBase);
+                iTable = GET_TABLE_HELPER(iDirectory, VirtualBase);
                 MmVirtualFillPageTable(iTable, PhysicalBase, 0, KernelPageFlags);
-                BytesToMap      -= MIN(BytesToMap, TABLE_SPACE_SIZE);
-                PhysicalBase    += TABLE_SPACE_SIZE;
-                VirtualBase     += TABLE_SPACE_SIZE;
+
+                BytesToMap   -= MIN(BytesToMap, TABLE_SPACE_SIZE);
+                PhysicalBase += TABLE_SPACE_SIZE;
+                VirtualBase  += TABLE_SPACE_SIZE;
             }
 
             // Update video address to the new

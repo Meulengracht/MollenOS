@@ -33,7 +33,7 @@
 
 /* Table sizes, in 32 bit a table is 4mb 
  * and this means we need to identity a single page-table. */
-#define TABLE_SPACE_SIZE        0x400000
+#define TABLE_SPACE_SIZE        (PAGE_SIZE * ENTRIES_PER_PAGE)
 #define MEMORY_ALLOCATION_MASK  0x3FFFFF
 
 /* Indices

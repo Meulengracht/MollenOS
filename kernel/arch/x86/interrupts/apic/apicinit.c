@@ -382,12 +382,12 @@ ApicStartTimer(
 void
 ApicInitialize(void)
 {
-    SystemInterruptController_t *Ic = NULL;
-    ACPI_TABLE_HEADER *Header       = NULL;
-    uint32_t TemporaryValue         = 0;
-    UUId_t BspApicId                = 0;
-    uintptr_t OriginalApAddress     = 0;
-    uintptr_t UpdatedApAddress      = 0;
+    SystemInterruptController_t* Ic                = NULL;
+    ACPI_TABLE_HEADER*           Header            = NULL;
+    uint32_t                     TemporaryValue    = 0;
+    UUId_t                       BspApicId         = 0;
+    uintptr_t                    OriginalApAddress = 0;
+    uintptr_t                    UpdatedApAddress  = 0;
 
     // Step 1. Disable IMCR if present (to-do..) 
     // But the bit that tells us if IMCR is present

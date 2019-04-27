@@ -92,23 +92,22 @@ MmVirtualMapMemoryRange(
 	_In_ Flags_t          Flags)
 {
     uintptr_t LastAddress = 0;
-    int PdStart           = PAGE_DIRECTORY_INDEX(AddressStart);
-    int PdEnd             = PAGE_DIRECTORY_INDEX(AddressStart + Length - 1) + 1;
-	int i;
+    int       PdStart     = PAGE_DIRECTORY_INDEX(AddressStart);
+    int       PdEnd       = PdStart + DIVUP(Length, TABLE_SPACE_SIZE);
+	int       i;
 
 	// Iterate the afflicted page-tables
 	for (i = PdStart; i < PdEnd; i++) {
 		uint32_t TableAddress     = (uint32_t)MmVirtualCreatePageTable();
 		PageDirectory->vTables[i] = TableAddress;
         TableAddress             |= Flags;
-        atomic_store_explicit(&PageDirectory->pTables[i], TableAddress, memory_order_relaxed);
+
+        atomic_store(&PageDirectory->pTables[i], TableAddress);
         LastAddress = TableAddress;
 	}
 	return LastAddress;
 }
 
-/* MmVirtualGetMasterTable
- * Helper function to retrieve the current active directory. */
 PageDirectory_t*
 MmVirtualGetMasterTable(
     _In_  SystemMemorySpace_t* MemorySpace,
@@ -134,8 +133,6 @@ MmVirtualGetMasterTable(
     return Directory;
 }
 
-/* MmVirtualGetTable
- * Helper function to retrieve a table from the given directory. */
 PageTable_t*
 MmVirtualGetTable(
     _In_ PageDirectory_t* ParentPageDirectory,
@@ -213,8 +210,6 @@ SyncWithParent:
     return Table;
 }
 
-/* CloneVirtualSpace
- * Clones a new virtual memory space for an application to use. */
 OsStatus_t
 CloneVirtualSpace(
     _In_ SystemMemorySpace_t*   MemorySpaceParent, 
@@ -287,8 +282,6 @@ CloneVirtualSpace(
     return OsSuccess;
 }
 
-/* DestroyVirtualSpace
- * Destroys and cleans up any resources used by the virtual address space. */
 OsStatus_t
 DestroyVirtualSpace(
     _In_ SystemMemorySpace_t* SystemMemorySpace)
@@ -340,9 +333,6 @@ DestroyVirtualSpace(
     return OsSuccess;
 }
 
-/* InitializeVirtualSpace
- * Initializes the virtual memory space for the kernel. This creates a new kernel page-directory
- * or reuses the existing one if it's not the primary core that creates it. */
 OsStatus_t
 InitializeVirtualSpace(
     _In_ SystemMemorySpace_t*   SystemMemorySpace)
@@ -374,8 +364,10 @@ InitializeVirtualSpace(
 
         // Due to how it works with multiple cpu's, we need to make sure all shared
         // tables already are mapped in the upper-most level of the page-directory
-        TRACE("Mapping the kernel region from 0x%" PRIxIN " => 0x%" PRIxIN "", MEMORY_LOCATION_KERNEL, MEMORY_LOCATION_KERNEL_END);
-        LastAllocatedAddress = MmVirtualMapMemoryRange(iDirectory, 0, MEMORY_LOCATION_KERNEL_END, KernelPageFlags);
+        TRACE("Mapping the kernel region from 0x%" PRIxIN " => 0x%" PRIxIN "", 
+            MEMORY_LOCATION_KERNEL, MEMORY_LOCATION_KERNEL_END);
+        LastAllocatedAddress = MmVirtualMapMemoryRange(iDirectory, 0, 
+            MEMORY_LOCATION_KERNEL_END, PAGE_PRESENT | PAGE_WRITE);
         if (LastAllocatedAddress > LastReservedAddress) {
             BytesToMap = LastAllocatedAddress - MIN(LastAllocatedAddress, TABLE_SPACE_SIZE);
         }

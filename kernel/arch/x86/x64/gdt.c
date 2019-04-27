@@ -101,10 +101,9 @@ void
 TssInitialize(
     _In_ int PrimaryCore)
 {
-	// Variables
 	uint64_t tBase  = 0;
 	uint32_t tLimit = 0;
-    UUId_t CoreId   = ArchGetProcessorCoreId();
+    UUId_t   CoreId = ArchGetProcessorCoreId();
 
 	// If we use the static allocator, it must be the boot cpu
 	if (PrimaryCore) {

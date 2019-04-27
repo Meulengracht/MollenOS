@@ -36,9 +36,9 @@ global _yield
 global enter_thread
 
 %macro restore_segments 0
-	pop gs
-	pop fs
-	mov es, qword [rsp]
+    pop gs
+    pop fs
+    mov es, qword [rsp]
     mov ds, qword [rsp + 8]
     add rsp, 16
 %endmacro
@@ -62,65 +62,65 @@ global enter_thread
     pop r13
     pop r14
     pop r15
-	
+    
     restore_segments
 %endmacro
 
 ; void _yield(void)
 ; Yields
 _yield:
-	int 0xF0
-	ret 
+    int 0xF0
+    ret 
 
 ; void save_fpu(uintptr_t *buffer)
 ; Save FPU, MMX and SSE registers
 save_fpu:
-	fxsave [rcx]
-	ret
+    fxsave [rcx]
+    ret
 
 ; void save_fpu_extended(uintptr_t *buffer)
 ; Save FPU, MMX, SSE, AVX extended registers
 save_fpu_extended:
     mov rax, 0xFFFFFFFFFFFFFFFF
     mov rdx, 0xFFFFFFFFFFFFFFFF
-	xsave [rcx]
-	ret
+    xsave [rcx]
+    ret
 
 ; void load_fpu(uintptr_t *buffer)
 ; Load FPU, MMX and SSE registers
 load_fpu:
-	fxrstor [rcx]
-	ret
+    fxrstor [rcx]
+    ret
 
 ; void load_fpu_extended(uintptr_t *buffer)
 ; Load FPU, MMX, SSE, AVX extended registers
 load_fpu_extended:
     mov rax, 0xFFFFFFFFFFFFFFFF
     mov rdx, 0xFFFFFFFFFFFFFFFF
-	xrstor [rcx]
-	ret
+    xrstor [rcx]
+    ret
 
 ; void set_ts()
 ; Sets the Task-Switch register
 set_ts:
-	push rax
-	mov rax, cr0
-	bts rax, 3
-	mov cr0, rax
-	pop rax
-	ret 
+    push rax
+    mov rax, cr0
+    bts rax, 3
+    mov cr0, rax
+    pop rax
+    ret 
 
 ; void clear_ts()
 ; Clears the Task-Switch register
 clear_ts:
-	clts
-	ret 
+    clts
+    ret 
 
 ; void init_fpu()
 ; Initializes the FPU
 init_fpu:
-	finit
-	ret
+    finit
+    ret
 
 ; void _rdtsc(uint64_t *value)
 ; Gets the CPU time-stamp counter
@@ -129,7 +129,7 @@ _rdtsc:
     shl rdx, 32
     or rax, rdx
     mov qword [rcx], rax
-	ret
+    ret
 
 ; void _rdmsr(size_t Register, uint64_t *value)
 ; Gets the CPU model specific register
@@ -140,14 +140,14 @@ _rdmsr:
     or rax, rdx
     pop rdx
     mov qword [rdx], rax
-	ret
+    ret
 
 ; void enter_thread(registers_t *stack)
 ; Switches stack and far jumps to next task
 enter_thread:
-	mov rsp, rcx
+    mov rsp, rcx
     restore_state
 
-	; Cleanup irq & error code from stack
-	add rsp, 0x10
-	iretq
+    ; Cleanup irq & error code from stack
+    add rsp, 0x10
+    iretq
