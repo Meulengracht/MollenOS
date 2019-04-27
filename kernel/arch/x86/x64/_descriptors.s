@@ -1,6 +1,6 @@
 ; MollenOS
 ;
-; Copyright 2011-2014, Philip Meulengracht
+; Copyright 2014, Philip Meulengracht
 ;
 ; This program is free software: you can redistribute it and/or modify
 ; it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;
 ;
-; MollenOS x86-64 Descriptor Assembly Functions
+; x86-64 Descriptor Assembly Functions
 ;
 bits 64
 segment .text

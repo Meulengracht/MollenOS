@@ -52,7 +52,7 @@ uintptr_t GlbLocalApicBase = 0;
  * Retrieves lvt setup for the calling cpu and the given Lvt index. */
 static Flags_t
 GetSystemLvtByAcpi(
-    _In_ uint8_t                        Lvt)
+    _In_ uint8_t Lvt)
 {
     ACPI_TABLE_HEADER* Header   = NULL;
     Flags_t            LvtSetup = 0;
@@ -132,7 +132,7 @@ InitializeApicLvt(
  * interrupts are masked */
 void 
 ParseIoApic(
-    _In_ SystemInterruptController_t*   Controller)
+    _In_ SystemInterruptController_t* Controller)
 {
     uintptr_t Original, Updated;
     int IoEntries, i, j;

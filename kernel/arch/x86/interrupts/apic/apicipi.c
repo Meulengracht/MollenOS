@@ -80,10 +80,6 @@ ApicSendInterrupt(
     IntStatus_t InterruptStatus;
     OsStatus_t  Status;
 
-    if (!ApicIsInitialized()) {
-        return OsSuccess;
-    }
-    
     if (Type == InterruptSpecific && Specific == CoreId) {
         Type = InterruptSelf;
     }

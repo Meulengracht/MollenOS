@@ -16,22 +16,17 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS x86 Advanced Programmable Interrupt Controller Driver
+ * x86 Advanced Programmable Interrupt Controller Driver
  *  - Helper functions and utility functions
  */
 #define __MODULE "APIC"
 #define __TRACE
 
-/* Includes 
- * - System */
+#include <ds/collection.h>
 #include <debug.h>
 #include <apic.h>
 #include <acpi.h>
 #include <pic.h>
-
-/* Includes
- * - Library */
-#include <ds/collection.h>
 #include <string.h>
 #include <stdio.h>
 

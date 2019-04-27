@@ -1,5 +1,5 @@
 ; MollenOS
-; Copyright 2011-2016, Philip Meulengracht
+; Copyright 2016, Philip Meulengracht
 ;
 ; This program is free software: you can redistribute it and/or modify
 ; it under the terms of the GNU General Public License as published by
@@ -15,7 +15,7 @@
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;
 ;
-; MollenOS x86-32 Syscall Assembly Routine
+; x86-32 Syscall Assembly Routine
 
 bits 32
 segment .text
@@ -25,14 +25,9 @@ global __syscall
 
 ; int _syscall(int Function, int Arg0, int Arg1, int Arg2, int Arg3, int Arg4)
 __syscall:
-	; Stack Frame
-	push ebp
-	mov ebp, esp
-
-	; Save
+    push ebp
+    mov  ebp, esp
 	push ebx
-	push ecx
-	push edx
 	push esi
 	push edi
 
@@ -43,17 +38,10 @@ __syscall:
 	mov edx, [ebp + 20]
 	mov esi, [ebp + 24]
 	mov edi, [ebp + 28]
+	int	60h
 
-	; Syscall
-	int	80h
-
-	; Restore
 	pop edi
 	pop esi
-	pop edx
-	pop ecx
 	pop ebx
-
-	; Release stack frame
-	pop ebp
+    pop ebp
 	ret 

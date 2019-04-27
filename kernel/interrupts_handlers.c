@@ -49,7 +49,7 @@ FunctionExecutionInterruptHandler(
 {
     SystemCpuCore_t*  Core = GetCurrentProcessorCore();
     CollectionItem_t* Node;
-    WARNING("FunctionExecutionInterruptHandler(%u)", Core->Id);
+    TRACE("FunctionExecutionInterruptHandler(%u)", Core->Id);
 
     _CRT_UNUSED(NotUsed);
     _CRT_UNUSED(NotUsedEither);
@@ -102,8 +102,8 @@ ExecuteProcessorCoreFunction(
     SystemCpuCore_t*          Core = GetProcessorCore(CoreId);
     SystemCoreFunctionItem_t* Item;
     assert(InterruptHandlers[Type] != UUID_INVALID);
-    WARNING("ExecuteProcessorCoreFunction(%u => %u, %u)", 
-        ArchGetProcessorCoreId(), CoreId, Type);
+    TRACE("ExecuteProcessorCoreFunction(%u => %u, %u): 0x%x", 
+        ArchGetProcessorCoreId(), CoreId, Type, InterruptHandlers[Type]);
 
     Item = (SystemCoreFunctionItem_t*)MemoryCacheAllocate(&IpiItemCache);
     memset(Item, 0, sizeof(SystemCoreFunctionItem_t));

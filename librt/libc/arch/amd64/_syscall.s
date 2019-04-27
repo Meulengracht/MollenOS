@@ -1,5 +1,5 @@
 ; MollenOS
-; Copyright 2011-2016, Philip Meulengracht
+; Copyright 2016, Philip Meulengracht
 ;
 ; This program is free software: you can redistribute it and/or modify
 ; it under the terms of the GNU General Public License as published by
@@ -15,7 +15,7 @@
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;
 ;
-; MollenOS x86-64 Syscall Assembly Routine
+; x86-64 Syscall Assembly Routine
 
 bits 64
 segment .text
@@ -40,5 +40,5 @@ _syscall:
     mov r8, r9
     mov r9, qword [rsp + 40]  ; arg0 is 32 + 8 (reserved + return address)
     mov r10, qword [rsp + 48] ; arg1 is 32 + 8 + 8 (reserved + return address + arg0)
-	int	80h
+	int	60h
 	ret

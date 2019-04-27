@@ -122,20 +122,22 @@
 #endif
 
 /* Special addresses must be between 0x11000000 -> 0x11001000 */
-#define MEMORY_LOCATION_SIGNAL_RET          0x110000DE // Signal return address
+#define MEMORY_LOCATION_SIGNAL_RET 0x110000DE // Signal return address
 
-// Software interrupt vectors (0x70 - 0x80)
-#define INTERRUPT_SYSCALL                   0x80
-#define INTERRUPT_SOFTWARE_BASE             0x81
-#define INTERRUPT_SOFTWARE_END              0x90
+// Task priorities go from (0x0 => 0x60)
+// Software interrupt vectors (0x60 => 0x90)
+// Syscall does not set the priority register
+#define INTERRUPT_SYSCALL       0x60
+#define INTERRUPT_LAPIC         0x61
+#define INTERRUPT_LVTERROR      0x62
+#define INTERRUPT_SPURIOUS      0x63
 
-// Hardware interrupt vectors (0x90 - 0xF0)
-#define INTERRUPT_PHYSICAL_BASE             0x90
-#define INTERRUPT_PHYSICAL_END              0xF0
+// Hardware interrupt vectors (0x80 - 0xE0)
+#define INTERRUPT_PHYSICAL_BASE 0x80
+#define INTERRUPT_PHYSICAL_END  0xE0
 
-// High priority architecture vectors (0xF0 - 0xFF)
-#define INTERRUPT_LAPIC                     0xF0
-#define INTERRUPT_LVTERROR                  0xF1
-#define INTERRUPT_SPURIOUS                  0xF2
+// High priority software interrupts
+#define INTERRUPT_SOFTWARE_BASE 0xE0
+#define INTERRUPT_SOFTWARE_END  0xF0
 
 #endif // !__VALI_ARCH_X86_H__
