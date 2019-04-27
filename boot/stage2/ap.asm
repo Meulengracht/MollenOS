@@ -145,14 +145,15 @@ EndOfStage:
 ; **************************** 
 BITS 64
 Entry64:
-    xor 	eax, eax
-	mov 	ax, DATA64_DESC
-	mov 	ds, ax
-	mov 	fs, ax
-	mov 	gs, ax
-	mov 	ss, ax
-	mov 	es, ax
-	movzx 	rsp, bp
+    xor     eax, eax
+	mov     ax, DATA64_DESC
+	mov     ds, ax
+	mov     fs, ax
+	mov     gs, ax
+	mov     ss, ax
+	mov     es, ax
+	xor     rsp, rsp
+	mov     esp, ebp
 
     ; Setup Registers
 	xor 	rsi, rsi
