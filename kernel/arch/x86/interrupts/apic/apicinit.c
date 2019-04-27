@@ -399,8 +399,8 @@ ApicInitialize(void)
     // So we lookup the MADT table if it exists (if it doesn't
     // we should fallback to MP tables)
     if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 0, &Header))) {
-        ACPI_TABLE_MADT *MadtTable  = (ACPI_TABLE_MADT*)Header;
-        OriginalApAddress           = MadtTable->Address;
+        ACPI_TABLE_MADT *MadtTable = (ACPI_TABLE_MADT*)Header;
+        OriginalApAddress          = MadtTable->Address;
         AcpiPutTable(Header);
     }
     else if (MpInitialize() == OsSuccess) {

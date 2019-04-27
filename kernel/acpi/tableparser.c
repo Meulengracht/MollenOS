@@ -232,9 +232,11 @@ EnumerateSystemCoresMADT(
                 if (AcpiCpu->LapicFlags & 0x1) {
                     CoreCount++;
                     if (RegisterCores) {
-                        TRACE(" > core %" PRIuIN " (%" PRIuIN ") available and active", AcpiCpu->Id, AcpiCpu->ProcessorId);
-                        if (AcpiCpu->Id != GetMachine()->Processor.PrimaryCore.Id) {
-                            RegisterApplicationCore(&GetMachine()->Processor, AcpiCpu->Id, CpuStateShutdown, 0);
+                        uint8_t ApicId      = AcpiCpu->Id;
+                        uint8_t ProcessorId = AcpiCpu->ProcessorId;
+                        TRACE(" > core %u (%u) available and active", ApicId, ProcessorId);
+                        if (ApicId != GetMachine()->Processor.PrimaryCore.Id) {
+                            RegisterApplicationCore(&GetMachine()->Processor, ApicId, CpuStateShutdown, 0);
                         }
                     }
                 }
@@ -242,7 +244,7 @@ EnumerateSystemCoresMADT(
             case ACPI_MADT_TYPE_LOCAL_X2APIC: {
                 ACPI_MADT_LOCAL_X2APIC *AcpiCpu = (ACPI_MADT_LOCAL_X2APIC*)MadtEntry;
                 if (AcpiCpu->LapicFlags & 0x1) {
-                    TRACE(" > core %" PRIuIN " available for xapic2", AcpiCpu->LocalApicId);
+                    TRACE(" > core %u available for xapic2", AcpiCpu->LocalApicId);
                     //@todo
                 }
             } break;
