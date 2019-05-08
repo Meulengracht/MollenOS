@@ -42,9 +42,9 @@ PathResolveEnvironment(
 
 OsStatus_t
 PathCanonicalize(
-    _In_  const char*       Path,
-    _Out_ char*             Buffer,
-    _In_  size_t            MaxLength)
+    _In_  const char* Path,
+    _Out_ char*       Buffer,
+    _In_  size_t      MaxLength)
 {
     MRemoteCall_t Request;
 

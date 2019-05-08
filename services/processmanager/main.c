@@ -20,7 +20,7 @@
  * - Contains the implementation of the process-manager which keeps track
  *   of running applications.
  */
-#define __TRACE
+//#define __TRACE
 
 #include <ds/mstring.h>
 #include <ddk/services/process.h>
@@ -190,9 +190,11 @@ OnEvent(
             Process_t* Process       = AcquireProcess((ProcessHandle == UUID_INVALID) ? RPC->From.Process : ProcessHandle);
 
             if (Process == NULL) {
+                TRACE("proc_get_cwd => invalid proc");
                 Handled = RPCRespond(&RPC->From, (const void*)&NullPtr, sizeof(void*));
             }
             else {
+                TRACE("proc_get_cwd => %s", MStringRaw(Process->WorkingDirectory));
                 Handled = RPCRespond(&RPC->From, (const void*)MStringRaw(Process->WorkingDirectory), MStringSize(Process->WorkingDirectory) + 1);
                 ReleaseProcess(Process);
             }
@@ -205,6 +207,7 @@ OnEvent(
             if (Process != NULL) {
                 Result = OsInvalidParameters;
                 if (Path != NULL) {
+                    TRACE("proc_set_cwd(%s)", Path);
                     MStringDestroy(Process->WorkingDirectory);
                     Process->WorkingDirectory = MStringCreate((void*)Path, StrUTF8);
                     Result = OsSuccess;

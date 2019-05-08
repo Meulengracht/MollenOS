@@ -16,10 +16,10 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - File Manager Service
+ * File Manager Service
  * - Handles all file related services and disk services
  */
-//#define __TRACE
+#define __TRACE
 
 #include "include/vfs.h"
 #include <os/mollenos.h>
@@ -34,10 +34,7 @@
 #define IS_IDENTIFIER(StringPointer)    ((StringPointer)[0] == '$' && (StringPointer)[1] != '(')
 #define IS_VARIABLE(StringPointer)      ((StringPointer)[0] == '$' && (StringPointer)[1] == '(')
 
-/* Globals 
- * These are default static environment strings 
- * that can be resolved from an enum array */
-static const char *EnvironmentalPaths[PathEnvironmentCount] = {
+static const char* EnvironmentalPaths[PathEnvironmentCount] = {
     // System paths
 	":/",
 	":/system/",
@@ -58,21 +55,15 @@ static const char *EnvironmentalPaths[PathEnvironmentCount] = {
     ":/shared/appdata/$(app)/temp/"
 };
 
-/* These are the default fixed identifiers that can
- * be used in paths to denote access, mostly these
- * identifers must be preceeding the rest of the path */
 static struct VfsIdentifier {
-	const char*         Identifier;
-	EnvironmentPath_t   Resolve;
+	const char*       Identifier;
+	EnvironmentPath_t Resolve;
 } VfsIdentifiers[] = {
 	{ "sys", PathSystemDirectory },
 	{ "bin", PathCommonBin },
 	{ NULL, PathSystemDirectory }
 };
 
-/* VfsPathResolveEnvironment
- * Resolves the given env-path identifier to a string
- * that can be used to locate files. */
 MString_t*
 VfsPathResolveEnvironment(
     _In_ EnvironmentPath_t Base)
@@ -102,16 +93,13 @@ VfsPathResolveEnvironment(
 	return ResolvedPath;
 }
 
-/* VfsExpandIdentifier
- * Expands the given identifier into the string passed. This append the character to the end of the string. 
- * If an identifier is not present in the beginning of the string, it is invalid. */
-OsStatus_t
+static OsStatus_t
 VfsExpandIdentifier(
-    _In_ MString_t*     TargetString,
-    _In_ const char*    Identifier)
+    _In_ MString_t*  TargetString,
+    _In_ const char* Identifier)
 {
-	CollectionItem_t*   Node    = NULL;
-    int                 j       = 0;
+	CollectionItem_t* Node = NULL;
+    int               j    = 0;
     while (VfsIdentifiers[j].Identifier != NULL) { // Iterate all possible identifiers
         struct VfsIdentifier* VfsIdent = &VfsIdentifiers[j];
         size_t IdentifierLength = strlen(VfsIdent->Identifier);
@@ -135,8 +123,8 @@ MString_t*
 VfsPathCanonicalize(
     _In_ const char* Path)
 {
-	MString_t*  AbsPath;
-	int         i = 0;
+	MString_t* AbsPath;
+	int        i = 0;
 
     TRACE("VfsPathCanonicalize(%s)", Path);
 

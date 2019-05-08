@@ -53,7 +53,8 @@ SpinlockTryAcquire(
     assert(Lock != NULL);
 
     if (IS_RECURSIVE(Lock) && Lock->Owner == thrd_current()) {
-        atomic_fetch_add(&Lock->References, 1);
+        int References = atomic_fetch_add(&Lock->References, 1);
+        assert(References != 0);
         return OsSuccess;
     }
 
@@ -69,14 +70,14 @@ SpinlockTryAcquire(
 
 void
 SpinlockAcquire(
-	_In_ Spinlock_t *Lock)
+	_In_ Spinlock_t* Lock)
 {
     while (SpinlockTryAcquire(Lock) != OsSuccess);
 }
 
 void 
 SpinlockRelease(
-	_In_ Spinlock_t *Lock)
+	_In_ Spinlock_t* Lock)
 {
     int References;
     assert(Lock != NULL);

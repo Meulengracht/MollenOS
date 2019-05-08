@@ -322,8 +322,8 @@ VfsGuessBasePath(
  * Resolves the undetermined abs or relative path. */
 MString_t*
 VfsResolvePath(
-    _In_ UUId_t         Requester,
-    _In_ const char*    Path)
+    _In_ UUId_t      Requester,
+    _In_ const char* Path)
 {
     MString_t *PathResult = NULL;
 
