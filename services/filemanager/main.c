@@ -393,8 +393,8 @@ OnEvent(
 
         // Resolves and combines the environment path together and returns the newly concenated string
         case __FILEMANAGER_PATHCANONICALIZE: {
-            MString_t *Resolved = VfsPathCanonicalize(RPCGetStringArgument(Message, 0));
-            char Null           = '\0';
+            MString_t* Resolved = VfsPathCanonicalize(RPCGetStringArgument(Message, 0));
+            char       Null     = '\0';
             if (Resolved != NULL) {
                 Result = RPCRespond(&Message->From, MStringRaw(Resolved), MStringSize(Resolved) + 1);
                 MStringDestroy(Resolved);

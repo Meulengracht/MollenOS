@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Remote Procedure Definitions & Structures
+ * Remote Procedure Definitions & Structures
  * - This header describes the base remote procedure-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -104,19 +104,19 @@ RPCSetArgument(
         else if (Length == 2) {
             RemoteCall->Arguments[Index].Data.Value = *((uint16_t*)Data);
         }
-        else if (Length == 4) {
+        else if (Length <= 4) {
             RemoteCall->Arguments[Index].Data.Value = *((uint32_t*)Data);
         }
 #if __BITS == 64
-        else if (Length == 8) {
+        else if (Length <= 8) {
             RemoteCall->Arguments[Index].Data.Value = *((uint64_t*)Data);
         }
 #endif
     }
     else {
-        RemoteCall->Arguments[Index].Type           = ARGUMENT_BUFFER;
-        RemoteCall->Arguments[Index].Data.Buffer    = Data;
-        RemoteCall->Arguments[Index].Length         = Length;
+        RemoteCall->Arguments[Index].Type        = ARGUMENT_BUFFER;
+        RemoteCall->Arguments[Index].Data.Buffer = Data;
+        RemoteCall->Arguments[Index].Length      = Length;
     }
     RemoteCall->DataLength += Length;
 }
@@ -130,9 +130,9 @@ RPCSetResult(
     _In_ size_t         Length)
 {
     // Always a buffer element as we need a target to copy the data into
-    RemoteCall->Result.Type         = ARGUMENT_BUFFER;
-    RemoteCall->Result.Data.Buffer  = Data;
-    RemoteCall->Result.Length       = Length;
+    RemoteCall->Result.Type        = ARGUMENT_BUFFER;
+    RemoteCall->Result.Data.Buffer = Data;
+    RemoteCall->Result.Length      = Length;
 }
 
 /* RPCGetStringArgument

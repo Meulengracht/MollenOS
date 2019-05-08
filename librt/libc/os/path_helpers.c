@@ -20,23 +20,23 @@
  * - This header describes the path-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
+#define __TRACE
 
 #include <ddk/contracts/filesystem.h>
+#include <ddk/utils.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
 #include <os/services/path.h>
 #include <os/services/process.h>
 #include <string.h>
 
-/* SetWorkingDirectory
- * Performs changes to the current working directory by canonicalizing the 
- * given path modifier or absolute path */
 OsStatus_t
 SetWorkingDirectory(
     _In_ const char* Path)
 {
-    OsFileDescriptor_t  FileInfo;
-	char                TempBuffer[_MAXPATH];
+    OsFileDescriptor_t FileInfo;
+	char               TempBuffer[_MAXPATH];
+    TRACE("SetWorkingDirectory(%s)", Path);
 
 	if (Path == NULL || strlen(Path) == 0) {
 		return OsError;
@@ -54,8 +54,8 @@ SetWorkingDirectory(
     }
     
     if (PathCanonicalize(&TempBuffer[0], &TempBuffer[0], _MAXPATH) == OsSuccess) {
-        if (GetFileInformationFromPath(&TempBuffer[0], &FileInfo) == FsOk &&
-            FileInfo.Flags & FILE_FLAG_DIRECTORY) {
+        FileSystemCode_t FsStatus = GetFileInformationFromPath(&TempBuffer[0], &FileInfo);
+        if (FsStatus == FsOk && (FileInfo.Flags & FILE_FLAG_DIRECTORY)) {
             size_t CurrentLength = strlen(&TempBuffer[0]);
             if (TempBuffer[CurrentLength - 1] != '/') {
                 TempBuffer[CurrentLength] = '/';
@@ -66,34 +66,42 @@ SetWorkingDirectory(
                 return Syscall_SetWorkingDirectory(&TempBuffer[0]);
             }
             else {
+                TRACE("...proc_set_cwd %s", &TempBuffer[0]);
                 return ProcessSetWorkingDirectory(&TempBuffer[0]);
             }
         }
+        else {
+            ERROR("GetFileInformationFromPath(%s) Result: %u, %u",
+                &TempBuffer[0], FsStatus, FileInfo.Flags);
+        }
+    }
+    else {
+        ERROR("Failed to canonicalize path for current path: %s", &TempBuffer[0]);
     }
     return OsError;
 }
 
-/* GetWorkingDirectory
- * Queries the current working directory path for the current process (See _MAXPATH) */
 OsStatus_t
 GetWorkingDirectory(
     _In_ char*  PathBuffer, 
     _In_ size_t MaxLength)
 {
+    OsStatus_t Status;
+
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
 
     if (IsProcessModule()) {
-        return Syscall_GetWorkingDirectory(PathBuffer, MaxLength);
+        Status = Syscall_GetWorkingDirectory(PathBuffer, MaxLength);
     }
 	else {
-        return ProcessGetWorkingDirectory(UUID_INVALID, PathBuffer, MaxLength);
+        Status = ProcessGetWorkingDirectory(UUID_INVALID, PathBuffer, MaxLength);
+        TRACE("GetWorkingDirectory => %s", PathBuffer);
     }
+    return Status;
 }
 
-/* GetAssemblyDirectory
- * Queries the application path for the current process (See _MAXPATH) */
 OsStatus_t
 GetAssemblyDirectory(
     _In_ char*  PathBuffer, 
@@ -111,8 +119,6 @@ GetAssemblyDirectory(
     }
 }
 
-/* GetUserDirectory 
- * Queries the system for the current user data directory. (See _MAXPATH) */
 OsStatus_t
 GetUserDirectory(
     _In_ char*  PathBuffer, 
@@ -121,11 +127,10 @@ GetUserDirectory(
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
-    return PathResolveEnvironment(IsProcessModule() ? PathSystemDirectory : UserDataDirectory, PathBuffer, MaxLength);
+    return PathResolveEnvironment(IsProcessModule() ? 
+        PathSystemDirectory : UserDataDirectory, PathBuffer, MaxLength);
 }
 
-/* GetUserCacheDirectory 
- * Queries the system for the current user cache directory. (See _MAXPATH) */
 OsStatus_t
 GetUserCacheDirectory(
     _In_ char*  PathBuffer, 
@@ -134,11 +139,10 @@ GetUserCacheDirectory(
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
-    return PathResolveEnvironment(IsProcessModule() ? PathSystemDirectory : UserCacheDirectory, PathBuffer, MaxLength);
+    return PathResolveEnvironment(IsProcessModule() ? 
+        PathSystemDirectory : UserCacheDirectory, PathBuffer, MaxLength);
 }
 
-/* GetApplicationDirectory 
- * Queries the system for the current application data directory. (See _MAXPATH) */
 OsStatus_t
 GetApplicationDirectory(
     _In_ char*  PathBuffer, 
@@ -147,11 +151,10 @@ GetApplicationDirectory(
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
-    return PathResolveEnvironment(IsProcessModule() ? PathSystemDirectory : ApplicationDataDirectory, PathBuffer, MaxLength);
+    return PathResolveEnvironment(IsProcessModule() ? 
+        PathSystemDirectory : ApplicationDataDirectory, PathBuffer, MaxLength);
 }
 
-/* GetApplicationTemporaryDirectory 
- * Queries the system for the current application temporary directory. (See _MAXPATH) */
 OsStatus_t
 GetApplicationTemporaryDirectory(
     _In_ char*  PathBuffer, 
@@ -160,5 +163,6 @@ GetApplicationTemporaryDirectory(
 	if (PathBuffer == NULL || MaxLength == 0) {
 		return OsError;
 	}
-    return PathResolveEnvironment(IsProcessModule() ? PathSystemDirectory : ApplicationTemporaryDirectory, PathBuffer, MaxLength);
+    return PathResolveEnvironment(IsProcessModule() ? 
+        PathSystemDirectory : ApplicationTemporaryDirectory, PathBuffer, MaxLength);
 }
