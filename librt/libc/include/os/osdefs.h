@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Basic Definitions & Structures
+ * OS Basic Definitions & Structures
  * - This header describes the base structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */

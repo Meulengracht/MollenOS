@@ -24,12 +24,13 @@ segment .text
 global _syscall
 
 ; int _syscall(int Function, int Arg0, int Arg1, int Arg2, int Arg3, int Arg4)
+; @abi
 ; rcx => arg0
 ; rdx => arg1
 ; r8  => arg2
 ; r9  => arg3
-; r10 => arg4
-; r11 => index
+; r10 => arg4    ; stack in w64 abi
+; r11 => index   ; stack in w64 abi
 _syscall:
     ; index is rcx
     xchg rcx, r11

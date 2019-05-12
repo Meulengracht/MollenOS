@@ -86,34 +86,25 @@ EnsureSignalStack(
 
 OsStatus_t
 SignalCreateExternal(
-    _In_ UUId_t     ThreadId,
-    _In_ int        Signal)
+    _In_ UUId_t ThreadId,
+    _In_ int    Signal)
 {
-    MCoreThread_t*  Target = GetThread(ThreadId);
-    SystemSignal_t* Sig;
-
+    MCoreThread_t* Target = GetThread(ThreadId);
     TRACE("SignalCreateExternal(Thread %" PRIuIN ", Signal %i)", ThreadId, Signal);
 
     // Sanitize input, and then sanitize if we have a handler
     if (Target == NULL || Signal >= NUMSIGNALS) {
         ERROR("Signal %i was not in range");
-        return OsError; // Invalid
+        return OsInvalidParameters; // Invalid
     }
-    if (Target->SignalInformation[Signal] == 1) {
-        ERROR("Signal %i was blocked");
-        return OsError; // Ignored
+    if (atomic_exchange(&Target->Signals[Signal].Pending, 1) == 1) {
+        return OsExists; // Ignored
     }
-    Sig = (SystemSignal_t*)kmalloc(sizeof(SystemSignal_t));
-    memset(Sig, 0, sizeof(SystemSignal_t));
     
-    Sig->Deadly = GlbSignalIsDeadly[Signal];
-    Sig->Signal = Signal;
-    CollectionAppend(Target->SignalQueue, &Sig->Header);
-
+    Target->Signals[Signal].Deadly = GlbSignalIsDeadly[Signal];
+    
     // Wake up thread if neccessary
-    if (Target->State == ThreadStateBlocked) {
-        SchedulerThreadSignal(Target);
-    }
+    SchedulerExpediteObject(Target->SchedulerObject);
     return OsSuccess;
 }
 
@@ -162,9 +153,8 @@ void
 SignalProcess(
     _In_ UUId_t ThreadId)
 {
-    CollectionItem_t* Node;
-    MCoreThread_t*    Thread = GetThread(ThreadId);
-    SystemSignal_t*   Signal;
+    MCoreThread_t* Thread = GetThread(ThreadId);
+    int            i;
 
     if (Thread == NULL || 
         Thread->MemorySpace == NULL ||
@@ -174,14 +164,14 @@ SignalProcess(
     }
     
     // Process all the signals
-    Node = CollectionPopFront(Thread->SignalQueue);
-    while (Node != NULL) {
-        Signal = (SystemSignal_t*)Node;
-        ContextPushInterceptor(Thread->ContextActive,
-            Thread->MemorySpace->Context->SignalHandler,
-            NULL,
-            Signal->Signal,
-            0);
-        kfree(Signal);
+    for (i = 0; i < NUMSIGNALS; i++) {
+        if (atomic_load(&Thread->Signals[i].Pending) == 1) {
+            ContextPushInterceptor(Thread->ContextActive,
+                Thread->MemorySpace->Context->SignalHandler,
+                NULL,
+                i,
+                0);
+            atomic_store(&Thread->Signals[i].Pending, 0);
+        }
     }
 }

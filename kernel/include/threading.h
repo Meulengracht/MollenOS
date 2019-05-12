@@ -36,8 +36,9 @@
 
 // Forward some structures we need
 typedef struct _SystemMemorySpace SystemMemorySpace_t;
-typedef struct _SystemProcess SystemProcess_t;
-typedef struct _SystemPipe SystemPipe_t;
+typedef struct _SystemProcess     SystemProcess_t;
+typedef struct _SystemPipe        SystemPipe_t;
+typedef struct _SchedulerObject   SchedulerObject_t;
 
 #ifndef __THREADING_ENTRY
 #define __THREADING_ENTRY
@@ -70,17 +71,9 @@ typedef void(*ThreadEntry_t)(void*);
 #define THREADING_INHERIT               0x00000010
 #define THREADING_TRANSITION_USERMODE   0x10000000
 
-typedef enum {
-    ThreadStateIdle,
-    ThreadStateQueued,
-    ThreadStateBlocked,
-    ThreadStateRunning
-} ThreadState_t;
-
 typedef struct {
-    CollectionItem_t Header;
-    int              Deadly;
-    int              Signal;
+    _Atomic(int) Pending;
+    int          Deadly;
 } SystemSignal_t;
 
 typedef struct _MCoreThread {
@@ -91,6 +84,7 @@ typedef struct _MCoreThread {
     Flags_t                 Flags;
     atomic_int              Cleanup;
     UUId_t                  Cookie;
+    SchedulerObject_t*      SchedulerObject;
 
     Context_t*              Contexts[THREADING_NUMCONTEXTS];
     Context_t*              ContextActive;
@@ -104,25 +98,7 @@ typedef struct _MCoreThread {
     ThreadEntry_t           Function;
     void*                   Arguments;
     int                     RetCode;
-
-    // Signal Support
-    int                     SignalInformation[NUMSIGNALS];
-    Collection_t*           SignalQueue;
-
-    // Scheduler Information
-    volatile ThreadState_t  State;
-    volatile Flags_t        SchedulerFlags;
-    UUId_t                  CoreId;
-    size_t                  TimeSlice;
-    int                     Queue;
-    uintptr_t               LastInstructionPointer;
-    struct {
-        uintptr_t*          Handle;
-        int                 Timeout;
-        size_t              TimeLeft;
-        clock_t             InterruptedAt;
-    }                       Sleep;
-    struct _MCoreThread*    Link;
+    SystemSignal_t          Signals[NUMSIGNALS];
 } MCoreThread_t;
 
 /* ThreadingInitialize
@@ -211,14 +187,15 @@ KERNELAPI MCoreThread_t* KERNELABI
 GetThread(
     _In_ UUId_t ThreadId);
 
-/* GetNextRunnableThread
+/* ThreadingAdvance
  * This is the thread-switch function and must be be called from the below architecture 
  * to get the next thread to run */
 KERNELAPI MCoreThread_t* KERNELABI
-GetNextRunnableThread(
-    _In_ MCoreThread_t* Current, 
-    _In_ int            PreEmptive,
-    _InOut_ Context_t** Context);
+ThreadingAdvance(
+    _In_  MCoreThread_t* Current,
+    _In_  int            Preemptive,
+    _In_  size_t         MillisecondsPassed,
+    _Out_ size_t*        NextDeadlineOut);
 
 /* DisplayActiveThreads
  * Prints out debugging information about each thread in the system, only active threads */

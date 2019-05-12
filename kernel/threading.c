@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Threading Interface
+ * Threading Interface
  * - Common routines that are platform independant to provide
  *   a flexible and generic threading platfrom
  */
@@ -118,12 +118,9 @@ InitializeDefaultThread(
     }
     
     // Create communication members
-    Thread->Pipe        = CreateSystemPipe(0, 6); // 64 entries, 4kb
-    Thread->SignalQueue = CollectionCreate(KeyInteger);
+    Thread->Pipe            = CreateSystemPipe(0, 6); // 64 entries, 4kb
+    Thread->SchedulerObject = SchedulerCreateObject(Thread, Flags);
     
-    // Setup initial scheduler information
-    SchedulerThreadInitialize(Thread, Flags);
-
     // Register the thread with arch
     if (ThreadingRegister(Thread) != OsSuccess) {
         FATAL(FATAL_SCOPE_KERNEL, "Failed to register a new thread with system.");
@@ -260,11 +257,10 @@ ThreadingCleanupThread(
     // Make sure we are completely removed as reference
     // from the entire system. We also signal all waiters for this
     // thread again before continueing just in case
-    SchedulerThreadFinalize(Thread);
+    SchedulerDestroyObject(Thread->SchedulerObject);
     SchedulerHandleSignalAll((uintptr_t*)&Thread->Cleanup);
     ThreadingUnregister(Thread);
     
-    CollectionDestroy(Thread->SignalQueue);
     for (i = 0; i < THREADING_NUMCONTEXTS; i++) {
         if (Thread->Contexts[i] != NULL) {
             ContextDestroy(Thread->Contexts[i], i);
@@ -451,35 +447,35 @@ DisplayActiveThreads(void)
 }
 
 MCoreThread_t*
-GetNextRunnableThread(
-    _In_ MCoreThread_t* Current, 
-    _In_ int            PreEmptive,
-    _InOut_ Context_t** Context)
+ThreadingAdvance(
+    _In_  MCoreThread_t* Current,
+    _In_  int            Preemptive,
+    _In_  size_t         MillisecondsPassed,
+    _Out_ size_t*        NextDeadlineOut)
 {
     SystemCpuCore_t* Core;
     MCoreThread_t*   NextThread;
     int              Cleanup;
 
-    Core                    = GetCurrentProcessorCore();
-    Current->ContextActive  = *Context;
+    Core    = GetCurrentProcessorCore();
+    Cleanup = atomic_load_explicit(&Current->Cleanup, memory_order_relaxed);
     
     TRACE("%u: current thread: %s (Context 0x%" PRIxIN ", IP 0x%" PRIxIN ", PreEmptive %i)",
         Core->Id, Current->Name, *Context, CONTEXT_IP((*Context)), PreEmptive);
-
-    Cleanup = atomic_load_explicit(&Current->Cleanup, memory_order_relaxed);
 GetNextThread:
     if ((Current->Flags & THREADING_IDLE) || Cleanup == 1) {
         // If the thread is finished then add it to garbagecollector
         if (Cleanup == 1) {
             GcSignal(GlbThreadGcId, Current);
         }
-        NextThread = SchedulerThreadSchedule(NULL, PreEmptive);
         TRACE(" > (null-schedule) initial next thread: %s", (NextThread) ? NextThread->Name : "null");
+        Current = NULL;
     }
-    else {
-        NextThread = SchedulerThreadSchedule(Current, PreEmptive);
-        TRACE(" > initial next thread: %s", (NextThread) ? NextThread->Name : "null");
-    }
+    
+    // Advance the scheduler
+    NextThread = SchedulerAdvance((Current != NULL) ? 
+        Current->SchedulerObject : NULL, Preemptive, 
+        MillisecondsPassed, NextDeadlineOut);
 
     // Sanitize if we need to active our idle thread, otherwise
     // do a final check that we haven't just gotten ahold of a thread
@@ -511,8 +507,6 @@ GetNextThread:
 
     // Handle any signals pending for thread
     SignalProcess(NextThread->Header.Key.Value.Id);
-    
     Core->CurrentThread = NextThread;
-    *Context            = NextThread->ContextActive;
     return NextThread;
 }

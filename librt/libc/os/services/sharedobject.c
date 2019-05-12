@@ -113,9 +113,10 @@ SharedObjectLoad(
 
         if (Status == OsSuccess && Result != HANDLE_INVALID) {
             Library = (LibraryItem_t*)malloc(sizeof(LibraryItem_t));
-            COLLECTION_NODE_INIT((CollectionItem_t*)Library, Key);
-            Library->Handle     = Result;
-            Library->References = 0;
+            memset(Library, 0, sizeof(LibraryItem_t));
+            
+            Library->Header.Key.Value.Id = Key.Value.Id;
+            Library->Handle              = Result;
             CollectionAppend(&LoadedLibraries, (CollectionItem_t*)Library);
         }
     }

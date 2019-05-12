@@ -105,11 +105,14 @@ ThreadingYield(void)
 
 void
 X86SwitchThread(
-    _In_  Context_t* Context,
-    _In_  int        PreEmptive)
+    _In_ Context_t* Context,
+    _In_ int        Preemptive,
+    _In_ size_t     MillisecondsPassed)
 {
-    UUId_t         CoreId      = ArchGetProcessorCoreId();
-    MCoreThread_t* Thread      = GetCurrentThreadForCore(CoreId);
+    UUId_t         CoreId = ArchGetProcessorCoreId();
+    MCoreThread_t* Thread = GetCurrentThreadForCore(CoreId);
+    MCoreThread_t* NextThread;
+    size_t         Deadline;
 
     // Sanitize the status of threading, if it's not up and running
     // but a timer is, then set default values and return thread
@@ -120,6 +123,9 @@ X86SwitchThread(
         enter_thread(Context);
         // -- no return
     }
+    
+    // Store active context
+    Thread->ContextActive = Context;
     
     // Save FPU/MMX/SSE information if it's
     // been used, otherwise skip this and save time
@@ -133,25 +139,28 @@ X86SwitchThread(
     }
 
     // Get a new thread for us to enter
-    Thread = GetNextRunnableThread(Thread, PreEmptive, &Context);
-    Thread->Data[THREAD_DATA_FLAGS] &= ~X86_THREAD_USEDFPU; // Clear the FPU used flag
-
-    // Load thread-specific resources
-    SwitchMemorySpace(Thread->MemorySpace);
-    TssUpdateThreadStack(CoreId, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
-    TssUpdateIo(CoreId, (uint8_t*)Thread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
-    set_ts(); // Set task switch bit so we get faults on fpu instructions
+    NextThread = ThreadingAdvance(Thread, Preemptive, MillisecondsPassed, &Deadline);
+    if (NextThread != Thread) {
+        // Clear the FPU used flag
+        NextThread->Data[THREAD_DATA_FLAGS] &= ~X86_THREAD_USEDFPU;
+        
+        // Load thread-specific resources
+        SwitchMemorySpace(NextThread->MemorySpace);
+        TssUpdateThreadStack(CoreId, (uintptr_t)NextThread->Contexts[THREADING_CONTEXT_LEVEL0]);
+        TssUpdateIo(CoreId, (uint8_t*)NextThread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
+        set_ts(); // Set task switch bit so we get faults on fpu instructions
+    }
 
     // If we are idle task - disable timer untill we get woken up
-    if (Thread->Flags & THREADING_IDLE) {
+    if (NextThread->Flags & THREADING_IDLE) {
         ApicSetTaskPriority(0);
     }
     else {
-        ApicSetTaskPriority(61 - Thread->Queue);
-        ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * Thread->TimeSlice);
+        ApicSetTaskPriority(61 - NextThread->SchedulerObject->Queue);
+        ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * Deadline);
     }
     
     // Manually update interrupt status
     InterruptSetActiveStatus(0);
-    enter_thread(Context);
+    enter_thread(NextThread->ContextActive);
 }

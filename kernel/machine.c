@@ -88,7 +88,6 @@ InitializeMachine(
     memcpy(&Machine.BootInformation, BootInformation, sizeof(Multiboot_t));
     Crc32GenerateTable();
     LogInitialize();
-    GcConstruct();
 
     // Setup strings
     sprintf(&Machine.Architecture[0], "System: %s", ARCHITECTURE_NAME);

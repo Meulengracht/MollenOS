@@ -193,7 +193,7 @@ TimersInterrupt(
             AccumulatedDrift += NSEC_PER_MSEC - (long)ActiveSystemTimer->TickInNs;
             if (AccumulatedDrift >= NSEC_PER_MSEC)       { MilliTicks++; AccumulatedDrift -= NSEC_PER_MSEC; }
             else if (AccumulatedDrift <= -NSEC_PER_MSEC) { MilliTicks--; AccumulatedDrift += NSEC_PER_MSEC; }
-            if (MilliTicks != 0)                         { SchedulerTick(MilliTicks); }
+            if (MilliTicks != 0)                         { /* */ }
             UpdateSystemTime(ActiveSystemTimer->TickInNs);
             return OsSuccess;
         }

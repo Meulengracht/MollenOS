@@ -113,8 +113,8 @@ ScThreadSleep(
     clock_t End     = 0;
 
     TimersGetSystemTick(&Start);
-    if (SchedulerThreadSleep(NULL, Milliseconds) == SCHEDULER_SLEEP_INTERRUPTED) {
-        End = GetCurrentThreadForCore(ArchGetProcessorCoreId())->Sleep.InterruptedAt;
+    if (SchedulerSleep(Milliseconds) == SCHEDULER_SLEEP_INTERRUPTED) {
+        End = GetCurrentThreadForCore(ArchGetProcessorCoreId())->SchedulerObject->InterruptedAt;
     }
     else {
         TimersGetSystemTick(&End);

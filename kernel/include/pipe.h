@@ -27,7 +27,7 @@
 #define __SYSTEM_PIPE__
 
 #include <os/osdefs.h>
-#include <semaphore_slim.h>
+#include <semaphore.h>
 
 #define PIPE_DEFAULT_ENTRYCOUNT     8 // Logarithmic base of 2 value of workers
 
@@ -42,13 +42,11 @@
 
 #define PIPE_MPMC                   (PIPE_MULTIPLE_PRODUCERS | PIPE_MULTIPLE_CONSUMERS)
 
-/* SystemPipeEntry
- * A system pipe entry is an available item for read and write. */
 typedef struct _SystemPipeEntry {
-    SlimSemaphore_t         SyncObject;
-    unsigned int            SegmentBufferIndex;
-    unsigned int            SegmentBufferCurrentIndex;
-    uint16_t                Length;
+    Semaphore_t  SyncObject;
+    unsigned int SegmentBufferIndex;
+    unsigned int SegmentBufferCurrentIndex;
+    uint16_t     Length;
 } SystemPipeEntry_t;
 
 /* SystemPipeSegmentBuffer

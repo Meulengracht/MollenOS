@@ -16,9 +16,8 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Garbage Collector
- * - Makes it possible for regular cleanup in the kernel
- *   or regular maintiance.
+ * Garbage Collector
+ * - Makes it possible for regular cleanup in the kernel or regular maintiance.
  */
 
 #ifndef _MCORE_GARBAGECOLLECTOR_H_
@@ -26,14 +25,7 @@
 
 #include <os/osdefs.h>
 
-/* Garbage Collector Definitions
- * Describes the prototype that can be registered */
 typedef OsStatus_t (*GcHandler_t)(void*);
-
-/* GcConstruct
- * Constructs the gc data-systems, but does not start the actual collection */
-KERNELAPI void KERNELABI
-GcConstruct(void);
 
 /* GcInitialize
  * Initializes the garbage-collector system */

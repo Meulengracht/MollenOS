@@ -25,8 +25,9 @@
 
 #include <ds/collection.h>
 #include <garbagecollector.h>
-#include <semaphore_slim.h>
+#include <semaphore.h>
 #include <threading.h>
+#include <mutex.h>
 #include <string.h>
 #include <debug.h>
 #include <heap.h>
@@ -42,36 +43,21 @@ typedef struct _GcMessage {
 } GcMessage_t;
 
 // Prototype for the worker thread
-void GcWorker(void *Args);
+static void GcWorker(void *Args);
 
-static SlimSemaphore_t GlbGcEventLock;
+static Mutex_t         QueueLock      = MUTEX_INIT(MUTEX_PLAIN);
+static Semaphore_t     EventLock      = SEMAPHORE_INIT(0, 1);
 static Collection_t    GcHandlers     = COLLECTION_INIT(KeyId);
 static Collection_t    GcEvents       = COLLECTION_INIT(KeyId);
 static _Atomic(UUId_t) GcIdGenerator  = ATOMIC_VAR_INIT(0);
 static UUId_t          GcThreadHandle = UUID_INVALID;
 
-/* GcConstruct
- * Constructs the gc data-systems, but does not start the actual collection */
-void
-GcConstruct(void)
-{
-    SlimSemaphoreConstruct(&GlbGcEventLock, 0, 1000);
-}
-
-/* GcInitialize
- * Initializes the garbage-collector system */
 void
 GcInitialize(void)
 {
-    // Debug information
-    TRACE("GcInitialize()");
     CreateThread("gc-worker", GcWorker, NULL, 0, UUID_INVALID, &GcThreadHandle);
 }
 
-/* GcRegister
- * Registers a new gc-handler that will be run
- * when new work is available, returns the unique id
- * for the new handler */
 UUId_t
 GcRegister(
     _In_ GcHandler_t Handler)
@@ -85,8 +71,6 @@ GcRegister(
     return Endpoint->Header.Key.Value.Id;
 }
 
-/* GcUnregister
- * Removes a previously registed handler by its id */
 OsStatus_t
 GcUnregister(
     _In_ UUId_t Handler)
@@ -99,8 +83,6 @@ GcUnregister(
     return CollectionRemoveByKey(&GcHandlers, Key);
 }
 
-/* GcSignal
- * Signals new garbage for the specified handler */
 OsStatus_t
 GcSignal(
     _In_ UUId_t Handler,
@@ -119,26 +101,23 @@ GcSignal(
     Message->Argument            = Data;
     
     CollectionAppend(&GcEvents, &Message->Header);
-    SlimSemaphoreSignal(&GlbGcEventLock, 1);
+    SemaphoreSignal(&EventLock, 1);
     return OsSuccess;
 }
 
-/* GcWorker
- * The event-handler thread */
-void 
+static void 
 GcWorker(
     _In_Opt_ void* Args)
 {
     GcEndpoint_t* Endpoint;
     GcMessage_t*  Message;
     int           Run = 1;
-
-    // Unused arg
     _CRT_UNUSED(Args);
+    
+    MutexLock(&QueueLock);
     while (Run) {
-        // Wait for next event
-        SlimSemaphoreWait(&GlbGcEventLock, 0);
-
+        SemaphoreWait(&EventLock, &QueueLock, 0);
+        
         Message = (GcMessage_t*)CollectionPopFront(&GcEvents);
         if (Message == NULL) {
             continue;
@@ -151,4 +130,5 @@ GcWorker(
         }
         kfree(Message);
     }
+    MutexUnlock(&QueueLock);
 }
