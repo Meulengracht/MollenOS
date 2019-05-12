@@ -516,17 +516,17 @@ ReadRawSegmentBuffer(
 // System Pipe Entry Code
 static void
 InitializeSegmentEntry(
-    _In_ SystemPipeEntry_t*         Entry)
+    _In_ SystemPipeEntry_t* Entry)
 {
-    SlimSemaphoreConstruct(&Entry->SyncObject, 0, 1);
+    SemaphoreConstruct(&Entry->SyncObject, 0, 1);
 }
 
 static SystemPipeEntry_t*
 GetSegmentEntryForReading(
-    _In_ SystemPipeSegment_t*       Segment,
-    _In_ unsigned int               Index)
+    _In_ SystemPipeSegment_t* Segment,
+    _In_ unsigned int         Index)
 {
-    SlimSemaphoreWait(&Segment->Entries[Index].SyncObject, 0);
+    SemaphoreWaitSimple(&Segment->Entries[Index].SyncObject, 0);
     return &Segment->Entries[Index];
 }
 
@@ -576,7 +576,7 @@ SetSegmentEntryReadable(
     // Reset current index so it's available for the reader to use
     // and change state of entry to <Unwriteable> <Readable>
     Entry->SegmentBufferCurrentIndex = Entry->SegmentBufferIndex;
-    SlimSemaphoreSignal(&Entry->SyncObject, 1);
+    SemaphoreSignal(&Entry->SyncObject, 1);
 }
 
 /////////////////////////////////////////////////////////////////////////

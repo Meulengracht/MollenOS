@@ -243,11 +243,6 @@ _asm_memcpy_sse2:
 
 	; Aligned Loop
 AlignedLoop2:
-    prefetchnta [esi + 128]
-    prefetchnta [esi + 160]
-    prefetchnta [esi + 192]
-    prefetchnta [esi + 224]
-
 	movdqa xmm0, [esi]
     movdqa xmm1, [esi + 16]
     movdqa xmm2, [esi + 32]
@@ -277,11 +272,6 @@ AlignedLoop2:
 	
 	; Unaligned Loop
 UnalignedLoop2:
-    prefetchnta [esi + 128]
-    prefetchnta [esi + 160]
-    prefetchnta [esi + 192]
-    prefetchnta [esi + 224]
-
     movdqu xmm0, [esi]
     movdqu xmm1, [esi + 16]
     movdqu xmm2, [esi + 32]

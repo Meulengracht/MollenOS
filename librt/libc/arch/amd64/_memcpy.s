@@ -54,11 +54,6 @@ asm_memcpy_sse2:
 
 	; Aligned Loop
 AlignedLoop:
-    prefetchnta [rsi + 128]
-    prefetchnta [rsi + 160]
-    prefetchnta [rsi + 192]
-    prefetchnta [rsi + 224]
-
     movdqa xmm0, [rsi]
     movdqa xmm1, [rsi + 16]
     movdqa xmm2, [rsi + 32]
@@ -88,11 +83,6 @@ AlignedLoop:
 	
 	; Unaligned Loop
 UnalignedLoop:
-    prefetchnta [rsi + 128]
-    prefetchnta [rsi + 160]
-    prefetchnta [rsi + 192]
-    prefetchnta [rsi + 224]
-
     movdqu xmm0, [rsi]
     movdqu xmm1, [rsi + 16]
     movdqu xmm2, [rsi + 32]
@@ -136,5 +126,4 @@ CpyDone:
     movdqu  xmm6, [rsp]
     movdqu  xmm7, [rsp + 16]
 	add     rsp, 32
-
 	ret

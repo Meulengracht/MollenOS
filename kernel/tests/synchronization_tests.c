@@ -102,7 +102,7 @@ WaitForSynchronizationTest(
 
     // Run the test in steps
     while (TimeLeft > 0) {
-        SchedulerThreadSleep(NULL, Step);
+        SchedulerSleep(Step);
         TimeLeft -= Step;
 
         // Debug the number of iterations done by each worker

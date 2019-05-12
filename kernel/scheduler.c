@@ -36,55 +36,51 @@
 #include <debug.h>
 #include <heap.h>
 
-// Global io-queue that holds blocked threads
-static SchedulerQueue_t IoQueue      = { NULL, NULL };
-static SafeMemoryLock_t IoSyncObject = { 0 };
-
-static OsStatus_t
-FindThreadInQueue(
-    _In_ SchedulerQueue_t* Queue,
-    _In_ MCoreThread_t*    Thread)
+static SystemScheduler_t*
+SchedulerGetFromCore(
+    _In_ UUId_t CoreId)
 {
-    MCoreThread_t* i = Queue->Head;
-    while (i) {
-        if (i == Thread) {
-            return OsSuccess;
-        }
-        i = i->Link;
-    }
-    return OsError;
+    return &GetProcessorCore(CoreId)->Scheduler;
+}
+
+static SchedulerObject_t*
+SchedulerGetCurrentObject(
+    _In_ UUId_t CoreId)
+{
+    return (GetProcessorCore(CoreId)->CurrentThread != NULL) ? 
+        GetProcessorCore(CoreId)->CurrentThread->SchedulerObject : NULL;
 }
 
 static void
 AppendToQueue(
-    _In_ SchedulerQueue_t* Queue,
-    _In_ MCoreThread_t*    ThreadStart,
-    _In_ MCoreThread_t*    ThreadEnd)
+    _In_ SchedulerQueue_t*  Queue,
+    _In_ SchedulerObject_t* Start,
+    _In_ SchedulerObject_t* End)
 {
     // Always make sure end is pointing to nothing
-    ThreadEnd->Link = NULL;
+    End->Link = NULL;
     
     // Get the tail pointer of the queue to append
     if (Queue->Head == NULL) {
-        Queue->Head = ThreadStart;
-        Queue->Tail = ThreadEnd;
+        Queue->Head = Start;
+        Queue->Tail = End;
     }
     else {
-        Queue->Tail->Link = ThreadStart;
-        Queue->Tail       = ThreadEnd;
+        Queue->Tail->Link = Start;
+        Queue->Tail       = End;
     }
 }
 
 static OsStatus_t
 RemoveFromQueue(
-    _In_ SchedulerQueue_t* Queue,
-    _In_ MCoreThread_t*    Thread)
+    _In_ SchedulerQueue_t*  Queue,
+    _In_ SchedulerObject_t* Object)
 {
-    MCoreThread_t* Current  = Queue->Head;
-    MCoreThread_t* Previous = NULL;
+    SchedulerObject_t* Current  = Queue->Head;
+    SchedulerObject_t* Previous = NULL;
 
     while (Current) {
-        if (Current == Thread) {
+        if (Current == Object) {
             // Two cases, previous is NULL, or not
             if (Previous == NULL) Queue->Head    = Current->Link;
             else                  Previous->Link = Current->Link;
@@ -96,7 +92,7 @@ RemoveFromQueue(
             }
             
             // Reset link
-            Thread->Link = NULL;
+            Object->Link = NULL;
             return OsSuccess;
         }
         Previous = Current;
@@ -105,61 +101,34 @@ RemoveFromQueue(
     return OsDoesNotExist;
 }
 
-static MCoreThread_t*
-GetThreadSleepingByHandle(
-    _In_ uintptr_t* Handle)
+static void
+QueueForScheduler(
+    _In_ SystemScheduler_t* Scheduler,
+    _In_ SchedulerObject_t* Object)
 {
-    MCoreThread_t* i = IoQueue.Head;
-    while (i) {
-        if (i->Sleep.Handle == Handle) {
-            return i;
-        }
-        i = i->Link;
+    // Verify it doesn't exist in sleep queue
+    if (Object->Link != NULL) {
+        RemoveFromQueue(&Scheduler->SleepQueue, Object);
     }
-    return NULL;
-}
-
-static SystemScheduler_t*
-SchedulerGetFromCore(
-    _In_ UUId_t CoreId)
-{
-    return &GetProcessorCore(CoreId)->Scheduler;
-}
-
-static OsStatus_t
-AddToSleepQueueAndSleep(
-    _In_ MCoreThread_t* Thread,
-    _In_ atomic_int*    Object,
-    _In_ int*           ExpectedValue)
-{
-    dslock(&IoSyncObject);
-    AppendToQueue(&IoQueue, Thread, Thread);
-    if (Object != NULL && !atomic_compare_exchange_strong(Object, ExpectedValue, *ExpectedValue)) {
-        (void)RemoveFromQueue(&IoQueue, Thread);
-        dsunlock(&IoSyncObject);
-        return OsError;
-    }
-    Thread->SchedulerFlags |= SCHEDULER_FLAG_BLOCK_IN_PRG;
-    Thread->State           = ThreadStateBlocked;
-    dsunlock(&IoSyncObject);
-    ThreadingYield();
-    assert(Thread->State == ThreadStateRunning);
-
-#ifdef DETECT_OVERRUNS
-    if (FindThreadInQueue(&IoQueue, Thread) != OsError) {
-        ERROR("Sleep.TimeLeft %u, Sleep.Timeout %u, Sleep.Handle 0x%" PRIxIN ", Sleep.InterruptedAt %u",
-            Thread->Sleep.TimeLeft, Thread->Sleep.Timeout, 
-            Thread->Sleep.Handle, Thread->Sleep.InterruptedAt);
-        ERROR("Thread->SchedulerFlags 0x%" PRIxIN, Thread->SchedulerFlags);
-        assert(0);
-    }
-#endif
-    return OsSuccess;
+    Object->State = SchedulerObjectStateQueued;
+    AppendToQueue(&Scheduler->Queues[Object->Queue], Object, Object);
 }
 
 static void
-AllocateSchedulerForThread(
-    _In_ MCoreThread_t* Thread)
+QueueOnCoreFunction(
+    _In_ void* Context)
+{
+    SystemScheduler_t* Scheduler = &GetCurrentProcessorCore()->Scheduler;
+    SchedulerObject_t* Object    = (SchedulerObject_t*)Context;
+    QueueForScheduler(Scheduler, Object);
+    if (ThreadingIsCurrentTaskIdle(Object->CoreId)) {
+        ThreadingYield();
+    }
+}
+
+static void
+AllocateScheduler(
+    _In_ SchedulerObject_t* Object)
 {
     SystemDomain_t*    Domain    = GetCurrentDomain();
     SystemCpu_t*       CoreGroup = &GetMachine()->Processor;
@@ -175,7 +144,7 @@ AllocateSchedulerForThread(
     Scheduler = &CoreGroup->PrimaryCore.Scheduler;
     CoreId    = CoreGroup->PrimaryCore.Id;
     
-    // Allocate a processor core for this thread
+    // Allocate a processor core for this object
     for (i = 0; i < (CoreGroup->NumberOfCores - 1); i++) {
         // Skip cores not booted yet, their scheduler is not initialized
         if (CoreGroup->ApplicationCores[i].State != CpuStateRunning) {
@@ -191,310 +160,212 @@ AllocateSchedulerForThread(
     }
     
     // Select whatever we end up with
-    Thread->CoreId = CoreId;
+    Object->CoreId = CoreId;
     
     // Add pressure on this scheduler
-    atomic_fetch_add(&Scheduler->Bandwidth, Thread->TimeSlice);
-    atomic_fetch_add(&Scheduler->ThreadCount, 1);
+    atomic_fetch_add(&Scheduler->Bandwidth, Object->TimeSlice);
+    atomic_fetch_add(&Scheduler->ObjectCount, 1);
 }
 
-void
-SchedulerThreadInitialize(
-    _In_ MCoreThread_t* Thread,
-    _In_ Flags_t        Flags)
+SchedulerObject_t*
+SchedulerCreateObject(
+    _In_ void*   Payload,
+    _In_ Flags_t Flags)
 {
-    Thread->Link           = NULL;
-    Thread->SchedulerFlags = 0;
-    Thread->State          = ThreadStateIdle;
+    SchedulerObject_t* Object = kmalloc(sizeof(SchedulerObject_t));
+    memset(Object, 0, sizeof(SchedulerObject_t));
+    
+    Object->Link   = NULL;
+    Object->Flags  = 0;
+    Object->State  = SchedulerObjectStateIdle;
+    Object->Object = Payload;
 
     if (Flags & THREADING_IDLE) {
-        Thread->Queue           = SCHEDULER_LEVEL_LOW;
-        Thread->TimeSlice       = SCHEDULER_TIMESLICE_INITIAL + (SCHEDULER_LEVEL_LOW * 2);
-        Thread->SchedulerFlags |= SCHEDULER_FLAG_BOUND;
-        Thread->CoreId          = ArchGetProcessorCoreId();
+        Object->Queue      = SCHEDULER_LEVEL_LOW;
+        Object->TimeSlice  = SCHEDULER_TIMESLICE_INITIAL + (SCHEDULER_LEVEL_LOW * 2);
+        Object->Flags     |= SCHEDULER_FLAG_BOUND;
+        Object->CoreId     = ArchGetProcessorCoreId();
     }
     else {
-        Thread->Queue     = 0;
-        Thread->TimeSlice = SCHEDULER_TIMESLICE_INITIAL;
-        
-        // Initial pressure must be set
-        AllocateSchedulerForThread(Thread);
+        Object->Queue     = 0;
+        Object->TimeSlice = SCHEDULER_TIMESLICE_INITIAL;
+        AllocateScheduler(Object);
     }
+    return Object;
 }
 
 void
-SchedulerThreadFinalize(
-    _In_ MCoreThread_t* Thread)
+SchedulerDestroyObject(
+    _In_ SchedulerObject_t* Object)
 {
-    SystemScheduler_t* Scheduler = SchedulerGetFromCore(Thread->CoreId);
+    SystemScheduler_t* Scheduler = SchedulerGetFromCore(Object->CoreId);
     
     // Remove pressure
-    atomic_fetch_sub(&Scheduler->Bandwidth, Thread->TimeSlice);
-    atomic_fetch_sub(&Scheduler->ThreadCount, 1);
+    atomic_fetch_sub(&Scheduler->Bandwidth, Object->TimeSlice);
+    atomic_fetch_sub(&Scheduler->ObjectCount, 1);
     
     // Reset some states
-    Thread->Link           = NULL;
-    Thread->SchedulerFlags = 0;
-    Thread->State          = ThreadStateIdle;
+    Object->Link  = NULL;
+    Object->Flags = 0;
+    Object->State = SchedulerObjectStateIdle;
 }
 
-int
-SchedulerThreadSleep(
-    _In_ uintptr_t*         Handle,
-    _In_ size_t             Timeout)
+
+void
+SchedulerExpediteObject(
+    _In_ SchedulerObject_t* Object)
 {
-    MCoreThread_t* CurrentThread;
-    UUId_t         CoreId;
-    
-    CoreId        = ArchGetProcessorCoreId();
-    CurrentThread = GetCurrentThreadForCore(CoreId);
-    
-    assert(CurrentThread != NULL);
-    TRACE("Adding %s to sleep queue on 0x%" PRIxIN " timeout %u", 
-        CurrentThread->Name, Handle, Timeout);
-    
-    // Update sleep-information
-    CurrentThread->Sleep.TimeLeft       = Timeout;
-    CurrentThread->Sleep.Timeout        = 0;
-    CurrentThread->Sleep.Handle         = Handle;
-    CurrentThread->Sleep.InterruptedAt  = 0;
-    AddToSleepQueueAndSleep(CurrentThread, NULL, NULL);
-
-    // Resolve sleep-state
-    if (CurrentThread->Sleep.Timeout == 1) {
-        return SCHEDULER_SLEEP_TIMEOUT;
-    }
-    else if (CurrentThread->Sleep.TimeLeft != 0) {
-        return SCHEDULER_SLEEP_INTERRUPTED;        
-    }
-    else {
-        return SCHEDULER_SLEEP_OK;
-    }
-}
-
-int
-SchedulerAtomicThreadSleep(
-    _In_ atomic_int*        Object,
-    _In_ int*               ExpectedValue,
-    _In_ size_t             Timeout)
-{
-    MCoreThread_t* CurrentThread;
-    UUId_t         CoreId;
-    
-    CoreId        = ArchGetProcessorCoreId();
-    CurrentThread = GetCurrentThreadForCore(CoreId);
-
-    assert(CurrentThread != NULL);
-    TRACE("Atomically adding %s to sleep queue on 0x%" PRIxIN " timeout %u", 
-        CurrentThread->Name, Object, Timeout);
-    
-    // Update sleep-information
-    CurrentThread->Sleep.TimeLeft      = Timeout;
-    CurrentThread->Sleep.Timeout       = 0;
-    CurrentThread->Sleep.Handle        = (uintptr_t*)Object;
-    CurrentThread->Sleep.InterruptedAt = 0;
-    if (AddToSleepQueueAndSleep(CurrentThread, Object, ExpectedValue) != OsSuccess) {
-        return SCHEDULER_SLEEP_SYNC_FAILED;
-    }
-
-    // Resolve sleep-state
-    if (CurrentThread->Sleep.Timeout == 1) {
-        return SCHEDULER_SLEEP_TIMEOUT;
-    }
-    else if (CurrentThread->Sleep.TimeLeft != 0) {
-        return SCHEDULER_SLEEP_INTERRUPTED;        
-    }
-    else {
-        return SCHEDULER_SLEEP_OK;
-    }
-}
-
-static void
-QueueThreadForScheduler(
-    _In_ SystemScheduler_t* Scheduler,
-    _In_ MCoreThread_t*     Thread)
-{
-    Thread->State = ThreadStateQueued;
-    AppendToQueue(&Scheduler->Queues[Thread->Queue], Thread, Thread);
-}
-
-static void
-QueueThreadOnCoreFunction(
-    _In_ void* Context)
-{
-    SystemScheduler_t* Scheduler = &GetCurrentProcessorCore()->Scheduler;
-    MCoreThread_t*     Thread    = (MCoreThread_t*)Context;
-    TRACE("QueueThreadOnCoreFunction(%u, %s)", Thread->CoreId, Thread->Name);
-    QueueThreadForScheduler(Scheduler, Thread);
-    if (ThreadingIsCurrentTaskIdle(Thread->CoreId)) {
-        ThreadingYield();
-    }
-}
-
-static OsStatus_t
-TriggerBlockedThread(
-    _In_ MCoreThread_t* Thread,
-    _In_ int            IsHandle)
-{
-    SystemCpuCore_t* Core   = GetCurrentProcessorCore();
-    MCoreThread_t*   Target = Thread;
+    SystemCpuCore_t* Core;
     OsStatus_t       Status;
     
-    dslock(&IoSyncObject);
-    if (IsHandle) {
-        Target = GetThreadSleepingByHandle((uintptr_t*)Thread);
-        if (Target == NULL) {
-            dsunlock(&IoSyncObject);
-            return OsDoesNotExist;
+    if (Object->State == SchedulerObjectStateBlocked) {
+        // Either sleeping, which means we'll interrupt it immediately
+        // or it's waiting for in a block queue
+        if (Object->QueueHandle != NULL) {
+            Status = CollectionRemoveByNode(&Object->QueueHandle->Queue, &Object->Header);
+            if (Status != OsSuccess) {
+                // we are too late, it's going into queue anyway, back off
+                return;
+            }
         }
-    }
-    Status = RemoveFromQueue(&IoQueue, Target);
-    dsunlock(&IoSyncObject);
-    
-    if (Status == OsSuccess) {
-        // Verify the thread has been completely removed before continuing
-        while (Target->SchedulerFlags & SCHEDULER_FLAG_BLOCK_IN_PRG);
-        //TRACE("..signal %s", Target->Name);
-
-        TimersGetSystemTick(&Target->Sleep.InterruptedAt);
-        if (Core->Id == Target->CoreId) {
+        
+        // We removed it, activate its timeout
+        TimersGetSystemTick(&Object->InterruptedAt);
+        
+        // If the object is running on our core, just append it
+        Core = GetCurrentProcessorCore();
+        if (Core->Id == Object->CoreId) {
             dslock(&Core->Scheduler.SyncObject);
-            QueueThreadForScheduler(&Core->Scheduler, Target);
+            QueueForScheduler(&Core->Scheduler, Object);
             dsunlock(&Core->Scheduler.SyncObject);
-            ThreadingYield();
         }
         else {
-            // Execute function on the target core
-            ExecuteProcessorCoreFunction(Target->CoreId, CpuFunctionCustom, 
-                QueueThreadOnCoreFunction, Target);
-        }
-    }
-    return Status;
-}
-
-OsStatus_t
-SchedulerThreadSignal(
-    _In_ MCoreThread_t* Thread)
-{
-    return TriggerBlockedThread(Thread, 0);
-}
-
-OsStatus_t
-SchedulerHandleSignal(
-    _In_ uintptr_t* Handle)
-{
-    return TriggerBlockedThread((MCoreThread_t*)Handle, 1);
-}
-
-void
-SchedulerHandleSignalAll(
-    _In_ uintptr_t* Handle)
-{
-    while (1) {
-        if (SchedulerHandleSignal(Handle) != OsSuccess) {
-            break;
+            // Send a message to the correct core
+            ExecuteProcessorCoreFunction(Object->CoreId, CpuFunctionCustom, 
+                QueueOnCoreFunction, Object);
         }
     }
 }
 
-void
-SchedulerTick(
+int
+SchedulerSleep(
     _In_ size_t Milliseconds)
 {
-    SystemCpuCore_t* Core   = GetCurrentProcessorCore();
-    int              WakeUs = 0;
-    MCoreThread_t*   i;
-    MCoreThread_t*   p;
-    MCoreThread_t*   t;
+    SchedulerObject_t* Object;
+    UUId_t             CoreId;
     
-    dslock(&IoSyncObject);
-    i = IoQueue.Head;
-    p = NULL;
-    while (i) {
-        if (i->Sleep.TimeLeft != 0) {
-            i->Sleep.TimeLeft -= MIN(Milliseconds, i->Sleep.TimeLeft);
-            if (i->Sleep.TimeLeft == 0) {
-                if (i->Sleep.Handle != NULL) {
-                    i->Sleep.Timeout = 1;
-                }
-                t = i->Link;
-                RemoveFromQueue(&IoQueue, i);
+    CoreId = ArchGetProcessorCoreId();
+    Object = SchedulerGetCurrentObject(CoreId);
+    assert(Object != NULL);
+    
+    // Setup information for the current running object
+    Object->TimeLeft      = Milliseconds;
+    Object->Timeout       = 0;
+    Object->InterruptedAt = 0;
+    Object->QueueHandle   = NULL;
+    
+    // The moment we change this while the TimeLeft is set, the
+    // sleep will automatically get started
+    Object->State = SchedulerObjectStateBlocked;
+    ThreadingYield();
+    return (Object->Timeout != 1) ? 
+        SCHEDULER_SLEEP_INTERRUPTED : SCHEDULER_SLEEP_OK;
+}
 
-                // Is it running on this core? Lets add it directly as
-                // we are already in interrupt safe context
-                TimersGetSystemTick(&i->Sleep.InterruptedAt);
-                if (Core->Id == i->CoreId) {
-                    TRACE("..timeout %s (us %u)", i->Name, i->CoreId);
-                    QueueThreadForScheduler(&Core->Scheduler, i);
-                    WakeUs = 1;
-                }
-                else {
-                    // Execute function on the target core
-                    TRACE("..timeout %s (ipi %u)", i->Name, i->CoreId);
-                    ExecuteProcessorCoreFunction(i->CoreId, CpuFunctionCustom, 
-                        QueueThreadOnCoreFunction, i);
-                }
-                
-                i = t;
-            }
-            else {
-                p = i;
-                i = i->Link;
-            }
+OsStatus_t
+SchedulerBlock(
+    _In_ SchedulerLockedQueue_t* Queue,
+    _In_ size_t                  Timeout)
+{
+    SchedulerObject_t* Object;
+    UUId_t             CoreId;
+    
+    CoreId = ArchGetProcessorCoreId();
+    Object = SchedulerGetCurrentObject(CoreId);
+    assert(InterruptIsDisabled() == 1);
+    assert(Object != NULL);
+    
+    // Setup information for the current running object
+    Object->TimeLeft      = Timeout;
+    Object->Timeout       = 0;
+    Object->InterruptedAt = 0;
+    Object->QueueHandle   = Queue;
+    
+    // The moment we change this while the TimeLeft is set, the
+    // sleep will automatically get started
+    Object->State = SchedulerObjectStateBlocked;
+    CollectionAppend(&Queue->Queue, &Object->Header);
+    dsunlock(&Queue->SyncObject);
+    ThreadingYield();
+    dslock(&Queue->SyncObject);
+    return (Object->Timeout == 1) ? OsTimeout : OsSuccess;
+}
+
+void
+SchedulerUnblock(
+    _In_ SchedulerLockedQueue_t* Queue)
+{
+    SchedulerObject_t* Object;
+    
+    // This is an atomic action, the lock must be held before calling
+    // this function.
+    assert(InterruptIsDisabled() == 1);
+    Object = (SchedulerObject_t*)CollectionPopFront(&Queue->Queue);
+    if (Object != NULL) {
+        SystemCpuCore_t* Core = GetCurrentProcessorCore();
+        TimersGetSystemTick(&Object->InterruptedAt);
+        
+        // If the object is running on our core, just append it
+        if (Core->Id == Object->CoreId) {
+            QueueForScheduler(&Core->Scheduler, Object);
         }
         else {
-            p = i;
-            i = i->Link;
+            // Send a message to the correct core
+            ExecuteProcessorCoreFunction(Object->CoreId, CpuFunctionCustom, 
+                QueueOnCoreFunction, Object);
         }
-    }
-    dsunlock(&IoSyncObject);
-    if (WakeUs) {
-        ThreadingYield();
     }
 }
 
 void
-SchedulerThreadQueue(
-    _In_ MCoreThread_t* Thread)
+SchedulerQueueObject(
+    _In_ SchedulerObject_t* Object)
 {
-    SystemScheduler_t* Scheduler = SchedulerGetFromCore(Thread->CoreId);
+    SystemScheduler_t* Scheduler = SchedulerGetFromCore(Object->CoreId);
+    assert(Object->State == SchedulerObjectStateIdle);
     
-    TRACE("Appending (%s) to core %i", Thread->Name, Thread->CoreId);
-    assert(FindThreadInQueue(&IoQueue, Thread) == OsError);
-    assert(Thread->State == ThreadStateIdle);
-    
-    // Is the thread for this core or someone else? If the thread is for
+    // Is the object for this core or someone else? If the object is for
     // the current core no need to invoke an IPI, we instead just do it in
-    // a thread safe way by acquiring the scheduler lock
-    if (GetCurrentProcessorCore()->Id == Thread->CoreId) {
+    // a thread-safe way by acquiring the scheduler lock
+    if (GetCurrentProcessorCore()->Id == Object->CoreId) {
         dslock(&Scheduler->SyncObject);
-        QueueThreadForScheduler(Scheduler, Thread);
+        QueueForScheduler(Scheduler, Object);
         dsunlock(&Scheduler->SyncObject);
     }
     else {
         // Execute function on the target core
-        ExecuteProcessorCoreFunction(Thread->CoreId, CpuFunctionCustom, 
-            QueueThreadOnCoreFunction, Thread);
+        ExecuteProcessorCoreFunction(Object->CoreId, CpuFunctionCustom, 
+            QueueOnCoreFunction, Object);
     }
 }
 
 static void
-UpdatePressureForThread(
+UpdatePressureForObject(
     _In_ SystemScheduler_t* Scheduler,
-    _In_ MCoreThread_t*     Thread,
+    _In_ SchedulerObject_t* Object,
     _In_ int                NewPressureRank)
 {
-    if (NewPressureRank != Thread->Queue) {
-        atomic_fetch_sub(&Scheduler->Bandwidth, Thread->TimeSlice);
+    if (NewPressureRank != Object->Queue) {
+        atomic_fetch_sub(&Scheduler->Bandwidth, Object->TimeSlice);
         
-        Thread->Queue     = NewPressureRank;
-        Thread->TimeSlice = (NewPressureRank * 2) + SCHEDULER_TIMESLICE_INITIAL;
-        atomic_fetch_add(&Scheduler->Bandwidth, Thread->TimeSlice);
+        Object->Queue     = NewPressureRank;
+        Object->TimeSlice = (NewPressureRank * 2) + SCHEDULER_TIMESLICE_INITIAL;
+        atomic_fetch_add(&Scheduler->Bandwidth, Object->TimeSlice);
     }
 }
 
 static void
-SchedulerBoostThreads(
+SchedulerBoost(
     _In_ SystemScheduler_t* Scheduler)
 {
     for (int i = 1; i < SCHEDULER_LEVEL_CRITICAL; i++) {
@@ -507,57 +378,125 @@ SchedulerBoostThreads(
     }
 }
 
-MCoreThread_t*
-SchedulerThreadSchedule(
-    _In_ MCoreThread_t* Thread,
-    _In_ int            Preemptive)
+static size_t
+SchedulerUpdateSleepQueue(
+    _In_ SystemScheduler_t* Scheduler,
+    _In_ size_t             MillisecondsPassed)
+{
+    size_t             NextUpdate = __MASK;
+    SchedulerObject_t* i          = Scheduler->SleepQueue.Head;
+    SchedulerObject_t* t;
+    OsStatus_t         Status;
+    
+    while (i) {
+        i->TimeLeft -= MIN(i->TimeLeft, MillisecondsPassed);
+        if (!i->TimeLeft) {
+            t = i->Link;
+            
+            // Synchronize with the locked list
+            if (i->QueueHandle != NULL) {
+                Status = CollectionRemoveByNode(&i->QueueHandle->Queue, &i->Header);
+                
+                // If it was already removed, then a we're experiencing a race condition
+                // by another core trying to destroy the order. Prevent this by expecting an 
+                // IPI for the requeue
+                if (Status != OsSuccess) {
+                    RemoveFromQueue(&Scheduler->SleepQueue, i);
+                    i->State = SchedulerObjectStateZombie;
+                    i = t;
+                    continue;
+                }
+            }
+            i->Timeout = 1;
+            TimersGetSystemTick(&i->InterruptedAt);
+            QueueForScheduler(Scheduler, i);
+            i = t;
+        }
+        else {
+            NextUpdate = MIN(i->TimeLeft, NextUpdate);
+            i          = i->Link;
+        }
+    }
+    return NextUpdate;
+}
+
+void*
+SchedulerAdvance(
+    _In_  SchedulerObject_t* Object,
+    _In_  int                Preemptive,
+    _In_  size_t             MillisecondsPassed,
+    _Out_ size_t*            NextDeadlineOut)
 {
     SystemScheduler_t* Scheduler  = &GetCurrentProcessorCore()->Scheduler;
-    MCoreThread_t*     NextThread = NULL;
+    SchedulerObject_t* NextObject = NULL;
     clock_t            CurrentClock;
+    size_t             NextDeadline;
     int                i;
+    TimersGetSystemTick(&CurrentClock);
+    
+    // In one case we can skip the whole requeue etc etc
+    if (Preemptive != 0 && MillisecondsPassed != Object->TimeSlice) {
+        NextObject = Object;
+    }
 
-    // Handle the scheduled thread first
-    if (Thread != NULL) {
-        if (Thread->State != ThreadStateBlocked) {
+    // Handle the scheduled object first
+    if (NextObject == NULL && Object != NULL) {
+        if (Object->State != SchedulerObjectStateBlocked) {
             // Did it yield itself?
             if (Preemptive != 0) {
                 // Nah, we interrupted it, demote it for that unless we are at max
                 // priority queue.
-                if (Thread->Queue < SCHEDULER_LEVEL_LOW) {
-                    UpdatePressureForThread(Scheduler, Thread, Thread->Queue + 1);
+                if (Object->Queue < SCHEDULER_LEVEL_LOW) {
+                    UpdatePressureForObject(Scheduler, Object, Object->Queue + 1);
                 }
             }
-            QueueThreadForScheduler(Scheduler, Thread);
+            QueueForScheduler(Scheduler, Object);
         }
         else {
-            TRACE("..skip %s", Thread->Name);
-            Thread->SchedulerFlags &= ~(SCHEDULER_FLAG_BLOCK_IN_PRG);
+            // OK, so the we are blocking this object which means we won't be
+            // queuing the object up again, should we track the sleep?
+            if (Object->TimeLeft != 0) {
+                AppendToQueue(&Scheduler->SleepQueue, Object, Object);
+            }
         }
     }
     
-    // Handle the boost timer
-    TimersGetSystemTick(&CurrentClock);
-    if (Scheduler->LastBoost == 0) {
-        Scheduler->LastBoost = CurrentClock;
+    // Update sleep queue before retrieving next ready
+    NextDeadline = SchedulerUpdateSleepQueue(Scheduler, MillisecondsPassed);
+    if (NextObject != NULL) {
+        NextDeadline = MIN(NextObject->TimeSlice - MillisecondsPassed, NextDeadline);
     }
-    else {
-        clock_t TimeDiff = CurrentClock - Scheduler->LastBoost;
-        if (TimeDiff >= SCHEDULER_BOOST) {
-            SchedulerBoostThreads(Scheduler);
-            Scheduler->LastBoost = CurrentClock;
-        }
-    }
-    
-    // Get next thread
-    for (i = 0; i < SCHEDULER_LEVEL_COUNT; i++) {
+    for (i = 0; (i < SCHEDULER_LEVEL_COUNT) && (NextObject == NULL); i++) {
         if (Scheduler->Queues[i].Head != NULL) {
-            NextThread = Scheduler->Queues[i].Head;
-            RemoveFromQueue(&Scheduler->Queues[i], NextThread);
-            UpdatePressureForThread(Scheduler, NextThread, i);
-            NextThread->State = ThreadStateRunning;
+            NextObject = Scheduler->Queues[i].Head;
+            RemoveFromQueue(&Scheduler->Queues[i], NextObject);
+            UpdatePressureForObject(Scheduler, NextObject, i);
+            NextObject->State = SchedulerObjectStateRunning;
+            NextDeadline      = MIN(NextObject->TimeSlice, NextDeadline);
             break;
         }
     }
-    return NextThread;
+    
+    // Handle the boost timer as long as there are active objects running
+    // if we run out of objects then boosting makes no sense
+    if (NextObject != NULL) {
+        // Handle the boost timer
+        if (Scheduler->LastBoost == 0) {
+            Scheduler->LastBoost = CurrentClock;
+        }
+        else {
+            clock_t TimeDiff = CurrentClock - Scheduler->LastBoost;
+            if (TimeDiff >= SCHEDULER_BOOST) {
+                SchedulerBoost(Scheduler);
+                Scheduler->LastBoost = CurrentClock;
+            }
+        }
+        *NextDeadlineOut = NextDeadline;
+    }
+    else {
+        // Reset boost
+        Scheduler->LastBoost = 0;
+        *NextDeadlineOut = (NextDeadline == __MASK) ? 0 : NextDeadline;
+    }
+    return (NextObject == NULL) ? NULL : NextObject->Object;
 }

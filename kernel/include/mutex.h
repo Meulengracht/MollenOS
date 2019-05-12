@@ -26,17 +26,27 @@
 
 #include <os/osdefs.h>
 #include <os/spinlock.h>
-#include <ds/collection.h>
+#include <scheduler.h>
 
 // We support recursive mutexes
+#define MUTEX_PLAIN     0
 #define MUTEX_RECURSIVE SPINLOCK_RECURSIVE
+#define MUTEX_TIMED     0x1000
 
 typedef struct {
-    Collection_t BlockQueue;
-    Spinlock_t   SyncObject;
+    Flags_t                Flags;
+    SchedulerLockedQueue_t Queue;
+    Spinlock_t             SyncObject;
 } Mutex_t;
 
-#define MUTEX_INIT(Flags) { COLLECTION_INIT(KeyId), SPINLOCK_INIT(Flags) }
+#define MUTEX_INIT(Flags) { Flags, SCHEDULER_LOCKED_QUEUE_INIT, SPINLOCK_INIT(Flags) }
+
+/* MutexConstruct
+ * Initializes a mutex to default values. */
+KERNELAPI void KERNELABI
+MutexConstruct(
+    _In_ Mutex_t* Mutex,
+    _In_ Flags_t  Configuration);
 
 /* MutexTryLock
  * Tries to acquire the lock, does not block and returns immediately. */
@@ -49,6 +59,14 @@ MutexTryLock(
 KERNELAPI void KERNELABI
 MutexLock(
     _In_ Mutex_t* Mutex);
+
+/* MutexLockTimed
+ * Tries to acquire the mutex in the period given, if it times out it 
+ * returns OsTimeout. */
+KERNELAPI OsStatus_t KERNELABI
+MutexLockTimed(
+    _In_ Mutex_t* Mutex,
+    _In_ size_t   Timeout);
 
 /* MutexUnlock
  * Release a lock on the given mutex. */

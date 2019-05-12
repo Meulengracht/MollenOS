@@ -20,13 +20,27 @@
  * - Hybrid mutex implementation. Contains a spinlock that serves
  *   as the locking primitive, with extended block capabilities.
  */
+#define __MODULE "MUTX"
 
 #include <assert.h>
+#include <debug.h>
 #include <machine.h>
 #include <mutex.h>
 #include <scheduler.h>
 
 #define MUTEX_SPINS 1000
+
+void
+MutexConstruct(
+    _In_ Mutex_t* Mutex,
+    _In_ Flags_t  Configuration)
+{
+    assert(Mutex != NULL);
+    
+    SchedulerLockedQueueConstruct(&Mutex->Queue);
+    SpinlockReset(&Mutex->SyncObject, Configuration);
+    Mutex->Flags = Configuration;
+}
 
 OsStatus_t
 MutexTryLock(
@@ -40,7 +54,6 @@ void
 MutexLock(
     _In_ Mutex_t* Mutex)
 {
-    int Value;
     int i;
 
     assert(Mutex != NULL);
@@ -55,15 +68,59 @@ MutexLock(
             }
         }
     }
-
-    // Otherwise get initial value, check it, go to sleep.. In a loop
+    
+    // Get lock loop, this tries to acquire the lock in an enternal loop
+    dslock(&Mutex->Queue.SyncObject);
     while (1) {
-        Value = 0;//atomic_exchange(&Mutex->SyncObject.Value, 1);
-        if (!Value) {
-            return; // lock acquired
+        if (SpinlockTryAcquire(&Mutex->SyncObject) == OsSuccess) {
+            break;
         }
-        SchedulerAtomicThreadSleep(&Mutex->SyncObject.Value, &Value, 0);
+        SchedulerBlock(&Mutex->Queue, 0);
     }
+    dsunlock(&Mutex->Queue.SyncObject);
+}
+
+OsStatus_t
+MutexLockTimed(
+    _In_ Mutex_t* Mutex,
+    _In_ size_t   Timeout)
+{
+    OsStatus_t Status = OsSuccess;
+    int        i;
+
+    assert(Mutex != NULL);
+    if (!(Mutex->Flags & MUTEX_TIMED)) {
+        FATAL(FATAL_SCOPE_KERNEL, "Tried to use LockTimed on a non timed mutex");
+        return OsError;
+    }
+    
+    // Use the regular lock if timeout is 0
+    if (Timeout == 0) {
+        MutexLock(Mutex);
+        return OsSuccess;
+    }
+
+    // In a multcore environment the lock may not be held for long, so
+    // perform X iterations before going for a longer block
+    // period.
+    if (GetMachine()->NumberOfActiveCores > 1) {
+        for (i = 0; i < MUTEX_SPINS; i++) {
+            if (SpinlockTryAcquire(&Mutex->SyncObject) == OsSuccess) {
+                return OsSuccess;
+            }
+        }
+    }
+    
+    // Get lock loop, this tries to acquire the lock in an enternal loop
+    dslock(&Mutex->Queue.SyncObject);
+    while (Status != OsTimeout) {
+        if (SpinlockTryAcquire(&Mutex->SyncObject) == OsSuccess) {
+            break;
+        }
+        Status = SchedulerBlock(&Mutex->Queue, Timeout);
+    }
+    dsunlock(&Mutex->Queue.SyncObject);
+    return Status;
 }
 
 void
@@ -75,10 +132,11 @@ MutexUnlock(
     assert(Mutex != NULL);
 
     // Is this the last reference?
+    dslock(&Mutex->Queue.SyncObject);
     References = atomic_load(&Mutex->SyncObject.References);
     SpinlockRelease(&Mutex->SyncObject);
     if (References == 1) {
-        // Wake up a thread
-        
+        SchedulerUnblock(&Mutex->Queue);
     }
+    dsunlock(&Mutex->Queue.SyncObject);
 }

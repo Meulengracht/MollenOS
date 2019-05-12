@@ -377,19 +377,11 @@ CollectionExecuteAll(
     }
 }
 
-/* CollectionUnlinkNode
- * This functions unlinks a node and returns the next node for usage */
-CollectionItem_t*
-CollectionUnlinkNode(
-    _In_ Collection_t*          Collection, 
-    _In_ CollectionItem_t*      Node)
+static void
+__collection_remove_node(
+    _In_ Collection_t*     Collection, 
+    _In_ CollectionItem_t* Node)
 {
-    assert(Collection != NULL);
-    assert(Node != NULL);
-
-    // There are a few cases we need to handle
-    // in order for this to be O(1)
-    dslock(&Collection->SyncObject);
     if (Node->Prev == NULL) {
         // Ok, so this means we are the
         // first node in the Collection. Do we have a link?
@@ -433,6 +425,22 @@ CollectionUnlinkNode(
             atomic_fetch_sub(&Collection->Length, 1);
         }
     }
+}
+
+/* CollectionUnlinkNode
+ * This functions unlinks a node and returns the next node for usage */
+CollectionItem_t*
+CollectionUnlinkNode(
+    _In_ Collection_t*          Collection, 
+    _In_ CollectionItem_t*      Node)
+{
+    assert(Collection != NULL);
+    assert(Node != NULL);
+
+    // There are a few cases we need to handle
+    // in order for this to be O(1)
+    dslock(&Collection->SyncObject);
+    __collection_remove_node(Collection, Node);
     dsunlock(&Collection->SyncObject);
     return (Node->Prev == NULL) ? Collection->Head : Node->Link;
 }
@@ -441,17 +449,36 @@ CollectionUnlinkNode(
  * These are the deletion functions and remove based on either node index or key */
 OsStatus_t
 CollectionRemoveByNode(
-    _In_ Collection_t*          Collection,
-    _In_ CollectionItem_t*      Node)
+    _In_ Collection_t*     Collection,
+    _In_ CollectionItem_t* Node)
 {
+    OsStatus_t Status = OsSuccess;
+    
     assert(Collection != NULL);
     assert(Node != NULL);
-    CollectionUnlinkNode(Collection, Node);
-
-    // Update links
-    Node->Link = NULL;
-    Node->Prev = NULL;
-    return OsSuccess;
+    
+    // Protect against double unlinking
+    dslock(&Collection->SyncObject);
+    if (Node->Link == NULL) {
+        // Then the node should be the end of the list
+        if (Collection->Tail != Node) {
+            Status = OsDoesNotExist;
+        }
+    }
+    else if (Node->Prev == NULL) {
+        // Then the node should be the initial
+        if (Collection->Head != Node) {
+            Status = OsDoesNotExist;
+        }
+    }
+    
+    if (Status != OsDoesNotExist) {
+        __collection_remove_node(Collection, Node);
+        Node->Link = NULL;
+        Node->Prev = NULL;
+    }
+    dsunlock(&Collection->SyncObject);
+    return Status;
 }
 
 /* CollectionRemove

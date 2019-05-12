@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2018, Philip Meulengracht
+ * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - Generic Collection Implementation
+ * Generic Collection Implementation
  *  - Implements Collection and queue functionality
  */
 
@@ -45,8 +45,8 @@ typedef struct _Collection {
     CollectionItem_t*   Tail;
 } Collection_t;
 
-#define COLLECTION_INIT(KeyType) { { 0 }, KeyType, 0, NULL, NULL }
-#define COLLECTION_NODE_INIT(Node, Key) (Node)->Key.Value = Key.Value; (Node)->Data = 0; (Node)->Link = 0; (Node)->Prev = 0
+#define COLLECTION_INIT(KeyType)  { { 0 }, KeyType, 0, NULL, NULL }
+#define COLLECTION_NODE_INIT(Key) { { Key }, false, NULL, NULL, NULL }
 
 #define foreach(i, Collection) CollectionIterator_t *i; for (i = CollectionBegin(Collection); i != NULL; i = CollectionNext(i))
 #define foreach_nolink(i, Collection) CollectionIterator_t *i; for (i = CollectionBegin(Collection); i != NULL; )

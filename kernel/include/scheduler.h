@@ -26,9 +26,11 @@
 
 #include <os/osdefs.h>
 #include <ds/ds.h>
+#include <ds/collection.h>
 #include <time.h>
 
-typedef struct _MCoreThread MCoreThread_t;
+// Forward declarations
+typedef struct _SchedulerLockedQueue SchedulerLockedQueue_t;
 
 /* Scheduler Definitions
  * Contains magic constants, bit definitions and settings. */
@@ -43,98 +45,126 @@ typedef struct _MCoreThread MCoreThread_t;
 
 #define SCHEDULER_TIMEOUT_INFINITE      0
 #define SCHEDULER_SLEEP_OK              0
-#define SCHEDULER_SLEEP_TIMEOUT         1
-#define SCHEDULER_SLEEP_INTERRUPTED     2
-#define SCHEDULER_SLEEP_SYNC_FAILED     3
+#define SCHEDULER_SLEEP_INTERRUPTED     1
 
 #define SCHEDULER_FLAG_BOUND            0x1
-#define SCHEDULER_FLAG_BLOCK_IN_PRG     0x2
 
+typedef enum {
+    SchedulerObjectStateIdle,
+    SchedulerObjectStateQueued,
+    SchedulerObjectStateBlocked,
+    SchedulerObjectStateRunning,
+    SchedulerObjectStateZombie
+} SchedulerObjectState_t;
+
+typedef struct _SchedulerObject {
+    CollectionItem_t                Header;
+    volatile SchedulerObjectState_t State;
+    volatile Flags_t                Flags;
+    UUId_t                          CoreId;
+    size_t                          TimeSlice;
+    int                             Queue;
+    struct _SchedulerObject*        Link;
+    void*                           Object;
+    
+    SchedulerLockedQueue_t*         QueueHandle;
+    int                             Timeout;
+    size_t                          TimeLeft;
+    clock_t                         InterruptedAt;
+} SchedulerObject_t;
+
+// Queues that are synchronized with the scheduler, and can be used
+// as generic blocking queus
+typedef struct _SchedulerLockedQueue {
+    CollectionItem_t Header;
+    SafeMemoryLock_t SyncObject;
+    Collection_t     Queue;
+} SchedulerLockedQueue_t;
+
+// Low overhead queues that are used by the scheduler, only in
+// it's own core context, so no per list locking needed
 typedef struct {
-    MCoreThread_t* Head;
-    MCoreThread_t* Tail;
+    SchedulerObject_t* Head;
+    SchedulerObject_t* Tail;
 } SchedulerQueue_t;
 
 typedef struct {
-    SafeMemoryLock_t SyncObject;
-    SchedulerQueue_t Queues[SCHEDULER_LEVEL_COUNT];
-    atomic_int       ThreadCount;
-    atomic_uint      Bandwidth;
-    clock_t          LastBoost;
+    SafeMemoryLock_t       SyncObject;
+    SchedulerQueue_t       SleepQueue;
+    SchedulerQueue_t       Queues[SCHEDULER_LEVEL_COUNT];
+    _Atomic(int)           ObjectCount;
+    _Atomic(unsigned long) Bandwidth;
+    clock_t                LastBoost;
 } SystemScheduler_t;
 
-#define SCHEDULER_INIT { { 0 }, { { 0 } }, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0), 0 }
+#define SCHEDULER_LOCKED_QUEUE_INIT { COLLECTION_NODE_INIT(0), { 0 }, COLLECTION_INIT(KeyId) }
+#define SCHEDULER_INIT              { { 0 }, { 0 }, { { 0 } }, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0), 0 }
 
-/* SchedulerThreadInitialize
- * Initializes the thread for scheduling. This must be done before the kernel
- * scheduler is used for the thread. */
+/* SchedulerLockedQueueConstruct
+ * Initializes a new locked queue. */
 KERNELAPI void KERNELABI
-SchedulerThreadInitialize(
-    _In_ MCoreThread_t* Thread,
-    _In_ Flags_t        Flags);
-    
-/* SchedulerThreadFinalize
+SchedulerLockedQueueConstruct(
+    _In_ SchedulerLockedQueue_t* Queue);
+
+/* SchedulerCreateObject
+ * Creates a new scheduling object and allocates a cpu core for the object.
+ * This must be done before the kernel scheduler is used for the thread. */
+KERNELAPI SchedulerObject_t* KERNELABI
+SchedulerCreateObject(
+    _In_ void*   Payload,
+    _In_ Flags_t Flags);
+
+/* SchedulerDestroyObject
  * Cleans up the resources associated with the kernel scheduler. */
 KERNELAPI void KERNELABI
-SchedulerThreadFinalize(
-    _In_ MCoreThread_t* Thread);
+SchedulerDestroyObject(
+    _In_ SchedulerObject_t* Object);
 
-/* SchedulerThreadQueue
- * Queues up a new thread for execution on the either least-loaded core, or the specified
- * core in the thread structure. */
+/* SchedulerQueueObject
+ * Queues up a new object for execution, at the next available timeslot. */
 KERNELAPI void KERNELABI
-SchedulerThreadQueue(
-    _In_ MCoreThread_t* Thread);
+SchedulerQueueObject(
+    _In_ SchedulerObject_t* Object);
 
-/* SchedulerThreadSleep
- * Enters the current thread into sleep-queue. Can return different
- * sleep-state results. SCHEDULER_SLEEP_OK or SCHEDULER_SLEEP_TIMEOUT. */
+/* SchedulerExpediteObject
+ * If a scheduler object is in a blocked state, this will force un-block it and
+ * allow it to run again. */
+KERNELAPI void KERNELABI
+SchedulerExpediteObject(
+    _In_ SchedulerObject_t* Object);
+
+/* SchedulerSleep
+ * Blocks the currently running thread for <milliseconds>. Can return different
+ * sleep-state results. SCHEDULER_SLEEP_OK or SCHEDULER_SLEEP_INTERRUPTED. */
 KERNELAPI int KERNELABI
-SchedulerThreadSleep(
-    _In_ uintptr_t* Handle,
-    _In_ size_t     Timeout);
+SchedulerSleep(
+    _In_ size_t Milliseconds);
 
-/* SchedulerAtomicThreadSleep
- * Enters the current thread into sleep-queue. This is done by using a synchronized
- * queueing by utilizing the atomic memory compares. If the value has changed before going
- * to sleep, it will return SCHEDULER_SLEEP_SYNC_FAILED. */
-KERNELAPI int KERNELABI
-SchedulerAtomicThreadSleep(
-    _In_ atomic_int*        Object,
-    _In_ int*               ExpectedValue,
-    _In_ size_t             Timeout);
-
-/* SchedulerThreadSignal
- * Finds a sleeping thread with the given thread id and wakes it. */
+/* SchedulerBlock(Timed)
+ * Blocks the current thread and adds it to the given block queue. This is atomically
+ * protected operating, and the lock must be held before calling this function.
+ * If a timeout is passed the queue must have been registed with SchedulerRegisterQueue, 
+ * otherwise the timeout is not invoked. */
 KERNELAPI OsStatus_t KERNELABI
-SchedulerThreadSignal(
-    _In_ MCoreThread_t*     Thread);
+SchedulerBlock(
+    _In_ SchedulerLockedQueue_t* Queue,
+    _In_ size_t                  Timeout);
 
-/* SchedulerHandleSignal
- * Finds a sleeping thread with the given sleep-handle and wakes it. */
-KERNELAPI OsStatus_t KERNELABI
-SchedulerHandleSignal(
-    _In_ uintptr_t*         Handle);
-
-/* SchedulerHandleSignalAll
- * Finds any sleeping threads on the given handle and wakes them. */
+/* SchedulerUnblock
+ * Unblocks an thread from the given queue. The lock must be held while calling this
+ * function. */
 KERNELAPI void KERNELABI
-SchedulerHandleSignalAll(
-    _In_ uintptr_t*         Handle);
+SchedulerUnblock(
+    _In_ SchedulerLockedQueue_t* Queue);
 
-/* SchedulerTick
- * Iterates the io-queue and handle any threads that will timeout
- * on the tick. */
-KERNELAPI void KERNELABI
-SchedulerTick(
-    _In_ size_t             Milliseconds);
-
-/* SchedulerThreadSchedule 
+/* SchedulerAdvance 
  * This should be called by the underlying archteicture code
  * to get the next thread that is to be run. */
-KERNELAPI MCoreThread_t* KERNELABI
-SchedulerThreadSchedule(
-    _In_ MCoreThread_t*     Thread,
-    _In_ int                Preemptive);
+KERNELAPI void* KERNELABI
+SchedulerAdvance(
+    _In_  SchedulerObject_t* Object,
+    _In_  int                Preemptive,
+    _In_  size_t             MillisecondsPassed,
+    _Out_ size_t*            NextDeadlineOut);
 
 #endif // !__VALI_SCHEDULER_H__
