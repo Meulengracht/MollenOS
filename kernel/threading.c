@@ -41,6 +41,7 @@
 OsStatus_t ThreadingReap(void *Context);
 
 static Collection_t    Threads       = COLLECTION_INIT(KeyId);
+static Collection_t    Zombies       = COLLECTION_INIT(KeyId);
 static UUId_t          GlbThreadGcId = UUID_INVALID;
 static _Atomic(UUId_t) GlbThreadId   = ATOMIC_VAR_INIT(1);
 
@@ -98,6 +99,10 @@ InitializeDefaultThread(
 
     // Reset thread structure
     memset(Thread, 0, sizeof(MCoreThread_t));
+    MutexConstruct(&Thread->SyncObject, MUTEX_PLAIN);
+    SemaphoreConstruct(&Thread->EventObject, 0, 1);
+    
+    Thread->References          = ATOMIC_VAR_INIT(0);
     Thread->Header.Key.Value.Id = atomic_fetch_add(&GlbThreadId, 1);
     Thread->Function            = Function;
     Thread->Arguments           = Arguments;
@@ -240,7 +245,7 @@ CreateThread(
     }
 
     CollectionAppend(&Threads, &Thread->Header);
-    SchedulerThreadQueue(Thread);
+    SchedulerQueueObject(Thread->SchedulerObject);
     *Handle = Thread->Header.Key.Value.Id;
     return OsSuccess;
 }
@@ -257,8 +262,17 @@ ThreadingCleanupThread(
     // Make sure we are completely removed as reference
     // from the entire system. We also signal all waiters for this
     // thread again before continueing just in case
+    if (atomic_load(&Thread->References) != 0) {
+        int Timeout = 200;
+        SemaphoreSignal(&Thread->EventObject, atomic_load(&Thread->References) + 1);
+        while (atomic_load(&Thread->References) != 0 && Timeout > 0) {
+            SchedulerSleep(10);
+            Timeout -= 10;
+        }
+    }
+    
+    // Cleanup resources now that we have no external dependancies
     SchedulerDestroyObject(Thread->SchedulerObject);
-    SchedulerHandleSignalAll((uintptr_t*)&Thread->Cleanup);
     ThreadingUnregister(Thread);
     
     for (i = 0; i < THREADING_NUMCONTEXTS; i++) {
@@ -308,24 +322,27 @@ TerminateThread(
     if (Target == NULL || (Target->Flags & THREADING_IDLE)) {
         return OsError; // Never, ever kill system idle threads
     }
-
-    if (TerminateChildren) {
-        _foreach(Node, &Threads) {
-            MCoreThread_t *Child = (MCoreThread_t*)Node;
-            if (Child->ParentThreadId == Target->Header.Key.Value.Id) {
-                TerminateThread(Child->Header.Key.Value.Id, ExitCode, 1);
+    
+    MutexLock(&Target->SyncObject);
+    if (atomic_load(&Target->Cleanup) == 0) {
+        if (TerminateChildren) {
+            _foreach(Node, &Threads) {
+                MCoreThread_t *Child = (MCoreThread_t*)Node;
+                if (Child->ParentThreadId == Target->Header.Key.Value.Id) {
+                    TerminateThread(Child->Header.Key.Value.Id, ExitCode, 1);
+                }
             }
         }
+        Target->RetCode = ExitCode;
+        atomic_store(&Target->Cleanup, 1);
+    
+        // If the thread we are trying to kill is not this one, and is sleeping
+        // we must wake it up, it will be cleaned on next schedule
+        if (ThreadId != GetCurrentThreadId()) {
+            SchedulerExpediteObject(Target->SchedulerObject);
+        }
     }
-    Target->RetCode = ExitCode;
-    atomic_store(&Target->Cleanup, 1);
-
-    // If the thread we are trying to kill is not this one, and is sleeping
-    // we must wake it up, it will be cleaned on next schedule
-    if (ThreadId != GetCurrentThreadId()) {
-        SchedulerThreadSignal(Target);
-    }
-    SchedulerHandleSignalAll((uintptr_t*)&Target->Cleanup);
+    MutexUnlock(&Target->SyncObject);
     return OsSuccess;
 }
 
@@ -335,11 +352,13 @@ ThreadingJoinThread(
 {
     MCoreThread_t* Target = GetThread(ThreadId);
     if (Target != NULL && Target->ParentThreadId != UUID_INVALID) {
-        int Finished = atomic_load(&Target->Cleanup);
-        if (Finished != 1) {
-            SchedulerAtomicThreadSleep((atomic_int*)&Target->Cleanup, &Finished, 0);
+        MutexLock(&Target->SyncObject);
+        if (atomic_load(&Target->Cleanup) != 1) {
+            atomic_fetch_add(&Target->References, 1);
+            SemaphoreWait(&Target->EventObject, &Target->SyncObject, 0);
+            atomic_fetch_sub(&Target->References, 1);
         }
-        atomic_store(&Target->Cleanup, 1);
+        MutexUnlock(&Target->SyncObject);
         return Target->RetCode;
     }
     return -1;
@@ -423,13 +442,13 @@ OsStatus_t
 ThreadingReap(
     _In_ void* Context)
 {
-    foreach(i, &Threads) {
-        if ((void*)i == Context) {
-            MCoreThread_t* Thread = (MCoreThread_t*)i;
-            CollectionRemoveByNode(&Threads, &Thread->Header);
-            ThreadingCleanupThread(Thread);
-            break;
-        }
+    MCoreThread_t* Thread;
+    _CRT_UNUSED(Context);
+    
+    Thread = (MCoreThread_t*)CollectionPopFront(&Zombies);
+    while (Thread != NULL) {
+        ThreadingCleanupThread(Thread);
+        Thread = (MCoreThread_t*)CollectionPopFront(&Zombies);
     }
     return OsSuccess;
 }
@@ -439,10 +458,8 @@ DisplayActiveThreads(void)
 {
     foreach(i, &Threads) {
         MCoreThread_t* Thread = (MCoreThread_t*)i;
-        if (atomic_load_explicit(&Thread->Cleanup, memory_order_relaxed) == 0) {
-            WRITELINE("Thread %" PRIuIN " (%s) - Parent %" PRIuIN ", Instruction Pointer 0x%" PRIxIN "", 
-                Thread->Header.Key.Value.Id, Thread->Name, Thread->ParentThreadId, CONTEXT_IP(Thread->ContextActive));
-        }
+        WRITELINE("Thread %" PRIuIN " (%s) - Parent %" PRIuIN ", Instruction Pointer 0x%" PRIxIN "", 
+            Thread->Header.Key.Value.Id, Thread->Name, Thread->ParentThreadId, CONTEXT_IP(Thread->ContextActive));
     }
 }
 
@@ -466,6 +483,8 @@ GetNextThread:
     if ((Current->Flags & THREADING_IDLE) || Cleanup == 1) {
         // If the thread is finished then add it to garbagecollector
         if (Cleanup == 1) {
+            CollectionRemoveByNode(&Threads, &Current->Header);
+            CollectionAppend(&Zombies, &Current->Header);
             GcSignal(GlbThreadGcId, Current);
         }
         TRACE(" > (null-schedule) initial next thread: %s", (NextThread) ? NextThread->Name : "null");
@@ -473,7 +492,7 @@ GetNextThread:
     }
     
     // Advance the scheduler
-    NextThread = SchedulerAdvance((Current != NULL) ? 
+    NextThread = (MCoreThread_t*)SchedulerAdvance((Current != NULL) ? 
         Current->SchedulerObject : NULL, Preemptive, 
         MillisecondsPassed, NextDeadlineOut);
 

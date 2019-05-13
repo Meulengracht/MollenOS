@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Resource Handle Interface
+ * Resource Handle Interface
  * - Implementation of the resource handle interface. This provides system-wide
  *   resource handles and maintience of resources. 
  */

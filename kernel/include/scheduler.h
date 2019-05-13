@@ -74,7 +74,7 @@ typedef struct _SchedulerObject {
 } SchedulerObject_t;
 
 // Queues that are synchronized with the scheduler, and can be used
-// as generic blocking queus
+// as generic wait queue
 typedef struct _SchedulerLockedQueue {
     CollectionItem_t Header;
     SafeMemoryLock_t SyncObject;

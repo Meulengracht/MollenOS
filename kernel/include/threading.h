@@ -31,6 +31,8 @@
 #include <os/osdefs.h>
 #include <os/context.h>
 #include <ds/collection.h>
+#include <semaphore.h>
+#include <mutex.h>
 #include <signal.h>
 #include <time.h>
 
@@ -78,11 +80,14 @@ typedef struct {
 
 typedef struct _MCoreThread {
     CollectionItem_t        Header;
+    Mutex_t                 SyncObject;
+    Semaphore_t             EventObject;
+    _Atomic(int)            References;
 
     UUId_t                  ParentThreadId;
     const char*             Name;
     Flags_t                 Flags;
-    atomic_int              Cleanup;
+    _Atomic(int)            Cleanup;
     UUId_t                  Cookie;
     SchedulerObject_t*      SchedulerObject;
 

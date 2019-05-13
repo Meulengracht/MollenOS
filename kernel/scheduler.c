@@ -22,7 +22,6 @@
  */
 #define __MODULE "SCHE"
 //#define __TRACE
-//#define DETECT_OVERRUNS
 
 #include <component/domain.h>
 #include <arch/thread.h>
@@ -110,6 +109,18 @@ QueueForScheduler(
     if (Object->Link != NULL) {
         RemoveFromQueue(&Scheduler->SleepQueue, Object);
     }
+    
+    // Because of possible race conditions between Block/Unblock
+    // it could be possible that we reach here before we have yielded
+    // the task that has been blocked/unblocked quickly, check if the
+    // current object equals this object.
+    if (Object == SchedulerGetCurrentObject(ArchGetProcessorCoreId())) {
+        // If this should happen, then we should try to stop the block
+        // from occurring. So we switch the state to Running and ignore this
+        Object->State = SchedulerObjectStateRunning;
+        return;
+    }
+    
     Object->State = SchedulerObjectStateQueued;
     AppendToQueue(&Scheduler->Queues[Object->Queue], Object, Object);
 }
@@ -203,13 +214,8 @@ SchedulerDestroyObject(
     // Remove pressure
     atomic_fetch_sub(&Scheduler->Bandwidth, Object->TimeSlice);
     atomic_fetch_sub(&Scheduler->ObjectCount, 1);
-    
-    // Reset some states
-    Object->Link  = NULL;
-    Object->Flags = 0;
-    Object->State = SchedulerObjectStateIdle;
+    kfree(Object);
 }
-
 
 void
 SchedulerExpediteObject(
