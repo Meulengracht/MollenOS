@@ -34,13 +34,13 @@ ApicTimerHandler(
     _In_ FastInterruptResources_t*  NotUsed,
     _In_ void*                      Context)
 {
+    _CRT_UNUSED(NotUsed);
     uint32_t Count  = ApicReadLocal(APIC_CURRENT_COUNT);
     uint32_t Passed = ApicReadLocal(APIC_INITIAL_COUNT) - Count;
-    _CRT_UNUSED(NotUsed);
-    
     if (Count != 0) {
         ApicWriteLocal(APIC_INITIAL_COUNT, 0);
     }
+    
     ApicSendEoi(APIC_NO_GSI, INTERRUPT_LAPIC);
     X86SwitchThread((Context_t*)Context, Count == 0 ? 1 : 0,
         DIVUP(Passed, GlbTimerQuantum));
