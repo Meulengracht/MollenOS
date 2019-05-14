@@ -53,7 +53,7 @@ CreateMemoryBuffer(
     }
 
     SystemBuffer            = (SystemMemoryBuffer_t*)kmalloc(sizeof(SystemMemoryBuffer_t));
-    Handle                  = CreateHandle(HandleTypeMemoryBuffer, 0, SystemBuffer);
+    Handle                  = CreateHandle(HandleTypeMemoryBuffer, SystemBuffer);
     SystemBuffer->Capacity  = Capacity;
     SystemBuffer->Physical  = DmaAddress;
 

@@ -26,42 +26,52 @@
 
 #include <os/osdefs.h>
 
-#define SPINLOCK_RECURSIVE 0x1
+enum {
+    spinlock_plain     = 0,
+    spinlock_recursive = 1
+};
+
+enum {
+    spinlock_acquired = 0,  // means the lock has been acquired | still acquired
+    spinlock_busy     = 1,  // lock is already taken
+    spinlock_released = 2   // lock has been released
+};
 
 typedef struct {
-    int          Value;
-    Flags_t      Configuration;
-    UUId_t       Owner;
-    _Atomic(int) References;
-} Spinlock_t;
+    int          _val;
+    int          _type;
+    UUId_t       _owner;
+    _Atomic(int) _refs;
+} spinlock_t;
 
-#define SPINLOCK_INIT(Flags) { 0, Flags, UUID_INVALID, 0 }
+#define _SPN_INITIALIZER_NP(Flags) { 0, Flags, UUID_INVALID, 0 }
 
 _CODE_BEGIN
-/* SpinlockReset
+/* spinlock_init
  * This initializes a spinlock handle and sets it to default value (unlocked) */
-CRTDECL(OsStatus_t,
-SpinlockReset(
-	_In_ Spinlock_t* Lock,
-    _In_ Flags_t     Configuration));
+CRTDECL(void,
+spinlock_init(
+	_In_ spinlock_t* lock,
+    _In_ int         type));
 
-/* SpinlockAcquire
+/* spinlock_acquire
  * Acquires the spinlock while busy-waiting for it to be ready if neccessary */
 CRTDECL(void,
-SpinlockAcquire(
-	_In_ Spinlock_t* Lock));
+spinlock_acquire(
+	_In_ spinlock_t* lock));
 
-/* SpinlockTryAcquire
+/* spinlock_try_acquire
  * Makes an attempt to acquire the spinlock without blocking */
-CRTDECL(OsStatus_t,
-SpinlockTryAcquire(
-	_In_ Spinlock_t* Lock));
+CRTDECL(int,
+spinlock_try_acquire(
+	_In_ spinlock_t* lock));
 
-/* SpinlockRelease
- * Releases the spinlock, and lets other threads access the lock */
-CRTDECL(void,
-SpinlockRelease(
-	_In_ Spinlock_t* Lock));
+/* spinlock_release
+ * Either releases the lock, or releases a reference to the lock. If the lock is still
+ * hold due to nesting, the returned value is spinlock_acquired */
+CRTDECL(int,
+spinlock_release(
+	_In_ spinlock_t* lock));
 _CODE_END
 
 #endif //!__SPINLOCK_H__

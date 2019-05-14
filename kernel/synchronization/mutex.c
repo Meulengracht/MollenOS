@@ -37,8 +37,11 @@ MutexConstruct(
 {
     assert(Mutex != NULL);
     
-    SchedulerLockedQueueConstruct(&Mutex->Queue);
-    SpinlockReset(&Mutex->SyncObject, Configuration);
+    // Initialize the lock object as requested per configuration
+    // but the syncobject that protects the queue must be plain
+    spinlock_init(&Mutex->LockObject, Configuration);
+    spinlock_init(&Mutex->SyncObject, spinlock_plain);
+    CollectionConstruct(&Mutex->WaitQueue, KeyId);
     Mutex->Flags = Configuration;
 }
 
@@ -47,7 +50,7 @@ MutexTryLock(
     _In_ Mutex_t* Mutex)
 {
     assert(Mutex != NULL);
-    return SpinlockTryAcquire(&Mutex->SyncObject);
+    return spinlock_try_acquire(&Mutex->LockObject);
 }
 
 void
@@ -63,21 +66,21 @@ MutexLock(
     // period.
     if (GetMachine()->NumberOfActiveCores > 1) {
         for (i = 0; i < MUTEX_SPINS; i++) {
-            if (SpinlockTryAcquire(&Mutex->SyncObject) == OsSuccess) {
+            if (spinlock_try_acquire(&Mutex->LockObject) == OsSuccess) {
                 return;
             }
         }
     }
     
     // Get lock loop, this tries to acquire the lock in an enternal loop
-    dslock(&Mutex->Queue.SyncObject);
+    spinlock_acquire(&Mutex->SyncObject);
     while (1) {
-        if (SpinlockTryAcquire(&Mutex->SyncObject) == OsSuccess) {
+        if (spinlock_try_acquire(&Mutex->LockObject) == OsSuccess) {
             break;
         }
-        SchedulerBlock(&Mutex->Queue, 0);
+        SchedulerBlock(&Mutex->WaitQueue, &Mutex->SyncObject, 0);
     }
-    dsunlock(&Mutex->Queue.SyncObject);
+    spinlock_release(&Mutex->SyncObject);
 }
 
 OsStatus_t
@@ -105,21 +108,21 @@ MutexLockTimed(
     // period.
     if (GetMachine()->NumberOfActiveCores > 1) {
         for (i = 0; i < MUTEX_SPINS; i++) {
-            if (SpinlockTryAcquire(&Mutex->SyncObject) == OsSuccess) {
+            if (spinlock_try_acquire(&Mutex->LockObject) == OsSuccess) {
                 return OsSuccess;
             }
         }
     }
     
     // Get lock loop, this tries to acquire the lock in an enternal loop
-    dslock(&Mutex->Queue.SyncObject);
+    spinlock_acquire(&Mutex->SyncObject);
     while (Status != OsTimeout) {
-        if (SpinlockTryAcquire(&Mutex->SyncObject) == OsSuccess) {
+        if (spinlock_try_acquire(&Mutex->LockObject) == OsSuccess) {
             break;
         }
-        Status = SchedulerBlock(&Mutex->Queue, Timeout);
+        Status = SchedulerBlock(&Mutex->WaitQueue, &Mutex->SyncObject, Timeout);
     }
-    dsunlock(&Mutex->Queue.SyncObject);
+    spinlock_release(&Mutex->SyncObject);
     return Status;
 }
 
@@ -127,16 +130,12 @@ void
 MutexUnlock(
     _In_ Mutex_t* Mutex)
 {
-    int References;
-
     assert(Mutex != NULL);
 
     // Is this the last reference?
-    dslock(&Mutex->Queue.SyncObject);
-    References = atomic_load(&Mutex->SyncObject.References);
-    SpinlockRelease(&Mutex->SyncObject);
-    if (References == 1) {
-        SchedulerUnblock(&Mutex->Queue);
+    spinlock_acquire(&Mutex->SyncObject);
+    if (spinlock_release(&Mutex->LockObject) == spinlock_released) {
+        SchedulerUnblock(&Mutex->WaitQueue);
     }
-    dsunlock(&Mutex->Queue.SyncObject);
+    spinlock_release(&Mutex->SyncObject);
 }

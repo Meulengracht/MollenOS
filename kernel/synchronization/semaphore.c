@@ -41,7 +41,8 @@ SemaphoreConstruct(
 	assert(InitialValue >= 0);
     assert(MaximumValue >= InitialValue);
 
-    SchedulerLockedQueueConstruct(&Semaphore->Queue);
+    CollectionConstruct(&Semaphore->WaitQueue, KeyId);
+    spinlock_init(&Semaphore->SyncObject, spinlock_plain);
     Semaphore->MaxValue = MaximumValue;
 	Semaphore->Value    = ATOMIC_VAR_INIT(InitialValue);
 }
@@ -55,18 +56,18 @@ SemaphoreWaitSimple(
     int        Value;
     assert(Semaphore != NULL);
     
-    dslock(&Semaphore->Queue.SyncObject);
+    spinlock_acquire(&Semaphore->SyncObject);
     Value = atomic_fetch_sub(&Semaphore->Value, 1);
     if (Value <= 0) {
-        Status = SchedulerBlock(&Semaphore->Queue, Timeout);
+        Status = SchedulerBlock(&Semaphore->WaitQueue, &Semaphore->SyncObject, Timeout);
         if (Status == OsTimeout) {
             // add one to value to account for the loss of value
             atomic_fetch_add(&Semaphore->Value, 1);
         }
-        dsunlock(&Semaphore->Queue.SyncObject);
+        spinlock_release(&Semaphore->SyncObject);
     }
     else {
-        dsunlock(&Semaphore->Queue.SyncObject);
+        spinlock_release(&Semaphore->SyncObject);
         Status = OsSuccess;
     }
     return Status;
@@ -83,20 +84,20 @@ SemaphoreWait(
     assert(Semaphore != NULL);
     assert(Mutex != NULL);
     
-    dslock(&Semaphore->Queue.SyncObject);
+    spinlock_acquire(&Semaphore->SyncObject);
     Value = atomic_fetch_sub(&Semaphore->Value, 1);
     if (Value <= 0) {
         MutexUnlock(Mutex);
-        Status = SchedulerBlock(&Semaphore->Queue, Timeout);
+        Status = SchedulerBlock(&Semaphore->WaitQueue, &Semaphore->SyncObject, Timeout);
         if (Status == OsTimeout) {
             // add one to value to account for the loss of value
             atomic_fetch_add(&Semaphore->Value, 1);
         }
-        dsunlock(&Semaphore->Queue.SyncObject);
+        spinlock_release(&Semaphore->SyncObject);
         MutexLock(Mutex);
     }
     else {
-        dsunlock(&Semaphore->Queue.SyncObject);
+        spinlock_release(&Semaphore->SyncObject);
         Status = OsSuccess;
     }
     return Status;
@@ -111,15 +112,15 @@ SemaphoreSignal(
     int i;
     assert(Semaphore != NULL);
 
-    dslock(&Semaphore->Queue.SyncObject);
+    spinlock_acquire(&Semaphore->SyncObject);
     CurrentValue = atomic_load(&Semaphore->Value);
     if (CurrentValue < Semaphore->MaxValue) {
         for (i = 0; (i < Value) && (CurrentValue + i) < Semaphore->MaxValue; i++) {
             if ((CurrentValue + i) < 0) {
-                SchedulerUnblock(&Semaphore->Queue);
+                SchedulerUnblock(&Semaphore->WaitQueue);
             }
             atomic_fetch_add(&Semaphore->Value, 1);
         }
     }
-    dsunlock(&Semaphore->Queue.SyncObject);
+    spinlock_release(&Semaphore->SyncObject);
 }

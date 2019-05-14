@@ -49,7 +49,7 @@ AhciControllerCreate(
     memcpy(&Controller->Device, Device, Device->Length);
     
     Controller->Contract.DeviceId = Controller->Device.Id;
-    SpinlockReset(&Controller->Lock, 0);
+    spinlock_init(&Controller->Lock, spinlock_plain);
 
     // Get I/O Base, and for AHCI there might be between 1-5
     // IO-spaces filled, so we always, ALWAYS go for the last one

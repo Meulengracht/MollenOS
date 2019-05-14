@@ -101,8 +101,8 @@ LogInitializeFull(void)
     StdErr = CreateSystemPipe(0, 6); // 1 << 6, 64 entries, 1 << 12 is 4kb
 
     // Create handles for modules
-    LogObject.StdOutHandle = CreateHandle(HandleTypePipe, 0, StdOut);
-    LogObject.StdErrHandle = CreateHandle(HandleTypePipe, 0, StdErr);
+    LogObject.StdOutHandle = CreateHandle(HandleTypePipe, StdOut);
+    LogObject.StdErrHandle = CreateHandle(HandleTypePipe, StdErr);
 
     // Create the threads that will echo the pipes
     CreateThread("log-stdout", LogPipeHandler, (void*)StdOut, 0, UUID_INVALID, &PipeThreads[0]);

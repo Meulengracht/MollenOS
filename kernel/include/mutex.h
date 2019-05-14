@@ -26,20 +26,21 @@
 
 #include <os/osdefs.h>
 #include <os/spinlock.h>
-#include <scheduler.h>
+#include <ds/collection.h>
 
 // We support recursive mutexes
-#define MUTEX_PLAIN     0
-#define MUTEX_RECURSIVE SPINLOCK_RECURSIVE
+#define MUTEX_PLAIN     spinlock_plain
+#define MUTEX_RECURSIVE spinlock_recursive
 #define MUTEX_TIMED     0x1000
 
 typedef struct {
-    Flags_t                Flags;
-    SchedulerLockedQueue_t Queue;
-    Spinlock_t             SyncObject;
+    Flags_t      Flags;
+    Collection_t WaitQueue;
+    spinlock_t   LockObject;
+    spinlock_t   SyncObject;
 } Mutex_t;
 
-#define MUTEX_INIT(Flags) { Flags, SCHEDULER_LOCKED_QUEUE_INIT, SPINLOCK_INIT(Flags) }
+#define OS_MUTEX_INIT(Flags) { Flags, COLLECTION_INIT(KeyId), _SPN_INITIALIZER_NP(Flags), _SPN_INITIALIZER_NP(spinlock_plain) }
 
 /* MutexConstruct
  * Initializes a mutex to default values. */

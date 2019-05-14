@@ -35,7 +35,7 @@ RingBuffer_t *RingBufferCreate(size_t Size)
 	RingBuffer->Length = Size;
 
 	/* Reset Lock */
-	SpinlockReset(&RingBuffer->Lock, 0);
+	spinlock_init(&RingBuffer->Lock, spinlock_plain);
 
 	return RingBuffer;
 }
@@ -52,7 +52,7 @@ void RingBufferConstruct(RingBuffer_t *RingBuffer, uint8_t *Buffer, size_t Buffe
 	RingBuffer->Length = BufferLength;
 
 	/* Reset Lock */
-	SpinlockReset(&RingBuffer->Lock, 0);
+	spinlock_init(&RingBuffer->Lock, spinlock_plain);
 }
 
 /* Destroy RingBuffer */
@@ -128,7 +128,7 @@ int RingBufferWrite(RingBuffer_t *RingBuffer, size_t SrcLength, uint8_t *Source)
 	while (Run)
 	{
 		/* Acquire Lock */
-		SpinlockAcquire(&RingBuffer->Lock);
+		spinlock_acquire(&RingBuffer->Lock);
 
 		while (RingBufferSpaceAvailable(RingBuffer) > 0 && BytesWritten < SrcLength)
 		{
@@ -143,7 +143,7 @@ int RingBufferWrite(RingBuffer_t *RingBuffer, size_t SrcLength, uint8_t *Source)
 		}
 
 		/* Release Lock */
-		SpinlockRelease(&RingBuffer->Lock);
+		spinlock_release(&RingBuffer->Lock);
 
 		/* Break (for now) */
 		break;
@@ -166,7 +166,7 @@ int RingBufferRead(RingBuffer_t *RingBuffer, size_t DestLength, uint8_t *Destina
 	while (Run)
 	{
 		/* Acquire Lock */
-		SpinlockAcquire(&RingBuffer->Lock);
+		spinlock_acquire(&RingBuffer->Lock);
 
 		while (RingBufferSize(RingBuffer) > 0 && BytesRead < DestLength)
 		{
@@ -181,7 +181,7 @@ int RingBufferRead(RingBuffer_t *RingBuffer, size_t DestLength, uint8_t *Destina
 		}
 		
 		/* Release Lock */
-		SpinlockRelease(&RingBuffer->Lock);
+		spinlock_release(&RingBuffer->Lock);
 
 		/* Break */
 		break;

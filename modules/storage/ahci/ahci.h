@@ -351,7 +351,7 @@ typedef struct _AhciController {
     MContract_t             Contract;
     AhciInterruptResource_t InterruptResource;
     UUId_t                  InterruptId;
-    Spinlock_t              Lock;
+    spinlock_t              Lock;
 
     DeviceIo_t*             IoBase;
     AHCIGenericRegisters_t* Registers;

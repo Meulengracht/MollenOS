@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Resource Handle Interface
+ * Resource Handle Interface
  * - Implementation of the resource handle interface. This provides system-wide
  *   resource handles and maintience of resources. 
  */
@@ -32,20 +32,16 @@ typedef enum _SystemHandleType {
     HandleTypeMemoryBuffer,
     HandleTypeMemorySpace,
     HandleTypePipe,
+    HandleTypeWaitQueue,
 
     HandleTypeCount
 } SystemHandleType_t;
-
-typedef enum _SystemHandleCapability {
-    HandleSynchronize = 0x1
-} SystemHandleCapability_t;
 
 typedef OsStatus_t (*HandleDestructorFn)(void*);
 
 typedef struct _SystemHandle {
     CollectionItem_t            Header;
     SystemHandleType_t          Type;
-    SystemHandleCapability_t    Capabilities;
     atomic_int                  References;
     void*                       Resource;
 } SystemHandle_t;
@@ -54,9 +50,8 @@ typedef struct _SystemHandle {
  * Allocates a new handle for a system resource with a reference of 1. */
 KERNELAPI UUId_t KERNELABI
 CreateHandle(
-    _In_ SystemHandleType_t       Type,
-    _In_ SystemHandleCapability_t Capabilities,
-    _In_ void*                    Resource);
+    _In_ SystemHandleType_t Type,
+    _In_ void*              Resource);
 
 /* DestroyHandle
  * Reduces the reference count of the given handle, and cleans up the handle on
@@ -86,22 +81,5 @@ KERNELAPI void* KERNELABI
 LookupHandleOfType(
     _In_ UUId_t             Handle,
     _In_ SystemHandleType_t Type);
-
-/* SignalHandle
- * Signals a handle and wakes a given number of sleepers. */
-KERNELAPI OsStatus_t KERNELABI
-SignalHandle(
-    _In_ UUId_t Handle,
-    _In_ int    Count);
-    
-/* WaitForHandles
- * Waits for either of the given handles to signal. The handles that are passed must
- * support the SYNCHRONIZE capability to be waited for. */
-KERNELAPI OsStatus_t KERNELABI
-WaitForHandles(
-    _In_ UUId_t*            Handles,
-    _In_ size_t             HandleCount,
-    _In_ int                WaitForAll,
-    _In_ size_t             Timeout);
 
 #endif //! __HANDLE_INTERFACE__

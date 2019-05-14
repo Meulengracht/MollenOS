@@ -206,7 +206,7 @@ CreateMemorySpace(
             CreateMemorySpaceContext(MemorySpace);
         }
         CloneVirtualSpace(Parent, MemorySpace, (Flags & MEMORY_SPACE_INHERIT) ? 1 : 0);
-        *Handle = CreateHandle(HandleTypeMemorySpace, 0, MemorySpace);
+        *Handle = CreateHandle(HandleTypeMemorySpace, MemorySpace);
     }
     else {
         FATAL(FATAL_SCOPE_KERNEL, "Invalid flags parsed in CreateMemorySpace 0x%" PRIxIN "", Flags);

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,10 +32,16 @@ int
 cnd_init(
     _In_ cnd_t* cond)
 {
+    OsStatus_t Status;
     if (cond == NULL) {
         return thrd_error;
     }
-    if (Syscall_ConditionCreate(cond) != OsSuccess) {
+    
+    Status = Syscall_WaitQueueCreate(cond);
+    if (Status == OsOutOfMemory) {
+        return thrd_nomem;
+    }
+    else if (Status != OsSuccess) {
         return thrd_error;
     }
     return thrd_success;
@@ -48,19 +54,22 @@ cnd_destroy(
 	if (cond == NULL) {
 		return;
 	}
-    Syscall_ConditionDestroy(*cond);
+	(void)Syscall_DestroyHandle(*cond);
 }
 
 int
 cnd_signal(
     _In_ cnd_t* cond)
 {
+    OsStatus_t Status;
 	if (cond == NULL) {
 		return thrd_error;
 	}
-	if (Syscall_SignalHandle(*cond) != OsSuccess) {
-        return thrd_error;
-    }
+	
+	Status = Syscall_WaitQueueUnblock(*cond);
+	if (Status != OsSuccess && Status != OsDoesNotExist) {
+	    return thrd_error;
+	}
     return thrd_success;
 }
 
@@ -68,12 +77,16 @@ int
 cnd_broadcast(
     _In_ cnd_t *cond)
 {
+    OsStatus_t Status;
+    
 	if (cond == NULL) {
 		return thrd_error;
 	}
-    if (Syscall_BroadcastHandle(*cond) != OsSuccess) {
-        return thrd_error;
-    }
+	
+	Status = Syscall_WaitQueueUnblock(*cond);
+	while (Status == OsSuccess) {
+	    Status = Syscall_WaitQueueUnblock(*cond);
+	}
     return thrd_success;
 }
 
@@ -82,15 +95,16 @@ cnd_wait(
     _In_ cnd_t* cond,
     _In_ mtx_t* mutex)
 {
+    OsStatus_t Status;
 	if (cond == NULL || mutex == NULL) {
 		return thrd_error;
 	}
 
-	if (mtx_unlock(mutex) != thrd_success) {
+    Status = Syscall_WaitQueueBlock(*cond, &mutex->_syncobject, 0);
+    if (Status != OsSuccess) {
         return thrd_error;
     }
-	Syscall_WaitForObject(*cond, 0);
-    return mtx_lock(mutex);
+    return thrd_success;
 }
 
 int
@@ -99,7 +113,7 @@ cnd_timedwait(
     _In_ mtx_t* restrict                 mutex,
     _In_ const struct timespec* restrict time_point)
 {
-	OsStatus_t      status = OsError;
+	OsStatus_t      Status = OsError;
     time_t          msec   = 0;
 	struct timespec now, result;
 
@@ -107,20 +121,20 @@ cnd_timedwait(
 	if (cond == NULL || mutex == NULL) {
 		return thrd_error;
 	}
-
-	// Prepare to sleep-wait
-    if (mtx_unlock(mutex) != thrd_success) {
-        return thrd_error;
-    }
+    
+    // Calculate time to sleep
 	timespec_get(&now, TIME_UTC);
     timespec_diff(time_point, &now, &result);
     msec = result.tv_sec * MSEC_PER_SEC;
     if (result.tv_nsec != 0) {
         msec += ((result.tv_nsec - 1) / NSEC_PER_MSEC) + 1;
     }
-	status = Syscall_WaitForObject(*cond, msec);
-	if (status != OsSuccess) {
+    Status = Syscall_WaitQueueBlock(*cond, &mutex->_syncobject, msec);
+	if (Status  == OsTimeout) {
 		return thrd_timedout;
 	}
-	return mtx_lock(mutex);
+	else if (Status != OsSuccess) {
+	    return thrd_error;
+	}
+	return thrd_success;
 }

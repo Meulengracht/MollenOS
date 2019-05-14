@@ -42,13 +42,13 @@ static HandleDestructorFn   HandleDestructors[HandleTypeCount]  = {
     NULL,                      // Generic - Ignore
     DestroyMemoryBuffer,
     DestroyMemorySpace,
-    DestroySystemPipe
+    DestroySystemPipe,
+    DestroyWaitQueue
 };
 
 UUId_t
 CreateHandle(
     _In_ SystemHandleType_t         Type,
-    _In_ SystemHandleCapability_t   Capabilities,
     _In_ void*                      Resource)
 {
     SystemHandle_t* Handle;
@@ -63,7 +63,6 @@ CreateHandle(
     memset((void*)Handle, 0, sizeof(SystemHandle_t));
     Handle->Header.Key.Value.Id = Id;
     Handle->Type                = Type;
-    Handle->Capabilities        = Capabilities;
     Handle->Resource            = Resource;
     atomic_store_explicit(&Handle->References, 1, memory_order_relaxed);
     CollectionAppend(&SystemHandles, &Handle->Header);
@@ -146,39 +145,8 @@ DestroyHandle(
     References = atomic_fetch_sub(&Instance->References, 1) - 1;
     if (References == 0) {
         CollectionRemoveByNode(&SystemHandles, &Instance->Header);
-        if (Instance->Capabilities & HandleSynchronize) {
-            SchedulerHandleSignalAll((uintptr_t*)Handle);
-            ThreadingYield();
-        }
         Status = (HandleDestructors[Instance->Type] != NULL) ? HandleDestructors[Instance->Type](Instance->Resource) : OsSuccess;
         kfree(Instance);
     }
     return Status;
-}
-
-OsStatus_t
-SignalHandle(
-    _In_ UUId_t Handle,
-    _In_ int    Count)
-{
-    for (int i = 0; i < Count; i++) {
-        if (SchedulerHandleSignal((uintptr_t*)Handle) != OsSuccess) {
-            return OsError;
-        }
-    }
-    return OsSuccess;
-}
-
-OsStatus_t
-WaitForHandles(
-    _In_ UUId_t* Handles,
-    _In_ size_t  HandleCount,
-    _In_ int     WaitForAll,
-    _In_ size_t  Timeout)
-{
-    // @todo multi sync in scheduler
-    assert(Handles != NULL);
-    assert(HandleCount > 0);
-    SchedulerThreadSleep((uintptr_t*)Handles[0], Timeout);
-    return OsSuccess;
 }

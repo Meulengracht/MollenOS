@@ -41,7 +41,7 @@ typedef struct _RingBuffer
 	int IndexRead;
 
 	/* Lock */
-	Spinlock_t Lock;
+	spinlock_t Lock;
 
 } RingBuffer_t;
 

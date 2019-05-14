@@ -52,7 +52,7 @@ ScCreatePipe(
     else {
         return OsInvalidParameters;
     }
-    *Handle = CreateHandle(HandleTypePipe, 0, Pipe);
+    *Handle = CreateHandle(HandleTypePipe, Pipe);
     return OsSuccess;
 }
 
@@ -186,7 +186,7 @@ ScRpcExecute(
     RemoteCall->From.Thread   = Thread->Header.Key.Value.Id;
 
     // Setup producer access
-    AcquireSystemPipeProduction(Pipe, TotalLength, &State);
+    AcquireSystemPipeProduction(Pipe, TotalLength, 0, &State);
     WriteSystemPipeProduction(&State, (const uint8_t*)RemoteCall, sizeof(MRemoteCall_t));
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
         if (RemoteCall->Arguments[i].Type == ARGUMENT_BUFFER) {

@@ -22,12 +22,12 @@
 #include <os/spinlock.h>
 #include "local.h"
 
-Spinlock_t __GlbTzLock = SPINLOCK_INIT(0);
+spinlock_t __GlbTzLock = _SPN_INITIALIZER_NP(spinlock_plain);
 
 void __tz_lock(void) {
-	SpinlockAcquire(&__GlbTzLock);
+	spinlock_acquire(&__GlbTzLock);
 }
 
 void __tz_unlock(void) {
-	SpinlockRelease(&__GlbTzLock);
+	spinlock_release(&__GlbTzLock);
 }

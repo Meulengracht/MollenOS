@@ -85,7 +85,7 @@ typedef struct _TlsProcessInstance {
     int             TlsAtExitHasRun;
 } TlsProcessInstance_t;
 
-static Spinlock_t           TlsLock     = SPINLOCK_INIT(0);
+static spinlock_t           TlsLock     = _SPN_INITIALIZER_NP(spinlock_plain);
 static TlsProcessInstance_t TlsGlobal   = { { 0 }, { 0 }, 
     COLLECTION_INIT(KeyId),
     COLLECTION_INIT(KeyId),
@@ -153,7 +153,7 @@ tss_create(
     tss_t   Result = TSS_KEY_INVALID;
     int     i;
 
-    SpinlockAcquire(&TlsLock);
+    spinlock_acquire(&TlsLock);
     for (i = 0; i < TLS_MAX_KEYS; i++) {
         if (TlsGlobal.Keys[i] == 0) {
             TlsGlobal.Keys[i]   = 1;
@@ -162,7 +162,7 @@ tss_create(
             break;
         }
     }
-    SpinlockRelease(&TlsLock);
+    spinlock_release(&TlsLock);
 
     if (Result != TSS_KEY_INVALID)  *tss_key = Result;
     else                            return thrd_error;
@@ -181,7 +181,7 @@ tss_delete(
     }
 
     // Iterate nodes without auto-linking, we do that manually
-    SpinlockAcquire(&TlsLock);
+    spinlock_acquire(&TlsLock);
     _foreach_nolink(Node, &TlsGlobal.Tls) {
         TlsThreadInstance_t *Tls = (TlsThreadInstance_t*)Node;
 
@@ -198,7 +198,7 @@ tss_delete(
     }
     TlsGlobal.Keys[tss_id]  = 0;
     TlsGlobal.Dss[tss_id]   = NULL;
-    SpinlockRelease(&TlsLock);
+    spinlock_release(&TlsLock);
 }
 
 /* tss_get
@@ -218,7 +218,7 @@ tss_get(
 
     // Iterate the list of TLS instances and 
     // find the one that contains the tls-key
-    SpinlockAcquire(&TlsLock);
+    spinlock_acquire(&TlsLock);
     _foreach(Node, &TlsGlobal.Tls) {
         TlsThreadInstance_t* Tls = (TlsThreadInstance_t*)Node;
         if (!dsmatchkey(KeyId, tKey, Node->Key) && Tls->Key == tss_key) {
@@ -226,7 +226,7 @@ tss_get(
             break;
         }
     }
-    SpinlockRelease(&TlsLock);
+    spinlock_release(&TlsLock);
     return Result;
 }
 
@@ -249,16 +249,16 @@ tss_set(
 
     // Iterate and find if it
     // exists, if exists we override
-    SpinlockAcquire(&TlsLock);
+    spinlock_acquire(&TlsLock);
     _foreach(Node, &TlsGlobal.Tls) {
         TlsThreadInstance_t *Tls = (TlsThreadInstance_t*)Node;
         if (!dsmatchkey(KeyId, tKey, Node->Key) && Tls->Key == tss_id) {
             Tls->Value = val;
-            SpinlockRelease(&TlsLock);
+            spinlock_release(&TlsLock);
             return thrd_success;
         }
     }
-    SpinlockRelease(&TlsLock);
+    spinlock_release(&TlsLock);
 
     NewTls = (TlsThreadInstance_t*)malloc(sizeof(TlsThreadInstance_t));
     memset(NewTls, 0, sizeof(TlsThreadInstance_t));
@@ -269,9 +269,9 @@ tss_set(
     NewTls->Destructor      = TlsGlobal.Dss[tss_id];
 
     // Last thing is to append it to the tls-list
-    SpinlockAcquire(&TlsLock);
+    spinlock_acquire(&TlsLock);
     CollectionAppend(&TlsGlobal.Tls, &NewTls->ListHeader);
-    SpinlockRelease(&TlsLock);
+    spinlock_release(&TlsLock);
     return thrd_success;
 }
 
@@ -416,9 +416,9 @@ tls_cleanup(_In_ thrd_t thr, _In_ void* DsoHandle, _In_ int ExitCode)
     }
 
     // Cleanup all stored tls-keys by this thread
-    SpinlockAcquire(&TlsLock);
+    spinlock_acquire(&TlsLock);
     while (CollectionRemoveByKey(&TlsGlobal.Tls, Key) == OsSuccess);
-    SpinlockRelease(&TlsLock);
+    spinlock_release(&TlsLock);
     tls_callatexit(&TlsGlobal.TlsAtExit, thr, DsoHandle, ExitCode);
 }
 

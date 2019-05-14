@@ -21,9 +21,15 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
+#include <internal/_syscalls.h>
 #include <os/spinlock.h>
+#include <os/mollenos.h>
 #include <threads.h>
 #include <time.h>
+
+#define MUTEX_SPINS 1000
+
+static SystemDescriptor_t SystemInfo = { 0 };
 
 int
 mtx_init(
@@ -33,11 +39,18 @@ mtx_init(
     if (mutex == NULL) {
         return thrd_error;
     }
+
+    // Get information about the system
+    if (SystemInfo.NumberOfActiveCores == 0) {
+        SystemQuery(&SystemInfo);
+    }
     
+    // Initialize the two spinlocks, the _lock must be initialized
+    // as requested, however the syncobject must be plain (non-recursive)
+    spinlock_init(&mutex->_lock, type);
+    spinlock_init(&mutex->_syncobject, spinlock_plain);
+    cnd_init(&mutex->_condition);
     mutex->_flags = type;
-    mutex->_owner = UUID_INVALID;
-    mutex->_count = ATOMIC_VAR_INIT(0);
-    SpinlockReset(&mutex->_syncobject, 0);
     return thrd_success;
 }
 
@@ -45,8 +58,11 @@ void
 mtx_destroy(
     _In_ mtx_t* mutex)
 {
-    // Do nothing, no resources are allocated.
-    _CRT_UNUSED(mutex);
+    if (mutex != NULL) {
+        spinlock_init(&mutex->_lock, mutex->_flags);
+        spinlock_init(&mutex->_syncobject, mutex->_flags);
+        cnd_destroy(&mutex->_condition);
+    }
 }
 
 int
@@ -56,58 +72,38 @@ mtx_trylock(
     if (mutex == NULL) {
         return thrd_error;
     }
-
-    // If this thread already holds the mutex,
-    // increase ref count, but only if we're recursive 
-    if (mutex->_flags & mtx_recursive) {
-        while (1) {
-            int initialcount = atomic_load(&mutex->_count);
-            if (initialcount != 0 && mutex->_owner == thrd_current()) {
-                if (atomic_compare_exchange_weak(&mutex->_count, &initialcount, initialcount + 1)) {
-                    return thrd_success;
-                }
-                continue;
-            }
-            break;
-        }
-    }
-    
-    // Go for an acquire attempt
-    if (SpinlockTryAcquire(&mutex->_syncobject) == OsError) {
-        return thrd_busy;
-    }
-    mutex->_owner = thrd_current();
-    atomic_store(&mutex->_count, 1);
-    return thrd_success;
+    return spinlock_try_acquire(&mutex->_lock);
 }
 
 int
 mtx_lock(
     _In_ mtx_t* mutex)
 {
+    int i;
+    
     if (mutex == NULL) {
         return thrd_error;
     }
-
-    // If this thread already holds the mutex,
-    // increase ref count, but only if we're recursive 
-    if (mutex->_flags & mtx_recursive) {
-        while (1) {
-            int initialcount = atomic_load(&mutex->_count);
-            if (initialcount != 0 && mutex->_owner == thrd_current()) {
-                if (atomic_compare_exchange_weak(&mutex->_count, &initialcount, initialcount + 1)) {
-                    return thrd_success;
-                }
-                continue;
+    
+    // In a multcore environment the lock may not be held for long, so
+    // perform X iterations before going for a longer block
+    // period.
+    if (SystemInfo.NumberOfActiveCores > 1) {
+        for (i = 0; i < MUTEX_SPINS; i++) {
+            if (spinlock_try_acquire(&mutex->_lock) == spinlock_acquired) {
+                return thrd_success;
             }
-            break;
         }
     }
-
-    // acquire lock and set information
-    SpinlockAcquire(&mutex->_syncobject);
-    mutex->_owner = thrd_current();
-    atomic_store(&mutex->_count, 1);
+    
+    spinlock_acquire(&mutex->_syncobject);
+    while (1) {
+        if (spinlock_try_acquire(&mutex->_lock) == spinlock_acquired) {
+            break;
+        }
+        Syscall_WaitQueueBlock(mutex->_condition, &mutex->_syncobject, 0);
+    }
+    spinlock_release(&mutex->_syncobject);
     return thrd_success;
 }
 
@@ -116,65 +112,52 @@ mtx_timedlock(
     _In_ mtx_t* restrict                 mutex,
     _In_ const struct timespec* restrict time_point)
 {
-    thrd_t          current_thrd = thrd_current();
-    struct timespec tstamp;
+    time_t          msec   = 0;
+	struct timespec now, result;
+	int             success;
     
     if (mutex == NULL || !(mutex->_flags & mtx_timed)) {
         return thrd_error;
     }
-
-    // If this thread already holds the mutex,
-    // increase ref count, but only if we're recursive 
-    if (mutex->_flags & mtx_recursive) {
-        while (1) {
-            int initialcount = atomic_load(&mutex->_count);
-            if (initialcount != 0 && mutex->_owner == current_thrd) {
-                if (atomic_compare_exchange_weak(&mutex->_count, &initialcount, initialcount + 1)) {
-                    return thrd_success;
-                }
-                continue;
-            }
+    
+    // Calculate time to sleep
+	timespec_get(&now, TIME_UTC);
+    timespec_diff(time_point, &now, &result);
+    msec = result.tv_sec * MSEC_PER_SEC;
+    if (result.tv_nsec != 0) {
+        msec += ((result.tv_nsec - 1) / NSEC_PER_MSEC) + 1;
+    }
+    
+	spinlock_acquire(&mutex->_syncobject);
+    while (1) {
+        success = spinlock_try_acquire(&mutex->_lock);
+        if (success == spinlock_acquired) {
+            success = thrd_success;
+            break;
+        }
+        
+        // Only handle the timeout seperately, otherwise just test again
+        if (Syscall_WaitQueueBlock(mutex->_condition, &mutex->_syncobject, msec) == OsTimeout) {
+            success = thrd_timedout;
             break;
         }
     }
-
-    // Wait with timeout
-    while (SpinlockTryAcquire(&mutex->_syncobject) == OsError) {
-        timespec_get(&tstamp, TIME_UTC);
-        if (tstamp.tv_sec > time_point->tv_sec) {
-            return thrd_timedout;
-        }
-        if (tstamp.tv_sec  == time_point->tv_sec && 
-            tstamp.tv_nsec >= time_point->tv_nsec) {
-            return thrd_timedout;
-        }
-        thrd_yield();
-    }
-
-    mutex->_owner = current_thrd;
-    atomic_store(&mutex->_count, 1);
-    return thrd_success;
+    spinlock_release(&mutex->_syncobject);
+    return success;
 }
 
 int
 mtx_unlock(
     _In_ mtx_t* mutex)
 {
-    int initialcount;
     if (mutex == NULL) {
         return thrd_error;
     }
 
-    // Sanitize state of the mutex, are we even able to unlock it?
-    initialcount = atomic_load(&mutex->_count);
-    if (initialcount == 0 || mutex->_owner != thrd_current()) {
-        return thrd_error;
+    spinlock_acquire(&mutex->_syncobject);
+    if (spinlock_release(&mutex->_lock) == spinlock_released) {
+        Syscall_WaitQueueUnblock(&mutex->_condition);
     }
-    
-    initialcount = atomic_fetch_sub(&mutex->_count, 1) - 1;
-    if (initialcount == 0) {
-        mutex->_owner = UUID_INVALID;
-        SpinlockRelease(&mutex->_syncobject);
-    }
+    spinlock_release(&mutex->_syncobject);
     return thrd_success;
 }

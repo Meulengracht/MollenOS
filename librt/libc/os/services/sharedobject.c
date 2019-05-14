@@ -84,6 +84,9 @@ SetErrnoFromOsStatus(
         case OsNotSupported:
             _set_errno(ENOSYS);
             break;
+        case OsOutOfMemory:
+            _set_errno(ENOMEM);
+            break;
     }
 }
 
