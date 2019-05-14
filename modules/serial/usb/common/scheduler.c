@@ -130,7 +130,7 @@ UsbSchedulerInitialize(
     memset((void*)Scheduler, 0, sizeof(UsbScheduler_t));
 
     // Store initial information we were given
-    SpinlockReset(&Scheduler->Lock, 0);
+    spinlock_init(&Scheduler->Lock, spinlock_plain);
     memcpy((void*)&Scheduler->Settings, Settings, sizeof(UsbSchedulerSettings_t));
     Scheduler->PoolSizeBytes = PoolSizeBytes;
 
@@ -302,7 +302,7 @@ UsbSchedulerAllocateElement(
     // Now, we usually allocated new descriptors for interrupts
     // and isoc, but it doesn't make sense for us as we keep one
     // large pool of TDs, just allocate from that in any case
-    SpinlockAcquire(&Scheduler->Lock);
+    spinlock_acquire(&Scheduler->Lock);
     for (i = sPool->ElementCountReserved; i < sPool->ElementCount; i++) {
         uint8_t *Element = USB_ELEMENT_INDEX(sPool, i);
         sObject          = USB_ELEMENT_OBJECT(sPool, Element);
@@ -319,7 +319,7 @@ UsbSchedulerAllocateElement(
         *ElementOut          = Element;
         break;
     }
-    SpinlockRelease(&Scheduler->Lock);
+    spinlock_release(&Scheduler->Lock);
     return (i == sPool->ElementCount) ? OsError : OsSuccess;
 }
 
@@ -378,7 +378,7 @@ UsbSchedulerTryAllocateBandwidth(
     size_t     i;
 
     // Iterate the requested period and make sure there is actually room
-    SpinlockAcquire(&Scheduler->Lock);
+    spinlock_acquire(&Scheduler->Lock);
     while (NumberOfTransactions) { // Run untill cancel
         for (i = 0; i < Scheduler->Settings.FrameCount; ) {
             if ((Scheduler->Bandwidth[i] + sObject->Bandwidth) > Scheduler->Settings.MaxBandwidthPerFrame) {
@@ -423,7 +423,7 @@ UsbSchedulerTryAllocateBandwidth(
         }
         break;
     }
-    SpinlockRelease(&Scheduler->Lock);
+    spinlock_release(&Scheduler->Lock);
     if (Result != OsSuccess) {
         return Result;
     }
@@ -520,7 +520,7 @@ UsbSchedulerFreeBandwidth(
     sObject = USB_ELEMENT_OBJECT(sPool, Element);
 
     // Iterate the requested period and clean up
-    SpinlockAcquire(&Scheduler->Lock);
+    spinlock_acquire(&Scheduler->Lock);
     for (i = sObject->StartFrame; i < Scheduler->Settings.FrameCount; i += (sObject->FrameInterval * Scheduler->Settings.SubframeCount)) {
         // Reduce allocated bandwidth
         Scheduler->Bandwidth[i] -= MIN(sObject->Bandwidth, Scheduler->Bandwidth[i]);
@@ -537,7 +537,7 @@ UsbSchedulerFreeBandwidth(
             }
         }
     }
-    SpinlockRelease(&Scheduler->Lock);
+    spinlock_release(&Scheduler->Lock);
     return Result;
 }
 

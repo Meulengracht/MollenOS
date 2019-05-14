@@ -16,78 +16,54 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - System Calls
+ * System call implementations (Synchronization)
+ *
  */
 #define __MODULE "SCIF"
 //#define __TRACE
 
 #include <os/osdefs.h>
 #include <scheduler.h>
-#include <heap.h>
+#include <handle.h>
 
-/* ScConditionCreate
- * Create a new shared handle 
- * that is unique for a condition variable */
+/* ScWaitQueueCreate
+ * Creates a new wait queue that can be used for synchronization purposes. */
 OsStatus_t
-ScConditionCreate(
-    _Out_ Handle_t *Handle)
+ScWaitQueueCreate(
+    _Out_ UUId_t* HandleOut)
 {
-    // Sanitize input
-    if (Handle == NULL) {
-        return OsError;
+    Collection_t* WaitQueue = CollectionCreate(KeyId);
+    if (!WaitQueue) {
+        return OsOutOfMemory;
     }
- 
-    *Handle = (Handle_t)kmalloc(sizeof(Handle_t));
-    return OsSuccess;
+    *HandleOut = CreateHandle(HandleTypeWaitQueue, WaitQueue);
+    return (*HandleOut != UUID_INVALID) ? OsSuccess : OsOutOfMemory;
 }
 
-/* ScConditionDestroy
- * Destroys a shared handle
- * for a condition variable */
+/* ScWaitQueueBlock
+ * Blocks a calling thread in a wait queue untill unblocked. */
 OsStatus_t
-ScConditionDestroy(
-    _In_ Handle_t Handle)
+ScWaitQueueBlock(
+    _In_ UUId_t      WaitQueueHandle,
+    _In_ spinlock_t* SyncObject,
+    _In_ size_t      Timeout)
 {
-    kfree(Handle);
-    return OsSuccess;
-}
-
-/* ScSignalHandle
- * Signals a handle for wakeup 
- * This is primarily used for condition
- * variables and semaphores */
-OsStatus_t
-ScSignalHandle(
-    _In_ uintptr_t *Handle)
-{
-    return SchedulerHandleSignal(Handle);
-}
-
-/* Signals a handle for wakeup all
- * This is primarily used for condition
- * variables and semaphores */
-OsStatus_t
-ScSignalHandleAll(
-    _In_ uintptr_t *Handle)
-{
-    SchedulerHandleSignalAll(Handle);
-    return OsSuccess;
-}
-
-/* ScWaitForObject
- * Waits for a signal relating to the above function, this
- * function uses a timeout. Returns OsError on timed-out */
-OsStatus_t
-ScWaitForObject(
-    _In_ uintptr_t *Handle,
-    _In_ size_t Timeout)
-{
-    // Store reason for waking up
-    int WakeReason = SchedulerThreadSleep(Handle, Timeout);
-    if (WakeReason == SCHEDULER_SLEEP_OK) {
-        return OsSuccess;
+    Collection_t* WaitQueue = LookupHandleOfType(WaitQueueHandle, HandleTypeWaitQueue);
+    if (!WaitQueue) {
+        return OsDoesNotExist;
     }
-    else {
-        return OsError;
+    return SchedulerBlock(WaitQueue, SyncObject, Timeout);
+}
+
+/* ScWaitQueueUnblock
+ * Unblocks a single thread in the wait queue. */
+OsStatus_t
+ScWaitQueueUnblock(
+    _In_ UUId_t WaitQueueHandle)
+{
+    Collection_t* WaitQueue = LookupHandleOfType(WaitQueueHandle, HandleTypeWaitQueue);
+    if (!WaitQueue) {
+        return OsDoesNotExist;
     }
+    return SchedulerUnblock(WaitQueue);
 }

@@ -410,7 +410,7 @@ HciProcessElement(
         case USB_REASON_LINK: {
             // If it's a queue head link that
             if (Pool == QhPool) {
-                SpinlockAcquire(&Controller->Lock);
+                spinlock_acquire(&Controller->Lock);
                 EhciSetPrefetching((EhciController_t*)Controller, Transfer->Transfer.Type, 0);
                 if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
                     UsbSchedulerGetPoolElement(Controller->Scheduler, EHCI_QH_POOL, EHCI_QH_ASYNC, &AsyncRootElement, NULL);
@@ -422,7 +422,7 @@ HciProcessElement(
                 }
                 EhciSetPrefetching((EhciController_t*)Controller, Transfer->Transfer.Type, 1);
                 EhciEnableScheduler((EhciController_t*)Controller, Transfer->Transfer.Type);
-                SpinlockRelease(&Controller->Lock);
+                spinlock_release(&Controller->Lock);
                 return ITERATOR_STOP;
             }
         } break;
@@ -430,7 +430,7 @@ HciProcessElement(
         case USB_REASON_UNLINK: {
             // If it's a queue head link that
             if (Pool == QhPool) {
-                SpinlockAcquire(&Controller->Lock);
+                spinlock_acquire(&Controller->Lock);
                 EhciSetPrefetching((EhciController_t*)Controller, Transfer->Transfer.Type, 0);
                 if (Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer) {
                     UsbSchedulerGetPoolElement(Controller->Scheduler, EHCI_QH_POOL, EHCI_QH_ASYNC, &AsyncRootElement, NULL);
@@ -440,7 +440,7 @@ HciProcessElement(
                     UsbSchedulerUnlinkPeriodicElement(Controller->Scheduler, EHCI_QH_POOL, Element);
                 }
                 EhciSetPrefetching((EhciController_t*)Controller, Transfer->Transfer.Type, 1);
-                SpinlockRelease(&Controller->Lock);
+                spinlock_release(&Controller->Lock);
                 return ITERATOR_STOP;
             }
         } break;

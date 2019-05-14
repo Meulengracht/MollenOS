@@ -24,16 +24,18 @@
 #define __SEMAPHORE_H__
 
 #include <os/osdefs.h>
+#include <os/spinlock.h>
 #include <scheduler.h>
 #include <mutex.h>
 
 typedef struct {
-    SchedulerLockedQueue_t Queue;
-	_Atomic(int)           Value;
-    int                    MaxValue;
+    Collection_t WaitQueue;
+    spinlock_t   SyncObject;
+	_Atomic(int) Value;
+    int          MaxValue;
 } Semaphore_t;
 
-#define SEMAPHORE_INIT(Value, MaxValue) { SCHEDULER_LOCKED_QUEUE_INIT, ATOMIC_VAR_INIT(Value), MaxValue }
+#define SEMAPHORE_INIT(Value, MaxValue) { COLLECTION_INIT(KeyId), _SPN_INITIALIZER_NP(spinlock_plain), ATOMIC_VAR_INIT(Value), MaxValue }
 
 /* SemaphoreConstruct
  * Initializes a semaphore to default values. */

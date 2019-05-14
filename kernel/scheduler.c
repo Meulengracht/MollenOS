@@ -178,6 +178,25 @@ AllocateScheduler(
     atomic_fetch_add(&Scheduler->ObjectCount, 1);
 }
 
+KERNELAPI OsStatus_t KERNELABI
+DestroyWaitQueue(
+    _In_ void* Resource)
+{
+    Collection_t*      WaitQueue = (Collection_t*)Resource;
+    SystemScheduler_t* Scheduler = SchedulerGetFromCore(ArchGetProcessorCoreId());
+    SchedulerObject_t* Object;
+    
+    dslock(&Scheduler->SyncObject);
+    Object = (SchedulerObject_t*)CollectionPopFront(WaitQueue);
+    while (Object != NULL) {
+        QueueForScheduler(Scheduler, Object);
+        Object = (SchedulerObject_t*)CollectionPopFront(WaitQueue);
+    }
+    CollectionDestroy(WaitQueue);
+    dsunlock(&Scheduler->SyncObject);
+    return OsSuccess;
+}
+
 SchedulerObject_t*
 SchedulerCreateObject(
     _In_ void*   Payload,
@@ -227,8 +246,8 @@ SchedulerExpediteObject(
     if (Object->State == SchedulerObjectStateBlocked) {
         // Either sleeping, which means we'll interrupt it immediately
         // or it's waiting for in a block queue
-        if (Object->QueueHandle != NULL) {
-            Status = CollectionRemoveByNode(&Object->QueueHandle->Queue, &Object->Header);
+        if (Object->WaitQueueHandle != NULL) {
+            Status = CollectionRemoveByNode(Object->WaitQueueHandle, &Object->Header);
             if (Status != OsSuccess) {
                 // we are too late, it's going into queue anyway, back off
                 return;
@@ -265,10 +284,10 @@ SchedulerSleep(
     assert(Object != NULL);
     
     // Setup information for the current running object
-    Object->TimeLeft      = Milliseconds;
-    Object->Timeout       = 0;
-    Object->InterruptedAt = 0;
-    Object->QueueHandle   = NULL;
+    Object->TimeLeft        = Milliseconds;
+    Object->Timeout         = 0;
+    Object->InterruptedAt   = 0;
+    Object->WaitQueueHandle = NULL;
     
     // The moment we change this while the TimeLeft is set, the
     // sleep will automatically get started
@@ -280,43 +299,47 @@ SchedulerSleep(
 
 OsStatus_t
 SchedulerBlock(
-    _In_ SchedulerLockedQueue_t* Queue,
-    _In_ size_t                  Timeout)
+    _In_ Collection_t* WaitQueue,
+    _In_ spinlock_t*   SyncObject,
+    _In_ size_t        Timeout)
 {
-    SchedulerObject_t* Object;
-    UUId_t             CoreId;
-    
-    CoreId = ArchGetProcessorCoreId();
-    Object = SchedulerGetCurrentObject(CoreId);
-    assert(InterruptIsDisabled() == 1);
+    UUId_t             CoreId    = ArchGetProcessorCoreId();
+    SystemScheduler_t* Scheduler = SchedulerGetFromCore(CoreId);
+    SchedulerObject_t* Object    = SchedulerGetCurrentObject(CoreId);
+
     assert(Object != NULL);
+    assert(WaitQueue != NULL);
+    assert(SyncObject != NULL);
     
     // Setup information for the current running object
-    Object->TimeLeft      = Timeout;
-    Object->Timeout       = 0;
-    Object->InterruptedAt = 0;
-    Object->QueueHandle   = Queue;
+    Object->TimeLeft        = Timeout;
+    Object->Timeout         = 0;
+    Object->InterruptedAt   = 0;
+    Object->WaitQueueHandle = WaitQueue;
     
     // The moment we change this while the TimeLeft is set, the
     // sleep will automatically get started
+    dslock(&Scheduler->SyncObject);
+    CollectionAppend(WaitQueue, &Object->Header);
     Object->State = SchedulerObjectStateBlocked;
-    CollectionAppend(&Queue->Queue, &Object->Header);
-    dsunlock(&Queue->SyncObject);
+    spinlock_release(SyncObject);
+    dsunlock(&Scheduler->SyncObject);
+    
     ThreadingYield();
-    dslock(&Queue->SyncObject);
+    spinlock_acquire(SyncObject);
     return (Object->Timeout == 1) ? OsTimeout : OsSuccess;
 }
 
-void
+OsStatus_t
 SchedulerUnblock(
-    _In_ SchedulerLockedQueue_t* Queue)
+    _In_ Collection_t* WaitQueue)
 {
     SchedulerObject_t* Object;
+    assert(WaitQueue != NULL);
     
     // This is an atomic action, the lock must be held before calling
     // this function.
-    assert(InterruptIsDisabled() == 1);
-    Object = (SchedulerObject_t*)CollectionPopFront(&Queue->Queue);
+    Object = (SchedulerObject_t*)CollectionPopFront(WaitQueue);
     if (Object != NULL) {
         SystemCpuCore_t* Core = GetCurrentProcessorCore();
         TimersGetSystemTick(&Object->InterruptedAt);
@@ -330,7 +353,9 @@ SchedulerUnblock(
             ExecuteProcessorCoreFunction(Object->CoreId, CpuFunctionCustom, 
                 QueueOnCoreFunction, Object);
         }
+        return OsSuccess;
     }
+    return OsDoesNotExist;
 }
 
 void
@@ -400,8 +425,8 @@ SchedulerUpdateSleepQueue(
             t = i->Link;
             
             // Synchronize with the locked list
-            if (i->QueueHandle != NULL) {
-                Status = CollectionRemoveByNode(&i->QueueHandle->Queue, &i->Header);
+            if (i->WaitQueueHandle != NULL) {
+                Status = CollectionRemoveByNode(i->WaitQueueHandle, &i->Header);
                 
                 // If it was already removed, then a we're experiencing a race condition
                 // by another core trying to destroy the order. Prevent this by expecting an 

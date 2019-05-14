@@ -45,7 +45,7 @@ typedef struct _GcMessage {
 // Prototype for the worker thread
 static void GcWorker(void *Args);
 
-static Mutex_t         QueueLock      = MUTEX_INIT(MUTEX_PLAIN);
+static Mutex_t         QueueLock      = OS_MUTEX_INIT(MUTEX_PLAIN);
 static Semaphore_t     EventLock      = SEMAPHORE_INIT(0, 1);
 static Collection_t    GcHandlers     = COLLECTION_INIT(KeyId);
 static Collection_t    GcEvents       = COLLECTION_INIT(KeyId);

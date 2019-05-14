@@ -54,7 +54,7 @@ typedef struct _UsbManagerController {
 
     Collection_t*       Endpoints;
     Collection_t*       TransactionList;
-    Spinlock_t          Lock;
+    spinlock_t          Lock;
 } UsbManagerController_t;
 
 #define USB_OUT_OF_RESOURCES       (void*)0

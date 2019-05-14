@@ -49,7 +49,7 @@ DebugPageMemorySpaceHandlers(
             SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)Node;
             if (ISINRANGE(Address, Handler->Address, (Handler->Address + Handler->Length) - 1)) {
                 SendModuleInterrupt(__FILEMANAGER_TARGET, Handler->Handle, (void*)Address);
-                Status = WaitForHandles(&Handler->Handle, 1, 1, 0);
+                // @todo manually invoke yield from below
                 break;
             }
         }

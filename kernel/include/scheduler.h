@@ -26,11 +26,9 @@
 
 #include <os/osdefs.h>
 #include <ds/ds.h>
+#include <os/spinlock.h>
 #include <ds/collection.h>
 #include <time.h>
-
-// Forward declarations
-typedef struct _SchedulerLockedQueue SchedulerLockedQueue_t;
 
 /* Scheduler Definitions
  * Contains magic constants, bit definitions and settings. */
@@ -67,19 +65,11 @@ typedef struct _SchedulerObject {
     struct _SchedulerObject*        Link;
     void*                           Object;
     
-    SchedulerLockedQueue_t*         QueueHandle;
+    Collection_t*                   WaitQueueHandle;
     int                             Timeout;
     size_t                          TimeLeft;
     clock_t                         InterruptedAt;
 } SchedulerObject_t;
-
-// Queues that are synchronized with the scheduler, and can be used
-// as generic wait queue
-typedef struct _SchedulerLockedQueue {
-    CollectionItem_t Header;
-    SafeMemoryLock_t SyncObject;
-    Collection_t     Queue;
-} SchedulerLockedQueue_t;
 
 // Low overhead queues that are used by the scheduler, only in
 // it's own core context, so no per list locking needed
@@ -97,14 +87,14 @@ typedef struct {
     clock_t                LastBoost;
 } SystemScheduler_t;
 
-#define SCHEDULER_LOCKED_QUEUE_INIT { COLLECTION_NODE_INIT(0), { 0 }, COLLECTION_INIT(KeyId) }
-#define SCHEDULER_INIT              { { 0 }, { 0 }, { { 0 } }, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0), 0 }
+#define SCHEDULER_INIT { { 0 }, { 0 }, { { 0 } }, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0), 0 }
 
-/* SchedulerLockedQueueConstruct
- * Initializes a new locked queue. */
-KERNELAPI void KERNELABI
-SchedulerLockedQueueConstruct(
-    _In_ SchedulerLockedQueue_t* Queue);
+/* DestroyWaitQueue 
+ * Clears all waiting threads and moves them to ready thread. This can however bring issues
+ * as the resources they are waiting for no longer are in service. @todo kill threads? */
+KERNELAPI OsStatus_t KERNELABI
+DestroyWaitQueue(
+    _In_ void* Resource);
 
 /* SchedulerCreateObject
  * Creates a new scheduling object and allocates a cpu core for the object.
@@ -147,15 +137,16 @@ SchedulerSleep(
  * otherwise the timeout is not invoked. */
 KERNELAPI OsStatus_t KERNELABI
 SchedulerBlock(
-    _In_ SchedulerLockedQueue_t* Queue,
-    _In_ size_t                  Timeout);
+    _In_ Collection_t* WaitQueue,
+    _In_ spinlock_t*   SyncObject,
+    _In_ size_t        Timeout);
 
 /* SchedulerUnblock
  * Unblocks an thread from the given queue. The lock must be held while calling this
  * function. */
-KERNELAPI void KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 SchedulerUnblock(
-    _In_ SchedulerLockedQueue_t* Queue);
+    _In_ Collection_t* WaitQueue);
 
 /* SchedulerAdvance 
  * This should be called by the underlying archteicture code

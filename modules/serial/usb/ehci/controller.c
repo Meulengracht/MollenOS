@@ -62,7 +62,7 @@ HciControllerCreate(
     Controller->Base.Type               = UsbEHCI;
     Controller->Base.TransactionList    = CollectionCreate(KeyInteger);
     Controller->Base.Endpoints          = CollectionCreate(KeyInteger);
-    SpinlockReset(&Controller->Base.Lock, 0);
+    spinlock_init(&Controller->Base.Lock, spinlock_plain);
 
     // Get I/O Base, and for EHCI it'll be the first address we encounter
     // of type MMIO

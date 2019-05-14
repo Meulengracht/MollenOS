@@ -125,7 +125,7 @@ typedef struct _UsbSchedulerSettings {
 typedef struct _UsbScheduler {
     // Meta
     UsbSchedulerSettings_t  Settings;
-    Spinlock_t              Lock;
+    spinlock_t              Lock;
 
     // Resources
     size_t                  PoolSizeBytes;          // The total number of bytes allocated

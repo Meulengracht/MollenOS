@@ -76,7 +76,7 @@ ReleaseProcess(
     _In_ Process_t* Process)
 {
     if (DestroyProcess(Process) != OsSuccess) {
-        SpinlockRelease(&Process->SyncObject);
+        spinlock_release(&Process->SyncObject);
     } 
 }
 
@@ -99,7 +99,7 @@ AcquireProcess(
         }
 
         if (References > 0) {
-            SpinlockAcquire(&Process->SyncObject);
+            spinlock_acquire(&Process->SyncObject);
             if (Process->State == PROCESS_RUNNING) {
                 return Process;
             }
@@ -343,7 +343,7 @@ CreateProcess(
     Process->State               = ATOMIC_VAR_INIT(PROCESS_RUNNING);
     Process->References          = ATOMIC_VAR_INIT(1);
     Process->StartedAt           = clock();
-    SpinlockReset(&Process->SyncObject, SPINLOCK_RECURSIVE);
+    spinlock_init(&Process->SyncObject, spinlock_recursive);
 
     // Load the executable
     PathAsMString = MStringCreate((void*)Path, StrUTF8);

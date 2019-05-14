@@ -42,7 +42,7 @@ ScCreateMemoryHandler(
 
     if (Space->Context->HeapSpace != NULL) {
         SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)kmalloc(sizeof(SystemMemoryMappingHandler_t));
-        Handler->Handle  = CreateHandle(HandleGeneric, 0, Handler);
+        Handler->Handle  = CreateHandle(HandleGeneric, Handler);
         Handler->Address = AllocateBlocksInBlockmap(Space->Context->HeapSpace, __MASK, Length);
         Handler->Length  = Length;
         

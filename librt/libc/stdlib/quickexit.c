@@ -56,7 +56,7 @@ typedef struct _QuickExitHandler {
 
 /* Spinlock protecting the list access
  * of quick-exit handlers */
-static Spinlock_t _GlbQuickExitLock = SPINLOCK_INIT(0);
+static spinlock_t _GlbQuickExitLock = _SPN_INITIALIZER_NP(spinlock_plain);
 static QuickExitHandler_t *_GlbQuickExitStack = NULL;
 
 /* at_quick_exit 
@@ -77,7 +77,7 @@ int at_quick_exit(void(__CRTDECL *function)(void))
 
 	/* Acquire the lock, we don't
 	 * want multiple threads accessing this */
-	SpinlockAcquire(&_GlbQuickExitLock);
+	spinlock_acquire(&_GlbQuickExitLock);
 
 	/* Allocate a new handler structure
 	 * and init it */
@@ -89,7 +89,7 @@ int at_quick_exit(void(__CRTDECL *function)(void))
 	_GlbQuickExitStack = Handler;
 
 	/* Done, now we can release the lock */
-	SpinlockRelease(&_GlbQuickExitLock);
+	spinlock_release(&_GlbQuickExitLock);
 
 	/* No errors! Wuhu */
 	return 0;

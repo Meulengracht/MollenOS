@@ -70,7 +70,7 @@ typedef struct {
     char          lookahead[3];
     int           exflag;
     void*         file;
-    Spinlock_t    lock;
+    spinlock_t    lock;
 } StdioObject_t;
 
 __EXTERN StdioObject_t* get_ioinfo(int fd);
