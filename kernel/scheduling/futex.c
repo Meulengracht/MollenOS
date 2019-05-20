@@ -23,6 +23,8 @@
 #include <scheduler.h>
 #include <futex.h>
 
+#define FUTEX_HASHTABLE_CAPACITY 64
+
 // One per memory context
 typedef struct {
     CollectionItem_t            Header;
@@ -38,8 +40,7 @@ typedef struct {
     Collection_t     FutexQueue;
 } FutexBucket_t;
 
-#define FUTEX_HASHTABLE_CAPACITY 64
-static FutexBucket_t* FutexBuckets = NULL;
+static FutexBucket_t FutexBuckets[FUTEX_HASHTABLE_CAPACITY] = { 0 };
 
 static size_t
 GetIntegerHash(size_t x)
@@ -183,13 +184,6 @@ FutexCompareOperation(
             break;
     }
     return 0;
-}
-
-void
-FutexInitialize(void)
-{
-    FutexBuckets = (FutexBucket_t*)kmalloc(sizeof(FutexBucket_t) * FUTEX_HASHTABLE_CAPACITY);
-    memset(FutexBuckets, 0, sizeof(FutexBucket_t) * FUTEX_HASHTABLE_CAPACITY);
 }
 
 OsStatus_t
