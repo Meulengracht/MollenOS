@@ -25,9 +25,6 @@
 #include <os/osdefs.h>
 #include <os/futex.h>
 
-void
-FutexInitialize(void);
-
 OsStatus_t
 FutexWait(
     _In_ _Atomic(int)* Futex,
