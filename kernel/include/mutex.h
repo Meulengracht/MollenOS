@@ -48,6 +48,13 @@ KERNELAPI void KERNELABI
 MutexConstruct(
     _In_ Mutex_t* Mutex,
     _In_ Flags_t  Configuration);
+    
+/* MutexDestruct 
+ * Wakes up all threads in the wait queue and attempts to clear out. This can
+ * fail and is not guaranteed to work. If it fails, this need to be tried again. */
+KERNELAPI OsStatus_t KERNELABI
+MutexDestruct(
+    _In_ Mutex_t* Mutex);
 
 /* MutexTryLock
  * Tries to acquire the lock, does not block and returns immediately. */

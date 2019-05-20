@@ -22,6 +22,7 @@
  */
 
 #include <internal/_syscalls.h>
+#include <internal/_utils.h>
 #include <threads.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -32,19 +33,10 @@ int
 cnd_init(
     _In_ cnd_t* cond)
 {
-    OsStatus_t Status;
     if (cond == NULL) {
         return thrd_error;
     }
-    
-    Status = Syscall_WaitQueueCreate(cond);
-    if (Status == OsOutOfMemory) {
-        return thrd_nomem;
-    }
-    else if (Status != OsSuccess) {
-        return thrd_error;
-    }
-    return thrd_success;
+    atomic_store(&cond->_syncobject, 0);
 }
 
 void
@@ -54,20 +46,25 @@ cnd_destroy(
 	if (cond == NULL) {
 		return;
 	}
-	(void)Syscall_DestroyHandle(*cond);
+	cnd_broadcast(cond);
 }
 
 int
 cnd_signal(
     _In_ cnd_t* cond)
 {
-    OsStatus_t Status;
+    FutexParameters_t parameters;
+    OsStatus_t        status;
+    
 	if (cond == NULL) {
 		return thrd_error;
 	}
 	
-	Status = Syscall_WaitQueueUnblock(*cond);
-	if (Status != OsSuccess && Status != OsDoesNotExist) {
+    parameters._futex0  = &cond->_syncobject;
+    parameters._val0    = 1;
+    parameters._flags   = FUTEX_WAKE_PRIVATE;
+	status = Syscall_FutexWake(&parameters);
+	if (status != OsSuccess && status != OsDoesNotExist) {
 	    return thrd_error;
 	}
     return thrd_success;
@@ -77,16 +74,16 @@ int
 cnd_broadcast(
     _In_ cnd_t *cond)
 {
-    OsStatus_t Status;
+    FutexParameters_t parameters;
     
 	if (cond == NULL) {
 		return thrd_error;
 	}
 	
-	Status = Syscall_WaitQueueUnblock(*cond);
-	while (Status == OsSuccess) {
-	    Status = Syscall_WaitQueueUnblock(*cond);
-	}
+    parameters._futex0  = &cond->_syncobject;
+    parameters._val0    = atomic_load(&cond->_syncobject);
+    parameters._flags   = FUTEX_WAKE_PRIVATE;
+	(void)Syscall_FutexWake(&parameters);
     return thrd_success;
 }
 
@@ -95,13 +92,23 @@ cnd_wait(
     _In_ cnd_t* cond,
     _In_ mtx_t* mutex)
 {
-    OsStatus_t Status;
+    FutexParameters_t parameters;
+    OsStatus_t        status;
 	if (cond == NULL || mutex == NULL) {
 		return thrd_error;
 	}
 
-    Status = Syscall_WaitQueueBlock(*cond, &mutex->_syncobject, 0);
-    if (Status != OsSuccess) {
+    parameters._futex0  = &cond->_syncobject;
+    parameters._futex1  = &mutex->_val;
+    parameters._val0    = atomic_load(&cond->_syncobject);
+    parameters._val1    = 1; // Wakeup one on the mutex
+    parameters._val2    = FUTEX_OP(FUTEX_OP_SET, 0, 0, 0);
+    parameters._flags   = FUTEX_WAIT_PRIVATE | FUTEX_WAIT_OP;
+    parameters._timeout = 0;
+    
+    status = Syscall_FutexWait(&parameters);
+    mtx_lock(mutex);
+    if (status != OsSuccess) {
         return thrd_error;
     }
     return thrd_success;
@@ -113,9 +120,10 @@ cnd_timedwait(
     _In_ mtx_t* restrict                 mutex,
     _In_ const struct timespec* restrict time_point)
 {
-	OsStatus_t      Status = OsError;
-    time_t          msec   = 0;
-	struct timespec now, result;
+    FutexParameters_t parameters;
+	OsStatus_t        status = OsError;
+    time_t            msec   = 0;
+	struct timespec   now, result;
 
 	// Sanitize input
 	if (cond == NULL || mutex == NULL) {
@@ -129,11 +137,21 @@ cnd_timedwait(
     if (result.tv_nsec != 0) {
         msec += ((result.tv_nsec - 1) / NSEC_PER_MSEC) + 1;
     }
-    Status = Syscall_WaitQueueBlock(*cond, &mutex->_syncobject, msec);
-	if (Status  == OsTimeout) {
+    
+    parameters._futex0  = &cond->_syncobject;
+    parameters._futex1  = &mutex->_val;
+    parameters._val0    = atomic_load(&cond->_syncobject);
+    parameters._val1    = 1; // Wakeup one on the mutex
+    parameters._val2    = FUTEX_OP(FUTEX_OP_SET, 0, 0, 0); // Reset mutex to 0
+    parameters._flags   = FUTEX_WAIT_PRIVATE | FUTEX_WAIT_OP;
+    parameters._timeout = 0;
+    
+    status = Syscall_FutexWait(&parameters);
+    mtx_lock(mutex);
+	if (status  == OsTimeout) {
 		return thrd_timedout;
 	}
-	else if (Status != OsSuccess) {
+	else if (status != OsSuccess) {
 	    return thrd_error;
 	}
 	return thrd_success;

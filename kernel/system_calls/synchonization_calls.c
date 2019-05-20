@@ -22,48 +22,33 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
+#include <internal/_utils.h>
 #include <os/osdefs.h>
-#include <scheduler.h>
-#include <handle.h>
+#include <futex.h>
 
-/* ScWaitQueueCreate
- * Creates a new wait queue that can be used for synchronization purposes. */
 OsStatus_t
-ScWaitQueueCreate(
-    _Out_ UUId_t* HandleOut)
+ScFutexWait(
+    _In_ FutexParameters_t* Parameters)
 {
-    Collection_t* WaitQueue = CollectionCreate(KeyId);
-    if (!WaitQueue) {
-        return OsOutOfMemory;
+    // Two version of wait
+    if (Parameters->_flags & FUTEX_WAIT_OP) {
+        return FutexWaitOperation(Parameters->_futex0, Parameters->_val0,
+            Parameters->_futex1, Parameters->_val1, Parameters->_val2,
+            Parameters->_flags, Parameters->_timeout);
     }
-    *HandleOut = CreateHandle(HandleTypeWaitQueue, WaitQueue);
-    return (*HandleOut != UUID_INVALID) ? OsSuccess : OsOutOfMemory;
+    return FutexWait(Parameters->_futex0, Parameters->_val0, Parameters->_flags,
+        Parameters->_timeout);
 }
 
-/* ScWaitQueueBlock
- * Blocks a calling thread in a wait queue untill unblocked. */
 OsStatus_t
-ScWaitQueueBlock(
-    _In_ UUId_t      WaitQueueHandle,
-    _In_ spinlock_t* SyncObject,
-    _In_ size_t      Timeout)
+ScFutexWake(
+    _In_ FutexParameters_t* Parameters)
 {
-    Collection_t* WaitQueue = LookupHandleOfType(WaitQueueHandle, HandleTypeWaitQueue);
-    if (!WaitQueue) {
-        return OsDoesNotExist;
+    // Also two versions of wake
+    if (Parameters->_flags & FUTEX_WAKE_OP) {
+        return FutexWakeOperation(Parameters->_futex0, Parameters->_val0,
+            Parameters->_futex1, Parameters->_val1, Parameters->_val2,
+            Parameters->_flags);
     }
-    return SchedulerBlock(WaitQueue, SyncObject, Timeout);
-}
-
-/* ScWaitQueueUnblock
- * Unblocks a single thread in the wait queue. */
-OsStatus_t
-ScWaitQueueUnblock(
-    _In_ UUId_t WaitQueueHandle)
-{
-    Collection_t* WaitQueue = LookupHandleOfType(WaitQueueHandle, HandleTypeWaitQueue);
-    if (!WaitQueue) {
-        return OsDoesNotExist;
-    }
-    return SchedulerUnblock(WaitQueue);
+    return FutexWake(Parameters->_futex0, Parameters->_val0, Parameters->_flags);
 }

@@ -24,7 +24,6 @@
 #define __STDC_THREADS__
 
 #include <os/osdefs.h>
-#include <os/spinlock.h>
 #include <limits.h>
 #include <time.h>
 
@@ -42,14 +41,16 @@ typedef unsigned int tss_t;
 typedef UUId_t       thrd_t;
 
 // Condition Synchronization Object
-typedef UUId_t cnd_t;
+typedef struct {
+    _Atomic(int) _syncobject;
+} cnd_t;
 
 // Mutex Synchronization Object
 typedef struct {
     int          _flags;
-    spinlock_t   _lock;
-    spinlock_t   _syncobject;
-    cnd_t        _condition;
+    UUId_t       _owner;
+    _Atomic(int) _refs;
+    _Atomic(int) _val;
 } mtx_t;
 // _MTX_INITIALIZER_NP
 
@@ -60,24 +61,24 @@ typedef struct {
 } once_flag;
 
 enum {
-    thrd_success    = spinlock_acquired,
-    thrd_busy       = spinlock_busy,
+    thrd_success    = 0,
+    thrd_busy       = 1,
     thrd_timedout   = 2,
     thrd_nomem      = 3,
     thrd_error      = -1
 };
 
 enum {
-    mtx_plain       = spinlock_plain,
-    mtx_recursive   = spinlock_recursive,
+    mtx_plain       = 0,
+    mtx_recursive   = 1,
     mtx_timed       = 2
 };
 
 #define TSS_DTOR_ITERATIONS 4
 #define TSS_KEY_INVALID     UINT_MAX
-#define MUTEX_INIT(type)    { type, _SPN_INITIALIZER_NP(type), _SPN_INITIALIZER_NP(spinlock_plain), UUID_INVALID }
+#define COND_INIT           { ATOMIC_VAR_INIT(0) }
+#define MUTEX_INIT(type)    { COND_INIT, type, UUID_INVALID, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0) }
 #define ONCE_FLAG_INIT      { MUTEX_INIT(mtx_plain), 0 }
-#define COND_INIT           UUID_INVALID
 
 _CODE_BEGIN
 /* call_once

@@ -89,12 +89,12 @@ typedef struct {
 
 #define SCHEDULER_INIT { { 0 }, { 0 }, { { 0 } }, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0), 0 }
 
-/* DestroyWaitQueue 
- * Clears all waiting threads and moves them to ready thread. This can however bring issues
- * as the resources they are waiting for no longer are in service. @todo kill threads? */
+/* SchedulerUnblock
+ * Unblocks an thread from the given queue. The lock must be held while calling this
+ * function. */
 KERNELAPI OsStatus_t KERNELABI
-DestroyWaitQueue(
-    _In_ void* Resource);
+SchedulerUnblock(
+    _In_ Collection_t* WaitQueue);
 
 /* SchedulerCreateObject
  * Creates a new scheduling object and allocates a cpu core for the object.
@@ -129,24 +129,6 @@ SchedulerExpediteObject(
 KERNELAPI int KERNELABI
 SchedulerSleep(
     _In_ size_t Milliseconds);
-
-/* SchedulerBlock(Timed)
- * Blocks the current thread and adds it to the given block queue. This is atomically
- * protected operating, and the lock must be held before calling this function.
- * If a timeout is passed the queue must have been registed with SchedulerRegisterQueue, 
- * otherwise the timeout is not invoked. */
-KERNELAPI OsStatus_t KERNELABI
-SchedulerBlock(
-    _In_ Collection_t* WaitQueue,
-    _In_ spinlock_t*   SyncObject,
-    _In_ size_t        Timeout);
-
-/* SchedulerUnblock
- * Unblocks an thread from the given queue. The lock must be held while calling this
- * function. */
-KERNELAPI OsStatus_t KERNELABI
-SchedulerUnblock(
-    _In_ Collection_t* WaitQueue);
 
 /* SchedulerAdvance 
  * This should be called by the underlying archteicture code

@@ -178,11 +178,10 @@ AllocateScheduler(
     atomic_fetch_add(&Scheduler->ObjectCount, 1);
 }
 
-KERNELAPI OsStatus_t KERNELABI
-DestroyWaitQueue(
-    _In_ void* Resource)
+OsStatus_t
+WaitQueueDestruct(
+    _In_ Collection_t* WaitQueue)
 {
-    Collection_t*      WaitQueue = (Collection_t*)Resource;
     SystemScheduler_t* Scheduler = SchedulerGetFromCore(ArchGetProcessorCoreId());
     SchedulerObject_t* Object;
     
@@ -192,9 +191,17 @@ DestroyWaitQueue(
         QueueForScheduler(Scheduler, Object);
         Object = (SchedulerObject_t*)CollectionPopFront(WaitQueue);
     }
-    CollectionDestroy(WaitQueue);
     dsunlock(&Scheduler->SyncObject);
     return OsSuccess;
+}
+
+ OsStatus_t
+DestroyWaitQueue(
+    _In_ void* Resource)
+{
+    OsStatus_t Status = WaitQueueDestruct((Collection_t*)Resource);
+    kfree(Resource);
+    return Status;
 }
 
 SchedulerObject_t*
@@ -300,7 +307,7 @@ SchedulerSleep(
 OsStatus_t
 SchedulerBlock(
     _In_ Collection_t* WaitQueue,
-    _In_ spinlock_t*   SyncObject,
+    _In_ Mutex_t*      SyncObject,
     _In_ size_t        Timeout)
 {
     UUId_t             CoreId    = ArchGetProcessorCoreId();
@@ -322,11 +329,9 @@ SchedulerBlock(
     dslock(&Scheduler->SyncObject);
     CollectionAppend(WaitQueue, &Object->Header);
     Object->State = SchedulerObjectStateBlocked;
-    spinlock_release(SyncObject);
+    MutexUnlock(SyncObject);
     dsunlock(&Scheduler->SyncObject);
-    
     ThreadingYield();
-    spinlock_acquire(SyncObject);
     return (Object->Timeout == 1) ? OsTimeout : OsSuccess;
 }
 

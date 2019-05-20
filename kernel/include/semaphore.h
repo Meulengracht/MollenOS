@@ -30,12 +30,12 @@
 
 typedef struct {
     Collection_t WaitQueue;
-    spinlock_t   SyncObject;
+    Mutex_t      SyncObject;
 	_Atomic(int) Value;
     int          MaxValue;
 } Semaphore_t;
 
-#define SEMAPHORE_INIT(Value, MaxValue) { COLLECTION_INIT(KeyId), _SPN_INITIALIZER_NP(spinlock_plain), ATOMIC_VAR_INIT(Value), MaxValue }
+#define SEMAPHORE_INIT(Value, MaxValue) { COLLECTION_INIT(KeyId), OS_MUTEX_INIT(MUTEX_PLAIN), ATOMIC_VAR_INIT(Value), MaxValue }
 
 /* SemaphoreConstruct
  * Initializes a semaphore to default values. */
