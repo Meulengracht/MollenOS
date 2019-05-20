@@ -22,6 +22,7 @@
  */
 
 #include <internal/_syscalls.h>
+#include <internal/_utils.h>
 #include <os/spinlock.h>
 #include <os/mollenos.h>
 #include <threads.h>
@@ -45,12 +46,10 @@ mtx_init(
         SystemQuery(&SystemInfo);
     }
     
-    // Initialize the two spinlocks, the _lock must be initialized
-    // as requested, however the syncobject must be plain (non-recursive)
-    spinlock_init(&mutex->_lock, type);
-    spinlock_init(&mutex->_syncobject, spinlock_plain);
-    cnd_init(&mutex->_condition);
     mutex->_flags = type;
+    mutex->_owner = UUID_INVALID;
+    mutex->_val   = ATOMIC_VAR_INIT(0);
+    mutex->_refs  = ATOMIC_VAR_INIT(0);
     return thrd_success;
 }
 
@@ -59,8 +58,6 @@ mtx_destroy(
     _In_ mtx_t* mutex)
 {
     if (mutex != NULL) {
-        spinlock_init(&mutex->_lock, mutex->_flags);
-        spinlock_init(&mutex->_syncobject, mutex->_flags);
         cnd_destroy(&mutex->_condition);
     }
 }
@@ -69,41 +66,83 @@ int
 mtx_trylock(
     _In_ mtx_t* mutex)
 {
+    int c;
+    int z = 0;
+    
     if (mutex == NULL) {
         return thrd_error;
     }
-    return spinlock_try_acquire(&mutex->_lock);
+    
+    // If this thread already holds the mutex,
+    // increase ref count, but only if we're recursive 
+    if (mutex->_flags & mtx_recursive) {
+        while (1) {
+            int initialcount = atomic_load(&mutex->_refs);
+            if (initialcount != 0 && mutex->_owner == thrd_current()) {
+                if (atomic_compare_exchange_weak(&mutex->_refs, &initialcount, initialcount + 1)) {
+                    return thrd_success;
+                }
+                continue;
+            }
+            break;
+        }
+    }
+    
+    c = atomic_compare_exchange_strong(&mutex->_val, &z, 1);
+    if (!c) {
+        mutex->_owner = thrd_current();
+        atomic_store(&mutex->_refs, 1);
+        return thrd_success;
+    }
+    return thrd_busy;
 }
 
 int
 mtx_lock(
     _In_ mtx_t* mutex)
 {
-    int i;
+    FutexParameters_t parameters;
+    int z = 0;
+    int c;
     
     if (mutex == NULL) {
         return thrd_error;
     }
     
-    // In a multcore environment the lock may not be held for long, so
-    // perform X iterations before going for a longer block
-    // period.
-    if (SystemInfo.NumberOfActiveCores > 1) {
-        for (i = 0; i < MUTEX_SPINS; i++) {
-            if (spinlock_try_acquire(&mutex->_lock) == spinlock_acquired) {
-                return thrd_success;
+    // If this thread already holds the mutex,
+    // increase ref count, but only if we're recursive 
+    if (mutex->_flags & mtx_recursive) {
+        while (1) {
+            int initialcount = atomic_load(&mutex->_refs);
+            if (initialcount != 0 && mutex->_owner == thrd_current()) {
+                if (atomic_compare_exchange_weak(&mutex->_refs, &initialcount, initialcount + 1)) {
+                    return thrd_success;
+                }
+                continue;
             }
+            break;
         }
     }
     
-    spinlock_acquire(&mutex->_syncobject);
-    while (1) {
-        if (spinlock_try_acquire(&mutex->_lock) == spinlock_acquired) {
-            break;
+    parameters._futex0  = &mutex->_val;
+    parameters._val0    = 2; // we always sleep on expecting a two
+    parameters._timeout = 0;
+    parameters._flags   = FUTEX_WAIT_PRIVATE;
+    
+    // Loop untill we get the lock
+    c = atomic_compare_exchange_strong(&mutex->_val, &z, 1);
+    if (c != 0) {
+        if (c != 2) {
+            c = atomic_exchange_strong(&mutex->val, 2);
         }
-        Syscall_WaitQueueBlock(mutex->_condition, &mutex->_syncobject, 0);
+        while (c != 0) {
+            Syscall_FutexWait(&parameters);
+            c = atomic_exchange_strong(&mutex->val, 2);
+        }
     }
-    spinlock_release(&mutex->_syncobject);
+    
+    mutex->_owner = thrd_current();
+    atomic_store(&mutex->_refs, 1);
     return thrd_success;
 }
 
@@ -112,12 +151,29 @@ mtx_timedlock(
     _In_ mtx_t* restrict                 mutex,
     _In_ const struct timespec* restrict time_point)
 {
-    time_t          msec   = 0;
-	struct timespec now, result;
-	int             success;
+    FutexParameters_t parameters;
+    time_t            msec = 0;
+	struct timespec   now, result;
+    int               z = 0;
+    int               c;
     
     if (mutex == NULL || !(mutex->_flags & mtx_timed)) {
         return thrd_error;
+    }
+    
+    // If this thread already holds the mutex,
+    // increase ref count, but only if we're recursive 
+    if (mutex->_flags & mtx_recursive) {
+        while (1) {
+            int initialcount = atomic_load(&mutex->_refs);
+            if (initialcount != 0 && mutex->_owner == thrd_current()) {
+                if (atomic_compare_exchange_weak(&mutex->_refs, &initialcount, initialcount + 1)) {
+                    return thrd_success;
+                }
+                continue;
+            }
+            break;
+        }
     }
     
     // Calculate time to sleep
@@ -128,36 +184,57 @@ mtx_timedlock(
         msec += ((result.tv_nsec - 1) / NSEC_PER_MSEC) + 1;
     }
     
-	spinlock_acquire(&mutex->_syncobject);
-    while (1) {
-        success = spinlock_try_acquire(&mutex->_lock);
-        if (success == spinlock_acquired) {
-            success = thrd_success;
-            break;
+    parameters._futex0  = &mutex->_val;
+    parameters._val0    = 2; // we always sleep on expecting a two
+    parameters._timeout = msec;
+    parameters._flags   = FUTEX_WAIT_PRIVATE;
+    
+    // Loop untill we get the lock
+    c = atomic_compare_exchange_strong(&mutex->_val, &z, 1);
+    if (c != 0) {
+        if (c != 2) {
+            c = atomic_exchange_strong(&mutex->val, 2);
         }
-        
-        // Only handle the timeout seperately, otherwise just test again
-        if (Syscall_WaitQueueBlock(mutex->_condition, &mutex->_syncobject, msec) == OsTimeout) {
-            success = thrd_timedout;
-            break;
+        while (c != 0) {
+            if (Syscall_FutexWait(&parameters) == OsTimeout) {
+                return thrd_timedout;
+            }
+            c = atomic_exchange_strong(&mutex->val, 2);
         }
     }
-    spinlock_release(&mutex->_syncobject);
-    return success;
+    
+    mutex->_owner = thrd_current();
+    atomic_store(&mutex->_refs, 1);
+    return thrd_success;
 }
 
 int
 mtx_unlock(
     _In_ mtx_t* mutex)
 {
+    FutexParameters_t parameters;
+    int               initialcount;
     if (mutex == NULL) {
         return thrd_error;
     }
 
-    spinlock_acquire(&mutex->_syncobject);
-    if (spinlock_release(&mutex->_lock) == spinlock_released) {
-        Syscall_WaitQueueUnblock(&mutex->_condition);
+    // Sanitize state of the mutex, are we even able to unlock it?
+    initialcount = atomic_load(&mutex->_refs);
+    if (initialcount == 0 || mutex->_owner != thrd_current()) {
+        return thrd_error;
     }
-    spinlock_release(&mutex->_syncobject);
+    
+    initialcount = atomic_fetch_sub(&mutex->_refs, 1) - 1;
+    if (initialcount == 0) {
+        parameters._futex0  = &mutex->_val;
+        parameters._val0    = 1;
+        parameters._flags   = FUTEX_WAKE_PRIVATE;
+
+        mutex->_owner = UUID_INVALID;
+        if (atomic_fetch_sub(&mutex->_val, 1) != 1) {
+            atomic_store(&mutex->_val, 0);
+            Syscall_FutexWake(&parameters);
+        }
+    }
     return thrd_success;
 }

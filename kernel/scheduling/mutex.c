@@ -42,14 +42,26 @@ MutexConstruct(
     spinlock_init(&Mutex->LockObject, Configuration);
     spinlock_init(&Mutex->SyncObject, spinlock_plain);
     CollectionConstruct(&Mutex->WaitQueue, KeyId);
+    
     Mutex->Flags = Configuration;
+}
+
+OsStatus_t
+MutexDestruct(
+    _In_ Mutex_t* Mutex)
+{
+    if (!Mutex) {
+        return OsInvalidParameters;
+    }
 }
 
 OsStatus_t
 MutexTryLock(
     _In_ Mutex_t* Mutex)
 {
-    assert(Mutex != NULL);
+    if (!Mutex) {
+        return OsInvalidParameters;
+    }
     return spinlock_try_acquire(&Mutex->LockObject);
 }
 
@@ -91,7 +103,10 @@ MutexLockTimed(
     OsStatus_t Status = OsSuccess;
     int        i;
 
-    assert(Mutex != NULL);
+    if (!Mutex) {
+        return OsInvalidParameters;
+    }
+    
     if (!(Mutex->Flags & MUTEX_TIMED)) {
         FATAL(FATAL_SCOPE_KERNEL, "Tried to use LockTimed on a non timed mutex");
         return OsError;

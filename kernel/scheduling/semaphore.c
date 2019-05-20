@@ -42,7 +42,7 @@ SemaphoreConstruct(
     assert(MaximumValue >= InitialValue);
 
     CollectionConstruct(&Semaphore->WaitQueue, KeyId);
-    spinlock_init(&Semaphore->SyncObject, spinlock_plain);
+    MutexConstruct(&Semaphore->SyncObject, MUTEX_PLAIN);
     Semaphore->MaxValue = MaximumValue;
 	Semaphore->Value    = ATOMIC_VAR_INIT(InitialValue);
 }
@@ -56,7 +56,7 @@ SemaphoreWaitSimple(
     int        Value;
     assert(Semaphore != NULL);
     
-    spinlock_acquire(&Semaphore->SyncObject);
+    MutexLock(&Semaphore->SyncObject);
     Value = atomic_fetch_sub(&Semaphore->Value, 1);
     if (Value <= 0) {
         Status = SchedulerBlock(&Semaphore->WaitQueue, &Semaphore->SyncObject, Timeout);
@@ -64,10 +64,9 @@ SemaphoreWaitSimple(
             // add one to value to account for the loss of value
             atomic_fetch_add(&Semaphore->Value, 1);
         }
-        spinlock_release(&Semaphore->SyncObject);
     }
     else {
-        spinlock_release(&Semaphore->SyncObject);
+        MutexUnlock(&Semaphore->SyncObject);
         Status = OsSuccess;
     }
     return Status;
@@ -84,7 +83,7 @@ SemaphoreWait(
     assert(Semaphore != NULL);
     assert(Mutex != NULL);
     
-    spinlock_acquire(&Semaphore->SyncObject);
+    MutexLock(&Semaphore->SyncObject);
     Value = atomic_fetch_sub(&Semaphore->Value, 1);
     if (Value <= 0) {
         MutexUnlock(Mutex);
@@ -93,11 +92,10 @@ SemaphoreWait(
             // add one to value to account for the loss of value
             atomic_fetch_add(&Semaphore->Value, 1);
         }
-        spinlock_release(&Semaphore->SyncObject);
         MutexLock(Mutex);
     }
     else {
-        spinlock_release(&Semaphore->SyncObject);
+        MutexUnlock(&Semaphore->SyncObject);
         Status = OsSuccess;
     }
     return Status;
@@ -112,7 +110,7 @@ SemaphoreSignal(
     int i;
     assert(Semaphore != NULL);
 
-    spinlock_acquire(&Semaphore->SyncObject);
+    MutexLock(&Semaphore->SyncObject);
     CurrentValue = atomic_load(&Semaphore->Value);
     if (CurrentValue < Semaphore->MaxValue) {
         for (i = 0; (i < Value) && (CurrentValue + i) < Semaphore->MaxValue; i++) {
@@ -122,5 +120,5 @@ SemaphoreSignal(
             atomic_fetch_add(&Semaphore->Value, 1);
         }
     }
-    spinlock_release(&Semaphore->SyncObject);
+    MutexUnlock(&Semaphore->SyncObject);
 }

@@ -16,7 +16,8 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - System Calls
+ * System Call Implementation
+ *   - Table of calls
  */
 #define DefineSyscall(Index, Fn) ((uintptr_t)&Fn)
 
@@ -28,6 +29,7 @@
 #include <threading.h>
 #include <ddk/acpi.h>
 #include <os/input.h>
+#include <threads.h>
 #include <time.h>
 
 struct MemoryMappingParameters;
@@ -99,9 +101,8 @@ extern OsStatus_t ScThreadGetCurrentName(char* ThreadNameBuffer, size_t MaxLengt
 extern OsStatus_t ScThreadGetContext(Context_t* ContextOut);
 
 // Synchronization system calls
-extern OsStatus_t ScWaitQueueCreate(UUId_t* HandleOut);
-extern OsStatus_t ScWaitQueueBlock(UUId_t WaitQueueHandle, spinlock_t* SyncObject, size_t Timeout);
-extern OsStatus_t ScWaitQueueUnblock(UUId_t WaitQueueHandle);
+extern OsStatus_t ScFutexWait(FutexParameters_t* Parameters);
+extern OsStatus_t ScFutexWake(FutexParameters_t* Parameters);
 
 // Communication system calls
 extern OsStatus_t ScCreatePipe(int Type, UUId_t* Handle);
@@ -136,7 +137,7 @@ extern OsStatus_t ScPerformanceTick(LargeInteger_t *Value);
 extern OsStatus_t ScIsServiceAvailable(UUId_t ServiceId);
 
 // The static system calls function table.
-uintptr_t SystemCallsTable[75] = {
+uintptr_t SystemCallsTable[74] = {
     ///////////////////////////////////////////////
     // Operating System Interface
     // - Protected, services/modules
@@ -204,38 +205,37 @@ uintptr_t SystemCallsTable[75] = {
     DefineSyscall(46, ScThreadGetContext),
 
     // Synchronization system calls
-    DefineSyscall(47, ScWaitQueueCreate),
-    DefineSyscall(48, ScWaitQueueBlock),
-    DefineSyscall(49, ScWaitQueueUnblock),
+    DefineSyscall(47, ScFutexWait),
+    DefineSyscall(48, ScFutexWake),
 
     // Communication system calls
-    DefineSyscall(50, ScCreatePipe),
-    DefineSyscall(51, ScDestroyPipe),
-    DefineSyscall(52, ScReadPipe),
-    DefineSyscall(53, ScWritePipe),
-    DefineSyscall(54, ScRpcExecute),
-    DefineSyscall(55, ScRpcResponse),
-    DefineSyscall(56, ScRpcListen),
-    DefineSyscall(57, ScRpcRespond),
+    DefineSyscall(49, ScCreatePipe),
+    DefineSyscall(50, ScDestroyPipe),
+    DefineSyscall(51, ScReadPipe),
+    DefineSyscall(52, ScWritePipe),
+    DefineSyscall(53, ScRpcExecute),
+    DefineSyscall(54, ScRpcResponse),
+    DefineSyscall(55, ScRpcListen),
+    DefineSyscall(56, ScRpcRespond),
 
     // Memory system calls
-    DefineSyscall(58, ScMemoryAllocate),
-    DefineSyscall(59, ScMemoryFree),
-    DefineSyscall(60, ScMemoryProtect),
-    DefineSyscall(61, ScCreateBuffer),
-    DefineSyscall(62, ScAcquireBuffer),
-    DefineSyscall(63, ScQueryBuffer),
+    DefineSyscall(57, ScMemoryAllocate),
+    DefineSyscall(58, ScMemoryFree),
+    DefineSyscall(59, ScMemoryProtect),
+    DefineSyscall(60, ScCreateBuffer),
+    DefineSyscall(61, ScAcquireBuffer),
+    DefineSyscall(62, ScQueryBuffer),
 
     // Support system calls
-    DefineSyscall(64, ScDestroyHandle),
-    DefineSyscall(65, ScInstallSignalHandler),
-    DefineSyscall(66, ScCreateMemoryHandler),
-    DefineSyscall(67, ScDestroyMemoryHandler),
-    DefineSyscall(68, ScFlushHardwareCache),
-    DefineSyscall(69, ScSystemQuery),
-    DefineSyscall(70, ScSystemTick),
-    DefineSyscall(71, ScPerformanceFrequency),
-    DefineSyscall(72, ScPerformanceTick),
-    DefineSyscall(73, ScSystemTime),
-    DefineSyscall(74, ScIsServiceAvailable)
+    DefineSyscall(63, ScDestroyHandle),
+    DefineSyscall(64, ScInstallSignalHandler),
+    DefineSyscall(65, ScCreateMemoryHandler),
+    DefineSyscall(66, ScDestroyMemoryHandler),
+    DefineSyscall(67, ScFlushHardwareCache),
+    DefineSyscall(68, ScSystemQuery),
+    DefineSyscall(69, ScSystemTick),
+    DefineSyscall(70, ScPerformanceFrequency),
+    DefineSyscall(71, ScPerformanceTick),
+    DefineSyscall(72, ScSystemTime),
+    DefineSyscall(73, ScIsServiceAvailable)
 };
