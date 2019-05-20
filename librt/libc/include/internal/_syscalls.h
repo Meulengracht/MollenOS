@@ -77,7 +77,7 @@ _CODE_END
 #define Syscall_ThreadGetContext(ContextOut)                               (OsStatus_t)syscall1(46, SCPARAM(ContextOut))
 
 #define Syscall_FutexWait(Parameters)                                      (OsStatus_t)syscall1(47, SCPARAM(Parameters))
-#define Syscall_FutexWake(Parameters)                                      (OsStatus_t)syscall3(48, SCPARAM(WaitQueueHandle), SCPARAM(Futex), SCPARAM(Timeout))
+#define Syscall_FutexWake(Parameters)                                      (OsStatus_t)syscall1(48, SCPARAM(Parameters))
 
 #define Syscall_CreatePipe(Flags, HandleOut)                               (OsStatus_t)syscall2(49, SCPARAM(Flags), SCPARAM(HandleOut))
 #define Syscall_DestroyPipe(Handle)                                        (OsStatus_t)syscall1(50, SCPARAM(Handle))

@@ -23,9 +23,8 @@
 
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
+#include <os/futex.h>
 #include <threads.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <errno.h>
 #include <time.h>
 
@@ -37,6 +36,7 @@ cnd_init(
         return thrd_error;
     }
     atomic_store(&cond->_syncobject, 0);
+    return thrd_success;
 }
 
 void

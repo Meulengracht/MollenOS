@@ -23,8 +23,8 @@
 
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
-#include <os/spinlock.h>
 #include <os/mollenos.h>
+#include <os/futex.h>
 #include <threads.h>
 #include <time.h>
 
@@ -57,8 +57,13 @@ void
 mtx_destroy(
     _In_ mtx_t* mutex)
 {
+    FutexParameters_t parameters;
+    
     if (mutex != NULL) {
-        cnd_destroy(&mutex->_condition);
+        parameters._futex0 = &mutex->_val;
+        parameters._val0   = INT_MAX;
+        parameters._flags  = FUTEX_WAKE_PRIVATE;
+        Syscall_FutexWake(&parameters);
     }
 }
 
@@ -133,11 +138,11 @@ mtx_lock(
     c = atomic_compare_exchange_strong(&mutex->_val, &z, 1);
     if (c != 0) {
         if (c != 2) {
-            c = atomic_exchange_strong(&mutex->val, 2);
+            c = atomic_exchange(&mutex->_val, 2);
         }
         while (c != 0) {
             Syscall_FutexWait(&parameters);
-            c = atomic_exchange_strong(&mutex->val, 2);
+            c = atomic_exchange(&mutex->_val, 2);
         }
     }
     
@@ -193,13 +198,13 @@ mtx_timedlock(
     c = atomic_compare_exchange_strong(&mutex->_val, &z, 1);
     if (c != 0) {
         if (c != 2) {
-            c = atomic_exchange_strong(&mutex->val, 2);
+            c = atomic_exchange(&mutex->_val, 2);
         }
         while (c != 0) {
             if (Syscall_FutexWait(&parameters) == OsTimeout) {
                 return thrd_timedout;
             }
-            c = atomic_exchange_strong(&mutex->val, 2);
+            c = atomic_exchange(&mutex->_val, 2);
         }
     }
     
