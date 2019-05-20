@@ -28,9 +28,9 @@
                    ((oparg & 0xfff) << 12) | \
                    (cmparg & 0xfff))
 
-#define FUTEX_WAIT_PRIVATE
-#define FUTEX_WAIT_OP
-#define FUTEX_WAKE_PRIVATE
-#define FUTEX_WAKE_OP
+#define FUTEX_WAIT_PRIVATE      0x1
+#define FUTEX_WAIT_OP           0x2
+#define FUTEX_WAKE_PRIVATE      0x4
+#define FUTEX_WAKE_OP           0x8
 
 #endif //!__OS_FUTEX_H__
