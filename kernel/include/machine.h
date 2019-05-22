@@ -41,7 +41,7 @@ typedef struct _SystemMachine {
     // System Information
     char                        Architecture[32];
     char                        Bootloader[32];
-    char                        Author[32];
+    char                        Author[48];
     char                        Date[32];
     unsigned                    VersionMajor;
     unsigned                    VersionMinor;
