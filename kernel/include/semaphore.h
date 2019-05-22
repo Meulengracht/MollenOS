@@ -24,45 +24,40 @@
 #define __SEMAPHORE_H__
 
 #include <os/osdefs.h>
-#include <os/spinlock.h>
-#include <scheduler.h>
-#include <mutex.h>
 
 typedef struct {
-    Collection_t WaitQueue;
-    Mutex_t      SyncObject;
 	_Atomic(int) Value;
     int          MaxValue;
 } Semaphore_t;
 
-#define SEMAPHORE_INIT(Value, MaxValue) { COLLECTION_INIT(KeyId), OS_MUTEX_INIT(MUTEX_PLAIN), ATOMIC_VAR_INIT(Value), MaxValue }
+#define SEMAPHORE_INIT(Value, MaxValue) { ATOMIC_VAR_INIT(Value), MaxValue }
 
 /* SemaphoreConstruct
- * Initializes a semaphore to default values. */
+ * Constructs an already allocated semaphore and resets
+ * it's value to the given initial value */
 KERNELAPI void KERNELABI
 SemaphoreConstruct(
     _In_ Semaphore_t* Semaphore,
     _In_ int          InitialValue,
     _In_ int          MaximumValue);
 
-/* SemaphoreWaitSimple
- * Waits for the semaphore signal. */
+/* SemaphoreDestroy
+ * Cleans up the semaphore, waking up all sleeper threads
+ * to not have dead threads. */
 KERNELAPI OsStatus_t KERNELABI
-SemaphoreWaitSimple(
-    _In_ Semaphore_t* Semaphore,
-    _In_ size_t       Timeout);
+SemaphoreDestroy(
+    _In_ Semaphore_t* Semaphore);
 
 /* SemaphoreWait
- * Waits for the semaphore signal, with the synchronization of a mutex. */
+ * Waits for the semaphore signal with the optional time-out. */
 KERNELAPI OsStatus_t KERNELABI
 SemaphoreWait(
     _In_ Semaphore_t* Semaphore,
-    _In_ Mutex_t*     Mutex,
     _In_ size_t       Timeout);
 
 /* SemaphoreSignal
  * Signals the semaphore with the given value, default is 1 */
-KERNELAPI void KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 SemaphoreSignal(
     _In_ Semaphore_t* Semaphore,
     _In_ int          Value);

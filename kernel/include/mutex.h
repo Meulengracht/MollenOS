@@ -25,22 +25,20 @@
 #define __VALI_MUTEX_H__
 
 #include <os/osdefs.h>
-#include <os/spinlock.h>
-#include <ds/collection.h>
 
 // We support recursive mutexes
-#define MUTEX_PLAIN     spinlock_plain
-#define MUTEX_RECURSIVE spinlock_recursive
-#define MUTEX_TIMED     0x1000
+#define MUTEX_PLAIN     0
+#define MUTEX_RECURSIVE 0x1
+#define MUTEX_TIMED     0x2
 
 typedef struct {
     Flags_t      Flags;
-    Collection_t WaitQueue;
-    spinlock_t   LockObject;
-    spinlock_t   SyncObject;
+    UUId_t       Owner;
+    _Atomic(int) References;
+    _Atomic(int) Value;
 } Mutex_t;
 
-#define OS_MUTEX_INIT(Flags) { Flags, COLLECTION_INIT(KeyId), _SPN_INITIALIZER_NP(Flags), _SPN_INITIALIZER_NP(spinlock_plain) }
+#define OS_MUTEX_INIT(Flags) { Flags, UUID_INVALID, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0) }
 
 /* MutexConstruct
  * Initializes a mutex to default values. */
@@ -48,7 +46,7 @@ KERNELAPI void KERNELABI
 MutexConstruct(
     _In_ Mutex_t* Mutex,
     _In_ Flags_t  Configuration);
-    
+
 /* MutexDestruct 
  * Wakes up all threads in the wait queue and attempts to clear out. This can
  * fail and is not guaranteed to work. If it fails, this need to be tried again. */
