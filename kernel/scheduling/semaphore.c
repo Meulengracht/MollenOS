@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,20 +16,34 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Synchronization
+ * MollenOS Synchronization
  * - Counting semaphores implementation, using safe passages known as
  *   atomic sections in the operating system to synchronize in a kernel env
  */
 #define __MODULE "SEM1"
 //#define __TRACE
+#ifdef __TRACE
+#define __STRICT_ASSERT(x) assert(x)
+#else
+#define __STRICT_ASSERT(x) 
+#endif
 
 #include <arch/thread.h>
 #include <arch/utils.h>
-#include <semaphore.h>
-#include <scheduler.h>
-#include <debug.h>
-#include <stddef.h>
 #include <assert.h>
+#include <debug.h>
+#include <futex.h>
+#include <semaphore.h>
+
+OsStatus_t
+SemaphoreDestroy(
+    _In_ Semaphore_t* Semaphore)
+{
+    if (!Semaphore) {
+        return OsInvalidParameters;
+    }
+    return FutexWake(&Semaphore->Value, INT_MAX, FUTEX_WAKE_PRIVATE);
+}
 
 void
 SemaphoreConstruct(
@@ -41,84 +55,66 @@ SemaphoreConstruct(
 	assert(InitialValue >= 0);
     assert(MaximumValue >= InitialValue);
 
-    CollectionConstruct(&Semaphore->WaitQueue, KeyId);
-    MutexConstruct(&Semaphore->SyncObject, MUTEX_PLAIN);
-    Semaphore->MaxValue = MaximumValue;
 	Semaphore->Value    = ATOMIC_VAR_INIT(InitialValue);
-}
-
-OsStatus_t
-SemaphoreWaitSimple(
-    _In_ Semaphore_t* Semaphore,
-    _In_ size_t       Timeout)
-{
-    OsStatus_t Status;
-    int        Value;
-    assert(Semaphore != NULL);
-    
-    MutexLock(&Semaphore->SyncObject);
-    Value = atomic_fetch_sub(&Semaphore->Value, 1);
-    if (Value <= 0) {
-        Status = SchedulerBlock(&Semaphore->WaitQueue, &Semaphore->SyncObject, Timeout);
-        if (Status == OsTimeout) {
-            // add one to value to account for the loss of value
-            atomic_fetch_add(&Semaphore->Value, 1);
-        }
-    }
-    else {
-        MutexUnlock(&Semaphore->SyncObject);
-        Status = OsSuccess;
-    }
-    return Status;
+    Semaphore->MaxValue = MaximumValue;
 }
 
 OsStatus_t
 SemaphoreWait(
     _In_ Semaphore_t* Semaphore,
-    _In_ Mutex_t*     Mutex,
     _In_ size_t       Timeout)
 {
     OsStatus_t Status;
-    int        Value;
-    assert(Semaphore != NULL);
-    assert(Mutex != NULL);
+    int        Value = atomic_fetch_sub(&Semaphore->Value, 1) - 1;
     
-    MutexLock(&Semaphore->SyncObject);
-    Value = atomic_fetch_sub(&Semaphore->Value, 1);
-    if (Value <= 0) {
-        MutexUnlock(Mutex);
-        Status = SchedulerBlock(&Semaphore->WaitQueue, &Semaphore->SyncObject, Timeout);
-        if (Status == OsTimeout) {
-            // add one to value to account for the loss of value
-            atomic_fetch_add(&Semaphore->Value, 1);
+    // Essentially what we do here is make sure we wait untill the value is
+    // either above/equal to zero or we were successfully woken up
+    while (1) {
+        if (Value >= 0) { // CurrentValue >= Value?? Oh right, that would give us FILO instead of FIFO 
+            Status = OsSuccess;
+            break;
         }
-        MutexLock(Mutex);
-    }
-    else {
-        MutexUnlock(&Semaphore->SyncObject);
-        Status = OsSuccess;
+
+        // Go to sleep atomically, check return value, if there was sync
+        // issues try again, OsError is returned.
+        // Break out on timeouts and also successfully waiting. If we timeout we should
+        // correct for the spot we are not using?
+        Status = FutexWait(&Semaphore->Value, Value, Timeout, FUTEX_WAIT_PRIVATE);
+        if (Status != OsError) {
+            if (Status == OsTimeout) {
+                atomic_fetch_add(&Semaphore->Value, 1);
+            }
+            break;
+        }
+        Value = atomic_load(&Semaphore->Value);
     }
     return Status;
 }
 
-void
+OsStatus_t
 SemaphoreSignal(
     _In_ Semaphore_t* Semaphore,
     _In_ int          Value)
 {
-    int CurrentValue;
-    int i;
-    assert(Semaphore != NULL);
+    OsStatus_t Status = OsError;
+    int        CurrentValue;
+    int        i;
 
-    MutexLock(&Semaphore->SyncObject);
+    TRACE("SemaphoreSignal(Value %" PRIiIN ")", Semaphore->Value);
+
+    // assert not max
     CurrentValue = atomic_load(&Semaphore->Value);
-    if (CurrentValue < Semaphore->MaxValue) {
-        for (i = 0; (i < Value) && (CurrentValue + i) < Semaphore->MaxValue; i++) {
-            if ((CurrentValue + i) < 0) {
-                SchedulerUnblock(&Semaphore->WaitQueue);
+    __STRICT_ASSERT((CurrentValue + Value) > Semaphore->MaxValue);
+    if ((CurrentValue + Value) <= Semaphore->MaxValue) {
+        for (i = 0; i < Value; i++) {
+            while ((CurrentValue + 1) <= Semaphore->MaxValue) {
+                if (atomic_compare_exchange_weak(&Semaphore->Value, &CurrentValue, CurrentValue + 1)) {
+                    break;
+                }
             }
-            atomic_fetch_add(&Semaphore->Value, 1);
+            FutexWake(&Semaphore->Value, 1, FUTEX_WAKE_PRIVATE);
         }
+        Status = OsSuccess;
     }
-    MutexUnlock(&Semaphore->SyncObject);
+    return Status;
 }

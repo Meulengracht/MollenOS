@@ -71,7 +71,6 @@ int
 mtx_trylock(
     _In_ mtx_t* mutex)
 {
-    int c;
     int z = 0;
     
     if (mutex == NULL) {
@@ -93,8 +92,7 @@ mtx_trylock(
         }
     }
     
-    c = atomic_compare_exchange_strong(&mutex->_val, &z, 1);
-    if (!c) {
+    if (atomic_compare_exchange_strong(&mutex->_val, &z, 1)) {
         mutex->_owner = thrd_current();
         atomic_store(&mutex->_refs, 1);
         return thrd_success;
@@ -102,17 +100,14 @@ mtx_trylock(
     return thrd_busy;
 }
 
-int
-mtx_lock(
-    _In_ mtx_t* mutex)
+static int
+__perform_lock(
+    _In_ mtx_t* mutex,
+    _In_ size_t timeout)
 {
     FutexParameters_t parameters;
     int z = 0;
-    int c;
-    
-    if (mutex == NULL) {
-        return thrd_error;
-    }
+    int i;
     
     // If this thread already holds the mutex,
     // increase ref count, but only if we're recursive 
@@ -131,24 +126,48 @@ mtx_lock(
     
     parameters._futex0  = &mutex->_val;
     parameters._val0    = 2; // we always sleep on expecting a two
-    parameters._timeout = 0;
+    parameters._timeout = timeout;
     parameters._flags   = FUTEX_WAIT_PRIVATE;
     
-    // Loop untill we get the lock
-    c = atomic_compare_exchange_strong(&mutex->_val, &z, 1);
-    if (c != 0) {
-        if (c != 2) {
-            c = atomic_exchange(&mutex->_val, 2);
+    // On multicore systems the lock might be released rather quickly
+    // so we perform a number of initial spins before going to sleep,
+    // and only in the case that there are no sleepers && locked
+    if (!atomic_compare_exchange_strong(&mutex->_val, &z, 1)) {
+        if (SystemInfo.NumberOfActiveCores > 1 && z == 1) {
+            for (i = 0; i < MUTEX_SPINS; i++) {
+                if (mutex_trylock(mutex) == thrd_success) {
+                    return thrd_success;
+                }
+            }
         }
-        while (c != 0) {
-            Syscall_FutexWait(&parameters);
-            c = atomic_exchange(&mutex->_val, 2);
+        
+        // Loop untill we get the lock
+        if (z != 0) {
+            if (z != 2) {
+                z = atomic_exchange(&mutex->_val, 2);
+            }
+            while (z != 0) {
+                if (Syscall_FutexWait(&parameters) == OsTimeout) {
+                    return thrd_timedout;
+                }
+                z = atomic_exchange(&mutex->_val, 2);
+            }
         }
     }
-    
+
     mutex->_owner = thrd_current();
     atomic_store(&mutex->_refs, 1);
     return thrd_success;
+}
+
+int
+mtx_lock(
+    _In_ mtx_t* mutex)
+{
+    if (mutex == NULL) {
+        return thrd_error;
+    }
+    return __perform_lock(mutex, 0);
 }
 
 int
@@ -156,29 +175,11 @@ mtx_timedlock(
     _In_ mtx_t* restrict                 mutex,
     _In_ const struct timespec* restrict time_point)
 {
-    FutexParameters_t parameters;
-    time_t            msec = 0;
-	struct timespec   now, result;
-    int               z = 0;
-    int               c;
+    time_t          msec = 0;
+	struct timespec now, result;
     
     if (mutex == NULL || !(mutex->_flags & mtx_timed)) {
         return thrd_error;
-    }
-    
-    // If this thread already holds the mutex,
-    // increase ref count, but only if we're recursive 
-    if (mutex->_flags & mtx_recursive) {
-        while (1) {
-            int initialcount = atomic_load(&mutex->_refs);
-            if (initialcount != 0 && mutex->_owner == thrd_current()) {
-                if (atomic_compare_exchange_weak(&mutex->_refs, &initialcount, initialcount + 1)) {
-                    return thrd_success;
-                }
-                continue;
-            }
-            break;
-        }
     }
     
     // Calculate time to sleep
@@ -188,29 +189,7 @@ mtx_timedlock(
     if (result.tv_nsec != 0) {
         msec += ((result.tv_nsec - 1) / NSEC_PER_MSEC) + 1;
     }
-    
-    parameters._futex0  = &mutex->_val;
-    parameters._val0    = 2; // we always sleep on expecting a two
-    parameters._timeout = msec;
-    parameters._flags   = FUTEX_WAIT_PRIVATE;
-    
-    // Loop untill we get the lock
-    c = atomic_compare_exchange_strong(&mutex->_val, &z, 1);
-    if (c != 0) {
-        if (c != 2) {
-            c = atomic_exchange(&mutex->_val, 2);
-        }
-        while (c != 0) {
-            if (Syscall_FutexWait(&parameters) == OsTimeout) {
-                return thrd_timedout;
-            }
-            c = atomic_exchange(&mutex->_val, 2);
-        }
-    }
-    
-    mutex->_owner = thrd_current();
-    atomic_store(&mutex->_refs, 1);
-    return thrd_success;
+    return __perform_lock(mutex, msec);
 }
 
 int

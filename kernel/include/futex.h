@@ -25,13 +25,17 @@
 #include <os/osdefs.h>
 #include <os/futex.h>
 
+/* FutexWait
+ * */
 OsStatus_t
 FutexWait(
     _In_ _Atomic(int)* Futex,
     _In_ int           ExpectedValue,
     _In_ int           Flags,
     _In_ size_t        Timeout);
-    
+
+/* FutexWaitOperation
+ * */    
 OsStatus_t
 FutexWaitOperation(
     _In_ _Atomic(int)* Futex,
@@ -42,12 +46,16 @@ FutexWaitOperation(
     _In_ int           Flags,
     _In_ size_t        Timeout);
 
+/* FutexWake
+ * */
 OsStatus_t
 FutexWake(
     _In_ _Atomic(int)* Futex,
     _In_ int           Count,
     _In_ int           Flags);
 
+/* FutexWakeOperation
+ * */
 OsStatus_t
 FutexWakeOperation(
     _In_ _Atomic(int)* Futex,
