@@ -100,6 +100,7 @@ StorageRead(
     MContract_t              Contract;
     StorageOperation_t       Operation;
     StorageOperationResult_t Result;
+    OsStatus_t               Status;
 
     // Initialise contract details
     Contract.DriverId       = DriverId;
@@ -113,10 +114,14 @@ StorageRead(
     Operation.SectorCount    = SectorCount;
     
     // Perform the query
-    QueryDriver(&Contract, __STORAGE_QUERY_READ,
+    Status = QueryDriver(&Contract, __STORAGE_QUERY_READ,
         &StorageDeviceId, sizeof(UUId_t), 
         &Operation, sizeof(StorageOperation_t), NULL, 0, 
         &Result, sizeof(StorageOperationResult_t));
+    if (Status != OsSuccess) {
+        return Status;
+    }
+    
     *SectorsRead = Result.SectorsTransferred;
     return Result.Status;
 }
@@ -139,6 +144,7 @@ StorageWrite(
     MContract_t              Contract;
     StorageOperation_t       Operation;
     StorageOperationResult_t Result;
+    OsStatus_t               Status;
 
     // Initialise contract details
     Contract.DriverId       = Driver;
@@ -151,10 +157,14 @@ StorageWrite(
     Operation.PhysicalBuffer = PhysicalAddress;
     Operation.SectorCount    = SectorCount;
 
-    QueryDriver(&Contract, __STORAGE_QUERY_WRITE,
+    Status = QueryDriver(&Contract, __STORAGE_QUERY_WRITE,
         &StorageDevice, sizeof(UUId_t), 
         &Operation, sizeof(StorageOperation_t), NULL, 0, 
         &Result, sizeof(StorageOperationResult_t));
+    if (Status != OsSuccess) {
+        return Status;
+    }
+    
     *SectorsWritten = Result.SectorsTransferred;
     return Result.Status;
 }

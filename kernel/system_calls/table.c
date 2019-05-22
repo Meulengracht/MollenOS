@@ -21,6 +21,7 @@
  */
 #define DefineSyscall(Index, Fn) ((uintptr_t)&Fn)
 
+#include <internal/_utils.h>
 #include <ddk/contracts/video.h>
 #include <os/mollenos.h>
 #include <ddk/ipc/ipc.h>

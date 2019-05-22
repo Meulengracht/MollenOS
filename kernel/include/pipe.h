@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Pipe Interface
+ * MollenOS Pipe Interface
  *  - This multi-interface queue is a lock-less thread-safe implementation of pipe-modes:
  *      - Bounded MPMC / MPSC / SPMC
  *      - Unbounded MPMC / MPSC / SPMC
@@ -42,6 +42,8 @@
 
 #define PIPE_MPMC                   (PIPE_MULTIPLE_PRODUCERS | PIPE_MULTIPLE_CONSUMERS)
 
+/* SystemPipeEntry
+ * A system pipe entry is an available item for read and write. */
 typedef struct _SystemPipeEntry {
     Semaphore_t  SyncObject;
     unsigned int SegmentBufferIndex;
@@ -49,27 +51,26 @@ typedef struct _SystemPipeEntry {
     uint16_t     Length;
 } SystemPipeEntry_t;
 
+/* SystemPipeSegmentBuffer
+ * A contigious ring-buffer that supports deferred read/write allocations instead of
+ * only traditional ring-buffer read/write. */
 typedef struct _SystemPipeSegmentBuffer {
-    Mutex_t     LockObject;
-    Semaphore_t ReaderSync;
-    Semaphore_t WriterSync;
-    uint8_t*    Pointer;
-    size_t      Size;           // Must be a power of 2.
+    uint8_t*                Pointer;
+    size_t                  Size;           // Must be a power of 2.
 
-    atomic_uint ReadPointer;
-    atomic_uint ReadCommitted;
-    atomic_uint WritePointer;
-    atomic_uint WriteCommitted;
+    atomic_uint             ReadPointer;
+    atomic_uint             ReadCommitted;
+    atomic_uint             WritePointer;
+    atomic_uint             WriteCommitted;
 } SystemPipeSegmentBuffer_t;
 
 /* SystemPipeSegment
  * A system pipe segment is a collection of entries with a minimum base. */
 typedef struct _SystemPipeSegment {
-    Mutex_t                             LockObject;
-    Semaphore_t                         SyncObject;
     SystemPipeSegmentBuffer_t           Buffer;
+    atomic_int                          ProductionSpots;
     unsigned int                        TicketBase;
-    _Atomic(int)                        References;
+    atomic_int                          References;
     SystemPipeEntry_t*                  Entries;
     _Atomic(struct _SystemPipeSegment*) Link;
 } SystemPipeSegment_t;
@@ -77,44 +78,44 @@ typedef struct _SystemPipeSegment {
 /* SystemPipeProducer
  * A producer for a system pipe, describes the current producer state. */
 typedef struct _SystemPipeProducer {
-    _Atomic(SystemPipeSegment_t*) Tail;
-    atomic_uint                   Ticket;
+    _Atomic(SystemPipeSegment_t*)   Tail;
+    atomic_uint                     Ticket;
 } SystemPipeProducer_t;
 
 /* SystemPipeConsumer
  * A consumer for a system pipe, describes the current consumer state. */
 typedef struct _SystemPipeConsumer {
-    _Atomic(SystemPipeSegment_t*) Head;
-    atomic_uint                   Ticket;
+    _Atomic(SystemPipeSegment_t*)   Head;
+    atomic_uint                     Ticket;
 } SystemPipeConsumer_t;
 
 /* SystemPipeUserState
  * State structure used when reading or writing for queues that support
  * more functionality than SPSC. */
 typedef struct _SystemPipeUserState {
-    SystemPipeSegment_t* Segment;
-    unsigned int         Index;
-    int                  Advance;
+    SystemPipeSegment_t*            Segment;
+    unsigned int                    Index;
+    int                             Advance;
 } SystemPipeUserState_t;
 
 /* SystemPipe
  * A system pipe is the prefered way of communcation between processes.
  * It contains a number of segments, which in turn contains entries that can be used. */
 typedef struct _SystemPipe {
-    Flags_t              Configuration;
-    size_t               Stride;
-    size_t               SegmentLgSize;
+    Flags_t                 Configuration;
+    size_t                  Stride;
+    size_t                  SegmentLgSize;
 
-    SystemPipeConsumer_t ConsumerState;
-    SystemPipeProducer_t ProducerState;
+    SystemPipeConsumer_t    ConsumerState;
+    SystemPipeProducer_t    ProducerState;
 } SystemPipe_t;
 
 /* CreateSystemPipe
  * Initialise a new pipe instance with the given configuration and initializes it. */
 KERNELAPI SystemPipe_t* KERNELABI
 CreateSystemPipe(
-    _In_ Flags_t Configuration,
-    _In_ size_t  SegmentLgSize);
+    _In_ Flags_t                    Configuration,
+    _In_ size_t                     SegmentLgSize);
 
 /* ConstructSystemPipe
  * Construct an already existing pipe by initializing the pipe with the given configuration. */
@@ -150,10 +151,9 @@ WriteSystemPipe(
  * Acquires a new spot in the system pipe for data production. */
 KERNELAPI OsStatus_t KERNELABI
 AcquireSystemPipeProduction(
-    _In_  SystemPipe_t*          Pipe,
-    _In_  size_t                 Length,
-    _In_  size_t                 Timeout,
-    _Out_ SystemPipeUserState_t* State);
+    _In_  SystemPipe_t*             Pipe,
+    _In_  size_t                    Length,
+    _Out_ SystemPipeUserState_t*    State);
 
 /* WriteSystemPipeProduction
  * Writes data into the production spot acquired. This spot is not marked

@@ -135,7 +135,7 @@ __perform_lock(
     if (!atomic_compare_exchange_strong(&mutex->_val, &z, 1)) {
         if (SystemInfo.NumberOfActiveCores > 1 && z == 1) {
             for (i = 0; i < MUTEX_SPINS; i++) {
-                if (mutex_trylock(mutex) == thrd_success) {
+                if (mtx_trylock(mutex) == thrd_success) {
                     return thrd_success;
                 }
             }

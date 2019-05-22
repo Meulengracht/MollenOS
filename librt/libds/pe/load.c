@@ -285,16 +285,20 @@ PeResolveImportDescriptor(
             if (Value & PE_IMPORT_ORDINAL_32) {
                 int Ordinal = (int)(Value & 0xFFFF);
                 Function    = GetExportedFunctionByOrdinal(Exports, NumberOfExports, Ordinal);
+                if (!Function) {
+                    dserror("Failed to locate function (%i)", Ordinal);
+                    return OsError;
+                }
             }
             else {
                 NameDescriptor = (PeImportNameDescriptor_t*)OFFSET_IN_SECTION(Section, Value & PE_IMPORT_NAMEMASK);
                 Function       = GetExportedFunctionByNameDescriptor(Exports, NumberOfExports, NameDescriptor);
+                if (!Function) {
+                    dserror("Failed to locate function (%s)", &NameDescriptor->Name[0]);
+                    return OsError;
+                }
             }
 
-            if (Function == NULL) {
-                dserror("Failed to locate function (%s)", Function->Name);
-                return OsError;
-            }
             *ThunkPointer = Function->Address;
             ThunkPointer++;
         }
@@ -308,15 +312,18 @@ PeResolveImportDescriptor(
             if (Value & PE_IMPORT_ORDINAL_64) {
                 int Ordinal = (int)(Value & 0xFFFF);
                 Function    = GetExportedFunctionByOrdinal(Exports, NumberOfExports, Ordinal);
+                if (!Function) {
+                    dserror("Failed to locate function (%i)", Ordinal);
+                    return OsError;
+                }
             }
             else {
                 NameDescriptor = (PeImportNameDescriptor_t*)OFFSET_IN_SECTION(Section, Value & PE_IMPORT_NAMEMASK);
                 Function       = GetExportedFunctionByNameDescriptor(Exports, NumberOfExports, NameDescriptor);
-            }
-
-            if (Function == NULL) {
-                dserror("Failed to locate function (%s)", Function->Name);
-                return OsError;
+                if (!Function) {
+                    dserror("Failed to locate function (%s)", &NameDescriptor->Name[0]);
+                    return OsError;
+                }
             }
             *ThunkPointer = (uint64_t)Function->Address;
             ThunkPointer++;

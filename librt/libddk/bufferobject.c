@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Buffer Support Definitions & Structures
+ * Buffer Support Definitions & Structures
  * - This header describes the base buffer-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -47,6 +47,9 @@ CreateBuffer(
     }
 
     Buffer = (DmaBuffer_t*)malloc(sizeof(DmaBuffer_t));
+    if (!Buffer) {
+        return NULL;
+    }
     memset((void*)Buffer, 0, sizeof(DmaBuffer_t));
     if (FromHandle != UUID_INVALID) {
         if (Syscall_AcquireBuffer(FromHandle, Buffer) != OsSuccess) {

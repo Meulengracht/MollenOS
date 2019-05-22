@@ -161,6 +161,10 @@ void __cxa_module_tls_thread_init(void)
         TlsDataSize, _tls_used.StartOfData, _tls_used.EndOfData);
     if (TlsDataSize > 0 && _tls_used.StartOfData < _tls_used.EndOfData) {
         _tls_array[_tls_index] = malloc(TlsDataSize);
+        if (!_tls_array[_tls_index]) {
+            ERROR("failed to allocate memory for tls array");
+            return;
+        }
         memcpy(_tls_array[_tls_index], (void*)_tls_used.StartOfData, TlsDataSize);
     }
     __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_THREADATTACH);

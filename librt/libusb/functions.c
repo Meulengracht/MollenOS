@@ -259,9 +259,8 @@ UsbTransferQueuePeriodic(
 	_In_  UsbTransfer_t*            Transfer,
 	_Out_ UUId_t*                   TransferId)
 {
-    // Variables
-    UsbTransferResult_t Result;
-    MContract_t Contract;
+    UsbTransferResult_t Result = { 0 };
+    MContract_t         Contract;
 
     // Setup contract stuff for request
     Contract.DriverId   = Driver;

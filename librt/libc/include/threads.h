@@ -76,8 +76,15 @@ enum {
 
 #define TSS_DTOR_ITERATIONS 4
 #define TSS_KEY_INVALID     UINT_MAX
+
+#if defined(__cplusplus)
+#define COND_INIT           { 0 }
+#define MUTEX_INIT(type)    { type, UUID_INVALID, 0, 0 }
+#else
+// Use stdatomic C11
 #define COND_INIT           { ATOMIC_VAR_INIT(0) }
-#define MUTEX_INIT(type)    { COND_INIT, type, UUID_INVALID, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0) }
+#define MUTEX_INIT(type)    { type, UUID_INVALID, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0) }
+#endif
 #define ONCE_FLAG_INIT      { MUTEX_INIT(mtx_plain), 0 }
 
 _CODE_BEGIN

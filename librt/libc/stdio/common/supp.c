@@ -352,6 +352,7 @@ StdioInitialize(
 {
     // Initialize the bitmap of fds
     FdBitmap = (int *)malloc(DIVUP(INTERNAL_MAXFILES, 8));
+    assert(FdBitmap != NULL);
     memset(FdBitmap, 0, DIVUP(INTERNAL_MAXFILES, 8));
 
     StdioParseInheritanceBlock(InheritanceBlock, InheritanceBlockLength);
@@ -404,7 +405,7 @@ StdioFdAllocate(
     else {
         // Iterate the bitmap and find a free fd
         for (i = 0; i < DIVUP(INTERNAL_MAXFILES, (8 * sizeof(int))); i++) {
-            for (j = 0; i < (8 * sizeof(int)); j++) {
+            for (j = 0; j < (8 * sizeof(int)); j++) {
                 if (!(FdBitmap[i] & (1 << j))) {
                     FdBitmap[i] |= (1 << j);
                     result = (i * (8 * sizeof(int))) + j;
@@ -422,9 +423,13 @@ StdioFdAllocate(
 
     // Create a new io-object
     if (result != -1) {
-        Object      = (StdioObject_t*)malloc(sizeof(StdioObject_t));
-        Object->fd  = result;
-
+        Object = (StdioObject_t*)malloc(sizeof(StdioObject_t));
+        if (!Object) {
+            _set_errno(ENOMEM);
+            return -1;
+        }
+        
+        Object->fd                      = result;
         Object->handle.InheritationType = STDIO_HANDLE_INVALID;
         
         Object->wxflag       = WX_OPEN | flag;

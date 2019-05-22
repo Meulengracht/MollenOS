@@ -41,11 +41,11 @@ SemaphoreConstruct(
     _In_ int          InitialValue,
     _In_ int          MaximumValue);
 
-/* SemaphoreDestroy
+/* SemaphoreDestruct
  * Cleans up the semaphore, waking up all sleeper threads
  * to not have dead threads. */
 KERNELAPI OsStatus_t KERNELABI
-SemaphoreDestroy(
+SemaphoreDestruct(
     _In_ Semaphore_t* Semaphore);
 
 /* SemaphoreWait

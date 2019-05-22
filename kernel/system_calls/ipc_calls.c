@@ -33,9 +33,6 @@
 #include <debug.h>
 #include <pipe.h>
 
-/* ScCreatePipe
- * Creates a new communication pipeline that can be used by seperate threads. Returns a 
- * system-wide unique handle that can referred to. */
 OsStatus_t
 ScCreatePipe( 
     _In_  int     Type,
@@ -56,9 +53,6 @@ ScCreatePipe(
     return OsSuccess;
 }
 
-/* ScDestroyPipe
- * Closes an existing pipe and releases any resources associated. This will then be invalid for
- * communication. */
 OsStatus_t
 ScDestroyPipe(
     _In_ UUId_t Handle)
@@ -82,8 +76,6 @@ ScDestroyPipe(
     return Status;
 }
 
-/* ScReadPipe
- * Reads the requested number of bytes from the system-pipe. */
 OsStatus_t
 ScReadPipe(
     _In_ UUId_t   Handle,
@@ -103,8 +95,6 @@ ScReadPipe(
     return OsSuccess;
 }
 
-/* ScWritePipe
- * Writes the requested number of bytes to the system-pipe. */
 OsStatus_t
 ScWritePipe(
     _In_ UUId_t   Handle,
@@ -186,7 +176,7 @@ ScRpcExecute(
     RemoteCall->From.Thread   = Thread->Header.Key.Value.Id;
 
     // Setup producer access
-    AcquireSystemPipeProduction(Pipe, TotalLength, 0, &State);
+    AcquireSystemPipeProduction(Pipe, TotalLength, &State);
     WriteSystemPipeProduction(&State, (const uint8_t*)RemoteCall, sizeof(MRemoteCall_t));
     for (i = 0; i < IPC_MAX_ARGUMENTS; i++) {
         if (RemoteCall->Arguments[i].Type == ARGUMENT_BUFFER) {

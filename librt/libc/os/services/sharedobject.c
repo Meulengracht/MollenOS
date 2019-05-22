@@ -116,6 +116,10 @@ SharedObjectLoad(
 
         if (Status == OsSuccess && Result != HANDLE_INVALID) {
             Library = (LibraryItem_t*)malloc(sizeof(LibraryItem_t));
+            if (Library == NULL) {
+                _set_errno(ENOMEM);
+                return HANDLE_INVALID;
+            }
             memset(Library, 0, sizeof(LibraryItem_t));
             
             Library->Header.Key.Value.Id = Key.Value.Id;

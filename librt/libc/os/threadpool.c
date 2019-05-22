@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Threading Pool Support Definitions & Structures
+ * Threading Pool Support Definitions & Structures
  * - This header describes the base threadingpool-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -346,17 +346,26 @@ ThreadPoolInitialize(
 
     // Allocate a new instance of threadpool
     Instance = (ThreadPool_t*)malloc(sizeof(ThreadPool_t));
+    if (Instance == NULL) {
+        return OsOutOfMemory;
+    }
+    
+    // Allocate the list of threads
+    Instance->Threads = (ThreadPoolThread_t**)malloc(NumThreads * sizeof(ThreadPoolThread_t*));
+    if (Instance->Threads == NULL) {
+        free(Instance);
+        return OsOutOfMemory;
+    }
+
     memset((void*)Instance, 0, sizeof(ThreadPool_t));
     Instance->ThreadsKeepAlive = 1;
 
     // Initialize job queue
     if (JobQueueInitialize(&Instance->JobQueue) != OsSuccess) {
+        free(Instance->Threads);
         free(Instance);
         return OsError;
     }
-
-    // Initialize the list of threads
-    Instance->Threads = (ThreadPoolThread_t**)malloc(NumThreads * sizeof(ThreadPoolThread_t*));
 
     // Initialize locks
     cnd_init(&Instance->ThreadsIdle);
@@ -379,12 +388,11 @@ ThreadPoolInitialize(
  * a way to implement this is by passing a pointer to a structure. */
 OsStatus_t
 ThreadPoolAddWork(
-    _In_ ThreadPool_t*          ThreadPool,
-    _In_ thrd_start_t           Function,
-    _In_ void*                  Argument)
+    _In_ ThreadPool_t* ThreadPool,
+    _In_ thrd_start_t  Function,
+    _In_ void*         Argument)
 {
-    // Variables
-    ThreadPoolJob_t *Job = NULL;
+    ThreadPoolJob_t* Job;
 
     // Sanitize parameters
     if (ThreadPool == NULL) {
@@ -393,6 +401,10 @@ ThreadPoolAddWork(
 
     // Allocate a new instance of the thread job
     Job = (ThreadPoolJob_t*)malloc(sizeof(ThreadPoolJob_t));
+    if (Job == NULL) {
+        return OsOutOfMemory;
+    }
+    
     Job->Function = Function;
     Job->Argument = Argument;
     return JobQueuePush(&ThreadPool->JobQueue, Job);

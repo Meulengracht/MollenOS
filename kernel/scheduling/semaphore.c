@@ -33,17 +33,8 @@
 #include <assert.h>
 #include <debug.h>
 #include <futex.h>
+#include <limits.h>
 #include <semaphore.h>
-
-OsStatus_t
-SemaphoreDestroy(
-    _In_ Semaphore_t* Semaphore)
-{
-    if (!Semaphore) {
-        return OsInvalidParameters;
-    }
-    return FutexWake(&Semaphore->Value, INT_MAX, FUTEX_WAKE_PRIVATE);
-}
 
 void
 SemaphoreConstruct(
@@ -57,6 +48,16 @@ SemaphoreConstruct(
 
 	Semaphore->Value    = ATOMIC_VAR_INIT(InitialValue);
     Semaphore->MaxValue = MaximumValue;
+}
+
+OsStatus_t
+SemaphoreDestruct(
+    _In_ Semaphore_t* Semaphore)
+{
+    if (!Semaphore) {
+        return OsInvalidParameters;
+    }
+    return FutexWake(&Semaphore->Value, INT_MAX, FUTEX_WAKE_PRIVATE);
 }
 
 OsStatus_t
