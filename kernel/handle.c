@@ -42,8 +42,7 @@ static HandleDestructorFn   HandleDestructors[HandleTypeCount]  = {
     NULL,                      // Generic - Ignore
     DestroyMemoryBuffer,
     DestroyMemorySpace,
-    DestroySystemPipe,
-    DestroyWaitQueue
+    DestroySystemPipe
 };
 
 UUId_t

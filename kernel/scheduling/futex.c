@@ -19,9 +19,15 @@
  *
  */
 
+#include <arch/thread.h>
+#include <arch/utils.h>
+#include <component/cpu.h>
 #include <ds/collection.h>
-#include <scheduler.h>
 #include <futex.h>
+#include <heap.h>
+#include <memoryspace.h>
+#include <scheduler.h>
+#include <string.h>
 
 #define FUTEX_HASHTABLE_CAPACITY 64
 
@@ -40,7 +46,7 @@ typedef struct {
     Collection_t     FutexQueue;
 } FutexBucket_t;
 
-static FutexBucket_t FutexBuckets[FUTEX_HASHTABLE_CAPACITY] = { 0 };
+static FutexBucket_t FutexBuckets[FUTEX_HASHTABLE_CAPACITY] = { { { 0 } } };
 
 static size_t
 GetIntegerHash(size_t x)
@@ -146,7 +152,7 @@ FutexCompareOperation(
 {
     // parse operation
     int Op  = (Operation >> 24) & 0xF;
-    int Val = Operation & 0xFFF
+    int Val = Operation & 0xFFF;
     
     switch (Op) {
         case FUTEX_OP_CMP_EQ: {
@@ -216,7 +222,7 @@ FutexWait(
     Object->WaitQueueHandle = &(FutexItem->WaitQueue);
     
     CollectionAppend(&FutexItem->WaitQueue, &Object->Header);
-    if (!atomic_load(Futex) != ExpectedValue) {
+    if (atomic_load(Futex) != ExpectedValue) {
         (void)CollectionRemoveByNode(&FutexItem->WaitQueue, &Object->Header);
         dsunlock(&FutexQueue->SyncObject);
         return OsError;
@@ -260,7 +266,7 @@ FutexWaitOperation(
     Object->WaitQueueHandle = &(FutexItem->WaitQueue);
     
     CollectionAppend(&FutexItem->WaitQueue, &Object->Header);
-    if (!atomic_load(Futex) != ExpectedValue) {
+    if (atomic_load(Futex) != ExpectedValue) {
         (void)CollectionRemoveByNode(&FutexItem->WaitQueue, &Object->Header);
         dsunlock(&FutexQueue->SyncObject);
         return OsError;
@@ -299,7 +305,7 @@ FutexWake(
     }
     
     for (i = 0; i < Count; i++) {
-        Status = SchedulerUnblock(&FutexQueue->WaitQueue);
+        Status = SchedulerUnblock(&FutexItem->WaitQueue);
         if (Status != OsSuccess) {
             break;
         }

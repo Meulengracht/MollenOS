@@ -14,7 +14,7 @@ SOURCES = $(wildcard acpi/*.c) \
 		  $(wildcard modules/*.c) \
 		  $(wildcard output/fonts/*.c) \
 		  $(wildcard output/*.c) \
-		  $(wildcard synchronization/*.c) \
+		  $(wildcard scheduling/*.c) \
 		  $(wildcard system_calls/*.c) \
 		  $(wildcard tests/*.c) \
 		  $(wildcard *.c)

@@ -495,7 +495,7 @@ AcpiDeviceIrqRoutingCallback(
         Irq = &Resource->Data.Irq;
         
         // Sanitize IRQ entry
-        if (Irq == NULL || Irq->InterruptCount == 0) {
+        if (Irq->InterruptCount == 0) {
             if (IrqResource->Gathering == 0) {
                 WARNING("Blank _CSR IRQ resource entry. Device is disabled.");
             }
@@ -540,7 +540,7 @@ AcpiDeviceIrqRoutingCallback(
         Irq = &Resource->Data.ExtendedIrq;
 
         // Sanitize IRQ entry
-        if (Irq == NULL || Irq->InterruptCount == 0) {
+        if (Irq->InterruptCount == 0) {
             if (IrqResource->Gathering == 0) {
                 WARNING("Blank _CSR IRQ resource entry. Device is disabled.");
             }
@@ -680,7 +680,7 @@ AcpiDeviceSelectIrq(
 
     // Initiate objects
     Resource = kmalloc(sizeof(*Resource) + 1);
-    memset(Resource, 0, sizeof(sizeof(*Resource) + 1));
+    memset(Resource, 0, sizeof(*Resource) + 1);
     Buffer.Length = sizeof(*Resource) + 1;
     Buffer.Pointer = (void*)Resource;
 

@@ -28,9 +28,6 @@
 #include <debug.h>
 #include <crc32.h>
 
-/* ParseInitialRamdisk
- * Parses the supplied ramdisk by the bootloader. Without a ramdisk present only debug
- * functionality will be available. */
 OsStatus_t
 ParseInitialRamdisk(
     _In_ Multiboot_t* BootInformation)
@@ -65,7 +62,8 @@ ParseInitialRamdisk(
     while (Counter != 0) {
         if (Entry->Type == RAMDISK_MODULE || Entry->Type == RAMDISK_FILE) {
             SystemRamdiskModuleHeader_t* Header =
-                (SystemRamdiskModuleHeader_t*)(uintptr_t)(BootInformation->RamdiskAddress + Entry->DataHeaderOffset);
+                (SystemRamdiskModuleHeader_t*)(
+                    (uintptr_t)BootInformation->RamdiskAddress + (uintptr_t)Entry->DataHeaderOffset);
             uint8_t* ModuleData;
             uint32_t CrcOfData;
 

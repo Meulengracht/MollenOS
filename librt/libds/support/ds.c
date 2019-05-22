@@ -279,6 +279,10 @@ OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, s
 {
     MemoryMappingState_t* StateObject = (MemoryMappingState_t*)dsalloc(sizeof(MemoryMappingState_t));
     OsStatus_t            Status;
+    
+    if (!StateObject) {
+        return OsOutOfMemory;
+    }
 
     StateObject->Handle  = Handle;
     StateObject->Address = *Address;

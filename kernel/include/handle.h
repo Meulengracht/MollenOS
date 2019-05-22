@@ -32,7 +32,6 @@ typedef enum _SystemHandleType {
     HandleTypeMemoryBuffer,
     HandleTypeMemorySpace,
     HandleTypePipe,
-    HandleTypeWaitQueue,
 
     HandleTypeCount
 } SystemHandleType_t;

@@ -342,19 +342,18 @@ AcpiEnumerateECDT(
     _In_ void *TableStart,
     _In_ void *TableEnd)
 {
-    // Variables
     ACPI_TABLE_ECDT *EcdtTable = NULL;
 
     // Initialize pointers
     EcdtTable = (ACPI_TABLE_ECDT*)TableStart;
 
     // Store the most relevant data
-    EmbeddedController.Handle   = ACPI_ROOT_OBJECT;
-    EmbeddedController.Gpe      = EcdtTable->Gpe;
-    EmbeddedController.UId      = EcdtTable->Uid;
-    memcpy(&EmbeddedController.CommandAddress,  &EcdtTable->Control,    sizeof(ACPI_GENERIC_ADDRESS));
-    memcpy(&EmbeddedController.DataAddress,     &EcdtTable->Data,       sizeof(ACPI_GENERIC_ADDRESS));
-    memcpy(&EmbeddedController.NsPath[0],       &EcdtTable->Id[0],      strlen((const char*)&EcdtTable->Id[0]));
+    EmbeddedController.Handle = ACPI_ROOT_OBJECT;
+    EmbeddedController.Gpe    = EcdtTable->Gpe;
+    EmbeddedController.UId    = EcdtTable->Uid;
+    memcpy(&EmbeddedController.CommandAddress,  &EcdtTable->Control, sizeof(ACPI_GENERIC_ADDRESS));
+    memcpy(&EmbeddedController.DataAddress,     &EcdtTable->Data,    sizeof(ACPI_GENERIC_ADDRESS));
+    memcpy(&EmbeddedController.NsPath[0],       &EcdtTable->Id[0],   strlen((const char*)&(EcdtTable->Id[0])));
 }
 
 /* AcpiInitializeEarly

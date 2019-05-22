@@ -25,6 +25,7 @@
 #include <assert.h>
 #include <debug.h>
 #include <futex.h>
+#include <limits.h>
 #include <machine.h>
 #include <mutex.h>
 #include <scheduler.h>
@@ -81,7 +82,7 @@ MutexTryLock(
         atomic_store(&Mutex->References, 1);
         return OsSuccess;
     }
-    return thrd_busy;
+    return OsError;
 }
 
 static OsStatus_t
@@ -90,6 +91,7 @@ __MutexPerformLock(
     _In_ size_t   Timeout)
 {
     int Zero = 0;
+    int i;
     
     // If this thread already holds the mutex,
     // increase ref count, but only if we're recursive 
@@ -149,9 +151,6 @@ MutexLockTimed(
     _In_ Mutex_t* Mutex,
     _In_ size_t   Timeout)
 {
-    OsStatus_t Status = OsSuccess;
-    int        i;
-
     if (!Mutex) {
         return OsInvalidParameters;
     }

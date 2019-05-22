@@ -437,7 +437,7 @@ HpInitialize(
         TempValue, NumTimers, (HpetController.Frequency.u.LowPart / 1000));
 
     // Sanitize the number of timers, must be above 0
-    if (NumTimers == 0 || NumTimers > HPET_MAXTIMERCOUNT) {
+    if (NumTimers == 0) {
         ERROR("There was no timers present in HPET");
         return AE_ERROR;
     }

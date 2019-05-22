@@ -56,6 +56,8 @@ static int    EventQueueWorker(void* Context);
 void CreateEventQueue(EventQueue_t** EventQueueOut)
 {
     EventQueue_t* EventQueue = malloc(sizeof(EventQueue_t));
+    assert(EventQueue != NULL);
+    
     EventQueue->Events       = CollectionCreate(KeyId);
     EventQueue->IsRunning    = 1;
     EventQueue->NextEventId  = 1;
@@ -124,6 +126,8 @@ OsStatus_t CancelEvent(EventQueue_t* EventQueue, UUId_t EventHandle)
 static UUId_t AddToEventQueue(EventQueue_t* EventQueue, EventQueueFunction Function, void* Context, size_t TimeoutMs, size_t IntervalMs)
 {
     EventQueueEvent_t* Event = (EventQueueEvent_t*)malloc(sizeof(EventQueueEvent_t));
+    assert(Event != NULL);
+    
     assert(EventQueue != NULL);
     assert(Function != NULL);
 

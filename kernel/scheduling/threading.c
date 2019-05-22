@@ -352,13 +352,11 @@ ThreadingJoinThread(
 {
     MCoreThread_t* Target = GetThread(ThreadId);
     if (Target != NULL && Target->ParentThreadId != UUID_INVALID) {
-        MutexLock(&Target->SyncObject);
         if (atomic_load(&Target->Cleanup) != 1) {
             atomic_fetch_add(&Target->References, 1);
-            SemaphoreWait(&Target->EventObject, &Target->SyncObject, 0);
+            SemaphoreWait(&Target->EventObject, 0);
             atomic_fetch_sub(&Target->References, 1);
         }
-        MutexUnlock(&Target->SyncObject);
         return Target->RetCode;
     }
     return -1;

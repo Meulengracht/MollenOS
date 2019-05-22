@@ -163,7 +163,7 @@ InterruptResolve(
             Vectors[INTERRUPT_MAXVECTORS] = INTERRUPT_NONE;
             for (i = 0; i < INTERRUPT_MAXVECTORS; i++) {
                 if (Interrupt->Vectors[i] == INTERRUPT_NONE
-                    || i == INTERRUPT_MAXVECTORS) {
+                    || i == (INTERRUPT_MAXVECTORS - 1)) {
                     Vectors[i] = INTERRUPT_NONE;
                     break;
                 }

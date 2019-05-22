@@ -27,7 +27,6 @@
 #include <garbagecollector.h>
 #include <semaphore.h>
 #include <threading.h>
-#include <mutex.h>
 #include <string.h>
 #include <debug.h>
 #include <heap.h>
@@ -45,7 +44,6 @@ typedef struct _GcMessage {
 // Prototype for the worker thread
 static void GcWorker(void *Args);
 
-static Mutex_t         QueueLock      = OS_MUTEX_INIT(MUTEX_PLAIN);
 static Semaphore_t     EventLock      = SEMAPHORE_INIT(0, 1);
 static Collection_t    GcHandlers     = COLLECTION_INIT(KeyId);
 static Collection_t    GcEvents       = COLLECTION_INIT(KeyId);
@@ -114,9 +112,8 @@ GcWorker(
     int           Run = 1;
     _CRT_UNUSED(Args);
     
-    MutexLock(&QueueLock);
     while (Run) {
-        SemaphoreWait(&EventLock, &QueueLock, 0);
+        SemaphoreWait(&EventLock, 0);
         
         Message = (GcMessage_t*)CollectionPopFront(&GcEvents);
         if (Message == NULL) {
@@ -130,5 +127,4 @@ GcWorker(
         }
         kfree(Message);
     }
-    MutexUnlock(&QueueLock);
 }

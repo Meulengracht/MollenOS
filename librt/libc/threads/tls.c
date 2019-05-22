@@ -261,6 +261,10 @@ tss_set(
     spinlock_release(&TlsLock);
 
     NewTls = (TlsThreadInstance_t*)malloc(sizeof(TlsThreadInstance_t));
+    if (NewTls == NULL) {
+        return thrd_nomem;
+    }
+    
     memset(NewTls, 0, sizeof(TlsThreadInstance_t));
     NewTls->ListHeader.Key  = tKey;
     NewTls->ListHeader.Data = NewTls;
@@ -322,6 +326,9 @@ tls_register_atexit(
     }
 
     AtExitFn = (TlsAtExit_t*)malloc(sizeof(TlsAtExit_t));
+    if (AtExitFn == NULL) {
+        return;
+    }
     memset(AtExitFn, 0, sizeof(TlsAtExit_t));
 
     AtExitFn->ListHeader.Key.Value.Id   = ThreadId;
