@@ -68,7 +68,7 @@ PrintHeader(
 {
     WRITELINE("MollenOS - Platform: %s - Version %" PRIiIN ".%" PRIiIN ".%" PRIiIN "",
         ARCHITECTURE_NAME, REVISION_MAJOR, REVISION_MINOR, REVISION_BUILD);
-    WRITELINE("Written by Philip Meulengracht, Copyright 2011-2018.");
+    WRITELINE("Written by Philip Meulengracht, Copyright 2011.");
     WRITELINE("Bootloader - %s", (char*)(uintptr_t)BootInformation->BootLoaderName);
     WRITELINE("%s build %s - %s\n", BUILD_SYSTEM, BUILD_DATE, BUILD_TIME);
 }
@@ -92,7 +92,7 @@ InitializeMachine(
     // Setup strings
     sprintf(&Machine.Architecture[0], "System: %s", ARCHITECTURE_NAME);
     sprintf(&Machine.Bootloader[0],   "Boot: %s", (char*)(uintptr_t)BootInformation->BootLoaderName);
-    sprintf(&Machine.Author[0],       "Philip Meulengracht, Copyright 2011-2018.");
+    sprintf(&Machine.Author[0],       "Philip Meulengracht, Copyright 2011.");
     sprintf(&Machine.Date[0],         "%s - %s", BUILD_DATE, BUILD_TIME);
     
     // Set initial stats for this machine and then initialize cpu

@@ -456,6 +456,8 @@ InterruptUnregister(
         if (Entry->Id == Source) {
             if (!(Entry->Flags & INTERRUPT_KERNEL)) {
                 if (Entry->ModuleHandle != GetCurrentModule()->Handle) {
+                    Previous = Entry;
+                    Entry    = Entry->Link;
                     continue;
                 }
             }
@@ -470,10 +472,8 @@ InterruptUnregister(
             }
             break;
         }
-        
-        // Next entry
         Previous = Entry;
-        Entry = Entry->Link;
+        Entry    = Entry->Link;
     }
     dsunlock(&InterruptTableSyncObject);
 

@@ -56,10 +56,10 @@ MStringCompare(
 
         // We only support case-insensitivity on ascii characters
         if (IgnoreCase) {
-            if (First < 0x7F && isalpha(First)) {
+            if (First < 0x80 && isalpha(First)) {
                 First = tolower((uint8_t)First);
             }
-            if (Second < 0x7F && isalpha(Second)) {
+            if (Second < 0x80 && isalpha(Second)) {
                 Second = tolower((uint8_t)Second);
             }
         }

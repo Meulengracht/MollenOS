@@ -470,6 +470,9 @@ SchedulerAdvance(
     int                i;
     TimersGetSystemTick(&CurrentClock);
     
+    assert(Object != NULL);
+    assert(NextDeadlineOut != NULL);
+    
     // In one case we can skip the whole requeue etc etc
     if (Preemptive != 0 && MillisecondsPassed != Object->TimeSlice) {
         NextObject = Object;

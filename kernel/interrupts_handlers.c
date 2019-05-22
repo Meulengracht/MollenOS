@@ -28,7 +28,7 @@
 #include <debug.h>
 #include <heap.h>
 
-static UUId_t        InterruptHandlers[CpuFunctionCount] = { UUID_INVALID };
+static UUId_t        InterruptHandlers[CpuFunctionCount] = { { UUID_INVALID } };
 static MemoryCache_t IpiItemCache                        = { 0 };
 
 InterruptStatus_t
