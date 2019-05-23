@@ -355,31 +355,27 @@ MfsZeroBucket(
     return OsSuccess;
 }
 
-/* MfsVfsFlagsToFileRecordFlags
- * Converts the generic vfs options/permissions to the native mfs representation. */
 Flags_t
 MfsVfsFlagsToFileRecordFlags(
-    _In_ Flags_t                    Flags,
-    _In_ Flags_t                    Permissions)
+    _In_ Flags_t Flags,
+    _In_ Flags_t Permissions)
 {
     Flags_t NativeFlags = 0;
 
     if (Flags & __FILE_DIRECTORY) {
         NativeFlags |= MFS_FILERECORD_DIRECTORY;
     }
-    else if (Flags & __FILE_DIRECTORY) {
+    else if (Flags & __FILE_LINK) {
         NativeFlags |= MFS_FILERECORD_LINK;
     }
     return NativeFlags;
 }
 
-/* MfsFileRecordFlagsToVfsFlags
- * Converts the native MFS file flags into the generic vfs options/permissions. */
 void
 MfsFileRecordFlagsToVfsFlags(
-    _In_  FileRecord_t*             NativeEntry,
-    _Out_ Flags_t*                  Flags,
-    _Out_ Flags_t*                  Permissions)
+    _In_  FileRecord_t* NativeEntry,
+    _Out_ Flags_t*      Flags,
+    _Out_ Flags_t*      Permissions)
 {
     // Permissions are not really implemented
     *Permissions    = (FILE_PERMISSION_READ | FILE_PERMISSION_WRITE | FILE_PERMISSION_EXECUTE);

@@ -150,10 +150,10 @@ OhciiTdValidate(
         }
 
         if (ErrorCode != 0) {
-            Transfer->Status    = OhciGetStatusCode(ErrorCode);
+            Transfer->Status = OhciGetStatusCode(ErrorCode);
         }
-        else if (ErrorCode == 0 && Transfer->Status == TransferQueued) {
-            Transfer->Status    = TransferFinished;
+        else if (Transfer->Status == TransferQueued) {
+            Transfer->Status = TransferFinished;
         }
     }
 

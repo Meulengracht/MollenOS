@@ -45,6 +45,10 @@ AhciControllerCreate(
     int               i;
 
     Controller = (AhciController_t*)malloc(sizeof(AhciController_t));
+    if (!Controller) {
+        return NULL;
+    }
+    
     memset(Controller, 0, sizeof(AhciController_t));
     memcpy(&Controller->Device, Device, Device->Length);
     

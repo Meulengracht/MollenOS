@@ -22,15 +22,10 @@
  */
 //#define __TRACE
 
-/* Includes
- * - System */
 #include <ddk/device.h>
 #include <ddk/utils.h>
 #include "../common/hci.h"
 #include "ehci.h"
-
-/* Includes
- * - Library */
 #include <threads.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,9 +35,6 @@
 OsStatus_t          EhciSetup(EhciController_t *Controller);
 InterruptStatus_t   OnFastInterrupt(FastInterruptResources_t*, void*);
 
-/* HciControllerCreate 
- * Initializes and creates a new Hci Controller instance
- * from a given new system device on the bus. */
 UsbManagerController_t*
 HciControllerCreate(
     _In_ MCoreDevice_t*             Device)
@@ -54,6 +46,10 @@ HciControllerCreate(
 
     // Allocate a new instance of the controller
     Controller = (EhciController_t*)malloc(sizeof(EhciController_t));
+    if (!Controller) {
+        return NULL;
+    }
+    
     memset(Controller, 0, sizeof(EhciController_t));
     memcpy(&Controller->Base.Device, Device, Device->Length);
 
@@ -444,22 +440,22 @@ EhciRestart(
     return OsSuccess;
 }
 
-/* EhciWaitForCompanionControllers
- * Waits for all companion controllers to be booted and initialized
- * as the ehci controller must be setup last. */
 OsStatus_t
 EhciWaitForCompanionControllers(
-    _In_ EhciController_t*          Controller)
+    _In_ EhciController_t* Controller)
 {
-    UsbHcController_t* HcController    = NULL;
+    UsbHcController_t* HcController;
     int                ControllerCount = 0;
     int                CcStarted       = 0;
     int                CcToStart       = 0;
     int                Timeout         = 3000;
 
-    // Initialize resources
     HcController = (UsbHcController_t*)malloc(sizeof(UsbHcController_t));
-    CcToStart    = EHCI_SPARAM_CCCOUNT(Controller->SParameters);
+    if (!HcController) {
+        return OsOutOfMemory;
+    }
+    
+    CcToStart = EHCI_SPARAM_CCCOUNT(Controller->SParameters);
 
     // Wait
     TRACE("Waiting for %i cc's to boot", CcToStart);

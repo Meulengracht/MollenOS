@@ -67,6 +67,9 @@ OnEvent(
             DataKey_t             Key     = { .Value.Id = Handle };
             
             Service = (ServiceObject_t*)malloc(sizeof(ServiceObject_t));
+            if (!Service) {
+                return OsOutOfMemory;
+            }
             memset(Service, 0, sizeof(ServiceObject_t));
             memcpy(&Service->Name[0], Name, strlen(Name));
             
@@ -89,6 +92,10 @@ OnEvent(
             size_t                Count          = MIN(Message->Arguments[1].Data.Value, 8);
             ServiceObject_t*      ServiceResults = malloc(sizeof(ServiceObject_t) * Count);
             int                   i              = 0;
+            if (!ServiceResults) {
+                return OsOutOfMemory;
+            }
+            
             memset(ServiceResults, 0, sizeof(ServiceObject_t) * Count);
             
             foreach(Node, &Services) {

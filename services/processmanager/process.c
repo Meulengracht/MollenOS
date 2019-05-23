@@ -213,6 +213,9 @@ ResolveFilePath(
         // Take into account we might have failed to guess base path
         if (Status == OsSuccess) {
             char* CanonicalizedPath = (char*)malloc(_MAXPATH);
+            if (!CanonicalizedPath) {
+                return OsOutOfMemory;
+            }
             memset(CanonicalizedPath, 0, _MAXPATH);
 
             Status = PathCanonicalize(MStringRaw(TemporaryResult), CanonicalizedPath, _MAXPATH);
@@ -336,7 +339,9 @@ CreateProcess(
     TRACE("CreateProcess(%s, %u, %u)", Path, ArgumentsLength, InheritationBlockLength);
 
     Process = (Process_t*)malloc(sizeof(Process_t));
-    assert(Process != NULL);
+    if (!Process) {
+        return OsOutOfMemory;
+    }
     memset(Process, 0, sizeof(Process_t));
 
     Process->Header.Key.Value.Id = ProcessIdGenerator++;
@@ -368,6 +373,14 @@ CreateProcess(
     // Handle arguments, we need to prepend the full path of the executable
     PathLength       = strlen(MStringRaw(Process->Path));
     ArgumentsPointer = malloc(PathLength + 1 + ArgumentsLength);
+    if (!ArgumentsPointer) {
+        MStringDestroy(Process->Path);
+        MStringDestroy(Process->Name);
+        MStringDestroy(Process->WorkingDirectory);
+        MStringDestroy(Process->AssemblyDirectory);
+        free(Process);
+        return OsOutOfMemory;
+    }
     
     memcpy(&ArgumentsPointer[0], (const void*)MStringRaw(Process->Path), PathLength);
     ArgumentsPointer[PathLength] = ' ';
@@ -404,6 +417,10 @@ JoinProcess(
     _In_  size_t                Timeout)
 {
     ProcessJoiner_t* Join = (ProcessJoiner_t*)malloc(sizeof(ProcessJoiner_t));
+    if (!Join) {
+        return OsOutOfMemory;
+    }
+    
     memset(Join, 0, sizeof(ProcessJoiner_t));
     TRACE("JoinProcess(%u, %u)", Process->Header.Key.Value.Id, Timeout);
     

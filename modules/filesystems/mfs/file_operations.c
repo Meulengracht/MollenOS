@@ -133,7 +133,7 @@ FsReadFromFile(
         // We do if the position we have read to equals end of bucket
         if (Position == (Handle->BucketByteBoundary + (Handle->DataBucketLength * BucketSizeBytes))) {
             Result = MfsSwitchToNextBucketLink(FileSystem, Handle, BucketSizeBytes);
-            if (Result == FsPathNotFound || Result != FsOk) {
+            if (Result != FsOk) {
                 if (Result == FsPathNotFound) {
                     Result = FsOk;
                 }

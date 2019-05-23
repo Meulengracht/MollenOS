@@ -41,6 +41,9 @@ UsbManagerCreateTransfer(
 
     // Allocate a new instance
     UsbTransfer = (UsbManagerTransfer_t*)malloc(sizeof(UsbManagerTransfer_t));
+    if (!UsbTransfer) {
+        return NULL;
+    }
     memset(UsbTransfer, 0, sizeof(UsbManagerTransfer_t));
 
     // Copy information over

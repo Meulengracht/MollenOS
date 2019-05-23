@@ -102,6 +102,9 @@ DiskRegisterFileSystem(
 
     // Allocate a new copy of the fs-structure
     Fs = (FileSystem_t*)malloc(sizeof(FileSystem_t));
+    if (!Fs) {
+        return OsOutOfMemory;
+    }
     
     // Initialize the structure
     Fs->Id = Id;
@@ -178,6 +181,10 @@ VfsRegisterDisk(
     // Allocate a new instance of a disk descriptor 
     // to store data and store initial data
     Disk = (FileSystemDisk_t*)malloc(sizeof(FileSystemDisk_t));
+    if (!Disk) {
+        return OsOutOfMemory;
+    }
+    
     Disk->Driver    = Driver;
     Disk->Device    = Device;
     Disk->Flags     = Flags;

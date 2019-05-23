@@ -16,12 +16,13 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS X86 Bus Driver 
+ * X86 Bus Driver 
  * - Enumerates the bus and registers the devices/controllers
  *   available in the system
  */
 //#define __TRACE
 
+#include <assert.h>
 #include "../../devicemanager.h"
 #include "bus.h"
 #include <ddk/acpi.h>
@@ -151,10 +152,12 @@ PciReadBars(
             // Set the upper 32 bit of the space
             Space64 |= ((uint64_t)Space32 << 32);
             Size64  |= ((uint64_t)Size32 << 32);
+#if defined(i386) || defined(__i386__)
             if (sizeof(uintptr_t) < 8 && Space64 > SIZE_MAX) {
                 WARNING("Found 64 bit device with 64 bit address, can't use it in 32 bit mode");
                 return;
             }
+#endif
 
             // Correct the size and validate
             Size64 = PciValidateBarSize(Space64, Size64, Mask64);
@@ -201,6 +204,8 @@ PciCheckFunction(
     // and the pci-device structure
     Pcs     = (PciNativeHeader_t*)malloc(sizeof(PciNativeHeader_t));
     Device  = (PciDevice_t*)malloc(sizeof(PciDevice_t));
+    assert(Pcs != NULL);
+    assert(Device != NULL);
 
     // Read entire function information
     PciReadFunction(Pcs, Parent->BusIo, (DevInfo_t)Bus, (DevInfo_t)Slot, (DevInfo_t)Function);
@@ -271,7 +276,7 @@ PciCheckFunction(
                 //           -> Swizzle-pin
                 //           -> Get parent device
                 //           -> Go-To 1
-                while (Iterator != __GlbRoot) {
+                while (Iterator && Iterator != __GlbRoot) {
                     OsStatus_t HasFilter = AcpiQueryInterrupt(
                         Iterator->Bus, Iterator->Slot, Pin, 
                         &InterruptLine, &AcpiConform);
@@ -509,6 +514,9 @@ BusEnumerate(void)
     int Function;
 
     __GlbRoot = (PciDevice_t*)malloc(sizeof(PciDevice_t));
+    if (!__GlbRoot) {
+        return OsOutOfMemory;
+    }
     memset(__GlbRoot, 0, sizeof(PciDevice_t));
 
     // Initialize a flat list of devices
@@ -540,6 +548,8 @@ BusEnumerate(void)
         // are present in system, like PS2, etc
         BusRegisterPS2Controller();
     }
+    
+    // @todo lookup mcfg table
 
     // If the mcfg table is present we have pci-e controllers onboard.
     if (McfgTable != NULL) {
@@ -573,10 +583,13 @@ BusEnumerate(void)
     else {
         // Otherwise we have traditional PCI buses
         PciBus_t *Bus = (PciBus_t*)malloc(sizeof(PciBus_t));
+        if (!Bus) {
+            return OsOutOfMemory;
+        }
         memset(Bus, 0, sizeof(PciBus_t));
 
-        __GlbRoot->BusIo    = Bus;
-        Bus->BusEnd         = 7;
+        __GlbRoot->BusIo = Bus;
+        Bus->BusEnd      = 7;
         
         // PCI buses use io
         Status = CreateDevicePortIo(&Bus->IoSpace, PCI_IO_BASE, PCI_IO_LENGTH);

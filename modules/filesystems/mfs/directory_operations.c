@@ -107,7 +107,7 @@ FsReadFromDirectory(
             TRACE("read_metrics::position %u, limit %u", LODWORD(Position), 
                 LODWORD(Handle->BucketByteBoundary + BucketSize));
             Result = MfsSwitchToNextBucketLink(FileSystem, Handle, Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize);
-            if (Result == FsPathNotFound || Result != FsOk) {
+            if (Result != FsOk) {
                 if (Result == FsPathNotFound) {
                     Result = FsOk;
                 }

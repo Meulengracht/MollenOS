@@ -39,9 +39,6 @@ FileSystemCode_t FsSeekInFile(FileSystemDescriptor_t*, MfsEntryHandle_t*, uint64
 FileSystemCode_t FsReadFromDirectory(FileSystemDescriptor_t*, MfsEntryHandle_t* , DmaBuffer_t*, size_t, size_t*, size_t*);
 FileSystemCode_t FsSeekInDirectory(FileSystemDescriptor_t*, MfsEntryHandle_t*, uint64_t);
 
-/* FsOpenEntry 
- * Fills the entry structure with information needed to access and manipulate the given path.
- * The entry can be any given type, file, directory, link etc. */
 FileSystemCode_t 
 FsOpenEntry(
     _In_  FileSystemDescriptor_t*   FileSystem,
@@ -53,26 +50,25 @@ FsOpenEntry(
     MfsEntry_t*         Entry;
 
     Entry = (MfsEntry_t*)malloc(sizeof(MfsEntry_t));
+    if (!Entry) {
+        return FsInvalidParameters;
+    }
+    
     memset(Entry, 0, sizeof(MfsEntry_t));
-
-    Result      = MfsLocateRecord(FileSystem, Mfs->MasterRecord.RootIndex, Entry, Path);
-    *BaseEntry  = (FileSystemEntry_t*)Entry;
+    Result     = MfsLocateRecord(FileSystem, Mfs->MasterRecord.RootIndex, Entry, Path);
+    *BaseEntry = (FileSystemEntry_t*)Entry;
     if (Result != FsOk) {
         free(Entry);
     }
     return Result;
 }
 
-/* FsCreatePath 
- * Creates the path specified and fills the entry structure with similar information as
- * FsOpenEntry. This function (if success) acts like FsOpenEntry. The entry type is specified
- * by options and can be any type. */
 FileSystemCode_t 
 FsCreatePath(
-    _In_  FileSystemDescriptor_t*   FileSystem,
-    _In_  MString_t*                Path,
-    _In_  Flags_t                   Options,
-    _Out_ FileSystemEntry_t**       BaseEntry)
+    _In_  FileSystemDescriptor_t* FileSystem,
+    _In_  MString_t*              Path,
+    _In_  Flags_t                 Options,
+    _Out_ FileSystemEntry_t**     BaseEntry)
 {
     MfsInstance_t*      Mfs = (MfsInstance_t*)FileSystem->ExtensionData;
     FileSystemCode_t    Result;
@@ -80,6 +76,10 @@ FsCreatePath(
     Flags_t             MfsFlags = MfsVfsFlagsToFileRecordFlags(Options, 0);
 
     Entry = (MfsEntry_t*)malloc(sizeof(MfsEntry_t));
+    if (!Entry) {
+        return FsInvalidParameters;
+    }
+    
     memset(Entry, 0, sizeof(MfsEntry_t));
     
     Result = MfsCreateRecord(FileSystem, Mfs->MasterRecord.RootIndex, Entry, Path, MfsFlags);
@@ -142,10 +142,6 @@ FsDeleteEntry(
     return Code;
 }
 
-/* FsOpenHandle 
- * Opens a new handle to a entry, this allows various interactions with the base entry, 
- * like read and write. Neccessary resources and initialization of the Handle
- * should be done here too */
 FileSystemCode_t
 FsOpenHandle(
     _In_  FileSystemDescriptor_t*   FileSystem,
@@ -156,12 +152,15 @@ FsOpenHandle(
     MfsEntryHandle_t*   Handle;
 
     Handle = (MfsEntryHandle_t*)malloc(sizeof(MfsEntryHandle_t));
+    if (!Handle) {
+        return FsInvalidParameters;
+    }
+    
     memset(Handle, 0, sizeof(MfsEntryHandle_t));
-
-    Handle->BucketByteBoundary  = 0;
-    Handle->DataBucketPosition  = Entry->StartBucket;
-    Handle->DataBucketLength    = Entry->StartLength;
-    *BaseHandle                 = &Handle->Base;
+    Handle->BucketByteBoundary = 0;
+    Handle->DataBucketPosition = Entry->StartBucket;
+    Handle->DataBucketLength   = Entry->StartLength;
+    *BaseHandle                = &Handle->Base;
     return FsOk;
 }
 
@@ -319,9 +318,14 @@ FsInitialize(
         ERROR("Failed to read mfs boot-sector record");
         goto Error;
     }
-    Mfs                         = (MfsInstance_t*)malloc(sizeof(MfsInstance_t));
-    Descriptor->ExtensionData   = (uintptr_t*)Mfs;
-    BootRecord                  = (BootRecord_t*)GetBufferDataPointer(Buffer);
+    Mfs = (MfsInstance_t*)malloc(sizeof(MfsInstance_t));
+    if (!Mfs) {
+        ERROR("Failed to allocate memory for mfs variable");
+        goto Error;
+    }
+    
+    Descriptor->ExtensionData = (uintptr_t*)Mfs;
+    BootRecord                = (BootRecord_t*)GetBufferDataPointer(Buffer);
 
     // Process the boot-record
     if (BootRecord->Magic != MFS_BOOTRECORD_MAGIC) {

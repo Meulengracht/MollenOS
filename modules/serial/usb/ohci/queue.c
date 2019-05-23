@@ -88,22 +88,22 @@ OhciQueueResetInternalData(
     Controller->TransactionQueueControlIndex = USB_ELEMENT_NO_INDEX;
 
     // Initialize the null-qh
-    NullQh->Flags           = OHCI_QH_LOWSPEED | OHCI_QH_IN | OHCI_QH_SKIP;
-    NullQh->EndPointer      = NullTdPhysical;
-    NullQh->Current         = NullTdPhysical;
-    NullQh->LinkPointer     = OHCI_LINK_HALTED;
+    NullQh->Flags       = OHCI_QH_LOWSPEED | OHCI_QH_IN | OHCI_QH_SKIP;
+    NullQh->EndPointer  = NullTdPhysical;
+    NullQh->Current     = NullTdPhysical;
+    NullQh->LinkPointer = OHCI_LINK_HALTED;
 
     // Initialize the null-td
-    NullTd->Flags           = OHCI_TD_IN | OHCI_TD_IOC_NONE;
-    NullTd->BufferEnd       = 0;
-    NullTd->Cbp             = 0;
-    NullTd->Link            = OHCI_LINK_HALTED;
+    NullTd->Flags     = OHCI_TD_IN | OHCI_TD_IOC_NONE;
+    NullTd->BufferEnd = 0;
+    NullTd->Cbp       = 0;
+    NullTd->Link      = OHCI_LINK_HALTED;
 
     // Initialize the null-isoc td
-    NullTd->Flags           = OHCI_TD_IN | OHCI_TD_IOC_NONE;
-    NullTd->BufferEnd       = 0;
-    NullTd->Cbp             = 0;
-    NullTd->Link            = OHCI_LINK_HALTED;
+    NulliTd->Flags     = OHCI_TD_IN | OHCI_TD_IOC_NONE;
+    NulliTd->BufferEnd = 0;
+    NulliTd->Cbp       = 0;
+    NulliTd->Link      = OHCI_LINK_HALTED;
     return OsSuccess;
 }
 
