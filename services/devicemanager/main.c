@@ -195,8 +195,8 @@ DmRegisterDevice(
     _In_  Flags_t               Flags,
     _Out_ UUId_t*               Id)
 {
-    MCoreDevice_t* CopyDevice = NULL;
-    DataKey_t      Key        = { 0 };
+    MCoreDevice_t* CopyDevice;
+    DataKey_t      Key = { 0 };
 
     // Argument checks
     _CRT_UNUSED(Parent);
@@ -206,7 +206,7 @@ DmRegisterDevice(
 
     // Update name 
     if (Name != NULL) {
-        memcpy(&Device->Name[0], Name, strlen(Name));
+        memcpy(&Device->Name[0], Name, strlen(Name)); // skip null term
     }
     TRACE("%u, Registered device %s, struct length %u", 
         DeviceIdGenerator, &Device->Name[0], Device->Length);
@@ -217,6 +217,10 @@ DmRegisterDevice(
 
     // Allocate our own copy of the device
     CopyDevice = (MCoreDevice_t*)malloc(Device->Length);
+    if (!CopyDevice) {
+        return OsOutOfMemory;
+    }
+    
     memcpy(CopyDevice, Device, Device->Length);
     CollectionAppend(&Devices, CollectionCreateNode(Key, CopyDevice));
 
@@ -229,10 +233,6 @@ DmRegisterDevice(
     return OsSuccess;
 }
 
-/* DmRegisterContract
- * Registers the given contact with the device-manager to let
- * the manager know we are handling this device, and what kind
- * of functionality the device supports */
 OsStatus_t
 DmRegisterContract(
     _In_  MContract_t* Contract,
@@ -261,6 +261,9 @@ DmRegisterContract(
 
     // Allocate our own copy of the contract
     CopyContract = (MContract_t*)malloc(sizeof(MContract_t));
+    if (!CopyContract) {
+        return OsOutOfMemory;
+    }
     memcpy(CopyContract, Contract, sizeof(MContract_t));
     return CollectionAppend(&Contracts, CollectionCreateNode(Key, CopyContract));
 }

@@ -48,8 +48,11 @@ AhciPortCreate(
     }
 
     AhciPort = (AhciPort_t*)malloc(sizeof(AhciPort_t));
+    if (!AhciPort) {
+        return NULL;
+    }
+    
     memset(AhciPort, 0, sizeof(AhciPort_t));
-
     AhciPort->Id           = Port;     // Sequential port number
     AhciPort->Index        = Index;    // Index in validity map
     AhciPort->Registers    = (AHCIPortRegisters_t*)((uintptr_t)Controller->Registers + AHCI_REGISTER_PORTBASE(Index)); // @todo port nr or bit index?
@@ -168,11 +171,9 @@ AhciPortFinishSetup(
         // COMINIT from the attached device, PxTFD.STS.BSY shall be set to 1 by the HBA.
         ERROR(" > failed to re-establish communication: 0x%x", Port->Registers->AtaStatus);
         if (AHCI_PORT_STSS_DET(Status) == AHCI_PORT_SSTS_DET_NOPHYCOM) {
-            return OsError;
+            return OsTimeout;
         }
-        else {
-            return OsError;
-        }
+        return OsError;
     }
 
     if (AHCI_PORT_STSS_DET(Status) == AHCI_PORT_SSTS_DET_ENABLED) {
@@ -220,6 +221,7 @@ AhciPortRebase(
     
     // Setup Recieved-FIS table
     Port->RecievedFisTable = (AHCIFis_t*)malloc(Controller->CommandSlotCount * AHCI_RECIEVED_FIS_SIZE);
+    assert(Port->RecievedFisTable != NULL);
     memset((void*)Port->RecievedFisTable, 0, Controller->CommandSlotCount * AHCI_RECIEVED_FIS_SIZE);
     
     // Iterate the 32 command headers

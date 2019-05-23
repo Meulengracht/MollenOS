@@ -146,7 +146,7 @@ EhciTransferFill(
                 else {
                     TRACE(" > Creating io packet");
                     EhciTdIo(Controller, Td, &Transfer->Transfer, &Transfer->Transfer.Transactions[i], Toggle);
-                    ByteStep    = (Td->Length & EHCI_TD_LENGTHMASK);
+                    ByteStep = (Td->Length & EHCI_TD_LENGTHMASK);
                 }
             }
 

@@ -257,6 +257,10 @@ OnLoad(void)
 {
     // Allocate a new instance of the ps2-data
     Ps2Controller = (PS2Controller_t*)malloc(sizeof(PS2Controller_t));
+    if (!Ps2Controller) {
+        return OsOutOfMemory;
+    }
+    
     memset(Ps2Controller, 0, sizeof(PS2Controller_t));
     Ps2Controller->Device.Id = UUID_INVALID;
     return OsSuccess;

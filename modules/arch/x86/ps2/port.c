@@ -68,8 +68,8 @@ PS2ResetPort(
     // Check the response byte
     // Two results are ok, AA and FA
     if (Response == PS2_SELFTEST || Response == PS2_ACK) {
-        Response = PS2ReadData(0); // We can recieve up to 3 bytes
-        Response = PS2ReadData(0); // so don't ignore anything, but ignore errors
+        (void)PS2ReadData(0); // We can recieve up to 3 bytes
+        (void)PS2ReadData(0); // so don't ignore anything, but ignore errors
         return OsSuccess;
     }
     return OsError;

@@ -200,13 +200,13 @@ MfsLocateFreeRecord(
     _In_ MfsEntry_t*                Entry,
     _In_ MString_t*                 Path)
 {
-    MfsInstance_t*      Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
-    FileSystemCode_t    Result          = FsOk;
-    MString_t*          Remaining       = NULL;
-    MString_t*          Token           = NULL;
-    uint32_t            CurrentBucket   = BucketOfDirectory;
-    int                 IsEndOfFolder   = 0;
-    int                 IsEndOfPath     = 0;
+    MfsInstance_t*      Mfs           = (MfsInstance_t*)FileSystem->ExtensionData;
+    FileSystemCode_t    Result        = FsOk;
+    MString_t*          Remaining     = NULL;
+    MString_t*          Token         = NULL;
+    uint32_t            CurrentBucket = BucketOfDirectory;
+    int                 Loop          = 1;
+    int                 IsEndOfPath   = 0;
     size_t              i;
     size_t              SectorsTransferred;
 
@@ -219,7 +219,7 @@ MfsLocateFreeRecord(
     }
 
     // Iterate untill we reach end of folder
-    while (!IsEndOfFolder) {
+    while (Loop) {
         FileRecord_t *Record = NULL;
         MapRecord_t Link;
 
@@ -340,35 +340,31 @@ MfsLocateFreeRecord(
 
         // Retrieve the next part of the directory if
         // we aren't at the end of directory
-        if (!IsEndOfFolder) {
-            // End of link?
-            // Expand directory
-            if (Link.Link == MFS_ENDOFCHAIN) {
-                // Allocate bucket
-                if (MfsAllocateBuckets(FileSystem, MFS_DIRECTORYEXPANSION, &Link) != OsSuccess) {
-                    ERROR("Failed to allocate bucket for expansion");
-                    Result = FsDiskError;
-                    goto Cleanup;
-                }
-
-                // Update link
-                if (MfsSetBucketLink(FileSystem, CurrentBucket, &Link, 1) != OsSuccess) {
-                    ERROR("Failed to update bucket-link for expansion");
-                    Result = FsDiskError;
-                    goto Cleanup;
-                }
-
-                // Zero the bucket
-                if (MfsZeroBucket(FileSystem, Link.Link, Link.Length) != OsSuccess) {
-                    ERROR("Failed to zero bucket %u", Link.Link);
-                    Result = FsDiskError;
-                    goto Cleanup;
-                }
+        if (Link.Link == MFS_ENDOFCHAIN) {
+            // Allocate bucket
+            if (MfsAllocateBuckets(FileSystem, MFS_DIRECTORYEXPANSION, &Link) != OsSuccess) {
+                ERROR("Failed to allocate bucket for expansion");
+                Result = FsDiskError;
+                goto Cleanup;
             }
 
-            // Update current bucket pointer
-            CurrentBucket = Link.Link;
+            // Update link
+            if (MfsSetBucketLink(FileSystem, CurrentBucket, &Link, 1) != OsSuccess) {
+                ERROR("Failed to update bucket-link for expansion");
+                Result = FsDiskError;
+                goto Cleanup;
+            }
+
+            // Zero the bucket
+            if (MfsZeroBucket(FileSystem, Link.Link, Link.Length) != OsSuccess) {
+                ERROR("Failed to zero bucket %u", Link.Link);
+                Result = FsDiskError;
+                goto Cleanup;
+            }
         }
+
+        // Update current bucket pointer
+        CurrentBucket = Link.Link;
     }
 
 Cleanup:

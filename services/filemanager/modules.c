@@ -68,6 +68,9 @@ VfsResolveFileSystem(
 
 	// Not found, allocate a new instance 
 	Module = (FileSystemModule_t*)malloc(sizeof(FileSystemModule_t));
+	if (!Module) {
+		return NULL;
+	}
 	Module->Type = FileSystem->Type;
 	Module->References = 1;
 	Module->Handle = HANDLE_INVALID;

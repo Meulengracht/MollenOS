@@ -44,6 +44,10 @@ HciControllerCreate(
 
     // Allocate a new instance of the controller
     Controller = (OhciController_t*)malloc(sizeof(OhciController_t));
+    if (!Controller) {
+        return NULL;
+    }
+    
     memset(Controller, 0, sizeof(OhciController_t));
     memcpy(&Controller->Base.Device, Device, Device->Length);
 

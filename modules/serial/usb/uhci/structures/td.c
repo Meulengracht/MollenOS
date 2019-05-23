@@ -171,7 +171,7 @@ UhciTdValidate(
         Transfer->Status = UhciGetStatusCode(ErrorCode);
         return; // Skip bytes transferred
     }
-    else if (ErrorCode == 0 && Transfer->Status == TransferQueued) {
+    else if (Transfer->Status == TransferQueued) {
         Transfer->Status = TransferFinished;
     }
 

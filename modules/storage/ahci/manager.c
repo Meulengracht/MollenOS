@@ -111,6 +111,9 @@ AhciManagerCreateDevice(
     Transaction = (AhciTransaction_t*)malloc(sizeof(AhciTransaction_t));
     Device      = (AhciDevice_t*)malloc(sizeof(AhciDevice_t));
     Buffer      = CreateBuffer(UUID_INVALID, sizeof(ATAIdentify_t));
+    if (!Transaction || !Device) {
+        return OsOutOfMemory;
+    }
 
     memset(Transaction, 0, sizeof(AhciTransaction_t));
     memset(Device, 0, sizeof(AhciDevice_t));

@@ -131,12 +131,11 @@ UsbReleaseAddress(
  * Queries available languages that string resources exists in for the specific device. */
 OsStatus_t
 UsbQueryLanguages(
-    _In_ UsbController_t*       Controller,
-    _In_ UsbDevice_t*           Device)
+    _In_ UsbController_t* Controller,
+    _In_ UsbDevice_t*     Device)
 {
-    // Variables
     UsbStringDescriptor_t Descriptor;
-    int i;
+    int                   i;
 
     // Get count
     Device->Base.LanguageCount = (Descriptor.Length - 2) / 2;
@@ -180,7 +179,11 @@ UsbQueryConfigurationDescriptors(
     Device->Base.MaxPowerConsumption    = (uint16_t)(Descriptor.MaxPowerConsumption * 2);
 
     // Query for the full descriptor
-    FullDescriptor                      = malloc(Descriptor.TotalLength);
+    FullDescriptor = malloc(Descriptor.TotalLength);
+    if (!FullDescriptor) {
+        return OsOutOfMemory;
+    }
+    
     if (UsbGetConfigDescriptor(Controller->DriverId, Controller->Device.Id,
         &Device->Base, &Device->ControlEndpoint, 
         FullDescriptor, Descriptor.TotalLength) != TransferFinished) {
@@ -377,6 +380,9 @@ UsbCoreControllerRegister(
 
     // Allocate a new instance and reset all members
     Controller = (UsbController_t*)malloc(sizeof(UsbController_t));
+    if (!Controller) {
+        return OsOutOfMemory;
+    }
     memset(Controller, 0, sizeof(UsbController_t));
 
     // Store initial data
@@ -467,7 +473,9 @@ UsbDeviceLoadDrivers(
                 sizeof(UsbHcEndpointDescriptor_t) * Device->Interfaces[i].Versions[0].Base.EndpointCount);
 
             // Let interface determine the class/subclass
-            memcpy(&CoreDevice.Base.Name[0], Identification, strlen(Identification));
+            if (Identification != NULL) {
+                memcpy(&CoreDevice.Base.Name[0], Identification, strlen(Identification));
+            }
             CoreDevice.Base.Subclass = (Device->Interfaces[i].Base.Class << 16) | 0; // Subclass
             TRACE("Installing driver for interface %i (0x%x)", i, CoreDevice.Base.Subclass);
             RegisterDevice(CoreDevice.DeviceId, &CoreDevice.Base, __DEVICEMANAGER_REGISTER_LOADDRIVER);
@@ -503,6 +511,9 @@ UsbDeviceSetup(
 
     // Allocate a new instance of the usb device and reset it
     Device = (UsbDevice_t*)malloc(sizeof(UsbDevice_t));
+    if (!Device) {
+        return OsOutOfMemory;
+    }
     memset(Device, 0, sizeof(UsbDevice_t));
 
     // Initialize the control-endpoint
@@ -694,19 +705,20 @@ UsbDeviceDestroy(
     return OsSuccess;
 }
 
-/* UsbPortCreate
- * Creates a port with the given index */
 UsbPort_t*
 UsbPortCreate(
-    _In_ uint8_t                Address)
+    _In_ uint8_t Address)
 {
-    // Variables
-    UsbPort_t *Port = NULL;
+    UsbPort_t* Port;
 
     // Allocate a new instance and reset all members to 0
-    Port            = (UsbPort_t*)malloc(sizeof(UsbPort_t));
+    Port = (UsbPort_t*)malloc(sizeof(UsbPort_t));
+    if (!Port) {
+        return NULL;
+    }
+    
     memset(Port, 0, sizeof(UsbPort_t));
-    Port->Address   = Address;
+    Port->Address = Address;
     return Port;
 }
 

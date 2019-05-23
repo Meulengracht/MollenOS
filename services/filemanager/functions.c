@@ -330,6 +330,9 @@ VfsResolvePath(
     TRACE("VfsResolvePath(%s)", Path);
     if (strchr(Path, ':') == NULL && strchr(Path, '$') == NULL) {
         char *BasePath  = (char*)malloc(_MAXPATH);
+        if (!BasePath) {
+            return NULL;
+        }
         memset(BasePath, 0, _MAXPATH);
         if (ProcessGetWorkingDirectory(Requester, &BasePath[0], _MAXPATH) == OsError) {
             if (VfsGuessBasePath(Path, &BasePath[0]) == OsError) {
@@ -614,10 +617,10 @@ VsfWriteEntry(
  * Seeks in the given file entry handle. Seeks to the absolute position given. */
 FileSystemCode_t
 VfsSeekInEntry(
-    _In_ UUId_t     Requester,
-    _In_ UUId_t     Handle, 
-    _In_ uint32_t   SeekLo, 
-    _In_ uint32_t   SeekHi)
+    _In_ UUId_t   Requester,
+    _In_ UUId_t   Handle, 
+    _In_ uint32_t SeekLo, 
+    _In_ uint32_t SeekHi)
 {
     FileSystemEntryHandle_t *EntryHandle = NULL;
     FileSystemCode_t Code;
@@ -645,6 +648,10 @@ VfsSeekInEntry(
     // Flush buffers before seeking
     if (!(EntryHandle->Options & __FILE_VOLATILE) && VfsEntryIsFile(EntryHandle->Entry)) {
         Code = VfsFlushFile(Requester, Handle);
+        if (Code != FsOk) {
+            TRACE("Failed to flush file before seek");
+            return Code;
+        }
     }
 
     // Perform the seek on a file-system level
@@ -839,6 +846,7 @@ VfsQueryEntryPath(
     Code = VfsOpenEntry(Requester, Path, 0, __FILE_READ_ACCESS | __FILE_READ_SHARE, &Handle);
     if (Code == FsOk) {
         Code = VfsQueryEntryHandle(Requester, Handle, Information);
+        assert(Code == FsOk);
         // No reason to check on the code, the assumption is it always go ok
         Code = VfsCloseEntry(Requester, Handle);
     }

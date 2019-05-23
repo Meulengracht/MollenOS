@@ -58,6 +58,10 @@ MsdDeviceCreate(
 
     // Allocate new resources
     Device = (MsdDevice_t*)malloc(sizeof(MsdDevice_t));
+    if (!Device) {
+        return NULL;
+    }
+    
     memset(Device, 0, sizeof(MsdDevice_t));
     memcpy(&Device->Base, UsbDevice, sizeof(MCoreUsbDevice_t));
     Device->Control = &Device->Base.Endpoints[0];

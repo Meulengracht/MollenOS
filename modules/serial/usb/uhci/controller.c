@@ -81,6 +81,10 @@ HciControllerCreate(
 
     // Allocate a new instance of the controller
     Controller = (UhciController_t*)malloc(sizeof(UhciController_t));
+    if (!Controller) {
+        return NULL;
+    }
+    
     memset(Controller, 0, sizeof(UhciController_t));
     memcpy(&Controller->Base.Device, Device, Device->Length);
 
@@ -208,7 +212,7 @@ UhciStart(
     _In_ UhciController_t* Controller,
     _In_ int               Wait)
 {
-    uint16_t OldCmd = 0;
+    uint16_t OldCmd;
     
     // Debug
     TRACE("UhciStart()");

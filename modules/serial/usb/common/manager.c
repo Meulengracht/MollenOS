@@ -185,6 +185,11 @@ UsbManagerGetToggle(
             // Create the endpoint
             UsbManagerEndpoint_t *Endpoint = NULL;
             Endpoint = (UsbManagerEndpoint_t*)malloc(sizeof(UsbManagerEndpoint_t));
+            if (!Endpoint) {
+                ERROR("Ran out of memory allocating new endpoint syncs");
+                return 0;
+            }
+            
             Endpoint->Pipe = Pipe;
             Endpoint->Toggle = 0;
 
@@ -234,6 +239,10 @@ UsbManagerSetToggle(
             // Create the endpoint
             UsbManagerEndpoint_t *Endpoint = NULL;
             Endpoint = (UsbManagerEndpoint_t*)malloc(sizeof(UsbManagerEndpoint_t));
+            if (!Endpoint) {
+                return OsOutOfMemory;
+            }
+            
             Endpoint->Pipe      = Pipe;
             Endpoint->Toggle    = Toggle;
 
@@ -325,9 +334,10 @@ UsbManagerSynchronizeTransfers(
     UsbHcAddress_t* Address = (UsbHcAddress_t*)Context;
 
     // Is this transfer relevant?
-    if (UsbManagerIsAddressesEqual(&Transfer->Transfer.Address, Address) != OsSuccess
-        && Transfer->Status != TransferQueued
-        && (Transfer->Transfer.Type != BulkTransfer || Transfer->Transfer.Type != InterruptTransfer)) {
+    if (UsbManagerIsAddressesEqual(&Transfer->Transfer.Address, Address) != OsSuccess && 
+        Transfer->Status != TransferQueued && 
+        Transfer->Transfer.Type != BulkTransfer &&
+        Transfer->Transfer.Type != InterruptTransfer) {
         return ITERATOR_CONTINUE;
     }
 

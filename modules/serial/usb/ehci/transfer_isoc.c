@@ -23,20 +23,11 @@
  */
 #define __TRACE
 
-/* Includes
- * - System */
 #include <ddk/utils.h>
 #include "ehci.h"
-
-/* Includes
- * - Library */
-#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 
-/* HciQueueTransferIsochronous 
- * Queues a new isochronous transfer for the given driver and pipe. 
- * The function does not block. */
 UsbTransferStatus_t
 HciQueueTransferIsochronous(
     _In_ UsbManagerTransfer_t*      Transfer)

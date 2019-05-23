@@ -46,7 +46,7 @@ AhciReadSectors(
     // go, so we will have to clamp some of the values. Is the sector valid first of all?
     SectorsToBeRead = Transaction->SectorCount;
     if ((SectorLBA + SectorsToBeRead) >= Transaction->Device->SectorsLBA) {
-        SectorsToBeRead = Transaction->Device->SectorsLBA - SectorLBA;
+        Transaction->SectorCount = Transaction->Device->SectorsLBA - SectorLBA;
     }
 
 	// The first thing we need to do is determine which type
@@ -94,7 +94,7 @@ AhciWriteSectors(
     // go, so we will have to clamp some of the values. Is the sector valid first of all?
     SectorsToBeWritten = Transaction->SectorCount;
     if ((SectorLBA + SectorsToBeWritten) >= Transaction->Device->SectorsLBA) {
-        SectorsToBeWritten = Transaction->Device->SectorsLBA - SectorLBA;
+        Transaction->SectorCount = Transaction->Device->SectorsLBA - SectorLBA;
     }
 
 	// The first thing we need to do is determine which type

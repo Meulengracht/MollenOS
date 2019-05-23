@@ -26,11 +26,11 @@
 #include "../include/mbr.h"
 #include <stdlib.h>
 
-/* VfsParsePartitionTable 
- * - Partition table parser function for disks 
- *   and parses only MBR, not GPT */
-OsStatus_t MbrEnumeratePartitions(FileSystemDisk_t *Disk, 
-    DmaBuffer_t *Buffer, uint64_t Sector)
+OsStatus_t
+MbrEnumeratePartitions(
+    _In_ FileSystemDisk_t* Disk, 
+    _In_ DmaBuffer_t*      Buffer,
+    _In_ uint64_t          Sector)
 {
     MasterBootRecord_t* Mbr;
     int                 PartitionCount = 0;
@@ -51,6 +51,9 @@ OsStatus_t MbrEnumeratePartitions(FileSystemDisk_t *Disk,
     // it might be overwritten by recursion here
     SeekBuffer(Buffer, 0);
     Mbr = (MasterBootRecord_t*)malloc(sizeof(MasterBootRecord_t));
+    if (!Mbr) {
+        return OsOutOfMemory;
+    }
     ReadBuffer(Buffer, (const void*)Mbr, sizeof(MasterBootRecord_t), NULL);
 
     // Now try to see if there is any valid data
