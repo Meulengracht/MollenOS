@@ -113,6 +113,7 @@ X86SwitchThread(
     MCoreThread_t* Thread = GetCurrentThreadForCore(CoreId);
     MCoreThread_t* NextThread;
     size_t         Deadline;
+    TRACE("X86SwitchThread(forced %i, passed %llu ms)", Preemptive, MillisecondsPassed);
 
     // Sanitize the status of threading, if it's not up and running
     // but a timer is, then set default values and return thread
@@ -151,14 +152,17 @@ X86SwitchThread(
         set_ts(); // Set task switch bit so we get faults on fpu instructions
     }
 
-    // If we are idle task - disable timer untill we get woken up
+    // If we are idle task - disable task priority
     if (NextThread->Flags & THREADING_IDLE) {
         ApicSetTaskPriority(0);
     }
     else {
         ApicSetTaskPriority(61 - NextThread->SchedulerObject->Queue);
-        ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * Deadline);
     }
+    
+    // Update timer to next deadline no matter if idle or not
+    TRACE("...next deadline %llu ms", Deadline);
+    ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * Deadline);
     
     // Manually update interrupt status
     InterruptSetActiveStatus(0);

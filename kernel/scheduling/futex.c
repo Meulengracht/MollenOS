@@ -19,12 +19,14 @@
  *
  */
 
+#include <arch/interrupts.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
 #include <component/cpu.h>
 #include <ds/collection.h>
 #include <futex.h>
 #include <heap.h>
+#include <os/spinlock.h>
 #include <memoryspace.h>
 #include <scheduler.h>
 #include <string.h>
@@ -41,9 +43,9 @@ typedef struct {
 
 // One per futex key
 typedef struct {
-    SafeMemoryLock_t SyncObject;
-    _Atomic(int)     Waiters;
-    Collection_t     FutexQueue;
+    spinlock_t   SyncObject;
+    _Atomic(int) Waiters;
+    Collection_t FutexQueue;
 } FutexBucket_t;
 
 static FutexBucket_t FutexBuckets[FUTEX_HASHTABLE_CAPACITY] = { { { 0 } } };
@@ -203,6 +205,7 @@ FutexWait(
     SchedulerObject_t* Object     = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
     FutexBucket_t*     FutexQueue = FutexGetBucket(Futex);
     FutexItem_t*       FutexItem;
+    IntStatus_t        CpuState;
     
     // Get the futex queue
     if (!(Flags & FUTEX_WAIT_PRIVATE)) {
@@ -213,22 +216,24 @@ FutexWait(
     Object->TimeLeft      = Timeout;
     Object->Timeout       = 0;
     Object->InterruptedAt = 0;
-        
-    dslock(&FutexQueue->SyncObject);
+    
+    CpuState = InterruptDisable();
+    spinlock_acquire(&FutexQueue->SyncObject);
     FutexItem = FutexGetNode(FutexQueue, (uintptr_t)Futex, Context);
     if (!FutexItem) {
         FutexItem = FutexCreateNode(FutexQueue, (uintptr_t)Futex, Context);
     }
+    spinlock_release(&FutexQueue->SyncObject);
     Object->WaitQueueHandle = &(FutexItem->WaitQueue);
     
     CollectionAppend(&FutexItem->WaitQueue, &Object->Header);
     if (atomic_load(Futex) != ExpectedValue) {
         (void)CollectionRemoveByNode(&FutexItem->WaitQueue, &Object->Header);
-        dsunlock(&FutexQueue->SyncObject);
+        InterruptRestoreState(CpuState);
         return OsError;
     }
     Object->State = SchedulerObjectStateBlocked;
-    dsunlock(&FutexQueue->SyncObject);
+    InterruptRestoreState(CpuState);
     ThreadingYield();
     return (Object->Timeout == 1) ? OsTimeout : OsSuccess;
 }
@@ -247,6 +252,7 @@ FutexWaitOperation(
     SchedulerObject_t* Object     = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
     FutexBucket_t*     FutexQueue = FutexGetBucket(Futex);
     FutexItem_t*       FutexItem;
+    IntStatus_t        CpuState;
     
     // Get the futex queue
     if (!(Flags & FUTEX_WAIT_PRIVATE)) {
@@ -258,23 +264,25 @@ FutexWaitOperation(
     Object->Timeout       = 0;
     Object->InterruptedAt = 0;
     
-    dslock(&FutexQueue->SyncObject);
+    CpuState = InterruptDisable();
+    spinlock_acquire(&FutexQueue->SyncObject);
     FutexItem = FutexGetNode(FutexQueue, (uintptr_t)Futex, Context);
     if (!FutexItem) {
         FutexItem = FutexCreateNode(FutexQueue, (uintptr_t)Futex, Context);
     }
+    spinlock_release(&FutexQueue->SyncObject);
     Object->WaitQueueHandle = &(FutexItem->WaitQueue);
     
     CollectionAppend(&FutexItem->WaitQueue, &Object->Header);
     if (atomic_load(Futex) != ExpectedValue) {
         (void)CollectionRemoveByNode(&FutexItem->WaitQueue, &Object->Header);
-        dsunlock(&FutexQueue->SyncObject);
+        InterruptRestoreState(CpuState);
         return OsError;
     }
     Object->State = SchedulerObjectStateBlocked;
     FutexPerformOperation(Futex2, Operation);
     FutexWake(Futex2, Count2, Flags);
-    dsunlock(&FutexQueue->SyncObject);
+    InterruptRestoreState(CpuState);
     ThreadingYield();
     return (Object->Timeout == 1) ? OsTimeout : OsSuccess;
 }
@@ -289,6 +297,7 @@ FutexWake(
     FutexBucket_t*     FutexQueue = FutexGetBucket(Futex);
     FutexItem_t*       FutexItem;
     OsStatus_t         Status;
+    IntStatus_t        CpuState;
     int                i;
     
     // Get the futex queue
@@ -296,16 +305,23 @@ FutexWake(
         Context = GetCurrentMemorySpace()->Context;
     }
     
-    dslock(&FutexQueue->SyncObject);
+    CpuState = InterruptDisable();
+    spinlock_acquire(&FutexQueue->SyncObject);
     FutexItem = FutexGetNode(FutexQueue, (uintptr_t)Futex, Context);
-    dsunlock(&FutexQueue->SyncObject);
+    spinlock_release(&FutexQueue->SyncObject);
+    InterruptRestoreState(CpuState);
     
     if (!FutexItem) {
         return OsDoesNotExist;
     }
     
     for (i = 0; i < Count; i++) {
-        Status = SchedulerUnblock(&FutexItem->WaitQueue);
+        SchedulerObject_t* Object = CollectionPopFront(&FutexItem->WaitQueue);
+        if (!Object) {
+            break;
+        }
+        
+        Status = SchedulerQueueObject(Object);
         if (Status != OsSuccess) {
             break;
         }

@@ -520,9 +520,9 @@ GetNextThread:
     if (NextThread->ContextActive == NULL) {
         NextThread->ContextActive = NextThread->Contexts[THREADING_CONTEXT_LEVEL0];
     }
-    TRACE("%u: next thread: %s (Context 0x%" PRIxIN ", IP 0x%" PRIxIN ", Slice %" PRIuIN ", Queue %i)", 
-        Core->Id, NextThread->Name, NextThread->ContextActive, CONTEXT_IP(NextThread->ContextActive), 
-        NextThread->TimeSlice, NextThread->Queue);
+    TRACE("%u: next thread: %s (Context 0x%" PRIxIN ", IP 0x%" PRIxIN ")", 
+        Core->Id, NextThread->Name, NextThread->ContextActive, 
+        CONTEXT_IP(NextThread->ContextActive));
 
     // Handle any signals pending for thread
     SignalProcess(NextThread->Header.Key.Value.Id);
