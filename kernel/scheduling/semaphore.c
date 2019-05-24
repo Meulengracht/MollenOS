@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Synchronization
+ * Synchronization (Counting Semaphores)
  * - Counting semaphores implementation, using safe passages known as
  *   atomic sections in the operating system to synchronize in a kernel env
  */
@@ -67,6 +67,7 @@ SemaphoreWait(
 {
     OsStatus_t Status;
     int        Value = atomic_fetch_sub(&Semaphore->Value, 1) - 1;
+    TRACE("SemaphoreWait(Timeout %" PRIiIN "): %i", Timeout, Value);
     
     // Essentially what we do here is make sure we wait untill the value is
     // either above/equal to zero or we were successfully woken up
@@ -105,7 +106,7 @@ SemaphoreSignal(
 
     // assert not max
     CurrentValue = atomic_load(&Semaphore->Value);
-    __STRICT_ASSERT((CurrentValue + Value) > Semaphore->MaxValue);
+    __STRICT_ASSERT((CurrentValue + Value) <= Semaphore->MaxValue);
     if ((CurrentValue + Value) <= Semaphore->MaxValue) {
         for (i = 0; i < Value; i++) {
             while ((CurrentValue + 1) <= Semaphore->MaxValue) {

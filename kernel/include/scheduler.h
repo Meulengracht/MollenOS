@@ -89,13 +89,6 @@ typedef struct {
 
 #define SCHEDULER_INIT { { 0 }, { 0 }, { { 0 } }, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0), 0 }
 
-/* SchedulerUnblock
- * Unblocks an thread from the given queue. The lock must be held while calling this
- * function. */
-KERNELAPI OsStatus_t KERNELABI
-SchedulerUnblock(
-    _In_ Collection_t* WaitQueue);
-
 /* SchedulerCreateObject
  * Creates a new scheduling object and allocates a cpu core for the object.
  * This must be done before the kernel scheduler is used for the thread. */
@@ -112,7 +105,7 @@ SchedulerDestroyObject(
 
 /* SchedulerQueueObject
  * Queues up a new object for execution, at the next available timeslot. */
-KERNELAPI void KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 SchedulerQueueObject(
     _In_ SchedulerObject_t* Object);
 

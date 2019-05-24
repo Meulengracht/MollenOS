@@ -28,7 +28,7 @@
 #include <debug.h>
 #include <heap.h>
 
-static UUId_t        InterruptHandlers[CpuFunctionCount] = { UUID_INVALID };
+static UUId_t        InterruptHandlers[CpuFunctionCount] = { 0 };
 static MemoryCache_t IpiItemCache                        = { 0 };
 
 InterruptStatus_t
@@ -68,10 +68,16 @@ void
 InitializeInterruptHandlers(void)
 {
     DeviceInterrupt_t Interrupt = { { 0 } };
+    int               i;
 
     // Initialize the ipi cache
     MemoryCacheConstruct(&IpiItemCache, "ipi_cache", 
         sizeof(SystemCoreFunctionItem_t), 0, 0, NULL, NULL);
+        
+    // Initialize the interrupt handlers array
+    for (i = 0; i < CpuFunctionCount; i++) {
+        InterruptHandlers[i] = UUID_INVALID;
+    }
 
     // Install default software interrupts
     Interrupt.Vectors[0]            = INTERRUPT_NONE;
