@@ -16,7 +16,7 @@
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;
 ;
-; MollenOS x86-64 Descriptor Assembly Functions
+; x86-64 Descriptor Assembly Functions
 ;
 bits 64
 segment .text
@@ -34,7 +34,7 @@ global __getcr2
 
 ;Externs, common entry points
 extern ExceptionEntry
-extern InterruptEntry
+extern InterruptHandle
 extern SystemCallsTable
 
 ; void __wbinvd(void)
@@ -165,15 +165,16 @@ irq_common:
     save_state
 
 	; Set current stack as argument 1
+	; Set tableindex as argument 2
     mov rcx, rsp
+    mov rdx, [rsp + 160]
+    add rdx, 32
     sub rsp, 0x28 ; microsoft home-space + 8 to align
-	call InterruptEntry
-	add rsp, 0x28 ; cleanup microsoft home-space
+	call InterruptHandle
+	mov rsp, rax
 
 	; When we return, restore state
 	restore_state
-
-	; Cleanup irq & error code from stack
 	add rsp, 0x10
 	iretq
 

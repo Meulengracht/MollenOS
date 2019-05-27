@@ -31,8 +31,7 @@
 #include <os/context.h>
 
 // Kernel specific interrupt models
-#define INTERRUPT_KERNEL                0x10000000
-#define INTERRUPT_CONTEXT               0x20000000
+#define INTERRUPT_KERNEL 0x10000000
 
 typedef struct _SystemInterrupt {
     DeviceInterrupt_t               Interrupt;
@@ -100,13 +99,11 @@ KERNELAPI int KERNELABI
 InterruptGetActiveStatus(void);
 
 /* InterruptHandle
- * Handles an interrupt by invoking the registered handlers
- * on the given table-index. */
-KERNELAPI InterruptStatus_t KERNELABI
+ * Handles an interrupt by invoking the registered handlers on the given table-index. */
+KERNELAPI Context_t* KERNELABI
 InterruptHandle(
-    _In_  Context_t*        Context,
-    _In_  int               TableIndex,
-    _Out_ int*              Source);
+    _In_  Context_t* Context,
+    _In_  int        TableIndex);
 
 /* InterruptIncreasePenalty 
  * Increases the penalty for an interrupt source. This affects how the system allocates

@@ -41,7 +41,6 @@
 #include <stdio.h>
 
 extern size_t GlbTimerQuantum;
-extern void enter_thread(Context_t *Regs);
 extern void load_fpu(uintptr_t *buffer);
 extern void load_fpu_extended(uintptr_t *buffer);
 extern void save_fpu(uintptr_t *buffer);
@@ -92,10 +91,14 @@ void
 ThreadingYield(void)
 {
     // Never yield in interrupt handlers, could cause wierd stuff to happen
+    // instead keep track of how nested we are, flag for yield and do it on the way
+    // out of last nesting to ensure we've run all interrupt handlers
     if (InterruptGetActiveStatus()) {
         if (ThreadingIsCurrentTaskIdle(ArchGetProcessorCoreId())) {
-            ApicSetTaskPriority(0);
-            ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum);
+            OsStatus_t Status = ApicSendInterrupt(InterruptSelf, UUID_INVALID, INTERRUPT_LAPIC);
+            if (Status != OsSuccess) {
+                FATAL(FATAL_SCOPE_KERNEL, "Failed to deliver IPI signal");
+            }
         }
     }
     else {
@@ -103,30 +106,26 @@ ThreadingYield(void)
     }
 }
 
+// When performing a thread switch we want low priority to run all other
+// interrupt handlers first, however we want to not be interrupted during
+// switch
 void
 X86SwitchThread(
-    _In_ Context_t* Context,
-    _In_ int        Preemptive,
-    _In_ size_t     MillisecondsPassed)
+    _In_ int    Preemptive,
+    _In_ size_t MillisecondsPassed)
 {
-    UUId_t         CoreId = ArchGetProcessorCoreId();
-    MCoreThread_t* Thread = GetCurrentThreadForCore(CoreId);
-    MCoreThread_t* NextThread;
-    size_t         Deadline;
+    SystemCpuCore_t* Core    = GetCurrentProcessorCore();
+    MCoreThread_t*   Thread  = Core->CurrentThread;
+    MCoreThread_t*   NextThread;
+    size_t           Deadline;
     TRACE("X86SwitchThread(forced %i, passed %llu ms)", Preemptive, MillisecondsPassed);
 
     // Sanitize the status of threading, if it's not up and running
     // but a timer is, then set default values and return thread
     if (Thread == NULL) {
-        ApicSetTaskPriority(0);
         ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * 20);
-        InterruptSetActiveStatus(0);
-        enter_thread(Context);
-        // -- no return
+        return;
     }
-    
-    // Store active context
-    Thread->ContextActive = Context;
     
     // Save FPU/MMX/SSE information if it's
     // been used, otherwise skip this and save time
@@ -147,8 +146,8 @@ X86SwitchThread(
         
         // Load thread-specific resources
         SwitchMemorySpace(NextThread->MemorySpace);
-        TssUpdateThreadStack(CoreId, (uintptr_t)NextThread->Contexts[THREADING_CONTEXT_LEVEL0]);
-        TssUpdateIo(CoreId, (uint8_t*)NextThread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
+        TssUpdateThreadStack(Core->Id, (uintptr_t)NextThread->Contexts[THREADING_CONTEXT_LEVEL0]);
+        TssUpdateIo(Core->Id, (uint8_t*)NextThread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
         set_ts(); // Set task switch bit so we get faults on fpu instructions
     }
 
@@ -163,8 +162,4 @@ X86SwitchThread(
     // Update timer to next deadline no matter if idle or not
     TRACE("...next deadline %llu ms", Deadline);
     ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * Deadline);
-    
-    // Manually update interrupt status
-    InterruptSetActiveStatus(0);
-    enter_thread(NextThread->ContextActive);
 }

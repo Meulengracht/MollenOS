@@ -1,6 +1,6 @@
 ; MollenOS
 ;
-; Copyright 2011-2014, Philip Meulengracht
+; Copyright 2011, Philip Meulengracht
 ;
 ; This program is free software: you can redistribute it and/or modify
 ; it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;
 ;
-; MollenOS x86-32 Descriptor Assembly Functions
+; x86-32 Descriptor Assembly Functions
 ;
 bits 32
 segment .text
@@ -34,7 +34,7 @@ global ___getcr2
 
 ;Externs, common entry points
 extern _ExceptionEntry
-extern _InterruptEntry
+extern _InterruptHandle
 extern _SystemCallsTable
 
 ; Save segments, registers and switch to kernel land 
@@ -141,9 +141,12 @@ _exception_common:
 _irq_common:
     save_state
 
-    ; Push registers as pointer to struct
+	; Set current stack as argument 1
+	; Set tableindex as argument 2
+	mov eax, [esp + 48]
+	push eax
     push esp
-    call _InterruptEntry
+    call _InterruptHandle ; (context_t*, uint)
     add esp, 0x4
 
     restore_state

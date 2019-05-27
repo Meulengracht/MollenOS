@@ -48,11 +48,9 @@ static InterruptTableEntry_t InterruptTable[MAX_SUPPORTED_INTERRUPTS] = { { 0 } 
 static SafeMemoryLock_t      InterruptTableSyncObject = { 0 };
 static _Atomic(UUId_t)       InterruptIdGenerator     = ATOMIC_VAR_INIT(0);
 
-/* InterruptIncreasePenalty 
- * Increases the penalty for an interrupt source. */
 OsStatus_t
 InterruptIncreasePenalty(
-    _In_ int                Source)
+    _In_ int Source)
 {
     // Sanitize the requested source bounds
     if (Source < 0 || Source >= MAX_SUPPORTED_INTERRUPTS) {
@@ -62,11 +60,9 @@ InterruptIncreasePenalty(
     return OsSuccess;
 }
 
-/* InterruptDecreasePenalty 
- * Decreases the penalty for an interrupt source. */
 OsStatus_t
 InterruptDecreasePenalty(
-    _In_ int                Source)
+    _In_ int Source)
 {
     // Sanitize the requested source bounds
     if (Source < 0 || Source >= MAX_SUPPORTED_INTERRUPTS) {
@@ -76,12 +72,9 @@ InterruptDecreasePenalty(
     return OsSuccess;
 }
 
-/* InterruptGetPenalty
- * Retrieves the penalty for an interrupt source. 
- * If INTERRUPT_NONE is returned the source is unavailable. */
 int
 InterruptGetPenalty(
-    _In_ int                Source)
+    _In_ int Source)
 {
     // Sanitize the requested source bounds
     if (Source < 0 || Source >= MAX_SUPPORTED_INTERRUPTS) {
@@ -96,9 +89,6 @@ InterruptGetPenalty(
     return InterruptTable[Source].Penalty;
 }
 
-/* InterruptGetLeastLoaded
- * Returns the least loaded interrupt source currently. 
- * Out of the given available interrupt sources. */
 int
 InterruptGetLeastLoaded(
     _In_ int Irqs[],
@@ -136,12 +126,12 @@ InterruptGetLeastLoaded(
 
 /* InterruptCleanupIoResources
  * Releases all kernel copies of the io-resources. */
-OsStatus_t
+static OsStatus_t
 InterruptCleanupIoResources(
     _In_ SystemInterrupt_t* Interrupt)
 {
-    FastInterruptResourceTable_t* Resources     = &Interrupt->KernelResources;
-    OsStatus_t Status                           = OsSuccess;
+    FastInterruptResourceTable_t* Resources = &Interrupt->KernelResources;
+    OsStatus_t                    Status    = OsSuccess;
 
     for (int i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
         if (Resources->IoResources[i] != NULL) {
@@ -159,13 +149,13 @@ InterruptCleanupIoResources(
 /* InterruptResolveIoResources
  * Retrieves kernel copies of all requested io-resources, and remaps them into
  * kernel space to allow the handler to access them. */
-OsStatus_t
+static OsStatus_t
 InterruptResolveIoResources(
     _In_ SystemInterrupt_t* Interrupt)
 {
-    FastInterruptResourceTable_t* Source        = &Interrupt->Interrupt.FastInterrupt;
-    FastInterruptResourceTable_t* Destination   = &Interrupt->KernelResources;
-    OsStatus_t Status                           = OsSuccess;
+    FastInterruptResourceTable_t* Source      = &Interrupt->Interrupt.FastInterrupt;
+    FastInterruptResourceTable_t* Destination = &Interrupt->KernelResources;
+    OsStatus_t                    Status      = OsSuccess;
 
     for (int i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
         if (Source->IoResources[i] != NULL) {
@@ -186,7 +176,7 @@ InterruptResolveIoResources(
 
 /* InterruptCleanupMemoryResources
  * Releases all memory copies of the interrupt memory resources. */
-OsStatus_t
+static OsStatus_t
 InterruptCleanupMemoryResources(
     _In_ SystemInterrupt_t* Interrupt)
 {
@@ -213,7 +203,7 @@ InterruptCleanupMemoryResources(
 /* InterruptResolveMemoryResources
  * Retrieves kernel copies of all requested memory-resources, and remaps them into
  * kernel space to allow the handler to access them. */
-OsStatus_t
+static OsStatus_t
 InterruptResolveMemoryResources(
     _In_ SystemInterrupt_t* Interrupt)
 {
@@ -255,7 +245,7 @@ InterruptResolveMemoryResources(
 /* InterruptResolveResources
  * Maps the neccessary fast-interrupt resources into kernel space
  * and allowing the interrupt handler to access the requested memory spaces. */
-OsStatus_t
+static OsStatus_t
 InterruptResolveResources(
     _In_ SystemInterrupt_t* Interrupt)
 {
@@ -302,7 +292,7 @@ InterruptResolveResources(
 
 /* InterruptReleaseResources
  * Releases previously allocated resources for the system interrupt. */
-OsStatus_t
+static OsStatus_t
 InterruptReleaseResources(
     _In_ SystemInterrupt_t* Interrupt)
 {
@@ -565,24 +555,35 @@ SendModuleInterrupt(
     return ScRpcExecute(&Request, 1);
 }
 
-InterruptStatus_t
+Context_t*
 InterruptHandle(
     _In_  Context_t* Context,
-    _In_  int        TableIndex,
-    _Out_ int*       Source)
+    _In_  int        TableIndex)
 {
+    SystemCpuCore_t*   Core     = GetCurrentProcessorCore();
+    uint32_t           Priority = InterruptsGetPriority();
+    int                Source   = INTERRUPT_NONE;
+    InterruptStatus_t  Result   = InterruptNotHandled;
     SystemInterrupt_t* Entry;
-    InterruptStatus_t  Result = InterruptNotHandled;
+    InterruptsSetPriority(TableIndex);
+
+    if (!Core->InterruptNesting) {
+        InterruptSetActiveStatus(1);
+        Core->InterruptRegisters = Context;
+        Core->InterruptPriority  = Priority;
+    }
+    Core->InterruptNesting++;
+#ifdef __OSCONFIG_NESTED_INTERRUPTS
+    InterruptEnable();
+#endif
 
     // Update current status
-    InterruptSetActiveStatus(1);
     Entry = InterruptTable[TableIndex].Descriptor;
     while (Entry != NULL) {
         if (Entry->Flags & INTERRUPT_KERNEL) {
-            void* Data  = (Entry->Flags & INTERRUPT_CONTEXT) != 0 ? (void*)Context : Entry->Interrupt.Context;
-            Result      = Entry->Interrupt.FastInterrupt.Handler(GetFastInterruptTable(), Data);
+            Result = Entry->Interrupt.FastInterrupt.Handler(GetFastInterruptTable(), Entry->Interrupt.Context);
             if (Result != InterruptNotHandled) {
-                *Source = Entry->Source;
+                Source = Entry->Source;
                 break;
             }
         }
@@ -597,12 +598,27 @@ InterruptHandle(
                     OsStatus_t Status = SendModuleInterrupt(Entry->ModuleHandle, Entry->Id, Entry->Interrupt.Context);
                     assert(Status == OsSuccess);
                 }
-                *Source = Entry->Source;
+                Source = Entry->Source;
                 break;
             }
         }
         Entry = Entry->Link;
     }
-    InterruptSetActiveStatus(0);
-    return Result;
+    
+    InterruptsAcknowledge(Source, TableIndex);
+    
+#ifdef __OSCONFIG_NESTED_INTERRUPTS
+    InterruptDisable();
+#endif
+    Core->InterruptNesting--;
+    if (!Core->InterruptNesting) {
+        Context = Core->InterruptRegisters;
+        Core->InterruptRegisters = NULL;
+        InterruptsSetPriority(Core->InterruptPriority);
+        InterruptSetActiveStatus(0);
+    }
+    else {
+        InterruptsSetPriority(Priority);
+    }
+    return Context;
 }

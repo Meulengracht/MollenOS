@@ -477,6 +477,9 @@ ThreadingAdvance(
     Core    = GetCurrentProcessorCore();
     Cleanup = atomic_load_explicit(&Current->Cleanup, memory_order_relaxed);
     
+    // Store active context
+    Current->ContextActive = Core->InterruptRegisters;
+    
     TRACE("%u: current thread: %s (Context 0x%" PRIxIN ", IP 0x%" PRIxIN ", PreEmptive %i)",
         Core->Id, Current->Name, *Context, CONTEXT_IP((*Context)), PreEmptive);
 GetNextThread:
@@ -526,6 +529,7 @@ GetNextThread:
 
     // Handle any signals pending for thread
     SignalProcess(NextThread->Header.Key.Value.Id);
-    Core->CurrentThread = NextThread;
+    Core->CurrentThread      = NextThread;
+    Core->InterruptRegisters = NextThread->ContextActive;
     return NextThread;
 }

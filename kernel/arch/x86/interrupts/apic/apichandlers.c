@@ -31,10 +31,12 @@ extern size_t GlbTimerQuantum;
 
 InterruptStatus_t
 ApicTimerHandler(
-    _In_ FastInterruptResources_t*  NotUsed,
-    _In_ void*                      Context)
+    _In_ FastInterruptResources_t* NotUsed,
+    _In_ void*                     Context)
 {
     _CRT_UNUSED(NotUsed);
+    _CRT_UNUSED(Context);
+    
     uint32_t Count  = ApicReadLocal(APIC_CURRENT_COUNT);
     uint32_t Passed = ApicReadLocal(APIC_INITIAL_COUNT) - Count;
     if (Count != 0) {
@@ -42,8 +44,7 @@ ApicTimerHandler(
     }
     
     ApicSendEoi(APIC_NO_GSI, INTERRUPT_LAPIC);
-    X86SwitchThread((Context_t*)Context, Count == 0 ? 1 : 0,
-        DIVUP(Passed, GlbTimerQuantum));
+    X86SwitchThread(Count == 0 ? 1 : 0, DIVUP(Passed, GlbTimerQuantum));
     return InterruptHandled;
 }
 

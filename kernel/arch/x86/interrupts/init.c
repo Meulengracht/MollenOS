@@ -51,7 +51,7 @@ InitializeSoftwareInterrupts(void)
     Interrupt.Line                  = INTERRUPT_LAPIC;
     Interrupt.FastInterrupt.Handler = ApicTimerHandler;
     InterruptRegister(&Interrupt, INTERRUPT_SOFT | INTERRUPT_KERNEL 
-        | INTERRUPT_NOTSHARABLE | INTERRUPT_CONTEXT);
+        | INTERRUPT_NOTSHARABLE);
 }
 
 OsStatus_t

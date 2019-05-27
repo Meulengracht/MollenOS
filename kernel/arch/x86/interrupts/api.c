@@ -348,3 +348,22 @@ InterruptIsDisabled(void)
 {
     return !InterruptSaveState();
 }
+
+
+uint32_t
+InterruptsGetPriority(void)
+{
+    return ApicGetTaskPriority();
+}
+
+void
+InterruptsSetPriority(uint32_t Priority)
+{
+    ApicSetTaskPriority(Priority);
+}
+
+void
+InterruptsAcknowledge(int Source, uint32_t TableIndex)
+{
+    ApicSendEoi(Source, TableIndex);
+}

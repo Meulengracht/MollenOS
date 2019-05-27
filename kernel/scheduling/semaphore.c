@@ -81,7 +81,7 @@ SemaphoreWait(
         // issues try again, OsError is returned.
         // Break out on timeouts and also successfully waiting. If we timeout we should
         // correct for the spot we are not using?
-        Status = FutexWait(&Semaphore->Value, Value, Timeout, FUTEX_WAIT_PRIVATE);
+        Status = FutexWait(&Semaphore->Value, Value, FUTEX_WAIT_PRIVATE, Timeout);
         if (Status != OsError) {
             if (Status == OsTimeout) {
                 atomic_fetch_add(&Semaphore->Value, 1);
