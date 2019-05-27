@@ -18,12 +18,15 @@
  * Futex Synchronization
  *
  */
+#define __MODULE "FUTX"
+//#define __TRACE
 
 #include <arch/interrupts.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
 #include <component/cpu.h>
 #include <ds/collection.h>
+#include <debug.h>
 #include <futex.h>
 #include <heap.h>
 #include <os/spinlock.h>
@@ -90,9 +93,8 @@ FutexGetNode(
 {
     foreach(Node, &Bucket->FutexQueue) {
         FutexItem_t* Item = (FutexItem_t*)Node;
-        if (FutexAddress == Item->FutexAddress &&
-            Item->Context == Context) {
-            // found
+        if (Item->FutexAddress == FutexAddress &&
+            Item->Context      == Context) {
             return Item;
         }
     }
@@ -206,6 +208,10 @@ FutexWait(
     FutexBucket_t*     FutexQueue = FutexGetBucket(Futex);
     FutexItem_t*       FutexItem;
     IntStatus_t        CpuState;
+    TRACE("%u: FutexWait(f 0x%llx, t %u)", GetCurrentThreadId(), Futex, Timeout);
+    
+    // Increase waiter count
+    atomic_fetch_add(&FutexQueue->Waiters, 1);
     
     // Get the futex queue
     if (!(Flags & FUTEX_WAIT_PRIVATE)) {
@@ -235,6 +241,11 @@ FutexWait(
     Object->State = SchedulerObjectStateBlocked;
     InterruptRestoreState(CpuState);
     ThreadingYield();
+    
+    // Decrease waiter count
+    atomic_fetch_sub(&FutexQueue->Waiters, 1);
+    
+    TRACE("%u: woke up", GetCurrentThreadId());
     return (Object->Timeout == 1) ? OsTimeout : OsSuccess;
 }
 
@@ -253,6 +264,10 @@ FutexWaitOperation(
     FutexBucket_t*     FutexQueue = FutexGetBucket(Futex);
     FutexItem_t*       FutexItem;
     IntStatus_t        CpuState;
+    TRACE("%u: FutexWaitOperation(f 0x%llx, t %u)", GetCurrentThreadId(), Futex, Timeout);
+    
+    // Increase waiter count
+    atomic_fetch_add(&FutexQueue->Waiters, 1);
     
     // Get the futex queue
     if (!(Flags & FUTEX_WAIT_PRIVATE)) {
@@ -284,6 +299,11 @@ FutexWaitOperation(
     FutexWake(Futex2, Count2, Flags);
     InterruptRestoreState(CpuState);
     ThreadingYield();
+    
+    // Decrease waiter count
+    atomic_fetch_sub(&FutexQueue->Waiters, 1);
+    
+    TRACE("%u: woke up", GetCurrentThreadId());
     return (Object->Timeout == 1) ? OsTimeout : OsSuccess;
 }
 
@@ -301,7 +321,7 @@ FutexWake(
     int                i;
     
     // Get the futex queue
-    if (!(Flags & FUTEX_WAIT_PRIVATE)) {
+    if (!(Flags & FUTEX_WAKE_PRIVATE)) {
         Context = GetCurrentMemorySpace()->Context;
     }
     
@@ -316,7 +336,7 @@ FutexWake(
     }
     
     for (i = 0; i < Count; i++) {
-        SchedulerObject_t* Object = CollectionPopFront(&FutexItem->WaitQueue);
+        SchedulerObject_t* Object = (SchedulerObject_t*)CollectionPopFront(&FutexItem->WaitQueue);
         if (!Object) {
             break;
         }
@@ -340,6 +360,7 @@ FutexWakeOperation(
 {
     OsStatus_t Status;
     int        InitialValue;
+    TRACE("%u: FutexWakeOperation(f 0x%llx)", GetCurrentThreadId(), Futex);
     
     InitialValue = atomic_load(Futex);
     FutexPerformOperation(Futex2, Operation);

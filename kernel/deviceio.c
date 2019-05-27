@@ -35,12 +35,9 @@
 #include <debug.h>
 #include <heap.h>
 
-static Collection_t IoSpaces                = COLLECTION_INIT(KeyId);
-static _Atomic(UUId_t) IoSpaceIdGenerator   = 1;
+static Collection_t IoSpaces              = COLLECTION_INIT(KeyId);
+static _Atomic(UUId_t) IoSpaceIdGenerator = 1;
 
-/* RegisterSystemDeviceIo
- * Registers a new device memory io with the operating system. If this memory range
- * overlaps any existing io range, this request will be denied by the system. */
 OsStatus_t
 RegisterSystemDeviceIo(
     _In_ DeviceIo_t* IoSpace)
@@ -63,9 +60,6 @@ RegisterSystemDeviceIo(
     return CollectionAppend(&IoSpaces, &SystemIo->Header);
 }
 
-/* DestroySystemDeviceIo
- * Unregisters a device-io with the operating system, releasing all resources
- * associated and disabling the io range for use. */
 OsStatus_t
 DestroySystemDeviceIo(
     _In_ DeviceIo_t* IoSpace)
@@ -87,9 +81,6 @@ DestroySystemDeviceIo(
     return OsSuccess;
 }
 
-/* AcquireSystemDeviceIo
- * Tries to claim a given io-space, only one driver can claim a single io-space 
- * at a time, to avoid two drivers using the same device */
 OsStatus_t
 AcquireSystemDeviceIo(
     _In_ DeviceIo_t* IoSpace)
@@ -155,9 +146,6 @@ AcquireSystemDeviceIo(
     return OsError;
 }
 
-/* ReleaseSystemDeviceIo
- * Tries to release a given io-space, only one driver can claim a single io-space 
- * at a time, to avoid two drivers using the same device */
 OsStatus_t
 ReleaseSystemDeviceIo(
     _In_ DeviceIo_t*    IoSpace)
@@ -211,9 +199,6 @@ ReleaseSystemDeviceIo(
     return OsSuccess;
 }
 
-/* AcquireKernelSystemDeviceIo
- * Creates a kernel mapped copy of the passed device-io. This can then be released
- * and cleaned up by the opposite call. */
 OsStatus_t
 CreateKernelSystemDeviceIo(
     _In_  DeviceIo_t*  SourceIoSpace,
@@ -251,8 +236,6 @@ CreateKernelSystemDeviceIo(
     return OsSuccess;
 }
 
-/* ReleaseKernelSystemDeviceIo 
- * Releases the kernel mapped copy of the passed device-io. */
 OsStatus_t
 ReleaseKernelSystemDeviceIo(
     _In_ DeviceIo_t* SystemIoSpace)
@@ -282,10 +265,7 @@ ReleaseKernelSystemDeviceIo(
     return OsSuccess;
 }
 
-/* ValidateDeviceIoMemoryAddress (@interrupt_context)
- * Tries to validate the given virtual address by 
- * checking if any process has an active io-space
- * that involves that virtual address */
+// @interrupt context
 uintptr_t
 ValidateDeviceIoMemoryAddress(
     _In_ uintptr_t Address)

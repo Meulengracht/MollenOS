@@ -22,7 +22,6 @@ bits 64
 segment .text
 
 ;Functions in this asm
-global init_sse
 global init_fpu
 global save_fpu
 global save_fpu_extended
@@ -33,38 +32,6 @@ global set_ts
 global _rdtsc
 global _rdmsr
 global _yield
-global enter_thread
-
-%macro restore_segments 0
-    pop gs
-    pop fs
-    mov es, qword [rsp]
-    mov ds, qword [rsp + 8]
-    add rsp, 16
-%endmacro
-
-%macro restore_state 0
-    ; Restore registers
-    pop rdi
-    pop rsi
-    pop rbp
-    add rsp, 8 ; skip rsp
-    pop rbx
-    pop rdx
-    pop rcx
-    pop rax
-
-    pop r8
-    pop r9
-    pop r10
-    pop r11
-    pop r12
-    pop r13
-    pop r14
-    pop r15
-    
-    restore_segments
-%endmacro
 
 ; void _yield(void)
 ; Yields
@@ -141,13 +108,3 @@ _rdmsr:
     pop rdx
     mov qword [rdx], rax
     ret
-
-; void enter_thread(registers_t *stack)
-; Switches stack and far jumps to next task
-enter_thread:
-    mov rsp, rcx
-    restore_state
-
-    ; Cleanup irq & error code from stack
-    add rsp, 0x10
-    iretq

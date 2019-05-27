@@ -47,32 +47,23 @@ InterruptConfigure(
     _In_ SystemInterrupt_t* Descriptor,
     _In_ int                Enable);
 
-/* InterruptDisable
- * Disables interrupts and returns the state before disabling */
-KERNELAPI IntStatus_t KERNELABI
-InterruptDisable(void);
+/* Interrupts
+ * Used for manipulation of interrupt state. */
+KERNELAPI IntStatus_t KERNELABI InterruptDisable(void);
+KERNELAPI IntStatus_t KERNELABI InterruptEnable(void);
+KERNELAPI IntStatus_t KERNELABI InterruptRestoreState(IntStatus_t State);
+KERNELAPI IntStatus_t KERNELABI InterruptSaveState(void);
+KERNELAPI int         KERNELABI InterruptIsDisabled(void);
 
-/* InterruptEnable
- * Enables interrupts and returns the state before enabling */
-KERNELAPI IntStatus_t KERNELABI
-InterruptEnable(void);
+/* InterruptsPriority
+ * Set or get the current core task priority. Can be used to leverage hardware
+ * prioritization for optimizing delivery of interrupts. */
+KERNELAPI uint32_t KERNELABI InterruptsGetPriority(void);
+KERNELAPI void     KERNELABI InterruptsSetPriority(uint32_t Priority);
 
-/* InterruptRestoreState
- * Restores the interrupt-status to the given
- * state, that must have been saved from SaveState */
-KERNELAPI IntStatus_t KERNELABI
-InterruptRestoreState(
-    _In_ IntStatus_t State);
-
-/* InterruptSaveState
- * Retrieves the current state of interrupts */
-KERNELAPI IntStatus_t KERNELABI
-InterruptSaveState(void);
-
-/* InterruptIsDisabled
- * Returns 1 if interrupts are currently
- * disabled or 0 if interrupts are enabled */
-KERNELAPI int KERNELABI
-InterruptIsDisabled(void);
+/* InterruptsAcknowledge
+ * Acknowledge interrupt with the source (interrupt line) and the table index, which
+ * is the virtual table entry. */
+KERNELAPI void KERNELABI InterruptsAcknowledge(int Source, uint32_t TableIndex);
 
 #endif //!__VALI_ARCH_INTERRUPT_H__

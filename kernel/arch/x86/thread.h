@@ -41,8 +41,7 @@
  * are ready, it switches to Idle thread */
 KERNELAPI void KERNELABI
 X86SwitchThread(
-    _In_ Context_t* Context,
-    _In_ int        Preemptive,
-    _In_ size_t     MillisecondsPassed);
+    _In_ int    Preemptive,
+    _In_ size_t MillisecondsPassed);
 
 #endif // !_MCORE_THREAD_H_

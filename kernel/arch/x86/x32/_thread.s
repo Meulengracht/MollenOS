@@ -22,7 +22,6 @@ bits 32
 segment .text
 
 ;Functions in this asm
-global _init_sse
 global _init_fpu
 global _save_fpu
 global _save_fpu_extended
@@ -33,7 +32,6 @@ global _set_ts
 global __rdtsc
 global __rdmsr
 global __yield
-global _enter_thread
 
 ; void _yield(void)
 ; Yields
@@ -113,26 +111,3 @@ __rdmsr:
 	mov [ecx], eax
 	mov [ecx + 4], edx
 	ret
-
-; void enter_thread(registers_t *stack)
-; Switches stack and far jumps to next task
-_enter_thread:
-
-	; Get pointer
-	mov eax, [esp + 4]
-	mov esp, eax
-
-	; When we return, restore state
-	popad
-
-	; Restore segments
-	pop gs
-	pop fs
-	pop es
-	pop ds
-
-	; Cleanup IrqNum & IrqErrorCode from stack
-	add esp, 0x8
-
-	; Return
-	iret
