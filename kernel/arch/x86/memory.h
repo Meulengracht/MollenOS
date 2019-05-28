@@ -28,6 +28,8 @@
 #include <machine.h>
 #include <paging.h>
 
+typedef struct _FastInterruptResources FastInterruptResources_t;
+
 // Shared bitfields
 #define PAGE_PRESENT            0x1
 #define PAGE_WRITE              0x2

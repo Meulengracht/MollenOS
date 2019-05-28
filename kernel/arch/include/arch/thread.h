@@ -49,17 +49,17 @@ ThreadingUnregister(
 KERNELAPI void KERNELABI
 ThreadingYield(void);
 
-/* ContextPushInterceptor
- * Adds an interceptor function that gets executed upon return of 
- * of thread. This will then be the next thing executed. Optionally a safe
- * stack can be provided that will be used for execution. */
+/* SaveThreadState
+ * Saves the current state for the thread passed as parameter. */
 void
-ContextPushInterceptor(
-    _In_     Context_t* Context,
-    _In_     uintptr_t  Address,
-    _In_Opt_ uintptr_t* SafeStack,
-    _In_     uintptr_t  Argument0,
-    _In_     uintptr_t  Argument1);
+SaveThreadState(
+    _In_ MCoreThread_t* Thread);
+
+/* RestoreThreadState
+ * Restores the thread state to allow the thread to run next. */
+void
+RestoreThreadState(
+    _In_ MCoreThread_t* Thread);
 
 /* ContextCreate
  * Creates a new context for a thread, a type and the flags for which
@@ -74,10 +74,22 @@ KERNELAPI void KERNELABI
 ContextReset(
     _In_ Context_t* Context,
     _In_ int        ContextType,
-	_In_ uintptr_t  EntryAddress,
-    _In_ uintptr_t  ReturnAddress,
+    _In_ uintptr_t  Address,
     _In_ uintptr_t  Argument0,
-    _In_ uintptr_t  Argument1);
+    _In_ uintptr_t  Argument1,
+    _In_ uintptr_t  Argument2); 
+
+/* ContextPushInterceptor
+ * Adds an interceptor function that gets executed upon return of 
+ * of thread. This will then be the next thing executed. Optionally a safe
+ * stack can be provided that will be used for execution. */
+void
+ContextPushInterceptor(
+    _In_ Context_t* Context,
+    _In_ uintptr_t  Address,
+    _In_ uintptr_t  Argument0,
+    _In_ uintptr_t  Argument1,
+    _In_ uintptr_t  Argument2);
 
 /* ContextDestroy
  * Destroys the context for the thread and releases resources. */

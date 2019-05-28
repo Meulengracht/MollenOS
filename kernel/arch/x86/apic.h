@@ -158,11 +158,6 @@ InitializeLocalApicForApplicationCore(void);
 KERNELAPI void KERNELABI
 ApicRecalibrateTimer(void);
 
-/* InitializeSoftwareInterrupts
- * Initializes all the default software interrupt gates. */
-KERNELAPI void KERNELABI
-InitializeSoftwareInterrupts(void);
-
 /* ApicStartTimer
  * Reloads the local apic timer with a default divisor and the timer set to the given quantum
  * the timer is immediately started */

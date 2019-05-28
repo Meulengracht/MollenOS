@@ -25,30 +25,70 @@
 #define __MODULE        "IRQS"
 //#define __TRACE
 
-#include <modules/manager.h>
+#include <arch.h>
 #include <arch/utils.h>
+#include <assert.h>
+#include <component/cpu.h>
+#include <debug.h>
+#include <interrupts.h>
+#include <modules/manager.h>
 #include <memoryspace.h>
 #include <threading.h>
-#include <assert.h>
-#include <debug.h>
-#include <arch.h>
 
 extern OsStatus_t ThreadingFpuException(MCoreThread_t *Thread);
 extern OsStatus_t GetVirtualPageAttributes(SystemMemorySpace_t*, VirtualAddress_t, Flags_t*);
+extern void  jump_to_context(Context_t* Registers);
 extern reg_t __getcr2(void);
+
+static void
+HardFault(
+    _In_ Context_t* Registers,
+    _In_ uintptr_t  PFAddress)
+{
+    uintptr_t Base  = 0;
+    char *Name      = NULL;
+    LogSetRenderMode(1);
+
+    // Was it a page-fault?
+    if (PFAddress != __MASK) {
+        // Bit 1 - present status 
+        // Bit 2 - write access
+        // Bit 4 - user/kernel
+        WRITELINE("page-fault address: 0x%" PRIxIN ", error-code 0x%" PRIxIN "", PFAddress, Registers->ErrorCode);
+        WRITELINE("existing mapping for address: 0x%" PRIxIN "", GetMemorySpaceMapping(GetCurrentMemorySpace(), PFAddress));
+        WRITELINE("existing attribs for address: 0x%" PRIxIN "", GetMemorySpaceAttributes(GetCurrentMemorySpace(), PFAddress));
+    }
+
+    // Locate which module
+    if (DebugGetModuleByAddress(GetCurrentModule(), CONTEXT_IP(Registers), &Base, &Name) == OsSuccess) {
+        uintptr_t Diff = CONTEXT_IP(Registers) - Base;
+        WRITELINE("Faulty Address: 0x%" PRIxIN " (%s)", Diff, Name);
+    }
+    else {
+        WRITELINE("Faulty Address: 0x%" PRIxIN "", CONTEXT_IP(Registers));
+    }
+
+    // Enter panic handler
+    ArchDumpThreadContext(Registers);
+    DebugPanic(FATAL_SCOPE_KERNEL, Registers, __MODULE,
+        "Unhandled or fatal interrupt %" PRIuIN ", Error Code: %" PRIuIN ", Faulty Address: 0x%" PRIxIN "",
+        Registers->Irq, Registers->ErrorCode, CONTEXT_IP(Registers));
+}
 
 void
 ExceptionEntry(
     _In_ Context_t* Registers)
 {
-    MCoreThread_t*Thread = NULL;
-    uintptr_t Address    = __MASK;
-    int IssueFixed       = 0;
+    SystemCpuCore_t* Core          = GetCurrentProcessorCore();
+    uintptr_t        Address       = __MASK;
+    MCoreThread_t*   Thread        = Core->CurrentThread;
+    int              IssueFixed    = 0;
+    int              SwitchContext = 0;
 
     // Handle IRQ
     if (Registers->Irq == 0) {      // Divide By Zero (Non-math instruction)
-        if (SignalCreateInternal(Registers, SIGFPE) == OsSuccess) {
-            IssueFixed = 1;
+        if (SignalCreateInternal(Registers, SIGFPE, NULL) == OsSuccess) {
+            SwitchContext = 1;
         }
     }
     else if (Registers->Irq == 1) { // Single Step
@@ -65,18 +105,18 @@ ExceptionEntry(
         IssueFixed = 1;
     }
     else if (Registers->Irq == 4) { // Overflow
-        if (SignalCreateInternal(Registers, SIGSEGV) == OsSuccess) {
-            IssueFixed = 1;
+        if (SignalCreateInternal(Registers, SIGSEGV, NULL) == OsSuccess) {
+            SwitchContext = 1;
         }
     }
     else if (Registers->Irq == 5) { // Bound Range Exceeded
-        if (SignalCreateInternal(Registers, SIGSEGV) == OsSuccess) {
-            IssueFixed = 1;
+        if (SignalCreateInternal(Registers, SIGSEGV, NULL) == OsSuccess) {
+            SwitchContext = 1;
         }
     }
     else if (Registers->Irq == 6) { // Invalid Opcode
-        if (SignalCreateInternal(Registers, SIGILL) == OsSuccess) {
-            IssueFixed = 1;
+        if (SignalCreateInternal(Registers, SIGILL, NULL) == OsSuccess) {
+            SwitchContext = 1;
         }
     }
     else if (Registers->Irq == 7) { // DeviceNotAvailable 
@@ -85,8 +125,8 @@ ExceptionEntry(
 
         // This might be because we need to restore fpu/sse state
         if (ThreadingFpuException(Thread) != OsSuccess) {
-            if (SignalCreateInternal(Registers, SIGFPE) == OsSuccess) {
-                IssueFixed = 1;
+            if (SignalCreateInternal(Registers, SIGFPE, NULL) == OsSuccess) {
+                SwitchContext = 1;
             }
         }
         else {
@@ -103,18 +143,18 @@ ExceptionEntry(
         // Fall-through to kernel fault
     }
     else if (Registers->Irq == 11) { // Segment Not Present
-        if (SignalCreateInternal(Registers, SIGSEGV) == OsSuccess) {
-            IssueFixed = 1;
+        if (SignalCreateInternal(Registers, SIGSEGV, NULL) == OsSuccess) {
+            SwitchContext = 1;
         }
     }
     else if (Registers->Irq == 12) { // Stack Segment Fault
-        if (SignalCreateInternal(Registers, SIGSEGV) == OsSuccess) {
-            IssueFixed = 1;
+        if (SignalCreateInternal(Registers, SIGSEGV, NULL) == OsSuccess) {
+            SwitchContext = 1;
         }
     }
     else if (Registers->Irq == 13) { // General Protection Fault
-        if (SignalCreateInternal(Registers, SIGSEGV) == OsSuccess) {
-            IssueFixed = 1;
+        if (SignalCreateInternal(Registers, SIGSEGV, NULL) == OsSuccess) {
+            SwitchContext = 1;
         }
     }
     else if (Registers->Irq == 14) {    // Page Fault
@@ -136,46 +176,24 @@ ExceptionEntry(
             ERROR("%s: MEMORY_ACCESS_FAULT: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN "", 
                 GetCurrentThreadForCore(ArchGetProcessorCoreId())->Name, 
                 Address, Registers->ErrorCode, CONTEXT_IP(Registers));
-            if (SignalCreateInternal(Registers, SIGSEGV) == OsSuccess) {
-                IssueFixed = 1;
+            if (SignalCreateInternal(Registers, SIGSEGV, NULL) == OsSuccess) {
+                SwitchContext = 1;
             }
         }
     }
     else if (Registers->Irq == 16 || Registers->Irq == 19) {    // FPU & SIMD Floating Point Exception
-        if (SignalCreateInternal(Registers, SIGFPE) == OsSuccess) {
-            IssueFixed = 1;
+        if (SignalCreateInternal(Registers, SIGFPE, NULL) == OsSuccess) {
+            SwitchContext = 1;
         }
+    }
+    
+    // Switch context if requested
+    if (SwitchContext) {
+        jump_to_context(Thread->ContextActive);
     }
 
     // Was the exception handled?
-    if (IssueFixed == 0) {
-        uintptr_t Base  = 0;
-        char *Name      = NULL;
-        LogSetRenderMode(1);
-
-        // Was it a page-fault?
-        if (Address != __MASK) {
-            // Bit 1 - present status 
-            // Bit 2 - write access
-            // Bit 4 - user/kernel
-            WRITELINE("page-fault address: 0x%" PRIxIN ", error-code 0x%" PRIxIN "", Address, Registers->ErrorCode);
-            WRITELINE("existing mapping for address: 0x%" PRIxIN "", GetMemorySpaceMapping(GetCurrentMemorySpace(), Address));
-            WRITELINE("existing attribs for address: 0x%" PRIxIN "", GetMemorySpaceAttributes(GetCurrentMemorySpace(), Address));
-        }
-
-        // Locate which module
-        if (DebugGetModuleByAddress(GetCurrentModule(), CONTEXT_IP(Registers), &Base, &Name) == OsSuccess) {
-            uintptr_t Diff = CONTEXT_IP(Registers) - Base;
-            WRITELINE("Faulty Address: 0x%" PRIxIN " (%s)", Diff, Name);
-        }
-        else {
-            WRITELINE("Faulty Address: 0x%" PRIxIN "", CONTEXT_IP(Registers));
-        }
-
-        // Enter panic handler
-        ArchDumpThreadContext(Registers);
-        DebugPanic(FATAL_SCOPE_KERNEL, Registers, __MODULE,
-            "Unhandled or fatal interrupt %" PRIuIN ", Error Code: %" PRIuIN ", Faulty Address: 0x%" PRIxIN "",
-            Registers->Irq, Registers->ErrorCode, CONTEXT_IP(Registers));
+    if (!IssueFixed) {
+        HardFault(Registers, Address);
     }
 }

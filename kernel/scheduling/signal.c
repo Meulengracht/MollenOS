@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Signal Implementation
+ * Threading Signal Implementation
  */
 #define __MODULE "SIG0"
 //#define __TRACE
@@ -31,7 +31,8 @@
 #include <debug.h>
 #include <heap.h>
 
-static char GlbSignalIsDeadly[] = {
+#if 0
+static char SignalFatalityTable[] = {
     0, /* 0? */
     1, /* SIGHUP     */
     1, /* SIGINT     */
@@ -71,25 +72,16 @@ static char GlbSignalIsDeadly[] = {
     0, /* SIGCAT     */
     0  /* SIGEND     */
 };
-
-static Context_t*
-EnsureSignalStack(
-    _In_ MCoreThread_t* Thread)
-{
-    if (Thread->Contexts[THREADING_CONTEXT_SIGNAL] == NULL) {
-        Thread->Contexts[THREADING_CONTEXT_SIGNAL] = ContextCreate(THREADING_CONTEXT_SIGNAL);
-    }
-    ContextReset(Thread->Contexts[THREADING_CONTEXT_SIGNAL], THREADING_CONTEXT_SIGNAL, 
-        0, 0, 0, 0);
-    return Thread->Contexts[THREADING_CONTEXT_SIGNAL];
-}
+#endif
 
 OsStatus_t
 SignalCreateExternal(
     _In_ UUId_t ThreadId,
-    _In_ int    Signal)
+    _In_ int    Signal,
+    _In_ void*  Argument)
 {
-    MCoreThread_t* Target = GetThread(ThreadId);
+    MCoreThread_t* Target   = GetThread(ThreadId);
+    int            Expected = SIGNAL_FREE;
     TRACE("SignalCreateExternal(Thread %" PRIuIN ", Signal %i)", ThreadId, Signal);
 
     // Sanitize input, and then sanitize if we have a handler
@@ -97,11 +89,15 @@ SignalCreateExternal(
         ERROR("Signal %i was not in range");
         return OsInvalidParameters; // Invalid
     }
-    if (atomic_exchange(&Target->Signals[Signal].Pending, 1) == 1) {
-        return OsExists; // Ignored
+    
+    if (!atomic_compare_exchange_strong(&Target->Signals[Signal].Status, 
+            &Expected, SIGNAL_ALLOCATED)) {
+        return OsExists; // Ignored, already pending
     }
     
-    Target->Signals[Signal].Deadly = GlbSignalIsDeadly[Signal];
+    // Store information and mark ready
+    atomic_store(&Target->Signals[Signal].Information, Argument);
+    atomic_store(&Target->Signals[Signal].Status, SIGNAL_PENDING);
     
     // Wake up thread if neccessary
     SchedulerExpediteObject(Target->SchedulerObject);
@@ -111,13 +107,14 @@ SignalCreateExternal(
 OsStatus_t
 SignalCreateInternal(
     _In_ Context_t* Registers,
-    _In_ int        Signal)
+    _In_ int        Signal,
+    _In_ void*      Argument)
 {
-    UUId_t         CoreId    = ArchGetProcessorCoreId();
-    MCoreThread_t* Thread    = GetCurrentThreadForCore(CoreId);
-    Context_t*     SafeStack = NULL;
+    UUId_t         CoreId = ArchGetProcessorCoreId();
+    MCoreThread_t* Thread = GetCurrentThreadForCore(CoreId);
 
     TRACE("ExceptionSignal(Signal %i)", Signal);
+    __asm { xchg bx, bx };
 
     // Sanitize if user-process
 #ifdef __OSCONFIG_DISABLE_SIGNALLING
@@ -130,22 +127,16 @@ SignalCreateInternal(
         return OsError;
     }
 
-    // Ensure safe stack for deadly interrupts
-    // 0 => not deadly
-    // 1 => soft terminate
-    // 2 => safe terminate
-    // 3 => safe terminate (should quit immediately)
-    if (GlbSignalIsDeadly[Signal] > 1) {
-        // @todo check if works
-        //SafeStack = EnsureSignalStacks(Thread);
+    // We do absolutely not care about the existing signal stack
+    // in case of internal signals
+    if (!Thread->HandlingSignals) {
+        Thread->HandlingSignals = 1;
+        Thread->OriginalContext = Registers;
     }
-
-    // Push the intercept
-    ContextPushInterceptor(Registers, 
-        Thread->MemorySpace->Context->SignalHandler, 
-        (uintptr_t*)SafeStack,
-        Signal,
-        0);
+    ContextReset(Thread->Contexts[THREADING_CONTEXT_SIGNAL],
+        THREADING_CONTEXT_SIGNAL, Thread->MemorySpace->Context->SignalHandler,
+        (uintptr_t)Signal, (uintptr_t)Argument, 0);
+    Thread->ContextActive = Thread->Contexts[THREADING_CONTEXT_SIGNAL];
     return OsSuccess;
 }
 
@@ -156,22 +147,41 @@ SignalProcess(
     MCoreThread_t* Thread = GetThread(ThreadId);
     int            i;
 
+    // Protect against signals received
     if (Thread == NULL || 
         Thread->MemorySpace == NULL ||
         Thread->MemorySpace->Context == NULL ||
-        Thread->MemorySpace->Context->SignalHandler == 0) {
+        Thread->MemorySpace->Context->SignalHandler == 0 ||
+        Thread->Contexts[THREADING_CONTEXT_SIGNAL] == NULL) {
+        return;
+    }
+    
+    // Are we already handling signals?
+    if (Thread->HandlingSignals) {
         return;
     }
     
     // Process all the signals
     for (i = 0; i < NUMSIGNALS; i++) {
-        if (atomic_load(&Thread->Signals[i].Pending) == 1) {
-            ContextPushInterceptor(Thread->ContextActive,
-                Thread->MemorySpace->Context->SignalHandler,
-                NULL,
-                i,
-                0);
-            atomic_store(&Thread->Signals[i].Pending, 0);
+        int Status = atomic_load(&Thread->Signals[i].Status);
+        if (Status == SIGNAL_PENDING) {
+            void* Argument = atomic_load(&Thread->Signals[i].Information);
+            // Prepare initial stack state
+            if (!Thread->HandlingSignals) {
+                Thread->HandlingSignals = 1;
+                Thread->OriginalContext = Thread->ContextActive;
+                Thread->ContextActive   = Thread->Contexts[THREADING_CONTEXT_SIGNAL];
+                ContextReset(Thread->Contexts[THREADING_CONTEXT_SIGNAL],
+                    THREADING_CONTEXT_SIGNAL, Thread->MemorySpace->Context->SignalHandler,
+                    i, (uintptr_t)Argument, 0);
+            }
+            else {
+                // Just push the interceptor
+                ContextPushInterceptor(Thread->ContextActive,
+                    Thread->MemorySpace->Context->SignalHandler,
+                    i, (uintptr_t)Argument, 0);
+            }
+            atomic_store(&Thread->Signals[i].Status, SIGNAL_FREE);
         }
     }
 }

@@ -25,6 +25,7 @@ segment .text
 global _exception_common
 global _irq_common
 global _syscall_entry
+global _jump_to_context
 global ___wbinvd
 global ___cli
 global ___sti
@@ -86,7 +87,6 @@ extern _SystemCallsTable
         jmp _irq_common
 %endmacro
 
-
 ; void __wbinvd(void)
 ; Flushes the internal cpu caches
 ___wbinvd:
@@ -128,12 +128,9 @@ ___getcr2:
 ; Interrupts are disabled, no need to set task register
 _exception_common:
     save_state
-
-    ; Push registers as pointer to struct
     push esp
     call _ExceptionEntry
     add esp, 0x4
-
     restore_state
     iret
 
@@ -187,6 +184,14 @@ _syscall_entry:
     pop es
     pop ds
     iret
+
+; void jump_to_context(context_t* registers)
+; Switches stack and far jumps to next task
+_jump_to_context:
+    mov eax, [esp + 4]
+    mov esp, eax
+    restore_state
+    iretq
 
 ;Define excetions!
 irq_no_error 0

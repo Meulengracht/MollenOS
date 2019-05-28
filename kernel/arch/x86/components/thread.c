@@ -106,27 +106,10 @@ ThreadingYield(void)
     }
 }
 
-// When performing a thread switch we want low priority to run all other
-// interrupt handlers first, however we want to not be interrupted during
-// switch
 void
-X86SwitchThread(
-    _In_ int    Preemptive,
-    _In_ size_t MillisecondsPassed)
+SaveThreadState(
+    _In_ MCoreThread_t* Thread)
 {
-    SystemCpuCore_t* Core    = GetCurrentProcessorCore();
-    MCoreThread_t*   Thread  = Core->CurrentThread;
-    MCoreThread_t*   NextThread;
-    size_t           Deadline;
-    TRACE("X86SwitchThread(forced %i, passed %llu ms)", Preemptive, MillisecondsPassed);
-
-    // Sanitize the status of threading, if it's not up and running
-    // but a timer is, then set default values and return thread
-    if (Thread == NULL) {
-        ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * 20);
-        return;
-    }
-    
     // Save FPU/MMX/SSE information if it's
     // been used, otherwise skip this and save time
     if (Thread->Data[THREAD_DATA_FLAGS] & X86_THREAD_USEDFPU) {
@@ -137,29 +120,28 @@ X86SwitchThread(
             save_fpu((uintptr_t*)Thread->Data[THREAD_DATA_MATHBUFFER]);
         }
     }
+}
 
-    // Get a new thread for us to enter
-    NextThread = ThreadingAdvance(Thread, Preemptive, MillisecondsPassed, &Deadline);
-    if (NextThread != Thread) {
-        // Clear the FPU used flag
-        NextThread->Data[THREAD_DATA_FLAGS] &= ~X86_THREAD_USEDFPU;
-        
-        // Load thread-specific resources
-        SwitchMemorySpace(NextThread->MemorySpace);
-        TssUpdateThreadStack(Core->Id, (uintptr_t)NextThread->Contexts[THREADING_CONTEXT_LEVEL0]);
-        TssUpdateIo(Core->Id, (uint8_t*)NextThread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
-        set_ts(); // Set task switch bit so we get faults on fpu instructions
-    }
-
+void
+RestoreThreadState(
+    _In_ MCoreThread_t* Thread)
+{
+    SystemCpuCore_t* Core = GetCurrentProcessorCore();
+    
+    // Clear the FPU used flag
+    Thread->Data[THREAD_DATA_FLAGS] &= ~X86_THREAD_USEDFPU;
+    
+    // Load thread-specific resources
+    SwitchMemorySpace(Thread->MemorySpace);
+    TssUpdateThreadStack(Core->Id, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
+    TssUpdateIo(Core->Id, (uint8_t*)Thread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
+    set_ts(); // Set task switch bit so we get faults on fpu instructions
+    
     // If we are idle task - disable task priority
-    if (NextThread->Flags & THREADING_IDLE) {
-        ApicSetTaskPriority(0);
+    if (Thread->Flags & THREADING_IDLE) {
+        Core->InterruptPriority = 0;
     }
     else {
-        ApicSetTaskPriority(61 - NextThread->SchedulerObject->Queue);
+        Core->InterruptPriority = 61 - Thread->SchedulerObject->Queue;
     }
-    
-    // Update timer to next deadline no matter if idle or not
-    TRACE("...next deadline %llu ms", Deadline);
-    ApicWriteLocal(APIC_INITIAL_COUNT, GlbTimerQuantum * Deadline);
 }

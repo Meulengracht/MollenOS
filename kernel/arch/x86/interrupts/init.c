@@ -33,8 +33,8 @@
 #include <gdt.h>
 #include <cpu.h>
 
-void
-InitializeSoftwareInterrupts(void)
+static void
+InitializeSoftwareHandlers(void)
 {
     DeviceInterrupt_t Interrupt = { { 0 } };
     Interrupt.Vectors[0]            = INTERRUPT_NONE;
@@ -57,7 +57,8 @@ InitializeSoftwareInterrupts(void)
 OsStatus_t
 InterruptInitialize(void)
 {
-    InitializeSoftwareInterrupts();
+    TRACE("...setting up interrupt handlers");
+    InitializeSoftwareHandlers();
 #if defined(amd64) || defined(__amd64__)
     TssCreateStacks();
 #endif

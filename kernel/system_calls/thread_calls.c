@@ -94,12 +94,12 @@ ScThreadDetach(
 
 OsStatus_t
 ScThreadSignal(
-    _In_ UUId_t     ThreadId,
-    _In_ int        SignalCode)
+    _In_ UUId_t ThreadId,
+    _In_ int    SignalCode)
 {
     OsStatus_t Result = AreThreadsRelated(ThreadId, GetCurrentThreadId());
     if (Result == OsSuccess) {
-        Result = SignalCreateExternal(ThreadId, SignalCode);
+        Result = SignalCreateExternal(ThreadId, SignalCode, NULL);
     }
     return Result;
 }
@@ -175,12 +175,24 @@ ScThreadGetCurrentName(char *ThreadNameBuffer, size_t MaxLength)
 
 OsStatus_t
 ScThreadGetContext(
-    _In_ Context_t* ContextOut)
+    _In_ Context_t* Context)
 {
     MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
-    if (Thread == NULL) {
+    if (Thread == NULL || Context == NULL) {
         return OsError;
     }
-    memcpy(ContextOut, Thread->ContextActive, sizeof(Context_t));
+    memcpy(Context, Thread->ContextActive, sizeof(Context_t));
+    return OsSuccess;
+}
+
+OsStatus_t
+ScGetSignalOriginalContext(
+    _In_ Context_t* Context)
+{
+    MCoreThread_t* Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
+    if (Thread == NULL || Context == NULL) {
+        return OsError;
+    }
+    memcpy(Context, Thread->OriginalContext, sizeof(Context_t));
     return OsSuccess;
 }
