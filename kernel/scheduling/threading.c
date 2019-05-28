@@ -372,9 +372,13 @@ EnterProtectedThreadLevel(void)
     // Create the userspace stack now that we need it 
     Thread->Contexts[THREADING_CONTEXT_LEVEL1] = ContextCreate(THREADING_CONTEXT_LEVEL1);
     ContextReset(Thread->Contexts[THREADING_CONTEXT_LEVEL1], THREADING_CONTEXT_LEVEL1,
-        (uintptr_t)Thread->Function, 0, (uintptr_t)Thread->Arguments, 0);
+        (uintptr_t)Thread->Function, (uintptr_t)Thread->Arguments, 0, 0);
+        
+    // Create the signal stack in preparation.
+    Thread->Contexts[THREADING_CONTEXT_SIGNAL] = ContextCreate(THREADING_CONTEXT_SIGNAL);
+    
+    // Initiate switch to userspace
     Thread->Flags |= THREADING_TRANSITION_USERMODE;
-
     ThreadingYield();
     for (;;);
 }
@@ -463,22 +467,29 @@ DisplayActiveThreads(void)
     }
 }
 
-MCoreThread_t*
+OsStatus_t
 ThreadingAdvance(
-    _In_  MCoreThread_t* Current,
-    _In_  int            Preemptive,
-    _In_  size_t         MillisecondsPassed,
-    _Out_ size_t*        NextDeadlineOut)
+    _In_  int     Preemptive,
+    _In_  size_t  MillisecondsPassed,
+    _Out_ size_t* NextDeadlineOut)
 {
-    SystemCpuCore_t* Core;
+    SystemCpuCore_t* Core    = GetCurrentProcessorCore();
+    MCoreThread_t*   Current = Core->CurrentThread;
     MCoreThread_t*   NextThread;
     int              Cleanup;
 
-    Core    = GetCurrentProcessorCore();
+    // Is threading disabled?
+    if (!Current) {
+        return OsError;
+    }
+
     Cleanup = atomic_load_explicit(&Current->Cleanup, memory_order_relaxed);
-    
-    // Store active context
     Current->ContextActive = Core->InterruptRegisters;
+    
+    // Save the current state of the thread if cleanup is 0
+    if (!Cleanup) {
+        SaveThreadState(Current);
+    }
     
     TRACE("%u: current thread: %s (Context 0x%" PRIxIN ", IP 0x%" PRIxIN ", PreEmptive %i)",
         Core->Id, Current->Name, *Context, CONTEXT_IP((*Context)), PreEmptive);
@@ -515,7 +526,7 @@ GetNextThread:
 
     // Handle level switch // thread startup
     if (NextThread->Flags & THREADING_TRANSITION_USERMODE) {
-        NextThread->Flags         &= ~(THREADING_TRANSITION_USERMODE);
+        NextThread->Flags        &= ~(THREADING_TRANSITION_USERMODE);
         NextThread->ContextActive = NextThread->Contexts[THREADING_CONTEXT_LEVEL1];
     }
     
@@ -526,10 +537,16 @@ GetNextThread:
     TRACE("%u: next thread: %s (Context 0x%" PRIxIN ", IP 0x%" PRIxIN ")", 
         Core->Id, NextThread->Name, NextThread->ContextActive, 
         CONTEXT_IP(NextThread->ContextActive));
-
-    // Handle any signals pending for thread
+    
+    // Set next active thread
+    if (Current != NextThread) {
+        Core->CurrentThread = NextThread;
+        RestoreThreadState(NextThread);
+    }
+    
+    // Handle any signals pending for thread, as this might change the
+    // active context set for the thread
     SignalProcess(NextThread->Header.Key.Value.Id);
-    Core->CurrentThread      = NextThread;
     Core->InterruptRegisters = NextThread->ContextActive;
-    return NextThread;
+    return OsSuccess;
 }

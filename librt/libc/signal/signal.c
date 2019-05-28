@@ -78,9 +78,9 @@ char signal_fatality[] = {
 
 // Default interrupt handlers
 static sig_element signal_list[] = {
-    { SIGINT, "Interrupt (Ctrl-c)", SIG_DFL },
-    { SIGILL, "Illegal instruction", SIG_DFL },
-    { SIGFPE, "Erroneous arithmetic operation such as divide by zero", SIG_DFL },
+    { SIGINT,  "Interrupt (Ctrl-c)", SIG_DFL },
+    { SIGILL,  "Illegal instruction", SIG_DFL },
+    { SIGFPE,  "Erroneous arithmetic operation such as divide by zero", SIG_DFL },
     { SIGSEGV, "Invalid memory access (segmentation fault)", SIG_DFL },
     { SIGTERM, "Termination request", SIG_DFL },
     { SIGQUIT, "Interrupt (Ctrl+break)", SIG_DFL },
@@ -91,12 +91,15 @@ static sig_element signal_list[] = {
 
 static void
 DefaultCrashHandler(
-    _In_ sig_element* Signal,
-    _In_ Context_t*   Context)
+    _In_ sig_element* Signal)
 {
-    // Not supported by modules
-    if (!IsProcessModule()) {
-        ProcessReportCrash(Context, Signal->signal);
+    Context_t Context;
+    
+    if (Syscall_GetSignalOriginalContext(&Context) == OsSuccess) {
+        // Not supported by modules
+        if (!IsProcessModule()) {
+            ProcessReportCrash(&Context, Signal->signal);
+        }
     }
     
     // Last thing is to exit application
@@ -107,7 +110,8 @@ DefaultCrashHandler(
 
 static void
 CreateSignalInformation(
-    _In_ int Signal)
+    _In_ int   Signal,
+    _In_ void* Argument)
 {
     // Handle math errors in any case
     if (Signal == SIGFPE) {
@@ -118,8 +122,8 @@ CreateSignalInformation(
 
 void
 StdInvokeSignal(
-    _In_ int        Signal,
-    _In_ Context_t* Context)
+    _In_ int   Signal,
+    _In_ void* Argument)
 {
     sig_element* sig = NULL;
     int          fatal;
@@ -129,7 +133,7 @@ StdInvokeSignal(
     fatal = Signal != SIGINT && Signal != SIGUSR1 && Signal != SIGUSR2;
     
     // Find handler
-    for(i = 0; i < sizeof(signal_list) / sizeof(signal_list[0]); i++) {
+    for (i = 0; i < sizeof(signal_list) / sizeof(signal_list[0]); i++) {
         if (signal_list[i].signal == Signal) {
             sig = &signal_list[i];
             break;
@@ -138,13 +142,13 @@ StdInvokeSignal(
     
     // Check against unsupported signal
     if (sig != NULL) {
-        CreateSignalInformation(Signal);
+        CreateSignalInformation(Signal, Argument);
         if (sig->handler != SIG_IGN) {
             if (sig->handler == SIG_DFL || sig->handler == SIG_ERR) {
                 if (sig->handler == SIG_ERR ||
                     signal_fatality[Signal] == 1 || 
                     signal_fatality[Signal] == 2) {
-                    DefaultCrashHandler(sig, Context);
+                    DefaultCrashHandler(sig);
                 }
             }
             else {
@@ -155,11 +159,15 @@ StdInvokeSignal(
 
     // Unhandled signal, or division by zero specifically?
     if (sig == NULL) {
-        sig_element _static_sig = { .signal = Signal };
-        DefaultCrashHandler(&_static_sig, Context);
+        sig_element _static_sig = { 
+            .signal  = Signal,
+            .name    = "Unknown signal",
+            .handler = NULL
+        };
+        DefaultCrashHandler(&_static_sig);
     }
     else if (fatal) {
-        DefaultCrashHandler(sig, Context);
+        DefaultCrashHandler(sig);
     }
 }
 
@@ -221,8 +229,6 @@ int
 raise(
     _In_ int sig)
 {
-    Context_t Empty = { 0 };
-    
     switch (sig) {
         case SIGINT:
         case SIGILL:
@@ -238,6 +244,6 @@ raise(
             return -1;
     }
     
-    StdInvokeSignal(sig, &Empty);
+    StdInvokeSignal(sig, NULL);
     return 0;
 }

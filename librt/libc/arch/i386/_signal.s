@@ -25,80 +25,18 @@ segment .text
 global ___signalentry
 extern _StdInvokeSignal
 
-%macro save_state 1
-    ; fillers
-    push 0
-    push 0
-    push 0
-    push 0
-    push 0
-
-    ; user-state
-    push %1
-    push 0
-    
-    ; irq state
-    push 0
-    push 0
-    push dword [%1 + 4*4]
-    push 0
-    push 0
-    
-    ; segments
-    push 0
-    push 0
-    push 0
-    push 0
-
-	; registers
-    push dword [%1 + 3*4] ;eax
-    push dword [%1 + 1*4] ;ecx
-    push dword [%1]       ;edx
-    push dword [%1 + 2*4] ;ebx
-    push esp
-    push ebp
-    push esi
-    push edi
-%endmacro
-
-%macro restore_state 0
-    ; registers
-    pop edi
-    pop esi
-    pop ebp
-    add esp, 4 ; skip esp
-    pop ebx
-    pop edx
-    pop ecx
-    pop eax
-
-    ; segments (4*4), irq (5*4), user (2*4), fillers (5*4)
-    add esp, 16*4
-%endmacro
-
-; void __signalentry(int signal (eax), int unused (ebx), uintptr_t stack_ptr (ecx))
+; void __signalentry(int signal (eax), void* argument (ebx), reg_t ecx)
 ; Fixup stack and call directly into the signal handler
 ___signalentry:
-    ; switch to safe stack if one is provided
-    mov  ebx, esp
-    test ecx, ecx
-    jz .Invoke
-    xchg ecx, esp
-    mov  ebx, ecx
-    
-    .Invoke:
-        ; Prepare the context_t*
-        save_state ebx
-        mov ebx, esp
-        
-        ; EAX => signal, EBX => context_t
-        push ebx
-        push eax
-    	call _StdInvokeSignal ; (int, context_t*)
-    	add esp, 8
-    	restore_state
+    ; EAX => signal, EBX => void*
+    push ebx
+    push eax
+	call _StdInvokeSignal ; (int, void*)
+	add esp, 8
     	
-    	; EAX, EBX, ECX and EDX is pushed to stack, remove them again as
-    	; they have been restored correctly by restore_state
-    	add esp, 16
-        ret
+	; Restore EAX/EBX/ECX for next call in case we are now
+	; entering another queued up signal handler
+	pop ecx
+	pop ebx
+	pop eax
+    ret

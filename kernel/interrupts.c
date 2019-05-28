@@ -364,7 +364,7 @@ InterruptRegister(
     }
 
     // Update remaining members now that we resolved
-    Entry->Source  = Interrupt->Line;
+    Entry->Source  = Interrupt->Line; // clear Source for software interrupts?
     Entry->Id     |= TableIndex;
     memcpy(&Entry->Interrupt, Interrupt, sizeof(DeviceInterrupt_t));
 

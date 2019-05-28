@@ -1,4 +1,3 @@
-
 /* MollenOS
  *
  * Copyright 2015, Philip Meulengracht
@@ -74,35 +73,42 @@ typedef void(*ThreadEntry_t)(void*);
 #define THREADING_TRANSITION_USERMODE   0x10000000
 
 typedef struct {
-    _Atomic(int) Pending;
-    int          Deadly;
+    _Atomic(int)   Status;
+    _Atomic(void*) Information;
 } SystemSignal_t;
+
+#define SIGNAL_FREE      0
+#define SIGNAL_ALLOCATED 1
+#define SIGNAL_PENDING   2
 
 typedef struct _MCoreThread {
     CollectionItem_t        Header;
     Mutex_t                 SyncObject;
     Semaphore_t             EventObject;
     _Atomic(int)            References;
+    clock_t                 StartedAt;
 
-    UUId_t                  ParentThreadId;
     const char*             Name;
+    UUId_t                  ParentThreadId;
     Flags_t                 Flags;
     _Atomic(int)            Cleanup;
     UUId_t                  Cookie;
     SchedulerObject_t*      SchedulerObject;
 
+    ThreadEntry_t           Function;
+    void*                   Arguments;
+    int                     RetCode;
+    
     Context_t*              Contexts[THREADING_NUMCONTEXTS];
     Context_t*              ContextActive;
     uintptr_t               Data[THREADING_CONFIGDATA_COUNT];
-    clock_t                 StartedAt;
 
     SystemPipe_t*           Pipe;
     SystemMemorySpace_t*    MemorySpace;
     UUId_t                  MemorySpaceHandle;
 
-    ThreadEntry_t           Function;
-    void*                   Arguments;
-    int                     RetCode;
+    int                     HandlingSignals;
+    Context_t*              OriginalContext;
     SystemSignal_t          Signals[NUMSIGNALS];
 } MCoreThread_t;
 
@@ -195,12 +201,11 @@ GetThread(
 /* ThreadingAdvance
  * This is the thread-switch function and must be be called from the below architecture 
  * to get the next thread to run */
-KERNELAPI MCoreThread_t* KERNELABI
+KERNELAPI OsStatus_t KERNELABI
 ThreadingAdvance(
-    _In_  MCoreThread_t* Current,
-    _In_  int            Preemptive,
-    _In_  size_t         MillisecondsPassed,
-    _Out_ size_t*        NextDeadlineOut);
+    _In_  int     Preemptive,
+    _In_  size_t  MillisecondsPassed,
+    _Out_ size_t* NextDeadlineOut);
 
 /* DisplayActiveThreads
  * Prints out debugging information about each thread in the system, only active threads */
@@ -213,7 +218,8 @@ DisplayActiveThreads(void);
 KERNELAPI OsStatus_t KERNELABI
 SignalCreateExternal(
     _In_ UUId_t ThreadId,
-    _In_ int    Signal);
+    _In_ int    Signal,
+    _In_ void*  Argument);
 
 /* SignalCreateInternal
  * Dispatches a signal to an already running thread, this must come from the same
@@ -221,7 +227,8 @@ SignalCreateExternal(
 KERNELAPI OsStatus_t KERNELABI
 SignalCreateInternal(
     _In_ Context_t* Registers,
-    _In_ int        Signal);
+    _In_ int        Signal,
+    _In_ void*      Argument);
 
 /* SignalProcess
  * Processes all queued signals and appends to execution list. */

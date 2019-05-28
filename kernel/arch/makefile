@@ -17,7 +17,8 @@ ifeq ($(VALI_ARCH),i386)
 			  $(wildcard x86/interrupts/pic/*.c) \
 			  $(wildcard x86/interrupts/*.c) \
 			  $(wildcard x86/x32/memory/*.c) \
-			  $(wildcard x86/x32/*.c)
+			  $(wildcard x86/x32/*.c) \
+			  $(wildcard x86/*.c)
     ASSEMBLY = $(wildcard x86/x32/memory/*.s) \
 			   $(wildcard x86/x32/*.s)
 	ASFLAGS = -f win32 -Xvc
@@ -28,7 +29,8 @@ else ifeq ($(VALI_ARCH),amd64)
 			  $(wildcard x86/interrupts/pic/*.c) \
 			  $(wildcard x86/interrupts/*.c) \
 			  $(wildcard x86/x64/memory/*.c) \
-			  $(wildcard x86/x64/*.c)
+			  $(wildcard x86/x64/*.c) \
+			  $(wildcard x86/*.c)
     ASSEMBLY = $(wildcard x86/x64/memory/*.s) \
 			   $(wildcard x86/x64/*.s)
 	ASFLAGS = -f win64 -Xvc

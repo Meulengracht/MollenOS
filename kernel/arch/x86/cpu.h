@@ -24,8 +24,6 @@
 #ifndef _x86_CPU_H_
 #define _x86_CPU_H_
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
 
 /* Definitions 

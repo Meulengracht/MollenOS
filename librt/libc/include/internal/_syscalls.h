@@ -74,7 +74,7 @@ _CODE_END
 #define Syscall_ThreadCookie()                                             (UUId_t)syscall0(43)
 #define Syscall_ThreadSetCurrentName(Name)                                 (UUId_t)syscall1(44, SCPARAM(Name))
 #define Syscall_ThreadGetCurrentName(NameBuffer, MaxLength)                (UUId_t)syscall2(45, SCPARAM(NameBuffer), SCPARAM(MaxLength))
-#define Syscall_ThreadGetContext(ContextOut)                               (OsStatus_t)syscall1(46, SCPARAM(ContextOut))
+#define Syscall_ThreadGetContext(Context)                                  (OsStatus_t)syscall1(46, SCPARAM(ContextOut))
 
 #define Syscall_FutexWait(Parameters)                                      (OsStatus_t)syscall1(47, SCPARAM(Parameters))
 #define Syscall_FutexWake(Parameters)                                      (OsStatus_t)syscall1(48, SCPARAM(Parameters))
@@ -98,14 +98,15 @@ _CODE_END
 
 #define Syscall_DestroyHandle(Handle)                                      (OsStatus_t)syscall1(63, SCPARAM(Handle))
 #define Syscall_InstallSignalHandler(HandlerAddress)                       (OsStatus_t)syscall1(64, SCPARAM(HandlerAddress))
-#define Syscall_CreateMemoryHandler(Flags, Length, HandleOut, AddressOut)  (OsStatus_t)syscall4(65, SCPARAM(Flags), SCPARAM(Length), SCPARAM(HandleOut), SCPARAM(AddressOut))
-#define Syscall_DestroyMemoryHandler(Handle)                               (OsStatus_t)syscall1(66, SCPARAM(Handle))
-#define Syscall_FlushHardwareCache(CacheType, AddressStart, Length)        (OsStatus_t)syscall3(67, SCPARAM(CacheType), SCPARAM(AddressStart), SCPARAM(Length))
-#define Syscall_SystemQuery(SystemInformation)                             (OsStatus_t)syscall1(68, SCPARAM(SystemInformation))
-#define Syscall_SystemTick(Base, Tick)                                     (OsStatus_t)syscall2(69, SCPARAM(Base), SCPARAM(Tick))
-#define Syscall_SystemPerformanceFrequency(Frequency)                      (OsStatus_t)syscall1(70, SCPARAM(Frequency))
-#define Syscall_SystemPerformanceTime(Value)                               (OsStatus_t)syscall1(71, SCPARAM(Value))
-#define Syscall_SystemTime(Time)                                           (OsStatus_t)syscall1(72, SCPARAM(Time))
-#define Syscall_IsServiceAvailable(ServiceId)                              (OsStatus_t)syscall1(73, SCPARAM(ServiceId))
+#define Syscall_GetSignalOriginalContext(Context)                          (OsStatus_t)syscall1(65, SCPARAM(Context))
+#define Syscall_CreateMemoryHandler(Flags, Length, HandleOut, AddressOut)  (OsStatus_t)syscall4(66, SCPARAM(Flags), SCPARAM(Length), SCPARAM(HandleOut), SCPARAM(AddressOut))
+#define Syscall_DestroyMemoryHandler(Handle)                               (OsStatus_t)syscall1(67, SCPARAM(Handle))
+#define Syscall_FlushHardwareCache(CacheType, AddressStart, Length)        (OsStatus_t)syscall3(68, SCPARAM(CacheType), SCPARAM(AddressStart), SCPARAM(Length))
+#define Syscall_SystemQuery(SystemInformation)                             (OsStatus_t)syscall1(69, SCPARAM(SystemInformation))
+#define Syscall_SystemTick(Base, Tick)                                     (OsStatus_t)syscall2(70, SCPARAM(Base), SCPARAM(Tick))
+#define Syscall_SystemPerformanceFrequency(Frequency)                      (OsStatus_t)syscall1(71, SCPARAM(Frequency))
+#define Syscall_SystemPerformanceTime(Value)                               (OsStatus_t)syscall1(72, SCPARAM(Value))
+#define Syscall_SystemTime(Time)                                           (OsStatus_t)syscall1(73, SCPARAM(Time))
+#define Syscall_IsServiceAvailable(ServiceId)                              (OsStatus_t)syscall1(74, SCPARAM(ServiceId))
 
 #endif //!__INTERNAL_CRT_SYSCALLS__

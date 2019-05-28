@@ -25,6 +25,7 @@ segment .text
 global exception_common
 global irq_common
 global syscall_entry
+global jump_to_context
 global __wbinvd
 global __cli
 global __sti
@@ -207,6 +208,14 @@ syscall_entry:
 
 	restore_segments
 	iretq
+
+; void jump_to_context(context_t* registers)
+; Switches stack and far jumps to next task
+jump_to_context:
+    mov rsp, rcx
+    restore_state
+    add rsp, 0x10
+    iretq
 
 ; Macros
 
