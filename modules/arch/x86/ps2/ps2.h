@@ -90,8 +90,6 @@ typedef enum _PS2CommandState {
     PS2WaitingResponse  = 2
 } PS2CommandState_t;
 
-/* PS2Command
- * This represents a ps2-device command that can be queued and executed */
 typedef struct _PS2Command {
     volatile PS2CommandState_t  State;
     volatile uint8_t            SyncObject;
@@ -108,8 +106,6 @@ typedef enum _PS2PortState {
     PortStateActive
 } PS2PortState_t;
 
-/* PS2Port
- * contains information about port status and the current device */
 typedef struct _PS2Port {
     int                 Index;
     MContract_t         Contract;
@@ -126,8 +122,6 @@ typedef struct _PS2Port {
     uint8_t             ResponseReadIndex;
 } PS2Port_t;
 
-/* PS2Controller
- * contains all driver information and chip current status information */
 typedef struct _PS2Controller {
     MCoreDevice_t   Device;
     MContract_t     Controller;
@@ -138,82 +132,83 @@ typedef struct _PS2Controller {
 } PS2Controller_t;
 
 /* PS2PortInitialize
- * Initializes the given port and tries 
- * to identify the device on the port */
+ * Initializes the given port and tries to identify the device on the port */
 __EXTERN OsStatus_t
 PS2PortInitialize(
-    PS2Port_t*                      Port);
+    _In_ PS2Port_t* Port);
 
 /* PS2PortExecuteCommand 
  * Executes the given ps2 command, handles both retries and commands that
  * require response. */
 __EXTERN OsStatus_t
 PS2PortExecuteCommand(
-    PS2Port_t*                      Port,
-    uint8_t                         Command,
-    uint8_t*                        Response);
+    _In_ PS2Port_t* Port,
+    _In_ uint8_t    Command,
+    _In_ uint8_t*   Response);
 
 /* PS2PortFinishCommand 
- * Finalizes the current command and executes
- * the next command in queue (if any). */
+ * Finalizes the current command and executes the next command in queue (if any). */
 __EXTERN OsStatus_t
 PS2PortFinishCommand(
-    _In_ PS2Port_t*                 Port);
+    _In_ PS2Port_t* Port);
 
 /* PS2ReadData
  * Reads a byte from the PS2 controller data port */
-__EXTERN uint8_t PS2ReadData(int Dummy);
+__EXTERN uint8_t
+PS2ReadData(
+    _In_ int Dummy);
 
 /* PS2WriteData
  * Writes a data byte to the PS2 controller data port */
-__EXTERN OsStatus_t PS2WriteData(uint8_t Value);
+__EXTERN OsStatus_t
+PS2WriteData(
+    _In_ uint8_t Value);
 
 /* PS2SendCommand
  * Writes the given command to the ps2-controller */
-__EXTERN void PS2SendCommand(uint8_t Command);
+__EXTERN void
+PS2SendCommand(
+    _In_ uint8_t Command);
 
 /* PS2MouseInitialize 
  * Initializes an instance of an ps2-mouse on the given PS2-Controller port */
 __EXTERN OsStatus_t
 PS2MouseInitialize(
-    _In_ PS2Controller_t*           Controller,
-    _In_ int                        Port);
+    _In_ PS2Controller_t* Controller,
+    _In_ int              Port);
 
 /* PS2MouseCleanup 
- * Cleans up the ps2-mouse instance on the
- * given PS2-Controller port */
+ * Cleans up the ps2-mouse instance on the given PS2-Controller port */
 __EXTERN OsStatus_t
 PS2MouseCleanup(
-    _In_ PS2Controller_t*           Controller,
-    _In_ int                        Port);
+    _In_ PS2Controller_t* Controller,
+    _In_ int              Port);
 
 /* PS2MouseInterrupt 
  * Handles the ps2-mouse interrupt and processes the captured data */
-__EXTERN InterruptStatus_t
+__EXTERN void
 PS2MouseInterrupt(
-    _In_ PS2Port_t*                 Port);
+    _In_ PS2Port_t* Port);
 
 /* PS2KeyboardInitialize 
- * Initializes an instance of an ps2-keyboard on
- * the given PS2-Controller port */
+ * Initializes an instance of an ps2-keyboard on the given PS2-Controller port */
 __EXTERN OsStatus_t
 PS2KeyboardInitialize(
-    _In_ PS2Controller_t*           Controller,
-    _In_ int                        Port,
-    _In_ int                        Translation);
+    _In_ PS2Controller_t* Controller,
+    _In_ int              Port,
+    _In_ int              Translation);
 
 /* PS2KeyboardCleanup 
- * Cleans up the ps2-keyboard instance on the
- * given PS2-Controller port */
+ * Cleans up the ps2-keyboard instance on the given PS2-Controller port */
 __EXTERN OsStatus_t
 PS2KeyboardCleanup(
-    _In_ PS2Controller_t*           Controller,
-    _In_ int                        Port);
+    _In_ PS2Controller_t* Controller,
+    _In_ int              Port);
 
 /* PS2KeyboardInterrupt 
  * Handles the ps2-keyboard interrupt and processes the captured data */
-__EXTERN InterruptStatus_t
+__EXTERN void
 PS2KeyboardInterrupt(
-    _In_ PS2Port_t*                 Port);
+    _In_ PS2Port_t* Port);
 
 #endif //!_DRIVER_PS2_CONTROLLER_H_

@@ -21,8 +21,8 @@
  *   that all sub-layers / architectures must conform to
  */
 
-#ifndef __VALI_THREADING_SUPPORT_H__
-#define __VALI_THREADING_SUPPORT_H__
+#ifndef __ARCH_THREAD_H__
+#define __ARCH_THREAD_H__
 
 #include <os/osdefs.h>
 #include <os/context.h>
@@ -51,15 +51,24 @@ ThreadingYield(void);
 
 /* SaveThreadState
  * Saves the current state for the thread passed as parameter. */
-void
+KERNELAPI void KERNELABI
 SaveThreadState(
     _In_ MCoreThread_t* Thread);
 
 /* RestoreThreadState
  * Restores the thread state to allow the thread to run next. */
-void
+KERNELAPI void KERNELABI
 RestoreThreadState(
     _In_ MCoreThread_t* Thread);
+
+/* UpdateThreadContext
+ * Updates state for thread and gives an opportunity to do any lower level
+ * changes that might be affected. Can also jump to the given context immediately. */
+KERNELAPI void KERNELABI
+UpdateThreadContext(
+    _In_ MCoreThread_t* Thread,
+    _In_ int            ContextType,
+    _In_ int            Load);
 
 /* ContextCreate
  * Creates a new context for a thread, a type and the flags for which
@@ -67,6 +76,13 @@ RestoreThreadState(
 KERNELAPI Context_t* KERNELABI
 ContextCreate(
     _In_ int ContextType);
+
+/* ContextDestroy
+ * Destroys the context for the thread and releases resources. */
+KERNELAPI void KERNELABI
+ContextDestroy(
+    _In_ Context_t* Context,
+    _In_ int        ContextType);
 
 /* ContextReset
  * Resets an already existing context to new with the given parameters. */
@@ -83,7 +99,7 @@ ContextReset(
  * Adds an interceptor function that gets executed upon return of 
  * of thread. This will then be the next thing executed. Optionally a safe
  * stack can be provided that will be used for execution. */
-void
+KERNELAPI void KERNELABI
 ContextPushInterceptor(
     _In_ Context_t* Context,
     _In_ uintptr_t  Address,
@@ -91,11 +107,4 @@ ContextPushInterceptor(
     _In_ uintptr_t  Argument1,
     _In_ uintptr_t  Argument2);
 
-/* ContextDestroy
- * Destroys the context for the thread and releases resources. */
-KERNELAPI void KERNELABI
-ContextDestroy(
-    _In_ Context_t* Context,
-    _In_ int        ContextType);
-
-#endif //!__VALI_THREADING_SUPPORT_H__
+#endif //!__ARCH_THREAD_H__

@@ -48,8 +48,12 @@ DebugPageMemorySpaceHandlers(
         foreach(Node, Space->Context->MemoryHandlers) {
             SystemMemoryMappingHandler_t* Handler = (SystemMemoryMappingHandler_t*)Node;
             if (ISINRANGE(Address, Handler->Address, (Handler->Address + Handler->Length) - 1)) {
-                SendModuleInterrupt(__FILEMANAGER_TARGET, Handler->Handle, (void*)Address);
-                // @todo manually invoke yield from below
+                ERROR("Implement support for MemorySpaceHandlers");
+                for(;;);
+                //SignalQueue(__FILEMANAGER_TARGET, SIGINT, Handler->Handle, (void*)Address);
+                // @todo manually switch to next thread
+                // ThreadingAdvance();
+                // ContextLoad();
                 break;
             }
         }

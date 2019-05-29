@@ -21,7 +21,9 @@
 #define __MODULE "CTXT"
 //#define __TRACE
 
+#include <arch.h>
 #include <assert.h>
+#include <cpu.h>
 #include <debug.h>
 #include <gdt.h>
 #include <heap.h>
@@ -30,7 +32,6 @@
 #include <memory.h>
 #include <string.h>
 #include <stdio.h>
-#include <thread.h>
 #include <threading.h>
 
 //Identifier to detect newly reset stacks
@@ -178,7 +179,7 @@ ContextReset(
 
     // Setup entry, eflags and the code segment
     Context->Eip     = Address;
-    Context->Eflags  = X86_THREAD_EFLAGS;
+    Context->Eflags  = CPU_EFLAGS_DEFAULT;
     Context->Cs      = CodeSegment;
     Context->UserEsp = EspReturn;
     Context->UserSs  = StackSegment;

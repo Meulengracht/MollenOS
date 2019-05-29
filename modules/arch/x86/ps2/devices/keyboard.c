@@ -143,9 +143,7 @@ PS2KeyboardFastInterrupt(
     return InterruptHandledStop;
 }
 
-/* PS2KeyboardInterrupt 
- * Handles the ps2-keyboard interrupt and processes the captured data */
-InterruptStatus_t
+void
 PS2KeyboardInterrupt(
     _In_ PS2Port_t* Port)
 {
@@ -174,7 +172,6 @@ PS2KeyboardInterrupt(
         Key.Flags &= ~(KEY_MODIFIER_EXTENDED);
         Status    = WriteSystemKey(&Key);
     }
-    return InterruptHandled;
 }
 
 /* PS2KeyboardGetScancode

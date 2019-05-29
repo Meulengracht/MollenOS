@@ -29,6 +29,7 @@
 #include "manager.h"
 #include <string.h>
 #include <stdlib.h>
+#include <signal.h>
 
 static Collection_t Controllers = COLLECTION_INIT(KeyId);
 
@@ -67,25 +68,14 @@ OnFastInterrupt(
     return InterruptHandled;
 }
 
-/* OnInterrupt
- * Is called by external services to indicate an external interrupt.
- * This is to actually process the device interrupt */
-InterruptStatus_t 
+void
 OnInterrupt(
-    _In_Opt_ void*  InterruptData,
-    _In_Opt_ size_t Arg0,
-    _In_Opt_ size_t Arg1,
-    _In_Opt_ size_t Arg2)
+    _In_     int   Signal,
+    _In_Opt_ void* InterruptData)
 {
-    AhciController_t* Controller;
+    AhciController_t* Controller = (AhciController_t*)InterruptData;
     reg32_t           InterruptStatus;
     int               i;
-
-    // Unused
-    _CRT_UNUSED(Arg0);
-    _CRT_UNUSED(Arg1);
-    _CRT_UNUSED(Arg2);
-    Controller = (AhciController_t*)InterruptData;
 
 HandleInterrupt:
     InterruptStatus = Controller->InterruptResource.ControllerInterruptStatus;
@@ -103,7 +93,6 @@ HandleInterrupt:
     if (Controller->InterruptResource.ControllerInterruptStatus != 0) {
         goto HandleInterrupt;
     }
-    return InterruptHandled;
 }
 
 /* OnLoad
@@ -111,6 +100,7 @@ HandleInterrupt:
 OsStatus_t
 OnLoad(void)
 {
+    sigprocess(SIGINT, OnInterrupt);
     return AhciManagerInitialize();
 }
 
@@ -124,6 +114,8 @@ OnUnload(void)
         AhciControllerDestroy((AhciController_t*)cNode->Data);
     }
     CollectionClear(&Controllers);
+    
+    signal(SIGINT, SIG_DFL);
     return AhciManagerDestroy();
 }
 

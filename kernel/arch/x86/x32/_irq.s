@@ -25,7 +25,7 @@ segment .text
 global _exception_common
 global _irq_common
 global _syscall_entry
-global _jump_to_context
+global _ContextEnter
 global ___wbinvd
 global ___cli
 global ___sti
@@ -185,9 +185,9 @@ _syscall_entry:
     pop ds
     iret
 
-; void jump_to_context(context_t* registers)
+; void ContextEnter(context_t* registers)
 ; Switches stack and far jumps to next task
-_jump_to_context:
+_ContextEnter:
     mov eax, [esp + 4]
     mov esp, eax
     restore_state

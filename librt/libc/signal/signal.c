@@ -152,7 +152,8 @@ StdInvokeSignal(
                 }
             }
             else {
-                sig->handler(Signal);
+                __sa_process_t ext_handler = (__sa_process_t)sig->handler;
+                ext_handler(Signal, Argument);
             }
         }
     }
@@ -180,16 +181,12 @@ StdSignalInitialize()
     }
 }
 
-__signalhandler_t
-signal(
-    _In_ int               sig,
-    _In_ __signalhandler_t func)
+static int
+is_signal_valid(
+    _In_ int   sig,
+    _In_ void* handler)
 {
-    __signalhandler_t temp;
-    unsigned int      i;
-
-    // Validate signal, currently we do not support POSIX
-    // signal extensions
+    // Validate signal, currently we do not support POSIX signal extensions
     switch (sig) {
         case SIGINT:
         case SIGILL:
@@ -203,13 +200,27 @@ signal(
             break;
         default: {
             _set_errno(EINVAL);
-            return SIG_ERR;
+            return -1;
         }
     }
 
     // Check specials
-    if ((uintptr_t)func < 10 && func != SIG_DFL && func != SIG_IGN) {
+    if ((uintptr_t)handler < 10 && handler != (void*)SIG_DFL && handler != (void*)SIG_IGN) {
         _set_errno(EINVAL);
+        return -1;
+    }
+    return 0;
+}
+
+__sa_handler_t
+signal(
+    _In_ int            sig,
+    _In_ __sa_handler_t handler)
+{
+    __sa_handler_t temp;
+    unsigned int   i;
+
+    if (is_signal_valid(sig, (void*)handler) != 0) {
         return SIG_ERR;
     }
 
@@ -217,12 +228,18 @@ signal(
     for(i = 0; i < sizeof(signal_list) / sizeof(signal_list[0]); i++) {
         if (signal_list[i].signal == sig) {
             temp = signal_list[i].handler;
-            signal_list[i].handler = func;
+            signal_list[i].handler = handler;
             return temp;
         }
     }
     _set_errno(EINVAL);
     return SIG_ERR;
+}
+
+__sa_process_t
+sigprocess(int sig, __sa_process_t handler)
+{
+    return (__sa_process_t)signal(sig, (__sa_handler_t)handler);
 }
 
 int

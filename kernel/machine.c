@@ -184,7 +184,7 @@ InitializeMachine(
     }
     TimersSynchronizeTime();
 #ifdef __OSCONFIG_ENABLE_MULTIPROCESSORS
-//    EnableMultiProcessoringMode();
+    EnableMultiProcessoringMode();
 #endif
 
     // Either of three things happen, testing phase can begin, we can enter

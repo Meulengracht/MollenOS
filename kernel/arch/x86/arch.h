@@ -53,6 +53,9 @@
 #define THREAD_DATA_FLAGS               0
 #define THREAD_DATA_MATHBUFFER          1
 
+// Data Flags for threading
+#define X86_THREAD_USEDFPU              0x1
+
 #if defined(i386) || defined(__i386__)
 /* Architecture Memory Layout
  * This gives you an idea how memory layout is on the x86-32 platform in MollenOS 

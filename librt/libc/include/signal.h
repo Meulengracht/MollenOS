@@ -71,16 +71,18 @@
 
 #ifndef __SIGTYPE_DEFINED__
 #define __SIGTYPE_DEFINED__
-typedef	void (*__signalhandler_t)(int);
+typedef	void (*__sa_handler_t)(int);
+typedef void (*__sa_process_t)(int, void*);
 #endif
-#define SIG_DFL (__signalhandler_t)0
-#define SIG_IGN (__signalhandler_t)1
-#define SIG_ERR (__signalhandler_t)-1
+#define SIG_DFL (__sa_handler_t)0
+#define SIG_IGN (__sa_handler_t)1
+#define SIG_ERR (__sa_handler_t)-1
 
 /* We allow handlers for SIGINT, SIGSEGV, SIGTERM, SIGILL, SIGABRT, SIGFPE. */
 _CODE_BEGIN
-CRTDECL(__signalhandler_t, signal(int Sig, __signalhandler_t Func));
-CRTDECL(int,               raise(int Sig));
+CRTDECL(__sa_process_t, sigprocess(int sig, __sa_process_t handler));
+CRTDECL(__sa_handler_t, signal(int sig, __sa_handler_t handler));
+CRTDECL(int,            raise(int sig));
 _CODE_END
 
 #endif //__SIGNAL_H__

@@ -26,10 +26,11 @@
 #include <ddk/utils.h>
 #include <threads.h>
 #include <string.h>
+#include <signal.h>
 #include <stdlib.h>
 #include "ps2.h"
 
-static PS2Controller_t *Ps2Controller = NULL;
+static PS2Controller_t* Ps2Controller = NULL;
 
 /* PS2ReadStatus
  * Reads the status byte from the controller */
@@ -224,29 +225,19 @@ PS2Initialize(
     return OsSuccess;
 }
 
-/* OnInterrupt
- * Is called when one of the registered devices produces an interrupt. On successful handled
- * interrupt return OsSuccess, otherwise the interrupt won't be acknowledged */
-InterruptStatus_t
+void
 OnInterrupt(
-    _In_Opt_ void*  InterruptData,
-    _In_Opt_ size_t Arg0,
-    _In_Opt_ size_t Arg1,
-    _In_Opt_ size_t Arg2)
+    _In_     int   Signal,
+    _In_Opt_ void* InterruptData)
 {
     PS2Port_t* Port = (PS2Port_t*)InterruptData;
-    _CRT_UNUSED(Arg0);
-    _CRT_UNUSED(Arg1);
-    _CRT_UNUSED(Arg2);
-
     if (Port->Signature == 0xAB41 || Port->Signature == 0xABC1 ||
         Port->Signature == 0xAB83) {
-        return PS2KeyboardInterrupt(Port);
+        PS2KeyboardInterrupt(Port);
     }
     else if (Port->Signature != 0xFFFFFFFF) {
-        return PS2MouseInterrupt(Port);
+        PS2MouseInterrupt(Port);
     }
-    return InterruptHandled;
 }
 
 /* OnLoad
@@ -255,6 +246,9 @@ OnInterrupt(
 OsStatus_t
 OnLoad(void)
 {
+    // Install interrupt handler for signal
+    sigprocess(SIGINT, OnInterrupt);
+    
     // Allocate a new instance of the ps2-data
     Ps2Controller = (PS2Controller_t*)malloc(sizeof(PS2Controller_t));
     if (!Ps2Controller) {
@@ -272,6 +266,9 @@ OnLoad(void)
 OsStatus_t
 OnUnload(void)
 {
+    // Restore default interrupt signal handler
+    signal(SIGINT, SIG_DFL);
+    
     // Destroy the io-spaces we created
     if (Ps2Controller->Command != NULL) {
         ReleaseDeviceIo(Ps2Controller->Command);
@@ -289,7 +286,7 @@ OnUnload(void)
  * instance of this driver for the given device */
 OsStatus_t
 OnRegister(
-    _In_ MCoreDevice_t*    Device)
+    _In_ MCoreDevice_t* Device)
 {
     OsStatus_t Result = OsSuccess;
     PS2Port_t *Port;
