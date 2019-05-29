@@ -57,11 +57,9 @@ PS2MouseFastInterrupt(
     return InterruptHandledStop;
 }
 
-/* PS2MouseInterrupt 
- * Handles the ps2-mouse interrupt and processes the captured data */
-InterruptStatus_t
+void
 PS2MouseInterrupt(
-    _In_ PS2Port_t*                 Port)
+    _In_ PS2Port_t* Port)
 {
     SystemInput_t Input;
     uint8_t BytesRequired = PS2_MOUSE_DATA_MODE(Port) == 0 ? 3 : 4;
@@ -97,7 +95,6 @@ PS2MouseInterrupt(
         Port->ResponseReadIndex = 0;
     }
     WriteSystemInput(&Input);
-    return InterruptHandled;
 }
 
 /* PS2SetSampling

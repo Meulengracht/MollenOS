@@ -26,16 +26,21 @@
 #include <ddk/utils.h>
 #include "hci.h"
 #include <stdlib.h>
+#include <signal.h>
+
+extern void OnInterrupt(int, void*);
 
 OsStatus_t
 OnLoad(void)
 {
+    sigprocess(SIGINT, OnInterrupt);
     return UsbManagerInitialize();
 }
 
 OsStatus_t
 OnUnload(void)
 {
+    signal(SIGINT, SIG_DFL);
     return UsbManagerDestroy();
 }
 

@@ -546,7 +546,7 @@ GetNextThread:
     
     // Handle any signals pending for thread, as this might change the
     // active context set for the thread
-    SignalProcess(NextThread->Header.Key.Value.Id);
+    SignalProcess(NextThread);
     Core->InterruptRegisters = NextThread->ContextActive;
     return OsSuccess;
 }

@@ -81,12 +81,13 @@ UsbManagerSendNotification(
         RPCRespond(&Transfer->ResponseAddress, (void*)&Result, sizeof(UsbTransferResult_t));
     }
     else {
-        // Send interrupt
-        InterruptDriver(
-            Transfer->ResponseAddress.Process,          // Process
-            (size_t)Transfer->Transfer.PeriodicData,    // Data pointer 
-            Transfer->Status,                           // Status of transfer
-            Transfer->CurrentDataIndex, 0);             // Data offset (not used in isoc)
+        // Forward data to the driver
+        // @todo
+        //InterruptDriver(
+        //    Transfer->ResponseAddress.Process,          // Process
+        //    (size_t)Transfer->Transfer.PeriodicData,    // Data pointer 
+        //    Transfer->Status,                           // Status of transfer
+        //    Transfer->CurrentDataIndex, 0);             // Data offset (not used in isoc)
 
         // Increase
         if (Transfer->Transfer.Type == InterruptTransfer) {

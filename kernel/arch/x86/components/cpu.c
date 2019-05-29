@@ -28,7 +28,6 @@
 #include <machine.h>
 #include <memory.h>
 #include <smbios.h>
-#include <thread.h>
 #include <debug.h>
 #include <apic.h>
 #include <cpu.h>

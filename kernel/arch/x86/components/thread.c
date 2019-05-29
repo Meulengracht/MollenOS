@@ -27,7 +27,6 @@
 #include <arch/utils.h>
 #include <threading.h>
 #include <interrupts.h>
-#include <thread.h>
 #include <memory.h>
 #include <handle.h>
 #include <debug.h>
@@ -48,6 +47,7 @@ extern void save_fpu_extended(uintptr_t *buffer);
 extern void set_ts(void);
 extern void clear_ts(void);
 extern void _yield(void);
+extern void ContextEnter(Context_t*);
 
 OsStatus_t
 ThreadingRegister(
@@ -143,5 +143,25 @@ RestoreThreadState(
     }
     else {
         Core->InterruptPriority = 61 - Thread->SchedulerObject->Queue;
+    }
+}
+
+void
+UpdateThreadContext(
+    _In_ MCoreThread_t* Thread,
+    _In_ int            ContextType,
+    _In_ int            Load)
+{
+    // If we switch into signal stack then make sure we don't overwrite the original
+    // interrupt stack for the thread. Otherwise restore the original interrupt stack.
+    if (ContextType == THREADING_CONTEXT_SIGNAL) {
+        TssUpdateThreadStack(Thread->SchedulerObject->CoreId, (uintptr_t)Thread->OriginalContext);
+    }
+    else {
+        TssUpdateThreadStack(Thread->SchedulerObject->CoreId, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
+    }
+    
+    if (Load) {
+        ContextEnter(Thread->ContextActive);
     }
 }

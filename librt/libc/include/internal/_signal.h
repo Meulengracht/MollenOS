@@ -7,13 +7,14 @@
 
 #ifndef __SIGTYPE_DEFINED__
 #define __SIGTYPE_DEFINED__
-typedef	void (*__signalhandler_t)(int);
+typedef	void (*__sa_handler_t)(int);
+typedef void (*__sa_process_t)(int, void*);
 #endif
 
 typedef struct _sig_element {
-	int               signal;
-	const char*		  name;
-	__signalhandler_t handler;
+	int 		   signal;
+	const char*	   name;
+	__sa_handler_t handler;
 } sig_element;
 
 #endif

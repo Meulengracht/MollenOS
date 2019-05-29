@@ -37,7 +37,6 @@
 
 extern OsStatus_t ThreadingFpuException(MCoreThread_t *Thread);
 extern OsStatus_t GetVirtualPageAttributes(SystemMemorySpace_t*, VirtualAddress_t, Flags_t*);
-extern void  jump_to_context(Context_t* Registers);
 extern reg_t __getcr2(void);
 
 static void
@@ -79,17 +78,13 @@ void
 ExceptionEntry(
     _In_ Context_t* Registers)
 {
-    SystemCpuCore_t* Core          = GetCurrentProcessorCore();
-    uintptr_t        Address       = __MASK;
-    MCoreThread_t*   Thread        = Core->CurrentThread;
-    int              IssueFixed    = 0;
-    int              SwitchContext = 0;
+    uintptr_t        Address    = __MASK;
+    int              IssueFixed = 0;
+    SystemCpuCore_t* Core;
 
     // Handle IRQ
     if (Registers->Irq == 0) {      // Divide By Zero (Non-math instruction)
-        if (SignalCreateInternal(Registers, SIGFPE, NULL) == OsSuccess) {
-            SwitchContext = 1;
-        }
+        SignalExecute(Registers, SIGFPE, NULL);
     }
     else if (Registers->Irq == 1) { // Single Step
         if (DebugSingleStep(Registers) == OsSuccess) {
@@ -105,29 +100,20 @@ ExceptionEntry(
         IssueFixed = 1;
     }
     else if (Registers->Irq == 4) { // Overflow
-        if (SignalCreateInternal(Registers, SIGSEGV, NULL) == OsSuccess) {
-            SwitchContext = 1;
-        }
+        SignalExecute(Registers, SIGSEGV, NULL);
     }
     else if (Registers->Irq == 5) { // Bound Range Exceeded
-        if (SignalCreateInternal(Registers, SIGSEGV, NULL) == OsSuccess) {
-            SwitchContext = 1;
-        }
+        SignalExecute(Registers, SIGSEGV, NULL);
     }
     else if (Registers->Irq == 6) { // Invalid Opcode
-        if (SignalCreateInternal(Registers, SIGILL, NULL) == OsSuccess) {
-            SwitchContext = 1;
-        }
+        SignalExecute(Registers, SIGILL, NULL);
     }
     else if (Registers->Irq == 7) { // DeviceNotAvailable 
-        Thread = GetCurrentThreadForCore(ArchGetProcessorCoreId());
-        assert(Thread != NULL);
-
         // This might be because we need to restore fpu/sse state
-        if (ThreadingFpuException(Thread) != OsSuccess) {
-            if (SignalCreateInternal(Registers, SIGFPE, NULL) == OsSuccess) {
-                SwitchContext = 1;
-            }
+        Core = GetCurrentProcessorCore();
+        assert(Core->CurrentThread != NULL);
+        if (ThreadingFpuException(Core->CurrentThread) != OsSuccess) {
+            SignalExecute(Registers, SIGFPE, NULL);
         }
         else {
             IssueFixed = 1;
@@ -143,19 +129,13 @@ ExceptionEntry(
         // Fall-through to kernel fault
     }
     else if (Registers->Irq == 11) { // Segment Not Present
-        if (SignalCreateInternal(Registers, SIGSEGV, NULL) == OsSuccess) {
-            SwitchContext = 1;
-        }
+        SignalExecute(Registers, SIGSEGV, NULL);
     }
     else if (Registers->Irq == 12) { // Stack Segment Fault
-        if (SignalCreateInternal(Registers, SIGSEGV, NULL) == OsSuccess) {
-            SwitchContext = 1;
-        }
+        SignalExecute(Registers, SIGSEGV, NULL);
     }
     else if (Registers->Irq == 13) { // General Protection Fault
-        if (SignalCreateInternal(Registers, SIGSEGV, NULL) == OsSuccess) {
-            SwitchContext = 1;
-        }
+        SignalExecute(Registers, SIGSEGV, NULL);
     }
     else if (Registers->Irq == 14) {    // Page Fault
         Address = (uintptr_t)__getcr2();
@@ -163,9 +143,7 @@ ExceptionEntry(
         // The first thing we must check before propegating events
         // is that we must check special locations
         if (Address == MEMORY_LOCATION_SIGNAL_RET) {
-            TerminateThread(GetCurrentThreadId(), SIGSEGV, 1);
-            ERROR(" >> return from signal detected");
-            for(;;);
+            SignalReturn(Registers);
         }
 
         // Final step is to see if kernel can handle the unallocated address
@@ -173,25 +151,17 @@ ExceptionEntry(
             IssueFixed = 1;
         }
         else {
+            Core = GetCurrentProcessorCore();
+            assert(Core->CurrentThread != NULL);
             ERROR("%s: MEMORY_ACCESS_FAULT: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN "", 
-                GetCurrentThreadForCore(ArchGetProcessorCoreId())->Name, 
-                Address, Registers->ErrorCode, CONTEXT_IP(Registers));
-            if (SignalCreateInternal(Registers, SIGSEGV, NULL) == OsSuccess) {
-                SwitchContext = 1;
-            }
+                Core->CurrentThread->Name, Address, Registers->ErrorCode, CONTEXT_IP(Registers));
+            SignalExecute(Registers, SIGSEGV, NULL);
         }
     }
     else if (Registers->Irq == 16 || Registers->Irq == 19) {    // FPU & SIMD Floating Point Exception
-        if (SignalCreateInternal(Registers, SIGFPE, NULL) == OsSuccess) {
-            SwitchContext = 1;
-        }
+        SignalExecute(Registers, SIGFPE, NULL);
     }
     
-    // Switch context if requested
-    if (SwitchContext) {
-        jump_to_context(Thread->ContextActive);
-    }
-
     // Was the exception handled?
     if (!IssueFixed) {
         HardFault(Registers, Address);

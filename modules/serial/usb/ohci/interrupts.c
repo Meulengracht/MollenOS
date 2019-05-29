@@ -86,25 +86,14 @@ OnFastInterrupt(
     return InterruptHandled;
 }
 
-/* OnInterrupt
- * Is called by external services to indicate an external interrupt.
- * This is to actually process the device interrupt */
-InterruptStatus_t 
+void
 OnInterrupt(
-    _In_Opt_ void *InterruptData,
-    _In_Opt_ size_t Arg0,
-    _In_Opt_ size_t Arg1,
-    _In_Opt_ size_t Arg2)
+    _In_     int   Signal,
+    _In_Opt_ void* InterruptData)
 {
-    OhciController_t* Controller;
+    OhciController_t* Controller = (OhciController_t*)InterruptData;
     reg32_t           InterruptStatus;
-    
-    // Unusued
-    _CRT_UNUSED(Arg0);
-    _CRT_UNUSED(Arg1);
-    _CRT_UNUSED(Arg2);
 
-    Controller = (OhciController_t*)InterruptData;
 ProcessInterrupt:
     InterruptStatus                  = Controller->Base.InterruptStatus;
     Controller->Base.InterruptStatus = 0;
@@ -152,5 +141,4 @@ ProcessInterrupt:
     if (Controller->Base.InterruptStatus != 0) {
         goto ProcessInterrupt;
     }
-    return InterruptHandled;
 }

@@ -51,23 +51,14 @@ OnFastInterrupt(
     return InterruptHandled;
 }
 
-InterruptStatus_t 
+void
 OnInterrupt(
-    _In_Opt_ void*  InterruptData,
-    _In_Opt_ size_t Arg0,
-    _In_Opt_ size_t Arg1,
-    _In_Opt_ size_t Arg2)
+    _In_     int   Signal,
+    _In_Opt_ void* InterruptData)
 {
-    UhciController_t* Controller = NULL;
+    UhciController_t* Controller = (UhciController_t*)InterruptData;
     uint16_t          InterruptStatus;
     
-    // Unusued
-    _CRT_UNUSED(Arg0);
-    _CRT_UNUSED(Arg1);
-    _CRT_UNUSED(Arg2);
-
-    Controller = (UhciController_t*)InterruptData;
-
 HandleInterrupt:
     InterruptStatus                  = Controller->Base.InterruptStatus;
     Controller->Base.InterruptStatus = 0;
@@ -101,5 +92,4 @@ HandleInterrupt:
     if (Controller->Base.InterruptStatus != 0) {
         goto HandleInterrupt;
     }
-    return InterruptHandled;
 }

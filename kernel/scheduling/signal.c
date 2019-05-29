@@ -23,13 +23,15 @@
 
 #include <arch/thread.h>
 #include <arch/utils.h>
+#include <assert.h>
+#include <component/cpu.h>
+#include <debug.h>
+#include <handle.h>
+#include <heap.h>
 #include <memoryspace.h>
-#include <threading.h>
 #include <scheduler.h>
 #include <string.h>
-#include <handle.h>
-#include <debug.h>
-#include <heap.h>
+#include <threading.h>
 
 #if 0
 static char SignalFatalityTable[] = {
@@ -75,14 +77,14 @@ static char SignalFatalityTable[] = {
 #endif
 
 OsStatus_t
-SignalCreateExternal(
+SignalQueue(
     _In_ UUId_t ThreadId,
     _In_ int    Signal,
     _In_ void*  Argument)
 {
     MCoreThread_t* Target   = GetThread(ThreadId);
     int            Expected = SIGNAL_FREE;
-    TRACE("SignalCreateExternal(Thread %" PRIuIN ", Signal %i)", ThreadId, Signal);
+    TRACE("SignalQueue(Thread %" PRIuIN ", Signal %i)", ThreadId, Signal);
 
     // Sanitize input, and then sanitize if we have a handler
     if (Target == NULL || Signal >= NUMSIGNALS) {
@@ -104,53 +106,66 @@ SignalCreateExternal(
     return OsSuccess;
 }
 
-OsStatus_t
-SignalCreateInternal(
-    _In_ Context_t* Registers,
+void
+SignalExecute(
+    _In_ Context_t* Context,
     _In_ int        Signal,
     _In_ void*      Argument)
 {
-    UUId_t         CoreId = ArchGetProcessorCoreId();
-    MCoreThread_t* Thread = GetCurrentThreadForCore(CoreId);
+    SystemCpuCore_t* Core   = GetCurrentProcessorCore();
+    MCoreThread_t*   Thread = Core->CurrentThread;
+    
+    TRACE("SignalExecute(Signal %i)", Signal);
 
-    TRACE("ExceptionSignal(Signal %i)", Signal);
-    __asm { xchg bx, bx };
-
-    // Sanitize if user-process
-#ifdef __OSCONFIG_DISABLE_SIGNALLING
-    if (Signal >= 0) {
-#else
-    if (Thread == NULL || Thread->MemorySpace == NULL ||
-        Thread->MemorySpace->Context == NULL ||
-        Thread->MemorySpace->Context->SignalHandler == 0) {
-#endif
-        return OsError;
-    }
+#ifndef __OSCONFIG_DISABLE_SIGNALLING    
+    // Must be a user process
+    assert(Thread != NULL);
+    assert(Thread->MemorySpace->Context != NULL);
+    assert(Thread->MemorySpace->Context->SignalHandler != 0);
 
     // We do absolutely not care about the existing signal stack
     // in case of internal signals
     if (!Thread->HandlingSignals) {
         Thread->HandlingSignals = 1;
-        Thread->OriginalContext = Registers;
+        Thread->OriginalContext = Context;
     }
     ContextReset(Thread->Contexts[THREADING_CONTEXT_SIGNAL],
         THREADING_CONTEXT_SIGNAL, Thread->MemorySpace->Context->SignalHandler,
         (uintptr_t)Signal, (uintptr_t)Argument, 0);
     Thread->ContextActive = Thread->Contexts[THREADING_CONTEXT_SIGNAL];
-    return OsSuccess;
+    
+    // Switch to the signal context
+    UpdateThreadContext(Thread, THREADING_CONTEXT_SIGNAL, 1);
+#endif
+}
+
+void
+SignalReturn(
+    _In_ Context_t* Context)
+{
+    SystemCpuCore_t* Core   = GetCurrentProcessorCore();
+    MCoreThread_t*   Thread = Core->CurrentThread;
+    
+    TRACE("SignalReturn()");
+    assert(Thread != NULL);
+    assert(Thread->OriginalContext != NULL);
+    
+    Thread->HandlingSignals = 0;
+    Thread->ContextActive   = Thread->OriginalContext;
+    Thread->OriginalContext = NULL;
+    UpdateThreadContext(Thread, THREADING_CONTEXT_LEVEL0, 1);
 }
 
 void
 SignalProcess(
-    _In_ UUId_t ThreadId)
+    _In_ MCoreThread_t* Thread)
 {
-    MCoreThread_t* Thread = GetThread(ThreadId);
-    int            i;
+    int i;
 
+    assert(Thread != NULL);
+    
     // Protect against signals received
-    if (Thread == NULL || 
-        Thread->MemorySpace == NULL ||
-        Thread->MemorySpace->Context == NULL ||
+    if (Thread->MemorySpace->Context == NULL ||
         Thread->MemorySpace->Context->SignalHandler == 0 ||
         Thread->Contexts[THREADING_CONTEXT_SIGNAL] == NULL) {
         return;
@@ -181,6 +196,7 @@ SignalProcess(
                     Thread->MemorySpace->Context->SignalHandler,
                     i, (uintptr_t)Argument, 0);
             }
+            UpdateThreadContext(Thread, THREADING_CONTEXT_SIGNAL, 0);
             atomic_store(&Thread->Signals[i].Status, SIGNAL_FREE);
         }
     }

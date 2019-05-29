@@ -99,7 +99,7 @@ ScThreadSignal(
 {
     OsStatus_t Result = AreThreadsRelated(ThreadId, GetCurrentThreadId());
     if (Result == OsSuccess) {
-        Result = SignalCreateExternal(ThreadId, SignalCode, NULL);
+        Result = SignalQueue(ThreadId, SignalCode, NULL);
     }
     return Result;
 }

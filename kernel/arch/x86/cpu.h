@@ -55,6 +55,11 @@
 #define CPU_DATA_FEATURES_ECX       2
 #define CPU_DATA_FEATURES_EDX       3
 
+/* Constants and magic values which set the correct
+ * bits for x86-specific registers, especially eflags */
+#define CPU_EFLAGS_DEFAULT          0x202
+#define CPU_EFLAGS_SINGLESTEP       0x100
+
 enum CpuFeatures {
 	//Features contained in ECX register
 	CPUID_FEAT_ECX_SSE3 = 1 << 0,

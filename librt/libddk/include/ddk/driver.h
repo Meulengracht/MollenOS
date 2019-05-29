@@ -33,31 +33,8 @@
  * functions will be added */
 #define __DRIVER_REGISTERINSTANCE		IPC_DECL_FUNCTION(0)
 #define __DRIVER_UNREGISTERINSTANCE		IPC_DECL_FUNCTION(1)
-#define __DRIVER_INTERRUPT				IPC_DECL_FUNCTION(2)
-#define __DRIVER_QUERY					IPC_DECL_FUNCTION(3)
-#define __DRIVER_UNLOAD					IPC_DECL_FUNCTION(4)
-
-/* InterruptDriver
- * Call this to send an interrupt into user-space */
-SERVICEAPI OsStatus_t SERVICEABI
-InterruptDriver(
-	_In_ UUId_t Driver,
-    _In_ size_t Argument0,
-    _In_ size_t Argument1,
-    _In_ size_t Argument2,
-    _In_ size_t Argument3)
-{
-	MRemoteCall_t Request;
-	UUId_t        NoId = UUID_INVALID;
-
-	RPCInitialize(&Request, Driver, 1, __DRIVER_INTERRUPT);
-	RPCSetArgument(&Request, 0, (const void*)&NoId, sizeof(UUId_t));
-    RPCSetArgument(&Request, 1, (const void*)&Argument0, sizeof(size_t));
-    RPCSetArgument(&Request, 2, (const void*)&Argument1, sizeof(size_t));
-    RPCSetArgument(&Request, 3, (const void*)&Argument2, sizeof(size_t));
-    RPCSetArgument(&Request, 4, (const void*)&Argument3, sizeof(size_t));
-	return RPCEvent(&Request);
-}
+#define __DRIVER_QUERY					IPC_DECL_FUNCTION(2)
+#define __DRIVER_UNLOAD					IPC_DECL_FUNCTION(3)
 
 /* OnQuery
  * Occurs when an external process or server quries

@@ -24,8 +24,6 @@
 #include <internal/_syscalls.h>
 #include <ddk/driver.h>
 
-/* RegisterFastInterruptHandler
- * Registers a fast interrupt handler associated with the interrupt. */
 void
 RegisterFastInterruptHandler(
     _In_ DeviceInterrupt_t* Interrupt,
@@ -34,8 +32,6 @@ RegisterFastInterruptHandler(
     Interrupt->FastInterrupt.Handler = Handler;
 }
 
-/* RegisterFastInterruptIoResource
- * Registers the given device io resource with the fast-interrupt. */
 void
 RegisterFastInterruptIoResource(
     _In_ DeviceInterrupt_t* Interrupt,
@@ -49,8 +45,6 @@ RegisterFastInterruptIoResource(
     }
 }
 
-/* RegisterFastInterruptMemoryResource
- * Registers the given memory resource with the fast-interrupt. */
 void
 RegisterFastInterruptMemoryResource(
     _In_ DeviceInterrupt_t* Interrupt,
@@ -68,8 +62,6 @@ RegisterFastInterruptMemoryResource(
     }
 }
 
-/* RegisterInterruptContext
- * Sets the context pointer that should be attached to any OnInterrupt events. */
 void
 RegisterInterruptContext(
     _In_ DeviceInterrupt_t* Interrupt,
@@ -78,11 +70,6 @@ RegisterInterruptContext(
     Interrupt->Context = Context;
 }
 
-/* RegisterInterruptSource 
- * Allocates the given interrupt source for use by
- * the requesting driver, an id for the interrupt source
- * is returned. After a succesful register, OnInterrupt
- * can be called by the event-system */
 UUId_t
 RegisterInterruptSource(
     _In_ DeviceInterrupt_t* Interrupt,
@@ -95,12 +82,9 @@ RegisterInterruptSource(
 	return Syscall_InterruptAdd(Interrupt, Flags);
 }
 
-/* UnregisterInterruptSource 
- * Unallocates the given interrupt source and disables
- * all events of OnInterrupt */
 OsStatus_t
 UnregisterInterruptSource(
-    _In_ UUId_t             Source)
+    _In_ UUId_t Source)
 {
 	// Sanitize input
 	if (Source == UUID_INVALID) {

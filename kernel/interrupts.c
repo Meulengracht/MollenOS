@@ -353,6 +353,7 @@ InterruptRegister(
 
     // Get process id?
     if (!(Flags & INTERRUPT_KERNEL)) {
+        assert(GetCurrentModule() != NULL);
         Entry->ModuleHandle = GetCurrentModule()->Handle;
     }
 
@@ -532,29 +533,6 @@ InterruptGetActiveStatus(void)
     return (GetCurrentProcessorCore()->State & CpuStateInterruptActive) == 0 ? 0 : 1;
 }
 
-extern OsStatus_t
-ScRpcExecute(
-    _In_ MRemoteCall_t* RemoteCall,
-    _In_ int            Async);
-
-OsStatus_t
-SendModuleInterrupt(
-    _In_ UUId_t Module, 
-    _In_ UUId_t Id,
-    _In_ void*  Data)
-{
-    MRemoteCall_t Request;
-    size_t        Zero = 0;
-
-    RPCInitialize(&Request, Module, 1, __DRIVER_INTERRUPT);
-    RPCSetArgument(&Request, 0, (const void*)&Id, sizeof(UUId_t));
-    RPCSetArgument(&Request, 1, (const void*)&Data, sizeof(void*));
-    RPCSetArgument(&Request, 2, (const void*)&Zero, sizeof(size_t));
-    RPCSetArgument(&Request, 3, (const void*)&Zero, sizeof(size_t));
-    RPCSetArgument(&Request, 4, (const void*)&Zero, sizeof(size_t));
-    return ScRpcExecute(&Request, 1);
-}
-
 Context_t*
 InterruptHandle(
     _In_  Context_t* Context,
@@ -595,8 +573,7 @@ InterruptHandle(
                 // We have the InterruptHandledStop as a marker to identify
                 // when it's not neccessary to further send an interrupt notification
                 if ((Entry->Flags & INTERRUPT_USERSPACE) != 0 && Result != InterruptHandledStop) {
-                    OsStatus_t Status = SendModuleInterrupt(Entry->ModuleHandle, Entry->Id, Entry->Interrupt.Context);
-                    assert(Status == OsSuccess);
+                    (void)SignalQueue(Entry->Thread, SIGINT, Entry->Interrupt.Context);
                 }
                 Source = Entry->Source;
                 break;

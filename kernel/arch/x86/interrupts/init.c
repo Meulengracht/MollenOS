@@ -26,7 +26,6 @@
 //#define __TRACE
 
 #include <interrupts.h>
-#include <thread.h>
 #include <debug.h>
 #include <apic.h>
 #include <arch.h>

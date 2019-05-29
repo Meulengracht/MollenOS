@@ -166,14 +166,4 @@ AcpiDeriveInterrupt(
     _In_  int               Pin,
     _Out_ Flags_t*          AcpiConform);
 
-/* SendModuleInterrupt
- * Call this to send an interrupt into user-space
- * the driver must acknowledge the interrupt once its handled
- * to unmask the interrupt-line again */
-KERNELAPI OsStatus_t KERNELABI
-SendModuleInterrupt(
-    _In_ UUId_t Module, 
-    _In_ UUId_t Id,
-    _In_ void*  Data);
-
 #endif //!_MCORE_INTERRUPTS_H_

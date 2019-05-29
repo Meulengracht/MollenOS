@@ -25,12 +25,11 @@
 #include <stdlib.h>
 
 // Module Interface
-extern OsStatus_t        OnLoad(void);
-extern OsStatus_t        OnUnload(void);
-extern OsStatus_t        OnRegister(MCoreDevice_t*);
-extern OsStatus_t        OnUnregister(MCoreDevice_t*);
-extern InterruptStatus_t OnInterrupt(void*, size_t, size_t, size_t);
-extern OsStatus_t        OnQuery(MContractType_t,  int,  MRemoteCallArgument_t*, MRemoteCallArgument_t*, MRemoteCallArgument_t*, MRemoteCallAddress_t*);
+extern OsStatus_t OnLoad(void);
+extern OsStatus_t OnUnload(void);
+extern OsStatus_t OnRegister(MCoreDevice_t*);
+extern OsStatus_t OnUnregister(MCoreDevice_t*);
+extern OsStatus_t OnQuery(MContractType_t,  int,  MRemoteCallArgument_t*, MRemoteCallArgument_t*, MRemoteCallArgument_t*, MRemoteCallAddress_t*);
 
 extern char**
 __CrtInitialize(
@@ -64,12 +63,6 @@ void __CrtModuleEntry(void)
                 } break;
                 case __DRIVER_UNREGISTERINSTANCE: {
                     OnUnregister((MCoreDevice_t*)Message.Arguments[0].Data.Buffer);
-                } break;
-                case __DRIVER_INTERRUPT: {
-                    OnInterrupt((void*)Message.Arguments[1].Data.Value,
-                        Message.Arguments[2].Data.Value,
-                        Message.Arguments[3].Data.Value,
-                        Message.Arguments[4].Data.Value);
                 } break;
                 case __DRIVER_QUERY: {
                     OnQuery((MContractType_t)Message.Arguments[0].Data.Value, 

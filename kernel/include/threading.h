@@ -48,7 +48,7 @@ typedef void(*ThreadEntry_t)(void*);
 
 #define THREADING_CONTEXT_LEVEL0        0   // Kernel
 #define THREADING_CONTEXT_LEVEL1        1   // Application
-#define THREADING_CONTEXT_SIGNAL        2   // Signal Safe
+#define THREADING_CONTEXT_SIGNAL        2   // Signal
 #define THREADING_NUMCONTEXTS           3
 #define THREADING_CONFIGDATA_COUNT      4
 
@@ -212,28 +212,35 @@ ThreadingAdvance(
 KERNELAPI void KERNELABI
 DisplayActiveThreads(void);
 
-/* SignalCreateExternal
+/* SignalQueue
  * Dispatches a signal to a thread in the system from an external 
  * source (i.e another thread). */
 KERNELAPI OsStatus_t KERNELABI
-SignalCreateExternal(
+SignalQueue(
     _In_ UUId_t ThreadId,
     _In_ int    Signal,
     _In_ void*  Argument);
 
-/* SignalCreateInternal
- * Dispatches a signal to an already running thread, this must come from the same
- * thread (i.e an exception). */
-KERNELAPI OsStatus_t KERNELABI
-SignalCreateInternal(
-    _In_ Context_t* Registers,
+/* SignalExecute
+ * Dispatches a signal to the current thread. This immediately loads the signal
+ * context and does not return from this function (i.e an exception). */
+KERNELAPI void KERNELABI
+SignalExecute(
+    _In_ Context_t* Context,
     _In_ int        Signal,
     _In_ void*      Argument);
+
+/* SignalReturn
+ * Handles returning from a signal, reloads the original thread context.
+ * There is no return from this function. */
+void
+SignalReturn(
+    _In_ Context_t* Context);
 
 /* SignalProcess
  * Processes all queued signals and appends to execution list. */
 KERNELAPI void KERNELABI
 SignalProcess(
-    _In_ UUId_t ThreadId);
+    _In_ MCoreThread_t* Thread);
 
 #endif //!__THREADING_H__
