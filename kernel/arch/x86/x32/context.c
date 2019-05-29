@@ -94,7 +94,7 @@ ContextPushInterceptor(
 	// ASSUMPTIONS
 	// STACK MUST BE LEVEL1/SIGNAL
 	// STACK MUST BE RESET BEFORE FIRST CALL TO INTERCEPTOR
-	assert(Context->Rax == CONTEXT_RESET_IDENTIFIER);
+	assert(Context->Eax == CONTEXT_RESET_IDENTIFIER);
 	
 	// Push in reverse fashion, and have everything on stack to be able to restore
 	// the default register states
@@ -177,7 +177,7 @@ ContextReset(
     Context->Ebp = EbpInitial;
 
     // Setup entry, eflags and the code segment
-    Context->Eip     = EntryAddress;
+    Context->Eip     = Address;
     Context->Eflags  = X86_THREAD_EFLAGS;
     Context->Cs      = CodeSegment;
     Context->UserEsp = EspReturn;

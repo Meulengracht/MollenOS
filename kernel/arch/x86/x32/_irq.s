@@ -191,7 +191,7 @@ _jump_to_context:
     mov eax, [esp + 4]
     mov esp, eax
     restore_state
-    iretq
+    iret
 
 ;Define excetions!
 irq_no_error 0

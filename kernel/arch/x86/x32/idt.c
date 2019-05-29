@@ -48,7 +48,7 @@ IdtInstallDescriptor(
 
 void IdtInitialize(void)
 {
-    Idtptr.Limit = (sizeof(IdtEntry_t) * IDT_DESCRIPTORS) - 1;
+    Idtptr.Limit = (sizeof(IdtEntry_t) * IDT_DESCRIPTOR_COUNT) - 1;
     Idtptr.Base  = (uint32_t)&IdtDescriptors[0];
     InterruptInstallDefaultGates();
     
