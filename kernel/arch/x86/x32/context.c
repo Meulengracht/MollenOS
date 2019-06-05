@@ -153,13 +153,12 @@ ContextReset(
 	    	EbpInitial = MEMORY_SEGMENT_SIGSTACK_BASE + MEMORY_SEGMENT_SIGSTACK_SIZE;
 	    }
         
-	    // Initialize top part of stack
+	    // Initialize top part of stack, same for both signal stacks and
+	    // regular stacks
 	    StackTopPointer = (uintptr_t*)EbpInitial;
-	    if (ContextType == THREADING_CONTEXT_SIGNAL) {
-		    *(--StackTopPointer) = Argument2;
-		    *(--StackTopPointer) = Argument1;
-		    *(--StackTopPointer) = Argument0;
-	    }
+	    *(--StackTopPointer) = Argument2;
+	    *(--StackTopPointer) = Argument1;
+	    *(--StackTopPointer) = Argument0;
 	    *(--StackTopPointer) = MEMORY_LOCATION_SIGNAL_RET;
 	    
 		// Either initialize the ring3 stuff or zero out the values
