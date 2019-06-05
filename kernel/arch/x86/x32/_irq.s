@@ -141,10 +141,11 @@ _irq_common:
 	; Set current stack as argument 1
 	; Set tableindex as argument 2
 	mov eax, [esp + 48]
+	add eax, 32
 	push eax
     push esp
     call _InterruptHandle ; (context_t*, uint)
-    add esp, 0x4
+    add esp, 0x8
 
     restore_state
     iret
