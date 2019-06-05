@@ -46,7 +46,7 @@ typedef struct _UsbManagerController {
     MContract_t         Contract;
 
     UUId_t              Interrupt;
-    reg32_t             InterruptStatus;
+    _Atomic(reg32_t)    InterruptStatus;
     size_t              PortCount;
     
     DeviceIo_t*         IoBase;

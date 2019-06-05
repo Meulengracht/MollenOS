@@ -44,7 +44,7 @@ OnFastInterrupt(
     if (!(InterruptStatus & UHCI_STATUS_INTMASK)) {
         return InterruptNotHandled;
     }
-    Controller->Base.InterruptStatus |= InterruptStatus;
+    atomic_fetch_or(&Controller->Base.InterruptStatus, InterruptStatus);
 
     // Clear interrupt bits
     InterruptTable->WriteIoSpace(IoSpace, UHCI_REGISTER_STATUS, InterruptStatus, 2);
@@ -60,8 +60,8 @@ OnInterrupt(
     uint16_t          InterruptStatus;
     
 HandleInterrupt:
-    InterruptStatus                  = Controller->Base.InterruptStatus;
-    Controller->Base.InterruptStatus = 0;
+    InterruptStatus = atomic_exchange(&Controller->Base.InterruptStatus, 0);
+    
     // If either interrupt or error is present, it means a change happened
     // in one of our transactions
     if (InterruptStatus & (UHCI_STATUS_USBINT | UHCI_STATUS_INTR_ERROR)) {
@@ -89,7 +89,7 @@ HandleInterrupt:
     }
 
     // Make sure we re-handle interrupts meanwhile
-    if (Controller->Base.InterruptStatus != 0) {
+    if (atomic_load(&Controller->Base.InterruptStatus) != 0) {
         goto HandleInterrupt;
     }
 }

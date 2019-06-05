@@ -135,6 +135,10 @@ ExceptionEntry(
         SignalExecute(Registers, SIGSEGV, NULL);
     }
     else if (Registers->Irq == 13) { // General Protection Fault
+        Core = GetCurrentProcessorCore();
+        assert(Core->CurrentThread != NULL);
+        ERROR("%s: FAULT: 0x%" PRIxIN ", 0x%" PRIxIN "", 
+            Core->CurrentThread->Name, Registers->ErrorCode, CONTEXT_IP(Registers));
         SignalExecute(Registers, SIGSEGV, NULL);
     }
     else if (Registers->Irq == 14) {    // Page Fault

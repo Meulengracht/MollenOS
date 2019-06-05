@@ -1,5 +1,5 @@
 # Makefile for building the standard c-libraries for both userspace and kernel
-# - libusb
+# - libddk
 
 # Include all the definitions for os
 include ../../config/common.mk

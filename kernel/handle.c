@@ -36,9 +36,9 @@
 #include <memoryspace.h>
 #include <pipe.h>
 
-static Collection_t         SystemHandles                       = COLLECTION_INIT(KeyId);
-static _Atomic(UUId_t)      IdGenerator                         = 1;
-static HandleDestructorFn   HandleDestructors[HandleTypeCount]  = {
+static Collection_t       SystemHandles                       = COLLECTION_INIT(KeyId);
+static _Atomic(UUId_t)    IdGenerator                         = 1;
+static HandleDestructorFn HandleDestructors[HandleTypeCount]  = {
     NULL,                      // Generic - Ignore
     DestroyMemoryBuffer,
     DestroyMemorySpace,

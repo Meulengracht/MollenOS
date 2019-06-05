@@ -322,33 +322,19 @@ __EXTERN OsStatus_t
 OhciQueueDestroy(
     _In_ OhciController_t*  Controller);
 
-/* OhciPortPrepare
- * Resets the port and also clears out any event on the port line. */
-__EXTERN OsStatus_t
-OhciPortPrepare(
-    _In_ OhciController_t*  Controller, 
-    _In_ int                Index);
-
-/* OhciPortInitialize
- * Initializes a port when the port has changed it's connection
- * state, no allocations are done here */
-__EXTERN OsStatus_t
-OhciPortInitialize(
-    _In_ OhciController_t*  Controller,
-    _In_ int                Index);
-
 /* OhciPortsCheck
  * Enumerates all the ports and detects for connection/error events */
 __EXTERN OsStatus_t
 OhciPortsCheck(
-    _In_ OhciController_t*  Controller);
+    _In_ OhciController_t* Controller,
+    _In_ int               IgnorePowerOn);
 
 /* OhciSetMode
  * Changes the state of the OHCI controller to the given mode */
 __EXTERN void
 OhciSetMode(
-    _In_ OhciController_t*  Controller, 
-    _In_ reg32_t            Mode);
+    _In_ OhciController_t* Controller, 
+    _In_ reg32_t           Mode);
 
 /*******************************************************************************
  * Queue Head Methods

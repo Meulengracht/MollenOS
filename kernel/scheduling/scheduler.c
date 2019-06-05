@@ -284,6 +284,30 @@ SchedulerSleep(
         SCHEDULER_SLEEP_INTERRUPTED : SCHEDULER_SLEEP_OK;
 }
 
+void
+SchedulerUnblockObject(
+    _In_ SchedulerObject_t* Object)
+{
+    OsStatus_t Status;
+    
+    if (Object->State == SchedulerObjectStateBlocked) {
+        // Either sleeping, which means we'll interrupt it immediately
+        // or it's waiting for in a block queue
+        if (Object->WaitQueueHandle != NULL) {
+            Status = CollectionRemoveByNode(Object->WaitQueueHandle, &Object->Header);
+            if (Status != OsSuccess) {
+                // we are too late, it's going into queue anyway, back off
+                return;
+            }
+            
+            // Reset state to running
+            Object->State = SchedulerObjectStateRunning;
+        }
+        
+        // If we are blocked, only with a timeout, it's a sleep, allow these
+    }
+}
+
 OsStatus_t
 SchedulerQueueObject(
     _In_ SchedulerObject_t* Object)

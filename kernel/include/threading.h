@@ -106,7 +106,8 @@ typedef struct _MCoreThread {
     SystemPipe_t*           Pipe;
     SystemMemorySpace_t*    MemorySpace;
     UUId_t                  MemorySpaceHandle;
-
+    
+    _Atomic(int)            PendingSignals;
     int                     HandlingSignals;
     Context_t*              OriginalContext;
     SystemSignal_t          Signals[NUMSIGNALS];
@@ -139,23 +140,23 @@ CreateThread(
  * on next switch unless specified. The given exitcode will be stored. */
 KERNELAPI OsStatus_t KERNELABI
 TerminateThread(
-    _In_ UUId_t         ThreadId,
-    _In_ int            ExitCode,
-    _In_ int            TerminateChildren);
+    _In_ UUId_t ThreadId,
+    _In_ int    ExitCode,
+    _In_ int    TerminateChildren);
 
 /* ThreadingJoinThread
  * Can be used to wait for a thread the return 
  * value of this function is the ret-code of the thread */
 KERNELAPI int KERNELABI
 ThreadingJoinThread(
-    _In_ UUId_t         ThreadId);
+    _In_ UUId_t ThreadId);
 
 /* ThreadingDetachThread
  * Detaches a running thread by marking it without parent, this will make
  * sure it runs untill it kills itself. */
 KERNELAPI OsStatus_t KERNELABI
 ThreadingDetachThread(
-    _In_  UUId_t        ThreadId);
+    _In_  UUId_t ThreadId);
 
 /* EnterProtectedThreadLevel
  * Initializes non-kernel mode and marks the thread

@@ -81,8 +81,8 @@ OnFastInterrupt(
     }
 
     // Store interrupts, acknowledge and return
-    Controller->Base.InterruptStatus |= InterruptStatus;
-    Registers->HcInterruptStatus      = InterruptStatus;
+    Registers->HcInterruptStatus = InterruptStatus;
+    atomic_fetch_or(&Controller->Base.InterruptStatus, InterruptStatus);
     return InterruptHandled;
 }
 
@@ -95,8 +95,7 @@ OnInterrupt(
     reg32_t           InterruptStatus;
 
 ProcessInterrupt:
-    InterruptStatus                  = Controller->Base.InterruptStatus;
-    Controller->Base.InterruptStatus = 0;
+    InterruptStatus = atomic_exchange(&Controller->Base.InterruptStatus, 0);
 
     // Process Checks
     if (InterruptStatus & OHCI_PROCESS_EVENT) {
@@ -106,7 +105,7 @@ ProcessInterrupt:
     // Root Hub Status Change
     // This occurs on disconnect/connect events
     if (InterruptStatus & OHCI_ROOTHUB_EVENT) {
-        OhciPortsCheck(Controller);
+        OhciPortsCheck(Controller, 0);
     }
 
     // Fatal errors, reset everything
@@ -128,7 +127,6 @@ ProcessInterrupt:
         UsbManagerScheduleTransfers(&Controller->Base);
         WriteVolatile32(&Controller->Registers->HcControl, 
             ReadVolatile32(&Controller->Registers->HcControl) | Controller->QueuesActive);
-        UsbManagerProcessTransfers(&Controller->Base);
     }
 
     // Frame Overflow
@@ -138,7 +136,7 @@ ProcessInterrupt:
     }
 
     // Did another one fire?
-    if (Controller->Base.InterruptStatus != 0) {
+    if (atomic_load(&Controller->Base.InterruptStatus) != 0) {
         goto ProcessInterrupt;
     }
 }

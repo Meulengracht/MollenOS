@@ -54,8 +54,8 @@ OnFastInterrupt(
     }
 
     // Acknowledge the interrupt by clearing
-    Registers->UsbStatus                = InterruptStatus;
-    Controller->Base.InterruptStatus   |= InterruptStatus;
+    Registers->UsbStatus = InterruptStatus;
+    atomic_fetch_or(&Controller->Base.InterruptStatus, InterruptStatus);
     return InterruptHandled;
 }
 
@@ -65,12 +65,11 @@ OnInterrupt(
     _In_Opt_ void* InterruptData)
 {
     EhciController_t* Controller      = (EhciController_t*)InterruptData;
-    reg32_t           InterruptStatus = 0;
     reg32_t           ChangeBits      = (reg32_t)~0;
+    reg32_t           InterruptStatus;
 
 ProcessInterrupt:
-    InterruptStatus                     = Controller->Base.InterruptStatus;
-    Controller->Base.InterruptStatus    = 0;
+    InterruptStatus = atomic_exchange(&Controller->Base.InterruptStatus, 0);
 
     // Transaction update, either error or completion
     if (InterruptStatus & (EHCI_STATUS_PROCESS | EHCI_STATUS_PROCESSERROR | EHCI_STATUS_ASYNC_DOORBELL)) {
@@ -99,7 +98,7 @@ ProcessInterrupt:
     }
 
     // In case an interrupt fired during processing
-    if (Controller->Base.InterruptStatus != 0) {
+    if (atomic_load(&Controller->Base.InterruptStatus) != 0) {
         goto ProcessInterrupt;
     }
 }

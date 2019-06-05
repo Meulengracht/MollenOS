@@ -133,8 +133,15 @@ RestoreThreadState(
     
     // Load thread-specific resources
     SwitchMemorySpace(Thread->MemorySpace);
-    TssUpdateThreadStack(Core->Id, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
     TssUpdateIo(Core->Id, (uint8_t*)Thread->MemorySpace->Data[MEMORY_SPACE_IOMAP]);
+    
+    // Update to the correct stack due to signal handling
+    if (Thread->HandlingSignals) {
+        TssUpdateThreadStack(Core->Id, (uintptr_t)Thread->OriginalContext);
+    }
+    else {
+        TssUpdateThreadStack(Core->Id, (uintptr_t)Thread->Contexts[THREADING_CONTEXT_LEVEL0]);
+    }
     set_ts(); // Set task switch bit so we get faults on fpu instructions
     
     // If we are idle task - disable task priority

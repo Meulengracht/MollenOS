@@ -60,6 +60,7 @@ UsbManagerSendNotification(
     _In_ UsbManagerTransfer_t* Transfer)
 {
     UsbTransferResult_t Result;
+    TRACE("UsbManagerSendNotification()");
     
     // If user doesn't want, ignore
     if (Transfer->Transfer.Flags & USB_TRANSFER_NO_NOTIFICATION) {

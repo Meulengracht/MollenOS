@@ -67,6 +67,10 @@ HciPortReset(
     _In_ int                     Index)
 {
     OhciController_t* OhciCtrl = (OhciController_t*)Controller;
+    TRACE("HciPortReset()");
+    
+    // Let power stabilize
+    thrd_sleepex(OhciCtrl->PowerOnDelayMs);
 
     // Set reset bit to initialize reset-procedure
     WriteVolatile32(&OhciCtrl->Registers->HcRhPortStatus[Index], OHCI_PORT_RESET);
@@ -85,25 +89,6 @@ HciPortReset(
         WriteVolatile32(&OhciCtrl->Registers->HcRhPortStatus[Index], OHCI_PORT_ENABLED);
     }
     return OsSuccess;
-}
-
-OsStatus_t
-OhciPortPrepare(
-    _In_ OhciController_t* Controller, 
-    _In_ int               Index)
-{
-    HciPortReset(&Controller->Base, Index);
-    ClearPortEventBits(Controller, Index);
-    return OsSuccess;
-}
-
-OsStatus_t
-OhciPortInitialize(
-    _In_ OhciController_t* Controller, 
-    _In_ int               Index)
-{
-    OhciPortPrepare(Controller, Index);
-    return UsbEventPort(Controller->Base.Device.Id, 0, (uint8_t)(Index & 0xFF));
 }
 
 void
@@ -126,31 +111,38 @@ HciPortGetStatus(
 
 OsStatus_t 
 OhciPortCheck(
-    _In_ OhciController_t* Controller, 
-    _In_ int               Index)
+    _In_ OhciController_t* Controller,
+    _In_ int               Index,
+    _In_ int               IgnorePowerOn)
 {
     OsStatus_t Result     = OsSuccess;
     reg32_t    PortStatus = ReadVolatile32(&Controller->Registers->HcRhPortStatus[Index]);
+    TRACE("OhciPortCheck(%i): 0x%x", Index, PortStatus);
 
-    // We only care about connection events here
+    // Clear bits now we have a copy
+    ClearPortEventBits(Controller, Index);
+    
+    // We only care about connection events currently
     if (PortStatus & OHCI_PORT_CONNECT_EVENT) {
-        if (!(PortStatus & OHCI_PORT_CONNECTED)) {
-            // Wait for port-power to stabilize and then reset
-            thrd_sleepex(Controller->PowerOnDelayMs);
-            HciPortReset(&Controller->Base, Index);
-        }
         Result = UsbEventPort(Controller->Base.Device.Id, 0, (uint8_t)(Index & 0xFF));
     }
-    ClearPortEventBits(Controller, Index);
     return Result;
 }
 
 OsStatus_t
 OhciPortsCheck(
-    _In_ OhciController_t* Controller)
+    _In_ OhciController_t* Controller,
+    _In_ int               IgnorePowerOn)
 {
-    for (int i = 0; i < (int)(Controller->Base.PortCount); i++) {
-        OhciPortCheck(Controller, i);
+    int Status = spinlock_try_acquire(&Controller->Base.Lock);
+    if (Status != spinlock_acquired) {
+        // check in progress
+        return OsError;
     }
+    
+    for (int i = 0; i < (int)(Controller->Base.PortCount); i++) {
+        OhciPortCheck(Controller, i, IgnorePowerOn);
+    }
+    spinlock_release(&Controller->Base.Lock);
     return OsSuccess;
 }

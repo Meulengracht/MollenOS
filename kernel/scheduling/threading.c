@@ -483,12 +483,21 @@ ThreadingAdvance(
         return OsError;
     }
 
-    Cleanup = atomic_load_explicit(&Current->Cleanup, memory_order_relaxed);
+    Cleanup = atomic_load(&Current->Cleanup);
     Current->ContextActive = Core->InterruptRegisters;
     
-    // Save the current state of the thread if cleanup is 0
+    // Perform pre-liminary actions only if the we are not going to 
+    // cleanup and destroy the thread
     if (!Cleanup) {
         SaveThreadState(Current);
+        
+        // Handle any received signals during runtime, they will happen in
+        // the threads next allocated timeslot only. However if the thread
+        // is currently blocked we must unblock it
+        if (!Current->HandlingSignals && 
+            atomic_load(&Current->PendingSignals) != 0) {
+            SchedulerUnblockObject(Current->SchedulerObject);
+        }
     }
     
     TRACE("%u: current thread: %s (Context 0x%" PRIxIN ", IP 0x%" PRIxIN ", PreEmptive %i)",
@@ -517,7 +526,7 @@ GetNextThread:
         NextThread = &Core->IdleThread;
     }
     else {
-        Cleanup = atomic_load_explicit(&NextThread->Cleanup, memory_order_relaxed);
+        Cleanup = atomic_load(&NextThread->Cleanup);
         if (Cleanup == 1) {
             Current = NextThread;
             goto GetNextThread;
@@ -545,8 +554,12 @@ GetNextThread:
     }
     
     // Handle any signals pending for thread, as this might change the
-    // active context set for the thread
-    SignalProcess(NextThread);
+    // active context set for the thread, before we set the new global
+    // return registers
+    if (!NextThread->HandlingSignals &&
+        atomic_load(&NextThread->PendingSignals) != 0) {
+        SignalProcess(NextThread);
+    }
     Core->InterruptRegisters = NextThread->ContextActive;
     return OsSuccess;
 }
