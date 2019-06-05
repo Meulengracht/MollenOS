@@ -457,13 +457,5 @@ OhciSetup(
     
     // Wait for ports to power up in any case, even if power is always on/global
     thrd_sleepex(Controller->PowerOnDelayMs);
-
-    // Enumerate the ports
-    for (i = 0; i < (int)Controller->Base.PortCount; i++) {
-        reg32_t PortStatus = ReadVolatile32(&Controller->Registers->HcRhPortStatus[i]);
-        if (PortStatus & OHCI_PORT_CONNECTED) {
-            OhciPortInitialize(Controller, i);
-        }
-    }
-    return OsSuccess;
+    return OhciPortsCheck(Controller, 1);
 }

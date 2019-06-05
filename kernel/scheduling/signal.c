@@ -100,9 +100,12 @@ SignalQueue(
     // Store information and mark ready
     atomic_store(&Target->Signals[Signal].Information, Argument);
     atomic_store(&Target->Signals[Signal].Status, SIGNAL_PENDING);
+    atomic_fetch_add(&Target->PendingSignals, 1);
     
     // Wake up thread if neccessary
-    SchedulerExpediteObject(Target->SchedulerObject);
+    if (!Target->HandlingSignals) {
+        SchedulerExpediteObject(Target->SchedulerObject);
+    }
     return OsSuccess;
 }
 
@@ -198,6 +201,7 @@ SignalProcess(
             }
             UpdateThreadContext(Thread, THREADING_CONTEXT_SIGNAL, 0);
             atomic_store(&Thread->Signals[i].Status, SIGNAL_FREE);
+            atomic_fetch_sub(&Thread->PendingSignals, 1);
         }
     }
 }

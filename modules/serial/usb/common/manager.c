@@ -260,6 +260,7 @@ UsbManagerFinalizeTransfer(
 {
     CollectionItem_t* Node      = NULL;
     int               BytesLeft = 0;
+    TRACE("UsbManagerFinalizeTransfer()");
 
     // Is the transfer done?
     if ((Transfer->Transfer.Type == ControlTransfer || Transfer->Transfer.Type == BulkTransfer)
@@ -332,6 +333,7 @@ UsbManagerSynchronizeTransfers(
     _In_ void*                   Context)
 {
     UsbHcAddress_t* Address = (UsbHcAddress_t*)Context;
+    TRACE("UsbManagerSynchronizeTransfers()");
 
     // Is this transfer relevant?
     if (UsbManagerIsAddressesEqual(&Transfer->Transfer.Address, Address) != OsSuccess && 
@@ -353,8 +355,10 @@ UsbManagerScheduleTransfer(
     _In_ UsbManagerTransfer_t*   Transfer,
     _In_ void*                   Context)
 {
+    
     // Has the transfer been marked for unschedule?
     if (Transfer->Flags & TransferFlagUnschedule) {
+        TRACE("UNSCHEDULE(Id %u)", Transfer->Id);
         // Clear flag
         Transfer->Flags &= ~(TransferFlagUnschedule);
         HciTransactionFinalize(Controller, Transfer, 0);
@@ -363,6 +367,7 @@ UsbManagerScheduleTransfer(
 
     // Has the transfer been marked for schedule?
     if (Transfer->Flags & TransferFlagSchedule) {
+        TRACE("SCHEDULE(Id %u)", Transfer->Id);
         // Clear flag
         Transfer->Flags &= ~(TransferFlagSchedule);
         UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
@@ -384,6 +389,8 @@ UsbManagerProcessTransfer(
     _In_ UsbManagerTransfer_t*   Transfer,
     _In_ void*                   Context)
 {
+    TRACE("UsbManagerProcessTransfer()");
+    
     // Has the transfer been marked for cleanup?
     if (Transfer->Flags & TransferFlagCleanup) {
         if (Transfer->EndpointDescriptor != NULL) {

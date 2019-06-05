@@ -72,7 +72,7 @@ UsbSchedulerChainElement(
         LinkIndex   = (Direction == USB_CHAIN_BREATH) ? RootObject->BreathIndex : RootObject->DepthIndex;
         TRACE(" > Current index is 0x%x, next index is 0x%x", RootObject->Index, LinkIndex);
     }
-
+    
     // Append object
     // Set link of <Element> to be the link of <ElementRoot>
     // Set link of <ElementRoot> to be <Element>

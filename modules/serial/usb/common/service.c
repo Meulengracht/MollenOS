@@ -76,14 +76,13 @@ OnQuery(
 	_In_Opt_ MRemoteCallArgument_t* Arg2,
     _In_     MRemoteCallAddress_t*  Address)
 {
-    // Variables
-    UsbManagerController_t *Controller  = NULL;
-    UsbManagerTransfer_t *Transfer      = NULL;
-    OsStatus_t Result                   = OsError;
-    UUId_t Device                       = UUID_INVALID;
+    UsbManagerController_t* Controller;
+    UsbManagerTransfer_t*   Transfer;
+    OsStatus_t              Result = OsError;
+    UUId_t                  Device = UUID_INVALID;
 
     // Debug
-    TRACE("Hci.OnQuery(Function %i)", QueryFunction);
+    TRACE("Hci.OnQuery(Type %i, Function %i)", (int)QueryType, QueryFunction);
 
     // Instantiate some variables
     Device      = (UUId_t)Arg0->Data.Value;
@@ -135,9 +134,9 @@ OnQuery(
 
         // Dequeue Transfer
         case __USBHOST_DEQUEUEPERIODIC: {
-            UsbManagerTransfer_t* Transfer = NULL;
-            UUId_t                Id       = (UUId_t)Arg1->Data.Value;
-            UsbTransferStatus_t   Status   = TransferInvalid;
+            UUId_t              Id     = (UUId_t)Arg1->Data.Value;
+            UsbTransferStatus_t Status = TransferInvalid;
+            Transfer = NULL;
 
             // Lookup transfer by iterating through available transfers
             foreach(tNode, Controller->TransactionList) {

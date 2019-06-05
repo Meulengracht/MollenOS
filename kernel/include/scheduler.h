@@ -110,8 +110,8 @@ SchedulerQueueObject(
     _In_ SchedulerObject_t* Object);
 
 /* SchedulerExpediteObject
- * If a scheduler object is in a blocked state, this will force un-block it and
- * allow it to run again. */
+ * If the given object is currently blocked, it will be unblocked and requeued
+ * immediately. This function is core-safe and can be called across cores. */
 KERNELAPI void KERNELABI
 SchedulerExpediteObject(
     _In_ SchedulerObject_t* Object);
@@ -122,6 +122,13 @@ SchedulerExpediteObject(
 KERNELAPI int KERNELABI
 SchedulerSleep(
     _In_ size_t Milliseconds);
+
+/* SchedulerUnblockObject
+ * If the given object is currently blocked it will be removed from any blocked
+ * queue and reset to running state. This can only be called on the same thread. */
+KERNELAPI void KERNELABI
+SchedulerUnblockObject(
+    _In_ SchedulerObject_t* Object);
 
 /* SchedulerAdvance 
  * This should be called by the underlying archteicture code

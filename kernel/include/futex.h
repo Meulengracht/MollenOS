@@ -26,7 +26,8 @@
 #include <os/futex.h>
 
 /* FutexWait
- * */
+ * Performs an atomic check-and-wait operation on the given atomic variable. It must match
+ * the expected value otherwise the wait is ignored. */
 OsStatus_t
 FutexWait(
     _In_ _Atomic(int)* Futex,
@@ -35,7 +36,8 @@ FutexWait(
     _In_ size_t        Timeout);
 
 /* FutexWaitOperation
- * */    
+ * Performs an atomic check-and-wait operation on the given atomic variable. It must match
+ * the expected value otherwise the wait is ignored. */    
 OsStatus_t
 FutexWaitOperation(
     _In_ _Atomic(int)* Futex,
@@ -47,7 +49,7 @@ FutexWaitOperation(
     _In_ size_t        Timeout);
 
 /* FutexWake
- * */
+ * Wakes up a blocked thread on the given atomic variable. */
 OsStatus_t
 FutexWake(
     _In_ _Atomic(int)* Futex,
@@ -55,7 +57,7 @@ FutexWake(
     _In_ int           Flags);
 
 /* FutexWakeOperation
- * */
+ * Wakes up a blocked thread on the given atomic variable. */
 OsStatus_t
 FutexWakeOperation(
     _In_ _Atomic(int)* Futex,

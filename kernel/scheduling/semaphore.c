@@ -65,30 +65,24 @@ SemaphoreWait(
     _In_ Semaphore_t* Semaphore,
     _In_ size_t       Timeout)
 {
-    OsStatus_t Status;
-    int        Value = atomic_fetch_sub(&Semaphore->Value, 1) - 1;
-    TRACE("SemaphoreWait(Timeout %" PRIiIN "): %i", Timeout, Value);
+    OsStatus_t Status = OsSuccess;
+    int        Value;
     
-    // Essentially what we do here is make sure we wait untill the value is
-    // either above/equal to zero or we were successfully woken up
     while (1) {
-        if (Value >= 0) { // CurrentValue >= Value?? Oh right, that would give us FILO instead of FIFO 
-            Status = OsSuccess;
-            break;
-        }
-
-        // Go to sleep atomically, check return value, if there was sync
-        // issues try again, OsError is returned.
-        // Break out on timeouts and also successfully waiting. If we timeout we should
-        // correct for the spot we are not using?
-        Status = FutexWait(&Semaphore->Value, Value, FUTEX_WAIT_PRIVATE, Timeout);
-        if (Status != OsError) {
+        Value = atomic_load_explicit(&(Semaphore->Value), memory_order_acquire);
+        while (Value < 1) {
+            Status = FutexWait(&(Semaphore->Value), Value, FUTEX_WAIT_PRIVATE, Timeout);
             if (Status == OsTimeout) {
-                atomic_fetch_add(&Semaphore->Value, 1);
+                break;
             }
+            Value = atomic_load_explicit(&(Semaphore->Value), memory_order_acquire);
+        }
+        
+        Value = atomic_fetch_add_explicit(&(Semaphore->Value), -1, memory_order_acq_rel);
+        if (Value >= 1) {
             break;
         }
-        Value = atomic_load(&Semaphore->Value);
+        atomic_fetch_add_explicit(&(Semaphore->Value), 1, memory_order_release);
     }
     return Status;
 }
