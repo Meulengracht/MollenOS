@@ -140,13 +140,15 @@ _irq_common:
 
 	; Set current stack as argument 1
 	; Set tableindex as argument 2
+	mov ebx, esp
 	mov eax, [esp + 48]
 	add eax, 32
-	push eax
-    push esp
+	push eax ; modifies esp
+    push ebx
     call _InterruptHandle ; (context_t*, uint)
-    add esp, 0x8
-
+    
+    ; no need to restore the stack as we indirectly restore it here
+	mov esp, eax
     restore_state
     iret
 
