@@ -5,7 +5,7 @@ all: ../../file2c
 
 ../../file2c: main.c
 	@printf "%b" "\033[0;36mCreating tool " $@ "\033[m\n"
-	@clang main.c -o $@
+	@gcc main.c -o $@
 
 .PHONY: clean
 clean:

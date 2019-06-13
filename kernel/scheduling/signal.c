@@ -28,6 +28,7 @@
 #include <debug.h>
 #include <handle.h>
 #include <heap.h>
+#include <machine.h>
 #include <memoryspace.h>
 #include <scheduler.h>
 #include <string.h>
@@ -119,6 +120,13 @@ SignalExecute(
     MCoreThread_t*   Thread = Core->CurrentThread;
     
     TRACE("SignalExecute(Signal %i)", Signal);
+
+    // Do not support signals that occur in kernel code, those should __NOT__ occur
+    // but rather we should protect against or fix why it fails.
+    if (IS_KERNEL_CODE(&GetMachine()->MemoryMap, CONTEXT_IP(Context))) {
+        DebugPanic(FATAL_SCOPE_KERNEL, Context, "FAIL", 
+            "Crash at address 0x%" PRIxIN, CONTEXT_IP(Context));
+    }
 
 #ifndef __OSCONFIG_DISABLE_SIGNALLING    
     // Must be a user process

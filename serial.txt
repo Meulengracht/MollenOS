@@ -1,0 +1,136 @@
+                ***********************************************
+                * MollenOS Stage 2 Bootloader (Version 1.0.0) *
+                * Author: Philip Meulengracht                 *
+                ***********************************************
+
+                   - Retrieving Memory Information [OK]
+                   - Enabling A20 Gate [OK]
+                   - Retrieving Optimal Video Modes [1024x768]
+                   - Setting up MFS-1 [OK]
+                   - Loading System Kernel [OK]
+                   - Loading System Ramdisk [OK]
+                   - Finishing Boot Sequence
+[MACH] MollenOS - Platform: x86-64 - Version 0.6.11488
+[MACH] Written by Philip Meulengracht, Copyright 2011.
+[MACH] Bootloader - mBoot Version 1.0.0-dev
+[MACH] clang build 11 June 2019 - 20:24:33
+
+[PMEM] Bitmap size: 23042 Bytes
+[PMEM] Memory in use 2568192 Bytes
+[PMEM] Block status 627/61444
+[PMEM] Reserved memory: 0x30aa02 (778 blocks)
+[ACPI] ACPI: RSDP 0x00000000000E0000 000024 (v02 VBOX  )
+[ACPI] ACPI: XSDT 0x000000000FFF0030 00003C (v01 VBOX   VBOXXSDT 00000001 ASL  00000061)
+[ACPI] ACPI: FACP 0x000000000FFF00F0 0000F4 (v04 VBOX   VBOXFACP 00000001 ASL  00000061)
+[ACPI] ACPI: DSDT 0x000000000FFF0480 0022EA (v02 VBOX   VBOXBIOS 00000002 INTL 20180105)
+[ACPI] ACPI: FACS 0x000000000FFF0200 000040
+[ACPI] ACPI: APIC 0x000000000FFF0240 00006C (v02 VBOX   VBOXAPIC 00000001 ASL  00000061)
+[ACPI] ACPI: SSDT 0x000000000FFF02B0 0001CC (v01 VBOX   VBOXCPUT 00000002 INTL 20180105)
+[TBIF]  > gathering system hardware information (MADT)
+[TBIF]  > uma/acpi system, single domain
+[TBIF]  > core 0 (0) available and active
+[TBIF]  > core 1 (1) available and active
+[TBIF]  > core 2 (2) available and active
+[TBIF]  > core 3 (3) available and active
+[TBIF]  > io-apic: 4
+[APIC]  > local apic at 0xfee00000
+[APIC]  > local bsp id 0
+[APIC]  > initializing interrupt controllers
+[APIC]  > initialing io-apic 4
+[APIC]  > number of interrupt pins: 23
+[APIC]  > enabling interrupts
+[ACPI]  > loading acpi tables
+[ACPI] ACPI: 2 ACPI AML tables successfully acquired and loaded
+[ACPI]  > initializing osi interface, windows/vali
+[ACPI]  > enabling acpi
+[ACPI]  > setup acpi handlers
+[ACPI]  > initializing acpi namespace
+[DSIF] AcpiDevicesScan()
+[ACPI] ACPI: Enabled 2 GPEs in block 00 to 07
+[TMIF] TimersDiscover()
+[CMOS] CmosInitialize(rtc 1)
+[RTC0] RtcInitialize()
+[APIC] ApicRecalibrateTimer()
+[APIC] Bus Speed: 1010863320 Hz
+[APIC] Quantum: 1010864
+[SMP0] InitializeApplicationJumpSpace => allocated 3 stacks
+[SMP0]  > booting core 1
+[CCPU] Core 1 is online
+[SMP0]  > booting core 2
+[CCPU] Core 2 is online
+[SMP0]  > booting core 3
+[CCPU] Core 3 is online
+[DATA] filemanager.dll: loading at 0x200000000
+[DATA] processmanager.dll: loading at 0x200000000
+[DATA] devicemanager.dll: loading at 0x200000000
+[MACH] End of initialization, yielding control
+[DATA] c.dll: loading at 0x20000d000
+[DATA] c.dll: loading at 0x20000b000
+
+[DATA] sessionmanager.dll: loading at 0x200000000
+[DATA] m.dll: loading at 0x200055000
+[DATA] m.dll: loading at 0x200053000
+[DATA] c.dll: loading at 0x200006000
+[DATA] usbmanager.dll: loading at 0x200000000
+[DATA] c.dll: loading at 0x20000d000
+[DATA] m.dll: loading at 0x20004e000
+[DATA] m.dll: loading at 0x200055000
+[SCIF] New Service: 0x8001
+[SCIF] New Service: 0x8003
+[SCIF] New Service: 0x8002
+[DATA] m.dll: loading at 0x200054000
+[SCIF] New Service: 0x8000
+[LIBC] 0, Registered device PS/2 Controller, struct length 624
+[SCIF] New Service: 0x8004
+[DATA] ps2.dll: loading at 0x200000000
+[LIBC] 1, Registered device Host Bridge, struct length 624
+[DATA] c.dll: loading at 0x200009000
+[LIBC] 2, Registered device ISA Bridge, struct length 624
+[LIBC] 3, Registered device VGA-Compatible Controller, struct length 624
+[DATA] m.dll: loading at 0x200051000
+[LIBC] 4, Registered device Ethernet Controller, struct length 624
+[LIBC] 5, Registered device Other System Peripheral, struct length 624
+[LIBC] 6, Registered device Audio Device, struct length 624
+[LIBC] 7, Registered device USB OHCI (Open Host Controller), struct length 624
+[LIBC] 8, Registered device Other Bridge Device, struct length 624
+[DATA] ohci.dll: loading at 0x200000000
+[LIBC] 9, Registered device Serial ATA (AHCI 1.0), struct length 624
+[DATA] c.dll: loading at 0x20000f000
+[DATA] m.dll: loading at 0x200057000
+[LIBC] DeviceManager.OnEvent(Function 4)
+[DATA] ahci.dll: loading at 0x200000000
+[LIBC] 13: Driver installed for 0: PS2 Controller Interface
+[DATA] c.dll: loading at 0x20000c000
+[DATA] m.dll: loading at 0x200054000
+[LIBC] DeviceManager.OnEvent(Function 4)
+[LIBC] 11: Driver installed for 9: AHCI Controller Interface
+[LIBC] DeviceManager.OnEvent(Function 3)
+[LIBC] RegisterDisk(Driver 11, Device 0, Flags 0x0)
+[LIBC] DiskDetectLayout(SectorSize 512)
+[LIBC] MbrEnumerate()
+[LIBC] MbrEnumeratePartitions(Sector 0)
+[LIBC] DiskDetectFileSystem(Sector 0, Count 2097152)
+[LIBC] DiskRegisterFileSystem(Sector 0, Size 2097152, Type 6)
+[LIBC] Resolving filesystem
+[DATA] mfs.dll: loading at 0x200071000
+[LIBC] DeviceManager.OnEvent(Function 0)
+[LIBC] 10, Registered device , struct length 624
+[LIBC] DeviceManager.OnEvent(Function 0)
+[LIBC] 11, Registered device , struct length 624
+[LIBC] DeviceManager.OnEvent(Function 4)
+[LIBC] 13: Driver installed for 10: PS2 Keyboard Interface
+[LIBC] DeviceManager.OnEvent(Function 4)
+[LIBC] 13: Driver installed for 11: PS2 Mouse Interface
+[LIBC] Cached 524288/2097152 bytes of sector-map
+[LIBC] Cached 1048576/2097152 bytes of sector-map
+[LIBC] Cached 1572864/2097152 bytes of sector-map
+[LIBC] Sessionmanager.OnEvent(3)
+[LIBC] Spawning st0:/shared/bin/vioarr.app
+[LIBC] VfsPathCanonicalize(st0:/shared/bin/vioarr.app)
+[LIBC] => st0:/shared/bin/vioarr.app
+[LIBC] Invalid path given: st0:/shared/bin/vioarr.app
+[LIBC] Failed to load file for path st0:/shared/bin/vioarr.app (1)
+[LIBC]  > failed to load executable
+[LIBC] DeviceManager.OnEvent(Function 4)
+[LIBC] 14: Driver installed for 7: OHCI Controller Interface
+[LIBC] DeviceManager.OnEvent(Function 3)

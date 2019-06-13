@@ -6,7 +6,7 @@ all: ../../lzss
 
 ../../lzss: main.c
 	@printf "%b" "\033[0;36mCreating tool " $@ "\033[m\n"
-	@clang main.c aplib64.a -o $@
+	@gcc main.c aplib64.a -o $@
 
 .PHONY: clean
 clean:

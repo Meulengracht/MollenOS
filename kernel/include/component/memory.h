@@ -48,4 +48,7 @@ typedef struct _SystemMemory {
     BlockmapSegment_t*   MemoryRange;
 } SystemMemory_t;
 
+#define IS_KERNEL_CODE(mmap_ptr, addr) (ISINRANGE(addr, (mmap_ptr)->KernelRegion.Start, (mmap_ptr)->KernelRegion.Start + (mmap_ptr)->KernelRegion.Length))
+#define IS_USER_CODE(mmap_ptr, addr)   (ISINRANGE(addr, (mmap_ptr)->UserCode.Start, (mmap_ptr)->UserCode.Start + (mmap_ptr)->UserCode.Length))
+
 #endif // !__COMPONENT_MEMORY__
