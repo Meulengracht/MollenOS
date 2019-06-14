@@ -21,8 +21,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __EVENT_QUEUE_INTERFACE_H__
-#define __EVENT_QUEUE_INTERFACE_H__
+#ifndef __OS_EVENTQUEUE_H__
+#define __OS_EVENTQUEUE_H__
 
 #include <os/osdefs.h>
 
@@ -54,4 +54,4 @@ CRTDECL(UUId_t, QueuePeriodicEvent(EventQueue_t* EventQueue, EventQueueFunction 
  * event. It will not cancel an event in progress. */
 CRTDECL(OsStatus_t, CancelEvent(EventQueue_t* EventQueue, UUId_t EventHandle));
 
-#endif //!__EVENT_QUEUE_INTERFACE_H__
+#endif //!__OS_EVENTQUEUE_H__
