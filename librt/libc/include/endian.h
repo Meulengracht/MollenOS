@@ -16,8 +16,8 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - Standard C Library (Endian)
- *  - Contains the implementation of the stdlib interface
+ * Standard C Library (Endian)
+ *  - Contains definitions for the machine endianess
  */
 #ifndef __STDC_ENDIAN__
 #define __STDC_ENDIAN__
@@ -48,10 +48,10 @@
 #endif
 
 #if _BYTE_ORDER == _LITTLE_ENDIAN
-#define    _QUAD_HIGHWORD    1
+#define    _QUAD_HIGHWORD   1
 #define    _QUAD_LOWWORD    0
 #else
-#define    _QUAD_HIGHWORD    0
+#define    _QUAD_HIGHWORD   0
 #define    _QUAD_LOWWORD    1
 #endif
 
