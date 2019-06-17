@@ -29,11 +29,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define RINGBUFFER_CAN_OVERWRITE(ring) (ring->options & RINGBUFFER_OVERWRITE_ENABLED)
+
 #define RINGBUFFER_CAN_READ_PARTIAL(ring, bytes_available)  ((ring->options & RINGBUFFER_ALLOW_PARTIAL_READS) && bytes_available != 0)
 #define RINGBUFFER_CAN_WRITE_PARTIAL(ring, bytes_available) ((ring->options & RINGBUFFER_ALLOW_PARTIAL_WRITES) && bytes_available != 0)
 
 #define RINGBUFFER_CAN_READ(ring, bytes_available, length)  (bytes_available == length || RINGBUFFER_CAN_READ_PARTIAL(ring, bytes_available))
-#define RINGBUFFER_CAN_WRITE(ring, bytes_available, length) (bytes_available == length || RINGBUFFER_CAN_WRITE_PARTIAL(ring, bytes_available))
+#define RINGBUFFER_CAN_WRITE(ring, bytes_available, length) (bytes_available == length || RINGBUFFER_CAN_OVERWRITE(ring) || RINGBUFFER_CAN_WRITE_PARTIAL(ring, bytes_available))
 
 #define RINGBUFFER_CAN_BLOCK_READER(ring)     ((ring->options & RINGBUFFER_NO_READ_BLOCK) == 0)
 #define RINGBUFFER_CAN_BLOCK_WRITER(ring)     ((ring->options & RINGBUFFER_NO_WRITE_BLOCK) == 0)
@@ -131,10 +133,48 @@ bytes_readable(
     return write_index - read_index;
 }
 
+static void
+ringbuffer_try_truncate(
+    _In_ ringbuffer_t* ring,
+    _In_ size_t        length)
+{
+    // when we check, we must check how many bytes are actually allocated, not currently comitted
+    // as we have to take into account current readers. The write index however
+    // we have to only take into account how many bytes are actually comitted
+    unsigned int write_index     = atomic_load(&ring->producer_comitted_index);
+    unsigned int read_index      = atomic_load(&ring->consumer_index);
+    size_t       bytes_available = MIN(
+        bytes_readable(ring->capacity, read_index, write_index), 
+        length);
+    size_t       bytes_comitted  = bytes_available;
+    if (!RINGBUFFER_CAN_READ(ring, bytes_available, length)) {
+        // should not happen but abort if this occurs
+        return;
+    }
+
+    // Perform the actual allocation, if this fails someone else is truncating
+    // or reading, abort
+    if (!atomic_compare_exchange_strong(&ring->consumer_index, 
+            &read_index, read_index + bytes_available)) {
+        return;
+    }
+    
+    // Synchronize with other consumers, we must wait for our turn to increament
+    // the comitted index, otherwise we could end up telling writers that the wrong
+    // index is writable. This can be skipped for single reader
+    if (RINGBUFFER_HAS_MULTIPLE_READERS(ring)) {
+        unsigned int current_commit = atomic_load(&ring->consumer_comitted_index);
+        while (current_commit < (read_index - bytes_comitted)) {
+            current_commit = atomic_load(&ring->consumer_comitted_index);
+        }
+    }
+    atomic_fetch_add(&ring->consumer_comitted_index, bytes_comitted);
+}
+
 size_t
 ringbuffer_write(
     _In_ ringbuffer_t* ring,
-    _In_ const char*   buffer,
+    _In_ const void*   buffer,
     _In_ size_t        length)
 {
     const uint8_t*    casted_ptr    = (const uint8_t*)buffer;
@@ -164,6 +204,12 @@ ringbuffer_write(
             atomic_fetch_add(&ring->producer_count, 1);
             Syscall_FutexWait(&parameters);
             continue; // Start over
+        }
+        
+        // Handle overwrite, empty the queue by an the needed amount of bytes
+        if (bytes_available < (length - bytes_written)) {
+            ringbuffer_try_truncate(ring, (length - bytes_written));
+            continue;
         }
         
         // Perform the actual allocation
@@ -201,7 +247,7 @@ ringbuffer_write(
 size_t
 ringbuffer_read(
     _In_ ringbuffer_t* ring,
-    _In_ char*         buffer,
+    _In_ void*         buffer,
     _In_ size_t        length)
 {
     uint8_t*          casted_ptr = (uint8_t*)buffer;

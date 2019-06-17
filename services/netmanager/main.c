@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
  *
  * Network Manager
  * - Contains the implementation of the network-manager which keeps track
- *   of all users and their running applications.
+ *   of sockets, network interfaces and connectivity status
  */
 #define __TRACE
 

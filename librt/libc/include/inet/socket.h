@@ -16,13 +16,15 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Event Queue Support Definitions & Structures
- * - This header describes the base event-structures, prototypes
+ * Socket Support Definitions & Structures
+ * - This header describes the base socket-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __OS_SOCKET_H__
-#define	__OS_SOCKET_H__
+#ifndef __INET_SOCKET_H__
+#define	__INET_SOCKET_H__
+
+#include <os/osdefs.h>
 
 #ifndef	_SOCKLEN_T_DEFINED_
 #define	_SOCKLEN_T_DEFINED_
@@ -33,7 +35,6 @@ typedef	__socklen_t	socklen_t;	/* length type for network syscalls */
 #define	_SA_FAMILY_T_DEFINED_
 typedef	__sa_family_t sa_family_t;	/* sockaddr address family type */
 #endif
-
 
 // Socket types
 #define	SOCK_STREAM	1		/* stream socket */
@@ -125,7 +126,7 @@ struct	linger {
 
 // Structure used to store most addresses.
 struct sockaddr {
-	__uint8_t   sa_len;		/* total length */
+	uint8_t     sa_len;		/* total length */
 	sa_family_t sa_family;  /* address family */
 	char        sa_data[14];/* actually longer; address value */
 };
@@ -136,10 +137,10 @@ struct sockaddr {
 // the field name went back and forth between ss_len and __ss_len,
 // and RFC2553 specifies it to be __ss_len.
 struct sockaddr_storage {
-	__uint8_t     __ss_len;		    /* total length */
+	uint8_t       __ss_len;		    /* total length */
 	sa_family_t   __ss_family;	    /* address family */
 	unsigned char __ss_pad1[6];	    /* align to quad */
-	__uint64_t    __ss_pad2;	    /* force alignment for stupid compilers */
+	uint64_t      __ss_pad2;	    /* force alignment for stupid compilers */
 	unsigned char __ss_pad3[240];	/* pad to a total of 256 bytes */
 };
 
@@ -259,25 +260,24 @@ struct cmsghdr {
 #define	CMSG_SPACE(len)	(_ALIGN(sizeof(struct cmsghdr)) + _ALIGN(len))
 
 _CODE_BEGIN
-int	accept(int, struct sockaddr *, socklen_t *);
-int	bind(int, const struct sockaddr *, socklen_t);
-int	connect(int, const struct sockaddr *, socklen_t);
-int	getpeername(int, struct sockaddr *, socklen_t *);
-int	getsockname(int, struct sockaddr *, socklen_t *);
-int	getsockopt(int, int, int, void *, socklen_t *);
-int	listen(int, int);
-ssize_t	recv(int, void *, size_t, int);
-ssize_t	recvfrom(int, void *, size_t, int, struct sockaddr *, socklen_t *);
-ssize_t	recvmsg(int, struct msghdr *, int);
-ssize_t	send(int, const void *, size_t, int);
-ssize_t	sendto(int, const void *,
-	    size_t, int, const struct sockaddr *, socklen_t);
-ssize_t	sendmsg(int, const struct msghdr *, int);
-int	setsockopt(int, int, int, const void *, socklen_t);
-int	shutdown(int, int);
-int	sockatmark(int);
-int	socket(int, int, int);
-int	socketpair(int, int, int, int *);
+CRTDECL(int,      sockatmark(int));
+CRTDECL(int,      socket(int, int, int));
+CRTDECL(int,      socketpair(int, int, int, int *));
+CRTDECL(int,      accept(int, struct sockaddr *, socklen_t *));
+CRTDECL(int,      bind(int, const struct sockaddr *, socklen_t));
+CRTDECL(int,      connect(int, const struct sockaddr *, socklen_t));
+CRTDECL(int,      getpeername(int, struct sockaddr *, socklen_t *));
+CRTDECL(int,      getsockname(int, struct sockaddr *, socklen_t *));
+CRTDECL(int,      getsockopt(int, int, int, void *, socklen_t *));
+CRTDECL(int,      setsockopt(int, int, int, const void *, socklen_t));
+CRTDECL(int,      listen(int, int));
+CRTDECL(intmax_t, recv(int, void *, size_t, int));
+CRTDECL(intmax_t, recvfrom(int, void *, size_t, int, struct sockaddr *, socklen_t *));
+CRTDECL(intmax_t, recvmsg(int, struct msghdr *, int));
+CRTDECL(intmax_t, send(int, const void *, size_t, int));
+CRTDECL(intmax_t, sendto(int, const void *, size_t, int, const struct sockaddr *, socklen_t));
+CRTDECL(intmax_t, sendmsg(int, const struct msghdr *, int));
+CRTDECL(int,      shutdown(int, int));
 
 static inline struct sockaddr *
 sstosa(struct sockaddr_storage *ss)
@@ -286,4 +286,4 @@ sstosa(struct sockaddr_storage *ss)
 }
 _CODE_END
 
-#endif //!__OS_SOCKET_H__
+#endif //!__INET_SOCKET_H__
