@@ -103,7 +103,7 @@ static int wm_input_handler(void* param)
     
     while (wm_initialized) {
         wm_input_event_t input_data;
-        ssize_t          bytes_read;
+        intmax_t         bytes_read;
         
         bytes_read = recv(input_socket, &input_data, sizeof(wm_input_event_t), MSG_WAITALL);
         if (bytes_read != sizeof(wm_input_event_t)) {

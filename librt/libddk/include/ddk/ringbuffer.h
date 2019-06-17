@@ -34,6 +34,7 @@
 #define RINGBUFFER_ALLOW_PARTIAL_READS  0x10
 #define RINGBUFFER_ALLOW_PARTIAL_WRITES 0x20
 #define RINGBUFFER_GLOBAL               0x40
+#define RINGBUFFER_OVERWRITE_ENABLED    0x80
 
 typedef struct {
     size_t       capacity;
@@ -74,13 +75,13 @@ ringbuffer_clear_option(
 DDKDECL(size_t,
 ringbuffer_write(
     _In_ ringbuffer_t* ring,
-    _In_ const char*   buffer,
+    _In_ const void*   buffer,
     _In_ size_t        length));
 
 DDKDECL(size_t,
 ringbuffer_read(
     _In_ ringbuffer_t* ring,
-    _In_ char*         buffer,
+    _In_ void*         buffer,
     _In_ size_t        length));
 
 #endif //!__RINGBUFFER_H__
