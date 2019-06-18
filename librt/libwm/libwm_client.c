@@ -42,10 +42,10 @@ static int wm_listener(void* param)
     wm_os_thread_set_name("wm_client");
 
     while (wm_initialized) {
-        ssize_t bytes_read = recv(wm_socket, header, 
+        intmax_t bytes_read = recv(wm_socket, header, 
             sizeof(wm_request_header_t), MSG_WAITALL);
         if (bytes_read != sizeof(wm_request_header_t)) {
-            continue;
+            continue;   
         }
         
         // Verify the data read in the header
@@ -72,21 +72,17 @@ static int wm_listener(void* param)
 
 int wm_client_initialize(wm_client_message_handler_t handler)
 {
-    struct sockaddr wm_address;
-    int             status;
+    struct sockaddr_storage wm_address;
+    socklen_t               wm_address_length;
+    int                     status;
     
     // Create a new socket for listening to wm events. They are all
     // delivered to fixed sockets on the local system.
     wm_socket = socket(AF_LOCAL, SOCK_STREAM, 0);
     assert(wm_socket >= 0);
     
-    // Prepare the server address. 
-    memset(&wm_address, 0, sizeof(struct sockaddr));
-    wm_address.sin_family      = AF_LOCAL;
-    wm_address.sin_addr.s_addr = INADDR_ANY;
-    wm_address.sin_port        = htons(wm_port);
-    
     // Connect to the compositor
+    wm_os_get_server_address(&wm_address, &wm_address_length);
     status = connect(wm_socket, &wm_address, sizeof(wm_address));
     assert(status >= 0);
 }

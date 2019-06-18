@@ -9,9 +9,9 @@
 #define LCADDR_WM    "/lc/wm"
 
 struct sockaddr_lc {
-	uint8_t     sa_len;
-	sa_family_t sa_family;   // AF_LOCAL
-    char        sa_path[32]; // see defines above
+	uint8_t     slc_len;
+	sa_family_t slc_family;   // AF_LOCAL
+    char        slc_path[32]; // see defines above
 };
 
 #endif //!__INET_LOCAL_H__

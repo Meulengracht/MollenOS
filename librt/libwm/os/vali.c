@@ -21,19 +21,29 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __LIBWM_OS_H__
-#define __LIBWM_OS_H__
+#include "../libwm_os.h"
+#include <inet/socket.h>
+#include <inet/local.h>
 
-#include "libwm_types.h"
+int wm_os_get_server_address(struct sockaddr_storage* address, int* address_length_out)
+{
+    struct sockaddr_lc* local_address = (struct sockaddr_lc*)address;
+    *address_length_out               = sizeof(struct sockaddr_lc);
 
-// Prototypes
-struct sockaddr_storage;
+    // Prepare the server address. 
+    memset(&local_address, 0, sizeof(struct sockaddr_lc));
+    local_address->slc_family = AF_LOCAL;
+    return 0;
+}
 
-// OS API
-// Generally os-specific utility functions that are needed during execution
-// of the libwm operations
-int wm_os_get_server_address(struct sockaddr_storage*, int*);
-int wm_os_get_input_address(struct sockaddr_storage*, int*);
-int wm_os_thread_set_name(const char*);
+int wm_os_get_input_address(struct sockaddr_storage* address, int* address_length_out);
+{
+    return 0;
+}
+
+int wm_os_thread_set_name(const char* thread_name)
+{
+    return 0;
+}
 
 #endif // !__LIBWM_OS_H__
