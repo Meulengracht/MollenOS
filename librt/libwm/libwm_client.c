@@ -24,6 +24,7 @@
 #include <assert.h>
 #include <inet/socket.h>
 #include "libwm_client.h"
+#include "libwm_os.h"
 
 static int wm_initialized = 0;
 static int wm_socket      = -1;
@@ -38,10 +39,10 @@ static int wm_listener(void* param)
     char                 buffer[256];
     wm_request_header_t* header = &buffer[0];
     void*                body   = &buffer[sizeof(wm_request_header_t)];
-    int                  status;
-    
+    wm_os_thread_set_name("wm_client");
+
     while (wm_initialized) {
-        bytes_read = recv(wm_socket, header, 
+        ssize_t bytes_read = recv(wm_socket, header, 
             sizeof(wm_request_header_t), MSG_WAITALL);
         if (bytes_read != sizeof(wm_request_header_t)) {
             continue;
@@ -72,7 +73,7 @@ static int wm_listener(void* param)
 int wm_client_initialize(wm_client_message_handler_t handler)
 {
     struct sockaddr wm_address;
-    int             wm_port;
+    int             status;
     
     // Create a new socket for listening to wm events. They are all
     // delivered to fixed sockets on the local system.
