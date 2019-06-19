@@ -27,11 +27,12 @@
 #include "libwm_types.h"
 
 typedef void(*wm_server_message_handler_t)(int, wm_request_header_t*);
+typedef void(*wm_server_input_handler_t)(wm_input_event_t*);
 
 // Server API
 // This should be called for the compositor that wants to manage
 // wm-clients. This will initiate data structures and setup handler threads
-int wm_server_initialize(wm_server_message_handler_t);
+int wm_server_initialize(wm_server_message_handler_t, wm_server_input_handler_t);
 int wm_server_shutdown(void);
 
 #endif // !__LIBWM_SERVER_H__

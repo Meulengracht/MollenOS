@@ -25,13 +25,15 @@
 #include <inet/socket.h>
 #include "libwm_connection.h"
 #include <errno.h>
+#include <stdlib.h>
+#include <string.h>
 #include <threads.h>
 
 typedef struct {
-    int             c_socket;
-    struct sockaddr address;
-    int             address_length;
-    int             alive;
+    int                     c_socket;
+    struct sockaddr_storage address;
+    int                     address_length;
+    int                     alive;
 } wm_connection_t;
 
 static wm_connection_event_handler_t connection_event_handler;
@@ -43,8 +45,8 @@ static int wm_connection_handler(void* param)
     int                  status;
     
     char                 buffer[256];
-    wm_request_header_t* header = &buffer[0];
-    void*                body   = &buffer[sizeof(wm_request_header_t)];
+    wm_request_header_t* header = (wm_request_header_t*)&buffer[0];
+    void*                body   = (void*)&buffer[sizeof(wm_request_header_t)];
     
     // Set a timeout on recv so we can use ping the client at regular intervals
     status = setsockopt(connection->c_socket, SOL_SOCKET, SO_RCVTIMEO, 
@@ -53,7 +55,7 @@ static int wm_connection_handler(void* param)
     
     // listen for messages
     while (connection->alive) {
-        bytes_read = recv(connection->c_socket, header, 
+        intmax_t bytes_read = recv(connection->c_socket, header, 
             sizeof(wm_request_header_t), MSG_WAITALL);
         if (bytes_read != sizeof(wm_request_header_t)) {
             // timeout, send ping
@@ -81,7 +83,7 @@ static int wm_connection_handler(void* param)
     }
     
     // Cleanup connection
-    shutdown(connection->c_socket, SHUT_RDRW);
+    shutdown(connection->c_socket, SHUT_RDWR);
     free(connection);
     return 0;
 }
@@ -92,7 +94,7 @@ int wm_connection_initialize(wm_connection_event_handler_t handler)
     return 0;
 }
 
-int wm_connection_create(int client_socket, struct sockaddr* address, int address_length)
+int wm_connection_create(int client_socket, struct sockaddr_storage* address, int address_length)
 {
     wm_connection_t* connection;
     thrd_t           thread_id;
@@ -115,5 +117,5 @@ int wm_connection_create(int client_socket, struct sockaddr* address, int addres
 
 int wm_connection_shutdown(int connection)
 {
-
+    return 0;
 }

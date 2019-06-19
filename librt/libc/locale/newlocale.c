@@ -1,20 +1,20 @@
 /*
 FUNCTION
-	<<newlocale>>---create or modify a locale object
+  <<newlocale>>---create or modify a locale object
 
 INDEX
-	newlocale
+  newlocale
 
 INDEX
-	_newlocale_r
+  _newlocale_r
 
 ANSI_SYNOPSIS
-	#include <locale.h>
-	locale_t newlocale(int <[category_mask]>, const char *<[locale]>,
-			   locale_t <[locobj]>);
+  #include <locale.h>
+  locale_t newlocale(int <[category_mask]>, const char *<[locale]>,
+         locale_t <[locobj]>);
 
-	locale_t _newlocale_r(void *<[reent]>, int <[category_mask]>,
-			      const char *<[locale]>, locale_t <[locobj]>);
+  locale_t _newlocale_r(void *<[reent]>, int <[category_mask]>,
+            const char *<[locale]>, locale_t <[locobj]>);
 
 DESCRIPTION
 The <<newlocale>> function shall create a new locale object or modify an
@@ -46,9 +46,9 @@ called the POSIX locale.
 "C"	Equivalent to "POSIX".
 
 ""	Specifies an implementation-defined native environment.  This
-	corresponds to the value of the associated environment variables,
-	LC_* and LANG; see the Base Definitions volume of POSIX.1‐2008,
-	Chapter 7, Locale and Chapter 8, Environment Variables.
+  corresponds to the value of the associated environment variables,
+  LC_* and LANG; see the Base Definitions volume of POSIX.1‐2008,
+  Chapter 7, Locale and Chapter 8, Environment Variables.
 
 If the base argument is not (locale_t) <<0>> and the <<newlocale>>
 function call succeeds, the contents of base are unspecified.
@@ -73,23 +73,22 @@ PORTABILITY
 <<newlocale>> is POSIX-1.2008.
 */
 
-/* Includes */
 #include <errno.h>
 #include <stdlib.h>
 #include "setlocale.h"
 
 #define LC_VALID_MASK	(LC_COLLATE_MASK | LC_CTYPE_MASK | LC_MONETARY_MASK \
-			 | LC_NUMERIC_MASK | LC_TIME_MASK | LC_MESSAGES_MASK)
+       | LC_NUMERIC_MASK | LC_TIME_MASK | LC_MESSAGES_MASK)
 
 struct __locale_t *newlocale(int category_mask, const char *locale,
-	      struct __locale_t *base)
+        struct __locale_t *base)
 {
 #ifndef _MB_CAPABLE
-	/* Silence warnings */
-	_CRT_UNUSED(category_mask);
-	_CRT_UNUSED(locale);
-	_CRT_UNUSED(base);
-	return __get_C_locale ();
+  /* Silence warnings */
+  _CRT_UNUSED(category_mask);
+  _CRT_UNUSED(locale);
+  _CRT_UNUSED(base);
+  return __get_C_locale ();
 #else /* _MB_CAPABLE */
   char new_categories[_LC_LAST][ENCODING_LEN + 1];
   struct __locale_t tmp_locale, *new_locale;
@@ -112,7 +111,7 @@ struct __locale_t *newlocale(int category_mask, const char *locale,
      a pointer to the default locale. */
   if ((!base && category_mask == 0)
       || (category_mask == LC_VALID_MASK
-	  && (!strcmp (locale, "C") || !strcmp (locale, "POSIX"))))
+    && (!strcmp (locale, "C") || !strcmp (locale, "POSIX"))))
     return __get_C_locale ();
   /* Start with setting all values to the default locale values. */
   tmp_locale = *__get_C_locale ();
@@ -120,61 +119,61 @@ struct __locale_t *newlocale(int category_mask, const char *locale,
   for (i = 1; i < _LC_LAST; ++i)
     {
       if (((1 << i) & category_mask) != 0)
-	{
-	  /* If locale is "", fetch from environment.  Otherwise use locale
-	     name verbatim. */
-	  const char *cat = (locale[0] == '\0') ? __get_locale_env (p, i)
-						: locale;
-	  if (strlen (cat) > ENCODING_LEN)
-	    {
-	      p->_errno = EINVAL;
-	      return NULL;
-	    }
-	  strcpy (new_categories[i], cat);
-	}
+  {
+    /* If locale is "", fetch from environment.  Otherwise use locale
+       name verbatim. */
+    const char *cat = (locale[0] == '\0') ? __get_locale_env (p, i)
+            : locale;
+    if (strlen (cat) > ENCODING_LEN)
+      {
+        p->_errno = EINVAL;
+        return NULL;
+      }
+    strcpy (new_categories[i], cat);
+  }
       else
-	strcpy (new_categories[i], base ? base->categories[i] : "C");
+  strcpy (new_categories[i], base ? base->categories[i] : "C");
     }
   /* Now go over all categories and set them. */
   for (i = 1; i < _LC_LAST; ++i)
     {
       /* If we have a base locale, and the category is not in category_mask
-	 or the new category is the base categroy, just copy over. */
+   or the new category is the base categroy, just copy over. */
       if (base && (((1 << i) & category_mask) == 0
-		   || !strcmp (base->categories[i], new_categories[i])))
-	{
-	  strcpy (tmp_locale.categories[i], new_categories[i]);
-	  if (i == LC_CTYPE)
-	    {
-	      tmp_locale.wctomb = base->wctomb;
-	      tmp_locale.mbtowc = base->mbtowc;
-	      tmp_locale.cjk_lang = base->cjk_lang;
-	      tmp_locale.ctype_ptr - base->ctype_ptr;
-	    }
+       || !strcmp (base->categories[i], new_categories[i])))
+  {
+    strcpy (tmp_locale.categories[i], new_categories[i]);
+    if (i == LC_CTYPE)
+      {
+        tmp_locale.wctomb = base->wctomb;
+        tmp_locale.mbtowc = base->mbtowc;
+        tmp_locale.cjk_lang = base->cjk_lang;
+        tmp_locale.ctype_ptr - base->ctype_ptr;
+      }
 #ifdef __HAVE_LOCALE_INFO__
-	  /* Mark the values as "has still to be copied".  We do this in
-	     two steps to simplify freeing new locale types in case of a
-	     subsequent error. */
-	  tmp_locale.lc_cat[i].ptr = base->lc_cat[i].ptr;
-	  tmp_locale.lc_cat[i].buf = (void *) -1;
+    /* Mark the values as "has still to be copied".  We do this in
+       two steps to simplify freeing new locale types in case of a
+       subsequent error. */
+    tmp_locale.lc_cat[i].ptr = base->lc_cat[i].ptr;
+    tmp_locale.lc_cat[i].buf = (void *) -1;
 #else /* !__HAVE_LOCALE_INFO__ */
-	  if (i == LC_CTYPE)
-	    strcpy (tmp_locale.ctype_codeset, base->ctype_codeset);
-	  else if (i == LC_MESSAGES)
-	    strcpy (tmp_locale.message_codeset, base->message_codeset);
+    if (i == LC_CTYPE)
+      strcpy (tmp_locale.ctype_codeset, base->ctype_codeset);
+    else if (i == LC_MESSAGES)
+      strcpy (tmp_locale.message_codeset, base->message_codeset);
 #endif /* !__HAVE_LOCALE_INFO__ */
-	}
+  }
       /* Otherwise, if the category is in category_mask, create entry. */
       else if (((1 << i) & category_mask) != 0)
-	{
-	  /* Nothing to do for "C"/"POSIX" locale. */
-	  if (!strcmp (new_categories[i], "C")
-	      || !strcmp (new_categories[i], "POSIX"))
-	    continue;
-	  /* Otherwise load locale data. */
-	  else if (!__loadlocale (&tmp_locale, i, new_categories[i]))
-	    goto error;
-	}
+  {
+    /* Nothing to do for "C"/"POSIX" locale. */
+    if (!strcmp (new_categories[i], "C")
+        || !strcmp (new_categories[i], "POSIX"))
+      continue;
+    /* Otherwise load locale data. */
+    else if (!__loadlocale (&tmp_locale, i, new_categories[i]))
+      goto error;
+  }
     }
   /* Allocate new locale_t. */
   new_locale = (struct __locale_t *) _calloc_r (p, 1, sizeof *new_locale);
@@ -184,14 +183,14 @@ struct __locale_t *newlocale(int category_mask, const char *locale,
     {
 #ifdef __HAVE_LOCALE_INFO__
       /* Step 2 of copying over..  Make sure to invalidate the copied buffer
-	 pointers in base, so the subsequent _freelocale_r (base) doesn't free
-	 the buffers now used in the new locale. */
+   pointers in base, so the subsequent _freelocale_r (base) doesn't free
+   the buffers now used in the new locale. */
       for (i = 1; i < _LC_LAST; ++i)
-	if (tmp_locale.lc_cat[i].buf == (const void *) -1)
-	  {
-	    tmp_locale.lc_cat[i].buf = base->lc_cat[i].buf;
-	    base->lc_cat[i].ptr = base->lc_cat[i].buf = NULL;
-	  }
+  if (tmp_locale.lc_cat[i].buf == (const void *) -1)
+    {
+      tmp_locale.lc_cat[i].buf = base->lc_cat[i].buf;
+      base->lc_cat[i].ptr = base->lc_cat[i].buf = NULL;
+    }
 #endif /* __HAVE_LOCALE_INFO__ */
       _freelocale_r (p, base);
     }
@@ -205,11 +204,11 @@ error:
 #ifdef __HAVE_LOCALE_INFO__
   for (i = 1; i < _LC_LAST; ++i)
     if (((1 << i) & category_mask) != 0
-	&& tmp_locale.lc_cat[i].buf
-	&& tmp_locale.lc_cat[i].buf != (const void *) -1)
+  && tmp_locale.lc_cat[i].buf
+  && tmp_locale.lc_cat[i].buf != (const void *) -1)
       {
-	_free_r (p, (void *) tmp_locale.lc_cat[i].ptr);
-	_free_r (p, tmp_locale.lc_cat[i].buf);
+  _free_r (p, (void *) tmp_locale.lc_cat[i].ptr);
+  _free_r (p, tmp_locale.lc_cat[i].buf);
       }
 #endif /* __HAVE_LOCALE_INFO__ */
 

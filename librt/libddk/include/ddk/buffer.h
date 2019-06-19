@@ -26,6 +26,10 @@
 
 #include <ddk/ddkdefs.h>
 
+typedef struct {
+    
+} BufferVector_t;
+
 // System dma buffer
 // Contains information about a dma buffer for use with transfers,
 // shared memory or hardware interaction.

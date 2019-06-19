@@ -23,10 +23,14 @@
 
 #include <assert.h>
 #include <inet/socket.h>
+#include "libwm_connection.h"
+#include "libwm_os.h"
 #include "libwm_server.h"
 #include <threads.h>
+#include <signal.h>
 #include <string.h>
 
+static wm_server_input_handler_t   wm_input_handler;
 static wm_server_message_handler_t wm_server_handler;
 static thrd_t                      wm_listener_thread;
 static thrd_t                      wm_input_thread;
@@ -35,10 +39,11 @@ static int                         wm_initialized = 0;
 // connection thread
 static int wm_listener(void* param)
 {
-    struct sockaddr wm_address;
-    int             wm_socket;
-    int             wm_port;
-    int             status;
+    struct sockaddr_storage wm_address;
+    socklen_t               wm_address_length;
+    int                     wm_socket;
+    int                     status;
+    wm_os_thread_set_name("wm_listener");
     
     // Create the listener for local pc, we are not internet active
     // at this moment. Use asserts for error checking as we have no direct
@@ -47,12 +52,8 @@ static int wm_listener(void* param)
     assert(wm_socket >= 0);
     
     // Prepare the server address. 
-    memset(&wm_address, 0, sizeof(struct sockaddr));
-    wm_address.sin_family      = AF_LOCAL;
-    wm_address.sin_addr.s_addr = INADDR_ANY;
-    wm_address.sin_port        = htons(wm_port);
-    
-    status = bind(wm_socket, &wm_address, sizeof(wm_address));
+    wm_os_get_server_address(&wm_address, &wm_address_length);
+    status = bind(wm_socket, sstosa(&wm_address), wm_address_length);
     assert(status >= 0);
     
     // Enable listening for connections, with a maximum of 2 on backlog
@@ -60,11 +61,11 @@ static int wm_listener(void* param)
     assert(status >= 0);
     
     while (wm_initialized) {
-        struct sockaddr client_address;
-        int             client_socket;
-        int             client_socket_length;
+        struct sockaddr_storage client_address;
+        int                     client_socket;
+        int                     client_socket_length;
         
-        client_socket = accept(wm_socket, &client_address, &client_socket_length);
+        client_socket = accept(wm_socket, sstosa(&client_address), &client_socket_length);
         if (client_socket < 0) {
             // log accept failure
             continue;
@@ -79,26 +80,22 @@ static int wm_listener(void* param)
 }
 
 // input thread
-static int wm_input_handler(void* param)
+static int wm_input_worker(void* param)
 {
-    struct sockaddr input_address;
-    int             input_port;
-    int             input_socket;
-    int             status;
+    struct sockaddr_storage input_address;
+    socklen_t               input_address_length;
+    int                     input_socket;
+    int                     status;
+    wm_os_thread_set_name("wm_input");
     
     // Create a new socket for listening to input events. They are all
     // delivered to fixed sockets on the local system.
     input_socket = socket(AF_LOCAL, SOCK_STREAM, 0);
     assert(input_socket >= 0);
     
-    // Prepare the server address. 
-    memset(&input_address, 0, sizeof(struct sockaddr));
-    input_address.sin_family      = AF_LOCAL;
-    input_address.sin_addr.s_addr = INADDR_ANY;
-    input_address.sin_port        = htons(input_port);
-    
     // Connect to the input pipe
-    status = connect(input_socket, &input_address, sizeof(input_address));
+    wm_os_get_input_address(&input_address, &input_address_length);
+    status = connect(input_socket, sstosa(&input_address), input_address_length);
     assert(status >= 0);
     
     while (wm_initialized) {
@@ -111,7 +108,7 @@ static int wm_input_handler(void* param)
         }
         
         // elevate key press
-        user_input_handler(&input_data);
+        wm_input_handler(&input_data);
     }
     return shutdown(input_socket, SHUT_RDWR);
 }
@@ -124,16 +121,21 @@ static void wm_connection_handler(int connection, wm_request_header_t* request)
     wm_server_handler(connection, request);
 }
 
-int wm_server_initialize(wm_server_message_handler_t handler)
+int wm_server_initialize(wm_server_message_handler_t handler, wm_server_input_handler_t input_handler)
 {
     // store handler
     assert(wm_initialized == 0);
     wm_initialized    = 1;
     wm_server_handler = handler;
+    wm_input_handler  = input_handler;
+    
+    // initialize connection library
+    wm_connection_initialize(wm_connection_handler);
 
     // create threads
     thrd_create(&wm_listener_thread, wm_listener, NULL);
-    thrd_create(&wm_input_thread, wm_input_handler, NULL);
+    thrd_create(&wm_input_thread, wm_input_worker, NULL);
+    return 0;
 }
 
 int wm_server_shutdown(void)
@@ -141,4 +143,5 @@ int wm_server_shutdown(void)
     wm_initialized = 0;
     thrd_signal(wm_listener_thread, SIGTERM);
     thrd_signal(wm_input_thread, SIGTERM);
+    return 0;
 }

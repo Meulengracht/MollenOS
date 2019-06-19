@@ -32,13 +32,19 @@ static int wm_socket      = -1;
 static int wm_execute_command(wm_request_header_t* command)
 {
     assert(wm_initialized == 1);
+    return 0;
+}
+
+static void wm_client_event_handler(wm_request_header_t* event)
+{
+    
 }
 
 static int wm_listener(void* param)
 {
     char                 buffer[256];
-    wm_request_header_t* header = &buffer[0];
-    void*                body   = &buffer[sizeof(wm_request_header_t)];
+    wm_request_header_t* header = (wm_request_header_t*)&buffer[0];
+    void*                body   = (void*)&buffer[sizeof(wm_request_header_t)];
     wm_os_thread_set_name("wm_client");
 
     while (wm_initialized) {
@@ -63,9 +69,7 @@ static int wm_listener(void* param)
                 continue; // do not process incomplete requests
             }
         }
-        
-        // elevate message to handler
-        wm_event_handler(header);
+        wm_client_event_handler(header);
     }
     return shutdown(wm_socket, SHUT_RDWR);
 }
@@ -83,8 +87,9 @@ int wm_client_initialize(wm_client_message_handler_t handler)
     
     // Connect to the compositor
     wm_os_get_server_address(&wm_address, &wm_address_length);
-    status = connect(wm_socket, &wm_address, sizeof(wm_address));
+    status = connect(wm_socket, sstosa(&wm_address), wm_address_length);
     assert(status >= 0);
+    return status;
 }
 
 int wm_client_create_window(void)
@@ -92,6 +97,8 @@ int wm_client_create_window(void)
     wm_request_window_create_t request;
 
     wm_execute_command(&request.header);
+    
+    return 0;
 }
 
 int wm_client_destroy_Window(void)
@@ -99,6 +106,8 @@ int wm_client_destroy_Window(void)
     wm_request_window_create_t request;
 
     wm_execute_command(&request.header);
+    
+    return 0;
 }
 
 int wm_client_redraw_window(void)
@@ -106,6 +115,8 @@ int wm_client_redraw_window(void)
     wm_request_window_create_t request;
 
     wm_execute_command(&request.header);
+    
+    return 0;
 }
 
 int wm_client_window_set_title(void)
@@ -113,6 +124,8 @@ int wm_client_window_set_title(void)
     wm_request_window_create_t request;
 
     wm_execute_command(&request.header);
+    
+    return 0;
 }
 
 int wm_client_request_buffer(void)
@@ -120,6 +133,8 @@ int wm_client_request_buffer(void)
     wm_request_window_create_t request;
 
     wm_execute_command(&request.header);
+    
+    return 0;
 }
 
 int wm_client_release_buffer(void)
@@ -127,6 +142,8 @@ int wm_client_release_buffer(void)
     wm_request_window_create_t request;
 
     wm_execute_command(&request.header);
+    
+    return 0;
 }
 
 int wm_client_resize_buffer(void)
@@ -134,6 +151,8 @@ int wm_client_resize_buffer(void)
     wm_request_window_create_t request;
 
     wm_execute_command(&request.header);
+    
+    return 0;
 }
 
 int wm_client_set_active_buffer(void)
@@ -141,6 +160,8 @@ int wm_client_set_active_buffer(void)
     wm_request_window_create_t request;
 
     wm_execute_command(&request.header);
+    
+    return 0;
 }
 
 int wm_client_shutdown(void)
@@ -148,4 +169,6 @@ int wm_client_shutdown(void)
     wm_request_window_create_t request;
 
     wm_execute_command(&request.header);
+    
+    return 0;
 }

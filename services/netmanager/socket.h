@@ -28,6 +28,7 @@
 #include <os/osdefs.h>
 #include <ddk/buffer.h>
 #include <ddk/ringbuffer.h>
+#include <inet/socket.h>
 
 #define SOCKET_DEFAULT_BUFFER_SIZE (16 * 4096)
 
@@ -43,15 +44,15 @@ typedef struct {
 } SocketPipe_t;
 
 typedef struct {
-    UUId_t        Handle;
-    int           Domain;
-    int           Options;
-    Flags_t       Flags;
-    SocketState_t State;
+    UUId_t           Handle;
+    int              Domain;
+    int              Options;
+    Flags_t          Flags;
+    SocketState_t    State;
     
-    void*         Address;
-    SocketPipe_t  Receive;
-    SocketPipe_t  Send;
+    sockaddr_storage Address;
+    SocketPipe_t     Receive;
+    SocketPipe_t     Send;
 } Socket_t;
 
 /* SocketCreate
@@ -77,18 +78,18 @@ SocketShutdown(
  * communication. This must be performed before certain other operations. */
 OsStatus_t
 SocketBind(
-    _In_ UUId_t Handle,
-    _In_ void*  Address,
-    _In_ int    Options);
+    _In_ UUId_t            Handle,
+    _In_ sockaddr_storage* Address,
+    _In_ int               Options);
 
 /* SocketConnect
  * Connect the socket to an address. If any socket is listening on the address
  * the socket will be passed on to the listening party. */
 OsStatus_t
 SocketConnect(
-    _In_ UUId_t Handle,
-    _In_ void*  Address,
-    _In_ int    Options);
+    _In_ UUId_t            Handle,
+    _In_ sockaddr_storage* Address,
+    _In_ int               Options);
 
 /* SocketWaitForConnection
  * Waits for a new connection on the socket. The socket will return the client

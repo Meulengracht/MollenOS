@@ -6,7 +6,7 @@ include ../../config/common.mk
 
 INCLUDES = -I../include -I../libc/include -I../libddk/include
 
-SOURCES = $(wildcard *.c)
+SOURCES = $(wildcard *.c) $(wildcard os/*.c)
 OBJECTS = $(SOURCES:.c=.o)
 
 # Setup flags
@@ -15,9 +15,9 @@ LFLAGS = /lib
 
 # default-target
 .PHONY: all
-all: ../build/libwm.lib
+all: ../deploy/libwm.lib
 
-../build/libwm.lib: $(OBJECTS)
+../deploy/libwm.lib: $(OBJECTS)
 	@printf "%b" "\033[0;36mCreating static library " $@ "\033[m\n"
 	@$(LD) $(LFLAGS) $(OBJECTS) /out:$@
 
@@ -28,5 +28,5 @@ all: ../build/libwm.lib
 
 .PHONY: clean
 clean:
-	@rm -f ../build/libwm.lib
+	@rm -f ../deploy/libwm.lib
 	@rm -f $(OBJECTS)

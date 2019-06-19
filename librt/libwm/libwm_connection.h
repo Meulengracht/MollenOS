@@ -27,14 +27,14 @@
 #include "libwm_types.h"
 
 // Prototypes
-struct sockaddr;
+struct sockaddr_storage;
 
 typedef void(*wm_connection_event_handler_t)(int, wm_request_header_t*);
 
 // Connection API
 // Used to manage all the connections to the window manager.
 int wm_connection_initialize(wm_connection_event_handler_t);
-int wm_connection_create(int, struct sockaddr*, int);
+int wm_connection_create(int, struct sockaddr_storage*, int);
 int wm_connection_shutdown(int);
 
 #endif // !__LIBWM_CONNECTION_H__
