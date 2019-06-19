@@ -34,7 +34,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <assert.h>
-#include "../../stdio/local.h"
+#include "../../stdio/libc_io.h"
 
 void
 InitializeStartupInformation(
@@ -48,7 +48,7 @@ InitializeStartupInformation(
     StartupInformation->StdErrHandle = STDERR_FILENO;
 }
 
-UUId_t 
+UUId_t
 ProcessSpawn(
     _In_     const char* Path,
     _In_Opt_ const char* Arguments)

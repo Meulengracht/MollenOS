@@ -27,7 +27,7 @@
 #include <os/services/storage.h>
 #include <os/mollenos.h>
 #include <stdio.h>
-#include "../stdio/local.h"
+#include "../stdio/libc_io.h"
 
 OsStatus_t
 GetFilePathFromFd(
@@ -35,13 +35,13 @@ GetFilePathFromFd(
     _In_ char*  PathBuffer,
     _In_ size_t MaxLength)
 {
-    StdioHandle_t *FileHandle = StdioFdToHandle(FileDescriptor);
+    stdio_object_t* object = stdio_object_get(FileDescriptor);
 
-    if (FileHandle == NULL || PathBuffer == NULL || 
-        FileHandle->InheritationType != STDIO_HANDLE_FILE) {
+    if (object == NULL || PathBuffer == NULL || 
+        object->handle.InheritationType != STDIO_HANDLE_FILE) {
         return OsError;
     }
-    return GetFilePath(FileHandle->InheritationHandle, PathBuffer, MaxLength);
+    return GetFilePath(object->handle.InheritationHandle, PathBuffer, MaxLength);
 }
 
 OsStatus_t
@@ -60,13 +60,13 @@ GetStorageInformationFromFd(
     _In_ int                    FileDescriptor,
     _In_ OsStorageDescriptor_t* Information)
 {
-    StdioHandle_t *FileHandle = StdioFdToHandle(FileDescriptor);
+    stdio_object_t* object = stdio_object_get(FileDescriptor);
 
-    if (FileHandle == NULL || Information == NULL ||
-        FileHandle->InheritationType != STDIO_HANDLE_FILE) {
+    if (object == NULL || Information == NULL ||
+        object->handle.InheritationType != STDIO_HANDLE_FILE) {
         return OsError;
     }
-    return QueryStorageByHandle(FileHandle->InheritationHandle, Information);
+    return QueryStorageByHandle(object->handle.InheritationHandle, Information);
 }
 
 FileSystemCode_t
@@ -85,13 +85,13 @@ GetFileSystemInformationFromFd(
     _In_ int FileDescriptor,
     _In_ OsFileSystemDescriptor_t *Information)
 {
-    StdioHandle_t *FileHandle = StdioFdToHandle(FileDescriptor);
+    stdio_object_t* object = stdio_object_get(FileDescriptor);
 
-    if (FileHandle == NULL || Information == NULL ||
-        FileHandle->InheritationType != STDIO_HANDLE_FILE) {
+    if (object == NULL || Information == NULL ||
+        object->handle.InheritationType != STDIO_HANDLE_FILE) {
         return FsInvalidParameters;
     }
-    return GetFileSystemStatsByHandle(FileHandle->InheritationHandle, Information);
+    return GetFileSystemStatsByHandle(object->handle.InheritationHandle, Information);
 }
 
 FileSystemCode_t
@@ -110,13 +110,13 @@ GetFileInformationFromFd(
     _In_ int                    FileDescriptor,
     _In_ OsFileDescriptor_t*    Information)
 {
-    StdioHandle_t *FileHandle = StdioFdToHandle(FileDescriptor);
+    stdio_object_t* object = stdio_object_get(FileDescriptor);
 
-    if (FileHandle == NULL || Information == NULL ||
-        FileHandle->InheritationType != STDIO_HANDLE_FILE) {
+    if (object == NULL || Information == NULL ||
+        object->handle.InheritationType != STDIO_HANDLE_FILE) {
         return FsInvalidParameters;
     }
-    return GetFileStatsByHandle(FileHandle->InheritationHandle, Information);
+    return GetFileStatsByHandle(object->handle.InheritationHandle, Information);
 }
 
 OsStatus_t
@@ -129,11 +129,11 @@ CreateFileMapping(
     _Out_ UUId_t*  Handle)
 {
     FileMappingParameters_t Parameters;
-    StdioHandle_t*          FileHandle = StdioFdToHandle(FileDescriptor);
+    stdio_object_t*         object = stdio_object_get(FileDescriptor);
     OsStatus_t              Status;
 
     // Sanitize that the descritor is valid
-    if (FileHandle == NULL || FileHandle->InheritationType != STDIO_HANDLE_FILE) {
+    if (object == NULL || object->handle.InheritationType != STDIO_HANDLE_FILE) {
         return OsError;
     }
 
@@ -146,7 +146,7 @@ CreateFileMapping(
         Parameters.FileOffset     = Offset;
         Parameters.VirtualAddress = (uintptr_t)*MemoryPointer;
         Parameters.Length         = Length;
-        // Status = RegisterFileMapping(FileHandle->InheritationHandle, &FileMappingParameters);
+        // Status = RegisterFileMapping(object->handle.InheritationHandle, &FileMappingParameters);
     }
     return Status;
 }

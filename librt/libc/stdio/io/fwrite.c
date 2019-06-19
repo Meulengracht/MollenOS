@@ -1,0 +1,144 @@
+/* MollenOS
+ *
+ * Copyright 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * Standard C Library 
+ *   - Write to io handles
+ */
+
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
+#include <stdlib.h>
+#include <io.h>
+#include "../libc_io.h"
+
+int write(int fd, const void* buffer, unsigned int length)
+{
+	stdio_object_t* object       = stdio_object_get(fd);
+	size_t          BytesWritten = 0;
+
+	// Don't write uneven bytes in case of UTF8/16
+	if ((object->wxflag & WX_UTF) == WX_UTF && (length & 1)) {
+		_set_errno(EINVAL);
+		return -1;
+	}
+
+	// If appending, go to EOF
+	if (object->wxflag & WX_APPEND) {
+		lseek(fd, 0, SEEK_END);
+	}
+
+	// If we aren't in text mode, raw write the data
+	// without any text-processing
+	if (object->ops.write(&object->handle, (char*)buffer, 
+		length, &BytesWritten) == OsSuccess) {
+		return (int)BytesWritten;
+	}
+
+	_set_errno(ENOSPC);
+	return -1;
+}
+
+size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
+{
+	size_t wrcnt = size * count;
+	int written = 0;
+
+	if (!vptr || !size || !count || !stream) {
+		_set_errno(EINVAL);
+		return 0;
+	}
+	
+	// Write the bytes in a loop in case we can't
+	// flush it all at once
+	_lock_file(stream);
+	while (wrcnt) {
+
+		// Sanitize output buffer count
+		if (stream->_cnt < 0) {
+			stream->_flag |= _IOERR;
+			break;
+		}
+		else if (stream->_cnt) {
+			// Flush as much as possible into the buffer in one go
+			int pcnt = (stream->_cnt > wrcnt) ? wrcnt : stream->_cnt;
+			memcpy(stream->_ptr, vptr, pcnt);
+
+			// Adjust
+			stream->_cnt -= pcnt;
+			stream->_ptr += pcnt;
+
+			// Update pointers
+			written += pcnt;
+			wrcnt -= pcnt;
+			vptr = (const char *)vptr + pcnt;
+		}
+		else if ((stream->_flag & _IONBF) 
+			|| ((stream->_flag & (_IOMYBUF | _USERBUF)) 
+				&& wrcnt >= stream->_bufsiz) 
+			|| (!(stream->_flag & (_IOMYBUF | _USERBUF)) 
+				&& wrcnt >= INTERNAL_BUFSIZ)) {
+			// Variables
+			size_t pcnt;
+			int bufsiz;
+
+			// Handle the kind of buffer type thats specified
+			if (stream->_flag & _IONBF) {
+				bufsiz = 1;
+			}
+			else if (!(stream->_flag & (_IOMYBUF | _USERBUF))) {
+				bufsiz = INTERNAL_BUFSIZ;
+			}
+			else {
+				bufsiz = stream->_bufsiz;
+			}
+			pcnt = (wrcnt / bufsiz) * bufsiz;
+
+			// Flush stream buffer
+			if (os_flush_buffer(stream) != OsSuccess) {
+				break;
+			}
+
+			// Write buffer to stream
+			if (write(stream->_fd, vptr, pcnt) <= 0) {
+				stream->_flag |= _IOERR;
+				break;
+			}
+
+			// Update pointers
+			written += pcnt;
+			wrcnt -= pcnt;
+			vptr = (const char *)vptr + pcnt;
+		}
+		else {
+			// Fill buffer
+			if (_flsbuf(*(const char *)vptr, stream) == EOF) {
+				break;
+			}
+
+			// Update pointers
+			written++;
+			wrcnt--;
+			vptr = (const char *)vptr + 1;
+		}
+	}
+
+	// Unlock stream and return member-count written
+	_unlock_file(stream);
+	return written / size;
+}

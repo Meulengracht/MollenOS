@@ -22,7 +22,7 @@
 #define __MODULE "MODS"
 //#define __TRACE
 
-#include "../../librt/libc/stdio/local.h"
+#include "../../librt/libc/stdio/libc_io.h"
 #include "../../librt/libds/pe/pe.h"
 #include <memoryspace.h>
 #include <arch/interrupts.h>
@@ -32,9 +32,9 @@
 #include <debug.h>
 #include <heap.h>
 
-static Collection_t  Modules               = COLLECTION_INIT(KeyInteger);
-static StdioObject_t ModuleInheriations[2] = { 0 };
-static int           ModuleIdGenerator     = 1;
+static Collection_t   Modules               = COLLECTION_INIT(KeyInteger);
+static stdio_object_t ModuleInheriations[2] = { 0 };
+static int            ModuleIdGenerator     = 1;
 
 void
 InitializeModuleInheritationBlock(void)

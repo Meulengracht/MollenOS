@@ -28,7 +28,7 @@
 #include <ddk/buffer.h>
 #include <assert.h>
 #include <stdlib.h>
-#include "../stdio/local.h"
+#include "../stdio/libc_io.h"
 
 static DmaBuffer_t* ProgramWindowBuffer    = NULL;
 static long         ProgramWindowHandle    = -1;
@@ -49,7 +49,7 @@ void
 UiParametersSetDefault(
     _In_  UIWindowParameters_t* Descriptor)
 {
-    StdioObject_t* StdioStdin = get_ioinfo(STDIN_FILENO);
+    stdio_object_t* StdioStdin = stdio_object_get(STDIN_FILENO);
     
     // Sanitize parameters
     assert(Descriptor != NULL);

@@ -23,7 +23,7 @@
 #include <internal/_utils.h>
 #include <os/services/process.h>
 #include <os/mollenos.h>
-#include "../stdio/local.h"
+#include "../stdio/libc_io.h"
 
 OsStatus_t
 ListenForSystemEvents(
@@ -34,11 +34,11 @@ ListenForSystemEvents(
     if (Types & OS_EVENT_STDIN) {
         // if the stdin is inheritted it won't be ok, in that case close
         // the inheritted handle and open a new
-        StdioHandle_t* Handle = StdioFdToHandle(STDIN_FILENO);
-        if (Handle == NULL) {
+        stdio_object_t* object = stdio_object_get(STDIN_FILENO);
+        if (object == NULL) {
             return OsDoesNotExist;
         }
-        StdListener = Handle->InheritationHandle;
+        StdListener = object->handle.InheritationHandle;
     }
     return Syscall_RegisterEventTarget(StdListener, WmListener);
 }
