@@ -37,30 +37,17 @@
  * thread, and can be retrieved with TLSGetCurrent() which returns
  * the local copy of this structure */
 PACKED_TYPESTRUCT(thread_storage, {
-    thrd_t          thr_id;
-    void*           handle;
-    errno_t         err_no;
-    void*           locale;
-    mbstate_t       mbst;
-    unsigned int    seed;
-    char*           strtok_next;
-    struct tm       tm_buffer;
-    char            asc_buffer[26];
-    DmaBuffer_t*    transfer_buffer;
-    uintptr_t       tls_array[TLS_NUMBER_ENTRIES];
-
-    // Exception & RTTI Support for msc++
-#if defined(_MSC_VER) && !defined(__clang__)
-    void                    *TerminateHandler;
-    void                    *UnexpectedHandler;
-    void                    *SeTranslator;
-    void                    *ExceptionInfo;
-    void                    *ExceptionRecord;
-    void                    *ExceptionList;
-    void                    *StackLow;
-    void                    *StackHigh;
-    int                      IsDebugging;
-#endif
+    thrd_t           thr_id;
+    void*            handle;
+    errno_t          err_no;
+    void*            locale;
+    mbstate_t        mbst;
+    unsigned int     seed;
+    char*            strtok_next;
+    struct tm        tm_buffer;
+    char             asc_buffer[26];
+    ManagedBuffer_t* transfer_buffer;
+    uintptr_t        tls_array[TLS_NUMBER_ENTRIES];
 });
 
 _CODE_BEGIN

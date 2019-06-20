@@ -78,9 +78,9 @@ SchedulerGetCurrentObject(
 
 static FutexBucket_t*
 FutexGetBucket(
-    _In_ _Atomic(int)* Futex)
+    _In_ uintptr_t FutexAddress)
 {
-    size_t FutexHash = GetIntegerHash((size_t)Futex);
+    size_t FutexHash = GetIntegerHash(FutexAddress);
     return &FutexBuckets[FutexHash & (FUTEX_HASHTABLE_CAPACITY - 1)];
 }
 
@@ -204,19 +204,27 @@ FutexWait(
     _In_ size_t        Timeout)
 {
     SystemMemorySpaceContext_t* Context = NULL;
-    SchedulerObject_t* Object     = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
-    FutexBucket_t*     FutexQueue = FutexGetBucket(Futex);
+    SchedulerObject_t* Object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
+    FutexBucket_t*     FutexQueue;
     FutexItem_t*       FutexItem;
+    uintptr_t          FutexAddress;
     IntStatus_t        CpuState;
     TRACE("%u: FutexWait(f 0x%llx, t %u)", GetCurrentThreadId(), Futex, Timeout);
     
     // Increase waiter count
     atomic_fetch_add(&FutexQueue->Waiters, 1);
     
-    // Get the futex queue
-    if (!(Flags & FUTEX_WAIT_PRIVATE)) {
+    // Get the futex context, if the context is private
+    // we can stick to the virtual address for sleeping
+    // otherwise we need to lookup the physical page
+    if (Flags & FUTEX_WAIT_PRIVATE) {
         Context = GetCurrentMemorySpace()->Context;
+        FutexAddress = (uintptr_t)Futex;
     }
+    else {
+        FutexAddress = GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)Futex);
+    }
+    FutexQueue = FutexGetBucket(FutexAddress);
 
     // Setup information for the current running object
     Object->TimeLeft      = Timeout;
@@ -225,9 +233,9 @@ FutexWait(
     
     CpuState = InterruptDisable();
     spinlock_acquire(&FutexQueue->SyncObject);
-    FutexItem = FutexGetNode(FutexQueue, (uintptr_t)Futex, Context);
+    FutexItem = FutexGetNode(FutexQueue, FutexAddress, Context);
     if (!FutexItem) {
-        FutexItem = FutexCreateNode(FutexQueue, (uintptr_t)Futex, Context);
+        FutexItem = FutexCreateNode(FutexQueue, FutexAddress, Context);
     }
     spinlock_release(&FutexQueue->SyncObject);
     Object->WaitQueueHandle = &(FutexItem->WaitQueue);
@@ -261,18 +269,26 @@ FutexWaitOperation(
 {
     SystemMemorySpaceContext_t* Context = NULL;
     SchedulerObject_t* Object     = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
-    FutexBucket_t*     FutexQueue = FutexGetBucket(Futex);
+    FutexBucket_t*     FutexQueue;
     FutexItem_t*       FutexItem;
+    uintptr_t          FutexAddress;
     IntStatus_t        CpuState;
     TRACE("%u: FutexWaitOperation(f 0x%llx, t %u)", GetCurrentThreadId(), Futex, Timeout);
     
     // Increase waiter count
     atomic_fetch_add(&FutexQueue->Waiters, 1);
     
-    // Get the futex queue
-    if (!(Flags & FUTEX_WAIT_PRIVATE)) {
+    // Get the futex context, if the context is private
+    // we can stick to the virtual address for sleeping
+    // otherwise we need to lookup the physical page
+    if (Flags & FUTEX_WAIT_PRIVATE) {
         Context = GetCurrentMemorySpace()->Context;
+        FutexAddress = (uintptr_t)Futex;
     }
+    else {
+        FutexAddress = GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)Futex);
+    }
+    FutexQueue = FutexGetBucket(FutexAddress);
     
     // Setup information for the current running object
     Object->TimeLeft      = Timeout;
@@ -281,9 +297,9 @@ FutexWaitOperation(
     
     CpuState = InterruptDisable();
     spinlock_acquire(&FutexQueue->SyncObject);
-    FutexItem = FutexGetNode(FutexQueue, (uintptr_t)Futex, Context);
+    FutexItem = FutexGetNode(FutexQueue, FutexAddress, Context);
     if (!FutexItem) {
-        FutexItem = FutexCreateNode(FutexQueue, (uintptr_t)Futex, Context);
+        FutexItem = FutexCreateNode(FutexQueue, FutexAddress, Context);
     }
     spinlock_release(&FutexQueue->SyncObject);
     Object->WaitQueueHandle = &(FutexItem->WaitQueue);
@@ -314,20 +330,28 @@ FutexWake(
     _In_ int           Flags)
 {
     SystemMemorySpaceContext_t* Context = NULL;
-    FutexBucket_t*     FutexQueue = FutexGetBucket(Futex);
+    FutexBucket_t*     FutexQueue;
     FutexItem_t*       FutexItem;
     OsStatus_t         Status;
     IntStatus_t        CpuState;
+    uintptr_t          FutexAddress;
     int                i;
     
-    // Get the futex queue
-    if (!(Flags & FUTEX_WAKE_PRIVATE)) {
+    // Get the futex context, if the context is private
+    // we can stick to the virtual address for sleeping
+    // otherwise we need to lookup the physical page
+    if (Flags & FUTEX_WAKE_PRIVATE) {
         Context = GetCurrentMemorySpace()->Context;
+        FutexAddress = (uintptr_t)Futex;
     }
+    else {
+        FutexAddress = GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)Futex);
+    }
+    FutexQueue = FutexGetBucket(FutexAddress);
     
     CpuState = InterruptDisable();
     spinlock_acquire(&FutexQueue->SyncObject);
-    FutexItem = FutexGetNode(FutexQueue, (uintptr_t)Futex, Context);
+    FutexItem = FutexGetNode(FutexQueue, FutexAddress, Context);
     spinlock_release(&FutexQueue->SyncObject);
     InterruptRestoreState(CpuState);
     

@@ -38,7 +38,6 @@
 
 typedef struct {
     size_t       capacity;
-    uint8_t*     buffer;
     unsigned int options;
     
     _Atomic(int)          consumer_count;
@@ -47,13 +46,14 @@ typedef struct {
     _Atomic(int)          producer_count;
     _Atomic(unsigned int) producer_index;
     _Atomic(unsigned int) producer_comitted_index;
+    
+    uint8_t buffer[1];
 } ringbuffer_t;
 
 DDKDECL(void,
 ringbuffer_construct(
     _In_ ringbuffer_t* ring,
     _In_ size_t        capacity,
-    _In_ uint8_t*      buffer,
     _In_ unsigned int  options));
 
 DDKDECL(OsStatus_t,

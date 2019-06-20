@@ -48,12 +48,10 @@ void
 ringbuffer_construct(
     _In_ ringbuffer_t* ring,
     _In_ size_t        capacity,
-    _In_ uint8_t*      buffer,
     _In_ unsigned int  options)
 {
     memset(ring, 0, sizeof(ringbuffer_t));
     ring->capacity = capacity;
-    ring->buffer   = buffer;
     ring->options  = options;
 }
 
@@ -63,20 +61,14 @@ ringbuffer_create(
     _In_  unsigned int   options,
     _Out_ ringbuffer_t** ring_out)
 {
-    ringbuffer_t* ring = (ringbuffer_t*)malloc(sizeof(ringbuffer_t));
-    uint8_t*      buffer;
-    
+    // When calculating the number of bytes we want to actual structure size
+    // without the buffer[1] and then capacity
+    ringbuffer_t* ring = (ringbuffer_t*)malloc((sizeof(ringbuffer_t) - 1) + capacity);
     if (!ring) {
         return OsOutOfMemory;
     }
     
-    buffer = (uint8_t*)malloc(capacity);
-    if (!buffer) {
-        free((void*)ring);
-        return OsOutOfMemory;
-    }
-    
-    ringbuffer_construct(ring, capacity, buffer, options);
+    ringbuffer_construct(ring, capacity, options);
     return OsSuccess;
 }
 
