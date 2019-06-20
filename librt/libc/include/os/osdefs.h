@@ -93,7 +93,9 @@ typedef enum {
     OsInvalidPermissions,// Error - Bad permissions
     OsTimeout,           // Error - Timeout
     OsNotSupported,      // Error - Feature not supported
-    OsOutOfMemory        // Error - Out of memory
+    OsOutOfMemory,       // Error - Out of memory
+    
+    OsErrorCodeCount
 } OsStatus_t;
 
 typedef enum {

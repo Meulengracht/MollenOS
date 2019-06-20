@@ -33,14 +33,14 @@ typedef void(*wm_client_message_handler_t)(wm_request_header_t*);
 // manipulated by the client. The client is responsible for drawing and informing
 // the server when to redraw
 int wm_client_initialize(wm_client_message_handler_t);
-int wm_client_create_window(void);
-int wm_client_destroy_Window(void);
-int wm_client_redraw_window(void);
-int wm_client_window_set_title(void);
-int wm_client_request_buffer(void);
-int wm_client_release_buffer(void);
-int wm_client_resize_buffer(void);
-int wm_client_set_active_buffer(void);
+int wm_client_create_window(const char*, int, int, int, int, unsigned int);
+int wm_client_destroy_window(int);
+int wm_client_redraw_window(int, wm_rect_t*);
+int wm_client_resize_window(int, wm_rect_t*);
+int wm_client_window_set_title(int, const char*);
+int wm_client_register_buffer(wm_handle_t, wm_surface_descriptor_t*);
+int wm_client_unregister_buffer(wm_handle_t);
+int wm_client_set_active_buffer(wm_handle_t);
 int wm_client_shutdown(void);
 
 #endif // !__LIBWM_CLIENT_H__

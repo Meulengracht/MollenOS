@@ -94,7 +94,7 @@ thrd_t thrd_current(void) {
 #include <io.h>
 #include "libc_io.h"
 
-static Collection_t IoObjects = COLLECTION_INIT(KeyInteger);
+static Collection_t stdio_objects = COLLECTION_INIT(KeyInteger);
 static FILE         __GlbStdout = { 0 }, __GlbStdin = { 0 }, __GlbStderr = { 0 };
 
 /* StdioIsHandleInheritable
@@ -103,7 +103,7 @@ static FILE         __GlbStdout = { 0 }, __GlbStdin = { 0 }, __GlbStderr = { 0 }
 static OsStatus_t
 StdioIsHandleInheritable(
     _In_ ProcessStartupInformation_t*   StartupInformation,
-    _In_ stdio_object_t*                 Object)
+    _In_ stdio_object_t*                Object)
 {
     OsStatus_t Status = OsSuccess;
 
@@ -143,7 +143,7 @@ StdioGetNumberOfInheritableHandles(
 {
     size_t NumberOfFiles = 0;
     LOCK_FILES();
-    foreach(Node, &IoObjects) {
+    foreach(Node, &stdio_objects) {
         stdio_object_t* Object = (stdio_object_t*)Node->Data;
         if (StdioIsHandleInheritable(StartupInformation, Object) == OsSuccess) {
             NumberOfFiles++;
@@ -177,7 +177,7 @@ StdioCreateInheritanceBlock(
         BlockPointer             = (stdio_object_t*)(*InheritationBlock);
 
         LOCK_FILES();
-        foreach(Node, &IoObjects) {
+        foreach(Node, &stdio_objects) {
             stdio_object_t* Object = (stdio_object_t*)Node->Data;
             if (StdioIsHandleInheritable(StartupInformation, Object) == OsSuccess) {
                 memcpy(BlockPointer, Object, sizeof(stdio_object_t));
@@ -279,8 +279,8 @@ stdio_close_all_handles(void)
     int             FilesClosed = 0;
     
     LOCK_FILES();
-    while (CollectionBegin(&IoObjects) != NULL) {
-        CollectionItem_t* Node = CollectionBegin(&IoObjects);
+    while (CollectionBegin(&stdio_objects) != NULL) {
+        CollectionItem_t* Node = CollectionBegin(&stdio_objects);
         Object = (stdio_object_t*)Node->Data;
         
         // Is it a buffered stream or raw?
@@ -344,7 +344,7 @@ int stdio_object_create(int fd, int flags, stdio_object_t** object_out)
     stdio_get_null_operations(&object->ops);
 
     key.Value.Integer = fd;
-    CollectionAppend(&IoObjects, CollectionCreateNode(key, object));
+    CollectionAppend(&stdio_objects, CollectionCreateNode(key, object));
     TRACE(" >> success %i", fd);
     return EOK;
 }
@@ -417,7 +417,7 @@ int stdio_object_destroy(stdio_object_t* object, int flags)
     }
     
     key.Value.Integer = object->fd;
-    CollectionRemoveByKey(&IoObjects, key);
+    CollectionRemoveByKey(&stdio_objects, key);
     stdio_bitmap_free(object->fd);
     free(object);
     return EOK;
@@ -426,7 +426,7 @@ int stdio_object_destroy(stdio_object_t* object, int flags)
 stdio_object_t* stdio_object_get(int fd)
 {
     DataKey_t Key = { .Value.Integer = fd };
-    return (stdio_object_t*)CollectionGetDataByKey(&IoObjects, Key, 0);
+    return (stdio_object_t*)CollectionGetDataByKey(&stdio_objects, Key, 0);
 }
 
 FILE* stdio_get_std(int n)
@@ -458,9 +458,8 @@ int isatty(int fd)
 
 Collection_t* stdio_get_objects(void)
 {
-    return &IoObjects;
+    return &stdio_objects;
 }
-
 
 extern OsStatus_t GetKeyFromSystemKeyEnUs(SystemKey_t* Key);
 

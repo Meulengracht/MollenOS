@@ -116,6 +116,35 @@ static int wm_input_worker(void* param)
 static void wm_connection_handler(int connection, wm_request_header_t* request)
 {
     // handle internal events
+    switch (request->type) {
+        case wm_request_window_create: {
+            
+        } break;
+        case wm_request_window_destroy: {
+            
+        } break;
+        case wm_request_window_set_title: {
+            
+        } break;
+        case wm_request_window_redraw: {
+            
+        } break;
+        case wm_request_window_resize: {
+            
+        } break;
+        case wm_request_surface_register: {
+            
+        } break;
+        case wm_request_surface_unregister: {
+            
+        } break;
+        case wm_request_surface_set_active: {
+            
+        } break;
+        
+        default:
+            return;
+    }
 
     // let the user code handle it
     wm_server_handler(connection, request);

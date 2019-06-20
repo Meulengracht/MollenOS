@@ -29,14 +29,89 @@
 #include <string.h>
 #include <threads.h>
 
-typedef struct {
+typedef struct __wm_connection {
     int                     c_socket;
     struct sockaddr_storage address;
     int                     address_length;
     int                     alive;
+    int                     ping_attemps;
+    struct __wm_connection* link;
 } wm_connection_t;
 
-static wm_connection_event_handler_t connection_event_handler;
+static wm_connection_message_handler_t connection_event_handler;
+static wm_connection_t*                connections;
+static mtx_t                           connections_sync;
+
+static wm_connection_t* wm_connection_to_struct(int sock)
+{
+    wm_connection_t* conn;
+    
+    mtx_lock(&connections_sync);
+    conn = connections;
+    while (conn) {
+        if (conn->c_socket == sock) {
+            mtx_unlock(&connections_sync);
+            return conn;
+        }
+        conn = conn->link;
+    }
+    mtx_unlock(&connections_sync);
+    return NULL;
+}
+
+static void wm_connection_add(wm_connection_t* connection)
+{
+    mtx_lock(&connections_sync);
+    if (!connections) {
+        connections = connection;
+    }
+    else {
+        wm_connection_t* conn = connections;
+        while (conn->link) {
+            conn = conn->link;
+        }
+        conn->link = connection;
+    }
+    mtx_unlock(&connections_sync);
+}
+
+static void wm_connection_remove(wm_connection_t* connection)
+{
+    mtx_lock(&connections_sync);
+    if (connections == connection) {
+        connections = connection->link;
+    }
+    else {
+        wm_connection_t* conn = connections;
+        while (conn->link != connection) {
+            conn = conn->link;
+        }
+        conn->link = connection->link;
+    }
+    mtx_unlock(&connections_sync);
+}
+
+static int wm_connection_ping(wm_connection_t* connection)
+{
+    connection->ping_attemps++;
+    
+    // was this the fourth ? then mark as unresponsive
+    if (connection->ping_attemps > 3) {
+        
+    }
+    else {
+        // send ping
+    }
+}
+
+static int wm_connection_pong(wm_connection_t* connection)
+{
+    // update the last response time
+    connection->ping_attemps = 0;
+    
+    // if we were in a non-responsive state before then send a control
+    // event to the server
+}
 
 static int wm_connection_handler(void* param)
 {
@@ -58,7 +133,7 @@ static int wm_connection_handler(void* param)
         intmax_t bytes_read = recv(connection->c_socket, header, 
             sizeof(wm_request_header_t), MSG_WAITALL);
         if (bytes_read != sizeof(wm_request_header_t)) {
-            // timeout, send ping
+            wm_connection_ping(connection);
             continue;
         }
         
@@ -78,19 +153,28 @@ static int wm_connection_handler(void* param)
             }
         }
 
+        // handle ping/pong messages at connection level, otherwise
         // elevate message to handler
-        connection_event_handler(connection->c_socket, header);
+        if (header->type == wm_request_pong) {
+            wm_connection_pong(connection);
+        }
+        else {
+            connection_event_handler(connection->c_socket, header);
+        }
     }
     
     // Cleanup connection
+    wm_connection_remove(connection);
     shutdown(connection->c_socket, SHUT_RDWR);
     free(connection);
     return 0;
 }
 
-int wm_connection_initialize(wm_connection_event_handler_t handler)
+int wm_connection_initialize(wm_connection_message_handler_t handler)
 {
+    mtx_init(&connections_sync, mtx_plain);
     connection_event_handler = handler;
+    connections              = NULL;
     return 0;
 }
 
@@ -109,13 +193,25 @@ int wm_connection_create(int client_socket, struct sockaddr_storage* address, in
     connection->c_socket       = client_socket;
     connection->address_length = address_length;
     connection->alive          = 1;
+    connection->ping_attemps   = 0;
+    connection->link           = NULL;
+    wm_connection_add(connection);
     
     // Spawn a new thread to handle the connection
     thrd_create(&thread_id, wm_connection_handler, connection);
-    return 0;
+    return EOK;
 }
 
-int wm_connection_shutdown(int connection)
+int wm_connection_shutdown(int sock)
 {
-    return 0;
+    // get connetion from int
+    wm_connection_t* connection = wm_connection_to_struct(connection);
+    if (!connection) {
+        _set_errno(EBADF);
+        return -1;
+    }
+    
+    // set alive to 0, and then let the timeout trigger
+    connection->alive = 0;
+    return EOK;
 }

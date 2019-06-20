@@ -26,23 +26,25 @@
 
 #define WM_HEADER_MAGIC 0xDEAE5A9A
 
+typedef void* wm_handle_t;
+
 typedef enum {
-    // client => server
+    // connection messages
+    wm_event_ping,
     wm_request_pong,
+    
+    // client => server
     wm_request_window_create,
     wm_request_window_destroy,
     wm_request_window_set_title,
-    wm_request_surface,
-    wm_request_surface_release,
-    wm_request_surface_redraw,
+    wm_request_window_redraw,
+    wm_request_window_resize,
+    wm_request_surface_register,
+    wm_request_surface_unregister,
     wm_request_surface_set_active,
-    wm_request_surface_resize,
     
     // server => client
-    wm_event_ping,
-    wm_event_window_created,
-    wm_event_surface_obtained,
-    wm_event_surface_resized
+    wm_event_initiate_resize
 } wm_event_type_t;
 
 typedef struct {
@@ -83,35 +85,50 @@ typedef struct {
 } wm_request_pong_t;
 
 typedef struct {
-    wm_request_header_t     header;
-    wm_surface_descriptor_t surface_descriptor;
-    unsigned                flags;
+    wm_request_header_t header;
+    wm_rect_t           dimensions;
+    int                 handle;
+    unsigned int        flags;
+    char                title[64];
 } wm_request_window_create_t;
 
 typedef struct {
     wm_request_header_t header;
-    char                title[64];
-} wm_request_window_set_title_t;
-
-typedef struct {
-    wm_request_header_t     header;
-    wm_surface_descriptor_t surface_descriptor;
-} wm_request_surface_t;
-
-typedef struct {
-    wm_request_header_t header;
-    wm_rect_t           dirty_area;
-} wm_request_surface_redraw_t;
+    int                 handle;
+} wm_request_window_destroy_t;
 
 typedef struct {
     wm_request_header_t header;
     int                 handle;
-} wm_request_surface_set_active_t;
+    char                title[64];
+} wm_request_window_set_title_t;
+
+typedef struct {
+    wm_request_header_t header;
+    int                 handle;
+    wm_rect_t           dirty_area;
+} wm_request_window_redraw_t;
 
 typedef struct {
     wm_request_header_t header;
     int                 handle;
     wm_rect_t           new_dimensions;
-} wm_request_surface_resize_t;
+} wm_request_window_resize_t;
+
+typedef struct {
+    wm_request_header_t     header;
+    wm_surface_descriptor_t surface_descriptor;
+    wm_handle_t             surface_handle;
+} wm_request_surface_register_t;
+
+typedef struct {
+    wm_request_header_t header;
+    wm_handle_t         surface_handle;
+} wm_request_surface_unregister_t;
+
+typedef struct {
+    wm_request_header_t header;
+    wm_handle_t         surface_handle;
+} wm_request_surface_set_active_t;
 
 #endif // !__LIBWM_TYPES_H__

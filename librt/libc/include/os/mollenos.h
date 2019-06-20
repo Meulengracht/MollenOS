@@ -70,6 +70,13 @@ PACKED_TYPESTRUCT(SystemTime, {
 #define CACHE_MEMORY        2
 
 _CODE_BEGIN
+/* OsStatusToErrno
+ * Convert the default os error code into a standard c error code equivalent. 
+ * Returns 0 on success code, -1 on an error code. */
+CRTDECL(int,
+OsStatusToErrno(
+    _In_ OsStatus_t Status));
+
 /* MemoryAllocate
  * Allocates a chunk of memory, controlled by the requested size of memory. 
  * The returned memory will always be rounded up to nearest page-size */

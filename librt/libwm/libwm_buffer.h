@@ -16,25 +16,26 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Wm Connection Type Definitions & Structures
- * - This header describes the base connection-structure, prototypes
+ * Wm Buffer Type Definitions & Structures
+ * - This header describes the base buffer-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __LIBWM_CONNECTION_H__
-#define __LIBWM_CONNECTION_H__
+#ifndef __LIBWM_BUFFER_H__
+#define __LIBWM_BUFFER_H__
 
 #include "libwm_types.h"
 
-// Prototypes
-struct sockaddr_storage;
+// Buffer API
+// Generally os-specific buffer functions that are needed during execution
+// of the libwm operations. The buffer handles are void* pointers since how
+// shm-buffers are implemented varies
+int   wm_buffer_create(size_t, size_t, wm_handle_t*);
+int   wm_buffer_inherit(wm_handle_t);
+int   wm_buffer_destroy(wm_handle_t);
+int   wm_buffer_resize(wm_handle_t, size_t);
+void* wm_buffer_get_pointer(wm_handle_t);
+int   wm_buffer_get_metrics(wm_handle_t, size_t*, size_t*);
+int   wm_buffer_get_handle(wm_handle_t, wm_handle_t*);
 
-typedef void(*wm_connection_message_handler_t)(int, wm_request_header_t*);
-
-// Connection API
-// Used to manage all the connections to the window manager.
-int wm_connection_initialize(wm_connection_message_handler_t);
-int wm_connection_create(int, struct sockaddr_storage*, int);
-int wm_connection_shutdown(int);
-
-#endif // !__LIBWM_CONNECTION_H__
+#endif // !__LIBWM_BUFFER_H__

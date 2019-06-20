@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Buffer Support Definitions & Structures
+ * Buffer Support Definitions & Structures
  * - This header describes the base buffer-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -25,23 +25,89 @@
 #define __BUFFER_INTERFACE__
 
 #include <ddk/ddkdefs.h>
+#include <stdio.h>
 
-typedef struct {
-    
-} BufferVector_t;
-
-// System dma buffer
+// Structured system buffer object
 // Contains information about a dma buffer for use with transfers,
 // shared memory or hardware interaction.
-typedef struct _DmaBuffer {
-    UUId_t    Handle;
-    uintptr_t Address;
-    uintptr_t Dma;
-    size_t    Capacity;
-    size_t    Position;
-} DmaBuffer_t;
+typedef struct {
+    UUId_t BufferHandle;
+    void*  Data;
+    off_t  Position;
+    size_t Length;
+    size_t Capacity;
+} ManagedBuffer_t;
 
 _CODE_BEGIN
+DDKDECL(OsStatus_t,
+BufferCreate(
+    _In_  size_t  InitialSize,
+    _In_  size_t  Capacity,
+    _Out_ UUId_t* HandleOut));
+
+DDKDECL(OsStatus_t,
+BufferCreateFrom(
+    _In_ UUId_t ExistingHandle));
+
+DDKDECL(OsStatus_t,
+BufferDestroy(
+    _In_ UUId_t Handle));
+
+DDKDECL(OsStatus_t,
+BufferResize(
+    _In_ UUId_t Handle,
+    _In_ size_t Size));
+
+DDKDECL(void*,
+BufferGetAccessPointer(
+    _In_ UUId_t Handle));
+
+DDKDECL(OsStatus_t,
+BufferGetMetrics(
+    _In_  UUId_t  Handle,
+    _Out_ size_t* SizeOut,
+    _Out_ size_t* CapacityOut));
+
+
+DDKDECL(OsStatus_t,
+BufferCreateManaged(
+    _In_  UUId_t            ExistingHandle,
+    _Out_ ManagedBuffer_t** BufferOut));
+
+DDKDECL(OsStatus_t,
+BufferDestroyManaged(
+    _In_ ManagedBuffer_t* Buffer));
+
+DDKDECL(OsStatus_t,
+BufferZero(
+    _In_ ManagedBuffer_t* Buffer));
+
+DDKDECL(OsStatus_t,
+BufferSeek(
+    _In_ ManagedBuffer_t* Buffer,
+    _In_ off_t            Offset));
+
+DDKDECL(OsStatus_t,
+BufferRead(
+    _In_  ManagedBuffer_t* Buffer,
+    _In_  void*            Data,
+    _In_  size_t           Length,
+    _Out_ size_t*          BytesReadOut));
+
+DDKDECL(OsStatus_t,
+BufferWrite(
+    _In_  ManagedBuffer_t* Buffer,
+    _In_  const void*      Data,
+    _In_  size_t           Length,
+    _Out_ size_t*          BytesWrittenOut));
+
+DDKDECL(OsStatus_t,
+BufferCombine(
+    _In_ ManagedBuffer_t* Destination,
+    _In_ ManagedBuffer_t* Source,
+    _In_ size_t           BytesToTransfer,
+    _In_ size_t*          BytesTransferredOut));
+
 /* CreateBuffer
  * Creates a new buffer either from an existing handle (Length will be ignored),
  * or creates a new buffer with the given length if FromHandle == UUID_INVALID. */

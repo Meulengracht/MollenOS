@@ -25,19 +25,30 @@
 #include <inet/socket.h>
 #include "libwm_client.h"
 #include "libwm_os.h"
+#include <threads.h>
 
-static int wm_initialized = 0;
-static int wm_socket      = -1;
+static wm_client_message_handler_t wm_message_handler;
+static int                         wm_initialized = 0;
+static int                         wm_socket      = -1;
+static int                         wm_window_id   = 0;
+static thrd_t                      wm_listener_thread;
 
 static int wm_execute_command(wm_request_header_t* command)
 {
+    intmax_t bytes_written;
     assert(wm_initialized == 1);
-    return 0;
+    
+    bytes_written = send(wm_socket, (const void*)command, 
+        command->header.length, MSG_WAITALL);
+    return bytes_written != command->header.length;
 }
 
 static void wm_client_event_handler(wm_request_header_t* event)
 {
     
+    
+    // elevate event
+    wm_message_handler(event);
 }
 
 static int wm_listener(void* param)
@@ -80,6 +91,9 @@ int wm_client_initialize(wm_client_message_handler_t handler)
     socklen_t               wm_address_length;
     int                     status;
     
+    // store settings
+    wm_message_handler = handler;
+    
     // Create a new socket for listening to wm events. They are all
     // delivered to fixed sockets on the local system.
     wm_socket = socket(AF_LOCAL, SOCK_STREAM, 0);
@@ -89,86 +103,106 @@ int wm_client_initialize(wm_client_message_handler_t handler)
     wm_os_get_server_address(&wm_address, &wm_address_length);
     status = connect(wm_socket, sstosa(&wm_address), wm_address_length);
     assert(status >= 0);
+    
+    // start the listener thread
+    thrd_create(&wm_listener_thread, wm_listener, NULL);
+    
     return status;
 }
 
-int wm_client_create_window(void)
+int wm_client_create_window(const char* title, int x, int y, int w, int h, unsigned int flags)
 {
     wm_request_window_create_t request;
-
-    wm_execute_command(&request.header);
     
-    return 0;
+    request.header.magic  = WM_HEADER_MAGIC;
+    request.header.type   = wm_request_window_create;
+    request.header.length = sizeof(wm_request_window_create_t);
+
+    request.dimensions.x = x;
+    request.dimensions.y = y;
+    request.dimensions.w = w;
+    request.dimensions.h = h;
+    
+    request.handle = wm_window_id++;
+    request.flags  = flags;
+    strncpy(&request.title[0], title, sizeof(request.title) - 1);
+    
+    if (wm_execute_command(&request.header)) {
+        return -1;
+    }
+    return request.handle;
 }
 
-int wm_client_destroy_Window(void)
+int wm_client_destroy_window(int handle)
 {
-    wm_request_window_create_t request;
-
-    wm_execute_command(&request.header);
+    wm_request_window_destroy_t request;
     
-    return 0;
+    request.header.magic  = WM_HEADER_MAGIC;
+    request.header.type   = wm_request_window_destroy;
+    request.header.length = sizeof(wm_request_window_destroy_t);
+
+    
+    
+    return wm_execute_command(&request.header);
 }
 
 int wm_client_redraw_window(void)
 {
-    wm_request_window_create_t request;
+    wm_request_window_redraw_t request;
 
-    wm_execute_command(&request.header);
+    request.header.magic  = WM_HEADER_MAGIC;
+    request.header.type   = wm_request_window_redraw;
+    request.header.length = sizeof(wm_request_window_redraw_t);
     
-    return 0;
+    
+    
+    return wm_execute_command(&request.header);
 }
 
 int wm_client_window_set_title(void)
 {
-    wm_request_window_create_t request;
+    wm_request_window_set_title_t request;
 
-    wm_execute_command(&request.header);
-    
-    return 0;
+
+    return wm_execute_command(&request.header);
 }
 
-int wm_client_request_buffer(void)
+int wm_client_resize_window(void)
 {
-    wm_request_window_create_t request;
+    wm_request_window_resize_t request;
 
-    wm_execute_command(&request.header);
-    
-    return 0;
+
+    return wm_execute_command(&request.header);
 }
 
-int wm_client_release_buffer(void)
+int wm_client_register_buffer(void)
 {
-    wm_request_window_create_t request;
+    wm_request_surface_register_t request;
 
-    wm_execute_command(&request.header);
-    
-    return 0;
+
+    return wm_execute_command(&request.header);
 }
 
-int wm_client_resize_buffer(void)
+int wm_client_unregister_buffer(void)
 {
-    wm_request_window_create_t request;
+    wm_request_surface_unregister_t request;
 
-    wm_execute_command(&request.header);
-    
-    return 0;
+
+    return wm_execute_command(&request.header);
 }
 
 int wm_client_set_active_buffer(void)
 {
-    wm_request_window_create_t request;
+    wm_request_surface_set_active_t request;
 
-    wm_execute_command(&request.header);
-    
-    return 0;
+
+    return wm_execute_command(&request.header);
 }
 
 int wm_client_shutdown(void)
 {
-    wm_request_window_create_t request;
-
-    wm_execute_command(&request.header);
-    
+    // send disconnect request
+    // join thread
+    thrd_join(wm_listener_thread);
     return 0;
 }

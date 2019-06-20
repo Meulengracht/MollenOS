@@ -30,6 +30,235 @@
 #include <stdlib.h>
 #include <string.h>
 
+
+OsStatus_t
+BufferCreate(
+    _In_  size_t  InitialSize,
+    _In_  size_t  Capacity,
+    _Out_ UUId_t* HandleOut)
+{
+    
+}
+
+OsStatus_t
+BufferCreateFrom(
+    _In_ UUId_t ExistingHandle)
+{
+    
+}
+
+OsStatus_t
+BufferDestroy(
+    _In_ UUId_t Handle)
+{
+    return Syscall_DestroyHandle(Handle);
+}
+
+OsStatus_t
+BufferResize(
+    _In_ UUId_t Handle,
+    _In_ size_t Size)
+{
+    
+}
+
+void*
+BufferGetAccessPointer(
+    _In_ UUId_t Handle)
+{
+    
+}
+
+OsStatus_t
+BufferGetMetrics(
+    _In_  UUId_t  Handle,
+    _Out_ size_t* SizeOut,
+    _Out_ size_t* CapacityOut)
+{
+    
+}
+
+OsStatus_t
+BufferCreateManaged(
+    _In_  UUId_t            ExistingHandle,
+    _Out_ ManagedBuffer_t** BufferOut)
+{
+    ManagedBuffer_t* Buffer;
+    OsStatus_t       Status;
+    
+    Status = BufferCreateFrom(ExistingHandle);
+    if (Status != OsSuccess) {
+        
+    }
+    
+    Buffer = (ManagedBuffer_t*)malloc(sizeof(ManagedBuffer_t));
+    if (!Buffer) {
+        return OsOutOfMemory;
+    }
+    
+    return OsSuccess;
+}
+
+OsStatus_t
+BufferDestroyManaged(
+    _In_ ManagedBuffer_t* Buffer)
+{
+    OsStatus_t Status;
+    
+    if (!BufferObject) {
+        return OsInvalidParameters;
+    }
+    
+    Status = BufferDestroy(Buffer->Handle);
+    free(Buffer);
+    return Status;
+}
+
+OsStatus_t
+BufferZero(
+    _In_ ManagedBuffer_t* Buffer)
+{
+    if (!BufferObject) {
+        return OsInvalidParameters;
+    }
+    
+    memset(BufferObject->Data, 0, BufferObject->Length);
+    BufferObject->Position = 0;
+    return OsSuccess;
+}
+
+OsStatus_t
+BufferSeek(
+    _In_ ManagedBuffer_t* Buffer,
+    _In_ off_t            Offset)
+{
+    if (!BufferObject || BufferObject->Length < Offset) {
+        return OsInvalidParameters;
+    }
+    BufferObject->Position = Offset;
+    return OsSuccess;
+}
+
+OsStatus_t
+BufferRead(
+    _In_  ManagedBuffer_t* Buffer,
+    _In_  void*            Data,
+    _In_  size_t           Length,
+    _Out_ size_t*          BytesReadOut)
+{
+    size_t BytesNormalized = 0;
+
+    if (!Buffer || !Data) {
+        return OsInvalidParameters;
+    }
+
+    if (BytesToRead == 0) {
+        if (BytesRead != NULL) {
+            *BytesRead = 0;
+        }
+        return OsSuccess;
+    }
+
+    // Normalize and read
+    BytesNormalized = MIN(BytesToRead, Buffer->Length - Buffer->Position);
+    if (BytesNormalized == 0) {
+        WARNING("ReadBuffer::BytesNormalized == 0");
+        return OsError;
+    }
+    
+    memcpy(Data, (const void*)((char*)Buffer->Data + Buffer->Position), BytesNormalized);
+    Buffer->Position += BytesNormalized;
+    if (BytesRead != NULL) {
+        *BytesRead = BytesNormalized;
+    }
+    return OsSuccess;
+}
+
+OsStatus_t
+BufferWrite(
+    _In_  ManagedBuffer_t* Buffer,
+    _In_  const void*      Data,
+    _In_  size_t           Length,
+    _Out_ size_t*          BytesWrittenOut)
+{
+    size_t BytesNormalized = 0;
+
+    if (!Buffer || !Data) {
+        return OsInvalidParameters;
+    }
+
+    if (BytesToWrite == 0) {
+        if (BytesWritten != NULL) {
+            *BytesWritten = 0;
+        }
+        return OsSuccess;
+    }
+
+    // Normalize and write
+    BytesNormalized = MIN(BytesToWrite, Buffer->Length - Buffer->Position);
+    if (BytesNormalized == 0) {
+        WARNING("WriteBuffer::BytesNormalized == 0");
+        return OsError;
+    }
+    
+    memcpy((void*)(Buffer->Data + Buffer->Position), Buffer, BytesNormalized);
+    Buffer->Position += BytesNormalized;
+    if (BytesWritten != NULL) {
+        *BytesWritten = BytesNormalized;
+    }
+    return OsSuccess;
+}
+
+OsStatus_t
+BufferCombine(
+    _In_ ManagedBuffer_t* Destination,
+    _In_ ManagedBuffer_t* Source,
+    _In_ size_t           BytesToTransfer,
+    _In_ size_t*          BytesTransferredOut)
+{
+    size_t BytesNormalized = 0;
+    
+    if (!Destination || !Source) {
+        return OsInvalidParameters;
+    }
+
+    if (BytesToTransfer == 0) {
+        if (BytesTransferred != NULL) {
+            *BytesTransferred = 0;
+        }
+        return OsSuccess;
+    }
+
+    // Normalize and write
+    BytesNormalized = MIN(BytesToTransfer, 
+        MIN(Destination->Length - Destination->Position, Source->Length - Source->Position));
+    if (BytesNormalized == 0) {
+        WARNING("CombineBuffer::Source(Position %u, Length %u)", Source->Position, Source->Length);
+        WARNING("CombineBuffer::Destination(Position %u, Length %u)", Destination->Position, Destination->Length);
+        WARNING("CombineBuffer::BytesNormalized == 0");
+        return OsError;
+    }
+    
+    memcpy((void*)((char*)Destination->Data + Destination->Position), 
+        (const void*)((char*)Source->Data + Source->Position), BytesNormalized);
+    Destination->Position   += BytesNormalized;
+    Source->Position        += BytesNormalized;
+    if (BytesTransferred != NULL) {
+        *BytesTransferred = BytesNormalized;
+    }
+    return OsSuccess;
+}
+
+
+
+
+
+
+
+
+
+
+
 /* CreateBuffer 
  * Creates a new buffer object with the given size, 
  * this allows hardware drivers to interact with the buffer */
@@ -92,207 +321,4 @@ DestroyBuffer(
     Status = Syscall_DestroyHandle(BufferObject->Handle);
     free(BufferObject);
     return Status;
-}
-
-/* ZeroBuffer 
- * Clears the entire buffer and resets the internal indexes */
-OsStatus_t
-ZeroBuffer(
-    _In_ DmaBuffer_t*           BufferObject)
-{
-    // Reset buffer
-    memset((void*)BufferObject->Address, 0, BufferObject->Capacity);
-    BufferObject->Position = 0;
-    return OsSuccess;
-}
-
-/* SeekBuffer
- * Seeks the current write/read marker to a specified point
- * in the buffer */
-OsStatus_t
-SeekBuffer(
-    _In_ DmaBuffer_t*           BufferObject,
-    _In_ size_t                 Position)
-{
-    // Sanitize parameters
-    if (BufferObject == NULL || BufferObject->Capacity < Position) {
-        return OsError;
-    }
-    BufferObject->Position = Position;
-    return OsSuccess;
-}
-
-/* ReadBuffer 
- * Reads <BytesToWrite> into the given user-buffer from the given buffer-object. 
- * It performs indexed reads, so the read will be from the current position */
-OsStatus_t
-ReadBuffer(
-    _In_      DmaBuffer_t*      BufferObject,
-    _Out_     const void*       Buffer,
-    _In_      size_t            BytesToRead,
-    _Out_Opt_ size_t*           BytesRead)
-{
-    // Variables
-    size_t BytesNormalized = 0;
-
-    // Sanitize all in-params
-    if (BufferObject == NULL || Buffer == NULL) {
-        return OsError;
-    }
-
-    // Sanitize
-    if (BytesToRead == 0) {
-        if (BytesRead != NULL) {
-            *BytesRead = 0;
-        }
-        return OsSuccess;
-    }
-
-    // Normalize and read
-    BytesNormalized = MIN(BytesToRead, BufferObject->Capacity - BufferObject->Position);
-    if (BytesNormalized == 0) {
-        WARNING("ReadBuffer::BytesNormalized == 0");
-        return OsError;
-    }
-    memcpy((void*)Buffer, (const void*)(BufferObject->Address + BufferObject->Position), BytesNormalized);
-
-    // Increase position
-    BufferObject->Position += BytesNormalized;
-
-    // Update out
-    if (BytesRead != NULL) {
-        *BytesRead = BytesNormalized;
-    }
-    return OsSuccess;
-}
-
-/* WriteBuffer 
- * Writes <BytesToWrite> into the allocated buffer-object from the given user-buffer. 
- * It performs indexed writes, so the next write will be appended to the current position */
-OsStatus_t
-WriteBuffer(
-    _In_      DmaBuffer_t*      BufferObject,
-    _In_      const void*       Buffer,
-    _In_      size_t            BytesToWrite,
-    _Out_Opt_ size_t*           BytesWritten)
-{
-    // Variables
-    size_t BytesNormalized = 0;
-
-    // Sanitize all in-params
-    if (BufferObject == NULL || Buffer == NULL) {
-        return OsError;
-    }
-
-    // Sanitize
-    if (BytesToWrite == 0) {
-        if (BytesWritten != NULL) {
-            *BytesWritten = 0;
-        }
-        return OsSuccess;
-    }
-
-    // Normalize and write
-    BytesNormalized = MIN(BytesToWrite, BufferObject->Capacity - BufferObject->Position);
-    if (BytesNormalized == 0) {
-        WARNING("WriteBuffer::BytesNormalized == 0");
-        return OsError;
-    }
-    memcpy((void*)(BufferObject->Address + BufferObject->Position), Buffer, BytesNormalized);
-
-    // Increase position
-    BufferObject->Position += BytesNormalized;
-
-    // Update out
-    if (BytesWritten != NULL) {
-        *BytesWritten = BytesNormalized;
-    }
-    return OsSuccess;
-}
-
-/* CombineBuffer 
- * Writes <BytesToTransfer> into the destination from the given
- * source buffer, make sure the position in both buffers are correct.
- * The number of bytes transferred is set as output */
-OsStatus_t
-CombineBuffer(
-    _In_      DmaBuffer_t*      Destination,
-    _In_      DmaBuffer_t*      Source,
-    _In_      size_t            BytesToTransfer,
-    _Out_Opt_ size_t*           BytesTransferred)
-{
-    // Variables
-    size_t BytesNormalized = 0;
-    
-    // Sanitize parameters
-    if (Destination == NULL || Source == NULL) {
-        return OsError;
-    }
-
-    // Sanitize
-    if (BytesToTransfer == 0) {
-        if (BytesTransferred != NULL) {
-            *BytesTransferred = 0;
-        }
-        return OsSuccess;
-    }
-
-    // Normalize and write
-    BytesNormalized = MIN(BytesToTransfer, 
-        MIN(Destination->Capacity - Destination->Position, Source->Capacity - Source->Position));
-    if (BytesNormalized == 0) {
-        WARNING("CombineBuffer::Source(Position %u, Length %u)", Source->Position, Source->Capacity);
-        WARNING("CombineBuffer::Destination(Position %u, Length %u)", Destination->Position, Destination->Capacity);
-        WARNING("CombineBuffer::BytesNormalized == 0");
-        return OsError;
-    }
-    memcpy((void*)(Destination->Address + Destination->Position), 
-        (const void*)(Source->Address + Source->Position), BytesNormalized);
-
-    // Increase positions
-    Destination->Position   += BytesNormalized;
-    Source->Position        += BytesNormalized;
-    if (BytesTransferred != NULL) {
-        *BytesTransferred = BytesNormalized;
-    }
-    return OsSuccess;
-}
-
-/* GetBufferHandle
- * Retrieves the handle of the dma buffer for other processes to use. */
-UUId_t
-GetBufferHandle(
-    _In_ DmaBuffer_t*           BufferObject)
-{
-    return (BufferObject != NULL) ? BufferObject->Handle : UUID_INVALID;
-}
-
-/* GetBufferSize 
- * Retrieves the size of the dma buffer. This might vary from the length given in
- * creation of the buffer as it may change it for performance reasons. */
-size_t
-GetBufferSize(
-    _In_ DmaBuffer_t*           BufferObject)
-{
-    return (BufferObject != NULL) ? BufferObject->Capacity : 0;
-}
-
-/* GetBufferDma
- * Retrieves the dma address of the memory buffer. This address cannot be used
- * for accessing memory, but instead is a pointer to the physical memory. */
-uintptr_t
-GetBufferDma(
-    _In_ DmaBuffer_t*           BufferObject)
-{
-    return (BufferObject != NULL) ? BufferObject->Dma : 0;
-}
-
-/* GetBufferDataPointer
- * Retrieves the data pointer to the physical memory. This can be used to access
- * the physical memory as this pointer is mapped to the dma. */
-void*
-GetBufferDataPointer(
-    _In_ DmaBuffer_t*           BufferObject)
-{
-    return (BufferObject != NULL) ? (void*)BufferObject->Address : NULL;
 }
