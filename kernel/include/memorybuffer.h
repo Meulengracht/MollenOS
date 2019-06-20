@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Memory Buffer Interface
+ * Memory Buffer Interface
  * - Implementation of the memory dma buffers. This provides a transfer buffer
  *   that is not bound to any specific virtual memory area but instead are bound
  *   to fixed physical addreses.
@@ -30,8 +30,9 @@
 #include <memoryspace.h>
 
 typedef struct {
-    uintptr_t Physical;
+    size_t    Length;
     size_t    Capacity;
+    uintptr_t Blocks[1];
 } SystemMemoryBuffer_t;
 
 /* CreateMemoryBuffer 

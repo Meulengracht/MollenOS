@@ -43,24 +43,25 @@ DDKDECL(OsStatus_t,
 BufferCreate(
     _In_  size_t  InitialSize,
     _In_  size_t  Capacity,
-    _Out_ UUId_t* HandleOut));
+    _In_  Flags_t Flags,
+    _Out_ UUId_t* HandleOut,
+    _Out_ void*   BufferOut));
 
 DDKDECL(OsStatus_t,
 BufferCreateFrom(
-    _In_ UUId_t ExistingHandle));
+    _In_  UUId_t ExistingHandle,
+    _Out_ void** BufferOut));
 
 DDKDECL(OsStatus_t,
 BufferDestroy(
-    _In_ UUId_t Handle));
+    _In_ UUId_t Handle,
+    _In_ void*  Buffer));
 
 DDKDECL(OsStatus_t,
 BufferResize(
     _In_ UUId_t Handle,
+    _In_ void*  Buffer,
     _In_ size_t Size));
-
-DDKDECL(void*,
-BufferGetAccessPointer(
-    _In_ UUId_t Handle));
 
 DDKDECL(OsStatus_t,
 BufferGetMetrics(
@@ -68,6 +69,10 @@ BufferGetMetrics(
     _Out_ size_t* SizeOut,
     _Out_ size_t* CapacityOut));
 
+DDKDECL(OsStatus_t,
+BufferGetVectors(
+    _In_  UUId_t  Handle,
+    _Out_ uintptr_t VectorOut[]));
 
 DDKDECL(OsStatus_t,
 BufferCreateManaged(

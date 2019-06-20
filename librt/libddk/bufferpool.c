@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,88 +16,94 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - BufferPool Support Definitions & Structures
+ * BufferPool Support Definitions & Structures
  * - This header describes the base bufferpool-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
 //#define __TRACE
 
+#include <ddk/buffer.h>
 #include <ddk/bufferpool.h>
 #include <ddk/utils.h>
 #include "../common/bytepool.h"
 #include <stdlib.h>
 
 typedef struct _BufferPool {
-    DmaBuffer_t*    Buffer;
-    BytePool_t*     Pool;
+    UUId_t      BufferHandle;
+    BytePool_t* Pool;
+    uintptr_t   VirtualBase;
+    uintptr_t   DmaVector[1];
 } BufferPool_t;
 
-/* BufferPoolCreate
- * Creates a new buffer-pool from the given buffer object. 
- * This allows sub-allocations from a buffer-object. */
 OsStatus_t
 BufferPoolCreate(
-    _In_  DmaBuffer_t*      Buffer,
-    _Out_ BufferPool_t**    Pool)
+    _In_  UUId_t         BufferHandle,
+    _In_  void*          Buffer,
+    _Out_ BufferPool_t** PoolOut)
 {
+    BufferPool_t* Pool;
+    size_t        Length;
+    size_t        Capacity;
+    OsStatus_t    Status;
+    int           VectorSize;
+    
+    // Get buffer metrics and mappings
+    Status = BufferGetMetrics(BufferHandle, &Length, &Capacity);
+    if (Status != OsSuccess) {
+        return Status;
+    }
+    
+    // @todo get the page size from system
+    VectorSize = Capacity / 0x1000;
+    
     // Allocate the pool
-    *Pool           = (BufferPool_t*)malloc(sizeof(BufferPool_t));
-    (*Pool)->Buffer = Buffer;
-    return bpool((void*)GetBufferDataPointer(Buffer), GetBufferSize(Buffer), &(*Pool)->Pool);
+    Pool               = (BufferPool_t*)malloc(sizeof(BufferPool_t) + (VectorSize * sizeof(uintptr_t)));
+    Pool->BufferHandle = BufferHandle;
+    Pool->VirtualBase  = (uintptr_t)Buffer;
+    Status             = BufferGetVectors(BufferHandle, &Pool->DmaVector[0]);
+    Status             = bpool(Buffer, Length, &Pool->Pool);
+    return Status;
 }
 
-/* BufferPoolDestroy
- * Cleans up the buffer-pool and deallocates resources previously
- * allocated. This does not destroy the buffer-object. */
 OsStatus_t
 BufferPoolDestroy(
-    _In_ BufferPool_t*      Pool)
+    _In_ BufferPool_t* Pool)
 {
-    // Cleanup structure
     free(Pool->Pool);
     free(Pool);
     return OsSuccess;
 }
 
-/* BufferPoolAllocate
- * Allocates the requested size and outputs two addresses. The
- * virtual pointer to the accessible data, and the address of its 
- * corresponding physical address for hardware. */
 OsStatus_t
 BufferPoolAllocate(
-    _In_  BufferPool_t*     Pool,
-    _In_  size_t            Size,
-    _Out_ uintptr_t**       VirtualPointer,
-    _Out_ uintptr_t*        PhysicalAddress)
+    _In_  BufferPool_t* Pool,
+    _In_  size_t        Size,
+    _Out_ uintptr_t**   VirtualPointer,
+    _Out_ uintptr_t*    PhysicalAddress)
 {
-    // Variables
-    void *Allocation = NULL;
+    ptrdiff_t Difference;
+    void*     Allocation;
 
-    // Debug
     TRACE("BufferPoolAllocate(Size %u)", Size);
 
-    // Perform an allocation
     Allocation = bget(Pool->Pool, Size);
-    if (Allocation == NULL) {
+    if (!Allocation) {
         ERROR("Failed to allocate bufferpool memory (size %u)", Size);
         return OsError;
     }
-
+    
     // Calculate the addresses and update out's
-    *VirtualPointer     = (uintptr_t*)Allocation;
-    *PhysicalAddress    = GetBufferDma(Pool->Buffer) 
-        + ((uintptr_t)Allocation - (uintptr_t)GetBufferDataPointer(Pool->Buffer));
+    Difference       = (uintptr_t)Allocation - Pool->VirtualBase;
+    *PhysicalAddress = Pool->DmaVector[Difference / 0x1000] + Difference;
+    *VirtualPointer  = (uintptr_t*)Allocation;
     TRACE(" > Virtual address 0x%x => Physical address 0x%x", (uintptr_t*)Allocation, *PhysicalAddress);
     return OsSuccess;
 }
 
-/* BufferPoolFree
- * Frees previously allocations made by the buffer-pool. The virtual
- * address must be the one passed back. */
 OsStatus_t
 BufferPoolFree(
-    _In_ BufferPool_t*  Pool,
-    _In_ uintptr_t*     VirtualPointer)
+    _In_ BufferPool_t* Pool,
+    _In_ uintptr_t*    VirtualPointer)
 {
     brel(Pool->Pool, (void*)VirtualPointer);
     return OsSuccess;

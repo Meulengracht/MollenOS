@@ -24,29 +24,24 @@
 #include <ddk/buffer.h>
 #include "../../libwm_buffer.h"
 
-int wm_buffer_create(size_t initial_size, size_t capacity, wm_handle_t* handle_out)
+int wm_buffer_create(size_t initial_size, size_t capacity, wm_handle_t* handle_out, void** buffer_out)
 {
-    return OsStatusToErrno(BufferCreate(initial_size, capacity, (UUId_t*)handle_out));
+    return OsStatusToErrno(BufferCreate(initial_size, capacity, 0, (UUId_t*)handle_out, buffer_out));
 }
 
-int wm_buffer_inherit(wm_handle_t handle)
+int wm_buffer_inherit(wm_handle_t handle, void** buffer_out)
 {
-    return OsStatusToErrno(BufferCreateFrom((UUId_t)handle));
+    return OsStatusToErrno(BufferCreateFrom((UUId_t)handle, buffer_out));
 }
 
-int wm_buffer_destroy(wm_handle_t handle)
+int wm_buffer_destroy(wm_handle_t handle, void* buffer)
 {
-    return OsStatusToErrno(BufferDestroy((UUId_t)handle));
+    return OsStatusToErrno(BufferDestroy((UUId_t)handle, buffer));
 }
 
-int wm_buffer_resize(wm_handle_t handle, size_t size)
+int wm_buffer_resize(wm_handle_t handle, void* buffer, size_t size)
 {
-    return OsStatusToErrno(BufferResize((UUId_t)handle, size));
-}
-
-void* wm_buffer_get_pointer(wm_handle_t handle)
-{
-    return BufferGetAccessPointer((UUId_t)handle);
+    return OsStatusToErrno(BufferResize((UUId_t)handle, buffer, size));
 }
 
 size_t wm_buffer_get_metrics(wm_handle_t handle, size_t* size_out, size_t* capacity_out)

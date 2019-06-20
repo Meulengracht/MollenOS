@@ -30,43 +30,68 @@
 #include <stdlib.h>
 #include <string.h>
 
-
 OsStatus_t
 BufferCreate(
     _In_  size_t  InitialSize,
     _In_  size_t  Capacity,
-    _Out_ UUId_t* HandleOut)
+    _In_  Flags_t Flags,
+    _Out_ UUId_t* HandleOut,
+    _Out_ void*   BufferOut)
 {
-    
+    if (!HandleOut || !BufferOut || !Capacity) {
+        return OsInvalidParameters;
+    }
+    return Syscall_BufferCreate(InitialSize, Capacity, Flags, HandleOut, BufferOut);
 }
 
 OsStatus_t
 BufferCreateFrom(
-    _In_ UUId_t ExistingHandle)
+    _In_  UUId_t ExistingHandle,
+    _Out_ void** BufferOut)
 {
-    
+    if (!BufferOut || ExistingHandle == UUID_INVALID) {
+        return OsInvalidParameters;
+    }
+    return Syscall_BufferInherit(ExistingHandle, BufferOut);
 }
 
 OsStatus_t
 BufferDestroy(
-    _In_ UUId_t Handle)
+    _In_ UUId_t Handle,
+    _In_ void*  Buffer)
 {
+    OsStatus_t Status;
+    size_t     Length;
+    size_t     Capacity;
+    
+    if (Handle == UUID_INVALID || !Buffer) {
+        return OsInvalidParameters;
+    }
+    
+    // Get metrics of the buffer so we can free
+    Status = BufferGetMetrics(Handle, &Length, &Capacity);
+    if (Status != OsSuccess) {
+        return Status;
+    }
+    
+    // Free and cleanup the buffer space, we do this in two go's
+    Status = MemoryFree(Buffer, Capacity);
+    if (Status != OsSuccess) {
+        return Status;
+    }
     return Syscall_DestroyHandle(Handle);
 }
 
 OsStatus_t
 BufferResize(
     _In_ UUId_t Handle,
+    _In_ void*  Buffer,
     _In_ size_t Size)
 {
-    
-}
-
-void*
-BufferGetAccessPointer(
-    _In_ UUId_t Handle)
-{
-    
+    if (Handle == UUID_INVALID || !Buffer) {
+        return OsInvalidParameters;
+    }
+    return Syscall_BufferResize(Handle, Buffer, Size);
 }
 
 OsStatus_t
@@ -75,7 +100,21 @@ BufferGetMetrics(
     _Out_ size_t* SizeOut,
     _Out_ size_t* CapacityOut)
 {
-    
+    if (Handle == UUID_INVALID || !SizeOut || !CapacityOut) {
+        return OsInvalidParameters;
+    }
+    return Syscall_BufferGetMetrics(Handle, SizeOut, CapacityOut);
+}
+
+OsStatus_t
+BufferGetVectors(
+    _In_  UUId_t    Handle,
+    _Out_ uintptr_t VectorOut[])
+{
+    if (Handle == UUID_INVALID) {
+        return OsInvalidParameters;
+    }
+    return Syscall_BufferGetVectors(Handle, VectorOut);
 }
 
 OsStatus_t
@@ -85,10 +124,11 @@ BufferCreateManaged(
 {
     ManagedBuffer_t* Buffer;
     OsStatus_t       Status;
+    void*            BufferPointer;
     
-    Status = BufferCreateFrom(ExistingHandle);
+    Status = BufferCreateFrom(ExistingHandle, &BufferPointer);
     if (Status != OsSuccess) {
-        
+        return Status;
     }
     
     Buffer = (ManagedBuffer_t*)malloc(sizeof(ManagedBuffer_t));
@@ -96,7 +136,19 @@ BufferCreateManaged(
         return OsOutOfMemory;
     }
     
-    return OsSuccess;
+    Buffer->BufferHandle = ExistingHandle;
+    Buffer->Data         = BufferPointer;
+    Buffer->Position     = 0;
+    
+    Status = BufferGetMetrics(ExistingHandle, &Buffer->Length, &Buffer->Capacity);
+    if (Status == OsSuccess) {
+        *BufferOut = Buffer;
+    }
+    else {
+        // cleanup??
+        assert(0);
+    }
+    return Status;
 }
 
 OsStatus_t
@@ -105,11 +157,11 @@ BufferDestroyManaged(
 {
     OsStatus_t Status;
     
-    if (!BufferObject) {
+    if (!Buffer) {
         return OsInvalidParameters;
     }
     
-    Status = BufferDestroy(Buffer->Handle);
+    Status = BufferDestroy(Buffer->BufferHandle, Buffer->Data);
     free(Buffer);
     return Status;
 }
@@ -118,12 +170,12 @@ OsStatus_t
 BufferZero(
     _In_ ManagedBuffer_t* Buffer)
 {
-    if (!BufferObject) {
+    if (!Buffer) {
         return OsInvalidParameters;
     }
     
-    memset(BufferObject->Data, 0, BufferObject->Length);
-    BufferObject->Position = 0;
+    memset(Buffer->Data, 0, Buffer->Length);
+    Buffer->Position = 0;
     return OsSuccess;
 }
 
@@ -132,10 +184,10 @@ BufferSeek(
     _In_ ManagedBuffer_t* Buffer,
     _In_ off_t            Offset)
 {
-    if (!BufferObject || BufferObject->Length < Offset) {
+    if (!Buffer || Buffer->Length < Offset) {
         return OsInvalidParameters;
     }
-    BufferObject->Position = Offset;
+    Buffer->Position = Offset;
     return OsSuccess;
 }
 
@@ -152,15 +204,15 @@ BufferRead(
         return OsInvalidParameters;
     }
 
-    if (BytesToRead == 0) {
-        if (BytesRead != NULL) {
-            *BytesRead = 0;
+    if (Length == 0) {
+        if (BytesReadOut) {
+            *BytesReadOut = 0;
         }
         return OsSuccess;
     }
 
     // Normalize and read
-    BytesNormalized = MIN(BytesToRead, Buffer->Length - Buffer->Position);
+    BytesNormalized = MIN(Length, Buffer->Length - Buffer->Position);
     if (BytesNormalized == 0) {
         WARNING("ReadBuffer::BytesNormalized == 0");
         return OsError;
@@ -168,8 +220,8 @@ BufferRead(
     
     memcpy(Data, (const void*)((char*)Buffer->Data + Buffer->Position), BytesNormalized);
     Buffer->Position += BytesNormalized;
-    if (BytesRead != NULL) {
-        *BytesRead = BytesNormalized;
+    if (BytesReadOut) {
+        *BytesReadOut = BytesNormalized;
     }
     return OsSuccess;
 }
@@ -187,15 +239,15 @@ BufferWrite(
         return OsInvalidParameters;
     }
 
-    if (BytesToWrite == 0) {
-        if (BytesWritten != NULL) {
-            *BytesWritten = 0;
+    if (Length == 0) {
+        if (BytesWrittenOut) {
+            *BytesWrittenOut = 0;
         }
         return OsSuccess;
     }
 
     // Normalize and write
-    BytesNormalized = MIN(BytesToWrite, Buffer->Length - Buffer->Position);
+    BytesNormalized = MIN(Length, Buffer->Length - Buffer->Position);
     if (BytesNormalized == 0) {
         WARNING("WriteBuffer::BytesNormalized == 0");
         return OsError;
@@ -203,8 +255,8 @@ BufferWrite(
     
     memcpy((void*)(Buffer->Data + Buffer->Position), Buffer, BytesNormalized);
     Buffer->Position += BytesNormalized;
-    if (BytesWritten != NULL) {
-        *BytesWritten = BytesNormalized;
+    if (BytesWrittenOut) {
+        *BytesWrittenOut = BytesNormalized;
     }
     return OsSuccess;
 }
@@ -223,8 +275,8 @@ BufferCombine(
     }
 
     if (BytesToTransfer == 0) {
-        if (BytesTransferred != NULL) {
-            *BytesTransferred = 0;
+        if (BytesTransferredOut) {
+            *BytesTransferredOut = 0;
         }
         return OsSuccess;
     }
@@ -243,82 +295,8 @@ BufferCombine(
         (const void*)((char*)Source->Data + Source->Position), BytesNormalized);
     Destination->Position   += BytesNormalized;
     Source->Position        += BytesNormalized;
-    if (BytesTransferred != NULL) {
-        *BytesTransferred = BytesNormalized;
+    if (BytesTransferredOut) {
+        *BytesTransferredOut = BytesNormalized;
     }
     return OsSuccess;
-}
-
-
-
-
-
-
-
-
-
-
-
-/* CreateBuffer 
- * Creates a new buffer object with the given size, 
- * this allows hardware drivers to interact with the buffer */
-DmaBuffer_t*
-CreateBuffer(
-    _In_ UUId_t FromHandle,
-    _In_ size_t Length)
-{
-    DmaBuffer_t* Buffer;
-
-    // Make sure the length is positive if we are requesting
-    // to create a new buffer
-    if (FromHandle == UUID_INVALID && Length == 0) {
-        return NULL;
-    }
-
-    Buffer = (DmaBuffer_t*)malloc(sizeof(DmaBuffer_t));
-    if (!Buffer) {
-        return NULL;
-    }
-    memset((void*)Buffer, 0, sizeof(DmaBuffer_t));
-    if (FromHandle != UUID_INVALID) {
-        if (Syscall_AcquireBuffer(FromHandle, Buffer) != OsSuccess) {
-            free(Buffer);
-            return NULL;
-        }
-    }
-    else {
-        if (Syscall_CreateBuffer(Length, Buffer) != OsSuccess) {
-            free(Buffer);
-            return NULL;
-        }
-    }
-    return Buffer;
-}
-
-/* DestroyBuffer
- * Destroys the given buffer object and release resources
- * allocated with the CreateBuffer function */
-OsStatus_t
-DestroyBuffer(
-    _In_ DmaBuffer_t* BufferObject)
-{
-    OsStatus_t Status;
-
-    // Sanitize the parameter
-    if (BufferObject == NULL) {
-        return OsError;
-    }
-
-    // First step is to unmap the virtual space
-    if (BufferObject->Address != 0) {
-        Status = MemoryFree((void*)BufferObject->Address, BufferObject->Capacity);
-        if (Status != OsSuccess) {
-            return OsError;
-        }
-    }
-
-    // Cleanup the handle
-    Status = Syscall_DestroyHandle(BufferObject->Handle);
-    free(BufferObject);
-    return Status;
 }

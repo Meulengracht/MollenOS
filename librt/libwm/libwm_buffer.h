@@ -30,11 +30,10 @@
 // Generally os-specific buffer functions that are needed during execution
 // of the libwm operations. The buffer handles are void* pointers since how
 // shm-buffers are implemented varies
-int   wm_buffer_create(size_t, size_t, wm_handle_t*);
-int   wm_buffer_inherit(wm_handle_t);
-int   wm_buffer_destroy(wm_handle_t);
-int   wm_buffer_resize(wm_handle_t, size_t);
-void* wm_buffer_get_pointer(wm_handle_t);
+int   wm_buffer_create(size_t, size_t, wm_handle_t*, void**);
+int   wm_buffer_inherit(wm_handle_t, void**);
+int   wm_buffer_destroy(wm_handle_t, void*);
+int   wm_buffer_resize(wm_handle_t, void*, size_t);
 int   wm_buffer_get_metrics(wm_handle_t, size_t*, size_t*);
 int   wm_buffer_get_handle(wm_handle_t, wm_handle_t*);
 

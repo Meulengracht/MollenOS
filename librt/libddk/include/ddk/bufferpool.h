@@ -24,7 +24,6 @@
 #ifndef _BUFFERPOOL_INTERFACE_H_
 #define _BUFFERPOOL_INTERFACE_H_
 
-#include <ddk/buffer.h>
 #include <ddk/ddkdefs.h>
 
 typedef struct _BufferPool BufferPool_t;
@@ -36,8 +35,9 @@ _CODE_BEGIN
 DDKDECL(
 OsStatus_t,
 BufferPoolCreate(
-    _In_  DmaBuffer_t*      Buffer,
-    _Out_ BufferPool_t**    Pool));
+    _In_  UUId_t         BufferHandle,
+    _In_  void*          Buffer,
+    _Out_ BufferPool_t** PoolOut));
 
 /* BufferPoolDestroy
  * Cleans up the buffer-pool and deallocates resources previously
@@ -45,7 +45,7 @@ BufferPoolCreate(
 DDKDECL(
 OsStatus_t,
 BufferPoolDestroy(
-    _In_ BufferPool_t*      Pool));
+    _In_ BufferPool_t* Pool));
 
 /* BufferPoolAllocate
  * Allocates the requested size and outputs two addresses. The
@@ -54,10 +54,10 @@ BufferPoolDestroy(
 DDKDECL(
 OsStatus_t,
 BufferPoolAllocate(
-    _In_ BufferPool_t*      Pool,
-    _In_ size_t             Size,
-    _Out_ uintptr_t**       VirtualPointer,
-    _Out_ uintptr_t*        PhysicalAddress));
+    _In_ BufferPool_t* Pool,
+    _In_ size_t        Size,
+    _Out_ uintptr_t**  VirtualPointer,
+    _Out_ uintptr_t*   PhysicalAddress));
 
 /* BufferPoolFree
  * Frees previously allocations made by the buffer-pool. The virtual
@@ -65,8 +65,8 @@ BufferPoolAllocate(
 DDKDECL(
 OsStatus_t,
 BufferPoolFree(
-    _In_ BufferPool_t*      Pool,
-    _In_ uintptr_t*         VirtualPointer));
+    _In_ BufferPool_t* Pool,
+    _In_ uintptr_t*    VirtualPointer));
 _CODE_END
 
 #endif //!_BUFFERPOOL_INTERFACE_H_
