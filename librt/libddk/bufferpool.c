@@ -22,8 +22,8 @@
  */
 //#define __TRACE
 
-#include <ddk/buffer.h>
 #include <ddk/bufferpool.h>
+#include <ddk/memory.h>
 #include <ddk/utils.h>
 #include "../common/bytepool.h"
 #include <stdlib.h>
@@ -47,7 +47,7 @@ BufferPoolCreate(
     int           VectorSize;
     
     // Get buffer metrics and mappings
-    Status = BufferGetMetrics(BufferHandle, &Length, NULL);
+    Status = MemoryGetSharedMetrics(BufferHandle, &Length, NULL);
     if (Status != OsSuccess) {
         return Status;
     }
@@ -59,7 +59,7 @@ BufferPoolCreate(
     Pool               = (BufferPool_t*)malloc(sizeof(BufferPool_t) + (VectorSize * sizeof(uintptr_t)));
     Pool->BufferHandle = BufferHandle;
     Pool->VirtualBase  = (uintptr_t)Buffer;
-    Status             = BufferGetMetrics(BufferHandle, NULL, &Pool->DmaVector[0]);
+    Status             = MemoryGetSharedMetrics(BufferHandle, NULL, &Pool->DmaVector[0]);
     Status             = bpool(Buffer, Length, &Pool->Pool);
     return Status;
 }
@@ -93,7 +93,7 @@ BufferPoolAllocate(
     
     // Calculate the addresses and update out's
     Difference       = (uintptr_t)Allocation - Pool->VirtualBase;
-    *PhysicalAddress = Pool->DmaVector[Difference / 0x1000] + Difference;
+    *PhysicalAddress = Pool->DmaVector[Difference / 0x1000] + (Difference % 0x1000);
     *VirtualPointer  = (uintptr_t*)Allocation;
     TRACE(" > Virtual address 0x%x => Physical address 0x%x", (uintptr_t*)Allocation, *PhysicalAddress);
     return OsSuccess;

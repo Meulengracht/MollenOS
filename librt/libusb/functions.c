@@ -22,6 +22,7 @@
  */
 //#define __TRACE
 
+#include <os/mollenos.h>
 #include <ddk/contracts/usbhost.h>
 #include <ddk/services/usb.h>
 #include <ddk/bufferpool.h>
@@ -31,25 +32,36 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const size_t LIBUSB_SHAREDBUFFER_SIZE    = 0x2000;
-static DmaBuffer_t *__LibUsbBuffer              = NULL;
-static BufferPool_t *__LibUsbBufferPool         = NULL;
+static const size_t  LIBUSB_SHAREDBUFFER_SIZE = 0x2000;
+static void*         __LibUsbBuffer           = NULL;
+static UUId_t        __LibUsbBufferHandle     = UUID_INVALID;
+static BufferPool_t* __LibUsbBufferPool       = NULL;
 
 /* UsbInitialize
  * Initializes libusb and enables the use of all the control
  * functions that require a shared buffer-pool. */
 OsStatus_t
-UsbInitialize(void) {
-    __LibUsbBuffer = CreateBuffer(UUID_INVALID, LIBUSB_SHAREDBUFFER_SIZE);
-    return BufferPoolCreate(__LibUsbBuffer, &__LibUsbBufferPool);
+UsbInitialize(void)
+{
+    __LibUsbBuffer = malloc(LIBUSB_SHAREDBUFFER_SIZE);
+    MemoryShare(__LibUsbBuffer, LIBUSB_SHAREDBUFFER_SIZE, &__LibUsbBufferHandle);
+    return BufferPoolCreate(__LibUsbBufferHandle, __LibUsbBuffer, &__LibUsbBufferPool);
 }
 
 /* UsbCleanup
  * Frees the shared resources allocated by UsbInitialize. */
 OsStatus_t
-UsbCleanup(void) {
+UsbCleanup(void)
+{
+    if (!__LibUsbBuffer) {
+        return OsNotSupported;
+    }
+
     BufferPoolDestroy(__LibUsbBufferPool);
-    return DestroyBuffer(__LibUsbBuffer);
+    MemoryUnshare(__LibUsbBufferHandle);
+    free(__LibUsbBuffer);
+    __LibUsbBuffer = NULL;
+    return OsSuccess;
 }
 
 /* UsbRetrievePool 

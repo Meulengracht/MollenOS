@@ -27,7 +27,7 @@
 const int ErrorCodeTable[OsErrorCodeCount] = {
     EOK,
     EINVAL,     //OsError              Error - Generic
-    EEXIST      //OsExists             Error - Resource already exists
+    EEXIST,     //OsExists             Error - Resource already exists
     ENOENT,     //OsDoesNotExist       Error - Resource does not exist
     EINVAL,     //OsInvalidParameters  Error - Bad parameters given
     EACCES,     //OsInvalidPermissions Error - Bad permissions

@@ -39,7 +39,6 @@
 #else
 #define __TRACE
 #include <internal/_syscalls.h>
-#include <ddk/buffer.h>
 #include <ddk/memory.h>
 #include <ddk/utils.h>
 #include <ddk/services/file.h>

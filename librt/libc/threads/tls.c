@@ -114,8 +114,10 @@ tls_create(
     Tls->seed   = 1;
 
     // Setup a local transfer buffer for stdio operations
-    Tls->transfer_buffer = CreateBuffer(UUID_INVALID, BUFSIZ);
-    return OsSuccess;
+    // TODO: do on first read/write instead?
+    Tls->transfer_buffer.buffer = malloc(BUFSIZ);
+    Tls->transfer_buffer.length = BUFSIZ;
+    return MemoryShare(Tls->transfer_buffer.buffer, BUFSIZ, &Tls->transfer_buffer.handle);
 }
 
 /* tls_destroy
@@ -124,10 +126,10 @@ OsStatus_t
 tls_destroy(
     _In_ thread_storage_t* Tls)
 {
-    // @todo this is called twice for primary thread. Look into this
-    if (Tls->transfer_buffer != NULL) {
-        DestroyBuffer(Tls->transfer_buffer);
-        Tls->transfer_buffer = NULL;
+    // TODO: this is called twice for primary thread. Look into this
+    if (Tls->transfer_buffer.buffer != NULL) {
+        MemoryUnshare(Tls->transfer_buffer.handle);
+        free(Tls->transfer_buffer.buffer);
     }
     return OsSuccess;
 }

@@ -29,21 +29,16 @@
 #include <os/types/storage.h>
 #include <time.h>
 
-// System Event Types
-#define OS_EVENT_STDIN  0x1
-#define OS_EVENT_WM     0x2
-
 // Memory Allocation Definitions
 // Flags that can be used when requesting virtual memory
 #define MEMORY_COMMIT        0x00000001                   // If commit is not passed, memory will only be reserved.
 #define MEMORY_LOWFIRST      0x00000002                   // Allocate from low memory
 #define MEMORY_CLEAN         0x00000004                   // Memory should be cleaned
 #define MEMORY_UNCHACHEABLE  0x00000008                   // Memory must not be cached
-#define MEMORY_SHARED       (0x00000010 | MEMORY_COMMIT)  // Memory can be shared with other processes, a handle will be provided
-#define MEMORY_SHARED_CLONE (0x00000020 | MEMORY_SHARED)  // Memory should be cloned from the handle
-#define MEMORY_READ          0x00000020                   // Memory is readable
-#define MEMORY_WRITE         0x00000040                   // Memory is writable
-#define MEMORY_EXECUTABLE    0x00000080                   // Memory is executable
+
+#define MEMORY_READ          0x00000010                   // Memory is readable
+#define MEMORY_WRITE         0x00000020                   // Memory is writable
+#define MEMORY_EXECUTABLE    0x00000040                   // Memory is executable
 
 PACKED_TYPESTRUCT(SystemDescriptor, {
     size_t NumberOfProcessors;
@@ -71,40 +66,22 @@ PACKED_TYPESTRUCT(SystemTime, {
 #define CACHE_MEMORY        2
 
 _CODE_BEGIN
+/*******************************************************************************
+ * Memory Extensions
+ *******************************************************************************/
+CRTDECL(OsStatus_t, MemoryAllocate(void* Hint,size_t Length, Flags_t Flags, void** MemoryOut));
+CRTDECL(OsStatus_t, MemoryFree(void* Memory, size_t Length));
+CRTDECL(OsStatus_t, MemoryProtect(void* Memory, size_t Length, Flags_t Flags, Flags_t* PreviousFlags));
+CRTDECL(OsStatus_t, MemoryShare(const void* Buffer, size_t Length, UUId_t* HandleOut));
+CRTDECL(OsStatus_t, MemoryInherit(UUId_t Handle, void** BufferOut));
+CRTDECL(OsStatus_t, MemoryUnshare(UUId_t Handle));
+
 /* OsStatusToErrno
  * Convert the default os error code into a standard c error code equivalent. 
  * Returns 0 on success code, -1 on an error code. */
 CRTDECL(int,
 OsStatusToErrno(
     _In_ OsStatus_t Status));
-
-
-/*******************************************************************************
- * Threading Extensions
- *******************************************************************************/
-CRTDECL(OsStatus_t,
-MemoryAllocate(
-    _In_      void*   Hint,
-    _In_      size_t  Length,
-    _In_      Flags_t Flags,
-    _Out_     void**  MemoryOut,
-    _Out_Opt_ UUId_t* HandleOut));
-
-/* MemoryFree
- * Frees previously allocated memory and releases the system resources associated. */
-CRTDECL(OsStatus_t,
-MemoryFree(
-    _In_ void*  MemoryPointer,
-    _In_ size_t Length));
-
-/* MemoryProtect
- * Changes the protection flags of a previous memory allocation made by MemoryAllocate */
-CRTDECL(OsStatus_t,
-MemoryProtect(
-    _In_  void*    MemoryPointer,
-    _In_  size_t   Length,
-    _In_  Flags_t  Flags,
-    _Out_ Flags_t* PreviousFlags));
 
 /* SystemQuery
  * Queries the underlying system for hardware information */

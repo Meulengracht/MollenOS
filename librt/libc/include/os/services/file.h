@@ -69,26 +69,24 @@ DeletePath(
     _In_ const char* Path,
     _In_ Flags_t     Flags));
 
-/* ReadFile
- * Reads the requested number of bytes into the given buffer
- * from the current position in the file-handle */
+/**
+ * TransferFile
+ * * Shared function for reading or writing files. 
+ * @param Handle           [In]             The file handle acquired by OpenFile
+ * @param BufferHandle     [In]             The buffer that should be the target or source of the transfer
+ * @param Direction        [In]             0 In, 1 Out
+ * @param Offset           [In]             The offset into the buffer the files should be transferred to/from
+ * @param Length           [In]             Number of bytes to be transferred
+ * @param BytesTransferred [Optional, Out]  Variable to put the actual bytes transferred
+ */
 CRTDECL(FileSystemCode_t,
-ReadFile(
+TransferFile(
     _In_      UUId_t  Handle,
     _In_      UUId_t  BufferHandle,
+    _In_      int     Direction,
+    _In_      size_t  Offset,
     _In_      size_t  Length,
-    _Out_Opt_ size_t* BytesIndex,
-    _Out_Opt_ size_t* BytesRead));
-
-/* WriteFile
- * Writes the requested number of bytes from the given buffer
- * into the current position in the file-handle */
-CRTDECL(FileSystemCode_t,
-WriteFile(
-    _In_      UUId_t  Handle,
-    _In_      UUId_t  BufferHandle,
-    _In_      size_t  Length,
-    _Out_Opt_ size_t* BytesWritten));
+    _Out_Opt_ size_t* BytesTransferred));
 
 /* SeekFile
  * Sets the file-pointer for the given handle to the

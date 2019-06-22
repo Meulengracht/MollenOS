@@ -86,59 +86,31 @@ DeletePath(
 }
 
 FileSystemCode_t
-ReadFile(
-    _In_      UUId_t            Handle,
-    _In_      UUId_t            BufferHandle,
-    _In_      size_t            Length,
-    _Out_Opt_ size_t*           BytesIndex,
-    _Out_Opt_ size_t*           BytesRead)
+TransferFile(
+    _In_      UUId_t  Handle,
+    _In_      UUId_t  BufferHandle,
+    _In_      int     Direction,
+    _In_      size_t  Offset,
+    _In_      size_t  Length,
+    _Out_Opt_ size_t* BytesTransferred)
 {
     RWFilePackage_t Package;
     MRemoteCall_t   Request;
 
-    RPCInitialize(&Request, __FILEMANAGER_TARGET, __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_READ);
+    RPCInitialize(&Request, __FILEMANAGER_TARGET, __FILEMANAGER_INTERFACE_VERSION, 
+        (Direction == 0) ? __FILEMANAGER_READ : __FILEMANAGER_WRITE);
     RPCSetArgument(&Request, 0, (const void*)&Handle,       sizeof(UUId_t));
     RPCSetArgument(&Request, 1, (const void*)&BufferHandle, sizeof(UUId_t));
-    RPCSetArgument(&Request, 2, (const void*)&Length,       sizeof(size_t));
+    RPCSetArgument(&Request, 2, (const void*)&Offset,       sizeof(size_t));
+    RPCSetArgument(&Request, 3, (const void*)&Length,       sizeof(size_t));
     RPCSetResult(&Request,      (const void*)&Package,      sizeof(RWFilePackage_t));
     if (RPCExecute(&Request) != OsSuccess) {
         Package.ActualSize  = 0;
-        Package.Index       = 0;
         Package.Code        = FsInvalidParameters;
     }
 
-    if (BytesRead != NULL) {
-        *BytesRead = Package.ActualSize;
-    }
-    if (BytesIndex != NULL) {
-        *BytesIndex = Package.Index;
-    }
-    return Package.Code;
-}
-
-FileSystemCode_t
-WriteFile(
-    _In_      UUId_t            Handle,
-    _In_      UUId_t            BufferHandle,
-    _In_      size_t            Length,
-    _Out_Opt_ size_t*           BytesWritten)
-{
-    RWFilePackage_t Package;
-    MRemoteCall_t   Request;
-
-    RPCInitialize(&Request, __FILEMANAGER_TARGET, __FILEMANAGER_INTERFACE_VERSION, __FILEMANAGER_WRITE);
-    RPCSetArgument(&Request, 0, (const void*)&Handle,       sizeof(UUId_t));
-    RPCSetArgument(&Request, 1, (const void*)&BufferHandle, sizeof(UUId_t));
-    RPCSetArgument(&Request, 2, (const void*)&Length,       sizeof(size_t));
-    RPCSetResult(&Request,      (const void*)&Package,      sizeof(RWFilePackage_t));
-    if (RPCExecute(&Request) != OsSuccess) {
-        Package.ActualSize  = 0;
-        Package.Index       = 0;
-        Package.Code        = FsInvalidParameters;
-    }
-
-    if (BytesWritten != NULL) {
-        *BytesWritten = Package.ActualSize;
+    if (BytesTransferred != NULL) {
+        *BytesTransferred = Package.ActualSize;
     }
     return Package.Code;
 }

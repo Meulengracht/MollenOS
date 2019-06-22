@@ -35,7 +35,8 @@
 #include "../threads/tls.h"
 
 static inline int
-perform_read(UUId_t file_handle, UUId_t buffer_handle, size_t chunk_size, off_t offset, size_t length, size_t* total_bytes)
+perform_transfer(UUId_t file_handle, UUId_t buffer_handle, int direction, 
+    size_t chunk_size, off_t offset, size_t length, size_t* total_bytes)
 {
     size_t bytes_left = length;
     int    err_code;
@@ -43,106 +44,74 @@ perform_read(UUId_t file_handle, UUId_t buffer_handle, size_t chunk_size, off_t 
     // Keep reading chunks untill we've read all requested
     while (bytes_left > 0) {
         FileSystemCode_t fs_code;
-        size_t           bytes_to_read = MIN(chunk_size, bytes_left);
-        size_t           bytes_read;
+        size_t           bytes_to_transfer = MIN(chunk_size, bytes_left);
+        size_t           bytes_transferred;
 
-        fs_code = ReadFile(file_handle, buffer_handle, bytes_to_read, offset, &bytes_read);
+        fs_code = TransferFile(file_handle, buffer_handle, direction, offset, bytes_to_transfer, &bytes_transferred);
         err_code = _fval(fs_code);
-        if (err_code || bytes_read == 0) {
+        if (err_code || bytes_transferred == 0) {
             break;
         }
 
-        bytes_left   -= bytes_read;
-        *total_bytes += bytes_read;
-        offset       += bytes_read;
+        bytes_left   -= bytes_transferred;
+        *total_bytes += bytes_transferred;
+        offset       += bytes_transferred;
     }
     return err_code;
 }
 
-OsStatus_t stdio_file_op_read(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_read)
+OsStatus_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
-    UUId_t     builtin_handle = tls_current()->transfer_buffer->handle;
-    size_t     builtin_length = tls_current()->transfer_buffer->length;
+    UUId_t     builtin_handle = tls_current()->transfer_buffer.handle;
+    size_t     builtin_length = tls_current()->transfer_buffer.length;
     OsStatus_t status;
     int        err_code;
     
     // There is a time when reading more than a couple of times is considerably slower
     // than just reading the entire thing at once. 
     if (length >= builtin_length) {
-        FileSystemCode_t fs_code;
-        UUId_t           buffer_handle;
+        UUId_t buffer_handle;
         
-        status = BufferCreateShared(buffer, length, &buffer_handle);
+        status = MemoryShare(buffer, length, &buffer_handle);
         if (status != OsSuccess) {
-            return Status;
+            return status;
         }
         
-        err_code = perform_read(handle->InheritationHandle, buffer_handle, length, 0, length, bytes_read);
-        BufferDestroyShared(buffer_handle);
+        err_code = perform_transfer(handle->InheritationHandle, buffer_handle, 0, length, 0, length, bytes_read);
+        MemoryUnshare(buffer_handle);
         return err_code == EOK ? OsSuccess : OsError;
     }
     
-    err_code = perform_read(handle->InheritationHandle, builtin_handle, builtin_length, 0, length, bytes_read);
-    memcpy(buffer, tls_current()->transfer_buffer->buffer, bytes_read);
+    err_code = perform_transfer(handle->InheritationHandle, builtin_handle, 0, builtin_length, 0, length, bytes_read);
+    memcpy(buffer, tls_current()->transfer_buffer.buffer, *bytes_read);
     return err_code == EOK ? OsSuccess : OsError;
 }
 
-static inline int
-perform_write(UUId_t file_handle, UUId_t buffer_handle, size_t chunk_size, off_t offset, size_t length, size_t* total_bytes)
+OsStatus_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
 {
-    size_t bytes_left = length;
-    int    err_code;
-    
-    // Keep reading chunks untill we've read all requested
-    while (bytes_left > 0) {
-        FileSystemCode_t fs_code;
-        size_t           bytes_to_write = MIN(chunk_size, bytes_left);
-        size_t           bytes_written;
-
-        fs_code = WriteFile(file_handle, buffer_handle, bytes_to_write, offset, &bytes_written);
-        err_code = _fval(fs_code);
-        if (err_code || bytes_written == 0) {
-            break;
-        }
-
-        bytes_left   -= bytes_written;
-        *total_bytes += bytes_written;
-        offset       += bytes_written;
-    }
-    return err_code;
-}
-
-OsStatus_t stdio_file_op_write(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_written)
-{
-    UUId_t     builtin_handle = tls_current()->transfer_buffer->handle;
-    size_t     builtin_length = tls_current()->transfer_buffer->length;
+    UUId_t     builtin_handle = tls_current()->transfer_buffer.handle;
+    size_t     builtin_length = tls_current()->transfer_buffer.length;
     OsStatus_t status;
     int        err_code;
     
-    size_t BytesWrittenTotal = 0, BytesLeft = length;
-    size_t OriginalSize = GetBufferSize(tls_current()->transfer_buffer);
-    uint8_t *Pointer = (uint8_t*)buffer;
-
-    // Keep writing chunks untill we've read all requested
-    while (BytesLeft > 0) {
-        size_t ChunkSize = MIN(OriginalSize, BytesLeft);
-        size_t BytesWrittenLocal = 0;
+    // There is a time when reading more than a couple of times is considerably slower
+    // than just reading the entire thing at once. 
+    if (length >= builtin_length) {
+        UUId_t buffer_handle;
         
-        SeekBuffer(tls_current()->transfer_buffer, 0); // Rewind buffer
-        WriteBuffer(tls_current()->transfer_buffer, (const void *)Pointer, ChunkSize, &BytesWrittenLocal);
-        if (WriteFile(handle->InheritationHandle, GetBufferHandle(tls_current()->transfer_buffer), 
-            ChunkSize, &BytesWrittenLocal) != FsOk) {
-            break;
+        status = MemoryShare(buffer, length, &buffer_handle);
+        if (status != OsSuccess) {
+            return status;
         }
-        if (BytesWrittenLocal == 0) {
-            break;
-        }
-        BytesWrittenTotal += BytesWrittenLocal;
-        BytesLeft         -= BytesWrittenLocal;
-        Pointer           += BytesWrittenLocal;
+        
+        err_code = perform_transfer(handle->InheritationHandle, buffer_handle, 1, length, 0, length, bytes_written);
+        MemoryUnshare(buffer_handle);
+        return err_code == EOK ? OsSuccess : OsError;
     }
-    *bytes_written = BytesWrittenTotal;
-    return OsSuccess;
+    
+    memcpy(tls_current()->transfer_buffer.buffer, buffer, length);
+    err_code = perform_transfer(handle->InheritationHandle, builtin_handle, 1, builtin_length, 0, length, bytes_written);
+    return err_code == EOK ? OsSuccess : OsError;
 }
 
 OsStatus_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)

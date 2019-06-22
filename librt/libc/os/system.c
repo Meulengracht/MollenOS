@@ -26,24 +26,6 @@
 #include "../stdio/libc_io.h"
 
 OsStatus_t
-ListenForSystemEvents(
-    _In_ int    Types,
-    _In_ UUId_t WmListener)
-{
-    UUId_t StdListener = UUID_INVALID;
-    if (Types & OS_EVENT_STDIN) {
-        // if the stdin is inheritted it won't be ok, in that case close
-        // the inheritted handle and open a new
-        stdio_object_t* object = stdio_object_get(STDIN_FILENO);
-        if (object == NULL) {
-            return OsDoesNotExist;
-        }
-        StdListener = object->handle.InheritationHandle;
-    }
-    return Syscall_RegisterEventTarget(StdListener, WmListener);
-}
-
-OsStatus_t
 SystemQuery(
 	_In_ SystemDescriptor_t* Descriptor)
 {

@@ -29,13 +29,12 @@ MemoryAllocate(
     _In_      void*   Hint,
     _In_      size_t  Length,
     _In_      Flags_t Flags,
-    _Out_     void**  MemoryOut,
-    _Out_Opt_ UUId_t* HandleOut)
+    _Out_     void**  MemoryOut)
 {
 	if (!Length || !MemoryOut) {
 		return OsInvalidParameters;
 	}
-	return Syscall_MemoryAllocate(Hint, Length, Flags, MemoryOut, HandleOut);
+	return Syscall_MemoryAllocate(Hint, Length, Flags, MemoryOut);
 }
 
 OsStatus_t
@@ -43,10 +42,10 @@ MemoryFree(
 	_In_ void*  Memory,
 	_In_ size_t Length)
 {
-	if (!Length || !MemoryPointer) {
+	if (!Length || !Memory) {
 		return OsInvalidParameters;
 	}
-	return Syscall_MemoryFree(MemoryPointer, Length);
+	return Syscall_MemoryFree(Memory, Length);
 }
 
 OsStatus_t
@@ -56,8 +55,38 @@ MemoryProtect(
     _In_  Flags_t   Flags,
     _Out_ Flags_t*  PreviousFlags)
 {
-	if (!Length || !MemoryPointer) {
+	if (!Length || !Memory) {
 		return OsInvalidParameters;
 	}
-    return Syscall_MemoryProtect(MemoryPointer, Length, Flags, PreviousFlags);
+    return Syscall_MemoryProtect(Memory, Length, Flags, PreviousFlags);
+}
+
+OsStatus_t
+MemoryShare(
+    _In_  const void* Buffer,
+    _In_  size_t      Length,
+    _Out_ UUId_t*     HandleOut)
+{
+    if (!Buffer || !Length || !HandleOut) {
+        return OsInvalidParameters;
+    }
+    return Syscall_MemoryShare(Buffer, Length, HandleOut);
+}
+
+OsStatus_t
+MemoryInherit(
+    _In_  UUId_t Handle,
+    _Out_ void** BufferOut)
+{
+    if (!BufferOut) {
+        return OsInvalidParameters;
+    }
+    return Syscall_MemoryInherit(Handle, BufferOut);
+}
+
+OsStatus_t
+MemoryUnshare(
+    _In_ UUId_t Handle)
+{
+    return Syscall_MemoryUnshare(Handle);
 }

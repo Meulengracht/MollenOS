@@ -255,8 +255,7 @@ unsigned char _BitScanReverse(unsigned long *index, unsigned long mask);
 static FORCEINLINE void* mosmmap(size_t Size) {
 	void* ptr = NULL;
 	if (MemoryAllocate(NULL, Size, 
-	    MEMORY_COMMIT | MEMORY_CLEAN | MEMORY_READ | MEMORY_WRITE,
-	    &ptr, NULL) != OsSuccess) {
+	    MEMORY_COMMIT | MEMORY_CLEAN | MEMORY_READ | MEMORY_WRITE, &ptr) != OsSuccess) {
 		return MFAIL;
 	}
 	else {

@@ -29,13 +29,12 @@
 #include <os/types/file.h>
 
 PACKED_TYPESTRUCT(OpenFilePackage, {
-    FileSystemCode_t    Code;
-    UUId_t              Handle;
+    FileSystemCode_t Code;
+    UUId_t           Handle;
 });
 PACKED_TYPESTRUCT(RWFilePackage, {
-    FileSystemCode_t    Code;
-    size_t              Index;
-    size_t              ActualSize;
+    FileSystemCode_t Code;
+    size_t           ActualSize;
 });
 PACKED_TYPESTRUCT(QueryFileValuePackage, {
     FileSystemCode_t    Code;

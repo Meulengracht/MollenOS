@@ -25,13 +25,22 @@
 #define __MEMORY_INTERFACE__
 
 #include <ddk/ddkdefs.h>
-#include <ddk/buffer.h>
 
 struct MemoryMappingParameters {
     uintptr_t VirtualAddress;
     size_t    Length;
     Flags_t   Flags;
 };
+
+/**
+ * MemoryGetSharedMetrics
+ * * Retrieve information about a shared memory handle
+ */
+DDKDECL(OsStatus_t,
+MemoryGetSharedMetrics(
+    _In_      UUId_t     Handle,
+    _Out_Opt_ size_t*    LengthOut,
+    _Out_Opt_ uintptr_t* VectorOut));
 
 /* CreateMemorySpace
  * Creates a new memory space that can be used to create new mappings, and manipulate existing mappings. */

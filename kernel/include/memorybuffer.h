@@ -26,7 +26,6 @@
 #define __MEMORY_BUFFER_INTERFACE__
 
 #include <os/osdefs.h>
-#include <ddk/buffer.h>
 #include <memoryspace.h>
 
 typedef struct {

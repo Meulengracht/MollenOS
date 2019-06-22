@@ -65,8 +65,8 @@ typedef struct {
 } stdio_handle_t;
 
 // Stdio descriptor operations
-typedef OsStatus_t(*stdio_read)(stdio_handle_t*, const void*, size_t, size_t*);
-typedef OsStatus_t(*stdio_write)(stdio_handle_t*, void*, size_t, size_t*);
+typedef OsStatus_t(*stdio_read)(stdio_handle_t*, void*, size_t, size_t*);
+typedef OsStatus_t(*stdio_write)(stdio_handle_t*, const void*, size_t, size_t*);
 typedef OsStatus_t(*stdio_resize)(stdio_handle_t*, long long);
 typedef OsStatus_t(*stdio_seek)(stdio_handle_t*, int, off64_t, long long*);
 typedef OsStatus_t(*stdio_close)(stdio_handle_t*, int);
