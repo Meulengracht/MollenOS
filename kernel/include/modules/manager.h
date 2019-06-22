@@ -32,7 +32,7 @@
 
 typedef struct _SystemFileMapping {
     CollectionItem_t Header;
-    DmaBuffer_t      BufferObject;
+    UUId_t           BufferHandle;
     UUId_t           FileHandle;
     uint64_t         FileBlock;
     uint64_t         BlockOffset;

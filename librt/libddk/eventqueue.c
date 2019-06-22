@@ -20,8 +20,9 @@
  * - This header describes the base event-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
+
+#include <ddk/eventqueue.h>
 #include <ds/collection.h>
-#include <os/eventqueue.h>
 #include <os/mollenos.h>
 #include <threads.h>
 #include <stdlib.h>

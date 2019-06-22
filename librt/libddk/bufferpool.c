@@ -43,24 +43,23 @@ BufferPoolCreate(
 {
     BufferPool_t* Pool;
     size_t        Length;
-    size_t        Capacity;
     OsStatus_t    Status;
     int           VectorSize;
     
     // Get buffer metrics and mappings
-    Status = BufferGetMetrics(BufferHandle, &Length, &Capacity);
+    Status = BufferGetMetrics(BufferHandle, &Length, NULL);
     if (Status != OsSuccess) {
         return Status;
     }
     
     // @todo get the page size from system
-    VectorSize = Capacity / 0x1000;
+    VectorSize = Length / 0x1000;
     
     // Allocate the pool
     Pool               = (BufferPool_t*)malloc(sizeof(BufferPool_t) + (VectorSize * sizeof(uintptr_t)));
     Pool->BufferHandle = BufferHandle;
     Pool->VirtualBase  = (uintptr_t)Buffer;
-    Status             = BufferGetVectors(BufferHandle, &Pool->DmaVector[0]);
+    Status             = BufferGetMetrics(BufferHandle, NULL, &Pool->DmaVector[0]);
     Status             = bpool(Buffer, Length, &Pool->Pool);
     return Status;
 }

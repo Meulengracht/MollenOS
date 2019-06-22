@@ -40,39 +40,20 @@ typedef struct {
 
 _CODE_BEGIN
 DDKDECL(OsStatus_t,
-BufferCreate(
-    _In_  size_t  InitialSize,
-    _In_  size_t  Capacity,
-    _In_  Flags_t Flags,
-    _Out_ UUId_t* HandleOut,
-    _Out_ void*   BufferOut));
+BufferCreateShared(
+    _In_  void*      Buffer,
+    _In_  size_t     Length,
+    _Out_ UUId_t*    Handle));
 
 DDKDECL(OsStatus_t,
-BufferCreateFrom(
-    _In_  UUId_t ExistingHandle,
-    _Out_ void** BufferOut));
+BufferDestroyShared(,
+    _In_ UUId_t Handle));
 
 DDKDECL(OsStatus_t,
-BufferDestroy(
-    _In_ UUId_t Handle,
-    _In_ void*  Buffer));
-
-DDKDECL(OsStatus_t,
-BufferResize(
-    _In_ UUId_t Handle,
-    _In_ void*  Buffer,
-    _In_ size_t Size));
-
-DDKDECL(OsStatus_t,
-BufferGetMetrics(
-    _In_  UUId_t  Handle,
-    _Out_ size_t* SizeOut,
-    _Out_ size_t* CapacityOut));
-
-DDKDECL(OsStatus_t,
-BufferGetVectors(
-    _In_  UUId_t  Handle,
-    _Out_ uintptr_t VectorOut[]));
+BufferGetSharedMetrics(
+    _In_  UUId_t     Handle,
+    _Out_ size_t*    SizeOut,
+    _Out_ uintptr_t* DmaVectorOut));
 
 DDKDECL(OsStatus_t,
 BufferCreateManaged(

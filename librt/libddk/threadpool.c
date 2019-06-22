@@ -22,8 +22,8 @@
  */
 
 #include <os/binarysemaphore.h>
-#include <os/threadpool.h>
 #include <os/mollenos.h>
+#include <ddk/threadpool.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
 #include <string.h>

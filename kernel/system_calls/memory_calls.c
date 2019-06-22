@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - System Calls
+ * System Calls
  */
 #define __MODULE "SCIF"
 //#define __TRACE
@@ -35,18 +35,50 @@
 #include <debug.h>
 
 OsStatus_t
+ScBufferGetDmaVector(
+    _In_  UUId_t     Handle,
+    _Out_ size_t*    LengthOut,
+    _Out_ uintptr_t* DmaVector)
+{
+    SystemMemoryBuffer_t* Buffer = (SystemMemoryBuffer_t*)
+        LookupHandleOfType(Handle, HandleTypeMemoryBuffer);
+    if (!Buffer) {
+        return OsInvalidParameters;
+    }
+    
+    if (LengthOut) {
+        *LengthOut = Buffer->Length;
+    }
+    
+    if (DmaVector) {
+        size_t DmaCount = Buffer->Capacity / GetMachine()->MemoryGranularity;
+        memcpy((void*)&DmaVector[0], (void*)&Buffer->DmaVector[0], sizeof(uintptr_t) * DmaCount);
+    }
+    return OsSuccess;
+}
+
+static OsStatus_t
+HandleSharedMemoryAllocation()
+{
+    
+}
+
+OsStatus_t
 ScMemoryAllocate(
-    _In_  size_t        Size,
-    _In_  Flags_t       Flags,
-    _Out_ uintptr_t*    VirtualAddress,
-    _Out_ uintptr_t*    PhysicalAddress)
+    _In_      void*   Hint,
+    _In_      size_t  Length,
+    _In_      Flags_t Flags,
+    _Out_     void**  MemoryOut,
+    _Out_Opt_ UUId_t* HandleOut)
 {
     OsStatus_t           Status;
     uintptr_t            AllocatedAddress;
     SystemMemorySpace_t* Space          = GetCurrentMemorySpace();
     Flags_t              MemoryFlags    = MAPPING_USERSPACE | MAPPING_VIRTUAL_PROCESS;
     Flags_t              PlacementFlags = MAPPING_VIRTUAL_PROCESS;
-    if (Size == 0) {
+    uintptr_t*           DmaVector      = NULL;
+    
+    if (!Length || !) {
         return OsInvalidParameters;
     }
 
@@ -61,21 +93,47 @@ ScMemoryAllocate(
         MemoryFlags |= MAPPING_LOWFIRST;
     }
     
-    // Handle the physical placement flag
-    if (Flags & MEMORY_CONTIGIOUS) {
-        PlacementFlags |= MAPPING_PHYSICAL_CONTIGIOUS;
+    // Are we cloning a shared mapping?
+    if ((Flags & MEMORY_SHARED) == MEMORY_SHARED && HandleOut != NULL) {
+        DmaVector = kmalloc(sizeof(uintptr_t) * DIVUP(Length, GetMachine()->MemoryGranularity));
+        if ((Flags & MEMORY_SHARED_CLONE) == MEMORY_SHARED_CLONE) {
+            Status = AcquireHandle(*HandleOut);
+            if (Status != OsSuccess) {
+                return Status;
+            }
+            
+            PlacementFlags |= MAPPING_PHYSICAL_FIXED;
+            ScBufferGetDmaVector(*HandleOut, NULL, DmaVector);
+        }
     }
     else {
         PlacementFlags |= MAPPING_PHYSICAL_DEFAULT;
     }
-
-    Status = CreateMemorySpaceMapping(Space, PhysicalAddress, &AllocatedAddress, Size, 
+    
+    // Create the actual mappings
+    Status = CreateMemorySpaceMapping(Space, DmaVector, &AllocatedAddress, Size, 
         MemoryFlags, PlacementFlags, __MASK);
     if (Status == OsSuccess) {
+        *MemoryOut = (void*)AllocatedAddress;
+        
         if ((Flags & (MEMORY_COMMIT | MEMORY_CLEAN)) == (MEMORY_COMMIT | MEMORY_CLEAN)) {
             memset((void*)AllocatedAddress, 0, Size);
         }
-        *VirtualAddress = (uintptr_t)AllocatedAddress;
+        
+        // Handle shared allocations
+        if ((Flags & MEMORY_SHARED_CLONE) == MEMORY_SHARED && HandleOut != NULL) {
+            Status = CreateMemoryBuffer(DmaVector, Length, HandleOut);
+        }
+    }
+    
+    if (DmaVector) {
+        kfree(DmaVector);
+    }
+    
+    if (Status != OsSuccess) {
+        if ((Flags & MEMORY_SHARED_CLONE) == MEMORY_SHARED_CLONE && HandleOut != NULL) {
+            DestroyHandle(*HandleOut);
+        }
     }
     return Status;
 }
@@ -103,45 +161,8 @@ ScMemoryProtect(
     if (MemoryPointer == NULL || Length == 0) {
         return OsSuccess;
     }
-
-    // We must force the application flag as it will remove
-    // the user-accessibility if we allow it to change
     return ChangeMemorySpaceProtection(GetCurrentMemorySpace(), 
         AddressStart, Length, Flags | MAPPING_USERSPACE, PreviousFlags);
-}
-
-OsStatus_t
-ScCreateBuffer(
-    _In_  size_t        Size,
-    _Out_ DmaBuffer_t*  MemoryBuffer)
-{
-    if (MemoryBuffer == NULL || Size == 0) {
-        return OsError;
-    }
-    return CreateMemoryBuffer(Size, MemoryBuffer);
-}
-
-OsStatus_t
-ScAcquireBuffer(
-    _In_  UUId_t        Handle,
-    _Out_ DmaBuffer_t*  MemoryBuffer)
-{
-    if (MemoryBuffer == NULL || Handle == UUID_INVALID) {
-        return OsError;
-    }
-    return AcquireMemoryBuffer(Handle, MemoryBuffer);
-}
-
-OsStatus_t
-ScQueryBuffer(
-    _In_  UUId_t        Handle,
-    _Out_ uintptr_t*    Dma,
-    _Out_ size_t*       Capacity)
-{
-    if (Capacity == NULL || Dma == NULL || Handle == UUID_INVALID) {
-        return OsError;
-    }
-    return QueryMemoryBuffer(Handle, Dma, Capacity);
 }
 
 OsStatus_t 

@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,7 +24,6 @@
 #define __STDC_TLS__
 
 #include <os/osdefs.h>
-#include <ddk/buffer.h>
 #include <errno.h>
 #include <threads.h>
 #include <wchar.h>
@@ -32,10 +31,6 @@
 // Number of tls entries
 #define TLS_NUMBER_ENTRIES          64
 
-/* Thread Local Storage
- * This is the structure that exists seperately for each running
- * thread, and can be retrieved with TLSGetCurrent() which returns
- * the local copy of this structure */
 PACKED_TYPESTRUCT(thread_storage, {
     thrd_t           thr_id;
     void*            handle;
@@ -46,7 +41,11 @@ PACKED_TYPESTRUCT(thread_storage, {
     char*            strtok_next;
     struct tm        tm_buffer;
     char             asc_buffer[26];
-    ManagedBuffer_t* transfer_buffer;
+    struct {
+        UUId_t handle;
+        size_t length;
+        void*  buffer;
+    } transfer_buffer;
     uintptr_t        tls_array[TLS_NUMBER_ENTRIES];
 });
 
@@ -58,17 +57,17 @@ CRTDECL(thread_storage_t*, tls_current(void));
 /* tls_create
  * Initializes a new thread-storage space for the caller thread.
  * Part of CRT initialization routines. */
-CRTDECL(OsStatus_t,        tls_create(thread_storage_t *Tls));
+CRTDECL(OsStatus_t, tls_create(thread_storage_t *Tls));
 
 /* tls_destroy
  * Destroys a thread-storage space should be called by thread crt */
-CRTDECL(OsStatus_t,        tls_destroy(thread_storage_t *Tls));
+CRTDECL(OsStatus_t, tls_destroy(thread_storage_t *Tls));
 
 /* tls_cleanup
  * Destroys the TLS for the specific thread
  * by freeing resources and calling c11 destructors. */
-CRTDECL(void, tls_cleanup(_In_ thrd_t thr, _In_ void* DsoHandle, _In_ int ExitCode));
-CRTDECL(void, tls_cleanup_quick(_In_ thrd_t thr, _In_ void* DsoHandle, _In_ int ExitCode));
+CRTDECL(void, tls_cleanup(thrd_t thr, void* DsoHandle, int ExitCode));
+CRTDECL(void, tls_cleanup_quick(thrd_t thr, void* DsoHandle, int ExitCode));
 _CODE_END
 
 #endif //!__STDC_TLS__

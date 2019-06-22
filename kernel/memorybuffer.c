@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Memory Buffer Interface
+ * Memory Buffer Interface
  * - Implementation of the memory dma buffers. This provides a transfer buffer
  *   that is not bound to any specific virtual memory area but instead are bound
  *   to fixed physical addreses.
@@ -32,102 +32,30 @@
 
 OsStatus_t
 CreateMemoryBuffer(
-    _In_  size_t        Size,
-    _Out_ DmaBuffer_t*  MemoryBuffer)
+    _In_  uintptr_t* DmaVector,
+    _In_  int        EntryCount,
+    _Out_ UUId_t*    HandleOut)
 {
-    SystemMemoryBuffer_t* SystemBuffer;
-    SystemMemorySpace_t*  Space      = GetCurrentMemorySpace();
-    OsStatus_t            Status     = OsSuccess;
-    uintptr_t             DmaAddress = 0;
-    uintptr_t             Virtual    = 0;
-    size_t                Capacity;
-    UUId_t                Handle;
-
-    Capacity = DIVUP(Size, GetMemorySpacePageSize()) * GetMemorySpacePageSize();
-    Status   = CreateMemorySpaceMapping(Space, &DmaAddress, 
-        &Virtual, Capacity, MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_PERSISTENT,
-        MAPPING_PHYSICAL_CONTIGIOUS | MAPPING_VIRTUAL_PROCESS, __MASK);
-    if (Status != OsSuccess) {
-        ERROR("Failed to map system memory");
-        return Status;
+    BlockVector_t* Vector = (BlockVector_t*)kmalloc(
+        sizeof(BlockVector_t) + EntryCount * sizeof(uintptr_t));
+    if (!Vector) {
+        return OsOutOfMemory;
     }
-
-    SystemBuffer            = (SystemMemoryBuffer_t*)kmalloc(sizeof(SystemMemoryBuffer_t));
-    Handle                  = CreateHandle(HandleTypeMemoryBuffer, SystemBuffer);
-    SystemBuffer->Capacity  = Capacity;
-    SystemBuffer->Physical  = DmaAddress;
-
-    // Update the user-provided structure
-    if (MemoryBuffer != NULL) {
-        MemoryBuffer->Handle   = Handle;
-        MemoryBuffer->Dma      = DmaAddress;
-        MemoryBuffer->Capacity = Capacity;
-        MemoryBuffer->Address  = Virtual;
-    }
-    return Status;
-}
-
-OsStatus_t
-AcquireMemoryBuffer(
-    _In_  UUId_t       Handle,
-    _Out_ DmaBuffer_t* MemoryBuffer)
-{
-    SystemMemoryBuffer_t* SystemBuffer;
-    OsStatus_t            Status;
-    uintptr_t             Virtual;
-
-    // We acquire the buffer by mapping it into our address space
-    // and adding a reference
-    SystemBuffer = AcquireHandle(Handle);
-    if (SystemBuffer == NULL) {
-        ERROR("Invalid memory buffer handle 0x%" PRIxIN "", Handle);
-        return OsError;
-    }
-
-    // Map it in to make sure we can do it
-    Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), &SystemBuffer->Physical, 
-        &Virtual, SystemBuffer->Capacity, MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_PERSISTENT,
-        MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS, __MASK);
-    if (Status != OsSuccess) {
-        ERROR("Failed to map process memory");
-        return Status;
-    }
-
-    // Update the user-provided structure
-    MemoryBuffer->Handle    = Handle;
-    MemoryBuffer->Dma       = SystemBuffer->Physical;
-    MemoryBuffer->Capacity  = SystemBuffer->Capacity;
-    MemoryBuffer->Address   = Virtual;
-    return Status;
-}
-
-OsStatus_t
-QueryMemoryBuffer(
-    _In_  UUId_t        Handle,
-    _Out_ uintptr_t*    Dma,
-    _Out_ size_t*       Capacity)
-{
-    SystemMemoryBuffer_t *SystemBuffer;
-
-    // We acquire the buffer by mapping it into our address space
-    // and adding a reference
-    SystemBuffer = LookupHandle(Handle);
-    if (SystemBuffer == NULL) {
-        return OsError;
-    }
-    *Dma      = SystemBuffer->Physical;
-    *Capacity = SystemBuffer->Capacity;
-    return OsSuccess;
+    
+    Vector->BlockCount = EntryCount;
+    memcpy(&Vector->Blocks[0], &DmaVector[0], EntryCount * sizeof(uintptr_t));
+    return CreateHandle(HandleTypeMemoryBuffer, Vector);
 }
 
 OsStatus_t
 DestroyMemoryBuffer(
     _In_ void* Resource)
 {
-    SystemMemoryBuffer_t* SystemBuffer = (SystemMemoryBuffer_t*)Resource;
-    OsStatus_t            Status       = OsSuccess;
-    
-    Status = FreeSystemMemory(SystemBuffer->Physical, SystemBuffer->Capacity);
-    kfree(Resource);
+    BlockVector_t* Vector = (BlockVector_t*)Resource;
+    OsStatus_t     Status;
+    for (int i = 0; i < Vector->BlockCount; i++) {
+        Status = FreeSystemMemory(Vector->Blocks[i], GetMachine()->MemoryGranularity);
+    }
+    kfree(Vector);
     return Status;
 }

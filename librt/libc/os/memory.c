@@ -24,65 +24,40 @@
 #include <os/mollenos.h>
 #include <internal/_syscalls.h>
 
-/* MemoryAllocate
- * Allocates a chunk of memory, controlled by the
- * requested size of memory. The returned memory will always
- * be rounded up to nearest page-size */
 OsStatus_t
 MemoryAllocate(
-    _In_      void*         NearAddress,
-	_In_      size_t        Length,
-	_In_      Flags_t       Flags,
-	_Out_     void**        MemoryPointer,
-	_Out_Opt_ uintptr_t*    PhysicalPointer)
+    _In_      void*   Hint,
+    _In_      size_t  Length,
+    _In_      Flags_t Flags,
+    _Out_     void**  MemoryOut,
+    _Out_Opt_ UUId_t* HandleOut)
 {
-	// Variables
-	OsStatus_t Result   = OsSuccess;
-	uintptr_t Physical  = 0;
-	uintptr_t Virtual   = 0;
-
-	// Sanitize parameters
-	if (Length == 0 || MemoryPointer == NULL) {
-		return OsError;
+	if (!Length || !MemoryOut) {
+		return OsInvalidParameters;
 	}
-	Result = Syscall_MemoryAllocate(Length, Flags, &Virtual, &Physical);
-
-	// Update memory-pointer
-	*MemoryPointer = (void*)Virtual;
-	if (PhysicalPointer != NULL) {
-		*PhysicalPointer = Physical;
-	}
-	return Result;
+	return Syscall_MemoryAllocate(Hint, Length, Flags, MemoryOut, HandleOut);
 }
 
-/* MemoryFree
- * Frees previously allocated memory and releases
- * the system resources associated. */
 OsStatus_t
 MemoryFree(
-	_In_ void *MemoryPointer,
+	_In_ void*  Memory,
 	_In_ size_t Length)
 {
-	// Sanitize parameters
-	if (Length == 0 || MemoryPointer == NULL) {
-		return OsError;
+	if (!Length || !MemoryPointer) {
+		return OsInvalidParameters;
 	}
 	return Syscall_MemoryFree(MemoryPointer, Length);
 }
 
-/* MemoryProtect
- * Changes the protection flags of a previous memory allocation
- * made by MemoryAllocate */
 OsStatus_t
 MemoryProtect(
-    _In_  void*     MemoryPointer,
+    _In_  void*     Memory,
 	_In_  size_t    Length,
     _In_  Flags_t   Flags,
     _Out_ Flags_t*  PreviousFlags)
 {
-    // Sanitize parameters
-	if (Length == 0 || MemoryPointer == NULL) {
-		return OsError;
+	if (!Length || !MemoryPointer) {
+		return OsInvalidParameters;
 	}
     return Syscall_MemoryProtect(MemoryPointer, Length, Flags, PreviousFlags);
 }

@@ -119,9 +119,11 @@ extern OsStatus_t ScRpcRespond(MRemoteCallAddress_t* RemoteAddress, const uint8_
 extern OsStatus_t ScMemoryAllocate(size_t Size, Flags_t Flags, uintptr_t* VirtualAddress, uintptr_t* PhysicalAddress);
 extern OsStatus_t ScMemoryFree(uintptr_t  Address, size_t Size);
 extern OsStatus_t ScMemoryProtect(void* MemoryPointer, size_t Length, Flags_t Flags, Flags_t* PreviousFlags);
-extern OsStatus_t ScCreateBuffer(size_t Size, DmaBuffer_t* MemoryBuffer);
-extern OsStatus_t ScAcquireBuffer(UUId_t Handle, DmaBuffer_t* MemoryBuffer);
-extern OsStatus_t ScQueryBuffer(UUId_t Handle, uintptr_t* Dma, size_t* Capacity);
+extern OsStatus_t ScBufferCreate(size_t, size_t, Flags_t, UUId_t*, void**);
+extern OsStatus_t ScBufferInherit(UUId_t, void**);
+extern OsStatus_t ScBufferResize(UUId_t, void*, size_t);
+extern OsStatus_t ScBufferGetMetrics(UUId_t, size_t*, size_t*);
+extern OsStatus_t ScBufferGetDmaVector(UUId_t, uintptr_t*);
 
 // Support system calls
 extern OsStatus_t ScDestroyHandle(UUId_t Handle);
@@ -139,7 +141,7 @@ extern OsStatus_t ScPerformanceTick(LargeInteger_t *Value);
 extern OsStatus_t ScIsServiceAvailable(UUId_t ServiceId);
 
 // The static system calls function table.
-uintptr_t SystemCallsTable[75] = {
+uintptr_t SystemCallsTable[77] = {
     ///////////////////////////////////////////////
     // Operating System Interface
     // - Protected, services/modules
@@ -224,21 +226,24 @@ uintptr_t SystemCallsTable[75] = {
     DefineSyscall(57, ScMemoryAllocate),
     DefineSyscall(58, ScMemoryFree),
     DefineSyscall(59, ScMemoryProtect),
-    DefineSyscall(60, ScCreateBuffer),
-    DefineSyscall(61, ScAcquireBuffer),
-    DefineSyscall(62, ScQueryBuffer),
+    DefineSyscall(60, ScBufferCreate),
+    DefineSyscall(61, ScBufferInherit),
+    DefineSyscall(62, ScBufferResize),
+    DefineSyscall(63, ScBufferGetMetrics),
+    DefineSyscall(64, ScBufferGetDmaVector),
+    
 
     // Support system calls
-    DefineSyscall(63, ScDestroyHandle),
-    DefineSyscall(64, ScInstallSignalHandler),
-    DefineSyscall(65, ScGetSignalOriginalContext),
-    DefineSyscall(66, ScCreateMemoryHandler),
-    DefineSyscall(67, ScDestroyMemoryHandler),
-    DefineSyscall(68, ScFlushHardwareCache),
-    DefineSyscall(69, ScSystemQuery),
-    DefineSyscall(70, ScSystemTick),
-    DefineSyscall(71, ScPerformanceFrequency),
-    DefineSyscall(72, ScPerformanceTick),
-    DefineSyscall(73, ScSystemTime),
-    DefineSyscall(74, ScIsServiceAvailable)
+    DefineSyscall(65, ScDestroyHandle),
+    DefineSyscall(66, ScInstallSignalHandler),
+    DefineSyscall(67, ScGetSignalOriginalContext),
+    DefineSyscall(68, ScCreateMemoryHandler),
+    DefineSyscall(69, ScDestroyMemoryHandler),
+    DefineSyscall(70, ScFlushHardwareCache),
+    DefineSyscall(71, ScSystemQuery),
+    DefineSyscall(72, ScSystemTick),
+    DefineSyscall(73, ScPerformanceFrequency),
+    DefineSyscall(74, ScPerformanceTick),
+    DefineSyscall(75, ScSystemTime),
+    DefineSyscall(76, ScIsServiceAvailable)
 };

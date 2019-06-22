@@ -30,42 +30,24 @@
 #include <memoryspace.h>
 
 typedef struct {
-    size_t    Length;
-    size_t    Capacity;
+    int       BlockCount;
     uintptr_t Blocks[1];
-} SystemMemoryBuffer_t;
+} BlockVector_t;
 
 /* CreateMemoryBuffer 
  * Creates a new memory buffer instance of the given size. The allocation
- * of resources happens at this call, and reference is set to 1. Size is automatically
- * rounded up to a block-alignment */
+ * of resources happens at this call, and reference is set to 1.  */
 KERNELAPI OsStatus_t KERNELABI
 CreateMemoryBuffer(
-    _In_  size_t        Size,
-    _Out_ DmaBuffer_t*  MemoryBuffer);
-
-/* AcquireMemoryBuffer
- * Acquires an existing memory buffer into the current memory space. This will
- * add it to the list of in-use buffers and increase reference count. */
-KERNELAPI OsStatus_t KERNELABI
-AcquireMemoryBuffer(
-    _In_  UUId_t        Handle,
-    _Out_ DmaBuffer_t*  MemoryBuffer);
-
-/* QueryMemoryBuffer
- * Queries the handle for information instead of acquiring the memory buffer. This
- * can be usefull when no access is needed to the buffer. */
-KERNELAPI OsStatus_t KERNELABI
-QueryMemoryBuffer(
-    _In_  UUId_t        Handle,
-    _Out_ uintptr_t*    Dma,
-    _Out_ size_t*       Capacity);
+    _In_  uintptr_t* DmaVector,
+    _In_  int        EntryCount,
+    _Out_ UUId_t*    HandleOut);
 
 /* DestroyMemoryBuffer
  * Cleans up the resources associated with the handle. This function is registered
  * with the handle manager. */
 KERNELAPI OsStatus_t KERNELABI
 DestroyMemoryBuffer(
-    _In_  void*         Resource);
+    _In_  void* Resource);
 
 #endif //! __MEMORY_BUFFER_INTERFACE__

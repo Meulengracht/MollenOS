@@ -19,9 +19,9 @@
  * MollenOS C Library - Server Entry 
  */
 
-#include <os/threadpool.h>
-#include <os/mollenos.h>
+#include <ddk/threadpool.h>
 #include <ddk/service.h>
+#include <os/mollenos.h>
 #include "../libc/threads/tls.h"
 #include <stdlib.h>
 
