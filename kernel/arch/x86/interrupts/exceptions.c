@@ -54,8 +54,10 @@ HardFault(
         // Bit 2 - write access
         // Bit 4 - user/kernel
         WRITELINE("page-fault address: 0x%" PRIxIN ", error-code 0x%" PRIxIN "", PFAddress, Registers->ErrorCode);
-        WRITELINE("existing mapping for address: 0x%" PRIxIN "", GetMemorySpaceMapping(GetCurrentMemorySpace(), PFAddress));
-        WRITELINE("existing attribs for address: 0x%" PRIxIN "", GetMemorySpaceAttributes(GetCurrentMemorySpace(), PFAddress));
+        if (GetMemorySpaceMapping(GetCurrentMemorySpace(), PFAddress, 1, &Base) == OsSuccess) {
+            WRITELINE("existing mapping for address: 0x%" PRIxIN "", Base);
+            WRITELINE("existing attribs for address: 0x%" PRIxIN "", GetMemorySpaceAttributes(GetCurrentMemorySpace(), PFAddress));
+        }
     }
 
     // Locate which module

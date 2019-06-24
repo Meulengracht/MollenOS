@@ -390,7 +390,8 @@ HpInitialize(
 
     // Map the address
     Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), 
-        &HpetController.BaseAddress, &HpetController.BaseAddress, GetMemorySpacePageSize(),
+        &HpetController.BaseAddress, &HpetController.BaseAddress, 
+        GetMemorySpacePageSize(),
         MAPPING_COMMIT | MAPPING_PERSISTENT | MAPPING_NOCACHE, 
         MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED, __MASK);
     if (Status != OsSuccess) {

@@ -240,8 +240,10 @@ CreateThread(
     if (THREADING_RUNMODE(Flags) == THREADING_USERMODE) {
         uintptr_t ThreadRegionStart = GetMachine()->MemoryMap.ThreadRegion.Start;
         size_t    ThreadRegionSize  = GetMachine()->MemoryMap.ThreadRegion.Length;
-        CreateMemorySpaceMapping(Thread->MemorySpace, NULL, &ThreadRegionStart, ThreadRegionSize, 
-            MAPPING_DOMAIN | MAPPING_USERSPACE, MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_FIXED, __MASK);
+        CreateMemorySpaceMapping(Thread->MemorySpace, &ThreadRegionStart,
+            NULL, ThreadRegionSize, 
+            MAPPING_DOMAIN | MAPPING_USERSPACE, 
+            MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_FIXED, __MASK);
     }
 
     CollectionAppend(&Threads, &Thread->Header);

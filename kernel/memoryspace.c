@@ -16,11 +16,11 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Memory Space Interface
+ * Memory Space Interface
  * - Implementation of virtual memory address spaces. This underlying
  *   hardware must support the __OSCONFIG_HAS_MMIO define to use this.
  */
-#define __MODULE "MSPC"
+#define __MODULE "MEM2"
 
 #include <component/cpu.h>
 #include <arch/utils.h>
@@ -281,43 +281,52 @@ AreMemorySpacesRelated(
     return (Space1->Context == Space2->Context) ? OsSuccess : OsError;
 }
 
-static PhysicalAddress_t
-ResolvePhysicalMemorySpaceAddress(
-    _In_  uintptr_t* PhysicalAddress,
-    _In_  size_t     Size,
-    _In_  Flags_t    PlacementFlags,
-    _In_  uintptr_t  PhysicalMask,
-    _Out_ int*       Cleanup)
+OsStatus_t
+MemoryCreateSharedRegion(
+    _In_  void*   Region,
+    _In_  size_t  Length,
+    _Out_ UUId_t* HandleOut)
 {
-    uintptr_t PhysicalBase = __MASK;
-    
-    switch (PlacementFlags & MAPPING_PHYSICAL_MASK) {
-        case MAPPING_PHYSICAL_DEFAULT: {
-            // Update on first allocation
-            if (PhysicalAddress != NULL) {
-                *PhysicalAddress = __MASK;
-            }
-        } break;
+    SystemSharedRegion_t* Region;
+    OsStatus_t            Status;
+    int                   PageCount;
 
-        case MAPPING_PHYSICAL_FIXED: {
-            assert(PhysicalAddress != NULL);
-            PhysicalBase = *PhysicalAddress;
-        } break;
-        
-        case MAPPING_PHYSICAL_CONTIGIOUS: {
-            PhysicalBase = AllocateSystemMemory(Size, PhysicalMask, 0); // MEMORY_DOMAIN
-            assert(PhysicalBase != 0);
-            if (PhysicalAddress != NULL) {
-                *PhysicalAddress = PhysicalBase;
-            }
-            *Cleanup = 1;
-        } break;
-
-        default:
-            assert(0);
-            break;
+    // Create the DMA vector to store physical addressing information
+    PageCount = DIVUP(Length, GetMemorySpacePageSize());
+    Region    = (SystemSharedRegion_t*)kmalloc(
+        sizeof(SystemSharedRegion_t) + sizeof(uintptr_t) * PageCount);
+    if (!Region) {
+        return OsOutOfMemory;
     }
-    return PhysicalBase;
+    
+    // Ensure memory has been committed, otherwise we can end up with
+    // different memory allocations for each user of the buffers.
+    
+    
+    Status = GetSystemMemoryMappings(GetCurrentMemorySpace(), 
+        (VirtualAddress_t)Buffer, PageCount, &Region->Pages[0]);
+    if (Status != OsSuccess) {
+        kfree(Region);
+        return Status;
+    }
+    
+    Region->Length    = Length;
+    Region->PageCount = PageCount;
+    Region->Pages     = Vector;
+    return CreateHandle(HandleTypeMemoryRegion, Region);
+}
+
+OsStatus_t
+MemoryDestroySharedRegion(
+    _In_ void* Resource)
+{
+    SystemSharedRegion_t* Region = (SystemSharedRegion_t*)Resource;
+    OsStatus_t            Status;
+    for (int i = 0; i < Region->PageCount; i++) {
+        Status = FreeSystemMemory(Region->Pages[i], GetMemorySpacePageSize());
+    }
+    kfree(Region);
+    return Status;
 }
 
 static VirtualAddress_t
@@ -362,7 +371,7 @@ ResolveVirtualSystemMemorySpaceAddress(
     return VirtualBase;
 }
 
-static OsStatus_t
+static inline OsStatus_t
 InstallMemoryMapping(
     _In_ SystemMemorySpace_t* SystemMemorySpace,
     _In_ PhysicalAddress_t    PhysicalAddress,
@@ -382,19 +391,18 @@ InstallMemoryMapping(
 
 OsStatus_t
 CreateMemorySpaceMapping(
-    _In_        SystemMemorySpace_t* SystemMemorySpace,
-    _InOut_Opt_ PhysicalAddress_t*   PhysicalAddress,
-    _InOut_Opt_ VirtualAddress_t*    VirtualAddress,
-    _In_        size_t               Size,
+    _In_        SystemMemorySpace_t* MemorySpace,
+    _InOut_     VirtualAddress_t*    Address,
+    _InOut_Opt_ uintptr_t*           DmaVector,
+    _In_        size_t               Length,
     _In_        Flags_t              MemoryFlags,
     _In_        Flags_t              PlacementFlags,
     _In_        uintptr_t            PhysicalMask)
 {
-    VirtualAddress_t  VirtualBase;
-    PhysicalAddress_t PhysicalBase   = __MASK;
-    OsStatus_t        Status         = OsError;
     int               PageCount      = DIVUP(Size, GetMemorySpacePageSize());
     int               CleanupOnError = 0;
+    VirtualAddress_t  VirtualBase;
+    OsStatus_t        Status;
     int               i;
     assert(SystemMemorySpace != NULL);
     assert(PlacementFlags != 0);
@@ -404,12 +412,20 @@ CreateMemorySpaceMapping(
     if (PlacementFlags & MAPPING_PHYSICAL_FIXED) {
         MemoryFlags |= MAPPING_COMMIT | MAPPING_PERSISTENT;
     }
-
-    // Handle the resolvement of the physical address, if physical-base is 0 after this
-    // then we should allocate pages one-by-one as no requirements were set
-    if (MemoryFlags & MAPPING_COMMIT) {
-        PhysicalBase = ResolvePhysicalMemorySpaceAddress(PhysicalAddress, Size, 
-            PlacementFlags, PhysicalMask, &CleanupOnError);
+    
+    // Handle the resolvement of the physical address, only do this if we are
+    // not to save the allocations and we haven't been supplied
+    if (DmaVector != NULL && (PlacementFlags & MAPPING_PHYSICAL_DEFAULT)) {
+        CleanupOnError = 1;
+        for (i = 0; i < PageCount; i++) {
+            DmaVector[i] = AllocateSystemMemory(GetMemorySpacePageSize(), PhysicalMask, 0);
+            if (!DmaVector[i]) {
+                for (i -= 1; i > 0; i--) {
+                    FreeSystemMemory(DmaVector[i], GetMemorySpacePageSize());
+                }
+                return OsOutOfMemory;
+            }
+        }
     }
     
     // Resolve the virtual address, if virtual-base is zero then we have trouble, as something
@@ -419,23 +435,30 @@ CreateMemorySpaceMapping(
         for (i = 0; i < PageCount; i++) {
             uintptr_t VirtualPage  = VirtualBase + (i * GetMemorySpacePageSize());
             uintptr_t PhysicalPage = 0;
-
+            
+            // Physical page can come from three places
+            // None 
+            // DmaVector
+            // On-the-fly 
             if (MemoryFlags & MAPPING_COMMIT) {
-                if (PhysicalBase != __MASK) {
-                    PhysicalPage = PhysicalBase + (i * GetMemorySpacePageSize());
-                }
-                else {
-                    PhysicalPage = AllocateSystemMemory(GetMemorySpacePageSize(), PhysicalMask, 0);
-                    assert(PhysicalPage != 0);
-                    if (PhysicalAddress != NULL && *PhysicalAddress == __MASK) {
-                        *PhysicalAddress = PhysicalPage;
+                if (MemoryFlags & (MAPPING_PHYSICAL_FIXED | MAPPING_PHYSICAL_DEFAULT))  {
+                    if ((MemoryFlags & MAPPING_PHYSICAL_CONTIGIOUS) == MAPPING_PHYSICAL_CONTIGIOUS) {
+                        PhysicalPage = DmaVector[0] + (i * GetMemorySpacePageSize());
+                    }
+                    else if (DmaVector) {
+                        PhysicalPage = DmaVector[i];
+                    }
+                    else {
+                        PhysicalPage = AllocateSystemMemory(GetMemorySpacePageSize(), PhysicalMask, 0);
                     }
                 }
             }
-
+            
             Status = InstallMemoryMapping(SystemMemorySpace, PhysicalPage, VirtualPage, MemoryFlags, PlacementFlags);
             if (Status != OsSuccess) {
-                if (PhysicalBase == __MASK) {
+                if ((MemoryFlags & MAPPING_COMMIT | MAPPING_PHYSICAL_DEFAULT) == 
+                        (MAPPING_COMMIT | MAPPING_PHYSICAL_DEFAULT) &&
+                    !DmaVector) {
                     FreeSystemMemory(PhysicalPage, GetMemorySpacePageSize());
                 }
                 break;
@@ -453,7 +476,9 @@ CreateMemorySpaceMapping(
 
     // Cleanup if we had preallocated space and we failed to map it in
     if (CleanupOnError && Status != OsSuccess) {
-        FreeSystemMemory(PhysicalBase, Size);
+        for (i = 0; i < PageCount; i++) {
+            FreeSystemMemory(DmaVector[i], GetMemorySpacePageSize());
+        }
     }
     return Status;
 }
@@ -491,11 +516,16 @@ CloneMemorySpaceMapping(
     _In_        Flags_t              PlacementFlags)
 {
     VirtualAddress_t VirtualBase;
-    OsStatus_t       Status    = OsSuccess;
     int              PageCount = DIVUP(Size, GetMemorySpacePageSize());
     int              i;
+    uintptr_t*       DmaVector;
+    OsStatus_t       Status;
     assert(SourceSpace != NULL);
     assert(DestinationSpace != NULL);
+    
+    // Allocate a temporary array to store physical mappings
+    DmaVector = alloca(sizeof(uintptr_t) * PageCount);
+    Status    = GetMemorySpaceMapping(SourceSpace, SourceAddress, PageCount, DmaVector);
 
     // Get the virtual address space, this however may not end up as 0 if it the mapping
     // is not provided already.
@@ -509,8 +539,9 @@ CloneMemorySpaceMapping(
     MemoryFlags |= (MAPPING_PERSISTENT | MAPPING_COMMIT);
 
     for (i = 0; i < PageCount; i++) {
-        uintptr_t VirtualPage   = (VirtualBase + (i * GetMemorySpacePageSize()));
-        uintptr_t PhysicalPage  = GetMemorySpaceMapping(SourceSpace, SourceAddress + (i * GetMemorySpacePageSize()));
+        uintptr_t VirtualPage  = (VirtualBase + (i * GetMemorySpacePageSize()));
+        uintptr_t PhysicalPage = DmaVector[i];
+        assert(PhysicalPage != 0);
         
         Status = SetVirtualPageMapping(DestinationSpace, PhysicalPage, VirtualPage, MemoryFlags);
         // The only reason this ever turns error if the mapping exists, in this case free the allocated
@@ -594,13 +625,30 @@ ChangeMemorySpaceProtection(
     return Status;
 }
 
-PhysicalAddress_t
+OsStatus_t
 GetMemorySpaceMapping(
-    _In_ SystemMemorySpace_t*   SystemMemorySpace, 
-    _In_ VirtualAddress_t       VirtualAddress)
+    _In_  SystemMemorySpace_t* MemorySpace, 
+    _In_  VirtualAddress_t     Address,
+    _In_  int                  PageCount,
+    _Out_ uintptr_t*           DmaVectorOut)
 {
-    assert(SystemMemorySpace != NULL);
-    return GetVirtualPageMapping(SystemMemorySpace, VirtualAddress);
+    OsStatus_t Status   = OsSuccess;
+    size_t     PageMask = GetMemorySpacePageSize() - 1; // only valid for 2^n
+    int i;
+    
+    assert(MemorySpace != NULL);
+    assert(DmaVectorOut != NULL);
+    
+    // Behaviour we want here is only the first mapping to keep the offset
+    for (i = 0; i < PageCount; i++, VirtualAddress += GetMemorySpacePageSize()) {
+        DmaVectorOut[i] = GetVirtualPageMapping(MemorySpace, VirtualAddress);
+        if (!i) {
+            // The pagemask will be 0xFFF if the page size is 0x1000
+            // so make sure we invert the bits
+            VirtualAddress &= ~(PageMask);
+        }
+    }
+    return Status;
 }
 
 Flags_t

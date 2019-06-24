@@ -32,7 +32,6 @@
 #include <heap.h>
 
 // Include all the systems that we have to cleanup
-#include <memorybuffer.h>
 #include <memoryspace.h>
 #include <pipe.h>
 
@@ -40,8 +39,8 @@ static Collection_t       SystemHandles                       = COLLECTION_INIT(
 static _Atomic(UUId_t)    IdGenerator                         = 1;
 static HandleDestructorFn HandleDestructors[HandleTypeCount]  = {
     NULL,                      // Generic - Ignore
-    DestroyMemoryBuffer,
     DestroyMemorySpace,
+    MemoryDestroySharedRegion,
     DestroySystemPipe
 };
 

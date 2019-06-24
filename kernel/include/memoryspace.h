@@ -16,9 +16,9 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS Memory Space Interface
+ * Memory Space Interface
  * - Implementation of virtual memory address spaces. This underlying
- *   hardware must support the __OSCONFIG_HAS_MMIO defibne to use this.
+ *   hardware must support the __OSCONFIG_HAS_MMIO define to use this.
  */
 
 #ifndef __MEMORY_SPACE_INTERFACE__
@@ -51,29 +51,35 @@ typedef struct _BlockBitmap BlockBitmap_t;
 #define MAPPING_LOWFIRST                0x00000100  // Memory resources should be allocated by low-addresses first
 
 #define MAPPING_PHYSICAL_DEFAULT        0x00000001  // (Physical) Mappings are default allocated
-#define MAPPING_PHYSICAL_CONTIGIOUS     0x00000002  // (Physical) Mappings are default allocated, as contigious
-#define MAPPING_PHYSICAL_FIXED          0x00000004  // (Physical) Mappings are supplied
+#define MAPPING_PHYSICAL_FIXED          0x00000002  // (Physical) Mappings are supplied
+#define MAPPING_PHYSICAL_CONTIGIOUS    (MAPPING_PHYSICAL_FIXED | 0x00000004)  // (Physical) Single mapping that is contigious
 #define MAPPING_PHYSICAL_MASK           0x00000007
 
-#define MAPPING_VIRTUAL_GLOBAL          0x00000008  // (Virtual) Mapping is done in global access memory
-#define MAPPING_VIRTUAL_PROCESS         0x00000010  // (Virtual) Mapping is process specific
-#define MAPPING_VIRTUAL_FIXED           0x00000020  // (Virtual) Mapping is supplied
-#define MAPPING_VIRTUAL_MASK            0x00000038
+#define MAPPING_VIRTUAL_GLOBAL          0x00000004  // (Virtual) Mapping is done in global access memory
+#define MAPPING_VIRTUAL_PROCESS         0x00000008  // (Virtual) Mapping is process specific
+#define MAPPING_VIRTUAL_FIXED           0x00000010  // (Virtual) Mapping is supplied
+#define MAPPING_VIRTUAL_MASK            0x0000001C
 
-typedef struct _SystemMemoryMappingHandler {
+typedef struct {
     CollectionItem_t Header;
     UUId_t           Handle;
     uintptr_t        Address;
     size_t           Length;
 } SystemMemoryMappingHandler_t;
 
-typedef struct _SystemMemorySpaceContext {
+typedef struct {
+    size_t    Length;
+    int       PageCount;
+    uintptr_t Pages[1];
+} SystemSharedRegion_t;
+
+typedef struct {
     Collection_t*  MemoryHandlers;
     BlockBitmap_t* HeapSpace;
     uintptr_t      SignalHandler;
 } SystemMemorySpaceContext_t;
 
-typedef struct _SystemMemorySpace {
+typedef struct {
     UUId_t                      ParentHandle;
     Flags_t                     Flags;
     uintptr_t                   Data[MEMORY_DATACOUNT];
@@ -133,6 +139,22 @@ AreMemorySpacesRelated(
     _In_ SystemMemorySpace_t* Space1,
     _In_ SystemMemorySpace_t* Space2);
 
+/* MemoryCreateSharedRegion
+ * Creates a new memory buffer instance of the given size. The allocation
+ * of resources happens at this call, and reference is set to 1.  */
+KERNELAPI OsStatus_t KERNELABI
+MemoryCreateSharedRegion(
+    _In_  void*   Region,
+    _In_  size_t  Length,
+    _Out_ UUId_t* HandleOut);
+
+/* MemoryDestroySharedRegion
+ * Cleans up the resources associated with the handle. This function is registered
+ * with the handle manager. */
+KERNELAPI OsStatus_t KERNELABI
+MemoryDestroySharedRegion(
+    _In_  void* Resource);
+
 /* ChangeMemorySpaceProtection
  * Changes the protection parameters for the given memory region.
  * The region must already be mapped and the size will be rounded up
@@ -145,16 +167,22 @@ ChangeMemorySpaceProtection(
     _In_        Flags_t              Flags,
     _Out_       Flags_t*             PreviousFlags);
 
-/* CreateMemorySpaceMapping
- * Maps the given virtual address into the given address space
- * uses the given physical pages instead of automatic allocation
- * It returns the start address of the allocated physical region */
+/**
+ * CreateMemorySpaceMapping
+ * * Creates a new virtual to physical memory mapping.
+ * @param MemorySpace    [In]      The memory space where the mapping should be created.
+ * @param Address        [In, Out] The virtual address that should be mapped. 
+ *                                 Can also be auto assigned if not provided.
+ * @param DmaVector      [In, Out] Contains physical addresses for the mappings done.
+ * @param MemoryFlags    [In]      Memory mapping configuration flags.
+ * @param PlacementFlags [In]      The physical mappings that are allocated are only allowed in this memory mask.
+ */
 KERNELAPI OsStatus_t KERNELABI
 CreateMemorySpaceMapping(
-    _In_        SystemMemorySpace_t* SystemMemorySpace,
-    _InOut_Opt_ PhysicalAddress_t*   PhysicalAddress, 
-    _InOut_Opt_ VirtualAddress_t*    VirtualAddress,
-    _In_        size_t               Size,
+    _In_        SystemMemorySpace_t* MemorySpace,
+    _InOut_     VirtualAddress_t*    Address,
+    _InOut_Opt_ uintptr_t*           DmaVector,
+    _In_        size_t               Length,
     _In_        Flags_t              MemoryFlags,
     _In_        Flags_t              PlacementFlags,
     _In_        uintptr_t            PhysicalMask);
@@ -190,13 +218,20 @@ RemoveMemorySpaceMapping(
     _In_ VirtualAddress_t     Address, 
     _In_ size_t               Size);
 
-/* GetMemorySpaceMapping
- * Retrieves a physical mapping from an address space determined
- * by the virtual address given */
-KERNELAPI PhysicalAddress_t KERNELABI
+/**
+ * GetMemorySpaceMapping
+ * * Converts a virtual address range into the mapped physical range.
+ * @param MemorySpace  [In]  The addressing space the lookup should take place in
+ * @param Address      [In]  The virtual address the lookup should start at
+ * @param PageCount    [In]  The length of the lookup in pages.
+ * @param DmaVectorOut [Out] The array to fill with mappings.
+ */
+KERNELAPI OsStatus_t KERNELABI
 GetMemorySpaceMapping(
-    _In_ SystemMemorySpace_t*   SystemMemorySpace, 
-    _In_ VirtualAddress_t       VirtualAddress);
+    _In_  SystemMemorySpace_t* MemorySpace, 
+    _In_  VirtualAddress_t     Address,
+    _In_  int                  PageCount,
+    _Out_ uintptr_t*           DmaVectorOut);
 
 /* GetMemorySpaceAttributes
  * Reads the attributes for a specific virtual memory address in the given space. */

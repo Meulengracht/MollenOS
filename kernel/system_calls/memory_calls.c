@@ -25,7 +25,6 @@
 #include <ddk/memory.h>
 
 #include <modules/manager.h>
-#include <memorybuffer.h>
 #include <memoryspace.h>
 #include <threading.h>
 #include <machine.h>
@@ -43,7 +42,7 @@ ScMemoryAllocate(
     OsStatus_t           Status;
     uintptr_t            AllocatedAddress;
     SystemMemorySpace_t* Space          = GetCurrentMemorySpace();
-    Flags_t              MemoryFlags    = MAPPING_USERSPACE | MAPPING_VIRTUAL_PROCESS;
+    Flags_t              MemoryFlags    = MAPPING_USERSPACE;
     Flags_t              PlacementFlags = MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_PROCESS;
     
     if (!Length || !MemoryOut) {
@@ -60,9 +59,15 @@ ScMemoryAllocate(
     if (Flags & MEMORY_LOWFIRST) {
         MemoryFlags |= MAPPING_LOWFIRST;
     }
+    if (!(Flags & MEMORY_WRITE)) {
+        //MemoryFlags |= MAPPING_READONLY;
+    }
+    if (Flags & MEMORY_EXECUTABLE) {
+        MemoryFlags |= MAPPING_EXECUTABLE;
+    }
     
     // Create the actual mappings
-    Status = CreateMemorySpaceMapping(Space, NULL, &AllocatedAddress, Length, 
+    Status = CreateMemorySpaceMapping(Space, &AllocatedAddress, NULL, Length, 
         MemoryFlags, PlacementFlags, __MASK);
     if (Status == OsSuccess) {
         *MemoryOut = (void*)AllocatedAddress;
@@ -101,26 +106,16 @@ ScMemoryProtect(
         AddressStart, Length, Flags | MAPPING_USERSPACE, PreviousFlags);
 }
 
-
 OsStatus_t
 ScMemoryShare(
     _In_  void*   Buffer,
     _In_  size_t  Length,
     _Out_ UUId_t* HandleOut)
 {
-    OsStatus_t Status;
-    uintptr_t* Vector;
-    int        EntryCount;
-
-    // Create the DMA vector to store physical addressing information
-    EntryCount = DIVUP(Length, GetMachine()->MemoryGranularity);
-    Vector     = kmalloc(sizeof(uintptr_t) * EntryCount);
-    //GetSystemMemoryMappings(GetCurrent(), (VirtualAddress_t)Buffer, Vector, EntryCount)
-
-    // Create a new memory buffer
-    Status = CreateMemoryBuffer(Vector, EntryCount, HandleOut);
-    kfree(Vector);
-    return Status;
+    if (!Buffer || !Handle || !Length) {
+        return OsInvalidParameters;
+    }
+    return MemoryCreateSharedRegion(Buffer, Length, HandleOut);
 }
 
 OsStatus_t
@@ -128,13 +123,22 @@ ScMemoryInherit(
     _In_  UUId_t Handle,
     _Out_ void** MemoryOut)
 {
-    BlockVector_t* Buffer = (BlockVector_t*)
-        LookupHandleOfType(Handle, HandleTypeMemoryBuffer);
+    VirtualAddress_t      Memory;
+    OsStatus_t            Status;
+    SystemSharedRegion_t* Buffer = (SystemSharedRegion_t*)AcquireHandle(Handle);
     if (!Buffer) {
         return OsInvalidParameters;
     }
 
-
+    Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), &Memory,
+        &Buffer->Pages[0], Buffer->Length, 
+        MAPPING_USERSPACE | MAPPING_PERSISTENT | MAPPING_COMMIT,
+        MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS,
+        __MASK);
+    if (Status == OsSuccess) {
+        *MemoryOut = (void*)Memory;
+    }
+    return Status;
 }
 
 OsStatus_t
@@ -143,7 +147,7 @@ ScMemoryGetSharedMetrics(
     _Out_Opt_ size_t*    LengthOut,
     _Out_Opt_ uintptr_t* VectorOut)
 {
-    BlockVector_t* Buffer = (BlockVector_t*)
+    SystemSharedRegion_t* Buffer = (SystemSharedRegion_t*)
         LookupHandleOfType(Handle, HandleTypeMemoryBuffer);
     if (!Buffer) {
         return OsInvalidParameters;
@@ -154,7 +158,7 @@ ScMemoryGetSharedMetrics(
     }
     
     if (VectorOut) {
-        memcpy((void*)&VectorOut[0], (void*)&Buffer->Blocks[0], sizeof(uintptr_t) * Buffer->BlockCount);
+        memcpy((void*)&VectorOut[0], (void*)&Buffer->Pages[0], sizeof(uintptr_t) * Buffer->PageCount);
     }
     return OsSuccess;
 }
@@ -226,7 +230,7 @@ ScCreateMemorySpaceMapping(
 
     // Create the original mapping in the memory space passed, with the correct
     // access flags. The copied one must have all kinds of access.
-    Status = CreateMemorySpaceMapping(MemorySpace, NULL, &Parameters->VirtualAddress,
+    Status = CreateMemorySpaceMapping(MemorySpace, &Parameters->VirtualAddress, NULL,
         Parameters->Length, RequiredFlags, PlacementFlags, __MASK);
     if (Status != OsSuccess) {
         ERROR("ScCreateMemorySpaceMapping::Failed the create mapping in original space");

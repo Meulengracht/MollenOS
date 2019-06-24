@@ -74,8 +74,9 @@ allocate_virtual_memory(Flags_t Flags, size_t PageCount)
         AllocationFlags |= MAPPING_PHYSICAL_DEFAULT;
     }
     
-    Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), NULL, &Address, PageSize * PageCount, 
-        MAPPING_COMMIT | MAPPING_DOMAIN, MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_GLOBAL, __MASK);
+    Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), &Address, NULL, 
+        PageSize * PageCount, MAPPING_COMMIT | MAPPING_DOMAIN, 
+        MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_GLOBAL, __MASK);
     if (Status != OsSuccess) {
         ERROR("Ran out of memory for allocation in the heap");
         return 0;
@@ -702,7 +703,12 @@ void* kmalloc_p(size_t Size, uintptr_t* DmaOut)
 {
     void* Allocation = kmalloc(Size);
     if (Allocation != NULL && DmaOut != NULL) {
-        *DmaOut = GetMemorySpaceMapping(GetCurrentMemorySpace(), (VirtualAddress_t)Allocation);
+        OsStatus_t Status = GetMemorySpaceMapping(GetCurrentMemorySpace(), 
+            (VirtualAddress_t)Allocation, 1, DmaOut);
+        if (Status != OsSuccess) {
+            // ehm what?
+            assert(0);
+        }
     }
     return Allocation;
 }

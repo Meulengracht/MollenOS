@@ -298,7 +298,7 @@ OsStatus_t AcquireImageMapping(MemorySpaceHandle_t Handle, uintptr_t* Address, s
     if (Flags & MEMORY_EXECUTABLE) {
         KernelFlags |= MAPPING_EXECUTABLE;
     }
-    Status = CreateMemorySpaceMapping((SystemMemorySpace_t*)Handle, NULL, Address, Length, 
+    Status = CreateMemorySpaceMapping((SystemMemorySpace_t*)Handle, Address, NULL, Length, 
         KernelFlags, PlacementFlags, __MASK);
 #else
     struct MemoryMappingParameters Parameters;

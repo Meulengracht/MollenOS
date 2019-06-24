@@ -115,9 +115,9 @@ AcquireSystemDeviceIo(
             size_t    PageSize    = GetMemorySpacePageSize();
             size_t    Length      = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
             OsStatus_t Status     = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
-                &BaseAddress, &MappedAddress, Length, 
+                &MappedAddress, &BaseAddress, Length, 
                 MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_PERSISTENT, 
-                MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS, __MASK);
+                MAPPING_PHYSICAL_CONTIGIOUS | MAPPING_VIRTUAL_PROCESS, __MASK);
             if (Status != OsSuccess) {
                 ERROR(" > Failed to allocate memory for device io memory");
                 SystemIo->Owner = UUID_INVALID;
@@ -219,9 +219,9 @@ CreateKernelSystemDeviceIo(
             size_t PageSize       = GetMemorySpacePageSize();
             size_t Length         = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
             OsStatus_t Status     = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
-                &BaseAddress, &SystemIo->Io.Access.Memory.VirtualBase, Length, 
+                &SystemIo->Io.Access.Memory.VirtualBase, &BaseAddress, Length, 
                 MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT, 
-                MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_GLOBAL, __MASK);
+                MAPPING_PHYSICAL_CONTIGIOUS | MAPPING_VIRTUAL_GLOBAL, __MASK);
             if (Status != OsSuccess) {
                 ERROR(" > failed to create mapping");
                 return OsError;

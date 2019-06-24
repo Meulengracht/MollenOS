@@ -222,7 +222,10 @@ FutexWait(
         FutexAddress = (uintptr_t)Futex;
     }
     else {
-        FutexAddress = GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)Futex);
+        if (GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)Futex, 
+                1, &FutexAddress) != OsSuccess) {
+            return OsDoesNotExist;
+        }
     }
     FutexQueue = FutexGetBucket(FutexAddress);
 
@@ -286,7 +289,10 @@ FutexWaitOperation(
         FutexAddress = (uintptr_t)Futex;
     }
     else {
-        FutexAddress = GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)Futex);
+        if (GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)Futex, 
+                1, &FutexAddress) != OsSuccess) {
+            return OsDoesNotExist;
+        }
     }
     FutexQueue = FutexGetBucket(FutexAddress);
     
@@ -345,7 +351,10 @@ FutexWake(
         FutexAddress = (uintptr_t)Futex;
     }
     else {
-        FutexAddress = GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)Futex);
+        if (GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)Futex, 
+                1, &FutexAddress) != OsSuccess) {
+            return OsDoesNotExist;
+        }
     }
     FutexQueue = FutexGetBucket(FutexAddress);
     

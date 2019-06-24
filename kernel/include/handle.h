@@ -29,8 +29,8 @@
 
 typedef enum _SystemHandleType {
     HandleGeneric = 0,
-    HandleTypeMemoryBuffer,
     HandleTypeMemorySpace,
+    HandleTypeMemoryRegion,
     HandleTypePipe,
 
     HandleTypeCount

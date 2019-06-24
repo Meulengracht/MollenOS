@@ -172,9 +172,9 @@ ScCreateDisplayFramebuffer(void)
     uintptr_t            FbVirtual  = 0;
     size_t               FbSize     = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
 
-    if (CreateMemorySpaceMapping(Space, &FbPhysical, &FbVirtual, FbSize, 
+    if (CreateMemorySpaceMapping(Space, &FbVirtual, &FbPhysical, FbSize, 
         MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_PERSISTENT,
-        MAPPING_VIRTUAL_PROCESS | MAPPING_PHYSICAL_FIXED, __MASK) != OsSuccess) {
+        MAPPING_VIRTUAL_PROCESS | MAPPING_PHYSICAL_CONTIGIOUS, __MASK) != OsSuccess) {
         // What? @todo
         ERROR("Failed to map the display buffer");
     }

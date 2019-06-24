@@ -142,7 +142,7 @@ _CRTIMP int system(const char*);
 /* These are the different exit functions, they 
  * all do the same, but have different procedures
  * of doing it */
-CRTDECL(int,                at_quick_exit(void(*Function)(void))); // Register quick termination handler
+CRTDECL(int, at_quick_exit(void(*Function)(void))); // Register quick termination handler
 _CRTIMP_NORETURN(void quick_exit(int));             // Quick termination, No cleanup
 _CRTIMP_NORETURN(void _Exit(int));                  // No cleanup
 CRTDECL(int,                atexit(void(*Function)(void)));        // Register termination handler
@@ -153,7 +153,7 @@ _CRTIMP_NORETURN(void exit(int));                   // Normal termination, clean
  * comparator function can be provided for the sort */
 _CRTIMP void *bsearch(__CONST void *key, __CONST void *base, size_t nmemb, 
     size_t size, int(*compar)(__CONST void *, __CONST void *));
-CRTDECL(void,       qsort(void *base, size_t num, size_t width, int(*comp)(const void*, const void*)));
+CRTDECL(void, qsort(void *base, size_t num, size_t width, int(*comp)(const void*, const void*)));
 
 /* Integer Arethmetic functions 
  * Used to do integer divisions and to calculate
