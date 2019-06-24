@@ -86,7 +86,11 @@ MemoryInherit(
 
 OsStatus_t
 MemoryUnshare(
-    _In_ UUId_t Handle)
+    _In_ UUId_t Handle,
+    _In_ void*  Buffer)
 {
-    return Syscall_MemoryUnshare(Handle);
+    // Free the memory de-facto way
+    MemoryFree();
+    
+    return Syscall_DestroyHandle(Handle);
 }
