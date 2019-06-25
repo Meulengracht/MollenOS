@@ -21,7 +21,7 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include <ddk/buffer.h>
+#include <os/mollenos.h>
 #include "../../libwm_buffer.h"
 
 int wm_buffer_create(size_t initial_size, size_t capacity, wm_handle_t* handle_out, void** buffer_out)

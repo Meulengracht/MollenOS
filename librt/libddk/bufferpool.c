@@ -39,21 +39,18 @@ OsStatus_t
 BufferPoolCreate(
     _In_  UUId_t         BufferHandle,
     _In_  void*          Buffer,
+    _In_  size_t         Length,
     _Out_ BufferPool_t** PoolOut)
 {
     BufferPool_t* Pool;
-    size_t        Length;
     OsStatus_t    Status;
     int           VectorSize;
     
     // Get buffer metrics and mappings
-    Status = MemoryGetSharedMetrics(BufferHandle, &Length, NULL);
+    Status = MemoryGetSharedMetrics(BufferHandle, &VectorSize, NULL);
     if (Status != OsSuccess) {
         return Status;
     }
-    
-    // @todo get the page size from system
-    VectorSize = Length / 0x1000;
     
     // Allocate the pool
     Pool               = (BufferPool_t*)malloc(sizeof(BufferPool_t) + (VectorSize * sizeof(uintptr_t)));

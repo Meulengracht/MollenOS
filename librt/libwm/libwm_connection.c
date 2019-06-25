@@ -102,6 +102,7 @@ static int wm_connection_ping(wm_connection_t* connection)
     else {
         // send ping
     }
+    return 0;
 }
 
 static int wm_connection_pong(wm_connection_t* connection)
@@ -111,6 +112,7 @@ static int wm_connection_pong(wm_connection_t* connection)
     
     // if we were in a non-responsive state before then send a control
     // event to the server
+    return 0;
 }
 
 static int wm_connection_handler(void* param)
@@ -155,7 +157,7 @@ static int wm_connection_handler(void* param)
 
         // handle ping/pong messages at connection level, otherwise
         // elevate message to handler
-        if (header->type == wm_request_pong) {
+        if (header->event == wm_request_pong) {
             wm_connection_pong(connection);
         }
         else {
@@ -205,7 +207,7 @@ int wm_connection_create(int client_socket, struct sockaddr_storage* address, in
 int wm_connection_shutdown(int sock)
 {
     // get connetion from int
-    wm_connection_t* connection = wm_connection_to_struct(connection);
+    wm_connection_t* connection = wm_connection_to_struct(sock);
     if (!connection) {
         _set_errno(EBADF);
         return -1;

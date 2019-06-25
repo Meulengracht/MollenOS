@@ -75,8 +75,8 @@ MemoryShare(
 
 OsStatus_t
 MemoryInherit(
-    _In_  UUId_t Handle,
-    _Out_ void** BufferOut)
+    _In_  UUId_t  Handle,
+    _Out_ void**  BufferOut)
 {
     if (!BufferOut) {
         return OsInvalidParameters;
@@ -86,11 +86,7 @@ MemoryInherit(
 
 OsStatus_t
 MemoryUnshare(
-    _In_ UUId_t Handle,
-    _In_ void*  Buffer)
+    _In_ UUId_t Handle)
 {
-    // Free the memory de-facto way
-    MemoryFree();
-    
     return Syscall_DestroyHandle(Handle);
 }

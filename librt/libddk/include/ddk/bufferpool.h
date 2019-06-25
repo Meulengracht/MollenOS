@@ -37,6 +37,7 @@ OsStatus_t,
 BufferPoolCreate(
     _In_  UUId_t         BufferHandle,
     _In_  void*          Buffer,
+    _In_  size_t         Length,
     _Out_ BufferPool_t** PoolOut));
 
 /* BufferPoolDestroy

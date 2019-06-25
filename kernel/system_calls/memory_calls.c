@@ -136,7 +136,8 @@ ScMemoryInherit(
         MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS,
         __MASK);
     if (Status == OsSuccess) {
-        *MemoryOut = (void*)Memory;
+        // Remember to add the correct offset stored in the first page
+        *MemoryOut = (void*)(Memory + (Buffer->Pages[0] % GetMemorySpacePageSize());
     }
     return Status;
 }
@@ -144,17 +145,17 @@ ScMemoryInherit(
 OsStatus_t
 ScMemoryGetSharedMetrics(
     _In_      UUId_t     Handle,
-    _Out_Opt_ size_t*    LengthOut,
+    _Out_Opt_ int*       VectorLengthOut,
     _Out_Opt_ uintptr_t* VectorOut)
 {
     SystemSharedRegion_t* Buffer = (SystemSharedRegion_t*)
-        LookupHandleOfType(Handle, HandleTypeMemoryBuffer);
+        LookupHandleOfType(Handle, HandleTypeMemoryRegion);
     if (!Buffer) {
         return OsInvalidParameters;
     }
     
-    if (LengthOut) {
-        *LengthOut = Buffer->BlockCount;
+    if (VectorLengthOut) {
+        *VectorLengthOut = Buffer->PageCount;
     }
     
     if (VectorOut) {

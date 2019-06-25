@@ -22,7 +22,7 @@
  */
 
 #include <os/mollenos.h>
-#include "../libwm_os.h"
+#include "../../libwm_os.h"
 #include <inet/socket.h>
 #include <inet/local.h>
 #include <string.h>

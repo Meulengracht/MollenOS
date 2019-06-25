@@ -45,7 +45,7 @@ UsbInitialize(void)
 {
     __LibUsbBuffer = malloc(LIBUSB_SHAREDBUFFER_SIZE);
     MemoryShare(__LibUsbBuffer, LIBUSB_SHAREDBUFFER_SIZE, &__LibUsbBufferHandle);
-    return BufferPoolCreate(__LibUsbBufferHandle, __LibUsbBuffer, &__LibUsbBufferPool);
+    return BufferPoolCreate(__LibUsbBufferHandle, __LibUsbBuffer, LIBUSB_SHAREDBUFFER_SIZE, &__LibUsbBufferPool);
 }
 
 /* UsbCleanup

@@ -39,7 +39,7 @@ struct MemoryMappingParameters {
 DDKDECL(OsStatus_t,
 MemoryGetSharedMetrics(
     _In_      UUId_t     Handle,
-    _Out_Opt_ size_t*    LengthOut,
+    _Out_Opt_ int*       VectorLengthOut,
     _Out_Opt_ uintptr_t* VectorOut));
 
 /* CreateMemorySpace

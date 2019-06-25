@@ -290,11 +290,14 @@ MemoryCreateSharedRegion(
     SystemSharedRegion_t* Region;
     OsStatus_t            Status;
     int                   PageCount;
+    size_t                LengthWithOffset;
 
     // Create the DMA vector to store physical addressing information
-    PageCount = DIVUP(Length, GetMemorySpacePageSize());
-    Region    = (SystemSharedRegion_t*)kmalloc(
-        sizeof(SystemSharedRegion_t) + sizeof(uintptr_t) * PageCount);
+    LengthWithOffset = Length + ((uintptr_t)Region % GetMemorySpacePageSize());
+    PageCount        = DIVUP(LengthWithOffset, GetMemorySpacePageSize());
+    
+    Region = (SystemSharedRegion_t*)kmalloc(
+        sizeof(SystemSharedRegion_t) + (sizeof(uintptr_t) * PageCount));
     if (!Region) {
         return OsOutOfMemory;
     }
@@ -310,7 +313,7 @@ MemoryCreateSharedRegion(
         return Status;
     }
     
-    Region->Length    = Length;
+    Region->Length    = LengthWithOffset;
     Region->PageCount = PageCount;
     Region->Pages     = Vector;
     return CreateHandle(HandleTypeMemoryRegion, Region);

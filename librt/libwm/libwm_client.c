@@ -25,6 +25,7 @@
 #include <inet/socket.h>
 #include "libwm_client.h"
 #include "libwm_os.h"
+#include <string.h>
 #include <threads.h>
 
 static wm_client_message_handler_t wm_message_handler;
@@ -39,8 +40,8 @@ static int wm_execute_command(wm_request_header_t* command)
     assert(wm_initialized == 1);
     
     bytes_written = send(wm_socket, (const void*)command, 
-        command->header.length, MSG_WAITALL);
-    return bytes_written != command->header.length;
+        command->length, MSG_WAITALL);
+    return bytes_written != command->length;
 }
 
 static void wm_client_event_handler(wm_request_header_t* event)
@@ -115,7 +116,7 @@ int wm_client_create_window(const char* title, int x, int y, int w, int h, unsig
     wm_request_window_create_t request;
     
     request.header.magic  = WM_HEADER_MAGIC;
-    request.header.type   = wm_request_window_create;
+    request.header.event  = wm_request_window_create;
     request.header.length = sizeof(wm_request_window_create_t);
 
     request.dimensions.x = x;
@@ -138,7 +139,7 @@ int wm_client_destroy_window(int handle)
     wm_request_window_destroy_t request;
     
     request.header.magic  = WM_HEADER_MAGIC;
-    request.header.type   = wm_request_window_destroy;
+    request.header.event  = wm_request_window_destroy;
     request.header.length = sizeof(wm_request_window_destroy_t);
 
     
@@ -146,12 +147,12 @@ int wm_client_destroy_window(int handle)
     return wm_execute_command(&request.header);
 }
 
-int wm_client_redraw_window(void)
+int wm_client_redraw_window(int handle, wm_rect_t* damage_area)
 {
     wm_request_window_redraw_t request;
 
     request.header.magic  = WM_HEADER_MAGIC;
-    request.header.type   = wm_request_window_redraw;
+    request.header.event  = wm_request_window_redraw;
     request.header.length = sizeof(wm_request_window_redraw_t);
     
     
@@ -159,7 +160,7 @@ int wm_client_redraw_window(void)
     return wm_execute_command(&request.header);
 }
 
-int wm_client_window_set_title(void)
+int wm_client_window_set_title(int handle, const char* title)
 {
     wm_request_window_set_title_t request;
 
@@ -167,7 +168,7 @@ int wm_client_window_set_title(void)
     return wm_execute_command(&request.header);
 }
 
-int wm_client_resize_window(void)
+int wm_client_resize_window(int handle, wm_rect_t* area)
 {
     wm_request_window_resize_t request;
 
@@ -175,7 +176,7 @@ int wm_client_resize_window(void)
     return wm_execute_command(&request.header);
 }
 
-int wm_client_register_buffer(void)
+int wm_client_register_buffer(wm_handle_t handle, wm_surface_descriptor_t* surface)
 {
     wm_request_surface_register_t request;
 
@@ -183,7 +184,7 @@ int wm_client_register_buffer(void)
     return wm_execute_command(&request.header);
 }
 
-int wm_client_unregister_buffer(void)
+int wm_client_unregister_buffer(wm_handle_t handle)
 {
     wm_request_surface_unregister_t request;
 
@@ -191,7 +192,7 @@ int wm_client_unregister_buffer(void)
     return wm_execute_command(&request.header);
 }
 
-int wm_client_set_active_buffer(void)
+int wm_client_set_active_buffer(wm_handle_t handle)
 {
     wm_request_surface_set_active_t request;
 
@@ -203,6 +204,6 @@ int wm_client_shutdown(void)
 {
     // send disconnect request
     // join thread
-    thrd_join(wm_listener_thread);
+    //thrd_join(wm_listener_thread);
     return 0;
 }

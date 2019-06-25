@@ -116,7 +116,7 @@ static int wm_input_worker(void* param)
 static void wm_connection_handler(int connection, wm_request_header_t* request)
 {
     // handle internal events
-    switch (request->type) {
+    switch (request->event) {
         case wm_request_window_create: {
             
         } break;

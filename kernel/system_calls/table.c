@@ -120,7 +120,7 @@ extern OsStatus_t ScMemoryFree(uintptr_t  Address, size_t Size);
 extern OsStatus_t ScMemoryProtect(void* MemoryPointer, size_t Length, Flags_t Flags, Flags_t* PreviousFlags);
 extern OsStatus_t ScMemoryShare(void*, size_t, UUId_t*);
 extern OsStatus_t ScMemoryInherit(UUId_t, void**);
-extern OsStatus_t ScMemoryGetSharedMetrics(UUId_t, size_t*, uintptr_t*);
+extern OsStatus_t ScMemoryGetSharedMetrics(UUId_t, int*, uintptr_t*);
 
 // Support system calls
 extern OsStatus_t ScDestroyHandle(UUId_t Handle);
