@@ -37,19 +37,15 @@ static void*         __LibUsbBuffer           = NULL;
 static UUId_t        __LibUsbBufferHandle     = UUID_INVALID;
 static BufferPool_t* __LibUsbBufferPool       = NULL;
 
-/* UsbInitialize
- * Initializes libusb and enables the use of all the control
- * functions that require a shared buffer-pool. */
 OsStatus_t
 UsbInitialize(void)
 {
-    __LibUsbBuffer = malloc(LIBUSB_SHAREDBUFFER_SIZE);
-    MemoryShare(__LibUsbBuffer, LIBUSB_SHAREDBUFFER_SIZE, &__LibUsbBufferHandle);
-    return BufferPoolCreate(__LibUsbBufferHandle, __LibUsbBuffer, LIBUSB_SHAREDBUFFER_SIZE, &__LibUsbBufferPool);
+    MemoryShare(LIBUSB_SHAREDBUFFER_SIZE, LIBUSB_SHAREDBUFFER_SIZE, 
+        &__LibUsbBuffer, &__LibUsbBufferHandle);
+    return BufferPoolCreate(__LibUsbBufferHandle, __LibUsbBuffer, 
+        LIBUSB_SHAREDBUFFER_SIZE, &__LibUsbBufferPool);
 }
 
-/* UsbCleanup
- * Frees the shared resources allocated by UsbInitialize. */
 OsStatus_t
 UsbCleanup(void)
 {
@@ -58,8 +54,8 @@ UsbCleanup(void)
     }
 
     BufferPoolDestroy(__LibUsbBufferPool);
+    MemoryFree(__LibUsbBuffer, LIBUSB_SHAREDBUFFER_SIZE);
     MemoryUnshare(__LibUsbBufferHandle);
-    free(__LibUsbBuffer);
     __LibUsbBuffer = NULL;
     return OsSuccess;
 }

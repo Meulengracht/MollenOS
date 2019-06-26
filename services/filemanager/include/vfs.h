@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Virtual File Definitions & Structures
+ * Virtual File Definitions & Structures
  * - This header describes the base virtual file-structure, prototypes
  *   and functionality, refer to the individual things for descriptions
  */
@@ -30,7 +30,6 @@
 #include <os/types/path.h>
 #include <ds/collection.h>
 #include <os/mollenos.h>
-#include <ddk/buffer.h>
 #include <ds/mstring.h>
 
 /* VFS Definitions 
@@ -104,7 +103,7 @@ DiskRegisterFileSystem(
  * with the given sector count. It then loads the correct driver
  * and installs it */
 __EXTERN OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
-    DmaBuffer_t *Buffer, uint64_t Sector, uint64_t SectorCount);
+    UUId_t BufferHandle, uint64_t Sector, uint64_t SectorCount);
 
 /* DiskDetectLayout
  * Detects the kind of layout on the disk, be it

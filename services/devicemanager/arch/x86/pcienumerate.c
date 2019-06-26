@@ -49,6 +49,18 @@ static int __GlbAcpiAvailable           = 0;
  * we need access to this function again.. */
 void PciCheckBus(PciDevice_t *Parent, int Bus);
 
+/*
+static uint32_t pci_mmcfg_readreg(uint32_t bdf, uint8_t reg)
+{
+    return virtbase[(bdf << 10) | (reg >> 2)];
+}
+
+static uint32_t pci_mmcfg_writereg(uint32_t bdf, uint8_t reg, uint32_t val)
+{
+    virtbase[(bdf << 10) | (reg >> 2)] = val;
+}
+*/
+
 /* PciToDevClass
  * Helper to construct the class from available pci-information */
 DevInfo_t PciToDevClass(uint32_t Class, uint32_t SubClass) {

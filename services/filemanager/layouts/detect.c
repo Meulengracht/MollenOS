@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - File Manager Service
+ * File Manager Service
  * - Handles all file related services and disk services
  */
 #define __TRACE
@@ -26,12 +26,10 @@
 #include "../include/gpt.h"
 #include "../include/mbr.h"
 
-/* DiskDetectFileSystem
- * Detectes the kind of filesystem at the given absolute sector 
- * with the given sector count. It then loads the correct driver
- * and installs it */
-OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
-	DmaBuffer_t *Buffer, uint64_t Sector, uint64_t SectorCount)
+OsStatus_t
+DiskDetectFileSystem(FileSystemDisk_t *Disk,
+	UUId_t BufferHandle, void* Buffer, 
+	uint64_t Sector, uint64_t SectorCount)
 {
 	MasterBootRecord_t* Mbr;
 	FileSystemType_t    Type = FSUnknown;
@@ -43,7 +41,7 @@ OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
 
 	// Make sure the MBR is loaded
 	if (StorageRead(Disk->Driver, Disk->Device, Sector, 
-		GetBufferDma(Buffer), 1, &SectorsRead) != OsSuccess) {
+			BufferHandle, 1, &SectorsRead) != OsSuccess) {
 		return OsError;
 	}
 
@@ -52,7 +50,7 @@ OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
 	// NTFS - "NTFS" 
 	// exFAT - "EXFAT" 
 	// FAT - "FATXX"
-	Mbr = (MasterBootRecord_t*)GetBufferDataPointer(Buffer);
+	Mbr = (MasterBootRecord_t*)Buffer;
 	if (!strncmp((const char*)&Mbr->BootCode[3], "MFS1", 4)) {
 		Type = FSMFS;
 	}
@@ -85,20 +83,15 @@ OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
 	}
 }
 
-/* DiskDetectLayout
- * Detects the kind of layout on the disk, be it
- * MBR or GPT layout, if there is no layout it returns
- * OsError to indicate the entire disk is a FS */
 OsStatus_t DiskDetectLayout(FileSystemDisk_t *Disk)
 {
-	DmaBuffer_t* Buffer;
+	UUId_t       BufferHandle;
+	void*        Buffer;
 	GptHeader_t* Gpt;
 	OsStatus_t   Result;
 	size_t       SectorsRead;
 
-	// Trace
-	TRACE("DiskDetectLayout(SectorSize %u)",
-        Disk->Descriptor.SectorSize);
+	TRACE("DiskDetectLayout(SectorSize %u)", Disk->Descriptor.SectorSize);
 
 	// Allocate a generic transfer buffer for disk operations
 	// on the given disk, we need it to parse the disk
@@ -108,7 +101,7 @@ OsStatus_t DiskDetectLayout(FileSystemDisk_t *Disk)
 	// for the disk - we can easily just read sector LBA 1
 	// and look for the GPT signature
 	if (StorageRead(Disk->Driver, Disk->Device, 1, 
-		GetBufferDma(Buffer), 1, &SectorsRead) != OsSuccess) {
+			BufferHandle, 1, &SectorsRead) != OsSuccess) {
 		DestroyBuffer(Buffer);
 		return OsError;
 	}
@@ -126,7 +119,6 @@ OsStatus_t DiskDetectLayout(FileSystemDisk_t *Disk)
 		Result = MbrEnumerate(Disk, Buffer);
 	}
 
-	// Cleanup buffer
 	DestroyBuffer(Buffer);
 	return Result;
 }

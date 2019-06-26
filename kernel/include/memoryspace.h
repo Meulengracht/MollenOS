@@ -60,6 +60,8 @@ typedef struct _BlockBitmap BlockBitmap_t;
 #define MAPPING_VIRTUAL_FIXED           0x00000010  // (Virtual) Mapping is supplied
 #define MAPPING_VIRTUAL_MASK            0x0000001C
 
+#define MEMORY_REGION_SUPPLIED          0x00000001
+
 typedef struct _SystemMemoryMappingHandler {
     CollectionItem_t Header;
     UUId_t           Handle;
@@ -69,6 +71,8 @@ typedef struct _SystemMemoryMappingHandler {
 
 typedef struct {
     size_t    Length;
+    size_t    Capacity;
+    Flags_t   Flags;
     int       PageCount;
     uintptr_t Pages[1];
 } SystemSharedRegion_t;
@@ -139,18 +143,25 @@ AreMemorySpacesRelated(
     _In_ SystemMemorySpace_t* Space1,
     _In_ SystemMemorySpace_t* Space2);
 
-/* MemoryCreateSharedRegion
- * Creates a new memory buffer instance of the given size. The allocation
- * of resources happens at this call, and reference is set to 1.  */
 KERNELAPI OsStatus_t KERNELABI
 MemoryCreateSharedRegion(
-    _In_  void*   Region,
-    _In_  size_t  Length,
-    _Out_ UUId_t* HandleOut);
+    _In_     size_t  Length,
+    _In_     size_t  Capacity,
+    _InOut_  void**  Memory,
+    _Out_    UUId_t* HandleOut);
 
-/* MemoryDestroySharedRegion
- * Cleans up the resources associated with the handle. This function is registered
- * with the handle manager. */
+KERNELAPI OsStatus_t KERNELABI
+MemoryResizeSharedRegion(
+    _In_ UUId_t Handle,
+    _In_ void*  Memory,
+    _In_ size_t NewLength);
+    
+KERNELAPI OsStatus_t KERNELABI
+MemoryRefreshSharedRegion(
+    _In_ UUId_t Handle,
+    _In_ void*  Memory,
+    _In_ size_t CurrentLength);
+
 KERNELAPI OsStatus_t KERNELABI
 MemoryDestroySharedRegion(
     _In_  void* Resource);
@@ -176,6 +187,7 @@ ChangeMemorySpaceProtection(
  * @param DmaVector      [In, Out] Contains physical addresses for the mappings done.
  * @param MemoryFlags    [In]      Memory mapping configuration flags.
  * @param PlacementFlags [In]      The physical mappings that are allocated are only allowed in this memory mask.
+ * @param Mask           [In]      Memory mask for physical allocations.
  */
 KERNELAPI OsStatus_t KERNELABI
 CreateMemorySpaceMapping(
@@ -187,15 +199,25 @@ CreateMemorySpaceMapping(
     _In_        Flags_t              PlacementFlags,
     _In_        uintptr_t            PhysicalMask);
 
-/* CommitMemorySpaceMapping
- * Commits/finishes an already present memory mapping. If a physical address
- * is not already provided one will be allocated for the mapping. Flags must present. */
+/** 
+ * CommitMemorySpaceMapping
+ * * Commits/finishes an already present memory mapping. If a physical address
+ * * is not already provided one will be allocated for the mapping.
+ * @param MemorySpace    [In]      The memory space where the mapping should be commited.
+ * @param Address        [In]      The virtual address that should be committed.
+ * @param DmaVector      [Out]     The dma vector where the physical mappings should be provided.
+ * @param Length         [In]      Length that should be committed.
+ * @param Placement      [In]      Supports MAPPING_PHYSICAL_* flags.
+ * @param Mask           [In]      Memory mask for physical allocations.
+ */
 KERNELAPI OsStatus_t KERNELABI
 CommitMemorySpaceMapping(
-    _In_        SystemMemorySpace_t* SystemMemorySpace,
-    _InOut_Opt_ PhysicalAddress_t*   PhysicalAddress, 
-    _In_        VirtualAddress_t     VirtualAddress,
-    _In_        uintptr_t            PhysicalMask);
+    _In_        SystemMemorySpace_t* MemorySpace,
+    _In_        VirtualAddress_t     Address,
+    _In_        uintptr_t*           DmaVector,
+    _In_        size_t               Length,
+    _In_        Flags_t              Placement,
+    _In_        uintptr_t            Mask);
 
 /* CloneMemorySpaceMapping
  * Clones a region of memory mappings into the address space provided. The new mapping

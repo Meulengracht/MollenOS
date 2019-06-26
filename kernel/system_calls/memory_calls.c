@@ -108,38 +108,81 @@ ScMemoryProtect(
 
 OsStatus_t
 ScMemoryShare(
-    _In_  void*   Buffer,
-    _In_  size_t  Length,
-    _Out_ UUId_t* HandleOut)
+    _In_     size_t  Length,
+    _In_     size_t  Capacity,
+    _InOut_  void**  Memory,
+    _Out_    UUId_t* HandleOut)
 {
-    if (!Buffer || !Handle || !Length) {
+    if (!Capacity || !HandleOut || !Memory) {
         return OsInvalidParameters;
     }
-    return MemoryCreateSharedRegion(Buffer, Length, HandleOut);
+    return MemoryCreateSharedRegion(Length, Capacity, Memory, HandleOut);
 }
 
 OsStatus_t
 ScMemoryInherit(
-    _In_  UUId_t Handle,
-    _Out_ void** MemoryOut)
+    _In_  UUId_t  Handle,
+    _Out_ void**  MemoryOut,
+    _Out_ size_t* LengthOut,
+    _Out_ size_t* CapacityOut)
 {
-    VirtualAddress_t      Memory;
+    SystemSharedRegion_t* Region = (SystemSharedRegion_t*)AcquireHandle(Handle);
     OsStatus_t            Status;
-    SystemSharedRegion_t* Buffer = (SystemSharedRegion_t*)AcquireHandle(Handle);
-    if (!Buffer) {
+    uintptr_t             Offset;
+    uintptr_t             Address;
+    if (!Region) {
         return OsInvalidParameters;
     }
-
-    Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(), &Memory,
-        &Buffer->Pages[0], Buffer->Length, 
-        MAPPING_USERSPACE | MAPPING_PERSISTENT | MAPPING_COMMIT,
-        MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS,
-        __MASK);
+    
+    // TODO: Guard against already committed regions, check attributes
+    // 
+    
+    // This is more tricky, for the calling process we must make a new
+    // mapping that spans the entire Capacity, but is uncommitted, and then commit
+    // the Length of it.
+    Offset = (Region->Pages[0] % GetMemorySpacePageSize());
+    Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
+        (VirtualAddress_t*)&Address, NULL, Region->Capacity + Offset, 
+        MAPPING_USERSPACE | MAPPING_PERSISTENT,
+        MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_PROCESS, __MASK);
+    if (Status != OsSuccess) {
+        return Status;
+    }
+    
+    // Now commit <Length> in pages
+    Status = CommitMemorySpaceMapping(GetCurrentMemorySpace(),
+        Address, &Region->Pages[0], Region->Length + Offset, 
+        MAPPING_PHYSICAL_FIXED, __MASK);
     if (Status == OsSuccess) {
-        // Remember to add the correct offset stored in the first page
-        *MemoryOut = (void*)(Memory + (Buffer->Pages[0] % GetMemorySpacePageSize());
+        *MemoryOut   = (void*)(Address + Offset);
+        *LengthOut   = Region->Length;
+        *CapacityOut = Region->Capacity;
     }
     return Status;
+}
+
+OsStatus_t
+ScMemoryResize(
+    _In_ UUId_t Handle,
+    _In_ void*  Memory,
+    _In_ size_t NewLength)
+{
+    if (!Memory) {
+        return OsInvalidParameters;
+    }
+    return MemoryResizeSharedRegion(Handle, Memory, NewLength);
+}
+
+OsStatus_t
+ScMemoryRefresh(
+    _In_ UUId_t Handle,
+    _In_ void*  Memory,
+    _In_ size_t CurrentLength)
+{
+    if (!Memory) {
+        return OsInvalidParameters;
+    }
+    return MemoryRefreshSharedRegion(Handle, Memory, CurrentLength);
 }
 
 OsStatus_t

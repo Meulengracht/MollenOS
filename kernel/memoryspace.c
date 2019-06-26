@@ -283,40 +283,145 @@ AreMemorySpacesRelated(
 
 OsStatus_t
 MemoryCreateSharedRegion(
-    _In_  void*   Region,
-    _In_  size_t  Length,
-    _Out_ UUId_t* HandleOut)
+    _In_     size_t  Length,
+    _In_     size_t  Capacity,
+    _InOut_  void**  Memory,
+    _Out_    UUId_t* HandleOut)
 {
     SystemSharedRegion_t* Region;
     OsStatus_t            Status;
     int                   PageCount;
-    size_t                LengthWithOffset;
+    size_t                CapacityWithOffset;
+    uintptr_t             MemoryAddress = (uintptr_t)*Memory;
+    Flags_t               Flags         = 0;
 
-    // Create the DMA vector to store physical addressing information
-    LengthWithOffset = Length + ((uintptr_t)Region % GetMemorySpacePageSize());
-    PageCount        = DIVUP(LengthWithOffset, GetMemorySpacePageSize());
+    // Capacity is the expected maximum size of the region. Regions
+    // are resizable, but to ensure that enough continious space is
+    // allocated we must do it like this. Otherwise one must create a new.
+    CapacityWithOffset = Capacity + ((uintptr_t)MemoryAddress % GetMemorySpacePageSize());
+    PageCount          = DIVUP(CapacityWithOffset, GetMemorySpacePageSize());
     
     Region = (SystemSharedRegion_t*)kmalloc(
         sizeof(SystemSharedRegion_t) + (sizeof(uintptr_t) * PageCount));
     if (!Region) {
         return OsOutOfMemory;
     }
+    memset(Region, 0, sizeof(SystemSharedRegion_t) + (sizeof(uintptr_t) * PageCount));
     
-    // Ensure memory has been committed, otherwise we can end up with
-    // different memory allocations for each user of the buffers.
-    
-    
-    Status = GetSystemMemoryMappings(GetCurrentMemorySpace(), 
-        (VirtualAddress_t)Buffer, PageCount, &Region->Pages[0]);
-    if (Status != OsSuccess) {
-        kfree(Region);
-        return Status;
+    // If the memory is provided we would like to just query for dma's
+    if (MemoryAddress != 0) {
+        Flags  = MEMORY_REGION_SUPPLIED;
+        Status = GetMemorySpaceMapping(GetCurrentMemorySpace(), 
+            MemoryAddress, PageCount, &Region->Pages[0]);
+        if (Status != OsSuccess) {
+            kfree(Region);
+            return Status;
+        }
+    }
+    else {
+        // This is more tricky, for the calling process we must make a new
+        // mapping that spans the entire Capacity, but is uncommitted, and then commit
+        // the Length of it.
+        Status = CreateMemorySpaceMapping(GetCurrentMemorySpace(),
+            (VirtualAddress_t*)Memory, NULL, CapacityWithOffset, 
+            MAPPING_USERSPACE | MAPPING_PERSISTENT,
+            MAPPING_PHYSICAL_DEFAULT | MAPPING_VIRTUAL_PROCESS, __MASK);
+        if (Status != OsSuccess) {
+            kfree(Region);
+            return Status;
+        }
+        
+        // Now commit <Length> in pages
+        Status = CommitMemorySpaceMapping(GetCurrentMemorySpace(),
+            (VirtualAddress_t)*Memory, &Region->Pages[0], Length, 
+            MAPPING_PHYSICAL_DEFAULT, __MASK);
     }
     
-    Region->Length    = LengthWithOffset;
+    Region->Flags     = Flags;
+    Region->Length    = Length;
+    Region->Capacity  = Capacity;
     Region->PageCount = PageCount;
-    Region->Pages     = Vector;
     return CreateHandle(HandleTypeMemoryRegion, Region);
+}
+
+OsStatus_t
+MemoryResizeSharedRegion(
+    _In_ UUId_t Handle,
+    _In_ void*  Memory,
+    _In_ size_t NewLength)
+{
+    SystemSharedRegion_t* Region;
+    int                   CurrentPages;
+    int                   NewPages;
+    uintptr_t             End;
+    OsStatus_t            Status;
+    
+    // Lookup region
+    Region = LookupHandleOfType(Handle, HandleTypeMemoryRegion);
+    if (!Region) {
+        return OsDoesNotExist;
+    }
+    
+    // Verify that the new length is not exceeding capacity
+    if (NewLength > Region->Capacity) {
+        return OsInvalidParameters;
+    }
+    
+    CurrentPages = DIVUP(Region->Length, GetMemorySpacePageSize());
+    NewPages     = DIVUP(NewLength, GetMemorySpacePageSize());
+    
+    // If we are shrinking (not supported atm) or equal then simply move on
+    // and report success. We won't perform any unmapping
+    if (CurrentPages >= NewPages) {
+        return OsSuccess;
+    }
+    
+    // Calculate from where we should start committing new pages
+    End    = (uintptr_t)Memory + (CurrentPages * GetMemorySpacePageSize());
+    Status = CommitMemorySpaceMapping(GetCurrentMemorySpace(), End, 
+        &Region->Pages[CurrentPages], NewLength - Region->Length,
+        MAPPING_PHYSICAL_DEFAULT, __MASK);
+    if (Status == OsSuccess) {
+        Region->Length = NewLength;
+    }
+    return Status;
+}
+
+OsStatus_t
+MemoryRefreshSharedRegion(
+    _In_ UUId_t Handle,
+    _In_ void*  Memory,
+    _In_ size_t CurrentLength)
+{
+    SystemSharedRegion_t* Region;
+    int                   CurrentPages;
+    int                   NewPages;
+    uintptr_t             End;
+    
+    // Lookup region
+    Region = LookupHandleOfType(Handle, HandleTypeMemoryRegion);
+    if (!Region) {
+        return OsDoesNotExist;
+    }
+    
+    // Calculate the new number of pages that should be mapped,
+    // but instead of using the provided argument as new, it must be
+    // the previous
+    CurrentPages = DIVUP(CurrentLength, GetMemorySpacePageSize());
+    NewPages     = DIVUP(Region->Length, GetMemorySpacePageSize());
+    
+    // If we are shrinking (not supported atm) or equal then simply move on
+    // and report success. We won't perform any unmapping
+    if (CurrentPages >= NewPages) {
+        return OsSuccess;
+    }
+    
+    // Otherwise commit mappings, but instead of doing like the Resize
+    // operation we will tell that we provide them ourself
+    End = (uintptr_t)Memory + (CurrentPages * GetMemorySpacePageSize());
+    return CommitMemorySpaceMapping(GetCurrentMemorySpace(), End, 
+        &Region->Pages[CurrentPages], Region->Length - CurrentLength,
+        MAPPING_PHYSICAL_FIXED, __MASK);
 }
 
 OsStatus_t
@@ -324,9 +429,11 @@ MemoryDestroySharedRegion(
     _In_ void* Resource)
 {
     SystemSharedRegion_t* Region = (SystemSharedRegion_t*)Resource;
-    OsStatus_t            Status;
-    for (int i = 0; i < Region->PageCount; i++) {
-        Status = FreeSystemMemory(Region->Pages[i], GetMemorySpacePageSize());
+    OsStatus_t            Status = OsSuccess;
+    if (!(Region->Flags & MEMORY_REGION_SUPPLIED)) {
+        for (int i = 0; i < Region->PageCount; i++) {
+            Status = FreeSystemMemory(Region->Pages[i], GetMemorySpacePageSize());
+        }
     }
     kfree(Region);
     return Status;
@@ -402,12 +509,13 @@ CreateMemorySpaceMapping(
     _In_        Flags_t              PlacementFlags,
     _In_        uintptr_t            PhysicalMask)
 {
-    int               PageCount      = DIVUP(Size, GetMemorySpacePageSize());
+    int               PageCount      = DIVUP(Length, GetMemorySpacePageSize());
     int               CleanupOnError = 0;
     VirtualAddress_t  VirtualBase;
     OsStatus_t        Status;
     int               i;
-    assert(SystemMemorySpace != NULL);
+    
+    assert(MemorySpace != NULL);
     assert(PlacementFlags != 0);
     
     // Make sure that we set COMMIT and PERSISTANT if fixed is present, it makes no sense to not
@@ -433,7 +541,8 @@ CreateMemorySpaceMapping(
     
     // Resolve the virtual address, if virtual-base is zero then we have trouble, as something
     // went wrong during the phase to figure out where to place
-    VirtualBase = ResolveVirtualSystemMemorySpaceAddress(SystemMemorySpace, VirtualAddress, Size, PlacementFlags);
+    VirtualBase = ResolveVirtualSystemMemorySpaceAddress(MemorySpace,
+        Address, Length, PlacementFlags);
     if (VirtualBase != 0) {
         for (i = 0; i < PageCount; i++) {
             uintptr_t VirtualPage  = VirtualBase + (i * GetMemorySpacePageSize());
@@ -457,9 +566,10 @@ CreateMemorySpaceMapping(
                 }
             }
             
-            Status = InstallMemoryMapping(SystemMemorySpace, PhysicalPage, VirtualPage, MemoryFlags, PlacementFlags);
+            Status = InstallMemoryMapping(MemorySpace, PhysicalPage, 
+                VirtualPage, MemoryFlags, PlacementFlags);
             if (Status != OsSuccess) {
-                if ((MemoryFlags & MAPPING_COMMIT | MAPPING_PHYSICAL_DEFAULT) == 
+                if ((MemoryFlags & (MAPPING_COMMIT | MAPPING_PHYSICAL_DEFAULT)) == 
                         (MAPPING_COMMIT | MAPPING_PHYSICAL_DEFAULT) &&
                     !DmaVector) {
                     FreeSystemMemory(PhysicalPage, GetMemorySpacePageSize());
@@ -472,7 +582,7 @@ CreateMemorySpaceMapping(
         if (i != PageCount) {
             for (i -= 1; i >= 0; i--) {
                 uintptr_t VirtualPage  = (VirtualBase + (i * GetMemorySpacePageSize()));
-                ClearVirtualPageMapping(SystemMemorySpace, VirtualPage);
+                ClearVirtualPageMapping(MemorySpace, VirtualPage);
             }
         }
     }
@@ -488,22 +598,49 @@ CreateMemorySpaceMapping(
 
 OsStatus_t
 CommitMemorySpaceMapping(
-    _In_        SystemMemorySpace_t* SystemMemorySpace,
-    _InOut_Opt_ PhysicalAddress_t*   PhysicalAddress, 
-    _In_        VirtualAddress_t     VirtualAddress,
-    _In_        uintptr_t            PhysicalMask)
+    _In_        SystemMemorySpace_t* MemorySpace,
+    _In_        VirtualAddress_t     Address,
+    _In_        uintptr_t*           DmaVector,
+    _In_        size_t               Length,
+    _In_        Flags_t              Placement,
+    _In_        uintptr_t            Mask)
 {
-    uintptr_t  PhysicalPage;
-    OsStatus_t Status = OsError;
-    assert(SystemMemorySpace != NULL);
-    assert(PhysicalAddress == NULL); // Not used for now
+    int        PageCount = DIVUP(Length, GetMemorySpacePageSize());
+    OsStatus_t Status;
+    int        i;
+    assert(MemorySpace != NULL);
 
-    PhysicalPage = AllocateSystemMemory(GetMemorySpacePageSize(), PhysicalMask, 0);
-    assert(PhysicalPage != 0);
-   
-    Status = CommitVirtualPageMapping(SystemMemorySpace, PhysicalPage, VirtualAddress);
-    if (Status != OsSuccess) {
-        FreeSystemMemory(PhysicalPage, GetMemorySpacePageSize());
+    // Make sure DmaVector is provided in this case
+    if (Placement & MAPPING_PHYSICAL_FIXED) {
+        assert(DmaVector != NULL);
+    }
+
+    for (i = 0; i < PageCount; i++) {
+        uintptr_t Virtual = Address + (i * GetMemorySpacePageSize());
+        uintptr_t Dma;
+        
+        if (Placement & MAPPING_PHYSICAL_FIXED) {
+            if ((Placement & MAPPING_PHYSICAL_CONTIGIOUS) == MAPPING_PHYSICAL_CONTIGIOUS) {
+                Dma = DmaVector[0] + (i * GetMemorySpacePageSize());
+            }
+            else {
+                Dma = DmaVector[i];
+            }
+        }
+        else {
+            Dma = AllocateSystemMemory(GetMemorySpacePageSize(), Mask, 0);
+            if (DmaVector != NULL) {
+                DmaVector[i] = Dma;
+            }
+        }
+        
+        Status = CommitVirtualPageMapping(MemorySpace, Dma, Virtual);
+        if (Status != OsSuccess) {
+            if (Placement & MAPPING_PHYSICAL_DEFAULT) {
+                FreeSystemMemory(Dma, GetMemorySpacePageSize());
+            }
+            break;
+        }
     }
     return Status;
 }
@@ -520,15 +657,14 @@ CloneMemorySpaceMapping(
 {
     VirtualAddress_t VirtualBase;
     int              PageCount = DIVUP(Size, GetMemorySpacePageSize());
+    uintptr_t        DmaVector[PageCount];
     int              i;
-    uintptr_t*       DmaVector;
     OsStatus_t       Status;
     assert(SourceSpace != NULL);
     assert(DestinationSpace != NULL);
     
     // Allocate a temporary array to store physical mappings
-    DmaVector = alloca(sizeof(uintptr_t) * PageCount);
-    Status    = GetMemorySpaceMapping(SourceSpace, SourceAddress, PageCount, DmaVector);
+    Status = GetMemorySpaceMapping(SourceSpace, SourceAddress, PageCount, &DmaVector[0]);
 
     // Get the virtual address space, this however may not end up as 0 if it the mapping
     // is not provided already.
@@ -637,18 +773,18 @@ GetMemorySpaceMapping(
 {
     OsStatus_t Status   = OsSuccess;
     size_t     PageMask = GetMemorySpacePageSize() - 1; // only valid for 2^n
-    int i;
+    int        i;
     
     assert(MemorySpace != NULL);
     assert(DmaVectorOut != NULL);
     
     // Behaviour we want here is only the first mapping to keep the offset
-    for (i = 0; i < PageCount; i++, VirtualAddress += GetMemorySpacePageSize()) {
-        DmaVectorOut[i] = GetVirtualPageMapping(MemorySpace, VirtualAddress);
+    for (i = 0; i < PageCount; i++, Address += GetMemorySpacePageSize()) {
+        DmaVectorOut[i] = GetVirtualPageMapping(MemorySpace, Address);
         if (!i) {
             // The pagemask will be 0xFFF if the page size is 0x1000
             // so make sure we invert the bits
-            VirtualAddress &= ~(PageMask);
+            Address &= ~(PageMask);
         }
     }
     return Status;

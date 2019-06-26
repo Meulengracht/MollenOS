@@ -21,37 +21,146 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
+#include <errno.h>
 #include <os/mollenos.h>
 #include "../../libwm_buffer.h"
+#include <stdlib.h>
 
-int wm_buffer_create(size_t initial_size, size_t capacity, wm_handle_t* handle_out, void** buffer_out)
+struct wm_buffer {
+    UUId_t handle;
+    size_t length;
+    size_t capacity;
+    void*  pointer;
+};
+
+int wm_buffer_create(size_t initial_size, size_t capacity, void** pointer_out, struct wm_buffer** buffer_out)
 {
-    return OsStatusToErrno(BufferCreate(initial_size, capacity, 0, (UUId_t*)handle_out, buffer_out));
+    struct wm_buffer* buffer;
+    int               status;
+    
+    buffer = malloc(sizeof(struct wm_buffer));
+    if (!buffer) {
+        _set_errno(ENOMEM);
+        return -1;
+    }
+    
+    status = OsStatusToErrno(MemoryShare(initial_size, capacity, 
+        pointer_out, &buffer->handle));
+    if (status) {
+        free(buffer);
+        return -1;
+    }
+    
+    buffer->length   = initial_size;
+    buffer->capacity = capacity;
+    buffer->pointer  = *pointer_out;
+    *buffer_out      = buffer;
+    return EOK;
 }
 
-int wm_buffer_inherit(wm_handle_t handle, void** buffer_out)
+int wm_buffer_resize(struct wm_buffer* buffer, size_t size)
 {
-    return OsStatusToErrno(BufferCreateFrom((UUId_t)handle, buffer_out));
+    int status;
+    
+    if (size > buffer->capacity) {
+        _set_errno(ENOSPC);
+        return -1;
+    }
+    
+    status = OsStatusToErrno(MemoryResize(buffer->handle, buffer->pointer, size));
+    if (!status) {
+        buffer->length = size;
+    }
+    return status;
 }
 
-int wm_buffer_destroy(wm_handle_t handle, void* buffer)
+int wm_buffer_inherit(wm_handle_t handle, void** memory_out, struct wm_buffer** buffer_out)
 {
-    return OsStatusToErrno(BufferDestroy((UUId_t)handle, buffer));
+    struct wm_buffer* buffer;
+    int               status;
+    
+    buffer = malloc(sizeof(struct wm_buffer));
+    if (!buffer) {
+        _set_errno(ENOMEM);
+        return -1;
+    }
+    
+    buffer->handle = (UUId_t)handle;
+    status         = OsStatusToErrno(MemoryInherit(buffer->handle, 
+        &buffer->pointer, &buffer->length, &buffer->capacity));
+    if (status) {
+        free(buffer);
+        return -1;
+    }
+    
+    *memory_out = buffer->pointer;
+    *buffer_out = buffer;
+    return EOK;
 }
 
-int wm_buffer_resize(wm_handle_t handle, void* buffer, size_t size)
+int wm_buffer_refresh(struct wm_buffer* buffer)
 {
-    return OsStatusToErrno(BufferResize((UUId_t)handle, buffer, size));
+    if (!buffer) {
+        _set_errno(EINVAL);
+        return -1;
+    }
+    
+    return OsStatusToErrno(MemoryRefresh(buffer->handle, 
+        buffer->pointer, buffer->length));
 }
 
-size_t wm_buffer_get_metrics(wm_handle_t handle, size_t* size_out, size_t* capacity_out)
+int wm_buffer_get_handle(struct wm_buffer* buffer, wm_handle_t* handle_out)
 {
-    return OsStatusToErrno(BufferGetMetrics((UUId_t)handle, size_out, capacity_out));
+    if (!buffer || !handle_out) {
+        _set_errno(EINVAL);
+        return -1;
+    }
+    
+    *handle_out = (wm_handle_t)buffer->handle;
+    return EOK;
 }
 
-int wm_buffer_get_handle(wm_handle_t handle, wm_handle_t* handle_out)
+int wm_buffer_get_pointer(struct wm_buffer* buffer, void** pointer_out)
 {
-    // our handles are already portable.
-    *handle_out = handle;
+    if (!buffer || !pointer_out) {
+        _set_errno(EINVAL);
+        return -1;
+    }
+    
+    *pointer_out = buffer->pointer;
+    return EOK;
+}
+
+int wm_buffer_get_length(struct wm_buffer* buffer, size_t* length_out)
+{
+    if (!buffer || !length_out) {
+        _set_errno(EINVAL);
+        return -1;
+    }
+    
+    *length_out = buffer->length;
+    return EOK;
+}
+
+int wm_buffer_destroy(struct wm_buffer* buffer)
+{
+    int status;
+    
+    if (!buffer) {
+        _set_errno(EINVAL);
+        return -1;
+    }
+    
+    status = OsStatusToErrno(MemoryFree(buffer->pointer, buffer->capacity));
+    if (status) {
+        return -1;
+    }
+    
+    status = OsStatusToErrno(MemoryUnshare(buffer->handle));
+    if (status) {
+        return -1;
+    }
+    
+    free(buffer);
     return 0;
 }

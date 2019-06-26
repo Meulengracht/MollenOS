@@ -213,7 +213,8 @@ ContextCreate(
         else {
 		    ContextAddress = MEMORY_SEGMENT_SIGSTACK_BASE + MEMORY_SEGMENT_SIGSTACK_SIZE - PAGE_SIZE;
         }
-        CommitMemorySpaceMapping(GetCurrentMemorySpace(), NULL, ContextAddress, __MASK);
+        CommitMemorySpaceMapping(GetCurrentMemorySpace(), ContextAddress, NULL,
+        	GetMemorySpacePageSize(), MAPPING_PHYSICAL_DEFAULT, __MASK);
     }
 	else {
 		FATAL(FATAL_SCOPE_KERNEL, "ContextCreate::INVALID ContextType(%" PRIiIN ")", ContextType);

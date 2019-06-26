@@ -211,9 +211,6 @@ FutexWait(
     IntStatus_t        CpuState;
     TRACE("%u: FutexWait(f 0x%llx, t %u)", GetCurrentThreadId(), Futex, Timeout);
     
-    // Increase waiter count
-    atomic_fetch_add(&FutexQueue->Waiters, 1);
-    
     // Get the futex context, if the context is private
     // we can stick to the virtual address for sleeping
     // otherwise we need to lookup the physical page
@@ -229,6 +226,9 @@ FutexWait(
     }
     FutexQueue = FutexGetBucket(FutexAddress);
 
+    // Increase waiter count
+    atomic_fetch_add(&FutexQueue->Waiters, 1);
+    
     // Setup information for the current running object
     Object->TimeLeft      = Timeout;
     Object->Timeout       = 0;
@@ -278,9 +278,6 @@ FutexWaitOperation(
     IntStatus_t        CpuState;
     TRACE("%u: FutexWaitOperation(f 0x%llx, t %u)", GetCurrentThreadId(), Futex, Timeout);
     
-    // Increase waiter count
-    atomic_fetch_add(&FutexQueue->Waiters, 1);
-    
     // Get the futex context, if the context is private
     // we can stick to the virtual address for sleeping
     // otherwise we need to lookup the physical page
@@ -295,6 +292,9 @@ FutexWaitOperation(
         }
     }
     FutexQueue = FutexGetBucket(FutexAddress);
+    
+    // Increase waiter count
+    atomic_fetch_add(&FutexQueue->Waiters, 1);
     
     // Setup information for the current running object
     Object->TimeLeft      = Timeout;

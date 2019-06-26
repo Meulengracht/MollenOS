@@ -63,25 +63,28 @@ MemoryProtect(
 
 OsStatus_t
 MemoryShare(
-    _In_  const void* Buffer,
-    _In_  size_t      Length,
-    _Out_ UUId_t*     HandleOut)
+    _In_    size_t  Length,
+    _In_    size_t  Capacity,
+    _InOut_ void**  Buffer,
+    _Out_   UUId_t* HandleOut)
 {
-    if (!Buffer || !Length || !HandleOut) {
+    if (!Capacity || !Buffer || !HandleOut) {
         return OsInvalidParameters;
     }
-    return Syscall_MemoryShare(Buffer, Length, HandleOut);
+    return Syscall_MemoryShare(Length, Capacity, Buffer, HandleOut);
 }
 
 OsStatus_t
 MemoryInherit(
     _In_  UUId_t  Handle,
-    _Out_ void**  BufferOut)
+    _Out_ void**  BufferOut,
+    _Out_ size_t* LengthOut,
+    _Out_ size_t* CapacityOut)
 {
     if (!BufferOut) {
         return OsInvalidParameters;
     }
-    return Syscall_MemoryInherit(Handle, BufferOut);
+    return Syscall_MemoryInherit(Handle, BufferOut, LengthOut, CapacityOut);
 }
 
 OsStatus_t

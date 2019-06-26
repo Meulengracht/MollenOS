@@ -51,7 +51,7 @@ PACKED_TYPESTRUCT(StorageDescriptor, {
 PACKED_TYPESTRUCT(StorageOperation, {
     int       Direction;
     uint64_t  AbsoluteSector;
-    uintptr_t PhysicalBuffer;
+    uintptr_t BufferHandle;
     size_t    SectorCount;
 });
 
@@ -93,7 +93,7 @@ StorageRead(
     _In_  UUId_t    DriverId, 
     _In_  UUId_t    StorageDeviceId,
     _In_  uint64_t  Sector, 
-    _In_  uintptr_t PhysicalAddress, 
+    _In_  UUId_t    BufferHandle, 
     _In_  size_t    SectorCount,
     _Out_ size_t*   SectorsRead)
 {
@@ -110,7 +110,7 @@ StorageRead(
     // Initialize operation details
     Operation.Direction      = __STORAGE_OPERATION_READ;
     Operation.AbsoluteSector = Sector;
-    Operation.PhysicalBuffer = PhysicalAddress;
+    Operation.BufferHandle   = BufferHandle;
     Operation.SectorCount    = SectorCount;
     
     // Perform the query
@@ -137,7 +137,7 @@ StorageWrite(
     _In_  UUId_t    Driver,
     _In_  UUId_t    StorageDevice,
     _In_  uint64_t  Sector, 
-    _In_  uintptr_t PhysicalAddress,
+    _In_  UUId_t    BufferHandle,
     _In_  size_t    SectorCount,
     _Out_ size_t*   SectorsWritten)
 {
@@ -154,7 +154,7 @@ StorageWrite(
     // Initialize operation details
     Operation.Direction      = __STORAGE_OPERATION_WRITE;
     Operation.AbsoluteSector = Sector;
-    Operation.PhysicalBuffer = PhysicalAddress;
+    Operation.BufferHandle   = BufferHandle;
     Operation.SectorCount    = SectorCount;
 
     Status = QueryDriver(&Contract, __STORAGE_QUERY_WRITE,

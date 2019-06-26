@@ -72,8 +72,11 @@ _CODE_BEGIN
 CRTDECL(OsStatus_t, MemoryAllocate(void* Hint,size_t Length, Flags_t Flags, void** MemoryOut));
 CRTDECL(OsStatus_t, MemoryFree(void* Memory, size_t Length));
 CRTDECL(OsStatus_t, MemoryProtect(void* Memory, size_t Length, Flags_t Flags, Flags_t* PreviousFlags));
-CRTDECL(OsStatus_t, MemoryShare(const void* Buffer, size_t Length, UUId_t* HandleOut));
-CRTDECL(OsStatus_t, MemoryInherit(UUId_t Handle, void** BufferOut));
+
+CRTDECL(OsStatus_t, MemoryShare(size_t Length, size_t Capacity, void** Buffer, UUId_t* HandleOut));
+CRTDECL(OsStatus_t, MemoryInherit(UUId_t Handle, void** BufferOut, size_t* LengthOut, size_t* CapacityOut));
+CRTDECL(OsStatus_t, MemoryResize(UUId_t Handle, void* Buffer, size_t Length));
+CRTDECL(OsStatus_t, MemoryRefresh(UUId_t Handle, void* Buffer, size_t CurrentLength));
 CRTDECL(OsStatus_t, MemoryUnshare(UUId_t Handle));
 
 /* OsStatusToErrno
