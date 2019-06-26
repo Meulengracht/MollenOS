@@ -103,7 +103,7 @@ DiskRegisterFileSystem(
  * with the given sector count. It then loads the correct driver
  * and installs it */
 __EXTERN OsStatus_t DiskDetectFileSystem(FileSystemDisk_t *Disk,
-    UUId_t BufferHandle, uint64_t Sector, uint64_t SectorCount);
+    UUId_t BufferHandle, void* Buffer, uint64_t Sector, uint64_t SectorCount);
 
 /* DiskDetectLayout
  * Detects the kind of layout on the disk, be it
@@ -225,8 +225,8 @@ VfsReadEntry(
     _In_  UUId_t                    Requester,
     _In_  UUId_t                    Handle,
     _In_  UUId_t                    BufferHandle,
+    _In_  size_t                    Offset,
     _In_  size_t                    Length,
-    _Out_ size_t*                   BytesIndex,
     _Out_ size_t*                   BytesRead);
 
 /* VsfWriteEntry
@@ -237,6 +237,7 @@ VsfWriteEntry(
     _In_  UUId_t                    Requester,
     _In_  UUId_t                    Handle,
     _In_  UUId_t                    BufferHandle,
+    _In_  size_t                    Offset,
     _In_  size_t                    Length,
     _Out_ size_t*                   BytesWritten);
 

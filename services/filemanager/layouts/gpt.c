@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,17 +16,15 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - File Manager Service
+ * File Manager Service
  * - Handles all file related services and disk services
  */
 
 #include "../include/vfs.h"
 #include "../include/gpt.h"
 
-/* GptEnumerate
- * Enumerates a given disk with GPT data layout
- * and automatically creates new filesystem objects */
-OsStatus_t GptEnumerate(FileSystemDisk_t *Disk, DmaBuffer_t *Buffer)
+OsStatus_t
+GptEnumerate(FileSystemDisk_t *Disk, UUId_t BufferHandle, void* Buffer)
 {
 	_CRT_UNUSED(Disk);
 	_CRT_UNUSED(Buffer);

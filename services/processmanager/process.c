@@ -26,12 +26,11 @@
 #include "../../librt/libds/pe/pe.h"
 #include <os/services/file.h>
 #include <os/services/path.h>
-#include <os/eventqueue.h>
 #include <os/mollenos.h>
 #include <os/context.h>
 #include "process.h"
 #include <ds/mstring.h>
-#include <ddk/buffer.h>
+#include <ddk/eventqueue.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
 #include <assert.h>

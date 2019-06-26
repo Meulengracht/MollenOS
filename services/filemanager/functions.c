@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,9 +16,8 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - File Manager Service
+ * File Manager Service
  * - Handles all file related services and disk services
- * - ToDo Buffering is not ported to BufferObjects yet
  */
 //#define __TRACE
 
@@ -33,8 +32,6 @@
 #include <string.h>
 #include <ctype.h>
 
-/* VfsEntryIsFile
- * Returns whether or not the given filesystem entry is a file. */
 int
 VfsEntryIsFile(
     _In_ FileSystemEntry_t* Entry)
@@ -42,12 +39,10 @@ VfsEntryIsFile(
     return (Entry->Descriptor.Flags & FILE_FLAG_DIRECTORY) == 0 ? 1 : 0;
 }
 
-/* VfsGetFileSystemFromPath
- * Retrieves the filesystem handle associated with the given path. */
 FileSystem_t*
 VfsGetFileSystemFromPath(
-    _In_  MString_t*                Path,
-    _Out_ MString_t**               SubPath)
+    _In_  MString_t*  Path,
+    _Out_ MString_t** SubPath)
 {
     CollectionItem_t* Node;
     MString_t* Identifier;
@@ -511,23 +506,23 @@ VfsDeletePath(
     return Code;
 }
 
-/* VfsReadEntry
- * Reads the requested number of bytes into the given buffer
- * from the current position in the handle filehandle */
 FileSystemCode_t
 VfsReadEntry(
-    _In_  UUId_t                    Requester,
-    _In_  UUId_t                    Handle,
-    _In_  UUId_t                    BufferHandle,
-    _In_  size_t                    Length,
-    _Out_ size_t*                   BytesIndex,
-    _Out_ size_t*                   BytesRead)
+    _In_  UUId_t  Requester,
+    _In_  UUId_t  Handle,
+    _In_  UUId_t  BufferHandle,
+    _In_  size_t  Offset,
+    _In_  size_t  Length,
+    _Out_ size_t* BytesRead)
 {
     FileSystemEntryHandle_t* EntryHandle;
-    FileSystemCode_t Code;
-    FileSystem_t* Fs;
-    DmaBuffer_t* Buffer;
-
+    FileSystemCode_t         Code;
+    FileSystem_t*            Fs;
+    OsStatus_t               Status;
+    void*                    Buffer;
+    size_t                   BufferLength;
+    size_t                   BufferCapacity;
+    
     if (BufferHandle == UUID_INVALID || Length == 0) {
         ERROR("Buffer/length is invalid.");
         return FsInvalidParameters;
@@ -543,38 +538,39 @@ VfsReadEntry(
         Code = VfsFlushFile(Requester, Handle);
     }
 
-    // Acquire the buffer for reading
-    Buffer = CreateBuffer(BufferHandle, 0);
-    if (Buffer == NULL) {
+    Status = MemoryInherit(BufferHandle, &Buffer, &BufferLength, &BufferCapacity);
+    if (Status != OsSuccess) {
         ERROR("User specified buffer was invalid");
         return FsInvalidParameters;
     }
 
-    Fs      = (FileSystem_t*)EntryHandle->Entry->System;
-    Code    = Fs->Module->ReadEntry(&Fs->Descriptor, EntryHandle, Buffer, Length, BytesIndex, BytesRead);
+    Fs   = (FileSystem_t*)EntryHandle->Entry->System;
+    Code = Fs->Module->ReadEntry(&Fs->Descriptor, EntryHandle, BufferHandle, &Buffer, Offset, Length, BytesRead);
     if (Code == FsOk) {
         EntryHandle->LastOperation  = __FILE_OPERATION_READ;
         EntryHandle->Position       += *BytesRead;
     }
-    DestroyBuffer(Buffer);
+    MemoryFree(Buffer, BufferCapacity);
+    MemoryUnshare(BufferHandle);
     return Code;
 }
 
-/* VsfWriteEntry
- * Writes the requested number of bytes from the given buffer
- * into the current position in the filehandle */
 FileSystemCode_t
 VsfWriteEntry(
-    _In_  UUId_t                    Requester,
-    _In_  UUId_t                    Handle,
-    _In_  UUId_t                    BufferHandle,
-    _In_  size_t                    Length,
-    _Out_ size_t*                   BytesWritten)
+    _In_  UUId_t  Requester,
+    _In_  UUId_t  Handle,
+    _In_  UUId_t  BufferHandle,
+    _In_  size_t  Offset,
+    _In_  size_t  Length,
+    _Out_ size_t* BytesWritten)
 {
     FileSystemEntryHandle_t* EntryHandle;
-    FileSystemCode_t Code;
-    FileSystem_t* Fs;
-    DmaBuffer_t* Buffer;
+    FileSystemCode_t         Code;
+    FileSystem_t*            Fs;
+    OsStatus_t               Status;
+    void*                    Buffer;
+    size_t                   BufferLength;
+    size_t                   BufferCapacity;
 
     TRACE("VsfWriteEntry(Length %u)", Length);
 
@@ -593,15 +589,14 @@ VsfWriteEntry(
         Code = VfsFlushFile(Requester, Handle);
     }
 
-    // Acquire the buffer for writing
-    Buffer = CreateBuffer(BufferHandle, 0);
-    if (Buffer == NULL) {
+    Status = MemoryInherit(BufferHandle, &Buffer, &BufferLength, &BufferCapacity);
+    if (Status != OsSuccess) {
         ERROR("User specified buffer was invalid");
         return FsInvalidParameters;
     }
 
     Fs      = (FileSystem_t*)EntryHandle->Entry->System;
-    Code    = Fs->Module->WriteEntry(&Fs->Descriptor, EntryHandle, Buffer, Length, BytesWritten);
+    Code    = Fs->Module->WriteEntry(&Fs->Descriptor, EntryHandle, BufferHandle, Buffer, Offset, Length, BytesWritten);
     if (Code == FsOk) {
         EntryHandle->LastOperation  = __FILE_OPERATION_WRITE;
         EntryHandle->Position       += *BytesWritten;
@@ -609,7 +604,8 @@ VsfWriteEntry(
             EntryHandle->Entry->Descriptor.Size.QuadPart = EntryHandle->Position;
         }
     }
-    DestroyBuffer(Buffer);
+    MemoryFree(Buffer, BufferCapacity);
+    MemoryUnshare(BufferHandle);
     return Code;
 }
 

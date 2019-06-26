@@ -171,7 +171,8 @@ __FSAPI FileSystemCode_t
 __FSDECL(FsReadEntry)(
     _In_  FileSystemDescriptor_t*   FileSystem,
     _In_  FileSystemEntryHandle_t*  BaseHandle,
-    _In_  UUId_t*                   BufferHandle,
+    _In_  UUId_t                    BufferHandle,
+    _In_  void*                     Buffer,
     _In_  size_t                    BufferOffset,
     _In_  size_t                    UnitCount,
     _Out_ size_t*                   UnitsRead);
@@ -183,7 +184,8 @@ __FSAPI FileSystemCode_t
 __FSDECL(FsWriteEntry)(
     _In_  FileSystemDescriptor_t*   FileSystem,
     _In_  FileSystemEntryHandle_t*  BaseHandle,
-    _In_  UUId_t*                   BufferHandle,
+    _In_  UUId_t                    BufferHandle,
+    _In_  void*                     Buffer,
     _In_  size_t                    BufferOffset,
     _In_  size_t                    UnitCount,
     _Out_ size_t*                   UnitsWritten);

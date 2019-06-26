@@ -83,42 +83,48 @@ DiskDetectFileSystem(FileSystemDisk_t *Disk,
 	}
 }
 
-OsStatus_t DiskDetectLayout(FileSystemDisk_t *Disk)
+OsStatus_t
+DiskDetectLayout(
+	_In_ FileSystemDisk_t* Disk)
 {
 	UUId_t       BufferHandle;
 	void*        Buffer;
 	GptHeader_t* Gpt;
 	OsStatus_t   Result;
 	size_t       SectorsRead;
+	OsStatus_t   Status;
 
 	TRACE("DiskDetectLayout(SectorSize %u)", Disk->Descriptor.SectorSize);
 
 	// Allocate a generic transfer buffer for disk operations
 	// on the given disk, we need it to parse the disk
-	Buffer = CreateBuffer(UUID_INVALID, Disk->Descriptor.SectorSize);
-
+	Status = MemoryShare(Disk->Descriptor.SectorSize, Disk->Descriptor.SectorSize,
+		&Buffer, &BufferHandle);
+	if (Status != OsSuccess) {
+		return Status;
+	}
+	
 	// In order to detect the schema that is used
 	// for the disk - we can easily just read sector LBA 1
 	// and look for the GPT signature
 	if (StorageRead(Disk->Driver, Disk->Device, 1, 
 			BufferHandle, 1, &SectorsRead) != OsSuccess) {
-		DestroyBuffer(Buffer);
+		MemoryFree(Buffer, Disk->Descriptor.SectorSize);
+		MemoryUnshare(BufferHandle);
 		return OsError;
 	}
-
-	// Initiate the gpt pointer directly from the buffer-object
-	// to avoid doing double allocates when its not needed
-	Gpt = (GptHeader_t*)GetBufferDataPointer(Buffer);
-
+	
 	// Check the GPT signature if it matches 
 	// - If it doesn't match, it can only be a MBR disk
+	Gpt = (GptHeader_t*)Buffer;
 	if (!strncmp((const char*)&Gpt->Signature[0], GPT_SIGNATURE, 8)) {
-		Result = GptEnumerate(Disk, Buffer);
+		Result = GptEnumerate(Disk, BufferHandle, Buffer);
 	}
 	else {
-		Result = MbrEnumerate(Disk, Buffer);
+		Result = MbrEnumerate(Disk, BufferHandle, Buffer);
 	}
 
-	DestroyBuffer(Buffer);
+	MemoryFree(Buffer, Disk->Descriptor.SectorSize);
+	MemoryUnshare(BufferHandle);
 	return Result;
 }

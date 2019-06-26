@@ -265,7 +265,7 @@ OnEvent(
             RWFilePackage_t Package = { 0 };
             Package.Code = VfsReadEntry(Message->From.Process, (UUId_t)Message->Arguments[0].Data.Value,
                 (UUId_t)Message->Arguments[1].Data.Value, Message->Arguments[2].Data.Value,
-                &Package.Index, &Package.ActualSize);
+                Message->Arguments[3].Data.Value, &Package.ActualSize);
             Result = RPCRespond(&Message->From, (const void*)&Package, sizeof(RWFilePackage_t));
         } break;
 
@@ -275,7 +275,7 @@ OnEvent(
             RWFilePackage_t Package = { 0 };
             Package.Code = VsfWriteEntry(Message->From.Process, (UUId_t)Message->Arguments[0].Data.Value,
                 (UUId_t)Message->Arguments[1].Data.Value, Message->Arguments[2].Data.Value,
-                &Package.ActualSize);
+                Message->Arguments[3].Data.Value, &Package.ActualSize);
             Result = RPCRespond(&Message->From, (const void*)&Package, sizeof(RWFilePackage_t));
         } break;
 

@@ -72,7 +72,7 @@ OsStatus_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t lengt
     if (length >= builtin_length) {
         UUId_t buffer_handle;
         
-        status = MemoryShare(buffer, length, &buffer_handle);
+        status = MemoryShare(length, length, &buffer, &buffer_handle);
         if (status != OsSuccess) {
             return status;
         }
@@ -99,7 +99,7 @@ OsStatus_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer, size_
     if (length >= builtin_length) {
         UUId_t buffer_handle;
         
-        status = MemoryShare(buffer, length, &buffer_handle);
+        status = MemoryShare(length, length, (void*)&buffer, &buffer_handle);
         if (status != OsSuccess) {
             return status;
         }

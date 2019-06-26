@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Threading Support Definitions & Structures
+ * Threading Support Definitions & Structures
  * - This header describes the base threading-structures, prototypes
  *   and functionality, refer to the individual things for descriptions
  * 
@@ -117,7 +117,7 @@ tls_create(
     // TODO: do on first read/write instead?
     Tls->transfer_buffer.buffer = malloc(BUFSIZ);
     Tls->transfer_buffer.length = BUFSIZ;
-    return MemoryShare(Tls->transfer_buffer.buffer, BUFSIZ, &Tls->transfer_buffer.handle);
+    return MemoryShare(BUFSIZ, BUFSIZ, &Tls->transfer_buffer.buffer, &Tls->transfer_buffer.handle);
 }
 
 /* tls_destroy

@@ -71,6 +71,6 @@ typedef struct _GptPartitionEntry {
 /* GptEnumerate 
  * Enumerates a given disk with GPT data layout 
  * and automatically creates new filesystem objects */
-__EXTERN OsStatus_t GptEnumerate(FileSystemDisk_t *Disk, UUId_t BufferHandle);
+__EXTERN OsStatus_t GptEnumerate(FileSystemDisk_t *Disk, UUId_t BufferHandle, void* Buffer);
 
 #endif //!_DISK_LAYOUT_GPT_H_

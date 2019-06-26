@@ -65,6 +65,6 @@ PACKED_TYPESTRUCT(MasterBootRecord, {
 /* MbrEnumerate 
  * Enumerates a given disk with MBR data layout 
  * and automatically creates new filesystem objects */
-__EXTERN OsStatus_t MbrEnumerate(FileSystemDisk_t *Disk, UUId_t BufferHandle);
+__EXTERN OsStatus_t MbrEnumerate(FileSystemDisk_t *Disk, UUId_t BufferHandle, void* Buffer);
 
 #endif //!_DISK_LAYOUT_MBR_H_

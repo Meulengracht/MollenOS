@@ -132,7 +132,7 @@ ScMemoryInherit(
     uintptr_t             Address;
     if (!Region) {
         return OsInvalidParameters;
-    }
+    }   
     
     // TODO: Guard against already committed regions, check attributes
     // 
