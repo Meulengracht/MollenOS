@@ -188,7 +188,7 @@ VfsRegisterDisk(
     Disk->Driver    = Driver;
     Disk->Device    = Device;
     Disk->Flags     = Flags;
-    if (StorageQuery(Driver, Device, &Disk->Descriptor) != OsSuccess) {
+    if (StorageQuery(Device, Driver, &Disk->Descriptor) != OsSuccess) {
         free(Disk);
         return OsError;
     }

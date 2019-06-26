@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2019, Philip Meulengracht
  *
@@ -263,27 +264,22 @@ LoadFile(
 
     Size = (size_t)QueriedSize.QuadPart;
     if (Size != 0) {
-        DmaBuffer_t* TransferBuffer = CreateBuffer(UUID_INVALID, Size);
-        if (TransferBuffer != NULL) {
-            Buffer = dsalloc(Size);
-            if (Buffer != NULL) {
-                size_t Index, Read = 0;
-                FsCode = ReadFile(Handle, GetBufferHandle(TransferBuffer), Size, &Index, &Read);
-                TRACE("Read %" PRIuIN " bytes from file %s", Read, MStringRaw(FullPath));
-                if (FsCode == FsOk && Read != 0) {
-                    memcpy(Buffer, (const void*)GetBufferDataPointer(TransferBuffer), Read);
-                }
-                else {
-                    dsfree(Buffer);
-                    Status = OsError;
-                    Buffer = NULL;
-                }
-            }
-            else {
-                ERROR("Failed to allocate a buffer for the data");
+        UUId_t BufferHandle;
+        Buffer = dsalloc(Size);
+        if (!Buffer) {
+            return OsOutOfMemory;
+        }
+
+        Status = MemoryShare(Size, Size, &Buffer, &BufferHandle);
+        if (Status == OsSuccess) {
+            size_t Read = 0;
+            FsCode = TransferFile(Handle, BufferHandle, 0, 0, Size, &Read);
+            TRACE("Read %" PRIuIN " bytes from file %s", Read, MStringRaw(FullPath));
+            if (FsCode != FsOk) {
                 Status = OsError;
+                Buffer = NULL;
             }
-            DestroyBuffer(TransferBuffer);
+            MemoryUnshare(BufferHandle);
         }
         else {
             ERROR("Failed to create a transfer buffer");

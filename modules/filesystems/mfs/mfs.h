@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS - General File System (MFS) Driver
+ * General File System (MFS) Driver
  *  - Contains the implementation of the MFS driver for mollenos
  *  - Missing implementations:
  *    - Journaling
@@ -34,8 +35,10 @@
 #include <os/mollenos.h>
 #include <ds/mstring.h>
 
-/* MFS Definitions and Utilities
- * Contains magic constant values and utility macros for conversion */
+/**
+ * MFS Definitions and Utilities
+ * Contains magic constant values and utility macros for conversion
+ */
 #define MFS_ENDOFCHAIN                          0xFFFFFFFF
 #define MFS_GETSECTOR(mInstance, Bucket)        ((Mfs->SectorsPerBucket * Bucket))
 #define MFS_ROOTSIZE                            8
@@ -70,19 +73,25 @@ PACKED_TYPESTRUCT(BootRecord, {
     uint8_t         BootCode[468];    //512 - 44
 });
 
-/* MFS Magic Value 
- * The signature value that must be present in BootRecord::Magic */
+/**
+ * MFS Magic Value 
+ * The signature value that must be present in BootRecord::Magic
+ */
 #define MFS_BOOTRECORD_MAGIC            0x3153464D // 1SFM
 
-/* MFS Boot-Record flags
- * The possible values that can be present in BootRecord::Flags */
+/**
+ * MFS Boot-Record flags
+ * The possible values that can be present in BootRecord::Flags
+ */
 #define MFS_BOOTRECORD_SYSDRIVE         0x1
 #define MFS_BOOTRECORD_DIRTY            0x2
 #define MFS_BOOTRECORD_ENCRYPTED        0x4
 
-/* The master-record structure
+/**
+ * The master-record structure
  * Exists two places on disk to have a backup
- * and it contains extended information related to the mfs-partition */
+ * and it contains extended information related to the mfs-partition
+ */
 PACKED_TYPESTRUCT(MasterRecord, {
     uint32_t        Magic;
     uint32_t        Flags;
@@ -181,22 +190,17 @@ PACKED_TYPESTRUCT(FileRecord, {
 #define MFS_FILERECORD_SPARSE           0x40000000  // Record-sparse map is in use
 #define MFS_FILERECORD_INUSE            0x80000000  // Record is in use
 
-/* The in-memory version of the file-record
- * Describes which data we cache of files and the position
- * the record is in it's parent directory. */
 PACKED_TYPESTRUCT(MfsEntry, {
-    FileSystemEntry_t   Base;
-    uint32_t            NativeFlags;
-    int                 ActionOnClose;
+    FileSystemEntry_t Base;
+    uint32_t          NativeFlags;
+    int               ActionOnClose;
 
-    uint32_t            StartBucket;
-    uint32_t            StartLength;
-
-    uint64_t            AllocatedSize;
-
-    uint32_t            DirectoryBucket;
-    uint32_t            DirectoryLength;
-    size_t              DirectoryIndex;
+    uint32_t StartBucket;
+    uint32_t StartLength;
+    uint64_t AllocatedSize;
+    uint32_t DirectoryBucket;
+    uint32_t DirectoryLength;
+    size_t   DirectoryIndex;
 });
 
 PACKED_TYPESTRUCT(MfsEntryHandle, {
@@ -206,25 +210,25 @@ PACKED_TYPESTRUCT(MfsEntryHandle, {
     uint64_t                BucketByteBoundary;  // Support variadic bucket sizes
 });
 
-/* Mfs Instance data
- * Keeps track of the current state of an instance of
- * the mollenos-filesystem and keeps cached data as well */
 typedef struct _MfsInstance {
-    Flags_t                 Flags;
-    int                     Version;
-    size_t                  SectorsPerBucket;
-    DmaBuffer_t*            TransferBuffer;
+    Flags_t    Flags;
+    int        Version;
+    size_t     SectorsPerBucket;
+    struct {
+        UUId_t Handle;
+        void*  Pointer;
+        size_t Length;
+    } TransferBuffer;
     
-    uint64_t                MasterRecordSector;
-    uint64_t                MasterRecordMirrorSector;
-                             
-    uint64_t                BucketCount;
-    size_t                  BucketsPerSectorInMap;
+    uint64_t MasterRecordSector;
+    uint64_t MasterRecordMirrorSector;
+    uint64_t BucketCount;
+    size_t   BucketsPerSectorInMap;
 
     // Cached resources
-    uint32_t*               BucketMap;
-    MasterRecord_t          MasterRecord;
-    FileRecord_t            RootRecord;
+    uint32_t*      BucketMap;
+    MasterRecord_t MasterRecord;
+    FileRecord_t   RootRecord;
 } MfsInstance_t;
 
 /* MfsReadSectors 
@@ -233,7 +237,8 @@ typedef struct _MfsInstance {
 __EXTERN OsStatus_t
 MfsReadSectors(
     _In_ FileSystemDescriptor_t*    FileSystem, 
-    _In_ DmaBuffer_t*               Buffer,
+    _In_ UUId_t                     BufferHandle,
+    _In_ size_t                     BufferOffset,
     _In_ uint64_t                   Sector,
     _In_ size_t                     Count,
     _In_ size_t*                    SectorsRead);
@@ -244,7 +249,8 @@ MfsReadSectors(
 __EXTERN OsStatus_t
 MfsWriteSectors(
     _In_ FileSystemDescriptor_t*    FileSystem,
-    _In_ DmaBuffer_t*               Buffer,
+    _In_ UUId_t                     BufferHandle,
+    _In_ size_t                     BufferOffset,
     _In_ uint64_t                   Sector,
     _In_ size_t                     Count,
     _In_ size_t*                    SectorsWritten);

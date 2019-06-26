@@ -1,4 +1,5 @@
-/* MollenOS
+/** 
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS General File System (MFS) Driver
+ * General File System (MFS) Driver
  *  - Contains the implementation of the MFS driver for mollenos
  */
 //#define __TRACE
@@ -29,23 +30,23 @@
 
 FileSystemCode_t
 FsReadFromFile(
-    _In_  FileSystemDescriptor_t* FileSystem,
-    _In_  MfsEntryHandle_t*       Handle,
-    _In_  DmaBuffer_t*            BufferObject,
-    _In_  size_t                  Length,
-    _Out_ size_t*                 BytesAt,
-    _Out_ size_t*                 BytesRead)
+    _In_  FileSystemDescriptor_t*   FileSystem,
+    _In_  FileSystemEntryHandle_t*  BaseHandle,
+    _In_  UUId_t                    BufferHandle,
+    _In_  void*                     Buffer,
+    _In_  size_t                    BufferOffset,
+    _In_  size_t                    UnitCount,
+    _Out_ size_t*                   UnitsRead)
 {
     MfsInstance_t*   Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
     MfsEntry_t*      Entry           = (MfsEntry_t*)Handle->Base.Entry;
     FileSystemCode_t Result          = FsOk;
-    uintptr_t        DataPointer     = GetBufferDma(BufferObject);
     uint64_t         Position        = Handle->Base.Position;
     size_t           BucketSizeBytes = Mfs->SectorsPerBucket * FileSystem->Disk.Descriptor.SectorSize;
-    size_t           BytesToRead     = Length;
+    size_t           BytesToRead     = UnitCount;
 
     TRACE("FsReadFile(Id 0x%x, Position %u, Length %u)",
-        Handle->Base.Id, LODWORD(Handle->Base.Position), Length);
+        Handle->Base.Id, LODWORD(Handle->Base.Position), UnitCount);
 
     *BytesRead = 0;
     *BytesAt   = Handle->Base.Position % FileSystem->Disk.Descriptor.SectorSize;
@@ -70,27 +71,47 @@ FsReadFromFile(
     while (BytesToRead) {
         // Calculate which bucket, then the sector offset
         // Then calculate how many sectors of the bucket we need to read
-        uint64_t Sector         = MFS_GETSECTOR(Mfs, Handle->DataBucketPosition);        // Start-sector of current bucket
-        uint64_t SectorOffset   = Position % FileSystem->Disk.Descriptor.SectorSize;        // Byte-offset into the current sector
-        size_t SectorIndex      = (size_t)((Position - Handle->BucketByteBoundary) / FileSystem->Disk.Descriptor.SectorSize); // The sector-index into the current bucket
-        size_t SectorsLeft      = MFS_GETSECTOR(Mfs, Handle->DataBucketLength) - SectorIndex; // How many sectors are left in this bucket
-        size_t SectorCount;
-        size_t SectorsFitInBuffer;
-        size_t ByteCount;
+        uint64_t Sector       = MFS_GETSECTOR(Mfs, Handle->DataBucketPosition);    // Start-sector of current bucket
+        uint64_t SectorOffset = Position % FileSystem->Disk.Descriptor.SectorSize; // Byte-offset into the current sector
+        size_t   SectorIndex  = (size_t)((Position - Handle->BucketByteBoundary) / FileSystem->Disk.Descriptor.SectorSize); // The sector-index into the current bucket
+        size_t   SectorsLeft  = MFS_GETSECTOR(Mfs, Handle->DataBucketLength) - SectorIndex; // How many sectors are left in this bucket
+        size_t   SectorCount  = 0;
+        size_t   ByteCount;
         
         // Calculate the sector index into bucket
         Sector += SectorIndex;
 
-        // Calculate how many sectors we should read in
-        SectorCount         = DIVUP(BytesToRead, FileSystem->Disk.Descriptor.SectorSize);
-        SectorsFitInBuffer  = (GetBufferSize(BufferObject) - *BytesRead) / FileSystem->Disk.Descriptor.SectorSize;
-        if (SectorOffset != 0 && (SectorOffset + BytesToRead > FileSystem->Disk.Descriptor.SectorSize)) {
-            SectorCount++; // Take into account the extra sector we have to read
+        // CASE 1: DIRECT READING INTO USER BUFFER
+        // <Sector> now contains where we should start reading, and SectorOffset is
+        // the byte offset into that first sector. This means if we request any number of bytes
+        // we should also have room for that. So to read directly into user provided buffer, we MUST
+        // ensure that <SectorOffset> is 0, and that <(Buffer + Offset) % SectorSize> is 0.
+        if (SectorOffset == 0 && (((uintptr_t)Buffer + BufferOffset) % FileSystem->Disk.Descriptor.SectorSize) == 0) {
+            SectorCount = BytesToRead / FileSystem->Disk.Descriptor.SectorSize;
         }
+        
+        // CASE 2: SINGLE READ INTO INTERMEDIATE BUFFER
+        if (!SectorCount) {
+            // Calculate how many sectors we should read in
+            size_t CaseSectorCount = DIVUP(BytesToRead, FileSystem->Disk.Descriptor.SectorSize);
+            if (SectorOffset != 0 && (SectorOffset + BytesToRead > FileSystem->Disk.Descriptor.SectorSize)) {
+                CaseSectorCount++; // Take into account the extra sector we have to read
+            }
+        }
+
+        // CASE 3: SINGLE READ INTO INTERMEDIATE BUFFER TO CORRECTLY ALIGN FOR CASE 1
+        if (!SectorCount) {
+
+        }
+
+        // CASE 4: SINGLE READ INTO INTERMEDIATE BUFFER TO FINISH TRANSFER AFTER CASE 1
+        if (!SectorCount) {
+
+        }
+
 
         // Adjust for bucket boundary, and adjust again for buffer size
         SectorCount = MIN(SectorCount, SectorsLeft);
-        SectorCount = MIN(SectorCount, SectorsFitInBuffer);
         if (SectorCount == 0) {
             break;
         }
@@ -153,10 +174,12 @@ FsReadFromFile(
 FileSystemCode_t
 FsWriteToFile(
     _In_  FileSystemDescriptor_t*   FileSystem,
-    _In_  MfsEntryHandle_t*         Handle,
-    _In_  DmaBuffer_t*              BufferObject,
-    _In_  size_t                    Length,
-    _Out_ size_t*                   BytesWritten)
+    _In_  FileSystemEntryHandle_t*  BaseHandle,
+    _In_  UUId_t                    BufferHandle,
+    _In_  void*                     Buffer,
+    _In_  size_t                    BufferOffset,
+    _In_  size_t                    UnitCount,
+    _Out_ size_t*                   UnitsWritten)
 {
     MfsInstance_t*   Mfs             = (MfsInstance_t*)FileSystem->ExtensionData;
     MfsEntry_t*      Entry           = (MfsEntry_t*)Handle->Base.Entry;
