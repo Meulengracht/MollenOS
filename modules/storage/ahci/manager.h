@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Advanced Host Controller Interface Driver
+ * Advanced Host Controller Interface Driver
  * TODO:
  *    - Port Multiplier Support
  *    - Power Management
@@ -27,7 +28,6 @@
 
 #include <os/osdefs.h>
 #include <ds/collection.h>
-#include <ddk/buffer.h>
 #include "ahci.h"
 
 /* Dispatcher Flags 
@@ -38,9 +38,6 @@
 #define DISPATCH_CLEARBUSY              0x40
 #define DISPATCH_ATAPI                  0x80
 
-/* AhciTransaction 
- * Describes the ahci-transaction object and contains
- * information about the buffer and the requester */
 typedef struct _AhciTransaction {
     CollectionItem_t     Header;
     MRemoteCallAddress_t ResponseAddress;

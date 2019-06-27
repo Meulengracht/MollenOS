@@ -1,4 +1,5 @@
-/* MollenOS
+/**
+ * MollenOS
  *
  * Copyright 2017, Philip Meulengracht
  *
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS General File System (MFS) Driver
+ * General File System (MFS) Driver
  *  - Contains the implementation of the MFS driver for mollenos
  */
 //#define __TRACE
@@ -28,36 +29,34 @@
 #include <io.h>
 #include "mfs.h"
 
-/* FsReadFromDirectory 
- * Reads the requested number of directory entries. The Length must equal to a multiple of 
- * sizeof(struct DIRENT), where each of these represents an entry into the directory. */
 FileSystemCode_t
 FsReadFromDirectory(
     _In_  FileSystemDescriptor_t*   FileSystem,
     _In_  MfsEntryHandle_t*         Handle,
-    _In_  DmaBuffer_t*              BufferObject,
-    _In_  size_t                    Length,
-    _Out_ size_t*                   BytesAt,
-    _Out_ size_t*                   BytesRead)
+    _In_  UUId_t                    BufferHandle,
+    _In_  void*                     Buffer,
+    _In_  size_t                    BufferOffset,
+    _In_  size_t                    UnitCount,
+    _Out_ size_t*                   UnitsRead)
 {
     MfsInstance_t*   Mfs          = (MfsInstance_t*)FileSystem->ExtensionData;
     FileSystemCode_t Result       = FsOk;
-    size_t           BytesToRead  = Length;
+    size_t           BytesToRead  = UnitCount;
     uint64_t         Position     = Handle->Base.Position;
-    struct DIRENT*   CurrentEntry = (struct DIRENT*)GetBufferDataPointer(BufferObject);
+    struct DIRENT*   CurrentEntry = (struct DIRENT*)((uint8_t*)Buffer + BufferOffset);
 
     TRACE("FsReadFromDirectory(Id 0x%x, Position %u, Length %u)",
-        Handle->Base.Id, LODWORD(Position), Length);
+        Handle->Base.Id, LODWORD(Position), UnitCount);
 
-    *BytesRead = 0;
-    *BytesAt   = 0;
+    // Indicate zero bytes read to start with
+    *UnitsRead = 0;
 
     // Readjust the stored position since its stored in units of DIRENT, however we
     // iterate in units of MfsRecords
     Position /= sizeof(struct DIRENT);
     Position *= sizeof(FileRecord_t);
 
-    if ((Length % sizeof(struct DIRENT)) != 0) {
+    if ((UnitCount % sizeof(struct DIRENT)) != 0) {
         return FsInvalidParameters;
     }
     
@@ -72,7 +71,7 @@ FsReadFromDirectory(
         uint64_t Sector     = MFS_GETSECTOR(Mfs, Handle->DataBucketPosition);
         size_t   Count      = MFS_GETSECTOR(Mfs, Handle->DataBucketLength);
         size_t   Offset     = Position - Handle->BucketByteBoundary;
-        uint8_t* Data       = (uint8_t*)GetBufferDataPointer(Mfs->TransferBuffer);
+        uint8_t* Data       = (uint8_t*)Mfs->TransferBuffer.Pointer;
         size_t   BucketSize = Count * FileSystem->Disk.Descriptor.SectorSize;
         size_t   SectorsRead;
         TRACE("read_metrics:: sector %u, count %u, offset %u, bucket-size %u",
@@ -80,8 +79,8 @@ FsReadFromDirectory(
 
         if (BucketSize > Offset) {
             // The code here is simple because we assume we can fit entire bucket at any time
-            if (MfsReadSectors(FileSystem, Mfs->TransferBuffer, 
-                Sector, Count, &SectorsRead) != OsSuccess) {
+            if (MfsReadSectors(FileSystem, Mfs->TransferBuffer.Handle, 
+                    0, Sector, Count, &SectorsRead) != OsSuccess) {
                 ERROR("Failed to read sector");
                 Result = FsDiskError;
                 break;
@@ -121,15 +120,12 @@ FsReadFromDirectory(
     // bytes read, since they are added to position in the vfs layer
     Position              /= sizeof(FileRecord_t);
     Position              *= sizeof(struct DIRENT);
-    Handle->Base.Position = Position - (Length - BytesToRead);
+    Handle->Base.Position = Position - (UnitCount - BytesToRead);
     
-    *BytesRead = (Length - BytesToRead);
+    *UnitsRead = (UnitCount - BytesToRead);
     return Result;
 }
 
-/* FsSeekInDirectory 
- * Seeks to the directory entry number given. Seeks in directories are not governed by bytes, but rather
- * directory entries. So position = 1 is actually 1 * sizeof(entry) in the stored position */
 FileSystemCode_t
 FsSeekInDirectory(
     _In_ FileSystemDescriptor_t*    FileSystem,

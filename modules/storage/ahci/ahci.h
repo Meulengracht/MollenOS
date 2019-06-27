@@ -32,10 +32,8 @@
 #include <ddk/contracts/storage.h>
 #include <ddk/interrupt.h>
 #include <ddk/device.h>
-#include <ddk/buffer.h>
 
-/* Includes
- * - Sata */
+// SATA includes
 #include <commands.h>
 #include <sata.h>
 
@@ -343,9 +341,6 @@ typedef struct _AhciInterruptResource {
     reg32_t                 PortInterruptStatus[AHCI_MAX_PORTS];
 } AhciInterruptResource_t;
 
-/* The AHCI Controller 
- * It contains all information neccessary 
- * for us to use it for our functions */
 typedef struct _AhciController {
     MCoreDevice_t           Device;
     MContract_t             Contract;
@@ -369,15 +364,16 @@ typedef struct _AhciController {
     uintptr_t               FisBasePhysical;
 } AhciController_t;
 
-/* The AHCI Device Structure 
- * This describes an attached ahci device 
- * and the information neccessary to deal with it */
 typedef struct _AhciDevice {
     StorageDescriptor_t     Descriptor;
 
     AhciController_t*       Controller;
     AhciPort_t*             Port;
-    DmaBuffer_t*            Buffer;
+    struct {
+        UUId_t              BufferHandle;
+        void*               Buffer;
+        size_t              BufferLength;
+    } TransferBuffer;
     int                     Index;
 
     int                     Type;                // 0 -> ATA, 1 -> ATAPI
