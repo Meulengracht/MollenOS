@@ -44,11 +44,6 @@
 #define AHCI_MAX_PORTS                  32
 #define AHCI_RECIEVED_FIS_SIZE          256
 
-/* How much we should allocate for each port */
-#define AHCI_COMMAND_TABLE_PRDT_COUNT   32
-#define AHCI_COMMAND_TABLE_SIZE         (128 + (16 * AHCI_COMMAND_TABLE_PRDT_COUNT))
-#define AHCI_PRDT_MAX_LENGTH            (4 * 1024 * 1024)
-
 PACKED_ATYPESTRUCT(volatile, AHCIGenericRegisters, {
     reg32_t                Capabilities;
     reg32_t                GlobalHostControl;
@@ -67,7 +62,7 @@ PACKED_ATYPESTRUCT(volatile, AHCIGenericRegisters, {
 });
 
 PACKED_ATYPESTRUCT(volatile, AHCIPortRegisters, {
-    reg32_t                CmdListBaseAddress;
+    reg32_t                CmdListBaseAddress;       // 1K Aligned
     reg32_t                CmdListBaseAddressUpper;
     reg32_t                FISBaseAddress;
     reg32_t                FISBaseAdressUpper;
@@ -96,7 +91,7 @@ PACKED_ATYPESTRUCT(volatile, AHCIPortRegisters, {
 /* The Physical Region Descriptor Table 
  * Describes a scatter/gather list for data transfers. */
 PACKED_TYPESTRUCT(AHCIPrdtEntry, {
-    reg32_t DataBaseAddress;
+    reg32_t DataBaseAddress;       // Must be word aligned, bit 0 MUST be clear
     reg32_t DataBaseAddressUpper;
     reg32_t Reserved;
 
@@ -107,6 +102,9 @@ PACKED_TYPESTRUCT(AHCIPrdtEntry, {
 });
 #define AHCI_PRDT_IOC            (1 << 31)  // Interrupt on Completion
 
+#define AHCI_COMMAND_TABLE_PRDT_SIZE    16 // == sizeof(AHCIPrdtEntry_t)
+#define AHCI_PRDT_MAX_LENGTH            (4 * 1024 * 1024) // Max number of bytes per PRDT
+
 /* The command table which is pointed to by a Command list header, 
  * and this table contains a given number of FIS, 128 bytes */
 PACKED_TYPESTRUCT(AHCICommandTable, {
@@ -115,6 +113,10 @@ PACKED_TYPESTRUCT(AHCICommandTable, {
     uint8_t         Reserved[48];
     AHCIPrdtEntry_t PrdtEntry[1];    // Between 0...65535 entries of PRDT
 });
+
+#define AHCI_COMMAND_TABLE_HEADER_SIZE  128 // == sizeof(AHCICommandTable_t)
+#define AHCI_COMMAND_TABLE_PRDT_COUNT   32
+#define AHCI_COMMAND_TABLE_SIZE         (AHCI_COMMAND_TABLE_HEADER_SIZE + (AHCI_COMMAND_TABLE_PRDT_SIZE * AHCI_COMMAND_TABLE_PRDT_COUNT))
 
 /* The command list entry structure 
  * Contains a command for the port to execute */
@@ -133,7 +135,7 @@ PACKED_TYPESTRUCT(AHCICommandHeader, {
     uint16_t TableLength;    // (PRDT) Physical Region Descriptor Table Length
     uint32_t PRDByteCount;   // PRDBC: PRD Byte Count
 
-    uint32_t CmdTableBaseAddress;
+    uint32_t CmdTableBaseAddress;      // 128 Bytes Alignment
     uint32_t CmdTableBaseAddressUpper;
     uint32_t Reserved[4];
 });
