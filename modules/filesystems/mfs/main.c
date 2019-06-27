@@ -31,8 +31,9 @@
 static const char* RootEntryName = "<root>";
 
 // File specific operation handlers
-FileSystemCode_t FsReadFromFile(FileSystemDescriptor_t*, MfsEntryHandle_t* , DmaBuffer_t*, size_t, size_t*, size_t*);
-FileSystemCode_t FsWriteToFile(FileSystemDescriptor_t*, MfsEntryHandle_t*, DmaBuffer_t*, size_t, size_t*);
+
+FileSystemCode_t FsReadFromFile(FileSystemDescriptor_t*, MfsEntryHandle_t*, UUId_t, void*, size_t, size_t, size_t*)
+FileSystemCode_t FsWriteToFile(FileSystemDescriptor_t*, MfsEntryHandle_t*, UUId_t, void*, size_t, size_t, size_t*)
 FileSystemCode_t FsSeekInFile(FileSystemDescriptor_t*, MfsEntryHandle_t*, uint64_t);
 
 // Directory specific operation handlers

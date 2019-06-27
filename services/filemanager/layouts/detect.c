@@ -40,8 +40,8 @@ DiskDetectFileSystem(FileSystemDisk_t *Disk,
 		LODWORD(Sector), LODWORD(SectorCount));
 
 	// Make sure the MBR is loaded
-	if (StorageRead(Disk->Driver, Disk->Device, Sector, 
-			BufferHandle, 1, &SectorsRead) != OsSuccess) {
+	if (StorageTransfer(Disk->Device, Disk->Driver, __STORAGE_OPERATION_READ, Sector, 
+			BufferHandle, 0, 1, &SectorsRead) != OsSuccess) {
 		return OsError;
 	}
 
@@ -107,8 +107,8 @@ DiskDetectLayout(
 	// In order to detect the schema that is used
 	// for the disk - we can easily just read sector LBA 1
 	// and look for the GPT signature
-	if (StorageRead(Disk->Driver, Disk->Device, 1, 
-			BufferHandle, 1, &SectorsRead) != OsSuccess) {
+	if (StorageTransfer(Disk->Device, Disk->Driver, __STORAGE_OPERATION_READ, 1, 
+			BufferHandle, 0, 1, &SectorsRead) != OsSuccess) {
 		MemoryFree(Buffer, Disk->Descriptor.SectorSize);
 		MemoryUnshare(BufferHandle);
 		return OsError;

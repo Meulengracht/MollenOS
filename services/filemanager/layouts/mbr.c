@@ -43,8 +43,8 @@ MbrEnumeratePartitions(
 
     // Start out by reading the mbr to detect whether
     // or not there is a partition table
-    if (StorageRead(Disk->Driver, Disk->Device, Sector, 
-            BufferHandle, 1, &SectorsRead) != OsSuccess) {
+    if (StorageTransfer(Disk->Device, Disk->Driver, __STORAGE_OPERATION_READ, Sector, 
+            BufferHandle, 0, 1, &SectorsRead) != OsSuccess) {
         return OsError;
     }
 
