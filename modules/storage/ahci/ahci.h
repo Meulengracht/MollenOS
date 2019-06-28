@@ -325,14 +325,6 @@ typedef struct _AhciPort {
     AHCIFis_t*              RecievedFisTable;
     AHCIFis_t*              RecievedFis;
     void*                   CommandTable;
-
-    // Status of command slots
-    // There can be max 32 slots, so we use a 32 bit unsigned
-    uint32_t                SlotStatus;
-
-    // Transactions for this port 
-    // Keeps track of active transfers. Key -> Slot, SubKey -> Multiplier
-    Collection_t*           Transactions;
 } AhciPort_t;
 
 /* AhciInterruptResource
@@ -365,25 +357,6 @@ typedef struct _AhciController {
     void*                   FisBase;
     uintptr_t               FisBasePhysical;
 } AhciController_t;
-
-typedef struct _AhciDevice {
-    StorageDescriptor_t     Descriptor;
-
-    AhciController_t*       Controller;
-    AhciPort_t*             Port;
-    struct {
-        UUId_t              BufferHandle;
-        void*               Buffer;
-        size_t              BufferLength;
-    } TransferBuffer;
-    int                     Index;
-
-    int                     Type;                // 0 -> ATA, 1 -> ATAPI
-    int                     UseDMA;
-    uint64_t                SectorsLBA;
-    int                     AddressingMode;    // (0) CHS, (1) LBA28, (2) LBA48
-    size_t                  SectorSize;
-} AhciDevice_t;
 
 /* AhciControllerCreate
  * Registers a new controller with the AHCI driver */

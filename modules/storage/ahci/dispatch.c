@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +17,7 @@
  * along with this program.If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Advanced Host Controller Interface Driver
+ * Advanced Host Controller Interface Driver
  * TODO:
  *    - Port Multiplier Support
  *    - Power Management
@@ -29,8 +30,8 @@
 #include <threads.h>
 #include <stdlib.h>
 
-void
-AhciDumpCurrentState(
+static void
+DumpCurrentState(
     _In_ AhciController_t* Controller, 
     _In_ AhciPort_t*       Port)
 {
@@ -63,8 +64,14 @@ AhciDumpCurrentState(
         Port->Registers->AtaStatus);
 }
 
-OsStatus_t
-AhciCommandDispatch(
+static void
+BuildPRDTTable()
+{
+    
+}
+
+static OsStatus_t
+DispatchCommand(
     _In_ AhciTransaction_t* Transaction,
     _In_ Flags_t            Flags,
     _In_ void*              Command, 
@@ -181,8 +188,6 @@ Error:
     return OsError;
 }
 
-/* PrintTaskDataErrorString
- * Converts the error of the task data to a user-readable string and prints it out. */
 void
 PrintTaskDataErrorString(uint8_t TaskDataError)
 {
@@ -197,13 +202,11 @@ PrintTaskDataErrorString(uint8_t TaskDataError)
     }
 }
 
-/* AhciVerifyRegisterFIS
- * Verifies a recieved fis result on a port/slot */
 OsStatus_t
 AhciVerifyRegisterFIS(
     _In_ AhciTransaction_t *Transaction)
 {
-    AHCIFis_t *Fis = &Transaction->Device->Port->RecievedFisTable[Transaction->Slot];
+    AHCIFis_t* Fis = &Transaction->Device->Port->RecievedFisTable[Transaction->Slot];
 
     // Is the error bit set?
     if (Fis->RegisterD2H.Status & ATA_STS_DEV_ERROR) {
@@ -220,31 +223,22 @@ AhciVerifyRegisterFIS(
     return OsSuccess;
 }
 
-OsStatus_t 
-AhciCommandRegisterFIS(
+static void
+ComposeRegisterFIS(
+    _In_ AhciDevice_t*      Device,
     _In_ AhciTransaction_t* Transaction,
-    _In_ ATACommandType_t   Command, 
-    _In_ uint64_t           SectorLBA, 
-    _In_ int                Device, 
-    _In_ int                Write)
+    _In_ FISRegisterH2D_t*  Fis)
 {
-    FISRegisterH2D_t Fis = { 0 };
-    OsStatus_t       Status;
-    Flags_t          Flags;
-
-    // Trace
-    TRACE("AhciCommandRegisterFIS(Cmd 0x%x, Sector 0x%x)",
-        LOBYTE(Command), LODWORD(SectorLBA));
-
-    // Fill out initial information
+    int Device = 0; // TODO: what is this again?
+    
     Fis.Type    = LOBYTE(FISRegisterH2D);
     Fis.Flags  |= FIS_HOST_TO_DEVICE;
-    Fis.Command = LOBYTE(Command);
+    Fis.Command = LOBYTE(Transaction->Command);
     Fis.Device  = 0x40 | ((LOBYTE(Device) & 0x1) << 4);
-
+    
     // Handle LBA to CHS translation if disk uses
     // the CHS scheme
-    if (Transaction->Device->AddressingMode == 0) {
+    if (Device->AddressingMode == 0) {
         //uint16_t Head = 0, Cylinder = 0, Sector = 0;
 
         // Step 1 -> Transform LBA into CHS
@@ -254,8 +248,7 @@ AhciCommandRegisterFIS(
         // Set count
         Fis.Count = (uint16_t)(Transaction->SectorCount & 0xFF);
     }
-    else if (Transaction->Device->AddressingMode == 1 || 
-             Transaction->Device->AddressingMode == 2) {
+    else if (Device->AddressingMode == 1 || Device->AddressingMode == 2) {
         // Set LBA 28 parameters
         Fis.SectorNo            = LOBYTE(SectorLBA);
         Fis.CylinderLow         = (uint8_t)((SectorLBA >> 8) & 0xFF);
@@ -263,7 +256,7 @@ AhciCommandRegisterFIS(
         Fis.SectorNoExtended    = (uint8_t)((SectorLBA >> 24) & 0xFF);
 
         // If it's an LBA48, set LBA48 params as well
-        if (Transaction->Device->AddressingMode == 2) {
+        if (Device->AddressingMode == 2) {
             Fis.CylinderLowExtended     = (uint8_t)((SectorLBA >> 32) & 0xFF);
             Fis.CylinderHighExtended    = (uint8_t)((SectorLBA >> 40) & 0xFF);
 
@@ -275,12 +268,27 @@ AhciCommandRegisterFIS(
             Fis.Count = (uint16_t)(Transaction->SectorCount & 0xFF);
         }
     }
+}
 
+OsStatus_t
+AhciDispatchRegisterFIS(
+    _In_ AhciDevice_t*      Device,
+    _In_ AhciTransaction_t* Transaction)
+{
+    FISRegisterH2D_t Fis = { 0 };
+    OsStatus_t       Status;
+    Flags_t          Flags;
+
+    TRACE("AhciDispatchRegisterFIS(Cmd 0x%x, Sector 0x%x)",
+        LOBYTE(Transaction->Command), LODWORD(Transaction->Sector));
+    
+    ComposeRegisterFIS(Device, Transaction, &Fis);
+    
     // Start out by building dispatcher flags here
     Flags = DISPATCH_MULTIPLIER(0);
     
     // Atapi device?
-    if (ReadVolatile32(&Transaction->Device->Port->Registers->Signature) == SATA_SIGNATURE_ATAPI) {
+    if (ReadVolatile32(&Device->Port->Registers->Signature) == SATA_SIGNATURE_ATAPI) {
         Flags |= DISPATCH_ATAPI;
     }
 
@@ -288,22 +296,10 @@ AhciCommandRegisterFIS(
     if (Write) {
         Flags |= DISPATCH_WRITE;
     }
-
-    // Allocate a command slot for this transaction
-    if (AhciPortAcquireCommandSlot(Transaction->Device->Controller,
-        Transaction->Device->Port, &Transaction->Slot) != OsSuccess) {
-        ERROR("AHCI::Port (%i): Failed to allocate a command slot",
-            Transaction->Device->Port->Id);
-        return OsError;
-    }
-
+    
     // Execute command - we do this asynchronously
     // so we must handle the rest of this later on
-    Status = AhciCommandDispatch(Transaction, Flags, &Fis, sizeof(FISRegisterH2D_t), NULL, 0);
-    if (Status != OsSuccess) {
-        AhciPortReleaseCommandSlot(Transaction->Device->Port, Transaction->Slot);
-    }
-    return Status;
+    return AhciCommandDispatch(Transaction, Flags, &Fis, sizeof(FISRegisterH2D_t), NULL, 0);
 }
 
 OsStatus_t 

@@ -347,46 +347,6 @@ AhciPortStart(
     return AhciPortEnable(Controller, Port);
 }
 
-/* AhciPortAcquireCommandSlot
- * Allocates an available command slot on a port returns index on success, otherwise -1 */
-OsStatus_t
-AhciPortAcquireCommandSlot(
-    _In_  AhciController_t* Controller,
-    _In_  AhciPort_t*       Port,
-    _Out_ int*              Index)
-{
-    reg32_t    AtaActive = ReadVolatile32(&Port->Registers->AtaActive);
-    OsStatus_t Status    = OsError;
-    int        i;
-
-    if (Index == NULL) {
-        return OsError;
-    }
-
-    // Iterate possible command slots
-    for (i = 0; i < (int)Controller->CommandSlotCount; i++) {
-        // Check availability status on this command slot
-        if ((Port->SlotStatus & (1 << i)) != 0 || (AtaActive & (1 << i)) != 0) {
-            continue;
-        }
-
-        // Allocate slot and update the out variables
-        Status              = OsSuccess;
-        Port->SlotStatus    |= (1 << i);
-        *Index              = i;
-        break;
-    }
-    return Status;
-}
-
-void
-AhciPortReleaseCommandSlot(
-    _In_ AhciPort_t* Port, 
-    _In_ int         Slot)
-{
-    Port->SlotStatus &= ~(1 << Slot);
-}
-
 void
 AhciPortStartCommandSlot(
     _In_ AhciPort_t* Port, 
