@@ -61,6 +61,13 @@ typedef struct {
     Collection_t*           Transactions;
 } AhciDevice_t;
 
+#define AHCI_DEVICE_TYPE_ATA    0
+#define AHCI_DEVICE_TYPE_ATAPI  1
+
+#define AHCI_DEVICE_MODE_CHS    0
+#define AHCI_DEVICE_MODE_LBA28  1
+#define AHCI_DEVICE_MODE_LBA48  2
+
 typedef struct {
     CollectionItem_t     Header;
     MRemoteCallAddress_t ResponseAddress;
@@ -68,14 +75,18 @@ typedef struct {
     TransactionState_t   State;
     ATACommandType_t     Command;
     uint64_t             Sector;
-    size_t               SectorCount;
+    size_t               BytesLeft;
     AhciDevice_t*        Device;
     int                  Slot;
+    int                  Direction;
     
     int                  FrameIndex;
     size_t               FrameOffset;
     uintptr_t            Frames[1];
 } AhciTransaction_t;
+
+#define AHCI_XACTION_IN     0
+#define AHCI_XACTION_OUT    1
 
 /**
  * Ahci Manager Interface

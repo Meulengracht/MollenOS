@@ -35,11 +35,9 @@ DumpCurrentState(
     _In_ AhciController_t* Controller, 
     _In_ AhciPort_t*       Port)
 {
-    // When trace is disabled
     _CRT_UNUSED(Controller);
     _CRT_UNUSED(Port);
 
-    // Dump registers
     WARNING("AHCI.GlobalHostControl 0x%x",
         Controller->Registers->GlobalHostControl);
     WARNING("AHCI.InterruptStatus 0x%x",
@@ -65,13 +63,72 @@ DumpCurrentState(
 }
 
 static void
-BuildPRDTTable()
+BuildPRDTTable(
+    _In_ AhciDevice_t*      Device,
+    _In_ AhciTransaction_t* Transaction,
+    _In_ size_t             CommandLength)
 {
+    AHCICommandHeader_t* CommandHeader;
+    AHCICommandTable_t*  CommandTable;
+    int                  i;
+    TRACE("Building PRDT Table");
     
+    // Get a reference to the command slot and reset the data in the command table
+    CommandHeader = &Device->Port->CommandList->Headers[Transaction->Slot];
+    CommandTable  = (AHCICommandTable_t*)((uint8_t*)Device->Port->CommandTable
+            + (AHCI_COMMAND_TABLE_SIZE * Transaction->Slot));
+    memset(CommandTable, 0, AHCI_COMMAND_TABLE_SIZE);
+
+    // Build PRDT entries
+    BufferPointer = Transaction->Address;
+    for (i = 0; i < AHCI_COMMAND_TABLE_PRDT_COUNT && Transaction->BytesLeft > 0; i++) {
+        AHCIPrdtEntry_t* Prdt           = &CommandTable->PrdtEntry[i];
+        uintptr_t        Address        = Transaction->Frames[Transaction->FrameIndex];
+        uintptr_t        NextAddress    = Address + AhciManagerGetFrameSize();
+        size_t           TransferLength = AhciManagerGetFrameSize() - Transaction->FrameOffset;
+        int              j              = 0;
+        
+        // So, since we have a scatter gather list, lets try to see how many consecutive
+        // frames are available for each loop
+        while (NextAddress == Transaction->Frames[Transaction->FrameIndex + j]) {
+            TransferLength += AhciManagerGetFrameSize();
+            NextAddress    += AhciManagerGetFrameSize();
+            j++;
+        }
+        
+        // Adjust for maximum size
+        Address       += Transaction->FrameOffset;
+        TransferLength = MIN(AHCI_PRDT_MAX_LENGTH, TransferLength);
+        
+        // Make sure the transfer length is a multiple of sector-size
+        
+        Prdt->DataBaseAddress      = LODWORD(Address);
+        Prdt->DataBaseAddressUpper = (sizeof(void*) > 4) ? HIDWORD(Address) : 0;
+        Prdt->Descriptor           = TransferLength - 1; // N - 1
+
+        TRACE("PRDT %u, Address 0x%x, Length 0x%x", PrdtIndex, Prdt->DataBaseAddress, Prdt->Descriptor);
+
+        // Adjust frame index and offset
+        Transaction->FrameIndex  += (Transaction->FrameOffset + TransferLength) / AhciManagerGetFrameSize();
+        Transaction->FrameOffset = (Transaction->FrameOffset + TransferLength) % AhciManagerGetFrameSize();
+        Transaction->BytesLeft   -= TransferLength;
+
+        // If this is the last PRDT packet, set IOC
+        if (i == AHCI_COMMAND_TABLE_PRDT_COUNT || BytesLeft == 0) {
+            Prdt->Descriptor |= AHCI_PRDT_IOC;
+        }
+    }
+
+    // Update command table to the new command
+    CommandHeader->PRDByteCount = 0;
+    CommandHeader->TableLength  = (uint16_t)(i & 0xFFFF);
+    CommandHeader->Flags        = (uint16_t)(CommandLength >> 2);
+    TRACE("PRDT Count %u, Number of DW's %u", CommandHeader->TableLength, CommandHeader->Flags);
 }
 
 static OsStatus_t
 DispatchCommand(
+    _In_ AhciDevice_t*      Device,
     _In_ AhciTransaction_t* Transaction,
     _In_ Flags_t            Flags,
     _In_ void*              Command, 
@@ -79,80 +136,34 @@ DispatchCommand(
     _In_ void*              AtapiCommand, 
     _In_ size_t             AtapiCommandLength)
 {
-    AHCICommandHeader_t* CommandHeader;
-    AHCICommandTable_t*  CommandTable;
-    uintptr_t            BufferPointer;
-    size_t               BytesLeft = Transaction->SectorCount * Transaction->Device->SectorSize;
-    int                  PrdtIndex = 0;
+    TRACE("DispatchCommand(Port %u, Flags 0x%x)", Device->Port->Id, Flags);
 
-    TRACE("AhciCommandDispatch(Port %u, Flags 0x%x, Length %u, TransferSize 0x%x)",
-        Transaction->Device->Port->Id, Flags, CommandLength, BytesLeft);
-
-    // Assert that buffer is DWORD aligned, this must be true
-    if (((uintptr_t)Transaction->Address & 0x3) != 0) {
-        ERROR("AhciCommandDispatch::Buffer was not dword aligned (0x%x)",
-            Transaction->Device->Port->Id, Transaction->Address);
-        goto Error;
+    // Assert that buffer is WORD aligned, this must be true
+    // The number of bytes to transfer must also be WORD aligned, however as
+    // the storage interface is implemented one can only transfer in sectors so
+    // this is always true.
+    if (((uintptr_t)Transaction->FrameOffset & 0x1) != 0) {
+        ERROR("DispatchCommand::FrameOffset was not dword aligned (0x%x)", Transaction->FrameOffset);
+        return OsInvalidParameters;
     }
-
-    // Assert that buffer length is an even byte-count requested
-    if ((BytesLeft & 0x1) != 0) {
-        ERROR("AhciCommandDispatch::BufferLength is odd, must be even",
-            Transaction->Device->Port->Id);
-        goto Error;
-    }
-
-    // Get a reference to the command slot and reset the data in the command table
-    CommandHeader = &Transaction->Device->Port->CommandList->Headers[Transaction->Slot];
-    CommandTable  = (AHCICommandTable_t*)((uint8_t*)Transaction->Device->Port->CommandTable
-            + (AHCI_COMMAND_TABLE_SIZE * Transaction->Slot));
-    memset(CommandTable, 0, AHCI_COMMAND_TABLE_SIZE);
 
     // Sanitizie packet lenghts
     if (CommandLength > 64 || AtapiCommandLength > 16) {
         ERROR("AHCI::Commands are exceeding the allowed length, FIS (%u), ATAPI (%u)",
             CommandLength, AtapiCommandLength);
-        goto Error;
+        return OsInvalidParameters;
     }
 
-    // Copy data over into the packets based on type
     if (Command != NULL) {
         memcpy(&CommandTable->FISCommand[0], Command, CommandLength);
     }
+    
     if (AtapiCommand != NULL) {
         memcpy(&CommandTable->FISAtapi[0], AtapiCommand, AtapiCommandLength);
     }
-
-    // Build PRDT entries
-    TRACE("Building PRDT Table");
-    BufferPointer = Transaction->Address;
-    while (BytesLeft > 0) {
-        AHCIPrdtEntry_t* Prdt = &CommandTable->PrdtEntry[PrdtIndex];
-        size_t TransferLength = MIN(AHCI_PRDT_MAX_LENGTH, BytesLeft);
-
-        // Set buffer information and transfer sizes
-        Prdt->DataBaseAddress      = LODWORD(BufferPointer);
-        Prdt->DataBaseAddressUpper = (sizeof(void*) > 4) ? HIDWORD(BufferPointer) : 0;
-        Prdt->Descriptor           = TransferLength - 1; // N - 1
-
-        TRACE("PRDT %u, Address 0x%x, Length 0x%x", PrdtIndex, Prdt->DataBaseAddress, Prdt->Descriptor);
-
-        // Adjust counters
-        BufferPointer += TransferLength;
-        BytesLeft     -= TransferLength;
-        PrdtIndex++;
-
-        // If this is the last PRDT packet, set IOC
-        if (BytesLeft == 0) {
-            Prdt->Descriptor |= AHCI_PRDT_IOC;
-        }
-    }
-
-    // Update command table to the new command
-    CommandHeader->PRDByteCount = 0;
-    CommandHeader->TableLength  = (uint16_t)PrdtIndex;
-    CommandHeader->Flags        = (uint16_t)(CommandLength >> 2);
-    TRACE("PRDT Count %u, Number of DW's %u", CommandHeader->TableLength, CommandHeader->Flags);
+    
+    // Build the PRDT table
+    BuildPRDTTable(Device, Transaction);
 
     // Update transfer with the dispatch flags
     if (Flags & DISPATCH_ATAPI) {
@@ -170,10 +181,7 @@ DispatchCommand(
 
     // Set the port multiplier
     CommandHeader->Flags |= (DISPATCH_MULTIPLIER(Flags) << 12);
-    Transaction->Header.Key.Value.Integer = Transaction->Slot;
-
-    // Add transaction to list
-    CollectionAppend(Transaction->Device->Port->Transactions, &Transaction->Header);
+    
     TRACE("Enabling command on slot %u", Transaction->Slot);
     AhciPortStartCommandSlot(Transaction->Device->Port, Transaction->Slot);
 
@@ -183,9 +191,6 @@ DispatchCommand(
     AhciDumpCurrentState(Transaction->Device->Controller, Transaction->Device->Port);
 #endif
     return OsSuccess;
-
-Error:
-    return OsError;
 }
 
 void
@@ -238,7 +243,7 @@ ComposeRegisterFIS(
     
     // Handle LBA to CHS translation if disk uses
     // the CHS scheme
-    if (Device->AddressingMode == 0) {
+    if (Device->AddressingMode == AHCI_DEVICE_MODE_CHS) {
         //uint16_t Head = 0, Cylinder = 0, Sector = 0;
 
         // Step 1 -> Transform LBA into CHS
@@ -248,7 +253,8 @@ ComposeRegisterFIS(
         // Set count
         Fis.Count = (uint16_t)(Transaction->SectorCount & 0xFF);
     }
-    else if (Device->AddressingMode == 1 || Device->AddressingMode == 2) {
+    else if (Device->AddressingMode == AHCI_DEVICE_MODE_LBA28 || 
+             Device->AddressingMode == AHCI_DEVICE_MODE_LBA48) {
         // Set LBA 28 parameters
         Fis.SectorNo            = LOBYTE(SectorLBA);
         Fis.CylinderLow         = (uint8_t)((SectorLBA >> 8) & 0xFF);
@@ -256,7 +262,7 @@ ComposeRegisterFIS(
         Fis.SectorNoExtended    = (uint8_t)((SectorLBA >> 24) & 0xFF);
 
         // If it's an LBA48, set LBA48 params as well
-        if (Device->AddressingMode == 2) {
+        if (Device->AddressingMode == AHCI_DEVICE_MODE_LBA48) {
             Fis.CylinderLowExtended     = (uint8_t)((SectorLBA >> 32) & 0xFF);
             Fis.CylinderHighExtended    = (uint8_t)((SectorLBA >> 40) & 0xFF);
 
@@ -287,18 +293,13 @@ AhciDispatchRegisterFIS(
     // Start out by building dispatcher flags here
     Flags = DISPATCH_MULTIPLIER(0);
     
-    // Atapi device?
-    if (ReadVolatile32(&Device->Port->Registers->Signature) == SATA_SIGNATURE_ATAPI) {
+    if (Device->Type == AHCI_DEVICE_TYPE_ATAPI) {
         Flags |= DISPATCH_ATAPI;
     }
 
-    // Determine direction of operation
-    if (Write) {
+    if (Transaction->Direction == AHCI_XACTION_OUT) {
         Flags |= DISPATCH_WRITE;
     }
-    
-    // Execute command - we do this asynchronously
-    // so we must handle the rest of this later on
     return AhciCommandDispatch(Transaction, Flags, &Fis, sizeof(FISRegisterH2D_t), NULL, 0);
 }
 
