@@ -23,11 +23,10 @@
  *    - Power Management
  */
 
-#ifndef _AHCI_MANAGER_H_
-#define _AHCI_MANAGER_H_
+#ifndef __AHCI_DISPATCH_H__
+#define __AHCI_DISPATCH_H__
 
 #include <os/osdefs.h>
-#include <ds/collection.h>
 #include "ahci.h"
 
 // Dispatcher Flags 
@@ -53,4 +52,4 @@ AhciDispatchRegisterFIS(
     _In_ AhciDevice_t*      Device,
     _In_ AhciTransaction_t* Transaction);
 
-#endif //!_AHCI_MANAGER_H_
+#endif //!__AHCI_DISPATCH_H__

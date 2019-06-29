@@ -43,22 +43,12 @@ typedef struct {
     AhciController_t*       Controller;
     AhciPort_t*             Port;
     int                     Index;
-    
-    struct {
-        UUId_t              BufferHandle;
-        void*               Buffer;
-        size_t              BufferLength;
-    } TransferBuffer;
 
     int                     Type;              // 0 -> ATA, 1 -> ATAPI
     int                     UseDMA;
     uint64_t                SectorsLBA;
     int                     AddressingMode;    // (0) CHS, (1) LBA28, (2) LBA48
     size_t                  SectorSize;
-    
-    _Atomic(int)            Slots;
-    int                     SlotCount;
-    Collection_t*           Transactions;
 } AhciDevice_t;
 
 #define AHCI_DEVICE_TYPE_ATA    0
@@ -74,11 +64,13 @@ typedef struct {
     
     TransactionState_t   State;
     ATACommandType_t     Command;
-    uint64_t             Sector;
-    size_t               BytesLeft;
     AhciDevice_t*        Device;
     int                  Slot;
     int                  Direction;
+
+    uint64_t             Sector;
+    int                  SectorAlignment;
+    size_t               BytesLeft;
     
     int                  FrameIndex;
     size_t               FrameOffset;

@@ -56,12 +56,9 @@ AhciPortCreate(
     AhciPort->Id           = Port;     // Sequential port number
     AhciPort->Index        = Index;    // Index in validity map
     AhciPort->Registers    = (AHCIPortRegisters_t*)((uintptr_t)Controller->Registers + AHCI_REGISTER_PORTBASE(Index)); // @todo port nr or bit index?
-    AhciPort->Transactions = CollectionCreate(KeyInteger);
     return AhciPort;
 }
 
-/* AhciPortCleanup
- * Destroys a port, cleans up device, cleans up memory and resources */
 void
 AhciPortCleanup(
     _In_ AhciController_t* Controller, 
@@ -81,12 +78,9 @@ AhciPortCleanup(
     if (Port->RecievedFisTable != NULL) {
         free((void*)Port->RecievedFisTable);
     }
-    CollectionDestroy(Port->Transactions);
     free(Port);
 }
 
-/* AhciPortIdentifyDevice
- * Identifies connection on a port, and initializes connection/device */
 OsStatus_t
 AhciPortIdentifyDevice(
     _In_ AhciController_t* Controller, 
@@ -97,8 +91,6 @@ AhciPortIdentifyDevice(
     return AhciManagerCreateDevice(Controller, Port);
 }
 
-/* AhciPortInitiateSetup
- * Initiates the setup sequence, this function needs at-least 500ms to complete before touching the port again. */
 void
 AhciPortInitiateSetup(
     _In_ AhciController_t* Controller,
@@ -113,8 +105,6 @@ AhciPortInitiateSetup(
     }
 }
 
-/* AhciPortFinishSetup
- * Finishes setup of port by completing a reset sequence. */
 OsStatus_t
 AhciPortFinishSetup(
     _In_ AhciController_t* Controller,
@@ -193,9 +183,6 @@ AhciPortFinishSetup(
     return OsSuccess;
 }
 
-/* AhciPortRebase
- * Rebases the port by setting up allocated memory tables and command memory. This can only be done
- * when the port is in a disabled state. */
 void
 AhciPortRebase(
     _In_ AhciController_t* Controller,
@@ -246,9 +233,6 @@ AhciPortRebase(
     }
 }
 
-/* AhciPortEnable
- * Enables the port by performing the last steps of the setup. At this point we assume that DET == 3. 
- * We also assume that CR | FR == 0 and that port has been rebased. */
 OsStatus_t
 AhciPortEnable(
     _In_ AhciController_t* Controller,
@@ -287,8 +271,6 @@ AhciPortEnable(
     return AhciPortIdentifyDevice(Controller, Port);
 }
 
-/* AhciPortStart
- * Starts the port, the port must have been in a disabled state and must have been rebased at-least once. */
 OsStatus_t
 AhciPortStart(
     _In_ AhciController_t* Controller,

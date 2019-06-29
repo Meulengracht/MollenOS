@@ -32,22 +32,23 @@ static struct {
     int              DMA;
     int              AddressingMode,
     ATACommandType_t Command;
+    size_t           SectorAlignment;
     size_t           MaxSectors;
 } CommandTable[] = {
-    { __STORAGE_OPERATION_READ, 0, 2, AtaPIOReadExt, 0xFFFF },
-    { __STORAGE_OPERATION_READ, 0, 1, AtaPIORead, 0xFF },
-    { __STORAGE_OPERATION_READ, 0, 0, AtaPIORead, 0xFF },
-    { __STORAGE_OPERATION_READ, 1, 2, AtaDMAReadExt, 0xFFFF },
-    { __STORAGE_OPERATION_READ, 1, 1, AtaDMARead, 0xFF },
-    { __STORAGE_OPERATION_READ, 1, 0, AtaDMARead, 0xFF },
+    { __STORAGE_OPERATION_READ, 0, 2, AtaPIOReadExt, 1, 0xFFFF },
+    { __STORAGE_OPERATION_READ, 0, 1, AtaPIORead, 1, 0xFF },
+    { __STORAGE_OPERATION_READ, 0, 0, AtaPIORead, 1, 0xFF },
+    { __STORAGE_OPERATION_READ, 1, 2, AtaDMAReadExt, 1, 0xFFFF },
+    { __STORAGE_OPERATION_READ, 1, 1, AtaDMARead, 1, 0xFF },
+    { __STORAGE_OPERATION_READ, 1, 0, AtaDMARead, 1, 0xFF },
     
-    { __STORAGE_OPERATION_WRITE, 0, 2, AtaPIOWriteExt, 0xFFFF },
-    { __STORAGE_OPERATION_WRITE, 0, 1, AtaPIOWrite, 0xFF },
-    { __STORAGE_OPERATION_WRITE, 0, 0, AtaPIOWrite, 0xFF },
-    { __STORAGE_OPERATION_WRITE, 1, 2, AtaDMAWriteExt, 0xFFFF },
-    { __STORAGE_OPERATION_WRITE, 1, 1, AtaDMAWrite, 0xFF },
-    { __STORAGE_OPERATION_WRITE, 1, 0, AtaDMAWrite, 0xFF },
-    { -1, -1, -1, 0, 0 }
+    { __STORAGE_OPERATION_WRITE, 0, 2, AtaPIOWriteExt, 1, 0xFFFF },
+    { __STORAGE_OPERATION_WRITE, 0, 1, AtaPIOWrite, 1, 0xFF },
+    { __STORAGE_OPERATION_WRITE, 0, 0, AtaPIOWrite, 1, 0xFF },
+    { __STORAGE_OPERATION_WRITE, 1, 2, AtaDMAWriteExt, 1, 0xFFFF },
+    { __STORAGE_OPERATION_WRITE, 1, 1, AtaDMAWrite, 1, 0xFF },
+    { __STORAGE_OPERATION_WRITE, 1, 0, AtaDMAWrite, 1, 0xFF },
+    { -1, -1, -1, 0, 0, 0 }
 }
 
 OsStatus_t
@@ -79,18 +80,17 @@ AhciTransactionCreate(
     
     // Do not bother about zeroing the array
     memset(Transaction, 0, sizeof(AhciTransaction_t));
-    memcpy((void*)&Transaction->ResponseAddress, Address, sizeof(MRemoteCallAddress_t));
+    memcpy((void*)&Transaction->ResponAtaPIOIdentifyDeviceseAddress, Address, sizeof(MRemoteCallAddress_t));
     Transaction->Header.Key.Id = TransactionId++;
     
     // Do not bother to check return code again, things should go ok now
     MemoryGetSharedMetrics(Operation->BufferHandle, NULL, &Transaction->Frame[0]);
     
-    StartOffset              = (Transaction->Frame[0] % AhciManagerGetFrameSize()) + Operation->BufferOffset);
+    StartOffset              = ((Transaction->Frame[0] % AhciManagerGetFrameSize()) + Operation->BufferOffset);
     Transaction->Frame[0]   &= ~(AhciManagerGetFrameSize() - 1);
     Transaction->FrameIndex  = StartOffset / AhciManagerGetFrameSize();
     Transaction->FrameOffset = StartOffset % AhciManagerGetFrameSize();
     Transaction->Sector      = Operation->AbsoluteSector;
-    Transaction->BytesLeft   = Operation->SectorCount * Device->SectorSize;
     Transaction->Device      = Device;
     Transaction->State       = TransactionCreated;
     Transaction->Slot        = -1;
@@ -107,8 +107,9 @@ AhciTransactionCreate(
             CommandTable[i].DMA            == Device->UseDMA &&
             CommandTable[i].AddressingMode == Device->AddressingMode) {
             // Found the appropriate command
-            Transaction->Command     = CommandTable[i].Command;
-            Transaction->SectorCount = MIN(Transaction->SectorCount, CommandTable[i].MaxSectors);
+            Transaction->Command         = CommandTable[i].Command;
+            Transaction->SectorAlignment = CommandTable[i].SectorAlignment;
+            Transaction->BytesLeft       = MIN(Operation->SectorCount, CommandTable[i].MaxSectors) * Device->SectorSize;
             break;
         }
         i++;
@@ -116,6 +117,7 @@ AhciTransactionCreate(
     
     // TODO: handle this
     assert(CommandTable[i].Direction != -1);
+    assert(Transaction->BytesLeft != 0);
     
     // The transaction is now prepared and ready for the dispatch
     Status = AhciDeviceQueueTransaction(Device, Transaction);

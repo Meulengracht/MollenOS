@@ -100,7 +100,7 @@ PACKED_TYPESTRUCT(AHCIPrdtEntry, {
      * Bit 31: Interrupt on Completion */
     reg32_t Descriptor;
 });
-#define AHCI_PRDT_IOC            (1 << 31)  // Interrupt on Completion
+#define AHCI_PRDT_IOC (1 << 31)  // Interrupt on Completion
 
 #define AHCI_COMMAND_TABLE_PRDT_SIZE    16 // == sizeof(AHCIPrdtEntry_t)
 #define AHCI_PRDT_MAX_LENGTH            (4 * 1024 * 1024) // Max number of bytes per PRDT
@@ -136,14 +136,14 @@ PACKED_TYPESTRUCT(AHCICommandHeader, {
     uint32_t PRDByteCount;   // PRDBC: PRD Byte Count
 
     uint32_t CmdTableBaseAddress;      // 128 Bytes Alignment
-    uint32_t CmdTableBaseAddressUpper;
+    uint32_t CmdTableBaseAddressUpper;            
     uint32_t Reserved[4];
 });
 
 /* The command list structure 
  * Contains a number of entries (1K /32 bytes) for each port to execute */
 PACKED_TYPESTRUCT(AHCICommandList, {
-    AHCICommandHeader_t Headers[32];
+    AHCICommandHeader_t Headers[32];            
 });
 
 /* Received FIS 
@@ -325,6 +325,16 @@ typedef struct _AhciPort {
     AHCIFis_t*              RecievedFisTable;
     AHCIFis_t*              RecievedFis;
     void*                   CommandTable;
+        
+    struct {
+        UUId_t              BufferHandle;
+        void*               Buffer;
+        size_t              BufferLength;
+    } InternalBuffer;
+
+    _Atomic(int)            Slots;
+    int                     SlotCount;
+    Collection_t*           Transactions;
 } AhciPort_t;
 
 /* AhciInterruptResource
